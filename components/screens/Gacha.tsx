@@ -10,14 +10,8 @@ import { hrefFor } from '@/lib/routes';
 import { Empty } from '@/components/ui/Empty';
 import { useTilt } from '@/components/ui/motion';
 
-/* mock 공시값 — 실 카드풀 오픈 시 진실원은 DB 공시 테이블(ADR-0001) */
+/* mock 공시 가중치 — 실 카드풀 오픈 시 진실원은 DB 공시 테이블(ADR-0001) */
 const RATES: Partial<Record<RarityKey, number>> = { HOLO: 1.5, SSR: 4.5, SR: 14, R: 80 };
-const RATE_ROWS: { rarity: RarityKey; rate: string }[] = [
-  { rarity: 'HOLO', rate: '1.5%' },
-  { rarity: 'SSR', rate: '4.5%' },
-  { rarity: 'SR', rate: '14%' },
-  { rarity: 'R', rate: '80%' },
-];
 const PITY_MAX = 60;
 
 /* 디자인 핸드오프의 카드풀 소개 카피. 미등재 IP는 데이터에서 파생 */
@@ -61,14 +55,34 @@ function MachineCard({ card }: { card: Card }) {
   );
 }
 
-function pickCard(cards: Card[]): Card {
-  const total = cards.reduce((sum, c) => sum + (RATES[c.rarity] ?? 10), 0);
-  let r = Math.random() * total;
-  for (const c of cards) {
-    r -= RATES[c.rarity] ?? 10;
-    if (r <= 0) return c;
+type PoolRate = { rarity: RarityKey; weight: number; rate: string };
+
+/* 풀에 실제 존재하는 등급만 공시하고 합이 100%가 되도록 정규화 — 공시값과 추첨 확률을 일치시킨다 */
+function poolRates(cards: Card[]): PoolRate[] {
+  const present = RARITY_ORDER.filter((r) => cards.some((c) => c.rarity === r));
+  const total = present.reduce((sum, r) => sum + (RATES[r] ?? 10), 0);
+  return present.map((r) => {
+    const weight = RATES[r] ?? 10;
+    return { rarity: r, weight, rate: `${Number(((weight / total) * 100).toFixed(1))}%` };
+  });
+}
+
+function pickUniform(group: Card[]): Card {
+  return group[Math.floor(Math.random() * group.length)];
+}
+
+function pickCard(cards: Card[], rates: PoolRate[]): Card {
+  const total = rates.reduce((sum, r) => sum + r.weight, 0);
+  let roll = Math.random() * total;
+  let rarity = rates[rates.length - 1].rarity;
+  for (const r of rates) {
+    roll -= r.weight;
+    if (roll <= 0) {
+      rarity = r.rarity;
+      break;
+    }
   }
-  return cards[cards.length - 1];
+  return pickUniform(cards.filter((c) => c.rarity === rarity));
 }
 
 export function Gacha({
@@ -107,8 +121,10 @@ export function Gacha({
   }
 
   const { ip, cards } = pool;
+  const rates = poolRates(cards);
   const top = RARITY_ORDER.map((r) => cards.find((c) => c.rarity === r)).find(Boolean) ?? cards[0];
-  const holo = cards.find((c) => c.rarity === 'HOLO') ?? null;
+  /* 천장 타깃 = 풀의 실제 최고 등급 — HOLO 없는 풀에서도 보장이 이행된다 */
+  const pityCards = cards.filter((c) => c.rarity === top.rarity);
   const desc = POOL_DESC[ip.id] ?? `${ip.title} 카드풀. ${top.name} ${top.rarity}가 현재 최고 등급입니다.`;
 
   const selectPool = (id: string) => {
@@ -122,9 +138,9 @@ export function Gacha({
     const res: Card[] = [];
     for (let i = 0; i < n; i++) {
       p++;
-      let card = pickCard(cards);
-      if (p >= PITY_MAX && holo) card = holo;
-      if (card.rarity === 'HOLO') p = 0;
+      let card = pickCard(cards, rates);
+      if (p >= PITY_MAX) card = pickUniform(pityCards);
+      if (card.rarity === top.rarity) p = 0;
       res.push(card);
     }
     setResults(res);
@@ -177,7 +193,7 @@ export function Gacha({
             <p className="rise" style={{ margin: '14px 0 0', fontSize: 15, color: '#C9C3E4', maxWidth: 460, textWrap: 'pretty', animationDelay: '.16s' }}>{desc}</p>
 
             <div className="rise" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 22, animationDelay: '.22s' }}>
-              {RATE_ROWS.map((r) => (
+              {rates.map((r) => (
                 <span key={r.rarity} className="mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 32, padding: '0 13px', borderRadius: 999, fontSize: 11.5, border: `1px solid ${RARITY_META[r.rarity].color}55`, color: RARITY_META[r.rarity].color, background: 'rgba(255,255,255,.02)' }}>
                   <strong>{r.rarity}</strong> {r.rate}
                 </span>
@@ -195,7 +211,7 @@ export function Gacha({
               <div style={{ height: 8, borderRadius: 99, background: 'rgba(255,255,255,.07)', marginTop: 9, overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: `${Math.min(100, Math.round((pity / PITY_MAX) * 100))}%`, borderRadius: 99, background: 'linear-gradient(90deg, #2DE2FF, #8B5CFF, #FF4D9D)', transition: 'width .5s cubic-bezier(.2,.6,.2,1)' }} />
               </div>
-              <div className="money-caption" style={{ marginTop: 8 }}>{PITY_MAX}회 안에 HOLO 미출현 시 다음 뽑기에서 HOLO 확정</div>
+              <div className="money-caption" style={{ marginTop: 8 }}>{PITY_MAX}회 안에 {top.rarity} 미출현 시 다음 뽑기에서 {top.rarity} 확정</div>
             </div>
 
             <div className="rise" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 30, animationDelay: '.34s' }}>
