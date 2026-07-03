@@ -7,23 +7,27 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { id: 'iphub', label: '탐색' },
+  { id: 'home', label: '홈' },
+  { id: 'iphub', label: 'IP 허브' },
   { id: 'shop', label: '굿즈샵' },
+  { id: 'gacha', label: '뽑기' },
   { id: 'events', label: '팝업' },
   { id: 'community', label: '커뮤니티' },
 ];
 
+/* 모바일 바텀탭 — 디자인 핸드오프의 페이지별 4탭 변형을 다수결 구성으로 고정 */
 export const MOB_ITEMS: NavItem[] = [
-  { id: 'iphub', label: '탐색', icon: 'ip' },
-  { id: 'shop', label: '굿즈샵', icon: 'bag' },
-  { id: 'events', label: '팝업', icon: 'event' },
-  { id: 'community', label: '커뮤니티', icon: 'chat' },
+  { id: 'home', label: '홈' },
+  { id: 'shop', label: '굿즈샵' },
+  { id: 'gacha', label: '뽑기' },
+  { id: 'community', label: '커뮤니티' },
 ];
 
 const PATHS: Record<string, string> = {
   home: '/',
   iphub: '/ip',
   shop: '/shop',
+  gacha: '/gacha',
   binder: '/binder',
   events: '/events',
   community: '/community',

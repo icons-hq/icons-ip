@@ -1,44 +1,40 @@
 'use client';
 
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useGo } from './useGo';
+import { hrefFor } from '@/lib/routes';
 
-const cols: { h: string; items: [string, string | null][] }[] = [
-  { h: '서비스', items: [['굿즈샵', 'shop'], ['탐색', 'iphub'], ['팝업·티케팅', 'events'], ['커뮤니티', 'community']] },
-  { h: '카드', items: [['수집 바인더', 'binder'], ['카드 교환', 'exchange'], ['애프터마켓', 'market']] },
-  { h: '회사', items: [['이용약관', null], ['개인정보처리방침', null], ['문의하기', null]] },
+/* 디자인 핸드오프의 미니 푸터 + 고아 라우트 방지용 보조 링크 줄 */
+const AUX_LINKS: [label: string, route: string | null][] = [
+  ['바인더', 'binder'],
+  ['카드 교환', 'exchange'],
+  ['마켓', 'market'],
+  ['이용약관', null],
+  ['개인정보처리방침', null],
 ];
 
 export function SiteFooter() {
   const pathname = usePathname();
-  const go = useGo();
   if (pathname === '/login') return null;
 
   return (
-    <footer style={{ borderTop: '1px solid var(--line)', background: 'var(--bg-2)', padding: '56px 0 40px', position: 'relative', zIndex: 2 }}>
-      <div className="wrap mobile-footer-grid" style={{ display: 'grid', gap: 36 }}>
-        <div>
-          <div className="brand" style={{ fontSize: 26 }}><span className="dot" />ICONS</div>
-          <p className="muted" style={{ marginTop: 14, maxWidth: 280, fontSize: 14 }}>
-            서브컬처 팬덤의 모든 활동을 가치 있는 데이터로 자산화하는 디지털 팬덤 허브 플랫폼.
-          </p>
-          <div className="wrapgap" style={{ marginTop: 18 }}>
-            <span className="tag">K-POP</span><span className="tag">ANIME</span>
-            <span className="tag">VTUBER</span><span className="tag">WEBTOON</span>
-          </div>
-        </div>
-        {cols.map((c) => (
-          <div key={c.h} className="col" style={{ gap: 12 }}>
-            <div className="mono" style={{ fontSize: 12, letterSpacing: '.12em', color: 'var(--faint)', textTransform: 'uppercase' }}>{c.h}</div>
-            {c.items.map(([t, r]) => (
-              <a key={t} className="muted" style={{ fontSize: 14, cursor: 'pointer' }} onClick={() => r && go(r)}>{t}</a>
-            ))}
-          </div>
-        ))}
+    <footer style={{ borderTop: '1px solid var(--line)', padding: '26px 0', position: 'relative', zIndex: 2 }}>
+      <div className="wrap between mobile-footer-bottom" style={{ flexWrap: 'wrap', gap: 14 }}>
+        <span className="brand" style={{ fontSize: 17, letterSpacing: '-0.03em', gap: 7 }}>
+          <span className="dot" style={{ width: 7, height: 7, boxShadow: 'none' }} />ICONS
+        </span>
+        <span className="money-caption">공식 라이선스 · 확률 공시 · 토스페이먼츠 안전 결제</span>
       </div>
-      <div className="wrap between mobile-footer-bottom" style={{ marginTop: 44, paddingTop: 24, borderTop: '1px solid var(--line)' }}>
-        <span className="faint mono" style={{ fontSize: 12 }}>© 2026 ICONS Inc. All rights reserved.</span>
-        <span className="faint mono" style={{ fontSize: 12 }}>made for fandoms ✦</span>
+      <div className="wrap" style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: '6px 18px' }}>
+        {AUX_LINKS.map(([label, route]) =>
+          route ? (
+            <Link key={label} className="mono faint" style={{ fontSize: 11 }} href={hrefFor(route)}>
+              {label}
+            </Link>
+          ) : (
+            <span key={label} className="mono faint" style={{ fontSize: 11 }}>{label}</span>
+          ),
+        )}
       </div>
     </footer>
   );

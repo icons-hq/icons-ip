@@ -29,6 +29,7 @@ export default async function Page({ searchParams }: PageProps) {
     auth.user ? getFollowedIpIdsForUser(auth.user.id) : Promise.resolve(new Set<string>()),
   ]);
   const recommendedIps = catalog.ips.slice(0, 5).map((ip) => ({
+    bg: ip.bg,
     color: ip.v.color,
     fans: ip.fans,
     id: ip.id,

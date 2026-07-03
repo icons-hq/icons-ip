@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Space_Grotesk, Space_Mono } from 'next/font/google';
 import './globals.css';
+import { Atmos } from '@/components/shell/Atmos';
 import { CartProvider } from '@/components/shell/CartProvider';
 import { Nav } from '@/components/shell/Nav';
 import { MobNav } from '@/components/shell/MobNav';
@@ -27,8 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko" data-scroll-behavior="smooth" className={`${spaceGrotesk.variable} ${spaceMono.variable}`}>
       <body>
-        <div className="bg-atmos" />
-        <div className="bg-grain" />
+        <Atmos />
         <CartProvider>
           <Nav />
           <div id="root">{children}</div>

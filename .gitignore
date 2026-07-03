@@ -32,6 +32,9 @@ docs/claude-design/project/assets/
 docs/online-popup/
 docs/research/
 
+# Claude Design handoff (로컬 참조용 시각 진실원 — 68MB, git에 올리지 않음)
+design/handoff/
+
 # debug
 npm-debug.log*
 yarn-debug.log*

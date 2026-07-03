@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
 import { NAV_ITEMS, hrefFor, isActive } from '@/lib/routes';
 import { Icon } from '@/components/ui/Icon';
 import { useCart } from './CartProvider';
@@ -13,17 +12,11 @@ export function Nav() {
   const pathname = usePathname();
   const go = useGo();
   const { count } = useCart();
-  const [solid, setSolid] = useState(false);
 
-  useEffect(() => {
-    const h = () => setSolid(window.scrollY > 12);
-    window.addEventListener('scroll', h);
-    h();
-    return () => window.removeEventListener('scroll', h);
-  }, []);
+  if (pathname === '/login') return null;
 
   return (
-    <nav className="nav" style={{ background: solid ? 'rgba(8,6,15,.82)' : 'rgba(8,6,15,.5)' }}>
+    <nav className="nav">
       <div className="wrap">
         <Link className="brand" href="/">
           <span className="dot" />ICONS

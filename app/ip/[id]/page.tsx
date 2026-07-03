@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
-import { IpDetail } from '@/components/screens/IpDetail';
+import { IpHub } from '@/components/screens/IpHub';
 import { getCurrentAuthState } from '@/lib/auth/server';
-import { getCatalogIpDetail } from '@/lib/catalog';
+import { getCatalogIpDetail, getCatalogSnapshot } from '@/lib/catalog';
 import { getIpFollowState } from '@/lib/ip-follow.server';
 
 type PageProps = {
@@ -16,7 +16,8 @@ function firstParam(value: string | string[] | undefined) {
 export default async function Page({ params, searchParams }: PageProps) {
   const { id } = await params;
   const auth = await getCurrentAuthState();
-  const [detail, followState] = await Promise.all([
+  const [catalog, detail, followState] = await Promise.all([
+    getCatalogSnapshot(),
     getCatalogIpDetail(id, { viewerId: auth.user?.id ?? null, isStaff: auth.isStaff }),
     getIpFollowState(id),
   ]);
@@ -25,5 +26,12 @@ export default async function Page({ params, searchParams }: PageProps) {
 
   const query = (await searchParams) ?? {};
 
-  return <IpDetail detail={detail} followState={followState} followError={firstParam(query.follow_error) === '1'} />;
+  return (
+    <IpHub
+      ips={catalog.ips}
+      detail={detail}
+      followState={followState}
+      followError={firstParam(query.follow_error) === '1'}
+    />
+  );
 }

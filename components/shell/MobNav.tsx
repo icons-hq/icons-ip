@@ -1,21 +1,21 @@
 'use client';
 
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MOB_ITEMS, isActive } from '@/lib/routes';
-import { Icon } from '@/components/ui/Icon';
-import { useGo } from './useGo';
+import { MOB_ITEMS, hrefFor, isActive } from '@/lib/routes';
 
 export function MobNav() {
   const pathname = usePathname();
-  const go = useGo();
+
+  if (pathname === '/login') return null;
   return (
-    <div className="mobnav">
+    <nav className="mobnav" aria-label="모바일 내비게이션">
       {MOB_ITEMS.map((n) => (
-        <button key={n.id} className={isActive(n.id, pathname) ? 'on' : ''} onClick={() => go(n.id)} aria-label={n.label}>
-          <Icon name={n.icon!} size={22} />
-          <span>{n.label}</span>
-        </button>
+        <Link key={n.id} className={isActive(n.id, pathname) ? 'on' : ''} href={hrefFor(n.id)}>
+          <span className="dot" />
+          {n.label}
+        </Link>
       ))}
-    </div>
+    </nav>
   );
 }

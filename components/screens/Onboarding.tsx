@@ -1,7 +1,8 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { completeOnboardingAction, type OnboardingActionState } from '@/app/onboarding/actions';
+import { ipAccent } from '@/lib/ip-display';
 
 interface OnboardingProps {
   birthDate: string;
@@ -12,6 +13,7 @@ interface OnboardingProps {
   next: string;
   nickname: string;
   recommendedIps: {
+    bg: string;
     color: string;
     fans: number;
     id: string;
@@ -23,12 +25,98 @@ interface OnboardingProps {
 
 const emptyState: OnboardingActionState = {};
 
+const inputStyle: React.CSSProperties = {
+  height: 50, padding: '0 18px', borderRadius: 14,
+  border: '1px solid var(--line-2)', background: 'rgba(21,17,42,.7)',
+  color: 'var(--text)', fontSize: 14.5, fontFamily: 'inherit', outline: 'none',
+};
+
 function ErrorText({ children, id }: { children?: string; id: string }) {
   if (!children) return null;
   return (
     <span id={id} style={{ color: 'var(--pink)', fontSize: 12.5, fontWeight: 600 }}>
       {children}
     </span>
+  );
+}
+
+function TermRow({
+  defaultChecked,
+  errorId,
+  hasError,
+  label,
+  name,
+  required,
+}: {
+  defaultChecked?: boolean;
+  errorId?: string;
+  hasError?: boolean;
+  label: string;
+  name: string;
+  required: boolean;
+}) {
+  const [checked, setChecked] = useState(Boolean(defaultChecked));
+  return (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 12, cursor: 'pointer' }}>
+      <input
+        aria-describedby={hasError ? errorId : undefined}
+        aria-invalid={hasError}
+        checked={checked}
+        name={name}
+        onChange={(e) => setChecked(e.target.checked)}
+        type="checkbox"
+        style={{ position: 'absolute', opacity: 0, width: 1, height: 1 }}
+      />
+      <span aria-hidden style={{ flex: '0 0 auto', width: 22, height: 22, borderRadius: 7, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800, color: '#0A0813', border: `1px solid ${checked ? 'transparent' : 'var(--line-3)'}`, background: checked ? 'var(--holo)' : 'transparent', transition: 'all .2s ease' }}>
+        {checked ? '✓' : ''}
+      </span>
+      <span style={{ fontSize: 13.5, color: '#C9C3E4' }}>
+        {label} <span className="mono" style={{ fontSize: 10, color: required ? 'var(--pink)' : 'var(--faint)' }}>{required ? '필수' : '선택'}</span>
+      </span>
+    </label>
+  );
+}
+
+function IpPickTile({
+  bg,
+  defaultChecked,
+  accent,
+  id,
+  title,
+}: {
+  bg: string;
+  defaultChecked: boolean;
+  accent: string;
+  id: string;
+  title: string;
+}) {
+  const [checked, setChecked] = useState(defaultChecked);
+  return (
+    <label
+      style={{
+        display: 'block', position: 'relative', borderRadius: 16, overflow: 'hidden', aspectRatio: '16 / 10',
+        background: bg, backgroundSize: 'cover', backgroundPosition: 'center', cursor: 'pointer',
+        boxShadow: checked ? `0 0 0 2px ${accent}, 0 16px 40px -16px ${accent}` : '0 0 0 1px rgba(255,255,255,.12)',
+        transition: 'box-shadow .25s ease, transform .25s ease',
+      }}
+    >
+      <input
+        checked={checked}
+        name="followIpIds"
+        onChange={(e) => setChecked(e.target.checked)}
+        type="checkbox"
+        value={id}
+        style={{ position: 'absolute', opacity: 0, width: 1, height: 1 }}
+      />
+      <input name="recommendedIpIds" type="hidden" value={id} />
+      <span aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 30%, rgba(8,6,15,.85) 100%)' }} />
+      <span style={{ position: 'absolute', left: 12, bottom: 10, right: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ fontWeight: 700, fontSize: 14 }}>{title}</span>
+        <span aria-hidden style={{ flex: '0 0 auto', width: 22, height: 22, borderRadius: 99, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800, color: '#0A0813', background: checked ? 'var(--holo)' : 'rgba(8,6,15,.5)', border: '1px solid rgba(255,255,255,.35)', transition: 'all .2s ease' }}>
+          {checked ? '✓' : ''}
+        </span>
+      </span>
+    </label>
   );
 }
 
@@ -46,133 +134,81 @@ export function Onboarding({
   const initiallyFollowed = new Set(followedIpIds);
 
   return (
-    <div className="screen" style={{ display: 'grid', placeItems: 'center', minHeight: '100vh' }}>
-      <div className="card rise" style={{ width: 'min(520px, 92vw)', padding: '40px 36px', borderRadius: 'var(--r-lg)', borderColor: 'var(--line-2)' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div className="brand holo-text" style={{ fontSize: 32, justifyContent: 'center' }}>
-            ICONS
-          </div>
-          <p className="faint mono" style={{ fontSize: 12, marginTop: 8, letterSpacing: '.1em' }}>
-            PROFILE SETUP
-          </p>
-        </div>
+    <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', padding: '110px 0 80px' }}>
+      <div className="rise" style={{ width: 'min(520px, 92vw)' }}>
+        <h2 style={{ margin: 0, fontFamily: 'var(--ff-display)', fontWeight: 700, fontSize: 28, letterSpacing: '-0.03em' }}>프로필을 완성해요</h2>
+        <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--dim)' }}>커뮤니티에서 쓸 닉네임과 생년월일, 그리고 최애가 필요해요.</p>
 
-        <form action={action} className="col" style={{ gap: 16, marginTop: 28 }}>
+        <form action={action} className="col" style={{ gap: 16, marginTop: 24 }}>
           <input type="hidden" name="next" value={next} />
 
-          <label className="col" style={{ gap: 8 }}>
-            <span className="mono" style={{ fontSize: 12, color: 'var(--dim)' }}>
-              이메일
-            </span>
-            <input
-              disabled
-              value={email}
-              style={{ height: 48, borderRadius: 12, border: '1px solid var(--line-2)', background: 'var(--bg-2)', padding: '0 16px', color: 'var(--dim)', fontSize: 15, fontFamily: 'inherit' }}
-            />
-          </label>
-
-          <label className="col" style={{ gap: 8 }}>
-            <span className="mono" style={{ fontSize: 12, color: 'var(--dim)' }}>
-              닉네임
-            </span>
+          <input disabled value={email} aria-label="이메일" style={{ ...inputStyle, color: 'var(--dim)' }} />
+          <div className="col" style={{ gap: 6 }}>
             <input
               aria-describedby={state.errors?.nickname ? 'nickname-error' : undefined}
               aria-invalid={Boolean(state.errors?.nickname)}
+              aria-label="닉네임"
               defaultValue={nickname}
-              id="nickname"
               name="nickname"
-              style={{ height: 48, borderRadius: 12, border: '1px solid var(--line-2)', background: 'var(--bg-2)', padding: '0 16px', color: 'var(--text)', fontSize: 15, fontFamily: 'inherit', outline: 'none' }}
+              placeholder="닉네임 (2–12자)"
+              style={inputStyle}
             />
             <ErrorText id="nickname-error">{state.errors?.nickname}</ErrorText>
-          </label>
-
-          <label className="col" style={{ gap: 8 }}>
-            <span className="mono" style={{ fontSize: 12, color: 'var(--dim)' }}>
-              생년월일
-            </span>
+          </div>
+          <div className="col" style={{ gap: 6 }}>
             <input
               aria-describedby={state.errors?.birthDate ? 'birth-date-error' : undefined}
               aria-invalid={Boolean(state.errors?.birthDate)}
+              aria-label="생년월일"
               defaultValue={birthDate}
-              id="birthDate"
               name="birthDate"
               type="date"
-              style={{ height: 48, borderRadius: 12, border: '1px solid var(--line-2)', background: 'var(--bg-2)', padding: '0 16px', color: 'var(--text)', fontSize: 15, fontFamily: 'inherit', outline: 'none' }}
+              style={inputStyle}
             />
             <ErrorText id="birth-date-error">{state.errors?.birthDate}</ErrorText>
-          </label>
+          </div>
 
-          <div className="col" style={{ gap: 10 }}>
-            <label className="row" style={{ gap: 10, justifyContent: 'flex-start', fontSize: 14 }}>
-              <input
-                aria-describedby={state.errors?.terms ? 'terms-error' : undefined}
-                aria-invalid={Boolean(state.errors?.terms)}
-                name="terms"
-                type="checkbox"
-              />
-              필수 약관 동의
-            </label>
+          <div className="col" style={{ gap: 4 }}>
+            <TermRow errorId="terms-error" hasError={Boolean(state.errors?.terms)} label="이용약관 동의" name="terms" required />
             <ErrorText id="terms-error">{state.errors?.terms}</ErrorText>
-            <label className="row" style={{ gap: 10, justifyContent: 'flex-start', fontSize: 14 }}>
-              <input
-                aria-describedby={state.errors?.privacy ? 'privacy-error' : undefined}
-                aria-invalid={Boolean(state.errors?.privacy)}
-                name="privacy"
-                type="checkbox"
-              />
-              개인정보 처리방침 동의
-            </label>
+            <TermRow errorId="privacy-error" hasError={Boolean(state.errors?.privacy)} label="개인정보 처리방침 동의" name="privacy" required />
             <ErrorText id="privacy-error">{state.errors?.privacy}</ErrorText>
-            <label className="row" style={{ gap: 10, justifyContent: 'flex-start', fontSize: 14 }}>
-              <input defaultChecked={initialMarketing} name="marketing" type="checkbox" />
-              마케팅 정보 수신 동의
-            </label>
+            <TermRow defaultChecked={initialMarketing} label="마케팅 정보 수신 동의" name="marketing" required={false} />
           </div>
 
           {recommendedIps.length > 0 && (
-            <fieldset style={{ border: '1px solid var(--line)', borderRadius: 12, padding: 14 }}>
-              <legend className="mono" style={{ padding: '0 6px', fontSize: 12, color: 'var(--dim)' }}>
-                관심 IP
-              </legend>
-              <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ fontWeight: 700, fontSize: 15 }}>최애를 골라보세요</span>
+                <span className="mono" style={{ fontSize: 10.5, color: 'var(--faint)' }}>팔로우한 IP 기준으로 홈과 알림이 맞춰져요</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginTop: 14 }}>
                 {recommendedIps.map((ip) => (
-                  <label
+                  <IpPickTile
                     key={ip.id}
-                    style={{
-                      border: '1px solid var(--line)',
-                      borderRadius: 10,
-                      cursor: 'pointer',
-                      display: 'grid',
-                      gap: 6,
-                      minHeight: 104,
-                      padding: 12,
-                    }}
-                  >
-                    <span className="row" style={{ alignItems: 'flex-start', gap: 10, justifyContent: 'space-between' }}>
-                      <span className="col" style={{ gap: 3, minWidth: 0 }}>
-                        <span style={{ fontSize: 14, fontWeight: 800 }}>{ip.title}</span>
-                        <span className="faint" style={{ fontSize: 12 }}>{ip.sub}</span>
-                      </span>
-                      <input defaultChecked={initiallyFollowed.has(ip.id)} name="followIpIds" type="checkbox" value={ip.id} />
-                      <input name="recommendedIpIds" type="hidden" value={ip.id} />
-                    </span>
-                    <span className="muted" style={{ fontSize: 12.5 }}>{ip.tagline}</span>
-                    <span className="mono" style={{ color: ip.color, fontSize: 11 }}>{new Intl.NumberFormat('ko-KR').format(ip.fans)} 팬</span>
-                  </label>
+                    bg={ip.bg}
+                    defaultChecked={initiallyFollowed.has(ip.id)}
+                    accent={ipAccent({ id: ip.id, v: { key: '', label: '', color: ip.color } })}
+                    id={ip.id}
+                    title={ip.title}
+                  />
                 ))}
               </div>
-            </fieldset>
+            </div>
           )}
 
           {state.errors?.form && (
-            <div className="card" role="alert" style={{ padding: 12, borderRadius: 12, color: 'var(--pink)', fontSize: 13.5, fontWeight: 700 }}>
+            <div role="alert" style={{ padding: 12, borderRadius: 12, border: '1px solid rgba(255,77,157,.3)', color: 'var(--pink)', fontSize: 13.5, fontWeight: 700 }}>
               {state.errors.form}
             </div>
           )}
 
-          <button className="btn btn-holo" disabled={!isConfigured || pending} style={{ width: '100%', marginTop: 4 }}>
-            {pending ? '저장 중' : '완료'}
+          <button className="btn btn-holo" disabled={!isConfigured || pending} style={{ width: '100%', height: 52, marginTop: 4, fontSize: 15 }}>
+            {pending ? '저장 중' : 'ICONS 시작하기'}
           </button>
+          <p className="mono" style={{ margin: 0, textAlign: 'center', fontSize: 10, color: 'var(--faint)', letterSpacing: '.03em' }}>
+            본인확인은 자가신고와 결제 시 결제사 확인으로 진행돼요
+          </p>
         </form>
       </div>
     </div>

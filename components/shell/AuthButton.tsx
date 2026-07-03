@@ -32,29 +32,27 @@ export function AuthButton() {
     };
   }, [pathname]);
 
+  const loginHref = () =>
+    `/login?next=${encodeURIComponent(
+      nextPathWithSearch(window.location.pathname, new URLSearchParams(window.location.search)),
+    )}`;
+
   if (isSignedIn) {
     return (
       <form action={signOutAction}>
-        <button className="btn btn-ghost btn-sm hide-mob" style={{ height: 40 }}>
-          로그아웃
-        </button>
+        <button className="btn btn-ghost btn-sm">로그아웃</button>
       </form>
     );
   }
 
   return (
-    <button
-      className="btn btn-ghost btn-sm hide-mob"
-      onClick={() =>
-        router.push(
-          `/login?next=${encodeURIComponent(
-            nextPathWithSearch(window.location.pathname, new URLSearchParams(window.location.search)),
-          )}`,
-        )
-      }
-      style={{ height: 40 }}
-    >
-      로그인
-    </button>
+    <>
+      <button className="btn btn-ghost btn-sm" onClick={() => router.push(loginHref())}>
+        로그인
+      </button>
+      <button className="btn btn-holo btn-sm" onClick={() => router.push(loginHref())}>
+        시작하기
+      </button>
+    </>
   );
 }

@@ -1,6 +1,7 @@
 import { Login } from '@/components/screens/Login';
 import { authErrorMessage, isOnboarded, safeNextPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
+import { getCatalogSnapshot } from '@/lib/catalog';
 import { redirect } from 'next/navigation';
 
 type PageProps = {
@@ -10,6 +11,8 @@ type PageProps = {
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
+
+const RARITY_ORDER = ['HOLO', 'SSR', 'SR', 'R', 'N'];
 
 export default async function Page({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
@@ -23,5 +26,20 @@ export default async function Page({ searchParams }: PageProps) {
     redirect(`/onboarding?next=${encodeURIComponent(next)}`);
   }
 
-  return <Login initialError={initialError} initialMode={initialMode} isConfigured={auth.isConfigured} next={next} />;
+  // 좌측 브랜드 패널 플로팅 카드 — 상위 등급 카드 아트 3장
+  const catalog = await getCatalogSnapshot();
+  const panelCards = [...catalog.cards]
+    .sort((a, b) => RARITY_ORDER.indexOf(a.rarity) - RARITY_ORDER.indexOf(b.rarity))
+    .slice(0, 3)
+    .map((card) => card.bg);
+
+  return (
+    <Login
+      initialError={initialError}
+      initialMode={initialMode}
+      isConfigured={auth.isConfigured}
+      next={next}
+      panelCards={panelCards}
+    />
+  );
 }

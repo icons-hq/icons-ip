@@ -13,6 +13,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "docs/claude-design/project/support.js",
     "docs/claude-design/project/assets/**",
+    "design/handoff/**",
     "next-env.d.ts",
   ]),
 ]);
