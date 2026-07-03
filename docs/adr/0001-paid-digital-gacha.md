@@ -1,6 +1,8 @@
 ---
-status: accepted
+status: superseded
 ---
+
+> **Superseded by [ADR-0003](./0003-free-reward-pivot.md) (2026-07-03)** — 유료 디지털 가챠를 폐기하고 무료 리워드 모델로 피벗했다. 아래 결정은 히스토리로 보존한다.
 
 # 디지털 유료 가챠를 채택하고 규제 의무를 제품 요구사항으로 수용한다
 
