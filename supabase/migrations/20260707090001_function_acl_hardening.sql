@@ -35,12 +35,6 @@ grant execute on function public.confirm_wallet_charge(text, text, bigint, jsonb
 revoke all on function public.place_order(jsonb) from public, anon, authenticated, service_role;
 grant execute on function public.place_order(jsonb) to authenticated;
 
-revoke all on function public.charge_wallet_init(bigint, text) from public, anon, authenticated, service_role;
-grant execute on function public.charge_wallet_init(bigint, text) to authenticated;
-
-revoke all on function public.pull_gacha(uuid, integer) from public, anon, authenticated, service_role;
-grant execute on function public.pull_gacha(uuid, integer) to authenticated;
-
 revoke all on function public.reserve_tickets(uuid, integer) from public, anon, authenticated, service_role;
 grant execute on function public.reserve_tickets(uuid, integer) to authenticated;
 
@@ -126,6 +120,13 @@ grant execute on function public.is_staff() to anon, authenticated, service_role
 revoke all on function public.roll_rarity(uuid) from public, anon, authenticated, service_role;
 revoke all on function public.grant_cards(uuid, uuid, text, uuid, text, integer)
   from public, anon, authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
+-- 6b) 유료 경로 차단 유지(ADR-0003, 20260706090001에서 차단) — 클라이언트 grant를
+--     복원하지 않는다. 물리 제거는 #65.
+-- ---------------------------------------------------------------------------
+revoke all on function public.pull_gacha(uuid, integer) from public, anon, authenticated, service_role;
+revoke all on function public.charge_wallet_init(bigint, text) from public, anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- 7) 트리거 함수 — 직접 호출 자체가 불가하지만(returns trigger) 위생상 봉인.
