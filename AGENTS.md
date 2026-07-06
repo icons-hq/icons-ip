@@ -61,6 +61,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 스키마 변경은 `supabase/migrations/`에 기록한다. 이미 공유/적용된 migration은 수정하지 않고 새 migration을 추가한다. 적용 전 DRAFT migration은 일관성을 위해 정리할 수 있다.
 - 사용자별 데이터는 RLS로 격리한다. 카탈로그성 데이터는 공개 읽기, 쓰기는 staff/admin 범위로 유지한다.
 - service role은 서버 신뢰 경계 안에서만 사용하고, 클라이언트 번들에 노출하지 않는다.
+- Supabase default privileges가 public 스키마 신규 함수에 anon/authenticated/service_role의 execute를 자동 부여한다. 함수 생성 후 `revoke all ... from public, anon, authenticated, service_role`로 봉인하고 필요한 롤에만 grant한다 — `from public`만으로는 봉인되지 않는다.
 - 카드풀 발급 확률값, 카드·뽑기권 발급 이력, 결제 raw payload, 감사 로그는 추적 가능성을 해치지 않도록 다룬다.
 
 ## 검증
