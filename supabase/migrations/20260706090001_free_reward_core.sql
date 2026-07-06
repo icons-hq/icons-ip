@@ -264,3 +264,13 @@ revoke all on function public.confirm_order_payment(text, uuid, text, bigint, js
 grant execute on function public.confirm_order_payment(text, uuid, text, bigint, jsonb) to service_role;
 revoke all on function public.cancel_order(uuid, text) from public, anon;
 grant execute on function public.cancel_order(uuid, text) to authenticated, service_role;
+
+-- 유료 경로 차단(ADR-0003 피벗 강제): 무상 코어가 들어오는 시점부터 클라이언트는
+-- 충전을 시작할 수도, 유료 뽑기를 실행할 수도 없다. 지갑 잔액이 있어도 pull_gacha로
+-- 카드를 만들 수 없어 "카드는 무상 경로로만" invariant가 ACL 레벨에서 성립한다.
+-- (앱 코드는 이 RPC들을 호출하지 않음 — 무파손. 테이블·함수 물리 제거와 문구 정리,
+--  미사용 충전금 정산은 #65에서 수행한다. confirm_wallet_charge의 service_role은
+--  기존 pending 건 웹훅 처리를 위해 남긴다.)
+revoke all on function public.pull_gacha(uuid, integer) from public, anon, authenticated, service_role;
+revoke all on function public.charge_wallet_init(bigint, text) from public, anon, authenticated, service_role;
+revoke all on function public.confirm_wallet_charge(text, text, bigint, jsonb) from public, anon, authenticated;
