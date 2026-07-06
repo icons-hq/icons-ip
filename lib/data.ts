@@ -179,7 +179,8 @@ const GAMES: Game[] = [
     event: 'e2',
     config: {
       marbleCount: 10,
-      rarityLineup: ['N', 'N', 'N', 'R', 'R', 'R', 'SR', 'SR', 'SSR', 'HOLO'],
+      // 풀(maplestory CARDS)에 실존하는 등급만, mock 가중치 비례로 — 공시=추첨 일치(Gacha poolRates와 같은 규율)
+      rarityLineup: ['R', 'R', 'R', 'R', 'R', 'R', 'R', 'SSR', 'SSR', 'HOLO'],
     },
   },
 ];
