@@ -7,7 +7,7 @@ import { MOB_ITEMS, hrefFor, isActive } from '@/lib/routes';
 export function MobNav() {
   const pathname = usePathname();
 
-  if (pathname === '/login') return null;
+  if (pathname === '/login' || pathname.startsWith('/games')) return null;
   return (
     <nav className="mobnav" aria-label="모바일 내비게이션">
       {MOB_ITEMS.map((n) => (

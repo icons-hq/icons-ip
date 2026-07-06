@@ -46,6 +46,23 @@ export interface Card {
   owned: boolean;
   bg: string;
 }
+/* 참여형 게임 카탈로그 — games 테이블 초안(게임 미니앱 스펙 §3) 미러. 실배선은 play_game(#64) */
+export type GameVariant =
+  | { kind: 'card'; rarityLineup: RarityKey[] } // 구슬 = 등급 확률 극장, 보상 = 무상 카드
+  | { kind: 'goods'; goodsIds: string[] }; // 구슬 = 굿즈 1:1 — 래플 연출 데모(실물 무상 지급 경로 아님, ADR-0002)
+
+export interface Game {
+  id: string;
+  type: 'marble_roulette';
+  title: string;
+  ip: string | null; // 카드 보상 풀 스코프(card variant) — goods variant는 크로스오버라 null
+  event: string | null; // popup_id 대용(연결 이벤트)
+  config: {
+    marbleCount: number;
+    variant: GameVariant;
+  };
+}
+
 export interface FandomEvent {
   id: string;
   title: string;
@@ -157,6 +174,39 @@ const CARDS: Card[] = [
   { id: 'c12', ip: 'attack-on-titan', name: '리바이 · 조사병단', no: '017/070', rarity: 'SSR', owned: false, bg: imageBg('/generated/cards/c12.png', grad('#201c18', '#4C5A3F', '#A981FF')) },
 ];
 
+const GAMES: Game[] = [
+  {
+    id: 'marble-maple',
+    type: 'marble_roulette',
+    title: '메이플 마블 룰렛',
+    ip: 'maplestory',
+    event: 'e2',
+    config: {
+      marbleCount: 10,
+      variant: {
+        kind: 'card',
+        // 풀(maplestory CARDS)에 실존하는 등급만, mock 가중치 비례로 — 공시=추첨 일치(Gacha poolRates와 같은 규율)
+        rarityLineup: ['R', 'R', 'R', 'R', 'R', 'R', 'R', 'SSR', 'SSR', 'HOLO'],
+      },
+    },
+  },
+  {
+    id: 'goods-marble',
+    type: 'marble_roulette',
+    title: '굿즈 마블 룰렛',
+    ip: null, // 5개 IP 크로스오버
+    event: null,
+    config: {
+      marbleCount: 10,
+      variant: {
+        kind: 'goods',
+        // 구슬 1:1 — mock GOODS 12종 중 IP 균형(각 2종)으로 10종
+        goodsIds: ['g1', 'g2', 'g3', 'g5', 'g6', 'g7', 'g8', 'g9', 'g11', 'g12'],
+      },
+    },
+  },
+];
+
 const EVENTS: FandomEvent[] = [
   { id: 'e1', title: '리락쿠마 포근한 방 팝업스토어', ip: 'rilakkuma', mode: '오프라인', status: '진행중', date: '7.01 - 7.21', loc: '성수 ICONS 스튜디오', accent: '#FFD84D', img: imageBg('/generated/events/e1.png', grad('#5a3517', '#D68A2D', '#FFD84D')) },
   { id: 'e2', title: '메이플스토리 몬스터즈 온라인 팝업', ip: 'maplestory', mode: '온라인', status: '예매중', date: '7.12 20:00', loc: 'ICONS Live', accent: '#38F0C0', img: imageBg('/generated/events/e2.png', grad('#0d5e66', '#38F0C0', '#FFD84D')) },
@@ -206,6 +256,7 @@ export const DATA = {
   GOODS_TYPES,
   RARITY,
   CARDS,
+  GAMES,
   EVENTS,
   POSTS,
   EXCHANGES,

@@ -13,6 +13,7 @@
 # testing
 /coverage
 /.playwright-cli/
+/.playwright-mcp/
 
 # next.js
 /.next/
@@ -55,3 +56,6 @@ next-env.d.ts
 # supabase local state
 /supabase/.branches/
 /supabase/.temp/
+
+# box2d-wasm 정적 자산 (postinstall이 node_modules에서 복사)
+/public/box2d/
