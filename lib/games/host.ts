@@ -6,12 +6,11 @@ import { createClient } from '@/lib/supabase/client';
 /* PopupGameHost — 호스트(웹/Expo)↔게임 브리지 계약(게임 미니앱 스펙 §2).
  * 게임은 이 인터페이스만 의존하고, 결과·경품은 항상 서버가 결정한다(ADR-0002). */
 
-export interface GrantedReward {
-  kind: 'card';
-  cardId: string;
-  rarity: RarityKey;
-  isNew: boolean;
-}
+export type GrantedReward =
+  | { kind: 'card'; cardId: string; rarity: RarityKey; isNew: boolean }
+  // 'goods'는 PoC 래플 연출 데모 전용 — 실물 굿즈의 무상 지급 경로가 아니다(ADR-0002 경품 경계).
+  // 실배선 시 굿즈 경품은 draw_raffle(당첨자 정가 결제 구매권) 계약으로만 존재한다.
+  | { kind: 'goods'; goodsId: string };
 
 export interface GamePlayResult {
   playId: string; // 멱등 키(재생/중복 방지)
@@ -79,10 +78,20 @@ export function createWebGameHost(): PopupGameHost {
     async playGame(gameId) {
       const game = DATA.GAMES.find((g) => g.id === gameId);
       if (!game) throw new Error(`unknown game: ${gameId}`);
-      const pool = DATA.CARDS.filter((c) => c.ip === game.ip);
-      if (pool.length === 0) throw new Error(`empty reward pool: ${game.ip}`);
       // 서버 왕복 감을 주는 지연 — 실배선 시 Server Action → RPC로 교체
       await new Promise((resolve) => setTimeout(resolve, 450));
+      const variant = game.config.variant;
+      if (variant.kind === 'goods') {
+        // 래플 연출 데모 — 균등 추첨. 실배선은 draw_raffle(commit-reveal)이 진실원.
+        const goodsId = variant.goodsIds[Math.floor(Math.random() * variant.goodsIds.length)];
+        return {
+          playId: crypto.randomUUID(),
+          rewards: [{ kind: 'goods', goodsId }],
+          animationSeed: randomSeed(),
+        };
+      }
+      const pool = DATA.CARDS.filter((c) => c.ip === game.ip);
+      if (pool.length === 0) throw new Error(`empty reward pool: ${game.ip}`);
       const card = mockRollCard(pool);
       return {
         playId: crypto.randomUUID(),

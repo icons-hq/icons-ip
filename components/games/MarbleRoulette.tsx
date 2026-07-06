@@ -1,10 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DATA, type Card, type Game } from '@/lib/data';
+import { DATA, krw, type Card, type Game, type Good } from '@/lib/data';
+import { ipAccent } from '@/lib/ip-display';
 import { RARITY_META, type RarityKey } from '@/lib/rarity';
 import { loadBox2D } from '@/lib/games/box2d-loader';
-import type { GrantedReward, PopupGameHost } from '@/lib/games/host';
+import type { PopupGameHost } from '@/lib/games/host';
 import {
   COURSE,
   FIXED_STEP,
@@ -17,15 +18,22 @@ import {
 import { seededRng, seededShuffle } from '@/lib/games/seed';
 
 /* 마블 룰렛 렌더러 — PopupGameHost 인터페이스에만 의존한다(호스트 조립은 페이지 몫).
- * (c1) 사전 시뮬로 우승 구슬을 알아내 서버 보상 등급을 그 구슬에 배치하고,
+ * (c1) 사전 시뮬로 우승 구슬을 알아내 서버 보상 라벨을 그 구슬에 배치하고,
  * 같은 시드로 화면 재생한다. 물리는 조작 없음, 결과는 100% 서버(mock).
- * 카메라: 출발 팩 전체 fit → 선두(최하단) 구슬 줌인 추적, 선두 교체 시 부드럽게 이동. */
+ * 카메라: 출발 팩 전체 fit → 선두(최하단) 구슬 줌인 추적, 선두 교체 시 부드럽게 이동.
+ * variant: 'card'=등급 구슬→무상 카드, 'goods'=굿즈 구슬 1:1(래플 연출 데모). */
 
 type Phase = 'ready' | 'loading' | 'racing' | 'reveal';
 
-interface Granted {
-  card: Card;
-  reward: GrantedReward;
+type Granted =
+  | { kind: 'card'; card: Card; rarity: RarityKey; isNew: boolean }
+  | { kind: 'goods'; good: Good };
+
+/** 구슬 하나의 시각 정체 — 등급이든 굿즈든 렌더러는 스킨만 안다 */
+interface MarbleSkin {
+  color: string;
+  label: string;
+  image: HTMLImageElement | null;
 }
 
 interface CamView {
@@ -40,19 +48,28 @@ const PACK_UNTIL_Y = 7.5;
 /** 선두 교체 히스테리시스(m) — 카메라 포커스가 미세 역전으로 떨리지 않게 */
 const LEAD_HYSTERESIS = 0.35;
 
-/** 우승 구슬에 서버 보상 등급을 놓고, 나머지 확률 극장 라벨을 시드 셔플로 배치 */
-function placeLabels(
-  lineup: RarityKey[],
-  granted: RarityKey,
-  winnerIndex: number,
-  seed: string,
-): RarityKey[] {
+/** 우승 구슬에 서버가 정한 라벨을 놓고, 나머지를 시드 셔플로 배치 */
+function placeLabels<T>(lineup: readonly T[], granted: T, winnerIndex: number, seed: string): T[] {
   const rest = [...lineup];
   const at = rest.indexOf(granted);
   rest.splice(at >= 0 ? at : rest.length - 1, 1);
   const shuffled = seededShuffle(rest, seededRng(`${seed}:labels`));
   shuffled.splice(winnerIndex, 0, granted);
   return shuffled;
+}
+
+/** mock 데이터의 CSS background 문자열에서 이미지 URL 추출 */
+function imageUrlOf(bg: string): string | null {
+  return bg.match(/url\("([^"]+)"\)/)?.[1] ?? null;
+}
+
+function loadImage(url: string): Promise<HTMLImageElement | null> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
 }
 
 function fitCanvas(canvas: HTMLCanvasElement): { ctx: CanvasRenderingContext2D; w: number; h: number } {
@@ -149,7 +166,7 @@ function drawFrame(
   view: CamView,
   marbles: MarbleState[],
   rotors: RotorState[],
-  labels: RarityKey[],
+  skins: MarbleSkin[],
   highlight: number | null,
 ) {
   const { zoom } = view;
@@ -265,16 +282,16 @@ function drawFrame(
   for (let i = 0; i < marbles.length; i++) {
     const m = marbles[i];
     if (m.y < topY - 1 || m.y > bottomY + 1) continue;
-    const meta = RARITY_META[labels[i]];
+    const skin = skins[i];
     const x = px(m.x);
     const y = py(m.y);
     const r = MARBLE_RADIUS * zoom;
 
     if (highlight === i) {
       ctx.save();
-      ctx.shadowColor = meta.color;
+      ctx.shadowColor = skin.color;
       ctx.shadowBlur = 18;
-      ctx.strokeStyle = meta.color;
+      ctx.strokeStyle = skin.color;
       ctx.lineWidth = 2.5;
       ctx.beginPath();
       ctx.arc(x, y, r * 1.45, 0, Math.PI * 2);
@@ -282,25 +299,70 @@ function drawFrame(
       ctx.restore();
     }
 
+    if (skin.image) {
+      // 굿즈 썸네일 구슬 — 이미지를 원으로 클립하고 회전에 맞춰 돌린다
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.translate(x, y);
+      ctx.rotate(m.angle);
+      ctx.drawImage(skin.image, -r, -r, r * 2, r * 2);
+      ctx.restore();
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.lineWidth = Math.max(1.5, r * 0.14);
+      ctx.strokeStyle = skin.color;
+      ctx.stroke();
+      continue;
+    }
+
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fillStyle = '#1C1638'; // 토큰: surface-2
     ctx.fill();
     ctx.lineWidth = Math.max(1.5, r * 0.14);
-    ctx.strokeStyle = meta.color;
+    ctx.strokeStyle = skin.color;
     ctx.stroke();
 
     // 회전 노치 — 물리 스핀 가시화
     ctx.beginPath();
     ctx.arc(x + Math.cos(m.angle) * r * 0.62, y + Math.sin(m.angle) * r * 0.62, r * 0.14, 0, Math.PI * 2);
-    ctx.fillStyle = `${meta.color}99`;
+    ctx.fillStyle = `${skin.color}99`;
     ctx.fill();
 
-    const label = meta.label;
-    ctx.fillStyle = meta.color;
-    ctx.font = `700 ${label.length <= 2 ? r * 0.78 : r * 0.42}px ${canvasMono()}`;
-    ctx.fillText(label, x, y + 0.5);
+    ctx.fillStyle = skin.color;
+    ctx.font = `700 ${skin.label.length <= 2 ? r * 0.78 : r * 0.42}px ${canvasMono()}`;
+    ctx.fillText(skin.label, x, y + 0.5);
   }
+}
+
+const goodById = (id: string): Good | undefined => DATA.GOODS.find((g) => g.id === id);
+
+function goodAccent(good: Good): string {
+  const ip = DATA.ipById(good.ip);
+  return ip ? ipAccent(ip) : '#8B5CFF';
+}
+
+/** 등급 스킨(card variant) */
+function raritySkins(labels: RarityKey[]): MarbleSkin[] {
+  return labels.map((r) => ({ color: RARITY_META[r].color, label: RARITY_META[r].label, image: null }));
+}
+
+/** 굿즈 스킨(goods variant) — 썸네일 프리로드, 실패 시 라벨 폴백 */
+async function goodsSkins(goodsIds: string[]): Promise<MarbleSkin[]> {
+  return Promise.all(
+    goodsIds.map(async (id) => {
+      const good = goodById(id);
+      if (!good) throw new Error(`unknown goods: ${id}`);
+      const url = imageUrlOf(good.img);
+      return {
+        color: goodAccent(good),
+        label: good.name.slice(0, 2),
+        image: url ? await loadImage(url) : null,
+      };
+    }),
+  );
 }
 
 export function MarbleRoulette({ game, host }: { game: Game; host: PopupGameHost }) {
@@ -312,12 +374,27 @@ export function MarbleRoulette({ game, host }: { game: Game; host: PopupGameHost
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const simConfig = useMemo(() => ({ marbleCount: game.config.marbleCount }), [game]);
+  const variant = game.config.variant;
 
-  const lineupCounts = useMemo(() => {
-    const counts = new Map<RarityKey, number>();
-    for (const r of game.config.rarityLineup) counts.set(r, (counts.get(r) ?? 0) + 1);
-    return RARITY_ORDER.filter((r) => counts.has(r)).map((r) => ({ rarity: r, count: counts.get(r) as number }));
-  }, [game]);
+  const legend = useMemo(() => {
+    if (variant.kind === 'card') {
+      const counts = new Map<RarityKey, number>();
+      for (const r of variant.rarityLineup) counts.set(r, (counts.get(r) ?? 0) + 1);
+      return RARITY_ORDER.filter((r) => counts.has(r)).map((r) => ({
+        key: r as string,
+        color: RARITY_META[r].color,
+        text: `${r} ×${counts.get(r)}`,
+      }));
+    }
+    return variant.goodsIds.map((id) => {
+      const good = goodById(id);
+      return {
+        key: id,
+        color: good ? goodAccent(good) : '#8B5CFF',
+        text: good ? (good.name.length > 9 ? `${good.name.slice(0, 9)}…` : good.name) : id,
+      };
+    });
+  }, [variant]);
 
   useEffect(() => {
     host.track('game_view', { gameId: game.id });
@@ -349,7 +426,7 @@ export function MarbleRoulette({ game, host }: { game: Game; host: PopupGameHost
   );
 
   const runRace = useCallback(
-    (sim: RouletteSim, labels: RarityKey[], expectedWinner: number) => {
+    (sim: RouletteSim, skins: MarbleSkin[], expectedWinner: number) => {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const stepMs = FIXED_STEP * 1000;
@@ -371,7 +448,7 @@ export function MarbleRoulette({ game, host }: { game: Game; host: PopupGameHost
         const marbles = sim.getMarbles();
         leader = sim.winner ?? pickLeader(marbles, leader);
         updateCamera(cam, marbles, leader, sim.winner, w, h, frameMs / 1000);
-        drawFrame(ctx, w, h, cam, marbles, sim.getRotors(), labels, sim.winner);
+        drawFrame(ctx, w, h, cam, marbles, sim.getRotors(), skins, sim.winner);
         if (sim.winner === null) {
           rafRef.current = requestAnimationFrame(loop);
           return;
@@ -395,32 +472,47 @@ export function MarbleRoulette({ game, host }: { game: Game; host: PopupGameHost
     try {
       const [b2, result] = await Promise.all([loadBox2D(), host.playGame(game.id)]);
       const reward = result.rewards[0];
-      const card = DATA.CARDS.find((c) => c.id === reward.cardId);
-      if (!card) throw new Error(`unknown card: ${reward.cardId}`);
       // (c1) 헤드리스 사전 시뮬 → 우승 구슬에 서버 보상 라벨 배치 → 같은 시드로 재생
       const pre = findWinner(b2, result.animationSeed, simConfig);
-      const labels = placeLabels(game.config.rarityLineup, reward.rarity, pre.winner, result.animationSeed);
+
+      let skins: MarbleSkin[];
+      let nextGranted: Granted;
+      if (variant.kind === 'goods') {
+        if (reward.kind !== 'goods') throw new Error('variant/reward mismatch');
+        const good = goodById(reward.goodsId);
+        if (!good) throw new Error(`unknown goods: ${reward.goodsId}`);
+        const order = placeLabels(variant.goodsIds, reward.goodsId, pre.winner, result.animationSeed);
+        skins = await goodsSkins(order);
+        nextGranted = { kind: 'goods', good };
+      } else {
+        if (reward.kind !== 'card') throw new Error('variant/reward mismatch');
+        const card = DATA.CARDS.find((c) => c.id === reward.cardId);
+        if (!card) throw new Error(`unknown card: ${reward.cardId}`);
+        const labels = placeLabels(variant.rarityLineup, reward.rarity, pre.winner, result.animationSeed);
+        skins = raritySkins(labels);
+        nextGranted = { kind: 'card', card, rarity: reward.rarity, isNew: reward.isNew };
+      }
+
       simRef.current?.destroy();
       const sim = new RouletteSim(b2, result.animationSeed, simConfig);
       simRef.current = sim;
-      setGranted({ card, reward });
+      setGranted(nextGranted);
       setPhase('racing');
-      runRace(sim, labels, pre.winner);
+      runRace(sim, skins, pre.winner);
     } catch (error) {
       console.error('[marble] 플레이 실패', error);
       setPhase('ready');
     }
-  }, [host, game, simConfig, runRace]);
+  }, [host, game.id, variant, simConfig, runRace]);
 
   const share = useCallback(() => {
     if (!granted) return;
+    const name = granted.kind === 'card' ? granted.card.name : granted.good.name;
     void host.share({
-      title: `${game.title} — ${granted.card.name} 획득!`,
+      title: `${game.title} — ${name} 획득!`,
       url: window.location.href,
     });
   }, [host, game.title, granted]);
-
-  const meta = granted ? RARITY_META[granted.reward.rarity] : null;
 
   return (
     <div
@@ -453,14 +545,14 @@ export function MarbleRoulette({ game, host }: { game: Game; host: PopupGameHost
       <div style={{ marginTop: 14 }}>
         {phase === 'racing' ? (
           <div className="mono" style={{ textAlign: 'center', fontSize: 12, color: 'var(--dim)', padding: '14px 0' }}>
-            가장 먼저 골인하는 구슬이 보상을 공개합니다
+            가장 먼저 골인하는 구슬이 {variant.kind === 'goods' ? '굿즈를' : '보상을'} 공개합니다
           </div>
         ) : (
           <>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, justifyContent: 'center' }}>
-              {lineupCounts.map(({ rarity, count }) => (
-                <span key={rarity} className="mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 28, padding: '0 11px', borderRadius: 999, fontSize: 11, border: `1px solid ${RARITY_META[rarity].color}55`, color: RARITY_META[rarity].color, background: 'rgba(255,255,255,.02)' }}>
-                  <strong>{rarity}</strong> ×{count}
+              {legend.map((item) => (
+                <span key={item.key} className="mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 28, padding: '0 11px', borderRadius: 999, fontSize: 11, border: `1px solid ${item.color}55`, color: item.color, background: 'rgba(255,255,255,.02)' }}>
+                  {item.text}
                 </span>
               ))}
             </div>
@@ -476,13 +568,15 @@ export function MarbleRoulette({ game, host }: { game: Game; host: PopupGameHost
               </button>
             </div>
             <div className="money-caption" style={{ textAlign: 'center', marginTop: 12 }}>
-              무상 리워드 · 결과는 서버가 결정하며 물리 연출은 장식입니다
+              {variant.kind === 'goods'
+                ? '래플 연출 데모 — 결과는 서버가 결정하며 물리 연출은 장식입니다'
+                : '무상 리워드 · 결과는 서버가 결정하며 물리 연출은 장식입니다'}
             </div>
           </>
         )}
       </div>
 
-      {phase === 'reveal' && granted && meta && (
+      {phase === 'reveal' && granted && (
         <div
           style={{
             position: 'fixed',
@@ -496,71 +590,113 @@ export function MarbleRoulette({ game, host }: { game: Game; host: PopupGameHost
           }}
         >
           <div style={{ textAlign: 'center', animation: 'popIn .55s cubic-bezier(.2,.6,.2,1) both' }}>
-            <div className="eyebrow">우승 구슬 · 카드 획득</div>
-            <div
-              style={{
-                width: 'clamp(210px, 56vw, 264px)',
-                aspectRatio: '5 / 7',
-                margin: '18px auto 0',
-                borderRadius: 18,
-                position: 'relative',
-                overflow: 'hidden',
-                background: granted.card.bg,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                boxShadow: `0 0 0 1px ${meta.color}80, 0 34px 80px -26px rgba(0,0,0,.9), 0 0 60px -16px ${meta.color}66`,
-              }}
-            >
-              {meta.foil && (
+            {granted.kind === 'card' ? (
+              <>
+                <div className="eyebrow">우승 구슬 · 카드 획득</div>
                 <div
-                  aria-hidden
                   style={{
-                    position: 'absolute',
-                    inset: 0,
-                    mixBlendMode: 'color-dodge',
-                    opacity: 0.5,
-                    background:
-                      'linear-gradient(115deg, transparent 18%, rgba(45,226,255,.5), rgba(139,92,255,.4), rgba(255,77,157,.5), transparent 82%)',
+                    width: 'clamp(210px, 56vw, 264px)',
+                    aspectRatio: '5 / 7',
+                    margin: '18px auto 0',
+                    borderRadius: 18,
+                    position: 'relative',
+                    overflow: 'hidden',
+                    background: granted.card.bg,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    boxShadow: `0 0 0 1px ${RARITY_META[granted.rarity].color}80, 0 34px 80px -26px rgba(0,0,0,.9), 0 0 60px -16px ${RARITY_META[granted.rarity].color}66`,
                   }}
-                />
-              )}
-              <span
-                className="mono"
-                style={{
-                  position: 'absolute',
-                  top: 10,
-                  left: 10,
-                  fontSize: 11,
-                  letterSpacing: '.08em',
-                  padding: '4px 9px',
-                  borderRadius: 6,
-                  fontWeight: 700,
-                  color: '#0A0813',
-                  background: meta.foil ? 'var(--holo)' : meta.color,
-                }}
-              >
-                {granted.reward.rarity}
-              </span>
-              {granted.reward.isNew && (
-                <span
-                  className="mono"
-                  style={{ position: 'absolute', top: 10, right: 10, fontSize: 10, letterSpacing: '.12em', padding: '4px 8px', borderRadius: 6, fontWeight: 700, color: 'var(--text)', background: 'rgba(8,6,15,.72)', border: '1px solid rgba(255,255,255,.25)' }}
                 >
-                  NEW
-                </span>
-              )}
-              <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 58%, rgba(8,6,15,.9) 100%)' }} />
-              <span style={{ position: 'absolute', left: 14, right: 14, bottom: 12, fontWeight: 700, fontSize: 15, textAlign: 'left' }}>
-                {granted.card.name}
-              </span>
-            </div>
-            <div className="mono" style={{ marginTop: 12, fontSize: 11.5, color: 'var(--dim)' }}>No. {granted.card.no}</div>
+                  {RARITY_META[granted.rarity].foil && (
+                    <div
+                      aria-hidden
+                      style={{
+                        position: 'absolute',
+                        inset: 0,
+                        mixBlendMode: 'color-dodge',
+                        opacity: 0.5,
+                        background:
+                          'linear-gradient(115deg, transparent 18%, rgba(45,226,255,.5), rgba(139,92,255,.4), rgba(255,77,157,.5), transparent 82%)',
+                      }}
+                    />
+                  )}
+                  <span
+                    className="mono"
+                    style={{
+                      position: 'absolute',
+                      top: 10,
+                      left: 10,
+                      fontSize: 11,
+                      letterSpacing: '.08em',
+                      padding: '4px 9px',
+                      borderRadius: 6,
+                      fontWeight: 700,
+                      color: '#0A0813',
+                      background: RARITY_META[granted.rarity].foil ? 'var(--holo)' : RARITY_META[granted.rarity].color,
+                    }}
+                  >
+                    {granted.rarity}
+                  </span>
+                  {granted.isNew && (
+                    <span
+                      className="mono"
+                      style={{ position: 'absolute', top: 10, right: 10, fontSize: 10, letterSpacing: '.12em', padding: '4px 8px', borderRadius: 6, fontWeight: 700, color: 'var(--text)', background: 'rgba(8,6,15,.72)', border: '1px solid rgba(255,255,255,.25)' }}
+                    >
+                      NEW
+                    </span>
+                  )}
+                  <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 58%, rgba(8,6,15,.9) 100%)' }} />
+                  <span style={{ position: 'absolute', left: 14, right: 14, bottom: 12, fontWeight: 700, fontSize: 15, textAlign: 'left' }}>
+                    {granted.card.name}
+                  </span>
+                </div>
+                <div className="mono" style={{ marginTop: 12, fontSize: 11.5, color: 'var(--dim)' }}>No. {granted.card.no}</div>
+              </>
+            ) : (
+              <>
+                <div className="eyebrow">우승 구슬 · 굿즈 추첨</div>
+                <div
+                  style={{
+                    width: 'clamp(210px, 56vw, 264px)',
+                    aspectRatio: '4 / 5',
+                    margin: '18px auto 0',
+                    borderRadius: 18,
+                    position: 'relative',
+                    overflow: 'hidden',
+                    background: granted.good.img,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    boxShadow: `0 0 0 1px ${goodAccent(granted.good)}80, 0 34px 80px -26px rgba(0,0,0,.9), 0 0 60px -16px ${goodAccent(granted.good)}66`,
+                  }}
+                >
+                  {granted.good.badge && (
+                    <span
+                      className="mono"
+                      style={{ position: 'absolute', top: 10, left: 10, fontSize: 10.5, letterSpacing: '.08em', padding: '4px 9px', borderRadius: 6, fontWeight: 700, color: '#0A0813', background: goodAccent(granted.good) }}
+                    >
+                      {granted.good.badge}
+                    </span>
+                  )}
+                  <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 55%, rgba(8,6,15,.92) 100%)' }} />
+                  <span style={{ position: 'absolute', left: 14, right: 14, bottom: 34, fontWeight: 700, fontSize: 15, textAlign: 'left' }}>
+                    {granted.good.name}
+                  </span>
+                  <span className="mono" style={{ position: 'absolute', left: 14, bottom: 12, fontSize: 12.5, color: 'var(--dim)' }}>
+                    {krw(granted.good.price)}
+                  </span>
+                </div>
+              </>
+            )}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginTop: 20 }}>
               <button type="button" className="btn btn-holo" onClick={play} style={{ height: 46, padding: '0 24px' }}>다시 플레이</button>
               <button type="button" className="btn btn-ghost" onClick={share} style={{ height: 46, padding: '0 20px' }}>공유</button>
               <button type="button" className="btn btn-ghost" onClick={() => host.close()} style={{ height: 46, padding: '0 20px' }}>닫기</button>
             </div>
-            <div className="money-caption" style={{ marginTop: 14 }}>게임 보상 카드는 무상으로 발급됩니다 · PoC mock 결과</div>
+            <div className="money-caption" style={{ marginTop: 14 }}>
+              {granted.kind === 'goods'
+                ? '래플 연출 데모 — 실물 굿즈 경품은 래플 당첨 후 정가 결제로 구매합니다 · PoC mock'
+                : '게임 보상 카드는 무상으로 발급됩니다 · PoC mock 결과'}
+            </div>
           </div>
         </div>
       )}

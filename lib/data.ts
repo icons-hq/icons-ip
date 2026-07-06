@@ -47,15 +47,19 @@ export interface Card {
   bg: string;
 }
 /* 참여형 게임 카탈로그 — games 테이블 초안(게임 미니앱 스펙 §3) 미러. 실배선은 play_game(#64) */
+export type GameVariant =
+  | { kind: 'card'; rarityLineup: RarityKey[] } // 구슬 = 등급 확률 극장, 보상 = 무상 카드
+  | { kind: 'goods'; goodsIds: string[] }; // 구슬 = 굿즈 1:1 — 래플 연출 데모(실물 무상 지급 경로 아님, ADR-0002)
+
 export interface Game {
   id: string;
   type: 'marble_roulette';
   title: string;
-  ip: string; // 무상 보상 카드풀 스코프 — mock은 해당 IP의 CARDS가 풀
+  ip: string | null; // 카드 보상 풀 스코프(card variant) — goods variant는 크로스오버라 null
   event: string | null; // popup_id 대용(연결 이벤트)
   config: {
     marbleCount: number;
-    rarityLineup: RarityKey[]; // 확률 극장 — 구슬에 배치되는 등급 멀티셋
+    variant: GameVariant;
   };
 }
 
@@ -179,8 +183,26 @@ const GAMES: Game[] = [
     event: 'e2',
     config: {
       marbleCount: 10,
-      // 풀(maplestory CARDS)에 실존하는 등급만, mock 가중치 비례로 — 공시=추첨 일치(Gacha poolRates와 같은 규율)
-      rarityLineup: ['R', 'R', 'R', 'R', 'R', 'R', 'R', 'SSR', 'SSR', 'HOLO'],
+      variant: {
+        kind: 'card',
+        // 풀(maplestory CARDS)에 실존하는 등급만, mock 가중치 비례로 — 공시=추첨 일치(Gacha poolRates와 같은 규율)
+        rarityLineup: ['R', 'R', 'R', 'R', 'R', 'R', 'R', 'SSR', 'SSR', 'HOLO'],
+      },
+    },
+  },
+  {
+    id: 'goods-marble',
+    type: 'marble_roulette',
+    title: '굿즈 마블 룰렛',
+    ip: null, // 5개 IP 크로스오버
+    event: null,
+    config: {
+      marbleCount: 10,
+      variant: {
+        kind: 'goods',
+        // 구슬 1:1 — mock GOODS 12종 중 IP 균형(각 2종)으로 10종
+        goodsIds: ['g1', 'g2', 'g3', 'g5', 'g6', 'g7', 'g8', 'g9', 'g11', 'g12'],
+      },
     },
   },
 ];
