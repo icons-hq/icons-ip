@@ -38,9 +38,9 @@ describe('roulette-sim 결정론 (c1 사전 시뮬 계약)', () => {
   it('경주가 안전 상한 안에서 자연 종결된다', () => {
     for (const seed of ['pace-1', 'pace-2', 'pace-3']) {
       const { steps } = findWinner(b2, seed, CONFIG);
-      // 최소 3초는 굴러야 연출이 성립하고, 60초 안전 상한 전에 끝나야 한다
-      expect(steps).toBeGreaterThan(180);
-      expect(steps).toBeLessThan(3600);
+      // 대형 맵: 최소 15초는 달려야 하고, 2분 안전 상한 전에 끝나야 한다
+      expect(steps).toBeGreaterThan(900);
+      expect(steps).toBeLessThan(7200);
     }
   });
 
