@@ -47,6 +47,10 @@ const RARITY_ORDER: RarityKey[] = ['HOLO', 'SSR', 'SR', 'R', 'N'];
 const PACK_UNTIL_Y = 7.5;
 /** 선두 교체 히스테리시스(m) — 카메라 포커스가 미세 역전으로 떨리지 않게 */
 const LEAD_HYSTERESIS = 0.35;
+/** 피날레 시작 깊이 — 카메라를 와이드로 빼 골 라인·디나이얼 존을 함께 보여준다 */
+const FINALE_FROM_Y = 62;
+/** 피날레 슬로모 배속 — 결과는 동일하고 재생만 느려진다(결정론 무관) */
+const FINALE_TIME_SCALE = 0.55;
 
 /** 우승 구슬에 서버가 정한 라벨을 놓고, 나머지를 시드 셔플로 배치 */
 function placeLabels<T>(lineup: readonly T[], granted: T, winnerIndex: number, seed: string): T[] {
@@ -143,6 +147,11 @@ function updateCamera(
     tzoom = clamp(Math.min(w / bw, h / bh), w / 11, w / 6.5);
     tx = (minX + maxX) / 2;
     ty = (minY + maxY) / 2;
+  } else if (lead.y > FINALE_FROM_Y) {
+    // 피날레 — 와이드로 빼서 디나이얼 존과 골 라인이 함께 보이게
+    tzoom = w / 8.5;
+    tx = lead.x;
+    ty = Math.min(lead.y + 1.2, COURSE.goalY - 2.0);
   } else {
     // 선두 추적
     tzoom = w / 7;
@@ -433,12 +442,13 @@ export function MarbleRoulette({ game, host }: { game: Game; host: PopupGameHost
       let last = performance.now();
       let acc = 0;
       let leader = -1;
+      let finale = false;
       // 시작 카메라 — 출발 팩 위에서 시작해 첫 프레임부터 자연스럽게 fit
       const cam: CamView = { x: COURSE.width / 2, y: 3, zoom: canvas.clientWidth / 10.6 || 60 };
       const loop = (now: number) => {
-        // 탭 전환 복귀 시 누적 시간 폭주 방지
+        // 탭 전환 복귀 시 누적 시간 폭주 방지. 피날레에선 슬로모(재생만 감속)
         const frameMs = Math.min(now - last, 250);
-        acc = Math.min(acc + frameMs, 250);
+        acc = Math.min(acc + frameMs * (finale ? FINALE_TIME_SCALE : 1), 250);
         last = now;
         while (acc >= stepMs && sim.winner === null) {
           sim.step();
@@ -447,6 +457,7 @@ export function MarbleRoulette({ game, host }: { game: Game; host: PopupGameHost
         const { ctx, w, h } = fitCanvas(canvas);
         const marbles = sim.getMarbles();
         leader = sim.winner ?? pickLeader(marbles, leader);
+        finale = sim.winner === null && marbles[leader].y > FINALE_FROM_Y;
         updateCamera(cam, marbles, leader, sim.winner, w, h, frameMs / 1000);
         drawFrame(ctx, w, h, cam, marbles, sim.getRotors(), skins, sim.winner);
         if (sim.winner === null) {

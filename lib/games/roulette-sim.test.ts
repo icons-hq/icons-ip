@@ -50,4 +50,28 @@ describe('roulette-sim 결정론 (c1 사전 시뮬 계약)', () => {
     );
     expect(winners.size).toBeGreaterThan(1);
   });
+
+  it('후반부(보울 이후) 선두 교체가 최소 1회 발생한다 — 역전 보증', () => {
+    // 체크포인트(보울·게이트)와 디나이얼 존이 초반 선두 굳히기를 깨는지 검증.
+    // 고정 시드 + 결정론이라 한 번 통과하면 코스가 바뀌지 않는 한 항상 통과한다.
+    for (const seed of ['pace-1', 'pace-2', 'pace-3', 'x-1', 'x-2', 'x-3']) {
+      const sim = new RouletteSim(b2, seed, CONFIG);
+      let leader = -1;
+      let lateChanges = 0;
+      while (sim.winner === null) {
+        sim.step();
+        const marbles = sim.getMarbles();
+        let top = 0;
+        for (let i = 1; i < marbles.length; i++) {
+          if (marbles[i].y > marbles[top].y) top = i;
+        }
+        if (leader !== top) {
+          if (marbles[top].y > 38) lateChanges++;
+          leader = top;
+        }
+      }
+      expect(lateChanges, `${seed}: 후반 선두 교체 없음`).toBeGreaterThanOrEqual(1);
+      sim.destroy();
+    }
+  });
 });
