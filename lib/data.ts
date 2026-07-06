@@ -46,6 +46,19 @@ export interface Card {
   owned: boolean;
   bg: string;
 }
+/* 참여형 게임 카탈로그 — games 테이블 초안(게임 미니앱 스펙 §3) 미러. 실배선은 play_game(#64) */
+export interface Game {
+  id: string;
+  type: 'marble_roulette';
+  title: string;
+  ip: string; // 무상 보상 카드풀 스코프 — mock은 해당 IP의 CARDS가 풀
+  event: string | null; // popup_id 대용(연결 이벤트)
+  config: {
+    marbleCount: number;
+    rarityLineup: RarityKey[]; // 확률 극장 — 구슬에 배치되는 등급 멀티셋
+  };
+}
+
 export interface FandomEvent {
   id: string;
   title: string;
@@ -157,6 +170,20 @@ const CARDS: Card[] = [
   { id: 'c12', ip: 'attack-on-titan', name: '리바이 · 조사병단', no: '017/070', rarity: 'SSR', owned: false, bg: imageBg('/generated/cards/c12.png', grad('#201c18', '#4C5A3F', '#A981FF')) },
 ];
 
+const GAMES: Game[] = [
+  {
+    id: 'marble-maple',
+    type: 'marble_roulette',
+    title: '메이플 마블 룰렛',
+    ip: 'maplestory',
+    event: 'e2',
+    config: {
+      marbleCount: 10,
+      rarityLineup: ['N', 'N', 'N', 'R', 'R', 'R', 'SR', 'SR', 'SSR', 'HOLO'],
+    },
+  },
+];
+
 const EVENTS: FandomEvent[] = [
   { id: 'e1', title: '리락쿠마 포근한 방 팝업스토어', ip: 'rilakkuma', mode: '오프라인', status: '진행중', date: '7.01 - 7.21', loc: '성수 ICONS 스튜디오', accent: '#FFD84D', img: imageBg('/generated/events/e1.png', grad('#5a3517', '#D68A2D', '#FFD84D')) },
   { id: 'e2', title: '메이플스토리 몬스터즈 온라인 팝업', ip: 'maplestory', mode: '온라인', status: '예매중', date: '7.12 20:00', loc: 'ICONS Live', accent: '#38F0C0', img: imageBg('/generated/events/e2.png', grad('#0d5e66', '#38F0C0', '#FFD84D')) },
@@ -206,6 +233,7 @@ export const DATA = {
   GOODS_TYPES,
   RARITY,
   CARDS,
+  GAMES,
   EVENTS,
   POSTS,
   EXCHANGES,

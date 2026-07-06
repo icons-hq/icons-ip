@@ -13,7 +13,8 @@ export function Nav() {
   const go = useGo();
   const { count } = useCart();
 
-  if (pathname === '/login') return null;
+  // 게임은 자기완결 번들 — 셸 없이 풀블리드(ADR-0002)
+  if (pathname === '/login' || pathname.startsWith('/games')) return null;
 
   return (
     <nav className="nav">

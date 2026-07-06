@@ -7,17 +7,20 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "postinstall": "mkdir -p public/box2d && cp node_modules/box2d-wasm/dist/es/Box2D.wasm node_modules/box2d-wasm/dist/es/Box2D.simd.wasm public/box2d/"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.108.2",
+    "box2d-wasm": "^7.0.0",
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/emscripten": "^1.41.5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

@@ -15,7 +15,7 @@ const AUX_LINKS: [label: string, route: string | null][] = [
 
 export function SiteFooter() {
   const pathname = usePathname();
-  if (pathname === '/login') return null;
+  if (pathname === '/login' || pathname.startsWith('/games')) return null;
 
   return (
     <footer style={{ borderTop: '1px solid var(--line)', padding: '26px 0', position: 'relative', zIndex: 2 }}>
