@@ -168,3 +168,50 @@ on conflict (id) do update set
   accent = excluded.accent,
   bg = excluded.bg,
   updated_at = now();
+
+-- 무상 리워드 카드풀 + 참여형 게임(#64). 게임 구슬 라인업(R×7·SSR×2·HOLO×1)과
+-- pool_odds를 일치시킨다 — 공시=추첨 일치 규율(구슬 라벨이 곧 공시).
+-- cost_per_pull은 유료 가챠 유물 컬럼(not null) — 최솟값으로 채운다(#65에서 컬럼 정리).
+insert into public.card_pools (id, ip_id, name, cost_per_pull) values
+  ('a0000000-0000-4000-8000-000000000001', 'maplestory', '메이플 몬스터즈 무상 리워드 풀', 1)
+on conflict (id) do update set
+  ip_id = excluded.ip_id,
+  name = excluded.name,
+  updated_at = now();
+
+insert into public.pool_odds (pool_id, rarity, probability) values
+  ('a0000000-0000-4000-8000-000000000001', 'R', 0.70000),
+  ('a0000000-0000-4000-8000-000000000001', 'SSR', 0.20000),
+  ('a0000000-0000-4000-8000-000000000001', 'HOLO', 0.10000)
+on conflict (pool_id, rarity) do update set probability = excluded.probability;
+
+update public.cards set pool_id = 'a0000000-0000-4000-8000-000000000001'
+  where ip_id = 'maplestory';
+
+insert into public.games (id, type, title, event_id, config, reward_pool_id, per_user_daily_limit) values
+  (
+    'marble-maple',
+    'marble_roulette',
+    '메이플 마블 룰렛',
+    'e2',
+    '{"marbleCount":10,"variant":{"kind":"card","rarityLineup":["R","R","R","R","R","R","R","SSR","SSR","HOLO"]}}',
+    'a0000000-0000-4000-8000-000000000001',
+    1
+  ),
+  (
+    'goods-marble',
+    'marble_roulette',
+    '굿즈 마블 룰렛',
+    null,
+    '{"marbleCount":10,"variant":{"kind":"goods","goodsIds":["g1","g2","g3","g5","g6","g7","g8","g9","g11","g12"]}}',
+    null, -- 서버 플레이 불가 — 래플 연출 데모(클라 mock 유지)
+    1
+  )
+on conflict (id) do update set
+  type = excluded.type,
+  title = excluded.title,
+  event_id = excluded.event_id,
+  config = excluded.config,
+  reward_pool_id = excluded.reward_pool_id,
+  per_user_daily_limit = excluded.per_user_daily_limit,
+  updated_at = now();

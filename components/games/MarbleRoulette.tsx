@@ -1,11 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DATA, krw, type Card, type Game, type Good } from '@/lib/data';
 import { ipAccent } from '@/lib/ip-display';
 import { RARITY_META, type RarityKey } from '@/lib/rarity';
 import { loadBox2D } from '@/lib/games/box2d-loader';
-import type { PopupGameHost } from '@/lib/games/host';
+import { GamePlayError, type PopupGameHost } from '@/lib/games/host';
 import {
   COURSE,
   FIXED_STEP,
@@ -374,9 +375,29 @@ async function goodsSkins(goodsIds: string[]): Promise<MarbleSkin[]> {
   );
 }
 
-export function MarbleRoulette({ game, host }: { game: Game; host: PopupGameHost }) {
+/** 플레이 실패 안내 — GamePlayError 코드별 CTA(로그인/온보딩)로 분기 */
+interface PlayNotice {
+  text: string;
+  href?: string;
+  cta?: string;
+}
+
+export function MarbleRoulette({
+  game,
+  host,
+  cards,
+  live = false,
+}: {
+  game: Game;
+  host: PopupGameHost;
+  /** 리빌 패널 카드 조회 소스 — 미주입 시 mock 카탈로그 */
+  cards?: Card[];
+  /** true = 결과가 play_game RPC(서버) — 헤더 배지 표기만 다르다 */
+  live?: boolean;
+}) {
   const [phase, setPhase] = useState<Phase>('ready');
   const [granted, setGranted] = useState<Granted | null>(null);
+  const [notice, setNotice] = useState<PlayNotice | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const simRef = useRef<RouletteSim | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -479,6 +500,7 @@ export function MarbleRoulette({ game, host }: { game: Game; host: PopupGameHost
   const play = useCallback(async () => {
     setPhase('loading');
     setGranted(null);
+    setNotice(null);
     host.track('game_play', { gameId: game.id });
     try {
       const [b2, result] = await Promise.all([loadBox2D(), host.playGame(game.id)]);
@@ -497,7 +519,7 @@ export function MarbleRoulette({ game, host }: { game: Game; host: PopupGameHost
         nextGranted = { kind: 'goods', good };
       } else {
         if (reward.kind !== 'card') throw new Error('variant/reward mismatch');
-        const card = DATA.CARDS.find((c) => c.id === reward.cardId);
+        const card = (cards ?? DATA.CARDS).find((c) => c.id === reward.cardId);
         if (!card) throw new Error(`unknown card: ${reward.cardId}`);
         const labels = placeLabels(variant.rarityLineup, reward.rarity, pre.winner, result.animationSeed);
         skins = raritySkins(labels);
@@ -512,9 +534,24 @@ export function MarbleRoulette({ game, host }: { game: Game; host: PopupGameHost
       runRace(sim, skins, pre.winner);
     } catch (error) {
       console.error('[marble] 플레이 실패', error);
+      if (error instanceof GamePlayError && error.code === 'auth_required') {
+        setNotice({
+          text: '플레이하려면 로그인이 필요해요. 획득한 카드는 바인더에 저장됩니다.',
+          href: `/login?next=${encodeURIComponent(`/games/${game.id}`)}`,
+          cta: '로그인하고 플레이',
+        });
+      } else if (error instanceof GamePlayError && error.code === 'onboarding_required') {
+        setNotice({
+          text: '프로필 온보딩을 마치면 바로 플레이할 수 있어요.',
+          href: `/onboarding?next=${encodeURIComponent(`/games/${game.id}`)}`,
+          cta: '온보딩 마치기',
+        });
+      } else {
+        setNotice({ text: '플레이를 시작하지 못했어요. 잠시 후 다시 시도해주세요.' });
+      }
       setPhase('ready');
     }
-  }, [host, game.id, variant, simConfig, runRace]);
+  }, [host, game.id, variant, simConfig, runRace, cards]);
 
   const share = useCallback(() => {
     if (!granted) return;
@@ -542,8 +579,8 @@ export function MarbleRoulette({ game, host }: { game: Game; host: PopupGameHost
         <div>
           <div className="eyebrow" style={{ color: 'var(--mint)' }}>온라인 팝업 · 참여형 게임</div>
           <h1 className="h-lg" style={{ margin: '10px 0 0', fontFamily: 'var(--ff-display)' }}>{game.title}</h1>
-          <span className="mono" style={{ display: 'inline-block', marginTop: 8, fontSize: 10.5, letterSpacing: '.14em', color: 'var(--faint)', border: '1px solid var(--line-2)', borderRadius: 999, padding: '3px 10px' }}>
-            PoC · MOCK RESULT
+          <span className="mono" style={{ display: 'inline-block', marginTop: 8, fontSize: 10.5, letterSpacing: '.14em', color: live ? 'var(--mint)' : 'var(--faint)', border: '1px solid var(--line-2)', borderRadius: 999, padding: '3px 10px' }}>
+            {live ? 'LIVE · SERVER RESULT' : 'PoC · MOCK RESULT'}
           </span>
         </div>
         <button type="button" className="icon-btn" aria-label="게임 닫기" onClick={() => host.close()}>✕</button>
@@ -578,6 +615,20 @@ export function MarbleRoulette({ game, host }: { game: Game; host: PopupGameHost
                 {phase === 'loading' ? '결과 준비 중…' : phase === 'reveal' ? '다시 플레이' : '플레이'}
               </button>
             </div>
+            {notice && (
+              <div style={{ textAlign: 'center', marginTop: 12 }}>
+                <div className="mono" style={{ fontSize: 12, color: 'var(--pink)' }}>{notice.text}</div>
+                {notice.href && notice.cta && (
+                  <Link
+                    href={notice.href}
+                    className="btn"
+                    style={{ display: 'inline-flex', marginTop: 10, height: 40, padding: '0 20px', fontSize: 13 }}
+                  >
+                    {notice.cta}
+                  </Link>
+                )}
+              </div>
+            )}
             <div className="money-caption" style={{ textAlign: 'center', marginTop: 12 }}>
               {variant.kind === 'goods'
                 ? '래플 연출 데모 — 결과는 서버가 결정하며 물리 연출은 장식입니다'
@@ -706,7 +757,9 @@ export function MarbleRoulette({ game, host }: { game: Game; host: PopupGameHost
             <div className="money-caption" style={{ marginTop: 14 }}>
               {granted.kind === 'goods'
                 ? '래플 연출 데모 — 실물 굿즈 경품은 래플 당첨 후 정가 결제로 구매합니다 · PoC mock'
-                : '게임 보상 카드는 무상으로 발급됩니다 · PoC mock 결과'}
+                : live
+                  ? '게임 보상 카드는 무상으로 발급되어 바인더에 저장됩니다'
+                  : '게임 보상 카드는 무상으로 발급됩니다 · PoC mock 결과'}
             </div>
           </div>
         </div>
