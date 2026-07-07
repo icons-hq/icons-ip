@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    // 유료 뽑기 화면(/gacha)을 카드팩 개봉 화면으로 재목적화(#71) — 구 링크 보존
+    return [{ source: '/gacha', destination: '/packs', permanent: true }];
+  },
   // Pin the workspace root to this project (a stray lockfile lives in the home dir).
   turbopack: {
     root: import.meta.dirname,

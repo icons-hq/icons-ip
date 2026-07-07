@@ -245,8 +245,8 @@ export function IpHub({
                 <span style={{ fontWeight: 800, fontSize: 21, marginTop: 8, position: 'relative' }}>카드풀 준비 중</span>
               )}
               <div style={{ marginTop: 'auto', paddingTop: 18, width: '100%', position: 'relative', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
-                <Link className="btn btn-holo" href={`${hrefFor('gacha')}?ip=${ip.id}`} style={{ width: 'min(100%, 280px)', fontSize: 15 }}>
-                  지금 뽑기 ✦
+                <Link className="btn btn-holo" href={hrefFor('packs')} style={{ width: 'min(100%, 280px)', fontSize: 15 }}>
+                  카드팩 열기 ✦
                 </Link>
                 <span className="money-caption" style={{ lineHeight: 1.6 }}>등급별 확률·천장 기준은 카드풀 상세에 전문 공시 · 미사용 충전금 전액 환불</span>
               </div>
