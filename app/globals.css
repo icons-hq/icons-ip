@@ -390,7 +390,7 @@
   }
   .ipworld-cell:hover { transform: translateY(-4px); border-color: var(--cell-accent); box-shadow: var(--shadow); }
   .ipw-goods { grid-column: span 7; }
-  .ipw-gacha { grid-column: span 5; grid-row: span 2; }
+  .ipw-packs { grid-column: span 5; grid-row: span 2; }
   .ipw-event { grid-column: span 4; }
   .ipw-comm { grid-column: span 3; }
   .ipw-cards { grid-column: span 4; }

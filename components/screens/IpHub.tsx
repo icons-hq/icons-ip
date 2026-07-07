@@ -231,10 +231,10 @@ export function IpHub({
               )}
             </div>
 
-            {/* B · 가챠 (모아요) */}
-            <div className="ipworld-cell ipw-gacha" style={{ ['--cell-accent' as string]: 'rgba(139,92,255,.5)', background: 'linear-gradient(180deg, var(--surface-2), var(--bg-2))', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '28px 24px 26px', minHeight: 480 }}>
+            {/* B · 카드팩 (모아요) */}
+            <div className="ipworld-cell ipw-packs" style={{ ['--cell-accent' as string]: 'rgba(139,92,255,.5)', background: 'linear-gradient(180deg, var(--surface-2), var(--bg-2))', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '28px 24px 26px', minHeight: 480 }}>
               <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(420px 300px at 50% 30%, rgba(139,92,255,.22), transparent 70%)' }} />
-              <span style={{ ...eyebrowStyle('var(--violet-2)'), position: 'relative' }}>모아요 · 가챠</span>
+              <span style={{ ...eyebrowStyle('var(--violet-2)'), position: 'relative' }}>모아요 · 카드팩</span>
               {topCard ? (
                 <>
                   <span style={{ fontWeight: 800, fontSize: 21, marginTop: 8, position: 'relative' }}>이번 카드풀 최고 등급</span>
@@ -248,7 +248,7 @@ export function IpHub({
                 <Link className="btn btn-holo" href={hrefFor('packs')} style={{ width: 'min(100%, 280px)', fontSize: 15 }}>
                   카드팩 열기 ✦
                 </Link>
-                <span className="money-caption" style={{ lineHeight: 1.6 }}>등급별 확률·천장 기준은 카드풀 상세에 전문 공시 · 미사용 충전금 전액 환불</span>
+                <span className="money-caption" style={{ lineHeight: 1.6 }}>카드팩은 굿즈 구매 리워드로 무상 발급 · 개봉한 카드는 바인더에 보관</span>
               </div>
             </div>
 
