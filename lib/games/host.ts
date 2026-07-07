@@ -38,6 +38,24 @@ export interface PopupGameHost {
   track(event: string, props?: Record<string, unknown>): void;
 }
 
+/** 원격 playGame 실패 — 게임은 이 코드로 로그인/온보딩 CTA를 분기한다. */
+export type GamePlayErrorCode = 'auth_required' | 'onboarding_required' | 'play_failed';
+
+export class GamePlayError extends Error {
+  constructor(readonly code: GamePlayErrorCode) {
+    super(code);
+    this.name = 'GamePlayError';
+  }
+}
+
+export interface WebGameHostOptions {
+  /** supabase 모드 card variant에서 주입(Server Action → play_game RPC).
+   * 미주입 시 mock 경로 — goods 래플 연출 데모는 실배선 전까지 항상 mock. */
+  remotePlay?: (
+    gameId: string,
+  ) => Promise<{ ok: true; result: GamePlayResult } | { ok: false; error: GamePlayErrorCode }>;
+}
+
 /* mock 등급 가중치 — 실서버는 pool_odds 기반 roll_rarity(#64). 풀에 있는 등급만 정규화 */
 const MOCK_RATES: Record<RarityKey, number> = { N: 40, R: 30, SR: 18, SSR: 8, HOLO: 4 };
 
@@ -64,8 +82,9 @@ function randomSeed(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** 웹 호스트 — getSession만 실배선, playGame은 mock(#64에서 play_game RPC로 승격). */
-export function createWebGameHost(): PopupGameHost {
+/** 웹 호스트 — getSession 실배선. playGame은 remotePlay 주입 시 play_game RPC(#64),
+ * 미주입 시 mock(굿즈 래플 연출 데모·mock 모드). */
+export function createWebGameHost(options: WebGameHostOptions = {}): PopupGameHost {
   return {
     async getSession() {
       // Supabase 미설정(mock 모드)에서도 게임은 공개 플레이를 유지한다
@@ -76,6 +95,11 @@ export function createWebGameHost(): PopupGameHost {
     },
 
     async playGame(gameId) {
+      if (options.remotePlay) {
+        const res = await options.remotePlay(gameId);
+        if (!res.ok) throw new GamePlayError(res.error);
+        return res.result;
+      }
       const game = DATA.GAMES.find((g) => g.id === gameId);
       if (!game) throw new Error(`unknown game: ${gameId}`);
       // 서버 왕복 감을 주는 지연 — 실배선 시 Server Action → RPC로 교체
