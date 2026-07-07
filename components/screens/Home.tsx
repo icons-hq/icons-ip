@@ -232,7 +232,7 @@ export function Home({
 
   const verbs = [
     { n: '01', word: '사요', eyebrow: 'OFFICIAL GOODS', color: 'var(--amber)', art: catalog.goods[0]?.img, href: hrefFor('shop'), anchor: false, desc: 'IP 파트너와 직접 계약한 공식 라이선스 정품 굿즈. 한정판은 여기서 제일 먼저 열려요.' },
-    { n: '02', word: '모아요', eyebrow: 'GACHA CARDS', color: 'var(--violet-2)', art: catalog.cards[0]?.bg, href: '#gacha', anchor: true, desc: '가챠로 뽑는 수집 카드. SSR·HOLO 포일이 빛나고, 확률은 전부 공시합니다.' },
+    { n: '02', word: '모아요', eyebrow: 'CARD PACKS', color: 'var(--violet-2)', art: catalog.cards[0]?.bg, href: '#packs', anchor: true, desc: '카드팩을 개봉해 모으는 수집 카드. SSR·HOLO는 홀로그래픽 포일로 빛납니다.' },
     { n: '03', word: '만나요', eyebrow: 'POP-UP & TICKETS', color: 'var(--mint)', art: catalog.events[0]?.img, href: hrefFor('events'), anchor: false, desc: '팝업스토어와 온라인 이벤트 예매. QR 티켓으로 줄 없이 입장해요.' },
     { n: '04', word: '떠들어요', eyebrow: 'FANDOM COMMUNITY', color: 'var(--pink)', art: catalog.events[3]?.img ?? catalog.events[1]?.img, href: hrefFor('community'), anchor: false, desc: '같은 최애를 가진 사람들의 채널. 인증하고, 자랑하고, 교환 상대를 찾아요.' },
   ];
@@ -278,17 +278,17 @@ export function Home({
         </div>
       </section>
 
-      {/* gacha teaser */}
-      <section id="gacha" style={{ background: 'linear-gradient(180deg, var(--bg), var(--bg-2) 20%, var(--bg-2) 80%, var(--bg))', padding: 'clamp(70px, 9vw, 110px) 0' }}>
+      {/* card pack teaser */}
+      <section id="packs" style={{ background: 'linear-gradient(180deg, var(--bg), var(--bg-2) 20%, var(--bg-2) 80%, var(--bg))', padding: 'clamp(70px, 9vw, 110px) 0' }}>
         <div className="wrap" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 'clamp(40px, 6vw, 72px)', alignItems: 'center' }}>
           <div>
             <div className="eyebrow">모아요 · 수집 카드</div>
             <h2 style={{ margin: '18px 0 0', fontFamily: 'var(--ff-display)', fontWeight: 700, fontSize: 'clamp(30px, 4.6vw, 52px)', lineHeight: 1.08, letterSpacing: '-0.02em' }}>
-              지금 뽑으면,<br />뭐가 나올까요?
+              카드팩을 열면,<br />뭐가 나올까요?
             </h2>
             <p style={{ margin: '18px 0 0', fontSize: 16, color: 'var(--dim)', maxWidth: 440, textWrap: 'pretty' }}>
-              충전금으로 돌리는 가챠. SSR·HOLO는 홀로그래픽 포일로 빛나고,
-              일정 횟수 안에 최고 등급이 <strong style={{ color: 'var(--text)' }}>천장으로 보장</strong>됩니다.
+              굿즈를 구매하면 컬렉션 카드팩이 <strong style={{ color: 'var(--text)' }}>무상으로 발급</strong>돼요.
+              개봉하는 순간 SSR·HOLO가 홀로그래픽 포일로 빛납니다.
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 24 }}>
               {(Object.keys(RARITY_META) as RarityKey[]).map((k) => (
@@ -299,12 +299,12 @@ export function Home({
               ))}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 30 }}>
-              <a className="btn btn-holo" href="#join" style={{ height: 50, padding: '0 26px', fontSize: 15 }}>가입하고 뽑기 시작</a>
+              <a className="btn btn-holo" href="#join" style={{ height: 50, padding: '0 26px', fontSize: 15 }}>가입하고 카드팩 열기</a>
               <Link className="btn btn-ghost" href={hrefFor('iphub')} style={{ height: 50, fontSize: 15 }}>카드풀 구경하기</Link>
             </div>
             <p className="money-caption" style={{ margin: '22px 0 0', lineHeight: 1.6 }}>
-              등급별 획득 확률과 천장 기준은 각 카드풀 페이지에 전문 공시됩니다.<br />
-              충전금 미사용 잔액은 전액 환불 대상입니다.
+              카드는 구매·게임 리워드로만 무상 발급되며, 카드에 별도 결제가 없습니다.<br />
+              개봉한 카드는 내 바인더에 보관돼요.
             </p>
           </div>
           {holoCard && (
@@ -331,8 +331,8 @@ export function Home({
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginTop: 'clamp(50px, 7vw, 80px)', textAlign: 'left' }}>
             {[
               { t: '공식 라이선스 정품', d: 'IP 파트너와 직접 계약한 정품만 입점해요.' },
-              { t: '확률 공시 · 천장 보장', d: '가챠 확률은 카드풀마다 전문 공시, 최고 등급은 천장으로 보장돼요.' },
-              { t: '안전한 결제 · 환불', d: '토스페이먼츠 결제, 미사용 충전금은 전액 환불 대상이에요.' },
+              { t: '카드는 무상 리워드', d: '수집 카드는 굿즈 구매와 참여형 게임의 무상 리워드로만 발급돼요.' },
+              { t: '안전한 결제 · 환불', d: '토스페이먼츠 결제, 실물 굿즈와 티켓은 규정에 따라 환불돼요.' },
             ].map((tr) => (
               <div key={tr.t} className="card" style={{ display: 'flex', gap: 14, padding: 22, borderRadius: 18 }}>
                 <span style={{ flex: '0 0 auto', width: 26, height: 26, borderRadius: 99, display: 'grid', placeItems: 'center', background: 'rgba(56,240,192,.14)', color: 'var(--mint)', fontSize: 14, fontWeight: 700 }}>✓</span>

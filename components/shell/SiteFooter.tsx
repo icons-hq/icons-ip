@@ -23,7 +23,7 @@ export function SiteFooter() {
         <span className="brand" style={{ fontSize: 17, letterSpacing: '-0.03em', gap: 7 }}>
           <span className="dot" style={{ width: 7, height: 7, boxShadow: 'none' }} />ICONS
         </span>
-        <span className="money-caption">공식 라이선스 · 확률 공시 · 토스페이먼츠 안전 결제</span>
+        <span className="money-caption">공식 라이선스 · 무상 카드 리워드 · 토스페이먼츠 안전 결제</span>
       </div>
       <div className="wrap" style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: '6px 18px' }}>
         {AUX_LINKS.map(([label, route]) =>

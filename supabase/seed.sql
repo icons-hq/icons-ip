@@ -171,9 +171,8 @@ on conflict (id) do update set
 
 -- 무상 리워드 카드풀 + 참여형 게임(#64). 게임 구슬 라인업(R×7·SSR×2·HOLO×1)과
 -- pool_odds를 일치시킨다 — 공시=추첨 일치 규율(구슬 라벨이 곧 공시).
--- cost_per_pull은 유료 가챠 유물 컬럼(not null) — 최솟값으로 채운다(#65에서 컬럼 정리).
-insert into public.card_pools (id, ip_id, name, cost_per_pull) values
-  ('a0000000-0000-4000-8000-000000000001', 'maplestory', '메이플 몬스터즈 무상 리워드 풀', 1)
+insert into public.card_pools (id, ip_id, name) values
+  ('a0000000-0000-4000-8000-000000000001', 'maplestory', '메이플 몬스터즈 무상 리워드 풀')
 on conflict (id) do update set
   ip_id = excluded.ip_id,
   name = excluded.name,

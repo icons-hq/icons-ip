@@ -144,8 +144,8 @@ export function Login({ initialError, initialMode, isConfigured, next, panelCard
           </p>
           <div className="mono" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 26, fontSize: 11.5, color: 'var(--faint)', letterSpacing: '.04em' }}>
             <span>✓ 공식 라이선스 정품만 입점</span>
-            <span>✓ 가챠 확률 전문 공시 · 천장 보장</span>
-            <span>✓ 토스페이먼츠 안전 결제 · 미사용 충전금 전액 환불</span>
+            <span>✓ 수집 카드는 구매·게임 무상 리워드</span>
+            <span>✓ 토스페이먼츠 안전 결제</span>
           </div>
         </div>
       </div>

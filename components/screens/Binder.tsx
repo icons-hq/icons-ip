@@ -60,7 +60,7 @@ function CardDetail({
           <p style={{ margin: '14px 0 0', fontSize: 14, color: 'var(--dim)', textWrap: 'pretty' }}>
             {owned
               ? '보유 중인 카드입니다. 교환 마켓에 등록하거나 프로필에 전시할 수 있어요.'
-              : '아직 보유하지 않은 카드입니다. 가챠 · 교환으로 획득할 수 있어요.'}
+              : '아직 보유하지 않은 카드입니다. 카드팩 · 교환으로 획득할 수 있어요.'}
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 20 }}>
             {([
@@ -154,7 +154,7 @@ export function Binder({
             <div className="eyebrow rise">모아요 · 내 컬렉션</div>
             <h1 className="rise" style={{ margin: '14px 0 0', fontFamily: 'var(--ff-display)', fontWeight: 700, fontSize: 'clamp(36px, 5vw, 64px)', lineHeight: 1.04, letterSpacing: '-0.04em', animationDelay: '.08s' }}>내 바인더</h1>
             <p className="rise" style={{ margin: '14px 0 0', fontSize: 15, color: '#C9C3E4', maxWidth: 480, textWrap: 'pretty', animationDelay: '.16s' }}>
-              가챠로 모은 수집 카드를 등급·IP별로 정리하고, 도감을 채워가세요.
+              카드팩으로 모은 수집 카드를 등급·IP별로 정리하고, 도감을 채워가세요.
             </p>
             <div className="rise" style={{ display: 'flex', flexWrap: 'wrap', gap: 'clamp(20px, 4vw, 40px)', marginTop: 24, animationDelay: '.22s' }}>
               {stats.map(([n, l]) => (
