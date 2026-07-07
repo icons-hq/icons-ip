@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 const VARIANTS: [prefix: string, variant: string][] = [
   ['/ip', 'iphub'],
   ['/shop', 'shop'],
-  ['/gacha', 'gacha'],
+  ['/packs', 'packs'],
   ['/events', 'events'],
   ['/community', 'community'],
   ['/binder', 'binder'],

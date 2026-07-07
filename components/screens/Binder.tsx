@@ -82,7 +82,7 @@ function CardDetail({
               </>
             ) : (
               <>
-                <Link className="btn btn-holo" href={`${hrefFor('gacha')}?ip=${card.ip}`} style={{ height: 46, fontSize: 14 }}>뽑기로 획득 ✦</Link>
+                <Link className="btn btn-holo" href={hrefFor('packs')} style={{ height: 46, fontSize: 14 }}>카드팩으로 획득 ✦</Link>
                 <Link className="btn btn-ghost" href={hrefFor('exchange')} style={{ height: 46, fontSize: 14 }}>교환으로 획득</Link>
               </>
             )}
@@ -93,21 +93,35 @@ function CardDetail({
   );
 }
 
-export function Binder({ catalog }: { catalog: Pick<CatalogSnapshot, 'source' | 'ips' | 'cards'> }) {
-  const hasOwnership = catalog.source === 'mock';
+export function Binder({
+  catalog,
+  ownedCardIds = null,
+}: {
+  catalog: Pick<CatalogSnapshot, 'source' | 'ips' | 'cards'>;
+  /** supabase 모드 본인 보유(user_cards) — null = 미로그인/미설정(공개 도감) */
+  ownedCardIds?: string[] | null;
+}) {
+  const hasOwnership = catalog.source === 'mock' || ownedCardIds !== null;
   const [own, setOwn] = useState<'all' | 'owned' | 'wish'>('all');
   const [rar, setRar] = useState<'all' | RarityKey>('all');
   const [detail, setDetail] = useState<Card | null>(null);
 
   const ipsById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
 
-  let list = catalog.cards;
+  /* supabase 모드는 카탈로그의 owned(항상 false)를 본인 보유로 덮어쓴다(#71 바인더 연결) */
+  const ownedSet = ownedCardIds !== null ? new Set(ownedCardIds) : null;
+  const cards =
+    catalog.source === 'supabase' && ownedSet
+      ? catalog.cards.map((c) => ({ ...c, owned: ownedSet.has(c.id) }))
+      : catalog.cards;
+
+  let list = cards;
   if (hasOwnership && own === 'owned') list = list.filter((c) => c.owned);
   if (hasOwnership && own === 'wish') list = list.filter((c) => !c.owned);
   if (rar !== 'all') list = list.filter((c) => c.rarity === rar);
 
-  const ownedCards = hasOwnership ? catalog.cards.filter((c) => c.owned) : [];
-  const total = catalog.cards.length;
+  const ownedCards = hasOwnership ? cards.filter((c) => c.owned) : [];
+  const total = cards.length;
   const pct = hasOwnership && total ? Math.round((ownedCards.length / total) * 100) : 0;
 
   const stats: [string, string][] = hasOwnership
@@ -119,14 +133,14 @@ export function Binder({ catalog }: { catalog: Pick<CatalogSnapshot, 'source' | 
       ]
     : [
         [String(total), '카드 종수'],
-        [String(new Set(catalog.cards.map((c) => c.ip)).size), 'IP'],
-        [String(catalog.cards.filter((c) => c.rarity === 'HOLO').length), 'HOLO'],
-        [String(catalog.cards.filter((c) => c.rarity === 'SSR').length), 'SSR'],
+        [String(new Set(cards.map((c) => c.ip)).size), 'IP'],
+        [String(cards.filter((c) => c.rarity === 'HOLO').length), 'HOLO'],
+        [String(cards.filter((c) => c.rarity === 'SSR').length), 'SSR'],
       ];
 
   const collectionOf = (card: Card) => {
     if (!hasOwnership) return '—';
-    const sameIp = catalog.cards.filter((c) => c.ip === card.ip);
+    const sameIp = cards.filter((c) => c.ip === card.ip);
     const ownedSameIp = sameIp.filter((c) => c.owned);
     return `${ownedSameIp.length}/${sameIp.length}`;
   };
@@ -164,7 +178,7 @@ export function Binder({ catalog }: { catalog: Pick<CatalogSnapshot, 'source' | 
             </div>
           ) : (
             <div className="rise money-caption" style={{ minWidth: 240, maxWidth: 300, flex: 1, animationDelay: '.28s' }}>
-              보유 현황은 가챠 연동 후 표시됩니다 · 지금은 공개 도감으로 열람할 수 있어요
+              로그인하면 보유 현황이 표시됩니다 · 지금은 공개 도감으로 열람할 수 있어요
             </div>
           )}
         </div>
@@ -231,7 +245,7 @@ export function Binder({ catalog }: { catalog: Pick<CatalogSnapshot, 'source' | 
                 );
               })}
             </div>
-          ) : catalog.cards.length > 0 ? (
+          ) : cards.length > 0 ? (
             <div style={{ textAlign: 'center', padding: '70px 20px', border: '1px dashed var(--line-2)', borderRadius: 20 }}>
               <div style={{ fontSize: 17, fontWeight: 700 }}>조건에 맞는 카드가 없어요</div>
               <div className="mono" style={{ fontSize: 12, color: 'var(--faint)', marginTop: 8 }}>필터를 바꿔보세요</div>
@@ -245,9 +259,9 @@ export function Binder({ catalog }: { catalog: Pick<CatalogSnapshot, 'source' | 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, padding: '22px 26px', borderRadius: 20, border: '1px solid var(--line)', background: 'linear-gradient(150deg, rgba(139,92,255,.14), rgba(255,77,157,.08) 60%, transparent), var(--bg-2)' }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 16 }}>빈 칸을 채우고 싶다면</div>
-                <div style={{ fontSize: 13.5, color: 'var(--dim)', marginTop: 4 }}>카드풀에서 새 카드를 뽑아보세요. 천장 보장.</div>
+                <div style={{ fontSize: 13.5, color: 'var(--dim)', marginTop: 4 }}>보유한 카드팩을 개봉하고 새 카드를 만나보세요.</div>
               </div>
-              <Link className="btn btn-holo" href={hrefFor('gacha')} style={{ height: 44, fontSize: 14 }}>뽑기로 →</Link>
+              <Link className="btn btn-holo" href={hrefFor('packs')} style={{ height: 44, fontSize: 14 }}>카드팩 열기 →</Link>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, padding: '22px 26px', borderRadius: 20, border: '1px solid var(--line)', background: 'linear-gradient(180deg, var(--surface), var(--bg-2))' }}>
               <div>

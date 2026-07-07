@@ -10,7 +10,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'home', label: '홈' },
   { id: 'iphub', label: 'IP 허브' },
   { id: 'shop', label: '굿즈샵' },
-  { id: 'gacha', label: '뽑기' },
+  { id: 'packs', label: '카드팩' },
   { id: 'events', label: '팝업' },
   { id: 'community', label: '커뮤니티' },
 ];
@@ -19,7 +19,7 @@ export const NAV_ITEMS: NavItem[] = [
 export const MOB_ITEMS: NavItem[] = [
   { id: 'home', label: '홈' },
   { id: 'shop', label: '굿즈샵' },
-  { id: 'gacha', label: '뽑기' },
+  { id: 'packs', label: '카드팩' },
   { id: 'community', label: '커뮤니티' },
 ];
 
@@ -27,7 +27,7 @@ const PATHS: Record<string, string> = {
   home: '/',
   iphub: '/ip',
   shop: '/shop',
-  gacha: '/gacha',
+  packs: '/packs',
   binder: '/binder',
   events: '/events',
   community: '/community',

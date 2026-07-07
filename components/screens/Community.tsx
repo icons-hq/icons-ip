@@ -406,8 +406,8 @@ export function Community({ snapshot, initialChannelId }: { snapshot: CommunityS
               <div style={{ fontWeight: 700, fontSize: 15.5, marginTop: 10, lineHeight: 1.4, position: 'relative' }}>
                 새 카드풀이 열려 있어요<br />오늘의 운을 시험해 보세요
               </div>
-              <Link className="btn btn-holo btn-sm" href={hrefFor('gacha')} style={{ marginTop: 14, position: 'relative', fontSize: 12.5 }}>
-                뽑으러 가기 →
+              <Link className="btn btn-holo btn-sm" href={hrefFor('packs')} style={{ marginTop: 14, position: 'relative', fontSize: 12.5 }}>
+                카드팩 열기 →
               </Link>
             </div>
           </div>

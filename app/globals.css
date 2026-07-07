@@ -125,7 +125,7 @@
       radial-gradient(900px 700px at 70% 100%, rgba(45,226,255,.08), transparent 60%),
       var(--bg);
   }
-  .bg-atmos--gacha {
+  .bg-atmos--packs {
     background:
       radial-gradient(900px 600px at 50% -10%, rgba(139,92,255,.25), transparent 60%),
       radial-gradient(800px 600px at 92% 30%, rgba(255,77,157,.12), transparent 60%),
@@ -428,19 +428,12 @@
   .shop-card { transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease; }
   .shop-card:hover { transform: translateY(-4px); border-color: var(--cell-accent); box-shadow: var(--shadow); }
 
-  /* 뽑기 — 히어로 2열 · 결과 · 라인업 (claude-design v2) */
-  .gacha-hero { display: grid; grid-template-columns: 1.15fr .85fr; gap: clamp(28px, 4vw, 56px); align-items: center; }
-  .gacha-results { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
-  .gacha-result-card { transition: transform .25s ease; }
-  .gacha-result-card:hover { transform: translateY(-5px) rotate(-1.5deg); }
-  .gacha-lineup { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-  .gacha-lineup-card {
-    border-radius: 18px; border: 1px solid var(--line);
-    background: linear-gradient(180deg, var(--surface), var(--bg-2));
-    padding: 14px; display: flex; flex-direction: column; gap: 10px;
-    transition: transform .25s ease, border-color .25s ease;
-  }
-  .gacha-lineup-card:hover { transform: translateY(-4px); border-color: rgba(169,129,255,.4); }
+  /* 카드팩 — 히어로 2열 · 개봉 결과 · 보유 그룹 (Gacha 연출 재목적화, #71) */
+  .packs-hero { display: grid; grid-template-columns: 1.15fr .85fr; gap: clamp(28px, 4vw, 56px); align-items: center; }
+  .packs-results { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .packs-result-card { transition: transform .25s ease; }
+  .packs-result-card:hover { transform: translateY(-5px) rotate(-1.5deg); }
+  .packs-groups { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
 
   /* 팝업·이벤트 — featured 2열 · 카드 그리드 · 가이드 (claude-design v2) */
   .event-featured { grid-template-columns: 1.05fr .95fr; }
@@ -588,9 +581,9 @@
   .ipworld-bento { grid-template-columns: 1fr; }
   .ipworld-bento > * { grid-column: auto; grid-row: auto; }
   .shop-grid { grid-template-columns: repeat(2, 1fr); }
-  .gacha-hero { grid-template-columns: 1fr; }
-  .gacha-results { grid-template-columns: repeat(3, 1fr); }
-  .gacha-lineup { grid-template-columns: repeat(2, 1fr); }
+  .packs-hero { grid-template-columns: 1fr; }
+  .packs-results { grid-template-columns: repeat(3, 1fr); }
+  .packs-groups { grid-template-columns: 1fr; }
   .event-featured { grid-template-columns: 1fr; }
   .event-grid { grid-template-columns: 1fr; }
   .event-guide-grid { grid-template-columns: 1fr; }
