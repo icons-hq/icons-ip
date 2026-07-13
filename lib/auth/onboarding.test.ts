@@ -109,7 +109,8 @@ describe('auth next cookie helpers', () => {
 
 describe('authErrorMessage', () => {
   it.each([
-    ['otp_expired', '인증 링크'],
+    ['otp_expired', '만료되었거나 이미 사용'],
+    ['missing_code', '다시 열어주세요'],
     ['email_address_invalid', '이메일 주소'],
     ['weak_password', '비밀번호'],
     ['over_email_send_rate_limit', '잠시 후'],
@@ -117,6 +118,21 @@ describe('authErrorMessage', () => {
     ['unknown_provider_error', '인증을 완료하지 못했습니다'],
   ])('maps %s to an actionable Korean message', (code, expected) => {
     expect(authErrorMessage(code)).toContain(expected);
+  });
+
+  it.each(['flow_state_expired', 'flow_state_not_found', 'bad_code_verifier', 'bad_oauth_callback', 'exchange_failed'])(
+    'tells %s (code exchange failure) users their email may already be confirmed and to sign in',
+    (code) => {
+      const message = authErrorMessage(code);
+
+      expect(message).toContain('이메일 인증은 완료되었을 수 있습니다');
+      expect(message).toContain('로그인');
+      expect(message).not.toBe(authErrorMessage('otp_expired'));
+    },
+  );
+
+  it('does not push confirmed users back into repeat sign-up on exchange failure', () => {
+    expect(authErrorMessage('exchange_failed')).not.toContain('회원가입');
   });
 });
 
