@@ -9,8 +9,10 @@
 -- 규칙:
 --   - 호출자는 role = 'admin'만 허용 (staff는 역할 관리 불가).
 --   - 본인 역할 변경 금지 — 유일 admin이 스스로 강등되어 잠기는 사고 방지.
---     (admin이 다른 admin을 강등하는 것은 허용 — 본인 금지 규칙만으로
---      시스템에 admin이 최소 1명 남는 것이 보장된다.)
+--   - actor 역할 확인도 for update 행 잠금 — 두 admin이 동시에 서로를
+--     강등하는 인터리빙에서 둘 다 성공해 admin이 0명이 되는 레이스를 막는다.
+--     (한쪽이 대기 후 강등된 역할을 재확인해 거부되거나 데드락 감지로 중단
+--      → 어느 경로든 admin이 최소 1명 남는다.)
 --   - 변경 시 audit_log에 from→to diff 기록. 동일 역할 재지정은 no-op.
 -- ============================================================================
 
@@ -35,7 +37,8 @@ begin
   select profiles.role
     into actor_role
     from public.profiles
-    where profiles.id = actor_id;
+    where profiles.id = actor_id
+    for update;
 
   if actor_role is distinct from 'admin' then
     raise exception 'forbidden' using errcode = '42501';
