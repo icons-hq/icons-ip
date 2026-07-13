@@ -123,10 +123,12 @@ export async function listEventGameLinks(): Promise<EventGameLink[]> {
   if (source === 'mock') return toEventGameLinks(DATA.GAMES);
 
   const supabase = await createClient();
+  // 같은 이벤트에 게임이 여럿 등록돼도 CTA가 요청마다 바뀌지 않도록 정렬을 고정한다
   const { data, error } = await supabase
     .from('games')
     .select('id,type,title,event_id,config,reward_pool_id,active_from,active_to,card_pools:reward_pool_id(ip_id)')
-    .not('event_id', 'is', null);
+    .not('event_id', 'is', null)
+    .order('id');
 
   if (error) {
     throw new Error(`Failed to load event game links: ${error.message}`);
