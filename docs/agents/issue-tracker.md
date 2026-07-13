@@ -25,14 +25,14 @@ Run `gh issue view <number> --comments`.
 
 This repo uses GitHub Projects as execution boards. Pick the board that matches the work scope:
 
-- `ICONS v1 P0 Foundation` (`https://github.com/users/sangwopark19/projects/3`): backend-backed P0 foundation, auth, catalog, community, search, and admin operations.
-- `ICONS v1 Frontend UX` (`https://github.com/users/sangwopark19/projects/4`): launch frontend redesign, starting with the homepage and then screen-by-screen UX polish.
+- `ICONS v1 Launch Readiness` (`https://github.com/users/sangwopark19/projects/8`): the active board — v1 launch gap work across user features and admin operations. Plan source: `docs/launch-readiness-plan.md`.
+- Closed history boards: `ICONS v1 P0 Foundation` (#3), `ICONS v1 Frontend UX` (#4), `ICONS 온라인 팝업 게임 레이어` (#5). Do not add new items there.
 
 Use the issue body as the spec source, and use the Project fields as the scheduling source:
 
 - `Status`: `Todo` → `In Progress` → `Done`.
-- `Phase`: release slice such as `P0 Foundation` or `Launch Frontend`.
-- `Track`: parallel work stream such as `Catalog and IP Hub`, `Auth and Onboarding`, `Community`, `Search`, `Admin Ops`, `Home`, `Navigation`, or `QA`.
+- `Phase`: release slice such as `Launch Blocker` or `Post-launch`.
+- `Track`: parallel work stream such as `Payments`, `Commerce`, `Ticketing`, `Rewards Ops`, `Account`, `Notifications`, `Community`, `Admin Ops`, or `Popup Layer`.
 - `Dependency`: startability. Pick `Unblocked` work first.
 
 Do not maintain a second dependency source with GitHub native parent/sub-issue or blocked-by relationships unless the user explicitly asks for that migration. If issue text and Project fields disagree, call out the conflict before acting.
