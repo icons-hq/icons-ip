@@ -15,6 +15,7 @@ import type {
   AdminGoodRecord,
   AdminIpRecord,
 } from '@/lib/admin/catalog.server';
+import type { AdminInsights } from '@/lib/admin/insights.server';
 import type { AdminModerationRecords } from '@/lib/admin/moderation.server';
 import type { AdminProfileRecord } from '@/lib/admin/roles.server';
 import type { CatalogSnapshot } from '@/lib/catalog';
@@ -49,12 +50,13 @@ interface AdminProps {
     role: string;
   };
   catalog: Pick<CatalogSnapshot, 'verticals' | 'ips'>;
+  insights: AdminInsights;
   moderation: AdminModerationRecords;
   profiles: AdminProfileRecord[];
   records: AdminCatalogRecords;
 }
 
-export function Admin({ admin, catalog, moderation, profiles, records }: AdminProps) {
+export function Admin({ admin, catalog, insights, moderation, profiles, records }: AdminProps) {
   const [active, setActive] = useState<AdminSection>('overview');
   const [collapsed, setCollapsed] = useState(false);
   const [selectedIp, setSelectedIp] = useState<AdminIpRecord | null>(null);
@@ -82,13 +84,7 @@ export function Admin({ admin, catalog, moderation, profiles, records }: AdminPr
           <div key={active} className="rise">
             {active === 'overview' && (
               <OverviewSection
-                counts={{
-                  ips: records.ips.length,
-                  goods: records.goods.length,
-                  cards: records.cards.length,
-                  events: records.events.length,
-                  reports: moderation.reports.length,
-                }}
+                insights={insights}
                 onOpenModeration={() => setActive('moderation')}
                 reports={moderation.reports}
               />

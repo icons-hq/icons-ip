@@ -1,14 +1,20 @@
+import type { AdminInsights } from '@/lib/admin/insights.server';
 import type { AdminReportRecord } from '@/lib/admin/moderation.server';
 import { Icon } from '@/components/ui/Icon';
 import { MetricCard } from '../MetricCard';
+import { RecentOrders } from '../RecentOrders';
+import { TopIps } from '../TopIps';
+import { OrderPipeline } from '../charts/OrderPipeline';
+import { RevenueTrend } from '../charts/RevenueTrend';
+import { formatKrw, metricChange } from '../format';
 import { reportTargetLabels } from './Moderation';
 
 export function OverviewSection({
-  counts,
+  insights,
   onOpenModeration,
   reports,
 }: {
-  counts: { ips: number; goods: number; cards: number; events: number; reports: number };
+  insights: AdminInsights;
   onOpenModeration: () => void;
   reports: AdminReportRecord[];
 }) {
@@ -17,17 +23,46 @@ export function OverviewSection({
   return (
     <section className="col" style={{ gap: 16 }}>
       <div className="admin-metric-grid">
-        <MetricCard icon="ip" label="IP" value={counts.ips} />
-        <MetricCard icon="shop" label="굿즈" value={counts.goods} />
-        <MetricCard icon="card" label="카드" value={counts.cards} />
-        <MetricCard icon="event" label="이벤트" value={counts.events} />
-        <MetricCard icon="shield" label="신고" value={counts.reports} />
+        <MetricCard
+          icon="spark"
+          label="30일 매출"
+          value={formatKrw(insights.revenue.current)}
+          {...metricChange(insights.revenue)}
+        />
+        <MetricCard
+          icon="bag"
+          label="30일 결제 건수"
+          value={`${insights.paymentCount.current.toLocaleString('ko-KR')}건`}
+          {...metricChange(insights.paymentCount)}
+        />
+        <MetricCard
+          icon="bolt"
+          label="평균 결제액"
+          value={formatKrw(insights.avgPayment.current)}
+          {...metricChange(insights.avgPayment)}
+        />
+        <MetricCard
+          icon="user"
+          label="30일 신규 가입"
+          value={`${insights.signupCount.current.toLocaleString('ko-KR')}명`}
+          {...metricChange(insights.signupCount)}
+        />
+      </div>
+
+      <div className="admin-overview-charts">
+        <RevenueTrend data={insights.dailyRevenue} />
+        <OrderPipeline stages={insights.pipeline} />
+      </div>
+
+      <div className="admin-overview-bottom">
+        <RecentOrders orders={insights.recentOrders} />
+        <TopIps ips={insights.topIps} />
       </div>
 
       <div className="card col" style={{ borderRadius: 10, padding: 18 }}>
         <div className="between" style={{ marginBottom: 8 }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700 }}>최근 신고</div>
+            <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>최근 신고</h2>
             <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>커뮤니티 신고 최신 5건</div>
           </div>
           <button className="btn btn-sm btn-ghost" onClick={onOpenModeration} type="button">

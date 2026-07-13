@@ -17,6 +17,8 @@ const PATHS: Record<string, string> = {
   arrowUp: 'M12 19V5M6 11l6-6 6 6',
   chevronLeft: 'M15 6l-6 6 6 6',
   chevronRight: 'M9 6l6 6-6 6',
+  trendUp: 'M3 17l6-6 4 4 8-8M15 7h6v6',
+  trendDown: 'M3 7l6 6 4-4 8 8M15 17h6v-6',
   plus: 'M12 5v14M5 12h14',
   fire: 'M12 3c1 3-2 4-2 7a2 2 0 0 0 4 0c2 2 3 3 3 6a5 5 0 0 1-10 0c0-4 4-5 5-13z',
   bolt: 'M13 3 4 14h6l-1 7 9-11h-6z',

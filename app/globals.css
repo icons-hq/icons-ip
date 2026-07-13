@@ -542,6 +542,9 @@
     display: grid; grid-template-columns: minmax(220px, .35fr) minmax(0, 1fr);
     gap: 16px; align-items: start;
   }
+  .admin-overview-charts { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 14px; align-items: stretch; }
+  .admin-overview-bottom { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
+  .admin-pipeline-fill { height: 100%; border-radius: 999px; transition: width 1s cubic-bezier(.2,.7,.2,1); }
   .admin-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 }
 
@@ -555,7 +558,8 @@
   .home-hero-art,
   .home-ticker-track,
   .home-float,
-  .btn-holo {
+  .btn-holo,
+  .admin-pipeline-fill {
     transition: none;
     animation: none;
   }
@@ -702,6 +706,8 @@
   .admin-header { padding: 0 16px; }
   .admin-content { padding: 16px; }
   .admin-master-detail { grid-template-columns: 1fr; }
+  .admin-overview-charts { grid-template-columns: 1fr; }
+  .admin-overview-bottom { grid-template-columns: 1fr; }
 }
 @media (min-width: 920px) { .only-mob { display: none !important; } }
 @media (max-width: 620px) {
