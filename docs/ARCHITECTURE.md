@@ -165,7 +165,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
   4) `wallet_ledger`에 `pull` 기록
 - **`reserve_tickets(ticket_type_id, qty)`** — `ticket_types.sold`를 `FOR UPDATE`로 잠그고 `capacity` 초과 검증 후 차감, `ticket_orders` 생성(상태 `pending`). 결제 확정 시 `tickets`(QR) 발급.
 - **`place_order(cart)`** — 굿즈 재고 검증·차감, `orders`/`order_items` 생성(`pending`).
-- **`charge_wallet(amount)` / `confirm_payment(payment_key, ...)`** — 충전·결제 확정. 웹훅에서 호출, **멱등 키**로 중복 방지.
+- **`confirm_order_payment` / `confirm_ticket_payment`** — 결제 확정(service_role 전용). 웹훅에서 호출, **멱등 키=토스 paymentKey**로 중복 방지. (충전 `charge_wallet`은 ADR-0003으로 폐기)
 - **`cancel/refund_*`** — 환불 시 재고/잔액 원복 + `refunds`/`wallet_ledger` 기록.
 
 규칙: 천장·확률 로직은 DB(또는 DB가 호출하는 신뢰 경로)에만 둔다(클라이언트 신뢰 금지). 모든 금전 RPC는 멱등·감사 가능.
@@ -194,11 +194,23 @@ Production Auth 설정:
 
 ## 9. 결제 통합 (토스페이먼츠)
 
-- 클라이언트: 결제창/위젯으로 결제 요청(주문·티켓·충전 공용).
-- 서버: **웹훅 `/api/webhooks/tosspayments`(Route Handler)** 가 결제 확정의 단일 진실원. 서명 검증 → `confirm_payment` RPC(멱등 키=토스 paymentKey/주문키).
-- 흐름: ① RPC로 `pending` 생성(재고·잔액 선점) → ② 토스 결제 → ③ 웹훅 확정(`paid`, 티켓 QR 발급/주문 확정/지갑 적립) → ④ 실패·만료 시 선점 복원.
-- 환불: `refunds` + 토스 취소 API, 재고/충전금 원복.
+- 클라이언트: 결제위젯으로 결제 요청(주문·티켓 공용). 토스 `orderId`는 `order_<uuid>`/`ticket_<uuid>`로 결제 목적을 실어 발급한다(`lib/payments/toss.ts`).
+- 승인: successUrl 콜백이 **`/api/payments/confirm`** 을 호출 → 본인 소유·pending·미만료·금액 일치를 검증한 뒤 토스 승인 API를 호출하고 `payments`에 `pending`으로 기록한다. **승인 성공은 UX 반영용이다.**
+- 확정: **웹훅 `/api/webhooks/tosspayments`(Route Handler)** 가 단일 진실원. 결제 웹훅에는 서명이 없으므로(서명 헤더는 지급대행 웹훅 전용) payload를 신뢰하지 않고 paymentKey로 **결제 조회 API를 재호출해 검증**한 뒤 `confirm_order_payment`/`confirm_ticket_payment` RPC(service_role, 멱등 키=paymentKey)를 호출한다. 검증된 조회 응답 원문을 `payments.raw`에 보존한다.
+- 흐름: ① RPC로 `pending` 생성(재고 선점) → ② 토스 결제 → ③ 승인 경로(`pending` 기록) → ④ 웹훅 확정(`paid`, 티켓 QR 발급/주문 확정) → ⑤ 실패·만료 시 선점 복원.
+- 실패·만료 복원: 만료 등 확정 불가 결제는 웹훅이 **토스 취소 API로 자동 환불**하고, 승인 이력 없는 만료 pending 주문·예매는 pg_cron이 매분 `expire_stale_checkouts()`로 `cancel_order`/`refund_ticket_order`를 재사용해 정리한다(승인 진행 중 건 제외, 만료 후 5분 유예).
+- 환불: `refunds` 기록 + 재고 원복은 기존 RPC가 담당하고, 토스 쪽 취소(`CANCELED` 웹훅)도 같은 수신부가 반영한다.
 - 단일 PG 가정. 멀티 PG 필요 시 `payments.provider` + 어댑터 계층 도입.
+
+### 9.1 환경 변수 · 로컬/프리뷰 검증 (테스트 키)
+
+- 서버 전용 env: `TOSS_SECRET_KEY`(테스트 `test_sk…` / 라이브 `live_sk…`), `SUPABASE_SERVICE_ROLE_KEY`. 클라이언트 번들에 노출하지 않는다(`NEXT_PUBLIC_` 접두사 금지). 위젯 클라이언트 키는 체크아웃(#90)에서 `NEXT_PUBLIC_TOSS_CLIENT_KEY`로 추가한다.
+- 키 미구성 환경에서 두 라우트는 503(`not_configured`)으로 응답한다 — mock/카탈로그-only 모드에서 안전.
+- 로컬 검증 경로(테스트 키):
+  1. 개발자센터 테스트 시크릿 키를 `.env.local`의 `TOSS_SECRET_KEY`로, 로컬 Supabase service key(`supabase status`)를 `SUPABASE_SERVICE_ROLE_KEY`로 설정한다.
+  2. 순수 로직은 `npm run test`(`lib/payments/toss.test.ts`), DB 계층(확정 RPC·만료 sweep)은 로컬 psql로 RPC를 직접 호출해 확인한다.
+  3. 웹훅 실수신은 ngrok 등으로 로컬을 노출해 개발자센터에 웹훅 URL(`https://<host>/api/webhooks/tosspayments`, `PAYMENT_STATUS_CHANGED`)을 등록하고 테스트 결제로 유발한다. 성공 기준은 10초 내 200 응답, 실패 시 최대 7회 재전송된다.
+- 프리뷰/프로덕션: Vercel env에 `TOSS_SECRET_KEY`·`SUPABASE_SERVICE_ROLE_KEY`를 추가해야 결제 라우트가 활성화된다. 라이브 키 전환은 상점 계약(#87) 이후.
 
 ---
 
@@ -250,8 +262,8 @@ app/
   ip/actions.ts                       # IP 팔로우 보호 액션
   admin/                              # 역할 게이트 백오피스
   api/
-    webhooks/tosspayments/route.ts    # 결제 확정 웹훅
-    cron/*                            # 예약 정리 등
+    webhooks/tosspayments/route.ts    # 결제 확정 웹훅(재조회 검증)
+    payments/confirm/route.ts         # 결제 승인 서버 경로 (만료 정리는 pg_cron)
 lib/
   auth/                               # 온보딩 판정, next/callback helper, auth server state
   catalog.ts                          # Supabase catalog read + mock fallback adapter
