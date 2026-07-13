@@ -3,6 +3,7 @@
 import { useActionState, useMemo, useState } from 'react';
 import {
   hideCommunityPostAction,
+  setAdminUserRoleAction,
   updateCommunityReportStatusAction,
   upsertAdminCardAction,
   upsertAdminEventAction,
@@ -18,20 +19,24 @@ import type {
   AdminIpRecord,
 } from '@/lib/admin/catalog.server';
 import type { AdminModerationRecords, AdminReportRecord } from '@/lib/admin/moderation.server';
+import { ADMIN_ASSIGNABLE_ROLES } from '@/lib/admin/roles';
+import type { AdminProfileRecord } from '@/lib/admin/roles.server';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { CommunityReportStatus } from '@/lib/community';
 import { RARITY_META } from '@/lib/rarity';
 import { Icon } from '@/components/ui/Icon';
 
-type AdminTab = 'ip' | 'good' | 'card' | 'event' | 'moderation';
+type AdminTab = 'ip' | 'good' | 'card' | 'event' | 'moderation' | 'roles';
 
 interface AdminProps {
   admin: {
+    id: string;
     email: string | null;
     role: string;
   };
   catalog: Pick<CatalogSnapshot, 'verticals' | 'ips'>;
   moderation: AdminModerationRecords;
+  profiles: AdminProfileRecord[];
   records: AdminCatalogRecords;
 }
 
@@ -42,6 +47,7 @@ const tabs: { id: AdminTab; label: string; icon: string }[] = [
   { id: 'card', label: '카드', icon: 'card' },
   { id: 'event', label: '이벤트', icon: 'event' },
   { id: 'moderation', label: '모더레이션', icon: 'shield' },
+  { id: 'roles', label: '역할', icon: 'user' },
 ];
 const reportStatuses: CommunityReportStatus[] = ['open', 'reviewing', 'resolved', 'dismissed'];
 const reportTargetLabels = {
@@ -336,6 +342,73 @@ function HidePostForm({ report }: { report: AdminReportRecord }) {
   );
 }
 
+function UserRoleForm({ profile, isSelf }: { profile: AdminProfileRecord; isSelf: boolean }) {
+  const [state, action, pending] = useActionState(setAdminUserRoleAction, emptyState);
+
+  if (isSelf) {
+    return <span className="faint mono" style={{ fontSize: 11 }}>본인 계정 — 변경 불가</span>;
+  }
+
+  return (
+    <form action={action} className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+      <input name="profileId" type="hidden" value={profile.id} />
+      <select
+        defaultValue={profile.role}
+        name="role"
+        style={{
+          background: 'rgba(255,255,255,.045)',
+          border: '1px solid var(--line)',
+          borderRadius: 10,
+          color: 'var(--text)',
+          fontFamily: 'inherit',
+          fontSize: 13,
+          minHeight: 36,
+          outline: 'none',
+          padding: '0 10px',
+        }}
+      >
+        {ADMIN_ASSIGNABLE_ROLES.map((role) => (
+          <option key={role} value={role}>{role}</option>
+        ))}
+      </select>
+      <button className="btn btn-sm" disabled={pending} style={{ height: 36 }}>
+        <Icon name="check" size={14} /> {pending ? '저장 중' : '역할 저장'}
+      </button>
+      <InlineNotice state={state} />
+    </form>
+  );
+}
+
+function RolesPanel({ profiles, adminId }: { profiles: AdminProfileRecord[]; adminId: string }) {
+  return (
+    <section className="col" style={{ gap: 12 }}>
+      <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+        staff는 카탈로그·모더레이션을 처리하고, admin은 역할까지 관리합니다. 변경은 감사 로그에 남습니다.
+      </p>
+      {profiles.map((profile) => (
+        <article key={profile.id} className="card between" style={{ borderRadius: 10, gap: 12, padding: 16, flexWrap: 'wrap' }}>
+          <div className="col" style={{ gap: 4, minWidth: 0 }}>
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+              <strong style={{ fontSize: 15 }}>@{profile.nickname}</strong>
+              <span className="tag" style={{ color: profile.role === 'user' ? 'var(--dim)' : 'var(--violet-2)' }}>{profile.role}</span>
+            </div>
+            <span className="faint mono" style={{ fontSize: 11 }}>
+              {profile.id.slice(0, 8)} · 가입 {new Date(profile.createdAt).toLocaleDateString('ko-KR')}
+            </span>
+          </div>
+          <UserRoleForm isSelf={profile.id === adminId} profile={profile} />
+        </article>
+      ))}
+      {!profiles.length && (
+        <div className="card" style={{ borderRadius: 10, padding: 18 }}>
+          <div style={{ fontWeight: 700 }}>표시할 사용자가 없습니다.</div>
+          <p className="muted" style={{ marginTop: 6 }}>가입한 사용자가 생기면 이곳에 표시됩니다.</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function ModerationPanel({ reports }: { reports: AdminReportRecord[] }) {
   return (
     <section className="col" style={{ gap: 12 }}>
@@ -371,7 +444,7 @@ function ModerationPanel({ reports }: { reports: AdminReportRecord[] }) {
   );
 }
 
-export function Admin({ admin, catalog, moderation, records }: AdminProps) {
+export function Admin({ admin, catalog, moderation, profiles, records }: AdminProps) {
   const [active, setActive] = useState<AdminTab>('ip');
   const [selectedIp, setSelectedIp] = useState<AdminIpRecord | null>(null);
   const [selectedGood, setSelectedGood] = useState<AdminGoodRecord | null>(null);
@@ -417,16 +490,18 @@ export function Admin({ admin, catalog, moderation, records }: AdminProps) {
         </div>
 
         <div className="wrapgap" style={{ marginTop: 28 }}>
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              className={active === tab.id ? 'chip on' : 'chip'}
-              onClick={() => setActive(tab.id)}
-              type="button"
-            >
-              <Icon name={tab.icon} size={15} /> {tab.label}
-            </button>
-          ))}
+          {tabs
+            .filter((tab) => tab.id !== 'roles' || admin.role === 'admin')
+            .map((tab) => (
+              <button
+                key={tab.id}
+                className={active === tab.id ? 'chip on' : 'chip'}
+                onClick={() => setActive(tab.id)}
+                type="button"
+              >
+                <Icon name={tab.icon} size={15} /> {tab.label}
+              </button>
+            ))}
         </div>
 
         <div className="grid" style={{ alignItems: 'start', gridTemplateColumns: 'minmax(220px, .35fr) minmax(0, 1fr)', marginTop: 18 }}>
@@ -580,6 +655,12 @@ export function Admin({ admin, catalog, moderation, records }: AdminProps) {
           {active === 'moderation' && (
             <div style={{ gridColumn: '1 / -1' }}>
               <ModerationPanel reports={moderation.reports} />
+            </div>
+          )}
+
+          {active === 'roles' && admin.role === 'admin' && (
+            <div style={{ gridColumn: '1 / -1' }}>
+              <RolesPanel adminId={admin.id} profiles={profiles} />
             </div>
           )}
         </div>

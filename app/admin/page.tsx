@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import { Admin } from '@/components/screens/Admin';
 import { getAdminCatalogRecords } from '@/lib/admin/catalog.server';
 import { getAdminModerationRecords } from '@/lib/admin/moderation.server';
+import { getAdminProfileRecords } from '@/lib/admin/roles.server';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { getCatalogSnapshot } from '@/lib/catalog';
 
@@ -16,20 +17,23 @@ export default async function AdminPage() {
     notFound();
   }
 
-  const [catalog, records, moderation] = await Promise.all([
+  const [catalog, records, moderation, profiles] = await Promise.all([
     getCatalogSnapshot({ previewDefaultSource: 'supabase' }),
     getAdminCatalogRecords(),
     getAdminModerationRecords(),
+    auth.role === 'admin' ? getAdminProfileRecords() : Promise.resolve([]),
   ]);
 
   return (
     <Admin
       admin={{
+        id: auth.user.id,
         email: auth.user.email,
         role: auth.role ?? 'staff',
       }}
       catalog={catalog}
       moderation={moderation}
+      profiles={profiles}
       records={records}
     />
   );
