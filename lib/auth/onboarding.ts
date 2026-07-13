@@ -94,12 +94,16 @@ export function authErrorMessage(code: string | null | undefined): string | unde
     case undefined:
       return undefined;
     case 'otp_expired':
+      return '인증 링크가 만료되었거나 이미 사용되었습니다. 최신 확인 메일의 링크를 열거나 회원가입을 다시 시도해주세요.';
+    // PKCE code exchange 실패 — 이메일 확인 자체는 완료됐을 수 있다(다른 브라우저에서 링크를 열거나 중복 처리된 경우).
     case 'flow_state_expired':
+    case 'flow_state_not_found':
     case 'bad_code_verifier':
     case 'bad_oauth_callback':
-    case 'missing_code':
     case 'exchange_failed':
-      return '인증 링크가 만료되었거나 이미 사용되었습니다. 최신 확인 메일의 링크를 열거나 회원가입을 다시 시도해주세요.';
+      return '이메일 인증은 완료되었을 수 있습니다. 가입한 이메일과 비밀번호로 로그인해주세요. 로그인이 안 되면 새 확인 메일을 요청해주세요.';
+    case 'missing_code':
+      return '인증 링크가 올바르게 열리지 않았습니다. 확인 메일의 링크를 다시 열어주세요.';
     case 'email_address_invalid':
     case 'validation_failed':
       return '이메일 주소 형식을 확인해주세요. 예: you@icons.gg';
