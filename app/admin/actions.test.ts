@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   hideCommunityPostAction,
+  setAdminUserRoleAction,
   updateCommunityReportStatusAction,
   upsertAdminEventAction,
   upsertAdminGoodAction,
@@ -31,6 +32,7 @@ vi.mock('@/lib/auth/admin', () => ({
 }));
 vi.mock('@/lib/admin/catalog', async () => await import('../../lib/admin/catalog'));
 vi.mock('@/lib/admin/moderation', async () => await import('../../lib/admin/moderation'));
+vi.mock('@/lib/admin/roles', async () => await import('../../lib/admin/roles'));
 vi.mock('@/lib/catalog', () => ({
   getCatalogSnapshot: mocks.getCatalogSnapshot,
 }));
@@ -290,5 +292,67 @@ describe('admin catalog actions', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/community');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/search');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip/hwasan');
+  });
+
+  describe('setAdminUserRoleAction', () => {
+    const targetProfileId = '66666666-6666-4666-8666-666666666666';
+
+    function roleForm(role = 'staff') {
+      const formData = new FormData();
+      formData.set('profileId', targetProfileId);
+      formData.set('role', role);
+      return formData;
+    }
+
+    function asAdmin() {
+      mocks.adminState = {
+        isConfigured: true,
+        user: { id: 'admin-1', email: 'admin@icons.gg' },
+        role: 'admin',
+        isStaff: true,
+      };
+    }
+
+    it('blocks staff users — role management is admin-only', async () => {
+      await expect(setAdminUserRoleAction({}, roleForm())).resolves.toEqual({
+        errors: { form: '최고 관리자(admin) 권한이 필요합니다.' },
+      });
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it('returns validation errors before calling the role RPC', async () => {
+      asAdmin();
+      const formData = roleForm('superadmin');
+      formData.set('profileId', 'not-a-uuid');
+
+      const result = await setAdminUserRoleAction({}, formData);
+
+      expect(result.errors?.profileId).toBeTruthy();
+      expect(result.errors?.role).toBeTruthy();
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it('grants a role through the audited RPC and refreshes the admin screen', async () => {
+      asAdmin();
+
+      await expect(setAdminUserRoleAction({}, roleForm('staff'))).resolves.toEqual({
+        message: '역할을 저장했습니다.',
+      });
+
+      expect(mocks.rpc).toHaveBeenCalledWith('admin_set_user_role', {
+        target_profile_id: targetProfileId,
+        target_role: 'staff',
+      });
+      expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin');
+    });
+
+    it('maps self-change rejection from the RPC to a Korean message', async () => {
+      asAdmin();
+      mocks.rpc.mockResolvedValue({ data: null, error: { message: 'cannot_change_own_role' } });
+
+      await expect(setAdminUserRoleAction({}, roleForm('user'))).resolves.toEqual({
+        errors: { form: '본인 역할은 변경할 수 없습니다.' },
+      });
+    });
   });
 });
