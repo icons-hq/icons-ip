@@ -13,8 +13,8 @@ export function Nav() {
   const go = useGo();
   const { count } = useCart();
 
-  // 게임은 자기완결 번들 — 셸 없이 풀블리드(ADR-0002)
-  if (pathname === '/login' || pathname.startsWith('/games')) return null;
+  // 게임은 자기완결 번들 — 셸 없이 풀블리드(ADR-0002). 어드민은 자체 콘솔 셸 사용.
+  if (pathname === '/login' || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
 
   return (
     <nav className="nav">
