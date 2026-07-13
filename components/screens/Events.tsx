@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { FandomEvent, Ip } from '@/lib/data';
+import type { EventGameLink } from '@/lib/games/catalog';
 import { ALL_IPS, ALL_MODES, ALL_STATUSES, eventModeOptions, eventStatusOptions, selectFandomEvents } from '@/lib/events-catalog';
 import { ipAccent } from '@/lib/ip-display';
 import { hrefFor } from '@/lib/routes';
@@ -21,7 +22,7 @@ const GUIDE = [
   { n: '03', t: '스캔 입장', d: '현장에서 QR을 스캔하면 줄 없이 바로 입장해요.' },
 ];
 
-function FeaturedEvent({ e, ip }: { e: FandomEvent; ip: Ip | null }) {
+function FeaturedEvent({ e, ip, game }: { e: FandomEvent; ip: Ip | null; game: EventGameLink | null }) {
   return (
     <section style={{ padding: 'clamp(28px, 4vw, 40px) 0 0' }}>
       <div className="wrap">
@@ -36,6 +37,9 @@ function FeaturedEvent({ e, ip }: { e: FandomEvent; ip: Ip | null }) {
                 {e.status === '진행중' && <span style={{ width: 6, height: 6, borderRadius: 99, background: 'var(--mint)', animation: 'pulseDot 1.8s ease infinite' }} />}
                 {e.status}
               </span>
+              {game && (
+                <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 11px', borderRadius: 999, fontSize: 11, color: 'var(--mint)', border: '1px solid rgba(56,240,192,.35)' }}>참여형 게임</span>
+              )}
             </div>
             <h2 style={{ margin: '18px 0 0', fontFamily: 'var(--ff-display)', fontWeight: 700, fontSize: 'clamp(26px, 3.4vw, 40px)', letterSpacing: '-0.02em', lineHeight: 1.1, maxWidth: 480, textWrap: 'pretty' }}>{e.title}</h2>
             <div className="mono" style={{ display: 'flex', flexWrap: 'wrap', gap: 18, marginTop: 16, fontSize: 12.5, color: 'var(--dim)' }}>
@@ -46,6 +50,11 @@ function FeaturedEvent({ e, ip }: { e: FandomEvent; ip: Ip | null }) {
               <Link className="btn btn-holo" href={CTA_HREF} style={{ height: 48, padding: '0 26px' }}>
                 {ctaFor(e.status)} →
               </Link>
+              {game && (
+                <Link className="btn btn-ghost" href={`/games/${game.gameId}`} style={{ height: 48, padding: '0 22px', fontSize: 14, color: 'var(--mint)', borderColor: 'rgba(56,240,192,.35)' }}>
+                  {game.title} 플레이
+                </Link>
+              )}
               {e.ip && (
                 <Link className="btn btn-ghost" href={hrefFor('ip', e.ip)} style={{ height: 48, padding: '0 22px', fontSize: 14 }}>
                   이 세계 더 보기
@@ -63,7 +72,7 @@ function FeaturedEvent({ e, ip }: { e: FandomEvent; ip: Ip | null }) {
   );
 }
 
-function EventCard({ e, ip }: { e: FandomEvent; ip: Ip | null }) {
+function EventCard({ e, ip, game }: { e: FandomEvent; ip: Ip | null; game: EventGameLink | null }) {
   return (
     <div className="event-card" style={{ borderRadius: 20, border: '1px solid var(--line)', background: 'linear-gradient(180deg, var(--surface), var(--bg-2))', overflow: 'hidden' }}>
       <div style={{ aspectRatio: '16 / 9', position: 'relative', background: e.img, backgroundSize: 'cover', backgroundPosition: 'center' }}>
@@ -80,6 +89,11 @@ function EventCard({ e, ip }: { e: FandomEvent; ip: Ip | null }) {
           <span>◷ {e.date || '일정 공개 예정'}</span>
           <span>◎ {e.loc || '장소 공개 예정'}</span>
         </div>
+        {game && (
+          <Link className="mono" href={`/games/${game.gameId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 12, fontSize: 12, fontWeight: 700, color: 'var(--mint)' }}>
+            ▶ {game.title} 플레이
+          </Link>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingTop: 13, borderTop: '1px solid rgba(255,255,255,.06)' }}>
           <span className="mono" style={{ fontSize: 11, color: statusColor(e.status) }}>{footNoteFor(e.status)}</span>
           <Link className="event-card-cta" href={CTA_HREF} style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
@@ -94,15 +108,18 @@ function EventCard({ e, ip }: { e: FandomEvent; ip: Ip | null }) {
 export function Events({
   catalog,
   initialIpId,
+  gameLinks = [],
 }: {
   catalog: Pick<CatalogSnapshot, 'ips' | 'events'>;
   initialIpId?: string;
+  gameLinks?: EventGameLink[];
 }) {
   const [ipF, setIpF] = useState(initialIpId ?? ALL_IPS);
   const [modeF, setModeF] = useState(ALL_MODES);
   const [statusF, setStatusF] = useState(ALL_STATUSES);
 
   const ipsById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
+  const gameByEventId = new Map(gameLinks.map((link) => [link.eventId, link]));
   const ipsWithEvents = catalog.ips.filter((ip) => catalog.events.some((e) => e.ip === ip.id));
   const modes = eventModeOptions(catalog.events);
   const statuses = eventStatusOptions(catalog.events);
@@ -169,7 +186,7 @@ export function Events({
       </header>
 
       {/* featured */}
-      {featured && <FeaturedEvent e={featured} ip={featured.ip ? ipsById.get(featured.ip) ?? null : null} />}
+      {featured && <FeaturedEvent e={featured} ip={featured.ip ? ipsById.get(featured.ip) ?? null : null} game={gameByEventId.get(featured.id) ?? null} />}
 
       {/* grid / empty */}
       <section style={{ padding: 'clamp(28px, 4vw, 44px) 0 clamp(40px, 6vw, 60px)' }}>
@@ -177,7 +194,7 @@ export function Events({
           {rest.length > 0 && (
             <div className="event-grid">
               {rest.map((e) => (
-                <EventCard key={e.id} e={e} ip={e.ip ? ipsById.get(e.ip) ?? null : null} />
+                <EventCard key={e.id} e={e} ip={e.ip ? ipsById.get(e.ip) ?? null : null} game={gameByEventId.get(e.id) ?? null} />
               ))}
             </div>
           )}

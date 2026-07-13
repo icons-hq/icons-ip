@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { toGameConfig, toGameFromRow, type GameRow } from './catalog';
+import { toEventGameLinks, toGameConfig, toGameFromRow, type GameRow } from './catalog';
 
 vi.mock('server-only', () => ({}));
 vi.mock('../supabase/config', () => ({
@@ -86,5 +86,28 @@ describe('toGameFromRow', () => {
   it('config 형식 불량 행은 통째로 거른다', () => {
     expect(toGameFromRow(cardRow({ config: { marbleCount: 10 } }), now)).toBeNull();
     expect(toGameFromRow(cardRow({ type: 'slot_machine' }), now)).toBeNull();
+  });
+});
+
+describe('toEventGameLinks', () => {
+  const now = new Date('2026-07-07T12:00:00+09:00');
+
+  it('이벤트에 묶인 게임만 CTA 링크로 만들고, 이벤트 없는 게임과 걸러진 행은 제외한다', () => {
+    const links = toEventGameLinks([
+      toGameFromRow(cardRow(), now),
+      toGameFromRow(
+        cardRow({
+          id: 'goods-marble',
+          event_id: null,
+          reward_pool_id: null,
+          card_pools: null,
+          config: { marbleCount: 2, variant: { kind: 'goods', goodsIds: ['g1', 'g2'] } },
+        }),
+        now,
+      ),
+      toGameFromRow(cardRow({ active_to: '2026-07-01T00:00:00+09:00' }), now),
+    ]);
+
+    expect(links).toEqual([{ gameId: 'marble-maple', eventId: 'e2', title: '메이플 마블 룰렛' }]);
   });
 });

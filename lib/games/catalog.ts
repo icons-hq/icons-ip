@@ -105,6 +105,36 @@ function toRewardCard(row: GameCardRow): Card {
   };
 }
 
+/** 공개 화면 CTA용 이벤트↔게임 연결 — 이벤트에 묶인 활성 게임만 노출한다(#81). */
+export interface EventGameLink {
+  gameId: string;
+  eventId: string;
+  title: string;
+}
+
+export function toEventGameLinks(games: Array<Game | null>): EventGameLink[] {
+  return games
+    .filter((game): game is Game => game !== null && game.event !== null)
+    .map((game) => ({ gameId: game.id, eventId: game.event as string, title: game.title }));
+}
+
+export async function listEventGameLinks(): Promise<EventGameLink[]> {
+  const source = resolveCatalogSource({ isSupabaseConfigured: getSupabaseConfig().isConfigured });
+  if (source === 'mock') return toEventGameLinks(DATA.GAMES);
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('games')
+    .select('id,type,title,event_id,config,reward_pool_id,active_from,active_to,card_pools:reward_pool_id(ip_id)')
+    .not('event_id', 'is', null);
+
+  if (error) {
+    throw new Error(`Failed to load event game links: ${error.message}`);
+  }
+
+  return toEventGameLinks(((data ?? []) as unknown as GameRow[]).map((row) => toGameFromRow(row)));
+}
+
 export async function getGameCatalogEntry(gameId: string): Promise<GameCatalogEntry | null> {
   const source = resolveCatalogSource({ isSupabaseConfigured: getSupabaseConfig().isConfigured });
   if (source === 'mock') {
