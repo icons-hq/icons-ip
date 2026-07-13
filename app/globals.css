@@ -469,6 +469,80 @@
   .exchange-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
   .exchange-card { transition: transform .25s ease, border-color .25s ease; }
   .exchange-card:hover { transform: translateY(-3px); border-color: var(--line-3); }
+
+  /* 어드민 — 독립 콘솔 셸: 접이식 사이드바 + 스티키 헤더 (전역 Nav 대신 자체 크롬) */
+  .admin-shell { display: flex; min-height: 100vh; }
+  .admin-sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 40;
+    width: 260px; display: flex; flex-direction: column;
+    background: rgba(12,10,24,.85); backdrop-filter: blur(18px) saturate(1.4);
+    border-right: 1px solid var(--line);
+    transition: width .3s ease;
+  }
+  .admin-shell.collapsed .admin-sidebar { width: 72px; }
+  .admin-brand {
+    height: 64px; flex: 0 0 auto; display: flex; align-items: center; gap: 10px;
+    padding: 0 20px; border-bottom: 1px solid var(--line);
+    overflow: hidden; white-space: nowrap;
+  }
+  .admin-nav {
+    flex: 1; display: flex; flex-direction: column; gap: 4px;
+    padding: 14px 12px; overflow-y: auto; overflow-x: hidden;
+  }
+  .admin-nav-item {
+    position: relative; display: flex; align-items: center; gap: 12px;
+    padding: 11px 12px; border-radius: var(--r-sm);
+    font-size: 14px; font-weight: 500; color: var(--dim); text-align: left;
+    white-space: nowrap;
+    transition: color .2s ease, background .2s ease;
+  }
+  .admin-nav-item:hover { color: var(--text); background: rgba(255,255,255,.05); }
+  .admin-nav-item.on { color: var(--text); background: rgba(255,255,255,.08); font-weight: 700; }
+  .admin-nav-item.on::before {
+    content: ''; position: absolute; left: -12px; top: 50%; transform: translateY(-50%);
+    width: 3px; height: 22px; border-radius: 0 99px 99px 0; background: var(--holo);
+  }
+  .admin-nav-item svg { flex: 0 0 auto; }
+  .admin-sidebar-foot {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 12px; border-top: 1px solid var(--line);
+    overflow: hidden;
+  }
+  .admin-shell.collapsed .admin-nav-label { display: none; }
+  .admin-shell.collapsed .admin-nav-item { justify-content: center; padding: 11px 0; }
+  .admin-shell.collapsed .admin-brand { justify-content: center; padding: 0; }
+  .admin-main {
+    flex: 1; min-width: 0; display: flex; flex-direction: column;
+    margin-left: 260px; transition: margin-left .3s ease;
+  }
+  .admin-shell.collapsed .admin-main { margin-left: 72px; }
+  .admin-header {
+    position: sticky; top: 0; z-index: 30; height: 64px; flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 0 24px;
+    background: rgba(8,6,15,.72); backdrop-filter: blur(18px) saturate(1.4);
+    border-bottom: 1px solid var(--line);
+  }
+  .admin-title { font-family: var(--ff-display); font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+  .admin-avatar {
+    width: 36px; height: 36px; border-radius: 999px; display: grid; place-items: center;
+    background: var(--holo); color: #0A0813; font-weight: 700; font-size: 14px;
+  }
+  .admin-content { flex: 1; padding: 24px; }
+  .admin-metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
+  .admin-metric { padding: 18px; border-radius: var(--r-sm); }
+  .admin-metric:hover { border-color: rgba(139,92,255,.45); }
+  .admin-metric-icon {
+    width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center;
+    background: rgba(255,255,255,.05); color: var(--dim); border: 1px solid var(--line);
+    transition: color .25s ease, border-color .25s ease;
+  }
+  .admin-metric:hover .admin-metric-icon { color: var(--violet-2); border-color: rgba(139,92,255,.4); }
+  .admin-master-detail {
+    display: grid; grid-template-columns: minmax(220px, .35fr) minmax(0, 1fr);
+    gap: 16px; align-items: start;
+  }
+  .admin-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -618,6 +692,16 @@
     align-items: flex-start;
     gap: 10px !important;
   }
+
+  /* 어드민 — 좁은 화면에서는 아이콘 레일로 강제 접힘 */
+  .admin-sidebar { width: 72px; }
+  .admin-main { margin-left: 72px; }
+  .admin-nav-label, .admin-collapse-btn { display: none; }
+  .admin-nav-item { justify-content: center; padding: 11px 0; }
+  .admin-brand { justify-content: center; padding: 0; }
+  .admin-header { padding: 0 16px; }
+  .admin-content { padding: 16px; }
+  .admin-master-detail { grid-template-columns: 1fr; }
 }
 @media (min-width: 920px) { .only-mob { display: none !important; } }
 @media (max-width: 620px) {
@@ -685,6 +769,8 @@
   }
 
   .mobile-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+  .admin-form-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 360px) {

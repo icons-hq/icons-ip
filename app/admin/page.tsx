@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import { Admin } from '@/components/screens/Admin';
+import { Admin } from '@/components/admin/Admin';
 import { getAdminCatalogRecords } from '@/lib/admin/catalog.server';
 import { getAdminModerationRecords } from '@/lib/admin/moderation.server';
 import { getAdminProfileRecords } from '@/lib/admin/roles.server';
