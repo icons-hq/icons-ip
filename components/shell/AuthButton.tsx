@@ -39,9 +39,14 @@ export function AuthButton() {
 
   if (isSignedIn) {
     return (
-      <form action={signOutAction}>
-        <button className="btn btn-ghost btn-sm">로그아웃</button>
-      </form>
+      <>
+        <button className="btn btn-ghost btn-sm" onClick={() => router.push('/settings')}>
+          설정
+        </button>
+        <form action={signOutAction}>
+          <button className="btn btn-ghost btn-sm">로그아웃</button>
+        </form>
+      </>
     );
   }
 
