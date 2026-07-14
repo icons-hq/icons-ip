@@ -1,0 +1,28 @@
+import { describe, expect, it } from 'vitest';
+import { paymentKeyMode, paymentKeysMatch, paymentsEnabledForRuntime } from './config';
+
+describe('Toss payment key configuration', () => {
+  it('recognizes test and live key prefixes without exposing their values', () => {
+    expect(paymentKeyMode('test_gck_example', 'client')).toBe('test');
+    expect(paymentKeyMode('test_gsk_example', 'secret')).toBe('test');
+    expect(paymentKeyMode('live_gck_example', 'client')).toBe('live');
+    expect(paymentKeyMode('live_gsk_example', 'secret')).toBe('live');
+  });
+
+  it('fails closed for missing, malformed, or mixed-mode pairs', () => {
+    expect(paymentKeysMatch('', '')).toBe(false);
+    expect(paymentKeysMatch('test_gck_example', 'live_gsk_example')).toBe(false);
+    expect(paymentKeysMatch('test_ck_api-key', 'test_sk_api-key')).toBe(false);
+    expect(paymentKeysMatch('unknown', 'unknown')).toBe(false);
+    expect(paymentKeysMatch('test_gck_example', 'test_gsk_example')).toBe(true);
+  });
+
+  it('allows test keys outside production but requires a live pair on Vercel production', () => {
+    expect(paymentsEnabledForRuntime('test_gck_example', 'test_gsk_example', 'development', 'development')).toBe(true);
+    expect(paymentsEnabledForRuntime('test_gck_example', 'test_gsk_example', 'preview', 'production')).toBe(true);
+    expect(paymentsEnabledForRuntime('test_gck_example', 'test_gsk_example', 'production', 'production')).toBe(false);
+    expect(paymentsEnabledForRuntime('live_gck_example', 'live_gsk_example', 'production', 'production')).toBe(true);
+    expect(paymentsEnabledForRuntime('test_gck_example', 'test_gsk_example', undefined, 'production')).toBe(false);
+    expect(paymentsEnabledForRuntime('live_gck_example', 'live_gsk_example', undefined, 'production')).toBe(true);
+  });
+});

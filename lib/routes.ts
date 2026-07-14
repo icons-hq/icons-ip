@@ -37,6 +37,7 @@ const PATHS: Record<string, string> = {
   search: '/search',
   login: '/login',
   cart: '/cart',
+  checkout: '/checkout',
 };
 
 export function hrefFor(route: string, param?: string | null): string {

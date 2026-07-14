@@ -64,6 +64,7 @@ jobs:
         run: |
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/catalog_baseline.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/cart_items.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/checkout_order.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/community_comment_like_actions.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/community_moderation_actions.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/search_public_content.sql
@@ -314,7 +315,7 @@ jobs:
       - name: Pull Vercel preview environment
         run: vercel pull --yes --environment=preview
 
-      - name: Check Vercel preview Supabase environment
+      - name: Check Vercel preview runtime environment
         run: |
           env_file=".vercel/.env.preview.local"
           missing=0
@@ -337,6 +338,27 @@ jobs:
           if ! grep -Eq '^AUTH_SIGNUP_RESEND_SECRET=.+$' "$env_file"; then
             echo "::error title=Missing Vercel environment::AUTH_SIGNUP_RESEND_SECRET is required for preview auth resend cooldown"
             missing=1
+          fi
+
+          for name in NEXT_PUBLIC_TOSS_CLIENT_KEY TOSS_SECRET_KEY SUPABASE_SERVICE_ROLE_KEY; do
+            if ! grep -Eq "^${name}=.+$" "$env_file"; then
+              echo "::error title=Missing Vercel environment::$name is required for preview checkout"
+              missing=1
+            fi
+          done
+
+          if [ "$missing" = "0" ]; then
+            set -a
+            . "$env_file"
+            set +a
+            case "${NEXT_PUBLIC_TOSS_CLIENT_KEY}:${TOSS_SECRET_KEY}" in
+              test_gck_*:test_gsk_*) echo "Toss payment keys: widget test mode" ;;
+              live_gck_*:live_gsk_*) echo "Toss payment keys: widget live mode" ;;
+              *)
+                echo "::error title=Mismatched Vercel payment keys::Toss client and secret keys must use the same valid mode"
+                missing=1
+                ;;
+            esac
           fi
 
           exit "$missing"
@@ -389,7 +411,7 @@ jobs:
       - name: Pull Vercel production environment
         run: vercel pull --yes --environment=production
 
-      - name: Check Vercel production Supabase environment
+      - name: Check Vercel production runtime environment
         run: |
           env_file=".vercel/.env.production.local"
           missing=0
@@ -412,6 +434,27 @@ jobs:
           if ! grep -Eq '^AUTH_SIGNUP_RESEND_SECRET=.+$' "$env_file"; then
             echo "::error title=Missing Vercel environment::AUTH_SIGNUP_RESEND_SECRET is required for production auth resend cooldown"
             missing=1
+          fi
+
+          for name in NEXT_PUBLIC_TOSS_CLIENT_KEY TOSS_SECRET_KEY SUPABASE_SERVICE_ROLE_KEY; do
+            if ! grep -Eq "^${name}=.+$" "$env_file"; then
+              echo "::error title=Missing Vercel environment::$name is required for production checkout"
+              missing=1
+            fi
+          done
+
+          if [ "$missing" = "0" ]; then
+            set -a
+            . "$env_file"
+            set +a
+            case "${NEXT_PUBLIC_TOSS_CLIENT_KEY}:${TOSS_SECRET_KEY}" in
+              test_gck_*:test_gsk_*) echo "Toss payment keys: widget test mode" ;;
+              live_gck_*:live_gsk_*) echo "Toss payment keys: widget live mode" ;;
+              *)
+                echo "::error title=Mismatched Vercel payment keys::Toss client and secret keys must use the same valid mode"
+                missing=1
+                ;;
+            esac
           fi
 
           exit "$missing"
