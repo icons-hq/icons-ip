@@ -128,14 +128,18 @@ export function SelectField({
   error,
   label,
   name,
+  onChange,
   required,
+  value,
 }: {
   children: React.ReactNode;
   defaultValue?: string | null;
   error?: string;
   label: string;
   name: string;
+  onChange?: React.ChangeEventHandler<HTMLSelectElement>;
   required?: boolean;
+  value?: string;
 }) {
   const errorId = error ? `${name}-error` : undefined;
 
@@ -148,9 +152,11 @@ export function SelectField({
         aria-describedby={errorId}
         aria-invalid={Boolean(error)}
         className="admin-field-control"
-        defaultValue={defaultValue ?? ''}
+        defaultValue={value === undefined ? (defaultValue ?? '') : undefined}
         name={name}
+        onChange={onChange}
         required={required}
+        value={value}
         style={{
           background: 'rgba(255,255,255,.045)',
           border: '1px solid var(--line)',

@@ -5,9 +5,11 @@ import { redirect } from 'next/navigation';
 import {
   catalogContextFromSnapshot,
   normalizeAdminCardForm,
+  normalizeAdminCardPoolForm,
   normalizeAdminEventForm,
   normalizeAdminGoodForm,
   normalizeAdminIpForm,
+  normalizeAdminPoolOddsForm,
   normalizeAdminStockAdjustmentForm,
   normalizeAdminTicketTypeForm,
   type AdminFieldErrors,
@@ -75,6 +77,10 @@ function revalidateStock(ipPath: string | null) {
 function revalidateTicketing() {
   revalidatePath('/admin');
   revalidatePath('/events');
+}
+
+function revalidateRewards() {
+  for (const path of ['/admin', '/packs', '/binder']) revalidatePath(path);
 }
 
 function readRpcIpId(data: unknown) {
@@ -251,12 +257,117 @@ export async function upsertAdminCardAction(
     target_rarity: value.rarity,
     target_bg: value.bg,
     target_image_path: value.imagePath,
+    target_pool_id: value.poolId,
+    target_pool_binding_provided: true,
   });
 
-  if (error) return rpcFailure('카드를 저장하지 못했습니다. 다시 시도해주세요.');
+  if (error) {
+    revalidatePath('/admin');
+    if (error.message.includes('card_pool_ip_mismatch')) {
+      return rpcFailure('카드와 같은 IP의 카드풀만 연결할 수 있습니다.');
+    }
+    if (error.message.includes('pool_rarity_uncovered')) {
+      return rpcFailure('현재 풀의 마지막 양수 확률 카드는 이동하거나 해제할 수 없습니다.');
+    }
+    if (error.message.includes('pooled_card_catalog_contract_locked')) {
+      return rpcFailure('풀에 연결된 카드는 먼저 풀을 해제한 뒤 IP·등급을 변경해주세요.');
+    }
+    if (error.message.includes('pool_not_found')) {
+      return rpcFailure('연결할 카드풀을 찾을 수 없습니다.');
+    }
+    return rpcFailure('카드를 저장하지 못했습니다. 다시 시도해주세요.');
+  }
 
   revalidateCatalog(relatedIpPaths(value.ipId, previousIpPath));
   return { message: '카드를 저장했습니다.' };
+}
+
+export async function upsertAdminCardPoolAction(
+  _state: AdminCatalogActionState,
+  formData: FormData,
+): Promise<AdminCatalogActionState> {
+  const authError = await requireStaffAction();
+  if (authError) return authError;
+
+  const catalog = await getAdminValidationCatalog();
+  const result = normalizeAdminCardPoolForm(formData, catalogContextFromSnapshot(catalog));
+  if (!result.ok) return { errors: result.errors };
+
+  const value = result.value;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_upsert_card_pool', {
+    target_operation_id: value.operationId,
+    target_pool_id: value.id,
+    target_ip_id: value.ipId,
+    target_name: value.name,
+    target_active_from: value.activeFrom,
+    target_active_to: value.activeTo,
+  });
+
+  if (error) {
+    if (error.message.includes('pool_ip_locked')) {
+      return rpcFailure('연결된 발급 정책·게임·카드팩·발급 이력이 있어 카드풀 IP를 변경할 수 없습니다.');
+    }
+    if (error.message.includes('invalid_pool_active_window')) {
+      return rpcFailure('운영 종료는 시작보다 뒤여야 합니다.');
+    }
+    if (error.message.includes('ip_not_found')) {
+      return rpcFailure('연결할 IP를 찾을 수 없습니다.');
+    }
+    if (error.message.includes('operation_conflict')) {
+      return rpcFailure('이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.');
+    }
+    return rpcFailure('카드풀을 저장하지 못했습니다. 다시 시도해주세요.');
+  }
+
+  revalidateRewards();
+  return { message: '카드풀을 저장했습니다.' };
+}
+
+export async function setAdminPoolOddsAction(
+  _state: AdminCatalogActionState,
+  formData: FormData,
+): Promise<AdminCatalogActionState> {
+  const authError = await requireStaffAction();
+  if (authError) return authError;
+
+  const result = normalizeAdminPoolOddsForm(formData);
+  if (!result.ok) return { errors: result.errors };
+
+  const { odds, operationId, poolId } = result.value;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_set_pool_odds', {
+    target_operation_id: operationId,
+    target_pool_id: poolId,
+    target_n: odds.N,
+    target_r: odds.R,
+    target_sr: odds.SR,
+    target_ssr: odds.SSR,
+    target_holo: odds.HOLO,
+  });
+
+  if (error) {
+    if (error.message.includes('pool_rarity_uncovered')) {
+      return rpcFailure('양수 확률인 모든 등급에 소속 카드가 필요합니다.');
+    }
+    if (
+      error.message.includes('invalid_pool_probability')
+      || error.message.includes('invalid_probability_precision')
+      || error.message.includes('pool_odds_must_sum_to_one')
+    ) {
+      return rpcFailure('각 확률과 합계가 올바른지 확인해주세요.');
+    }
+    if (error.message.includes('pool_not_found')) {
+      return rpcFailure('카드풀을 찾을 수 없습니다.');
+    }
+    if (error.message.includes('operation_conflict')) {
+      return rpcFailure('이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.');
+    }
+    return rpcFailure('등급별 확률을 저장하지 못했습니다. 다시 시도해주세요.');
+  }
+
+  revalidateRewards();
+  return { message: '등급별 확률을 저장했습니다.' };
 }
 
 export async function upsertAdminEventAction(

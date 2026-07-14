@@ -1,0 +1,105 @@
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it, vi } from 'vitest';
+import type { AdminCardPoolRecord, AdminCardRecord } from '@/lib/admin/catalog.server';
+import { CardPoolSection, poolOddsTotalMilliPercent } from './CardPoolSection';
+
+vi.mock('@/components/ui/Icon', () => ({ Icon: () => null }));
+vi.mock('@/app/admin/actions', () => ({
+  setAdminPoolOddsAction: vi.fn(),
+  upsertAdminCardPoolAction: vi.fn(),
+}));
+
+const pool: AdminCardPoolRecord = {
+  id: '11111111-1111-4111-8111-111111111111',
+  ipId: 'hwasan',
+  name: '화산강림 무상 리워드 풀',
+  activeFrom: '2026-07-15T00:00:00.000Z',
+  activeTo: null,
+  updatedAt: '2026-07-15T01:00:00.000Z',
+  status: 'active',
+  oddsConfigured: true,
+  odds: { N: 0, R: 0.7, SR: 0, SSR: 0.2, HOLO: 0.1 },
+};
+
+const card: AdminCardRecord = {
+  id: 'c100',
+  ipId: 'hwasan',
+  poolId: pool.id,
+  name: '청명 홀로 카드',
+  no: '001/120',
+  rarity: 'HOLO',
+  bg: null,
+  imagePath: null,
+};
+
+function renderPool(
+  selected: AdminCardPoolRecord | null = pool,
+  cards: AdminCardRecord[] = [card],
+  records: AdminCardPoolRecord[] = [pool],
+) {
+  return renderToStaticMarkup(
+    <CardPoolSection
+      cards={cards}
+      draftActiveFrom="2026-07-15T02:00:00.000Z"
+      draftId="22222222-2222-4222-8222-222222222222"
+      ipOptions={[{ id: 'hwasan', title: '화산강림' }]}
+      oddsOperationId="33333333-3333-4333-8333-333333333333"
+      onEditCard={vi.fn()}
+      onSelect={vi.fn()}
+      operationId="44444444-4444-4444-8444-444444444444"
+      records={records}
+      selected={selected}
+    />,
+  );
+}
+
+describe('CardPoolSection', () => {
+  it('renders KST operating fields, live 100% total, and the current card roster', () => {
+    const html = renderPool();
+
+    expect(html).toContain('aria-label="카드풀 목록"');
+    expect(html).toContain('운영 중');
+    expect(html).toContain('value="2026-07-15T09:00"');
+    expect(html).toContain('name="oddsR"');
+    expect(html).toContain('value="70"');
+    expect(html).toContain('합계 100% · 저장 가능');
+    expect(html).toContain('청명 홀로 카드');
+    expect(html).toContain('카드 편집');
+  });
+
+  it('warns that odds changes affect unopened card packs immediately', () => {
+    const html = renderPool();
+
+    expect(html).toContain('미사용 카드팩도 개봉 시점의 최신 구성과 확률');
+  });
+
+  it('requires a saved pool before odds can be edited', () => {
+    const html = renderPool(null, [], []);
+
+    expect(html).toContain('카드풀을 먼저 저장해주세요.');
+    expect(html).toContain('disabled=""');
+    expect(html).toContain('value="22222222-2222-4222-8222-222222222222"');
+  });
+
+  it('surfaces a positive rarity without a bound card', () => {
+    const html = renderPool(pool, []);
+
+    expect(html).toContain('HOLO 등급 카드가 없습니다.');
+  });
+
+  it('shows an explicit warning before a pool has any configured odds', () => {
+    const html = renderPool({
+      ...pool,
+      oddsConfigured: false,
+      odds: { N: 0, R: 0, SR: 0, SSR: 0, HOLO: 0 },
+    });
+
+    expect(html).toContain('등급별 발급 확률이 아직 설정되지 않았습니다.');
+  });
+
+  it('calculates exact milli-percent totals and rejects transient invalid input', () => {
+    expect(poolOddsTotalMilliPercent({ N: '0', R: '70', SR: '0', SSR: '20.125', HOLO: '9.875' })).toBe(100_000);
+    expect(poolOddsTotalMilliPercent({ N: '0', R: '', SR: '0', SSR: '20', HOLO: '10' })).toBeNull();
+    expect(poolOddsTotalMilliPercent({ N: '0', R: '70.0001', SR: '0', SSR: '20', HOLO: '10' })).toBeNull();
+  });
+});

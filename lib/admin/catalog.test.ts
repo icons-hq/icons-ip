@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   normalizeAdminCardForm,
+  normalizeAdminCardPoolForm,
   normalizeAdminEventForm,
   normalizeAdminGoodForm,
   normalizeAdminIpForm,
+  normalizeAdminPoolOddsForm,
   normalizeAdminStockAdjustmentForm,
   normalizeAdminTicketTypeForm,
 } from './catalog';
@@ -174,6 +176,137 @@ describe('admin catalog form normalization', () => {
         ipId: '등록된 IP를 선택해주세요.',
         rarity: '등급을 선택해주세요.',
       },
+    });
+  });
+
+  it('normalizes an optional card-pool binding and rejects malformed pool IDs', () => {
+    const valid = new FormData();
+    valid.set('id', 'c100');
+    valid.set('ipId', 'hwasan');
+    valid.set('name', '청명 홀로 카드');
+    valid.set('rarity', 'HOLO');
+    valid.set('poolId', 'AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA');
+
+    expect(normalizeAdminCardForm(valid, context)).toEqual({
+      ok: true,
+      value: {
+        id: 'c100',
+        ipId: 'hwasan',
+        name: '청명 홀로 카드',
+        no: null,
+        rarity: 'HOLO',
+        poolId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        bg: null,
+        imagePath: null,
+      },
+    });
+
+    const invalid = new FormData();
+    invalid.set('id', 'c100');
+    invalid.set('ipId', 'hwasan');
+    invalid.set('name', '카드');
+    invalid.set('rarity', 'R');
+    invalid.set('poolId', 'not-a-uuid');
+
+    expect(normalizeAdminCardForm(invalid, context)).toEqual({
+      ok: false,
+      errors: { poolId: '유효한 카드풀을 선택해주세요.' },
+    });
+  });
+
+  it('normalizes a card-pool form from KST local date-times', () => {
+    const formData = new FormData();
+    formData.set('operationId', '11111111-1111-4111-8111-111111111111');
+    formData.set('id', '22222222-2222-4222-8222-222222222222');
+    formData.set('ipId', 'hwasan');
+    formData.set('name', '  화산강림 무상 리워드 풀  ');
+    formData.set('activeFrom', '2026-07-15T10:00');
+    formData.set('activeTo', '2026-08-01T00:00');
+
+    expect(normalizeAdminCardPoolForm(formData, context)).toEqual({
+      ok: true,
+      value: {
+        operationId: '11111111-1111-4111-8111-111111111111',
+        id: '22222222-2222-4222-8222-222222222222',
+        ipId: 'hwasan',
+        name: '화산강림 무상 리워드 풀',
+        activeFrom: '2026-07-15T01:00:00.000Z',
+        activeTo: '2026-07-31T15:00:00.000Z',
+      },
+    });
+  });
+
+  it('rejects invalid card-pool identifiers, fields, and operating windows', () => {
+    const formData = new FormData();
+    formData.set('operationId', 'bad-operation');
+    formData.set('id', 'bad-pool');
+    formData.set('ipId', 'missing');
+    formData.set('name', ' ');
+    formData.set('activeFrom', '2026-07-15T10:00');
+    formData.set('activeTo', '2026-07-15T09:59');
+
+    expect(normalizeAdminCardPoolForm(formData, context)).toEqual({
+      ok: false,
+      errors: {
+        operationId: '유효한 저장 요청이 아닙니다.',
+        id: '유효한 카드풀이 아닙니다.',
+        ipId: '등록된 IP를 선택해주세요.',
+        name: '카드풀 이름을 입력해주세요.',
+        activeTo: '운영 종료는 시작보다 뒤여야 합니다.',
+      },
+    });
+  });
+
+  it('normalizes five rarity percentages into exact probabilities', () => {
+    const formData = new FormData();
+    formData.set('operationId', '11111111-1111-4111-8111-111111111111');
+    formData.set('poolId', '22222222-2222-4222-8222-222222222222');
+    formData.set('oddsN', '0');
+    formData.set('oddsR', '70');
+    formData.set('oddsSr', '0');
+    formData.set('oddsSsr', '20.125');
+    formData.set('oddsHolo', '9.875');
+
+    expect(normalizeAdminPoolOddsForm(formData)).toEqual({
+      ok: true,
+      value: {
+        operationId: '11111111-1111-4111-8111-111111111111',
+        poolId: '22222222-2222-4222-8222-222222222222',
+        odds: { N: 0, R: 0.7, SR: 0, SSR: 0.20125, HOLO: 0.09875 },
+      },
+    });
+  });
+
+  it('rejects malformed rarity percentages and totals other than 100%', () => {
+    const malformed = new FormData();
+    malformed.set('operationId', '11111111-1111-4111-8111-111111111111');
+    malformed.set('poolId', '22222222-2222-4222-8222-222222222222');
+    malformed.set('oddsN', '-1');
+    malformed.set('oddsR', '70.0001');
+    malformed.set('oddsSr', '0');
+    malformed.set('oddsSsr', '20');
+    malformed.set('oddsHolo', '10');
+
+    expect(normalizeAdminPoolOddsForm(malformed)).toEqual({
+      ok: false,
+      errors: {
+        oddsN: '확률은 0~100 사이, 소수 셋째 자리까지 입력해주세요.',
+        oddsR: '확률은 0~100 사이, 소수 셋째 자리까지 입력해주세요.',
+      },
+    });
+
+    const wrongTotal = new FormData();
+    wrongTotal.set('operationId', '11111111-1111-4111-8111-111111111111');
+    wrongTotal.set('poolId', '22222222-2222-4222-8222-222222222222');
+    wrongTotal.set('oddsN', '0');
+    wrongTotal.set('oddsR', '69');
+    wrongTotal.set('oddsSr', '0');
+    wrongTotal.set('oddsSsr', '20');
+    wrongTotal.set('oddsHolo', '10');
+
+    expect(normalizeAdminPoolOddsForm(wrongTotal)).toEqual({
+      ok: false,
+      errors: { oddsTotal: '확률 합계는 100%여야 합니다.' },
     });
   });
 

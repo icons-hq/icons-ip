@@ -45,9 +45,13 @@ export default async function AdminPage({
       }}
       catalog={catalog}
       insights={insights}
-      initialSection={query.section === 'orders' ? 'orders' : query.section === 'good' ? 'good' : query.section === 'ticket' ? 'ticket' : 'overview'}
+      initialSection={query.section === 'orders' ? 'orders' : query.section === 'good' ? 'good' : query.section === 'ticket' ? 'ticket' : query.section === 'pool' ? 'pool' : 'overview'}
       moderation={moderation}
       orders={orders}
+      poolDraftActiveFrom={new Date().toISOString()}
+      poolDraftId={randomUUID()}
+      poolOddsOperationId={randomUUID()}
+      poolOperationId={randomUUID()}
       profiles={profiles}
       records={records}
       stockAdjustmentId={randomUUID()}

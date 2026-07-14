@@ -108,6 +108,7 @@ components:
   orders:         { status: 구현됨, ref: "app/orders/*; components/screens/Orders.tsx; components/screens/OrderDetail.tsx; components/orders/*; globals.css", note: "본인 주문 최신순 원장 + 상태·불변 굿즈 스냅샷·배송지·안전 결제/환불 요약·실제 카드팩 발급 상세·배송 전 청약철회 요청 상태. 데스크톱 영수증 2열, 모바일 1열" }
   admin-orders:   { status: 구현됨, ref: "app/admin/*; components/admin/sections/Orders.tsx; globals.css", note: "staff 전용 DB-side 주문/구매자/상태/기간 검색 + 20건 master-detail + paid→shipping→done + 청약철회 승인·거절·재정합화. provider 식별자·raw 미노출" }
   admin-ticket:   { status: 구현됨, ref: "app/admin/*; components/admin/sections/TicketSection.tsx; globals.css", note: "staff 전용 회차 master-detail. 이벤트·회차명·가격·정원 편집, pending 선점 포함 sold/잔여·정원 상태 표시, 예매 이력 이후 메타데이터 잠금" }
+  admin-card-pool: { status: 구현됨, ref: "app/admin/*; components/admin/sections/CardPoolSection.tsx; components/admin/sections/CardSection.tsx", note: "staff 전용 카드풀 master-detail. KST 운영 기간, 5등급 퍼센트 합계 100%, 확률 미설정 상태, 소속 카드·같은 IP 바인딩, 미사용 카드팩에 최신 구성·확률이 즉시 적용된다는 경고" }
   ticket-check-in: { status: 구현됨, ref: "app/admin/check-in/*; app/api/admin/check-in/*; components/admin/check-in/*; globals.css", note: "staff 전용 모바일 현장 검표. 카메라 QR·HID/수동 입력, 검표/재검표/환불 상태, same-origin service-only 원장·감사" }
   gacha:          { status: 구현됨, ref: "globals.css:442-453", note: "카드풀 스위처 + 확률 칩 + 천장 게이지 + 클라이언트 리빌(popIn). mock 공시 — 실 카드풀은 ADR-0001" }
   event:          { status: 구현됨, ref: "app/events/*; components/screens/Events.tsx; components/screens/EventDetail.tsx; globals.css", note: "목록 featured 2열+카드 그리드에서 공개 상세로 연결. 상세는 포스터 히어로와 회차 선택/예매 요약 2열, 모바일 1열" }
@@ -197,6 +198,7 @@ frontmatter `components` 블록이 정본 인덱스다(셸 → 기본 어휘 →
 | 관리자 주문 | `/admin?section=orders` | DB-side 필터 → 20건 master-detail → 배송 전이·청약철회 승인/거절/재정합화 | staff-gated `admin_search_orders` + audited mutation RPC + 서버 전용 Toss 정합화 |
 | 관리자 실재고 | `/admin?section=good` | 굿즈 master-detail → 현재 수량·운영/유효 상태 → 델타·사유 조정 | staff-gated, 멱등 `admin_adjust_stock` + `audit_log` |
 | 관리자 티켓 회차 | `/admin?section=ticket` | 회차 master-detail → 이벤트·이름·가격·정원 편집 → 할당·잔여·정원 상태 | staff-gated, 멱등 `admin_upsert_ticket_type` + `audit_log` |
+| 관리자 카드풀 | `/admin?section=pool` | 풀 master-detail → KST 운영 기간·5등급 확률 합계·미설정 상태·소속 카드·바인딩 관리 → 최신 확률 즉시 적용 경고 | staff-gated, 멱등 `admin_upsert_card_pool`/`admin_set_pool_odds` + `audit_log` |
 | 뽑기 | `/gacha` | 카드풀 스위처 + 확률 칩 + 천장 게이지 + 클라이언트 리빌 + 라인업 | 카탈로그(카드 있는 IP), mock 공시 |
 | 팝업 | `/events`, `/events/[eventId]` | 필터 칩 → featured/카드 목록 → 공개 상세·회차 선택 → QR 가이드 | `selectFandomEvents`, 공개 `ticket_types` |
 | 커뮤니티 | `/community` | 채널 레일 + 컴팩트 컴포저 + 피드 + 랭킹·카드풀 레일 | 실배선(작성·좋아요·댓글·신고·차단) |
