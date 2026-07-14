@@ -9,7 +9,7 @@ import {
   normalizeOrderReference,
   type PlaceOrderErrorCode,
 } from '@/lib/checkout';
-import { paymentsEnabledForRuntime } from '@/lib/payments/config';
+import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
 import { createClient } from '@/lib/supabase/server';
 
 type PlaceOrderActionError =
@@ -39,10 +39,7 @@ export async function placeOrderAction(
   const checkoutKey = normalizeCheckoutKey(checkoutKeyValue);
   if (!checkoutKey) return { ok: false, error: 'invalid_request' };
 
-  if (!paymentsEnabledForRuntime(
-    process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY,
-    process.env.TOSS_SECRET_KEY,
-  )) {
+  if (!checkoutPaymentsEnabled()) {
     return { ok: false, error: 'payment_unavailable' };
   }
 

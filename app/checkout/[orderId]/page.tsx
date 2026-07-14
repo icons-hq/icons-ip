@@ -5,7 +5,7 @@ import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { normalizeOrderReference } from '@/lib/checkout';
 import { loadCheckoutOrder } from '@/lib/checkout.server';
-import { paymentsEnabledForRuntime } from '@/lib/payments/config';
+import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
 
 export const metadata: Metadata = {
   title: '주문 결제 — ICONS',
@@ -26,7 +26,7 @@ export default async function Page({ params }: { params: Promise<{ orderId: stri
   if (!order) notFound();
 
   const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
-  const configured = paymentsEnabledForRuntime(clientKey, process.env.TOSS_SECRET_KEY);
+  const configured = checkoutPaymentsEnabled();
 
   return (
     <CheckoutOrder

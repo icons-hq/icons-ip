@@ -12,6 +12,9 @@ vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
 vi.mock('@/lib/auth/onboarding', async () => await import('../../lib/auth/onboarding'));
 vi.mock('@/lib/checkout', async () => await import('../../lib/checkout'));
 vi.mock('@/lib/payments/config', async () => await import('../../lib/payments/config'));
+vi.mock('@/lib/payments/checkout-availability', async () => (
+  await import('../../lib/payments/checkout-availability')
+));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({ rpc: mocks.rpc }),
 }));
@@ -48,6 +51,8 @@ describe('placeOrderAction', () => {
     mocks.auth = onboardedAuth();
     mocks.rpc.mockReset();
     mocks.rpc.mockResolvedValue({ data: orderId, error: null });
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://example.supabase.co');
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
     vi.stubEnv('NEXT_PUBLIC_TOSS_CLIENT_KEY', 'test_gck_example');
     vi.stubEnv('TOSS_SECRET_KEY', 'test_gsk_example');
   });
@@ -94,6 +99,16 @@ describe('placeOrderAction', () => {
 
     mocks.auth = onboardedAuth();
     vi.stubEnv('TOSS_SECRET_KEY', 'live_gsk_example');
+    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({
+      ok: false,
+      error: 'payment_unavailable',
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('does not reserve stock when the payment settlement service is unavailable', async () => {
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
+
     await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({
       ok: false,
       error: 'payment_unavailable',

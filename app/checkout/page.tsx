@@ -5,7 +5,7 @@ import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { getCatalogSnapshot } from '@/lib/catalog';
 import { loadLatestCheckoutAddress, loadLatestPendingCheckoutOrderId } from '@/lib/checkout.server';
-import { paymentsEnabledForRuntime } from '@/lib/payments/config';
+import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
 
 export const metadata: Metadata = {
   title: '체크아웃 — ICONS',
@@ -28,10 +28,7 @@ export default async function Page() {
       catalog={{ goods: catalog.goods, ips: catalog.ips }}
       latestAddress={latestAddress}
       resumeOrderId={resumeOrderId}
-      paymentAvailable={paymentsEnabledForRuntime(
-        process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY,
-        process.env.TOSS_SECRET_KEY,
-      )}
+      paymentAvailable={checkoutPaymentsEnabled()}
     />
   );
 }
