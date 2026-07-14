@@ -11,6 +11,7 @@ function good(id: string, ipId: string, overrides: Partial<Good> = {}): Good {
     price: 10000,
     badge: null,
     stock: 'ok' as Stock,
+    stockQty: 10,
     img: `good-${id}`,
     ...overrides,
   };

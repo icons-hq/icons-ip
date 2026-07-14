@@ -94,3 +94,7 @@ export function setCartItemQuantity(
 export function cartQuantityTotal(items: readonly CartItem[]): number {
   return normalizeCartItems(items).reduce((total, item) => total + item.qty, 0);
 }
+
+export function cartItemsAfterSignOut(mode: CartMode, localItems: readonly CartItem[]): CartItem[] {
+  return mode === 'local' ? normalizeCartItems(localItems) : [];
+}

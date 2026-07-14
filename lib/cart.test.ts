@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cartItemsAfterSignOut,
   cartQuantityTotal,
   normalizeCartItems,
   parseStoredCart,
@@ -67,5 +68,12 @@ describe('cart mutations', () => {
 
   it('sums quantities for the shared badge', () => {
     expect(cartQuantityTotal([{ goodId: 'g1', qty: 3 }, { goodId: 'g2', qty: 2 }])).toBe(5);
+  });
+
+  it('clears a server cart on sign-out but preserves an unmerged local cart', () => {
+    const localItems = [{ goodId: 'g1', qty: 2 }];
+
+    expect(cartItemsAfterSignOut('server', localItems)).toEqual([]);
+    expect(cartItemsAfterSignOut('local', localItems)).toEqual(localItems);
   });
 });

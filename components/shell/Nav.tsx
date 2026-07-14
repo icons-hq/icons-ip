@@ -33,10 +33,15 @@ export function Nav() {
           <button className="icon-btn" onClick={() => go('search')} title="검색" aria-label="검색">
             <Icon name="search" />
           </button>
-          <button className="icon-btn" onClick={() => go('shop')} title="장바구니" aria-label="장바구니">
+          <Link
+            className={`icon-btn${isActive('cart', pathname) ? ' active' : ''}`}
+            href={hrefFor('cart')}
+            title="장바구니"
+            aria-label={`장바구니${count > 0 ? `, ${count}개` : ''}`}
+          >
             <Icon name="bag" />
-            {count > 0 && <span className="badge">{count}</span>}
-          </button>
+            {count > 0 && <span className="badge" aria-hidden>{count}</span>}
+          </Link>
           <AuthButton />
         </div>
       </div>

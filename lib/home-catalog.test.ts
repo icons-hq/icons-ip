@@ -31,6 +31,7 @@ function good(id: string, ipId: string): Good {
     price: 12000,
     badge: null,
     stock: 'ok',
+    stockQty: 10,
     img: `good-${id}`,
   };
 }

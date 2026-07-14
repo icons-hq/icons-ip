@@ -12,17 +12,23 @@ const STOCK_LABEL: Record<Stock, string | null> = { low: '품절임박', soldout
 const krw = (n: number) => '₩' + n.toLocaleString('ko-KR');
 
 function ShopGoodsCard({ g, ip }: { g: Good; ip?: Ip }) {
-  const { add, remove } = useCart();
-  const [inCart, setInCart] = useState(false);
-  const sold = g.stock === 'soldout';
+  const { add, getQuantity, pending, ready } = useCart();
+  const quantity = getQuantity(g.id);
+  const sold = g.stock === 'soldout' || g.stockQty <= 0;
+  const atStockLimit = quantity >= g.stockQty;
   const stockLabel = STOCK_LABEL[g.stock];
   const accent = ip ? ipAccent(ip) : 'var(--violet-2)';
-
-  const toggleCart = () => {
-    if (sold) return;
-    if (inCart) remove(); else add();
-    setInCart(!inCart);
-  };
+  const cartActionLabel = sold
+    ? `${g.name} 품절`
+    : !ready
+      ? `${g.name} 장바구니 준비 중`
+      : pending
+        ? `${g.name} 장바구니 저장 중`
+        : atStockLimit
+          ? `${g.name}, 장바구니 ${quantity}개, 재고 한도 ${g.stockQty}개`
+          : quantity > 0
+            ? `${g.name}, 장바구니 ${quantity}개, 한 개 더 담기`
+            : `${g.name} 장바구니에 한 개 담기`;
 
   return (
     <div
@@ -41,23 +47,32 @@ function ShopGoodsCard({ g, ip }: { g: Good; ip?: Ip }) {
         <span className="mono" style={{ fontSize: 10.5, letterSpacing: '.14em', textTransform: 'uppercase', color: accent }}>{ip?.title ?? ''}</span>
         <span style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.35, textWrap: 'pretty' }}>{g.name}</span>
         <span style={{ fontSize: 12.5, color: 'var(--dim)' }}>{g.type}{stockLabel && g.badge ? ` · ${stockLabel}` : ''}</span>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 'auto', paddingTop: 12 }}>
-          <span className="mono" style={{ fontSize: 16, fontWeight: 700 }}>{krw(g.price)}</span>
+        <div className="shop-card-purchase">
+          <span className="shop-card-price mono">{krw(g.price)}</span>
           <button
             type="button"
-            onClick={toggleCart}
-            disabled={sold}
-            aria-label={sold ? '품절' : inCart ? '장바구니에서 빼기' : '장바구니 담기'}
+            className="shop-cart-button"
+            onClick={() => void add(g.id, g.stockQty)}
+            disabled={sold || atStockLimit || !ready || pending}
+            aria-label={cartActionLabel}
             style={{
               height: 36, padding: '0 16px', borderRadius: 999, fontWeight: 700, fontSize: 12.5,
-              background: inCart ? 'rgba(255,255,255,.05)' : 'var(--text)',
-              color: sold ? 'var(--faint)' : inCart ? 'var(--text)' : '#110D22',
-              border: inCart ? '1px solid rgba(255,255,255,.25)' : 'none',
-              opacity: sold ? 0.5 : 1,
+              background: quantity > 0 ? 'rgba(255,255,255,.05)' : 'var(--text)',
+              color: sold || atStockLimit ? 'var(--faint)' : quantity > 0 ? 'var(--text)' : '#110D22',
+              border: quantity > 0 ? '1px solid rgba(255,255,255,.25)' : 'none',
+              opacity: sold || !ready ? 0.5 : 1,
               transition: 'transform .18s ease, background .25s ease',
             }}
           >
-            {sold ? '품절' : inCart ? '담김 ✓' : '담기'}
+            {sold
+              ? '품절'
+              : !ready
+                ? '준비 중'
+                : atStockLimit
+                  ? `담김 · ${quantity}`
+                  : quantity > 0
+                    ? `담김 · ${quantity}`
+                    : '담기'}
           </button>
         </div>
       </div>
@@ -74,6 +89,7 @@ export function Shop({
 }) {
   const [ipF, setIpF] = useState(initialIpId ?? ALL_IPS);
   const [sort, setSort] = useState<GoodsSort>('인기순');
+  const { error } = useCart();
 
   const ipsById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
   const visible = selectShopGoods(catalog.goods, { ipId: ipF, sort });
@@ -164,6 +180,11 @@ export function Shop({
       {/* grid */}
       <section style={{ padding: '34px 0 clamp(70px, 9vw, 110px)' }}>
         <div className="wrap">
+          {error && (
+            <div className="card" role="alert" style={{ marginBottom: 18, padding: 12, borderRadius: 12, color: 'var(--pink)', fontSize: 13.5, fontWeight: 700 }}>
+              {error}
+            </div>
+          )}
           {visible.length === 0 ? (
             <Empty
               icon="bag"
