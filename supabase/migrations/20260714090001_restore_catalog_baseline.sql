@@ -108,19 +108,23 @@ insert into public.goods (id, ip_id, name, type, price, badge, stock, stock_qty,
   ('g12', 'attack-on-titan', '조사병단 리바이 피규어', '피규어', 89000, '한정', 'soldout', 0, 'url("/generated/goods/g12.png") center / cover no-repeat, linear-gradient(150deg, #201c18, #4C5A3F 55%, #A981FF)')
 on conflict do nothing;
 
-insert into public.cards (id, ip_id, name, no, rarity, bg) values
-  ('c1', 'rilakkuma', '리락쿠마 · 낮잠 시간', '001/080', 'HOLO', 'url("/generated/cards/c1.png") center / cover no-repeat, linear-gradient(150deg, #5a3517, #D68A2D 55%, #FFD84D)'),
-  ('c2', 'rilakkuma', '코리락쿠마 · 딸기 우유', '014/080', 'SR', 'url("/generated/cards/c2.png") center / cover no-repeat, linear-gradient(150deg, #7d4a2a, #F3B6C8 55%, #FFF3D6)'),
-  ('c3', 'maplestory', '주황버섯 · 점프!', '003/120', 'SSR', 'url("/generated/cards/c3.png") center / cover no-repeat, linear-gradient(150deg, #98440f, #FF8C32 55%, #FFD84D)'),
-  ('c4', 'maplestory', '슬라임 · 말랑 에너지', '018/120', 'R', 'url("/generated/cards/c4.png") center / cover no-repeat, linear-gradient(150deg, #0d5e66, #38F0C0 55%, #2DE2FF)'),
-  ('c5', 'maplestory', '핑크빈 · 스테이지', '041/120', 'HOLO', 'url("/generated/cards/c5.png") center / cover no-repeat, linear-gradient(150deg, #6b2a5b, #F7A8C7 55%, #A981FF)'),
-  ('c6', 'nongdamgom', '담곰이 · 오리친구', '009/060', 'SSR', 'url("/generated/cards/c6.png") center / cover no-repeat, linear-gradient(150deg, #70485a, #F7A8C7 55%, #FFF3D6)'),
-  ('c7', 'nongdamgom', '담곰이 · 산책', '027/060', 'R', 'url("/generated/cards/c7.png") center / cover no-repeat, linear-gradient(150deg, #51343f, #F7A8C7 55%, #FFD84D)'),
-  ('c8', 'kakao-friends', '라이언 · 피크닉', '012/100', 'SSR', 'url("/generated/cards/c8.png") center / cover no-repeat, linear-gradient(150deg, #66421d, #FFD84D 55%, #FFF3D6)'),
-  ('c9', 'kakao-friends', '춘식이 · 낮잠', '033/100', 'HOLO', 'url("/generated/cards/c9.png") center / cover no-repeat, linear-gradient(150deg, #724a1f, #FFD84D 55%, #FF9AAF)'),
-  ('c10', 'kakao-friends', '어피치 · 스윗팝', '054/100', 'SR', 'url("/generated/cards/c10.png") center / cover no-repeat, linear-gradient(150deg, #7d344d, #FF9AAF 55%, #FFD84D)'),
-  ('c11', 'attack-on-titan', '리바이 · 결전 전야', '001/070', 'HOLO', 'url("/generated/cards/c11.png") center / cover no-repeat, linear-gradient(150deg, #2b251f, #6B705C 55%, #A981FF)'),
-  ('c12', 'attack-on-titan', '리바이 · 조사병단', '017/070', 'SSR', 'url("/generated/cards/c12.png") center / cover no-repeat, linear-gradient(150deg, #201c18, #4C5A3F 55%, #A981FF)')
+insert into public.card_pools (id, ip_id, name) values
+  ('a0000000-0000-4000-8000-000000000001', 'maplestory', '메이플 몬스터즈 무상 리워드 풀')
+on conflict do nothing;
+
+insert into public.cards (id, ip_id, name, no, rarity, bg, pool_id) values
+  ('c1', 'rilakkuma', '리락쿠마 · 낮잠 시간', '001/080', 'HOLO', 'url("/generated/cards/c1.png") center / cover no-repeat, linear-gradient(150deg, #5a3517, #D68A2D 55%, #FFD84D)', null),
+  ('c2', 'rilakkuma', '코리락쿠마 · 딸기 우유', '014/080', 'SR', 'url("/generated/cards/c2.png") center / cover no-repeat, linear-gradient(150deg, #7d4a2a, #F3B6C8 55%, #FFF3D6)', null),
+  ('c3', 'maplestory', '주황버섯 · 점프!', '003/120', 'SSR', 'url("/generated/cards/c3.png") center / cover no-repeat, linear-gradient(150deg, #98440f, #FF8C32 55%, #FFD84D)', 'a0000000-0000-4000-8000-000000000001'),
+  ('c4', 'maplestory', '슬라임 · 말랑 에너지', '018/120', 'R', 'url("/generated/cards/c4.png") center / cover no-repeat, linear-gradient(150deg, #0d5e66, #38F0C0 55%, #2DE2FF)', 'a0000000-0000-4000-8000-000000000001'),
+  ('c5', 'maplestory', '핑크빈 · 스테이지', '041/120', 'HOLO', 'url("/generated/cards/c5.png") center / cover no-repeat, linear-gradient(150deg, #6b2a5b, #F7A8C7 55%, #A981FF)', 'a0000000-0000-4000-8000-000000000001'),
+  ('c6', 'nongdamgom', '담곰이 · 오리친구', '009/060', 'SSR', 'url("/generated/cards/c6.png") center / cover no-repeat, linear-gradient(150deg, #70485a, #F7A8C7 55%, #FFF3D6)', null),
+  ('c7', 'nongdamgom', '담곰이 · 산책', '027/060', 'R', 'url("/generated/cards/c7.png") center / cover no-repeat, linear-gradient(150deg, #51343f, #F7A8C7 55%, #FFD84D)', null),
+  ('c8', 'kakao-friends', '라이언 · 피크닉', '012/100', 'SSR', 'url("/generated/cards/c8.png") center / cover no-repeat, linear-gradient(150deg, #66421d, #FFD84D 55%, #FFF3D6)', null),
+  ('c9', 'kakao-friends', '춘식이 · 낮잠', '033/100', 'HOLO', 'url("/generated/cards/c9.png") center / cover no-repeat, linear-gradient(150deg, #724a1f, #FFD84D 55%, #FF9AAF)', null),
+  ('c10', 'kakao-friends', '어피치 · 스윗팝', '054/100', 'SR', 'url("/generated/cards/c10.png") center / cover no-repeat, linear-gradient(150deg, #7d344d, #FF9AAF 55%, #FFD84D)', null),
+  ('c11', 'attack-on-titan', '리바이 · 결전 전야', '001/070', 'HOLO', 'url("/generated/cards/c11.png") center / cover no-repeat, linear-gradient(150deg, #2b251f, #6B705C 55%, #A981FF)', null),
+  ('c12', 'attack-on-titan', '리바이 · 조사병단', '017/070', 'SSR', 'url("/generated/cards/c12.png") center / cover no-repeat, linear-gradient(150deg, #201c18, #4C5A3F 55%, #A981FF)', null)
 on conflict do nothing;
 
 insert into public.events (id, ip_id, title, mode, status, starts_at, ends_at, location, accent, bg) values
@@ -131,21 +135,11 @@ insert into public.events (id, ip_id, title, mode, status, starts_at, ends_at, l
   ('e5', 'attack-on-titan', '진격의 거인 리바이 에디션 온라인 팝업', '온라인', '예정', '2026-08-08 21:00:00+09', null, 'ICONS Live', '#A981FF', 'url("/generated/events/e5.png") center / cover no-repeat, linear-gradient(150deg, #2b251f, #6B705C 55%, #A981FF)')
 on conflict do nothing;
 
-insert into public.card_pools (id, ip_id, name) values
-  ('a0000000-0000-4000-8000-000000000001', 'maplestory', '메이플 몬스터즈 무상 리워드 풀')
-on conflict do nothing;
-
 insert into public.pool_odds (pool_id, rarity, probability) values
   ('a0000000-0000-4000-8000-000000000001', 'R', 0.70000),
   ('a0000000-0000-4000-8000-000000000001', 'SSR', 0.20000),
   ('a0000000-0000-4000-8000-000000000001', 'HOLO', 0.10000)
 on conflict do nothing;
-
-update public.cards
-set pool_id = 'a0000000-0000-4000-8000-000000000001'
-where id = any (array['c3', 'c4', 'c5'])
-  and ip_id = 'maplestory'
-  and pool_id is null;
 
 insert into public.games (id, type, title, event_id, config, reward_pool_id, per_user_daily_limit) values
   (
