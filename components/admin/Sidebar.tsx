@@ -9,6 +9,7 @@ const NAV_ITEMS: { id: AdminSection; label: string; icon: string }[] = [
   { id: 'good', label: '굿즈', icon: 'shop' },
   { id: 'card', label: '카드', icon: 'card' },
   { id: 'event', label: '이벤트', icon: 'event' },
+  { id: 'ticket', label: '티켓 회차', icon: 'event' },
   { id: 'moderation', label: '모더레이션', icon: 'shield' },
   { id: 'roles', label: '역할', icon: 'user' },
 ];

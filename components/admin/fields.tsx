@@ -10,8 +10,11 @@ export function Field({
   defaultValue,
   error,
   label,
+  max,
+  min,
   name,
   placeholder,
+  readOnly,
   required,
   step,
   type = 'text',
@@ -19,8 +22,11 @@ export function Field({
   defaultValue?: string | number | null;
   error?: string;
   label: string;
+  max?: number;
+  min?: number;
   name: string;
   placeholder?: string;
+  readOnly?: boolean;
   required?: boolean;
   step?: number;
   type?: string;
@@ -37,8 +43,11 @@ export function Field({
         aria-invalid={Boolean(error)}
         className="admin-field-control"
         defaultValue={defaultValue ?? ''}
+        max={max}
+        min={min}
         name={name}
         placeholder={placeholder}
+        readOnly={readOnly}
         required={required}
         step={step}
         type={type}
@@ -119,12 +128,14 @@ export function SelectField({
   error,
   label,
   name,
+  required,
 }: {
   children: React.ReactNode;
   defaultValue?: string | null;
   error?: string;
   label: string;
   name: string;
+  required?: boolean;
 }) {
   const errorId = error ? `${name}-error` : undefined;
 
@@ -139,6 +150,7 @@ export function SelectField({
         className="admin-field-control"
         defaultValue={defaultValue ?? ''}
         name={name}
+        required={required}
         style={{
           background: 'rgba(255,255,255,.045)',
           border: '1px solid var(--line)',
@@ -188,16 +200,18 @@ export function InlineNotice({ state }: { state: AdminCatalogActionState }) {
 }
 
 export function FormShell({
+  disabled,
   pending,
   state,
 }: {
+  disabled?: boolean;
   pending: boolean;
   state: AdminCatalogActionState;
 }) {
   return (
     <>
       <ActionNotice state={state} />
-      <button className="btn btn-holo" disabled={pending} style={{ justifySelf: 'start', minWidth: 150 }}>
+      <button className="btn btn-holo" disabled={disabled || pending} style={{ justifySelf: 'start', minWidth: 150 }}>
         <Icon name="check" size={15} /> {pending ? '저장 중' : '저장'}
       </button>
     </>
@@ -206,26 +220,34 @@ export function FormShell({
 
 export function RecordList<T extends { id: string }>({
   activeId,
+  ariaLabel = '관리 항목 목록',
+  emptyMessage,
   items,
   labelFor,
   onNew,
   onSelect,
 }: {
   activeId: string | null;
+  ariaLabel?: string;
+  emptyMessage?: string;
   items: T[];
   labelFor: (item: T) => string;
   onNew: () => void;
   onSelect: (item: T) => void;
 }) {
   return (
-    <aside className="card" style={{ alignSelf: 'start', borderRadius: 10, padding: 14 }}>
+    <aside aria-label={ariaLabel} className="card" style={{ alignSelf: 'start', borderRadius: 10, padding: 14 }}>
       <button className="btn btn-holo" onClick={onNew} style={{ width: '100%' }} type="button">
         <Icon name="plus" size={15} /> 새로 등록
       </button>
       <div className="col" style={{ gap: 8, marginTop: 14, maxHeight: 520, overflow: 'auto' }}>
+        {!items.length && emptyMessage && (
+          <p style={{ color: 'var(--dim)', fontSize: 13, margin: 0 }}>{emptyMessage}</p>
+        )}
         {items.map((item) => (
           <button
             key={item.id}
+            aria-current={activeId === item.id ? 'true' : undefined}
             className={activeId === item.id ? 'chip on' : 'chip'}
             onClick={() => onSelect(item)}
             style={{ justifyContent: 'flex-start', minHeight: 38, overflow: 'hidden', textAlign: 'left' }}

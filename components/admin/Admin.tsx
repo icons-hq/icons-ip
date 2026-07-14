@@ -13,6 +13,7 @@ import type {
   AdminCatalogRecords,
   AdminEventRecord,
   AdminIpRecord,
+  AdminTicketTypeRecord,
 } from '@/lib/admin/catalog.server';
 import type { AdminInsights } from '@/lib/admin/insights.server';
 import type { AdminModerationRecords } from '@/lib/admin/moderation.server';
@@ -29,8 +30,9 @@ import { ModerationSection } from './sections/Moderation';
 import { OverviewSection } from './sections/Overview';
 import { OrdersSection } from './sections/Orders';
 import { RolesSection } from './sections/Roles';
+import { TicketSection } from './sections/TicketSection';
 
-export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'event' | 'moderation' | 'roles';
+export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'event' | 'ticket' | 'moderation' | 'roles';
 
 const SECTION_TITLES: Record<AdminSection, string> = {
   overview: '개요',
@@ -39,6 +41,7 @@ const SECTION_TITLES: Record<AdminSection, string> = {
   good: '굿즈 관리',
   card: '카드 관리',
   event: '이벤트 관리',
+  ticket: '티켓 회차 관리',
   moderation: '모더레이션',
   roles: '역할 관리',
 };
@@ -59,6 +62,8 @@ interface AdminProps {
   profiles: AdminProfileRecord[];
   records: AdminCatalogRecords;
   stockAdjustmentId: string;
+  ticketDraftId: string;
+  ticketOperationId: string;
 }
 
 export function Admin({
@@ -71,6 +76,8 @@ export function Admin({
   profiles,
   records,
   stockAdjustmentId,
+  ticketDraftId,
+  ticketOperationId,
 }: AdminProps) {
   const [active, setActive] = useState<AdminSection>(initialSection ?? 'overview');
   const [collapsed, setCollapsed] = useState(false);
@@ -78,6 +85,7 @@ export function Admin({
   const [selectedGoodId, setSelectedGoodId] = useState<string | null>(null);
   const [selectedCard, setSelectedCard] = useState<AdminCardRecord | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<AdminEventRecord | null>(null);
+  const [selectedTicketTypeId, setSelectedTicketTypeId] = useState<string | null>(null);
   const [ipState, ipAction, ipPending] = useActionState(upsertAdminIpAction, emptyState);
   const [goodState, goodAction, goodPending] = useActionState(upsertAdminGoodAction, emptyState);
   const [cardState, cardAction, cardPending] = useActionState(upsertAdminCardAction, emptyState);
@@ -86,6 +94,10 @@ export function Admin({
   const selectedGood = useMemo(
     () => records.goods.find((good) => good.id === selectedGoodId) ?? null,
     [records.goods, selectedGoodId],
+  );
+  const selectedTicketType = useMemo(
+    () => records.ticketTypes.find((ticketType) => ticketType.id === selectedTicketTypeId) ?? null,
+    [records.ticketTypes, selectedTicketTypeId],
   );
 
   return (
@@ -152,6 +164,16 @@ export function Admin({
                 records={records.events}
                 selected={selectedEvent}
                 state={eventState}
+              />
+            )}
+            {active === 'ticket' && (
+              <TicketSection
+                draftId={ticketDraftId}
+                eventOptions={records.events.map((event) => ({ id: event.id, title: event.title }))}
+                onSelect={(ticketType: AdminTicketTypeRecord | null) => setSelectedTicketTypeId(ticketType?.id ?? null)}
+                operationId={ticketOperationId}
+                records={records.ticketTypes}
+                selected={selectedTicketType}
               />
             )}
             {active === 'moderation' && <ModerationSection reports={moderation.reports} />}
