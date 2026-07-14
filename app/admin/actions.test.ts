@@ -2,8 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   adjustAdminStockAction,
   hideCommunityPostAction,
+  setAdminPoolOddsAction,
   setAdminUserRoleAction,
   updateCommunityReportStatusAction,
+  upsertAdminCardAction,
+  upsertAdminCardPoolAction,
   upsertAdminEventAction,
   upsertAdminGoodAction,
   upsertAdminIpAction,
@@ -144,6 +147,39 @@ function ticketTypeForm() {
   formData.set('name', '7월 25일 1회차');
   formData.set('price', '25000');
   formData.set('capacity', '80');
+  return formData;
+}
+
+function cardForm() {
+  const formData = new FormData();
+  formData.set('id', 'c100');
+  formData.set('ipId', 'hwasan');
+  formData.set('name', '청명 홀로 카드');
+  formData.set('rarity', 'HOLO');
+  formData.set('poolId', '22222222-2222-4222-8222-222222222222');
+  return formData;
+}
+
+function cardPoolForm() {
+  const formData = new FormData();
+  formData.set('operationId', '11111111-1111-4111-8111-111111111111');
+  formData.set('id', '22222222-2222-4222-8222-222222222222');
+  formData.set('ipId', 'hwasan');
+  formData.set('name', '화산강림 무상 리워드 풀');
+  formData.set('activeFrom', '2026-07-15T10:00');
+  formData.set('activeTo', '2026-08-01T00:00');
+  return formData;
+}
+
+function poolOddsForm() {
+  const formData = new FormData();
+  formData.set('operationId', '33333333-3333-4333-8333-333333333333');
+  formData.set('poolId', '22222222-2222-4222-8222-222222222222');
+  formData.set('oddsN', '0');
+  formData.set('oddsR', '70');
+  formData.set('oddsSr', '0');
+  formData.set('oddsSsr', '20');
+  formData.set('oddsHolo', '10');
   return formData;
 }
 
@@ -343,6 +379,108 @@ describe('admin catalog actions', () => {
       target_accent: '#8B5CFF',
       target_bg: null,
       target_image_path: null,
+    });
+  });
+
+  it('saves a card with an explicit pool binding through the audited RPC', async () => {
+    await expect(upsertAdminCardAction({}, cardForm())).resolves.toEqual({
+      message: '카드를 저장했습니다.',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_card', {
+      target_id: 'c100',
+      target_ip_id: 'hwasan',
+      target_name: '청명 홀로 카드',
+      target_no: null,
+      target_rarity: 'HOLO',
+      target_bg: null,
+      target_image_path: null,
+      target_pool_id: '22222222-2222-4222-8222-222222222222',
+      target_pool_binding_provided: true,
+    });
+  });
+
+  it('saves a card pool through the retry-safe audited RPC', async () => {
+    await expect(upsertAdminCardPoolAction({}, cardPoolForm())).resolves.toEqual({
+      message: '카드풀을 저장했습니다.',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_card_pool', {
+      target_operation_id: '11111111-1111-4111-8111-111111111111',
+      target_pool_id: '22222222-2222-4222-8222-222222222222',
+      target_ip_id: 'hwasan',
+      target_name: '화산강림 무상 리워드 풀',
+      target_active_from: '2026-07-15T01:00:00.000Z',
+      target_active_to: '2026-07-31T15:00:00.000Z',
+    });
+    for (const path of ['/admin', '/packs', '/binder']) {
+      expect(mocks.revalidatePath).toHaveBeenCalledWith(path);
+    }
+  });
+
+  it('sets all five pool odds through one audited RPC call', async () => {
+    await expect(setAdminPoolOddsAction({}, poolOddsForm())).resolves.toEqual({
+      message: '등급별 확률을 저장했습니다.',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_set_pool_odds', {
+      target_operation_id: '33333333-3333-4333-8333-333333333333',
+      target_pool_id: '22222222-2222-4222-8222-222222222222',
+      target_n: 0,
+      target_r: 0.7,
+      target_sr: 0,
+      target_ssr: 0.2,
+      target_holo: 0.1,
+    });
+  });
+
+  it('rejects an invalid pool odds total before calling the RPC', async () => {
+    const formData = poolOddsForm();
+    formData.set('oddsR', '69');
+
+    await expect(setAdminPoolOddsAction({}, formData)).resolves.toEqual({
+      errors: { oddsTotal: '확률 합계는 100%여야 합니다.' },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['pool_ip_locked', '연결된 발급 정책·게임·카드팩·발급 이력이 있어 카드풀 IP를 변경할 수 없습니다.'],
+    ['invalid_pool_active_window', '운영 종료는 시작보다 뒤여야 합니다.'],
+    ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
+  ])('maps %s card-pool RPC errors without exposing internals', async (rpcMessage, expected) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
+
+    await expect(upsertAdminCardPoolAction({}, cardPoolForm())).resolves.toEqual({
+      errors: { form: expected },
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['pool_rarity_uncovered', '양수 확률인 모든 등급에 소속 카드가 필요합니다.'],
+    ['invalid_pool_probability', '각 확률과 합계가 올바른지 확인해주세요.'],
+    ['invalid_probability_precision', '각 확률과 합계가 올바른지 확인해주세요.'],
+    ['pool_odds_must_sum_to_one', '각 확률과 합계가 올바른지 확인해주세요.'],
+    ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
+  ])('maps %s pool-odds RPC errors without exposing internals', async (rpcMessage, expected) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
+
+    await expect(setAdminPoolOddsAction({}, poolOddsForm())).resolves.toEqual({
+      errors: { form: expected },
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['card_pool_ip_mismatch', '카드와 같은 IP의 카드풀만 연결할 수 있습니다.'],
+    ['pool_rarity_uncovered', '현재 풀의 마지막 양수 확률 카드는 이동하거나 해제할 수 없습니다.'],
+    ['pooled_card_catalog_contract_locked', '풀에 연결된 카드는 먼저 풀을 해제한 뒤 IP·등급을 변경해주세요.'],
+  ])('maps %s card binding errors without exposing internals', async (rpcMessage, expected) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
+
+    await expect(upsertAdminCardAction({}, cardForm())).resolves.toEqual({
+      errors: { form: expected },
     });
   });
 

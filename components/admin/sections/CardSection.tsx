@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminCardRecord } from '@/lib/admin/catalog.server';
 import { RARITY_META } from '@/lib/rarity';
@@ -8,6 +11,7 @@ export function CardSection({
   ipOptions,
   onSelect,
   pending,
+  poolOptions,
   records,
   selected,
   state,
@@ -16,10 +20,15 @@ export function CardSection({
   ipOptions: { id: string; title: string }[];
   onSelect: (card: AdminCardRecord | null) => void;
   pending: boolean;
+  poolOptions: { id: string; ipId: string; name: string }[];
   records: AdminCardRecord[];
   selected: AdminCardRecord | null;
   state: AdminCatalogActionState;
 }) {
+  const [ipId, setIpId] = useState(selected?.ipId ?? '');
+  const pooled = Boolean(selected?.poolId);
+  const matchingPools = poolOptions.filter((pool) => pool.ipId === ipId);
+
   return (
     <div className="admin-master-detail">
       <RecordList
@@ -33,24 +42,82 @@ export function CardSection({
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
         <div className="admin-form-grid">
           <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="c100" />
-          <SelectField defaultValue={selected?.ipId} error={state.errors?.ipId} label="연결 IP" name="ipId">
-            <option value="">선택</option>
-            {ipOptions.map((ip) => (
-              <option key={ip.id} value={ip.id}>{ip.title}</option>
-            ))}
-          </SelectField>
+          {pooled && selected ? (
+            <ReadOnlyCatalogField label="연결 IP" name="ipId" value={selected.ipId}>
+              {ipOptions.find((ip) => ip.id === selected.ipId)?.title ?? selected.ipId}
+            </ReadOnlyCatalogField>
+          ) : (
+            <SelectField
+              error={state.errors?.ipId}
+              label="연결 IP"
+              name="ipId"
+              onChange={(event) => setIpId(event.target.value)}
+              value={ipId}
+            >
+              <option value="">선택</option>
+              {ipOptions.map((ip) => (
+                <option key={ip.id} value={ip.id}>{ip.title}</option>
+              ))}
+            </SelectField>
+          )}
           <Field defaultValue={selected?.name} error={state.errors?.name} label="카드 이름" name="name" />
           <Field defaultValue={selected?.no} label="번호" name="no" placeholder="001/120" />
-          <SelectField defaultValue={selected?.rarity ?? 'N'} error={state.errors?.rarity} label="등급" name="rarity">
-            {Object.keys(RARITY_META).map((rarity) => (
-              <option key={rarity} value={rarity}>{rarity}</option>
+          {pooled && selected ? (
+            <ReadOnlyCatalogField label="등급" name="rarity" value={selected.rarity}>
+              {selected.rarity}
+            </ReadOnlyCatalogField>
+          ) : (
+            <SelectField defaultValue={selected?.rarity ?? 'N'} error={state.errors?.rarity} label="등급" name="rarity">
+              {Object.keys(RARITY_META).map((rarity) => (
+                <option key={rarity} value={rarity}>{rarity}</option>
+              ))}
+            </SelectField>
+          )}
+          <SelectField defaultValue={selected?.poolId} error={state.errors?.poolId} label="카드풀" name="poolId">
+            <option value="">풀 미지정</option>
+            {matchingPools.map((pool) => (
+              <option key={pool.id} value={pool.id}>{pool.name}</option>
             ))}
           </SelectField>
         </div>
+        {pooled && (
+          <p style={{ color: 'var(--dim)', fontSize: 12, margin: 0 }}>
+            풀에 연결된 카드는 먼저 풀을 해제한 뒤 IP·등급을 변경할 수 있습니다.
+          </p>
+        )}
         <Field defaultValue={selected?.bg} label="배경 CSS" name="bg" />
         <Field defaultValue={selected?.imagePath} label="이미지 경로" name="imagePath" />
         <FormShell pending={pending} state={state} />
       </form>
+    </div>
+  );
+}
+
+function ReadOnlyCatalogField({
+  children,
+  label,
+  name,
+  value,
+}: {
+  children: React.ReactNode;
+  label: string;
+  name: string;
+  value: string;
+}) {
+  const labelId = `${name}-readonly-label`;
+  return (
+    <div className="col" style={{ gap: 7 }}>
+      <span className="mono" id={labelId} style={{ color: 'var(--dim)', fontSize: 11 }}>{label}</span>
+      <input name={name} type="hidden" value={value} />
+      <div
+        aria-labelledby={labelId}
+        aria-readonly="true"
+        className="admin-field-control"
+        role="textbox"
+        style={{ alignItems: 'center', display: 'flex', minHeight: 42, padding: '0 12px' }}
+      >
+        {children}
+      </div>
     </div>
   );
 }

@@ -48,8 +48,24 @@ export interface AdminCardFormValue {
   name: string;
   no: string | null;
   rarity: RarityKey;
+  poolId: string | null;
   bg: string | null;
   imagePath: string | null;
+}
+
+export interface AdminCardPoolFormValue {
+  operationId: string;
+  id: string;
+  ipId: string;
+  name: string;
+  activeFrom: string;
+  activeTo: string | null;
+}
+
+export interface AdminPoolOddsFormValue {
+  operationId: string;
+  poolId: string;
+  odds: Record<RarityKey, number>;
 }
 
 export interface AdminEventFormValue {
@@ -114,6 +130,13 @@ function readSlug(formData: FormData, key: string, errors: AdminFieldErrors, req
 
 function readUuid(formData: FormData, key: string, errors: AdminFieldErrors, message: string) {
   const value = readString(formData, key).toLowerCase();
+  if (!UUID_PATTERN.test(value)) errors[key] = message;
+  return value;
+}
+
+function readNullableUuid(formData: FormData, key: string, errors: AdminFieldErrors, message: string) {
+  const value = readString(formData, key).toLowerCase();
+  if (!value) return null;
   if (!UUID_PATTERN.test(value)) errors[key] = message;
   return value;
 }
@@ -316,6 +339,7 @@ export function normalizeAdminCardForm(
   const ipId = validIpId(readString(formData, 'ipId'), context, errors);
   const name = readString(formData, 'name');
   const rarity = readString(formData, 'rarity') as RarityKey;
+  const poolId = readNullableUuid(formData, 'poolId', errors, '유효한 카드풀을 선택해주세요.');
 
   if (!name) errors.name = '카드 이름을 입력해주세요.';
   if (!RARITY_VALUES.has(rarity)) errors.rarity = '등급을 선택해주세요.';
@@ -330,8 +354,89 @@ export function normalizeAdminCardForm(
       name,
       no: nullableString(formData, 'no'),
       rarity,
+      poolId,
       bg: nullableString(formData, 'bg'),
       imagePath: nullableString(formData, 'imagePath'),
+    },
+  };
+}
+
+export function normalizeAdminCardPoolForm(
+  formData: FormData,
+  context: AdminCatalogContext,
+): AdminFormResult<AdminCardPoolFormValue> {
+  const errors: AdminFieldErrors = {};
+  const operationId = readUuid(formData, 'operationId', errors, '유효한 저장 요청이 아닙니다.');
+  const id = readUuid(formData, 'id', errors, '유효한 카드풀이 아닙니다.');
+  const ipId = validIpId(readString(formData, 'ipId'), context, errors);
+  const name = readString(formData, 'name');
+  const activeFromRaw = readString(formData, 'activeFrom');
+  const activeFrom = localKstDateTimeToIso(formData, 'activeFrom', errors);
+  const activeTo = localKstDateTimeToIso(formData, 'activeTo', errors);
+
+  if (!name) errors.name = '카드풀 이름을 입력해주세요.';
+  if (!activeFromRaw) errors.activeFrom = '운영 시작 일시를 입력해주세요.';
+  if (activeFrom && activeTo && activeTo <= activeFrom) {
+    errors.activeTo = '운영 종료는 시작보다 뒤여야 합니다.';
+  }
+
+  if (Object.keys(errors).length || !activeFrom) return { ok: false, errors };
+
+  return {
+    ok: true,
+    value: { operationId, id, ipId, name, activeFrom, activeTo },
+  };
+}
+
+const ODDS_FIELDS: Array<[RarityKey, string]> = [
+  ['N', 'oddsN'],
+  ['R', 'oddsR'],
+  ['SR', 'oddsSr'],
+  ['SSR', 'oddsSsr'],
+  ['HOLO', 'oddsHolo'],
+];
+const PERCENT_PATTERN = /^(?:100(?:\.0{1,3})?|(?:\d|[1-9]\d)(?:\.\d{1,3})?)$/;
+
+function probabilityFromPercent(
+  formData: FormData,
+  key: string,
+  errors: AdminFieldErrors,
+) {
+  const raw = readString(formData, key);
+  if (!PERCENT_PATTERN.test(raw)) {
+    errors[key] = '확률은 0~100 사이, 소수 셋째 자리까지 입력해주세요.';
+    return 0;
+  }
+
+  const [whole, fraction = ''] = raw.split('.');
+  return Number(whole) * 1_000 + Number(fraction.padEnd(3, '0'));
+}
+
+export function normalizeAdminPoolOddsForm(
+  formData: FormData,
+): AdminFormResult<AdminPoolOddsFormValue> {
+  const errors: AdminFieldErrors = {};
+  const operationId = readUuid(formData, 'operationId', errors, '유효한 저장 요청이 아닙니다.');
+  const poolId = readUuid(formData, 'poolId', errors, '유효한 카드풀이 아닙니다.');
+  const milliPercents = Object.fromEntries(
+    ODDS_FIELDS.map(([rarity, key]) => [rarity, probabilityFromPercent(formData, key, errors)]),
+  ) as Record<RarityKey, number>;
+
+  if (!Object.keys(errors).some((key) => key.startsWith('odds'))) {
+    const total = Object.values(milliPercents).reduce((sum, value) => sum + value, 0);
+    if (total !== 100_000) errors.oddsTotal = '확률 합계는 100%여야 합니다.';
+  }
+
+  if (Object.keys(errors).length) return { ok: false, errors };
+
+  return {
+    ok: true,
+    value: {
+      operationId,
+      poolId,
+      odds: Object.fromEntries(
+        ODDS_FIELDS.map(([rarity]) => [rarity, milliPercents[rarity] / 100_000]),
+      ) as Record<RarityKey, number>,
     },
   };
 }

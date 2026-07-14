@@ -32,7 +32,7 @@
 | 보호 액션 | IP 팔로우/언팔로우 server action + 온보딩 추천 IP 저장. 커뮤니티 포스트 작성, 댓글, 좋아요, 작성자 삭제, 신고, 차단은 Server Action + RPC로 연결 | `app/ip/actions.ts`, `app/onboarding/actions.ts`, `app/community/actions.ts`, `lib/ip-follow*`, `supabase/migrations/20260623090001_ip_follow_rpc.sql`, `supabase/migrations/20260624103001_community_comment_like_actions.sql`, `supabase/migrations/20260626090001_community_moderation_actions.sql` |
 | 굿즈 커머스 | 비로그인 localStorage·로그인 `cart_items` 병합, 멱등 `place_order` 재고 선점, 토스 결제위젯 redirect 승인, 웹훅 확정·만료 복원, 본인 주문 내역·상세·배송 전 청약철회 요청·상태 조회 | `app/cart/*`, `app/checkout/*`, `app/orders/*`, `app/api/orders/*`, `app/api/payments/confirm`, `app/api/webhooks/tosspayments`, `lib/checkout*`, `lib/orders*`, `lib/payments/*` |
 | 티켓 예매 | 공개 이벤트 상세·회차 잔여 조회, 멱등 `reserve_tickets` 정원 선점, 티켓용 토스 결제위젯, 웹훅 확정·QR 발급·만료 복원, 본인 티켓 목록/상세·보호 QR·예매 전체 취소/환불 | `app/events/[eventId]/*`, `app/ticket-checkout/*`, `app/tickets/*`, `app/api/tickets/*`, `app/api/ticket-orders/*`, `app/api/payments/confirm`, `app/api/webhooks/tosspayments`, `lib/ticketing*`, `lib/payments/*` |
-| 운영 | staff/admin 게이트, 카탈로그 CRUD, 감사 로그, 커뮤니티 신고 처리, 주문 검색·배송 전이·청약철회 승인/거절/재정합화, 실재고 입고·보정 | `app/admin/*`, `components/admin/*`, `lib/admin/*`, `supabase/migrations/20260714190001_admin_order_console.sql`, `supabase/migrations/20260714200001_admin_stock_adjustment.sql` |
+| 운영 | staff/admin 게이트, 카탈로그 CRUD, 카드풀 운영 기간·등급별 확률·카드 풀 바인딩, 감사 로그, 커뮤니티 신고 처리, 주문 검색·배송 전이·청약철회 승인/거절/재정합화, 실재고 입고·보정 | `app/admin/*`, `components/admin/*`, `lib/admin/*`, `supabase/migrations/20260714190001_admin_order_console.sql`, `supabase/migrations/20260714200001_admin_stock_adjustment.sql`, `supabase/migrations/20260715010001_admin_card_pool_console.sql` |
 | CI/CD | GitHub Actions `CI/CD Pipeline`: PR 검증 + Vercel preview 배포, merge queue 검증, `main` push production 배포. Actions 앱 빌드 Node는 26 | `.github/workflows/pipeline.yml` |
 | 배포 | PR은 Vercel 원격 preview build/deploy, `main` push는 Supabase linked migration push 후 Vercel 원격 production build/deploy. Sensitive 환경변수는 Vercel build 안에서 검증하며 Vercel Git 자동 배포는 비활성화 | GitHub Secrets + `.github/workflows/pipeline.yml`, `vercel.json` |
 | Production runtime | Vercel project/runtime Node.js Version은 공식 지원 범위인 24.x 유지 | Vercel Project Settings |
@@ -108,9 +108,9 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - `events` (id, ip_id?, title, mode, status, starts_at, ends_at, location, accent, image_path)
 
 ### 5.3 가챠 & 카드 (P2)
-- `card_pools` (id, ip_id, name, active_from/to) — 풀(픽업/한정 포함)
-- `cards` (id, ip_id, pool_id, name, no, rarity `N|R|SR|SSR|HOLO`, image_path)
-- `pool_odds` (pool_id, rarity, probability) — **확률 공시 원천**
+- `card_pools` (id, ip_id, name, active_from/to) — 풀(픽업/한정 포함). 종료는 시작보다 뒤여야 한다.
+- `cards` (id, ip_id, pool_id, name, no, rarity `N|R|SR|SSR|HOLO`, image_path) — 풀 바인딩 시 복합 FK로 같은 IP를 강제한다.
+- `pool_odds` (pool_id, rarity, probability) — **확률 공시 원천**. 5등급 전체가 범위·소수 5자리·정확한 합계 1을 만족하고, 양수 확률 등급에는 소속 카드가 있어야 한다.
 - `wallets` (user_id, balance) — 충전 잔액
 - `wallet_ledger` (id, user_id, delta, reason `charge|pull|refund`, ref_id, created_at) — 장부
 - `pulls` (id, user_id, pool_id, cost, pity_before/after, created_at)
@@ -150,7 +150,8 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 
 | 테이블군 | 읽기 | 쓰기 |
 |---|---|---|
-| 카탈로그(verticals/ips/goods/events/cards/pool_odds) | **공개(anon)** | staff/admin only |
+| 일반 카탈로그(verticals/ips/goods/events) | **공개(anon)** | staff/admin only |
+| 카드 리워드 카탈로그(cards/card_pools/pool_odds) | **공개(anon)** | 역할을 재검사하는 audited RPC only |
 | profiles/ip_follows/carts/orders/wallets/user_cards/ticket_orders | **본인만** | 본인 읽기, 쓰기는 신뢰 RPC/service role만 |
 | tickets/ticket_cancellation_requests | **본인만 안전 컬럼** | QR 원문·provider/attempt/error 정보는 서버 경계 전용, 쓰기는 신뢰 RPC/service role만 |
 | posts/comments/likes | 공개 읽기(visible) | 작성자 본인, 신고/숨김은 본인+운영 |
@@ -158,6 +159,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 | audit_log | admin only | RPC만 |
 
 - 돈/재고가 걸린 INSERT/UPDATE는 테이블 직접 쓰기 대신 **RPC(SECURITY DEFINER)** 로만 허용.
+- 카드풀·확률·카드의 직접 write 권한과 정책도 제거하고, staff/admin audited RPC만 허용한다.
 - 관리자 권한은 `profiles.role`로 판정, `/admin` 라우트와 RLS 양쪽에서 검사.
 
 ---
@@ -180,6 +182,8 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - **`check_in_ticket(staff_id, qr_token)`** — service role만 실행하고 staff/admin을 DB에서 다시 확인한다. order→active cancellation request→ticket 순서로 잠근 뒤 `valid→used` 전이와 `check_ins`·`admin.ticket.checked_in` 감사를 한 트랜잭션에 기록한다. 재검표는 최초 시각을 반환하며, 환불·취소 진행·원장 불일치는 쓰기 없이 차단한다. QR 원문은 응답·감사에 남기지 않는다.
 - **`admin_update_order_status` / `admin_search_orders`** — staff를 DB에서 다시 확인하고 `paid → shipping → done`만 허용·감사하며, 주문/구매자/상태/KST 기간 필터를 DB에서 페이지 처리한다.
 - **`admin_adjust_stock`** — 화면별 UUID 멱등키를 advisory lock으로, 굿즈를 `FOR UPDATE`로 잠근다. 화면에서 본 수량과 현재 수량이 같을 때만 델타를 반영하고 감사 로그 ID·전후 수량·사유를 원장으로 남긴다. persisted `stock`은 수동 판매 게이트로 보존하며 공개 유효 상태는 `stock_qty <= 0 ? soldout : stock`으로 파생한다.
+- **`admin_upsert_card_pool` / `admin_set_pool_odds` / 확장된 `admin_upsert_card`** — 앞의 두 RPC는 operation UUID로 재시도를 멱등화한다. 세 RPC 모두 대상 풀 잠금 아래 같은 IP 바인딩·확률 합계·양수 등급 coverage를 검증한 뒤 전후 상태를 감사한다. 기존 7인자 카드 호출은 배포 호환을 위해 현재 풀 바인딩을 보존한다.
+- **`grant_cards` / `play_game` / `open_draw_ticket`** — 모든 카드 발급은 `grant_cards`가 풀을 공유 잠그고, `play_game`의 신규 결과만 현재 풀 운영 기간을 추가 검사한다. 이미 확정된 게임 결과는 이후 풀 종료에도 그대로 재생하고, 기존 미사용 카드팩은 풀 종료 후에도 개봉할 수 있다. 카드팩은 발급 시 확률 snapshot을 만들지 않아 개봉 시점의 최신 풀 구성·확률을 사용한다.
 
 규칙: 천장·확률 로직은 DB(또는 DB가 호출하는 신뢰 경로)에만 둔다(클라이언트 신뢰 금지). 모든 금전·재고 RPC는 멱등·감사 가능.
 
@@ -252,7 +256,7 @@ Production Auth 설정:
 ## 12. 운영 백오피스 `/admin`
 
 - 같은 Next 앱의 라우트 그룹. 진입 시 `profiles.role ∈ {staff, admin}` 검사(라우트 + RLS 이중).
-- 기능: 카탈로그 CRUD, **카드풀·확률 공시값** 관리, 이벤트·티켓 회차, 독립 모바일 현장 검표(`/admin/check-in`), 주문 검색·배송 전이·청약철회/환불 정합화, 커뮤니티 신고 처리.
+- 기능: 카탈로그 CRUD, **카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩** 관리, 이벤트·티켓 회차, 독립 모바일 현장 검표(`/admin/check-in`), 주문 검색·배송 전이·청약철회/환불 정합화, 커뮤니티 신고 처리.
 - 모든 민감 작업은 `audit_log` 기록.
 
 ---

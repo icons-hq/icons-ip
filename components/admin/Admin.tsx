@@ -9,7 +9,6 @@ import {
   type AdminCatalogActionState,
 } from '@/app/admin/actions';
 import type {
-  AdminCardRecord,
   AdminCatalogRecords,
   AdminEventRecord,
   AdminIpRecord,
@@ -23,6 +22,7 @@ import type { CatalogSnapshot } from '@/lib/catalog';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { CardSection } from './sections/CardSection';
+import { CardPoolSection } from './sections/CardPoolSection';
 import { EventSection } from './sections/EventSection';
 import { GoodSection } from './sections/GoodSection';
 import { IpSection } from './sections/IpSection';
@@ -32,7 +32,7 @@ import { OrdersSection } from './sections/Orders';
 import { RolesSection } from './sections/Roles';
 import { TicketSection } from './sections/TicketSection';
 
-export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'event' | 'ticket' | 'moderation' | 'roles';
+export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'pool' | 'event' | 'ticket' | 'moderation' | 'roles';
 
 const SECTION_TITLES: Record<AdminSection, string> = {
   overview: '개요',
@@ -40,6 +40,7 @@ const SECTION_TITLES: Record<AdminSection, string> = {
   ip: 'IP 관리',
   good: '굿즈 관리',
   card: '카드 관리',
+  pool: '카드풀 관리',
   event: '이벤트 관리',
   ticket: '티켓 회차 관리',
   moderation: '모더레이션',
@@ -61,6 +62,10 @@ interface AdminProps {
   orders: AdminOrderConsoleData;
   profiles: AdminProfileRecord[];
   records: AdminCatalogRecords;
+  poolDraftActiveFrom: string;
+  poolDraftId: string;
+  poolOddsOperationId: string;
+  poolOperationId: string;
   stockAdjustmentId: string;
   ticketDraftId: string;
   ticketOperationId: string;
@@ -75,6 +80,10 @@ export function Admin({
   orders,
   profiles,
   records,
+  poolDraftActiveFrom,
+  poolDraftId,
+  poolOddsOperationId,
+  poolOperationId,
   stockAdjustmentId,
   ticketDraftId,
   ticketOperationId,
@@ -83,7 +92,8 @@ export function Admin({
   const [collapsed, setCollapsed] = useState(false);
   const [selectedIp, setSelectedIp] = useState<AdminIpRecord | null>(null);
   const [selectedGoodId, setSelectedGoodId] = useState<string | null>(null);
-  const [selectedCard, setSelectedCard] = useState<AdminCardRecord | null>(null);
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [selectedPoolId, setSelectedPoolId] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<AdminEventRecord | null>(null);
   const [selectedTicketTypeId, setSelectedTicketTypeId] = useState<string | null>(null);
   const [ipState, ipAction, ipPending] = useActionState(upsertAdminIpAction, emptyState);
@@ -95,9 +105,17 @@ export function Admin({
     () => records.goods.find((good) => good.id === selectedGoodId) ?? null,
     [records.goods, selectedGoodId],
   );
+  const selectedCard = useMemo(
+    () => records.cards.find((card) => card.id === selectedCardId) ?? null,
+    [records.cards, selectedCardId],
+  );
   const selectedTicketType = useMemo(
     () => records.ticketTypes.find((ticketType) => ticketType.id === selectedTicketTypeId) ?? null,
     [records.ticketTypes, selectedTicketTypeId],
+  );
+  const selectedPool = useMemo(
+    () => records.cardPools.find((pool) => pool.id === selectedPoolId) ?? null,
+    [records.cardPools, selectedPoolId],
   );
 
   return (
@@ -148,11 +166,32 @@ export function Admin({
               <CardSection
                 action={cardAction}
                 ipOptions={ipOptions}
-                onSelect={setSelectedCard}
+                key={selectedCard
+                  ? `${selectedCard.id}-${selectedCard.ipId}-${selectedCard.poolId ?? 'unbound'}-${selectedCard.rarity}`
+                  : 'new-card'}
+                onSelect={(card) => setSelectedCardId(card?.id ?? null)}
                 pending={cardPending}
+                poolOptions={records.cardPools.map((pool) => ({ id: pool.id, ipId: pool.ipId, name: pool.name }))}
                 records={records.cards}
                 selected={selectedCard}
                 state={cardState}
+              />
+            )}
+            {active === 'pool' && (
+              <CardPoolSection
+                cards={records.cards}
+                draftActiveFrom={poolDraftActiveFrom}
+                draftId={poolDraftId}
+                ipOptions={ipOptions}
+                oddsOperationId={poolOddsOperationId}
+                onEditCard={(card) => {
+                  setSelectedCardId(card.id);
+                  setActive('card');
+                }}
+                onSelect={(pool) => setSelectedPoolId(pool?.id ?? null)}
+                operationId={poolOperationId}
+                records={records.cardPools}
+                selected={selectedPool}
               />
             )}
             {active === 'event' && (
