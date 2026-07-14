@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { parseTossOrderId, type TossOrderRef } from '@/lib/payments/toss';
+import { isIndeterminateTossFailure, parseTossOrderId, type TossOrderRef } from '@/lib/payments/toss';
 import { confirmTossPayment, getTossConfig } from '@/lib/payments/toss-api';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
@@ -123,16 +123,17 @@ export async function POST(request: Request) {
       await healFailedRecord({ source: 'confirm_retry', code: confirmed.code });
       return NextResponse.json({ status: 'approved' });
     }
-    // 네트워크 단절·토스 5xx는 토스 측 승인 성공 가능성이 남는다 — failed로 단정하지 않는다.
-    const ambiguous = confirmed.status === 0 || confirmed.status >= 500;
-    if (!ambiguous) {
+    // 네트워크 단절·토스 5xx·멱등 처리 중(409)은 토스 측 승인 성공 가능성이 남는다
+    // — failed로 단정하지 않고 재시도 가능으로 돌려보낸다.
+    const indeterminate = isIndeterminateTossFailure(confirmed);
+    if (!indeterminate) {
       await recordPayment('failed', {
         source: 'confirm_api_error',
         code: confirmed.code,
         message: confirmed.message,
       });
     }
-    return errorJson(ambiguous ? 502 : 400, confirmed.code, confirmed.message);
+    return errorJson(indeterminate ? 502 : 400, confirmed.code, confirmed.message);
   }
 
   // 승인 성공 — 확정은 웹훅 몫이므로 pending으로만 기록한다.

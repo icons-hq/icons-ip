@@ -13,8 +13,10 @@ import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/servic
 /* 토스페이먼츠 웹훅 수신부(#88) — 주문/예매 확정의 단일 진실원.
  * 결제 웹훅에는 서명이 없다(서명 헤더는 지급대행 웹훅 전용). 그래서 payload를 신뢰하지 않고
  * paymentKey만 취해 시크릿 키로 결제 조회 API를 재호출한 응답을 진실로 삼는다.
- * 응답 규약: 10초 내 200 = 수신 성공, 그 외에는 최대 7회 재전송(지수 백오프) —
- * 재시도가 무익한 경우만 200/4xx로 끊고, 이상 상태는 5xx로 남겨 운영에 노출한다.
+ * 응답 규약: 토스는 10초 내 200만 성공으로 취급하고, 4xx/5xx 구분 없이 200이 아니면
+ * 최대 7회 재전송(지수 백오프)한다. 4xx는 비토스 발신(위조·스캐너)에 대한 정확한 신호로
+ * 쓰며 — 토스 정식 이벤트가 4xx 경로에 떨어지는 경우(키·MID 불일치 같은 설정 오류)는
+ * 재전송 소진·실패 이메일로 운영에 노출되는 의도된 동작이다.
  * 중복 전송 멱등성은 idempotency_key=paymentKey와 확정 RPC의 멱등 규칙이 보장한다. */
 
 type ServiceClient = ReturnType<typeof createServiceClient>;
@@ -177,7 +179,8 @@ export async function POST(request: Request) {
 
   const verified = await fetchTossPayment(event.paymentKey);
   if (!verified.ok) {
-    // 조회 불가 = 우리 상점 결제가 아니거나 위조 — 재시도가 무익하다.
+    // 조회 불가 = 우리 상점 결제가 아니거나 위조. 400도 토스 재전송은 막지 못하지만,
+    // 진짜 토스 이벤트가 여기 떨어졌다면(키·MID 불일치) 실패 알림으로 노출되는 게 맞다.
     if (verified.status === 404 || verified.status === 400) return errorJson(400, 'unknown_payment');
     console.error(`[webhooks/tosspayments] verify fetch failed: ${verified.code} ${verified.message}`);
     return errorJson(502, 'verify_failed');

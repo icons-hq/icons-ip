@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildTossOrderId,
   decideWebhookAction,
+  isIndeterminateTossFailure,
   mapConfirmRpcError,
   normalizeTossPayment,
   parseTossOrderId,
@@ -151,6 +152,21 @@ describe('decideWebhookAction', () => {
       kind: 'ignore',
       reason: 'foreign_order_id',
     });
+  });
+});
+
+describe('isIndeterminateTossFailure', () => {
+  it('네트워크 단절·토스 5xx·멱등 처리 중(409)은 비종결 — failed로 기록하면 안 된다', () => {
+    expect(isIndeterminateTossFailure({ status: 0, code: 'NETWORK_ERROR' })).toBe(true);
+    expect(isIndeterminateTossFailure({ status: 500, code: 'FAILED_INTERNAL_SYSTEM_PROCESSING' })).toBe(true);
+    // 같은 멱등키의 첫 요청이 처리 중 — 결과 미확정 신호(공식 멱등키 문서)
+    expect(isIndeterminateTossFailure({ status: 409, code: 'IDEMPOTENT_REQUEST_PROCESSING' })).toBe(true);
+  });
+
+  it('명시적 거절(4xx)은 종결 — 이 시도의 실패로 기록해도 안전', () => {
+    expect(isIndeterminateTossFailure({ status: 400, code: 'REJECT_CARD_COMPANY' })).toBe(false);
+    expect(isIndeterminateTossFailure({ status: 404, code: 'NOT_FOUND_PAYMENT_SESSION' })).toBe(false);
+    expect(isIndeterminateTossFailure({ status: 401, code: 'UNAUTHORIZED_KEY' })).toBe(false);
   });
 });
 

@@ -90,6 +90,18 @@ export type WebhookAction =
   | { kind: 'unsupported' }
   | { kind: 'ignore'; reason: 'foreign_order_id' | 'in_progress' };
 
+/** 승인 실패가 비종결(토스 측에서 성공했을 가능성이 남음)인지 — failed로 기록하면 안 되는 부류.
+ * 409 IDEMPOTENT_REQUEST_PROCESSING은 같은 멱등키의 첫 요청이 아직 처리 중이라는 신호다
+ * (공식 멱등키 문서: 재요청으로 결과를 확인하라). */
+export function isIndeterminateTossFailure(failure: { status: number; code: string }): boolean {
+  return (
+    failure.status === 0 ||
+    failure.status >= 500 ||
+    failure.status === 409 ||
+    failure.code === 'IDEMPOTENT_REQUEST_PROCESSING'
+  );
+}
+
 export type ConfirmRpcOutcome = 'unfulfillable' | 'retryable';
 
 /** 확정 RPC 예외 → 처리 방침. 주문 레벨 만료·확정 불가만 토스 자동 취소로 흡수한다.

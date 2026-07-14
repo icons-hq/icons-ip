@@ -21,6 +21,8 @@ async function tossRequest(input: {
   path: string;
   body?: unknown;
   idempotencyKey?: string;
+  /** 웹훅 경로 호출은 토스의 '10초 내 200' 응답 시한 안에 들도록 짧게 상한을 건다. */
+  timeoutMs: number;
 }): Promise<TossApiResult> {
   const { secretKey } = getTossConfig();
   if (!secretKey) {
@@ -37,6 +39,7 @@ async function tossRequest(input: {
       },
       body: input.body !== undefined ? JSON.stringify(input.body) : undefined,
       cache: 'no-store',
+      signal: AbortSignal.timeout(input.timeoutMs),
     });
     const parsed: unknown = await response.json().catch(() => null);
 
@@ -54,33 +57,41 @@ async function tossRequest(input: {
     return {
       ok: false,
       status: 0,
-      code: 'NETWORK_ERROR',
+      code: error instanceof Error && error.name === 'TimeoutError' ? 'TIMEOUT' : 'NETWORK_ERROR',
       message: error instanceof Error ? error.message : String(error),
     };
   }
 }
 
-/** 결제 승인 — successUrl 콜백 파라미터 그대로. Idempotency-Key로 재호출을 흡수한다. */
+/** 결제 승인 — successUrl 콜백 파라미터 그대로. Idempotency-Key로 재호출을 흡수한다.
+ * 카드사 승인 지연 여지가 있어 여유 있게 두고, 타임아웃돼도 멱등키 재시도가 안전하다. */
 export function confirmTossPayment(input: { paymentKey: string; orderId: string; amount: number }) {
   return tossRequest({
     method: 'POST',
     path: '/payments/confirm',
     body: input,
     idempotencyKey: input.paymentKey,
+    timeoutMs: 60_000,
   });
 }
 
 /** 결제 조회 — 서명 없는 결제 웹훅의 진위를 시크릿 키 재조회로 검증하는 경로. */
 export function fetchTossPayment(paymentKey: string) {
-  return tossRequest({ method: 'GET', path: `/payments/${encodeURIComponent(paymentKey)}` });
+  return tossRequest({
+    method: 'GET',
+    path: `/payments/${encodeURIComponent(paymentKey)}`,
+    timeoutMs: 5_000,
+  });
 }
 
-/** 결제 취소 — 확정 불가(만료 등) 결제를 자동 환불할 때만 서버가 호출한다. */
+/** 결제 취소 — 확정 불가(만료 등) 결제를 자동 환불할 때만 서버가 호출한다.
+ * 타임아웃 시 웹훅 5xx → 토스 재전송에서 같은 멱등키로 재시도된다. */
 export function cancelTossPayment(paymentKey: string, cancelReason: string) {
   return tossRequest({
     method: 'POST',
     path: `/payments/${encodeURIComponent(paymentKey)}/cancel`,
     body: { cancelReason },
     idempotencyKey: `cancel-${paymentKey}`,
+    timeoutMs: 5_000,
   });
 }
