@@ -1,17 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import {
+  catalogContextFromSnapshot,
   normalizeAdminCardForm,
   normalizeAdminCardPoolForm,
   normalizeAdminEventForm,
   normalizeAdminGoodForm,
   normalizeAdminIpForm,
   normalizeAdminPoolOddsForm,
+  normalizeAdminRewardPolicyForm,
   normalizeAdminStockAdjustmentForm,
   normalizeAdminTicketTypeForm,
 } from './catalog';
 
 const context = {
   eventIds: new Set(['e100', 'e200']),
+  goodIpById: new Map([
+    ['g100', 'hwasan'],
+    ['g200', 'lumen'],
+  ]),
   ipIds: new Set(['hwasan', 'lumen']),
   verticalKeys: new Set(['rofan', 'global']),
 };
@@ -419,6 +425,101 @@ describe('admin catalog form normalization', () => {
       errors: {
         price: '가격은 0 이상의 정수여야 합니다.',
         capacity: '정원은 0 이상의 정수여야 합니다.',
+      },
+    });
+  });
+
+  it('builds good-to-IP validation truth from the catalog snapshot', () => {
+    expect(catalogContextFromSnapshot({
+      events: [],
+      goods: [
+        { id: 'g100', ip: 'hwasan' },
+        { id: 'g200', ip: 'lumen' },
+      ],
+      ips: [{ id: 'hwasan' }, { id: 'lumen' }],
+      verticals: [],
+    }).goodIpById).toEqual(new Map([
+      ['g100', 'hwasan'],
+      ['g200', 'lumen'],
+    ]));
+  });
+
+  it('normalizes a retry-safe order-paid reward policy with KST operating times', () => {
+    const formData = new FormData();
+    formData.set('operationId', '11111111-1111-4111-8111-111111111111');
+    formData.set('id', '22222222-2222-4222-8222-222222222222');
+    formData.set('poolId', '33333333-3333-4333-8333-333333333333');
+    formData.set('trigger', 'order_paid');
+    formData.set('targetIpId', 'hwasan');
+    formData.set('targetGoodId', 'g100');
+    formData.set('minAmount', '30000');
+    formData.set('ticketsPerGrant', '2');
+    formData.set('active', 'on');
+    formData.set('activeFrom', '2026-07-15T10:00');
+    formData.set('activeTo', '2026-08-01T00:00');
+
+    expect(normalizeAdminRewardPolicyForm(formData, context)).toEqual({
+      ok: true,
+      value: {
+        operationId: '11111111-1111-4111-8111-111111111111',
+        id: '22222222-2222-4222-8222-222222222222',
+        poolId: '33333333-3333-4333-8333-333333333333',
+        trigger: 'order_paid',
+        targetIpId: 'hwasan',
+        targetGoodId: 'g100',
+        minAmount: 30000,
+        ticketsPerGrant: 2,
+        active: true,
+        activeFrom: '2026-07-15T01:00:00.000Z',
+        activeTo: '2026-07-31T15:00:00.000Z',
+      },
+    });
+  });
+
+  it('accepts an IP-wide inactive policy without a target good', () => {
+    const formData = new FormData();
+    formData.set('operationId', '11111111-1111-4111-8111-111111111111');
+    formData.set('id', '22222222-2222-4222-8222-222222222222');
+    formData.set('poolId', '33333333-3333-4333-8333-333333333333');
+    formData.set('trigger', 'order_paid');
+    formData.set('targetIpId', 'hwasan');
+    formData.set('targetGoodId', '');
+    formData.set('minAmount', '0');
+    formData.set('ticketsPerGrant', '1');
+    formData.set('activeFrom', '2026-07-15T10:00');
+
+    const result = normalizeAdminRewardPolicyForm(formData, context);
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: { active: false, targetGoodId: null },
+    });
+  });
+
+  it('rejects cross-IP goods and invalid reward-policy values', () => {
+    const formData = new FormData();
+    formData.set('operationId', 'bad-operation');
+    formData.set('id', 'bad-policy');
+    formData.set('poolId', 'bad-pool');
+    formData.set('trigger', 'signup');
+    formData.set('targetIpId', 'hwasan');
+    formData.set('targetGoodId', 'g200');
+    formData.set('minAmount', '-1');
+    formData.set('ticketsPerGrant', '101');
+    formData.set('activeFrom', '2026-07-15T10:00');
+    formData.set('activeTo', '2026-07-15T09:59');
+
+    expect(normalizeAdminRewardPolicyForm(formData, context)).toEqual({
+      ok: false,
+      errors: {
+        operationId: '유효한 저장 요청이 아닙니다.',
+        id: '유효한 발급 정책이 아닙니다.',
+        poolId: '유효한 카드풀이 아닙니다.',
+        trigger: '지원하지 않는 발급 조건입니다.',
+        targetGoodId: '선택한 IP의 굿즈만 지정할 수 있습니다.',
+        minAmount: '최소 결제 금액은 0 이상의 정수여야 합니다.',
+        ticketsPerGrant: '발급 수량은 1~100 사이의 정수여야 합니다.',
+        activeTo: '운영 종료는 시작보다 뒤여야 합니다.',
       },
     });
   });

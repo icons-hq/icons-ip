@@ -5,6 +5,7 @@ export type AdminFieldErrors = Record<string, string>;
 
 export interface AdminCatalogContext {
   eventIds: ReadonlySet<string>;
+  goodIpById: ReadonlyMap<string, string>;
   ipIds: ReadonlySet<string>;
   verticalKeys: ReadonlySet<string>;
 }
@@ -66,6 +67,20 @@ export interface AdminPoolOddsFormValue {
   operationId: string;
   poolId: string;
   odds: Record<RarityKey, number>;
+}
+
+export interface AdminRewardPolicyFormValue {
+  operationId: string;
+  id: string;
+  poolId: string;
+  trigger: 'order_paid';
+  targetIpId: string;
+  targetGoodId: string | null;
+  minAmount: number;
+  ticketsPerGrant: number;
+  active: boolean;
+  activeFrom: string;
+  activeTo: string | null;
 }
 
 export interface AdminEventFormValue {
@@ -203,11 +218,13 @@ function validIpId(value: string, context: AdminCatalogContext, errors: AdminFie
 
 export function catalogContextFromSnapshot(snapshot: {
   events: { id: string }[];
+  goods: { id: string; ip: string }[];
   ips: { id: string }[];
   verticals: { key: string }[];
 }): AdminCatalogContext {
   return {
     eventIds: new Set(snapshot.events.map((event) => event.id)),
+    goodIpById: new Map(snapshot.goods.map((good) => [good.id, good.ip])),
     ipIds: new Set(snapshot.ips.map((ip) => ip.id)),
     verticalKeys: new Set(snapshot.verticals.map((vertical) => vertical.key)),
   };
@@ -437,6 +454,78 @@ export function normalizeAdminPoolOddsForm(
       odds: Object.fromEntries(
         ODDS_FIELDS.map(([rarity]) => [rarity, milliPercents[rarity] / 100_000]),
       ) as Record<RarityKey, number>,
+    },
+  };
+}
+
+export function normalizeAdminRewardPolicyForm(
+  formData: FormData,
+  context: AdminCatalogContext,
+): AdminFormResult<AdminRewardPolicyFormValue> {
+  const errors: AdminFieldErrors = {};
+  const operationId = readUuid(formData, 'operationId', errors, '유효한 저장 요청이 아닙니다.');
+  const id = readUuid(formData, 'id', errors, '유효한 발급 정책이 아닙니다.');
+  const poolId = readUuid(formData, 'poolId', errors, '유효한 카드풀이 아닙니다.');
+  const trigger = readString(formData, 'trigger');
+  const targetIpId = readString(formData, 'targetIpId');
+  const targetGoodId = nullableString(formData, 'targetGoodId');
+  const minAmountRaw = readString(formData, 'minAmount');
+  const ticketsPerGrantRaw = readString(formData, 'ticketsPerGrant');
+  const activeFromRaw = readString(formData, 'activeFrom');
+  const activeFrom = localKstDateTimeToIso(formData, 'activeFrom', errors);
+  const activeTo = localKstDateTimeToIso(formData, 'activeTo', errors);
+
+  if (trigger !== 'order_paid') {
+    errors.trigger = '지원하지 않는 발급 조건입니다.';
+  }
+  if (!targetIpId || !context.ipIds.has(targetIpId)) {
+    errors.targetIpId = '등록된 IP를 선택해주세요.';
+  }
+  if (targetGoodId) {
+    const goodIpId = context.goodIpById.get(targetGoodId);
+    if (!goodIpId) {
+      errors.targetGoodId = '등록된 굿즈를 선택해주세요.';
+    } else if (goodIpId !== targetIpId) {
+      errors.targetGoodId = '선택한 IP의 굿즈만 지정할 수 있습니다.';
+    }
+  }
+
+  const minAmount = Number(minAmountRaw);
+  if (!/^\d+$/.test(minAmountRaw) || !Number.isSafeInteger(minAmount)) {
+    errors.minAmount = '최소 결제 금액은 0 이상의 정수여야 합니다.';
+  }
+
+  const ticketsPerGrant = Number(ticketsPerGrantRaw);
+  if (
+    !/^\d+$/.test(ticketsPerGrantRaw)
+    || !Number.isInteger(ticketsPerGrant)
+    || ticketsPerGrant < 1
+    || ticketsPerGrant > 100
+  ) {
+    errors.ticketsPerGrant = '발급 수량은 1~100 사이의 정수여야 합니다.';
+  }
+
+  if (!activeFromRaw) errors.activeFrom = '운영 시작 일시를 입력해주세요.';
+  if (activeFrom && activeTo && activeTo <= activeFrom) {
+    errors.activeTo = '운영 종료는 시작보다 뒤여야 합니다.';
+  }
+
+  if (Object.keys(errors).length || !activeFrom) return { ok: false, errors };
+
+  return {
+    ok: true,
+    value: {
+      operationId,
+      id,
+      poolId,
+      trigger: 'order_paid',
+      targetIpId,
+      targetGoodId,
+      minAmount,
+      ticketsPerGrant,
+      active: formData.get('active') === 'on',
+      activeFrom,
+      activeTo,
     },
   };
 }
