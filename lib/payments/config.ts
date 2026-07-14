@@ -1,23 +1,7 @@
+import { paymentKeyMode, paymentKeysMatch } from './key-mode.mjs';
+
+export { paymentKeyMode, paymentKeysMatch } from './key-mode.mjs';
 export type TossKeyMode = 'test' | 'live';
-
-export function paymentKeyMode(
-  value: string | null | undefined,
-  kind: 'client' | 'secret',
-): TossKeyMode | null {
-  const suffix = kind === 'client' ? 'gck_' : 'gsk_';
-  if (value?.startsWith(`test_${suffix}`)) return 'test';
-  if (value?.startsWith(`live_${suffix}`)) return 'live';
-  return null;
-}
-
-export function paymentKeysMatch(
-  clientKey: string | null | undefined,
-  secretKey: string | null | undefined,
-) {
-  const clientMode = paymentKeyMode(clientKey, 'client');
-  const secretMode = paymentKeyMode(secretKey, 'secret');
-  return clientMode !== null && clientMode === secretMode;
-}
 
 export function paymentsEnabledForRuntime(
   clientKey: string | null | undefined,

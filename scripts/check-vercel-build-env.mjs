@@ -1,16 +1,11 @@
 import { pathToFileURL } from 'node:url';
 
+import { paymentKeyMode } from '../lib/payments/key-mode.mjs';
+
 const VERCEL_TARGETS = new Set(['preview', 'production']);
 
 function isPresent(value) {
   return typeof value === 'string' && value.trim().length > 0;
-}
-
-function paymentKeyMode(value, kind) {
-  const family = kind === 'client' ? 'gck' : 'gsk';
-  if (value?.startsWith(`test_${family}_`)) return 'test';
-  if (value?.startsWith(`live_${family}_`)) return 'live';
-  return null;
 }
 
 export function validateVercelBuildEnvironment(environment) {
