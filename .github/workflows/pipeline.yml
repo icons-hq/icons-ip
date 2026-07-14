@@ -58,10 +58,11 @@ jobs:
         run: supabase db start
 
       - name: Apply local migrations
-        run: supabase db reset --local
+        run: supabase db reset --local --no-seed
 
       - name: Run database smoke tests
         run: |
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/catalog_baseline.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/community_comment_like_actions.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/community_moderation_actions.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/search_public_content.sql
@@ -266,8 +267,11 @@ jobs:
       - name: Link Supabase project
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
-      - name: Push Supabase migrations and seed
-        run: supabase db push --linked --include-seed
+      - name: Push Supabase migrations
+        run: supabase db push --linked
+
+      - name: Verify Supabase catalog baseline
+        run: supabase db query --linked --file supabase/tests/catalog_baseline.sql
 
   deploy-vercel-preview:
     name: deploy-vercel-preview
