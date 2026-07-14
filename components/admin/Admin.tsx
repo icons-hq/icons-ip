@@ -167,7 +167,12 @@ export function Admin({
                 action={cardAction}
                 ipOptions={ipOptions}
                 key={selectedCard
-                  ? `${selectedCard.id}-${selectedCard.ipId}-${selectedCard.poolId ?? 'unbound'}-${selectedCard.rarity}`
+                  ? JSON.stringify([
+                      selectedCard.id,
+                      selectedCard.ipId,
+                      selectedCard.poolId,
+                      selectedCard.rarity,
+                    ])
                   : 'new-card'}
                 onSelect={(card) => setSelectedCardId(card?.id ?? null)}
                 pending={cardPending}

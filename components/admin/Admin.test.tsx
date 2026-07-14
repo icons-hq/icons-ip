@@ -1,3 +1,4 @@
+import { isValidElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminCardRecord } from '@/lib/admin/catalog.server';
@@ -33,12 +34,14 @@ vi.mock('@/app/admin/actions', () => ({
 }));
 vi.mock('./Header', () => ({ Header: () => null }));
 vi.mock('./Sidebar', () => ({ Sidebar: () => null }));
-vi.mock('./sections/CardSection', () => ({
-  CardSection: (props: { selected: unknown }) => {
+vi.mock('./sections/CardSection', () => {
+  const CardSection = (props: { selected: unknown }) => {
     hooks.cardSelected = props.selected;
     return null;
-  },
-}));
+  };
+  CardSection.displayName = 'AdminCardSectionMock';
+  return { CardSection };
+});
 vi.mock('./sections/CardPoolSection', () => ({ CardPoolSection: () => null }));
 vi.mock('./sections/EventSection', () => ({ EventSection: () => null }));
 vi.mock('./sections/GoodSection', () => ({ GoodSection: () => null }));
@@ -60,6 +63,33 @@ const unboundCard: AdminCardRecord = {
   imagePath: null,
 };
 
+function createProps(cards: AdminCardRecord[]) {
+  return {
+    admin: { id: 'admin-1', email: 'admin@icons.gg', role: 'admin' },
+    catalog: { verticals: [], ips: [] },
+    initialSection: 'card',
+    insights: {},
+    moderation: { reports: [] },
+    orders: {},
+    profiles: [],
+    records: {
+      ips: [],
+      goods: [],
+      cards,
+      cardPools: [],
+      events: [],
+      ticketTypes: [],
+    },
+    poolDraftActiveFrom: '2026-07-15T00:00:00.000Z',
+    poolDraftId: '11111111-1111-4111-8111-111111111111',
+    poolOddsOperationId: '22222222-2222-4222-8222-222222222222',
+    poolOperationId: '33333333-3333-4333-8333-333333333333',
+    stockAdjustmentId: '44444444-4444-4444-8444-444444444444',
+    ticketDraftId: '55555555-5555-4555-8555-555555555555',
+    ticketOperationId: '66666666-6666-4666-8666-666666666666',
+  } as unknown as Parameters<typeof Admin>[0];
+}
+
 describe('Admin card selection', () => {
   beforeEach(() => {
     hooks.cardSelected = null;
@@ -67,33 +97,33 @@ describe('Admin card selection', () => {
   });
 
   it('derives the selected card from the latest revalidated records', () => {
-    const props = {
-      admin: { id: 'admin-1', email: 'admin@icons.gg', role: 'admin' },
-      catalog: { verticals: [], ips: [] },
-      initialSection: 'card',
-      insights: {},
-      moderation: { reports: [] },
-      orders: {},
-      profiles: [],
-      records: {
-        ips: [],
-        goods: [],
-        cards: [unboundCard],
-        cardPools: [],
-        events: [],
-        ticketTypes: [],
-      },
-      poolDraftActiveFrom: '2026-07-15T00:00:00.000Z',
-      poolDraftId: '11111111-1111-4111-8111-111111111111',
-      poolOddsOperationId: '22222222-2222-4222-8222-222222222222',
-      poolOperationId: '33333333-3333-4333-8333-333333333333',
-      stockAdjustmentId: '44444444-4444-4444-8444-444444444444',
-      ticketDraftId: '55555555-5555-4555-8555-555555555555',
-      ticketOperationId: '66666666-6666-4666-8666-666666666666',
-    } as unknown as Parameters<typeof Admin>[0];
-
-    renderToStaticMarkup(<Admin {...props} />);
+    renderToStaticMarkup(<Admin {...createProps([unboundCard])} />);
 
     expect(hooks.cardSelected).toBe(unboundCard);
+  });
+
+  it('uses distinct remount keys for delimiter-colliding card and IP ids', () => {
+    const cardA = { ...unboundCard, id: 'a-b', ipId: 'c', rarity: 'N' as const };
+    const cardB = { ...unboundCard, id: 'a', ipId: 'b-c', rarity: 'N' as const };
+    const getCardSectionKey = (card: AdminCardRecord) => {
+      hooks.stateValues = ['card', false, null, null, card.id, null, null, null];
+      const stack: unknown[] = [Admin(createProps([card]))];
+
+      while (stack.length) {
+        const node = stack.pop();
+        if (!isValidElement(node)) continue;
+        if ((node.type as { displayName?: string }).displayName === 'AdminCardSectionMock') {
+          return node.key;
+        }
+
+        const children = (node.props as { children?: unknown }).children;
+        if (Array.isArray(children)) stack.push(...children);
+        else if (children !== undefined) stack.push(children);
+      }
+
+      return null;
+    };
+
+    expect(getCardSectionKey(cardA)).not.toBe(getCardSectionKey(cardB));
   });
 });
