@@ -74,8 +74,8 @@ interface OrderListRow {
 interface OrderItemRow {
   qty: number;
   unit_price: number;
+  good_ip_id_snapshot: string;
   order: { id: string } | null;
-  good: { ip_id: string } | null;
 }
 
 const kstDay = new Intl.DateTimeFormat('en-CA', {
@@ -134,7 +134,7 @@ export async function getAdminInsights(): Promise<AdminInsights> {
     fetchAllRows<OrderItemRow>('order_items', (from, to) =>
       supabase
         .from('order_items')
-        .select('qty,unit_price,order:orders!inner(id,status,created_at),good:goods!inner(ip_id)')
+        .select('qty,unit_price,good_ip_id_snapshot,order:orders!inner(id,status,created_at)')
         .in('order.status', REVENUE_ORDER_STATUSES)
         .gte('order.created_at', windowStart)
         .order('id', { ascending: true })
@@ -239,13 +239,13 @@ export async function getAdminInsights(): Promise<AdminInsights> {
     .slice(0, RECENT_ORDER_LIMIT);
 
   // ── IP별 매출 톱 N (최근 30일, 결제 확정 주문 아이템 기준) ────────────────
-  const validItems = items.filter((item) => item.good && item.order);
+  const validItems = items.filter((item) => item.order);
   const byIp = new Map<string, { revenue: number; orderIds: Set<string> }>();
   for (const item of validItems) {
-    const entry = byIp.get(item.good!.ip_id) ?? { revenue: 0, orderIds: new Set<string>() };
+    const entry = byIp.get(item.good_ip_id_snapshot) ?? { revenue: 0, orderIds: new Set<string>() };
     entry.revenue += item.qty * item.unit_price;
     entry.orderIds.add(item.order!.id);
-    byIp.set(item.good!.ip_id, entry);
+    byIp.set(item.good_ip_id_snapshot, entry);
   }
   const rankedIps = [...byIp.entries()]
     .sort((a, b) => b[1].revenue - a[1].revenue)
