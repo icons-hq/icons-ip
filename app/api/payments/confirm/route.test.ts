@@ -159,9 +159,10 @@ describe('POST /api/payments/confirm', () => {
       },
     });
     expect(mocks.cancel).toHaveBeenCalledWith('pk_1', 'ICONS 미지원 가상계좌 자동 취소');
-    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order', {
+    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order_with_provider_evidence', {
       p_order_id: ORDER_UUID,
       p_reason: '미지원 가상계좌 자동 취소',
+      p_provider_payment_keys: ['pk_1'],
     });
     expect(mocks.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'canceled', raw: approvedPayment({ status: 'WAITING_FOR_DEPOSIT', method: '가상계좌' }) }),
@@ -190,7 +191,9 @@ describe('POST /api/payments/confirm', () => {
     const response = await POST(request(callbackBody()));
 
     expect(response.status).toBe(409);
-    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order', expect.any(Object));
+    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order_with_provider_evidence', expect.objectContaining({
+      p_provider_payment_keys: ['pk_1'],
+    }));
   });
 
   it('입금 완료 가상계좌는 환불계좌 없이 자동 취소하지 않는다', async () => {

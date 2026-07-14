@@ -255,9 +255,10 @@ export async function POST(request: Request) {
 
       const recorded = await recordCanceledEvidence(approvedBody);
       const { error: localCancelError } = ref.purpose === 'order'
-        ? await service.rpc('cancel_order', {
+        ? await service.rpc('cancel_order_with_provider_evidence', {
             p_order_id: ref.refId,
             p_reason: '미지원 가상계좌 자동 취소',
+            p_provider_payment_keys: [body.paymentKey],
           })
         : await service.rpc('refund_ticket_order', {
             p_ticket_order_id: ref.refId,
