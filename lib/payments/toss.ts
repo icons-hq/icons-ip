@@ -125,6 +125,11 @@ export function decideWebhookAction(payment: NormalizedTossPayment): WebhookActi
     case 'PARTIAL_CANCELED':
       // v1은 부분 취소를 발행하지 않는다 — 발생 자체가 이상 상태라 재시도로 노출한다.
       return { kind: 'unsupported' };
+    case 'WAITING_FOR_DEPOSIT':
+      // v1은 가상계좌를 지원하지 않는다(위젯 설정으로만 막혀 있음). 공식 상태 다이어그램상
+      // 입금 오류 시 DONE→WAITING_FOR_DEPOSIT 회귀 웹훅이 오므로, ignore로 삼키면
+      // 토스 미결제·로컬 paid 불일치가 생긴다 — 발생 즉시 운영에 노출한다.
+      return { kind: 'unsupported' };
     case 'ABORTED':
     case 'EXPIRED':
       return { kind: 'record_failure', ref };

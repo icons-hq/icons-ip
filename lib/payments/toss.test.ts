@@ -142,9 +142,15 @@ describe('decideWebhookAction', () => {
       kind: 'record_failure',
       ref: { purpose: 'order', refId: ORDER_UUID },
     });
-    for (const status of ['READY', 'IN_PROGRESS', 'WAITING_FOR_DEPOSIT'] as const) {
+    for (const status of ['READY', 'IN_PROGRESS'] as const) {
       expect(decideWebhookAction(base({ status }))).toEqual({ kind: 'ignore', reason: 'in_progress' });
     }
+  });
+
+  it('가상계좌(WAITING_FOR_DEPOSIT)는 v1 미지원 — 무시하지 않고 운영에 노출한다', () => {
+    // 공식 상태 다이어그램상 DONE→(입금 오류)→WAITING_FOR_DEPOSIT 회귀 웹훅이 존재한다.
+    // 이를 ignore로 삼키면 토스는 미결제로 되돌아갔는데 로컬은 paid로 남는다.
+    expect(decideWebhookAction(base({ status: 'WAITING_FOR_DEPOSIT' }))).toEqual({ kind: 'unsupported' });
   });
 
   it('우리 형식이 아닌 orderId는 무시한다', () => {
