@@ -33,6 +33,14 @@ export interface AdminGoodFormValue {
   imagePath: string | null;
 }
 
+export interface AdminStockAdjustmentFormValue {
+  adjustmentId: string;
+  goodId: string;
+  expectedStockQty: number;
+  delta: number;
+  reason: string;
+}
+
 export interface AdminCardFormValue {
   id: string;
   ipId: string;
@@ -62,6 +70,10 @@ export type AdminFormResult<T> =
   | { ok: false; errors: AdminFieldErrors };
 
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const INTEGER_PATTERN = /^-?\d+$/;
+const INT32_MIN = -2147483648;
+const INT32_MAX = 2147483647;
 const STOCK_VALUES = new Set<Stock>(['low', 'ok', 'soldout']);
 const RARITY_VALUES = new Set<RarityKey>(['N', 'R', 'SR', 'SSR', 'HOLO']);
 const EVENT_MODES = new Set(['온라인', '오프라인']);
@@ -223,6 +235,56 @@ export function normalizeAdminGoodForm(
       stock,
       bg: nullableString(formData, 'bg'),
       imagePath: nullableString(formData, 'imagePath'),
+    },
+  };
+}
+
+export function normalizeAdminStockAdjustmentForm(
+  formData: FormData,
+): AdminFormResult<AdminStockAdjustmentFormValue> {
+  const errors: AdminFieldErrors = {};
+  const adjustmentId = readString(formData, 'adjustmentId').toLowerCase();
+  const goodId = readSlug(formData, 'goodId', errors, '굿즈를 선택해주세요.');
+  const expectedStockQtyRaw = readString(formData, 'expectedStockQty');
+  const deltaRaw = readString(formData, 'delta');
+  const reason = readString(formData, 'reason');
+
+  if (!UUID_PATTERN.test(adjustmentId)) {
+    errors.adjustmentId = '유효한 재고 조정 요청이 아닙니다.';
+  }
+
+  const expectedStockQty = Number(expectedStockQtyRaw);
+  if (
+    !/^\d+$/.test(expectedStockQtyRaw)
+    || !Number.isInteger(expectedStockQty)
+    || expectedStockQty > INT32_MAX
+  ) {
+    errors.expectedStockQty = '현재 실재고를 확인해주세요.';
+  }
+
+  const delta = Number(deltaRaw);
+  if (!INTEGER_PATTERN.test(deltaRaw) || !Number.isInteger(delta) || delta === 0) {
+    errors.delta = '조정 수량은 0이 아닌 정수여야 합니다.';
+  } else if (delta < INT32_MIN || delta > INT32_MAX) {
+    errors.delta = '조정 수량은 32비트 정수 범위여야 합니다.';
+  }
+
+  if (!reason) {
+    errors.reason = '조정 사유를 입력해주세요.';
+  } else if (reason.length > 200) {
+    errors.reason = '조정 사유는 200자 이하로 입력해주세요.';
+  }
+
+  if (Object.keys(errors).length) return { ok: false, errors };
+
+  return {
+    ok: true,
+    value: {
+      adjustmentId,
+      goodId,
+      expectedStockQty,
+      delta,
+      reason,
     },
   };
 }

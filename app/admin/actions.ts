@@ -8,6 +8,7 @@ import {
   normalizeAdminEventForm,
   normalizeAdminGoodForm,
   normalizeAdminIpForm,
+  normalizeAdminStockAdjustmentForm,
   type AdminFieldErrors,
 } from '@/lib/admin/catalog';
 import {
@@ -64,6 +65,12 @@ function revalidateCatalog(paths: string[]) {
   }
 }
 
+function revalidateStock(ipPath: string | null) {
+  const paths = ['/', '/ip', '/shop', '/cart', '/checkout', '/admin'];
+  if (ipPath) paths.push(ipPath);
+  for (const path of paths) revalidatePath(path);
+}
+
 function readRpcIpId(data: unknown) {
   if (!data || typeof data !== 'object') return null;
   const candidate = Array.isArray(data) ? data[0] : data;
@@ -81,6 +88,14 @@ function revalidateModeration(ipId: string | null = null) {
 
 function readPreviousIpPath(formData: FormData) {
   const value = formData.get('previousIpId');
+  if (typeof value !== 'string') return null;
+
+  const ipId = value.trim();
+  return /^[a-z0-9][a-z0-9-]*$/.test(ipId) ? `/ip/${ipId}` : null;
+}
+
+function readStockIpPath(formData: FormData) {
+  const value = formData.get('ipId');
   if (typeof value !== 'string') return null;
 
   const ipId = value.trim();
@@ -163,6 +178,49 @@ export async function upsertAdminGoodAction(
 
   revalidateCatalog(relatedIpPaths(value.ipId, previousIpPath));
   return { message: '굿즈를 저장했습니다.' };
+}
+
+export async function adjustAdminStockAction(
+  _state: AdminCatalogActionState,
+  formData: FormData,
+): Promise<AdminCatalogActionState> {
+  const authError = await requireStaffAction();
+  if (authError) return authError;
+
+  const result = normalizeAdminStockAdjustmentForm(formData);
+  if (!result.ok) return { errors: result.errors };
+
+  const value = result.value;
+  const ipPath = readStockIpPath(formData);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_adjust_stock', {
+    target_adjustment_id: value.adjustmentId,
+    target_good_id: value.goodId,
+    target_expected_stock_qty: value.expectedStockQty,
+    target_delta: value.delta,
+    target_reason: value.reason,
+  });
+
+  if (error) {
+    if (error.message.includes('stock_changed')) {
+      revalidateStock(ipPath);
+      return rpcFailure('실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.');
+    }
+    if (error.message.includes('adjustment_conflict')) {
+      revalidateStock(ipPath);
+      return rpcFailure('이미 사용된 재고 조정 요청입니다. 최신 수량을 확인해주세요.');
+    }
+    if (error.message.includes('stock_out_of_range')) {
+      return rpcFailure('재고는 0개 미만이거나 허용 범위를 넘도록 조정할 수 없습니다.');
+    }
+    if (error.message.includes('good_not_found')) {
+      return rpcFailure('굿즈를 찾을 수 없습니다.');
+    }
+    return rpcFailure('실재고를 조정하지 못했습니다. 다시 시도해주세요.');
+  }
+
+  revalidateStock(ipPath);
+  return { message: '실재고를 조정했습니다.' };
 }
 
 export async function upsertAdminCardAction(

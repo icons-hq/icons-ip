@@ -219,6 +219,7 @@ function toIp(row: IpRow, verticalsByKey: Map<string, Vertical>, imageUrlForPath
 }
 
 function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
+  const stockQty = row.stock_qty ?? 0;
   return {
     id: row.id,
     ip: row.ip_id,
@@ -226,8 +227,8 @@ function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
     type: row.type,
     price: row.price,
     badge: row.badge,
-    stock: toStock(row.stock),
-    stockQty: row.stock_qty ?? 0,
+    stock: stockQty <= 0 ? 'soldout' : toStock(row.stock),
+    stockQty,
     img: backgroundFor(row.bg, row.image_path, imageUrlForPath, DATA.GOODS[0]?.img ?? ''),
   };
 }

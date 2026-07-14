@@ -4,6 +4,7 @@ import {
   normalizeAdminEventForm,
   normalizeAdminGoodForm,
   normalizeAdminIpForm,
+  normalizeAdminStockAdjustmentForm,
 } from './catalog';
 
 const context = {
@@ -100,6 +101,60 @@ describe('admin catalog form normalization', () => {
       errors: {
         price: '가격은 0 이상의 정수여야 합니다.',
         stock: '재고 상태를 선택해주세요.',
+      },
+    });
+  });
+
+  it('normalizes a signed stock delta and trims its required reason', () => {
+    const formData = new FormData();
+    formData.set('adjustmentId', '11111111-1111-4111-8111-111111111111');
+    formData.set('goodId', 'g100');
+    formData.set('expectedStockQty', '12');
+    formData.set('delta', '-3');
+    formData.set('reason', '  파손 재고 보정  ');
+
+    expect(normalizeAdminStockAdjustmentForm(formData)).toEqual({
+      ok: true,
+      value: {
+        adjustmentId: '11111111-1111-4111-8111-111111111111',
+        goodId: 'g100',
+        expectedStockQty: 12,
+        delta: -3,
+        reason: '파손 재고 보정',
+      },
+    });
+  });
+
+  it.each([
+    { delta: '0', reason: '재고 조사', errors: { delta: '조정 수량은 0이 아닌 정수여야 합니다.' } },
+    { delta: '1.5', reason: '재고 조사', errors: { delta: '조정 수량은 0이 아닌 정수여야 합니다.' } },
+    { delta: '2147483648', reason: '재고 조사', errors: { delta: '조정 수량은 32비트 정수 범위여야 합니다.' } },
+    { delta: '1', reason: '   ', errors: { reason: '조정 사유를 입력해주세요.' } },
+    { delta: '1', reason: '가'.repeat(201), errors: { reason: '조정 사유는 200자 이하로 입력해주세요.' } },
+  ])('rejects an invalid stock adjustment: $errors', ({ delta, reason, errors }) => {
+    const formData = new FormData();
+    formData.set('adjustmentId', '11111111-1111-4111-8111-111111111111');
+    formData.set('goodId', 'g100');
+    formData.set('expectedStockQty', '12');
+    formData.set('delta', delta);
+    formData.set('reason', reason);
+
+    expect(normalizeAdminStockAdjustmentForm(formData)).toEqual({ ok: false, errors });
+  });
+
+  it('rejects malformed idempotency and stale-stock contract fields', () => {
+    const formData = new FormData();
+    formData.set('adjustmentId', 'not-a-uuid');
+    formData.set('goodId', 'g100');
+    formData.set('expectedStockQty', '-1');
+    formData.set('delta', '1');
+    formData.set('reason', '입고');
+
+    expect(normalizeAdminStockAdjustmentForm(formData)).toEqual({
+      ok: false,
+      errors: {
+        adjustmentId: '유효한 재고 조정 요청이 아닙니다.',
+        expectedStockQty: '현재 실재고를 확인해주세요.',
       },
     });
   });
