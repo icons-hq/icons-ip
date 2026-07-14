@@ -17,6 +17,7 @@ import type {
 } from '@/lib/admin/catalog.server';
 import type { AdminInsights } from '@/lib/admin/insights.server';
 import type { AdminModerationRecords } from '@/lib/admin/moderation.server';
+import type { AdminOrderConsoleData } from '@/lib/admin/orders';
 import type { AdminProfileRecord } from '@/lib/admin/roles.server';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import { Header } from './Header';
@@ -27,12 +28,14 @@ import { GoodSection } from './sections/GoodSection';
 import { IpSection } from './sections/IpSection';
 import { ModerationSection } from './sections/Moderation';
 import { OverviewSection } from './sections/Overview';
+import { OrdersSection } from './sections/Orders';
 import { RolesSection } from './sections/Roles';
 
-export type AdminSection = 'overview' | 'ip' | 'good' | 'card' | 'event' | 'moderation' | 'roles';
+export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'event' | 'moderation' | 'roles';
 
 const SECTION_TITLES: Record<AdminSection, string> = {
   overview: '개요',
+  orders: '주문 관리',
   ip: 'IP 관리',
   good: '굿즈 관리',
   card: '카드 관리',
@@ -50,14 +53,25 @@ interface AdminProps {
     role: string;
   };
   catalog: Pick<CatalogSnapshot, 'verticals' | 'ips'>;
+  initialSection?: AdminSection;
   insights: AdminInsights;
   moderation: AdminModerationRecords;
+  orders: AdminOrderConsoleData;
   profiles: AdminProfileRecord[];
   records: AdminCatalogRecords;
 }
 
-export function Admin({ admin, catalog, insights, moderation, profiles, records }: AdminProps) {
-  const [active, setActive] = useState<AdminSection>('overview');
+export function Admin({
+  admin,
+  catalog,
+  initialSection,
+  insights,
+  moderation,
+  orders,
+  profiles,
+  records,
+}: AdminProps) {
+  const [active, setActive] = useState<AdminSection>(initialSection ?? 'overview');
   const [collapsed, setCollapsed] = useState(false);
   const [selectedIp, setSelectedIp] = useState<AdminIpRecord | null>(null);
   const [selectedGood, setSelectedGood] = useState<AdminGoodRecord | null>(null);
@@ -89,6 +103,7 @@ export function Admin({ admin, catalog, insights, moderation, profiles, records 
                 reports={moderation.reports}
               />
             )}
+            {active === 'orders' && <OrdersSection data={orders} />}
             {active === 'ip' && (
               <IpSection
                 action={ipAction}
