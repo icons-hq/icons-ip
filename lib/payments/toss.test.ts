@@ -9,6 +9,7 @@ import {
   parseWebhookEvent,
   tossBasicAuthHeader,
   verifyApprovedTossPayment,
+  verifyTossCancellationState,
   type NormalizedTossPayment,
 } from './toss';
 
@@ -173,6 +174,79 @@ describe('verifyApprovedTossPayment', () => {
     expect(verifyApprovedTossPayment({ ...payment, type: null }, expected)).toEqual({
       ok: false,
       reason: 'provider_response_mismatch',
+    });
+  });
+});
+
+describe('verifyTossCancellationState', () => {
+  const expected = {
+    paymentKey: 'pk_cancel_1',
+    orderId: `order_${ORDER_UUID}`,
+    amount: 42000,
+  };
+  const base = {
+    paymentKey: expected.paymentKey,
+    orderId: expected.orderId,
+    status: 'DONE',
+    totalAmount: expected.amount,
+    balanceAmount: expected.amount,
+    type: 'NORMAL',
+    currency: 'KRW',
+    method: '카드',
+    cancels: null,
+  };
+
+  it('fresh GET의 미취소 전액 결제를 provider 호출 가능 상태로 판정한다', () => {
+    expect(verifyTossCancellationState(base, expected)).toEqual({
+      ok: true,
+      state: 'uncanceled',
+    });
+  });
+
+  it('잔액 0과 DONE 취소 합계가 원금과 일치해야 전액 취소 증거로 인정한다', () => {
+    expect(verifyTossCancellationState({
+      ...base,
+      status: 'CANCELED',
+      balanceAmount: 0,
+      cancels: [{ cancelAmount: 42000, cancelStatus: 'DONE' }],
+    }, expected)).toEqual({
+      ok: true,
+      state: 'fully_canceled',
+    });
+  });
+
+  it.each([
+    ['payment key', { paymentKey: 'pk_other' }],
+    ['order id', { orderId: `ticket_${ORDER_UUID}` }],
+    ['amount', { totalAmount: 43000, balanceAmount: 43000 }],
+  ])('%s 불일치는 provider identity 오류로 차단한다', (_label, override) => {
+    expect(verifyTossCancellationState({ ...base, ...override }, expected)).toEqual({
+      ok: false,
+      reason: 'provider_response_mismatch',
+    });
+  });
+
+  it('부분 취소·잔액·취소 처리중 상태는 로컬 환불 증거로 쓰지 않는다', () => {
+    for (const candidate of [
+      { ...base, status: 'PARTIAL_CANCELED', balanceAmount: 22000, cancels: [{ cancelAmount: 20000, cancelStatus: 'DONE' }] },
+      { ...base, status: 'CANCELED', balanceAmount: 1000, cancels: [{ cancelAmount: 41000, cancelStatus: 'DONE' }] },
+      { ...base, status: 'CANCELED', balanceAmount: 0, cancels: [{ cancelAmount: 42000, cancelStatus: 'IN_PROGRESS' }] },
+    ]) {
+      expect(verifyTossCancellationState(candidate, expected)).toEqual({
+        ok: false,
+        reason: 'incomplete_cancellation',
+      });
+    }
+  });
+
+  it('NORMAL·KRW 계약 밖 응답은 취소하지 않는다', () => {
+    expect(verifyTossCancellationState({ ...base, type: 'BRANDPAY' }, expected)).toEqual({
+      ok: false,
+      reason: 'unsupported_payment_contract',
+    });
+    expect(verifyTossCancellationState({ ...base, currency: 'USD' }, expected)).toEqual({
+      ok: false,
+      reason: 'unsupported_payment_contract',
     });
   });
 });

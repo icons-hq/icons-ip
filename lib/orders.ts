@@ -6,6 +6,15 @@ export const ORDER_DETAIL_STATUSES = ['pending', ...VISIBLE_ORDER_STATUSES] as c
 export type VisibleOrderStatus = (typeof VISIBLE_ORDER_STATUSES)[number];
 export type OrderDetailStatus = (typeof ORDER_DETAIL_STATUSES)[number];
 
+export const ORDER_CANCELLATION_REQUEST_STATUSES = [
+  'requested',
+  'processing',
+  'needs_review',
+  'completed',
+  'rejected',
+] as const;
+export type OrderCancellationRequestStatus = (typeof ORDER_CANCELLATION_REQUEST_STATUSES)[number];
+
 export interface OrderStatusPresentation {
   label: string;
   title: string;
@@ -48,7 +57,7 @@ const STATUS_PRESENTATION: Record<OrderDetailStatus, OrderStatusPresentation> = 
 
 export interface OrderListItem {
   id: string;
-  status: VisibleOrderStatus;
+  status: OrderDetailStatus;
   total: number;
   createdAt: string;
   itemLabel: string;
@@ -74,6 +83,14 @@ export interface OrderRefundSummary {
   createdAt: string;
 }
 
+export interface OrderCancellationRequestSummary {
+  id: string;
+  status: OrderCancellationRequestStatus;
+  requestedAt: string;
+  decidedAt: string | null;
+  decisionNote: string | null;
+}
+
 export interface OrderDetail {
   id: string;
   status: OrderDetailStatus;
@@ -83,6 +100,7 @@ export interface OrderDetail {
   items: OrderDetailItem[];
   payment: OrderPaymentSummary | null;
   refund: OrderRefundSummary | null;
+  cancellationRequest: OrderCancellationRequestSummary | null;
   cardPacks: {
     issuedCount: number;
     availableCount: number;
@@ -95,6 +113,10 @@ export function isVisibleOrderStatus(value: string): value is VisibleOrderStatus
 
 export function isOrderDetailStatus(value: string): value is OrderDetailStatus {
   return (ORDER_DETAIL_STATUSES as readonly string[]).includes(value);
+}
+
+export function isOrderCancellationRequestStatus(value: string): value is OrderCancellationRequestStatus {
+  return (ORDER_CANCELLATION_REQUEST_STATUSES as readonly string[]).includes(value);
 }
 
 export function orderStatusMeta(status: OrderDetailStatus): OrderStatusPresentation {

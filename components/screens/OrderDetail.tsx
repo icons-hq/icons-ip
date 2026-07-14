@@ -59,7 +59,12 @@ export function OrderDetail({ order }: { order: OrderDetailData }) {
             ))}
           </div>
 
-          <OrderCancellation orderId={order.id} status={order.status} refund={order.refund} />
+          <OrderCancellation
+            cancellationRequest={order.cancellationRequest}
+            orderId={order.id}
+            refund={order.refund}
+            status={order.status}
+          />
         </section>
 
         <aside className="order-detail-receipt card" aria-label="주문 영수증">

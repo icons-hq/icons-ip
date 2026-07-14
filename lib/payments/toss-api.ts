@@ -91,8 +91,8 @@ export function fetchTossPayment(paymentKey: string) {
   });
 }
 
-/** 결제 취소 — 확정 불가 자동 환불과 본인 주문 취소에서 서버가 호출한다.
- * paymentKey 기반 고정 멱등키로 웹훅 재전송과 사용자 재시도를 안전하게 흡수한다. */
+/** 결제 취소 — 확정 불가 자동 환불과 승인된 청약철회에서 서버가 호출한다.
+ * paymentKey 기반 고정 멱등키로 웹훅 재전송과 운영 재시도를 안전하게 흡수한다. */
 export function cancelTossPayment(paymentKey: string, cancelReason: string) {
   return tossRequest({
     method: 'POST',
