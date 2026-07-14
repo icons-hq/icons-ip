@@ -169,7 +169,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - **`reserve_tickets(ticket_type_id, qty)`** — `ticket_types.sold`를 `FOR UPDATE`로 잠그고 `capacity` 초과 검증 후 차감, `ticket_orders` 생성(상태 `pending`). 결제 확정 시 `tickets`(QR) 발급.
 - **`place_order(cart)`** — 굿즈 재고 검증·차감, 주문 당시 가격·이름·유형·IP를 고정한 `orders`/`order_items` 생성(`pending`).
 - **`confirm_order_payment` / `confirm_ticket_payment`** — 결제 확정(service_role 전용). 웹훅에서 호출, **멱등 키=토스 paymentKey**로 중복 방지. (충전 `charge_wallet`은 ADR-0003으로 폐기)
-- **`cancel_order_with_provider_evidence` / `cancel/refund_*`** — 토스 취소가 먼저 성공한 결제 키 전체를 서버(service_role)가 증거로 넘긴 뒤 재고·티켓 원복, `refunds` 완료 기록, 결제 상태 전이를 원자 처리한다. 활성 결제 증거가 빠지면 실패하고 브라우저 직접 실행은 금지한다.
+- **`claim_order_cancellation` / `cancel_order_with_provider_evidence` / `cancel/refund_*`** — 서버가 주문 행 잠금 아래 durable 취소 claim을 먼저 만들고, 토스 취소가 성공한 결제 키 전체를 증거로 넘긴 뒤 재고·티켓 원복, `refunds` 완료 기록, 결제 상태 전이를 원자 처리한다. claim 동안 결제 확정과 배송 상태 전이는 DB에서 거절되며, 활성 결제 증거가 빠지면 실패한다. 브라우저 직접 실행은 금지한다.
 
 규칙: 천장·확률 로직은 DB(또는 DB가 호출하는 신뢰 경로)에만 둔다(클라이언트 신뢰 금지). 모든 금전 RPC는 멱등·감사 가능.
 
@@ -204,7 +204,7 @@ Production Auth 설정:
 - 흐름: ① RPC로 `pending` 생성(재고 선점) → ② 토스 결제 → ③ 승인 경로(`pending` 기록) → ④ 웹훅 확정(`paid`, 티켓 QR 발급/주문 확정) → ⑤ 실패·만료 시 선점 복원.
 - 실패·만료 복원: 만료 등 확정 불가 결제는 웹훅이 **토스 취소 API로 자동 환불**하고, 승인 이력 없는 만료 pending 주문·예매는 pg_cron이 매분 `expire_stale_checkouts()`로 `cancel_order`/`refund_ticket_order`를 재사용해 정리한다(승인 진행 중 건 제외, 만료 후 5분 유예).
 - 미지원 가상계좌: 입금 전 `WAITING_FOR_DEPOSIT`이면 토스를 먼저 자동 취소한 뒤 로컬 주문·재고를 원복한다. 입금 완료 건은 환불계좌 없이 자동 취소하지 않고 운영 오류로 노출한다.
-- 사용자 취소: 본인 `pending` 무결제 주문은 즉시 선점을 원복하고, `pending` 승인 증거·`paid` 주문은 `/api/orders/[orderId]/cancel`이 토스 전액 취소를 먼저 완료한 뒤 provider evidence RPC로 주문·재고·미사용 카드팩·환불을 한 번만 정리한다. `shipping`·`done`은 셀프 취소를 막고 CS 확인으로 보낸다.
+- 사용자 취소: 본인 `pending` 무결제 주문은 즉시 선점을 원복하고, `pending` 승인 증거·`paid` 주문은 `/api/orders/[orderId]/cancel`이 provider 호출 직전 취소 claim을 원자적으로 확보한다. claim 이후에는 결제 확정·배송 전이를 막고, 토스 전액 취소를 완료한 뒤 provider evidence RPC로 주문·재고·미사용 카드팩·환불을 한 번만 정리하며 claim을 제거한다. provider 일부 성공·응답 유실 시 claim을 유지해 배송을 차단한 채 같은 멱등키로 재시도한다. `shipping`·`done`은 셀프 취소를 막고 CS 확인으로 보낸다.
 - 환불: `refunds` 완료 기록 + 재고 원복은 RPC가 담당하고, 토스 쪽 취소(`CANCELED` 웹훅)도 같은 provider evidence 경계로 반영한다. 현재 배송·수령 시각이 없으므로 법정 7일을 앱이 자동 판정하지 않는다.
 - 단일 PG 가정. 멀티 PG 필요 시 `payments.provider` + 어댑터 계층 도입.
 

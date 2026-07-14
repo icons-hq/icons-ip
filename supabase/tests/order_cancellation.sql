@@ -27,6 +27,21 @@ select 1 / case when (
   and has_function_privilege('service_role', 'public.cancel_order(uuid,text)', 'execute')
 ) then 1 else 0 end as assert_compatibility_rpc_remains_service_only;
 
+select 1 / case when (
+  not has_function_privilege('anon', 'public.claim_order_cancellation(uuid,uuid)', 'execute')
+  and not has_function_privilege('authenticated', 'public.claim_order_cancellation(uuid,uuid)', 'execute')
+  and has_function_privilege('service_role', 'public.claim_order_cancellation(uuid,uuid)', 'execute')
+) then 1 else 0 end as assert_cancellation_claim_rpc_is_service_only;
+
+select 1 / case when (
+  not has_table_privilege('anon', 'public.order_cancellation_claims', 'select')
+  and not has_table_privilege('authenticated', 'public.order_cancellation_claims', 'select')
+  and has_table_privilege('service_role', 'public.order_cancellation_claims', 'select')
+  and not has_table_privilege('service_role', 'public.order_cancellation_claims', 'insert')
+  and not has_table_privilege('service_role', 'public.order_cancellation_claims', 'update')
+  and not has_table_privilege('service_role', 'public.order_cancellation_claims', 'delete')
+) then 1 else 0 end as assert_cancellation_claim_table_is_server_read_only;
+
 -- 승인과 취소는 주문 → 결제 순서로 잠가 동시 실행 교착을 피한다.
 with definition as (
   select pg_get_functiondef(
@@ -114,7 +129,8 @@ values
   ('order-cancel-done', 'order-cancel-ip', '배송 완료 굿즈', '테스트', 10000, 'ok', 9),
   ('order-cancel-terminal', 'order-cancel-ip', '종결 결제 취소 굿즈', '테스트', 10000, 'ok', 9),
   ('order-cancel-reward', 'order-cancel-ip', '리워드 취소 굿즈', '테스트', 10000, 'ok', 9),
-  ('order-cancel-failed-evidence', 'order-cancel-ip', '실패 장부 취소 굿즈', '테스트', 10000, 'ok', 9);
+  ('order-cancel-failed-evidence', 'order-cancel-ip', '실패 장부 취소 굿즈', '테스트', 10000, 'ok', 9),
+  ('order-cancel-claim', 'order-cancel-ip', '취소 claim 굿즈', '테스트', 10000, 'ok', 9);
 
 insert into public.orders (id, user_id, status, total, address, expires_at)
 values
@@ -151,6 +167,10 @@ values
   (
     '40000000-0000-4000-8000-000000000708',
     '00000000-0000-4000-8000-000000000701', 'paid', 10000, '{}'::jsonb, null
+  ),
+  (
+    '40000000-0000-4000-8000-000000000709',
+    '00000000-0000-4000-8000-000000000701', 'paid', 10000, '{}'::jsonb, null
   );
 
 insert into public.order_items (
@@ -170,7 +190,8 @@ values
   ('40000000-0000-4000-8000-000000000705', 'order-cancel-done', 1, 10000, '배송 완료 굿즈', '테스트', 'order-cancel-ip'),
   ('40000000-0000-4000-8000-000000000706', 'order-cancel-terminal', 1, 10000, '종결 결제 취소 굿즈', '테스트', 'order-cancel-ip'),
   ('40000000-0000-4000-8000-000000000707', 'order-cancel-reward', 1, 10000, '리워드 취소 굿즈', '테스트', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000708', 'order-cancel-failed-evidence', 1, 10000, '실패 장부 취소 굿즈', '테스트', 'order-cancel-ip');
+  ('40000000-0000-4000-8000-000000000708', 'order-cancel-failed-evidence', 1, 10000, '실패 장부 취소 굿즈', '테스트', 'order-cancel-ip'),
+  ('40000000-0000-4000-8000-000000000709', 'order-cancel-claim', 1, 10000, '취소 claim 굿즈', '테스트', 'order-cancel-ip');
 
 insert into public.payments (
   id, user_id, purpose, ref_id, amount, status,
@@ -206,6 +227,12 @@ values
     '00000000-0000-4000-8000-000000000701', 'order',
     '40000000-0000-4000-8000-000000000708', 10000, 'failed',
     'provider-key-failed', 'provider-key-failed', '{"secret":"failed"}'::jsonb
+  ),
+  (
+    '50000000-0000-4000-8000-000000000709',
+    '00000000-0000-4000-8000-000000000701', 'order',
+    '40000000-0000-4000-8000-000000000709', 10000, 'paid',
+    'provider-key-claim', 'provider-key-claim', '{"secret":"claim"}'::jsonb
   );
 
 insert into public.card_pools (id, ip_id, name, active_from)
@@ -244,6 +271,97 @@ values (
   '[{"cardId":"historical-card","rarity":"common","isNew":true}]'::jsonb,
   'draw_ticket:60000000-0000-4000-8000-000000000701'
 );
+
+-- Provider 호출 전 claim은 소유권을 다시 확인하고 상태 전이를 원자적으로 봉인한다.
+set local role service_role;
+
+select 1 / case when public.claim_order_cancellation(
+  '40000000-0000-4000-8000-000000000709',
+  '00000000-0000-4000-8000-000000000702'
+) = 'not_found' then 1 else 0 end as assert_other_user_cannot_claim_order;
+
+select 1 / case when public.claim_order_cancellation(
+  '40000000-0000-4000-8000-000000000709',
+  '00000000-0000-4000-8000-000000000701'
+) = 'paid' then 1 else 0 end as assert_owner_claims_paid_order;
+
+-- 같은 요청 재시도는 기존 claim을 그대로 반환한다.
+select 1 / case when public.claim_order_cancellation(
+  '40000000-0000-4000-8000-000000000709',
+  '00000000-0000-4000-8000-000000000701'
+) = 'paid' then 1 else 0 end as assert_cancellation_claim_is_idempotent;
+
+reset role;
+
+select 1 / case when (
+  select count(*) = 1 and bool_and(previous_status = 'paid')
+  from public.order_cancellation_claims
+  where order_id = '40000000-0000-4000-8000-000000000709'
+) then 1 else 0 end as assert_cancellation_claim_is_durable;
+
+do $$
+begin
+  begin
+    update public.orders
+    set status = 'shipping'
+    where id = '40000000-0000-4000-8000-000000000709';
+    raise exception 'claimed order should not enter shipping';
+  exception
+    when check_violation then
+      if sqlerrm <> 'order cancellation in progress' then raise; end if;
+  end;
+end;
+$$;
+
+select 1 / case when (
+  select status = 'paid'
+  from public.orders
+  where id = '40000000-0000-4000-8000-000000000709'
+) then 1 else 0 end as assert_claim_blocks_fulfillment_transition;
+
+set local role service_role;
+
+do $$
+begin
+  begin
+    perform public.confirm_order_payment(
+      'provider-key-claim-race',
+      '40000000-0000-4000-8000-000000000709',
+      'provider-key-claim-race',
+      10000,
+      '{"verified":true}'::jsonb
+    );
+    raise exception 'claimed order should not confirm a new payment';
+  exception
+    when raise_exception then
+      if sqlerrm <> 'order not payable' then raise; end if;
+  end;
+end;
+$$;
+
+select public.cancel_order_with_provider_evidence(
+  '40000000-0000-4000-8000-000000000709',
+  'claim 이후 provider 취소 완료',
+  array['provider-key-claim']::text[]
+);
+
+reset role;
+
+select 1 / case when (
+  (select status = 'canceled' from public.orders where id = '40000000-0000-4000-8000-000000000709')
+  and (select stock_qty = 10 from public.goods where id = 'order-cancel-claim')
+  and (select status = 'refunded' from public.payments where id = '50000000-0000-4000-8000-000000000709')
+  and not exists (
+    select 1
+    from public.payments
+    where idempotency_key = 'provider-key-claim-race'
+  )
+  and not exists (
+    select 1
+    from public.order_cancellation_claims
+    where order_id = '40000000-0000-4000-8000-000000000709'
+  )
+) then 1 else 0 end as assert_cancel_finalization_clears_claim_once;
 
 set local role service_role;
 
@@ -343,6 +461,13 @@ select 1 / case when (
 ) then 1 else 0 end as assert_canceled_order_converges_late_payment_once;
 
 -- Any active provider payment blocks local cancellation without matching evidence.
+set local role service_role;
+select 1 / case when public.claim_order_cancellation(
+  '40000000-0000-4000-8000-000000000702',
+  '00000000-0000-4000-8000-000000000701'
+) = 'pending' then 1 else 0 end as assert_active_order_claimed_before_provider_call;
+reset role;
+
 do $$
 begin
   begin
@@ -361,6 +486,11 @@ $$;
 select 1 / case when (
   (select status = 'pending' from public.orders where id = '40000000-0000-4000-8000-000000000702')
   and (select stock_qty = 9 from public.goods where id = 'order-cancel-active')
+  and exists (
+    select 1
+    from public.order_cancellation_claims
+    where order_id = '40000000-0000-4000-8000-000000000702'
+  )
 ) then 1 else 0 end as assert_blocked_provider_cancel_preserves_order_and_stock;
 
 -- Every active attempt must be provider-canceled; one matching key is not enough.
@@ -394,6 +524,11 @@ select 1 / case when (
     join public.payments as payment on payment.id = refund.payment_id
     where payment.ref_id = '40000000-0000-4000-8000-000000000702'
   )
+  and exists (
+    select 1
+    from public.order_cancellation_claims
+    where order_id = '40000000-0000-4000-8000-000000000702'
+  )
 ) then 1 else 0 end as assert_partial_provider_evidence_preserves_all_local_state;
 
 select public.cancel_order_with_provider_evidence(
@@ -421,9 +556,21 @@ select 1 / case when (
       '50000000-0000-4000-8000-000000000712'
     )
   )
+  and not exists (
+    select 1
+    from public.order_cancellation_claims
+    where order_id = '40000000-0000-4000-8000-000000000702'
+  )
 ) then 1 else 0 end as assert_provider_evidence_closes_order_payment_and_refund;
 
 -- A paid order can never be locally canceled without payment evidence.
+set local role service_role;
+select 1 / case when public.claim_order_cancellation(
+  '40000000-0000-4000-8000-000000000703',
+  '00000000-0000-4000-8000-000000000701'
+) = 'paid' then 1 else 0 end as assert_paid_order_claimed_before_evidence_check;
+reset role;
+
 do $$
 begin
   begin
@@ -442,6 +589,11 @@ $$;
 select 1 / case when (
   (select status = 'paid' from public.orders where id = '40000000-0000-4000-8000-000000000703')
   and (select stock_qty = 9 from public.goods where id = 'order-cancel-no-evidence')
+  and exists (
+    select 1
+    from public.order_cancellation_claims
+    where order_id = '40000000-0000-4000-8000-000000000703'
+  )
 ) then 1 else 0 end as assert_missing_evidence_preserves_paid_order_and_stock;
 
 -- A local failed record is not refund evidence by itself.
@@ -589,7 +741,7 @@ select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000701', true);
 
 select 1 / case when (
-  select count(*) = 6
+  select count(*) = 7
   from public.refunds
 ) then 1 else 0 end as assert_owner_can_read_safe_refund_summaries;
 

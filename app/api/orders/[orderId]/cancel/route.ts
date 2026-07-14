@@ -65,7 +65,7 @@ export async function POST(
     return errorJson(502, 'cancel_failed');
   }
   if (!orderData) return errorJson(404, 'not_found');
-  const wasCanceled = orderData.status === 'canceled';
+  let wasCanceled = orderData.status === 'canceled';
   if (orderData.status !== 'pending' && orderData.status !== 'paid' && !wasCanceled) {
     return errorJson(409, 'not_cancelable');
   }
@@ -90,9 +90,27 @@ export async function POST(
   }
 
   const paymentKeys = activePayments.map((payment) => payment.payment_key as string);
-  if (paymentKeys.length > 0) {
-    if (!getTossConfig().isConfigured) return errorJson(503, 'not_configured');
+  if (paymentKeys.length > 0 && !getTossConfig().isConfigured) {
+    return errorJson(503, 'not_configured');
+  }
 
+  const { data: claimData, error: claimError } = await service.rpc('claim_order_cancellation', {
+    p_order_id: orderId,
+    p_user_id: user.id,
+  });
+  if (claimError) {
+    console.error('[orders/cancel] cancellation claim failed');
+    return errorJson(502, 'cancel_failed');
+  }
+  if (claimData === 'not_found') return errorJson(404, 'not_found');
+  if (claimData === 'not_cancelable') return errorJson(409, 'not_cancelable');
+  if (claimData !== 'pending' && claimData !== 'paid' && claimData !== 'already_canceled') {
+    console.error('[orders/cancel] unexpected cancellation claim result');
+    return errorJson(502, 'cancel_failed');
+  }
+  wasCanceled ||= claimData === 'already_canceled';
+
+  if (paymentKeys.length > 0) {
     for (const paymentKey of paymentKeys) {
       const canceled = await cancelTossPayment(paymentKey, CANCEL_REASON);
       if (!canceled.ok && canceled.code !== 'ALREADY_CANCELED_PAYMENT') {

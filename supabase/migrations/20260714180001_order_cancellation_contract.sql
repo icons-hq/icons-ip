@@ -8,6 +8,121 @@
 create unique index refunds_payment_id_unique_idx
   on public.refunds (payment_id);
 
+-- 외부 provider 호출 동안 DB transaction을 열어 둘 수 없으므로, 주문 행 잠금 아래
+-- durable claim을 먼저 남긴다. claim이 있으면 결제 확정·배송 전이는 취소 완료 전까지
+-- fail closed하고, provider 일부 성공/응답 유실 뒤에도 같은 요청으로 안전하게 재시도한다.
+create table public.order_cancellation_claims (
+  order_id uuid primary key references public.orders(id) on delete cascade,
+  requested_by uuid not null,
+  previous_status public.order_status not null
+    check (previous_status in ('pending', 'paid')),
+  claimed_at timestamptz not null default now()
+);
+
+alter table public.order_cancellation_claims enable row level security;
+revoke all on table public.order_cancellation_claims
+  from public, anon, authenticated, service_role;
+grant select on table public.order_cancellation_claims to service_role;
+
+create or replace function public.claim_order_cancellation(
+  p_order_id uuid,
+  p_user_id uuid
+)
+returns text
+language plpgsql
+volatile
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_user_id uuid;
+  v_status public.order_status;
+  v_previous_status public.order_status;
+begin
+  select orders.user_id, orders.status
+  into v_user_id, v_status
+  from public.orders
+  where orders.id = p_order_id
+  for update;
+
+  if not found or p_user_id is null or v_user_id is distinct from p_user_id then
+    return 'not_found';
+  end if;
+
+  if v_status = 'canceled' then
+    delete from public.order_cancellation_claims
+    where order_id = p_order_id;
+    return 'already_canceled';
+  end if;
+
+  if v_status not in ('pending', 'paid') then
+    return 'not_cancelable';
+  end if;
+
+  select claim.previous_status
+  into v_previous_status
+  from public.order_cancellation_claims as claim
+  where claim.order_id = p_order_id;
+
+  if found then
+    return v_previous_status::text;
+  end if;
+
+  insert into public.order_cancellation_claims (
+    order_id,
+    requested_by,
+    previous_status
+  )
+  values (
+    p_order_id,
+    p_user_id,
+    v_status
+  );
+
+  return v_status::text;
+end;
+$$;
+
+-- 모든 향후 배송 writer에도 자동 적용되는 DB invariant다. 취소 claim이 먼저면
+-- canceled 이외 상태 전이를 거절하고, 상태 전이가 먼저면 claim RPC가 새 상태를 보고 거절한다.
+create or replace function public.guard_order_transition_during_cancellation()
+returns trigger
+language plpgsql
+volatile
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if new.status is distinct from old.status
+    and new.status <> 'canceled'
+    and exists (
+      select 1
+      from public.order_cancellation_claims as claim
+      where claim.order_id = old.id
+    )
+  then
+    raise exception using
+      errcode = '23514',
+      message = 'order cancellation in progress';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger orders_guard_cancellation_transition
+before update of status on public.orders
+for each row
+execute function public.guard_order_transition_during_cancellation();
+
+revoke all on function public.claim_order_cancellation(uuid, uuid)
+  from public, anon, authenticated, service_role;
+grant execute on function public.claim_order_cancellation(uuid, uuid)
+  to service_role;
+
+revoke all on function public.guard_order_transition_during_cancellation()
+  from public, anon, authenticated, service_role;
+
 -- 결제 승인과 취소가 같은 주문에서 겹쳐도 교착하지 않도록 두 RPC 모두
 -- 주문을 먼저 잠그고 결제 행을 잠근다. 기존 승인 동작과 멱등 계약은 유지한다.
 create or replace function public.confirm_order_payment(
@@ -52,6 +167,14 @@ begin
     if v_existing.status <> 'pending' then
       raise exception 'payment not payable';
     end if;
+  end if;
+
+  if exists (
+    select 1
+    from public.order_cancellation_claims as claim
+    where claim.order_id = p_order_id
+  ) then
+    raise exception 'order not payable';
   end if;
 
   if v_user is null then
@@ -273,6 +396,9 @@ begin
       expires_at = null
     where id = p_order_id;
   end if;
+
+  delete from public.order_cancellation_claims
+  where order_id = p_order_id;
 end;
 $$;
 

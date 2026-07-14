@@ -13,7 +13,8 @@ const mocks = vi.hoisted(() => ({
   orderError: null as { message: string } | null,
   payments: [] as Array<{ id: string; status: 'pending' | 'paid'; payment_key: string | null }>,
   paymentsError: null as { message: string } | null,
-  rpcResult: { data: null, error: null } as { data: unknown; error: { message: string } | null },
+  claimResult: null as { data: unknown; error: { message: string } | null } | null,
+  cancelResult: { data: null, error: null } as { data: unknown; error: { message: string } | null },
   orderEq: vi.fn(),
   paymentEq: vi.fn(),
   paymentIn: vi.fn(),
@@ -88,14 +89,25 @@ describe('POST /api/orders/[orderId]/cancel', () => {
     mocks.orderError = null;
     mocks.payments = [];
     mocks.paymentsError = null;
-    mocks.rpcResult = { data: null, error: null };
+    mocks.claimResult = null;
+    mocks.cancelResult = { data: null, error: null };
     mocks.orderEq.mockReset();
     mocks.paymentEq.mockReset();
     mocks.paymentIn.mockReset();
     mocks.cancel.mockReset();
     mocks.rpc.mockReset();
     mocks.cancel.mockResolvedValue({ ok: true, body: { status: 'CANCELED' } });
-    mocks.rpc.mockImplementation(async () => mocks.rpcResult);
+    mocks.rpc.mockImplementation(async (functionName: string) => {
+      if (functionName === 'claim_order_cancellation') {
+        if (mocks.claimResult) return mocks.claimResult;
+        const status = mocks.order?.status;
+        return {
+          data: status === 'canceled' ? 'already_canceled' : status,
+          error: null,
+        };
+      }
+      return mocks.cancelResult;
+    });
   });
 
   it('RouteContext params를 await하고 UUID를 소문자 canonical 형식으로 조회한다', async () => {
@@ -200,6 +212,46 @@ describe('POST /api/orders/[orderId]/cancel', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { claim: 'not_found', status: 404, code: 'not_found' },
+    { claim: 'not_cancelable', status: 409, code: 'not_cancelable' },
+  ])('provider 호출 직전 claim 결과 $claim을 안전한 오류로 매핑한다', async ({ claim, status, code }) => {
+    mocks.payments = [{ id: 'payment-1', status: 'paid', payment_key: 'pk_private' }];
+    mocks.claimResult = { data: claim, error: null };
+
+    const response = await POST(request(), context());
+
+    expect(response.status).toBe(status);
+    await expect(response.json()).resolves.toEqual({ error: { code } });
+    expect(mocks.cancel).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalledWith(
+      'cancel_order_with_provider_evidence',
+      expect.anything(),
+    );
+  });
+
+  it('claim DB 오류와 예상하지 못한 결과는 provider 전에 일반화된 실패로 닫는다', async () => {
+    mocks.payments = [{ id: 'payment-1', status: 'paid', payment_key: 'pk_private' }];
+    mocks.claimResult = { data: null, error: { message: 'private claim raw' } };
+
+    const failedClaim = await POST(request(), context());
+    const failedBody = await failedClaim.json();
+
+    expect(failedClaim.status).toBe(502);
+    expect(failedBody).toEqual({ error: { code: 'cancel_failed' } });
+    expect(JSON.stringify(failedBody)).not.toContain('private');
+    expect(mocks.cancel).not.toHaveBeenCalled();
+
+    mocks.claimResult = { data: 'unexpected-private-state', error: null };
+    const unexpectedClaim = await POST(request(), context());
+    const unexpectedBody = await unexpectedClaim.json();
+
+    expect(unexpectedClaim.status).toBe(502);
+    expect(unexpectedBody).toEqual({ error: { code: 'cancel_failed' } });
+    expect(JSON.stringify(unexpectedBody)).not.toContain('unexpected-private-state');
+    expect(mocks.cancel).not.toHaveBeenCalled();
+  });
+
   it('active 결제가 없는 pending 주문은 Toss 설정 없이 empty evidence로 취소한다', async () => {
     mocks.order = { id: ORDER_UUID, user_id: USER_ID, status: 'pending' };
     mocks.tossConfigured = false;
@@ -217,7 +269,7 @@ describe('POST /api/orders/[orderId]/cancel', () => {
   });
 
   it('paid 주문도 active 증거가 없으면 empty evidence RPC가 DB에서 fail closed한다', async () => {
-    mocks.rpcResult = { data: null, error: { message: 'paid order requires provider evidence: pk_private' } };
+    mocks.cancelResult = { data: null, error: { message: 'paid order requires provider evidence: pk_private' } };
 
     const response = await POST(request(), context());
     const body = await response.json();
@@ -243,6 +295,11 @@ describe('POST /api/orders/[orderId]/cancel', () => {
     expect(mocks.paymentEq).toHaveBeenCalledWith('purpose', 'order');
     expect(mocks.paymentEq).toHaveBeenCalledWith('ref_id', ORDER_UUID);
     expect(mocks.paymentIn).toHaveBeenCalledWith('status', ['pending', 'paid']);
+    expect(mocks.rpc).toHaveBeenNthCalledWith(1, 'claim_order_cancellation', {
+      p_order_id: ORDER_UUID,
+      p_user_id: USER_ID,
+    });
+    expect(mocks.rpc.mock.invocationCallOrder[0]).toBeLessThan(mocks.cancel.mock.invocationCallOrder[0]);
     expect(mocks.cancel).toHaveBeenNthCalledWith(1, 'pk_pending', '사용자 주문 취소');
     expect(mocks.cancel).toHaveBeenNthCalledWith(2, 'pk_paid', '사용자 주문 취소');
     expect(mocks.rpc).toHaveBeenCalledWith('cancel_order_with_provider_evidence', {
@@ -293,7 +350,14 @@ describe('POST /api/orders/[orderId]/cancel', () => {
     expect(JSON.stringify(body)).not.toContain(providerFailure.code);
     expect(JSON.stringify(body)).not.toContain(providerFailure.message);
     expect(JSON.stringify(body)).not.toContain('pk_private');
-    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith('claim_order_cancellation', {
+      p_order_id: ORDER_UUID,
+      p_user_id: USER_ID,
+    });
+    expect(mocks.rpc).not.toHaveBeenCalledWith(
+      'cancel_order_with_provider_evidence',
+      expect.anything(),
+    );
   });
 
   it('여러 active payment 중 일부만 취소되면 로컬 RPC를 보류해 다음 요청에서 재시도할 수 있다', async () => {
@@ -314,7 +378,14 @@ describe('POST /api/orders/[orderId]/cancel', () => {
 
     expect(response.status).toBe(502);
     expect(mocks.cancel).toHaveBeenCalledTimes(2);
-    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith('claim_order_cancellation', {
+      p_order_id: ORDER_UUID,
+      p_user_id: USER_ID,
+    });
+    expect(mocks.rpc).not.toHaveBeenCalledWith(
+      'cancel_order_with_provider_evidence',
+      expect.anything(),
+    );
   });
 
   it('부분 성공 뒤 재시도는 이미 취소 응답을 성공으로 인정해 나머지 key와 로컬 상태를 정합화한다', async () => {
