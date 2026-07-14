@@ -204,10 +204,11 @@ Production Auth 설정:
 
 ### 9.1 환경 변수 · 로컬/프리뷰 검증 (테스트 키)
 
-- 서버 전용 env: `TOSS_SECRET_KEY`(테스트 `test_sk…` / 라이브 `live_sk…`), `SUPABASE_SERVICE_ROLE_KEY`. 클라이언트 번들에 노출하지 않는다(`NEXT_PUBLIC_` 접두사 금지). 위젯 클라이언트 키는 체크아웃(#90)에서 `NEXT_PUBLIC_TOSS_CLIENT_KEY`로 추가한다.
+- 서버 전용 env: `TOSS_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`. 클라이언트 번들에 노출하지 않는다(`NEXT_PUBLIC_` 접두사 금지).
+- 토스 키는 개발자센터 **API 키 > 결제위젯 연동 키**의 것을 쓴다: `TOSS_SECRET_KEY` = 위젯 시크릿 키(테스트 `test_gsk_…` / 라이브 `live_gsk_…`), `NEXT_PUBLIC_TOSS_CLIENT_KEY` = 위젯 클라이언트 키(`test_gck_…` / `live_gck_…`, 체크아웃 #90에서 사용). 두 키는 **같은 연동 키 세트**여야 한다 — 세트가 어긋나면 승인 API가 `INVALID_API_KEY`/`UNAUTHORIZED_KEY`/`NOT_FOUND_PAYMENT_SESSION`으로 실패한다. `test_sk_…`(API 개별연동 키)는 위젯 결제 승인에 쓰지 않는다.
 - 키 미구성 환경에서 두 라우트는 503(`not_configured`)으로 응답한다 — mock/카탈로그-only 모드에서 안전.
 - 로컬 검증 경로(테스트 키):
-  1. 개발자센터 테스트 시크릿 키를 `.env.local`의 `TOSS_SECRET_KEY`로, 로컬 Supabase service key(`supabase status`)를 `SUPABASE_SERVICE_ROLE_KEY`로 설정한다.
+  1. 결제위젯 연동 테스트 시크릿 키(`test_gsk_…`)를 `.env.local`의 `TOSS_SECRET_KEY`로, 로컬 Supabase service key(`supabase status`)를 `SUPABASE_SERVICE_ROLE_KEY`로 설정한다.
   2. 순수 로직은 `npm run test`(`lib/payments/toss.test.ts`), DB 계층(확정 RPC·만료 sweep)은 로컬 psql로 RPC를 직접 호출해 확인한다.
   3. 웹훅 실수신은 ngrok 등으로 로컬을 노출해 개발자센터에 웹훅 URL(`https://<host>/api/webhooks/tosspayments`, `PAYMENT_STATUS_CHANGED`)을 등록하고 테스트 결제로 유발한다. 성공 기준은 10초 내 200 응답, 실패 시 최대 7회 재전송된다.
 - 프리뷰/프로덕션: Vercel env에 `TOSS_SECRET_KEY`·`SUPABASE_SERVICE_ROLE_KEY`를 추가해야 결제 라우트가 활성화된다. 라이브 키 전환은 상점 계약(#87) 이후.
