@@ -260,9 +260,10 @@ export async function POST(request: Request) {
             p_reason: '미지원 가상계좌 자동 취소',
             p_provider_payment_keys: [body.paymentKey],
           })
-        : await service.rpc('refund_ticket_order', {
+        : await service.rpc('refund_ticket_order_with_provider_evidence', {
             p_ticket_order_id: ref.refId,
             p_reason: '미지원 가상계좌 자동 취소',
+            p_provider_payment_key: body.paymentKey,
           });
       if (localCancelError) {
         console.error(`[payments/confirm] local checkout cancel failed: ${localCancelError.message}`);

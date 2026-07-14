@@ -290,8 +290,8 @@ export function IpHub({
                     <div className="mono" style={{ fontSize: 'clamp(22px, 2.4vw, 28px)', fontWeight: 700, marginTop: 12 }}>{event.date || '일정 공개 예정'}</div>
                     <div style={{ fontWeight: 700, fontSize: 16, marginTop: 6, textWrap: 'pretty' }}>{event.title}</div>
                     <div style={{ fontSize: 13, color: '#C9C3E4', marginTop: 4 }}>{event.loc || '장소 공개 예정'}</div>
-                    <Link className="btn btn-primary" href={`${hrefFor('events')}?ip=${ip.id}`} style={{ height: 40, padding: '0 20px', fontSize: 13.5, fontWeight: 700, marginTop: 16 }}>
-                      예매하기 →
+                    <Link className="btn btn-primary" href={`/events/${encodeURIComponent(event.id)}`} style={{ height: 40, padding: '0 20px', fontSize: 13.5, fontWeight: 700, marginTop: 16 }}>
+                      {event.status === '예매중' ? '예매하기' : '상세 보기'} →
                     </Link>
                   </div>
                 </>

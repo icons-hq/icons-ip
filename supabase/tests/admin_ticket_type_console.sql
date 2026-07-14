@@ -41,7 +41,7 @@ on conflict (id) do update set
 
 insert into public.events (id, title, mode, status)
 values
-  ('admin-ticket-event-a', '티켓 테스트 이벤트 A', '오프라인', '예정'),
+  ('admin-ticket-event-a', '티켓 테스트 이벤트 A', '오프라인', '예매중'),
   ('admin-ticket-event-b', '티켓 테스트 이벤트 B', '오프라인', '예정')
 on conflict (id) do update set title = excluded.title;
 
@@ -246,11 +246,20 @@ select 1 / case when (
 ) then 1 else 0 end as assert_unsold_ticket_type_can_move_events;
 
 -- 예약은 같은 type row를 잠그고 sold를 증가시킨다.
-select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000802', true);
+reset role;
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select set_config('request.jwt.claim.sub', '', true);
 select public.reserve_tickets(
+  '00000000-0000-4000-8000-000000000802',
   '44444444-4444-4444-8444-444444444801',
-  2
+  2,
+  '55555555-5555-4555-8555-555555555801'
 ) as reserved_ticket_order_id \gset
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000801', true);
 
 select 1 / case when public.admin_upsert_ticket_type(
@@ -396,7 +405,7 @@ select 1 / case when strpos(:'ticket_type_function_body', 'for update') > 0
   then 1 else 0 end as assert_ticket_type_upsert_locks_current_type;
 
 select lower(pg_get_functiondef(
-  'public.reserve_tickets(uuid,integer)'::regprocedure
+  'public.reserve_tickets(uuid,uuid,integer,uuid)'::regprocedure
 )) as reserve_function_body \gset
 
 select 1 / case when strpos(:'reserve_function_body', 'for update') > 0

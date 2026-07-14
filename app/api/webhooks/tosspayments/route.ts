@@ -173,7 +173,7 @@ async function applyReflectCancel(
   if (
     target.status === 'pending'
     || target.status === 'paid'
-    || (ref.purpose === 'order' && target.status === 'canceled')
+    || target.status === 'canceled'
   ) {
     const { error: rpcError } = ref.purpose === 'order'
       ? await service.rpc('cancel_order_with_provider_evidence', {
@@ -181,9 +181,10 @@ async function applyReflectCancel(
           p_reason: '토스 결제 취소 웹훅 반영',
           p_provider_payment_keys: [payment.paymentKey],
         })
-      : await service.rpc('refund_ticket_order', {
+      : await service.rpc('refund_ticket_order_with_provider_evidence', {
           p_ticket_order_id: ref.refId,
           p_reason: '토스 결제 취소 웹훅 반영',
+          p_provider_payment_key: payment.paymentKey,
         });
     if (rpcError) {
       console.error(`[webhooks/tosspayments] canceled checkout close failed: ${rpcError.message}`);
@@ -233,9 +234,10 @@ async function applyCancelUnsupported(
         p_reason: '미지원 가상계좌 자동 취소',
         p_provider_payment_keys: [payment.paymentKey],
       })
-    : await service.rpc('refund_ticket_order', {
+    : await service.rpc('refund_ticket_order_with_provider_evidence', {
         p_ticket_order_id: ref.refId,
         p_reason: '미지원 가상계좌 자동 취소',
+        p_provider_payment_key: payment.paymentKey,
       });
   if (error) {
     console.error(`[webhooks/tosspayments] local checkout cancel failed: ${error.message}`);

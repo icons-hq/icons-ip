@@ -1,7 +1,9 @@
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
 @import "tailwindcss";
-/* 신규 주문 콘솔의 @layer selectors가 production scan에서 제거되지 않게 고정한다. */
+/* 새 화면의 @layer selectors가 production scan에서 제거되지 않게 고정한다. */
 @source "../components/admin/sections/Orders.tsx";
+@source "../components/screens/EventDetail.tsx";
+@source "../components/screens/TicketCheckout.tsx";
 
 /* ============================================================
    ICONS — Holographic Midnight design system (Tailwind v4)
@@ -823,6 +825,80 @@
   .event-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
   .event-guide-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 
+  /* 이벤트 상세 · 회차 예매 */
+  .event-detail-page { min-height: 100vh; padding-bottom: clamp(76px, 9vw, 112px); }
+  .event-detail-hero { padding: clamp(112px, 12vw, 148px) 0 38px; }
+  .event-detail-hero-grid {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, .72fr);
+    gap: clamp(28px, 5vw, 72px); align-items: center;
+  }
+  .event-detail-copy { min-width: 0; }
+  .event-detail-back {
+    min-height: 44px; display: inline-flex; align-items: center;
+    color: var(--dim); font-size: 11px; font-weight: 700;
+  }
+  .event-detail-back:hover { color: var(--text); }
+  .event-detail-badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .event-detail-badges span {
+    min-height: 28px; display: inline-flex; align-items: center; padding: 0 10px;
+    border: 1px solid var(--line-2); border-radius: 999px; font-size: 10px; font-weight: 800;
+  }
+  .event-detail-copy h1 { margin: 18px 0 0; overflow-wrap: anywhere; }
+  .event-detail-meta { display: flex; flex-wrap: wrap; gap: 9px 18px; margin-top: 18px; color: var(--dim); font-size: 11px; }
+  .event-detail-copy > p { max-width: 650px; margin: 18px 0 0; color: var(--dim); font-size: 14px; line-height: 1.75; }
+  .event-detail-art {
+    position: relative; min-height: clamp(280px, 35vw, 420px); overflow: hidden;
+    border: 1px solid var(--line-2); border-radius: clamp(20px, 3vw, 34px);
+    box-shadow: 0 28px 80px rgba(0,0,0,.25);
+  }
+  .event-detail-art .sheen { position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,255,255,.15), transparent 36%, rgba(169,129,255,.12)); }
+  .event-booking-layout {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(330px, 390px);
+    gap: 20px; align-items: start;
+  }
+  .event-session-panel { min-width: 0; padding: clamp(22px, 3vw, 32px); }
+  .event-session-list { display: flex; flex-direction: column; gap: 10px; margin: 24px 0 0; padding: 0; border: 0; }
+  .event-session-card {
+    min-height: 82px; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto;
+    align-items: center; gap: 14px; padding: 16px; border: 1px solid var(--line-2);
+    border-radius: 14px; background: rgba(255,255,255,.018); cursor: pointer;
+    transition: border-color .2s ease, background .2s ease, transform .2s ease;
+  }
+  .event-session-card:hover:not(.is-disabled) { transform: translateY(-1px); border-color: var(--line-3); }
+  .event-session-card.is-selected { border-color: rgba(45,226,255,.55); background: rgba(45,226,255,.055); }
+  .event-session-card.is-disabled { cursor: not-allowed; opacity: .52; }
+  .event-session-card input { width: 17px; height: 17px; accent-color: var(--cyan); }
+  .event-session-card:focus-within { outline: 2px solid var(--cyan); outline-offset: 3px; }
+  .event-session-main, .event-session-price { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .event-session-main strong { overflow-wrap: anywhere; font-size: 14px; }
+  .event-session-main small, .event-session-price small { color: var(--faint); font-size: 10px; }
+  .event-session-price { align-items: flex-end; text-align: right; }
+  .event-session-price strong { font-size: 13px; }
+  .event-booking-summary { position: sticky; top: 92px; padding: 22px; overflow: hidden; }
+  .event-booking-summary::before {
+    content: ''; position: absolute; top: 0; left: 22px; right: 22px;
+    height: 2px; border-radius: 0 0 999px 999px; background: var(--holo);
+  }
+  .event-booking-selection { display: flex; flex-direction: column; gap: 6px; margin-top: 24px; }
+  .event-booking-selection span, .event-booking-selection small { color: var(--faint); font-size: 10px; }
+  .event-booking-selection strong { overflow-wrap: anywhere; font-size: 14px; }
+  .event-qty-field { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 20px; }
+  .event-qty-field > label { color: var(--dim); font-size: 12px; font-weight: 700; }
+  .event-qty-control { display: grid; grid-template-columns: 38px 50px 38px; border: 1px solid var(--line-2); border-radius: 12px; overflow: hidden; }
+  .event-qty-control button, .event-qty-control input {
+    min-height: 38px; border: 0; outline: 0; color: var(--text); background: transparent;
+    font: inherit; text-align: center;
+  }
+  .event-qty-control button { cursor: pointer; color: var(--cyan); font-size: 18px; }
+  .event-qty-control button:disabled { cursor: not-allowed; color: var(--faint); }
+  .event-qty-control input { width: 50px; border-inline: 1px solid var(--line-2); font-family: var(--ff-mono); font-size: 11px; }
+  .event-qty-control input::-webkit-inner-spin-button { appearance: none; }
+  .event-qty-control:focus-within { outline: 2px solid var(--cyan); outline-offset: 3px; }
+  .event-booking-empty { margin: 24px 0 0; color: var(--dim); font-size: 13px; }
+  .ticket-receipt-event { display: flex; flex-direction: column; gap: 7px; margin-top: 22px; padding-bottom: 18px; border-bottom: 1px solid var(--line-2); }
+  .ticket-receipt-event span, .ticket-receipt-event small { color: var(--faint); font-size: 10px; }
+  .ticket-receipt-event strong { overflow-wrap: anywhere; font-size: 14px; }
+
   /* 바인더 — 도감 그리드 · CTA 행 · 상세 모달 (claude-design v2) */
   .binder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
   .binder-card { transition: transform .25s ease, border-color .25s ease; }
@@ -1174,6 +1250,9 @@
   .event-featured { grid-template-columns: 1fr; }
   .event-grid { grid-template-columns: 1fr; }
   .event-guide-grid { grid-template-columns: 1fr; }
+  .event-detail-hero-grid, .event-booking-layout { grid-template-columns: 1fr; }
+  .event-detail-art { min-height: 360px; }
+  .event-booking-summary { position: static; }
   .binder-grid { grid-template-columns: repeat(2, 1fr); }
   .binder-cta-row { grid-template-columns: 1fr; }
   .binder-detail { grid-template-columns: 1fr; }
@@ -1324,6 +1403,13 @@
   .checkout-result { min-height: 390px; padding: 32px 20px; }
   .checkout-result h1 { font-size: 24px; }
   .checkout-empty { margin-top: 108px; }
+
+  .event-detail-hero { padding-top: 96px; }
+  .event-detail-art { min-height: 270px; }
+  .event-session-panel, .event-booking-summary { padding: 18px; }
+  .event-booking-layout { padding-left: 8px; padding-right: 8px; }
+  .event-session-card { grid-template-columns: 18px minmax(0, 1fr); }
+  .event-session-price { grid-column: 2; align-items: flex-start; text-align: left; }
 
   .orders-header, .order-detail-header { padding-top: 36px; padding-bottom: 26px; }
   .orders-header h1, .order-detail-header h1 { font-size: clamp(32px, 12vw, 48px); }

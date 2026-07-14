@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
 import { PaymentConfirmation } from '@/components/payments/PaymentConfirmation';
-import { normalizeOrderReference } from '@/lib/checkout';
 import { parseTossOrderId } from '@/lib/payments/toss';
+import { normalizeTicketReference } from '@/lib/ticketing';
 
 export const metadata: Metadata = {
-  title: '결제 확인 — ICONS',
+  title: '예매 결제 확인 — ICONS',
   robots: { index: false, follow: false },
 };
 
@@ -23,8 +23,9 @@ export default async function Page({
   const paymentType = one(query.paymentType);
   const rawAmount = one(query.amount);
   const rawRef = one(query.ref);
-  const providerRef = parseTossOrderId(orderId)?.refId ?? null;
-  const refId = normalizeOrderReference(rawRef) ?? normalizeOrderReference(providerRef);
+  const parsedProviderRef = parseTossOrderId(orderId);
+  const providerRef = parsedProviderRef?.purpose === 'ticket' ? parsedProviderRef.refId : null;
+  const refId = normalizeTicketReference(rawRef) ?? normalizeTicketReference(providerRef);
   const amountValue = Number(rawAmount);
   const amount = Number.isSafeInteger(amountValue) && amountValue > 0 ? amountValue : null;
   const resumeParams = new URLSearchParams();
@@ -37,19 +38,19 @@ export default async function Page({
   ] as const) {
     if (value) resumeParams.set(key, value);
   }
-  const resumePath = `/checkout/success${resumeParams.size ? `?${resumeParams.toString()}` : ''}`;
+  const resumePath = `/ticket-checkout/success${resumeParams.size ? `?${resumeParams.toString()}` : ''}`;
 
   return (
     <PaymentConfirmation
       amount={amount}
-      destinationPath={refId ? `/checkout/${refId}` : null}
-      fallbackHref="/checkout"
-      fallbackLabel="진행 중인 주문 찾기"
+      destinationPath={refId ? `/ticket-checkout/${refId}` : null}
+      fallbackHref="/events"
+      fallbackLabel="이벤트 목록으로"
       orderId={orderId}
       paymentKey={paymentKey}
       paymentType={paymentType}
       resumePath={resumePath}
-      subject="주문"
+      subject="예매"
     />
   );
 }
