@@ -12,6 +12,7 @@ export function MobNav() {
   if (
     pathname === '/login'
     || pathname.startsWith('/checkout')
+    || pathname.startsWith('/ticket-checkout')
     || pathname.startsWith('/games')
     || pathname.startsWith('/admin')
   ) return null;

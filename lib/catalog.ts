@@ -20,6 +20,13 @@ export interface CatalogSnapshotOptions {
   previewDefaultSource?: CatalogSource;
 }
 
+export function getCatalogSource(options: CatalogSnapshotOptions = {}): CatalogSource {
+  return resolveCatalogSource({
+    isSupabaseConfigured: getSupabaseConfig().isConfigured,
+    previewDefaultSource: options.previewDefaultSource,
+  });
+}
+
 export interface CatalogPostPreview {
   id: string;
   user: string;
@@ -387,10 +394,7 @@ async function blockedUserIds(supabase: CatalogSupabaseClient, viewerId: string 
 }
 
 export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): Promise<CatalogSnapshot> {
-  const source = resolveCatalogSource({
-    isSupabaseConfigured: getSupabaseConfig().isConfigured,
-    previewDefaultSource: options.previewDefaultSource,
-  });
+  const source = getCatalogSource(options);
   if (source === 'mock') return mockSnapshot();
 
   const supabase = await createClient();

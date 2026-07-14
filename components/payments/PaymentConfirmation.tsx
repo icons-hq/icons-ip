@@ -6,11 +6,14 @@ import { useEffect, useRef, useState } from 'react';
 
 interface PaymentConfirmationProps {
   amount: number | null;
+  destinationPath: string | null;
+  fallbackHref: string;
+  fallbackLabel: string;
   orderId: string | null;
   paymentKey: string | null;
   paymentType: string | null;
-  refId: string | null;
   resumePath: string;
+  subject: '주문' | '예매';
 }
 
 export function PaymentConfirmation(props: PaymentConfirmationProps) {
@@ -18,7 +21,7 @@ export function PaymentConfirmation(props: PaymentConfirmationProps) {
   const started = useRef(false);
   const invalidResult = !props.paymentKey || !props.orderId || !props.amount || props.paymentType !== 'NORMAL';
   const [error, setError] = useState<string | null>(() => (
-    invalidResult ? '결제 결과 정보가 올바르지 않아요. 주문 화면에서 상태를 다시 확인해주세요.' : null
+    invalidResult ? `결제 결과 정보가 올바르지 않아요. ${props.subject} 화면에서 상태를 다시 확인해주세요.` : null
   ));
   const [authRequired, setAuthRequired] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
@@ -44,19 +47,29 @@ export function PaymentConfirmation(props: PaymentConfirmationProps) {
         if (!response.ok) {
           setAuthRequired(response.status === 401);
           setError(response.status === 401
-            ? '로그인이 만료됐어요. 다시 로그인한 뒤 주문 상태를 확인해주세요.'
+            ? `로그인이 만료됐어요. 다시 로그인한 뒤 ${props.subject} 상태를 확인해주세요.`
             : '결제 승인 결과를 확인하지 못했어요. 잠시 후 다시 시도해주세요.');
           return;
         }
-        if (props.refId) router.replace(`/checkout/${props.refId}`);
-        else setError('주문 식별자를 확인하지 못했어요. 고객센터에 문의해주세요.');
+        if (props.destinationPath) router.replace(props.destinationPath);
+        else setError(`${props.subject} 식별자를 확인하지 못했어요. 고객센터에 문의해주세요.`);
       } catch {
         setError('네트워크 연결을 확인한 뒤 다시 시도해주세요.');
       }
     };
 
     void confirm();
-  }, [invalidResult, props.amount, props.orderId, props.paymentKey, props.paymentType, props.refId, retryKey, router]);
+  }, [
+    invalidResult,
+    props.amount,
+    props.destinationPath,
+    props.orderId,
+    props.paymentKey,
+    props.paymentType,
+    props.subject,
+    retryKey,
+    router,
+  ]);
 
   const retry = () => {
     started.current = false;
@@ -78,8 +91,12 @@ export function PaymentConfirmation(props: PaymentConfirmationProps) {
           </Link>
         )}
         {error && !invalidResult && !authRequired && <button className="btn btn-holo" type="button" onClick={retry}>다시 확인</button>}
-        {error && props.refId && <Link className="btn btn-ghost" href={`/checkout/${props.refId}`}>주문 화면으로</Link>}
-        {error && !props.refId && <Link className="btn btn-ghost" href="/checkout">진행 중인 주문 찾기</Link>}
+        {error && props.destinationPath && (
+          <Link className="btn btn-ghost" href={props.destinationPath}>{props.subject} 화면으로</Link>
+        )}
+        {error && !props.destinationPath && (
+          <Link className="btn btn-ghost" href={props.fallbackHref}>{props.fallbackLabel}</Link>
+        )}
       </div>
     </main>
   );

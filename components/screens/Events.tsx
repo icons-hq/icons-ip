@@ -10,11 +10,9 @@ import { ipAccent } from '@/lib/ip-display';
 import { hrefFor } from '@/lib/routes';
 
 const statusColor = (s: string) => (s === '진행중' ? 'var(--mint)' : s === '예매중' ? 'var(--cyan)' : 'var(--dim)');
-const ctaFor = (s: string) => (s === '진행중' ? '현장 정보' : s === '예매중' ? '티켓 예매' : '오픈 알림 신청');
+const ctaFor = (s: string) => (s === '진행중' ? '현장 정보' : s === '예매중' ? '티켓 예매' : '상세 보기');
 const footNoteFor = (s: string) => (s === '예매중' ? '잔여 회차 있음' : s === '진행중' ? '현장 발권 가능' : '오픈 예정');
-
-/* 예매·알림은 보호 액션 — 실 티케팅 배선 전까지 로그인 게이트로 보낸다 */
-const CTA_HREF = '/login?next=%2Fevents';
+const eventHref = (id: string) => `/events/${encodeURIComponent(id)}`;
 
 const GUIDE = [
   { n: '01', t: '예매', d: '회차와 인원을 고르고 토스페이먼츠로 결제해요.' },
@@ -47,7 +45,7 @@ function FeaturedEvent({ e, ip, games }: { e: FandomEvent; ip: Ip | null; games:
               <span>◎ {e.loc || '장소 공개 예정'}</span>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 26 }}>
-              <Link className="btn btn-holo" href={CTA_HREF} style={{ height: 48, padding: '0 26px' }}>
+              <Link className="btn btn-holo" href={eventHref(e.id)} style={{ height: 48, padding: '0 26px' }}>
                 {ctaFor(e.status)} →
               </Link>
               {games.map((game) => (
@@ -100,7 +98,7 @@ function EventCard({ e, ip, games }: { e: FandomEvent; ip: Ip | null; games: Eve
         )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingTop: 13, borderTop: '1px solid rgba(255,255,255,.06)' }}>
           <span className="mono" style={{ fontSize: 11, color: statusColor(e.status) }}>{footNoteFor(e.status)}</span>
-          <Link className="event-card-cta" href={CTA_HREF} style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+          <Link className="event-card-cta" href={eventHref(e.id)} style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
             {ctaFor(e.status)} →
           </Link>
         </div>

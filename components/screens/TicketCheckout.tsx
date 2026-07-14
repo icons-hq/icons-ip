@@ -4,22 +4,24 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { TossPaymentWidget } from '@/components/payments/TossPaymentWidget';
-import { checkoutOrderName, checkoutOrderState } from '@/lib/checkout';
-import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
+import { ticketCheckoutState, ticketOrderName } from '@/lib/ticketing';
+import type { TicketOrderSnapshot } from '@/lib/ticketing.server';
 
 const krw = (value: number) => `₩${value.toLocaleString('ko-KR')}`;
 
-interface CheckoutOrderProps {
+export function TicketCheckout({
+  clientKey,
+  customer,
+  order,
+}: {
   clientKey: string | null;
   customer: { id: string; email: string | null; name: string };
-  order: CheckoutOrderSnapshot;
-}
-
-export function CheckoutOrder({ clientKey, customer, order }: CheckoutOrderProps) {
+  order: TicketOrderSnapshot;
+}) {
   const router = useRouter();
   const [pollAttempts, setPollAttempts] = useState(0);
   const [now, setNow] = useState<number | null>(null);
-  const state = checkoutOrderState(order.status, order.paymentStatus, order.expiresAt, now ?? 0);
+  const state = ticketCheckoutState(order.status, order.paymentStatus, order.expiresAt, now ?? 0);
   const expiresIn = order.expiresAt && now !== null ? Math.max(0, Date.parse(order.expiresAt) - now) : 0;
   const minutes = Math.floor(expiresIn / 60_000);
   const seconds = Math.floor((expiresIn % 60_000) / 1_000);
@@ -44,22 +46,40 @@ export function CheckoutOrder({ clientKey, customer, order }: CheckoutOrderProps
   }, [order.paymentStatus, order.status, pollAttempts, router, state]);
 
   const statusCopy = useMemo(() => {
-    if (state === 'complete') return { eyebrow: 'PAYMENT CONFIRMED', title: '결제가 확인됐어요', body: '주문이 안전하게 접수됐습니다. 배송 진행은 주문 내역에서 이어서 확인할 수 있어요.' };
-    if (state === 'checking') return { eyebrow: 'VERIFYING PAYMENT', title: '결제를 확인하고 있어요', body: '승인은 접수됐고 웹훅으로 최종 상태를 확인 중입니다. 이 화면을 닫아도 확인은 계속됩니다.' };
-    if (state === 'closed') return { eyebrow: 'CHECKOUT CLOSED', title: '결제 가능한 시간이 지났어요', body: '선점된 재고는 자동으로 복원됩니다. 새 장바구니에서 주문을 다시 만들어주세요.' };
+    if (state === 'complete') {
+      return {
+        eyebrow: 'BOOKING CONFIRMED',
+        title: '예매가 완료됐어요',
+        body: `전자티켓 ${order.qty}장이 발급됐어요. 이 화면을 닫아도 예매 상태는 안전하게 보관됩니다.`,
+      };
+    }
+    if (state === 'checking') {
+      return {
+        eyebrow: 'VERIFYING PAYMENT',
+        title: '결제를 확인하고 있어요',
+        body: '승인은 접수됐고 웹훅으로 최종 상태를 확인 중입니다. 이 화면을 닫아도 확인은 계속됩니다.',
+      };
+    }
+    if (state === 'closed') {
+      return {
+        eyebrow: 'BOOKING CLOSED',
+        title: '예매가 종료됐어요',
+        body: '결제 가능한 시간이 지났거나 예매가 취소됐습니다. 선점 수량은 자동으로 복원됩니다.',
+      };
+    }
     return null;
-  }, [state]);
+  }, [order.qty, state]);
 
   return (
-    <main className="checkout-page checkout-order-page">
+    <main className="checkout-page ticket-checkout-page">
       <header className="checkout-header checkout-order-header">
         <div className="wrap">
           <div className="eyebrow" style={{ color: state === 'complete' ? 'var(--mint)' : 'var(--cyan)' }}>
-            {statusCopy?.eyebrow ?? 'SECURE PAYMENT'}
+            {statusCopy?.eyebrow ?? 'SECURE TICKET PAYMENT'}
           </div>
           <h1 className="h-xl">{statusCopy?.title ?? '결제수단을 선택하세요'}</h1>
-          <p>{statusCopy?.body ?? '주문 금액은 서버에서 다시 확인했습니다. 결제수단과 필수 약관을 선택해주세요.'}</p>
-          <span className="checkout-order-ref mono">ORDER · {order.id}</span>
+          <p>{statusCopy?.body ?? '예매 금액은 서버에서 다시 확인했습니다. 결제수단과 필수 약관을 선택해주세요.'}</p>
+          <span className="checkout-order-ref mono">BOOKING · {order.id}</span>
         </div>
       </header>
 
@@ -70,25 +90,25 @@ export function CheckoutOrder({ clientKey, customer, order }: CheckoutOrderProps
           ) : state === 'payable' && clientKey ? (
             <>
               <div className="checkout-deadline" role="timer">
-                <span>재고 선점 남은 시간</span>
+                <span>회차 선점 남은 시간</span>
                 <strong className="mono">{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}</strong>
               </div>
               <TossPaymentWidget
-                callbackBasePath="/checkout"
+                callbackBasePath="/ticket-checkout"
                 clientKey={clientKey}
                 customerEmail={customer.email}
                 customerKey={customer.id}
                 customerName={customer.name}
                 orderId={order.id}
-                orderName={checkoutOrderName(order.items.map((item) => item.name))}
-                purpose="order"
+                orderName={ticketOrderName(order.eventTitle, order.ticketTypeName, order.qty)}
+                purpose="ticket"
                 total={order.total}
               />
             </>
           ) : state === 'payable' ? (
             <div className="checkout-state-panel" role="alert">
               <h2>결제 환경을 확인 중이에요</h2>
-              <p>주문은 생성됐지만 결제수단을 불러올 수 없습니다. 만료 전에 새로고침하거나 잠시 후 다시 시도해주세요.</p>
+              <p>예매는 생성됐지만 결제수단을 불러올 수 없습니다. 만료 전에 새로고침하거나 잠시 후 다시 시도해주세요.</p>
             </div>
           ) : (
             <div className={`checkout-state-panel checkout-state-panel--${state}`} role="status">
@@ -96,45 +116,29 @@ export function CheckoutOrder({ clientKey, customer, order }: CheckoutOrderProps
               <h2>{statusCopy?.title}</h2>
               <p>{statusCopy?.body}</p>
               {state === 'checking' && pollAttempts >= 15 && (
-                <button className="btn btn-ghost" type="button" onClick={() => router.refresh()}>상태 다시 확인</button>
+                <button className="btn btn-ghost" onClick={() => router.refresh()} type="button">상태 다시 확인</button>
               )}
-              {state === 'closed' && <Link className="btn btn-holo" href="/shop">굿즈 다시 담기</Link>}
-              {state === 'complete' && <Link className="btn btn-holo" href={`/orders/${order.id}`}>주문 상세 보기</Link>}
+              {state === 'closed' && <Link className="btn btn-holo" href={`/events/${encodeURIComponent(order.eventId)}`}>회차 다시 보기</Link>}
+              {state === 'complete' && <Link className="btn btn-holo" href="/events">다른 이벤트 보기</Link>}
             </div>
-          )}
-          {state === 'payable' && (
-            <p className="checkout-cancel-link">
-              결제하지 않으려면 <Link href={`/orders/${order.id}`}>주문 상세에서 취소</Link>해주세요.
-            </p>
           )}
         </section>
 
-        <aside className="checkout-receipt card" aria-label="주문 영수증">
+        <aside className="checkout-receipt card" aria-label="예매 영수증">
           <div className="checkout-section-heading checkout-section-heading--compact">
-            <span className="checkout-step mono">ORDER</span>
-            <h2>주문 내역</h2>
+            <span className="checkout-step mono">TICKET</span>
+            <h2>예매 내역</h2>
           </div>
-          <div className="checkout-items">
-            {order.items.map((item) => (
-              <div className="checkout-item" key={item.goodId}>
-                <div><span>{item.type}</span><strong>{item.name}</strong></div>
-                <span className="mono">{item.qty} × {krw(item.unitPrice)}</span>
-              </div>
-            ))}
+          <div className="ticket-receipt-event">
+            <span>{order.eventTitle}</span>
+            <strong>{order.ticketTypeName}</strong>
+            <small className="mono">{order.qty}매</small>
           </div>
           <dl className="checkout-totals">
-            <div><dt>굿즈 금액</dt><dd>{krw(order.total)}</dd></div>
-            <div><dt>배송비</dt><dd>무료</dd></div>
+            <div><dt>티켓 금액</dt><dd>{krw(order.total)}</dd></div>
             <div className="checkout-total"><dt>결제 금액</dt><dd>{krw(order.total)}</dd></div>
           </dl>
-          {order.address && (
-            <div className="checkout-address-preview">
-              <span>배송지</span>
-              <strong>{order.address.recipientName} · {order.address.phone}</strong>
-              <p>[{order.address.postalCode}] {order.address.address1} {order.address.address2}</p>
-              {order.address.deliveryNote && <small>{order.address.deliveryNote}</small>}
-            </div>
-          )}
+          <p className="money-caption">결제 확인 전에는 QR이 발급되지 않습니다. 승인 콜백만으로 완료 처리하지 않습니다.</p>
         </aside>
       </div>
     </main>

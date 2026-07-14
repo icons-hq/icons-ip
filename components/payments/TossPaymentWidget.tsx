@@ -9,7 +9,42 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { buildTossOrderId } from '@/lib/payments/toss';
 
-interface TossPaymentWidgetProps {
+export type TossCallbackBasePath = '/checkout' | '/ticket-checkout';
+
+type TossPaymentRoute =
+  | { callbackBasePath: '/checkout'; purpose: 'order' }
+  | { callbackBasePath: '/ticket-checkout'; purpose: 'ticket' };
+
+type TossWidgetPaymentRequestInput = TossPaymentRoute & {
+  customerEmail: string | null;
+  customerName: string;
+  orderId: string;
+  orderName: string;
+  origin: string;
+};
+
+export function buildTossWidgetPaymentRequest({
+  callbackBasePath,
+  customerEmail,
+  customerName,
+  orderId,
+  orderName,
+  origin,
+  purpose,
+}: TossWidgetPaymentRequestInput) {
+  const encodedReference = encodeURIComponent(orderId);
+
+  return {
+    orderId: buildTossOrderId(purpose, orderId),
+    orderName,
+    customerEmail,
+    customerName,
+    successUrl: `${origin}${callbackBasePath}/success?ref=${encodedReference}`,
+    failUrl: `${origin}${callbackBasePath}/fail?ref=${encodedReference}`,
+  };
+}
+
+type TossPaymentWidgetProps = TossPaymentRoute & {
   clientKey: string;
   customerKey: string;
   customerEmail: string | null;
@@ -17,9 +52,10 @@ interface TossPaymentWidgetProps {
   orderId: string;
   orderName: string;
   total: number;
-}
+};
 
-export function TossPaymentWidget({
+export function TossPaymentWidget(props: TossPaymentWidgetProps) {
+  const {
   clientKey,
   customerKey,
   customerEmail,
@@ -27,7 +63,7 @@ export function TossPaymentWidget({
   orderId,
   orderName,
   total,
-}: TossPaymentWidgetProps) {
+  } = props;
   const widgetsRef = useRef<TossPaymentsWidgets | null>(null);
   const paymentMethodsRef = useRef<WidgetPaymentMethodWidget | null>(null);
   const [ready, setReady] = useState(false);
@@ -91,15 +127,17 @@ export function TossPaymentWidget({
         return;
       }
       await widgetsRef.current.setAmount({ currency: 'KRW', value: total });
-      const providerOrderId = buildTossOrderId('order', orderId);
-      await widgetsRef.current.requestPayment({
-        orderId: providerOrderId,
-        orderName,
+      const paymentRoute: TossPaymentRoute = props.purpose === 'ticket'
+        ? { callbackBasePath: props.callbackBasePath, purpose: props.purpose }
+        : { callbackBasePath: props.callbackBasePath, purpose: props.purpose };
+      await widgetsRef.current.requestPayment(buildTossWidgetPaymentRequest({
+        ...paymentRoute,
         customerEmail,
         customerName,
-        successUrl: `${window.location.origin}/checkout/success?ref=${encodeURIComponent(orderId)}`,
-        failUrl: `${window.location.origin}/checkout/fail?ref=${encodeURIComponent(orderId)}`,
-      });
+        orderId,
+        orderName,
+        origin: window.location.origin,
+      }));
     } catch {
       setError('결제 요청을 시작하지 못했어요. 결제수단과 약관을 확인해주세요.');
       setRequesting(false);
@@ -122,7 +160,9 @@ export function TossPaymentWidget({
       >
         {requesting ? '결제창으로 이동 중' : `${total.toLocaleString('ko-KR')}원 결제하기`}
       </button>
-      <p className="money-caption">승인 후 웹훅 확인이 끝날 때까지 주문은 ‘결제 확인 중’으로 표시됩니다.</p>
+      <p className="money-caption">
+        승인 후 웹훅 확인이 끝날 때까지 {props.purpose === 'ticket' ? '예매는' : '주문은'} ‘결제 확인 중’으로 표시됩니다.
+      </p>
     </section>
   );
 }

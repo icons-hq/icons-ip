@@ -3,6 +3,7 @@ import { POST } from './route';
 
 const ORDER_UUID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
 const ORDER_ID = `order_${ORDER_UUID}`;
+const TICKET_ORDER_ID = `ticket_${ORDER_UUID}`;
 
 const mocks = vi.hoisted(() => ({
   confirm: vi.fn(),
@@ -13,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   updateEqFirst: vi.fn(),
   updateEqSecond: vi.fn(),
+  userTable: null as string | null,
   target: {
     id: 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c',
     user_id: 'user-1',
@@ -52,7 +54,8 @@ vi.mock('@/lib/supabase/server', () => ({
     return {
       auth: { getUser: async () => ({ data: { user: { id: 'user-1' } } }) },
       from: (table: string) => {
-        if (table !== 'orders') throw new Error(`Unexpected user table ${table}`);
+        if (table !== 'orders' && table !== 'ticket_orders') throw new Error(`Unexpected user table ${table}`);
+        mocks.userTable = table;
         return query;
       },
     };
@@ -107,6 +110,7 @@ describe('POST /api/payments/confirm', () => {
     mocks.update.mockReset();
     mocks.updateEqFirst.mockReset();
     mocks.updateEqSecond.mockReset();
+    mocks.userTable = null;
     mocks.upsert.mockResolvedValue({ error: null });
     mocks.update.mockReturnValue({ eq: mocks.updateEqFirst });
     mocks.updateEqFirst.mockReturnValue({ eq: mocks.updateEqSecond });
@@ -168,6 +172,26 @@ describe('POST /api/payments/confirm', () => {
       expect.objectContaining({ status: 'canceled', raw: approvedPayment({ status: 'WAITING_FOR_DEPOSIT', method: '가상계좌' }) }),
       { onConflict: 'idempotency_key', ignoreDuplicates: true },
     );
+  });
+
+  it('입금 전 티켓 가상계좌는 해당 paymentKey 증거만으로 예매를 정리한다', async () => {
+    mocks.confirm.mockResolvedValue({
+      ok: true,
+      body: approvedPayment({
+        orderId: TICKET_ORDER_ID,
+        status: 'WAITING_FOR_DEPOSIT',
+        method: '가상계좌',
+      }),
+    });
+
+    const response = await POST(request(callbackBody({ orderId: TICKET_ORDER_ID })));
+
+    expect(response.status).toBe(409);
+    expect(mocks.rpc).toHaveBeenCalledWith('refund_ticket_order_with_provider_evidence', {
+      p_ticket_order_id: ORDER_UUID,
+      p_reason: '미지원 가상계좌 자동 취소',
+      p_provider_payment_key: 'pk_1',
+    });
   });
 
   it('가상계좌 취소 결과를 모르면 pending 증거와 재고를 보존해 재시도한다', async () => {
@@ -239,6 +263,31 @@ describe('POST /api/payments/confirm', () => {
     });
     expect(mocks.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'pending', raw: approvedPayment() }),
+      { onConflict: 'idempotency_key', ignoreDuplicates: true },
+    );
+  });
+
+  it('티켓 결제는 본인 ticket_orders 원장을 조회하고 ticket purpose로 기록한다', async () => {
+    mocks.confirm.mockResolvedValue({
+      ok: true,
+      body: approvedPayment({ orderId: TICKET_ORDER_ID }),
+    });
+
+    const response = await POST(request(callbackBody({ orderId: TICKET_ORDER_ID })));
+
+    expect(response.status).toBe(200);
+    expect(mocks.userTable).toBe('ticket_orders');
+    expect(mocks.confirm).toHaveBeenCalledWith({
+      paymentKey: 'pk_1',
+      orderId: TICKET_ORDER_ID,
+      amount: 42000,
+    });
+    expect(mocks.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        purpose: 'ticket',
+        ref_id: ORDER_UUID,
+        status: 'pending',
+      }),
       { onConflict: 'idempotency_key', ignoreDuplicates: true },
     );
   });
