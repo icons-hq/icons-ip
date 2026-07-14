@@ -177,6 +177,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - **`begin_ticket_payment_approval` / `confirm_order_payment` / `confirm_ticket_payment`** — 티켓은 provider 승인 호출 전에 order→active cancellation request→payment 순서로 잠그고 `pending` payment claim을 먼저 남겨 무결제 취소와 외부 승인이 엇갈리지 않게 한다. 결제 확정은 웹훅에서 service role로 호출하며 **멱등 키=토스 paymentKey**로 중복 방지한다. (충전 `charge_wallet`은 ADR-0003으로 폐기)
 - **`request_order_cancellation` / `admin_decide_order_cancellation` / `complete_order_cancellation_request`** — 사용자 요청을 durable 원장에 남기고 staff 승인 뒤에만 provider 정합화를 시작한다. fresh GET으로 모든 대상 결제의 전액 취소를 검증한 뒤 재고·미사용 카드팩·환불 장부·주문 상태를 원자적으로 정리한다. 불확실한 결과는 claim을 유지한 `needs_review`로 격리하며 같은 멱등키로만 재정합화한다.
 - **`request_ticket_cancellation` / `begin_ticket_cancellation_reconcile` / `complete_ticket_cancellation_request`** — 이벤트 시작 전 미사용 예매 전체의 정책·마감·전액 환불 금액을 snapshot으로 남긴다. order→request→payments→tickets→ticket_types 잠금 순서와 5분 attempt lease로 confirm/check-in 경합과 중복 provider 처리를 막고, 모든 비실패 결제의 fresh GET→필요 시 전액 취소→fresh GET 증거가 일치할 때만 티켓·정원·환불을 원자 완료한다. 검증된 provider 원문과 실제 환불 근거를 결제 원장에 함께 보존하며, 불확실한 결과는 QR을 차단한 `needs_review`로 남긴다.
+- **`check_in_ticket(staff_id, qr_token)`** — service role만 실행하고 staff/admin을 DB에서 다시 확인한다. order→active cancellation request→ticket 순서로 잠근 뒤 `valid→used` 전이와 `check_ins`·`admin.ticket.checked_in` 감사를 한 트랜잭션에 기록한다. 재검표는 최초 시각을 반환하며, 환불·취소 진행·원장 불일치는 쓰기 없이 차단한다. QR 원문은 응답·감사에 남기지 않는다.
 - **`admin_update_order_status` / `admin_search_orders`** — staff를 DB에서 다시 확인하고 `paid → shipping → done`만 허용·감사하며, 주문/구매자/상태/KST 기간 필터를 DB에서 페이지 처리한다.
 - **`admin_adjust_stock`** — 화면별 UUID 멱등키를 advisory lock으로, 굿즈를 `FOR UPDATE`로 잠근다. 화면에서 본 수량과 현재 수량이 같을 때만 델타를 반영하고 감사 로그 ID·전후 수량·사유를 원장으로 남긴다. persisted `stock`은 수동 판매 게이트로 보존하며 공개 유효 상태는 `stock_qty <= 0 ? soldout : stock`으로 파생한다.
 
@@ -251,7 +252,7 @@ Production Auth 설정:
 ## 12. 운영 백오피스 `/admin`
 
 - 같은 Next 앱의 라우트 그룹. 진입 시 `profiles.role ∈ {staff, admin}` 검사(라우트 + RLS 이중).
-- 기능: 카탈로그 CRUD, **카드풀·확률 공시값** 관리, 이벤트·티켓 회차, 주문 검색·배송 전이·청약철회/환불 정합화, 커뮤니티 신고 처리.
+- 기능: 카탈로그 CRUD, **카드풀·확률 공시값** 관리, 이벤트·티켓 회차, 독립 모바일 현장 검표(`/admin/check-in`), 주문 검색·배송 전이·청약철회/환불 정합화, 커뮤니티 신고 처리.
 - 모든 민감 작업은 `audit_log` 기록.
 
 ---

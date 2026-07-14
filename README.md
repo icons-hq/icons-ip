@@ -13,7 +13,7 @@ ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 �
 - 검색은 Supabase 환경변수가 있으면 Postgres `search_public_content` RPC로 IP, 굿즈, 카드, visible 포스트, 태그를 그룹 검색하고, 로컬 fallback에서는 mock 데이터를 사용한다.
 - `/admin`은 staff/admin 게이트, 카탈로그 CRUD, 감사 로그, 커뮤니티 신고 상태 변경과 포스트 숨김 처리 최소 경로에 연결되어 있다.
 - Google, Kakao, Apple 버튼은 UI 자리만 있으며 아직 비활성화되어 있다.
-- 결제, 주문 확정, 가챠 RNG, 티케팅 검표는 아직 실제 서비스에 연결되지 않았다.
+- 굿즈·티켓 결제와 주문 원장, 티켓 현장 검표는 서버 경계에 연결되어 있다. production 실제 결제는 라이브 상점 설정 검증 전까지 비활성이다.
 
 ## 빠른 시작
 
