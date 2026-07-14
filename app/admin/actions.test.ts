@@ -7,6 +7,7 @@ import {
   upsertAdminEventAction,
   upsertAdminGoodAction,
   upsertAdminIpAction,
+  upsertAdminTicketTypeAction,
 } from './actions';
 import type { CatalogSnapshot } from '@/lib/catalog';
 
@@ -70,7 +71,17 @@ const catalog: CatalogSnapshot = {
   }],
   goods: [],
   cards: [],
-  events: [],
+  events: [{
+    id: 'e100',
+    title: '화산강림 팝업',
+    ip: 'hwasan',
+    mode: '오프라인',
+    status: '예정',
+    date: '2026.07.25',
+    loc: '성수',
+    accent: '#8B5CFF',
+    img: '',
+  }],
 };
 
 function goodForm() {
@@ -122,6 +133,17 @@ function eventForm() {
   formData.set('endsAt', '2026-07-01T12:00');
   formData.set('location', '성수');
   formData.set('accent', '#8B5CFF');
+  return formData;
+}
+
+function ticketTypeForm() {
+  const formData = new FormData();
+  formData.set('operationId', '11111111-1111-4111-8111-111111111111');
+  formData.set('id', '22222222-2222-4222-8222-222222222222');
+  formData.set('eventId', 'e100');
+  formData.set('name', '7월 25일 1회차');
+  formData.set('price', '25000');
+  formData.set('capacity', '80');
   return formData;
 }
 
@@ -322,6 +344,63 @@ describe('admin catalog actions', () => {
       target_bg: null,
       target_image_path: null,
     });
+  });
+
+  it('saves a ticket session through the audited RPC and refreshes ticket surfaces', async () => {
+    await expect(upsertAdminTicketTypeAction({}, ticketTypeForm())).resolves.toEqual({
+      message: '티켓 회차를 저장했습니다.',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_ticket_type', {
+      target_operation_id: '11111111-1111-4111-8111-111111111111',
+      target_ticket_type_id: '22222222-2222-4222-8222-222222222222',
+      target_event_id: 'e100',
+      target_name: '7월 25일 1회차',
+      target_price: 25000,
+      target_capacity: 80,
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/events');
+  });
+
+  it('validates ticket sessions and blocks non-staff calls before the RPC', async () => {
+    const invalid = ticketTypeForm();
+    invalid.set('eventId', 'missing');
+    invalid.set('capacity', '-1');
+
+    await expect(upsertAdminTicketTypeAction({}, invalid)).resolves.toEqual({
+      errors: {
+        eventId: '등록된 이벤트를 선택해주세요.',
+        capacity: '정원은 0 이상의 정수여야 합니다.',
+      },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+
+    mocks.adminState = {
+      isConfigured: true,
+      user: { id: 'user-1', email: 'fan@icons.gg' },
+      role: 'user',
+      isStaff: false,
+    };
+    await expect(upsertAdminTicketTypeAction({}, ticketTypeForm())).resolves.toEqual({
+      errors: { form: '관리자 권한이 필요합니다.' },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['capacity_below_sold', '정원은 현재 할당 수량보다 작게 줄일 수 없습니다.'],
+    ['ticket_type_catalog_locked', '예매 이력이 있는 회차는 이벤트·회차명·가격을 변경할 수 없습니다.'],
+    ['event_not_found', '연결할 이벤트를 찾을 수 없습니다.'],
+    ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
+  ])('maps %s ticket session RPC errors without exposing internals', async (rpcMessage, expected) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
+
+    await expect(upsertAdminTicketTypeAction({}, ticketTypeForm())).resolves.toEqual({
+      errors: { form: expected },
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/events');
   });
 
   it('blocks non-staff moderation status updates without writing', async () => {

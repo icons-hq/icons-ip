@@ -4,6 +4,7 @@ import type { RarityKey } from '@/lib/rarity';
 export type AdminFieldErrors = Record<string, string>;
 
 export interface AdminCatalogContext {
+  eventIds: ReadonlySet<string>;
   ipIds: ReadonlySet<string>;
   verticalKeys: ReadonlySet<string>;
 }
@@ -65,6 +66,15 @@ export interface AdminEventFormValue {
   imagePath: string | null;
 }
 
+export interface AdminTicketTypeFormValue {
+  operationId: string;
+  id: string;
+  eventId: string;
+  name: string;
+  price: number;
+  capacity: number;
+}
+
 export type AdminFormResult<T> =
   | { ok: true; value: T }
   | { ok: false; errors: AdminFieldErrors };
@@ -102,6 +112,12 @@ function readSlug(formData: FormData, key: string, errors: AdminFieldErrors, req
   return value;
 }
 
+function readUuid(formData: FormData, key: string, errors: AdminFieldErrors, message: string) {
+  const value = readString(formData, key).toLowerCase();
+  if (!UUID_PATTERN.test(value)) errors[key] = message;
+  return value;
+}
+
 function nonNegativeInteger(
   formData: FormData,
   key: string,
@@ -113,7 +129,7 @@ function nonNegativeInteger(
   if (!raw && defaultValue !== undefined) return defaultValue;
 
   const value = Number(raw);
-  if (!Number.isInteger(value) || value < 0) {
+  if (!Number.isInteger(value) || value < 0 || value > INT32_MAX) {
     errors[key] = message;
     return 0;
   }
@@ -163,10 +179,12 @@ function validIpId(value: string, context: AdminCatalogContext, errors: AdminFie
 }
 
 export function catalogContextFromSnapshot(snapshot: {
+  events: { id: string }[];
   ips: { id: string }[];
   verticals: { key: string }[];
 }): AdminCatalogContext {
   return {
+    eventIds: new Set(snapshot.events.map((event) => event.id)),
     ipIds: new Set(snapshot.ips.map((ip) => ip.id)),
     verticalKeys: new Set(snapshot.verticals.map((vertical) => vertical.key)),
   };
@@ -352,6 +370,38 @@ export function normalizeAdminEventForm(
       accent: nullableString(formData, 'accent'),
       bg: nullableString(formData, 'bg'),
       imagePath: nullableString(formData, 'imagePath'),
+    },
+  };
+}
+
+export function normalizeAdminTicketTypeForm(
+  formData: FormData,
+  context: AdminCatalogContext,
+): AdminFormResult<AdminTicketTypeFormValue> {
+  const errors: AdminFieldErrors = {};
+  const operationId = readUuid(formData, 'operationId', errors, '유효한 저장 요청이 아닙니다.');
+  const id = readUuid(formData, 'id', errors, '유효한 티켓 회차가 아닙니다.');
+  const eventId = readString(formData, 'eventId');
+  const name = readString(formData, 'name');
+  const price = nonNegativeInteger(formData, 'price', errors, '가격은 0 이상의 정수여야 합니다.');
+  const capacity = nonNegativeInteger(formData, 'capacity', errors, '정원은 0 이상의 정수여야 합니다.');
+
+  if (!eventId || !context.eventIds.has(eventId)) {
+    errors.eventId = '등록된 이벤트를 선택해주세요.';
+  }
+  if (!name) errors.name = '회차명을 입력해주세요.';
+
+  if (Object.keys(errors).length) return { ok: false, errors };
+
+  return {
+    ok: true,
+    value: {
+      operationId,
+      id,
+      eventId,
+      name,
+      price,
+      capacity,
     },
   };
 }

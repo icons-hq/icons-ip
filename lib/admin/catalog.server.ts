@@ -55,11 +55,24 @@ export interface AdminEventRecord {
   imagePath: string | null;
 }
 
+export interface AdminTicketTypeRecord {
+  id: string;
+  eventId: string;
+  eventTitle: string;
+  name: string;
+  price: number;
+  capacity: number;
+  sold: number;
+  hasTicketHistory: boolean;
+  updatedAt: string;
+}
+
 export interface AdminCatalogRecords {
   ips: AdminIpRecord[];
   goods: AdminGoodRecord[];
   cards: AdminCardRecord[];
   events: AdminEventRecord[];
+  ticketTypes: AdminTicketTypeRecord[];
 }
 
 interface IpRow {
@@ -113,9 +126,20 @@ interface EventRow {
   image_path: string | null;
 }
 
+interface TicketTypeRow {
+  id: string;
+  event_id: string;
+  name: string;
+  price: number;
+  capacity: number;
+  sold: number;
+  tickets: { count: number }[] | null;
+  updated_at: string;
+}
+
 export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
   const supabase = await createClient();
-  const [ipsResult, goodsResult, cardsResult, eventsResult] = await Promise.all([
+  const [ipsResult, goodsResult, cardsResult, eventsResult, ticketTypesResult] = await Promise.all([
     supabase
       .from('ips')
       .select('id,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count')
@@ -132,12 +156,33 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
       .from('events')
       .select('id,ip_id,title,mode,status,starts_at,ends_at,location,accent,bg,image_path')
       .order('id'),
+    supabase
+      .from('ticket_types')
+      .select('id,event_id,name,price,capacity,sold,updated_at,tickets(count)')
+      .order('event_id')
+      .order('name'),
   ]);
 
   if (ipsResult.error) throw new Error(`Failed to load admin IPs: ${ipsResult.error.message}`);
   if (goodsResult.error) throw new Error(`Failed to load admin goods: ${goodsResult.error.message}`);
   if (cardsResult.error) throw new Error(`Failed to load admin cards: ${cardsResult.error.message}`);
   if (eventsResult.error) throw new Error(`Failed to load admin events: ${eventsResult.error.message}`);
+  if (ticketTypesResult.error) throw new Error(`Failed to load admin ticket types: ${ticketTypesResult.error.message}`);
+
+  const events = ((eventsResult.data ?? []) as EventRow[]).map((row) => ({
+    id: row.id,
+    ipId: row.ip_id,
+    title: row.title,
+    mode: row.mode,
+    status: row.status,
+    startsAt: row.starts_at,
+    endsAt: row.ends_at,
+    location: row.location,
+    accent: row.accent,
+    bg: row.bg,
+    imagePath: row.image_path,
+  }));
+  const eventTitles = new Map(events.map((event) => [event.id, event.title]));
 
   return {
     ips: ((ipsResult.data ?? []) as IpRow[]).map((row) => ({
@@ -174,18 +219,17 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
       bg: row.bg,
       imagePath: row.image_path,
     })),
-    events: ((eventsResult.data ?? []) as EventRow[]).map((row) => ({
+    events,
+    ticketTypes: ((ticketTypesResult.data ?? []) as unknown as TicketTypeRow[]).map((row) => ({
       id: row.id,
-      ipId: row.ip_id,
-      title: row.title,
-      mode: row.mode,
-      status: row.status,
-      startsAt: row.starts_at,
-      endsAt: row.ends_at,
-      location: row.location,
-      accent: row.accent,
-      bg: row.bg,
-      imagePath: row.image_path,
+      eventId: row.event_id,
+      eventTitle: eventTitles.get(row.event_id) ?? row.event_id,
+      name: row.name,
+      price: row.price,
+      capacity: row.capacity,
+      sold: row.sold,
+      hasTicketHistory: (row.tickets?.[0]?.count ?? 0) > 0,
+      updatedAt: row.updated_at,
     })),
   };
 }

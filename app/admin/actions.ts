@@ -9,6 +9,7 @@ import {
   normalizeAdminGoodForm,
   normalizeAdminIpForm,
   normalizeAdminStockAdjustmentForm,
+  normalizeAdminTicketTypeForm,
   type AdminFieldErrors,
 } from '@/lib/admin/catalog';
 import {
@@ -69,6 +70,11 @@ function revalidateStock(ipPath: string | null) {
   const paths = ['/', '/ip', '/shop', '/cart', '/checkout', '/admin'];
   if (ipPath) paths.push(ipPath);
   for (const path of paths) revalidatePath(path);
+}
+
+function revalidateTicketing() {
+  revalidatePath('/admin');
+  revalidatePath('/events');
 }
 
 function readRpcIpId(data: unknown) {
@@ -285,6 +291,52 @@ export async function upsertAdminEventAction(
 
   revalidateCatalog(relatedIpPaths(value.ipId, previousIpPath));
   return { message: '이벤트를 저장했습니다.' };
+}
+
+export async function upsertAdminTicketTypeAction(
+  _state: AdminCatalogActionState,
+  formData: FormData,
+): Promise<AdminCatalogActionState> {
+  const authError = await requireStaffAction();
+  if (authError) return authError;
+
+  const catalog = await getAdminValidationCatalog();
+  const result = normalizeAdminTicketTypeForm(formData, catalogContextFromSnapshot(catalog));
+  if (!result.ok) return { errors: result.errors };
+
+  const value = result.value;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_upsert_ticket_type', {
+    target_operation_id: value.operationId,
+    target_ticket_type_id: value.id,
+    target_event_id: value.eventId,
+    target_name: value.name,
+    target_price: value.price,
+    target_capacity: value.capacity,
+  });
+
+  if (error) {
+    if (error.message.includes('capacity_below_sold')) {
+      revalidateTicketing();
+      return rpcFailure('정원은 현재 할당 수량보다 작게 줄일 수 없습니다.');
+    }
+    if (error.message.includes('ticket_type_catalog_locked')) {
+      revalidateTicketing();
+      return rpcFailure('예매 이력이 있는 회차는 이벤트·회차명·가격을 변경할 수 없습니다.');
+    }
+    if (error.message.includes('event_not_found')) {
+      revalidateTicketing();
+      return rpcFailure('연결할 이벤트를 찾을 수 없습니다.');
+    }
+    if (error.message.includes('operation_conflict')) {
+      revalidateTicketing();
+      return rpcFailure('이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.');
+    }
+    return rpcFailure('티켓 회차를 저장하지 못했습니다. 다시 시도해주세요.');
+  }
+
+  revalidateTicketing();
+  return { message: '티켓 회차를 저장했습니다.' };
 }
 
 export async function setAdminUserRoleAction(

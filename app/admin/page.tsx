@@ -45,12 +45,14 @@ export default async function AdminPage({
       }}
       catalog={catalog}
       insights={insights}
-      initialSection={query.section === 'orders' ? 'orders' : query.section === 'good' ? 'good' : 'overview'}
+      initialSection={query.section === 'orders' ? 'orders' : query.section === 'good' ? 'good' : query.section === 'ticket' ? 'ticket' : 'overview'}
       moderation={moderation}
       orders={orders}
       profiles={profiles}
       records={records}
       stockAdjustmentId={randomUUID()}
+      ticketDraftId={randomUUID()}
+      ticketOperationId={randomUUID()}
     />
   );
 }

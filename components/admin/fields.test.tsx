@@ -33,4 +33,21 @@ describe('admin fields', () => {
     expect(invalidHtml).toContain('id="status-error" role="alert"');
     expect(validHtml).not.toContain('aria-describedby');
   });
+
+  it('forwards numeric bounds, readonly state, and required select semantics', () => {
+    const html = renderToStaticMarkup(
+      <>
+        <Field label="정원" min={3} name="capacity" readOnly step={1} type="number" />
+        <SelectField label="이벤트" name="eventId" required>
+          <option value="e100">이벤트</option>
+        </SelectField>
+      </>,
+    );
+
+    expect(html).toContain('min="3"');
+    expect(html).toContain('step="1"');
+    expect(html).toContain('readOnly=""');
+    expect(html).toContain('<select');
+    expect(html).toContain('required=""');
+  });
 });
