@@ -12,7 +12,6 @@ import type {
   AdminCardRecord,
   AdminCatalogRecords,
   AdminEventRecord,
-  AdminGoodRecord,
   AdminIpRecord,
 } from '@/lib/admin/catalog.server';
 import type { AdminInsights } from '@/lib/admin/insights.server';
@@ -59,6 +58,7 @@ interface AdminProps {
   orders: AdminOrderConsoleData;
   profiles: AdminProfileRecord[];
   records: AdminCatalogRecords;
+  stockAdjustmentId: string;
 }
 
 export function Admin({
@@ -70,11 +70,12 @@ export function Admin({
   orders,
   profiles,
   records,
+  stockAdjustmentId,
 }: AdminProps) {
   const [active, setActive] = useState<AdminSection>(initialSection ?? 'overview');
   const [collapsed, setCollapsed] = useState(false);
   const [selectedIp, setSelectedIp] = useState<AdminIpRecord | null>(null);
-  const [selectedGood, setSelectedGood] = useState<AdminGoodRecord | null>(null);
+  const [selectedGoodId, setSelectedGoodId] = useState<string | null>(null);
   const [selectedCard, setSelectedCard] = useState<AdminCardRecord | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<AdminEventRecord | null>(null);
   const [ipState, ipAction, ipPending] = useActionState(upsertAdminIpAction, emptyState);
@@ -82,6 +83,10 @@ export function Admin({
   const [cardState, cardAction, cardPending] = useActionState(upsertAdminCardAction, emptyState);
   const [eventState, eventAction, eventPending] = useActionState(upsertAdminEventAction, emptyState);
   const ipOptions = useMemo(() => records.ips.map((ip) => ({ id: ip.id, title: ip.title })), [records.ips]);
+  const selectedGood = useMemo(
+    () => records.goods.find((good) => good.id === selectedGoodId) ?? null,
+    [records.goods, selectedGoodId],
+  );
 
   return (
     <div className={collapsed ? 'admin-shell collapsed' : 'admin-shell'}>
@@ -118,8 +123,9 @@ export function Admin({
             {active === 'good' && (
               <GoodSection
                 action={goodAction}
+                adjustmentId={stockAdjustmentId}
                 ipOptions={ipOptions}
-                onSelect={setSelectedGood}
+                onSelect={(good) => setSelectedGoodId(good?.id ?? null)}
                 pending={goodPending}
                 records={records.goods}
                 selected={selectedGood}

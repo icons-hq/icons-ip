@@ -188,6 +188,7 @@ frontmatter `components` 블록이 정본 인덱스다(셸 → 기본 어휘 →
 | 체크아웃 | `/checkout`, `/checkout/[orderId]`, `/checkout/success`, `/checkout/fail` | 배송지·주문 생성 → 결제위젯 → 승인·웹훅 확인 상태 | `place_order`, `orders`/`order_items`/`payments`, 토스페이먼츠 |
 | 주문 내역 | `/orders`, `/orders/[orderId]` | 최신 주문 원장 → 상태·굿즈·배송지·결제·카드팩 상세 영수증 → 배송 전 청약철회 요청/환불 상태 | 본인 `orders`/스냅샷 `order_items`/안전 결제·환불·요청 컬럼/실제 `draw_tickets` + 취소 API |
 | 관리자 주문 | `/admin?section=orders` | DB-side 필터 → 20건 master-detail → 배송 전이·청약철회 승인/거절/재정합화 | staff-gated `admin_search_orders` + audited mutation RPC + 서버 전용 Toss 정합화 |
+| 관리자 실재고 | `/admin?section=good` | 굿즈 master-detail → 현재 수량·운영/유효 상태 → 델타·사유 조정 | staff-gated, 멱등 `admin_adjust_stock` + `audit_log` |
 | 뽑기 | `/gacha` | 카드풀 스위처 + 확률 칩 + 천장 게이지 + 클라이언트 리빌 + 라인업 | 카탈로그(카드 있는 IP), mock 공시 |
 | 팝업 | `/events` | 필터 칩 → featured 2열 → 카드 그리드(상태별 CTA) → QR 가이드 | `selectFandomEvents` |
 | 커뮤니티 | `/community` | 채널 레일 + 컴팩트 컴포저 + 피드 + 랭킹·카드풀 레일 | 실배선(작성·좋아요·댓글·신고·차단) |

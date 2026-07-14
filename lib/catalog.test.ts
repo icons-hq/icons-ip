@@ -254,27 +254,44 @@ describe('buildCatalogIpDetail', () => {
 });
 
 describe('getCatalogSnapshot', () => {
-  it('loads the current stock quantity with each Supabase good', async () => {
+  it('derives soldout at zero quantity while preserving a positive manual soldout gate', async () => {
     const records: QueryRecord[] = [];
     mocks.isConfigured = true;
     mocks.client = createSupabaseClient(records, {
-      goods: [{
-        id: 'g1',
-        ip_id: 'hwasan',
-        name: '아크릴 스탠드',
-        type: '아크릴',
-        price: 22000,
-        badge: null,
-        stock: 'low',
-        stock_qty: 7,
-        bg: 'good-bg',
-        image_path: null,
-      }],
+      goods: [
+        {
+          id: 'g1',
+          ip_id: 'hwasan',
+          name: '아크릴 스탠드',
+          type: '아크릴',
+          price: 22000,
+          badge: null,
+          stock: 'low',
+          stock_qty: 0,
+          bg: 'good-bg',
+          image_path: null,
+        },
+        {
+          id: 'g2',
+          ip_id: 'hwasan',
+          name: '판매 중지 굿즈',
+          type: '아크릴',
+          price: 12000,
+          badge: null,
+          stock: 'soldout',
+          stock_qty: 7,
+          bg: 'good-bg',
+          image_path: null,
+        },
+      ],
     });
 
     const snapshot = await getCatalogSnapshot();
 
-    expect(snapshot.goods[0]).toMatchObject({ id: 'g1', stock: 'low', stockQty: 7 });
+    expect(snapshot.goods).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'g1', stock: 'soldout', stockQty: 0 }),
+      expect.objectContaining({ id: 'g2', stock: 'soldout', stockQty: 7 }),
+    ]));
     expect(records.find((record) => record.table === 'goods')?.select).toContain('stock_qty');
 
     mocks.isConfigured = false;

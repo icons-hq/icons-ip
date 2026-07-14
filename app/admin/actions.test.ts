@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  adjustAdminStockAction,
   hideCommunityPostAction,
   setAdminUserRoleAction,
   updateCommunityReportStatusAction,
@@ -82,6 +83,17 @@ function goodForm() {
   formData.set('badge', '신상');
   formData.set('stock', 'ok');
   formData.set('stockQty', '12');
+  return formData;
+}
+
+function stockAdjustmentForm() {
+  const formData = new FormData();
+  formData.set('adjustmentId', '11111111-1111-4111-8111-111111111111');
+  formData.set('goodId', 'g100');
+  formData.set('ipId', 'hwasan');
+  formData.set('expectedStockQty', '40');
+  formData.set('delta', '12');
+  formData.set('reason', '  신규 입고  ');
   return formData;
 }
 
@@ -228,6 +240,68 @@ describe('admin catalog actions', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip/lumen');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin');
+  });
+
+  it('adjusts stock through the audited RPC and refreshes every stock consumer', async () => {
+    await expect(adjustAdminStockAction({}, stockAdjustmentForm())).resolves.toEqual({
+      message: '실재고를 조정했습니다.',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_adjust_stock', {
+      target_adjustment_id: '11111111-1111-4111-8111-111111111111',
+      target_good_id: 'g100',
+      target_expected_stock_qty: 40,
+      target_delta: 12,
+      target_reason: '신규 입고',
+    });
+    for (const path of ['/', '/ip', '/ip/hwasan', '/shop', '/cart', '/checkout', '/admin']) {
+      expect(mocks.revalidatePath).toHaveBeenCalledWith(path);
+    }
+  });
+
+  it('rejects an invalid stock adjustment before calling the RPC', async () => {
+    const formData = stockAdjustmentForm();
+    formData.set('delta', '0');
+    formData.set('reason', ' ');
+
+    await expect(adjustAdminStockAction({}, formData)).resolves.toEqual({
+      errors: {
+        delta: '조정 수량은 0이 아닌 정수여야 합니다.',
+        reason: '조정 사유를 입력해주세요.',
+      },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('blocks non-staff stock adjustments without writing', async () => {
+    mocks.adminState = {
+      isConfigured: true,
+      user: { id: 'user-1', email: 'fan@icons.gg' },
+      role: 'user',
+      isStaff: false,
+    };
+
+    await expect(adjustAdminStockAction({}, stockAdjustmentForm())).resolves.toEqual({
+      errors: { form: '관리자 권한이 필요합니다.' },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['stock_out_of_range', '재고는 0개 미만이거나 허용 범위를 넘도록 조정할 수 없습니다.'],
+    ['good_not_found', '굿즈를 찾을 수 없습니다.'],
+    ['stock_changed', '실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.'],
+    ['adjustment_conflict', '이미 사용된 재고 조정 요청입니다. 최신 수량을 확인해주세요.'],
+  ])('maps %s stock RPC errors without exposing internals', async (rpcMessage, expected) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
+
+    await expect(adjustAdminStockAction({}, stockAdjustmentForm())).resolves.toEqual({
+      errors: { form: expected },
+    });
+
+    if (rpcMessage === 'stock_changed') {
+      expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin');
+    }
   });
 
   it('calls the admin event RPC with KST date-times converted to UTC instants', async () => {

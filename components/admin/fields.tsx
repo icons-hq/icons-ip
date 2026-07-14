@@ -1,9 +1,9 @@
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import { Icon } from '@/components/ui/Icon';
 
-export function ErrorText({ children }: { children?: string }) {
+export function ErrorText({ children, id }: { children?: string; id?: string }) {
   if (!children) return null;
-  return <span style={{ color: 'var(--pink)', fontSize: 12, fontWeight: 700 }}>{children}</span>;
+  return <span id={id} role="alert" style={{ color: 'var(--pink)', fontSize: 12, fontWeight: 700 }}>{children}</span>;
 }
 
 export function Field({
@@ -12,6 +12,8 @@ export function Field({
   label,
   name,
   placeholder,
+  required,
+  step,
   type = 'text',
 }: {
   defaultValue?: string | number | null;
@@ -19,18 +21,26 @@ export function Field({
   label: string;
   name: string;
   placeholder?: string;
+  required?: boolean;
+  step?: number;
   type?: string;
 }) {
+  const errorId = error ? `${name}-error` : undefined;
+
   return (
     <label className="col" style={{ gap: 7 }}>
       <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>
         {label}
       </span>
       <input
+        aria-describedby={errorId}
         aria-invalid={Boolean(error)}
+        className="admin-field-control"
         defaultValue={defaultValue ?? ''}
         name={name}
         placeholder={placeholder}
+        required={required}
+        step={step}
         type={type}
         style={{
           background: 'rgba(255,255,255,.045)',
@@ -45,7 +55,7 @@ export function Field({
           width: '100%',
         }}
       />
-      <ErrorText>{error}</ErrorText>
+      <ErrorText id={errorId}>{error}</ErrorText>
     </label>
   );
 }
@@ -56,23 +66,33 @@ export function TextArea({
   label,
   name,
   placeholder,
+  maxLength,
+  required,
 }: {
   defaultValue?: string | null;
   error?: string;
   label: string;
   name: string;
   placeholder?: string;
+  maxLength?: number;
+  required?: boolean;
 }) {
+  const errorId = error ? `${name}-error` : undefined;
+
   return (
     <label className="col" style={{ gap: 7 }}>
       <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>
         {label}
       </span>
       <textarea
+        aria-describedby={errorId}
         aria-invalid={Boolean(error)}
+        className="admin-field-control"
         defaultValue={defaultValue ?? ''}
+        maxLength={maxLength}
         name={name}
         placeholder={placeholder}
+        required={required}
         rows={3}
         style={{
           background: 'rgba(255,255,255,.045)',
@@ -88,7 +108,7 @@ export function TextArea({
           width: '100%',
         }}
       />
-      <ErrorText>{error}</ErrorText>
+      <ErrorText id={errorId}>{error}</ErrorText>
     </label>
   );
 }
@@ -106,13 +126,17 @@ export function SelectField({
   label: string;
   name: string;
 }) {
+  const errorId = error ? `${name}-error` : undefined;
+
   return (
     <label className="col" style={{ gap: 7 }}>
       <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>
         {label}
       </span>
       <select
+        aria-describedby={errorId}
         aria-invalid={Boolean(error)}
+        className="admin-field-control"
         defaultValue={defaultValue ?? ''}
         name={name}
         style={{
@@ -130,7 +154,7 @@ export function SelectField({
       >
         {children}
       </select>
-      <ErrorText>{error}</ErrorText>
+      <ErrorText id={errorId}>{error}</ErrorText>
     </label>
   );
 }

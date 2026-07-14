@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { notFound, redirect } from 'next/navigation';
 import { Admin } from '@/components/admin/Admin';
 import { getAdminCatalogRecords } from '@/lib/admin/catalog.server';
@@ -44,11 +45,12 @@ export default async function AdminPage({
       }}
       catalog={catalog}
       insights={insights}
-      initialSection={query.section === 'orders' ? 'orders' : 'overview'}
+      initialSection={query.section === 'orders' ? 'orders' : query.section === 'good' ? 'good' : 'overview'}
       moderation={moderation}
       orders={orders}
       profiles={profiles}
       records={records}
+      stockAdjustmentId={randomUUID()}
     />
   );
 }
