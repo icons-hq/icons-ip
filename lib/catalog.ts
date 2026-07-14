@@ -81,6 +81,7 @@ interface GoodRow {
   price: number;
   badge: string | null;
   stock: string;
+  stock_qty: number;
   bg: string | null;
   image_path: string | null;
 }
@@ -226,6 +227,7 @@ function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
     price: row.price,
     badge: row.badge,
     stock: toStock(row.stock),
+    stockQty: row.stock_qty ?? 0,
     img: backgroundFor(row.bg, row.image_path, imageUrlForPath, DATA.GOODS[0]?.img ?? ''),
   };
 }
@@ -401,7 +403,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
-      .select('id,ip_id,name,type,price,badge,stock,bg,image_path')
+      .select('id,ip_id,name,type,price,badge,stock,stock_qty,bg,image_path')
       .order('id'),
     supabase
       .from('cards')

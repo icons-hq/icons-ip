@@ -6,10 +6,12 @@ import { signOutAction } from '@/app/login/actions';
 import { nextPathWithSearch } from '@/lib/auth/onboarding';
 import { createClient } from '@/lib/supabase/client';
 import { getSupabaseConfig } from '@/lib/supabase/config';
+import { useCart } from './CartProvider';
 
 export function AuthButton() {
   const router = useRouter();
   const pathname = usePathname();
+  const { resetForSignOut } = useCart();
   const [isSignedIn, setIsSignedIn] = useState(false);
 
   useEffect(() => {
@@ -43,7 +45,7 @@ export function AuthButton() {
         <button className="btn btn-ghost btn-sm" onClick={() => router.push('/settings')}>
           설정
         </button>
-        <form action={signOutAction}>
+        <form action={signOutAction} onSubmit={resetForSignOut}>
           <button className="btn btn-ghost btn-sm">로그아웃</button>
         </form>
       </>

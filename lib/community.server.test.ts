@@ -269,7 +269,7 @@ const catalog: CatalogSnapshot = {
     tagline: '매화는 다시 핀다',
     synopsis: '화산파의 부활',
   }],
-  goods: [{ id: 'g1', ip: 'hwasan', name: '아크릴', type: '굿즈', price: 1000, badge: null, stock: 'ok', img: 'img' }],
+  goods: [{ id: 'g1', ip: 'hwasan', name: '아크릴', type: '굿즈', price: 1000, badge: null, stock: 'ok', stockQty: 3, img: 'img' }],
   cards: [],
   events: [],
 };

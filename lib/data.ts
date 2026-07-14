@@ -35,6 +35,7 @@ export interface Good {
   price: number;
   badge: string | null;
   stock: Stock;
+  stockQty: number;
   img: string;
 }
 export interface Card {
@@ -143,18 +144,18 @@ const ipById = (id: string | null | undefined) => IPS.find((i) => i.id === id);
 const GOODS_TYPES = ['봉제인형', '쿠션', '키링', '아크릴 스탠드', '피규어', '문구', '파우치', '한정 세트'];
 
 const GOODS: Good[] = [
-  { id: 'g1', name: '리락쿠마 낮잠 쿠션', ip: 'rilakkuma', type: '쿠션', price: 42000, badge: '한정', stock: 'low', img: imageBg('/generated/goods/g1.png', grad('#5a3517', '#D68A2D', '#FFD84D')) },
-  { id: 'g2', name: '코리락쿠마 미니 키링', ip: 'rilakkuma', type: '키링', price: 15000, badge: '신상', stock: 'ok', img: imageBg('/generated/goods/g2.png', grad('#7d4a2a', '#F3B6C8', '#FFF3D6')) },
-  { id: 'g3', name: '주황버섯 봉제인형', ip: 'maplestory', type: '봉제인형', price: 28000, badge: '신상', stock: 'ok', img: imageBg('/generated/goods/g3.png', grad('#98440f', '#FF8C32', '#FFD84D')) },
-  { id: 'g4', name: '메이플 몬스터 키링 4종', ip: 'maplestory', type: '키링', price: 18000, badge: '한정', stock: 'low', img: imageBg('/generated/goods/g4.png', grad('#0d5e66', '#38F0C0', '#8B5CFF')) },
-  { id: 'g5', name: '핑크빈 아크릴 디오라마', ip: 'maplestory', type: '아크릴 스탠드', price: 33000, badge: '예약', stock: 'ok', img: imageBg('/generated/goods/g5.png', grad('#6b2a5b', '#F7A8C7', '#A981FF')) },
-  { id: 'g6', name: '담곰이 오리친구 데스크 매트', ip: 'nongdamgom', type: '문구', price: 22000, badge: '신상', stock: 'ok', img: imageBg('/generated/goods/g6.png', grad('#70485a', '#F7A8C7', '#FFF3D6')) },
-  { id: 'g7', name: '담곰이 말랑 쿠션', ip: 'nongdamgom', type: '쿠션', price: 36000, badge: null, stock: 'ok', img: imageBg('/generated/goods/g7.png', grad('#51343f', '#F7A8C7', '#FFD84D')) },
-  { id: 'g8', name: '춘식이 수면 파우치', ip: 'kakao-friends', type: '파우치', price: 24000, badge: '신상', stock: 'ok', img: imageBg('/generated/goods/g8.png', grad('#66421d', '#FFD84D', '#FFF3D6')) },
-  { id: 'g9', name: '라이언&어피치 피크닉 세트', ip: 'kakao-friends', type: '한정 세트', price: 59000, badge: '한정', stock: 'low', img: imageBg('/generated/goods/g9.png', grad('#724a1f', '#FFD84D', '#FF9AAF')) },
-  { id: 'g10', name: '카카오프렌즈 미니 피규어팩', ip: 'kakao-friends', type: '피규어', price: 32000, badge: null, stock: 'ok', img: imageBg('/generated/goods/g10.png', grad('#3d5b7d', '#FFD84D', '#FF9AAF')) },
-  { id: 'g11', name: '리바이 아크릴 스탠드', ip: 'attack-on-titan', type: '아크릴 스탠드', price: 26000, badge: '예약', stock: 'ok', img: imageBg('/generated/goods/g11.png', grad('#2b251f', '#6B705C', '#A981FF')) },
-  { id: 'g12', name: '조사병단 리바이 피규어', ip: 'attack-on-titan', type: '피규어', price: 89000, badge: '한정', stock: 'soldout', img: imageBg('/generated/goods/g12.png', grad('#201c18', '#4C5A3F', '#A981FF')) },
+  { id: 'g1', name: '리락쿠마 낮잠 쿠션', ip: 'rilakkuma', type: '쿠션', price: 42000, badge: '한정', stock: 'low', stockQty: 7, img: imageBg('/generated/goods/g1.png', grad('#5a3517', '#D68A2D', '#FFD84D')) },
+  { id: 'g2', name: '코리락쿠마 미니 키링', ip: 'rilakkuma', type: '키링', price: 15000, badge: '신상', stock: 'ok', stockQty: 120, img: imageBg('/generated/goods/g2.png', grad('#7d4a2a', '#F3B6C8', '#FFF3D6')) },
+  { id: 'g3', name: '주황버섯 봉제인형', ip: 'maplestory', type: '봉제인형', price: 28000, badge: '신상', stock: 'ok', stockQty: 90, img: imageBg('/generated/goods/g3.png', grad('#98440f', '#FF8C32', '#FFD84D')) },
+  { id: 'g4', name: '메이플 몬스터 키링 4종', ip: 'maplestory', type: '키링', price: 18000, badge: '한정', stock: 'low', stockQty: 12, img: imageBg('/generated/goods/g4.png', grad('#0d5e66', '#38F0C0', '#8B5CFF')) },
+  { id: 'g5', name: '핑크빈 아크릴 디오라마', ip: 'maplestory', type: '아크릴 스탠드', price: 33000, badge: '예약', stock: 'ok', stockQty: 80, img: imageBg('/generated/goods/g5.png', grad('#6b2a5b', '#F7A8C7', '#A981FF')) },
+  { id: 'g6', name: '담곰이 오리친구 데스크 매트', ip: 'nongdamgom', type: '문구', price: 22000, badge: '신상', stock: 'ok', stockQty: 110, img: imageBg('/generated/goods/g6.png', grad('#70485a', '#F7A8C7', '#FFF3D6')) },
+  { id: 'g7', name: '담곰이 말랑 쿠션', ip: 'nongdamgom', type: '쿠션', price: 36000, badge: null, stock: 'ok', stockQty: 60, img: imageBg('/generated/goods/g7.png', grad('#51343f', '#F7A8C7', '#FFD84D')) },
+  { id: 'g8', name: '춘식이 수면 파우치', ip: 'kakao-friends', type: '파우치', price: 24000, badge: '신상', stock: 'ok', stockQty: 100, img: imageBg('/generated/goods/g8.png', grad('#66421d', '#FFD84D', '#FFF3D6')) },
+  { id: 'g9', name: '라이언&어피치 피크닉 세트', ip: 'kakao-friends', type: '한정 세트', price: 59000, badge: '한정', stock: 'low', stockQty: 8, img: imageBg('/generated/goods/g9.png', grad('#724a1f', '#FFD84D', '#FF9AAF')) },
+  { id: 'g10', name: '카카오프렌즈 미니 피규어팩', ip: 'kakao-friends', type: '피규어', price: 32000, badge: null, stock: 'ok', stockQty: 140, img: imageBg('/generated/goods/g10.png', grad('#3d5b7d', '#FFD84D', '#FF9AAF')) },
+  { id: 'g11', name: '리바이 아크릴 스탠드', ip: 'attack-on-titan', type: '아크릴 스탠드', price: 26000, badge: '예약', stock: 'ok', stockQty: 70, img: imageBg('/generated/goods/g11.png', grad('#2b251f', '#6B705C', '#A981FF')) },
+  { id: 'g12', name: '조사병단 리바이 피규어', ip: 'attack-on-titan', type: '피규어', price: 89000, badge: '한정', stock: 'soldout', stockQty: 0, img: imageBg('/generated/goods/g12.png', grad('#201c18', '#4C5A3F', '#A981FF')) },
 ];
 
 const RARITY = RARITY_META;

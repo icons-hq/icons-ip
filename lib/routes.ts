@@ -15,12 +15,13 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'community', label: '커뮤니티' },
 ];
 
-/* 모바일 바텀탭 — 디자인 핸드오프의 페이지별 4탭 변형을 다수결 구성으로 고정 */
+/* 모바일 바텀탭 — 핵심 표면 4개 + 실장바구니 진입점 */
 export const MOB_ITEMS: NavItem[] = [
   { id: 'home', label: '홈' },
   { id: 'shop', label: '굿즈샵' },
   { id: 'packs', label: '카드팩' },
   { id: 'community', label: '커뮤니티' },
+  { id: 'cart', label: '장바구니' },
 ];
 
 const PATHS: Record<string, string> = {
@@ -35,7 +36,7 @@ const PATHS: Record<string, string> = {
   market: '/market',
   search: '/search',
   login: '/login',
-  cart: '/shop', // prototype had no dedicated cart route
+  cart: '/cart',
 };
 
 export function hrefFor(route: string, param?: string | null): string {

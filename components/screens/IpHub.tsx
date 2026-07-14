@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { toggleIpFollowAction } from '@/app/ip/actions';
 import type { CatalogIpDetail } from '@/lib/catalog';
@@ -89,11 +88,26 @@ export function IpHub({
 }) {
   const { ip, goods, cards, events, posts } = detail;
   const { artRef, onMouseMove, onMouseLeave } = useHeroParallax({ x: -18, y: -12 });
-  const { add } = useCart();
-  const [carted, setCarted] = useState(false);
+  const { add, error: cartError, getQuantity, pending: cartPending, ready: cartReady } = useCart();
 
   const accent = ipAccent(ip);
   const good = goods[0] ?? null;
+  const goodQuantity = good ? getQuantity(good.id) : 0;
+  const goodSoldOut = good ? good.stock === 'soldout' || good.stockQty <= 0 : false;
+  const goodAtStockLimit = good ? goodQuantity >= good.stockQty : false;
+  const goodCartActionLabel = good
+    ? goodSoldOut
+      ? `${good.name} 품절`
+      : !cartReady
+        ? `${good.name} 장바구니 준비 중`
+        : cartPending
+          ? `${good.name} 장바구니 저장 중`
+          : goodAtStockLimit
+            ? `${good.name}, 장바구니 ${goodQuantity}개, 재고 한도 ${good.stockQty}개`
+            : goodQuantity > 0
+              ? `${good.name}, 장바구니 ${goodQuantity}개, 한 개 더 담기`
+              : `${good.name} 장바구니에 한 개 담기`
+    : '';
   const goodStockLabel = good ? STOCK_LABEL[good.stock] : null;
   const goodsLineup = goods.length > 1 ? goods.slice(1, 3) : goods.slice(0, 2);
   const topCard = RARITY_ORDER.map((r) => cards.find((c) => c.rarity === r)).find(Boolean) ?? null;
@@ -101,10 +115,8 @@ export function IpHub({
   const post = posts[0] ?? null;
 
   const onAddCart = () => {
-    if (!good || good.stock === 'soldout') return;
-    add();
-    setCarted(true);
-    window.setTimeout(() => setCarted(false), 1400);
+    if (!good || goodSoldOut) return;
+    void add(good.id, good.stockQty);
   };
 
   return (
@@ -211,15 +223,27 @@ export function IpHub({
                       <button
                         className="btn btn-primary"
                         onClick={onAddCart}
-                        disabled={good.stock === 'soldout'}
-                        style={{ height: 46, fontWeight: 700, opacity: good.stock === 'soldout' ? 0.5 : 1 }}
+                        disabled={goodSoldOut || goodAtStockLimit || !cartReady || cartPending}
+                        aria-label={goodCartActionLabel}
+                        style={{ height: 46, fontWeight: 700, opacity: goodSoldOut || !cartReady ? 0.5 : 1 }}
                       >
-                        {good.stock === 'soldout' ? '품절' : carted ? '장바구니 담김 ✓' : '장바구니 담기'}
+                        {goodSoldOut
+                          ? '품절'
+                          : !cartReady
+                            ? '준비 중'
+                            : goodQuantity > 0
+                              ? `장바구니 담김 · ${goodQuantity}`
+                              : '장바구니 담기'}
                       </button>
                       <Link className="btn btn-ghost" href={`${hrefFor('shop')}?ip=${ip.id}`} style={{ height: 46, fontSize: 14 }}>
                         전체 굿즈 {goods.length}종
                       </Link>
                     </div>
+                    {cartError && (
+                      <span role="alert" style={{ color: 'var(--pink)', fontSize: 12.5, fontWeight: 700 }}>
+                        {cartError}
+                      </span>
+                    )}
                   </div>
                 </>
               ) : (

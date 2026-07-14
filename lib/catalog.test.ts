@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildCatalogIpDetail, getCatalogIpDetail, getHomeSnapshot, type CatalogPostPreview, type CatalogSnapshot } from './catalog';
+import { buildCatalogIpDetail, getCatalogIpDetail, getCatalogSnapshot, getHomeSnapshot, type CatalogPostPreview, type CatalogSnapshot } from './catalog';
 import { getHomeSelectableIps } from './home-catalog';
 import type { Ip } from './data';
 
@@ -42,8 +42,8 @@ const catalog: CatalogSnapshot = {
   verticals: [vertical],
   ips: [hwasan, otherIp],
   goods: [
-    { id: 'g2', ip: 'hwasan', name: '아크릴 스탠드', type: '아크릴', price: 22000, badge: null, stock: 'ok', img: 'g2' },
-    { id: 'g1', ip: 'lumen', name: '피규어', type: '피규어', price: 89000, badge: null, stock: 'ok', img: 'g1' },
+    { id: 'g2', ip: 'hwasan', name: '아크릴 스탠드', type: '아크릴', price: 22000, badge: null, stock: 'ok', stockQty: 12, img: 'g2' },
+    { id: 'g1', ip: 'lumen', name: '피규어', type: '피규어', price: 89000, badge: null, stock: 'ok', stockQty: 4, img: 'g1' },
   ],
   cards: [
     { id: 'c2', ip: 'hwasan', name: '화산의 검', no: '014/120', rarity: 'SSR', owned: false, bg: 'c2' },
@@ -250,6 +250,35 @@ describe('buildCatalogIpDetail', () => {
 
   it('returns null when the IP does not exist', () => {
     expect(buildCatalogIpDetail(catalog, 'missing', [])).toBeNull();
+  });
+});
+
+describe('getCatalogSnapshot', () => {
+  it('loads the current stock quantity with each Supabase good', async () => {
+    const records: QueryRecord[] = [];
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records, {
+      goods: [{
+        id: 'g1',
+        ip_id: 'hwasan',
+        name: '아크릴 스탠드',
+        type: '아크릴',
+        price: 22000,
+        badge: null,
+        stock: 'low',
+        stock_qty: 7,
+        bg: 'good-bg',
+        image_path: null,
+      }],
+    });
+
+    const snapshot = await getCatalogSnapshot();
+
+    expect(snapshot.goods[0]).toMatchObject({ id: 'g1', stock: 'low', stockQty: 7 });
+    expect(records.find((record) => record.table === 'goods')?.select).toContain('stock_qty');
+
+    mocks.isConfigured = false;
+    mocks.client = null;
   });
 });
 
