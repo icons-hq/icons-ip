@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState } from 'react';
 import {
   upsertAdminTicketTypeAction,
@@ -34,23 +35,34 @@ export function TicketSection({
   const id = selected?.id ?? draftId;
 
   return (
-    <div className="admin-master-detail">
-      <RecordList
-        activeId={selected?.id ?? null}
-        ariaLabel="티켓 회차 목록"
-        emptyMessage="등록된 티켓 회차가 없습니다."
-        items={records}
-        labelFor={(record) => `${record.eventTitle} · ${record.name} · ${record.sold}/${record.capacity}`}
-        onNew={() => onSelect(null)}
-        onSelect={onSelect}
-      />
-      <TicketForm
-        draftId={draftId}
-        eventOptions={eventOptions}
-        key={`${id}-${operationId}-${selected?.updatedAt ?? 'new'}`}
-        operationId={operationId}
-        selected={selected}
-      />
+    <div className="col" style={{ gap: 14 }}>
+      <div className="card row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 14, justifyContent: 'space-between', padding: 16 }}>
+        <div>
+          <strong>현장 티켓 검표</strong>
+          <div style={{ color: 'var(--dim)', fontSize: 12, marginTop: 4 }}>
+            모바일 카메라나 현장 스캐너로 입장 티켓을 확인합니다.
+          </div>
+        </div>
+        <Link className="btn btn-holo" href="/admin/check-in">현장 검표 화면 열기</Link>
+      </div>
+      <div className="admin-master-detail">
+        <RecordList
+          activeId={selected?.id ?? null}
+          ariaLabel="티켓 회차 목록"
+          emptyMessage="등록된 티켓 회차가 없습니다."
+          items={records}
+          labelFor={(record) => `${record.eventTitle} · ${record.name} · ${record.sold}/${record.capacity}`}
+          onNew={() => onSelect(null)}
+          onSelect={onSelect}
+        />
+        <TicketForm
+          draftId={draftId}
+          eventOptions={eventOptions}
+          key={`${id}-${operationId}-${selected?.updatedAt ?? 'new'}`}
+          operationId={operationId}
+          selected={selected}
+        />
+      </div>
     </div>
   );
 }

@@ -40,6 +40,13 @@ function renderTicketSection(
 }
 
 describe('TicketSection', () => {
+  it('links to the standalone field check-in screen', () => {
+    const html = renderTicketSection(ticketType);
+
+    expect(html).toContain('href="/admin/check-in"');
+    expect(html).toContain('현장 검표 화면 열기');
+  });
+
   it('shows allocation status and locks historical metadata while keeping capacity editable', () => {
     const html = renderTicketSection(ticketType);
 

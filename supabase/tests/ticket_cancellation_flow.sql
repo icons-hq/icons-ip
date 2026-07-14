@@ -296,7 +296,7 @@ values
   ('95300000-0000-4000-8000-000000000007', '95100000-0000-4000-8000-000000000005', '95000000-0000-4000-8000-000000000005', 'ticket-cancel-null-qr', 'valid'),
   ('95300000-0000-4000-8000-000000000008', '95100000-0000-4000-8000-000000000006', '95000000-0000-4000-8000-000000000006', 'ticket-cancel-multi-qr', 'valid'),
   ('95300000-0000-4000-8000-000000000009', '95100000-0000-4000-8000-000000000007', '95000000-0000-4000-8000-000000000007', null, 'valid'),
-  ('95300000-0000-4000-8000-000000000010', '95100000-0000-4000-8000-000000000008', '95000000-0000-4000-8000-000000000008', 'ticket-cancel-checkin-qr', 'valid'),
+  ('95300000-0000-4000-8000-000000000010', '95100000-0000-4000-8000-000000000008', '95000000-0000-4000-8000-000000000008', '95300000000040008000000000000010', 'valid'),
   ('95300000-0000-4000-8000-000000000011', '95100000-0000-4000-8000-000000000009', '95000000-0000-4000-8000-000000000009', 'ticket-cancel-provider-used-qr', 'used'),
   ('95300000-0000-4000-8000-000000000012', '95100000-0000-4000-8000-000000000010', '95000000-0000-4000-8000-000000000010', 'ticket-cancel-provider-direct-qr', 'valid'),
   ('95300000-0000-4000-8000-000000000013', '95100000-0000-4000-8000-000000000012', '95000000-0000-4000-8000-000000000012', 'ticket-cancel-non-valid-qr', 'refunded'),
@@ -1232,13 +1232,17 @@ select * from public.request_ticket_cancellation(
 ) \gset checkin_block_
 
 reset role;
-set local role authenticated;
-select set_config('request.jwt.claim.role', 'authenticated', true);
-select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000009503', true);
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select set_config('request.jwt.claim.sub', '', true);
 do $$
 begin
   begin
-    perform public.check_in_ticket('ticket-cancel-checkin-qr');
+    perform *
+    from public.check_in_ticket(
+      '00000000-0000-4000-8000-000000009503',
+      '95300000000040008000000000000010'
+    );
     raise exception 'check-in should be blocked by active cancellation';
   exception
     when check_violation then
@@ -1248,6 +1252,9 @@ end;
 $$;
 
 -- owner RLS은 safe 컬럼만 읽고 다른 사용자의 요청은 숨긴다.
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000009501', true);
 select 1 / case when exists (
   select 1
@@ -1337,7 +1344,7 @@ select 1 / case when strpos(:'approval_definition', 'from public.ticket_orders')
   then 1 else 0 end as assert_approval_claim_locks_order_then_request_then_payment;
 
 select lower(pg_get_functiondef(
-  'public.check_in_ticket(text)'::regprocedure
+  'public.check_in_ticket(uuid,text)'::regprocedure
 )) as checkin_definition \gset
 select 1 / case when strpos(:'checkin_definition', 'from public.ticket_orders') > 0
   and strpos(:'checkin_definition', 'from public.ticket_cancellation_requests') > 0
