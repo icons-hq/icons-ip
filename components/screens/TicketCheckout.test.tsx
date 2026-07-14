@@ -60,7 +60,8 @@ describe('TicketCheckout', () => {
     expect(html).toContain('예매가 완료됐어요');
     expect(html).toContain('전자티켓 2장이 발급됐어요');
     expect(html).not.toContain('qr_token');
-    expect(html).not.toContain('/tickets');
+    expect(html).toContain(`href="/tickets/${order.id}"`);
+    expect(html).toContain('전자티켓 보기');
   });
 
   it('shows a closed state and never renders payment before client time initialization', () => {

@@ -118,15 +118,24 @@ select 1 / case when not has_function_privilege(
 ) then 1 else 0 end as assert_expiry_sweep_is_service_only;
 
 select 1 / case when to_regprocedure(
-  'public.refund_ticket_order_with_provider_evidence(uuid,text,text)'
+  'public.refund_ticket_order_with_provider_evidence(uuid,text,text,jsonb,boolean)'
 ) is not null then 1 else 0 end as assert_provider_evidence_refund_rpc_exists;
+select 1 / case when (
+  select pronargdefaults = 2
+  from pg_catalog.pg_proc
+  where oid = 'public.refund_ticket_order_with_provider_evidence(uuid,text,text,jsonb,boolean)'::regprocedure
+) then 1 else 0 end as assert_provider_evidence_refund_keeps_three_arg_compatibility;
 select 1 / case when not has_function_privilege(
+  'anon',
+  'public.refund_ticket_order_with_provider_evidence(uuid,text,text,jsonb,boolean)',
+  'execute'
+) and not has_function_privilege(
   'authenticated',
-  'public.refund_ticket_order_with_provider_evidence(uuid,text,text)',
+  'public.refund_ticket_order_with_provider_evidence(uuid,text,text,jsonb,boolean)',
   'execute'
 ) and has_function_privilege(
   'service_role',
-  'public.refund_ticket_order_with_provider_evidence(uuid,text,text)',
+  'public.refund_ticket_order_with_provider_evidence(uuid,text,text,jsonb,boolean)',
   'execute'
 ) then 1 else 0 end as assert_provider_evidence_refund_is_service_only;
 
@@ -137,7 +146,13 @@ select 1 / case when not has_table_privilege('anon', 'public.ticket_orders', 'se
   then 1 else 0 end as assert_anon_has_no_private_ticket_table_access;
 
 select 1 / case when has_table_privilege('authenticated', 'public.ticket_orders', 'select')
-  and has_table_privilege('authenticated', 'public.tickets', 'select')
+  and not has_table_privilege('authenticated', 'public.tickets', 'select')
+  and has_column_privilege('authenticated', 'public.tickets', 'id', 'select')
+  and has_column_privilege('authenticated', 'public.tickets', 'ticket_order_id', 'select')
+  and has_column_privilege('authenticated', 'public.tickets', 'ticket_type_id', 'select')
+  and has_column_privilege('authenticated', 'public.tickets', 'status', 'select')
+  and has_column_privilege('authenticated', 'public.tickets', 'created_at', 'select')
+  and not has_column_privilege('authenticated', 'public.tickets', 'qr_token', 'select')
   and has_table_privilege('authenticated', 'public.check_ins', 'select')
   and not has_table_privilege('authenticated', 'public.ticket_orders', 'insert')
   and not has_table_privilege('authenticated', 'public.ticket_orders', 'update')

@@ -31,7 +31,7 @@
 | 인증 | Supabase SSR 이메일/PW Auth, 확인 메일 callback, 온보딩 게이트, 우상단 AuthButton 상태 동기화. env 없으면 no-op/폼 비활성화 | `app/login/*`, `app/auth/callback/route.ts`, `app/onboarding/*`, `components/shell/AuthButton.tsx`, `lib/auth/*`, `lib/supabase/*`, 루트 `proxy.ts` |
 | 보호 액션 | IP 팔로우/언팔로우 server action + 온보딩 추천 IP 저장. 커뮤니티 포스트 작성, 댓글, 좋아요, 작성자 삭제, 신고, 차단은 Server Action + RPC로 연결 | `app/ip/actions.ts`, `app/onboarding/actions.ts`, `app/community/actions.ts`, `lib/ip-follow*`, `supabase/migrations/20260623090001_ip_follow_rpc.sql`, `supabase/migrations/20260624103001_community_comment_like_actions.sql`, `supabase/migrations/20260626090001_community_moderation_actions.sql` |
 | 굿즈 커머스 | 비로그인 localStorage·로그인 `cart_items` 병합, 멱등 `place_order` 재고 선점, 토스 결제위젯 redirect 승인, 웹훅 확정·만료 복원, 본인 주문 내역·상세·배송 전 청약철회 요청·상태 조회 | `app/cart/*`, `app/checkout/*`, `app/orders/*`, `app/api/orders/*`, `app/api/payments/confirm`, `app/api/webhooks/tosspayments`, `lib/checkout*`, `lib/orders*`, `lib/payments/*` |
-| 티켓 예매 | 공개 이벤트 상세·회차 잔여 조회, 멱등 `reserve_tickets` 정원 선점, 티켓용 토스 결제위젯, 웹훅 확정·QR 발급·만료 복원, 본인 예매 상태 조회 | `app/events/[eventId]/*`, `app/ticket-checkout/*`, `app/api/payments/confirm`, `app/api/webhooks/tosspayments`, `lib/ticketing*`, `lib/payments/*` |
+| 티켓 예매 | 공개 이벤트 상세·회차 잔여 조회, 멱등 `reserve_tickets` 정원 선점, 티켓용 토스 결제위젯, 웹훅 확정·QR 발급·만료 복원, 본인 티켓 목록/상세·보호 QR·예매 전체 취소/환불 | `app/events/[eventId]/*`, `app/ticket-checkout/*`, `app/tickets/*`, `app/api/tickets/*`, `app/api/ticket-orders/*`, `app/api/payments/confirm`, `app/api/webhooks/tosspayments`, `lib/ticketing*`, `lib/payments/*` |
 | 운영 | staff/admin 게이트, 카탈로그 CRUD, 감사 로그, 커뮤니티 신고 처리, 주문 검색·배송 전이·청약철회 승인/거절/재정합화, 실재고 입고·보정 | `app/admin/*`, `components/admin/*`, `lib/admin/*`, `supabase/migrations/20260714190001_admin_order_console.sql`, `supabase/migrations/20260714200001_admin_stock_adjustment.sql` |
 | CI/CD | GitHub Actions `CI/CD Pipeline`: PR 검증 + Vercel preview 배포, merge queue 검증, `main` push production 배포. Actions 앱 빌드 Node는 26 | `.github/workflows/pipeline.yml` |
 | 배포 | PR은 Vercel 원격 preview build/deploy, `main` push는 Supabase linked migration push 후 Vercel 원격 production build/deploy. Sensitive 환경변수는 Vercel build 안에서 검증하며 Vercel Git 자동 배포는 비활성화 | GitHub Secrets + `.github/workflows/pipeline.yml`, `vercel.json` |
@@ -42,7 +42,7 @@
 **요청 프록시 주의**: 루트 `proxy.ts`가 `export function proxy()` + `config.matcher`로 동작한다(Next 16에서 미들웨어가 이 형태). `lib/supabase/middleware.ts`의 `updateSession`을 호출하며 **보호 액션 전까지 로그인 리다이렉트는 하지 않는다**(공개 브라우징 정책).
 
 화면↔라우트 매핑(현재):
-`/`·`/ip`·`/ip/[id]`·`/shop`·`/cart`·`/checkout`·`/checkout/[orderId]`·`/checkout/success`·`/checkout/fail`·`/orders`·`/orders/[orderId]`·`/binder`·`/exchange`·`/community`·`/events`·`/events/[eventId]`·`/ticket-checkout/[ticketOrderId]`·`/ticket-checkout/success`·`/ticket-checkout/fail`·`/market`·`/search`·`/login`
+`/`·`/ip`·`/ip/[id]`·`/shop`·`/cart`·`/checkout`·`/checkout/[orderId]`·`/checkout/success`·`/checkout/fail`·`/orders`·`/orders/[orderId]`·`/binder`·`/exchange`·`/community`·`/events`·`/events/[eventId]`·`/ticket-checkout/[ticketOrderId]`·`/ticket-checkout/success`·`/ticket-checkout/fail`·`/tickets`·`/tickets/[ticketOrderId]`·`/market`·`/search`·`/login`
 
 ---
 
@@ -129,6 +129,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - `ticket_types` (id, event_id, name, price, capacity, sold) — 회차/종류. 공개 읽기, staff 쓰기는 audited RPC만 허용
 - `ticket_orders` (id, user_id, event_id, status, total, expires_at, reservation_key) — 사용자별 reservation key로 동일 예매 요청을 멱등화
 - `tickets` (id, ticket_order_id, ticket_type_id, qr_token, status `valid|used|refunded`)
+- `ticket_cancellation_requests` (ticket_order_id, requested_by, status, policy/cutoff/금액 snapshot, attempt lease) — 사용자·provider 취소를 멱등 정합화하는 durable 원장
 - `check_ins` (ticket_id, checked_at, by_staff)
 
 ### 5.6 커뮤니티 (P0)
@@ -150,7 +151,8 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 | 테이블군 | 읽기 | 쓰기 |
 |---|---|---|
 | 카탈로그(verticals/ips/goods/events/cards/pool_odds) | **공개(anon)** | staff/admin only |
-| profiles/ip_follows/carts/orders/wallets/user_cards/ticket_orders/tickets | **본인만** | 본인 읽기, 쓰기는 신뢰 RPC/service role만 |
+| profiles/ip_follows/carts/orders/wallets/user_cards/ticket_orders | **본인만** | 본인 읽기, 쓰기는 신뢰 RPC/service role만 |
+| tickets/ticket_cancellation_requests | **본인만 안전 컬럼** | QR 원문·provider/attempt/error 정보는 서버 경계 전용, 쓰기는 신뢰 RPC/service role만 |
 | posts/comments/likes | 공개 읽기(visible) | 작성자 본인, 신고/숨김은 본인+운영 |
 | reports/blocks | 본인+운영 | 본인 |
 | audit_log | admin only | RPC만 |
@@ -172,8 +174,9 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - **`reserve_tickets(user_id, ticket_type_id, qty, reservation_key)`** — 결제 환경·인증·온보딩을 확인한 Server Action만 service role로 호출하며 브라우저 롤에는 execute를 열지 않는다. DB에서도 사용자 온보딩을 재확인하고 사용자+요청 키 advisory lock과 unique index로 재시도를 멱등화한다. 이벤트를 먼저 잠근 뒤 회차를 `FOR UPDATE`로 잠그고 예매 상태·유료 가격·오픈 시각·1인 한도·잔여를 재검증해 10분 `pending` 예매와 QR 없는 티켓 placeholder를 만든다. QR은 웹훅의 `confirm_ticket_payment`에서만 발급한다.
 - **`admin_upsert_ticket_type(operation_id, ticket_type_id, event_id, name, price, capacity)`** — operation/type UUID advisory lock 뒤 이벤트를 `FOR KEY SHARE`, 기존 회차를 `FOR UPDATE`로 잠근다. 최신 `sold` 미만 capacity를 거절하고, 티켓 이력이 생기면 이벤트·회차명·가격을 잠그며, 전후 상태를 `audit_log`에 멱등 기록한다. `sold`·`per_user_limit`·`sales_open_at`은 입력받거나 덮어쓰지 않는다.
 - **`place_order(cart)`** — 굿즈 재고 검증·차감, 주문 당시 가격·이름·유형·IP를 고정한 `orders`/`order_items` 생성(`pending`).
-- **`confirm_order_payment` / `confirm_ticket_payment`** — 결제 확정(service_role 전용). 웹훅에서 호출, **멱등 키=토스 paymentKey**로 중복 방지. (충전 `charge_wallet`은 ADR-0003으로 폐기)
+- **`begin_ticket_payment_approval` / `confirm_order_payment` / `confirm_ticket_payment`** — 티켓은 provider 승인 호출 전에 order→active cancellation request→payment 순서로 잠그고 `pending` payment claim을 먼저 남겨 무결제 취소와 외부 승인이 엇갈리지 않게 한다. 결제 확정은 웹훅에서 service role로 호출하며 **멱등 키=토스 paymentKey**로 중복 방지한다. (충전 `charge_wallet`은 ADR-0003으로 폐기)
 - **`request_order_cancellation` / `admin_decide_order_cancellation` / `complete_order_cancellation_request`** — 사용자 요청을 durable 원장에 남기고 staff 승인 뒤에만 provider 정합화를 시작한다. fresh GET으로 모든 대상 결제의 전액 취소를 검증한 뒤 재고·미사용 카드팩·환불 장부·주문 상태를 원자적으로 정리한다. 불확실한 결과는 claim을 유지한 `needs_review`로 격리하며 같은 멱등키로만 재정합화한다.
+- **`request_ticket_cancellation` / `begin_ticket_cancellation_reconcile` / `complete_ticket_cancellation_request`** — 이벤트 시작 전 미사용 예매 전체의 정책·마감·전액 환불 금액을 snapshot으로 남긴다. order→request→payments→tickets→ticket_types 잠금 순서와 5분 attempt lease로 confirm/check-in 경합과 중복 provider 처리를 막고, 모든 비실패 결제의 fresh GET→필요 시 전액 취소→fresh GET 증거가 일치할 때만 티켓·정원·환불을 원자 완료한다. 검증된 provider 원문과 실제 환불 근거를 결제 원장에 함께 보존하며, 불확실한 결과는 QR을 차단한 `needs_review`로 남긴다.
 - **`admin_update_order_status` / `admin_search_orders`** — staff를 DB에서 다시 확인하고 `paid → shipping → done`만 허용·감사하며, 주문/구매자/상태/KST 기간 필터를 DB에서 페이지 처리한다.
 - **`admin_adjust_stock`** — 화면별 UUID 멱등키를 advisory lock으로, 굿즈를 `FOR UPDATE`로 잠근다. 화면에서 본 수량과 현재 수량이 같을 때만 델타를 반영하고 감사 로그 ID·전후 수량·사유를 원장으로 남긴다. persisted `stock`은 수동 판매 게이트로 보존하며 공개 유효 상태는 `stock_qty <= 0 ? soldout : stock`으로 파생한다.
 
@@ -207,10 +210,11 @@ Production Auth 설정:
 - 승인: successUrl 콜백이 **`/api/payments/confirm`** 을 호출 → 본인 소유·pending·미만료·금액 일치를 검증한 뒤 토스 승인 API를 호출하고 `payments`에 `pending`으로 기록한다. **승인 성공은 UX 반영용이다.**
 - 확정: **웹훅 `/api/webhooks/tosspayments`(Route Handler)** 가 단일 진실원. 결제 웹훅에는 서명이 없으므로(서명 헤더는 지급대행 웹훅 전용) payload를 신뢰하지 않고 paymentKey로 **결제 조회 API를 재호출해 검증**한 뒤 `confirm_order_payment`/`confirm_ticket_payment` RPC(service_role, 멱등 키=paymentKey)를 호출한다. 검증된 조회 응답 원문을 `payments.raw`에 보존한다.
 - 주문 상세의 브라우저 조회는 본인 RLS와 결제 안전 컬럼(`id`,`user_id`,`purpose`,`ref_id`,`amount`,`status`,`created_at`), 환불 안전 컬럼(`id`,`payment_id`,`amount`,`status`,`created_at`), 본인 청약철회 요청의 공개 상태·처리 시각·결정 메모로 제한한다. 내부 오류 코드·요청 사유·actor와 `payment_key`·`idempotency_key`·`raw`는 서버 신뢰 경계에만 둔다.
-- 흐름: ① RPC로 `pending` 생성(재고 선점) → ② 토스 결제 → ③ 승인 경로(`pending` 기록) → ④ 웹훅 확정(`paid`, 티켓 QR 발급/주문 확정) → ⑤ 실패·만료 시 선점 복원.
+- 흐름: ① RPC로 `pending` 생성(재고 선점) → ② 토스 결제 → ③ 티켓은 승인 직전 DB payment claim, 승인 뒤 provider raw 보강(굿즈는 승인 뒤 `pending` 기록) → ④ 웹훅 확정(`paid`, 티켓 QR 발급/주문 확정) → ⑤ 실패·만료 시 선점 복원.
 - 실패·만료 복원: 만료 등 확정 불가 결제는 웹훅이 **토스 취소 API로 자동 환불**하고, 해당 paymentKey를 `refund_ticket_order_with_provider_evidence`에 전달해 그 결제 시도만 정합화한다. 같은 예매에 다른 pending/paid 결제가 남아 있으면 예매·정원은 유지한다. 승인 이력 없는 만료 pending 주문·예매는 pg_cron이 매분 `expire_stale_checkouts()`로 `cancel_order`/`refund_ticket_order`를 재사용해 정리한다(승인 진행 중 건 제외, 만료 후 5분 유예).
 - 미지원 가상계좌: 입금 전 `WAITING_FOR_DEPOSIT`이면 토스를 먼저 자동 취소한 뒤 로컬 주문·재고를 원복한다. 입금 완료 건은 환불계좌 없이 자동 취소하지 않고 운영 오류로 노출한다.
 - 사용자 취소: 본인 `pending` 무결제 주문만 즉시 선점을 원복한다. 결제 행이 있는 `pending`과 `paid`는 `/api/orders/[orderId]/cancel`이 provider 식별자 없이 `requested` 원장만 만들고 결제 확정·배송 전이를 막는다. staff 승인 뒤 서버가 결제사 fresh GET → 전액 취소 POST → fresh GET을 수행하며, 전액 취소가 모두 확인된 경우에만 주문·재고·미사용 카드팩·환불을 원자적으로 완료한다. 타임아웃·부분 취소·응답 불일치는 `needs_review`에 남겨 같은 멱등키로 재정합화하고, provider 호출 전 `requested`만 거절할 수 있다. `shipping`·`done`은 셀프 취소를 막고 CS 확인으로 보낸다.
+- 티켓 취소: `/api/ticket-orders/[ticketOrderId]/cancel`은 same-origin·auth·onboarding·owner를 확인하고 order UUID 외 provider 입력을 받지 않는다. 시작 전 미사용 예매 전체만 수수료 없이 취소하며, 무결제 `pending`은 즉시 원복하고 결제 예매는 서버가 모든 결제를 fresh provider 증거로 정합화한다. QR은 raw token을 DTO·DOM·URL에 싣지 않고 paid+valid+비취소 상태를 재검증하는 no-store PNG Route Handler로만 제공한다.
 - 환불: `refunds` 완료 기록 + 재고 원복은 RPC가 담당한다. 토스 쪽 취소(`CANCELED` 웹훅) 등 기존 호환 경로는 active 청약철회 요청을 완료할 수 없고, 해당 요청은 관리자 fresh GET 전체 검증 경로에서만 종결한다. 현재 배송·수령 시각이 없으므로 법정 7일을 앱이 자동 판정하지 않는다.
 - 단일 PG 가정. 멀티 PG 필요 시 `payments.provider` + 어댑터 계층 도입.
 

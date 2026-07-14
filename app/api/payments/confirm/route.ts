@@ -133,6 +133,40 @@ export async function POST(request: Request) {
     return errorJson(400, 'amount_mismatch', '결제 금액이 주문 금액과 일치하지 않습니다.');
   }
 
+  if (ref.purpose === 'ticket') {
+    const { data: beginResult, error: beginError } = await service.rpc(
+      'begin_ticket_payment_approval',
+      {
+        p_user_id: user.id,
+        p_ticket_order_id: ref.refId,
+        p_payment_key: body.paymentKey,
+        p_amount: body.amount,
+      },
+    );
+    if (beginError) {
+      if (beginError.code === '23514' || beginError.code === '23505' || beginError.code === 'P0002') {
+        return errorJson(409, 'not_payable', '결제할 수 없는 예매 상태입니다.');
+      }
+      console.error('[payments/confirm] failed to begin ticket payment approval');
+      return errorJson(
+        502,
+        'payment_prepare_failed',
+        '결제 준비 상태를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.',
+      );
+    }
+    if (beginResult === 'already_confirmed') {
+      return NextResponse.json({ status: 'already_confirmed' });
+    }
+    if (beginResult !== 'pending') {
+      console.error('[payments/confirm] unexpected ticket payment approval result');
+      return errorJson(
+        502,
+        'payment_prepare_failed',
+        '결제 준비 상태를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.',
+      );
+    }
+  }
+
   const recordPayment = (raw: unknown) =>
     service.from('payments').upsert(
       {
@@ -156,6 +190,19 @@ export async function POST(request: Request) {
       .eq('idempotency_key', body.paymentKey)
       .eq('status', 'failed');
   const recordPendingEvidence = async (raw: unknown) => {
+    if (ref.purpose === 'ticket') {
+      const { error } = await service
+        .from('payments')
+        .update({ raw })
+        .eq('idempotency_key', body.paymentKey)
+        .eq('status', 'pending');
+      if (error) {
+        console.error('[payments/confirm] failed to update pending ticket payment evidence');
+        return false;
+      }
+      return true;
+    }
+
     const [{ error: recordError }, { error: healError }] = await Promise.all([
       recordPayment(raw),
       healFailedRecord(raw),
@@ -222,6 +269,21 @@ export async function POST(request: Request) {
     } else {
       // 네트워크 단절·토스 5xx·멱등 처리 중(409)은 토스 측 승인 성공 가능성이 남는다.
       const indeterminate = isIndeterminateTossFailure(confirmed);
+      if (!indeterminate && ref.purpose === 'ticket') {
+        const { error } = await service
+          .from('payments')
+          .update({ status: 'failed' })
+          .eq('idempotency_key', body.paymentKey)
+          .eq('status', 'pending');
+        if (error) {
+          console.error('[payments/confirm] failed to mark rejected ticket payment');
+          return errorJson(
+            502,
+            'payment_record_failed',
+            '결제 거부 상태를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.',
+          );
+        }
+      }
       return errorJson(
         indeterminate ? 502 : 400,
         indeterminate ? 'payment_approval_unknown' : 'payment_approval_failed',

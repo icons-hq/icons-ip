@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import {
+  buildTossOrderId,
   decideWebhookAction,
   mapConfirmRpcError,
   normalizeTossPayment,
   parseWebhookEvent,
+  verifyTossCancellationState,
   type NormalizedTossPayment,
   type TossOrderRef,
 } from '@/lib/payments/toss';
@@ -144,7 +146,7 @@ async function applyReflectCancel(
 ) {
   const { data: existing, error } = await service
     .from('payments')
-    .select('id,status')
+    .select('id,status,amount,purpose,ref_id,payment_key,idempotency_key')
     .eq('idempotency_key', payment.paymentKey)
     .maybeSingle();
   if (error) {
@@ -155,7 +157,7 @@ async function applyReflectCancel(
   const table = ref.purpose === 'order' ? 'orders' : 'ticket_orders';
   const { data: target, error: targetError } = await service
     .from(table)
-    .select('status')
+    .select('status,total')
     .eq('id', ref.refId)
     .maybeSingle();
   if (targetError) {
@@ -163,6 +165,39 @@ async function applyReflectCancel(
     return errorJson(500, 'lookup_failed');
   }
   if (!target) return received('no_local_target');
+
+  if (ref.purpose === 'ticket') {
+    const targetTotal = (target as { total?: unknown }).total;
+    const localPayment = existing as {
+      amount?: unknown;
+      purpose?: unknown;
+      ref_id?: unknown;
+      payment_key?: unknown;
+      idempotency_key?: unknown;
+    } | null;
+    const localEvidenceMatches = !localPayment || (
+      localPayment.purpose === 'ticket'
+      && localPayment.ref_id === ref.refId
+      && localPayment.payment_key === payment.paymentKey
+      && localPayment.idempotency_key === payment.paymentKey
+      && localPayment.amount === targetTotal
+    );
+    const verification = typeof targetTotal === 'number' && Number.isSafeInteger(targetTotal) && targetTotal > 0
+      ? verifyTossCancellationState(raw, {
+          paymentKey: payment.paymentKey,
+          orderId: buildTossOrderId('ticket', ref.refId),
+          amount: targetTotal,
+        })
+      : null;
+    if (!localEvidenceMatches || !verification?.ok || verification.state !== 'fully_canceled') {
+      console.error('[webhooks/tosspayments] invalid ticket cancellation evidence');
+      return errorJson(500, 'ticket_cancel_evidence_invalid');
+    }
+    if (!payment.method || payment.method === '가상계좌') {
+      console.error('[webhooks/tosspayments] unsupported ticket cancellation payment method');
+      return errorJson(500, 'unsupported_ticket_payment_method');
+    }
+  }
 
   // 조회된 CANCELED 결제가 로컬에 없으면 provider terminal 증거부터 복구한다.
   // 그래야 이어지는 RPC가 환불 장부까지 같은 트랜잭션에서 정합화할 수 있다.
@@ -185,6 +220,8 @@ async function applyReflectCancel(
           p_ticket_order_id: ref.refId,
           p_reason: '토스 결제 취소 웹훅 반영',
           p_provider_payment_key: payment.paymentKey,
+          p_provider_raw: raw,
+          p_refund_confirmed: true,
         });
     if (rpcError) {
       console.error(`[webhooks/tosspayments] canceled checkout close failed: ${rpcError.message}`);
@@ -290,6 +327,10 @@ export async function POST(request: Request) {
   if (!payment) {
     console.error('[webhooks/tosspayments] unexpected payment shape from inquiry API');
     return errorJson(500, 'unexpected_payment_shape');
+  }
+  if (payment.paymentKey !== event.paymentKey) {
+    console.error('[webhooks/tosspayments] provider payment identity mismatch');
+    return errorJson(500, 'provider_response_mismatch');
   }
 
   const action = decideWebhookAction(payment);

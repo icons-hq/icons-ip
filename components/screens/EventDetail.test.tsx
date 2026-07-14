@@ -114,4 +114,12 @@ describe('EventDetail', () => {
     expect(html).toContain('결제 환경을 확인 중이라 지금은 예매할 수 없어요');
     expect(html).toContain('disabled=""');
   });
+
+  it('explains where the private QR appears after payment', () => {
+    const html = render();
+
+    expect(html).toContain('전자티켓 이용 안내');
+    expect(html).toContain('결제 확인 후 내 티켓에서 QR을 확인');
+    expect(html).toContain('href="/tickets"');
+  });
 });

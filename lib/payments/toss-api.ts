@@ -92,13 +92,17 @@ export function fetchTossPayment(paymentKey: string) {
 }
 
 /** 결제 취소 — 확정 불가 자동 환불과 승인된 청약철회에서 서버가 호출한다.
- * paymentKey 기반 고정 멱등키로 웹훅 재전송과 운영 재시도를 안전하게 흡수한다. */
-export function cancelTossPayment(paymentKey: string, cancelReason: string) {
+ * 기본은 paymentKey 기반 멱등키이고, durable 요청은 명시한 멱등키로 재시도를 흡수한다. */
+export function cancelTossPayment(
+  paymentKey: string,
+  cancelReason: string,
+  idempotencyKey = `cancel-${paymentKey}`,
+) {
   return tossRequest({
     method: 'POST',
     path: `/payments/${encodeURIComponent(paymentKey)}/cancel`,
     body: { cancelReason },
-    idempotencyKey: `cancel-${paymentKey}`,
+    idempotencyKey,
     timeoutMs: 5_000,
   });
 }
