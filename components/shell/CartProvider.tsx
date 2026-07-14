@@ -42,6 +42,7 @@ interface CartCtx {
   add: (goodId: string, stockQty: number) => Promise<void>;
   setQuantity: (goodId: string, qty: number, stockQty: number) => Promise<void>;
   remove: (goodId: string) => Promise<void>;
+  refresh: () => Promise<void>;
   resetForSignOut: () => void;
 }
 
@@ -283,8 +284,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
     add,
     setQuantity,
     remove,
+    refresh: sync,
     resetForSignOut,
-  }), [add, count, error, items, mode, pending, ready, remove, resetForSignOut, setQuantity]);
+  }), [add, count, error, items, mode, pending, ready, remove, resetForSignOut, setQuantity, sync]);
 
   return (
     <Ctx.Provider value={value}>

@@ -9,7 +9,12 @@ export function MobNav() {
   const pathname = usePathname();
   const { count } = useCart();
 
-  if (pathname === '/login' || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
+  if (
+    pathname === '/login'
+    || pathname.startsWith('/checkout')
+    || pathname.startsWith('/games')
+    || pathname.startsWith('/admin')
+  ) return null;
   return (
     <nav className="mobnav" aria-label="모바일 내비게이션">
       {MOB_ITEMS.map((n) => (

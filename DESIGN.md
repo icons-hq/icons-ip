@@ -101,7 +101,8 @@ components:
   ip-pick:        { status: 구현됨, ref: "globals.css:366-367", note: "홈 히어로 IP 픽커(132×84 키아트 + FANS 카운트)" }
   ipworld:        { status: 구현됨, ref: "globals.css:388-408", note: "IP 허브 = 허브·상세 병합. WORLDS 스위처 + 12col bento(굿즈7/가챠5×2/팝업4/커뮤니티3/도감4/팬덤3/라인업5). 셀 hover accent는 --cell-accent" }
   shop:           { status: 구현됨, ref: "globals.css", note: "스티키 필터 바(WORLDS+정렬) + 4열 그리드(모바일 2열). 공유 장바구니 수량 표시·재고 한도 내 +1 담기" }
-  cart:           { status: 구현됨, ref: "app/cart/page.tsx; components/screens/Cart.tsx; globals.css", note: "비로그인 localStorage·로그인 DB 병합 장바구니. 수량·합계·재고·품절·판매 종료 행을 표시하고 체크아웃은 후속 이슈 전까지 비활성" }
+  cart:           { status: 구현됨, ref: "app/cart/page.tsx; components/screens/Cart.tsx; globals.css", note: "비로그인 localStorage·로그인 DB 병합 장바구니. 수량·합계·재고·품절·판매 종료 행을 표시하고 주문 가능한 카트는 /checkout으로 연결" }
+  checkout:       { status: 구현됨, ref: "app/checkout/*; components/screens/Checkout.tsx; components/screens/CheckoutOrder.tsx; components/payments/*; globals.css", note: "배송지 폼+주문 요약 2열(모바일 1열), 15분 재고 선점 타이머, 토스 결제위젯·약관, 결제 확인 중/완료/만료 상태 표면. 주문 영수증 금액은 DB 스냅샷" }
   gacha:          { status: 구현됨, ref: "globals.css:442-453", note: "카드풀 스위처 + 확률 칩 + 천장 게이지 + 클라이언트 리빌(popIn). mock 공시 — 실 카드풀은 ADR-0001" }
   event:          { status: 구현됨, ref: "globals.css:456-461", note: "featured 2열(1.05/.95) + 16:9 카드 그리드 + QR 가이드 3단계. 상태별 CTA(현장 정보/티켓 예매/오픈 알림 신청)" }
   binder:         { status: 구현됨, ref: "globals.css:464-468", note: "도감 그리드(미보유 잠금·dim은 mock 모드만) + 카드 상세 모달 + CTA 행" }
@@ -182,6 +183,7 @@ frontmatter `components` 블록이 정본 인덱스다(셸 → 기본 어휘 →
 | IP 허브 | `/ip`, `/ip/[id]` | 시네마틱 히어로 + WORLDS 스위처(Link 내비) + bento. 허브=상세 병합, `/ip/[id]`가 정식 URL | `getCatalogIpDetail` + 팔로우 상태 |
 | 굿즈샵 | `/shop` | 최애의 물건들 헤더 + 스티키 WORLDS/정렬 바 + 4열 그리드 | 카탈로그, 공유 장바구니 수량·재고 한도 내 +1 담기 |
 | 장바구니 | `/cart` | 굿즈 행·수량 제어 + 재고 상태 + 주문 요약 | 비로그인 localStorage, 로그인 `cart_items` |
+| 체크아웃 | `/checkout`, `/checkout/[orderId]`, `/checkout/success`, `/checkout/fail` | 배송지·주문 생성 → 결제위젯 → 승인·웹훅 확인 상태 | `place_order`, `orders`/`order_items`/`payments`, 토스페이먼츠 |
 | 뽑기 | `/gacha` | 카드풀 스위처 + 확률 칩 + 천장 게이지 + 클라이언트 리빌 + 라인업 | 카탈로그(카드 있는 IP), mock 공시 |
 | 팝업 | `/events` | 필터 칩 → featured 2열 → 카드 그리드(상태별 CTA) → QR 가이드 | `selectFandomEvents` |
 | 커뮤니티 | `/community` | 채널 레일 + 컴팩트 컴포저 + 피드 + 랭킹·카드풀 레일 | 실배선(작성·좋아요·댓글·신고·차단) |

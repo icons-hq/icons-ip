@@ -37,24 +37,44 @@ async function recordTerminalPayment(
   status: 'canceled' | 'failed',
   raw: unknown,
 ) {
-  const { data: existing } = await service
+  const { data: existing, error: lookupError } = await service
     .from('payments')
     .select('id,status')
     .eq('idempotency_key', payment.paymentKey)
     .maybeSingle();
+  if (lookupError) {
+    console.error(`[webhooks/tosspayments] terminal payment lookup failed: ${lookupError.message}`);
+    return false;
+  }
 
   if (existing) {
     if (existing.status === 'pending') {
-      await service.from('payments').update({ status, raw }).eq('id', existing.id).eq('status', 'pending');
+      const { error } = await service
+        .from('payments')
+        .update({ status, raw })
+        .eq('id', existing.id)
+        .eq('status', 'pending');
+      if (error) {
+        console.error(`[webhooks/tosspayments] terminal payment update failed: ${error.message}`);
+        return false;
+      }
     }
-    return;
+    return true;
   }
 
   const table = ref.purpose === 'order' ? 'orders' : 'ticket_orders';
-  const { data: target } = await service.from(table).select('user_id').eq('id', ref.refId).maybeSingle();
-  if (!target) return;
+  const { data: target, error: targetError } = await service
+    .from(table)
+    .select('user_id')
+    .eq('id', ref.refId)
+    .maybeSingle();
+  if (targetError) {
+    console.error(`[webhooks/tosspayments] terminal target lookup failed: ${targetError.message}`);
+    return false;
+  }
+  if (!target) return true;
 
-  await service.from('payments').upsert(
+  const { error: insertError } = await service.from('payments').upsert(
     {
       user_id: (target as { user_id: string }).user_id,
       purpose: ref.purpose,
@@ -67,6 +87,11 @@ async function recordTerminalPayment(
     },
     { onConflict: 'idempotency_key', ignoreDuplicates: true },
   );
+  if (insertError) {
+    console.error(`[webhooks/tosspayments] terminal payment insert failed: ${insertError.message}`);
+    return false;
+  }
+  return true;
 }
 
 /** DONE → 확정 RPC. 만료 등 확정 불가면 돈이 재고를 따라가도록 토스 결제를 자동 취소한다. */
@@ -104,7 +129,9 @@ async function applyConfirm(
     console.error(`[webhooks/tosspayments] auto-cancel failed: ${canceled.code} ${canceled.message}`);
     return errorJson(500, 'auto_cancel_failed');
   }
-  await recordTerminalPayment(service, ref, payment, 'canceled', raw);
+  if (!await recordTerminalPayment(service, ref, payment, 'canceled', raw)) {
+    return errorJson(500, 'terminal_record_failed');
+  }
   return received('unfulfillable_payment_canceled');
 }
 
@@ -124,27 +151,89 @@ async function applyReflectCancel(
     console.error(`[webhooks/tosspayments] payment lookup failed: ${error.message}`);
     return errorJson(500, 'lookup_failed');
   }
-  if (!existing) return received('no_local_payment');
 
-  if (existing.status === 'paid') {
-    const { error: rpcError } =
-      ref.purpose === 'order'
-        ? await service.rpc('cancel_order', { p_order_id: ref.refId, p_reason: '토스 결제 취소 웹훅 반영' })
-        : await service.rpc('refund_ticket_order', {
-            p_ticket_order_id: ref.refId,
-            p_reason: '토스 결제 취소 웹훅 반영',
-          });
+  const table = ref.purpose === 'order' ? 'orders' : 'ticket_orders';
+  const { data: target, error: targetError } = await service
+    .from(table)
+    .select('status')
+    .eq('id', ref.refId)
+    .maybeSingle();
+  if (targetError) {
+    console.error(`[webhooks/tosspayments] canceled target lookup failed: ${targetError.message}`);
+    return errorJson(500, 'lookup_failed');
+  }
+  if (!target) return received('no_local_target');
+
+  if (target.status === 'pending' || target.status === 'paid') {
+    const { error: rpcError } = ref.purpose === 'order'
+      ? await service.rpc('cancel_order', {
+          p_order_id: ref.refId,
+          p_reason: '토스 결제 취소 웹훅 반영',
+        })
+      : await service.rpc('refund_ticket_order', {
+          p_ticket_order_id: ref.refId,
+          p_reason: '토스 결제 취소 웹훅 반영',
+        });
     if (rpcError) {
-      console.error(`[webhooks/tosspayments] cancel reflect failed: ${rpcError.message}`);
+      console.error(`[webhooks/tosspayments] canceled checkout close failed: ${rpcError.message}`);
       return errorJson(500, 'cancel_reflect_failed');
+    }
+  } else if (target.status !== 'canceled') {
+    console.error(`[webhooks/tosspayments] canceled payment has non-cancelable target status: ${target.status}`);
+    return errorJson(500, 'cancel_reflect_failed');
+  }
+
+  if (!existing) {
+    if (!await recordTerminalPayment(service, ref, payment, 'canceled', raw)) {
+      return errorJson(500, 'terminal_record_failed');
     }
     return received();
   }
 
-  if (existing.status === 'pending') {
-    await service.from('payments').update({ status: 'canceled', raw }).eq('id', existing.id).eq('status', 'pending');
+  if (existing.status === 'pending' || existing.status === 'canceled' || existing.status === 'failed') {
+    const { error: updateError } = await service
+      .from('payments')
+      .update({ status: 'canceled', raw })
+      .eq('id', existing.id)
+      .eq('status', existing.status);
+    if (updateError) {
+      console.error(`[webhooks/tosspayments] canceled payment record failed: ${updateError.message}`);
+      return errorJson(500, 'cancel_record_failed');
+    }
   }
   return received();
+}
+
+/** 입금 전 미지원 가상계좌는 토스에서 먼저 닫고, 그 뒤 로컬 선점을 원복한다. */
+async function applyCancelUnsupported(
+  service: ServiceClient,
+  ref: TossOrderRef,
+  payment: NormalizedTossPayment,
+  raw: unknown,
+) {
+  const canceled = await cancelTossPayment(payment.paymentKey, 'ICONS 미지원 가상계좌 자동 취소');
+  if (!canceled.ok && canceled.code !== 'ALREADY_CANCELED_PAYMENT') {
+    console.error(`[webhooks/tosspayments] virtual-account auto-cancel failed: ${canceled.code}`);
+    return errorJson(500, 'auto_cancel_failed');
+  }
+
+  // provider가 먼저 닫힌 뒤에는 canceled 증거를 남겨 expiry sweep이 pending 행에 막히지 않게 한다.
+  const recorded = await recordTerminalPayment(service, ref, payment, 'canceled', raw);
+  const { error } = ref.purpose === 'order'
+    ? await service.rpc('cancel_order', {
+        p_order_id: ref.refId,
+        p_reason: '미지원 가상계좌 자동 취소',
+      })
+    : await service.rpc('refund_ticket_order', {
+        p_ticket_order_id: ref.refId,
+        p_reason: '미지원 가상계좌 자동 취소',
+      });
+  if (error) {
+    console.error(`[webhooks/tosspayments] local checkout cancel failed: ${error.message}`);
+    return errorJson(500, 'local_cancel_failed');
+  }
+  if (!recorded) return errorJson(500, 'terminal_record_failed');
+  return received('unsupported_payment_canceled');
 }
 
 /** ABORTED·EXPIRED → 승인 경로가 남긴 pending 기록만 실패로 닫는다(없으면 반영할 것 없음). */
@@ -202,5 +291,8 @@ export async function POST(request: Request) {
   const service = createServiceClient();
   if (action.kind === 'confirm') return applyConfirm(service, action.ref, payment, verified.body);
   if (action.kind === 'reflect_cancel') return applyReflectCancel(service, action.ref, payment, verified.body);
+  if (action.kind === 'cancel_unsupported') {
+    return applyCancelUnsupported(service, action.ref, payment, verified.body);
+  }
   return applyRecordFailure(service, payment, verified.body);
 }

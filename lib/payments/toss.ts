@@ -47,6 +47,9 @@ export interface NormalizedTossPayment {
   orderId: string;
   status: TossPaymentStatus;
   totalAmount: number;
+  type: string;
+  currency: string;
+  method: string | null;
 }
 
 export type WebhookEvent =
@@ -70,23 +73,71 @@ export function parseWebhookEvent(body: unknown): WebhookEvent {
 /** 조회 API 응답 → 확정에 필요한 필드. 형식이 어긋나면 null(확정 금지). */
 export function normalizeTossPayment(data: unknown): NormalizedTossPayment | null {
   if (typeof data !== 'object' || data === null) return null;
-  const { paymentKey, orderId, status, totalAmount } = data as {
+  const { paymentKey, orderId, status, totalAmount, type, currency, method } = data as {
     paymentKey?: unknown;
     orderId?: unknown;
     status?: unknown;
     totalAmount?: unknown;
+    type?: unknown;
+    currency?: unknown;
+    method?: unknown;
   };
   if (typeof paymentKey !== 'string' || !paymentKey) return null;
   if (typeof orderId !== 'string' || !orderId) return null;
   if (!TOSS_PAYMENT_STATUSES.includes(status as TossPaymentStatus)) return null;
-  if (typeof totalAmount !== 'number' || !Number.isFinite(totalAmount)) return null;
-  return { paymentKey, orderId, status: status as TossPaymentStatus, totalAmount };
+  if (typeof totalAmount !== 'number' || !Number.isSafeInteger(totalAmount) || totalAmount <= 0) return null;
+  if (typeof type !== 'string' || !type) return null;
+  if (typeof currency !== 'string' || !currency) return null;
+  if (method !== null && typeof method !== 'string') return null;
+  return {
+    paymentKey,
+    orderId,
+    status: status as TossPaymentStatus,
+    totalAmount,
+    type,
+    currency,
+    method,
+  };
+}
+
+export type ApprovedTossPaymentVerification =
+  | { ok: true; payment: NormalizedTossPayment }
+  | {
+      ok: false;
+      reason:
+        | 'provider_response_mismatch'
+        | 'unsupported_payment_contract'
+        | 'unsupported_payment_method';
+    };
+
+/** 승인 API 응답을 콜백 요청과 대조한다. 위젯 v1 계약은 일반결제·원화만 허용한다. */
+export function verifyApprovedTossPayment(
+  data: unknown,
+  expected: { paymentKey: string; orderId: string; amount: number },
+): ApprovedTossPaymentVerification {
+  const payment = normalizeTossPayment(data);
+  if (
+    !payment ||
+    payment.paymentKey !== expected.paymentKey ||
+    payment.orderId !== expected.orderId ||
+    payment.totalAmount !== expected.amount
+  ) {
+    return { ok: false, reason: 'provider_response_mismatch' };
+  }
+  if (payment.method === '가상계좌') {
+    return { ok: false, reason: 'unsupported_payment_method' };
+  }
+  if (payment.type !== 'NORMAL' || payment.currency !== 'KRW' || payment.status !== 'DONE') {
+    return { ok: false, reason: 'unsupported_payment_contract' };
+  }
+  return { ok: true, payment };
 }
 
 export type WebhookAction =
   | { kind: 'confirm'; ref: TossOrderRef }
   | { kind: 'reflect_cancel'; ref: TossOrderRef }
   | { kind: 'record_failure'; ref: TossOrderRef }
+  | { kind: 'cancel_unsupported'; ref: TossOrderRef }
   | { kind: 'unsupported' }
   | { kind: 'ignore'; reason: 'foreign_order_id' | 'in_progress' };
 
@@ -116,12 +167,19 @@ export function mapConfirmRpcError(message: string): ConfirmRpcOutcome {
 export function decideWebhookAction(payment: NormalizedTossPayment): WebhookAction {
   const ref = parseTossOrderId(payment.orderId);
   if (!ref) return { kind: 'ignore', reason: 'foreign_order_id' };
+  if (payment.status === 'CANCELED') return { kind: 'reflect_cancel', ref };
+  if (payment.method === '가상계좌') {
+    return payment.status === 'WAITING_FOR_DEPOSIT'
+      ? { kind: 'cancel_unsupported', ref }
+      : { kind: 'unsupported' };
+  }
+  if (payment.type !== 'NORMAL' || payment.currency !== 'KRW') {
+    return { kind: 'unsupported' };
+  }
 
   switch (payment.status) {
     case 'DONE':
       return { kind: 'confirm', ref };
-    case 'CANCELED':
-      return { kind: 'reflect_cancel', ref };
     case 'PARTIAL_CANCELED':
       // v1은 부분 취소를 발행하지 않는다 — 발생 자체가 이상 상태라 재시도로 노출한다.
       return { kind: 'unsupported' };

@@ -8,6 +8,7 @@ import {
   parseTossOrderId,
   parseWebhookEvent,
   tossBasicAuthHeader,
+  verifyApprovedTossPayment,
   type NormalizedTossPayment,
 } from './toss';
 
@@ -85,23 +86,94 @@ describe('normalizeTossPayment', () => {
     orderId: `order_${ORDER_UUID}`,
     status: 'DONE',
     totalAmount: 42000,
+    type: 'NORMAL',
+    currency: 'KRW',
     method: '카드',
   };
 
-  it('조회 API 응답에서 확정에 필요한 필드만 뽑는다', () => {
+  it('조회 API 응답에서 결제 계약 검증에 필요한 필드를 뽑는다', () => {
     expect(normalizeTossPayment(payment)).toEqual({
       paymentKey: 'pk_1',
       orderId: `order_${ORDER_UUID}`,
       status: 'DONE',
       totalAmount: 42000,
+      type: 'NORMAL',
+      currency: 'KRW',
+      method: '카드',
     });
   });
 
   it('알 수 없는 status·형식 밖 응답은 null(확정 금지)', () => {
     expect(normalizeTossPayment({ ...payment, status: 'SOMETHING_NEW' })).toBeNull();
     expect(normalizeTossPayment({ ...payment, totalAmount: '42000' })).toBeNull();
+    expect(normalizeTossPayment({ ...payment, currency: 42 })).toBeNull();
+    expect(normalizeTossPayment({ ...payment, method: 42 })).toBeNull();
+    expect(normalizeTossPayment({ ...payment, totalAmount: 0 })).toBeNull();
+    expect(normalizeTossPayment({ ...payment, totalAmount: 1.5 })).toBeNull();
     expect(normalizeTossPayment({ ...payment, paymentKey: '' })).toBeNull();
     expect(normalizeTossPayment(null)).toBeNull();
+  });
+});
+
+describe('verifyApprovedTossPayment', () => {
+  const expected = {
+    paymentKey: 'pk_1',
+    orderId: `order_${ORDER_UUID}`,
+    amount: 42000,
+  };
+  const payment = {
+    paymentKey: expected.paymentKey,
+    orderId: expected.orderId,
+    status: 'DONE',
+    totalAmount: expected.amount,
+    type: 'NORMAL',
+    currency: 'KRW',
+    method: '카드',
+  };
+
+  it('응답 identity·일반결제·원화·승인완료가 요청과 모두 일치해야 승인한다', () => {
+    expect(verifyApprovedTossPayment(payment, expected)).toEqual({
+      ok: true,
+      payment,
+    });
+  });
+
+  it.each([
+    ['paymentKey', { paymentKey: 'pk_other' }],
+    ['orderId', { orderId: `ticket_${ORDER_UUID}` }],
+    ['amount', { totalAmount: 43000 }],
+  ])('%s 불일치는 provider_response_mismatch로 거른다', (_field, override) => {
+    expect(verifyApprovedTossPayment({ ...payment, ...override }, expected)).toEqual({
+      ok: false,
+      reason: 'provider_response_mismatch',
+    });
+  });
+
+  it('NORMAL·KRW·DONE 계약 밖의 응답은 승인하지 않는다', () => {
+    for (const override of [
+      { type: 'BRANDPAY' },
+      { currency: 'USD' },
+      { status: 'IN_PROGRESS' },
+    ]) {
+      expect(verifyApprovedTossPayment({ ...payment, ...override }, expected)).toEqual({
+        ok: false,
+        reason: 'unsupported_payment_contract',
+      });
+    }
+  });
+
+  it('가상계좌 승인 응답은 별도 운영 오류로 거른다', () => {
+    expect(verifyApprovedTossPayment({ ...payment, method: '가상계좌' }, expected)).toEqual({
+      ok: false,
+      reason: 'unsupported_payment_method',
+    });
+  });
+
+  it('형식 밖 응답은 provider_response_mismatch로 거른다', () => {
+    expect(verifyApprovedTossPayment({ ...payment, type: null }, expected)).toEqual({
+      ok: false,
+      reason: 'provider_response_mismatch',
+    });
   });
 });
 
@@ -111,6 +183,9 @@ describe('decideWebhookAction', () => {
     orderId: `order_${ORDER_UUID}`,
     status: 'DONE',
     totalAmount: 42000,
+    type: 'NORMAL',
+    currency: 'KRW',
+    method: '카드',
     ...over,
   });
 
@@ -147,10 +222,22 @@ describe('decideWebhookAction', () => {
     }
   });
 
-  it('가상계좌(WAITING_FOR_DEPOSIT)는 v1 미지원 — 무시하지 않고 운영에 노출한다', () => {
-    // 공식 상태 다이어그램상 DONE→(입금 오류)→WAITING_FOR_DEPOSIT 회귀 웹훅이 존재한다.
-    // 이를 ignore로 삼키면 토스는 미결제로 되돌아갔는데 로컬은 paid로 남는다.
-    expect(decideWebhookAction(base({ status: 'WAITING_FOR_DEPOSIT' }))).toEqual({ kind: 'unsupported' });
+  it('입금 전 가상계좌는 자동 취소하고, 입금 완료 가상계좌는 수동 환불로 보낸다', () => {
+    expect(decideWebhookAction(base({ status: 'WAITING_FOR_DEPOSIT', method: '가상계좌' }))).toEqual({
+      kind: 'cancel_unsupported',
+      ref: { purpose: 'order', refId: ORDER_UUID },
+    });
+    expect(decideWebhookAction(base({ status: 'DONE', method: '가상계좌' }))).toEqual({ kind: 'unsupported' });
+    expect(decideWebhookAction(base({ status: 'CANCELED', method: '가상계좌' }))).toEqual({
+      kind: 'reflect_cancel',
+      ref: { purpose: 'order', refId: ORDER_UUID },
+    });
+  });
+
+  it('DONE이어도 일반결제·원화·지원 결제수단 계약 밖이면 확정하지 않는다', () => {
+    expect(decideWebhookAction(base({ type: 'BRANDPAY' }))).toEqual({ kind: 'unsupported' });
+    expect(decideWebhookAction(base({ currency: 'USD' }))).toEqual({ kind: 'unsupported' });
+    expect(decideWebhookAction(base({ method: '가상계좌' }))).toEqual({ kind: 'unsupported' });
   });
 
   it('우리 형식이 아닌 orderId는 무시한다', () => {

@@ -219,7 +219,7 @@ export function Cart({
                 </div>
                 <div className="cart-summary-row cart-summary-row--dim">
                   <span>배송비</span>
-                  <span>체크아웃에서 확인</span>
+                  <span>무료</span>
                 </div>
                 <div className="cart-summary-total">
                   <span>예상 결제 금액</span>
@@ -230,8 +230,12 @@ export function Cart({
                     주문할 수 없는 굿즈 {unavailableCount}개를 삭제하거나 수량을 조정해주세요.
                   </p>
                 )}
-                <button className="btn cart-checkout" type="button" disabled>체크아웃 준비 중</button>
-                <p className="money-caption">결제·주문 생성은 체크아웃 기능이 연결된 후 진행됩니다.</p>
+                {unavailableCount === 0 && !pending ? (
+                  <Link className="btn cart-checkout" href="/checkout">체크아웃</Link>
+                ) : (
+                  <button className="btn cart-checkout" type="button" disabled>체크아웃</button>
+                )}
+                <p className="money-caption">로그인 후 배송지를 확인하고 안전하게 결제합니다.</p>
                 <Link className="btn btn-ghost" href="/shop">굿즈 더 보기</Link>
               </aside>
             </div>

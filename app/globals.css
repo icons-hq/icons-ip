@@ -522,6 +522,7 @@
     border-radius: 10px; background: rgba(255,77,157,.07); color: var(--pink); font-size: 12px;
   }
   .cart-checkout { width: 100%; margin-top: 18px; background: var(--surface-3); color: var(--faint); }
+  .cart-summary a.cart-checkout { background: var(--holo); color: #0A0813; font-weight: 800; }
   .cart-checkout:disabled { cursor: not-allowed; }
   .cart-summary .money-caption { margin: 10px 2px 0; }
   .cart-summary > .btn-ghost { width: 100%; margin-top: 14px; }
@@ -541,6 +542,131 @@
     width: 66px; height: 66px; display: grid; place-items: center;
     border: 1px solid var(--line-2); border-radius: 20px; color: var(--violet-2); background: var(--surface-2);
   }
+
+  /* 체크아웃 — 배송지 → 서버 주문 → 토스 결제 → 웹훅 확인 */
+  .checkout-page { min-height: 100vh; padding-bottom: clamp(76px, 9vw, 112px); }
+  .checkout-header { padding: clamp(112px, 12vw, 140px) 0 38px; }
+  .checkout-header h1 { max-width: 760px; margin: 16px 0 0; }
+  .checkout-header p { max-width: 640px; margin: 16px 0 0; color: var(--dim); font-size: 15px; }
+  .checkout-layout, .checkout-order-layout {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 400px);
+    gap: 20px; align-items: start;
+  }
+  .checkout-form, .checkout-order-main { padding: clamp(22px, 3vw, 32px); }
+  .checkout-summary, .checkout-receipt {
+    position: sticky; top: 92px; padding: 22px; overflow: hidden;
+  }
+  .checkout-summary::before, .checkout-receipt::before {
+    content: ''; position: absolute; top: 0; left: 22px; right: 22px;
+    height: 2px; border-radius: 0 0 999px 999px; background: var(--holo);
+  }
+  .checkout-section-heading { display: flex; align-items: flex-start; gap: 14px; }
+  .checkout-section-heading--compact { align-items: center; }
+  .checkout-section-heading h2 { margin: 0; font-size: 19px; }
+  .checkout-section-heading p { margin: 5px 0 0; color: var(--dim); font-size: 13px; }
+  .checkout-step {
+    flex: 0 0 auto; min-width: 34px; min-height: 26px; display: inline-grid; place-items: center;
+    padding: 0 8px; border: 1px solid var(--line-2); border-radius: 999px;
+    color: var(--cyan); background: rgba(45,226,255,.05); font-size: 9px; letter-spacing: .08em;
+  }
+  .checkout-fields {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px; margin-top: 28px;
+  }
+  .checkout-fields label { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .checkout-fields label > span { color: var(--dim); font-size: 12px; font-weight: 700; }
+  .checkout-fields label em { color: var(--faint); font-size: 10px; font-style: normal; }
+  .checkout-fields input {
+    width: 100%; height: 50px; padding: 0 15px; border: 1px solid var(--line-2);
+    border-radius: 13px; outline: none; background: rgba(8,6,15,.55);
+    color: var(--text); font-family: inherit; font-size: 14px;
+    transition: border-color .2s ease, box-shadow .2s ease;
+  }
+  .checkout-fields input:focus { border-color: rgba(45,226,255,.65); box-shadow: 0 0 0 3px rgba(45,226,255,.08); }
+  .checkout-fields input[aria-invalid="true"] { border-color: rgba(255,77,157,.62); }
+  .checkout-fields input::placeholder { color: var(--faint); }
+  .checkout-field-error { color: var(--pink); font-size: 11px; line-height: 1.45; }
+  .checkout-field--postal { max-width: 180px; }
+  .checkout-field--wide { grid-column: 1 / -1; }
+  .checkout-items { display: flex; flex-direction: column; gap: 0; margin-top: 20px; }
+  .checkout-item {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
+    padding: 13px 0; border-bottom: 1px solid var(--line);
+  }
+  .checkout-item > div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .checkout-item > div span { color: var(--faint); font-size: 10px; }
+  .checkout-item > div strong { overflow: hidden; text-overflow: ellipsis; font-size: 13px; white-space: nowrap; }
+  .checkout-item > span { flex: 0 0 auto; color: var(--dim); font-size: 10px; }
+  .checkout-totals { margin: 18px 0 0; }
+  .checkout-totals > div { display: flex; justify-content: space-between; gap: 16px; margin-top: 10px; }
+  .checkout-totals dt { color: var(--dim); font-size: 12px; }
+  .checkout-totals dd { margin: 0; font-family: var(--ff-mono); font-size: 12px; font-weight: 700; }
+  .checkout-totals .checkout-total { align-items: flex-end; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line-2); }
+  .checkout-totals .checkout-total dd { font-size: 20px; }
+  .checkout-error {
+    margin: 14px 0 0; padding: 11px 12px; border: 1px solid rgba(255,77,157,.28);
+    border-radius: 10px; background: rgba(255,77,157,.07); color: var(--pink); font-size: 12px;
+  }
+  .checkout-submit { width: 100%; min-height: 50px; margin-top: 18px; }
+  .checkout-submit:disabled { cursor: not-allowed; filter: grayscale(.7); opacity: .52; }
+  .checkout-summary .money-caption, .toss-widget .money-caption { margin: 10px 2px 0; }
+  .checkout-back { display: block; margin-top: 18px; color: var(--dim); font-size: 12px; text-align: center; }
+  .checkout-back:hover { color: var(--text); }
+  .checkout-loading { min-height: 70vh; display: grid; place-items: center; color: var(--dim); }
+  .checkout-empty {
+    min-height: 360px; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 12px; margin-top: 140px; padding: 42px 24px; text-align: center;
+  }
+  .checkout-empty h1 { margin: 0; font-size: 25px; }
+  .checkout-empty p { max-width: 480px; margin: 0 0 6px; color: var(--dim); }
+
+  .checkout-order-header { padding-bottom: 32px; }
+  .checkout-order-ref {
+    display: inline-flex; max-width: 100%; margin-top: 18px; padding: 7px 10px;
+    overflow: hidden; border: 1px solid var(--line-2); border-radius: 999px;
+    color: var(--faint); font-size: 9px; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .checkout-order-main { min-height: 420px; }
+  .checkout-deadline {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    margin-bottom: 18px; padding: 14px 16px; border: 1px solid rgba(255,178,61,.28);
+    border-radius: 13px; background: rgba(255,178,61,.06);
+  }
+  .checkout-deadline span { color: var(--dim); font-size: 12px; }
+  .checkout-deadline strong { color: var(--amber); font-size: 17px; }
+  .toss-widget-slot { min-height: 72px; overflow: hidden; border-radius: 12px; }
+  .checkout-state-panel {
+    min-height: 350px; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 12px; padding: 30px; text-align: center;
+  }
+  .checkout-state-panel h2 { margin: 0; font-size: 24px; }
+  .checkout-state-panel p { max-width: 500px; margin: 0 0 8px; color: var(--dim); }
+  .checkout-state-mark {
+    width: 70px; height: 70px; display: grid; place-items: center;
+    border: 1px solid var(--line-2); border-radius: 24px; color: var(--cyan);
+    background: rgba(45,226,255,.06); font-family: var(--ff-mono); font-size: 24px; font-weight: 800;
+  }
+  .checkout-state-panel--complete .checkout-state-mark { color: var(--mint); background: rgba(56,240,192,.07); }
+  .checkout-state-panel--closed .checkout-state-mark { color: var(--pink); background: rgba(255,77,157,.07); }
+  .checkout-address-preview { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line-2); }
+  .checkout-address-preview > span { display: block; margin-bottom: 7px; color: var(--faint); font-size: 10px; }
+  .checkout-address-preview strong { display: block; font-size: 12px; }
+  .checkout-address-preview p { margin: 7px 0 0; color: var(--dim); font-size: 12px; line-height: 1.65; }
+  .checkout-address-preview small { display: block; margin-top: 7px; color: var(--faint); font-size: 10px; }
+
+  .checkout-result-page { display: grid; place-items: center; padding: 120px 20px 80px; }
+  .checkout-result {
+    width: min(560px, 100%); min-height: 430px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 13px; padding: 42px; text-align: center;
+  }
+  .checkout-result-mark {
+    width: 70px; height: 70px; display: grid; place-items: center; margin-bottom: 4px;
+    border: 1px solid var(--line-2); border-radius: 24px; color: var(--cyan);
+    background: rgba(45,226,255,.06); font-family: var(--ff-mono); font-size: 24px; font-weight: 800;
+  }
+  .checkout-result-mark--fail { color: var(--pink); background: rgba(255,77,157,.07); }
+  .checkout-result h1 { margin: 0; font-size: 28px; }
+  .checkout-result p { max-width: 430px; margin: 0 0 7px; color: var(--dim); }
 
   /* 카드팩 — 히어로 2열 · 개봉 결과 · 보유 그룹 (Gacha 연출 재목적화, #71) */
   .packs-hero { display: grid; grid-template-columns: 1.15fr .85fr; gap: clamp(28px, 4vw, 56px); align-items: center; }
@@ -797,6 +923,8 @@
   .exchange-grid { grid-template-columns: 1fr; }
   .cart-layout { grid-template-columns: 1fr; }
   .cart-summary { position: static; }
+  .checkout-layout, .checkout-order-layout { grid-template-columns: 1fr; }
+  .checkout-summary, .checkout-receipt { position: static; }
 
   .community-main { grid-template-columns: 1fr; }
   .community-channels {
@@ -906,6 +1034,20 @@
   .cart-line-copy h2 { padding-right: 34px; }
   .cart-line-actions { grid-column: 1 / -1; align-items: center; }
   .cart-line-total { font-size: 14px; }
+
+  .checkout-header { padding-top: 104px; padding-bottom: 28px; }
+  .checkout-header h1 br { display: none; }
+  .checkout-form, .checkout-order-main, .checkout-summary, .checkout-receipt { padding: 18px; }
+  .checkout-order-layout { padding-left: 8px; padding-right: 8px; }
+  .checkout-order-main { padding: 8px; }
+  .checkout-fields { grid-template-columns: 1fr; gap: 14px; }
+  .checkout-field--postal { max-width: none; }
+  .checkout-field--wide { grid-column: auto; }
+  .checkout-item { align-items: flex-start; flex-direction: column; gap: 7px; }
+  .checkout-item > span { align-self: flex-end; }
+  .checkout-result { min-height: 390px; padding: 32px 20px; }
+  .checkout-result h1 { font-size: 24px; }
+  .checkout-empty { margin-top: 108px; }
 
   .mobile-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 

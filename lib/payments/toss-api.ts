@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { paymentsEnabledForRuntime } from './config';
 import { tossBasicAuthHeader } from './toss';
 
 /* 토스페이먼츠 코어 API 호출 경계(#88). 시크릿 키는 서버 전용 env로만 읽는다.
@@ -9,7 +10,13 @@ const TOSS_API_BASE = 'https://api.tosspayments.com/v1';
 
 export function getTossConfig() {
   const secretKey = process.env.TOSS_SECRET_KEY;
-  return { secretKey, isConfigured: Boolean(secretKey) };
+  return {
+    secretKey,
+    isConfigured: paymentsEnabledForRuntime(
+      process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY,
+      secretKey,
+    ),
+  };
 }
 
 export type TossApiResult =

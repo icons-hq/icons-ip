@@ -64,6 +64,7 @@ jobs:
         run: |
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/catalog_baseline.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/cart_items.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/checkout_order.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/community_comment_like_actions.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/community_moderation_actions.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/search_public_content.sql
@@ -311,42 +312,9 @@ jobs:
           done
           exit "$missing"
 
-      - name: Pull Vercel preview environment
-        run: vercel pull --yes --environment=preview
-
-      - name: Check Vercel preview Supabase environment
+      - name: Deploy Vercel preview
         run: |
-          env_file=".vercel/.env.preview.local"
-          missing=0
-
-          if [ ! -f "$env_file" ]; then
-            echo "::error title=Missing Vercel environment file::$env_file was not created by vercel pull"
-            exit 1
-          fi
-
-          if ! grep -Eq '^NEXT_PUBLIC_SUPABASE_URL=.+$' "$env_file"; then
-            echo "::error title=Missing Vercel environment::NEXT_PUBLIC_SUPABASE_URL is required for preview catalog data"
-            missing=1
-          fi
-
-          if ! grep -Eq '^NEXT_PUBLIC_SUPABASE_(PUBLISHABLE_KEY|ANON_KEY)=.+$' "$env_file"; then
-            echo "::error title=Missing Vercel environment::NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY is required for preview catalog data"
-            missing=1
-          fi
-
-          if ! grep -Eq '^AUTH_SIGNUP_RESEND_SECRET=.+$' "$env_file"; then
-            echo "::error title=Missing Vercel environment::AUTH_SIGNUP_RESEND_SECRET is required for preview auth resend cooldown"
-            missing=1
-          fi
-
-          exit "$missing"
-
-      - name: Build Vercel preview output
-        run: vercel build
-
-      - name: Deploy Vercel preview output
-        run: |
-          deployment_url="$(vercel deploy --prebuilt)"
+          deployment_url="$(vercel deploy --yes --archive=tgz)"
           echo "Preview deployment: $deployment_url" >> "$GITHUB_STEP_SUMMARY"
 
   deploy-vercel:
@@ -386,40 +354,7 @@ jobs:
           done
           exit "$missing"
 
-      - name: Pull Vercel production environment
-        run: vercel pull --yes --environment=production
-
-      - name: Check Vercel production Supabase environment
+      - name: Deploy Vercel production
         run: |
-          env_file=".vercel/.env.production.local"
-          missing=0
-
-          if [ ! -f "$env_file" ]; then
-            echo "::error title=Missing Vercel environment file::$env_file was not created by vercel pull"
-            exit 1
-          fi
-
-          if ! grep -Eq '^NEXT_PUBLIC_SUPABASE_URL=.+$' "$env_file"; then
-            echo "::error title=Missing Vercel environment::NEXT_PUBLIC_SUPABASE_URL is required for production catalog data"
-            missing=1
-          fi
-
-          if ! grep -Eq '^NEXT_PUBLIC_SUPABASE_(PUBLISHABLE_KEY|ANON_KEY)=.+$' "$env_file"; then
-            echo "::error title=Missing Vercel environment::NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY is required for production catalog data"
-            missing=1
-          fi
-
-          if ! grep -Eq '^AUTH_SIGNUP_RESEND_SECRET=.+$' "$env_file"; then
-            echo "::error title=Missing Vercel environment::AUTH_SIGNUP_RESEND_SECRET is required for production auth resend cooldown"
-            missing=1
-          fi
-
-          exit "$missing"
-
-      - name: Build Vercel production output
-        run: vercel build --prod
-
-      - name: Deploy Vercel production output
-        run: |
-          deployment_url="$(vercel deploy --prebuilt --prod)"
+          deployment_url="$(vercel deploy --yes --prod --archive=tgz)"
           echo "Production deployment: $deployment_url" >> "$GITHUB_STEP_SUMMARY"
