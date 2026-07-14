@@ -312,63 +312,9 @@ jobs:
           done
           exit "$missing"
 
-      - name: Pull Vercel preview environment
-        run: vercel pull --yes --environment=preview
-
-      - name: Check Vercel preview runtime environment
+      - name: Deploy Vercel preview
         run: |
-          env_file=".vercel/.env.preview.local"
-          missing=0
-
-          if [ ! -f "$env_file" ]; then
-            echo "::error title=Missing Vercel environment file::$env_file was not created by vercel pull"
-            exit 1
-          fi
-
-          if ! grep -Eq '^NEXT_PUBLIC_SUPABASE_URL=.+$' "$env_file"; then
-            echo "::error title=Missing Vercel environment::NEXT_PUBLIC_SUPABASE_URL is required for preview catalog data"
-            missing=1
-          fi
-
-          if ! grep -Eq '^NEXT_PUBLIC_SUPABASE_(PUBLISHABLE_KEY|ANON_KEY)=.+$' "$env_file"; then
-            echo "::error title=Missing Vercel environment::NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY is required for preview catalog data"
-            missing=1
-          fi
-
-          if ! grep -Eq '^AUTH_SIGNUP_RESEND_SECRET=.+$' "$env_file"; then
-            echo "::error title=Missing Vercel environment::AUTH_SIGNUP_RESEND_SECRET is required for preview auth resend cooldown"
-            missing=1
-          fi
-
-          for name in NEXT_PUBLIC_TOSS_CLIENT_KEY TOSS_SECRET_KEY SUPABASE_SERVICE_ROLE_KEY; do
-            if ! grep -Eq "^${name}=.+$" "$env_file"; then
-              echo "::error title=Missing Vercel environment::$name is required for preview checkout"
-              missing=1
-            fi
-          done
-
-          if [ "$missing" = "0" ]; then
-            set -a
-            . "$env_file"
-            set +a
-            case "${NEXT_PUBLIC_TOSS_CLIENT_KEY}:${TOSS_SECRET_KEY}" in
-              test_gck_*:test_gsk_*) echo "Toss payment keys: widget test mode" ;;
-              live_gck_*:live_gsk_*) echo "Toss payment keys: widget live mode" ;;
-              *)
-                echo "::error title=Mismatched Vercel payment keys::Toss client and secret keys must use the same valid mode"
-                missing=1
-                ;;
-            esac
-          fi
-
-          exit "$missing"
-
-      - name: Build Vercel preview output
-        run: vercel build
-
-      - name: Deploy Vercel preview output
-        run: |
-          deployment_url="$(vercel deploy --prebuilt)"
+          deployment_url="$(vercel deploy --yes --archive=tgz)"
           echo "Preview deployment: $deployment_url" >> "$GITHUB_STEP_SUMMARY"
 
   deploy-vercel:
@@ -408,61 +354,7 @@ jobs:
           done
           exit "$missing"
 
-      - name: Pull Vercel production environment
-        run: vercel pull --yes --environment=production
-
-      - name: Check Vercel production runtime environment
+      - name: Deploy Vercel production
         run: |
-          env_file=".vercel/.env.production.local"
-          missing=0
-
-          if [ ! -f "$env_file" ]; then
-            echo "::error title=Missing Vercel environment file::$env_file was not created by vercel pull"
-            exit 1
-          fi
-
-          if ! grep -Eq '^NEXT_PUBLIC_SUPABASE_URL=.+$' "$env_file"; then
-            echo "::error title=Missing Vercel environment::NEXT_PUBLIC_SUPABASE_URL is required for production catalog data"
-            missing=1
-          fi
-
-          if ! grep -Eq '^NEXT_PUBLIC_SUPABASE_(PUBLISHABLE_KEY|ANON_KEY)=.+$' "$env_file"; then
-            echo "::error title=Missing Vercel environment::NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY is required for production catalog data"
-            missing=1
-          fi
-
-          if ! grep -Eq '^AUTH_SIGNUP_RESEND_SECRET=.+$' "$env_file"; then
-            echo "::error title=Missing Vercel environment::AUTH_SIGNUP_RESEND_SECRET is required for production auth resend cooldown"
-            missing=1
-          fi
-
-          for name in NEXT_PUBLIC_TOSS_CLIENT_KEY TOSS_SECRET_KEY SUPABASE_SERVICE_ROLE_KEY; do
-            if ! grep -Eq "^${name}=.+$" "$env_file"; then
-              echo "::error title=Missing Vercel environment::$name is required for production checkout"
-              missing=1
-            fi
-          done
-
-          if [ "$missing" = "0" ]; then
-            set -a
-            . "$env_file"
-            set +a
-            case "${NEXT_PUBLIC_TOSS_CLIENT_KEY}:${TOSS_SECRET_KEY}" in
-              test_gck_*:test_gsk_*) echo "Toss payment keys: widget test mode" ;;
-              live_gck_*:live_gsk_*) echo "Toss payment keys: widget live mode" ;;
-              *)
-                echo "::error title=Mismatched Vercel payment keys::Toss client and secret keys must use the same valid mode"
-                missing=1
-                ;;
-            esac
-          fi
-
-          exit "$missing"
-
-      - name: Build Vercel production output
-        run: vercel build --prod
-
-      - name: Deploy Vercel production output
-        run: |
-          deployment_url="$(vercel deploy --prebuilt --prod)"
+          deployment_url="$(vercel deploy --yes --prod --archive=tgz)"
           echo "Production deployment: $deployment_url" >> "$GITHUB_STEP_SUMMARY"

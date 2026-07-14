@@ -114,8 +114,8 @@ VERCEL_PROJECT_ID
 - production 배포는 `main` push에서만 실행한다.
 - GitHub Actions의 앱 빌드는 Node 26을 사용한다. Vercel project/runtime Node.js Version은 Vercel production Functions 공식 지원 범위인 24.x로 유지한다.
 - deployment secret 검사는 각 deploy job 안에서 수행한다. 누락 시 job이 즉시 실패하며, 필요한 GitHub Secret을 설정한 뒤 rerun해야 한다.
-- `.vercel/` 연결 파일은 commit하지 않고, workflow가 `VERCEL_ORG_ID`와 `VERCEL_PROJECT_ID`로 preview/production 환경을 가져온다.
-- Vercel 환경변수는 preview와 production에 둔다. `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` 또는 `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `AUTH_SIGNUP_RESEND_SECRET` 중 하나라도 없으면 Vercel build 전에 실패한다. development 환경변수는 별도 요청 전까지 추가하지 않는다.
+- `.vercel/` 연결 파일은 commit하지 않고, workflow가 `VERCEL_ORG_ID`와 `VERCEL_PROJECT_ID`로 Vercel 원격 build/deploy를 요청한다.
+- Vercel 환경변수는 sensitive 상태로 preview와 production에 둔다. 원격 build 안의 `prebuild` guard가 Supabase/Auth/결제 필수 변수와 토스 결제위젯 키 모드를 검증하며, 누락·불일치 시 배포를 실패시킨다. development 환경변수는 별도 요청 전까지 추가하지 않는다.
 
 ## 프로젝트 지도
 
