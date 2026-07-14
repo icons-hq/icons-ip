@@ -17,12 +17,8 @@ interface OrderItemRow {
   good_id: string;
   qty: number;
   unit_price: number;
-}
-
-interface GoodNameRow {
-  id: string;
-  name: string;
-  type: string;
+  good_name_snapshot: string;
+  good_type_snapshot: string;
 }
 
 export interface CheckoutOrderItem {
@@ -89,7 +85,7 @@ export async function loadCheckoutOrder(
   const [{ data: itemData, error: itemError }, { data: paymentData, error: paymentError }] = await Promise.all([
     supabase
       .from('order_items')
-      .select('good_id,qty,unit_price')
+      .select('good_id,qty,unit_price,good_name_snapshot,good_type_snapshot')
       .eq('order_id', orderId)
       .order('id'),
     supabase
@@ -104,15 +100,6 @@ export async function loadCheckoutOrder(
   if (itemError || paymentError) return null;
 
   const itemRows = (itemData ?? []) as OrderItemRow[];
-  const goodIds = itemRows.map((item) => item.good_id);
-  const { data: goodData, error: goodError } = goodIds.length
-    ? await supabase.from('goods').select('id,name,type').in('id', goodIds)
-    : { data: [], error: null };
-  if (goodError) return null;
-
-  const namesById = new Map(
-    ((goodData ?? []) as GoodNameRow[]).map((good) => [good.id, good]),
-  );
 
   return {
     id: orderData.id,
@@ -124,8 +111,8 @@ export async function loadCheckoutOrder(
     paymentStatus: paymentData?.status ?? null,
     items: itemRows.map((item) => ({
       goodId: item.good_id,
-      name: namesById.get(item.good_id)?.name ?? 'ICONS 굿즈',
-      type: namesById.get(item.good_id)?.type ?? '굿즈',
+      name: item.good_name_snapshot,
+      type: item.good_type_snapshot,
       qty: item.qty,
       unitPrice: item.unit_price,
     })),
