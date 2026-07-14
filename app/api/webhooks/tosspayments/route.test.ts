@@ -90,9 +90,10 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
 
     expect(response.status).toBe(200);
     expect(mocks.cancel).toHaveBeenCalledWith('pk_virtual', 'ICONS 미지원 가상계좌 자동 취소');
-    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order', {
+    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order_with_provider_evidence', {
       p_order_id: ORDER_UUID,
       p_reason: '미지원 가상계좌 자동 취소',
+      p_provider_payment_keys: ['pk_virtual'],
     });
     expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'canceled' }));
   });
@@ -114,7 +115,9 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
     const response = await POST(webhookRequest());
 
     expect(response.status).toBe(500);
-    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order', expect.any(Object));
+    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order_with_provider_evidence', expect.objectContaining({
+      p_provider_payment_keys: ['pk_virtual'],
+    }));
   });
 
   it('입금 완료 가상계좌는 환불계좌 없이 자동 취소하지 않는다', async () => {
@@ -141,9 +144,10 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
     const response = await POST(webhookRequest());
 
     expect(response.status).toBe(500);
-    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order', {
+    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order_with_provider_evidence', {
       p_order_id: ORDER_UUID,
       p_reason: '토스 결제 취소 웹훅 반영',
+      p_provider_payment_keys: ['pk_virtual'],
     });
   });
 
@@ -157,11 +161,31 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
     const response = await POST(webhookRequest());
 
     expect(response.status).toBe(200);
-    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order', expect.any(Object));
+    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order_with_provider_evidence', expect.objectContaining({
+      p_provider_payment_keys: ['pk_virtual'],
+    }));
     expect(mocks.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'canceled', ref_id: ORDER_UUID }),
       { onConflict: 'idempotency_key', ignoreDuplicates: true },
     );
+    expect(mocks.upsert.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.rpc.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it('CANCELED 웹훅의 terminal 증거 복구가 실패하면 로컬 취소 RPC를 호출하지 않는다', async () => {
+    mocks.existingPayment = null;
+    mocks.fetchPayment.mockResolvedValue({
+      ok: true,
+      body: { ...virtualAccountPayment('DONE'), status: 'CANCELED', method: '카드' },
+    });
+    mocks.upsert.mockResolvedValue({ error: { message: 'private database detail' } });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({ error: { code: 'terminal_record_failed' } });
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it('terminal 결제 행이 먼저 canceled가 됐어도 pending 주문 원복을 재시도한다', async () => {
@@ -174,9 +198,65 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
     const response = await POST(webhookRequest());
 
     expect(response.status).toBe(200);
-    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order', {
+    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order_with_provider_evidence', {
       p_order_id: ORDER_UUID,
       p_reason: '토스 결제 취소 웹훅 반영',
+      p_provider_payment_keys: ['pk_virtual'],
     });
+  });
+
+  it('local failed 결제도 verified CANCELED key로 paid 주문을 terminal 상태에 수렴시킨다', async () => {
+    mocks.existingPayment = { id: 'payment-1', status: 'failed' };
+    mocks.target = { user_id: 'user-1', status: 'paid' };
+    mocks.fetchPayment.mockResolvedValue({
+      ok: true,
+      body: { ...virtualAccountPayment('DONE'), status: 'CANCELED', method: '카드' },
+    });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order_with_provider_evidence', {
+      p_order_id: ORDER_UUID,
+      p_reason: '토스 결제 취소 웹훅 반영',
+      p_provider_payment_keys: ['pk_virtual'],
+    });
+  });
+
+  it('CANCELED 웹훅은 이미 canceled인 상품 주문의 늦은 결제·환불 정합화도 재시도한다', async () => {
+    mocks.existingPayment = { id: 'payment-1', status: 'canceled' };
+    mocks.target = { user_id: 'user-1', status: 'canceled' };
+    mocks.fetchPayment.mockResolvedValue({
+      ok: true,
+      body: { ...virtualAccountPayment('DONE'), status: 'CANCELED', method: '카드' },
+    });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order_with_provider_evidence', {
+      p_order_id: ORDER_UUID,
+      p_reason: '토스 결제 취소 웹훅 반영',
+      p_provider_payment_keys: ['pk_virtual'],
+    });
+  });
+
+  it('이미 canceled인 티켓 주문은 기존처럼 상품 주문 evidence RPC를 호출하지 않는다', async () => {
+    mocks.existingPayment = { id: 'payment-1', status: 'canceled' };
+    mocks.target = { user_id: 'user-1', status: 'canceled' };
+    mocks.fetchPayment.mockResolvedValue({
+      ok: true,
+      body: {
+        ...virtualAccountPayment('DONE'),
+        orderId: `ticket_${ORDER_UUID}`,
+        status: 'CANCELED',
+        method: '카드',
+      },
+    });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });

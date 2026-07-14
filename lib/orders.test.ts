@@ -2,18 +2,29 @@ import { describe, expect, it } from 'vitest';
 import {
   formatOrderDate,
   orderReferenceLabel,
+  refundStatusLabel,
   orderStatusMeta,
   summarizeOrderItems,
 } from './orders';
 
 describe('order presentation helpers', () => {
   it.each([
+    ['pending', '결제대기', '결제 상태를 확인하고 있어요'],
     ['paid', '결제완료', '주문이 접수됐어요'],
     ['shipping', '배송중', '굿즈가 배송 중이에요'],
     ['done', '완료', '주문이 완료됐어요'],
     ['canceled', '취소', '취소된 주문이에요'],
   ] as const)('maps %s to stable Korean copy', (status, label, title) => {
     expect(orderStatusMeta(status)).toMatchObject({ label, title });
+  });
+
+  it.each([
+    ['requested', '환불 요청 접수'],
+    ['done', '환불 완료'],
+    ['failed', '환불 확인 필요'],
+    ['unknown', '환불 처리 확인 필요'],
+  ])('maps refund status %s without exposing provider details', (status, label) => {
+    expect(refundStatusLabel(status)).toBe(label);
   });
 
   it('formats a short non-sensitive order reference and a Seoul calendar date', () => {

@@ -100,6 +100,11 @@ export function CheckoutOrder({ clientKey, customer, order }: CheckoutOrderProps
               {state === 'complete' && <Link className="btn btn-holo" href={`/orders/${order.id}`}>주문 상세 보기</Link>}
             </div>
           )}
+          {state === 'payable' && (
+            <p className="checkout-cancel-link">
+              결제하지 않으려면 <Link href={`/orders/${order.id}`}>주문 상세에서 취소</Link>해주세요.
+            </p>
+          )}
         </section>
 
         <aside className="checkout-receipt card" aria-label="주문 영수증">

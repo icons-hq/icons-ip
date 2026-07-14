@@ -648,6 +648,10 @@
   }
   .checkout-state-panel--complete .checkout-state-mark { color: var(--mint); background: rgba(56,240,192,.07); }
   .checkout-state-panel--closed .checkout-state-mark { color: var(--pink); background: rgba(255,77,157,.07); }
+  .checkout-cancel-link { margin: 2px 0 8px; color: var(--dim); font-size: 12px; text-align: center; }
+  .checkout-cancel-link a { color: var(--text); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+  .checkout-cancel-link a:hover { color: var(--cyan); }
+  .checkout-cancel-link a:focus-visible { outline: 2px solid var(--cyan); outline-offset: 4px; border-radius: 3px; }
   .checkout-address-preview { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line-2); }
   .checkout-address-preview > span { display: block; margin-bottom: 7px; color: var(--faint); font-size: 10px; }
   .checkout-address-preview strong { display: block; font-size: 12px; }
@@ -704,6 +708,7 @@
     font-size: 10px; font-weight: 800; white-space: nowrap;
   }
   .order-status--paid { color: var(--violet-2); background: rgba(169,129,255,.07); border-color: rgba(169,129,255,.28); }
+  .order-status--pending { color: var(--amber); background: rgba(255,178,61,.07); border-color: rgba(255,178,61,.28); }
   .order-status--shipping { color: var(--cyan); background: rgba(45,226,255,.06); border-color: rgba(45,226,255,.26); }
   .order-status--done { color: var(--mint); background: rgba(56,240,192,.06); border-color: rgba(56,240,192,.25); }
   .order-status--canceled { color: var(--pink); background: rgba(255,77,157,.06); border-color: rgba(255,77,157,.24); }
@@ -776,6 +781,30 @@
   .order-card-pack-callout h3 { margin: 1px 0 0; font-size: 12px; }
   .order-card-pack-callout p { margin: 5px 0 0; color: var(--dim); font-size: 10px; line-height: 1.5; }
   .order-card-pack-callout .btn { grid-column: 1 / -1; min-height: 44px; margin-top: 3px; }
+  .order-cancellation { margin-top: 30px; padding-top: 26px; border-top: 1px solid var(--line-2); }
+  .order-cancellation-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .order-cancellation-heading h2 { margin: 0; font-size: 17px; }
+  .order-cancellation-body { max-width: 660px; margin: 12px 0 0; color: var(--dim); font-size: 12px; line-height: 1.7; }
+  .order-cancellation-actions { margin-top: 16px; }
+  .order-cancellation-open { min-height: 44px; color: var(--pink); border-color: rgba(255,77,157,.28); }
+  .order-cancellation-confirm { padding: 16px; border: 1px solid rgba(255,77,157,.24); border-radius: var(--r-sm); background: rgba(255,77,157,.05); }
+  .order-cancellation-confirm > strong { font-size: 13px; }
+  .order-cancellation-confirm > p { margin: 6px 0 0; color: var(--dim); font-size: 11px; line-height: 1.6; }
+  .order-cancellation-confirm > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .order-cancellation-confirm .btn { min-height: 44px; }
+  .order-cancellation-submit { border: 1px solid rgba(255,77,157,.38); color: #fff; background: rgba(255,77,157,.16); }
+  .order-cancellation-submit:hover { border-color: rgba(255,77,157,.65); background: rgba(255,77,157,.24); }
+  .order-cancellation-feedback { margin: 0; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: 10px; color: var(--dim); font-size: 12px; line-height: 1.6; }
+  .order-cancellation-feedback--success { border-color: rgba(56,240,192,.25); color: var(--mint); background: rgba(56,240,192,.05); }
+  .order-cancellation-feedback--error { margin-bottom: 10px; border-color: rgba(255,77,157,.28); color: var(--pink); background: rgba(255,77,157,.06); }
+  .order-cancellation-notice { margin-top: 18px; padding: 14px 15px; border: 1px solid var(--line-2); border-radius: 10px; background: rgba(255,255,255,.018); }
+  .order-cancellation-notice h3 { margin: 0; color: var(--faint); font-size: 10px; }
+  .order-cancellation-notice p { margin: 8px 0 0; }
+  .order-refund-summary { display: flex; flex-direction: column; gap: 8px; margin: 16px 0 0; padding: 13px 14px; border: 1px solid rgba(56,240,192,.22); border-radius: 10px; background: rgba(56,240,192,.04); }
+  .order-refund-summary > div { display: flex; justify-content: space-between; gap: 16px; }
+  .order-refund-summary dt { color: var(--dim); font-size: 11px; }
+  .order-refund-summary dd { margin: 0; font-size: 11px; text-align: right; }
+  .order-cancellation .btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
 
   /* 카드팩 — 히어로 2열 · 개봉 결과 · 보유 그룹 (Gacha 연출 재목적화, #71) */
   .packs-hero { display: grid; grid-template-columns: 1.15fr .85fr; gap: clamp(28px, 4vw, 56px); align-items: center; }
@@ -909,11 +938,14 @@
   .home-float,
   .btn-holo,
   .order-list-link,
+  .order-cancellation .btn,
   .admin-pipeline-fill {
     transition: none;
     animation: none;
   }
   .order-list-link:hover { transform: none; }
+  .order-cancellation .btn:hover,
+  .order-cancellation .btn:active { transform: none; }
 }
 @keyframes homeArtCrossfade { from { opacity: 0; } }
 @keyframes holoShift { 0%,100%{ background-position: 0% 50%; } 50%{ background-position: 100% 50%; } }
@@ -1180,6 +1212,9 @@
   .order-detail-item-copy { grid-column: 1 / -1; }
   .order-detail-item-numbers { gap: 16px; }
   .order-detail-item > strong { align-self: end; }
+  .order-cancellation-heading { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .order-cancellation-confirm > div { display: grid; grid-template-columns: 1fr; }
+  .order-cancellation-confirm .btn, .order-cancellation-open { width: 100%; }
 
   .mobile-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 

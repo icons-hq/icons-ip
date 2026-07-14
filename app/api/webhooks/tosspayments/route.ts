@@ -164,11 +164,22 @@ async function applyReflectCancel(
   }
   if (!target) return received('no_local_target');
 
-  if (target.status === 'pending' || target.status === 'paid') {
+  // 조회된 CANCELED 결제가 로컬에 없으면 provider terminal 증거부터 복구한다.
+  // 그래야 이어지는 RPC가 환불 장부까지 같은 트랜잭션에서 정합화할 수 있다.
+  if (!existing && !await recordTerminalPayment(service, ref, payment, 'canceled', raw)) {
+    return errorJson(500, 'terminal_record_failed');
+  }
+
+  if (
+    target.status === 'pending'
+    || target.status === 'paid'
+    || (ref.purpose === 'order' && target.status === 'canceled')
+  ) {
     const { error: rpcError } = ref.purpose === 'order'
-      ? await service.rpc('cancel_order', {
+      ? await service.rpc('cancel_order_with_provider_evidence', {
           p_order_id: ref.refId,
           p_reason: '토스 결제 취소 웹훅 반영',
+          p_provider_payment_keys: [payment.paymentKey],
         })
       : await service.rpc('refund_ticket_order', {
           p_ticket_order_id: ref.refId,
@@ -184,9 +195,6 @@ async function applyReflectCancel(
   }
 
   if (!existing) {
-    if (!await recordTerminalPayment(service, ref, payment, 'canceled', raw)) {
-      return errorJson(500, 'terminal_record_failed');
-    }
     return received();
   }
 
@@ -220,9 +228,10 @@ async function applyCancelUnsupported(
   // provider가 먼저 닫힌 뒤에는 canceled 증거를 남겨 expiry sweep이 pending 행에 막히지 않게 한다.
   const recorded = await recordTerminalPayment(service, ref, payment, 'canceled', raw);
   const { error } = ref.purpose === 'order'
-    ? await service.rpc('cancel_order', {
+    ? await service.rpc('cancel_order_with_provider_evidence', {
         p_order_id: ref.refId,
         p_reason: '미지원 가상계좌 자동 취소',
+        p_provider_payment_keys: [payment.paymentKey],
       })
     : await service.rpc('refund_ticket_order', {
         p_ticket_order_id: ref.refId,

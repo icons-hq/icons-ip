@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { OrderCancellation } from '@/components/orders/OrderCancellation';
 import { Icon } from '@/components/ui/Icon';
 import {
   formatOrderDate,
@@ -57,6 +58,8 @@ export function OrderDetail({ order }: { order: OrderDetailData }) {
               </article>
             ))}
           </div>
+
+          <OrderCancellation orderId={order.id} status={order.status} refund={order.refund} />
         </section>
 
         <aside className="order-detail-receipt card" aria-label="주문 영수증">

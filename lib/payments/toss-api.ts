@@ -91,8 +91,8 @@ export function fetchTossPayment(paymentKey: string) {
   });
 }
 
-/** 결제 취소 — 확정 불가(만료 등) 결제를 자동 환불할 때만 서버가 호출한다.
- * 타임아웃 시 웹훅 5xx → 토스 재전송에서 같은 멱등키로 재시도된다. */
+/** 결제 취소 — 확정 불가 자동 환불과 본인 주문 취소에서 서버가 호출한다.
+ * paymentKey 기반 고정 멱등키로 웹훅 재전송과 사용자 재시도를 안전하게 흡수한다. */
 export function cancelTossPayment(paymentKey: string, cancelReason: string) {
   return tossRequest({
     method: 'POST',
