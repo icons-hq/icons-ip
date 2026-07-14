@@ -118,7 +118,7 @@ describe('POST /api/payments/confirm', () => {
     mocks.confirm.mockResolvedValue({ ok: true, body: approvedPayment() });
     mocks.cancel.mockResolvedValue({ ok: true, body: { status: 'CANCELED' } });
     mocks.fetchPayment.mockResolvedValue({ ok: true, body: approvedPayment() });
-    mocks.rpc.mockResolvedValue({ error: null });
+    mocks.rpc.mockResolvedValue({ data: 'pending', error: null });
   });
 
   it.each([undefined, 'BRANDPAY'])('paymentType=%s 콜백은 NORMAL이 아니면 승인 전에 거부한다', async (paymentType) => {
@@ -267,7 +267,7 @@ describe('POST /api/payments/confirm', () => {
     );
   });
 
-  it('티켓 결제는 본인 ticket_orders 원장을 조회하고 ticket purpose로 기록한다', async () => {
+  it('티켓 결제는 본인 ticket_orders 원장을 조회하고 전용 RPC로 선점한다', async () => {
     mocks.confirm.mockResolvedValue({
       ok: true,
       body: approvedPayment({ orderId: TICKET_ORDER_ID }),
@@ -282,14 +282,143 @@ describe('POST /api/payments/confirm', () => {
       orderId: TICKET_ORDER_ID,
       amount: 42000,
     });
-    expect(mocks.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        purpose: 'ticket',
-        ref_id: ORDER_UUID,
-        status: 'pending',
-      }),
-      { onConflict: 'idempotency_key', ignoreDuplicates: true },
-    );
+    expect(mocks.rpc).toHaveBeenCalledWith('begin_ticket_payment_approval', {
+      p_user_id: 'user-1',
+      p_ticket_order_id: ORDER_UUID,
+      p_payment_key: 'pk_1',
+      p_amount: 42000,
+    });
+    expect(mocks.upsert).not.toHaveBeenCalled();
+  });
+
+  it('취소가 선점한 티켓 예매는 provider 승인을 호출하지 않는다', async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: '23514', message: 'ticket cancellation in progress' },
+    });
+
+    const response = await POST(request(callbackBody({ orderId: TICKET_ORDER_ID })));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'not_payable', message: '결제할 수 없는 예매 상태입니다.' },
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith('begin_ticket_payment_approval', {
+      p_user_id: 'user-1',
+      p_ticket_order_id: ORDER_UUID,
+      p_payment_key: 'pk_1',
+      p_amount: 42000,
+    });
+    expect(mocks.confirm).not.toHaveBeenCalled();
+  });
+
+  it('티켓 결제 선점 RPC의 예기치 못한 실패는 내부 상세 없이 중단한다', async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { code: 'XX000', message: 'private database detail' },
+    });
+
+    const response = await POST(request(callbackBody({ orderId: TICKET_ORDER_ID })));
+    const json = await response.json();
+
+    expect(response.status).toBe(502);
+    expect(json).toEqual({
+      error: {
+        code: 'payment_prepare_failed',
+        message: '결제 준비 상태를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.',
+      },
+    });
+    expect(JSON.stringify(json)).not.toContain('private database detail');
+    expect(mocks.confirm).not.toHaveBeenCalled();
+  });
+
+  it('이미 확정된 티켓 결제 재시도는 provider를 재호출하지 않는다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: 'already_confirmed', error: null });
+
+    const response = await POST(request(callbackBody({ orderId: TICKET_ORDER_ID })));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ status: 'already_confirmed' });
+    expect(mocks.confirm).not.toHaveBeenCalled();
+  });
+
+  it('티켓 결제 placeholder를 provider 승인보다 먼저 원자적으로 선점한다', async () => {
+    mocks.confirm.mockResolvedValue({
+      ok: true,
+      body: approvedPayment({ orderId: TICKET_ORDER_ID }),
+    });
+
+    const response = await POST(request(callbackBody({ orderId: TICKET_ORDER_ID })));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith('begin_ticket_payment_approval', {
+      p_user_id: 'user-1',
+      p_ticket_order_id: ORDER_UUID,
+      p_payment_key: 'pk_1',
+      p_amount: 42000,
+    });
+    expect(mocks.rpc.mock.invocationCallOrder[0]).toBeLessThan(mocks.confirm.mock.invocationCallOrder[0]);
+  });
+
+  it('검증된 티켓 승인 응답으로 기존 pending placeholder의 raw를 갱신한다', async () => {
+    const approved = approvedPayment({ orderId: TICKET_ORDER_ID });
+    mocks.confirm.mockResolvedValue({ ok: true, body: approved });
+
+    const response = await POST(request(callbackBody({ orderId: TICKET_ORDER_ID })));
+
+    expect(response.status).toBe(200);
+    expect(mocks.update).toHaveBeenCalledWith({ raw: approved });
+    expect(mocks.updateEqFirst).toHaveBeenCalledWith('idempotency_key', 'pk_1');
+    expect(mocks.updateEqSecond).toHaveBeenCalledWith('status', 'pending');
+    expect(mocks.upsert).not.toHaveBeenCalled();
+  });
+
+  it('provider가 명확히 거부한 티켓 결제는 placeholder를 failed로 전환한다', async () => {
+    mocks.confirm.mockResolvedValue({
+      ok: false,
+      status: 400,
+      code: 'REJECT_CARD_COMPANY',
+      message: 'provider raw message with internal detail',
+    });
+
+    const response = await POST(request(callbackBody({ orderId: TICKET_ORDER_ID })));
+    const json = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(mocks.update).toHaveBeenCalledWith({ status: 'failed' });
+    expect(mocks.updateEqFirst).toHaveBeenCalledWith('idempotency_key', 'pk_1');
+    expect(mocks.updateEqSecond).toHaveBeenCalledWith('status', 'pending');
+    expect(JSON.stringify(json)).not.toContain('provider raw message');
+  });
+
+  it('provider 승인 결과가 불확실하면 티켓 placeholder를 pending으로 유지한다', async () => {
+    mocks.confirm.mockResolvedValue({
+      ok: false,
+      status: 0,
+      code: 'NETWORK_ERROR',
+      message: 'socket closed after request',
+    });
+
+    const response = await POST(request(callbackBody({ orderId: TICKET_ORDER_ID })));
+
+    expect(response.status).toBe(502);
+    expect(mocks.rpc).toHaveBeenCalledWith('begin_ticket_payment_approval', expect.any(Object));
+    expect(mocks.update).not.toHaveBeenCalledWith({ status: 'failed' });
+    expect(mocks.upsert).not.toHaveBeenCalled();
+  });
+
+  it('provider 승인 응답의 정체성이 다르면 티켓 placeholder에 raw를 연결하지 않고 pending을 유지한다', async () => {
+    mocks.confirm.mockResolvedValue({
+      ok: true,
+      body: approvedPayment({ orderId: ORDER_ID }),
+    });
+
+    const response = await POST(request(callbackBody({ orderId: TICKET_ORDER_ID })));
+
+    expect(response.status).toBe(502);
+    expect(mocks.rpc).toHaveBeenCalledWith('begin_ticket_payment_approval', expect.any(Object));
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.upsert).not.toHaveBeenCalled();
   });
 
   it('승인 뒤 pending 증거 기록에 실패하면 성공으로 응답하지 않고 같은 paymentKey 재시도를 유도한다', async () => {

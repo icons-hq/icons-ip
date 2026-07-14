@@ -119,7 +119,7 @@ export function TicketCheckout({
                 <button className="btn btn-ghost" onClick={() => router.refresh()} type="button">상태 다시 확인</button>
               )}
               {state === 'closed' && <Link className="btn btn-holo" href={`/events/${encodeURIComponent(order.eventId)}`}>회차 다시 보기</Link>}
-              {state === 'complete' && <Link className="btn btn-holo" href="/events">다른 이벤트 보기</Link>}
+              {state === 'complete' && <Link className="btn btn-holo" href={`/tickets/${order.id}`}>전자티켓 보기</Link>}
             </div>
           )}
         </section>

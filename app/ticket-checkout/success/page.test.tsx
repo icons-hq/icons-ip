@@ -29,7 +29,7 @@ describe('ticket checkout success page', () => {
 
     expect(mocks.confirmation.mock.calls[0]?.[0]).toMatchObject({
       amount: 25000,
-      destinationPath: `/ticket-checkout/${referenceId}`,
+      destinationPath: `/tickets/${referenceId}`,
       fallbackHref: '/events',
       fallbackLabel: '이벤트 목록으로',
       orderId: `ticket_${referenceId}`,

@@ -6,6 +6,7 @@ import { hrefFor } from '@/lib/routes';
 
 /* 디자인 핸드오프의 미니 푸터 + 고아 라우트 방지용 보조 링크 줄 */
 const AUX_LINKS: [label: string, route: string | null][] = [
+  ['내 티켓', 'tickets'],
   ['바인더', 'binder'],
   ['카드 교환', 'exchange'],
   ['마켓', 'market'],

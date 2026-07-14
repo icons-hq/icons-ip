@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cancellationEligibility,
+  groupTicketOrders,
   mapReserveTicketsError,
   normalizeReserveTicketsInput,
   normalizeTicketReference,
+  ticketCanShowQr,
   ticketCheckoutState,
+  ticketOrderDisplayMeta,
   ticketOrderName,
+  type TicketOrderListItem,
 } from './ticketing';
 
 const ticketTypeId = '7AD4C967-3D48-44DA-A665-64731AC33F62';
@@ -91,5 +96,90 @@ describe('ticket checkout state', () => {
     expect(bounded).toHaveLength(100);
     expect(bounded.endsWith(' · 오후 회차')).toBe(true);
     expect(ticketOrderName(' ', ' ')).toBe('ICONS 티켓');
+  });
+});
+
+const now = Date.parse('2026-07-15T03:00:00.000Z');
+
+function ticketOrder(overrides: Partial<TicketOrderListItem> = {}): TicketOrderListItem {
+  return {
+    id: '5cbcbfed-202d-4676-821a-7706398e57c0',
+    eventId: 'maple-popup',
+    eventTitle: '메이플 팝업',
+    ticketTypeId,
+    ticketTypeName: '7월 25일 오후 회차',
+    qty: 2,
+    total: 44000,
+    status: 'paid',
+    paymentStatus: 'paid',
+    createdAt: '2026-07-14T02:00:00.000Z',
+    startsAt: '2026-07-25T05:00:00.000Z',
+    endsAt: '2026-07-25T08:00:00.000Z',
+    location: '성수 ICONS 팝업',
+    ticketStatuses: ['valid', 'valid'],
+    cancellationRequest: null,
+    refund: null,
+    ...overrides,
+  };
+}
+
+describe('my tickets presentation contract', () => {
+  it.each([
+    [ticketOrder({ status: 'pending', paymentStatus: null }), 'payment_pending', '결제 대기'],
+    [ticketOrder(), 'usable', '사용 가능'],
+    [ticketOrder({ ticketStatuses: ['used', 'used'] }), 'used', '사용 완료'],
+    [ticketOrder({ cancellationRequest: { status: 'requested', requestedAt: '2026-07-15T02:00:00.000Z', completedAt: null, grossAmount: 44000, feeAmount: 0, refundAmount: 44000 } }), 'refund_pending', '환불 확인 중'],
+    [ticketOrder({ status: 'canceled', ticketStatuses: ['refunded', 'refunded'], refund: { status: 'failed', amount: 44000, createdAt: '2026-07-15T02:30:00.000Z' } }), 'refund_pending', '환불 확인 중'],
+    [ticketOrder({ status: 'canceled', ticketStatuses: ['refunded', 'refunded'], refund: { status: 'done', amount: 44000, createdAt: '2026-07-15T02:30:00.000Z' } }), 'refunded', '환불 완료'],
+  ] as const)('maps a safe order summary to %s', (order, state, label) => {
+    expect(ticketOrderDisplayMeta(order, now)).toMatchObject({ state, label });
+  });
+
+  it('groups usable, in-progress, and past tickets without changing newest-first order', () => {
+    const orders = [
+      ticketOrder({ id: 'used', ticketStatuses: ['used', 'used'], createdAt: '2026-07-14T00:00:00.000Z' }),
+      ticketOrder({ id: 'pending', status: 'pending', paymentStatus: null, createdAt: '2026-07-15T01:00:00.000Z' }),
+      ticketOrder({ id: 'usable', createdAt: '2026-07-15T02:00:00.000Z' }),
+      ticketOrder({ id: 'refunded', status: 'canceled', ticketStatuses: ['refunded', 'refunded'], createdAt: '2026-07-13T00:00:00.000Z' }),
+    ];
+
+    expect(groupTicketOrders(orders, now)).toEqual({
+      usable: [expect.objectContaining({ id: 'usable' })],
+      current: [expect.objectContaining({ id: 'pending' })],
+      past: [expect.objectContaining({ id: 'used' }), expect.objectContaining({ id: 'refunded' })],
+    });
+  });
+
+  it('does not call an unpaid cancellation a refund or an expired unused ticket used', () => {
+    expect(ticketOrderDisplayMeta(ticketOrder({
+      status: 'canceled',
+      paymentStatus: null,
+      ticketStatuses: ['refunded', 'refunded'],
+      refund: null,
+    }), now)).toMatchObject({ state: 'refunded', label: '취소 완료' });
+
+    expect(ticketOrderDisplayMeta(ticketOrder({
+      endsAt: '2026-07-15T02:59:59.000Z',
+      ticketStatuses: ['valid', 'valid'],
+    }), now)).toMatchObject({ state: 'used', label: '이벤트 종료' });
+  });
+
+  it('allows only a future, wholly-unused pending or paid booking to request full cancellation', () => {
+    expect(cancellationEligibility(ticketOrder(), now)).toEqual({ canCancel: true, reason: null });
+    expect(cancellationEligibility(ticketOrder({ status: 'pending', paymentStatus: null }), now)).toEqual({ canCancel: true, reason: null });
+
+    expect(cancellationEligibility(ticketOrder({ startsAt: null }), now)).toMatchObject({ canCancel: false, reason: 'schedule_unknown' });
+    expect(cancellationEligibility(ticketOrder({ startsAt: '2026-07-15T02:59:59.000Z' }), now)).toMatchObject({ canCancel: false, reason: 'started' });
+    expect(cancellationEligibility(ticketOrder({ ticketStatuses: ['valid', 'used'] }), now)).toMatchObject({ canCancel: false, reason: 'used' });
+    expect(cancellationEligibility(ticketOrder({ cancellationRequest: { status: 'processing', requestedAt: '2026-07-15T02:00:00.000Z', completedAt: null, grossAmount: 44000, feeAmount: 0, refundAmount: 44000 } }), now)).toMatchObject({ canCancel: false, reason: 'active_request' });
+  });
+
+  it('shows QR only for paid valid tickets without an active cancellation request', () => {
+    expect(ticketCanShowQr('paid', 'valid', null)).toBe(true);
+    expect(ticketCanShowQr('pending', 'valid', null)).toBe(false);
+    expect(ticketCanShowQr('paid', 'used', null)).toBe(false);
+    expect(ticketCanShowQr('paid', 'refunded', null)).toBe(false);
+    expect(ticketCanShowQr('paid', 'valid', 'needs_review')).toBe(false);
+    expect(ticketCanShowQr('paid', 'valid', 'completed')).toBe(true);
   });
 });

@@ -103,7 +103,8 @@ components:
   shop:           { status: 구현됨, ref: "globals.css", note: "스티키 필터 바(WORLDS+정렬) + 4열 그리드(모바일 2열). 공유 장바구니 수량 표시·재고 한도 내 +1 담기" }
   cart:           { status: 구현됨, ref: "app/cart/page.tsx; components/screens/Cart.tsx; globals.css", note: "비로그인 localStorage·로그인 DB 병합 장바구니. 수량·합계·재고·품절·판매 종료 행을 표시하고 주문 가능한 카트는 /checkout으로 연결" }
   checkout:       { status: 구현됨, ref: "app/checkout/*; components/screens/Checkout.tsx; components/screens/CheckoutOrder.tsx; components/payments/*; globals.css", note: "배송지 폼+주문 요약 2열(모바일 1열), 15분 재고 선점 타이머, 토스 결제위젯·약관, 결제 확인 중/완료/만료 상태 표면. 주문 영수증 금액은 DB 스냅샷" }
-  ticket-booking: { status: 구현됨, ref: "app/events/[eventId]/*; app/ticket-checkout/*; components/screens/EventDetail.tsx; components/screens/TicketCheckout.tsx; components/payments/*; globals.css", note: "공개 이벤트 상세+회차/잔여/수량 선택, 10분 정원 선점, 토스 티켓 결제, 웹훅 확인 중/완료/종료 상태와 DB 기반 예매 영수증. QR 표시는 내 티켓 후속 표면" }
+  ticket-booking: { status: 구현됨, ref: "app/events/[eventId]/*; app/ticket-checkout/*; components/screens/EventDetail.tsx; components/screens/TicketCheckout.tsx; components/payments/*; globals.css", note: "공개 이벤트 상세+회차/잔여/수량 선택, 10분 정원 선점, 토스 티켓 결제, 웹훅 확인 중/완료/종료 상태와 DB 기반 예매 영수증" }
+  my-tickets:     { status: 구현됨, ref: "app/tickets/*; components/screens/Tickets.tsx; components/screens/TicketDetail.tsx; components/tickets/*; globals.css", note: "본인 예매를 사용 가능/진행 중/지난 티켓으로 묶고, 한 장씩 여는 보호 QR·티켓 상태·예매 영수증·이벤트 시작 전 미사용 전체 취소/전액 환불 상태를 표시" }
   orders:         { status: 구현됨, ref: "app/orders/*; components/screens/Orders.tsx; components/screens/OrderDetail.tsx; components/orders/*; globals.css", note: "본인 주문 최신순 원장 + 상태·불변 굿즈 스냅샷·배송지·안전 결제/환불 요약·실제 카드팩 발급 상세·배송 전 청약철회 요청 상태. 데스크톱 영수증 2열, 모바일 1열" }
   admin-orders:   { status: 구현됨, ref: "app/admin/*; components/admin/sections/Orders.tsx; globals.css", note: "staff 전용 DB-side 주문/구매자/상태/기간 검색 + 20건 master-detail + paid→shipping→done + 청약철회 승인·거절·재정합화. provider 식별자·raw 미노출" }
   admin-ticket:   { status: 구현됨, ref: "app/admin/*; components/admin/sections/TicketSection.tsx; globals.css", note: "staff 전용 회차 master-detail. 이벤트·회차명·가격·정원 편집, pending 선점 포함 sold/잔여·정원 상태 표시, 예매 이력 이후 메타데이터 잠금" }
@@ -189,6 +190,7 @@ frontmatter `components` 블록이 정본 인덱스다(셸 → 기본 어휘 →
 | 장바구니 | `/cart` | 굿즈 행·수량 제어 + 재고 상태 + 주문 요약 | 비로그인 localStorage, 로그인 `cart_items` |
 | 체크아웃 | `/checkout`, `/checkout/[orderId]`, `/checkout/success`, `/checkout/fail` | 배송지·주문 생성 → 결제위젯 → 승인·웹훅 확인 상태 | `place_order`, `orders`/`order_items`/`payments`, 토스페이먼츠 |
 | 티켓 예매 | `/events/[eventId]`, `/ticket-checkout/[ticketOrderId]`, `/ticket-checkout/success`, `/ticket-checkout/fail` | 공개 회차·잔여 확인 → 수량 선택 → 10분 선점 → 결제위젯 → 웹훅 확정 상태 | 멱등 `reserve_tickets`, `ticket_orders`/`tickets`/`payments`, 토스페이먼츠 |
+| 내 티켓 | `/tickets`, `/tickets/[ticketOrderId]` | 상태별 예매 목록 → 한 장씩 보호 QR·티켓 상태·예매 영수증 → 시작 전 전체 취소/환불 | 본인 안전 컬럼 + no-store QR Route + durable `ticket_cancellation_requests`/정합화 RPC |
 | 주문 내역 | `/orders`, `/orders/[orderId]` | 최신 주문 원장 → 상태·굿즈·배송지·결제·카드팩 상세 영수증 → 배송 전 청약철회 요청/환불 상태 | 본인 `orders`/스냅샷 `order_items`/안전 결제·환불·요청 컬럼/실제 `draw_tickets` + 취소 API |
 | 관리자 주문 | `/admin?section=orders` | DB-side 필터 → 20건 master-detail → 배송 전이·청약철회 승인/거절/재정합화 | staff-gated `admin_search_orders` + audited mutation RPC + 서버 전용 Toss 정합화 |
 | 관리자 실재고 | `/admin?section=good` | 굿즈 master-detail → 현재 수량·운영/유효 상태 → 델타·사유 조정 | staff-gated, 멱등 `admin_adjust_stock` + `audit_log` |

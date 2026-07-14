@@ -43,7 +43,7 @@ export default async function Page({
   return (
     <PaymentConfirmation
       amount={amount}
-      destinationPath={refId ? `/ticket-checkout/${refId}` : null}
+      destinationPath={refId ? `/tickets/${refId}` : null}
       fallbackHref="/events"
       fallbackLabel="이벤트 목록으로"
       orderId={orderId}

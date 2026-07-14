@@ -241,6 +241,15 @@ export function EventDetail({
           <p className="money-caption">예약 후 10분 동안 정원이 선점됩니다. 결제 완료는 웹훅 확인 후 안내합니다.</p>
         </aside>
       </form>
+
+      <section className="wrap event-ticket-guide card" aria-labelledby="event-ticket-guide-heading">
+        <div>
+          <span className="checkout-step mono">MY TICKETS</span>
+          <h2 id="event-ticket-guide-heading">전자티켓 이용 안내</h2>
+          <p>결제 확인 후 내 티켓에서 QR을 확인하고, 현장에서는 티켓을 한 장씩 제시해주세요.</p>
+        </div>
+        <Link className="btn btn-ghost" href="/tickets">내 티켓 확인</Link>
+      </section>
     </main>
   );
 }
