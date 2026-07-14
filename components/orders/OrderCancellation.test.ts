@@ -1,19 +1,31 @@
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import {
   CANCELLATION_FAILURE_MESSAGE,
   LEGAL_WITHDRAWAL_NOTICE,
+  OrderCancellation,
   cancellationPresentation,
   submitOrderCancellation,
 } from './OrderCancellation';
 
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: () => undefined }),
+}));
+
 describe('submitOrderCancellation', () => {
-  it('posts to the owned order cancellation endpoint without a request body', async () => {
-    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+  it('posts without a body and accepts only the public cancellation states', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ status: 'requested' }), {
+        status: 202,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
 
     await expect(submitOrderCancellation(
       '7ad4c967-3d48-44da-a665-64731ac33f62',
       fetcher,
-    )).resolves.toBe(true);
+    )).resolves.toBe('requested');
 
     expect(fetcher).toHaveBeenCalledWith(
       '/api/orders/7ad4c967-3d48-44da-a665-64731ac33f62/cancel',
@@ -28,6 +40,15 @@ describe('submitOrderCancellation', () => {
 
     await expect(submitOrderCancellation('order-id', fetcher)).resolves.toBe(false);
     expect(json).not.toHaveBeenCalled();
+  });
+
+  it('fails closed for a successful response with an unexpected status', async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({ status: 'provider-private-state' }),
+    });
+
+    await expect(submitOrderCancellation('order-id', fetcher)).resolves.toBe(false);
   });
 
   it('separates pre-payment cancellation from paid-order withdrawal', () => {
@@ -63,8 +84,65 @@ describe('submitOrderCancellation', () => {
     });
   });
 
+  it.each([
+    ['requested', '청약철회 요청 접수', '검토'],
+    ['processing', '결제 취소 처리 중', '처리'],
+    ['needs_review', '결제 취소 확인 중', '확인'],
+    ['completed', '취소·환불 처리 완료', '완료'],
+  ] as const)('shows safe %s request status without provider details', (requestStatus, heading, bodyWord) => {
+    const presentation = cancellationPresentation('paid', null, {
+      id: '22222222-2222-4222-8222-222222222222',
+      status: requestStatus,
+      requestedAt: '2026-07-14T07:30:00.000Z',
+      decidedAt: null,
+      decisionNote: null,
+    });
+
+    expect(presentation).toMatchObject({ canCancel: false, heading: expect.stringContaining(heading) });
+    expect(presentation.body).toContain(bodyWord);
+    expect(JSON.stringify(presentation)).not.toMatch(/paymentKey|raw|provider/i);
+  });
+
+  it('shows the rejected request history while allowing a paid order to submit again', () => {
+    const rejectedRequest = {
+      id: '22222222-2222-4222-8222-222222222222',
+      status: 'rejected' as const,
+      requestedAt: '2026-07-14T07:30:00.000Z',
+      decidedAt: '2026-07-14T08:00:00.000Z',
+      decisionNote: '배송 준비 상태를 확인해주세요',
+    };
+
+    expect(cancellationPresentation('paid', null, rejectedRequest)).toMatchObject({
+      canCancel: true,
+      heading: '청약철회 재요청',
+      actionLabel: '다시 청약철회 요청',
+      requestLabel: '이전 요청 거절',
+      requestRequestedAt: '2026-07-14T07:30:00.000Z',
+      requestDecidedAt: '2026-07-14T08:00:00.000Z',
+      body: expect.stringContaining('배송 준비 상태를 확인해주세요'),
+    });
+    expect(cancellationPresentation('paid', null, rejectedRequest).body).toContain('거절');
+
+    const markup = renderToStaticMarkup(createElement(OrderCancellation, {
+      orderId: '11111111-1111-4111-8111-111111111111',
+      status: 'paid',
+      refund: null,
+      cancellationRequest: rejectedRequest,
+    }));
+    expect(markup).toContain('이전 요청 거절');
+    expect(markup).toContain('요청 시각');
+    expect(markup).toContain('처리 시각');
+    expect(markup).toContain('2026-07-14T08:00:00.000Z');
+    expect(markup).toContain('다시 청약철회 요청');
+
+    expect(cancellationPresentation('canceled', null, rejectedRequest)).toMatchObject({
+      canCancel: false,
+      heading: '취소·환불 상태',
+    });
+  });
+
   it('keeps the statutory notice and fail-closed error copy exact', () => {
     expect(LEGAL_WITHDRAWAL_NOTICE).toBe('계약내용에 관한 서면을 받은 날부터 7일 이내 청약철회를 요청할 수 있습니다. 재화 공급이 더 늦으면 공급받거나 공급이 시작된 날부터 7일입니다. 상품 훼손·사용 등 법정 제한 사유가 있으면 제한될 수 있습니다.');
-    expect(CANCELLATION_FAILURE_MESSAGE).toBe('취소를 완료하지 못했습니다. 주문 상태를 새로 확인한 뒤 다시 시도해주세요.');
+    expect(CANCELLATION_FAILURE_MESSAGE).toBe('취소 요청을 처리하지 못했습니다. 주문 상태를 새로 확인한 뒤 다시 시도해주세요.');
   });
 });

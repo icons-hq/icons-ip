@@ -4,6 +4,7 @@ import type { AdminSection } from './Admin';
 
 const NAV_ITEMS: { id: AdminSection; label: string; icon: string }[] = [
   { id: 'overview', label: '개요', icon: 'grid' },
+  { id: 'orders', label: '주문', icon: 'bag' },
   { id: 'ip', label: 'IP', icon: 'ip' },
   { id: 'good', label: '굿즈', icon: 'shop' },
   { id: 'card', label: '카드', icon: 'card' },

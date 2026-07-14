@@ -133,6 +133,85 @@ export function verifyApprovedTossPayment(
   return { ok: true, payment };
 }
 
+export type TossCancellationStateVerification =
+  | { ok: true; state: 'uncanceled' | 'fully_canceled' }
+  | {
+      ok: false;
+      reason:
+        | 'provider_response_mismatch'
+        | 'unsupported_payment_contract'
+        | 'incomplete_cancellation';
+    };
+
+/** 관리자 환불 정합화용 fresh GET 판정.
+ * POST 성공이나 에러 코드만 신뢰하지 않고 provider identity·잔액·완료 취소 합계를
+ * 모두 확인한 뒤에만 로컬 환불 증거로 승격한다. */
+export function verifyTossCancellationState(
+  data: unknown,
+  expected: { paymentKey: string; orderId: string; amount: number },
+): TossCancellationStateVerification {
+  const payment = normalizeTossPayment(data);
+  if (
+    !payment
+    || payment.paymentKey !== expected.paymentKey
+    || payment.orderId !== expected.orderId
+    || payment.totalAmount !== expected.amount
+  ) {
+    return { ok: false, reason: 'provider_response_mismatch' };
+  }
+  if (payment.type !== 'NORMAL' || payment.currency !== 'KRW') {
+    return { ok: false, reason: 'unsupported_payment_contract' };
+  }
+
+  const { balanceAmount, cancels } = data as {
+    balanceAmount?: unknown;
+    cancels?: unknown;
+  };
+  if (
+    typeof balanceAmount !== 'number'
+    || !Number.isSafeInteger(balanceAmount)
+    || balanceAmount < 0
+    || balanceAmount > expected.amount
+  ) {
+    return { ok: false, reason: 'provider_response_mismatch' };
+  }
+
+  if (payment.status === 'DONE') {
+    if (balanceAmount === expected.amount && (cancels === null || (Array.isArray(cancels) && cancels.length === 0))) {
+      return { ok: true, state: 'uncanceled' };
+    }
+    return { ok: false, reason: 'incomplete_cancellation' };
+  }
+
+  if (payment.status !== 'CANCELED' || balanceAmount !== 0 || !Array.isArray(cancels) || !cancels.length) {
+    return { ok: false, reason: 'incomplete_cancellation' };
+  }
+
+  let canceledAmount = 0;
+  for (const cancel of cancels) {
+    if (typeof cancel !== 'object' || cancel === null) {
+      return { ok: false, reason: 'incomplete_cancellation' };
+    }
+    const { cancelAmount, cancelStatus } = cancel as {
+      cancelAmount?: unknown;
+      cancelStatus?: unknown;
+    };
+    if (
+      typeof cancelAmount !== 'number'
+      || !Number.isSafeInteger(cancelAmount)
+      || cancelAmount <= 0
+      || cancelStatus !== 'DONE'
+    ) {
+      return { ok: false, reason: 'incomplete_cancellation' };
+    }
+    canceledAmount += cancelAmount;
+  }
+
+  return canceledAmount === expected.amount
+    ? { ok: true, state: 'fully_canceled' }
+    : { ok: false, reason: 'incomplete_cancellation' };
+}
+
 export type WebhookAction =
   | { kind: 'confirm'; ref: TossOrderRef }
   | { kind: 'reflect_cancel'; ref: TossOrderRef }

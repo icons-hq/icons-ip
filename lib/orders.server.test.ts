@@ -143,6 +143,47 @@ describe('loadOrders', () => {
     mocks.client = createClient({ records: [], rows: {}, errors: { orders: 'network unavailable' } });
     await expect(loadOrders(userId)).rejects.toThrow('Failed to load orders');
   });
+
+  it('keeps a pending order visible when it has a durable cancellation request', async () => {
+    const records: QueryRecord[] = [];
+    const pendingOrderId = '8be5d078-4e59-4f8b-a776-75842bd44073';
+    mocks.client = createClient({
+      records,
+      rows: {
+        orders: [
+          { id: orderId, user_id: userId, status: 'paid', total: 54000, created_at: '2026-07-14T06:00:00.000Z' },
+          { id: pendingOrderId, user_id: userId, status: 'pending', total: 32000, created_at: '2026-07-14T07:00:00.000Z' },
+        ],
+        order_cancellation_requests: [{ order_id: pendingOrderId }],
+        order_items: [
+          { order_id: orderId, qty: 1, good_name_snapshot: '완료 주문 굿즈' },
+          { order_id: pendingOrderId, qty: 1, good_name_snapshot: '취소 확인 중 굿즈' },
+        ],
+      },
+    });
+
+    await expect(loadOrders(userId)).resolves.toEqual([
+      {
+        id: pendingOrderId,
+        status: 'pending',
+        total: 32000,
+        createdAt: '2026-07-14T07:00:00.000Z',
+        itemLabel: '취소 확인 중 굿즈',
+        itemCount: 1,
+      },
+      {
+        id: orderId,
+        status: 'paid',
+        total: 54000,
+        createdAt: '2026-07-14T06:00:00.000Z',
+        itemLabel: '완료 주문 굿즈',
+        itemCount: 1,
+      },
+    ]);
+    expect(records.find((record) => record.table === 'order_cancellation_requests')).toMatchObject({
+      select: 'order_id',
+    });
+  });
 });
 
 describe('loadOrderDetail', () => {
@@ -203,6 +244,15 @@ describe('loadOrderDetail', () => {
           reason: 'must-not-leak',
           created_at: '2026-07-14T07:30:00.000Z',
         }],
+        order_cancellation_requests: [{
+          id: 'cancel-request-1',
+          order_id: orderId,
+          status: 'needs_review',
+          requested_at: '2026-07-14T07:20:00.000Z',
+          decided_at: '2026-07-14T07:25:00.000Z',
+          decision_note: null,
+          last_error_code: 'must-not-leak',
+        }],
         draw_tickets: [
           { user_id: userId, source: 'order_paid', source_id: orderId, consumed_at: null },
           { user_id: userId, source: 'order_paid', source_id: orderId, consumed_at: '2026-07-14T07:00:00.000Z' },
@@ -219,9 +269,16 @@ describe('loadOrderDetail', () => {
       items: [{ goodId: 'goods-1', name: '아크릴 스탠드', type: '아크릴', qty: 2, unitPrice: 27000 }],
       payment: { amount: 54000, status: 'paid', createdAt: '2026-07-14T06:01:00.000Z' },
       refund: { status: 'requested', createdAt: '2026-07-14T07:30:00.000Z' },
+      cancellationRequest: {
+        id: 'cancel-request-1',
+        status: 'needs_review',
+        requestedAt: '2026-07-14T07:20:00.000Z',
+        decidedAt: '2026-07-14T07:25:00.000Z',
+        decisionNote: null,
+      },
       cardPacks: { issuedCount: 2, availableCount: 1 },
     });
-    expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|idempotency_key|raw/);
+    expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|idempotency_key|raw|last_error_code/);
 
     expect(records.find((record) => record.table === 'orders')).toMatchObject({
       eq: [['id', orderId], ['user_id', userId]],
@@ -242,6 +299,13 @@ describe('loadOrderDetail', () => {
       select: 'status,created_at',
       in: [['payment_id', ['payment-2', 'payment-1']]],
       order: [['created_at', { ascending: false }]],
+      limit: 1,
+      maybeSingle: true,
+    });
+    expect(records.find((record) => record.table === 'order_cancellation_requests')).toMatchObject({
+      select: 'id,status,requested_at,decided_at,decision_note',
+      eq: [['order_id', orderId]],
+      order: [['requested_at', { ascending: false }]],
       limit: 1,
       maybeSingle: true,
     });
@@ -270,6 +334,7 @@ describe('loadOrderDetail', () => {
       id: orderId,
       status: 'pending',
       refund: null,
+      cancellationRequest: null,
     });
     expect(records.some((record) => record.table === 'refunds')).toBe(false);
   });

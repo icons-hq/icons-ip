@@ -103,7 +103,8 @@ components:
   shop:           { status: 구현됨, ref: "globals.css", note: "스티키 필터 바(WORLDS+정렬) + 4열 그리드(모바일 2열). 공유 장바구니 수량 표시·재고 한도 내 +1 담기" }
   cart:           { status: 구현됨, ref: "app/cart/page.tsx; components/screens/Cart.tsx; globals.css", note: "비로그인 localStorage·로그인 DB 병합 장바구니. 수량·합계·재고·품절·판매 종료 행을 표시하고 주문 가능한 카트는 /checkout으로 연결" }
   checkout:       { status: 구현됨, ref: "app/checkout/*; components/screens/Checkout.tsx; components/screens/CheckoutOrder.tsx; components/payments/*; globals.css", note: "배송지 폼+주문 요약 2열(모바일 1열), 15분 재고 선점 타이머, 토스 결제위젯·약관, 결제 확인 중/완료/만료 상태 표면. 주문 영수증 금액은 DB 스냅샷" }
-  orders:         { status: 구현됨, ref: "app/orders/*; components/screens/Orders.tsx; components/screens/OrderDetail.tsx; components/orders/*; globals.css", note: "본인 주문 최신순 원장 + 상태·불변 굿즈 스냅샷·배송지·안전 결제/환불 요약·실제 카드팩 발급 상세·배송 전 취소. 데스크톱 영수증 2열, 모바일 1열" }
+  orders:         { status: 구현됨, ref: "app/orders/*; components/screens/Orders.tsx; components/screens/OrderDetail.tsx; components/orders/*; globals.css", note: "본인 주문 최신순 원장 + 상태·불변 굿즈 스냅샷·배송지·안전 결제/환불 요약·실제 카드팩 발급 상세·배송 전 청약철회 요청 상태. 데스크톱 영수증 2열, 모바일 1열" }
+  admin-orders:   { status: 구현됨, ref: "app/admin/*; components/admin/sections/Orders.tsx; globals.css", note: "staff 전용 DB-side 주문/구매자/상태/기간 검색 + 20건 master-detail + paid→shipping→done + 청약철회 승인·거절·재정합화. provider 식별자·raw 미노출" }
   gacha:          { status: 구현됨, ref: "globals.css:442-453", note: "카드풀 스위처 + 확률 칩 + 천장 게이지 + 클라이언트 리빌(popIn). mock 공시 — 실 카드풀은 ADR-0001" }
   event:          { status: 구현됨, ref: "globals.css:456-461", note: "featured 2열(1.05/.95) + 16:9 카드 그리드 + QR 가이드 3단계. 상태별 CTA(현장 정보/티켓 예매/오픈 알림 신청)" }
   binder:         { status: 구현됨, ref: "globals.css:464-468", note: "도감 그리드(미보유 잠금·dim은 mock 모드만) + 카드 상세 모달 + CTA 행" }
@@ -185,7 +186,8 @@ frontmatter `components` 블록이 정본 인덱스다(셸 → 기본 어휘 →
 | 굿즈샵 | `/shop` | 최애의 물건들 헤더 + 스티키 WORLDS/정렬 바 + 4열 그리드 | 카탈로그, 공유 장바구니 수량·재고 한도 내 +1 담기 |
 | 장바구니 | `/cart` | 굿즈 행·수량 제어 + 재고 상태 + 주문 요약 | 비로그인 localStorage, 로그인 `cart_items` |
 | 체크아웃 | `/checkout`, `/checkout/[orderId]`, `/checkout/success`, `/checkout/fail` | 배송지·주문 생성 → 결제위젯 → 승인·웹훅 확인 상태 | `place_order`, `orders`/`order_items`/`payments`, 토스페이먼츠 |
-| 주문 내역 | `/orders`, `/orders/[orderId]` | 최신 주문 원장 → 상태·굿즈·배송지·결제·카드팩 상세 영수증 → 배송 전 취소/환불 상태 | 본인 `orders`/스냅샷 `order_items`/안전 결제·환불 컬럼/실제 `draw_tickets` + 취소 API |
+| 주문 내역 | `/orders`, `/orders/[orderId]` | 최신 주문 원장 → 상태·굿즈·배송지·결제·카드팩 상세 영수증 → 배송 전 청약철회 요청/환불 상태 | 본인 `orders`/스냅샷 `order_items`/안전 결제·환불·요청 컬럼/실제 `draw_tickets` + 취소 API |
+| 관리자 주문 | `/admin?section=orders` | DB-side 필터 → 20건 master-detail → 배송 전이·청약철회 승인/거절/재정합화 | staff-gated `admin_search_orders` + audited mutation RPC + 서버 전용 Toss 정합화 |
 | 뽑기 | `/gacha` | 카드풀 스위처 + 확률 칩 + 천장 게이지 + 클라이언트 리빌 + 라인업 | 카탈로그(카드 있는 IP), mock 공시 |
 | 팝업 | `/events` | 필터 칩 → featured 2열 → 카드 그리드(상태별 CTA) → QR 가이드 | `selectFandomEvents` |
 | 커뮤니티 | `/community` | 채널 레일 + 컴팩트 컴포저 + 피드 + 랭킹·카드풀 레일 | 실배선(작성·좋아요·댓글·신고·차단) |

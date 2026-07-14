@@ -3,11 +3,12 @@ import 'server-only';
 import { normalizeCheckoutAddress } from './checkout';
 import {
   isOrderDetailStatus,
-  isVisibleOrderStatus,
+  isOrderCancellationRequestStatus,
   ORDER_DETAIL_STATUSES,
   summarizeOrderItems,
   VISIBLE_ORDER_STATUSES,
   type OrderDetail,
+  type OrderCancellationRequestStatus,
   type OrderListItem,
 } from './orders';
 import { createClient } from '@/lib/supabase/server';
@@ -28,6 +29,10 @@ interface OrderListItemRow {
   order_id: string;
   qty: number;
   good_name_snapshot: string;
+}
+
+interface CancellationRequestOrderRow {
+  order_id: string;
 }
 
 interface OrderDetailItemRow extends OrderListItemRow {
@@ -53,11 +58,12 @@ interface RefundRow {
   created_at: string;
 }
 
-function requireVisibleStatus(status: string) {
-  if (!isVisibleOrderStatus(status)) {
-    throw new Error(`Failed to load orders: unsupported status ${status}`);
-  }
-  return status;
+interface CancellationRequestRow {
+  id: string;
+  status: string;
+  requested_at: string;
+  decided_at: string | null;
+  decision_note: string | null;
 }
 
 function requireDetailStatus(status: string) {
@@ -69,19 +75,48 @@ function requireDetailStatus(status: string) {
 
 export async function loadOrders(userId: string): Promise<OrderListItem[]> {
   const supabase = await createClient();
-  const { data: orderData, error: orderError } = await supabase
-    .from('orders')
-    .select('id,user_id,status,total,created_at')
-    .eq('user_id', userId)
-    .in('status', [...VISIBLE_ORDER_STATUSES])
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false });
+  const [orderResult, requestResult] = await Promise.all([
+    supabase
+      .from('orders')
+      .select('id,user_id,status,total,created_at')
+      .eq('user_id', userId)
+      .in('status', [...VISIBLE_ORDER_STATUSES])
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false }),
+    supabase
+      .from('order_cancellation_requests')
+      .select('order_id'),
+  ]);
 
-  if (orderError) {
-    throw new Error(`Failed to load orders: ${orderError.message}`);
+  if (orderResult.error) {
+    throw new Error(`Failed to load orders: ${orderResult.error.message}`);
+  }
+  if (requestResult.error) {
+    throw new Error(`Failed to load order cancellation requests: ${requestResult.error.message}`);
   }
 
-  const orderRows = (orderData ?? []) as OrderListRow[];
+  let orderRows = (orderResult.data ?? []) as OrderListRow[];
+  const requestedOrderIds = [...new Set(
+    ((requestResult.data ?? []) as CancellationRequestOrderRow[]).map((request) => request.order_id),
+  )];
+
+  if (requestedOrderIds.length) {
+    const { data: pendingData, error: pendingError } = await supabase
+      .from('orders')
+      .select('id,user_id,status,total,created_at')
+      .eq('user_id', userId)
+      .eq('status', 'pending')
+      .in('id', requestedOrderIds)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false });
+    if (pendingError) throw new Error(`Failed to load requested orders: ${pendingError.message}`);
+    orderRows = [...orderRows, ...((pendingData ?? []) as OrderListRow[])];
+  }
+
+  orderRows.sort((left, right) => (
+    right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id)
+  ));
+
   if (orderRows.length === 0) return [];
 
   const orderIds = orderRows.map((order) => order.id);
@@ -103,7 +138,7 @@ export async function loadOrders(userId: string): Promise<OrderListItem[]> {
   }
 
   return orderRows.map((order) => {
-    const status = requireVisibleStatus(order.status);
+    const status = requireDetailStatus(order.status);
     const summary = summarizeOrderItems(
       (itemsByOrderId.get(order.id) ?? []).map((item) => ({
         name: item.good_name_snapshot,
@@ -138,7 +173,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   if (!orderData) return null;
 
   const status = requireDetailStatus(orderData.status);
-  const [itemsResult, paymentResult, ticketsResult] = await Promise.all([
+  const [itemsResult, paymentResult, ticketsResult, cancellationRequestResult] = await Promise.all([
     supabase
       .from('order_items')
       .select('id,order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot')
@@ -158,6 +193,13 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       .eq('user_id', userId)
       .eq('source', 'order_paid')
       .eq('source_id', orderId),
+    supabase
+      .from('order_cancellation_requests')
+      .select('id,status,requested_at,decided_at,decision_note')
+      .eq('order_id', orderId)
+      .order('requested_at', { ascending: false })
+      .limit(1)
+      .maybeSingle<CancellationRequestRow>(),
   ]);
 
   if (itemsResult.error) {
@@ -169,11 +211,22 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   if (ticketsResult.error) {
     throw new Error(`Failed to load order card packs: ${ticketsResult.error.message}`);
   }
+  if (cancellationRequestResult.error) {
+    throw new Error(`Failed to load order cancellation request: ${cancellationRequestResult.error.message}`);
+  }
 
   const ticketRows = (ticketsResult.data ?? []) as DrawTicketRow[];
   const paymentRows = (paymentResult.data ?? []) as PaymentRow[];
   const payment = paymentRows[0] ?? null;
   let refund: RefundRow | null = null;
+  const cancellationRequestRow = cancellationRequestResult.data;
+  let cancellationRequestStatus: OrderCancellationRequestStatus | null = null;
+  if (cancellationRequestRow) {
+    if (!isOrderCancellationRequestStatus(cancellationRequestRow.status)) {
+      throw new Error('Failed to load order cancellation request: unsupported status');
+    }
+    cancellationRequestStatus = cancellationRequestRow.status;
+  }
 
   if (paymentRows.length > 0) {
     const { data: refundData, error: refundError } = await supabase
@@ -214,6 +267,15 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       ? {
           status: refund.status,
           createdAt: refund.created_at,
+        }
+      : null,
+    cancellationRequest: cancellationRequestRow && cancellationRequestStatus
+      ? {
+          id: cancellationRequestRow.id,
+          status: cancellationRequestStatus,
+          requestedAt: cancellationRequestRow.requested_at,
+          decidedAt: cancellationRequestRow.decided_at,
+          decisionNote: cancellationRequestRow.decision_note,
         }
       : null,
     cardPacks: {
