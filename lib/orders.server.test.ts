@@ -176,7 +176,7 @@ describe('loadOrderDetail', () => {
           good_type_snapshot: '아크릴',
         }],
         payments: [{
-          id: 'payment-1',
+          id: 'payment-2',
           user_id: userId,
           purpose: 'order',
           ref_id: orderId,
@@ -186,6 +186,22 @@ describe('loadOrderDetail', () => {
           payment_key: 'must-not-leak',
           idempotency_key: 'must-not-leak',
           raw: { cardNumber: 'must-not-leak' },
+        }, {
+          id: 'payment-1',
+          user_id: userId,
+          purpose: 'order',
+          ref_id: orderId,
+          amount: 54000,
+          status: 'failed',
+          created_at: '2026-07-14T05:59:00.000Z',
+        }],
+        refunds: [{
+          id: 'refund-1',
+          payment_id: 'payment-1',
+          amount: 54000,
+          status: 'requested',
+          reason: 'must-not-leak',
+          created_at: '2026-07-14T07:30:00.000Z',
         }],
         draw_tickets: [
           { user_id: userId, source: 'order_paid', source_id: orderId, consumed_at: null },
@@ -202,29 +218,63 @@ describe('loadOrderDetail', () => {
       total: 54000,
       items: [{ goodId: 'goods-1', name: '아크릴 스탠드', type: '아크릴', qty: 2, unitPrice: 27000 }],
       payment: { amount: 54000, status: 'paid', createdAt: '2026-07-14T06:01:00.000Z' },
+      refund: { status: 'requested', createdAt: '2026-07-14T07:30:00.000Z' },
       cardPacks: { issuedCount: 2, availableCount: 1 },
     });
     expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|idempotency_key|raw/);
 
     expect(records.find((record) => record.table === 'orders')).toMatchObject({
       eq: [['id', orderId], ['user_id', userId]],
-      in: [['status', ['paid', 'shipping', 'done', 'canceled']]],
+      in: [['status', ['pending', 'paid', 'shipping', 'done', 'canceled']]],
       maybeSingle: true,
     });
     expect(records.find((record) => record.table === 'payments')).toMatchObject({
       select: 'id,amount,status,created_at',
       eq: [['user_id', userId], ['purpose', 'order'], ['ref_id', orderId]],
       order: [['created_at', { ascending: false }], ['id', { ascending: false }]],
-      limit: 1,
-      maybeSingle: true,
+      maybeSingle: false,
     });
     expect(records.find((record) => record.table === 'draw_tickets')).toMatchObject({
       select: 'consumed_at',
       eq: [['user_id', userId], ['source', 'order_paid'], ['source_id', orderId]],
     });
+    expect(records.find((record) => record.table === 'refunds')).toMatchObject({
+      select: 'status,created_at',
+      in: [['payment_id', ['payment-2', 'payment-1']]],
+      order: [['created_at', { ascending: false }]],
+      limit: 1,
+      maybeSingle: true,
+    });
   });
 
-  it('returns null for a missing, pending, or other-user order without loading receipt children', async () => {
+  it('loads a pending order detail while keeping pending orders out of history', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({
+      records,
+      rows: {
+        orders: [{
+          id: orderId,
+          user_id: userId,
+          status: 'pending',
+          total: 54000,
+          address: null,
+          created_at: '2026-07-14T06:00:00.000Z',
+        }],
+        order_items: [],
+        payments: [],
+        draw_tickets: [],
+      },
+    });
+
+    await expect(loadOrderDetail(userId, orderId)).resolves.toMatchObject({
+      id: orderId,
+      status: 'pending',
+      refund: null,
+    });
+    expect(records.some((record) => record.table === 'refunds')).toBe(false);
+  });
+
+  it('returns null for a missing or other-user order without loading receipt children', async () => {
     const records: QueryRecord[] = [];
     mocks.client = createClient({
       records,

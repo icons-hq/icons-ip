@@ -1,17 +1,25 @@
 import type { CheckoutAddress } from './checkout';
 
 export const VISIBLE_ORDER_STATUSES = ['paid', 'shipping', 'done', 'canceled'] as const;
+export const ORDER_DETAIL_STATUSES = ['pending', ...VISIBLE_ORDER_STATUSES] as const;
 
 export type VisibleOrderStatus = (typeof VISIBLE_ORDER_STATUSES)[number];
+export type OrderDetailStatus = (typeof ORDER_DETAIL_STATUSES)[number];
 
 export interface OrderStatusPresentation {
   label: string;
   title: string;
   body: string;
-  tone: VisibleOrderStatus;
+  tone: OrderDetailStatus;
 }
 
-const STATUS_PRESENTATION: Record<VisibleOrderStatus, OrderStatusPresentation> = {
+const STATUS_PRESENTATION: Record<OrderDetailStatus, OrderStatusPresentation> = {
+  pending: {
+    label: '결제대기',
+    title: '결제 상태를 확인하고 있어요',
+    body: '결제 대기 또는 승인 확인 중인 주문입니다. 진행하지 않을 주문은 아래에서 취소할 수 있어요.',
+    tone: 'pending',
+  },
   paid: {
     label: '결제완료',
     title: '주문이 접수됐어요',
@@ -61,14 +69,20 @@ export interface OrderPaymentSummary {
   createdAt: string;
 }
 
+export interface OrderRefundSummary {
+  status: string;
+  createdAt: string;
+}
+
 export interface OrderDetail {
   id: string;
-  status: VisibleOrderStatus;
+  status: OrderDetailStatus;
   total: number;
   address: CheckoutAddress | null;
   createdAt: string;
   items: OrderDetailItem[];
   payment: OrderPaymentSummary | null;
+  refund: OrderRefundSummary | null;
   cardPacks: {
     issuedCount: number;
     availableCount: number;
@@ -79,8 +93,25 @@ export function isVisibleOrderStatus(value: string): value is VisibleOrderStatus
   return (VISIBLE_ORDER_STATUSES as readonly string[]).includes(value);
 }
 
-export function orderStatusMeta(status: VisibleOrderStatus): OrderStatusPresentation {
+export function isOrderDetailStatus(value: string): value is OrderDetailStatus {
+  return (ORDER_DETAIL_STATUSES as readonly string[]).includes(value);
+}
+
+export function orderStatusMeta(status: OrderDetailStatus): OrderStatusPresentation {
   return STATUS_PRESENTATION[status];
+}
+
+export function refundStatusLabel(status: string): string {
+  switch (status) {
+    case 'requested':
+      return '환불 요청 접수';
+    case 'done':
+      return '환불 완료';
+    case 'failed':
+      return '환불 확인 필요';
+    default:
+      return '환불 처리 확인 필요';
+  }
 }
 
 export function orderReferenceLabel(orderId: string): string {

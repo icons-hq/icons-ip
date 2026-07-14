@@ -2,7 +2,9 @@ import 'server-only';
 
 import { normalizeCheckoutAddress } from './checkout';
 import {
+  isOrderDetailStatus,
   isVisibleOrderStatus,
+  ORDER_DETAIL_STATUSES,
   summarizeOrderItems,
   VISIBLE_ORDER_STATUSES,
   type OrderDetail,
@@ -46,9 +48,21 @@ interface DrawTicketRow {
   consumed_at: string | null;
 }
 
+interface RefundRow {
+  status: string;
+  created_at: string;
+}
+
 function requireVisibleStatus(status: string) {
   if (!isVisibleOrderStatus(status)) {
     throw new Error(`Failed to load orders: unsupported status ${status}`);
+  }
+  return status;
+}
+
+function requireDetailStatus(status: string) {
+  if (!isOrderDetailStatus(status)) {
+    throw new Error(`Failed to load order detail: unsupported status ${status}`);
   }
   return status;
 }
@@ -115,7 +129,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     .select('id,user_id,status,total,address,created_at')
     .eq('id', orderId)
     .eq('user_id', userId)
-    .in('status', [...VISIBLE_ORDER_STATUSES])
+    .in('status', [...ORDER_DETAIL_STATUSES])
     .maybeSingle<OrderDetailRow>();
 
   if (orderError) {
@@ -123,7 +137,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   }
   if (!orderData) return null;
 
-  const status = requireVisibleStatus(orderData.status);
+  const status = requireDetailStatus(orderData.status);
   const [itemsResult, paymentResult, ticketsResult] = await Promise.all([
     supabase
       .from('order_items')
@@ -137,9 +151,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       .eq('purpose', 'order')
       .eq('ref_id', orderId)
       .order('created_at', { ascending: false })
-      .order('id', { ascending: false })
-      .limit(1)
-      .maybeSingle<PaymentRow>(),
+      .order('id', { ascending: false }),
     supabase
       .from('draw_tickets')
       .select('consumed_at')
@@ -159,7 +171,24 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   }
 
   const ticketRows = (ticketsResult.data ?? []) as DrawTicketRow[];
-  const payment = paymentResult.data;
+  const paymentRows = (paymentResult.data ?? []) as PaymentRow[];
+  const payment = paymentRows[0] ?? null;
+  let refund: RefundRow | null = null;
+
+  if (paymentRows.length > 0) {
+    const { data: refundData, error: refundError } = await supabase
+      .from('refunds')
+      .select('status,created_at')
+      .in('payment_id', paymentRows.map((row) => row.id))
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle<RefundRow>();
+
+    if (refundError) {
+      throw new Error(`Failed to load order refund: ${refundError.message}`);
+    }
+    refund = refundData;
+  }
 
   return {
     id: orderData.id,
@@ -179,6 +208,12 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
           amount: payment.amount,
           status: payment.status,
           createdAt: payment.created_at,
+        }
+      : null,
+    refund: refund
+      ? {
+          status: refund.status,
+          createdAt: refund.created_at,
         }
       : null,
     cardPacks: {
