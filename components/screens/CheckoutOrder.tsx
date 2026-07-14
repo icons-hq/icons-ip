@@ -97,7 +97,7 @@ export function CheckoutOrder({ clientKey, customer, order }: CheckoutOrderProps
                 <button className="btn btn-ghost" type="button" onClick={() => router.refresh()}>상태 다시 확인</button>
               )}
               {state === 'closed' && <Link className="btn btn-holo" href="/shop">굿즈 다시 담기</Link>}
-              {state === 'complete' && <Link className="btn btn-holo" href="/">홈으로</Link>}
+              {state === 'complete' && <Link className="btn btn-holo" href={`/orders/${order.id}`}>주문 상세 보기</Link>}
             </div>
           )}
         </section>

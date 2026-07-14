@@ -30,7 +30,7 @@
 | 데이터 | Supabase 공개 카탈로그, 커뮤니티 visible feed/comment preview, Postgres 검색 읽기 + mock fallback. Vercel Preview는 static mock catalog를 기본 사용. IP 상세 커뮤니티 preview도 Supabase `posts`/`public_profiles`에서 읽음 | `lib/catalog.ts`, `lib/catalog-source.ts`, `lib/community.server.ts`, `lib/search.ts`, `lib/data.ts` |
 | 인증 | Supabase SSR 이메일/PW Auth, 확인 메일 callback, 온보딩 게이트, 우상단 AuthButton 상태 동기화. env 없으면 no-op/폼 비활성화 | `app/login/*`, `app/auth/callback/route.ts`, `app/onboarding/*`, `components/shell/AuthButton.tsx`, `lib/auth/*`, `lib/supabase/*`, 루트 `proxy.ts` |
 | 보호 액션 | IP 팔로우/언팔로우 server action + 온보딩 추천 IP 저장. 커뮤니티 포스트 작성, 댓글, 좋아요, 작성자 삭제, 신고, 차단은 Server Action + RPC로 연결 | `app/ip/actions.ts`, `app/onboarding/actions.ts`, `app/community/actions.ts`, `lib/ip-follow*`, `supabase/migrations/20260623090001_ip_follow_rpc.sql`, `supabase/migrations/20260624103001_community_comment_like_actions.sql`, `supabase/migrations/20260626090001_community_moderation_actions.sql` |
-| 굿즈 커머스 | 비로그인 localStorage·로그인 `cart_items` 병합, 멱등 `place_order` 재고 선점, 토스 결제위젯 redirect 승인, 웹훅 확정·만료 복원 | `app/cart/*`, `app/checkout/*`, `app/api/payments/confirm`, `app/api/webhooks/tosspayments`, `lib/checkout*`, `lib/payments/*` |
+| 굿즈 커머스 | 비로그인 localStorage·로그인 `cart_items` 병합, 멱등 `place_order` 재고 선점, 토스 결제위젯 redirect 승인, 웹훅 확정·만료 복원, 본인 주문 내역·상세 영수증 | `app/cart/*`, `app/checkout/*`, `app/orders/*`, `app/api/payments/confirm`, `app/api/webhooks/tosspayments`, `lib/checkout*`, `lib/orders*`, `lib/payments/*` |
 | 운영 | staff/admin 게이트, 카탈로그 CRUD, 감사 로그, 커뮤니티 신고 상태 변경과 포스트 숨김 처리 최소 경로 | `app/admin/*`, `lib/admin/*`, `supabase/migrations/20260624100001_admin_catalog_crud.sql`, `supabase/migrations/20260626090001_community_moderation_actions.sql` |
 | CI/CD | GitHub Actions `CI/CD Pipeline`: PR 검증 + Vercel preview 배포, merge queue 검증, `main` push production 배포. Actions 앱 빌드 Node는 26 | `.github/workflows/pipeline.yml` |
 | 배포 | PR은 Vercel 원격 preview build/deploy, `main` push는 Supabase linked migration push 후 Vercel 원격 production build/deploy. Sensitive 환경변수는 Vercel build 안에서 검증하며 Vercel Git 자동 배포는 비활성화 | GitHub Secrets + `.github/workflows/pipeline.yml`, `vercel.json` |
@@ -41,7 +41,7 @@
 **요청 프록시 주의**: 루트 `proxy.ts`가 `export function proxy()` + `config.matcher`로 동작한다(Next 16에서 미들웨어가 이 형태). `lib/supabase/middleware.ts`의 `updateSession`을 호출하며 **보호 액션 전까지 로그인 리다이렉트는 하지 않는다**(공개 브라우징 정책).
 
 화면↔라우트 매핑(현재):
-`/`·`/ip`·`/ip/[id]`·`/shop`·`/cart`·`/checkout`·`/checkout/[orderId]`·`/checkout/success`·`/checkout/fail`·`/binder`·`/exchange`·`/community`·`/events`·`/market`·`/search`·`/login`
+`/`·`/ip`·`/ip/[id]`·`/shop`·`/cart`·`/checkout`·`/checkout/[orderId]`·`/checkout/success`·`/checkout/fail`·`/orders`·`/orders/[orderId]`·`/binder`·`/exchange`·`/community`·`/events`·`/market`·`/search`·`/login`
 
 ---
 
@@ -117,7 +117,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 ### 5.4 커머스 (P1)
 - `carts` / `cart_items` (user_id, good_id, qty)
 - `orders` (id, user_id, status `pending|paid|shipping|done|canceled`, total, address jsonb, created_at)
-- `order_items` (order_id, good_id, qty, unit_price)
+- `order_items` (order_id, good_id, qty, unit_price, good_name/type/ip_id_snapshot) — 주문 시점 굿즈 정체성·가격 장부
 - `payments` (id, provider `toss`, order_id?/charge_id?, amount, status, payment_key, **idempotency_key**, raw jsonb)
 - `refunds` (id, payment_id, amount, reason, status)
 
@@ -166,7 +166,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
   3) `pulls`/`pull_results` 기록, `user_cards` 적립(중복 시 정책 처리)
   4) `wallet_ledger`에 `pull` 기록
 - **`reserve_tickets(ticket_type_id, qty)`** — `ticket_types.sold`를 `FOR UPDATE`로 잠그고 `capacity` 초과 검증 후 차감, `ticket_orders` 생성(상태 `pending`). 결제 확정 시 `tickets`(QR) 발급.
-- **`place_order(cart)`** — 굿즈 재고 검증·차감, `orders`/`order_items` 생성(`pending`).
+- **`place_order(cart)`** — 굿즈 재고 검증·차감, 주문 당시 가격·이름·유형·IP를 고정한 `orders`/`order_items` 생성(`pending`).
 - **`confirm_order_payment` / `confirm_ticket_payment`** — 결제 확정(service_role 전용). 웹훅에서 호출, **멱등 키=토스 paymentKey**로 중복 방지. (충전 `charge_wallet`은 ADR-0003으로 폐기)
 - **`cancel/refund_*`** — 토스 취소가 먼저 성공한 뒤 서버(service_role)가 재고·티켓 원복과 `refunds` 기록에 사용한다. 브라우저 직접 실행은 금지한다.
 
@@ -199,6 +199,7 @@ Production Auth 설정:
 - 클라이언트: 결제위젯으로 결제 요청(주문·티켓 공용). 토스 `orderId`는 `order_<uuid>`/`ticket_<uuid>`로 결제 목적을 실어 발급한다(`lib/payments/toss.ts`).
 - 승인: successUrl 콜백이 **`/api/payments/confirm`** 을 호출 → 본인 소유·pending·미만료·금액 일치를 검증한 뒤 토스 승인 API를 호출하고 `payments`에 `pending`으로 기록한다. **승인 성공은 UX 반영용이다.**
 - 확정: **웹훅 `/api/webhooks/tosspayments`(Route Handler)** 가 단일 진실원. 결제 웹훅에는 서명이 없으므로(서명 헤더는 지급대행 웹훅 전용) payload를 신뢰하지 않고 paymentKey로 **결제 조회 API를 재호출해 검증**한 뒤 `confirm_order_payment`/`confirm_ticket_payment` RPC(service_role, 멱등 키=paymentKey)를 호출한다. 검증된 조회 응답 원문을 `payments.raw`에 보존한다.
+- 주문 상세의 브라우저 조회는 본인 RLS와 안전 컬럼(`id`,`user_id`,`purpose`,`ref_id`,`amount`,`status`,`created_at`)으로 제한한다. `payment_key`·`idempotency_key`·`raw`는 service role 경계에만 두며 authenticated의 `SELECT *`도 허용하지 않는다.
 - 흐름: ① RPC로 `pending` 생성(재고 선점) → ② 토스 결제 → ③ 승인 경로(`pending` 기록) → ④ 웹훅 확정(`paid`, 티켓 QR 발급/주문 확정) → ⑤ 실패·만료 시 선점 복원.
 - 실패·만료 복원: 만료 등 확정 불가 결제는 웹훅이 **토스 취소 API로 자동 환불**하고, 승인 이력 없는 만료 pending 주문·예매는 pg_cron이 매분 `expire_stale_checkouts()`로 `cancel_order`/`refund_ticket_order`를 재사용해 정리한다(승인 진행 중 건 제외, 만료 후 5분 유예).
 - 미지원 가상계좌: 입금 전 `WAITING_FOR_DEPOSIT`이면 토스를 먼저 자동 취소한 뒤 로컬 주문·재고를 원복한다. 입금 완료 건은 환불계좌 없이 자동 취소하지 않고 운영 오류로 노출한다.
