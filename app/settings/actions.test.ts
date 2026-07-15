@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { updateMarketingConsentAction, updateProfileAction } from './actions';
 import type { OnboardingConsents } from '@/lib/auth/onboarding';
 import type { CurrentAuthState } from '@/lib/auth/server';
@@ -79,7 +79,11 @@ function profileForm(nickname: string, avatar?: File) {
   return formData;
 }
 
+const PROFILE_AVATAR_UUID = '123e4567-e89b-42d3-a456-426614174000';
+const PROFILE_AVATAR_PATH = `user-1/profile/${PROFILE_AVATAR_UUID}.png`;
+
 beforeEach(() => {
+  vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(PROFILE_AVATAR_UUID);
   mocks.auth = onboardedAuth({ terms: true, privacy: true, marketing: false });
   mocks.updateResult = { data: { id: 'user-1' }, error: null };
   mocks.uploadResult = { data: { path: 'user-1/profile/avatar.png' }, error: null };
@@ -109,6 +113,10 @@ beforeEach(() => {
   mocks.upload.mockImplementation(async () => mocks.uploadResult);
   mocks.list.mockImplementation(async () => mocks.listResult);
   mocks.remove.mockImplementation(async () => mocks.removeResult);
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('updateProfileAction', () => {
@@ -178,6 +186,8 @@ describe('updateProfileAction', () => {
     expect(mocks.update).toHaveBeenCalledWith({ nickname: 'new fan' });
     expect(mocks.eq).toHaveBeenCalledWith('id', 'user-1');
     expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.list).not.toHaveBeenCalled();
+    expect(mocks.remove).not.toHaveBeenCalled();
     expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toEqual([
       '/settings',
       '/',
@@ -186,34 +196,72 @@ describe('updateProfileAction', () => {
     ]);
   });
 
-  it('uploads a server-named avatar, saves its path, and removes superseded profile files', async () => {
+  it('uploads a UUID-named avatar and removes only the safe previous avatar', async () => {
     const avatar = new File(['avatar'], 'client-name.png', { type: 'image/png' });
-    mocks.list.mockImplementation(async () => {
-      const currentPath = mocks.upload.mock.calls[0][0] as string;
-      const currentName = currentPath.slice(currentPath.lastIndexOf('/') + 1);
-      return {
-        data: [{ name: 'old.png' }, { name: currentName }, { name: 'older.webp' }],
-        error: null,
-      };
-    });
+    const previousAvatarPath = 'user-1/profile/previous.webp';
+    mocks.auth = onboardedAuth(
+      { terms: true, privacy: true, marketing: false },
+      previousAvatarPath,
+    );
+    mocks.listResult = {
+      data: [
+        { name: 'previous.webp' },
+        { name: `${PROFILE_AVATAR_UUID}.png` },
+        { name: 'unrelated-later.png' },
+      ],
+      error: null,
+    };
 
     await expect(updateProfileAction({}, profileForm('fan', avatar))).resolves.toEqual({
       message: '프로필을 저장했어요.',
     });
 
-    const avatarPath = mocks.upload.mock.calls[0][0] as string;
-    expect(avatarPath).toMatch(/^user-1\/profile\/.+\.png$/);
     expect(mocks.storageFrom).toHaveBeenCalledWith('user-uploads');
-    expect(mocks.upload).toHaveBeenCalledWith(avatarPath, avatar, {
+    expect(mocks.upload).toHaveBeenCalledWith(PROFILE_AVATAR_PATH, avatar, {
       contentType: 'image/png',
       upsert: false,
     });
-    expect(mocks.update).toHaveBeenCalledWith({ nickname: 'fan', avatar_path: avatarPath });
-    expect(mocks.list).toHaveBeenCalledWith('user-1/profile');
-    expect(mocks.remove).toHaveBeenCalledWith([
-      'user-1/profile/old.png',
-      'user-1/profile/older.webp',
-    ]);
+    expect(mocks.update).toHaveBeenCalledWith({
+      nickname: 'fan',
+      avatar_path: PROFILE_AVATAR_PATH,
+    });
+    expect(mocks.list).not.toHaveBeenCalled();
+    expect(mocks.remove).toHaveBeenCalledOnce();
+    expect(mocks.remove).toHaveBeenCalledWith([previousAvatarPath]);
+  });
+
+  it('does not remove a previous avatar outside the authenticated user profile folder', async () => {
+    mocks.auth = onboardedAuth(
+      { terms: true, privacy: true, marketing: false },
+      'user-2/profile/previous.webp',
+    );
+
+    await expect(
+      updateProfileAction(
+        {},
+        profileForm('fan', new File(['avatar'], 'avatar.png', { type: 'image/png' })),
+      ),
+    ).resolves.toEqual({ message: '프로필을 저장했어요.' });
+
+    expect(mocks.list).not.toHaveBeenCalled();
+    expect(mocks.remove).not.toHaveBeenCalled();
+  });
+
+  it('does not remove the avatar path when it matches the newly uploaded path', async () => {
+    mocks.auth = onboardedAuth(
+      { terms: true, privacy: true, marketing: false },
+      PROFILE_AVATAR_PATH,
+    );
+
+    await expect(
+      updateProfileAction(
+        {},
+        profileForm('fan', new File(['avatar'], 'avatar.png', { type: 'image/png' })),
+      ),
+    ).resolves.toEqual({ message: '프로필을 저장했어요.' });
+
+    expect(mocks.list).not.toHaveBeenCalled();
+    expect(mocks.remove).not.toHaveBeenCalled();
   });
 
   it('returns an avatar error without updating the profile when upload fails', async () => {
@@ -245,6 +293,10 @@ describe('updateProfileAction', () => {
   });
 
   it('removes a newly uploaded avatar when the profile update fails', async () => {
+    mocks.auth = onboardedAuth(
+      { terms: true, privacy: true, marketing: false },
+      'user-1/profile/previous.webp',
+    );
     mocks.updateResult = { data: null, error: { message: 'db failed' } };
 
     await expect(
@@ -256,8 +308,8 @@ describe('updateProfileAction', () => {
       errors: { form: '프로필을 저장하지 못했습니다. 다시 시도해주세요.' },
     });
 
-    const avatarPath = mocks.upload.mock.calls[0][0] as string;
-    expect(mocks.remove).toHaveBeenCalledWith([avatarPath]);
+    expect(mocks.remove).toHaveBeenCalledOnce();
+    expect(mocks.remove).toHaveBeenCalledWith([PROFILE_AVATAR_PATH]);
     expect(mocks.list).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });

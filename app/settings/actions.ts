@@ -5,7 +5,11 @@ import { redirect } from 'next/navigation';
 import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import type { CurrentAuthState } from '@/lib/auth/server';
-import { buildProfileAvatarPath, normalizeProfileForm, profileAvatarFolder } from '@/lib/profile';
+import {
+  buildProfileAvatarPath,
+  isProfileAvatarPathForUser,
+  normalizeProfileForm,
+} from '@/lib/profile';
 import { mergeMarketingConsent } from '@/lib/settings';
 import { createClient } from '@/lib/supabase/server';
 
@@ -65,9 +69,9 @@ export async function updateProfileAction(
       })
     : null;
   const supabase = await createClient();
-  const profileStorage = supabase.storage.from(USER_UPLOADS_BUCKET);
+  const profileStorage = avatarPath ? supabase.storage.from(USER_UPLOADS_BUCKET) : null;
 
-  if (avatar && avatarPath) {
+  if (avatar && avatarPath && profileStorage) {
     const { error } = await profileStorage.upload(avatarPath, avatar, {
       contentType: avatar.type,
       upsert: false,
@@ -86,23 +90,26 @@ export async function updateProfileAction(
     .single();
 
   if (error) {
-    if (avatarPath) await profileStorage.remove([avatarPath]);
+    if (avatarPath && profileStorage) await profileStorage.remove([avatarPath]);
     if (error.code === '23505') {
       return { errors: { nickname: '이미 사용 중인 닉네임입니다.' } };
     }
     return { errors: { form: '프로필을 저장하지 못했습니다. 다시 시도해주세요.' } };
   }
 
-  const profileFolder = profileAvatarFolder(user.id);
-  const currentAvatarPath = avatarPath ?? auth.profile?.avatar_path ?? null;
-  try {
-    const { data: files } = await profileStorage.list(profileFolder);
-    const supersededPaths = (files ?? [])
-      .map(({ name }) => `${profileFolder}/${name}`)
-      .filter((path) => path !== currentAvatarPath);
-    if (supersededPaths.length > 0) await profileStorage.remove(supersededPaths);
-  } catch {
-    // 프로필 저장은 이미 성공했으므로 이전 파일 정리는 다음 저장 때 다시 시도한다.
+  const previousAvatarPath = auth.profile?.avatar_path;
+  if (
+    avatarPath &&
+    profileStorage &&
+    previousAvatarPath &&
+    previousAvatarPath !== avatarPath &&
+    isProfileAvatarPathForUser(previousAvatarPath, user.id)
+  ) {
+    try {
+      await profileStorage.remove([previousAvatarPath]);
+    } catch {
+      // 프로필 저장은 이미 성공했으므로 이전 파일 정리는 다음 교체 때 다시 시도한다.
+    }
   }
 
   revalidatePath(SETTINGS_PATH);
