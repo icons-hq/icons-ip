@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getAdminCardPoolStatus,
   getAdminCatalogRecords,
+  getAdminGameStatus,
   getAdminRewardPolicyStatus,
 } from './catalog.server';
 
@@ -117,6 +118,119 @@ describe('getAdminCatalogRecords', () => {
       activeFrom: '2026-07-16T00:00:00.000Z',
     }, now)).toBe('pool-unavailable');
     expect(getAdminRewardPolicyStatus(activePolicy, readyPool, now)).toBe('active');
+  });
+
+  it('classifies game half-open windows and card-pool availability', () => {
+    const now = Date.parse('2026-07-15T00:00:00.000Z');
+    const activeGame = {
+      activeFrom: '2026-07-14T00:00:00.000Z',
+      activeTo: '2026-07-16T00:00:00.000Z',
+      variantKind: 'card' as const,
+    };
+    const coveringPool = {
+      activeFrom: '2026-07-14T00:00:00.000Z',
+      activeTo: '2026-07-16T00:00:00.000Z',
+      ready: true,
+    };
+
+    expect(getAdminGameStatus({
+      ...activeGame,
+      activeFrom: '2026-07-15T00:00:00.001Z',
+    }, coveringPool, now)).toBe('scheduled');
+    expect(getAdminGameStatus({
+      ...activeGame,
+      activeTo: '2026-07-15T00:00:00.000Z',
+    }, coveringPool, now)).toBe('ended');
+    expect(getAdminGameStatus(activeGame, { ...coveringPool, ready: false }, now)).toBe('pool-unavailable');
+    expect(getAdminGameStatus(activeGame, null, now)).toBe('pool-unavailable');
+    expect(getAdminGameStatus(activeGame, coveringPool, now)).toBe('active');
+    expect(getAdminGameStatus({ ...activeGame, variantKind: 'goods' }, null, now)).toBe('active');
+  });
+
+  it('loads PII-free card and goods game summaries from the staff RPC', async () => {
+    const rpcRecords: string[] = [];
+    mocks.client = createClient({
+      records: [],
+      rpcRecords,
+      rpcRows: {
+        admin_list_games: [
+          {
+            id: 'marble-maple',
+            type: 'marble_roulette',
+            title: '메이플 마블 룰렛',
+            event_id: 'e2',
+            event_title: '메이플 온라인 팝업',
+            config: { marbleCount: 10, variant: { kind: 'card', rarityLineup: ['R'] } },
+            variant_kind: 'card',
+            marble_count: 10,
+            reward_pool_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            reward_pool_name: '메이플 풀',
+            reward_pool_active_from: '2020-01-01T00:00:00.000Z',
+            reward_pool_active_to: null,
+            reward_pool_ready: true,
+            ip_id: 'maplestory',
+            ip_title: '메이플스토리',
+            per_user_daily_limit: 2,
+            active_from: '2020-01-01T00:00:00.000Z',
+            active_to: null,
+            created_at: '2026-07-14T00:00:00.000Z',
+            updated_at: '2026-07-15T00:00:00.000Z',
+            play_count: '12',
+            last_played_at: '2026-07-15T01:00:00.000Z',
+          },
+          {
+            id: 'goods-marble',
+            type: 'marble_roulette',
+            title: '굿즈 마블 룰렛',
+            event_id: null,
+            event_title: null,
+            config: { marbleCount: 10, variant: { kind: 'goods' } },
+            variant_kind: 'goods',
+            marble_count: 10,
+            reward_pool_id: null,
+            reward_pool_name: null,
+            reward_pool_active_from: null,
+            reward_pool_active_to: null,
+            reward_pool_ready: false,
+            ip_id: null,
+            ip_title: null,
+            per_user_daily_limit: 1,
+            active_from: '2020-01-01T00:00:00.000Z',
+            active_to: null,
+            created_at: '2026-07-14T00:00:00.000Z',
+            updated_at: '2026-07-15T00:00:00.000Z',
+            play_count: 0,
+            last_played_at: null,
+          },
+        ],
+      },
+    });
+
+    const result = await getAdminCatalogRecords();
+
+    expect(rpcRecords).toEqual(['admin_list_reward_policies', 'admin_list_games']);
+    expect(result.games).toEqual([
+      expect.objectContaining({
+        id: 'marble-maple',
+        variantKind: 'card',
+        marbleCount: 10,
+        ipId: 'maplestory',
+        playCount: 12,
+        hasPlays: true,
+        status: 'active',
+      }),
+      expect.objectContaining({
+        id: 'goods-marble',
+        variantKind: 'goods',
+        rewardPoolId: null,
+        playCount: 0,
+        hasPlays: false,
+        status: 'active',
+      }),
+    ]);
+    expect(result.games[0]).not.toHaveProperty('config');
+    expect(result.games[0]).not.toHaveProperty('userId');
+    expect(result.games[0]).not.toHaveProperty('result');
   });
 
   it('loads ticket history counts and maps event titles for the ticket console', async () => {
@@ -337,7 +451,7 @@ describe('getAdminCatalogRecords', () => {
 
     const result = await getAdminCatalogRecords();
 
-    expect(rpcRecords).toEqual(['admin_list_reward_policies']);
+    expect(rpcRecords).toEqual(['admin_list_reward_policies', 'admin_list_games']);
     expect(result.cardPools[0]).toMatchObject({
       oddsConfigured: true,
       rewardReady: true,
@@ -447,6 +561,17 @@ describe('getAdminCatalogRecords', () => {
 
     await expect(getAdminCatalogRecords()).rejects.toThrow(
       'Failed to load admin reward policies: policy summary unavailable',
+    );
+  });
+
+  it('fails closed when the game summary RPC fails', async () => {
+    mocks.client = createClient({
+      records: [],
+      rpcErrors: { admin_list_games: 'game summary unavailable' },
+    });
+
+    await expect(getAdminCatalogRecords()).rejects.toThrow(
+      'Failed to load admin games: game summary unavailable',
     );
   });
 });

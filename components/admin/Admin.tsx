@@ -11,6 +11,7 @@ import {
 import type {
   AdminCatalogRecords,
   AdminEventRecord,
+  AdminGameRecord,
   AdminIpRecord,
   AdminTicketTypeRecord,
 } from '@/lib/admin/catalog.server';
@@ -25,6 +26,7 @@ import { CardSection } from './sections/CardSection';
 import { CardPoolSection } from './sections/CardPoolSection';
 import { EventSection } from './sections/EventSection';
 import { GoodSection } from './sections/GoodSection';
+import { GameSection } from './sections/GameSection';
 import { IpSection } from './sections/IpSection';
 import { ModerationSection } from './sections/Moderation';
 import { OverviewSection } from './sections/Overview';
@@ -33,7 +35,7 @@ import { RewardPolicySection } from './sections/RewardPolicySection';
 import { RolesSection } from './sections/Roles';
 import { TicketSection } from './sections/TicketSection';
 
-export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'pool' | 'policy' | 'event' | 'ticket' | 'moderation' | 'roles';
+export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'pool' | 'policy' | 'game' | 'event' | 'ticket' | 'moderation' | 'roles';
 
 const SECTION_TITLES: Record<AdminSection, string> = {
   overview: '개요',
@@ -43,6 +45,7 @@ const SECTION_TITLES: Record<AdminSection, string> = {
   card: '카드 관리',
   pool: '카드풀 관리',
   policy: '뽑기권 발급 정책',
+  game: '게임 관리',
   event: '이벤트 관리',
   ticket: '티켓 회차 관리',
   moderation: '모더레이션',
@@ -74,6 +77,8 @@ interface AdminProps {
   stockAdjustmentId: string;
   ticketDraftId: string;
   ticketOperationId: string;
+  gameEndOperationId: string;
+  gameOperationId: string;
 }
 
 export function Admin({
@@ -95,6 +100,8 @@ export function Admin({
   stockAdjustmentId,
   ticketDraftId,
   ticketOperationId,
+  gameEndOperationId,
+  gameOperationId,
 }: AdminProps) {
   const [active, setActive] = useState<AdminSection>(initialSection ?? 'overview');
   const [collapsed, setCollapsed] = useState(false);
@@ -103,6 +110,7 @@ export function Admin({
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [selectedPoolId, setSelectedPoolId] = useState<string | null>(null);
   const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null);
+  const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<AdminEventRecord | null>(null);
   const [selectedTicketTypeId, setSelectedTicketTypeId] = useState<string | null>(null);
   const [ipState, ipAction, ipPending] = useActionState(upsertAdminIpAction, emptyState);
@@ -129,6 +137,10 @@ export function Admin({
   const selectedPolicy = useMemo(
     () => records.rewardPolicies.find((policy) => policy.id === selectedPolicyId) ?? null,
     [records.rewardPolicies, selectedPolicyId],
+  );
+  const selectedGame = useMemo(
+    () => records.games.find((game) => game.id === selectedGameId) ?? null,
+    [records.games, selectedGameId],
   );
 
   return (
@@ -223,6 +235,17 @@ export function Admin({
                 pools={records.cardPools}
                 records={records.rewardPolicies}
                 selected={selectedPolicy}
+              />
+            )}
+            {active === 'game' && (
+              <GameSection
+                endOperationId={gameEndOperationId}
+                events={records.events}
+                onSelect={(game: AdminGameRecord | null) => setSelectedGameId(game?.id ?? null)}
+                operationId={gameOperationId}
+                pools={records.cardPools}
+                records={records.games}
+                selected={selectedGame}
               />
             )}
             {active === 'event' && (

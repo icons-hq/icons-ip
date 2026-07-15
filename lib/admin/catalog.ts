@@ -83,6 +83,34 @@ export interface AdminRewardPolicyFormValue {
   activeTo: string | null;
 }
 
+export interface AdminGameFormValue {
+  operationId: string;
+  previousGameId: string | null;
+  id: string;
+  title: string;
+  rewardPoolId: string;
+  eventId: string | null;
+  perUserDailyLimit: number;
+  activeFrom: string;
+  activeTo: string | null;
+}
+
+export interface AdminGameEndFormValue {
+  operationId: string;
+  gameId: string;
+}
+
+export interface AdminGameContext {
+  pools: ReadonlyMap<string, {
+    ipId: string;
+    activeFrom: string;
+    activeTo: string | null;
+    rewardReady: boolean;
+    status: 'scheduled' | 'active' | 'ended';
+  }>;
+  events: ReadonlyMap<string, { ipId: string | null; mode: string }>;
+}
+
 export interface AdminEventFormValue {
   id: string;
   ipId: string | null;
@@ -227,6 +255,32 @@ export function catalogContextFromSnapshot(snapshot: {
     goodIpById: new Map(snapshot.goods.map((good) => [good.id, good.ip])),
     ipIds: new Set(snapshot.ips.map((ip) => ip.id)),
     verticalKeys: new Set(snapshot.verticals.map((vertical) => vertical.key)),
+  };
+}
+
+export function gameContextFromRecords(records: {
+  cardPools: Array<{
+    id: string;
+    ipId: string;
+    activeFrom: string;
+    activeTo: string | null;
+    rewardReady: boolean;
+    status: 'scheduled' | 'active' | 'ended';
+  }>;
+  events: Array<{ id: string; ipId: string | null; mode: string }>;
+}): AdminGameContext {
+  return {
+    pools: new Map(records.cardPools.map((pool) => [pool.id, {
+      ipId: pool.ipId,
+      activeFrom: pool.activeFrom,
+      activeTo: pool.activeTo,
+      rewardReady: pool.rewardReady,
+      status: pool.status,
+    }])),
+    events: new Map(records.events.map((event) => [event.id, {
+      ipId: event.ipId,
+      mode: event.mode,
+    }])),
   };
 }
 
@@ -528,6 +582,94 @@ export function normalizeAdminRewardPolicyForm(
       activeTo,
     },
   };
+}
+
+export function normalizeAdminGameForm(
+  formData: FormData,
+  context: AdminGameContext,
+): AdminFormResult<AdminGameFormValue> {
+  const errors: AdminFieldErrors = {};
+  const operationId = readUuid(formData, 'operationId', errors, '유효한 저장 요청이 아닙니다.');
+  const previousGameId = nullableString(formData, 'previousGameId');
+  const id = readSlug(formData, 'id', errors, '게임 ID를 입력해주세요.');
+  const title = readString(formData, 'title');
+  const rewardPoolId = readUuid(formData, 'rewardPoolId', errors, '유효한 카드풀을 선택해주세요.');
+  const eventId = nullableString(formData, 'eventId');
+  const perUserDailyLimitRaw = readString(formData, 'perUserDailyLimit');
+  const activeFromRaw = readString(formData, 'activeFrom');
+  const activeFrom = localKstDateTimeToIso(formData, 'activeFrom', errors);
+  const activeTo = localKstDateTimeToIso(formData, 'activeTo', errors);
+  const pool = context.pools.get(rewardPoolId);
+
+  if (previousGameId && !SLUG_PATTERN.test(previousGameId)) {
+    errors.previousGameId = '이전 게임 ID를 확인해주세요.';
+  }
+  if (!title) errors.title = '게임 제목을 입력해주세요.';
+
+  if (!pool || !pool.rewardReady || pool.status === 'ended') {
+    errors.rewardPoolId = '확률과 카드 구성이 완료된 운영 가능한 카드풀을 선택해주세요.';
+  }
+
+  if (eventId) {
+    const event = context.events.get(eventId);
+    if (!event || !pool || event.ipId !== pool.ipId || event.mode !== '온라인') {
+      errors.eventId = '같은 IP의 온라인 이벤트만 선택할 수 있습니다.';
+    }
+  }
+
+  const perUserDailyLimit = Number(perUserDailyLimitRaw);
+  if (
+    !/^\d+$/.test(perUserDailyLimitRaw)
+    || !Number.isInteger(perUserDailyLimit)
+    || perUserDailyLimit < 1
+    || perUserDailyLimit > 100
+  ) {
+    errors.perUserDailyLimit = '일일 플레이 한도는 1~100 사이의 정수여야 합니다.';
+  }
+
+  if (!activeFromRaw) {
+    errors.activeFrom = '운영 시작 일시를 명시적으로 선택해주세요.';
+  }
+  if (activeFrom && activeTo && activeTo <= activeFrom) {
+    errors.activeTo = '운영 종료는 시작보다 뒤여야 합니다.';
+  }
+
+  if (pool && activeFrom && !errors.activeTo) {
+    const coverageMessage = '게임 운영 기간은 카드풀 운영 기간 안에 있어야 합니다.';
+    if (Date.parse(activeFrom) < Date.parse(pool.activeFrom)) {
+      errors.activeFrom = coverageMessage;
+    } else if (pool.activeTo && (!activeTo || Date.parse(activeTo) > Date.parse(pool.activeTo))) {
+      errors.activeTo = coverageMessage;
+    }
+  }
+
+  if (Object.keys(errors).length || !activeFrom) return { ok: false, errors };
+
+  return {
+    ok: true,
+    value: {
+      operationId,
+      previousGameId,
+      id,
+      title,
+      rewardPoolId,
+      eventId,
+      perUserDailyLimit,
+      activeFrom,
+      activeTo,
+    },
+  };
+}
+
+export function normalizeAdminGameEndForm(
+  formData: FormData,
+): AdminFormResult<AdminGameEndFormValue> {
+  const errors: AdminFieldErrors = {};
+  const operationId = readUuid(formData, 'operationId', errors, '유효한 종료 요청이 아닙니다.');
+  const gameId = readSlug(formData, 'gameId', errors, '게임을 선택해주세요.');
+
+  if (Object.keys(errors).length) return { ok: false, errors };
+  return { ok: true, value: { operationId, gameId } };
 }
 
 export function normalizeAdminEventForm(

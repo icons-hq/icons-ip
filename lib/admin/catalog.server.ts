@@ -111,6 +111,67 @@ export interface AdminRewardPolicyRecord {
   status: AdminRewardPolicyStatus;
 }
 
+export type AdminGameStatus = 'scheduled' | 'active' | 'ended' | 'pool-unavailable';
+export type AdminGameVariantKind = 'card' | 'goods' | 'unknown';
+
+interface AdminGamePoolState {
+  activeFrom: string;
+  activeTo: string | null;
+  ready: boolean;
+}
+
+export function getAdminGameStatus(
+  game: {
+    activeFrom: string;
+    activeTo: string | null;
+    variantKind: AdminGameVariantKind;
+  },
+  pool: AdminGamePoolState | null,
+  now = Date.now(),
+): AdminGameStatus {
+  if (now < Date.parse(game.activeFrom)) return 'scheduled';
+  if (game.activeTo && now >= Date.parse(game.activeTo)) return 'ended';
+
+  if (game.variantKind === 'card') {
+    const poolCoversGame = Boolean(
+      pool
+      && pool.ready
+      && Date.parse(pool.activeFrom) <= Date.parse(game.activeFrom)
+      && (
+        game.activeTo
+          ? (!pool.activeTo || Date.parse(pool.activeTo) >= Date.parse(game.activeTo))
+          : !pool.activeTo
+      ),
+    );
+    if (!poolCoversGame) return 'pool-unavailable';
+  }
+
+  return 'active';
+}
+
+export interface AdminGameRecord {
+  id: string;
+  type: string;
+  title: string;
+  variantKind: AdminGameVariantKind;
+  marbleCount: number | null;
+  rewardPoolId: string | null;
+  rewardPoolName: string | null;
+  ipId: string | null;
+  ipTitle: string | null;
+  eventId: string | null;
+  eventTitle: string | null;
+  perUserDailyLimit: number;
+  activeFrom: string;
+  activeTo: string | null;
+  createdAt: string;
+  updatedAt: string;
+  playCount: number;
+  lastPlayedAt: string | null;
+  hasPlays: boolean;
+  status: AdminGameStatus;
+}
+
 export interface AdminEventRecord {
   id: string;
   ipId: string | null;
@@ -143,6 +204,7 @@ export interface AdminCatalogRecords {
   cards: AdminCardRecord[];
   cardPools: AdminCardPoolRecord[];
   rewardPolicies: AdminRewardPolicyRecord[];
+  games: AdminGameRecord[];
   events: AdminEventRecord[];
   ticketTypes: AdminTicketTypeRecord[];
 }
@@ -241,6 +303,31 @@ interface RewardPolicyRow {
   last_issued_at: string | null;
 }
 
+interface GameRow {
+  id: string;
+  type: string;
+  title: string;
+  event_id: string | null;
+  event_title: string | null;
+  config: unknown;
+  variant_kind: string | null;
+  marble_count: number | string | null;
+  reward_pool_id: string | null;
+  reward_pool_name: string | null;
+  reward_pool_active_from: string | null;
+  reward_pool_active_to: string | null;
+  reward_pool_ready: boolean | null;
+  ip_id: string | null;
+  ip_title: string | null;
+  per_user_daily_limit: number;
+  active_from: string;
+  active_to: string | null;
+  created_at: string;
+  updated_at: string;
+  play_count: number | string;
+  last_played_at: string | null;
+}
+
 function hasReadyPoolOdds(pool: CardPoolRow, cards: CardRow[]) {
   const odds = pool.pool_odds ?? [];
   const rarities = new Set(odds.map((odd) => odd.rarity));
@@ -270,6 +357,7 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
     eventsResult,
     ticketTypesResult,
     rewardPoliciesResult,
+    gamesResult,
   ] = await Promise.all([
     supabase
       .from('ips')
@@ -299,6 +387,7 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
       .order('name')
       .limit(1, { referencedTable: 'tickets' }),
     supabase.rpc('admin_list_reward_policies'),
+    supabase.rpc('admin_list_games'),
   ]);
 
   if (ipsResult.error) throw new Error(`Failed to load admin IPs: ${ipsResult.error.message}`);
@@ -309,6 +398,9 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
   if (ticketTypesResult.error) throw new Error(`Failed to load admin ticket types: ${ticketTypesResult.error.message}`);
   if (rewardPoliciesResult.error) {
     throw new Error(`Failed to load admin reward policies: ${rewardPoliciesResult.error.message}`);
+  }
+  if (gamesResult.error) {
+    throw new Error(`Failed to load admin games: ${gamesResult.error.message}`);
   }
 
   const cardRows = (cardsResult.data ?? []) as CardRow[];
@@ -414,6 +506,48 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
         orderCount: Number(row.order_count),
         lastIssuedAt: row.last_issued_at,
         status: getAdminRewardPolicyStatus(policy, policyPoolStates.get(row.pool_id) ?? null),
+      };
+    }),
+    games: ((gamesResult.data ?? []) as GameRow[]).map((row) => {
+      const variantKind: AdminGameVariantKind = row.variant_kind === 'card' || row.variant_kind === 'goods'
+        ? row.variant_kind
+        : 'unknown';
+      const marbleCount = row.marble_count === null ? null : Number(row.marble_count);
+      const playCount = Number(row.play_count);
+      const game = {
+        activeFrom: row.active_from,
+        activeTo: row.active_to,
+        variantKind,
+      };
+      const pool = row.reward_pool_active_from
+        ? {
+            activeFrom: row.reward_pool_active_from,
+            activeTo: row.reward_pool_active_to,
+            ready: row.reward_pool_ready === true,
+          }
+        : null;
+
+      return {
+        id: row.id,
+        type: row.type,
+        title: row.title,
+        variantKind,
+        marbleCount: marbleCount !== null && Number.isInteger(marbleCount) ? marbleCount : null,
+        rewardPoolId: row.reward_pool_id,
+        rewardPoolName: row.reward_pool_name,
+        ipId: row.ip_id,
+        ipTitle: row.ip_title,
+        eventId: row.event_id,
+        eventTitle: row.event_title,
+        perUserDailyLimit: row.per_user_daily_limit,
+        activeFrom: row.active_from,
+        activeTo: row.active_to,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        playCount: Number.isFinite(playCount) ? playCount : 0,
+        lastPlayedAt: row.last_played_at,
+        hasPlays: Number.isFinite(playCount) && playCount > 0,
+        status: getAdminGameStatus(game, pool),
       };
     }),
     events,

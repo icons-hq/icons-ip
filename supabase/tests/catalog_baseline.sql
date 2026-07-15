@@ -105,13 +105,16 @@ begin
 
   select
     count(*),
-    count(*) filter (where rarity = any (array['R', 'SSR', 'HOLO']::public.rarity[])),
+    count(*) filter (
+      where rarity = any (array['R', 'SSR', 'HOLO']::public.rarity[])
+        and probability > 0
+    ),
     coalesce(sum(probability), 0)
   into matched_count, expected_count, odds_total
   from public.pool_odds
   where pool_id = baseline_pool_id;
-  if matched_count <> 3 or expected_count <> 3 or odds_total <> 1.00000 then
-    raise exception 'catalog baseline invalid: expected exactly R, SSR, and HOLO odds totaling 1.0, found % rows, % expected rarities, total %', matched_count, expected_count, odds_total;
+  if matched_count <> 5 or expected_count <> 3 or odds_total <> 1.00000 then
+    raise exception 'catalog baseline invalid: expected all 5 rarity rows with positive R, SSR, and HOLO odds totaling 1.0, found % rows, % positive expected rarities, total %', matched_count, expected_count, odds_total;
   end if;
 
   select count(*) into matched_count

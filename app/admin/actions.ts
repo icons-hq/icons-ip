@@ -4,10 +4,13 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
   catalogContextFromSnapshot,
+  gameContextFromRecords,
   normalizeAdminCardForm,
   normalizeAdminCardPoolForm,
   normalizeAdminEventForm,
   normalizeAdminGoodForm,
+  normalizeAdminGameEndForm,
+  normalizeAdminGameForm,
   normalizeAdminIpForm,
   normalizeAdminPoolOddsForm,
   normalizeAdminRewardPolicyForm,
@@ -15,6 +18,7 @@ import {
   normalizeAdminTicketTypeForm,
   type AdminFieldErrors,
 } from '@/lib/admin/catalog';
+import { getAdminCatalogRecords } from '@/lib/admin/catalog.server';
 import {
   normalizeAdminHidePostForm,
   normalizeAdminReportStatusForm,
@@ -82,6 +86,15 @@ function revalidateTicketing() {
 
 function revalidateRewards() {
   for (const path of ['/admin', '/packs', '/binder']) revalidatePath(path);
+}
+
+function revalidateGames(gameIds: Array<string | null>) {
+  const paths = ['/admin'];
+  for (const gameId of gameIds) {
+    if (gameId && !paths.includes(`/games/${gameId}`)) paths.push(`/games/${gameId}`);
+  }
+  paths.push('/events');
+  for (const path of paths) revalidatePath(path);
 }
 
 function readRpcIpId(data: unknown) {
@@ -315,6 +328,9 @@ export async function upsertAdminCardPoolAction(
     if (error.message.includes('active_reward_policy_window_conflict')) {
       return rpcFailure('활성 발급 정책과 운영 기간이 겹치지 않습니다. 먼저 정책을 비활성화해주세요.');
     }
+    if (error.message.includes('game_pool_window_conflict')) {
+      return rpcFailure('카드풀 운영 기간은 연결된 게임 운영 기간 전체를 포함해야 합니다.');
+    }
     if (error.message.includes('ip_not_found')) {
       return rpcFailure('연결할 IP를 찾을 수 없습니다.');
     }
@@ -463,6 +479,124 @@ export async function upsertAdminRewardPolicyAction(
   return { message: '발급 정책을 저장했습니다.' };
 }
 
+export async function upsertAdminGameAction(
+  _state: AdminCatalogActionState,
+  formData: FormData,
+): Promise<AdminCatalogActionState> {
+  const authError = await requireStaffAction();
+  if (authError) return authError;
+
+  const records = await getAdminCatalogRecords();
+  const result = normalizeAdminGameForm(formData, gameContextFromRecords(records));
+  if (!result.ok) return { errors: result.errors };
+
+  const value = result.value;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_upsert_game', {
+    target_operation_id: value.operationId,
+    target_previous_game_id: value.previousGameId,
+    target_game_id: value.id,
+    target_title: value.title,
+    target_reward_pool_id: value.rewardPoolId,
+    target_event_id: value.eventId,
+    target_per_user_daily_limit: value.perUserDailyLimit,
+    target_active_from: value.activeFrom,
+    target_active_to: value.activeTo,
+    target_end_now: false,
+  });
+
+  if (error) {
+    if (error.message.includes('auth_required')) return rpcFailure('로그인이 필요합니다.');
+    if (error.message.includes('forbidden')) return rpcFailure('관리자 권한이 필요합니다.');
+    if (error.message.includes('invalid_operation_id')) {
+      return rpcFailure('유효한 저장 요청이 아닙니다. 화면을 새로고침한 뒤 다시 시도해주세요.');
+    }
+    if (error.message.includes('invalid_game_id')) return rpcFailure('게임 ID를 확인해주세요.');
+    if (error.message.includes('invalid_game_title')) return rpcFailure('게임 제목을 입력해주세요.');
+    if (error.message.includes('invalid_game_daily_limit')) {
+      return rpcFailure('일일 플레이 한도는 1~100 사이여야 합니다.');
+    }
+    if (error.message.includes('invalid_game_active_from')) {
+      return rpcFailure('운영 시작 일시를 명시적으로 선택해주세요.');
+    }
+    if (error.message.includes('invalid_game_active_window')) {
+      return rpcFailure('운영 종료는 시작보다 뒤여야 합니다.');
+    }
+    if (error.message.includes('pool_not_found')) return rpcFailure('카드풀을 찾을 수 없습니다.');
+    if (error.message.includes('reward_pool_not_ready')) {
+      return rpcFailure('확률과 카드 구성이 완료된 운영 가능한 카드풀을 선택해주세요.');
+    }
+    if (error.message.includes('game_pool_window_not_covered')) {
+      return rpcFailure('게임 운영 기간은 카드풀 운영 기간 안에 있어야 합니다.');
+    }
+    if (
+      error.message.includes('game_event_ip_mismatch')
+      || error.message.includes('game_event_mode_invalid')
+    ) {
+      return rpcFailure('같은 IP의 온라인 이벤트만 선택할 수 있습니다.');
+    }
+    if (error.message.includes('event_not_found')) return rpcFailure('이벤트를 찾을 수 없습니다.');
+    if (error.message.includes('game_catalog_locked')) {
+      return rpcFailure('플레이 이력이 있어 ID·카드풀·이벤트·설정을 변경할 수 없습니다.');
+    }
+    if (error.message.includes('game_variant_read_only')) {
+      return rpcFailure('굿즈 보상형 게임은 #115에서 운영합니다.');
+    }
+    if (error.message.includes('game_id_conflict')) return rpcFailure('이미 사용 중인 게임 ID입니다.');
+    if (error.message.includes('game_not_found')) return rpcFailure('게임을 찾을 수 없습니다.');
+    if (error.message.includes('operation_conflict')) {
+      return rpcFailure('이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.');
+    }
+    return rpcFailure('게임을 저장하지 못했습니다. 다시 시도해주세요.');
+  }
+
+  revalidateGames([value.previousGameId, value.id]);
+  return { message: '게임을 저장했습니다.' };
+}
+
+export async function endAdminGameAction(
+  _state: AdminCatalogActionState,
+  formData: FormData,
+): Promise<AdminCatalogActionState> {
+  const authError = await requireStaffAction();
+  if (authError) return authError;
+
+  const result = normalizeAdminGameEndForm(formData);
+  if (!result.ok) return { errors: result.errors };
+
+  const { gameId, operationId } = result.value;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_upsert_game', {
+    target_operation_id: operationId,
+    target_previous_game_id: gameId,
+    target_game_id: gameId,
+    target_title: null,
+    target_reward_pool_id: null,
+    target_event_id: null,
+    target_per_user_daily_limit: null,
+    target_active_from: null,
+    target_active_to: null,
+    target_end_now: true,
+  });
+
+  if (error) {
+    if (error.message.includes('game_not_active')) {
+      return rpcFailure('운영 중인 게임만 지금 종료할 수 있습니다.');
+    }
+    if (error.message.includes('game_variant_read_only')) {
+      return rpcFailure('굿즈 보상형 게임은 #115에서 운영합니다.');
+    }
+    if (error.message.includes('game_not_found')) return rpcFailure('게임을 찾을 수 없습니다.');
+    if (error.message.includes('operation_conflict')) {
+      return rpcFailure('이미 처리된 종료 요청입니다. 화면을 새로고침해주세요.');
+    }
+    return rpcFailure('게임 운영을 종료하지 못했습니다. 다시 시도해주세요.');
+  }
+
+  revalidateGames([gameId]);
+  return { message: '게임 운영을 종료했습니다.' };
+}
+
 export async function upsertAdminEventAction(
   _state: AdminCatalogActionState,
   formData: FormData,
@@ -491,7 +625,12 @@ export async function upsertAdminEventAction(
     target_image_path: value.imagePath,
   });
 
-  if (error) return rpcFailure('이벤트를 저장하지 못했습니다. 다시 시도해주세요.');
+  if (error) {
+    if (error.message.includes('game_event_contract_locked')) {
+      return rpcFailure('연결된 게임이 있어 이벤트 IP·운영 방식을 변경할 수 없습니다.');
+    }
+    return rpcFailure('이벤트를 저장하지 못했습니다. 다시 시도해주세요.');
+  }
 
   revalidateCatalog(relatedIpPaths(value.ipId, previousIpPath));
   return { message: '이벤트를 저장했습니다.' };
