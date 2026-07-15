@@ -30,11 +30,11 @@ Server Action은 Next.js의 same-origin 검사를 그대로 사용하고, Supaba
 기존 마케팅 동의 Action은 그대로 유지하고 별도 `updateProfileAction`을 추가한다.
 
 1. 입력을 정규화한다.
-2. Supabase 설정, 로그인, 온보딩을 기존 settings gate와 같은 순서로 확인한다.
+2. Supabase 설정, 로그인, 온보딩을 기존 settings gate와 같은 순서로 확인하고, 요청 시작 시점의 `avatar_path`를 안전한 이전 객체 경로로 캡처한다.
 3. 새 이미지가 있으면 서버가 만든 본인 경로로 업로드한다.
 4. `profiles.nickname/avatar_path`를 한 번에 갱신한다.
 5. DB 갱신이 실패하면 방금 업로드한 객체를 제거한다.
-6. 성공하면 현재 경로를 제외한 `<uid>/profile/` 객체를 best-effort로 정리한다. 일시적 Storage 정리 실패는 이미 성공한 프로필 저장을 거짓 실패로 보고하지 않으며, 다음 교체 때 다시 정리한다.
+6. 성공하면 캡처한 이전 경로가 같은 사용자의 프로필 폴더에 속하고 신규 경로와 다를 때 그 객체 하나만 best-effort로 제거한다. 폴더를 list하거나 나중의 동시 요청이 만든 다른 객체를 삭제하지 않는다. 정리 실패는 이미 성공한 프로필 저장을 되돌리지 않으며, 고아 객체는 후속 운영 정리를 위해 남을 수 있다.
 7. 설정·홈·커뮤니티 표면을 revalidate하고 성공 메시지를 반환한다.
 
 DB unique violation `23505`는 닉네임 필드 오류로, 업로드/DB 오류는 내부 원문을 숨긴 사용자 메시지로 변환한다.
@@ -62,13 +62,14 @@ DB unique violation `23505`는 닉네임 필드 오류로, 업로드/DB 오류�
 - 잘못된 닉네임이나 파일은 DB/Storage 쓰기 전에 거부한다.
 - Storage upload 실패 시 DB를 쓰지 않는다.
 - DB 실패 시 신규 객체를 제거해 dangling upload를 방지한다.
-- DB 성공 뒤 이전 객체 정리 실패는 데이터 진실원에 영향을 주지 않는다. 다음 성공한 교체가 폴더의 superseded 객체를 재정리한다.
+- DB 성공 뒤에는 요청 시작 시 캡처한 안전한 이전 객체 하나만 정리한다. 폴더 전체 정리는 더 늦은 동시 요청의 객체를 삭제할 수 있으므로 수행하지 않는다.
+- 이전 객체 정리 실패는 데이터 진실원에 영향을 주지 않고 프로필 저장 성공을 유지한다. 이때 남은 고아 객체는 다음 교체가 자동 재시도하지 않으며 후속 운영 정리 대상으로 남을 수 있다.
 - signed URL 실패는 페이지 전체 실패가 아니라 fallback avatar로 축소한다.
 
 ## 테스트
 
 - `lib/profile.test.ts`: trim, 길이, MIME/크기, 빈 파일, 경로 생성/guard.
-- `app/settings/actions.test.ts`: auth/config/onboarding gate, 성공, `23505`, upload 실패, DB 실패 rollback, 성공 후 이전 객체 정리, 마케팅 회귀.
+- `app/settings/actions.test.ts`: auth/config/onboarding gate, 성공, `23505`, upload 실패, DB 실패 rollback, 성공 후 요청 시작 시점의 안전한 이전 객체만 정리하고 폴더 list·후행 동시 객체 삭제를 하지 않는 계약, 정리 실패 시 성공 유지, 마케팅 회귀.
 - `components/screens/Settings.test.tsx`: 두 form 분리, avatar/fallback, 입력 속성, pending/error/success 상태.
 - `app/settings/page.test.tsx`: auth/onboarding gate, avatar signed URL 성공/실패 fallback.
 - `supabase/tests/profile_editing.sql`: normalized uniqueness, self-only update, public sync, 함수/권한 확대 없음.

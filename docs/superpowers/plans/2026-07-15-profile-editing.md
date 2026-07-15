@@ -13,7 +13,8 @@
 - 닉네임은 Unicode를 허용하고 trim 후 1~30자다.
 - 아바타는 JPEG/PNG/WebP, 5MB 이하이고 서버가 `<uid>/profile/<uuid>.<ext>`를 만든다.
 - 브라우저 입력에서 user id나 Storage path를 받지 않는다.
-- DB 실패 시 신규 업로드를 제거하고, 성공 후 현재 객체 외 프로필 객체를 best-effort 정리한다.
+- 요청 시작 시 auth profile의 `avatar_path`를 안전한 이전 객체 경로로 캡처한다.
+- DB 실패 시 신규 업로드를 제거하고, 성공 후에는 캡처한 이전 경로가 안전할 때 그 객체 하나만 best-effort로 제거한다. 폴더를 list하거나 나중의 동시 요청이 만든 다른 객체를 삭제하지 않는다. 정리 실패는 프로필 저장을 되돌리지 않으며 고아 객체는 후속 운영 정리를 위해 남을 수 있다.
 - 이메일 read-only, required consent, 마케팅 동의 동작을 유지한다.
 - 신규 migration은 immutable이고 shared migration을 수정하지 않는다.
 - 회원 탈퇴 #102/#137과 커뮤니티 avatar 노출은 제외한다.
@@ -167,7 +168,7 @@ await expect(updateProfileAction({}, profileForm('  new fan  '))).resolves.toEqu
 expect(mocks.update).toHaveBeenCalledWith({ nickname: 'new fan' });
 ```
 
-For an image, assert upload uses a server-generated `user-1/profile/...png` path, `{ contentType: 'image/png', upsert: false }`, and profile update includes that path. Add exact cases for config/auth/onboarding redirects, invalid input before writes, upload error, `23505` nickname error, DB error removing the new path, and success listing `user-1/profile` then removing every file except the current path. Keep all existing marketing tests green.
+For an image, assert upload uses a server-generated `user-1/profile/...png` path, `{ contentType: 'image/png', upsert: false }`, and profile update includes that path. Add exact cases for config/auth/onboarding redirects, invalid input before writes, upload error, `23505` nickname error, and DB error removing the new path. On success, assert the request-start `avatar_path` is the only removal target, Storage `list` is never called, an unrelated object created by a later concurrent request is never removed, an unsafe path is ignored, and cleanup rejection still returns profile-save success. Keep all existing marketing tests green.
 
 - [ ] **Step 2: Run the focused action test and verify red**
 
@@ -195,7 +196,7 @@ const avatarPath = avatar
   : null;
 ```
 
-Upload first when present, update `{ nickname, ...(avatarPath ? { avatar_path: avatarPath } : {}) }`, map `23505` to `errors.nickname`, remove the new path on DB failure, and after success call `list(profileAvatarFolder(auth.user.id))`/`remove([...])` with paths other than the current one. Revalidate `/settings`, `/`, `/community`, `/search`.
+Capture `auth.profile?.avatar_path` as `previousAvatarPath` at request start. Upload first when present, update `{ nickname, ...(avatarPath ? { avatar_path: avatarPath } : {}) }`, map `23505` to `errors.nickname`, and remove the new path on DB failure. After success, only when `previousAvatarPath` belongs to the authenticated user's profile folder and differs from the new path, best-effort `remove([previousAvatarPath])`. Never list the folder or delete unrelated objects that a later concurrent request may have created. Cleanup failure must not undo the profile save and may leave an orphan for later operational cleanup. Revalidate `/settings`, `/`, `/community`, `/search`.
 
 - [ ] **Step 5: Run focused tests and verify green**
 

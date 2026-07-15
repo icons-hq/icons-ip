@@ -35,7 +35,7 @@
 | 주문 | 본인 내역·상세·카드팩 발급·배송 전 취소/청약철회(#91·#92), 관리자 주문·배송·환불 콘솔(#93) 완료 | 완료 |
 | 티켓 예매 | 공개 상세→회차/수량 선택→10분 선점→토스 결제→웹훅 QR 발급→내 티켓·예매 전체 취소/환불→현장 검표 연결(#54·#95·#97) | production 실결제 #87 |
 | 인증 보조 | 비밀번호 재설정 완료(#101), 소셜 로그인 무동작 | #17 |
-| 계정 | 프로필 편집·탈퇴 없음, 마이 진입점 없음 | #102, #103 |
+| 계정 | 프로필 편집 코드 구현 완료(#136 merge·production 검증 대기), 탈퇴 없음, 마이 진입점 없음 | #102 [human] 탈퇴 보존 정책, #136 프로필 편집, #137 탈퇴 실행(Blocked by #102), #103 마이페이지 |
 | 알림 | 기능 전무, 무동작 버튼 2곳 | #104 |
 | 커뮤니티 | 트렌딩 mock, 개인화·수정 없음 | #106, #107, #108 |
 | 교환/마켓 | v2 플레이스홀더(의도됨) | 유지 — 갭 아님 |
@@ -57,12 +57,12 @@
 | **Commerce** | #89 실장바구니·#90 체크아웃·#91 주문 내역·#92 취소/청약철회·#93 어드민 주문 콘솔·#94 실재고 관리 완료 | 완료 |
 | **Ticketing** | #96 회차 콘솔·#54 예매 플로우·#95 내 티켓/환불·#97 현장 검표 완료 | production 실결제는 #87 human gate |
 | **Rewards Ops** | #98 카드풀·확률 콘솔, #99 발급 정책 콘솔, #100 게임 등록 콘솔 완료 | 완료 |
-| **Account** | #101 비밀번호 재설정 완료, #17 [human] 소셜 로그인, #102 프로필 편집·탈퇴, #103 마이페이지 | #102·#103 즉시 착수, #17 human gate |
+| **Account** | #101 비밀번호 재설정 완료, #17 [human] 소셜 로그인, #102 [human] 탈퇴 보존 정책, #136 프로필 편집, #137 탈퇴 실행(Blocked by #102), #103 마이페이지 | #136 코드 구현 완료·merge/production 검증 대기, #103 즉시 착수, #137은 #102 뒤, #17·#102 human gate |
 | **Notifications** | #104 알림함·IP 알림 → #105 어드민 공지 발송 | #105는 #104 뒤 |
 | **Community** | #106 트렌딩 실데이터, #107 피드 개인화, #108 포스트 수정, #109 댓글 숨김, #110 [human] 운영 정책 문서 | 전부 즉시 착수 가능 |
 | **Admin Ops** | #111 회원 조회·제재, #112 아트워크 업로드, #113 카탈로그 보관, #114 배너·공지·큐레이션 | 전부 즉시 착수 가능 |
 
-남은 agent-executable 권장 착수 순서: ① Account의 #102·#103 ② Notifications → 공지 발송 ③ Community·Admin Ops. #17 소셜 로그인과 #87 라이브 결제는 별도 human gate로 닫는다.
+남은 agent-executable 권장 착수 순서: ① Account의 #103 ② Notifications → 공지 발송 ③ Community·Admin Ops. #136은 코드 구현만 완료됐고 merge·production 검증 전이므로 issue/Project 완료로 처리하지 않는다. #137 탈퇴 실행은 #102 탈퇴 보존 정책 뒤에 착수하고, #17 소셜 로그인·#87 라이브 결제·#102 탈퇴 보존 정책은 별도 human gate로 닫는다.
 
 ## 5. 출시 후 트랙 (Phase = Post-launch)
 
@@ -80,5 +80,5 @@
 ## 7. 운영
 
 - 실행판은 [Project #8](https://github.com/users/sangwopark19/projects/8) 하나다. `Status`(Todo→In Progress→Done) · `Phase`(Launch Blocker/Post-launch) · `Track`(9종) · `Dependency`(Unblocked/Blocked)로 운영한다. issue body의 `Blocked by`가 해소되면 `Dependency`를 `Unblocked`로 바꾼다.
-- 라벨: `ready-for-agent` = 스펙 완결, `ready-for-human`(#87·#17·#110) = 계약·자격증명·정책 확인 필요.
+- 라벨: `ready-for-agent` = 스펙 완결, `ready-for-human`(#87·#17·#102·#110) = 계약·자격증명·정책 확인 필요.
 - 완료된 옛 보드 #3(P0 Foundation)·#4(Frontend UX)·#5(게임 레이어)는 이 계획 수립과 함께 close했다. 이력은 보드와 issue에 남아 있다.
