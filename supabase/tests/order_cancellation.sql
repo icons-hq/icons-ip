@@ -810,7 +810,7 @@ select 1 / case when (
   )
 ) then 1 else 0 end as assert_terminal_payment_is_idempotently_normalized;
 
--- Successful cancellation removes only unused packs and preserves consumed rewards/history.
+-- Successful cancellation soft-revokes unused packs and preserves consumed rewards/history.
 select public.cancel_order_with_provider_evidence(
   '40000000-0000-4000-8000-000000000707',
   '리워드 주문 provider 취소 완료',
@@ -821,7 +821,9 @@ select 1 / case when (
   (select status = 'canceled' from public.orders where id = '40000000-0000-4000-8000-000000000707')
   and (select stock_qty = 10 from public.goods where id = 'order-cancel-reward')
   and (
-    select count(*) = 1 and bool_and(consumed_at is not null)
+    select count(*) = 2
+      and count(*) filter (where consumed_at is not null and revoked_at is null) = 1
+      and count(*) filter (where consumed_at is null and revoked_at is not null) = 1
     from public.draw_tickets
     where source = 'order_paid'
       and source_id = '40000000-0000-4000-8000-000000000707'
@@ -832,7 +834,7 @@ select 1 / case when (
     where source = 'draw_ticket'
       and source_id = '60000000-0000-4000-8000-000000000701'
   )
-) then 1 else 0 end as assert_unused_pack_is_recalled_but_consumed_reward_is_preserved;
+) then 1 else 0 end as assert_unused_pack_is_revoked_but_consumed_reward_is_preserved;
 
 -- Retrying with the same evidence is a no-op across inventory and refund ledgers.
 select public.cancel_order_with_provider_evidence(

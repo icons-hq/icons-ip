@@ -1,11 +1,12 @@
 import { isValidElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AdminCardRecord } from '@/lib/admin/catalog.server';
+import type { AdminCardRecord, AdminRewardPolicyRecord } from '@/lib/admin/catalog.server';
 import { Admin } from './Admin';
 
 const hooks = vi.hoisted(() => ({
   cardSelected: null as unknown,
+  policyProps: null as unknown,
   stateValues: [] as unknown[],
 }));
 
@@ -50,6 +51,14 @@ vi.mock('./sections/Moderation', () => ({ ModerationSection: () => null }));
 vi.mock('./sections/Overview', () => ({ OverviewSection: () => null }));
 vi.mock('./sections/Orders', () => ({ OrdersSection: () => null }));
 vi.mock('./sections/Roles', () => ({ RolesSection: () => null }));
+vi.mock('./sections/RewardPolicySection', () => {
+  const RewardPolicySection = (props: { selected: unknown }) => {
+    hooks.policyProps = props;
+    return null;
+  };
+  RewardPolicySection.displayName = 'AdminRewardPolicySectionMock';
+  return { RewardPolicySection };
+});
 vi.mock('./sections/TicketSection', () => ({ TicketSection: () => null }));
 
 const unboundCard: AdminCardRecord = {
@@ -63,7 +72,29 @@ const unboundCard: AdminCardRecord = {
   imagePath: null,
 };
 
-function createProps(cards: AdminCardRecord[]) {
+const policy: AdminRewardPolicyRecord = {
+  id: '77777777-7777-4777-8777-777777777777',
+  poolId: '88888888-8888-4888-8888-888888888888',
+  trigger: 'order_paid',
+  targetIpId: 'hwasan',
+  targetGoodId: null,
+  minAmount: 30000,
+  ticketsPerGrant: 2,
+  active: true,
+  activeFrom: '2026-07-15T00:00:00.000Z',
+  activeTo: null,
+  createdAt: '2026-07-14T00:00:00.000Z',
+  updatedAt: '2026-07-15T01:00:00.000Z',
+  issuedCount: 12,
+  availableCount: 7,
+  openedCount: 4,
+  revokedCount: 1,
+  orderCount: 6,
+  lastIssuedAt: '2026-07-15T02:00:00.000Z',
+  status: 'active',
+};
+
+function createProps(cards: AdminCardRecord[], rewardPolicies: AdminRewardPolicyRecord[] = []) {
   return {
     admin: { id: 'admin-1', email: 'admin@icons.gg', role: 'admin' },
     catalog: { verticals: [], ips: [] },
@@ -77,9 +108,13 @@ function createProps(cards: AdminCardRecord[]) {
       goods: [],
       cards,
       cardPools: [],
+      rewardPolicies,
       events: [],
       ticketTypes: [],
     },
+    policyDraftActiveFrom: '2026-07-15T00:00:00.000Z',
+    policyDraftId: '99999999-9999-4999-8999-999999999999',
+    policyOperationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     poolDraftActiveFrom: '2026-07-15T00:00:00.000Z',
     poolDraftId: '11111111-1111-4111-8111-111111111111',
     poolOddsOperationId: '22222222-2222-4222-8222-222222222222',
@@ -93,7 +128,8 @@ function createProps(cards: AdminCardRecord[]) {
 describe('Admin card selection', () => {
   beforeEach(() => {
     hooks.cardSelected = null;
-    hooks.stateValues = ['card', false, null, null, unboundCard.id, null, null, null];
+    hooks.policyProps = null;
+    hooks.stateValues = ['card', false, null, null, unboundCard.id, null, null, null, null];
   });
 
   it('derives the selected card from the latest revalidated records', () => {
@@ -106,7 +142,7 @@ describe('Admin card selection', () => {
     const cardA = { ...unboundCard, id: 'a-b', ipId: 'c', rarity: 'N' as const };
     const cardB = { ...unboundCard, id: 'a', ipId: 'b-c', rarity: 'N' as const };
     const getCardSectionKey = (card: AdminCardRecord) => {
-      hooks.stateValues = ['card', false, null, null, card.id, null, null, null];
+      hooks.stateValues = ['card', false, null, null, card.id, null, null, null, null];
       const stack: unknown[] = [Admin(createProps([card]))];
 
       while (stack.length) {
@@ -125,5 +161,32 @@ describe('Admin card selection', () => {
     };
 
     expect(getCardSectionKey(cardA)).not.toBe(getCardSectionKey(cardB));
+  });
+});
+
+describe('Admin reward-policy selection', () => {
+  beforeEach(() => {
+    hooks.cardSelected = null;
+    hooks.policyProps = null;
+    hooks.stateValues = ['policy', false, null, null, null, null, policy.id, null, null];
+  });
+
+  it('renders the policy console with server-generated draft values', () => {
+    renderToStaticMarkup(<Admin {...createProps([], [policy])} />);
+
+    expect(hooks.policyProps).toMatchObject({
+      draftActiveFrom: '2026-07-15T00:00:00.000Z',
+      draftId: '99999999-9999-4999-8999-999999999999',
+      operationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      records: [policy],
+    });
+  });
+
+  it('derives the selected policy from the latest revalidated records', () => {
+    const latestPolicy = { ...policy, updatedAt: '2026-07-15T03:00:00.000Z', issuedCount: 20 };
+
+    renderToStaticMarkup(<Admin {...createProps([], [latestPolicy])} />);
+
+    expect((hooks.policyProps as { selected: unknown }).selected).toBe(latestPolicy);
   });
 });

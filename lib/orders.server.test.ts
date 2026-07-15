@@ -187,7 +187,7 @@ describe('loadOrders', () => {
 });
 
 describe('loadOrderDetail', () => {
-  it('loads a viewer-owned receipt with safe payment fields and actual card-pack counts', async () => {
+  it('loads a safe receipt and counts legacy, revoked, and opened card packs', async () => {
     const records: QueryRecord[] = [];
     mocks.client = createClient({
       records,
@@ -254,8 +254,28 @@ describe('loadOrderDetail', () => {
           last_error_code: 'must-not-leak',
         }],
         draw_tickets: [
-          { user_id: userId, source: 'order_paid', source_id: orderId, consumed_at: null },
-          { user_id: userId, source: 'order_paid', source_id: orderId, consumed_at: '2026-07-14T07:00:00.000Z' },
+          {
+            user_id: userId,
+            source: 'order_paid',
+            source_id: orderId,
+            consumed_at: null,
+            revoked_at: null,
+            reward_policy_id: null,
+          },
+          {
+            user_id: userId,
+            source: 'order_paid',
+            source_id: orderId,
+            consumed_at: null,
+            revoked_at: '2026-07-14T07:10:00.000Z',
+          },
+          {
+            user_id: userId,
+            source: 'order_paid',
+            source_id: orderId,
+            consumed_at: '2026-07-14T07:00:00.000Z',
+            revoked_at: null,
+          },
         ],
       },
     });
@@ -276,7 +296,7 @@ describe('loadOrderDetail', () => {
         decidedAt: '2026-07-14T07:25:00.000Z',
         decisionNote: null,
       },
-      cardPacks: { issuedCount: 2, availableCount: 1 },
+      cardPacks: { issuedCount: 3, availableCount: 1 },
     });
     expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|idempotency_key|raw|last_error_code/);
 
@@ -292,7 +312,7 @@ describe('loadOrderDetail', () => {
       maybeSingle: false,
     });
     expect(records.find((record) => record.table === 'draw_tickets')).toMatchObject({
-      select: 'consumed_at',
+      select: 'consumed_at,revoked_at',
       eq: [['user_id', userId], ['source', 'order_paid'], ['source_id', orderId]],
     });
     expect(records.find((record) => record.table === 'refunds')).toMatchObject({

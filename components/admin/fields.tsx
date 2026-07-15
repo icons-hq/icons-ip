@@ -125,6 +125,7 @@ export function TextArea({
 export function SelectField({
   children,
   defaultValue,
+  disabled,
   error,
   label,
   name,
@@ -134,6 +135,7 @@ export function SelectField({
 }: {
   children: React.ReactNode;
   defaultValue?: string | null;
+  disabled?: boolean;
   error?: string;
   label: string;
   name: string;
@@ -153,6 +155,7 @@ export function SelectField({
         aria-invalid={Boolean(error)}
         className="admin-field-control"
         defaultValue={value === undefined ? (defaultValue ?? '') : undefined}
+        disabled={disabled}
         name={name}
         onChange={onChange}
         required={required}
@@ -230,6 +233,7 @@ export function RecordList<T extends { id: string }>({
   emptyMessage,
   items,
   labelFor,
+  newLabel = '새로 등록',
   onNew,
   onSelect,
 }: {
@@ -238,13 +242,14 @@ export function RecordList<T extends { id: string }>({
   emptyMessage?: string;
   items: T[];
   labelFor: (item: T) => string;
+  newLabel?: string;
   onNew: () => void;
   onSelect: (item: T) => void;
 }) {
   return (
     <aside aria-label={ariaLabel} className="card" style={{ alignSelf: 'start', borderRadius: 10, padding: 14 }}>
       <button className="btn btn-holo" onClick={onNew} style={{ width: '100%' }} type="button">
-        <Icon name="plus" size={15} /> 새로 등록
+        <Icon name="plus" size={15} /> {newLabel}
       </button>
       <div className="col" style={{ gap: 8, marginTop: 14, maxHeight: 520, overflow: 'auto' }}>
         {!items.length && emptyMessage && (

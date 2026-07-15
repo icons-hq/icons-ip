@@ -54,9 +54,13 @@ export function normalizeGrantedCards(data: unknown): OpenedCard[] {
 
 export type OpenPackErrorCode = 'not_found' | 'already_opened' | 'pool_empty' | 'unknown';
 
-/** RPC 예외 메시지 → 사용자 에러 코드. 타인 티켓(forbidden)은 존재를 노출하지 않는다. */
+/** RPC 예외 메시지 → 사용자 에러 코드. 타인·회수 티켓은 존재를 노출하지 않는다. */
 export function mapOpenTicketError(message: string): OpenPackErrorCode {
-  if (message.includes('ticket not found') || message.includes('forbidden')) return 'not_found';
+  if (
+    message.includes('ticket not found')
+    || message.includes('ticket_revoked')
+    || message.includes('forbidden')
+  ) return 'not_found';
   if (message.includes('ticket already consumed')) return 'already_opened';
   if (message.includes('pool has no card')) return 'pool_empty';
   return 'unknown';
@@ -121,6 +125,7 @@ export async function getDrawTicketInventory(): Promise<DrawTicketInventory> {
     .from('draw_tickets')
     .select('id,pool_id,created_at,card_pools(id,name,ip_id)')
     .is('consumed_at', null)
+    .is('revoked_at', null)
     .order('created_at');
 
   if (ticketsResult.error) {

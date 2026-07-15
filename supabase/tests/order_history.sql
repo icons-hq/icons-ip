@@ -128,10 +128,43 @@ values
     now() - interval '1 day'
   );
 
-insert into public.reward_policies (pool_id, trigger, min_amount, tickets_per_grant, active)
+insert into public.cards (id, ip_id, name, no, rarity, pool_id)
 values
-  ('20000000-0000-4000-8000-000000000601', 'order_paid', 0, 1, true),
-  ('20000000-0000-4000-8000-000000000602', 'order_paid', 0, 1, true);
+  (
+    'order-history-card-a', 'order-history-ip-a', '주문 스냅샷 카드 A',
+    '001', 'N', '20000000-0000-4000-8000-000000000601'
+  ),
+  (
+    'order-history-card-b', 'order-history-ip-b', '주문 스냅샷 카드 B',
+    '001', 'N', '20000000-0000-4000-8000-000000000602'
+  );
+
+insert into public.pool_odds (pool_id, rarity, probability)
+select pool_id, rarity, case when rarity = 'N' then 1 else 0 end
+from (values
+  ('20000000-0000-4000-8000-000000000601'::uuid),
+  ('20000000-0000-4000-8000-000000000602'::uuid)
+) as pool(pool_id)
+cross join unnest(enum_range(null::public.rarity)) as rarity;
+
+insert into public.reward_policies (
+  pool_id,
+  trigger,
+  target_ip_id,
+  min_amount,
+  tickets_per_grant,
+  active,
+  active_from
+)
+values
+  (
+    '20000000-0000-4000-8000-000000000601', 'order_paid',
+    'order-history-ip-a', 0, 1, true, now() - interval '1 day'
+  ),
+  (
+    '20000000-0000-4000-8000-000000000602', 'order_paid',
+    'order-history-ip-b', 0, 1, true, now() - interval '1 day'
+  );
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000601', true);

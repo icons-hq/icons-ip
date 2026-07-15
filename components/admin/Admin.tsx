@@ -29,10 +29,11 @@ import { IpSection } from './sections/IpSection';
 import { ModerationSection } from './sections/Moderation';
 import { OverviewSection } from './sections/Overview';
 import { OrdersSection } from './sections/Orders';
+import { RewardPolicySection } from './sections/RewardPolicySection';
 import { RolesSection } from './sections/Roles';
 import { TicketSection } from './sections/TicketSection';
 
-export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'pool' | 'event' | 'ticket' | 'moderation' | 'roles';
+export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'pool' | 'policy' | 'event' | 'ticket' | 'moderation' | 'roles';
 
 const SECTION_TITLES: Record<AdminSection, string> = {
   overview: '개요',
@@ -41,6 +42,7 @@ const SECTION_TITLES: Record<AdminSection, string> = {
   good: '굿즈 관리',
   card: '카드 관리',
   pool: '카드풀 관리',
+  policy: '뽑기권 발급 정책',
   event: '이벤트 관리',
   ticket: '티켓 회차 관리',
   moderation: '모더레이션',
@@ -62,6 +64,9 @@ interface AdminProps {
   orders: AdminOrderConsoleData;
   profiles: AdminProfileRecord[];
   records: AdminCatalogRecords;
+  policyDraftActiveFrom: string;
+  policyDraftId: string;
+  policyOperationId: string;
   poolDraftActiveFrom: string;
   poolDraftId: string;
   poolOddsOperationId: string;
@@ -80,6 +85,9 @@ export function Admin({
   orders,
   profiles,
   records,
+  policyDraftActiveFrom,
+  policyDraftId,
+  policyOperationId,
   poolDraftActiveFrom,
   poolDraftId,
   poolOddsOperationId,
@@ -94,6 +102,7 @@ export function Admin({
   const [selectedGoodId, setSelectedGoodId] = useState<string | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [selectedPoolId, setSelectedPoolId] = useState<string | null>(null);
+  const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<AdminEventRecord | null>(null);
   const [selectedTicketTypeId, setSelectedTicketTypeId] = useState<string | null>(null);
   const [ipState, ipAction, ipPending] = useActionState(upsertAdminIpAction, emptyState);
@@ -116,6 +125,10 @@ export function Admin({
   const selectedPool = useMemo(
     () => records.cardPools.find((pool) => pool.id === selectedPoolId) ?? null,
     [records.cardPools, selectedPoolId],
+  );
+  const selectedPolicy = useMemo(
+    () => records.rewardPolicies.find((policy) => policy.id === selectedPolicyId) ?? null,
+    [records.rewardPolicies, selectedPolicyId],
   );
 
   return (
@@ -197,6 +210,19 @@ export function Admin({
                 operationId={poolOperationId}
                 records={records.cardPools}
                 selected={selectedPool}
+              />
+            )}
+            {active === 'policy' && (
+              <RewardPolicySection
+                draftActiveFrom={policyDraftActiveFrom}
+                draftId={policyDraftId}
+                goods={records.goods}
+                ipOptions={ipOptions}
+                onSelect={(policy) => setSelectedPolicyId(policy?.id ?? null)}
+                operationId={policyOperationId}
+                pools={records.cardPools}
+                records={records.rewardPolicies}
+                selected={selectedPolicy}
               />
             )}
             {active === 'event' && (

@@ -10,6 +10,7 @@ import {
   upsertAdminEventAction,
   upsertAdminGoodAction,
   upsertAdminIpAction,
+  upsertAdminRewardPolicyAction,
   upsertAdminTicketTypeAction,
 } from './actions';
 import type { CatalogSnapshot } from '@/lib/catalog';
@@ -72,7 +73,17 @@ const catalog: CatalogSnapshot = {
     tagline: '매화는 다시 핀다',
     synopsis: '화산파의 부활',
   }],
-  goods: [],
+  goods: [{
+    id: 'g100',
+    name: '화산강림 아크릴 스탠드',
+    ip: 'hwasan',
+    type: '아크릴 스탠드',
+    price: 22000,
+    badge: null,
+    stock: 'ok',
+    stockQty: 12,
+    img: '',
+  }],
   cards: [],
   events: [{
     id: 'e100',
@@ -180,6 +191,22 @@ function poolOddsForm() {
   formData.set('oddsSr', '0');
   formData.set('oddsSsr', '20');
   formData.set('oddsHolo', '10');
+  return formData;
+}
+
+function rewardPolicyForm() {
+  const formData = new FormData();
+  formData.set('operationId', '44444444-4444-4444-8444-444444444444');
+  formData.set('id', '55555555-5555-4555-8555-555555555555');
+  formData.set('poolId', '22222222-2222-4222-8222-222222222222');
+  formData.set('trigger', 'order_paid');
+  formData.set('targetIpId', 'hwasan');
+  formData.set('targetGoodId', 'g100');
+  formData.set('minAmount', '30000');
+  formData.set('ticketsPerGrant', '2');
+  formData.set('active', 'on');
+  formData.set('activeFrom', '2026-07-15T10:00');
+  formData.set('activeTo', '2026-08-01T00:00');
   return formData;
 }
 
@@ -434,6 +461,98 @@ describe('admin catalog actions', () => {
     });
   });
 
+  it('saves a reward policy with stable IDs and the exact audited RPC payload', async () => {
+    const formData = rewardPolicyForm();
+
+    await expect(upsertAdminRewardPolicyAction({}, formData)).resolves.toEqual({
+      message: '발급 정책을 저장했습니다.',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_reward_policy', {
+      target_operation_id: '44444444-4444-4444-8444-444444444444',
+      target_policy_id: '55555555-5555-4555-8555-555555555555',
+      target_pool_id: '22222222-2222-4222-8222-222222222222',
+      target_trigger: 'order_paid',
+      target_ip_id: 'hwasan',
+      target_good_id: 'g100',
+      target_min_amount: 30000,
+      target_tickets_per_grant: 2,
+      target_active: true,
+      target_active_from: '2026-07-15T01:00:00.000Z',
+      target_active_to: '2026-07-31T15:00:00.000Z',
+    });
+    expect(formData.get('operationId')).toBe('44444444-4444-4444-8444-444444444444');
+    expect(formData.get('id')).toBe('55555555-5555-4555-8555-555555555555');
+    expect(mocks.revalidatePath.mock.calls).toEqual([
+      ['/admin'],
+      ['/packs'],
+      ['/binder'],
+    ]);
+  });
+
+  it('validates reward-policy target truth before the RPC without revalidation', async () => {
+    const formData = rewardPolicyForm();
+    formData.set('targetIpId', 'missing');
+    formData.set('minAmount', '-1');
+
+    await expect(upsertAdminRewardPolicyAction({}, formData)).resolves.toEqual({
+      errors: {
+        targetIpId: '등록된 IP를 선택해주세요.',
+        targetGoodId: '선택한 IP의 굿즈만 지정할 수 있습니다.',
+        minAmount: '최소 결제 금액은 0 이상의 정수여야 합니다.',
+      },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('blocks non-staff reward-policy writes before catalog loading or RPC access', async () => {
+    mocks.adminState = {
+      isConfigured: true,
+      user: { id: 'user-1', email: 'fan@icons.gg' },
+      role: 'user',
+      isStaff: false,
+    };
+
+    await expect(upsertAdminRewardPolicyAction({}, rewardPolicyForm())).resolves.toEqual({
+      errors: { form: '관리자 권한이 필요합니다.' },
+    });
+    expect(mocks.getCatalogSnapshot).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['auth_required', '로그인이 필요합니다.'],
+    ['forbidden', '관리자 권한이 필요합니다.'],
+    ['invalid_operation_id', '유효한 저장 요청이 아닙니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
+    ['invalid_reward_policy_id', '발급 정책 정보를 확인해주세요.'],
+    ['invalid_reward_trigger', '지원하지 않는 발급 조건입니다.'],
+    ['invalid_min_amount', '최소 결제 금액을 확인해주세요.'],
+    ['invalid_tickets_per_grant', '발급 수량은 1~100 사이여야 합니다.'],
+    ['invalid_reward_policy_active', '활성화 설정을 확인해주세요.'],
+    ['invalid_reward_policy_active_from', '운영 시작 일시를 확인해주세요.'],
+    ['invalid_reward_policy_active_window', '운영 종료는 시작보다 뒤여야 합니다.'],
+    ['ip_not_found', '연결할 IP를 찾을 수 없습니다.'],
+    ['good_not_found', '연결할 굿즈를 찾을 수 없습니다.'],
+    ['reward_policy_good_ip_mismatch', '선택한 IP의 굿즈만 지정할 수 있습니다.'],
+    ['pool_not_found', '카드풀을 찾을 수 없습니다.'],
+    ['reward_pool_not_ready', '확률과 카드 구성이 완료된 운영 가능한 카드풀을 선택해주세요.'],
+    ['reward_policy_pool_window_disjoint', '정책과 카드풀 운영 기간이 겹쳐야 합니다.'],
+    ['reward_policy_pool_locked', '이미 발급 이력이 있어 카드풀을 변경할 수 없습니다.'],
+    ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
+  ])('maps %s reward-policy RPC errors without leaking SQL', async (rpcMessage, expected) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
+    const formData = rewardPolicyForm();
+
+    await expect(upsertAdminRewardPolicyAction({}, formData)).resolves.toEqual({
+      errors: { form: expected },
+    });
+    expect(formData.get('operationId')).toBe('44444444-4444-4444-8444-444444444444');
+    expect(formData.get('id')).toBe('55555555-5555-4555-8555-555555555555');
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
   it('rejects an invalid pool odds total before calling the RPC', async () => {
     const formData = poolOddsForm();
     formData.set('oddsR', '69');
@@ -447,6 +566,7 @@ describe('admin catalog actions', () => {
   it.each([
     ['pool_ip_locked', '연결된 발급 정책·게임·카드팩·발급 이력이 있어 카드풀 IP를 변경할 수 없습니다.'],
     ['invalid_pool_active_window', '운영 종료는 시작보다 뒤여야 합니다.'],
+    ['active_reward_policy_window_conflict', '활성 발급 정책과 운영 기간이 겹치지 않습니다. 먼저 정책을 비활성화해주세요.'],
     ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
   ])('maps %s card-pool RPC errors without exposing internals', async (rpcMessage, expected) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });

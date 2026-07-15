@@ -18,6 +18,7 @@ const pool: AdminCardPoolRecord = {
   updatedAt: '2026-07-15T01:00:00.000Z',
   status: 'active',
   oddsConfigured: true,
+  rewardReady: true,
   odds: { N: 0, R: 0.7, SR: 0, SSR: 0.2, HOLO: 0.1 },
 };
 

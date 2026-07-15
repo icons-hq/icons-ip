@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getAdminCardPoolStatus, getAdminCatalogRecords } from './catalog.server';
+import {
+  getAdminCardPoolStatus,
+  getAdminCatalogRecords,
+  getAdminRewardPolicyStatus,
+} from './catalog.server';
 
 const mocks = vi.hoisted(() => ({ client: null as unknown }));
 
@@ -19,10 +23,16 @@ interface QueryRecord {
 function createClient({
   errors = {},
   records,
+  rpcErrors = {},
+  rpcRecords = [],
+  rpcRows = {},
   rows = {},
 }: {
   errors?: Record<string, string>;
   records: QueryRecord[];
+  rpcErrors?: Record<string, string>;
+  rpcRecords?: string[];
+  rpcRows?: Record<string, Row[]>;
   rows?: Record<string, Row[]>;
 }) {
   return {
@@ -55,6 +65,13 @@ function createClient({
       };
       return query;
     },
+    rpc(name: string) {
+      rpcRecords.push(name);
+      return Promise.resolve({
+        data: rpcRows[name] ?? [],
+        error: rpcErrors[name] ? { message: rpcErrors[name] } : null,
+      });
+    },
   };
 }
 
@@ -69,6 +86,37 @@ describe('getAdminCatalogRecords', () => {
     expect(getAdminCardPoolStatus('2026-07-15T01:00:00.000Z', null, now)).toBe('scheduled');
     expect(getAdminCardPoolStatus('2026-07-14T00:00:00.000Z', null, now)).toBe('active');
     expect(getAdminCardPoolStatus('2026-07-14T00:00:00.000Z', '2026-07-15T00:00:00.000Z', now)).toBe('ended');
+  });
+
+  it('classifies reward-policy status in the required priority order', () => {
+    const now = Date.parse('2026-07-15T00:00:00.000Z');
+    const activePolicy = {
+      active: true,
+      activeFrom: '2026-07-14T00:00:00.000Z',
+      activeTo: '2026-07-16T00:00:00.000Z',
+    };
+    const readyPool = {
+      activeFrom: '2026-07-14T00:00:00.000Z',
+      activeTo: '2026-07-16T00:00:00.000Z',
+      ready: true,
+    };
+
+    expect(getAdminRewardPolicyStatus({ ...activePolicy, active: false }, null, now)).toBe('inactive');
+    expect(getAdminRewardPolicyStatus({
+      ...activePolicy,
+      activeFrom: '2026-07-16T00:00:00.000Z',
+    }, null, now)).toBe('scheduled');
+    expect(getAdminRewardPolicyStatus({
+      ...activePolicy,
+      activeTo: '2026-07-15T00:00:00.000Z',
+    }, null, now)).toBe('ended');
+    expect(getAdminRewardPolicyStatus(activePolicy, null, now)).toBe('pool-unavailable');
+    expect(getAdminRewardPolicyStatus(activePolicy, { ...readyPool, ready: false }, now)).toBe('pool-unavailable');
+    expect(getAdminRewardPolicyStatus(activePolicy, {
+      ...readyPool,
+      activeFrom: '2026-07-16T00:00:00.000Z',
+    }, now)).toBe('pool-unavailable');
+    expect(getAdminRewardPolicyStatus(activePolicy, readyPool, now)).toBe('active');
   });
 
   it('loads ticket history counts and maps event titles for the ticket console', async () => {
@@ -194,6 +242,7 @@ describe('getAdminCatalogRecords', () => {
       updatedAt: '2026-07-15T01:00:00.000Z',
       status: expect.stringMatching(/^(scheduled|active|ended)$/),
       oddsConfigured: true,
+      rewardReady: false,
       odds: { N: 0, R: 0.7, SR: 0, SSR: 0.2, HOLO: 0.1 },
     }]);
     expect(records.find((record) => record.table === 'cards')?.select).toContain('pool_id');
@@ -225,8 +274,147 @@ describe('getAdminCatalogRecords', () => {
 
     expect(result.cardPools[0]).toMatchObject({
       oddsConfigured: false,
+      rewardReady: false,
       odds: { N: 0, R: 0, SR: 0, SSR: 0, HOLO: 0 },
     });
+  });
+
+  it('loads PII-free reward-policy summaries and normalizes numeric aggregates', async () => {
+    const rpcRecords: string[] = [];
+    mocks.client = createClient({
+      records: [],
+      rpcRecords,
+      rpcRows: {
+        admin_list_reward_policies: [{
+          id: '11111111-1111-4111-8111-111111111111',
+          pool_id: '22222222-2222-4222-8222-222222222222',
+          trigger: 'order_paid',
+          target_ip_id: 'hwasan',
+          target_good_id: 'g100',
+          min_amount: '30000',
+          tickets_per_grant: 2,
+          active: true,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: '2099-01-01T00:00:00.000Z',
+          created_at: '2026-07-15T00:00:00.000Z',
+          updated_at: '2026-07-15T01:00:00.000Z',
+          issued_count: '12',
+          available_count: 7,
+          opened_count: '4',
+          revoked_count: 1,
+          order_count: '6',
+          last_issued_at: '2026-07-15T02:00:00.000Z',
+        }],
+      },
+      rows: {
+        cards: [{
+          id: 'c100',
+          ip_id: 'lumen',
+          pool_id: '22222222-2222-4222-8222-222222222222',
+          name: '청명 카드',
+          no: '001',
+          rarity: 'R',
+          bg: null,
+          image_path: null,
+        }],
+        card_pools: [{
+          id: '22222222-2222-4222-8222-222222222222',
+          ip_id: 'lumen',
+          name: '독립 보상 카드풀',
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: '2099-01-01T00:00:00.000Z',
+          updated_at: '2026-07-15T01:00:00.000Z',
+          pool_odds: [
+            { rarity: 'N', probability: '0' },
+            { rarity: 'R', probability: '1' },
+            { rarity: 'SR', probability: '0' },
+            { rarity: 'SSR', probability: '0' },
+            { rarity: 'HOLO', probability: '0' },
+          ],
+        }],
+      },
+    });
+
+    const result = await getAdminCatalogRecords();
+
+    expect(rpcRecords).toEqual(['admin_list_reward_policies']);
+    expect(result.cardPools[0]).toMatchObject({
+      oddsConfigured: true,
+      rewardReady: true,
+    });
+    expect(result.rewardPolicies).toEqual([{
+      id: '11111111-1111-4111-8111-111111111111',
+      poolId: '22222222-2222-4222-8222-222222222222',
+      trigger: 'order_paid',
+      targetIpId: 'hwasan',
+      targetGoodId: 'g100',
+      minAmount: 30000,
+      ticketsPerGrant: 2,
+      active: true,
+      activeFrom: '2020-01-01T00:00:00.000Z',
+      activeTo: '2099-01-01T00:00:00.000Z',
+      createdAt: '2026-07-15T00:00:00.000Z',
+      updatedAt: '2026-07-15T01:00:00.000Z',
+      issuedCount: 12,
+      availableCount: 7,
+      openedCount: 4,
+      revokedCount: 1,
+      orderCount: 6,
+      lastIssuedAt: '2026-07-15T02:00:00.000Z',
+      status: 'active',
+    }]);
+  });
+
+  it('marks a policy pool-unavailable when its current pool has incomplete odds', async () => {
+    mocks.client = createClient({
+      records: [],
+      rpcRows: {
+        admin_list_reward_policies: [{
+          id: '11111111-1111-4111-8111-111111111111',
+          pool_id: '22222222-2222-4222-8222-222222222222',
+          trigger: 'order_paid',
+          target_ip_id: 'hwasan',
+          target_good_id: null,
+          min_amount: 0,
+          tickets_per_grant: 1,
+          active: true,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: '2099-01-01T00:00:00.000Z',
+          created_at: '2026-07-15T00:00:00.000Z',
+          updated_at: '2026-07-15T01:00:00.000Z',
+          issued_count: 0,
+          available_count: 0,
+          opened_count: 0,
+          revoked_count: 0,
+          order_count: 0,
+          last_issued_at: null,
+        }],
+      },
+      rows: {
+        cards: [
+          { id: 'c-r', ip_id: 'lumen', pool_id: '22222222-2222-4222-8222-222222222222', name: 'R', no: null, rarity: 'R', bg: null, image_path: null },
+          { id: 'c-ssr', ip_id: 'lumen', pool_id: '22222222-2222-4222-8222-222222222222', name: 'SSR', no: null, rarity: 'SSR', bg: null, image_path: null },
+          { id: 'c-holo', ip_id: 'lumen', pool_id: '22222222-2222-4222-8222-222222222222', name: 'HOLO', no: null, rarity: 'HOLO', bg: null, image_path: null },
+        ],
+        card_pools: [{
+          id: '22222222-2222-4222-8222-222222222222',
+          ip_id: 'lumen',
+          name: '확률 행이 부족한 카드풀',
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: '2099-01-01T00:00:00.000Z',
+          updated_at: '2026-07-15T01:00:00.000Z',
+          pool_odds: [
+            { rarity: 'R', probability: 0.7 },
+            { rarity: 'SSR', probability: 0.2 },
+            { rarity: 'HOLO', probability: 0.1 },
+          ],
+        }],
+      },
+    });
+
+    const result = await getAdminCatalogRecords();
+
+    expect(result.rewardPolicies[0].status).toBe('pool-unavailable');
   });
 
   it('fails closed when the ticket session query fails', async () => {
@@ -248,6 +436,17 @@ describe('getAdminCatalogRecords', () => {
 
     await expect(getAdminCatalogRecords()).rejects.toThrow(
       'Failed to load admin card pools: card pool query unavailable',
+    );
+  });
+
+  it('fails closed when the reward-policy summary RPC fails', async () => {
+    mocks.client = createClient({
+      records: [],
+      rpcErrors: { admin_list_reward_policies: 'policy summary unavailable' },
+    });
+
+    await expect(getAdminCatalogRecords()).rejects.toThrow(
+      'Failed to load admin reward policies: policy summary unavailable',
     );
   });
 });

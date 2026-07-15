@@ -10,6 +10,7 @@ import {
   normalizeAdminGoodForm,
   normalizeAdminIpForm,
   normalizeAdminPoolOddsForm,
+  normalizeAdminRewardPolicyForm,
   normalizeAdminStockAdjustmentForm,
   normalizeAdminTicketTypeForm,
   type AdminFieldErrors,
@@ -311,6 +312,9 @@ export async function upsertAdminCardPoolAction(
     if (error.message.includes('invalid_pool_active_window')) {
       return rpcFailure('운영 종료는 시작보다 뒤여야 합니다.');
     }
+    if (error.message.includes('active_reward_policy_window_conflict')) {
+      return rpcFailure('활성 발급 정책과 운영 기간이 겹치지 않습니다. 먼저 정책을 비활성화해주세요.');
+    }
     if (error.message.includes('ip_not_found')) {
       return rpcFailure('연결할 IP를 찾을 수 없습니다.');
     }
@@ -368,6 +372,95 @@ export async function setAdminPoolOddsAction(
 
   revalidateRewards();
   return { message: '등급별 확률을 저장했습니다.' };
+}
+
+export async function upsertAdminRewardPolicyAction(
+  _state: AdminCatalogActionState,
+  formData: FormData,
+): Promise<AdminCatalogActionState> {
+  const authError = await requireStaffAction();
+  if (authError) return authError;
+
+  const catalog = await getAdminValidationCatalog();
+  const result = normalizeAdminRewardPolicyForm(formData, catalogContextFromSnapshot(catalog));
+  if (!result.ok) return { errors: result.errors };
+
+  const value = result.value;
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_upsert_reward_policy', {
+    target_operation_id: value.operationId,
+    target_policy_id: value.id,
+    target_pool_id: value.poolId,
+    target_trigger: value.trigger,
+    target_ip_id: value.targetIpId,
+    target_good_id: value.targetGoodId,
+    target_min_amount: value.minAmount,
+    target_tickets_per_grant: value.ticketsPerGrant,
+    target_active: value.active,
+    target_active_from: value.activeFrom,
+    target_active_to: value.activeTo,
+  });
+
+  if (error) {
+    if (error.message.includes('auth_required')) {
+      return rpcFailure('로그인이 필요합니다.');
+    }
+    if (error.message.includes('forbidden')) {
+      return rpcFailure('관리자 권한이 필요합니다.');
+    }
+    if (error.message.includes('invalid_operation_id')) {
+      return rpcFailure('유효한 저장 요청이 아닙니다. 화면을 새로고침한 뒤 다시 시도해주세요.');
+    }
+    if (error.message.includes('invalid_reward_policy_id')) {
+      return rpcFailure('발급 정책 정보를 확인해주세요.');
+    }
+    if (error.message.includes('invalid_reward_trigger')) {
+      return rpcFailure('지원하지 않는 발급 조건입니다.');
+    }
+    if (error.message.includes('invalid_min_amount')) {
+      return rpcFailure('최소 결제 금액을 확인해주세요.');
+    }
+    if (error.message.includes('invalid_tickets_per_grant')) {
+      return rpcFailure('발급 수량은 1~100 사이여야 합니다.');
+    }
+    if (error.message.includes('invalid_reward_policy_active_from')) {
+      return rpcFailure('운영 시작 일시를 확인해주세요.');
+    }
+    if (error.message.includes('invalid_reward_policy_active_window')) {
+      return rpcFailure('운영 종료는 시작보다 뒤여야 합니다.');
+    }
+    if (error.message.includes('invalid_reward_policy_active')) {
+      return rpcFailure('활성화 설정을 확인해주세요.');
+    }
+    if (error.message.includes('reward_policy_good_ip_mismatch')) {
+      return rpcFailure('선택한 IP의 굿즈만 지정할 수 있습니다.');
+    }
+    if (error.message.includes('ip_not_found')) {
+      return rpcFailure('연결할 IP를 찾을 수 없습니다.');
+    }
+    if (error.message.includes('good_not_found')) {
+      return rpcFailure('연결할 굿즈를 찾을 수 없습니다.');
+    }
+    if (error.message.includes('pool_not_found')) {
+      return rpcFailure('카드풀을 찾을 수 없습니다.');
+    }
+    if (error.message.includes('reward_pool_not_ready')) {
+      return rpcFailure('확률과 카드 구성이 완료된 운영 가능한 카드풀을 선택해주세요.');
+    }
+    if (error.message.includes('reward_policy_pool_window_disjoint')) {
+      return rpcFailure('정책과 카드풀 운영 기간이 겹쳐야 합니다.');
+    }
+    if (error.message.includes('reward_policy_pool_locked')) {
+      return rpcFailure('이미 발급 이력이 있어 카드풀을 변경할 수 없습니다.');
+    }
+    if (error.message.includes('operation_conflict')) {
+      return rpcFailure('이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.');
+    }
+    return rpcFailure('발급 정책을 저장하지 못했습니다. 다시 시도해주세요.');
+  }
+
+  revalidateRewards();
+  return { message: '발급 정책을 저장했습니다.' };
 }
 
 export async function upsertAdminEventAction(
