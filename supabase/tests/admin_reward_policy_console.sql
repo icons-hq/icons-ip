@@ -33,6 +33,14 @@ select 1 / case when exists (
     and convalidated
 ) then 1 else 0 end as assert_draw_ticket_ledger_constraints_exist;
 
+select 1 / case when exists (
+  select 1
+  from pg_indexes
+  where schemaname = 'public'
+    and tablename = 'reward_policies'
+    and indexdef ~* '\(target_good_id, target_ip_id\)'
+) then 1 else 0 end as assert_reward_policy_target_good_fk_has_child_index;
+
 -- Public reads remain, but every policy mutation crosses an audited RPC.
 select 1 / case when (
   has_table_privilege('anon', 'public.reward_policies', 'select')
@@ -124,6 +132,7 @@ on conflict (id) do update set title = excluded.title;
 
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
 values
+  ('admin-reward-policy-good-a0', 'admin-reward-policy-ip-a', '정책 무료 굿즈 A0', '테스트', 0, 'ok', 20),
   ('admin-reward-policy-good-a1', 'admin-reward-policy-ip-a', '정책 굿즈 A1', '테스트', 5000, 'ok', 20),
   ('admin-reward-policy-good-a2', 'admin-reward-policy-ip-a', '정책 굿즈 A2', '테스트', 10000, 'ok', 20),
   ('admin-reward-policy-good-b1', 'admin-reward-policy-ip-b', '정책 굿즈 B1', '테스트', 5000, 'ok', 20)
@@ -551,6 +560,91 @@ select 1 / case when not exists (
     and source_id = '40000000-0000-4000-8000-000000000991'
     and reward_policy_id = '30000000-0000-4000-8000-000000000921'
 ) then 1 else 0 end as assert_exact_good_subtotal_excludes_other_goods;
+
+-- A zero-price target is still present and must match min_amount=0. A missing
+-- target must remain distinct from a present target whose subtotal is zero.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000991', true);
+
+select public.admin_upsert_reward_policy(
+  '10000000-0000-4000-8000-000000000927',
+  '30000000-0000-4000-8000-000000000927',
+  '20000000-0000-4000-8000-000000000991',
+  'order_paid',
+  'admin-reward-policy-ip-a',
+  'admin-reward-policy-good-a0',
+  0,
+  1,
+  true,
+  now() - interval '1 hour',
+  now() + interval '1 day'
+);
+
+select public.admin_upsert_reward_policy(
+  '10000000-0000-4000-8000-000000000928',
+  '30000000-0000-4000-8000-000000000928',
+  '20000000-0000-4000-8000-000000000991',
+  'order_paid',
+  'admin-reward-policy-ip-a',
+  'admin-reward-policy-good-a1',
+  0,
+  1,
+  true,
+  now() - interval '1 hour',
+  now() + interval '1 day'
+);
+
+reset role;
+
+insert into public.orders (id, user_id, status, total, address, expires_at)
+values (
+  '40000000-0000-4000-8000-000000000992',
+  '00000000-0000-4000-8000-000000000992',
+  'pending',
+  5000,
+  '{}'::jsonb,
+  now() + interval '15 minutes'
+);
+
+insert into public.order_items (
+  order_id, good_id, qty, unit_price,
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+)
+values
+  (
+    '40000000-0000-4000-8000-000000000992',
+    'admin-reward-policy-good-a0', 1, 0,
+    '정책 무료 굿즈 A0', '테스트', 'admin-reward-policy-ip-a'
+  ),
+  (
+    '40000000-0000-4000-8000-000000000992',
+    'admin-reward-policy-good-b1', 1, 5000,
+    '정책 굿즈 B1', '테스트', 'admin-reward-policy-ip-b'
+  );
+
+set local role service_role;
+select public.confirm_order_payment(
+  'reward-policy-payment-992',
+  '40000000-0000-4000-8000-000000000992',
+  'reward-policy-provider-key-992',
+  5000,
+  '{"verified":true}'::jsonb
+);
+reset role;
+
+select 1 / case when (
+  select count(*) = 1
+    and count(*) filter (
+      where reward_policy_id = '30000000-0000-4000-8000-000000000927'
+    ) = 1
+    and count(*) filter (
+      where reward_policy_id = '30000000-0000-4000-8000-000000000928'
+    ) = 0
+  from public.draw_tickets
+  where source = 'order_paid'
+    and source_id = '40000000-0000-4000-8000-000000000992'
+) then 1 else 0 end as assert_zero_price_target_matches_but_missing_target_does_not;
 
 -- Issued policy pool bindings are immutable through both the RPC and FK.
 set local role authenticated;

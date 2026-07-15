@@ -63,6 +63,8 @@ alter table public.draw_tickets
 
 create index reward_policies_target_active_idx
   on public.reward_policies (target_ip_id, active, active_from, active_to);
+create index reward_policies_target_good_ip_idx
+  on public.reward_policies (target_good_id, target_ip_id);
 create index draw_tickets_reward_policy_idx
   on public.draw_tickets (reward_policy_id, created_at desc)
   where reward_policy_id is not null;
@@ -657,7 +659,7 @@ begin
     join public.card_pools as card_pool
       on card_pool.id = reward_policy.pool_id
     join lateral (
-      select coalesce(sum(order_item.qty * order_item.unit_price), 0) as target_subtotal
+      select sum(order_item.qty * order_item.unit_price) as target_subtotal
       from public.order_items as order_item
       where order_item.order_id = p_order_id
         and order_item.good_ip_id_snapshot = reward_policy.target_ip_id
@@ -672,7 +674,7 @@ begin
     ) as grant_series(n)
     where reward_policy.trigger = 'order_paid'
       and reward_policy.active
-      and subtotal.target_subtotal > 0
+      and subtotal.target_subtotal is not null
       and subtotal.target_subtotal >= reward_policy.min_amount
       and now() >= reward_policy.active_from
       and (reward_policy.active_to is null or now() < reward_policy.active_to)
