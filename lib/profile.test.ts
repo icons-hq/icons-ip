@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import {
   MAX_PROFILE_IMAGE_BYTES,
@@ -48,6 +49,19 @@ describe('normalizeProfileForm', () => {
     });
   });
 
+  it('keeps ZWJ emoji sequences as single grapheme clusters', () => {
+    const familyEmoji = '👨‍👩‍👧‍👦';
+
+    expect(normalizeProfileForm(profileForm({ nickname: familyEmoji.repeat(30) }))).toEqual({
+      ok: true,
+      value: { nickname: familyEmoji.repeat(30), avatar: null },
+    });
+    expect(normalizeProfileForm(profileForm({ nickname: familyEmoji.repeat(31) }))).toEqual({
+      ok: false,
+      errors: { nickname: '닉네임은 30자 이하로 입력해주세요.' },
+    });
+  });
+
   it('rejects an unsupported avatar type', () => {
     expect(
       normalizeProfileForm(
@@ -83,6 +97,25 @@ describe('normalizeProfileForm', () => {
 
   it('exports the avatar file input accept contract', () => {
     expect(PROFILE_IMAGE_ACCEPT).toBe('image/jpeg,image/png,image/webp');
+  });
+});
+
+describe('profile client constants', () => {
+  it('can import the image accept constant when Intl.Segmenter is unavailable', () => {
+    const profileModuleUrl = new URL('./profile.ts', import.meta.url).href;
+    const script = `
+      Object.defineProperty(Intl, 'Segmenter', { value: undefined });
+      const profile = await import(${JSON.stringify(profileModuleUrl)});
+      if (profile.PROFILE_IMAGE_ACCEPT !== 'image/jpeg,image/png,image/webp') process.exit(1);
+    `;
+
+    expect(() =>
+      execFileSync(
+        process.execPath,
+        ['--experimental-strip-types', '--input-type=module', '--eval', script],
+        { stdio: 'pipe' },
+      ),
+    ).not.toThrow();
   });
 });
 

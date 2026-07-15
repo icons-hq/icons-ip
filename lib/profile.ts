@@ -10,11 +10,14 @@ const PROFILE_IMAGE_EXTENSIONS = new Map([
   ['image/webp', 'webp'],
 ]);
 
-const PROFILE_NICKNAME_SEGMENTER = new Intl.Segmenter('ko', { granularity: 'grapheme' });
-
 export type ProfileFormResult =
   | { ok: true; value: { nickname: string; avatar: File | null } }
   | { ok: false; errors: { nickname?: string; avatar?: string } };
+
+function countProfileNicknameGraphemes(nickname: string): number {
+  const segmenter = new Intl.Segmenter('ko', { granularity: 'grapheme' });
+  return Array.from(segmenter.segment(nickname)).length;
+}
 
 export function normalizeProfileForm(formData: FormData): ProfileFormResult {
   const nicknameValue = formData.get('nickname');
@@ -25,7 +28,7 @@ export function normalizeProfileForm(formData: FormData): ProfileFormResult {
 
   if (!nickname) {
     errors.nickname = '닉네임을 입력해주세요.';
-  } else if (Array.from(PROFILE_NICKNAME_SEGMENTER.segment(nickname)).length > 30) {
+  } else if (countProfileNicknameGraphemes(nickname) > 30) {
     errors.nickname = '닉네임은 30자 이하로 입력해주세요.';
   }
 
