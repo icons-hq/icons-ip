@@ -180,7 +180,12 @@ function RewardPolicyForm({
         : null;
 
   return (
-    <form action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+    <form
+      action={action}
+      className="card col"
+      onReset={(event) => event.preventDefault()}
+      style={{ borderRadius: 10, gap: 14, padding: 18 }}
+    >
       <input name="operationId" type="hidden" value={operationId} />
       <input name="id" type="hidden" value={selected?.id ?? draftId} />
       <input name="trigger" type="hidden" value="order_paid" />
