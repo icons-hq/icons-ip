@@ -53,3 +53,7 @@ export function isActive(route: string, pathname: string): boolean {
   if (href === '/') return pathname === '/';
   return pathname === href || pathname.startsWith(href + '/');
 }
+
+export function isAuthShellPath(pathname: string): boolean {
+  return pathname === '/login' || pathname === '/update-password';
+}

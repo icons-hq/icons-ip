@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { signUpWithEmailAction } from './actions';
+import { requestPasswordResetAction, signUpWithEmailAction } from './actions';
 
 const AUTH_SIGNUP_RESEND_COOKIE_NAME = 'icons_auth_signup_resend';
 const AUTH_NEXT_COOKIE_NAME = 'icons_auth_next';
+const AUTH_PASSWORD_RESET_COOKIE_NAME = 'icons_auth_password_reset';
 const TEST_SIGNUP_RESEND_SECRET = 'test-signup-resend-secret-with-enough-entropy';
 const ORIGINAL_SIGNUP_RESEND_SECRET = process.env.AUTH_SIGNUP_RESEND_SECRET;
+const ORIGINAL_VERCEL_URL = process.env.VERCEL_URL;
 
 const mocks = vi.hoisted(() => ({
   isConfigured: true,
@@ -13,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   cookieSetCalls: [] as Array<{ name: string; value: string; options?: Record<string, unknown> }>,
   signUp: vi.fn(),
   resend: vi.fn(),
+  resetPasswordForEmail: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/config', () => ({
@@ -24,11 +27,14 @@ vi.mock('@/lib/supabase/server', () => ({
     auth: {
       signUp: mocks.signUp,
       resend: mocks.resend,
+      resetPasswordForEmail: mocks.resetPasswordForEmail,
     },
   }),
 }));
 
 vi.mock('@/lib/auth/onboarding', async () => await import('../../lib/auth/onboarding'));
+vi.mock('@/lib/auth/recovery.server', async () => await import('../../lib/auth/recovery.server'));
+vi.mock('server-only', () => ({}));
 
 vi.mock('@/lib/auth/server', () => ({
   getProfileForUser: vi.fn(),
@@ -76,6 +82,13 @@ function latestCookieSet(name: string) {
   return mocks.cookieSetCalls.findLast((call) => call.name === name);
 }
 
+function resetFormData(email = 'Fan@Icons.gg', next = '/community?sort=hot') {
+  const data = new FormData();
+  data.set('email', email);
+  data.set('next', next);
+  return data;
+}
+
 function decodeSignedCookiePayload(value: string) {
   const parts = value.split('.');
   expect(parts).toHaveLength(2);
@@ -95,6 +108,7 @@ describe('signUpWithEmailAction signup confirmation resend', () => {
     mocks.cookieSetCalls.length = 0;
     mocks.signUp.mockReset();
     mocks.resend.mockReset();
+    mocks.resetPasswordForEmail.mockReset();
     mocks.signUp.mockResolvedValue({ data: { user: { id: 'user-1' }, session: null }, error: null });
     mocks.resend.mockResolvedValue({ data: { user: null, session: null }, error: null });
   });
@@ -106,6 +120,8 @@ describe('signUpWithEmailAction signup confirmation resend', () => {
     } else {
       process.env.AUTH_SIGNUP_RESEND_SECRET = ORIGINAL_SIGNUP_RESEND_SECRET;
     }
+    if (ORIGINAL_VERCEL_URL === undefined) delete process.env.VERCEL_URL;
+    else process.env.VERCEL_URL = ORIGINAL_VERCEL_URL;
   });
 
   it('starts the resend window with a signed cookie after the initial signup without storing the raw email', async () => {
@@ -154,13 +170,18 @@ describe('signUpWithEmailAction signup confirmation resend', () => {
     const nextCookie = latestCookieSet(AUTH_NEXT_COOKIE_NAME);
     expect(nextCookie).toMatchObject({
       name: AUTH_NEXT_COOKIE_NAME,
-      value: encodeURIComponent('/community?sort=hot'),
       options: expect.objectContaining({
         httpOnly: true,
+        maxAge: 10 * 60,
         path: '/auth/callback',
         sameSite: 'lax',
         secure: true,
       }),
+    });
+    expect(decodeSignedCookiePayload(nextCookie?.value ?? '')).toMatchObject({
+      issuedAt: Date.now(),
+      next: '/community?sort=hot',
+      purpose: 'signup',
     });
   });
 
@@ -269,5 +290,148 @@ describe('signUpWithEmailAction signup confirmation resend', () => {
     });
     const payload = decodeSignedCookiePayload(latestCookieSet(AUTH_SIGNUP_RESEND_COOKIE_NAME)?.value ?? '');
     expect(payload.resendCount).toBe(1);
+  });
+});
+
+describe('requestPasswordResetAction', () => {
+  beforeEach(() => {
+    process.env.AUTH_SIGNUP_RESEND_SECRET = TEST_SIGNUP_RESEND_SECRET;
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-23T00:00:00.000Z'));
+    mocks.isConfigured = true;
+    mocks.headers = new Map<string, string>([['origin', 'https://iconsip.com']]);
+    mocks.cookies.clear();
+    mocks.cookieSetCalls.length = 0;
+    mocks.signUp.mockReset();
+    mocks.resend.mockReset();
+    mocks.resetPasswordForEmail.mockReset();
+    mocks.resetPasswordForEmail.mockResolvedValue({ data: {}, error: null });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    if (ORIGINAL_SIGNUP_RESEND_SECRET === undefined) {
+      delete process.env.AUTH_SIGNUP_RESEND_SECRET;
+    } else {
+      process.env.AUTH_SIGNUP_RESEND_SECRET = ORIGINAL_SIGNUP_RESEND_SECRET;
+    }
+    if (ORIGINAL_VERCEL_URL === undefined) delete process.env.VERCEL_URL;
+    else process.env.VERCEL_URL = ORIGINAL_VERCEL_URL;
+  });
+
+  it('validates the email before calling Supabase', async () => {
+    const empty = await requestPasswordResetAction({}, resetFormData(''));
+    const invalid = await requestPasswordResetAction({}, resetFormData('not-an-email'));
+
+    expect(empty.errors?.email).toBe('이메일을 입력해주세요.');
+    expect(invalid.errors?.email).toContain('이메일 주소 형식');
+    expect(mocks.resetPasswordForEmail).not.toHaveBeenCalled();
+  });
+
+  it('stores signed recovery state and sends a queryless callback URL', async () => {
+    const state = await requestPasswordResetAction({}, resetFormData());
+
+    expect(state).toEqual({
+      message: '해당 이메일로 가입한 계정이 있다면 재설정 메일을 보냈습니다. 요청한 브라우저에서 최신 링크를 열어주세요.',
+    });
+    expect(mocks.resetPasswordForEmail).toHaveBeenCalledWith('fan@icons.gg', {
+      redirectTo: 'https://iconsip.com/auth/callback',
+    });
+
+    const nextCookie = latestCookieSet(AUTH_NEXT_COOKIE_NAME);
+    expect(nextCookie?.options).toMatchObject({
+      httpOnly: true,
+      maxAge: 60 * 60,
+      path: '/auth/callback',
+      sameSite: 'lax',
+      secure: true,
+    });
+    expect(decodeSignedCookiePayload(nextCookie?.value ?? '')).toMatchObject({
+      issuedAt: Date.now(),
+      next: '/community?sort=hot',
+      purpose: 'recovery',
+    });
+    expect(JSON.stringify(mocks.cookieSetCalls)).not.toContain('Fan@Icons.gg');
+    expect(JSON.stringify(mocks.cookieSetCalls)).not.toContain('fan@icons.gg');
+  });
+
+  it('does not trust an unrecognized request origin for the recovery redirect', async () => {
+    mocks.headers = new Map<string, string>([
+      ['origin', 'https://evil.example'],
+      ['host', 'evil.example'],
+    ]);
+
+    await requestPasswordResetAction({}, resetFormData());
+
+    expect(mocks.resetPasswordForEmail).toHaveBeenCalledWith('fan@icons.gg', {
+      redirectTo: 'https://iconsip.com/auth/callback',
+    });
+    expect(latestCookieSet(AUTH_NEXT_COOKIE_NAME)?.options).toMatchObject({ secure: true });
+  });
+
+  it('accepts only the current platform-provided Vercel deployment origin for preview recovery', async () => {
+    process.env.VERCEL_URL = 'icons-ip-feature-team.vercel.app';
+    mocks.headers = new Map<string, string>([
+      ['origin', 'https://icons-ip-feature-team.vercel.app'],
+    ]);
+
+    await requestPasswordResetAction({}, resetFormData());
+
+    expect(mocks.resetPasswordForEmail).toHaveBeenCalledWith('fan@icons.gg', {
+      redirectTo: 'https://icons-ip-feature-team.vercel.app/auth/callback',
+    });
+  });
+
+  it('consumes and stores the browser rate limit before calling Supabase', async () => {
+    mocks.resetPasswordForEmail.mockImplementationOnce(async () => {
+      expect(latestCookieSet(AUTH_PASSWORD_RESET_COOKIE_NAME)?.value).toBeTruthy();
+      return { data: {}, error: { code: 'user_not_found' } };
+    });
+
+    const state = await requestPasswordResetAction({}, resetFormData());
+
+    expect(state.message).toContain('계정이 있다면');
+    expect(latestCookieSet(AUTH_PASSWORD_RESET_COOKIE_NAME)?.options).toMatchObject({
+      httpOnly: true,
+      maxAge: 10 * 60,
+      path: '/login',
+      sameSite: 'lax',
+      secure: true,
+    });
+  });
+
+  it('allows three attempts per normalized email and blocks the fourth before Supabase', async () => {
+    await requestPasswordResetAction({}, resetFormData('Fan@Icons.gg'));
+    await requestPasswordResetAction({}, resetFormData(' fan@icons.gg '));
+    await requestPasswordResetAction({}, resetFormData('FAN@ICONS.GG'));
+    const blocked = await requestPasswordResetAction({}, resetFormData('fan@icons.gg'));
+
+    expect(blocked.errors?.form).toContain('10분 후');
+    expect(mocks.resetPasswordForEmail).toHaveBeenCalledTimes(3);
+  });
+
+  it.each(['user_not_found', 'email_not_found'])('keeps %s indistinguishable from success', async (code) => {
+    mocks.resetPasswordForEmail.mockResolvedValueOnce({ data: {}, error: { code } });
+
+    const state = await requestPasswordResetAction({}, resetFormData());
+
+    expect(state).toEqual({
+      message: '해당 이메일로 가입한 계정이 있다면 재설정 메일을 보냈습니다. 요청한 브라우저에서 최신 링크를 열어주세요.',
+    });
+  });
+
+  it.each([
+    ['over_email_send_rate_limit', '요청이 너무 많습니다'],
+    ['over_request_rate_limit', '요청이 너무 많습니다'],
+    ['email_provider_disabled', '현재 비밀번호 재설정 메일을 보낼 수 없습니다'],
+    ['email_address_not_authorized', '현재 비밀번호 재설정 메일을 보낼 수 없습니다'],
+    ['unexpected_failure', '현재 비밀번호 재설정 요청을 처리할 수 없습니다'],
+    ['request_timeout', '현재 비밀번호 재설정 요청을 처리할 수 없습니다'],
+  ])('reports the operational error %s without exposing account existence', async (code, message) => {
+    mocks.resetPasswordForEmail.mockResolvedValueOnce({ data: {}, error: { code } });
+
+    const state = await requestPasswordResetAction({}, resetFormData());
+
+    expect(state.errors?.form).toContain(message);
   });
 });

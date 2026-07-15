@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MOB_ITEMS, hrefFor, isActive } from '@/lib/routes';
+import { MOB_ITEMS, hrefFor, isActive, isAuthShellPath } from '@/lib/routes';
 import { useCart } from './CartProvider';
 
 export function MobNav() {
@@ -10,7 +10,7 @@ export function MobNav() {
   const { count } = useCart();
 
   if (
-    pathname === '/login'
+    isAuthShellPath(pathname)
     || pathname.startsWith('/checkout')
     || pathname.startsWith('/ticket-checkout')
     || pathname.startsWith('/games')

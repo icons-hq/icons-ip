@@ -25,6 +25,8 @@ export const AUTH_NEXT_COOKIE_MAX_AGE_SECONDS = 10 * 60;
 
 const GENERIC_AUTH_ERROR_MESSAGE = '인증을 완료하지 못했습니다. 다시 시도하거나 새 확인 메일을 요청해주세요.';
 const GENERIC_SIGNUP_ERROR_MESSAGE = '가입 요청을 처리하지 못했습니다. 이메일 형식과 비밀번호를 확인한 뒤 다시 시도해주세요.';
+const GENERIC_PASSWORD_RESET_ERROR_MESSAGE = '비밀번호 재설정을 완료하지 못했습니다. 로그인 화면에서 새 재설정 메일을 요청해주세요.';
+const GENERIC_PASSWORD_UPDATE_ERROR_MESSAGE = '비밀번호를 변경하지 못했습니다. 잠시 후 다시 시도해주세요.';
 
 export function isOnboarded(profile: ProfileForOnboarding | null | undefined, authEmail?: string | null): boolean {
   if (!profile) return false;
@@ -101,6 +103,7 @@ export function authErrorMessage(code: string | null | undefined): string | unde
     case 'bad_code_verifier':
     case 'bad_oauth_callback':
     case 'exchange_failed':
+    case 'pkce_code_verifier_not_found':
       return '이메일 인증은 완료되었을 수 있습니다. 가입한 이메일과 비밀번호로 로그인해주세요. 로그인이 안 되면 새 확인 메일을 요청해주세요.';
     case 'missing_code':
       return '인증 링크가 올바르게 열리지 않았습니다. 확인 메일의 링크를 다시 열어주세요.';
@@ -155,4 +158,77 @@ export function authErrorLoginPath(code: string | null | undefined, next: string
   if (safeNext !== '/') url.searchParams.set('next', safeNext);
 
   return `${url.pathname}${url.search}`;
+}
+
+export function passwordResetErrorMessage(code: string | null | undefined): string | undefined {
+  switch (normalizeAuthCode(code)) {
+    case undefined:
+      return undefined;
+    case 'otp_expired':
+      return '비밀번호 재설정 링크가 만료되었거나 이미 사용되었습니다. 로그인 화면에서 새 재설정 메일을 요청해주세요.';
+    case 'flow_state_expired':
+    case 'flow_state_not_found':
+    case 'bad_code_verifier':
+    case 'bad_oauth_callback':
+    case 'exchange_failed':
+    case 'pkce_code_verifier_not_found':
+      return '이 브라우저에서 비밀번호 재설정을 완료할 수 없습니다. 재설정 메일을 요청한 브라우저에서 최신 링크를 열거나 새 메일을 요청해주세요.';
+    case 'missing_code':
+      return '비밀번호 재설정 링크가 올바르게 열리지 않았습니다. 로그인 화면에서 새 재설정 메일을 요청해주세요.';
+    case 'session_expired':
+    case 'session_not_found':
+    case 'reauthentication_needed':
+      return '비밀번호 재설정 세션이 만료되었습니다. 로그인 화면에서 새 재설정 메일을 요청해주세요.';
+    default:
+      return GENERIC_PASSWORD_RESET_ERROR_MESSAGE;
+  }
+}
+
+export function passwordResetErrorLoginPath(code: string | null | undefined, next: string = '/') {
+  const url = new URL('/login', 'https://icons.local');
+  url.searchParams.set('mode', 'reset');
+  url.searchParams.set('reset_error', normalizeAuthCode(code) ?? 'unknown_recovery_error');
+
+  const safeNext = safeNextPath(next);
+  if (safeNext !== '/') url.searchParams.set('next', safeNext);
+
+  return `${url.pathname}${url.search}`;
+}
+
+export function updatePasswordPath(next: string = '/') {
+  const url = new URL('/update-password', 'https://icons.local');
+  const safeNext = safeNextPath(next);
+  if (safeNext !== '/') url.searchParams.set('next', safeNext);
+  return `${url.pathname}${url.search}`;
+}
+
+export function updatePasswordSessionReadyPath(next: string = '/') {
+  const url = new URL('/update-password', 'https://icons.local');
+  url.searchParams.set('session_ready', '1');
+  const safeNext = safeNextPath(next);
+  if (safeNext !== '/') url.searchParams.set('next', safeNext);
+  return `${url.pathname}${url.search}`;
+}
+
+export function passwordResetSuccessLoginPath(next: string = '/') {
+  const url = new URL('/login', 'https://icons.local');
+  url.searchParams.set('password_reset', 'success');
+  const safeNext = safeNextPath(next);
+  if (safeNext !== '/') url.searchParams.set('next', safeNext);
+  return `${url.pathname}${url.search}`;
+}
+
+export function passwordUpdateErrorMessage(error: AuthErrorLike | null | undefined) {
+  switch (normalizeAuthCode(error?.code)) {
+    case 'weak_password':
+      return '비밀번호가 보안 조건을 충족하지 않습니다. 더 긴 비밀번호로 다시 시도해주세요.';
+    case 'same_password':
+      return '현재 비밀번호와 다르게 설정해주세요.';
+    case 'session_expired':
+    case 'session_not_found':
+    case 'reauthentication_needed':
+      return '비밀번호 재설정 세션이 만료되었습니다. 로그인 화면에서 새 재설정 메일을 요청해주세요.';
+    default:
+      return GENERIC_PASSWORD_UPDATE_ERROR_MESSAGE;
+  }
 }

@@ -5,15 +5,23 @@ import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import {
   AUTH_CALLBACK_PATH,
-  AUTH_NEXT_COOKIE_MAX_AGE_SECONDS,
   AUTH_NEXT_COOKIE_NAME,
   authCallbackUrl,
-  authNextCookieValue,
   authSignUpErrorMessage,
   isOnboarded,
   onboardingPath,
   safeNextPath,
 } from '@/lib/auth/onboarding';
+import {
+  AUTH_NEXT_RECOVERY_MAX_AGE_SECONDS,
+  AUTH_NEXT_SIGNUP_MAX_AGE_SECONDS,
+  AUTH_PASSWORD_RESET_COOKIE_MAX_AGE_SECONDS,
+  AUTH_PASSWORD_RESET_COOKIE_NAME,
+  authCookieSecret,
+  consumePasswordResetAttempt,
+  signedAuthNextCookieValue,
+  type AuthNextPurpose,
+} from '@/lib/auth/recovery.server';
 import { getProfileForUser } from '@/lib/auth/server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
@@ -50,8 +58,17 @@ const AUTH_SIGNUP_RESEND_COOKIE_MAX_AGE_SECONDS = 24 * 60 * 60;
 const AUTH_SIGNUP_RESEND_STATE_MAX_AGE_MS = AUTH_SIGNUP_RESEND_COOKIE_MAX_AGE_SECONDS * 1000;
 const AUTH_SIGNUP_RESEND_WINDOW_MS = 10 * 60 * 1000;
 const AUTH_SIGNUP_RESEND_MAX_ATTEMPTS = 3;
+const CANONICAL_AUTH_ORIGIN = 'https://iconsip.com';
+const STATIC_AUTH_ORIGINS = new Set([
+  CANONICAL_AUTH_ORIGIN,
+  'https://www.iconsip.com',
+  'https://icons-ip.vercel.app',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+]);
 const SIGNUP_CONFIRMATION_SENT_MESSAGE = '가입 확인 메일을 보냈습니다. 받은편지함과 스팸함에서 최신 확인 메일을 열어주세요. 이미 가입한 이메일이라면 로그인도 시도할 수 있습니다.';
 const SIGNUP_CONFIRMATION_RESENT_MESSAGE = '새 확인 메일을 보냈습니다. 받은편지함과 스팸함에서 최신 확인 메일을 열어주세요.';
+const PASSWORD_RESET_SENT_MESSAGE = '해당 이메일로 가입한 계정이 있다면 재설정 메일을 보냈습니다. 요청한 브라우저에서 최신 링크를 열어주세요.';
 
 type CookieStore = Awaited<ReturnType<typeof cookies>>;
 
@@ -83,35 +100,54 @@ function normalizedOrigin(value: string | null) {
   }
 }
 
+function currentVercelOrigin() {
+  const host = process.env.VERCEL_URL?.trim();
+  if (!host || !/^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.vercel\.app$/i.test(host)) return undefined;
+  return `https://${host.toLowerCase()}`;
+}
+
+function trustedAuthOrigin(value: string | null) {
+  const origin = normalizedOrigin(value);
+  if (!origin) return undefined;
+  if (STATIC_AUTH_ORIGINS.has(origin) || origin === currentVercelOrigin()) return origin;
+  return undefined;
+}
+
 async function requestOrigin() {
   const headersList = await headers();
-  const origin = normalizedOrigin(headersList.get('origin'));
+  const origin = trustedAuthOrigin(headersList.get('origin'));
   if (origin) return origin;
 
   const host = headersList.get('x-forwarded-host') ?? headersList.get('host');
-  if (!host) return 'http://localhost:3000';
+  if (!host) return CANONICAL_AUTH_ORIGIN;
 
   const firstHost = host.split(',')[0]?.trim();
-  if (!firstHost) return 'http://localhost:3000';
+  if (!firstHost) return CANONICAL_AUTH_ORIGIN;
 
   const firstProto = (headersList.get('x-forwarded-proto') ?? '').split(',')[0]?.trim();
   const proto = firstProto || (firstHost.startsWith('localhost') || firstHost.startsWith('127.') ? 'http' : 'https');
 
-  return `${proto}://${firstHost}`;
+  return trustedAuthOrigin(`${proto}://${firstHost}`) ?? CANONICAL_AUTH_ORIGIN;
 }
 
-async function rememberAuthNextPath(origin: string, next: string) {
+async function rememberAuthNextPath(
+  origin: string,
+  next: string,
+  purpose: AuthNextPurpose,
+  issuedAt: number,
+  secret: string | null,
+) {
   const cookieStore = await cookies();
   const safeNext = safeNextPath(next);
 
-  if (safeNext === '/') {
+  if (!secret || (purpose === 'signup' && safeNext === '/')) {
     cookieStore.set(AUTH_NEXT_COOKIE_NAME, '', { path: AUTH_CALLBACK_PATH, maxAge: 0 });
     return;
   }
 
-  cookieStore.set(AUTH_NEXT_COOKIE_NAME, authNextCookieValue(safeNext), {
+  cookieStore.set(AUTH_NEXT_COOKIE_NAME, signedAuthNextCookieValue(safeNext, purpose, issuedAt, secret), {
     httpOnly: true,
-    maxAge: AUTH_NEXT_COOKIE_MAX_AGE_SECONDS,
+    maxAge: purpose === 'recovery' ? AUTH_NEXT_RECOVERY_MAX_AGE_SECONDS : AUTH_NEXT_SIGNUP_MAX_AGE_SECONDS,
     path: AUTH_CALLBACK_PATH,
     sameSite: 'lax',
     secure: origin.startsWith('https://'),
@@ -220,9 +256,29 @@ function isOperationalAuthEmailError(error: AuthErrorLike | null | undefined) {
     case 'signup_disabled':
     case 'email_provider_disabled':
     case 'provider_disabled':
+    case 'email_address_not_authorized':
       return true;
     default:
       return false;
+  }
+}
+
+function passwordResetOperationalErrorMessage(error: AuthErrorLike | null | undefined) {
+  if (!error) return undefined;
+
+  switch (normalizeAuthCode(error)) {
+    case 'user_not_found':
+    case 'email_not_found':
+      return undefined;
+    case 'over_email_send_rate_limit':
+    case 'over_request_rate_limit':
+      return '비밀번호 재설정 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.';
+    case 'email_provider_disabled':
+    case 'provider_disabled':
+    case 'email_address_not_authorized':
+      return '현재 비밀번호 재설정 메일을 보낼 수 없습니다. 잠시 후 다시 시도해주세요.';
+    default:
+      return '현재 비밀번호 재설정 요청을 처리할 수 없습니다. 잠시 후 다시 시도해주세요.';
   }
 }
 
@@ -282,7 +338,7 @@ export async function signUpWithEmailAction(_state: AuthActionState, formData: F
       windowStartedAt: resendWindow.windowStartedAt,
     };
 
-    await rememberAuthNextPath(origin, next);
+    await rememberAuthNextPath(origin, next, 'signup', now, resendSecret);
     setSignupResendState(cookieStore, origin, attemptedResendState, resendSecret);
 
     const { error } = await supabase.auth.resend({
@@ -308,7 +364,7 @@ export async function signUpWithEmailAction(_state: AuthActionState, formData: F
 
   if (error) {
     if (isExistingAccountSignUpError(error)) {
-      await rememberAuthNextPath(origin, next);
+      await rememberAuthNextPath(origin, next, 'signup', now, resendSecret);
       if (signupEmailHash) {
         setSignupResendState(cookieStore, origin, {
           emailHash: signupEmailHash,
@@ -340,7 +396,7 @@ export async function signUpWithEmailAction(_state: AuthActionState, formData: F
   }
 
   if (!data.session) {
-    await rememberAuthNextPath(origin, next);
+    await rememberAuthNextPath(origin, next, 'signup', now, resendSecret);
     if (signupEmailHash) {
       setSignupResendState(cookieStore, origin, {
         emailHash: signupEmailHash,
@@ -352,6 +408,61 @@ export async function signUpWithEmailAction(_state: AuthActionState, formData: F
   }
 
   redirect(onboardingPath(next));
+}
+
+export async function requestPasswordResetAction(
+  _state: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
+  const email = normalizedEmail(readString(formData, 'email'));
+  const next = safeNextPath(formData.get('next'));
+
+  if (!email) return { errors: { email: '이메일을 입력해주세요.' } };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { errors: { email: '이메일 주소 형식을 확인해주세요. 예: you@icons.gg' } };
+  }
+
+  const { isConfigured } = getSupabaseConfig();
+  if (!isConfigured) {
+    return { errors: { form: 'Supabase 환경변수를 설정한 뒤 비밀번호를 재설정할 수 있습니다.' } };
+  }
+
+  const secret = authCookieSecret();
+  if (!secret) {
+    return { errors: { form: '인증 보안 환경변수를 설정한 뒤 비밀번호를 재설정할 수 있습니다.' } };
+  }
+
+  const origin = await requestOrigin();
+  const cookieStore = await cookies();
+  const now = Date.now();
+  const attempt = consumePasswordResetAttempt(
+    cookieStore.get(AUTH_PASSWORD_RESET_COOKIE_NAME)?.value,
+    email,
+    now,
+    secret,
+  );
+
+  if (attempt.blocked) {
+    return { errors: { form: '비밀번호 재설정 요청이 너무 많습니다. 10분 후 다시 시도해주세요.' } };
+  }
+
+  cookieStore.set(AUTH_PASSWORD_RESET_COOKIE_NAME, attempt.cookieValue, {
+    httpOnly: true,
+    maxAge: AUTH_PASSWORD_RESET_COOKIE_MAX_AGE_SECONDS,
+    path: '/login',
+    sameSite: 'lax',
+    secure: origin.startsWith('https://'),
+  });
+  await rememberAuthNextPath(origin, next, 'recovery', now, secret);
+
+  const supabase = await createClient();
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: authCallbackUrl(origin),
+  });
+  const operationalError = passwordResetOperationalErrorMessage(error);
+  if (operationalError) return { errors: { form: operationalError } };
+
+  return { message: PASSWORD_RESET_SENT_MESSAGE };
 }
 
 export async function signOutAction() {

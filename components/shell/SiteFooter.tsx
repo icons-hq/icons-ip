@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { hrefFor } from '@/lib/routes';
+import { hrefFor, isAuthShellPath } from '@/lib/routes';
 
 /* 디자인 핸드오프의 미니 푸터 + 고아 라우트 방지용 보조 링크 줄 */
 const AUX_LINKS: [label: string, route: string | null][] = [
@@ -16,7 +16,7 @@ const AUX_LINKS: [label: string, route: string | null][] = [
 
 export function SiteFooter() {
   const pathname = usePathname();
-  if (pathname === '/login' || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
+  if (isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
 
   return (
     <footer style={{ borderTop: '1px solid var(--line)', padding: '26px 0', position: 'relative', zIndex: 2 }}>
