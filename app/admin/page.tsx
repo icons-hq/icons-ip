@@ -45,9 +45,12 @@ export default async function AdminPage({
       }}
       catalog={catalog}
       insights={insights}
-      initialSection={query.section === 'orders' ? 'orders' : query.section === 'good' ? 'good' : query.section === 'ticket' ? 'ticket' : query.section === 'pool' ? 'pool' : 'overview'}
+      initialSection={query.section === 'orders' ? 'orders' : query.section === 'good' ? 'good' : query.section === 'ticket' ? 'ticket' : query.section === 'pool' ? 'pool' : query.section === 'policy' ? 'policy' : 'overview'}
       moderation={moderation}
       orders={orders}
+      policyDraftActiveFrom={new Date().toISOString()}
+      policyDraftId={randomUUID()}
+      policyOperationId={randomUUID()}
       poolDraftActiveFrom={new Date().toISOString()}
       poolDraftId={randomUUID()}
       poolOddsOperationId={randomUUID()}
