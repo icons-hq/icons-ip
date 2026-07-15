@@ -655,9 +655,11 @@ select 1 / case when (
 ) = 1 then 1 else 0 end as assert_active_game_writes_one_runtime_ledger;
 
 reset role;
+alter table public.card_pools disable trigger card_pools_guard_game_window;
 update public.card_pools
 set active_to = now() - interval '1 second'
 where id = '20000000-0000-4000-8000-000000000901';
+alter table public.card_pools enable trigger card_pools_guard_game_window;
 
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
