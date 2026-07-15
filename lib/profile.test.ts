@@ -37,6 +37,17 @@ describe('normalizeProfileForm', () => {
     });
   });
 
+  it('counts nickname limits by user-visible grapheme clusters', () => {
+    expect(normalizeProfileForm(profileForm({ nickname: '😀'.repeat(30) }))).toEqual({
+      ok: true,
+      value: { nickname: '😀'.repeat(30), avatar: null },
+    });
+    expect(normalizeProfileForm(profileForm({ nickname: '😀'.repeat(31) }))).toEqual({
+      ok: false,
+      errors: { nickname: '닉네임은 30자 이하로 입력해주세요.' },
+    });
+  });
+
   it('rejects an unsupported avatar type', () => {
     expect(
       normalizeProfileForm(
@@ -81,6 +92,12 @@ describe('profile avatar paths', () => {
     expect(buildProfileAvatarPath({ userId: 'user-1', mimeType: 'image/png', nonce: 'asset-1' })).toBe(
       'user-1/profile/asset-1.png',
     );
+  });
+
+  it('rejects unsupported MIME types instead of creating a fallback path', () => {
+    expect(() =>
+      buildProfileAvatarPath({ userId: 'user-1', mimeType: 'image/svg+xml', nonce: 'asset-1' }),
+    ).toThrow(new Error('Unsupported profile image MIME type'));
   });
 
   it('recognizes only paths inside the requested user profile folder', () => {
