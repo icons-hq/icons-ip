@@ -10,6 +10,7 @@ interface ProfileRow {
   email: string | null;
   nickname: string | null;
   birth_date: string | null;
+  avatar_path: string | null;
   consents: OnboardingConsents | null;
   onboarded_at: string | null;
   role: 'user' | 'staff' | 'admin' | null;
@@ -28,7 +29,7 @@ export interface CurrentAuthState {
 export async function getProfileForUser(supabase: SupabaseServerClient, userId: string): Promise<ProfileForOnboarding | null> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('email,nickname,birth_date,consents,onboarded_at,role')
+    .select('email,nickname,birth_date,avatar_path,consents,onboarded_at,role')
     .eq('id', userId)
     .maybeSingle<ProfileRow>();
 
