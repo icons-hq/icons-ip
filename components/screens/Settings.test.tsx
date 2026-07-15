@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Settings } from './Settings';
 
 interface MockActionState {
@@ -68,6 +68,10 @@ describe('Settings', () => {
     mocks.profileState = {};
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('renders independent profile and marketing forms with an editable signed avatar preview', () => {
     const html = render();
 
@@ -78,6 +82,7 @@ describe('Settings', () => {
     expect(html).toContain('accept="image/jpeg,image/png,image/webp"');
     expect(html).toContain('프로필 저장');
     expect(html).toContain('변경사항 저장');
+    expect(html).toContain('alt="프로필 아바타"');
     expect(html).toContain('src="https://signed.example/avatar.png"');
   });
 
@@ -87,6 +92,16 @@ describe('Settings', () => {
     expect(html).toContain('>👩‍🎤</span>');
     expect(html).not.toContain('alt="프로필 아바타"');
     expect(html).not.toContain('maxLength=');
+  });
+
+  it('falls back without rendering failure when Intl.Segmenter is unavailable', () => {
+    const intlWithoutSegmenter = Object.create(Intl) as typeof Intl;
+    Object.defineProperty(intlWithoutSegmenter, 'Segmenter', { value: undefined });
+    vi.stubGlobal('Intl', intlWithoutSegmenter);
+
+    const html = render({ avatarUrl: null, nickname: '👩‍🎤팬' });
+
+    expect(html).toContain('>👩</span>');
   });
 
   it('keeps profile and marketing feedback inside their own status regions', () => {

@@ -98,7 +98,28 @@ describe('/settings page', () => {
       error: { message: 'signing failed' },
     });
 
-    await expect(Page()).resolves.toBeTruthy();
+    renderToStaticMarkup(await Page());
+
+    expect(mocks.settings).toHaveBeenCalledWith(expect.objectContaining({
+      avatarUrl: null,
+    }), undefined);
+  });
+
+  it('falls back to no avatar when Storage signing rejects', async () => {
+    mocks.createSignedUrl.mockRejectedValue(new Error('signing rejected'));
+
+    renderToStaticMarkup(await Page());
+
+    expect(mocks.settings).toHaveBeenCalledWith(expect.objectContaining({
+      avatarUrl: null,
+    }), undefined);
+  });
+
+  it('falls back to no avatar when Storage signing throws synchronously', async () => {
+    mocks.createSignedUrl.mockImplementation(() => {
+      throw new Error('signing threw');
+    });
+
     renderToStaticMarkup(await Page());
 
     expect(mocks.settings).toHaveBeenCalledWith(expect.objectContaining({
@@ -107,6 +128,6 @@ describe('/settings page', () => {
   });
 
   it('describes profile editing in page metadata', () => {
-    expect(metadata.description).toContain('프로필');
+    expect(metadata.description).toContain('편집');
   });
 });

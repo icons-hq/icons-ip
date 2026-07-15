@@ -67,10 +67,13 @@ function MarketingConsentRow({ defaultChecked }: { defaultChecked: boolean }) {
 export function Settings({ avatarUrl, email, initialMarketing, isConfigured, nickname }: SettingsProps) {
   const [profileState, profileAction, profilePending] = useActionState(updateProfileAction, emptyState);
   const [marketingState, marketingAction, marketingPending] = useActionState(updateMarketingConsentAction, emptyState);
-  const avatarInitial = Array.from(
-    new Intl.Segmenter('ko', { granularity: 'grapheme' }).segment(nickname.trim()),
-    ({ segment }) => segment,
-  )[0] ?? '?';
+  const normalizedNickname = nickname.trim();
+  const avatarInitial = typeof Intl.Segmenter === 'function'
+    ? Array.from(
+        new Intl.Segmenter('ko', { granularity: 'grapheme' }).segment(normalizedNickname),
+        ({ segment }) => segment,
+      )[0] ?? '?'
+    : Array.from(normalizedNickname)[0] ?? '?';
 
   return (
     <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', padding: '110px 0 80px' }}>

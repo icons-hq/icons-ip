@@ -23,11 +23,15 @@ export default async function Page() {
 
   let avatarUrl: string | null = null;
   if (auth.profile?.avatar_path) {
-    const supabase = await createClient();
-    const { data, error } = await supabase.storage
-      .from('user-uploads')
-      .createSignedUrl(auth.profile.avatar_path, 3600);
-    if (!error) avatarUrl = data?.signedUrl ?? null;
+    try {
+      const supabase = await createClient();
+      const { data, error } = await supabase.storage
+        .from('user-uploads')
+        .createSignedUrl(auth.profile.avatar_path, 3600);
+      if (!error) avatarUrl = data?.signedUrl ?? null;
+    } catch {
+      avatarUrl = null;
+    }
   }
 
   return (
