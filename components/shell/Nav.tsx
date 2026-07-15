@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { NAV_ITEMS, hrefFor, isActive } from '@/lib/routes';
+import { NAV_ITEMS, hrefFor, isActive, isAuthShellPath } from '@/lib/routes';
 import { Icon } from '@/components/ui/Icon';
 import { useCart } from './CartProvider';
 import { useGo } from './useGo';
@@ -14,7 +14,7 @@ export function Nav() {
   const { count } = useCart();
 
   // 게임은 자기완결 번들 — 셸 없이 풀블리드(ADR-0002). 어드민은 자체 콘솔 셸 사용.
-  if (pathname === '/login' || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
+  if (isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
 
   return (
     <nav className="nav">

@@ -15,6 +15,7 @@ const VARIANTS: [prefix: string, variant: string][] = [
   ['/binder', 'binder'],
   ['/search', 'search'],
   ['/login', 'login'],
+  ['/update-password', 'login'],
   ['/market', 'market'],
   ['/exchange', 'exchange'],
 ];

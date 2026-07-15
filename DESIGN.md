@@ -83,7 +83,7 @@ layout:                      # [구현됨] app/globals.css:47,86-87
 
 components:
   # ---- 셸 [구현됨] ----
-  nav:            { status: 구현됨, ref: "globals.css; components/shell/Nav.tsx", note: "고정 68px, bg rgba(8,6,15,.6)+blur. 링크 6개(홈/IP 허브/굿즈샵/카드팩/팝업/커뮤니티), active=weight 600. 우측 장바구니는 /cart로 이동하고 실제 총수량 배지를 표시. /login에서 숨김" }
+  nav:            { status: 구현됨, ref: "globals.css; components/shell/Nav.tsx", note: "고정 68px, bg rgba(8,6,15,.6)+blur. 링크 6개(홈/IP 허브/굿즈샵/카드팩/팝업/커뮤니티), active=weight 600. 우측 장바구니는 /cart로 이동하고 실제 총수량 배지를 표시. /login·/update-password에서 숨김" }
   mobnav:         { status: 구현됨, ref: "globals.css; components/shell/MobNav.tsx", note: "<920px 바텀탭 5개(홈/굿즈샵/카드팩/커뮤니티/장바구니). 장바구니는 실제 총수량 배지를 표시" }
   footer:         { status: 구현됨, ref: "components/shell/SiteFooter.tsx", note: "미니 푸터(브랜드+공시 캡션) + 고아 라우트 방지 보조 링크 줄(바인더·교환·마켓·약관)" }
   atmos:          { status: 구현됨, ref: "globals.css:106-183; components/shell/Atmos.tsx", note: "라우트별 radial 블룸 변형. 기본=홈. grain 오버레이는 v2에서 제거" }
@@ -117,7 +117,7 @@ components:
   binder:         { status: 구현됨, ref: "globals.css:464-468", note: "도감 그리드(미보유 잠금·dim은 mock 모드만) + 카드 상세 모달 + CTA 행" }
   community:      { status: 구현됨, ref: "globals.css:471-481", note: "230/1fr/280 3열(모바일 1열+채널 가로 스크롤). 컴팩트 컴포저 + 좋아요 pill + 랭킹 레일(실데이터 파생)" }
   search:         { status: 구현됨, ref: "globals.css:484-490", note: "통합 검색 히어로(60px pill 입력) + 스코프 칩 + 종류별 결과(IP pill/굿즈 카드/카드 타일/행)" }
-  login:          { status: 구현됨, ref: "globals.css:493-494; Login.tsx", note: "스플릿(브랜드 패널+플로팅 카드 | 폼). 소셜 3종은 시각만(미배선). 셸 숨김" }
+  login:          { status: 구현됨, ref: "globals.css; components/screens/Login.tsx; components/screens/UpdatePassword.tsx", note: "스플릿 브랜드 패널에서 로그인·회원가입·비밀번호 재설정 메일 요청을 제공. /update-password는 새 비밀번호 2필드의 중앙 카드이며 두 라우트 모두 전역 셸을 숨김. 소셜 3종은 시각만(미배선)" }
   market-exchange:{ status: 구현됨, ref: "globals.css:497-503", note: "v2 플레이스홀더 — 검수·에스크로 카피, mock 매물. 보호 액션은 로그인 게이트" }
   # ---- [차용·미구현] ----
   tier-card:      { status: 차용·미구현, note: "충전금 tier(충전 화면 미존재). featured 변형은 violet 반전 강조" }
@@ -208,7 +208,7 @@ frontmatter `components` 블록이 정본 인덱스다(셸 → 기본 어휘 →
 | 커뮤니티 | `/community` | 채널 레일 + 컴팩트 컴포저 + 피드 + 랭킹·카드풀 레일 | 실배선(작성·좋아요·댓글·신고·차단) |
 | 바인더 | `/binder` | holo 스탯 + 달성률 + 도감 그리드 + 상세 모달 | 보유 개념은 mock 모드만(가챠 연동 전) |
 | 검색 | `/search` | 통합 검색 히어로 + 스코프 칩 + 종류별 결과 | Postgres `getSearchSnapshot` |
-| 로그인/온보딩 | `/login`, `/onboarding` | 스플릿 브랜드 패널 / 프로필+약관+최애 픽 타일 | Supabase 인증·온보딩 액션 |
+| 로그인/온보딩/비밀번호 재설정 | `/login`, `/update-password`, `/onboarding` | 로그인 스플릿·새 비밀번호 중앙 카드·프로필/약관/최애 픽 타일 | Supabase Auth recovery·인증·온보딩 액션 |
 | 마켓/교환 | `/market`, `/exchange` | v2 플레이스홀더(검수·에스크로 카피, mock 매물) | mock, 보호 액션은 로그인 게이트 |
 
 **신뢰 표면 규율:** 확률 공시·환불(`ADR-0001` 근거)은 `money-caption`으로 또렷하게 유지한다. 반대로 **미확정 정책(취소 시한·양도·수수료·연령 한도)과 미정의 화폐(퍼즐·스타더스트 류)는 UI에 확약하지 않는다** — 비확약 안내문으로 대체.

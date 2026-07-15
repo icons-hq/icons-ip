@@ -1012,6 +1012,7 @@
   /* 로그인 — 스플릿 레이아웃 (claude-design v2) */
   .login-split { display: grid; grid-template-columns: 1.05fr .95fr; }
   .login-mobile-brand { display: none; }
+  .auth-field-input:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 
   /* 마켓·교환 (v2 플레이스홀더, claude-design v2) */
   .market-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }

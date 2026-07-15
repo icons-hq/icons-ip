@@ -1,13 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useId, useState } from 'react';
-import { signInWithEmailAction, signUpWithEmailAction, type AuthActionState } from '@/app/login/actions';
+import { useActionState, useId } from 'react';
+import {
+  requestPasswordResetAction,
+  signInWithEmailAction,
+  signUpWithEmailAction,
+  type AuthActionState,
+} from '@/app/login/actions';
 
-type LoginMode = 'signin' | 'signup';
+export type LoginMode = 'signin' | 'signup' | 'reset';
 
 interface LoginProps {
   initialError?: string;
+  initialMessage?: string;
   initialMode: LoginMode;
   isConfigured: boolean;
   next: string;
@@ -20,16 +26,20 @@ const emptyState: AuthActionState = {};
 const inputStyle: React.CSSProperties = {
   height: 50, padding: '0 18px', borderRadius: 14,
   border: '1px solid var(--line-2)', background: 'rgba(21,17,42,.7)',
-  color: 'var(--text)', fontSize: 14.5, fontFamily: 'inherit', outline: 'none',
+  color: 'var(--text)', fontSize: 14.5, fontFamily: 'inherit',
 };
 
 function Field({
   error,
+  autoComplete,
+  label,
   name,
   placeholder,
   type = 'text',
 }: {
   error?: string;
+  autoComplete: string;
+  label: string;
   name: string;
   placeholder: string;
   type?: string;
@@ -39,12 +49,17 @@ function Field({
 
   return (
     <div className="col" style={{ gap: 6 }}>
+      <label htmlFor={inputId} style={{ color: 'var(--dim)', fontSize: 12.5, fontWeight: 700 }}>
+        {label}
+      </label>
       <input
+        autoComplete={autoComplete}
         aria-describedby={error ? errorId : undefined}
         aria-invalid={Boolean(error)}
-        aria-label={placeholder}
+        className="auth-field-input"
         id={inputId}
         name={name}
+        spellCheck={type === 'email' ? false : undefined}
         type={type}
         placeholder={placeholder}
         style={inputStyle}
@@ -68,24 +83,29 @@ function Brand() {
   );
 }
 
-export function Login({ initialError, initialMode, isConfigured, next, panelCards }: LoginProps) {
-  const [mode, setMode] = useState<LoginMode>(initialMode);
+export function Login({ initialError, initialMessage, initialMode, isConfigured, next, panelCards }: LoginProps) {
   const [signInState, signInAction, signInPending] = useActionState(signInWithEmailAction, emptyState);
   const [signUpState, signUpAction, signUpPending] = useActionState(signUpWithEmailAction, emptyState);
-  const isSignUp = mode === 'signup';
-  const state = isSignUp ? signUpState : signInState;
-  const pending = isSignUp ? signUpPending : signInPending;
+  const [resetState, resetAction, resetPending] = useActionState(requestPasswordResetAction, emptyState);
+
+  const isSignUp = initialMode === 'signup';
+  const isReset = initialMode === 'reset';
+  const state = isReset ? resetState : isSignUp ? signUpState : signInState;
+  const pending = isReset ? resetPending : isSignUp ? signUpPending : signInPending;
   const formError = state.errors?.form ?? (state.message ? undefined : initialError);
+  const formMessage = state.message ?? (!isSignUp && !isReset ? initialMessage : undefined);
+  const resetHref = `/login?mode=reset${next === '/' ? '' : `&next=${encodeURIComponent(next)}`}`;
+  const signInHref = `/login?mode=signin${next === '/' ? '' : `&next=${encodeURIComponent(next)}`}`;
 
   const tab = (m: LoginMode, label: string) => {
-    const active = mode === m;
+    const active = initialMode === m;
+    const href = `/login?mode=${m}${next === '/' ? '' : `&next=${encodeURIComponent(next)}`}`;
     return (
-      <button
+      <Link
         key={m}
-        type="button"
-        onClick={() => setMode(m)}
+        href={href}
         style={{
-          height: 34, padding: '0 18px', borderRadius: 999, fontSize: 13,
+          height: 34, padding: '0 18px', borderRadius: 999, fontSize: 13, display: 'inline-flex', alignItems: 'center',
           fontWeight: active ? 700 : 500,
           color: active ? '#0A0813' : 'var(--dim)',
           background: active ? 'var(--text)' : 'transparent',
@@ -93,7 +113,7 @@ export function Login({ initialError, initialMode, isConfigured, next, panelCard
         }}
       >
         {label}
-      </button>
+      </Link>
     );
   };
 
@@ -161,53 +181,77 @@ export function Login({ initialError, initialMode, isConfigured, next, panelCard
             {tab('signup', '회원가입')}
           </div>
           <h2 style={{ margin: '22px 0 0', fontFamily: 'var(--ff-display)', fontWeight: 700, fontSize: 28, letterSpacing: '-0.03em' }}>
-            {isSignUp ? '3초면 충분해요' : '다시 만나서 반가워요'}
+            {isReset ? '비밀번호 재설정' : isSignUp ? '3초면 충분해요' : '다시 만나서 반가워요'}
           </h2>
           <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--dim)' }}>
-            {isSignUp ? '이메일로 가입하고 최애의 세계를 열어보세요.' : '오늘의 드랍과 팬덤 소식이 기다리고 있어요.'}
+            {isReset
+              ? '가입한 이메일로 새 비밀번호를 설정할 링크를 보내드려요.'
+              : isSignUp
+                ? '이메일로 가입하고 최애의 세계를 열어보세요.'
+                : '오늘의 드랍과 팬덤 소식이 기다리고 있어요.'}
           </p>
 
-          <form action={isSignUp ? signUpAction : signInAction} className="col" style={{ gap: 10, marginTop: 24 }}>
+          <form action={isReset ? resetAction : isSignUp ? signUpAction : signInAction} className="col" style={{ gap: 10, marginTop: 24 }}>
             <input type="hidden" name="next" value={next} />
-            <Field error={state.errors?.email} name="email" placeholder="이메일" type="email" />
-            <Field error={state.errors?.password} name="password" placeholder="비밀번호" type="password" />
+            <Field autoComplete="email" error={state.errors?.email} label="이메일" name="email" placeholder="you@icons.gg" type="email" />
+            {!isReset && (
+              <Field
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
+                error={state.errors?.password}
+                label="비밀번호"
+                name="password"
+                placeholder="비밀번호"
+                type="password"
+              />
+            )}
             {formError && (
               <div role="alert" style={{ padding: 12, borderRadius: 12, border: '1px solid rgba(255,77,157,.3)', color: 'var(--pink)', fontSize: 13.5, fontWeight: 700 }}>
                 {formError}
               </div>
             )}
-            {state.message && (
-              <div role="status" style={{ padding: 12, borderRadius: 12, border: '1px solid rgba(56,240,192,.3)', color: 'var(--mint)', fontSize: 13.5, fontWeight: 700 }}>
-                {state.message}
+            {formMessage && (
+              <div aria-live="polite" role="status" style={{ padding: 12, borderRadius: 12, border: '1px solid rgba(56,240,192,.3)', color: 'var(--mint)', fontSize: 13.5, fontWeight: 700 }}>
+                {formMessage}
               </div>
             )}
             <button className="btn btn-holo" disabled={!isConfigured || pending} style={{ width: '100%', height: 52, marginTop: 4, fontSize: 15 }}>
-              {pending ? '처리 중' : isSignUp ? '가입하고 시작하기' : '로그인'}
+              {pending
+                ? isReset ? '메일 보내는 중…' : '처리 중'
+                : isReset ? '재설정 메일 받기' : isSignUp ? '가입하고 시작하기' : '로그인'}
             </button>
           </form>
-          {!isSignUp && (
+          {!isSignUp && !isReset && (
             <div style={{ textAlign: 'center', marginTop: 14 }}>
-              <button type="button" className="mono" style={{ fontSize: 11.5, color: 'var(--faint)' }}>비밀번호를 잊으셨나요?</button>
+              <Link href={resetHref} className="mono" style={{ fontSize: 11.5, color: 'var(--faint)' }}>비밀번호를 잊으셨나요?</Link>
+            </div>
+          )}
+          {isReset && (
+            <div style={{ textAlign: 'center', marginTop: 14 }}>
+              <Link href={signInHref} className="mono" style={{ fontSize: 11.5, color: 'var(--faint)' }}>로그인으로 돌아가기</Link>
             </div>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '22px 0' }}>
-            <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,.09)' }} />
-            <span className="mono" style={{ fontSize: 10.5, letterSpacing: '.14em', color: 'var(--faint)' }}>또는</span>
-            <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,.09)' }} />
-          </div>
+          {!isReset && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '22px 0' }}>
+                <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,.09)' }} />
+                <span className="mono" style={{ fontSize: 10.5, letterSpacing: '.14em', color: 'var(--faint)' }}>또는</span>
+                <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,.09)' }} />
+              </div>
 
-          <div className="col" style={{ gap: 9 }}>
-            <button type="button" style={{ height: 48, borderRadius: 999, fontWeight: 600, fontSize: 14, color: '#1F1F1F', background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
-              <span style={{ fontWeight: 700 }}>G</span> Google로 계속하기
-            </button>
-            <button type="button" style={{ height: 48, borderRadius: 999, fontWeight: 600, fontSize: 14, color: '#fff', background: '#000', border: '1px solid rgba(255,255,255,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
-               Apple로 계속하기
-            </button>
-            <button type="button" style={{ height: 48, borderRadius: 999, fontWeight: 600, fontSize: 14, color: '#191919', background: '#FEE500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
-              <span style={{ fontWeight: 800 }}>K</span> 카카오로 계속하기
-            </button>
-          </div>
+              <div className="col" style={{ gap: 9 }}>
+                <button type="button" style={{ height: 48, borderRadius: 999, fontWeight: 600, fontSize: 14, color: '#1F1F1F', background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
+                  <span style={{ fontWeight: 700 }}>G</span> Google로 계속하기
+                </button>
+                <button type="button" style={{ height: 48, borderRadius: 999, fontWeight: 600, fontSize: 14, color: '#fff', background: '#000', border: '1px solid rgba(255,255,255,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
+                  Apple로 계속하기
+                </button>
+                <button type="button" style={{ height: 48, borderRadius: 999, fontWeight: 600, fontSize: 14, color: '#191919', background: '#FEE500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
+                  <span style={{ fontWeight: 800 }}>K</span> 카카오로 계속하기
+                </button>
+              </div>
+            </>
+          )}
 
           <p className="mono" style={{ margin: '20px 0 0', textAlign: 'center', fontSize: 10, color: 'var(--faint)', letterSpacing: '.03em', lineHeight: 1.7 }}>
             둘러보기는 로그인 없이 가능해요 · <Link href="/" style={{ color: 'var(--dim)', textDecoration: 'underline' }}>먼저 구경하기</Link>

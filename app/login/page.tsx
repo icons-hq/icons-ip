@@ -1,5 +1,10 @@
 import { Login } from '@/components/screens/Login';
-import { authErrorMessage, isOnboarded, safeNextPath } from '@/lib/auth/onboarding';
+import {
+  authErrorMessage,
+  isOnboarded,
+  passwordResetErrorMessage,
+  safeNextPath,
+} from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { getCatalogSnapshot } from '@/lib/catalog';
 import { redirect } from 'next/navigation';
@@ -17,8 +22,14 @@ const RARITY_ORDER = ['HOLO', 'SSR', 'SR', 'R', 'N'];
 export default async function Page({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const next = safeNextPath(firstParam(params.next));
-  const initialMode = firstParam(params.mode) === 'signup' ? 'signup' : 'signin';
-  const initialError = authErrorMessage(firstParam(params.auth_error));
+  const requestedMode = firstParam(params.mode);
+  const initialMode = requestedMode === 'signup' || requestedMode === 'reset' ? requestedMode : 'signin';
+  const initialError = initialMode === 'reset'
+    ? passwordResetErrorMessage(firstParam(params.reset_error))
+    : authErrorMessage(firstParam(params.auth_error));
+  const initialMessage = firstParam(params.password_reset) === 'success'
+    ? '비밀번호를 변경했습니다. 새 비밀번호로 로그인해주세요.'
+    : undefined;
   const auth = await getCurrentAuthState();
 
   if (auth.user) {
@@ -36,6 +47,7 @@ export default async function Page({ searchParams }: PageProps) {
   return (
     <Login
       initialError={initialError}
+      initialMessage={initialMessage}
       initialMode={initialMode}
       isConfigured={auth.isConfigured}
       next={next}

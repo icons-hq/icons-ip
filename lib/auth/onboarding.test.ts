@@ -7,7 +7,13 @@ import {
   authSignUpErrorMessage,
   isOnboarded,
   nextPathWithSearch,
+  passwordResetErrorLoginPath,
+  passwordResetErrorMessage,
+  passwordResetSuccessLoginPath,
+  passwordUpdateErrorMessage,
   safeNextPath,
+  updatePasswordPath,
+  updatePasswordSessionReadyPath,
   type ProfileForOnboarding,
 } from './onboarding';
 
@@ -120,7 +126,7 @@ describe('authErrorMessage', () => {
     expect(authErrorMessage(code)).toContain(expected);
   });
 
-  it.each(['flow_state_expired', 'flow_state_not_found', 'bad_code_verifier', 'bad_oauth_callback', 'exchange_failed'])(
+  it.each(['flow_state_expired', 'flow_state_not_found', 'bad_code_verifier', 'bad_oauth_callback', 'exchange_failed', 'pkce_code_verifier_not_found'])(
     'tells %s (code exchange failure) users their email may already be confirmed and to sign in',
     (code) => {
       const message = authErrorMessage(code);
@@ -133,6 +139,57 @@ describe('authErrorMessage', () => {
 
   it('does not push confirmed users back into repeat sign-up on exchange failure', () => {
     expect(authErrorMessage('exchange_failed')).not.toContain('회원가입');
+  });
+});
+
+describe('password reset paths and messages', () => {
+  it('keeps recovery errors separate from signup confirmation guidance', () => {
+    const message = passwordResetErrorMessage('pkce_code_verifier_not_found');
+
+    expect(message).toContain('재설정 메일을 요청한 브라우저');
+    expect(message).not.toContain('이메일 인증은 완료');
+  });
+
+  it.each([
+    ['otp_expired', '만료되었거나 이미 사용'],
+    ['missing_code', '올바르게 열리지 않았습니다'],
+    ['flow_state_expired', '요청한 브라우저'],
+    ['session_not_found', '세션이 만료'],
+    ['unknown', '비밀번호 재설정을 완료하지 못했습니다'],
+  ])('maps recovery callback error %s', (code, expected) => {
+    expect(passwordResetErrorMessage(code)).toContain(expected);
+  });
+
+  it('builds reset, update, and success routes with a normalized same-origin next path', () => {
+    expect(passwordResetErrorLoginPath('otp_expired', '/community?sort=hot')).toBe(
+      '/login?mode=reset&reset_error=otp_expired&next=%2Fcommunity%3Fsort%3Dhot',
+    );
+    expect(updatePasswordPath('/community?sort=hot')).toBe('/update-password?next=%2Fcommunity%3Fsort%3Dhot');
+    expect(updatePasswordSessionReadyPath('/community?sort=hot')).toBe(
+      '/update-password?session_ready=1&next=%2Fcommunity%3Fsort%3Dhot',
+    );
+    expect(passwordResetSuccessLoginPath('/community?sort=hot')).toBe(
+      '/login?password_reset=success&next=%2Fcommunity%3Fsort%3Dhot',
+    );
+
+    expect(passwordResetErrorLoginPath('otp_expired', 'https://evil.example')).not.toContain('evil');
+    expect(updatePasswordPath('//evil.example')).toBe('/update-password');
+    expect(updatePasswordSessionReadyPath('//evil.example')).toBe('/update-password?session_ready=1');
+    expect(passwordResetSuccessLoginPath('https://evil.example')).toBe('/login?password_reset=success');
+  });
+});
+
+describe('passwordUpdateErrorMessage', () => {
+  it.each([
+    ['weak_password', '보안 조건'],
+    ['same_password', '현재 비밀번호와 다르게'],
+    ['session_expired', '세션이 만료'],
+    ['session_not_found', '세션이 만료'],
+    ['reauthentication_needed', '세션이 만료'],
+    ['unknown', '비밀번호를 변경하지 못했습니다'],
+  ])('maps %s without exposing provider details', (code, expected) => {
+    expect(passwordUpdateErrorMessage({ code, message: 'private provider detail' })).toContain(expected);
+    expect(passwordUpdateErrorMessage({ code, message: 'private provider detail' })).not.toContain('private');
   });
 });
 
