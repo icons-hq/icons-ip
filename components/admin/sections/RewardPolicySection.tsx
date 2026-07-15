@@ -297,7 +297,7 @@ function RewardPolicySummary({ selected }: { selected: AdminRewardPolicyRecord |
     <section aria-labelledby="reward-policy-summary-title" className="card col" style={{ borderRadius: 10, gap: 12, padding: 18 }}>
       <strong id="reward-policy-summary-title">발급 현황</strong>
       {selected ? (
-        <div className="admin-form-grid" style={{ fontSize: 13 }}>
+        <div className="admin-form-grid mono" style={{ fontSize: 13 }}>
           <span>발급 {selected.issuedCount.toLocaleString('ko-KR')}</span>
           <span>사용 가능 {selected.availableCount.toLocaleString('ko-KR')}</span>
           <span>개봉 {selected.openedCount.toLocaleString('ko-KR')}</span>
