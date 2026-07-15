@@ -1,18 +1,29 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildPackPoolGroups,
+  getDrawTicketInventory,
   mapOpenTicketError,
   normalizeGrantedCards,
   type TicketRow,
 } from './draw-tickets';
 
+const mocks = vi.hoisted(() => ({
+  client: null as unknown,
+  isConfigured: false,
+}));
+
 vi.mock('server-only', () => ({}));
 vi.mock('./supabase/config', () => ({
-  getSupabaseConfig: () => ({ isConfigured: false }),
+  getSupabaseConfig: () => ({ isConfigured: mocks.isConfigured }),
 }));
 vi.mock('./supabase/server', () => ({
-  createClient: () => null,
+  createClient: () => mocks.client,
 }));
+
+beforeEach(() => {
+  mocks.client = null;
+  mocks.isConfigured = false;
+});
 
 const ticket = (id: string, poolId: string, createdAt: string, poolName = '풀'): TicketRow => ({
   id,
@@ -70,14 +81,54 @@ describe('normalizeGrantedCards', () => {
 });
 
 describe('mapOpenTicketError', () => {
-  it('타인 티켓(forbidden)은 not_found로 뭉갠다', () => {
+  it('타인 티켓과 회수 티켓은 not_found로 뭉갠다', () => {
     expect(mapOpenTicketError('forbidden')).toBe('not_found');
     expect(mapOpenTicketError('ticket not found')).toBe('not_found');
+    expect(mapOpenTicketError('ticket_revoked')).toBe('not_found');
   });
 
   it('소비·빈 풀·기타를 구분한다', () => {
     expect(mapOpenTicketError('ticket already consumed')).toBe('already_opened');
     expect(mapOpenTicketError('pool has no card of rarity HOLO')).toBe('pool_empty');
     expect(mapOpenTicketError('connection reset')).toBe('unknown');
+  });
+});
+
+describe('getDrawTicketInventory', () => {
+  it('미개봉이면서 회수되지 않은 티켓만 조회한다', async () => {
+    const filters: [string, unknown][] = [];
+    const query = {
+      select() {
+        return query;
+      },
+      is(column: string, value: unknown) {
+        filters.push([column, value]);
+        return query;
+      },
+      order() {
+        return query;
+      },
+      then<TResult1 = { data: unknown[]; error: null }, TResult2 = never>(
+        onfulfilled?: ((value: { data: unknown[]; error: null }) => TResult1 | PromiseLike<TResult1>) | null,
+        onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+      ) {
+        return Promise.resolve({ data: [], error: null }).then(onfulfilled, onrejected);
+      },
+    };
+    mocks.isConfigured = true;
+    mocks.client = {
+      auth: { getUser: () => Promise.resolve({ data: { user: { id: 'user-1' } } }) },
+      from: () => query,
+    };
+
+    await expect(getDrawTicketInventory()).resolves.toMatchObject({
+      source: 'supabase',
+      signedIn: true,
+      groups: [],
+    });
+    expect(filters).toEqual([
+      ['consumed_at', null],
+      ['revoked_at', null],
+    ]);
   });
 });

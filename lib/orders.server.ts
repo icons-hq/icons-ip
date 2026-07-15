@@ -51,6 +51,7 @@ interface PaymentRow {
 
 interface DrawTicketRow {
   consumed_at: string | null;
+  revoked_at: string | null;
 }
 
 interface RefundRow {
@@ -189,7 +190,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       .order('id', { ascending: false }),
     supabase
       .from('draw_tickets')
-      .select('consumed_at')
+      .select('consumed_at,revoked_at')
       .eq('user_id', userId)
       .eq('source', 'order_paid')
       .eq('source_id', orderId),
@@ -280,7 +281,9 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       : null,
     cardPacks: {
       issuedCount: ticketRows.length,
-      availableCount: ticketRows.filter((ticket) => ticket.consumed_at === null).length,
+      availableCount: ticketRows.filter((ticket) => (
+        ticket.consumed_at === null && ticket.revoked_at === null
+      )).length,
     },
   };
 }
