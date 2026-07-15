@@ -242,6 +242,7 @@ describe('getAdminCatalogRecords', () => {
       updatedAt: '2026-07-15T01:00:00.000Z',
       status: expect.stringMatching(/^(scheduled|active|ended)$/),
       oddsConfigured: true,
+      rewardReady: false,
       odds: { N: 0, R: 0.7, SR: 0, SSR: 0.2, HOLO: 0.1 },
     }]);
     expect(records.find((record) => record.table === 'cards')?.select).toContain('pool_id');
@@ -273,6 +274,7 @@ describe('getAdminCatalogRecords', () => {
 
     expect(result.cardPools[0]).toMatchObject({
       oddsConfigured: false,
+      rewardReady: false,
       odds: { N: 0, R: 0, SR: 0, SSR: 0, HOLO: 0 },
     });
   });
@@ -336,6 +338,10 @@ describe('getAdminCatalogRecords', () => {
     const result = await getAdminCatalogRecords();
 
     expect(rpcRecords).toEqual(['admin_list_reward_policies']);
+    expect(result.cardPools[0]).toMatchObject({
+      oddsConfigured: true,
+      rewardReady: true,
+    });
     expect(result.rewardPolicies).toEqual([{
       id: '11111111-1111-4111-8111-111111111111',
       poolId: '22222222-2222-4222-8222-222222222222',

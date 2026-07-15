@@ -51,6 +51,7 @@ export interface AdminCardPoolRecord {
   updatedAt: string;
   status: AdminCardPoolStatus;
   oddsConfigured: boolean;
+  rewardReady: boolean;
   odds: Record<RarityKey, number>;
 }
 
@@ -349,13 +350,14 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
       updatedAt: row.updated_at,
       status: getAdminCardPoolStatus(row.active_from, row.active_to),
       oddsConfigured: (row.pool_odds?.length ?? 0) > 0,
+      rewardReady: hasReadyPoolOdds(row, cardRows),
       odds,
     } satisfies AdminCardPoolRecord;
   });
-  const policyPoolStates = new Map(cardPoolRows.map((row) => [row.id, {
-    activeFrom: row.active_from,
-    activeTo: row.active_to,
-    ready: hasReadyPoolOdds(row, cardRows),
+  const policyPoolStates = new Map(cardPools.map((pool) => [pool.id, {
+    activeFrom: pool.activeFrom,
+    activeTo: pool.activeTo,
+    ready: pool.rewardReady,
   }]));
 
   return {
