@@ -15,6 +15,7 @@ vi.mock('@/lib/admin/catalog.server', () => ({
     cards: [],
     cardPools: [],
     rewardPolicies: [],
+    games: [],
     events: [],
     ticketTypes: [],
   })),
@@ -56,7 +57,9 @@ describe('AdminPage reward-policy route', () => {
       .mockReturnValueOnce('55555555-5555-4555-8555-555555555555')
       .mockReturnValueOnce('66666666-6666-4666-8666-666666666666')
       .mockReturnValueOnce('77777777-7777-4777-8777-777777777777')
-      .mockReturnValueOnce('88888888-8888-4888-8888-888888888888');
+      .mockReturnValueOnce('88888888-8888-4888-8888-888888888888')
+      .mockReturnValueOnce('99999999-9999-4999-8999-999999999999')
+      .mockReturnValueOnce('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
   });
 
   afterEach(() => {
@@ -72,6 +75,17 @@ describe('AdminPage reward-policy route', () => {
       policyDraftActiveFrom: '2026-07-15T03:04:05.000Z',
       policyDraftId: '11111111-1111-4111-8111-111111111111',
       policyOperationId: '22222222-2222-4222-8222-222222222222',
+    });
+  });
+
+  it('parses the game section and provides independent save and end operation IDs', async () => {
+    const screen = await AdminPage({ searchParams: Promise.resolve({ section: 'game' }) });
+
+    expect(screen.type).toBe(mocks.admin);
+    expect(screen.props).toMatchObject({
+      initialSection: 'game',
+      gameEndOperationId: '99999999-9999-4999-8999-999999999999',
+      gameOperationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
     });
   });
 });

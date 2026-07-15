@@ -1,11 +1,12 @@
 import { isValidElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AdminCardRecord, AdminRewardPolicyRecord } from '@/lib/admin/catalog.server';
+import type { AdminCardRecord, AdminGameRecord, AdminRewardPolicyRecord } from '@/lib/admin/catalog.server';
 import { Admin } from './Admin';
 
 const hooks = vi.hoisted(() => ({
   cardSelected: null as unknown,
+  gameProps: null as unknown,
   policyProps: null as unknown,
   stateValues: [] as unknown[],
 }));
@@ -46,6 +47,14 @@ vi.mock('./sections/CardSection', () => {
 vi.mock('./sections/CardPoolSection', () => ({ CardPoolSection: () => null }));
 vi.mock('./sections/EventSection', () => ({ EventSection: () => null }));
 vi.mock('./sections/GoodSection', () => ({ GoodSection: () => null }));
+vi.mock('./sections/GameSection', () => {
+  const GameSection = (props: { selected: unknown }) => {
+    hooks.gameProps = props;
+    return null;
+  };
+  GameSection.displayName = 'AdminGameSectionMock';
+  return { GameSection };
+});
 vi.mock('./sections/IpSection', () => ({ IpSection: () => null }));
 vi.mock('./sections/Moderation', () => ({ ModerationSection: () => null }));
 vi.mock('./sections/Overview', () => ({ OverviewSection: () => null }));
@@ -94,7 +103,34 @@ const policy: AdminRewardPolicyRecord = {
   status: 'active',
 };
 
-function createProps(cards: AdminCardRecord[], rewardPolicies: AdminRewardPolicyRecord[] = []) {
+const game: AdminGameRecord = {
+  id: 'marble-maple',
+  type: 'marble_roulette',
+  title: '메이플 마블 룰렛',
+  variantKind: 'card',
+  marbleCount: 10,
+  rewardPoolId: '88888888-8888-4888-8888-888888888888',
+  rewardPoolName: '메이플 무상 리워드 풀',
+  ipId: 'maplestory',
+  ipTitle: '메이플스토리',
+  eventId: 'e2',
+  eventTitle: '메이플 온라인 팝업',
+  perUserDailyLimit: 1,
+  activeFrom: '2026-07-15T00:00:00.000Z',
+  activeTo: null,
+  createdAt: '2026-07-14T00:00:00.000Z',
+  updatedAt: '2026-07-15T01:00:00.000Z',
+  playCount: 12,
+  lastPlayedAt: '2026-07-15T02:00:00.000Z',
+  hasPlays: true,
+  status: 'active',
+};
+
+function createProps(
+  cards: AdminCardRecord[],
+  rewardPolicies: AdminRewardPolicyRecord[] = [],
+  games: AdminGameRecord[] = [],
+) {
   return {
     admin: { id: 'admin-1', email: 'admin@icons.gg', role: 'admin' },
     catalog: { verticals: [], ips: [] },
@@ -109,6 +145,7 @@ function createProps(cards: AdminCardRecord[], rewardPolicies: AdminRewardPolicy
       cards,
       cardPools: [],
       rewardPolicies,
+      games,
       events: [],
       ticketTypes: [],
     },
@@ -122,14 +159,17 @@ function createProps(cards: AdminCardRecord[], rewardPolicies: AdminRewardPolicy
     stockAdjustmentId: '44444444-4444-4444-8444-444444444444',
     ticketDraftId: '55555555-5555-4555-8555-555555555555',
     ticketOperationId: '66666666-6666-4666-8666-666666666666',
+    gameEndOperationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    gameOperationId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
   } as unknown as Parameters<typeof Admin>[0];
 }
 
 describe('Admin card selection', () => {
   beforeEach(() => {
     hooks.cardSelected = null;
+    hooks.gameProps = null;
     hooks.policyProps = null;
-    hooks.stateValues = ['card', false, null, null, unboundCard.id, null, null, null, null];
+    hooks.stateValues = ['card', false, null, null, unboundCard.id, null, null, null, null, null];
   });
 
   it('derives the selected card from the latest revalidated records', () => {
@@ -142,7 +182,7 @@ describe('Admin card selection', () => {
     const cardA = { ...unboundCard, id: 'a-b', ipId: 'c', rarity: 'N' as const };
     const cardB = { ...unboundCard, id: 'a', ipId: 'b-c', rarity: 'N' as const };
     const getCardSectionKey = (card: AdminCardRecord) => {
-      hooks.stateValues = ['card', false, null, null, card.id, null, null, null, null];
+      hooks.stateValues = ['card', false, null, null, card.id, null, null, null, null, null];
       const stack: unknown[] = [Admin(createProps([card]))];
 
       while (stack.length) {
@@ -167,8 +207,9 @@ describe('Admin card selection', () => {
 describe('Admin reward-policy selection', () => {
   beforeEach(() => {
     hooks.cardSelected = null;
+    hooks.gameProps = null;
     hooks.policyProps = null;
-    hooks.stateValues = ['policy', false, null, null, null, null, policy.id, null, null];
+    hooks.stateValues = ['policy', false, null, null, null, null, policy.id, null, null, null];
   });
 
   it('renders the policy console with server-generated draft values', () => {
@@ -188,5 +229,27 @@ describe('Admin reward-policy selection', () => {
     renderToStaticMarkup(<Admin {...createProps([], [latestPolicy])} />);
 
     expect((hooks.policyProps as { selected: unknown }).selected).toBe(latestPolicy);
+  });
+});
+
+describe('Admin game selection', () => {
+  beforeEach(() => {
+    hooks.cardSelected = null;
+    hooks.gameProps = null;
+    hooks.policyProps = null;
+    hooks.stateValues = ['game', false, null, null, null, null, null, game.id, null, null];
+  });
+
+  it('derives the selected game from the latest revalidated records', () => {
+    const latestGame = { ...game, updatedAt: '2026-07-15T03:00:00.000Z', playCount: 14 };
+
+    renderToStaticMarkup(<Admin {...createProps([], [], [latestGame])} />);
+
+    expect(hooks.gameProps).toMatchObject({
+      endOperationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      operationId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      records: [latestGame],
+      selected: latestGame,
+    });
   });
 });

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   adjustAdminStockAction,
+  endAdminGameAction,
   hideCommunityPostAction,
   setAdminPoolOddsAction,
   setAdminUserRoleAction,
@@ -9,6 +10,7 @@ import {
   upsertAdminCardPoolAction,
   upsertAdminEventAction,
   upsertAdminGoodAction,
+  upsertAdminGameAction,
   upsertAdminIpAction,
   upsertAdminRewardPolicyAction,
   upsertAdminTicketTypeAction,
@@ -29,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   },
   catalog: null as CatalogSnapshot | null,
   getCatalogSnapshot: vi.fn(),
+  getAdminCatalogRecords: vi.fn(),
   rpc: vi.fn(),
   revalidatePath: vi.fn(),
 }));
@@ -37,6 +40,9 @@ vi.mock('@/lib/auth/admin', () => ({
   getCurrentAdminAuthState: () => mocks.adminState,
 }));
 vi.mock('@/lib/admin/catalog', async () => await import('../../lib/admin/catalog'));
+vi.mock('@/lib/admin/catalog.server', () => ({
+  getAdminCatalogRecords: mocks.getAdminCatalogRecords,
+}));
 vi.mock('@/lib/admin/moderation', async () => await import('../../lib/admin/moderation'));
 vi.mock('@/lib/admin/roles', async () => await import('../../lib/admin/roles'));
 vi.mock('@/lib/catalog', () => ({
@@ -96,6 +102,41 @@ const catalog: CatalogSnapshot = {
     accent: '#8B5CFF',
     img: '',
   }],
+};
+
+const gamePoolId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const adminRecords = {
+  ips: [],
+  goods: [],
+  cards: [],
+  cardPools: [{
+    id: gamePoolId,
+    ipId: 'hwasan',
+    name: '화산 무상 리워드 풀',
+    activeFrom: '2020-01-01T00:00:00.000Z',
+    activeTo: '2099-01-01T00:00:00.000Z',
+    updatedAt: '2026-07-15T00:00:00.000Z',
+    status: 'active',
+    oddsConfigured: true,
+    rewardReady: true,
+    odds: { N: 0, R: 0.7, SR: 0, SSR: 0.2, HOLO: 0.1 },
+  }],
+  rewardPolicies: [],
+  events: [{
+    id: 'online-hwasan',
+    ipId: 'hwasan',
+    title: '화산 온라인 팝업',
+    mode: '온라인',
+    status: '예정',
+    startsAt: null,
+    endsAt: null,
+    location: null,
+    accent: null,
+    bg: null,
+    imagePath: null,
+  }],
+  games: [],
+  ticketTypes: [],
 };
 
 function goodForm() {
@@ -210,6 +251,27 @@ function rewardPolicyForm() {
   return formData;
 }
 
+function gameForm() {
+  const formData = new FormData();
+  formData.set('operationId', '77777777-7777-4777-8777-777777777777');
+  formData.set('previousGameId', 'old-marble');
+  formData.set('id', 'new-marble');
+  formData.set('title', '화산 마블 룰렛');
+  formData.set('rewardPoolId', gamePoolId);
+  formData.set('eventId', 'online-hwasan');
+  formData.set('perUserDailyLimit', '2');
+  formData.set('activeFrom', '2026-07-15T10:00');
+  formData.set('activeTo', '2026-08-01T00:00');
+  return formData;
+}
+
+function gameEndForm() {
+  const formData = new FormData();
+  formData.set('operationId', '88888888-8888-4888-8888-888888888888');
+  formData.set('gameId', 'marble-maple');
+  return formData;
+}
+
 const reportId = '44444444-4444-4444-8444-444444444444';
 const postId = '55555555-5555-4555-8555-555555555555';
 
@@ -238,6 +300,8 @@ describe('admin catalog actions', () => {
     mocks.catalog = catalog;
     mocks.getCatalogSnapshot.mockReset();
     mocks.getCatalogSnapshot.mockResolvedValue(catalog);
+    mocks.getAdminCatalogRecords.mockReset();
+    mocks.getAdminCatalogRecords.mockResolvedValue(adminRecords);
     mocks.rpc.mockReset();
     mocks.revalidatePath.mockReset();
     mocks.rpc.mockResolvedValue({ data: null, error: null });
@@ -409,6 +473,15 @@ describe('admin catalog actions', () => {
     });
   });
 
+  it('explains when a linked game locks an event IP or mode', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'game_event_contract_locked' } });
+
+    await expect(upsertAdminEventAction({}, eventForm())).resolves.toEqual({
+      errors: { form: '연결된 게임이 있어 이벤트 IP·운영 방식을 변경할 수 없습니다.' },
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
   it('saves a card with an explicit pool binding through the audited RPC', async () => {
     await expect(upsertAdminCardAction({}, cardForm())).resolves.toEqual({
       message: '카드를 저장했습니다.',
@@ -490,6 +563,95 @@ describe('admin catalog actions', () => {
     ]);
   });
 
+  it('saves a card game with the exact audited RPC payload and refreshes both slugs', async () => {
+    await expect(upsertAdminGameAction({}, gameForm())).resolves.toEqual({
+      message: '게임을 저장했습니다.',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_game', {
+      target_operation_id: '77777777-7777-4777-8777-777777777777',
+      target_previous_game_id: 'old-marble',
+      target_game_id: 'new-marble',
+      target_title: '화산 마블 룰렛',
+      target_reward_pool_id: gamePoolId,
+      target_event_id: 'online-hwasan',
+      target_per_user_daily_limit: 2,
+      target_active_from: '2026-07-15T01:00:00.000Z',
+      target_active_to: '2026-07-31T15:00:00.000Z',
+      target_end_now: false,
+    });
+    expect(mocks.revalidatePath.mock.calls).toEqual([
+      ['/admin'],
+      ['/games/old-marble'],
+      ['/games/new-marble'],
+      ['/events'],
+    ]);
+  });
+
+  it('ends an active game at database execution time without trusting browser fields', async () => {
+    await expect(endAdminGameAction({}, gameEndForm())).resolves.toEqual({
+      message: '게임 운영을 종료했습니다.',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_game', {
+      target_operation_id: '88888888-8888-4888-8888-888888888888',
+      target_previous_game_id: 'marble-maple',
+      target_game_id: 'marble-maple',
+      target_title: null,
+      target_reward_pool_id: null,
+      target_event_id: null,
+      target_per_user_daily_limit: null,
+      target_active_from: null,
+      target_active_to: null,
+      target_end_now: true,
+    });
+    expect(mocks.revalidatePath.mock.calls).toEqual([
+      ['/admin'],
+      ['/games/marble-maple'],
+      ['/events'],
+    ]);
+  });
+
+  it('rejects invalid game input before RPC access or revalidation', async () => {
+    const formData = gameForm();
+    formData.set('activeFrom', '');
+    formData.set('perUserDailyLimit', '0');
+
+    await expect(upsertAdminGameAction({}, formData)).resolves.toEqual({
+      errors: {
+        perUserDailyLimit: '일일 플레이 한도는 1~100 사이의 정수여야 합니다.',
+        activeFrom: '운영 시작 일시를 명시적으로 선택해주세요.',
+      },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['reward_pool_not_ready', '확률과 카드 구성이 완료된 운영 가능한 카드풀을 선택해주세요.'],
+    ['game_pool_window_not_covered', '게임 운영 기간은 카드풀 운영 기간 안에 있어야 합니다.'],
+    ['game_event_ip_mismatch', '같은 IP의 온라인 이벤트만 선택할 수 있습니다.'],
+    ['game_catalog_locked', '플레이 이력이 있어 ID·카드풀·이벤트·설정을 변경할 수 없습니다.'],
+    ['game_variant_read_only', '굿즈 보상형 게임은 #115에서 운영합니다.'],
+    ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
+  ])('maps %s game RPC errors and preserves the failure boundary', async (rpcMessage, expected) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
+
+    await expect(upsertAdminGameAction({}, gameForm())).resolves.toEqual({
+      errors: { form: expected },
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('maps a scheduled/already-ended end request without revalidation', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'game_not_active' } });
+
+    await expect(endAdminGameAction({}, gameEndForm())).resolves.toEqual({
+      errors: { form: '운영 중인 게임만 지금 종료할 수 있습니다.' },
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
   it('validates reward-policy target truth before the RPC without revalidation', async () => {
     const formData = rewardPolicyForm();
     formData.set('targetIpId', 'missing');
@@ -567,6 +729,7 @@ describe('admin catalog actions', () => {
     ['pool_ip_locked', '연결된 발급 정책·게임·카드팩·발급 이력이 있어 카드풀 IP를 변경할 수 없습니다.'],
     ['invalid_pool_active_window', '운영 종료는 시작보다 뒤여야 합니다.'],
     ['active_reward_policy_window_conflict', '활성 발급 정책과 운영 기간이 겹치지 않습니다. 먼저 정책을 비활성화해주세요.'],
+    ['game_pool_window_conflict', '카드풀 운영 기간은 연결된 게임 운영 기간 전체를 포함해야 합니다.'],
     ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
   ])('maps %s card-pool RPC errors without exposing internals', async (rpcMessage, expected) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });

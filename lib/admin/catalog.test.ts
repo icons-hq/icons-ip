@@ -5,6 +5,8 @@ import {
   normalizeAdminCardPoolForm,
   normalizeAdminEventForm,
   normalizeAdminGoodForm,
+  normalizeAdminGameEndForm,
+  normalizeAdminGameForm,
   normalizeAdminIpForm,
   normalizeAdminPoolOddsForm,
   normalizeAdminRewardPolicyForm,
@@ -22,7 +24,116 @@ const context = {
   verticalKeys: new Set(['rofan', 'global']),
 };
 
+const readyPoolId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+const unavailablePoolId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+const gameContext = {
+  events: new Map([
+    ['online-hwasan', { ipId: 'hwasan', mode: '온라인' }],
+    ['offline-hwasan', { ipId: 'hwasan', mode: '오프라인' }],
+    ['online-lumen', { ipId: 'lumen', mode: '온라인' }],
+  ]),
+  pools: new Map([
+    [readyPoolId, {
+      activeFrom: '2026-07-15T00:00:00.000Z',
+      activeTo: '2026-08-01T00:00:00.000Z',
+      ipId: 'hwasan',
+      rewardReady: true,
+      status: 'active' as const,
+    }],
+    [unavailablePoolId, {
+      activeFrom: '2026-07-15T00:00:00.000Z',
+      activeTo: null,
+      ipId: 'hwasan',
+      rewardReady: false,
+      status: 'active' as const,
+    }],
+  ]),
+};
+
 describe('admin catalog form normalization', () => {
+  it('normalizes a card-reward game without accepting raw config', () => {
+    const formData = new FormData();
+    formData.set('operationId', '11111111-1111-4111-8111-111111111111');
+    formData.set('previousGameId', 'old-marble');
+    formData.set('id', 'new-marble');
+    formData.set('title', '  화산 마블 룰렛  ');
+    formData.set('rewardPoolId', readyPoolId.toUpperCase());
+    formData.set('eventId', 'online-hwasan');
+    formData.set('perUserDailyLimit', '3');
+    formData.set('activeFrom', '2026-07-15T10:00');
+    formData.set('activeTo', '2026-07-31T09:00');
+    formData.set('config', '{"variant":{"kind":"goods"}}');
+
+    expect(normalizeAdminGameForm(formData, gameContext)).toEqual({
+      ok: true,
+      value: {
+        operationId: '11111111-1111-4111-8111-111111111111',
+        previousGameId: 'old-marble',
+        id: 'new-marble',
+        title: '화산 마블 룰렛',
+        rewardPoolId: readyPoolId,
+        eventId: 'online-hwasan',
+        perUserDailyLimit: 3,
+        activeFrom: '2026-07-15T01:00:00.000Z',
+        activeTo: '2026-07-31T00:00:00.000Z',
+      },
+    });
+  });
+
+  it('rejects implicit starts, invalid limits, unavailable pools, and incompatible events', () => {
+    const formData = new FormData();
+    formData.set('operationId', 'bad-operation');
+    formData.set('previousGameId', 'INVALID GAME');
+    formData.set('id', 'INVALID GAME');
+    formData.set('title', ' ');
+    formData.set('rewardPoolId', unavailablePoolId);
+    formData.set('eventId', 'offline-hwasan');
+    formData.set('perUserDailyLimit', '101');
+
+    expect(normalizeAdminGameForm(formData, gameContext)).toEqual({
+      ok: false,
+      errors: {
+        operationId: '유효한 저장 요청이 아닙니다.',
+        previousGameId: '이전 게임 ID를 확인해주세요.',
+        id: 'ID는 소문자 영어, 숫자, 하이픈만 사용할 수 있습니다.',
+        title: '게임 제목을 입력해주세요.',
+        rewardPoolId: '확률과 카드 구성이 완료된 운영 가능한 카드풀을 선택해주세요.',
+        eventId: '같은 IP의 온라인 이벤트만 선택할 수 있습니다.',
+        perUserDailyLimit: '일일 플레이 한도는 1~100 사이의 정수여야 합니다.',
+        activeFrom: '운영 시작 일시를 명시적으로 선택해주세요.',
+      },
+    });
+  });
+
+  it('rejects a game window that is not fully covered by its reward pool', () => {
+    const formData = new FormData();
+    formData.set('operationId', '11111111-1111-4111-8111-111111111111');
+    formData.set('id', 'marble-maple');
+    formData.set('title', '메이플 마블');
+    formData.set('rewardPoolId', readyPoolId);
+    formData.set('perUserDailyLimit', '1');
+    formData.set('activeFrom', '2026-07-15T08:00');
+
+    expect(normalizeAdminGameForm(formData, gameContext)).toEqual({
+      ok: false,
+      errors: { activeFrom: '게임 운영 기간은 카드풀 운영 기간 안에 있어야 합니다.' },
+    });
+  });
+
+  it('normalizes a retry-safe end-now request', () => {
+    const formData = new FormData();
+    formData.set('operationId', '22222222-2222-4222-8222-222222222222');
+    formData.set('gameId', 'marble-maple');
+
+    expect(normalizeAdminGameEndForm(formData)).toEqual({
+      ok: true,
+      value: {
+        operationId: '22222222-2222-4222-8222-222222222222',
+        gameId: 'marble-maple',
+      },
+    });
+  });
+
   it('normalizes a valid IP form', () => {
     const formData = new FormData();
     formData.set('id', ' hwasan ');

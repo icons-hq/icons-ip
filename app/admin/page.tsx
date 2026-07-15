@@ -45,7 +45,7 @@ export default async function AdminPage({
       }}
       catalog={catalog}
       insights={insights}
-      initialSection={query.section === 'orders' ? 'orders' : query.section === 'good' ? 'good' : query.section === 'ticket' ? 'ticket' : query.section === 'pool' ? 'pool' : query.section === 'policy' ? 'policy' : 'overview'}
+      initialSection={query.section === 'orders' ? 'orders' : query.section === 'good' ? 'good' : query.section === 'ticket' ? 'ticket' : query.section === 'pool' ? 'pool' : query.section === 'policy' ? 'policy' : query.section === 'game' ? 'game' : 'overview'}
       moderation={moderation}
       orders={orders}
       policyDraftActiveFrom={new Date().toISOString()}
@@ -60,6 +60,8 @@ export default async function AdminPage({
       stockAdjustmentId={randomUUID()}
       ticketDraftId={randomUUID()}
       ticketOperationId={randomUUID()}
+      gameEndOperationId={randomUUID()}
+      gameOperationId={randomUUID()}
     />
   );
 }

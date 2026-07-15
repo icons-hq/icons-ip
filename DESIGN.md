@@ -110,6 +110,7 @@ components:
   admin-ticket:   { status: 구현됨, ref: "app/admin/*; components/admin/sections/TicketSection.tsx; globals.css", note: "staff 전용 회차 master-detail. 이벤트·회차명·가격·정원 편집, pending 선점 포함 sold/잔여·정원 상태 표시, 예매 이력 이후 메타데이터 잠금" }
   admin-card-pool: { status: 구현됨, ref: "app/admin/*; components/admin/sections/CardPoolSection.tsx; components/admin/sections/CardSection.tsx", note: "staff 전용 카드풀 master-detail. KST 운영 기간, 5등급 퍼센트 합계 100%, 확률 미설정 상태, 소속 카드·같은 IP 바인딩, 미사용 카드팩에 최신 구성·확률이 즉시 적용된다는 경고" }
   admin-reward-policy: { status: 구현됨, ref: "app/admin/*; components/admin/sections/*", note: "staff 전용 뽑기권 발급 정책 master-detail. 주문 대상 IP·선택 same-IP 굿즈, 독립 보상 카드풀, 최소 금액·발급 수량·KST 운영 기간·활성 상태와 누적 발급/사용 가능/개봉/회수 집계를 표시" }
+  admin-game:      { status: 구현됨, ref: "app/admin/*; components/admin/sections/GameSection.tsx", note: "staff 전용 참여형 게임 master-detail. 카드 보상형 게임의 slug·제목·준비된 카드풀·같은 IP 온라인 이벤트·KST 운영 기간·일일 한도를 관리하고, 신규 시작은 빈 값으로 두며 플레이 이후 불변 필드 잠금·현재 시각이 운영 창에 포함되는 게임의 DB 시각 종료·PII-free 플레이 집계를 제공. goods variant는 #115 전까지 읽기 전용" }
   ticket-check-in: { status: 구현됨, ref: "app/admin/check-in/*; app/api/admin/check-in/*; components/admin/check-in/*; globals.css", note: "staff 전용 모바일 현장 검표. 카메라 QR·HID/수동 입력, 검표/재검표/환불 상태, same-origin service-only 원장·감사" }
   gacha:          { status: 구현됨, ref: "globals.css:442-453", note: "카드풀 스위처 + 확률 칩 + 천장 게이지 + 클라이언트 리빌(popIn). mock 공시 — 실 카드풀은 ADR-0001" }
   event:          { status: 구현됨, ref: "app/events/*; components/screens/Events.tsx; components/screens/EventDetail.tsx; globals.css", note: "목록 featured 2열+카드 그리드에서 공개 상세로 연결. 상세는 포스터 히어로와 회차 선택/예매 요약 2열, 모바일 1열" }
@@ -201,6 +202,7 @@ frontmatter `components` 블록이 정본 인덱스다(셸 → 기본 어휘 →
 | 관리자 티켓 회차 | `/admin?section=ticket` | 회차 master-detail → 이벤트·이름·가격·정원 편집 → 할당·잔여·정원 상태 | staff-gated, 멱등 `admin_upsert_ticket_type` + `audit_log` |
 | 관리자 카드풀 | `/admin?section=pool` | 풀 master-detail → KST 운영 기간·5등급 확률 합계·미설정 상태·소속 카드·바인딩 관리 → 최신 확률 즉시 적용 경고 | staff-gated, 멱등 `admin_upsert_card_pool`/`admin_set_pool_odds` + `audit_log` |
 | 관리자 발급 정책 | `/admin?section=policy` | 정책 master-detail → 대상 IP·선택 same-IP 굿즈·독립 카드풀·최소 금액·발급 수량·KST 기간·활성 상태 편집 → 누적 발급/사용 가능/개봉/회수 집계 | staff-gated, PII-free `admin_list_reward_policies` + 멱등 `admin_upsert_reward_policy` + `audit_log` |
+| 관리자 참여형 게임 | `/admin?section=game` | 게임 master-detail → 카드풀·같은 IP 온라인 이벤트·KST 운영 기간·일일 한도 편집 → 플레이 이후 잠금·현재 시각이 운영 창에 포함되는 게임의 DB 시각 종료·플레이 집계 | staff-gated, PII-free `admin_list_games` + 멱등 `admin_upsert_game` + `audit_log`; goods variant는 읽기 전용 |
 | 뽑기 | `/gacha` | 카드풀 스위처 + 확률 칩 + 천장 게이지 + 클라이언트 리빌 + 라인업 | 카탈로그(카드 있는 IP), mock 공시 |
 | 팝업 | `/events`, `/events/[eventId]` | 필터 칩 → featured/카드 목록 → 공개 상세·회차 선택 → QR 가이드 | `selectFandomEvents`, 공개 `ticket_types` |
 | 커뮤니티 | `/community` | 채널 레일 + 컴팩트 컴포저 + 피드 + 랭킹·카드풀 레일 | 실배선(작성·좋아요·댓글·신고·차단) |
