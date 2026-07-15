@@ -108,7 +108,7 @@ export async function updateProfileAction(
     try {
       await profileStorage.remove([previousAvatarPath]);
     } catch {
-      // 프로필 저장은 이미 성공했으므로 이전 파일 정리는 다음 교체 때 다시 시도한다.
+      // 이전 아바타 정리는 best-effort이며 프로필 저장 성공을 실패로 바꾸지 않는다.
     }
   }
 

@@ -230,6 +230,31 @@ describe('updateProfileAction', () => {
     expect(mocks.remove).toHaveBeenCalledWith([previousAvatarPath]);
   });
 
+  it('keeps a successful profile save successful when previous avatar cleanup rejects', async () => {
+    const previousAvatarPath = 'user-1/profile/previous.webp';
+    mocks.auth = onboardedAuth(
+      { terms: true, privacy: true, marketing: false },
+      previousAvatarPath,
+    );
+    mocks.remove.mockRejectedValueOnce(new Error('storage remove failed'));
+
+    await expect(
+      updateProfileAction(
+        {},
+        profileForm('fan', new File(['avatar'], 'avatar.png', { type: 'image/png' })),
+      ),
+    ).resolves.toEqual({ message: '프로필을 저장했어요.' });
+
+    expect(mocks.remove).toHaveBeenCalledOnce();
+    expect(mocks.remove).toHaveBeenCalledWith([previousAvatarPath]);
+    expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toEqual([
+      '/settings',
+      '/',
+      '/community',
+      '/search',
+    ]);
+  });
+
   it('does not remove a previous avatar outside the authenticated user profile folder', async () => {
     mocks.auth = onboardedAuth(
       { terms: true, privacy: true, marketing: false },
