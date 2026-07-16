@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   getCurrentAuthState: vi.fn(),
   info: vi.fn(),
   list: vi.fn(),
+  prepareProfileAvatarClaim: vi.fn(),
+  rejectProfileAvatarClaim: vi.fn(),
   revalidatePath: vi.fn(),
   storageFrom: vi.fn(),
   updateProfileIdentity: vi.fn(),
@@ -31,6 +33,8 @@ vi.mock('@/lib/auth/onboarding', async () => await import('../../lib/auth/onboar
 vi.mock('@/lib/profile', async () => await import('../../lib/profile'));
 vi.mock('@/lib/profile.server', () => ({
   cleanupProfileAvatar: mocks.cleanupProfileAvatar,
+  prepareProfileAvatarClaim: mocks.prepareProfileAvatarClaim,
+  rejectProfileAvatarClaim: mocks.rejectProfileAvatarClaim,
   updateProfileIdentity: mocks.updateProfileIdentity,
 }));
 vi.mock('@/lib/settings', async () => await import('../../lib/settings'));
@@ -98,6 +102,8 @@ beforeEach(() => {
   mocks.getCurrentAuthState.mockReset();
   mocks.info.mockReset();
   mocks.list.mockReset();
+  mocks.prepareProfileAvatarClaim.mockReset();
+  mocks.rejectProfileAvatarClaim.mockReset();
   mocks.revalidatePath.mockReset();
   mocks.storageFrom.mockReset();
   mocks.updateProfileIdentity.mockReset();
@@ -107,6 +113,8 @@ beforeEach(() => {
     onboardedAuth({ terms: true, privacy: true, marketing: false }),
   );
   mocks.cleanupProfileAvatar.mockResolvedValue(undefined);
+  mocks.prepareProfileAvatarClaim.mockResolvedValue({ ok: true });
+  mocks.rejectProfileAvatarClaim.mockResolvedValue({ cleanupSafe: true });
   mocks.createSignedUploadUrl.mockResolvedValue({
     data: { path: AVATAR_PATH, token: 'signed-upload-token' },
     error: null,
@@ -244,6 +252,13 @@ describe('prepareProfileAvatarUploadAction', () => {
     });
 
     expect(mocks.createSignedUploadUrl).toHaveBeenCalledWith(AVATAR_PATH, { upsert: false });
+    expect(mocks.prepareProfileAvatarClaim).toHaveBeenCalledWith({
+      userId: USER_ID,
+      path: AVATAR_PATH,
+    });
+    expect(mocks.prepareProfileAvatarClaim.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.createSignedUploadUrl.mock.invocationCallOrder[0],
+    );
     expect(mocks.upload).not.toHaveBeenCalled();
     expect(mocks.list).not.toHaveBeenCalled();
   });
@@ -267,6 +282,45 @@ describe('prepareProfileAvatarUploadAction', () => {
       ok: false,
       errors: { avatar: '아바타 업로드를 준비하지 못했습니다. 다시 시도해주세요.' },
     });
+    expect(mocks.rejectProfileAvatarClaim).toHaveBeenCalledWith({
+      userId: USER_ID,
+      path: AVATAR_PATH,
+    });
+    expect(mocks.cleanupProfileAvatar).toHaveBeenCalledWith({
+      userId: USER_ID,
+      path: AVATAR_PATH,
+      stage: 'candidate',
+    });
+  });
+
+  it('does not grant or clean a path when the pending claim cannot be committed', async () => {
+    mocks.prepareProfileAvatarClaim.mockResolvedValue({ ok: false });
+
+    await expect(prepareProfileAvatarUploadAction({
+      nickname: 'fan',
+      mimeType: 'image/png',
+      size: PNG_BYTES.byteLength,
+    })).resolves.toEqual({
+      ok: false,
+      errors: { avatar: '아바타 업로드를 준비하지 못했습니다. 다시 시도해주세요.' },
+    });
+
+    expect(mocks.createSignedUploadUrl).not.toHaveBeenCalled();
+    expect(mocks.rejectProfileAvatarClaim).not.toHaveBeenCalled();
+    expect(mocks.cleanupProfileAvatar).not.toHaveBeenCalled();
+  });
+
+  it('does not clean after an unknown claim-rejection result', async () => {
+    mocks.createSignedUploadUrl.mockRejectedValue(new Error('private grant rejection'));
+    mocks.rejectProfileAvatarClaim.mockResolvedValue({ cleanupSafe: false });
+
+    await prepareProfileAvatarUploadAction({
+      nickname: 'fan',
+      mimeType: 'image/png',
+      size: PNG_BYTES.byteLength,
+    });
+
+    expect(mocks.cleanupProfileAvatar).not.toHaveBeenCalled();
   });
 });
 
@@ -360,7 +414,7 @@ describe('updateProfileAction', () => {
     ['fractional size', { contentType: 'image/png', size: 8.5 }],
     ['oversized', { contentType: 'image/png', size: MAX_PROFILE_IMAGE_BYTES + 1 }],
     ['MIME mismatch', { contentType: 'image/jpeg', size: PNG_BYTES.byteLength }],
-  ])('rejects invalid Storage info: %s', async (_label, data) => {
+  ])('rejects invalid Storage info after durably rejecting the claim: %s', async (_label, data) => {
     mocks.info.mockResolvedValue({ data, error: null });
 
     await expect(updateProfileAction({}, profileForm('fan', AVATAR_PATH))).resolves.toEqual({
@@ -369,6 +423,10 @@ describe('updateProfileAction', () => {
 
     expect(mocks.download).not.toHaveBeenCalled();
     expect(mocks.updateProfileIdentity).not.toHaveBeenCalled();
+    expect(mocks.rejectProfileAvatarClaim).toHaveBeenCalledWith({
+      userId: USER_ID,
+      path: AVATAR_PATH,
+    });
     expect(mocks.cleanupProfileAvatar).toHaveBeenCalledWith({
       userId: USER_ID,
       path: AVATAR_PATH,
@@ -382,11 +440,15 @@ describe('updateProfileAction', () => {
       error: { message: 'private info error' },
     })],
     ['info rejection', () => mocks.info.mockRejectedValue(new Error('private info rejection'))],
-  ])('cleans the candidate after a %s', async (_label, arrange) => {
+  ])('rejects and cleans the candidate after a %s', async (_label, arrange) => {
     arrange();
 
     await expect(updateProfileAction({}, profileForm('fan', AVATAR_PATH))).resolves.toEqual({
       errors: { avatar: '아바타 파일을 확인하지 못했습니다. 다시 업로드해주세요.' },
+    });
+    expect(mocks.rejectProfileAvatarClaim).toHaveBeenCalledWith({
+      userId: USER_ID,
+      path: AVATAR_PATH,
     });
     expect(mocks.cleanupProfileAvatar).toHaveBeenCalledWith({
       userId: USER_ID,
@@ -407,18 +469,36 @@ describe('updateProfileAction', () => {
       data: new Blob([new Uint8Array([0x00, 0x01, 0x02])], { type: 'image/png' }),
       error: null,
     })],
-  ])('cleans the candidate after a %s', async (_label, arrange) => {
+  ])('rejects and cleans the candidate after a %s', async (_label, arrange) => {
     arrange();
 
     await expect(updateProfileAction({}, profileForm('fan', AVATAR_PATH))).resolves.toEqual({
       errors: { avatar: '아바타 파일을 확인하지 못했습니다. 다시 업로드해주세요.' },
     });
     expect(mocks.updateProfileIdentity).not.toHaveBeenCalled();
+    expect(mocks.rejectProfileAvatarClaim).toHaveBeenCalledWith({
+      userId: USER_ID,
+      path: AVATAR_PATH,
+    });
     expect(mocks.cleanupProfileAvatar).toHaveBeenCalledWith({
       userId: USER_ID,
       path: AVATAR_PATH,
       stage: 'candidate',
     });
+  });
+
+  it('does not clean an invalid candidate when the DB cannot confirm rejection', async () => {
+    mocks.info.mockResolvedValue({
+      data: { contentType: 'image/png', size: 0 },
+      error: null,
+    });
+    mocks.rejectProfileAvatarClaim.mockResolvedValue({ cleanupSafe: false });
+
+    await expect(updateProfileAction({}, profileForm('fan', AVATAR_PATH))).resolves.toEqual({
+      errors: { avatar: '아바타 파일을 확인하지 못했습니다. 다시 업로드해주세요.' },
+    });
+
+    expect(mocks.cleanupProfileAvatar).not.toHaveBeenCalled();
   });
 
   it('updates a nickname without Storage reads or avatar replacement', async () => {
@@ -477,12 +557,17 @@ describe('updateProfileAction', () => {
     ]);
   });
 
-  it('maps 23505 and rolls back the exact candidate', async () => {
-    mocks.updateProfileIdentity.mockResolvedValue({ ok: false, errorCode: '23505' });
+  it('maps a known 23505 rejection and cleans its candidate exactly once', async () => {
+    mocks.updateProfileIdentity.mockResolvedValue({
+      ok: false,
+      errorCode: '23505',
+      cleanupSafe: true,
+    });
 
     await expect(updateProfileAction({}, profileForm('taken', AVATAR_PATH))).resolves.toEqual({
       errors: { nickname: '이미 사용 중인 닉네임입니다.' },
     });
+    expect(mocks.cleanupProfileAvatar).toHaveBeenCalledOnce();
     expect(mocks.cleanupProfileAvatar).toHaveBeenCalledWith({
       userId: USER_ID,
       path: AVATAR_PATH,
@@ -491,17 +576,38 @@ describe('updateProfileAction', () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
-  it('maps a generic RPC failure and rolls back the exact candidate', async () => {
-    mocks.updateProfileIdentity.mockResolvedValue({ ok: false });
+  it('maps an unknown RPC failure without deleting the candidate', async () => {
+    mocks.updateProfileIdentity.mockResolvedValue({ ok: false, cleanupSafe: false });
 
     await expect(updateProfileAction({}, profileForm('fan', AVATAR_PATH))).resolves.toEqual({
       errors: { form: '프로필을 저장하지 못했습니다. 다시 시도해주세요.' },
     });
-    expect(mocks.cleanupProfileAvatar).toHaveBeenCalledWith({
-      userId: USER_ID,
-      path: AVATAR_PATH,
-      stage: 'candidate',
+    expect(mocks.cleanupProfileAvatar).not.toHaveBeenCalled();
+  });
+
+  it('never cleans a replayed candidate even when the submitted nickname conflicts', async () => {
+    mocks.updateProfileIdentity.mockResolvedValue({
+      ok: false,
+      errorCode: 'avatar_replayed',
+      cleanupSafe: false,
     });
+
+    await expect(updateProfileAction({}, profileForm('taken', AVATAR_PATH))).resolves.toEqual({
+      errors: { form: '프로필을 저장하지 못했습니다. 다시 시도해주세요.' },
+    });
+
+    expect(mocks.cleanupProfileAvatar).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('does not clean a candidate when the profile helper unexpectedly rejects', async () => {
+    mocks.updateProfileIdentity.mockRejectedValue(new Error('private transport failure'));
+
+    await expect(updateProfileAction({}, profileForm('fan', AVATAR_PATH))).resolves.toEqual({
+      errors: { form: '프로필을 저장하지 못했습니다. 다시 시도해주세요.' },
+    });
+
+    expect(mocks.cleanupProfileAvatar).not.toHaveBeenCalled();
   });
 
   it('preserves the intended result when cleanup unexpectedly rejects', async () => {

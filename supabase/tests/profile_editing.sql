@@ -103,6 +103,20 @@ set
   avatar_path = '00000000-0000-4000-8000-000000001201/profile/11111111-1111-4111-8111-111111111111.jpg'
 where id = '00000000-0000-4000-8000-000000001201';
 
+-- 이 사용자는 migration 이후 생성됐으므로 production backfill과 같은 active fixture를 둔다.
+insert into public.profile_avatar_claims (
+  path,
+  user_id,
+  status,
+  resolved_at
+)
+values (
+  '00000000-0000-4000-8000-000000001201/profile/11111111-1111-4111-8111-111111111111.jpg',
+  '00000000-0000-4000-8000-000000001201',
+  'active',
+  now()
+);
+
 do $$
 begin
   begin
@@ -171,6 +185,72 @@ select 1 / case when not has_function_privilege(
   'EXECUTE'
 ) then 1 else 0 end as assert_identity_rpc_is_service_role_only;
 
+select 1 / case when not has_function_privilege(
+  'public',
+  'public.service_prepare_profile_avatar_claim(uuid,text)',
+  'EXECUTE'
+) and not has_function_privilege(
+  'anon',
+  'public.service_prepare_profile_avatar_claim(uuid,text)',
+  'EXECUTE'
+) and not has_function_privilege(
+  'authenticated',
+  'public.service_prepare_profile_avatar_claim(uuid,text)',
+  'EXECUTE'
+) and has_function_privilege(
+  'service_role',
+  'public.service_prepare_profile_avatar_claim(uuid,text)',
+  'EXECUTE'
+) and not has_function_privilege(
+  'public',
+  'public.service_reject_profile_avatar_claim(uuid,text)',
+  'EXECUTE'
+) and not has_function_privilege(
+  'anon',
+  'public.service_reject_profile_avatar_claim(uuid,text)',
+  'EXECUTE'
+) and not has_function_privilege(
+  'authenticated',
+  'public.service_reject_profile_avatar_claim(uuid,text)',
+  'EXECUTE'
+) and has_function_privilege(
+  'service_role',
+  'public.service_reject_profile_avatar_claim(uuid,text)',
+  'EXECUTE'
+) then 1 else 0 end as assert_claim_rpcs_are_service_role_only;
+
+select 1 / case when not has_function_privilege(
+  'public',
+  'public.service_log_profile_avatar_cleanup_failure(uuid,text,text)',
+  'EXECUTE'
+) and not has_function_privilege(
+  'anon',
+  'public.service_log_profile_avatar_cleanup_failure(uuid,text,text)',
+  'EXECUTE'
+) and not has_function_privilege(
+  'authenticated',
+  'public.service_log_profile_avatar_cleanup_failure(uuid,text,text)',
+  'EXECUTE'
+) and has_function_privilege(
+  'service_role',
+  'public.service_log_profile_avatar_cleanup_failure(uuid,text,text)',
+  'EXECUTE'
+) and not has_table_privilege('service_role', 'public.audit_log', 'INSERT')
+then 1 else 0 end as assert_cleanup_audit_rpc_is_only_write_boundary;
+
+select 1 / case when (
+  select relrowsecurity
+  from pg_class
+  where oid = 'public.profile_avatar_claims'::regclass
+) and not has_table_privilege('public', 'public.profile_avatar_claims', 'SELECT')
+  and not has_table_privilege('anon', 'public.profile_avatar_claims', 'SELECT')
+  and not has_table_privilege('authenticated', 'public.profile_avatar_claims', 'SELECT')
+  and has_table_privilege('service_role', 'public.profile_avatar_claims', 'SELECT')
+  and not has_table_privilege('service_role', 'public.profile_avatar_claims', 'INSERT')
+  and not has_table_privilege('service_role', 'public.profile_avatar_claims', 'UPDATE')
+  and not has_table_privilege('service_role', 'public.profile_avatar_claims', 'DELETE')
+then 1 else 0 end as assert_claim_ledger_is_service_read_only;
+
 select 1 / case when exists (
   select 1
   from pg_proc
@@ -178,15 +258,76 @@ select 1 / case when exists (
     and prosecdef
     and proconfig = array['search_path=""']
     and pg_get_functiondef(oid) ~* 'for update'
+    and pg_get_functiondef(oid) ~* 'get diagnostics v_rejected_count = row_count'
 ) then 1 else 0 end as assert_identity_rpc_is_hardened_and_locks_row;
 
-create temporary table profile_rpc_result (previous_avatar_path text);
+select 1 / case when (
+  select count(*) = 2
+  from pg_proc
+  where oid in (
+    'public.service_prepare_profile_avatar_claim(uuid,text)'::regprocedure,
+    'public.service_reject_profile_avatar_claim(uuid,text)'::regprocedure
+  )
+    and prosecdef
+    and proconfig = array['search_path=""']
+) then 1 else 0 end as assert_claim_rpcs_are_hardened;
+
+select 1 / case when exists (
+  select 1
+  from pg_proc
+  where oid = 'public.service_log_profile_avatar_cleanup_failure(uuid,text,text)'::regprocedure
+    and prosecdef
+    and proconfig = array['search_path=""']
+) then 1 else 0 end as assert_cleanup_audit_rpc_is_hardened;
+
+create temporary table profile_claim_prepare_result (
+  attempt text primary key,
+  prepared boolean not null
+);
+create temporary table profile_claim_reject_result (
+  attempt text primary key,
+  rejected boolean not null,
+  cleanup_safe boolean not null
+);
+create temporary table profile_rpc_result (
+  attempt text primary key,
+  applied boolean not null,
+  error_code text,
+  cleanup_safe boolean not null,
+  previous_avatar_path text
+);
+create temporary table profile_cleanup_audit_result (
+  attempt text primary key,
+  logged boolean not null
+);
+grant insert, select on profile_claim_prepare_result to service_role;
+grant insert, select on profile_claim_reject_result to service_role;
 grant insert, select on profile_rpc_result to service_role;
+grant insert, select on profile_cleanup_audit_result to service_role;
 
 set local role service_role;
 
-insert into profile_rpc_result (previous_avatar_path)
-select previous_avatar_path
+insert into profile_claim_prepare_result (attempt, prepared)
+select
+  'first-success',
+  public.service_prepare_profile_avatar_claim(
+    '00000000-0000-4000-8000-000000001201',
+    '00000000-0000-4000-8000-000000001201/profile/22222222-2222-4222-8222-222222222222.webp'
+  );
+
+insert into profile_rpc_result (
+  attempt,
+  applied,
+  error_code,
+  cleanup_safe,
+  previous_avatar_path
+)
+select
+  'first-success',
+  applied,
+  error_code,
+  cleanup_safe,
+  previous_avatar_path
 from public.service_update_profile_identity(
   '00000000-0000-4000-8000-000000001201',
   'UpdatedFan',
@@ -194,13 +335,95 @@ from public.service_update_profile_identity(
   true
 );
 
+insert into profile_cleanup_audit_result (attempt, logged)
+select
+  'valid',
+  public.service_log_profile_avatar_cleanup_failure(
+    '00000000-0000-4000-8000-000000001201',
+    '00000000-0000-4000-8000-000000001201/profile/22222222-2222-4222-8222-222222222222.webp',
+    'previous'
+  );
+
+insert into profile_cleanup_audit_result (attempt, logged)
+select
+  'invalid-stage',
+  public.service_log_profile_avatar_cleanup_failure(
+    '00000000-0000-4000-8000-000000001201',
+    '00000000-0000-4000-8000-000000001201/profile/22222222-2222-4222-8222-222222222222.webp',
+    'other'
+  );
+
+insert into profile_cleanup_audit_result (attempt, logged)
+select
+  'null-stage',
+  public.service_log_profile_avatar_cleanup_failure(
+    '00000000-0000-4000-8000-000000001201',
+    '00000000-0000-4000-8000-000000001201/profile/22222222-2222-4222-8222-222222222222.webp',
+    null
+  );
+
+insert into profile_rpc_result (
+  attempt,
+  applied,
+  error_code,
+  cleanup_safe,
+  previous_avatar_path
+)
+select
+  'unclaimed-strict-path',
+  applied,
+  error_code,
+  cleanup_safe,
+  previous_avatar_path
+from public.service_update_profile_identity(
+  '00000000-0000-4000-8000-000000001201',
+  'UnclaimedMustNotApply',
+  '00000000-0000-4000-8000-000000001201/profile/55555555-5555-4555-8555-555555555555.png',
+  true
+);
+
 reset role;
 
-select 1 / case when (
-  select previous_avatar_path
+select 1 / case when exists (
+  select 1
+  from profile_claim_prepare_result
+  where attempt = 'first-success'
+    and prepared
+) then 1 else 0 end as assert_first_candidate_is_prepared;
+
+select 1 / case when exists (
+  select 1
   from profile_rpc_result
-) = '00000000-0000-4000-8000-000000001201/profile/11111111-1111-4111-8111-111111111111.jpg'
-then 1 else 0 end as assert_rpc_returns_locked_previous_avatar;
+  where attempt = 'first-success'
+    and applied
+    and error_code is null
+    and not cleanup_safe
+    and previous_avatar_path = '00000000-0000-4000-8000-000000001201/profile/11111111-1111-4111-8111-111111111111.jpg'
+) then 1 else 0 end as assert_first_finalize_returns_structured_success;
+
+select 1 / case when exists (
+  select 1
+  from profile_cleanup_audit_result
+  where attempt = 'valid'
+    and logged
+) and exists (
+  select 1
+  from profile_cleanup_audit_result
+  where attempt = 'invalid-stage'
+    and not logged
+) and exists (
+  select 1
+  from profile_cleanup_audit_result
+  where attempt = 'null-stage'
+    and not logged
+) and (
+  select count(*)
+  from public.audit_log
+  where actor_id = '00000000-0000-4000-8000-000000001201'
+    and action = 'profile_avatar_cleanup_failed'
+    and target = '00000000-0000-4000-8000-000000001201/profile/22222222-2222-4222-8222-222222222222.webp'
+    and diff = '{"stage":"previous"}'::jsonb
+) = 1 then 1 else 0 end as assert_cleanup_audit_rpc_writes_only_valid_payload;
 
 select 1 / case when exists (
   select 1
@@ -217,6 +440,241 @@ select 1 / case when exists (
     and nickname = 'UpdatedFan'
     and avatar_path = '00000000-0000-4000-8000-000000001201/profile/22222222-2222-4222-8222-222222222222.webp'
 ) then 1 else 0 end as assert_public_profile_trigger_syncs_identity;
+
+select 1 / case when exists (
+  select 1
+  from public.profile_avatar_claims
+  where path = '00000000-0000-4000-8000-000000001201/profile/11111111-1111-4111-8111-111111111111.jpg'
+    and user_id = '00000000-0000-4000-8000-000000001201'
+    and status = 'retired'
+    and resolved_at is not null
+) and exists (
+  select 1
+  from public.profile_avatar_claims
+  where path = '00000000-0000-4000-8000-000000001201/profile/22222222-2222-4222-8222-222222222222.webp'
+    and user_id = '00000000-0000-4000-8000-000000001201'
+    and status = 'active'
+    and resolved_at is not null
+) then 1 else 0 end as assert_success_activates_candidate_and_retires_previous;
+
+set local role service_role;
+
+insert into profile_rpc_result (
+  attempt,
+  applied,
+  error_code,
+  cleanup_safe,
+  previous_avatar_path
+)
+select
+  'active-replay',
+  applied,
+  error_code,
+  cleanup_safe,
+  previous_avatar_path
+from public.service_update_profile_identity(
+  '00000000-0000-4000-8000-000000001201',
+  'SecondFan',
+  '00000000-0000-4000-8000-000000001201/profile/22222222-2222-4222-8222-222222222222.webp',
+  true
+);
+
+insert into profile_rpc_result (
+  attempt,
+  applied,
+  error_code,
+  cleanup_safe,
+  previous_avatar_path
+)
+select
+  'null-replace-flag',
+  applied,
+  error_code,
+  cleanup_safe,
+  previous_avatar_path
+from public.service_update_profile_identity(
+  '00000000-0000-4000-8000-000000001201',
+  'NullFlagMustNotApply',
+  null,
+  null
+);
+
+insert into profile_claim_prepare_result (attempt, prepared)
+select
+  'nickname-conflict',
+  public.service_prepare_profile_avatar_claim(
+    '00000000-0000-4000-8000-000000001201',
+    '00000000-0000-4000-8000-000000001201/profile/33333333-3333-4333-8333-333333333333.png'
+  );
+
+insert into profile_rpc_result (
+  attempt,
+  applied,
+  error_code,
+  cleanup_safe,
+  previous_avatar_path
+)
+select
+  'nickname-conflict-first',
+  applied,
+  error_code,
+  cleanup_safe,
+  previous_avatar_path
+from public.service_update_profile_identity(
+  '00000000-0000-4000-8000-000000001201',
+  'SecondFan',
+  '00000000-0000-4000-8000-000000001201/profile/33333333-3333-4333-8333-333333333333.png',
+  true
+);
+
+insert into profile_rpc_result (
+  attempt,
+  applied,
+  error_code,
+  cleanup_safe,
+  previous_avatar_path
+)
+select
+  'nickname-conflict-replay',
+  applied,
+  error_code,
+  cleanup_safe,
+  previous_avatar_path
+from public.service_update_profile_identity(
+  '00000000-0000-4000-8000-000000001201',
+  'ShouldNotApply',
+  '00000000-0000-4000-8000-000000001201/profile/33333333-3333-4333-8333-333333333333.png',
+  true
+);
+
+insert into profile_rpc_result (
+  attempt,
+  applied,
+  error_code,
+  cleanup_safe,
+  previous_avatar_path
+)
+select
+  'nickname-only',
+  applied,
+  error_code,
+  cleanup_safe,
+  previous_avatar_path
+from public.service_update_profile_identity(
+  '00000000-0000-4000-8000-000000001201',
+  'FinalFan',
+  null,
+  false
+);
+
+insert into profile_claim_prepare_result (attempt, prepared)
+select
+  'validation-failure',
+  public.service_prepare_profile_avatar_claim(
+    '00000000-0000-4000-8000-000000001201',
+    '00000000-0000-4000-8000-000000001201/profile/44444444-4444-4444-8444-444444444444.jpg'
+  );
+
+insert into profile_claim_reject_result (attempt, rejected, cleanup_safe)
+select 'validation-failure-first', rejected, cleanup_safe
+from public.service_reject_profile_avatar_claim(
+  '00000000-0000-4000-8000-000000001201',
+  '00000000-0000-4000-8000-000000001201/profile/44444444-4444-4444-8444-444444444444.jpg'
+);
+
+insert into profile_claim_reject_result (attempt, rejected, cleanup_safe)
+select 'validation-failure-replay', rejected, cleanup_safe
+from public.service_reject_profile_avatar_claim(
+  '00000000-0000-4000-8000-000000001201',
+  '00000000-0000-4000-8000-000000001201/profile/44444444-4444-4444-8444-444444444444.jpg'
+);
+
+reset role;
+
+select 1 / case when exists (
+  select 1
+  from profile_rpc_result
+  where attempt = 'active-replay'
+    and not applied
+    and error_code = 'avatar_replayed'
+    and not cleanup_safe
+    and previous_avatar_path is null
+) and exists (
+  select 1
+  from public.profiles
+  where id = '00000000-0000-4000-8000-000000001201'
+    and nickname = 'FinalFan'
+    and avatar_path = '00000000-0000-4000-8000-000000001201/profile/22222222-2222-4222-8222-222222222222.webp'
+) then 1 else 0 end as assert_active_replay_cannot_adopt_conflicting_identity;
+
+select 1 / case when exists (
+  select 1
+  from profile_rpc_result
+  where attempt = 'unclaimed-strict-path'
+    and not applied
+    and error_code = 'avatar_unclaimed'
+    and not cleanup_safe
+    and previous_avatar_path is null
+) then 1 else 0 end as assert_strict_but_unclaimed_path_cannot_finalize;
+
+select 1 / case when exists (
+  select 1
+  from profile_rpc_result
+  where attempt = 'null-replace-flag'
+    and not applied
+    and error_code = '22023'
+    and not cleanup_safe
+    and previous_avatar_path is null
+) then 1 else 0 end as assert_null_replace_flag_fails_closed;
+
+select 1 / case when exists (
+  select 1
+  from profile_rpc_result
+  where attempt = 'nickname-conflict-first'
+    and not applied
+    and error_code = '23505'
+    and cleanup_safe
+    and previous_avatar_path is null
+) and exists (
+  select 1
+  from public.profile_avatar_claims
+  where path = '00000000-0000-4000-8000-000000001201/profile/33333333-3333-4333-8333-333333333333.png'
+    and status = 'rejected'
+) then 1 else 0 end as assert_known_failure_rejects_claim_and_allows_one_cleanup;
+
+select 1 / case when exists (
+  select 1
+  from profile_rpc_result
+  where attempt = 'nickname-conflict-replay'
+    and not applied
+    and error_code = 'avatar_replayed'
+    and not cleanup_safe
+    and previous_avatar_path is null
+) then 1 else 0 end as assert_rejected_claim_replay_never_allows_cleanup;
+
+select 1 / case when exists (
+  select 1
+  from profile_rpc_result
+  where attempt = 'nickname-only'
+    and applied
+    and error_code is null
+    and not cleanup_safe
+    and previous_avatar_path = '00000000-0000-4000-8000-000000001201/profile/22222222-2222-4222-8222-222222222222.webp'
+) then 1 else 0 end as assert_nickname_only_onboarding_contract_remains;
+
+select 1 / case when exists (
+  select 1
+  from profile_claim_reject_result
+  where attempt = 'validation-failure-first'
+    and rejected
+    and cleanup_safe
+) and exists (
+  select 1
+  from profile_claim_reject_result
+  where attempt = 'validation-failure-replay'
+    and not rejected
+    and not cleanup_safe
+) then 1 else 0 end as assert_pending_rejection_allows_cleanup_exactly_once;
 
 select 1 / case when exists (
   select 1
@@ -259,6 +717,36 @@ select 1 / case when exists (
       in pg_get_expr(policy.polwithcheck, policy.polrelid)
     ) > 0
 ) then 1 else 0 end as assert_user_upload_insert_policy_catalog_contract;
+
+select 1 / case when exists (
+  select 1
+  from pg_policy as policy
+  join pg_class as relation on relation.oid = policy.polrelid
+  join pg_namespace as namespace on namespace.oid = relation.relnamespace
+  where namespace.nspname = 'storage'
+    and relation.relname = 'objects'
+    and policy.polname = 'user_uploads_delete'
+    and policy.polcmd = 'd'
+    and policy.polroles = array['authenticated'::regrole::oid]
+    and policy.polpermissive
+    and policy.polwithcheck is null
+    and position(
+      'bucket_id = ''user-uploads''::text'
+      in pg_get_expr(policy.polqual, policy.polrelid)
+    ) > 0
+    and position(
+      'storage.foldername(name)'
+      in pg_get_expr(policy.polqual, policy.polrelid)
+    ) > 0
+    and position(
+      '/profile/'
+      in pg_get_expr(policy.polqual, policy.polrelid)
+    ) > 0
+    and position(
+      '!~'
+      in pg_get_expr(policy.polqual, policy.polrelid)
+    ) > 0
+) then 1 else 0 end as assert_authenticated_delete_preserves_owned_non_profile_only;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000001201', true);

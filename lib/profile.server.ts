@@ -1,7 +1,6 @@
 import 'server-only';
 
 import { parseProfileAvatarPath } from '@/lib/profile';
-import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 
 interface UpdateProfileIdentityInput {
@@ -13,12 +12,17 @@ interface UpdateProfileIdentityInput {
 
 export type UpdateProfileIdentityResult =
   | { ok: true; previousAvatarPath: string | null }
-  | { ok: false; errorCode?: string };
+  | { ok: false; errorCode?: string; cleanupSafe: boolean };
+
+interface ProfileAvatarClaimInput {
+  userId: string;
+  path: string;
+}
 
 interface CleanupProfileAvatarInput {
   userId: string;
   path: string;
-  stage: string;
+  stage: 'candidate' | 'previous';
 }
 
 export async function updateProfileIdentity(
@@ -35,20 +39,86 @@ export async function updateProfileIdentity(
 
     if (error) {
       return typeof error.code === 'string'
-        ? { ok: false, errorCode: error.code }
-        : { ok: false };
+        ? { ok: false, errorCode: error.code, cleanupSafe: false }
+        : { ok: false, cleanupSafe: false };
     }
 
-    if (!Array.isArray(data) || data.length === 0) return { ok: false };
-    const previousAvatarPath = (data[0] as { previous_avatar_path?: unknown })
-      .previous_avatar_path;
+    if (!Array.isArray(data) || data.length === 0) {
+      return { ok: false, cleanupSafe: false };
+    }
+    const result = data[0] as {
+      applied?: unknown;
+      cleanup_safe?: unknown;
+      error_code?: unknown;
+      previous_avatar_path?: unknown;
+    };
+    const previousAvatarPath = result.previous_avatar_path;
     if (previousAvatarPath !== null && typeof previousAvatarPath !== 'string') {
-      return { ok: false };
+      return { ok: false, cleanupSafe: false };
     }
 
-    return { ok: true, previousAvatarPath };
+    if (result.applied === true) {
+      if (result.cleanup_safe !== false || result.error_code !== null) {
+        return { ok: false, cleanupSafe: false };
+      }
+      return { ok: true, previousAvatarPath };
+    }
+
+    if (
+      result.applied !== false
+      || typeof result.cleanup_safe !== 'boolean'
+      || typeof result.error_code !== 'string'
+      || !result.error_code
+      || previousAvatarPath !== null
+    ) {
+      return { ok: false, cleanupSafe: false };
+    }
+
+    return {
+      ok: false,
+      errorCode: result.error_code,
+      cleanupSafe: result.cleanup_safe,
+    };
+  } catch {
+    return { ok: false, cleanupSafe: false };
+  }
+}
+
+export async function prepareProfileAvatarClaim(
+  input: ProfileAvatarClaimInput,
+): Promise<{ ok: boolean }> {
+  try {
+    const service = createServiceClient();
+    const { data, error } = await service.rpc('service_prepare_profile_avatar_claim', {
+      p_avatar_path: input.path,
+      p_user_id: input.userId,
+    });
+
+    return { ok: !error && data === true };
   } catch {
     return { ok: false };
+  }
+}
+
+export async function rejectProfileAvatarClaim(
+  input: ProfileAvatarClaimInput,
+): Promise<{ cleanupSafe: boolean }> {
+  try {
+    const service = createServiceClient();
+    const { data, error } = await service.rpc('service_reject_profile_avatar_claim', {
+      p_avatar_path: input.path,
+      p_user_id: input.userId,
+    });
+
+    if (error || !Array.isArray(data) || data.length === 0) {
+      return { cleanupSafe: false };
+    }
+    const result = data[0] as { cleanup_safe?: unknown; rejected?: unknown };
+    return {
+      cleanupSafe: result.rejected === true && result.cleanup_safe === true,
+    };
+  } catch {
+    return { cleanupSafe: false };
   }
 }
 
@@ -57,16 +127,6 @@ export async function cleanupProfileAvatar(
 ): Promise<void> {
   const parsed = parseProfileAvatarPath(input.path, input.userId);
   if (!parsed) return;
-
-  try {
-    const supabase = await createClient();
-    const { error } = await supabase.storage
-      .from('user-uploads')
-      .remove([parsed.path]);
-    if (!error) return;
-  } catch {
-    // service-role retry below
-  }
 
   let service: ReturnType<typeof createServiceClient> | null = null;
   try {
@@ -81,11 +141,10 @@ export async function cleanupProfileAvatar(
 
   if (!service) return;
   try {
-    await service.from('audit_log').insert({
-      actor_id: input.userId,
-      action: 'profile_avatar_cleanup_failed',
-      target: parsed.path,
-      diff: { stage: input.stage },
+    await service.rpc('service_log_profile_avatar_cleanup_failure', {
+      p_avatar_path: parsed.path,
+      p_stage: input.stage,
+      p_user_id: input.userId,
     });
   } catch {
     // cleanup and its audit are both best-effort

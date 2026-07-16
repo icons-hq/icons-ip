@@ -27,13 +27,13 @@ Status: Implemented on `ps/feat/profile-editing`; browser QA, independent review
 프로필 아바타 저장은 `prepare → direct upload → finalize` 세 단계다.
 
 1. 브라우저가 닉네임과 선택 파일의 MIME·size만 `prepareProfileAvatarUploadAction`에 보낸다.
-2. Action은 입력과 인증·온보딩을 확인하고, 서버가 만든 `<uid>/profile/<uuid-v4>.<ext>` 경로의 one-time signed upload token을 반환한다.
+2. Action은 입력과 인증·온보딩을 확인하고, 서버가 만든 `<uid>/profile/<uuid-v4>.<ext>` 경로를 service-only 원장에 `pending`으로 먼저 기록한 뒤 one-time signed upload token을 반환한다.
 3. 브라우저는 `uploadToSignedUrl`로 파일 바이트를 `user-uploads`에 직접 전송한다.
 4. 브라우저는 닉네임과 신규 `avatarPath` 문자열만 `updateProfileAction`에 보낸다. 파일 input에는 `name`을 두지 않아 FormData에 파일 바이트가 들어가지 않게 한다.
-5. Action은 Storage metadata, MIME·확장자, 실제 magic bytes를 검증한 후 service-role-only RPC로 profile 행을 잠그고 원자적으로 갱신한다.
-6. RPC가 반환한 실제 직전 아바타 한 개만 제거한다. DB 실패나 후보 검증 실패 시 신규 후보만 제거한다.
+5. Action은 Storage metadata, MIME·확장자, 실제 magic bytes를 검증한 후 service-role-only RPC로 profile 행과 같은 사용자의 `pending` claim을 잠그고 원자적으로 갱신한다.
+6. RPC가 반환한 실제 직전 아바타 한 개만 제거한다. 후보 검증 실패나 DB 실패는 원장이 `rejected` 전이를 확정해 `cleanup_safe`를 반환한 경우에만 신규 후보를 제거하며, replay·응답 유실·transport 예외에서는 제거하지 않는다.
 
-브라우저가 prepare 뒤 finalize 전에 종료되거나 네트워크가 끊기면 signed-upload 후보가 남을 수 있다. 이를 완전히 없애려면 pending-upload 원장과 만료 job이 필요하므로 #136 최소 범위에서는 운영 위험으로 기록한다. Action이 관찰한 cleanup 실패는 service-role 재시도 후 `audit_log`에 actor, path, stage만 남기며 원문 오류나 민감정보는 기록하지 않는다.
+브라우저가 prepare 뒤 finalize 전에 종료되거나 네트워크가 끊기면 `pending` claim과 signed-upload 후보가 남을 수 있다. 이를 완전히 없애려면 만료 job이 필요하므로 #136 최소 범위에서는 운영 위험으로 기록한다. Action이 관찰한 cleanup 실패는 `audit_log`에 actor, path, stage만 남기며 원문 오류나 민감정보는 기록하지 않는다.
 
 ## 모듈 경계
 
@@ -52,7 +52,7 @@ Supabase와 React에 의존하지 않는 공용 계약을 소유한다.
 
 ### `app/settings/actions.ts`
 
-`prepareProfileAvatarUploadAction`은 닉네임과 선언된 파일 metadata를 먼저 검증하고, settings auth gate를 통과한 뒤 사용자 세션 Storage client로 `createSignedUploadUrl(path, { upsert: false })`를 호출한다. `{ path, token }` 외 파일·credential은 반환하지 않는다.
+`prepareProfileAvatarUploadAction`은 닉네임과 선언된 파일 metadata를 먼저 검증하고, settings auth gate를 통과한 뒤 service-only RPC로 exact path를 `pending` claim으로 등록한다. 등록 성공 뒤에만 사용자 세션 Storage client로 `createSignedUploadUrl(path, { upsert: false })`를 호출하며, `{ path, token }` 외 파일·credential은 반환하지 않는다. grant 발급 실패는 claim을 `rejected`로 확정한 경우에만 cleanup한다.
 
 `updateProfileAction`은 다음 순서를 지킨다.
 
@@ -61,10 +61,10 @@ Supabase와 React에 의존하지 않는 공용 계약을 소유한다.
 3. 신규 후보가 있으면 Storage `info()`의 size와 `contentType`을 검사한다.
 4. 상한 확인 후 `download()`한 객체의 signature가 선언 MIME과 일치하는지 검사한다.
 5. 검증된 사용자 ID, 닉네임, avatar path만 service-role-only RPC에 전달한다.
-6. RPC가 잠긴 행의 실제 이전 `avatar_path`를 반환한다.
-7. 성공 후 반환된 이전 경로만 제거한다. 실패 시 새 후보만 제거한다. 폴더 list나 광역 삭제는 하지 않는다.
+6. RPC는 profile 행과 candidate claim을 잠그고 같은 사용자의 `pending`만 1회 소비한다. 성공은 candidate를 `active`, 실제 이전 claim을 `retired`로 바꾸고 이전 `avatar_path`를 반환한다.
+7. 성공 후 반환된 이전 경로만 제거한다. 알려진 실패는 candidate가 `rejected`로 실제 전이된 경우에만 새 후보를 제거한다. replay·unknown 결과는 제거하지 않으며 폴더 list나 광역 삭제도 하지 않는다.
 
-Storage remove는 resolved `{ error }`와 rejected Promise를 모두 실패로 취급한다. 사용자 client 제거가 실패하면 service client로 같은 exact path 하나를 재시도하고, 그것도 실패하면 `audit_log`에 안전한 cleanup-failure record를 쓴다. cleanup 실패는 이미 성공한 프로필 저장을 실패로 바꾸지 않는다.
+프로필 Storage remove는 service client로 exact path 하나만 수행하고 resolved `{ error }`와 rejected Promise를 모두 실패로 취급한다. 실패하면 actor·strict path·`candidate|previous` stage만 받는 hardened service-only RPC로 `audit_log`에 cleanup-failure record를 쓴다. cleanup 실패는 이미 성공한 프로필 저장을 실패로 바꾸지 않는다. authenticated DELETE는 본인 non-profile 경로(현재 community)는 유지하되 본인 `profile/*`도 거절한다.
 
 닉네임 uniqueness `23505`, 잘못된 객체, Storage·DB 오류는 내부 원문을 숨긴 필드 또는 form 메시지로 매핑한다.
 
@@ -77,10 +77,11 @@ Storage remove는 resolved `{ error }`와 rejected Promise를 모두 실패로 �
 - `profiles.avatar_path`는 해당 row ID의 strict profile UUID path 또는 null이다.
 - `lower(btrim(nickname))` partial unique index를 둔다.
 - authenticated role에서 `profiles.nickname`과 `profiles.avatar_path` 직접 update column privilege를 revoke한다. 기존 birth date, consents, onboarded 상태 범위는 #136에서 바꾸지 않는다.
-- `service_update_profile_identity(user_id, nickname, avatar_path, replace_avatar)` RPC는 `SECURITY DEFINER`, 고정 search path, fully-qualified relation, service-role-only execute를 사용한다.
-- RPC는 profile 행을 `FOR UPDATE`로 잠그고 갱신 직전 `avatar_path`를 반환해 동시 교체 시 최신 이전 객체를 정리하게 한다.
+- `profile_avatar_claims`는 strict owned path를 primary key로 두고 `pending|active|rejected|retired`를 기록한다. 기존 non-null `profiles.avatar_path`는 migration에서 `active`로 backfill하며, 테이블은 service read-only이고 상태 쓰기는 hardened RPC에만 둔다.
+- prepare/reject/`service_update_profile_identity` RPC는 `SECURITY DEFINER`, 고정 search path, fully-qualified relation, service-role-only execute를 사용한다. finalize는 profile 행과 claim을 잠그고 `pending` candidate만 소비하며 replay에는 `cleanup_safe=false`를 반환한다.
 - `user-uploads` bucket을 5MiB로 제한한다. 기존 community GIF 계약 때문에 bucket MIME은 JPEG/PNG/WebP/GIF를 유지하고, profile path와 서버 validator에서 GIF를 금지한다.
 - Storage INSERT RLS는 `<uid>/profile/<uuid-v4>.(jpg|png|webp)` 또는 `<uid>/community/<uuid-v4>.(jpg|png|webp|gif)`만 허용한다.
+- Storage DELETE RLS는 authenticated 사용자의 본인 non-profile 경로를 유지하지만 `profile/*`는 제외한다. 프로필 후보·이전 객체 cleanup은 service-only다.
 
 ### onboarding
 
@@ -103,18 +104,18 @@ Storage remove는 resolved `{ error }`와 rejected Promise를 모두 실패로 �
 - 서버가 경로를 만들고 final Action과 DB CHECK가 동일한 user UUID path를 재검증한다.
 - bucket MIME 제한만 신뢰하지 않고 실제 magic bytes를 검사한다.
 - authenticated Data API는 nickname/avatar를 직접 바꿀 수 없다.
-- DB 갱신은 service-role-only RPC와 row lock을 통과한다.
-- cleanup은 exact path 한 개에만 적용하고 결과 오류와 rejection을 모두 처리한다.
+- DB 갱신은 service-role-only prepare/reject/finalize RPC, durable claim과 row lock을 통과한다.
+- cleanup은 DB가 cleanup-safe 상태 전이를 확정한 exact path 한 개에만 service client로 적용하고 결과 오류와 rejection을 모두 처리한다.
 - public profile 동기화 trigger는 기존대로 유지한다.
 - signed preview 실패, cleanup 실패는 성공한 진실원 갱신을 되돌리지 않는다.
 
 ## 테스트
 
 - 순수 계약: raw 512 code-unit ceiling, 30/31 grapheme와 긴 ZWJ emoji, exact path, MIME/size, magic bytes, fallback initial.
-- actions: prepare auth gate와 signed token, final payload 무파일 계약, Storage info/download 검증, RPC 순서, uniqueness, rollback, resolved/rejected cleanup failure와 audit fallback.
+- actions: prepare claim→signed token 순서, final payload 무파일 계약, Storage info/download 검증, first finalize/replay, known rejection의 exactly-once cleanup, unknown transport cleanup 금지, previous retirement와 hardened audit fallback.
 - onboarding: settings와 같은 30-grapheme 계약이 DB write 전에 적용됨.
 - UI/page: file input에 `name`이 없음, direct upload helper, 독립 상태, pending, focus class, 서버 계산 initial, signed preview fallback.
-- SQL smoke: fail-closed constraints, normalized uniqueness, authenticated direct update 거절, service-only RPC ACL/security, previous path 반환, public profile sync, bucket/RLS exact path.
+- SQL smoke: fail-closed constraints, normalized uniqueness, authenticated direct update 거절, service-only 원장·RPC ACL/security, first finalize/replay, rejected cleanup 1회, previous retirement, audit RPC, public profile sync, bucket INSERT/DELETE RLS.
 - 자동 검증 완료: `npm test` 93 files/979 tests, warning 수정 후 `npm run lint`, Next production build, local Supabase reset/profile smoke. DB lint에는 기존 `refund_ticket_order`의 미사용 `p_reason` warning 한 건만 남았다.
 - 미검증: 실브라우저의 정확히 5MiB 유효 PNG direct upload, 5MiB+1 거절, 두 번째 교체 후 객체 1개, 새로고침 preview, 마케팅 회귀, 390px overflow, keyboard focus, console error 0, 임시 데이터 정리.
 - preview·production 배포와 live smoke는 PR 이후 별도 검증한다. 자동 검증 완료만으로 #136이나 Project item을 완료 처리하지 않는다.
@@ -129,7 +130,7 @@ Storage remove는 resolved `{ error }`와 rejected Promise를 모두 실패로 �
 
 - 회원 탈퇴와 법정 보존 원장
 - 커뮤니티 대용량 업로드 경로 개선
-- abandoned signed upload를 청소하는 원장·cron
+- abandoned `pending` claim과 signed-upload 객체를 만료 청소하는 job
 - 커뮤니티 피드의 프로필 아바타 노출
 - 이미지 crop/resize 편집기
 - 이메일 변경

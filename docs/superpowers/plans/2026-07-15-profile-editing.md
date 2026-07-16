@@ -4,7 +4,7 @@
 
 **Goal:** 로그인·온보딩 완료 사용자가 `/settings`에서 1~30 grapheme 닉네임과 5MiB private Storage 아바타를 편집하게 한다.
 
-**Architecture:** 브라우저가 signed upload token으로 Supabase Storage에 파일을 직접 올리고, Server Action은 작은 metadata/path만 처리한다. 최종 Action은 저장 객체의 metadata와 magic bytes를 검증한 뒤 service-role-only RPC로 profile 행을 잠그고 갱신한다. Settings와 onboarding은 같은 닉네임 validator를 사용한다.
+**Architecture:** 브라우저가 signed upload token으로 Supabase Storage에 파일을 직접 올리고, Server Action은 작은 metadata/path만 처리한다. prepare Action은 service-only `pending` claim을 먼저 남기고, 최종 Action은 저장 객체의 metadata와 magic bytes를 검증한 뒤 service-role-only RPC로 profile 행과 claim을 잠그고 1회만 갱신한다. Settings와 onboarding은 같은 닉네임 validator를 사용한다.
 
 **Tech Stack:** Next.js 16 App Router/Server Actions, React 19, Supabase Auth/Postgres/Storage/RLS, Vitest, SQL smoke, local Supabase CLI.
 
@@ -19,8 +19,8 @@
 - 서버가 `<uid>/profile/<lowercase UUID v4>.<ext>` 경로를 만든다.
 - 최종 Action은 Storage metadata와 실제 magic bytes를 검증한다.
 - authenticated Data API의 nickname/avatar 직접 update를 금지하고 service-role-only RPC를 사용한다.
-- RPC는 row lock 뒤 실제 이전 avatar path를 반환한다.
-- exact path 하나만 cleanup하고 resolved error와 rejection을 모두 처리한다.
+- RPC는 row lock 뒤 같은 사용자의 `pending` claim만 소비하고 실제 이전 avatar path를 반환한다. replay·unknown transport는 candidate cleanup을 허용하지 않는다.
+- DB가 cleanup-safe 전이를 확정한 exact path 하나만 service client로 cleanup하고 resolved error와 rejection을 모두 처리한다.
 - 이메일 read-only, birth date·consents·follow·onboarding completion, 마케팅 동의를 유지한다.
 - 회원 탈퇴 #102/#137, community 대용량 upload 개선, abandoned upload cron은 제외한다.
 
@@ -66,13 +66,15 @@
 - Add nickname and strict row-owned avatar path CHECK constraints.
 - Add `lower(btrim(nickname))` partial unique index.
 - Revoke only authenticated `UPDATE(nickname, avatar_path)`; preserve unrelated profile columns.
-- Create `service_update_profile_identity(p_user_id, p_nickname, p_avatar_path, p_replace_avatar)`.
-- RPC is `SECURITY DEFINER`, uses a fixed safe search path and schema-qualified relations, locks the profile row `FOR UPDATE`, updates atomically, and returns `previous_avatar_path`.
+- Create service-only prepare/reject/finalize RPCs and a durable `profile_avatar_claims` ledger. Seed existing non-null avatar paths as `active`.
+- Finalize RPC is `SECURITY DEFINER`, uses a fixed safe search path and schema-qualified relations, locks the profile row and pending claim, updates atomically, and returns structured `applied/error_code/cleanup_safe/previous_avatar_path` fields.
+- Mark a candidate `rejected` on known failure and authorize cleanup only after that exact transition succeeds; replay and transport exceptions remain cleanup-unsafe. Mark the previous claim `retired` on success.
 - Revoke execute from `public`, `anon`, `authenticated`, `service_role`, then grant only `service_role`.
 - Set `user-uploads` to 5MiB with JPEG/PNG/WebP/GIF. GIF remains for existing community uploads.
 - Replace Storage INSERT policy with strict profile/community UUID path alternatives.
+- Replace Storage DELETE policy so authenticated users retain owned non-profile/community cleanup but cannot delete any `profile/*` object; profile cleanup is service-only.
 
-- [x] Write or revise SQL smoke first: constraints/normalized duplicate, direct authenticated nickname/avatar denial, other-user denial, service RPC success and previous-path return, public profile trigger sync, ACL and `prosecdef`/search path, exact bucket settings and Storage INSERT policy catalog contract. Real allowed/rejected Storage API behavior remains Task 7 browser evidence.
+- [x] Write or revise SQL smoke first: constraints/normalized duplicate, direct authenticated nickname/avatar denial, other-user denial, first finalize/replay, known-failure exactly-once cleanup, previous retirement, nickname-only flow, RPC/table ACL, exact bucket settings and Storage INSERT/DELETE policy catalog contracts. Real allowed/rejected Storage API behavior remains Task 7 browser evidence.
 - [x] Run SQL smoke against the current schema and confirm the new assertions fail.
 - [x] Implement the draft migration and per-bucket limits. Local config and pipeline needed no additional change beyond the existing smoke command.
 - [x] Run:
@@ -98,10 +100,10 @@ supabase db lint --local --level warning
 **Produces:**
 
 - A server-only identity update helper that calls the service RPC.
-- Exact-path cleanup with user-client first, service-client retry, and safe `audit_log` fallback.
+- Exact-path profile cleanup through the service client with a validated service-only `audit_log` RPC fallback.
 - Onboarding nickname validation and nickname-only service RPC connection.
 
-- [x] Write failing server-helper tests for RPC input, previous path return, `23505`, resolved Storage remove error, rejected remove, service retry, and audit fallback without raw error text.
+- [x] Write failing server-helper tests for prepare/reject/finalize mappings, previous path return, cleanup-safe `23505`, replay/transport cleanup denial, service-only remove, and audit fallback without raw error text.
 - [x] Write failing onboarding tests for 30/31 graphemes and raw 513 rejection before DB calls.
 - [x] Run focused tests and confirm red.
 - [x] Implement the minimal helper. Do not expose the service credential or raw provider errors.
@@ -128,7 +130,7 @@ npx vitest run lib/profile.server.test.ts app/onboarding/actions.test.ts lib/pro
 - `updateProfileAction(state, formData)` accepting nickname and optional path only.
 
 - [x] Rewrite action tests around prepare/finalize. Assert no server Storage `upload()` and no file object in final payload.
-- [x] Cover config/login/onboarding gates, metadata rejection, server UUID path, signed token failure, exact-user path rejection before Storage reads, `info()` size/contentType, `download()` signature, RPC ordering, uniqueness, candidate rollback and previous-path cleanup.
+- [x] Cover config/login/onboarding gates, claim-before-grant ordering, signed token failure rejection, exact-user path rejection before Storage reads, `info()` size/contentType, `download()` signature, uniqueness, exactly-once candidate cleanup, replay/unknown cleanup denial and previous-path cleanup.
 - [x] Assert cleanup resolved error and rejection both trigger the safe fallback but preserve successful profile state.
 - [x] Run `npx vitest run app/settings/actions.test.ts` and confirm red.
 - [x] Implement prepare and final Actions with small inputs only.
@@ -199,6 +201,7 @@ git diff --check main...HEAD
 ### Task 7: local browser QA와 independent review
 
 - [ ] Start local Supabase and Next using non-secret environment loading.
+- [x] Local Storage API RLS regression: owner의 `profile/*` delete 거절·객체 존속·same-path reupload 거절, owner의 `community/*` delete 성공·객체 제거, 임시 Auth/Storage 잔여 0을 확인했다.
 - [ ] Create a temporary confirmed test user and complete onboarding.
 - [ ] Upload an exactly 5MiB valid PNG whose decoder tolerates trailing bytes. Verify Storage receives the file while Next Action bodies remain small.
 - [ ] Verify 5MiB+1 rejects before signed upload.
