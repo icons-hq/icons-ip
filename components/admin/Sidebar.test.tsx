@@ -24,4 +24,21 @@ describe('Sidebar', () => {
     expect(html.indexOf('aria-label="발급 정책"')).toBeLessThan(html.indexOf('aria-label="게임"'));
     expect(html.indexOf('aria-label="게임"')).toBeLessThan(html.indexOf('aria-label="이벤트"'));
   });
+
+  it('티 운영 영역에 공지 발송 콘솔을 노출한다', () => {
+    const html = renderToStaticMarkup(
+      <Sidebar
+        active="notifications"
+        collapsed={false}
+        onCollapsedChange={vi.fn()}
+        onSectionChange={vi.fn()}
+        showRoles={false}
+      />,
+    );
+
+    expect(html).toContain('aria-label="공지 발송"');
+    expect(html).toContain('aria-current="true"');
+    expect(html.indexOf('aria-label="티켓 회차"')).toBeLessThan(html.indexOf('aria-label="공지 발송"'));
+    expect(html.indexOf('aria-label="공지 발송"')).toBeLessThan(html.indexOf('aria-label="모더레이션"'));
+  });
 });

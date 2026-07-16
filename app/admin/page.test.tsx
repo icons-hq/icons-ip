@@ -22,6 +22,9 @@ vi.mock('@/lib/admin/catalog.server', () => ({
 }));
 vi.mock('@/lib/admin/insights.server', () => ({ getAdminInsights: vi.fn(async () => ({})) }));
 vi.mock('@/lib/admin/moderation.server', () => ({ getAdminModerationRecords: vi.fn(async () => ({ reports: [] })) }));
+vi.mock('@/lib/admin/notifications.server', () => ({
+  getAdminNotificationConsoleData: vi.fn(async () => ({ audiences: [], history: [] })),
+}));
 vi.mock('@/lib/admin/orders', () => ({ normalizeAdminOrderFilters: vi.fn(() => ({})) }));
 vi.mock('@/lib/admin/orders.server', () => ({ getAdminOrderRecords: vi.fn(async () => ({})) }));
 vi.mock('@/lib/admin/roles.server', () => ({ getAdminProfileRecords: vi.fn(async () => []) }));
@@ -60,6 +63,7 @@ describe('AdminPage reward-policy route', () => {
       .mockReturnValueOnce('88888888-8888-4888-8888-888888888888')
       .mockReturnValueOnce('99999999-9999-4999-8999-999999999999')
       .mockReturnValueOnce('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+    mocks.randomUuid.mockReturnValueOnce('dddddddd-dddd-4ddd-8ddd-dddddddddddd');
   });
 
   afterEach(() => {
@@ -86,6 +90,17 @@ describe('AdminPage reward-policy route', () => {
       initialSection: 'game',
       gameEndOperationId: '99999999-9999-4999-8999-999999999999',
       gameOperationId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    });
+  });
+
+  it('공지 발송 section을 파싱하고 콘솔 데이터와 독립 operation ID를 전달한다', async () => {
+    const screen = await AdminPage({ searchParams: Promise.resolve({ section: 'notifications' }) });
+
+    expect(screen.type).toBe(mocks.admin);
+    expect(screen.props).toMatchObject({
+      initialSection: 'notifications',
+      notificationConsole: { audiences: [], history: [] },
+      notificationOperationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     });
   });
 });
