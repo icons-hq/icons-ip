@@ -9,6 +9,15 @@ describe('ticket routes', () => {
   });
 });
 
+describe('account routes', () => {
+  it('maps and activates the protected my hub', () => {
+    expect(hrefFor('my')).toBe('/my');
+    expect(isActive('my', '/my')).toBe(true);
+    expect(isActive('my', '/my/preferences')).toBe(true);
+    expect(isActive('my', '/settings')).toBe(false);
+  });
+});
+
 describe('isAuthShellPath', () => {
   it.each(['/login', '/update-password'])('treats %s as an auth-only shell', (pathname) => {
     expect(isAuthShellPath(pathname)).toBe(true);

@@ -83,8 +83,8 @@ layout:                      # [구현됨] app/globals.css:47,86-87
 
 components:
   # ---- 셸 [구현됨] ----
-  nav:            { status: 구현됨, ref: "globals.css; components/shell/Nav.tsx", note: "고정 68px, bg rgba(8,6,15,.6)+blur. 링크 6개(홈/IP 허브/굿즈샵/카드팩/팝업/커뮤니티), active=weight 600. 우측 장바구니는 /cart로 이동하고 실제 총수량 배지를 표시. /login·/update-password에서 숨김" }
-  mobnav:         { status: 구현됨, ref: "globals.css; components/shell/MobNav.tsx", note: "<920px 바텀탭 5개(홈/굿즈샵/카드팩/커뮤니티/장바구니). 장바구니는 실제 총수량 배지를 표시" }
+  nav:            { status: 구현됨, ref: "globals.css; components/shell/Nav.tsx; components/shell/AuthButton.tsx", note: "고정 68px, bg rgba(8,6,15,.6)+blur. 공개 링크 6개(홈/IP 허브/굿즈샵/카드팩/팝업/커뮤니티), active=weight 600. 우측 장바구니는 /cart로 이동하고 실제 총수량 배지를 표시. 로그인 상태는 마이+로그아웃, 비로그인은 로그인+시작하기. /login·/update-password에서 숨김" }
+  mobnav:         { status: 구현됨, ref: "globals.css; components/shell/MobNav.tsx; components/shell/AuthPresenceProvider.tsx", note: "<920px 바텀탭 5개. 홈/굿즈샵/카드팩/커뮤니티는 고정하고 마지막 탭은 비로그인 장바구니(실수량 배지), 로그인 마이로 전환. 상단 장바구니 진입점은 항상 유지" }
   footer:         { status: 구현됨, ref: "components/shell/SiteFooter.tsx", note: "미니 푸터(브랜드+공시 캡션) + 고아 라우트 방지 보조 링크 줄(바인더·교환·마켓·약관)" }
   atmos:          { status: 구현됨, ref: "globals.css:106-183; components/shell/Atmos.tsx", note: "라우트별 radial 블룸 변형. 기본=홈. grain 오버레이는 v2에서 제거" }
   # ---- 기본 어휘 [구현됨] ----
@@ -119,6 +119,7 @@ components:
   search:         { status: 구현됨, ref: "globals.css:484-490", note: "통합 검색 히어로(60px pill 입력) + 스코프 칩 + 종류별 결과(IP pill/굿즈 카드/카드 타일/행)" }
   login:          { status: 구현됨, ref: "globals.css; components/screens/Login.tsx; components/screens/UpdatePassword.tsx", note: "스플릿 브랜드 패널에서 로그인·회원가입·비밀번호 재설정 메일 요청을 제공. /update-password는 새 비밀번호 2필드의 중앙 카드이며 두 라우트 모두 전역 셸을 숨김. 소셜 3종은 시각만(미배선)" }
   settings:       { status: 구현됨, ref: "app/settings/*; components/screens/Settings.tsx; lib/profile-upload.client.ts", note: "서로 독립된 프로필·약관 form. 브라우저는 pending claim에 결속된 private user-uploads signed token으로 JPEG/PNG/WebP를 직접 업로드하고, 서버가 metadata·magic bytes 검증 뒤 claim/profile 잠금 RPC로 1회 확정·이전 객체 정리. 원형 signed image가 없으면 서버 계산 닉네임 첫 글자(I fallback)를 표시" }
+  my-page:        { status: 구현됨, ref: "app/my/*; components/screens/MyPage.tsx; lib/profile-avatar.server.ts; globals.css", note: "로그인·온보딩 보호 허브. signed avatar/닉네임 프로필 요약과 주문·내 티켓·바인더·카드팩·설정 실제 링크를 2열(모바일 1열) 카드로 제공" }
   market-exchange:{ status: 구현됨, ref: "globals.css:497-503", note: "v2 플레이스홀더 — 검수·에스크로 카피, mock 매물. 보호 액션은 로그인 게이트" }
   # ---- [차용·미구현] ----
   tier-card:      { status: 차용·미구현, note: "충전금 tier(충전 화면 미존재). featured 변형은 violet 반전 강조" }
@@ -211,6 +212,7 @@ frontmatter `components` 블록이 정본 인덱스다(셸 → 기본 어휘 →
 | 검색 | `/search` | 통합 검색 히어로 + 스코프 칩 + 종류별 결과 | Postgres `getSearchSnapshot` |
 | 로그인/온보딩/비밀번호 재설정 | `/login`, `/update-password`, `/onboarding` | 로그인 스플릿·새 비밀번호 중앙 카드·프로필/약관/최애 픽 타일 | Supabase Auth recovery·인증·온보딩 액션 |
 | 설정 | `/settings` | 독립된 프로필·약관 form + 원형 signed-image 아바타(서버 계산 닉네임 첫 글자, `I` fallback) | 본인 pending claim에 결속된 private `user-uploads` browser direct upload → 서버 metadata·magic 검증 → service-role-only claim/profile 잠금 identity RPC; 마케팅 동의는 별도 저장 |
+| 마이페이지 | `/my` | signed avatar·닉네임 프로필 요약 → 주문·내 티켓·바인더·카드팩·설정 링크 허브 | 로그인·온보딩 보호, 본인 private `user-uploads` 1시간 signed URL; 별도 집계·DB 쓰기 없음 |
 | 마켓/교환 | `/market`, `/exchange` | v2 플레이스홀더(검수·에스크로 카피, mock 매물) | mock, 보호 액션은 로그인 게이트 |
 
 **신뢰 표면 규율:** 확률 공시·환불(`ADR-0001` 근거)은 `money-caption`으로 또렷하게 유지한다. 반대로 **미확정 정책(취소 시한·양도·수수료·연령 한도)과 미정의 화폐(퍼즐·스타더스트 류)는 UI에 확약하지 않는다** — 비확약 안내문으로 대체.
@@ -233,9 +235,9 @@ frontmatter `components` 블록이 정본 인덱스다(셸 → 기본 어휘 →
 
 ## 10. Responsive / 모바일 `[구현됨]`
 
-- **<920px**: 상단 `.nav-links` 숨김, 하단 `.mobnav`(5탭, 장바구니 실수량 배지) 전환. safe-area inset 대응.
+- **<920px**: 상단 `.nav-links` 숨김, 하단 `.mobnav` 5탭 전환. 마지막 탭은 비로그인 장바구니(실수량 배지), 로그인 마이이며 safe-area inset에 대응한다.
 - 표면 그리드는 919px에서 1–2열로 붕괴(§frontmatter components의 각 그리드 참조), 620px 이하 보조 규칙. `globals.css:640-`
-- 핸드오프의 모바일 정의(920 분기·바텀탭·1열)는 유지하고, 실장바구니 진입을 위해 탭을 5개로 구성.
+- 핸드오프의 모바일 정의(920 분기·바텀탭·1열)는 유지하고, 로그인 여부와 무관하게 탭 수는 5개로 고정한다.
 - 모션은 `prefers-reduced-motion` 존중(티커·플로트·holo 애니 정지). 진입 애니메이션은 opacity를 쓰지 않는다(캡처 환경 규율).
 
 ## 11. Iteration Guide

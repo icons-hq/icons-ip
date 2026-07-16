@@ -1,50 +1,39 @@
 'use client';
 
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
 import { signOutAction } from '@/app/login/actions';
 import { nextPathWithSearch } from '@/lib/auth/onboarding';
-import { createClient } from '@/lib/supabase/client';
-import { getSupabaseConfig } from '@/lib/supabase/config';
+import { hrefFor, isActive } from '@/lib/routes';
+import { useAuthPresence } from './AuthPresenceProvider';
 import { useCart } from './CartProvider';
 
 export function AuthButton() {
   const router = useRouter();
   const pathname = usePathname();
   const { resetForSignOut } = useCart();
-  const [isSignedIn, setIsSignedIn] = useState(false);
-
-  useEffect(() => {
-    if (!getSupabaseConfig().isConfigured) return;
-
-    const supabase = createClient();
-    let mounted = true;
-
-    supabase.auth.getUser().then(({ data }) => {
-      if (mounted) setIsSignedIn(Boolean(data.user));
-    });
-
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (mounted) setIsSignedIn(Boolean(session?.user));
-    });
-
-    return () => {
-      mounted = false;
-      data.subscription.unsubscribe();
-    };
-  }, [pathname]);
+  const presence = useAuthPresence();
 
   const loginHref = () =>
     `/login?next=${encodeURIComponent(
       nextPathWithSearch(window.location.pathname, new URLSearchParams(window.location.search)),
     )}`;
 
-  if (isSignedIn) {
+  if (presence === 'unknown') {
+    return <span aria-hidden className="auth-presence-placeholder" />;
+  }
+
+  if (presence === 'signed-in') {
+    const myActive = isActive('my', pathname);
     return (
       <>
-        <button className="btn btn-ghost btn-sm" onClick={() => router.push('/settings')}>
-          설정
-        </button>
+        <Link
+          aria-current={myActive ? 'page' : undefined}
+          className={`account-my-link btn btn-ghost btn-sm${myActive ? ' active' : ''}`}
+          href={hrefFor('my')}
+        >
+          마이
+        </Link>
         <form action={signOutAction} onSubmit={resetForSignOut}>
           <button className="btn btn-ghost btn-sm">로그아웃</button>
         </form>

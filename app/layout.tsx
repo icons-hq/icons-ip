@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Space_Grotesk, Space_Mono } from 'next/font/google';
 import './globals.css';
 import { Atmos } from '@/components/shell/Atmos';
+import { AuthPresenceProvider } from '@/components/shell/AuthPresenceProvider';
 import { CartProvider } from '@/components/shell/CartProvider';
 import { Nav } from '@/components/shell/Nav';
 import { MobNav } from '@/components/shell/MobNav';
@@ -30,10 +31,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <Atmos />
         <CartProvider>
-          <Nav />
-          <div id="root">{children}</div>
-          <SiteFooter />
-          <MobNav />
+          <AuthPresenceProvider>
+            <Nav />
+            <div id="root">{children}</div>
+            <SiteFooter />
+            <MobNav />
+          </AuthPresenceProvider>
         </CartProvider>
       </body>
     </html>

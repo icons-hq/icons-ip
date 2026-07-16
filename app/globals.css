@@ -3,6 +3,7 @@
 /* 새 화면의 @layer selectors가 production scan에서 제거되지 않게 고정한다. */
 @source "../components/admin/sections/Orders.tsx";
 @source "../components/screens/EventDetail.tsx";
+@source "../components/screens/MyPage.tsx";
 @source "../components/screens/TicketCheckout.tsx";
 
 /* ============================================================
@@ -157,6 +158,13 @@
       radial-gradient(900px 700px at 40% 100%, rgba(45,226,255,.08), transparent 60%),
       var(--bg);
   }
+  .bg-atmos--my {
+    background:
+      radial-gradient(900px 600px at 18% -8%, rgba(139,92,255,.22), transparent 60%),
+      radial-gradient(760px 560px at 92% 24%, rgba(45,226,255,.1), transparent 62%),
+      radial-gradient(820px 640px at 54% 100%, rgba(255,77,157,.07), transparent 64%),
+      var(--bg);
+  }
   .bg-atmos--search {
     background:
       radial-gradient(900px 600px at 50% -10%, rgba(139,92,255,.18), transparent 60%),
@@ -303,6 +311,11 @@
   }
   .icon-btn:hover { color: var(--text); background: rgba(255,255,255,.06); }
   .icon-btn.active { color: var(--text); background: rgba(255,255,255,.06); }
+  .nav-right .btn.active { border-color: var(--line-3); background: rgba(139,92,255,.12); }
+  .auth-presence-placeholder {
+    width: 158px; height: 38px; border: 1px solid var(--line); border-radius: 999px;
+    background: rgba(255,255,255,.035);
+  }
   .icon-btn .badge {
     position: absolute; top: 6px; right: 6px; min-width: 16px; height: 16px; padding: 0 4px;
     border-radius: 999px; background: var(--pink); color:#fff; font-size: 10px; font-weight: 700;
@@ -1301,6 +1314,66 @@
   .check-in-result-card dd { margin: 5px 0 0; overflow-wrap: anywhere; font-size: 12px; font-weight: 700; }
   .check-in-result-card > .btn { min-height: 44px; margin-top: 18px; }
   .check-in-shell .btn:focus-visible, .check-in-shell input:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+
+  /* ---------- my account hub ---------- */
+  .my-header { padding: clamp(108px, 12vw, 140px) 0 30px; }
+  .my-header h1 { margin: 16px 0 0; }
+  .my-header p { max-width: 580px; margin: 18px 0 0; color: var(--dim); font-size: 16px; }
+  .my-content { padding: 0 0 96px; }
+  .my-profile {
+    position: relative; overflow: hidden;
+    display: flex; align-items: center; gap: 24px;
+    min-height: 160px; padding: clamp(24px, 3vw, 34px);
+    background:
+      radial-gradient(420px 220px at 92% 0%, rgba(139,92,255,.18), transparent 68%),
+      linear-gradient(145deg, rgba(28,22,56,.96), rgba(12,10,24,.96));
+  }
+  .my-profile::before {
+    content: ''; position: absolute; inset: 0 0 auto; height: 3px;
+    background: var(--holo); opacity: .85;
+  }
+  .my-avatar {
+    width: 96px; height: 96px; flex: 0 0 auto; overflow: hidden;
+    display: grid; place-items: center; border: 1px solid var(--line-2); border-radius: 50%;
+    background: rgba(8,6,15,.72); box-shadow: 0 18px 42px -24px rgba(45,226,255,.7);
+  }
+  .my-avatar img { width: 100%; height: 100%; object-fit: cover; }
+  .my-avatar span { font-family: var(--ff-display); font-size: 31px; font-weight: 800; }
+  .my-profile-copy { min-width: 0; }
+  .my-profile-copy > span, .my-section-heading span {
+    color: var(--violet-2); font-size: 10.5px; letter-spacing: .16em;
+  }
+  .my-profile-copy h2 { margin: 6px 0 0; overflow-wrap: anywhere; font-size: clamp(24px, 3vw, 34px); letter-spacing: -.03em; }
+  .my-profile-copy p { margin: 8px 0 0; color: var(--dim); font-size: 14px; }
+  .my-section-heading {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;
+    margin: 54px 0 20px;
+  }
+  .my-section-heading h2 { margin: 6px 0 0; font-size: 24px; letter-spacing: -.02em; }
+  .my-section-heading p { margin: 0; color: var(--dim); font-size: 13.5px; }
+  .my-destination-grid {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;
+    margin: 0; padding: 0; list-style: none;
+  }
+  .my-destination-grid > li:last-child { grid-column: 1 / -1; }
+  .my-destination {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 18px;
+    min-height: 142px; padding: 24px;
+    transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+  }
+  .my-destination:hover { transform: translateY(-3px); border-color: var(--line-2); box-shadow: 0 22px 48px -34px rgba(139,92,255,.78); }
+  .my-destination:focus-visible { outline: 2px solid var(--cyan); outline-offset: 4px; }
+  .my-destination-icon {
+    width: 46px; height: 46px; display: grid; place-items: center;
+    border: 1px solid var(--line-2); border-radius: 15px;
+    color: var(--cyan); background: rgba(45,226,255,.06);
+  }
+  .my-destination-copy { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+  .my-destination-copy > .mono { color: var(--dim); font-size: 9.5px; letter-spacing: .13em; }
+  .my-destination-copy > strong { font-size: 17px; letter-spacing: -.015em; }
+  .my-destination-copy > span:last-child { color: var(--dim); font-size: 13px; line-height: 1.55; }
+  .my-destination-arrow { color: var(--faint); transition: transform .2s ease, color .2s ease; }
+  .my-destination:hover .my-destination-arrow { transform: translateX(3px); color: var(--text); }
 }
 
 @media (min-width: 920px) and (max-width: 1180px) {
@@ -1320,12 +1393,15 @@
   .home-float,
   .btn-holo,
   .order-list-link,
+  .my-destination,
+  .my-destination-arrow,
   .order-cancellation .btn,
   .admin-pipeline-fill {
     transition: none;
     animation: none;
   }
   .order-list-link:hover { transform: none; }
+  .my-destination:hover, .my-destination:hover .my-destination-arrow { transform: none; }
   .order-cancellation .btn:hover,
   .order-cancellation .btn:active { transform: none; }
 }
@@ -1348,6 +1424,8 @@
   .check-in-panel-heading { min-height: 0; margin-bottom: 18px; }
   .nav-links { display: none; }
   .nav .wrap { gap: 14px; }
+  .account-my-link { display: none; }
+  .auth-presence-placeholder { width: 74px; }
   .mobnav {
     display: flex; justify-content: space-around; align-items: center;
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 50;
@@ -1357,7 +1435,7 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
   .mobnav a {
-    display: flex; flex: 1 1 0; min-width: 0; flex-direction: column; align-items: center; gap: 5px;
+    display: flex; flex: 1 1 0; min-width: 0; min-height: 44px; flex-direction: column; align-items: center; gap: 5px;
     padding: 8px 2px;
     font-size: 11.5px; font-weight: 500; color: var(--dim);
     position: relative;
@@ -1365,6 +1443,7 @@
   .mobnav a .dot { width: 5px; height: 5px; border-radius: 99px; background: transparent; }
   .mobnav a.on { color: var(--text); font-weight: 700; }
   .mobnav a.on .dot { background: var(--holo); }
+  .mobnav-presence-placeholder { flex: 1 1 0; min-width: 0; height: 44px; }
   .mobnav-cart-count {
     position: absolute; top: 4px; left: calc(50% + 8px); min-width: 16px; height: 16px;
     display: grid; place-items: center; padding: 0 4px; border: 2px solid var(--bg);
@@ -1374,6 +1453,8 @@
   footer { padding-bottom: calc(110px + env(safe-area-inset-bottom)) !important; }
   .section { padding: 52px 0; }
   .hide-mob { display: none !important; }
+  .my-destination-grid { grid-template-columns: 1fr; }
+  .my-destination-grid > li:last-child { grid-column: auto; }
 
   .home-hero {
     min-height: calc(86vh - var(--nav-h));
@@ -1522,6 +1603,15 @@
   .check-in-result-card dl { grid-template-columns: 1fr; }
   .check-in-result-card > .btn { width: 100%; }
   .wrap { padding-left: 24px; padding-right: 24px; }
+  .my-header { padding-top: 104px; padding-bottom: 24px; }
+  .my-header h1 { font-size: clamp(38px, 13vw, 52px); }
+  .my-content { padding-bottom: 72px; }
+  .my-profile { align-items: flex-start; padding: 22px; }
+  .my-avatar { width: 78px; height: 78px; }
+  .my-avatar span { font-size: 26px; }
+  .my-section-heading { align-items: flex-start; flex-direction: column; gap: 8px; margin-top: 42px; }
+  .my-destination { min-height: 128px; padding: 19px; }
+  .my-destination-icon { width: 42px; height: 42px; }
   .shop-card-purchase { flex-direction: column; align-items: stretch; }
   .shop-card-price { font-size: 14px; }
   .shop-cart-button { width: 100%; }
