@@ -17,6 +17,7 @@ import type {
 } from '@/lib/admin/catalog.server';
 import type { AdminInsights } from '@/lib/admin/insights.server';
 import type { AdminModerationRecords } from '@/lib/admin/moderation.server';
+import type { AdminMemberRole, AdminMemberSummary } from '@/lib/admin/members';
 import type { AdminNotificationConsoleData } from '@/lib/admin/notifications';
 import type { AdminOrderConsoleData } from '@/lib/admin/orders';
 import type { AdminProfileRecord } from '@/lib/admin/roles.server';
@@ -29,6 +30,7 @@ import { EventSection } from './sections/EventSection';
 import { GoodSection } from './sections/GoodSection';
 import { GameSection } from './sections/GameSection';
 import { IpSection } from './sections/IpSection';
+import { MembersSection } from './sections/Members';
 import { ModerationSection } from './sections/Moderation';
 import { NotificationSection } from './sections/NotificationSection';
 import { OverviewSection } from './sections/Overview';
@@ -37,7 +39,7 @@ import { RewardPolicySection } from './sections/RewardPolicySection';
 import { RolesSection } from './sections/Roles';
 import { TicketSection } from './sections/TicketSection';
 
-export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'pool' | 'policy' | 'game' | 'event' | 'ticket' | 'notifications' | 'moderation' | 'roles';
+export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'pool' | 'policy' | 'game' | 'event' | 'ticket' | 'notifications' | 'moderation' | 'members' | 'roles';
 
 const SECTION_TITLES: Record<AdminSection, string> = {
   overview: '개요',
@@ -52,6 +54,7 @@ const SECTION_TITLES: Record<AdminSection, string> = {
   ticket: '티켓 회차 관리',
   notifications: '공지·알림 발송',
   moderation: '모더레이션',
+  members: '회원 관리',
   roles: '역할 관리',
 };
 
@@ -61,12 +64,13 @@ interface AdminProps {
   admin: {
     id: string;
     email: string | null;
-    role: string;
+    role: AdminMemberRole;
   };
   catalog: Pick<CatalogSnapshot, 'verticals' | 'ips'>;
   initialSection?: AdminSection;
   insights: AdminInsights;
   moderation: AdminModerationRecords;
+  members: AdminMemberSummary[];
   notificationConsole: AdminNotificationConsoleData;
   notificationOperationId: string;
   orders: AdminOrderConsoleData;
@@ -92,6 +96,7 @@ export function Admin({
   initialSection,
   insights,
   moderation,
+  members,
   notificationConsole,
   notificationOperationId,
   orders,
@@ -280,6 +285,13 @@ export function Admin({
               <NotificationSection data={notificationConsole} operationId={notificationOperationId} />
             )}
             {active === 'moderation' && <ModerationSection reports={moderation.reports} />}
+            {active === 'members' && (
+              <MembersSection
+                actor={{ id: admin.id, role: admin.role }}
+                initialMembers={members}
+                key={JSON.stringify(members.map((member) => [member.id, member.role, member.suspendedAt]))}
+              />
+            )}
             {active === 'roles' && admin.role === 'admin' && (
               <RolesSection adminId={admin.id} profiles={profiles} />
             )}

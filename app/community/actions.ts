@@ -3,7 +3,13 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getCatalogSnapshot } from '@/lib/catalog';
-import { isOnboarded, onboardingPath, safeNextPath } from '@/lib/auth/onboarding';
+import {
+  ACCOUNT_SUSPENDED_PATH,
+  isAccountSuspended,
+  isOnboarded,
+  onboardingPath,
+  safeNextPath,
+} from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import {
   buildCommunityUploadPath,
@@ -116,6 +122,23 @@ async function requireCommunityUser(next: string) {
   return user;
 }
 
+async function requireActiveCommunityUser(next: string) {
+  const { auth, user } = await requireAuthenticatedCommunityUser(next);
+
+  if (isAccountSuspended(auth.profile)) {
+    redirect(ACCOUNT_SUSPENDED_PATH);
+  }
+  if (!isOnboarded(auth.profile, user.email)) {
+    redirect(onboardingPath(next));
+  }
+
+  return user;
+}
+
+function isAccountSuspendedError(error: { message?: string | null } | null | undefined) {
+  return error?.message?.toLowerCase().includes('account_suspended') === true;
+}
+
 function revalidateCommunitySurfaces(ipId: string | null) {
   revalidatePath('/community');
   revalidatePath('/');
@@ -142,7 +165,7 @@ export async function createCommunityPostAction(
   formData: FormData,
 ): Promise<CommunityPostActionState> {
   const next = readNext(formData);
-  const user = await requireCommunityUser(next);
+  const user = await requireActiveCommunityUser(next);
 
   const catalog = await getCatalogSnapshot();
   const normalized = normalizeCommunityPostForm(formData, new Set(catalog.ips.map((ip) => ip.id)));
@@ -185,6 +208,9 @@ export async function createCommunityPostAction(
     .single();
 
   if (error) {
+    if (isAccountSuspendedError(error)) {
+      return { errors: { form: '정지된 계정은 새 포스트를 작성할 수 없습니다.' } };
+    }
     return { errors: { form: '포스트를 저장하지 못했습니다. 다시 시도해주세요.' } };
   }
 
@@ -200,7 +226,7 @@ export async function editCommunityPostAction(
   formData: FormData,
 ): Promise<CommunityPostEditActionState> {
   const next = readNext(formData);
-  await requireCommunityUser(next);
+  await requireActiveCommunityUser(next);
 
   const catalog = await getCatalogSnapshot();
   const normalized = normalizeCommunityPostEditForm(formData, new Set(catalog.ips.map((ip) => ip.id)));
@@ -219,7 +245,9 @@ export async function editCommunityPostAction(
   if (!result) {
     return {
       errors: {
-        form: '포스트를 수정할 수 없습니다. 최신 상태를 확인한 뒤 다시 시도해주세요.',
+        form: isAccountSuspendedError(error)
+          ? '정지된 계정은 포스트를 수정할 수 없습니다.'
+          : '포스트를 수정할 수 없습니다. 최신 상태를 확인한 뒤 다시 시도해주세요.',
       },
     };
   }
@@ -233,7 +261,7 @@ export async function createCommunityCommentAction(
   formData: FormData,
 ): Promise<CommunityCommentActionState> {
   const next = readNext(formData);
-  await requireCommunityUser(next);
+  await requireActiveCommunityUser(next);
 
   const normalized = normalizeCommunityCommentForm(formData);
   if (!normalized.ok) return { errors: normalized.errors };
@@ -245,7 +273,13 @@ export async function createCommunityCommentAction(
   });
 
   if (error) {
-    return { errors: { form: '댓글을 저장하지 못했습니다. 다시 시도해주세요.' } };
+    return {
+      errors: {
+        form: isAccountSuspendedError(error)
+          ? '정지된 계정은 새 댓글을 작성할 수 없습니다.'
+          : '댓글을 저장하지 못했습니다. 다시 시도해주세요.',
+      },
+    };
   }
 
   revalidateCommunitySurfaces(readRpcIpId(data));

@@ -16,6 +16,7 @@ import {
 const krw = (value: number) => `₩${value.toLocaleString('ko-KR')}`;
 
 const actionErrors = {
+  account_suspended: '정지된 계정은 새 주문을 만들 수 없어요.',
   invalid_address: '배송지 정보를 다시 확인해주세요.',
   invalid_request: '주문 요청을 다시 시작해주세요.',
   auth_required: '로그인이 만료됐어요. 다시 로그인해주세요.',

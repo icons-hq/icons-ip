@@ -26,7 +26,7 @@ describe('account routes', () => {
 });
 
 describe('isAuthShellPath', () => {
-  it.each(['/login', '/update-password'])('treats %s as an auth-only shell', (pathname) => {
+  it.each(['/login', '/update-password', '/account-suspended'])('treats %s as an auth-only shell', (pathname) => {
     expect(isAuthShellPath(pathname)).toBe(true);
   });
 

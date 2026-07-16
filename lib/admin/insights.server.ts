@@ -68,7 +68,16 @@ interface OrderListRow {
   total: number;
   status: string;
   created_at: string;
-  profile: { nickname: string | null } | null;
+}
+
+interface PublicProfileRow {
+  id: string;
+  nickname: string | null;
+}
+
+interface SignupCountsRow {
+  current_count: number | string;
+  previous_count: number | string;
 }
 
 interface OrderItemRow {
@@ -120,7 +129,7 @@ export async function getAdminInsights(): Promise<AdminInsights> {
   const windowStart = new Date(windowStartMs).toISOString();
   const prevWindowStart = new Date(prevWindowStartMs).toISOString();
 
-  const [payments, items, ordersResult, ticketOrdersResult, pipelineCounts] = await Promise.all([
+  const [payments, items, ordersResult, ticketOrdersResult, pipelineCounts, signupCountsResult] = await Promise.all([
     fetchAllRows<PaymentRow>('payments', (from, to) =>
       supabase
         .from('payments')
@@ -142,12 +151,12 @@ export async function getAdminInsights(): Promise<AdminInsights> {
     ),
     supabase
       .from('orders')
-      .select('id,user_id,total,status,created_at,profile:profiles(nickname)')
+      .select('id,user_id,total,status,created_at')
       .order('created_at', { ascending: false })
       .limit(RECENT_ORDER_LIMIT),
     supabase
       .from('ticket_orders')
-      .select('id,user_id,total,status,created_at,profile:profiles(nickname)')
+      .select('id,user_id,total,status,created_at')
       .order('created_at', { ascending: false })
       .limit(RECENT_ORDER_LIMIT),
     Promise.all(
@@ -155,6 +164,11 @@ export async function getAdminInsights(): Promise<AdminInsights> {
         supabase.from('orders').select('id', { count: 'exact', head: true }).eq('status', status),
       ),
     ),
+    supabase.rpc('admin_profile_signup_counts', {
+      target_current_end: new Date(now + 1).toISOString(),
+      target_current_start: windowStart,
+      target_previous_start: prevWindowStart,
+    }),
   ]);
 
   for (const [label, result] of [
@@ -193,22 +207,17 @@ export async function getAdminInsights(): Promise<AdminInsights> {
   };
 
   // ── 신규 가입 ────────────────────────────────────────────────────────────
-  const [signupsCurrentResult, signupsPreviousResult] = await Promise.all([
-    supabase.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', windowStart),
-    supabase
-      .from('profiles')
-      .select('id', { count: 'exact', head: true })
-      .gte('created_at', prevWindowStart)
-      .lt('created_at', windowStart),
-  ]);
-  if (signupsCurrentResult.error) {
-    throw new Error(`Failed to count admin profiles: ${signupsCurrentResult.error.message}`);
+  if (signupCountsResult.error) {
+    throw new Error(`Failed to count admin profiles: ${signupCountsResult.error.message}`);
   }
-  if (signupsPreviousResult.error) {
-    throw new Error(`Failed to count admin profiles: ${signupsPreviousResult.error.message}`);
+  const signupCounts = (signupCountsResult.data ?? []) as SignupCountsRow[];
+  const signupCount = signupCounts.length === 1 ? signupCounts[0] : null;
+  const signupsCurrent = Number(signupCount?.current_count);
+  const signupsPrevious = Number(signupCount?.previous_count);
+  if (!Number.isSafeInteger(signupsCurrent) || signupsCurrent < 0
+    || !Number.isSafeInteger(signupsPrevious) || signupsPrevious < 0) {
+    throw new Error('Failed to count admin profiles: invalid aggregate');
   }
-  const signupsCurrent = signupsCurrentResult.count ?? 0;
-  const signupsPrevious = signupsPreviousResult.count ?? 0;
 
   // ── 주문 상태 파이프라인 ──────────────────────────────────────────────────
   const pipeline: AdminPipelineStage[] = ADMIN_ORDER_STATUSES.map((status, index) => {
@@ -218,18 +227,35 @@ export async function getAdminInsights(): Promise<AdminInsights> {
   });
 
   // ── 최근 주문 (굿즈 + 티켓 병합) ─────────────────────────────────────────
-  const goodOrders = ((ordersResult.data ?? []) as unknown as OrderListRow[]).map((row) => ({
+  const goodOrderRows = (ordersResult.data ?? []) as unknown as OrderListRow[];
+  const ticketOrderRows = (ticketOrdersResult.data ?? []) as unknown as OrderListRow[];
+  const profileIds = [...new Set([...goodOrderRows, ...ticketOrderRows].map((row) => row.user_id))];
+  let profileNicknames = new Map<string, string | null>();
+  if (profileIds.length) {
+    const { data: profiles, error: profilesError } = await supabase
+      .from('public_profiles')
+      .select('id,nickname')
+      .in('id', profileIds);
+    if (profilesError) {
+      throw new Error(`Failed to load admin insights public_profiles: ${profilesError.message}`);
+    }
+    profileNicknames = new Map(
+      ((profiles ?? []) as PublicProfileRow[]).map((profile) => [profile.id, profile.nickname]),
+    );
+  }
+
+  const goodOrders = goodOrderRows.map((row) => ({
     id: row.id,
     kind: 'good' as const,
-    buyerName: buyerName(row.profile?.nickname, row.user_id),
+    buyerName: buyerName(profileNicknames.get(row.user_id), row.user_id),
     total: row.total,
     status: row.status,
     createdAt: row.created_at,
   }));
-  const ticketOrders = ((ticketOrdersResult.data ?? []) as unknown as OrderListRow[]).map((row) => ({
+  const ticketOrders = ticketOrderRows.map((row) => ({
     id: row.id,
     kind: 'ticket' as const,
-    buyerName: buyerName(row.profile?.nickname, row.user_id),
+    buyerName: buyerName(profileNicknames.get(row.user_id), row.user_id),
     total: row.total,
     status: row.status,
     createdAt: row.created_at,

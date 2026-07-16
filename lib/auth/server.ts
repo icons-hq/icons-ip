@@ -14,6 +14,7 @@ interface ProfileRow {
   consents: OnboardingConsents | null;
   onboarded_at: string | null;
   role: 'user' | 'staff' | 'admin' | null;
+  suspended_at: string | null;
 }
 
 export interface CurrentAuthState {
@@ -29,7 +30,7 @@ export interface CurrentAuthState {
 export async function getProfileForUser(supabase: SupabaseServerClient, userId: string): Promise<ProfileForOnboarding | null> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('email,nickname,birth_date,avatar_path,consents,onboarded_at,role')
+    .select('email,nickname,birth_date,avatar_path,consents,onboarded_at,role,suspended_at')
     .eq('id', userId)
     .maybeSingle<ProfileRow>();
 
@@ -56,6 +57,6 @@ export async function getCurrentAuthState(): Promise<CurrentAuthState> {
       email: user.email ?? null,
     },
     profile,
-    isStaff: profile?.role === 'staff' || profile?.role === 'admin',
+    isStaff: !profile?.suspended_at && (profile?.role === 'staff' || profile?.role === 'admin'),
   };
 }

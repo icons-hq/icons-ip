@@ -1,10 +1,12 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import {
+  ACCOUNT_SUSPENDED_PATH,
   AUTH_CALLBACK_PATH,
   AUTH_NEXT_COOKIE_NAME,
   authErrorLoginPath,
   authNextPathFromCookie,
+  isAccountSuspended,
   isOnboarded,
   onboardingPath,
   passwordResetErrorLoginPath,
@@ -169,7 +171,11 @@ export async function GET(request: NextRequest) {
   const profile = await getProfileForUser(supabase, data.user.id);
   return redirectTo(
     request,
-    isOnboarded(profile, data.user.email) ? next : onboardingPath(next),
+    isAccountSuspended(profile)
+      ? ACCOUNT_SUSPENDED_PATH
+      : isOnboarded(profile, data.user.email)
+        ? next
+        : onboardingPath(next),
     true,
     authResponse,
   );

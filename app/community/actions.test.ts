@@ -82,6 +82,17 @@ const catalog: CatalogSnapshot = {
 const postId = '11111111-1111-4111-8111-111111111111';
 const commentId = '22222222-2222-4222-8222-222222222222';
 
+function suspendCurrentUser() {
+  if (!mocks.auth.profile) throw new Error('Expected an authenticated profile');
+  mocks.auth = {
+    ...mocks.auth,
+    profile: {
+      ...mocks.auth.profile,
+      suspended_at: '2026-07-17T00:00:00.000Z',
+    },
+  };
+}
+
 function postForm(next = '/community') {
   const formData = new FormData();
   formData.set('text', '  팝업 후기입니다  ');
@@ -183,6 +194,18 @@ describe('createCommunityPostAction', () => {
     expect(mocks.insert).not.toHaveBeenCalled();
   });
 
+  it('redirects a suspended author before catalog lookup, upload, or post insert', async () => {
+    suspendCurrentUser();
+    const formData = postForm();
+    formData.set('image', new File(['image'], 'proof.png', { type: 'image/png' }));
+
+    await expect(createCommunityPostAction({}, formData)).rejects.toThrow(
+      'NEXT_REDIRECT:/account-suspended',
+    );
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.insert).not.toHaveBeenCalled();
+  });
+
   it('returns validation errors without writing when the post form is invalid', async () => {
     const formData = new FormData();
     formData.set('text', ' ');
@@ -228,6 +251,18 @@ describe('createCommunityPostAction', () => {
       'NEXT_REDIRECT:/community?feed=fandom',
     );
   });
+
+  it('maps a database suspension race without exposing database detail', async () => {
+    mocks.insert.mockReturnValue({
+      select: () => ({
+        single: async () => ({ data: null, error: { message: 'account_suspended' } }),
+      }),
+    });
+
+    await expect(createCommunityPostAction({}, postForm())).resolves.toEqual({
+      errors: { form: '정지된 계정은 새 포스트를 작성할 수 없습니다.' },
+    });
+  });
 });
 
 describe('editCommunityPostAction', () => {
@@ -268,6 +303,15 @@ describe('editCommunityPostAction', () => {
 
     await expect(editCommunityPostAction({}, editPostForm('/community?feed=fandom'))).rejects.toThrow(
       'NEXT_REDIRECT:/onboarding?next=%2Fcommunity%3Ffeed%3Dfandom',
+    );
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('redirects a suspended author before validating or editing a post', async () => {
+    suspendCurrentUser();
+
+    await expect(editCommunityPostAction({}, editPostForm())).rejects.toThrow(
+      'NEXT_REDIRECT:/account-suspended',
     );
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -343,6 +387,14 @@ describe('editCommunityPostAction', () => {
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
+
+  it('maps a database suspension race to the generic restriction message', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'account_suspended' } });
+
+    await expect(editCommunityPostAction({}, editPostForm())).resolves.toEqual({
+      errors: { form: '정지된 계정은 포스트를 수정할 수 없습니다.' },
+    });
+  });
 });
 
 describe('community reaction actions', () => {
@@ -396,6 +448,28 @@ describe('community reaction actions', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  it('redirects a suspended author before creating a comment', async () => {
+    suspendCurrentUser();
+
+    await expect(createCommunityCommentAction({}, commentForm())).rejects.toThrow(
+      'NEXT_REDIRECT:/account-suspended',
+    );
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('keeps like, delete, report, and block safety actions available while suspended', async () => {
+    suspendCurrentUser();
+    mocks.rpc.mockResolvedValue({ data: { ipId: 'hwasan' }, error: null });
+
+    await expect(setCommunityPostLikeAction(likeForm(true))).rejects.toThrow('NEXT_REDIRECT:/community');
+    await expect(deleteCommunityPostAction(deletePostForm())).rejects.toThrow('NEXT_REDIRECT:/community');
+    await expect(deleteCommunityCommentAction(deleteCommentForm())).rejects.toThrow('NEXT_REDIRECT:/community');
+    await expect(reportCommunityTargetAction(reportForm())).rejects.toThrow('NEXT_REDIRECT:/community');
+    await expect(blockCommunityUserAction(blockForm())).rejects.toThrow('NEXT_REDIRECT:/community');
+
+    expect(mocks.rpc).toHaveBeenCalledTimes(5);
+  });
+
   it('creates a comment through the visible-post RPC and refreshes community surfaces', async () => {
     mocks.rpc.mockResolvedValue({ data: { ipId: 'hwasan' }, error: null });
 
@@ -407,6 +481,14 @@ describe('community reaction actions', () => {
     });
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/community');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip/hwasan');
+  });
+
+  it('maps a database suspension race while creating a comment', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'account_suspended' } });
+
+    await expect(createCommunityCommentAction({}, commentForm())).resolves.toEqual({
+      errors: { form: '정지된 계정은 새 댓글을 작성할 수 없습니다.' },
+    });
   });
 
   it('sets the requested like state instead of issuing a non-idempotent flip command', async () => {

@@ -57,5 +57,7 @@ export function isActive(route: string, pathname: string): boolean {
 }
 
 export function isAuthShellPath(pathname: string): boolean {
-  return pathname === '/login' || pathname === '/update-password';
+  return pathname === '/login'
+    || pathname === '/update-password'
+    || pathname === '/account-suspended';
 }

@@ -12,6 +12,7 @@ export interface ProfileForOnboarding {
   consents?: OnboardingConsents | null;
   onboarded_at?: string | null;
   role?: 'user' | 'staff' | 'admin' | null;
+  suspended_at?: string | null;
 }
 
 interface AuthErrorLike {
@@ -21,6 +22,7 @@ interface AuthErrorLike {
 }
 
 export const AUTH_CALLBACK_PATH = '/auth/callback';
+export const ACCOUNT_SUSPENDED_PATH = '/account-suspended';
 export const AUTH_NEXT_COOKIE_NAME = 'icons_auth_next';
 export const AUTH_NEXT_COOKIE_MAX_AGE_SECONDS = 10 * 60;
 
@@ -28,6 +30,12 @@ const GENERIC_AUTH_ERROR_MESSAGE = '인증을 완료하지 못했습니다. 다�
 const GENERIC_SIGNUP_ERROR_MESSAGE = '가입 요청을 처리하지 못했습니다. 이메일 형식과 비밀번호를 확인한 뒤 다시 시도해주세요.';
 const GENERIC_PASSWORD_RESET_ERROR_MESSAGE = '비밀번호 재설정을 완료하지 못했습니다. 로그인 화면에서 새 재설정 메일을 요청해주세요.';
 const GENERIC_PASSWORD_UPDATE_ERROR_MESSAGE = '비밀번호를 변경하지 못했습니다. 잠시 후 다시 시도해주세요.';
+
+export function isAccountSuspended(
+  profile: Pick<ProfileForOnboarding, 'suspended_at'> | null | undefined,
+): boolean {
+  return Boolean(profile?.suspended_at);
+}
 
 export function isOnboarded(profile: ProfileForOnboarding | null | undefined, authEmail?: string | null): boolean {
   if (!profile) return false;

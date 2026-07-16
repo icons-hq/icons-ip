@@ -5,6 +5,7 @@ import {
   authNextCookieValue,
   authNextPathFromCookie,
   authSignUpErrorMessage,
+  isAccountSuspended,
   isOnboarded,
   nextPathWithSearch,
   passwordResetErrorLoginPath,
@@ -27,7 +28,16 @@ const completeProfile = (overrides: Partial<ProfileForOnboarding> = {}): Profile
     marketing: false,
   },
   onboarded_at: '2026-06-22T00:00:00.000Z',
+  suspended_at: null,
   ...overrides,
+});
+
+describe('isAccountSuspended', () => {
+  it('treats only a populated suspension timestamp as suspended', () => {
+    expect(isAccountSuspended(null)).toBe(false);
+    expect(isAccountSuspended({ suspended_at: null })).toBe(false);
+    expect(isAccountSuspended({ suspended_at: '2026-07-17T00:00:00.000Z' })).toBe(true);
+  });
 });
 
 describe('isOnboarded', () => {

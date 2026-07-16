@@ -1,6 +1,6 @@
 'use server';
 
-import { isOnboarded } from '@/lib/auth/onboarding';
+import { isAccountSuspended, isOnboarded } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import {
   mapPlaceOrderError,
@@ -29,6 +29,7 @@ export async function placeOrderAction(
 ): Promise<PlaceOrderActionResult> {
   const auth = await getCurrentAuthState();
   if (!auth.isConfigured || !auth.user) return { ok: false, error: 'auth_required' };
+  if (isAccountSuspended(auth.profile)) return { ok: false, error: 'account_suspended' };
   if (!isOnboarded(auth.profile, auth.user.email)) {
     return { ok: false, error: 'onboarding_required' };
   }

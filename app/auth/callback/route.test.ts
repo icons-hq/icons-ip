@@ -178,6 +178,18 @@ describe('GET /auth/callback', () => {
     expect(mocks.getProfileForUser).toHaveBeenCalledOnce();
   });
 
+  it('redirects a suspended signup session before onboarding or next', async () => {
+    mocks.getProfileForUser.mockResolvedValue({
+      ...completeProfile,
+      suspended_at: '2026-07-17T00:00:00.000Z',
+    });
+
+    const response = await GET(request('/auth/callback?code=signup-code', signedCookie('signup')));
+
+    expect(locationPath(response)).toBe('/account-suspended');
+    expect(response.headers.get('set-cookie')).toContain(`${AUTH_NEXT_COOKIE_NAME}=;`);
+  });
+
   it.each([
     ['/auth/callback?error_code=otp_expired', 'otp_expired'],
     ['/auth/callback', 'missing_code'],

@@ -47,6 +47,7 @@ describe('ticketing reservation contract', () => {
   });
 
   it.each([
+    ['account_suspended', 'account_suspended'],
     ['auth required', 'auth_required'],
     ['onboarding required', 'onboarding_required'],
     ['quantity must be positive', 'invalid_request'],

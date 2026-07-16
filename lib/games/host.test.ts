@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { DATA } from '../data';
+import { createWebGameHost, GamePlayError } from './host';
+
+vi.mock('@/lib/data', async () => await import('../data'));
+vi.mock('@/lib/rarity', async () => await import('../rarity'));
+vi.mock('@/lib/supabase/config', () => ({ getSupabaseConfig: () => ({ isConfigured: false }) }));
+vi.mock('@/lib/supabase/client', () => ({ createClient: vi.fn() }));
 
 /* 게임 카탈로그 일관성 — 공시=추첨 일치 규율(Gacha poolRates와 동일).
  * 구슬에 보이는 라벨은 모두 실제로 당첨 가능해야 한다(0% 미끼 금지). */
@@ -37,5 +43,17 @@ describe('GAMES 카탈로그 일관성', () => {
       const labels = variant.kind === 'card' ? variant.rarityLineup : variant.goodsIds;
       expect(labels).toHaveLength(game.config.marbleCount);
     }
+  });
+});
+
+describe('remote game play errors', () => {
+  it('keeps the account suspension code for generic game guidance', async () => {
+    const host = createWebGameHost({
+      remotePlay: async () => ({ ok: false, error: 'account_suspended' }),
+    });
+
+    await expect(host.playGame('game-1')).rejects.toEqual(
+      expect.objectContaining<GamePlayError>({ code: 'account_suspended' }),
+    );
   });
 });

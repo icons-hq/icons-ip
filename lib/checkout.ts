@@ -11,6 +11,7 @@ export type CheckoutAddressField = keyof CheckoutAddress;
 export type CheckoutAddressErrors = Partial<Record<CheckoutAddressField, string>>;
 
 export type PlaceOrderErrorCode =
+  | 'account_suspended'
   | 'empty_cart'
   | 'out_of_stock'
   | 'invalid_address'
@@ -129,6 +130,7 @@ export function checkoutOrderName(itemNames: readonly string[]) {
 
 export function mapPlaceOrderError(message: unknown): PlaceOrderErrorCode {
   const normalized = typeof message === 'string' ? message.toLowerCase() : '';
+  if (normalized.includes('account_suspended')) return 'account_suspended';
   if (normalized.includes('cart empty')) return 'empty_cart';
   if (normalized.includes('out of stock')) return 'out_of_stock';
   if (normalized.includes('invalid checkout address')) return 'invalid_address';

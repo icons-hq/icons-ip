@@ -141,9 +141,9 @@ select public.admin_set_user_role(
 );
 
 select 1 / case when (
-  select role
-  from public.profiles
-  where id = '00000000-0000-4000-8000-000000000303'
+  select member.role
+  from public.admin_search_members('role-fan@example.test') as member
+  where member.profile_id = '00000000-0000-4000-8000-000000000303'
 ) = 'staff' then 1 else 0 end as assert_admin_can_grant_staff;
 
 select public.admin_set_user_role(
@@ -152,9 +152,9 @@ select public.admin_set_user_role(
 );
 
 select 1 / case when (
-  select role
-  from public.profiles
-  where id = '00000000-0000-4000-8000-000000000303'
+  select member.role
+  from public.admin_search_members('role-fan@example.test') as member
+  where member.profile_id = '00000000-0000-4000-8000-000000000303'
 ) = 'user' then 1 else 0 end as assert_admin_can_revoke_staff;
 
 do $$

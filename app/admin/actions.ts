@@ -60,7 +60,7 @@ async function requireAdminAction(): Promise<AdminCatalogActionState | null> {
     redirect(loginPath());
   }
 
-  if (auth.role !== 'admin') {
+  if (!auth.isStaff || auth.role !== 'admin') {
     return { errors: { form: '최고 관리자(admin) 권한이 필요합니다.' } };
   }
 
@@ -705,6 +705,9 @@ export async function setAdminUserRoleAction(
     }
     if (error.message.includes('profile_not_found')) {
       return rpcFailure('사용자를 찾을 수 없습니다.');
+    }
+    if (error.message.includes('account_suspended')) {
+      return rpcFailure('정지된 계정에는 staff 또는 admin 역할을 부여할 수 없습니다.');
     }
     return rpcFailure('역할을 저장하지 못했습니다. 다시 시도해주세요.');
   }

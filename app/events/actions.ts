@@ -1,6 +1,6 @@
 'use server';
 
-import { isOnboarded } from '@/lib/auth/onboarding';
+import { isAccountSuspended, isOnboarded } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
 import { createClient } from '@/lib/supabase/server';
@@ -30,6 +30,7 @@ function eventStatus(value: TicketEligibilityRow['events']): string | null {
 export async function reserveTicketsAction(inputValue: unknown): Promise<ReserveTicketsActionResult> {
   const auth = await getCurrentAuthState();
   if (!auth.isConfigured || !auth.user) return { ok: false, error: 'auth_required' };
+  if (isAccountSuspended(auth.profile)) return { ok: false, error: 'account_suspended' };
   if (!isOnboarded(auth.profile, auth.user.email)) {
     return { ok: false, error: 'onboarding_required' };
   }

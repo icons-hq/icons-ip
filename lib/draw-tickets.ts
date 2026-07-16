@@ -52,10 +52,11 @@ export function normalizeGrantedCards(data: unknown): OpenedCard[] {
   });
 }
 
-export type OpenPackErrorCode = 'not_found' | 'already_opened' | 'pool_empty' | 'unknown';
+export type OpenPackErrorCode = 'account_suspended' | 'not_found' | 'already_opened' | 'pool_empty' | 'unknown';
 
 /** RPC 예외 메시지 → 사용자 에러 코드. 타인·회수 티켓은 존재를 노출하지 않는다. */
 export function mapOpenTicketError(message: string): OpenPackErrorCode {
+  if (message.toLowerCase().includes('account_suspended')) return 'account_suspended';
   if (
     message.includes('ticket not found')
     || message.includes('ticket_revoked')

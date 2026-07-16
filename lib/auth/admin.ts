@@ -17,6 +17,7 @@ export interface CurrentAdminAuthState {
 
 interface AdminProfileRow {
   role: AdminRole;
+  suspended_at: string | null;
 }
 
 export async function getCurrentAdminAuthState(): Promise<CurrentAdminAuthState> {
@@ -34,7 +35,7 @@ export async function getCurrentAdminAuthState(): Promise<CurrentAdminAuthState>
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role,suspended_at')
     .eq('id', user.id)
     .maybeSingle<AdminProfileRow>();
   const role = profile?.role ?? null;
@@ -46,6 +47,6 @@ export async function getCurrentAdminAuthState(): Promise<CurrentAdminAuthState>
       email: user.email ?? null,
     },
     role,
-    isStaff: role === 'staff' || role === 'admin',
+    isStaff: !profile?.suspended_at && (role === 'staff' || role === 'admin'),
   };
 }

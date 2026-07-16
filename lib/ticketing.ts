@@ -103,6 +103,7 @@ export interface ReserveTicketsInput {
 export type ReserveTicketsErrorCode =
   | 'invalid_request'
   | 'auth_required'
+  | 'account_suspended'
   | 'onboarding_required'
   | 'payment_unavailable'
   | 'not_bookable'
@@ -154,6 +155,7 @@ export function normalizeReserveTicketsInput(value: unknown): ReserveTicketsInpu
 
 export function mapReserveTicketsError(message: unknown): ReserveTicketsErrorCode {
   const normalized = typeof message === 'string' ? message.toLowerCase() : '';
+  if (normalized.includes('account_suspended')) return 'account_suspended';
   if (normalized.includes('auth required')) return 'auth_required';
   if (normalized.includes('onboarding required')) return 'onboarding_required';
   if (
