@@ -1855,6 +1855,9 @@
 }
 @media (min-width: 920px) { .only-mob { display: none !important; } }
 @media (max-width: 620px) {
+  .admin-artwork-layout { align-items: stretch !important; flex-direction: column; }
+  .admin-artwork-preview { flex-basis: auto !important; width: 100%; }
+  .admin-artwork-controls, .admin-artwork-actions { width: 100%; }
   .check-in-shell { padding: 22px 14px 34px; }
   .check-in-header { align-items: stretch; flex-direction: column; gap: 18px; }
   .check-in-header > .btn { width: 100%; }

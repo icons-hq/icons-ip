@@ -73,6 +73,16 @@ function createClient({
         error: rpcErrors[name] ? { message: rpcErrors[name] } : null,
       });
     },
+    storage: {
+      from(bucket: string) {
+        if (bucket !== 'public-media') throw new Error(`Unexpected bucket ${bucket}`);
+        return {
+          getPublicUrl(path: string) {
+            return { data: { publicUrl: `https://cdn.example/public-media/${path}` } };
+          },
+        };
+      },
+    },
   };
 }
 
@@ -87,6 +97,34 @@ describe('getAdminCatalogRecords', () => {
     expect(getAdminCardPoolStatus('2026-07-15T01:00:00.000Z', null, now)).toBe('scheduled');
     expect(getAdminCardPoolStatus('2026-07-14T00:00:00.000Z', null, now)).toBe('active');
     expect(getAdminCardPoolStatus('2026-07-14T00:00:00.000Z', '2026-07-15T00:00:00.000Z', now)).toBe('ended');
+  });
+
+  it('preserves stored artwork paths and exposes their public preview URLs', async () => {
+    mocks.client = createClient({
+      records: [],
+      rows: {
+        ips: [{
+          id: 'hwasan',
+          title: '화산강림',
+          sub: null,
+          vertical_key: 'rofan',
+          tagline: null,
+          synopsis: null,
+          glyph: null,
+          bg: null,
+          image_path: 'public-media/catalog/ip/11111111-1111-4111-8111-111111111111.webp',
+          featured: true,
+          fans_count: 0,
+        }],
+      },
+    });
+
+    const result = await getAdminCatalogRecords();
+
+    expect(result.ips[0]).toMatchObject({
+      imagePath: 'public-media/catalog/ip/11111111-1111-4111-8111-111111111111.webp',
+      imageUrl: 'https://cdn.example/public-media/catalog/ip/11111111-1111-4111-8111-111111111111.webp',
+    });
   });
 
   it('classifies reward-policy status in the required priority order', () => {

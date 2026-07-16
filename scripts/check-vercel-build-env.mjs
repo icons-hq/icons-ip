@@ -19,6 +19,7 @@ export function validateVercelBuildEnvironment(environment) {
     'TOSS_SECRET_KEY',
     'SUPABASE_SERVICE_ROLE_KEY',
   ];
+  if (target === 'production') required.push('CRON_SECRET');
   const missing = required.filter((name) => !isPresent(environment[name]));
 
   if (!isPresent(environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
@@ -28,6 +29,11 @@ export function validateVercelBuildEnvironment(environment) {
 
   if (missing.length > 0) {
     throw new Error(`Missing Vercel ${target} environment: ${missing.join(', ')}`);
+  }
+
+  if (target === 'production'
+    && !/^[A-Za-z0-9_-]{16,128}$/.test(environment.CRON_SECRET)) {
+    throw new Error('Invalid Vercel production CRON_SECRET: use 16-128 URL-safe characters');
   }
 
   const clientMode = paymentKeyMode(environment.NEXT_PUBLIC_TOSS_CLIENT_KEY, 'client');

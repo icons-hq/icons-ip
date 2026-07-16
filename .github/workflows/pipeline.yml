@@ -68,6 +68,7 @@ jobs:
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_notification_console.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_role_management.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_member_suspension.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_artwork_upload_storage.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/cart_items.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/checkout_order.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_history.sql
@@ -346,6 +347,7 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
 
     steps:
       - name: Check out repository
@@ -366,13 +368,22 @@ jobs:
       - name: Check Vercel deployment secrets
         run: |
           missing=0
-          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID CRON_SECRET; do
             if [ -z "${!name}" ]; then
               echo "::error title=Missing GitHub secret::$name is required for Vercel deployment"
               missing=1
             fi
           done
+          if [[ ! "$CRON_SECRET" =~ ^[A-Za-z0-9_-]{16,128}$ ]]; then
+            echo "::error title=Invalid GitHub secret::CRON_SECRET must be 16-128 URL-safe characters"
+            missing=1
+          fi
           exit "$missing"
+
+      - name: Sync Vercel cron secret
+        run: |
+          vercel link --yes
+          printf '%s' "$CRON_SECRET" | vercel env add CRON_SECRET production --sensitive --force --yes
 
       - name: Deploy Vercel production
         run: |
