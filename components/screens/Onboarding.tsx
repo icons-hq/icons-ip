@@ -150,7 +150,7 @@ export function Onboarding({
               aria-label="닉네임"
               defaultValue={nickname}
               name="nickname"
-              placeholder="닉네임 (2–12자)"
+              placeholder="닉네임 (1–30자)"
               style={inputStyle}
             />
             <ErrorText id="nickname-error">{state.errors?.nickname}</ErrorText>
