@@ -165,7 +165,8 @@ select 1 / case when has_table_privilege('authenticated', 'public.ticket_orders'
   and not has_table_privilege('authenticated', 'public.check_ins', 'delete')
   then 1 else 0 end as assert_authenticated_has_read_only_ticket_access;
 
-select 1 / case when has_table_privilege('service_role', 'public.ticket_orders', 'select')
+select 1 / case when has_table_privilege('service_role', 'public.ticket_types', 'select')
+  and has_table_privilege('service_role', 'public.ticket_orders', 'select')
   and has_table_privilege('service_role', 'public.ticket_orders', 'insert')
   and has_table_privilege('service_role', 'public.ticket_orders', 'update')
   and has_table_privilege('service_role', 'public.ticket_orders', 'delete')
