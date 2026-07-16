@@ -404,6 +404,11 @@
   }
   .community-post { transition: border-color .25s ease; }
   .community-post:hover { border-color: rgba(255,255,255,.16); }
+  .community-post-edit-control:focus-visible,
+  .community-post-edit-toggle:focus-visible {
+    outline: 2px solid var(--cyan) !important;
+    outline-offset: 3px;
+  }
 
   /* entrance — never animate opacity (capture envs can freeze the clock at frame 0) */
   .rise { opacity: 1; }

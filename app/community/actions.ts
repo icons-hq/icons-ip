@@ -10,6 +10,7 @@ import {
   normalizeCommunityBlockForm,
   normalizeCommunityCommentForm,
   normalizeCommunityLikeForm,
+  normalizeCommunityPostEditForm,
   normalizeCommunityPostForm,
   normalizeCommunityReportForm,
   normalizeCommunityUuid,
@@ -29,6 +30,15 @@ export interface CommunityCommentActionState {
   errors?: {
     postId?: string;
     text?: string;
+    form?: string;
+  };
+}
+
+export interface CommunityPostEditActionState {
+  errors?: {
+    postId?: string;
+    text?: string;
+    ipId?: string;
     form?: string;
   };
 }
@@ -56,6 +66,34 @@ function readRpcIpId(data: unknown) {
   if (!candidate || typeof candidate !== 'object') return null;
   const ipId = (candidate as { ipId?: unknown; ip_id?: unknown }).ipId ?? (candidate as { ip_id?: unknown }).ip_id;
   return typeof ipId === 'string' && ipId.trim() ? ipId : null;
+}
+
+function readPostEditRpcResult(data: unknown) {
+  if (!data || typeof data !== 'object') return null;
+  const candidate = Array.isArray(data) ? data[0] : data;
+  if (!candidate || typeof candidate !== 'object') return null;
+
+  const value = candidate as {
+    previousIpId?: unknown;
+    previous_ip_id?: unknown;
+    ipId?: unknown;
+    ip_id?: unknown;
+    updatedAt?: unknown;
+    updated_at?: unknown;
+  };
+  const previousIpId = value.previousIpId ?? value.previous_ip_id ?? null;
+  const ipId = value.ipId ?? value.ip_id;
+  const updatedAt = value.updatedAt ?? value.updated_at;
+
+  if (previousIpId !== null && typeof previousIpId !== 'string') return null;
+  if (typeof ipId !== 'string' || !ipId.trim()) return null;
+  if (typeof updatedAt !== 'string' || !updatedAt.trim()) return null;
+
+  return {
+    previousIpId: previousIpId?.trim() || null,
+    ipId: ipId.trim(),
+    updatedAt,
+  };
 }
 
 async function requireAuthenticatedCommunityUser(next: string) {
@@ -87,6 +125,16 @@ function revalidateCommunitySurfaces(ipId: string | null) {
 function revalidateCommunityModerationSurfaces(ipId: string | null) {
   revalidateCommunitySurfaces(ipId);
   revalidatePath('/search');
+}
+
+function revalidateCommunityEditSurfaces(previousIpId: string | null, ipId: string) {
+  revalidatePath('/');
+  revalidatePath('/community');
+  revalidatePath('/search');
+
+  for (const affectedIpId of new Set([previousIpId, ipId])) {
+    if (affectedIpId) revalidatePath(`/ip/${affectedIpId}`);
+  }
 }
 
 export async function createCommunityPostAction(
@@ -144,6 +192,39 @@ export async function createCommunityPostAction(
   revalidatePath('/');
   if (ipId) revalidatePath(`/ip/${ipId}`);
 
+  redirect(next);
+}
+
+export async function editCommunityPostAction(
+  _state: CommunityPostEditActionState,
+  formData: FormData,
+): Promise<CommunityPostEditActionState> {
+  const next = readNext(formData);
+  await requireCommunityUser(next);
+
+  const catalog = await getCatalogSnapshot();
+  const normalized = normalizeCommunityPostEditForm(formData, new Set(catalog.ips.map((ip) => ip.id)));
+  if (!normalized.ok) return { errors: normalized.errors };
+
+  const supabase = await createClient();
+  const { postId, text, ipId, tag } = normalized.value;
+  const { data, error } = await supabase.rpc('edit_own_post', {
+    target_post_id: postId,
+    post_text: text,
+    post_ip_id: ipId,
+    post_tag: tag,
+  });
+  const result = error ? null : readPostEditRpcResult(data);
+
+  if (!result) {
+    return {
+      errors: {
+        form: '포스트를 수정할 수 없습니다. 최신 상태를 확인한 뒤 다시 시도해주세요.',
+      },
+    };
+  }
+
+  revalidateCommunityEditSurfaces(result.previousIpId, result.ipId);
   redirect(next);
 }
 

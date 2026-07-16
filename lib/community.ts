@@ -58,10 +58,12 @@ export interface CommunityFeedPost {
   likes: number;
   comments: number;
   time: string;
-  tag: string;
+  tag: string | null;
   img?: string | null;
   likedByViewer: boolean;
   canDelete: boolean;
+  canEdit: boolean;
+  isEdited: boolean;
   commentItems: CommunityFeedComment[];
 }
 
@@ -96,6 +98,23 @@ export interface CommunityPostFormErrors {
 export type CommunityPostFormResult =
   | { ok: true; value: CommunityPostFormValue }
   | { ok: false; errors: CommunityPostFormErrors };
+
+export interface CommunityPostEditFormValue {
+  postId: string;
+  text: string;
+  ipId: string;
+  tag: string | null;
+}
+
+export interface CommunityPostEditFormErrors {
+  postId?: string;
+  text?: string;
+  ipId?: string;
+}
+
+export type CommunityPostEditFormResult =
+  | { ok: true; value: CommunityPostEditFormValue }
+  | { ok: false; errors: CommunityPostEditFormErrors };
 
 export interface CommunityCommentFormValue {
   postId: string;
@@ -213,6 +232,33 @@ export function normalizeCommunityPostForm(
       ipId,
       tag: normalizeTag(readString(formData, 'tag')),
       image,
+    },
+  };
+}
+
+export function normalizeCommunityPostEditForm(
+  formData: FormData,
+  allowedIpIds: ReadonlySet<string>,
+): CommunityPostEditFormResult {
+  const postId = readUuid(formData, 'postId');
+  const text = readString(formData, 'text');
+  const rawIpId = readString(formData, 'ipId');
+  const ipId = rawIpId && allowedIpIds.has(rawIpId) ? rawIpId : null;
+  const errors: CommunityPostEditFormErrors = {};
+
+  if (!postId) errors.postId = '포스트를 찾을 수 없습니다.';
+  if (!text) errors.text = '포스트 내용을 입력해주세요.';
+  if (!ipId) errors.ipId = 'IP 채널을 선택해주세요.';
+
+  if (!postId || !text || !ipId) return { ok: false, errors };
+
+  return {
+    ok: true,
+    value: {
+      postId,
+      text,
+      ipId,
+      tag: normalizeTag(readString(formData, 'tag')),
     },
   };
 }

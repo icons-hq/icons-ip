@@ -4,6 +4,7 @@ import {
   createCommunityPostAction,
   deleteCommunityCommentAction,
   deleteCommunityPostAction,
+  editCommunityPostAction,
   blockCommunityUserAction,
   reportCommunityTargetAction,
   setCommunityPostLikeAction,
@@ -113,6 +114,16 @@ function deletePostForm(next = '/community') {
   return formData;
 }
 
+function editPostForm(next = '/community') {
+  const formData = new FormData();
+  formData.set('postId', postId);
+  formData.set('text', '  수정한 팝업 후기입니다  ');
+  formData.set('ipId', 'hwasan');
+  formData.set('tag', '  #수정 후기!  ');
+  formData.set('next', next);
+  return formData;
+}
+
 function deleteCommentForm(next = '/community') {
   const formData = new FormData();
   formData.set('commentId', commentId);
@@ -216,6 +227,121 @@ describe('createCommunityPostAction', () => {
     await expect(createCommunityPostAction({}, postForm('/community?feed=fandom'))).rejects.toThrow(
       'NEXT_REDIRECT:/community?feed=fandom',
     );
+  });
+});
+
+describe('editCommunityPostAction', () => {
+  beforeEach(() => {
+    mocks.auth = {
+      isConfigured: true,
+      user: { id: 'user-1', email: 'fan@icons.gg' },
+      profile: {
+        email: 'fan@icons.gg',
+        nickname: 'fan',
+        birth_date: '2000-01-01',
+        consents: { terms: true, privacy: true, marketing: false },
+        onboarded_at: '2026-06-23T00:00:00.000Z',
+      },
+      isStaff: false,
+    };
+    mocks.catalog = catalog;
+    mocks.rpc.mockReset();
+    mocks.revalidatePath.mockReset();
+  });
+
+  it('redirects unauthenticated edits to login with the current fandom feed', async () => {
+    mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
+
+    await expect(editCommunityPostAction({}, editPostForm('/community?feed=fandom'))).rejects.toThrow(
+      'NEXT_REDIRECT:/login?next=%2Fcommunity%3Ffeed%3Dfandom',
+    );
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('requires onboarding while preserving the current fandom feed', async () => {
+    mocks.auth = {
+      isConfigured: true,
+      user: { id: 'user-1', email: 'fan@icons.gg' },
+      profile: null,
+      isStaff: false,
+    };
+
+    await expect(editCommunityPostAction({}, editPostForm('/community?feed=fandom'))).rejects.toThrow(
+      'NEXT_REDIRECT:/onboarding?next=%2Fcommunity%3Ffeed%3Dfandom',
+    );
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('returns inline validation errors without calling the edit RPC', async () => {
+    const formData = new FormData();
+    formData.set('postId', 'not-a-post');
+    formData.set('text', ' ');
+    formData.set('ipId', 'unknown');
+    formData.set('next', '/community');
+
+    await expect(editCommunityPostAction({}, formData)).resolves.toEqual({
+      errors: {
+        postId: '포스트를 찾을 수 없습니다.',
+        text: '포스트 내용을 입력해주세요.',
+        ipId: 'IP 채널을 선택해주세요.',
+      },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('edits only text, IP and tag then refreshes old and new community surfaces', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: {
+        previousIpId: 'lumen',
+        ipId: 'hwasan',
+        updatedAt: '2026-07-16T15:30:00.000Z',
+      },
+      error: null,
+    });
+
+    await expect(editCommunityPostAction({}, editPostForm('/community?feed=fandom'))).rejects.toThrow(
+      'NEXT_REDIRECT:/community?feed=fandom',
+    );
+
+    expect(mocks.rpc).toHaveBeenCalledWith('edit_own_post', {
+      target_post_id: postId,
+      post_text: '수정한 팝업 후기입니다',
+      post_ip_id: 'hwasan',
+      post_tag: '수정후기',
+    });
+    expect(mocks.revalidatePath.mock.calls).toEqual(expect.arrayContaining([
+      ['/'],
+      ['/community'],
+      ['/search'],
+      ['/ip/lumen'],
+      ['/ip/hwasan'],
+    ]));
+  });
+
+  it('accepts a snake-case array RPC result and rejects an external next path', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: [{
+        previous_ip_id: 'lumen',
+        ip_id: 'hwasan',
+        updated_at: '2026-07-16T15:30:00.000Z',
+      }],
+      error: null,
+    });
+
+    await expect(editCommunityPostAction({}, editPostForm('https://evil.example/steal'))).rejects.toThrow(
+      'NEXT_REDIRECT:/',
+    );
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip/lumen');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip/hwasan');
+  });
+
+  it('returns one non-disclosing form error when the RPC rejects the edit', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'post_not_editable' } });
+
+    await expect(editCommunityPostAction({}, editPostForm())).resolves.toEqual({
+      errors: { form: '포스트를 수정할 수 없습니다. 최신 상태를 확인한 뒤 다시 시도해주세요.' },
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });
 

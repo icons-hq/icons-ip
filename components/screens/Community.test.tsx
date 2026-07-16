@@ -9,6 +9,7 @@ vi.mock('@/app/community/actions', () => ({
   createCommunityPostAction: vi.fn(),
   deleteCommunityCommentAction: vi.fn(),
   deleteCommunityPostAction: vi.fn(),
+  editCommunityPostAction: vi.fn(),
   reportCommunityTargetAction: vi.fn(),
   setCommunityPostLikeAction: vi.fn(),
 }));
@@ -152,6 +153,8 @@ describe('Community fandom feed', () => {
       tag: '후기',
       likedByViewer: false,
       canDelete: false,
+      canEdit: false,
+      isEdited: false,
       commentItems: [{
         id: '33333333-3333-4333-8333-333333333333',
         authorId: '44444444-4444-4444-8444-444444444444',
@@ -187,6 +190,8 @@ describe('Community fandom feed', () => {
       tag: '후기',
       likedByViewer: false,
       canDelete: false,
+      canEdit: false,
+      isEdited: false,
       commentItems: [],
     };
 
@@ -198,5 +203,76 @@ describe('Community fandom feed', () => {
 
     expect(html).toContain('팔로우 팬덤 포스트');
     expect(html).not.toContain('내 팬덤의 첫 이야기를 남겨보세요');
+  });
+});
+
+describe('Community post editing', () => {
+  const ownerPost: CommunityFeedPost = {
+    id: '11111111-1111-4111-8111-111111111111',
+    authorId: '22222222-2222-4222-8222-222222222222',
+    user: 'owner',
+    ipId: 'hwasan',
+    ipName: '화산강림',
+    avatar: '#8B5CFF',
+    text: '수정 전 포스트',
+    likes: 1,
+    comments: 0,
+    time: '방금 전',
+    tag: null,
+    img: '/community/original.png',
+    likedByViewer: false,
+    canDelete: true,
+    canEdit: true,
+    isEdited: true,
+    commentItems: [],
+  };
+
+  it('renders an accessible inline edit form for an editable author post', () => {
+    const html = renderToStaticMarkup(
+      <Community
+        feedScope="fandom"
+        snapshot={{ ...snapshot, posts: [ownerPost] }}
+        viewerState="onboarded"
+      />,
+    );
+
+    expect(html).toContain('aria-label="포스트 수정"');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('aria-controls="community-post-edit-11111111-1111-4111-8111-111111111111"');
+    expect(html).toContain('min-height:44px');
+    expect(html).toContain('min-width:44px');
+    expect(html).toContain('for="community-post-edit-11111111-1111-4111-8111-111111111111-text"');
+    expect(html).toContain('for="community-post-edit-11111111-1111-4111-8111-111111111111-ip"');
+    expect(html).toContain('for="community-post-edit-11111111-1111-4111-8111-111111111111-tag"');
+    expect(html.match(/class="community-post-edit-control"/g)).toHaveLength(3);
+    expect(html).toContain('name="postId" value="11111111-1111-4111-8111-111111111111"');
+    expect(html).toContain('name="next" value="/community?feed=fandom"');
+    expect(html).toContain('<textarea');
+    expect(html).toContain('name="text"');
+    expect(html).toContain('수정 전 포스트</textarea>');
+    expect(html).toContain('<option value="hwasan" selected="">화산강림</option>');
+    expect(html).toContain('name="tag" value=""');
+    expect(html).toContain('기존 이미지는 그대로 유지돼요');
+    expect(html).toContain('id="community-post-edit-11111111-1111-4111-8111-111111111111-form-error" role="alert"');
+    expect(html).toContain('저장');
+    expect(html).toContain('취소');
+    expect(html).toContain('· 수정됨');
+    expect(html).toContain('#커뮤니티');
+    expect(html).not.toContain('type="file" name="image"');
+  });
+
+  it('does not offer editing when the post is not editable, including a hidden author post', () => {
+    const html = renderToStaticMarkup(
+      <Community
+        feedScope="all"
+        snapshot={{ ...snapshot, posts: [{ ...ownerPost, canEdit: false, isEdited: false }] }}
+        viewerState="onboarded"
+      />,
+    );
+
+    expect(html).not.toContain('aria-label="포스트 수정"');
+    expect(html).not.toContain('community-post-edit-11111111-1111-4111-8111-111111111111');
+    expect(html).toContain('aria-label="포스트 삭제"');
+    expect(html).not.toContain('· 수정됨');
   });
 });

@@ -9,9 +9,11 @@ import {
   createCommunityPostAction,
   deleteCommunityCommentAction,
   deleteCommunityPostAction,
+  editCommunityPostAction,
   reportCommunityTargetAction,
   setCommunityPostLikeAction,
   type CommunityCommentActionState,
+  type CommunityPostEditActionState,
   type CommunityPostActionState,
 } from '@/app/community/actions';
 import type {
@@ -28,6 +30,7 @@ import { Empty } from '@/components/ui/Empty';
 
 const emptyState: CommunityPostActionState = {};
 const emptyCommentState: CommunityCommentActionState = {};
+const emptyEditState: CommunityPostEditActionState = {};
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function ErrorText({ children, id }: { children?: string; id: string }) {
@@ -155,7 +158,118 @@ function DeleteButton({ label }: { label: string }) {
   );
 }
 
-function PostCard({ nextPath, p }: { nextPath: string; p: CommunityFeedPost }) {
+function EditSubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button className="btn btn-holo btn-sm" disabled={pending} style={{ minHeight: 44 }} type="submit">
+      {pending ? '저장 중' : '저장'}
+    </button>
+  );
+}
+
+function PostEditForm({
+  channels,
+  nextPath,
+  onCancel,
+  open,
+  post,
+}: {
+  channels: CommunityChannel[];
+  nextPath: string;
+  onCancel: () => void;
+  open: boolean;
+  post: CommunityFeedPost;
+}) {
+  const [state, action] = useActionState(editCommunityPostAction, emptyEditState);
+  const formId = `community-post-edit-${post.id}`;
+  const textInputId = `${formId}-text`;
+  const ipInputId = `${formId}-ip`;
+  const tagInputId = `${formId}-tag`;
+  const textErrorId = `${formId}-text-error`;
+  const ipErrorId = `${formId}-ip-error`;
+  const formErrorId = `${formId}-form-error`;
+  const defaultIpId = post.ipId && channels.some((channel) => channel.id === post.ipId)
+    ? post.ipId
+    : channels[0]?.id ?? '';
+
+  return (
+    <div hidden={!open} id={formId}>
+      <form
+        action={action}
+        style={{ border: '1px solid var(--line-2)', borderRadius: 14, display: 'flex', flexDirection: 'column', gap: 10, padding: 14 }}
+      >
+        <input name="next" type="hidden" value={nextPath} />
+        <input name="postId" type="hidden" value={post.id} />
+        <label className="sr-only" htmlFor={textInputId}>포스트 내용</label>
+        <textarea
+          aria-describedby={state.errors?.text ? textErrorId : undefined}
+          aria-invalid={Boolean(state.errors?.text)}
+          className="community-post-edit-control"
+          defaultValue={post.text}
+          id={textInputId}
+          name="text"
+          rows={4}
+          style={{ width: '100%', minHeight: 96, resize: 'vertical', border: '1px solid var(--line-2)', background: 'var(--bg-2)', borderRadius: 10, padding: 11, color: 'var(--text)', fontSize: 14, fontFamily: 'inherit', lineHeight: 1.55, outline: 'none' }}
+        />
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <label className="sr-only" htmlFor={ipInputId}>IP 채널</label>
+          <select
+            aria-describedby={state.errors?.ipId ? ipErrorId : undefined}
+            aria-invalid={Boolean(state.errors?.ipId)}
+            className="community-post-edit-control"
+            defaultValue={defaultIpId}
+            disabled={!defaultIpId}
+            id={ipInputId}
+            name="ipId"
+            style={{ height: 44, minWidth: 140, border: '1px solid var(--line-2)', background: 'var(--bg-2)', borderRadius: 10, padding: '0 11px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+          >
+            {channels.map((channel) => (
+              <option key={channel.id} value={channel.id}>{channel.title}</option>
+            ))}
+          </select>
+          <label className="sr-only" htmlFor={tagInputId}>태그</label>
+          <input
+            className="community-post-edit-control"
+            defaultValue={post.tag ?? ''}
+            id={tagInputId}
+            name="tag"
+            placeholder="#태그"
+            style={{ height: 44, minWidth: 140, flex: 1, border: '1px solid var(--line-2)', background: 'var(--bg-2)', borderRadius: 10, padding: '0 11px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+          />
+        </div>
+        {post.img && (
+          <p style={{ margin: 0, color: 'var(--faint)', fontSize: 12.5 }}>기존 이미지는 그대로 유지돼요.</p>
+        )}
+        <ErrorText id={textErrorId}>{state.errors?.text}</ErrorText>
+        <ErrorText id={ipErrorId}>{state.errors?.ipId}</ErrorText>
+        <div id={formErrorId} role="alert" style={{ color: 'var(--pink)', fontSize: 12.5, fontWeight: 600 }}>
+          {state.errors?.form ?? state.errors?.postId}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
+          <button className="btn btn-ghost btn-sm" onClick={onCancel} style={{ minHeight: 44 }} type="button">
+            취소
+          </button>
+          <EditSubmitButton />
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function PostCard({ channels, nextPath, p }: { channels: CommunityChannel[]; nextPath: string; p: CommunityFeedPost }) {
+  const [editing, setEditing] = useState(false);
+  const [editSession, setEditSession] = useState(0);
+  const closeEditor = () => {
+    setEditing(false);
+    setEditSession((current) => current + 1);
+  };
+  const toggleEditor = () => {
+    if (editing) {
+      closeEditor();
+      return;
+    }
+    setEditing(true);
+  };
   const imageBackground = p.img && (p.img.startsWith('http') || p.img.startsWith('/'))
     ? `url("${p.img}") center / cover no-repeat`
     : p.img;
@@ -168,7 +282,7 @@ function PostCard({ nextPath, p }: { nextPath: string; p: CommunityFeedPost }) {
         </span>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
           <span style={{ fontWeight: 700, fontSize: 14 }}>@{p.user}</span>
-          <span className="mono" style={{ fontSize: 10.5, color: 'var(--faint)' }}>{p.ipName} · {p.time}</span>
+          <span className="mono" style={{ fontSize: 10.5, color: 'var(--faint)' }}>{p.ipName} · {p.time}{p.isEdited ? ' · 수정됨' : ''}</span>
         </div>
         <div style={{ display: 'flex', marginLeft: 'auto', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <ReportForm label="포스트 신고" nextPath={nextPath} targetId={p.id} targetType="post" />
@@ -185,8 +299,32 @@ function PostCard({ nextPath, p }: { nextPath: string; p: CommunityFeedPost }) {
               <DeleteButton label="포스트 삭제" />
             </form>
           )}
+          {p.canEdit && (
+            <button
+              aria-controls={`community-post-edit-${p.id}`}
+              aria-expanded={editing}
+              aria-label="포스트 수정"
+              className="community-post-edit-toggle"
+              onClick={toggleEditor}
+              style={{ minHeight: 44, minWidth: 44, padding: '0 6px', fontSize: 12.5, fontWeight: 700, color: 'var(--faint)' }}
+              type="button"
+            >
+              수정
+            </button>
+          )}
         </div>
       </div>
+
+      {p.canEdit && (
+        <PostEditForm
+          channels={channels}
+          key={`${p.id}-${editSession}`}
+          nextPath={nextPath}
+          onCancel={closeEditor}
+          open={editing}
+          post={p}
+        />
+      )}
 
       <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.65, color: '#DDD8F2', textWrap: 'pretty', whiteSpace: 'pre-line' }}>{p.text}</p>
 
@@ -208,7 +346,7 @@ function PostCard({ nextPath, p }: { nextPath: string; p: CommunityFeedPost }) {
         <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 34, padding: '0 14px', borderRadius: 999, fontSize: 12, color: 'var(--dim)', border: '1px solid rgba(255,255,255,.1)' }}>
           💬 {p.comments}
         </span>
-        <span className="mono" style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--faint)' }}>#{p.tag}</span>
+        <span className="mono" style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--faint)' }}>#{p.tag ?? '커뮤니티'}</span>
       </div>
 
       {p.commentItems.length > 0 && (
@@ -544,7 +682,7 @@ export function Community({
               <>
                 <Composer channels={channels} nextPath={nextPath} selectedChannelId={channelId} />
                 {posts.map((post) => (
-                  <PostCard key={post.id} nextPath={nextPath} p={post} />
+                  <PostCard channels={channels} key={post.id} nextPath={nextPath} p={post} />
                 ))}
                 {!posts.length && feedScope === 'fandom' && channelId === 'all' ? (
                   <div className="col" style={{ alignItems: 'center', gap: 12, padding: '18px 0' }}>
