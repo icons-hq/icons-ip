@@ -4,6 +4,7 @@ import type { AdminCardRecord } from '@/lib/admin/catalog.server';
 import { CardSection } from './CardSection';
 
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => null }));
+vi.mock('../../../lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: vi.fn() }));
 vi.mock('@/lib/rarity', () => ({
   RARITY_META: { N: {}, R: {}, SR: {}, SSR: {}, HOLO: {} },
 }));
@@ -76,5 +77,13 @@ describe('CardSection', () => {
     expect(html).toContain('value="hwasan" selected=""');
     expect(html).toContain('<option value="" selected="">풀 미지정</option>');
     expect(html).not.toContain('aria-readonly="true"');
+  });
+
+  it('uses the shared artwork upload field', () => {
+    const html = renderCard();
+
+    expect(html).toContain('data-artwork-kind="card"');
+    expect(html).toContain('name="imagePath"');
+    expect(html).toContain('accept="image/jpeg,image/png,image/webp"');
   });
 });

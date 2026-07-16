@@ -39,6 +39,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ICONS_CATALOG_SOURCE=
 AUTH_SIGNUP_RESEND_SECRET=
+CRON_SECRET=
 ```
 
 - `NEXT_PUBLIC_SUPABASE_URL`: Supabase 프로젝트 URL.
@@ -46,6 +47,7 @@ AUTH_SIGNUP_RESEND_SECRET=
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: legacy Supabase anon public key. `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`가 없을 때 fallback으로만 사용한다.
 - `ICONS_CATALOG_SOURCE`: 서버 전용 catalog/search source override. 값은 `mock` 또는 `supabase`만 허용한다. 비워두면 Vercel Preview는 `mock`, Supabase 환경변수가 있는 production/local은 `supabase`, Supabase 환경변수가 없으면 `mock`을 쓴다.
 - `AUTH_SIGNUP_RESEND_SECRET`: 회원가입 확인 메일 재전송 상태, 인증 `next`, 비밀번호 재설정 요청 제한 쿠키를 domain-separated HMAC으로 서명하는 서버 전용 secret. 긴 랜덤 값을 사용하고 `NEXT_PUBLIC_` prefix를 붙이지 않는다.
+- `CRON_SECRET`: production Vercel Cron이 만료된 관리자 아트워크 staging 객체를 정리할 때 쓰는 서버 전용 bearer secret. 16~128자의 URL-safe 랜덤 값을 사용하고 preview에는 필요하지 않다.
 
 URL과 public key 둘 중 하나라도 없으면 인증 미들웨어는 세션 갱신을 건너뛰고, 공개 카탈로그는 로컬 개발용 mock 데이터로 fallback한다. `AUTH_SIGNUP_RESEND_SECRET`이 없으면 회원가입 재전송 제한과 서명된 `next` 보존을 신뢰할 수 없으며, 비밀번호 재설정 요청은 fail closed한다. Vercel preview와 production 배포는 Supabase 공개 환경변수 또는 이 secret이 없으면 workflow preflight에서 실패한다.
 
@@ -114,6 +116,7 @@ SUPABASE_DB_PASSWORD
 VERCEL_TOKEN
 VERCEL_ORG_ID
 VERCEL_PROJECT_ID
+CRON_SECRET
 ```
 
 - PR에서는 `npm run lint`, `npm run build`, local Supabase migration reset/lint 후 Vercel preview를 배포한다.
@@ -121,7 +124,7 @@ VERCEL_PROJECT_ID
 - GitHub Actions의 앱 빌드는 Node 26을 사용한다. Vercel project/runtime Node.js Version은 Vercel production Functions 공식 지원 범위인 24.x로 유지한다.
 - deployment secret 검사는 각 deploy job 안에서 수행한다. 누락 시 job이 즉시 실패하며, 필요한 GitHub Secret을 설정한 뒤 rerun해야 한다.
 - `.vercel/` 연결 파일은 commit하지 않고, workflow가 `VERCEL_ORG_ID`와 `VERCEL_PROJECT_ID`로 Vercel 원격 build/deploy를 요청한다.
-- Vercel 환경변수는 sensitive 상태로 preview와 production에 둔다. 원격 build 안의 `prebuild` guard가 Supabase/Auth/결제 필수 변수와 토스 결제위젯 키 모드를 검증하며, 누락·불일치 시 배포를 실패시킨다. development 환경변수는 별도 요청 전까지 추가하지 않는다.
+- Vercel 환경변수는 sensitive 상태로 preview와 production에 둔다. production deploy job은 GitHub `CRON_SECRET`을 Vercel production sensitive env에 stdin으로 동기화한 뒤 배포한다. 원격 build 안의 `prebuild` guard가 Supabase/Auth/결제 필수 변수, production `CRON_SECRET`, 토스 결제위젯 키 모드를 검증하며 누락·불일치 시 배포를 실패시킨다. development 환경변수는 별도 요청 전까지 추가하지 않는다.
 
 ## 프로젝트 지도
 

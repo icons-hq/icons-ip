@@ -139,6 +139,12 @@ function rpcFailure(message: string): AdminCatalogActionState {
   return { errors: { form: message } };
 }
 
+function artworkClaimFailure(message: string): AdminCatalogActionState | null {
+  return message.includes('unverified_artwork')
+    ? rpcFailure('검증된 이미지를 다시 업로드한 뒤 저장해주세요.')
+    : null;
+}
+
 function getAdminValidationCatalog() {
   return getCatalogSnapshot({ previewDefaultSource: 'supabase' });
 }
@@ -169,7 +175,10 @@ export async function upsertAdminIpAction(
     target_featured: value.featured,
   });
 
-  if (error) return rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.');
+  if (error) {
+    return artworkClaimFailure(error.message)
+      ?? rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.');
+  }
 
   revalidateCatalog([`/ip/${value.id}`]);
   return { message: 'IP를 저장했습니다.' };
@@ -201,7 +210,10 @@ export async function upsertAdminGoodAction(
     target_image_path: value.imagePath,
   });
 
-  if (error) return rpcFailure('굿즈를 저장하지 못했습니다. 다시 시도해주세요.');
+  if (error) {
+    return artworkClaimFailure(error.message)
+      ?? rpcFailure('굿즈를 저장하지 못했습니다. 다시 시도해주세요.');
+  }
 
   revalidateCatalog(relatedIpPaths(value.ipId, previousIpPath));
   return { message: '굿즈를 저장했습니다.' };
@@ -278,6 +290,8 @@ export async function upsertAdminCardAction(
 
   if (error) {
     revalidatePath('/admin');
+    const artworkError = artworkClaimFailure(error.message);
+    if (artworkError) return artworkError;
     if (error.message.includes('card_pool_ip_mismatch')) {
       return rpcFailure('카드와 같은 IP의 카드풀만 연결할 수 있습니다.');
     }
@@ -627,6 +641,8 @@ export async function upsertAdminEventAction(
   });
 
   if (error) {
+    const artworkError = artworkClaimFailure(error.message);
+    if (artworkError) return artworkError;
     if (error.message.includes('game_event_contract_locked')) {
       return rpcFailure('연결된 게임이 있어 이벤트 IP·운영 방식을 변경할 수 없습니다.');
     }

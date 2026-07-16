@@ -9,6 +9,7 @@ vi.mock('@/app/admin/actions', () => ({
 vi.mock('@/components/ui/Icon', () => ({
   Icon: () => null,
 }));
+vi.mock('../../../lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: vi.fn() }));
 
 const good: AdminGoodRecord = {
   id: 'g100',
@@ -72,5 +73,13 @@ describe('GoodSection', () => {
     expect(html).not.toContain('name="reason"');
     expect(html).not.toContain('재고 조정');
     expect(html.match(/<form/g)).toHaveLength(1);
+  });
+
+  it('uses the shared artwork upload field', () => {
+    const html = renderGoodSection(good);
+
+    expect(html).toContain('data-artwork-kind="good"');
+    expect(html).toContain('name="imagePath"');
+    expect(html).toContain('accept="image/jpeg,image/png,image/webp"');
   });
 });

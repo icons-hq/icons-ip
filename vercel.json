@@ -1,5 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
+    {
+      "path": "/api/cron/admin-artwork",
+      "schedule": "17 3 * * *"
+    }
+  ],
   "git": {
     "deploymentEnabled": false
   }

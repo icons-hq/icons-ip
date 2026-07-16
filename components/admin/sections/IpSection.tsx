@@ -1,6 +1,7 @@
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminIpRecord } from '@/lib/admin/catalog.server';
 import type { CatalogSnapshot } from '@/lib/catalog';
+import { ArtworkUploadField } from '../ArtworkUploadField';
 import { Field, FormShell, RecordList, SelectField, TextArea } from '../fields';
 
 export function IpSection({
@@ -49,7 +50,12 @@ export function IpSection({
         </div>
         <TextArea defaultValue={selected?.synopsis} label="시놉시스" name="synopsis" />
         <Field defaultValue={selected?.bg} label="배경 CSS" name="bg" />
-        <Field defaultValue={selected?.imagePath} label="이미지 경로" name="imagePath" />
+        <ArtworkUploadField
+          currentPath={selected?.imagePath ?? null}
+          currentUrl={selected?.imageUrl ?? null}
+          helpText="IP 키아트는 가로형 이미지를 사용해주세요."
+          kind="ip"
+        />
         <FormShell pending={pending} state={state} />
       </form>
     </div>

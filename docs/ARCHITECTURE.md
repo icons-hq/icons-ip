@@ -33,7 +33,7 @@
 | 인앱 알림 | 본인 RLS 수신함 최신 50건·unread count, 보호 알림함/IP 설정 화면. 주문 상태·카드팩 발급·runtime staff 카탈로그 INSERT trigger와 audited 관리자 즉시 공지가 같은 transaction에서 멱등 발급 | `app/notifications/*`, `components/screens/Notifications.tsx`, `components/screens/NotificationSettings.tsx`, `components/shell/NotificationBell.tsx`, `components/admin/sections/NotificationSection.tsx`, `supabase/migrations/20260716090001_in_app_notifications.sql`, `supabase/migrations/20260716100001_admin_notification_console.sql` |
 | 굿즈 커머스 | 비로그인 localStorage·로그인 `cart_items` 병합, 멱등 `place_order` 재고 선점, 토스 결제위젯 redirect 승인, 웹훅 확정·만료 복원, 본인 주문 내역·상세·배송 전 청약철회 요청·상태 조회 | `app/cart/*`, `app/checkout/*`, `app/orders/*`, `app/api/orders/*`, `app/api/payments/confirm`, `app/api/webhooks/tosspayments`, `lib/checkout*`, `lib/orders*`, `lib/payments/*` |
 | 티켓 예매 | 공개 이벤트 상세·회차 잔여 조회, 멱등 `reserve_tickets` 정원 선점, 티켓용 토스 결제위젯, 웹훅 확정·QR 발급·만료 복원, 본인 티켓 목록/상세·보호 QR·예매 전체 취소/환불 | `app/events/[eventId]/*`, `app/ticket-checkout/*`, `app/tickets/*`, `app/api/tickets/*`, `app/api/ticket-orders/*`, `app/api/payments/confirm`, `app/api/webhooks/tosspayments`, `lib/ticketing*`, `lib/payments/*` |
-| 운영 | staff/admin 게이트, 카탈로그 CRUD, 카드풀 운영 기간·등급별 확률·카드 풀 바인딩, 주문 대상별 뽑기권 발급 정책, 카드 보상형 참여형 게임 등록·운영과 PII-free 플레이 집계, 전체/IP 팔로워 인앱 공지의 추정·즉시 발송·이력, 감사 로그, 커뮤니티 신고·포스트/댓글 숨김 처리, 주문 검색·배송 전이·청약철회 승인/거절/재정합화, 실재고 입고·보정, 마스킹 회원 검색·상세·계정 정지/해제 | `app/admin/*`, `components/admin/*`, `lib/admin/*`, `supabase/migrations/20260714190001_admin_order_console.sql`, `supabase/migrations/20260714200001_admin_stock_adjustment.sql`, `supabase/migrations/20260715010001_admin_card_pool_console.sql`, `supabase/migrations/20260715020001_admin_reward_policy_console.sql`, `supabase/migrations/20260715030001_admin_game_console.sql`, `supabase/migrations/20260716100001_admin_notification_console.sql`, `supabase/migrations/20260717090001_community_comment_moderation.sql`, `supabase/migrations/20260717100001_admin_member_suspension.sql` |
+| 운영 | staff/admin 게이트, 카탈로그 CRUD와 private staging 기반 아트워크 검증·promote, 카드풀 운영 기간·등급별 확률·카드 풀 바인딩, 주문 대상별 뽑기권 발급 정책, 카드 보상형 참여형 게임 등록·운영과 PII-free 플레이 집계, 전체/IP 팔로워 인앱 공지의 추정·즉시 발송·이력, 감사 로그, 커뮤니티 신고·포스트/댓글 숨김 처리, 주문 검색·배송 전이·청약철회 승인/거절/재정합화, 실재고 입고·보정, 마스킹 회원 검색·상세·계정 정지/해제 | `app/admin/*`, `components/admin/*`, `lib/admin/*`, `supabase/migrations/20260714190001_admin_order_console.sql`, `supabase/migrations/20260714200001_admin_stock_adjustment.sql`, `supabase/migrations/20260715010001_admin_card_pool_console.sql`, `supabase/migrations/20260715020001_admin_reward_policy_console.sql`, `supabase/migrations/20260715030001_admin_game_console.sql`, `supabase/migrations/20260716100001_admin_notification_console.sql`, `supabase/migrations/20260717090001_community_comment_moderation.sql`, `supabase/migrations/20260717100001_admin_member_suspension.sql`, `supabase/migrations/20260717110001_admin_artwork_upload_storage.sql` |
 | CI/CD | GitHub Actions `CI/CD Pipeline`: PR 검증 + Vercel preview 배포, merge queue 검증, `main` push production 배포. Actions 앱 빌드 Node는 26 | `.github/workflows/pipeline.yml` |
 | 배포 | PR은 Vercel 원격 preview build/deploy, `main` push는 Supabase linked migration push 후 Vercel 원격 production build/deploy. Sensitive 환경변수는 Vercel build 안에서 검증하며 Vercel Git 자동 배포는 비활성화 | GitHub Secrets + `.github/workflows/pipeline.yml`, `vercel.json` |
 | Production runtime | Vercel project/runtime Node.js Version은 공식 지원 범위인 24.x 유지 | Vercel Project Settings |
@@ -58,7 +58,7 @@
 │    └ /api/payments/confirm          ──▶ 토스 승인(UX용 pending 기록)        │
 │    └ /api/orders/[id]/cancel        ──▶ 청약철회 요청/무결제 즉시 원복      │
 │    └ /api/webhooks/tosspayments  ◀── 주문·티켓 결제 확정 (멱등)           │
-│    └ /api/cron/*                  (경매 마감·예약 정리 등, v2 포함)         │
+│    └ /api/cron/admin-artwork      ──▶ 만료 staging/public 후보 재조정      │
 │  /admin (role-gated)                                                      │
 └──────────────┬───────────────────────────────────────────┬──────────────┘
                │                                             │
@@ -89,7 +89,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 | 인증 | Supabase Auth: 현재 **이메일/PW** 구현, 목표 **Google + Apple + Kakao** 추가 | 소셜 버튼은 UI만 있고 아직 비활성화. 모든 가입 경로는 온보딩에서 프로필 완성 |
 | 결제 | **토스페이먼츠** 직접(결제창/위젯 + 웹훅) | 단일 PG. 굿즈·티켓·지갑 충전 공용 |
 | 검색 | **Postgres** pg_trgm + ILIKE | 외부 검색엔진 없음(v1) |
-| 미디어 | **Supabase Storage** | public(카탈로그/아트워크) + private `user-uploads`(사용자 업로드) |
+| 미디어 | **Supabase Storage** | public `public-media`(검증된 카탈로그/아트워크) + private `admin-artwork-staging`(검증 전 관리자 업로드)·`user-uploads`(사용자 업로드) |
 | 무결성 | **Postgres RPC**(SECURITY DEFINER) + RLS | 가챠·티켓·주문·지갑 |
 
 ---
@@ -253,7 +253,7 @@ Production Auth 설정:
 
 ### 9.1 환경 변수 · 로컬/프리뷰 검증 (테스트 키)
 
-- 서버 전용 env: `TOSS_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`. 클라이언트 번들에 노출하지 않는다(`NEXT_PUBLIC_` 접두사 금지). 위젯 공개 키만 `NEXT_PUBLIC_TOSS_CLIENT_KEY`로 전달한다.
+- 서버 전용 env: `TOSS_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`. 클라이언트 번들에 노출하지 않는다(`NEXT_PUBLIC_` 접두사 금지). 위젯 공개 키만 `NEXT_PUBLIC_TOSS_CLIENT_KEY`로 전달한다.
 - 토스 키는 개발자센터 **API 키 > 결제위젯 연동 키**의 것을 쓴다: `TOSS_SECRET_KEY` = 위젯 시크릿 키(테스트 `test_gsk_…` / 라이브 `live_gsk_…`), `NEXT_PUBLIC_TOSS_CLIENT_KEY` = 위젯 클라이언트 키(`test_gck_…` / `live_gck_…`, 체크아웃 #90에서 사용). 두 키는 **같은 연동 키 세트**여야 한다 — 세트가 어긋나면 승인 API가 `INVALID_API_KEY`/`UNAUTHORIZED_KEY`/`NOT_FOUND_PAYMENT_SESSION`으로 실패한다. `test_sk_…`(API 개별연동 키)는 위젯 결제 승인에 쓰지 않는다.
 - 키 미구성 환경에서 두 라우트는 503(`not_configured`)으로 응답한다 — mock/카탈로그-only 모드에서 안전.
 - 로컬 검증 경로(테스트 키):
@@ -268,9 +268,14 @@ Production Auth 설정:
 ## 10. 미디어 / 스토리지
 
 - **Supabase Storage**
-  - `public/` 버킷: 굿즈·카드·IP·이벤트 아트워크 (프로토타입의 그라디언트+글리프 플레이스홀더를 실제 이미지로 교체).
+  - `public-media` 버킷: 검증을 마친 굿즈·카드·IP·이벤트 아트워크의 public read 전용 표면이다. 브라우저 쓰기는 열지 않고, service role만 `catalog/<kind>/<uuid>.<ext>` 신규 경로로 promote한다. 같은 URL overwrite 대신 새 UUID 경로를 발급한다.
+  - `admin-artwork-staging` 버킷: 검증 전 관리자 아트워크를 두는 private 표면이다. 브라우저는 authenticated Storage 요청으로 업로드하며 RLS가 active staff와 actor·경로·선언 MIME·크기·만료 시각이 일치하는 pending claim만 허용한다. claim이 처리·거절·만료되는 즉시 같은 경로 재업로드도 차단한다. actor별 미만료 pending/processing/verified claim은 최대 4개다.
   - `user-uploads` 버킷: 커뮤니티 업로드·프로필 이미지. 쓰기는 RLS로 본인 폴더(`<uid>/...`)에 제한하고, 공개 커뮤니티 피드는 `visible` 포스트에 연결된 작성자 본인 경로의 이미지만 signed URL로 읽는다.
-- 카탈로그 테이블은 경로(`image_path`)만 저장, 렌더 시 URL 변환. 이미지 변환/최적화 활용.
+- 서버는 actor advisory lock 아래 claim을 `pending→processing`으로 먼저 전이한 뒤에만 staging 객체를 읽는다. actor별 동시 processing은 1개, 시작은 1분당 4회로 제한한다. 그 뒤 Sharp로 선언 MIME과 실제 JPEG/PNG/WebP 형식, 5MiB 이하, 축별 8192px 이하, 총 40MP 이하, 단일 프레임을 완전히 decode해 검증한다. 통과한 이미지는 같은 형식으로 다시 인코딩해 metadata와 부가 payload를 제거한 뒤 service role로 `public-media`에 promote하고 claim을 verified로 바꾼다.
+- 브라우저 업로드 실패는 active claim만 최초 1회 `rejected`로 전이하는 취소 RPC로 즉시 정리하며, 이미 종료된 claim의 반복 취소는 DB·Storage 작업 없이 종료한다. 검증 실패·거절·만료 claim은 정확한 actor/path와 attached 여부를 재검증하는 service role 경로로 정리한다. 요청 시 소량 opportunistic sweep 외에도 `CRON_SECRET` exact bearer로 보호된 `/api/cron/admin-artwork` Vercel Cron이 매일 Storage API 정리를 수행한다. attached claim은 만료와 무관하게 staging만 정리해 카탈로그가 참조하는 public 원본을 보존한다.
+- 카탈로그 `image_path` INSERT/변경 trigger는 같은 transaction에서 actor 소유의 verified·미만료 claim을 `attached`로 원자적으로 소비한다. 따라서 Storage 직접 쓰기나 카탈로그 RPC 직접 호출만으로는 미검증 경로를 연결할 수 없다.
+- 관리자 폼은 선택 파일을 먼저 미리보고 검증된 경로를 자동 반영하되, 파일 선택·업로드 중에는 바깥 카탈로그 form 저장을 차단한다. IP 키아트는 가로형 preview와 가로 이미지 안내를 사용하고, 업로드 후 카탈로그 저장이 별도 단계임을 표시한다.
+- 카탈로그 테이블은 경로(`image_path`)만 저장하고 렌더 시 public URL로 변환한다. 교체 전 객체의 일괄 정리는 별도 운영 범위다.
 
 ---
 

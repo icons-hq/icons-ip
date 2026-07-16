@@ -3,6 +3,7 @@ import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import type { RarityKey } from '@/lib/rarity';
 import type { Stock } from '@/lib/data';
+import { normalizePublicMediaObjectPath } from './artwork';
 
 export interface AdminIpRecord {
   id: string;
@@ -14,6 +15,7 @@ export interface AdminIpRecord {
   glyph: string | null;
   bg: string | null;
   imagePath: string | null;
+  imageUrl?: string | null;
   featured: boolean;
   fansCount: number;
 }
@@ -29,6 +31,7 @@ export interface AdminGoodRecord {
   stockQty: number;
   bg: string | null;
   imagePath: string | null;
+  imageUrl?: string | null;
 }
 
 export interface AdminCardRecord {
@@ -40,6 +43,7 @@ export interface AdminCardRecord {
   rarity: RarityKey;
   bg: string | null;
   imagePath: string | null;
+  imageUrl?: string | null;
 }
 
 export interface AdminCardPoolRecord {
@@ -184,6 +188,7 @@ export interface AdminEventRecord {
   accent: string | null;
   bg: string | null;
   imagePath: string | null;
+  imageUrl?: string | null;
 }
 
 export interface AdminTicketTypeRecord {
@@ -349,6 +354,12 @@ function hasReadyPoolOdds(pool: CardPoolRow, cards: CardRow[]) {
 
 export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
   const supabase = await createClient();
+  const imageUrlForPath = (path: string | null) => {
+    if (!path) return null;
+    return supabase.storage
+      .from('public-media')
+      .getPublicUrl(normalizePublicMediaObjectPath(path)).data.publicUrl;
+  };
   const [
     ipsResult,
     goodsResult,
@@ -418,6 +429,7 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
     accent: row.accent,
     bg: row.bg,
     imagePath: row.image_path,
+    imageUrl: imageUrlForPath(row.image_path),
   }));
   const eventTitles = new Map(events.map((event) => [event.id, event.title]));
   const cards = cardRows.map((row) => ({
@@ -429,6 +441,7 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
     rarity: row.rarity,
     bg: row.bg,
     imagePath: row.image_path,
+    imageUrl: imageUrlForPath(row.image_path),
   }));
   const cardPools = cardPoolRows.map((row) => {
     const odds: Record<RarityKey, number> = { N: 0, R: 0, SR: 0, SSR: 0, HOLO: 0 };
@@ -463,6 +476,7 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
       glyph: row.glyph,
       bg: row.bg,
       imagePath: row.image_path,
+      imageUrl: imageUrlForPath(row.image_path),
       featured: row.featured,
       fansCount: row.fans_count ?? 0,
     })),
@@ -477,6 +491,7 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
       stockQty: row.stock_qty ?? 0,
       bg: row.bg,
       imagePath: row.image_path,
+      imageUrl: imageUrlForPath(row.image_path),
     })),
     cards,
     cardPools,

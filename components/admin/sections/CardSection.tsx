@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminCardRecord } from '@/lib/admin/catalog.server';
 import { RARITY_META } from '@/lib/rarity';
+import { ArtworkUploadField } from '../ArtworkUploadField';
 import { Field, FormShell, RecordList, SelectField } from '../fields';
 
 export function CardSection({
@@ -86,7 +87,11 @@ export function CardSection({
           </p>
         )}
         <Field defaultValue={selected?.bg} label="배경 CSS" name="bg" />
-        <Field defaultValue={selected?.imagePath} label="이미지 경로" name="imagePath" />
+        <ArtworkUploadField
+          currentPath={selected?.imagePath ?? null}
+          currentUrl={selected?.imageUrl ?? null}
+          kind="card"
+        />
         <FormShell pending={pending} state={state} />
       </form>
     </div>

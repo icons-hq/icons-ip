@@ -7,6 +7,7 @@ import {
 } from '@/app/admin/actions';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import { Icon } from '@/components/ui/Icon';
+import { ArtworkUploadField } from '../ArtworkUploadField';
 import { Field, FormShell, InlineNotice, RecordList, SelectField, TextArea } from '../fields';
 
 const emptyStockState: AdminCatalogActionState = {};
@@ -135,7 +136,11 @@ export function GoodSection({
             </SelectField>
           </div>
           <Field defaultValue={selected?.bg} label="배경 CSS" name="bg" />
-          <Field defaultValue={selected?.imagePath} label="이미지 경로" name="imagePath" />
+          <ArtworkUploadField
+            currentPath={selected?.imagePath ?? null}
+            currentUrl={selected?.imageUrl ?? null}
+            kind="good"
+          />
           <FormShell pending={pending} state={state} />
         </form>
         {selected && (

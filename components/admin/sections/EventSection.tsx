@@ -1,5 +1,6 @@
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminEventRecord } from '@/lib/admin/catalog.server';
+import { ArtworkUploadField } from '../ArtworkUploadField';
 import { Field, FormShell, RecordList, SelectField } from '../fields';
 
 function optional(value: string | null | undefined) {
@@ -78,7 +79,11 @@ export function EventSection({
           <Field defaultValue={selected?.accent} label="액센트" name="accent" placeholder="#8B5CFF" />
         </div>
         <Field defaultValue={selected?.bg} label="배경 CSS" name="bg" />
-        <Field defaultValue={selected?.imagePath} label="이미지 경로" name="imagePath" />
+        <ArtworkUploadField
+          currentPath={selected?.imagePath ?? null}
+          currentUrl={selected?.imageUrl ?? null}
+          kind="event"
+        />
         <FormShell pending={pending} state={state} />
       </form>
     </div>
