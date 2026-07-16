@@ -1,45 +1,41 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { updateMarketingConsentAction, updateProfileAction } from './actions';
+import {
+  prepareProfileAvatarUploadAction,
+  updateMarketingConsentAction,
+  updateProfileAction,
+} from './actions';
 import type { OnboardingConsents } from '@/lib/auth/onboarding';
 import type { CurrentAuthState } from '@/lib/auth/server';
+import { MAX_PROFILE_IMAGE_BYTES, PROFILE_IMAGE_ERROR } from '@/lib/profile';
 
 const mocks = vi.hoisted(() => ({
-  auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
-  update: vi.fn(),
-  eq: vi.fn(),
-  updateResult: { data: { id: 'user-1' }, error: null } as {
-    data: { id: string } | null;
-    error: { code?: string; message: string } | null;
-  },
-  storageFrom: vi.fn(),
-  upload: vi.fn(),
-  uploadResult: { data: { path: 'user-1/profile/avatar.png' }, error: null } as {
-    data: { path: string } | null;
-    error: { message: string } | null;
-  },
+  cleanupProfileAvatar: vi.fn(),
+  createClient: vi.fn(),
+  createSignedUploadUrl: vi.fn(),
+  dbEq: vi.fn(),
+  dbUpdate: vi.fn(),
+  download: vi.fn(),
+  getCurrentAuthState: vi.fn(),
+  info: vi.fn(),
   list: vi.fn(),
-  listResult: { data: [] as { name: string }[], error: null as { message: string } | null },
-  remove: vi.fn(),
-  removeResult: { data: [] as { name: string }[], error: null as { message: string } | null },
   revalidatePath: vi.fn(),
+  storageFrom: vi.fn(),
+  updateProfileIdentity: vi.fn(),
+  upload: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/server', () => ({
-  getCurrentAuthState: () => mocks.auth,
+  getCurrentAuthState: mocks.getCurrentAuthState,
 }));
 vi.mock('@/lib/auth/onboarding', async () => await import('../../lib/auth/onboarding'));
 vi.mock('@/lib/profile', async () => await import('../../lib/profile'));
+vi.mock('@/lib/profile.server', () => ({
+  cleanupProfileAvatar: mocks.cleanupProfileAvatar,
+  updateProfileIdentity: mocks.updateProfileIdentity,
+}));
 vi.mock('@/lib/settings', async () => await import('../../lib/settings'));
 vi.mock('@/lib/supabase/server', () => ({
-  createClient: () => ({
-    from: (table: string) => {
-      if (table !== 'profiles') throw new Error(`Unexpected table ${table}`);
-      return { update: mocks.update };
-    },
-    storage: {
-      from: mocks.storageFrom,
-    },
-  }),
+  createClient: mocks.createClient,
 }));
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
@@ -50,12 +46,24 @@ vi.mock('next/navigation', () => ({
   },
 }));
 
-function onboardedAuth(consents: OnboardingConsents, avatarPath: string | null = null): CurrentAuthState {
+const USER_ID = '00000000-0000-4000-8000-000000001201';
+const OTHER_USER_ID = '00000000-0000-4000-8000-000000001202';
+const AVATAR_UUID = '123e4567-e89b-42d3-a456-426614174000';
+const AVATAR_PATH = `${USER_ID}/profile/${AVATAR_UUID}.png`;
+const PREVIOUS_AVATAR_PATH = `${USER_ID}/profile/11111111-1111-4111-8111-111111111111.jpg`;
+const PNG_BYTES = new Uint8Array([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00,
+]);
+
+function onboardedAuth(
+  consents: OnboardingConsents,
+  avatarPath: string | null = PREVIOUS_AVATAR_PATH,
+): CurrentAuthState {
   return {
     isConfigured: true,
-    user: { id: 'user-1', email: 'fan@icons.gg' },
+    user: { id: USER_ID, email: 'fan@icons.test' },
     profile: {
-      email: 'fan@icons.gg',
+      email: 'fan@icons.test',
       nickname: 'fan',
       birth_date: '2000-01-01',
       avatar_path: avatarPath,
@@ -66,354 +74,537 @@ function onboardedAuth(consents: OnboardingConsents, avatarPath: string | null =
   };
 }
 
+function profileForm(nickname: string, avatarPath?: string | File) {
+  const formData = new FormData();
+  formData.set('nickname', nickname);
+  if (avatarPath !== undefined) formData.set('avatarPath', avatarPath);
+  return formData;
+}
+
 function marketingForm(marketing: boolean) {
   const formData = new FormData();
   if (marketing) formData.set('marketing', 'on');
   return formData;
 }
 
-function profileForm(nickname: string, avatar?: File) {
-  const formData = new FormData();
-  formData.set('nickname', nickname);
-  if (avatar) formData.set('avatar', avatar);
-  return formData;
-}
-
-const PROFILE_AVATAR_UUID = '123e4567-e89b-42d3-a456-426614174000';
-const PROFILE_AVATAR_PATH = `user-1/profile/${PROFILE_AVATAR_UUID}.png`;
-
 beforeEach(() => {
-  vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(PROFILE_AVATAR_UUID);
-  mocks.auth = onboardedAuth({ terms: true, privacy: true, marketing: false });
-  mocks.updateResult = { data: { id: 'user-1' }, error: null };
-  mocks.uploadResult = { data: { path: 'user-1/profile/avatar.png' }, error: null };
-  mocks.listResult = { data: [], error: null };
-  mocks.removeResult = { data: [], error: null };
-  mocks.update.mockReset();
-  mocks.eq.mockReset();
-  mocks.storageFrom.mockReset();
-  mocks.upload.mockReset();
+  vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(AVATAR_UUID);
+  mocks.cleanupProfileAvatar.mockReset();
+  mocks.createClient.mockReset();
+  mocks.createSignedUploadUrl.mockReset();
+  mocks.dbEq.mockReset();
+  mocks.dbUpdate.mockReset();
+  mocks.download.mockReset();
+  mocks.getCurrentAuthState.mockReset();
+  mocks.info.mockReset();
   mocks.list.mockReset();
-  mocks.remove.mockReset();
   mocks.revalidatePath.mockReset();
-  mocks.update.mockImplementation(() => ({ eq: mocks.eq }));
-  mocks.eq.mockImplementation(() => ({
+  mocks.storageFrom.mockReset();
+  mocks.updateProfileIdentity.mockReset();
+  mocks.upload.mockReset();
+
+  mocks.getCurrentAuthState.mockResolvedValue(
+    onboardedAuth({ terms: true, privacy: true, marketing: false }),
+  );
+  mocks.cleanupProfileAvatar.mockResolvedValue(undefined);
+  mocks.createSignedUploadUrl.mockResolvedValue({
+    data: { path: AVATAR_PATH, token: 'signed-upload-token' },
+    error: null,
+  });
+  mocks.info.mockResolvedValue({
+    data: { contentType: 'image/png', size: PNG_BYTES.byteLength },
+    error: null,
+  });
+  mocks.download.mockResolvedValue({
+    data: new Blob([PNG_BYTES], { type: 'image/png' }),
+    error: null,
+  });
+  mocks.updateProfileIdentity.mockResolvedValue({
+    ok: true,
+    previousAvatarPath: PREVIOUS_AVATAR_PATH,
+  });
+  mocks.dbEq.mockReturnValue({
     select: () => ({
-      single: async () => mocks.updateResult,
+      single: async () => ({ data: { id: USER_ID }, error: null }),
     }),
-  }));
+  });
+  mocks.dbUpdate.mockReturnValue({ eq: mocks.dbEq });
   mocks.storageFrom.mockImplementation((bucket: string) => {
     if (bucket !== 'user-uploads') throw new Error(`Unexpected bucket ${bucket}`);
     return {
-      upload: mocks.upload,
+      createSignedUploadUrl: mocks.createSignedUploadUrl,
+      download: mocks.download,
+      info: mocks.info,
       list: mocks.list,
-      remove: mocks.remove,
+      upload: mocks.upload,
     };
   });
-  mocks.upload.mockImplementation(async () => mocks.uploadResult);
-  mocks.list.mockImplementation(async () => mocks.listResult);
-  mocks.remove.mockImplementation(async () => mocks.removeResult);
+  mocks.createClient.mockResolvedValue({
+    from: (table: string) => {
+      if (table !== 'profiles') throw new Error(`Unexpected table ${table}`);
+      return { update: mocks.dbUpdate };
+    },
+    storage: { from: mocks.storageFrom },
+  });
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe('prepareProfileAvatarUploadAction', () => {
+  it('validates nickname and file metadata before reading auth', async () => {
+    await expect(prepareProfileAvatarUploadAction({
+      nickname: ' ',
+      mimeType: 'image/svg+xml',
+      size: 0,
+    })).resolves.toEqual({
+      ok: false,
+      errors: {
+        avatar: PROFILE_IMAGE_ERROR,
+        nickname: '닉네임을 입력해주세요.',
+      },
+    });
+
+    expect(mocks.getCurrentAuthState).not.toHaveBeenCalled();
+    expect(mocks.createSignedUploadUrl).not.toHaveBeenCalled();
+  });
+
+  it('rejects a 5MiB+1 request before auth or Storage', async () => {
+    await expect(prepareProfileAvatarUploadAction({
+      nickname: 'fan',
+      mimeType: 'image/png',
+      size: MAX_PROFILE_IMAGE_BYTES + 1,
+    })).resolves.toEqual({
+      ok: false,
+      errors: { avatar: PROFILE_IMAGE_ERROR },
+    });
+
+    expect(mocks.getCurrentAuthState).not.toHaveBeenCalled();
+    expect(mocks.storageFrom).not.toHaveBeenCalled();
+  });
+
+  it('returns the existing config gate after pure validation', async () => {
+    mocks.getCurrentAuthState.mockResolvedValue({
+      isConfigured: false,
+      user: null,
+      profile: null,
+      isStaff: false,
+    });
+
+    await expect(prepareProfileAvatarUploadAction({
+      nickname: 'fan',
+      mimeType: 'image/png',
+      size: PNG_BYTES.byteLength,
+    })).resolves.toEqual({
+      ok: false,
+      errors: { form: 'Supabase 환경변수를 설정한 뒤 설정을 변경할 수 있습니다.' },
+    });
+  });
+
+  it('retains the exact login redirect', async () => {
+    mocks.getCurrentAuthState.mockResolvedValue({
+      isConfigured: true,
+      user: null,
+      profile: null,
+      isStaff: false,
+    });
+
+    await expect(prepareProfileAvatarUploadAction({
+      nickname: 'fan',
+      mimeType: 'image/png',
+      size: PNG_BYTES.byteLength,
+    })).rejects.toThrow('NEXT_REDIRECT:/login?next=%2Fsettings');
+  });
+
+  it('retains the exact onboarding redirect', async () => {
+    mocks.getCurrentAuthState.mockResolvedValue({
+      isConfigured: true,
+      user: { id: USER_ID, email: 'fan@icons.test' },
+      profile: null,
+      isStaff: false,
+    });
+
+    await expect(prepareProfileAvatarUploadAction({
+      nickname: 'fan',
+      mimeType: 'image/png',
+      size: PNG_BYTES.byteLength,
+    })).rejects.toThrow('NEXT_REDIRECT:/onboarding?next=%2Fsettings');
+  });
+
+  it('creates a non-upsert signed grant for a server UUID path without file bytes', async () => {
+    await expect(prepareProfileAvatarUploadAction({
+      nickname: '  새 닉네임  ',
+      mimeType: 'image/png',
+      size: PNG_BYTES.byteLength,
+    })).resolves.toEqual({
+      ok: true,
+      path: AVATAR_PATH,
+      token: 'signed-upload-token',
+    });
+
+    expect(mocks.createSignedUploadUrl).toHaveBeenCalledWith(AVATAR_PATH, { upsert: false });
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.list).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['resolved error', () => mocks.createSignedUploadUrl.mockResolvedValue({
+      data: null,
+      error: { message: 'private signed grant error' },
+    })],
+    ['rejection', () => mocks.createSignedUploadUrl.mockRejectedValue(
+      new Error('private signed grant rejection'),
+    )],
+  ])('maps a signed grant %s to a safe avatar error', async (_label, arrange) => {
+    arrange();
+
+    await expect(prepareProfileAvatarUploadAction({
+      nickname: 'fan',
+      mimeType: 'image/png',
+      size: PNG_BYTES.byteLength,
+    })).resolves.toEqual({
+      ok: false,
+      errors: { avatar: '아바타 업로드를 준비하지 못했습니다. 다시 시도해주세요.' },
+    });
+  });
+});
+
 describe('updateProfileAction', () => {
-  it('returns a disabled notice without writing when Supabase is not configured', async () => {
-    mocks.auth = { isConfigured: false, user: null, profile: null, isStaff: false };
+  it('validates nickname and rejects file-valued candidate input before auth', async () => {
+    await expect(updateProfileAction(
+      {},
+      profileForm(' ', new File(['not-a-path'], 'avatar.png', { type: 'image/png' })),
+    )).resolves.toEqual({
+      errors: {
+        avatar: '아바타 경로를 확인할 수 없습니다. 다시 업로드해주세요.',
+        nickname: '닉네임을 입력해주세요.',
+      },
+    });
+
+    expect(mocks.getCurrentAuthState).not.toHaveBeenCalled();
+    expect(mocks.info).not.toHaveBeenCalled();
+  });
+
+  it('returns the config gate without profile writes', async () => {
+    mocks.getCurrentAuthState.mockResolvedValue({
+      isConfigured: false,
+      user: null,
+      profile: null,
+      isStaff: false,
+    });
 
     await expect(updateProfileAction({}, profileForm('fan'))).resolves.toEqual({
       errors: { form: 'Supabase 환경변수를 설정한 뒤 설정을 변경할 수 있습니다.' },
     });
-    expect(mocks.update).not.toHaveBeenCalled();
-    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.updateProfileIdentity).not.toHaveBeenCalled();
   });
 
-  it('redirects unauthenticated users to login with the settings path', async () => {
-    mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
+  it('retains the exact login redirect', async () => {
+    mocks.getCurrentAuthState.mockResolvedValue({
+      isConfigured: true,
+      user: null,
+      profile: null,
+      isStaff: false,
+    });
 
     await expect(updateProfileAction({}, profileForm('fan'))).rejects.toThrow(
       'NEXT_REDIRECT:/login?next=%2Fsettings',
     );
-    expect(mocks.update).not.toHaveBeenCalled();
-    expect(mocks.upload).not.toHaveBeenCalled();
   });
 
-  it('redirects users who have not completed onboarding to onboarding', async () => {
-    mocks.auth = {
+  it('retains the exact onboarding redirect', async () => {
+    mocks.getCurrentAuthState.mockResolvedValue({
       isConfigured: true,
-      user: { id: 'user-1', email: 'fan@icons.gg' },
+      user: { id: USER_ID, email: 'fan@icons.test' },
       profile: null,
       isStaff: false,
-    };
+    });
 
     await expect(updateProfileAction({}, profileForm('fan'))).rejects.toThrow(
       'NEXT_REDIRECT:/onboarding?next=%2Fsettings',
     );
-    expect(mocks.update).not.toHaveBeenCalled();
-    expect(mocks.upload).not.toHaveBeenCalled();
   });
 
-  it('returns invalid profile fields before Storage or DB writes', async () => {
-    const formData = profileForm(
-      ' ',
-      new File(['avatar'], 'avatar.svg', { type: 'image/svg+xml' }),
-    );
-
-    await expect(updateProfileAction({}, formData)).resolves.toEqual({
-      errors: {
-        nickname: '닉네임을 입력해주세요.',
-        avatar: '아바타는 JPEG, PNG, WebP 형식의 5MB 이하 파일만 업로드할 수 있습니다.',
-      },
-    });
-    expect(mocks.update).not.toHaveBeenCalled();
-    expect(mocks.upload).not.toHaveBeenCalled();
-    expect(mocks.list).not.toHaveBeenCalled();
-    expect(mocks.remove).not.toHaveBeenCalled();
-  });
-
-  it('trims and saves a nickname without replacing the current avatar', async () => {
-    mocks.auth = onboardedAuth(
-      { terms: true, privacy: true, marketing: false },
-      'user-1/profile/current.webp',
-    );
-
-    await expect(updateProfileAction({}, profileForm('  new fan  '))).resolves.toEqual({
-      message: '프로필을 저장했어요.',
+  it.each([
+    `${OTHER_USER_ID}/profile/${AVATAR_UUID}.png`,
+    `${USER_ID}/profile/AAAAAAAA-AAAA-4AAA-8AAA-AAAAAAAAAAAA.png`,
+    `${USER_ID}/community/${AVATAR_UUID}.png`,
+  ])('rejects a non-contract candidate before Storage reads: %s', async (candidate) => {
+    await expect(updateProfileAction({}, profileForm('fan', candidate))).resolves.toEqual({
+      errors: { avatar: '아바타 경로를 확인할 수 없습니다. 다시 업로드해주세요.' },
     });
 
-    expect(mocks.update).toHaveBeenCalledWith({ nickname: 'new fan' });
-    expect(mocks.eq).toHaveBeenCalledWith('id', 'user-1');
-    expect(mocks.upload).not.toHaveBeenCalled();
-    expect(mocks.list).not.toHaveBeenCalled();
-    expect(mocks.remove).not.toHaveBeenCalled();
-    expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toEqual([
-      '/settings',
-      '/',
-      '/community',
-      '/search',
-    ]);
+    expect(mocks.info).not.toHaveBeenCalled();
+    expect(mocks.download).not.toHaveBeenCalled();
+    expect(mocks.cleanupProfileAvatar).not.toHaveBeenCalled();
+    expect(mocks.updateProfileIdentity).not.toHaveBeenCalled();
   });
 
-  it('uploads a UUID-named avatar and removes only the safe previous avatar', async () => {
-    const avatar = new File(['avatar'], 'client-name.png', { type: 'image/png' });
-    const previousAvatarPath = 'user-1/profile/previous.webp';
-    mocks.auth = onboardedAuth(
-      { terms: true, privacy: true, marketing: false },
-      previousAvatarPath,
-    );
-    mocks.listResult = {
-      data: [
-        { name: 'previous.webp' },
-        { name: `${PROFILE_AVATAR_UUID}.png` },
-        { name: 'unrelated-later.png' },
-      ],
-      error: null,
-    };
-
-    await expect(updateProfileAction({}, profileForm('fan', avatar))).resolves.toEqual({
-      message: '프로필을 저장했어요.',
-    });
-
-    expect(mocks.storageFrom).toHaveBeenCalledWith('user-uploads');
-    expect(mocks.upload).toHaveBeenCalledWith(PROFILE_AVATAR_PATH, avatar, {
-      contentType: 'image/png',
-      upsert: false,
-    });
-    expect(mocks.update).toHaveBeenCalledWith({
-      nickname: 'fan',
-      avatar_path: PROFILE_AVATAR_PATH,
-    });
-    expect(mocks.list).not.toHaveBeenCalled();
-    expect(mocks.remove).toHaveBeenCalledOnce();
-    expect(mocks.remove).toHaveBeenCalledWith([previousAvatarPath]);
-  });
-
-  it('keeps a successful profile save successful when previous avatar cleanup rejects', async () => {
-    const previousAvatarPath = 'user-1/profile/previous.webp';
-    mocks.auth = onboardedAuth(
-      { terms: true, privacy: true, marketing: false },
-      previousAvatarPath,
-    );
-    mocks.remove.mockRejectedValueOnce(new Error('storage remove failed'));
-
-    await expect(
-      updateProfileAction(
-        {},
-        profileForm('fan', new File(['avatar'], 'avatar.png', { type: 'image/png' })),
-      ),
-    ).resolves.toEqual({ message: '프로필을 저장했어요.' });
-
-    expect(mocks.remove).toHaveBeenCalledOnce();
-    expect(mocks.remove).toHaveBeenCalledWith([previousAvatarPath]);
-    expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toEqual([
-      '/settings',
-      '/',
-      '/community',
-      '/search',
-    ]);
-  });
-
-  it('does not remove a previous avatar outside the authenticated user profile folder', async () => {
-    mocks.auth = onboardedAuth(
-      { terms: true, privacy: true, marketing: false },
-      'user-2/profile/previous.webp',
+  it('rejects the current avatar candidate without reading or deleting it', async () => {
+    mocks.getCurrentAuthState.mockResolvedValue(
+      onboardedAuth({ terms: true, privacy: true, marketing: false }, AVATAR_PATH),
     );
 
-    await expect(
-      updateProfileAction(
-        {},
-        profileForm('fan', new File(['avatar'], 'avatar.png', { type: 'image/png' })),
-      ),
-    ).resolves.toEqual({ message: '프로필을 저장했어요.' });
-
-    expect(mocks.list).not.toHaveBeenCalled();
-    expect(mocks.remove).not.toHaveBeenCalled();
-  });
-
-  it('does not remove the avatar path when it matches the newly uploaded path', async () => {
-    mocks.auth = onboardedAuth(
-      { terms: true, privacy: true, marketing: false },
-      PROFILE_AVATAR_PATH,
-    );
-
-    await expect(
-      updateProfileAction(
-        {},
-        profileForm('fan', new File(['avatar'], 'avatar.png', { type: 'image/png' })),
-      ),
-    ).resolves.toEqual({ message: '프로필을 저장했어요.' });
-
-    expect(mocks.list).not.toHaveBeenCalled();
-    expect(mocks.remove).not.toHaveBeenCalled();
-  });
-
-  it('returns an avatar error without updating the profile when upload fails', async () => {
-    mocks.uploadResult = { data: null, error: { message: 'upload failed' } };
-
-    await expect(
-      updateProfileAction(
-        {},
-        profileForm('fan', new File(['avatar'], 'avatar.png', { type: 'image/png' })),
-      ),
-    ).resolves.toEqual({
-      errors: { avatar: '아바타를 업로드하지 못했습니다. 다시 시도해주세요.' },
+    await expect(updateProfileAction({}, profileForm('fan', AVATAR_PATH))).resolves.toEqual({
+      errors: { avatar: '현재 아바타와 다른 이미지를 선택해주세요.' },
     });
-    expect(mocks.update).not.toHaveBeenCalled();
-    expect(mocks.list).not.toHaveBeenCalled();
-    expect(mocks.remove).not.toHaveBeenCalled();
+
+    expect(mocks.info).not.toHaveBeenCalled();
+    expect(mocks.cleanupProfileAvatar).not.toHaveBeenCalled();
+    expect(mocks.updateProfileIdentity).not.toHaveBeenCalled();
   });
 
-  it('maps nickname uniqueness violations to the nickname field', async () => {
-    mocks.updateResult = {
+  it.each([
+    ['zero size', { contentType: 'image/png', size: 0 }],
+    ['fractional size', { contentType: 'image/png', size: 8.5 }],
+    ['oversized', { contentType: 'image/png', size: MAX_PROFILE_IMAGE_BYTES + 1 }],
+    ['MIME mismatch', { contentType: 'image/jpeg', size: PNG_BYTES.byteLength }],
+  ])('rejects invalid Storage info: %s', async (_label, data) => {
+    mocks.info.mockResolvedValue({ data, error: null });
+
+    await expect(updateProfileAction({}, profileForm('fan', AVATAR_PATH))).resolves.toEqual({
+      errors: { avatar: '아바타 파일을 확인하지 못했습니다. 다시 업로드해주세요.' },
+    });
+
+    expect(mocks.download).not.toHaveBeenCalled();
+    expect(mocks.updateProfileIdentity).not.toHaveBeenCalled();
+    expect(mocks.cleanupProfileAvatar).toHaveBeenCalledWith({
+      userId: USER_ID,
+      path: AVATAR_PATH,
+      stage: 'candidate',
+    });
+  });
+
+  it.each([
+    ['resolved info error', () => mocks.info.mockResolvedValue({
       data: null,
-      error: { code: '23505', message: 'duplicate key value violates unique constraint' },
-    };
+      error: { message: 'private info error' },
+    })],
+    ['info rejection', () => mocks.info.mockRejectedValue(new Error('private info rejection'))],
+  ])('cleans the candidate after a %s', async (_label, arrange) => {
+    arrange();
 
-    await expect(updateProfileAction({}, profileForm('taken'))).resolves.toEqual({
+    await expect(updateProfileAction({}, profileForm('fan', AVATAR_PATH))).resolves.toEqual({
+      errors: { avatar: '아바타 파일을 확인하지 못했습니다. 다시 업로드해주세요.' },
+    });
+    expect(mocks.cleanupProfileAvatar).toHaveBeenCalledWith({
+      userId: USER_ID,
+      path: AVATAR_PATH,
+      stage: 'candidate',
+    });
+  });
+
+  it.each([
+    ['resolved download error', () => mocks.download.mockResolvedValue({
+      data: null,
+      error: { message: 'private download error' },
+    })],
+    ['download rejection', () => mocks.download.mockRejectedValue(
+      new Error('private download rejection'),
+    )],
+    ['magic mismatch', () => mocks.download.mockResolvedValue({
+      data: new Blob([new Uint8Array([0x00, 0x01, 0x02])], { type: 'image/png' }),
+      error: null,
+    })],
+  ])('cleans the candidate after a %s', async (_label, arrange) => {
+    arrange();
+
+    await expect(updateProfileAction({}, profileForm('fan', AVATAR_PATH))).resolves.toEqual({
+      errors: { avatar: '아바타 파일을 확인하지 못했습니다. 다시 업로드해주세요.' },
+    });
+    expect(mocks.updateProfileIdentity).not.toHaveBeenCalled();
+    expect(mocks.cleanupProfileAvatar).toHaveBeenCalledWith({
+      userId: USER_ID,
+      path: AVATAR_PATH,
+      stage: 'candidate',
+    });
+  });
+
+  it('updates a nickname without Storage reads or avatar replacement', async () => {
+    mocks.updateProfileIdentity.mockResolvedValue({ ok: true, previousAvatarPath: null });
+
+    await expect(updateProfileAction({}, profileForm('  새 닉네임  '))).resolves.toEqual({
+      message: '프로필을 저장했어요.',
+    });
+
+    expect(mocks.info).not.toHaveBeenCalled();
+    expect(mocks.download).not.toHaveBeenCalled();
+    expect(mocks.updateProfileIdentity).toHaveBeenCalledWith({
+      userId: USER_ID,
+      nickname: '새 닉네임',
+      avatarPath: null,
+      replaceAvatar: false,
+    });
+    expect(mocks.cleanupProfileAvatar).not.toHaveBeenCalled();
+  });
+
+  it('validates bytes before RPC, then cleans only the locked previous path', async () => {
+    await expect(updateProfileAction({}, profileForm('fan', AVATAR_PATH))).resolves.toEqual({
+      message: '프로필을 저장했어요.',
+    });
+
+    expect(mocks.info).toHaveBeenCalledWith(AVATAR_PATH);
+    expect(mocks.download).toHaveBeenCalledWith(AVATAR_PATH);
+    expect(mocks.updateProfileIdentity).toHaveBeenCalledWith({
+      userId: USER_ID,
+      nickname: 'fan',
+      avatarPath: AVATAR_PATH,
+      replaceAvatar: true,
+    });
+    expect(mocks.cleanupProfileAvatar).toHaveBeenCalledOnce();
+    expect(mocks.cleanupProfileAvatar).toHaveBeenCalledWith({
+      userId: USER_ID,
+      path: PREVIOUS_AVATAR_PATH,
+      stage: 'previous',
+    });
+    expect(mocks.info.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.download.mock.invocationCallOrder[0],
+    );
+    expect(mocks.download.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.updateProfileIdentity.mock.invocationCallOrder[0],
+    );
+    expect(mocks.updateProfileIdentity.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.cleanupProfileAvatar.mock.invocationCallOrder[0],
+    );
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.list).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toEqual([
+      '/settings',
+      '/',
+      '/community',
+      '/search',
+    ]);
+  });
+
+  it('maps 23505 and rolls back the exact candidate', async () => {
+    mocks.updateProfileIdentity.mockResolvedValue({ ok: false, errorCode: '23505' });
+
+    await expect(updateProfileAction({}, profileForm('taken', AVATAR_PATH))).resolves.toEqual({
       errors: { nickname: '이미 사용 중인 닉네임입니다.' },
     });
+    expect(mocks.cleanupProfileAvatar).toHaveBeenCalledWith({
+      userId: USER_ID,
+      path: AVATAR_PATH,
+      stage: 'candidate',
+    });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
-  it('removes a newly uploaded avatar when the profile update fails', async () => {
-    mocks.auth = onboardedAuth(
-      { terms: true, privacy: true, marketing: false },
-      'user-1/profile/previous.webp',
-    );
-    mocks.updateResult = { data: null, error: { message: 'db failed' } };
+  it('maps a generic RPC failure and rolls back the exact candidate', async () => {
+    mocks.updateProfileIdentity.mockResolvedValue({ ok: false });
 
-    await expect(
-      updateProfileAction(
-        {},
-        profileForm('fan', new File(['avatar'], 'avatar.png', { type: 'image/png' })),
-      ),
-    ).resolves.toEqual({
+    await expect(updateProfileAction({}, profileForm('fan', AVATAR_PATH))).resolves.toEqual({
       errors: { form: '프로필을 저장하지 못했습니다. 다시 시도해주세요.' },
     });
+    expect(mocks.cleanupProfileAvatar).toHaveBeenCalledWith({
+      userId: USER_ID,
+      path: AVATAR_PATH,
+      stage: 'candidate',
+    });
+  });
 
-    expect(mocks.remove).toHaveBeenCalledOnce();
-    expect(mocks.remove).toHaveBeenCalledWith([PROFILE_AVATAR_PATH]);
-    expect(mocks.list).not.toHaveBeenCalled();
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  it('preserves the intended result when cleanup unexpectedly rejects', async () => {
+    mocks.info.mockResolvedValue({
+      data: null,
+      error: { message: 'private info error' },
+    });
+    mocks.cleanupProfileAvatar.mockRejectedValue(new Error('private cleanup rejection'));
+
+    await expect(updateProfileAction({}, profileForm('fan', AVATAR_PATH))).resolves.toEqual({
+      errors: { avatar: '아바타 파일을 확인하지 못했습니다. 다시 업로드해주세요.' },
+    });
+  });
+
+  it('does not clean when the locked previous path is null or equals the candidate', async () => {
+    mocks.updateProfileIdentity.mockResolvedValueOnce({
+      ok: true,
+      previousAvatarPath: null,
+    });
+    await updateProfileAction({}, profileForm('fan', AVATAR_PATH));
+
+    mocks.cleanupProfileAvatar.mockClear();
+    mocks.updateProfileIdentity.mockResolvedValueOnce({
+      ok: true,
+      previousAvatarPath: AVATAR_PATH,
+    });
+    await updateProfileAction({}, profileForm('fan', AVATAR_PATH));
+
+    expect(mocks.cleanupProfileAvatar).not.toHaveBeenCalled();
   });
 });
 
 describe('updateMarketingConsentAction', () => {
   it('returns a disabled notice without writing when Supabase is not configured', async () => {
-    mocks.auth = { isConfigured: false, user: null, profile: null, isStaff: false };
+    mocks.getCurrentAuthState.mockResolvedValue({
+      isConfigured: false,
+      user: null,
+      profile: null,
+      isStaff: false,
+    });
 
     await expect(updateMarketingConsentAction({}, marketingForm(true))).resolves.toEqual({
       errors: { form: 'Supabase 환경변수를 설정한 뒤 설정을 변경할 수 있습니다.' },
     });
-    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.dbUpdate).not.toHaveBeenCalled();
   });
 
-  it('redirects unauthenticated users to login with the settings path', async () => {
-    mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
-
+  it('retains login and onboarding redirects', async () => {
+    mocks.getCurrentAuthState.mockResolvedValueOnce({
+      isConfigured: true,
+      user: null,
+      profile: null,
+      isStaff: false,
+    });
     await expect(updateMarketingConsentAction({}, marketingForm(true))).rejects.toThrow(
       'NEXT_REDIRECT:/login?next=%2Fsettings',
     );
-    expect(mocks.update).not.toHaveBeenCalled();
-  });
 
-  it('redirects users who have not completed onboarding to onboarding', async () => {
-    mocks.auth = {
+    mocks.getCurrentAuthState.mockResolvedValueOnce({
       isConfigured: true,
-      user: { id: 'user-1', email: 'fan@icons.gg' },
+      user: { id: USER_ID, email: 'fan@icons.test' },
       profile: null,
       isStaff: false,
-    };
-
+    });
     await expect(updateMarketingConsentAction({}, marketingForm(true))).rejects.toThrow(
       'NEXT_REDIRECT:/onboarding?next=%2Fsettings',
     );
-    expect(mocks.update).not.toHaveBeenCalled();
   });
 
-  it('updates only the marketing key while preserving DB consents, then confirms', async () => {
-    await expect(updateMarketingConsentAction({}, marketingForm(true))).resolves.toEqual({
-      message: '마케팅 정보 수신 동의 설정을 저장했어요.',
-    });
-
-    expect(mocks.update).toHaveBeenCalledWith({
-      consents: { terms: true, privacy: true, marketing: true },
-    });
-    expect(mocks.eq).toHaveBeenCalledWith('id', 'user-1');
-    expect(mocks.revalidatePath).toHaveBeenCalledWith('/settings');
-  });
-
-  it('turns marketing consent off when the checkbox is not submitted', async () => {
-    mocks.auth = onboardedAuth({ terms: true, privacy: true, marketing: true });
-
-    await expect(updateMarketingConsentAction({}, marketingForm(false))).resolves.toEqual({
-      message: '마케팅 정보 수신 동의 설정을 저장했어요.',
-    });
-
-    expect(mocks.update).toHaveBeenCalledWith({
-      consents: { terms: true, privacy: true, marketing: false },
-    });
-  });
-
-  it('ignores client attempts to tamper with required consents', async () => {
+  it('updates only marketing while preserving required consent values', async () => {
     const formData = marketingForm(true);
     formData.set('terms', 'off');
     formData.set('privacy', 'off');
-    formData.set('consents', JSON.stringify({ terms: false, privacy: false, marketing: true }));
 
     await expect(updateMarketingConsentAction({}, formData)).resolves.toEqual({
       message: '마케팅 정보 수신 동의 설정을 저장했어요.',
     });
-
-    expect(mocks.update).toHaveBeenCalledWith({
+    expect(mocks.dbUpdate).toHaveBeenCalledWith({
       consents: { terms: true, privacy: true, marketing: true },
+    });
+    expect(mocks.dbEq).toHaveBeenCalledWith('id', USER_ID);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/settings');
+  });
+
+  it('turns marketing off when the checkbox is absent', async () => {
+    mocks.getCurrentAuthState.mockResolvedValue(
+      onboardedAuth({ terms: true, privacy: true, marketing: true }),
+    );
+
+    await expect(updateMarketingConsentAction({}, marketingForm(false))).resolves.toEqual({
+      message: '마케팅 정보 수신 동의 설정을 저장했어요.',
+    });
+    expect(mocks.dbUpdate).toHaveBeenCalledWith({
+      consents: { terms: true, privacy: true, marketing: false },
     });
   });
 
-  it('returns a form error when the profile update fails', async () => {
-    mocks.updateResult = { data: null, error: { message: 'boom' } };
+  it('returns a safe form error when the DB update fails', async () => {
+    mocks.dbEq.mockReturnValue({
+      select: () => ({
+        single: async () => ({ data: null, error: { message: 'private DB error' } }),
+      }),
+    });
 
     await expect(updateMarketingConsentAction({}, marketingForm(true))).resolves.toEqual({
       errors: { form: '설정을 저장하지 못했습니다. 다시 시도해주세요.' },

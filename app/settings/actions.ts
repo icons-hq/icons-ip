@@ -7,9 +7,12 @@ import { getCurrentAuthState } from '@/lib/auth/server';
 import type { CurrentAuthState } from '@/lib/auth/server';
 import {
   buildProfileAvatarPath,
-  isProfileAvatarPathForUser,
-  normalizeProfileForm,
+  matchesProfileImageMagicBytes,
+  normalizeProfileImageMetadata,
+  normalizeProfileNickname,
+  parseProfileAvatarPath,
 } from '@/lib/profile';
+import { cleanupProfileAvatar, updateProfileIdentity } from '@/lib/profile.server';
 import { mergeMarketingConsent } from '@/lib/settings';
 import { createClient } from '@/lib/supabase/server';
 
@@ -22,9 +25,21 @@ export interface SettingsActionState {
   message?: string;
 }
 
+export interface PrepareProfileAvatarUploadInput {
+  nickname: unknown;
+  mimeType: unknown;
+  size: unknown;
+}
+
+export type PrepareProfileAvatarUploadResult =
+  | { ok: true; path: string; token: string }
+  | { ok: false; errors: NonNullable<SettingsActionState['errors']> };
+
 const SETTINGS_PATH = '/settings';
 const USER_UPLOADS_BUCKET = 'user-uploads';
 const SETTINGS_CONFIG_ERROR = 'Supabase 환경변수를 설정한 뒤 설정을 변경할 수 있습니다.';
+const AVATAR_PATH_ERROR = '아바타 경로를 확인할 수 없습니다. 다시 업로드해주세요.';
+const AVATAR_VALIDATION_ERROR = '아바타 파일을 확인하지 못했습니다. 다시 업로드해주세요.';
 
 type RequireSettingsAuthResult =
   | {
@@ -49,67 +64,190 @@ async function requireSettingsAuth(): Promise<RequireSettingsAuthResult> {
   return { ok: true, auth, user: auth.user };
 }
 
+async function safeCleanupProfileAvatar(input: {
+  userId: string;
+  path: string;
+  stage: 'candidate' | 'previous';
+}) {
+  try {
+    await cleanupProfileAvatar(input);
+  } catch {
+    // The helper is best-effort; an unexpected rejection must not replace the intended result.
+  }
+}
+
+export async function prepareProfileAvatarUploadAction(
+  input: PrepareProfileAvatarUploadInput,
+): Promise<PrepareProfileAvatarUploadResult> {
+  const nickname = normalizeProfileNickname(input.nickname);
+  const metadata = normalizeProfileImageMetadata({
+    mimeType: input.mimeType,
+    size: input.size,
+  });
+  const errors: NonNullable<SettingsActionState['errors']> = {};
+
+  if (!nickname.ok) errors.nickname = nickname.error;
+  if (!metadata.ok) errors.avatar = metadata.error;
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+
+  const required = await requireSettingsAuth();
+  if (!required.ok) {
+    return {
+      ok: false,
+      errors: required.state.errors ?? {
+        form: '아바타 업로드를 준비하지 못했습니다. 다시 시도해주세요.',
+      },
+    };
+  }
+
+  try {
+    const path = buildProfileAvatarPath({
+      userId: required.user.id,
+      mimeType: metadata.value.mimeType,
+      nonce: crypto.randomUUID(),
+    });
+    const supabase = await createClient();
+    const { data, error } = await supabase.storage
+      .from(USER_UPLOADS_BUCKET)
+      .createSignedUploadUrl(path, { upsert: false });
+
+    if (error || typeof data?.token !== 'string' || !data.token) {
+      return {
+        ok: false,
+        errors: { avatar: '아바타 업로드를 준비하지 못했습니다. 다시 시도해주세요.' },
+      };
+    }
+
+    return { ok: true, path, token: data.token };
+  } catch {
+    return {
+      ok: false,
+      errors: { avatar: '아바타 업로드를 준비하지 못했습니다. 다시 시도해주세요.' },
+    };
+  }
+}
+
+function readProfileUpdateForm(formData: FormData): {
+  nickname: ReturnType<typeof normalizeProfileNickname>;
+  avatarPath: string | null;
+  avatarPathError: boolean;
+} {
+  const nickname = normalizeProfileNickname(formData.get('nickname'));
+  const avatarPathEntry = formData.get('avatarPath');
+  const legacyAvatarEntry = formData.get('avatar');
+  const legacyFileSubmitted =
+    typeof File !== 'undefined'
+    && legacyAvatarEntry instanceof File
+    && legacyAvatarEntry.size > 0;
+
+  if (avatarPathEntry === null || avatarPathEntry === '') {
+    return { nickname, avatarPath: null, avatarPathError: legacyFileSubmitted };
+  }
+  if (typeof avatarPathEntry !== 'string') {
+    return { nickname, avatarPath: null, avatarPathError: true };
+  }
+
+  return { nickname, avatarPath: avatarPathEntry, avatarPathError: legacyFileSubmitted };
+}
+
+async function validateStoredProfileAvatar(input: {
+  path: string;
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+}): Promise<boolean> {
+  try {
+    const supabase = await createClient();
+    const storage = supabase.storage.from(USER_UPLOADS_BUCKET);
+    const { data: info, error: infoError } = await storage.info(input.path);
+    if (infoError || !info) return false;
+
+    const metadata = normalizeProfileImageMetadata({
+      mimeType: info.contentType,
+      size: info.size,
+    });
+    if (!metadata.ok || metadata.value.mimeType !== input.mimeType) return false;
+
+    const { data: blob, error: downloadError } = await storage.download(input.path);
+    if (downloadError || !blob || typeof blob.arrayBuffer !== 'function') return false;
+
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    return matchesProfileImageMagicBytes(bytes, input.mimeType);
+  } catch {
+    return false;
+  }
+}
+
 export async function updateProfileAction(
   _state: SettingsActionState,
   formData: FormData,
 ): Promise<SettingsActionState> {
-  const normalized = normalizeProfileForm(formData);
-  if (!normalized.ok) return { errors: normalized.errors };
+  const input = readProfileUpdateForm(formData);
+  const errors: NonNullable<SettingsActionState['errors']> = {};
+  if (!input.nickname.ok) errors.nickname = input.nickname.error;
+  if (input.avatarPathError) errors.avatar = AVATAR_PATH_ERROR;
+  if (Object.keys(errors).length > 0) return { errors };
 
   const required = await requireSettingsAuth();
   if (!required.ok) return required.state;
 
   const { auth, user } = required;
-  const { nickname, avatar } = normalized.value;
-  const avatarPath = avatar
-    ? buildProfileAvatarPath({
-        userId: user.id,
-        mimeType: avatar.type,
-        nonce: crypto.randomUUID(),
-      })
+  const parsedAvatar = input.avatarPath
+    ? parseProfileAvatarPath(input.avatarPath, user.id)
     : null;
-  const supabase = await createClient();
-  const profileStorage = avatarPath ? supabase.storage.from(USER_UPLOADS_BUCKET) : null;
+  if (input.avatarPath && !parsedAvatar) {
+    return { errors: { avatar: AVATAR_PATH_ERROR } };
+  }
+  if (parsedAvatar && parsedAvatar.path === auth.profile?.avatar_path) {
+    return { errors: { avatar: '현재 아바타와 다른 이미지를 선택해주세요.' } };
+  }
 
-  if (avatar && avatarPath && profileStorage) {
-    const { error } = await profileStorage.upload(avatarPath, avatar, {
-      contentType: avatar.type,
-      upsert: false,
-    });
-
-    if (error) {
-      return { errors: { avatar: '아바타를 업로드하지 못했습니다. 다시 시도해주세요.' } };
+  if (parsedAvatar) {
+    const valid = await validateStoredProfileAvatar(parsedAvatar);
+    if (!valid) {
+      await safeCleanupProfileAvatar({
+        userId: user.id,
+        path: parsedAvatar.path,
+        stage: 'candidate',
+      });
+      return { errors: { avatar: AVATAR_VALIDATION_ERROR } };
     }
   }
 
-  const { error } = await supabase
-    .from('profiles')
-    .update({ nickname, ...(avatarPath ? { avatar_path: avatarPath } : {}) })
-    .eq('id', user.id)
-    .select('id')
-    .single();
+  let updateResult: Awaited<ReturnType<typeof updateProfileIdentity>>;
+  try {
+    updateResult = await updateProfileIdentity({
+      userId: user.id,
+      nickname: input.nickname.ok ? input.nickname.value : '',
+      avatarPath: parsedAvatar?.path ?? null,
+      replaceAvatar: parsedAvatar !== null,
+    });
+  } catch {
+    updateResult = { ok: false };
+  }
 
-  if (error) {
-    if (avatarPath && profileStorage) await profileStorage.remove([avatarPath]);
-    if (error.code === '23505') {
+  if (!updateResult.ok) {
+    if (parsedAvatar) {
+      await safeCleanupProfileAvatar({
+        userId: user.id,
+        path: parsedAvatar.path,
+        stage: 'candidate',
+      });
+    }
+    if (updateResult.errorCode === '23505') {
       return { errors: { nickname: '이미 사용 중인 닉네임입니다.' } };
     }
     return { errors: { form: '프로필을 저장하지 못했습니다. 다시 시도해주세요.' } };
   }
 
-  const previousAvatarPath = auth.profile?.avatar_path;
   if (
-    avatarPath &&
-    profileStorage &&
-    previousAvatarPath &&
-    previousAvatarPath !== avatarPath &&
-    isProfileAvatarPathForUser(previousAvatarPath, user.id)
+    parsedAvatar
+    && updateResult.previousAvatarPath
+    && updateResult.previousAvatarPath !== parsedAvatar.path
   ) {
-    try {
-      await profileStorage.remove([previousAvatarPath]);
-    } catch {
-      // 이전 아바타 정리는 best-effort이며 프로필 저장 성공을 실패로 바꾸지 않는다.
-    }
+    await safeCleanupProfileAvatar({
+      userId: user.id,
+      path: updateResult.previousAvatarPath,
+      stage: 'previous',
+    });
   }
 
   revalidatePath(SETTINGS_PATH);
