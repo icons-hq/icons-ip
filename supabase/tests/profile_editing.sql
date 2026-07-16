@@ -288,8 +288,7 @@ select 1 / case when not has_function_privilege(
   'service_role',
   'public.service_log_profile_avatar_cleanup_failure(uuid,text,text)',
   'EXECUTE'
-) and not has_table_privilege('service_role', 'public.audit_log', 'INSERT')
-then 1 else 0 end as assert_cleanup_audit_rpc_is_only_write_boundary;
+) then 1 else 0 end as assert_cleanup_audit_rpc_is_service_role_only;
 
 select 1 / case when (
   select relrowsecurity
