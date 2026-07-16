@@ -84,11 +84,12 @@ export async function prepareProfileAvatarUploadAction(
     mimeType: input.mimeType,
     size: input.size,
   });
-  const errors: NonNullable<SettingsActionState['errors']> = {};
-
-  if (!nickname.ok) errors.nickname = nickname.error;
-  if (!metadata.ok) errors.avatar = metadata.error;
-  if (Object.keys(errors).length > 0) return { ok: false, errors };
+  if (!nickname.ok || !metadata.ok) {
+    const errors: NonNullable<SettingsActionState['errors']> = {};
+    if (!nickname.ok) errors.nickname = nickname.error;
+    if (!metadata.ok) errors.avatar = metadata.error;
+    return { ok: false, errors };
+  }
 
   const required = await requireSettingsAuth();
   if (!required.ok) {
