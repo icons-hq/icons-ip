@@ -2,7 +2,7 @@
 
 Date: 2026-07-15
 Issue: #136
-Status: Implemented on `ps/feat/profile-editing`; browser QA, independent review, merge, preview and production verification remain pending
+Status: Implemented with local browser QA and independent security review; delivery evidence is tracked in #136 and its PR
 
 ## 목표
 
@@ -28,7 +28,7 @@ Status: Implemented on `ps/feat/profile-editing`; browser QA, independent review
 
 1. 브라우저가 닉네임과 선택 파일의 MIME·size만 `prepareProfileAvatarUploadAction`에 보낸다.
 2. Action은 입력과 인증·온보딩을 확인하고, 서버가 만든 `<uid>/profile/<uuid-v4>.<ext>` 경로를 service-only 원장에 `pending`으로 먼저 기록한 뒤 one-time signed upload token을 반환한다.
-3. 브라우저는 `uploadToSignedUrl`로 파일 바이트를 `user-uploads`에 직접 전송한다.
+3. Storage INSERT RLS가 strict same-user profile path와 그 경로의 `pending` claim을 함께 확인한 뒤, 브라우저는 `uploadToSignedUrl`로 파일 바이트를 `user-uploads`에 직접 전송한다.
 4. 브라우저는 닉네임과 신규 `avatarPath` 문자열만 `updateProfileAction`에 보낸다. 파일 input에는 `name`을 두지 않아 FormData에 파일 바이트가 들어가지 않게 한다.
 5. Action은 Storage metadata, MIME·확장자, 실제 magic bytes를 검증한 후 service-role-only RPC로 profile 행과 같은 사용자의 `pending` claim을 잠그고 원자적으로 갱신한다.
 6. RPC가 반환한 실제 직전 아바타 한 개만 제거한다. 후보 검증 실패나 DB 실패는 원장이 `rejected` 전이를 확정해 `cleanup_safe`를 반환한 경우에만 신규 후보를 제거하며, replay·응답 유실·transport 예외에서는 제거하지 않는다.
@@ -70,17 +70,17 @@ Supabase와 React에 의존하지 않는 공용 계약을 소유한다.
 
 ### 데이터베이스와 Storage
 
-현재 branch의 migration 구현과 local reset·SQL smoke는 완료됐지만 아직 merge되지 않았고 remote에는 적용되지 않았다.
+Migration 구현은 local reset·SQL smoke·실제 Storage API RLS로 검증한다. Remote 적용과 live proof의 진실원은 #136과 연결 PR이다.
 
 - 배포 전에 normalized nickname 충돌, blank/untrimmed nickname, 잘못된 기존 avatar path가 있으면 fail closed한다.
-- `profiles.nickname`은 null 또는 trim된 nonempty 값이고 raw DB 길이도 제한한다. 정확한 grapheme 수는 trusted server validator가 책임진다.
+- `profiles.nickname`은 null 또는 ECMAScript `String.trim()`의 25개 WhiteSpace·LineTerminator를 제거한 nonempty 값이고 raw DB 길이도 제한한다. 정확한 grapheme 수는 trusted server validator가 책임진다.
 - `profiles.avatar_path`는 해당 row ID의 strict profile UUID path 또는 null이다.
-- `lower(btrim(nickname))` partial unique index를 둔다.
+- 같은 explicit ECMAScript trim 문자 집합을 preflight, CHECK, `lower(btrim(...))` partial unique index에 동일 적용한다.
 - authenticated role에서 `profiles.nickname`과 `profiles.avatar_path` 직접 update column privilege를 revoke한다. 기존 birth date, consents, onboarded 상태 범위는 #136에서 바꾸지 않는다.
 - `profile_avatar_claims`는 strict owned path를 primary key로 두고 `pending|active|rejected|retired`를 기록한다. 기존 non-null `profiles.avatar_path`는 migration에서 `active`로 backfill하며, 테이블은 service read-only이고 상태 쓰기는 hardened RPC에만 둔다.
 - prepare/reject/`service_update_profile_identity` RPC는 `SECURITY DEFINER`, 고정 search path, fully-qualified relation, service-role-only execute를 사용한다. finalize는 profile 행과 claim을 잠그고 `pending` candidate만 소비하며 replay에는 `cleanup_safe=false`를 반환한다.
 - `user-uploads` bucket을 5MiB로 제한한다. 기존 community GIF 계약 때문에 bucket MIME은 JPEG/PNG/WebP/GIF를 유지하고, profile path와 서버 validator에서 GIF를 금지한다.
-- Storage INSERT RLS는 `<uid>/profile/<uuid-v4>.(jpg|png|webp)` 또는 `<uid>/community/<uuid-v4>.(jpg|png|webp|gif)`만 허용한다.
+- Storage INSERT RLS는 `<uid>/profile/<uuid-v4>.(jpg|png|webp)`에 본인 `pending` claim이 있을 때만 허용한다. 기존 `<uid>/community/<uuid-v4>.(jpg|png|webp|gif)` strict path는 claim 없이 유지한다.
 - Storage DELETE RLS는 authenticated 사용자의 본인 non-profile 경로를 유지하지만 `profile/*`는 제외한다. 프로필 후보·이전 객체 cleanup은 service-only다.
 
 ### onboarding
@@ -104,6 +104,7 @@ Supabase와 React에 의존하지 않는 공용 계약을 소유한다.
 - 서버가 경로를 만들고 final Action과 DB CHECK가 동일한 user UUID path를 재검증한다.
 - bucket MIME 제한만 신뢰하지 않고 실제 magic bytes를 검사한다.
 - authenticated Data API는 nickname/avatar를 직접 바꿀 수 없다.
+- authenticated Storage API는 본인 strict profile path라도 service-only prepare가 만든 본인 `pending` claim 없이는 INSERT할 수 없다.
 - DB 갱신은 service-role-only prepare/reject/finalize RPC, durable claim과 row lock을 통과한다.
 - cleanup은 DB가 cleanup-safe 상태 전이를 확정한 exact path 한 개에만 service client로 적용하고 결과 오류와 rejection을 모두 처리한다.
 - public profile 동기화 trigger는 기존대로 유지한다.
@@ -115,10 +116,11 @@ Supabase와 React에 의존하지 않는 공용 계약을 소유한다.
 - actions: prepare claim→signed token 순서, final payload 무파일 계약, Storage info/download 검증, first finalize/replay, known rejection의 exactly-once cleanup, unknown transport cleanup 금지, previous retirement와 hardened audit fallback.
 - onboarding: settings와 같은 30-grapheme 계약이 DB write 전에 적용됨.
 - UI/page: file input에 `name`이 없음, direct upload helper, 독립 상태, pending, focus class, 서버 계산 initial, signed preview fallback.
-- SQL smoke: fail-closed constraints, normalized uniqueness, authenticated direct update 거절, service-only 원장·RPC ACL/security, first finalize/replay, rejected cleanup 1회, previous retirement, audit RPC, public profile sync, bucket INSERT/DELETE RLS.
-- 자동 검증 완료: `npm test` 93 files/979 tests, warning 수정 후 `npm run lint`, Next production build, local Supabase reset/profile smoke. DB lint에는 기존 `refund_ticket_order`의 미사용 `p_reason` warning 한 건만 남았다.
-- 미검증: 실브라우저의 정확히 5MiB 유효 PNG direct upload, 5MiB+1 거절, 두 번째 교체 후 객체 1개, 새로고침 preview, 마케팅 회귀, 390px overflow, keyboard focus, console error 0, 임시 데이터 정리.
-- preview·production 배포와 live smoke는 PR 이후 별도 검증한다. 자동 검증 완료만으로 #136이나 Project item을 완료 처리하지 않는다.
+- SQL smoke: fail-closed ECMAScript trim constraints, normalized uniqueness, authenticated direct update 거절, service-only 원장·RPC ACL/security, first finalize/replay, rejected cleanup 1회, previous retirement, audit RPC, public profile sync, actual Storage RLS(unclaimed·active profile 거부, pending profile·community 허용)과 DELETE/catalog 계약.
+- local browser 완료: exact 5MiB direct upload, 5MiB+1 Storage 이전 거절, 4MiB 교체 후 active 1·retired 1·객체 1, 새 세션 preview·nickname·marketing 지속성, 390px no-overflow·bottom clearance·keyboard focus, application console issue 0, 임시 Auth/profile/claim/Storage 0.
+- 독립 리뷰에서 finalize 경쟁·cleanup, unclaimed Storage INSERT, ECMAScript trim, stale success feedback findings를 모두 회귀 테스트로 수정했고 최종 재리뷰에 actionable finding이 없다.
+- 자동 검증 완료: `npm test` 94 files/998 tests, `npm run lint` clean, Next 16.2.9 production build와 31 static pages, fresh local Supabase reset/profile smoke. DB lint에는 기존 `refund_ticket_order`의 미사용 `p_reason` warning 한 건만 남았다.
+- Preview는 migration을 적용하지 않으므로 route/render만 확인하고, authenticated direct upload는 `main` migration 이후 production에서 검증한다.
 
 ## 문서 영향
 

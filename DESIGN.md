@@ -118,7 +118,7 @@ components:
   community:      { status: 구현됨, ref: "globals.css:471-481", note: "230/1fr/280 3열(모바일 1열+채널 가로 스크롤). 컴팩트 컴포저 + 좋아요 pill + 랭킹 레일(실데이터 파생)" }
   search:         { status: 구현됨, ref: "globals.css:484-490", note: "통합 검색 히어로(60px pill 입력) + 스코프 칩 + 종류별 결과(IP pill/굿즈 카드/카드 타일/행)" }
   login:          { status: 구현됨, ref: "globals.css; components/screens/Login.tsx; components/screens/UpdatePassword.tsx", note: "스플릿 브랜드 패널에서 로그인·회원가입·비밀번호 재설정 메일 요청을 제공. /update-password는 새 비밀번호 2필드의 중앙 카드이며 두 라우트 모두 전역 셸을 숨김. 소셜 3종은 시각만(미배선)" }
-  settings:       { status: 구현됨, ref: "app/settings/*; components/screens/Settings.tsx; lib/profile-upload.client.ts", note: "서로 독립된 프로필·약관 form. 브라우저는 private user-uploads signed token으로 JPEG/PNG/WebP를 직접 업로드하고, 서버가 metadata·magic bytes 검증 뒤 잠금 RPC로 확정. 원형 signed image가 없으면 서버 계산 닉네임 첫 글자(I fallback)를 표시" }
+  settings:       { status: 구현됨, ref: "app/settings/*; components/screens/Settings.tsx; lib/profile-upload.client.ts", note: "서로 독립된 프로필·약관 form. 브라우저는 pending claim에 결속된 private user-uploads signed token으로 JPEG/PNG/WebP를 직접 업로드하고, 서버가 metadata·magic bytes 검증 뒤 claim/profile 잠금 RPC로 1회 확정·이전 객체 정리. 원형 signed image가 없으면 서버 계산 닉네임 첫 글자(I fallback)를 표시" }
   market-exchange:{ status: 구현됨, ref: "globals.css:497-503", note: "v2 플레이스홀더 — 검수·에스크로 카피, mock 매물. 보호 액션은 로그인 게이트" }
   # ---- [차용·미구현] ----
   tier-card:      { status: 차용·미구현, note: "충전금 tier(충전 화면 미존재). featured 변형은 violet 반전 강조" }
@@ -210,7 +210,7 @@ frontmatter `components` 블록이 정본 인덱스다(셸 → 기본 어휘 →
 | 바인더 | `/binder` | holo 스탯 + 달성률 + 도감 그리드 + 상세 모달 | 보유 개념은 mock 모드만(가챠 연동 전) |
 | 검색 | `/search` | 통합 검색 히어로 + 스코프 칩 + 종류별 결과 | Postgres `getSearchSnapshot` |
 | 로그인/온보딩/비밀번호 재설정 | `/login`, `/update-password`, `/onboarding` | 로그인 스플릿·새 비밀번호 중앙 카드·프로필/약관/최애 픽 타일 | Supabase Auth recovery·인증·온보딩 액션 |
-| 설정 | `/settings` | 독립된 프로필·약관 form + 원형 signed-image 아바타(서버 계산 닉네임 첫 글자, `I` fallback) | private `user-uploads` browser direct upload → 서버 metadata·magic 검증 → service-role-only 잠금 identity RPC; 마케팅 동의는 별도 저장 |
+| 설정 | `/settings` | 독립된 프로필·약관 form + 원형 signed-image 아바타(서버 계산 닉네임 첫 글자, `I` fallback) | 본인 pending claim에 결속된 private `user-uploads` browser direct upload → 서버 metadata·magic 검증 → service-role-only claim/profile 잠금 identity RPC; 마케팅 동의는 별도 저장 |
 | 마켓/교환 | `/market`, `/exchange` | v2 플레이스홀더(검수·에스크로 카피, mock 매물) | mock, 보호 액션은 로그인 게이트 |
 
 **신뢰 표면 규율:** 확률 공시·환불(`ADR-0001` 근거)은 `money-caption`으로 또렷하게 유지한다. 반대로 **미확정 정책(취소 시한·양도·수수료·연령 한도)과 미정의 화폐(퍼즐·스타더스트 류)는 UI에 확약하지 않는다** — 비확약 안내문으로 대체.

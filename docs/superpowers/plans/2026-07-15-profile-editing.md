@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js 16 App Router/Server Actions, React 19, Supabase Auth/Postgres/Storage/RLS, Vitest, SQL smoke, local Supabase CLI.
 
-**Current Status:** Tasks 1~6의 branch 구현과 자동 검증은 완료됐다. Task 7 browser QA·independent review와 Task 8 PR/CI/merge/production proof는 아직 시작하지 않았으며, #136 issue와 Project item은 완료 상태가 아니다.
+**Current Status:** Tasks 1~7의 branch 구현·local browser QA·independent review는 완료됐다. Task 8의 PR/CI/merge/production proof가 남았으며, #136 issue와 Project item은 아직 완료 상태가 아니다.
 
 ## Global Constraints
 
@@ -20,6 +20,7 @@
 - 최종 Action은 Storage metadata와 실제 magic bytes를 검증한다.
 - authenticated Data API의 nickname/avatar 직접 update를 금지하고 service-role-only RPC를 사용한다.
 - RPC는 row lock 뒤 같은 사용자의 `pending` claim만 소비하고 실제 이전 avatar path를 반환한다. replay·unknown transport는 candidate cleanup을 허용하지 않는다.
+- Storage INSERT도 같은 사용자의 strict profile path와 `pending` claim을 함께 요구한다. 기존 community strict path 업로드는 유지한다.
 - DB가 cleanup-safe 전이를 확정한 exact path 하나만 service client로 cleanup하고 resolved error와 rejection을 모두 처리한다.
 - 이메일 read-only, birth date·consents·follow·onboarding completion, 마케팅 동의를 유지한다.
 - 회원 탈퇴 #102/#137, community 대용량 upload 개선, abandoned upload cron은 제외한다.
@@ -64,17 +65,17 @@
 
 - Fail closed on normalized nickname conflicts, blank/untrimmed/over-raw-bound nickname, and legacy invalid avatar paths.
 - Add nickname and strict row-owned avatar path CHECK constraints.
-- Add `lower(btrim(nickname))` partial unique index.
+- ECMAScript `String.trim()`의 WhiteSpace·LineTerminator 문자 집합을 명시한 `btrim`을 preflight, CHECK, normalized partial unique index에 동일 적용한다.
 - Revoke only authenticated `UPDATE(nickname, avatar_path)`; preserve unrelated profile columns.
 - Create service-only prepare/reject/finalize RPCs and a durable `profile_avatar_claims` ledger. Seed existing non-null avatar paths as `active`.
 - Finalize RPC is `SECURITY DEFINER`, uses a fixed safe search path and schema-qualified relations, locks the profile row and pending claim, updates atomically, and returns structured `applied/error_code/cleanup_safe/previous_avatar_path` fields.
 - Mark a candidate `rejected` on known failure and authorize cleanup only after that exact transition succeeds; replay and transport exceptions remain cleanup-unsafe. Mark the previous claim `retired` on success.
 - Revoke execute from `public`, `anon`, `authenticated`, `service_role`, then grant only `service_role`.
 - Set `user-uploads` to 5MiB with JPEG/PNG/WebP/GIF. GIF remains for existing community uploads.
-- Replace Storage INSERT policy with strict profile/community UUID path alternatives.
+- Replace Storage INSERT policy with same-user strict profile UUID path + `pending` claim, or the existing same-user strict community UUID path.
 - Replace Storage DELETE policy so authenticated users retain owned non-profile/community cleanup but cannot delete any `profile/*` object; profile cleanup is service-only.
 
-- [x] Write or revise SQL smoke first: constraints/normalized duplicate, direct authenticated nickname/avatar denial, other-user denial, first finalize/replay, known-failure exactly-once cleanup, previous retirement, nickname-only flow, RPC/table ACL, exact bucket settings and Storage INSERT/DELETE policy catalog contracts. Real allowed/rejected Storage API behavior remains Task 7 browser evidence.
+- [x] Write or revise SQL smoke first: ECMAScript trim constraints/normalized duplicate, direct authenticated nickname/avatar denial, other-user denial, first finalize/replay, known-failure exactly-once cleanup, previous retirement, nickname-only flow, RPC/table ACL, exact bucket settings, and actual Storage INSERT RLS behavior(unclaimed·active 거부, pending·community 허용) plus DELETE/catalog contracts.
 - [x] Run SQL smoke against the current schema and confirm the new assertions fail.
 - [x] Implement the draft migration and per-bucket limits. Local config and pipeline needed no additional change beyond the existing smoke command.
 - [x] Run:
@@ -194,30 +195,29 @@ supabase db lint --local --level warning
 git diff --check main...HEAD
 ```
 
-- [x] Verification evidence: `npm test` 93 files/979 tests; warning 수정 후 `npm run lint` clean; Next production build success; local reset/profile smoke success; DB lint에는 기존 `refund_ticket_order` unused `p_reason` warning 한 건만 존재.
+- [x] Final pre-PR evidence after Task 7 findings: `npm test` 94 files/998 tests, `npm run lint` clean, Next 16.2.9 production build and 31 static pages, fresh local reset/profile smoke success. DB lint has only the pre-existing `refund_ticket_order` unused `p_reason` warning.
 - [x] Review `git status --short`, branch diff stat, token-shaped secret-pattern scan and `git diff --check main...HEAD`.
 - [x] Stage exact documentation files and commit `docs(account): 프로필 direct upload 운영을 기록`.
 
 ### Task 7: local browser QA와 independent review
 
-- [ ] Start local Supabase and Next using non-secret environment loading.
-- [x] Local Storage API RLS regression: owner의 `profile/*` delete 거절·객체 존속·same-path reupload 거절, owner의 `community/*` delete 성공·객체 제거, 임시 Auth/Storage 잔여 0을 확인했다.
-- [ ] Create a temporary confirmed test user and complete onboarding.
-- [ ] Upload an exactly 5MiB valid PNG whose decoder tolerates trailing bytes. Verify Storage receives the file while Next Action bodies remain small.
-- [ ] Verify 5MiB+1 rejects before signed upload.
-- [ ] Replace the avatar again, refresh, and prove only the current profile object remains.
-- [ ] Verify nickname, marketing persistence, 390px no-overflow, keyboard focus ring and zero console errors.
-- [ ] Remove the temporary Auth user, owned Storage objects, cookies and local artifacts.
-- [ ] Request an independent whole-branch standards/spec review from `main`.
-- [ ] Address every valid finding with focused tests and rerun the complete suite.
+- [x] Start local Supabase and Next using non-secret environment loading.
+- [x] Local Storage API RLS regression: unclaimed·active profile INSERT 거부, pending profile·community INSERT 허용, owner의 `profile/*` delete 거절·객체 존속, owner의 `community/*` delete 성공·객체 제거를 확인했다.
+- [x] Create a temporary confirmed test user and satisfy the onboarding gate.
+- [x] Upload an exactly 5MiB valid PNG whose decoder tolerates trailing bytes. Storage에 객체가 생기고 Next Action body는 76/446 bytes에 머무는 것을 확인했다.
+- [x] Verify 5MiB+1 rejects before any Storage request.
+- [x] Replace the avatar with a second 4MiB image, refresh and sign in again; prove one `active`, one `retired` claim and only the current profile object remain.
+- [x] Verify nickname and marketing persistence, 390px no-overflow, bottom action clearance, 2px keyboard focus ring and zero application console warnings/errors.
+- [x] Remove the temporary Auth user, profile, claims, owned Storage objects, cookies and browser handles; exact DB/Storage counts are zero.
+- [x] Request independent concurrency/security and whole-branch standards/spec reviews from `main`.
+- [x] Address every valid finding with focused tests: finalize TOCTOU/replay cleanup, unclaimed Storage INSERT, ECMAScript trim and stale success feedback. Final re-review has no actionable finding.
 
 ### Task 8: PR, CI, merge and production proof
 
 - [ ] Push the branch and open a review-ready PR with Korean `요약`, `배경`, `검증`, `참고`, including `Closes #136`.
-- [ ] Confirm exact-head CI, Supabase and preview deployment success.
-- [ ] Run preview smoke including direct 5MiB upload and cleanup.
+- [ ] Confirm exact-head CI and preview deployment success. Preview에서는 route/render만 smoke한다. Supabase migration은 `main` production pipeline에서 적용되므로 authenticated direct upload를 preview 단독으로 검증할 수 없다.
 - [ ] Squash merge only after checks and review are green.
-- [ ] Confirm the exact merge SHA production pipeline, `iconsip.com` route and controlled profile direct-upload smoke.
+- [ ] Confirm the exact merge SHA production pipeline(Supabase → Vercel), `iconsip.com` route and controlled exact 5MiB profile direct-upload/replacement smoke.
 - [ ] Remove all production test data and Storage objects.
 - [ ] Confirm #136 is closed and Project #8 item is `Done`; repair synchronization if needed within the authorized scope.
 - [ ] Fast-forward local `main`, remove the worktree/branch, and choose the next unblocked launch issue.
