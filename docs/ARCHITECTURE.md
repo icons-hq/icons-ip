@@ -29,11 +29,11 @@
 | 라우팅 맵 | 프로토타입 route-id ↔ 경로 | `lib/routes.ts` |
 | 데이터 | Supabase 공개 카탈로그, 커뮤니티 visible 전체 피드·본인 `ip_follows` 기반 내 팬덤 피드/comment preview, Postgres 검색 읽기 + mock fallback. Vercel Preview는 static mock catalog를 기본 사용. IP 상세 커뮤니티 preview도 Supabase `posts`/`public_profiles`에서 읽음 | `lib/catalog.ts`, `lib/catalog-source.ts`, `lib/community.server.ts`, `lib/search.ts`, `lib/data.ts` |
 | 인증 | Supabase SSR 이메일/PW Auth, 확인·recovery 메일 callback, 비밀번호 재설정, 온보딩 게이트. 표시 전용 AuthPresenceProvider가 unknown/signed-in/signed-out 상태를 AuthButton·MobNav에 동기화하고 보호 판정은 각 Server Page가 수행한다. env 없으면 no-op/폼 비활성화 | `app/login/*`, `app/auth/callback/route.ts`, `app/update-password/*`, `app/onboarding/*`, `app/my/*`, `components/shell/AuthPresenceProvider.tsx`, `components/shell/AuthButton.tsx`, `lib/auth/*`, `lib/supabase/*`, 루트 `proxy.ts` |
-| 보호 액션 | IP 팔로우/언팔로우·IP별 드롭/이벤트 알림 설정, 알림 읽음 처리, 온보딩 추천 IP 저장. 커뮤니티 포스트 작성·수정, 댓글, 좋아요, 작성자 삭제, 신고, 차단은 Server Action + 최소 권한 RPC로 연결 | `app/ip/actions.ts`, `app/notifications/actions.ts`, `app/onboarding/actions.ts`, `app/community/actions.ts`, `lib/ip-follow*`, `lib/notifications*`, `supabase/migrations/20260623090001_ip_follow_rpc.sql`, `supabase/migrations/20260624103001_community_comment_like_actions.sql`, `supabase/migrations/20260626090001_community_moderation_actions.sql`, `supabase/migrations/20260716090001_in_app_notifications.sql`, `supabase/migrations/20260716151616_community_post_editing.sql` |
+| 보호 액션 | IP 팔로우/언팔로우·IP별 드롭/이벤트 알림 설정, 알림 읽음 처리, 온보딩 추천 IP 저장. 커뮤니티 포스트 작성·수정, 댓글, 좋아요, 작성자 삭제, 신고, 차단과 운영자 댓글 숨김은 Server Action + 최소 권한 RPC로 연결 | `app/ip/actions.ts`, `app/notifications/actions.ts`, `app/onboarding/actions.ts`, `app/community/actions.ts`, `app/admin/actions.ts`, `lib/ip-follow*`, `lib/notifications*`, `supabase/migrations/20260623090001_ip_follow_rpc.sql`, `supabase/migrations/20260624103001_community_comment_like_actions.sql`, `supabase/migrations/20260626090001_community_moderation_actions.sql`, `supabase/migrations/20260716090001_in_app_notifications.sql`, `supabase/migrations/20260716151616_community_post_editing.sql`, `supabase/migrations/20260717090001_community_comment_moderation.sql` |
 | 인앱 알림 | 본인 RLS 수신함 최신 50건·unread count, 보호 알림함/IP 설정 화면. 주문 상태·카드팩 발급·runtime staff 카탈로그 INSERT trigger와 audited 관리자 즉시 공지가 같은 transaction에서 멱등 발급 | `app/notifications/*`, `components/screens/Notifications.tsx`, `components/screens/NotificationSettings.tsx`, `components/shell/NotificationBell.tsx`, `components/admin/sections/NotificationSection.tsx`, `supabase/migrations/20260716090001_in_app_notifications.sql`, `supabase/migrations/20260716100001_admin_notification_console.sql` |
 | 굿즈 커머스 | 비로그인 localStorage·로그인 `cart_items` 병합, 멱등 `place_order` 재고 선점, 토스 결제위젯 redirect 승인, 웹훅 확정·만료 복원, 본인 주문 내역·상세·배송 전 청약철회 요청·상태 조회 | `app/cart/*`, `app/checkout/*`, `app/orders/*`, `app/api/orders/*`, `app/api/payments/confirm`, `app/api/webhooks/tosspayments`, `lib/checkout*`, `lib/orders*`, `lib/payments/*` |
 | 티켓 예매 | 공개 이벤트 상세·회차 잔여 조회, 멱등 `reserve_tickets` 정원 선점, 티켓용 토스 결제위젯, 웹훅 확정·QR 발급·만료 복원, 본인 티켓 목록/상세·보호 QR·예매 전체 취소/환불 | `app/events/[eventId]/*`, `app/ticket-checkout/*`, `app/tickets/*`, `app/api/tickets/*`, `app/api/ticket-orders/*`, `app/api/payments/confirm`, `app/api/webhooks/tosspayments`, `lib/ticketing*`, `lib/payments/*` |
-| 운영 | staff/admin 게이트, 카탈로그 CRUD, 카드풀 운영 기간·등급별 확률·카드 풀 바인딩, 주문 대상별 뽑기권 발급 정책, 카드 보상형 참여형 게임 등록·운영과 PII-free 플레이 집계, 전체/IP 팔로워 인앱 공지의 추정·즉시 발송·이력, 감사 로그, 커뮤니티 신고 처리, 주문 검색·배송 전이·청약철회 승인/거절/재정합화, 실재고 입고·보정 | `app/admin/*`, `components/admin/*`, `lib/admin/*`, `supabase/migrations/20260714190001_admin_order_console.sql`, `supabase/migrations/20260714200001_admin_stock_adjustment.sql`, `supabase/migrations/20260715010001_admin_card_pool_console.sql`, `supabase/migrations/20260715020001_admin_reward_policy_console.sql`, `supabase/migrations/20260715030001_admin_game_console.sql`, `supabase/migrations/20260716100001_admin_notification_console.sql` |
+| 운영 | staff/admin 게이트, 카탈로그 CRUD, 카드풀 운영 기간·등급별 확률·카드 풀 바인딩, 주문 대상별 뽑기권 발급 정책, 카드 보상형 참여형 게임 등록·운영과 PII-free 플레이 집계, 전체/IP 팔로워 인앱 공지의 추정·즉시 발송·이력, 감사 로그, 커뮤니티 신고·포스트/댓글 숨김 처리, 주문 검색·배송 전이·청약철회 승인/거절/재정합화, 실재고 입고·보정 | `app/admin/*`, `components/admin/*`, `lib/admin/*`, `supabase/migrations/20260714190001_admin_order_console.sql`, `supabase/migrations/20260714200001_admin_stock_adjustment.sql`, `supabase/migrations/20260715010001_admin_card_pool_console.sql`, `supabase/migrations/20260715020001_admin_reward_policy_console.sql`, `supabase/migrations/20260715030001_admin_game_console.sql`, `supabase/migrations/20260716100001_admin_notification_console.sql`, `supabase/migrations/20260717090001_community_comment_moderation.sql` |
 | CI/CD | GitHub Actions `CI/CD Pipeline`: PR 검증 + Vercel preview 배포, merge queue 검증, `main` push production 배포. Actions 앱 빌드 Node는 26 | `.github/workflows/pipeline.yml` |
 | 배포 | PR은 Vercel 원격 preview build/deploy, `main` push는 Supabase linked migration push 후 Vercel 원격 production build/deploy. Sensitive 환경변수는 Vercel build 안에서 검증하며 Vercel Git 자동 배포는 비활성화 | GitHub Secrets + `.github/workflows/pipeline.yml`, `vercel.json` |
 | Production runtime | Vercel project/runtime Node.js Version은 공식 지원 범위인 24.x 유지 | Vercel Project Settings |
@@ -140,7 +140,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 
 ### 5.6 커뮤니티 (P0)
 - `posts` (id, user_id, ip_id?, text, image_path?, tag, status `visible|hidden`, created_at, updated_at)
-- `comments` (id, post_id, user_id, text)
+- `comments` (id, post_id, user_id, text, status `visible|hidden`, created_at)
 - `likes` (post_id, user_id)
 - `reports` (id, target_type `post|comment|user`, target_id, reporter_id, reason, status)
 - `blocks` (user_id, blocked_user_id)
@@ -148,6 +148,8 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - `/community?feed=fandom`은 본인 `ip_follows.ip_id`를 읽어 `posts.ip_id IN (...)`을 정렬·30건 제한 전에 적용한다. 알림 채널 설정은 포함 여부와 무관하고, `ip_id`가 없는 포스트는 제외한다. 전체 피드와 트렌딩은 개인화하지 않으며 기존 visible/작성자/staff RLS와 앱의 작성자 차단 필터를 유지한다.
 - 홈은 온보딩 완료 viewer의 팔로우 ID만 받아 기존 이벤트·재고 티커 우선순위를 보존하고 커뮤니티 preview 그룹 안에서만 팔로우 IP를 stable-first로 정렬한다.
 - `edit_own_post(target_post_id, post_text, post_ip_id, post_tag)`는 인증된 작성자의 visible 포스트를 행 잠금한 뒤 텍스트·태그·IP 연결만 수정한다. `posts` 직접 UPDATE 권한과 정책은 제거하며 이미지·작성자·상태·작성 시각은 보존한다.
+- 공개 댓글 preview와 댓글 수는 `comments.status = visible`을 정렬·limit·집계 전에 적용한다. hidden 원문은 댓글 작성자·부모 포스트 작성자·staff만 DB에서 읽을 수 있고 공개 DTO에는 tombstone 없이 제외한다.
+- `admin_hide_community_comment`는 staff를 재검사하고 댓글·선택 신고를 잠근 뒤 정확히 연결된 댓글 신고만 함께 해결한다. 댓글 상태가 실제 전환될 때만 PII-free `community_comment_hide` audit을 한 건 남기며, 동일 resolved 요청 replay는 무변경으로 반환한다.
 
 ### 5.7 운영
 - `audit_log` (id, actor_id, action, target, diff jsonb, created_at)
@@ -168,7 +170,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 | profiles/ip_follows/carts/orders/wallets/user_cards/ticket_orders | **본인만** | 본인 읽기, 쓰기는 신뢰 RPC/service role만 |
 | notifications | **본인만** | 직접 쓰기 없음. 읽음 처리는 `open_notification`, 발급은 신뢰 trigger 또는 staff를 재검사하는 audited RPC만 |
 | tickets/ticket_cancellation_requests | **본인만 안전 컬럼** | QR 원문·provider/attempt/error 정보는 서버 경계 전용, 쓰기는 신뢰 RPC/service role만 |
-| posts/comments/likes | 공개 읽기(visible) | 포스트 수정은 작성자 본인 RPC, 삭제·반응과 신고/숨김은 각 최소 권한 RPC |
+| posts/comments/likes | 공개 읽기(visible). hidden 댓글 원문은 댓글/포스트 작성자와 staff만 | 포스트 수정은 작성자 본인 RPC, 삭제·반응과 신고/숨김은 각 최소 권한 RPC. comments 직접 UPDATE 금지 |
 | reports/blocks | 본인+운영 | 본인 |
 | audit_log | admin only | RPC만 |
 
@@ -280,7 +282,7 @@ Production Auth 설정:
 ## 12. 운영 백오피스 `/admin`
 
 - 같은 Next 앱의 라우트 그룹. 진입 시 `profiles.role ∈ {staff, admin}` 검사(라우트 + RLS 이중).
-- 기능: 카탈로그 CRUD, **카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩**, 뽑기권 발급 정책(`/admin?section=policy`), 참여형 게임(`/admin?section=game`) 관리, 이벤트·티켓 회차, 독립 모바일 현장 검표(`/admin/check-in`), 주문 검색·배송 전이·청약철회/환불 정합화, 인앱 공지 수신자 추정·즉시 발송·이력(`/admin?section=notifications`), 커뮤니티 신고 처리.
+- 기능: 카탈로그 CRUD, **카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩**, 뽑기권 발급 정책(`/admin?section=policy`), 참여형 게임(`/admin?section=game`) 관리, 이벤트·티켓 회차, 독립 모바일 현장 검표(`/admin/check-in`), 주문 검색·배송 전이·청약철회/환불 정합화, 인앱 공지 수신자 추정·즉시 발송·이력(`/admin?section=notifications`), 커뮤니티 신고·포스트/댓글 숨김 처리.
 - 모든 민감 작업은 `audit_log` 기록.
 
 ---

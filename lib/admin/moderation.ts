@@ -12,6 +12,11 @@ export interface AdminHidePostFormValue {
   reportId: string | null;
 }
 
+export interface AdminHideCommentFormValue {
+  commentId: string;
+  reportId: string;
+}
+
 export type AdminModerationFormResult<T> =
   | { ok: true; value: T }
   | { ok: false; errors: AdminModerationFieldErrors };
@@ -71,5 +76,23 @@ export function normalizeAdminHidePostForm(
       postId,
       reportId,
     },
+  };
+}
+
+export function normalizeAdminHideCommentForm(
+  formData: FormData,
+): AdminModerationFormResult<AdminHideCommentFormValue> {
+  const commentId = readUuid(formData, 'commentId');
+  const reportId = readUuid(formData, 'reportId');
+  const errors: AdminModerationFieldErrors = {};
+
+  if (!commentId) errors.commentId = '댓글을 찾을 수 없습니다.';
+  if (!reportId) errors.reportId = '신고를 찾을 수 없습니다.';
+
+  if (!commentId || !reportId) return { ok: false, errors };
+
+  return {
+    ok: true,
+    value: { commentId, reportId },
   };
 }

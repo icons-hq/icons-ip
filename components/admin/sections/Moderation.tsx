@@ -1,7 +1,8 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, type FormEvent } from 'react';
 import {
+  hideCommunityCommentAction,
   hideCommunityPostAction,
   updateCommunityReportStatusAction,
   type AdminCatalogActionState,
@@ -13,6 +14,13 @@ import { InlineNotice } from '../fields';
 
 const emptyState: AdminCatalogActionState = {};
 const reportStatuses: CommunityReportStatus[] = ['open', 'reviewing', 'resolved', 'dismissed'];
+
+export function confirmCommunityCommentHide(event: FormEvent<HTMLFormElement>) {
+  const confirmed = window.confirm(
+    '이 댓글을 숨기고 연결된 신고를 해결합니다. 현재 화면에서는 되돌릴 수 없습니다. 계속할까요?',
+  );
+  if (!confirmed) event.preventDefault();
+}
 
 export const reportTargetLabels = {
   post: '포스트',
@@ -27,7 +35,10 @@ function ReportStatusForm({ report }: { report: AdminReportRecord }) {
     <form action={action} className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
       <input name="reportId" type="hidden" value={report.id} />
       <select
+        aria-label={`${reportTargetLabels[report.targetType]} 신고 상태`}
+        className="admin-field-control"
         defaultValue={report.status}
+        key={report.status}
         name="status"
         style={{
           background: 'rgba(255,255,255,.045)',
@@ -36,7 +47,7 @@ function ReportStatusForm({ report }: { report: AdminReportRecord }) {
           color: 'var(--text)',
           fontFamily: 'inherit',
           fontSize: 13,
-          minHeight: 36,
+          minHeight: 44,
           outline: 'none',
           padding: '0 10px',
         }}
@@ -45,7 +56,7 @@ function ReportStatusForm({ report }: { report: AdminReportRecord }) {
           <option key={status} value={status}>{status}</option>
         ))}
       </select>
-      <button className="btn btn-sm" disabled={pending} style={{ height: 36 }}>
+      <button className="btn btn-sm admin-field-control" disabled={pending} style={{ minHeight: 44 }}>
         <Icon name="check" size={14} /> {pending ? '저장 중' : '상태 저장'}
       </button>
       <InlineNotice state={state} />
@@ -61,8 +72,31 @@ function HidePostForm({ report }: { report: AdminReportRecord }) {
     <form action={action} className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
       <input name="reportId" type="hidden" value={report.id} />
       <input name="postId" type="hidden" value={report.targetPostId} />
-      <button className="btn btn-sm" disabled={pending} style={{ height: 36 }}>
+      <button className="btn btn-sm admin-field-control" disabled={pending} style={{ minHeight: 44 }}>
         <Icon name="shield" size={14} /> {pending ? '처리 중' : '포스트 숨김'}
+      </button>
+      <InlineNotice state={state} />
+    </form>
+  );
+}
+
+function HideCommentForm({ report }: { report: AdminReportRecord }) {
+  const [state, action, pending] = useActionState(hideCommunityCommentAction, emptyState);
+  if (!report.targetCommentId) return null;
+
+  const hidden = report.targetCommentStatus === 'hidden';
+
+  return (
+    <form
+      action={action}
+      className="row"
+      onSubmit={confirmCommunityCommentHide}
+      style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start' }}
+    >
+      <input name="reportId" type="hidden" value={report.id} />
+      <input name="commentId" type="hidden" value={report.targetCommentId} />
+      <button className="btn btn-sm admin-field-control" disabled={hidden || pending} style={{ minHeight: 44 }}>
+        <Icon name="shield" size={14} /> {hidden ? '숨김 처리됨' : pending ? '처리 중' : '댓글 숨김'}
       </button>
       <InlineNotice state={state} />
     </form>
@@ -90,6 +124,7 @@ export function ModerationSection({ reports }: { reports: AdminReportRecord[] })
           </div>
           <div className="row" style={{ gap: 10, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
             <ReportStatusForm report={report} />
+            <HideCommentForm report={report} />
             <HidePostForm report={report} />
           </div>
         </article>

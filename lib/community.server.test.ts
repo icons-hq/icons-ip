@@ -80,6 +80,7 @@ interface TestCommentRow {
   user_id: string;
   text: string;
   created_at: string;
+  status?: 'visible' | 'hidden';
 }
 
 interface TestBlockRow {
@@ -194,7 +195,14 @@ function createQuery(
       onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
     ) {
       let data = rows;
-      for (const [column, value] of record.eq) data = data.filter((row) => row[column] === value);
+      for (const [column, value] of record.eq) {
+        data = data.filter((row) => {
+          const actual = table === 'comments' && column === 'status' && row[column] === undefined
+            ? 'visible'
+            : row[column];
+          return actual === value;
+        });
+      }
       for (const [column, values] of record.in) data = data.filter((row) => values.includes(row[column]));
       for (const [column, operator, value] of record.not) {
         if (operator === 'in') {
@@ -250,7 +258,11 @@ function createClient(records: QueryRecord[], options: CreateClientOptions = {})
         data: targetPostIds.map((postId) => ({
           post_id: String(postId),
           likes_count: rows.likes.filter((row) => row.post_id === postId).length,
-          comments_count: rows.comments.filter((row) => row.post_id === postId && !blockedUserIds.has(row.user_id)).length,
+          comments_count: rows.comments.filter((row) =>
+            row.post_id === postId
+            && (row.status ?? 'visible') === 'visible'
+            && !blockedUserIds.has(row.user_id),
+          ).length,
         })),
         error: null,
       };
@@ -442,8 +454,8 @@ describe('getCommunitySnapshot', () => {
     });
     expect(records.filter((record) => record.table === 'comments')).toEqual([
       expect.objectContaining({
-        select: 'id,post_id,user_id,text,created_at',
-        eq: [['post_id', 'p1']],
+        select: 'id,post_id,user_id,text,created_at,status',
+        eq: [['post_id', 'p1'], ['status', 'visible']],
         order: [['created_at', { ascending: true }]],
         limit: 3,
       }),
@@ -620,14 +632,76 @@ describe('getCommunitySnapshot', () => {
     ]);
     expect(records.filter((record) => record.table === 'comments')).toEqual([
       expect.objectContaining({
-        eq: [['post_id', 'p2']],
+        eq: [['post_id', 'p2'], ['status', 'visible']],
         limit: 3,
       }),
       expect.objectContaining({
-        eq: [['post_id', 'p1']],
+        eq: [['post_id', 'p1'], ['status', 'visible']],
         limit: 3,
       }),
     ]);
+  });
+
+  it('filters hidden comments before the preview limit and excludes them from staff public-feed DTOs', async () => {
+    const records: QueryRecord[] = [];
+    mocks.catalog = catalog;
+    mocks.client = createClient(records, {
+      rows: {
+        posts: [{
+          id: 'p1',
+          user_id: 'u1',
+          ip_id: 'hwasan',
+          text: '댓글 필터 테스트',
+          tag: null,
+          created_at: '2026-06-22T04:00:00.000Z',
+          image_path: null,
+          status: 'visible',
+        }],
+        public_profiles: [
+          { id: 'u1', nickname: 'author' },
+          { id: 'u2', nickname: 'commenter' },
+        ],
+        likes: [],
+        comments: [
+          {
+            id: 'hidden-first',
+            post_id: 'p1',
+            user_id: 'u2',
+            text: '운영자에게도 공개 피드에는 나오면 안 됨',
+            created_at: '2026-06-22T04:01:00.000Z',
+            status: 'hidden',
+          },
+          ...Array.from({ length: 3 }, (_, index) => ({
+            id: `visible-${index + 1}`,
+            post_id: 'p1',
+            user_id: 'u2',
+            text: `visible ${index + 1}`,
+            created_at: `2026-06-22T04:0${index + 2}:00.000Z`,
+            status: 'visible' as const,
+          })),
+        ],
+        blocks: [],
+      },
+    });
+
+    const snapshot = await getCommunitySnapshot({ viewerId: 'staff-1', isStaff: true });
+
+    expect(snapshot.posts[0]).toEqual(expect.objectContaining({
+      comments: 3,
+      commentItems: [
+        expect.objectContaining({ id: 'visible-1' }),
+        expect.objectContaining({ id: 'visible-2' }),
+        expect.objectContaining({ id: 'visible-3' }),
+      ],
+    }));
+    expect(snapshot.posts[0].commentItems).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'hidden-first' })]),
+    );
+    expect(records.find((record) => record.table === 'comments')).toEqual(expect.objectContaining({
+      eq: [['post_id', 'p1'], ['status', 'visible']],
+      order: [['created_at', { ascending: true }]],
+      limit: 3,
+    }));
   });
 
   it('omits a post image when signed URL creation fails without failing the public feed', async () => {
@@ -733,7 +807,7 @@ describe('getCommunitySnapshot', () => {
     }));
     expect(records.filter((record) => record.table === 'comments')).toEqual([
       expect.objectContaining({
-        eq: [['post_id', 'visible-post']],
+        eq: [['post_id', 'visible-post'], ['status', 'visible']],
         not: [['user_id', 'in', '(u1)']],
       }),
     ]);

@@ -20,6 +20,7 @@ import {
 } from '@/lib/admin/catalog';
 import { getAdminCatalogRecords } from '@/lib/admin/catalog.server';
 import {
+  normalizeAdminHideCommentForm,
   normalizeAdminHidePostForm,
   normalizeAdminReportStatusForm,
 } from '@/lib/admin/moderation';
@@ -754,4 +755,26 @@ export async function hideCommunityPostAction(
 
   revalidateModeration(readRpcIpId(data));
   return { message: '포스트를 숨김 처리했습니다.' };
+}
+
+export async function hideCommunityCommentAction(
+  _state: AdminCatalogActionState,
+  formData: FormData,
+): Promise<AdminCatalogActionState> {
+  const authError = await requireStaffAction();
+  if (authError) return authError;
+
+  const result = normalizeAdminHideCommentForm(formData);
+  if (!result.ok) return { errors: result.errors };
+
+  const supabase = await createClient();
+  const { error, data } = await supabase.rpc('admin_hide_community_comment', {
+    target_comment_id: result.value.commentId,
+    target_report_id: result.value.reportId,
+  });
+
+  if (error) return rpcFailure('댓글을 숨김 처리하지 못했습니다. 다시 시도해주세요.');
+
+  revalidateModeration(readRpcIpId(data));
+  return { message: '댓글을 숨김 처리했습니다.' };
 }

@@ -115,7 +115,8 @@ components:
   gacha:          { status: 구현됨, ref: "globals.css:442-453", note: "카드풀 스위처 + 확률 칩 + 천장 게이지 + 클라이언트 리빌(popIn). mock 공시 — 실 카드풀은 ADR-0001" }
   event:          { status: 구현됨, ref: "app/events/*; components/screens/Events.tsx; components/screens/EventDetail.tsx; globals.css", note: "목록 featured 2열+카드 그리드에서 공개 상세로 연결. 상세는 포스터 히어로와 회차 선택/예매 요약 2열, 모바일 1열. IP가 있는 예정 이벤트는 해당 IP의 새 이벤트 알림 secondary action을 제공" }
   binder:         { status: 구현됨, ref: "globals.css:464-468", note: "도감 그리드(미보유 잠금·dim은 mock 모드만) + 카드 상세 모달 + CTA 행" }
-  community:      { status: 구현됨, ref: "globals.css:471-481; components/screens/Community.tsx", note: "230/1fr/280 3열(모바일 1열+채널 가로 스크롤). 컴팩트 컴포저 + 좋아요 pill + 랭킹 레일(실데이터 파생), 작성자 visible 포스트 inline 수정·수정됨 표기·기존 이미지 유지" }
+  community:      { status: 구현됨, ref: "globals.css:471-481; components/screens/Community.tsx", note: "230/1fr/280 3열(모바일 1열+채널 가로 스크롤). 컴팩트 컴포저 + 좋아요 pill + 랭킹 레일(실데이터 파생), 작성자 visible 포스트 inline 수정·수정됨 표기·기존 이미지 유지. 운영자가 숨긴 댓글은 tombstone 없이 preview·댓글 수에서 제외" }
+  admin-moderation: { status: 구현됨, ref: "components/admin/sections/Moderation.tsx", note: "staff 신고 카드에서 상태 저장·부모 포스트 숨김·개별 댓글 숨김을 분리. 댓글 숨김 전 연결 신고 해결·현재 UI에서 되돌릴 수 없음을 확인하고, hidden 댓글 원문은 운영 검토용으로 유지하되 버튼은 '숨김 처리됨' disabled 상태. select/button은 최소 44px" }
   search:         { status: 구현됨, ref: "globals.css:484-490", note: "통합 검색 히어로(60px pill 입력) + 스코프 칩 + 종류별 결과(IP pill/굿즈 카드/카드 타일/행)" }
   login:          { status: 구현됨, ref: "globals.css; components/screens/Login.tsx; components/screens/UpdatePassword.tsx", note: "스플릿 브랜드 패널에서 로그인·회원가입·비밀번호 재설정 메일 요청을 제공. /update-password는 새 비밀번호 2필드의 중앙 카드이며 두 라우트 모두 전역 셸을 숨김. 소셜 3종은 시각만(미배선)" }
   settings:       { status: 구현됨, ref: "app/settings/*; components/screens/Settings.tsx; lib/profile-upload.client.ts", note: "서로 독립된 프로필·약관 form. 브라우저는 pending claim에 결속된 private user-uploads signed token으로 JPEG/PNG/WebP를 직접 업로드하고, 서버가 metadata·magic bytes 검증 뒤 claim/profile 잠금 RPC로 1회 확정·이전 객체 정리. 원형 signed image가 없으면 서버 계산 닉네임 첫 글자(I fallback)를 표시" }
@@ -208,7 +209,7 @@ frontmatter `components` 블록이 정본 인덱스다(셸 → 기본 어휘 →
 | 관리자 참여형 게임 | `/admin?section=game` | 게임 master-detail → 카드풀·같은 IP 온라인 이벤트·KST 운영 기간·일일 한도 편집 → 플레이 이후 잠금·현재 시각이 운영 창에 포함되는 게임의 DB 시각 종료·플레이 집계 | staff-gated, PII-free `admin_list_games` + 멱등 `admin_upsert_game` + `audit_log`; goods variant는 읽기 전용 |
 | 뽑기 | `/gacha` | 카드풀 스위처 + 확률 칩 + 천장 게이지 + 클라이언트 리빌 + 라인업 | 카탈로그(카드 있는 IP), mock 공시 |
 | 팝업 | `/events`, `/events/[eventId]` | 필터 칩 → featured/카드 목록 → 공개 상세·회차 선택 → QR 가이드. IP가 있는 예정 이벤트에는 해당 IP 이벤트 알림 secondary action | `selectFandomEvents`, 공개 `ticket_types`, `ip_follows.notify_events` |
-| 커뮤니티 | `/community`, `/community?feed=fandom` | 최근 7일 트렌딩 + 전체/내 팬덤 URL 탭 + scope별 채널 레일·컴팩트 컴포저 + 피드 + 랭킹·카드풀 레일. 내 팬덤은 guest/onboarding/0 follow/0 post 상태별 CTA를 제공하고, 작성자 visible 포스트는 기존 이미지를 유지하는 inline 수정과 `수정됨` 표기를 제공 | visible 전체 피드 또는 본인 `ip_follows` 기반 DB 선필터 + 작성·수정·좋아요·댓글·신고·차단 실배선 |
+| 커뮤니티 | `/community`, `/community?feed=fandom` | 최근 7일 트렌딩 + 전체/내 팬덤 URL 탭 + scope별 채널 레일·컴팩트 컴포저 + 피드 + 랭킹·카드풀 레일. 내 팬덤은 guest/onboarding/0 follow/0 post 상태별 CTA를 제공하고, 작성자 visible 포스트는 기존 이미지를 유지하는 inline 수정과 `수정됨` 표기를 제공. hidden 댓글은 tombstone 없이 제외 | visible 전체 피드 또는 본인 `ip_follows` 기반 DB 선필터 + 작성·수정·좋아요·visible 댓글·신고·차단 실배선 |
 | 바인더 | `/binder` | holo 스탯 + 달성률 + 도감 그리드 + 상세 모달 | 보유 개념은 mock 모드만(가챠 연동 전) |
 | 검색 | `/search` | 통합 검색 히어로 + 스코프 칩 + 종류별 결과 | Postgres `getSearchSnapshot` |
 | 로그인/온보딩/비밀번호 재설정 | `/login`, `/update-password`, `/onboarding` | 로그인 스플릿·새 비밀번호 중앙 카드·프로필/약관/최애 픽 타일 | Supabase Auth recovery·인증·온보딩 액션 |

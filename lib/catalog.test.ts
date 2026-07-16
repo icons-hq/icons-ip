@@ -203,9 +203,10 @@ function defaultSupabaseRows(): SupabaseRows {
       { post_id: 'p2' },
     ],
     comments: [
-      { post_id: 'p1', user_id: 'u3' },
-      { post_id: 'hidden', user_id: 'u3' },
-      ...Array.from({ length: 1001 }, () => ({ post_id: 'p3', user_id: 'u3' })),
+      { post_id: 'p1', user_id: 'u3', status: 'visible' },
+      { post_id: 'p1', user_id: 'u4', status: 'hidden' },
+      { post_id: 'hidden', user_id: 'u3', status: 'visible' },
+      ...Array.from({ length: 1001 }, () => ({ post_id: 'p3', user_id: 'u3', status: 'visible' })),
     ],
     blocks: [{ user_id: 'viewer-1', blocked_user_id: 'u1' }],
   };
@@ -344,17 +345,17 @@ describe('getCatalogIpDetail', () => {
       expect.objectContaining({
         select: 'post_id',
         selectOptions: { count: 'exact', head: true },
-        eq: [['post_id', 'p1']],
+        eq: [['post_id', 'p1'], ['status', 'visible']],
       }),
       expect.objectContaining({
         select: 'post_id',
         selectOptions: { count: 'exact', head: true },
-        eq: [['post_id', 'p2']],
+        eq: [['post_id', 'p2'], ['status', 'visible']],
       }),
       expect.objectContaining({
         select: 'post_id',
         selectOptions: { count: 'exact', head: true },
-        eq: [['post_id', 'p3']],
+        eq: [['post_id', 'p3'], ['status', 'visible']],
       }),
     ]);
 
@@ -465,12 +466,16 @@ describe('getHomeSnapshot', () => {
         { id: 'lumen-latest', user_id: 'u2', ip_id: 'lumen', text: '루멘 최신', tag: '한정굿즈', created_at: '2026-06-22T04:00:00.000Z', status: 'visible' },
         { id: 'regular-latest', user_id: 'u1', ip_id: 'regular', text: '일반 IP', tag: '제외', created_at: '2026-06-22T08:00:00.000Z', status: 'visible' },
       ],
+      comments: [
+        { post_id: 'hwasan-latest', user_id: 'u3', status: 'visible' },
+        { post_id: 'hwasan-latest', user_id: 'u4', status: 'hidden' },
+      ],
     });
 
     const snapshot = await getHomeSnapshot();
 
     expect(snapshot.postPreviewByIpId).toEqual({
-      hwasan: expect.objectContaining({ id: 'hwasan-latest', user: 'neonfan', tag: '후기' }),
+      hwasan: expect.objectContaining({ id: 'hwasan-latest', user: 'neonfan', tag: '후기', comments: 1 }),
       lumen: expect.objectContaining({ id: 'lumen-latest', user: 'fan_u2', tag: '한정굿즈' }),
     });
     expect(snapshot.postPreviewByIpId).not.toHaveProperty('regular');
@@ -480,6 +485,11 @@ describe('getHomeSnapshot', () => {
         [['ip_id', 'lumen'], ['status', 'visible']],
       ]),
     );
+    expect(records.filter((record) => record.table === 'comments')).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        eq: [['post_id', 'hwasan-latest'], ['status', 'visible']],
+      }),
+    ]));
 
     mocks.isConfigured = false;
     mocks.client = null;

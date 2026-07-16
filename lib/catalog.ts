@@ -361,8 +361,11 @@ async function countReactionsByPostId(
         .select('post_id', { count: 'exact', head: true })
         .eq('post_id', postId);
 
-      if (table === 'comments' && blockedAuthorIds.length) {
-        query = query.not('user_id', 'in', postgrestInList(blockedAuthorIds));
+      if (table === 'comments') {
+        query = query.eq('status', 'visible');
+        if (blockedAuthorIds.length) {
+          query = query.not('user_id', 'in', postgrestInList(blockedAuthorIds));
+        }
       }
 
       const result = await query;

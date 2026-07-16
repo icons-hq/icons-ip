@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   adjustAdminStockAction,
   endAdminGameAction,
+  hideCommunityCommentAction,
   hideCommunityPostAction,
   setAdminPoolOddsAction,
   setAdminUserRoleAction,
@@ -274,6 +275,7 @@ function gameEndForm() {
 
 const reportId = '44444444-4444-4444-8444-444444444444';
 const postId = '55555555-5555-4555-8555-555555555555';
+const commentId = '66666666-6666-4666-8666-666666666666';
 
 function reportStatusForm() {
   const formData = new FormData();
@@ -286,6 +288,13 @@ function hidePostForm() {
   const formData = new FormData();
   formData.set('reportId', reportId);
   formData.set('postId', postId);
+  return formData;
+}
+
+function hideCommentForm() {
+  const formData = new FormData();
+  formData.set('reportId', reportId);
+  formData.set('commentId', commentId);
   return formData;
 }
 
@@ -866,6 +875,32 @@ describe('admin catalog actions', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/community');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/search');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip/hwasan');
+  });
+
+  it('hides the exact reported comment and refreshes every affected public surface', async () => {
+    mocks.rpc.mockResolvedValue({ data: { ipId: 'hwasan' }, error: null });
+
+    await expect(hideCommunityCommentAction({}, hideCommentForm())).resolves.toEqual({
+      message: '댓글을 숨김 처리했습니다.',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_hide_community_comment', {
+      target_comment_id: commentId,
+      target_report_id: reportId,
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/community');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/search');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip/hwasan');
+  });
+
+  it('returns a generic comment moderation failure without exposing RPC internals', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'report_target_mismatch private detail' } });
+
+    await expect(hideCommunityCommentAction({}, hideCommentForm())).resolves.toEqual({
+      errors: { form: '댓글을 숨김 처리하지 못했습니다. 다시 시도해주세요.' },
+    });
   });
 
   describe('setAdminUserRoleAction', () => {
