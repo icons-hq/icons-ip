@@ -17,23 +17,32 @@ export function Nav() {
   if (isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
 
   return (
-    <nav className="nav">
+    <nav aria-label="주요 내비게이션" className="nav">
       <div className="wrap">
         <Link className="brand" href="/">
           <span className="dot" />ICONS
         </Link>
         <div className="nav-links">
-          {NAV_ITEMS.map((n) => (
-            <Link key={n.id} className={isActive(n.id, pathname) ? 'active' : ''} href={hrefFor(n.id)}>
-              {n.label}
-            </Link>
-          ))}
+          {NAV_ITEMS.map((n) => {
+            const active = isActive(n.id, pathname);
+            return (
+              <Link
+                key={n.id}
+                aria-current={active ? 'page' : undefined}
+                className={active ? 'active' : ''}
+                href={hrefFor(n.id)}
+              >
+                {n.label}
+              </Link>
+            );
+          })}
         </div>
         <div className="nav-right">
           <button className="icon-btn" onClick={() => go('search')} title="검색" aria-label="검색">
             <Icon name="search" />
           </button>
           <Link
+            aria-current={isActive('cart', pathname) ? 'page' : undefined}
             className={`icon-btn${isActive('cart', pathname) ? ' active' : ''}`}
             href={hrefFor('cart')}
             title="장바구니"
