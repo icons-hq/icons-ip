@@ -166,6 +166,7 @@ select 1 / case when (
   and has_column_privilege('authenticated', 'public.tickets', 'created_at', 'select')
   and not has_column_privilege('authenticated', 'public.tickets', 'qr_token', 'select')
   and has_table_privilege('service_role', 'public.tickets', 'select')
+  and has_table_privilege('service_role', 'public.audit_log', 'select')
 ) then 1 else 0 end as assert_qr_token_is_server_only;
 
 select 1 / case when exists (
