@@ -81,58 +81,58 @@ const catalog: CatalogSnapshot = {
 const postId = '11111111-1111-4111-8111-111111111111';
 const commentId = '22222222-2222-4222-8222-222222222222';
 
-function postForm() {
+function postForm(next = '/community') {
   const formData = new FormData();
   formData.set('text', '  팝업 후기입니다  ');
   formData.set('ipId', 'hwasan');
   formData.set('tag', '팝업');
-  formData.set('next', '/community');
+  formData.set('next', next);
   return formData;
 }
 
-function commentForm() {
+function commentForm(next = '/community') {
   const formData = new FormData();
   formData.set('postId', postId);
   formData.set('text', '  저도 좋아요  ');
-  formData.set('next', '/community');
+  formData.set('next', next);
   return formData;
 }
 
-function likeForm(shouldLike: boolean) {
+function likeForm(shouldLike: boolean, next = '/community') {
   const formData = new FormData();
   formData.set('postId', postId);
   formData.set('shouldLike', shouldLike ? '1' : '0');
-  formData.set('next', '/community');
+  formData.set('next', next);
   return formData;
 }
 
-function deletePostForm() {
+function deletePostForm(next = '/community') {
   const formData = new FormData();
   formData.set('postId', postId);
-  formData.set('next', '/community');
+  formData.set('next', next);
   return formData;
 }
 
-function deleteCommentForm() {
+function deleteCommentForm(next = '/community') {
   const formData = new FormData();
   formData.set('commentId', commentId);
-  formData.set('next', '/community');
+  formData.set('next', next);
   return formData;
 }
 
-function reportForm() {
+function reportForm(next = '/community') {
   const formData = new FormData();
   formData.set('targetType', 'post');
   formData.set('targetId', postId);
   formData.set('reason', '  스팸성 포스트입니다  ');
-  formData.set('next', '/community');
+  formData.set('next', next);
   return formData;
 }
 
-function blockForm() {
+function blockForm(next = '/community') {
   const formData = new FormData();
   formData.set('targetUserId', '33333333-3333-4333-8333-333333333333');
-  formData.set('next', '/community');
+  formData.set('next', next);
   return formData;
 }
 
@@ -211,6 +211,12 @@ describe('createCommunityPostAction', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip/hwasan');
     randomUUIDSpy.mockRestore();
   });
+
+  it('returns to the safe fandom feed after creating a post', async () => {
+    await expect(createCommunityPostAction({}, postForm('/community?feed=fandom'))).rejects.toThrow(
+      'NEXT_REDIRECT:/community?feed=fandom',
+    );
+  });
 });
 
 describe('community reaction actions', () => {
@@ -229,6 +235,30 @@ describe('community reaction actions', () => {
     };
     mocks.rpc.mockReset();
     mocks.revalidatePath.mockReset();
+  });
+
+  it('preserves the safe fandom feed URL across comment, like, delete, report and block actions', async () => {
+    const fandomPath = '/community?feed=fandom';
+    mocks.rpc.mockResolvedValue({ data: { ipId: 'hwasan' }, error: null });
+
+    await expect(createCommunityCommentAction({}, commentForm(fandomPath))).rejects.toThrow(
+      `NEXT_REDIRECT:${fandomPath}`,
+    );
+    await expect(setCommunityPostLikeAction(likeForm(true, fandomPath))).rejects.toThrow(
+      `NEXT_REDIRECT:${fandomPath}`,
+    );
+    await expect(deleteCommunityPostAction(deletePostForm(fandomPath))).rejects.toThrow(
+      `NEXT_REDIRECT:${fandomPath}`,
+    );
+    await expect(deleteCommunityCommentAction(deleteCommentForm(fandomPath))).rejects.toThrow(
+      `NEXT_REDIRECT:${fandomPath}`,
+    );
+    await expect(reportCommunityTargetAction(reportForm(fandomPath))).rejects.toThrow(
+      `NEXT_REDIRECT:${fandomPath}`,
+    );
+    await expect(blockCommunityUserAction(blockForm(fandomPath))).rejects.toThrow(
+      `NEXT_REDIRECT:${fandomPath}`,
+    );
   });
 
   it('redirects unauthenticated comment submissions to login', async () => {

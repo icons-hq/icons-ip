@@ -5,6 +5,20 @@ export const MAX_HOME_PICKER_IPS = 5;
 
 export type HomePostPreviewByIpId = Record<string, CatalogPostPreview | null>;
 
+export function prioritizeHomePostPreviews(
+  previewsByIpId: HomePostPreviewByIpId,
+  followedIpIds: ReadonlySet<string>,
+): [string, CatalogPostPreview][] {
+  const entries = Object.entries(previewsByIpId).filter(
+    (entry): entry is [string, CatalogPostPreview] => entry[1] !== null,
+  );
+
+  return [
+    ...entries.filter(([ipId]) => followedIpIds.has(ipId)),
+    ...entries.filter(([ipId]) => !followedIpIds.has(ipId)),
+  ];
+}
+
 export interface HomeIpWorld {
   selectableIps: Ip[];
   selectedIp: Ip | null;

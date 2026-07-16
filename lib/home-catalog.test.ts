@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { CatalogPostPreview, CatalogSnapshot } from './catalog';
 import type { Card, FandomEvent, Good, Ip, Vertical } from './data';
-import { buildHomeIpWorld, getHomeSelectableIps, MAX_HOME_PICKER_IPS } from './home-catalog';
+import {
+  buildHomeIpWorld,
+  getHomeSelectableIps,
+  MAX_HOME_PICKER_IPS,
+  prioritizeHomePostPreviews,
+} from './home-catalog';
 
 const vertical: Vertical = { key: 'global', label: '글로벌 IP', color: '#2DE2FF' };
 
@@ -169,5 +174,31 @@ describe('buildHomeIpWorld', () => {
 
     expect(world.selectedIp?.id).toBe('featured-2');
     expect(world.representativePost).toBeNull();
+  });
+});
+
+describe('prioritizeHomePostPreviews', () => {
+  it('moves followed-IP previews first while preserving both groups order', () => {
+    const previews = {
+      hwasan: post('hwasan', 'IP hwasan'),
+      lumen: post('lumen', 'IP lumen'),
+      maple: post('maple', 'IP maple'),
+    };
+
+    expect(prioritizeHomePostPreviews(previews, new Set(['lumen', 'maple'])).map(([ipId]) => ipId)).toEqual([
+      'lumen',
+      'maple',
+      'hwasan',
+    ]);
+  });
+
+  it('keeps the existing order and excludes empty previews when there are no follows', () => {
+    const previews = {
+      hwasan: post('hwasan', 'IP hwasan'),
+      empty: null,
+      lumen: post('lumen', 'IP lumen'),
+    };
+
+    expect(prioritizeHomePostPreviews(previews, new Set()).map(([ipId]) => ipId)).toEqual(['hwasan', 'lumen']);
   });
 });

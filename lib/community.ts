@@ -3,8 +3,14 @@ import type { Good } from './data';
 export type CommunityPostStatus = 'visible' | 'hidden';
 export type CommunityReportTarget = 'post' | 'comment' | 'user';
 export type CommunityReportStatus = 'open' | 'reviewing' | 'resolved' | 'dismissed';
+export type CommunityFeedScope = 'all' | 'fandom';
+export type CommunityViewerState = 'guest' | 'onboarding' | 'onboarded';
 
 export const MAX_COMMUNITY_IMAGE_BYTES = 5 * 1024 * 1024;
+
+export function normalizeCommunityFeedScope(value: string | string[] | undefined): CommunityFeedScope {
+  return value === 'fandom' ? 'fandom' : 'all';
+}
 
 const IMAGE_EXTENSIONS_BY_MIME_TYPE = new Map([
   ['image/jpeg', 'jpg'],

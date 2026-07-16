@@ -4,7 +4,11 @@ import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Card, Ip } from '@/lib/data';
-import { getHomeSelectableIps, type HomePostPreviewByIpId } from '@/lib/home-catalog';
+import {
+  getHomeSelectableIps,
+  prioritizeHomePostPreviews,
+  type HomePostPreviewByIpId,
+} from '@/lib/home-catalog';
 import { ipAccent, ipEn } from '@/lib/ip-display';
 import { RARITY_META, type RarityKey } from '@/lib/rarity';
 import { hrefFor } from '@/lib/routes';
@@ -189,12 +193,15 @@ function TiltCard({ card, ip }: { card: Card; ip: Ip | null }) {
 
 export function Home({
   catalog,
+  followedIpIds,
   postPreviewByIpId,
 }: {
   catalog: CatalogSnapshot;
+  followedIpIds: string[];
   postPreviewByIpId: HomePostPreviewByIpId;
 }) {
   const selectableIps = useMemo(() => getHomeSelectableIps(catalog), [catalog]);
+  const followedIpIdSet = useMemo(() => new Set(followedIpIds), [followedIpIds]);
   const [selectedIpId, setSelectedIpId] = useState<string | null>(null);
   const selectedIp = selectableIps.find((ip) => ip.id === selectedIpId) ?? selectableIps[0] ?? null;
 
@@ -206,13 +213,13 @@ export function Home({
     for (const g of catalog.goods) {
       if (g.stock === 'low') items.push({ c: 'var(--amber)', t: `${g.name} — 한정 · 품절임박` });
     }
-    for (const post of Object.values(postPreviewByIpId)) {
-      if (post) items.push({ c: 'var(--pink)', t: `@${post.user} 님의 ${post.tag} — ♥ ${post.likes}` });
+    for (const [, post] of prioritizeHomePostPreviews(postPreviewByIpId, followedIpIdSet)) {
+      items.push({ c: 'var(--pink)', t: `@${post.user} 님의 ${post.tag} — ♥ ${post.likes}` });
     }
     const fans = catalog.ips.reduce((sum, ip) => sum + ip.fans, 0);
     if (fans > 0) items.push({ c: 'var(--cyan)', t: `지금 ${compactNumber(fans)} 팬이 ICONS에서 덕질 중` });
     return items.slice(0, 8);
-  }, [catalog, postPreviewByIpId]);
+  }, [catalog, followedIpIdSet, postPreviewByIpId]);
 
   const holoCard = useMemo(() => {
     const byRarity = (r: RarityKey) => catalog.cards.find((c) => c.rarity === r);

@@ -563,7 +563,7 @@ export async function getCatalogIpDetail(
   return buildCatalogIpDetail(catalog, id, posts);
 }
 
-export async function getHomeSnapshot(): Promise<HomeSnapshot> {
+export async function getHomeSnapshot(options: CatalogIpDetailOptions = {}): Promise<HomeSnapshot> {
   const catalog = await getCatalogSnapshot();
   const selectableIps = getHomeSelectableIps(catalog);
 
@@ -579,7 +579,7 @@ export async function getHomeSnapshot(): Promise<HomeSnapshot> {
 
   const postEntries = await Promise.all(
     selectableIps.map(async (ip) => {
-      const posts = await getCatalogPostPreviewsForIp(ip.id, ip);
+      const posts = await getCatalogPostPreviewsForIp(ip.id, ip, options);
       return [ip.id, posts[0] ?? null] as const;
     }),
   );
