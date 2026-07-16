@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import {
   canViewCommunityPost,
   type CommunityChannel,
+  type CommunityFeedScope,
   type CommunityFeedComment,
   type CommunityFeedPost,
   type CommunityPostStatus,
@@ -64,6 +65,7 @@ interface CommunityTrendingTagRow {
 interface CommunitySnapshotOptions {
   viewerId?: string | null;
   isStaff?: boolean;
+  feed?: CommunityFeedScope;
 }
 
 type CommunitySupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -200,6 +202,21 @@ async function blockedUserIds(supabase: CommunitySupabaseClient, viewerId: strin
   return new Set(((data ?? []) as CommunityBlockRow[]).map((row) => row.blocked_user_id));
 }
 
+async function followedIpIds(supabase: CommunitySupabaseClient, viewerId: string | null) {
+  if (!viewerId) return [];
+
+  const { data, error } = await supabase
+    .from('ip_follows')
+    .select('ip_id')
+    .eq('user_id', viewerId);
+
+  if (error) {
+    throw new Error(`Failed to load followed IPs: ${error.message}`);
+  }
+
+  return (data ?? []).map((row) => row.ip_id as string);
+}
+
 async function signedImageUrlByPath(supabase: CommunitySupabaseClient, paths: string[]) {
   const entries = await Promise.all(
     paths.map(async (path) => {
@@ -314,11 +331,18 @@ async function getSupabasePosts(
   ips: Ip[],
   viewerId: string | null,
   isStaff: boolean,
+  feedIpIds: readonly string[] | null = null,
 ) {
   const blockedIds = await blockedUserIds(supabase, viewerId);
   let postsQuery = supabase
     .from('posts')
-    .select('id,user_id,ip_id,text,tag,created_at,image_path,status')
+    .select('id,user_id,ip_id,text,tag,created_at,image_path,status');
+
+  if (feedIpIds) {
+    postsQuery = postsQuery.in('ip_id', feedIpIds);
+  }
+
+  postsQuery = postsQuery
     .order('created_at', { ascending: false })
     .limit(COMMUNITY_FEED_LIMIT);
 
@@ -398,26 +422,35 @@ export async function getCommunitySnapshot(options: CommunitySnapshotOptions = {
   const catalog = await getCatalogSnapshot();
   const viewerId = options.viewerId ?? null;
   const isStaff = options.isStaff ?? false;
+  const feed = options.feed ?? 'all';
 
   if (catalog.source === 'mock') {
+    const fandom = feed === 'fandom';
     return {
       source: 'mock',
-      channels: catalog.ips.map(channelFromIp),
+      channels: fandom ? [] : catalog.ips.map(channelFromIp),
       goods: catalog.goods,
-      posts: mockPosts(catalog.ips),
+      posts: fandom ? [] : mockPosts(catalog.ips),
       trending: DATA.TRENDING,
     };
   }
 
   const supabase = await createClient();
+  const trendingPromise = getSupabaseTrendingTags(supabase);
+  const feedIpIds = feed === 'fandom' ? await followedIpIds(supabase, viewerId) : null;
   const [posts, trending] = await Promise.all([
-    getSupabasePosts(supabase, catalog.ips, viewerId, isStaff),
-    getSupabaseTrendingTags(supabase),
+    feedIpIds && feedIpIds.length === 0
+      ? Promise.resolve([])
+      : getSupabasePosts(supabase, catalog.ips, viewerId, isStaff, feedIpIds),
+    trendingPromise,
   ]);
+  const channels = feedIpIds
+    ? catalog.ips.filter((ip) => feedIpIds.includes(ip.id))
+    : catalog.ips;
 
   return {
     source: 'supabase',
-    channels: catalog.ips.map(channelFromIp),
+    channels: channels.map(channelFromIp),
     goods: catalog.goods,
     posts,
     trending,

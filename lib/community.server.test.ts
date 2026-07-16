@@ -86,12 +86,20 @@ interface TestBlockRow {
   blocked_user_id: string;
 }
 
+interface TestIpFollowRow {
+  user_id: string;
+  ip_id: string;
+  notify_drops: boolean;
+  notify_events: boolean;
+}
+
 interface TestRows {
   posts: TestPostRow[];
   public_profiles: TestProfileRow[];
   likes: TestLikeRow[];
   comments: TestCommentRow[];
   blocks: TestBlockRow[];
+  ip_follows: TestIpFollowRow[];
 }
 
 function createDefaultRows(): TestRows {
@@ -140,6 +148,7 @@ function createDefaultRows(): TestRows {
       },
     ],
     blocks: [],
+    ip_follows: [],
   };
 }
 
@@ -288,6 +297,98 @@ const catalog: CatalogSnapshot = {
 };
 
 describe('getCommunitySnapshot', () => {
+  it('filters fandom posts in the database before ordering and limiting while ignoring notification preferences', async () => {
+    const records: QueryRecord[] = [];
+    mocks.catalog = {
+      ...catalog,
+      ips: [
+        ...catalog.ips,
+        {
+          ...catalog.ips[0],
+          id: 'lumen',
+          title: 'LUMEN',
+          v: { ...catalog.ips[0].v, color: '#2DE2FF' },
+        },
+      ],
+    };
+    mocks.client = createClient(records, {
+      rows: {
+        posts: [
+          ...createDefaultRows().posts,
+          {
+            id: 'lumen-post',
+            user_id: 'u2',
+            ip_id: 'lumen',
+            text: '다른 IP 포스트',
+            tag: '다른팬덤',
+            created_at: '2026-06-22T06:00:00.000Z',
+            image_path: null,
+            status: 'visible',
+          },
+          {
+            id: 'global-post',
+            user_id: 'u2',
+            ip_id: null,
+            text: 'IP 없는 포스트',
+            tag: '전체',
+            created_at: '2026-06-22T07:00:00.000Z',
+            image_path: null,
+            status: 'visible',
+          },
+        ],
+        public_profiles: [
+          ...createDefaultRows().public_profiles,
+          { id: 'u2', nickname: 'lumenfan' },
+        ],
+        ip_follows: [{
+          user_id: 'viewer-1',
+          ip_id: 'hwasan',
+          notify_drops: false,
+          notify_events: false,
+        }],
+      },
+    });
+
+    const snapshot = await getCommunitySnapshot({ viewerId: 'viewer-1', feed: 'fandom' });
+
+    expect(snapshot.channels.map((channel) => channel.id)).toEqual(['hwasan']);
+    expect(snapshot.posts.map((post) => post.id)).toEqual(['p1']);
+    expect(records.find((record) => record.table === 'ip_follows')).toEqual(expect.objectContaining({
+      select: 'ip_id',
+      eq: [['user_id', 'viewer-1']],
+    }));
+    expect(records.find((record) => record.table === 'posts')).toEqual(expect.objectContaining({
+      in: [['ip_id', ['hwasan']]],
+      order: [['created_at', { ascending: false }]],
+      limit: 30,
+    }));
+  });
+
+  it('returns an empty fandom without querying posts when the viewer follows no IPs', async () => {
+    const records: QueryRecord[] = [];
+    mocks.catalog = catalog;
+    mocks.client = createClient(records);
+
+    const snapshot = await getCommunitySnapshot({ viewerId: 'viewer-1', feed: 'fandom' });
+
+    expect(snapshot.channels).toEqual([]);
+    expect(snapshot.posts).toEqual([]);
+    expect(records.some((record) => record.table === 'posts')).toBe(false);
+  });
+
+  it('keeps guest fandom empty without reading private follow rows', async () => {
+    const records: QueryRecord[] = [];
+    mocks.catalog = catalog;
+    mocks.client = createClient(records);
+
+    const snapshot = await getCommunitySnapshot({ feed: 'fandom' });
+
+    expect(snapshot.channels).toEqual([]);
+    expect(snapshot.posts).toEqual([]);
+    expect(records.some((record) => record.table === 'ip_follows')).toBe(false);
+    expect(records.some((record) => record.table === 'posts')).toBe(false);
+  });
+
   it('loads visible Supabase posts with safe author, reaction, comment and signed image fields', async () => {
     const records: QueryRecord[] = [];
     const rpcRecords: RpcRecord[] = [];

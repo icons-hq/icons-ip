@@ -191,7 +191,7 @@ frontmatter `components` 블록이 정본 인덱스다(셸 → 기본 어휘 →
 
 | 표면 | 라우트 | 구조 요약 | 데이터 |
 |---|---|---|---|
-| 홈 | `/` | 100svh 히어로(IP 픽커+패럴랙스 키아트) → 라이브 티커 → 4동사 레일 → 가챠 티저(틸트 HOLO 카드) → 조인/신뢰 | 카탈로그 + 포스트 프리뷰 파생 |
+| 홈 | `/` | 100svh 히어로(IP 픽커+패럴랙스 키아트) → 라이브 티커 → 4동사 레일 → 가챠 티저(틸트 HOLO 카드) → 조인/신뢰. 온보딩 완료 사용자는 이벤트·재고 우선순위를 보존한 채 티커의 팔로우 IP 커뮤니티 항목을 먼저 봄 | 카탈로그 + IP별 포스트 프리뷰 + 본인 `ip_follows` |
 | IP 허브 | `/ip`, `/ip/[id]` | 시네마틱 히어로 + WORLDS 스위처(Link 내비) + bento. 허브=상세 병합, `/ip/[id]`가 정식 URL. 팔로우 전에는 팔로우+알림, 이후에는 드롭·이벤트별 설정 | `getCatalogIpDetail` + `ip_follows` 팔로우·알림 상태 |
 | 굿즈샵 | `/shop` | 최애의 물건들 헤더 + 스티키 WORLDS/정렬 바 + 4열 그리드 | 카탈로그, 공유 장바구니 수량·재고 한도 내 +1 담기 |
 | 장바구니 | `/cart` | 굿즈 행·수량 제어 + 재고 상태 + 주문 요약 | 비로그인 localStorage, 로그인 `cart_items` |
@@ -208,7 +208,7 @@ frontmatter `components` 블록이 정본 인덱스다(셸 → 기본 어휘 →
 | 관리자 참여형 게임 | `/admin?section=game` | 게임 master-detail → 카드풀·같은 IP 온라인 이벤트·KST 운영 기간·일일 한도 편집 → 플레이 이후 잠금·현재 시각이 운영 창에 포함되는 게임의 DB 시각 종료·플레이 집계 | staff-gated, PII-free `admin_list_games` + 멱등 `admin_upsert_game` + `audit_log`; goods variant는 읽기 전용 |
 | 뽑기 | `/gacha` | 카드풀 스위처 + 확률 칩 + 천장 게이지 + 클라이언트 리빌 + 라인업 | 카탈로그(카드 있는 IP), mock 공시 |
 | 팝업 | `/events`, `/events/[eventId]` | 필터 칩 → featured/카드 목록 → 공개 상세·회차 선택 → QR 가이드. IP가 있는 예정 이벤트에는 해당 IP 이벤트 알림 secondary action | `selectFandomEvents`, 공개 `ticket_types`, `ip_follows.notify_events` |
-| 커뮤니티 | `/community` | 채널 레일 + 컴팩트 컴포저 + 피드 + 랭킹·카드풀 레일 | 실배선(작성·좋아요·댓글·신고·차단) |
+| 커뮤니티 | `/community`, `/community?feed=fandom` | 최근 7일 트렌딩 + 전체/내 팬덤 URL 탭 + scope별 채널 레일·컴팩트 컴포저 + 피드 + 랭킹·카드풀 레일. 내 팬덤은 guest/onboarding/0 follow/0 post 상태별 CTA 제공 | visible 전체 피드 또는 본인 `ip_follows` 기반 DB 선필터 + 작성·좋아요·댓글·신고·차단 실배선 |
 | 바인더 | `/binder` | holo 스탯 + 달성률 + 도감 그리드 + 상세 모달 | 보유 개념은 mock 모드만(가챠 연동 전) |
 | 검색 | `/search` | 통합 검색 히어로 + 스코프 칩 + 종류별 결과 | Postgres `getSearchSnapshot` |
 | 로그인/온보딩/비밀번호 재설정 | `/login`, `/update-password`, `/onboarding` | 로그인 스플릿·새 비밀번호 중앙 카드·프로필/약관/최애 픽 타일 | Supabase Auth recovery·인증·온보딩 액션 |

@@ -6,9 +6,23 @@ import {
   normalizeCommunityBlockForm,
   normalizeCommunityCommentForm,
   normalizeCommunityLikeForm,
+  normalizeCommunityFeedScope,
   normalizeCommunityPostForm,
   normalizeCommunityReportForm,
 } from './community';
+
+describe('normalizeCommunityFeedScope', () => {
+  it('accepts only the explicit fandom scope', () => {
+    expect(normalizeCommunityFeedScope('fandom')).toBe('fandom');
+    expect(normalizeCommunityFeedScope(undefined)).toBe('all');
+    expect(normalizeCommunityFeedScope('all')).toBe('all');
+    expect(normalizeCommunityFeedScope('unknown')).toBe('all');
+  });
+
+  it('normalizes repeated query values to the default all feed', () => {
+    expect(normalizeCommunityFeedScope(['fandom', 'all'])).toBe('all');
+  });
+});
 
 describe('canViewCommunityPost', () => {
   it('shows visible posts to public viewers', () => {
