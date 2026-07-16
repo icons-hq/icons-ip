@@ -7,6 +7,7 @@ import { Admin } from './Admin';
 const hooks = vi.hoisted(() => ({
   cardSelected: null as unknown,
   gameProps: null as unknown,
+  memberProps: null as unknown,
   notificationProps: null as unknown,
   policyProps: null as unknown,
   stateValues: [] as unknown[],
@@ -57,6 +58,14 @@ vi.mock('./sections/GameSection', () => {
   return { GameSection };
 });
 vi.mock('./sections/IpSection', () => ({ IpSection: () => null }));
+vi.mock('./sections/Members', () => {
+  const MembersSection = (props: unknown) => {
+    hooks.memberProps = props;
+    return null;
+  };
+  MembersSection.displayName = 'AdminMembersSectionMock';
+  return { MembersSection };
+});
 vi.mock('./sections/Moderation', () => ({ ModerationSection: () => null }));
 vi.mock('./sections/NotificationSection', () => {
   const NotificationSection = (props: unknown) => {
@@ -146,6 +155,7 @@ function createProps(
     initialSection: 'card',
     insights: {},
     moderation: { reports: [] },
+    members: [],
     orders: {},
     profiles: [],
     records: {
@@ -277,6 +287,39 @@ describe('Admin notification console', () => {
     expect(hooks.notificationProps).toEqual({
       data: { audiences: [], history: [] },
       operationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    });
+  });
+});
+
+describe('Admin member console', () => {
+  beforeEach(() => {
+    hooks.memberProps = null;
+    hooks.stateValues = ['members', false, null, null, null, null, null, null, null, null];
+  });
+
+  it('staff actor와 서버에서 받은 마스킹 회원 목록을 전달한다', () => {
+    const members = [{
+      id: '11111111-1111-4111-8111-111111111111',
+      nickname: '팬일호',
+      maskedEmail: 'f***@icons.gg',
+      role: 'user' as const,
+      createdAt: '2026-07-01T00:00:00.000Z',
+      suspendedAt: null,
+    }];
+    const props = createProps([]);
+
+    renderToStaticMarkup(
+      <Admin
+        {...props}
+        admin={{ id: 'staff-1', email: 'staff@icons.gg', role: 'staff' }}
+        initialSection="members"
+        members={members}
+      />,
+    );
+
+    expect(hooks.memberProps).toEqual({
+      actor: { id: 'staff-1', role: 'staff' },
+      initialMembers: members,
     });
   });
 });

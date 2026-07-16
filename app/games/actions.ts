@@ -1,6 +1,6 @@
 'use server';
 
-import { isOnboarded } from '@/lib/auth/onboarding';
+import { isAccountSuspended, isOnboarded } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { createClient } from '@/lib/supabase/server';
 import type { GamePlayResult } from '@/lib/games/host';
@@ -11,15 +11,19 @@ import type { GamePlayResult } from '@/lib/games/host';
 
 export type PlayGameActionResult =
   | { ok: true; result: GamePlayResult }
-  | { ok: false; error: 'auth_required' | 'onboarding_required' | 'play_failed' };
+  | { ok: false; error: 'auth_required' | 'account_suspended' | 'onboarding_required' | 'play_failed' };
 
 export async function playGameAction(gameId: string): Promise<PlayGameActionResult> {
   const auth = await getCurrentAuthState();
   if (!auth.isConfigured || !auth.user) return { ok: false, error: 'auth_required' };
+  if (isAccountSuspended(auth.profile)) return { ok: false, error: 'account_suspended' };
   if (!isOnboarded(auth.profile, auth.user.email)) return { ok: false, error: 'onboarding_required' };
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('play_game', { p_game_id: gameId });
+  if (error?.message?.toLowerCase().includes('account_suspended')) {
+    return { ok: false, error: 'account_suspended' };
+  }
   if (error || !data) return { ok: false, error: 'play_failed' };
   return { ok: true, result: data as GamePlayResult };
 }

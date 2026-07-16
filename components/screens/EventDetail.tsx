@@ -15,6 +15,7 @@ const krw = (value: number) => `${value.toLocaleString('ko-KR')}원`;
 
 const reservationErrors: Record<string, string> = {
   auth_required: '로그인이 만료됐어요. 다시 로그인해주세요.',
+  account_suspended: '정지된 계정은 새 예매를 만들 수 없어요.',
   onboarding_required: '프로필 설정을 완료한 뒤 예매해주세요.',
   payment_unavailable: '결제 환경을 확인 중이라 지금은 예매할 수 없어요.',
   invalid_request: '회차와 수량을 다시 확인해주세요.',

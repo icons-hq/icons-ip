@@ -92,6 +92,7 @@ describe('checkout copy and safe errors', () => {
     expect(mapPlaceOrderError('cart empty')).toBe('empty_cart');
     expect(mapPlaceOrderError('out of stock: secret-good-id')).toBe('out_of_stock');
     expect(mapPlaceOrderError('invalid checkout address')).toBe('invalid_address');
+    expect(mapPlaceOrderError('account_suspended')).toBe('account_suspended');
     expect(mapPlaceOrderError('sensitive database failure')).toBe('unavailable');
   });
 });

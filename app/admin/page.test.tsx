@@ -22,6 +22,16 @@ vi.mock('@/lib/admin/catalog.server', () => ({
 }));
 vi.mock('@/lib/admin/insights.server', () => ({ getAdminInsights: vi.fn(async () => ({})) }));
 vi.mock('@/lib/admin/moderation.server', () => ({ getAdminModerationRecords: vi.fn(async () => ({ reports: [] })) }));
+vi.mock('@/lib/admin/members.server', () => ({
+  getAdminMemberSummaries: vi.fn(async () => [{
+    id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    nickname: '팬',
+    maskedEmail: 'f***@icons.gg',
+    role: 'user',
+    createdAt: '2026-07-01T00:00:00.000Z',
+    suspendedAt: null,
+  }]),
+}));
 vi.mock('@/lib/admin/notifications.server', () => ({
   getAdminNotificationConsoleData: vi.fn(async () => ({ audiences: [], history: [] })),
 }));
@@ -101,6 +111,15 @@ describe('AdminPage reward-policy route', () => {
       initialSection: 'notifications',
       notificationConsole: { audiences: [], history: [] },
       notificationOperationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    });
+  });
+
+  it('회원 section을 파싱하고 staff에게 마스킹 목록을 전달한다', async () => {
+    const screen = await AdminPage({ searchParams: Promise.resolve({ section: 'members' }) });
+
+    expect(screen.props).toMatchObject({
+      initialSection: 'members',
+      members: [expect.objectContaining({ maskedEmail: 'f***@icons.gg' })],
     });
   });
 });

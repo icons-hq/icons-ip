@@ -1,6 +1,8 @@
 import { Login } from '@/components/screens/Login';
 import {
+  ACCOUNT_SUSPENDED_PATH,
   authErrorMessage,
+  isAccountSuspended,
   isOnboarded,
   passwordResetErrorMessage,
   safeNextPath,
@@ -33,6 +35,7 @@ export default async function Page({ searchParams }: PageProps) {
   const auth = await getCurrentAuthState();
 
   if (auth.user) {
+    if (isAccountSuspended(auth.profile)) redirect(ACCOUNT_SUSPENDED_PATH);
     if (isOnboarded(auth.profile, auth.user.email)) redirect(next);
     redirect(`/onboarding?next=${encodeURIComponent(next)}`);
   }

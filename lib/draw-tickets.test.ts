@@ -88,6 +88,7 @@ describe('mapOpenTicketError', () => {
   });
 
   it('소비·빈 풀·기타를 구분한다', () => {
+    expect(mapOpenTicketError('account_suspended')).toBe('account_suspended');
     expect(mapOpenTicketError('ticket already consumed')).toBe('already_opened');
     expect(mapOpenTicketError('pool has no card of rarity HOLO')).toBe('pool_empty');
     expect(mapOpenTicketError('connection reset')).toBe('unknown');

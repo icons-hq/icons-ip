@@ -6,8 +6,10 @@ import { redirect } from 'next/navigation';
 import {
   AUTH_CALLBACK_PATH,
   AUTH_NEXT_COOKIE_NAME,
+  ACCOUNT_SUSPENDED_PATH,
   authCallbackUrl,
   authSignUpErrorMessage,
+  isAccountSuspended,
   isOnboarded,
   onboardingPath,
   safeNextPath,
@@ -301,6 +303,7 @@ export async function signInWithEmailAction(_state: AuthActionState, formData: F
   }
 
   const profile = await getProfileForUser(supabase, data.user.id);
+  if (isAccountSuspended(profile)) redirect(ACCOUNT_SUSPENDED_PATH);
   redirect(isOnboarded(profile, data.user.email) ? next : onboardingPath(next));
 }
 

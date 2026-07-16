@@ -124,6 +124,23 @@ describe('reserveTicketsAction', () => {
     expect(mocks.serviceRpc).not.toHaveBeenCalled();
   });
 
+  it('rejects a suspended account before eligibility or capacity reads', async () => {
+    mocks.auth = {
+      ...onboardedAuth(),
+      profile: {
+        ...onboardedAuth().profile,
+        suspended_at: '2026-07-17T00:00:00.000Z',
+      },
+    };
+
+    await expect(reserveTicketsAction(input)).resolves.toEqual({
+      ok: false,
+      error: 'account_suspended',
+    });
+    expect(mocks.from).not.toHaveBeenCalled();
+    expect(mocks.serviceRpc).not.toHaveBeenCalled();
+  });
+
   it('fails closed before reserving capacity when settlement is unavailable', async () => {
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
     await expect(reserveTicketsAction(input)).resolves.toEqual({
@@ -157,6 +174,7 @@ describe('reserveTicketsAction', () => {
   });
 
   it.each([
+    ['account_suspended', 'account_suspended'],
     ['auth required', 'auth_required'],
     ['onboarding required', 'onboarding_required'],
     ['ticket type not found', 'not_bookable'],

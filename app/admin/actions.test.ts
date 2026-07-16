@@ -929,6 +929,20 @@ describe('admin catalog actions', () => {
       expect(mocks.rpc).not.toHaveBeenCalled();
     });
 
+    it('blocks a suspended admin whose active staff capability was revoked', async () => {
+      mocks.adminState = {
+        isConfigured: true,
+        user: { id: 'admin-1', email: 'admin@icons.gg' },
+        role: 'admin',
+        isStaff: false,
+      };
+
+      await expect(setAdminUserRoleAction({}, roleForm())).resolves.toEqual({
+        errors: { form: '최고 관리자(admin) 권한이 필요합니다.' },
+      });
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
     it('returns validation errors before calling the role RPC', async () => {
       asAdmin();
       const formData = roleForm('superadmin');
@@ -961,6 +975,15 @@ describe('admin catalog actions', () => {
 
       await expect(setAdminUserRoleAction({}, roleForm('user'))).resolves.toEqual({
         errors: { form: '본인 역할은 변경할 수 없습니다.' },
+      });
+    });
+
+    it('explains that a suspended account cannot receive a privileged role', async () => {
+      asAdmin();
+      mocks.rpc.mockResolvedValue({ data: null, error: { message: 'account_suspended' } });
+
+      await expect(setAdminUserRoleAction({}, roleForm('staff'))).resolves.toEqual({
+        errors: { form: '정지된 계정에는 staff 또는 admin 역할을 부여할 수 없습니다.' },
       });
     });
   });

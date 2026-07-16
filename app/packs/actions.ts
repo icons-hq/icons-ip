@@ -2,7 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
+import {
+  ACCOUNT_SUSPENDED_PATH,
+  isAccountSuspended,
+  isOnboarded,
+  onboardingPath,
+} from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { DATA } from '@/lib/data';
 import {
@@ -24,6 +29,7 @@ export type OpenPackResult =
   | { status: 'error'; code: OpenPackErrorCode; message: string };
 
 const ERROR_MESSAGES: Record<OpenPackErrorCode, string> = {
+  account_suspended: '정지된 계정은 카드팩을 개봉할 수 없어요.',
   not_found: '카드팩을 찾을 수 없어요. 새로고침 후 다시 시도해주세요.',
   already_opened: '이미 개봉된 카드팩이에요. 새로고침 후 다시 시도해주세요.',
   pool_empty: '카드 구성을 준비 중인 카드팩이에요. 잠시 후 다시 시도해주세요.',
@@ -59,6 +65,9 @@ export async function openDrawTicketAction(ticketId: string): Promise<OpenPackRe
   const auth = await getCurrentAuthState();
   if (!auth.isConfigured || !auth.user) {
     redirect(`/login?next=${encodeURIComponent('/packs')}`);
+  }
+  if (isAccountSuspended(auth.profile)) {
+    redirect(ACCOUNT_SUSPENDED_PATH);
   }
   if (!isOnboarded(auth.profile, auth.user.email)) {
     redirect(onboardingPath('/packs'));

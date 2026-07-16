@@ -40,5 +40,33 @@ describe('Sidebar', () => {
     expect(html).toContain('aria-current="true"');
     expect(html.indexOf('aria-label="티켓 회차"')).toBeLessThan(html.indexOf('aria-label="공지 발송"'));
     expect(html.indexOf('aria-label="공지 발송"')).toBeLessThan(html.indexOf('aria-label="모더레이션"'));
+    expect(html).toContain('aria-label="회원"');
+    expect(html.indexOf('aria-label="모더레이션"')).toBeLessThan(html.indexOf('aria-label="회원"'));
+  });
+
+  it('회원 조회·제재는 staff에게도 보이고 역할 관리는 admin에게만 보인다', () => {
+    const staff = renderToStaticMarkup(
+      <Sidebar
+        active="members"
+        collapsed={false}
+        onCollapsedChange={vi.fn()}
+        onSectionChange={vi.fn()}
+        showRoles={false}
+      />,
+    );
+    expect(staff).toContain('aria-label="회원"');
+    expect(staff).not.toContain('aria-label="역할"');
+
+    const admin = renderToStaticMarkup(
+      <Sidebar
+        active="roles"
+        collapsed={false}
+        onCollapsedChange={vi.fn()}
+        onSectionChange={vi.fn()}
+        showRoles
+      />,
+    );
+    expect(admin).toContain('aria-label="회원"');
+    expect(admin).toContain('aria-label="역할"');
   });
 });

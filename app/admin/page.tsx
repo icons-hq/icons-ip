@@ -4,6 +4,7 @@ import { Admin } from '@/components/admin/Admin';
 import { getAdminCatalogRecords } from '@/lib/admin/catalog.server';
 import { getAdminInsights } from '@/lib/admin/insights.server';
 import { getAdminModerationRecords } from '@/lib/admin/moderation.server';
+import { getAdminMemberSummaries } from '@/lib/admin/members.server';
 import { getAdminNotificationConsoleData } from '@/lib/admin/notifications.server';
 import { normalizeAdminOrderFilters } from '@/lib/admin/orders';
 import { getAdminOrderRecords } from '@/lib/admin/orders.server';
@@ -28,11 +29,12 @@ export default async function AdminPage({
     notFound();
   }
 
-  const [catalog, records, moderation, insights, profiles, orders, notificationConsole] = await Promise.all([
+  const [catalog, records, moderation, insights, members, profiles, orders, notificationConsole] = await Promise.all([
     getCatalogSnapshot({ previewDefaultSource: 'supabase' }),
     getAdminCatalogRecords(),
     getAdminModerationRecords(),
     getAdminInsights(),
+    getAdminMemberSummaries(''),
     auth.role === 'admin' ? getAdminProfileRecords() : Promise.resolve([]),
     getAdminOrderRecords(orderFilters),
     getAdminNotificationConsoleData(),
@@ -47,7 +49,8 @@ export default async function AdminPage({
       }}
       catalog={catalog}
       insights={insights}
-      initialSection={query.section === 'orders' ? 'orders' : query.section === 'good' ? 'good' : query.section === 'ticket' ? 'ticket' : query.section === 'pool' ? 'pool' : query.section === 'policy' ? 'policy' : query.section === 'game' ? 'game' : query.section === 'notifications' ? 'notifications' : 'overview'}
+      initialSection={query.section === 'orders' ? 'orders' : query.section === 'good' ? 'good' : query.section === 'ticket' ? 'ticket' : query.section === 'pool' ? 'pool' : query.section === 'policy' ? 'policy' : query.section === 'game' ? 'game' : query.section === 'notifications' ? 'notifications' : query.section === 'members' ? 'members' : 'overview'}
+      members={members}
       moderation={moderation}
       notificationConsole={notificationConsole}
       orders={orders}

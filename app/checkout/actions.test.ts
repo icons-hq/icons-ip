@@ -106,6 +106,22 @@ describe('placeOrderAction', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  it('rejects a suspended account before validating or reserving an order', async () => {
+    mocks.auth = {
+      ...onboardedAuth(),
+      profile: {
+        ...onboardedAuth().profile,
+        suspended_at: '2026-07-17T00:00:00.000Z',
+      },
+    };
+
+    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({
+      ok: false,
+      error: 'account_suspended',
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it('does not reserve stock when the payment settlement service is unavailable', async () => {
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
 
@@ -127,6 +143,7 @@ describe('placeOrderAction', () => {
   });
 
   it.each([
+    ['account_suspended', 'account_suspended'],
     ['cart empty', 'empty_cart'],
     ['out of stock: private-id', 'out_of_stock'],
     ['invalid checkout address', 'invalid_address'],

@@ -546,6 +546,12 @@ export function MarbleRoulette({
           href: `/onboarding?next=${encodeURIComponent(`/games/${game.id}`)}`,
           cta: '온보딩 마치기',
         });
+      } else if (error instanceof GamePlayError && error.code === 'account_suspended') {
+        setNotice({
+          text: '현재 이 계정으로 새 게임 플레이를 시작할 수 없어요.',
+          href: '/account-suspended',
+          cta: '계정 안내 보기',
+        });
       } else {
         setNotice({ text: '플레이를 시작하지 못했어요. 잠시 후 다시 시도해주세요.' });
       }
