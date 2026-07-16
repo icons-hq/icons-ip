@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Settings } from './Settings';
 
 interface MockActionState {
@@ -13,11 +13,14 @@ interface MockActionState {
 
 const mocks = vi.hoisted(() => ({
   marketingAction: vi.fn(),
+  marketingPending: false,
   marketingState: {} as MockActionState,
   marketingSubmit: vi.fn(),
   profileAction: vi.fn(),
+  profilePending: false,
   profileState: {} as MockActionState,
   profileSubmit: vi.fn(),
+  uploadProfileAvatar: vi.fn(),
 }));
 
 vi.mock('@/app/settings/actions', () => ({
@@ -25,16 +28,19 @@ vi.mock('@/app/settings/actions', () => ({
   updateProfileAction: mocks.profileAction,
 }));
 vi.mock('@/lib/profile', async () => await import('../../lib/profile'));
+vi.mock('@/lib/profile-upload.client', () => ({
+  uploadProfileAvatar: mocks.uploadProfileAvatar,
+}));
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return {
     ...actual,
     useActionState: (action: unknown) => {
       if (action === mocks.profileAction) {
-        return [mocks.profileState, mocks.profileSubmit, false];
+        return [mocks.profileState, mocks.profileSubmit, mocks.profilePending];
       }
       if (action === mocks.marketingAction) {
-        return [mocks.marketingState, mocks.marketingSubmit, false];
+        return [mocks.marketingState, mocks.marketingSubmit, mocks.marketingPending];
       }
       throw new Error('Unexpected settings action');
     },
@@ -44,6 +50,7 @@ vi.mock('react', async () => {
 function render(overrides: Partial<React.ComponentProps<typeof Settings>> = {}) {
   return renderToStaticMarkup(
     <Settings
+      avatarInitial="아"
       avatarUrl="https://signed.example/avatar.png"
       email="fan@icons.gg"
       initialMarketing={false}
@@ -64,12 +71,11 @@ function statusMarkup(html: string, label: string) {
 
 describe('Settings', () => {
   beforeEach(() => {
+    mocks.marketingPending = false;
     mocks.marketingState = {};
+    mocks.profilePending = false;
     mocks.profileState = {};
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
+    mocks.uploadProfileAvatar.mockReset();
   });
 
   it('renders independent profile and marketing forms with an editable signed avatar preview', () => {
@@ -78,30 +84,51 @@ describe('Settings', () => {
     expect(html.match(/<form /g)).toHaveLength(2);
     expect(html).toContain('action=');
     expect(html).toContain('name="nickname"');
-    expect(html).toContain('name="avatar"');
     expect(html).toContain('accept="image/jpeg,image/png,image/webp"');
     expect(html).toContain('프로필 저장');
     expect(html).toContain('변경사항 저장');
     expect(html).toContain('alt="프로필 아바타"');
     expect(html).toContain('src="https://signed.example/avatar.png"');
+
+    const fileInput = html.match(/<input[^>]*id="settings-avatar"[^>]*>/)?.[0];
+    expect(fileInput).toBeDefined();
+    expect(fileInput).not.toContain('name=');
   });
 
-  it('uses the nickname first grapheme without imposing a different client length limit', () => {
-    const html = render({ avatarUrl: null, nickname: '👩‍🎤팬' });
+  it('renders only the server-computed avatar initial, including the empty fallback', () => {
+    const emojiHtml = render({ avatarInitial: '👩‍🎤', avatarUrl: null, nickname: 'ignored' });
+    const emptyHtml = render({ avatarInitial: 'I', avatarUrl: null, nickname: '' });
 
-    expect(html).toContain('>👩‍🎤</span>');
-    expect(html).not.toContain('alt="프로필 아바타"');
-    expect(html).not.toContain('maxLength=');
+    expect(emojiHtml).toContain('>👩‍🎤</span>');
+    expect(emojiHtml).not.toContain('ignored</span>');
+    expect(emptyHtml).toContain('>I</span>');
+    expect(emptyHtml).not.toContain('alt="프로필 아바타"');
   });
 
-  it('falls back without rendering failure when Intl.Segmenter is unavailable', () => {
-    const intlWithoutSegmenter = Object.create(Intl) as typeof Intl;
-    Object.defineProperty(intlWithoutSegmenter, 'Segmenter', { value: undefined });
-    vi.stubGlobal('Intl', intlWithoutSegmenter);
+  it('adds explicit focus-visible hooks to every editable settings control', () => {
+    const html = render();
 
-    const html = render({ avatarUrl: null, nickname: '👩‍🎤팬' });
+    expect(html).toContain('settings-nickname-control');
+    expect(html).toContain('settings-avatar-input');
+    expect(html).toContain('settings-profile-submit');
+    expect(html).toContain('settings-marketing-input');
+    expect(html).toContain('settings-marketing-proxy');
+    expect(html).toContain('settings-marketing-submit');
+    expect(html).not.toContain('outline:none');
+  });
 
-    expect(html).toContain('>👩</span>');
+  it('keeps profile and marketing action pending states independent', () => {
+    mocks.profilePending = true;
+    const profileHtml = render();
+    expect(profileHtml).toContain('저장 중');
+    expect(profileHtml).toContain('settings-profile-submit" disabled=""');
+    expect(profileHtml).not.toContain('settings-marketing-submit" disabled=""');
+
+    mocks.profilePending = false;
+    mocks.marketingPending = true;
+    const marketingHtml = render();
+    expect(marketingHtml).toContain('settings-marketing-submit" disabled=""');
+    expect(marketingHtml).not.toContain('settings-profile-submit" disabled=""');
   });
 
   it('keeps profile and marketing feedback inside their own status regions', () => {

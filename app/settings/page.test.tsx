@@ -21,6 +21,7 @@ vi.mock('@/lib/auth/onboarding', () => ({
 vi.mock('@/lib/auth/server', () => ({
   getCurrentAuthState: async () => mocks.auth,
 }));
+vi.mock('@/lib/profile', async () => await import('../../lib/profile'));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
     storage: { from: mocks.storageFrom },
@@ -35,7 +36,10 @@ vi.mock('next/navigation', () => ({
 function onboardedAuth(avatarPath: string | null): CurrentAuthState {
   return {
     isConfigured: true,
-    user: { id: 'user-1', email: 'fan@icons.gg' },
+    user: {
+      id: '00000000-0000-4000-8000-000000001201',
+      email: 'fan@icons.gg',
+    },
     profile: {
       avatar_path: avatarPath,
       birth_date: '2000-01-01',
@@ -51,7 +55,9 @@ function onboardedAuth(avatarPath: string | null): CurrentAuthState {
 
 describe('/settings page', () => {
   beforeEach(() => {
-    mocks.auth = onboardedAuth('user-1/profile/avatar.png');
+    mocks.auth = onboardedAuth(
+      '00000000-0000-4000-8000-000000001201/profile/22222222-2222-4222-8222-222222222222.png',
+    );
     mocks.createSignedUrl.mockReset();
     mocks.createSignedUrl.mockResolvedValue({
       data: { signedUrl: 'https://signed.example/avatar.png' },
@@ -86,9 +92,32 @@ describe('/settings page', () => {
     renderToStaticMarkup(await Page());
 
     expect(mocks.storageFrom).toHaveBeenCalledWith('user-uploads');
-    expect(mocks.createSignedUrl).toHaveBeenCalledWith('user-1/profile/avatar.png', 3600);
+    expect(mocks.createSignedUrl).toHaveBeenCalledWith(
+      '00000000-0000-4000-8000-000000001201/profile/22222222-2222-4222-8222-222222222222.png',
+      3600,
+    );
     expect(mocks.settings).toHaveBeenCalledWith(expect.objectContaining({
       avatarUrl: 'https://signed.example/avatar.png',
+    }), undefined);
+  });
+
+  it('computes the avatar initial on the server and passes the empty fallback', async () => {
+    const authWithEmoji = onboardedAuth(null);
+    if (authWithEmoji.profile) authWithEmoji.profile.nickname = '👩‍🎤팬';
+    mocks.auth = authWithEmoji;
+
+    renderToStaticMarkup(await Page());
+    expect(mocks.settings).toHaveBeenLastCalledWith(expect.objectContaining({
+      avatarInitial: '👩‍🎤',
+    }), undefined);
+
+    const authWithoutNickname = onboardedAuth(null);
+    if (authWithoutNickname.profile) authWithoutNickname.profile.nickname = '';
+    mocks.auth = authWithoutNickname;
+
+    renderToStaticMarkup(await Page());
+    expect(mocks.settings).toHaveBeenLastCalledWith(expect.objectContaining({
+      avatarInitial: 'I',
     }), undefined);
   });
 

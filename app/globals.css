@@ -1014,6 +1014,19 @@
   .login-mobile-brand { display: none; }
   .auth-field-input:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
 
+  /* 설정 — 프로필·마케팅 편집 키보드 포커스 */
+  .settings-nickname-control:focus-visible,
+  .settings-avatar-input:focus-visible,
+  .settings-profile-submit:focus-visible,
+  .settings-marketing-submit:focus-visible {
+    outline: 2px solid var(--cyan);
+    outline-offset: 3px;
+  }
+  .settings-marketing-input:focus-visible + .settings-marketing-proxy {
+    outline: 2px solid var(--cyan);
+    outline-offset: 3px;
+  }
+
   /* 마켓·교환 (v2 플레이스홀더, claude-design v2) */
   .market-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
   .market-card { transition: transform .25s ease, border-color .25s ease; }
