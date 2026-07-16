@@ -131,6 +131,17 @@ describe('Settings', () => {
     expect(marketingHtml).not.toContain('settings-profile-submit" disabled=""');
   });
 
+  it('hides a stale profile success message while the next profile save is pending', () => {
+    mocks.profileState = { message: '이전 프로필 저장 성공' };
+    mocks.profilePending = true;
+
+    const html = render();
+    const profileStatus = statusMarkup(html, '프로필 저장 상태');
+
+    expect(profileStatus).not.toContain('이전 프로필 저장 성공');
+    expect(html).toContain('저장 중');
+  });
+
   it('keeps profile and marketing feedback inside their own status regions', () => {
     mocks.profileState = {
       errors: {

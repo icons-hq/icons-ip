@@ -175,7 +175,7 @@ export function Settings({ avatarInitial, avatarUrl, email, initialMarketing, is
                 {visibleProfileErrors.form}
               </div>
             )}
-            {!uploadPending && profileState.message && (
+            {!profileBusy && profileState.message && (
               <div role="status" style={{ marginTop: 8, padding: 12, borderRadius: 12, border: '1px solid var(--line-2)', color: 'var(--text)', fontSize: 13.5, fontWeight: 700 }}>
                 {profileState.message}
               </div>
