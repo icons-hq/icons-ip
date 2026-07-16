@@ -1,6 +1,6 @@
 # ICONS — 아키텍처
 
-> 상태: Draft · 최종 수정 2026-07-16 · 짝 문서: [`PRD.md`](./PRD.md)
+> 상태: Draft · 최종 수정 2026-07-17 · 짝 문서: [`PRD.md`](./PRD.md)
 > 이 문서는 **어떻게 만들 것인가**를 정의한다. 현재 코드베이스(프로토타입)에서 출발해 목표 아키텍처와 이전 경로를 기술한다.
 >
 > ⚠️ 이 프로젝트의 Next.js 16은 학습 데이터와 API/관례가 다를 수 있다(`AGENTS.md`). 실제 코드 작성 전 `node_modules/next/dist/docs/`를 확인한다. 본 문서가 코드 디테일과 어긋나면 코드를 따른다.
@@ -29,7 +29,7 @@
 | 라우팅 맵 | 프로토타입 route-id ↔ 경로 | `lib/routes.ts` |
 | 데이터 | Supabase 공개 카탈로그, 커뮤니티 visible 전체 피드·본인 `ip_follows` 기반 내 팬덤 피드/comment preview, Postgres 검색 읽기 + mock fallback. Vercel Preview는 static mock catalog를 기본 사용. IP 상세 커뮤니티 preview도 Supabase `posts`/`public_profiles`에서 읽음 | `lib/catalog.ts`, `lib/catalog-source.ts`, `lib/community.server.ts`, `lib/search.ts`, `lib/data.ts` |
 | 인증 | Supabase SSR 이메일/PW Auth, 확인·recovery 메일 callback, 비밀번호 재설정, 온보딩 게이트. 표시 전용 AuthPresenceProvider가 unknown/signed-in/signed-out 상태를 AuthButton·MobNav에 동기화하고 보호 판정은 각 Server Page가 수행한다. env 없으면 no-op/폼 비활성화 | `app/login/*`, `app/auth/callback/route.ts`, `app/update-password/*`, `app/onboarding/*`, `app/my/*`, `components/shell/AuthPresenceProvider.tsx`, `components/shell/AuthButton.tsx`, `lib/auth/*`, `lib/supabase/*`, 루트 `proxy.ts` |
-| 보호 액션 | IP 팔로우/언팔로우·IP별 드롭/이벤트 알림 설정, 알림 읽음 처리, 온보딩 추천 IP 저장. 커뮤니티 포스트 작성, 댓글, 좋아요, 작성자 삭제, 신고, 차단은 Server Action + RPC로 연결 | `app/ip/actions.ts`, `app/notifications/actions.ts`, `app/onboarding/actions.ts`, `app/community/actions.ts`, `lib/ip-follow*`, `lib/notifications*`, `supabase/migrations/20260623090001_ip_follow_rpc.sql`, `supabase/migrations/20260624103001_community_comment_like_actions.sql`, `supabase/migrations/20260626090001_community_moderation_actions.sql`, `supabase/migrations/20260716090001_in_app_notifications.sql` |
+| 보호 액션 | IP 팔로우/언팔로우·IP별 드롭/이벤트 알림 설정, 알림 읽음 처리, 온보딩 추천 IP 저장. 커뮤니티 포스트 작성·수정, 댓글, 좋아요, 작성자 삭제, 신고, 차단은 Server Action + 최소 권한 RPC로 연결 | `app/ip/actions.ts`, `app/notifications/actions.ts`, `app/onboarding/actions.ts`, `app/community/actions.ts`, `lib/ip-follow*`, `lib/notifications*`, `supabase/migrations/20260623090001_ip_follow_rpc.sql`, `supabase/migrations/20260624103001_community_comment_like_actions.sql`, `supabase/migrations/20260626090001_community_moderation_actions.sql`, `supabase/migrations/20260716090001_in_app_notifications.sql`, `supabase/migrations/20260716151616_community_post_editing.sql` |
 | 인앱 알림 | 본인 RLS 수신함 최신 50건·unread count, 보호 알림함/IP 설정 화면. 주문 상태·카드팩 발급·runtime staff 카탈로그 INSERT trigger와 audited 관리자 즉시 공지가 같은 transaction에서 멱등 발급 | `app/notifications/*`, `components/screens/Notifications.tsx`, `components/screens/NotificationSettings.tsx`, `components/shell/NotificationBell.tsx`, `components/admin/sections/NotificationSection.tsx`, `supabase/migrations/20260716090001_in_app_notifications.sql`, `supabase/migrations/20260716100001_admin_notification_console.sql` |
 | 굿즈 커머스 | 비로그인 localStorage·로그인 `cart_items` 병합, 멱등 `place_order` 재고 선점, 토스 결제위젯 redirect 승인, 웹훅 확정·만료 복원, 본인 주문 내역·상세·배송 전 청약철회 요청·상태 조회 | `app/cart/*`, `app/checkout/*`, `app/orders/*`, `app/api/orders/*`, `app/api/payments/confirm`, `app/api/webhooks/tosspayments`, `lib/checkout*`, `lib/orders*`, `lib/payments/*` |
 | 티켓 예매 | 공개 이벤트 상세·회차 잔여 조회, 멱등 `reserve_tickets` 정원 선점, 티켓용 토스 결제위젯, 웹훅 확정·QR 발급·만료 복원, 본인 티켓 목록/상세·보호 QR·예매 전체 취소/환불 | `app/events/[eventId]/*`, `app/ticket-checkout/*`, `app/tickets/*`, `app/api/tickets/*`, `app/api/ticket-orders/*`, `app/api/payments/confirm`, `app/api/webhooks/tosspayments`, `lib/ticketing*`, `lib/payments/*` |
@@ -139,7 +139,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - `check_ins` (ticket_id, checked_at, by_staff)
 
 ### 5.6 커뮤니티 (P0)
-- `posts` (id, user_id, ip_id?, text, image_path?, tag, status `visible|hidden`, created_at)
+- `posts` (id, user_id, ip_id?, text, image_path?, tag, status `visible|hidden`, created_at, updated_at)
 - `comments` (id, post_id, user_id, text)
 - `likes` (post_id, user_id)
 - `reports` (id, target_type `post|comment|user`, target_id, reporter_id, reason, status)
@@ -147,6 +147,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - `community_trending_tags(window_days, result_limit)`는 RLS를 유지하는 security-invoker RPC로 최근 visible 포스트 태그를 집계한다. 기본은 최근 7×24시간·상위 10개이며 오류나 0행은 mock fallback 없이 빈 결과로 닫는다.
 - `/community?feed=fandom`은 본인 `ip_follows.ip_id`를 읽어 `posts.ip_id IN (...)`을 정렬·30건 제한 전에 적용한다. 알림 채널 설정은 포함 여부와 무관하고, `ip_id`가 없는 포스트는 제외한다. 전체 피드와 트렌딩은 개인화하지 않으며 기존 visible/작성자/staff RLS와 앱의 작성자 차단 필터를 유지한다.
 - 홈은 온보딩 완료 viewer의 팔로우 ID만 받아 기존 이벤트·재고 티커 우선순위를 보존하고 커뮤니티 preview 그룹 안에서만 팔로우 IP를 stable-first로 정렬한다.
+- `edit_own_post(target_post_id, post_text, post_ip_id, post_tag)`는 인증된 작성자의 visible 포스트를 행 잠금한 뒤 텍스트·태그·IP 연결만 수정한다. `posts` 직접 UPDATE 권한과 정책은 제거하며 이미지·작성자·상태·작성 시각은 보존한다.
 
 ### 5.7 운영
 - `audit_log` (id, actor_id, action, target, diff jsonb, created_at)
@@ -167,7 +168,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 | profiles/ip_follows/carts/orders/wallets/user_cards/ticket_orders | **본인만** | 본인 읽기, 쓰기는 신뢰 RPC/service role만 |
 | notifications | **본인만** | 직접 쓰기 없음. 읽음 처리는 `open_notification`, 발급은 신뢰 trigger 또는 staff를 재검사하는 audited RPC만 |
 | tickets/ticket_cancellation_requests | **본인만 안전 컬럼** | QR 원문·provider/attempt/error 정보는 서버 경계 전용, 쓰기는 신뢰 RPC/service role만 |
-| posts/comments/likes | 공개 읽기(visible) | 작성자 본인, 신고/숨김은 본인+운영 |
+| posts/comments/likes | 공개 읽기(visible) | 포스트 수정은 작성자 본인 RPC, 삭제·반응과 신고/숨김은 각 최소 권한 RPC |
 | reports/blocks | 본인+운영 | 본인 |
 | audit_log | admin only | RPC만 |
 
@@ -201,6 +202,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - **`confirm_order_payment`의 리워드 발급** — 결제 시점 주문 스냅샷으로 각 정책의 IP/선택 굿즈 소계를 계산하고 조건이 맞는 활성 정책을 모두 누적 적용한다. 티켓마다 `reward_policy_id`를 기록해 정책 attribution을 보존한다.
 - **`grant_cards` / `play_game` / `open_draw_ticket`** — 모든 카드 발급은 `grant_cards`가 풀을 공유 잠그고, `play_game`의 신규 결과만 현재 풀 운영 기간을 추가 검사한다. 이미 확정된 게임 결과는 이후 풀 종료에도 그대로 재생하고, 기존 미사용 카드팩은 풀 종료 후에도 개봉할 수 있다. 카드팩은 발급 시 확률 snapshot을 만들지 않아 개봉 시점의 최신 풀 구성·확률을 사용한다. 회수된 티켓은 개봉할 수 없고 공개 UX에서는 존재를 노출하지 않는 `not_found`로 정규화한다.
 - **`open_notification(notification_id)` / `set_ip_notification_preferences(ip_id, drops?, events?, auto_follow=false)`** — 두 RPC 모두 `auth.uid()`를 다시 확인하는 `SECURITY DEFINER` 함수다. 전자는 본인 알림의 `read_at`을 단조롭게 기록하고 앱 내부 `link_path`를 반환한다. 후자는 선택적으로 팔로우 생성과 채널 설정을 한 transaction에서 처리하고, 기존 팔로우에서는 null channel을 보존한다. 테이블 직접 mutation 권한은 열지 않는다.
+- **`edit_own_post(target_post_id, post_text, post_ip_id, post_tag)`** — `auth.uid()`와 작성자·visible 상태를 한 경계에서 확인하고 대상 포스트를 `FOR UPDATE`, 새 IP를 `FOR KEY SHARE`로 잠근다. 직접 UPDATE는 봉인하고 수정 가능한 세 필드만 변경하며 이전·현재 IP와 수정 시각을 반환한다.
 - **인앱 알림 trigger** — 주문의 최초 `paid`·`shipping` 전이, `draw_tickets` statement INSERT, 인증된 staff의 runtime `goods`·`events` INSERT가 권위 변경과 같은 transaction에서 `notifications`를 발급한다. `(user_id, dedupe_key)`로 중복을 막고 긴 catalog id는 원문 `source_id`와 SHA-256 dedupe를 분리한다. 카드팩은 사용자·source별 advisory lock 뒤 현재 총량을 다시 집계하며 후속 발급 시 기존 행을 최신 unread로 갱신한다. 카탈로그 fan-out은 `INSERT ... SELECT`이고 seed/migration INSERT와 IP 없는 이벤트는 건너뛴다.
 - **`admin_estimate_notification_recipients` / `admin_send_notification` / `admin_list_notification_history`** — staff를 DB에서 다시 확인하고 전체 profile 또는 특정 IP 팔로워 수를 추정한다. 발송은 operation UUID advisory lock 아래 대상 table에서 한 번의 `INSERT ... SELECT`로 `/notifications` 인앱 공지를 발급하고 `ROW_COUNT` 실제 수신자 수와 대상 snapshot을 `audit_log`에 멱등 기록한다. `all`은 임의 상한이나 일부 truncation 없이 현재 전체 profile을 뜻한다. 드롭·이벤트 preference는 운영 공지에 적용하지 않으며 이력은 수신자 PII를 반환하지 않는다.
 

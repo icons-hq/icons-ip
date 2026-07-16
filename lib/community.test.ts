@@ -7,6 +7,7 @@ import {
   normalizeCommunityCommentForm,
   normalizeCommunityLikeForm,
   normalizeCommunityFeedScope,
+  normalizeCommunityPostEditForm,
   normalizeCommunityPostForm,
   normalizeCommunityReportForm,
 } from './community';
@@ -71,6 +72,43 @@ describe('normalizeCommunityPostForm', () => {
         text: '포스트 내용을 입력해주세요.',
         ipId: 'IP 채널을 선택해주세요.',
         image: '이미지는 JPEG, PNG, WebP, GIF 형식의 5MB 이하 파일만 업로드할 수 있습니다.',
+      },
+    });
+  });
+});
+
+describe('normalizeCommunityPostEditForm', () => {
+  it('normalizes only the editable post fields and ignores image input', () => {
+    const formData = new FormData();
+    formData.set('postId', '11111111-1111-4111-8111-111111111111');
+    formData.set('text', '  수정한 팝업 후기입니다  ');
+    formData.set('ipId', 'hwasan');
+    formData.set('tag', '  #수정 후기!  ');
+    formData.set('image', new File(['replacement'], 'replacement.png', { type: 'image/png' }));
+
+    expect(normalizeCommunityPostEditForm(formData, new Set(['hwasan']))).toEqual({
+      ok: true,
+      value: {
+        postId: '11111111-1111-4111-8111-111111111111',
+        text: '수정한 팝업 후기입니다',
+        ipId: 'hwasan',
+        tag: '수정후기',
+      },
+    });
+  });
+
+  it('reuses post validation messages for an invalid target, text and IP', () => {
+    const formData = new FormData();
+    formData.set('postId', 'not-a-post');
+    formData.set('text', ' ');
+    formData.set('ipId', 'unknown');
+
+    expect(normalizeCommunityPostEditForm(formData, new Set(['hwasan']))).toEqual({
+      ok: false,
+      errors: {
+        postId: '포스트를 찾을 수 없습니다.',
+        text: '포스트 내용을 입력해주세요.',
+        ipId: 'IP 채널을 선택해주세요.',
       },
     });
   });

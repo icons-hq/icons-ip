@@ -59,6 +59,7 @@ interface TestPostRow {
   text: string;
   tag: string | null;
   created_at: string;
+  updated_at?: string;
   image_path: string | null;
   status: 'visible' | 'hidden';
 }
@@ -112,6 +113,7 @@ function createDefaultRows(): TestRows {
         text: '첫 번째 포스트',
         tag: '후기',
         created_at: '2026-06-22T04:00:00.000Z',
+        updated_at: '2026-06-22T04:01:00.000Z',
         image_path: 'u1/community/p1.png',
         status: 'visible',
       },
@@ -122,6 +124,7 @@ function createDefaultRows(): TestRows {
         text: '숨김 포스트',
         tag: '숨김',
         created_at: '2026-06-22T05:00:00.000Z',
+        updated_at: '2026-06-22T05:00:00.000Z',
         image_path: 'u1/community/hidden.png',
         status: 'hidden',
       },
@@ -411,6 +414,8 @@ describe('getCommunitySnapshot', () => {
         img: 'https://cdn.example/user-uploads/u1/community/p1.png?exp=3600',
         likedByViewer: true,
         canDelete: true,
+        canEdit: true,
+        isEdited: true,
         commentItems: [
           expect.objectContaining({
             id: 'c1',
@@ -430,7 +435,7 @@ describe('getCommunitySnapshot', () => {
     expect(snapshot.posts).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: 'hidden' })]));
     expect(snapshot.posts[0]).not.toHaveProperty('image_path');
     expect(records.find((record) => record.table === 'posts')).toMatchObject({
-      select: 'id,user_id,ip_id,text,tag,created_at,image_path,status',
+      select: 'id,user_id,ip_id,text,tag,created_at,updated_at,image_path,status',
       eq: [],
       order: [['created_at', { ascending: false }]],
       limit: 30,
@@ -510,9 +515,44 @@ describe('getCommunitySnapshot', () => {
       },
     };
 
-    await expect(getCommunitySnapshot()).resolves.toEqual(expect.objectContaining({
+    const snapshot = await getCommunitySnapshot();
+
+    expect(snapshot).toEqual(expect.objectContaining({
       source: 'mock',
       trending: DATA.TRENDING,
+    }));
+    expect(snapshot.posts.every((post) => !post.canEdit && !post.isEdited)).toBe(true);
+  });
+
+  it('preserves a null post tag in the DTO and exposes edit state separately from delete state', async () => {
+    mocks.catalog = catalog;
+    mocks.client = createClient([], {
+      rows: {
+        posts: [{
+          id: 'null-tag',
+          user_id: 'u1',
+          ip_id: 'hwasan',
+          text: '태그 없는 포스트',
+          tag: null,
+          created_at: '2026-06-22T04:00:00.000Z',
+          updated_at: '2026-06-22T04:00:00.000Z',
+          image_path: null,
+          status: 'visible',
+        }],
+        public_profiles: [{ id: 'u1', nickname: 'neonfan' }],
+        likes: [],
+        comments: [],
+        blocks: [],
+      },
+    });
+
+    await expect(getCommunitySnapshot({ viewerId: 'u1' })).resolves.toEqual(expect.objectContaining({
+      posts: [expect.objectContaining({
+        tag: null,
+        canDelete: true,
+        canEdit: true,
+        isEdited: false,
+      })],
     }));
   });
 
@@ -727,10 +767,10 @@ describe('getCommunitySnapshot', () => {
       posts: [],
     }));
     await expect(getCommunitySnapshot({ viewerId: 'author-1' })).resolves.toEqual(expect.objectContaining({
-      posts: [expect.objectContaining({ id: 'hidden-own-post' })],
+      posts: [expect.objectContaining({ id: 'hidden-own-post', canDelete: true, canEdit: false })],
     }));
     await expect(getCommunitySnapshot({ viewerId: 'staff-1', isStaff: true })).resolves.toEqual(expect.objectContaining({
-      posts: [expect.objectContaining({ id: 'hidden-own-post' })],
+      posts: [expect.objectContaining({ id: 'hidden-own-post', canDelete: false, canEdit: false })],
     }));
   });
 });

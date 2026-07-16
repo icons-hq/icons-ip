@@ -27,6 +27,7 @@ interface CommunityPostRow {
   text: string;
   tag: string | null;
   created_at: string;
+  updated_at: string;
   image_path: string | null;
   status: CommunityPostStatus;
 }
@@ -243,6 +244,12 @@ function postFallbackIp(ips: Ip[]) {
   return ips[0] ?? null;
 }
 
+function wasCommunityPostEdited(createdAt: string, updatedAt: string) {
+  const createdTime = Date.parse(createdAt);
+  const updatedTime = Date.parse(updatedAt);
+  return Number.isFinite(createdTime) && Number.isFinite(updatedTime) && updatedTime > createdTime;
+}
+
 function commentItemsByPostId(
   rows: CommunityCommentRow[],
   profilesById: Map<string, PublicProfileRow>,
@@ -292,10 +299,12 @@ function toCommunityPost(
     likes: likesByPostId.get(row.id) ?? 0,
     comments: commentsByPostId.get(row.id) ?? 0,
     time: formatPostTime(row.created_at),
-    tag: row.tag?.trim() || '커뮤니티',
+    tag: row.tag?.trim() || null,
     img: row.image_path ? imageUrlByPath.get(row.image_path) ?? null : null,
     likedByViewer: likedPostIds.has(row.id),
     canDelete: viewerId === row.user_id,
+    canEdit: viewerId === row.user_id && row.status === 'visible',
+    isEdited: wasCommunityPostEdited(row.created_at, row.updated_at),
     commentItems: commentsByPost.get(row.id) ?? [],
   };
 }
@@ -321,6 +330,8 @@ function mockPosts(ips: Ip[]): CommunityFeedPost[] {
       img: post.img,
       likedByViewer: false,
       canDelete: false,
+      canEdit: false,
+      isEdited: false,
       commentItems: [],
     };
   });
@@ -336,7 +347,7 @@ async function getSupabasePosts(
   const blockedIds = await blockedUserIds(supabase, viewerId);
   let postsQuery = supabase
     .from('posts')
-    .select('id,user_id,ip_id,text,tag,created_at,image_path,status');
+    .select('id,user_id,ip_id,text,tag,created_at,updated_at,image_path,status');
 
   if (feedIpIds) {
     postsQuery = postsQuery.in('ip_id', feedIpIds);
