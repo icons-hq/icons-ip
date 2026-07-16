@@ -8,6 +8,8 @@
 
 **Tech Stack:** Next.js 16 App Router/Server Actions, React 19, Supabase Auth/Postgres/Storage/RLS, Vitest, SQL smoke, local Supabase CLI.
 
+**Current Status:** Tasks 1~6의 branch 구현과 자동 검증은 완료됐다. Task 7 browser QA·independent review와 Task 8 PR/CI/merge/production proof는 아직 시작하지 않았으며, #136 issue와 Project item은 완료 상태가 아니다.
+
 ## Global Constraints
 
 - 닉네임은 trim 후 1~30 Unicode grapheme이고 raw ceiling은 512 UTF-16 code units다.
@@ -40,14 +42,14 @@
 - `matchesProfileImageMagicBytes(bytes, mimeType)`
 - `profileAvatarInitial(nickname)`
 
-- [ ] Write failing tests for empty/trimmed nickname, 30/31 graphemes, 30 long family-ZWJ emoji, raw 513 code units, and early exit before expensive segmentation.
-- [ ] Write failing metadata tests for zero, non-integer, exact 5MiB, 5MiB+1, unsupported MIME.
-- [ ] Write strict path tests for exact user ID, lowercase UUID v4, MIME/extension match, traversal, uppercase UUID, wrong version and wrong user.
-- [ ] Write JPEG/PNG/WebP signature and mismatch tests plus `I` fallback initial.
-- [ ] Run `npx vitest run lib/profile.test.ts` and confirm red.
-- [ ] Implement the minimal pure helpers. Never materialize all grapheme segments into an array.
-- [ ] Run the focused test and confirm green.
-- [ ] Stage exact files and commit `feat(account): 프로필 검증 계약을 강화`.
+- [x] Write failing tests for empty/trimmed nickname, 30/31 graphemes, 30 long family-ZWJ emoji, raw 513 code units, and early exit before expensive segmentation.
+- [x] Write failing metadata tests for zero, non-integer, exact 5MiB, 5MiB+1, unsupported MIME.
+- [x] Write strict path tests for exact user ID, lowercase UUID v4, MIME/extension match, traversal, uppercase UUID, wrong version and wrong user.
+- [x] Write JPEG/PNG/WebP signature and mismatch tests plus `I` fallback initial.
+- [x] Run `npx vitest run lib/profile.test.ts` and confirm red.
+- [x] Implement the minimal pure helpers. Never materialize all grapheme segments into an array.
+- [x] Run the focused test and confirm green.
+- [x] Stage exact files and commit `feat(account): 프로필 검증 계약을 강화`.
 
 ### Task 2: DB/RPC·Storage trust boundary
 
@@ -70,10 +72,10 @@
 - Set `user-uploads` to 5MiB with JPEG/PNG/WebP/GIF. GIF remains for existing community uploads.
 - Replace Storage INSERT policy with strict profile/community UUID path alternatives.
 
-- [ ] Write or revise SQL smoke first: constraints/normalized duplicate, direct authenticated nickname/avatar denial, other-user denial, service RPC success and previous-path return, public profile trigger sync, ACL and `prosecdef`/search path, exact bucket settings, allowed and rejected profile/community paths.
-- [ ] Run SQL smoke against the current schema and confirm the new assertions fail.
-- [ ] Implement the draft migration and local bucket config.
-- [ ] Run:
+- [x] Write or revise SQL smoke first: constraints/normalized duplicate, direct authenticated nickname/avatar denial, other-user denial, service RPC success and previous-path return, public profile trigger sync, ACL and `prosecdef`/search path, exact bucket settings and Storage INSERT policy catalog contract. Real allowed/rejected Storage API behavior remains Task 7 browser evidence.
+- [x] Run SQL smoke against the current schema and confirm the new assertions fail.
+- [x] Implement the draft migration and per-bucket limits. Local config and pipeline needed no additional change beyond the existing smoke command.
+- [x] Run:
 
 ```bash
 supabase db reset --local --no-seed
@@ -81,8 +83,8 @@ docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STO
 supabase db lint --local --level warning
 ```
 
-- [ ] Confirm no new DB lint warning. Record any pre-existing warning separately.
-- [ ] Stage exact files and commit `feat(account): 프로필 저장 경계를 봉인`.
+- [x] Confirm no new DB lint warning. The pre-existing `refund_ticket_order` unused `p_reason` warning remains recorded separately.
+- [x] Stage exact files and commit `feat(account): 프로필 저장 경계를 봉인`.
 
 ### Task 3: server profile orchestration과 onboarding 공용 validator
 
@@ -99,18 +101,18 @@ supabase db lint --local --level warning
 - Exact-path cleanup with user-client first, service-client retry, and safe `audit_log` fallback.
 - Onboarding nickname validation and nickname-only service RPC connection.
 
-- [ ] Write failing server-helper tests for RPC input, previous path return, `23505`, resolved Storage remove error, rejected remove, service retry, and audit fallback without raw error text.
-- [ ] Write failing onboarding tests for 30/31 graphemes and raw 513 rejection before DB calls.
-- [ ] Run focused tests and confirm red.
-- [ ] Implement the minimal helper. Do not expose the service credential or raw provider errors.
-- [ ] Update onboarding to use the shared nickname validator and service identity RPC for nickname while preserving existing birth date, consent, follow and completion order.
-- [ ] Run:
+- [x] Write failing server-helper tests for RPC input, previous path return, `23505`, resolved Storage remove error, rejected remove, service retry, and audit fallback without raw error text.
+- [x] Write failing onboarding tests for 30/31 graphemes and raw 513 rejection before DB calls.
+- [x] Run focused tests and confirm red.
+- [x] Implement the minimal helper. Do not expose the service credential or raw provider errors.
+- [x] Update onboarding to use the shared nickname validator and service identity RPC for nickname while preserving existing birth date, consent, follow and completion order.
+- [x] Run:
 
 ```bash
 npx vitest run lib/profile.server.test.ts app/onboarding/actions.test.ts lib/profile.test.ts
 ```
 
-- [ ] Stage exact files and commit `feat(account): 프로필 서버 저장을 연결`.
+- [x] Stage exact files and commit `feat(account): 프로필 서버 저장을 연결`.
 
 ### Task 4: signed upload grant와 final Action
 
@@ -125,14 +127,14 @@ npx vitest run lib/profile.server.test.ts app/onboarding/actions.test.ts lib/pro
 - `prepareProfileAvatarUploadAction({ nickname, mimeType, size })`
 - `updateProfileAction(state, formData)` accepting nickname and optional path only.
 
-- [ ] Rewrite action tests around prepare/finalize. Assert no server Storage `upload()` and no file object in final payload.
-- [ ] Cover config/login/onboarding gates, metadata rejection, server UUID path, signed token failure, exact-user path rejection before Storage reads, `info()` size/contentType, `download()` signature, RPC ordering, uniqueness, candidate rollback and previous-path cleanup.
-- [ ] Assert cleanup resolved error and rejection both trigger the safe fallback but preserve successful profile state.
-- [ ] Run `npx vitest run app/settings/actions.test.ts` and confirm red.
-- [ ] Implement prepare and final Actions with small inputs only.
-- [ ] Remove any `experimental.serverActions.bodySizeLimit` override from `next.config.ts`.
-- [ ] Run focused action/server/pure tests and confirm green.
-- [ ] Stage exact files and commit `feat(account): 아바타 direct upload를 연결`.
+- [x] Rewrite action tests around prepare/finalize. Assert no server Storage `upload()` and no file object in final payload.
+- [x] Cover config/login/onboarding gates, metadata rejection, server UUID path, signed token failure, exact-user path rejection before Storage reads, `info()` size/contentType, `download()` signature, RPC ordering, uniqueness, candidate rollback and previous-path cleanup.
+- [x] Assert cleanup resolved error and rejection both trigger the safe fallback but preserve successful profile state.
+- [x] Run `npx vitest run app/settings/actions.test.ts` and confirm red.
+- [x] Implement prepare and final Actions with small inputs only.
+- [x] Remove any `experimental.serverActions.bodySizeLimit` override from `next.config.ts`.
+- [x] Run focused action/server/pure tests and confirm green.
+- [x] Stage exact files and commit `feat(account): 아바타 direct upload를 연결`.
 
 ### Task 5: browser direct-upload helper와 Settings UI
 
@@ -156,18 +158,18 @@ npx vitest run lib/profile.server.test.ts app/onboarding/actions.test.ts lib/pro
 - Page computes `avatarInitial` server-side; client does not recompute with `Intl`.
 - Inputs and buttons expose visible cyan keyboard focus rings.
 
-- [ ] Write failing helper tests proving the file is sent only to `uploadToSignedUrl` and prepare receives metadata, not bytes.
-- [ ] Write failing Settings tests for nameless file input, final path-only FormData, direct-upload failure, pending state, independent forms, signed avatar/fallback `I`, and focus classes.
-- [ ] Write failing page tests for server-computed initial, 3600-second signed preview, and signing-error fallback.
-- [ ] Run focused tests and confirm red.
-- [ ] Implement helper, UI, page and minimal CSS.
-- [ ] Run:
+- [x] Write failing helper tests proving the file is sent only to `uploadToSignedUrl` and prepare receives metadata, not bytes.
+- [x] Write failing Settings tests for nameless file input, final path-only FormData, direct-upload failure, pending state, independent forms, signed avatar/fallback `I`, and focus classes.
+- [x] Write failing page tests for server-computed initial, 3600-second signed preview, and signing-error fallback.
+- [x] Run focused tests and confirm red.
+- [x] Implement helper, UI, page and minimal CSS.
+- [x] Run:
 
 ```bash
 npx vitest run lib/profile-upload.client.test.ts components/screens/Settings.test.tsx app/settings/page.test.tsx app/settings/actions.test.ts
 ```
 
-- [ ] Stage exact files and commit `feat(account): 프로필 편집 화면을 direct upload로 전환`.
+- [x] Stage exact files and commit `feat(account): 프로필 편집 화면을 direct upload로 전환`.
 
 ### Task 6: 문서와 전체 검증
 
@@ -177,8 +179,8 @@ npx vitest run lib/profile-upload.client.test.ts components/screens/Settings.tes
 - Modify: `docs/launch-readiness-plan.md`
 - Modify: this design and plan only if implementation truth changed.
 
-- [ ] Ensure durable docs describe separate profile/consent forms, signed avatar and initial fallback, and the #102/#136/#137 split without claiming merge before it occurs.
-- [ ] Run all verification:
+- [x] Ensure durable docs describe separate profile/consent forms, browser signed direct upload, final metadata/magic validation, service-role-only locked identity RPC, server initial fallback, and the #102/#136/#137 split without claiming merge before it occurs.
+- [x] Run all verification:
 
 ```bash
 npm test
@@ -190,8 +192,9 @@ supabase db lint --local --level warning
 git diff --check main...HEAD
 ```
 
-- [ ] Review `git status --short`, branch diff stat and secret-pattern scan.
-- [ ] Stage exact documentation files and commit `docs(account): 프로필 direct upload 운영을 기록`.
+- [x] Verification evidence: `npm test` 93 files/979 tests; warning 수정 후 `npm run lint` clean; Next production build success; local reset/profile smoke success; DB lint에는 기존 `refund_ticket_order` unused `p_reason` warning 한 건만 존재.
+- [x] Review `git status --short`, branch diff stat, token-shaped secret-pattern scan and `git diff --check main...HEAD`.
+- [x] Stage exact documentation files and commit `docs(account): 프로필 direct upload 운영을 기록`.
 
 ### Task 7: local browser QA와 independent review
 

@@ -2,7 +2,7 @@
 
 Date: 2026-07-15
 Issue: #136
-Status: Approved by the user's standing instruction to execute Project #8 autonomously
+Status: Implemented on `ps/feat/profile-editing`; browser QA, independent review, merge, preview and production verification remain pending
 
 ## 목표
 
@@ -70,7 +70,7 @@ Storage remove는 resolved `{ error }`와 rejected Promise를 모두 실패로 �
 
 ### 데이터베이스와 Storage
 
-현재 branch의 migration은 아직 공유·적용되지 않은 draft이므로 일관된 계약으로 교체한다.
+현재 branch의 migration 구현과 local reset·SQL smoke는 완료됐지만 아직 merge되지 않았고 remote에는 적용되지 않았다.
 
 - 배포 전에 normalized nickname 충돌, blank/untrimmed nickname, 잘못된 기존 avatar path가 있으면 fail closed한다.
 - `profiles.nickname`은 null 또는 trim된 nonempty 값이고 raw DB 길이도 제한한다. 정확한 grapheme 수는 trusted server validator가 책임진다.
@@ -115,8 +115,9 @@ Storage remove는 resolved `{ error }`와 rejected Promise를 모두 실패로 �
 - onboarding: settings와 같은 30-grapheme 계약이 DB write 전에 적용됨.
 - UI/page: file input에 `name`이 없음, direct upload helper, 독립 상태, pending, focus class, 서버 계산 initial, signed preview fallback.
 - SQL smoke: fail-closed constraints, normalized uniqueness, authenticated direct update 거절, service-only RPC ACL/security, previous path 반환, public profile sync, bucket/RLS exact path.
-- 전체 test/lint/build, local Supabase reset/smoke/lint.
-- 실브라우저: 정확히 5MiB인 유효 PNG direct upload, 5MiB+1 거절, 두 번째 교체 후 객체 1개, 새로고침 preview, 마케팅 회귀, 390px overflow, keyboard focus, console error 0, 임시 데이터 정리.
+- 자동 검증 완료: `npm test` 93 files/979 tests, warning 수정 후 `npm run lint`, Next production build, local Supabase reset/profile smoke. DB lint에는 기존 `refund_ticket_order`의 미사용 `p_reason` warning 한 건만 남았다.
+- 미검증: 실브라우저의 정확히 5MiB 유효 PNG direct upload, 5MiB+1 거절, 두 번째 교체 후 객체 1개, 새로고침 preview, 마케팅 회귀, 390px overflow, keyboard focus, console error 0, 임시 데이터 정리.
+- preview·production 배포와 live smoke는 PR 이후 별도 검증한다. 자동 검증 완료만으로 #136이나 Project item을 완료 처리하지 않는다.
 
 ## 문서 영향
 
