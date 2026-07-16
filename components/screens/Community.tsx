@@ -240,6 +240,63 @@ function PostSubmitButton({ disabled }: { disabled: boolean }) {
   );
 }
 
+function TrendingTags({ tags }: { tags: string[] }) {
+  const normalizedTags = tags
+    .map((tag) => tag.replace(/^#+/, ''))
+    .filter(Boolean);
+
+  return (
+    <section
+      aria-labelledby="community-trending-title"
+      style={{
+        gridColumn: '1 / -1',
+        boxSizing: 'border-box',
+        maxWidth: '100%',
+        minWidth: 0,
+        width: '100%',
+        borderRadius: 18,
+        border: '1px solid rgba(45,226,255,.2)',
+        background: 'linear-gradient(120deg, rgba(45,226,255,.06), rgba(139,92,255,.08))',
+        padding: '16px 18px',
+      }}
+    >
+      <div
+        className="mono"
+        id="community-trending-title"
+        style={{ fontSize: 11, letterSpacing: '.16em', color: 'var(--cyan)' }}
+      >
+        최근 7일 트렌딩
+      </div>
+      {normalizedTags.length > 0 ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12, maxWidth: '100%', minWidth: 0, width: '100%' }}>
+          {normalizedTags.map((tag) => (
+            <Link
+              className="chip"
+              href={`/search?q=${encodeURIComponent(tag)}`}
+              key={tag}
+              style={{
+                height: 44,
+                maxWidth: '100%',
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                fontFamily: 'var(--ff-body)',
+              }}
+              title={`#${tag}`}
+            >
+              #{tag}
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <p style={{ margin: '10px 0 0', color: 'var(--dim)', fontSize: 13 }}>
+          최근 7일 동안 집계된 태그가 없어요
+        </p>
+      )}
+    </section>
+  );
+}
+
 function Composer({ channels, selectedChannelId }: { channels: CommunityChannel[]; selectedChannelId: string }) {
   const [state, action] = useActionState(createCommunityPostAction, emptyState);
   const defaultIpId = channels.some((c) => c.id === selectedChannelId) ? selectedChannelId : channels[0]?.id ?? '';
@@ -362,6 +419,8 @@ export function Community({ snapshot, initialChannelId }: { snapshot: CommunityS
       {/* main */}
       <section style={{ padding: '34px 0 clamp(70px, 9vw, 110px)' }}>
         <div className="wrap community-main">
+          <TrendingTags tags={snapshot.trending} />
+
           {/* channels */}
           <div className="community-channels" role="group" aria-label="팬덤 채널">
             {channelButton('all', '전체 피드', 'var(--holo)')}

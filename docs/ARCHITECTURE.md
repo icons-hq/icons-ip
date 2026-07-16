@@ -144,6 +144,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - `likes` (post_id, user_id)
 - `reports` (id, target_type `post|comment|user`, target_id, reporter_id, reason, status)
 - `blocks` (user_id, blocked_user_id)
+- `community_trending_tags(window_days, result_limit)`는 RLS를 유지하는 security-invoker RPC로 최근 visible 포스트 태그를 집계한다. 기본은 최근 7×24시간·상위 10개이며 오류나 0행은 mock fallback 없이 빈 결과로 닫는다.
 
 ### 5.7 운영
 - `audit_log` (id, actor_id, action, target, diff jsonb, created_at)
