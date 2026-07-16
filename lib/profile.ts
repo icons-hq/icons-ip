@@ -48,7 +48,10 @@ function exceedsProfileNicknameGraphemeLimit(value: string): boolean {
 
   if (typeof Segmenter === 'function') {
     let count = 0;
-    for (const _segment of new Segmenter('ko', { granularity: 'grapheme' }).segment(value)) {
+    const iterator = new Segmenter('ko', { granularity: 'grapheme' })
+      .segment(value)
+      [Symbol.iterator]();
+    while (!iterator.next().done) {
       count += 1;
       if (count > MAX_PROFILE_NICKNAME_GRAPHEMES) return true;
     }
@@ -56,7 +59,8 @@ function exceedsProfileNicknameGraphemeLimit(value: string): boolean {
   }
 
   let count = 0;
-  for (const _codePoint of value) {
+  const iterator = value[Symbol.iterator]();
+  while (!iterator.next().done) {
     count += 1;
     if (count > MAX_PROFILE_NICKNAME_GRAPHEMES) return true;
   }
