@@ -8,6 +8,7 @@ export interface ProfileForOnboarding {
   email?: string | null;
   nickname?: string | null;
   birth_date?: string | null;
+  avatar_path?: string | null;
   consents?: OnboardingConsents | null;
   onboarded_at?: string | null;
   role?: 'user' | 'staff' | 'admin' | null;

@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { safeNextPath } from '@/lib/auth/onboarding';
 import { buildRecommendedIpFollowChanges, uniqueSelectedIpIds } from '@/lib/ip-follow';
+import { normalizeProfileNickname } from '@/lib/profile';
+import { updateProfileIdentity } from '@/lib/profile.server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 
@@ -73,7 +75,8 @@ export async function completeOnboardingAction(
   _state: OnboardingActionState,
   formData: FormData,
 ): Promise<OnboardingActionState> {
-  const nickname = readString(formData, 'nickname').trim();
+  const nicknameResult = normalizeProfileNickname(formData.get('nickname'));
+  const nickname = nicknameResult.ok ? nicknameResult.value : '';
   const birthDate = readString(formData, 'birthDate');
   const next = safeNextPath(formData.get('next'));
   const terms = formData.get('terms') === 'on';
@@ -83,7 +86,7 @@ export async function completeOnboardingAction(
   const recommendedIpIds = uniqueSelectedIpIds(formData.getAll('recommendedIpIds'));
   const errors: NonNullable<OnboardingActionState['errors']> = {};
 
-  if (!nickname) errors.nickname = '닉네임을 입력해주세요.';
+  if (!nicknameResult.ok) errors.nickname = nicknameResult.error;
   if (!birthDate || isFutureDate(birthDate)) errors.birthDate = '생년월일을 확인해주세요.';
   if (!terms) errors.terms = '필수 약관에 동의해주세요.';
   if (!privacy) errors.privacy = '개인정보 처리방침에 동의해주세요.';
@@ -114,10 +117,23 @@ export async function completeOnboardingAction(
     selectedIpIds,
   });
 
+  const identityResult = await updateProfileIdentity({
+    userId: user.id,
+    nickname,
+    avatarPath: null,
+    replaceAvatar: false,
+  });
+
+  if (!identityResult.ok && identityResult.errorCode === '23505') {
+    return { errors: { nickname: '이미 사용 중인 닉네임입니다.' } };
+  }
+  if (!identityResult.ok) {
+    return { errors: { form: '프로필을 저장하지 못했습니다. 다시 시도해주세요.' } };
+  }
+
   const { error } = await supabase
     .from('profiles')
     .update({
-      nickname,
       birth_date: birthDate,
       consents: { terms, privacy, marketing },
     })
@@ -125,7 +141,6 @@ export async function completeOnboardingAction(
     .select('id')
     .single();
 
-  if (error?.code === '23505') return { errors: { nickname: '이미 사용 중인 닉네임입니다.' } };
   if (error) return { errors: { form: '프로필을 저장하지 못했습니다. 다시 시도해주세요.' } };
 
   for (const ipId of followChanges.toFollow) {
