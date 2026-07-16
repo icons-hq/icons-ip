@@ -450,6 +450,8 @@ select 1 / case when (
   where ticket.id = '97200000-0000-4000-8000-000000000001'
 ) then 1 else 0 end as assert_check_in_transition_and_ledger_are_atomic;
 
+reset role;
+
 select 1 / case when (
   select count(*) = 1
     and bool_and(actor_id = '00000000-0000-4000-8000-000000009701')
@@ -458,6 +460,8 @@ select 1 / case when (
   where action = 'admin.ticket.checked_in'
     and target = 'tickets:97200000-0000-4000-8000-000000000001'
 ) then 1 else 0 end as assert_check_in_writes_one_privacy_safe_audit;
+
+set local role service_role;
 
 create temporary table replay_result on commit drop as
 select *
@@ -477,6 +481,8 @@ select 1 / case when (
   cross join checked_in_result as original
 ) then 1 else 0 end as assert_replay_returns_original_check_in_result;
 
+reset role;
+
 select 1 / case when (
   select count(*) = 1
   from public.check_ins
@@ -487,6 +493,8 @@ select 1 / case when (
   where action = 'admin.ticket.checked_in'
     and target = 'tickets:97200000-0000-4000-8000-000000000001'
 ) then 1 else 0 end as assert_replay_is_write_free;
+
+set local role service_role;
 
 select 1 / case when (
   select result = 'already_used'
@@ -532,6 +540,8 @@ select 1 / case when (
   )
 ) then 1 else 0 end as assert_refunded_ticket_is_read_only;
 
+reset role;
+
 select 1 / case when not exists (
   select 1
   from public.check_ins
@@ -547,6 +557,8 @@ select 1 / case when not exists (
     'tickets:97200000-0000-4000-8000-000000000004'
   )
 ) then 1 else 0 end as assert_invalid_ledgers_and_refunds_do_not_write;
+
+set local role service_role;
 
 do $$
 begin
@@ -600,6 +612,8 @@ select 1 / case when (
     '97200000-0000-4000-8000-000000000006'
   )
 ) then 1 else 0 end as assert_blocked_check_ins_preserve_ticket_state;
+
+reset role;
 
 select 1 / case when not exists (
   select 1

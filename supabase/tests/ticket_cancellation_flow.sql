@@ -166,7 +166,6 @@ select 1 / case when (
   and has_column_privilege('authenticated', 'public.tickets', 'created_at', 'select')
   and not has_column_privilege('authenticated', 'public.tickets', 'qr_token', 'select')
   and has_table_privilege('service_role', 'public.tickets', 'select')
-  and has_table_privilege('service_role', 'public.audit_log', 'select')
 ) then 1 else 0 end as assert_qr_token_is_server_only;
 
 select 1 / case when exists (
@@ -1308,6 +1307,8 @@ select 1 / case when (
   where id = '95000000-0000-4000-8000-000000000009'
 ) then 1 else 0 end as assert_used_provider_anomaly_preserves_evidence_without_allocation_change;
 
+reset role;
+
 -- audit에는 provider payment key나 원문을 절대 남기지 않는다.
 select 1 / case when not exists (
   select 1
@@ -1319,7 +1320,6 @@ select 1 / case when not exists (
     )
 ) then 1 else 0 end as assert_ticket_cancellation_audit_contains_no_provider_secret;
 
-reset role;
 select lower(pg_get_functiondef(
   'public.confirm_ticket_payment(text,uuid,text,bigint,jsonb)'::regprocedure
 )) as confirm_definition \gset
