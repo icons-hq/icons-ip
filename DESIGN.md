@@ -83,10 +83,10 @@ layout:                      # [구현됨] app/globals.css:47,86-87
 
 components:
   # ---- 셸 [구현됨] ----
-  nav:            { status: 구현됨, ref: "globals.css; components/shell/Nav.tsx; components/shell/AuthButton.tsx", note: "고정 68px, bg rgba(8,6,15,.6)+blur. 공개 링크 6개(홈/IP 허브/굿즈샵/카드팩/팝업/커뮤니티), active=weight 600. 우측 장바구니는 /cart로 이동하고 실제 총수량 배지를 표시. 로그인 상태는 마이+로그아웃, 비로그인은 로그인+시작하기. /login·/update-password에서 숨김" }
+  nav:            { status: 구현됨, ref: "globals.css; components/shell/Nav.tsx; components/shell/AuthButton.tsx; components/shell/NotificationBell.tsx", note: "고정 68px, bg rgba(8,6,15,.6)+blur. 공개 링크 6개(홈/IP 허브/굿즈샵/카드팩/팝업/커뮤니티), active=weight 600. 우측은 검색→로그인 사용자 알림 벨(안읽음 99+ cap)→장바구니(실수량 배지)→인증 action 순서. 비로그인은 로그인+시작하기. /login·/update-password에서 숨김" }
   mobnav:         { status: 구현됨, ref: "globals.css; components/shell/MobNav.tsx; components/shell/AuthPresenceProvider.tsx", note: "<920px 바텀탭 5개. 홈/굿즈샵/카드팩/커뮤니티는 고정하고 마지막 탭은 비로그인 장바구니(실수량 배지), 로그인 마이로 전환. 상단 장바구니 진입점은 항상 유지" }
   footer:         { status: 구현됨, ref: "components/shell/SiteFooter.tsx", note: "미니 푸터(브랜드+공시 캡션) + 고아 라우트 방지 보조 링크 줄(바인더·교환·마켓·약관)" }
-  atmos:          { status: 구현됨, ref: "globals.css:106-183; components/shell/Atmos.tsx", note: "라우트별 radial 블룸 변형. 기본=홈. grain 오버레이는 v2에서 제거" }
+  atmos:          { status: 구현됨, ref: "globals.css:106-183; components/shell/Atmos.tsx", note: "라우트별 radial 블룸 변형. 기본=홈, notifications=cyan/pink inbox. grain 오버레이는 v2에서 제거" }
   # ---- 기본 어휘 [구현됨] ----
   btn:            { status: 구현됨, ref: "globals.css:217-233", note: "pill 고정. primary=white on ink, holo=애니 CTA(weight 700), ghost=hairline, sm=38px" }
   chip:           { status: 구현됨, ref: "globals.css:236-256", note: "필터 pill h36. .on=white .08 bg + border .35, .on.accent=IP색 bg+잉크 글자(inline). .chip-sm=mono h30(상태·모드·등급 보조 필터)" }
@@ -99,7 +99,7 @@ components:
   home-ticker:    { status: 구현됨, ref: "globals.css:348-356", note: "라이브 티커 마퀴(tickerMove 32s). 내용은 카탈로그 파생(이벤트·재고·포스트·팬 수)" }
   verb-row:       { status: 구현됨, ref: "globals.css:358-365", note: "홈 4동사(사요/모아요/만나요/떠들어요) 레일" }
   ip-pick:        { status: 구현됨, ref: "globals.css:366-367", note: "홈 히어로 IP 픽커(132×84 키아트 + FANS 카운트)" }
-  ipworld:        { status: 구현됨, ref: "globals.css:388-408", note: "IP 허브 = 허브·상세 병합. WORLDS 스위처 + 12col bento(굿즈7/가챠5×2/팝업4/커뮤니티3/도감4/팬덤3/라인업5). 셀 hover accent는 --cell-accent" }
+  ipworld:        { status: 구현됨, ref: "globals.css:388-408; components/screens/IpHub.tsx", note: "IP 허브 = 허브·상세 병합. WORLDS 스위처 + 12col bento(굿즈7/가챠5×2/팝업4/커뮤니티3/도감4/팬덤3/라인업5). 비팔로우는 팔로우+두 알림 ON, 팔로우는 드롭·이벤트별 switch와 저장 action을 제공. 셀 hover accent는 --cell-accent" }
   shop:           { status: 구현됨, ref: "globals.css", note: "스티키 필터 바(WORLDS+정렬) + 4열 그리드(모바일 2열). 공유 장바구니 수량 표시·재고 한도 내 +1 담기" }
   cart:           { status: 구현됨, ref: "app/cart/page.tsx; components/screens/Cart.tsx; globals.css", note: "비로그인 localStorage·로그인 DB 병합 장바구니. 수량·합계·재고·품절·판매 종료 행을 표시하고 주문 가능한 카트는 /checkout으로 연결" }
   checkout:       { status: 구현됨, ref: "app/checkout/*; components/screens/Checkout.tsx; components/screens/CheckoutOrder.tsx; components/payments/*; globals.css", note: "배송지 폼+주문 요약 2열(모바일 1열), 15분 재고 선점 타이머, 토스 결제위젯·약관, 결제 확인 중/완료/만료 상태 표면. 주문 영수증 금액은 DB 스냅샷" }
@@ -113,13 +113,14 @@ components:
   admin-game:      { status: 구현됨, ref: "app/admin/*; components/admin/sections/GameSection.tsx", note: "staff 전용 참여형 게임 master-detail. 카드 보상형 게임의 slug·제목·준비된 카드풀·같은 IP 온라인 이벤트·KST 운영 기간·일일 한도를 관리하고, 신규 시작은 빈 값으로 두며 플레이 이후 불변 필드 잠금·현재 시각이 운영 창에 포함되는 게임의 DB 시각 종료·PII-free 플레이 집계를 제공. goods variant는 #115 전까지 읽기 전용" }
   ticket-check-in: { status: 구현됨, ref: "app/admin/check-in/*; app/api/admin/check-in/*; components/admin/check-in/*; globals.css", note: "staff 전용 모바일 현장 검표. 카메라 QR·HID/수동 입력, 검표/재검표/환불 상태, same-origin service-only 원장·감사" }
   gacha:          { status: 구현됨, ref: "globals.css:442-453", note: "카드풀 스위처 + 확률 칩 + 천장 게이지 + 클라이언트 리빌(popIn). mock 공시 — 실 카드풀은 ADR-0001" }
-  event:          { status: 구현됨, ref: "app/events/*; components/screens/Events.tsx; components/screens/EventDetail.tsx; globals.css", note: "목록 featured 2열+카드 그리드에서 공개 상세로 연결. 상세는 포스터 히어로와 회차 선택/예매 요약 2열, 모바일 1열" }
+  event:          { status: 구현됨, ref: "app/events/*; components/screens/Events.tsx; components/screens/EventDetail.tsx; globals.css", note: "목록 featured 2열+카드 그리드에서 공개 상세로 연결. 상세는 포스터 히어로와 회차 선택/예매 요약 2열, 모바일 1열. IP가 있는 예정 이벤트는 해당 IP의 새 이벤트 알림 secondary action을 제공" }
   binder:         { status: 구현됨, ref: "globals.css:464-468", note: "도감 그리드(미보유 잠금·dim은 mock 모드만) + 카드 상세 모달 + CTA 행" }
   community:      { status: 구현됨, ref: "globals.css:471-481", note: "230/1fr/280 3열(모바일 1열+채널 가로 스크롤). 컴팩트 컴포저 + 좋아요 pill + 랭킹 레일(실데이터 파생)" }
   search:         { status: 구현됨, ref: "globals.css:484-490", note: "통합 검색 히어로(60px pill 입력) + 스코프 칩 + 종류별 결과(IP pill/굿즈 카드/카드 타일/행)" }
   login:          { status: 구현됨, ref: "globals.css; components/screens/Login.tsx; components/screens/UpdatePassword.tsx", note: "스플릿 브랜드 패널에서 로그인·회원가입·비밀번호 재설정 메일 요청을 제공. /update-password는 새 비밀번호 2필드의 중앙 카드이며 두 라우트 모두 전역 셸을 숨김. 소셜 3종은 시각만(미배선)" }
   settings:       { status: 구현됨, ref: "app/settings/*; components/screens/Settings.tsx; lib/profile-upload.client.ts", note: "서로 독립된 프로필·약관 form. 브라우저는 pending claim에 결속된 private user-uploads signed token으로 JPEG/PNG/WebP를 직접 업로드하고, 서버가 metadata·magic bytes 검증 뒤 claim/profile 잠금 RPC로 1회 확정·이전 객체 정리. 원형 signed image가 없으면 서버 계산 닉네임 첫 글자(I fallback)를 표시" }
-  my-page:        { status: 구현됨, ref: "app/my/*; components/screens/MyPage.tsx; lib/profile-avatar.server.ts; globals.css", note: "로그인·온보딩 보호 허브. signed avatar/닉네임 프로필 요약과 주문·내 티켓·바인더·카드팩·설정 실제 링크를 2열(모바일 1열) 카드로 제공" }
+  notifications:  { status: 구현됨, ref: "app/notifications/*; components/screens/Notifications.tsx; components/screens/NotificationSettings.tsx; components/shell/NotificationBell.tsx; globals.css", note: "로그인·온보딩 보호 인앱 알림함. 최신 50건 unread/read ledger와 안전한 내부 링크, 빈/오류 상태, 팔로우 IP별 드롭·이벤트 switch를 제공. unread는 pink 점·좌측선·스크린리더 문구로 함께 구분" }
+  my-page:        { status: 구현됨, ref: "app/my/*; components/screens/MyPage.tsx; lib/profile-avatar.server.ts; globals.css", note: "로그인·온보딩 보호 허브. signed avatar/닉네임 프로필 요약과 주문·내 티켓·바인더·카드팩·알림함·설정 6개 실제 링크를 2×3(모바일 1열) 카드로 제공" }
   market-exchange:{ status: 구현됨, ref: "globals.css:497-503", note: "v2 플레이스홀더 — 검수·에스크로 카피, mock 매물. 보호 액션은 로그인 게이트" }
   # ---- [차용·미구현] ----
   tier-card:      { status: 차용·미구현, note: "충전금 tier(충전 화면 미존재). featured 변형은 violet 반전 강조" }
@@ -191,7 +192,7 @@ frontmatter `components` 블록이 정본 인덱스다(셸 → 기본 어휘 →
 | 표면 | 라우트 | 구조 요약 | 데이터 |
 |---|---|---|---|
 | 홈 | `/` | 100svh 히어로(IP 픽커+패럴랙스 키아트) → 라이브 티커 → 4동사 레일 → 가챠 티저(틸트 HOLO 카드) → 조인/신뢰 | 카탈로그 + 포스트 프리뷰 파생 |
-| IP 허브 | `/ip`, `/ip/[id]` | 시네마틱 히어로 + WORLDS 스위처(Link 내비) + bento. 허브=상세 병합, `/ip/[id]`가 정식 URL | `getCatalogIpDetail` + 팔로우 상태 |
+| IP 허브 | `/ip`, `/ip/[id]` | 시네마틱 히어로 + WORLDS 스위처(Link 내비) + bento. 허브=상세 병합, `/ip/[id]`가 정식 URL. 팔로우 전에는 팔로우+알림, 이후에는 드롭·이벤트별 설정 | `getCatalogIpDetail` + `ip_follows` 팔로우·알림 상태 |
 | 굿즈샵 | `/shop` | 최애의 물건들 헤더 + 스티키 WORLDS/정렬 바 + 4열 그리드 | 카탈로그, 공유 장바구니 수량·재고 한도 내 +1 담기 |
 | 장바구니 | `/cart` | 굿즈 행·수량 제어 + 재고 상태 + 주문 요약 | 비로그인 localStorage, 로그인 `cart_items` |
 | 체크아웃 | `/checkout`, `/checkout/[orderId]`, `/checkout/success`, `/checkout/fail` | 배송지·주문 생성 → 결제위젯 → 승인·웹훅 확인 상태 | `place_order`, `orders`/`order_items`/`payments`, 토스페이먼츠 |
@@ -206,13 +207,14 @@ frontmatter `components` 블록이 정본 인덱스다(셸 → 기본 어휘 →
 | 관리자 발급 정책 | `/admin?section=policy` | 정책 master-detail → 대상 IP·선택 same-IP 굿즈·독립 카드풀·최소 금액·발급 수량·KST 기간·활성 상태 편집 → 누적 발급/사용 가능/개봉/회수 집계 | staff-gated, PII-free `admin_list_reward_policies` + 멱등 `admin_upsert_reward_policy` + `audit_log` |
 | 관리자 참여형 게임 | `/admin?section=game` | 게임 master-detail → 카드풀·같은 IP 온라인 이벤트·KST 운영 기간·일일 한도 편집 → 플레이 이후 잠금·현재 시각이 운영 창에 포함되는 게임의 DB 시각 종료·플레이 집계 | staff-gated, PII-free `admin_list_games` + 멱등 `admin_upsert_game` + `audit_log`; goods variant는 읽기 전용 |
 | 뽑기 | `/gacha` | 카드풀 스위처 + 확률 칩 + 천장 게이지 + 클라이언트 리빌 + 라인업 | 카탈로그(카드 있는 IP), mock 공시 |
-| 팝업 | `/events`, `/events/[eventId]` | 필터 칩 → featured/카드 목록 → 공개 상세·회차 선택 → QR 가이드 | `selectFandomEvents`, 공개 `ticket_types` |
+| 팝업 | `/events`, `/events/[eventId]` | 필터 칩 → featured/카드 목록 → 공개 상세·회차 선택 → QR 가이드. IP가 있는 예정 이벤트에는 해당 IP 이벤트 알림 secondary action | `selectFandomEvents`, 공개 `ticket_types`, `ip_follows.notify_events` |
 | 커뮤니티 | `/community` | 채널 레일 + 컴팩트 컴포저 + 피드 + 랭킹·카드풀 레일 | 실배선(작성·좋아요·댓글·신고·차단) |
 | 바인더 | `/binder` | holo 스탯 + 달성률 + 도감 그리드 + 상세 모달 | 보유 개념은 mock 모드만(가챠 연동 전) |
 | 검색 | `/search` | 통합 검색 히어로 + 스코프 칩 + 종류별 결과 | Postgres `getSearchSnapshot` |
 | 로그인/온보딩/비밀번호 재설정 | `/login`, `/update-password`, `/onboarding` | 로그인 스플릿·새 비밀번호 중앙 카드·프로필/약관/최애 픽 타일 | Supabase Auth recovery·인증·온보딩 액션 |
 | 설정 | `/settings` | 독립된 프로필·약관 form + 원형 signed-image 아바타(서버 계산 닉네임 첫 글자, `I` fallback) | 본인 pending claim에 결속된 private `user-uploads` browser direct upload → 서버 metadata·magic 검증 → service-role-only claim/profile 잠금 identity RPC; 마케팅 동의는 별도 저장 |
-| 마이페이지 | `/my` | signed avatar·닉네임 프로필 요약 → 주문·내 티켓·바인더·카드팩·설정 링크 허브 | 로그인·온보딩 보호, 본인 private `user-uploads` 1시간 signed URL; 별도 집계·DB 쓰기 없음 |
+| 알림함·IP 알림 설정 | `/notifications`, `/notifications/settings` | 최신 50건 unread/read ledger → 읽음 처리 후 내부 링크 이동. 팔로우 IP별 새 굿즈·드롭/팝업·이벤트 switch | 본인 `notifications` RLS + `open_notification`, `ip_follows` + `set_ip_notification_preferences`; mock fallback 없음 |
+| 마이페이지 | `/my` | signed avatar·닉네임 프로필 요약 → 주문·내 티켓·바인더·카드팩·알림함·설정 6개 링크 허브 | 로그인·온보딩 보호, 본인 private `user-uploads` 1시간 signed URL; 별도 집계·DB 쓰기 없음 |
 | 마켓/교환 | `/market`, `/exchange` | v2 플레이스홀더(검수·에스크로 카피, mock 매물) | mock, 보호 액션은 로그인 게이트 |
 
 **신뢰 표면 규율:** 확률 공시·환불(`ADR-0001` 근거)은 `money-caption`으로 또렷하게 유지한다. 반대로 **미확정 정책(취소 시한·양도·수수료·연령 한도)과 미정의 화폐(퍼즐·스타더스트 류)는 UI에 확약하지 않는다** — 비확약 안내문으로 대체.

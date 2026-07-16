@@ -41,6 +41,7 @@ const PATHS: Record<string, string> = {
   orders: '/orders',
   tickets: '/tickets',
   my: '/my',
+  notifications: '/notifications',
 };
 
 export function hrefFor(route: string, param?: string | null): string {

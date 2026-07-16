@@ -7,6 +7,7 @@ import { Icon } from '@/components/ui/Icon';
 import { useCart } from './CartProvider';
 import { useGo } from './useGo';
 import { AuthButton } from './AuthButton';
+import { NotificationBell } from './NotificationBell';
 
 export function Nav() {
   const pathname = usePathname();
@@ -41,6 +42,7 @@ export function Nav() {
           <button className="icon-btn" onClick={() => go('search')} title="검색" aria-label="검색">
             <Icon name="search" />
           </button>
+          <NotificationBell />
           <Link
             aria-current={isActive('cart', pathname) ? 'page' : undefined}
             className={`icon-btn${isActive('cart', pathname) ? ' active' : ''}`}

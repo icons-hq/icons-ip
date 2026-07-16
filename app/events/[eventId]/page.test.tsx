@@ -6,6 +6,9 @@ import Page from './page';
 
 const mocks = vi.hoisted(() => ({
   catalog: null as CatalogSnapshot | null,
+  eventDetail: vi.fn(),
+  followState: { isFollowed: false, notifyDrops: false, notifyEvents: false },
+  getIpFollowState: vi.fn(),
   loadSessions: vi.fn(),
 }));
 
@@ -24,8 +27,17 @@ vi.mock('@/lib/auth/onboarding', () => ({
 }));
 vi.mock('@/lib/payments/checkout-availability', () => ({ checkoutPaymentsEnabled: () => false }));
 vi.mock('@/lib/ticketing.server', () => ({ loadPublicTicketTypes: mocks.loadSessions }));
+vi.mock('@/lib/ip-follow.server', () => ({ getIpFollowState: mocks.getIpFollowState }));
 vi.mock('@/components/screens/EventDetail', () => ({
-  EventDetail: ({ sessions }: { sessions: unknown[] }) => <div data-session-count={sessions.length} />,
+  EventDetail: (props: {
+    notificationError: boolean;
+    notificationSaved: boolean;
+    notificationState: unknown;
+    sessions: unknown[];
+  }) => {
+    mocks.eventDetail(props);
+    return <div data-session-count={props.sessions.length} />;
+  },
 }));
 
 const event: FandomEvent = {
@@ -40,12 +52,30 @@ const event: FandomEvent = {
   img: 'linear-gradient(#111, #222)',
 };
 
+const ip = {
+  id: 'ip100',
+  title: '화산강림',
+  sub: 'ORIGINAL IP',
+  v: { key: 'webtoon', label: '웹툰', color: '#38F0C0' },
+  glyph: '火',
+  tagline: '불꽃처럼 피어나는 이야기',
+  synopsis: '화산강림 세계관',
+  bg: 'linear-gradient(#111, #222)',
+  fans: 100,
+  goods: 0,
+  cards: 0,
+  featured: true,
+};
+
 function snapshot(source: CatalogSnapshot['source']): CatalogSnapshot {
   return { source, verticals: [], ips: [], goods: [], cards: [], events: [event] };
 }
 
 describe('/events/[eventId]', () => {
   beforeEach(() => {
+    mocks.eventDetail.mockReset();
+    mocks.getIpFollowState.mockReset();
+    mocks.getIpFollowState.mockResolvedValue(mocks.followState);
     mocks.loadSessions.mockReset();
     mocks.loadSessions.mockResolvedValue([{ id: 'session-1' }]);
   });
@@ -66,5 +96,38 @@ describe('/events/[eventId]', () => {
 
     expect(html).toContain('data-session-count="1"');
     expect(mocks.loadSessions).toHaveBeenCalledWith(event.id);
+  });
+
+  it('loads IP preferences only for a scheduled event with an IP', async () => {
+    mocks.catalog = {
+      ...snapshot('mock'),
+      ips: [ip],
+      events: [{ ...event, status: '예정' }],
+    };
+
+    renderToStaticMarkup(await Page({
+      params: Promise.resolve({ eventId: event.id }),
+      searchParams: Promise.resolve({ notification_error: '1', notification_saved: '1' }),
+    }));
+
+    expect(mocks.getIpFollowState).toHaveBeenCalledWith(ip.id);
+    expect(mocks.eventDetail.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
+      notificationError: true,
+      notificationSaved: true,
+      notificationState: mocks.followState,
+    }));
+  });
+
+  it('does not load IP preferences for booking or joint scheduled events', async () => {
+    mocks.catalog = { ...snapshot('mock'), ips: [ip] };
+    renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: event.id }) }));
+
+    mocks.catalog = {
+      ...snapshot('mock'),
+      events: [{ ...event, ip: null, status: '예정' }],
+    };
+    renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: event.id }) }));
+
+    expect(mocks.getIpFollowState).not.toHaveBeenCalled();
   });
 });

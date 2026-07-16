@@ -2,16 +2,20 @@ import 'server-only';
 
 import { isOnboarded } from '@/lib/auth/onboarding';
 import { getProfileForUser } from '@/lib/auth/server';
-import type { IpFollowState } from '@/lib/ip-follow';
+import type { IpFollowState, IpNotificationPreference } from '@/lib/ip-follow';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 
 interface IpFollowRow {
   ip_id: string;
+  notify_drops: boolean;
+  notify_events: boolean;
 }
 
 const guestFollowState: IpFollowState = {
   isFollowed: false,
+  notifyDrops: false,
+  notifyEvents: false,
 };
 
 export async function getIpFollowState(ipId: string): Promise<IpFollowState> {
@@ -29,7 +33,7 @@ export async function getIpFollowState(ipId: string): Promise<IpFollowState> {
 
   const { data, error } = await supabase
     .from('ip_follows')
-    .select('ip_id')
+    .select('ip_id,notify_drops,notify_events')
     .eq('user_id', user.id)
     .eq('ip_id', ipId)
     .maybeSingle<IpFollowRow>();
@@ -40,7 +44,29 @@ export async function getIpFollowState(ipId: string): Promise<IpFollowState> {
 
   return {
     isFollowed: Boolean(data),
+    notifyDrops: data?.notify_drops === true,
+    notifyEvents: data?.notify_events === true,
   };
+}
+
+export async function getIpNotificationPreferencesForUser(
+  userId: string,
+): Promise<IpNotificationPreference[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('ip_follows')
+    .select('ip_id,notify_drops,notify_events')
+    .eq('user_id', userId);
+
+  if (error) {
+    throw new Error('Failed to load IP notification preferences');
+  }
+
+  return ((data ?? []) as IpFollowRow[]).map((row) => ({
+    ipId: row.ip_id,
+    notifyDrops: row.notify_drops,
+    notifyEvents: row.notify_events,
+  }));
 }
 
 export async function getFollowedIpIdsForUser(userId: string): Promise<Set<string>> {

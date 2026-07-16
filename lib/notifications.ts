@@ -1,0 +1,55 @@
+export type NotificationType =
+  | 'order_paid'
+  | 'order_shipping'
+  | 'draw_ticket_issued'
+  | 'drop_published'
+  | 'event_published'
+  | 'announcement';
+
+export interface NotificationRow {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  link_path: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface NotificationItem {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  linkPath: string;
+  readAt: string | null;
+  createdAt: string;
+  isUnread: boolean;
+}
+
+export function isSafeNotificationLink(value: unknown): value is string {
+  return typeof value === 'string'
+    && value.startsWith('/')
+    && !value.startsWith('//')
+    && !value.includes('\\')
+    && !/[\u0000-\u001f\u007f]/.test(value);
+}
+
+export function notificationOpenedPath(linkPath: string, openSignal: string) {
+  const url = new URL(linkPath, 'https://icons.local');
+  url.searchParams.set('notification_opened', openSignal);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+export function toNotificationItem(row: NotificationRow): NotificationItem {
+  return {
+    id: row.id,
+    type: row.type,
+    title: row.title,
+    body: row.body,
+    linkPath: isSafeNotificationLink(row.link_path) ? row.link_path : '/notifications',
+    readAt: row.read_at,
+    createdAt: row.created_at,
+    isUnread: row.read_at === null,
+  };
+}

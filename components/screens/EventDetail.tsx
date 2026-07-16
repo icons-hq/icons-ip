@@ -3,9 +3,12 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { useFormStatus } from 'react-dom';
 import { reserveTicketsAction } from '@/app/events/actions';
+import { setIpNotificationPreferencesAction } from '@/app/ip/actions';
 import type { FandomEvent, Ip } from '@/lib/data';
 import { ipAccent } from '@/lib/ip-display';
+import type { IpFollowState } from '@/lib/ip-follow';
 import type { PublicTicketType } from '@/lib/ticketing.server';
 
 const krw = (value: number) => `${value.toLocaleString('ko-KR')}원`;
@@ -34,11 +37,70 @@ function disabledReason(event: FandomEvent, session: PublicTicketType, paymentAv
   return null;
 }
 
+function EventNotificationSubmitButton({ followState }: { followState: IpFollowState }) {
+  const { pending } = useFormStatus();
+  const label = !followState.isFollowed
+    ? '팔로우하고 새 이벤트 알림 받기'
+    : followState.notifyEvents
+      ? '이 IP 이벤트 알림 끄기'
+      : '이 IP 이벤트 알림 받기';
+  return (
+    <button className="btn btn-ghost" disabled={pending} style={{ minHeight: 44 }} type="submit">
+      {pending ? '저장 중' : label}
+    </button>
+  );
+}
+
+function EventNotificationAction({
+  event,
+  followState,
+  ip,
+  notificationError,
+  notificationSaved,
+}: {
+  event: FandomEvent;
+  followState: IpFollowState;
+  ip: Ip;
+  notificationError: boolean;
+  notificationSaved: boolean;
+}) {
+  return (
+    <section
+      aria-labelledby="event-notification-heading"
+      className="wrap event-notification-action card"
+    >
+      <div>
+        <span className="checkout-step mono">EVENT ALERT</span>
+        <h2 id="event-notification-heading">이 IP의 새 이벤트 소식을 받아보세요</h2>
+        <p>{ip.title}에서 새로운 팝업·이벤트가 공개되면 알림함에서 알려드려요.</p>
+        {notificationError && (
+          <p className="checkout-error" role="alert">알림 설정을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.</p>
+        )}
+        {notificationSaved && !notificationError && (
+          <p aria-live="polite" className="notification-settings-success" role="status">
+            이벤트 알림 설정을 저장했습니다.
+          </p>
+        )}
+      </div>
+      <form action={setIpNotificationPreferencesAction}>
+        <input type="hidden" name="ipId" value={ip.id} />
+        <input type="hidden" name="next" value={`/events/${event.id}`} />
+        {!followState.isFollowed && <input type="hidden" name="autoFollow" value="1" />}
+        <input type="hidden" name="notifyEvents" value={followState.notifyEvents ? '0' : '1'} />
+        <EventNotificationSubmitButton followState={followState} />
+      </form>
+    </section>
+  );
+}
+
 export function EventDetail({
   authHref,
   authState,
   event,
   ip,
+  notificationError,
+  notificationSaved,
+  notificationState,
   paymentAvailable,
   sessions,
 }: {
@@ -46,6 +108,9 @@ export function EventDetail({
   authState: AuthState;
   event: FandomEvent;
   ip: Ip | null;
+  notificationError: boolean;
+  notificationSaved: boolean;
+  notificationState: IpFollowState | null;
   paymentAvailable: boolean;
   sessions: PublicTicketType[];
 }) {
@@ -241,6 +306,16 @@ export function EventDetail({
           <p className="money-caption">예약 후 10분 동안 정원이 선점됩니다. 결제 완료는 웹훅 확인 후 안내합니다.</p>
         </aside>
       </form>
+
+      {event.status === '예정' && ip && notificationState && (
+        <EventNotificationAction
+          event={event}
+          followState={notificationState}
+          ip={ip}
+          notificationError={notificationError}
+          notificationSaved={notificationSaved}
+        />
+      )}
 
       <section className="wrap event-ticket-guide card" aria-labelledby="event-ticket-guide-heading">
         <div>
