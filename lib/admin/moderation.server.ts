@@ -1,7 +1,11 @@
 import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
-import type { CommunityReportStatus, CommunityReportTarget } from '@/lib/community';
+import type {
+  CommunityPostStatus,
+  CommunityReportStatus,
+  CommunityReportTarget,
+} from '@/lib/community';
 
 const REPORT_LIMIT = 50;
 
@@ -11,6 +15,8 @@ export interface AdminReportRecord {
   targetId: string;
   targetLabel: string;
   targetPostId: string | null;
+  targetCommentId: string | null;
+  targetCommentStatus: CommunityPostStatus | null;
   targetAuthorId: string | null;
   targetAuthorName: string;
   reporterName: string;
@@ -44,6 +50,7 @@ interface CommentRow {
   post_id: string;
   user_id: string;
   text: string;
+  status: CommunityPostStatus;
 }
 
 interface PublicProfileRow {
@@ -100,7 +107,7 @@ export async function getAdminModerationRecords(): Promise<AdminModerationRecord
 
   const [posts, comments] = await Promise.all([
     fetchRowsByIds<PostRow>(supabase, 'posts', 'id,user_id,text', postIds),
-    fetchRowsByIds<CommentRow>(supabase, 'comments', 'id,post_id,user_id,text', commentIds),
+    fetchRowsByIds<CommentRow>(supabase, 'comments', 'id,post_id,user_id,text,status', commentIds),
   ]);
   const postsById = new Map(posts.map((post) => [post.id, post]));
   const commentsById = new Map(comments.map((comment) => [comment.id, comment]));
@@ -126,6 +133,8 @@ export async function getAdminModerationRecords(): Promise<AdminModerationRecord
         targetId: report.target_id,
         targetLabel: post ? shortText(post.text) : comment ? shortText(comment.text) : `@${publicName(profilesById.get(report.target_id), report.target_id)}`,
         targetPostId,
+        targetCommentId: comment?.id ?? null,
+        targetCommentStatus: comment?.status ?? null,
         targetAuthorId,
         targetAuthorName: publicName(profilesById.get(targetAuthorId ?? ''), targetAuthorId),
         reporterName: publicName(profilesById.get(report.reporter_id), report.reporter_id),

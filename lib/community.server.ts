@@ -49,6 +49,7 @@ interface CommunityCommentRow {
   user_id: string;
   text: string;
   created_at: string;
+  status: CommunityPostStatus;
 }
 
 interface CommunityLikeRow {
@@ -146,8 +147,9 @@ async function commentsForPosts(
     postIds.map(async (postId) => {
       let commentsQuery = supabase
         .from('comments')
-        .select('id,post_id,user_id,text,created_at')
+        .select('id,post_id,user_id,text,created_at,status')
         .eq('post_id', postId)
+        .eq('status', 'visible')
         .order('created_at', { ascending: true })
         .limit(COMMUNITY_COMMENT_PREVIEW_LIMIT);
 
