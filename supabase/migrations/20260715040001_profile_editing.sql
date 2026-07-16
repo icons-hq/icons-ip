@@ -1,10 +1,16 @@
 do $$
 begin
   if exists (
-    select lower(btrim(nickname))
+    select lower(btrim(
+      nickname,
+      U&'\0009\000B\000C\0020\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\202F\205F\3000\FEFF\000A\000D\2028\2029'
+    ))
     from public.profiles
     where nickname is not null
-    group by lower(btrim(nickname))
+    group by lower(btrim(
+      nickname,
+      U&'\0009\000B\000C\0020\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\202F\205F\3000\FEFF\000A\000D\2028\2029'
+    ))
     having count(*) > 1
   ) then
     raise exception using message = 'profiles contain normalized nickname conflicts';
@@ -15,7 +21,10 @@ begin
     from public.profiles
     where nickname is not null
       and (
-        nickname <> btrim(nickname)
+        nickname <> btrim(
+          nickname,
+          U&'\0009\000B\000C\0020\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\202F\205F\3000\FEFF\000A\000D\2028\2029'
+        )
         or nickname = ''
         or char_length(nickname) > 512
       )
@@ -43,7 +52,10 @@ alter table public.profiles
   check (
     nickname is null
     or (
-      nickname = btrim(nickname)
+      nickname = btrim(
+        nickname,
+        U&'\0009\000B\000C\0020\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\202F\205F\3000\FEFF\000A\000D\2028\2029'
+      )
       and nickname <> ''
       and char_length(nickname) <= 512
     )
@@ -61,7 +73,10 @@ alter table public.profiles
   );
 
 create unique index profiles_nickname_normalized_unique_idx
-  on public.profiles (lower(btrim(nickname)))
+  on public.profiles (lower(btrim(
+    nickname,
+    U&'\0009\000B\000C\0020\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\202F\205F\3000\FEFF\000A\000D\2028\2029'
+  )))
   where nickname is not null;
 
 revoke update (nickname, avatar_path) on table public.profiles from authenticated;
@@ -91,6 +106,34 @@ alter table public.profile_avatar_claims enable row level security;
 revoke all on table public.profile_avatar_claims
   from public, anon, authenticated, service_role;
 grant select on table public.profile_avatar_claims to service_role;
+
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated, service_role;
+grant usage on schema private to authenticated;
+
+create or replace function private.has_pending_profile_avatar_claim(
+  p_avatar_path text
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select (select auth.uid()) is not null
+    and exists (
+      select 1
+      from public.profile_avatar_claims as claim
+      where claim.path = p_avatar_path
+        and claim.user_id = (select auth.uid())
+        and claim.status = 'pending'
+    );
+$$;
+
+revoke all on function private.has_pending_profile_avatar_claim(text)
+  from public, anon, authenticated, service_role;
+grant execute on function private.has_pending_profile_avatar_claim(text)
+  to authenticated;
 
 -- 배포 전에 이미 사용 중인 아바타도 replay 방어에 참여한다.
 insert into public.profile_avatar_claims (
@@ -419,16 +462,24 @@ $$;
 
 drop policy if exists user_uploads_write on storage.objects;
 create policy user_uploads_write on storage.objects for insert
+  to authenticated
   with check (
     bucket_id = 'user-uploads'
     and (select auth.uid()) is not null
-    and name ~ (
-      '^'
-      || (select auth.uid())::text
-      || '/('
-      || 'profile/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}[.](jpg|png|webp)'
-      || '|community/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}[.](jpg|png|webp|gif)'
-      || ')$'
+    and (
+      (
+        name ~ (
+          '^'
+          || (select auth.uid())::text
+          || '/profile/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}[.](jpg|png|webp)$'
+        )
+        and private.has_pending_profile_avatar_claim(name)
+      )
+      or name ~ (
+        '^'
+        || (select auth.uid())::text
+        || '/community/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}[.](jpg|png|webp|gif)$'
+      )
     )
   );
 

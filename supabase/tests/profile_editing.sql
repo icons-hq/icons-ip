@@ -71,6 +71,51 @@ do $$
 begin
   begin
     update public.profiles
+    set nickname = E'\tascii-edge\n'
+    where id = '00000000-0000-4000-8000-000000001201';
+  exception
+    when check_violation then
+      return;
+  end;
+
+  raise exception 'ASCII tab and newline should violate the profile identity constraint';
+end;
+$$;
+
+do $$
+begin
+  begin
+    update public.profiles
+    set nickname = U&'\00A0unicode-edge\3000'
+    where id = '00000000-0000-4000-8000-000000001201';
+  exception
+    when check_violation then
+      return;
+  end;
+
+  raise exception 'Unicode no-break and ideographic spaces should violate the profile identity constraint';
+end;
+$$;
+
+do $$
+begin
+  begin
+    update public.profiles
+    set nickname = U&'\FEFFbom-edge\FEFF'
+    where id = '00000000-0000-4000-8000-000000001201';
+  exception
+    when check_violation then
+      return;
+  end;
+
+  raise exception 'Unicode BOM should violate the profile identity constraint';
+end;
+$$;
+
+do $$
+begin
+  begin
+    update public.profiles
     set nickname = repeat('a', 513)
     where id = '00000000-0000-4000-8000-000000001201';
   exception
@@ -135,6 +180,14 @@ $$;
 update public.profiles
 set nickname = 'SecondFan'
 where id = '00000000-0000-4000-8000-000000001202';
+
+select 1 / case when exists (
+  select 1
+  from pg_index
+  where indexrelid = 'public.profiles_nickname_normalized_unique_idx'::regclass
+    and pg_get_expr(indexprs, indrelid) ~ 'lower\(btrim\(nickname, '
+    and pg_get_expr(indexprs, indrelid) !~ 'lower\(btrim\(nickname\)\)'
+) then 1 else 0 end as assert_nickname_index_uses_explicit_trim_contract;
 
 select 1 / case when not has_column_privilege(
   'authenticated',
@@ -676,6 +729,131 @@ select 1 / case when exists (
     and not cleanup_safe
 ) then 1 else 0 end as assert_pending_rejection_allows_cleanup_exactly_once;
 
+set local role service_role;
+
+select 1 / case when public.service_prepare_profile_avatar_claim(
+  '00000000-0000-4000-8000-000000001201',
+  '00000000-0000-4000-8000-000000001201/profile/66666666-6666-4666-8666-666666666666.png'
+) then 1 else 0 end as assert_storage_candidate_is_prepared;
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000001201', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+do $$
+begin
+  begin
+    insert into storage.objects (bucket_id, name, owner_id)
+    values (
+      'user-uploads',
+      '00000000-0000-4000-8000-000000001201/profile/55555555-5555-4555-8555-555555555555.png',
+      '00000000-0000-4000-8000-000000001201'
+    );
+  exception
+    when insufficient_privilege then
+      return;
+  end;
+
+  raise exception 'unclaimed profile avatar insert should be denied by RLS';
+end;
+$$;
+
+do $$
+begin
+  begin
+    insert into storage.objects (bucket_id, name, owner_id)
+    values (
+      'user-uploads',
+      '00000000-0000-4000-8000-000000001201/profile/22222222-2222-4222-8222-222222222222.webp',
+      '00000000-0000-4000-8000-000000001201'
+    );
+  exception
+    when insufficient_privilege then
+      return;
+  end;
+
+  raise exception 'active profile avatar claim should not authorize another insert';
+end;
+$$;
+
+insert into storage.objects (bucket_id, name, owner_id)
+values (
+  'user-uploads',
+  '00000000-0000-4000-8000-000000001201/profile/66666666-6666-4666-8666-666666666666.png',
+  '00000000-0000-4000-8000-000000001201'
+);
+
+insert into storage.objects (bucket_id, name, owner_id)
+values (
+  'user-uploads',
+  '00000000-0000-4000-8000-000000001201/community/77777777-7777-4777-8777-777777777777.gif',
+  '00000000-0000-4000-8000-000000001201'
+);
+
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+select set_config('request.jwt.claim.role', '', true);
+
+select 1 / case when exists (
+  select 1
+  from storage.objects
+  where bucket_id = 'user-uploads'
+    and name = '00000000-0000-4000-8000-000000001201/profile/66666666-6666-4666-8666-666666666666.png'
+) and exists (
+  select 1
+  from storage.objects
+  where bucket_id = 'user-uploads'
+    and name = '00000000-0000-4000-8000-000000001201/community/77777777-7777-4777-8777-777777777777.gif'
+) and not exists (
+  select 1
+  from storage.objects
+  where bucket_id = 'user-uploads'
+    and name in (
+      '00000000-0000-4000-8000-000000001201/profile/55555555-5555-4555-8555-555555555555.png',
+      '00000000-0000-4000-8000-000000001201/profile/22222222-2222-4222-8222-222222222222.webp'
+    )
+) then 1 else 0 end as assert_storage_insert_policy_enforces_claim_state;
+
+select 1 / case when has_schema_privilege(
+  'authenticated',
+  'private',
+  'USAGE'
+) and not has_schema_privilege(
+  'anon',
+  'private',
+  'USAGE'
+) and not has_schema_privilege(
+  'service_role',
+  'private',
+  'USAGE'
+) then 1 else 0 end as assert_private_schema_usage_is_least_privilege;
+
+select 1 / case when has_function_privilege(
+  'authenticated',
+  'private.has_pending_profile_avatar_claim(text)',
+  'EXECUTE'
+) and not has_function_privilege(
+  'anon',
+  'private.has_pending_profile_avatar_claim(text)',
+  'EXECUTE'
+) and not has_function_privilege(
+  'service_role',
+  'private.has_pending_profile_avatar_claim(text)',
+  'EXECUTE'
+) then 1 else 0 end as assert_profile_upload_predicate_acl;
+
+select 1 / case when exists (
+  select 1
+  from pg_proc
+  where oid = 'private.has_pending_profile_avatar_claim(text)'::regprocedure
+    and prosecdef
+    and provolatile = 's'
+    and proconfig = array['search_path=""']
+    and pg_get_functiondef(oid) ~ 'public[.]profile_avatar_claims'
+    and pg_get_functiondef(oid) ~ 'auth[.]uid\(\)'
+) then 1 else 0 end as assert_profile_upload_predicate_is_hardened;
+
 select 1 / case when exists (
   select 1
   from storage.buckets
@@ -693,7 +871,7 @@ select 1 / case when exists (
     and relation.relname = 'objects'
     and policy.polname = 'user_uploads_write'
     and policy.polcmd = 'a'
-    and policy.polroles = array[0::oid]
+    and policy.polroles = array['authenticated'::regrole::oid]
     and policy.polpermissive
     and policy.polqual is null
     and position(
@@ -705,15 +883,15 @@ select 1 / case when exists (
       in pg_get_expr(policy.polwithcheck, policy.polrelid)
     ) > 0
     and position(
-      'profile/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}[.](jpg|png|webp)'
+      'profile/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}[.](jpg|png|webp)$'
       in pg_get_expr(policy.polwithcheck, policy.polrelid)
     ) > 0
     and position(
-      'community/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}[.](jpg|png|webp|gif)'
+      'private.has_pending_profile_avatar_claim(name)'
       in pg_get_expr(policy.polwithcheck, policy.polrelid)
     ) > 0
     and position(
-      ''')$''::text'
+      'community/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}[.](jpg|png|webp|gif)$'
       in pg_get_expr(policy.polwithcheck, policy.polrelid)
     ) > 0
 ) then 1 else 0 end as assert_user_upload_insert_policy_catalog_contract;
