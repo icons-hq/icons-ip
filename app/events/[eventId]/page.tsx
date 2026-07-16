@@ -4,6 +4,7 @@ import { EventDetail } from '@/components/screens/EventDetail';
 import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { getCatalogSnapshot, getCatalogSource } from '@/lib/catalog';
+import { getIpFollowState } from '@/lib/ip-follow.server';
 import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
 import { loadPublicTicketTypes } from '@/lib/ticketing.server';
 
@@ -12,7 +13,17 @@ export const metadata: Metadata = {
   description: 'ICONS 이벤트 일정과 예매 가능한 회차를 확인하세요.',
 };
 
-export default async function Page({ params }: { params: Promise<{ eventId: string }> }) {
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export default async function Page({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ eventId: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { eventId } = await params;
   const catalogSource = getCatalogSource();
   const [catalog, auth, sessions] = await Promise.all([
@@ -22,6 +33,11 @@ export default async function Page({ params }: { params: Promise<{ eventId: stri
   ]);
   const event = catalog.events.find((item) => item.id === eventId);
   if (!event) notFound();
+  const ip = catalog.ips.find((item) => item.id === event.ip) ?? null;
+  const [notificationState, query] = await Promise.all([
+    event.status === '예정' && ip ? getIpFollowState(ip.id) : Promise.resolve(null),
+    searchParams ?? Promise.resolve<Record<string, string | string[] | undefined>>({}),
+  ]);
 
   const next = `/events/${encodeURIComponent(event.id)}`;
   const onboarded = Boolean(auth.user && isOnboarded(auth.profile, auth.user.email));
@@ -35,7 +51,10 @@ export default async function Page({ params }: { params: Promise<{ eventId: stri
       authHref={authHref}
       authState={authState}
       event={event}
-      ip={catalog.ips.find((item) => item.id === event.ip) ?? null}
+      ip={ip}
+      notificationError={firstParam(query.notification_error) === '1'}
+      notificationSaved={firstParam(query.notification_saved) === '1'}
+      notificationState={notificationState}
       paymentAvailable={checkoutPaymentsEnabled()}
       sessions={sessions}
     />

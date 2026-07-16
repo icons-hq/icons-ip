@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useFormStatus } from 'react-dom';
-import { toggleIpFollowAction } from '@/app/ip/actions';
+import { setIpNotificationPreferencesAction, toggleIpFollowAction } from '@/app/ip/actions';
 import type { CatalogIpDetail } from '@/lib/catalog';
 import type { Card, Ip, Stock } from '@/lib/data';
 import { ipAccent } from '@/lib/ip-display';
@@ -53,6 +53,75 @@ function FollowForm({ followState, ipId, mini }: { followState: IpFollowState; i
   );
 }
 
+function AutoFollowNotificationForm({ ipId }: { ipId: string }) {
+  const next = `/ip/${ipId}`;
+  return (
+    <form action={setIpNotificationPreferencesAction} className="ip-notification-auto-follow">
+      <input type="hidden" name="ipId" value={ipId} />
+      <input type="hidden" name="next" value={next} />
+      <input type="hidden" name="autoFollow" value="1" />
+      <input type="hidden" name="setBoth" value="1" />
+      <input type="hidden" name="notifyDrops" value="1" />
+      <input type="hidden" name="notifyEvents" value="1" />
+      <NotificationSubmitButton label="팔로우하고 알림 받기" />
+    </form>
+  );
+}
+
+function NotificationSubmitButton({ label }: { label: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      className="btn btn-ghost ip-notification-submit"
+      disabled={pending}
+      style={{ minHeight: 44, padding: '0 16px', fontSize: 13.5, fontWeight: 700 }}
+      type="submit"
+    >
+      {pending ? '저장 중' : label}
+    </button>
+  );
+}
+
+function NotificationPreferenceFields({ followState }: { followState: IpFollowState }) {
+  const { pending } = useFormStatus();
+  return (
+    <>
+      <fieldset
+        className="ip-notification-options"
+        disabled={pending}
+        style={{ display: 'flex', flexWrap: 'wrap', gap: 8, margin: 0, padding: 0, border: 0 }}
+      >
+        <legend className="sr-only">IP 알림 종류</legend>
+        <label className="ip-notification-option" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 44, padding: '0 12px', border: '1px solid var(--line-3)', borderRadius: 10, background: 'rgba(8,6,15,.35)', fontSize: 12.5, fontWeight: 700 }}>
+          <input defaultChecked={followState.notifyDrops} name="notifyDrops" role="switch" type="checkbox" value="1" />
+          <span>새 굿즈·드롭</span>
+        </label>
+        <label className="ip-notification-option" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 44, padding: '0 12px', border: '1px solid var(--line-3)', borderRadius: 10, background: 'rgba(8,6,15,.35)', fontSize: 12.5, fontWeight: 700 }}>
+          <input defaultChecked={followState.notifyEvents} name="notifyEvents" role="switch" type="checkbox" value="1" />
+          <span>팝업·이벤트</span>
+        </label>
+      </fieldset>
+      <NotificationSubmitButton label="알림 설정 저장" />
+    </>
+  );
+}
+
+function NotificationPreferencesForm({ followState, ipId }: { followState: IpFollowState; ipId: string }) {
+  return (
+    <form
+      action={setIpNotificationPreferencesAction}
+      aria-label="IP 알림 설정"
+      className="ip-notification-settings"
+      style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}
+    >
+      <input type="hidden" name="ipId" value={ipId} />
+      <input type="hidden" name="next" value={`/ip/${ipId}`} />
+      <input type="hidden" name="setBoth" value="1" />
+      <NotificationPreferenceFields followState={followState} />
+    </form>
+  );
+}
+
 function GachaTiltCard({ card }: { card: Card }) {
   const { cardRef, glareRef, onMouseMove, onMouseLeave } = useTilt();
   return (
@@ -80,11 +149,15 @@ export function IpHub({
   detail,
   followState,
   followError,
+  notificationError,
+  notificationSaved,
 }: {
   ips: Ip[];
   detail: CatalogIpDetail;
   followState: IpFollowState;
   followError: boolean;
+  notificationError: boolean;
+  notificationSaved: boolean;
 }) {
   const { ip, goods, cards, events, posts } = detail;
   const { artRef, onMouseMove, onMouseLeave } = useHeroParallax({ x: -18, y: -12 });
@@ -150,14 +223,30 @@ export function IpHub({
                 <span>POP-UP {events.length}</span>
               </div>
             </div>
-            <div className="rise" style={{ display: 'flex', gap: 10, animationDelay: '.3s' }}>
+            <div className="rise" style={{ display: 'flex', alignItems: 'flex-end', flexWrap: 'wrap', gap: 10, animationDelay: '.3s' }}>
               <FollowForm followState={followState} ipId={ip.id} />
-              <button className="btn" style={{ height: 50, padding: '0 22px', fontSize: 14, border: '1px solid var(--line-3)', background: 'rgba(8,6,15,.35)', backdropFilter: 'blur(8px)' }}>알림 받기</button>
+              {followState.isFollowed
+                ? <NotificationPreferencesForm followState={followState} ipId={ip.id} />
+                : <AutoFollowNotificationForm ipId={ip.id} />}
             </div>
           </div>
           {followError && (
             <div className="card" role="alert" style={{ marginTop: 18, padding: 12, borderRadius: 12, color: 'var(--pink)', fontSize: 13.5, fontWeight: 700 }}>
               팔로우 상태를 저장하지 못했습니다. 잠시 후 다시 시도해주세요.
+            </div>
+          )}
+          {notificationError && (
+            <div className="card" role="alert" style={{ marginTop: 18, padding: 12, borderRadius: 12, color: 'var(--pink)', fontSize: 13.5, fontWeight: 700 }}>
+              알림 설정을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.
+            </div>
+          )}
+          {notificationSaved && !notificationError && (
+            <div
+              aria-live="polite"
+              className="card notification-inline-status notification-inline-status--success"
+              role="status"
+            >
+              알림 설정을 저장했습니다.
             </div>
           )}
         </div>

@@ -10,6 +10,9 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/app/events/actions', () => ({
   reserveTicketsAction: vi.fn(),
 }));
+vi.mock('@/app/ip/actions', () => ({
+  setIpNotificationPreferencesAction: vi.fn(),
+}));
 vi.mock('@/lib/ip-display', async () => await import('../../lib/ip-display'));
 
 const event: FandomEvent = {
@@ -67,6 +70,9 @@ function render(overrides: Partial<Parameters<typeof EventDetail>[0]> = {}) {
       authState="ready"
       event={event}
       ip={ip}
+      notificationError={false}
+      notificationSaved={false}
+      notificationState={null}
       paymentAvailable
       sessions={sessions}
       {...overrides}
@@ -121,5 +127,58 @@ describe('EventDetail', () => {
     expect(html).toContain('전자티켓 이용 안내');
     expect(html).toContain('결제 확인 후 내 티켓에서 QR을 확인');
     expect(html).toContain('href="/tickets"');
+  });
+
+  it('shows a secondary auto-follow action outside booking for scheduled IP events', () => {
+    const html = render({
+      event: { ...event, status: '예정' },
+      notificationError: true,
+      notificationState: { isFollowed: false, notifyDrops: false, notifyEvents: false },
+    });
+    const bookingStart = html.indexOf('event-booking-layout');
+    const bookingEnd = html.indexOf('</form>', bookingStart);
+    const notificationAction = html.indexOf('event-notification-action');
+
+    expect(html).toContain('팔로우하고 새 이벤트 알림 받기');
+    expect(html).toContain('새로운 팝업·이벤트가 공개되면');
+    expect(html).toContain('name="autoFollow" value="1"');
+    expect(html).toContain('name="notifyEvents" value="1"');
+    expect(html).toContain('알림 설정을 저장하지 못했습니다');
+    expect(notificationAction).toBeGreaterThan(bookingEnd);
+  });
+
+  it('lets a followed user explicitly disable an enabled event channel', () => {
+    const html = render({
+      event: { ...event, status: '예정' },
+      notificationState: { isFollowed: true, notifyDrops: true, notifyEvents: true },
+    });
+
+    expect(html).toContain('이 IP 이벤트 알림 끄기');
+    expect(html).toContain('name="notifyEvents" value="0"');
+    expect(html).not.toContain('name="autoFollow"');
+  });
+
+  it('announces a successful event preference update', () => {
+    const html = render({
+      event: { ...event, status: '예정' },
+      notificationSaved: true,
+      notificationState: { isFollowed: true, notifyDrops: true, notifyEvents: true },
+    });
+
+    expect(html).toContain('role="status"');
+    expect(html).toContain('이벤트 알림 설정을 저장했습니다');
+  });
+
+  it('hides the event preference action for non-scheduled or joint events', () => {
+    const state = { isFollowed: false, notifyDrops: false, notifyEvents: false };
+    const booking = render({ notificationState: state });
+    const joint = render({
+      event: { ...event, ip: null, status: '예정' },
+      ip: null,
+      notificationState: state,
+    });
+
+    expect(booking).not.toContain('event-notification-action');
+    expect(joint).not.toContain('event-notification-action');
   });
 });

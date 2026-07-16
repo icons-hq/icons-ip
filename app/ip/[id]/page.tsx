@@ -32,6 +32,8 @@ export default async function Page({ params, searchParams }: PageProps) {
       detail={detail}
       followState={followState}
       followError={firstParam(query.follow_error) === '1'}
+      notificationError={firstParam(query.notification_error) === '1'}
+      notificationSaved={firstParam(query.notification_saved) === '1'}
     />
   );
 }

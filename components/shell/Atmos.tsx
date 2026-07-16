@@ -11,6 +11,7 @@ const VARIANTS: [prefix: string, variant: string][] = [
   ['/events', 'events'],
   ['/ticket-checkout', 'events'],
   ['/tickets', 'events'],
+  ['/notifications', 'notifications'],
   ['/my', 'my'],
   ['/community', 'community'],
   ['/binder', 'binder'],

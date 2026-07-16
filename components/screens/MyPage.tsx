@@ -37,6 +37,13 @@ const DESTINATIONS = [
     meta: 'PACKS',
   },
   {
+    description: '주문, 카드팩, 팔로우한 IP의 새 소식을 확인하세요.',
+    href: '/notifications',
+    icon: 'bell',
+    label: '알림함',
+    meta: 'INBOX',
+  },
+  {
     description: '프로필과 정보 수신 동의를 관리하세요.',
     href: '/settings',
     icon: 'user',

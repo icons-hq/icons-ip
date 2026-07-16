@@ -16,6 +16,13 @@ describe('account routes', () => {
     expect(isActive('my', '/my/preferences')).toBe(true);
     expect(isActive('my', '/settings')).toBe(false);
   });
+
+  it('maps and activates the protected notification inbox and settings surface', () => {
+    expect(hrefFor('notifications')).toBe('/notifications');
+    expect(isActive('notifications', '/notifications')).toBe(true);
+    expect(isActive('notifications', '/notifications/settings')).toBe(true);
+    expect(isActive('notifications', '/settings')).toBe(false);
+  });
 });
 
 describe('isAuthShellPath', () => {

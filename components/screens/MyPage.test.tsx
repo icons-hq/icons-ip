@@ -47,6 +47,7 @@ describe('MyPage', () => {
       ['/tickets', '내 티켓'],
       ['/binder', '바인더'],
       ['/packs', '카드팩'],
+      ['/notifications', '알림함'],
       ['/settings', '설정'],
     ]) {
       expect(html.match(new RegExp(`href="${href}"`, 'g'))).toHaveLength(1);
@@ -55,5 +56,6 @@ describe('MyPage', () => {
 
     expect(html).not.toContain('준비중');
     expect(html).not.toContain('<button');
+    expect(html.match(/class="my-destination card"/g)).toHaveLength(6);
   });
 });
