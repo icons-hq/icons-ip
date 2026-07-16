@@ -15,6 +15,8 @@ import {
 const USER_UPLOADS_BUCKET = 'user-uploads';
 const COMMUNITY_FEED_LIMIT = 30;
 const COMMUNITY_COMMENT_PREVIEW_LIMIT = 3;
+const COMMUNITY_TRENDING_WINDOW_DAYS = 7;
+const COMMUNITY_TRENDING_LIMIT = 10;
 const SIGNED_IMAGE_EXPIRES_IN_SECONDS = 60 * 60;
 
 interface CommunityPostRow {
@@ -53,6 +55,10 @@ interface CommunityLikeRow {
 
 interface CommunityBlockRow {
   blocked_user_id: string;
+}
+
+interface CommunityTrendingTagRow {
+  tag: string;
 }
 
 interface CommunitySnapshotOptions {
@@ -303,8 +309,12 @@ function mockPosts(ips: Ip[]): CommunityFeedPost[] {
   });
 }
 
-async function getSupabasePosts(ips: Ip[], viewerId: string | null, isStaff: boolean) {
-  const supabase = await createClient();
+async function getSupabasePosts(
+  supabase: CommunitySupabaseClient,
+  ips: Ip[],
+  viewerId: string | null,
+  isStaff: boolean,
+) {
   const blockedIds = await blockedUserIds(supabase, viewerId);
   let postsQuery = supabase
     .from('posts')
@@ -367,16 +377,49 @@ async function getSupabasePosts(ips: Ip[], viewerId: string | null, isStaff: boo
   );
 }
 
+async function getSupabaseTrendingTags(supabase: CommunitySupabaseClient) {
+  try {
+    const { data, error } = await supabase.rpc('community_trending_tags', {
+      window_days: COMMUNITY_TRENDING_WINDOW_DAYS,
+      result_limit: COMMUNITY_TRENDING_LIMIT,
+    });
+
+    if (error) return [];
+
+    return ((data ?? []) as CommunityTrendingTagRow[])
+      .map((row) => row.tag)
+      .filter((tag): tag is string => typeof tag === 'string' && tag.length > 0);
+  } catch {
+    return [];
+  }
+}
+
 export async function getCommunitySnapshot(options: CommunitySnapshotOptions = {}): Promise<CommunitySnapshot> {
   const catalog = await getCatalogSnapshot();
   const viewerId = options.viewerId ?? null;
   const isStaff = options.isStaff ?? false;
 
+  if (catalog.source === 'mock') {
+    return {
+      source: 'mock',
+      channels: catalog.ips.map(channelFromIp),
+      goods: catalog.goods,
+      posts: mockPosts(catalog.ips),
+      trending: DATA.TRENDING,
+    };
+  }
+
+  const supabase = await createClient();
+  const [posts, trending] = await Promise.all([
+    getSupabasePosts(supabase, catalog.ips, viewerId, isStaff),
+    getSupabaseTrendingTags(supabase),
+  ]);
+
   return {
-    source: catalog.source,
+    source: 'supabase',
     channels: catalog.ips.map(channelFromIp),
     goods: catalog.goods,
-    posts: catalog.source === 'mock' ? mockPosts(catalog.ips) : await getSupabasePosts(catalog.ips, viewerId, isStaff),
-    trending: DATA.TRENDING,
+    posts,
+    trending,
   };
 }

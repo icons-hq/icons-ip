@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { getCommunitySnapshot } from './community.server';
 import type { CatalogSnapshot } from './catalog';
+import { DATA } from './data';
 
 const mocks = vi.hoisted(() => ({
   catalog: null as CatalogSnapshot | null,
@@ -42,6 +43,12 @@ interface RpcRecord {
 interface CreateClientOptions {
   rpcRecords?: RpcRecord[];
   signedUrlFailures?: ReadonlySet<string>;
+  trendingError?: string;
+  trendingRows?: Array<{
+    tag: string;
+    usage_count: number;
+    latest_post_at: string;
+  }>;
   rows?: Partial<TestRows>;
 }
 
@@ -212,6 +219,12 @@ function createClient(records: QueryRecord[], options: CreateClientOptions = {})
     async rpc(functionName: string, args: Record<string, unknown>) {
       options.rpcRecords?.push({ functionName, args });
 
+      if (functionName === 'community_trending_tags') {
+        return options.trendingError
+          ? { data: null, error: { message: options.trendingError } }
+          : { data: options.trendingRows ?? [], error: null };
+      }
+
       if (functionName !== 'community_post_reaction_counts') {
         return { data: null, error: { message: `Unexpected RPC: ${functionName}` } };
       }
@@ -336,10 +349,70 @@ describe('getCommunitySnapshot', () => {
         in: [['post_id', ['p1']]],
       }),
     ]);
-    expect(rpcRecords).toEqual([{
+    expect(rpcRecords).toHaveLength(2);
+    expect(rpcRecords).toEqual(expect.arrayContaining([{
       functionName: 'community_post_reaction_counts',
       args: { target_post_ids: ['p1'], blocked_user_ids: [] },
-    }]);
+    }, {
+      functionName: 'community_trending_tags',
+      args: { window_days: 7, result_limit: 10 },
+    }]));
+  });
+
+  it('loads the ordered recent trending tags from Supabase', async () => {
+    const records: QueryRecord[] = [];
+    const rpcRecords: RpcRecord[] = [];
+    mocks.catalog = catalog;
+    mocks.client = createClient(records, {
+      rpcRecords,
+      trendingRows: [
+        { tag: '메이플스토리', usage_count: 4, latest_post_at: '2026-07-16T08:00:00.000Z' },
+        { tag: '리락쿠마', usage_count: 3, latest_post_at: '2026-07-16T07:00:00.000Z' },
+      ],
+    });
+
+    const snapshot = await getCommunitySnapshot();
+
+    expect(snapshot.trending).toEqual(['메이플스토리', '리락쿠마']);
+    expect(rpcRecords).toContainEqual({
+      functionName: 'community_trending_tags',
+      args: { window_days: 7, result_limit: 10 },
+    });
+  });
+
+  it('keeps an empty Supabase aggregate empty instead of falling back to mock tags', async () => {
+    mocks.catalog = catalog;
+    mocks.client = createClient([], { trendingRows: [] });
+
+    await expect(getCommunitySnapshot()).resolves.toEqual(expect.objectContaining({
+      source: 'supabase',
+      trending: [],
+    }));
+  });
+
+  it('fails a Supabase trending query closed without breaking the public feed', async () => {
+    mocks.catalog = catalog;
+    mocks.client = createClient([], { trendingError: 'aggregate unavailable' });
+
+    await expect(getCommunitySnapshot()).resolves.toEqual(expect.objectContaining({
+      source: 'supabase',
+      posts: [expect.objectContaining({ id: 'p1' })],
+      trending: [],
+    }));
+  });
+
+  it('uses mock trending tags only when the catalog source is mock', async () => {
+    mocks.catalog = { ...catalog, source: 'mock' };
+    mocks.client = {
+      rpc: () => {
+        throw new Error('Supabase must not be called for a mock snapshot');
+      },
+    };
+
+    await expect(getCommunitySnapshot()).resolves.toEqual(expect.objectContaining({
+      source: 'mock',
+      trending: DATA.TRENDING,
+    }));
   });
 
   it('loads comment previews per post so busy posts do not starve other cards', async () => {
@@ -433,10 +506,14 @@ describe('getCommunitySnapshot', () => {
         img: null,
       }),
     ]);
-    expect(rpcRecords).toEqual([{
+    expect(rpcRecords).toHaveLength(2);
+    expect(rpcRecords).toEqual(expect.arrayContaining([{
       functionName: 'community_post_reaction_counts',
       args: { target_post_ids: ['p1'], blocked_user_ids: [] },
-    }]);
+    }, {
+      functionName: 'community_trending_tags',
+      args: { window_days: 7, result_limit: 10 },
+    }]));
   });
 
   it('excludes posts from authors blocked by the viewer', async () => {
