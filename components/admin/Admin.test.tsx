@@ -7,6 +7,7 @@ import { Admin } from './Admin';
 const hooks = vi.hoisted(() => ({
   cardSelected: null as unknown,
   gameProps: null as unknown,
+  notificationProps: null as unknown,
   policyProps: null as unknown,
   stateValues: [] as unknown[],
 }));
@@ -57,6 +58,14 @@ vi.mock('./sections/GameSection', () => {
 });
 vi.mock('./sections/IpSection', () => ({ IpSection: () => null }));
 vi.mock('./sections/Moderation', () => ({ ModerationSection: () => null }));
+vi.mock('./sections/NotificationSection', () => {
+  const NotificationSection = (props: unknown) => {
+    hooks.notificationProps = props;
+    return null;
+  };
+  NotificationSection.displayName = 'AdminNotificationSectionMock';
+  return { NotificationSection };
+});
 vi.mock('./sections/Overview', () => ({ OverviewSection: () => null }));
 vi.mock('./sections/Orders', () => ({ OrdersSection: () => null }));
 vi.mock('./sections/Roles', () => ({ RolesSection: () => null }));
@@ -161,6 +170,8 @@ function createProps(
     ticketOperationId: '66666666-6666-4666-8666-666666666666',
     gameEndOperationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
     gameOperationId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    notificationConsole: { audiences: [], history: [] },
+    notificationOperationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
   } as unknown as Parameters<typeof Admin>[0];
 }
 
@@ -250,6 +261,22 @@ describe('Admin game selection', () => {
       operationId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
       records: [latestGame],
       selected: latestGame,
+    });
+  });
+});
+
+describe('Admin notification console', () => {
+  beforeEach(() => {
+    hooks.notificationProps = null;
+    hooks.stateValues = ['notifications', false, null, null, null, null, null, null, null, null];
+  });
+
+  it('서버에서 적재한 대상·이력과 operation ID를 전달한다', () => {
+    renderToStaticMarkup(<Admin {...createProps([])} />);
+
+    expect(hooks.notificationProps).toEqual({
+      data: { audiences: [], history: [] },
+      operationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     });
   });
 });

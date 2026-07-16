@@ -17,6 +17,7 @@ import type {
 } from '@/lib/admin/catalog.server';
 import type { AdminInsights } from '@/lib/admin/insights.server';
 import type { AdminModerationRecords } from '@/lib/admin/moderation.server';
+import type { AdminNotificationConsoleData } from '@/lib/admin/notifications';
 import type { AdminOrderConsoleData } from '@/lib/admin/orders';
 import type { AdminProfileRecord } from '@/lib/admin/roles.server';
 import type { CatalogSnapshot } from '@/lib/catalog';
@@ -29,13 +30,14 @@ import { GoodSection } from './sections/GoodSection';
 import { GameSection } from './sections/GameSection';
 import { IpSection } from './sections/IpSection';
 import { ModerationSection } from './sections/Moderation';
+import { NotificationSection } from './sections/NotificationSection';
 import { OverviewSection } from './sections/Overview';
 import { OrdersSection } from './sections/Orders';
 import { RewardPolicySection } from './sections/RewardPolicySection';
 import { RolesSection } from './sections/Roles';
 import { TicketSection } from './sections/TicketSection';
 
-export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'pool' | 'policy' | 'game' | 'event' | 'ticket' | 'moderation' | 'roles';
+export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'pool' | 'policy' | 'game' | 'event' | 'ticket' | 'notifications' | 'moderation' | 'roles';
 
 const SECTION_TITLES: Record<AdminSection, string> = {
   overview: '개요',
@@ -48,6 +50,7 @@ const SECTION_TITLES: Record<AdminSection, string> = {
   game: '게임 관리',
   event: '이벤트 관리',
   ticket: '티켓 회차 관리',
+  notifications: '공지·알림 발송',
   moderation: '모더레이션',
   roles: '역할 관리',
 };
@@ -64,6 +67,8 @@ interface AdminProps {
   initialSection?: AdminSection;
   insights: AdminInsights;
   moderation: AdminModerationRecords;
+  notificationConsole: AdminNotificationConsoleData;
+  notificationOperationId: string;
   orders: AdminOrderConsoleData;
   profiles: AdminProfileRecord[];
   records: AdminCatalogRecords;
@@ -87,6 +92,8 @@ export function Admin({
   initialSection,
   insights,
   moderation,
+  notificationConsole,
+  notificationOperationId,
   orders,
   profiles,
   records,
@@ -268,6 +275,9 @@ export function Admin({
                 records={records.ticketTypes}
                 selected={selectedTicketType}
               />
+            )}
+            {active === 'notifications' && (
+              <NotificationSection data={notificationConsole} operationId={notificationOperationId} />
             )}
             {active === 'moderation' && <ModerationSection reports={moderation.reports} />}
             {active === 'roles' && admin.role === 'admin' && (
