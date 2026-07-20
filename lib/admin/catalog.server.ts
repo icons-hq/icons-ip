@@ -7,6 +7,7 @@ import { normalizePublicMediaObjectPath } from './artwork';
 
 export interface AdminIpRecord {
   id: string;
+  archivedAt: string | null;
   title: string;
   sub: string | null;
   verticalKey: string;
@@ -22,6 +23,7 @@ export interface AdminIpRecord {
 
 export interface AdminGoodRecord {
   id: string;
+  archivedAt: string | null;
   ipId: string;
   name: string;
   type: string;
@@ -36,6 +38,7 @@ export interface AdminGoodRecord {
 
 export interface AdminCardRecord {
   id: string;
+  archivedAt: string | null;
   ipId: string;
   poolId: string | null;
   name: string;
@@ -178,6 +181,7 @@ export interface AdminGameRecord {
 
 export interface AdminEventRecord {
   id: string;
+  archivedAt: string | null;
   ipId: string | null;
   title: string;
   mode: string;
@@ -216,6 +220,7 @@ export interface AdminCatalogRecords {
 
 interface IpRow {
   id: string;
+  archived_at: string | null;
   title: string;
   sub: string | null;
   vertical_key: string;
@@ -230,6 +235,7 @@ interface IpRow {
 
 interface GoodRow {
   id: string;
+  archived_at: string | null;
   ip_id: string;
   name: string;
   type: string;
@@ -243,6 +249,7 @@ interface GoodRow {
 
 interface CardRow {
   id: string;
+  archived_at: string | null;
   ip_id: string;
   pool_id: string | null;
   name: string;
@@ -264,6 +271,7 @@ interface CardPoolRow {
 
 interface EventRow {
   id: string;
+  archived_at: string | null;
   ip_id: string | null;
   title: string;
   mode: string;
@@ -348,7 +356,11 @@ function hasReadyPoolOdds(pool: CardPoolRow, cards: CardRow[]) {
 
   return odds.every((odd) => (
     Number(odd.probability) === 0
-    || cards.some((card) => card.pool_id === pool.id && card.rarity === odd.rarity)
+    || cards.some((card) => (
+      card.archived_at === null
+      && card.pool_id === pool.id
+      && card.rarity === odd.rarity
+    ))
   ));
 }
 
@@ -372,15 +384,15 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
   ] = await Promise.all([
     supabase
       .from('ips')
-      .select('id,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count')
+      .select('id,archived_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count')
       .order('id'),
     supabase
       .from('goods')
-      .select('id,ip_id,name,type,price,badge,stock,stock_qty,bg,image_path')
+      .select('id,archived_at,ip_id,name,type,price,badge,stock,stock_qty,bg,image_path')
       .order('id'),
     supabase
       .from('cards')
-      .select('id,ip_id,pool_id,name,no,rarity,bg,image_path')
+      .select('id,archived_at,ip_id,pool_id,name,no,rarity,bg,image_path')
       .order('id'),
     supabase
       .from('card_pools')
@@ -389,7 +401,7 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
       .order('name'),
     supabase
       .from('events')
-      .select('id,ip_id,title,mode,status,starts_at,ends_at,location,accent,bg,image_path')
+      .select('id,archived_at,ip_id,title,mode,status,starts_at,ends_at,location,accent,bg,image_path')
       .order('id'),
     supabase
       .from('ticket_types')
@@ -419,6 +431,7 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
 
   const events = ((eventsResult.data ?? []) as EventRow[]).map((row) => ({
     id: row.id,
+    archivedAt: row.archived_at,
     ipId: row.ip_id,
     title: row.title,
     mode: row.mode,
@@ -434,6 +447,7 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
   const eventTitles = new Map(events.map((event) => [event.id, event.title]));
   const cards = cardRows.map((row) => ({
     id: row.id,
+    archivedAt: row.archived_at,
     ipId: row.ip_id,
     poolId: row.pool_id,
     name: row.name,
@@ -468,6 +482,7 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
   return {
     ips: ((ipsResult.data ?? []) as IpRow[]).map((row) => ({
       id: row.id,
+      archivedAt: row.archived_at,
       title: row.title,
       sub: row.sub,
       verticalKey: row.vertical_key,
@@ -482,6 +497,7 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
     })),
     goods: ((goodsResult.data ?? []) as GoodRow[]).map((row) => ({
       id: row.id,
+      archivedAt: row.archived_at,
       ipId: row.ip_id,
       name: row.name,
       type: row.type,

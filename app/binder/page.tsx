@@ -1,9 +1,20 @@
 import { Binder } from '@/components/screens/Binder';
-import { getCatalogSnapshot } from '@/lib/catalog';
-import { getOwnedCardIds } from '@/lib/draw-tickets';
+import { getBinderCatalogOverlay, getCatalogSnapshot } from '@/lib/catalog';
 
 export default async function Page() {
   const catalog = await getCatalogSnapshot();
-  const ownedCardIds = catalog.source === 'supabase' ? await getOwnedCardIds() : null;
-  return <Binder catalog={catalog} ownedCardIds={ownedCardIds} />;
+  const overlay = catalog.source === 'supabase' ? await getBinderCatalogOverlay() : null;
+  const cards = overlay
+    ? [...new Map([...catalog.cards, ...overlay.cards].map((card) => [card.id, card])).values()]
+    : catalog.cards;
+  const ips = overlay
+    ? [...new Map([...catalog.ips, ...overlay.ips].map((ip) => [ip.id, ip])).values()]
+    : catalog.ips;
+
+  return (
+    <Binder
+      catalog={{ ...catalog, cards, ips }}
+      ownedCardIds={overlay?.ownedCardIds ?? null}
+    />
+  );
 }

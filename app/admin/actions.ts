@@ -145,8 +145,72 @@ function artworkClaimFailure(message: string): AdminCatalogActionState | null {
     : null;
 }
 
+function archivedParentFailure(message: string): AdminCatalogActionState | null {
+  return message.includes('parent_archived')
+    ? rpcFailure('상위 IP를 먼저 복원해주세요.')
+    : null;
+}
+
+function archivedCatalogFailure(message: string): AdminCatalogActionState | null {
+  return message.includes('catalog_item_archived')
+    ? rpcFailure('보관된 카탈로그 항목을 먼저 복원해주세요.')
+    : null;
+}
+
 function getAdminValidationCatalog() {
   return getCatalogSnapshot({ previewDefaultSource: 'supabase' });
+}
+
+type AdminValidationRecordKind = 'good' | 'card' | 'cardPool' | 'rewardPolicy' | 'event' | 'ticketType';
+
+function formString(formData: FormData, key: string) {
+  const value = formData.get(key);
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+async function getAdminValidationContext(
+  formData: FormData,
+  kind: AdminValidationRecordKind,
+) {
+  const [catalog, records] = await Promise.all([
+    getAdminValidationCatalog(),
+    getAdminCatalogRecords(),
+  ]);
+  const activeContext = catalogContextFromSnapshot(catalog);
+  const context = {
+    ...activeContext,
+    eventIds: new Set(activeContext.eventIds),
+    goodIpById: new Map(activeContext.goodIpById),
+    ipIds: new Set(activeContext.ipIds),
+  };
+  const id = formString(formData, 'id');
+
+  if (kind === 'good') {
+    const current = records.goods.find((record) => record.id === id);
+    if (current) context.ipIds.add(current.ipId);
+  } else if (kind === 'card') {
+    const current = records.cards.find((record) => record.id === id);
+    if (current) context.ipIds.add(current.ipId);
+  } else if (kind === 'cardPool') {
+    const current = records.cardPools.find((record) => record.id === id);
+    if (current) context.ipIds.add(current.ipId);
+  } else if (kind === 'rewardPolicy') {
+    const current = records.rewardPolicies.find((record) => record.id === id);
+    if (current) {
+      context.ipIds.add(current.targetIpId);
+      if (current.targetGoodId) {
+        context.goodIpById.set(current.targetGoodId, current.targetIpId);
+      }
+    }
+  } else if (kind === 'event') {
+    const current = records.events.find((record) => record.id === id);
+    if (current?.ipId) context.ipIds.add(current.ipId);
+  } else {
+    const current = records.ticketTypes.find((record) => record.id === id);
+    if (current) context.eventIds.add(current.eventId);
+  }
+
+  return context;
 }
 
 export async function upsertAdminIpAction(
@@ -191,8 +255,8 @@ export async function upsertAdminGoodAction(
   const authError = await requireStaffAction();
   if (authError) return authError;
 
-  const catalog = await getAdminValidationCatalog();
-  const result = normalizeAdminGoodForm(formData, catalogContextFromSnapshot(catalog));
+  const context = await getAdminValidationContext(formData, 'good');
+  const result = normalizeAdminGoodForm(formData, context);
   if (!result.ok) return { errors: result.errors };
 
   const value = result.value;
@@ -212,6 +276,7 @@ export async function upsertAdminGoodAction(
 
   if (error) {
     return artworkClaimFailure(error.message)
+      ?? archivedParentFailure(error.message)
       ?? rpcFailure('굿즈를 저장하지 못했습니다. 다시 시도해주세요.');
   }
 
@@ -241,6 +306,8 @@ export async function adjustAdminStockAction(
   });
 
   if (error) {
+    const archivedError = archivedCatalogFailure(error.message);
+    if (archivedError) return archivedError;
     if (error.message.includes('stock_changed')) {
       revalidateStock(ipPath);
       return rpcFailure('실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.');
@@ -269,8 +336,8 @@ export async function upsertAdminCardAction(
   const authError = await requireStaffAction();
   if (authError) return authError;
 
-  const catalog = await getAdminValidationCatalog();
-  const result = normalizeAdminCardForm(formData, catalogContextFromSnapshot(catalog));
+  const context = await getAdminValidationContext(formData, 'card');
+  const result = normalizeAdminCardForm(formData, context);
   if (!result.ok) return { errors: result.errors };
 
   const value = result.value;
@@ -292,6 +359,10 @@ export async function upsertAdminCardAction(
     revalidatePath('/admin');
     const artworkError = artworkClaimFailure(error.message);
     if (artworkError) return artworkError;
+    const parentError = archivedParentFailure(error.message);
+    if (parentError) return parentError;
+    const archivedError = archivedCatalogFailure(error.message);
+    if (archivedError) return archivedError;
     if (error.message.includes('card_pool_ip_mismatch')) {
       return rpcFailure('카드와 같은 IP의 카드풀만 연결할 수 있습니다.');
     }
@@ -318,8 +389,8 @@ export async function upsertAdminCardPoolAction(
   const authError = await requireStaffAction();
   if (authError) return authError;
 
-  const catalog = await getAdminValidationCatalog();
-  const result = normalizeAdminCardPoolForm(formData, catalogContextFromSnapshot(catalog));
+  const context = await getAdminValidationContext(formData, 'cardPool');
+  const result = normalizeAdminCardPoolForm(formData, context);
   if (!result.ok) return { errors: result.errors };
 
   const value = result.value;
@@ -334,6 +405,8 @@ export async function upsertAdminCardPoolAction(
   });
 
   if (error) {
+    const archivedError = archivedCatalogFailure(error.message);
+    if (archivedError) return archivedError;
     if (error.message.includes('pool_ip_locked')) {
       return rpcFailure('연결된 발급 정책·게임·카드팩·발급 이력이 있어 카드풀 IP를 변경할 수 없습니다.');
     }
@@ -382,6 +455,8 @@ export async function setAdminPoolOddsAction(
   });
 
   if (error) {
+    const archivedError = archivedCatalogFailure(error.message);
+    if (archivedError) return archivedError;
     if (error.message.includes('pool_rarity_uncovered')) {
       return rpcFailure('양수 확률인 모든 등급에 소속 카드가 필요합니다.');
     }
@@ -412,8 +487,8 @@ export async function upsertAdminRewardPolicyAction(
   const authError = await requireStaffAction();
   if (authError) return authError;
 
-  const catalog = await getAdminValidationCatalog();
-  const result = normalizeAdminRewardPolicyForm(formData, catalogContextFromSnapshot(catalog));
+  const context = await getAdminValidationContext(formData, 'rewardPolicy');
+  const result = normalizeAdminRewardPolicyForm(formData, context);
   if (!result.ok) return { errors: result.errors };
 
   const value = result.value;
@@ -433,6 +508,8 @@ export async function upsertAdminRewardPolicyAction(
   });
 
   if (error) {
+    const archivedError = archivedCatalogFailure(error.message);
+    if (archivedError) return archivedError;
     if (error.message.includes('auth_required')) {
       return rpcFailure('로그인이 필요합니다.');
     }
@@ -521,6 +598,8 @@ export async function upsertAdminGameAction(
   });
 
   if (error) {
+    const archivedError = archivedCatalogFailure(error.message);
+    if (archivedError) return archivedError;
     if (error.message.includes('auth_required')) return rpcFailure('로그인이 필요합니다.');
     if (error.message.includes('forbidden')) return rpcFailure('관리자 권한이 필요합니다.');
     if (error.message.includes('invalid_operation_id')) {
@@ -619,8 +698,8 @@ export async function upsertAdminEventAction(
   const authError = await requireStaffAction();
   if (authError) return authError;
 
-  const catalog = await getAdminValidationCatalog();
-  const result = normalizeAdminEventForm(formData, catalogContextFromSnapshot(catalog));
+  const context = await getAdminValidationContext(formData, 'event');
+  const result = normalizeAdminEventForm(formData, context);
   if (!result.ok) return { errors: result.errors };
 
   const value = result.value;
@@ -643,6 +722,8 @@ export async function upsertAdminEventAction(
   if (error) {
     const artworkError = artworkClaimFailure(error.message);
     if (artworkError) return artworkError;
+    const parentError = archivedParentFailure(error.message);
+    if (parentError) return parentError;
     if (error.message.includes('game_event_contract_locked')) {
       return rpcFailure('연결된 게임이 있어 이벤트 IP·운영 방식을 변경할 수 없습니다.');
     }
@@ -660,8 +741,8 @@ export async function upsertAdminTicketTypeAction(
   const authError = await requireStaffAction();
   if (authError) return authError;
 
-  const catalog = await getAdminValidationCatalog();
-  const result = normalizeAdminTicketTypeForm(formData, catalogContextFromSnapshot(catalog));
+  const context = await getAdminValidationContext(formData, 'ticketType');
+  const result = normalizeAdminTicketTypeForm(formData, context);
   if (!result.ok) return { errors: result.errors };
 
   const value = result.value;
@@ -676,6 +757,11 @@ export async function upsertAdminTicketTypeAction(
   });
 
   if (error) {
+    const archivedError = archivedCatalogFailure(error.message);
+    if (archivedError) {
+      revalidateTicketing();
+      return archivedError;
+    }
     if (error.message.includes('capacity_below_sold')) {
       revalidateTicketing();
       return rpcFailure('정원은 현재 할당 수량보다 작게 줄일 수 없습니다.');

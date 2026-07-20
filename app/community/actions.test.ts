@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
   catalog: null as CatalogSnapshot | null,
   insert: vi.fn(),
+  loadPost: vi.fn(),
   rpc: vi.fn(),
   upload: vi.fn(),
   revalidatePath: vi.fn(),
@@ -34,8 +35,13 @@ vi.mock('@/lib/supabase/server', () => ({
     rpc: mocks.rpc,
     from: (table: string) => {
       if (table !== 'posts') throw new Error(`Unexpected table ${table}`);
+      const postQuery = {
+        eq: () => postQuery,
+        maybeSingle: mocks.loadPost,
+      };
       return {
         insert: mocks.insert,
+        select: () => postQuery,
       };
     },
     storage: {
@@ -173,6 +179,8 @@ describe('createCommunityPostAction', () => {
       isStaff: false,
     };
     mocks.catalog = catalog;
+    mocks.loadPost.mockReset();
+    mocks.loadPost.mockResolvedValue({ data: { ip_id: 'hwasan' }, error: null });
     mocks.insert.mockReset();
     mocks.rpc.mockReset();
     mocks.upload.mockReset();
@@ -263,6 +271,18 @@ describe('createCommunityPostAction', () => {
       errors: { form: '정지된 계정은 새 포스트를 작성할 수 없습니다.' },
     });
   });
+
+  it('maps an IP archive race to the channel field without exposing database detail', async () => {
+    mocks.insert.mockReturnValue({
+      select: () => ({
+        single: async () => ({ data: null, error: { message: 'catalog_item_archived private detail' } }),
+      }),
+    });
+
+    await expect(createCommunityPostAction({}, postForm())).resolves.toEqual({
+      errors: { ipId: '운영 중인 IP 채널을 선택해주세요.' },
+    });
+  });
 });
 
 describe('editCommunityPostAction', () => {
@@ -280,6 +300,8 @@ describe('editCommunityPostAction', () => {
       isStaff: false,
     };
     mocks.catalog = catalog;
+    mocks.loadPost.mockReset();
+    mocks.loadPost.mockResolvedValue({ data: { ip_id: 'hwasan' }, error: null });
     mocks.rpc.mockReset();
     mocks.revalidatePath.mockReset();
   });
@@ -362,6 +384,37 @@ describe('editCommunityPostAction', () => {
     ]));
   });
 
+  it('allows a text-only edit to preserve the post current archived IP', async () => {
+    mocks.loadPost.mockResolvedValue({ data: { ip_id: 'archived-ip' }, error: null });
+    mocks.rpc.mockResolvedValue({
+      data: {
+        previousIpId: 'archived-ip',
+        ipId: 'archived-ip',
+        updatedAt: '2026-07-17T15:30:00.000Z',
+      },
+      error: null,
+    });
+    const formData = editPostForm();
+    formData.set('ipId', 'archived-ip');
+
+    await expect(editCommunityPostAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/community');
+
+    expect(mocks.rpc).toHaveBeenCalledWith('edit_own_post', expect.objectContaining({
+      target_post_id: postId,
+      post_ip_id: 'archived-ip',
+    }));
+  });
+
+  it('rejects changing a valid post to an unrelated archived IP before the RPC', async () => {
+    const formData = editPostForm();
+    formData.set('ipId', 'archived-ip');
+
+    await expect(editCommunityPostAction({}, formData)).resolves.toEqual({
+      errors: { ipId: 'IP 채널을 선택해주세요.' },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it('accepts a snake-case array RPC result and rejects an external next path', async () => {
     mocks.rpc.mockResolvedValue({
       data: [{
@@ -393,6 +446,14 @@ describe('editCommunityPostAction', () => {
 
     await expect(editCommunityPostAction({}, editPostForm())).resolves.toEqual({
       errors: { form: '정지된 계정은 포스트를 수정할 수 없습니다.' },
+    });
+  });
+
+  it('maps an IP archive race to the edit channel field', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_item_archived private detail' } });
+
+    await expect(editCommunityPostAction({}, editPostForm())).resolves.toEqual({
+      errors: { ipId: '운영 중인 IP 채널을 선택해주세요.' },
     });
   });
 });

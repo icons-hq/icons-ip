@@ -24,6 +24,7 @@ const pool: AdminCardPoolRecord = {
 
 const card: AdminCardRecord = {
   id: 'c100',
+  archivedAt: null,
   ipId: 'hwasan',
   poolId: pool.id,
   name: '청명 홀로 카드',
@@ -37,13 +38,14 @@ function renderPool(
   selected: AdminCardPoolRecord | null = pool,
   cards: AdminCardRecord[] = [card],
   records: AdminCardPoolRecord[] = [pool],
+  ipOptions = [{ id: 'hwasan', title: '화산강림', archivedAt: null as string | null }],
 ) {
   return renderToStaticMarkup(
     <CardPoolSection
       cards={cards}
       draftActiveFrom="2026-07-15T02:00:00.000Z"
       draftId="22222222-2222-4222-8222-222222222222"
-      ipOptions={[{ id: 'hwasan', title: '화산강림' }]}
+      ipOptions={ipOptions}
       oddsOperationId="33333333-3333-4333-8333-333333333333"
       onEditCard={vi.fn()}
       onSelect={vi.fn()}
@@ -88,6 +90,16 @@ describe('CardPoolSection', () => {
     expect(html).toContain('HOLO 등급 카드가 없습니다.');
   });
 
+  it('keeps archived roster history without counting it as an issuable rarity', () => {
+    const html = renderPool(pool, [{
+      ...card,
+      archivedAt: '2026-07-17T12:00:00.000Z',
+    }]);
+
+    expect(html).toContain('HOLO 등급 카드가 없습니다.');
+    expect(html).toContain('[보관] 청명 홀로 카드');
+  });
+
   it('shows an explicit warning before a pool has any configured odds', () => {
     const html = renderPool({
       ...pool,
@@ -96,6 +108,32 @@ describe('CardPoolSection', () => {
     });
 
     expect(html).toContain('등급별 발급 확률이 아직 설정되지 않았습니다.');
+  });
+
+  it('preserves an archived current IP but disables it for new pools', () => {
+    const archivedIps = [{
+      id: 'hwasan',
+      title: '화산강림',
+      archivedAt: '2026-07-17T12:00:00.000Z',
+    }];
+    const existing = renderPool(pool, [card], [pool], archivedIps);
+    const creating = renderPool(null, [], [], archivedIps);
+
+    expect(existing).toContain('value="hwasan" selected="">[보관] 화산강림');
+    expect(existing).not.toContain('disabled="" value="hwasan" selected=""');
+    expect(creating).toContain('<option value="" selected="">선택</option>');
+    expect(creating).toContain('disabled="" value="hwasan">[보관] 화산강림');
+    expect(creating).toContain('먼저 IP를 등록해주세요.');
+  });
+
+  it('defaults a new pool to the first active IP when an archived IP sorts first', () => {
+    const html = renderPool(null, [], [], [
+      { id: 'archived', title: '보관 IP', archivedAt: '2026-07-17T12:00:00.000Z' },
+      { id: 'active', title: '운영 IP', archivedAt: null },
+    ]);
+
+    expect(html).toContain('disabled="" value="archived">[보관] 보관 IP');
+    expect(html).toContain('value="active" selected="">운영 IP');
   });
 
   it('calculates exact milli-percent totals and rejects transient invalid input', () => {

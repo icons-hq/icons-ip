@@ -417,6 +417,103 @@ describe('admin catalog actions', () => {
     }
   });
 
+  it.each([
+    {
+      label: '굿즈',
+      action: upsertAdminGoodAction,
+      makeForm: () => {
+        const form = goodForm();
+        form.set('ipId', 'archived-ip');
+        return form;
+      },
+      records: { goods: [{ id: 'g100', ipId: 'archived-ip' }] },
+      expected: '굿즈를 저장했습니다.',
+    },
+    {
+      label: '카드',
+      action: upsertAdminCardAction,
+      makeForm: () => {
+        const form = cardForm();
+        form.set('ipId', 'archived-ip');
+        return form;
+      },
+      records: { cards: [{ id: 'c100', ipId: 'archived-ip' }] },
+      expected: '카드를 저장했습니다.',
+    },
+    {
+      label: '카드풀',
+      action: upsertAdminCardPoolAction,
+      makeForm: () => {
+        const form = cardPoolForm();
+        form.set('ipId', 'archived-ip');
+        return form;
+      },
+      records: {
+        cardPools: [{ id: '22222222-2222-4222-8222-222222222222', ipId: 'archived-ip' }],
+      },
+      expected: '카드풀을 저장했습니다.',
+    },
+    {
+      label: '발급 정책',
+      action: upsertAdminRewardPolicyAction,
+      makeForm: () => {
+        const form = rewardPolicyForm();
+        form.set('targetIpId', 'archived-ip');
+        form.set('targetGoodId', 'archived-good');
+        return form;
+      },
+      records: {
+        goods: [{ id: 'archived-good', ipId: 'archived-ip' }],
+        rewardPolicies: [{
+          id: '55555555-5555-4555-8555-555555555555',
+          targetIpId: 'archived-ip',
+          targetGoodId: 'archived-good',
+        }],
+      },
+      expected: '발급 정책을 저장했습니다.',
+    },
+    {
+      label: '이벤트',
+      action: upsertAdminEventAction,
+      makeForm: () => {
+        const form = eventForm();
+        form.set('ipId', 'archived-ip');
+        return form;
+      },
+      records: { events: [{ id: 'e100', ipId: 'archived-ip' }] },
+      expected: '이벤트를 저장했습니다.',
+    },
+    {
+      label: '티켓 회차',
+      action: upsertAdminTicketTypeAction,
+      makeForm: () => {
+        const form = ticketTypeForm();
+        form.set('eventId', 'archived-event');
+        return form;
+      },
+      records: {
+        ticketTypes: [{ id: '22222222-2222-4222-8222-222222222222', eventId: 'archived-event' }],
+      },
+      expected: '티켓 회차를 저장했습니다.',
+    },
+  ])('allows $label metadata edits to preserve its current archived relationship', async ({
+    action,
+    expected,
+    makeForm,
+    records,
+  }) => {
+    mocks.getCatalogSnapshot.mockResolvedValue({
+      ...catalog,
+      ips: [],
+      goods: [],
+      events: [],
+    });
+    mocks.getAdminCatalogRecords.mockResolvedValue({ ...adminRecords, ...records });
+
+    await expect(action({}, makeForm())).resolves.toEqual({ message: expected });
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
   it('rejects an invalid stock adjustment before calling the RPC', async () => {
     const formData = stockAdjustmentForm();
     formData.set('delta', '0');
@@ -448,6 +545,7 @@ describe('admin catalog actions', () => {
   it.each([
     ['stock_out_of_range', '재고는 0개 미만이거나 허용 범위를 넘도록 조정할 수 없습니다.'],
     ['good_not_found', '굿즈를 찾을 수 없습니다.'],
+    ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
     ['stock_changed', '실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.'],
     ['adjustment_conflict', '이미 사용된 재고 조정 요청입니다. 최신 수량을 확인해주세요.'],
   ])('maps %s stock RPC errors without exposing internals', async (rpcMessage, expected) => {
@@ -489,6 +587,18 @@ describe('admin catalog actions', () => {
       errors: { form: '연결된 게임이 있어 이벤트 IP·운영 방식을 변경할 수 없습니다.' },
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['굿즈', upsertAdminGoodAction, goodForm],
+    ['카드', upsertAdminCardAction, cardForm],
+    ['이벤트', upsertAdminEventAction, eventForm],
+  ])('maps an archived-parent race while saving %s', async (_label, action, makeForm) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'parent_archived private detail' } });
+
+    await expect(action({}, makeForm())).resolves.toEqual({
+      errors: { form: '상위 IP를 먼저 복원해주세요.' },
+    });
   });
 
   it('saves a card with an explicit pool binding through the audited RPC', async () => {
@@ -638,6 +748,7 @@ describe('admin catalog actions', () => {
 
   it.each([
     ['reward_pool_not_ready', '확률과 카드 구성이 완료된 운영 가능한 카드풀을 선택해주세요.'],
+    ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
     ['game_pool_window_not_covered', '게임 운영 기간은 카드풀 운영 기간 안에 있어야 합니다.'],
     ['game_event_ip_mismatch', '같은 IP의 온라인 이벤트만 선택할 수 있습니다.'],
     ['game_catalog_locked', '플레이 이력이 있어 ID·카드풀·이벤트·설정을 변경할 수 없습니다.'],
@@ -711,6 +822,7 @@ describe('admin catalog actions', () => {
     ['reward_pool_not_ready', '확률과 카드 구성이 완료된 운영 가능한 카드풀을 선택해주세요.'],
     ['reward_policy_pool_window_disjoint', '정책과 카드풀 운영 기간이 겹쳐야 합니다.'],
     ['reward_policy_pool_locked', '이미 발급 이력이 있어 카드풀을 변경할 수 없습니다.'],
+    ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
     ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
   ])('maps %s reward-policy RPC errors without leaking SQL', async (rpcMessage, expected) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
@@ -739,6 +851,7 @@ describe('admin catalog actions', () => {
     ['invalid_pool_active_window', '운영 종료는 시작보다 뒤여야 합니다.'],
     ['active_reward_policy_window_conflict', '활성 발급 정책과 운영 기간이 겹치지 않습니다. 먼저 정책을 비활성화해주세요.'],
     ['game_pool_window_conflict', '카드풀 운영 기간은 연결된 게임 운영 기간 전체를 포함해야 합니다.'],
+    ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
     ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
   ])('maps %s card-pool RPC errors without exposing internals', async (rpcMessage, expected) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
@@ -751,6 +864,7 @@ describe('admin catalog actions', () => {
 
   it.each([
     ['pool_rarity_uncovered', '양수 확률인 모든 등급에 소속 카드가 필요합니다.'],
+    ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
     ['invalid_pool_probability', '각 확률과 합계가 올바른지 확인해주세요.'],
     ['invalid_probability_precision', '각 확률과 합계가 올바른지 확인해주세요.'],
     ['pool_odds_must_sum_to_one', '각 확률과 합계가 올바른지 확인해주세요.'],
@@ -766,6 +880,7 @@ describe('admin catalog actions', () => {
 
   it.each([
     ['card_pool_ip_mismatch', '카드와 같은 IP의 카드풀만 연결할 수 있습니다.'],
+    ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
     ['pool_rarity_uncovered', '현재 풀의 마지막 양수 확률 카드는 이동하거나 해제할 수 없습니다.'],
     ['pooled_card_catalog_contract_locked', '풀에 연결된 카드는 먼저 풀을 해제한 뒤 IP·등급을 변경해주세요.'],
   ])('maps %s card binding errors without exposing internals', async (rpcMessage, expected) => {
@@ -822,6 +937,7 @@ describe('admin catalog actions', () => {
     ['capacity_below_sold', '정원은 현재 할당 수량보다 작게 줄일 수 없습니다.'],
     ['ticket_type_catalog_locked', '예매 이력이 있는 회차는 이벤트·회차명·가격을 변경할 수 없습니다.'],
     ['event_not_found', '연결할 이벤트를 찾을 수 없습니다.'],
+    ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
     ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
   ])('maps %s ticket session RPC errors without exposing internals', async (rpcMessage, expected) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });

@@ -139,6 +139,10 @@ function isAccountSuspendedError(error: { message?: string | null } | null | und
   return error?.message?.toLowerCase().includes('account_suspended') === true;
 }
 
+function isCatalogItemArchivedError(error: { message?: string | null } | null | undefined) {
+  return error?.message?.toLowerCase().includes('catalog_item_archived') === true;
+}
+
 function revalidateCommunitySurfaces(ipId: string | null) {
   revalidatePath('/community');
   revalidatePath('/');
@@ -211,6 +215,9 @@ export async function createCommunityPostAction(
     if (isAccountSuspendedError(error)) {
       return { errors: { form: '정지된 계정은 새 포스트를 작성할 수 없습니다.' } };
     }
+    if (isCatalogItemArchivedError(error)) {
+      return { errors: { ipId: '운영 중인 IP 채널을 선택해주세요.' } };
+    }
     return { errors: { form: '포스트를 저장하지 못했습니다. 다시 시도해주세요.' } };
   }
 
@@ -226,16 +233,31 @@ export async function editCommunityPostAction(
   formData: FormData,
 ): Promise<CommunityPostEditActionState> {
   const next = readNext(formData);
-  await requireActiveCommunityUser(next);
+  const user = await requireActiveCommunityUser(next);
 
   const catalog = await getCatalogSnapshot();
-  const normalized = normalizeCommunityPostEditForm(formData, new Set(catalog.ips.map((ip) => ip.id)));
+  const supabase = await createClient();
+  const postId = normalizeCommunityUuid(formData.get('postId'));
+  const allowedIpIds = new Set(catalog.ips.map((ip) => ip.id));
+
+  if (postId) {
+    const { data: currentPost, error: currentPostError } = await supabase
+      .from('posts')
+      .select('ip_id')
+      .eq('id', postId)
+      .eq('user_id', user.id)
+      .eq('status', 'visible')
+      .maybeSingle<{ ip_id: string | null }>();
+
+    if (!currentPostError && currentPost?.ip_id) allowedIpIds.add(currentPost.ip_id);
+  }
+
+  const normalized = normalizeCommunityPostEditForm(formData, allowedIpIds);
   if (!normalized.ok) return { errors: normalized.errors };
 
-  const supabase = await createClient();
-  const { postId, text, ipId, tag } = normalized.value;
+  const { text, ipId, tag } = normalized.value;
   const { data, error } = await supabase.rpc('edit_own_post', {
-    target_post_id: postId,
+    target_post_id: normalized.value.postId,
     post_text: text,
     post_ip_id: ipId,
     post_tag: tag,
@@ -243,6 +265,9 @@ export async function editCommunityPostAction(
   const result = error ? null : readPostEditRpcResult(data);
 
   if (!result) {
+    if (isCatalogItemArchivedError(error)) {
+      return { errors: { ipId: '운영 중인 IP 채널을 선택해주세요.' } };
+    }
     return {
       errors: {
         form: isAccountSuspendedError(error)

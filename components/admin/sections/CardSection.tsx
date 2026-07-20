@@ -3,8 +3,15 @@
 import { useState } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminCardRecord } from '@/lib/admin/catalog.server';
+import {
+  adminCatalogArchiveCounts,
+  filterAdminCatalogRecords,
+  formatAdminCatalogRecordLabel,
+  type AdminCatalogArchiveFilter,
+} from '../../../lib/admin/catalog-archive';
 import { RARITY_META } from '@/lib/rarity';
 import { ArtworkUploadField } from '../ArtworkUploadField';
+import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { Field, FormShell, RecordList, SelectField } from '../fields';
 
 export function CardSection({
@@ -18,7 +25,7 @@ export function CardSection({
   state,
 }: {
   action: (payload: FormData) => void;
-  ipOptions: { id: string; title: string }[];
+  ipOptions: { id: string; title: string; archivedAt: string | null }[];
   onSelect: (card: AdminCardRecord | null) => void;
   pending: boolean;
   poolOptions: { id: string; ipId: string; name: string }[];
@@ -26,20 +33,42 @@ export function CardSection({
   selected: AdminCardRecord | null;
   state: AdminCatalogActionState;
 }) {
-  const [ipId, setIpId] = useState(selected?.ipId ?? '');
+  const selectedId = selected?.id ?? null;
+  const [ipSelection, setIpSelection] = useState({
+    recordId: selectedId,
+    value: selected?.ipId ?? '',
+  });
+  const ipId = ipSelection.recordId === selectedId
+    ? ipSelection.value
+    : (selected?.ipId ?? '');
+  const [archiveFilter, setArchiveFilter] = useState<AdminCatalogArchiveFilter>(
+    selected?.archivedAt ? 'archived' : 'active',
+  );
   const pooled = Boolean(selected?.poolId);
   const matchingPools = poolOptions.filter((pool) => pool.ipId === ipId);
+  const visibleRecords = filterAdminCatalogRecords(records, archiveFilter);
 
   return (
     <div className="admin-master-detail">
-      <RecordList
-        activeId={selected?.id ?? null}
-        items={records}
-        labelFor={(card) => `${card.id} · ${card.name}`}
-        onNew={() => onSelect(null)}
-        onSelect={onSelect}
-      />
-      <form action={action} className="card col" key={selected?.id ?? 'new-card'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+      <div className="col" style={{ gap: 12, minWidth: 0 }}>
+        <CatalogArchiveFilter
+          counts={adminCatalogArchiveCounts(records)}
+          filter={archiveFilter}
+          onChange={(filter) => {
+            setArchiveFilter(filter);
+            if (selected && !filterAdminCatalogRecords([selected], filter).length) onSelect(null);
+          }}
+        />
+        <RecordList
+          activeId={selected?.id ?? null}
+          items={visibleRecords}
+          labelFor={(card) => formatAdminCatalogRecordLabel(`${card.id} · ${card.name}`, card.archivedAt)}
+          onNew={() => onSelect(null)}
+          onSelect={onSelect}
+        />
+      </div>
+      <div className="col" style={{ gap: 16, minWidth: 0 }}>
+        <form action={action} className="card col" key={selected ? JSON.stringify(selected) : 'new-card'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
         <div className="admin-form-grid">
           <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="c100" />
@@ -52,12 +81,18 @@ export function CardSection({
               error={state.errors?.ipId}
               label="연결 IP"
               name="ipId"
-              onChange={(event) => setIpId(event.target.value)}
+              onChange={(event) => setIpSelection({ recordId: selectedId, value: event.target.value })}
               value={ipId}
             >
               <option value="">선택</option>
               {ipOptions.map((ip) => (
-                <option key={ip.id} value={ip.id}>{ip.title}</option>
+                <option
+                  disabled={Boolean(ip.archivedAt && ip.id !== selected?.ipId)}
+                  key={ip.id}
+                  value={ip.id}
+                >
+                  {ip.archivedAt ? `[보관] ${ip.title}` : ip.title}
+                </option>
               ))}
             </SelectField>
           )}
@@ -93,7 +128,16 @@ export function CardSection({
           kind="card"
         />
         <FormShell pending={pending} state={state} />
-      </form>
+        </form>
+        {selected && (
+          <CatalogArchiveControl
+            archivedAt={selected.archivedAt}
+            id={selected.id}
+            key={`${selected.id}:${selected.archivedAt ?? 'active'}`}
+            kind="card"
+          />
+        )}
+      </div>
     </div>
   );
 }

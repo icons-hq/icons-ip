@@ -115,6 +115,7 @@ export async function setCartItemQuantityAction(
     .from('goods')
     .select('stock,stock_qty')
     .eq('id', goodId)
+    .is('archived_at', null)
     .maybeSingle<GoodStockRow>();
   if (stockLoadError || !data) return { ok: false, mode: 'server', error: SAVE_ERROR };
   if (data.stock === 'soldout' || qty > data.stock_qty) {

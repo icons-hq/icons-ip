@@ -62,6 +62,15 @@ interface TestPostRow {
   updated_at?: string;
   image_path: string | null;
   status: 'visible' | 'hidden';
+  ip?: {
+    id: string;
+    title: string;
+    vertical: { color: string } | Array<{ color: string }> | null;
+  } | Array<{
+    id: string;
+    title: string;
+    vertical: { color: string } | Array<{ color: string }> | null;
+  }> | null;
 }
 
 interface TestProfileRow {
@@ -387,8 +396,52 @@ describe('getCommunitySnapshot', () => {
     const snapshot = await getCommunitySnapshot({ viewerId: 'viewer-1', feed: 'fandom' });
 
     expect(snapshot.channels).toEqual([]);
+    expect(snapshot.hasFandomFollows).toBe(false);
     expect(snapshot.posts).toEqual([]);
     expect(records.some((record) => record.table === 'posts')).toBe(false);
+  });
+
+  it('keeps posts visible when every followed IP has been archived', async () => {
+    const records: QueryRecord[] = [];
+    mocks.catalog = catalog;
+    mocks.client = createClient(records, {
+      rows: {
+        posts: [{
+          id: 'archived-post',
+          user_id: 'u1',
+          ip_id: 'archived-ip',
+          text: '보관 전 남긴 이야기',
+          tag: '기록',
+          created_at: '2026-06-22T04:00:00.000Z',
+          updated_at: '2026-06-22T04:00:00.000Z',
+          image_path: null,
+          status: 'visible',
+          ip: [{
+            id: 'archived-ip',
+            title: '보관된 IP',
+            vertical: [{ color: '#123456' }],
+          }],
+        }],
+        public_profiles: [{ id: 'u1', nickname: 'archivedfan' }],
+        likes: [],
+        comments: [],
+        blocks: [],
+        ip_follows: [{
+          user_id: 'viewer-1',
+          ip_id: 'archived-ip',
+          notify_drops: false,
+          notify_events: false,
+        }],
+      },
+    });
+
+    const snapshot = await getCommunitySnapshot({ viewerId: 'viewer-1', feed: 'fandom' });
+
+    expect(snapshot.hasFandomFollows).toBe(true);
+    expect(snapshot.channels).toEqual([]);
+    expect(snapshot.posts).toEqual([
+      expect.objectContaining({ id: 'archived-post', ipId: 'archived-ip', ipName: '보관된 IP' }),
+    ]);
   });
 
   it('keeps guest fandom empty without reading private follow rows', async () => {
@@ -447,7 +500,7 @@ describe('getCommunitySnapshot', () => {
     expect(snapshot.posts).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: 'hidden' })]));
     expect(snapshot.posts[0]).not.toHaveProperty('image_path');
     expect(records.find((record) => record.table === 'posts')).toMatchObject({
-      select: 'id,user_id,ip_id,text,tag,created_at,updated_at,image_path,status',
+      select: 'id,user_id,ip_id,text,tag,created_at,updated_at,image_path,status,ip:ips(id,title,vertical:verticals(color))',
       eq: [],
       order: [['created_at', { ascending: false }]],
       limit: 30,
@@ -506,6 +559,46 @@ describe('getCommunitySnapshot', () => {
       source: 'supabase',
       trending: [],
     }));
+  });
+
+  it('uses archived IP metadata for historical posts without adding it to active channels', async () => {
+    mocks.catalog = catalog;
+    mocks.client = createClient([], {
+      rows: {
+        posts: [{
+          id: 'archived-post',
+          user_id: 'u1',
+          ip_id: 'archived-ip',
+          text: '보관 전 작성한 포스트',
+          tag: null,
+          created_at: '2026-06-22T04:00:00.000Z',
+          updated_at: '2026-06-22T04:00:00.000Z',
+          image_path: null,
+          status: 'visible',
+          ip: {
+            id: 'archived-ip',
+            title: '보관된 IP',
+            vertical: { color: '#123456' },
+          },
+        }],
+        public_profiles: [{ id: 'u1', nickname: 'neonfan' }],
+        likes: [],
+        comments: [],
+        blocks: [],
+      },
+    });
+
+    const snapshot = await getCommunitySnapshot({ viewerId: 'u1' });
+
+    expect(snapshot.channels.map((channel) => channel.id)).toEqual(['hwasan']);
+    expect(snapshot.posts).toEqual([
+      expect.objectContaining({
+        id: 'archived-post',
+        ipId: 'archived-ip',
+        ipName: '보관된 IP',
+        avatar: '#123456',
+      }),
+    ]);
   });
 
   it('fails a Supabase trending query closed without breaking the public feed', async () => {

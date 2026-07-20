@@ -188,9 +188,10 @@ function PostEditForm({
   const textErrorId = `${formId}-text-error`;
   const ipErrorId = `${formId}-ip-error`;
   const formErrorId = `${formId}-form-error`;
-  const defaultIpId = post.ipId && channels.some((channel) => channel.id === post.ipId)
-    ? post.ipId
-    : channels[0]?.id ?? '';
+  const currentIpIsActive = Boolean(
+    post.ipId && channels.some((channel) => channel.id === post.ipId),
+  );
+  const defaultIpId = post.ipId ?? channels[0]?.id ?? '';
 
   return (
     <div hidden={!open} id={formId}>
@@ -223,6 +224,9 @@ function PostEditForm({
             name="ipId"
             style={{ height: 44, minWidth: 140, border: '1px solid var(--line-2)', background: 'var(--bg-2)', borderRadius: 10, padding: '0 11px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
           >
+            {post.ipId && !currentIpIsActive && (
+              <option value={post.ipId}>[보관] {post.ipName}</option>
+            )}
             {channels.map((channel) => (
               <option key={channel.id} value={channel.id}>{channel.title}</option>
             ))}
@@ -607,7 +611,8 @@ export function Community({
     : 'all';
   const posts = snapshot.posts.filter((post) => channelId === 'all' || post.ipId === channelId);
   const nextPath = feedScope === 'fandom' ? '/community?feed=fandom' : '/community';
-  const fandomReady = feedScope !== 'fandom' || (viewerState === 'onboarded' && channels.length > 0);
+  const hasFandomFollows = snapshot.hasFandomFollows ?? channels.length > 0;
+  const fandomReady = feedScope !== 'fandom' || (viewerState === 'onboarded' && hasFandomFollows);
 
   /* 디자인의 "위클리 랭킹" mock을 실데이터 파생(작성자별 좋아요 합)으로 대체 */
   const ranking = useMemo(() => {
@@ -680,7 +685,9 @@ export function Community({
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
             {fandomReady ? (
               <>
-                <Composer channels={channels} nextPath={nextPath} selectedChannelId={channelId} />
+                {channels.length > 0 && (
+                  <Composer channels={channels} nextPath={nextPath} selectedChannelId={channelId} />
+                )}
                 {posts.map((post) => (
                   <PostCard channels={channels} key={post.id} nextPath={nextPath} p={post} />
                 ))}
@@ -688,8 +695,10 @@ export function Community({
                   <div className="col" style={{ alignItems: 'center', gap: 12, padding: '18px 0' }}>
                     <Empty
                       icon="chat"
-                      text="내 팬덤의 첫 이야기를 남겨보세요"
-                      sub="위 컴포저에서 포스트를 쓰거나 전체 피드의 이야기를 둘러보세요."
+                      text={channels.length > 0 ? '내 팬덤의 첫 이야기를 남겨보세요' : '보관된 팬덤의 지난 이야기가 아직 없어요'}
+                      sub={channels.length > 0
+                        ? '위 컴포저에서 포스트를 쓰거나 전체 피드의 이야기를 둘러보세요.'
+                        : '새 글은 운영 중인 IP를 팔로우한 뒤 작성할 수 있어요.'}
                     />
                     <Link className="btn btn-ghost" href="/community" style={{ minHeight: 44 }}>
                       전체 피드 보기

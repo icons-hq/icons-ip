@@ -4,6 +4,10 @@ import type { AdminCardRecord } from '@/lib/admin/catalog.server';
 import { CardSection } from './CardSection';
 
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => null }));
+vi.mock('../../../app/admin/archive-actions', () => ({
+  archiveAdminCatalogRecordAction: vi.fn(),
+  unarchiveAdminCatalogRecordAction: vi.fn(),
+}));
 vi.mock('../../../lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: vi.fn() }));
 vi.mock('@/lib/rarity', () => ({
   RARITY_META: { N: {}, R: {}, SR: {}, SSR: {}, HOLO: {} },
@@ -11,6 +15,7 @@ vi.mock('@/lib/rarity', () => ({
 
 const selected: AdminCardRecord = {
   id: 'c100',
+  archivedAt: null,
   ipId: 'hwasan',
   poolId: '11111111-1111-4111-8111-111111111111',
   name: '청명 홀로 카드',
@@ -25,8 +30,8 @@ function renderCard(selectedCard: AdminCardRecord | null = selected) {
     <CardSection
       action={vi.fn()}
       ipOptions={[
-        { id: 'hwasan', title: '화산강림' },
-        { id: 'lumen', title: '루멘' },
+        { id: 'hwasan', title: '화산강림', archivedAt: null },
+        { id: 'lumen', title: '루멘', archivedAt: null },
       ]}
       onSelect={vi.fn()}
       pending={false}
@@ -85,5 +90,15 @@ describe('CardSection', () => {
     expect(html).toContain('data-artwork-kind="card"');
     expect(html).toContain('name="imagePath"');
     expect(html).toContain('accept="image/jpeg,image/png,image/webp"');
+  });
+
+  it('shows archive status and restoration for an archived card', () => {
+    const archived = { ...selected, archivedAt: '2026-07-17T12:00:00.000Z' };
+    const html = renderCard(archived);
+
+    expect(html).toContain('aria-label="보관 상태"');
+    expect(html).toContain('[보관] c100 · 청명 홀로 카드');
+    expect(html).toContain('보관 복원');
+    expect(html).toContain('value="card"');
   });
 });

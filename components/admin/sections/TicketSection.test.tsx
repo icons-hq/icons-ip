@@ -24,7 +24,9 @@ const ticketType: AdminTicketTypeRecord = {
 
 function renderTicketSection(
   selected: AdminTicketTypeRecord | null,
-  eventOptions = [{ id: 'e100', title: '화산강림 팝업' }],
+  eventOptions: { id: string; title: string; archivedAt: string | null }[] = [
+    { id: 'e100', title: '화산강림 팝업', archivedAt: null },
+  ],
   records: AdminTicketTypeRecord[] = [ticketType],
 ) {
   return renderToStaticMarkup(
@@ -77,6 +79,33 @@ describe('TicketSection', () => {
     expect(soldOutHtml).toContain('정원 마감');
   });
 
+  it('preserves an archived current event but disables it for a new ticket type', () => {
+    const archivedEvents = [{
+      id: 'e100',
+      title: '화산강림 팝업',
+      archivedAt: '2026-07-17T12:00:00.000Z',
+    }];
+    const editable = { ...ticketType, hasTicketHistory: false };
+    const existing = renderTicketSection(editable, archivedEvents);
+    const creating = renderTicketSection(null, archivedEvents, []);
+
+    expect(existing).toContain('value="e100" selected="">[보관] 화산강림 팝업');
+    expect(existing).not.toContain('disabled="" value="e100" selected=""');
+    expect(creating).toContain('<option value="" selected="">선택</option>');
+    expect(creating).toContain('disabled="" value="e100">[보관] 화산강림 팝업');
+    expect(creating).toContain('먼저 이벤트를 등록해주세요.');
+  });
+
+  it('defaults a new ticket type to the first active event when an archived event sorts first', () => {
+    const html = renderTicketSection(null, [
+      { id: 'archived', title: '보관 이벤트', archivedAt: '2026-07-17T12:00:00.000Z' },
+      { id: 'active', title: '운영 이벤트', archivedAt: null },
+    ], []);
+
+    expect(html).toContain('disabled="" value="archived">[보관] 보관 이벤트');
+    expect(html).toContain('value="active" selected="">운영 이벤트');
+  });
+
   it('disables creation when no event exists', () => {
     const html = renderTicketSection(null, []);
 
@@ -86,7 +115,7 @@ describe('TicketSection', () => {
   });
 
   it('labels the session list and explains its empty state', () => {
-    const html = renderTicketSection(null, [{ id: 'e100', title: '화산강림 팝업' }], []);
+    const html = renderTicketSection(null, [{ id: 'e100', title: '화산강림 팝업', archivedAt: null }], []);
 
     expect(html).toContain('aria-label="티켓 회차 목록"');
     expect(html).toContain('등록된 티켓 회차가 없습니다.');

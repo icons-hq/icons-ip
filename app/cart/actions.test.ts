@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   cartDeleteEq: vi.fn(),
   goodsSelect: vi.fn(),
   goodsEq: vi.fn(),
+  goodsIs: vi.fn(),
   goodsMaybeSingle: vi.fn(),
 }));
 
@@ -85,6 +86,7 @@ describe('cart Server Actions', () => {
       mocks.cartDeleteEq,
       mocks.goodsSelect,
       mocks.goodsEq,
+      mocks.goodsIs,
       mocks.goodsMaybeSingle,
     ]) mock.mockReset();
 
@@ -95,7 +97,8 @@ describe('cart Server Actions', () => {
     mocks.cartUpsert.mockImplementation(async () => mocks.upsertResult);
     mocks.cartDelete.mockImplementation(() => thenableDeleteBuilder());
     mocks.goodsMaybeSingle.mockImplementation(async () => mocks.goodRow);
-    mocks.goodsEq.mockReturnValue({ maybeSingle: mocks.goodsMaybeSingle });
+    mocks.goodsIs.mockReturnValue({ maybeSingle: mocks.goodsMaybeSingle });
+    mocks.goodsEq.mockReturnValue({ is: mocks.goodsIs });
     mocks.goodsSelect.mockReturnValue({ eq: mocks.goodsEq });
     mocks.from.mockImplementation((table: string) => {
       if (table === 'cart_items') {
@@ -171,6 +174,7 @@ describe('cart Server Actions', () => {
     });
     expect(mocks.goodsSelect).toHaveBeenCalledWith('stock,stock_qty');
     expect(mocks.goodsEq).toHaveBeenCalledWith('id', 'g1');
+    expect(mocks.goodsIs).toHaveBeenCalledWith('archived_at', null);
     expect(mocks.cartUpsert).toHaveBeenCalledWith(
       { user_id: 'user-1', good_id: 'g1', qty: 3 },
       { onConflict: 'user_id,good_id' },

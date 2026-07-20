@@ -9,10 +9,15 @@ vi.mock('@/app/admin/actions', () => ({
 vi.mock('@/components/ui/Icon', () => ({
   Icon: () => null,
 }));
+vi.mock('../../../app/admin/archive-actions', () => ({
+  archiveAdminCatalogRecordAction: vi.fn(),
+  unarchiveAdminCatalogRecordAction: vi.fn(),
+}));
 vi.mock('../../../lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: vi.fn() }));
 
 const good: AdminGoodRecord = {
   id: 'g100',
+  archivedAt: null,
   ipId: 'hwasan',
   name: '화산강림 아크릴 스탠드',
   type: '아크릴 스탠드',
@@ -29,10 +34,10 @@ function renderGoodSection(selected: AdminGoodRecord | null) {
     <GoodSection
       action={vi.fn()}
       adjustmentId="11111111-1111-4111-8111-111111111111"
-      ipOptions={[{ id: 'hwasan', title: '화산강림' }]}
+      ipOptions={[{ id: 'hwasan', title: '화산강림', archivedAt: null }]}
       onSelect={vi.fn()}
       pending={false}
-      records={[good]}
+      records={selected ? [selected] : [good]}
       selected={selected}
       state={{}}
     />,
@@ -55,7 +60,7 @@ describe('GoodSection', () => {
     expect(html).toContain('name="adjustmentId"');
     expect(html).toContain('name="expectedStockQty"');
     expect(html).toContain('재고 조정');
-    expect(html.match(/<form/g)).toHaveLength(2);
+    expect(html.match(/<form/g)).toHaveLength(3);
   });
 
   it('derives soldout for zero quantity without changing the raw stock label', () => {
@@ -81,5 +86,18 @@ describe('GoodSection', () => {
     expect(html).toContain('data-artwork-kind="good"');
     expect(html).toContain('name="imagePath"');
     expect(html).toContain('accept="image/jpeg,image/png,image/webp"');
+  });
+
+  it('shows archive status and hides stock adjustment until an archived good is restored', () => {
+    const archived = { ...good, archivedAt: '2026-07-17T12:00:00.000Z' };
+    const html = renderGoodSection(archived);
+
+    expect(html).toContain('aria-label="보관 상태"');
+    expect(html).toContain('[보관] g100 · 화산강림 아크릴 스탠드 · 12개');
+    expect(html).toContain('보관 복원');
+    expect(html).toContain('value="good"');
+    expect(html).not.toContain('현재 실재고');
+    expect(html).not.toContain('name="delta"');
+    expect(html.match(/<form/g)).toHaveLength(2);
   });
 });

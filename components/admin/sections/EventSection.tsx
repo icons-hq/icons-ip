@@ -1,6 +1,16 @@
+'use client';
+
+import { useState } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminEventRecord } from '@/lib/admin/catalog.server';
+import {
+  adminCatalogArchiveCounts,
+  filterAdminCatalogRecords,
+  formatAdminCatalogRecordLabel,
+  type AdminCatalogArchiveFilter,
+} from '../../../lib/admin/catalog-archive';
 import { ArtworkUploadField } from '../ArtworkUploadField';
+import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { Field, FormShell, RecordList, SelectField } from '../fields';
 
 function optional(value: string | null | undefined) {
@@ -36,30 +46,52 @@ export function EventSection({
   state,
 }: {
   action: (payload: FormData) => void;
-  ipOptions: { id: string; title: string }[];
+  ipOptions: { id: string; title: string; archivedAt: string | null }[];
   onSelect: (event: AdminEventRecord | null) => void;
   pending: boolean;
   records: AdminEventRecord[];
   selected: AdminEventRecord | null;
   state: AdminCatalogActionState;
 }) {
+  const [archiveFilter, setArchiveFilter] = useState<AdminCatalogArchiveFilter>(
+    selected?.archivedAt ? 'archived' : 'active',
+  );
+  const visibleRecords = filterAdminCatalogRecords(records, archiveFilter);
+
   return (
     <div className="admin-master-detail">
-      <RecordList
-        activeId={selected?.id ?? null}
-        items={records}
-        labelFor={(event) => `${event.id} · ${event.title}`}
-        onNew={() => onSelect(null)}
-        onSelect={onSelect}
-      />
-      <form action={action} className="card col" key={selected?.id ?? 'new-event'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+      <div className="col" style={{ gap: 12, minWidth: 0 }}>
+        <CatalogArchiveFilter
+          counts={adminCatalogArchiveCounts(records)}
+          filter={archiveFilter}
+          onChange={(filter) => {
+            setArchiveFilter(filter);
+            if (selected && !filterAdminCatalogRecords([selected], filter).length) onSelect(null);
+          }}
+        />
+        <RecordList
+          activeId={selected?.id ?? null}
+          items={visibleRecords}
+          labelFor={(event) => formatAdminCatalogRecordLabel(`${event.id} · ${event.title}`, event.archivedAt)}
+          onNew={() => onSelect(null)}
+          onSelect={onSelect}
+        />
+      </div>
+      <div className="col" style={{ gap: 16, minWidth: 0 }}>
+        <form action={action} className="card col" key={selected ? JSON.stringify(selected) : 'new-event'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
         <div className="admin-form-grid">
           <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="e100" />
           <SelectField defaultValue={optional(selected?.ipId)} error={state.errors?.ipId} label="연결 IP" name="ipId">
             <option value="">플랫폼/합동 이벤트</option>
             {ipOptions.map((ip) => (
-              <option key={ip.id} value={ip.id}>{ip.title}</option>
+              <option
+                disabled={Boolean(ip.archivedAt && ip.id !== selected?.ipId)}
+                key={ip.id}
+                value={ip.id}
+              >
+                {ip.archivedAt ? `[보관] ${ip.title}` : ip.title}
+              </option>
             ))}
           </SelectField>
           <Field defaultValue={selected?.title} error={state.errors?.title} label="이벤트 이름" name="title" />
@@ -85,7 +117,16 @@ export function EventSection({
           kind="event"
         />
         <FormShell pending={pending} state={state} />
-      </form>
+        </form>
+        {selected && (
+          <CatalogArchiveControl
+            archivedAt={selected.archivedAt}
+            id={selected.id}
+            key={`${selected.id}:${selected.archivedAt ?? 'active'}`}
+            kind="event"
+          />
+        )}
+      </div>
     </div>
   );
 }

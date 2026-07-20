@@ -26,7 +26,7 @@ export function TicketSection({
   selected,
 }: {
   draftId: string;
-  eventOptions: { id: string; title: string }[];
+  eventOptions: { id: string; title: string; archivedAt: string | null }[];
   onSelect: (record: AdminTicketTypeRecord | null) => void;
   operationId: string;
   records: AdminTicketTypeRecord[];
@@ -74,7 +74,7 @@ function TicketForm({
   selected,
 }: {
   draftId: string;
-  eventOptions: { id: string; title: string }[];
+  eventOptions: { id: string; title: string; archivedAt: string | null }[];
   operationId: string;
   selected: AdminTicketTypeRecord | null;
 }) {
@@ -82,7 +82,8 @@ function TicketForm({
   const id = selected?.id ?? draftId;
   const sold = selected?.sold ?? 0;
   const metadataLocked = selected?.hasTicketHistory ?? false;
-  const noEvents = eventOptions.length === 0;
+  const noEvents = !eventOptions.some((event) => !event.archivedAt || event.id === selected?.eventId);
+  const initialEventId = selected?.eventId ?? eventOptions.find((event) => !event.archivedAt)?.id ?? '';
   const eventLabelId = `ticket-event-${id}`;
 
   return (
@@ -126,14 +127,21 @@ function TicketForm({
           </div>
         ) : (
           <SelectField
-            defaultValue={selected?.eventId ?? eventOptions[0]?.id ?? ''}
+            defaultValue={initialEventId}
             error={state.errors?.eventId}
             label="연결 이벤트"
             name="eventId"
             required
           >
+            <option value="">선택</option>
             {eventOptions.map((event) => (
-              <option key={event.id} value={event.id}>{event.title}</option>
+              <option
+                disabled={Boolean(event.archivedAt && event.id !== selected?.eventId)}
+                key={event.id}
+                value={event.id}
+              >
+                {event.archivedAt ? `[보관] ${event.title}` : event.title}
+              </option>
             ))}
           </SelectField>
         )}

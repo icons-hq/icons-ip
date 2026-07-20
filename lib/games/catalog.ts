@@ -166,6 +166,7 @@ export async function getGameCatalogEntry(gameId: string): Promise<GameCatalogEn
     .from('cards')
     .select('id,ip_id,name,no,rarity,bg')
     .eq('pool_id', row.reward_pool_id)
+    .is('archived_at', null)
     .order('id');
 
   if (cardsResult.error) {
