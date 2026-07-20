@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildCatalogIpDetail, getCatalogIpDetail, getCatalogSnapshot, getHomeSnapshot, type CatalogPostPreview, type CatalogSnapshot } from './catalog';
+import { buildCatalogIpDetail, getBinderCatalogOverlay, getCatalogIpDetail, getCatalogSnapshot, getHomeSnapshot, type CatalogPostPreview, type CatalogSnapshot } from './catalog';
 import { getHomeSelectableIps } from './home-catalog';
 import type { Ip } from './data';
 
@@ -72,6 +72,8 @@ type QueryRecord = {
   select?: string;
   selectOptions?: { count?: string; head?: boolean };
   eq: [string, unknown][];
+  gt: [string, number][];
+  is: [string, unknown][];
   in: [string, unknown[]][];
   not: [string, string, string][];
   order: [string, { ascending?: boolean } | undefined][];
@@ -85,7 +87,7 @@ type QueryResult<T> = {
 };
 
 type SupabaseRows = Record<
-  'verticals' | 'ips' | 'goods' | 'cards' | 'events' | 'posts' | 'public_profiles' | 'likes' | 'comments' | 'blocks',
+  'verticals' | 'ips' | 'goods' | 'cards' | 'events' | 'posts' | 'public_profiles' | 'likes' | 'comments' | 'blocks' | 'user_cards',
   Record<string, unknown>[]
 >;
 
@@ -98,7 +100,7 @@ function createQuery(
   rows: Record<string, unknown>[],
   records: QueryRecord[],
 ) {
-  const record: QueryRecord = { table, eq: [], in: [], not: [], order: [] };
+  const record: QueryRecord = { table, eq: [], gt: [], is: [], in: [], not: [], order: [] };
   records.push(record);
 
   const query = {
@@ -109,6 +111,14 @@ function createQuery(
     },
     eq(column: string, value: unknown) {
       record.eq.push([column, value]);
+      return query;
+    },
+    gt(column: string, value: number) {
+      record.gt.push([column, value]);
+      return query;
+    },
+    is(column: string, value: unknown) {
+      record.is.push([column, value]);
       return query;
     },
     in(column: string, value: unknown[]) {
@@ -135,6 +145,12 @@ function createQuery(
         let data = rows;
         for (const [column, value] of record.eq) {
           data = data.filter((row) => row[column] === value);
+        }
+        for (const [column, value] of record.gt) {
+          data = data.filter((row) => Number(row[column]) > value);
+        }
+        for (const [column, value] of record.is) {
+          data = data.filter((row) => value === null ? row[column] == null : row[column] === value);
         }
         for (const [column, values] of record.in) {
           data = data.filter((row) => values.includes(row[column]));
@@ -209,16 +225,24 @@ function defaultSupabaseRows(): SupabaseRows {
       ...Array.from({ length: 1001 }, () => ({ post_id: 'p3', user_id: 'u3', status: 'visible' })),
     ],
     blocks: [{ user_id: 'viewer-1', blocked_user_id: 'u1' }],
+    user_cards: [],
   };
 }
 
-function createSupabaseClient(records: QueryRecord[], overrides: Partial<SupabaseRows> = {}) {
+function createSupabaseClient(
+  records: QueryRecord[],
+  overrides: Partial<SupabaseRows> = {},
+  userId: string | null = 'viewer-1',
+) {
   const rows: SupabaseRows = {
     ...defaultSupabaseRows(),
     ...overrides,
   };
 
   return {
+    auth: {
+      getUser: () => Promise.resolve({ data: { user: userId ? { id: userId } : null } }),
+    },
     from(table: keyof SupabaseRows) {
       return createQuery(table, rows[table] as unknown as Record<string, unknown>[], records);
     },
@@ -255,6 +279,47 @@ describe('buildCatalogIpDetail', () => {
 });
 
 describe('getCatalogSnapshot', () => {
+  it('excludes archived catalog records from every public Supabase collection', async () => {
+    const records: QueryRecord[] = [];
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records, {
+      ips: [
+        ...defaultSupabaseRows().ips,
+        {
+          ...defaultSupabaseRows().ips[0],
+          id: 'archived-ip',
+          title: '보관 IP',
+          archived_at: '2026-07-17T00:00:00.000Z',
+        },
+      ],
+      goods: [
+        { id: 'g-active', ip_id: 'hwasan', name: '운영 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, archived_at: null },
+        { id: 'g-archived', ip_id: 'hwasan', name: '보관 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'soldout', stock_qty: 0, bg: null, image_path: null, archived_at: '2026-07-17T00:00:00.000Z' },
+      ],
+      cards: [
+        { id: 'c-active', ip_id: 'hwasan', name: '운영 카드', no: '001', rarity: 'N', bg: null, image_path: null, archived_at: null },
+        { id: 'c-archived', ip_id: 'hwasan', name: '보관 카드', no: '002', rarity: 'N', bg: null, image_path: null, archived_at: '2026-07-17T00:00:00.000Z' },
+      ],
+      events: [
+        { id: 'e-active', ip_id: 'hwasan', title: '운영 이벤트', mode: '온라인', status: '예정', starts_at: null, ends_at: null, location: null, accent: null, bg: null, image_path: null, archived_at: null },
+        { id: 'e-archived', ip_id: 'hwasan', title: '보관 이벤트', mode: '온라인', status: '종료', starts_at: null, ends_at: null, location: null, accent: null, bg: null, image_path: null, archived_at: '2026-07-17T00:00:00.000Z' },
+      ],
+    });
+
+    const snapshot = await getCatalogSnapshot();
+
+    expect(snapshot.ips.map((item) => item.id)).toEqual(['hwasan']);
+    expect(snapshot.goods.map((item) => item.id)).toEqual(['g-active']);
+    expect(snapshot.cards.map((item) => item.id)).toEqual(['c-active']);
+    expect(snapshot.events.map((item) => item.id)).toEqual(['e-active']);
+    for (const table of ['ips', 'goods', 'cards', 'events']) {
+      expect(records.find((record) => record.table === table)?.is).toContainEqual(['archived_at', null]);
+    }
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
   it('derives soldout at zero quantity while preserving a positive manual soldout gate', async () => {
     const records: QueryRecord[] = [];
     mocks.isConfigured = true;
@@ -294,6 +359,90 @@ describe('getCatalogSnapshot', () => {
       expect.objectContaining({ id: 'g2', stock: 'soldout', stockQty: 7 }),
     ]));
     expect(records.find((record) => record.table === 'goods')?.select).toContain('stock_qty');
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+});
+
+describe('getBinderCatalogOverlay', () => {
+  it('loads owned archived card metadata without reopening it in public discovery', async () => {
+    const records: QueryRecord[] = [];
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records, {
+      user_cards: [
+        { card_id: 'c-archived', qty: 1 },
+        { card_id: 'c-zero', qty: 0 },
+      ],
+      ips: [{
+        id: 'archived-ip',
+        title: '보관된 IP',
+        sub: '종료된 시리즈',
+        vertical_key: 'rofan',
+        tagline: '기억 속에 남은 이야기',
+        synopsis: '보관된 IP 설명',
+        glyph: '보관',
+        bg: 'archived-ip-bg',
+        image_path: null,
+        featured: false,
+        fans_count: 12,
+        goods_count: 0,
+        cards_count: 1,
+        archived_at: '2026-07-17T00:00:00.000Z',
+      }],
+      cards: [
+        {
+          id: 'c-archived',
+          ip_id: 'archived-ip',
+          name: '보관된 보유 카드',
+          no: '099',
+          rarity: 'SSR',
+          bg: null,
+          image_path: 'public-media/catalog/card/c-archived.webp',
+          archived_at: '2026-07-17T00:00:00.000Z',
+        },
+        {
+          id: 'c-zero',
+          ip_id: 'hwasan',
+          name: '수량 없는 카드',
+          no: '100',
+          rarity: 'N',
+          bg: null,
+          image_path: null,
+          archived_at: null,
+        },
+      ],
+    });
+
+    await expect(getBinderCatalogOverlay()).resolves.toEqual({
+      ownedCardIds: ['c-archived'],
+      cards: [expect.objectContaining({
+        id: 'c-archived',
+        ip: 'archived-ip',
+        name: '보관된 보유 카드',
+        owned: false,
+        bg: 'url("https://cdn.example/catalog/card/c-archived.webp") center / cover no-repeat',
+      })],
+      ips: [expect.objectContaining({
+        id: 'archived-ip',
+        title: '보관된 IP',
+        v: vertical,
+      })],
+    });
+    expect(records.find((record) => record.table === 'user_cards')?.gt).toEqual([['qty', 0]]);
+    expect(records.find((record) => record.table === 'cards')?.in).toEqual([['id', ['c-archived']]]);
+    expect(records.find((record) => record.table === 'cards')?.is).toEqual([]);
+    expect(records.find((record) => record.table === 'ips')?.in).toEqual([['id', ['archived-ip']]]);
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
+  it('returns public mode for a signed-out viewer', async () => {
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient([], {}, null);
+
+    await expect(getBinderCatalogOverlay()).resolves.toBeNull();
 
     mocks.isConfigured = false;
     mocks.client = null;

@@ -10,9 +10,7 @@ import {
 } from '@/app/admin/actions';
 import type {
   AdminCatalogRecords,
-  AdminEventRecord,
   AdminGameRecord,
-  AdminIpRecord,
   AdminTicketTypeRecord,
 } from '@/lib/admin/catalog.server';
 import type { AdminInsights } from '@/lib/admin/insights.server';
@@ -117,19 +115,27 @@ export function Admin({
 }: AdminProps) {
   const [active, setActive] = useState<AdminSection>(initialSection ?? 'overview');
   const [collapsed, setCollapsed] = useState(false);
-  const [selectedIp, setSelectedIp] = useState<AdminIpRecord | null>(null);
+  const [selectedIpId, setSelectedIpId] = useState<string | null>(null);
   const [selectedGoodId, setSelectedGoodId] = useState<string | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [selectedPoolId, setSelectedPoolId] = useState<string | null>(null);
   const [selectedPolicyId, setSelectedPolicyId] = useState<string | null>(null);
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
-  const [selectedEvent, setSelectedEvent] = useState<AdminEventRecord | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedTicketTypeId, setSelectedTicketTypeId] = useState<string | null>(null);
   const [ipState, ipAction, ipPending] = useActionState(upsertAdminIpAction, emptyState);
   const [goodState, goodAction, goodPending] = useActionState(upsertAdminGoodAction, emptyState);
   const [cardState, cardAction, cardPending] = useActionState(upsertAdminCardAction, emptyState);
   const [eventState, eventAction, eventPending] = useActionState(upsertAdminEventAction, emptyState);
-  const ipOptions = useMemo(() => records.ips.map((ip) => ({ id: ip.id, title: ip.title })), [records.ips]);
+  const ipOptions = useMemo(
+    () => records.ips
+      .map((ip) => ({ id: ip.id, title: ip.title, archivedAt: ip.archivedAt })),
+    [records.ips],
+  );
+  const selectedIp = useMemo(
+    () => records.ips.find((ip) => ip.id === selectedIpId) ?? null,
+    [records.ips, selectedIpId],
+  );
   const selectedGood = useMemo(
     () => records.goods.find((good) => good.id === selectedGoodId) ?? null,
     [records.goods, selectedGoodId],
@@ -137,6 +143,10 @@ export function Admin({
   const selectedCard = useMemo(
     () => records.cards.find((card) => card.id === selectedCardId) ?? null,
     [records.cards, selectedCardId],
+  );
+  const selectedEvent = useMemo(
+    () => records.events.find((event) => event.id === selectedEventId) ?? null,
+    [records.events, selectedEventId],
   );
   const selectedTicketType = useMemo(
     () => records.ticketTypes.find((ticketType) => ticketType.id === selectedTicketTypeId) ?? null,
@@ -179,7 +189,7 @@ export function Admin({
             {active === 'ip' && (
               <IpSection
                 action={ipAction}
-                onSelect={setSelectedIp}
+                onSelect={(ip) => setSelectedIpId(ip?.id ?? null)}
                 pending={ipPending}
                 records={records.ips}
                 selected={selectedIp}
@@ -203,14 +213,6 @@ export function Admin({
               <CardSection
                 action={cardAction}
                 ipOptions={ipOptions}
-                key={selectedCard
-                  ? JSON.stringify([
-                      selectedCard.id,
-                      selectedCard.ipId,
-                      selectedCard.poolId,
-                      selectedCard.rarity,
-                    ])
-                  : 'new-card'}
                 onSelect={(card) => setSelectedCardId(card?.id ?? null)}
                 pending={cardPending}
                 poolOptions={records.cardPools.map((pool) => ({ id: pool.id, ipId: pool.ipId, name: pool.name }))}
@@ -264,7 +266,7 @@ export function Admin({
               <EventSection
                 action={eventAction}
                 ipOptions={ipOptions}
-                onSelect={setSelectedEvent}
+                onSelect={(event) => setSelectedEventId(event?.id ?? null)}
                 pending={eventPending}
                 records={records.events}
                 selected={selectedEvent}
@@ -274,7 +276,11 @@ export function Admin({
             {active === 'ticket' && (
               <TicketSection
                 draftId={ticketDraftId}
-                eventOptions={records.events.map((event) => ({ id: event.id, title: event.title }))}
+                eventOptions={records.events.map((event) => ({
+                  id: event.id,
+                  title: event.title,
+                  archivedAt: event.archivedAt,
+                }))}
                 onSelect={(ticketType: AdminTicketTypeRecord | null) => setSelectedTicketTypeId(ticketType?.id ?? null)}
                 operationId={ticketOperationId}
                 records={records.ticketTypes}

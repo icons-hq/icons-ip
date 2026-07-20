@@ -38,7 +38,11 @@ export async function getAdminNotificationConsoleData(): Promise<AdminNotificati
 
   const supabase = await createClient();
   const [ipsResult, allEstimateResult, historyResult] = await Promise.all([
-    supabase.from('ips').select('id,title').order('title', { ascending: true }),
+    supabase
+      .from('ips')
+      .select('id,title')
+      .is('archived_at', null)
+      .order('title', { ascending: true }),
     supabase.rpc('admin_estimate_notification_recipients', {
       target_ip_id: null,
       target_scope: 'all',

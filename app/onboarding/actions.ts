@@ -42,6 +42,7 @@ async function filterExistingRecommendedIpIds(
   const { data, error } = await supabase
     .from('ips')
     .select('id')
+    .is('archived_at', null)
     .in('id', recommendedIpIds);
 
   if (error) {

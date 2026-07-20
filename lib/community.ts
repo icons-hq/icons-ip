@@ -70,6 +70,7 @@ export interface CommunityFeedPost {
 export interface CommunitySnapshot {
   source: 'supabase' | 'mock';
   channels: CommunityChannel[];
+  hasFandomFollows?: boolean;
   goods: Good[];
   posts: CommunityFeedPost[];
   trending: string[];

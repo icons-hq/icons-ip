@@ -127,6 +127,150 @@ describe('getAdminCatalogRecords', () => {
     });
   });
 
+  it('loads active and archived catalog records with their archived timestamps', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({
+      records,
+      rows: {
+        ips: [
+          {
+            id: 'active-ip',
+            title: '운영 IP',
+            sub: null,
+            vertical_key: 'webtoon',
+            tagline: null,
+            synopsis: null,
+            glyph: null,
+            bg: null,
+            image_path: null,
+            featured: true,
+            fans_count: 3,
+            archived_at: null,
+          },
+          {
+            id: 'archived-ip',
+            title: '보관 IP',
+            sub: null,
+            vertical_key: 'webtoon',
+            tagline: null,
+            synopsis: null,
+            glyph: null,
+            bg: null,
+            image_path: null,
+            featured: false,
+            fans_count: 0,
+            archived_at: '2026-07-17T01:02:03.000Z',
+          },
+        ],
+        goods: [
+          {
+            id: 'active-good',
+            ip_id: 'active-ip',
+            name: '운영 굿즈',
+            type: '아크릴',
+            price: 1000,
+            badge: null,
+            stock: 'ok',
+            stock_qty: 2,
+            bg: null,
+            image_path: null,
+            archived_at: null,
+          },
+          {
+            id: 'archived-good',
+            ip_id: 'archived-ip',
+            name: '보관 굿즈',
+            type: '아크릴',
+            price: 1000,
+            badge: null,
+            stock: 'soldout',
+            stock_qty: 0,
+            bg: null,
+            image_path: null,
+            archived_at: '2026-07-17T02:02:03.000Z',
+          },
+        ],
+        cards: [
+          {
+            id: 'active-card',
+            ip_id: 'active-ip',
+            pool_id: null,
+            name: '운영 카드',
+            no: '001',
+            rarity: 'N',
+            bg: null,
+            image_path: null,
+            archived_at: null,
+          },
+          {
+            id: 'archived-card',
+            ip_id: 'archived-ip',
+            pool_id: null,
+            name: '보관 카드',
+            no: '002',
+            rarity: 'R',
+            bg: null,
+            image_path: null,
+            archived_at: '2026-07-17T03:02:03.000Z',
+          },
+        ],
+        events: [
+          {
+            id: 'active-event',
+            ip_id: 'active-ip',
+            title: '운영 이벤트',
+            mode: '온라인',
+            status: '예정',
+            starts_at: null,
+            ends_at: null,
+            location: null,
+            accent: null,
+            bg: null,
+            image_path: null,
+            archived_at: null,
+          },
+          {
+            id: 'archived-event',
+            ip_id: 'archived-ip',
+            title: '보관 이벤트',
+            mode: '오프라인',
+            status: '종료',
+            starts_at: null,
+            ends_at: null,
+            location: null,
+            accent: null,
+            bg: null,
+            image_path: null,
+            archived_at: '2026-07-17T04:02:03.000Z',
+          },
+        ],
+      },
+    });
+
+    const result = await getAdminCatalogRecords();
+
+    expect(result.ips.map(({ id, archivedAt }) => ({ id, archivedAt }))).toEqual([
+      { id: 'active-ip', archivedAt: null },
+      { id: 'archived-ip', archivedAt: '2026-07-17T01:02:03.000Z' },
+    ]);
+    expect(result.goods.map(({ id, archivedAt }) => ({ id, archivedAt }))).toEqual([
+      { id: 'active-good', archivedAt: null },
+      { id: 'archived-good', archivedAt: '2026-07-17T02:02:03.000Z' },
+    ]);
+    expect(result.cards.map(({ id, archivedAt }) => ({ id, archivedAt }))).toEqual([
+      { id: 'active-card', archivedAt: null },
+      { id: 'archived-card', archivedAt: '2026-07-17T03:02:03.000Z' },
+    ]);
+    expect(result.events.map(({ id, archivedAt }) => ({ id, archivedAt }))).toEqual([
+      { id: 'active-event', archivedAt: null },
+      { id: 'archived-event', archivedAt: '2026-07-17T04:02:03.000Z' },
+    ]);
+
+    for (const table of ['ips', 'goods', 'cards', 'events']) {
+      expect(records.find((record) => record.table === table)?.select).toContain('archived_at');
+    }
+  });
+
   it('classifies reward-policy status in the required priority order', () => {
     const now = Date.parse('2026-07-15T00:00:00.000Z');
     const activePolicy = {
@@ -461,6 +605,7 @@ describe('getAdminCatalogRecords', () => {
       rows: {
         cards: [{
           id: 'c100',
+          archived_at: null,
           ip_id: 'lumen',
           pool_id: '22222222-2222-4222-8222-222222222222',
           name: '청명 카드',
@@ -515,6 +660,47 @@ describe('getAdminCatalogRecords', () => {
       lastIssuedAt: '2026-07-15T02:00:00.000Z',
       status: 'active',
     }]);
+  });
+
+  it('does not count archived cards toward card-pool reward readiness', async () => {
+    mocks.client = createClient({
+      records: [],
+      rows: {
+        cards: [{
+          id: 'c100',
+          archived_at: '2026-07-17T00:00:00.000Z',
+          ip_id: 'lumen',
+          pool_id: '22222222-2222-4222-8222-222222222222',
+          name: '보관된 R 카드',
+          no: '001',
+          rarity: 'R',
+          bg: null,
+          image_path: null,
+        }],
+        card_pools: [{
+          id: '22222222-2222-4222-8222-222222222222',
+          ip_id: 'lumen',
+          name: '보관 카드만 남은 카드풀',
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: '2099-01-01T00:00:00.000Z',
+          updated_at: '2026-07-15T01:00:00.000Z',
+          pool_odds: [
+            { rarity: 'N', probability: 0 },
+            { rarity: 'R', probability: 1 },
+            { rarity: 'SR', probability: 0 },
+            { rarity: 'SSR', probability: 0 },
+            { rarity: 'HOLO', probability: 0 },
+          ],
+        }],
+      },
+    });
+
+    const result = await getAdminCatalogRecords();
+
+    expect(result.cardPools[0]).toMatchObject({
+      oddsConfigured: true,
+      rewardReady: false,
+    });
   });
 
   it('marks a policy pool-unavailable when its current pool has incomplete odds', async () => {

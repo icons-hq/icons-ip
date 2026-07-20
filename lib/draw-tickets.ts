@@ -153,18 +153,3 @@ export async function getDrawTicketInventory(): Promise<DrawTicketInventory> {
     groups: buildPackPoolGroups(tickets, (lineupResult.data ?? []) as { id: string; pool_id: string }[]),
   };
 }
-
-/** 바인더 보유 배선 — null = 미설정/미로그인(공개 도감 모드). */
-export async function getOwnedCardIds(): Promise<string[] | null> {
-  if (!getSupabaseConfig().isConfigured) return null;
-
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  if (!userData.user) return null;
-
-  const { data, error } = await supabase.from('user_cards').select('card_id');
-  if (error) {
-    throw new Error(`Failed to load owned cards: ${error.message}`);
-  }
-  return ((data ?? []) as { card_id: string }[]).map((row) => row.card_id);
-}

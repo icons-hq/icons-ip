@@ -73,6 +73,7 @@ const unreadyPool: AdminCardPoolRecord = {
 const events: AdminEventRecord[] = [
   {
     id: 'online-a',
+    archivedAt: null,
     ipId: 'ip-a',
     title: 'IP A 온라인 이벤트',
     mode: '온라인',
@@ -86,6 +87,7 @@ const events: AdminEventRecord[] = [
   },
   {
     id: 'offline-a',
+    archivedAt: null,
     ipId: 'ip-a',
     title: 'IP A 오프라인 이벤트',
     mode: '오프라인',
@@ -99,6 +101,7 @@ const events: AdminEventRecord[] = [
   },
   {
     id: 'online-b',
+    archivedAt: null,
     ipId: 'ip-b',
     title: 'IP B 온라인 이벤트',
     mode: '온라인',

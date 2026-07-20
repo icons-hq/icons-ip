@@ -31,24 +31,26 @@ vi.mock('@/app/admin/actions', () => ({ upsertAdminRewardPolicyAction: mocks.ups
 const goods: AdminGoodRecord[] = [
   {
     id: 'good-a',
+    archivedAt: null,
     ipId: 'ip-a',
     name: '화산 키링',
     type: '키링',
     price: 15000,
     badge: null,
-    stock: 'in',
+    stock: 'ok',
     stockQty: 10,
     bg: null,
     imagePath: null,
   },
   {
     id: 'good-b',
+    archivedAt: null,
     ipId: 'ip-b',
     name: '루멘 포스터',
     type: '포스터',
     price: 20000,
     badge: null,
-    stock: 'in',
+    stock: 'ok',
     stockQty: 10,
     bg: null,
     imagePath: null,
@@ -116,8 +118,8 @@ const selectedPolicy: AdminRewardPolicyRecord = {
 };
 
 const ipOptions = [
-  { id: 'ip-a', title: '화산강림' },
-  { id: 'ip-b', title: '루멘' },
+  { id: 'ip-a', title: '화산강림', archivedAt: null },
+  { id: 'ip-b', title: '루멘', archivedAt: null },
 ];
 
 function renderPolicySection({
@@ -129,7 +131,7 @@ function renderPolicySection({
   pools?: AdminCardPoolRecord[];
   records?: AdminRewardPolicyRecord[];
   selected?: AdminRewardPolicyRecord | null;
-  ips?: { id: string; title: string }[];
+  ips?: { id: string; title: string; archivedAt: string | null }[];
 } = {}) {
   return renderToStaticMarkup(
     <RewardPolicySection
@@ -235,6 +237,18 @@ describe('RewardPolicySection', () => {
     expect(noIpHtml).toMatch(/<button[^>]*disabled=""[^>]*>[^<]*(?:<[^>]+>[^<]*<\/[^>]+>)?\s*저장<\/button>/);
     expect(noPoolHtml).toContain('확률과 카드 구성이 완료된 운영 예정/운영 중 카드풀을 먼저 준비해주세요.');
     expect(noPoolHtml).toMatch(/<button[^>]*disabled=""[^>]*>[^<]*(?:<[^>]+>[^<]*<\/[^>]+>)?\s*저장<\/button>/);
+  });
+
+  it('defaults a new policy to the first active IP when an archived IP sorts first', () => {
+    const html = renderPolicySection({
+      ips: [
+        { id: 'archived', title: '보관 IP', archivedAt: '2026-07-17T12:00:00.000Z' },
+        { id: 'ip-a', title: '화산강림', archivedAt: null },
+      ],
+    });
+
+    expect(html).toContain('disabled="" value="archived">[보관] 보관 IP');
+    expect(html).toContain('value="ip-a" selected="">화산강림');
   });
 
   it('resets an out-of-scope good and uses a semantic remount key', () => {

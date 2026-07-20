@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   },
   ipError: null as { message: string } | null,
   ipRows: [] as Array<{ id: string; title: string }>,
+  ipArchivedFilter: vi.fn(),
   rpc: vi.fn(),
 }));
 
@@ -29,6 +30,10 @@ vi.mock('@/lib/supabase/server', () => ({
     from: () => {
       const query = {
         select: vi.fn(() => query),
+        is: vi.fn((column: string, value: unknown) => {
+          mocks.ipArchivedFilter(column, value);
+          return query;
+        }),
         order: vi.fn(() => Promise.resolve({ data: mocks.ipRows, error: mocks.ipError })),
       };
       return query;
@@ -68,6 +73,7 @@ describe('getAdminNotificationConsoleData', () => {
       { id: 'rilakkuma', title: '리락쿠마' },
     ];
     mocks.ipError = null;
+    mocks.ipArchivedFilter.mockReset();
     mocks.rpc.mockReset();
     mocks.rpc.mockImplementation((name: string, args: Record<string, unknown>) => {
       if (name === 'admin_estimate_notification_recipients') {
@@ -155,6 +161,7 @@ describe('getAdminNotificationConsoleData', () => {
       target_limit: 20,
       target_offset: 0,
     });
+    expect(mocks.ipArchivedFilter).toHaveBeenCalledWith('archived_at', null);
   });
 
   it('비로그인은 로그인으로 보내고 어떤 DB 조회도 하지 않는다', async () => {

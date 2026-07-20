@@ -82,7 +82,7 @@ export function RewardPolicySection({
   draftActiveFrom: string;
   draftId: string;
   goods: AdminGoodRecord[];
-  ipOptions: { id: string; title: string }[];
+  ipOptions: { id: string; title: string; archivedAt: string | null }[];
   onSelect: (policy: AdminRewardPolicyRecord | null) => void;
   operationId: string;
   pools: AdminCardPoolRecord[];
@@ -149,7 +149,7 @@ function RewardPolicyForm({
   draftActiveFrom: string;
   draftId: string;
   goods: AdminGoodRecord[];
-  ipOptions: { id: string; title: string }[];
+  ipOptions: { id: string; title: string; archivedAt: string | null }[];
   operationId: string;
   pools: AdminCardPoolRecord[];
   selected: AdminRewardPolicyRecord | null;
@@ -159,7 +159,9 @@ function RewardPolicyForm({
     () => getRewardPolicyPoolOptions(pools, selected),
     [pools, selected],
   );
-  const [targetIpId, setTargetIpId] = useState(selected?.targetIpId ?? ipOptions[0]?.id ?? '');
+  const [targetIpId, setTargetIpId] = useState(
+    selected?.targetIpId ?? ipOptions.find((ip) => !ip.archivedAt)?.id ?? '',
+  );
   const [targetGoodId, setTargetGoodId] = useState(selected?.targetGoodId ?? '');
   const [poolId, setPoolId] = useState(selected?.poolId ?? poolOptions[0]?.id ?? '');
   const [active, setActive] = useState(selected?.active ?? false);
@@ -168,7 +170,7 @@ function RewardPolicyForm({
     [goods, targetIpId],
   );
   const currentPool = pools.find((pool) => pool.id === poolId);
-  const noIps = ipOptions.length === 0;
+  const noIps = !ipOptions.some((ip) => !ip.archivedAt || ip.id === selected?.targetIpId);
   const noPool = !poolId;
   const unavailableActivePool = active && !isEligibleRewardPool(currentPool);
   const disabledReason = noIps
@@ -209,7 +211,16 @@ function RewardPolicyForm({
           required
           value={targetIpId}
         >
-          {ipOptions.map((ip) => <option key={ip.id} value={ip.id}>{ip.title}</option>)}
+          <option value="">선택</option>
+          {ipOptions.map((ip) => (
+            <option
+              disabled={Boolean(ip.archivedAt && ip.id !== selected?.targetIpId)}
+              key={ip.id}
+              value={ip.id}
+            >
+              {ip.archivedAt ? `[보관] ${ip.title}` : ip.title}
+            </option>
+          ))}
         </SelectField>
         <SelectField
           disabled={!targetIpId}
@@ -220,7 +231,15 @@ function RewardPolicyForm({
           value={targetGoodId}
         >
           <option value="">전체 굿즈(IP 결제 합계)</option>
-          {targetGoods.map((good) => <option key={good.id} value={good.id}>{good.name}</option>)}
+          {targetGoods.map((good) => (
+            <option
+              disabled={Boolean(good.archivedAt && good.id !== selected?.targetGoodId)}
+              key={good.id}
+              value={good.id}
+            >
+              {good.archivedAt ? `[보관] ${good.name}` : good.name}
+            </option>
+          ))}
         </SelectField>
         <SelectField
           disabled={!poolOptions.length}

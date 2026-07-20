@@ -103,6 +103,10 @@ interface CardRow {
   image_path: string | null;
 }
 
+interface UserCardOwnershipRow {
+  card_id: string;
+}
+
 interface EventRow {
   id: string;
   ip_id: string | null;
@@ -407,19 +411,23 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
     supabase
       .from('ips')
       .select('id,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count,goods_count,cards_count')
+      .is('archived_at', null)
       .order('featured', { ascending: false })
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
       .select('id,ip_id,name,type,price,badge,stock,stock_qty,bg,image_path')
+      .is('archived_at', null)
       .order('id'),
     supabase
       .from('cards')
       .select('id,ip_id,name,no,rarity,bg,image_path')
+      .is('archived_at', null)
       .order('id'),
     supabase
       .from('events')
       .select('id,ip_id,title,mode,status,starts_at,ends_at,location,accent,bg,image_path')
+      .is('archived_at', null)
       .order('id'),
   ]);
 
@@ -462,6 +470,85 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
     goods,
     cards,
     events,
+  };
+}
+
+export interface BinderCatalogOverlay {
+  ownedCardIds: string[];
+  cards: Card[];
+  ips: Ip[];
+}
+
+/**
+ * Public discovery excludes archived cards, but an authenticated owner's binder
+ * must retain card metadata for historical user_cards rows.
+ */
+export async function getBinderCatalogOverlay(): Promise<BinderCatalogOverlay | null> {
+  if (!getSupabaseConfig().isConfigured) return null;
+
+  const supabase = await createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) return null;
+
+  const ownershipResult = await supabase
+    .from('user_cards')
+    .select('card_id')
+    .gt('qty', 0)
+    .order('card_id');
+
+  if (ownershipResult.error) {
+    throw new Error(`Failed to load binder ownership: ${ownershipResult.error.message}`);
+  }
+
+  const ownedCardIds = [...new Set(
+    ((ownershipResult.data ?? []) as UserCardOwnershipRow[]).map((row) => row.card_id),
+  )];
+  if (!ownedCardIds.length) return { ownedCardIds, cards: [], ips: [] };
+
+  const cardsResult = await supabase
+    .from('cards')
+    .select('id,ip_id,name,no,rarity,bg,image_path')
+    .in('id', ownedCardIds)
+    .order('id');
+
+  if (cardsResult.error) {
+    throw new Error(`Failed to load binder cards: ${cardsResult.error.message}`);
+  }
+
+  const cardRows = (cardsResult.data ?? []) as CardRow[];
+  const parentIpIds = [...new Set(cardRows.map((row) => row.ip_id))];
+  const [ipsResult, verticalsResult] = await Promise.all([
+    supabase
+      .from('ips')
+      .select('id,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count,goods_count,cards_count')
+      .in('id', parentIpIds)
+      .order('id'),
+    supabase
+      .from('verticals')
+      .select('key,label,color')
+      .order('key'),
+  ]);
+
+  if (ipsResult.error) {
+    throw new Error(`Failed to load binder IPs: ${ipsResult.error.message}`);
+  }
+  if (verticalsResult.error) {
+    throw new Error(`Failed to load binder verticals: ${verticalsResult.error.message}`);
+  }
+
+  const imageUrlForPath = (path: string) => supabase.storage
+    .from(PUBLIC_MEDIA_BUCKET)
+    .getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
+  const verticalsByKey = new Map(
+    ((verticalsResult.data ?? []) as VerticalRow[]).map((vertical) => [vertical.key, vertical]),
+  );
+
+  return {
+    ownedCardIds,
+    cards: cardRows.map((row) => toCard(row, imageUrlForPath)).sort(byNaturalId),
+    ips: ((ipsResult.data ?? []) as IpRow[])
+      .map((row) => toIp(row, verticalsByKey, imageUrlForPath))
+      .sort(byNaturalId),
   };
 }
 

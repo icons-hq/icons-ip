@@ -20,6 +20,12 @@ const COMMUNITY_TRENDING_WINDOW_DAYS = 7;
 const COMMUNITY_TRENDING_LIMIT = 10;
 const SIGNED_IMAGE_EXPIRES_IN_SECONDS = 60 * 60;
 
+interface CommunityPostIpRow {
+  id: string;
+  title: string;
+  vertical: { color: string } | Array<{ color: string }> | null;
+}
+
 interface CommunityPostRow {
   id: string;
   user_id: string;
@@ -30,6 +36,7 @@ interface CommunityPostRow {
   updated_at: string;
   image_path: string | null;
   status: CommunityPostStatus;
+  ip: CommunityPostIpRow | CommunityPostIpRow[] | null;
 }
 
 interface PublicProfileRow {
@@ -278,7 +285,6 @@ function commentItemsByPostId(
 function toCommunityPost(
   row: CommunityPostRow,
   ipsById: Map<string, Ip>,
-  fallbackIp: Ip | null,
   profilesById: Map<string, PublicProfileRow>,
   likesByPostId: Map<string, number>,
   commentsByPostId: Map<string, number>,
@@ -288,15 +294,18 @@ function toCommunityPost(
   imageUrlByPath: Map<string, string>,
 ): CommunityFeedPost {
   const ip = row.ip_id ? ipsById.get(row.ip_id) : null;
-  const displayIp = ip ?? fallbackIp;
+  const historicalIp = Array.isArray(row.ip) ? row.ip[0] : row.ip;
+  const historicalVertical = Array.isArray(historicalIp?.vertical)
+    ? historicalIp.vertical[0]
+    : historicalIp?.vertical;
 
   return {
     id: row.id,
     authorId: row.user_id,
     user: publicAuthorName(profilesById.get(row.user_id), row.user_id),
     ipId: row.ip_id,
-    ipName: displayIp?.title ?? '커뮤니티',
-    avatar: displayIp?.v.color ?? 'var(--holo)',
+    ipName: ip?.title ?? historicalIp?.title ?? '커뮤니티',
+    avatar: ip?.v.color ?? historicalVertical?.color ?? 'var(--holo)',
     text: row.text,
     likes: likesByPostId.get(row.id) ?? 0,
     comments: commentsByPostId.get(row.id) ?? 0,
@@ -349,7 +358,7 @@ async function getSupabasePosts(
   const blockedIds = await blockedUserIds(supabase, viewerId);
   let postsQuery = supabase
     .from('posts')
-    .select('id,user_id,ip_id,text,tag,created_at,updated_at,image_path,status');
+    .select('id,user_id,ip_id,text,tag,created_at,updated_at,image_path,status,ip:ips(id,title,vertical:verticals(color))');
 
   if (feedIpIds) {
     postsQuery = postsQuery.in('ip_id', feedIpIds);
@@ -394,7 +403,6 @@ async function getSupabasePosts(
   }
 
   const ipsById = new Map(ips.map((ip) => [ip.id, ip]));
-  const fallbackIp = postFallbackIp(ips);
   const profilesById = new Map(((profilesResult.data ?? []) as PublicProfileRow[]).map((profile) => [profile.id, profile]));
   const commentsByPost = commentItemsByPostId(comments, profilesById, viewerId);
 
@@ -402,7 +410,6 @@ async function getSupabasePosts(
     toCommunityPost(
       post,
       ipsById,
-      fallbackIp,
       profilesById,
       reactionCounts.likesByPostId,
       reactionCounts.commentsByPostId,
@@ -442,6 +449,7 @@ export async function getCommunitySnapshot(options: CommunitySnapshotOptions = {
     return {
       source: 'mock',
       channels: fandom ? [] : catalog.ips.map(channelFromIp),
+      ...(fandom ? { hasFandomFollows: false } : {}),
       goods: catalog.goods,
       posts: fandom ? [] : mockPosts(catalog.ips),
       trending: DATA.TRENDING,
@@ -464,6 +472,7 @@ export async function getCommunitySnapshot(options: CommunitySnapshotOptions = {
   return {
     source: 'supabase',
     channels: channels.map(channelFromIp),
+    ...(feedIpIds ? { hasFandomFollows: feedIpIds.length > 0 } : {}),
     goods: catalog.goods,
     posts,
     trending,

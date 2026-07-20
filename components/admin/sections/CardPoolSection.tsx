@@ -56,7 +56,7 @@ export function CardPoolSection({
   cards: AdminCardRecord[];
   draftActiveFrom: string;
   draftId: string;
-  ipOptions: { id: string; title: string }[];
+  ipOptions: { id: string; title: string; archivedAt: string | null }[];
   oddsOperationId: string;
   onEditCard: (card: AdminCardRecord) => void;
   onSelect: (pool: AdminCardPoolRecord | null) => void;
@@ -112,12 +112,13 @@ function PoolForm({
 }: {
   draftActiveFrom: string;
   draftId: string;
-  ipOptions: { id: string; title: string }[];
+  ipOptions: { id: string; title: string; archivedAt: string | null }[];
   operationId: string;
   selected: AdminCardPoolRecord | null;
 }) {
   const [state, action, pending] = useActionState(upsertAdminCardPoolAction, emptyState);
-  const noIps = ipOptions.length === 0;
+  const noIps = !ipOptions.some((ip) => !ip.archivedAt || ip.id === selected?.ipId);
+  const initialIpId = selected?.ipId ?? ipOptions.find((ip) => !ip.archivedAt)?.id ?? '';
 
   return (
     <form action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
@@ -125,13 +126,22 @@ function PoolForm({
       <input name="id" type="hidden" value={selected?.id ?? draftId} />
       <div className="admin-form-grid">
         <SelectField
-          defaultValue={selected?.ipId ?? ipOptions[0]?.id ?? ''}
+          defaultValue={initialIpId}
           error={state.errors?.ipId}
           label="연결 IP"
           name="ipId"
           required
         >
-          {ipOptions.map((ip) => <option key={ip.id} value={ip.id}>{ip.title}</option>)}
+          <option value="">선택</option>
+          {ipOptions.map((ip) => (
+            <option
+              disabled={Boolean(ip.archivedAt && ip.id !== selected?.ipId)}
+              key={ip.id}
+              value={ip.id}
+            >
+              {ip.archivedAt ? `[보관] ${ip.title}` : ip.title}
+            </option>
+          ))}
         </SelectField>
         <Field
           defaultValue={selected?.name}
@@ -257,7 +267,10 @@ function PoolCardRoster({
   selected: AdminCardPoolRecord | null;
 }) {
   const missingRarities = selected
-    ? RARITIES.filter((rarity) => selected.odds[rarity] > 0 && !cards.some((card) => card.rarity === rarity))
+    ? RARITIES.filter((rarity) => (
+      selected.odds[rarity] > 0
+      && !cards.some((card) => !card.archivedAt && card.rarity === rarity)
+    ))
     : [];
 
   return (
@@ -276,7 +289,7 @@ function PoolCardRoster({
       {cards.map((card) => (
         <div className="card row" key={card.id} style={{ alignItems: 'center', gap: 12, justifyContent: 'space-between', padding: 12 }}>
           <div>
-            <strong>{card.name}</strong>
+            <strong>{card.archivedAt ? `[보관] ${card.name}` : card.name}</strong>
             <div className="mono" style={{ color: 'var(--dim)', fontSize: 11, marginTop: 4 }}>{card.rarity} · {card.id}</div>
           </div>
           <button className="btn" onClick={() => onEditCard(card)} type="button">카드 편집</button>

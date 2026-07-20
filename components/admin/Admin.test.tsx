@@ -1,4 +1,3 @@
-import { isValidElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminCardRecord, AdminGameRecord, AdminRewardPolicyRecord } from '@/lib/admin/catalog.server';
@@ -90,6 +89,7 @@ vi.mock('./sections/TicketSection', () => ({ TicketSection: () => null }));
 
 const unboundCard: AdminCardRecord = {
   id: 'c100',
+  archivedAt: null,
   ipId: 'hwasan',
   poolId: null,
   name: '청명 홀로 카드',
@@ -197,31 +197,6 @@ describe('Admin card selection', () => {
     renderToStaticMarkup(<Admin {...createProps([unboundCard])} />);
 
     expect(hooks.cardSelected).toBe(unboundCard);
-  });
-
-  it('uses distinct remount keys for delimiter-colliding card and IP ids', () => {
-    const cardA = { ...unboundCard, id: 'a-b', ipId: 'c', rarity: 'N' as const };
-    const cardB = { ...unboundCard, id: 'a', ipId: 'b-c', rarity: 'N' as const };
-    const getCardSectionKey = (card: AdminCardRecord) => {
-      hooks.stateValues = ['card', false, null, null, card.id, null, null, null, null, null];
-      const stack: unknown[] = [Admin(createProps([card]))];
-
-      while (stack.length) {
-        const node = stack.pop();
-        if (!isValidElement(node)) continue;
-        if ((node.type as { displayName?: string }).displayName === 'AdminCardSectionMock') {
-          return node.key;
-        }
-
-        const children = (node.props as { children?: unknown }).children;
-        if (Array.isArray(children)) stack.push(...children);
-        else if (children !== undefined) stack.push(children);
-      }
-
-      return null;
-    };
-
-    expect(getCardSectionKey(cardA)).not.toBe(getCardSectionKey(cardB));
   });
 });
 

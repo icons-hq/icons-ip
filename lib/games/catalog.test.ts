@@ -1,13 +1,23 @@
-import { describe, expect, it, vi } from 'vitest';
-import { toEventGameLinks, toGameConfig, toGameFromRow, type GameRow } from './catalog';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getGameCatalogEntry, toEventGameLinks, toGameConfig, toGameFromRow, type GameRow } from './catalog';
+
+const mocks = vi.hoisted(() => ({
+  client: null as unknown,
+  isConfigured: false,
+}));
 
 vi.mock('server-only', () => ({}));
 vi.mock('../supabase/config', () => ({
-  getSupabaseConfig: () => ({ isConfigured: false }),
+  getSupabaseConfig: () => ({ isConfigured: mocks.isConfigured }),
 }));
 vi.mock('../supabase/server', () => ({
-  createClient: () => null,
+  createClient: () => mocks.client,
 }));
+
+beforeEach(() => {
+  mocks.client = null;
+  mocks.isConfigured = false;
+});
 
 const cardRow = (overrides: Partial<GameRow> = {}): GameRow => ({
   id: 'marble-maple',
@@ -109,5 +119,32 @@ describe('toEventGameLinks', () => {
     ]);
 
     expect(links).toEqual([{ gameId: 'marble-maple', eventId: 'e2', title: '메이플 마블 룰렛' }]);
+  });
+});
+
+describe('getGameCatalogEntry', () => {
+  it('excludes archived reward cards from the public active game catalog', async () => {
+    const archivedFilters: [string, unknown][] = [];
+    const gameQuery = {
+      select() { return gameQuery; },
+      eq() { return gameQuery; },
+      maybeSingle: () => Promise.resolve({ data: cardRow(), error: null }),
+    };
+    const cardQuery = {
+      select() { return cardQuery; },
+      eq() { return cardQuery; },
+      is(column: string, value: unknown) {
+        archivedFilters.push([column, value]);
+        return cardQuery;
+      },
+      order: () => Promise.resolve({ data: [], error: null }),
+    };
+    mocks.isConfigured = true;
+    mocks.client = {
+      from: (table: string) => table === 'games' ? gameQuery : cardQuery,
+    };
+
+    await expect(getGameCatalogEntry('marble-maple')).resolves.toMatchObject({ cards: [] });
+    expect(archivedFilters).toEqual([['archived_at', null]]);
   });
 });

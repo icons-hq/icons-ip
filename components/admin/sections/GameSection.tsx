@@ -254,7 +254,13 @@ function GameForm({
           >
             <option value="">연결하지 않음</option>
             {eventOptions.map((event) => (
-              <option key={event.id} value={event.id}>{event.title}</option>
+              <option
+                disabled={Boolean(event.archivedAt && event.id !== selected?.eventId)}
+                key={event.id}
+                value={event.id}
+              >
+                {event.archivedAt ? `[보관] ${event.title}` : event.title}
+              </option>
             ))}
           </SelectField>
         )}

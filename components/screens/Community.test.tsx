@@ -35,11 +35,13 @@ function render(trending: string[], posts: CommunityFeedPost[] = []) {
 
 function renderFandom({
   channels = snapshot.channels,
+  hasFandomFollows,
   initialChannelId,
   posts = [],
   viewerState,
 }: {
   channels?: CommunitySnapshot['channels'];
+  hasFandomFollows?: boolean;
   initialChannelId?: string;
   posts?: CommunityFeedPost[];
   viewerState: CommunityViewerState;
@@ -48,7 +50,7 @@ function renderFandom({
     <Community
       feedScope="fandom"
       initialChannelId={initialChannelId}
-      snapshot={{ ...snapshot, channels, posts }}
+      snapshot={{ ...snapshot, channels, hasFandomFollows, posts }}
       viewerState={viewerState}
     />,
   );
@@ -127,6 +129,37 @@ describe('Community fandom feed', () => {
     expect(html).toContain('팔로우한 IP가 아직 없어요');
     expect(html).toContain('href="/ip"');
     expect(html).not.toContain('name="text"');
+  });
+
+  it('shows archived-fandom history without reopening its composer', () => {
+    const archivedPost: CommunityFeedPost = {
+      id: '11111111-1111-4111-8111-111111111111',
+      authorId: '22222222-2222-4222-8222-222222222222',
+      user: 'archivedfan',
+      ipId: 'archived-ip',
+      ipName: '보관된 IP',
+      avatar: '#123456',
+      text: '보관 전 남긴 이야기',
+      likes: 0,
+      comments: 0,
+      time: '1일 전',
+      tag: '기록',
+      likedByViewer: false,
+      canDelete: false,
+      canEdit: false,
+      isEdited: false,
+      commentItems: [],
+    };
+    const html = renderFandom({
+      channels: [],
+      hasFandomFollows: true,
+      posts: [archivedPost],
+      viewerState: 'onboarded',
+    });
+
+    expect(html).toContain('보관 전 남긴 이야기');
+    expect(html).not.toContain('팔로우한 IP가 아직 없어요');
+    expect(html).not.toContain('오늘의 최애 소식을 들려주세요');
   });
 
   it('keeps the followed-IP composer and offers the all feed when fandom posts are empty', () => {
@@ -259,6 +292,26 @@ describe('Community post editing', () => {
     expect(html).toContain('· 수정됨');
     expect(html).toContain('#커뮤니티');
     expect(html).not.toContain('type="file" name="image"');
+  });
+
+  it('preserves an archived post IP as the current edit option without exposing it to new selection', () => {
+    const html = renderToStaticMarkup(
+      <Community
+        feedScope="all"
+        snapshot={{
+          ...snapshot,
+          posts: [{
+            ...ownerPost,
+            ipId: 'archived-ip',
+            ipName: '보관된 IP',
+          }],
+        }}
+        viewerState="onboarded"
+      />,
+    );
+
+    expect(html).toContain('<option value="archived-ip" selected="">[보관] 보관된 IP</option>');
+    expect(html).toContain('<option value="hwasan">화산강림</option>');
   });
 
   it('does not offer editing when the post is not editable, including a hidden author post', () => {
