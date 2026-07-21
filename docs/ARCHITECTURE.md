@@ -1,6 +1,6 @@
 # ICONS — 아키텍처
 
-> 상태: Draft · 최종 수정 2026-07-17 · 짝 문서: [`PRD.md`](./PRD.md)
+> 상태: Draft · 최종 수정 2026-07-21 · 짝 문서: [`PRD.md`](./PRD.md)
 > 이 문서는 **어떻게 만들 것인가**를 정의한다. 현재 코드베이스(프로토타입)에서 출발해 목표 아키텍처와 이전 경로를 기술한다.
 >
 > ⚠️ 이 프로젝트의 Next.js 16은 학습 데이터와 API/관례가 다를 수 있다(`AGENTS.md`). 실제 코드 작성 전 `node_modules/next/dist/docs/`를 확인한다. 본 문서가 코드 디테일과 어긋나면 코드를 따른다.
@@ -27,13 +27,13 @@
 | 화면 | App Router 라우트 ↔ screen 컴포넌트 | `app/**/page.tsx` → `components/screens/*` |
 | 셸 | Nav · MobNav · SiteFooter · CartProvider · AuthPresenceProvider · 로그인 사용자 unread-count 알림 벨 · `useGo` | `components/shell/*` |
 | 라우팅 맵 | 프로토타입 route-id ↔ 경로 | `lib/routes.ts` |
-| 데이터 | Supabase 공개 카탈로그(보관 항목 제외), 커뮤니티 visible 전체 피드·본인 `ip_follows` 기반 내 팬덤 피드/comment preview, Postgres 검색 읽기 + mock fallback. 보관된 IP의 기존 주문·바인더·팔로우·커뮤니티 이력 조회는 유지한다. Vercel Preview는 static mock catalog를 기본 사용. IP 상세 커뮤니티 preview도 Supabase `posts`/`public_profiles`에서 읽음 | `lib/catalog.ts`, `lib/catalog-source.ts`, `lib/community.server.ts`, `lib/search.ts`, `lib/data.ts` |
+| 데이터 | Supabase 공개 카탈로그(보관 항목 제외)와 현재 활성 홈 히어로·공지·특집 IP, 커뮤니티 visible 전체 피드·본인 `ip_follows` 기반 내 팬덤 피드/comment preview, Postgres 검색 읽기 + mock fallback. 보관된 IP의 기존 주문·바인더·팔로우·커뮤니티 이력 조회는 유지한다. Vercel Preview는 static mock catalog를 기본 사용. IP 상세 커뮤니티 preview도 Supabase `posts`/`public_profiles`에서 읽음 | `lib/catalog.ts`, `lib/home-catalog.ts`, `lib/catalog-source.ts`, `lib/community.server.ts`, `lib/search.ts`, `lib/data.ts` |
 | 인증 | Supabase SSR 이메일/PW Auth, 확인·recovery 메일 callback, 비밀번호 재설정, 온보딩 게이트. 표시 전용 AuthPresenceProvider가 unknown/signed-in/signed-out 상태를 AuthButton·MobNav에 동기화하고 보호 판정은 각 Server Page가 수행한다. env 없으면 no-op/폼 비활성화 | `app/login/*`, `app/auth/callback/route.ts`, `app/update-password/*`, `app/onboarding/*`, `app/my/*`, `components/shell/AuthPresenceProvider.tsx`, `components/shell/AuthButton.tsx`, `lib/auth/*`, `lib/supabase/*`, 루트 `proxy.ts` |
 | 보호 액션 | IP 팔로우/언팔로우·IP별 드롭/이벤트 알림 설정, 알림 읽음 처리, 온보딩 추천 IP 저장. 커뮤니티 포스트 작성·수정, 댓글, 좋아요, 작성자 삭제, 신고, 차단과 운영자 댓글 숨김은 Server Action + 최소 권한 RPC로 연결 | `app/ip/actions.ts`, `app/notifications/actions.ts`, `app/onboarding/actions.ts`, `app/community/actions.ts`, `app/admin/actions.ts`, `lib/ip-follow*`, `lib/notifications*`, `supabase/migrations/20260623090001_ip_follow_rpc.sql`, `supabase/migrations/20260624103001_community_comment_like_actions.sql`, `supabase/migrations/20260626090001_community_moderation_actions.sql`, `supabase/migrations/20260716090001_in_app_notifications.sql`, `supabase/migrations/20260716151616_community_post_editing.sql`, `supabase/migrations/20260717090001_community_comment_moderation.sql` |
 | 인앱 알림 | 본인 RLS 수신함 최신 50건·unread count, 보호 알림함/IP 설정 화면. 주문 상태·카드팩 발급·runtime staff 카탈로그 INSERT trigger와 audited 관리자 즉시 공지가 같은 transaction에서 멱등 발급 | `app/notifications/*`, `components/screens/Notifications.tsx`, `components/screens/NotificationSettings.tsx`, `components/shell/NotificationBell.tsx`, `components/admin/sections/NotificationSection.tsx`, `supabase/migrations/20260716090001_in_app_notifications.sql`, `supabase/migrations/20260716100001_admin_notification_console.sql` |
 | 굿즈 커머스 | 비로그인 localStorage·로그인 `cart_items` 병합, 멱등 `place_order` 재고 선점, 토스 결제위젯 redirect 승인, 웹훅 확정·만료 복원, 본인 주문 내역·상세·배송 전 청약철회 요청·상태 조회 | `app/cart/*`, `app/checkout/*`, `app/orders/*`, `app/api/orders/*`, `app/api/payments/confirm`, `app/api/webhooks/tosspayments`, `lib/checkout*`, `lib/orders*`, `lib/payments/*` |
 | 티켓 예매 | 공개 이벤트 상세·회차 잔여 조회, 멱등 `reserve_tickets` 정원 선점, 티켓용 토스 결제위젯, 웹훅 확정·QR 발급·만료 복원, 본인 티켓 목록/상세·보호 QR·예매 전체 취소/환불 | `app/events/[eventId]/*`, `app/ticket-checkout/*`, `app/tickets/*`, `app/api/tickets/*`, `app/api/ticket-orders/*`, `app/api/payments/confirm`, `app/api/webhooks/tosspayments`, `lib/ticketing*`, `lib/payments/*` |
-| 운영 | staff/admin 게이트, 카탈로그 CRUD·보관/복원과 private staging 기반 아트워크 검증·promote, 카드풀 운영 기간·등급별 확률·카드 풀 바인딩, 주문 대상별 뽑기권 발급 정책, 카드 보상형 참여형 게임 등록·운영과 PII-free 플레이 집계, 전체/IP 팔로워 인앱 공지의 추정·즉시 발송·이력, 감사 로그, 커뮤니티 신고·포스트/댓글 숨김 처리, 주문 검색·배송 전이·청약철회 승인/거절/재정합화, 실재고 입고·보정, 마스킹 회원 검색·상세·계정 정지/해제 | `app/admin/*`, `components/admin/*`, `lib/admin/*`, `supabase/migrations/20260714190001_admin_order_console.sql`, `supabase/migrations/20260714200001_admin_stock_adjustment.sql`, `supabase/migrations/20260715010001_admin_card_pool_console.sql`, `supabase/migrations/20260715020001_admin_reward_policy_console.sql`, `supabase/migrations/20260715030001_admin_game_console.sql`, `supabase/migrations/20260716100001_admin_notification_console.sql`, `supabase/migrations/20260717090001_community_comment_moderation.sql`, `supabase/migrations/20260717100001_admin_member_suspension.sql`, `supabase/migrations/20260717110001_admin_artwork_upload_storage.sql`, `supabase/migrations/20260717120001_catalog_archiving.sql` |
+| 운영 | staff/admin 게이트, 카탈로그 CRUD·보관/복원과 private staging 기반 아트워크 검증·promote, 홈 히어로·특집 IP·공지 배너 큐레이션, 카드풀 운영 기간·등급별 확률·카드 풀 바인딩, 주문 대상별 뽑기권 발급 정책, 카드 보상형 참여형 게임 등록·운영과 PII-free 플레이 집계, 전체/IP 팔로워 인앱 공지의 추정·즉시 발송·이력, 감사 로그, 커뮤니티 신고·포스트/댓글 숨김 처리, 주문 검색·배송 전이·청약철회 승인/거절/재정합화, 실재고 입고·보정, 마스킹 회원 검색·상세·계정 정지/해제 | `app/admin/*`, `components/admin/*`, `lib/admin/*`, `supabase/migrations/20260714190001_admin_order_console.sql`, `supabase/migrations/20260714200001_admin_stock_adjustment.sql`, `supabase/migrations/20260715010001_admin_card_pool_console.sql`, `supabase/migrations/20260715020001_admin_reward_policy_console.sql`, `supabase/migrations/20260715030001_admin_game_console.sql`, `supabase/migrations/20260716100001_admin_notification_console.sql`, `supabase/migrations/20260717090001_community_comment_moderation.sql`, `supabase/migrations/20260717100001_admin_member_suspension.sql`, `supabase/migrations/20260717110001_admin_artwork_upload_storage.sql`, `supabase/migrations/20260717120001_catalog_archiving.sql`, `supabase/migrations/20260721060440_home_curations.sql` |
 | CI/CD | GitHub Actions `CI/CD Pipeline`: PR 검증 + Vercel preview 배포, merge queue 검증, `main` push production 배포. Actions 앱 빌드 Node는 26 | `.github/workflows/pipeline.yml` |
 | 배포 | PR은 Vercel 원격 preview build/deploy, `main` push는 Supabase linked migration push 후 Vercel 원격 production build/deploy. Sensitive 환경변수는 Vercel build 안에서 검증하며 Vercel Git 자동 배포는 비활성화 | GitHub Secrets + `.github/workflows/pipeline.yml`, `vercel.json` |
 | Production runtime | Vercel project/runtime Node.js Version은 공식 지원 범위인 24.x 유지 | Vercel Project Settings |
@@ -112,6 +112,9 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - `ips` (id, title, sub, vertical_key, glyph, bg, tagline, synopsis, featured, archived_at, fans/goods/cards 집계)
 - `goods` (id, ip_id, name, type, price, badge, stock, image_path, archived_at)
 - `events` (id, ip_id?, title, mode, status, starts_at, ends_at, location, accent, image_path, archived_at)
+- `home_curations` (id, kind `hero|featured_ip|announcement`, ip_id?, title, image_path?, link_path, display_order, active_from/to, enabled) — `[active_from, active_to)` 노출 창을 가진 홈 운영 원장이다. 공개 RLS는 enabled·현재 창·연결 IP 미보관을 모두 검사하고, staff는 예약·종료·비활성 행까지 읽는다.
+- 공개 홈은 `display_order, active_from, id` 순서의 첫 hero와 첫 announcement, 중복·누락 IP를 제외한 최대 5개 featured IP를 소비한다. 특집 전용 이미지가 있으면 해당 선택기의 아트워크를 덮어쓴다. Supabase source는 큐레이션이 비어도 legacy `ips.featured`로 돌아가지 않고 첫 5개 IP를 사용하며, mock source만 기존 featured fallback을 유지한다.
+- migration과 local seed는 기존 `ips.featured = true`인 미보관 IP를 결정적 UUID·순서의 featured 큐레이션으로 승계한다. 컬럼과 기존 카탈로그 RPC 인자는 배포 호환을 위해 유지한다.
 
 ### 5.3 가챠 & 카드 (P2)
 - `card_pools` (id, ip_id, name, active_from/to) — 풀(픽업/한정 포함). 종료는 시작보다 뒤여야 한다.
@@ -167,6 +170,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 | 테이블군 | 읽기 | 쓰기 |
 |---|---|---|
 | 일반 카탈로그(verticals/ips/goods/events) | **공개(anon)** | staff/admin only |
+| 홈 큐레이션(home_curations) | anon/authenticated는 enabled·현재 노출 창·미보관 연결 IP 행만, staff는 전체 | 직접 DML 없음. staff를 재검사하는 audited RPC only |
 | 카드 리워드 카탈로그(cards/card_pools/pool_odds/reward_policies) | **공개(anon)** | 역할을 재검사하는 audited RPC only |
 | 참여형 게임 카탈로그(games) | **공개(anon)** | 역할을 재검사하는 audited RPC only |
 | game_plays | **본인만** | `play_game` 신뢰 RPC만 |
@@ -211,7 +215,8 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - **`edit_own_post(target_post_id, post_text, post_ip_id, post_tag)`** — `auth.uid()`와 작성자·visible 상태를 한 경계에서 확인하고 대상 포스트를 `FOR UPDATE`, 새 IP를 `FOR KEY SHARE`로 잠근다. 직접 UPDATE는 봉인하고 수정 가능한 세 필드만 변경하며 이전·현재 IP와 수정 시각을 반환한다.
 - **인앱 알림 trigger** — 주문의 최초 `paid`·`shipping` 전이, `draw_tickets` statement INSERT, 인증된 staff의 runtime `goods`·`events` INSERT가 권위 변경과 같은 transaction에서 `notifications`를 발급한다. `(user_id, dedupe_key)`로 중복을 막고 긴 catalog id는 원문 `source_id`와 SHA-256 dedupe를 분리한다. 카드팩은 사용자·source별 advisory lock 뒤 현재 총량을 다시 집계하며 후속 발급 시 기존 행을 최신 unread로 갱신한다. 카탈로그 fan-out은 `INSERT ... SELECT`이고 seed/migration INSERT와 IP 없는 이벤트는 건너뛴다.
 - **`admin_estimate_notification_recipients` / `admin_send_notification` / `admin_list_notification_history`** — staff를 DB에서 다시 확인하고 전체 profile 또는 특정 IP 팔로워 수를 추정한다. 발송은 operation UUID advisory lock 아래 대상 table에서 한 번의 `INSERT ... SELECT`로 `/notifications` 인앱 공지를 발급하고 `ROW_COUNT` 실제 수신자 수와 대상 snapshot을 `audit_log`에 멱등 기록한다. `all`은 임의 상한이나 일부 truncation 없이 현재 전체 profile을 뜻한다. 드롭·이벤트 preference는 운영 공지에 적용하지 않으며 이력은 수신자 PII를 반환하지 않는다.
-- **`admin_archive_*` / `admin_unarchive_*`** — IP·굿즈·카드·이벤트를 hard delete 없이 보관/복원한다. staff를 DB에서 재검사하고 상태 전이만 한 번 감사하며 반복 호출은 멱등 성공한다. 판매 재고, 활성·예정 카드풀/발급 정책/게임/예매와 활성 하위 카탈로그가 남으면 보관을 거부하고, 보관된 부모 IP 아래 하위 항목 복원·신규 연결도 DB trigger가 거부한다.
+- **`admin_upsert_home_curation`** — staff를 재검사하고 operation UUID advisory lock과 대상 curation·featured IP 행 잠금 아래 생성·수정·활성 토글을 처리한다. 같은 actor·operation·정규화 요청 replay만 기존 결과를 반환하고 actor 또는 payload 충돌은 거절하며, before/after와 요청을 `audit_log`에 같은 transaction으로 기록한다. table 직접 쓰기와 기본 함수 실행 권한은 봉인하고 authenticated role에만 RPC 실행을 부여한다.
+- **`admin_archive_*` / `admin_unarchive_*`** — IP·굿즈·카드·이벤트를 hard delete 없이 보관/복원한다. staff를 DB에서 재검사하고 상태 전이만 한 번 감사하며 반복 호출은 멱등 성공한다. 판매 재고, 활성·예정 카드풀/발급 정책/게임/예매와 활성 하위 카탈로그가 남으면 보관을 거부하고, enabled이고 종료되지 않은 featured 큐레이션이 연결된 IP도 보관을 거부한다. 큐레이션 upsert와 IP 보관이 같은 IP 행을 잠가 경합을 직렬화하며, 보관된 부모 IP 아래 하위 항목 복원·신규 연결도 DB trigger가 거부한다.
 - **`admin_search_members` / `admin_get_member_detail` / `admin_profile_signup_counts` / `admin_suspend_user` / `admin_unsuspend_user`** — profiles RLS는 self-only다. 목록은 이메일을 DB에서 마스킹하고, 명시적 상세만 전체 이메일·현재 `consents`·내부 사유·주문/예매/신고 집계를 반환하며, 대시보드 가입 수는 PII-free 집계만 반환한다. 받은 신고는 private subject snapshot으로 원문 삭제 뒤에도 보존한다. active staff는 user, active admin은 user/staff만 정지·해제하며 본인/admin 대상은 제외한다. 실제 상태 전이만 PII-free 감사하고 replay는 no-op이다. 정지된 privileged profile은 `is_staff()`가 false가 되며 정지 대상의 privileged role 승격도 거절한다. posts/comments/orders/ticket_orders/game_plays INSERT, 작성자 post UPDATE, draw-ticket 소비, staff check-in과 community Storage 업로드에는 DB guard를 두어 앱 사전 검사와 경합해도 전체 transaction을 롤백한다.
 
 규칙: 천장·확률 로직은 DB(또는 DB가 호출하는 신뢰 경로)에만 둔다(클라이언트 신뢰 금지). 모든 금전·재고 RPC는 멱등·감사 가능.
@@ -272,12 +277,12 @@ Production Auth 설정:
 ## 10. 미디어 / 스토리지
 
 - **Supabase Storage**
-  - `public-media` 버킷: 검증을 마친 굿즈·카드·IP·이벤트 아트워크의 public read 전용 표면이다. 브라우저 쓰기는 열지 않고, service role만 `catalog/<kind>/<uuid>.<ext>` 신규 경로로 promote한다. 같은 URL overwrite 대신 새 UUID 경로를 발급한다.
+  - `public-media` 버킷: 검증을 마친 굿즈·카드·IP·이벤트·홈 큐레이션 아트워크의 public read 전용 표면이다. 브라우저 쓰기는 열지 않고, service role만 `catalog/<kind>/<uuid>.<ext>` 신규 경로로 promote한다. 큐레이션은 `catalog/curation/<uuid>.<ext>`를 사용하며, 같은 URL overwrite 대신 새 UUID 경로를 발급한다.
   - `admin-artwork-staging` 버킷: 검증 전 관리자 아트워크를 두는 private 표면이다. 브라우저는 authenticated Storage 요청으로 업로드하며 RLS가 active staff와 actor·경로·선언 MIME·크기·만료 시각이 일치하는 pending claim만 허용한다. claim이 처리·거절·만료되는 즉시 같은 경로 재업로드도 차단한다. actor별 미만료 pending/processing/verified claim은 최대 4개다.
   - `user-uploads` 버킷: 커뮤니티 업로드·프로필 이미지. 쓰기는 RLS로 본인 폴더(`<uid>/...`)에 제한하고, 공개 커뮤니티 피드는 `visible` 포스트에 연결된 작성자 본인 경로의 이미지만 signed URL로 읽는다.
 - 서버는 actor advisory lock 아래 claim을 `pending→processing`으로 먼저 전이한 뒤에만 staging 객체를 읽는다. actor별 동시 processing은 1개, 시작은 1분당 4회로 제한한다. 그 뒤 Sharp로 선언 MIME과 실제 JPEG/PNG/WebP 형식, 5MiB 이하, 축별 8192px 이하, 총 40MP 이하, 단일 프레임을 완전히 decode해 검증한다. 통과한 이미지는 같은 형식으로 다시 인코딩해 metadata와 부가 payload를 제거한 뒤 service role로 `public-media`에 promote하고 claim을 verified로 바꾼다.
 - 브라우저 업로드 실패는 active claim만 최초 1회 `rejected`로 전이하는 취소 RPC로 즉시 정리하며, 이미 종료된 claim의 반복 취소는 DB·Storage 작업 없이 종료한다. 검증 실패·거절·만료 claim은 정확한 actor/path와 attached 여부를 재검증하는 service role 경로로 정리한다. 요청 시 소량 opportunistic sweep 외에도 `CRON_SECRET` exact bearer로 보호된 `/api/cron/admin-artwork` Vercel Cron이 매일 Storage API 정리를 수행한다. attached claim은 만료와 무관하게 staging만 정리해 카탈로그가 참조하는 public 원본을 보존한다.
-- 카탈로그 `image_path` INSERT/변경 trigger는 같은 transaction에서 actor 소유의 verified·미만료 claim을 `attached`로 원자적으로 소비한다. 따라서 Storage 직접 쓰기나 카탈로그 RPC 직접 호출만으로는 미검증 경로를 연결할 수 없다.
+- 카탈로그와 `home_curations`의 `image_path` INSERT/변경 trigger는 같은 transaction에서 actor 소유의 verified·미만료 claim을 `attached`로 원자적으로 소비한다. 따라서 Storage 직접 쓰기나 관리자 RPC 직접 호출만으로는 미검증 경로를 연결할 수 없다.
 - 관리자 폼은 선택 파일을 먼저 미리보고 검증된 경로를 자동 반영하되, 파일 선택·업로드 중에는 바깥 카탈로그 form 저장을 차단한다. IP 키아트는 가로형 preview와 가로 이미지 안내를 사용하고, 업로드 후 카탈로그 저장이 별도 단계임을 표시한다.
 - 카탈로그 테이블은 경로(`image_path`)만 저장하고 렌더 시 public URL로 변환한다. 교체 전 객체의 일괄 정리는 별도 운영 범위다.
 
@@ -293,7 +298,7 @@ Production Auth 설정:
 ## 12. 운영 백오피스 `/admin`
 
 - 같은 Next 앱의 라우트 그룹. 진입 시 `profiles.role ∈ {staff, admin}` 검사(라우트 + RLS 이중).
-- 기능: 카탈로그 CRUD·보관 상태 필터·참조 가드 보관/복원, **카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩**, 뽑기권 발급 정책(`/admin?section=policy`), 참여형 게임(`/admin?section=game`) 관리, 이벤트·티켓 회차, 독립 모바일 현장 검표(`/admin/check-in`), 주문 검색·배송 전이·청약철회/환불 정합화, 인앱 공지 수신자 추정·즉시 발송·이력(`/admin?section=notifications`), 커뮤니티 신고·포스트/댓글 숨김, 마스킹 회원 검색·명시적 상세·정지/해제(`/admin?section=members`).
+- 기능: 카탈로그 CRUD·보관 상태 필터·참조 가드 보관/복원, 홈 히어로·특집 IP·공지 배너의 순서·KST 기간·활성 관리(`/admin?section=curations`), **카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩**, 뽑기권 발급 정책(`/admin?section=policy`), 참여형 게임(`/admin?section=game`) 관리, 이벤트·티켓 회차, 독립 모바일 현장 검표(`/admin/check-in`), 주문 검색·배송 전이·청약철회/환불 정합화, 인앱 공지 수신자 추정·즉시 발송·이력(`/admin?section=notifications`), 커뮤니티 신고·포스트/댓글 숨김, 마스킹 회원 검색·명시적 상세·정지/해제(`/admin?section=members`). 큐레이션 공지 저장은 알림 fan-out을 일으키지 않고 공지 발송 콘솔로의 navigation만 제공한다.
 - 모든 민감 작업은 `audit_log` 기록.
 
 ---
