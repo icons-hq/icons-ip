@@ -3,6 +3,7 @@ import { normalizeAdminCurationForm } from './curations';
 
 const OPERATION_ID = '11111111-1111-4111-8111-111111111111';
 const CURATION_ID = '22222222-2222-4222-8222-222222222222';
+const MIGRATED_CURATION_ID = 'b6c65692-ad84-67bb-9bb9-ea7c116a05ac';
 const IMAGE_PATH = 'public-media/catalog/curation/33333333-3333-4333-8333-333333333333.webp';
 
 function curationForm(entries: Record<string, string> = {}) {
@@ -42,6 +43,22 @@ describe('admin curation form normalization', () => {
         activeTo: '2026-07-31T14:59:00.000Z',
         enabled: true,
       },
+    });
+  });
+
+  it('accepts a canonical PostgreSQL UUID produced by the deterministic migration backfill', () => {
+    expect(normalizeAdminCurationForm(curationForm({
+      id: MIGRATED_CURATION_ID.toUpperCase(),
+      kind: 'featured_ip',
+      ipId: 'rilakkuma',
+      imagePath: '',
+    }))).toEqual({
+      ok: true,
+      value: expect.objectContaining({
+        id: MIGRATED_CURATION_ID,
+        kind: 'featured_ip',
+        ipId: 'rilakkuma',
+      }),
     });
   });
 
@@ -107,6 +124,34 @@ describe('admin curation form normalization', () => {
   });
 
   it.each([
+    ['encoded scheme-relative path', '/%2F%2Fevil'],
+    ['encoded backslash', '/%5Cevil'],
+    ['encoded control character', '/safe%00tail'],
+    ['malformed trailing percent', '/safe%'],
+    ['malformed percent pair', '/safe%2Gtail'],
+    ['raw trailing control', '/safe\n'],
+    ['raw line separator', '/safe\u2028tail'],
+    ['raw trailing line separator', '/safe\u2028'],
+    ['encoded line separator', '/safe%E2%80%A8tail'],
+    ['raw bidi control', '/safe\u202Eevil'],
+    ['encoded bidi control', '/safe%E2%80%AEevil'],
+  ])('rejects an ambiguous raw or once-decoded internal link: %s', (_label, linkPath) => {
+    expect(normalizeAdminCurationForm(curationForm({ linkPath }))).toEqual({
+      ok: false,
+      errors: { linkPath: '1~2048자의 안전한 내부 경로를 입력해주세요.' },
+    });
+  });
+
+  it('keeps a legitimate encoded internal query and hash path', () => {
+    const linkPath = '/search?q=%ED%99%94%EC%82%B0%20100%25#results';
+
+    expect(normalizeAdminCurationForm(curationForm({ linkPath }))).toEqual({
+      ok: true,
+      value: expect.objectContaining({ linkPath }),
+    });
+  });
+
+  it.each([
     'catalog/curation/33333333-3333-4333-8333-333333333333.webp',
     'public-media/catalog/ip/33333333-3333-4333-8333-333333333333.webp',
     'public-media/catalog/curation/33333333-3333-1333-8333-333333333333.webp',
@@ -148,10 +193,20 @@ describe('admin curation form normalization', () => {
     ['missing start', { activeFrom: '' }, { activeFrom: '노출 시작 일시를 선택해주세요.' }],
     ['impossible date', { activeFrom: '2026-02-30T10:30' }, { activeFrom: '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.' }],
     ['year zero', { activeFrom: '0000-07-21T10:30' }, { activeFrom: '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.' }],
+    ['KST rollover before positive ISO years', { activeFrom: '0001-01-01T00:00' }, { activeFrom: '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.' }],
     ['invalid hour', { activeFrom: '2026-07-21T24:00' }, { activeFrom: '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.' }],
     ['equal window', { activeTo: '2026-07-21T10:30' }, { activeTo: '노출 종료는 시작보다 늦어야 합니다.' }],
     ['reversed window', { activeTo: '2026-07-21T10:29' }, { activeTo: '노출 종료는 시작보다 늦어야 합니다.' }],
   ])('rejects an invalid calendar or active window: %s', (_label, entries, errors) => {
     expect(normalizeAdminCurationForm(curationForm(entries))).toEqual({ ok: false, errors });
+  });
+
+  it('accepts the earliest KST local time that remains in a positive ISO year', () => {
+    expect(normalizeAdminCurationForm(curationForm({
+      activeFrom: '0001-01-01T09:00',
+    }))).toEqual({
+      ok: true,
+      value: expect.objectContaining({ activeFrom: '0001-01-01T00:00:00.000Z' }),
+    });
   });
 });

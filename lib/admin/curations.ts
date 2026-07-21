@@ -39,12 +39,14 @@ export interface AdminCurationActionState {
 }
 
 const CURATION_KINDS = new Set<AdminCurationKind>(['hero', 'featured_ip', 'announcement']);
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CURATION_IMAGE_PATTERN =
   /^public-media\/catalog\/curation\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$/;
 const DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
 const DATE_TIME_ERROR = '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.';
 const INT32_MAX = 2147483647;
+const AMBIGUOUS_LINK_CHARACTER_PATTERN =
+  /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/;
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -109,7 +111,28 @@ function kstDateTimeToIso(
   const instant = new Date(0);
   instant.setUTCFullYear(year, month - 1, day);
   instant.setUTCHours(hour - 9, minute, 0, 0);
+  if (instant.getUTCFullYear() < 1 || instant.getUTCFullYear() > 9999) {
+    errors[key] = DATE_TIME_ERROR;
+    return null;
+  }
   return instant.toISOString();
+}
+
+function isUnsafeInternalLink(value: string) {
+  return (
+    !value.startsWith('/')
+    || value.startsWith('//')
+    || value.includes('\\')
+    || AMBIGUOUS_LINK_CHARACTER_PATTERN.test(value)
+  );
+}
+
+function decodeInternalLink(value: string) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
 }
 
 function readDateTime(
@@ -158,14 +181,17 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
     errors.imagePath = '검증된 큐레이션 이미지를 사용해주세요.';
   }
 
-  const linkPath = readString(formData, 'linkPath');
+  const rawLinkValue = formData.get('linkPath');
+  const rawLinkPath = typeof rawLinkValue === 'string' ? rawLinkValue : '';
+  const linkPath = rawLinkPath.trim();
+  const decodedLinkPath = decodeInternalLink(linkPath);
   if (
     characterLength(linkPath) < 1
     || characterLength(linkPath) > 2048
-    || !linkPath.startsWith('/')
-    || linkPath.startsWith('//')
-    || linkPath.includes('\\')
-    || /[\u0000-\u001f\u007f-\u009f]/.test(linkPath)
+    || AMBIGUOUS_LINK_CHARACTER_PATTERN.test(rawLinkPath)
+    || isUnsafeInternalLink(linkPath)
+    || decodedLinkPath === null
+    || isUnsafeInternalLink(decodedLinkPath)
   ) {
     errors.linkPath = '1~2048자의 안전한 내부 경로를 입력해주세요.';
   }
