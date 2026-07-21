@@ -282,6 +282,10 @@ select 1 / case when (
 -- ---------------------------------------------------------------------------
 -- Validation and audited/idempotent RPC behavior.
 -- ---------------------------------------------------------------------------
+select count(*) as notification_count_before_curation_upsert
+from public.notifications
+\gset
+
 do $$
 declare
   invalid_call record;
@@ -414,12 +418,16 @@ select 1 / case when exists (
 select 1 / case when not exists (
   select 1
   from public.notifications
-  where source_type = 'announcement'
+  where source_type = 'admin_announcement'
     and source_id in (
       '00000000-0000-4000-8000-000000011431',
       '00000000-0000-4000-8000-000000011433'
     )
-) then 1 else 0 end as assert_curation_upsert_has_no_notification_side_effect;
+) and (
+  select count(*)
+  from public.notifications
+) = :'notification_count_before_curation_upsert'::bigint
+then 1 else 0 end as assert_curation_upsert_has_no_notification_side_effect;
 
 select pg_catalog.pg_get_functiondef(
   'public.admin_upsert_home_curation(uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,boolean)'::regprocedure
