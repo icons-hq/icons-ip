@@ -194,7 +194,41 @@ values
   ('archive-event-guard-ip', '보관 이벤트 가드 IP', 'catalog-archive-test'),
   ('archive-parent-ip', '보관 부모 가드 IP', 'catalog-archive-test'),
   ('archive-history-ip', '카탈로그보관검색 IP', 'catalog-archive-test'),
-  ('archive-transaction-ip', '보관 거래 가드 IP', 'catalog-archive-test');
+  ('archive-transaction-ip', '보관 거래 가드 IP', 'catalog-archive-test'),
+  ('archive-curation-active-ip', '활성 큐레이션 가드 IP', 'catalog-archive-test'),
+  ('archive-curation-future-ip', '예약 큐레이션 가드 IP', 'catalog-archive-test'),
+  ('archive-curation-disabled-ip', '비활성 큐레이션 허용 IP', 'catalog-archive-test'),
+  ('archive-curation-ended-ip', '종료 큐레이션 허용 IP', 'catalog-archive-test');
+
+insert into public.home_curations (
+  id, kind, ip_id, title, link_path, display_order,
+  active_from, active_to, enabled
+)
+values
+  (
+    '00000000-0000-4000-8000-000000011371',
+    'featured_ip', 'archive-curation-active-ip', '활성 큐레이션',
+    '/ip/archive-curation-active-ip', 0,
+    now() - interval '1 day', now() + interval '1 day', true
+  ),
+  (
+    '00000000-0000-4000-8000-000000011372',
+    'featured_ip', 'archive-curation-future-ip', '예약 큐레이션',
+    '/ip/archive-curation-future-ip', 1,
+    now() + interval '1 day', now() + interval '2 days', true
+  ),
+  (
+    '00000000-0000-4000-8000-000000011373',
+    'featured_ip', 'archive-curation-disabled-ip', '비활성 큐레이션',
+    '/ip/archive-curation-disabled-ip', 2,
+    now() - interval '1 day', null, false
+  ),
+  (
+    '00000000-0000-4000-8000-000000011374',
+    'featured_ip', 'archive-curation-ended-ip', '종료 큐레이션',
+    '/ip/archive-curation-ended-ip', 3,
+    now() - interval '2 days', now() - interval '1 day', true
+  );
 
 insert into public.goods (
   id, ip_id, name, type, price, stock, stock_qty, archived_at
@@ -448,6 +482,34 @@ begin
   raise exception 'scheduled IP policy should block archive';
 end;
 $$;
+
+do $$
+begin
+  begin perform public.admin_archive_ip('archive-curation-active-ip');
+  exception when check_violation then
+    if sqlerrm = 'ip_has_active_home_curation' then return; end if;
+    raise;
+  end;
+  raise exception 'active featured curation should block IP archive';
+end;
+$$;
+
+do $$
+begin
+  begin perform public.admin_archive_ip('archive-curation-future-ip');
+  exception when check_violation then
+    if sqlerrm = 'ip_has_active_home_curation' then return; end if;
+    raise;
+  end;
+  raise exception 'future featured curation should block IP archive';
+end;
+$$;
+
+select 1 / case when public.admin_archive_ip('archive-curation-disabled-ip')
+  then 1 else 0 end as assert_disabled_curation_does_not_block_ip_archive;
+
+select 1 / case when public.admin_archive_ip('archive-curation-ended-ip')
+  then 1 else 0 end as assert_ended_curation_does_not_block_ip_archive;
 
 do $$
 begin
@@ -993,6 +1055,24 @@ select 1 / case when (
     'public.grant_cards(uuid,uuid,text,uuid,text,integer)'::regprocedure
   ) not ilike '%for share of card%'
 ) then 1 else 0 end as assert_catalog_guards_lock_references;
+
+-- Archive and curation upsert serialize on the same IP row. Whichever wins
+-- the lock makes the loser observe either archived state or the enabled
+-- current/future featured curation before it can commit.
+select 1 / case when
+  pg_catalog.pg_get_functiondef(
+    'private.set_catalog_archived(text,text,boolean)'::regprocedure
+  ) ilike '%for update of ip%'
+  and pg_catalog.pg_get_functiondef(
+    'private.set_catalog_archived(text,text,boolean)'::regprocedure
+  ) ilike '%from public.home_curations%'
+  and pg_catalog.pg_get_functiondef(
+    'private.set_catalog_archived(text,text,boolean)'::regprocedure
+  ) ilike '%curation.enabled%'
+  and pg_catalog.pg_get_functiondef(
+    'private.set_catalog_archived(text,text,boolean)'::regprocedure
+  ) ilike '%curation.active_to is null%'
+then 1 else 0 end as assert_featured_curation_archive_lock_contract;
 
 reset role;
 
