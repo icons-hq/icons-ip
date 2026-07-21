@@ -21,10 +21,15 @@ export interface HomeCurationSnapshot {
 export function prioritizeHomePostPreviews(
   previewsByIpId: HomePostPreviewByIpId,
   followedIpIds: ReadonlySet<string>,
+  orderedIpIds?: readonly string[],
 ): [string, CatalogPostPreview][] {
-  const entries = Object.entries(previewsByIpId).filter(
-    (entry): entry is [string, CatalogPostPreview] => entry[1] !== null,
-  );
+  const entries = orderedIpIds === undefined
+    ? Object.entries(previewsByIpId).filter(
+        (entry): entry is [string, CatalogPostPreview] => entry[1] !== null,
+      )
+    : orderedIpIds
+        .map((ipId) => [ipId, previewsByIpId[ipId]] as const)
+        .filter((entry): entry is [string, CatalogPostPreview] => entry[1] != null);
 
   return [
     ...entries.filter(([ipId]) => followedIpIds.has(ipId)),

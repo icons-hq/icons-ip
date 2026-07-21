@@ -911,6 +911,80 @@ describe('getHomeSnapshot', () => {
     mocks.client = null;
   });
 
+  it('applies the first featured artwork to the home catalog only and falls back when artwork is absent', async () => {
+    const records: QueryRecord[] = [];
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records, {
+      ips: [
+        {
+          ...defaultSupabaseRows().ips[0],
+          id: 'art-ip',
+          title: '아트 특집',
+          bg: 'original-art-bg',
+          featured: false,
+        },
+        {
+          ...defaultSupabaseRows().ips[0],
+          id: 'fallback-ip',
+          title: '기본 키아트 특집',
+          bg: 'fallback-catalog-bg',
+          featured: false,
+        },
+      ],
+      home_curations: [
+        {
+          id: '00000000-0000-0000-0000-000000000001',
+          kind: 'featured_ip',
+          ip_id: 'art-ip',
+          title: '첫 번째 아트 특집',
+          image_path: 'public-media/catalog/curation/11111111-1111-4111-8111-111111111111.webp',
+          link_path: '/ip/art-ip',
+          display_order: 0,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000002',
+          kind: 'featured_ip',
+          ip_id: 'art-ip',
+          title: '중복 후순위 아트',
+          image_path: 'public-media/catalog/curation/22222222-2222-4222-8222-222222222222.webp',
+          link_path: '/ip/art-ip',
+          display_order: 1,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000003',
+          kind: 'featured_ip',
+          ip_id: 'fallback-ip',
+          title: '이미지 없는 특집',
+          image_path: null,
+          link_path: '/ip/fallback-ip',
+          display_order: 2,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+        },
+      ],
+    });
+
+    const publicCatalog = await getCatalogSnapshot();
+    const home = await getHomeSnapshot();
+
+    expect(publicCatalog.ips.find((item) => item.id === 'art-ip')?.bg).toBe('original-art-bg');
+    expect(home.curation.featuredIpIds).toEqual(['art-ip', 'fallback-ip']);
+    expect(home.catalog.ips.find((item) => item.id === 'art-ip')?.bg).toBe(
+      'url("https://cdn.example/catalog/curation/11111111-1111-4111-8111-111111111111.webp") center / cover no-repeat',
+    );
+    expect(home.catalog.ips.find((item) => item.id === 'fallback-ip')?.bg).toBe('fallback-catalog-bg');
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
   it('accepts an internal link at the 2048 Unicode character boundary', async () => {
     const records: QueryRecord[] = [];
     const unicodeBoundaryLink = `/${'😀'.repeat(2047)}`;

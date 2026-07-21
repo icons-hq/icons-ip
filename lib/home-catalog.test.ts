@@ -258,4 +258,15 @@ describe('prioritizeHomePostPreviews', () => {
 
     expect(prioritizeHomePostPreviews(previews, new Set()).map(([ipId]) => ipId)).toEqual(['hwasan', 'lumen']);
   });
+
+  it('uses explicit selectable order for numeric-like IP IDs', () => {
+    const previews = {
+      '10': post('ten', 'IP ten'),
+      '2': post('two', 'IP two'),
+    };
+
+    expect(
+      prioritizeHomePostPreviews(previews, new Set(), ['10', '2']).map(([ipId]) => ipId),
+    ).toEqual(['10', '2']);
+  });
 });

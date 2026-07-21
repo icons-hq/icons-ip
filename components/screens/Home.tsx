@@ -242,6 +242,7 @@ export function Home({
     ),
     [catalog, curation.featuredIpIds],
   );
+  const selectableIpIds = useMemo(() => selectableIps.map((ip) => ip.id), [selectableIps]);
   const followedIpIdSet = useMemo(() => new Set(followedIpIds), [followedIpIds]);
   const [selectedIpId, setSelectedIpId] = useState<string | null>(null);
   const selectedIp = selectableIps.find((ip) => ip.id === selectedIpId) ?? selectableIps[0] ?? null;
@@ -254,13 +255,17 @@ export function Home({
     for (const g of catalog.goods) {
       if (g.stock === 'low') items.push({ c: 'var(--amber)', t: `${g.name} — 한정 · 품절임박` });
     }
-    for (const [, post] of prioritizeHomePostPreviews(postPreviewByIpId, followedIpIdSet)) {
+    for (const [, post] of prioritizeHomePostPreviews(
+      postPreviewByIpId,
+      followedIpIdSet,
+      selectableIpIds,
+    )) {
       items.push({ c: 'var(--pink)', t: `@${post.user} 님의 ${post.tag} — ♥ ${post.likes}` });
     }
     const fans = catalog.ips.reduce((sum, ip) => sum + ip.fans, 0);
     if (fans > 0) items.push({ c: 'var(--cyan)', t: `지금 ${compactNumber(fans)} 팬이 ICONS에서 덕질 중` });
     return items.slice(0, 8);
-  }, [catalog, followedIpIdSet, postPreviewByIpId]);
+  }, [catalog, followedIpIdSet, postPreviewByIpId, selectableIpIds]);
 
   const holoCard = useMemo(() => {
     const byRarity = (r: RarityKey) => catalog.cards.find((c) => c.rarity === r);

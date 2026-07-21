@@ -150,6 +150,16 @@ interface HomeCurationRow {
   active_to: string | null;
 }
 
+interface LoadedFeaturedIpCuration {
+  ipId: string;
+  imageBg: string | null;
+}
+
+interface LoadedHomeCuration {
+  curation: HomeCurationSnapshot;
+  featuredIps: LoadedFeaturedIpCuration[];
+}
+
 interface PublicProfileRow {
   id: string;
   nickname: string | null;
@@ -239,6 +249,10 @@ function emptyHomeCuration(): HomeCurationSnapshot {
   return { hero: null, announcement: null, featuredIpIds: [] };
 }
 
+function emptyLoadedHomeCuration(): LoadedHomeCuration {
+  return { curation: emptyHomeCuration(), featuredIps: [] };
+}
+
 function isSafeInternalLink(value: string) {
   const characterLength = Array.from(value).length;
   if (
@@ -285,7 +299,7 @@ function toHomeBanner(
   };
 }
 
-async function getActiveHomeCurationSnapshot(): Promise<HomeCurationSnapshot> {
+async function getActiveHomeCurationSnapshot(): Promise<LoadedHomeCuration> {
   const supabase = await createClient();
   const now = new Date().toISOString();
   const { data, error } = await supabase
@@ -304,22 +318,49 @@ async function getActiveHomeCurationSnapshot(): Promise<HomeCurationSnapshot> {
   const imageUrlForPath = (path: string) => supabase.storage
     .from(PUBLIC_MEDIA_BUCKET)
     .getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
-  const snapshot = emptyHomeCuration();
+  const curation = emptyHomeCuration();
+  const featuredIps: LoadedFeaturedIpCuration[] = [];
 
   for (const row of (data ?? []) as HomeCurationRow[]) {
     const banner = toHomeBanner(row, imageUrlForPath);
     if (!banner) continue;
 
-    if (row.kind === 'hero' && snapshot.hero === null) {
-      snapshot.hero = banner;
-    } else if (row.kind === 'announcement' && snapshot.announcement === null) {
-      snapshot.announcement = banner;
+    if (row.kind === 'hero' && curation.hero === null) {
+      curation.hero = banner;
+    } else if (row.kind === 'announcement' && curation.announcement === null) {
+      curation.announcement = banner;
     } else if (row.kind === 'featured_ip' && typeof row.ip_id === 'string' && row.ip_id) {
-      snapshot.featuredIpIds.push(row.ip_id);
+      curation.featuredIpIds.push(row.ip_id);
+      featuredIps.push({ ipId: row.ip_id, imageBg: banner.imageBg });
     }
   }
 
-  return snapshot;
+  return { curation, featuredIps };
+}
+
+function applyHomeFeaturedArtwork(
+  catalog: CatalogSnapshot,
+  featuredIps: readonly LoadedFeaturedIpCuration[],
+  selectedIpIds: readonly string[],
+): CatalogSnapshot {
+  const selectedIdSet = new Set(selectedIpIds);
+  const seen = new Set<string>();
+  const imageBgByIpId = new Map<string, string>();
+
+  for (const featuredIp of featuredIps) {
+    if (!selectedIdSet.has(featuredIp.ipId) || seen.has(featuredIp.ipId)) continue;
+    seen.add(featuredIp.ipId);
+    if (featuredIp.imageBg) imageBgByIpId.set(featuredIp.ipId, featuredIp.imageBg);
+  }
+
+  if (imageBgByIpId.size === 0) return catalog;
+  return {
+    ...catalog,
+    ips: catalog.ips.map((ip) => {
+      const imageBg = imageBgByIpId.get(ip.id);
+      return imageBg ? { ...ip, bg: imageBg } : ip;
+    }),
+  };
 }
 
 function toIp(row: IpRow, verticalsByKey: Map<string, Vertical>, imageUrlForPath: (path: string) => string): Ip {
@@ -764,25 +805,30 @@ export async function getCatalogIpDetail(
 
 export async function getHomeSnapshot(options: CatalogIpDetailOptions = {}): Promise<HomeSnapshot> {
   const source = getCatalogSource();
-  const [catalog, curation] = await Promise.all([
+  const [catalog, loadedCuration] = await Promise.all([
     getCatalogSnapshot(),
-    source === 'supabase' ? getActiveHomeCurationSnapshot() : Promise.resolve(emptyHomeCuration()),
+    source === 'supabase'
+      ? getActiveHomeCurationSnapshot()
+      : Promise.resolve(emptyLoadedHomeCuration()),
   ]);
   const normalizedCuration: HomeCurationSnapshot = catalog.source === 'mock'
-    ? curation
+    ? loadedCuration.curation
     : {
-        ...curation,
-        featuredIpIds: getHomeCuratedIpIds(catalog, curation.featuredIpIds),
+        ...loadedCuration.curation,
+        featuredIpIds: getHomeCuratedIpIds(catalog, loadedCuration.curation.featuredIpIds),
       };
+  const homeCatalog = catalog.source === 'mock'
+    ? catalog
+    : applyHomeFeaturedArtwork(catalog, loadedCuration.featuredIps, normalizedCuration.featuredIpIds);
   const selectableIps = getHomeSelectableIps(
-    catalog,
-    catalog.source === 'mock' ? undefined : normalizedCuration.featuredIpIds,
+    homeCatalog,
+    homeCatalog.source === 'mock' ? undefined : normalizedCuration.featuredIpIds,
   );
 
-  if (catalog.source === 'mock') {
+  if (homeCatalog.source === 'mock') {
     const mockPosts = mockPostPreviews();
     return {
-      catalog,
+      catalog: homeCatalog,
       curation: normalizedCuration,
       postPreviewByIpId: Object.fromEntries(
         selectableIps.map((ip) => [ip.id, mockPosts.find((post) => post.ipName === ip.title) ?? null]),
@@ -798,7 +844,7 @@ export async function getHomeSnapshot(options: CatalogIpDetailOptions = {}): Pro
   );
 
   return {
-    catalog,
+    catalog: homeCatalog,
     curation: normalizedCuration,
     postPreviewByIpId: Object.fromEntries(postEntries),
   };

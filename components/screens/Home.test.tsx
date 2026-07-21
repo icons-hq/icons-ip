@@ -163,6 +163,62 @@ describe('Home curation', () => {
     expect(html).toContain('flex:0 0 auto');
   });
 
+  it('renders a featured artwork override and keeps catalog key art when no override exists', () => {
+    const artworkIp = {
+      ...ip('artwork', '아트워크 특집'),
+      bg: 'url("https://cdn.example/featured.webp") center / cover no-repeat',
+    };
+    const fallbackIp = {
+      ...ip('fallback', '기본 키아트 특집'),
+      bg: 'linear-gradient(#123456, #654321)',
+    };
+
+    const artworkHtml = renderHome({
+      catalog: catalog('supabase', [artworkIp, fallbackIp]),
+      curation: { hero: null, announcement: null, featuredIpIds: ['artwork', 'fallback'] },
+    });
+    const fallbackHtml = renderHome({
+      catalog: catalog('supabase', [fallbackIp]),
+      curation: { hero: null, announcement: null, featuredIpIds: ['fallback'] },
+    });
+
+    expect(artworkHtml).toContain('https://cdn.example/featured.webp');
+    expect(fallbackHtml).toContain('linear-gradient(#123456, #654321)');
+  });
+
+  it('keeps numeric-like post previews in explicit picker order in the ticker', () => {
+    const html = renderHome({
+      catalog: catalog('supabase', [ip('10', '열 번째 IP'), ip('2', '두 번째 IP')]),
+      curation: { hero: null, announcement: null, featuredIpIds: ['10', '2'] },
+      postPreviewByIpId: {
+        '10': {
+          id: 'post-ten',
+          user: 'ten',
+          ipName: '열 번째 IP',
+          avatar: '#2DE2FF',
+          text: '열 번째 글',
+          likes: 10,
+          comments: 0,
+          time: '방금 전',
+          tag: '후기',
+        },
+        '2': {
+          id: 'post-two',
+          user: 'two',
+          ipName: '두 번째 IP',
+          avatar: '#8B5CFF',
+          text: '두 번째 글',
+          likes: 2,
+          comments: 0,
+          time: '방금 전',
+          tag: '후기',
+        },
+      },
+    });
+
+    expect(html.indexOf('@ten 님의 후기')).toBeLessThan(html.indexOf('@two 님의 후기'));
+  });
+
   it('renders the curated picker in order and caps it at five accessible buttons', () => {
     const html = renderHome({
       curation: {
