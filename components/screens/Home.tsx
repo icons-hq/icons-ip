@@ -7,6 +7,8 @@ import type { Card, Ip } from '@/lib/data';
 import {
   getHomeSelectableIps,
   prioritizeHomePostPreviews,
+  type HomeBanner,
+  type HomeCurationSnapshot,
   type HomePostPreviewByIpId,
 } from '@/lib/home-catalog';
 import { ipAccent, ipEn } from '@/lib/ip-display';
@@ -53,14 +55,17 @@ function CrossfadeArt({ bg, className, baseOpacity = 1 }: { bg: string; classNam
 function Hero({
   ips,
   selectedIp,
+  curatedHero,
   onSelect,
 }: {
   ips: Ip[];
   selectedIp: Ip;
+  curatedHero: HomeBanner | null;
   onSelect: (ipId: string) => void;
 }) {
   const { artRef, onMouseMove, onMouseLeave } = useHeroParallax();
   const accent = ipAccent(selectedIp);
+  const heroBg = curatedHero?.imageBg ?? selectedIp.bg;
 
   return (
     <header
@@ -73,7 +78,7 @@ function Hero({
         aria-hidden
         style={{ position: 'absolute', inset: -48, zIndex: 0, transform: 'scale(1.04)', transition: 'transform .9s cubic-bezier(.2,.6,.2,1)' }}
       >
-        <CrossfadeArt bg={selectedIp.bg} className="home-hero-art" />
+        <CrossfadeArt bg={heroBg} className="home-hero-art" />
       </div>
       <div aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 1, background: 'linear-gradient(90deg, rgba(8,6,15,.92) 0%, rgba(8,6,15,.55) 42%, rgba(8,6,15,.12) 75%, rgba(8,6,15,.35) 100%)' }} />
       <div aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 1, background: 'linear-gradient(180deg, rgba(8,6,15,.55) 0%, transparent 26%, transparent 55%, rgba(8,6,15,.94) 96%)' }} />
@@ -91,12 +96,18 @@ function Hero({
           <span className="mono" style={{ fontSize: 12, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--dim)' }}>ICONS · 공식 라이선스 팬덤 플랫폼</span>
         </div>
 
-        <h1 className="h-xxl" style={{ margin: '26px 0 0' }}>
-          <span className="rise" style={{ display: 'block', animationDelay: '.08s' }}>누구의</span>
-          <span className="rise" style={{ display: 'block', animationDelay: '.18s' }}>
-            <span className="holo-text" style={{ backgroundSize: '200% 200%' }}>팬</span>이세요?
-          </span>
-        </h1>
+        {curatedHero ? (
+          <h1 className="h-xxl rise" style={{ margin: '26px 0 0', maxWidth: 820, animationDelay: '.08s' }}>
+            {curatedHero.title}
+          </h1>
+        ) : (
+          <h1 className="h-xxl" style={{ margin: '26px 0 0' }}>
+            <span className="rise" style={{ display: 'block', animationDelay: '.08s' }}>누구의</span>
+            <span className="rise" style={{ display: 'block', animationDelay: '.18s' }}>
+              <span className="holo-text" style={{ backgroundSize: '200% 200%' }}>팬</span>이세요?
+            </span>
+          </h1>
+        )}
         <p className="rise" style={{ margin: '24px 0 0', maxWidth: 540, fontSize: 'clamp(16px, 1.8vw, 20px)', color: '#C9C3E4', animationDelay: '.28s', textWrap: 'pretty' }}>
           최애를 고르는 순간, 그 세계가 통째로 열립니다.<br />
           <strong style={{ color: 'var(--text)' }}>사고 · 모으고 · 만나고 · 떠들고</strong> — 흩어져 있던 덕질을 한 곳에서.
@@ -109,7 +120,7 @@ function Hero({
               const active = ip.id === selectedIp.id;
               const c = ipAccent(ip);
               return (
-                <button key={ip.id} type="button" className="ip-pick" aria-pressed={active} onClick={() => onSelect(ip.id)}
+                <button key={ip.id} type="button" className="ip-pick" aria-label={`${ip.title} 선택`} aria-pressed={active} onClick={() => onSelect(ip.id)}
                   style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start', padding: 0 }}>
                   <span
                     className="ip-pick-art"
@@ -134,9 +145,20 @@ function Hero({
         </div>
 
         <div className="rise" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 26, animationDelay: '.46s' }}>
-          <Link className="btn btn-holo" href={hrefFor('ip', selectedIp.id)} style={{ height: 52, padding: '0 28px', fontSize: 16 }}>
-            {selectedIp.title} 세계로 입장 →
-          </Link>
+          {curatedHero ? (
+            <Link
+              className="btn btn-holo"
+              href={curatedHero.href}
+              aria-label={`${curatedHero.title} 자세히 보기`}
+              style={{ height: 52, padding: '0 28px', fontSize: 16 }}
+            >
+              자세히 보기 →
+            </Link>
+          ) : (
+            <Link className="btn btn-holo" href={hrefFor('ip', selectedIp.id)} style={{ height: 52, padding: '0 28px', fontSize: 16 }}>
+              {selectedIp.title} 세계로 입장 →
+            </Link>
+          )}
           <a className="btn" href="#verbs" style={{ height: 52, padding: '0 26px', fontSize: 15, border: '1px solid var(--line-3)', background: 'rgba(8,6,15,.35)', backdropFilter: 'blur(8px)' }}>
             둘러보기
           </a>
@@ -193,14 +215,22 @@ function TiltCard({ card, ip }: { card: Card; ip: Ip | null }) {
 
 export function Home({
   catalog,
+  curation,
   followedIpIds,
   postPreviewByIpId,
 }: {
   catalog: CatalogSnapshot;
+  curation: HomeCurationSnapshot;
   followedIpIds: string[];
   postPreviewByIpId: HomePostPreviewByIpId;
 }) {
-  const selectableIps = useMemo(() => getHomeSelectableIps(catalog), [catalog]);
+  const selectableIps = useMemo(
+    () => getHomeSelectableIps(
+      catalog,
+      catalog.source === 'mock' ? undefined : curation.featuredIpIds,
+    ),
+    [catalog, curation.featuredIpIds],
+  );
   const followedIpIdSet = useMemo(() => new Set(followedIpIds), [followedIpIds]);
   const [selectedIpId, setSelectedIpId] = useState<string | null>(null);
   const selectedIp = selectableIps.find((ip) => ip.id === selectedIpId) ?? selectableIps[0] ?? null;
@@ -246,7 +276,46 @@ export function Home({
 
   return (
     <div style={{ minHeight: '100vh' }}>
-      <Hero ips={selectableIps} selectedIp={selectedIp} onSelect={setSelectedIpId} />
+      <Hero
+        ips={selectableIps}
+        selectedIp={selectedIp}
+        curatedHero={curation.hero}
+        onSelect={setSelectedIpId}
+      />
+
+      {curation.announcement && (
+        <aside
+          aria-label="공지"
+          style={{
+            borderTop: '1px solid var(--line)',
+            borderBottom: '1px solid var(--line)',
+            background: curation.announcement.imageBg ?? 'linear-gradient(115deg, rgba(45,226,255,.08), rgba(139,92,255,.12), rgba(255,77,157,.08))',
+          }}
+        >
+          <Link
+            href={curation.announcement.href}
+            className="wrap"
+            style={{
+              minHeight: 58,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 16,
+              paddingTop: 12,
+              paddingBottom: 12,
+              background: curation.announcement.imageBg
+                ? 'linear-gradient(90deg, rgba(8,6,15,.94), rgba(8,6,15,.66))'
+                : undefined,
+            }}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+              <span className="mono" style={{ color: 'var(--cyan)', fontSize: 11, letterSpacing: '.14em' }}>NOTICE</span>
+              <span style={{ fontWeight: 650, textWrap: 'pretty' }}>{curation.announcement.title}</span>
+            </span>
+            <span aria-hidden style={{ color: 'var(--violet-2)', fontSize: 20 }}>→</span>
+          </Link>
+        </aside>
+      )}
 
       <Ticker items={ticker} />
 

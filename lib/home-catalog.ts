@@ -5,6 +5,19 @@ export const MAX_HOME_PICKER_IPS = 5;
 
 export type HomePostPreviewByIpId = Record<string, CatalogPostPreview | null>;
 
+export interface HomeBanner {
+  id: string;
+  title: string;
+  imageBg: string | null;
+  href: string;
+}
+
+export interface HomeCurationSnapshot {
+  hero: HomeBanner | null;
+  announcement: HomeBanner | null;
+  featuredIpIds: string[];
+}
+
 export function prioritizeHomePostPreviews(
   previewsByIpId: HomePostPreviewByIpId,
   followedIpIds: ReadonlySet<string>,
@@ -28,7 +41,27 @@ export interface HomeIpWorld {
   representativePost: CatalogPostPreview | null;
 }
 
-export function getHomeSelectableIps(catalog: Pick<CatalogSnapshot, 'ips'>): Ip[] {
+export function getHomeSelectableIps(
+  catalog: Pick<CatalogSnapshot, 'ips'>,
+  curatedIpIds?: readonly string[],
+): Ip[] {
+  if (curatedIpIds !== undefined) {
+    const ipsById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
+    const seen = new Set<string>();
+    const curatedIps: Ip[] = [];
+
+    for (const id of curatedIpIds) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const ip = ipsById.get(id);
+      if (!ip) continue;
+      curatedIps.push(ip);
+      if (curatedIps.length === MAX_HOME_PICKER_IPS) break;
+    }
+
+    return curatedIps.length > 0 ? curatedIps : catalog.ips.slice(0, MAX_HOME_PICKER_IPS);
+  }
+
   const featuredIps = catalog.ips.filter((ip) => ip.featured);
   return (featuredIps.length > 0 ? featuredIps : catalog.ips).slice(0, MAX_HOME_PICKER_IPS);
 }

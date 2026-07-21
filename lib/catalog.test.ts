@@ -73,9 +73,11 @@ type QueryRecord = {
   selectOptions?: { count?: string; head?: boolean };
   eq: [string, unknown][];
   gt: [string, number][];
+  lte: [string, string][];
   is: [string, unknown][];
   in: [string, unknown[]][];
   not: [string, string, string][];
+  or: string[];
   order: [string, { ascending?: boolean } | undefined][];
   limit?: number;
 };
@@ -83,11 +85,11 @@ type QueryRecord = {
 type QueryResult<T> = {
   data: T[] | null;
   count?: number | null;
-  error: null;
+  error: { message: string } | null;
 };
 
 type SupabaseRows = Record<
-  'verticals' | 'ips' | 'goods' | 'cards' | 'events' | 'posts' | 'public_profiles' | 'likes' | 'comments' | 'blocks' | 'user_cards',
+  'verticals' | 'ips' | 'goods' | 'cards' | 'events' | 'posts' | 'public_profiles' | 'likes' | 'comments' | 'blocks' | 'user_cards' | 'home_curations',
   Record<string, unknown>[]
 >;
 
@@ -99,8 +101,9 @@ function createQuery(
   table: string,
   rows: Record<string, unknown>[],
   records: QueryRecord[],
+  errorMessage?: string,
 ) {
-  const record: QueryRecord = { table, eq: [], gt: [], is: [], in: [], not: [], order: [] };
+  const record: QueryRecord = { table, eq: [], gt: [], lte: [], is: [], in: [], not: [], or: [], order: [] };
   records.push(record);
 
   const query = {
@@ -117,6 +120,10 @@ function createQuery(
       record.gt.push([column, value]);
       return query;
     },
+    lte(column: string, value: string) {
+      record.lte.push([column, value]);
+      return query;
+    },
     is(column: string, value: unknown) {
       record.is.push([column, value]);
       return query;
@@ -127,6 +134,10 @@ function createQuery(
     },
     not(column: string, operator: string, value: string) {
       record.not.push([column, operator, value]);
+      return query;
+    },
+    or(value: string) {
+      record.or.push(value);
       return query;
     },
     order(column: string, options?: { ascending?: boolean }) {
@@ -142,12 +153,18 @@ function createQuery(
       onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
     ) {
       try {
+        if (errorMessage) {
+          return Promise.resolve({ data: null, error: { message: errorMessage } }).then(onfulfilled, onrejected);
+        }
         let data = rows;
         for (const [column, value] of record.eq) {
           data = data.filter((row) => row[column] === value);
         }
         for (const [column, value] of record.gt) {
           data = data.filter((row) => Number(row[column]) > value);
+        }
+        for (const [column, value] of record.lte) {
+          data = data.filter((row) => String(row[column]) <= value);
         }
         for (const [column, value] of record.is) {
           data = data.filter((row) => value === null ? row[column] == null : row[column] === value);
@@ -159,6 +176,13 @@ function createQuery(
           if (operator === 'in') {
             const excluded = value.replace(/^\(|\)$/g, '').split(',').filter(Boolean);
             data = data.filter((row) => !excluded.includes(String(row[column])));
+          }
+        }
+        for (const expression of record.or) {
+          const activeToMatch = /^active_to\.is\.null,active_to\.gt\.(.+)$/.exec(expression);
+          if (activeToMatch) {
+            const boundary = activeToMatch[1];
+            data = data.filter((row) => row.active_to == null || String(row.active_to) > boundary);
           }
         }
         for (const [column, options] of record.order) {
@@ -226,6 +250,7 @@ function defaultSupabaseRows(): SupabaseRows {
     ],
     blocks: [{ user_id: 'viewer-1', blocked_user_id: 'u1' }],
     user_cards: [],
+    home_curations: [],
   };
 }
 
@@ -233,6 +258,7 @@ function createSupabaseClient(
   records: QueryRecord[],
   overrides: Partial<SupabaseRows> = {},
   userId: string | null = 'viewer-1',
+  errors: Partial<Record<keyof SupabaseRows, string>> = {},
 ) {
   const rows: SupabaseRows = {
     ...defaultSupabaseRows(),
@@ -244,7 +270,7 @@ function createSupabaseClient(
       getUser: () => Promise.resolve({ data: { user: userId ? { id: userId } : null } }),
     },
     from(table: keyof SupabaseRows) {
-      return createQuery(table, rows[table] as unknown as Record<string, unknown>[], records);
+      return createQuery(table, rows[table] as unknown as Record<string, unknown>[], records, errors[table]);
     },
     storage: {
       from() {
@@ -279,6 +305,21 @@ describe('buildCatalogIpDetail', () => {
 });
 
 describe('getCatalogSnapshot', () => {
+  it('orders public IPs by audience without consulting the legacy featured flag', async () => {
+    const records: QueryRecord[] = [];
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records);
+
+    await getCatalogSnapshot();
+
+    expect(records.find((record) => record.table === 'ips')?.order).toEqual([
+      ['fans_count', { ascending: false }],
+    ]);
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
   it('excludes archived catalog records from every public Supabase collection', async () => {
     const records: QueryRecord[] = [];
     mocks.isConfigured = true;
@@ -557,7 +598,7 @@ describe('getCatalogIpDetail', () => {
 });
 
 describe('getHomeSnapshot', () => {
-  it('loads first visible post previews for selectable IPs only', async () => {
+  it('loads active home curation in deterministic order and scopes previews to curated IPs', async () => {
     const records: QueryRecord[] = [];
     mocks.isConfigured = true;
     mocks.client = createSupabaseClient(records, {
@@ -619,19 +660,132 @@ describe('getHomeSnapshot', () => {
         { post_id: 'hwasan-latest', user_id: 'u3', status: 'visible' },
         { post_id: 'hwasan-latest', user_id: 'u4', status: 'hidden' },
       ],
+      home_curations: [
+        {
+          id: '00000000-0000-0000-0000-000000000000',
+          kind: 'hero',
+          ip_id: null,
+          title: '이미지 없는 히어로',
+          image_path: null,
+          link_path: '/events/image-required',
+          display_order: 0,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000001',
+          kind: 'hero',
+          ip_id: null,
+          title: '여름 홈 히어로',
+          image_path: 'public-media/catalog/curation/11111111-1111-4111-8111-111111111111.webp',
+          link_path: '/events/summer',
+          display_order: 0,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000002',
+          kind: 'announcement',
+          ip_id: null,
+          title: '배송 일정 안내',
+          image_path: null,
+          link_path: '/community?tag=notice',
+          display_order: 0,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000003',
+          kind: 'featured_ip',
+          ip_id: 'regular',
+          title: 'REGULAR 특집',
+          image_path: null,
+          link_path: '/ip/regular',
+          display_order: 1,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000004',
+          kind: 'featured_ip',
+          ip_id: 'hwasan',
+          title: '화산강림 특집',
+          image_path: null,
+          link_path: '/ip/hwasan',
+          display_order: 2,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000005',
+          kind: 'featured_ip',
+          ip_id: 'lumen',
+          title: '비활성 특집',
+          image_path: null,
+          link_path: '/ip/lumen',
+          display_order: 0,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: false,
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000006',
+          kind: 'hero',
+          ip_id: null,
+          title: '예약 히어로',
+          image_path: 'public-media/catalog/curation/22222222-2222-4222-8222-222222222222.webp',
+          link_path: '/future',
+          display_order: 0,
+          active_from: '2999-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000007',
+          kind: 'announcement',
+          ip_id: null,
+          title: '종료 공지',
+          image_path: null,
+          link_path: '/ended',
+          display_order: 0,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: '2021-01-01T00:00:00.000Z',
+          enabled: true,
+        },
+      ],
     });
 
     const snapshot = await getHomeSnapshot();
 
-    expect(snapshot.postPreviewByIpId).toEqual({
-      hwasan: expect.objectContaining({ id: 'hwasan-latest', user: 'neonfan', tag: '후기', comments: 1 }),
-      lumen: expect.objectContaining({ id: 'lumen-latest', user: 'fan_u2', tag: '한정굿즈' }),
+    expect(snapshot.curation).toEqual({
+      hero: {
+        id: '00000000-0000-0000-0000-000000000001',
+        title: '여름 홈 히어로',
+        imageBg: 'url("https://cdn.example/catalog/curation/11111111-1111-4111-8111-111111111111.webp") center / cover no-repeat',
+        href: '/events/summer',
+      },
+      announcement: {
+        id: '00000000-0000-0000-0000-000000000002',
+        title: '배송 일정 안내',
+        imageBg: null,
+        href: '/community?tag=notice',
+      },
+      featuredIpIds: ['regular', 'hwasan'],
     });
-    expect(snapshot.postPreviewByIpId).not.toHaveProperty('regular');
+    expect(snapshot.postPreviewByIpId).toEqual({
+      regular: expect.objectContaining({ id: 'regular-latest' }),
+      hwasan: expect.objectContaining({ id: 'hwasan-latest', user: 'neonfan', tag: '후기', comments: 1 }),
+    });
+    expect(snapshot.postPreviewByIpId).not.toHaveProperty('lumen');
     expect(records.filter((record) => record.table === 'posts').map((record) => record.eq)).toEqual(
       expect.arrayContaining([
+        [['ip_id', 'regular'], ['status', 'visible']],
         [['ip_id', 'hwasan'], ['status', 'visible']],
-        [['ip_id', 'lumen'], ['status', 'visible']],
       ]),
     );
     expect(records.filter((record) => record.table === 'comments')).toEqual(expect.arrayContaining([
@@ -639,6 +793,141 @@ describe('getHomeSnapshot', () => {
         eq: [['post_id', 'hwasan-latest'], ['status', 'visible']],
       }),
     ]));
+    const curationQuery = records.find((record) => record.table === 'home_curations');
+    expect(curationQuery).toEqual(expect.objectContaining({
+      eq: [['enabled', true]],
+      order: [
+        ['kind', { ascending: true }],
+        ['display_order', { ascending: true }],
+        ['active_from', { ascending: true }],
+        ['id', { ascending: true }],
+      ],
+    }));
+    expect(curationQuery?.lte).toEqual([
+      ['active_from', expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/)],
+    ]);
+    expect(curationQuery?.or).toEqual([
+      expect.stringMatching(/^active_to\.is\.null,active_to\.gt\./),
+    ]);
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
+  it('treats empty Supabase curation as empty and never falls back to legacy featured IPs', async () => {
+    const records: QueryRecord[] = [];
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records, {
+      ips: [
+        {
+          ...defaultSupabaseRows().ips[0],
+          id: 'regular-first',
+          title: '우선 IP',
+          featured: false,
+          fans_count: 9000,
+        },
+        {
+          ...defaultSupabaseRows().ips[0],
+          id: 'legacy-featured',
+          title: '레거시 특집',
+          featured: true,
+          fans_count: 100,
+        },
+      ],
+      posts: [
+        { id: 'regular-post', user_id: 'u1', ip_id: 'regular-first', text: '우선 IP 글', tag: null, created_at: '2026-06-22T04:00:00.000Z', status: 'visible' },
+        { id: 'legacy-post', user_id: 'u2', ip_id: 'legacy-featured', text: '레거시 글', tag: null, created_at: '2026-06-22T03:00:00.000Z', status: 'visible' },
+      ],
+      home_curations: [],
+    });
+
+    const snapshot = await getHomeSnapshot();
+
+    expect(snapshot.curation).toEqual({ hero: null, announcement: null, featuredIpIds: [] });
+    expect(Object.keys(snapshot.postPreviewByIpId)).toEqual(['regular-first', 'legacy-featured']);
+    expect(records.filter((record) => record.table === 'posts').map((record) => record.eq[0])).toEqual([
+      ['ip_id', 'regular-first'],
+      ['ip_id', 'legacy-featured'],
+    ]);
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
+  it('fails closed on unsafe links and malformed curation artwork without hiding later valid rows', async () => {
+    const records: QueryRecord[] = [];
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records, {
+      home_curations: [
+        {
+          id: '00000000-0000-0000-0000-000000000001',
+          kind: 'hero',
+          ip_id: null,
+          title: '위험한 히어로',
+          image_path: 'public-media/catalog/curation/11111111-1111-4111-8111-111111111111.webp',
+          link_path: '/%2f%2fevil.example',
+          display_order: 0,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000002',
+          kind: 'hero',
+          ip_id: null,
+          title: '안전한 히어로',
+          image_path: 'public-media/catalog/curation/22222222-2222-4222-8222-222222222222.webp',
+          link_path: '/events',
+          display_order: 1,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000003',
+          kind: 'announcement',
+          ip_id: null,
+          title: '잘못된 이미지 공지',
+          image_path: 'public-media/catalog/ip/not-a-curation.webp',
+          link_path: '/community',
+          display_order: 0,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000004',
+          kind: 'featured_ip',
+          ip_id: 'hwasan',
+          title: '안전한 특집',
+          image_path: null,
+          link_path: '/ip/hwasan',
+          display_order: 0,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+        },
+      ],
+    });
+
+    const snapshot = await getHomeSnapshot();
+
+    expect(snapshot.curation).toEqual({
+      hero: expect.objectContaining({ title: '안전한 히어로', href: '/events' }),
+      announcement: null,
+      featuredIpIds: ['hwasan'],
+    });
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
+  it('throws when the Supabase curation query fails instead of falling back to mock data', async () => {
+    const records: QueryRecord[] = [];
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records, {}, null, { home_curations: 'curation unavailable' });
+
+    await expect(getHomeSnapshot()).rejects.toThrow('Failed to load home curations: curation unavailable');
 
     mocks.isConfigured = false;
     mocks.client = null;
@@ -649,8 +938,9 @@ describe('getHomeSnapshot', () => {
     mocks.client = null;
 
     const snapshot = await getHomeSnapshot();
-    const selectable = getHomeSelectableIps(snapshot.catalog);
+    const selectable = getHomeSelectableIps(snapshot.catalog, undefined);
 
+    expect(snapshot.curation).toEqual({ hero: null, announcement: null, featuredIpIds: [] });
     expect(selectable.length).toBeGreaterThan(0);
     for (const ip of selectable) {
       expect(snapshot.postPreviewByIpId[ip.id], `${ip.title} 홈 팬덤 채널 포스트 누락`).not.toBeNull();

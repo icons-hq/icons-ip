@@ -20,6 +20,11 @@ vi.mock('@/lib/catalog', () => ({ getHomeSnapshot: mocks.getHomeSnapshot }));
 
 const home = {
   catalog: { source: 'supabase', verticals: [], ips: [], goods: [], cards: [], events: [] },
+  curation: {
+    hero: { id: 'hero-1', title: '운영 히어로', imageBg: 'hero-bg', href: '/events' },
+    announcement: null,
+    featuredIpIds: ['hwasan'],
+  },
   postPreviewByIpId: {},
 };
 
@@ -38,6 +43,7 @@ describe('home community personalization', () => {
     expect(mocks.getHomeSnapshot).toHaveBeenCalledWith({ viewerId: null, isStaff: false });
     expect(mocks.getFollowedIpIdsForUser).not.toHaveBeenCalled();
     expect(element.props.followedIpIds).toEqual([]);
+    expect(element.props.curation).toBe(home.curation);
   });
 
   it('prioritizes followed IPs only for an onboarded viewer', async () => {
