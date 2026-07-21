@@ -103,6 +103,10 @@ describe('Home curation', () => {
     expect(html).toContain('둘러보기');
     expect(html).not.toContain('누구의');
     expect(html).not.toContain('루멘 세계로 입장 →');
+    expect(html).toContain('FEATURED IP');
+    expect(html).not.toContain('NOW SHOWING');
+    expect(html).toContain('href="/ip/lumen"');
+    expect(html).toContain('루멘 세계로 →');
   });
 
   it('keeps the selected-IP hero when no active hero exists', () => {
@@ -131,6 +135,32 @@ describe('Home curation', () => {
     expect(html).toMatch(/<aside[^>]+aria-label="공지"[^>]*>/);
     expect(html).toContain('href="/community?tag=notice"');
     expect(html).toContain('배송 일정이 변경됐어요');
+  });
+
+  it('allows long unbroken hero and announcement titles to wrap on a narrow viewport', () => {
+    const longTitle = 'A'.repeat(120);
+    const html = renderHome({
+      curation: {
+        hero: {
+          id: 'hero-long',
+          title: longTitle,
+          imageBg: 'url("https://cdn.example/long.webp") center / cover no-repeat',
+          href: '/events',
+        },
+        announcement: {
+          id: 'announcement-long',
+          title: longTitle,
+          imageBg: null,
+          href: '/community',
+        },
+        featuredIpIds: ['lumen'],
+      },
+    });
+
+    expect(html).toMatch(new RegExp(`<h1[^>]*style="[^"]*min-width:0;overflow-wrap:anywhere[^"]*">${longTitle}</h1>`));
+    expect(html).toMatch(new RegExp(`font-weight:650;min-width:0;overflow-wrap:anywhere[^"]*">${longTitle}</span>`));
+    expect(html).toMatch(/<aside[^>]*>[\s\S]*<a[^>]*style="[^"]*min-width:0[^"]*"/);
+    expect(html).toContain('flex:0 0 auto');
   });
 
   it('renders the curated picker in order and caps it at five accessible buttons', () => {

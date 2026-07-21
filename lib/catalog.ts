@@ -6,6 +6,7 @@ import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { resolveCatalogSource, type CatalogSource } from './catalog-source';
 import {
+  getHomeCuratedIpIds,
   getHomeSelectableIps,
   type HomeBanner,
   type HomeCurationSnapshot,
@@ -239,9 +240,10 @@ function emptyHomeCuration(): HomeCurationSnapshot {
 }
 
 function isSafeInternalLink(value: string) {
+  const characterLength = Array.from(value).length;
   if (
-    value.length < 1
-    || value.length > 2048
+    characterLength < 1
+    || characterLength > 2048
     || !value.startsWith('/')
     || value.startsWith('//')
     || value.includes('\\')
@@ -766,16 +768,22 @@ export async function getHomeSnapshot(options: CatalogIpDetailOptions = {}): Pro
     getCatalogSnapshot(),
     source === 'supabase' ? getActiveHomeCurationSnapshot() : Promise.resolve(emptyHomeCuration()),
   ]);
+  const normalizedCuration: HomeCurationSnapshot = catalog.source === 'mock'
+    ? curation
+    : {
+        ...curation,
+        featuredIpIds: getHomeCuratedIpIds(catalog, curation.featuredIpIds),
+      };
   const selectableIps = getHomeSelectableIps(
     catalog,
-    catalog.source === 'mock' ? undefined : curation.featuredIpIds,
+    catalog.source === 'mock' ? undefined : normalizedCuration.featuredIpIds,
   );
 
   if (catalog.source === 'mock') {
     const mockPosts = mockPostPreviews();
     return {
       catalog,
-      curation,
+      curation: normalizedCuration,
       postPreviewByIpId: Object.fromEntries(
         selectableIps.map((ip) => [ip.id, mockPosts.find((post) => post.ipName === ip.title) ?? null]),
       ),
@@ -791,7 +799,7 @@ export async function getHomeSnapshot(options: CatalogIpDetailOptions = {}): Pro
 
   return {
     catalog,
-    curation,
+    curation: normalizedCuration,
     postPreviewByIpId: Object.fromEntries(postEntries),
   };
 }

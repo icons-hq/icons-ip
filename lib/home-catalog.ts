@@ -41,23 +41,34 @@ export interface HomeIpWorld {
   representativePost: CatalogPostPreview | null;
 }
 
+export function getHomeCuratedIpIds(
+  catalog: Pick<CatalogSnapshot, 'ips'>,
+  curatedIpIds: readonly string[],
+): string[] {
+  const catalogIpIds = new Set(catalog.ips.map((ip) => ip.id));
+  const seen = new Set<string>();
+  const validIds: string[] = [];
+
+  for (const id of curatedIpIds) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    if (!catalogIpIds.has(id)) continue;
+    validIds.push(id);
+    if (validIds.length === MAX_HOME_PICKER_IPS) break;
+  }
+
+  return validIds;
+}
+
 export function getHomeSelectableIps(
   catalog: Pick<CatalogSnapshot, 'ips'>,
   curatedIpIds?: readonly string[],
 ): Ip[] {
   if (curatedIpIds !== undefined) {
     const ipsById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
-    const seen = new Set<string>();
-    const curatedIps: Ip[] = [];
-
-    for (const id of curatedIpIds) {
-      if (seen.has(id)) continue;
-      seen.add(id);
-      const ip = ipsById.get(id);
-      if (!ip) continue;
-      curatedIps.push(ip);
-      if (curatedIps.length === MAX_HOME_PICKER_IPS) break;
-    }
+    const curatedIps = getHomeCuratedIpIds(catalog, curatedIpIds)
+      .map((id) => ipsById.get(id))
+      .filter((ip): ip is Ip => Boolean(ip));
 
     return curatedIps.length > 0 ? curatedIps : catalog.ips.slice(0, MAX_HOME_PICKER_IPS);
   }

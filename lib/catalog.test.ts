@@ -854,6 +854,92 @@ describe('getHomeSnapshot', () => {
     mocks.client = null;
   });
 
+  it('returns at most five catalog-valid deduped featured IDs and scopes previews to that same order', async () => {
+    const records: QueryRecord[] = [];
+    const curatedIds = ['missing-a', 'ip-6', 'ip-6', 'missing-b', 'ip-5', 'ip-4', 'ip-3', 'ip-2', 'ip-1'];
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records, {
+      ips: Array.from({ length: 6 }, (_, index) => {
+        const number = 6 - index;
+        return {
+          ...defaultSupabaseRows().ips[0],
+          id: `ip-${number}`,
+          title: `IP ${number}`,
+          featured: number === 1,
+          fans_count: number * 100,
+        };
+      }),
+      posts: Array.from({ length: 6 }, (_, index) => {
+        const number = 6 - index;
+        return {
+          id: `post-${number}`,
+          user_id: 'u1',
+          ip_id: `ip-${number}`,
+          text: `IP ${number} 글`,
+          tag: null,
+          created_at: `2026-06-22T0${number}:00:00.000Z`,
+          status: 'visible',
+        };
+      }),
+      home_curations: curatedIds.map((ipId, index) => ({
+        id: `00000000-0000-0000-0000-${String(index + 1).padStart(12, '0')}`,
+        kind: 'featured_ip',
+        ip_id: ipId,
+        title: `${ipId} 특집`,
+        image_path: null,
+        link_path: `/ip/${ipId}`,
+        display_order: index,
+        active_from: '2020-01-01T00:00:00.000Z',
+        active_to: null,
+        enabled: true,
+      })),
+    });
+
+    const snapshot = await getHomeSnapshot();
+
+    expect(snapshot.curation.featuredIpIds).toEqual(['ip-6', 'ip-5', 'ip-4', 'ip-3', 'ip-2']);
+    expect(Object.keys(snapshot.postPreviewByIpId)).toEqual(['ip-6', 'ip-5', 'ip-4', 'ip-3', 'ip-2']);
+    expect(records.filter((record) => record.table === 'posts').map((record) => record.eq[0])).toEqual([
+      ['ip_id', 'ip-6'],
+      ['ip_id', 'ip-5'],
+      ['ip_id', 'ip-4'],
+      ['ip_id', 'ip-3'],
+      ['ip_id', 'ip-2'],
+    ]);
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
+  it('accepts an internal link at the 2048 Unicode character boundary', async () => {
+    const records: QueryRecord[] = [];
+    const unicodeBoundaryLink = `/${'😀'.repeat(2047)}`;
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records, {
+      home_curations: [{
+        id: '00000000-0000-0000-0000-000000000001',
+        kind: 'announcement',
+        ip_id: null,
+        title: '유니코드 경로 공지',
+        image_path: null,
+        link_path: unicodeBoundaryLink,
+        display_order: 0,
+        active_from: '2020-01-01T00:00:00.000Z',
+        active_to: null,
+        enabled: true,
+      }],
+    });
+
+    const snapshot = await getHomeSnapshot();
+
+    expect(Array.from(unicodeBoundaryLink)).toHaveLength(2048);
+    expect(unicodeBoundaryLink.length).toBeGreaterThan(2048);
+    expect(snapshot.curation.announcement?.href).toBe(unicodeBoundaryLink);
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
   it('fails closed on unsafe links and malformed curation artwork without hiding later valid rows', async () => {
     const records: QueryRecord[] = [];
     mocks.isConfigured = true;

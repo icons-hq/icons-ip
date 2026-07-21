@@ -84,7 +84,9 @@ function Hero({
       <div aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 1, background: 'linear-gradient(180deg, rgba(8,6,15,.55) 0%, transparent 26%, transparent 55%, rgba(8,6,15,.94) 96%)' }} />
 
       <div style={{ position: 'absolute', top: 96, right: 'clamp(20px, 4vw, 56px)', zIndex: 2, textAlign: 'right' }}>
-        <div className="mono" style={{ fontSize: 11, letterSpacing: '.22em', color: 'rgba(244,241,255,.75)' }}>NOW SHOWING</div>
+        <div className="mono" style={{ fontSize: 11, letterSpacing: '.22em', color: 'rgba(244,241,255,.75)' }}>
+          {curatedHero ? 'FEATURED IP' : 'NOW SHOWING'}
+        </div>
         <div style={{ fontFamily: 'var(--ff-display)', fontSize: 'clamp(18px, 2.4vw, 28px)', fontWeight: 700, letterSpacing: '-0.02em', color: accent, transition: 'color .5s ease', marginTop: 4 }}>
           {ipEn(selectedIp)}
         </div>
@@ -97,7 +99,7 @@ function Hero({
         </div>
 
         {curatedHero ? (
-          <h1 className="h-xxl rise" style={{ margin: '26px 0 0', maxWidth: 820, animationDelay: '.08s' }}>
+          <h1 className="h-xxl rise" style={{ margin: '26px 0 0', maxWidth: 820, minWidth: 0, overflowWrap: 'anywhere', animationDelay: '.08s' }}>
             {curatedHero.title}
           </h1>
         ) : (
@@ -146,14 +148,23 @@ function Hero({
 
         <div className="rise" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 26, animationDelay: '.46s' }}>
           {curatedHero ? (
-            <Link
-              className="btn btn-holo"
-              href={curatedHero.href}
-              aria-label={`${curatedHero.title} 자세히 보기`}
-              style={{ height: 52, padding: '0 28px', fontSize: 16 }}
-            >
-              자세히 보기 →
-            </Link>
+            <>
+              <Link
+                className="btn btn-holo"
+                href={curatedHero.href}
+                aria-label={`${curatedHero.title} 자세히 보기`}
+                style={{ height: 52, padding: '0 28px', fontSize: 16 }}
+              >
+                자세히 보기 →
+              </Link>
+              <Link
+                className="btn btn-ghost"
+                href={hrefFor('ip', selectedIp.id)}
+                style={{ height: 52, padding: '0 24px', maxWidth: '100%', fontSize: 15 }}
+              >
+                {selectedIp.title} 세계로 →
+              </Link>
+            </>
           ) : (
             <Link className="btn btn-holo" href={hrefFor('ip', selectedIp.id)} style={{ height: 52, padding: '0 28px', fontSize: 16 }}>
               {selectedIp.title} 세계로 입장 →
@@ -301,6 +312,7 @@ export function Home({
               alignItems: 'center',
               justifyContent: 'space-between',
               gap: 16,
+              minWidth: 0,
               paddingTop: 12,
               paddingBottom: 12,
               background: curation.announcement.imageBg
@@ -308,11 +320,11 @@ export function Home({
                 : undefined,
             }}
           >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-              <span className="mono" style={{ color: 'var(--cyan)', fontSize: 11, letterSpacing: '.14em' }}>NOTICE</span>
-              <span style={{ fontWeight: 650, textWrap: 'pretty' }}>{curation.announcement.title}</span>
+            <span style={{ display: 'inline-flex', flex: '1 1 auto', alignItems: 'center', gap: 12, minWidth: 0 }}>
+              <span className="mono" style={{ flex: '0 0 auto', color: 'var(--cyan)', fontSize: 11, letterSpacing: '.14em' }}>NOTICE</span>
+              <span style={{ flex: '1 1 auto', fontWeight: 650, minWidth: 0, overflowWrap: 'anywhere', textWrap: 'pretty' }}>{curation.announcement.title}</span>
             </span>
-            <span aria-hidden style={{ color: 'var(--violet-2)', fontSize: 20 }}>→</span>
+            <span aria-hidden style={{ flex: '0 0 auto', color: 'var(--violet-2)', fontSize: 20 }}>→</span>
           </Link>
         </aside>
       )}
