@@ -158,21 +158,22 @@ function CurationForm({
           <option value="featured_ip">특집 IP</option>
           <option value="announcement">공지 배너</option>
         </SelectField>
-        <SelectField
-          defaultValue={selected?.ipId ?? ''}
-          disabled={kind !== 'featured_ip'}
-          error={state.errors?.ipId}
-          label="특집할 IP"
-          name="ipId"
-          required={kind === 'featured_ip'}
-        >
-          <option value="">IP 선택</option>
-          {ipOptions.map((ip) => (
-            <option disabled={Boolean(ip.archivedAt)} key={ip.id} value={ip.id}>
-              {ip.archivedAt ? `[보관] ${ip.title}` : ip.title}
-            </option>
-          ))}
-        </SelectField>
+        {kind === 'featured_ip' && (
+          <SelectField
+            defaultValue={selected?.ipId ?? ''}
+            error={state.errors?.ipId}
+            label="특집할 IP"
+            name="ipId"
+            required
+          >
+            <option value="">IP 선택</option>
+            {ipOptions.map((ip) => (
+              <option disabled={Boolean(ip.archivedAt)} key={ip.id} value={ip.id}>
+                {ip.archivedAt ? `[보관] ${ip.title}` : ip.title}
+              </option>
+            ))}
+          </SelectField>
+        )}
         <Field
           defaultValue={selected?.title}
           error={state.errors?.title}
@@ -228,7 +229,7 @@ function CurationForm({
       <ErrorText id={state.errors?.imagePath ? 'curation-image-error' : undefined}>
         {state.errors?.imagePath}
       </ErrorText>
-      {selected?.kind === 'featured_ip' && selected.ipId && (
+      {kind === 'featured_ip' && selected?.ipId && (
         <p className="admin-curation-ip-note">
           현재 특집 IP: {ipTitles.get(selected.ipId) ?? selected.ipId}
         </p>

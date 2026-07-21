@@ -2,13 +2,12 @@ import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
-import {
-  CurationSection,
-  getCurationFormKey,
-} from './CurationSection';
+import { CurationSection } from './CurationSection';
 
 const mocks = vi.hoisted(() => ({
   action: vi.fn(),
+  kindSetter: vi.fn(),
+  kindState: null as null | 'hero' | 'featured_ip' | 'announcement',
   notificationAction: vi.fn(),
   reducer: null as unknown,
 }));
@@ -20,6 +19,16 @@ vi.mock('react', async () => {
     useActionState: (reducer: unknown) => {
       mocks.reducer = reducer;
       return [{}, vi.fn(), false];
+    },
+    useState: (initial: unknown) => {
+      const value = typeof initial === 'function' ? (initial as () => unknown)() : initial;
+      if (
+        mocks.kindState
+        && (value === 'hero' || value === 'featured_ip' || value === 'announcement')
+      ) {
+        return [mocks.kindState, mocks.kindSetter];
+      }
+      return actual.useState(initial);
     },
   };
 });
@@ -79,6 +88,8 @@ function findElement(node: ReactNode, predicate: (element: ReactElement) => bool
 describe('CurationSection', () => {
   beforeEach(() => {
     mocks.action.mockReset();
+    mocks.kindSetter.mockReset();
+    mocks.kindState = null;
     mocks.notificationAction.mockReset();
     mocks.reducer = null;
   });
@@ -134,6 +145,22 @@ describe('CurationSection', () => {
     expect(html).toMatch(/<option disabled="" value="archived-ip">\[보관\] 보관 IP<\/option>/);
   });
 
+  it('특집 IP 레코드에서 다른 영역으로 전환하면 IP 선택기와 현재 IP 안내를 숨긴다', () => {
+    const featured: AdminCurationRecord = {
+      ...activeAnnouncement,
+      kind: 'featured_ip',
+      ipId: 'active-ip',
+      title: '운영 IP 특집',
+    };
+    mocks.kindState = 'announcement';
+
+    const html = renderSection(featured);
+
+    expect(html).toContain('공지 배너 이미지는 선택입니다.');
+    expect(html).not.toContain('특집할 IP');
+    expect(html).not.toContain('현재 특집 IP:');
+  });
+
   it('공지 배너는 이미지가 선택이고 CTA는 공지 발송 화면으로만 이동한다', () => {
     const onOpenNotifications = vi.fn();
     const tree = CurationSection({
@@ -158,18 +185,44 @@ describe('CurationSection', () => {
     expect(mocks.notificationAction).not.toHaveBeenCalled();
   });
 
-  it('재검증으로 새 ID를 받으면 폼 key를 바꾸어 이전 멱등 키를 재사용하지 않는다', () => {
-    const previous = getCurationFormKey(
-      null,
-      '22222222-2222-4222-8222-222222222222',
-      '33333333-3333-4333-8333-333333333333',
+  it('실제 CurationForm key가 새 operation ID와 최신 레코드를 반영한다', () => {
+    const originalTree = CurationSection({
+      draftActiveFrom: '2026-07-15T03:04:05.000Z',
+      draftId: '22222222-2222-4222-8222-222222222222',
+      ipOptions,
+      onOpenNotifications: vi.fn(),
+      onSelect: vi.fn(),
+      operationId: '33333333-3333-4333-8333-333333333333',
+      records: [activeAnnouncement],
+      selected: activeAnnouncement,
+    });
+    const latest = { ...activeAnnouncement, updatedAt: '2026-07-15T04:00:00.000Z' };
+    const revalidatedTree = CurationSection({
+      draftActiveFrom: '2026-07-15T03:04:05.000Z',
+      draftId: '77777777-7777-4777-8777-777777777777',
+      ipOptions,
+      onOpenNotifications: vi.fn(),
+      onSelect: vi.fn(),
+      operationId: '88888888-8888-4888-8888-888888888888',
+      records: [latest],
+      selected: latest,
+    });
+    const isCurationForm = (element: ReactElement) => (
+      typeof element.type === 'function' && element.type.name === 'CurationForm'
     );
-    const revalidated = getCurationFormKey(
-      null,
-      '77777777-7777-4777-8777-777777777777',
-      '88888888-8888-4888-8888-888888888888',
-    );
+    const originalForm = findElement(originalTree, isCurationForm);
+    const revalidatedForm = findElement(revalidatedTree, isCurationForm);
 
-    expect(revalidated).not.toBe(previous);
+    expect(originalForm?.key).toBe(JSON.stringify([
+      activeAnnouncement.id,
+      activeAnnouncement.updatedAt,
+      '33333333-3333-4333-8333-333333333333',
+    ]));
+    expect(revalidatedForm?.key).toBe(JSON.stringify([
+      latest.id,
+      latest.updatedAt,
+      '88888888-8888-4888-8888-888888888888',
+    ]));
+    expect(revalidatedForm?.key).not.toBe(originalForm?.key);
   });
 });

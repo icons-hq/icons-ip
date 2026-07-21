@@ -11,6 +11,8 @@ const hooks = vi.hoisted(() => ({
   memberProps: null as unknown,
   notificationProps: null as unknown,
   policyProps: null as unknown,
+  setters: [] as ReturnType<typeof vi.fn>[],
+  stateCursor: 0,
   stateValues: [] as unknown[],
 }));
 
@@ -21,12 +23,20 @@ vi.mock('react', async () => {
     useActionState: () => [{}, vi.fn(), false],
     useMemo: (factory: () => unknown) => factory(),
     useState: (initial: unknown) => {
-      const value = hooks.stateValues.length
-        ? hooks.stateValues.shift()
+      const index = hooks.stateCursor;
+      hooks.stateCursor += 1;
+      const value = index < hooks.stateValues.length
+        ? hooks.stateValues[index]
         : typeof initial === 'function'
           ? (initial as () => unknown)()
           : initial;
-      return [value, vi.fn()];
+      const setter = vi.fn((next: unknown) => {
+        hooks.stateValues[index] = typeof next === 'function'
+          ? (next as (current: unknown) => unknown)(value)
+          : next;
+      });
+      hooks.setters[index] = setter;
+      return [value, setter];
     },
   };
 });
@@ -216,6 +226,12 @@ function createProps(
   } as unknown as Parameters<typeof Admin>[0];
 }
 
+function renderAdmin(props: Parameters<typeof Admin>[0]) {
+  hooks.stateCursor = 0;
+  hooks.setters = [];
+  return renderToStaticMarkup(<Admin {...props} />);
+}
+
 describe('Admin card selection', () => {
   beforeEach(() => {
     hooks.cardSelected = null;
@@ -225,7 +241,7 @@ describe('Admin card selection', () => {
   });
 
   it('derives the selected card from the latest revalidated records', () => {
-    renderToStaticMarkup(<Admin {...createProps([unboundCard])} />);
+    renderAdmin(createProps([unboundCard]));
 
     expect(hooks.cardSelected).toBe(unboundCard);
   });
@@ -240,7 +256,7 @@ describe('Admin reward-policy selection', () => {
   });
 
   it('renders the policy console with server-generated draft values', () => {
-    renderToStaticMarkup(<Admin {...createProps([], [policy])} />);
+    renderAdmin(createProps([], [policy]));
 
     expect(hooks.policyProps).toMatchObject({
       draftActiveFrom: '2026-07-15T00:00:00.000Z',
@@ -253,7 +269,7 @@ describe('Admin reward-policy selection', () => {
   it('derives the selected policy from the latest revalidated records', () => {
     const latestPolicy = { ...policy, updatedAt: '2026-07-15T03:00:00.000Z', issuedCount: 20 };
 
-    renderToStaticMarkup(<Admin {...createProps([], [latestPolicy])} />);
+    renderAdmin(createProps([], [latestPolicy]));
 
     expect((hooks.policyProps as { selected: unknown }).selected).toBe(latestPolicy);
   });
@@ -270,7 +286,7 @@ describe('Admin game selection', () => {
   it('derives the selected game from the latest revalidated records', () => {
     const latestGame = { ...game, updatedAt: '2026-07-15T03:00:00.000Z', playCount: 14 };
 
-    renderToStaticMarkup(<Admin {...createProps([], [], [latestGame])} />);
+    renderAdmin(createProps([], [], [latestGame]));
 
     expect(hooks.gameProps).toMatchObject({
       endOperationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
@@ -288,7 +304,7 @@ describe('Admin notification console', () => {
   });
 
   it('서버에서 적재한 대상·이력과 operation ID를 전달한다', () => {
-    renderToStaticMarkup(<Admin {...createProps([])} />);
+    renderAdmin(createProps([]));
 
     expect(hooks.notificationProps).toEqual({
       data: { audiences: [], history: [] },
@@ -304,7 +320,7 @@ describe('Admin home-curation console', () => {
   });
 
   it('서버 레코드와 재검증 후 새 draft·operation 값을 전달한다', () => {
-    renderToStaticMarkup(<Admin {...createProps([])} />);
+    renderAdmin(createProps([]));
 
     expect(hooks.curationProps).toMatchObject({
       draftActiveFrom: '2026-07-15T03:04:05.000Z',
@@ -314,6 +330,19 @@ describe('Admin home-curation console', () => {
       selected: curation,
     });
     expect(hooks.curationProps).toHaveProperty('onOpenNotifications');
+  });
+
+  it('큐레이션 CTA prop을 실행하면 Admin state가 바뀌고 재렌더에서 공지 발송을 연다', () => {
+    renderAdmin(createProps([]));
+
+    (hooks.curationProps as { onOpenNotifications: () => void }).onOpenNotifications();
+    hooks.notificationProps = null;
+    renderAdmin(createProps([]));
+
+    expect(hooks.notificationProps).toEqual({
+      data: { audiences: [], history: [] },
+      operationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    });
   });
 });
 
@@ -334,14 +363,12 @@ describe('Admin member console', () => {
     }];
     const props = createProps([]);
 
-    renderToStaticMarkup(
-      <Admin
-        {...props}
-        admin={{ id: 'staff-1', email: 'staff@icons.gg', role: 'staff' }}
-        initialSection="members"
-        members={members}
-      />,
-    );
+    renderAdmin({
+      ...props,
+      admin: { id: 'staff-1', email: 'staff@icons.gg', role: 'staff' },
+      initialSection: 'members',
+      members,
+    });
 
     expect(hooks.memberProps).toEqual({
       actor: { id: 'staff-1', role: 'staff' },
