@@ -55,6 +55,15 @@ describe('ArtworkUploadField', () => {
     expect(html).toContain('이미지 업로드');
   });
 
+  it('uses a 16:9 preview for home curation artwork', () => {
+    const html = renderToStaticMarkup(
+      <ArtworkUploadField currentPath={null} currentUrl={null} kind="curation" />,
+    );
+
+    expect(html).toContain('data-artwork-kind="curation"');
+    expect(html).toContain('aspect-ratio:16 / 9');
+  });
+
   it('restores the latest committed upload instead of the original after a replacement fails', () => {
     const initial = createArtworkDisplayState(
       'public-media/catalog/ip/123e4567-e89b-42d3-a456-426614174000.png',

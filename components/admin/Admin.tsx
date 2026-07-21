@@ -13,6 +13,7 @@ import type {
   AdminGameRecord,
   AdminTicketTypeRecord,
 } from '@/lib/admin/catalog.server';
+import type { AdminCurationRecord } from '@/lib/admin/curations.server';
 import type { AdminInsights } from '@/lib/admin/insights.server';
 import type { AdminModerationRecords } from '@/lib/admin/moderation.server';
 import type { AdminMemberRole, AdminMemberSummary } from '@/lib/admin/members';
@@ -24,6 +25,7 @@ import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { CardSection } from './sections/CardSection';
 import { CardPoolSection } from './sections/CardPoolSection';
+import { CurationSection } from './sections/CurationSection';
 import { EventSection } from './sections/EventSection';
 import { GoodSection } from './sections/GoodSection';
 import { GameSection } from './sections/GameSection';
@@ -37,7 +39,7 @@ import { RewardPolicySection } from './sections/RewardPolicySection';
 import { RolesSection } from './sections/Roles';
 import { TicketSection } from './sections/TicketSection';
 
-export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'pool' | 'policy' | 'game' | 'event' | 'ticket' | 'notifications' | 'moderation' | 'members' | 'roles';
+export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'pool' | 'policy' | 'game' | 'event' | 'ticket' | 'curations' | 'notifications' | 'moderation' | 'members' | 'roles';
 
 const SECTION_TITLES: Record<AdminSection, string> = {
   overview: '개요',
@@ -50,6 +52,7 @@ const SECTION_TITLES: Record<AdminSection, string> = {
   game: '게임 관리',
   event: '이벤트 관리',
   ticket: '티켓 회차 관리',
+  curations: '홈 큐레이션',
   notifications: '공지·알림 발송',
   moderation: '모더레이션',
   members: '회원 관리',
@@ -65,6 +68,10 @@ interface AdminProps {
     role: AdminMemberRole;
   };
   catalog: Pick<CatalogSnapshot, 'verticals' | 'ips'>;
+  curationDraftActiveFrom: string;
+  curationDraftId: string;
+  curationOperationId: string;
+  curations: AdminCurationRecord[];
   initialSection?: AdminSection;
   insights: AdminInsights;
   moderation: AdminModerationRecords;
@@ -91,6 +98,10 @@ interface AdminProps {
 export function Admin({
   admin,
   catalog,
+  curationDraftActiveFrom,
+  curationDraftId,
+  curationOperationId,
+  curations,
   initialSection,
   insights,
   moderation,
@@ -123,6 +134,7 @@ export function Admin({
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const [selectedTicketTypeId, setSelectedTicketTypeId] = useState<string | null>(null);
+  const [selectedCurationId, setSelectedCurationId] = useState<string | null>(null);
   const [ipState, ipAction, ipPending] = useActionState(upsertAdminIpAction, emptyState);
   const [goodState, goodAction, goodPending] = useActionState(upsertAdminGoodAction, emptyState);
   const [cardState, cardAction, cardPending] = useActionState(upsertAdminCardAction, emptyState);
@@ -163,6 +175,10 @@ export function Admin({
   const selectedGame = useMemo(
     () => records.games.find((game) => game.id === selectedGameId) ?? null,
     [records.games, selectedGameId],
+  );
+  const selectedCuration = useMemo(
+    () => curations.find((curation) => curation.id === selectedCurationId) ?? null,
+    [curations, selectedCurationId],
   );
 
   return (
@@ -285,6 +301,18 @@ export function Admin({
                 operationId={ticketOperationId}
                 records={records.ticketTypes}
                 selected={selectedTicketType}
+              />
+            )}
+            {active === 'curations' && (
+              <CurationSection
+                draftActiveFrom={curationDraftActiveFrom}
+                draftId={curationDraftId}
+                ipOptions={ipOptions}
+                onOpenNotifications={() => setActive('notifications')}
+                onSelect={(curation) => setSelectedCurationId(curation?.id ?? null)}
+                operationId={curationOperationId}
+                records={curations}
+                selected={selectedCuration}
               />
             )}
             {active === 'notifications' && (

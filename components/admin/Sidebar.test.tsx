@@ -37,8 +37,10 @@ describe('Sidebar', () => {
     );
 
     expect(html).toContain('aria-label="공지 발송"');
+    expect(html).toContain('aria-label="홈 큐레이션"');
     expect(html).toContain('aria-current="true"');
-    expect(html.indexOf('aria-label="티켓 회차"')).toBeLessThan(html.indexOf('aria-label="공지 발송"'));
+    expect(html.indexOf('aria-label="티켓 회차"')).toBeLessThan(html.indexOf('aria-label="홈 큐레이션"'));
+    expect(html.indexOf('aria-label="홈 큐레이션"')).toBeLessThan(html.indexOf('aria-label="공지 발송"'));
     expect(html.indexOf('aria-label="공지 발송"')).toBeLessThan(html.indexOf('aria-label="모더레이션"'));
     expect(html).toContain('aria-label="회원"');
     expect(html.indexOf('aria-label="모더레이션"')).toBeLessThan(html.indexOf('aria-label="회원"'));

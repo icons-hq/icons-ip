@@ -1,10 +1,12 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminCardRecord, AdminGameRecord, AdminRewardPolicyRecord } from '@/lib/admin/catalog.server';
+import type { AdminCurationRecord } from '@/lib/admin/curations.server';
 import { Admin } from './Admin';
 
 const hooks = vi.hoisted(() => ({
   cardSelected: null as unknown,
+  curationProps: null as unknown,
   gameProps: null as unknown,
   memberProps: null as unknown,
   notificationProps: null as unknown,
@@ -46,6 +48,14 @@ vi.mock('./sections/CardSection', () => {
   return { CardSection };
 });
 vi.mock('./sections/CardPoolSection', () => ({ CardPoolSection: () => null }));
+vi.mock('./sections/CurationSection', () => {
+  const CurationSection = (props: unknown) => {
+    hooks.curationProps = props;
+    return null;
+  };
+  CurationSection.displayName = 'AdminCurationSectionMock';
+  return { CurationSection };
+});
 vi.mock('./sections/EventSection', () => ({ EventSection: () => null }));
 vi.mock('./sections/GoodSection', () => ({ GoodSection: () => null }));
 vi.mock('./sections/GameSection', () => {
@@ -144,6 +154,23 @@ const game: AdminGameRecord = {
   status: 'active',
 };
 
+const curation: AdminCurationRecord = {
+  id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+  kind: 'announcement',
+  ipId: null,
+  title: '서비스 점검 안내',
+  imagePath: null,
+  imageUrl: null,
+  linkPath: '/notice/maintenance',
+  displayOrder: 2,
+  activeFrom: '2026-07-15T00:00:00.000Z',
+  activeTo: null,
+  enabled: true,
+  createdAt: '2026-07-14T00:00:00.000Z',
+  updatedAt: '2026-07-15T01:00:00.000Z',
+  status: 'active',
+};
+
 function createProps(
   cards: AdminCardRecord[],
   rewardPolicies: AdminRewardPolicyRecord[] = [],
@@ -182,6 +209,10 @@ function createProps(
     gameOperationId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     notificationConsole: { audiences: [], history: [] },
     notificationOperationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    curations: [curation],
+    curationDraftActiveFrom: '2026-07-15T03:04:05.000Z',
+    curationDraftId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    curationOperationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
   } as unknown as Parameters<typeof Admin>[0];
 }
 
@@ -263,6 +294,26 @@ describe('Admin notification console', () => {
       data: { audiences: [], history: [] },
       operationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
     });
+  });
+});
+
+describe('Admin home-curation console', () => {
+  beforeEach(() => {
+    hooks.curationProps = null;
+    hooks.stateValues = ['curations', false, null, null, null, null, null, null, null, null, curation.id];
+  });
+
+  it('서버 레코드와 재검증 후 새 draft·operation 값을 전달한다', () => {
+    renderToStaticMarkup(<Admin {...createProps([])} />);
+
+    expect(hooks.curationProps).toMatchObject({
+      draftActiveFrom: '2026-07-15T03:04:05.000Z',
+      draftId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      operationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+      records: [curation],
+      selected: curation,
+    });
+    expect(hooks.curationProps).toHaveProperty('onOpenNotifications');
   });
 });
 

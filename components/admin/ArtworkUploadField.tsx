@@ -211,7 +211,7 @@ export function ArtworkUploadField({
           className="admin-artwork-preview"
           style={{
             alignItems: 'center',
-            aspectRatio: kind === 'ip' ? '16 / 9' : '4 / 3',
+            aspectRatio: kind === 'ip' || kind === 'curation' ? '16 / 9' : '4 / 3',
             background: 'rgba(255,255,255,.035)',
             border: '1px solid var(--line)',
             borderRadius: 10,

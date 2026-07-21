@@ -42,6 +42,27 @@ describe('IpSection', () => {
     expect(html).toContain('data-artwork-kind="ip"');
     expect(html).toContain('name="imagePath"');
     expect(html).toContain('가로형');
+    expect(html).toContain('name="featured"');
+    expect(html).toContain('type="hidden"');
+    expect(html).toContain('value=""');
+    expect(html).not.toContain('type="checkbox" name="featured"');
+  });
+
+  it('기존 IP의 featured 값을 보이지 않는 입력으로 보존한다', () => {
+    const html = renderToStaticMarkup(
+      <IpSection
+        action={vi.fn()}
+        onSelect={vi.fn()}
+        pending={false}
+        records={[{ ...ip, featured: true }]}
+        selected={{ ...ip, featured: true }}
+        state={{}}
+        verticals={[]}
+      />,
+    );
+
+    expect(html).toContain('type="hidden" name="featured" value="on"');
+    expect(html).not.toContain('type="checkbox" name="featured"');
   });
 
   it('shows the archive filter and archive control only for an existing IP', () => {

@@ -3,6 +3,7 @@ import AdminPage from './page';
 
 const mocks = vi.hoisted(() => ({
   admin: vi.fn(() => null),
+  curations: vi.fn(async () => [{ id: 'curation-1' }]),
   randomUuid: vi.fn(),
 }));
 
@@ -20,6 +21,7 @@ vi.mock('@/lib/admin/catalog.server', () => ({
     ticketTypes: [],
   })),
 }));
+vi.mock('@/lib/admin/curations.server', () => ({ getAdminCurations: mocks.curations }));
 vi.mock('@/lib/admin/insights.server', () => ({ getAdminInsights: vi.fn(async () => ({})) }));
 vi.mock('@/lib/admin/moderation.server', () => ({ getAdminModerationRecords: vi.fn(async () => ({ reports: [] })) }));
 vi.mock('@/lib/admin/members.server', () => ({
@@ -61,6 +63,7 @@ describe('AdminPage reward-policy route', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-07-15T03:04:05.000Z'));
     mocks.admin.mockClear();
+    mocks.curations.mockClear();
     mocks.randomUuid.mockReset();
     mocks.randomUuid
       .mockReturnValueOnce('11111111-1111-4111-8111-111111111111')
@@ -73,7 +76,10 @@ describe('AdminPage reward-policy route', () => {
       .mockReturnValueOnce('88888888-8888-4888-8888-888888888888')
       .mockReturnValueOnce('99999999-9999-4999-8999-999999999999')
       .mockReturnValueOnce('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
-    mocks.randomUuid.mockReturnValueOnce('dddddddd-dddd-4ddd-8ddd-dddddddddddd');
+    mocks.randomUuid
+      .mockReturnValueOnce('dddddddd-dddd-4ddd-8ddd-dddddddddddd')
+      .mockReturnValueOnce('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')
+      .mockReturnValueOnce('ffffffff-ffff-4fff-8fff-ffffffffffff');
   });
 
   afterEach(() => {
@@ -120,6 +126,19 @@ describe('AdminPage reward-policy route', () => {
     expect(screen.props).toMatchObject({
       initialSection: 'members',
       members: [expect.objectContaining({ maskedEmail: 'f***@icons.gg' })],
+    });
+  });
+
+  it('promised searchParams의 큐레이션 section과 운영 초기값을 전달한다', async () => {
+    const screen = await AdminPage({ searchParams: Promise.resolve({ section: 'curations' }) });
+
+    expect(mocks.curations).toHaveBeenCalledOnce();
+    expect(screen.props).toMatchObject({
+      curations: [{ id: 'curation-1' }],
+      curationDraftActiveFrom: '2026-07-15T03:04:05.000Z',
+      curationDraftId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      curationOperationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+      initialSection: 'curations',
     });
   });
 });
