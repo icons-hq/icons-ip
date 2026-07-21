@@ -107,6 +107,53 @@ select 1 / case when
   )
 then 1 else 0 end as assert_curation_rpc_acl;
 
+select 1 / case when exists (
+  select 1
+  from pg_catalog.pg_proc as proc
+  join pg_catalog.pg_namespace as namespace on namespace.oid = proc.pronamespace
+  where namespace.nspname = 'private'
+    and proc.proname = 'is_safe_home_curation_link'
+    and pg_catalog.pg_get_function_identity_arguments(proc.oid) = 'candidate text'
+    and pg_catalog.pg_get_function_result(proc.oid) = 'boolean'
+    and proc.proisstrict
+    and not proc.prosecdef
+    and proc.provolatile = 'i'
+    and proc.proconfig = array['search_path=""']
+) and not exists (
+  select 1
+  from pg_catalog.pg_proc as proc
+  join pg_catalog.pg_namespace as namespace on namespace.oid = proc.pronamespace
+  cross join lateral aclexplode(
+    coalesce(proc.proacl, acldefault('f', proc.proowner))
+  ) as function_acl
+  where namespace.nspname = 'private'
+    and proc.proname = 'is_safe_home_curation_link'
+    and (
+      function_acl.grantee = 0
+      or function_acl.grantee in (
+        'anon'::regrole,
+        'authenticated'::regrole,
+        'service_role'::regrole
+      )
+    )
+) then 1 else 0 end as assert_curation_link_validator_contract;
+
+select 1 / case when
+  private.is_safe_home_curation_link(
+    '/search?q=%ED%99%94%EC%82%B0%20100%25#results'
+  )
+  and private.is_safe_home_curation_link('/events/%F0%9F%98%80')
+  and private.is_safe_home_curation_link('/%252Fevil')
+then 1 else 0 end as assert_legitimate_once_decoded_links;
+
+select 1 / case when (
+  select pg_catalog.pg_get_constraintdef(constraint_record.oid)
+  from pg_catalog.pg_constraint as constraint_record
+  where constraint_record.conrelid = 'public.home_curations'::regclass
+    and constraint_record.conname = 'home_curations_active_window_check'
+) ilike '%isfinite(active_from)%isfinite(active_to)%'
+then 1 else 0 end as assert_curation_window_requires_finite_instants;
+
 -- The migration backfills the legacy source once, in a deterministic order.
 select 1 / case when not exists (
   select 1
@@ -124,7 +171,8 @@ select 1 / case when not exists (
         and curation.title = ip.title
         and curation.link_path = '/ip/' || ip.id
         and curation.enabled
-        and curation.active_from = '-infinity'::timestamptz
+        and pg_catalog.isfinite(curation.active_from)
+        and curation.active_from = ip.created_at
         and curation.display_order = (
           select ordered.ordinality::integer - 1
           from unnest(array(
@@ -297,7 +345,16 @@ begin
       ('featured-without-ip', 'featured_ip', null, '특집', null, '/', 0, now(), null, true),
       ('announcement-with-ip', 'announcement', 'curation-active-ip', '공지', null, '/', 0, now(), null, true),
       ('unsafe-link', 'announcement', null, '공지', null, '//outside', 0, now(), null, true),
+      ('encoded-scheme-relative-link', 'announcement', null, '공지', null, '/%2F%2Fevil', 0, now(), null, true),
+      ('encoded-backslash-link', 'announcement', null, '공지', null, '/safe%5Cevil', 0, now(), null, true),
+      ('encoded-control-link', 'announcement', null, '공지', null, '/safe%00evil', 0, now(), null, true),
+      ('encoded-line-separator-link', 'announcement', null, '공지', null, '/safe%E2%80%A8evil', 0, now(), null, true),
+      ('malformed-percent-link', 'announcement', null, '공지', null, '/safe%', 0, now(), null, true),
+      ('malformed-percent-pair-link', 'announcement', null, '공지', null, '/safe%2G', 0, now(), null, true),
+      ('invalid-utf8-link', 'announcement', null, '공지', null, '/safe%FF', 0, now(), null, true),
+      ('encoded-bidi-link', 'announcement', null, '공지', null, '/safe%E2%80%AEevil', 0, now(), null, true),
       ('negative-order', 'announcement', null, '공지', null, '/', -1, now(), null, true),
+      ('infinite-start', 'announcement', null, '공지', null, '/', 0, '-infinity'::timestamptz, null, true),
       ('invalid-window', 'announcement', null, '공지', null, '/', 0, now(), now(), true),
       ('archived-ip', 'featured_ip', 'curation-archived-ip', '특집', null, '/ip/curation-archived-ip', 0, now(), null, true)
     ) as calls(name, kind, ip_id, title, image_path, link_path, display_order, active_from, active_to, enabled)
@@ -428,6 +485,56 @@ select 1 / case when not exists (
   from public.notifications
 ) = :'notification_count_before_curation_upsert'::bigint
 then 1 else 0 end as assert_curation_upsert_has_no_notification_side_effect;
+
+-- Authenticated catalog writes remain RPC-only even for staff profiles.
+do $$
+begin
+  begin
+    update public.ips
+    set archived_at = pg_catalog.clock_timestamp()
+    where id = 'curation-active-ip';
+  exception when insufficient_privilege then
+    if sqlerrm = 'permission denied for table ips' then return; end if;
+    raise;
+  end;
+  raise exception 'authenticated staff direct IP update privilege should remain closed';
+end;
+$$;
+
+-- Exercise the persistent trigger through a role that really owns direct table
+-- UPDATE privilege; authenticated staff reaches the same invariant via the RPC.
+reset role;
+set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000011401', true);
+
+do $$
+begin
+  begin
+    update public.ips
+    set archived_at = pg_catalog.clock_timestamp()
+    where id = 'curation-active-ip';
+  exception when check_violation then
+    if sqlerrm = 'ip_has_active_home_curation' then return; end if;
+    raise;
+  end;
+  raise exception 'service-role direct IP archive should be blocked by active home curation';
+end;
+$$;
+
+reset role;
+
+select 1 / case when
+  pg_catalog.pg_get_functiondef(
+    'private.guard_ip_archive()'::regprocedure
+  ) ilike '%from public.home_curations%'
+  and pg_catalog.pg_get_functiondef(
+    'private.guard_ip_archive()'::regprocedure
+  ) ilike '%curation.enabled%'
+  and pg_catalog.pg_get_functiondef(
+    'private.guard_ip_archive()'::regprocedure
+  ) ilike '%curation.active_to is null%'
+then 1 else 0 end as assert_direct_ip_archive_curation_guard;
 
 select pg_catalog.pg_get_functiondef(
   'public.admin_upsert_home_curation(uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,boolean)'::regprocedure

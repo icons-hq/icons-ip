@@ -6,10 +6,13 @@ test_prefix="home-curation-concurrency-$$"
 actor_id="00000000-0000-4000-8000-000000011451"
 create_ip_id="curation-concurrency-create-ip"
 update_ip_id="curation-concurrency-update-ip"
+direct_ip_id="curation-concurrency-direct-ip"
 create_curation_id="00000000-0000-4000-8000-000000011461"
 update_curation_id="00000000-0000-4000-8000-000000011462"
+direct_curation_id="00000000-0000-4000-8000-000000011465"
 create_operation_id="00000000-0000-4000-8000-000000011463"
 update_operation_id="00000000-0000-4000-8000-000000011464"
+direct_operation_id="00000000-0000-4000-8000-000000011466"
 work_dir="$(mktemp -d)"
 
 psql_exec() {
@@ -38,8 +41,13 @@ where actor_id = '${actor_id}'::uuid
    or id in ('${create_operation_id}'::uuid, '${update_operation_id}'::uuid)
    or target in ('ips:${create_ip_id}', 'ips:${update_ip_id}');
 delete from public.home_curations
-where id in ('${create_curation_id}'::uuid, '${update_curation_id}'::uuid);
-delete from public.ips where id in ('${create_ip_id}', '${update_ip_id}');
+where id in (
+  '${create_curation_id}'::uuid,
+  '${update_curation_id}'::uuid,
+  '${direct_curation_id}'::uuid
+);
+delete from public.ips
+where id in ('${create_ip_id}', '${update_ip_id}', '${direct_ip_id}');
 delete from public.verticals where key = 'home-curation-concurrency-test';
 delete from public.profiles where id = '${actor_id}'::uuid;
 delete from auth.users where id = '${actor_id}'::uuid;
@@ -132,6 +140,7 @@ run_case() {
   local curation_id="$4"
   local operation_id="$5"
   local title="$6"
+  local archive_mode="${7:-rpc}"
 
   local gate_application="${test_prefix}-${case_name}-gate"
   local upsert_application="${test_prefix}-${case_name}-upsert"
@@ -173,13 +182,24 @@ SQL
   local upsert_client_pid=$!
   wait_for_backend_wait "$upsert_application" "Lock" "$upsert_client_pid" "$upsert_log"
 
+  local archive_statement="select public.admin_archive_ip('${ip_id}');"
+  local archive_role_setup="set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '${actor_id}', true);"
+  if [[ "$archive_mode" == "direct" ]]; then
+    # authenticated has no direct table UPDATE grant. service_role exercises the
+    # trigger-level invariant that protects every privileged/internal writer.
+    archive_statement="update public.ips set archived_at = pg_catalog.clock_timestamp() where id = '${ip_id}';"
+    archive_role_setup="set local role service_role;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select set_config('request.jwt.claim.sub', '${actor_id}', true);"
+  fi
+
   docker exec -e PGAPPNAME="$archive_application" -i "$db_container" \
     psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 >"$archive_log" 2>&1 <<SQL &
 begin;
-set local role authenticated;
-select set_config('request.jwt.claim.role', 'authenticated', true);
-select set_config('request.jwt.claim.sub', '${actor_id}', true);
-select public.admin_archive_ip('${ip_id}');
+${archive_role_setup}
+${archive_statement}
 commit;
 SQL
   local archive_client_pid=$!
@@ -244,7 +264,8 @@ values ('home-curation-concurrency-test', '홈 큐레이션 동시성 테스트'
 insert into public.ips (id, title, vertical_key)
 values
   ('${create_ip_id}', '생성 경합 IP', 'home-curation-concurrency-test'),
-  ('${update_ip_id}', '수정 경합 IP', 'home-curation-concurrency-test');
+  ('${update_ip_id}', '수정 경합 IP', 'home-curation-concurrency-test'),
+  ('${direct_ip_id}', '직접 보관 경합 IP', 'home-curation-concurrency-test');
 
 insert into public.home_curations (
   id, kind, ip_id, title, link_path, display_order,
@@ -264,3 +285,7 @@ run_case \
 run_case \
   "update" 9114002 "$update_ip_id" "$update_curation_id" \
   "$update_operation_id" "수정 경합 큐레이션"
+
+run_case \
+  "direct-update" 9114003 "$direct_ip_id" "$direct_curation_id" \
+  "$direct_operation_id" "직접 보관 경합 큐레이션" "direct"

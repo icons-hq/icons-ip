@@ -122,7 +122,7 @@ select
   null,
   '/ip/' || ip.id,
   (pg_catalog.row_number() over (order by ip.id) - 1)::integer,
-  '-infinity'::timestamptz,
+  ip.created_at,
   null,
   true
 from public.ips as ip

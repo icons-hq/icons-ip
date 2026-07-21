@@ -1,4 +1,196 @@
 -- Single operational source for home hero, featured IPs, and announcements.
+-- CHECK constraints assume immutable predicates, so percent escapes are decoded
+-- with immutable byte/code-point operations rather than encoding-dependent casts.
+create function private.is_safe_home_curation_link(candidate text)
+returns boolean
+language plpgsql
+immutable
+strict
+security invoker
+set search_path = ''
+as $$
+declare
+  candidate_length integer := pg_catalog.char_length(candidate);
+  character_position integer := 1;
+  consumed_characters integer;
+  current_character text;
+  first_byte integer;
+  second_byte integer;
+  third_byte integer;
+  fourth_byte integer;
+  decoded_codepoint integer;
+  decoded_link text;
+begin
+  if candidate_length not between 1 and 2048
+    or pg_catalog.left(candidate, 1) <> '/'
+    or pg_catalog.left(candidate, 2) = '//'
+    or pg_catalog.strpos(candidate, E'\\') > 0
+    or candidate ~ '[[:cntrl:]]'
+    or candidate ~ U&'[\061C\200E\200F\2028-\202E\2066-\2069]'
+  then
+    return false;
+  end if;
+
+  decoded_link := '';
+  while character_position <= candidate_length loop
+    current_character := pg_catalog.substr(candidate, character_position, 1);
+    if current_character <> '%' then
+      decoded_link := decoded_link || current_character;
+      character_position := character_position + 1;
+      continue;
+    end if;
+
+    if character_position + 2 > candidate_length
+      or pg_catalog.substr(candidate, character_position + 1, 2)
+        !~ '^[0-9A-Fa-f]{2}$'
+    then
+      return false;
+    end if;
+
+    first_byte := pg_catalog.get_byte(
+      pg_catalog.decode(
+        pg_catalog.substr(candidate, character_position + 1, 2),
+        'hex'
+      ),
+      0
+    );
+
+    if first_byte <= 127 then
+      decoded_codepoint := first_byte;
+      consumed_characters := 3;
+    elsif first_byte between 194 and 223 then
+      if character_position + 5 > candidate_length
+        or pg_catalog.substr(candidate, character_position + 3, 1) <> '%'
+        or pg_catalog.substr(candidate, character_position + 4, 2)
+          !~ '^[0-9A-Fa-f]{2}$'
+      then
+        return false;
+      end if;
+      second_byte := pg_catalog.get_byte(
+        pg_catalog.decode(
+          pg_catalog.substr(candidate, character_position + 4, 2),
+          'hex'
+        ),
+        0
+      );
+      if second_byte not between 128 and 191 then
+        return false;
+      end if;
+      decoded_codepoint := ((first_byte & 31) << 6) | (second_byte & 63);
+      consumed_characters := 6;
+    elsif first_byte between 224 and 239 then
+      if character_position + 8 > candidate_length
+        or pg_catalog.substr(candidate, character_position + 3, 1) <> '%'
+        or pg_catalog.substr(candidate, character_position + 6, 1) <> '%'
+        or pg_catalog.substr(candidate, character_position + 4, 2)
+          !~ '^[0-9A-Fa-f]{2}$'
+        or pg_catalog.substr(candidate, character_position + 7, 2)
+          !~ '^[0-9A-Fa-f]{2}$'
+      then
+        return false;
+      end if;
+      second_byte := pg_catalog.get_byte(
+        pg_catalog.decode(
+          pg_catalog.substr(candidate, character_position + 4, 2),
+          'hex'
+        ),
+        0
+      );
+      third_byte := pg_catalog.get_byte(
+        pg_catalog.decode(
+          pg_catalog.substr(candidate, character_position + 7, 2),
+          'hex'
+        ),
+        0
+      );
+      if second_byte not between 128 and 191
+        or third_byte not between 128 and 191
+        or (first_byte = 224 and second_byte < 160)
+        or (first_byte = 237 and second_byte > 159)
+      then
+        return false;
+      end if;
+      decoded_codepoint := ((first_byte & 15) << 12)
+        | ((second_byte & 63) << 6)
+        | (third_byte & 63);
+      consumed_characters := 9;
+    elsif first_byte between 240 and 244 then
+      if character_position + 11 > candidate_length
+        or pg_catalog.substr(candidate, character_position + 3, 1) <> '%'
+        or pg_catalog.substr(candidate, character_position + 6, 1) <> '%'
+        or pg_catalog.substr(candidate, character_position + 9, 1) <> '%'
+        or pg_catalog.substr(candidate, character_position + 4, 2)
+          !~ '^[0-9A-Fa-f]{2}$'
+        or pg_catalog.substr(candidate, character_position + 7, 2)
+          !~ '^[0-9A-Fa-f]{2}$'
+        or pg_catalog.substr(candidate, character_position + 10, 2)
+          !~ '^[0-9A-Fa-f]{2}$'
+      then
+        return false;
+      end if;
+      second_byte := pg_catalog.get_byte(
+        pg_catalog.decode(
+          pg_catalog.substr(candidate, character_position + 4, 2),
+          'hex'
+        ),
+        0
+      );
+      third_byte := pg_catalog.get_byte(
+        pg_catalog.decode(
+          pg_catalog.substr(candidate, character_position + 7, 2),
+          'hex'
+        ),
+        0
+      );
+      fourth_byte := pg_catalog.get_byte(
+        pg_catalog.decode(
+          pg_catalog.substr(candidate, character_position + 10, 2),
+          'hex'
+        ),
+        0
+      );
+      if second_byte not between 128 and 191
+        or third_byte not between 128 and 191
+        or fourth_byte not between 128 and 191
+        or (first_byte = 240 and second_byte < 144)
+        or (first_byte = 244 and second_byte > 143)
+      then
+        return false;
+      end if;
+      decoded_codepoint := ((first_byte & 7) << 18)
+        | ((second_byte & 63) << 12)
+        | ((third_byte & 63) << 6)
+        | (fourth_byte & 63);
+      consumed_characters := 12;
+    else
+      return false;
+    end if;
+
+    if decoded_codepoint between 0 and 31
+      or decoded_codepoint between 127 and 159
+      or decoded_codepoint = 1564
+      or decoded_codepoint in (8206, 8207)
+      or decoded_codepoint between 8232 and 8238
+      or decoded_codepoint between 8294 and 8297
+    then
+      return false;
+    end if;
+
+    decoded_link := decoded_link || pg_catalog.chr(decoded_codepoint);
+    character_position := character_position + consumed_characters;
+  end loop;
+
+  return pg_catalog.left(decoded_link, 1) = '/'
+    and pg_catalog.left(decoded_link, 2) <> '//'
+    and pg_catalog.strpos(decoded_link, E'\\') = 0
+    and decoded_link !~ '[[:cntrl:]]'
+    and decoded_link !~ U&'[\061C\200E\200F\2028-\202E\2066-\2069]';
+end;
+$$;
+
+revoke all on function private.is_safe_home_curation_link(text)
+  from public, anon, authenticated, service_role;
+
 create table public.home_curations (
   id uuid primary key,
   kind text not null
@@ -30,15 +222,15 @@ create table public.home_curations (
     or image_path ~ '^public-media/catalog/curation/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}[.](jpg|png|webp)$'
   ),
   constraint home_curations_link_path_check check (
-    pg_catalog.char_length(link_path) between 1 and 2048
-    and pg_catalog.left(link_path, 1) = '/'
-    and pg_catalog.left(link_path, 2) <> '//'
-    and pg_catalog.strpos(link_path, E'\\') = 0
-    and link_path !~ '[[:cntrl:]]'
+    private.is_safe_home_curation_link(link_path)
   ),
   constraint home_curations_display_order_check check (display_order >= 0),
   constraint home_curations_active_window_check check (
-    active_to is null or active_to > active_from
+    pg_catalog.isfinite(active_from)
+    and (
+      active_to is null
+      or (pg_catalog.isfinite(active_to) and active_to > active_from)
+    )
   )
 );
 
@@ -159,11 +351,7 @@ begin
     raise check_violation using message = 'invalid_curation_image_path';
   end if;
   if normalized_link_path is null
-    or pg_catalog.char_length(normalized_link_path) not between 1 and 2048
-    or pg_catalog.left(normalized_link_path, 1) <> '/'
-    or pg_catalog.left(normalized_link_path, 2) = '//'
-    or pg_catalog.strpos(normalized_link_path, E'\\') > 0
-    or normalized_link_path ~ '[[:cntrl:]]'
+    or not private.is_safe_home_curation_link(normalized_link_path)
   then
     raise invalid_parameter_value using message = 'invalid_curation_link_path';
   end if;
@@ -173,7 +361,15 @@ begin
   if target_active_from is null then
     raise null_value_not_allowed using message = 'invalid_curation_active_from';
   end if;
-  if target_active_to is not null and target_active_to <= target_active_from then
+  if not pg_catalog.isfinite(target_active_from) then
+    raise invalid_parameter_value using message = 'invalid_curation_active_from';
+  end if;
+  if target_active_to is not null
+    and (
+      not pg_catalog.isfinite(target_active_to)
+      or target_active_to <= target_active_from
+    )
+  then
     raise check_violation using message = 'invalid_curation_active_window';
   end if;
   if target_enabled is null then
@@ -479,6 +675,78 @@ grant execute on function public.service_prepare_admin_artwork_upload(
 
 -- Extend #113's IP archive guard. Both this function and curation upsert lock
 -- the referenced IP row, so concurrent archive/create/update is serialized.
+create or replace function private.guard_ip_archive()
+returns trigger
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+begin
+  if exists (
+    select 1
+    from public.goods as good
+    where good.ip_id = new.id
+      and good.archived_at is null
+  ) or exists (
+    select 1
+    from public.cards as card
+    where card.ip_id = new.id
+      and card.archived_at is null
+  ) or exists (
+    select 1
+    from public.events as event_record
+    where event_record.ip_id = new.id
+      and event_record.archived_at is null
+  ) then
+    raise check_violation using message = 'ip_has_active_children';
+  end if;
+
+  if exists (
+    select 1
+    from public.card_pools as pool
+    where pool.ip_id = new.id
+      and (pool.active_to is null or pool.active_to > pg_catalog.now())
+  ) or exists (
+    select 1
+    from public.reward_policies as policy
+    where policy.target_ip_id = new.id
+      and policy.active
+      and (policy.active_to is null or policy.active_to > pg_catalog.now())
+  ) or exists (
+    select 1
+    from public.games as game
+    join public.events as event_record on event_record.id = game.event_id
+    where event_record.ip_id = new.id
+      and (game.active_to is null or game.active_to > pg_catalog.now())
+  ) or exists (
+    select 1
+    from public.games as game
+    join public.card_pools as pool on pool.id = game.reward_pool_id
+    where pool.ip_id = new.id
+      and (game.active_to is null or game.active_to > pg_catalog.now())
+  ) then
+    raise check_violation using message = 'ip_has_active_operations';
+  end if;
+
+  if exists (
+    select 1
+    from public.home_curations as curation
+    where curation.kind = 'featured_ip'
+      and curation.ip_id = new.id
+      and curation.enabled
+      and (curation.active_to is null or curation.active_to > pg_catalog.now())
+  ) then
+    raise check_violation using message = 'ip_has_active_home_curation';
+  end if;
+
+  return new;
+end;
+$$;
+
+revoke all on function private.guard_ip_archive()
+  from public, anon, authenticated, service_role;
+
 create or replace function private.set_catalog_archived(
   target_kind text,
   target_id text,
@@ -682,7 +950,7 @@ select
   null,
   '/ip/' || ip.id,
   (pg_catalog.row_number() over (order by ip.id) - 1)::integer,
-  '-infinity'::timestamptz,
+  ip.created_at,
   null,
   true
 from public.ips as ip
