@@ -50,6 +50,33 @@ beforeEach(() => {
 });
 
 describe('uploadAdminArtwork', () => {
+  it('preserves the curation kind through prepare and verification', async () => {
+    const path = `catalog/curation/${UUID}.png`;
+    const file = new File(['image'], 'curation.png', { type: 'image/png' });
+    mocks.prepare.mockResolvedValue({ ok: true, path });
+    mocks.upload.mockResolvedValue({
+      data: { path, fullPath: `admin-artwork-staging/${path}` },
+      error: null,
+    });
+    mocks.verify.mockResolvedValue({ ok: true, imagePath: `public-media/${path}` });
+
+    await expect(uploadAdminArtwork({ kind: 'curation', file })).resolves.toEqual({
+      ok: true,
+      imagePath: `public-media/${path}`,
+    });
+    expect(mocks.prepare).toHaveBeenCalledWith({
+      kind: 'curation',
+      mimeType: 'image/png',
+      size: file.size,
+    });
+    expect(mocks.verify).toHaveBeenCalledWith({
+      kind: 'curation',
+      mimeType: 'image/png',
+      path,
+      size: file.size,
+    });
+  });
+
   it('sends only metadata to the action and sends bytes directly to private staging', async () => {
     const bytes = new Uint8Array([
       0x52, 0x49, 0x46, 0x46, 0x00, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50,

@@ -5,7 +5,13 @@ import { DATA, type Card, type FandomEvent, type Good, type Ip, type RarityKey, 
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { resolveCatalogSource, type CatalogSource } from './catalog-source';
-import { getHomeSelectableIps, type HomePostPreviewByIpId } from './home-catalog';
+import {
+  getHomeCuratedIpIds,
+  getHomeSelectableIps,
+  type HomeBanner,
+  type HomeCurationSnapshot,
+  type HomePostPreviewByIpId,
+} from './home-catalog';
 
 export interface CatalogSnapshot {
   source: 'supabase' | 'mock';
@@ -50,6 +56,7 @@ export interface CatalogIpDetail {
 
 export interface HomeSnapshot {
   catalog: CatalogSnapshot;
+  curation: HomeCurationSnapshot;
   postPreviewByIpId: HomePostPreviewByIpId;
 }
 
@@ -131,6 +138,28 @@ interface PostRow {
   status: CommunityPostStatus;
 }
 
+interface HomeCurationRow {
+  id: string;
+  kind: 'hero' | 'featured_ip' | 'announcement';
+  ip_id: string | null;
+  title: string;
+  image_path: string | null;
+  link_path: string;
+  display_order: number;
+  active_from: string;
+  active_to: string | null;
+}
+
+interface LoadedFeaturedIpCuration {
+  ipId: string;
+  imageBg: string | null;
+}
+
+interface LoadedHomeCuration {
+  curation: HomeCurationSnapshot;
+  featuredIps: LoadedFeaturedIpCuration[];
+}
+
 interface PublicProfileRow {
   id: string;
   nickname: string | null;
@@ -142,6 +171,10 @@ interface BlockRow {
 
 const PUBLIC_MEDIA_BUCKET = 'public-media';
 const PUBLIC_MEDIA_PREFIX = `${PUBLIC_MEDIA_BUCKET}/`;
+const HOME_CURATION_IMAGE_PATTERN =
+  /^public-media\/catalog\/curation\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$/;
+const AMBIGUOUS_LINK_CHARACTER_PATTERN =
+  /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/;
 const RARITIES: RarityKey[] = ['N', 'R', 'SR', 'SSR', 'HOLO'];
 const naturalIdCollator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
 type CatalogSupabaseClient = Awaited<ReturnType<typeof createClient>>;
@@ -210,6 +243,124 @@ function blockedUserIdList(blockedIds: ReadonlySet<string>) {
 
 function postgrestInList(values: readonly string[]) {
   return `(${values.join(',')})`;
+}
+
+function emptyHomeCuration(): HomeCurationSnapshot {
+  return { hero: null, announcement: null, featuredIpIds: [] };
+}
+
+function emptyLoadedHomeCuration(): LoadedHomeCuration {
+  return { curation: emptyHomeCuration(), featuredIps: [] };
+}
+
+function isSafeInternalLink(value: string) {
+  const characterLength = Array.from(value).length;
+  if (
+    characterLength < 1
+    || characterLength > 2048
+    || !value.startsWith('/')
+    || value.startsWith('//')
+    || value.includes('\\')
+    || AMBIGUOUS_LINK_CHARACTER_PATTERN.test(value)
+  ) {
+    return false;
+  }
+
+  try {
+    const decoded = decodeURIComponent(value);
+    return (
+      decoded.startsWith('/')
+      && !decoded.startsWith('//')
+      && !decoded.includes('\\')
+      && !AMBIGUOUS_LINK_CHARACTER_PATTERN.test(decoded)
+    );
+  } catch {
+    return false;
+  }
+}
+
+function toHomeBanner(
+  row: HomeCurationRow,
+  imageUrlForPath: (path: string) => string,
+): HomeBanner | null {
+  const title = row.title.trim();
+  const href = row.link_path.trim();
+  if (!title || Array.from(title).length > 120 || !isSafeInternalLink(href)) return null;
+  if (row.kind === 'hero' && (!row.image_path || row.ip_id !== null)) return null;
+  if (row.kind === 'announcement' && row.ip_id !== null) return null;
+  if (row.kind === 'featured_ip' && !row.ip_id) return null;
+  if (row.image_path && !HOME_CURATION_IMAGE_PATTERN.test(row.image_path)) return null;
+
+  return {
+    id: row.id,
+    title,
+    imageBg: row.image_path ? imageBg(imageUrlForPath(row.image_path)) : null,
+    href,
+  };
+}
+
+async function getActiveHomeCurationSnapshot(): Promise<LoadedHomeCuration> {
+  const supabase = await createClient();
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('home_curations')
+    .select('id,kind,ip_id,title,image_path,link_path,display_order,active_from,active_to')
+    .eq('enabled', true)
+    .lte('active_from', now)
+    .or(`active_to.is.null,active_to.gt.${now}`)
+    .order('kind', { ascending: true })
+    .order('display_order', { ascending: true })
+    .order('active_from', { ascending: true })
+    .order('id', { ascending: true });
+
+  if (error) throw new Error(`Failed to load home curations: ${error.message}`);
+
+  const imageUrlForPath = (path: string) => supabase.storage
+    .from(PUBLIC_MEDIA_BUCKET)
+    .getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
+  const curation = emptyHomeCuration();
+  const featuredIps: LoadedFeaturedIpCuration[] = [];
+
+  for (const row of (data ?? []) as HomeCurationRow[]) {
+    const banner = toHomeBanner(row, imageUrlForPath);
+    if (!banner) continue;
+
+    if (row.kind === 'hero' && curation.hero === null) {
+      curation.hero = banner;
+    } else if (row.kind === 'announcement' && curation.announcement === null) {
+      curation.announcement = banner;
+    } else if (row.kind === 'featured_ip' && typeof row.ip_id === 'string' && row.ip_id) {
+      curation.featuredIpIds.push(row.ip_id);
+      featuredIps.push({ ipId: row.ip_id, imageBg: banner.imageBg });
+    }
+  }
+
+  return { curation, featuredIps };
+}
+
+function applyHomeFeaturedArtwork(
+  catalog: CatalogSnapshot,
+  featuredIps: readonly LoadedFeaturedIpCuration[],
+  selectedIpIds: readonly string[],
+): CatalogSnapshot {
+  const selectedIdSet = new Set(selectedIpIds);
+  const seen = new Set<string>();
+  const imageBgByIpId = new Map<string, string>();
+
+  for (const featuredIp of featuredIps) {
+    if (!selectedIdSet.has(featuredIp.ipId) || seen.has(featuredIp.ipId)) continue;
+    seen.add(featuredIp.ipId);
+    if (featuredIp.imageBg) imageBgByIpId.set(featuredIp.ipId, featuredIp.imageBg);
+  }
+
+  if (imageBgByIpId.size === 0) return catalog;
+  return {
+    ...catalog,
+    ips: catalog.ips.map((ip) => {
+      const imageBg = imageBgByIpId.get(ip.id);
+      return imageBg ? { ...ip, bg: imageBg } : ip;
+    }),
+  };
 }
 
 function toIp(row: IpRow, verticalsByKey: Map<string, Vertical>, imageUrlForPath: (path: string) => string): Ip {
@@ -412,7 +563,6 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .from('ips')
       .select('id,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count,goods_count,cards_count')
       .is('archived_at', null)
-      .order('featured', { ascending: false })
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
@@ -654,13 +804,32 @@ export async function getCatalogIpDetail(
 }
 
 export async function getHomeSnapshot(options: CatalogIpDetailOptions = {}): Promise<HomeSnapshot> {
-  const catalog = await getCatalogSnapshot();
-  const selectableIps = getHomeSelectableIps(catalog);
+  const source = getCatalogSource();
+  const [catalog, loadedCuration] = await Promise.all([
+    getCatalogSnapshot(),
+    source === 'supabase'
+      ? getActiveHomeCurationSnapshot()
+      : Promise.resolve(emptyLoadedHomeCuration()),
+  ]);
+  const normalizedCuration: HomeCurationSnapshot = catalog.source === 'mock'
+    ? loadedCuration.curation
+    : {
+        ...loadedCuration.curation,
+        featuredIpIds: getHomeCuratedIpIds(catalog, loadedCuration.curation.featuredIpIds),
+      };
+  const homeCatalog = catalog.source === 'mock'
+    ? catalog
+    : applyHomeFeaturedArtwork(catalog, loadedCuration.featuredIps, normalizedCuration.featuredIpIds);
+  const selectableIps = getHomeSelectableIps(
+    homeCatalog,
+    homeCatalog.source === 'mock' ? undefined : normalizedCuration.featuredIpIds,
+  );
 
-  if (catalog.source === 'mock') {
+  if (homeCatalog.source === 'mock') {
     const mockPosts = mockPostPreviews();
     return {
-      catalog,
+      catalog: homeCatalog,
+      curation: normalizedCuration,
       postPreviewByIpId: Object.fromEntries(
         selectableIps.map((ip) => [ip.id, mockPosts.find((post) => post.ipName === ip.title) ?? null]),
       ),
@@ -675,7 +844,8 @@ export async function getHomeSnapshot(options: CatalogIpDetailOptions = {}): Pro
   );
 
   return {
-    catalog,
+    catalog: homeCatalog,
+    curation: normalizedCuration,
     postPreviewByIpId: Object.fromEntries(postEntries),
   };
 }

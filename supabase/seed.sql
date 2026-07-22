@@ -108,6 +108,38 @@ on conflict (id) do update set
   cards_count = excluded.cards_count,
   updated_at = now();
 
+-- Keep local-reset home featured curation aligned with the one-time migration
+-- inheritance contract. IDs and ordering are stable across repeated seeds.
+insert into public.home_curations (
+  id, kind, ip_id, title, image_path, link_path,
+  display_order, active_from, active_to, enabled
+)
+select
+  pg_catalog.md5('home_curations:featured_ip:' || ip.id)::uuid,
+  'featured_ip',
+  ip.id,
+  ip.title,
+  null,
+  '/ip/' || ip.id,
+  (pg_catalog.row_number() over (order by ip.id) - 1)::integer,
+  ip.created_at,
+  null,
+  true
+from public.ips as ip
+where ip.featured
+  and ip.archived_at is null
+order by ip.id
+on conflict (id) do update set
+  kind = excluded.kind,
+  ip_id = excluded.ip_id,
+  title = excluded.title,
+  image_path = excluded.image_path,
+  link_path = excluded.link_path,
+  display_order = excluded.display_order,
+  active_from = excluded.active_from,
+  active_to = excluded.active_to,
+  enabled = excluded.enabled;
+
 insert into public.goods (id, ip_id, name, type, price, badge, stock, stock_qty, bg) values
   ('g1', 'rilakkuma', '리락쿠마 낮잠 쿠션', '쿠션', 42000, '한정', 'low', 7, 'url("/generated/goods/g1.png") center / cover no-repeat, linear-gradient(150deg, #5a3517, #D68A2D 55%, #FFD84D)'),
   ('g2', 'rilakkuma', '코리락쿠마 미니 키링', '키링', 15000, '신상', 'ok', 120, 'url("/generated/goods/g2.png") center / cover no-repeat, linear-gradient(150deg, #7d4a2a, #F3B6C8 55%, #FFF3D6)'),

@@ -1,4 +1,4 @@
-export type AdminArtworkKind = 'ip' | 'good' | 'card' | 'event';
+export type AdminArtworkKind = 'ip' | 'good' | 'card' | 'event' | 'curation';
 export type AdminArtworkMimeType = 'image/jpeg' | 'image/png' | 'image/webp';
 
 export const ADMIN_ARTWORK_ACCEPT = 'image/jpeg,image/png,image/webp';
@@ -7,7 +7,7 @@ export const ADMIN_ARTWORK_MAX_DIMENSION = 8192;
 export const ADMIN_ARTWORK_ERROR =
   '이미지는 JPEG, PNG, WebP 형식의 5MB 이하, 가로·세로 8192px 이하 파일만 업로드할 수 있습니다.';
 
-const ADMIN_ARTWORK_KINDS = new Set<AdminArtworkKind>(['ip', 'good', 'card', 'event']);
+const ADMIN_ARTWORK_KINDS = new Set<AdminArtworkKind>(['ip', 'good', 'card', 'event', 'curation']);
 const ADMIN_ARTWORK_EXTENSIONS: Record<AdminArtworkMimeType, 'jpg' | 'png' | 'webp'> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -23,7 +23,7 @@ const UUID_V4_REGEX =
 const UUID_V4_PATTERN =
   '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}';
 const ADMIN_ARTWORK_PATH_REGEX = new RegExp(
-  `^catalog/(ip|good|card|event)/(${UUID_V4_PATTERN})\\.(jpg|png|webp)$`,
+  `^catalog/(ip|good|card|event|curation)/(${UUID_V4_PATTERN})\\.(jpg|png|webp)$`,
 );
 const PUBLIC_MEDIA_PREFIX = 'public-media/';
 

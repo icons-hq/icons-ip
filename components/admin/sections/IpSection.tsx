@@ -69,10 +69,7 @@ export function IpSection({
             </SelectField>
             <Field defaultValue={selected?.tagline} label="태그라인" name="tagline" />
             <Field defaultValue={selected?.glyph} label="글리프" name="glyph" />
-            <label className="row" style={{ alignItems: 'center', gap: 10, justifyContent: 'flex-start', paddingTop: 22 }}>
-              <input defaultChecked={selected?.featured ?? false} name="featured" type="checkbox" />
-              featured
-            </label>
+            <input name="featured" type="hidden" value={selected?.featured ? 'on' : ''} />
           </div>
           <TextArea defaultValue={selected?.synopsis} label="시놉시스" name="synopsis" />
           <Field defaultValue={selected?.bg} label="배경 CSS" name="bg" />

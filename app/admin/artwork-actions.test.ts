@@ -131,6 +131,25 @@ describe('prepareAdminArtworkUploadAction', () => {
     );
   });
 
+  it('prepares curation artwork under the dedicated path contract', async () => {
+    await expect(prepareAdminArtworkUploadAction({
+      kind: 'curation',
+      mimeType: 'image/png',
+      size: 8,
+    })).resolves.toEqual({
+      ok: true,
+      path: `catalog/curation/${UUID}.png`,
+    });
+
+    expect(mocks.createClaim).toHaveBeenCalledWith({
+      actorId: 'staff-1',
+      kind: 'curation',
+      mimeType: 'image/png',
+      path: `catalog/curation/${UUID}.png`,
+      size: 8,
+    });
+  });
+
   it('fails closed without granting when the durable claim cannot be created', async () => {
     mocks.createClaim.mockResolvedValue(false);
 

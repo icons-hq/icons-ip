@@ -184,7 +184,7 @@ select 1 / case when
 then 1 else 0 end as assert_artwork_function_acl;
 
 select 1 / case when (
-  select count(*) = 4
+  select count(*) = 5
     and bool_and((tgtype & 2) = 0)
   from pg_catalog.pg_trigger
   where not tgisinternal
@@ -193,7 +193,8 @@ select 1 / case when (
       'public.ips'::regclass,
       'public.goods'::regclass,
       'public.cards'::regclass,
-      'public.events'::regclass
+      'public.events'::regclass,
+      'public.home_curations'::regclass
     )
 ) then 1 else 0 end as assert_catalog_claim_triggers;
 
@@ -684,6 +685,122 @@ begin
     raise;
   end;
   raise exception 'unverified catalog artwork should be rejected';
+end;
+$$;
+
+-- Home curation artwork uses the same verified, kind-isolated, single-use
+-- claim contract. Announcement remains valid without an image; hero does not.
+reset role;
+set local role service_role;
+
+select 1 / case when public.service_prepare_admin_artwork_upload(
+  '00000000-0000-4000-8000-000000011201',
+  'catalog/curation/dddddddd-dddd-4ddd-8ddd-dddddddddddd.webp',
+  'curation', 'image/webp', 8, now() + interval '10 minutes'
+) then 1 else 0 end as assert_curation_claim_created;
+
+select 1 / case when (
+  select count(*) = 1
+  from public.service_begin_admin_artwork_verification(
+    '00000000-0000-4000-8000-000000011201',
+    'catalog/curation/dddddddd-dddd-4ddd-8ddd-dddddddddddd.webp'
+  )
+) then 1 else 0 end as assert_curation_verification_started;
+
+select 1 / case when public.service_verify_admin_artwork_upload(
+  '00000000-0000-4000-8000-000000011201',
+  'catalog/curation/dddddddd-dddd-4ddd-8ddd-dddddddddddd.webp',
+  8
+) then 1 else 0 end as assert_curation_claim_verified;
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000011201', true);
+
+select public.admin_upsert_home_curation(
+  '00000000-0000-4000-8000-000000011211',
+  '00000000-0000-4000-8000-000000011212',
+  'hero', null, '검증된 히어로',
+  'public-media/catalog/curation/dddddddd-dddd-4ddd-8ddd-dddddddddddd.webp',
+  '/', 0, now(), null, true
+);
+
+-- The unchanged path on the same row does not require a second upload.
+select public.admin_upsert_home_curation(
+  '00000000-0000-4000-8000-000000011213',
+  '00000000-0000-4000-8000-000000011212',
+  'hero', null, '검증된 히어로 수정',
+  'public-media/catalog/curation/dddddddd-dddd-4ddd-8ddd-dddddddddddd.webp',
+  '/', 0, now(), null, true
+);
+
+reset role;
+set local role service_role;
+
+select 1 / case when exists (
+  select 1
+  from public.admin_artwork_upload_claims
+  where path = 'catalog/curation/dddddddd-dddd-4ddd-8ddd-dddddddddddd.webp'
+    and kind = 'curation'
+    and status = 'attached'
+    and attached_at is not null
+) then 1 else 0 end as assert_curation_claim_consumed_atomically;
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000011201', true);
+
+do $$
+begin
+  begin
+    perform public.admin_upsert_home_curation(
+      '00000000-0000-4000-8000-000000011214',
+      '00000000-0000-4000-8000-000000011215',
+      'hero', null, '재사용 히어로',
+      'public-media/catalog/curation/dddddddd-dddd-4ddd-8ddd-dddddddddddd.webp',
+      '/', 1, now(), null, true
+    );
+  exception when check_violation then
+    if sqlerrm = 'unverified_artwork' then return; end if;
+    raise;
+  end;
+  raise exception 'attached curation path should not be reusable by another row';
+end;
+$$;
+
+do $$
+begin
+  begin
+    perform public.admin_upsert_home_curation(
+      '00000000-0000-4000-8000-000000011216',
+      '00000000-0000-4000-8000-000000011217',
+      'hero', null, '미검증 히어로',
+      'public-media/catalog/curation/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee.png',
+      '/', 2, now(), null, true
+    );
+  exception when check_violation then
+    if sqlerrm = 'unverified_artwork' then return; end if;
+    raise;
+  end;
+  raise exception 'unverified curation artwork should be rejected';
+end;
+$$;
+
+do $$
+begin
+  begin
+    perform public.admin_upsert_home_curation(
+      '00000000-0000-4000-8000-000000011218',
+      '00000000-0000-4000-8000-000000011219',
+      'hero', null, '다른 유형 경로',
+      'public-media/catalog/ip/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.png',
+      '/', 3, now(), null, true
+    );
+  exception when check_violation then return;
+  end;
+  raise exception 'cross-kind artwork path should be rejected';
 end;
 $$;
 

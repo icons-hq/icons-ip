@@ -22,6 +22,7 @@ describe('admin artwork metadata', () => {
     ['good', 'image/png', ADMIN_ARTWORK_MAX_BYTES],
     ['card', 'image/webp', 42],
     ['event', 'image/jpeg', 1024],
+    ['curation', 'image/png', 2048],
   ] as const)('accepts %s %s metadata within the inclusive limit', (kind, mimeType, size) => {
     expect(normalizeAdminArtworkMetadata({ kind, mimeType, size })).toEqual({
       ok: true,
@@ -50,6 +51,7 @@ describe('admin artwork paths', () => {
     ['good', 'image/png', 'png'],
     ['card', 'image/webp', 'webp'],
     ['event', 'image/jpeg', 'jpg'],
+    ['curation', 'image/png', 'png'],
   ] as const)('builds a catalog/%s path with the canonical extension', (kind, mimeType, extension) => {
     expect(buildAdminArtworkPath({
       kind,
@@ -71,6 +73,7 @@ describe('admin artwork paths', () => {
     ['catalog/good/123e4567-e89b-42d3-a456-426614174000.png', 'good', 'image/png'],
     ['catalog/card/123e4567-e89b-42d3-a456-426614174000.webp', 'card', 'image/webp'],
     ['catalog/event/123e4567-e89b-42d3-a456-426614174000.jpg', 'event', 'image/jpeg'],
+    ['catalog/curation/123e4567-e89b-42d3-a456-426614174000.png', 'curation', 'image/png'],
   ] as const)('parses the strict generated path contract %s', (path, kind, mimeType) => {
     expect(parseAdminArtworkPath(path)).toEqual({ path, kind, mimeType });
   });

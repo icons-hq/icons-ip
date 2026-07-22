@@ -369,6 +369,9 @@
     animation: homeArtCrossfade .6s ease both;
     will-change: opacity;
   }
+  .home-announcement-link { transition: box-shadow .2s ease; }
+  .home-announcement-link:hover { box-shadow: inset 0 0 0 1px var(--line-3); }
+  .home-announcement-link:focus-visible { outline: 2px solid var(--cyan); outline-offset: -3px; }
   .home-ticker {
     position: relative; overflow: hidden; padding: 15px 0;
     border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
@@ -1156,6 +1159,49 @@
   .admin-pipeline-fill { height: 100%; border-radius: 999px; transition: width 1s cubic-bezier(.2,.7,.2,1); }
   .admin-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .admin-field-control:focus-visible { outline: 2px solid var(--cyan) !important; outline-offset: 2px; }
+
+  .admin-curation-console { gap: 16px; min-width: 0; }
+  .admin-curation-heading {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 18px;
+  }
+  .admin-curation-heading > div { min-width: 0; }
+  .admin-curation-heading > div > .mono { color: var(--violet-2); font-size: 9px; letter-spacing: .14em; }
+  .admin-curation-heading h2 { margin: 6px 0 0; font-size: 24px; letter-spacing: -.02em; }
+  .admin-curation-heading p { max-width: 650px; margin: 7px 0 0; color: var(--dim); font-size: 13px; line-height: 1.55; }
+  .admin-curation-notification-cta { flex: 0 1 auto; height: auto; min-height: 48px; text-align: center; white-space: normal; }
+  .admin-curation-record-button {
+    height: auto; padding-block: 10px; white-space: normal;
+  }
+  .admin-curation-record { display: grid; gap: 6px; width: 100%; min-width: 0; }
+  .admin-curation-record-title {
+    color: var(--text); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere;
+  }
+  .admin-curation-record-meta {
+    display: grid; gap: 3px; color: var(--dim); font-family: var(--ff-mono);
+    font-size: 11px; line-height: 1.5; overflow-wrap: anywhere;
+  }
+  .admin-curation-form { min-width: 0; border-radius: 10px; gap: 14px; padding: 18px; }
+  .admin-curation-window {
+    display: grid; gap: 5px; min-width: 0; padding: 12px 14px;
+    border: 1px solid var(--line); border-radius: 10px; background: rgba(255,255,255,.025);
+    font-family: var(--ff-mono); overflow-wrap: anywhere;
+  }
+  .admin-curation-window > .mono { color: var(--violet-2); font-size: 9px; letter-spacing: .13em; }
+  .admin-curation-window > strong { font-size: 12px; }
+  .admin-curation-window > span:last-child, .admin-curation-ip-note { color: var(--dim); font-size: 11px; }
+  .admin-curation-ip-note { margin: 0; }
+  .admin-curation-enabled { align-items: center; align-self: end; gap: 10px; min-height: 44px; }
+  .admin-curation-enabled span { font-size: 13px; font-weight: 700; }
+  .admin-curation-enabled input { width: 20px; height: 20px; }
+  .admin-curation-console .btn,
+  .admin-curation-console .chip,
+  .admin-curation-console .admin-field-control,
+  .admin-curation-console .admin-artwork-input { min-height: 44px !important; }
+  .admin-curation-console .btn:focus-visible,
+  .admin-curation-console .chip:focus-visible,
+  .admin-curation-enabled input:focus-visible {
+    outline: 2px solid var(--cyan); outline-offset: 3px;
+  }
 
   .admin-notification-console { gap: 16px; }
   .admin-notification-heading {
@@ -2018,6 +2064,8 @@
   .mobile-footer-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 
   .admin-form-grid { grid-template-columns: 1fr; }
+  .admin-curation-heading { align-items: flex-start; flex-direction: column; }
+  .admin-curation-notification-cta { width: 100%; }
   .admin-order-filters { grid-template-columns: 1fr; }
   .admin-order-filter-actions .btn { flex: 1; }
   .admin-order-detail { padding: 17px; }

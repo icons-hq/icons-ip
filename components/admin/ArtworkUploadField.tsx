@@ -34,6 +34,18 @@ export function createArtworkDisplayState(
   };
 }
 
+export function clearArtworkDisplayState(
+  state: ArtworkDisplayState,
+): ArtworkDisplayState {
+  return {
+    committedAlt: state.committedAlt,
+    committedUrl: null,
+    imagePath: '',
+    previewAlt: state.committedAlt,
+    previewUrl: null,
+  };
+}
+
 export function showSelectedArtworkPreview(
   state: ArtworkDisplayState,
   selectedUrl: string,
@@ -69,11 +81,13 @@ export function restoreCommittedArtworkPreview(
 }
 
 export function ArtworkUploadField({
+  allowRemove = false,
   currentPath,
   currentUrl,
   helpText,
   kind,
 }: {
+  allowRemove?: boolean;
   currentPath: string | null;
   currentUrl: string | null;
   helpText?: string;
@@ -125,6 +139,17 @@ export function ArtworkUploadField({
     setStatus(undefined);
     clearFileInput();
     restoreCommittedPreview();
+  }
+
+  function handleRemove() {
+    if (pending || !display.imagePath) return;
+    revokeCommittedObjectUrl();
+    revokeSelectedObjectUrl();
+    setError(undefined);
+    setFile(null);
+    clearFileInput();
+    setDisplay((current) => clearArtworkDisplayState(current));
+    setStatus('저장하면 현재 이미지 연결을 제거합니다.');
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -211,7 +236,7 @@ export function ArtworkUploadField({
           className="admin-artwork-preview"
           style={{
             alignItems: 'center',
-            aspectRatio: kind === 'ip' ? '16 / 9' : '4 / 3',
+            aspectRatio: kind === 'ip' || kind === 'curation' ? '16 / 9' : '4 / 3',
             background: 'rgba(255,255,255,.035)',
             border: '1px solid var(--line)',
             borderRadius: 10,
@@ -273,6 +298,16 @@ export function ArtworkUploadField({
             >
               선택 취소
             </button>
+            {allowRemove && (
+              <button
+                className="btn btn-ghost admin-artwork-remove"
+                disabled={!display.imagePath || pending}
+                onClick={handleRemove}
+                type="button"
+              >
+                이미지 제거
+              </button>
+            )}
           </div>
         </div>
       </div>

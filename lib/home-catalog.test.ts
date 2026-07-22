@@ -124,6 +124,63 @@ describe('getHomeSelectableIps', () => {
 
     expect(selectable.map((item) => item.id)).toEqual(['one', 'two', 'three', 'four', 'five']);
   });
+
+  it('uses curated IP order, removes duplicates and missing IDs, and only then caps at five', () => {
+    const selectable = getHomeSelectableIps(catalog({
+      ips: [
+        ip('one', true),
+        ip('two'),
+        ip('three'),
+        ip('four'),
+        ip('five'),
+        ip('six'),
+      ],
+    }), ['missing', 'six', 'six', 'five', 'four', 'three', 'two', 'one']);
+
+    expect(selectable.map((item) => item.id)).toEqual(['six', 'five', 'four', 'three', 'two']);
+  });
+
+  it('falls back to the first five catalog IPs for an explicit empty Supabase curation', () => {
+    const selectable = getHomeSelectableIps(catalog({
+      ips: [
+        ip('regular-first'),
+        ip('legacy-featured', true),
+        ip('three'),
+        ip('four'),
+        ip('five'),
+        ip('six'),
+      ],
+    }), []);
+
+    expect(selectable.map((item) => item.id)).toEqual([
+      'regular-first',
+      'legacy-featured',
+      'three',
+      'four',
+      'five',
+    ]);
+  });
+
+  it('falls back to the first five catalog IPs when no curated ID exists in the catalog', () => {
+    const selectable = getHomeSelectableIps(catalog({
+      ips: [ip('regular-first'), ip('legacy-featured', true), ip('three')],
+    }), ['missing', 'also-missing']);
+
+    expect(selectable.map((item) => item.id)).toEqual(['regular-first', 'legacy-featured', 'three']);
+  });
+
+  it('keeps the legacy featured fallback only when curated IDs are undefined', () => {
+    const snapshot = catalog({
+      ips: [ip('regular-first'), ip('legacy-featured', true), ip('regular-last')],
+    });
+
+    expect(getHomeSelectableIps(snapshot, undefined).map((item) => item.id)).toEqual(['legacy-featured']);
+    expect(getHomeSelectableIps(snapshot, []).map((item) => item.id)).toEqual([
+      'regular-first',
+      'legacy-featured',
+      'regular-last',
+    ]);
+  });
 });
 
 describe('buildHomeIpWorld', () => {
@@ -200,5 +257,16 @@ describe('prioritizeHomePostPreviews', () => {
     };
 
     expect(prioritizeHomePostPreviews(previews, new Set()).map(([ipId]) => ipId)).toEqual(['hwasan', 'lumen']);
+  });
+
+  it('uses explicit selectable order for numeric-like IP IDs', () => {
+    const previews = {
+      '10': post('ten', 'IP ten'),
+      '2': post('two', 'IP two'),
+    };
+
+    expect(
+      prioritizeHomePostPreviews(previews, new Set(), ['10', '2']).map(([ipId]) => ipId),
+    ).toEqual(['10', '2']);
   });
 });

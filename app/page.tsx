@@ -15,6 +15,7 @@ export default async function Page() {
   return (
     <Home
       catalog={home.catalog}
+      curation={home.curation}
       followedIpIds={Array.from(followedIpIds)}
       postPreviewByIpId={home.postPreviewByIpId}
     />

@@ -1,14 +1,18 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminCardRecord, AdminGameRecord, AdminRewardPolicyRecord } from '@/lib/admin/catalog.server';
+import type { AdminCurationRecord } from '@/lib/admin/curations.server';
 import { Admin } from './Admin';
 
 const hooks = vi.hoisted(() => ({
   cardSelected: null as unknown,
+  curationProps: null as unknown,
   gameProps: null as unknown,
   memberProps: null as unknown,
   notificationProps: null as unknown,
   policyProps: null as unknown,
+  setters: [] as ReturnType<typeof vi.fn>[],
+  stateCursor: 0,
   stateValues: [] as unknown[],
 }));
 
@@ -19,12 +23,20 @@ vi.mock('react', async () => {
     useActionState: () => [{}, vi.fn(), false],
     useMemo: (factory: () => unknown) => factory(),
     useState: (initial: unknown) => {
-      const value = hooks.stateValues.length
-        ? hooks.stateValues.shift()
+      const index = hooks.stateCursor;
+      hooks.stateCursor += 1;
+      const value = index < hooks.stateValues.length
+        ? hooks.stateValues[index]
         : typeof initial === 'function'
           ? (initial as () => unknown)()
           : initial;
-      return [value, vi.fn()];
+      const setter = vi.fn((next: unknown) => {
+        hooks.stateValues[index] = typeof next === 'function'
+          ? (next as (current: unknown) => unknown)(value)
+          : next;
+      });
+      hooks.setters[index] = setter;
+      return [value, setter];
     },
   };
 });
@@ -46,6 +58,14 @@ vi.mock('./sections/CardSection', () => {
   return { CardSection };
 });
 vi.mock('./sections/CardPoolSection', () => ({ CardPoolSection: () => null }));
+vi.mock('./sections/CurationSection', () => {
+  const CurationSection = (props: unknown) => {
+    hooks.curationProps = props;
+    return null;
+  };
+  CurationSection.displayName = 'AdminCurationSectionMock';
+  return { CurationSection };
+});
 vi.mock('./sections/EventSection', () => ({ EventSection: () => null }));
 vi.mock('./sections/GoodSection', () => ({ GoodSection: () => null }));
 vi.mock('./sections/GameSection', () => {
@@ -144,6 +164,23 @@ const game: AdminGameRecord = {
   status: 'active',
 };
 
+const curation: AdminCurationRecord = {
+  id: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+  kind: 'announcement',
+  ipId: null,
+  title: '서비스 점검 안내',
+  imagePath: null,
+  imageUrl: null,
+  linkPath: '/notice/maintenance',
+  displayOrder: 2,
+  activeFrom: '2026-07-15T00:00:00.000Z',
+  activeTo: null,
+  enabled: true,
+  createdAt: '2026-07-14T00:00:00.000Z',
+  updatedAt: '2026-07-15T01:00:00.000Z',
+  status: 'active',
+};
+
 function createProps(
   cards: AdminCardRecord[],
   rewardPolicies: AdminRewardPolicyRecord[] = [],
@@ -182,7 +219,17 @@ function createProps(
     gameOperationId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
     notificationConsole: { audiences: [], history: [] },
     notificationOperationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    curations: [curation],
+    curationDraftActiveFrom: '2026-07-15T03:04:05.000Z',
+    curationDraftId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    curationOperationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
   } as unknown as Parameters<typeof Admin>[0];
+}
+
+function renderAdmin(props: Parameters<typeof Admin>[0]) {
+  hooks.stateCursor = 0;
+  hooks.setters = [];
+  return renderToStaticMarkup(<Admin {...props} />);
 }
 
 describe('Admin card selection', () => {
@@ -194,7 +241,7 @@ describe('Admin card selection', () => {
   });
 
   it('derives the selected card from the latest revalidated records', () => {
-    renderToStaticMarkup(<Admin {...createProps([unboundCard])} />);
+    renderAdmin(createProps([unboundCard]));
 
     expect(hooks.cardSelected).toBe(unboundCard);
   });
@@ -209,7 +256,7 @@ describe('Admin reward-policy selection', () => {
   });
 
   it('renders the policy console with server-generated draft values', () => {
-    renderToStaticMarkup(<Admin {...createProps([], [policy])} />);
+    renderAdmin(createProps([], [policy]));
 
     expect(hooks.policyProps).toMatchObject({
       draftActiveFrom: '2026-07-15T00:00:00.000Z',
@@ -222,7 +269,7 @@ describe('Admin reward-policy selection', () => {
   it('derives the selected policy from the latest revalidated records', () => {
     const latestPolicy = { ...policy, updatedAt: '2026-07-15T03:00:00.000Z', issuedCount: 20 };
 
-    renderToStaticMarkup(<Admin {...createProps([], [latestPolicy])} />);
+    renderAdmin(createProps([], [latestPolicy]));
 
     expect((hooks.policyProps as { selected: unknown }).selected).toBe(latestPolicy);
   });
@@ -239,7 +286,7 @@ describe('Admin game selection', () => {
   it('derives the selected game from the latest revalidated records', () => {
     const latestGame = { ...game, updatedAt: '2026-07-15T03:00:00.000Z', playCount: 14 };
 
-    renderToStaticMarkup(<Admin {...createProps([], [], [latestGame])} />);
+    renderAdmin(createProps([], [], [latestGame]));
 
     expect(hooks.gameProps).toMatchObject({
       endOperationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
@@ -257,7 +304,40 @@ describe('Admin notification console', () => {
   });
 
   it('서버에서 적재한 대상·이력과 operation ID를 전달한다', () => {
-    renderToStaticMarkup(<Admin {...createProps([])} />);
+    renderAdmin(createProps([]));
+
+    expect(hooks.notificationProps).toEqual({
+      data: { audiences: [], history: [] },
+      operationId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+    });
+  });
+});
+
+describe('Admin home-curation console', () => {
+  beforeEach(() => {
+    hooks.curationProps = null;
+    hooks.stateValues = ['curations', false, null, null, null, null, null, null, null, null, curation.id];
+  });
+
+  it('서버 레코드와 재검증 후 새 draft·operation 값을 전달한다', () => {
+    renderAdmin(createProps([]));
+
+    expect(hooks.curationProps).toMatchObject({
+      draftActiveFrom: '2026-07-15T03:04:05.000Z',
+      draftId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      operationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+      records: [curation],
+      selected: curation,
+    });
+    expect(hooks.curationProps).toHaveProperty('onOpenNotifications');
+  });
+
+  it('큐레이션 CTA prop을 실행하면 Admin state가 바뀌고 재렌더에서 공지 발송을 연다', () => {
+    renderAdmin(createProps([]));
+
+    (hooks.curationProps as { onOpenNotifications: () => void }).onOpenNotifications();
+    hooks.notificationProps = null;
+    renderAdmin(createProps([]));
 
     expect(hooks.notificationProps).toEqual({
       data: { audiences: [], history: [] },
@@ -283,14 +363,12 @@ describe('Admin member console', () => {
     }];
     const props = createProps([]);
 
-    renderToStaticMarkup(
-      <Admin
-        {...props}
-        admin={{ id: 'staff-1', email: 'staff@icons.gg', role: 'staff' }}
-        initialSection="members"
-        members={members}
-      />,
-    );
+    renderAdmin({
+      ...props,
+      admin: { id: 'staff-1', email: 'staff@icons.gg', role: 'staff' },
+      initialSection: 'members',
+      members,
+    });
 
     expect(hooks.memberProps).toEqual({
       actor: { id: 'staff-1', role: 'staff' },

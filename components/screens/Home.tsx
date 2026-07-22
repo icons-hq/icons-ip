@@ -7,6 +7,8 @@ import type { Card, Ip } from '@/lib/data';
 import {
   getHomeSelectableIps,
   prioritizeHomePostPreviews,
+  type HomeBanner,
+  type HomeCurationSnapshot,
   type HomePostPreviewByIpId,
 } from '@/lib/home-catalog';
 import { ipAccent, ipEn } from '@/lib/ip-display';
@@ -53,14 +55,16 @@ function CrossfadeArt({ bg, className, baseOpacity = 1 }: { bg: string; classNam
 function Hero({
   ips,
   selectedIp,
+  curatedHero,
   onSelect,
 }: {
   ips: Ip[];
-  selectedIp: Ip;
+  selectedIp: Ip | null;
+  curatedHero: HomeBanner | null;
   onSelect: (ipId: string) => void;
 }) {
   const { artRef, onMouseMove, onMouseLeave } = useHeroParallax();
-  const accent = ipAccent(selectedIp);
+  const heroBg = curatedHero?.imageBg ?? selectedIp?.bg ?? 'linear-gradient(135deg, var(--surface-2), var(--bg))';
 
   return (
     <header
@@ -73,17 +77,21 @@ function Hero({
         aria-hidden
         style={{ position: 'absolute', inset: -48, zIndex: 0, transform: 'scale(1.04)', transition: 'transform .9s cubic-bezier(.2,.6,.2,1)' }}
       >
-        <CrossfadeArt bg={selectedIp.bg} className="home-hero-art" />
+        <CrossfadeArt bg={heroBg} className="home-hero-art" />
       </div>
       <div aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 1, background: 'linear-gradient(90deg, rgba(8,6,15,.92) 0%, rgba(8,6,15,.55) 42%, rgba(8,6,15,.12) 75%, rgba(8,6,15,.35) 100%)' }} />
       <div aria-hidden style={{ position: 'absolute', inset: 0, zIndex: 1, background: 'linear-gradient(180deg, rgba(8,6,15,.55) 0%, transparent 26%, transparent 55%, rgba(8,6,15,.94) 96%)' }} />
 
-      <div style={{ position: 'absolute', top: 96, right: 'clamp(20px, 4vw, 56px)', zIndex: 2, textAlign: 'right' }}>
-        <div className="mono" style={{ fontSize: 11, letterSpacing: '.22em', color: 'rgba(244,241,255,.75)' }}>NOW SHOWING</div>
-        <div style={{ fontFamily: 'var(--ff-display)', fontSize: 'clamp(18px, 2.4vw, 28px)', fontWeight: 700, letterSpacing: '-0.02em', color: accent, transition: 'color .5s ease', marginTop: 4 }}>
-          {ipEn(selectedIp)}
+      {selectedIp && (
+        <div style={{ position: 'absolute', top: 96, right: 'clamp(20px, 4vw, 56px)', zIndex: 2, textAlign: 'right' }}>
+          <div className="mono" style={{ fontSize: 11, letterSpacing: '.22em', color: 'rgba(244,241,255,.75)' }}>
+            {curatedHero ? 'FEATURED IP' : 'NOW SHOWING'}
+          </div>
+          <div style={{ fontFamily: 'var(--ff-display)', fontSize: 'clamp(18px, 2.4vw, 28px)', fontWeight: 700, letterSpacing: '-0.02em', color: ipAccent(selectedIp), transition: 'color .5s ease', marginTop: 4 }}>
+            {ipEn(selectedIp)}
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="wrap" style={{ position: 'relative', zIndex: 2, padding: '140px 24px 44px' }}>
         <div className="rise" style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
@@ -91,58 +99,126 @@ function Hero({
           <span className="mono" style={{ fontSize: 12, letterSpacing: '.2em', textTransform: 'uppercase', color: 'var(--dim)' }}>ICONS · 공식 라이선스 팬덤 플랫폼</span>
         </div>
 
-        <h1 className="h-xxl" style={{ margin: '26px 0 0' }}>
-          <span className="rise" style={{ display: 'block', animationDelay: '.08s' }}>누구의</span>
-          <span className="rise" style={{ display: 'block', animationDelay: '.18s' }}>
-            <span className="holo-text" style={{ backgroundSize: '200% 200%' }}>팬</span>이세요?
-          </span>
-        </h1>
+        {curatedHero ? (
+          <h1 className="h-xxl rise" style={{ margin: '26px 0 0', maxWidth: 820, minWidth: 0, overflowWrap: 'anywhere', animationDelay: '.08s' }}>
+            {curatedHero.title}
+          </h1>
+        ) : (
+          <h1 className="h-xxl" style={{ margin: '26px 0 0' }}>
+            <span className="rise" style={{ display: 'block', animationDelay: '.08s' }}>누구의</span>
+            <span className="rise" style={{ display: 'block', animationDelay: '.18s' }}>
+              <span className="holo-text" style={{ backgroundSize: '200% 200%' }}>팬</span>이세요?
+            </span>
+          </h1>
+        )}
         <p className="rise" style={{ margin: '24px 0 0', maxWidth: 540, fontSize: 'clamp(16px, 1.8vw, 20px)', color: '#C9C3E4', animationDelay: '.28s', textWrap: 'pretty' }}>
           최애를 고르는 순간, 그 세계가 통째로 열립니다.<br />
           <strong style={{ color: 'var(--text)' }}>사고 · 모으고 · 만나고 · 떠들고</strong> — 흩어져 있던 덕질을 한 곳에서.
         </p>
 
-        <div className="rise" style={{ marginTop: 40, animationDelay: '.38s' }}>
-          <div className="eyebrow" style={{ marginBottom: 16 }}>최애를 골라보세요</div>
-          <div style={{ display: 'flex', gap: 14, overflowX: 'auto', padding: '4px 4px 14px', scrollbarWidth: 'none' }} role="group" aria-label="최애 IP 선택">
-            {ips.map((ip) => {
-              const active = ip.id === selectedIp.id;
-              const c = ipAccent(ip);
-              return (
-                <button key={ip.id} type="button" className="ip-pick" aria-pressed={active} onClick={() => onSelect(ip.id)}
-                  style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start', padding: 0 }}>
-                  <span
-                    className="ip-pick-art"
-                    style={{
-                      display: 'block', width: 132, height: 84, borderRadius: 14, background: ip.bg,
-                      position: 'relative', overflow: 'hidden',
-                      boxShadow: active
-                        ? `0 0 0 2px ${c}, 0 18px 44px -14px ${c}`
-                        : '0 0 0 1px rgba(255,255,255,.14), 0 14px 30px -16px rgba(0,0,0,.8)',
-                    }}
-                  >
-                    <span className="sheen" style={{ opacity: 0.4 }} />
-                  </span>
-                  <span style={{ display: 'block', textAlign: 'left', opacity: active ? 1 : 0.55, transition: 'opacity .3s ease' }}>
-                    <span style={{ display: 'block', fontSize: 14, fontWeight: 700 }}>{ip.title}</span>
-                    <span className="mono" style={{ display: 'block', fontSize: 11, color: 'var(--dim)', marginTop: 2 }}>{compactNumber(ip.fans)} FANS</span>
-                  </span>
-                </button>
-              );
-            })}
+        {selectedIp && ips.length > 0 && (
+          <div className="rise" style={{ marginTop: 40, animationDelay: '.38s' }}>
+            <div className="eyebrow" style={{ marginBottom: 16 }}>최애를 골라보세요</div>
+            <div style={{ display: 'flex', gap: 14, overflowX: 'auto', padding: '4px 4px 14px', scrollbarWidth: 'none' }} role="group" aria-label="최애 IP 선택">
+              {ips.map((ip) => {
+                const active = ip.id === selectedIp.id;
+                const c = ipAccent(ip);
+                return (
+                  <button key={ip.id} type="button" className="ip-pick" aria-label={`${ip.title} 선택`} aria-pressed={active} onClick={() => onSelect(ip.id)}
+                    style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-start', padding: 0 }}>
+                    <span
+                      className="ip-pick-art"
+                      style={{
+                        display: 'block', width: 132, height: 84, borderRadius: 14, background: ip.bg,
+                        position: 'relative', overflow: 'hidden',
+                        boxShadow: active
+                          ? `0 0 0 2px ${c}, 0 18px 44px -14px ${c}`
+                          : '0 0 0 1px rgba(255,255,255,.14), 0 14px 30px -16px rgba(0,0,0,.8)',
+                      }}
+                    >
+                      <span className="sheen" style={{ opacity: 0.4 }} />
+                    </span>
+                    <span style={{ display: 'block', textAlign: 'left', opacity: active ? 1 : 0.55, transition: 'opacity .3s ease' }}>
+                      <span style={{ display: 'block', fontSize: 14, fontWeight: 700 }}>{ip.title}</span>
+                      <span className="mono" style={{ display: 'block', fontSize: 11, color: 'var(--dim)', marginTop: 2 }}>{compactNumber(ip.fans)} FANS</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="rise" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 26, animationDelay: '.46s' }}>
-          <Link className="btn btn-holo" href={hrefFor('ip', selectedIp.id)} style={{ height: 52, padding: '0 28px', fontSize: 16 }}>
-            {selectedIp.title} 세계로 입장 →
-          </Link>
-          <a className="btn" href="#verbs" style={{ height: 52, padding: '0 26px', fontSize: 15, border: '1px solid var(--line-3)', background: 'rgba(8,6,15,.35)', backdropFilter: 'blur(8px)' }}>
-            둘러보기
-          </a>
+          {curatedHero && (
+            <Link
+              className="btn btn-holo"
+              href={curatedHero.href}
+              aria-label={`${curatedHero.title} 자세히 보기`}
+              style={{ height: 52, padding: '0 28px', fontSize: 16 }}
+            >
+              자세히 보기 →
+            </Link>
+          )}
+          {curatedHero && selectedIp && (
+            <Link
+              className="btn btn-ghost"
+              href={hrefFor('ip', selectedIp.id)}
+              style={{ height: 52, padding: '0 24px', maxWidth: '100%', fontSize: 15 }}
+            >
+              {selectedIp.title} 세계로 →
+            </Link>
+          )}
+          {!curatedHero && selectedIp && (
+            <Link className="btn btn-holo" href={hrefFor('ip', selectedIp.id)} style={{ height: 52, padding: '0 28px', fontSize: 16 }}>
+              {selectedIp.title} 세계로 입장 →
+            </Link>
+          )}
+          {selectedIp && (
+            <a className="btn" href="#verbs" style={{ height: 52, padding: '0 26px', fontSize: 15, border: '1px solid var(--line-3)', background: 'rgba(8,6,15,.35)', backdropFilter: 'blur(8px)' }}>
+              둘러보기
+            </a>
+          )}
         </div>
       </div>
     </header>
+  );
+}
+
+function AnnouncementBanner({ announcement }: { announcement: HomeBanner }) {
+  return (
+    <aside
+      aria-label="공지"
+      style={{
+        borderTop: '1px solid var(--line)',
+        borderBottom: '1px solid var(--line)',
+        background: announcement.imageBg ?? 'linear-gradient(115deg, rgba(45,226,255,.08), rgba(139,92,255,.12), rgba(255,77,157,.08))',
+      }}
+    >
+      <Link
+        href={announcement.href}
+        className="wrap home-announcement-link"
+        style={{
+          minHeight: 58,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          minWidth: 0,
+          paddingTop: 12,
+          paddingBottom: 12,
+          background: announcement.imageBg
+            ? 'linear-gradient(90deg, rgba(8,6,15,.94), rgba(8,6,15,.66))'
+            : undefined,
+        }}
+      >
+        <span style={{ display: 'inline-flex', flex: '1 1 auto', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          <span className="mono" style={{ flex: '0 0 auto', color: 'var(--cyan)', fontSize: 11, letterSpacing: '.14em' }}>NOTICE</span>
+          <span style={{ flex: '1 1 auto', fontWeight: 650, minWidth: 0, overflowWrap: 'anywhere', textWrap: 'pretty' }}>{announcement.title}</span>
+        </span>
+        <span aria-hidden style={{ flex: '0 0 auto', color: 'var(--violet-2)', fontSize: 20 }}>→</span>
+      </Link>
+    </aside>
   );
 }
 
@@ -193,14 +269,23 @@ function TiltCard({ card, ip }: { card: Card; ip: Ip | null }) {
 
 export function Home({
   catalog,
+  curation,
   followedIpIds,
   postPreviewByIpId,
 }: {
   catalog: CatalogSnapshot;
+  curation: HomeCurationSnapshot;
   followedIpIds: string[];
   postPreviewByIpId: HomePostPreviewByIpId;
 }) {
-  const selectableIps = useMemo(() => getHomeSelectableIps(catalog), [catalog]);
+  const selectableIps = useMemo(
+    () => getHomeSelectableIps(
+      catalog,
+      catalog.source === 'mock' ? undefined : curation.featuredIpIds,
+    ),
+    [catalog, curation.featuredIpIds],
+  );
+  const selectableIpIds = useMemo(() => selectableIps.map((ip) => ip.id), [selectableIps]);
   const followedIpIdSet = useMemo(() => new Set(followedIpIds), [followedIpIds]);
   const [selectedIpId, setSelectedIpId] = useState<string | null>(null);
   const selectedIp = selectableIps.find((ip) => ip.id === selectedIpId) ?? selectableIps[0] ?? null;
@@ -213,13 +298,17 @@ export function Home({
     for (const g of catalog.goods) {
       if (g.stock === 'low') items.push({ c: 'var(--amber)', t: `${g.name} — 한정 · 품절임박` });
     }
-    for (const [, post] of prioritizeHomePostPreviews(postPreviewByIpId, followedIpIdSet)) {
+    for (const [, post] of prioritizeHomePostPreviews(
+      postPreviewByIpId,
+      followedIpIdSet,
+      selectableIpIds,
+    )) {
       items.push({ c: 'var(--pink)', t: `@${post.user} 님의 ${post.tag} — ♥ ${post.likes}` });
     }
     const fans = catalog.ips.reduce((sum, ip) => sum + ip.fans, 0);
     if (fans > 0) items.push({ c: 'var(--cyan)', t: `지금 ${compactNumber(fans)} 팬이 ICONS에서 덕질 중` });
     return items.slice(0, 8);
-  }, [catalog, followedIpIdSet, postPreviewByIpId]);
+  }, [catalog, followedIpIdSet, postPreviewByIpId, selectableIpIds]);
 
   const holoCard = useMemo(() => {
     const byRarity = (r: RarityKey) => catalog.cards.find((c) => c.rarity === r);
@@ -229,7 +318,19 @@ export function Home({
 
   if (!selectedIp) {
     return (
-      <div className="screen">
+      <div
+        className={curation.hero ? undefined : 'screen'}
+        style={curation.hero ? { minHeight: '100vh' } : undefined}
+      >
+        {curation.hero && (
+          <Hero
+            ips={[]}
+            selectedIp={null}
+            curatedHero={curation.hero}
+            onSelect={setSelectedIpId}
+          />
+        )}
+        {curation.announcement && <AnnouncementBanner announcement={curation.announcement} />}
         <div className="wrap" style={{ paddingTop: 48, paddingBottom: 80 }}>
           <Empty icon="ip" text="등록된 IP가 아직 없습니다" sub="곧 새로운 IP가 공개될 예정이에요." />
         </div>
@@ -246,7 +347,14 @@ export function Home({
 
   return (
     <div style={{ minHeight: '100vh' }}>
-      <Hero ips={selectableIps} selectedIp={selectedIp} onSelect={setSelectedIpId} />
+      <Hero
+        ips={selectableIps}
+        selectedIp={selectedIp}
+        curatedHero={curation.hero}
+        onSelect={setSelectedIpId}
+      />
+
+      {curation.announcement && <AnnouncementBanner announcement={curation.announcement} />}
 
       <Ticker items={ticker} />
 
