@@ -291,6 +291,67 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
     expect(mocks.rpc).not.toHaveBeenCalledWith('confirm_order_payment', expect.anything());
   });
 
+  it.each([
+    ['상품 주문', 'order', orderPayment('paid')],
+    ['티켓 주문', 'ticket', ticketPayment('paid')],
+  ] as const)('이미 확정된 %s의 duplicate DONE은 현재 권한이 바뀌어도 취소하지 않는다', async (
+    _label,
+    purpose,
+    existingPayment,
+  ) => {
+    mocks.reviewerProfile = { role: 'user', suspended_at: null };
+    mocks.target = { user_id: 'user-1', status: 'paid', total: 42000 };
+    mocks.existingPayment = existingPayment;
+    mocks.fetchPayment.mockResolvedValue({
+      ok: true,
+      body: {
+        ...virtualAccountPayment('DONE'),
+        orderId: `${purpose}_${ORDER_UUID}`,
+        method: '카드',
+      },
+    });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(mocks.cancel).not.toHaveBeenCalled();
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      purpose === 'order' ? 'confirm_order_payment' : 'confirm_ticket_payment',
+      expect.objectContaining({ p_payment_key: 'pk_virtual' }),
+    );
+  });
+
+  it('paid 표시가 있어도 결제 동일성이 다르면 검토 권한 밖의 새 결제를 취소한다', async () => {
+    mocks.reviewerProfile = { role: 'user', suspended_at: null };
+    mocks.target = { user_id: 'user-1', status: 'paid', total: 42000 };
+    mocks.existingPayment = {
+      ...orderPayment('paid'),
+      payment_key: 'different-provider-key',
+    };
+    mocks.fetchPayment.mockResolvedValue({
+      ok: true,
+      body: { ...virtualAccountPayment('DONE'), method: '카드' },
+    });
+    mocks.cancel.mockResolvedValue({
+      ok: true,
+      body: {
+        ...virtualAccountPayment('DONE'),
+        method: '카드',
+        status: 'CANCELED',
+        balanceAmount: 0,
+        cancels: [{ cancelAmount: 42000, cancelStatus: 'DONE' }],
+      },
+    });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(mocks.cancel).toHaveBeenCalledWith(
+      'pk_virtual',
+      'ICONS 승인 계정 외 테스트 결제 자동 취소',
+    );
+  });
+
   it('검토 권한 밖 결제가 provider에서 이미 취소됐어도 fresh GET 뒤 로컬 선점을 원복한다', async () => {
     mocks.reviewerProfile = { role: 'admin', suspended_at: '2026-07-22T00:00:00.000Z' };
     mocks.fetchPayment

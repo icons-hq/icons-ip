@@ -300,20 +300,56 @@ async function applyRecordFailure(service: ServiceClient, payment: NormalizedTos
   return received();
 }
 
-async function productionTestReviewerAllowed(service: ServiceClient, ref: TossOrderRef) {
+async function productionTestReviewerAllowed(
+  service: ServiceClient,
+  ref: TossOrderRef,
+  payment: NormalizedTossPayment,
+) {
   const table = ref.purpose === 'order' ? 'orders' : 'ticket_orders';
   const { data: target, error } = await service
     .from(table)
-    .select('user_id')
+    .select('user_id,status,total')
     .eq('id', ref.refId)
     .maybeSingle();
   if (error) throw new Error(`Failed to load ${table} reviewer: ${error.message}`);
   if (!target) return false;
 
+  const localTarget = target as { user_id: string; status: string; total: number };
+  const alreadyConfirmedTarget = ref.purpose === 'order'
+    ? localTarget.status === 'paid' || localTarget.status === 'shipping' || localTarget.status === 'done'
+    : localTarget.status === 'paid';
+  if (alreadyConfirmedTarget) {
+    const { data: existingPayment, error: paymentError } = await service
+      .from('payments')
+      .select('status,amount,purpose,ref_id,payment_key,idempotency_key')
+      .eq('idempotency_key', payment.paymentKey)
+      .maybeSingle();
+    if (paymentError) throw new Error(`Failed to load confirmed payment: ${paymentError.message}`);
+    const existing = existingPayment as {
+      status: string;
+      amount: number;
+      purpose: string;
+      ref_id: string;
+      payment_key: string | null;
+      idempotency_key: string;
+    } | null;
+    if (
+      existing?.status === 'paid'
+      && localTarget.total === payment.totalAmount
+      && existing.amount === payment.totalAmount
+      && existing.purpose === ref.purpose
+      && existing.ref_id === ref.refId
+      && existing.payment_key === payment.paymentKey
+      && existing.idempotency_key === payment.paymentKey
+    ) {
+      return true;
+    }
+  }
+
   const { data: profile, error: profileError } = await service
     .from('profiles')
     .select('role,suspended_at')
-    .eq('id', (target as { user_id: string }).user_id)
+    .eq('id', localTarget.user_id)
     .maybeSingle();
   if (profileError) throw new Error(`Failed to load reviewer profile: ${profileError.message}`);
   const reviewer = profile as { role: string | null; suspended_at: string | null } | null;
@@ -393,7 +429,7 @@ export async function POST(request: Request) {
   const completedRef = payment.status === 'DONE' ? parseTossOrderId(payment.orderId) : null;
   if (completedRef) {
     try {
-      if (!await productionTestReviewerAllowed(service, completedRef)) {
+      if (!await productionTestReviewerAllowed(service, completedRef, payment)) {
         return rejectUnapprovedProductionTestPayment(service, completedRef, payment);
       }
     } catch (error) {
