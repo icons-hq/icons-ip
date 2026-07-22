@@ -300,11 +300,13 @@ async function applyRecordFailure(service: ServiceClient, payment: NormalizedTos
   return received();
 }
 
-async function productionTestReviewerAllowed(
+type ProductionTestPaymentDecision = 'allow' | 'reject-and-restore' | 'reject-provider-only';
+
+async function decideProductionTestPayment(
   service: ServiceClient,
   ref: TossOrderRef,
   payment: NormalizedTossPayment,
-) {
+): Promise<ProductionTestPaymentDecision> {
   const table = ref.purpose === 'order' ? 'orders' : 'ticket_orders';
   const { data: target, error } = await service
     .from(table)
@@ -312,7 +314,7 @@ async function productionTestReviewerAllowed(
     .eq('id', ref.refId)
     .maybeSingle();
   if (error) throw new Error(`Failed to load ${table} reviewer: ${error.message}`);
-  if (!target) return false;
+  if (!target) return 'reject-and-restore';
 
   const localTarget = target as { user_id: string; status: string; total: number };
   const alreadyConfirmedTarget = ref.purpose === 'order'
@@ -342,7 +344,7 @@ async function productionTestReviewerAllowed(
       && existing.payment_key === payment.paymentKey
       && existing.idempotency_key === payment.paymentKey
     ) {
-      return true;
+      return 'allow';
     }
   }
 
@@ -353,17 +355,20 @@ async function productionTestReviewerAllowed(
     .maybeSingle();
   if (profileError) throw new Error(`Failed to load reviewer profile: ${profileError.message}`);
   const reviewer = profile as { role: string | null; suspended_at: string | null } | null;
-  return checkoutPaymentsEnabled(Boolean(
+  const reviewerAllowed = checkoutPaymentsEnabled(Boolean(
     reviewer
     && !reviewer.suspended_at
     && (reviewer.role === 'staff' || reviewer.role === 'admin'),
   ));
+  if (reviewerAllowed) return 'allow';
+  return alreadyConfirmedTarget ? 'reject-provider-only' : 'reject-and-restore';
 }
 
 async function rejectUnapprovedProductionTestPayment(
   service: ServiceClient,
   ref: TossOrderRef,
   payment: NormalizedTossPayment,
+  preserveConfirmedTarget = false,
 ) {
   const canceled = await cancelTossPayment(payment.paymentKey, 'ICONS 승인 계정 외 테스트 결제 자동 취소');
   if (!canceled.ok && canceled.code !== 'ALREADY_CANCELED_PAYMENT') {
@@ -386,6 +391,12 @@ async function rejectUnapprovedProductionTestPayment(
   if (!cancellation.ok || cancellation.state !== 'fully_canceled' || !canceledPayment) {
     console.error('[webhooks/tosspayments] unapproved test payment cancellation shape invalid');
     return errorJson(500, 'auto_cancel_verification_failed');
+  }
+  if (preserveConfirmedTarget) {
+    if (!await recordTerminalPayment(service, ref, canceledPayment, 'canceled', canceledResult.body)) {
+      return errorJson(500, 'terminal_record_failed');
+    }
+    return received('unapproved_test_payment_canceled');
   }
   return applyReflectCancel(service, ref, canceledPayment, canceledResult.body);
 }
@@ -429,8 +440,14 @@ export async function POST(request: Request) {
   const completedRef = payment.status === 'DONE' ? parseTossOrderId(payment.orderId) : null;
   if (completedRef) {
     try {
-      if (!await productionTestReviewerAllowed(service, completedRef, payment)) {
-        return rejectUnapprovedProductionTestPayment(service, completedRef, payment);
+      const decision = await decideProductionTestPayment(service, completedRef, payment);
+      if (decision !== 'allow') {
+        return rejectUnapprovedProductionTestPayment(
+          service,
+          completedRef,
+          payment,
+          decision === 'reject-provider-only',
+        );
       }
     } catch (error) {
       console.error(`[webhooks/tosspayments] reviewer lookup failed: ${error instanceof Error ? error.message : String(error)}`);

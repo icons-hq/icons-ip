@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
     payment_key: 'pk_virtual',
     idempotency_key: 'pk_virtual',
   } as ExistingPayment | null,
+  paymentsByKey: null as Record<string, ExistingPayment | null> | null,
   target: { user_id: 'user-1', status: 'pending', total: 42000 } as {
     user_id: string;
     status: string;
@@ -57,12 +58,18 @@ vi.mock('@/lib/supabase/service', () => ({
   createServiceClient: () => ({
     rpc: mocks.rpc,
     from: (table: string) => {
+      const filters = new Map<string, unknown>();
       const query = {
         select: vi.fn(() => query),
-        eq: vi.fn(() => query),
+        eq: vi.fn((column: string, value: unknown) => {
+          filters.set(column, value);
+          return query;
+        }),
         maybeSingle: vi.fn(async () => ({
           data: table === 'payments'
-            ? mocks.existingPayment
+            ? mocks.paymentsByKey && typeof filters.get('idempotency_key') === 'string'
+              ? mocks.paymentsByKey[filters.get('idempotency_key') as string] ?? null
+              : mocks.existingPayment
             : table === 'profiles'
               ? mocks.reviewerProfile
               : mocks.target,
@@ -77,13 +84,13 @@ vi.mock('@/lib/supabase/service', () => ({
   }),
 }));
 
-function webhookRequest() {
+function webhookRequest(paymentKey = 'pk_virtual') {
   return new Request('https://icons.local/api/webhooks/tosspayments', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       eventType: 'PAYMENT_STATUS_CHANGED',
-      data: { paymentKey: 'pk_virtual' },
+      data: { paymentKey },
     }),
   });
 }
@@ -154,6 +161,7 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
       payment_key: 'pk_virtual',
       idempotency_key: 'pk_virtual',
     };
+    mocks.paymentsByKey = null;
     mocks.target = { user_id: 'user-1', status: 'pending', total: 42000 };
     mocks.reviewerProfile = { role: 'admin', suspended_at: null };
     mocks.cancel.mockResolvedValue({ ok: true, body: { status: 'CANCELED' } });
@@ -321,34 +329,56 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
     );
   });
 
-  it('paid 표시가 있어도 결제 동일성이 다르면 검토 권한 밖의 새 결제를 취소한다', async () => {
+  it.each([
+    ['상품 주문', 'order', orderPayment('paid')],
+    ['티켓 주문', 'ticket', ticketPayment('paid')],
+  ] as const)('이미 확정된 %s에 들어온 다른 결제는 provider만 취소하고 기존 target을 보존한다', async (
+    _label,
+    purpose,
+    confirmedPayment,
+  ) => {
+    const secondPayment = {
+      ...virtualAccountPayment('DONE'),
+      paymentKey: 'pk_second',
+      orderId: `${purpose}_${ORDER_UUID}`,
+      method: '카드',
+    };
     mocks.reviewerProfile = { role: 'user', suspended_at: null };
     mocks.target = { user_id: 'user-1', status: 'paid', total: 42000 };
-    mocks.existingPayment = {
-      ...orderPayment('paid'),
-      payment_key: 'different-provider-key',
+    mocks.paymentsByKey = {
+      pk_virtual: confirmedPayment,
+      pk_second: null,
     };
     mocks.fetchPayment.mockResolvedValue({
       ok: true,
-      body: { ...virtualAccountPayment('DONE'), method: '카드' },
+      body: secondPayment,
     });
     mocks.cancel.mockResolvedValue({
       ok: true,
       body: {
-        ...virtualAccountPayment('DONE'),
-        method: '카드',
+        ...secondPayment,
         status: 'CANCELED',
         balanceAmount: 0,
         cancels: [{ cancelAmount: 42000, cancelStatus: 'DONE' }],
       },
     });
 
-    const response = await POST(webhookRequest());
+    const response = await POST(webhookRequest('pk_second'));
 
     expect(response.status).toBe(200);
     expect(mocks.cancel).toHaveBeenCalledWith(
-      'pk_virtual',
+      'pk_second',
       'ICONS 승인 계정 외 테스트 결제 자동 취소',
+    );
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'canceled',
+        purpose,
+        ref_id: ORDER_UUID,
+        payment_key: 'pk_second',
+      }),
+      { onConflict: 'idempotency_key', ignoreDuplicates: true },
     );
   });
 
