@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import {
   ArtworkUploadField,
+  clearArtworkDisplayState,
   commitSelectedArtworkPreview,
   createArtworkDisplayState,
   restoreCommittedArtworkPreview,
@@ -62,6 +63,46 @@ describe('ArtworkUploadField', () => {
 
     expect(html).toContain('data-artwork-kind="curation"');
     expect(html).toContain('aspect-ratio:16 / 9');
+  });
+
+  it('lets an opted-in optional artwork clear the exact imagePath form payload', () => {
+    const currentPath = 'public-media/catalog/curation/123e4567-e89b-42d3-a456-426614174000.webp';
+    const html = renderToStaticMarkup(
+      <ArtworkUploadField
+        allowRemove
+        currentPath={currentPath}
+        currentUrl="https://cdn.example/catalog/curation/current.webp"
+        kind="curation"
+      />,
+    );
+    const removed = clearArtworkDisplayState(createArtworkDisplayState(
+      currentPath,
+      'https://cdn.example/catalog/curation/current.webp',
+    ));
+    const submitted = new FormData();
+    submitted.set('imagePath', removed.imagePath);
+
+    expect(html).toContain('>이미지 제거</button>');
+    expect(removed).toEqual({
+      committedAlt: '현재 아트워크 미리보기',
+      committedUrl: null,
+      imagePath: '',
+      previewAlt: '현재 아트워크 미리보기',
+      previewUrl: null,
+    });
+    expect(Object.fromEntries(submitted)).toEqual({ imagePath: '' });
+  });
+
+  it('does not offer removal to existing artwork consumers unless they opt in', () => {
+    const html = renderToStaticMarkup(
+      <ArtworkUploadField
+        currentPath="public-media/catalog/ip/123e4567-e89b-42d3-a456-426614174000.webp"
+        currentUrl="https://cdn.example/catalog/ip/current.webp"
+        kind="ip"
+      />,
+    );
+
+    expect(html).not.toContain('>이미지 제거</button>');
   });
 
   it('restores the latest committed upload instead of the original after a replacement fails', () => {

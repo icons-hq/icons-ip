@@ -96,6 +96,7 @@ components:
   foil:           { status: 구현됨, ref: "globals.css:317-322", note: "수집형 카드 color-dodge 홀로 오버레이 — 이식 불가 시그니처. 틸트 카드 glare가 동일 어휘" }
   motion-hooks:   { status: 구현됨, ref: "components/ui/motion.ts", note: "useHeroParallax(히어로 키아트), useTilt(3D 카드 틸트+glare). prefers-reduced-motion 존중" }
   # ---- 표면별 [구현됨] ----
+  home-curation:  { status: 구현됨, ref: "lib/catalog.ts; lib/home-catalog.ts; components/screens/Home.tsx", note: "현재 운영 윈도에 포함된 enabled `home_curations`를 순서대로 읽어 히어로·공지 배너·특집 IP(중복 제거, 최대 5개)를 홈에 반영한다. 히어로는 고정 `자세히 보기 →`와 기존 `둘러보기`를 유지하고 공지는 별도 접근 가능한 aside/link로 표시한다. 특집 IP 이미지는 해당 홈 카드에만 우선 적용하며, 유효한 특집이 없으면 공개 카탈로그 앞 5개로 fallback한다" }
   home-ticker:    { status: 구현됨, ref: "globals.css:348-356", note: "라이브 티커 마퀴(tickerMove 32s). 내용은 카탈로그 파생(이벤트·재고·포스트·팬 수)" }
   verb-row:       { status: 구현됨, ref: "globals.css:358-365", note: "홈 4동사(사요/모아요/만나요/떠들어요) 레일" }
   ip-pick:        { status: 구현됨, ref: "globals.css:366-367", note: "홈 히어로 IP 픽커(132×84 키아트 + FANS 카운트)" }
@@ -111,6 +112,7 @@ components:
   admin-card-pool: { status: 구현됨, ref: "app/admin/*; components/admin/sections/CardPoolSection.tsx; components/admin/sections/CardSection.tsx", note: "staff 전용 카드풀 master-detail. KST 운영 기간, 5등급 퍼센트 합계 100%, 확률 미설정 상태, 소속 카드·같은 IP 바인딩, 미사용 카드팩에 최신 구성·확률이 즉시 적용된다는 경고" }
   admin-reward-policy: { status: 구현됨, ref: "app/admin/*; components/admin/sections/*", note: "staff 전용 뽑기권 발급 정책 master-detail. 주문 대상 IP·선택 same-IP 굿즈, 독립 보상 카드풀, 최소 금액·발급 수량·KST 운영 기간·활성 상태와 누적 발급/사용 가능/개봉/회수 집계를 표시" }
   admin-game:      { status: 구현됨, ref: "app/admin/*; components/admin/sections/GameSection.tsx", note: "staff 전용 참여형 게임 master-detail. 카드 보상형 게임의 slug·제목·준비된 카드풀·같은 IP 온라인 이벤트·KST 운영 기간·일일 한도를 관리하고, 신규 시작은 빈 값으로 두며 플레이 이후 불변 필드 잠금·현재 시각이 운영 창에 포함되는 게임의 DB 시각 종료·PII-free 플레이 집계를 제공. goods variant는 #115 전까지 읽기 전용" }
+  admin-curation:  { status: 구현됨, ref: "app/admin/curation-actions.ts; components/admin/sections/CurationSection.tsx; globals.css", note: "staff 전용 홈 큐레이션 master-detail. 제목과 상태·순서·KST 기간을 좁은 화면에서도 분리해 표시하고, 히어로·특집 IP·공지 배너의 내부 링크·순서·운영 윈도·활성을 편집한다. 히어로 이미지는 필수이고 특집 IP·공지 이미지는 선택이며, 선택 이미지에는 명시적 제거 경로를 제공한다. 인앱 공지 발송은 별도 화면으로만 연결한다" }
   ticket-check-in: { status: 구현됨, ref: "app/admin/check-in/*; app/api/admin/check-in/*; components/admin/check-in/*; globals.css", note: "staff 전용 모바일 현장 검표. 카메라 QR·HID/수동 입력, 검표/재검표/환불 상태, same-origin service-only 원장·감사" }
   gacha:          { status: 구현됨, ref: "globals.css:442-453", note: "카드풀 스위처 + 확률 칩 + 천장 게이지 + 클라이언트 리빌(popIn). mock 공시 — 실 카드풀은 ADR-0001" }
   event:          { status: 구현됨, ref: "app/events/*; components/screens/Events.tsx; components/screens/EventDetail.tsx; globals.css", note: "목록 featured 2열+카드 그리드에서 공개 상세로 연결. 상세는 포스터 히어로와 회차 선택/예매 요약 2열, 모바일 1열. IP가 있는 예정 이벤트는 해당 IP의 새 이벤트 알림 secondary action을 제공" }
@@ -118,7 +120,7 @@ components:
   community:      { status: 구현됨, ref: "globals.css:471-481; components/screens/Community.tsx", note: "230/1fr/280 3열(모바일 1열+채널 가로 스크롤). 컴팩트 컴포저 + 좋아요 pill + 랭킹 레일(실데이터 파생), 작성자 visible 포스트 inline 수정·수정됨 표기·기존 이미지 유지. 운영자가 숨긴 댓글은 tombstone 없이 preview·댓글 수에서 제외" }
   admin-moderation: { status: 구현됨, ref: "components/admin/sections/Moderation.tsx", note: "staff 신고 카드에서 상태 저장·부모 포스트 숨김·개별 댓글 숨김을 분리. 댓글 숨김 전 연결 신고 해결·현재 UI에서 되돌릴 수 없음을 확인하고, hidden 댓글 원문은 운영 검토용으로 유지하되 버튼은 '숨김 처리됨' disabled 상태. select/button은 최소 44px" }
   admin-members:    { status: 구현됨, ref: "app/admin/*; components/admin/sections/Members.tsx", note: "staff 전용 마스킹 회원 검색·명시적 상세. 역할·가입일·동의 snapshot·최소 운영 집계·정지 상태를 표시하고 권한 계층에 맞게 제재한다. 정지는 확인 dialog 뒤 수행하고 내부 사유는 상세에서만 표시" }
-  admin-artwork:    { status: 구현됨, ref: "app/admin/artwork-actions.ts; components/admin/ArtworkUploadField.tsx; components/admin/sections/{Ip,Good,Card,Event}Section.tsx", note: "카탈로그 공통 아트워크 필드. 현재 public 이미지·경로를 유지하고 새 JPEG/PNG/WebP를 로컬 미리보기한 뒤 actor·경로·MIME·크기 pending claim과 authenticated Storage RLS에 결속해 private staging에 업로드한다. actor별 active claim 4개·동시 검증 1개·분당 검증 시작 4회로 제한하고, 서버가 Sharp로 실제 이미지를 완전히 decode해 5MiB·축 8192px·40MP·단일 프레임·선언 MIME을 검증한 뒤 같은 형식으로 재인코딩·metadata 제거 후 public-media로 promote한다. 저장 trigger가 verified claim을 같은 transaction에서 소비하고 daily authenticated cron이 미연결 만료 객체를 정리하며, 실패 claim은 active 상태에서만 1회 취소한다. 선택·업로드 중에는 바깥 카탈로그 form 저장을 차단하고 선택 취소로 기존 미리보기를 복원한다. IP 키아트 preview와 안내는 가로형이고 업로드 후 카탈로그 저장은 별도 단계다" }
+  admin-artwork:    { status: 구현됨, ref: "app/admin/artwork-actions.ts; components/admin/ArtworkUploadField.tsx; components/admin/sections/{Ip,Good,Card,Event,Curation}Section.tsx", note: "카탈로그 공통 아트워크 필드. 현재 public 이미지·경로를 유지하고 새 JPEG/PNG/WebP를 로컬 미리보기한 뒤 actor·경로·MIME·크기 pending claim과 authenticated Storage RLS에 결속해 private staging에 업로드한다. actor별 active claim 4개·동시 검증 1개·분당 검증 시작 4회로 제한하고, 서버가 Sharp로 실제 이미지를 완전히 decode해 5MiB·축 8192px·40MP·단일 프레임·선언 MIME을 검증한 뒤 같은 형식으로 재인코딩·metadata 제거 후 public-media로 promote한다. 저장 trigger가 verified claim을 같은 transaction에서 소비하고 daily authenticated cron이 미연결 만료 객체를 정리하며, 실패 claim은 active 상태에서만 1회 취소한다. 선택·업로드 중에는 바깥 form 저장을 차단하고 선택 취소로 기존 미리보기를 복원한다. 제거는 opt-in이며 특집 IP·공지 큐레이션처럼 이미지가 선택인 소비자만 빈 `imagePath`로 저장할 수 있다. IP·큐레이션 preview는 16:9이고 업로드 후 저장은 별도 단계다" }
   search:         { status: 구현됨, ref: "globals.css:484-490", note: "통합 검색 히어로(60px pill 입력) + 스코프 칩 + 종류별 결과(IP pill/굿즈 카드/카드 타일/행)" }
   login:          { status: 구현됨, ref: "globals.css; components/screens/Login.tsx; components/screens/UpdatePassword.tsx", note: "스플릿 브랜드 패널에서 로그인·회원가입·비밀번호 재설정 메일 요청을 제공. /update-password는 새 비밀번호 2필드의 중앙 카드이며 두 라우트 모두 전역 셸을 숨김. 소셜 3종은 시각만(미배선)" }
   account-suspended: { status: 구현됨, ref: "app/account-suspended/page.tsx; components/screens/AccountSuspended.tsx", note: "정지 계정 전용 중앙 안내 카드. 내부 사유·기간을 노출하지 않고 제한되는 신규 행동과 고객지원 안내, 44px 로그아웃 action만 제공" }
@@ -195,7 +197,7 @@ frontmatter `components` 블록이 정본 인덱스다(셸 → 기본 어휘 →
 
 | 표면 | 라우트 | 구조 요약 | 데이터 |
 |---|---|---|---|
-| 홈 | `/` | 100svh 히어로(IP 픽커+패럴랙스 키아트) → 라이브 티커 → 4동사 레일 → 가챠 티저(틸트 HOLO 카드) → 조인/신뢰. 온보딩 완료 사용자는 이벤트·재고 우선순위를 보존한 채 티커의 팔로우 IP 커뮤니티 항목을 먼저 봄 | 카탈로그 + IP별 포스트 프리뷰 + 본인 `ip_follows` |
+| 홈 | `/` | 활성 큐레이션 히어로(특집 IP 픽커+패럴랙스 키아트) → 공지 배너 → 라이브 티커 → 4동사 레일 → 가챠 티저(틸트 HOLO 카드) → 조인/신뢰. 특집 큐레이션이 없거나 유효하지 않으면 공개 카탈로그 순서를 사용하고, 온보딩 완료 사용자는 이벤트·재고 우선순위를 보존한 채 티커의 팔로우 IP 커뮤니티 항목을 먼저 봄 | 공개 active `home_curations` + 카탈로그 + IP별 포스트 프리뷰 + 본인 `ip_follows` |
 | IP 허브 | `/ip`, `/ip/[id]` | 시네마틱 히어로 + WORLDS 스위처(Link 내비) + bento. 허브=상세 병합, `/ip/[id]`가 정식 URL. 팔로우 전에는 팔로우+알림, 이후에는 드롭·이벤트별 설정 | `getCatalogIpDetail` + `ip_follows` 팔로우·알림 상태 |
 | 굿즈샵 | `/shop` | 최애의 물건들 헤더 + 스티키 WORLDS/정렬 바 + 4열 그리드 | 카탈로그, 공유 장바구니 수량·재고 한도 내 +1 담기 |
 | 장바구니 | `/cart` | 굿즈 행·수량 제어 + 재고 상태 + 주문 요약 | 비로그인 localStorage, 로그인 `cart_items` |
@@ -210,6 +212,7 @@ frontmatter `components` 블록이 정본 인덱스다(셸 → 기본 어휘 →
 | 관리자 카드풀 | `/admin?section=pool` | 풀 master-detail → KST 운영 기간·5등급 확률 합계·미설정 상태·소속 카드·바인딩 관리 → 최신 확률 즉시 적용 경고 | staff-gated, 멱등 `admin_upsert_card_pool`/`admin_set_pool_odds` + `audit_log` |
 | 관리자 발급 정책 | `/admin?section=policy` | 정책 master-detail → 대상 IP·선택 same-IP 굿즈·독립 카드풀·최소 금액·발급 수량·KST 기간·활성 상태 편집 → 누적 발급/사용 가능/개봉/회수 집계 | staff-gated, PII-free `admin_list_reward_policies` + 멱등 `admin_upsert_reward_policy` + `audit_log` |
 | 관리자 참여형 게임 | `/admin?section=game` | 게임 master-detail → 카드풀·같은 IP 온라인 이벤트·KST 운영 기간·일일 한도 편집 → 플레이 이후 잠금·현재 시각이 운영 창에 포함되는 게임의 DB 시각 종료·플레이 집계 | staff-gated, PII-free `admin_list_games` + 멱등 `admin_upsert_game` + `audit_log`; goods variant는 읽기 전용 |
+| 관리자 홈 큐레이션 | `/admin?section=curations` | 제목/운영 메타 분리 목록 → 히어로·특집 IP·공지 배너의 내부 링크·순서·KST 기간·활성·16:9 이미지 편집 → 선택 이미지 제거 또는 저장 | staff RLS `home_curations` 읽기 + 멱등 `admin_upsert_home_curation` + verified artwork claim + `audit_log`; 인앱 공지 발송은 별도 화면 |
 | 관리자 회원 | `/admin?section=members` | 마스킹 검색 → 명시적 상세 → 권한 계층별 계정 정지·해제 | staff-gated `admin_search_members`/`admin_get_member_detail` + audited suspension RPC; 직접 profile 교차 조회 차단 |
 | 뽑기 | `/gacha` | 카드풀 스위처 + 확률 칩 + 천장 게이지 + 클라이언트 리빌 + 라인업 | 카탈로그(카드 있는 IP), mock 공시 |
 | 팝업 | `/events`, `/events/[eventId]` | 필터 칩 → featured/카드 목록 → 공개 상세·회차 선택 → QR 가이드. IP가 있는 예정 이벤트에는 해당 IP 이벤트 알림 secondary action | `selectFandomEvents`, 공개 `ticket_types`, `ip_follows.notify_events` |

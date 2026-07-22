@@ -231,6 +231,7 @@ export function RecordList<T extends { id: string }>({
   activeId,
   ariaLabel = '관리 항목 목록',
   emptyMessage,
+  itemClassName,
   items,
   labelFor,
   newLabel = '새로 등록',
@@ -240,8 +241,9 @@ export function RecordList<T extends { id: string }>({
   activeId: string | null;
   ariaLabel?: string;
   emptyMessage?: string;
+  itemClassName?: string;
   items: T[];
-  labelFor: (item: T) => string;
+  labelFor: (item: T) => React.ReactNode;
   newLabel?: string;
   onNew: () => void;
   onSelect: (item: T) => void;
@@ -259,7 +261,10 @@ export function RecordList<T extends { id: string }>({
           <button
             key={item.id}
             aria-current={activeId === item.id ? 'true' : undefined}
-            className={activeId === item.id ? 'chip on' : 'chip'}
+            className={[
+              activeId === item.id ? 'chip on' : 'chip',
+              itemClassName,
+            ].filter(Boolean).join(' ')}
             onClick={() => onSelect(item)}
             style={{ justifyContent: 'flex-start', minHeight: 38, overflow: 'hidden', textAlign: 'left' }}
             type="button"

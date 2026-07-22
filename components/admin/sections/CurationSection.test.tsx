@@ -1,5 +1,6 @@
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
 import { CurationSection } from './CurationSection';
@@ -106,7 +107,8 @@ describe('CurationSection', () => {
     expect(html).toContain('홈 큐레이션');
     expect(html).toContain('운영 윈도');
     expect(html).toContain('공지 배너');
-    expect(html).toContain('공지 배너 · 서비스 점검 안내 · 노출 중');
+    expect(html).toContain('서비스 점검 안내');
+    expect(html).toContain('공지 배너 · 노출 중 · 순서 2');
     expect(html).toContain('노출 중');
     expect(html).toContain('노출 예정');
     expect(html).toContain('종료');
@@ -183,6 +185,48 @@ describe('CurationSection', () => {
     (cta?.props as { onClick: () => void }).onClick();
     expect(onOpenNotifications).toHaveBeenCalledOnce();
     expect(mocks.notificationAction).not.toHaveBeenCalled();
+  });
+
+  it('선택 이미지가 있는 특집 IP와 공지는 제거할 수 있지만 히어로는 제거할 수 없다', () => {
+    const imagePath = 'public-media/catalog/curation/77777777-7777-4777-8777-777777777777.webp';
+    const withArtwork = {
+      ...activeAnnouncement,
+      imagePath,
+      imageUrl: 'https://cdn.example/catalog/curation/current.webp',
+    };
+    const announcementHtml = renderSection(withArtwork);
+    const featuredHtml = renderSection({
+      ...withArtwork,
+      kind: 'featured_ip',
+      ipId: 'active-ip',
+    });
+    const heroHtml = renderSection({
+      ...withArtwork,
+      kind: 'hero',
+      ipId: null,
+    });
+
+    expect(announcementHtml).toContain('>이미지 제거</button>');
+    expect(featuredHtml).toContain('>이미지 제거</button>');
+    expect(heroHtml).not.toContain('>이미지 제거</button>');
+    expect(heroHtml).toContain('히어로 이미지는 필수입니다.');
+  });
+
+  it('390px에서도 120자 제목과 상태·순서·기간을 별도 구조로 모두 노출한다', () => {
+    const longTitle = '가'.repeat(120);
+    const record = { ...activeAnnouncement, title: longTitle };
+    const html = renderSection(record);
+    const button = html.match(/<button[^>]*admin-curation-record-button[^>]*>[\s\S]*?<\/button>/)?.[0];
+    const css = readFileSync(new URL('../../../app/globals.css', import.meta.url), 'utf8');
+
+    expect(button).toBeDefined();
+    expect(button).toContain(`<strong class="admin-curation-record-title">${longTitle}</strong>`);
+    expect(button).toContain('<span class="admin-curation-record-meta">');
+    expect(button).toContain('공지 배너 · 노출 중 · 순서 2');
+    expect(button).toContain('2026-07-15 09:00 KST → 종료 없음');
+    expect(css).toMatch(/\.admin-curation-record-button\s*\{[^}]*height:\s*auto[^}]*white-space:\s*normal/);
+    expect(css).toMatch(/\.admin-curation-record-title\s*\{[^}]*overflow-wrap:\s*anywhere/);
+    expect(css).toMatch(/\.admin-curation-record-meta\s*\{[^}]*color:\s*var\(--dim\)[^}]*font-size:\s*11px/);
   });
 
   it('실제 CurationForm key가 새 operation ID와 최신 레코드를 반영한다', () => {

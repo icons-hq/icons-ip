@@ -1166,6 +1166,17 @@
   .admin-curation-heading h2 { margin: 6px 0 0; font-size: 24px; letter-spacing: -.02em; }
   .admin-curation-heading p { max-width: 650px; margin: 7px 0 0; color: var(--dim); font-size: 13px; line-height: 1.55; }
   .admin-curation-notification-cta { flex: 0 1 auto; height: auto; min-height: 48px; text-align: center; white-space: normal; }
+  .admin-curation-record-button {
+    height: auto; padding-block: 10px; white-space: normal;
+  }
+  .admin-curation-record { display: grid; gap: 6px; width: 100%; min-width: 0; }
+  .admin-curation-record-title {
+    color: var(--text); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere;
+  }
+  .admin-curation-record-meta {
+    display: grid; gap: 3px; color: var(--dim); font-family: var(--ff-mono);
+    font-size: 11px; line-height: 1.5; overflow-wrap: anywhere;
+  }
   .admin-curation-form { min-width: 0; border-radius: 10px; gap: 14px; padding: 18px; }
   .admin-curation-window {
     display: grid; gap: 5px; min-width: 0; padding: 12px 14px;

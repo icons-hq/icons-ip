@@ -40,8 +40,16 @@ function formatKstDateTime(value: string | null) {
   return `${toKstDateTimeInput(value).replace('T', ' ')} KST`;
 }
 
-function formatCurationLabel(record: AdminCurationRecord) {
-  return `${KIND_LABELS[record.kind]} · ${record.title} · ${STATUS_LABELS[record.status]} · 순서 ${record.displayOrder} · ${formatKstDateTime(record.activeFrom)} → ${formatKstDateTime(record.activeTo)}`;
+function renderCurationLabel(record: AdminCurationRecord) {
+  return (
+    <span className="admin-curation-record">
+      <strong className="admin-curation-record-title">{record.title}</strong>
+      <span className="admin-curation-record-meta">
+        <span>{KIND_LABELS[record.kind]} · {STATUS_LABELS[record.status]} · 순서 {record.displayOrder}</span>
+        <span>{formatKstDateTime(record.activeFrom)} → {formatKstDateTime(record.activeTo)}</span>
+      </span>
+    </span>
+  );
 }
 
 export function getCurationFormKey(
@@ -93,8 +101,9 @@ export function CurationSection({
           activeId={selected?.id ?? null}
           ariaLabel="홈 큐레이션 목록"
           emptyMessage="등록된 홈 큐레이션이 없습니다."
+          itemClassName="admin-curation-record-button"
           items={records}
-          labelFor={formatCurationLabel}
+          labelFor={renderCurationLabel}
           newLabel="새 홈 큐레이션"
           onNew={() => onSelect(null)}
           onSelect={onSelect}
@@ -221,6 +230,7 @@ function CurationForm({
       </div>
 
       <ArtworkUploadField
+        allowRemove={kind !== 'hero'}
         currentPath={selected?.imagePath ?? null}
         currentUrl={selected?.imageUrl ?? null}
         helpText={ARTWORK_GUIDANCE[kind]}
