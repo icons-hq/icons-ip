@@ -9,6 +9,7 @@ const baseEnvironment = {
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'publishable-key',
   AUTH_SIGNUP_RESEND_SECRET: 'resend-secret',
   NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_example',
+  NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY: 'ICONS_REVIEW',
   TOSS_SECRET_KEY: 'test_gsk_example',
   SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
 };
@@ -74,6 +75,20 @@ describe('validateVercelBuildEnvironment', () => {
       NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_ck_example',
       TOSS_SECRET_KEY: 'test_sk_example',
     })).toThrow('Invalid Vercel preview payment keys');
+  });
+
+  it('requires a valid payment-method variant for test widget keys', () => {
+    expect(() => validateVercelBuildEnvironment({
+      ...baseEnvironment,
+      NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY: '',
+    })).toThrow(
+      'Missing Vercel preview test-payment environment: NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY',
+    );
+
+    expect(() => validateVercelBuildEnvironment({
+      ...baseEnvironment,
+      NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY: '가상계좌 제외',
+    })).toThrow('Invalid Vercel preview Toss payment-method variant key');
   });
 
   it('enables production test keys only with the exact test-payment override', () => {

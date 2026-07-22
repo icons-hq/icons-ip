@@ -44,6 +44,11 @@ export function buildTossWidgetPaymentRequest({
   };
 }
 
+export function resolveTossPaymentMethodVariantKey(value: string | null | undefined) {
+  const variantKey = value?.trim();
+  return variantKey && /^[A-Za-z0-9_-]{1,20}$/.test(variantKey) ? variantKey : 'DEFAULT';
+}
+
 type TossPaymentWidgetProps = TossPaymentRoute & {
   clientKey: string;
   customerKey: string;
@@ -86,7 +91,12 @@ export function TossPaymentWidget(props: TossPaymentWidgetProps) {
         if (disposed) return;
 
         [paymentMethods, agreement] = await Promise.all([
-          widgets.renderPaymentMethods({ selector: '#toss-payment-methods', variantKey: 'DEFAULT' }),
+          widgets.renderPaymentMethods({
+            selector: '#toss-payment-methods',
+            variantKey: resolveTossPaymentMethodVariantKey(
+              process.env.NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY,
+            ),
+          }),
           widgets.renderAgreement({ selector: '#toss-agreement', variantKey: 'AGREEMENT' }),
         ]);
         if (disposed) return;

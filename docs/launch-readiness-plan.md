@@ -80,9 +80,9 @@
 
 ### 6.1 임시 production 테스트 결제 검토 절차
 
-- Vercel Production sensitive 환경변수에 Preview/로컬에서 검증한 `test_gck_…`/`test_gsk_…`, `TOSS_PAYMENT_KEY_PAIR_SHA256`, 서버 전용 `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION=true`를 함께 둔 승인된 사람 검토에만 사용한다. override는 정확히 소문자 `true`여야 하며, 키 모드·지문 불일치나 누락은 fail closed이고 활성 `staff`/`admin` 계정에만 열린다.
+- Vercel Production 환경변수에 Preview/로컬에서 검증한 `test_gck_…`/`test_gsk_…`, 가상계좌를 제외한 테스트 UI의 `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY`, `TOSS_PAYMENT_KEY_PAIR_SHA256`, 서버 전용 `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION=true`를 함께 둔 승인된 사람 검토에만 사용한다. override는 정확히 소문자 `true`여야 하며, 키 모드·variantKey·지문 불일치나 누락은 fail closed이고 활성 `staff`/`admin` 계정에만 열린다.
 - 테스트 결제는 실제 결제수단을 출금하지 않으며, #87 라이브 상점 계약·키·웹훅 등록 human gate를 닫지 않는다.
-- 검토 승인 직후 override를 제거하고 동일 세트의 `live_gck_…`/`live_gsk_…` 및 지문을 복원한 뒤 production 배포를 확인한다. 라이브 키는 override 없이 허용된다.
+- 검토 승인 직후 override와 테스트 전용 variantKey를 제거하고 동일 세트의 `live_gck_…`/`live_gsk_…` 및 지문을 복원한 뒤 production 배포를 확인한다. 라이브 키는 override 없이 기본 UI로 허용된다.
 
 ## 7. 운영
 

@@ -264,14 +264,14 @@ Production Auth 설정:
 
 ### 9.1 환경 변수 · 로컬/프리뷰 검증과 임시 production 테스트 검토
 
-- 서버 전용 env: `TOSS_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION`, `TOSS_PAYMENT_KEY_PAIR_SHA256`. 클라이언트 번들에 노출하지 않는다(`NEXT_PUBLIC_` 접두사 금지). 위젯 공개 키만 `NEXT_PUBLIC_TOSS_CLIENT_KEY`로 전달한다.
+- 서버 전용 env: `TOSS_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION`, `TOSS_PAYMENT_KEY_PAIR_SHA256`. 클라이언트 번들에 노출하지 않는다(`NEXT_PUBLIC_` 접두사 금지). 위젯 공개 키와 공개 variantKey만 `NEXT_PUBLIC_TOSS_CLIENT_KEY`, `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY`로 전달한다.
 - 토스 키는 개발자센터 **API 키 > 결제위젯 연동 키**의 것을 쓴다: `TOSS_SECRET_KEY` = 위젯 시크릿 키(테스트 `test_gsk_…` / 라이브 `live_gsk_…`), `NEXT_PUBLIC_TOSS_CLIENT_KEY` = 위젯 클라이언트 키(`test_gck_…` / `live_gck_…`, 체크아웃 #90에서 사용). 두 키는 **같은 연동 키 세트**여야 한다 — 세트가 어긋나면 승인 API가 `INVALID_API_KEY`/`UNAUTHORIZED_KEY`/`NOT_FOUND_PAYMENT_SESSION`으로 실패한다. `test_sk_…`(API 개별연동 키)는 위젯 결제 승인에 쓰지 않는다.
 - 키 미구성 환경에서 두 라우트는 503(`not_configured`)으로 응답한다 — mock/카탈로그-only 모드에서 안전.
 - 로컬 검증 경로(테스트 키):
-  1. 결제위젯 연동 테스트 시크릿 키(`test_gsk_…`)를 `.env.local`의 `TOSS_SECRET_KEY`로, 로컬 Supabase service key(`supabase status`)를 `SUPABASE_SERVICE_ROLE_KEY`로 설정한다.
+  1. 결제위젯 연동 테스트 시크릿 키(`test_gsk_…`)를 `.env.local`의 `TOSS_SECRET_KEY`로, 가상계좌를 제외한 테스트 UI의 variantKey를 `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY`로, 로컬 Supabase service key(`supabase status`)를 `SUPABASE_SERVICE_ROLE_KEY`로 설정한다.
   2. 순수 로직은 `npm run test`(`lib/payments/toss.test.ts`), DB 계층(확정 RPC·만료 sweep)은 로컬 psql로 RPC를 직접 호출해 확인한다.
   3. 웹훅 실수신은 ngrok 등으로 로컬을 노출해 개발자센터에 웹훅 URL(`https://<host>/api/webhooks/tosspayments`, `PAYMENT_STATUS_CHANGED`)을 등록하고 테스트 결제로 유발한다. 성공 기준은 10초 내 200 응답, 실패 시 최대 7회 재전송된다.
-- 프리뷰는 테스트 키를 허용한다. Vercel production은 기본적으로 `live_gck_…`/`live_gsk_…` 쌍일 때만 주문 생성·위젯·승인·웹훅을 활성화한다. 예외적으로 승인된 사람 검토 동안에는 Preview/로컬에서 실제로 검증한 `test_gck_…`/`test_gsk_…`, 두 원문 값을 NUL로 이어 계산한 SHA-256 `TOSS_PAYMENT_KEY_PAIR_SHA256`, 서버 전용 `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION=true`가 모두 맞아야 한다. 주문·예매 생성과 승인 API는 활성 `staff`/`admin` 권한을 검사하고, 우회된 DONE 웹훅도 대상 소유자가 해당 권한 밖이면 provider를 자동 취소한 뒤 로컬 선점을 원복한다. 정확한 소문자 `true` 이외의 값, 키 모드·지문 불일치 또는 누락은 fail closed이며 테스트 결제는 실제 결제수단을 출금하지 않는다. 이 임시 검토가 끝나면 override를 제거하고 `live_gck_…`/`live_gsk_…` 및 승인 지문을 복원한다. 라이브 키는 override 없이 계속 허용된다; 라이브 상점 계약·키·웹훅 등록(#87)은 별도 human gate다.
+- 프리뷰는 테스트 키와 `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY`로 지정한 테스트 UI를 허용한다. Vercel production은 기본적으로 `live_gck_…`/`live_gsk_…` 쌍일 때만 주문 생성·위젯·승인·웹훅을 활성화한다. 예외적으로 승인된 사람 검토 동안에는 Preview/로컬에서 실제로 검증한 `test_gck_…`/`test_gsk_…`, 가상계좌를 제외한 테스트 UI의 variantKey, 두 원문 키 값을 NUL로 이어 계산한 SHA-256 `TOSS_PAYMENT_KEY_PAIR_SHA256`, 서버 전용 `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION=true`가 모두 맞아야 한다. 주문·예매 생성과 승인 API는 활성 `staff`/`admin` 권한을 검사하고, 우회된 DONE 웹훅도 대상 소유자가 해당 권한 밖이면 provider를 자동 취소한 뒤 로컬 선점을 원복한다. 정확한 소문자 `true` 이외의 값, 키 모드·variantKey·지문 불일치 또는 누락은 fail closed이며 테스트 결제는 실제 결제수단을 출금하지 않는다. 이 임시 검토가 끝나면 override와 테스트 전용 variantKey를 제거하고 `live_gck_…`/`live_gsk_…` 및 승인 지문을 복원한다. 라이브 키는 override 없이 기본 UI로 계속 허용된다; 라이브 상점 계약·키·웹훅 등록(#87)은 별도 human gate다.
 - Vercel preview/production 변수는 sensitive로 유지한다. GitHub Actions는 값을 복호화할 수 없는 `vercel pull` + prebuilt 경로를 쓰지 않고 Vercel 원격 build를 요청하며, `prebuild` guard가 Vercel build 안에서 필수 변수, 토스 키 모드, production 승인 키 쌍 지문을 검증한다. 키 문자열만으로 같은 상점 세트인지 추론할 수 없으므로 Preview/로컬의 정확한 두 값을 복사하고 실제 provider-backed 결제로 최종 확인한다.
 
 ---

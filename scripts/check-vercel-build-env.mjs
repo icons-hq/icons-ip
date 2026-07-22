@@ -43,6 +43,18 @@ export function validateVercelBuildEnvironment(environment) {
     throw new Error(`Invalid Vercel ${target} payment keys: use a matching Toss widget key pair`);
   }
 
+  if (clientMode === 'test') {
+    const variantKey = environment.NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY;
+    if (!isPresent(variantKey)) {
+      throw new Error(
+        `Missing Vercel ${target} test-payment environment: NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY`,
+      );
+    }
+    if (!/^[A-Za-z0-9_-]{1,20}$/.test(variantKey)) {
+      throw new Error(`Invalid Vercel ${target} Toss payment-method variant key`);
+    }
+  }
+
   const productionCheckoutEnabled = target === 'production'
     && paymentModeEnabledInProduction(clientMode, environment.ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION);
   if (productionCheckoutEnabled) {
