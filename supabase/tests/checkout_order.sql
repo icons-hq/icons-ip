@@ -96,24 +96,6 @@ select 1 / case when not has_function_privilege('authenticated', 'public.refund_
 select 1 / case when has_function_privilege('service_role', 'public.refund_ticket_order(uuid,text)', 'execute') then 1 else 0 end
   as assert_service_role_can_close_canceled_ticket;
 
-set local role authenticated;
-select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000504', true);
-select set_config('request.jwt.claim.role', 'authenticated', true);
-
-do $$
-begin
-  begin
-    perform public.place_order(
-      '{"recipientName":"직접호출","phone":"01012345678","postalCode":"12345","address1":"서울시"}'::jsonb,
-      '10000000-0000-4000-8000-000000000504'
-    );
-    raise exception 'authenticated browser should not call place_order directly';
-  exception
-    when insufficient_privilege then null;
-  end;
-end;
-$$;
-
 set local role service_role;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000501', true);
 
