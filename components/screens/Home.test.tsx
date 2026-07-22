@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import type { ComponentProps, ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
@@ -15,7 +16,9 @@ vi.mock('@/lib/home-catalog', async () => await import('../../lib/home-catalog')
 vi.mock('@/lib/ip-display', async () => await import('../../lib/ip-display'));
 vi.mock('@/lib/rarity', async () => await import('../../lib/rarity'));
 vi.mock('@/lib/routes', async () => await import('../../lib/routes'));
-vi.mock('@/components/ui/Empty', () => ({ Empty: () => null }));
+vi.mock('@/components/ui/Empty', () => ({
+  Empty: ({ text, sub }: { text: string; sub?: string }) => <div>{text}{sub}</div>,
+}));
 
 vi.mock('@/components/ui/motion', () => ({
   useHeroParallax: () => ({
@@ -135,6 +138,97 @@ describe('Home curation', () => {
     expect(html).toMatch(/<aside[^>]+aria-label="공지"[^>]*>/);
     expect(html).toContain('href="/community?tag=notice"');
     expect(html).toContain('배송 일정이 변경됐어요');
+  });
+
+  it('keeps an IP-independent hero and announcement visible when the catalog has no IPs', () => {
+    const html = renderHome({
+      catalog: catalog('supabase', []),
+      curation: {
+        hero: {
+          id: 'hero-empty-catalog',
+          title: 'IP 공개 전 특별전을 먼저 만나보세요',
+          imageBg: 'url("https://cdn.example/prelaunch.webp") center / cover no-repeat',
+          href: '/events/prelaunch',
+        },
+        announcement: {
+          id: 'announcement-empty-catalog',
+          title: '첫 IP 공개 일정을 확인하세요',
+          imageBg: null,
+          href: '/community?tag=notice',
+        },
+        featuredIpIds: [],
+      },
+    });
+
+    expect(html).toContain('IP 공개 전 특별전을 먼저 만나보세요');
+    expect(html).toContain('https://cdn.example/prelaunch.webp');
+    expect(html).toContain('href="/events/prelaunch"');
+    expect(html).toContain('aria-label="IP 공개 전 특별전을 먼저 만나보세요 자세히 보기"');
+    expect(html).toContain('자세히 보기 →');
+    expect(html).toContain('href="/community?tag=notice"');
+    expect(html).toContain('첫 IP 공개 일정을 확인하세요');
+    expect(html).toContain('등록된 IP가 아직 없습니다');
+    expect(html).not.toContain('aria-label="최애 IP 선택"');
+    expect(html).not.toContain('FEATURED IP');
+    expect(html).not.toContain('NOW SHOWING');
+    expect(html).not.toContain('FANS');
+    expect(html).not.toContain('세계로');
+  });
+
+  it('keeps the IP empty surface alongside an announcement-only curation', () => {
+    const html = renderHome({
+      catalog: catalog('supabase', []),
+      curation: {
+        hero: null,
+        announcement: {
+          id: 'announcement-only-empty-catalog',
+          title: '서비스 준비 소식을 확인하세요',
+          imageBg: null,
+          href: '/community',
+        },
+        featuredIpIds: [],
+      },
+    });
+
+    expect(html).toContain('등록된 IP가 아직 없습니다');
+    expect(html).toContain('곧 새로운 IP가 공개될 예정이에요.');
+    expect(html).toMatch(/<aside[^>]+aria-label="공지"[^>]*>/);
+    expect(html).toContain('href="/community"');
+    expect(html).toContain('서비스 준비 소식을 확인하세요');
+    expect(html).not.toContain('<header');
+  });
+
+  it('preserves the existing IP empty surface when no curation exists', () => {
+    const html = renderHome({
+      catalog: catalog('supabase', []),
+      curation: { hero: null, announcement: null, featuredIpIds: [] },
+    });
+
+    expect(html).toContain('class="screen"');
+    expect(html).toContain('등록된 IP가 아직 없습니다');
+    expect(html).toContain('곧 새로운 IP가 공개될 예정이에요.');
+    expect(html).not.toContain('<header');
+    expect(html).not.toContain('<aside');
+  });
+
+  it('gives the announcement link explicit hover and focus-visible feedback', () => {
+    const html = renderHome({
+      curation: {
+        hero: null,
+        announcement: {
+          id: 'announcement-feedback',
+          title: '공지 링크 피드백',
+          imageBg: null,
+          href: '/community',
+        },
+        featuredIpIds: ['lumen'],
+      },
+    });
+    const css = readFileSync(new URL('../../app/globals.css', import.meta.url), 'utf8');
+
+    expect(html).toContain('class="wrap home-announcement-link"');
+    expect(css).toMatch(/\.home-announcement-link:hover\s*\{[^}]*var\(--line-3\)/);
+    expect(css).toMatch(/\.home-announcement-link:focus-visible\s*\{[^}]*outline:\s*2px solid var\(--cyan\)/);
   });
 
   it('allows long unbroken hero and announcement titles to wrap on a narrow viewport', () => {
