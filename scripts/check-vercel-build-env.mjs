@@ -1,6 +1,6 @@
 import { pathToFileURL } from 'node:url';
 
-import { paymentKeyMode } from '../lib/payments/key-mode.mjs';
+import { paymentKeyMode, paymentModeEnabledInProduction } from '../lib/payments/key-mode.mjs';
 
 const VERCEL_TARGETS = new Set(['preview', 'production']);
 
@@ -46,8 +46,7 @@ export function validateVercelBuildEnvironment(environment) {
     checked: true,
     paymentMode: clientMode,
     productionCheckoutEnabled: target === 'production'
-      && (clientMode === 'live'
-        || (clientMode === 'test' && environment.ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION === 'true')),
+      && paymentModeEnabledInProduction(clientMode, environment.ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION),
   };
 }
 

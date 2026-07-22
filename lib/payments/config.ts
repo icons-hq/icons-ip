@@ -1,4 +1,4 @@
-import { paymentKeyMode, paymentKeysMatch } from './key-mode.mjs';
+import { paymentKeyMode, paymentKeysMatch, paymentModeEnabledInProduction } from './key-mode.mjs';
 
 export { paymentKeyMode, paymentKeysMatch } from './key-mode.mjs';
 export type TossKeyMode = 'test' | 'live';
@@ -15,7 +15,5 @@ export function paymentsEnabledForRuntime(
   const productionLike = vercelEnvironment === 'production'
     || (!knownNonProduction && nodeEnvironment === 'production');
   const keyMode = paymentKeyMode(clientKey, 'client');
-  return !productionLike
-    || keyMode === 'live'
-    || (keyMode === 'test' && allowTestPaymentsInProduction === 'true');
+  return !productionLike || paymentModeEnabledInProduction(keyMode, allowTestPaymentsInProduction);
 }
