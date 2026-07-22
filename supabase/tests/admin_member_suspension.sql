@@ -778,10 +778,13 @@ begin
 end;
 $$;
 
+reset role;
+set local role service_role;
 do $$
 begin
   begin
     perform public.place_order(
+      '00000000-0000-4000-8000-000000011104',
       '{"recipientName":"테스터","phone":"01012345678","postalCode":"12345","address1":"서울"}'::jsonb,
       '00000000-0000-4000-8000-000000011164'
     );
@@ -793,6 +796,10 @@ begin
   raise exception 'suspended goods order should be rejected';
 end;
 $$;
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000011104', true);
 
 do $$
 begin

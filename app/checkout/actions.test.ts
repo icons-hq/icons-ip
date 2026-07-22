@@ -15,8 +15,9 @@ vi.mock('@/lib/payments/config', async () => await import('../../lib/payments/co
 vi.mock('@/lib/payments/checkout-availability', async () => (
   await import('../../lib/payments/checkout-availability')
 ));
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: () => ({ rpc: mocks.rpc }),
+vi.mock('@/lib/supabase/service', () => ({
+  getServiceRoleConfig: () => ({ isConfigured: true }),
+  createServiceClient: () => ({ rpc: mocks.rpc }),
 }));
 
 const address = {
@@ -61,6 +62,7 @@ describe('placeOrderAction', () => {
   it('normalizes fulfillment data and sends no client amount or item list', async () => {
     await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: true, orderId });
     expect(mocks.rpc).toHaveBeenCalledWith('place_order', {
+      p_user_id: userId,
       p_address: {
         recipientName: '팬',
         phone: '01012345678',

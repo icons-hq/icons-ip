@@ -76,11 +76,17 @@ select 1 / case when not has_function_privilege('service_role', 'public.place_or
   as assert_service_role_cannot_use_legacy_place_order;
 
 select 1 / case when not has_function_privilege('anon', 'public.place_order(jsonb,uuid)', 'execute') then 1 else 0 end
-  as assert_anon_cannot_place_order;
-select 1 / case when has_function_privilege('authenticated', 'public.place_order(jsonb,uuid)', 'execute') then 1 else 0 end
-  as assert_authenticated_can_place_order;
+  as assert_anon_cannot_use_browser_place_order;
+select 1 / case when not has_function_privilege('authenticated', 'public.place_order(jsonb,uuid)', 'execute') then 1 else 0 end
+  as assert_authenticated_cannot_use_browser_place_order;
 select 1 / case when not has_function_privilege('service_role', 'public.place_order(jsonb,uuid)', 'execute') then 1 else 0 end
-  as assert_service_role_cannot_place_order;
+  as assert_service_role_cannot_use_browser_place_order;
+select 1 / case when not has_function_privilege('anon', 'public.place_order(uuid,jsonb,uuid)', 'execute') then 1 else 0 end
+  as assert_anon_cannot_place_order;
+select 1 / case when not has_function_privilege('authenticated', 'public.place_order(uuid,jsonb,uuid)', 'execute') then 1 else 0 end
+  as assert_authenticated_cannot_place_order;
+select 1 / case when has_function_privilege('service_role', 'public.place_order(uuid,jsonb,uuid)', 'execute') then 1 else 0 end
+  as assert_service_role_can_place_order;
 select 1 / case when not has_function_privilege('authenticated', 'public.cancel_order(uuid,text)', 'execute') then 1 else 0 end
   as assert_authenticated_cannot_cancel_without_provider;
 select 1 / case when has_function_privilege('service_role', 'public.cancel_order(uuid,text)', 'execute') then 1 else 0 end
@@ -98,6 +104,23 @@ do $$
 begin
   begin
     perform public.place_order(
+      '{"recipientName":"직접호출","phone":"01012345678","postalCode":"12345","address1":"서울시"}'::jsonb,
+      '10000000-0000-4000-8000-000000000504'
+    );
+    raise exception 'authenticated browser should not call place_order directly';
+  exception
+    when insufficient_privilege then null;
+  end;
+end;
+$$;
+
+set local role service_role;
+
+do $$
+begin
+  begin
+    perform public.place_order(
+      '00000000-0000-4000-8000-000000000504',
       '{"recipientName":"미완료","phone":"01012345678","postalCode":"12345","address1":"서울시"}'::jsonb,
       '10000000-0000-4000-8000-000000000504'
     );
@@ -109,11 +132,13 @@ begin
 end;
 $$;
 
+reset role;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000505', true);
 do $$
 begin
   begin
     perform public.place_order(
+      '00000000-0000-4000-8000-000000000505',
       '{"recipientName":"인증메일","phone":"01012345678","postalCode":"12345","address1":"서울시"}'::jsonb,
       '10000000-0000-4000-8000-000000000505'
     );
@@ -151,7 +176,11 @@ begin
     ))
   loop
     begin
-      perform public.place_order(invalid_address, '10000000-0000-4000-8000-000000000501');
+      perform public.place_order(
+        '00000000-0000-4000-8000-000000000501',
+        invalid_address,
+        '10000000-0000-4000-8000-000000000501'
+      );
       raise exception 'invalid address should be rejected: %', invalid_address;
     exception
       when check_violation then null;
@@ -164,6 +193,7 @@ do $$
 begin
   begin
     perform public.place_order(
+      '00000000-0000-4000-8000-000000000501',
       '{"recipientName":"홍길동","phone":"01012345678","postalCode":"12345","address1":"서울시"}'::jsonb,
       null
     );
@@ -183,6 +213,7 @@ select stock_qty as g1_stock_before from public.goods where id = 'g1' \gset
 select stock_qty as g2_stock_before from public.goods where id = 'g2' \gset
 
 select public.place_order(
+  '00000000-0000-4000-8000-000000000501',
   '{"recipientName":"홍길동","phone":"01012345678","postalCode":"12345","address1":"서울시 성동구","address2":"101호","deliveryNote":"문 앞"}'::jsonb,
   '10000000-0000-4000-8000-000000000501'
 ) as first_order_id \gset
@@ -217,6 +248,7 @@ select 1 / case when not exists (
 
 -- A lost-response retry is idempotent and does not reserve inventory twice.
 select public.place_order(
+  '00000000-0000-4000-8000-000000000501',
   '{"recipientName":"홍길동","phone":"01012345678","postalCode":"12345","address1":"서울시 성동구","address2":"101호","deliveryNote":"문 앞"}'::jsonb,
   '10000000-0000-4000-8000-000000000501'
 ) as retry_order_id \gset
@@ -236,6 +268,7 @@ do $$
 begin
   begin
     perform public.place_order(
+      '00000000-0000-4000-8000-000000000501',
       '{"recipientName":"홍길동","phone":"01012345678","postalCode":"12345","address1":"서울시 성동구","address2":"101호","deliveryNote":"경비실"}'::jsonb,
       '10000000-0000-4000-8000-000000000501'
     );
@@ -252,6 +285,7 @@ do $$
 begin
   begin
     perform public.place_order(
+      '00000000-0000-4000-8000-000000000501',
       '{"recipientName":"홍길동","phone":"01012345678","postalCode":"12345","address1":"서울시 성동구"}'::jsonb,
       '10000000-0000-4000-8000-000000000599'
     );
@@ -269,6 +303,7 @@ insert into public.cart_items (user_id, good_id, qty)
 values ('00000000-0000-4000-8000-000000000502', 'g3', 1);
 
 select public.place_order(
+  '00000000-0000-4000-8000-000000000502',
   '{"recipientName":"김아이콘","phone":"0212345678","postalCode":"54321","address1":"서울시 마포구"}'::jsonb,
   '10000000-0000-4000-8000-000000000501'
 ) as second_user_order_id \gset
@@ -280,7 +315,7 @@ select 1 / case when :'second_user_order_id'::uuid <> :'first_order_id'::uuid th
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000503', true);
 reset role;
 update public.goods set stock = 'soldout', stock_qty = 0 where id = 'g6';
-set local role authenticated;
+reset role;
 insert into public.cart_items (user_id, good_id, qty)
 values ('00000000-0000-4000-8000-000000000503', 'g6', 1);
 
@@ -288,6 +323,7 @@ do $$
 begin
   begin
     perform public.place_order(
+      '00000000-0000-4000-8000-000000000503',
       '{"recipientName":"재고검증","phone":"01098765432","postalCode":"11111","address1":"부산시"}'::jsonb,
       '10000000-0000-4000-8000-000000000503'
     );
@@ -317,7 +353,7 @@ delete from public.cart_items
 where user_id = '00000000-0000-4000-8000-000000000503' and good_id = 'g6';
 reset role;
 update public.goods set stock = 'soldout', stock_qty = 1 where id = 'g11';
-set local role authenticated;
+reset role;
 insert into public.cart_items (user_id, good_id, qty)
 values ('00000000-0000-4000-8000-000000000503', 'g11', 1);
 
@@ -325,6 +361,7 @@ do $$
 begin
   begin
     perform public.place_order(
+      '00000000-0000-4000-8000-000000000503',
       '{"recipientName":"판매종료","phone":"01098765432","postalCode":"11111","address1":"부산시"}'::jsonb,
       '10000000-0000-4000-8000-000000000511'
     );

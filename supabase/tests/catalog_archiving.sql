@@ -856,10 +856,12 @@ select 1 / case when (
     and good_id = 'archive-transaction-good'
 ) then 1 else 0 end as assert_failed_cart_merge_is_atomic;
 
+set local role service_role;
 do $$
 begin
   begin
     perform public.place_order(
+      '00000000-0000-4000-8000-000000011303',
       '{"recipientName":"보관 구매자","phone":"01012345678","postalCode":"12345","address1":"서울시 테스트로 1"}'::jsonb,
       '00000000-0000-4000-8000-000000011371'
     );

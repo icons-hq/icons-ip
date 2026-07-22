@@ -10,7 +10,7 @@ import {
   type PlaceOrderErrorCode,
 } from '@/lib/checkout';
 import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
-import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 
 type PlaceOrderActionError =
   | PlaceOrderErrorCode
@@ -47,8 +47,9 @@ export async function placeOrderAction(
   let data: unknown;
   let error: { message: string } | null;
   try {
-    const supabase = await createClient();
-    const result = await supabase.rpc('place_order', {
+    const service = createServiceClient();
+    const result = await service.rpc('place_order', {
+      p_user_id: auth.user.id,
       p_address: address,
       p_checkout_key: checkoutKey,
     });
