@@ -5,6 +5,7 @@ import {
   mapConfirmRpcError,
   normalizeTossPayment,
   parseWebhookEvent,
+  parseTossOrderId,
   verifyTossCancellationState,
   type NormalizedTossPayment,
   type TossOrderRef,
@@ -342,6 +343,8 @@ async function rejectUnapprovedProductionTestPayment(
     paymentKey: payment.paymentKey,
     orderId: payment.orderId,
     amount: payment.totalAmount,
+    type: payment.type,
+    currency: payment.currency,
   });
   const canceledPayment = normalizeTossPayment(canceledResult.body);
   if (!cancellation.ok || cancellation.state !== 'fully_canceled' || !canceledPayment) {
@@ -386,6 +389,19 @@ export async function POST(request: Request) {
     return errorJson(500, 'provider_response_mismatch');
   }
 
+  const service = createServiceClient();
+  const completedRef = payment.status === 'DONE' ? parseTossOrderId(payment.orderId) : null;
+  if (completedRef) {
+    try {
+      if (!await productionTestReviewerAllowed(service, completedRef)) {
+        return rejectUnapprovedProductionTestPayment(service, completedRef, payment);
+      }
+    } catch (error) {
+      console.error(`[webhooks/tosspayments] reviewer lookup failed: ${error instanceof Error ? error.message : String(error)}`);
+      return errorJson(500, 'reviewer_lookup_failed');
+    }
+  }
+
   const action = decideWebhookAction(payment);
   if (action.kind === 'ignore') return received(action.reason);
   if (action.kind === 'unsupported') {
@@ -393,18 +409,7 @@ export async function POST(request: Request) {
     return errorJson(500, 'unsupported_status');
   }
 
-  const service = createServiceClient();
-  if (action.kind === 'confirm') {
-    try {
-      if (!await productionTestReviewerAllowed(service, action.ref)) {
-        return rejectUnapprovedProductionTestPayment(service, action.ref, payment);
-      }
-    } catch (error) {
-      console.error(`[webhooks/tosspayments] reviewer lookup failed: ${error instanceof Error ? error.message : String(error)}`);
-      return errorJson(500, 'reviewer_lookup_failed');
-    }
-    return applyConfirm(service, action.ref, payment, verified.body);
-  }
+  if (action.kind === 'confirm') return applyConfirm(service, action.ref, payment, verified.body);
   if (action.kind === 'reflect_cancel') return applyReflectCancel(service, action.ref, payment, verified.body);
   if (action.kind === 'cancel_unsupported') {
     return applyCancelUnsupported(service, action.ref, payment, verified.body);

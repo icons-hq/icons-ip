@@ -211,6 +211,35 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['가상계좌', { method: '가상계좌' }],
+    ['BRANDPAY', { method: '카드', type: 'BRANDPAY' }],
+    ['비원화', { method: '카드', currency: 'USD' }],
+  ])('검토 권한 밖의 unsupported DONE %s도 확정 전에 provider와 로컬을 취소한다', async (_label, overrides) => {
+    mocks.reviewerProfile = { role: 'user', suspended_at: null };
+    const completed = { ...virtualAccountPayment('DONE'), ...overrides };
+    mocks.fetchPayment.mockResolvedValue({ ok: true, body: completed });
+    mocks.cancel.mockResolvedValue({
+      ok: true,
+      body: {
+        ...completed,
+        status: 'CANCELED',
+        balanceAmount: 0,
+        cancels: [{ cancelAmount: 42000, cancelStatus: 'DONE' }],
+      },
+    });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(mocks.cancel).toHaveBeenCalledWith('pk_virtual', 'ICONS 승인 계정 외 테스트 결제 자동 취소');
+    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order_with_provider_evidence', expect.objectContaining({
+      p_order_id: ORDER_UUID,
+      p_provider_payment_keys: ['pk_virtual'],
+    }));
+    expect(mocks.rpc).not.toHaveBeenCalledWith('confirm_order_payment', expect.anything());
+  });
+
   it('DONE 티켓 결제는 티켓 확정 RPC로만 전달한다', async () => {
     mocks.fetchPayment.mockResolvedValue({
       ok: true,
