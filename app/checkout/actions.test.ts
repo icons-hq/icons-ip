@@ -143,10 +143,9 @@ describe('placeOrderAction', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it('allows production test orders only for an explicitly listed reviewer UUID', async () => {
+  it('allows production test orders only for an active staff reviewer', async () => {
     vi.stubEnv('VERCEL_ENV', 'production');
     vi.stubEnv('ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION', 'true');
-    vi.stubEnv('TOSS_TEST_PAYMENT_REVIEWER_USER_IDS', '00000000-0000-4000-8000-000000000002');
 
     await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({
       ok: false,
@@ -154,7 +153,7 @@ describe('placeOrderAction', () => {
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
 
-    vi.stubEnv('TOSS_TEST_PAYMENT_REVIEWER_USER_IDS', userId);
+    mocks.auth = { ...onboardedAuth(), isStaff: true };
     await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: true, orderId });
   });
 

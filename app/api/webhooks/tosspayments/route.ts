@@ -301,13 +301,26 @@ async function applyRecordFailure(service: ServiceClient, payment: NormalizedTos
 
 async function productionTestReviewerAllowed(service: ServiceClient, ref: TossOrderRef) {
   const table = ref.purpose === 'order' ? 'orders' : 'ticket_orders';
-  const { data, error } = await service
+  const { data: target, error } = await service
     .from(table)
     .select('user_id')
     .eq('id', ref.refId)
     .maybeSingle();
   if (error) throw new Error(`Failed to load ${table} reviewer: ${error.message}`);
-  return data ? checkoutPaymentsEnabled((data as { user_id: string }).user_id) : false;
+  if (!target) return false;
+
+  const { data: profile, error: profileError } = await service
+    .from('profiles')
+    .select('role,suspended_at')
+    .eq('id', (target as { user_id: string }).user_id)
+    .maybeSingle();
+  if (profileError) throw new Error(`Failed to load reviewer profile: ${profileError.message}`);
+  const reviewer = profile as { role: string | null; suspended_at: string | null } | null;
+  return checkoutPaymentsEnabled(Boolean(
+    reviewer
+    && !reviewer.suspended_at
+    && (reviewer.role === 'staff' || reviewer.role === 'admin'),
+  ));
 }
 
 async function rejectUnapprovedProductionTestPayment(
@@ -320,14 +333,17 @@ async function rejectUnapprovedProductionTestPayment(
     console.error(`[webhooks/tosspayments] unapproved test payment auto-cancel failed: ${canceled.code}`);
     return errorJson(500, 'auto_cancel_failed');
   }
-  if (!canceled.ok) return received('unapproved_test_payment_already_canceled');
-
-  const canceledPayment = normalizeTossPayment(canceled.body);
+  const canceledResult = canceled.ok ? canceled : await fetchTossPayment(payment.paymentKey);
+  if (!canceledResult.ok) {
+    console.error(`[webhooks/tosspayments] canceled test payment verification failed: ${canceledResult.code}`);
+    return errorJson(500, 'auto_cancel_verification_failed');
+  }
+  const canceledPayment = normalizeTossPayment(canceledResult.body);
   if (!canceledPayment || canceledPayment.status !== 'CANCELED') {
     console.error('[webhooks/tosspayments] unapproved test payment cancellation shape invalid');
     return errorJson(500, 'auto_cancel_verification_failed');
   }
-  return applyReflectCancel(service, ref, canceledPayment, canceled.body);
+  return applyReflectCancel(service, ref, canceledPayment, canceledResult.body);
 }
 
 export async function POST(request: Request) {

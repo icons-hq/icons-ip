@@ -29,6 +29,15 @@ vi.mock('@/lib/payments/checkout-availability', () => ({
   checkoutPaymentsEnabled: () => mocks.reviewerAllowed,
 }));
 
+vi.mock('@/lib/auth/server', () => ({
+  getCurrentAuthState: () => ({
+    isConfigured: true,
+    user: { id: 'user-1', email: 'reviewer@example.com' },
+    profile: null,
+    isStaff: mocks.reviewerAllowed,
+  }),
+}));
+
 vi.mock('@/lib/payments/toss', async () => await import('../../../../lib/payments/toss'));
 vi.mock('@/lib/payments/toss-api', () => ({
   getTossConfig: () => ({ isConfigured: true, secretKey: 'configured' }),
@@ -127,7 +136,7 @@ describe('POST /api/payments/confirm', () => {
     mocks.rpc.mockResolvedValue({ data: 'pending', error: null });
   });
 
-  it('rejects payment approval for a user outside the production test reviewer allowlist', async () => {
+  it('staff/admin 검토 권한이 없는 사용자의 production 테스트 승인을 거부한다', async () => {
     mocks.reviewerAllowed = false;
 
     const response = await POST(request(callbackBody()));

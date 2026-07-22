@@ -15,7 +15,6 @@ interface ExistingPayment {
 }
 
 const mocks = vi.hoisted(() => ({
-  reviewerAllowed: true,
   fetchPayment: vi.fn(),
   cancel: vi.fn(),
   rpc: vi.fn(),
@@ -37,10 +36,14 @@ const mocks = vi.hoisted(() => ({
     status: string;
     total: number;
   } | null,
+  reviewerProfile: { role: 'admin', suspended_at: null } as {
+    role: string | null;
+    suspended_at: string | null;
+  } | null,
 }));
 
 vi.mock('@/lib/payments/checkout-availability', () => ({
-  checkoutPaymentsEnabled: () => mocks.reviewerAllowed,
+  checkoutPaymentsEnabled: (reviewerAllowed: boolean) => reviewerAllowed,
 }));
 
 vi.mock('@/lib/payments/toss', async () => await import('../../../../lib/payments/toss'));
@@ -58,12 +61,17 @@ vi.mock('@/lib/supabase/service', () => ({
         select: vi.fn(() => query),
         eq: vi.fn(() => query),
         maybeSingle: vi.fn(async () => ({
-          data: table === 'payments' ? mocks.existingPayment : mocks.target,
+          data: table === 'payments'
+            ? mocks.existingPayment
+            : table === 'profiles'
+              ? mocks.reviewerProfile
+              : mocks.target,
           error: null,
         })),
       };
       if (table === 'payments') return { ...query, update: mocks.update, upsert: mocks.upsert };
       if (table === 'orders' || table === 'ticket_orders') return query;
+      if (table === 'profiles') return query;
       throw new Error(`Unexpected table ${table}`);
     },
   }),
@@ -130,7 +138,6 @@ function canceledTicketPayment(overrides: Record<string, unknown> = {}) {
 
 describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
   beforeEach(() => {
-    mocks.reviewerAllowed = true;
     mocks.fetchPayment.mockReset();
     mocks.cancel.mockReset();
     mocks.rpc.mockReset();
@@ -148,6 +155,7 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
       idempotency_key: 'pk_virtual',
     };
     mocks.target = { user_id: 'user-1', status: 'pending', total: 42000 };
+    mocks.reviewerProfile = { role: 'admin', suspended_at: null };
     mocks.cancel.mockResolvedValue({ ok: true, body: { status: 'CANCELED' } });
     mocks.rpc.mockResolvedValue({ error: null });
     mocks.update.mockReturnValue({ eq: mocks.updateEqFirst });
@@ -226,8 +234,8 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
     expect(mocks.rpc).not.toHaveBeenCalledWith('confirm_order_payment', expect.anything());
   });
 
-  it('승인 계정 밖의 production 테스트 결제는 확정하지 않고 provider와 로컬 선점을 취소한다', async () => {
-    mocks.reviewerAllowed = false;
+  it('staff/admin 검토 권한 밖의 production 테스트 결제는 확정하지 않고 provider와 로컬 선점을 취소한다', async () => {
+    mocks.reviewerProfile = { role: 'user', suspended_at: null };
     mocks.fetchPayment.mockResolvedValue({
       ok: true,
       body: { ...virtualAccountPayment('DONE'), method: '카드' },
@@ -247,6 +255,41 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
 
     expect(response.status).toBe(200);
     expect(mocks.cancel).toHaveBeenCalledWith('pk_virtual', 'ICONS 승인 계정 외 테스트 결제 자동 취소');
+    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order_with_provider_evidence', expect.objectContaining({
+      p_order_id: ORDER_UUID,
+      p_provider_payment_keys: ['pk_virtual'],
+    }));
+    expect(mocks.rpc).not.toHaveBeenCalledWith('confirm_order_payment', expect.anything());
+  });
+
+  it('검토 권한 밖 결제가 provider에서 이미 취소됐어도 fresh GET 뒤 로컬 선점을 원복한다', async () => {
+    mocks.reviewerProfile = { role: 'admin', suspended_at: '2026-07-22T00:00:00.000Z' };
+    mocks.fetchPayment
+      .mockResolvedValueOnce({
+        ok: true,
+        body: { ...virtualAccountPayment('DONE'), method: '카드' },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        body: {
+          ...virtualAccountPayment('DONE'),
+          method: '카드',
+          status: 'CANCELED',
+          balanceAmount: 0,
+          cancels: [{ cancelAmount: 42000, cancelStatus: 'DONE' }],
+        },
+      });
+    mocks.cancel.mockResolvedValue({
+      ok: false,
+      status: 400,
+      code: 'ALREADY_CANCELED_PAYMENT',
+      message: 'already canceled',
+    });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(mocks.fetchPayment).toHaveBeenCalledTimes(2);
     expect(mocks.rpc).toHaveBeenCalledWith('cancel_order_with_provider_evidence', expect.objectContaining({
       p_order_id: ORDER_UUID,
       p_provider_payment_keys: ['pk_virtual'],

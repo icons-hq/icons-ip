@@ -4,7 +4,6 @@ import { createHash } from 'node:crypto';
 import { paymentKeyMode, paymentModeEnabledInProduction } from '../lib/payments/key-mode.mjs';
 
 const VERCEL_TARGETS = new Set(['preview', 'production']);
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function isPresent(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -48,19 +47,9 @@ export function validateVercelBuildEnvironment(environment) {
     && paymentModeEnabledInProduction(clientMode, environment.ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION);
   if (productionCheckoutEnabled) {
     const paymentRequired = ['TOSS_PAYMENT_KEY_PAIR_SHA256'];
-    if (clientMode === 'test') paymentRequired.unshift('TOSS_TEST_PAYMENT_REVIEWER_USER_IDS');
     const paymentMissing = paymentRequired.filter((name) => !isPresent(environment[name]));
     if (paymentMissing.length > 0) {
       throw new Error(`Missing Vercel production test-payment environment: ${paymentMissing.join(', ')}`);
-    }
-
-    if (clientMode === 'test') {
-      const reviewerIds = environment.TOSS_TEST_PAYMENT_REVIEWER_USER_IDS
-        .split(',')
-        .map((value) => value.trim());
-      if (reviewerIds.length === 0 || reviewerIds.some((value) => !UUID_PATTERN.test(value))) {
-        throw new Error('Invalid Vercel production test-payment reviewer IDs: use comma-separated UUIDs');
-      }
     }
 
     const actualFingerprint = createHash('sha256')

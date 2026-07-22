@@ -104,7 +104,6 @@ describe('validateVercelBuildEnvironment', () => {
       VERCEL_ENV: 'production',
       CRON_SECRET: 'cron_secret_for_production',
       ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION: 'true',
-      TOSS_TEST_PAYMENT_REVIEWER_USER_IDS: '00000000-0000-4000-8000-000000000001',
       TOSS_PAYMENT_KEY_PAIR_SHA256: testPairFingerprint,
     })).toEqual({
       checked: true,
@@ -121,7 +120,7 @@ describe('validateVercelBuildEnvironment', () => {
     }).productionCheckoutEnabled).toBe(false);
   });
 
-  it('rejects production test mode without a reviewer UUID or the approved key-pair fingerprint', () => {
+  it('rejects production test mode without the approved key-pair fingerprint', () => {
     const productionTestEnvironment = {
       ...baseEnvironment,
       VERCEL_ENV: 'production',
@@ -130,17 +129,10 @@ describe('validateVercelBuildEnvironment', () => {
     };
 
     expect(() => validateVercelBuildEnvironment(productionTestEnvironment))
-      .toThrow('Missing Vercel production test-payment environment: TOSS_TEST_PAYMENT_REVIEWER_USER_IDS, TOSS_PAYMENT_KEY_PAIR_SHA256');
+      .toThrow('Missing Vercel production test-payment environment: TOSS_PAYMENT_KEY_PAIR_SHA256');
 
     expect(() => validateVercelBuildEnvironment({
       ...productionTestEnvironment,
-      TOSS_TEST_PAYMENT_REVIEWER_USER_IDS: 'not-a-uuid',
-      TOSS_PAYMENT_KEY_PAIR_SHA256: testPairFingerprint,
-    })).toThrow('Invalid Vercel production test-payment reviewer IDs');
-
-    expect(() => validateVercelBuildEnvironment({
-      ...productionTestEnvironment,
-      TOSS_TEST_PAYMENT_REVIEWER_USER_IDS: '00000000-0000-4000-8000-000000000001',
       TOSS_PAYMENT_KEY_PAIR_SHA256: '0'.repeat(64),
     })).toThrow('Invalid Vercel production payment key-pair fingerprint');
   });
