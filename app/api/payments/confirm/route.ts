@@ -13,6 +13,8 @@ import {
   fetchTossPayment,
   getTossConfig,
 } from '@/lib/payments/toss-api';
+import { getCurrentAuthState } from '@/lib/auth/server';
+import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/service';
@@ -88,10 +90,13 @@ export async function POST(request: Request) {
     return errorJson(503, 'not_configured', '결제 환경이 구성되지 않았습니다.');
   }
 
-  const supabase = await createClient();
-  const { data: userData } = await supabase.auth.getUser();
-  const user = userData.user;
+  const auth = await getCurrentAuthState();
+  const user = auth.user;
   if (!user) return errorJson(401, 'auth_required', '로그인이 필요합니다.');
+  if (!checkoutPaymentsEnabled(auth.isStaff)) {
+    return errorJson(403, 'payment_unavailable', '현재 계정에서는 결제를 진행할 수 없습니다.');
+  }
+  const supabase = await createClient();
 
   let rawBody: unknown;
   try {

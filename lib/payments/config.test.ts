@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { paymentKeyMode, paymentKeysMatch, paymentsEnabledForRuntime } from './config';
+import {
+  paymentKeyMode,
+  paymentKeysMatch,
+  paymentsEnabledForRuntime,
+  paymentsEnabledForReviewerRuntime,
+} from './config';
 
 describe('Toss payment key configuration', () => {
   it('recognizes test and live key prefixes without exposing their values', () => {
@@ -24,5 +29,28 @@ describe('Toss payment key configuration', () => {
     expect(paymentsEnabledForRuntime('live_gck_example', 'live_gsk_example', 'production', 'production')).toBe(true);
     expect(paymentsEnabledForRuntime('test_gck_example', 'test_gsk_example', undefined, 'production')).toBe(false);
     expect(paymentsEnabledForRuntime('live_gck_example', 'live_gsk_example', undefined, 'production')).toBe(true);
+  });
+
+  it('enables production test keys only with the exact test-payment override', () => {
+    expect(paymentsEnabledForRuntime('test_gck_example', 'test_gsk_example', 'production', 'production')).toBe(false);
+    expect(paymentsEnabledForRuntime('test_gck_example', 'test_gsk_example', 'production', 'production', 'true')).toBe(true);
+    expect(paymentsEnabledForRuntime('test_gck_example', 'test_gsk_example', 'production', 'production', 'TRUE')).toBe(false);
+    expect(paymentsEnabledForRuntime('test_gck_example', 'test_gsk_example', 'production', 'production', ' true')).toBe(false);
+    expect(paymentsEnabledForRuntime('test_gck_example', 'test_gsk_example', 'production', 'production', '1')).toBe(false);
+  });
+
+  it('allows production test payments only for an active staff reviewer', () => {
+    expect(paymentsEnabledForReviewerRuntime(
+      'test_gck_example', 'test_gsk_example', false, 'production', 'production', 'true',
+    )).toBe(false);
+    expect(paymentsEnabledForReviewerRuntime(
+      'test_gck_example', 'test_gsk_example', true, 'production', 'production', 'true',
+    )).toBe(true);
+    expect(paymentsEnabledForReviewerRuntime(
+      'test_gck_example', 'test_gsk_example', false, 'preview', 'production', undefined,
+    )).toBe(true);
+    expect(paymentsEnabledForReviewerRuntime(
+      'live_gck_example', 'live_gsk_example', false, 'production', 'production', undefined,
+    )).toBe(true);
   });
 });

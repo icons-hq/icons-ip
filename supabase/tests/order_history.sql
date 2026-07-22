@@ -177,7 +177,9 @@ values (
   1
 );
 
+set local role service_role;
 select public.place_order(
+  '00000000-0000-4000-8000-000000000601',
   '{"recipientName":"주문기록","phone":"01012345678","postalCode":"12345","address1":"서울시 성동구"}'::jsonb,
   '30000000-0000-4000-8000-000000000601'
 ) as order_id \gset

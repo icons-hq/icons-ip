@@ -46,15 +46,40 @@ begin
     ('g7', 'nongdamgom'),
     ('g8', 'kakao-friends'),
     ('g9', 'kakao-friends'),
-    ('g10', 'kakao-friends'),
-    ('g11', 'attack-on-titan'),
-    ('g12', 'attack-on-titan')
+    ('g11', 'attack-on-titan')
   ) as expected(id, ip_id)
   join public.goods actual
     on actual.id = expected.id
-   and actual.ip_id = expected.ip_id;
-  if matched_count <> 12 then
-    raise exception 'catalog baseline invalid: expected 12 good-to-IP mappings, found %', matched_count;
+   and actual.ip_id = expected.ip_id
+   and actual.archived_at is null;
+  if matched_count <> 10 then
+    raise exception 'catalog baseline invalid: expected 10 active good-to-IP mappings, found %', matched_count;
+  end if;
+
+  select count(*) into matched_count
+  from public.goods
+  where archived_at is null
+    and (
+      name ~* '(피규어|figure|figurine)'
+      or type ~* '(피규어|figure|figurine)'
+    );
+  if matched_count <> 0 then
+    raise exception 'catalog baseline invalid: expected no active figure goods, found %', matched_count;
+  end if;
+
+  select count(*) into matched_count
+  from public.games
+  cross join lateral jsonb_array_elements_text(
+    case
+      when config #>> '{variant,kind}' = 'goods'
+       and jsonb_typeof(config #> '{variant,goodsIds}') = 'array'
+        then config #> '{variant,goodsIds}'
+      else '[]'::jsonb
+    end
+  ) as lineup(good_id)
+  where lineup.good_id = any (array['g10', 'g12']);
+  if matched_count <> 0 then
+    raise exception 'catalog baseline invalid: expected no archived figure IDs in goods games, found %', matched_count;
   end if;
 
   select count(*) into matched_count
@@ -139,5 +164,20 @@ begin
    and actual.config #>> '{variant,kind}' = expected.config_kind;
   if matched_count <> 2 then
     raise exception 'catalog baseline invalid: expected 2 game runtime mappings, found %', matched_count;
+  end if;
+end $$;
+
+do $$
+declare
+  matched_count integer;
+begin
+  select count(*) into matched_count
+  from public.goods
+  where id = any (array['g10', 'g12'])
+    and archived_at is not null
+    and stock = 'soldout'
+    and stock_qty = 0;
+  if matched_count <> 2 then
+    raise exception 'catalog baseline invalid: expected g10 and g12 history to remain archived and non-sellable, found %', matched_count;
   end if;
 end $$;

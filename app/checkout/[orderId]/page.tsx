@@ -26,7 +26,7 @@ export default async function Page({ params }: { params: Promise<{ orderId: stri
   if (!order) notFound();
 
   const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
-  const configured = checkoutPaymentsEnabled();
+  const configured = checkoutPaymentsEnabled(auth.isStaff);
 
   return (
     <CheckoutOrder

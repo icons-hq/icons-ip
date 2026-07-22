@@ -199,7 +199,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
   4) `wallet_ledger`에 `pull` 기록
 - **`reserve_tickets(user_id, ticket_type_id, qty, reservation_key)`** — 결제 환경·인증·온보딩을 확인한 Server Action만 service role로 호출하며 브라우저 롤에는 execute를 열지 않는다. DB에서도 사용자 온보딩을 재확인하고 사용자+요청 키 advisory lock과 unique index로 재시도를 멱등화한다. 이벤트를 먼저 잠근 뒤 회차를 `FOR UPDATE`로 잠그고 예매 상태·유료 가격·오픈 시각·1인 한도·잔여를 재검증해 10분 `pending` 예매와 QR 없는 티켓 placeholder를 만든다. QR은 웹훅의 `confirm_ticket_payment`에서만 발급한다.
 - **`admin_upsert_ticket_type(operation_id, ticket_type_id, event_id, name, price, capacity)`** — operation/type UUID advisory lock 뒤 이벤트를 `FOR KEY SHARE`, 기존 회차를 `FOR UPDATE`로 잠근다. 최신 `sold` 미만 capacity를 거절하고, 티켓 이력이 생기면 이벤트·회차명·가격을 잠그며, 전후 상태를 `audit_log`에 멱등 기록한다. `sold`·`per_user_limit`·`sales_open_at`은 입력받거나 덮어쓰지 않는다.
-- **`place_order(cart)`** — 굿즈 재고 검증·차감, 주문 당시 가격·이름·유형·IP를 고정한 `orders`/`order_items` 생성(`pending`).
+- **`place_order(user_id, address, checkout_key)`** — 결제 환경·인증·온보딩·production 검토 권한을 확인한 Server Action만 service role로 호출하며 브라우저 롤에는 execute를 열지 않는다. DB가 장바구니와 굿즈를 잠근 뒤 재고 검증·차감, 주문 당시 가격·이름·유형·IP를 고정한 `orders`/`order_items` 생성(`pending`)을 한 트랜잭션에서 수행한다.
 - **`begin_ticket_payment_approval` / `confirm_order_payment` / `confirm_ticket_payment`** — 티켓은 provider 승인 호출 전에 order→active cancellation request→payment 순서로 잠그고 `pending` payment claim을 먼저 남겨 무결제 취소와 외부 승인이 엇갈리지 않게 한다. 결제 확정은 웹훅에서 service role로 호출하며 **멱등 키=토스 paymentKey**로 중복 방지한다. (충전 `charge_wallet`은 ADR-0003으로 폐기)
 - **`request_order_cancellation` / `admin_decide_order_cancellation` / `complete_order_cancellation_request`** — 사용자 요청을 durable 원장에 남기고 staff 승인 뒤에만 provider 정합화를 시작한다. fresh GET으로 모든 대상 결제의 전액 취소를 검증한 뒤 재고·미사용 카드팩·환불 장부·주문 상태를 원자적으로 정리한다. 불확실한 결과는 claim을 유지한 `needs_review`로 격리하며 같은 멱등키로만 재정합화한다.
 - **`request_ticket_cancellation` / `begin_ticket_cancellation_reconcile` / `complete_ticket_cancellation_request`** — 이벤트 시작 전 미사용 예매 전체의 정책·마감·전액 환불 금액을 snapshot으로 남긴다. order→request→payments→tickets→ticket_types 잠금 순서와 5분 attempt lease로 confirm/check-in 경합과 중복 provider 처리를 막고, 모든 비실패 결제의 fresh GET→필요 시 전액 취소→fresh GET 증거가 일치할 때만 티켓·정원·환불을 원자 완료한다. 검증된 provider 원문과 실제 환불 근거를 결제 원장에 함께 보존하며, 불확실한 결과는 QR을 차단한 `needs_review`로 남긴다.
@@ -262,17 +262,17 @@ Production Auth 설정:
 - 환불: `refunds` 완료 기록 + 재고 원복은 RPC가 담당한다. 토스 쪽 취소(`CANCELED` 웹훅) 등 기존 호환 경로는 active 청약철회 요청을 완료할 수 없고, 해당 요청은 관리자 fresh GET 전체 검증 경로에서만 종결한다. 현재 배송·수령 시각이 없으므로 법정 7일을 앱이 자동 판정하지 않는다.
 - 단일 PG 가정. 멀티 PG 필요 시 `payments.provider` + 어댑터 계층 도입.
 
-### 9.1 환경 변수 · 로컬/프리뷰 검증 (테스트 키)
+### 9.1 환경 변수 · 로컬/프리뷰 검증과 임시 production 테스트 검토
 
-- 서버 전용 env: `TOSS_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`. 클라이언트 번들에 노출하지 않는다(`NEXT_PUBLIC_` 접두사 금지). 위젯 공개 키만 `NEXT_PUBLIC_TOSS_CLIENT_KEY`로 전달한다.
+- 서버 전용 env: `TOSS_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION`, `TOSS_PAYMENT_KEY_PAIR_SHA256`. 클라이언트 번들에 노출하지 않는다(`NEXT_PUBLIC_` 접두사 금지). 위젯 공개 키와 공개 variantKey만 `NEXT_PUBLIC_TOSS_CLIENT_KEY`, `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY`로 전달한다.
 - 토스 키는 개발자센터 **API 키 > 결제위젯 연동 키**의 것을 쓴다: `TOSS_SECRET_KEY` = 위젯 시크릿 키(테스트 `test_gsk_…` / 라이브 `live_gsk_…`), `NEXT_PUBLIC_TOSS_CLIENT_KEY` = 위젯 클라이언트 키(`test_gck_…` / `live_gck_…`, 체크아웃 #90에서 사용). 두 키는 **같은 연동 키 세트**여야 한다 — 세트가 어긋나면 승인 API가 `INVALID_API_KEY`/`UNAUTHORIZED_KEY`/`NOT_FOUND_PAYMENT_SESSION`으로 실패한다. `test_sk_…`(API 개별연동 키)는 위젯 결제 승인에 쓰지 않는다.
 - 키 미구성 환경에서 두 라우트는 503(`not_configured`)으로 응답한다 — mock/카탈로그-only 모드에서 안전.
 - 로컬 검증 경로(테스트 키):
-  1. 결제위젯 연동 테스트 시크릿 키(`test_gsk_…`)를 `.env.local`의 `TOSS_SECRET_KEY`로, 로컬 Supabase service key(`supabase status`)를 `SUPABASE_SERVICE_ROLE_KEY`로 설정한다.
+  1. 결제위젯 연동 테스트 시크릿 키(`test_gsk_…`)를 `.env.local`의 `TOSS_SECRET_KEY`로, 가상계좌를 제외한 테스트 UI의 variantKey를 `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY=ICONS_REVIEW`로, 로컬 Supabase service key(`supabase status`)를 `SUPABASE_SERVICE_ROLE_KEY`로 설정한다.
   2. 순수 로직은 `npm run test`(`lib/payments/toss.test.ts`), DB 계층(확정 RPC·만료 sweep)은 로컬 psql로 RPC를 직접 호출해 확인한다.
   3. 웹훅 실수신은 ngrok 등으로 로컬을 노출해 개발자센터에 웹훅 URL(`https://<host>/api/webhooks/tosspayments`, `PAYMENT_STATUS_CHANGED`)을 등록하고 테스트 결제로 유발한다. 성공 기준은 10초 내 200 응답, 실패 시 최대 7회 재전송된다.
-- 프리뷰는 짝이 맞는 테스트 키를 허용한다. Vercel production은 `live_gck_…`/`live_gsk_…` 쌍일 때만 주문 생성·위젯·승인·웹훅을 활성화하며 테스트 키면 fail closed한다. 라이브 상점 계약·키·웹훅 등록(#87) 전에는 production 결제가 비활성 상태다.
-- Vercel preview/production 변수는 sensitive로 유지한다. GitHub Actions는 값을 복호화할 수 없는 `vercel pull` + prebuilt 경로를 쓰지 않고 Vercel 원격 build를 요청하며, `prebuild` guard가 Vercel build 안에서 필수 변수와 토스 키 모드만 검증한다.
+- 프리뷰는 테스트 키와 정확히 `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY=ICONS_REVIEW`인 테스트 UI를 허용한다. Vercel production은 기본적으로 `live_gck_…`/`live_gsk_…` 쌍일 때만 주문 생성·위젯·승인·웹훅을 활성화한다. 예외적으로 승인된 사람 검토 동안에는 Preview/로컬에서 실제로 검증한 `test_gck_…`/`test_gsk_…`, 가상계좌를 제외한 `ICONS_REVIEW` 테스트 UI, 두 원문 키 값을 NUL로 이어 계산한 SHA-256 `TOSS_PAYMENT_KEY_PAIR_SHA256`, 서버 전용 `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION=true`가 모두 맞아야 한다. 주문·예매 생성과 승인 API는 활성 `staff`/`admin` 권한을 검사하고, 우회된 DONE 웹훅도 대상 소유자가 해당 권한 밖이면 provider를 자동 취소한 뒤 로컬 선점을 원복한다. 정확한 소문자 `true` 이외의 값, 키 모드·variantKey·지문 불일치 또는 누락은 fail closed이며 테스트 결제는 실제 결제수단을 출금하지 않는다. 이 임시 검토가 끝나면 override와 테스트 전용 variantKey를 제거하고 `live_gck_…`/`live_gsk_…` 및 승인 지문을 복원한다. 라이브 키는 테스트 전용 variantKey가 남아 있으면 빌드를 거부하며, 제거 후 기본 UI로 허용된다; 라이브 상점 계약·키·웹훅 등록(#87)은 별도 human gate다.
+- Vercel preview/production 변수는 sensitive로 유지한다. GitHub Actions는 값을 복호화할 수 없는 `vercel pull` + prebuilt 경로를 쓰지 않고 Vercel 원격 build를 요청하며, `prebuild` guard가 Vercel build 안에서 필수 변수, 토스 키 모드, production 승인 키 쌍 지문을 검증한다. 키 문자열만으로 같은 상점 세트인지 추론할 수 없으므로 Preview/로컬의 정확한 두 값을 복사하고 실제 provider-backed 결제로 최종 확인한다.
 
 ---
 

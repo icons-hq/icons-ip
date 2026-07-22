@@ -15,8 +15,9 @@ vi.mock('@/lib/payments/config', async () => await import('../../lib/payments/co
 vi.mock('@/lib/payments/checkout-availability', async () => (
   await import('../../lib/payments/checkout-availability')
 ));
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: () => ({ rpc: mocks.rpc }),
+vi.mock('@/lib/supabase/service', () => ({
+  getServiceRoleConfig: () => ({ isConfigured: true }),
+  createServiceClient: () => ({ rpc: mocks.rpc }),
 }));
 
 const address = {
@@ -29,11 +30,12 @@ const address = {
 };
 const checkoutKey = '7ad4c967-3d48-44da-a665-64731ac33f62';
 const orderId = '5cbcbbed-202d-4676-821a-7706398e57c0';
+const userId = '00000000-0000-4000-8000-000000000001';
 
 function onboardedAuth(): CurrentAuthState {
   return {
     isConfigured: true,
-    user: { id: 'user-1', email: 'fan@icons.gg' },
+    user: { id: userId, email: 'fan@icons.gg' },
     profile: {
       email: 'fan@icons.gg',
       nickname: 'fan',
@@ -60,6 +62,7 @@ describe('placeOrderAction', () => {
   it('normalizes fulfillment data and sends no client amount or item list', async () => {
     await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: true, orderId });
     expect(mocks.rpc).toHaveBeenCalledWith('place_order', {
+      p_user_id: userId,
       p_address: {
         recipientName: '팬',
         phone: '01012345678',
@@ -140,6 +143,20 @@ describe('placeOrderAction', () => {
       error: 'payment_unavailable',
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('allows production test orders only for an active staff reviewer', async () => {
+    vi.stubEnv('VERCEL_ENV', 'production');
+    vi.stubEnv('ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION', 'true');
+
+    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({
+      ok: false,
+      error: 'payment_unavailable',
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+
+    mocks.auth = { ...onboardedAuth(), isStaff: true };
+    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: true, orderId });
   });
 
   it.each([

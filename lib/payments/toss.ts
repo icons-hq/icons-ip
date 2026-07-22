@@ -148,7 +148,13 @@ export type TossCancellationStateVerification =
  * 모두 확인한 뒤에만 로컬 환불 증거로 승격한다. */
 export function verifyTossCancellationState(
   data: unknown,
-  expected: { paymentKey: string; orderId: string; amount: number },
+  expected: {
+    paymentKey: string;
+    orderId: string;
+    amount: number;
+    type?: string;
+    currency?: string;
+  },
 ): TossCancellationStateVerification {
   const payment = normalizeTossPayment(data);
   if (
@@ -159,7 +165,10 @@ export function verifyTossCancellationState(
   ) {
     return { ok: false, reason: 'provider_response_mismatch' };
   }
-  if (payment.type !== 'NORMAL' || payment.currency !== 'KRW') {
+  if (
+    payment.type !== (expected.type ?? 'NORMAL')
+    || payment.currency !== (expected.currency ?? 'KRW')
+  ) {
     return { ok: false, reason: 'unsupported_payment_contract' };
   }
 

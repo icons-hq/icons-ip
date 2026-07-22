@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildTossWidgetPaymentRequest,
+  resolveTossPaymentMethodVariantKey,
   TossPaymentWidget,
 } from './TossPaymentWidget';
 
@@ -39,6 +40,18 @@ describe('buildTossWidgetPaymentRequest', () => {
       successUrl: `https://icons.test/ticket-checkout/success?ref=${referenceId}`,
       failUrl: `https://icons.test/ticket-checkout/fail?ref=${referenceId}`,
     });
+  });
+});
+
+describe('resolveTossPaymentMethodVariantKey', () => {
+  it('uses the review-only payment-method variant when configured', () => {
+    expect(resolveTossPaymentMethodVariantKey('test_gck_example', ' ICONS_REVIEW '))
+      .toBe('ICONS_REVIEW');
+  });
+
+  it('falls back to the provider default outside the review environment', () => {
+    expect(resolveTossPaymentMethodVariantKey('test_gck_example', undefined)).toBe('DEFAULT');
+    expect(resolveTossPaymentMethodVariantKey('live_gck_example', 'ICONS_REVIEW')).toBe('DEFAULT');
   });
 });
 
