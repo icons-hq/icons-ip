@@ -86,7 +86,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 |---|---|---|
 | 호스팅 | **Vercel** (Fluid Compute) | Next 16, Route Handler 웹훅·Cron |
 | DB/Auth/Storage | **Supabase** (Postgres + Auth + Storage) | 스캐폴딩 이미 존재 |
-| 인증 | Supabase Auth: 현재 **이메일/PW** 구현, 목표 **Google + Apple + Kakao** 추가 | 소셜 버튼은 UI만 있고 아직 비활성화. 모든 가입 경로는 온보딩에서 프로필 완성 |
+| 인증 | Supabase Auth: **이메일/PW + Google + Apple + Kakao** OAuth 구현 | production provider 3종과 공급자 이메일 claim 설정 완료. 모든 가입 경로는 온보딩에서 프로필 완성하며 production 배포 후 controlled smoke 필요 |
 | 결제 | **토스페이먼츠** 직접(결제창/위젯 + 웹훅) | 단일 PG. 굿즈·티켓·지갑 충전 공용 |
 | 검색 | **Postgres** pg_trgm + ILIKE | 외부 검색엔진 없음(v1) |
 | 미디어 | **Supabase Storage** | public `public-media`(검증된 카탈로그/아트워크) + private `admin-artwork-staging`(검증 전 관리자 업로드)·`user-uploads`(사용자 업로드) |
@@ -226,12 +226,12 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 ## 8. 인증 & 온보딩 흐름
 
 1. 진입: 보호 액션 클릭 → `/login`.
-2. 현재 수단: 이메일/PW. Google/Apple/Kakao는 v1 목표지만 아직 provider 연동 전이며 UI 버튼은 비활성 상태다.
+2. 현재 수단: 이메일/PW와 Google/Apple/Kakao. 소셜 버튼은 공급자 allow-list를 둔 Server Action에서 Supabase `signInWithOAuth()`를 호출한다.
 3. 회원가입: Supabase `signUp()`으로 확인 메일을 발송한다. 같은 브라우저에서 같은 이메일을 반복 제출하면 서명된 httpOnly cookie로 3회/10분 window를 추적하고 `auth.resend({ type: 'signup' })`로 재발송한다.
 4. 비밀번호 재설정: `/login?mode=reset`은 계정 존재 여부와 무관한 응답을 반환하고, 정규화 이메일별 브라우저 요청을 서명 쿠키로 총 3회/10분 제한한다. 쿠키에는 raw email 대신 domain-separated HMAC digest만 저장하고, 활성 bucket은 12개로 제한한다.
-5. 가입 확인·recovery의 `redirectTo`는 query 없는 `/auth/callback`이다. 서명된 `icons_auth_next`는 목적·안전한 `next`·발급 시각을 저장하고 signup 10분/recovery 1시간을 검증한다. Recovery 목적지는 query보다 이 쿠키를 우선한다.
+5. 가입 확인·recovery·OAuth의 `redirectTo`는 query 없는 `/auth/callback`이다. 서명된 `icons_auth_next`는 목적·안전한 `next`·발급 시각을 저장하고 signup/OAuth 10분, recovery 1시간을 검증한다. Recovery 목적지는 query보다 이 쿠키를 우선한다.
    - Callback origin은 고정 production/local origin 또는 플랫폼이 제공한 현재 `VERCEL_URL`만 허용하며, 임의의 요청 `Origin`/Host는 production canonical origin으로 정규화한다.
-6. Callback은 code exchange 뒤 `getUser()`로 사용자를 재검증한다. Recovery는 계정 정지·온보딩 게이트를 건너뛰고 `/update-password`로 보내 비밀번호 회복 경로를 유지한다. 일반 로그인·가입 callback은 profile이 정지 상태면 내부 사유 없는 `/account-suspended`로 먼저 보낸다. Redirect 직후 첫 SSR 요청이 아직 세션 cookie를 보지 못하면 성공 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 다시 수행하고, 세션 확인 전에는 비밀번호 폼을 렌더링하지 않는다. 일반 가입만 기존 profile/onboarding 판정을 유지한다.
+6. Callback은 code exchange 뒤 `getUser()`로 사용자를 재검증한다. Recovery는 계정 정지·온보딩 게이트를 건너뛰고 `/update-password`로 보내 비밀번호 회복 경로를 유지한다. 일반 로그인·가입·OAuth callback은 profile이 정지 상태면 내부 사유 없는 `/account-suspended`로 먼저 보낸다. Redirect 직후 첫 SSR 요청이 아직 세션 cookie를 보지 못하면 성공 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 다시 수행하고, 세션 확인 전에는 비밀번호 폼을 렌더링하지 않는다. 가입과 OAuth는 profile/onboarding 판정 뒤 안전한 원래 경로로 복귀한다.
 7. `/update-password`는 인증 세션에서 `updateUser({ password })`를 호출한다. 성공 뒤 global sign-out을 완료하고 로그인 화면으로 보내며, 전역 로그아웃 실패는 비밀번호 변경 성공과 잔여 세션 위험을 분리해 안내한다.
 8. 일반 가입은 온보딩 완료 후 추천 IP 팔로우를 저장하고 보존된 `next` 경로로 이동한다.
 
@@ -241,6 +241,8 @@ Production Auth 설정:
 - Redirect URLs: `https://iconsip.com/auth/callback`, `https://www.iconsip.com/auth/callback`, `https://icons-ip.vercel.app/auth/callback`, Vercel preview wildcard, local callback.
 - 이메일 confirmation은 켜고, 가입 확인·비밀번호 재설정 메일은 Resend `iconsip.com` custom SMTP를 사용한다.
 - `main` 배포 workflow가 Supabase Management API로 Site URL, redirect allow-list, secure email change, email rate limit을 확인·동기화한다. custom SMTP 필수 필드가 비어 있으면 production 배포를 실패시킨다.
+- 외부 OAuth callback은 세 공급자 모두 `https://sbutbsghcxmxmxgrshwq.supabase.co/auth/v1/callback`이다. Google은 production 공개 앱, Apple은 `com.iconsip.app` primary App ID와 `com.iconsip.web` Services ID, Kakao는 앱 ID `1520482`의 REST API 키를 사용한다. Apple secret은 2027-01-18 이전에 교체한다.
+- Kakao 앱은 `(주) 아이콘스` 비즈 앱이고 `account_email`을 필수 동의·계정 정보 수집으로 요청한다. Supabase provider의 이메일 없는 사용자 허용은 꺼서 현재 `isOnboarded()`의 profile/auth email 필수 조건과 맞춘다.
 
 본인확인: 자가신고 생년월일 + 결제 시 결제사 위임. (게임물 연령등급이 요구하면 §PRD 5.1대로 PASS 본인인증을 가챠/고액 결제 게이트에 추가.)
 

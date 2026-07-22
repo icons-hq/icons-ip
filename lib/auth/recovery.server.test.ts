@@ -34,6 +34,26 @@ describe('signed auth-next cookie', () => {
     });
   });
 
+  it('round-trips oauth state with the signup ten-minute lifetime', () => {
+    const value = signedAuthNextCookieValue('/shop?tab=goods', 'oauth', NOW, SECRET);
+
+    expect(authNextStateFromCookie(value, NOW, SECRET)).toEqual({
+      issuedAt: NOW,
+      next: '/shop?tab=goods',
+      purpose: 'oauth',
+    });
+    expect(authNextStateFromCookie(
+      value,
+      NOW + AUTH_NEXT_SIGNUP_MAX_AGE_SECONDS * 1000 - 1,
+      SECRET,
+    )).toMatchObject({ purpose: 'oauth' });
+    expect(authNextStateFromCookie(
+      value,
+      NOW + AUTH_NEXT_SIGNUP_MAX_AGE_SECONDS * 1000,
+      SECRET,
+    )).toBeNull();
+  });
+
   it('normalizes unsafe next paths before signing', () => {
     const value = signedAuthNextCookieValue('https://evil.example', 'signup', NOW, SECRET);
 

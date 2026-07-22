@@ -52,9 +52,9 @@ function callbackState(request: NextRequest) {
   return {
     fallbackNext,
     recoveryNext: signedState?.purpose === 'recovery' ? signedState.next : '/',
-    signupNext: queryNext !== null
+    loginNext: queryNext !== null
       ? safeNextPath(queryNext)
-      : signedState?.purpose === 'signup'
+      : signedState?.purpose === 'signup' || signedState?.purpose === 'oauth'
         ? signedState.next
         : fallbackNext,
     signedState,
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
       request,
       providerError,
       markedRecovery,
-      markedRecovery ? state.recoveryNext : state.signupNext,
+      markedRecovery ? state.recoveryNext : state.loginNext,
     );
   }
   if (!code) {
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
       request,
       'missing_code',
       markedRecovery,
-      markedRecovery ? state.recoveryNext : state.signupNext,
+      markedRecovery ? state.recoveryNext : state.loginNext,
     );
   }
 
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
       request,
       'provider_disabled',
       markedRecovery,
-      markedRecovery ? state.recoveryNext : state.signupNext,
+      markedRecovery ? state.recoveryNext : state.loginNext,
     );
   }
 
@@ -140,13 +140,13 @@ export async function GET(request: NextRequest) {
       request,
       error.code ?? 'exchange_failed',
       markedRecovery,
-      markedRecovery ? state.recoveryNext : state.signupNext,
+      markedRecovery ? state.recoveryNext : state.loginNext,
       authResponse,
     );
   }
 
   const recovery = isRecoveryExchange(exchangeData);
-  const next = recovery ? state.recoveryNext : state.signupNext;
+  const next = recovery ? state.recoveryNext : state.loginNext;
 
   const { data, error: userError } = await supabase.auth.getUser();
   if (userError || !data.user) {

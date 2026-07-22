@@ -12,7 +12,7 @@ ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 �
 - 커뮤니티 공개 피드는 Supabase `posts`/`public_profiles`와 최근 7일 visible 포스트의 트렌딩 태그를 읽고, 로그인·온보딩 완료 사용자는 텍스트, 태그, 선택 이미지를 포함한 포스트를 작성할 수 있다. 댓글, 좋아요, 작성자 삭제, 신고, 차단도 Server Action + RPC로 연결되어 있다.
 - 검색은 Supabase 환경변수가 있으면 Postgres `search_public_content` RPC로 IP, 굿즈, 카드, visible 포스트, 태그를 그룹 검색하고, 로컬 fallback에서는 mock 데이터를 사용한다.
 - `/admin`은 staff/admin 게이트, 카탈로그 CRUD·보관/복원·아트워크 업로드, 카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩, 뽑기권 발급 정책, 카드 보상형 참여형 게임 등록·운영과 PII-free 플레이 집계, 감사 로그, 커뮤니티 신고 상태 변경과 포스트 숨김 처리 경로에 연결되어 있다. 기존 굿즈 variant는 #115 전까지 읽기 전용이다.
-- Google, Kakao, Apple 버튼은 UI 자리만 있으며 아직 비활성화되어 있다.
+- Google, Kakao, Apple 버튼은 Supabase 관리형 OAuth Server Action에 연결되어 있고 production Supabase provider도 모두 활성화되어 있다. Google은 production 공개 상태이며 Apple App ID·Services ID·callback·서명 키 구성이 완료됐다. Kakao는 `(주) 아이콘스` 비즈 앱, 로그인용 client secret, `account_email` 필수 동의·계정 정보 수집까지 설정했고 Supabase의 이메일 없는 사용자 허용은 꺼져 있다. 코드가 production에 배포된 뒤 controlled login smoke가 남아 있다.
 - 굿즈·티켓 결제와 주문 원장, 티켓 현장 검표는 서버 경계에 연결되어 있다. production 실제 결제는 라이브 상점 설정 검증 전까지 비활성이다.
 
 ## 빠른 시작
@@ -72,6 +72,18 @@ Server Action이 만드는 callback origin은 production·www·기본 Vercel·lo
 
 Recovery callback은 code exchange 뒤 `getUser()`로 세션을 재검증하고 온보딩 여부와 무관하게 `/update-password`로 보낸다. 브라우저가 redirect 응답의 세션 cookie를 첫 SSR 요청보다 늦게 반영하면 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 한 번 다시 수행하며, 세션 확인 전에는 비밀번호 폼을 노출하지 않는다. 새 비밀번호 저장 뒤 global sign-out을 완료하면 `/login?password_reset=success`로 이동한다. 일반 가입 callback은 기존 온보딩 게이트를 유지하고, 회원가입 확인 메일 재전송은 서명된 httpOnly 쿠키로 3회/10분 window를 추적한 뒤 Supabase `auth.resend({ type: 'signup' })`를 사용한다. `main` 배포 workflow는 Site URL, Redirect URLs, 이메일 confirmation, 보안 이메일 변경, 이메일 전송 rate limit을 확인하고 누락 시 보정한다.
 
+### 소셜 OAuth 공급자 운영
+
+세 공급자가 공유하는 외부 callback은 `https://sbutbsghcxmxmxgrshwq.supabase.co/auth/v1/callback`이다. 앱이 Supabase에서 돌아온 뒤 사용하는 callback은 위 Redirect URLs의 `/auth/callback`이며, 소셜 로그인 `next`도 `icons_auth_next`에 `purpose: oauth`로 10분 동안 서명해 보존한다.
+
+- Google: Google Cloud project `icons-503202`, Auth Platform 앱 `ICONS`, Web client `ICONS Web`을 사용한다. JavaScript origin은 `https://iconsip.com`, `https://www.iconsip.com`이고 redirect URI는 Supabase callback 한 개다. 게시 상태는 production이며 scope는 `openid`, email, profile만 사용한다.
+- Kakao: Kakao Developers 비즈 앱 `ICONS`(앱 ID `1520482`)의 `ICONS Web` REST API 키를 사용한다. Kakao Login과 로그인용 client secret은 ON이고 redirect URI는 Supabase callback이다. `account_email`은 `필수 동의 [수집]`이며 목적은 회원 가입·로그인과 계정 식별이다. Supabase의 `Allow users without an email`은 OFF로 유지한다.
+- Apple: primary App ID `com.iconsip.app`, Services ID `com.iconsip.web`을 사용한다. Services ID의 domain은 `sbutbsghcxmxmxgrshwq.supabase.co`, return URL은 Supabase callback이다. Supabase Client IDs에서는 웹용 Services ID를 첫 항목으로 둔다.
+
+OAuth client secret, Apple Team ID·Key ID와 `.p8` 원문은 저장소, 문서, 채팅, 명령 인자에 남기지 않는다. Apple `.p8`은 재다운로드할 수 없으므로 접근 제한된 비밀 저장소에 백업하고, 노출 또는 분실 시 새 키를 발급한 뒤 기존 키를 폐기한다.
+
+현재 Apple OAuth client secret의 만료일은 **2027-01-18**이다. 늦어도 2027-01-04까지 동일한 Services ID로 새 ES256 client secret을 생성해 Supabase Dashboard → Authentication → Sign In / Providers → Apple의 Secret Key를 교체하고, provider가 Enabled인지 확인한 뒤 controlled web login을 검증한다. 새 secret은 최대 6개월만 유효하며 교체가 끝나기 전 기존 키를 폐기하지 않는다.
+
 Production에서 이메일/PW 가입을 운영하려면 Supabase Auth custom SMTP를 활성화하고 Authentication → Rate Limits에서 이메일 전송 한도를 운영 트래픽에 맞춰 조정한다. Supabase 기본 메일 provider는 production 용도가 아니며, 기본 전송량 제한이 강하다. `main` 배포 workflow는 custom SMTP가 비활성화되어 있거나 `smtp_host`, `smtp_port`, `smtp_user`, `smtp_admin_email`이 비어 있으면 production 배포를 실패시킨다. SMTP 비밀번호는 workflow에서 읽거나 출력하지 않고 repo에 커밋하지 않는다.
 
 현재 production 메일 발송은 Supabase Auth → custom SMTP → Resend 경로를 사용한다. `iconsip.com`은 Resend에서 verified domain으로 관리하고, SMTP sender는 `no-reply@iconsip.com`을 기준으로 한다. 도메인 DNS는 Cloudflare에서 관리하며, Vercel 앱 레코드와 Resend DKIM/SPF/DMARC/MX 레코드를 함께 둔다. Resend 계정에 다른 프로젝트 도메인이 함께 있어도 앱별 domain-scoped API key를 분리해서 사용한다.
@@ -129,8 +141,8 @@ CRON_SECRET
 ## 프로젝트 지도
 
 - `app/`: Next.js App Router 라우트.
-- `app/auth/callback/route.ts`: Supabase Auth code exchange와 가입/onboarding 또는 recovery/update-password redirect 처리.
-- `app/login/actions.ts`: 이메일 로그인/회원가입, 확인 메일 재전송, 비밀번호 재설정 메일 요청, 로그아웃 server action.
+- `app/auth/callback/route.ts`: Supabase Auth code exchange와 가입·소셜 로그인/onboarding 또는 recovery/update-password redirect 처리.
+- `app/login/actions.ts`: 이메일 로그인/회원가입, Google·Apple·Kakao OAuth 시작, 확인 메일 재전송, 비밀번호 재설정 메일 요청, 로그아웃 server action.
 - `app/update-password/`: recovery 세션 재검증, 새 비밀번호 저장, 전역 로그아웃.
 - `app/onboarding/actions.ts`: 프로필 완성과 추천 IP 팔로우 저장 server action.
 - `app/ip/actions.ts`: IP 팔로우/언팔로우 보호 액션.

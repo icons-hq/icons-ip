@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { requestPasswordResetAction, signUpWithEmailAction } from './actions';
+import {
+  requestPasswordResetAction,
+  signInWithSocialAction,
+  signUpWithEmailAction,
+} from './actions';
 
 const AUTH_SIGNUP_RESEND_COOKIE_NAME = 'icons_auth_signup_resend';
 const AUTH_NEXT_COOKIE_NAME = 'icons_auth_next';
@@ -14,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   cookies: new Map<string, string>(),
   cookieSetCalls: [] as Array<{ name: string; value: string; options?: Record<string, unknown> }>,
   signUp: vi.fn(),
+  signInWithOAuth: vi.fn(),
   resend: vi.fn(),
   resetPasswordForEmail: vi.fn(),
 }));
@@ -26,6 +31,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({
     auth: {
       signUp: mocks.signUp,
+      signInWithOAuth: mocks.signInWithOAuth,
       resend: mocks.resend,
       resetPasswordForEmail: mocks.resetPasswordForEmail,
     },
@@ -89,6 +95,13 @@ function resetFormData(email = 'Fan@Icons.gg', next = '/community?sort=hot') {
   return data;
 }
 
+function socialFormData(provider: string, next = '/community?sort=hot') {
+  const data = new FormData();
+  data.set('provider', provider);
+  data.set('next', next);
+  return data;
+}
+
 function decodeSignedCookiePayload(value: string) {
   const parts = value.split('.');
   expect(parts).toHaveLength(2);
@@ -96,6 +109,110 @@ function decodeSignedCookiePayload(value: string) {
   expect(parts[1]).toBeTruthy();
   return JSON.parse(Buffer.from(parts[0], 'base64url').toString('utf8')) as Record<string, unknown>;
 }
+
+describe('signInWithSocialAction', () => {
+  beforeEach(() => {
+    process.env.AUTH_SIGNUP_RESEND_SECRET = TEST_SIGNUP_RESEND_SECRET;
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-07-22T00:00:00.000Z'));
+    mocks.isConfigured = true;
+    mocks.headers = new Map<string, string>([['origin', 'https://iconsip.com']]);
+    mocks.cookies.clear();
+    mocks.cookieSetCalls.length = 0;
+    mocks.signInWithOAuth.mockReset();
+    mocks.signInWithOAuth.mockResolvedValue({
+      data: { provider: 'google', url: 'https://accounts.google.com/o/oauth2/v2/auth?state=safe' },
+      error: null,
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    if (ORIGINAL_SIGNUP_RESEND_SECRET === undefined) {
+      delete process.env.AUTH_SIGNUP_RESEND_SECRET;
+    } else {
+      process.env.AUTH_SIGNUP_RESEND_SECRET = ORIGINAL_SIGNUP_RESEND_SECRET;
+    }
+    if (ORIGINAL_VERCEL_URL === undefined) delete process.env.VERCEL_URL;
+    else process.env.VERCEL_URL = ORIGINAL_VERCEL_URL;
+  });
+
+  it.each(['google', 'apple', 'kakao'])('starts %s OAuth with the trusted callback', async (provider) => {
+    mocks.signInWithOAuth.mockResolvedValueOnce({
+      data: { provider, url: `https://provider.example/${provider}` },
+      error: null,
+    });
+
+    await expect(signInWithSocialAction({}, socialFormData(provider))).rejects.toThrow(
+      `NEXT_REDIRECT:https://provider.example/${provider}`,
+    );
+    expect(mocks.signInWithOAuth).toHaveBeenCalledWith({
+      provider,
+      options: { redirectTo: 'https://iconsip.com/auth/callback' },
+    });
+    expect(decodeSignedCookiePayload(latestCookieSet(AUTH_NEXT_COOKIE_NAME)?.value ?? '')).toMatchObject({
+      next: '/community?sort=hot',
+      purpose: 'oauth',
+    });
+    expect(latestCookieSet(AUTH_NEXT_COOKIE_NAME)?.options).toMatchObject({
+      httpOnly: true,
+      maxAge: 10 * 60,
+      path: '/auth/callback',
+      sameSite: 'lax',
+      secure: true,
+    });
+  });
+
+  it('rejects an unknown provider before calling Supabase', async () => {
+    const state = await signInWithSocialAction({}, socialFormData('github'));
+
+    expect(state.errors?.form).toBe('현재 해당 소셜 로그인을 사용할 수 없습니다. 잠시 후 다시 시도해주세요.');
+    expect(mocks.signInWithOAuth).not.toHaveBeenCalled();
+  });
+
+  it('normalizes an unsafe next path before signing it', async () => {
+    mocks.signInWithOAuth.mockResolvedValueOnce({
+      data: { url: 'https://provider.example/google' },
+      error: null,
+    });
+
+    await expect(
+      signInWithSocialAction({}, socialFormData('google', 'https://evil.example')),
+    ).rejects.toThrow('NEXT_REDIRECT:https://provider.example/google');
+    expect(decodeSignedCookiePayload(latestCookieSet(AUTH_NEXT_COOKIE_NAME)?.value ?? '')).toMatchObject({
+      next: '/',
+    });
+  });
+
+  it('does not expose provider errors or set auth-next state when OAuth cannot start', async () => {
+    mocks.signInWithOAuth.mockResolvedValueOnce({
+      data: { url: null },
+      error: { code: 'provider_disabled', message: 'private provider detail' },
+    });
+
+    const state = await signInWithSocialAction({}, socialFormData('google'));
+
+    expect(state).toEqual({
+      errors: { form: '현재 해당 소셜 로그인을 사용할 수 없습니다. 잠시 후 다시 시도해주세요.' },
+    });
+    expect(JSON.stringify(state)).not.toContain('private provider detail');
+    expect(latestCookieSet(AUTH_NEXT_COOKIE_NAME)).toBeUndefined();
+  });
+
+  it('fails closed when Supabase or the signing secret is unavailable', async () => {
+    mocks.isConfigured = false;
+    expect(await signInWithSocialAction({}, socialFormData('google'))).toEqual({
+      errors: { form: '현재 해당 소셜 로그인을 사용할 수 없습니다. 잠시 후 다시 시도해주세요.' },
+    });
+
+    mocks.isConfigured = true;
+    delete process.env.AUTH_SIGNUP_RESEND_SECRET;
+    expect(await signInWithSocialAction({}, socialFormData('google'))).toEqual({
+      errors: { form: '현재 해당 소셜 로그인을 사용할 수 없습니다. 잠시 후 다시 시도해주세요.' },
+    });
+    expect(mocks.signInWithOAuth).not.toHaveBeenCalled();
+  });
+});
 
 describe('signUpWithEmailAction signup confirmation resend', () => {
   beforeEach(() => {

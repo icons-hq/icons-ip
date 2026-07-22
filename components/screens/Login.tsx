@@ -5,6 +5,7 @@ import { useActionState, useId } from 'react';
 import {
   requestPasswordResetAction,
   signInWithEmailAction,
+  signInWithSocialAction,
   signUpWithEmailAction,
   type AuthActionState,
 } from '@/app/login/actions';
@@ -87,12 +88,15 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
   const [signInState, signInAction, signInPending] = useActionState(signInWithEmailAction, emptyState);
   const [signUpState, signUpAction, signUpPending] = useActionState(signUpWithEmailAction, emptyState);
   const [resetState, resetAction, resetPending] = useActionState(requestPasswordResetAction, emptyState);
+  const [socialState, socialAction, socialPending] = useActionState(signInWithSocialAction, emptyState);
 
   const isSignUp = initialMode === 'signup';
   const isReset = initialMode === 'reset';
   const state = isReset ? resetState : isSignUp ? signUpState : signInState;
   const pending = isReset ? resetPending : isSignUp ? signUpPending : signInPending;
-  const formError = state.errors?.form ?? (state.message ? undefined : initialError);
+  const formError = state.errors?.form
+    ?? (!isReset ? socialState.errors?.form : undefined)
+    ?? (state.message ? undefined : initialError);
   const formMessage = state.message ?? (!isSignUp && !isReset ? initialMessage : undefined);
   const resetHref = `/login?mode=reset${next === '/' ? '' : `&next=${encodeURIComponent(next)}`}`;
   const signInHref = `/login?mode=signin${next === '/' ? '' : `&next=${encodeURIComponent(next)}`}`;
@@ -214,7 +218,7 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
                 {formMessage}
               </div>
             )}
-            <button className="btn btn-holo" disabled={!isConfigured || pending} style={{ width: '100%', height: 52, marginTop: 4, fontSize: 15 }}>
+            <button type="submit" className="btn btn-holo" disabled={!isConfigured || pending} style={{ width: '100%', height: 52, marginTop: 4, fontSize: 15 }}>
               {pending
                 ? isReset ? '메일 보내는 중…' : '처리 중'
                 : isReset ? '재설정 메일 받기' : isSignUp ? '가입하고 시작하기' : '로그인'}
@@ -239,17 +243,18 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
                 <span style={{ flex: 1, height: 1, background: 'rgba(255,255,255,.09)' }} />
               </div>
 
-              <div className="col" style={{ gap: 9 }}>
-                <button type="button" style={{ height: 48, borderRadius: 999, fontWeight: 600, fontSize: 14, color: '#1F1F1F', background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
+              <form action={socialAction} className="col" style={{ gap: 9 }}>
+                <input type="hidden" name="next" value={next} />
+                <button type="submit" name="provider" value="google" disabled={!isConfigured || socialPending} style={{ height: 48, borderRadius: 999, fontWeight: 600, fontSize: 14, color: '#1F1F1F', background: '#FFFFFF', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
                   <span style={{ fontWeight: 700 }}>G</span> Google로 계속하기
                 </button>
-                <button type="button" style={{ height: 48, borderRadius: 999, fontWeight: 600, fontSize: 14, color: '#fff', background: '#000', border: '1px solid rgba(255,255,255,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
+                <button type="submit" name="provider" value="apple" disabled={!isConfigured || socialPending} style={{ height: 48, borderRadius: 999, fontWeight: 600, fontSize: 14, color: '#fff', background: '#000', border: '1px solid rgba(255,255,255,.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
                   Apple로 계속하기
                 </button>
-                <button type="button" style={{ height: 48, borderRadius: 999, fontWeight: 600, fontSize: 14, color: '#191919', background: '#FEE500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
+                <button type="submit" name="provider" value="kakao" disabled={!isConfigured || socialPending} style={{ height: 48, borderRadius: 999, fontWeight: 600, fontSize: 14, color: '#191919', background: '#FEE500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 9 }}>
                   <span style={{ fontWeight: 800 }}>K</span> 카카오로 계속하기
                 </button>
-              </div>
+              </form>
             </>
           )}
 
