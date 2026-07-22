@@ -174,8 +174,10 @@ begin
   select count(*) into matched_count
   from public.goods
   where id = any (array['g10', 'g12'])
-    and archived_at is not null;
+    and archived_at is not null
+    and stock = 'soldout'
+    and stock_qty = 0;
   if matched_count <> 2 then
-    raise exception 'catalog baseline invalid: expected g10 and g12 history to remain archived, found %', matched_count;
+    raise exception 'catalog baseline invalid: expected g10 and g12 history to remain archived and non-sellable, found %', matched_count;
   end if;
 end $$;
