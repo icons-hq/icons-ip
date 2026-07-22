@@ -68,7 +68,7 @@ function request(path: string, cookieValue?: string) {
   });
 }
 
-function signedCookie(purpose: 'signup' | 'recovery', next = '/community?sort=hot') {
+function signedCookie(purpose: 'signup' | 'oauth' | 'recovery', next = '/community?sort=hot') {
   return signedAuthNextCookieValue(next, purpose, Date.now(), SECRET);
 }
 
@@ -176,6 +176,29 @@ describe('GET /auth/callback', () => {
 
     expect(locationPath(response)).toBe('/community?sort=hot');
     expect(mocks.getProfileForUser).toHaveBeenCalledOnce();
+  });
+
+  it('sends a new OAuth user through onboarding with the original next path', async () => {
+    mocks.getProfileForUser.mockResolvedValue({ ...completeProfile, onboarded_at: null });
+
+    const response = await GET(request('/auth/callback?code=oauth-code', signedCookie('oauth')));
+
+    expect(locationPath(response)).toBe('/onboarding?next=%2Fcommunity%3Fsort%3Dhot');
+    expect(response.headers.get('set-cookie')).toContain(`${AUTH_NEXT_COOKIE_NAME}=;`);
+  });
+
+  it('returns an onboarded OAuth user to the original safe path', async () => {
+    const response = await GET(request('/auth/callback?code=oauth-code', signedCookie('oauth')));
+
+    expect(locationPath(response)).toBe('/community?sort=hot');
+  });
+
+  it('keeps OAuth cancellation on safe signin UX with the original next path', async () => {
+    const response = await GET(request('/auth/callback?error=access_denied', signedCookie('oauth')));
+
+    expect(locationPath(response)).toBe(
+      '/login?mode=signin&auth_error=access_denied&next=%2Fcommunity%3Fsort%3Dhot',
+    );
   });
 
   it('redirects a suspended signup session before onboarding or next', async () => {

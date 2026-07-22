@@ -6,15 +6,18 @@ const mocks = vi.hoisted(() => ({
   signInState: {} as Record<string, unknown>,
   signUpState: {} as Record<string, unknown>,
   resetState: {} as Record<string, unknown>,
+  socialState: {} as Record<string, unknown>,
   signIn: vi.fn(),
   signUp: vi.fn(),
   reset: vi.fn(),
+  social: vi.fn(),
 }));
 
 vi.mock('@/app/login/actions', () => ({
   signInWithEmailAction: mocks.signIn,
   signUpWithEmailAction: mocks.signUp,
   requestPasswordResetAction: mocks.reset,
+  signInWithSocialAction: mocks.social,
 }));
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
@@ -23,6 +26,7 @@ vi.mock('react', async () => {
     useActionState: (action: unknown) => {
       if (action === mocks.signIn) return [mocks.signInState, vi.fn(), false];
       if (action === mocks.signUp) return [mocks.signUpState, vi.fn(), false];
+      if (action === mocks.social) return [mocks.socialState, vi.fn(), false];
       return [mocks.resetState, vi.fn(), false];
     },
   };
@@ -43,6 +47,34 @@ describe('Login', () => {
     mocks.signInState = {};
     mocks.signUpState = {};
     mocks.resetState = {};
+    mocks.socialState = {};
+  });
+
+  it('renders one social form with provider submit values and the preserved next path', () => {
+    const html = render();
+
+    expect(html).toContain('name="next" value="/community?sort=hot"');
+    expect(html).toMatch(/<button[^>]*(?:name="provider"[^>]*value="google"|value="google"[^>]*name="provider")/);
+    expect(html).toMatch(/<button[^>]*(?:name="provider"[^>]*value="apple"|value="apple"[^>]*name="provider")/);
+    expect(html).toMatch(/<button[^>]*(?:name="provider"[^>]*value="kakao"|value="kakao"[^>]*name="provider")/);
+    expect(html.match(/type="submit"/g)).toHaveLength(4);
+  });
+
+  it('disables all auth submits when Supabase is not configured', () => {
+    const html = render({ isConfigured: false });
+
+    expect(html.match(/disabled=""/g)).toHaveLength(4);
+  });
+
+  it('shows a safe social error and omits social login in reset mode', () => {
+    mocks.socialState = {
+      errors: { form: '현재 해당 소셜 로그인을 사용할 수 없습니다. 잠시 후 다시 시도해주세요.' },
+    };
+
+    expect(render()).toContain('현재 해당 소셜 로그인을 사용할 수 없습니다. 잠시 후 다시 시도해주세요.');
+    const resetHtml = render({ initialMode: 'reset' });
+    expect(resetHtml).not.toContain('name="provider"');
+    expect(resetHtml).not.toContain('Google로 계속하기');
   });
 
   it('renders password recovery as an actual link that preserves next', () => {

@@ -37,6 +37,8 @@ export interface AuthActionState {
   };
 }
 
+export type SocialAuthProvider = 'google' | 'apple' | 'kakao';
+
 interface Credentials {
   email: string;
   password: string;
@@ -71,12 +73,20 @@ const STATIC_AUTH_ORIGINS = new Set([
 const SIGNUP_CONFIRMATION_SENT_MESSAGE = '가입 확인 메일을 보냈습니다. 받은편지함과 스팸함에서 최신 확인 메일을 열어주세요. 이미 가입한 이메일이라면 로그인도 시도할 수 있습니다.';
 const SIGNUP_CONFIRMATION_RESENT_MESSAGE = '새 확인 메일을 보냈습니다. 받은편지함과 스팸함에서 최신 확인 메일을 열어주세요.';
 const PASSWORD_RESET_SENT_MESSAGE = '해당 이메일로 가입한 계정이 있다면 재설정 메일을 보냈습니다. 요청한 브라우저에서 최신 링크를 열어주세요.';
+const SOCIAL_AUTH_PROVIDERS = new Set<SocialAuthProvider>(['google', 'apple', 'kakao']);
+const SOCIAL_AUTH_UNAVAILABLE_MESSAGE = '현재 해당 소셜 로그인을 사용할 수 없습니다. 잠시 후 다시 시도해주세요.';
 
 type CookieStore = Awaited<ReturnType<typeof cookies>>;
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === 'string' ? value : '';
+}
+
+function socialAuthProvider(value: FormDataEntryValue | null): SocialAuthProvider | null {
+  return typeof value === 'string' && SOCIAL_AUTH_PROVIDERS.has(value as SocialAuthProvider)
+    ? value as SocialAuthProvider
+    : null;
 }
 
 function validateCredentials(formData: FormData): { ok: true; credentials: Credentials } | { ok: false; state: AuthActionState } {
@@ -282,6 +292,35 @@ function passwordResetOperationalErrorMessage(error: AuthErrorLike | null | unde
     default:
       return '현재 비밀번호 재설정 요청을 처리할 수 없습니다. 잠시 후 다시 시도해주세요.';
   }
+}
+
+export async function signInWithSocialAction(
+  _state: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
+  const provider = socialAuthProvider(formData.get('provider'));
+  if (!provider) return { errors: { form: SOCIAL_AUTH_UNAVAILABLE_MESSAGE } };
+
+  const { isConfigured } = getSupabaseConfig();
+  const secret = authCookieSecret();
+  if (!isConfigured || !secret) {
+    return { errors: { form: SOCIAL_AUTH_UNAVAILABLE_MESSAGE } };
+  }
+
+  const next = safeNextPath(formData.get('next'));
+  const origin = await requestOrigin();
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: { redirectTo: authCallbackUrl(origin) },
+  });
+
+  if (error || !data.url) {
+    return { errors: { form: SOCIAL_AUTH_UNAVAILABLE_MESSAGE } };
+  }
+
+  await rememberAuthNextPath(origin, next, 'oauth', Date.now(), secret);
+  redirect(data.url);
 }
 
 export async function signInWithEmailAction(_state: AuthActionState, formData: FormData): Promise<AuthActionState> {

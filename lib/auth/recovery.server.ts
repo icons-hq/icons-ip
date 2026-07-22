@@ -11,7 +11,7 @@ export const PASSWORD_RESET_WINDOW_MS = 10 * 60 * 1000;
 export const PASSWORD_RESET_MAX_ATTEMPTS = 3;
 export const PASSWORD_RESET_MAX_BUCKETS = 12;
 
-export type AuthNextPurpose = 'signup' | 'recovery';
+export type AuthNextPurpose = 'signup' | 'oauth' | 'recovery';
 
 export interface AuthNextState {
   issuedAt: number;
@@ -92,7 +92,11 @@ export function authNextStateFromCookie(
   if (!parsed || typeof parsed !== 'object') return null;
 
   const candidate = parsed as Partial<AuthNextState>;
-  if (candidate.purpose !== 'signup' && candidate.purpose !== 'recovery') return null;
+  if (
+    candidate.purpose !== 'signup'
+    && candidate.purpose !== 'oauth'
+    && candidate.purpose !== 'recovery'
+  ) return null;
   if (typeof candidate.next !== 'string') return null;
   if (typeof candidate.issuedAt !== 'number' || !Number.isFinite(candidate.issuedAt)) return null;
   if (!Number.isInteger(candidate.issuedAt) || candidate.issuedAt > now) return null;
