@@ -338,8 +338,13 @@ async function rejectUnapprovedProductionTestPayment(
     console.error(`[webhooks/tosspayments] canceled test payment verification failed: ${canceledResult.code}`);
     return errorJson(500, 'auto_cancel_verification_failed');
   }
+  const cancellation = verifyTossCancellationState(canceledResult.body, {
+    paymentKey: payment.paymentKey,
+    orderId: payment.orderId,
+    amount: payment.totalAmount,
+  });
   const canceledPayment = normalizeTossPayment(canceledResult.body);
-  if (!canceledPayment || canceledPayment.status !== 'CANCELED') {
+  if (!cancellation.ok || cancellation.state !== 'fully_canceled' || !canceledPayment) {
     console.error('[webhooks/tosspayments] unapproved test payment cancellation shape invalid');
     return errorJson(500, 'auto_cancel_verification_failed');
   }

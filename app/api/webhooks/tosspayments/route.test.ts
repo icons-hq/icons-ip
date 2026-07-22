@@ -297,6 +297,34 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
     expect(mocks.rpc).not.toHaveBeenCalledWith('confirm_order_payment', expect.anything());
   });
 
+  it('검토 권한 밖 결제의 취소 응답이 원 결제와 다르면 로컬 선점을 원복하지 않는다', async () => {
+    mocks.reviewerProfile = { role: 'user', suspended_at: null };
+    mocks.fetchPayment.mockResolvedValue({
+      ok: true,
+      body: { ...virtualAccountPayment('DONE'), method: '카드' },
+    });
+    mocks.cancel.mockResolvedValue({
+      ok: true,
+      body: {
+        ...virtualAccountPayment('DONE'),
+        paymentKey: 'different-provider-key',
+        method: '카드',
+        status: 'CANCELED',
+        balanceAmount: 0,
+        cancels: [{ cancelAmount: 42000, cancelStatus: 'DONE' }],
+      },
+    });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'auto_cancel_verification_failed' },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
   it('fresh GET이 webhook event와 다른 paymentKey를 반환하면 로컬 mutation 없이 fail closed한다', async () => {
     mocks.fetchPayment.mockResolvedValue({
       ok: true,
