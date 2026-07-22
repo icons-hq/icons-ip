@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { paymentKeyMode, paymentKeysMatch, paymentsEnabledForRuntime } from './config';
+import {
+  paymentKeyMode,
+  paymentKeysMatch,
+  paymentsEnabledForRuntime,
+  productionTestPaymentReviewerAllowed,
+} from './config';
 
 describe('Toss payment key configuration', () => {
   it('recognizes test and live key prefixes without exposing their values', () => {
@@ -32,5 +37,17 @@ describe('Toss payment key configuration', () => {
     expect(paymentsEnabledForRuntime('test_gck_example', 'test_gsk_example', 'production', 'production', 'TRUE')).toBe(false);
     expect(paymentsEnabledForRuntime('test_gck_example', 'test_gsk_example', 'production', 'production', ' true')).toBe(false);
     expect(paymentsEnabledForRuntime('test_gck_example', 'test_gsk_example', 'production', 'production', '1')).toBe(false);
+  });
+
+  it('allows production test payments only for an explicitly listed reviewer UUID', () => {
+    const reviewerId = '00000000-0000-4000-8000-000000000001';
+    const otherId = '00000000-0000-4000-8000-000000000002';
+
+    expect(productionTestPaymentReviewerAllowed(reviewerId, reviewerId)).toBe(true);
+    expect(productionTestPaymentReviewerAllowed(reviewerId, ` ${otherId}, ${reviewerId} `)).toBe(true);
+    expect(productionTestPaymentReviewerAllowed(otherId, reviewerId)).toBe(false);
+    expect(productionTestPaymentReviewerAllowed('', reviewerId)).toBe(false);
+    expect(productionTestPaymentReviewerAllowed(reviewerId, '')).toBe(false);
+    expect(productionTestPaymentReviewerAllowed('not-a-uuid', 'not-a-uuid')).toBe(false);
   });
 });

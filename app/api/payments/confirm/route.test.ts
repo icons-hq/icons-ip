@@ -6,6 +6,7 @@ const ORDER_ID = `order_${ORDER_UUID}`;
 const TICKET_ORDER_ID = `ticket_${ORDER_UUID}`;
 
 const mocks = vi.hoisted(() => ({
+  reviewerAllowed: true,
   confirm: vi.fn(),
   cancel: vi.fn(),
   fetchPayment: vi.fn(),
@@ -22,6 +23,10 @@ const mocks = vi.hoisted(() => ({
     total: 42000,
     expires_at: null,
   } as Record<string, unknown> | null,
+}));
+
+vi.mock('@/lib/payments/checkout-availability', () => ({
+  checkoutPaymentsEnabled: () => mocks.reviewerAllowed,
 }));
 
 vi.mock('@/lib/payments/toss', async () => await import('../../../../lib/payments/toss'));
@@ -95,6 +100,7 @@ function approvedPayment(overrides: Record<string, unknown> = {}) {
 
 describe('POST /api/payments/confirm', () => {
   beforeEach(() => {
+    mocks.reviewerAllowed = true;
     mocks.target = {
       id: ORDER_UUID,
       user_id: 'user-1',
@@ -119,6 +125,18 @@ describe('POST /api/payments/confirm', () => {
     mocks.cancel.mockResolvedValue({ ok: true, body: { status: 'CANCELED' } });
     mocks.fetchPayment.mockResolvedValue({ ok: true, body: approvedPayment() });
     mocks.rpc.mockResolvedValue({ data: 'pending', error: null });
+  });
+
+  it('rejects payment approval for a user outside the production test reviewer allowlist', async () => {
+    mocks.reviewerAllowed = false;
+
+    const response = await POST(request(callbackBody()));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'payment_unavailable', message: '현재 계정에서는 결제를 진행할 수 없습니다.' },
+    });
+    expect(mocks.confirm).not.toHaveBeenCalled();
   });
 
   it.each([undefined, 'BRANDPAY'])('paymentType=%s 콜백은 NORMAL이 아니면 승인 전에 거부한다', async (paymentType) => {

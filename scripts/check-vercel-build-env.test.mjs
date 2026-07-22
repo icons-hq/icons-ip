@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 
 import { validateVercelBuildEnvironment } from './check-vercel-build-env.mjs';
 
@@ -11,6 +12,10 @@ const baseEnvironment = {
   TOSS_SECRET_KEY: 'test_gsk_example',
   SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
 };
+
+const testPairFingerprint = createHash('sha256')
+  .update(`${baseEnvironment.NEXT_PUBLIC_TOSS_CLIENT_KEY}\0${baseEnvironment.TOSS_SECRET_KEY}`)
+  .digest('hex');
 
 describe('validateVercelBuildEnvironment', () => {
   it('skips checks outside a Vercel preview or production build', () => {
@@ -76,6 +81,7 @@ describe('validateVercelBuildEnvironment', () => {
       ...baseEnvironment,
       VERCEL_ENV: 'production',
       CRON_SECRET: 'cron_secret_for_production',
+      TOSS_PAYMENT_KEY_PAIR_SHA256: testPairFingerprint,
     }).productionCheckoutEnabled).toBe(false);
 
     expect(validateVercelBuildEnvironment({
@@ -84,6 +90,9 @@ describe('validateVercelBuildEnvironment', () => {
       CRON_SECRET: 'cron_secret_for_production',
       NEXT_PUBLIC_TOSS_CLIENT_KEY: 'live_gck_example',
       TOSS_SECRET_KEY: 'live_gsk_example',
+      TOSS_PAYMENT_KEY_PAIR_SHA256: createHash('sha256')
+        .update('live_gck_example\0live_gsk_example')
+        .digest('hex'),
     })).toEqual({
       checked: true,
       paymentMode: 'live',
@@ -95,6 +104,8 @@ describe('validateVercelBuildEnvironment', () => {
       VERCEL_ENV: 'production',
       CRON_SECRET: 'cron_secret_for_production',
       ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION: 'true',
+      TOSS_TEST_PAYMENT_REVIEWER_USER_IDS: '00000000-0000-4000-8000-000000000001',
+      TOSS_PAYMENT_KEY_PAIR_SHA256: testPairFingerprint,
     })).toEqual({
       checked: true,
       paymentMode: 'test',
@@ -106,6 +117,31 @@ describe('validateVercelBuildEnvironment', () => {
       VERCEL_ENV: 'production',
       CRON_SECRET: 'cron_secret_for_production',
       ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION: 'TRUE',
+      TOSS_PAYMENT_KEY_PAIR_SHA256: testPairFingerprint,
     }).productionCheckoutEnabled).toBe(false);
+  });
+
+  it('rejects production test mode without a reviewer UUID or the approved key-pair fingerprint', () => {
+    const productionTestEnvironment = {
+      ...baseEnvironment,
+      VERCEL_ENV: 'production',
+      CRON_SECRET: 'cron_secret_for_production',
+      ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION: 'true',
+    };
+
+    expect(() => validateVercelBuildEnvironment(productionTestEnvironment))
+      .toThrow('Missing Vercel production test-payment environment: TOSS_TEST_PAYMENT_REVIEWER_USER_IDS, TOSS_PAYMENT_KEY_PAIR_SHA256');
+
+    expect(() => validateVercelBuildEnvironment({
+      ...productionTestEnvironment,
+      TOSS_TEST_PAYMENT_REVIEWER_USER_IDS: 'not-a-uuid',
+      TOSS_PAYMENT_KEY_PAIR_SHA256: testPairFingerprint,
+    })).toThrow('Invalid Vercel production test-payment reviewer IDs');
+
+    expect(() => validateVercelBuildEnvironment({
+      ...productionTestEnvironment,
+      TOSS_TEST_PAYMENT_REVIEWER_USER_IDS: '00000000-0000-4000-8000-000000000001',
+      TOSS_PAYMENT_KEY_PAIR_SHA256: '0'.repeat(64),
+    })).toThrow('Invalid Vercel production payment key-pair fingerprint');
   });
 });

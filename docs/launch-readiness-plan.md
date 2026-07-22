@@ -32,7 +32,7 @@
 | 영역 | 현황 | 갭 → 이슈 |
 |---|---|---|
 | 장바구니 | localStorage·`cart_items` 병합과 재고 검증 완료(#89) | 완료 |
-| 체크아웃·결제 | 승인·웹훅·만료 정리(#88), 배송지·주문·결제위젯(#90) 연결. production 테스트 키는 기본 fail closed이나, 승인된 임시 사람 검토는 같은 위젯 세트의 `test_gck_…`/`test_gsk_…`와 서버 전용 `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION=true`가 함께 있을 때만 허용하며 실제 결제수단을 출금하지 않는다 | 검토 승인 뒤 override 제거·`live_gck_…`/`live_gsk_…` 복원, 라이브 상점 계약·키·웹훅 등록 #87 |
+| 체크아웃·결제 | 승인·웹훅·만료 정리(#88), 배송지·주문·결제위젯(#90) 연결. production 테스트 키는 기본 fail closed이며 Preview/로컬에서 검증한 키 쌍·승인 지문·서버 전용 override·검토 계정 UUID allowlist가 모두 맞을 때 해당 계정에만 임시 허용한다. 테스트 결제는 실제 결제수단을 출금하지 않는다 | 검토 승인 뒤 override·allowlist 제거, `live_gck_…`/`live_gsk_…`·지문 복원, 라이브 상점 계약·키·웹훅 등록 #87 |
 | 주문 | 본인 내역·상세·카드팩 발급·배송 전 취소/청약철회(#91·#92), 관리자 주문·배송·환불 콘솔(#93) 완료 | 완료 |
 | 티켓 예매 | 공개 상세→회차/수량 선택→10분 선점→토스 결제→웹훅 QR 발급→내 티켓·예매 전체 취소/환불→현장 검표 연결(#54·#95·#97) | production 실결제 #87 |
 | 인증 보조 | 비밀번호 재설정 완료(#101), Google·Apple·Kakao OAuth 배선과 provider·이메일 claim 설정 완료 | #17: production 배포·controlled smoke |
@@ -80,9 +80,9 @@
 
 ### 6.1 임시 production 테스트 결제 검토 절차
 
-- Vercel Production sensitive 환경변수에 같은 결제위젯 세트의 `test_gck_…`/`test_gsk_…`와 서버 전용 `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION=true`를 함께 둔 승인된 사람 검토에만 사용한다. 값은 정확히 소문자 `true`여야 하며, 키 불일치·누락·다른 값·override 부재는 fail closed다.
+- Vercel Production sensitive 환경변수에 Preview/로컬에서 검증한 `test_gck_…`/`test_gsk_…`, `TOSS_PAYMENT_KEY_PAIR_SHA256`, 서버 전용 `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION=true`, `TOSS_TEST_PAYMENT_REVIEWER_USER_IDS`를 함께 둔 승인된 사람 검토에만 사용한다. override는 정확히 소문자 `true`여야 하며, 키 모드·지문·allowlist 불일치나 누락은 fail closed다.
 - 테스트 결제는 실제 결제수단을 출금하지 않으며, #87 라이브 상점 계약·키·웹훅 등록 human gate를 닫지 않는다.
-- 검토 승인 직후 override를 제거하고 동일 세트의 `live_gck_…`/`live_gsk_…`를 복원한 뒤 production 배포를 확인한다. 라이브 키는 override 없이 허용된다.
+- 검토 승인 직후 override와 reviewer allowlist를 제거하고 동일 세트의 `live_gck_…`/`live_gsk_…` 및 지문을 복원한 뒤 production 배포를 확인한다. 라이브 키는 override 없이 허용된다.
 
 ## 7. 운영
 

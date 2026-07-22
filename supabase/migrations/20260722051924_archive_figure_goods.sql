@@ -41,10 +41,7 @@ where policy.active
   and policy.target_good_id in (select id from figure_good_ids);
 
 update public.goods
-set
-  stock = 'soldout',
-  stock_qty = 0,
-  archived_at = pg_catalog.now()
+set archived_at = pg_catalog.now()
 where archived_at is null
   and id in (select id from figure_good_ids);
 

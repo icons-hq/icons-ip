@@ -13,6 +13,7 @@ import {
   fetchTossPayment,
   getTossConfig,
 } from '@/lib/payments/toss-api';
+import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/service';
@@ -92,6 +93,9 @@ export async function POST(request: Request) {
   const { data: userData } = await supabase.auth.getUser();
   const user = userData.user;
   if (!user) return errorJson(401, 'auth_required', '로그인이 필요합니다.');
+  if (!checkoutPaymentsEnabled(user.id)) {
+    return errorJson(403, 'payment_unavailable', '현재 계정에서는 결제를 진행할 수 없습니다.');
+  }
 
   let rawBody: unknown;
   try {

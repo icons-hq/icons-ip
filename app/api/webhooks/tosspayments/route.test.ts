@@ -15,6 +15,7 @@ interface ExistingPayment {
 }
 
 const mocks = vi.hoisted(() => ({
+  reviewerAllowed: true,
   fetchPayment: vi.fn(),
   cancel: vi.fn(),
   rpc: vi.fn(),
@@ -36,6 +37,10 @@ const mocks = vi.hoisted(() => ({
     status: string;
     total: number;
   } | null,
+}));
+
+vi.mock('@/lib/payments/checkout-availability', () => ({
+  checkoutPaymentsEnabled: () => mocks.reviewerAllowed,
 }));
 
 vi.mock('@/lib/payments/toss', async () => await import('../../../../lib/payments/toss'));
@@ -125,6 +130,7 @@ function canceledTicketPayment(overrides: Record<string, unknown> = {}) {
 
 describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
   beforeEach(() => {
+    mocks.reviewerAllowed = true;
     mocks.fetchPayment.mockReset();
     mocks.cancel.mockReset();
     mocks.rpc.mockReset();
@@ -217,6 +223,34 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
       p_amount: 42000,
       p_raw: expect.objectContaining({ orderId: `ticket_${ORDER_UUID}`, status: 'DONE' }),
     });
+    expect(mocks.rpc).not.toHaveBeenCalledWith('confirm_order_payment', expect.anything());
+  });
+
+  it('승인 계정 밖의 production 테스트 결제는 확정하지 않고 provider와 로컬 선점을 취소한다', async () => {
+    mocks.reviewerAllowed = false;
+    mocks.fetchPayment.mockResolvedValue({
+      ok: true,
+      body: { ...virtualAccountPayment('DONE'), method: '카드' },
+    });
+    mocks.cancel.mockResolvedValue({
+      ok: true,
+      body: {
+        ...virtualAccountPayment('DONE'),
+        method: '카드',
+        status: 'CANCELED',
+        balanceAmount: 0,
+        cancels: [{ cancelAmount: 42000, cancelStatus: 'DONE' }],
+      },
+    });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(mocks.cancel).toHaveBeenCalledWith('pk_virtual', 'ICONS 승인 계정 외 테스트 결제 자동 취소');
+    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order_with_provider_evidence', expect.objectContaining({
+      p_order_id: ORDER_UUID,
+      p_provider_payment_keys: ['pk_virtual'],
+    }));
     expect(mocks.rpc).not.toHaveBeenCalledWith('confirm_order_payment', expect.anything());
   });
 

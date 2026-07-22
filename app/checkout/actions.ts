@@ -40,7 +40,7 @@ export async function placeOrderAction(
   const checkoutKey = normalizeCheckoutKey(checkoutKeyValue);
   if (!checkoutKey) return { ok: false, error: 'invalid_request' };
 
-  if (!checkoutPaymentsEnabled()) {
+  if (!checkoutPaymentsEnabled(auth.user.id)) {
     return { ok: false, error: 'payment_unavailable' };
   }
 

@@ -10,6 +10,7 @@ import {
   type TossOrderRef,
 } from '@/lib/payments/toss';
 import { cancelTossPayment, fetchTossPayment, getTossConfig } from '@/lib/payments/toss-api';
+import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
 import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/service';
 
 /* 토스페이먼츠 웹훅 수신부(#88) — 주문/예매 확정의 단일 진실원.
@@ -298,6 +299,37 @@ async function applyRecordFailure(service: ServiceClient, payment: NormalizedTos
   return received();
 }
 
+async function productionTestReviewerAllowed(service: ServiceClient, ref: TossOrderRef) {
+  const table = ref.purpose === 'order' ? 'orders' : 'ticket_orders';
+  const { data, error } = await service
+    .from(table)
+    .select('user_id')
+    .eq('id', ref.refId)
+    .maybeSingle();
+  if (error) throw new Error(`Failed to load ${table} reviewer: ${error.message}`);
+  return data ? checkoutPaymentsEnabled((data as { user_id: string }).user_id) : false;
+}
+
+async function rejectUnapprovedProductionTestPayment(
+  service: ServiceClient,
+  ref: TossOrderRef,
+  payment: NormalizedTossPayment,
+) {
+  const canceled = await cancelTossPayment(payment.paymentKey, 'ICONS 승인 계정 외 테스트 결제 자동 취소');
+  if (!canceled.ok && canceled.code !== 'ALREADY_CANCELED_PAYMENT') {
+    console.error(`[webhooks/tosspayments] unapproved test payment auto-cancel failed: ${canceled.code}`);
+    return errorJson(500, 'auto_cancel_failed');
+  }
+  if (!canceled.ok) return received('unapproved_test_payment_already_canceled');
+
+  const canceledPayment = normalizeTossPayment(canceled.body);
+  if (!canceledPayment || canceledPayment.status !== 'CANCELED') {
+    console.error('[webhooks/tosspayments] unapproved test payment cancellation shape invalid');
+    return errorJson(500, 'auto_cancel_verification_failed');
+  }
+  return applyReflectCancel(service, ref, canceledPayment, canceled.body);
+}
+
 export async function POST(request: Request) {
   let body: unknown;
   try {
@@ -341,7 +373,17 @@ export async function POST(request: Request) {
   }
 
   const service = createServiceClient();
-  if (action.kind === 'confirm') return applyConfirm(service, action.ref, payment, verified.body);
+  if (action.kind === 'confirm') {
+    try {
+      if (!await productionTestReviewerAllowed(service, action.ref)) {
+        return rejectUnapprovedProductionTestPayment(service, action.ref, payment);
+      }
+    } catch (error) {
+      console.error(`[webhooks/tosspayments] reviewer lookup failed: ${error instanceof Error ? error.message : String(error)}`);
+      return errorJson(500, 'reviewer_lookup_failed');
+    }
+    return applyConfirm(service, action.ref, payment, verified.body);
+  }
   if (action.kind === 'reflect_cancel') return applyReflectCancel(service, action.ref, payment, verified.body);
   if (action.kind === 'cancel_unsupported') {
     return applyCancelUnsupported(service, action.ref, payment, verified.body);

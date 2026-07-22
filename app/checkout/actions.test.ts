@@ -29,11 +29,12 @@ const address = {
 };
 const checkoutKey = '7ad4c967-3d48-44da-a665-64731ac33f62';
 const orderId = '5cbcbbed-202d-4676-821a-7706398e57c0';
+const userId = '00000000-0000-4000-8000-000000000001';
 
 function onboardedAuth(): CurrentAuthState {
   return {
     isConfigured: true,
-    user: { id: 'user-1', email: 'fan@icons.gg' },
+    user: { id: userId, email: 'fan@icons.gg' },
     profile: {
       email: 'fan@icons.gg',
       nickname: 'fan',
@@ -140,6 +141,21 @@ describe('placeOrderAction', () => {
       error: 'payment_unavailable',
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('allows production test orders only for an explicitly listed reviewer UUID', async () => {
+    vi.stubEnv('VERCEL_ENV', 'production');
+    vi.stubEnv('ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION', 'true');
+    vi.stubEnv('TOSS_TEST_PAYMENT_REVIEWER_USER_IDS', '00000000-0000-4000-8000-000000000002');
+
+    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({
+      ok: false,
+      error: 'payment_unavailable',
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+
+    vi.stubEnv('TOSS_TEST_PAYMENT_REVIEWER_USER_IDS', userId);
+    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: true, orderId });
   });
 
   it.each([

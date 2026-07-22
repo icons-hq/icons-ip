@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Remove every figure good from public catalog data and temporarily allow a matching TossPayments widget test-key pair on `iconsip.com` for controlled human payment testing.
+**Goal:** Remove every figure good from public catalog data and temporarily allow the approved TossPayments widget test-key pair on `iconsip.com` for allowlisted human payment testing.
 
 **Architecture:** Preserve historical `goods` and `order_items` rows by archiving figure goods instead of deleting them. Keep preview and local mock/seed data aligned, remove figure references from the goods demo, and add one explicit server-only production override that remains fail-closed unless the key pair is valid and the override equals `true`.
 
@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - Existing orders and payment history must remain queryable.
-- Production test mode must require matching `test_gck_...` and `test_gsk_...` widget keys plus `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION=true`.
+- Production test mode must require test-mode widget keys, the approved pair fingerprint, `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION=true`, and an explicit reviewer-user UUID allowlist.
 - Live widget keys must continue to work without the test-mode override.
 - Figure goods must not appear in production, preview, or local catalog/game data.
 - Secrets must stay in Vercel sensitive environment variables and must never be logged or committed.

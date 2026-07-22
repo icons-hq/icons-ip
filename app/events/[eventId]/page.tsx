@@ -55,7 +55,7 @@ export default async function Page({
       notificationError={firstParam(query.notification_error) === '1'}
       notificationSaved={firstParam(query.notification_saved) === '1'}
       notificationState={notificationState}
-      paymentAvailable={checkoutPaymentsEnabled()}
+      paymentAvailable={checkoutPaymentsEnabled(auth.user?.id)}
       sessions={sessions}
     />
   );
