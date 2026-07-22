@@ -71,7 +71,7 @@ describe('validateVercelBuildEnvironment', () => {
     })).toThrow('Invalid Vercel preview payment keys');
   });
 
-  it('marks only live production keys as checkout-enabled', () => {
+  it('enables production test keys only with the exact test-payment override', () => {
     expect(validateVercelBuildEnvironment({
       ...baseEnvironment,
       VERCEL_ENV: 'production',
@@ -89,5 +89,23 @@ describe('validateVercelBuildEnvironment', () => {
       paymentMode: 'live',
       productionCheckoutEnabled: true,
     });
+
+    expect(validateVercelBuildEnvironment({
+      ...baseEnvironment,
+      VERCEL_ENV: 'production',
+      CRON_SECRET: 'cron_secret_for_production',
+      ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION: 'true',
+    })).toEqual({
+      checked: true,
+      paymentMode: 'test',
+      productionCheckoutEnabled: true,
+    });
+
+    expect(validateVercelBuildEnvironment({
+      ...baseEnvironment,
+      VERCEL_ENV: 'production',
+      CRON_SECRET: 'cron_secret_for_production',
+      ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION: 'TRUE',
+    }).productionCheckoutEnabled).toBe(false);
   });
 });

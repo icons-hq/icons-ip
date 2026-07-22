@@ -45,7 +45,9 @@ export function validateVercelBuildEnvironment(environment) {
   return {
     checked: true,
     paymentMode: clientMode,
-    productionCheckoutEnabled: target === 'production' && clientMode === 'live',
+    productionCheckoutEnabled: target === 'production'
+      && (clientMode === 'live'
+        || (clientMode === 'test' && environment.ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION === 'true')),
   };
 }
 

@@ -8,10 +8,14 @@ export function paymentsEnabledForRuntime(
   secretKey: string | null | undefined,
   vercelEnvironment: string | null | undefined = process.env.VERCEL_ENV,
   nodeEnvironment: string | null | undefined = process.env.NODE_ENV,
+  allowTestPaymentsInProduction: string | null | undefined = process.env.ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION,
 ) {
   if (!paymentKeysMatch(clientKey, secretKey)) return false;
   const knownNonProduction = vercelEnvironment === 'development' || vercelEnvironment === 'preview';
   const productionLike = vercelEnvironment === 'production'
     || (!knownNonProduction && nodeEnvironment === 'production');
-  return !productionLike || paymentKeyMode(clientKey, 'client') === 'live';
+  const keyMode = paymentKeyMode(clientKey, 'client');
+  return !productionLike
+    || keyMode === 'live'
+    || (keyMode === 'test' && allowTestPaymentsInProduction === 'true');
 }
