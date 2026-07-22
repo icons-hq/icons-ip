@@ -302,6 +302,38 @@ async function applyRecordFailure(service: ServiceClient, payment: NormalizedTos
 
 type ProductionTestPaymentDecision = 'allow' | 'reject-and-restore' | 'reject-provider-only';
 
+type LocalPaymentIdentity = {
+  status: string;
+  amount: number;
+  purpose: string;
+  ref_id: string;
+  payment_key: string | null;
+  idempotency_key: string;
+};
+
+function isConfirmedTarget(ref: TossOrderRef, status: string) {
+  return ref.purpose === 'order'
+    ? status === 'paid' || status === 'shipping' || status === 'done'
+    : status === 'paid';
+}
+
+function matchesTargetPayment(
+  local: LocalPaymentIdentity | null,
+  ref: TossOrderRef,
+  payment: NormalizedTossPayment,
+  targetTotal: number,
+) {
+  return Boolean(
+    local
+    && local.amount === targetTotal
+    && local.amount === payment.totalAmount
+    && local.purpose === ref.purpose
+    && local.ref_id === ref.refId
+    && local.payment_key === payment.paymentKey
+    && local.idempotency_key === payment.paymentKey,
+  );
+}
+
 async function decideProductionTestPayment(
   service: ServiceClient,
   ref: TossOrderRef,
@@ -317,9 +349,7 @@ async function decideProductionTestPayment(
   if (!target) return 'reject-and-restore';
 
   const localTarget = target as { user_id: string; status: string; total: number };
-  const alreadyConfirmedTarget = ref.purpose === 'order'
-    ? localTarget.status === 'paid' || localTarget.status === 'shipping' || localTarget.status === 'done'
-    : localTarget.status === 'paid';
+  const alreadyConfirmedTarget = isConfirmedTarget(ref, localTarget.status);
   if (alreadyConfirmedTarget) {
     const { data: existingPayment, error: paymentError } = await service
       .from('payments')
@@ -327,25 +357,14 @@ async function decideProductionTestPayment(
       .eq('idempotency_key', payment.paymentKey)
       .maybeSingle();
     if (paymentError) throw new Error(`Failed to load confirmed payment: ${paymentError.message}`);
-    const existing = existingPayment as {
-      status: string;
-      amount: number;
-      purpose: string;
-      ref_id: string;
-      payment_key: string | null;
-      idempotency_key: string;
-    } | null;
+    const existing = existingPayment as LocalPaymentIdentity | null;
     if (
       existing?.status === 'paid'
-      && localTarget.total === payment.totalAmount
-      && existing.amount === payment.totalAmount
-      && existing.purpose === ref.purpose
-      && existing.ref_id === ref.refId
-      && existing.payment_key === payment.paymentKey
-      && existing.idempotency_key === payment.paymentKey
+      && matchesTargetPayment(existing, ref, payment, localTarget.total)
     ) {
       return 'allow';
     }
+    return 'reject-provider-only';
   }
 
   const { data: profile, error: profileError } = await service
@@ -361,7 +380,91 @@ async function decideProductionTestPayment(
     && (reviewer.role === 'staff' || reviewer.role === 'admin'),
   ));
   if (reviewerAllowed) return 'allow';
-  return alreadyConfirmedTarget ? 'reject-provider-only' : 'reject-and-restore';
+  return 'reject-and-restore';
+}
+
+/**
+ * 이미 확정된 주문에 대한 CANCELED가 실제 확정 결제(A)인지, 뒤늦게 들어온 추가 결제(B)인지 구분한다.
+ * B의 취소를 주문 환불 RPC에 전달하면 A로 확정된 주문까지 취소되므로 결제 행만 종결해야 한다.
+ */
+async function shouldPreserveConfirmedTargetForCanceledPayment(
+  service: ServiceClient,
+  ref: TossOrderRef,
+  payment: NormalizedTossPayment,
+) {
+  const table = ref.purpose === 'order' ? 'orders' : 'ticket_orders';
+  const { data: target, error: targetError } = await service
+    .from(table)
+    .select('status,total')
+    .eq('id', ref.refId)
+    .maybeSingle();
+  if (targetError) throw new Error(`Failed to load canceled ${table} target: ${targetError.message}`);
+  if (!target) return false;
+
+  const localTarget = target as { status: string; total: number };
+  if (!isConfirmedTarget(ref, localTarget.status)) return false;
+
+  const { data: eventPayment, error: eventPaymentError } = await service
+    .from('payments')
+    .select('status,amount,purpose,ref_id,payment_key,idempotency_key')
+    .eq('idempotency_key', payment.paymentKey)
+    .maybeSingle();
+  if (eventPaymentError) {
+    throw new Error(`Failed to load canceled event payment: ${eventPaymentError.message}`);
+  }
+  const eventLocal = eventPayment as LocalPaymentIdentity | null;
+  if (
+    matchesTargetPayment(eventLocal, ref, payment, localTarget.total)
+    && (eventLocal?.status === 'paid' || eventLocal?.status === 'failed')
+  ) {
+    return false;
+  }
+
+  const { data: confirmedPayment, error: confirmedPaymentError } = await service
+    .from('payments')
+    .select('status,amount,purpose,ref_id,payment_key,idempotency_key')
+    .eq('purpose', ref.purpose)
+    .eq('ref_id', ref.refId)
+    .eq('status', 'paid')
+    .maybeSingle();
+  if (confirmedPaymentError) {
+    throw new Error(`Failed to load target confirmed payment: ${confirmedPaymentError.message}`);
+  }
+  const confirmedLocal = confirmedPayment as LocalPaymentIdentity | null;
+  if (
+    confirmedLocal?.status !== 'paid'
+    || confirmedLocal.amount !== localTarget.total
+    || confirmedLocal.purpose !== ref.purpose
+    || confirmedLocal.ref_id !== ref.refId
+    || !confirmedLocal.payment_key
+    || confirmedLocal.payment_key !== confirmedLocal.idempotency_key
+  ) {
+    throw new Error('Confirmed target has no valid paid payment evidence');
+  }
+  return confirmedLocal.payment_key !== payment.paymentKey;
+}
+
+async function recordCanceledExtraPayment(
+  service: ServiceClient,
+  ref: TossOrderRef,
+  payment: NormalizedTossPayment,
+  raw: unknown,
+) {
+  const cancellation = verifyTossCancellationState(raw, {
+    paymentKey: payment.paymentKey,
+    orderId: payment.orderId,
+    amount: payment.totalAmount,
+    type: payment.type,
+    currency: payment.currency,
+  });
+  if (!cancellation.ok || cancellation.state !== 'fully_canceled') {
+    console.error('[webhooks/tosspayments] extra payment cancellation shape invalid');
+    return errorJson(500, 'cancel_evidence_invalid');
+  }
+  if (!await recordTerminalPayment(service, ref, payment, 'canceled', raw)) {
+    return errorJson(500, 'terminal_record_failed');
+  }
+  return received('extra_payment_canceled');
 }
 
 async function rejectUnapprovedProductionTestPayment(
@@ -463,7 +566,17 @@ export async function POST(request: Request) {
   }
 
   if (action.kind === 'confirm') return applyConfirm(service, action.ref, payment, verified.body);
-  if (action.kind === 'reflect_cancel') return applyReflectCancel(service, action.ref, payment, verified.body);
+  if (action.kind === 'reflect_cancel') {
+    try {
+      if (await shouldPreserveConfirmedTargetForCanceledPayment(service, action.ref, payment)) {
+        return recordCanceledExtraPayment(service, action.ref, payment, verified.body);
+      }
+    } catch (error) {
+      console.error(`[webhooks/tosspayments] canceled payment classification failed: ${error instanceof Error ? error.message : String(error)}`);
+      return errorJson(500, 'cancel_classification_failed');
+    }
+    return applyReflectCancel(service, action.ref, payment, verified.body);
+  }
   if (action.kind === 'cancel_unsupported') {
     return applyCancelUnsupported(service, action.ref, payment, verified.body);
   }
