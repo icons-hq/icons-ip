@@ -133,15 +133,15 @@ const IPS: Ip[] = [
     tagline: '몬스터즈가 굿즈로 튀어나오는 순간', synopsis: '주황버섯, 슬라임, 핑크빈을 중심으로 한 메이플스토리 몬스터 굿즈와 카드 라인업입니다.' },
   { id: 'nongdamgom', title: '담곰이', sub: '캐릭터 IP', v: V.character, glyph: '담곰이', bg: imageBg('/generated/ip/nongdamgom.png', grad('#70485a', '#F7A8C7', '#FFF3D6')), fans: 52300, goods: 2, cards: 2, featured: true,
     tagline: '말랑한 농담처럼 가벼운 굿즈', synopsis: '담곰이와 오리친구의 단순하고 귀여운 결을 데스크 굿즈, 쿠션, 카드로 풀어낸 컬렉션입니다.' },
-  { id: 'kakao-friends', title: '카카오프렌즈', sub: 'Kakao · 캐릭터 IP', v: V.character, glyph: 'KAKAO', bg: imageBg('/generated/ip/kakao-friends.png', grad('#66421d', '#FFD84D', '#FF9AAF')), fans: 214000, goods: 3, cards: 3, featured: true,
-    tagline: '친구들과 떠나는 피크닉 컬렉션', synopsis: '라이언, 춘식이, 어피치 등 카카오프렌즈 감성의 피크닉 굿즈와 미니 피규어 mock 라인입니다.' },
-  { id: 'attack-on-titan', title: '진격의 거인', sub: '리바이 에디션 · 애니메이션', v: V.anime, glyph: 'LEVI', bg: imageBg('/generated/ip/attack-on-titan.png', grad('#2b251f', '#6B705C', '#A981FF')), fans: 176400, goods: 2, cards: 2, featured: true,
-    tagline: '리바이 에디션으로 완성하는 전시형 컬렉션', synopsis: '진격의 거인 리바이의 차분한 전투 전야 무드를 피규어, 아크릴, 카드로 구성한 mock 컬렉션입니다.' },
+  { id: 'kakao-friends', title: '카카오프렌즈', sub: 'Kakao · 캐릭터 IP', v: V.character, glyph: 'KAKAO', bg: imageBg('/generated/ip/kakao-friends.png', grad('#66421d', '#FFD84D', '#FF9AAF')), fans: 214000, goods: 2, cards: 3, featured: true,
+    tagline: '친구들과 떠나는 피크닉 컬렉션', synopsis: '라이언, 춘식이, 어피치 등 카카오프렌즈 감성의 피크닉 굿즈와 소품 mock 라인입니다.' },
+  { id: 'attack-on-titan', title: '진격의 거인', sub: '리바이 에디션 · 애니메이션', v: V.anime, glyph: 'LEVI', bg: imageBg('/generated/ip/attack-on-titan.png', grad('#2b251f', '#6B705C', '#A981FF')), fans: 176400, goods: 1, cards: 2, featured: true,
+    tagline: '리바이 에디션으로 완성하는 전시형 컬렉션', synopsis: '진격의 거인 리바이의 차분한 전투 전야 무드를 아크릴과 카드로 구성한 mock 컬렉션입니다.' },
 ];
 
 const ipById = (id: string | null | undefined) => IPS.find((i) => i.id === id);
 
-const GOODS_TYPES = ['봉제인형', '쿠션', '키링', '아크릴 스탠드', '피규어', '문구', '파우치', '한정 세트'];
+const GOODS_TYPES = ['봉제인형', '쿠션', '키링', '아크릴 스탠드', '문구', '파우치', '한정 세트'];
 
 const GOODS: Good[] = [
   { id: 'g1', name: '리락쿠마 낮잠 쿠션', ip: 'rilakkuma', type: '쿠션', price: 42000, badge: '한정', stock: 'low', stockQty: 7, img: imageBg('/generated/goods/g1.png', grad('#5a3517', '#D68A2D', '#FFD84D')) },
@@ -153,9 +153,7 @@ const GOODS: Good[] = [
   { id: 'g7', name: '담곰이 말랑 쿠션', ip: 'nongdamgom', type: '쿠션', price: 36000, badge: null, stock: 'ok', stockQty: 60, img: imageBg('/generated/goods/g7.png', grad('#51343f', '#F7A8C7', '#FFD84D')) },
   { id: 'g8', name: '춘식이 수면 파우치', ip: 'kakao-friends', type: '파우치', price: 24000, badge: '신상', stock: 'ok', stockQty: 100, img: imageBg('/generated/goods/g8.png', grad('#66421d', '#FFD84D', '#FFF3D6')) },
   { id: 'g9', name: '라이언&어피치 피크닉 세트', ip: 'kakao-friends', type: '한정 세트', price: 59000, badge: '한정', stock: 'low', stockQty: 8, img: imageBg('/generated/goods/g9.png', grad('#724a1f', '#FFD84D', '#FF9AAF')) },
-  { id: 'g10', name: '카카오프렌즈 미니 피규어팩', ip: 'kakao-friends', type: '피규어', price: 32000, badge: null, stock: 'ok', stockQty: 140, img: imageBg('/generated/goods/g10.png', grad('#3d5b7d', '#FFD84D', '#FF9AAF')) },
   { id: 'g11', name: '리바이 아크릴 스탠드', ip: 'attack-on-titan', type: '아크릴 스탠드', price: 26000, badge: '예약', stock: 'ok', stockQty: 70, img: imageBg('/generated/goods/g11.png', grad('#2b251f', '#6B705C', '#A981FF')) },
-  { id: 'g12', name: '조사병단 리바이 피규어', ip: 'attack-on-titan', type: '피규어', price: 89000, badge: '한정', stock: 'soldout', stockQty: 0, img: imageBg('/generated/goods/g12.png', grad('#201c18', '#4C5A3F', '#A981FF')) },
 ];
 
 const RARITY = RARITY_META;
@@ -198,11 +196,11 @@ const GAMES: Game[] = [
     ip: null, // 5개 IP 크로스오버
     event: null,
     config: {
-      marbleCount: 10,
+      marbleCount: 9,
       variant: {
         kind: 'goods',
-        // 구슬 1:1 — mock GOODS 12종 중 IP 균형(각 2종)으로 10종
-        goodsIds: ['g1', 'g2', 'g3', 'g5', 'g6', 'g7', 'g8', 'g9', 'g11', 'g12'],
+        // 구슬 1:1 — 활성 mock 굿즈 9종
+        goodsIds: ['g1', 'g2', 'g3', 'g5', 'g6', 'g7', 'g8', 'g9', 'g11'],
       },
     },
   },
@@ -220,8 +218,8 @@ const POSTS: Post[] = [
   { id: 'p1', user: 'relax_room', ipName: '리락쿠마', avatar: '#FFD84D', text: '리락쿠마 낮잠 쿠션 실물감 너무 좋아요. 포근한 방 팝업에서 바로 안고 나왔습니다', likes: 342, comments: 48, time: '12분 전', tag: '팝업인증', img: imageBg('/generated/events/e1.png', grad('#5a3517', '#D68A2D', '#FFD84D')) },
   { id: 'p2', user: 'mushroom_jump', ipName: '메이플스토리', avatar: '#38F0C0', text: '주황버섯 봉제인형이랑 몬스터 키링 4종 같이 샀습니다. 핑크빈 디오라마 예약도 열렸네요', likes: 218, comments: 33, time: '41분 전', tag: '한정굿즈', img: null },
   { id: 'p3', user: 'gom_duck', ipName: '담곰이', avatar: '#F7A8C7', text: '담곰이 오리친구 카드 SSR 떴어요. 데스크 매트랑 같이 놓으니까 귀여움이 딱 맞습니다', likes: 503, comments: 91, time: '1시간 전', tag: '카드자랑', img: imageBg('/generated/cards/c6.png', grad('#70485a', '#F7A8C7', '#FFF3D6')) },
-  { id: 'p4', user: 'picnic_friends', ipName: '카카오프렌즈', avatar: '#FFD84D', text: '피크닉 세트 구성 좋네요. 미니 피규어팩은 라이언이랑 춘식이 같이 진열하기 좋습니다', likes: 189, comments: 27, time: '2시간 전', tag: '굿즈인증', img: imageBg('/generated/goods/g9.png', grad('#66421d', '#FFD84D', '#FF9AAF')) },
-  { id: 'p5', user: 'levi_display', ipName: '진격의 거인', avatar: '#A981FF', text: '리바이 아크릴 스탠드 예약했습니다. 카드 배경이 차분해서 피규어랑 같이 세우기 좋겠어요', likes: 421, comments: 57, time: '34분 전', tag: '예약인증', img: imageBg('/generated/goods/g11.png', grad('#2b251f', '#6B705C', '#A981FF')) },
+  { id: 'p4', user: 'picnic_friends', ipName: '카카오프렌즈', avatar: '#FFD84D', text: '피크닉 세트 구성 좋네요. 라이언이랑 어피치 소품을 같이 진열하기 좋습니다', likes: 189, comments: 27, time: '2시간 전', tag: '굿즈인증', img: imageBg('/generated/goods/g9.png', grad('#66421d', '#FFD84D', '#FF9AAF')) },
+  { id: 'p5', user: 'levi_display', ipName: '진격의 거인', avatar: '#A981FF', text: '리바이 아크릴 스탠드 예약했습니다. 카드 배경이 차분해서 같이 전시하기 좋겠어요', likes: 421, comments: 57, time: '34분 전', tag: '예약인증', img: imageBg('/generated/goods/g11.png', grad('#2b251f', '#6B705C', '#A981FF')) },
   { id: 'p6', user: 'pinkbean_stage', ipName: '메이플스토리', avatar: '#38F0C0', text: '핑크빈 스테이지 HOLO 아직 못 얻었습니다. 주황버섯 점프 카드랑 교환 가능하신 분 찾습니다', likes: 287, comments: 39, time: '1시간 전', tag: '카드교환', img: null },
 ];
 
@@ -245,7 +243,7 @@ const MARKET: MarketItem[] = [
 
 const TRENDING = ['#리락쿠마', '#메이플스토리', '#담곰이', '#카카오프렌즈', '#리바이', '#팝업인증', '#한정굿즈', '#카드교환', '#피크닉세트', '#낮잠쿠션'];
 
-const STATS = { fans: '76.5만', ips: 5, goods: '12', events: 5 };
+const STATS = { fans: '76.5만', ips: 5, goods: '10', events: 5 };
 
 export const krw = (n: number) => '₩' + n.toLocaleString('ko-KR');
 

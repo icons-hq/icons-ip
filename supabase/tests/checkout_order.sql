@@ -278,8 +278,11 @@ select 1 / case when :'second_user_order_id'::uuid <> :'first_order_id'::uuid th
 
 -- An out-of-stock failure rolls back the order and preserves the cart/inventory.
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000503', true);
+reset role;
+update public.goods set stock = 'soldout', stock_qty = 0 where id = 'g6';
+set local role authenticated;
 insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000503', 'g12', 1);
+values ('00000000-0000-4000-8000-000000000503', 'g6', 1);
 
 do $$
 begin
@@ -291,7 +294,7 @@ begin
     raise exception 'out-of-stock order should be rejected';
   exception
     when check_violation then
-      if sqlerrm <> 'out of stock: g12' then raise; end if;
+      if sqlerrm <> 'out of stock: g6' then raise; end if;
   end;
 end;
 $$;
@@ -302,16 +305,16 @@ select 1 / case when not exists (
     and checkout_key = '10000000-0000-4000-8000-000000000503'
 ) then 1 else 0 end as assert_failed_order_rolled_back;
 select 1 / case when (
-  select stock_qty from public.goods where id = 'g12'
+  select stock_qty from public.goods where id = 'g6'
 ) = 0 then 1 else 0 end as assert_failed_order_preserves_stock;
 select 1 / case when (
   select qty from public.cart_items
-  where user_id = '00000000-0000-4000-8000-000000000503' and good_id = 'g12'
+  where user_id = '00000000-0000-4000-8000-000000000503' and good_id = 'g6'
 ) = 1 then 1 else 0 end as assert_failed_order_preserves_cart;
 
 -- The display sold-out flag is authoritative even if stock_qty is accidentally positive.
 delete from public.cart_items
-where user_id = '00000000-0000-4000-8000-000000000503' and good_id = 'g12';
+where user_id = '00000000-0000-4000-8000-000000000503' and good_id = 'g6';
 reset role;
 update public.goods set stock = 'soldout', stock_qty = 1 where id = 'g11';
 set local role authenticated;

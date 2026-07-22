@@ -74,10 +74,10 @@ insert into public.ips (
     'KAKAO',
     'url("/generated/ip/kakao-friends.png") center / cover no-repeat, linear-gradient(150deg, #66421d, #FFD84D 55%, #FF9AAF)',
     '친구들과 떠나는 피크닉 컬렉션',
-    '라이언, 춘식이, 어피치 등 카카오프렌즈 감성의 피크닉 굿즈와 미니 피규어 mock 라인입니다.',
+    '라이언, 춘식이, 어피치 등 카카오프렌즈 감성의 피크닉 굿즈와 소품 mock 라인입니다.',
     true,
     214000,
-    3,
+    2,
     3
   ),
   (
@@ -88,10 +88,10 @@ insert into public.ips (
     'LEVI',
     'url("/generated/ip/attack-on-titan.png") center / cover no-repeat, linear-gradient(150deg, #2b251f, #6B705C 55%, #A981FF)',
     '리바이 에디션으로 완성하는 전시형 컬렉션',
-    '진격의 거인 리바이의 차분한 전투 전야 무드를 피규어, 아크릴, 카드로 구성한 mock 컬렉션입니다.',
+    '진격의 거인 리바이의 차분한 전투 전야 무드를 아크릴과 카드로 구성한 mock 컬렉션입니다.',
     true,
     176400,
-    2,
+    1,
     2
   )
 -- fans_count는 최초 seed 값만 넣고, 이후 팔로우 RPC가 유지하는 공개 카운트를 덮어쓰지 않는다.
@@ -150,9 +150,7 @@ insert into public.goods (id, ip_id, name, type, price, badge, stock, stock_qty,
   ('g7', 'nongdamgom', '담곰이 말랑 쿠션', '쿠션', 36000, null, 'ok', 60, 'url("/generated/goods/g7.png") center / cover no-repeat, linear-gradient(150deg, #51343f, #F7A8C7 55%, #FFD84D)'),
   ('g8', 'kakao-friends', '춘식이 수면 파우치', '파우치', 24000, '신상', 'ok', 100, 'url("/generated/goods/g8.png") center / cover no-repeat, linear-gradient(150deg, #66421d, #FFD84D 55%, #FFF3D6)'),
   ('g9', 'kakao-friends', '라이언&어피치 피크닉 세트', '한정 세트', 59000, '한정', 'low', 8, 'url("/generated/goods/g9.png") center / cover no-repeat, linear-gradient(150deg, #724a1f, #FFD84D 55%, #FF9AAF)'),
-  ('g10', 'kakao-friends', '카카오프렌즈 미니 피규어팩', '피규어', 32000, null, 'ok', 140, 'url("/generated/goods/g10.png") center / cover no-repeat, linear-gradient(150deg, #3d5b7d, #FFD84D 55%, #FF9AAF)'),
-  ('g11', 'attack-on-titan', '리바이 아크릴 스탠드', '아크릴 스탠드', 26000, '예약', 'ok', 70, 'url("/generated/goods/g11.png") center / cover no-repeat, linear-gradient(150deg, #2b251f, #6B705C 55%, #A981FF)'),
-  ('g12', 'attack-on-titan', '조사병단 리바이 피규어', '피규어', 89000, '한정', 'soldout', 0, 'url("/generated/goods/g12.png") center / cover no-repeat, linear-gradient(150deg, #201c18, #4C5A3F 55%, #A981FF)')
+  ('g11', 'attack-on-titan', '리바이 아크릴 스탠드', '아크릴 스탠드', 26000, '예약', 'ok', 70, 'url("/generated/goods/g11.png") center / cover no-repeat, linear-gradient(150deg, #2b251f, #6B705C 55%, #A981FF)')
 on conflict (id) do update set
   ip_id = excluded.ip_id,
   name = excluded.name,
@@ -235,7 +233,7 @@ insert into public.games (id, type, title, event_id, config, reward_pool_id, per
     'marble_roulette',
     '굿즈 마블 룰렛',
     null,
-    '{"marbleCount":10,"variant":{"kind":"goods","goodsIds":["g1","g2","g3","g5","g6","g7","g8","g9","g11","g12"]}}',
+    '{"marbleCount":9,"variant":{"kind":"goods","goodsIds":["g1","g2","g3","g5","g6","g7","g8","g9","g11"]}}',
     null, -- 서버 플레이 불가 — 래플 연출 데모(클라 mock 유지)
     1
   )
