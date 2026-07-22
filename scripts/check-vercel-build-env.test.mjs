@@ -87,8 +87,18 @@ describe('validateVercelBuildEnvironment', () => {
 
     expect(() => validateVercelBuildEnvironment({
       ...baseEnvironment,
-      NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY: '가상계좌 제외',
-    })).toThrow('Invalid Vercel preview Toss payment-method variant key');
+      NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY: 'DEFAULT',
+    })).toThrow('Invalid Vercel preview Toss test payment-method variant key');
+  });
+
+  it('rejects the test-only payment-method variant with live widget keys', () => {
+    expect(() => validateVercelBuildEnvironment({
+      ...baseEnvironment,
+      VERCEL_ENV: 'production',
+      CRON_SECRET: 'cron_secret_for_production',
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'live_gck_example',
+      TOSS_SECRET_KEY: 'live_gsk_example',
+    })).toThrow('Invalid Vercel production Toss live payment-method variant key');
   });
 
   it('enables production test keys only with the exact test-payment override', () => {
@@ -104,6 +114,7 @@ describe('validateVercelBuildEnvironment', () => {
       VERCEL_ENV: 'production',
       CRON_SECRET: 'cron_secret_for_production',
       NEXT_PUBLIC_TOSS_CLIENT_KEY: 'live_gck_example',
+      NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY: undefined,
       TOSS_SECRET_KEY: 'live_gsk_example',
       TOSS_PAYMENT_KEY_PAIR_SHA256: createHash('sha256')
         .update('live_gck_example\0live_gsk_example')

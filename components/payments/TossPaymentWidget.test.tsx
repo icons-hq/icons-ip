@@ -45,11 +45,13 @@ describe('buildTossWidgetPaymentRequest', () => {
 
 describe('resolveTossPaymentMethodVariantKey', () => {
   it('uses the review-only payment-method variant when configured', () => {
-    expect(resolveTossPaymentMethodVariantKey(' ICONS_REVIEW ')).toBe('ICONS_REVIEW');
+    expect(resolveTossPaymentMethodVariantKey('test_gck_example', ' ICONS_REVIEW '))
+      .toBe('ICONS_REVIEW');
   });
 
   it('falls back to the provider default outside the review environment', () => {
-    expect(resolveTossPaymentMethodVariantKey(undefined)).toBe('DEFAULT');
+    expect(resolveTossPaymentMethodVariantKey('test_gck_example', undefined)).toBe('DEFAULT');
+    expect(resolveTossPaymentMethodVariantKey('live_gck_example', 'ICONS_REVIEW')).toBe('DEFAULT');
   });
 });
 

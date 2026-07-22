@@ -51,7 +51,7 @@ CRON_SECRET=
 
 ### Production 토스 테스트 결제 검토 모드 (임시)
 
-`iconsip.com`에서 사람 검토를 해야 할 때만, Vercel Production 환경변수에 Preview/로컬에서 검증한 결제위젯 세트의 `NEXT_PUBLIC_TOSS_CLIENT_KEY=test_gck_…`, `TOSS_SECRET_KEY=test_gsk_…`, 가상계좌를 제외한 테스트 UI의 `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY`, 두 원문 키 값의 승인된 SHA-256인 `TOSS_PAYMENT_KEY_PAIR_SHA256`, 서버 전용 `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION=true`를 함께 설정한다. override는 정확히 소문자 `true`여야 하며, 키 모드·variantKey·지문이 틀리거나 누락되면 fail closed로 결제를 열지 않는다. 이 기간에는 정지되지 않은 `staff`/`admin` 계정만 주문·예매 생성과 승인·웹훅 확정을 진행할 수 있고, 그 밖의 계정이 우회해 만든 승인 건은 자동 취소한다. 테스트 결제는 실제 결제수단을 출금하지 않는다.
+`iconsip.com`에서 사람 검토를 해야 할 때만, Vercel Production 환경변수에 Preview/로컬에서 검증한 결제위젯 세트의 `NEXT_PUBLIC_TOSS_CLIENT_KEY=test_gck_…`, `TOSS_SECRET_KEY=test_gsk_…`, 가상계좌를 제외한 테스트 UI의 `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY=ICONS_REVIEW`, 두 원문 키 값의 승인된 SHA-256인 `TOSS_PAYMENT_KEY_PAIR_SHA256`, 서버 전용 `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION=true`를 함께 설정한다. override는 정확히 소문자 `true`, variantKey는 정확히 `ICONS_REVIEW`여야 하며, 키 모드·variantKey·지문이 틀리거나 누락되면 fail closed로 결제를 열지 않는다. 이 기간에는 정지되지 않은 `staff`/`admin` 계정만 주문·예매 생성과 승인·웹훅 확정을 진행할 수 있고, 그 밖의 계정이 우회해 만든 승인 건은 자동 취소한다. 테스트 결제는 실제 결제수단을 출금하지 않는다.
 
 이 모드는 라이브 상점 검증을 대체하지 않는 임시 검토용이다. 검토 승인 뒤에는 `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION`과 테스트 전용 `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY`를 제거하고, 동일한 결제위젯 세트의 `live_gck_…`/`live_gsk_…` 키와 그 지문을 복원한 다음 production 배포로 확인한다. 라이브 키는 override 없이 기본 UI로 정상 동작한다.
 

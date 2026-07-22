@@ -50,9 +50,11 @@ export function validateVercelBuildEnvironment(environment) {
         `Missing Vercel ${target} test-payment environment: NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY`,
       );
     }
-    if (!/^[A-Za-z0-9_-]{1,20}$/.test(variantKey)) {
-      throw new Error(`Invalid Vercel ${target} Toss payment-method variant key`);
+    if (variantKey !== 'ICONS_REVIEW') {
+      throw new Error(`Invalid Vercel ${target} Toss test payment-method variant key`);
     }
+  } else if (isPresent(environment.NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY)) {
+    throw new Error(`Invalid Vercel ${target} Toss live payment-method variant key`);
   }
 
   const productionCheckoutEnabled = target === 'production'

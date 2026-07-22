@@ -44,9 +44,13 @@ export function buildTossWidgetPaymentRequest({
   };
 }
 
-export function resolveTossPaymentMethodVariantKey(value: string | null | undefined) {
+export function resolveTossPaymentMethodVariantKey(
+  clientKey: string,
+  value: string | null | undefined,
+) {
+  if (!clientKey.startsWith('test_gck_')) return 'DEFAULT';
   const variantKey = value?.trim();
-  return variantKey && /^[A-Za-z0-9_-]{1,20}$/.test(variantKey) ? variantKey : 'DEFAULT';
+  return variantKey === 'ICONS_REVIEW' ? variantKey : 'DEFAULT';
 }
 
 type TossPaymentWidgetProps = TossPaymentRoute & {
@@ -94,6 +98,7 @@ export function TossPaymentWidget(props: TossPaymentWidgetProps) {
           widgets.renderPaymentMethods({
             selector: '#toss-payment-methods',
             variantKey: resolveTossPaymentMethodVariantKey(
+              clientKey,
               process.env.NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY,
             ),
           }),
