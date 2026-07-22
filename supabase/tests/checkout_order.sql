@@ -115,6 +115,7 @@ end;
 $$;
 
 set local role service_role;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000501', true);
 
 do $$
 begin
@@ -131,6 +132,10 @@ begin
   end;
 end;
 $$;
+
+select 1 / case when current_setting('request.jwt.claim.sub', true)
+  = '00000000-0000-4000-8000-000000000501' then 1 else 0 end
+  as assert_subject_restored_after_failed_service_order;
 
 reset role;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000505', true);
@@ -150,7 +155,7 @@ begin
 end;
 $$;
 
-select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000501', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000505', true);
 
 -- The database accepts only the normalized fulfillment snapshot contract.
 do $$
@@ -212,11 +217,17 @@ values
 select stock_qty as g1_stock_before from public.goods where id = 'g1' \gset
 select stock_qty as g2_stock_before from public.goods where id = 'g2' \gset
 
+set local role service_role;
 select public.place_order(
   '00000000-0000-4000-8000-000000000501',
   '{"recipientName":"홍길동","phone":"01012345678","postalCode":"12345","address1":"서울시 성동구","address2":"101호","deliveryNote":"문 앞"}'::jsonb,
   '10000000-0000-4000-8000-000000000501'
 ) as first_order_id \gset
+
+select 1 / case when current_setting('request.jwt.claim.sub', true)
+  = '00000000-0000-4000-8000-000000000505' then 1 else 0 end
+  as assert_subject_restored_after_successful_service_order;
+reset role;
 
 select 1 / case when (
   select status = 'pending'
