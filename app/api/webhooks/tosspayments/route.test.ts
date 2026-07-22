@@ -433,6 +433,40 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
   it.each([
     ['상품 주문', 'order'],
     ['티켓 주문', 'ticket'],
+  ] as const)('local failed인 추가 결제의 CANCELED도 %s의 기존 target을 보존한다', async (
+    _label,
+    purpose,
+  ) => {
+    const confirmedPayment = paymentRecord(purpose, 'paid', 'pk_virtual');
+    const failedSecondPayment = paymentRecord(purpose, 'failed', 'pk_second');
+    const canceledSecondPayment = {
+      ...virtualAccountPayment('DONE'),
+      paymentKey: 'pk_second',
+      orderId: `${purpose}_${ORDER_UUID}`,
+      method: '카드',
+      status: 'CANCELED',
+      balanceAmount: 0,
+      cancels: [{ cancelAmount: 42000, cancelStatus: 'DONE' }],
+    };
+    mocks.target = { user_id: 'user-1', status: 'paid', total: 42000 };
+    mocks.confirmedTargetPayment = confirmedPayment;
+    mocks.paymentsByKey = {
+      pk_virtual: confirmedPayment,
+      pk_second: failedSecondPayment,
+    };
+    mocks.fetchPayment.mockResolvedValue({ ok: true, body: canceledSecondPayment });
+
+    const response = await POST(webhookRequest('pk_second'));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'canceled' }));
+    expect(mocks.updateEqSecond).toHaveBeenCalledWith('status', 'failed');
+  });
+
+  it.each([
+    ['상품 주문', 'order'],
+    ['티켓 주문', 'ticket'],
   ] as const)('terminal 기록 실패 뒤 fresh CANCELED로 재시도한 %s의 기존 target을 보존한다', async (
     _label,
     purpose,
@@ -701,6 +735,23 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
       p_order_id: ORDER_UUID,
       p_reason: '토스 결제 취소 웹훅 반영',
       p_provider_payment_keys: ['pk_virtual'],
+    });
+  });
+
+  it('local failed 결제도 verified CANCELED key로 paid 티켓을 terminal 상태에 수렴시킨다', async () => {
+    mocks.existingPayment = ticketPayment('failed');
+    mocks.target = { user_id: 'user-1', status: 'paid', total: 42000 };
+    mocks.fetchPayment.mockResolvedValue({ ok: true, body: canceledTicketPayment() });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith('refund_ticket_order_with_provider_evidence', {
+      p_ticket_order_id: ORDER_UUID,
+      p_reason: '토스 결제 취소 웹훅 반영',
+      p_provider_payment_key: 'pk_virtual',
+      p_provider_raw: expect.objectContaining({ status: 'CANCELED' }),
+      p_refund_confirmed: true,
     });
   });
 

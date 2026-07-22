@@ -52,12 +52,12 @@ async function recordTerminalPayment(
   }
 
   if (existing) {
-    if (existing.status === 'pending') {
+    if (existing.status === 'pending' || (status === 'canceled' && existing.status === 'failed')) {
       const { error } = await service
         .from('payments')
         .update({ status, raw })
         .eq('id', existing.id)
-        .eq('status', 'pending');
+        .eq('status', existing.status);
       if (error) {
         console.error(`[webhooks/tosspayments] terminal payment update failed: ${error.message}`);
         return false;
@@ -413,10 +413,8 @@ async function shouldPreserveConfirmedTargetForCanceledPayment(
     throw new Error(`Failed to load canceled event payment: ${eventPaymentError.message}`);
   }
   const eventLocal = eventPayment as LocalPaymentIdentity | null;
-  if (
-    matchesTargetPayment(eventLocal, ref, payment, localTarget.total)
-    && (eventLocal?.status === 'paid' || eventLocal?.status === 'failed')
-  ) {
+  const eventMatchesTarget = matchesTargetPayment(eventLocal, ref, payment, localTarget.total);
+  if (eventMatchesTarget && eventLocal?.status === 'paid') {
     return false;
   }
 
@@ -431,17 +429,19 @@ async function shouldPreserveConfirmedTargetForCanceledPayment(
     throw new Error(`Failed to load target confirmed payment: ${confirmedPaymentError.message}`);
   }
   const confirmedLocal = confirmedPayment as LocalPaymentIdentity | null;
-  if (
-    confirmedLocal?.status !== 'paid'
-    || confirmedLocal.amount !== localTarget.total
-    || confirmedLocal.purpose !== ref.purpose
-    || confirmedLocal.ref_id !== ref.refId
-    || !confirmedLocal.payment_key
-    || confirmedLocal.payment_key !== confirmedLocal.idempotency_key
-  ) {
-    throw new Error('Confirmed target has no valid paid payment evidence');
+  const confirmedPaymentIsValid = Boolean(
+    confirmedLocal?.status === 'paid'
+    && confirmedLocal.amount === localTarget.total
+    && confirmedLocal.purpose === ref.purpose
+    && confirmedLocal.ref_id === ref.refId
+    && confirmedLocal.payment_key
+    && confirmedLocal.payment_key === confirmedLocal.idempotency_key,
+  );
+  if (confirmedPaymentIsValid && confirmedLocal?.payment_key) {
+    return confirmedLocal.payment_key !== payment.paymentKey;
   }
-  return confirmedLocal.payment_key !== payment.paymentKey;
+  if (eventMatchesTarget && eventLocal?.status === 'failed') return false;
+  throw new Error('Confirmed target has no valid paid payment evidence');
 }
 
 async function recordCanceledExtraPayment(
