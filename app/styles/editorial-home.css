@@ -1381,6 +1381,11 @@ html:has(.icons-preview)::-webkit-scrollbar {
   transform: translate(-50%, calc(-100% - 34px));
 }
 
+.icons-preview .site-header--hidden:focus-within {
+  opacity: 1;
+  transform: translateX(-50%);
+}
+
 .icons-preview .brand,
 .icons-preview .footer-brand {
   justify-self: start;

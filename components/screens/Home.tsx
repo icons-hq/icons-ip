@@ -235,7 +235,7 @@ function PreviewHeader() {
 
   return (
     <>
-      <header className={`site-header ${hidden ? 'site-header--hidden' : ''}`} inert={hidden ? true : undefined}>
+      <header className={`site-header ${hidden ? 'site-header--hidden' : ''}`}>
         <Link aria-label="ICONS 홈" className="brand" href="/">
           ICONS
         </Link>

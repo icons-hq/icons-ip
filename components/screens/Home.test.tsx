@@ -432,6 +432,14 @@ describe('Home curation', () => {
     expect(css).toMatch(/\.icons-preview \.film-progress button::before\s*\{[^}]*height:\s*3px/);
   });
 
+  it('keeps the auto-hidden home header reachable by keyboard', () => {
+    const source = readFileSync(new URL('./Home.tsx', import.meta.url), 'utf8');
+    const css = cssForHome();
+
+    expect(source).not.toMatch(/<header[^>]*inert=\{hidden/);
+    expect(css).toMatch(/\.icons-preview \.site-header--hidden:focus-within\s*\{[^}]*opacity:\s*1;[^}]*transform:\s*translateX\(-50%\);/s);
+  });
+
   it('uses legacy featured selection only for a mock catalog, regardless of curation IDs', () => {
     const html = renderHome({
       catalog: catalog('mock', [
