@@ -218,9 +218,10 @@
   min-width: 0;
   font-size: clamp(40px, 5.2vw, 88px);
   font-weight: 850;
-  line-height: .92;
-  letter-spacing: -.075em;
-  overflow-wrap: anywhere;
+  line-height: var(--editorial-leading-display);
+  letter-spacing: var(--editorial-tracking-display);
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .editorial-menu__arrow {
@@ -265,7 +266,7 @@
   max-width: 32ch;
   color: var(--editorial-ink-muted);
   font-size: 13px;
-  line-height: 1.6;
+  line-height: var(--editorial-leading-body);
 }
 
 .site-footer-editorial {
@@ -290,7 +291,7 @@
   color: var(--editorial-on-inverse);
   font-size: clamp(72px, 14.5vw, 220px);
   font-weight: 850;
-  line-height: .78;
+  line-height: var(--editorial-leading-wordmark);
   letter-spacing: -.09em;
 }
 
@@ -314,7 +315,7 @@
   max-width: 42ch;
   color: var(--editorial-inverse-muted, #858580);
   font-size: 13px;
-  line-height: 1.65;
+  line-height: var(--editorial-leading-body);
 }
 
 .site-footer-editorial__links {

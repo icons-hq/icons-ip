@@ -254,7 +254,7 @@ describe('Home curation', () => {
     expect(css).toMatch(/\.icons-preview a:focus-visible/);
   });
 
-  it('allows long unbroken hero and announcement titles to wrap on a narrow viewport', () => {
+  it('allows long unbroken hero and announcement titles to wrap without weakening Korean heading rules', () => {
     const longTitle = 'A'.repeat(120);
     const html = renderHome({
       curation: {
@@ -276,12 +276,29 @@ describe('Home curation', () => {
 
     expect(html).toMatch(new RegExp(`<h1[^>]*>${longTitle}</h1>`));
     expect(html).toMatch(new RegExp(`<strong[^>]*>${longTitle}</strong>`));
-    expect(cssForHome()).toMatch(/overflow-wrap:\s*anywhere/);
+    expect(cssForHome()).toMatch(/\.icons-preview \.hero h1:not\(:has\(> span\)\)\s*\{[^}]*overflow-wrap:\s*break-word/);
+    expect(cssForHome()).toMatch(/\.icons-preview \.announcement strong\s*\{[^}]*overflow-wrap:\s*break-word/);
   });
 
-  it('keeps line-broken reference hero copy on the source wrapping algorithm', () => {
-    expect(cssForHome()).toMatch(/\.icons-preview \.hero h1\s*\{[^}]*overflow-wrap:\s*normal;[^}]*text-wrap:\s*wrap;/s);
-    expect(cssForHome()).toMatch(/\.icons-preview :is\(h2, h3\)\s*\{[^}]*text-wrap:\s*wrap;/s);
+  it('keeps Korean words intact and balances editorial headings', () => {
+    expect(cssForHome()).toMatch(
+      /\.icons-preview :is\(h1, h2, h3\)\s*\{[^}]*word-break:\s*keep-all;[^}]*line-break:\s*strict;[^}]*overflow-wrap:\s*normal;[^}]*text-wrap:\s*balance;/s,
+    );
+  });
+
+  it('sizes hero and feature headlines from their actual copy containers', () => {
+    const css = cssForHome();
+
+    expect(css).toMatch(/\.icons-preview \.hero-copy\s*\{[^}]*container-type:\s*inline-size;/s);
+    expect(css).toMatch(/\.icons-preview \.hero h1\s*\{[^}]*font-size:\s*clamp\(54px,\s*11cqi,\s*104px\);/s);
+    expect(css).toMatch(/\.icons-preview \.feature-copy\s*\{[^}]*container-type:\s*inline-size;/s);
+    expect(css).toMatch(/\.icons-preview \.feature-copy h3\s*\{[^}]*font-size:\s*clamp\(40px,\s*11cqi,\s*76px\);/s);
+    expect(css).toMatch(
+      /font-size:\s*clamp\(40px,\s*12vw,\s*52px\);\s*font-size:\s*clamp\(40px,\s*12cqi,\s*52px\);/,
+    );
+    expect(css).toMatch(
+      /font-size:\s*clamp\(40px,\s*12vw,\s*44px\);\s*font-size:\s*clamp\(40px,\s*11cqi,\s*44px\);/,
+    );
   });
 
   it('renders a featured artwork override and keeps catalog key art when no override exists', () => {

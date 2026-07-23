@@ -225,7 +225,9 @@ describe('CurationSection', () => {
     expect(button).toContain('공지 배너 · 노출 중 · 순서 2');
     expect(button).toContain('2026-07-15 09:00 KST → 종료 없음');
     expect(css).toMatch(/\.admin-curation-record-button\s*\{[^}]*height:\s*auto[^}]*white-space:\s*normal/);
-    expect(css).toMatch(/\.admin-curation-record-title\s*\{[^}]*overflow-wrap:\s*anywhere/);
+    expect(css).toMatch(
+      /\.admin-curation-record-title\s*\{[^}]*word-break:\s*keep-all;[^}]*overflow-wrap:\s*break-word/s,
+    );
     expect(css).toMatch(/\.admin-curation-record-meta\s*\{[^}]*color:\s*var\(--dim\)[^}]*font-size:\s*11px/);
   });
 
