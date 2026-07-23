@@ -28,7 +28,7 @@ const emptyState: OnboardingActionState = {};
 const inputStyle: React.CSSProperties = {
   height: 50, padding: '0 18px', borderRadius: 14,
   border: '1px solid var(--line-2)', background: 'rgba(21,17,42,.7)',
-  color: 'var(--text)', fontSize: 14.5, fontFamily: 'inherit', outline: 'none',
+  color: 'var(--text)', fontSize: 14.5, fontFamily: 'inherit',
 };
 
 function ErrorText({ children, id }: { children?: string; id: string }) {

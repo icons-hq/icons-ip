@@ -147,7 +147,7 @@ describe('NotificationBell', () => {
 
   it('sits between search and cart in the shared top navigation', () => {
     mocks.presence = 'signed-in';
-    mocks.pathname = '/';
+    mocks.pathname = '/ip';
 
     const html = renderToStaticMarkup(<Nav />);
     const search = html.indexOf('aria-label="검색"');

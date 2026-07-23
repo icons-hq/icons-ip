@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { CommunityFeedPost, CommunitySnapshot, CommunityViewerState } from '@/lib/community';
@@ -55,6 +56,31 @@ function renderFandom({
     />,
   );
 }
+
+function communityCss() {
+  return readFileSync(new URL('../../app/styles/editorial-public.css', import.meta.url), 'utf8');
+}
+
+describe('Community composer', () => {
+  it('uses a responsive composer shell and an accessible custom image picker', () => {
+    const html = render([]);
+    const css = communityCss();
+
+    expect(html).toContain('class="community-composer"');
+    expect(html).toContain('class="community-composer__main"');
+    expect(html).toContain('class="community-composer__controls"');
+    expect(html).toContain('id="community-composer-image"');
+    expect(html).toContain('class="community-composer__file"');
+    expect(html).toContain('for="community-composer-image"');
+    expect(html).toContain('class="community-composer__upload"');
+    expect(html).toContain('이미지 추가');
+    expect(html).toContain('name="image"');
+    expect(html).toContain('accept="image/jpeg,image/png,image/webp,image/gif"');
+    expect(css).toContain('.community-composer__file');
+    expect(css).toContain('.community-composer__upload');
+    expect(css).toContain('.community-composer__text');
+  });
+});
 
 describe('Community trending tags', () => {
   it('renders recent tags as encoded links to public search', () => {
@@ -291,7 +317,8 @@ describe('Community post editing', () => {
     expect(html).toContain('취소');
     expect(html).toContain('· 수정됨');
     expect(html).toContain('#커뮤니티');
-    expect(html).not.toContain('type="file" name="image"');
+    const editRegion = html.match(/<div hidden="" id="community-post-edit-[^"]+">[\s\S]*?<\/form><\/div>/)?.[0] ?? '';
+    expect(editRegion).not.toContain('type="file"');
   });
 
   it('preserves an archived post IP as the current edit option without exposing it to new selection', () => {

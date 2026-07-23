@@ -1,0 +1,2134 @@
+/*
+ * Living IP Editorial — account, notifications, and commerce surfaces
+ *
+ * This stylesheet is intentionally presentation-only. Existing form actions,
+ * input names, payment mount IDs, route contracts, and server state classes
+ * remain the source of functional truth.
+ */
+
+:root {
+  --account-canvas: var(--editorial-canvas, #f4f4f1);
+  --account-canvas-soft: var(--editorial-canvas-soft, #efefeb);
+  --account-surface: var(--editorial-surface, #fff);
+  --account-surface-muted: var(--editorial-surface-muted, #e7e7e2);
+  --account-placeholder: var(--editorial-placeholder, #ddd);
+  --account-ink: var(--editorial-ink, #11110f);
+  --account-muted: var(--editorial-ink-muted, #686862);
+  --account-faint: var(--editorial-ink-faint, #858580);
+  --account-line: var(--editorial-line, rgba(17, 17, 15, .18));
+  --account-line-soft: var(--editorial-line-soft, rgba(17, 17, 15, .08));
+  --account-line-strong: var(--editorial-line-strong, rgba(17, 17, 15, .4));
+  --account-green: var(--editorial-pastel-green, #c4e5ae);
+  --account-pink: var(--editorial-pastel-pink, #ffdaff);
+  --account-blue: var(--editorial-pastel-blue, #a6c5e6);
+  --account-yellow: var(--editorial-pastel-yellow, #ffe888);
+  --account-brand: var(--editorial-brand-green, #78bb53);
+  --account-focus: var(--editorial-focus, #5b74ff);
+  --account-success: var(--editorial-success, #3f7d38);
+  --account-warning: var(--editorial-warning, #9a5b00);
+  --account-danger: var(--editorial-danger, #b8324a);
+  --account-info: var(--editorial-info, #365ca8);
+  --account-shadow: 0 24px 64px -52px rgba(17, 17, 15, .48);
+}
+
+/* Shared canvas and paper language --------------------------------------- */
+
+:is(
+  .my-page,
+  .notifications-page,
+  .notification-settings-page,
+  .cart-page,
+  .checkout-page,
+  .orders-page,
+  .order-detail-page,
+  .tickets-page,
+  .ticket-detail-page,
+  .event-detail-page
+) {
+  min-height: 100vh;
+  background: var(--account-canvas);
+  color: var(--account-ink);
+}
+
+:is(
+  .my-page,
+  .notifications-page,
+  .notification-settings-page,
+  .cart-page,
+  .checkout-page,
+  .orders-page,
+  .order-detail-page,
+  .tickets-page,
+  .ticket-detail-page,
+  .event-detail-page
+) :is(.card, .checkout-form, .checkout-summary, .checkout-order-main, .checkout-receipt) {
+  border: 1px solid var(--account-line-soft);
+  background: var(--account-surface);
+  color: var(--account-ink);
+  box-shadow: none;
+}
+
+:is(
+  .my-page,
+  .notifications-page,
+  .notification-settings-page,
+  .cart-page,
+  .checkout-page,
+  .orders-page,
+  .order-detail-page,
+  .tickets-page,
+  .ticket-detail-page,
+  .event-detail-page
+) :is(.h-xl, .h-lg, h1, h2, h3, strong) {
+  color: var(--account-ink);
+}
+
+:is(
+  .my-page,
+  .notifications-page,
+  .notification-settings-page,
+  .cart-page,
+  .checkout-page,
+  .orders-page,
+  .order-detail-page,
+  .tickets-page,
+  .ticket-detail-page,
+  .event-detail-page
+) .eyebrow {
+  color: var(--account-ink) !important;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .17em;
+}
+
+:is(
+  .my-page,
+  .notifications-page,
+  .notification-settings-page,
+  .cart-page,
+  .checkout-page,
+  .orders-page,
+  .order-detail-page,
+  .tickets-page,
+  .ticket-detail-page,
+  .event-detail-page
+) :is(.btn-holo, .cart-checkout:not(:disabled), .checkout-submit:not(:disabled)) {
+  border: 1px solid var(--account-ink);
+  background: var(--account-ink);
+  color: #fff;
+  box-shadow: none;
+}
+
+:is(
+  .my-page,
+  .notifications-page,
+  .notification-settings-page,
+  .cart-page,
+  .checkout-page,
+  .orders-page,
+  .order-detail-page,
+  .tickets-page,
+  .ticket-detail-page,
+  .event-detail-page
+) .btn-ghost {
+  border-color: var(--account-line);
+  background: var(--account-surface);
+  color: var(--account-ink);
+}
+
+:is(
+  .my-page,
+  .notifications-page,
+  .notification-settings-page,
+  .cart-page,
+  .checkout-page,
+  .orders-page,
+  .order-detail-page,
+  .tickets-page,
+  .ticket-detail-page,
+  .event-detail-page
+) :is(.btn, button, a, input):focus-visible {
+  outline: 2px solid var(--account-focus);
+  outline-offset: 3px;
+}
+
+:is(
+  .my-page,
+  .notifications-page,
+  .notification-settings-page,
+  .cart-page,
+  .checkout-page,
+  .orders-page,
+  .order-detail-page,
+  .tickets-page,
+  .ticket-detail-page,
+  .event-detail-page
+) :is(.btn, button):disabled {
+  cursor: not-allowed;
+  filter: none;
+  opacity: .48;
+}
+
+/* Authentication -------------------------------------------------------- */
+
+.login-split {
+  min-height: 100svh !important;
+  grid-template-columns: minmax(0, 1.05fr) minmax(420px, .95fr);
+  background: var(--account-canvas);
+  color: var(--account-ink);
+}
+
+.login-panel {
+  border-right: 1px solid var(--account-line) !important;
+  background: var(--account-green);
+  color: var(--account-ink);
+}
+
+.login-panel .brand,
+.login-mobile-brand .brand {
+  color: var(--account-ink);
+}
+
+.login-panel .brand .dot,
+.login-mobile-brand .brand .dot {
+  background: var(--account-brand);
+  box-shadow: none;
+}
+
+.login-panel .holo-text {
+  background: none !important;
+  color: var(--account-ink);
+  -webkit-text-fill-color: currentColor;
+}
+
+.login-panel p,
+.login-panel .mono {
+  color: var(--account-muted) !important;
+}
+
+.login-panel .home-float > div {
+  border: 1px solid rgba(17, 17, 15, .12);
+  box-shadow: 0 26px 52px -34px rgba(17, 17, 15, .8) !important;
+}
+
+.login-panel .home-float:nth-child(2) > div {
+  box-shadow: 0 30px 62px -32px rgba(17, 17, 15, .92) !important;
+}
+
+.login-split > :last-child {
+  background: var(--account-canvas);
+  color: var(--account-ink);
+}
+
+.login-split > :last-child .rise > div:first-child {
+  border-color: var(--account-line-soft) !important;
+  background: var(--account-surface-muted) !important;
+}
+
+.login-split > :last-child .rise > div:first-child a:is(
+  [style*='font-weight:700'],
+  [style*='font-weight: 700']
+) {
+  background: var(--account-ink) !important;
+  color: #fff !important;
+}
+
+.login-split > :last-child h2,
+.login-split > :last-child label {
+  color: var(--account-ink) !important;
+}
+
+.login-split > :last-child p,
+.login-split > :last-child .mono {
+  color: var(--account-muted) !important;
+}
+
+.auth-field-input {
+  min-height: 50px;
+  border: 1px solid var(--account-line) !important;
+  border-radius: 10px !important;
+  outline: none;
+  background: var(--account-surface) !important;
+  color: var(--account-ink) !important;
+  caret-color: var(--account-ink);
+  box-shadow: none;
+}
+
+.auth-field-input::placeholder {
+  color: var(--account-faint);
+}
+
+.auth-field-input:hover:not(:disabled) {
+  border-color: var(--account-line-strong) !important;
+}
+
+.auth-field-input:focus,
+.auth-field-input:focus-visible {
+  border-color: var(--account-focus) !important;
+  outline: 2px solid var(--account-focus);
+  outline-offset: 2px;
+}
+
+.auth-field-input[aria-invalid='true'] {
+  border-color: var(--account-danger) !important;
+}
+
+.login-split [role='alert'] {
+  border-color: color-mix(in srgb, var(--account-danger) 36%, transparent) !important;
+  background: color-mix(in srgb, var(--account-danger) 8%, var(--account-surface));
+  color: var(--account-danger) !important;
+}
+
+.login-split [role='status'] {
+  border-color: color-mix(in srgb, var(--account-success) 30%, transparent) !important;
+  background: color-mix(in srgb, var(--account-success) 7%, var(--account-surface));
+  color: var(--account-success) !important;
+}
+
+.login-split .btn-holo,
+body:has(input[name='passwordConfirmation']) .btn-holo,
+body:has(input[name='birthDate']) .btn-holo,
+body:has(#settings-nickname) :is(.settings-profile-submit, .settings-marketing-submit) {
+  border: 1px solid var(--account-ink) !important;
+  background: var(--account-ink) !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+
+.login-split form button:disabled,
+body:has(input[name='passwordConfirmation']) button:disabled,
+body:has(input[name='birthDate']) button:disabled,
+body:has(#settings-nickname) button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
+
+.login-split > :last-child .rise > div:has(> span + .mono) > span:not(.mono) {
+  background: var(--account-line-soft) !important;
+}
+
+/* Onboarding and settings currently expose stable field names/IDs rather
+ * than page classes. :has() keeps these overrides isolated without touching
+ * the action-bearing components. */
+
+body:has(input[name='birthDate']) #root > div,
+body:has(#settings-nickname) #root > div {
+  min-height: 100svh !important;
+  padding: clamp(104px, 11vw, 144px) 21px 80px !important;
+  background: var(--account-canvas);
+  color: var(--account-ink);
+}
+
+body:has(input[name='birthDate']) #root > div > .rise,
+body:has(#settings-nickname) #root > div > .rise {
+  width: min(680px, 100%) !important;
+  padding: clamp(24px, 4vw, 48px);
+  border: 1px solid var(--account-line-soft);
+  border-radius: 14px;
+  background: var(--account-surface);
+  color: var(--account-ink);
+  box-shadow: var(--account-shadow);
+}
+
+body:has(input[name='birthDate']) #root > div > .rise > h2,
+body:has(#settings-nickname) #root > div > .rise > h2 {
+  color: var(--account-ink);
+  font-size: clamp(36px, 5vw, 58px) !important;
+  font-weight: 840 !important;
+  line-height: .96;
+  letter-spacing: -.065em !important;
+}
+
+body:has(input[name='birthDate']) #root > div > .rise > p,
+body:has(#settings-nickname) #root > div > .rise > p {
+  max-width: 540px;
+  color: var(--account-muted) !important;
+  line-height: 1.6;
+}
+
+body:has(input[name='birthDate']) :is(input:not([type='checkbox']):not([type='hidden']), select, textarea),
+body:has(#settings-nickname) :is(input:not([type='checkbox']):not([type='hidden']):not([type='file']), select, textarea) {
+  min-height: 50px;
+  border: 1px solid var(--account-line) !important;
+  border-radius: 10px !important;
+  outline: none;
+  background: var(--account-surface) !important;
+  color: var(--account-ink) !important;
+  box-shadow: none;
+}
+
+body:has(input[name='birthDate']) input:disabled,
+body:has(#settings-nickname) input:disabled {
+  background: var(--account-canvas-soft) !important;
+  color: var(--account-muted) !important;
+  opacity: 1;
+}
+
+body:has(input[name='birthDate']) input[aria-invalid='true'],
+body:has(#settings-nickname) input[aria-invalid='true'] {
+  border-color: var(--account-danger) !important;
+}
+
+body:has(input[name='birthDate']) input:focus-visible,
+body:has(#settings-nickname) input:focus-visible {
+  border-color: var(--account-focus) !important;
+  outline: 2px solid var(--account-focus);
+  outline-offset: 2px;
+}
+
+body:has(input[name='birthDate']) label:has(input[name='terms']),
+body:has(input[name='birthDate']) label:has(input[name='privacy']),
+body:has(input[name='birthDate']) label:has(input[name='marketing']),
+body:has(#settings-nickname) label:has(.settings-marketing-input),
+body:has(#settings-nickname) form > .col > div:not(:first-child) {
+  border-radius: 10px !important;
+}
+
+body:has(input[name='birthDate']) label:has(input[type='checkbox']):hover,
+body:has(#settings-nickname) label:has(input[type='checkbox']):hover {
+  background: var(--account-canvas-soft);
+}
+
+body:has(input[name='birthDate']) label:has(input[type='checkbox']) > span:last-child,
+body:has(#settings-nickname) label:has(input[type='checkbox']) > span:last-child,
+body:has(#settings-nickname) label[for='settings-avatar'],
+body:has(#settings-nickname) label[for='settings-nickname'] {
+  color: var(--account-ink) !important;
+}
+
+body:has(input[name='birthDate']) input[type='checkbox']:focus-visible + span,
+body:has(#settings-nickname) input[type='checkbox']:focus-visible + span {
+  outline: 2px solid var(--account-focus);
+  outline-offset: 3px;
+}
+
+body:has(input[name='birthDate']) input[type='checkbox']:checked + span,
+body:has(#settings-nickname) input[type='checkbox']:checked + span,
+body:has(#settings-nickname) .settings-marketing-input:checked + .settings-marketing-proxy {
+  border-color: var(--account-ink) !important;
+  background: var(--account-ink) !important;
+  color: #fff !important;
+}
+
+body:has(input[name='birthDate']) label:has(input[name='followIpIds']) {
+  border: 1px solid transparent;
+  border-radius: 10px !important;
+  box-shadow: 0 0 0 1px var(--account-line-soft) !important;
+}
+
+body:has(input[name='birthDate']) label:has(input[name='followIpIds']) > span:last-child {
+  color: #fff;
+}
+
+body:has(input[name='birthDate']) label:has(input[name='followIpIds']) > span:last-child > span:last-child {
+  border-color: rgba(255, 255, 255, .7) !important;
+  background: rgba(17, 17, 15, .58) !important;
+  color: #fff !important;
+}
+
+body:has(input[name='birthDate']) label:has(input[name='followIpIds']:checked) {
+  border-color: var(--account-ink);
+  box-shadow: 0 0 0 2px var(--account-ink) !important;
+}
+
+body:has(input[name='birthDate']) label:has(> input[name='followIpIds']:checked) > span:last-child > span:last-child {
+  border-color: #fff !important;
+  background: #fff !important;
+  color: var(--account-ink) !important;
+}
+
+body:has(input[name='birthDate']) label:has(input[name='followIpIds']) input:focus-visible ~ span:last-child {
+  outline: 2px solid var(--account-focus);
+  outline-offset: 4px;
+}
+
+body:has(#settings-nickname) .settings-avatar-input {
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid var(--account-line);
+  border-radius: 10px;
+  background: var(--account-canvas-soft);
+  color: var(--account-muted) !important;
+}
+
+body:has(#settings-nickname) form:last-of-type > .col > div > span:not(.mono),
+body:has(#settings-nickname) form:last-of-type > .col > div > span + span {
+  color: var(--account-ink) !important;
+}
+
+body:has(#settings-nickname) form:last-of-type > .col > div > span[aria-hidden] {
+  border: 1px solid var(--account-ink) !important;
+  background: var(--account-ink) !important;
+  color: #fff !important;
+}
+
+body:has(#settings-nickname) .settings-nickname-control {
+  width: 100%;
+  color: var(--account-ink) !important;
+}
+
+body:has(#settings-nickname) [role='alert'],
+body:has(input[name='birthDate']) [role='alert'] {
+  border-color: color-mix(in srgb, var(--account-danger) 35%, transparent) !important;
+  background: color-mix(in srgb, var(--account-danger) 7%, var(--account-surface));
+  color: var(--account-danger) !important;
+}
+
+body:has(#settings-nickname) [role='status'] {
+  border-color: color-mix(in srgb, var(--account-success) 28%, transparent) !important;
+  background: color-mix(in srgb, var(--account-success) 6%, var(--account-surface));
+  color: var(--account-success) !important;
+}
+
+/* Password recovery and restricted account ------------------------------ */
+
+body:has(input[name='passwordConfirmation']) main,
+body:has(#account-suspended-title) main,
+body:has(main[aria-busy='true']) main[aria-busy='true'] {
+  background: var(--account-canvas);
+  color: var(--account-ink);
+}
+
+body:has(input[name='passwordConfirmation']) main > section,
+body:has(#account-suspended-title) #account-suspended-title:where(h1) {
+  color: var(--account-ink);
+}
+
+body:has(input[name='passwordConfirmation']) main > section {
+  border: 1px solid var(--account-line-soft) !important;
+  border-radius: 14px !important;
+  background: var(--account-surface) !important;
+  box-shadow: var(--account-shadow) !important;
+}
+
+body:has(input[name='passwordConfirmation']) main > section p,
+body:has(main[aria-busy='true']) main[aria-busy='true'] p,
+body:has(#account-suspended-title) #account-suspended-title + p {
+  color: var(--account-muted) !important;
+}
+
+body:has(#account-suspended-title) main > section {
+  border: 1px solid var(--account-line-soft);
+  border-radius: 14px;
+  background: var(--account-surface);
+  color: var(--account-ink);
+  box-shadow: var(--account-shadow);
+}
+
+body:has(#account-suspended-title) .eyebrow {
+  color: var(--account-danger);
+}
+
+body:has(#account-suspended-title) .btn-ghost {
+  border-color: var(--account-line);
+  background: var(--account-surface);
+  color: var(--account-ink);
+}
+
+body:has(#account-suspended-title) .btn-ghost:focus-visible,
+body:has(input[name='passwordConfirmation']) :is(a, button, input):focus-visible {
+  outline: 2px solid var(--account-focus);
+  outline-offset: 3px;
+}
+
+/* My account hub --------------------------------------------------------- */
+
+.my-header {
+  padding: clamp(118px, 12vw, 164px) 0 clamp(42px, 5vw, 72px);
+  border-bottom: 1px solid var(--account-line-soft);
+  background: var(--account-blue);
+}
+
+.my-header h1 {
+  margin-top: 18px;
+  font-size: clamp(54px, 6.2vw, 104px);
+  font-weight: 840;
+  line-height: .92;
+  letter-spacing: -.075em;
+}
+
+.my-header p {
+  color: var(--account-ink);
+}
+
+.my-content {
+  padding: clamp(42px, 6vw, 84px) 0 clamp(92px, 10vw, 144px);
+}
+
+.my-profile {
+  min-height: 176px;
+  border-radius: 14px;
+  background: var(--account-surface);
+}
+
+.my-profile::before {
+  display: none;
+}
+
+.my-avatar {
+  border-color: var(--account-line);
+  background: var(--account-green);
+  box-shadow: none;
+}
+
+.my-profile-copy > span,
+.my-section-heading span {
+  color: var(--account-muted);
+}
+
+.my-profile-copy p,
+.my-section-heading p,
+.my-destination-copy > span:last-child,
+.my-destination-copy > .mono {
+  color: var(--account-muted);
+}
+
+.my-section-heading {
+  margin-top: clamp(60px, 7vw, 96px);
+}
+
+.my-section-heading h2 {
+  font-size: clamp(28px, 3.2vw, 46px);
+  font-weight: 820;
+  letter-spacing: -.055em;
+}
+
+.my-destination-grid {
+  gap: 12px;
+}
+
+.my-destination {
+  min-height: 148px;
+  border-radius: 14px;
+  background: var(--account-surface);
+  transition: transform 300ms cubic-bezier(.2, .8, .2, 1), border-color 300ms ease;
+}
+
+.my-destination:nth-child(4n + 1) .my-destination-icon { background: var(--account-green); }
+.my-destination:nth-child(4n + 2) .my-destination-icon { background: var(--account-pink); }
+.my-destination:nth-child(4n + 3) .my-destination-icon { background: var(--account-blue); }
+.my-destination:nth-child(4n) .my-destination-icon { background: var(--account-yellow); }
+
+.my-destination-icon {
+  border: 0;
+  color: var(--account-ink);
+}
+
+.my-destination:hover {
+  transform: translateY(-3px);
+  border-color: var(--account-line);
+  box-shadow: none;
+}
+
+.my-destination-arrow {
+  color: var(--account-muted);
+}
+
+/* Notification inbox and preferences ----------------------------------- */
+
+.notifications-header {
+  padding: clamp(118px, 12vw, 164px) 0 clamp(42px, 5vw, 72px);
+  border-bottom: 1px solid var(--account-line-soft);
+  background: var(--account-pink);
+}
+
+.notifications-header h1 {
+  margin-top: 18px;
+  font-size: clamp(54px, 6.2vw, 104px);
+  font-weight: 840;
+  line-height: .92;
+  letter-spacing: -.075em;
+}
+
+.notifications-header p {
+  color: var(--account-ink);
+}
+
+.notifications-settings-link {
+  border-color: rgba(17, 17, 15, .28) !important;
+  background: rgba(255, 255, 255, .42) !important;
+}
+
+.notifications-content {
+  padding: clamp(44px, 6vw, 80px) 0 clamp(92px, 10vw, 144px);
+}
+
+.notifications-content > .wrap {
+  max-width: 1040px;
+}
+
+.notifications-section-heading {
+  margin-top: 0;
+}
+
+.notifications-section-heading > div > span,
+.notification-preference-heading > span,
+.notification-meta > span {
+  color: var(--account-muted);
+}
+
+.notifications-section-heading > .mono,
+.notification-meta,
+.notification-copy > span:not(.notification-meta):not(.sr-only),
+.notification-switch small {
+  color: var(--account-muted);
+}
+
+.notifications-ledger,
+.notification-preference-list {
+  gap: 8px;
+}
+
+.notification-row {
+  border: 1px solid var(--account-line-soft);
+  border-radius: 14px;
+  background: var(--account-surface);
+}
+
+.notification-row::before {
+  width: 4px;
+}
+
+.notification-row.is-unread {
+  border-color: color-mix(in srgb, var(--account-pink) 58%, var(--account-line));
+  background: color-mix(in srgb, var(--account-pink) 38%, var(--account-surface));
+}
+
+.notification-row.is-unread::before,
+.notification-unread-dot {
+  background: var(--account-ink);
+  box-shadow: none;
+}
+
+.notification-open:hover {
+  background: var(--account-canvas-soft);
+}
+
+.notification-open:focus-visible {
+  outline: 2px solid var(--account-focus);
+  outline-offset: -4px;
+}
+
+.notification-type-icon,
+.notifications-empty-icon {
+  border: 0;
+  background: var(--account-pink);
+  color: var(--account-ink);
+}
+
+.notification-arrow {
+  color: var(--account-muted);
+}
+
+.notifications-empty {
+  border-radius: 14px;
+  background: var(--account-surface);
+}
+
+.notifications-empty p {
+  color: var(--account-muted);
+}
+
+.notification-preference {
+  border: 1px solid var(--account-line-soft);
+  border-radius: 14px;
+  background: var(--account-surface);
+}
+
+.notification-switch {
+  border: 1px solid var(--account-line-soft);
+  border-radius: 14px;
+  background: var(--account-canvas);
+}
+
+.notification-switch:hover {
+  border-color: var(--account-line);
+}
+
+.notification-switch input {
+  border-color: var(--account-line);
+  background: var(--account-surface-muted);
+}
+
+.notification-switch input::before {
+  background: var(--account-muted);
+}
+
+.notification-switch input:checked {
+  border-color: var(--account-ink);
+  background: var(--account-ink);
+}
+
+.notification-switch input:checked::before {
+  background: var(--account-surface);
+}
+
+.notification-switch input:focus-visible {
+  outline-color: var(--account-focus);
+}
+
+.notification-settings-error,
+.notification-inline-status--error {
+  border-color: color-mix(in srgb, var(--account-danger) 34%, transparent);
+  background: color-mix(in srgb, var(--account-danger) 7%, var(--account-surface));
+  color: var(--account-danger);
+}
+
+.notification-settings-success,
+.notification-inline-status--success {
+  border-color: color-mix(in srgb, var(--account-success) 30%, transparent);
+  background: color-mix(in srgb, var(--account-success) 7%, var(--account-surface));
+  color: var(--account-success);
+}
+
+/* Cart ------------------------------------------------------------------- */
+
+.cart-header {
+  padding: clamp(118px, 12vw, 164px) 0 clamp(40px, 5vw, 68px);
+  border-bottom: 1px solid var(--account-line-soft);
+  background: var(--account-yellow);
+}
+
+.cart-header-row {
+  margin-top: 18px;
+}
+
+.cart-header-row h1 {
+  font-size: clamp(52px, 6vw, 100px);
+  font-weight: 840;
+  line-height: .93;
+  letter-spacing: -.075em;
+}
+
+.cart-mode {
+  border-color: rgba(17, 17, 15, .28);
+  background: rgba(255, 255, 255, .45);
+  color: var(--account-ink);
+}
+
+.cart-header-copy {
+  color: var(--account-ink);
+}
+
+.cart-section {
+  padding: clamp(42px, 5vw, 72px) 0 clamp(92px, 10vw, 144px);
+}
+
+.cart-layout {
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 390px);
+  gap: 24px;
+}
+
+.cart-list-head span,
+.cart-line-copy > p:not(.cart-line-state),
+.cart-line-meta,
+.cart-summary-row--dim,
+.cart-summary-total span,
+.cart-summary .money-caption {
+  color: var(--account-muted);
+}
+
+.cart-line {
+  min-height: 150px;
+  border: 1px solid var(--account-line-soft);
+  border-radius: 14px;
+  background: var(--account-surface);
+}
+
+.cart-line--unavailable,
+.cart-line--invalid {
+  border-color: color-mix(in srgb, var(--account-danger) 38%, transparent);
+}
+
+.cart-line-art {
+  border-radius: 10px;
+  background: var(--account-placeholder);
+}
+
+.cart-line-art .sheen {
+  display: none;
+}
+
+.cart-line-art--invalid {
+  border-color: var(--account-line);
+  color: var(--account-muted);
+  background: var(--account-canvas-soft);
+}
+
+.cart-line-meta .mono,
+.cart-line-state--low {
+  color: var(--account-warning);
+}
+
+.cart-line-state {
+  color: var(--account-muted);
+}
+
+.cart-line-state--danger,
+.cart-remove:hover:not(:disabled) {
+  color: var(--account-danger);
+}
+
+.cart-quantity {
+  min-height: 44px;
+  grid-template-columns: 42px 42px 42px;
+  border-color: var(--account-line);
+  background: var(--account-canvas);
+}
+
+.cart-quantity button {
+  color: var(--account-ink);
+}
+
+.cart-quantity button:hover:not(:disabled) {
+  background: var(--account-surface-muted);
+  color: var(--account-ink);
+}
+
+.cart-quantity button:disabled,
+.cart-remove {
+  color: var(--account-muted);
+}
+
+.cart-summary {
+  top: 112px;
+  border-radius: 14px;
+}
+
+.cart-summary::before,
+.checkout-summary::before,
+.checkout-receipt::before,
+.order-detail-receipt::before,
+.ticket-detail-receipt::before {
+  height: 4px;
+  background: var(--account-ink);
+}
+
+.cart-summary-row,
+.cart-summary-total,
+.checkout-totals > div {
+  color: var(--account-ink);
+}
+
+.cart-summary-total {
+  border-color: var(--account-line);
+}
+
+.cart-summary-warning,
+.cart-alert {
+  border-color: color-mix(in srgb, var(--account-danger) 34%, transparent);
+  background: color-mix(in srgb, var(--account-danger) 7%, var(--account-surface));
+  color: var(--account-danger);
+}
+
+.cart-checkout:disabled {
+  border: 1px solid var(--account-line-soft);
+  background: var(--account-surface-muted);
+  color: var(--account-muted);
+}
+
+.cart-loading,
+.cart-empty {
+  color: var(--account-muted);
+}
+
+.cart-loading-dot {
+  background: var(--account-brand);
+  box-shadow: none;
+}
+
+.cart-empty {
+  border-radius: 14px;
+  background: var(--account-surface);
+}
+
+.cart-empty-icon {
+  border: 0;
+  background: var(--account-yellow);
+  color: var(--account-ink);
+}
+
+/* Checkout, payment, and confirmation ---------------------------------- */
+
+.checkout-page {
+  padding-bottom: clamp(92px, 10vw, 144px);
+}
+
+.checkout-header {
+  padding: clamp(118px, 12vw, 164px) 0 clamp(40px, 5vw, 68px);
+  border-bottom: 1px solid var(--account-line-soft);
+  background: var(--account-blue);
+}
+
+.checkout-header h1 {
+  max-width: 920px;
+  font-size: clamp(48px, 5.5vw, 92px);
+  font-weight: 840;
+  line-height: .94;
+  letter-spacing: -.07em;
+}
+
+.checkout-header p {
+  color: var(--account-ink);
+}
+
+.checkout-layout,
+.checkout-order-layout {
+  margin-top: clamp(32px, 4vw, 56px);
+  grid-template-columns: minmax(0, 1fr) minmax(350px, 420px);
+  gap: 24px;
+}
+
+.checkout-order-page,
+.ticket-checkout-page {
+  color-scheme: light;
+}
+
+.checkout-order-header {
+  color: var(--account-ink);
+}
+
+.checkout-form,
+.checkout-order-main,
+.checkout-summary,
+.checkout-receipt {
+  border-radius: 14px;
+}
+
+.checkout-summary,
+.checkout-receipt {
+  top: 112px;
+}
+
+.checkout-section-heading p,
+.checkout-fields label > span,
+.checkout-fields label em,
+.checkout-item > div span,
+.checkout-item > span,
+.checkout-totals dt,
+.checkout-back,
+.checkout-state-panel p,
+.checkout-deadline span,
+.checkout-cancel-link,
+.checkout-address-preview p,
+.checkout-address-preview small,
+.money-caption {
+  color: var(--account-muted);
+}
+
+.checkout-step {
+  min-height: 28px;
+  border-color: var(--account-line);
+  background: var(--account-green);
+  color: var(--account-ink);
+}
+
+.checkout-section-heading--compact {
+  align-items: center;
+}
+
+.checkout-fields input {
+  min-height: 50px;
+  border: 1px solid var(--account-line);
+  border-radius: 10px;
+  background: var(--account-surface);
+  color: var(--account-ink);
+  box-shadow: none;
+}
+
+.checkout-fields input::placeholder {
+  color: var(--account-faint);
+}
+
+.checkout-fields input:hover:not(:disabled) {
+  border-color: var(--account-line-strong);
+}
+
+.checkout-fields input:focus,
+.checkout-fields input:focus-visible {
+  border-color: var(--account-focus);
+  outline: 2px solid var(--account-focus);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+
+.checkout-fields input[aria-invalid='true'] {
+  border-color: var(--account-danger);
+}
+
+.checkout-field-error {
+  color: var(--account-danger);
+}
+
+.checkout-item,
+.checkout-totals .checkout-total,
+.checkout-address-preview,
+.order-receipt-section {
+  border-color: var(--account-line);
+}
+
+.checkout-items,
+.order-detail-items {
+  color: var(--account-ink);
+}
+
+.checkout-error {
+  border-color: color-mix(in srgb, var(--account-danger) 34%, transparent);
+  background: color-mix(in srgb, var(--account-danger) 7%, var(--account-surface));
+  color: var(--account-danger);
+}
+
+.checkout-back:hover,
+.checkout-cancel-link a,
+.checkout-cancel-link a:hover {
+  color: var(--account-ink);
+}
+
+.checkout-loading {
+  color: var(--account-muted);
+}
+
+.checkout-empty {
+  border-radius: 14px;
+  background: var(--account-surface);
+}
+
+.checkout-empty p {
+  color: var(--account-muted);
+}
+
+.checkout-order-ref {
+  border-color: var(--account-line);
+  background: rgba(255, 255, 255, .45);
+  color: var(--account-muted);
+}
+
+.checkout-deadline {
+  border-color: color-mix(in srgb, var(--account-warning) 28%, transparent);
+  background: color-mix(in srgb, var(--account-yellow) 48%, var(--account-surface));
+}
+
+.checkout-deadline strong {
+  color: var(--account-warning);
+}
+
+.toss-widget {
+  color: var(--account-ink);
+}
+
+.toss-widget-slot {
+  min-height: 72px;
+  border-radius: 10px;
+  background: var(--account-surface);
+}
+
+#toss-payment-methods,
+#toss-agreement {
+  color-scheme: light;
+}
+
+.checkout-state-panel {
+  color: var(--account-ink);
+}
+
+.checkout-state-mark,
+.checkout-result-mark {
+  border-color: var(--account-line);
+  background: var(--account-blue);
+  color: var(--account-ink);
+  box-shadow: none;
+}
+
+.checkout-state-panel--complete .checkout-state-mark {
+  border-color: color-mix(in srgb, var(--account-success) 30%, transparent);
+  background: var(--account-green);
+  color: var(--account-success);
+}
+
+.checkout-state-panel--closed .checkout-state-mark,
+.checkout-result-mark--fail {
+  border-color: color-mix(in srgb, var(--account-danger) 32%, transparent);
+  background: color-mix(in srgb, var(--account-pink) 68%, var(--account-surface));
+  color: var(--account-danger);
+}
+
+.checkout-result-page {
+  background: var(--account-canvas);
+}
+
+.checkout-result {
+  border-radius: 14px;
+  background: var(--account-surface);
+  color: var(--account-ink);
+  box-shadow: var(--account-shadow);
+}
+
+.checkout-result p {
+  color: var(--account-muted);
+}
+
+/* Order ledger and receipt ---------------------------------------------- */
+
+.orders-header,
+.order-detail-header {
+  padding: clamp(118px, 12vw, 164px) 0 clamp(40px, 5vw, 68px);
+  border-bottom: 1px solid var(--account-line-soft);
+  background: var(--account-yellow);
+}
+
+.orders-header h1,
+.order-detail-header h1 {
+  font-size: clamp(50px, 5.8vw, 96px);
+  font-weight: 840;
+  line-height: .93;
+  letter-spacing: -.075em;
+}
+
+.orders-header p,
+.order-detail-header p {
+  color: var(--account-ink);
+}
+
+.orders-section,
+.order-detail-layout {
+  padding-top: clamp(40px, 5vw, 72px);
+  padding-bottom: clamp(92px, 10vw, 144px);
+}
+
+.orders-section-heading span,
+.order-list-reference > span,
+.order-list-reference time,
+.order-list-item-copy span,
+.order-detail-meta,
+.order-detail-item-copy span,
+.order-detail-item-numbers dt,
+.order-detail-item-numbers dd,
+.order-receipt-section h3,
+.order-receipt-section address span,
+.order-receipt-section address small,
+.order-receipt-section p,
+.order-payment-summary dt,
+.order-cancellation-body,
+.order-cancellation-confirm > p,
+.order-refund-summary dt {
+  color: var(--account-muted);
+}
+
+.order-list-link {
+  border-radius: 14px;
+  background: var(--account-surface);
+}
+
+.orders-list,
+.tickets-list {
+  color: var(--account-ink);
+}
+
+.order-list-arrow {
+  color: var(--account-muted);
+}
+
+.order-list-link:hover {
+  transform: translateY(-2px);
+  border-color: var(--account-line);
+  background: var(--account-surface);
+}
+
+.order-status,
+.ticket-status,
+.ticket-unit-status {
+  border-color: var(--account-line);
+  background: var(--account-canvas-soft);
+  color: var(--account-ink);
+}
+
+.order-status--pending,
+.ticket-status--pending {
+  border-color: color-mix(in srgb, var(--account-warning) 30%, transparent);
+  background: color-mix(in srgb, var(--account-yellow) 52%, var(--account-surface));
+  color: var(--account-warning);
+}
+
+.order-status--paid,
+.order-status--shipping,
+.ticket-status--active {
+  border-color: color-mix(in srgb, var(--account-info) 28%, transparent);
+  background: color-mix(in srgb, var(--account-blue) 44%, var(--account-surface));
+  color: var(--account-info);
+}
+
+.order-status--done,
+.ticket-status--used,
+.ticket-unit-status--used {
+  border-color: color-mix(in srgb, var(--account-success) 28%, transparent);
+  background: color-mix(in srgb, var(--account-green) 52%, var(--account-surface));
+  color: var(--account-success);
+}
+
+.order-status--canceled,
+.ticket-unit-status--canceled,
+.ticket-unit-status--refunded {
+  border-color: color-mix(in srgb, var(--account-danger) 28%, transparent);
+  background: color-mix(in srgb, var(--account-pink) 50%, var(--account-surface));
+  color: var(--account-danger);
+}
+
+.ticket-status--cyan,
+.ticket-unit-status--valid {
+  border-color: color-mix(in srgb, var(--account-info) 28%, transparent);
+  background: color-mix(in srgb, var(--account-blue) 44%, var(--account-surface));
+  color: var(--account-info);
+}
+
+.ticket-status--mint {
+  border-color: color-mix(in srgb, var(--account-success) 28%, transparent);
+  background: color-mix(in srgb, var(--account-green) 52%, var(--account-surface));
+  color: var(--account-success);
+}
+
+.ticket-status--amber {
+  border-color: color-mix(in srgb, var(--account-warning) 30%, transparent);
+  background: color-mix(in srgb, var(--account-yellow) 52%, var(--account-surface));
+  color: var(--account-warning);
+}
+
+.ticket-status--pink {
+  border-color: color-mix(in srgb, var(--account-danger) 28%, transparent);
+  background: color-mix(in srgb, var(--account-pink) 50%, var(--account-surface));
+  color: var(--account-danger);
+}
+
+.ticket-status--muted {
+  border-color: var(--account-line);
+  background: var(--account-canvas-soft);
+  color: var(--account-muted);
+}
+
+.orders-empty {
+  border-radius: 14px;
+  background: var(--account-surface);
+}
+
+.orders-empty-icon {
+  border: 0;
+  background: var(--account-yellow);
+  color: var(--account-ink);
+}
+
+.orders-empty p {
+  color: var(--account-muted);
+}
+
+.order-detail-back,
+.ticket-detail-back {
+  color: var(--account-muted);
+}
+
+.order-detail-status-row {
+  color: var(--account-ink);
+}
+
+.order-detail-back:hover,
+.ticket-detail-back:hover {
+  color: var(--account-ink);
+}
+
+.order-detail-main,
+.order-detail-receipt,
+.ticket-detail-main,
+.ticket-detail-receipt {
+  border-radius: 14px;
+  background: var(--account-surface);
+}
+
+.order-detail-item {
+  border-color: var(--account-line-soft);
+}
+
+.order-detail-receipt,
+.ticket-detail-receipt {
+  top: 112px;
+}
+
+.order-card-pack-callout {
+  border-color: color-mix(in srgb, var(--account-info) 25%, transparent);
+  background: color-mix(in srgb, var(--account-blue) 30%, var(--account-surface));
+}
+
+.order-card-pack-icon {
+  border: 0;
+  background: var(--account-blue);
+  color: var(--account-ink);
+}
+
+/* Cancellation remains intentionally calm until the destructive action. */
+
+.order-cancellation,
+.ticket-cancellation {
+  border-color: var(--account-line);
+}
+
+.order-cancellation-actions,
+.ticket-cancellation-actions {
+  color: var(--account-ink);
+}
+
+.order-cancellation-open,
+.ticket-cancellation-open {
+  border-color: color-mix(in srgb, var(--account-danger) 30%, transparent) !important;
+  color: var(--account-danger) !important;
+}
+
+.order-cancellation-confirm,
+.ticket-cancellation-confirm {
+  border-color: color-mix(in srgb, var(--account-danger) 30%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--account-danger) 6%, var(--account-surface));
+  color: var(--account-ink);
+  box-shadow: none;
+}
+
+.order-cancellation-submit,
+.ticket-cancellation-submit {
+  border: 1px solid var(--account-danger);
+  background: var(--account-danger);
+  color: #fff;
+}
+
+.order-cancellation-submit:hover,
+.ticket-cancellation-submit:hover {
+  border-color: var(--account-danger);
+  background: color-mix(in srgb, var(--account-danger) 86%, #000);
+}
+
+.order-cancellation-feedback,
+.ticket-cancellation-feedback,
+.order-cancellation-notice {
+  border-color: var(--account-line);
+  background: var(--account-canvas-soft);
+  color: var(--account-muted);
+}
+
+.order-cancellation-feedback--success,
+.ticket-cancellation-feedback--success,
+.order-refund-summary,
+.ticket-refund-policy,
+.ticket-refund-summary {
+  border-color: color-mix(in srgb, var(--account-success) 27%, transparent);
+  background: color-mix(in srgb, var(--account-green) 28%, var(--account-surface));
+  color: var(--account-success);
+}
+
+.order-cancellation-feedback--error,
+.ticket-cancellation-feedback--error {
+  border-color: color-mix(in srgb, var(--account-danger) 30%, transparent);
+  background: color-mix(in srgb, var(--account-danger) 7%, var(--account-surface));
+  color: var(--account-danger);
+}
+
+/* Tickets and protected QR ---------------------------------------------- */
+
+.tickets-header,
+.ticket-detail-header {
+  padding: clamp(118px, 12vw, 164px) 0 clamp(40px, 5vw, 68px);
+  border-bottom: 1px solid var(--account-line-soft);
+  background: var(--account-green);
+}
+
+.tickets-header h1,
+.ticket-detail-header h1 {
+  font-size: clamp(50px, 5.8vw, 96px);
+  font-weight: 840;
+  line-height: .93;
+  letter-spacing: -.075em;
+}
+
+.tickets-header p,
+.ticket-detail-header p,
+.ticket-list-location,
+.tickets-group-heading p,
+.tickets-group-heading > span,
+.ticket-detail-meta,
+.ticket-qr-notice,
+.ticket-cancellation-body,
+.ticket-refund-policy dt,
+.ticket-booking-summary dt,
+.ticket-refund-summary dt {
+  color: var(--account-muted);
+}
+
+.tickets-content,
+.ticket-detail-layout {
+  padding-top: clamp(40px, 5vw, 72px);
+  padding-bottom: clamp(92px, 10vw, 144px);
+}
+
+.ticket-list-link {
+  border-radius: 14px;
+  background: var(--account-surface);
+}
+
+.ticket-list-link:hover {
+  transform: translateY(-2px);
+  border-color: var(--account-line);
+  background: var(--account-surface);
+}
+
+.ticket-list-event > span,
+.ticket-list-arrow {
+  color: var(--account-muted);
+}
+
+.tickets-empty {
+  border-radius: 14px;
+  background: var(--account-surface);
+}
+
+.tickets-empty-icon {
+  border: 0;
+  background: var(--account-green);
+  color: var(--account-ink);
+}
+
+.tickets-empty p {
+  color: var(--account-muted);
+}
+
+.ticket-state-list,
+.ticket-refund-summary {
+  border-color: var(--account-line);
+}
+
+.ticket-qr-empty,
+.ticket-qr-pager {
+  border: 1px solid var(--account-line-soft);
+  border-radius: 14px;
+  background: var(--account-canvas-soft);
+  color: var(--account-ink);
+}
+
+.ticket-qr-frame {
+  border: 1px solid var(--account-line);
+  border-radius: 14px;
+  background: var(--account-surface);
+  box-shadow: none;
+}
+
+.ticket-qr-heading {
+  color: var(--account-ink);
+}
+
+.ticket-qr-frame img {
+  color-scheme: light;
+}
+
+.ticket-qr-controls .btn {
+  min-height: 44px;
+}
+
+.ticket-booking-summary,
+.ticket-refund-policy,
+.ticket-refund-summary {
+  color: var(--account-ink);
+}
+
+.ticket-receipt-event {
+  color: var(--account-ink);
+}
+
+.ticket-booking-total {
+  border-color: var(--account-line);
+}
+
+/* Event detail transaction section ------------------------------------- */
+
+.event-booking-layout {
+  margin-top: clamp(36px, 5vw, 72px);
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 410px);
+  gap: 24px;
+}
+
+.event-detail-back,
+.event-detail-meta {
+  color: var(--account-muted);
+}
+
+.event-detail-back:hover {
+  color: var(--account-ink);
+}
+
+.event-detail-back:focus-visible {
+  outline: 2px solid var(--account-focus);
+  outline-offset: 3px;
+}
+
+.event-session-panel,
+.event-booking-summary,
+.event-ticket-guide,
+.event-notification-action {
+  border: 1px solid var(--account-line-soft);
+  border-radius: 14px;
+  background: var(--account-surface);
+  color: var(--account-ink);
+  box-shadow: none;
+}
+
+.event-booking-summary {
+  top: 112px;
+}
+
+.event-session-list {
+  border-color: var(--account-line-soft);
+}
+
+.event-session-card {
+  border-color: var(--account-line-soft);
+  border-radius: 14px;
+  background: var(--account-canvas);
+  color: var(--account-ink);
+}
+
+.event-session-card:hover:not(.is-disabled) {
+  border-color: var(--account-line-strong);
+  background: var(--account-surface);
+}
+
+.event-session-card.is-selected {
+  border-color: var(--account-ink);
+  background: var(--account-green);
+  box-shadow: 0 0 0 1px var(--account-ink);
+}
+
+.event-session-card.is-disabled {
+  cursor: not-allowed;
+  filter: none;
+  opacity: .5;
+}
+
+.event-session-card input:focus-visible + span,
+.event-session-card:has(input:focus-visible) {
+  outline: 2px solid var(--account-focus);
+  outline-offset: 3px;
+}
+
+.event-session-main span,
+.event-session-price small,
+.event-booking-empty,
+.event-booking-selection span,
+.event-qty-field > span {
+  color: var(--account-muted);
+}
+
+.event-qty-control {
+  min-height: 44px;
+  border-color: var(--account-line);
+  background: var(--account-canvas);
+}
+
+.event-qty-control button {
+  min-width: 44px;
+  color: var(--account-ink);
+}
+
+.event-qty-control button:hover:not(:disabled) {
+  background: var(--account-surface-muted);
+}
+
+.event-booking-summary .checkout-submit {
+  border-color: var(--account-ink);
+  background: var(--account-ink);
+  color: #fff;
+}
+
+.event-ticket-guide,
+.event-notification-action {
+  margin-top: 24px;
+}
+
+.event-ticket-guide {
+  background: var(--account-green);
+}
+
+.event-notification-action {
+  background: var(--account-pink);
+}
+
+.event-notification-action .notification-settings-success {
+  background: rgba(255, 255, 255, .55);
+}
+
+/* Responsive ------------------------------------------------------------ */
+
+@media (max-width: 1199px) {
+  .login-split {
+    grid-template-columns: minmax(0, .9fr) minmax(420px, 1.1fr);
+  }
+
+  .login-panel {
+    padding-inline: 36px !important;
+  }
+
+  .cart-layout,
+  .checkout-layout,
+  .checkout-order-layout,
+  .order-detail-layout,
+  .ticket-detail-layout,
+  .event-booking-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .cart-summary,
+  .checkout-summary,
+  .checkout-receipt,
+  .order-detail-receipt,
+  .ticket-detail-receipt,
+  .event-booking-summary {
+    position: static;
+    top: auto;
+  }
+
+  .notification-preference {
+    grid-template-columns: minmax(150px, .55fr) minmax(0, 1.45fr);
+  }
+
+  .notification-preference-save {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 919px) {
+  .login-split {
+    display: block;
+  }
+
+  .login-panel {
+    display: none !important;
+  }
+
+  .login-mobile-brand {
+    display: block;
+  }
+}
+
+@media (max-width: 720px) {
+  .login-split > :last-child {
+    min-height: 100svh !important;
+    align-items: stretch !important;
+    justify-content: flex-start !important;
+    padding: 92px 21px 56px !important;
+  }
+
+  .login-split > :last-child .rise {
+    width: 100% !important;
+  }
+
+  body:has(input[name='birthDate']) #root > div,
+  body:has(#settings-nickname) #root > div {
+    padding: 96px 21px 56px !important;
+  }
+
+  body:has(input[name='birthDate']) #root > div > .rise,
+  body:has(#settings-nickname) #root > div > .rise {
+    padding: 24px 20px;
+    border-radius: 10px;
+  }
+
+  body:has(input[name='birthDate']) #root > div > .rise > h2,
+  body:has(#settings-nickname) #root > div > .rise > h2 {
+    font-size: 43px !important;
+  }
+
+  body:has(input[name='birthDate']) label:has(input[name='followIpIds']) {
+    aspect-ratio: 4 / 3 !important;
+  }
+
+  .my-header,
+  .notifications-header,
+  .cart-header,
+  .checkout-header,
+  .orders-header,
+  .order-detail-header,
+  .tickets-header,
+  .ticket-detail-header {
+    padding: 104px 0 38px;
+  }
+
+  .my-header h1,
+  .notifications-header h1,
+  .cart-header-row h1,
+  .checkout-header h1,
+  .orders-header h1,
+  .order-detail-header h1,
+  .tickets-header h1,
+  .ticket-detail-header h1 {
+    font-size: clamp(43px, 13.5vw, 58px);
+    line-height: .94;
+  }
+
+  .my-content,
+  .notifications-content,
+  .cart-section,
+  .orders-section,
+  .tickets-content,
+  .order-detail-layout,
+  .ticket-detail-layout {
+    padding-top: 32px;
+    padding-bottom: 80px;
+  }
+
+  .my-profile {
+    align-items: flex-start;
+    min-height: 0;
+    padding: 22px;
+  }
+
+  .my-avatar {
+    width: 76px;
+    height: 76px;
+  }
+
+  .my-section-heading,
+  .notifications-header-inner,
+  .notifications-section-heading,
+  .cart-header-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .my-destination-grid,
+  .notification-preference-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .my-destination {
+    min-height: 126px;
+    padding: 18px;
+  }
+
+  .notifications-settings-link,
+  .notification-preference-save {
+    width: 100%;
+  }
+
+  .notification-open {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .notification-arrow {
+    display: none;
+  }
+
+  .notification-preference {
+    grid-template-columns: 1fr;
+    padding: 18px;
+  }
+
+  .notification-preference-save {
+    grid-column: auto;
+  }
+
+  .cart-line {
+    grid-template-columns: 84px minmax(0, 1fr);
+    gap: 12px;
+    min-height: 128px;
+    padding: 12px;
+  }
+
+  .cart-line-art {
+    min-height: 84px;
+  }
+
+  .cart-remove {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+  }
+
+  .cart-remove span {
+    display: none;
+  }
+
+  .cart-line-copy h2 {
+    padding-right: 34px;
+  }
+
+  .cart-line-actions {
+    grid-column: 1 / -1;
+    align-items: center;
+  }
+
+  .checkout-layout,
+  .checkout-order-layout,
+  .event-booking-layout {
+    margin-top: 24px;
+  }
+
+  .checkout-form,
+  .checkout-order-main,
+  .checkout-summary,
+  .checkout-receipt,
+  .order-detail-main,
+  .order-detail-receipt,
+  .ticket-detail-main,
+  .ticket-detail-receipt,
+  .event-session-panel,
+  .event-booking-summary {
+    padding: 18px;
+  }
+
+  .checkout-fields {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .checkout-field--postal {
+    max-width: none;
+  }
+
+  .checkout-field--wide {
+    grid-column: auto;
+  }
+
+  .checkout-item {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .checkout-item > span {
+    align-self: flex-end;
+  }
+
+  .checkout-result-page {
+    padding: 100px 21px 64px;
+  }
+
+  .checkout-result {
+    min-height: 390px;
+    padding: 32px 20px;
+  }
+
+  .order-list-link,
+  .ticket-list-link {
+    min-height: 118px;
+    padding: 16px;
+  }
+
+  .order-detail-item {
+    grid-template-columns: 1fr auto;
+    gap: 14px;
+  }
+
+  .order-detail-item-copy {
+    grid-column: 1 / -1;
+  }
+
+  .order-cancellation-heading,
+  .ticket-cancellation-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .order-cancellation-confirm > div,
+  .ticket-cancellation-confirm > div {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .order-cancellation-confirm .btn,
+  .ticket-cancellation-confirm .btn,
+  .order-cancellation-open,
+  .ticket-cancellation-open {
+    width: 100%;
+  }
+
+  .ticket-qr-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .event-session-card {
+    grid-template-columns: 18px minmax(0, 1fr);
+  }
+
+  .event-session-price {
+    grid-column: 2;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .event-ticket-guide,
+  .event-notification-action {
+    align-items: flex-start;
+    flex-direction: column;
+    margin-inline: 21px;
+  }
+
+  .event-ticket-guide .btn,
+  .event-notification-action form,
+  .event-notification-action .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .login-split > :last-child {
+    padding-inline: 16px !important;
+  }
+
+  body:has(input[name='birthDate']) #root > div,
+  body:has(#settings-nickname) #root > div {
+    padding-inline: 16px !important;
+  }
+
+  body:has(input[name='birthDate']) #root > div > .rise,
+  body:has(#settings-nickname) #root > div > .rise {
+    padding-inline: 16px;
+  }
+
+  body:has(input[name='birthDate']) form > div:has(input[name='followIpIds']) > div:last-child {
+    grid-template-columns: 1fr !important;
+  }
+
+  .my-profile {
+    flex-direction: column;
+  }
+
+  .my-destination {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .my-destination-arrow {
+    display: none;
+  }
+
+  .notification-open {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .notification-type-icon {
+    display: none;
+  }
+
+  .cart-quantity {
+    grid-template-columns: 40px 36px 40px;
+  }
+
+  .checkout-order-ref,
+  .order-detail-meta,
+  .ticket-detail-meta {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .checkout-deadline {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .order-list-link,
+  .ticket-list-link {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .order-list-link .order-status,
+  .order-list-total,
+  .ticket-list-link .ticket-status,
+  .ticket-list-location {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  .order-detail-item {
+    grid-template-columns: 1fr;
+  }
+
+  .order-detail-item > strong {
+    justify-self: start;
+  }
+
+  .order-detail-item-numbers {
+    flex-wrap: wrap;
+  }
+
+  .ticket-qr-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 360px) {
+  .my-header .wrap,
+  .notifications-header .wrap,
+  .cart-header .wrap,
+  .checkout-header .wrap,
+  .orders-header .wrap,
+  .order-detail-header .wrap,
+  .tickets-header .wrap,
+  .ticket-detail-header .wrap {
+    padding-inline: 16px;
+  }
+
+  .cart-line {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .cart-line-art {
+    min-height: 72px;
+  }
+
+  .cart-line-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .cart-line-total {
+    align-self: flex-end;
+  }
+
+  .checkout-section-heading {
+    flex-direction: column;
+  }
+
+  .checkout-result .btn,
+  .checkout-empty .btn {
+    width: 100%;
+  }
+}
+
+/* Transaction and authentication surfaces never use decorative autoplay.
+ * The broad selector also neutralizes legacy rise/float motion locally. */
+@media (prefers-reduced-motion: reduce) {
+  :is(
+    .login-split,
+    .my-page,
+    .notifications-page,
+    .notification-settings-page,
+    .cart-page,
+    .checkout-page,
+    .orders-page,
+    .order-detail-page,
+    .tickets-page,
+    .ticket-detail-page,
+    .event-detail-page
+  ) *,
+  body:has(input[name='birthDate']) #root *,
+  body:has(#settings-nickname) #root *,
+  body:has(input[name='passwordConfirmation']) #root * {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+
+  .my-destination:hover,
+  .notification-row:hover,
+  .cart-line:hover,
+  .order-list-link:hover,
+  .ticket-list-link:hover {
+    transform: none;
+  }
+}
