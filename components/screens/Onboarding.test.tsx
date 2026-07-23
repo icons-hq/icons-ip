@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { Onboarding } from './Onboarding';
@@ -14,22 +15,73 @@ vi.mock('react', async () => {
   };
 });
 
-describe('Onboarding nickname contract', () => {
-  it('shows the same 1–30 character contract enforced by the shared validator', () => {
-    const html = renderToStaticMarkup(
-      <Onboarding
-        birthDate=""
-        email="fan@icons.gg"
-        followedIpIds={[]}
-        initialMarketing={false}
-        isConfigured
-        next="/"
-        nickname=""
-        recommendedIps={[]}
-      />,
-    );
+function render(overrides: Partial<React.ComponentProps<typeof Onboarding>> = {}) {
+  return renderToStaticMarkup(
+    <Onboarding
+      birthDate=""
+      email="fan@icons.gg"
+      followedIpIds={[]}
+      initialMarketing={false}
+      isConfigured
+      next="/"
+      nickname=""
+      recommendedIps={[]}
+      {...overrides}
+    />,
+  );
+}
+
+function source() {
+  return readFileSync(new URL('./Onboarding.tsx', import.meta.url), 'utf8');
+}
+
+describe('Onboarding form contracts', () => {
+  it('shows the same 1–30 character nickname contract enforced by the shared validator', () => {
+    const html = render();
 
     expect(html).toContain('placeholder="닉네임 (1–30자)"');
     expect(html).not.toContain('닉네임 (2–12자)');
+  });
+
+  it('submits through a prevented client event so validation errors cannot reset entered values', () => {
+    const component = source();
+
+    expect(component).toMatch(/function handleSubmit\(event: FormEvent<HTMLFormElement>\)[\s\S]*event\.preventDefault\(\);[\s\S]*new FormData\(event\.currentTarget\)[\s\S]*startTransition\(\(\) => action\(payload\)\)/);
+    expect(component).toMatch(/<form[^>]*action=\{action\}[^>]*onSubmit=\{handleSubmit\}/);
+  });
+
+  it('uses grouped numeric birth-date fields with browser autofill hints', () => {
+    const html = render({ birthDate: '2000-01-31' });
+    const component = source();
+
+    expect(html).toContain('<fieldset');
+    expect(html).toContain('name="birthYear"');
+    expect(html).toContain('name="birthMonth"');
+    expect(html).toContain('name="birthDay"');
+    expect(component).toContain('autoComplete="bday-year"');
+    expect(component).toContain('autoComplete="bday-month"');
+    expect(component).toContain('autoComplete="bday-day"');
+    expect(html).not.toContain('type="date"');
+  });
+
+  it('keeps onboarding checkmarks flat and presents IP names without a dark image filter', () => {
+    const component = source();
+    const html = render({
+      followedIpIds: ['ip-one'],
+      recommendedIps: [{
+        bg: 'url("/generated/ip/ip-one.webp") center / cover no-repeat',
+        color: '#2DE2FF',
+        fans: 10,
+        id: 'ip-one',
+        sub: 'IP ONE',
+        tagline: 'tagline',
+        title: '아이피 원',
+      }],
+    });
+
+    expect(component).not.toContain("background: checked ? 'var(--holo)'");
+    expect(component).not.toContain('linear-gradient(180deg');
+    expect(html).toContain('class="onboarding-ip-tile"');
+    expect(html).toContain('class="onboarding-ip-title"');
   });
 });

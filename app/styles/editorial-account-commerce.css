@@ -287,7 +287,7 @@
 
 .login-split .btn-holo,
 body:has(input[name='passwordConfirmation']) .btn-holo,
-body:has(input[name='birthDate']) .btn-holo,
+body:has([data-onboarding-form]) .btn-holo,
 body:has(#settings-nickname) :is(.settings-profile-submit, .settings-marketing-submit) {
   border: 1px solid var(--account-ink) !important;
   background: var(--account-ink) !important;
@@ -297,7 +297,7 @@ body:has(#settings-nickname) :is(.settings-profile-submit, .settings-marketing-s
 
 .login-split form button:disabled,
 body:has(input[name='passwordConfirmation']) button:disabled,
-body:has(input[name='birthDate']) button:disabled,
+body:has([data-onboarding-form]) button:disabled,
 body:has(#settings-nickname) button:disabled {
   cursor: not-allowed;
   opacity: .45;
@@ -307,11 +307,11 @@ body:has(#settings-nickname) button:disabled {
   background: var(--account-line-soft) !important;
 }
 
-/* Onboarding and settings currently expose stable field names/IDs rather
+/* Onboarding and settings expose a stable data hook and field IDs rather
  * than page classes. :has() keeps these overrides isolated without touching
  * the action-bearing components. */
 
-body:has(input[name='birthDate']) #root > div,
+body:has([data-onboarding-form]) #root > div,
 body:has(#settings-nickname) #root > div {
   min-height: 100svh !important;
   padding: clamp(104px, 11vw, 144px) 21px 80px !important;
@@ -319,7 +319,7 @@ body:has(#settings-nickname) #root > div {
   color: var(--account-ink);
 }
 
-body:has(input[name='birthDate']) #root > div > .rise,
+body:has([data-onboarding-form]) #root > div > .rise,
 body:has(#settings-nickname) #root > div > .rise {
   width: min(680px, 100%) !important;
   padding: clamp(24px, 4vw, 48px);
@@ -330,7 +330,7 @@ body:has(#settings-nickname) #root > div > .rise {
   box-shadow: var(--account-shadow);
 }
 
-body:has(input[name='birthDate']) #root > div > .rise > h2,
+body:has([data-onboarding-form]) #root > div > .rise > h2,
 body:has(#settings-nickname) #root > div > .rise > h2 {
   color: var(--account-ink);
   font-size: clamp(36px, 5vw, 58px) !important;
@@ -339,14 +339,14 @@ body:has(#settings-nickname) #root > div > .rise > h2 {
   letter-spacing: -.065em !important;
 }
 
-body:has(input[name='birthDate']) #root > div > .rise > p,
+body:has([data-onboarding-form]) #root > div > .rise > p,
 body:has(#settings-nickname) #root > div > .rise > p {
   max-width: 540px;
   color: var(--account-muted) !important;
   line-height: 1.6;
 }
 
-body:has(input[name='birthDate']) :is(input:not([type='checkbox']):not([type='hidden']), select, textarea),
+body:has([data-onboarding-form]) :is(input:not([type='checkbox']):not([type='hidden']), select, textarea),
 body:has(#settings-nickname) :is(input:not([type='checkbox']):not([type='hidden']):not([type='file']), select, textarea) {
   min-height: 50px;
   border: 1px solid var(--account-line) !important;
@@ -357,52 +357,96 @@ body:has(#settings-nickname) :is(input:not([type='checkbox']):not([type='hidden'
   box-shadow: none;
 }
 
-body:has(input[name='birthDate']) input:disabled,
+body:has([data-onboarding-form]) input:disabled,
 body:has(#settings-nickname) input:disabled {
   background: var(--account-canvas-soft) !important;
   color: var(--account-muted) !important;
   opacity: 1;
 }
 
-body:has(input[name='birthDate']) input[aria-invalid='true'],
+body:has([data-onboarding-form]) input[aria-invalid='true'],
 body:has(#settings-nickname) input[aria-invalid='true'] {
   border-color: var(--account-danger) !important;
 }
 
-body:has(input[name='birthDate']) input:focus-visible,
+body:has([data-onboarding-form]) input:focus-visible,
 body:has(#settings-nickname) input:focus-visible {
   border-color: var(--account-focus) !important;
   outline: 2px solid var(--account-focus);
   outline-offset: 2px;
 }
 
-body:has(input[name='birthDate']) label:has(input[name='terms']),
-body:has(input[name='birthDate']) label:has(input[name='privacy']),
-body:has(input[name='birthDate']) label:has(input[name='marketing']),
+.onboarding-birth-fieldset {
+  display: grid;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  gap: 7px;
+}
+
+.onboarding-birth-fieldset legend {
+  padding: 0;
+  color: var(--account-ink);
+  font-size: 13.5px;
+  font-weight: 750;
+}
+
+.onboarding-birth-hint {
+  color: var(--account-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.onboarding-birth-inputs {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.onboarding-birth-inputs label {
+  display: grid;
+  min-width: 0;
+  color: var(--account-ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  gap: 6px;
+}
+
+.onboarding-birth-inputs input {
+  padding-inline: 14px !important;
+  font-size: 16px !important;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
+}
+
+body:has([data-onboarding-form]) label:has(input[name='terms']),
+body:has([data-onboarding-form]) label:has(input[name='privacy']),
+body:has([data-onboarding-form]) label:has(input[name='marketing']),
 body:has(#settings-nickname) label:has(.settings-marketing-input),
 body:has(#settings-nickname) form > .col > div:not(:first-child) {
   border-radius: 10px !important;
 }
 
-body:has(input[name='birthDate']) label:has(input[type='checkbox']):hover,
+body:has([data-onboarding-form]) label:has(input[type='checkbox']):hover,
 body:has(#settings-nickname) label:has(input[type='checkbox']):hover {
   background: var(--account-canvas-soft);
 }
 
-body:has(input[name='birthDate']) label:has(input[type='checkbox']) > span:last-child,
+body:has([data-onboarding-form]) label:has(input[type='checkbox']) > span:last-child,
 body:has(#settings-nickname) label:has(input[type='checkbox']) > span:last-child,
 body:has(#settings-nickname) label[for='settings-avatar'],
 body:has(#settings-nickname) label[for='settings-nickname'] {
   color: var(--account-ink) !important;
 }
 
-body:has(input[name='birthDate']) input[type='checkbox']:focus-visible + span,
+body:has([data-onboarding-form]) input[type='checkbox']:focus-visible + span,
 body:has(#settings-nickname) input[type='checkbox']:focus-visible + span {
   outline: 2px solid var(--account-focus);
   outline-offset: 3px;
 }
 
-body:has(input[name='birthDate']) input[type='checkbox']:checked + span,
+body:has([data-onboarding-form]) input[type='checkbox']:checked + span,
 body:has(#settings-nickname) input[type='checkbox']:checked + span,
 body:has(#settings-nickname) .settings-marketing-input:checked + .settings-marketing-proxy {
   border-color: var(--account-ink) !important;
@@ -410,34 +454,48 @@ body:has(#settings-nickname) .settings-marketing-input:checked + .settings-marke
   color: #fff !important;
 }
 
-body:has(input[name='birthDate']) label:has(input[name='followIpIds']) {
+body:has([data-onboarding-form]) label:has(input[name='followIpIds']) {
   border: 1px solid transparent;
   border-radius: 10px !important;
+  filter: none;
   box-shadow: 0 0 0 1px var(--account-line-soft) !important;
 }
 
-body:has(input[name='birthDate']) label:has(input[name='followIpIds']) > span:last-child {
-  color: #fff;
+.onboarding-ip-meta {
+  pointer-events: none;
 }
 
-body:has(input[name='birthDate']) label:has(input[name='followIpIds']) > span:last-child > span:last-child {
-  border-color: rgba(255, 255, 255, .7) !important;
-  background: rgba(17, 17, 15, .58) !important;
-  color: #fff !important;
+.onboarding-ip-title {
+  max-width: calc(100% - 34px);
+  overflow: hidden;
+  padding: 7px 9px;
+  border: 1px solid rgba(17, 17, 15, .14);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, .94);
+  color: var(--account-ink) !important;
+  box-shadow: 0 8px 24px -18px rgba(17, 17, 15, .55);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-body:has(input[name='birthDate']) label:has(input[name='followIpIds']:checked) {
+body:has([data-onboarding-form]) .onboarding-ip-checkmark {
+  border-color: rgba(17, 17, 15, .32) !important;
+  background: rgba(255, 255, 255, .94) !important;
+  color: var(--account-ink) !important;
+}
+
+body:has([data-onboarding-form]) label:has(input[name='followIpIds']:checked) {
   border-color: var(--account-ink);
   box-shadow: 0 0 0 2px var(--account-ink) !important;
 }
 
-body:has(input[name='birthDate']) label:has(> input[name='followIpIds']:checked) > span:last-child > span:last-child {
-  border-color: #fff !important;
-  background: #fff !important;
-  color: var(--account-ink) !important;
+body:has([data-onboarding-form]) label:has(> input[name='followIpIds']:checked) .onboarding-ip-checkmark {
+  border-color: var(--account-ink) !important;
+  background: var(--account-ink) !important;
+  color: #fff !important;
 }
 
-body:has(input[name='birthDate']) label:has(input[name='followIpIds']) input:focus-visible ~ span:last-child {
+body:has([data-onboarding-form]) label:has(input[name='followIpIds']:focus-visible) {
   outline: 2px solid var(--account-focus);
   outline-offset: 4px;
 }
@@ -468,7 +526,7 @@ body:has(#settings-nickname) .settings-nickname-control {
 }
 
 body:has(#settings-nickname) [role='alert'],
-body:has(input[name='birthDate']) [role='alert'] {
+body:has([data-onboarding-form]) [role='alert'] {
   border-color: color-mix(in srgb, var(--account-danger) 35%, transparent) !important;
   background: color-mix(in srgb, var(--account-danger) 7%, var(--account-surface));
   color: var(--account-danger) !important;
@@ -1723,23 +1781,23 @@ body:has(input[name='passwordConfirmation']) :is(a, button, input):focus-visible
     width: 100% !important;
   }
 
-  body:has(input[name='birthDate']) #root > div,
+  body:has([data-onboarding-form]) #root > div,
   body:has(#settings-nickname) #root > div {
     padding: 96px 21px 56px !important;
   }
 
-  body:has(input[name='birthDate']) #root > div > .rise,
+  body:has([data-onboarding-form]) #root > div > .rise,
   body:has(#settings-nickname) #root > div > .rise {
     padding: 24px 20px;
     border-radius: 10px;
   }
 
-  body:has(input[name='birthDate']) #root > div > .rise > h2,
+  body:has([data-onboarding-form]) #root > div > .rise > h2,
   body:has(#settings-nickname) #root > div > .rise > h2 {
     font-size: 43px !important;
   }
 
-  body:has(input[name='birthDate']) label:has(input[name='followIpIds']) {
+  body:has([data-onboarding-form]) label:has(input[name='followIpIds']) {
     aspect-ratio: 4 / 3 !important;
   }
 
@@ -1979,17 +2037,17 @@ body:has(input[name='passwordConfirmation']) :is(a, button, input):focus-visible
     padding-inline: 16px !important;
   }
 
-  body:has(input[name='birthDate']) #root > div,
+  body:has([data-onboarding-form]) #root > div,
   body:has(#settings-nickname) #root > div {
     padding-inline: 16px !important;
   }
 
-  body:has(input[name='birthDate']) #root > div > .rise,
+  body:has([data-onboarding-form]) #root > div > .rise,
   body:has(#settings-nickname) #root > div > .rise {
     padding-inline: 16px;
   }
 
-  body:has(input[name='birthDate']) form > div:has(input[name='followIpIds']) > div:last-child {
+  body:has([data-onboarding-form]) form > div:has(input[name='followIpIds']) > div:last-child {
     grid-template-columns: 1fr !important;
   }
 
@@ -2115,7 +2173,7 @@ body:has(input[name='passwordConfirmation']) :is(a, button, input):focus-visible
     .ticket-detail-page,
     .event-detail-page
   ) *,
-  body:has(input[name='birthDate']) #root *,
+  body:has([data-onboarding-form]) #root *,
   body:has(#settings-nickname) #root *,
   body:has(input[name='passwordConfirmation']) #root * {
     scroll-behavior: auto !important;
