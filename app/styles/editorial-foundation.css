@@ -32,6 +32,15 @@
   --editorial-font-display: 'Pretendard Variable', 'Pretendard', var(--font-space-grotesk), sans-serif;
   --editorial-font-body: 'Pretendard Variable', 'Pretendard', var(--font-space-grotesk), sans-serif;
   --editorial-font-utility: var(--font-space-mono), 'Pretendard', monospace;
+  --editorial-leading-display: 1.08;
+  --editorial-leading-display-mobile: 1.12;
+  --editorial-leading-title: 1.2;
+  --editorial-leading-body: 1.65;
+  --editorial-leading-utility: 1.5;
+  --editorial-leading-control: 1.4;
+  --editorial-leading-wordmark: 1;
+  --editorial-tracking-display: -.03em;
+  --editorial-tracking-title: -.025em;
 
   --editorial-header-width: min(94vw, 1500px);
   --editorial-copy-width: min(88vw, 1680px);
@@ -113,7 +122,7 @@ body {
   color: var(--editorial-ink);
   font-family: var(--ff-body);
   font-weight: 450;
-  line-height: 1.55;
+  line-height: var(--editorial-leading-body);
   text-rendering: optimizeLegibility;
 }
 
@@ -135,6 +144,7 @@ body {
 
 :where(button, input, select, textarea) {
   font: inherit;
+  line-height: var(--editorial-leading-control);
 }
 
 :where(input, select, textarea) {
@@ -175,18 +185,30 @@ h3 {
   text-wrap: balance;
 }
 
+:lang(ko):is(h1, h2, h3, .h-xxl, .h-xl, .h-lg) {
+  word-break: keep-all;
+  line-break: strict;
+  overflow-wrap: normal;
+  text-wrap: balance;
+}
+
+:lang(ko):is(p, li, dd, blockquote) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
 .h-xl {
   font-size: clamp(44px, 5.4vw, 86px);
   font-weight: 840;
-  line-height: .94;
-  letter-spacing: -.065em;
+  line-height: var(--editorial-leading-display);
+  letter-spacing: var(--editorial-tracking-display);
 }
 
 .h-lg {
   font-size: clamp(28px, 3vw, 48px);
   font-weight: 800;
-  line-height: 1;
-  letter-spacing: -.05em;
+  line-height: var(--editorial-leading-title);
+  letter-spacing: var(--editorial-tracking-title);
 }
 
 .eyebrow {
@@ -194,7 +216,7 @@ h3 {
   font-family: var(--ff-body);
   font-size: 11px;
   font-weight: 900;
-  line-height: 1.2;
+  line-height: var(--editorial-leading-utility);
   letter-spacing: .17em;
   text-transform: uppercase;
 }
@@ -381,7 +403,7 @@ h3 {
 
   .h-xl {
     font-size: clamp(43px, 13vw, 58px);
-    line-height: .94;
+    line-height: var(--editorial-leading-display-mobile);
   }
 }
 

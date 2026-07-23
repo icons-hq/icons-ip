@@ -41,6 +41,42 @@ describe('Living IP Editorial global design wiring', () => {
     expect(css).toMatch(/body\s*\{[^}]*background:\s*var\(--editorial-canvas\)/);
   });
 
+  it('defines readable typography tokens and Korean-aware wrapping rules', () => {
+    const foundation = read('./styles/editorial-foundation.css');
+    const home = read('./styles/editorial-home.css');
+
+    expect(foundation).toContain('--editorial-leading-display: 1.08');
+    expect(foundation).toContain('--editorial-leading-display-mobile: 1.12');
+    expect(foundation).toContain('--editorial-leading-title: 1.2');
+    expect(foundation).toContain('--editorial-leading-body: 1.65');
+    expect(foundation).toContain('--editorial-leading-utility: 1.5');
+    expect(foundation).toContain('--editorial-leading-control: 1.4');
+    expect(foundation).toContain('--editorial-leading-wordmark: 1');
+    expect(foundation).toContain('--editorial-tracking-display: -.03em');
+    expect(foundation).toContain('--editorial-tracking-title: -.025em');
+    expect(foundation).toMatch(
+      /:lang\(ko\):is\(h1, h2, h3, \.h-xxl, \.h-xl, \.h-lg\)\s*\{[^}]*word-break:\s*keep-all;[^}]*line-break:\s*strict;[^}]*overflow-wrap:\s*normal;[^}]*text-wrap:\s*balance;/s,
+    );
+    expect(foundation).toMatch(
+      /:lang\(ko\):is\(p, li, dd, blockquote\)\s*\{[^}]*word-break:\s*keep-all;[^}]*overflow-wrap:\s*break-word;/s,
+    );
+    expect(home).toMatch(/\.icons-preview\s*\{[^}]*font-family:\s*var\(--editorial-font-body\);[^}]*line-height:\s*var\(--editorial-leading-body\);/s);
+  });
+
+  it('does not use sub-single line heights in editorial styles', () => {
+    const css = [
+      read('./styles/editorial-foundation.css'),
+      read('./styles/editorial-shell.css'),
+      read('./styles/editorial-home.css'),
+      read('./styles/editorial-public.css'),
+      read('./styles/editorial-account-commerce.css'),
+      read('./styles/editorial-admin.css'),
+      read('./globals.css'),
+    ].join('\n');
+
+    expect(css).not.toMatch(/line-height:\s*(?:0?\.)\d+/);
+  });
+
   it('stops CSS motion globally when reduced motion is requested', () => {
     const css = [
       read('./styles/editorial-foundation.css'),

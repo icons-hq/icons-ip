@@ -335,15 +335,15 @@ body:has(#settings-nickname) #root > div > .rise > h2 {
   color: var(--account-ink);
   font-size: clamp(36px, 5vw, 58px) !important;
   font-weight: 840 !important;
-  line-height: .96;
-  letter-spacing: -.065em !important;
+  line-height: var(--editorial-leading-display);
+  letter-spacing: var(--editorial-tracking-display) !important;
 }
 
 body:has([data-onboarding-form]) #root > div > .rise > p,
 body:has(#settings-nickname) #root > div > .rise > p {
   max-width: 540px;
   color: var(--account-muted) !important;
-  line-height: 1.6;
+  line-height: var(--editorial-leading-body);
 }
 
 body:has([data-onboarding-form]) :is(input:not([type='checkbox']):not([type='hidden']), select, textarea),
@@ -395,7 +395,7 @@ body:has(#settings-nickname) input:focus-visible {
 .onboarding-birth-hint {
   color: var(--account-muted);
   font-size: 12.5px;
-  line-height: 1.45;
+  line-height: var(--editorial-leading-body);
 }
 
 .onboarding-birth-inputs {
@@ -601,8 +601,8 @@ body:has(input[name='passwordConfirmation']) :is(a, button, input):focus-visible
   margin-top: 18px;
   font-size: clamp(54px, 6.2vw, 104px);
   font-weight: 840;
-  line-height: .92;
-  letter-spacing: -.075em;
+  line-height: var(--editorial-leading-display);
+  letter-spacing: var(--editorial-tracking-display);
 }
 
 .my-header p {
@@ -648,7 +648,8 @@ body:has(input[name='passwordConfirmation']) :is(a, button, input):focus-visible
 .my-section-heading h2 {
   font-size: clamp(28px, 3.2vw, 46px);
   font-weight: 820;
-  letter-spacing: -.055em;
+  line-height: var(--editorial-leading-title);
+  letter-spacing: var(--editorial-tracking-title);
 }
 
 .my-destination-grid {
@@ -694,8 +695,8 @@ body:has(input[name='passwordConfirmation']) :is(a, button, input):focus-visible
   margin-top: 18px;
   font-size: clamp(54px, 6.2vw, 104px);
   font-weight: 840;
-  line-height: .92;
-  letter-spacing: -.075em;
+  line-height: var(--editorial-leading-display);
+  letter-spacing: var(--editorial-tracking-display);
 }
 
 .notifications-header p {
@@ -854,8 +855,8 @@ body:has(input[name='passwordConfirmation']) :is(a, button, input):focus-visible
 .cart-header-row h1 {
   font-size: clamp(52px, 6vw, 100px);
   font-weight: 840;
-  line-height: .93;
-  letter-spacing: -.075em;
+  line-height: var(--editorial-leading-display);
+  letter-spacing: var(--editorial-tracking-display);
 }
 
 .cart-mode {
@@ -1022,8 +1023,8 @@ body:has(input[name='passwordConfirmation']) :is(a, button, input):focus-visible
   max-width: 920px;
   font-size: clamp(48px, 5.5vw, 92px);
   font-weight: 840;
-  line-height: .94;
-  letter-spacing: -.07em;
+  line-height: var(--editorial-leading-display);
+  letter-spacing: var(--editorial-tracking-display);
 }
 
 .checkout-header p {
@@ -1238,8 +1239,8 @@ body:has(input[name='passwordConfirmation']) :is(a, button, input):focus-visible
 .order-detail-header h1 {
   font-size: clamp(50px, 5.8vw, 96px);
   font-weight: 840;
-  line-height: .93;
-  letter-spacing: -.075em;
+  line-height: var(--editorial-leading-display);
+  letter-spacing: var(--editorial-tracking-display);
 }
 
 .orders-header p,
@@ -1497,8 +1498,8 @@ body:has(input[name='passwordConfirmation']) :is(a, button, input):focus-visible
 .ticket-detail-header h1 {
   font-size: clamp(50px, 5.8vw, 96px);
   font-weight: 840;
-  line-height: .93;
-  letter-spacing: -.075em;
+  line-height: var(--editorial-leading-display);
+  letter-spacing: var(--editorial-tracking-display);
 }
 
 .tickets-header p,
@@ -1821,7 +1822,7 @@ body:has(input[name='passwordConfirmation']) :is(a, button, input):focus-visible
   .tickets-header h1,
   .ticket-detail-header h1 {
     font-size: clamp(43px, 13.5vw, 58px);
-    line-height: .94;
+    line-height: var(--editorial-leading-display-mobile);
   }
 
   .my-content,
@@ -2076,10 +2077,16 @@ body:has(input[name='passwordConfirmation']) :is(a, button, input):focus-visible
   }
 
   .checkout-order-ref,
-  .order-detail-meta,
-  .ticket-detail-meta {
+  .order-detail-meta {
     max-width: 100%;
     overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .ticket-detail-meta {
+    max-width: 100%;
+    word-break: keep-all;
+    overflow-wrap: break-word;
     white-space: normal;
   }
 

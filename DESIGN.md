@@ -131,23 +131,27 @@ fonts:
   body: "Pretendard Variable, Pretendard, sans-serif"
   utility: "Space Mono, Pretendard, monospace"
 type:
-  hero-desktop: { size: "clamp(54px,5.9vw,112px)", weight: 850, line-height: .91, letter-spacing: "-.074em" }
-  hero-mobile: { size: "clamp(43px,13.5vw,58px)", weight: 850, line-height: .94, letter-spacing: "-.070em" }
-  section-macro: { size: "clamp(48px,6.2vw,116px)", weight: 840, line-height: .93, letter-spacing: "-.075em" }
-  film: { size: "clamp(46px,5.4vw,102px)", weight: 840, line-height: .92, letter-spacing: "-.075em" }
-  feature: { size: "clamp(44px,4.5vw,86px)", weight: 840, line-height: .94, letter-spacing: "-.075em" }
-  final-cta: { size: "clamp(58px,8.8vw,168px)", weight: 850, line-height: .86, letter-spacing: "-.085em" }
-  card-title: { size: "clamp(22px,1.8vw,34px)", weight: 800, line-height: 1.1, letter-spacing: "-.055em" }
-  eyebrow: { size: 11px, weight: 900, line-height: 1.2, letter-spacing: ".17em", transform: uppercase }
-  body: { size: "15px–18px", weight: 450, line-height: "1.45–1.65" }
-  utility: { size: "10px–13px", weight: 500, line-height: 1.35 }
+  hero-desktop: { size: "clamp(54px,11cqi,104px)", weight: 850, line-height: 1.08, letter-spacing: "-.03em" }
+  hero-mobile: { size: "clamp(40px,12cqi,52px)", weight: 850, line-height: 1.12, letter-spacing: "-.03em" }
+  section-macro: { size: "clamp(48px,6.2vw,116px)", weight: 840, line-height: 1.08, letter-spacing: "-.03em" }
+  film: { size: "clamp(46px,5.4vw,102px)", weight: 840, line-height: 1.08, letter-spacing: "-.03em" }
+  feature: { size: "clamp(40px,11cqi,76px)", weight: 840, line-height: 1.08, letter-spacing: "-.03em" }
+  final-cta: { size: "clamp(58px,8.8vw,168px)", weight: 850, line-height: 1.08, letter-spacing: "-.03em" }
+  card-title: { size: "clamp(22px,1.8vw,34px)", weight: 800, line-height: 1.2, letter-spacing: "-.025em" }
+  eyebrow: { size: 11px, weight: 900, line-height: 1.5, letter-spacing: ".17em", transform: uppercase }
+  body: { size: "15px–18px", weight: 450, line-height: 1.65 }
+  utility: { size: "10px–13px", weight: 500, line-height: 1.5 }
+  control: { line-height: 1.4 }
+  wordmark: { line-height: 1 }
 ```
 
-- 초대형 제목은 한글의 조사·어절이 어색하게 끊기지 않도록 편집 가능한 줄바꿈 지점을 둔다.
+- 한국어 제목은 `word-break: keep-all`, `line-break: strict`, `overflow-wrap: normal`, `text-wrap: balance`를 기본으로 하며 기존 `<br>` 기반 편집 줄바꿈 안에서도 어절을 분할하지 않는다.
+- 본문·목록·설명은 `word-break: keep-all`과 `overflow-wrap: break-word`를 사용한다. URL·이메일·주문/결제/티켓 ID·해시·관리자 원문처럼 기술 문자열에만 `overflow-wrap: anywhere`를 허용한다.
+- 홈의 히어로와 피처 제목은 실제 카피 컨테이너 폭을 기준으로 `cqi` 단위를 사용하고, 미지원 환경을 위한 viewport 기반 fallback을 먼저 선언한다.
 - 영문 대문자와 한글을 함께 쓸 때 시각 높이를 맞추고, 무조건적인 uppercase 변환으로 한글을 훼손하지 않는다.
 - 본문과 폼 라벨에는 음수 자간을 적용하지 않는다.
 - `font-weight: 840/850`을 지원하지 않는 환경에서는 가장 가까운 variable weight 또는 800을 사용한다.
-- 모바일의 섹션·필름·피처 제목은 기본 43–44px, 최종 CTA는 59px를 기준으로 공간에 맞게 clamp한다.
+- 모바일의 대형 제목은 1.12 행간을 사용하고 히어로·피처는 40px 아래로 축소하지 않으며, 줄 수 증가를 허용한다.
 
 ## 4. 레이아웃과 공간
 
