@@ -1,11 +1,15 @@
 import type { Metadata } from 'next';
 import { Space_Grotesk, Space_Mono } from 'next/font/google';
 import './globals.css';
-import { Atmos } from '@/components/shell/Atmos';
+import './styles/editorial-foundation.css';
+import './styles/editorial-shell.css';
+import './styles/editorial-home.css';
+import './styles/editorial-public.css';
+import './styles/editorial-account-commerce.css';
+import './styles/editorial-admin.css';
 import { AuthPresenceProvider } from '@/components/shell/AuthPresenceProvider';
 import { CartProvider } from '@/components/shell/CartProvider';
 import { Nav } from '@/components/shell/Nav';
-import { MobNav } from '@/components/shell/MobNav';
 import { SiteFooter } from '@/components/shell/SiteFooter';
 
 const spaceGrotesk = Space_Grotesk({
@@ -29,13 +33,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko" data-scroll-behavior="smooth" className={`${spaceGrotesk.variable} ${spaceMono.variable}`}>
       <body>
-        <Atmos />
         <CartProvider>
           <AuthPresenceProvider>
             <Nav />
             <div id="root">{children}</div>
             <SiteFooter />
-            <MobNav />
           </AuthPresenceProvider>
         </CartProvider>
       </body>

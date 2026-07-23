@@ -118,6 +118,62 @@ beforeEach(() => {
 });
 
 describe('completeOnboardingAction profile identity', () => {
+  it('normalizes grouped year, month, and day fields to the stored ISO date', async () => {
+    const formData = onboardingForm('fan');
+    formData.delete('birthDate');
+    formData.set('birthYear', '2000');
+    formData.set('birthMonth', '1');
+    formData.set('birthDay', '31');
+
+    await expect(completeOnboardingAction({}, formData)).rejects.toThrow(
+      'NEXT_REDIRECT:/community',
+    );
+
+    expect(mocks.profilePayloads[0]).toMatchObject({ birth_date: '2000-01-31' });
+  });
+
+  it('rejects a date that is not a real calendar date before any writes', async () => {
+    const formData = onboardingForm('fan');
+    formData.set('birthDate', '2000-02-31');
+
+    await expect(completeOnboardingAction({}, formData)).resolves.toEqual({
+      errors: { birthDate: '실제로 존재하는 생년월일을 입력해주세요.' },
+    });
+
+    expect(mocks.getSupabaseConfig).not.toHaveBeenCalled();
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.identity).not.toHaveBeenCalled();
+  });
+
+  it('identifies incomplete grouped birth-date fields before any writes', async () => {
+    const formData = onboardingForm('fan');
+    formData.delete('birthDate');
+    formData.set('birthYear', '2000');
+    formData.set('birthMonth', '1');
+
+    await expect(completeOnboardingAction({}, formData)).resolves.toEqual({
+      errors: { birthDate: '생년월일에 연도, 월, 일을 모두 입력해주세요.' },
+    });
+
+    expect(mocks.getSupabaseConfig).not.toHaveBeenCalled();
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it('identifies a grouped future birth date before any writes', async () => {
+    const formData = onboardingForm('fan');
+    formData.delete('birthDate');
+    formData.set('birthYear', '2999');
+    formData.set('birthMonth', '1');
+    formData.set('birthDay', '1');
+
+    await expect(completeOnboardingAction({}, formData)).resolves.toEqual({
+      errors: { birthDate: '생년월일은 오늘 또는 이전 날짜로 입력해주세요.' },
+    });
+
+    expect(mocks.getSupabaseConfig).not.toHaveBeenCalled();
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
   it('accepts 30 family graphemes and saves nickname only through the identity helper', async () => {
     const nickname = familyEmoji.repeat(30);
 

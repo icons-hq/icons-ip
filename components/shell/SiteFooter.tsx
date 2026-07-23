@@ -4,38 +4,58 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { hrefFor, isAuthShellPath } from '@/lib/routes';
 
-/* 디자인 핸드오프의 미니 푸터 + 고아 라우트 방지용 보조 링크 줄 */
-const AUX_LINKS: [label: string, route: string | null][] = [
+const DISCOVER_LINKS: [label: string, route: string][] = [
+  ['IP 세계', 'iphub'],
+  ['공식 굿즈', 'shop'],
+  ['카드팩', 'packs'],
+  ['팝업과 이벤트', 'events'],
+  ['팬 커뮤니티', 'community'],
+];
+
+const ACCOUNT_LINKS: [label: string, route: string][] = [
+  ['내 주문', 'orders'],
   ['내 티켓', 'tickets'],
   ['바인더', 'binder'],
+  ['알림함', 'notifications'],
   ['카드 교환', 'exchange'],
-  ['마켓', 'market'],
-  ['이용약관', null],
-  ['개인정보처리방침', null],
+  ['굿즈 마켓', 'market'],
 ];
 
 export function SiteFooter() {
   const pathname = usePathname();
-  if (isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
+  if (pathname === '/' || isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
 
   return (
-    <footer style={{ borderTop: '1px solid var(--line)', padding: '26px 0', position: 'relative', zIndex: 2 }}>
-      <div className="wrap between mobile-footer-bottom" style={{ flexWrap: 'wrap', gap: 14 }}>
-        <span className="brand" style={{ fontSize: 17, letterSpacing: '-0.03em', gap: 7 }}>
-          <span className="dot" style={{ width: 7, height: 7, boxShadow: 'none' }} />ICONS
-        </span>
-        <span className="money-caption">공식 라이선스 · 무상 카드 리워드 · 토스페이먼츠 안전 결제</span>
-      </div>
-      <div className="wrap" style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: '6px 18px' }}>
-        {AUX_LINKS.map(([label, route]) =>
-          route ? (
-            <Link key={label} className="mono faint" style={{ fontSize: 11 }} href={hrefFor(route)}>
-              {label}
-            </Link>
-          ) : (
-            <span key={label} className="mono faint" style={{ fontSize: 11 }}>{label}</span>
-          ),
-        )}
+    <footer className="site-footer-editorial">
+      <div className="site-footer-editorial__inner">
+        <Link className="site-footer-editorial__brand" href="/" aria-label="ICONS 홈">
+          <span aria-hidden className="site-footer-editorial__brand-mark" />
+          <span>ICONS</span>
+        </Link>
+
+        <div className="site-footer-editorial__grid">
+          <p className="site-footer-editorial__copy">
+            좋아하는 IP의 공식 굿즈, 무상 카드 리워드, 팝업 티켓과 팬 커뮤니티를
+            하나의 세계에서 만나는 공개 팬덤 플랫폼입니다.
+          </p>
+          <nav aria-label="발견 메뉴" className="site-footer-editorial__links">
+            {DISCOVER_LINKS.map(([label, route]) => (
+              <Link key={route} href={hrefFor(route)}>{label}</Link>
+            ))}
+          </nav>
+          <nav aria-label="내 활동과 보조 메뉴" className="site-footer-editorial__links">
+            {ACCOUNT_LINKS.map(([label, route]) => (
+              <Link key={route} href={hrefFor(route)}>{label}</Link>
+            ))}
+            <span>이용약관</span>
+            <span>개인정보처리방침</span>
+          </nav>
+        </div>
+
+        <div className="site-footer-editorial__meta">
+          <span>© ICONS</span>
+          <span>공식 라이선스 · 무상 카드 리워드 · 토스페이먼츠 안전 결제</span>
+        </div>
       </div>
     </footer>
   );

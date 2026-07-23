@@ -393,7 +393,7 @@ function PostCard({ channels, nextPath, p }: { channels: CommunityChannel[]; nex
 function PostSubmitButton({ disabled }: { disabled: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <button className="btn btn-holo btn-sm" disabled={disabled || pending} style={{ flex: '0 0 auto', minHeight: 44 }}>
+    <button className="btn btn-holo btn-sm community-composer__submit" disabled={disabled || pending} type="submit">
       {pending ? '게시 중' : '올리기'}
     </button>
   );
@@ -466,50 +466,59 @@ function Composer({
   selectedChannelId: string;
 }) {
   const [state, action] = useActionState(createCommunityPostAction, emptyState);
+  const [imageName, setImageName] = useState('');
   const defaultIpId = channels.some((c) => c.id === selectedChannelId) ? selectedChannelId : channels[0]?.id ?? '';
   const disabled = !defaultIpId;
 
   return (
-    <form action={action} style={{ borderRadius: 20, border: '1px solid rgba(255,255,255,.09)', background: 'linear-gradient(180deg, var(--surface), var(--bg-2))', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <form action={action} className="community-composer">
       <input type="hidden" name="next" value={nextPath} />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ width: 38, height: 38, borderRadius: 99, background: 'linear-gradient(135deg, #8B5CFF, #FF4D9D)', flex: '0 0 auto' }} />
+      <div className="community-composer__main">
+        <span aria-hidden className="community-composer__avatar" />
         <input
           aria-describedby={state.errors?.text ? 'community-text-error' : undefined}
           aria-invalid={Boolean(state.errors?.text)}
+          className="community-composer__text"
           name="text"
           placeholder="오늘의 최애 소식을 들려주세요…"
-          style={{ flex: 1, minWidth: 0, height: 44, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text)', fontSize: 14.5, fontFamily: 'inherit' }}
         />
         <PostSubmitButton disabled={disabled} />
       </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', paddingLeft: 50 }}>
+      <div className="community-composer__controls">
         <select
           key={defaultIpId}
           aria-describedby={state.errors?.ipId ? 'community-ip-error' : undefined}
           aria-invalid={Boolean(state.errors?.ipId)}
+          className="community-composer__channel"
           defaultValue={defaultIpId}
           disabled={disabled}
           name="ipId"
-          style={{ height: 44, border: '1px solid var(--line-2)', background: 'var(--bg-2)', borderRadius: 999, padding: '0 12px', color: 'var(--dim)', fontSize: 12.5, fontFamily: 'inherit', outline: 'none' }}
         >
           {channels.map((channel) => (
             <option key={channel.id} value={channel.id}>{channel.title}</option>
           ))}
         </select>
         <input
+          className="community-composer__tag"
           name="tag"
           placeholder="#태그"
-          style={{ width: 110, height: 44, border: '1px solid var(--line-2)', background: 'var(--bg-2)', borderRadius: 999, padding: '0 12px', color: 'var(--dim)', fontSize: 12.5, fontFamily: 'inherit', outline: 'none' }}
         />
-        <input
-          accept="image/jpeg,image/png,image/webp,image/gif"
-          aria-describedby={state.errors?.image ? 'community-image-error' : undefined}
-          aria-invalid={Boolean(state.errors?.image)}
-          name="image"
-          type="file"
-          style={{ fontSize: 12, color: 'var(--faint)', maxWidth: '100%', minHeight: 44 }}
-        />
+        <label className="community-composer__upload" htmlFor="community-composer-image">
+          <span className="community-composer__upload-action">이미지 추가</span>
+          <span aria-live="polite" className="community-composer__file-name">
+            {imageName || 'JPG · PNG · WEBP · GIF'}
+          </span>
+          <input
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            aria-describedby={state.errors?.image ? 'community-image-error' : undefined}
+            aria-invalid={Boolean(state.errors?.image)}
+            className="community-composer__file"
+            id="community-composer-image"
+            name="image"
+            onChange={(event) => setImageName(event.currentTarget.files?.[0]?.name ?? '')}
+            type="file"
+          />
+        </label>
       </div>
       <ErrorText id="community-ip-error">{state.errors?.ipId}</ErrorText>
       <ErrorText id="community-text-error">{state.errors?.text}</ErrorText>

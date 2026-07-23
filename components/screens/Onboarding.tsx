@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { startTransition, useActionState, useState, type FormEvent } from 'react';
 import { completeOnboardingAction, type OnboardingActionState } from '@/app/onboarding/actions';
 import { ipAccent } from '@/lib/ip-display';
 
@@ -28,7 +28,7 @@ const emptyState: OnboardingActionState = {};
 const inputStyle: React.CSSProperties = {
   height: 50, padding: '0 18px', borderRadius: 14,
   border: '1px solid var(--line-2)', background: 'rgba(21,17,42,.7)',
-  color: 'var(--text)', fontSize: 14.5, fontFamily: 'inherit', outline: 'none',
+  color: 'var(--text)', fontSize: 14.5, fontFamily: 'inherit',
 };
 
 function ErrorText({ children, id }: { children?: string; id: string }) {
@@ -67,7 +67,7 @@ function TermRow({
         type="checkbox"
         style={{ position: 'absolute', opacity: 0, width: 1, height: 1 }}
       />
-      <span aria-hidden style={{ flex: '0 0 auto', width: 22, height: 22, borderRadius: 7, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800, color: '#0A0813', border: `1px solid ${checked ? 'transparent' : 'var(--line-3)'}`, background: checked ? 'var(--holo)' : 'transparent', transition: 'all .2s ease' }}>
+      <span aria-hidden className="onboarding-checkmark" style={{ flex: '0 0 auto', width: 22, height: 22, borderRadius: 7, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800, color: checked ? '#fff' : 'var(--account-ink, #11110f)', border: `1px solid ${checked ? 'var(--account-ink, #11110f)' : 'var(--account-line, rgba(17,17,15,.18))'}`, background: checked ? 'var(--account-ink, #11110f)' : 'transparent', transition: 'all .2s ease' }}>
         {checked ? '✓' : ''}
       </span>
       <span style={{ fontSize: 13.5, color: '#C9C3E4' }}>
@@ -93,6 +93,7 @@ function IpPickTile({
   const [checked, setChecked] = useState(defaultChecked);
   return (
     <label
+      className="onboarding-ip-tile"
       style={{
         display: 'block', position: 'relative', borderRadius: 16, overflow: 'hidden', aspectRatio: '16 / 10',
         background: bg, backgroundSize: 'cover', backgroundPosition: 'center', cursor: 'pointer',
@@ -109,10 +110,9 @@ function IpPickTile({
         style={{ position: 'absolute', opacity: 0, width: 1, height: 1 }}
       />
       <input name="recommendedIpIds" type="hidden" value={id} />
-      <span aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 30%, rgba(8,6,15,.85) 100%)' }} />
-      <span style={{ position: 'absolute', left: 12, bottom: 10, right: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <span style={{ fontWeight: 700, fontSize: 14 }}>{title}</span>
-        <span aria-hidden style={{ flex: '0 0 auto', width: 22, height: 22, borderRadius: 99, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800, color: '#0A0813', background: checked ? 'var(--holo)' : 'rgba(8,6,15,.5)', border: '1px solid rgba(255,255,255,.35)', transition: 'all .2s ease' }}>
+      <span className="onboarding-ip-meta" style={{ position: 'absolute', left: 12, bottom: 10, right: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span className="onboarding-ip-title" style={{ fontWeight: 700, fontSize: 14 }}>{title}</span>
+        <span aria-hidden className="onboarding-ip-checkmark" style={{ flex: '0 0 auto', width: 22, height: 22, borderRadius: 99, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800, color: checked ? '#fff' : 'var(--account-ink, #11110f)', background: checked ? 'var(--account-ink, #11110f)' : 'rgba(255,255,255,.92)', border: '1px solid rgba(17,17,15,.32)', transition: 'all .2s ease' }}>
           {checked ? '✓' : ''}
         </span>
       </span>
@@ -132,14 +132,23 @@ export function Onboarding({
 }: OnboardingProps) {
   const [state, action, pending] = useActionState(completeOnboardingAction, emptyState);
   const initiallyFollowed = new Set(followedIpIds);
+  const [birthYear = '', birthMonth = '', birthDay = ''] = birthDate.split('-');
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (pending) return;
+
+    const payload = new FormData(event.currentTarget);
+    startTransition(() => action(payload));
+  }
 
   return (
-    <div style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', padding: '110px 0 80px' }}>
+    <div className="onboarding-page" style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', padding: '110px 0 80px' }}>
       <div className="rise" style={{ width: 'min(520px, 92vw)' }}>
         <h2 style={{ margin: 0, fontFamily: 'var(--ff-display)', fontWeight: 700, fontSize: 28, letterSpacing: '-0.03em' }}>프로필을 완성해요</h2>
         <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--dim)' }}>커뮤니티에서 쓸 닉네임과 생년월일, 그리고 최애가 필요해요.</p>
 
-        <form action={action} className="col" style={{ gap: 16, marginTop: 24 }}>
+        <form action={action} className="col" data-onboarding-form onSubmit={handleSubmit} style={{ gap: 16, marginTop: 24 }}>
           <input type="hidden" name="next" value={next} />
 
           <input disabled value={email} aria-label="이메일" style={{ ...inputStyle, color: 'var(--dim)' }} />
@@ -155,18 +164,64 @@ export function Onboarding({
             />
             <ErrorText id="nickname-error">{state.errors?.nickname}</ErrorText>
           </div>
-          <div className="col" style={{ gap: 6 }}>
-            <input
-              aria-describedby={state.errors?.birthDate ? 'birth-date-error' : undefined}
-              aria-invalid={Boolean(state.errors?.birthDate)}
-              aria-label="생년월일"
-              defaultValue={birthDate}
-              name="birthDate"
-              type="date"
-              style={inputStyle}
-            />
+          <fieldset
+            aria-describedby={state.errors?.birthDate ? 'birth-date-hint birth-date-error' : 'birth-date-hint'}
+            className="onboarding-birth-fieldset"
+          >
+            <legend>생년월일</legend>
+            <span className="onboarding-birth-hint" id="birth-date-hint">예: 2000년 1월 31일</span>
+            <div className="onboarding-birth-inputs">
+              <label htmlFor="birth-year">
+                연도
+                <input
+                  aria-invalid={Boolean(state.errors?.birthDate)}
+                  autoComplete="bday-year"
+                  defaultValue={birthYear}
+                  id="birth-year"
+                  inputMode="numeric"
+                  maxLength={4}
+                  name="birthYear"
+                  pattern="[0-9]*"
+                  placeholder="YYYY"
+                  style={{ ...inputStyle, width: '100%' }}
+                  type="text"
+                />
+              </label>
+              <label htmlFor="birth-month">
+                월
+                <input
+                  aria-invalid={Boolean(state.errors?.birthDate)}
+                  autoComplete="bday-month"
+                  defaultValue={birthMonth}
+                  id="birth-month"
+                  inputMode="numeric"
+                  maxLength={2}
+                  name="birthMonth"
+                  pattern="[0-9]*"
+                  placeholder="MM"
+                  style={{ ...inputStyle, width: '100%' }}
+                  type="text"
+                />
+              </label>
+              <label htmlFor="birth-day">
+                일
+                <input
+                  aria-invalid={Boolean(state.errors?.birthDate)}
+                  autoComplete="bday-day"
+                  defaultValue={birthDay}
+                  id="birth-day"
+                  inputMode="numeric"
+                  maxLength={2}
+                  name="birthDay"
+                  pattern="[0-9]*"
+                  placeholder="DD"
+                  style={{ ...inputStyle, width: '100%' }}
+                  type="text"
+                />
+              </label>
+            </div>
             <ErrorText id="birth-date-error">{state.errors?.birthDate}</ErrorText>
-          </div>
+          </fieldset>
 
           <div className="col" style={{ gap: 4 }}>
             <TermRow errorId="terms-error" hasError={Boolean(state.errors?.terms)} label="이용약관 동의" name="terms" required />
