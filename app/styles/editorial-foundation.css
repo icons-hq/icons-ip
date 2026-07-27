@@ -43,6 +43,11 @@
   --editorial-tracking-title: -.025em;
 
   --editorial-header-width: min(94vw, 1500px);
+  /* 플로팅 캡슐 헤더의 실제 기하. sticky 서브바는 이 값에서 파생시킨다. */
+  --editorial-header-top: 22px;
+  --editorial-header-capsule-h: 72px;
+  --editorial-header-gap: 12px;
+  --header-offset: calc(var(--editorial-header-top) + var(--editorial-header-capsule-h) + var(--editorial-header-gap));
   --editorial-copy-width: min(88vw, 1680px);
   --editorial-feature-width: min(91vw, 1740px);
   --editorial-page-gutter: 6vw;
@@ -109,6 +114,11 @@
   --ff-display: var(--editorial-font-display);
   --ff-body: var(--editorial-font-body);
   --ff-mono: var(--editorial-font-utility);
+}
+
+/* 헤더가 스크롤로 숨으면 sticky 서브바도 그 자리를 따라 올라간다. */
+:root[data-header-hidden='true'] {
+  --header-offset: var(--editorial-header-gap);
 }
 
 html {
@@ -375,6 +385,9 @@ h3 {
 @media (max-width: 1199px) {
   :root {
     --nav-h: 82px;
+    /* editorial-shell.css의 캡슐 축소와 같은 값을 유지한다. */
+    --editorial-header-top: 14px;
+    --editorial-header-capsule-h: 58px;
   }
 
   .wrap {

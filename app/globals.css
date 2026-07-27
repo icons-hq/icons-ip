@@ -403,7 +403,7 @@
   }
   .community-channels {
     display: flex; flex-direction: column; gap: 6px;
-    position: sticky; top: 88px;
+    position: sticky; top: var(--header-offset);
   }
   .community-post { transition: border-color .25s ease; }
   .community-post:hover { border-color: rgba(255,255,255,.16); }
@@ -442,7 +442,7 @@
   /* shop — 사요 · 공식 굿즈 월드 */
   .shop-toolbar {
     position: sticky;
-    top: var(--nav-h);
+    top: var(--header-offset);
     z-index: 30;
     margin-top: 28px;
     background: rgba(8,6,15,.72);
@@ -544,7 +544,7 @@
   }
   .cart-remove:hover:not(:disabled) { color: var(--pink); }
   .cart-remove:disabled { cursor: not-allowed; opacity: .45; }
-  .cart-summary { position: sticky; top: 92px; padding: 22px; overflow: hidden; }
+  .cart-summary { position: sticky; top: var(--header-offset); padding: 22px; overflow: hidden; }
   .cart-summary::before {
     content: ''; position: absolute; top: 0; left: 22px; right: 22px;
     height: 2px; border-radius: 0 0 999px 999px; background: var(--holo);
@@ -595,7 +595,7 @@
   }
   .checkout-form, .checkout-order-main { padding: clamp(22px, 3vw, 32px); }
   .checkout-summary, .checkout-receipt {
-    position: sticky; top: 92px; padding: 22px; overflow: hidden;
+    position: sticky; top: var(--header-offset); padding: 22px; overflow: hidden;
   }
   .checkout-summary::before, .checkout-receipt::before {
     content: ''; position: absolute; top: 0; left: 22px; right: 22px;
@@ -793,7 +793,7 @@
   .order-detail-item-numbers dt { color: var(--faint); font-size: 9px; }
   .order-detail-item-numbers dd { margin: 0; color: var(--dim); font-family: var(--ff-mono); font-size: 10px; }
   .order-detail-item > strong { justify-self: end; font-size: 13px; }
-  .order-detail-receipt { position: sticky; top: 92px; padding: 22px; overflow: hidden; }
+  .order-detail-receipt { position: sticky; top: var(--header-offset); padding: 22px; overflow: hidden; }
   .order-detail-receipt::before {
     content: ''; position: absolute; top: 0; left: 22px; right: 22px;
     height: 2px; border-radius: 0 0 999px 999px; background: var(--holo);
@@ -883,7 +883,7 @@
   .ticket-detail-meta { display: flex; align-items: center; gap: 9px; margin-top: 18px; color: var(--faint); font-size: 10px; }
   .ticket-detail-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 400px); gap: 20px; align-items: start; padding-bottom: clamp(76px, 9vw, 112px); }
   .ticket-detail-main { min-width: 0; padding: clamp(22px, 3vw, 32px); }
-  .ticket-detail-receipt { position: sticky; top: 92px; padding: 22px; overflow: hidden; }
+  .ticket-detail-receipt { position: sticky; top: var(--header-offset); padding: 22px; overflow: hidden; }
   .ticket-detail-receipt::before { content: ''; position: absolute; top: 0; left: 22px; right: 22px; height: 2px; border-radius: 0 0 999px 999px; background: var(--holo); }
   .ticket-qr-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
   .ticket-qr-heading h2 { margin: 8px 0 0; font-size: 20px; }
@@ -1016,7 +1016,7 @@
   .event-session-main small, .event-session-price small { color: var(--faint); font-size: 10px; }
   .event-session-price { align-items: flex-end; text-align: right; }
   .event-session-price strong { font-size: 13px; }
-  .event-booking-summary { position: sticky; top: 92px; padding: 22px; overflow: hidden; }
+  .event-booking-summary { position: sticky; top: var(--header-offset); padding: 22px; overflow: hidden; }
   .event-booking-summary::before {
     content: ''; position: absolute; top: 0; left: 22px; right: 22px;
     height: 2px; border-radius: 0 0 999px 999px; background: var(--holo);
