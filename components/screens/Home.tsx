@@ -556,6 +556,7 @@ function IpWorlds({ ips }: { ips: Ip[] }) {
 
 interface FilmScene {
   id: string;
+  controlLabel: string;
   kicker: string;
   title: string;
   detail: string;
@@ -567,42 +568,72 @@ function FilmWindow({ scenes }: { scenes: FilmScene[] }) {
   const reducedMotion = useReducedMotion();
   const hidden = useDocumentHidden();
   const [userPaused, setUserPaused] = useState(false);
-  const [activeIndex, setActiveIndex] = useRotatingIndex(scenes.length, 4200, reducedMotion || hidden || userPaused);
+  const [hoverPaused, setHoverPaused] = useState(false);
+  const pointerInteractionRef = useRef(false);
+  useEffect(() => {
+    const clearPointerInteraction = () => { pointerInteractionRef.current = false; };
+    window.addEventListener('pointerup', clearPointerInteraction);
+    window.addEventListener('pointercancel', clearPointerInteraction);
+    return () => {
+      window.removeEventListener('pointerup', clearPointerInteraction);
+      window.removeEventListener('pointercancel', clearPointerInteraction);
+    };
+  }, []);
+  const [activeIndex, setActiveIndex] = useRotatingIndex(scenes.length, 4200, userPaused || reducedMotion || hidden || hoverPaused);
   const active = scenes[activeIndex];
   if (!active) return null;
 
   return (
-    <section aria-label="ICONS 경험 소개" className="film-section">
-      <div className="film-window">
+    <section aria-label="ICONS 경험 소개" aria-roledescription="carousel" className="film-section">
+      <div
+        className="film-window"
+        onFocusCapture={(event) => {
+          if (!pointerInteractionRef.current && !event.currentTarget.contains(event.relatedTarget)) {
+            setUserPaused(true);
+          }
+        }}
+        onMouseEnter={() => setHoverPaused(true)}
+        onMouseLeave={() => setHoverPaused(false)}
+        onPointerDownCapture={() => { pointerInteractionRef.current = true; }}
+      >
         <div className="film-visual" key={active.id}>
           <Artwork background={active.background} className="preview-artwork film-artwork" />
           <div className="film-tint" style={{ backgroundColor: active.color }} />
-          <div className="film-copy">
+          <div aria-hidden="true" className="film-copy">
             <p>{active.kicker}</p>
             <h2>{active.title.split('\n').map((line) => <span key={line}>{line}</span>)}</h2>
             <strong>{active.detail}</strong>
           </div>
         </div>
-        <div className="film-progress">
-          {scenes.map((scene, index) => (
-            <button
-              aria-label={index === activeIndex
-                ? `${index + 1}번 장면 자동 전환 ${userPaused ? '재개' : '일시 정지'}`
-                : `${index + 1}번 장면 보기 및 자동 전환 일시 정지`}
-              className={index === activeIndex ? 'active' : ''}
-              key={scene.id}
-              onClick={() => {
-                if (index === activeIndex) {
-                  setUserPaused((paused) => !paused);
-                } else {
-                  setActiveIndex(index);
-                  setUserPaused(true);
-                }
-              }}
-              type="button"
-            />
-          ))}
+        <div aria-atomic="true" aria-live={userPaused ? 'polite' : 'off'} className="sr-only">
+          <p>{active.kicker}</p>
+          <h2>{active.title.replace('\n', ' ')}</h2>
+          <p>{active.detail}</p>
         </div>
+        {scenes.length > 1 && (
+          <div aria-label="필름 장면 선택 및 자동 전환" className="film-progress" role="group">
+            {scenes.map((scene, index) => (
+              <button
+                aria-label={index === activeIndex
+                  ? `${scene.controlLabel} 장면 자동 전환 ${userPaused ? '재개' : '일시 정지'}`
+                  : `${scene.controlLabel} 장면 보기 및 자동 전환 일시 정지`}
+                aria-pressed={index === activeIndex}
+                className={index === activeIndex ? 'active' : ''}
+                key={scene.id}
+                onClick={() => {
+                  if (index === activeIndex) {
+                    setHoverPaused(false);
+                    setUserPaused((paused) => !paused);
+                  } else {
+                    setActiveIndex(index);
+                    setUserPaused(true);
+                  }
+                }}
+                type="button"
+              />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );
@@ -908,10 +939,10 @@ export function Home({
     const good = preferredGood ?? (selectedIp ? catalog.goods.find((item) => item.ip === selectedIp.id) : null);
     const event = preferredEvent ?? (selectedIp ? catalog.events.find((item) => item.ip === selectedIp.id) : null);
     const card = preferredCard ?? (selectedIp ? catalog.cards.find((item) => item.ip === selectedIp.id) : null);
-    if (good) scenes.push({ id: `good-${good.id}`, kicker: 'OFFICIAL GOODS', title: '좋아하는 마음이\n손에 잡히는 순간', detail: `${good.name} · ${good.badge ?? 'OFFICIAL'}`, background: good.img, color: '#c4e5ae' });
-    if (event) scenes.push({ id: `event-${event.id}`, kicker: 'POP-UP EXPERIENCE', title: '화면 너머의 세계를\n직접 만나는 하루', detail: `${event.title} · ${event.status}`, background: event.img, color: '#ffdaff' });
-    if (card) scenes.push({ id: `card-${card.id}`, kicker: 'DIGITAL CARD', title: '모으는 재미까지\n하나의 IP 안에서', detail: `${card.name} · ${card.rarity}`, background: card.bg, color: '#a6c5e6' });
-    if (scenes.length === 0 && selectedIp) scenes.push({ id: `ip-${selectedIp.id}`, kicker: 'ONE IP, ONE WORLD', title: selectedIp.tagline, detail: selectedIp.title, background: selectedIp.bg, color: '#c4e5ae' });
+    if (good) scenes.push({ id: `good-${good.id}`, controlLabel: '굿즈', kicker: 'OFFICIAL GOODS', title: '좋아하는 마음이\n손에 잡히는 순간', detail: `${good.name} · ${good.badge ?? 'OFFICIAL'}`, background: good.img, color: '#c4e5ae' });
+    if (event) scenes.push({ id: `event-${event.id}`, controlLabel: '팝업', kicker: 'POP-UP EXPERIENCE', title: '화면 너머의 세계를\n직접 만나는 하루', detail: `${event.title} · ${event.status}`, background: event.img, color: '#ffdaff' });
+    if (card) scenes.push({ id: `card-${card.id}`, controlLabel: '카드', kicker: 'DIGITAL CARD', title: '모으는 재미까지\n하나의 IP 안에서', detail: `${card.name} · ${card.rarity}`, background: card.bg, color: '#a6c5e6' });
+    if (scenes.length === 0 && selectedIp) scenes.push({ id: `ip-${selectedIp.id}`, controlLabel: 'IP', kicker: 'ONE IP, ONE WORLD', title: selectedIp.tagline, detail: selectedIp.title, background: selectedIp.bg, color: '#c4e5ae' });
     return scenes;
   }, [catalog.cards, catalog.events, catalog.goods, hasPreviewDataset, selectedIp]);
 

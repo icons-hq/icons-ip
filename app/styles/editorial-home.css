@@ -1995,11 +1995,12 @@ html:has(.icons-preview)::-webkit-scrollbar {
 
 .icons-preview .film-progress {
   position: absolute;
-  right: 9%;
+  left: 50%;
   bottom: 10%;
   z-index: 3;
   display: flex;
   gap: 8px;
+  transform: translateX(-50%);
 }
 
 .icons-preview .film-progress button {
@@ -2730,7 +2731,7 @@ html:has(.icons-preview)::-webkit-scrollbar {
   .icons-preview .film-copy { inset: auto 34px 100px; transform: none; }
   .icons-preview .film-copy h2 { font-size: 43px; line-height: var(--editorial-leading-display-mobile); }
   .icons-preview .film-copy strong { margin-top: 22px; font-size: 9px; }
-  .icons-preview .film-progress { right: 34px; bottom: 55px; left: 34px; }
+  .icons-preview .film-progress { right: 34px; bottom: 55px; left: 34px; transform: none; }
   .icons-preview .film-progress button { flex: 1; }
   .icons-preview .experience-section { padding-bottom: 125px; }
   .icons-preview .section-heading-row { width: calc(100% - 42px); margin-bottom: 50px; align-items: end; }
@@ -2808,6 +2809,14 @@ html:has(.icons-preview)::-webkit-scrollbar {
 
   .icons-preview .hero-slide:not(.hero-slide--active) { display: none; }
   .icons-preview .marquee-track { animation: none; }
+  .icons-preview .film-visual {
+    animation: none !important;
+    clip-path: circle(100%);
+  }
+  .icons-preview .film-visual > .preview-artwork {
+    animation: none !important;
+    transform: scale(1);
+  }
   .icons-preview .feature-float { transform: none !important; }
 }
 
