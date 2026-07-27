@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Good, Ip, Stock } from '@/lib/data';
-import { ipAccent } from '@/lib/ip-display';
+import { ipAccent, ipAccentInk } from '@/lib/ip-display';
 import { ALL_IPS, GOODS_SORTS, selectShopGoods, type GoodsSort } from '@/lib/shop-catalog';
 import { useCart } from '@/components/shell/CartProvider';
 import { Empty } from '@/components/ui/Empty';
@@ -18,6 +18,7 @@ function ShopGoodsCard({ g, ip }: { g: Good; ip?: Ip }) {
   const atStockLimit = quantity >= g.stockQty;
   const stockLabel = STOCK_LABEL[g.stock];
   const accent = ip ? ipAccent(ip) : 'var(--violet-2)';
+  const accentInk = ip ? ipAccentInk(ip) : 'var(--editorial-ink-muted)';
   const cartActionLabel = sold
     ? `${g.name} 품절`
     : !ready
@@ -38,13 +39,13 @@ function ShopGoodsCard({ g, ip }: { g: Good; ip?: Ip }) {
       <div style={{ aspectRatio: '1 / 1', background: g.img, backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
         <span aria-hidden className="sheen" style={{ opacity: 0.3 }} />
         {(g.badge ?? stockLabel) && (
-          <span className="mono" style={{ position: 'absolute', top: 12, left: 12, fontSize: 10.5, letterSpacing: '.06em', padding: '4px 10px', borderRadius: 6, background: 'rgba(8,6,15,.7)', border: '1px solid rgba(255,255,255,.2)', backdropFilter: 'blur(6px)' }}>
+          <span className="mono" style={{ position: 'absolute', top: 12, left: 12, fontSize: 10.5, letterSpacing: '.06em', padding: '4px 10px', borderRadius: 6, color: '#fff', background: 'rgba(8,6,15,.7)', border: '1px solid rgba(255,255,255,.2)', backdropFilter: 'blur(6px)' }}>
             {g.badge ?? stockLabel}
           </span>
         )}
       </div>
       <div style={{ padding: '16px 16px 18px', display: 'flex', flexDirection: 'column', gap: 5, flex: 1 }}>
-        <span className="mono" style={{ fontSize: 10.5, letterSpacing: '.14em', textTransform: 'uppercase', color: accent }}>{ip?.title ?? ''}</span>
+        <span className="mono" style={{ fontSize: 10.5, letterSpacing: '.14em', textTransform: 'uppercase', color: accentInk }}>{ip?.title ?? ''}</span>
         <span style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.35, textWrap: 'pretty' }}>{g.name}</span>
         <span style={{ fontSize: 12.5, color: 'var(--dim)' }}>{g.type}{stockLabel && g.badge ? ` · ${stockLabel}` : ''}</span>
         <div className="shop-card-purchase">

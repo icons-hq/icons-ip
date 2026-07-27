@@ -7,7 +7,7 @@ import { useFormStatus } from 'react-dom';
 import { reserveTicketsAction } from '@/app/events/actions';
 import { setIpNotificationPreferencesAction } from '@/app/ip/actions';
 import type { FandomEvent, Ip } from '@/lib/data';
-import { ipAccent } from '@/lib/ip-display';
+import { ipAccent, ipAccentInk } from '@/lib/ip-display';
 import type { IpFollowState } from '@/lib/ip-follow';
 import type { PublicTicketType } from '@/lib/ticketing.server';
 
@@ -185,7 +185,7 @@ export function EventDetail({
           <div className="event-detail-copy">
             <Link className="event-detail-back mono" href="/events">← 팝업 · 이벤트</Link>
             <div className="event-detail-badges">
-              {ip && <span style={{ color: accent }}>{ip.title}</span>}
+              {ip && <span style={{ color: ip ? ipAccentInk(ip) : accent }}>{ip.title}</span>}
               <span style={{ background: event.accent, color: '#0A0813' }}>{event.mode}</span>
               <span>{event.status}</span>
             </div>

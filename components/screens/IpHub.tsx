@@ -5,7 +5,7 @@ import { useFormStatus } from 'react-dom';
 import { setIpNotificationPreferencesAction, toggleIpFollowAction } from '@/app/ip/actions';
 import type { CatalogIpDetail } from '@/lib/catalog';
 import type { Card, Ip, Stock } from '@/lib/data';
-import { ipAccent } from '@/lib/ip-display';
+import { ipAccent, ipAccentInk } from '@/lib/ip-display';
 import type { IpFollowState } from '@/lib/ip-follow';
 import type { RarityKey } from '@/lib/rarity';
 import { hrefFor } from '@/lib/routes';
@@ -164,6 +164,7 @@ export function IpHub({
   const { add, error: cartError, getQuantity, pending: cartPending, ready: cartReady } = useCart();
 
   const accent = ipAccent(ip);
+  const accentInk = ipAccentInk(ip);
   const good = goods[0] ?? null;
   const goodQuantity = good ? getQuantity(good.id) : 0;
   const goodSoldOut = good ? good.stock === 'soldout' || good.stockQty <= 0 : false;
@@ -298,7 +299,7 @@ export function IpHub({
                   <div style={{ flex: '1 1 240px', minWidth: 220, minHeight: 220, background: good.img, backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
                     <span className="sheen" style={{ opacity: 0.35 }} />
                     {(good.badge ?? goodStockLabel) && (
-                      <span className="mono" style={{ position: 'absolute', top: 14, left: 14, fontSize: 11, letterSpacing: '.06em', padding: '4px 10px', borderRadius: 6, background: 'rgba(8,6,15,.7)', border: '1px solid rgba(255,255,255,.2)', backdropFilter: 'blur(6px)' }}>
+                      <span className="mono" style={{ position: 'absolute', top: 14, left: 14, fontSize: 11, letterSpacing: '.06em', padding: '4px 10px', borderRadius: 6, color: '#fff', background: 'rgba(8,6,15,.7)', border: '1px solid rgba(255,255,255,.2)', backdropFilter: 'blur(6px)' }}>
                         {good.badge ?? goodStockLabel}
                       </span>
                     )}
@@ -410,7 +411,7 @@ export function IpHub({
                     <span className="mono" style={{ fontSize: 11, color: 'var(--faint)' }}>{post.time}</span>
                   </div>
                   <p style={{ margin: '12px 0 0', fontSize: 14.5, lineHeight: 1.55, color: '#E6E1FA', textWrap: 'pretty' }}>{post.text}</p>
-                  <div className="mono" style={{ fontSize: 12, color: accent, marginTop: 12 }}>♥ {post.likes} · 댓글 {post.comments}</div>
+                  <div className="mono" style={{ fontSize: 12, color: accentInk, marginTop: 12 }}>♥ {post.likes} · 댓글 {post.comments}</div>
                 </>
               ) : (
                 <p style={{ margin: '16px 0 0', fontSize: 14, color: 'var(--dim)' }}>아직 포스트가 없어요. 첫 이야기를 시작해 보세요.</p>
@@ -430,7 +431,7 @@ export function IpHub({
                 <div style={{ display: 'flex', gap: 10 }}>
                   {cards.slice(0, 3).map((c) => (
                     <span key={c.id} style={{ flex: 1, aspectRatio: '5 / 7', borderRadius: 10, background: c.bg, backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative', overflow: 'hidden', boxShadow: '0 0 0 1px rgba(255,255,255,.12), 0 14px 30px -16px rgba(0,0,0,.8)' }}>
-                      <span className="mono" style={{ position: 'absolute', top: 6, left: 6, fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'rgba(8,6,15,.75)', border: '1px solid rgba(255,255,255,.2)' }}>{c.rarity}</span>
+                      <span className="mono" style={{ position: 'absolute', top: 6, left: 6, fontSize: 9, padding: '2px 6px', borderRadius: 4, color: '#fff', background: 'rgba(8,6,15,.75)', border: '1px solid rgba(255,255,255,.2)' }}>{c.rarity}</span>
                     </span>
                   ))}
                 </div>
@@ -444,7 +445,7 @@ export function IpHub({
 
             {/* F · 팬덤 스탯 */}
             <div className="ipworld-cell ipw-fans" style={{ ['--cell-accent' as string]: `${accent}66`, padding: 22, display: 'flex', flexDirection: 'column', minHeight: 200 }}>
-              <span style={eyebrowStyle(accent)}>팬덤</span>
+              <span style={eyebrowStyle(accentInk)}>팬덤</span>
               <span className="mono" style={{ fontSize: 'clamp(30px, 3vw, 40px)', fontWeight: 700, marginTop: 12 }}>{compactNumber(ip.fans)}</span>
               <span style={{ fontSize: 13, color: 'var(--dim)', marginTop: 2 }}>명의 팬이 함께해요</span>
               <FollowForm followState={followState} ipId={ip.id} mini />
@@ -461,7 +462,7 @@ export function IpHub({
                   {goodsLineup.map((g) => (
                     <Link key={g.id} href={`${hrefFor('shop')}?ip=${ip.id}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
                       <span style={{ display: 'block', aspectRatio: '4 / 3', borderRadius: 12, background: g.img, backgroundSize: 'cover', backgroundPosition: 'center', boxShadow: '0 0 0 1px rgba(255,255,255,.1)' }} />
-                      <span style={{ fontSize: 12.5, fontWeight: 600, color: '#C9C3E4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</span>
+                      <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--editorial-ink-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</span>
                       <span className="mono" style={{ fontSize: 12 }}>₩{g.price.toLocaleString('ko-KR')}</span>
                     </Link>
                   ))}

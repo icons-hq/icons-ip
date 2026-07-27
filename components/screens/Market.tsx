@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { DATA } from '@/lib/data';
-import { ipAccent } from '@/lib/ip-display';
+import { ipAccent, ipAccentInk } from '@/lib/ip-display';
 
 /* v2 플레이스홀더 — 매물·검수·에스크로는 mock. 실거래 배선은 v2 범위 */
 const krw = (n: number) => '₩' + n.toLocaleString('ko-KR');
@@ -74,7 +74,7 @@ export function Market() {
                     </div>
                     <div style={{ padding: '16px 18px 18px', display: 'flex', flexDirection: 'column', flex: 1 }}>
                       <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 11 }}>
-                        <span style={{ color: ip ? ipAccent(ip) : 'var(--dim)' }}>{ip?.title ?? ''}</span>
+                        <span style={{ color: ip ? ipAccentInk(ip) : 'var(--dim)' }}>{ip?.title ?? ''}</span>
                         <span style={{ color: 'var(--faint)' }}>@{m.seller}</span>
                       </div>
                       <div style={{ fontWeight: 700, fontSize: 15.5, marginTop: 7, textWrap: 'pretty' }}>{m.name}</div>
