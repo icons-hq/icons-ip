@@ -430,10 +430,58 @@ describe('Home curation', () => {
 
     expect(html).toContain('/generated/ip/rilakkuma.webp');
     expect(html).not.toContain('/generated/ip/rilakkuma.png');
-    expect(html).toContain('aria-label="1번 장면 자동 전환 일시 정지"');
+    expect(html).toContain('aria-label="굿즈 장면 자동 전환 일시 정지"');
   });
 
-  it('preserves the source carousel step, film replay, and keyboard menu safeguards', () => {
+  it('renders the original accessible film line controls without visible text', () => {
+    const html = renderHome({
+      catalog: previewCatalog('mock'),
+      curation: { hero: null, announcement: null, featuredIpIds: [] },
+    });
+
+    expect(html).toMatch(/<section[^>]+aria-label="ICONS 경험 소개"[^>]+aria-roledescription="carousel"/);
+    expect(html).toContain('class="film-progress"');
+    expect(html).toMatch(/<div[^>]+aria-label="필름 장면 선택 및 자동 전환"[^>]+role="group"/);
+    expect(html).toContain('aria-label="굿즈 장면 자동 전환 일시 정지" aria-pressed="true"');
+    expect(html).toContain('aria-label="팝업 장면 보기 및 자동 전환 일시 정지" aria-pressed="false"');
+    expect(html).toContain('aria-label="카드 장면 보기 및 자동 전환 일시 정지" aria-pressed="false"');
+    expect(html).not.toContain('>굿즈</button>');
+    expect(html).not.toContain('>팝업</button>');
+    expect(html).not.toContain('>카드</button>');
+    expect(html).not.toContain('class="film-scene-dock"');
+    expect(html).not.toContain('class="film-scene-dock__playback"');
+    expect(html).toContain('aria-live="off"');
+  });
+
+  it('hides film controls for one scene and renders one line per scene for two scenes', () => {
+    const maple = DATA.IPS.find((item) => item.id === 'maplestory')!;
+    const good = DATA.GOODS.find((item) => item.id === 'g3')!;
+    const card = DATA.CARDS.find((item) => item.id === 'c3')!;
+    const singleSceneCatalog = {
+      ...catalog('supabase', [maple]),
+      goods: [good],
+    };
+    const curation = {
+      hero: null,
+      announcement: null,
+      featuredIpIds: [maple.id],
+    };
+
+    const singleSceneHtml = renderHome({ catalog: singleSceneCatalog, curation });
+    const twoSceneHtml = renderHome({
+      catalog: { ...singleSceneCatalog, cards: [card] },
+      curation,
+    });
+
+    expect(singleSceneHtml).not.toContain('class="film-progress"');
+    expect(twoSceneHtml).toContain('class="film-progress"');
+    expect(twoSceneHtml).toContain('aria-label="굿즈 장면 자동 전환 일시 정지"');
+    expect(twoSceneHtml).toContain('aria-label="카드 장면 보기 및 자동 전환 일시 정지"');
+    expect(twoSceneHtml).not.toContain('aria-label="팝업 장면');
+    expect(twoSceneHtml.match(/<button[^>]+aria-pressed=/g)).toHaveLength(2);
+  });
+
+  it('keeps the original film lines centered with the source carousel contracts', () => {
     const source = readFileSync(new URL('./Home.tsx', import.meta.url), 'utf8');
 
     const css = cssForHome();
@@ -441,12 +489,68 @@ describe('Home curation', () => {
     expect(source).toContain('(card?.offsetWidth ?? 320) + 28');
     expect(source).toContain('<div className="film-visual" key={active.id}>');
     expect(source).not.toContain('<div className="film-window" key={active.id}>');
+    expect(source).toContain('scenes.length > 1 &&');
+    expect(source).toContain('onFocusCapture');
+    expect(source).toContain('if (!pointerInteractionRef.current && !event.currentTarget.contains(event.relatedTarget))');
+    expect(source).toContain('className="film-progress"');
+    expect(source).not.toContain('film-scene-dock');
     expect(source).toContain('const featureArt = element.parentElement;');
     expect(source).toContain('const rect = featureArt.getBoundingClientRect();');
     expect(source).toContain("document.addEventListener('keydown', onKeyDown)");
     expect(source).toContain('element.inert = true');
-    expect(css).toMatch(/\.icons-preview \.film-progress button\s*\{[^}]*height:\s*27px/);
+    expect(css).toMatch(/\.icons-preview \.film-progress\s*\{[^}]*left:\s*50%;[^}]*bottom:\s*10%;[^}]*transform:\s*translateX\(-50%\);/s);
+    expect(css).toMatch(/\.icons-preview \.film-progress button\s*\{[^}]*width:\s*42px;[^}]*height:\s*27px/);
     expect(css).toMatch(/\.icons-preview \.film-progress button::before\s*\{[^}]*height:\s*3px/);
+    expect(css).toMatch(/@media \(max-width:\s*720px\)\s*\{[\s\S]*?\.icons-preview \.film-progress\s*\{[^}]*right:\s*34px;[^}]*bottom:\s*55px;[^}]*left:\s*34px;[^}]*transform:\s*none;/);
+  });
+
+  it('keeps pointer-origin focus and active-line playback toggling separate', () => {
+    const source = readFileSync(new URL('./Home.tsx', import.meta.url), 'utf8');
+
+    expect(source).toContain('const pointerInteractionRef = useRef(false);');
+    expect(source).toContain('onPointerDownCapture={() => { pointerInteractionRef.current = true; }}');
+    expect(source).toContain('const clearPointerInteraction = () => { pointerInteractionRef.current = false; };');
+    expect(source).toContain("window.addEventListener('pointerup', clearPointerInteraction);");
+    expect(source).toContain("window.addEventListener('pointercancel', clearPointerInteraction);");
+    expect(source).toContain("window.removeEventListener('pointerup', clearPointerInteraction);");
+    expect(source).toContain("window.removeEventListener('pointercancel', clearPointerInteraction);");
+    expect(source).not.toContain('onPointerUpCapture');
+    expect(source).not.toContain('onPointerCancelCapture');
+    expect(source).toContain('if (!pointerInteractionRef.current && !event.currentTarget.contains(event.relatedTarget))');
+    expect(source).toContain("`${scene.controlLabel} 장면 자동 전환 ${userPaused ? '재개' : '일시 정지'}`");
+    expect(source).toContain('if (index === activeIndex)');
+    expect(source).toContain('setUserPaused((paused) => !paused);');
+    expect(source).not.toContain('film-scene-dock__playback');
+  });
+
+  it('keeps the visual film copy silent and announces scene changes from a stable live region', () => {
+    const html = renderHome({
+      catalog: previewCatalog('mock'),
+      curation: { hero: null, announcement: null, featuredIpIds: [] },
+    });
+    const source = readFileSync(new URL('./Home.tsx', import.meta.url), 'utf8');
+
+    expect(html).toContain('<div aria-hidden="true" class="film-copy">');
+    expect(html).toContain(
+      '<div aria-atomic="true" aria-live="off" class="sr-only"><p>OFFICIAL GOODS</p><h2>좋아하는 마음이 손에 잡히는 순간</h2><p>주황버섯 봉제인형 · 신상</p></div>',
+    );
+    expect(html).not.toContain('<span aria-atomic="true" aria-live="off" class="sr-only">');
+    expect(source).toMatch(
+      /<div className="film-visual" key=\{active\.id\}>[\s\S]*?<div aria-hidden="true" className="film-copy">[\s\S]*?<\/div>\s*<\/div>\s*<div\s+aria-atomic="true"\s+aria-live=\{userPaused \? 'polite' : 'off'\}\s+className="sr-only">\s*<p>\{active\.kicker\}<\/p>\s*<h2>\{active\.title\.replace\('\\n', ' '\)\}<\/h2>\s*<p>\{active\.detail\}<\/p>\s*<\/div>/,
+    );
+    expect(source).not.toMatch(/<div[^>]+className="sr-only"[^>]+key=/);
+    expect(source).not.toMatch(/className="film-copy"[^>]*aria-live/);
+  });
+
+  it('forces the film reveal and artwork into their final state for reduced motion', () => {
+    const css = cssForHome();
+
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?\.icons-preview \.film-visual\s*\{[^}]*animation:\s*none !important;[^}]*clip-path:\s*circle\(100%\);/s,
+    );
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?\.icons-preview \.film-visual > \.preview-artwork\s*\{[^}]*animation:\s*none !important;[^}]*transform:\s*scale\(1\);/s,
+    );
   });
 
   it('keeps the auto-hidden home header reachable by keyboard', () => {

@@ -9,10 +9,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## 기본 작업 원칙
 
 - 기본 답변 언어는 한국어다.
-- 사용자가 명시적으로 수정·생성·삭제를 요청하지 않으면 읽기 전용으로 행동한다.
-- 변경은 요청 범위 안에서만 최소로 수행한다. 요청받지 않은 기능 추가, 리팩터링, 최적화는 하지 않는다.
 - 키, 토큰, 인증 정보, 결제 식별자 같은 민감 정보는 출력하지 않는다.
-- 삭제, 덮어쓰기, 외부 API 쓰기, production write처럼 되돌리기 어려운 작업은 먼저 확인한다.
 - `gh issue view/list`, `gh pr view`, remote 상태 확인 같은 읽기 작업은 필요 시 수행할 수 있다.
 - issue 생성/수정, PR 생성, push, 배포, Supabase remote 적용, 외부 서비스 설정 변경은 사용자가 명시적으로 요청했거나 직전에 확인한 경우에만 수행한다.
 - `main` push 또는 `main`으로 merge되는 PR은 GitHub Actions를 통해 Supabase remote migration과 Vercel production deploy를 유발할 수 있으므로 production write로 취급한다.
