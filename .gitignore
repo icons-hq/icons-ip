@@ -25,6 +25,8 @@
 
 # misc
 .DS_Store
+/.claude/
+/outputs/
 docs/claude-design/project/.thumbnail
 docs/claude-design/project/support.js
 docs/claude-design/project/assets/
