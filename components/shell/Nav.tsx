@@ -9,22 +9,9 @@ import { useCart } from './CartProvider';
 import { useGo } from './useGo';
 import { AuthButton } from './AuthButton';
 import { NotificationBell } from './NotificationBell';
+import { useHeaderScrollHide } from './useHeaderScrollHide';
 
-export function shouldHideEditorialHeader({
-  currentY,
-  previousY,
-  hidden,
-}: {
-  currentY: number;
-  previousY: number;
-  hidden: boolean;
-}) {
-  if (currentY <= 80) return false;
-  const delta = currentY - previousY;
-  if (delta > 12) return true;
-  if (delta < -12) return false;
-  return hidden;
-}
+export { shouldHideEditorialHeader } from './useHeaderScrollHide';
 
 export function closeEditorialMenu(pathname: string) {
   return { open: false, pathname };
@@ -43,43 +30,20 @@ const SECONDARY_LINKS = [
 
 export function Nav() {
   const pathname = usePathname();
+  // 게임은 자기완결 번들, 어드민은 자체 작업대, 인증은 집중형 셸, 홈은 자체 헤더를 사용한다.
+  if (pathname === '/' || isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
+  return <EditorialHeader pathname={pathname} />;
+}
+
+function EditorialHeader({ pathname }: { pathname: string }) {
   const go = useGo();
   const { count } = useCart();
   const [menuState, setMenuState] = useState({ open: false, pathname });
   const menuOpen = menuState.pathname === pathname && menuState.open;
-  const [headerHidden, setHeaderHidden] = useState(false);
-  const scrollAnchorRef = useRef(0);
-  const frameRef = useRef<number | null>(null);
+  const { hidden: headerHidden, reveal } = useHeaderScrollHide({ forceVisible: menuOpen, resetKey: pathname });
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeMenu = () => setMenuState(closeEditorialMenu(pathname));
-
-  useEffect(() => {
-    const onScroll = () => {
-      if (frameRef.current !== null) return;
-      frameRef.current = window.requestAnimationFrame(() => {
-        frameRef.current = null;
-        const currentY = window.scrollY;
-        const previousY = scrollAnchorRef.current;
-        setHeaderHidden((hidden) => {
-          const next = menuOpen
-            ? false
-            : shouldHideEditorialHeader({ currentY, previousY, hidden });
-          if (currentY <= 80 || Math.abs(currentY - previousY) > 12) {
-            scrollAnchorRef.current = currentY;
-          }
-          return next;
-        });
-      });
-    };
-
-    scrollAnchorRef.current = window.scrollY;
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
-    };
-  }, [menuOpen]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -140,9 +104,6 @@ export function Nav() {
     };
   }, [menuOpen, pathname]);
 
-  // 게임은 자기완결 번들, 어드민은 자체 작업대, 인증은 집중형 셸을 사용한다.
-  if (pathname === '/' || isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
-
   return (
     <div
       aria-label={menuOpen ? '전체 메뉴' : undefined}
@@ -154,7 +115,7 @@ export function Nav() {
         className="editorial-header"
         data-hidden={headerHidden ? 'true' : 'false'}
         data-menu-open={menuOpen ? 'true' : 'false'}
-        onFocusCapture={() => setHeaderHidden(false)}
+        onFocusCapture={reveal}
       >
         <div className="editorial-header__capsule">
           <Link className="editorial-header__brand" href="/" aria-label="ICONS 홈" inert={menuOpen ? true : undefined}>
@@ -201,7 +162,7 @@ export function Nav() {
               aria-label={menuOpen ? '전체 메뉴 닫기' : '전체 메뉴 열기'}
               className="editorial-menu-trigger"
               onClick={() => {
-                setHeaderHidden(false);
+                reveal();
                 setMenuState({ open: !menuOpen, pathname });
               }}
               type="button"

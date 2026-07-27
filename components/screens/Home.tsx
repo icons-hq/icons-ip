@@ -19,6 +19,7 @@ import {
 } from '@/lib/home-catalog';
 import { RARITY_META } from '@/lib/rarity';
 import { hrefFor } from '@/lib/routes';
+import { useHeaderScrollHide } from '@/components/shell/useHeaderScrollHide';
 import { Empty } from '@/components/ui/Empty';
 
 const NAV_LINKS = [
@@ -158,30 +159,9 @@ function Artwork({
 
 function PreviewHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [hidden, setHidden] = useState(false);
-  const lastScrollY = useRef(0);
+  const { hidden, reveal } = useHeaderScrollHide({ forceVisible: menuOpen });
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    const onScroll = () => {
-      const currentY = window.scrollY;
-      if (menuOpen || currentY <= 80) {
-        setHidden(false);
-        lastScrollY.current = currentY;
-      } else {
-        const delta = currentY - lastScrollY.current;
-        if (Math.abs(delta) >= 12) {
-          setHidden(delta > 0);
-          lastScrollY.current = currentY;
-        }
-      }
-    };
-
-    lastScrollY.current = window.scrollY;
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, [menuOpen]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -251,7 +231,7 @@ function PreviewHeader() {
           aria-label={menuOpen ? '메뉴 닫기' : '메뉴 열기'}
           className="menu-toggle"
           onClick={() => {
-            setHidden(false);
+            reveal();
             setMenuOpen((open) => !open);
           }}
           type="button"
