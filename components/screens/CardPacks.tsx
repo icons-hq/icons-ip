@@ -6,7 +6,7 @@ import { openDrawTicketAction } from '@/app/packs/actions';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Card } from '@/lib/data';
 import type { DrawTicketInventory, OpenedCard, PackPoolGroup } from '@/lib/draw-tickets';
-import { ipAccent } from '@/lib/ip-display';
+import { ipAccentInk } from '@/lib/ip-display';
 import { RARITY_META, type RarityKey } from '@/lib/rarity';
 import { hrefFor } from '@/lib/routes';
 import { Empty } from '@/components/ui/Empty';
@@ -223,7 +223,7 @@ export function CardPacks({
                         )}
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontWeight: 700, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{group.poolName}</div>
-                          {ip && <div className="mono" style={{ fontSize: 11, color: ipAccent(ip), marginTop: 2 }}>{ip.title}</div>}
+                          {ip && <div className="mono" style={{ fontSize: 11, color: ipAccentInk(ip), marginTop: 2 }}>{ip.title}</div>}
                         </div>
                       </div>
                       <span className="mono" style={{ flex: '0 0 auto', display: 'inline-flex', alignItems: 'center', height: 30, padding: '0 13px', borderRadius: 999, fontSize: 12, border: '1px solid rgba(139,92,255,.5)', background: 'rgba(139,92,255,.1)', color: 'var(--violet-2)', fontWeight: 700 }}>

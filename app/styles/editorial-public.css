@@ -465,7 +465,7 @@
 
 #root:has(.ipworld-bento) > div > div:has(.ipworld-switcher) {
   position: sticky;
-  top: 0;
+  top: var(--header-offset);
   z-index: 18;
   border-color: var(--editorial-line-soft, rgba(17, 17, 15, .08)) !important;
   background: color-mix(in srgb, var(--editorial-canvas, #f4f4f1) 92%, transparent);
@@ -550,7 +550,7 @@
    -------------------------------------------------------------------------- */
 
 #root:has(.shop-toolbar) .shop-toolbar {
-  top: 84px;
+  top: var(--header-offset);
   border-color: var(--editorial-line-soft, rgba(17, 17, 15, .08));
   background: color-mix(in srgb, var(--editorial-surface, #fff) 92%, transparent);
   backdrop-filter: blur(18px) saturate(1.08);
@@ -1502,7 +1502,7 @@
   }
 
   #root:has(.shop-toolbar) .shop-toolbar {
-    top: 72px;
+    top: var(--header-offset);
   }
 
   #root:has(.shop-toolbar) .shop-toolbar .ipworld-switcher {

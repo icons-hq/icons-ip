@@ -727,7 +727,7 @@ export function Community({
           </div>
 
           {/* side rail */}
-          <div className="community-rail hide-mob" style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'sticky', top: 88 }}>
+          <div className="community-rail hide-mob" style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'sticky', top: 'var(--header-offset)' }}>
             {feedScope === 'all' && ranking.length > 0 && (
               <div style={{ borderRadius: 20, border: '1px solid rgba(255,255,255,.09)', background: 'linear-gradient(180deg, var(--surface), var(--bg-2))', padding: 18 }}>
                 <div className="mono" style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--amber)' }}>팬덤 랭킹</div>

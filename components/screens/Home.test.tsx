@@ -21,6 +21,10 @@ vi.mock('@/components/ui/Empty', () => ({
   Empty: ({ text, sub }: { text: string; sub?: string }) => <div>{text}{sub}</div>,
 }));
 
+vi.mock('@/components/shell/useHeaderScrollHide', () => ({
+  useHeaderScrollHide: () => ({ hidden: false, reveal: () => undefined }),
+}));
+
 vi.mock('@/components/ui/motion', () => ({
   useHeroParallax: () => ({
     artRef: { current: null },

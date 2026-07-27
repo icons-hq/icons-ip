@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Card, Ip } from '@/lib/data';
-import { ipAccent } from '@/lib/ip-display';
+import { ipAccentInk } from '@/lib/ip-display';
 import { RARITY_META, type RarityKey } from '@/lib/rarity';
 import { hrefFor } from '@/lib/routes';
 import { Empty } from '@/components/ui/Empty';
@@ -47,7 +47,7 @@ function CardDetail({
         <div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {ip && (
-              <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 11px', borderRadius: 999, fontSize: 11, color: ipAccent(ip), border: '1px solid rgba(255,255,255,.16)' }}>{ip.title}</span>
+              <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 11px', borderRadius: 999, fontSize: 11, color: ipAccentInk(ip), border: '1px solid rgba(255,255,255,.16)' }}>{ip.title}</span>
             )}
             {hasOwnership && (
               <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 11px', borderRadius: 999, fontSize: 11, color: owned ? 'var(--mint)' : 'var(--dim)', border: '1px solid rgba(255,255,255,.16)' }}>
@@ -237,7 +237,7 @@ export function Binder({
                     <div style={{ padding: '11px 14px 13px', display: 'flex', flexDirection: 'column', gap: 3 }}>
                       <span style={{ fontWeight: 700, fontSize: 13.5, color: locked ? 'var(--dim)' : 'var(--text)' }}>{c.name}</span>
                       <span className="mono" style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 10.5, color: 'var(--faint)' }}>
-                        <span style={{ color: ip ? ipAccent(ip) : undefined }}>{ip?.title ?? ''}</span>
+                        <span style={{ color: ip ? ipAccentInk(ip) : undefined }}>{ip?.title ?? ''}</span>
                         <span>{c.no}</span>
                       </span>
                     </div>

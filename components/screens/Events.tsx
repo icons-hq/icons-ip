@@ -6,7 +6,7 @@ import type { CatalogSnapshot } from '@/lib/catalog';
 import type { FandomEvent, Ip } from '@/lib/data';
 import type { EventGameLink } from '@/lib/games/catalog';
 import { ALL_IPS, ALL_MODES, ALL_STATUSES, eventModeOptions, eventStatusOptions, selectFandomEvents } from '@/lib/events-catalog';
-import { ipAccent } from '@/lib/ip-display';
+import { ipAccent, ipAccentInk } from '@/lib/ip-display';
 import { hrefFor } from '@/lib/routes';
 
 const statusColor = (s: string) => (s === '진행중' ? 'var(--mint)' : s === '예매중' ? 'var(--cyan)' : 'var(--dim)');
@@ -28,7 +28,7 @@ function FeaturedEvent({ e, ip, games }: { e: FandomEvent; ip: Ip | null; games:
           <div style={{ padding: 'clamp(26px, 4vw, 44px)', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', zIndex: 2 }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
               {ip && (
-                <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 11px', borderRadius: 999, fontSize: 11, color: ipAccent(ip), border: '1px solid rgba(255,255,255,.16)' }}>{ip.title}</span>
+                <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 11px', borderRadius: 999, fontSize: 11, color: ipAccentInk(ip), border: '1px solid rgba(255,255,255,.16)' }}>{ip.title}</span>
               )}
               <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 11px', borderRadius: 999, fontSize: 11, fontWeight: 700, color: '#0A0813', background: e.accent }}>{e.mode}</span>
               <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 26, padding: '0 11px', borderRadius: 999, fontSize: 11, color: statusColor(e.status), border: '1px solid rgba(255,255,255,.16)' }}>
@@ -81,7 +81,7 @@ function EventCard({ e, ip, games }: { e: FandomEvent; ip: Ip | null; games: Eve
         <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 55%, rgba(12,10,24,.85) 100%)' }} />
       </div>
       <div style={{ padding: '16px 18px 18px' }}>
-        {ip && <div className="mono" style={{ fontSize: 11, color: ipAccent(ip) }}>{ip.title}</div>}
+        {ip && <div className="mono" style={{ fontSize: 11, color: ipAccentInk(ip) }}>{ip.title}</div>}
         <div style={{ fontWeight: 700, fontSize: 15.5, marginTop: 6, textWrap: 'pretty' }}>{e.title}</div>
         <div className="mono" style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 10, fontSize: 11.5, color: 'var(--dim)' }}>
           <span>◷ {e.date || '일정 공개 예정'}</span>
