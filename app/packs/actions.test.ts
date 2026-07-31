@@ -7,10 +7,7 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
 }));
 
-vi.mock('@/lib/data', async () => await import('../../lib/data'));
-vi.mock('@/lib/draw-tickets', async () => await import('../../lib/draw-tickets'));
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
-vi.mock('@/lib/auth/onboarding', async () => await import('../../lib/auth/onboarding'));
 vi.mock('@/lib/supabase/config', () => ({ getSupabaseConfig: () => ({ isConfigured: true }) }));
 vi.mock('@/lib/catalog-source', () => ({ resolveCatalogSource: () => 'supabase' }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => ({ rpc: mocks.rpc }) }));

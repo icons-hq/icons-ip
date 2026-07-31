@@ -9,8 +9,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/components/payments/PaymentConfirmation', () => ({
   PaymentConfirmation: mocks.confirmation,
 }));
-vi.mock('@/lib/payments/toss', async () => await import('../../../lib/payments/toss'));
-vi.mock('@/lib/ticketing', async () => await import('../../../lib/ticketing'));
 
 const referenceId = '7ad4c967-3d48-44da-a665-64731ac33f62';
 

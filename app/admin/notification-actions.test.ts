@@ -25,7 +25,6 @@ vi.mock('node:crypto', () => ({ randomUUID: mocks.randomUUID }));
 vi.mock('@/lib/auth/admin', () => ({
   getCurrentAdminAuthState: () => mocks.adminState,
 }));
-vi.mock('@/lib/admin/notifications', async () => await import('../../lib/admin/notifications'));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({ rpc: mocks.rpc }),
 }));

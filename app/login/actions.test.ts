@@ -38,9 +38,6 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }));
 
-vi.mock('@/lib/auth/onboarding', async () => await import('../../lib/auth/onboarding'));
-vi.mock('@/lib/auth/recovery.server', async () => await import('../../lib/auth/recovery.server'));
-
 vi.mock('@/lib/auth/server', () => ({
   getProfileForUser: vi.fn(),
 }));

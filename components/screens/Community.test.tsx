@@ -14,7 +14,6 @@ vi.mock('@/app/community/actions', () => ({
   reportCommunityTargetAction: vi.fn(),
   setCommunityPostLikeAction: vi.fn(),
 }));
-vi.mock('@/lib/routes', async () => await import('../../lib/routes'));
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => <span aria-hidden /> }));
 vi.mock('@/components/ui/Empty', () => ({
   Empty: ({ text, sub }: { text: string; sub?: string }) => <div>{text}{sub}</div>,

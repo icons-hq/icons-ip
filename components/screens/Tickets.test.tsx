@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { Tickets } from './Tickets';
 import type { TicketOrderListItem } from '../../lib/ticketing';
 
-vi.mock('@/lib/ticketing', async () => await import('../../lib/ticketing'));
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => <span aria-hidden /> }));
 
 const order: TicketOrderListItem = {

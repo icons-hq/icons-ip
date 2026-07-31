@@ -29,7 +29,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/auth/admin', () => ({
   getCurrentAdminAuthState: () => mocks.adminState,
 }));
-vi.mock('@/lib/admin/orders', async () => await import('../../lib/admin/orders'));
 vi.mock('@/lib/orders/cancellation-orchestrator.server', () => ({
   reconcileOrderCancellation: mocks.reconcile,
 }));

@@ -18,7 +18,6 @@ vi.mock('@/app/login/actions', () => ({ signOutAction: vi.fn() }));
 vi.mock('@/lib/auth/onboarding', () => ({
   nextPathWithSearch: () => '/my',
 }));
-vi.mock('@/lib/routes', async () => await import('../../lib/routes'));
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({
     auth: {

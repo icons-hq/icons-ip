@@ -38,7 +38,6 @@ vi.mock('@/lib/auth/server', () => ({
   }),
 }));
 
-vi.mock('@/lib/payments/toss', async () => await import('../../../../lib/payments/toss'));
 vi.mock('@/lib/payments/toss-api', () => ({
   getTossConfig: () => ({ isConfigured: true, secretKey: 'configured' }),
   confirmTossPayment: mocks.confirm,

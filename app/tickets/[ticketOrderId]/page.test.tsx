@@ -17,7 +17,6 @@ vi.mock('@/lib/auth/onboarding', () => ({
   isOnboarded: () => mocks.onboarded,
   onboardingPath: (next: string) => `/onboarding?next=${encodeURIComponent(next)}`,
 }));
-vi.mock('@/lib/ticketing', async () => await import('../../../lib/ticketing'));
 vi.mock('@/lib/ticketing.server', () => ({ loadTicketOrderDetail: mocks.detail }));
 vi.mock('@/components/screens/TicketDetail', () => ({
   TicketDetail: ({ order }: { order: { id: string } }) => <div data-ticket-order={order.id} />,

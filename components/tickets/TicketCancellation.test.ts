@@ -12,7 +12,6 @@ import type { TicketOrderDetail } from '../../lib/ticketing';
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
-vi.mock('@/lib/ticketing', async () => await import('../../lib/ticketing'));
 
 const order: TicketOrderDetail = {
   id: '5cbcbfed-202d-4676-821a-7706398e57c0',

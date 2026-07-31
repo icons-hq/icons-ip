@@ -6,7 +6,6 @@ import { SiteFooter } from './SiteFooter';
 const mocks = vi.hoisted(() => ({ pathname: '/events' }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname }));
-vi.mock('@/lib/routes', async () => await import('../../lib/routes'));
 
 beforeEach(() => {
   mocks.pathname = '/events';

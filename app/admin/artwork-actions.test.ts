@@ -29,7 +29,6 @@ const mocks = vi.hoisted(() => ({
   verifyAndPromote: vi.fn(),
 }));
 
-vi.mock('@/lib/admin/artwork', async () => await import('../../lib/admin/artwork'));
 vi.mock('@/lib/admin/artwork.server', () => ({
   cancelAdminArtworkUpload: mocks.cancelUpload,
   cleanupExpiredAdminArtworkUploads: mocks.cleanupExpired,

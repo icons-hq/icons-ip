@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   operationOrder: [] as string[],
 }));
 
-vi.mock('@/lib/auth/onboarding', async () => await import('../../lib/auth/onboarding'));
 vi.mock('@/lib/supabase/config', () => ({
   getSupabaseConfig: () => ({ isConfigured: mocks.configured }),
 }));

@@ -11,7 +11,6 @@ vi.mock('@/components/payments/TossPaymentWidget', () => ({
     <div data-payment-widget={JSON.stringify(props)} />
   ),
 }));
-vi.mock('@/lib/ticketing', async () => await import('../../lib/ticketing'));
 
 const order: TicketOrderSnapshot = {
   id: '33333333-3333-4333-8333-333333333333',

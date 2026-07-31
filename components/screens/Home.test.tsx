@@ -13,10 +13,6 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-vi.mock('@/lib/home-catalog', async () => await import('../../lib/home-catalog'));
-vi.mock('@/lib/ip-display', async () => await import('../../lib/ip-display'));
-vi.mock('@/lib/rarity', async () => await import('../../lib/rarity'));
-vi.mock('@/lib/routes', async () => await import('../../lib/routes'));
 vi.mock('@/components/ui/Empty', () => ({
   Empty: ({ text, sub }: { text: string; sub?: string }) => <div>{text}{sub}</div>,
 }));

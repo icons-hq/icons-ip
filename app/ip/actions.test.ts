@@ -9,8 +9,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
-vi.mock('@/lib/auth/onboarding', async () => await import('../../lib/auth/onboarding'));
-vi.mock('@/lib/ip-follow', async () => await import('../../lib/ip-follow'));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({ rpc: mocks.rpc }),
 }));

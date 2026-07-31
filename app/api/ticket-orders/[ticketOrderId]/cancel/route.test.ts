@@ -23,8 +23,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
-vi.mock('@/lib/auth/onboarding', async () => await import('../../../../../lib/auth/onboarding'));
-vi.mock('@/lib/ticketing', async () => await import('../../../../../lib/ticketing'));
 vi.mock('@/lib/payments/toss-api', () => ({
   getTossConfig: () => ({ isConfigured: mocks.tossConfigured }),
 }));

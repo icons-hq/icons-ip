@@ -13,7 +13,6 @@ vi.mock('react', async () => {
     useEffect: (effect: () => void) => effect(),
   };
 });
-vi.mock('@/lib/auth/onboarding', async () => await import('../../lib/auth/onboarding'));
 
 describe('RecoverySessionBridge', () => {
   it('performs a full navigation without preserving the one-time ready marker', () => {

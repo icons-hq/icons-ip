@@ -1,12 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   buildTossWidgetPaymentRequest,
   resolveTossPaymentMethodVariantKey,
   TossPaymentWidget,
 } from './TossPaymentWidget';
-
-vi.mock('@/lib/payments/toss', async () => await import('../../lib/payments/toss'));
 
 const referenceId = '7ad4c967-3d48-44da-a665-64731ac33f62';
 const requestBase = {

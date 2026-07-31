@@ -23,7 +23,6 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
 }));
 
-vi.mock('@/lib/admin/curations', async () => await import('../../lib/admin/curations'));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.getCurrentAdminAuthState }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.createClient }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));

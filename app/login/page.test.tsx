@@ -18,7 +18,6 @@ vi.mock('@/components/screens/Login', () => ({
     return null;
   },
 }));
-vi.mock('@/lib/auth/onboarding', async () => await import('../../lib/auth/onboarding'));
 vi.mock('@/lib/auth/server', () => ({
   getCurrentAuthState: async () => mocks.auth,
 }));
