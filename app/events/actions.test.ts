@@ -27,7 +27,10 @@ vi.mock('@/lib/payments/checkout-availability', async () => (
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({ from: mocks.from }),
 }));
-vi.mock('@/lib/supabase/service', () => ({
+/* getServiceRoleConfig는 호출 시점에 env를 읽는다. 실제 구현을 남겨야
+   SUPABASE_SERVICE_ROLE_KEY를 비우는 "결제 불가" 테스트가 의미를 갖는다. */
+vi.mock('@/lib/supabase/service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/supabase/service')>()),
   createServiceClient: () => ({ rpc: mocks.serviceRpc }),
 }));
 
