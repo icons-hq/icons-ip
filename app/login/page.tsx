@@ -9,6 +9,7 @@ import {
 } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { getCatalogSnapshot } from '@/lib/catalog';
+import { RARITY_ORDER } from '@/lib/rarity';
 import { redirect } from 'next/navigation';
 
 type PageProps = {
@@ -18,8 +19,6 @@ type PageProps = {
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
-
-const RARITY_ORDER = ['HOLO', 'SSR', 'SR', 'R', 'N'];
 
 export default async function Page({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};

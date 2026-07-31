@@ -4,20 +4,15 @@ import Link from 'next/link';
 import { useFormStatus } from 'react-dom';
 import { setIpNotificationPreferencesAction, toggleIpFollowAction } from '@/app/ip/actions';
 import type { CatalogIpDetail } from '@/lib/catalog';
-import type { Card, Ip, Stock } from '@/lib/data';
-import { krw } from '@/lib/format';
+import type { Card, Ip } from '@/lib/data';
+import { compactNumber, krw } from '@/lib/format';
+import { STOCK_LABEL } from '@/lib/goods-display';
 import { ipAccent, ipAccentInk } from '@/lib/ip-display';
 import type { IpFollowState } from '@/lib/ip-follow';
-import type { RarityKey } from '@/lib/rarity';
+import { RARITY_ORDER } from '@/lib/rarity';
 import { hrefFor } from '@/lib/routes';
 import { useCart } from '@/components/shell/CartProvider';
 import { useHeroParallax, useTilt } from '@/components/ui/motion';
-
-const STOCK_LABEL: Record<Stock, string | null> = { low: '품절임박', soldout: '품절', ok: null };
-const RARITY_ORDER: RarityKey[] = ['HOLO', 'SSR', 'SR', 'R', 'N'];
-
-const compactNumber = (n: number) =>
-  new Intl.NumberFormat('ko-KR', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
 
 const eyebrowStyle = (color: string): React.CSSProperties => ({
   fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color,

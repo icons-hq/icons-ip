@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { DATA, type Card, type Game } from '../data';
-import { RARITY_META, type RarityKey } from '../rarity';
+import { isRarityKey } from '../rarity';
 import { getSupabaseConfig } from '../supabase/config';
 import { createClient } from '../supabase/server';
 import { resolveCatalogSource, type CatalogSource } from '../catalog-source';
@@ -36,9 +36,6 @@ interface GameCardRow {
   rarity: string;
   bg: string | null;
 }
-
-const isRarityKey = (value: unknown): value is RarityKey =>
-  typeof value === 'string' && value in RARITY_META;
 
 /** config jsonb 검증 — 구슬 수와 라벨 수가 어긋난 행은 렌더러가 깨지므로 통째로 거른다. */
 export function toGameConfig(value: unknown): Game['config'] | null {

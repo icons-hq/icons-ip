@@ -2,8 +2,9 @@ import 'server-only';
 
 import { blockedUserIds } from '@/lib/blocks.server';
 import { canViewCommunityPost, formatPostTime, type CommunityPostStatus } from '@/lib/community';
-import { DATA, type Card, type FandomEvent, type Good, type Ip, type RarityKey, type Stock, type Vertical } from '@/lib/data';
+import { DATA, type Card, type FandomEvent, type Good, type Ip, type Stock, type Vertical } from '@/lib/data';
 import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
+import { isRarityKey } from '@/lib/rarity';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { postgrestInList } from '@/lib/supabase/postgrest';
 import { createClient } from '@/lib/supabase/server';
@@ -172,7 +173,6 @@ const HOME_CURATION_IMAGE_PATTERN =
   /^public-media\/catalog\/curation\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$/;
 const AMBIGUOUS_LINK_CHARACTER_PATTERN =
   /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/;
-const RARITIES: RarityKey[] = ['N', 'R', 'SR', 'SSR', 'HOLO'];
 const naturalIdCollator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
 type CatalogSupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -219,10 +219,6 @@ function byNaturalId<T extends { id: string }>(a: T, b: T) {
 
 function toStock(stock: string): Stock {
   return stock === 'low' || stock === 'soldout' ? stock : 'ok';
-}
-
-function toRarity(rarity: string): RarityKey {
-  return RARITIES.includes(rarity as RarityKey) ? (rarity as RarityKey) : 'N';
 }
 
 function emptyHomeCuration(): HomeCurationSnapshot {
@@ -381,7 +377,7 @@ function toCard(row: CardRow, imageUrlForPath: (path: string) => string): Card {
     ip: row.ip_id,
     name: row.name,
     no: row.no ?? '',
-    rarity: toRarity(row.rarity),
+    rarity: isRarityKey(row.rarity) ? row.rarity : 'N',
     owned: false,
     bg: backgroundFor(row.bg, row.image_path, imageUrlForPath, DATA.CARDS[0]?.bg ?? ''),
   };

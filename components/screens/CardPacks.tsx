@@ -7,7 +7,7 @@ import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Card } from '@/lib/data';
 import type { DrawTicketInventory, OpenedCard, PackPoolGroup } from '@/lib/draw-tickets';
 import { ipAccentInk } from '@/lib/ip-display';
-import { RARITY_META, type RarityKey } from '@/lib/rarity';
+import { rarityTag, RARITY_ORDER } from '@/lib/rarity';
 import { hrefFor } from '@/lib/routes';
 import { Empty } from '@/components/ui/Empty';
 import { useTilt } from '@/components/ui/motion';
@@ -16,14 +16,6 @@ import { useTilt } from '@/components/ui/motion';
  * 개봉한다. 카드는 open_draw_ticket RPC(서버)가 결정하고, reveal 연출은
  * 코스메틱이다(ADR-0002 · ADR-0004). 옛 유료 뽑기 화면(Gacha.tsx)의 포일·reveal
  * 연출을 무료 모델로 재목적화했다 — 가격·천장·확률 공시·클라 RNG는 제거. */
-
-function rarityTag(rarity: RarityKey): { color: string; bg: string; ring: string } {
-  if (rarity === 'HOLO') return { color: '#0A0813', bg: 'var(--holo)', ring: `${RARITY_META.HOLO.color}99` };
-  if (rarity === 'N') return { color: 'var(--text)', bg: 'rgba(8,6,15,.75)', ring: 'rgba(255,255,255,.18)' };
-  const c = RARITY_META[rarity].color;
-  const ink = rarity === 'R'; // cyan 위엔 잉크색이 읽힌다
-  return { color: ink ? '#0A0813' : 'var(--text)', bg: `${c}${ink ? 'E6' : 'D9'}`, ring: `${c}73` };
-}
 
 function MachineCard({ card }: { card: Card }) {
   const { cardRef, glareRef, onMouseMove, onMouseLeave } = useTilt();
@@ -47,7 +39,6 @@ function MachineCard({ card }: { card: Card }) {
   );
 }
 
-const RARITY_ORDER: RarityKey[] = ['HOLO', 'SSR', 'SR', 'R', 'N'];
 
 interface RevealCard {
   opened: OpenedCard;
