@@ -21,20 +21,6 @@ vi.mock('@/components/shell/useHeaderScrollHide', () => ({
   useHeaderScrollHide: () => ({ hidden: false, reveal: () => undefined }),
 }));
 
-vi.mock('@/components/ui/motion', () => ({
-  useHeroParallax: () => ({
-    artRef: { current: null },
-    onMouseMove: () => undefined,
-    onMouseLeave: () => undefined,
-  }),
-  useTilt: () => ({
-    cardRef: { current: null },
-    glareRef: { current: null },
-    onMouseMove: () => undefined,
-    onMouseLeave: () => undefined,
-  }),
-}));
-
 const vertical: Vertical = { key: 'global', label: '글로벌 IP', color: '#2DE2FF' };
 
 function ip(id: string, title: string, featured = false): Ip {
