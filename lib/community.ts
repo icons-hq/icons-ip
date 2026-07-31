@@ -356,3 +356,28 @@ export function buildCommunityUploadPath({
   const extension = IMAGE_EXTENSIONS_BY_MIME_TYPE.get(mimeType) ?? 'bin';
   return `${userId}/community/${nonce}.${extension}`;
 }
+
+/* 포스트 시각 표기. 상대 시간은 7일까지만 쓰고 그 뒤로는 날짜로 떨어뜨린다.
+   카탈로그 IP 상세와 커뮤니티 피드가 같은 포스트를 다르게 표기하지 않도록 여기서만 정한다. */
+export function formatPostTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+
+  if (diffMinutes < 1) return '방금 전';
+  if (diffMinutes < 60) return `${diffMinutes}분 전`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}시간 전`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}일 전`;
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    month: 'numeric',
+    day: 'numeric',
+  }).format(date);
+}

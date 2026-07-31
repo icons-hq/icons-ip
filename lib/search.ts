@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { DATA } from '@/lib/data';
+import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { resolveCatalogSource } from './catalog-source';
@@ -35,8 +36,6 @@ export interface SearchSnapshot {
 
 const MAX_QUERY_LENGTH = 80;
 const DEFAULT_PER_GROUP_LIMIT = 6;
-const PUBLIC_MEDIA_BUCKET = 'public-media';
-const PUBLIC_MEDIA_PREFIX = `${PUBLIC_MEDIA_BUCKET}/`;
 const GROUP_LABELS: Record<SearchResultKind, string> = {
   ip: 'IP',
   good: '굿즈',
@@ -66,15 +65,6 @@ export function normalizeSearchQuery(rawQuery: string | string[] | null | undefi
 
 function isSearchResultKind(value: string | null): value is SearchResultKind {
   return value === 'ip' || value === 'good' || value === 'card' || value === 'post' || value === 'tag';
-}
-
-const imageBg = (path: string) => `url("${path}") center / cover no-repeat`;
-
-function normalizePublicMediaPath(path: string) {
-  const normalizedPath = path.replace(/^\/+/, '');
-  return normalizedPath.startsWith(PUBLIC_MEDIA_PREFIX)
-    ? normalizedPath.slice(PUBLIC_MEDIA_PREFIX.length)
-    : normalizedPath;
 }
 
 function toSearchResult(row: SearchRpcRow, imageUrlForPath?: (path: string) => string): SearchResult | null {
