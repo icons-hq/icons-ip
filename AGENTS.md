@@ -1,18 +1,16 @@
 <!-- BEGIN:nextjs-agent-rules -->
+
 # This is NOT the Next.js you know
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+
 <!-- END:nextjs-agent-rules -->
 
 # AGENTS.md
 
 ## 기본 작업 원칙
 
-- 기본 답변 언어는 한국어다.
-- 키, 토큰, 인증 정보, 결제 식별자 같은 민감 정보는 출력하지 않는다.
-- `gh issue view/list`, `gh pr view`, remote 상태 확인 같은 읽기 작업은 필요 시 수행할 수 있다.
 - issue 생성/수정, PR 생성, push, 배포, Supabase remote 적용, 외부 서비스 설정 변경은 사용자가 명시적으로 요청했거나 직전에 확인한 경우에만 수행한다.
-- `main` push 또는 `main`으로 merge되는 PR은 GitHub Actions를 통해 Supabase remote migration과 Vercel production deploy를 유발할 수 있으므로 production write로 취급한다.
 - Vercel Git 자동 배포는 `vercel.json`의 `git.deploymentEnabled: false`로 비활성화되어 있다. Preview와 production 배포는 GitHub Actions의 Vercel CLI 경로만 사용한다.
 
 ## 공통 참조 규칙
@@ -37,7 +35,6 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## 구현 원칙
 
-- 현재 앱은 Claude Design 핸드오프 기반 시각적 프로토타입에서 출발했다. `lib/data.ts` mock을 시드로 삼아 도메인별로 Supabase fetch/RPC로 점진 이전한다.
 - 공개 브라우징을 유지한다. IP·굿즈·카드·이벤트·커뮤니티 읽기는 기본 공개이고, 로그인은 구매·카드팩 개봉·게임 플레이·예매·작성·팔로우 같은 보호 액션 시점에 요구한다.
 - 돈, 재고, 카드 발급 RNG, 뽑기권 발급·개봉, 래플 추첨, 티켓 검표는 클라이언트나 앱 레벨 상태에 맡기지 않는다. Supabase Postgres RPC, RLS, 행 잠금, 멱등 처리를 기준으로 구현한다.
 - 결제 확정의 진실원은 토스페이먼츠 웹훅이다. 클라이언트 성공 콜백만으로 주문, 충전, 티켓을 확정하지 않는다.
@@ -70,10 +67,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## 작업 계획과 Git
 
 - 여러 파일을 바꾸는 작업은 수정 전에 범위와 순서를 짧게 공유한다.
-- 사용자가 명시적으로 요청하지 않으면 branch 생성, staging, commit, push, PR 생성을 하지 않는다.
 - `main`에 push하거나 PR을 merge하는 작업은 production 배포 경로를 시작할 수 있으므로, 단순 Git 정리로 취급하지 말고 사용자 요청/확인 범위 안에서만 수행한다.
 - GitHub Actions 앱 빌드는 Node 26을 사용하지만, Vercel project/runtime Node.js Version은 공식 production Functions 지원 범위인 24.x로 유지한다.
-- 사용자 변경으로 보이는 파일은 되돌리지 않는다. 같은 파일을 수정해야 하면 현재 내용을 기준으로 필요한 부분만 좁게 편집한다.
 - PR 본문과 커밋 메시지에 Claude/Claude Code 출처 표기(`🤖 Generated with [Claude Code]...`, `Co-Authored-By: Claude ...`)를 넣지 않는다. 커밋의 `Co-Authored-By`는 사용자 글로벌 훅이 이미 제거하지만, PR 본문은 직접 생략한다.
 
 ## 문서 운영
