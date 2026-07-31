@@ -6,8 +6,7 @@ import { useCart } from '@/components/shell/CartProvider';
 import { Icon } from '@/components/ui/Icon';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Good, Ip } from '@/lib/data';
-
-const krw = (value: number) => `₩${value.toLocaleString('ko-KR')}`;
+import { krw } from '@/lib/format';
 
 interface CartLine {
   goodId: string;

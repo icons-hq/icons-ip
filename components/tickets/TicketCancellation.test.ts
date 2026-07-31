@@ -68,7 +68,7 @@ describe('ticket cancellation UI contract', () => {
     }));
     expect(html).toContain('예매 전체 취소');
     expect(html).toContain('취소 수수료');
-    expect(html).toContain('<dd>0원</dd>');
+    expect(html).toContain('<dd>₩0</dd>');
     expect(html).toContain('44,000원 전액 환불');
   });
 

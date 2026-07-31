@@ -3,13 +3,13 @@
 import { useState } from 'react';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Good, Ip, Stock } from '@/lib/data';
+import { krw } from '@/lib/format';
 import { ipAccent, ipAccentInk } from '@/lib/ip-display';
 import { ALL_IPS, GOODS_SORTS, selectShopGoods, type GoodsSort } from '@/lib/shop-catalog';
 import { useCart } from '@/components/shell/CartProvider';
 import { Empty } from '@/components/ui/Empty';
 
 const STOCK_LABEL: Record<Stock, string | null> = { low: '품절임박', soldout: '품절', ok: null };
-const krw = (n: number) => '₩' + n.toLocaleString('ko-KR');
 
 function ShopGoodsCard({ g, ip }: { g: Good; ip?: Ip }) {
   const { add, getQuantity, pending, ready } = useCart();

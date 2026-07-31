@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { OrderCancellation } from '@/components/orders/OrderCancellation';
 import { Icon } from '@/components/ui/Icon';
+import { krw } from '@/lib/format';
 import {
   formatOrderDate,
   formatOrderDateTime,
@@ -9,8 +10,6 @@ import {
   paymentStatusLabel,
   type OrderDetail as OrderDetailData,
 } from '@/lib/orders';
-
-const krw = (value: number) => `₩${value.toLocaleString('ko-KR')}`;
 
 export function OrderDetail({ order }: { order: OrderDetailData }) {
   const status = orderStatusMeta(order.status);

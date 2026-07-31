@@ -609,8 +609,9 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
   const ips = ((ipsResult.data ?? []) as IpRow[]).map((row) => toIp(row, verticalsByKey, imageUrlForPath));
   const goods = ((goodsResult.data ?? []) as GoodRow[]).map((row) => toGood(row, imageUrlForPath)).sort(byNaturalId);
   const cards = ((cardsResult.data ?? []) as CardRow[]).map((row) => toCard(row, imageUrlForPath)).sort(byNaturalId);
+  const ipsById = new Map(ips.map((ip) => [ip.id, ip]));
   const events = ((eventsResult.data ?? []) as EventRow[])
-    .map((row) => toEvent(row, new Map(ips.map((ip) => [ip.id, ip])), imageUrlForPath))
+    .map((row) => toEvent(row, ipsById, imageUrlForPath))
     .sort(byNaturalId);
 
   return {

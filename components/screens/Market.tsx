@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { DATA } from '@/lib/data';
+import { krw } from '@/lib/format';
 import { ipAccent, ipAccentInk } from '@/lib/ip-display';
 
 /* v2 플레이스홀더 — 매물·검수·에스크로는 mock. 실거래 배선은 v2 범위 */
-const krw = (n: number) => '₩' + n.toLocaleString('ko-KR');
 const CTA_HREF = '/login?next=%2Fmarket';
 
 const TRUST = [

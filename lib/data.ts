@@ -245,8 +245,6 @@ const TRENDING = ['#리락쿠마', '#메이플스토리', '#담곰이', '#카카
 
 const STATS = { fans: '76.5만', ips: 5, goods: '10', events: 5 };
 
-export const krw = (n: number) => '₩' + n.toLocaleString('ko-KR');
-
 export const DATA = {
   V,
   IPS,
@@ -262,5 +260,4 @@ export const DATA = {
   MARKET,
   TRENDING,
   STATS,
-  krw,
 };
