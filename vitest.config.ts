@@ -15,7 +15,8 @@ export default defineConfig({
   },
   test: {
     /* prototypes는 자체 vite/playwright 프로젝트라 vitest가 주워 담으면 실패하고,
-       .worktrees는 저장소 사본이라 같은 테스트를 워크트리 수만큼 중복 실행한다. */
-    exclude: [...configDefaults.exclude, 'prototypes/**', '.worktrees/**'],
+       .worktrees와 .claude/worktrees는 저장소 사본이라 같은 테스트를 워크트리 수만큼
+       중복 실행한다. 전부 .gitignore 대상이지만 vitest는 .gitignore를 보지 않는다. */
+    exclude: [...configDefaults.exclude, 'prototypes/**', '.worktrees/**', '.claude/**'],
   },
 });
