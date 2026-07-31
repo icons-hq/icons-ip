@@ -5,21 +5,13 @@ import { useState } from 'react';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Card, Ip } from '@/lib/data';
 import { ipAccentInk } from '@/lib/ip-display';
-import { RARITY_META, type RarityKey } from '@/lib/rarity';
+import { rarityTag, RARITY_META, type RarityKey } from '@/lib/rarity';
 import { hrefFor } from '@/lib/routes';
 import { Empty } from '@/components/ui/Empty';
 import { Modal } from '@/components/ui/Modal';
 
 /* mock 시세 — 실제 시세는 v2 교환/마켓 데이터가 진실원 (현행 바인더도 mock 표기) */
 const MOCK_PRICE: Partial<Record<RarityKey, string>> = { HOLO: '₩48,000', SSR: '₩30,000', SR: '₩18,000', R: '₩12,000', N: '₩8,000' };
-
-function rarityTag(rarity: RarityKey): { color: string; bg: string; ring: string } {
-  if (rarity === 'HOLO') return { color: '#0A0813', bg: 'var(--holo)', ring: `${RARITY_META.HOLO.color}99` };
-  if (rarity === 'N') return { color: 'var(--text)', bg: 'rgba(8,6,15,.75)', ring: 'rgba(255,255,255,.18)' };
-  const c = RARITY_META[rarity].color;
-  const ink = rarity === 'R';
-  return { color: ink ? '#0A0813' : 'var(--text)', bg: `${c}${ink ? 'E6' : 'D9'}`, ring: `${c}73` };
-}
 
 function CardDetail({
   card,

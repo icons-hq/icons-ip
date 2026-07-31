@@ -1,10 +1,13 @@
 import 'server-only';
 
+import { blockedUserIds } from '@/lib/blocks.server';
 import { DATA, type Ip } from '@/lib/data';
 import { getCatalogSnapshot } from '@/lib/catalog';
+import { postgrestInList } from '@/lib/supabase/postgrest';
 import { createClient } from '@/lib/supabase/server';
 import {
   canViewCommunityPost,
+  formatPostTime,
   type CommunityChannel,
   type CommunityFeedScope,
   type CommunityFeedComment,
@@ -63,10 +66,6 @@ interface CommunityLikeRow {
   post_id: string;
 }
 
-interface CommunityBlockRow {
-  blocked_user_id: string;
-}
-
 interface CommunityTrendingTagRow {
   tag: string;
 }
@@ -88,37 +87,6 @@ function channelFromIp(ip: Ip): CommunityChannel {
   };
 }
 
-function formatPostTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-
-  const diffMs = Date.now() - date.getTime();
-  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
-
-  if (diffMinutes < 1) return '방금 전';
-  if (diffMinutes < 60) return `${diffMinutes}분 전`;
-
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}시간 전`;
-
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays}일 전`;
-
-  return new Intl.DateTimeFormat('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    month: 'numeric',
-    day: 'numeric',
-  }).format(date);
-}
-
-function blockedUserIdList(blockedIds: ReadonlySet<string>) {
-  return Array.from(blockedIds);
-}
-
-function postgrestInList(values: readonly string[]) {
-  return `(${values.join(',')})`;
-}
-
 async function reactionCountsByPostId(
   supabase: CommunitySupabaseClient,
   postIds: string[],
@@ -126,7 +94,7 @@ async function reactionCountsByPostId(
 ) {
   const { data, error } = await supabase.rpc('community_post_reaction_counts', {
     target_post_ids: postIds,
-    blocked_user_ids: blockedUserIdList(blockedIds),
+    blocked_user_ids: Array.from(blockedIds),
   });
 
   if (error) {
@@ -149,7 +117,7 @@ async function commentsForPosts(
   postIds: string[],
   blockedIds: ReadonlySet<string>,
 ) {
-  const blockedAuthorIds = blockedUserIdList(blockedIds);
+  const blockedAuthorIds = Array.from(blockedIds);
   const results = await Promise.all(
     postIds.map(async (postId) => {
       let commentsQuery = supabase
@@ -195,21 +163,6 @@ async function viewerLikePostIds(
   }
 
   return new Set(((data ?? []) as CommunityLikeRow[]).map((row) => row.post_id));
-}
-
-async function blockedUserIds(supabase: CommunitySupabaseClient, viewerId: string | null) {
-  if (!viewerId) return new Set<string>();
-
-  const { data, error } = await supabase
-    .from('blocks')
-    .select('blocked_user_id')
-    .eq('user_id', viewerId);
-
-  if (error) {
-    throw new Error(`Failed to load blocked users: ${error.message}`);
-  }
-
-  return new Set(((data ?? []) as CommunityBlockRow[]).map((row) => row.blocked_user_id));
 }
 
 async function followedIpIds(supabase: CommunitySupabaseClient, viewerId: string | null) {
@@ -369,7 +322,7 @@ async function getSupabasePosts(
     .limit(COMMUNITY_FEED_LIMIT);
 
   if (blockedIds.size) {
-    postsQuery = postsQuery.not('user_id', 'in', postgrestInList(blockedUserIdList(blockedIds)));
+    postsQuery = postsQuery.not('user_id', 'in', postgrestInList(Array.from(blockedIds)));
   }
 
   const postsResult = await postsQuery;

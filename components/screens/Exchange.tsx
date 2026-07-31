@@ -3,19 +3,11 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { DATA, type Exchange as ExchangeItem } from '@/lib/data';
-import { RARITY_META, type RarityKey } from '@/lib/rarity';
+import { rarityTag } from '@/lib/rarity';
 import { hrefFor } from '@/lib/routes';
 
 /* v2 플레이스홀더 — 매물·입찰은 mock. 실거래 배선은 v2 범위 */
 const CTA_HREF = '/login?next=%2Fexchange';
-
-function rarityTag(rarity: RarityKey): { color: string; bg: string; ring: string } {
-  if (rarity === 'HOLO') return { color: '#0A0813', bg: 'var(--holo)', ring: `${RARITY_META.HOLO.color}99` };
-  if (rarity === 'N') return { color: 'var(--text)', bg: 'rgba(8,6,15,.75)', ring: 'rgba(255,255,255,.18)' };
-  const c = RARITY_META[rarity].color;
-  const ink = rarity === 'R';
-  return { color: ink ? '#0A0813' : 'var(--text)', bg: `${c}${ink ? 'E6' : 'D9'}`, ring: `${c}73` };
-}
 
 function ExchangeCard({ x }: { x: ExchangeItem }) {
   const tag = rarityTag(x.rarity);

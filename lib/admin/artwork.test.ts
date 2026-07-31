@@ -5,7 +5,6 @@ import {
   ADMIN_ARTWORK_MAX_BYTES,
   buildAdminArtworkPath,
   normalizeAdminArtworkMetadata,
-  normalizePublicMediaObjectPath,
   parseAdminArtworkPath,
 } from './artwork';
 
@@ -89,12 +88,4 @@ describe('admin artwork paths', () => {
     expect(parseAdminArtworkPath(path)).toBeNull();
   });
 
-  it.each([
-    ['catalog/ip/art.jpg', 'catalog/ip/art.jpg'],
-    ['/catalog/ip/art.jpg', 'catalog/ip/art.jpg'],
-    ['public-media/catalog/ip/art.jpg', 'catalog/ip/art.jpg'],
-    ['///public-media/catalog/ip/art.jpg', 'catalog/ip/art.jpg'],
-  ])('normalizes stored public-media path %s', (storedPath, expected) => {
-    expect(normalizePublicMediaObjectPath(storedPath)).toBe(expected);
-  });
 });

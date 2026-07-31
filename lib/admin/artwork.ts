@@ -25,8 +25,6 @@ const UUID_V4_PATTERN =
 const ADMIN_ARTWORK_PATH_REGEX = new RegExp(
   `^catalog/(ip|good|card|event|curation)/(${UUID_V4_PATTERN})\\.(jpg|png|webp)$`,
 );
-const PUBLIC_MEDIA_PREFIX = 'public-media/';
-
 export type AdminArtworkMetadataResult =
   | {
       ok: true;
@@ -102,9 +100,3 @@ export function parseAdminArtworkPath(raw: unknown): {
   };
 }
 
-export function normalizePublicMediaObjectPath(storedPath: string): string {
-  const withoutLeadingSlash = storedPath.replace(/^\/+/, '');
-  return withoutLeadingSlash.startsWith(PUBLIC_MEDIA_PREFIX)
-    ? withoutLeadingSlash.slice(PUBLIC_MEDIA_PREFIX.length)
-    : withoutLeadingSlash;
-}
