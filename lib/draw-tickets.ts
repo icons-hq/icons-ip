@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { DATA } from './data';
-import { RARITY_META, type RarityKey } from './rarity';
+import { isRarityKey, type RarityKey } from './rarity';
 import { getSupabaseConfig } from './supabase/config';
 import { createClient } from './supabase/server';
 import { resolveCatalogSource, type CatalogSource } from './catalog-source';
@@ -37,9 +37,6 @@ export interface OpenedCard {
   rarity: RarityKey;
   isNew: boolean;
 }
-
-const isRarityKey = (value: unknown): value is RarityKey =>
-  typeof value === 'string' && value in RARITY_META;
 
 /** open_draw_ticket 반환 jsonb 방어적 파싱 — 형식이 어긋난 항목은 버린다. */
 export function normalizeGrantedCards(data: unknown): OpenedCard[] {

@@ -8,3 +8,9 @@ export const krw = (value: number) => `₩${value.toLocaleString('ko-KR')}`;
 /** 금액 뒤에 서술이 붙는 자리에만 쓴다 — `12,000원 결제하기`처럼.
     `₩12,000 결제하기`는 읽기 어색해서 이 경우에만 예외를 둔다. */
 export const krwAmountWords = (value: number) => `${value.toLocaleString('ko-KR')}원`;
+
+/** 팔로워 수처럼 자릿수가 큰 지표를 좁은 자리에 넣을 때 — 76500 → 7.7만. */
+export const compactNumber = (value: number) => new Intl.NumberFormat('ko-KR', {
+  notation: 'compact',
+  maximumFractionDigits: 1,
+}).format(value);

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DATA, type Card, type Game, type Good } from '@/lib/data';
 import { krw } from '@/lib/format';
 import { ipAccent } from '@/lib/ip-display';
-import { RARITY_META, type RarityKey } from '@/lib/rarity';
+import { RARITY_ORDER, RARITY_META, type RarityKey } from '@/lib/rarity';
 import { loadBox2D } from '@/lib/games/box2d-loader';
 import { GamePlayError, type PopupGameHost } from '@/lib/games/host';
 import {
@@ -44,7 +44,6 @@ interface CamView {
   zoom: number; // px per meter
 }
 
-const RARITY_ORDER: RarityKey[] = ['HOLO', 'SSR', 'SR', 'R', 'N'];
 /** 팩(출발 무리) 모드 → 선두 추적 모드로 전환하는 선두 깊이 */
 const PACK_UNTIL_Y = 7.5;
 /** 선두 교체 히스테리시스(m) — 카메라 포커스가 미세 역전으로 떨리지 않게 */

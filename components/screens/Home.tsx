@@ -10,7 +10,7 @@ import {
 } from 'react';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Ip } from '@/lib/data';
-import { krw } from '@/lib/format';
+import { compactNumber, krw } from '@/lib/format';
 import {
   getHomeSelectableIps,
   prioritizeHomePostPreviews,
@@ -91,11 +91,6 @@ const PREVIEW_HERO_COPY: Record<string, {
     description: '라이언, 춘식이, 어피치가 함께하는 여름 컬렉션.',
   },
 };
-
-const compactNumber = (number: number) => new Intl.NumberFormat('ko-KR', {
-  notation: 'compact',
-  maximumFractionDigits: 1,
-}).format(number);
 
 const subscribeReducedMotion = (onChange: () => void) => {
   const media = window.matchMedia('(prefers-reduced-motion: reduce)');
