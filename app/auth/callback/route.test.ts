@@ -24,7 +24,6 @@ const mocks = vi.hoisted(() => ({
   setAll: null as null | ((cookies: Array<{ name: string; value: string; options: Record<string, unknown> }>, headers: Record<string, string>) => void),
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/auth/onboarding', async () => await import('../../../lib/auth/onboarding'));
 vi.mock('@/lib/auth/recovery.server', async () => await import('../../../lib/auth/recovery.server'));
 vi.mock('@/lib/auth/server', () => ({

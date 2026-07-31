@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({
     rpc: vi.fn(async () => mocks.rpcResult),

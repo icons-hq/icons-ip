@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cancelTossPayment } from './toss-api';
 
-vi.mock('server-only', () => ({}));
-
 const PAYMENT_KEY = 'ticket-payment-secret';
 
 describe('cancelTossPayment', () => {

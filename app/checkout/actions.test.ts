@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
 vi.mock('@/lib/auth/onboarding', async () => await import('../../lib/auth/onboarding'));
 vi.mock('@/lib/checkout', async () => await import('../../lib/checkout'));

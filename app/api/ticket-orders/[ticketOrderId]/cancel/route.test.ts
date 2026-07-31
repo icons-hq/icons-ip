@@ -22,7 +22,6 @@ const mocks = vi.hoisted(() => ({
   reconcile: vi.fn(),
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
 vi.mock('@/lib/auth/onboarding', async () => await import('../../../../../lib/auth/onboarding'));
 vi.mock('@/lib/ticketing', async () => await import('../../../../../lib/ticketing'));

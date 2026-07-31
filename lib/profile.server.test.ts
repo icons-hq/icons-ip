@@ -16,7 +16,6 @@ const mocks = vi.hoisted(() => ({
   userStorageFrom: vi.fn(),
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/profile', async () => await import('./profile'));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.createClient }));
 vi.mock('@/lib/supabase/service', () => ({

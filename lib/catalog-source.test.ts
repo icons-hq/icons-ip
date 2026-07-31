@@ -1,7 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { resolveCatalogSource } from './catalog-source';
-
-vi.mock('server-only', () => ({}));
 
 describe('resolveCatalogSource', () => {
   it('uses mock data by default on Vercel Preview even when Supabase is configured', () => {

@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
   records: [] as Array<{ table: string; select: string; ids: string[] }>,
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({
     from: (table: string) => {

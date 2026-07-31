@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/components/screens/Settings', () => ({
   Settings: mocks.settings,
 }));
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/auth/onboarding', () => ({
   isOnboarded: () => mocks.onboarded,
   onboardingPath: (next: string) => `/onboarding?next=${encodeURIComponent(next)}`,

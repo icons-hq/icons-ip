@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => ({
   }>,
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/auth/onboarding', () => ({ isOnboarded: () => true }));
 vi.mock('@/lib/auth/server', () => ({ getProfileForUser: mocks.getProfileForUser }));
 vi.mock('@/lib/supabase/config', () => ({ getSupabaseConfig: mocks.getSupabaseConfig }));

@@ -14,7 +14,6 @@ const defaultMocks = vi.hoisted(() => ({
   payments: [] as Array<Record<string, unknown>>,
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('../payments/toss-api', () => ({
   fetchTossPayment: defaultMocks.fetchPayment,
   cancelTossPayment: defaultMocks.cancelPayment,

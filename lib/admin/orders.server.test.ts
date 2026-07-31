@@ -7,7 +7,6 @@ const USER_ID = '22222222-2222-4222-8222-222222222222';
 
 const mocks = vi.hoisted(() => ({ client: null as unknown }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/checkout', async () => await import('../checkout'));
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => mocks.client }));
 

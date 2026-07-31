@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/supabase/config', () => ({
   getSupabaseConfig: () => ({ isConfigured: true }),
 }));

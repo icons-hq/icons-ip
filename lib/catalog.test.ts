@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   client: null as unknown,
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/data', async () => await import('./data'));
 vi.mock('@/lib/community', async () => await import('./community'));
 vi.mock('@/lib/supabase/config', () => ({

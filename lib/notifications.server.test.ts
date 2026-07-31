@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   select: vi.fn(),
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.createClient }));
 
 const USER_ID = '00000000-0000-4000-8000-000000001401';

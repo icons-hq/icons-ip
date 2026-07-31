@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   onboarded: true,
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('next/navigation', () => ({
   notFound: () => { throw new Error('not-found'); },
   redirect: (path: string) => { throw new Error(`redirect:${path}`); },

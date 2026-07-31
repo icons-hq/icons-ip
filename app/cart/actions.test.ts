@@ -28,7 +28,6 @@ const mocks = vi.hoisted(() => ({
   goodsMaybeSingle: vi.fn(),
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/auth/server', () => ({
   getCurrentAuthState: () => mocks.auth,
 }));

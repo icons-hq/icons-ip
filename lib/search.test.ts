@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
 const originalVercelEnv = process.env.VERCEL_ENV;
 const originalCatalogSource = process.env.ICONS_CATALOG_SOURCE;
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/data', async () => await import('./data'));
 vi.mock('@/lib/supabase/config', () => ({
   getSupabaseConfig: () => ({ isConfigured: mocks.isConfigured }),
