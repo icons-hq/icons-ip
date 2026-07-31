@@ -36,6 +36,9 @@ docs/claude-design/project/assets/
 docs/online-popup/
 docs/research/
 
+# 로컬 프로토타입 (각자 node_modules·dist·test-results를 갖는 별도 프로젝트)
+/prototypes/
+
 # Claude Design handoff (로컬 참조용 시각 진실원 — 68MB, git에 올리지 않음)
 design/handoff/
 
