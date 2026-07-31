@@ -1,13 +1,12 @@
 import Link from 'next/link';
 import { Icon } from '@/components/ui/Icon';
+import { krw } from '@/lib/format';
 import {
   formatOrderDate,
   orderReferenceLabel,
   orderStatusMeta,
   type OrderListItem,
 } from '@/lib/orders';
-
-const krw = (value: number) => `₩${value.toLocaleString('ko-KR')}`;
 
 export function Orders({ orders }: { orders: OrderListItem[] }) {
   return (

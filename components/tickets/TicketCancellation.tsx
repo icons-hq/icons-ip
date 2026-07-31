@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { krw, krwAmountWords } from '@/lib/format';
 import {
   cancellationEligibility,
   type TicketCancellationStatus,
@@ -122,8 +123,6 @@ export function ticketCancellationRetryAvailable(
     && submission !== 'success';
 }
 
-const krw = (value: number) => `${value.toLocaleString('ko-KR')}원`;
-
 export function TicketCancellation({ order, now }: { order: TicketOrderDetail; now?: number }) {
   const router = useRouter();
   const [submission, setSubmission] = useState<TicketCancellationSubmissionState>('idle');
@@ -191,7 +190,7 @@ export function TicketCancellation({ order, now }: { order: TicketOrderDetail; n
           <div><dt>취소 수수료</dt><dd>{krw(order.cancellationRequest?.feeAmount ?? 0)}</dd></div>
           <div>
             <dt>환불 금액</dt>
-            <dd>{hasKnownPayment ? `${krw(order.cancellationRequest?.refundAmount ?? order.total)} 전액 환불` : '결제 내역 없음 · 결제된 금액 전액'}</dd>
+            <dd>{hasKnownPayment ? `${krwAmountWords(order.cancellationRequest?.refundAmount ?? order.total)} 전액 환불` : '결제 내역 없음 · 결제된 금액 전액'}</dd>
           </div>
         </dl>
       )}

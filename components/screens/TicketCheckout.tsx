@@ -4,10 +4,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { TossPaymentWidget } from '@/components/payments/TossPaymentWidget';
+import { krw } from '@/lib/format';
 import { ticketCheckoutState, ticketOrderName } from '@/lib/ticketing';
 import type { TicketOrderSnapshot } from '@/lib/ticketing.server';
-
-const krw = (value: number) => `₩${value.toLocaleString('ko-KR')}`;
 
 export function TicketCheckout({
   clientKey,

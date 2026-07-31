@@ -7,6 +7,7 @@ import {
   type WidgetPaymentMethodWidget,
 } from '@tosspayments/tosspayments-sdk';
 import { useEffect, useRef, useState } from 'react';
+import { krwAmountWords } from '@/lib/format';
 import { buildTossOrderId } from '@/lib/payments/toss';
 
 export type TossCallbackBasePath = '/checkout' | '/ticket-checkout';
@@ -173,7 +174,7 @@ export function TossPaymentWidget(props: TossPaymentWidgetProps) {
         disabled={!ready || !agreed || unsupportedMethod || requesting}
         onClick={() => void requestPayment()}
       >
-        {requesting ? '결제창으로 이동 중' : `${total.toLocaleString('ko-KR')}원 결제하기`}
+        {requesting ? '결제창으로 이동 중' : `${krwAmountWords(total)} 결제하기`}
       </button>
       <p className="money-caption">
         승인 후 웹훅 확인이 끝날 때까지 {props.purpose === 'ticket' ? '예매는' : '주문은'} ‘결제 확인 중’으로 표시됩니다.

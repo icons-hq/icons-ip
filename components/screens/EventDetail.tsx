@@ -7,11 +7,10 @@ import { useFormStatus } from 'react-dom';
 import { reserveTicketsAction } from '@/app/events/actions';
 import { setIpNotificationPreferencesAction } from '@/app/ip/actions';
 import type { FandomEvent, Ip } from '@/lib/data';
+import { krw } from '@/lib/format';
 import { ipAccent, ipAccentInk } from '@/lib/ip-display';
 import type { IpFollowState } from '@/lib/ip-follow';
 import type { PublicTicketType } from '@/lib/ticketing.server';
-
-const krw = (value: number) => `${value.toLocaleString('ko-KR')}원`;
 
 const reservationErrors: Record<string, string> = {
   auth_required: '로그인이 만료됐어요. 다시 로그인해주세요.',

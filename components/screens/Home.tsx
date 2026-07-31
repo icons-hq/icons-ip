@@ -10,6 +10,7 @@ import {
 } from 'react';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Ip } from '@/lib/data';
+import { krw } from '@/lib/format';
 import {
   getHomeSelectableIps,
   prioritizeHomePostPreviews,
@@ -95,8 +96,6 @@ const compactNumber = (number: number) => new Intl.NumberFormat('ko-KR', {
   notation: 'compact',
   maximumFractionDigits: 1,
 }).format(number);
-
-const krw = (number: number) => `₩${number.toLocaleString('ko-KR')}`;
 
 const subscribeReducedMotion = (onChange: () => void) => {
   const media = window.matchMedia('(prefers-reduced-motion: reduce)');

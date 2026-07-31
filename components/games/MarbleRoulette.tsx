@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DATA, krw, type Card, type Game, type Good } from '@/lib/data';
+import { DATA, type Card, type Game, type Good } from '@/lib/data';
+import { krw } from '@/lib/format';
 import { ipAccent } from '@/lib/ip-display';
 import { RARITY_META, type RarityKey } from '@/lib/rarity';
 import { loadBox2D } from '@/lib/games/box2d-loader';

@@ -6,8 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { TossPaymentWidget } from '@/components/payments/TossPaymentWidget';
 import { checkoutOrderName, checkoutOrderState } from '@/lib/checkout';
 import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
-
-const krw = (value: number) => `₩${value.toLocaleString('ko-KR')}`;
+import { krw } from '@/lib/format';
 
 interface CheckoutOrderProps {
   clientKey: string | null;

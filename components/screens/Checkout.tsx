@@ -12,8 +12,7 @@ import {
   type CheckoutAddressErrors,
   type CheckoutAddressField,
 } from '@/lib/checkout';
-
-const krw = (value: number) => `₩${value.toLocaleString('ko-KR')}`;
+import { krw } from '@/lib/format';
 
 const actionErrors = {
   account_suspended: '정지된 계정은 새 주문을 만들 수 없어요.',

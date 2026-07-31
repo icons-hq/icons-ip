@@ -85,7 +85,7 @@ describe('EventDetail', () => {
 
     expect(html).toContain('화산강림 여름 팝업');
     expect(html).toContain('7월 25일 1회차');
-    expect(html).toContain('25,000원');
+    expect(html).toContain('₩25,000');
     expect(html).toContain('잔여 68');
     expect(html).toContain('결제 대기 포함');
     expect(html).toContain('name="ticketTypeId"');

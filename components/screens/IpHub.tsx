@@ -5,6 +5,7 @@ import { useFormStatus } from 'react-dom';
 import { setIpNotificationPreferencesAction, toggleIpFollowAction } from '@/app/ip/actions';
 import type { CatalogIpDetail } from '@/lib/catalog';
 import type { Card, Ip, Stock } from '@/lib/data';
+import { krw } from '@/lib/format';
 import { ipAccent, ipAccentInk } from '@/lib/ip-display';
 import type { IpFollowState } from '@/lib/ip-follow';
 import type { RarityKey } from '@/lib/rarity';
@@ -308,7 +309,7 @@ export function IpHub({
                     <span style={eyebrowStyle('var(--amber)')}>사요 · 공식 굿즈</span>
                     <span style={{ fontWeight: 800, fontSize: 'clamp(19px, 2vw, 24px)', lineHeight: 1.25, marginTop: 4 }}>{good.name}</span>
                     <span style={{ fontSize: 13.5, color: 'var(--dim)' }}>{good.type}{goodStockLabel ? ` · ${goodStockLabel}` : ''}</span>
-                    <span className="mono" style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>₩{good.price.toLocaleString('ko-KR')}</span>
+                    <span className="mono" style={{ fontSize: 22, fontWeight: 700, marginTop: 4 }}>{krw(good.price)}</span>
                     <div style={{ marginTop: 'auto', paddingTop: 16, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                       <button
                         className="btn btn-primary"
@@ -463,7 +464,7 @@ export function IpHub({
                     <Link key={g.id} href={`${hrefFor('shop')}?ip=${ip.id}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
                       <span style={{ display: 'block', aspectRatio: '4 / 3', borderRadius: 12, background: g.img, backgroundSize: 'cover', backgroundPosition: 'center', boxShadow: '0 0 0 1px rgba(255,255,255,.1)' }} />
                       <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--editorial-ink-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.name}</span>
-                      <span className="mono" style={{ fontSize: 12 }}>₩{g.price.toLocaleString('ko-KR')}</span>
+                      <span className="mono" style={{ fontSize: 12 }}>{krw(g.price)}</span>
                     </Link>
                   ))}
                 </div>

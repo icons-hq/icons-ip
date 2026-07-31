@@ -2,14 +2,13 @@ import Link from 'next/link';
 import { TicketCancellation } from '@/components/tickets/TicketCancellation';
 import { TicketQrPager } from '@/components/tickets/TicketQrPager';
 import { Icon } from '@/components/ui/Icon';
+import { krw } from '@/lib/format';
 import {
   ticketOrderDisplayMeta,
   type TicketOrderDetail as TicketOrderDetailData,
   type TicketOrderListItem,
   type TicketStatus,
 } from '@/lib/ticketing';
-
-const krw = (value: number) => `₩${value.toLocaleString('ko-KR')}`;
 
 function formatDateTime(value: string | null) {
   if (!value) return '일정 미정';

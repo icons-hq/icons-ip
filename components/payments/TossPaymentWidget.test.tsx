@@ -82,4 +82,10 @@ describe('TossPaymentWidget', () => {
     expect(render({ callbackBasePath: '/ticket-checkout', purpose: 'ticket' }))
       .toContain('예매는 ‘결제 확인 중’으로 표시됩니다.');
   });
+
+  /* 결제 버튼은 금액 뒤에 서술이 붙는 자리라 화면 표기(₩25,000)와 달리 원 접미를 쓴다. */
+  it('labels the submit button with the amount in words', () => {
+    expect(render({ callbackBasePath: '/checkout', purpose: 'order' }))
+      .toContain('25,000원 결제하기');
+  });
 });
