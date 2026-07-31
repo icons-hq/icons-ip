@@ -35,7 +35,6 @@ vi.mock('@/app/admin/member-actions', () => ({
   suspendAdminMemberAction: hooks.suspendAction,
   unsuspendAdminMemberAction: hooks.unsuspendAction,
 }));
-vi.mock('@/lib/admin/members', async () => await import('../../../lib/admin/members'));
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => null }));
 
 const summaries: AdminMemberSummary[] = [

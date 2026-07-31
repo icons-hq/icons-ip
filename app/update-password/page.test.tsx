@@ -28,7 +28,6 @@ vi.mock('@/components/screens/UpdatePassword', () => ({
 vi.mock('@/lib/auth/server', () => ({
   getCurrentAuthState: async () => mocks.auth,
 }));
-vi.mock('@/lib/auth/onboarding', async () => await import('../../lib/auth/onboarding'));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => {
     throw new Error(`NEXT_REDIRECT:${path}`);

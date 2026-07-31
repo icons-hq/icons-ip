@@ -27,7 +27,6 @@ vi.mock('@/app/settings/actions', () => ({
   updateMarketingConsentAction: mocks.marketingAction,
   updateProfileAction: mocks.profileAction,
 }));
-vi.mock('@/lib/profile', async () => await import('../../lib/profile'));
 vi.mock('@/lib/profile-upload.client', () => ({
   uploadProfileAvatar: mocks.uploadProfileAvatar,
 }));

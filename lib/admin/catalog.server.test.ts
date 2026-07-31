@@ -8,7 +8,6 @@ import {
 
 const mocks = vi.hoisted(() => ({ client: null as unknown }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => mocks.client }));
 
 type Row = Record<string, unknown>;

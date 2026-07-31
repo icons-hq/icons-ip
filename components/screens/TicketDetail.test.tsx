@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { TicketDetail } from './TicketDetail';
 import type { TicketOrderDetail } from '../../lib/ticketing';
 
-vi.mock('@/lib/ticketing', async () => await import('../../lib/ticketing'));
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => <span aria-hidden /> }));
 vi.mock('@/components/tickets/TicketQrPager', () => ({
   TicketQrPager: (props: Record<string, unknown>) => <div data-qr-pager={JSON.stringify(props)} />,

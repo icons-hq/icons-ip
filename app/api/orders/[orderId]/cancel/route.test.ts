@@ -23,7 +23,6 @@ vi.mock('@/lib/payments/toss-api', () => ({
   getTossConfig: () => ({ isConfigured: true }),
   cancelTossPayment: mocks.cancel,
 }));
-vi.mock('@/lib/checkout', async () => await import('../../../../../lib/checkout'));
 vi.mock('@/lib/supabase/config', () => ({
   getSupabaseConfig: () => ({ isConfigured: mocks.supabaseConfigured }),
 }));

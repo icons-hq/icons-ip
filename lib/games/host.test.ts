@@ -2,8 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { DATA } from '../data';
 import { createWebGameHost, GamePlayError } from './host';
 
-vi.mock('@/lib/data', async () => await import('../data'));
-vi.mock('@/lib/rarity', async () => await import('../rarity'));
 vi.mock('@/lib/supabase/config', () => ({ getSupabaseConfig: () => ({ isConfigured: false }) }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: vi.fn() }));
 

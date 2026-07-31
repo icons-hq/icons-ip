@@ -1,9 +1,7 @@
 import sharp from 'sharp';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { ADMIN_ARTWORK_MAX_DIMENSION } from './artwork';
 import { normalizeAdminArtworkImage } from './artwork-image.server';
-
-vi.mock('server-only', () => ({}));
 
 describe('normalizeAdminArtworkImage', () => {
   it.each([

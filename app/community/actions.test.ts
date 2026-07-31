@@ -25,8 +25,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/auth/server', () => ({
   getCurrentAuthState: () => mocks.auth,
 }));
-vi.mock('@/lib/auth/onboarding', async () => await import('../../lib/auth/onboarding'));
-vi.mock('@/lib/community', async () => await import('../../lib/community'));
 vi.mock('@/lib/catalog', () => ({
   getCatalogSnapshot: () => mocks.catalog,
 }));

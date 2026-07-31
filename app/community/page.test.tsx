@@ -20,7 +20,6 @@ vi.mock('@/lib/auth/server', () => ({
 vi.mock('@/lib/auth/onboarding', () => ({
   isOnboarded: (profile: CurrentAuthState['profile']) => Boolean(profile?.onboarded_at),
 }));
-vi.mock('@/lib/community', async () => await import('../../lib/community'));
 vi.mock('@/lib/community.server', () => ({
   getCommunitySnapshot: mocks.getCommunitySnapshot,
 }));

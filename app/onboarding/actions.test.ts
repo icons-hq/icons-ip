@@ -15,9 +15,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/profile.server', () => ({ updateProfileIdentity: mocks.identity }));
-vi.mock('@/lib/auth/onboarding', async () => await import('../../lib/auth/onboarding'));
-vi.mock('@/lib/ip-follow', async () => await import('../../lib/ip-follow'));
-vi.mock('@/lib/profile', async () => await import('../../lib/profile'));
 vi.mock('@/lib/supabase/config', () => ({ getSupabaseConfig: mocks.getSupabaseConfig }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.createClient }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));

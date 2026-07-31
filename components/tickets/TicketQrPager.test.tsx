@@ -5,7 +5,6 @@ import { TicketQrPager } from './TicketQrPager';
 vi.mock('next/image', () => ({
   default: (props: Record<string, unknown>) => <span data-alt={String(props.alt ?? '')} data-src={String(props.src ?? '')} />,
 }));
-vi.mock('@/lib/ticketing', async () => await import('../../lib/ticketing'));
 
 const firstId = '19b0d848-7192-4b40-a675-f508822f99c9';
 const secondId = '2ab1e959-8203-4c51-b786-0619933a00da';

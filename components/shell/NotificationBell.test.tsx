@@ -23,7 +23,6 @@ vi.mock('next/navigation', () => ({
   usePathname: () => mocks.pathname,
   useSearchParams: () => new URLSearchParams(mocks.search),
 }));
-vi.mock('@/lib/routes', async () => await import('../../lib/routes'));
 vi.mock('@/lib/supabase/client', () => ({ createClient: mocks.createClient }));
 vi.mock('./AuthPresenceProvider', () => ({ useAuthPresence: () => mocks.presence }));
 vi.mock('./AuthButton', () => ({ AuthButton: () => <span>ACCOUNT</span> }));

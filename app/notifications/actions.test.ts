@@ -18,7 +18,6 @@ vi.mock('@/lib/auth/onboarding', () => ({
   onboardingPath: (next: string) => `/onboarding?next=${encodeURIComponent(next)}`,
 }));
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: async () => mocks.auth }));
-vi.mock('@/lib/notifications', async () => await import('../../lib/notifications'));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.createClient }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));

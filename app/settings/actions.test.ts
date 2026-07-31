@@ -29,15 +29,12 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/auth/server', () => ({
   getCurrentAuthState: mocks.getCurrentAuthState,
 }));
-vi.mock('@/lib/auth/onboarding', async () => await import('../../lib/auth/onboarding'));
-vi.mock('@/lib/profile', async () => await import('../../lib/profile'));
 vi.mock('@/lib/profile.server', () => ({
   cleanupProfileAvatar: mocks.cleanupProfileAvatar,
   prepareProfileAvatarClaim: mocks.prepareProfileAvatarClaim,
   rejectProfileAvatarClaim: mocks.rejectProfileAvatarClaim,
   updateProfileIdentity: mocks.updateProfileIdentity,
 }));
-vi.mock('@/lib/settings', async () => await import('../../lib/settings'));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: mocks.createClient,
 }));

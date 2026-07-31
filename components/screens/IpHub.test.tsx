@@ -31,8 +31,6 @@ vi.mock('@/components/ui/motion', () => ({
     onMouseMove: vi.fn(),
   }),
 }));
-vi.mock('@/lib/ip-display', async () => await import('../../lib/ip-display'));
-vi.mock('@/lib/routes', async () => await import('../../lib/routes'));
 
 const ip = {
   id: 'ip-1',

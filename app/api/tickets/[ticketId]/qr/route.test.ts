@@ -15,7 +15,6 @@ const mocks = vi.hoisted(() => ({
   toBuffer: vi.fn(),
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('qrcode', () => ({ toBuffer: mocks.toBuffer }));
 vi.mock('@/lib/auth/onboarding', () => ({
   isOnboarded: (profile: { onboarded_at?: unknown } | null) => Boolean(profile?.onboarded_at),

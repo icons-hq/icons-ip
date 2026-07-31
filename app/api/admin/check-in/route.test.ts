@@ -27,7 +27,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/auth/admin', () => ({
   getCurrentAdminAuthState: mocks.getAuth,
 }));
-vi.mock('@/lib/ticket-check-in', async () => await import('../../../../lib/ticket-check-in'));
 vi.mock('@/lib/supabase/config', () => ({
   getSupabaseConfig: () => ({ isConfigured: mocks.supabaseConfigured }),
 }));

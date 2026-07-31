@@ -6,9 +6,6 @@ const mocks = vi.hoisted(() => ({
   getProfileForUser: vi.fn(),
 }));
 
-vi.mock('server-only', () => ({}));
-vi.mock('@/lib/auth/onboarding', async () => await import('../../lib/auth/onboarding'));
-vi.mock('@/lib/auth/recovery.server', async () => await import('../../lib/auth/recovery.server'));
 vi.mock('@/lib/supabase/config', () => ({
   getSupabaseConfig: () => ({ isConfigured: true }),
 }));

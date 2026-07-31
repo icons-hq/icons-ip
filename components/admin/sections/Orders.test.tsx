@@ -9,8 +9,6 @@ vi.mock('@/app/admin/order-actions', () => ({
   rejectAdminOrderCancellationAction: vi.fn(),
   updateAdminOrderStatusAction: vi.fn(),
 }));
-vi.mock('@/lib/admin/orders', async () => await import('../../../lib/admin/orders'));
-vi.mock('@/lib/orders', async () => await import('../../../lib/orders'));
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 

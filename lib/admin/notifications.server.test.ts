@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/auth/admin', () => ({
   getCurrentAdminAuthState: () => mocks.adminState,
 }));

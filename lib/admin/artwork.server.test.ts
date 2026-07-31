@@ -24,7 +24,6 @@ const mocks = vi.hoisted(() => ({
   storageFrom: vi.fn(),
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/supabase/service', () => ({
   createServiceClient: mocks.createServiceClient,
 }));

@@ -22,7 +22,6 @@ const mocks = vi.hoisted(() => ({
   storageFrom: vi.fn(),
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: () => mocks.auth }));
 vi.mock('@/lib/admin/artwork', async () => await import('./artwork'));
 vi.mock('@/lib/supabase/server', () => ({

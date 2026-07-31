@@ -3,7 +3,6 @@ import { loadCheckoutOrder } from './checkout.server';
 
 const mocks = vi.hoisted(() => ({ client: null as unknown }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('./supabase/server', () => ({ createClient: () => mocks.client }));
 
 interface QueryRecord {

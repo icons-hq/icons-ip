@@ -28,12 +28,9 @@ const mocks = vi.hoisted(() => ({
   goodsMaybeSingle: vi.fn(),
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/auth/server', () => ({
   getCurrentAuthState: () => mocks.auth,
 }));
-vi.mock('@/lib/auth/onboarding', async () => await import('../../lib/auth/onboarding'));
-vi.mock('@/lib/cart', async () => await import('../../lib/cart'));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({ rpc: mocks.rpc, from: mocks.from }),
 }));

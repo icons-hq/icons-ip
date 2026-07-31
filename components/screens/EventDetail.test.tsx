@@ -13,7 +13,6 @@ vi.mock('@/app/events/actions', () => ({
 vi.mock('@/app/ip/actions', () => ({
   setIpNotificationPreferencesAction: vi.fn(),
 }));
-vi.mock('@/lib/ip-display', async () => await import('../../lib/ip-display'));
 
 const event: FandomEvent = {
   id: 'e100',

@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({ pathname: '/', count: 4 }));
 vi.mock('next/navigation', () => ({
   usePathname: () => mocks.pathname,
 }));
-vi.mock('@/lib/routes', async () => await import('../../lib/routes'));
 vi.mock('@/components/ui/Icon', () => ({ Icon: ({ name }: { name: string }) => <span data-icon={name} /> }));
 vi.mock('./CartProvider', () => ({ useCart: () => ({ count: mocks.count }) }));
 vi.mock('./useGo', () => ({ useGo: () => vi.fn() }));

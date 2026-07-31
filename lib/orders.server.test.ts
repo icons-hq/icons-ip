@@ -3,7 +3,6 @@ import { loadOrderDetail, loadOrders } from './orders.server';
 
 const mocks = vi.hoisted(() => ({ client: null as unknown }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => mocks.client }));
 
 type Row = Record<string, unknown>;

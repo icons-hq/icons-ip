@@ -13,30 +13,12 @@ vi.mock('next/link', () => ({
   ),
 }));
 
-vi.mock('@/lib/home-catalog', async () => await import('../../lib/home-catalog'));
-vi.mock('@/lib/ip-display', async () => await import('../../lib/ip-display'));
-vi.mock('@/lib/rarity', async () => await import('../../lib/rarity'));
-vi.mock('@/lib/routes', async () => await import('../../lib/routes'));
 vi.mock('@/components/ui/Empty', () => ({
   Empty: ({ text, sub }: { text: string; sub?: string }) => <div>{text}{sub}</div>,
 }));
 
 vi.mock('@/components/shell/useHeaderScrollHide', () => ({
   useHeaderScrollHide: () => ({ hidden: false, reveal: () => undefined }),
-}));
-
-vi.mock('@/components/ui/motion', () => ({
-  useHeroParallax: () => ({
-    artRef: { current: null },
-    onMouseMove: () => undefined,
-    onMouseLeave: () => undefined,
-  }),
-  useTilt: () => ({
-    cardRef: { current: null },
-    glareRef: { current: null },
-    onMouseMove: () => undefined,
-    onMouseLeave: () => undefined,
-  }),
 }));
 
 const vertical: Vertical = { key: 'global', label: '글로벌 IP', color: '#2DE2FF' };

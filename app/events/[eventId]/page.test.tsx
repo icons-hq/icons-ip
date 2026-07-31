@@ -12,7 +12,6 @@ const mocks = vi.hoisted(() => ({
   loadSessions: vi.fn(),
 }));
 
-vi.mock('server-only', () => ({}));
 vi.mock('next/navigation', () => ({ notFound: () => { throw new Error('not found'); } }));
 vi.mock('@/lib/catalog', () => ({
   getCatalogSnapshot: () => mocks.catalog,

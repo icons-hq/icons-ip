@@ -35,7 +35,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: () => mocks.auth }));
-vi.mock('@/lib/admin/members', async () => await import('../../lib/admin/members'));
 vi.mock('@/lib/admin/members.server', () => ({
   getAdminMemberDetail: mocks.getDetail,
   getAdminMemberSummaries: mocks.getSummaries,
