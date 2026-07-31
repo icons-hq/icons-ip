@@ -3,7 +3,7 @@ import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import type { RarityKey } from '@/lib/rarity';
 import type { Stock } from '@/lib/data';
-import { normalizePublicMediaObjectPath } from './artwork';
+import { normalizePublicMediaPath } from '@/lib/media';
 
 export interface AdminIpRecord {
   id: string;
@@ -370,7 +370,7 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
     if (!path) return null;
     return supabase.storage
       .from('public-media')
-      .getPublicUrl(normalizePublicMediaObjectPath(path)).data.publicUrl;
+      .getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
   };
   const [
     ipsResult,

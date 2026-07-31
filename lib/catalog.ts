@@ -1,8 +1,11 @@
 import 'server-only';
 
-import { canViewCommunityPost, type CommunityPostStatus } from '@/lib/community';
+import { blockedUserIds } from '@/lib/blocks.server';
+import { canViewCommunityPost, formatPostTime, type CommunityPostStatus } from '@/lib/community';
 import { DATA, type Card, type FandomEvent, type Good, type Ip, type RarityKey, type Stock, type Vertical } from '@/lib/data';
+import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
 import { getSupabaseConfig } from '@/lib/supabase/config';
+import { postgrestInList } from '@/lib/supabase/postgrest';
 import { createClient } from '@/lib/supabase/server';
 import { resolveCatalogSource, type CatalogSource } from './catalog-source';
 import {
@@ -165,12 +168,6 @@ interface PublicProfileRow {
   nickname: string | null;
 }
 
-interface BlockRow {
-  blocked_user_id: string;
-}
-
-const PUBLIC_MEDIA_BUCKET = 'public-media';
-const PUBLIC_MEDIA_PREFIX = `${PUBLIC_MEDIA_BUCKET}/`;
 const HOME_CURATION_IMAGE_PATTERN =
   /^public-media\/catalog\/curation\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$/;
 const AMBIGUOUS_LINK_CHARACTER_PATTERN =
@@ -207,8 +204,6 @@ const fallbackVertical = (key: string): Vertical => ({
   color: '#8B5CFF',
 });
 
-const imageBg = (path: string) => `url("${path}") center / cover no-repeat`;
-
 function backgroundFor(
   bg: string | null,
   imagePath: string | null,
@@ -228,21 +223,6 @@ function toStock(stock: string): Stock {
 
 function toRarity(rarity: string): RarityKey {
   return RARITIES.includes(rarity as RarityKey) ? (rarity as RarityKey) : 'N';
-}
-
-function normalizePublicMediaPath(path: string) {
-  const normalizedPath = path.replace(/^\/+/, '');
-  return normalizedPath.startsWith(PUBLIC_MEDIA_PREFIX)
-    ? normalizedPath.slice(PUBLIC_MEDIA_PREFIX.length)
-    : normalizedPath;
-}
-
-function blockedUserIdList(blockedIds: ReadonlySet<string>) {
-  return Array.from(blockedIds);
-}
-
-function postgrestInList(values: readonly string[]) {
-  return `(${values.join(',')})`;
 }
 
 function emptyHomeCuration(): HomeCurationSnapshot {
@@ -440,29 +420,6 @@ function formatEventDate(startsAt: string | null, endsAt: string | null) {
   return startDate === endDate ? `${startDate}${startTime}` : `${startDate} - ${endDate}`;
 }
 
-function formatPostTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-
-  const diffMs = Date.now() - date.getTime();
-  const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
-
-  if (diffMinutes < 1) return '방금 전';
-  if (diffMinutes < 60) return `${diffMinutes}분 전`;
-
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}시간 전`;
-
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays}일 전`;
-
-  return new Intl.DateTimeFormat('ko-KR', {
-    timeZone: 'Asia/Seoul',
-    month: 'numeric',
-    day: 'numeric',
-  }).format(date);
-}
-
 function toEvent(row: EventRow, ipsById: Map<string, Ip>, imageUrlForPath: (path: string) => string): FandomEvent {
   const ip = row.ip_id ? ipsById.get(row.ip_id) : null;
   return {
@@ -508,7 +465,7 @@ async function countReactionsByPostId(
   label: 'likes' | 'comments',
   blockedIds: ReadonlySet<string> = new Set(),
 ) {
-  const blockedAuthorIds = blockedUserIdList(blockedIds);
+  const blockedAuthorIds = Array.from(blockedIds);
   const entries = await Promise.all(
     postIds.map(async (postId) => {
       let query = supabase
@@ -534,21 +491,6 @@ async function countReactionsByPostId(
   );
 
   return new Map(entries);
-}
-
-async function blockedUserIds(supabase: CatalogSupabaseClient, viewerId: string | null) {
-  if (!viewerId) return new Set<string>();
-
-  const { data, error } = await supabase
-    .from('blocks')
-    .select('blocked_user_id')
-    .eq('user_id', viewerId);
-
-  if (error) {
-    throw new Error(`Failed to load blocked users: ${error.message}`);
-  }
-
-  return new Set(((data ?? []) as BlockRow[]).map((row) => row.blocked_user_id));
 }
 
 export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): Promise<CatalogSnapshot> {
@@ -748,7 +690,7 @@ async function getCatalogPostPreviewsForIp(
   const viewerId = options.viewerId ?? null;
   const isStaff = options.isStaff ?? false;
   const blockedIds = await blockedUserIds(supabase, viewerId);
-  const blockedAuthorIds = blockedUserIdList(blockedIds);
+  const blockedAuthorIds = Array.from(blockedIds);
   let postsQuery = supabase
     .from('posts')
     .select('id,user_id,ip_id,text,tag,created_at,status')

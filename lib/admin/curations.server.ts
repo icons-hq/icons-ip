@@ -3,7 +3,7 @@ import 'server-only';
 import { notFound, redirect } from 'next/navigation';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
-import { normalizePublicMediaObjectPath } from './artwork';
+import { normalizePublicMediaPath } from '@/lib/media';
 import type { AdminCurationKind } from './curations';
 
 export type AdminCurationStatus = 'inactive' | 'scheduled' | 'active' | 'ended';
@@ -86,7 +86,7 @@ export async function getAdminCurations(now = Date.now()): Promise<AdminCuration
     imageUrl: row.image_path
       ? supabase.storage
         .from('public-media')
-        .getPublicUrl(normalizePublicMediaObjectPath(row.image_path)).data.publicUrl
+        .getPublicUrl(normalizePublicMediaPath(row.image_path)).data.publicUrl
       : null,
     linkPath: row.link_path,
     displayOrder: row.display_order,
