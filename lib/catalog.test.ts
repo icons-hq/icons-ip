@@ -304,6 +304,25 @@ describe('buildCatalogIpDetail', () => {
 });
 
 describe('getCatalogSnapshot', () => {
+  it('publishes the Hong Sil Quest IP and its launch goods in the mock catalog', async () => {
+    mocks.isConfigured = false;
+    mocks.client = null;
+
+    const snapshot = await getCatalogSnapshot();
+    const hongSilQuest = snapshot.ips.find((item) => item.id === 'hong-sil-quest');
+
+    expect(hongSilQuest).toEqual(expect.objectContaining({
+      title: '홍실 퀘스트',
+      goods: 3,
+      cards: 0,
+    }));
+    expect(snapshot.goods.filter((item) => item.ip === 'hong-sil-quest')).toEqual([
+      expect.objectContaining({ id: 'g13', name: '아크릴 블록', price: 12000 }),
+      expect.objectContaining({ id: 'g14', name: '오로라 아크릴 키링', price: 9000 }),
+      expect.objectContaining({ id: 'g15', name: '마그넷 인형 세트', price: 27000 }),
+    ]);
+  });
+
   it('orders public IPs by audience without consulting the legacy featured flag', async () => {
     const records: QueryRecord[] = [];
     mocks.isConfigured = true;

@@ -137,11 +137,13 @@ const IPS: Ip[] = [
     tagline: '친구들과 떠나는 피크닉 컬렉션', synopsis: '라이언, 춘식이, 어피치 등 카카오프렌즈 감성의 피크닉 굿즈와 소품 mock 라인입니다.' },
   { id: 'attack-on-titan', title: '진격의 거인', sub: '리바이 에디션 · 애니메이션', v: V.anime, glyph: 'LEVI', bg: imageBg('/generated/ip/attack-on-titan.png', grad('#2b251f', '#6B705C', '#A981FF')), fans: 176400, goods: 1, cards: 2, featured: true,
     tagline: '리바이 에디션으로 완성하는 전시형 컬렉션', synopsis: '진격의 거인 리바이의 차분한 전투 전야 무드를 아크릴과 카드로 구성한 mock 컬렉션입니다.' },
+  { id: 'hong-sil-quest', title: '홍실 퀘스트', sub: 'SOOP2RANG · 캐릭터 IP', v: V.character, glyph: '홍실\n퀘스트', bg: imageBg('/generated/ip/hong-sil-quest.webp', grad('#300008', '#9C001D', '#FF2E63')), fans: 0, goods: 3, cards: 0, featured: true,
+    tagline: '붉은 실을 따라 시작되는 특별한 퀘스트', synopsis: '홍실 퀘스트의 현대·전생·스페셜 라운드를 실제 팝업 굿즈로 잇는 공식 IP 컬렉션입니다.' },
 ];
 
 const ipById = (id: string | null | undefined) => IPS.find((i) => i.id === id);
 
-const GOODS_TYPES = ['봉제인형', '쿠션', '키링', '아크릴 스탠드', '문구', '파우치', '한정 세트'];
+const GOODS_TYPES = ['봉제인형', '쿠션', '키링', '아크릴 키링', '아크릴 블록', '아크릴 스탠드', '문구', '파우치', '인형', '한정 세트'];
 
 const GOODS: Good[] = [
   { id: 'g1', name: '리락쿠마 낮잠 쿠션', ip: 'rilakkuma', type: '쿠션', price: 42000, badge: '한정', stock: 'low', stockQty: 7, img: imageBg('/generated/goods/g1.png', grad('#5a3517', '#D68A2D', '#FFD84D')) },
@@ -154,6 +156,9 @@ const GOODS: Good[] = [
   { id: 'g8', name: '춘식이 수면 파우치', ip: 'kakao-friends', type: '파우치', price: 24000, badge: '신상', stock: 'ok', stockQty: 100, img: imageBg('/generated/goods/g8.png', grad('#66421d', '#FFD84D', '#FFF3D6')) },
   { id: 'g9', name: '라이언&어피치 피크닉 세트', ip: 'kakao-friends', type: '한정 세트', price: 59000, badge: '한정', stock: 'low', stockQty: 8, img: imageBg('/generated/goods/g9.png', grad('#724a1f', '#FFD84D', '#FF9AAF')) },
   { id: 'g11', name: '리바이 아크릴 스탠드', ip: 'attack-on-titan', type: '아크릴 스탠드', price: 26000, badge: '예약', stock: 'ok', stockQty: 70, img: imageBg('/generated/goods/g11.png', grad('#2b251f', '#6B705C', '#A981FF')) },
+  { id: 'g13', name: '아크릴 블록', ip: 'hong-sil-quest', type: '아크릴 블록', price: 12000, badge: '신상', stock: 'soldout', stockQty: 0, img: imageBg('/generated/goods/g13.webp', grad('#300008', '#9C001D', '#FF2E63')) },
+  { id: 'g14', name: '오로라 아크릴 키링', ip: 'hong-sil-quest', type: '아크릴 키링', price: 9000, badge: '신상', stock: 'soldout', stockQty: 0, img: imageBg('/generated/goods/g14.webp', grad('#300008', '#9C001D', '#FF2E63')) },
+  { id: 'g15', name: '마그넷 인형 세트', ip: 'hong-sil-quest', type: '인형', price: 27000, badge: '신상', stock: 'soldout', stockQty: 0, img: imageBg('/generated/goods/g15.webp', grad('#300008', '#9C001D', '#FF2E63')) },
 ];
 
 const RARITY = RARITY_META;
@@ -243,7 +248,7 @@ const MARKET: MarketItem[] = [
 
 const TRENDING = ['#리락쿠마', '#메이플스토리', '#담곰이', '#카카오프렌즈', '#리바이', '#팝업인증', '#한정굿즈', '#카드교환', '#피크닉세트', '#낮잠쿠션'];
 
-const STATS = { fans: '76.5만', ips: 5, goods: '10', events: 5 };
+const STATS = { fans: '76.5만', ips: 6, goods: '13', events: 5 };
 
 export const DATA = {
   V,
