@@ -137,7 +137,7 @@ const IPS: Ip[] = [
     tagline: '친구들과 떠나는 피크닉 컬렉션', synopsis: '라이언, 춘식이, 어피치 등 카카오프렌즈 감성의 피크닉 굿즈와 소품 mock 라인입니다.' },
   { id: 'attack-on-titan', title: '진격의 거인', sub: '리바이 에디션 · 애니메이션', v: V.anime, glyph: 'LEVI', bg: imageBg('/generated/ip/attack-on-titan.png', grad('#2b251f', '#6B705C', '#A981FF')), fans: 176400, goods: 1, cards: 2, featured: true,
     tagline: '리바이 에디션으로 완성하는 전시형 컬렉션', synopsis: '진격의 거인 리바이의 차분한 전투 전야 무드를 아크릴과 카드로 구성한 mock 컬렉션입니다.' },
-  { id: 'hong-sil-quest', title: '홍실 퀘스트', sub: 'SOOP2RANG · 캐릭터 IP', v: V.character, glyph: '홍실\n퀘스트', bg: imageBg('/generated/ip/hong-sil-quest.webp', grad('#300008', '#9C001D', '#FF2E63')), fans: 0, goods: 3, cards: 0, featured: true,
+  { id: 'hong-sil-quest', title: '홍실 퀘스트', sub: 'SOOP2RANG · 캐릭터 IP', v: V.character, glyph: '홍실\n퀘스트', bg: imageBg('/generated/ip/hong-sil-quest.webp', grad('#300008', '#9C001D', '#FF2E63')), fans: 0, goods: 3, cards: 0, featured: false,
     tagline: '붉은 실을 따라 시작되는 특별한 퀘스트', synopsis: '홍실 퀘스트의 현대·전생·스페셜 라운드를 실제 팝업 굿즈로 잇는 공식 IP 컬렉션입니다.' },
 ];
 

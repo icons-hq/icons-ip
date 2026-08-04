@@ -315,6 +315,7 @@ describe('getCatalogSnapshot', () => {
       title: '홍실 퀘스트',
       goods: 3,
       cards: 0,
+      featured: false,
     }));
     expect(snapshot.goods.filter((item) => item.ip === 'hong-sil-quest')).toEqual([
       expect.objectContaining({ id: 'g13', name: '아크릴 블록', price: 12000 }),

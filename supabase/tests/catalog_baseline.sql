@@ -37,6 +37,14 @@ begin
   end if;
 
   select count(*) into matched_count
+  from public.ips
+  where id = 'hong-sil-quest'
+    and not featured;
+  if matched_count <> 1 then
+    raise exception 'catalog baseline invalid: expected Hong Sil to preserve the explicit home-curation boundary';
+  end if;
+
+  select count(*) into matched_count
   from (values
     ('g1', 'rilakkuma'),
     ('g2', 'rilakkuma'),

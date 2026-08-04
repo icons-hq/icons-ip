@@ -24,7 +24,7 @@ insert into public.ips (
   'url("/generated/ip/hong-sil-quest.webp") center / cover no-repeat, linear-gradient(150deg, #300008, #9C001D 55%, #FF2E63)',
   '붉은 실을 따라 시작되는 특별한 퀘스트',
   '홍실 퀘스트의 현대·전생·스페셜 라운드를 실제 팝업 굿즈로 잇는 공식 IP 컬렉션입니다.',
-  true,
+  false,
   0,
   0,
   0
