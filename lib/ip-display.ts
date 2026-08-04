@@ -10,6 +10,7 @@ const META: Record<string, { en: string; accent: string; ink: string }> = {
   nongdamgom: { en: 'NONGDAMGOM', accent: '#F7A8C7', ink: '#D91461' },
   'kakao-friends': { en: 'KAKAO FRIENDS', accent: '#FFD84D', ink: '#8A6C00' },
   'attack-on-titan': { en: 'ATTACK ON TITAN', accent: '#A981FF', ink: '#7F44FF' },
+  'hong-sil-quest': { en: 'RED THREAD QUEST', accent: '#FF2E63', ink: '#A8002F' },
 };
 
 /** 테두리·글로우·배경 틴트 등 장식용 브랜드 색. 대비를 보장하지 않는다. */

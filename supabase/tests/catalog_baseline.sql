@@ -26,13 +26,22 @@ begin
     ('maplestory', 'game'),
     ('nongdamgom', 'character'),
     ('kakao-friends', 'character'),
-    ('attack-on-titan', 'anime')
+    ('attack-on-titan', 'anime'),
+    ('hong-sil-quest', 'character')
   ) as expected(id, vertical_key)
   join public.ips actual
     on actual.id = expected.id
    and actual.vertical_key = expected.vertical_key;
-  if matched_count <> 5 then
-    raise exception 'catalog baseline invalid: expected 5 IP-to-vertical mappings, found %', matched_count;
+  if matched_count <> 6 then
+    raise exception 'catalog baseline invalid: expected 6 IP-to-vertical mappings, found %', matched_count;
+  end if;
+
+  select count(*) into matched_count
+  from public.ips
+  where id = 'hong-sil-quest'
+    and not featured;
+  if matched_count <> 1 then
+    raise exception 'catalog baseline invalid: expected Hong Sil to preserve the explicit home-curation boundary';
   end if;
 
   select count(*) into matched_count
@@ -46,14 +55,33 @@ begin
     ('g7', 'nongdamgom'),
     ('g8', 'kakao-friends'),
     ('g9', 'kakao-friends'),
-    ('g11', 'attack-on-titan')
+    ('g11', 'attack-on-titan'),
+    ('g13', 'hong-sil-quest'),
+    ('g14', 'hong-sil-quest'),
+    ('g15', 'hong-sil-quest')
   ) as expected(id, ip_id)
   join public.goods actual
     on actual.id = expected.id
    and actual.ip_id = expected.ip_id
    and actual.archived_at is null;
-  if matched_count <> 10 then
-    raise exception 'catalog baseline invalid: expected 10 active good-to-IP mappings, found %', matched_count;
+  if matched_count <> 13 then
+    raise exception 'catalog baseline invalid: expected 13 active good-to-IP mappings, found %', matched_count;
+  end if;
+
+  select count(*) into matched_count
+  from (values
+    ('g13', '아크릴 블록', 12000),
+    ('g14', '오로라 아크릴 키링', 9000),
+    ('g15', '마그넷 인형 세트', 27000)
+  ) as expected(id, name, price)
+  join public.goods actual
+    on actual.id = expected.id
+   and actual.name = expected.name
+   and actual.price = expected.price
+   and actual.stock = 'soldout'
+   and actual.stock_qty = 0;
+  if matched_count <> 3 then
+    raise exception 'catalog baseline invalid: expected Hong Sil goods to remain non-sellable until inventory is supplied, found %', matched_count;
   end if;
 
   select count(*) into matched_count
