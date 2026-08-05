@@ -1,0 +1,68 @@
+/**
+ * 스토리 슬롯과 정적 원화의 단일 연결점.
+ * 서사/판정 데이터는 파일 경로를 모르고, 화면만 이 매니페스트를 사용한다.
+ */
+export const ART_ASSET_URLS = {
+  'act1-bg': '/generated/hong-sil-vn/scenes/act1-bg.webp',
+  'act2-bg': '/generated/hong-sil-vn/scenes/act2-bg.webp',
+  'act3-bg': '/generated/hong-sil-vn/scenes/act3-bg.webp',
+  'act4-bg': '/generated/hong-sil-vn/scenes/act4-bg.webp',
+  'act1-c1': '/generated/hong-sil-vn/choices/act1-c1.webp',
+  'act1-c2': '/generated/hong-sil-vn/choices/act1-c2.webp',
+  'act1-c3': '/generated/hong-sil-vn/choices/act1-c3.webp',
+  'act2-c1': '/generated/hong-sil-vn/choices/act2-c1.webp',
+  'act2-c2': '/generated/hong-sil-vn/choices/act2-c2.webp',
+  'act2-c3': '/generated/hong-sil-vn/choices/act2-c3.webp',
+  'act3-c1': '/generated/hong-sil-vn/choices/act3-c1.webp',
+  'act3-c2': '/generated/hong-sil-vn/choices/act3-c2.webp',
+  'act3-c3': '/generated/hong-sil-vn/choices/act3-c3.webp',
+  'act4-c1': '/generated/hong-sil-vn/choices/act4-c1.webp',
+  'act4-c2': '/generated/hong-sil-vn/choices/act4-c2.webp',
+  'act4-c3': '/generated/hong-sil-vn/choices/act4-c3.webp',
+  'end-01': '/generated/hong-sil-vn/endings/end-01.webp',
+  'end-02': '/generated/hong-sil-vn/endings/end-02.webp',
+  'end-03': '/generated/hong-sil-vn/endings/end-03.webp',
+  'end-04': '/generated/hong-sil-vn/endings/end-04.webp',
+  'end-05': '/generated/hong-sil-vn/endings/end-05.webp',
+  'end-06': '/generated/hong-sil-vn/endings/end-06.webp',
+  'end-07': '/generated/hong-sil-vn/endings/end-07.webp',
+  'end-08': '/generated/hong-sil-vn/endings/end-08.webp',
+  'end-09': '/generated/hong-sil-vn/endings/end-09.webp',
+  'end-10': '/generated/hong-sil-vn/endings/end-10.webp',
+  'end-11': '/generated/hong-sil-vn/endings/end-11.webp',
+  'end-12': '/generated/hong-sil-vn/endings/end-12.webp',
+  'end-13': '/generated/hong-sil-vn/endings/end-13.webp',
+  'end-14': '/generated/hong-sil-vn/endings/end-14.webp',
+  'end-15': '/generated/hong-sil-vn/endings/end-15.webp',
+  'end-16': '/generated/hong-sil-vn/endings/end-16.webp',
+  'end-17': '/generated/hong-sil-vn/endings/end-17.webp',
+  'end-18': '/generated/hong-sil-vn/endings/end-18.webp',
+  'end-19': '/generated/hong-sil-vn/endings/end-19.webp',
+  'end-20': '/generated/hong-sil-vn/endings/end-20.webp',
+  'card-01': '/generated/hong-sil-vn/cards/card-01.webp',
+  'card-02': '/generated/hong-sil-vn/cards/card-02.webp',
+  'card-03': '/generated/hong-sil-vn/cards/card-03.webp',
+  'card-04': '/generated/hong-sil-vn/cards/card-04.webp',
+  'card-05': '/generated/hong-sil-vn/cards/card-05.webp',
+  'card-06': '/generated/hong-sil-vn/cards/card-06.webp',
+  'card-07': '/generated/hong-sil-vn/cards/card-07.webp',
+  'card-08': '/generated/hong-sil-vn/cards/card-08.webp',
+  'card-09': '/generated/hong-sil-vn/cards/card-09.webp',
+  'card-10': '/generated/hong-sil-vn/cards/card-10.webp',
+  'card-11': '/generated/hong-sil-vn/cards/card-11.webp',
+  'card-12': '/generated/hong-sil-vn/cards/card-12.webp',
+  'card-13': '/generated/hong-sil-vn/cards/card-13.webp',
+  'card-14': '/generated/hong-sil-vn/cards/card-14.webp',
+  'card-15': '/generated/hong-sil-vn/cards/card-15.webp',
+  'card-16': '/generated/hong-sil-vn/cards/card-16.webp',
+  'card-17': '/generated/hong-sil-vn/cards/card-17.webp',
+  'card-18': '/generated/hong-sil-vn/cards/card-18.webp',
+  'card-19': '/generated/hong-sil-vn/cards/card-19.webp',
+  'card-20': '/generated/hong-sil-vn/cards/card-20.webp',
+} as const satisfies Record<string, `/${string}.webp`>;
+
+type ArtSlot = keyof typeof ART_ASSET_URLS;
+
+export function artAssetUrl(slot: string): string | undefined {
+  return ART_ASSET_URLS[slot as ArtSlot];
+}
