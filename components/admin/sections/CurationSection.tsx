@@ -4,6 +4,7 @@ import { useActionState, useMemo, useState } from 'react';
 import { upsertAdminCurationAction } from '@/app/admin/curation-actions';
 import type { AdminCurationActionState, AdminCurationKind } from '@/lib/admin/curations';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
+import type { AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
 import { adminCurationTargetGroupsFor } from '@/lib/admin/curation-targets';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { ErrorText, Field, FormShell, RecordList, SelectField } from '../fields';
@@ -65,6 +66,7 @@ export function CurationSection({
   draftActiveFrom,
   draftId,
   eventOptions,
+  goodOptions,
   ipOptions,
   onOpenNotifications,
   onSelect,
@@ -74,8 +76,9 @@ export function CurationSection({
 }: {
   draftActiveFrom: string;
   draftId: string;
-  eventOptions: { id: string; title: string; archivedAt: string | null }[];
-  ipOptions: { id: string; title: string; archivedAt: string | null }[];
+  eventOptions: AdminCurationTargetRecord[];
+  goodOptions: AdminCurationTargetRecord[];
+  ipOptions: AdminCurationTargetRecord[];
   onOpenNotifications: () => void;
   onSelect: (curation: AdminCurationRecord | null) => void;
   operationId: string;
@@ -117,6 +120,7 @@ export function CurationSection({
           draftActiveFrom={draftActiveFrom}
           draftId={draftId}
           eventOptions={eventOptions}
+          goodOptions={goodOptions}
           ipOptions={ipOptions}
           key={getCurationFormKey(selected, draftId, operationId)}
           operationId={operationId}
@@ -131,14 +135,16 @@ function CurationForm({
   draftActiveFrom,
   draftId,
   eventOptions,
+  goodOptions,
   ipOptions,
   operationId,
   selected,
 }: {
   draftActiveFrom: string;
   draftId: string;
-  eventOptions: { id: string; title: string; archivedAt: string | null }[];
-  ipOptions: { id: string; title: string; archivedAt: string | null }[];
+  eventOptions: AdminCurationTargetRecord[];
+  goodOptions: AdminCurationTargetRecord[];
+  ipOptions: AdminCurationTargetRecord[];
   operationId: string;
   selected: AdminCurationRecord | null;
 }) {
@@ -149,8 +155,11 @@ function CurationForm({
     [ipOptions],
   );
   const linkTargetGroups = useMemo(
-    () => adminCurationTargetGroupsFor({ events: eventOptions, ips: ipOptions }, selected?.linkPath ?? null),
-    [eventOptions, ipOptions, selected?.linkPath],
+    () => adminCurationTargetGroupsFor(
+      { events: eventOptions, goods: goodOptions, ips: ipOptions },
+      selected?.linkPath ?? null,
+    ),
+    [eventOptions, goodOptions, ipOptions, selected?.linkPath],
   );
 
   return (
