@@ -256,4 +256,34 @@ describe('OrdersSection', () => {
     expect(html).toContain('maxLength="200"');
     expect(html).toContain('aria-live="polite"');
   });
+
+  /* 오류 상태는 서버 렌더에서 재현되지 않으므로 useActionState만 대체해 확인한다. */
+  it('운송장 입력 오류를 대응 필드에 aria-describedby로 연결한다', async () => {
+    vi.resetModules();
+    vi.doMock('react', async () => {
+      const actual = await vi.importActual<typeof import('react')>('react');
+      return {
+        ...actual,
+        useActionState: () => [
+          { errors: { carrier: '택배사를 선택해주세요.', trackingNumber: '운송장번호를 입력해주세요.' } },
+          () => {},
+          false,
+        ],
+      };
+    });
+
+    try {
+      const { OrdersSection: ErroredOrdersSection } = await import('./Orders');
+      const html = renderToStaticMarkup(<ErroredOrdersSection data={orderData()} />);
+
+      expect(html).toContain('운송장번호를 입력해주세요.');
+      expect(html).toContain(`aria-describedby="admin-order-carrier-error-${ORDER_ID}"`);
+      expect(html).toContain(`id="admin-order-carrier-error-${ORDER_ID}"`);
+      expect(html).toContain(`aria-describedby="admin-order-tracking-error-${ORDER_ID}"`);
+      expect(html).toContain(`id="admin-order-tracking-error-${ORDER_ID}"`);
+    } finally {
+      vi.doUnmock('react');
+      vi.resetModules();
+    }
+  });
 });

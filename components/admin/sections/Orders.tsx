@@ -62,15 +62,24 @@ function ActionFeedback({ state }: { state: AdminOrderActionState }) {
 
 function CarrierSelect({
   defaultValue,
+  describedBy,
   disabled,
   id,
 }: {
   defaultValue?: string;
+  describedBy?: string;
   disabled: boolean;
   id: string;
 }) {
   return (
-    <select defaultValue={defaultValue ?? ''} disabled={disabled} id={id} name="carrier" required>
+    <select
+      aria-describedby={describedBy}
+      defaultValue={defaultValue ?? ''}
+      disabled={disabled}
+      id={id}
+      name="carrier"
+      required
+    >
       <option disabled value="">택배사 선택</option>
       {SHIPPING_CARRIERS.map((carrier) => (
         <option key={carrier.code} value={carrier.code}>{carrier.label}</option>
@@ -94,14 +103,23 @@ function TrackingFields({
 }) {
   const carrierId = `${idPrefix}-carrier-${orderId}`;
   const trackingId = `${idPrefix}-tracking-${orderId}`;
+  // 오류 span에 id를 주고 입력에 연결해야 스크린리더가 어느 필드가 틀렸는지 읽는다.
+  const carrierErrorId = `${idPrefix}-carrier-error-${orderId}`;
+  const trackingErrorId = `${idPrefix}-tracking-error-${orderId}`;
 
   return (
     <div className="admin-order-tracking-fields">
       <label htmlFor={carrierId}>택배사</label>
-      <CarrierSelect defaultValue={shipment?.carrier} disabled={pending} id={carrierId} />
-      {errors?.carrier ? <span role="alert">{errors.carrier}</span> : null}
+      <CarrierSelect
+        defaultValue={shipment?.carrier}
+        describedBy={errors?.carrier ? carrierErrorId : undefined}
+        disabled={pending}
+        id={carrierId}
+      />
+      {errors?.carrier ? <span id={carrierErrorId} role="alert">{errors.carrier}</span> : null}
       <label htmlFor={trackingId}>운송장번호</label>
       <input
+        aria-describedby={errors?.trackingNumber ? trackingErrorId : undefined}
         defaultValue={shipment?.trackingNumber ?? ''}
         disabled={pending}
         id={trackingId}
@@ -112,7 +130,9 @@ function TrackingFields({
         required
         type="text"
       />
-      {errors?.trackingNumber ? <span role="alert">{errors.trackingNumber}</span> : null}
+      {errors?.trackingNumber ? (
+        <span id={trackingErrorId} role="alert">{errors.trackingNumber}</span>
+      ) : null}
     </div>
   );
 }
