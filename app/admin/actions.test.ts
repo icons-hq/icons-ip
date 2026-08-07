@@ -137,6 +137,27 @@ const adminRecords = {
   ticketTypes: [],
 };
 
+/* 고시정보는 저장 필수라서(#171) 굿즈 폼 픽스처가 항상 값을 채운다. */
+const goodsNoticeForm = {
+  noticeMaker: '주식회사 아이콘스',
+  noticeOrigin: '대한민국',
+  noticeMaterial: '아크릴',
+  noticeSize: '80 x 60 x 20mm · 90g',
+  noticeMadeOn: '2026-07',
+  noticeAsManager: '아이콘스 고객센터',
+  noticeAsContact: '02-000-0000',
+};
+
+const goodsNoticeRpcArgs = {
+  target_notice_maker: '주식회사 아이콘스',
+  target_notice_origin: '대한민국',
+  target_notice_material: '아크릴',
+  target_notice_size: '80 x 60 x 20mm · 90g',
+  target_notice_made_on: '2026-07',
+  target_notice_as_manager: '아이콘스 고객센터',
+  target_notice_as_contact: '02-000-0000',
+};
+
 function goodForm() {
   const formData = new FormData();
   formData.set('id', 'g100');
@@ -147,6 +168,7 @@ function goodForm() {
   formData.set('badge', '신상');
   formData.set('stock', 'ok');
   formData.set('stockQty', '12');
+  for (const [key, value] of Object.entries(goodsNoticeForm)) formData.set(key, value);
   return formData;
 }
 
@@ -388,6 +410,7 @@ describe('admin catalog actions', () => {
       target_stock: 'ok',
       target_bg: null,
       target_image_path: null,
+      ...goodsNoticeRpcArgs,
       target_previous_id: null,
     });
     expect(mocks.getCatalogSnapshot).toHaveBeenCalledWith({ previewDefaultSource: 'supabase' });
@@ -640,6 +663,29 @@ describe('admin catalog actions', () => {
     await expect(action({}, makeForm())).resolves.toEqual({
       errors: { form: '상위 IP를 먼저 복원해주세요.' },
     });
+  });
+
+  /* #171 — 폼 검증을 우회해 RPC 까지 닿은 고시정보 누락도 운영자 언어로 돌아온다. */
+  it('maps a goods notice guard raised by the admin RPC', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'goods_notice_required' } });
+
+    await expect(upsertAdminGoodAction({}, goodForm())).resolves.toEqual({
+      errors: { form: '고시정보를 모두 입력한 뒤 저장해주세요.' },
+    });
+  });
+
+  it('rejects a good form missing goods notice fields before calling the RPC', async () => {
+    const formData = goodForm();
+    formData.set('noticeOrigin', '  ');
+    formData.delete('noticeAsContact');
+
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+      errors: {
+        noticeOrigin: '고시정보 필수 항목입니다.',
+        noticeAsContact: '고시정보 필수 항목입니다.',
+      },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it('saves a card with an explicit pool binding through the audited RPC', async () => {

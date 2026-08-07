@@ -6,6 +6,7 @@ import {
   type AdminCatalogActionState,
 } from '@/app/admin/actions';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
+import { GOODS_NOTICE_FIELDS, type GoodsNoticeInfo } from '@/lib/goods-notice';
 import {
   adminCatalogArchiveCounts,
   filterAdminCatalogRecords,
@@ -18,6 +19,42 @@ import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveCo
 import { Field, FormShell, InlineNotice, RecordList, SelectField, TextArea } from '../fields';
 
 const emptyStockState: AdminCatalogActionState = {};
+
+/*
+ * 고시정보 입력 (#171). 항목·라벨·폼 이름은 lib/goods-notice.ts 하나에서 나온다.
+ * 여기에 필드를 직접 늘리면 공개 상세페이지 표와 어긋난다.
+ */
+function GoodsNoticeFields({
+  notice,
+  state,
+}: {
+  notice: GoodsNoticeInfo | null;
+  state: AdminCatalogActionState;
+}) {
+  return (
+    <fieldset style={{ border: '1px solid var(--line)', borderRadius: 10, margin: 0, padding: 14 }}>
+      <legend className="mono" style={{ color: 'var(--dim)', fontSize: 11, padding: '0 6px' }}>
+        고시정보 (전자상거래 필수 표기)
+      </legend>
+      <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: '0 0 12px' }}>
+        전 항목이 필수입니다. 하나라도 비면 저장되지 않고, 입력한 값은 굿즈 상세페이지에 그대로 표시됩니다.
+      </p>
+      <div className="admin-form-grid">
+        {GOODS_NOTICE_FIELDS.map((field) => (
+          <Field
+            defaultValue={notice?.[field.key] ?? ''}
+            error={state.errors?.[field.formName]}
+            key={field.key}
+            label={field.label}
+            name={field.formName}
+            placeholder={field.placeholder}
+            required
+          />
+        ))}
+      </div>
+    </fieldset>
+  );
+}
 
 function StockAdjustmentForm({
   adjustmentId,
@@ -172,6 +209,7 @@ export function GoodSection({
           {/* 배경 CSS 자유입력을 운영자 폼에서 뺐다 (#183). 아트워크가 없는 레거시
               레코드는 이 값으로 렌더되므로 그대로 실어 보내 보존한다. */}
           <input name="bg" type="hidden" value={selected?.bg ?? ''} />
+          <GoodsNoticeFields notice={selected?.notice ?? null} state={state} />
           <ArtworkUploadField
             currentPath={selected?.imagePath ?? null}
             currentUrl={selected?.imageUrl ?? null}

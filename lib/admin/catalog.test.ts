@@ -24,6 +24,22 @@ const context = {
   verticalKeys: new Set(['rofan', 'global']),
 };
 
+/* 고시정보는 저장 필수라서(#171) 굿즈 폼 픽스처는 항상 값을 채워야 한다. */
+const goodsNoticeValues: Record<string, string> = {
+  noticeMaker: '주식회사 아이콘스',
+  noticeOrigin: '대한민국',
+  noticeMaterial: '아크릴',
+  noticeSize: '80 x 60 x 20mm · 90g',
+  noticeMadeOn: '2026-07',
+  noticeAsManager: '아이콘스 고객센터',
+  noticeAsContact: '02-000-0000',
+};
+
+function setGoodsNotice(formData: FormData) {
+  for (const [key, value] of Object.entries(goodsNoticeValues)) formData.set(key, value);
+  return formData;
+}
+
 const readyPoolId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const unavailablePoolId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const gameContext = {
@@ -186,6 +202,7 @@ describe('admin catalog form normalization', () => {
       formData.set('type', '아크릴 스탠드');
       formData.set('price', '22000');
       formData.set('stock', 'ok');
+      setGoodsNotice(formData);
       return formData;
     }],
     ['카드', normalizeAdminCardForm, () => {
@@ -242,7 +259,7 @@ describe('admin catalog form normalization', () => {
   });
 
   it('normalizes a valid good form and rejects negative price or unknown stock', () => {
-    const valid = new FormData();
+    const valid = setGoodsNotice(new FormData());
     valid.set('id', 'g100');
     valid.set('ipId', 'hwasan');
     valid.set('name', '화산강림 아크릴 스탠드');
@@ -265,10 +282,19 @@ describe('admin catalog form normalization', () => {
         stock: 'ok',
         bg: null,
         imagePath: null,
+        notice: {
+          maker: '주식회사 아이콘스',
+          origin: '대한민국',
+          material: '아크릴',
+          size: '80 x 60 x 20mm · 90g',
+          madeOn: '2026-07',
+          asManager: '아이콘스 고객센터',
+          asContact: '02-000-0000',
+        },
       },
     });
 
-    const invalid = new FormData();
+    const invalid = setGoodsNotice(new FormData());
     invalid.set('id', 'g101');
     invalid.set('ipId', 'hwasan');
     invalid.set('name', '굿즈');
@@ -282,6 +308,27 @@ describe('admin catalog form normalization', () => {
       errors: {
         price: '가격은 0 이상의 정수여야 합니다.',
         stock: '재고 상태를 선택해주세요.',
+      },
+    });
+  });
+
+  /* #171 — 고시정보는 법정 표기라 한 항목이라도 비면 저장을 막는다. */
+  it('rejects a good form that leaves any goods notice field blank', () => {
+    const missing = setGoodsNotice(new FormData());
+    missing.set('id', 'g102');
+    missing.set('ipId', 'hwasan');
+    missing.set('name', '오로라 아크릴 키링');
+    missing.set('type', '아크릴 키링');
+    missing.set('price', '9000');
+    missing.set('stock', 'ok');
+    missing.set('noticeOrigin', '   ');
+    missing.delete('noticeAsContact');
+
+    expect(normalizeAdminGoodForm(missing, context)).toEqual({
+      ok: false,
+      errors: {
+        noticeOrigin: '고시정보 필수 항목입니다.',
+        noticeAsContact: '고시정보 필수 항목입니다.',
       },
     });
   });

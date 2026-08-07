@@ -1,4 +1,9 @@
 import type { Stock } from '@/lib/data';
+import {
+  GOODS_NOTICE_FIELDS,
+  missingGoodsNoticeKeys,
+  type GoodsNoticeInfo,
+} from '@/lib/goods-notice';
 import type { RarityKey } from '@/lib/rarity';
 
 export type AdminFieldErrors = Record<string, string>;
@@ -35,6 +40,7 @@ export interface AdminGoodFormValue {
   stock: Stock;
   bg: string | null;
   imagePath: string | null;
+  notice: GoodsNoticeInfo;
 }
 
 export interface AdminStockAdjustmentFormValue {
@@ -262,6 +268,23 @@ function readPreviousId(formData: FormData, id: string, errors: AdminFieldErrors
   return previousId;
 }
 
+/*
+ * 고시정보는 법정 표기라 한 항목이라도 비면 저장을 막는다 (#171).
+ * 항목 목록은 lib/goods-notice.ts 하나에서만 늘어난다.
+ */
+function readGoodsNotice(formData: FormData, errors: AdminFieldErrors): GoodsNoticeInfo {
+  const notice = Object.fromEntries(
+    GOODS_NOTICE_FIELDS.map((field) => [field.key, nullableString(formData, field.formName)]),
+  ) as GoodsNoticeInfo;
+  const missing = new Set(missingGoodsNoticeKeys(notice));
+
+  for (const field of GOODS_NOTICE_FIELDS) {
+    if (missing.has(field.key)) errors[field.formName] = '고시정보 필수 항목입니다.';
+  }
+
+  return notice;
+}
+
 function validIpId(value: string, context: AdminCatalogContext, errors: AdminFieldErrors) {
   if (!value || !context.ipIds.has(value)) {
     errors.ipId = '등록된 IP를 선택해주세요.';
@@ -356,6 +379,7 @@ export function normalizeAdminGoodForm(
   const type = readString(formData, 'type');
   const stock = readString(formData, 'stock') as Stock;
   const price = nonNegativeInteger(formData, 'price', errors, '가격은 0 이상의 정수여야 합니다.');
+  const notice = readGoodsNotice(formData, errors);
 
   if (!name) errors.name = '굿즈 이름을 입력해주세요.';
   if (!type) errors.type = '굿즈 유형을 입력해주세요.';
@@ -376,6 +400,7 @@ export function normalizeAdminGoodForm(
       stock,
       bg: nullableString(formData, 'bg'),
       imagePath: nullableString(formData, 'imagePath'),
+      notice,
     },
   };
 }

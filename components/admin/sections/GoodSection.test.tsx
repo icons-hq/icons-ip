@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
+import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import { GoodSection } from './GoodSection';
 
 vi.mock('@/app/admin/actions', () => ({
@@ -27,9 +28,21 @@ const good: AdminGoodRecord = {
   stockQty: 12,
   bg: null,
   imagePath: null,
+  notice: {
+    maker: '주식회사 아이콘스',
+    origin: '대한민국',
+    material: '아크릴',
+    size: '80 x 60 x 20mm · 90g',
+    madeOn: '2026-07',
+    asManager: '아이콘스 고객센터',
+    asContact: '02-000-0000',
+  },
 };
 
-function renderGoodSection(selected: AdminGoodRecord | null) {
+function renderGoodSection(
+  selected: AdminGoodRecord | null,
+  state: Parameters<typeof GoodSection>[0]['state'] = {},
+) {
   return renderToStaticMarkup(
     <GoodSection
       action={vi.fn()}
@@ -39,7 +52,7 @@ function renderGoodSection(selected: AdminGoodRecord | null) {
       pending={false}
       records={selected ? [selected] : [good]}
       selected={selected}
-      state={{}}
+      state={state}
     />,
   );
 }
@@ -99,5 +112,27 @@ describe('GoodSection', () => {
     expect(html).not.toContain('현재 실재고');
     expect(html).not.toContain('name="delta"');
     expect(html.match(/<form/g)).toHaveLength(2);
+  });
+
+  /* #171 — 고시정보는 라벨 붙은 고정 입력이다. 자유 텍스트 한 칸이 아니다. */
+  it('renders every goods notice item as a labelled required input', () => {
+    const html = renderGoodSection(null);
+
+    expect(html).toContain('고시정보 (전자상거래 필수 표기)');
+    for (const field of GOODS_NOTICE_FIELDS) {
+      expect(html).toContain(`name="${field.formName}"`);
+      expect(html).toContain(field.label);
+    }
+  });
+
+  it('prefills the selected good notice values and surfaces per-field errors', () => {
+    const html = renderGoodSection(good, {
+      errors: { noticeOrigin: '고시정보 필수 항목입니다.' },
+    });
+
+    expect(html).toContain('value="주식회사 아이콘스"');
+    expect(html).toContain('value="02-000-0000"');
+    expect(html).toContain('id="noticeOrigin-error"');
+    expect(html).toContain('고시정보 필수 항목입니다.');
   });
 });

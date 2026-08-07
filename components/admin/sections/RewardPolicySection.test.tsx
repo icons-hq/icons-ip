@@ -5,6 +5,7 @@ import type {
   AdminGoodRecord,
   AdminRewardPolicyRecord,
 } from '@/lib/admin/catalog.server';
+import { EMPTY_GOODS_NOTICE } from '@/lib/goods-notice';
 import {
   getRewardPolicyFormKey,
   getRewardPolicyPoolOptions,
@@ -41,6 +42,7 @@ const goods: AdminGoodRecord[] = [
     stockQty: 10,
     bg: null,
     imagePath: null,
+    notice: EMPTY_GOODS_NOTICE,
   },
   {
     id: 'good-b',
@@ -54,6 +56,7 @@ const goods: AdminGoodRecord[] = [
     stockQty: 10,
     bg: null,
     imagePath: null,
+    notice: EMPTY_GOODS_NOTICE,
   },
 ];
 
