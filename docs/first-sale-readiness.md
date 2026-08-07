@@ -1,8 +1,11 @@
 # ICONS 첫 실판매 준비 계획 (First Sale Readiness)
 
-> 상태: Active · 작성 2026-08-06 · 근거: 그릴링 세션(범위 확정) + 코드베이스 전수 감사
+> 상태: Active · 작성 2026-08-06 · 구현 2026-08-07 · 근거: 그릴링 세션(범위 확정) + 코드베이스 전수 감사
 > 대상 마일스톤: **홍실 퀘스트 굿즈 소프트런칭** — v1 출시([`launch-readiness-plan.md`](./launch-readiness-plan.md))와 **별개 마일스톤**이다.
 > 이 문서는 **기준선·갭 분석·트랙 구조**의 진실원이다. 각 이슈의 스펙 진실원은 issue body다.
+>
+> **§3의 갭 분석은 2026-08-06 기준선이다.** 코드가 그 뒤로 움직였으므로 현재 상태는 §8을 본다.
+> 기준선을 지우지 않는 이유는 "왜 이 작업을 했는가"의 근거가 거기 있기 때문이다.
 
 ---
 
@@ -80,7 +83,7 @@
 | **C2** | **굿즈 콘텐츠 스키마가 없다** — 설명·갤러리·상세 이미지 | `goods` 컬럼은 `name/type/price/badge/stock/bg/image_path`가 전부 |
 | **C3** | **배송비가 "무료" 하드코딩 3곳** | [Cart](../components/screens/Cart.tsx) · [Checkout](../components/screens/Checkout.tsx) · [OrderDetail](../components/screens/OrderDetail.tsx). DB에 배송비 컬럼 없음 |
 | **C4** | **우편번호 검색이 없다** — 5자리 수기 입력 | [`Checkout.tsx`](../components/screens/Checkout.tsx) |
-| **C5** | **배송 후 청약철회 경로가 없다** | `order_cancellation_claims.previous_status check (in ('pending','paid'))`([`order_cancellation_contract.sql`](../supabase/migrations/20260714180001_order_cancellation_contract.sql)). 사용자 UI도 `pending`·`paid`·`canceled` 분기뿐. **배송이 시작되면 사용자도 운영자도 시스템으로 처리할 수 없다** |
+| **C5** | ~~배송 후 청약철회 경로가 없다~~ → #176에서 해소(§8) | `order_cancellation_claims.previous_status check (in ('pending','paid'))`([`order_cancellation_contract.sql`](../supabase/migrations/20260714180001_order_cancellation_contract.sql)). 사용자 UI도 `pending`·`paid`·`canceled` 분기뿐. **배송이 시작되면 사용자도 운영자도 시스템으로 처리할 수 없다** |
 
 > **C5가 특히 위험한 이유**: 실물 커머스 반품의 대부분은 물건을 받아본 뒤 발생한다. 즉 이 경로가 실제 반품의 **주 경로**다. 지금 상태로 반품이 들어오면 토스 콘솔 수동 취소 → DB 수기 정합화가 유일한 방법이고, `refunds` 장부가 비어 정산이 어긋난다.
 
@@ -89,7 +92,7 @@
 | ID | 갭 | 근거 |
 |---|---|---|
 | **F1** | **WMS 연동 표면을 모른다** — 제품명·API 여부·출고 지시 포맷·송장 회수 경로 | 김단비 과장 확인 필요(§5) |
-| **F2** | **운송장번호·택배사 필드가 없다** — 어드민은 상태만 `shipping`/`done`으로 토글 | [`lib/admin/orders.ts`](../lib/admin/orders.ts). 고객 배송조회 불가 → CS 100% 수동 |
+| **F2** | ~~운송장번호·택배사 필드가 없다~~ → #178에서 수기 경로 해소(§8) | [`lib/admin/orders.ts`](../lib/admin/orders.ts). 고객 배송조회 불가 → CS 100% 수동 |
 | **F3** | **할당 재고가 확정되지 않았다** — `stock_qty`가 3종 모두 0 | D4의 격리 물량을 정하고 어드민에서 입력해야 함 |
 
 > **재고 진실원 주의**: ICONS의 `place_order`는 `goods.stock_qty`를 원자적으로 선점하지만, 그 락은 **ICONS 안에서만** 유효하다. WMS는 이 락을 모른다. 두 숫자가 어긋나면 결제 완료 후에 재고 부족이 발견된다. D4의 격리가 이 문제를 코드가 아니라 운영으로 없앤다. → [ADR-0005](./adr/0005-icons-allocated-inventory.md)
@@ -140,7 +143,7 @@
 | | [#175](https://github.com/sangwopark19/icons-ip/issues/175) 우편번호 검색 도입 | C4 | Unblocked |
 | | [#176](https://github.com/sangwopark19/icons-ip/issues/176) **배송 후 청약철회 경로** | C5 | Unblocked |
 | **Fulfillment** | [#177](https://github.com/sangwopark19/icons-ip/issues/177) `[human]` 물류 연동 사양 확인 (H1~H7) | F1 | Unblocked |
-| | [#178](https://github.com/sangwopark19/icons-ip/issues/178) 운송장 등록·조회 | F2 | **Blocked** — #177 |
+| | [#178](https://github.com/sangwopark19/icons-ip/issues/178) 운송장 등록·조회 | F2 | 수기 경로는 착수 가능 → 구현 완료 |
 | | [#179](https://github.com/sangwopark19/icons-ip/issues/179) `[human]` 할당 재고 확정 + `stock_qty` 입력 | F3 | **Blocked** — #177 |
 | **Notifications** | [#180](https://github.com/sangwopark19/icons-ip/issues/180) 트랜잭션 이메일 인프라 + 템플릿 2종 | N1 · L4 | Unblocked |
 | **Admin Ops** | [#181](https://github.com/sangwopark19/icons-ip/issues/181) **ID 덮어쓰기 방지 5곳** (`bug`) | A1 | Unblocked |
@@ -231,7 +234,44 @@
 
 ---
 
-## 8. 가정
+## 8. 구현 현황 (2026-08-07)
+
+§3의 갭 중 에이전트가 코드로 풀 수 있는 것은 전부 닫혔다. 남은 것은 사람 응답에 종속된 항목뿐이다.
+
+| 갭 | 이슈 | 상태 | 남은 것 |
+|---|---|---|---|
+| L2 · L5 법정 문서 3종 | [#169](https://github.com/sangwopark19/icons-ip/issues/169) | 구현 | 법무 검토 병행(D12) · WMS 운영사 법인명(H7) |
+| L1 사업자 정보 표기 | [#170](https://github.com/sangwopark19/icons-ip/issues/170) | 구조 구현 · **값 공백** | [#87](https://github.com/sangwopark19/icons-ip/issues/87)의 사업자 정보 6종 |
+| L3 고시정보 | [#171](https://github.com/sangwopark19/icons-ip/issues/171) | 구현 | 홍실 3종 실제 값 입력(운영) |
+| C2 굿즈 콘텐츠 스키마 | [#172](https://github.com/sangwopark19/icons-ip/issues/172) | 구현 | 홍실 3종 이미지·설명 입력(운영) |
+| C1 굿즈 상세페이지 | [#173](https://github.com/sangwopark19/icons-ip/issues/173) | 구현 | — |
+| C3 배송비 | [#174](https://github.com/sangwopark19/icons-ip/issues/174) | 구현 | 도서산간 추가요금(H6) |
+| C4 우편번호 검색 | [#175](https://github.com/sangwopark19/icons-ip/issues/175) | 구현 | — |
+| C5 배송 후 청약철회 | [#176](https://github.com/sangwopark19/icons-ip/issues/176) | 구현 | 반품 입고 주소·절차(H5) |
+| F2 운송장 등록·조회 | [#178](https://github.com/sangwopark19/icons-ip/issues/178) | **수기 경로만** 구현 | WMS 자동 수신(H1~H3) |
+| F3 할당 재고 | [#179](https://github.com/sangwopark19/icons-ip/issues/179) | 미착수 | `stock_qty` 확정(H 전체) |
+| N1 · L4 트랜잭션 이메일 | [#180](https://github.com/sangwopark19/icons-ip/issues/180) | 구현 | 발신 도메인 SPF/DKIM 설정(운영) |
+| A1 ID 덮어쓰기 | [#181](https://github.com/sangwopark19/icons-ip/issues/181) | 구현 | — |
+| A7 목록 썸네일 | [#182](https://github.com/sangwopark19/icons-ip/issues/182) | 구현 | — |
+| A2~A6 내부 구현 필드 | [#183](https://github.com/sangwopark19/icons-ip/issues/183) | 구현 | — |
+| A8 굿즈 미리보기 | [#184](https://github.com/sangwopark19/icons-ip/issues/184) | 구현 | — |
+| A9 수동 뽑기권 발급 | [#185](https://github.com/sangwopark19/icons-ip/issues/185) | 구현 | — |
+
+### 8.1 판매 개시를 아직 막는 것
+
+코드가 아니라 사람이 풀어야 한다.
+
+1. **[#87](https://github.com/sangwopark19/icons-ip/issues/87)** — 사업자 정보 6종. 없으면 푸터의 법정 표기가 비고, 법정 문서가 지정한 문의 창구가 존재하지 않는다.
+2. **[#177](https://github.com/sangwopark19/icons-ip/issues/177)** — H1~H7. 특히 H7(WMS 운영사 법인명)이 없으면 개인정보처리방침의 처리위탁 목록을 완성할 수 없다.
+3. **[#179](https://github.com/sangwopark19/icons-ip/issues/179)** — 할당 재고 확정. 홍실 3종이 전부 `stock_qty=0`이라 지금은 아무것도 팔리지 않는다.
+
+### 8.2 #178에서 남긴 범위
+
+이슈 범위 4번(배송 시작 이메일에 운송장 포함)은 이메일 인프라([#180](https://github.com/sangwopark19/icons-ip/issues/180))에서 배선했다. WMS 자동 수신은 [#115](https://github.com/sangwopark19/icons-ip/issues/115)의 "물류 API 자동화"로 넘긴다 — 수기 운영에서 나온 실제 요구사항을 스펙 근거로 쓴다(§7).
+
+---
+
+## 9. 가정
 
 - 배송 실행 주체는 사내 물류(김포 창고)다. 3PL 위탁도 IP사 직배송도 아니다.
 - 첫 판매 기간에는 ICONS 할당 재고를 다른 채널이 건드리지 않는다(D4의 전제).
