@@ -154,6 +154,34 @@ describe('DrawTicketGrantSection', () => {
     expect(html).toContain('disabled=""');
   });
 
+  /* 검색 RPC 실패는 빈 목록으로 돌아온다. 실패를 알리지 않으면 "해당 회원이
+     없다"로 오인해 소급 발급을 포기한다. */
+  it('회원 검색이 실패하면 결과 없음과 구분되게 알린다', () => {
+    hooks.searchState = {
+      members: [],
+      query: '팬',
+      errors: { form: '회원을 검색하지 못했습니다. 다시 시도해주세요.' },
+    } as typeof hooks.searchState;
+
+    const html = render();
+
+    expect(html).toContain('회원을 검색하지 못했습니다');
+    expect(html).toContain('role="alert"');
+  });
+
+  it('검색 입력값 오류는 해당 입력에 붙여 보여준다', () => {
+    hooks.searchState = {
+      members: [],
+      query: '',
+      errors: { query: '검색어를 입력해주세요.' },
+    } as typeof hooks.searchState;
+
+    const html = render();
+
+    expect(html).toContain('id="grant-query-error"');
+    expect(html).toContain('검색어를 입력해주세요.');
+  });
+
   it('최근 수동 발급 이력에 사유와 실행자를 보여준다', () => {
     const html = render({ grants: [grant] });
 
