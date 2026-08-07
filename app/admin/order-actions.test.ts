@@ -4,6 +4,7 @@ import {
   updateAdminOrderTrackingAction,
   reconcileAdminOrderCancellationAction,
   rejectAdminOrderCancellationAction,
+  resendOrderEmailAction,
   updateAdminOrderStatusAction,
 } from './order-actions';
 
@@ -26,10 +27,12 @@ const mocks = vi.hoisted(() => ({
   reconcile: vi.fn(),
   revalidatePath: vi.fn(),
   sendShippedEmail: vi.fn(),
+  sendConfirmationEmail: vi.fn(),
 }));
 
 vi.mock('@/lib/email/transactional.server', () => ({
   sendOrderShippedEmail: mocks.sendShippedEmail,
+  sendOrderConfirmationEmail: mocks.sendConfirmationEmail,
 }));
 
 vi.mock('@/lib/auth/admin', () => ({
@@ -89,6 +92,8 @@ describe('admin order actions', () => {
     mocks.revalidatePath.mockReset();
     mocks.sendShippedEmail.mockReset();
     mocks.sendShippedEmail.mockResolvedValue({ status: 'sent' });
+    mocks.sendConfirmationEmail.mockReset();
+    mocks.sendConfirmationEmail.mockResolvedValue({ status: 'sent' });
   });
 
   it('배송 시작 전이에서만 배송 시작 메일 훅을 부른다', async () => {
@@ -228,6 +233,82 @@ describe('admin order actions', () => {
 
     await expect(updateAdminOrderTrackingAction({}, trackingForm())).resolves.toEqual({
       errors: { form: '운송장 정보를 저장하지 못했습니다. 최신 상태를 확인해주세요.' },
+    });
+  });
+
+  // 실패한 메일을 다시 보낼 경로가 없으면 구매자는 계약내용 서면(L4)을 영구히 못 받는다.
+  describe('재발송', () => {
+    function resendForm(dedupeKey: string) {
+      const formData = new FormData();
+      formData.set('dedupeKey', dedupeKey);
+      return formData;
+    }
+
+    it('실패한 주문 확인 메일을 audited 게이트를 지나 다시 보낸다', async () => {
+      await expect(
+        resendOrderEmailAction({}, resendForm(`order_confirmation:${ORDER_ID}`)),
+      ).resolves.toEqual({ message: '메일을 다시 보냈습니다.' });
+
+      expect(mocks.rpc).toHaveBeenCalledWith('admin_request_email_resend', {
+        p_dedupe_key: `order_confirmation:${ORDER_ID}`,
+      });
+      expect(mocks.sendConfirmationEmail).toHaveBeenCalledWith(ORDER_ID);
+      expect(mocks.sendShippedEmail).not.toHaveBeenCalled();
+    });
+
+    it('배송 시작 메일 재발송은 운송장을 발송 훅이 읽게 맡긴다', async () => {
+      await expect(
+        resendOrderEmailAction({}, resendForm(`order_shipped:${ORDER_ID}`)),
+      ).resolves.toEqual({ message: '메일을 다시 보냈습니다.' });
+
+      expect(mocks.sendShippedEmail).toHaveBeenCalledWith({ orderId: ORDER_ID });
+      expect(mocks.sendConfirmationEmail).not.toHaveBeenCalled();
+    });
+
+    it('이미 발송된 건은 DB 게이트에서 막히고 발송 훅에 닿지 않는다', async () => {
+      mocks.rpc.mockResolvedValue({ data: null, error: { message: 'email_already_sent' } });
+
+      const result = await resendOrderEmailAction({}, resendForm(`order_confirmation:${ORDER_ID}`));
+
+      expect(result.errors?.form).toBeTruthy();
+      expect(JSON.stringify(result)).not.toContain('email_already_sent');
+      expect(mocks.sendConfirmationEmail).not.toHaveBeenCalled();
+    });
+
+    it('클레임이 거절되면 보냈다고 거짓 보고하지 않는다', async () => {
+      mocks.sendConfirmationEmail.mockResolvedValue({
+        status: 'skipped',
+        reason: 'already_delivered',
+      });
+
+      const result = await resendOrderEmailAction({}, resendForm(`order_confirmation:${ORDER_ID}`));
+
+      expect(result.message).toBeUndefined();
+      expect(result.errors?.form).toBeTruthy();
+    });
+
+    it('형식을 벗어난 키는 DB에 닿기 전에 거절한다', async () => {
+      for (const key of ['', 'order_confirmation:not-a-uuid', `unknown_template:${ORDER_ID}`]) {
+        await expect(resendOrderEmailAction({}, resendForm(key))).resolves.toEqual({
+          errors: { form: '다시 보낼 수 있는 메일이 아닙니다.' },
+        });
+      }
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it('비staff는 앱과 DB 게이트 전에 차단한다', async () => {
+      mocks.adminState = {
+        isConfigured: true,
+        user: { id: 'fan-1', email: 'fan@icons.gg' },
+        role: 'user',
+        isStaff: false,
+      };
+
+      await expect(
+        resendOrderEmailAction({}, resendForm(`order_confirmation:${ORDER_ID}`)),
+      ).resolves.toEqual({ errors: { form: '관리자 권한이 필요합니다.' } });
+      expect(mocks.rpc).not.toHaveBeenCalled();
+      expect(mocks.sendConfirmationEmail).not.toHaveBeenCalled();
     });
   });
 

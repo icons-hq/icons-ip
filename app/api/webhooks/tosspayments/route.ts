@@ -125,10 +125,14 @@ async function applyConfirm(
   if (!error) {
     // 확인 메일은 확정의 부수효과다. 실패해도 200을 유지해야 토스가 확정을 재전송하지 않는다.
     // 재전송이 오더라도 email_deliveries 클레임이 중복 발송을 막는다(#180).
+    // 200으로 닫는 대신 실패는 email_deliveries에 status='failed'로 남고, 운영자는 발송
+    // 이력 화면에서 보고 다시 보낸다 — 로그 한 줄이 유일한 흔적이 되지 않게 한다.
     if (ref.purpose === 'order') {
       const delivery = await sendOrderConfirmationEmail(ref.refId);
       if (delivery.status === 'failed') {
-        console.error(`[webhooks/tosspayments] confirmation email failed: ${delivery.error}`);
+        console.error(
+          `[webhooks/tosspayments] confirmation email failed (order:${ref.refId}): ${delivery.error}`,
+        );
       }
     }
     return received();

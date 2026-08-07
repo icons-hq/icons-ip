@@ -3,6 +3,7 @@ import 'server-only';
 import { normalizeCheckoutAddress } from '../checkout';
 import { orderShipment, type OrderShipment } from '../orders/shipment';
 import { createServiceClient, getServiceRoleConfig } from '../supabase/service';
+import { orderEmailDedupeKey, type EmailTemplateName } from './dedupe';
 import { getEmailProviderConfig, sendTransactionalEmail } from './provider.server';
 import {
   renderOrderConfirmationEmail,
@@ -29,8 +30,6 @@ export type TransactionalEmailResult =
   | { status: 'sent' }
   | { status: 'skipped'; reason: string }
   | { status: 'failed'; error: string };
-
-type EmailTemplateName = 'order_confirmation' | 'order_shipped';
 
 interface OrderRow {
   id: string;
@@ -195,7 +194,7 @@ export function sendOrderConfirmationEmail(orderId: string): Promise<Transaction
     if ('skipped' in context) return { status: 'skipped', reason: context.skipped };
 
     return deliver(service, {
-      dedupeKey: `order_confirmation:${orderId}`,
+      dedupeKey: orderEmailDedupeKey('order_confirmation', orderId),
       template: 'order_confirmation',
       recipient: context.recipient,
       rendered: renderOrderConfirmationEmail(context),
@@ -226,7 +225,7 @@ export function sendOrderShippedEmail(input: {
     if ('skipped' in context) return { status: 'skipped', reason: context.skipped };
 
     return deliver(service, {
-      dedupeKey: `order_shipped:${input.orderId}`,
+      dedupeKey: orderEmailDedupeKey('order_shipped', input.orderId),
       template: 'order_shipped',
       recipient: context.recipient,
       rendered: renderOrderShippedEmail({

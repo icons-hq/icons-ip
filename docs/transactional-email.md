@@ -1,7 +1,8 @@
 # 트랜잭션 이메일 운영 (#180)
 
 > 상태: Active · 작성 2026-08-07 · 근거: [`first-sale-readiness.md`](./first-sale-readiness.md) §3.4(`N1`·`L4`) · 결정 D8
-> 코드 진실원: `lib/email/*`, `supabase/migrations/20260807130001_transactional_email_deliveries.sql`
+> 코드 진실원: `lib/email/*`, `supabase/migrations/20260807130001_transactional_email_deliveries.sql`,
+> `supabase/migrations/20260807140001_email_delivery_admin_ops.sql`
 
 앱이 직접 보내는 메일이다. Supabase Auth의 가입 확인·비밀번호 재설정 메일과는 **다른 경로**다
 (Auth 메일은 Supabase custom SMTP, 이 메일은 앱 서버의 HTTP 호출).
@@ -16,13 +17,16 @@
 | 본문 템플릿 | `lib/email/templates.ts` | 순수 함수. 네트워크·DB·env를 모른다 |
 | 발송 훅 | `lib/email/transactional.server.ts` | 주문 로드 → 클레임 → 발송 → 결과 기록. **throw하지 않는다** |
 | 발송 이력 | `email_deliveries` 테이블 + `claim_email_delivery` / `complete_email_delivery` | 멱등·재발송의 진실원 |
+| dedupe 키 | `lib/email/dedupe.ts` | `<template>:<orderId>` 형식의 진실원. 재발송이 행 하나에서 대상을 되찾는 근거 |
+| 운영 조회 | `lib/email/deliveries.server.ts` + `admin_search_email_deliveries` | 실패 목록 읽기(staff 전용) |
 
 발송 지점은 두 곳이다.
 
 - **주문 확인** — 토스 웹훅(`app/api/webhooks/tosspayments/route.ts`)이 `confirm_order_payment` 성공 직후 호출한다.
 - **배송 시작** — 어드민 배송 전이(`app/admin/order-actions.ts`)가 `shipping` 전이 성공 직후 호출한다.
-  택배사·송장번호·조회 링크는 **인자로 받는다**. 운송장 컬럼은 [#178](https://github.com/sangwopark19/icons-ip/issues/178)의 범위이며,
-  값이 생기면 `sendOrderShippedEmail`에 그대로 넘기면 된다. 값이 없으면 배송 시작만 알린다.
+  택배사·운송장번호·조회 링크를 **그대로 넘긴다**. 인자를 생략하면 발송 훅이 `orders`의
+  `shipping_carrier`·`tracking_number`에서 읽는다(재발송 경로가 이 폴백을 쓴다).
+  양쪽 다 비어 있을 때만 배송 시작 사실만 알린다.
 
 ### 왜 메일 실패가 주문을 막지 않는가
 
@@ -116,21 +120,27 @@ SPF·DKIM만으로는 수신 측 정책이 없다. 리포트부터 받는 정책
 
 ## 4. 운영
 
-### 재발송
+### 조회와 재발송
 
-`email_deliveries`에 `status='failed'`로 남은 건이 대상이다. 같은 발송 훅을 다시 호출하면
-클레임이 다시 잡히고 재발송된다. `status='sent'`인 건은 클레임이 거절되어 중복 발송되지 않는다.
+어드민 **발송 이력** 화면(`components/admin/sections/EmailDeliverySection.tsx`)에서 한다.
+실패한 건이 목록에 쌓이고, 각 건의 `다시 보내기`가 재발송 경로다. **SQL 콘솔이 필요 없다.**
 
-```sql
--- 실패 목록
-select dedupe_key, template, recipient, attempt_count, last_error, claimed_at
-from email_deliveries
-where status = 'failed'
-order by claimed_at desc;
-```
+`email_deliveries` 테이블은 RLS 활성 + 모든 롤 revoke다. **service role 세션에서도 직접
+`select`할 수 없다** — 시도하면 `permission denied for table email_deliveries`가 난다.
+조회·재발송은 staff 게이트가 붙은 RPC 두 개로만 한다
+(`supabase/migrations/20260807140001_email_delivery_admin_ops.sql`).
 
-테이블 직접 접근 권한은 열려 있지 않다(RLS 활성 + 모든 롤 revoke). 운영 조회는 Supabase 콘솔의
-service role 세션에서 한다.
+| RPC | 실행 롤 | 역할 |
+|---|---|---|
+| `admin_search_email_deliveries(p_status, p_limit, p_offset)` | `authenticated` (내부에서 `is_staff()`) | 상태별 발송 이력 조회. 앱은 `lib/email/deliveries.server.ts`로 부른다 |
+| `admin_request_email_resend(p_dedupe_key)` | `authenticated` (내부에서 `is_staff()`) | 재발송 게이트. `audit_log`에 `admin.email_delivery.resend_requested`를 남기고 템플릿 이름을 돌려준다 |
+
+재발송이 멱등을 깨지 않는 이유는 두 겹이다. `admin_request_email_resend`가 이미 `sent`인
+건을 거절하고, 통과하더라도 실제 발송은 `claim_email_delivery`를 다시 잡는 기존 훅이 한다.
+버튼을 연타해도 이미 도착한 메일이 두 번 가지 않는다.
+
+배송 시작 메일을 다시 보낼 때 운송장 값은 폼에서 오지 않는다. 발송 훅이 `orders`의
+`shipping_carrier`·`tracking_number`를 읽어 채운다.
 
 ### 본문 확인
 
@@ -141,5 +151,5 @@ Gmail은 `<style>`을 떼어내고 Outlook은 flex·grid를 무시한다. 앱의
 
 ### 남은 것
 
-- 운송장 값 배선 — [#178](https://github.com/sangwopark19/icons-ip/issues/178)
 - 사업자 정보·고객센터 연락처의 메일 푸터 반영 — [#170](https://github.com/sangwopark19/icons-ip/issues/170)(#87 종속)
+- 발송 실패의 능동 알림(현재는 어드민이 발송 이력 화면을 열어야 안다)
