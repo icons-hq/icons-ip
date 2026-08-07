@@ -1,4 +1,5 @@
 import type { CheckoutAddress } from './checkout';
+import type { OrderShipment } from './orders/shipment';
 
 export const VISIBLE_ORDER_STATUSES = ['paid', 'shipping', 'done', 'canceled'] as const;
 export const ORDER_DETAIL_STATUSES = ['pending', ...VISIBLE_ORDER_STATUSES] as const;
@@ -103,6 +104,7 @@ export interface OrderDetail {
   payment: OrderPaymentSummary | null;
   refund: OrderRefundSummary | null;
   cancellationRequest: OrderCancellationRequestSummary | null;
+  shipment: OrderShipment | null;
   cardPacks: {
     issuedCount: number;
     availableCount: number;

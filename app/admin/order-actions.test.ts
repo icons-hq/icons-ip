@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   approveAdminOrderCancellationAction,
+  updateAdminOrderTrackingAction,
   reconcileAdminOrderCancellationAction,
   rejectAdminOrderCancellationAction,
   updateAdminOrderStatusAction,
@@ -46,6 +47,16 @@ function statusForm(status = 'shipping') {
   const formData = new FormData();
   formData.set('orderId', ORDER_ID);
   formData.set('status', status);
+  formData.set('carrier', 'hanjin');
+  formData.set('trackingNumber', '1234-5678-9012');
+  return formData;
+}
+
+function trackingForm(trackingNumber = '999888777666') {
+  const formData = new FormData();
+  formData.set('orderId', ORDER_ID);
+  formData.set('carrier', 'hanjin');
+  formData.set('trackingNumber', trackingNumber);
   return formData;
 }
 
@@ -102,8 +113,10 @@ describe('admin order actions', () => {
     });
 
     expect(mocks.rpc).toHaveBeenCalledWith('admin_update_order_status', {
+      p_carrier: 'hanjin',
       p_order_id: ORDER_ID,
       p_status: 'shipping',
+      p_tracking_number: '123456789012',
     });
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/orders');
@@ -114,6 +127,57 @@ describe('admin order actions', () => {
       errors: { status: '허용된 배송 상태를 선택해주세요.' },
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('운송장 없이는 배송 시작 RPC에 닿지 못한다', async () => {
+    const formData = new FormData();
+    formData.set('orderId', ORDER_ID);
+    formData.set('status', 'shipping');
+
+    await expect(updateAdminOrderStatusAction({}, formData)).resolves.toEqual({
+      errors: {
+        carrier: '택배사를 선택해주세요.',
+        trackingNumber: '송장번호를 입력해주세요.',
+      },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('배송 완료 전이는 운송장 인자를 넘기지 않는다', async () => {
+    const formData = new FormData();
+    formData.set('orderId', ORDER_ID);
+    formData.set('status', 'done');
+
+    await expect(updateAdminOrderStatusAction({}, formData)).resolves.toEqual({
+      message: '주문을 완료 처리했습니다.',
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_update_order_status', {
+      p_carrier: null,
+      p_order_id: ORDER_ID,
+      p_status: 'done',
+      p_tracking_number: null,
+    });
+  });
+
+  it('운송장 수정은 정규화한 값으로 audited RPC를 호출한다', async () => {
+    await expect(updateAdminOrderTrackingAction({}, trackingForm(' 9998-8877-7666 '))).resolves.toEqual({
+      message: '운송장 정보를 저장했습니다.',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_update_order_tracking', {
+      p_carrier: 'hanjin',
+      p_order_id: ORDER_ID,
+      p_tracking_number: '999888777666',
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/orders/${ORDER_ID}`);
+  });
+
+  it('운송장 수정 RPC 실패는 DB 오류 원문을 숨긴다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'private db detail' } });
+
+    await expect(updateAdminOrderTrackingAction({}, trackingForm())).resolves.toEqual({
+      errors: { form: '운송장 정보를 저장하지 못했습니다. 최신 상태를 확인해주세요.' },
+    });
   });
 
   it('청약철회 승인 RPC가 성공한 뒤에만 서버가 provider를 정합화한다', async () => {

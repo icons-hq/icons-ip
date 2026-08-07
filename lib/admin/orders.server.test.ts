@@ -110,6 +110,8 @@ describe('getAdminOrderRecords', () => {
         cancellation_requested_at: '2026-07-14T07:00:00.000Z',
         cancellation_decided_at: null,
         cancellation_decision_note: null,
+        shipping_carrier: 'hanjin',
+        tracking_number: '123456789012',
         total_count: 27,
         payment_key: 'must-not-leak',
         raw: { cardNumber: 'must-not-leak' },
@@ -173,6 +175,11 @@ describe('getAdminOrderRecords', () => {
           requestedAt: '2026-07-14T07:00:00.000Z',
           decidedAt: null,
           decisionNote: null,
+        },
+        shipment: {
+          carrier: 'hanjin',
+          carrierLabel: '한진택배',
+          trackingNumber: '123456789012',
         },
       }],
     });

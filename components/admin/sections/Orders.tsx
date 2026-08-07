@@ -7,6 +7,7 @@ import {
   reconcileAdminOrderCancellationAction,
   rejectAdminOrderCancellationAction,
   updateAdminOrderStatusAction,
+  updateAdminOrderTrackingAction,
   type AdminOrderActionState,
 } from '@/app/admin/order-actions';
 import {
@@ -24,6 +25,7 @@ import {
   paymentStatusLabel,
   refundStatusLabel,
 } from '@/lib/orders';
+import { SHIPPING_CARRIERS, type OrderShipment } from '@/lib/orders/shipment';
 import { formatKrw } from '../format';
 
 const STATUS_OPTIONS: Array<{ value: AdminOrderFilters['status']; label: string }> = [
@@ -58,29 +60,100 @@ function ActionFeedback({ state }: { state: AdminOrderActionState }) {
   );
 }
 
+function CarrierSelect({
+  defaultValue,
+  disabled,
+  id,
+}: {
+  defaultValue?: string;
+  disabled: boolean;
+  id: string;
+}) {
+  return (
+    <select defaultValue={defaultValue ?? ''} disabled={disabled} id={id} name="carrier" required>
+      <option disabled value="">택배사 선택</option>
+      {SHIPPING_CARRIERS.map((carrier) => (
+        <option key={carrier.code} value={carrier.code}>{carrier.label}</option>
+      ))}
+    </select>
+  );
+}
+
+function TrackingFields({
+  errors,
+  idPrefix,
+  orderId,
+  pending,
+  shipment,
+}: {
+  errors: AdminOrderActionState['errors'];
+  idPrefix: string;
+  orderId: string;
+  pending: boolean;
+  shipment: OrderShipment | null;
+}) {
+  const carrierId = `${idPrefix}-carrier-${orderId}`;
+  const trackingId = `${idPrefix}-tracking-${orderId}`;
+
+  return (
+    <div className="admin-order-tracking-fields">
+      <label htmlFor={carrierId}>택배사</label>
+      <CarrierSelect defaultValue={shipment?.carrier} disabled={pending} id={carrierId} />
+      {errors?.carrier ? <span role="alert">{errors.carrier}</span> : null}
+      <label htmlFor={trackingId}>송장번호</label>
+      <input
+        defaultValue={shipment?.trackingNumber ?? ''}
+        disabled={pending}
+        id={trackingId}
+        inputMode="numeric"
+        maxLength={30}
+        name="trackingNumber"
+        placeholder="하이픈 없이 입력"
+        required
+        type="text"
+      />
+      {errors?.trackingNumber ? <span role="alert">{errors.trackingNumber}</span> : null}
+    </div>
+  );
+}
+
 function OrderStatusAction({
   label,
   orderId,
+  shipment,
   status,
 }: {
   label: string;
   orderId: string;
+  shipment: OrderShipment | null;
   status: 'shipping' | 'done';
 }) {
   const [state, action, pending] = useActionState(updateAdminOrderStatusAction, EMPTY_ACTION_STATE);
   const confirmation = status === 'shipping'
-    ? '배송을 시작하면 사용자 셀프 취소가 제한됩니다. 배송을 시작할까요?'
+    ? '입력한 택배사·송장번호로 배송을 시작할까요? 고객 주문 상세에 그대로 노출됩니다.'
     : '주문을 배송 완료 처리할까요?';
 
   return (
     <form
       action={action}
-      className="admin-order-action-form"
+      className={status === 'shipping'
+        ? 'admin-order-action-form admin-order-shipment-form'
+        : 'admin-order-action-form'}
       data-confirm={confirmation}
       onSubmit={(event) => confirmAction(event, confirmation)}
     >
       <input name="orderId" type="hidden" value={orderId} />
       <input name="status" type="hidden" value={status} />
+      {/* 송장 없이 배송을 시작하면 고객이 추적할 수 없다. DB도 같은 조건으로 거절한다. */}
+      {status === 'shipping' ? (
+        <TrackingFields
+          errors={state.errors}
+          idPrefix="admin-order"
+          orderId={orderId}
+          pending={pending}
+          shipment={shipment}
+        />
+      ) : null}
       <button className="btn btn-sm" disabled={pending} type="submit">
         {pending ? '처리 중' : label}
       </button>
@@ -89,9 +162,52 @@ function OrderStatusAction({
   );
 }
 
-function ApproveCancellationForm({ requestId }: { requestId: string }) {
+function UpdateTrackingForm({
+  orderId,
+  shipment,
+}: {
+  orderId: string;
+  shipment: OrderShipment | null;
+}) {
+  const [state, action, pending] = useActionState(updateAdminOrderTrackingAction, EMPTY_ACTION_STATE);
+  const confirmation = '송장번호를 수정할까요? 변경 이력이 감사 로그에 남습니다.';
+
+  return (
+    <form
+      action={action}
+      className="admin-order-action-form admin-order-shipment-form"
+      data-confirm={confirmation}
+      onSubmit={(event) => confirmAction(event, confirmation)}
+    >
+      <input name="orderId" type="hidden" value={orderId} />
+      <TrackingFields
+        errors={state.errors}
+        idPrefix="admin-order-edit"
+        orderId={orderId}
+        pending={pending}
+        shipment={shipment}
+      />
+      <button className="btn btn-sm btn-ghost" disabled={pending} type="submit">
+        {pending ? '저장 중' : '운송장 수정'}
+      </button>
+      <ActionFeedback state={state} />
+    </form>
+  );
+}
+
+function ApproveCancellationForm({
+  orderStatus,
+  requestId,
+}: {
+  orderStatus: AdminOrderRecord['status'];
+  requestId: string;
+}) {
   const [state, action, pending] = useActionState(approveAdminOrderCancellationAction, EMPTY_ACTION_STATE);
-  const confirmation = '청약철회를 승인하고 결제 취소를 시작할까요?';
+  // 반품 입고 확인은 별도 상태가 아니라 승인 행위에 내포된다(D11). 배송이 나간 주문은
+  // 승인 즉시 결제가 취소되고 재고가 복원되므로 확인 문구로 그 전제를 묻는다.
+  const confirmation = orderStatus === 'shipping' || orderStatus === 'done'
+    ? '반품 물건 입고를 확인하셨나요? 승인하면 결제 취소와 재고 복원이 진행됩니다.'
+    : '청약철회를 승인하고 결제 취소를 시작할까요?';
 
   return (
     <form
@@ -298,14 +414,27 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
 
       <div className="admin-order-actions">
         {canAdvanceOrderStatus && order.status === 'paid' ? (
-          <OrderStatusAction label="배송 시작" orderId={order.id} status="shipping" />
+          <OrderStatusAction
+            label="배송 시작"
+            orderId={order.id}
+            shipment={order.shipment}
+            status="shipping"
+          />
         ) : null}
         {canAdvanceOrderStatus && order.status === 'shipping' ? (
-          <OrderStatusAction label="배송 완료" orderId={order.id} status="done" />
+          <OrderStatusAction
+            label="배송 완료"
+            orderId={order.id}
+            shipment={order.shipment}
+            status="done"
+          />
+        ) : null}
+        {order.status === 'shipping' || order.status === 'done' ? (
+          <UpdateTrackingForm orderId={order.id} shipment={order.shipment} />
         ) : null}
         {cancellationRequest?.status === 'requested' ? (
           <>
-            <ApproveCancellationForm requestId={cancellationRequest.id} />
+            <ApproveCancellationForm orderStatus={order.status} requestId={cancellationRequest.id} />
             <RejectCancellationForm requestId={cancellationRequest.id} />
           </>
         ) : null}

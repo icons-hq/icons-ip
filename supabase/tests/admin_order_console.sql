@@ -39,10 +39,22 @@ select 1 / case when (
 ) then 1 else 0 end as assert_admin_reconcile_and_search_are_authenticated_only;
 
 select 1 / case when (
-  not has_function_privilege('anon', 'public.admin_update_order_status(uuid,order_status)', 'execute')
-  and has_function_privilege('authenticated', 'public.admin_update_order_status(uuid,order_status)', 'execute')
-  and not has_function_privilege('service_role', 'public.admin_update_order_status(uuid,order_status)', 'execute')
+  not has_function_privilege('anon', 'public.admin_update_order_status(uuid,order_status,text,text)', 'execute')
+  and has_function_privilege('authenticated', 'public.admin_update_order_status(uuid,order_status,text,text)', 'execute')
+  and not has_function_privilege('service_role', 'public.admin_update_order_status(uuid,order_status,text,text)', 'execute')
+  and not has_function_privilege('anon', 'public.admin_update_order_tracking(uuid,text,text)', 'execute')
+  and has_function_privilege('authenticated', 'public.admin_update_order_tracking(uuid,text,text)', 'execute')
+  and not has_function_privilege('service_role', 'public.admin_update_order_tracking(uuid,text,text)', 'execute')
 ) then 1 else 0 end as assert_shipping_rpc_is_authenticated_only;
+
+-- 배송 후 청약철회(#176)는 새 상태기계 대신 claim의 원상태 허용값만 넓혔다.
+select 1 / case when exists (
+  select 1
+  from pg_constraint
+  where conname = 'order_cancellation_claims_previous_status_check'
+    and pg_get_constraintdef(oid) like '%shipping%'
+    and pg_get_constraintdef(oid) like '%done%'
+) then 1 else 0 end as assert_cancellation_claim_allows_post_shipping_status;
 
 select 1 / case when (
   not has_table_privilege('anon', 'public.order_cancellation_requests', 'select')
@@ -428,7 +440,9 @@ select 1 / case when (
 
 select public.admin_update_order_status(
   '40000000-0000-4000-8000-000000000802',
-  'shipping'
+  'shipping',
+  'hanjin',
+  '111122223333'
 );
 
 select 1 / case when (
@@ -643,14 +657,33 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000802', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 
-select public.admin_update_order_status('40000000-0000-4000-8000-000000000804', 'shipping');
-select public.admin_update_order_status('40000000-0000-4000-8000-000000000804', 'done');
-select public.admin_update_order_status('40000000-0000-4000-8000-000000000804', 'done');
+-- 운송장 없이 배송 시작은 DB에서 fail closed한다(#178).
+do $$
+begin
+  begin
+    perform public.admin_update_order_status(
+      '40000000-0000-4000-8000-000000000804', 'shipping', null, null
+    );
+  exception when check_violation then
+    if sqlerrm = 'tracking_required' then return; end if;
+    raise;
+  end;
+  raise exception 'shipping without a waybill should be rejected';
+end;
+$$;
+
+select public.admin_update_order_status(
+  '40000000-0000-4000-8000-000000000804', 'shipping', 'hanjin', '444455556666'
+);
+select public.admin_update_order_status('40000000-0000-4000-8000-000000000804', 'done', null, null);
+select public.admin_update_order_status('40000000-0000-4000-8000-000000000804', 'done', null, null);
 
 do $$
 begin
   begin
-    perform public.admin_update_order_status('40000000-0000-4000-8000-000000000804', 'shipping');
+    perform public.admin_update_order_status(
+      '40000000-0000-4000-8000-000000000804', 'shipping', 'hanjin', '444455556666'
+    );
   exception when others then
     if sqlerrm = 'invalid_order_transition' then return; end if;
     raise;
@@ -666,6 +699,30 @@ select 1 / case when (
       and action = 'admin.order.status_updated'
       and target = 'order:40000000-0000-4000-8000-000000000804') = 2
 ) then 1 else 0 end as assert_shipping_transitions_are_guarded_idempotent_and_audited;
+
+-- 완료 전이는 등록된 운송장을 지우지 않고, 정정은 이전 값과 함께 감사된다.
+select 1 / case when (
+  (select shipping_carrier = 'hanjin' and tracking_number = '444455556666'
+   from public.orders where id = '40000000-0000-4000-8000-000000000804')
+) then 1 else 0 end as assert_done_transition_keeps_the_waybill;
+
+select public.admin_update_order_tracking(
+  '40000000-0000-4000-8000-000000000804', 'hanjin', '777788889999'
+);
+select public.admin_update_order_tracking(
+  '40000000-0000-4000-8000-000000000804', 'hanjin', '777788889999'
+);
+
+select 1 / case when (
+  (select tracking_number = '777788889999'
+   from public.orders where id = '40000000-0000-4000-8000-000000000804')
+  and (select count(*) from public.audit_log
+    where actor_id = '00000000-0000-4000-8000-000000000802'
+      and action = 'admin.order.tracking_updated'
+      and target = 'order:40000000-0000-4000-8000-000000000804'
+      and diff->>'fromTrackingNumber' = '444455556666'
+      and diff->>'toTrackingNumber' = '777788889999') = 1
+) then 1 else 0 end as assert_waybill_correction_is_idempotent_and_audited;
 
 -- Search stays DB-side and staff-gated.
 select 1 / case when (
