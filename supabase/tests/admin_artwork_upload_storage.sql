@@ -224,33 +224,27 @@ select 1 / case when public.service_prepare_admin_artwork_upload(
   'event', 'image/webp', 10, now() + interval '10 minutes'
 ) = false then 1 else 0 end as assert_suspended_staff_claim_rejected;
 
-select 1 / case when public.service_prepare_admin_artwork_upload(
-  '00000000-0000-4000-8000-000000011205',
-  'catalog/card/10000000-0000-4000-8000-000000000001.png',
-  'card', 'image/png', 10, now() + interval '10 minutes'
-) then 1 else 0 end as assert_active_claim_one_created;
+-- 굿즈 폼은 업로드 칸이 6개다(대표·갤러리 4칸·상세). 동시 활성 클레임 예산은
+-- 그 폼 한 장을 채우고 한 번 갈아끼울 수 있어야 한다(20260807140003).
+do $$
+declare
+  slot integer;
+begin
+  for slot in 1..12 loop
+    if not public.service_prepare_admin_artwork_upload(
+      '00000000-0000-4000-8000-000000011205',
+      'catalog/card/10000000-0000-4000-8000-' || lpad(slot::text, 12, '0') || '.png',
+      'card', 'image/png', 10, now() + interval '10 minutes'
+    ) then
+      raise exception 'active claim budget must cover a full goods form, failed at slot %', slot;
+    end if;
+  end loop;
+end;
+$$;
 
 select 1 / case when public.service_prepare_admin_artwork_upload(
   '00000000-0000-4000-8000-000000011205',
-  'catalog/card/10000000-0000-4000-8000-000000000002.png',
-  'card', 'image/png', 10, now() + interval '10 minutes'
-) then 1 else 0 end as assert_active_claim_two_created;
-
-select 1 / case when public.service_prepare_admin_artwork_upload(
-  '00000000-0000-4000-8000-000000011205',
-  'catalog/card/10000000-0000-4000-8000-000000000003.png',
-  'card', 'image/png', 10, now() + interval '10 minutes'
-) then 1 else 0 end as assert_active_claim_three_created;
-
-select 1 / case when public.service_prepare_admin_artwork_upload(
-  '00000000-0000-4000-8000-000000011205',
-  'catalog/card/10000000-0000-4000-8000-000000000004.png',
-  'card', 'image/png', 10, now() + interval '10 minutes'
-) then 1 else 0 end as assert_active_claim_four_created;
-
-select 1 / case when public.service_prepare_admin_artwork_upload(
-  '00000000-0000-4000-8000-000000011205',
-  'catalog/card/10000000-0000-4000-8000-000000000005.png',
+  'catalog/card/10000000-0000-4000-8000-000000000013.png',
   'card', 'image/png', 10, now() + interval '10 minutes'
 ) = false then 1 else 0 end as assert_actor_active_claim_limit;
 
@@ -544,6 +538,17 @@ select 1 / case when public.service_verify_admin_artwork_upload(
   'catalog/ip/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.png',
   8
 ) then 1 else 0 end as assert_attach_claim_verified;
+
+-- 검증이 끝나면 만료가 업로드 창(10분)을 넘어 폼 작성 창까지 늘어난다.
+-- 늘어나지 않으면 6칸 폼을 채우는 사이 먼저 올린 이미지의 클레임이 죽어
+-- admin_upsert_good 트랜잭션 전체가 롤백된다(20260807140003).
+select 1 / case when exists (
+  select 1
+  from public.admin_artwork_upload_claims
+  where path = 'catalog/ip/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.png'
+    and status = 'verified'
+    and expires_at > now() + interval '1 hour'
+) then 1 else 0 end as assert_verified_claim_survives_form_editing;
 
 reset role;
 set local role authenticated;
