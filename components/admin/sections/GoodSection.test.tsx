@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
+import type { Ip } from '@/lib/data';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import { GoodSection } from './GoodSection';
 
@@ -15,6 +16,21 @@ vi.mock('../../../app/admin/archive-actions', () => ({
   unarchiveAdminCatalogRecordAction: vi.fn(),
 }));
 vi.mock('../../../lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: vi.fn() }));
+
+const hwasan: Ip = {
+  id: 'hwasan',
+  title: '화산강림',
+  sub: 'ORIGINAL IP',
+  v: { key: 'webtoon', label: '웹툰', color: '#38F0C0' },
+  glyph: '火',
+  bg: 'linear-gradient(#111, #222)',
+  fans: 0,
+  goods: 1,
+  cards: 0,
+  featured: false,
+  tagline: '불꽃처럼',
+  synopsis: '화산강림 세계관',
+};
 
 const good: AdminGoodRecord = {
   id: 'g100',
@@ -52,6 +68,7 @@ function renderGoodSection(
     <GoodSection
       action={vi.fn()}
       adjustmentId="11111111-1111-4111-8111-111111111111"
+      catalogIps={[hwasan]}
       ipOptions={[{ id: 'hwasan', title: '화산강림', archivedAt: null }]}
       onSelect={vi.fn()}
       pending={false}
@@ -166,6 +183,37 @@ describe('GoodSection', () => {
     expect(html).toContain('src="https://cdn.example/catalog/good/gallery-1.webp"');
     expect(html).toContain('value="public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp"');
     expect(html).toContain('src="https://cdn.example/catalog/good/detail.webp"');
+  });
+
+  /* #184 — 공개 화면 컴포넌트를 그대로 써서 목록 카드와 상세를 함께 보여준다. */
+  it('renders the public shop card and detail screen as a preview', () => {
+    const html = renderGoodSection(good);
+
+    expect(html).toContain('공개 화면 미리보기');
+    expect(html).toContain('굿즈샵 목록 카드');
+    expect(html).toContain('굿즈 상세페이지');
+    /* 어드민 캔버스를 밝게 바꾸지 않도록 페이지 랜드마크 대신 미리보기 스코프를 쓴다. */
+    expect(html).toContain('goods-detail-scope');
+    expect(html).not.toContain('goods-detail-page');
+    expect(html).toContain('상품정보제공고시');
+    expect(html).toContain('교환 · 반품 안내');
+  });
+
+  it('keeps the preview inert — no cart button and no extra form', () => {
+    const html = renderGoodSection(good);
+
+    expect(html).toContain('담기 (미리보기)');
+    expect(html).not.toContain('shop-cart-button');
+    /* 저장 폼 · 재고 조정 폼 · 보관 폼 세 개 그대로다. 미리보기는 폼을 늘리지 않는다. */
+    expect(html.match(/<form/g)).toHaveLength(3);
+  });
+
+  it('previews the selected record values before any edit', () => {
+    const html = renderGoodSection(good);
+
+    expect(html).toContain('붉은 실을 따라 놓인 아크릴 블록입니다.');
+    expect(html).toContain('https://cdn.example/catalog/good/gallery-1.webp');
+    expect(html).toContain('02-000-0000');
   });
 
   it('surfaces a duplicated gallery image error next to its slot', () => {

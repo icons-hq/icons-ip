@@ -222,6 +222,7 @@ export function Admin({
               <GoodSection
                 action={goodAction}
                 adjustmentId={stockAdjustmentId}
+                catalogIps={catalog.ips}
                 ipOptions={ipOptions}
                 onSelect={(good) => setSelectedGoodId(good?.id ?? null)}
                 pending={goodPending}

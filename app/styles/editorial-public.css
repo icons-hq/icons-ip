@@ -21,7 +21,10 @@
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
-) {
+),
+/* 어드민 굿즈 미리보기(#184)는 어드민 표면 안에 놓이므로 #root 를 밝게 바꿀 수 없다.
+   같은 토큰 묶음을 미리보기 컨테이너에만 걸어 공개 화면과 같은 색으로 렌더한다. */
+.goods-detail-scope {
   --bg: var(--editorial-canvas, #f4f4f1);
   --bg-2: var(--editorial-canvas-soft, #efefeb);
   --surface: var(--editorial-surface, #fff);
@@ -1862,6 +1865,15 @@
 .goods-detail-page {
   min-height: 100vh;
   padding-block: 112px 96px;
+}
+
+/* 미리보기 컨테이너는 페이지가 아니라 카드 안이다 — 전체 화면 높이와 상단
+   네비 여백을 걷어내고 나머지 레이아웃 규칙만 그대로 쓴다. */
+.goods-detail-scope {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  min-height: 0;
+  padding: 20px;
 }
 
 .goods-detail-hero {

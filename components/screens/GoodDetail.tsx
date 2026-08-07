@@ -103,10 +103,13 @@ function ReturnGuide() {
 export function GoodDetailView({
   cartAction,
   detail,
+  embedded = false,
   showBackLink = true,
 }: {
   cartAction: ReactNode;
   detail: GoodDetailContent;
+  /** 어드민 미리보기처럼 다른 화면 안에 놓일 때. #root 캔버스를 건드리지 않는다. */
+  embedded?: boolean;
   showBackLink?: boolean;
 }) {
   const { good, ip } = detail;
@@ -114,9 +117,10 @@ export function GoodDetailView({
   const frames = [good.img, ...detail.gallery];
   const stage = frames[Math.min(stageIndex, frames.length - 1)] ?? good.img;
   const stockLabel = STOCK_LABEL[good.stock] ?? '판매 중';
+  const Root = embedded ? 'div' : 'main';
 
   return (
-    <main className="goods-detail-page">
+    <Root className={embedded ? 'goods-detail-scope' : 'goods-detail-page'}>
       <div className="wrap">
         {showBackLink && (
           <Link className="mono" href="/shop" style={{ color: 'var(--dim)', fontSize: 12, letterSpacing: '.1em', textDecoration: 'none' }}>
@@ -198,7 +202,7 @@ export function GoodDetailView({
         <ShippingGuide />
         <ReturnGuide />
       </div>
-    </main>
+    </Root>
   );
 }
 

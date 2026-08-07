@@ -85,6 +85,9 @@ export function restoreCommittedArtworkPreview(
  * 한 폼에 같은 kind 의 업로드 칸이 여러 개 놓일 수 있다 (#172 굿즈 갤러리).
  * name 은 제출 필드, fieldId 는 label·aria 연결용 접두다. 기본값은 kind 라서
  * 칸이 하나뿐인 기존 섹션들의 마크업은 그대로다.
+ *
+ * onPreviewChange 는 지금 보이는 이미지 URL 을 바깥에 알린다 (#184 미리보기).
+ * 저장 전 미리보기가 목적이라 업로드 전 선택한 파일의 object URL 도 함께 넘긴다.
  */
 export function ArtworkUploadField({
   allowRemove = false,
@@ -95,6 +98,7 @@ export function ArtworkUploadField({
   kind,
   label = '아트워크 파일',
   name = 'imagePath',
+  onPreviewChange,
 }: {
   allowRemove?: boolean;
   currentPath: string | null;
@@ -104,6 +108,7 @@ export function ArtworkUploadField({
   kind: AdminArtworkKind;
   label?: string;
   name?: string;
+  onPreviewChange?: (url: string | null) => void;
 }) {
   const [display, setDisplay] = useState(() => createArtworkDisplayState(currentPath, currentUrl));
   const [error, setError] = useState<string>();
@@ -142,6 +147,7 @@ export function ArtworkUploadField({
   function restoreCommittedPreview() {
     revokeSelectedObjectUrl();
     setDisplay((current) => restoreCommittedArtworkPreview(current));
+    onPreviewChange?.(display.committedUrl);
   }
 
   function handleSelectionCancel() {
@@ -162,6 +168,7 @@ export function ArtworkUploadField({
     clearFileInput();
     setDisplay((current) => clearArtworkDisplayState(current));
     setStatus('저장하면 현재 이미지 연결을 제거합니다.');
+    onPreviewChange?.(null);
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -202,6 +209,7 @@ export function ArtworkUploadField({
     setDisplay((current) => showSelectedArtworkPreview(current, objectUrl));
     setStatus('업로드 전 미리보기입니다. 확인 후 업로드해주세요.');
     event.currentTarget.setCustomValidity(UPLOAD_VALIDITY_MESSAGE);
+    onPreviewChange?.(objectUrl);
   }
 
   async function handleUpload() {
