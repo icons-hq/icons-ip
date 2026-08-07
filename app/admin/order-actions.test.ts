@@ -25,6 +25,11 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   reconcile: vi.fn(),
   revalidatePath: vi.fn(),
+  sendShippedEmail: vi.fn(),
+}));
+
+vi.mock('@/lib/email/transactional.server', () => ({
+  sendOrderShippedEmail: mocks.sendShippedEmail,
 }));
 
 vi.mock('@/lib/auth/admin', () => ({
@@ -82,6 +87,26 @@ describe('admin order actions', () => {
     mocks.reconcile.mockReset();
     mocks.reconcile.mockResolvedValue({ ok: true, status: 'completed' });
     mocks.revalidatePath.mockReset();
+    mocks.sendShippedEmail.mockReset();
+    mocks.sendShippedEmail.mockResolvedValue({ status: 'sent' });
+  });
+
+  it('배송 시작 전이에서만 배송 시작 메일 훅을 부른다', async () => {
+    await updateAdminOrderStatusAction({}, statusForm('shipping'));
+    expect(mocks.sendShippedEmail).toHaveBeenCalledWith({ orderId: ORDER_ID });
+
+    mocks.sendShippedEmail.mockClear();
+    await updateAdminOrderStatusAction({}, statusForm('done'));
+    expect(mocks.sendShippedEmail).not.toHaveBeenCalled();
+  });
+
+  it('상태 전이가 실패하면 배송 시작 메일을 보내지 않는다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'order not shippable' } });
+
+    const state = await updateAdminOrderStatusAction({}, statusForm('shipping'));
+
+    expect(state.errors?.form).toBeTruthy();
+    expect(mocks.sendShippedEmail).not.toHaveBeenCalled();
   });
 
   it('비로그인은 관리자 로그인으로 보내고 RPC를 호출하지 않는다', async () => {

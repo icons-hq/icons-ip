@@ -39,6 +39,7 @@
 | Production runtime | Vercel project/runtime Node.js Version은 공식 지원 범위인 24.x 유지 | Vercel Project Settings |
 | 도메인/DNS | `iconsip.com` primary, `www.iconsip.com` alias, `icons-ip.vercel.app` fallback. DNS는 Cloudflare에서 관리 | Cloudflare DNS, Vercel Domains |
 | Auth 메일 | Supabase Auth custom SMTP → Resend. Sender는 `no-reply@iconsip.com`, Resend domain은 `iconsip.com` | Supabase Auth SMTP, Resend |
+| 트랜잭션 메일 | 앱이 직접 보내는 주문 확인·배송 시작 메일. Resend 호환 HTTP(SDK 의존성 없음), env 없으면 no-op. 멱등·재발송은 `email_deliveries` 클레임이 담당하고 발송 실패는 주문·결제 상태에 영향을 주지 않는다 | `lib/email/*`, `supabase/migrations/20260807130001_transactional_email_deliveries.sql`, [`transactional-email.md`](./transactional-email.md) |
 
 **요청 프록시 주의**: 루트 `proxy.ts`가 `export function proxy()` + `config.matcher`로 동작한다(Next 16에서 미들웨어가 이 형태). `lib/supabase/middleware.ts`의 `updateSession`을 호출하며 **보호 액션 전까지 로그인 리다이렉트는 하지 않는다**(공개 브라우징 정책).
 
@@ -264,7 +265,8 @@ Production Auth 설정:
 
 ### 9.1 환경 변수 · 로컬/프리뷰 검증과 임시 production 테스트 검토
 
-- 서버 전용 env: `TOSS_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION`, `TOSS_PAYMENT_KEY_PAIR_SHA256`. 클라이언트 번들에 노출하지 않는다(`NEXT_PUBLIC_` 접두사 금지). 위젯 공개 키와 공개 variantKey만 `NEXT_PUBLIC_TOSS_CLIENT_KEY`, `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY`로 전달한다.
+- 서버 전용 env: `TOSS_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION`, `TOSS_PAYMENT_KEY_PAIR_SHA256`, `EMAIL_PROVIDER_API_KEY`, `EMAIL_FROM`, `EMAIL_REPLY_TO`, `EMAIL_PROVIDER_ENDPOINT`, `SITE_URL`. 클라이언트 번들에 노출하지 않는다(`NEXT_PUBLIC_` 접두사 금지). 위젯 공개 키와 공개 variantKey만 `NEXT_PUBLIC_TOSS_CLIENT_KEY`, `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY`로 전달한다.
+- 이메일 env는 `prebuild` 필수 변수에 넣지 않는다. 미설정이면 트랜잭션 메일을 조용히 건너뛰고 로그만 남긴다 — 메일 미구성은 배포를 막을 사유가 아니고, 발송 실패가 결제 확정을 흔들어서도 안 된다. 발신 도메인 인증(SPF·DKIM·DMARC) 절차는 [`transactional-email.md`](./transactional-email.md) §3에 있다.
 - 토스 키는 개발자센터 **API 키 > 결제위젯 연동 키**의 것을 쓴다: `TOSS_SECRET_KEY` = 위젯 시크릿 키(테스트 `test_gsk_…` / 라이브 `live_gsk_…`), `NEXT_PUBLIC_TOSS_CLIENT_KEY` = 위젯 클라이언트 키(`test_gck_…` / `live_gck_…`, 체크아웃 #90에서 사용). 두 키는 **같은 연동 키 세트**여야 한다 — 세트가 어긋나면 승인 API가 `INVALID_API_KEY`/`UNAUTHORIZED_KEY`/`NOT_FOUND_PAYMENT_SESSION`으로 실패한다. `test_sk_…`(API 개별연동 키)는 위젯 결제 승인에 쓰지 않는다.
 - 키 미구성 환경에서 두 라우트는 503(`not_configured`)으로 응답한다 — mock/카탈로그-only 모드에서 안전.
 - 로컬 검증 경로(테스트 키):

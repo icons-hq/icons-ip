@@ -9,6 +9,7 @@ import {
   type AdminOrderFieldErrors,
 } from '@/lib/admin/orders';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { sendOrderShippedEmail } from '@/lib/email/transactional.server';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -65,6 +66,12 @@ export async function updateAdminOrderStatusAction(
   });
   if (error) {
     return { errors: { form: '주문 상태를 변경하지 못했습니다. 최신 상태를 확인해주세요.' } };
+  }
+
+  // 배송 시작 메일(#180). 운송장 값은 아직 인자로 열려 있고 #178이 채운다.
+  // 발송 결과는 상태 전이에 영향을 주지 않는다 — 메일 실패로 배송 처리를 되돌리지 않는다.
+  if (normalized.value.status === 'shipping') {
+    await sendOrderShippedEmail({ orderId: normalized.value.orderId });
   }
 
   revalidateOrderSurfaces(normalized.value.orderId);
