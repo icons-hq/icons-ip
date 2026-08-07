@@ -3,7 +3,7 @@
 import { startTransition, useActionState, useState, type FormEvent } from 'react';
 import { completeOnboardingAction, type OnboardingActionState } from '@/app/onboarding/actions';
 import { ipAccent } from '@/lib/ip-display';
-import { legalDocumentHref } from '@/lib/legal/links';
+import { LEGAL_DOCUMENT_LABELS, legalDocumentHref, type LegalDocumentSlug } from '@/lib/legal/links';
 
 interface OnboardingProps {
   birthDate: string;
@@ -45,19 +45,19 @@ function TermRow({
   defaultChecked,
   errorId,
   hasError,
-  href,
   label,
   name,
   required,
+  slug,
 }: {
   defaultChecked?: boolean;
   errorId?: string;
   hasError?: boolean;
-  /** 동의 대상 문서 경로. 링크는 label 바깥에 두어야 클릭이 체크박스를 토글하지 않는다. */
-  href?: string;
   label: string;
   name: string;
   required: boolean;
+  /** 동의 대상 문서. 링크는 label 바깥에 두어야 클릭이 체크박스를 토글하지 않는다. */
+  slug?: LegalDocumentSlug;
 }) {
   const [checked, setChecked] = useState(Boolean(defaultChecked));
   return (
@@ -79,10 +79,13 @@ function TermRow({
           {label} <span className="mono" style={{ fontSize: 10, color: required ? 'var(--pink)' : 'var(--faint)' }}>{required ? '필수' : '선택'}</span>
         </span>
       </label>
-      {href && (
+      {slug && (
+        /* 링크 목록으로 훑는 스크린리더에는 "전문 보기"만 두 번 남는다.
+           보이는 문구는 그대로 두고 접근 이름에 문서 이름을 붙여 서로 구분한다(WCAG 2.4.4). */
         <a
+          aria-label={`${LEGAL_DOCUMENT_LABELS[slug]} 전문 보기`}
           className="mono"
-          href={href}
+          href={legalDocumentHref(slug)}
           rel="noreferrer"
           style={{ flex: '0 0 auto', padding: '0 8px', fontSize: 11, color: 'var(--dim)', textDecoration: 'underline' }}
           target="_blank"
@@ -241,9 +244,9 @@ export function Onboarding({
           </fieldset>
 
           <div className="col" style={{ gap: 4 }}>
-            <TermRow errorId="terms-error" hasError={Boolean(state.errors?.terms)} href={legalDocumentHref('terms')} label="이용약관 동의" name="terms" required />
+            <TermRow errorId="terms-error" hasError={Boolean(state.errors?.terms)} label="이용약관 동의" name="terms" required slug="terms" />
             <ErrorText id="terms-error">{state.errors?.terms}</ErrorText>
-            <TermRow errorId="privacy-error" hasError={Boolean(state.errors?.privacy)} href={legalDocumentHref('privacy')} label="개인정보 처리방침 동의" name="privacy" required />
+            <TermRow errorId="privacy-error" hasError={Boolean(state.errors?.privacy)} label="개인정보 처리방침 동의" name="privacy" required slug="privacy" />
             <ErrorText id="privacy-error">{state.errors?.privacy}</ErrorText>
             <TermRow defaultChecked={initialMarketing} label="마케팅 정보 수신 동의" name="marketing" required={false} />
           </div>
