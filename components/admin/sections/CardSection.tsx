@@ -65,6 +65,8 @@ export function CardSection({
           labelFor={(card) => formatAdminCatalogRecordLabel(`${card.id} · ${card.name}`, card.archivedAt)}
           onNew={() => onSelect(null)}
           onSelect={onSelect}
+          thumbnailKind="card"
+          thumbnailUrlFor={(card) => card.imageUrl}
         />
       </div>
       <div className="col" style={{ gap: 16, minWidth: 0 }}>

@@ -137,6 +137,8 @@ export function GoodSection({
           )}
           onNew={() => onSelect(null)}
           onSelect={onSelect}
+          thumbnailKind="good"
+          thumbnailUrlFor={(good) => good.imageUrl}
         />
       </div>
       <div className="col" style={{ gap: 16, minWidth: 0 }}>

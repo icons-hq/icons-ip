@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import {
   ADMIN_ARTWORK_ACCEPT,
+  adminArtworkAspectRatio,
   normalizeAdminArtworkMetadata,
   type AdminArtworkKind,
 } from '../../lib/admin/artwork';
@@ -236,7 +237,7 @@ export function ArtworkUploadField({
           className="admin-artwork-preview"
           style={{
             alignItems: 'center',
-            aspectRatio: kind === 'ip' || kind === 'curation' ? '16 / 9' : '4 / 3',
+            aspectRatio: adminArtworkAspectRatio(kind),
             background: 'rgba(255,255,255,.035)',
             border: '1px solid var(--line)',
             borderRadius: 10,

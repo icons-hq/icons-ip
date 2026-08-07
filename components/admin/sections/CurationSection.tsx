@@ -107,6 +107,8 @@ export function CurationSection({
           newLabel="새 홈 큐레이션"
           onNew={() => onSelect(null)}
           onSelect={onSelect}
+          thumbnailKind="curation"
+          thumbnailUrlFor={(curation) => curation.imageUrl}
         />
         <CurationForm
           draftActiveFrom={draftActiveFrom}

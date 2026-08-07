@@ -75,6 +75,8 @@ export function EventSection({
           labelFor={(event) => formatAdminCatalogRecordLabel(`${event.id} · ${event.title}`, event.archivedAt)}
           onNew={() => onSelect(null)}
           onSelect={onSelect}
+          thumbnailKind="event"
+          thumbnailUrlFor={(event) => event.imageUrl}
         />
       </div>
       <div className="col" style={{ gap: 16, minWidth: 0 }}>

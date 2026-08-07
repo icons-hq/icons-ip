@@ -1,5 +1,6 @@
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import { Icon } from '@/components/ui/Icon';
+import { adminArtworkAspectRatio, type AdminArtworkKind } from '@/lib/admin/artwork';
 
 export function ErrorText({ children, id }: { children?: string; id?: string }) {
   if (!children) return null;
@@ -227,6 +228,36 @@ export function FormShell({
   );
 }
 
+/*
+ * 목록 썸네일 (#182). 라벨이 이미 ID·이름을 읽어주므로 이미지는 장식이다 —
+ * alt 를 비우고 스크린리더에서 제외한다. 아트워크가 없는 레코드는 이미지를
+ * 렌더하지 않고 기존처럼 텍스트만 보여준다.
+ */
+function RecordThumbnail({ kind, url }: { kind: AdminArtworkKind; url: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        aspectRatio: adminArtworkAspectRatio(kind),
+        background: 'rgba(255,255,255,.045)',
+        borderRadius: 6,
+        flex: '0 0 auto',
+        overflow: 'hidden',
+        width: 52,
+      }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        alt=""
+        decoding="async"
+        loading="lazy"
+        src={url}
+        style={{ display: 'block', height: '100%', objectFit: 'cover', width: '100%' }}
+      />
+    </span>
+  );
+}
+
 export function RecordList<T extends { id: string }>({
   activeId,
   ariaLabel = '관리 항목 목록',
@@ -237,6 +268,8 @@ export function RecordList<T extends { id: string }>({
   newLabel = '새로 등록',
   onNew,
   onSelect,
+  thumbnailKind,
+  thumbnailUrlFor,
 }: {
   activeId: string | null;
   ariaLabel?: string;
@@ -247,6 +280,8 @@ export function RecordList<T extends { id: string }>({
   newLabel?: string;
   onNew: () => void;
   onSelect: (item: T) => void;
+  thumbnailKind?: AdminArtworkKind;
+  thumbnailUrlFor?: (item: T) => string | null | undefined;
 }) {
   return (
     <aside aria-label={ariaLabel} className="card" style={{ alignSelf: 'start', borderRadius: 10, padding: 14 }}>
@@ -257,21 +292,28 @@ export function RecordList<T extends { id: string }>({
         {!items.length && emptyMessage && (
           <p style={{ color: 'var(--dim)', fontSize: 13, margin: 0 }}>{emptyMessage}</p>
         )}
-        {items.map((item) => (
-          <button
-            key={item.id}
-            aria-current={activeId === item.id ? 'true' : undefined}
-            className={[
-              activeId === item.id ? 'chip on' : 'chip',
-              itemClassName,
-            ].filter(Boolean).join(' ')}
-            onClick={() => onSelect(item)}
-            style={{ justifyContent: 'flex-start', minHeight: 38, overflow: 'hidden', textAlign: 'left' }}
-            type="button"
-          >
-            {labelFor(item)}
-          </button>
-        ))}
+        {items.map((item) => {
+          const thumbnailUrl = thumbnailKind && thumbnailUrlFor ? thumbnailUrlFor(item) : null;
+
+          return (
+            <button
+              key={item.id}
+              aria-current={activeId === item.id ? 'true' : undefined}
+              className={[
+                activeId === item.id ? 'chip on' : 'chip',
+                itemClassName,
+              ].filter(Boolean).join(' ')}
+              onClick={() => onSelect(item)}
+              style={{ gap: 10, justifyContent: 'flex-start', minHeight: 38, overflow: 'hidden', textAlign: 'left' }}
+              type="button"
+            >
+              {thumbnailKind && thumbnailUrl && (
+                <RecordThumbnail kind={thumbnailKind} url={thumbnailUrl} />
+              )}
+              {labelFor(item)}
+            </button>
+          );
+        })}
       </div>
     </aside>
   );

@@ -36,6 +36,14 @@ export type AdminArtworkMetadataResult =
     }
   | { ok: false; error: string };
 
+/*
+ * 아트워크가 실제로 놓이는 자리의 비율. 업로드 미리보기와 목록 썸네일이
+ * 같은 크롭을 보여줘야 운영자가 저장 전에 잘림을 판단할 수 있다.
+ */
+export function adminArtworkAspectRatio(kind: AdminArtworkKind) {
+  return kind === 'ip' || kind === 'curation' ? '16 / 9' : '4 / 3';
+}
+
 function isAdminArtworkKind(value: unknown): value is AdminArtworkKind {
   return typeof value === 'string' && ADMIN_ARTWORK_KINDS.has(value as AdminArtworkKind);
 }

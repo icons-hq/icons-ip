@@ -53,6 +53,8 @@ export function IpSection({
           labelFor={(ip) => formatAdminCatalogRecordLabel(`${ip.id} · ${ip.title}`, ip.archivedAt)}
           onNew={() => onSelect(null)}
           onSelect={onSelect}
+          thumbnailKind="ip"
+          thumbnailUrlFor={(ip) => ip.imageUrl}
         />
       </div>
       <div className="col" style={{ gap: 16, minWidth: 0 }}>
