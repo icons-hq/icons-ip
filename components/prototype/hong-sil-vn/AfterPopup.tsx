@@ -360,7 +360,7 @@ export function AfterPopup({
               key: 'brag',
               icon: '📣',
               title: '바인더 자랑',
-              body: '내 20종 진행률과 대표 카드를 공개 링크로 공유한다.',
+              body: `내 ${ENDINGS.length}종 진행률과 대표 카드를 공개 링크로 공유한다.`,
               blocked: false,
             },
             {

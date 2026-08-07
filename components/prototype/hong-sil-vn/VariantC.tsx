@@ -3,13 +3,13 @@
 /* 변형 C — 기록(Log). 웹툰 세로 스크롤 문법.
  * 정보위계: 누적된 기록 전체 > 현재 선택.  주 어포던스: 스크롤 + 하단 시트.
  * A·B와 달리 지나온 장면이 사라지지 않는다. 지난 선택을 눌러 그 지점부터 다시 갈 수 있다
- * (= 20종 수집을 전제하면 "처음부터 다시"보다 "갈림길로 되돌아가기"가 맞는가를 묻는 변형).
+ * (= 전 종류 수집을 전제하면 "처음부터 다시"보다 "갈림길로 되돌아가기"가 맞는가를 묻는 변형).
  * 유일하게 밝은 에디토리얼 캔버스다 — 원작이 웹툰이라는 사실을 화면 문법으로 가져온다. */
 
 import { useEffect, useRef } from 'react';
 import { ArtPlate, BeatText, EndingCard, EndingIllustration, type VariantProps } from './pieces';
 import { EndingOffer } from './EndingOffer';
-import { SCENES, choiceText, currentScene } from './story';
+import { ENDINGS, SCENES, choiceText, currentScene, sceneBeats } from './story';
 
 const INK = '#11110F';
 const INK_MUTED = '#686862';
@@ -18,7 +18,7 @@ const HONG = '#9C001D';
 
 export const NAME = '기록 — 세로 스크롤 웹툰';
 
-export function VariantC({ state, ending, isNew, onChoose, onRewind, onRestart }: VariantProps) {
+export function VariantC({ state, track, ending, isNew, onChoose, onRewind, onRestart }: VariantProps) {
   const scene = currentScene(state);
   // 새로 열린 블록의 '시작'으로 이동한다 — 웹툰처럼 위에서 아래로 읽어 내려가게.
   // (바닥으로 붙이면 하단 시트가 방금 나온 대사를 덮는다)
@@ -60,7 +60,7 @@ export function VariantC({ state, ending, isNew, onChoose, onRewind, onRestart }
                 <ArtPlate slot={s.art} />
               </div>
               <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
-                {s.beats.map((b, i) => (
+                {sceneBeats(s, state.flags, track).map((b, i) => (
                   <BeatText key={`${b.kind}-${i}`} beat={b} dark={false} size={14} muted />
                 ))}
               </div>
@@ -123,7 +123,7 @@ export function VariantC({ state, ending, isNew, onChoose, onRewind, onRestart }
               <ArtPlate slot={scene.art} />
             </div>
             <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
-              {scene.beats.map((b, i) => (
+              {sceneBeats(scene, state.flags, track).map((b, i) => (
                 <BeatText key={`${b.kind}-${i}`} beat={b} dark={false} size={14} />
               ))}
             </div>
@@ -144,7 +144,7 @@ export function VariantC({ state, ending, isNew, onChoose, onRewind, onRestart }
             }}
           >
             <div className="mono" style={{ fontSize: 10, letterSpacing: '.24em', color: ending.accent }}>
-              ENDING {ending.no} / 20
+              ENDING {ending.no} / {ENDINGS.length}
             </div>
             <div
               style={{

@@ -11,11 +11,13 @@ import { AxisGauge, BeatText, EndingCard, EndingIllustration, type VariantProps 
 import { EndingOffer } from './EndingOffer';
 import {
   AXES,
+  ENDINGS,
   FINALE_LABEL,
   SCENES,
   choiceText,
   currentScene,
   finaleOf,
+  sceneBeats,
   type Beat,
   type Scene,
 } from './story';
@@ -30,7 +32,7 @@ export const NAME = '홍실 — 실을 당겨 고른다';
 const ROW_PITCH = 78;
 const FAN_W = 86;
 
-export function VariantB({ state, ending, isNew, onChoose, onRestart }: VariantProps) {
+export function VariantB({ state, track, ending, isNew, onChoose, onRestart }: VariantProps) {
   const scene = currentScene(state);
 
   // key로 새 엔딩마다 오버레이가 다시 열린다 — effect에서 setState 하지 않기 위한 구조
@@ -54,7 +56,8 @@ export function VariantB({ state, ending, isNew, onChoose, onRestart }: VariantP
   const aside = last
     ? SCENES.find((s) => s.id === last.sceneId)?.choices.find((c) => c.id === last.choiceId)?.aside
     : undefined;
-  const flow: Beat[] = aside ? [{ kind: 'narration', text: aside }, ...scene.beats] : scene.beats;
+  const beats = sceneBeats(scene, state.flags, track);
+  const flow: Beat[] = aside ? [{ kind: 'narration', text: aside }, ...beats] : beats;
 
   return (
     <div
@@ -195,7 +198,7 @@ function EndingOverlay({
               <circle cx="100" cy="80" r="11" fill="none" stroke={HONG} strokeWidth="1" opacity=".45" />
             </svg>
             <div className="mono" style={{ marginTop: 10, fontSize: 10, letterSpacing: '.24em', color: ending.accent }}>
-              {FINALE_LABEL[finale]} · ENDING {ending.no} / 20
+              {FINALE_LABEL[finale]} · ENDING {ending.no} / {ENDINGS.length}
             </div>
             <div
               style={{

@@ -8,14 +8,14 @@
 import { useState } from 'react';
 import { ArtPlate, BeatText, EndingCard, EndingIllustration, type VariantProps } from './pieces';
 import { EndingOffer } from './EndingOffer';
-import { SCENES, choiceText, currentScene, type Beat, type Scene } from './story';
+import { ENDINGS, SCENES, choiceText, currentScene, sceneBeats, type Beat, type Scene } from './story';
 
 const INK = '#F4F1FF';
 const DIM = '#A9A2CC';
 
 export const NAME = '극장 — 정통 미연시';
 
-export function VariantA({ state, ending, isNew, onChoose, onRestart }: VariantProps) {
+export function VariantA({ state, track, ending, isNew, onChoose, onRestart }: VariantProps) {
   const scene = currentScene(state);
 
   if (ending) {
@@ -32,7 +32,7 @@ export function VariantA({ state, ending, isNew, onChoose, onRestart }: VariantP
         >
           <div style={{ textAlign: 'center', maxWidth: 460 }}>
             <div className="mono" style={{ fontSize: 10, letterSpacing: '.24em', color: ending.accent }}>
-              ENDING {ending.no} / 20
+              ENDING {ending.no} / {ENDINGS.length}
             </div>
             <div
               style={{
@@ -91,22 +91,34 @@ export function VariantA({ state, ending, isNew, onChoose, onRestart }: VariantP
     : undefined;
 
   /* key로 장면이 바뀔 때 대사 커서가 리셋된다 — effect에서 setState 하지 않기 위한 구조. */
-  return <Stage key={scene.id} scene={scene} aside={aside} step={state.step} onChoose={onChoose} />;
+  return (
+    <Stage
+      key={scene.id}
+      scene={scene}
+      beats={sceneBeats(scene, state.flags, track)}
+      aside={aside}
+      step={state.step}
+      onChoose={onChoose}
+    />
+  );
 }
 
 function Stage({
   scene,
+  beats,
   aside,
   step,
   onChoose,
 }: {
   scene: Scene;
+  /** 페널티 구간이 앞에 붙었을 수 있으므로 scene.beats가 아니라 이걸 쓴다. */
+  beats: Beat[];
   aside?: string;
   step: number;
   onChoose: (choiceId: string) => void;
 }) {
   // 이전 선택의 여운을 이 장면의 첫 지문으로 흘려보낸다 — 장면 사이가 끊기지 않게
-  const flow: Beat[] = aside ? [{ kind: 'narration', text: aside }, ...scene.beats] : scene.beats;
+  const flow: Beat[] = aside ? [{ kind: 'narration', text: aside }, ...beats] : beats;
   const [at, setAt] = useState(0);
   const showChoices = at >= flow.length;
   // 정통 미연시 문법 — 한 번에 한 문단만. 쌓지 않고 갈아 끼운다.

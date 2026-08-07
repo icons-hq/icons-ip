@@ -16,6 +16,7 @@ import {
   type Axes,
   type Beat,
   type PlayState,
+  type Track,
 } from './story';
 
 /** 지문·대사·속마음 조판. 문법은 셋이 같고, 크기와 명암만 변형이 정한다. */
@@ -56,8 +57,11 @@ export function BeatText({
     );
   }
 
-  /* 퀘스트 문자 — 원작에서 미션은 문자로 온다. 지문과 섞이면 안 되므로 카드로 뗀다. */
+  /* 퀘스트 문자 — 원작에서 미션은 휴대폰 알림으로 온다. 라벨·기한·페널티가 고정 필드라
+   * 지문과 섞으면 안 된다. 원작 포맷 그대로 카드로 뗀다. */
   if (beat.kind === 'quest') {
+    const { round, label, deadline, penalty } = beat.card;
+    const accent = dark ? '#FF7A9E' : '#9C001D';
     return (
       <div
         style={{
@@ -67,22 +71,79 @@ export function BeatText({
           background: dark ? 'rgba(255,46,99,.1)' : 'rgba(156,0,29,.06)',
         }}
       >
+        <div className="mono" style={{ fontSize: 9.5, letterSpacing: '.2em', color: accent }}>
+          홍실 퀘스트 · {round}
+        </div>
+        <p style={{ margin: '6px 0 0', fontSize: size + 0.5, lineHeight: 1.6, fontWeight: 800, color: ink }}>
+          {label}
+        </p>
+        <dl
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'auto 1fr',
+            gap: '3px 10px',
+            margin: '9px 0 0',
+            fontSize: size - 2,
+            lineHeight: 1.6,
+          }}
+        >
+          <dt className="mono" style={{ color: soft, letterSpacing: '.04em' }}>
+            기한
+          </dt>
+          <dd style={{ margin: 0, color: body }}>{deadline}</dd>
+          <dt className="mono" style={{ color: soft, letterSpacing: '.04em', whiteSpace: 'nowrap' }}>
+            실패 시
+          </dt>
+          <dd style={{ margin: 0, color: body }}>{penalty}</dd>
+        </dl>
+      </div>
+    );
+  }
+
+  /* 집필 슬롯 — 성인 트랙에서 원작자 집필분이 들어갈 자리. 본문인 척하지 않고
+   * 비어 있다는 걸 드러낸다. 검토자가 "여기는 아직 없다"를 바로 알아야 한다. */
+  if (beat.kind === 'gap') {
+    return (
+      <div
+        style={{
+          padding: '14px 16px',
+          borderRadius: 10,
+          border: `1px dashed ${dark ? 'rgba(255,178,61,.55)' : 'rgba(156,0,29,.45)'}`,
+          background: dark ? 'rgba(255,178,61,.06)' : 'rgba(156,0,29,.04)',
+        }}
+      >
         <div
           className="mono"
-          style={{ fontSize: 9.5, letterSpacing: '.2em', color: dark ? '#FF7A9E' : '#9C001D' }}
+          style={{ fontSize: 9.5, letterSpacing: '.18em', color: dark ? '#FFB23D' : '#9C001D' }}
         >
-          QUEST
+          집필 슬롯 · 원작자 검수분
         </div>
-        <p style={{ margin: '6px 0 0', fontSize: size - 0.5, lineHeight: 1.7, fontWeight: 600, color: ink }}>
-          {beat.text}
+        <p style={{ margin: '7px 0 0', fontSize: size - 1, lineHeight: 1.8, color: soft }}>{beat.note}</p>
+        <p style={{ margin: '6px 0 0', fontSize: size - 2.5, lineHeight: 1.7, color: soft, opacity: 0.75 }}>
+          이 프로토타입에는 본문이 들어 있지 않다. 장면 경계와 전후 감정만 확정돼 있다.
         </p>
       </div>
     );
   }
 
   const who = CAST[beat.who];
+  /* 홍실바위는 인물이 아니라 저주의 목소리다 — 명랑한 고객센터 톤이 대사창에서도 보여야 한다. */
+  const isRock = beat.who === 'rock';
   return (
-    <p style={{ margin: 0, fontSize: size, lineHeight: 1.9, color: ink }}>
+    <p
+      style={{
+        margin: 0,
+        fontSize: isRock ? size - 0.5 : size,
+        lineHeight: 1.9,
+        color: isRock ? body : ink,
+        ...(isRock
+          ? {
+              paddingLeft: 14,
+              borderLeft: `2px solid ${who.color}66`,
+            }
+          : null),
+      }}
+    >
       <span style={{ fontWeight: 700, color: who.color, marginRight: 7 }}>{who.name}</span>
       “{beat.text}”
     </p>
@@ -92,6 +153,8 @@ export function BeatText({
 /** 세 변형이 받는 동일한 계약. 상태는 PrototypeRoot가 들고 있고 변형은 그리기만 한다. */
 export interface VariantProps {
   state: PlayState;
+  /** 전연령 / 성인. 씬 비트를 고를 때만 쓰인다 — 축·선택지·엔딩은 두 트랙이 공유한다. */
+  track: Track;
   ending: AnyEnding | null;
   /** 이번 플레이로 처음 얻은 카드인가 */
   isNew: boolean;

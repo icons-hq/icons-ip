@@ -6,8 +6,12 @@ import { PrototypeRoot } from '@/components/prototype/hong-sil-vn/PrototypeRoot'
  * PROTOTYPE — 홍실 퀘스트 온라인 팝업 · 서사형 행동 체험 게임 + 엔딩 카드
  * 버릴 라우트다. main으로 승격하지 말고, 검증이 끝나면 폐기 브랜치로 보낸다.
  *
- * "서사형 게임 → 20개 엔딩 → 엔딩 카드(봉인) → 팝업 종료 후 공개"를
+ * "서사형 게임 → 엔딩 → 엔딩 카드(봉인) → 팝업 종료 후 공개"를
  * 세 가지 구조로 놓고 고른다: ?variant=A(극장) | B(홍실) | C(기록).
+ *
+ * 성인 트랙: ?track=adult 로 들어오면 연령 게이트를 먼저 띄운다. 게이트를 통과해야
+ * story-adult 청크를 동적 import 한다 — 전연령 플레이는 그 청크를 받지 않는다.
+ * 이 게이트는 실제 연령 확인이 아니다(본인인증 미배선). adult-track.md §2 참조.
  *
  * /games 아래 정적 세그먼트라 [gameId] 동적 라우트보다 우선하며,
  * games 카탈로그·play_game RPC를 전혀 건드리지 않는다(프로덕션 계약 무손상).
@@ -32,9 +36,15 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function HongSilVnPrototypePage({
   searchParams,
 }: {
-  searchParams: Promise<{ variant?: string }>;
+  searchParams: Promise<{ variant?: string; track?: string }>;
 }) {
   if (process.env.ICONS_PROTOTYPE !== '1') notFound();
-  const { variant } = await searchParams;
-  return <PrototypeRoot initialVariant={(variant ?? 'A').toUpperCase()} />;
+  const { variant, track } = await searchParams;
+  return (
+    <PrototypeRoot
+      initialVariant={(variant ?? 'A').toUpperCase()}
+      /* 링크로 성인 트랙을 요청할 수는 있지만, 진입은 게이트를 통과해야 한다. */
+      requestAdult={track === 'adult'}
+    />
+  );
 }

@@ -14,6 +14,7 @@
 import { useMemo } from 'react';
 import { krw } from '@/lib/format';
 import { BranchBoard } from './BranchBoard';
+import { ART_SLOTS_PENDING } from './art';
 import {
   ART_SLOTS,
   ART_SLOT_COUNT,
@@ -129,8 +130,9 @@ export function StoryMap() {
         </h1>
         <p style={{ margin: '16px 0 0', maxWidth: 680, fontSize: 'clamp(14px, 1.4vw, 16px)', lineHeight: 1.8, color: MUTED }}>
           원작 시즌 2가 끝난 지점에서 시작한다. 기억을 잃은 홍기훈에게 접촉할 때마다 기억이 돌아오는
-          <b style={{ color: INK }}> 홍기훈 퀘스트</b>를 플레이어가 이연이 되어 치른다. 네 번의 선택이
-          {' '}<b style={{ color: INK }}>20가지 새 결말</b>로 갈리고, 결말마다 카드와 그 결말에서만 살 수 있는 물건이 걸린다.
+          <b style={{ color: INK }}> 홍기훈 퀘스트</b>를 플레이어가 이연이 되어 치른다.
+          {' '}<b style={{ color: INK }}>{SCENES.length}번의 선택</b>이{' '}
+          <b style={{ color: INK }}>{ENDINGS.length}가지 새 결말</b>로 갈리고, 결말마다 카드와 그 결말에서만 살 수 있는 물건이 걸린다.
         </p>
         <p style={{ margin: '14px 0 0', fontSize: 11.5, fontWeight: 600, color: FAINT }}>
           PROTOTYPE · 내부 검토용 · 아래 수치는 전부 실제 시나리오 데이터에서 계산됨
@@ -245,8 +247,8 @@ export function StoryMap() {
         {/* ── 3. 축 모델 ─────────────────────────────────────────── */}
         <Section
           no="03"
-          title="결말이 20개인 이유 — 그리고 늘리는 법"
-          sub="결말을 손으로 20개 쓴 게 아니다. 선택이 누적한 세 개의 축 중 가장 크게 기운 축과, 마지막 라운드에서 고른 종막이 결말을 결정한다. 그래서 개수는 자유롭게 조정된다."
+          title={`결말이 ${ENDINGS.length}개인 이유 — 그리고 늘리는 법`}
+          sub={`결말을 손으로 ${ENDINGS.length}개 쓴 게 아니다. 선택이 누적한 세 개의 축 중 가장 크게 기운 축과, 마지막 라운드에서 고른 종막이 결말을 결정한다. 그래서 개수는 자유롭게 조정된다.`}
         >
           <div
             style={{
@@ -259,7 +261,12 @@ export function StoryMap() {
             <FormulaCard head="축 3개 × 부호 2" body="연(緣)·진(眞)·아(我) 각각 플러스/마이너스" foot="= 성향 6가지" />
             <FormulaCard head="종막 3갈래" body="회복 · 해방 · 재회" foot="× 3" />
             <FormulaCard head="기본 결말" body="성향 6 × 종막 3" foot="= 18개" accent />
-            <FormulaCard head="특수 결말" body="좁은 플래그 조건으로만 열림" foot="+ 2개 = 총 20개" accent />
+            <FormulaCard
+              head="특수 결말"
+              body="좁은 플래그 조건으로만 열림"
+              foot={`+ ${ENDINGS.length - 18}개 = 총 ${ENDINGS.length}개`}
+              accent
+            />
           </div>
 
           <div style={{ marginTop: 14, display: 'grid', gap: 9, gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
@@ -284,7 +291,7 @@ export function StoryMap() {
 
           <p style={{ margin: '16px 0 0', fontSize: 13, lineHeight: 1.8, color: MUTED }}>
             <b style={{ color: INK }}>축을 하나 더하면 결말이 6개 늘고, 종막을 하나 더하면 6개 늘어난다.</b>{' '}
-            라운드를 늘리는 건 결말 수를 늘리지 않고 서사의 밀도만 올린다. 즉 &ldquo;20개&rdquo;는 상한이 아니라
+            라운드를 늘리는 건 결말 수를 늘리지 않고 서사의 밀도만 올린다. 즉 &ldquo;{ENDINGS.length}개&rdquo;는 상한이 아니라
             지금 잡은 값이고, 제작 물량에 맞춰 조정하면 된다.
           </p>
         </Section>
@@ -361,14 +368,14 @@ export function StoryMap() {
         <Section no="06" title="현재 상태" sub="이 화면에서 동작하는 것과, 아직 배선되지 않은 것을 구분한다.">
           <div style={{ display: 'grid', gap: 8 }}>
             {[
-              { done: true, text: '네 라운드 시나리오, 선택→축 누적, 20개 결말 판정 — 동작함' },
-              { done: true, text: `${enumeration.totalPaths}개 경로 완전열거로 결말 20개 전부 도달 가능한 것 검증됨` },
+              { done: true, text: `${SCENES.length}라운드 시나리오, 선택→축 누적, ${ENDINGS.length}개 결말 판정 — 동작함` },
+              { done: true, text: `${enumeration.totalPaths}개 경로 완전열거로 결말 ${ENDINGS.length}개 전부 도달 가능한 것 검증됨` },
               { done: true, text: '결말 카드 발급, 봉인/공개 전환, 바인더, 도달 분포 — 동작함' },
               { done: true, text: '결말별 한정 굿즈 노출과 잠금 규칙(도달 이력 + 팝업 기간) — 동작함' },
               { done: false, text: '결제 — 미배선. 실제 홍실 퀘스트 굿즈는 재고 미확정(판매 불가) 상태다' },
               { done: false, text: '서버 판정 — 미배선. 실서비스에서는 결말 판정과 카드 발급이 서버 몫이다' },
               { done: false, text: '유저 간 카드 교환 — 현재 제품 범위상 v2다. 이 팝업에 넣으려면 범위 변경이 선행돼야 한다' },
-              { done: false, text: '일러스트 — 전부 자리표시자. 위 제작 물량이 발주 규모다' },
+              { done: false, text: `일러스트 — ${ART_SLOTS_PENDING}슬롯 미제작(자리표시자). 기존 원화도 전량 재제작 대상이다` },
             ].map((row) => (
               <div
                 key={row.text}

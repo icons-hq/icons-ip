@@ -6,11 +6,13 @@
 
 import { useCallback, useMemo, useState } from 'react';
 import { AfterPopup } from './AfterPopup';
+import { AgeGate, TrackPill } from './AgeGate';
 import { Switcher, type VariantEntry } from './Switcher';
 import { VariantA, NAME as NAME_A } from './VariantA';
 import { VariantB, NAME as NAME_B } from './VariantB';
 import { VariantC, NAME as NAME_C } from './VariantC';
 import {
+  ADULT_TRACK_SUMMARY,
   ART_SLOTS,
   ART_SLOT_COUNT,
   ENDINGS,
@@ -19,9 +21,11 @@ import {
   initialPlay,
   isFinished,
   goodsForEnding,
+  registerAdultTrack,
   resolveEnding,
   rewindTo,
   type PopupPhase,
+  type Track,
 } from './story';
 import type { VariantProps } from './pieces';
 
@@ -37,9 +41,45 @@ const RENDERERS: Record<string, React.ComponentType<VariantProps>> = {
   C: VariantC,
 };
 
-export function PrototypeRoot({ initialVariant }: { initialVariant: string }) {
+export function PrototypeRoot({
+  initialVariant,
+  requestAdult = false,
+}: {
+  initialVariant: string;
+  /** ?track=adult 로 들어왔는가. 요청일 뿐이고 진입은 게이트가 정한다. */
+  requestAdult?: boolean;
+}) {
   const [variant, setVariant] = useState(RENDERERS[initialVariant] ? initialVariant : 'A');
   const [play, setPlay] = useState(initialPlay);
+
+  /* ── 트랙 ──────────────────────────────────────────────────────────────
+   * 성인 비트는 별도 청크(story-adult)라 게이트를 통과해야 받는다.
+   * 전연령 플레이는 그 청크를 아예 요청하지 않는다. */
+  const [track, setTrack] = useState<Track>('all-ages');
+  const [adultLoaded, setAdultLoaded] = useState(false);
+  const [gateOpen, setGateOpen] = useState(requestAdult);
+
+  const requestAdultTrack = useCallback(() => {
+    // 이미 받아 둔 청크면 게이트를 다시 띄우지 않는다 — 동의는 세션당 한 번이다.
+    if (adultLoaded) {
+      setTrack('adult');
+      return;
+    }
+    setGateOpen(true);
+  }, [adultLoaded]);
+
+  const acceptGate = useCallback(async () => {
+    const mod = await import('./story-adult');
+    registerAdultTrack(mod.ADULT_BEATS);
+    setAdultLoaded(true);
+    setTrack('adult');
+    setGateOpen(false);
+  }, []);
+
+  const declineGate = useCallback(() => {
+    setGateOpen(false);
+    setTrack('all-ages');
+  }, []);
   const [collected, setCollected] = useState<Set<string>>(() => new Set());
   const [isNew, setIsNew] = useState(false);
   const [phase, setPhase] = useState<PopupPhase>('sealed');
@@ -74,7 +114,15 @@ export function PrototypeRoot({ initialVariant }: { initialVariant: string }) {
 
   return (
     <>
-      <Render state={play} ending={ending} isNew={isNew} onChoose={onChoose} onRewind={onRewind} onRestart={onRestart} />
+      <Render
+        state={play}
+        track={track}
+        ending={ending}
+        isNew={isNew}
+        onChoose={onChoose}
+        onRewind={onRewind}
+        onRestart={onRestart}
+      />
 
       {/* 봉인/공개 표면은 변형과 무관한 별개 질문이라 셋이 공유한다 */}
       <div style={{ background: '#0A0813' }}>
@@ -110,7 +158,22 @@ export function PrototypeRoot({ initialVariant }: { initialVariant: string }) {
         </div>
       </div>
 
+      <TrackPill
+        track={track}
+        adultLoaded={adultLoaded}
+        onRequestAdult={requestAdultTrack}
+        onBackToAllAges={() => setTrack('all-ages')}
+      />
       <Switcher variants={VARIANTS} current={variant} onChange={setVariant} />
+
+      {gateOpen && (
+        <AgeGate
+          sceneCount={ADULT_TRACK_SUMMARY.scenes}
+          gapCount={ADULT_TRACK_SUMMARY.gaps}
+          onAccept={acceptGate}
+          onDecline={declineGate}
+        />
+      )}
     </>
   );
 }

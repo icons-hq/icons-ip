@@ -8,7 +8,7 @@
  * 좌표는 아래 상수에서 전부 계산한다 — DOM 측정도, effect도, ResizeObserver도 없다.
  * viewBox 하나로 컨테이너 폭에 맞춰 정확히 스케일된다.
  *
- * 엣지는 손으로 적지 않고 enumeratePaths()의 81경로에서 인접쌍을 뽑아 만든다.
+ * 엣지는 손으로 적지 않고 enumeratePaths()의 전 경로에서 인접쌍을 뽑아 만든다.
  * 그래서 시나리오를 고치면 그림이 저절로 따라온다. */
 
 import { useMemo, useState } from 'react';
