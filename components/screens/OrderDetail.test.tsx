@@ -44,6 +44,7 @@ describe('OrderDetail', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order()} />);
 
     expect(html).toContain('한진택배');
+    expect(html).toContain('운송장번호');
     expect(html).toContain('123456789012');
     expect(html).toContain('href="https://carrier.example.test/track?no=123456789012"');
     expect(html).toContain('rel="noreferrer"');

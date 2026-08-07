@@ -206,14 +206,14 @@ describe('OrdersSection', () => {
     expect(html).toContain('data-confirm="반품 물건 입고를 확인하셨나요? 승인하면 결제 취소와 재고 복원이 진행됩니다."');
   });
 
-  it('배송 시작 폼에서 택배사와 송장번호를 필수로 받는다', () => {
+  it('배송 시작 폼에서 택배사와 운송장번호를 필수로 받는다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
 
     expect(html).toContain('name="carrier"');
     expect(html).toContain('value="hanjin"');
     expect(html).toContain('한진택배');
     expect(html).toContain('name="trackingNumber"');
-    expect(html).toContain(`for="admin-order-tracking-${ORDER_ID}"`);
+    expect(html).toContain(`for="admin-order-tracking-${ORDER_ID}">운송장번호`);
     expect(html).toContain('required=""');
   });
 
@@ -230,7 +230,7 @@ describe('OrdersSection', () => {
 
     expect(html).toContain('123456789012');
     expect(html).toContain('운송장 수정');
-    expect(html).toContain('data-confirm="송장번호를 수정할까요? 변경 이력이 감사 로그에 남습니다."');
+    expect(html).toContain('data-confirm="운송장번호를 수정할까요? 변경 이력이 감사 로그에 남습니다."');
   });
 
   it('배송 전 주문에는 운송장 수정 폼을 노출하지 않는다', () => {
@@ -255,5 +255,35 @@ describe('OrdersSection', () => {
     expect(html).toContain('minLength="10"');
     expect(html).toContain('maxLength="200"');
     expect(html).toContain('aria-live="polite"');
+  });
+
+  /* 오류 상태는 서버 렌더에서 재현되지 않으므로 useActionState만 대체해 확인한다. */
+  it('운송장 입력 오류를 대응 필드에 aria-describedby로 연결한다', async () => {
+    vi.resetModules();
+    vi.doMock('react', async () => {
+      const actual = await vi.importActual<typeof import('react')>('react');
+      return {
+        ...actual,
+        useActionState: () => [
+          { errors: { carrier: '택배사를 선택해주세요.', trackingNumber: '운송장번호를 입력해주세요.' } },
+          () => {},
+          false,
+        ],
+      };
+    });
+
+    try {
+      const { OrdersSection: ErroredOrdersSection } = await import('./Orders');
+      const html = renderToStaticMarkup(<ErroredOrdersSection data={orderData()} />);
+
+      expect(html).toContain('운송장번호를 입력해주세요.');
+      expect(html).toContain(`aria-describedby="admin-order-carrier-error-${ORDER_ID}"`);
+      expect(html).toContain(`id="admin-order-carrier-error-${ORDER_ID}"`);
+      expect(html).toContain(`aria-describedby="admin-order-tracking-error-${ORDER_ID}"`);
+      expect(html).toContain(`id="admin-order-tracking-error-${ORDER_ID}"`);
+    } finally {
+      vi.doUnmock('react');
+      vi.resetModules();
+    }
   });
 });

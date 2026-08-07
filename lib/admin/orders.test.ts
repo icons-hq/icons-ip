@@ -90,7 +90,7 @@ describe('admin order mutation forms', () => {
       ok: false,
       errors: {
         carrier: '택배사를 선택해주세요.',
-        trackingNumber: '송장번호를 입력해주세요.',
+        trackingNumber: '운송장번호를 입력해주세요.',
       },
     });
 
@@ -100,7 +100,7 @@ describe('admin order mutation forms', () => {
       ok: false,
       errors: {
         carrier: '택배사를 선택해주세요.',
-        trackingNumber: '송장번호는 하이픈을 뺀 8~30자리 영숫자여야 합니다.',
+        trackingNumber: '운송장번호는 하이픈을 뺀 8~30자리 영숫자여야 합니다.',
       },
     });
   });
@@ -118,7 +118,7 @@ describe('admin order mutation forms', () => {
     });
   });
 
-  it('운송장 수정 폼은 주문·택배사·송장번호를 모두 검증한다', () => {
+  it('운송장 수정 폼은 주문·택배사·운송장번호를 모두 검증한다', () => {
     const formData = new FormData();
     formData.set('orderId', ORDER_ID);
     formData.set('carrier', 'hanjin');
@@ -137,7 +137,7 @@ describe('admin order mutation forms', () => {
       errors: {
         orderId: '주문을 찾을 수 없습니다.',
         carrier: '택배사를 선택해주세요.',
-        trackingNumber: '송장번호를 입력해주세요.',
+        trackingNumber: '운송장번호를 입력해주세요.',
       },
     });
   });

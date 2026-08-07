@@ -164,7 +164,7 @@ interface TrackingInput {
   trackingNumber: string;
 }
 
-/** 택배사·송장번호를 함께 검증한다. 둘 중 하나만 남으면 DB 쌍 제약에 걸린다. */
+/** 택배사·운송장번호를 함께 검증한다. 둘 중 하나만 남으면 DB 쌍 제약에 걸린다. */
 function readTrackingInput(formData: FormData): AdminOrderFormResult<TrackingInput> {
   const carrier = readFormString(formData, 'carrier');
   const rawTrackingNumber = readFormString(formData, 'trackingNumber');
@@ -173,9 +173,9 @@ function readTrackingInput(formData: FormData): AdminOrderFormResult<TrackingInp
 
   if (!isShippingCarrierCode(carrier)) errors.carrier = '택배사를 선택해주세요.';
   if (!trackingNumber) {
-    errors.trackingNumber = '송장번호를 입력해주세요.';
+    errors.trackingNumber = '운송장번호를 입력해주세요.';
   } else if (!isTrackingNumber(trackingNumber)) {
-    errors.trackingNumber = '송장번호는 하이픈을 뺀 8~30자리 영숫자여야 합니다.';
+    errors.trackingNumber = '운송장번호는 하이픈을 뺀 8~30자리 영숫자여야 합니다.';
   }
   if (Object.keys(errors).length) return { ok: false, errors };
 
@@ -199,7 +199,7 @@ export function normalizeAdminOrderStatusForm(
   if (Object.keys(errors).length) return { ok: false, errors };
 
   // 배송 완료 전이는 이미 등록된 운송장을 그대로 둔다. 재입력을 받으면 완료 시점에
-  // 송장이 조용히 바뀌는 경로가 생긴다 — 수정은 전용 폼에서만 감사와 함께 한다.
+  // 운송장이 조용히 바뀌는 경로가 생긴다 — 수정은 전용 폼에서만 감사와 함께 한다.
   if (status === 'done') {
     return {
       ok: true,

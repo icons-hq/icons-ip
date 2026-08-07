@@ -141,7 +141,8 @@ values
   ('admin-order-reject', 'admin-order-ip', '거절 굿즈', '테스트', 10000, 'ok', 9),
   ('admin-order-review', 'admin-order-ip', '검토 굿즈', '테스트', 20000, 'ok', 9),
   ('admin-order-shipping', 'admin-order-ip', '배송 굿즈', '테스트', 10000, 'ok', 9),
-  ('admin-order-pending-paid', 'admin-order-ip', '결제행 보유 pending 굿즈', '테스트', 10000, 'ok', 9);
+  ('admin-order-pending-paid', 'admin-order-ip', '결제행 보유 pending 굿즈', '테스트', 10000, 'ok', 9),
+  ('admin-order-post-shipping', 'admin-order-ip', '반품 굿즈', '테스트', 10000, 'ok', 9);
 
 insert into public.orders (id, user_id, status, total, address, expires_at)
 values
@@ -149,7 +150,8 @@ values
   ('40000000-0000-4000-8000-000000000802', '00000000-0000-4000-8000-000000000803', 'paid', 10000, '{}'::jsonb, null),
   ('40000000-0000-4000-8000-000000000803', '00000000-0000-4000-8000-000000000803', 'paid', 20000, '{}'::jsonb, null),
   ('40000000-0000-4000-8000-000000000804', '00000000-0000-4000-8000-000000000803', 'paid', 10000, '{}'::jsonb, null),
-  ('40000000-0000-4000-8000-000000000805', '00000000-0000-4000-8000-000000000803', 'pending', 10000, '{}'::jsonb, now() + interval '15 minutes');
+  ('40000000-0000-4000-8000-000000000805', '00000000-0000-4000-8000-000000000803', 'pending', 10000, '{}'::jsonb, now() + interval '15 minutes'),
+  ('40000000-0000-4000-8000-000000000806', '00000000-0000-4000-8000-000000000803', 'paid', 10000, '{}'::jsonb, null);
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
@@ -160,7 +162,8 @@ values
   ('40000000-0000-4000-8000-000000000802', 'admin-order-reject', 1, 10000, '거절 굿즈', '테스트', 'admin-order-ip'),
   ('40000000-0000-4000-8000-000000000803', 'admin-order-review', 1, 20000, '검토 굿즈', '테스트', 'admin-order-ip'),
   ('40000000-0000-4000-8000-000000000804', 'admin-order-shipping', 1, 10000, '배송 굿즈', '테스트', 'admin-order-ip'),
-  ('40000000-0000-4000-8000-000000000805', 'admin-order-pending-paid', 1, 10000, '결제행 보유 pending 굿즈', '테스트', 'admin-order-ip');
+  ('40000000-0000-4000-8000-000000000805', 'admin-order-pending-paid', 1, 10000, '결제행 보유 pending 굿즈', '테스트', 'admin-order-ip'),
+  ('40000000-0000-4000-8000-000000000806', 'admin-order-post-shipping', 1, 10000, '반품 굿즈', '테스트', 'admin-order-ip');
 
 insert into public.payments (
   id, user_id, purpose, ref_id, amount, status,
@@ -171,7 +174,8 @@ values
   ('50000000-0000-4000-8000-000000000803', '00000000-0000-4000-8000-000000000803', 'order', '40000000-0000-4000-8000-000000000803', 10000, 'paid', 'admin-review-key-one', 'admin-review-key-one', '{}'),
   ('50000000-0000-4000-8000-000000000813', '00000000-0000-4000-8000-000000000803', 'order', '40000000-0000-4000-8000-000000000803', 10000, 'paid', 'admin-review-key-two', 'admin-review-key-two', '{}'),
   ('50000000-0000-4000-8000-000000000823', '00000000-0000-4000-8000-000000000803', 'order', '40000000-0000-4000-8000-000000000803', 10000, 'failed', 'admin-review-old-failed-key', 'admin-review-old-failed-key', '{}'),
-  ('50000000-0000-4000-8000-000000000805', '00000000-0000-4000-8000-000000000803', 'order', '40000000-0000-4000-8000-000000000805', 10000, 'pending', 'admin-pending-key', 'admin-pending-key', '{}');
+  ('50000000-0000-4000-8000-000000000805', '00000000-0000-4000-8000-000000000803', 'order', '40000000-0000-4000-8000-000000000805', 10000, 'pending', 'admin-pending-key', 'admin-pending-key', '{}'),
+  ('50000000-0000-4000-8000-000000000806', '00000000-0000-4000-8000-000000000803', 'order', '40000000-0000-4000-8000-000000000806', 10000, 'paid', 'admin-post-shipping-key', 'admin-post-shipping-key', '{}');
 
 do $$
 begin
@@ -672,6 +676,27 @@ begin
 end;
 $$;
 
+-- 택배사 허용 목록도 DB가 강제한다. 형식만 맞는 미등록 코드는 배송조회를 만들 수
+-- 없어 주문 상세에서 배송 정보가 통째로 사라지므로 저장 자체를 막는다.
+do $$
+begin
+  begin
+    perform public.admin_update_order_status(
+      '40000000-0000-4000-8000-000000000804', 'shipping', 'cj', '999988887777'
+    );
+  exception when check_violation then
+    return;
+  end;
+  raise exception 'unregistered carrier code should be rejected';
+end;
+$$;
+
+select 1 / case when (
+  (select status from public.orders where id = '40000000-0000-4000-8000-000000000804') = 'paid'
+  and (select shipping_carrier is null and tracking_number is null
+       from public.orders where id = '40000000-0000-4000-8000-000000000804')
+) then 1 else 0 end as assert_unregistered_carrier_does_not_start_shipping;
+
 select public.admin_update_order_status(
   '40000000-0000-4000-8000-000000000804', 'shipping', 'hanjin', '444455556666'
 );
@@ -723,6 +748,96 @@ select 1 / case when (
       and diff->>'fromTrackingNumber' = '444455556666'
       and diff->>'toTrackingNumber' = '777788889999') = 1
 ) then 1 else 0 end as assert_waybill_correction_is_idempotent_and_audited;
+
+-- 정정 경로도 같은 허용 목록을 거친다. 등록된 운송장을 미등록 코드로 덮어써
+-- 배송조회를 잃는 경로를 남기지 않는다.
+do $$
+begin
+  begin
+    perform public.admin_update_order_tracking(
+      '40000000-0000-4000-8000-000000000804', 'zz', '111100002222'
+    );
+  exception when check_violation then
+    return;
+  end;
+  raise exception 'unregistered carrier code should not overwrite a waybill';
+end;
+$$;
+
+select 1 / case when (
+  (select shipping_carrier = 'hanjin' and tracking_number = '777788889999'
+   from public.orders where id = '40000000-0000-4000-8000-000000000804')
+) then 1 else 0 end as assert_unregistered_carrier_cannot_overwrite_the_waybill;
+
+-- ---------------------------------------------------------------------------
+-- 배송 후 청약철회(#176)는 staff 승인 경로에서만 열린다.
+-- ---------------------------------------------------------------------------
+select public.admin_update_order_status(
+  '40000000-0000-4000-8000-000000000806', 'shipping', 'hanjin', '222233334444'
+);
+
+reset role;
+set local role service_role;
+
+-- 승인 전에는 결제 증거가 있어도 배송된 주문을 호환 RPC로 취소할 수 없다.
+do $$
+begin
+  begin
+    perform public.cancel_order_with_provider_evidence(
+      '40000000-0000-4000-8000-000000000806',
+      '운영 수기 정합화',
+      array['admin-post-shipping-key']
+    );
+  exception when raise_exception then
+    if sqlerrm = 'order not cancelable' then return; end if;
+    raise;
+  end;
+  raise exception 'post-shipping cancellation without a staff claim should be rejected';
+end;
+$$;
+
+select public.request_order_cancellation(
+  '40000000-0000-4000-8000-000000000806',
+  '00000000-0000-4000-8000-000000000803',
+  '수령 후 반품 요청'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000802', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+select public.admin_decide_order_cancellation(
+  (select id from public.order_cancellation_requests where order_id = '40000000-0000-4000-8000-000000000806'),
+  'approve',
+  null
+);
+
+reset role;
+set local role service_role;
+
+select public.complete_order_cancellation_request(
+  (select id from public.order_cancellation_requests where order_id = '40000000-0000-4000-8000-000000000806'),
+  array['admin-post-shipping-key'],
+  '00000000-0000-4000-8000-000000000802'
+);
+
+reset role;
+
+select 1 / case when (
+  (select status from public.orders where id = '40000000-0000-4000-8000-000000000806') = 'canceled'
+  and (select stock_qty from public.goods where id = 'admin-order-post-shipping') = 10
+  and (select status from public.order_cancellation_requests where order_id = '40000000-0000-4000-8000-000000000806') = 'completed'
+  and (select status from public.payments where id = '50000000-0000-4000-8000-000000000806') = 'refunded'
+  and not exists (
+    select 1 from public.order_cancellation_claims
+    where order_id = '40000000-0000-4000-8000-000000000806'
+  )
+) then 1 else 0 end as assert_approved_post_shipping_withdrawal_still_completes;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000802', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
 
 -- Search stays DB-side and staff-gated.
 select 1 / case when (
