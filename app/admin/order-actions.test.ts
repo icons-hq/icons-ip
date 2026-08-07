@@ -93,11 +93,37 @@ describe('admin order actions', () => {
 
   it('배송 시작 전이에서만 배송 시작 메일 훅을 부른다', async () => {
     await updateAdminOrderStatusAction({}, statusForm('shipping'));
-    expect(mocks.sendShippedEmail).toHaveBeenCalledWith({ orderId: ORDER_ID });
+    expect(mocks.sendShippedEmail).toHaveBeenCalledTimes(1);
 
     mocks.sendShippedEmail.mockClear();
     await updateAdminOrderStatusAction({}, statusForm('done'));
     expect(mocks.sendShippedEmail).not.toHaveBeenCalled();
+  });
+
+  // 운송장을 넘기지 않으면 구매자는 "운송장 정보가 등록되면…"만 담긴 메일을 받고,
+  // dedupe 행이 sent로 닫혀 다시 보낼 수도 없다.
+  it('배송 시작 메일에 방금 등록한 운송장을 실어 보낸다', async () => {
+    await updateAdminOrderStatusAction({}, statusForm('shipping'));
+
+    expect(mocks.sendShippedEmail).toHaveBeenCalledWith({
+      orderId: ORDER_ID,
+      carrierName: '한진택배',
+      trackingNumber: '123456789012',
+      trackingUrl: expect.stringContaining('123456789012'),
+    });
+  });
+
+  it('배송 시작 메일 실패를 삼키지 않고 로그로 남긴다', async () => {
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.sendShippedEmail.mockResolvedValue({ status: 'failed', error: 'resend 429' });
+
+    await expect(updateAdminOrderStatusAction({}, statusForm('shipping'))).resolves.toEqual({
+      message: '배송을 시작했습니다.',
+    });
+
+    expect(errorLog).toHaveBeenCalledWith(expect.stringContaining(ORDER_ID));
+    expect(errorLog).toHaveBeenCalledWith(expect.stringContaining('resend 429'));
+    errorLog.mockRestore();
   });
 
   it('상태 전이가 실패하면 배송 시작 메일을 보내지 않는다', async () => {

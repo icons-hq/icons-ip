@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { normalizeCheckoutAddress } from '../checkout';
+import { orderShipment, type OrderShipment } from '../orders/shipment';
 import { createServiceClient, getServiceRoleConfig } from '../supabase/service';
 import { getEmailProviderConfig, sendTransactionalEmail } from './provider.server';
 import {
@@ -37,6 +38,8 @@ interface OrderRow {
   total: number;
   created_at: string;
   address: unknown;
+  shipping_carrier: string | null;
+  tracking_number: string | null;
 }
 
 interface OrderItemRow {
@@ -54,6 +57,7 @@ interface OrderEmailContext {
   shippingFee: number;
   total: number;
   address: ReturnType<typeof normalizeCheckoutAddress>;
+  shipment: OrderShipment | null;
   orderUrl: string;
 }
 
@@ -70,7 +74,7 @@ async function loadOrderEmailContext(
 ): Promise<OrderEmailContext | { skipped: string }> {
   const { data: orderData, error: orderError } = await service
     .from('orders')
-    .select('id,user_id,total,created_at,address')
+    .select('id,user_id,total,created_at,address,shipping_carrier,tracking_number')
     .eq('id', orderId)
     .maybeSingle();
   if (orderError) throw new Error(`Failed to load order for email: ${orderError.message}`);
@@ -112,6 +116,7 @@ async function loadOrderEmailContext(
     shippingFee: Math.max(0, order.total - itemsSubtotal),
     total: order.total,
     address: normalizeCheckoutAddress(order.address),
+    shipment: orderShipment(order.shipping_carrier, order.tracking_number),
     orderUrl: `${siteUrl()}/orders/${order.id}`,
   };
 }
@@ -199,8 +204,12 @@ export function sendOrderConfirmationEmail(orderId: string): Promise<Transaction
 }
 
 /**
- * 배송 시작 메일. 운송장 값은 인자로 받는다 — 운송장 컬럼은 #178의 범위이고,
- * 이 훅은 컬럼이 생기기 전에도 배송 시작 자체를 알릴 수 있어야 한다.
+ * 배송 시작 메일.
+ *
+ * 운송장 값은 인자로 받되, 생략하면 주문 행(orders.shipping_carrier·tracking_number)에서
+ * 읽는다. 인자에만 의존하면 그 값을 넘기지 않는 호출자 하나가 "운송장 정보가 등록되면…"
+ * 만 담긴 메일을 보내고, dedupe 행이 sent로 닫혀 영원히 다시 못 보낸다. 재발송 경로처럼
+ * 폼 입력이 없는 호출자도 완전한 메일을 만들 수 있어야 한다.
  */
 export function sendOrderShippedEmail(input: {
   orderId: string;
@@ -224,9 +233,9 @@ export function sendOrderShippedEmail(input: {
         orderId: context.orderId,
         items: context.items,
         address: context.address,
-        carrierName: input.carrierName,
-        trackingNumber: input.trackingNumber,
-        trackingUrl: input.trackingUrl,
+        carrierName: input.carrierName ?? context.shipment?.carrierLabel ?? null,
+        trackingNumber: input.trackingNumber ?? context.shipment?.trackingNumber ?? null,
+        trackingUrl: input.trackingUrl ?? context.shipment?.trackingUrl ?? null,
         orderUrl: context.orderUrl,
       }),
     });

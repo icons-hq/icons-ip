@@ -11,6 +11,7 @@ import {
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { sendOrderShippedEmail } from '@/lib/email/transactional.server';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
+import { orderShipment } from '@/lib/orders/shipment';
 import { createClient } from '@/lib/supabase/server';
 
 export interface AdminOrderActionState {
@@ -68,10 +69,21 @@ export async function updateAdminOrderStatusAction(
     return { errors: { form: '주문 상태를 변경하지 못했습니다. 최신 상태를 확인해주세요.' } };
   }
 
-  // 배송 시작 메일(#180). 운송장 값은 아직 인자로 열려 있고 #178이 채운다.
-  // 발송 결과는 상태 전이에 영향을 주지 않는다 — 메일 실패로 배송 처리를 되돌리지 않는다.
+  // 배송 시작 메일(#180). 방금 등록한 운송장을 그대로 실어 보낸다 — 값을 넘기지 않으면
+  // 구매자는 "운송장 정보가 등록되면…"만 담긴 메일을 받고, dedupe 행이 sent로 닫혀
+  // 다시 보낼 수도 없다. 발송 결과는 상태 전이에 영향을 주지 않는다.
   if (normalized.value.status === 'shipping') {
-    await sendOrderShippedEmail({ orderId: normalized.value.orderId });
+    const shipment = orderShipment(normalized.value.carrier, normalized.value.trackingNumber);
+    const delivery = await sendOrderShippedEmail({
+      orderId: normalized.value.orderId,
+      carrierName: shipment?.carrierLabel ?? null,
+      trackingNumber: shipment?.trackingNumber ?? null,
+      trackingUrl: shipment?.trackingUrl ?? null,
+    });
+    // 결과를 버리면 실패가 로그에도 남지 않는다. 재발송 대상은 발송 이력 화면에서 본다.
+    if (delivery.status === 'failed') {
+      console.error(`[admin] shipped email failed (order:${normalized.value.orderId}): ${delivery.error}`);
+    }
   }
 
   revalidateOrderSurfaces(normalized.value.orderId);
