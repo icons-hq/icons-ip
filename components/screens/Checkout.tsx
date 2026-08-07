@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { placeOrderAction } from '@/app/checkout/actions';
+import { PostcodeField } from '@/components/checkout/PostcodeField';
 import { useCart } from '@/components/shell/CartProvider';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import {
@@ -13,6 +14,7 @@ import {
   type CheckoutAddressField,
 } from '@/lib/checkout';
 import { krw } from '@/lib/format';
+import type { ComposedPostcodeAddress } from '@/lib/postcode';
 import { shippingFeeFor, shippingFeeLabel } from '@/lib/shipping';
 
 const actionErrors = {
@@ -81,6 +83,22 @@ export function Checkout({ catalog, latestAddress, paymentAvailable, resumeOrder
       const next = { ...current };
       delete next[field];
       return next;
+    });
+  };
+
+  /* 검색 결과는 우편번호와 기본 주소만 덮어쓴다. 상세 주소는 사용자 몫이라
+     이미 적어둔 값을 지우지 않는다. */
+  const applySearchedAddress = ({ postalCode, address1 }: ComposedPostcodeAddress) => {
+    setAddress((current) => ({ ...current, postalCode, address1 }));
+    setFieldErrors((current) => {
+      if (!current.postalCode && !current.address1) return current;
+      const next = { ...current };
+      delete next.postalCode;
+      delete next.address1;
+      return next;
+    });
+    window.requestAnimationFrame(() => {
+      document.getElementById('checkout-address2')?.focus();
     });
   };
 
@@ -193,11 +211,12 @@ export function Checkout({ catalog, latestAddress, paymentAvailable, resumeOrder
               <input id="checkout-phone" required autoComplete="tel" inputMode="tel" maxLength={20} aria-invalid={Boolean(fieldErrors.phone)} aria-describedby={fieldErrors.phone ? 'checkout-phone-error' : undefined} placeholder="010-1234-5678" value={address.phone} onChange={(event) => setField('phone', event.target.value)} />
               {fieldErrors.phone && <small id="checkout-phone-error" className="checkout-field-error">{fieldErrors.phone}</small>}
             </label>
-            <label className="checkout-field--postal">
-              <span>우편번호</span>
-              <input id="checkout-postalCode" required autoComplete="postal-code" inputMode="numeric" maxLength={5} aria-invalid={Boolean(fieldErrors.postalCode)} aria-describedby={fieldErrors.postalCode ? 'checkout-postalCode-error' : undefined} placeholder="00000" value={address.postalCode} onChange={(event) => setField('postalCode', event.target.value)} />
-              {fieldErrors.postalCode && <small id="checkout-postalCode-error" className="checkout-field-error">{fieldErrors.postalCode}</small>}
-            </label>
+            <PostcodeField
+              error={fieldErrors.postalCode}
+              onChange={(postalCode) => setField('postalCode', postalCode)}
+              onSelect={applySearchedAddress}
+              value={address.postalCode}
+            />
             <label className="checkout-field--wide">
               <span>기본 주소</span>
               <input id="checkout-address1" required autoComplete="address-line1" maxLength={200} aria-invalid={Boolean(fieldErrors.address1)} aria-describedby={fieldErrors.address1 ? 'checkout-address1-error' : undefined} value={address.address1} onChange={(event) => setField('address1', event.target.value)} />
@@ -205,7 +224,7 @@ export function Checkout({ catalog, latestAddress, paymentAvailable, resumeOrder
             </label>
             <label className="checkout-field--wide">
               <span>상세 주소 <em>선택</em></span>
-              <input id="checkout-address2" autoComplete="address-line2" maxLength={200} aria-invalid={Boolean(fieldErrors.address2)} aria-describedby={fieldErrors.address2 ? 'checkout-address2-error' : undefined} value={address.address2 ?? ''} onChange={(event) => setField('address2', event.target.value)} />
+              <input id="checkout-address2" autoComplete="address-line2" maxLength={200} aria-invalid={Boolean(fieldErrors.address2)} aria-describedby={fieldErrors.address2 ? 'checkout-address2-error' : undefined} placeholder="예: 101동 1203호" value={address.address2 ?? ''} onChange={(event) => setField('address2', event.target.value)} />
               {fieldErrors.address2 && <small id="checkout-address2-error" className="checkout-field-error">{fieldErrors.address2}</small>}
             </label>
             <label className="checkout-field--wide">

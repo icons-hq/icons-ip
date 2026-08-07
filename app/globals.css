@@ -633,6 +633,22 @@
   .checkout-field-error { color: var(--pink); font-size: 11px; line-height: var(--editorial-leading-utility); }
   .checkout-field--postal { max-width: 180px; }
   .checkout-field--wide { grid-column: 1 / -1; }
+  .postcode-field { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .postcode-field-label { color: var(--dim); font-size: 12px; font-weight: 700; }
+  .postcode-field-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .postcode-field-row input { max-width: 180px; }
+  .postcode-field-open { height: 50px; padding: 0 20px; font-size: 13.5px; }
+  .postcode-field-hint { color: var(--faint); font-size: 11px; line-height: var(--editorial-leading-utility); }
+  .postcode-layer {
+    position: relative; overflow: hidden; margin-top: 4px;
+    border: 1px solid var(--line-2); border-radius: 13px; background: rgba(8,6,15,.55);
+  }
+  .postcode-layer-frame { width: 100%; height: 420px; }
+  .postcode-layer-state {
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    margin: 0; padding: 20px; background: rgba(8,6,15,.92); color: var(--dim);
+    font-size: 12.5px; line-height: var(--editorial-leading-utility); text-align: center;
+  }
   .checkout-items { display: flex; flex-direction: column; gap: 0; margin-top: 20px; }
   .checkout-item {
     display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
@@ -2022,6 +2038,9 @@
   .checkout-fields { grid-template-columns: 1fr; gap: 14px; }
   .checkout-field--postal { max-width: none; }
   .checkout-field--wide { grid-column: auto; }
+  .postcode-field-row input { max-width: 140px; }
+  .postcode-field-open { flex: 1 1 auto; padding: 0 14px; }
+  .postcode-layer-frame { height: 380px; }
   .checkout-item { align-items: flex-start; flex-direction: column; gap: 7px; }
   .checkout-item > span { align-self: flex-end; }
   .checkout-result { min-height: 390px; padding: 32px 20px; }
