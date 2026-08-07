@@ -42,6 +42,10 @@ const PATHS: Record<string, string> = {
   tickets: '/tickets',
   my: '/my',
   notifications: '/notifications',
+  /* 법정 고지 — 슬러그 표기와 헬퍼는 lib/legal/links.ts가 감싼다. */
+  terms: '/legal/terms',
+  privacy: '/legal/privacy',
+  shipping: '/legal/shipping',
 };
 
 export function hrefFor(route: string, param?: string | null): string {

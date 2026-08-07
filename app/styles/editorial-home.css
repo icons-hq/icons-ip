@@ -2609,8 +2609,9 @@ html:has(.icons-preview)::-webkit-scrollbar {
 
 .icons-preview .footer-links {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  width: 62%;
+  /* EXPLORE · COMMUNITY · SOCIAL · LEGAL */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 74%;
   margin: 70px 0 90px auto;
   gap: 30px;
 }

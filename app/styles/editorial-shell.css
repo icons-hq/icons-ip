@@ -304,7 +304,8 @@
 
 .site-footer-editorial__grid {
   display: grid;
-  grid-template-columns: 1.4fr repeat(2, 1fr);
+  /* 카피 + 발견 · 내 활동 · 법정 고지 3개 링크 열 */
+  grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr));
   gap: 44px;
   margin-top: clamp(64px, 8vw, 120px);
   padding-top: 24px;
@@ -324,8 +325,7 @@
   align-content: start;
 }
 
-.site-footer-editorial__links a,
-.site-footer-editorial__links span {
+.site-footer-editorial__links a {
   width: fit-content;
   color: #d7d7d1;
   font-size: 13px;
@@ -452,7 +452,7 @@
   }
 
   .site-footer-editorial__grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .site-footer-editorial__copy {

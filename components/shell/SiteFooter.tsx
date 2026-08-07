@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { LEGAL_DOCUMENT_LABELS, LEGAL_DOCUMENT_SLUGS, legalDocumentHref } from '@/lib/legal/links';
 import { hrefFor, isAuthShellPath } from '@/lib/routes';
 
 const DISCOVER_LINKS: [label: string, route: string][] = [
@@ -47,8 +48,11 @@ export function SiteFooter() {
             {ACCOUNT_LINKS.map(([label, route]) => (
               <Link key={route} href={hrefFor(route)}>{label}</Link>
             ))}
-            <span>이용약관</span>
-            <span>개인정보처리방침</span>
+          </nav>
+          <nav aria-label="법정 고지" className="site-footer-editorial__links">
+            {LEGAL_DOCUMENT_SLUGS.map((slug) => (
+              <Link key={slug} href={legalDocumentHref(slug)}>{LEGAL_DOCUMENT_LABELS[slug]}</Link>
+            ))}
           </nav>
         </div>
 

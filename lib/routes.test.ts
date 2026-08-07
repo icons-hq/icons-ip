@@ -25,6 +25,18 @@ describe('account routes', () => {
   });
 });
 
+describe('legal routes', () => {
+  it('maps the three public legal notices', () => {
+    expect(hrefFor('terms')).toBe('/legal/terms');
+    expect(hrefFor('privacy')).toBe('/legal/privacy');
+    expect(hrefFor('shipping')).toBe('/legal/shipping');
+  });
+
+  it('keeps legal notices outside the auth-only shell so guests can read them', () => {
+    expect(isAuthShellPath('/legal/terms')).toBe(false);
+  });
+});
+
 describe('isAuthShellPath', () => {
   it.each(['/login', '/update-password', '/account-suspended'])('treats %s as an auth-only shell', (pathname) => {
     expect(isAuthShellPath(pathname)).toBe(true);

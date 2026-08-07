@@ -18,6 +18,7 @@ import {
   type HomeCurationSnapshot,
   type HomePostPreviewByIpId,
 } from '@/lib/home-catalog';
+import { LEGAL_DOCUMENT_LABELS, LEGAL_DOCUMENT_SLUGS, legalDocumentHref } from '@/lib/legal/links';
 import { RARITY_META } from '@/lib/rarity';
 import { hrefFor } from '@/lib/routes';
 import { useHeaderScrollHide } from '@/components/shell/useHeaderScrollHide';
@@ -856,6 +857,12 @@ function PreviewFooter() {
         <div><small>EXPLORE</small><Link href="/ip">IP</Link><Link href="/shop">굿즈</Link><Link href="/events">팝업</Link></div>
         <div><small>COMMUNITY</small><Link href="/community">커뮤니티</Link><Link href="/packs">카드</Link><Link href="/login">팬덤 가입</Link></div>
         <div><small>SOCIAL</small><a href="#top">Instagram ↗</a><a href="#top">YouTube ↗</a><a href="#top">X ↗</a></div>
+        <div>
+          <small>LEGAL</small>
+          {LEGAL_DOCUMENT_SLUGS.map((slug) => (
+            <Link key={slug} href={legalDocumentHref(slug)}>{LEGAL_DOCUMENT_LABELS[slug]}</Link>
+          ))}
+        </div>
       </div>
       <div className="footer-bottom">
         <span>© 2026 ICONS. ALL RIGHTS RESERVED.</span><span>SEOUL, KOREA · 37.5665° N</span><a href="#top">BACK TO TOP ↑</a>
