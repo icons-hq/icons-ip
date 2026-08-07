@@ -97,6 +97,15 @@ describe('Onboarding form contracts', () => {
   it('선택 동의 항목에는 문서 링크를 붙이지 않는다', () => {
     const html = render();
 
-    expect(html.match(/전문 보기/g)).toHaveLength(2);
+    expect(html.match(/<a[^>]*>전문 보기<\/a>/g)).toHaveLength(2);
+  });
+
+  /* 링크 목록만 훑는 스크린리더에 "전문 보기"가 두 번 남으면 어느 문서인지 알 수 없다(WCAG 2.4.4). */
+  it('서로 다른 문서로 가는 링크는 접근 이름이 서로 다르다', () => {
+    const html = render();
+    const names = [...html.matchAll(/aria-label="([^"]*전문 보기)"/g)].map(([, name]) => name);
+
+    expect(names).toEqual(['이용약관 전문 보기', '개인정보처리방침 전문 보기']);
+    expect(new Set(names).size).toBe(names.length);
   });
 });

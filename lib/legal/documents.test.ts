@@ -1,14 +1,22 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { businessContactWords } from './business-info';
 import {
   LEGAL_DOCUMENTS,
   LEGAL_DOCUMENT_SLUGS,
+  LEGAL_EFFECTIVE_DATES,
   getLegalDocument,
   legalDocumentHref,
   PENDING_PROCESSOR_LABEL,
   type LegalDocument,
 } from './documents';
+import { SOCIAL_LOGIN_PROVIDERS, overseasSocialLogins } from './social-login';
 
 const documents = LEGAL_DOCUMENT_SLUGS.map((slug) => LEGAL_DOCUMENTS[slug]);
+
+function source() {
+  return readFileSync(new URL('./documents.ts', import.meta.url), 'utf8');
+}
 
 /** 문서 본문 전체를 한 문자열로 펼친다 — 용어 검사는 표·목록까지 포함해야 의미가 있다. */
 function plainText(document: LegalDocument): string {
@@ -70,12 +78,60 @@ describe('법정 문서 레지스트리', () => {
     expect(legalDocumentHref('shipping')).toBe('/legal/shipping');
   });
 
+  /* /legal/* 은 로그인 없이 열리는 공개 화면이라 사용자-facing 금지 어휘가 그대로 적용된다.
+     CONTEXT.md "Flagged ambiguities" — 가챠·뽑기·충전·확률·천장은 폐기된 유료 모델의 어휘다. */
   it('CONTEXT.md가 금지한 어휘를 본문에 쓰지 않는다', () => {
     for (const document of documents) {
       const text = plainText(document);
-      expect(text, document.slug).not.toMatch(/상품/);
-      expect(text, document.slug).not.toMatch(/가챠/);
-      expect(text, document.slug).not.toMatch(/충전금/);
+      for (const word of ['상품', '가챠', '뽑기', '확률', '충전', '천장']) {
+        expect(text, `${document.slug} · ${word}`).not.toMatch(new RegExp(word));
+      }
+    }
+  });
+
+  it('시행일은 문서마다 따로 관리한다 — 하나만 개정해도 나머지가 따라 바뀌지 않는다', () => {
+    expect(Object.keys(LEGAL_EFFECTIVE_DATES).sort()).toEqual([...LEGAL_DOCUMENT_SLUGS].sort());
+
+    for (const slug of LEGAL_DOCUMENT_SLUGS) {
+      expect(LEGAL_DOCUMENTS[slug].effectiveDate, slug).toBe(LEGAL_EFFECTIVE_DATES[slug]);
+      /* 각 문서가 자기 슬러그의 시행일만 참조해야 개별 개정이 가능하다. */
+      expect(source().match(new RegExp(`LEGAL_EFFECTIVE_DATES\\.${slug}`, 'g')), slug).toHaveLength(1);
+    }
+
+    expect(source(), '문서 셋이 시행일 상수 하나를 공유하면 개정 이력을 만들 수 없다').not.toMatch(/const EFFECTIVE_DATE\b/);
+  });
+
+  it('문의처 문장은 사업자 정보에서 파생된다 — 연락처가 비어 있으면 없는 창구를 가리키지 않는다 (#87)', () => {
+    const contact = businessContactWords();
+    const privacyText = plainText(LEGAL_DOCUMENTS.privacy);
+    const shippingText = plainText(LEGAL_DOCUMENTS.shipping);
+    const termsText = plainText(LEGAL_DOCUMENTS.terms);
+
+    for (const text of [privacyText, shippingText, termsText]) {
+      if (contact) {
+        expect(text).toContain(contact);
+      } else {
+        expect(text).toContain('공개된 연락처가 없습니다');
+        expect(text).not.toMatch(/사업자 정보에 표기된 (대표자와 )?연락처/);
+      }
+    }
+
+    /* 연락처가 없는 동안에도 이용자가 실제로 쓸 수 있는 경로가 남아 있어야 한다. */
+    expect(shippingText).toMatch(/주문 상세/);
+    expect(privacyText).toMatch(/개인정보침해 신고센터/);
+  });
+
+  it('로그인 화면이 실제로 제공하는 소셜 로그인 제공자를 빠짐없이 기재한다 (#169)', () => {
+    const text = [plainText(LEGAL_DOCUMENTS.privacy), plainText(LEGAL_DOCUMENTS.terms)].join('\n');
+
+    for (const provider of Object.values(SOCIAL_LOGIN_PROVIDERS)) {
+      expect(text, provider.label).toContain(provider.label);
+    }
+
+    const transfer = LEGAL_DOCUMENTS.privacy.articles.find((article) => article.heading.includes('국외'));
+    const receivers = transfer!.table!.rows.map((row) => row[0]);
+    for (const provider of overseasSocialLogins()) {
+      expect(receivers, provider.label).toContain(provider.entity);
     }
   });
 });
@@ -88,6 +144,14 @@ describe('이용약관', () => {
     expect(text).toMatch(/카드팩/);
     expect(text).toMatch(/무상/);
     expect(text).toMatch(/유상으로 판매하지 않습니다/);
+  });
+
+  /* 사용자-facing 공시 화면이 없다. 이행할 수 없는 공개 의무를 약관에 지지 않는다(ADR-0003·0004). */
+  it('개봉 결과는 서버가 정한다고만 밝히고 공시 의무를 만들지 않는다', () => {
+    const cardArticle = terms.articles.find((article) => article.heading.includes('카드팩'));
+
+    expect(cardArticle?.paragraphs?.join('\n')).toMatch(/서버가 무작위로 결정/);
+    expect(cardArticle?.paragraphs?.join('\n')).not.toMatch(/공개합니다/);
   });
 
   it('교환·마켓이 아직 제공되지 않는다는 사실을 밝힌다', () => {

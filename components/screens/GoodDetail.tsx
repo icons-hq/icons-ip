@@ -7,6 +7,7 @@ import type { GoodDetailContent } from '@/lib/goods-detail';
 import { STOCK_LABEL } from '@/lib/goods-display';
 import { goodsNoticeRows } from '@/lib/goods-notice';
 import { ipAccent, ipAccentInk } from '@/lib/ip-display';
+import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
 import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '@/lib/shipping';
 import { AddToCartButton } from '@/components/shop/AddToCartButton';
 
@@ -89,6 +90,14 @@ function ReturnGuide() {
         <li>굿즈가 파손·오배송된 경우에는 반송비를 ICONS가 부담합니다.</li>
         <li>사용·훼손해 재판매가 어려워진 굿즈는 청약철회가 제한될 수 있습니다.</li>
       </ul>
+      {/* 요약만 두면 반송비 부담·반품 절차·환급 기한을 확인할 곳이 없다. 전문은 정책 문서가 진실원이다. */}
+      <Link
+        className="mono"
+        href={legalDocumentHref('shipping')}
+        style={{ alignSelf: 'flex-start', color: 'var(--dim)', fontSize: 12, letterSpacing: '.06em', textDecoration: 'underline' }}
+      >
+        {LEGAL_DOCUMENT_LABELS.shipping} 전문 보기
+      </Link>
     </section>
   );
 }

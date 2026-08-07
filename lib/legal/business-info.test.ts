@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   BUSINESS_INFO,
   BUSINESS_INFO_LABELS,
+  businessContactRows,
+  businessContactWords,
   businessInfoRows,
   type BusinessInfo,
 } from './business-info';
@@ -72,5 +74,21 @@ describe('businessInfoRows', () => {
 
   it('기본값은 현재 확정된 사업자 정보를 그대로 쓴다', () => {
     expect(businessInfoRows()).toEqual(businessInfoRows(BUSINESS_INFO));
+  });
+});
+
+describe('문의 창구 파생', () => {
+  it('이용자가 실제로 닿을 수 있는 항목만 창구로 본다 — 호스팅 제공자는 창구가 아니다', () => {
+    expect(businessContactRows(filled).map((row) => row.key)).toEqual(['representative', 'phone', 'email']);
+    expect(businessContactWords(filled)).toBe('대표자 박상우 · 전화 02-0000-0000 · 이메일 help@icons.gg');
+  });
+
+  it('연락처가 하나도 없으면 빈 문자열이다 — 법정 문서가 없는 창구를 가리키지 않게 하는 신호다 (#87)', () => {
+    expect(businessContactRows({ ...blank, hostingProvider: 'Vercel, Inc.' })).toEqual([]);
+    expect(businessContactWords({ ...blank, hostingProvider: 'Vercel, Inc.' })).toBe('');
+  });
+
+  it('일부만 채워져도 채워진 항목만 창구로 드러난다', () => {
+    expect(businessContactWords({ ...blank, email: 'help@icons.gg' })).toBe('이메일 help@icons.gg');
   });
 });

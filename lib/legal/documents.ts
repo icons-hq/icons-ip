@@ -1,10 +1,12 @@
 import { krwAmountWords } from '@/lib/format';
+import { businessContactWords } from './business-info';
 import {
   LEGAL_DOCUMENT_LABELS,
   LEGAL_DOCUMENT_SLUGS,
   legalDocumentHref,
   type LegalDocumentSlug,
 } from './links';
+import { overseasSocialLogins, socialLoginWords } from './social-login';
 
 export { LEGAL_DOCUMENT_SLUGS, legalDocumentHref };
 export type { LegalDocumentSlug };
@@ -26,7 +28,21 @@ const FREE_SHIPPING_THRESHOLD_KRW = 50000;
 /** 법인명이 확정되지 않은 수탁자 표기. 지어내지 않고 확인 중으로 남긴다(#177 H7). */
 export const PENDING_PROCESSOR_LABEL = '확인 중';
 
-const EFFECTIVE_DATE = '2026-08-07';
+/* 문서별 시행일. 한 문서만 개정할 때 나머지 시행일이 따라 바뀌면
+ * 약관 제3조 3항과 방침 제13조가 요구하는 개정 이력을 만들 수 없다. */
+export const LEGAL_EFFECTIVE_DATES: Record<LegalDocumentSlug, string> = {
+  terms: '2026-08-07',
+  privacy: '2026-08-07',
+  shipping: '2026-08-07',
+};
+
+/* 문의처 문장은 푸터와 같은 사업자 정보에서 파생된다.
+ * 연락처가 채워지면 본문에 그 값이 그대로 드러나고, 비어 있는 동안에는
+ * 존재하지 않는 창구를 가리키는 대신 그 사실과 실제로 열려 있는 경로를 안내한다(#87). */
+const CONTACT_WORDS = businessContactWords();
+const HAS_CONTACT = CONTACT_WORDS.length > 0;
+const CONTACT_PENDING_NOTICE =
+  '문의 연락처는 사업자 등록 절차가 끝나는 대로 이 문서와 사이트 하단 사업자 정보에 함께 공개합니다. 그때까지는 공개된 연락처가 없습니다.';
 
 export interface LegalTable {
   columns: string[];
@@ -59,7 +75,7 @@ const terms: LegalDocument = {
   title: 'ICONS 이용약관',
   navLabel: LEGAL_DOCUMENT_LABELS.terms,
   summary: '굿즈 구매, 카드팩과 카드, 팝업 티켓, 커뮤니티 이용에 적용되는 회사와 이용자의 권리·의무를 정합니다.',
-  effectiveDate: EFFECTIVE_DATE,
+  effectiveDate: LEGAL_EFFECTIVE_DATES.terms,
   articles: [
     {
       heading: '제1조 (목적)',
@@ -107,7 +123,7 @@ const terms: LegalDocument = {
     {
       heading: '제6조 (회원가입)',
       paragraphs: [
-        '이용자는 회사가 정한 가입 양식에 정보를 기입하고 이 약관과 개인정보 수집·이용에 동의함으로써 회원가입을 신청합니다. 회사는 이메일 계정 외에 Google·카카오 계정 연동을 통한 가입을 제공합니다.',
+        `이용자는 회사가 정한 가입 양식에 정보를 기입하고 이 약관과 개인정보 수집·이용에 동의함으로써 회원가입을 신청합니다. 회사는 이메일 계정 외에 ${socialLoginWords()} 계정 연동을 통한 가입을 제공합니다.`,
         '회사는 다음 각 호에 해당하지 않는 한 회원가입 신청을 승낙합니다.',
       ],
       list: [
@@ -207,7 +223,7 @@ const terms: LegalDocument = {
       heading: '제17조 (카드와 카드팩)',
       paragraphs: [
         '카드는 IP에 귀속된 수집형 디지털 카드이며, 회사는 카드를 유상으로 판매하지 않습니다. 카드는 카드팩 개봉과 참여형 게임 등 무상 리워드 경로로만 발급됩니다.',
-        '카드팩은 무상 트리거로 발급되고 만료되지 않으며, 개봉 결과는 카드팩이 대상으로 하는 카드풀의 등급별 발급 확률에 따라 서버에서 결정됩니다. 회사는 각 카드풀의 등급별 발급 확률을 공개합니다.',
+        '카드팩은 무상 트리거로 발급되고 만료되지 않으며, 개봉 결과는 카드팩이 대상으로 하는 카드 집합 안에서 서버가 무작위로 결정합니다. 이용자가 대금을 지급해 개봉 결과나 개봉 횟수에 영향을 줄 수 있는 경로는 없습니다.',
         '카드와 카드팩은 무상 리워드이므로 현금으로 환급되지 않고, 이용자 간 양도·현금 거래의 대상이 되지 않습니다.',
         '카드의 이용자 간 교환과 굿즈의 이용자 간 마켓 거래는 현재 제공하지 않습니다. 회사가 해당 기능을 개시하는 경우 별도의 조건을 사전에 공지합니다.',
       ],
@@ -259,7 +275,9 @@ const terms: LegalDocument = {
     {
       heading: '제23조 (분쟁해결과 준거법)',
       paragraphs: [
-        '회사는 이용자가 제기하는 정당한 의견이나 불만을 반영하고 피해를 보상하기 위해 고객 문의 창구를 운영합니다.',
+        HAS_CONTACT
+          ? `회사는 이용자가 제기하는 정당한 의견이나 불만을 반영하고 피해를 보상하기 위해 문의 창구를 운영합니다. 창구는 이 사이트 하단 사업자 정보에도 함께 표기된 ${CONTACT_WORDS}입니다.`
+          : `회사는 이용자가 제기하는 정당한 의견이나 불만을 반영하고 피해를 보상하기 위한 문의 창구를 준비하고 있습니다. ${CONTACT_PENDING_NOTICE}`,
         '회사와 이용자 사이에 발생한 분쟁은 「전자상거래 등에서의 소비자보호에 관한 법률」에 따른 소비자분쟁조정기구의 조정에 따를 수 있습니다.',
         '이 약관과 회사·이용자 간 거래에는 대한민국 법을 적용하고, 소송은 「민사소송법」이 정한 관할법원에 제기합니다.',
       ],
@@ -272,7 +290,7 @@ const privacy: LegalDocument = {
   title: 'ICONS 개인정보처리방침',
   navLabel: LEGAL_DOCUMENT_LABELS.privacy,
   summary: 'ICONS가 실제로 수집하는 항목, 이용 목적, 보유 기간, 처리위탁과 국외 이전, 이용자의 권리 행사 방법을 안내합니다.',
-  effectiveDate: EFFECTIVE_DATE,
+  effectiveDate: LEGAL_EFFECTIVE_DATES.privacy,
   articles: [
     {
       heading: '제1조 (수집하는 개인정보 항목과 수집 방법)',
@@ -282,7 +300,7 @@ const privacy: LegalDocument = {
       table: {
         columns: ['구분', '수집 항목', '수집 시점'],
         rows: [
-          ['회원가입·로그인', '이메일 주소, 비밀번호(암호화 저장), 소셜 로그인 시 Google·카카오가 전달하는 계정 식별자와 이메일', '가입 또는 로그인 시'],
+          ['회원가입·로그인', `이메일 주소, 비밀번호(암호화 저장), 소셜 로그인 시 ${socialLoginWords()}가 전달하는 계정 식별자와 이메일`, '가입 또는 로그인 시'],
           ['온보딩', '닉네임, 생년월일, 이용약관·개인정보 수집이용 동의 여부, 마케팅 정보 수신 동의 여부, 팔로우한 IP', '온보딩 완료 시'],
           ['프로필', '프로필 이미지', '회원이 직접 등록한 경우'],
           ['굿즈 주문·배송', '수령인 이름, 연락처, 우편번호, 주소, 배송 요청사항', '주문 시'],
@@ -350,13 +368,20 @@ const privacy: LegalDocument = {
     {
       heading: '제6조 (개인정보의 국외 이전)',
       paragraphs: [
-        '회사는 인프라 운영을 위해 아래와 같이 개인정보를 국외로 이전합니다. 이용자는 국외 이전을 거부할 수 있으며, 거부하는 경우 회원가입과 서비스 이용이 제한될 수 있습니다.',
+        '회사는 인프라 운영과 소셜 로그인 인증을 위해 아래와 같이 개인정보를 국외로 이전합니다. 이용자는 국외 이전을 거부할 수 있으며, 거부하는 경우 회원가입과 서비스 이용이 제한될 수 있습니다.',
       ],
       table: {
         columns: ['이전받는 자', '이전 국가', '이전 항목·시점·방법', '이용 목적과 보유기간'],
         rows: [
           ['Supabase, Inc.', '미국', '제1조의 수집 항목 · 서비스 이용 시점 · 정보통신망을 통한 전송', '데이터베이스와 인증 인프라 운영 · 위탁계약 종료 시까지'],
           ['Vercel, Inc.', '미국', '접속 기록과 요청 정보 · 서비스 이용 시점 · 정보통신망을 통한 전송', '호스팅 인프라 운영 · 위탁계약 종료 시까지'],
+          /* 소셜 로그인 제공자는 로그인 화면이 실제로 제공하는 목록에서 파생된다 — 제공자가 늘면 이 표도 따라온다. */
+          ...overseasSocialLogins().map((provider) => [
+            provider.entity,
+            provider.country,
+            `소셜 로그인 인증 요청 정보와 계정 식별자·이메일 · 이용자가 ${provider.label} 계정으로 로그인을 선택한 시점 · 정보통신망을 통한 전송`,
+            '소셜 로그인 인증 처리 · 인증 처리에 필요한 기간까지',
+          ]),
         ],
       },
     },
@@ -394,10 +419,15 @@ const privacy: LegalDocument = {
     },
     {
       heading: '제11조 (개인정보 보호책임자와 문의처)',
-      paragraphs: [
-        '회사는 개인정보 처리에 관한 업무를 총괄하는 개인정보 보호책임자를 지정하고 있습니다. 보호책임자와 문의 창구는 이 사이트 하단 사업자 정보에 표기된 대표자와 연락처를 따릅니다.',
-        '이용자는 서비스를 이용하며 발생한 개인정보 보호 관련 문의, 불만, 피해 구제를 위 창구로 접수할 수 있으며, 회사는 지체 없이 답변합니다.',
-      ],
+      paragraphs: HAS_CONTACT
+        ? [
+          `회사는 개인정보 처리에 관한 업무를 총괄하는 개인정보 보호책임자를 지정하고 있습니다. 보호책임자와 문의 창구는 이 사이트 하단 사업자 정보에도 함께 표기된 ${CONTACT_WORDS}입니다.`,
+          '이용자는 서비스를 이용하며 발생한 개인정보 보호 관련 문의, 불만, 피해 구제를 위 창구로 접수할 수 있으며, 회사는 지체 없이 답변합니다.',
+        ]
+        : [
+          `회사는 개인정보 처리에 관한 업무를 총괄하는 개인정보 보호책임자를 지정합니다. ${CONTACT_PENDING_NOTICE}`,
+          '연락처가 공개되기 전에는 제7조의 설정 화면에서 개인정보를 직접 열람·정정할 수 있고, 제12조의 권익침해 구제 기관에 상담과 분쟁 조정을 신청할 수 있습니다.',
+        ],
     },
     {
       heading: '제12조 (권익침해 구제 방법)',
@@ -424,7 +454,7 @@ const shipping: LegalDocument = {
   title: '배송·반품 정책',
   navLabel: LEGAL_DOCUMENT_LABELS.shipping,
   summary: '굿즈 배송비와 배송 절차, 청약철회 기간과 제한 사유, 반품 절차와 반송비 부담 주체를 안내합니다.',
-  effectiveDate: EFFECTIVE_DATE,
+  effectiveDate: LEGAL_EFFECTIVE_DATES.shipping,
   articles: [
     {
       heading: '1. 배송 안내',
@@ -512,9 +542,15 @@ const shipping: LegalDocument = {
     },
     {
       heading: '9. 문의',
-      paragraphs: [
-        '배송과 반품에 관한 문의는 이 사이트 하단 사업자 정보에 표기된 연락처로 접수할 수 있습니다.',
-      ],
+      paragraphs: HAS_CONTACT
+        ? [
+          `배송과 반품에 관한 문의는 이 사이트 하단 사업자 정보에도 함께 표기된 ${CONTACT_WORDS}로 접수할 수 있습니다.`,
+          '청약철회와 반품 신청은 주문 상세의 청약철회 경로로도 접수할 수 있습니다.',
+        ]
+        : [
+          '청약철회와 반품 신청은 주문 상세의 청약철회 경로로 접수할 수 있습니다.',
+          CONTACT_PENDING_NOTICE,
+        ],
     },
   ],
 };
