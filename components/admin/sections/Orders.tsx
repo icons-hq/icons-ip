@@ -100,7 +100,7 @@ function TrackingFields({
       <label htmlFor={carrierId}>택배사</label>
       <CarrierSelect defaultValue={shipment?.carrier} disabled={pending} id={carrierId} />
       {errors?.carrier ? <span role="alert">{errors.carrier}</span> : null}
-      <label htmlFor={trackingId}>송장번호</label>
+      <label htmlFor={trackingId}>운송장번호</label>
       <input
         defaultValue={shipment?.trackingNumber ?? ''}
         disabled={pending}
@@ -130,7 +130,7 @@ function OrderStatusAction({
 }) {
   const [state, action, pending] = useActionState(updateAdminOrderStatusAction, EMPTY_ACTION_STATE);
   const confirmation = status === 'shipping'
-    ? '입력한 택배사·송장번호로 배송을 시작할까요? 고객 주문 상세에 그대로 노출됩니다.'
+    ? '입력한 택배사·운송장번호로 배송을 시작할까요? 고객 주문 상세에 그대로 노출됩니다.'
     : '주문을 배송 완료 처리할까요?';
 
   return (
@@ -144,7 +144,7 @@ function OrderStatusAction({
     >
       <input name="orderId" type="hidden" value={orderId} />
       <input name="status" type="hidden" value={status} />
-      {/* 송장 없이 배송을 시작하면 고객이 추적할 수 없다. DB도 같은 조건으로 거절한다. */}
+      {/* 운송장 없이 배송을 시작하면 고객이 추적할 수 없다. DB도 같은 조건으로 거절한다. */}
       {status === 'shipping' ? (
         <TrackingFields
           errors={state.errors}
@@ -170,7 +170,7 @@ function UpdateTrackingForm({
   shipment: OrderShipment | null;
 }) {
   const [state, action, pending] = useActionState(updateAdminOrderTrackingAction, EMPTY_ACTION_STATE);
-  const confirmation = '송장번호를 수정할까요? 변경 이력이 감사 로그에 남습니다.';
+  const confirmation = '운송장번호를 수정할까요? 변경 이력이 감사 로그에 남습니다.';
 
   return (
     <form

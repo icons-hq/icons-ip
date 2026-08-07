@@ -206,14 +206,14 @@ describe('OrdersSection', () => {
     expect(html).toContain('data-confirm="반품 물건 입고를 확인하셨나요? 승인하면 결제 취소와 재고 복원이 진행됩니다."');
   });
 
-  it('배송 시작 폼에서 택배사와 송장번호를 필수로 받는다', () => {
+  it('배송 시작 폼에서 택배사와 운송장번호를 필수로 받는다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
 
     expect(html).toContain('name="carrier"');
     expect(html).toContain('value="hanjin"');
     expect(html).toContain('한진택배');
     expect(html).toContain('name="trackingNumber"');
-    expect(html).toContain(`for="admin-order-tracking-${ORDER_ID}"`);
+    expect(html).toContain(`for="admin-order-tracking-${ORDER_ID}">운송장번호`);
     expect(html).toContain('required=""');
   });
 
@@ -230,7 +230,7 @@ describe('OrdersSection', () => {
 
     expect(html).toContain('123456789012');
     expect(html).toContain('운송장 수정');
-    expect(html).toContain('data-confirm="송장번호를 수정할까요? 변경 이력이 감사 로그에 남습니다."');
+    expect(html).toContain('data-confirm="운송장번호를 수정할까요? 변경 이력이 감사 로그에 남습니다."');
   });
 
   it('배송 전 주문에는 운송장 수정 폼을 노출하지 않는다', () => {

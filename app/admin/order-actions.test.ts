@@ -162,7 +162,7 @@ describe('admin order actions', () => {
     await expect(updateAdminOrderStatusAction({}, formData)).resolves.toEqual({
       errors: {
         carrier: '택배사를 선택해주세요.',
-        trackingNumber: '송장번호를 입력해주세요.',
+        trackingNumber: '운송장번호를 입력해주세요.',
       },
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
