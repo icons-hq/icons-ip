@@ -6,7 +6,7 @@ import {
   legalDocumentHref,
   type LegalDocumentSlug,
 } from './links';
-import { overseasSocialLogins, socialLoginWords } from './social-login';
+import { socialLoginWords } from './social-login';
 
 export { LEGAL_DOCUMENT_SLUGS, legalDocumentHref };
 export type { LegalDocumentSlug };
@@ -43,6 +43,15 @@ const CONTACT_WORDS = businessContactWords();
 const HAS_CONTACT = CONTACT_WORDS.length > 0;
 const CONTACT_PENDING_NOTICE =
   '문의 연락처는 사업자 등록 절차가 끝나는 대로 이 문서와 사이트 하단 사업자 정보에 함께 공개합니다. 그때까지는 공개된 연락처가 없습니다.';
+
+/* 설정 화면이 실제로 열어 둔 자가 열람·정정 항목.
+ * app/settings/actions.ts는 nickname·avatarPath·marketing만 읽는다. 온보딩에서 받는 생년월일은
+ * 입력 필드도 액션도 없으므로, 방침이 설정 화면을 생년월일의 정정 경로로 가리키면
+ * 연락처가 비어 있는 지금 이용자에게 존재하지 않는 경로를 안내하게 된다. */
+const SETTINGS_EDITABLE_ITEMS = '닉네임, 프로필 이미지, 마케팅 정보 수신 동의 여부';
+const SETTINGS_UNEDITABLE_NOTICE = HAS_CONTACT
+  ? '온보딩에서 입력한 생년월일은 설정 화면에서 수정할 수 없습니다. 정정이 필요하면 제11조의 문의처로 요청해주세요.'
+  : '온보딩에서 입력한 생년월일은 설정 화면에서 수정할 수 없습니다. 문의 연락처가 공개되기 전에는 이 항목을 직접 정정할 수 있는 경로가 없으며, 회사는 연락처를 공개하는 즉시 정정 요청을 접수합니다.';
 
 export interface LegalTable {
   columns: string[];
@@ -369,28 +378,29 @@ const privacy: LegalDocument = {
     {
       heading: '제6조 (개인정보의 국외 이전)',
       paragraphs: [
-        '회사는 인프라 운영과 소셜 로그인 인증을 위해 아래와 같이 개인정보를 국외로 이전합니다. 이용자는 국외 이전을 거부할 수 있으며, 거부하는 경우 회원가입과 서비스 이용이 제한될 수 있습니다.',
+        '회사는 인프라 운영을 위해 아래와 같이 개인정보를 국외로 이전합니다. 이용자는 국외 이전을 거부할 수 있으며, 거부하는 경우 회원가입과 서비스 이용이 제한될 수 있습니다.',
       ],
+      /* 이 표는 회사에서 밖으로 나가는 전송만 담는다.
+       * 소셜 로그인 제공자는 이전받는 자가 아니다 — signInWithSocialAction은 client_id·redirect_uri 등만
+       * 담긴 인가 요청 URL로 redirect할 뿐이고, 계정 식별자와 이메일은 제공자가 인증 후 Supabase로
+       * 보내오는 값이다. 방향이 반대인 흐름을 이전으로 적으면 제시할 수 있는 코드 경로가 없다. */
       table: {
         columns: ['이전받는 자', '이전 국가', '이전 항목·시점·방법', '이용 목적과 보유기간'],
         rows: [
           ['Supabase, Inc.', '미국', '제1조의 수집 항목 · 서비스 이용 시점 · 정보통신망을 통한 전송', '데이터베이스와 인증 인프라 운영 · 위탁계약 종료 시까지'],
           ['Vercel, Inc.', '미국', '접속 기록과 요청 정보 · 서비스 이용 시점 · 정보통신망을 통한 전송', '호스팅 인프라 운영 · 위탁계약 종료 시까지'],
-          /* 소셜 로그인 제공자는 로그인 화면이 실제로 제공하는 목록에서 파생된다 — 제공자가 늘면 이 표도 따라온다. */
-          ...overseasSocialLogins().map((provider) => [
-            provider.entity,
-            provider.country,
-            `소셜 로그인 인증 요청 정보와 계정 식별자·이메일 · 이용자가 ${provider.label} 계정으로 로그인을 선택한 시점 · 정보통신망을 통한 전송`,
-            '소셜 로그인 인증 처리 · 인증 처리에 필요한 기간까지',
-          ]),
         ],
       },
+      closing: [
+        `${socialLoginWords()} 소셜 로그인은 이용자의 브라우저가 제공자의 인증 화면으로 이동해 진행되며, 이 과정에서 회사가 제공자에게 이전하는 개인정보는 없습니다. 제공자가 인증 결과로 전달하는 계정 식별자와 이메일은 위 Supabase, Inc. 행의 이전 항목에 포함됩니다.`,
+      ],
     },
     {
       heading: '제7조 (정보주체의 권리와 행사 방법)',
       paragraphs: [
         '이용자는 언제든지 자신의 개인정보에 대해 열람, 정정, 삭제, 처리정지를 요구할 수 있습니다.',
-        '닉네임, 생년월일, 프로필 이미지, 마케팅 수신 동의 여부는 설정 화면에서 직접 열람·수정할 수 있고, 회원 탈퇴로 개인정보의 처리 정지를 요구할 수 있습니다.',
+        `${SETTINGS_EDITABLE_ITEMS}는 설정 화면에서 직접 열람·수정할 수 있고, 회원 탈퇴로 개인정보의 처리 정지를 요구할 수 있습니다.`,
+        SETTINGS_UNEDITABLE_NOTICE,
         '만 14세 미만 아동의 개인정보는 수집하지 않습니다.',
       ],
     },
@@ -427,7 +437,7 @@ const privacy: LegalDocument = {
         ]
         : [
           `회사는 개인정보 처리에 관한 업무를 총괄하는 개인정보 보호책임자를 지정합니다. ${CONTACT_PENDING_NOTICE}`,
-          '연락처가 공개되기 전에는 제7조의 설정 화면에서 개인정보를 직접 열람·정정할 수 있고, 제12조의 권익침해 구제 기관에 상담과 분쟁 조정을 신청할 수 있습니다.',
+          `연락처가 공개되기 전에는 제7조의 설정 화면에서 ${SETTINGS_EDITABLE_ITEMS}를 직접 열람·정정할 수 있고, 제12조의 권익침해 구제 기관에 상담과 분쟁 조정을 신청할 수 있습니다. 설정 화면이 다루지 않는 항목의 정정은 연락처를 공개한 뒤 접수합니다.`,
         ],
     },
     {
