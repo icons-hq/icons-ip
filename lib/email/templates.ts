@@ -215,7 +215,7 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
   const trackingRows: [string, string][] = [
     ['주문번호', reference],
     ...(carrierName ? [['택배사', carrierName] as [string, string]] : []),
-    ...(trackingNumber ? [['송장번호', trackingNumber] as [string, string]] : []),
+    ...(trackingNumber ? [['운송장번호', trackingNumber] as [string, string]] : []),
   ];
 
   const text = textBlock([
@@ -223,7 +223,7 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
     '',
     `주문번호: ${reference}`,
     ...(carrierName ? [`택배사: ${carrierName}`] : []),
-    ...(trackingNumber ? [`송장번호: ${trackingNumber}`] : []),
+    ...(trackingNumber ? [`운송장번호: ${trackingNumber}`] : []),
     ...(trackingUrl ? [`배송 조회: ${trackingUrl}`] : []),
     ...(hasTracking ? [] : [TRACKING_FALLBACK]),
     '',

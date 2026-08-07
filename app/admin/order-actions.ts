@@ -9,8 +9,13 @@ import {
   type AdminOrderFieldErrors,
 } from '@/lib/admin/orders';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
-import { sendOrderShippedEmail } from '@/lib/email/transactional.server';
+import { parseOrderEmailDedupeKey } from '@/lib/email/dedupe';
+import {
+  sendOrderConfirmationEmail,
+  sendOrderShippedEmail,
+} from '@/lib/email/transactional.server';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
+import { orderShipment } from '@/lib/orders/shipment';
 import { createClient } from '@/lib/supabase/server';
 
 export interface AdminOrderActionState {
@@ -68,10 +73,21 @@ export async function updateAdminOrderStatusAction(
     return { errors: { form: '주문 상태를 변경하지 못했습니다. 최신 상태를 확인해주세요.' } };
   }
 
-  // 배송 시작 메일(#180). 운송장 값은 아직 인자로 열려 있고 #178이 채운다.
-  // 발송 결과는 상태 전이에 영향을 주지 않는다 — 메일 실패로 배송 처리를 되돌리지 않는다.
+  // 배송 시작 메일(#180). 방금 등록한 운송장을 그대로 실어 보낸다 — 값을 넘기지 않으면
+  // 구매자는 "운송장 정보가 등록되면…"만 담긴 메일을 받고, dedupe 행이 sent로 닫혀
+  // 다시 보낼 수도 없다. 발송 결과는 상태 전이에 영향을 주지 않는다.
   if (normalized.value.status === 'shipping') {
-    await sendOrderShippedEmail({ orderId: normalized.value.orderId });
+    const shipment = orderShipment(normalized.value.carrier, normalized.value.trackingNumber);
+    const delivery = await sendOrderShippedEmail({
+      orderId: normalized.value.orderId,
+      carrierName: shipment?.carrierLabel ?? null,
+      trackingNumber: shipment?.trackingNumber ?? null,
+      trackingUrl: shipment?.trackingUrl ?? null,
+    });
+    // 결과를 버리면 실패가 로그에도 남지 않는다. 재발송 대상은 발송 이력 화면에서 본다.
+    if (delivery.status === 'failed') {
+      console.error(`[admin] shipped email failed (order:${normalized.value.orderId}): ${delivery.error}`);
+    }
   }
 
   revalidateOrderSurfaces(normalized.value.orderId);
@@ -104,6 +120,45 @@ export async function updateAdminOrderTrackingAction(
 
   revalidateOrderSurfaces(normalized.value.orderId);
   return { message: '운송장 정보를 저장했습니다.' };
+}
+
+/**
+ * 실패한 트랜잭션 메일 재발송(#180 범위 5).
+ *
+ * 멱등은 깨지 않는다 — DB 게이트가 이미 sent인 건을 거절하고, 통과하더라도 실제 발송은
+ * claim_email_delivery를 다시 잡는 기존 훅이 수행한다. 같은 버튼을 연타해도 이미 도착한
+ * 메일이 두 번 가지 않는다.
+ */
+export async function resendOrderEmailAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  const access = await requireStaffAction();
+  if (access.error) return access.error;
+
+  const dedupeKey = String(formData.get('dedupeKey') ?? '').trim();
+  const parsed = parseOrderEmailDedupeKey(dedupeKey);
+  if (!parsed) return { errors: { form: '다시 보낼 수 있는 메일이 아닙니다.' } };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_request_email_resend', { p_dedupe_key: dedupeKey });
+  if (error) {
+    return { errors: { form: '메일을 다시 보낼 수 없습니다. 발송 이력의 최신 상태를 확인해주세요.' } };
+  }
+
+  // 운송장 값은 넘기지 않는다 — 발송 훅이 주문 행에서 읽는다.
+  const delivery = parsed.template === 'order_confirmation'
+    ? await sendOrderConfirmationEmail(parsed.orderId)
+    : await sendOrderShippedEmail({ orderId: parsed.orderId });
+
+  revalidatePath('/admin');
+
+  if (delivery.status === 'sent') return { message: '메일을 다시 보냈습니다.' };
+  if (delivery.status === 'skipped') {
+    return { errors: { form: '지금은 다시 보낼 수 없습니다. 이미 발송됐거나 발송 설정이 없습니다.' } };
+  }
+  console.error(`[admin] email resend failed (${dedupeKey}): ${delivery.error}`);
+  return { errors: { form: '메일 발송이 다시 실패했습니다. 발송 이력의 오류 메시지를 확인해주세요.' } };
 }
 
 export async function approveAdminOrderCancellationAction(

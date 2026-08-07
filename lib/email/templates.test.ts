@@ -121,7 +121,7 @@ describe('renderOrderConfirmationEmail', () => {
 });
 
 describe('renderOrderShippedEmail', () => {
-  it('택배사·송장번호·조회 링크를 넣는다', () => {
+  it('택배사·운송장번호·조회 링크를 넣는다', () => {
     const email = renderOrderShippedEmail(shippedInput({
       carrierName: '한진택배',
       trackingNumber: '123456789012',
@@ -133,6 +133,21 @@ describe('renderOrderShippedEmail', () => {
       expect(surface).toContain('한진택배');
       expect(surface).toContain('123456789012');
       expect(surface).toContain('https://www.hanjin.com/tracking?number=123456789012');
+    }
+  });
+
+  // CONTEXT.md는 canonical을 "운송장"으로 못박고 "송장"을 Avoid로 둔다.
+  // 한 통의 메일 안에서 용어가 갈리지 않게 라벨을 고정한다.
+  it('운송장 용어를 본문 전체에서 하나로 쓴다', () => {
+    const email = renderOrderShippedEmail(shippedInput({
+      carrierName: '한진택배',
+      trackingNumber: '123456789012',
+    }));
+
+    for (const surface of [email.text, email.html]) {
+      expect(surface).toContain('운송장번호');
+      expect(surface).not.toContain('송장번호를');
+      expect(surface.replaceAll('운송장', '')).not.toContain('송장');
     }
   });
 

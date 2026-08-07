@@ -194,4 +194,23 @@ describe('sendOrderShippedEmail', () => {
     expect(result.status).toBe('sent');
     expect(mocks.send.mock.calls[0][0].subject).toContain('배송');
   });
+
+  // 인자에만 의존하면 값을 넘기지 않는 호출자 하나가 빈 메일을 보내고 dedupe 행을
+  // sent로 닫아버린다. 재발송처럼 폼 입력이 없는 경로도 완전한 메일을 만들어야 한다.
+  it('인자를 생략하면 주문 행의 운송장을 읽어 본문에 넣는다', async () => {
+    mocks.order = {
+      ...mocks.order,
+      shipping_carrier: 'hanjin',
+      tracking_number: '123456789012',
+    };
+
+    const result = await sendOrderShippedEmail({ orderId: ORDER_ID });
+
+    expect(result.status).toBe('sent');
+    const body = mocks.send.mock.calls[0][0].text as string;
+    expect(body).toContain('한진택배');
+    expect(body).toContain('123456789012');
+    expect(body).toContain('hanjin.com');
+    expect(body).not.toContain('운송장 정보가 등록되면');
+  });
 });
