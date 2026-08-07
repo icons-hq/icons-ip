@@ -5,6 +5,8 @@
  * 실재하는 화면과 카탈로그 레코드에서 목록을 만들어 고르게 한다.
  */
 
+import { goodDetailHref } from '@/lib/goods-display';
+
 export interface AdminCurationTargetOption {
   label: string;
   path: string;
@@ -15,9 +17,16 @@ export interface AdminCurationTargetGroup {
   options: AdminCurationTargetOption[];
 }
 
+export interface AdminCurationTargetRecord {
+  id: string;
+  title: string;
+  archivedAt: string | null;
+}
+
 export interface AdminCurationTargetSource {
-  events: readonly { id: string; title: string; archivedAt: string | null }[];
-  ips: readonly { id: string; title: string; archivedAt: string | null }[];
+  events: readonly AdminCurationTargetRecord[];
+  goods: readonly AdminCurationTargetRecord[];
+  ips: readonly AdminCurationTargetRecord[];
 }
 
 /* 고정 화면은 라우트가 코드에 있으므로 항상 실재한다. */
@@ -30,13 +39,14 @@ const FIXED_TARGETS: AdminCurationTargetOption[] = [
   { label: '커뮤니티', path: '/community' },
 ];
 
+/* 경로 조립은 호출부가 넘긴다 — 굿즈처럼 이미 헬퍼가 있는 대상은 그것을 쓴다. */
 function detailOptions(
-  records: readonly { id: string; title: string; archivedAt: string | null }[],
-  prefix: string,
+  records: readonly AdminCurationTargetRecord[],
+  href: (id: string) => string,
 ): AdminCurationTargetOption[] {
   return records
     .filter((record) => !record.archivedAt)
-    .map((record) => ({ label: `${record.title} (${record.id})`, path: `${prefix}/${record.id}` }));
+    .map((record) => ({ label: `${record.title} (${record.id})`, path: href(record.id) }));
 }
 
 export function adminCurationTargetGroups(
@@ -44,8 +54,10 @@ export function adminCurationTargetGroups(
 ): AdminCurationTargetGroup[] {
   return [
     { label: '주요 화면', options: FIXED_TARGETS },
-    { label: 'IP 상세', options: detailOptions(source.ips, '/ip') },
-    { label: '팝업 상세', options: detailOptions(source.events, '/events') },
+    { label: 'IP 상세', options: detailOptions(source.ips, (id) => `/ip/${id}`) },
+    /* 굿즈 상세가 빠지면 첫 판매 굿즈를 홈에서 상세로 바로 보낼 수 없다. */
+    { label: '굿즈 상세', options: detailOptions(source.goods, goodDetailHref) },
+    { label: '팝업 상세', options: detailOptions(source.events, (id) => `/events/${id}`) },
   ].filter((group) => group.options.length > 0);
 }
 

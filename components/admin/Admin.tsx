@@ -163,6 +163,12 @@ export function Admin({
       .map((event) => ({ id: event.id, title: event.title, archivedAt: event.archivedAt })),
     [records.events],
   );
+  /* 굿즈 레코드의 표시 이름은 name 이다 — 대상 목록에서는 title 로 맞춘다. */
+  const goodOptions = useMemo(
+    () => records.goods
+      .map((good) => ({ id: good.id, title: good.name, archivedAt: good.archivedAt })),
+    [records.goods],
+  );
   const selectedIp = useMemo(
     () => records.ips.find((ip) => ip.id === selectedIpId) ?? null,
     [records.ips, selectedIpId],
@@ -335,6 +341,7 @@ export function Admin({
                 draftActiveFrom={curationDraftActiveFrom}
                 draftId={curationDraftId}
                 eventOptions={eventOptions}
+                goodOptions={goodOptions}
                 ipOptions={ipOptions}
                 onOpenNotifications={() => setActive('notifications')}
                 onSelect={(curation) => setSelectedCurationId(curation?.id ?? null)}

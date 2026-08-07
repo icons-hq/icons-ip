@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { goodDetailHref } from '@/lib/goods-display';
 import { adminCurationTargetGroups, adminCurationTargetGroupsFor } from './curation-targets';
 
 const source = {
   events: [
     { id: 'e100', title: '성수 팝업', archivedAt: null },
     { id: 'e200', title: '보관 팝업', archivedAt: '2026-07-01T00:00:00.000Z' },
+  ],
+  goods: [
+    { id: 'g13', title: '홍실 아크릴 블록', archivedAt: null },
+    { id: 'g99', title: '보관 굿즈', archivedAt: '2026-07-01T00:00:00.000Z' },
   ],
   ips: [
     { id: 'rilakkuma', title: '리락쿠마', archivedAt: null },
@@ -28,8 +33,22 @@ describe('admin curation targets', () => {
     expect(available).not.toContain('/events/e200');
   });
 
+  /*
+   * 굿즈 상세가 목록에 없으면 첫 판매 굿즈를 홈에서 상세로 바로 보낼 수 없다.
+   * 경로는 공개 화면과 같은 헬퍼로 만들어 두 곳이 어긋나지 않게 한다.
+   */
+  it('offers active goods detail pages and hides archived ones', () => {
+    const goodsGroup = adminCurationTargetGroups(source)
+      .find((group) => group.label === '굿즈 상세');
+
+    expect(goodsGroup?.options).toEqual([
+      { label: '홍실 아크릴 블록 (g13)', path: goodDetailHref('g13') },
+    ]);
+    expect(goodDetailHref('g13')).toBe('/shop/g13');
+  });
+
   it('drops empty groups so an empty catalog does not render a blank optgroup', () => {
-    const groups = adminCurationTargetGroups({ events: [], ips: [] });
+    const groups = adminCurationTargetGroups({ events: [], goods: [], ips: [] });
 
     expect(groups.map((group) => group.label)).toEqual(['주요 화면']);
   });
