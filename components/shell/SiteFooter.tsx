@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LEGAL_DOCUMENT_LABELS, LEGAL_DOCUMENT_SLUGS, legalDocumentHref } from '@/lib/legal/links';
 import { hrefFor, isAuthShellPath } from '@/lib/routes';
+import { BusinessInfo } from './BusinessInfo';
 
 const DISCOVER_LINKS: [label: string, route: string][] = [
   ['IP 세계', 'iphub'],
@@ -55,6 +56,8 @@ export function SiteFooter() {
             ))}
           </nav>
         </div>
+
+        <BusinessInfo />
 
         <div className="site-footer-editorial__meta">
           <span>© ICONS</span>

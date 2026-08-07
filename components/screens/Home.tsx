@@ -21,6 +21,7 @@ import {
 import { LEGAL_DOCUMENT_LABELS, LEGAL_DOCUMENT_SLUGS, legalDocumentHref } from '@/lib/legal/links';
 import { RARITY_META } from '@/lib/rarity';
 import { hrefFor } from '@/lib/routes';
+import { BusinessInfo } from '@/components/shell/BusinessInfo';
 import { useHeaderScrollHide } from '@/components/shell/useHeaderScrollHide';
 import { Empty } from '@/components/ui/Empty';
 
@@ -864,6 +865,7 @@ function PreviewFooter() {
           ))}
         </div>
       </div>
+      <BusinessInfo className="preview-footer-business" />
       <div className="footer-bottom">
         <span>© 2026 ICONS. ALL RIGHTS RESERVED.</span><span>SEOUL, KOREA · 37.5665° N</span><a href="#top">BACK TO TOP ↑</a>
       </div>

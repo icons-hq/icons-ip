@@ -631,6 +631,13 @@ describe('ICONS IP World Preview composition', () => {
     expect(html).toContain('href="/legal/shipping"');
   });
 
+  it('홈 푸터에도 사업자 정보를 표기한다', () => {
+    const html = renderHome();
+
+    expect(html).toContain('aria-label="사업자 정보"');
+    expect(html).toContain('호스팅 제공자');
+  });
+
   it('keeps the IP marquee centered, unclipped, and faster than the source preview', () => {
     const html = renderHome();
     const orbitClasses = [...html.matchAll(/class="(ip-orbit [^"]+)"/g)].map((match) => match[1]);

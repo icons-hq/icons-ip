@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { businessInfoRows } from '@/lib/legal/business-info';
 import { SiteFooter } from './SiteFooter';
 
 const mocks = vi.hoisted(() => ({ pathname: '/shop' }));
@@ -42,6 +43,16 @@ describe('SiteFooter 법정 고지 링크', () => {
     mocks.pathname = '/legal/privacy';
 
     expect(render()).toContain('href="/legal/terms"');
+  });
+
+  it('사업자 정보를 푸터에 표기한다', () => {
+    const html = render();
+
+    expect(html).toContain('aria-label="사업자 정보"');
+    for (const row of businessInfoRows()) {
+      expect(html).toContain(row.label);
+      expect(html).toContain(row.value);
+    }
   });
 
   it('홈과 인증 셸에서는 푸터를 렌더하지 않는다', () => {
