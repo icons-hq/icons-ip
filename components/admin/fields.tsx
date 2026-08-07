@@ -123,6 +123,56 @@ export function TextArea({
   );
 }
 
+const COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
+
+/*
+ * 색상은 hex 문자열이 아니라 색으로 고른다 (#183).
+ * 저장 형식은 그대로 #RRGGBB 라서 기존 데이터와 소비 지점이 바뀌지 않는다.
+ */
+export function ColorField({
+  defaultValue,
+  error,
+  fallback,
+  label,
+  name,
+}: {
+  defaultValue?: string | null;
+  error?: string;
+  fallback: string;
+  label: string;
+  name: string;
+}) {
+  const errorId = error ? `${name}-error` : undefined;
+  const value = defaultValue && COLOR_PATTERN.test(defaultValue) ? defaultValue : fallback;
+
+  return (
+    <label className="col" style={{ gap: 7 }}>
+      <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>
+        {label}
+      </span>
+      <input
+        aria-describedby={errorId}
+        aria-invalid={Boolean(error)}
+        className="admin-field-control"
+        defaultValue={value}
+        name={name}
+        type="color"
+        style={{
+          background: 'rgba(255,255,255,.045)',
+          border: '1px solid var(--line)',
+          borderRadius: 10,
+          cursor: 'pointer',
+          height: 42,
+          outline: 'none',
+          padding: 4,
+          width: '100%',
+        }}
+      />
+      <ErrorText id={errorId}>{error}</ErrorText>
+    </label>
+  );
+}
+
 export function SelectField({
   children,
   defaultValue,

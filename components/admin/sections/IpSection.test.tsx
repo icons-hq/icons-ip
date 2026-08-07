@@ -114,4 +114,44 @@ describe('IpSection', () => {
     expect(html).toContain('보관 복원');
     expect(html).toContain('>복원</button>');
   });
+
+  /*
+   * #183 — 운영자에게 CSS 를 물어보지 않는다. 기존 레코드의 배경 값은
+   * 그대로 보존해야 아트워크 없는 레거시 화면이 깨지지 않는다.
+   */
+  it('hides the background CSS input while preserving the stored value', () => {
+    const legacy = { ...ip, bg: 'url("/generated/ip/hwasan.png") center / cover no-repeat' };
+    const html = renderToStaticMarkup(
+      <IpSection
+        action={vi.fn()}
+        onSelect={vi.fn()}
+        pending={false}
+        records={[legacy]}
+        selected={legacy}
+        state={{}}
+        verticals={[]}
+      />,
+    );
+
+    expect(html).not.toContain('배경 CSS');
+    expect(html).toContain('name="bg"');
+    expect(html).toContain('url(&quot;/generated/ip/hwasan.png&quot;) center / cover no-repeat');
+  });
+
+  it('takes the glyph as multi-line text instead of a typed escape sequence', () => {
+    const html = renderToStaticMarkup(
+      <IpSection
+        action={vi.fn()}
+        onSelect={vi.fn()}
+        pending={false}
+        records={[]}
+        selected={null}
+        state={{}}
+        verticals={[]}
+      />,
+    );
+
+    expect(html).toMatch(/<textarea[^>]*name="glyph"/);
+    expect(html).toContain('글리프 (줄바꿈 가능)');
+  });
 });

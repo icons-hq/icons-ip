@@ -71,11 +71,18 @@ export function IpSection({
               ))}
             </SelectField>
             <Field defaultValue={selected?.tagline} label="태그라인" name="tagline" />
-            <Field defaultValue={selected?.glyph} label="글리프" name="glyph" />
+            <TextArea
+              defaultValue={selected?.glyph}
+              label="글리프 (줄바꿈 가능)"
+              name="glyph"
+              placeholder={'홍실\n퀘스트'}
+            />
             <input name="featured" type="hidden" value={selected?.featured ? 'on' : ''} />
           </div>
           <TextArea defaultValue={selected?.synopsis} label="시놉시스" name="synopsis" />
-          <Field defaultValue={selected?.bg} label="배경 CSS" name="bg" />
+          {/* 배경 CSS 자유입력을 운영자 폼에서 뺐다 (#183). 아트워크가 없는 레거시
+              레코드는 이 값으로 렌더되므로 그대로 실어 보내 보존한다. */}
+          <input name="bg" type="hidden" value={selected?.bg ?? ''} />
           <ArtworkUploadField
             currentPath={selected?.imagePath ?? null}
             currentUrl={selected?.imageUrl ?? null}

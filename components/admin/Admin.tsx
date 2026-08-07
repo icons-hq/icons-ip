@@ -144,6 +144,11 @@ export function Admin({
       .map((ip) => ({ id: ip.id, title: ip.title, archivedAt: ip.archivedAt })),
     [records.ips],
   );
+  const eventOptions = useMemo(
+    () => records.events
+      .map((event) => ({ id: event.id, title: event.title, archivedAt: event.archivedAt })),
+    [records.events],
+  );
   const selectedIp = useMemo(
     () => records.ips.find((ip) => ip.id === selectedIpId) ?? null,
     [records.ips, selectedIpId],
@@ -307,6 +312,7 @@ export function Admin({
               <CurationSection
                 draftActiveFrom={curationDraftActiveFrom}
                 draftId={curationDraftId}
+                eventOptions={eventOptions}
                 ipOptions={ipOptions}
                 onOpenNotifications={() => setActive('notifications')}
                 onSelect={(curation) => setSelectedCurationId(curation?.id ?? null)}

@@ -60,11 +60,16 @@ const ipOptions = [
   { id: 'archived-ip', title: '보관 IP', archivedAt: '2026-07-01T00:00:00.000Z' },
 ];
 
+const eventOptions = [
+  { id: 'e100', title: '성수 팝업', archivedAt: null },
+];
+
 function renderSection(selected: AdminCurationRecord | null, records = selected ? [selected] : []) {
   return renderToStaticMarkup(
     <CurationSection
       draftActiveFrom="2026-07-15T03:04:05.000Z"
       draftId="22222222-2222-4222-8222-222222222222"
+      eventOptions={eventOptions}
       ipOptions={ipOptions}
       onOpenNotifications={vi.fn()}
       onSelect={vi.fn()}
@@ -168,6 +173,7 @@ describe('CurationSection', () => {
     const tree = CurationSection({
       draftActiveFrom: '2026-07-15T03:04:05.000Z',
       draftId: '22222222-2222-4222-8222-222222222222',
+      eventOptions,
       ipOptions,
       onOpenNotifications,
       onSelect: vi.fn(),
@@ -235,6 +241,7 @@ describe('CurationSection', () => {
     const originalTree = CurationSection({
       draftActiveFrom: '2026-07-15T03:04:05.000Z',
       draftId: '22222222-2222-4222-8222-222222222222',
+      eventOptions,
       ipOptions,
       onOpenNotifications: vi.fn(),
       onSelect: vi.fn(),

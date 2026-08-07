@@ -169,7 +169,9 @@ export function GoodSection({
               <option value="soldout">soldout</option>
             </SelectField>
           </div>
-          <Field defaultValue={selected?.bg} label="배경 CSS" name="bg" />
+          {/* 배경 CSS 자유입력을 운영자 폼에서 뺐다 (#183). 아트워크가 없는 레거시
+              레코드는 이 값으로 렌더되므로 그대로 실어 보내 보존한다. */}
+          <input name="bg" type="hidden" value={selected?.bg ?? ''} />
           <ArtworkUploadField
             currentPath={selected?.imagePath ?? null}
             currentUrl={selected?.imageUrl ?? null}
