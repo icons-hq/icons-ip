@@ -676,6 +676,27 @@ begin
 end;
 $$;
 
+-- 택배사 허용 목록도 DB가 강제한다. 형식만 맞는 미등록 코드는 배송조회를 만들 수
+-- 없어 주문 상세에서 배송 정보가 통째로 사라지므로 저장 자체를 막는다.
+do $$
+begin
+  begin
+    perform public.admin_update_order_status(
+      '40000000-0000-4000-8000-000000000804', 'shipping', 'cj', '999988887777'
+    );
+  exception when check_violation then
+    return;
+  end;
+  raise exception 'unregistered carrier code should be rejected';
+end;
+$$;
+
+select 1 / case when (
+  (select status from public.orders where id = '40000000-0000-4000-8000-000000000804') = 'paid'
+  and (select shipping_carrier is null and tracking_number is null
+       from public.orders where id = '40000000-0000-4000-8000-000000000804')
+) then 1 else 0 end as assert_unregistered_carrier_does_not_start_shipping;
+
 select public.admin_update_order_status(
   '40000000-0000-4000-8000-000000000804', 'shipping', 'hanjin', '444455556666'
 );
@@ -727,6 +748,26 @@ select 1 / case when (
       and diff->>'fromTrackingNumber' = '444455556666'
       and diff->>'toTrackingNumber' = '777788889999') = 1
 ) then 1 else 0 end as assert_waybill_correction_is_idempotent_and_audited;
+
+-- 정정 경로도 같은 허용 목록을 거친다. 등록된 운송장을 미등록 코드로 덮어써
+-- 배송조회를 잃는 경로를 남기지 않는다.
+do $$
+begin
+  begin
+    perform public.admin_update_order_tracking(
+      '40000000-0000-4000-8000-000000000804', 'zz', '111100002222'
+    );
+  exception when check_violation then
+    return;
+  end;
+  raise exception 'unregistered carrier code should not overwrite a waybill';
+end;
+$$;
+
+select 1 / case when (
+  (select shipping_carrier = 'hanjin' and tracking_number = '777788889999'
+   from public.orders where id = '40000000-0000-4000-8000-000000000804')
+) then 1 else 0 end as assert_unregistered_carrier_cannot_overwrite_the_waybill;
 
 -- ---------------------------------------------------------------------------
 -- 배송 후 청약철회(#176)는 staff 승인 경로에서만 열린다.
