@@ -1,3 +1,10 @@
+import {
+  isShippingCarrierCode,
+  isTrackingNumber,
+  normalizeTrackingNumber,
+  type OrderShipment,
+} from '@/lib/orders/shipment';
+
 export const ADMIN_ORDER_STATUSES = ['pending', 'paid', 'shipping', 'done', 'canceled'] as const;
 export type AdminOrderStatus = (typeof ADMIN_ORDER_STATUSES)[number];
 export type AdminOrderStatusFilter = AdminOrderStatus | 'all';
@@ -73,6 +80,7 @@ export interface AdminOrderRecord {
   payments: AdminOrderPaymentRecord[];
   refunds: AdminOrderRefundRecord[];
   cancellationRequest: AdminOrderCancellationRequestRecord | null;
+  shipment: OrderShipment | null;
 }
 
 export interface AdminOrderConsoleData {
@@ -151,9 +159,37 @@ export function normalizeAdminOrderFilters(searchParams: AdminOrderSearchParams)
   };
 }
 
+interface TrackingInput {
+  carrier: string;
+  trackingNumber: string;
+}
+
+/** 택배사·송장번호를 함께 검증한다. 둘 중 하나만 남으면 DB 쌍 제약에 걸린다. */
+function readTrackingInput(formData: FormData): AdminOrderFormResult<TrackingInput> {
+  const carrier = readFormString(formData, 'carrier');
+  const rawTrackingNumber = readFormString(formData, 'trackingNumber');
+  const trackingNumber = normalizeTrackingNumber(rawTrackingNumber);
+  const errors: AdminOrderFieldErrors = {};
+
+  if (!isShippingCarrierCode(carrier)) errors.carrier = '택배사를 선택해주세요.';
+  if (!trackingNumber) {
+    errors.trackingNumber = '송장번호를 입력해주세요.';
+  } else if (!isTrackingNumber(trackingNumber)) {
+    errors.trackingNumber = '송장번호는 하이픈을 뺀 8~30자리 영숫자여야 합니다.';
+  }
+  if (Object.keys(errors).length) return { ok: false, errors };
+
+  return { ok: true, value: { carrier, trackingNumber } };
+}
+
 export function normalizeAdminOrderStatusForm(
   formData: FormData,
-): AdminOrderFormResult<{ orderId: string; status: 'shipping' | 'done' }> {
+): AdminOrderFormResult<{
+  orderId: string;
+  status: 'shipping' | 'done';
+  carrier: string | null;
+  trackingNumber: string | null;
+}> {
   const orderId = readFormString(formData, 'orderId').toLowerCase();
   const status = readFormString(formData, 'status');
   const errors: AdminOrderFieldErrors = {};
@@ -162,9 +198,48 @@ export function normalizeAdminOrderStatusForm(
   if (!SHIPPING_STATUS_SET.has(status)) errors.status = '허용된 배송 상태를 선택해주세요.';
   if (Object.keys(errors).length) return { ok: false, errors };
 
+  // 배송 완료 전이는 이미 등록된 운송장을 그대로 둔다. 재입력을 받으면 완료 시점에
+  // 송장이 조용히 바뀌는 경로가 생긴다 — 수정은 전용 폼에서만 감사와 함께 한다.
+  if (status === 'done') {
+    return {
+      ok: true,
+      value: { orderId, status: 'done', carrier: null, trackingNumber: null },
+    };
+  }
+
+  const tracking = readTrackingInput(formData);
+  if (!tracking.ok) return tracking;
+
   return {
     ok: true,
-    value: { orderId, status: status as 'shipping' | 'done' },
+    value: {
+      orderId,
+      status: 'shipping',
+      carrier: tracking.value.carrier,
+      trackingNumber: tracking.value.trackingNumber,
+    },
+  };
+}
+
+export function normalizeAdminOrderTrackingForm(
+  formData: FormData,
+): AdminOrderFormResult<{ orderId: string; carrier: string; trackingNumber: string }> {
+  const orderId = readFormString(formData, 'orderId').toLowerCase();
+  const tracking = readTrackingInput(formData);
+  const errors: AdminOrderFieldErrors = {
+    ...(UUID_PATTERN.test(orderId) ? {} : { orderId: '주문을 찾을 수 없습니다.' }),
+    ...(tracking.ok ? {} : tracking.errors),
+  };
+  if (Object.keys(errors).length) return { ok: false, errors };
+  if (!tracking.ok) return { ok: false, errors };
+
+  return {
+    ok: true,
+    value: {
+      orderId,
+      carrier: tracking.value.carrier,
+      trackingNumber: tracking.value.trackingNumber,
+    },
   };
 }
 

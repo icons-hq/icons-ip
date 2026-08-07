@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { normalizeCheckoutAddress } from '@/lib/checkout';
+import { orderShipment } from '@/lib/orders/shipment';
 import { createClient } from '@/lib/supabase/server';
 import {
   ADMIN_ORDER_STATUSES,
@@ -31,6 +32,8 @@ interface SearchRow {
   cancellation_requested_at: string | null;
   cancellation_decided_at: string | null;
   cancellation_decision_note: string | null;
+  shipping_carrier: string | null;
+  tracking_number: string | null;
   total_count: number;
 }
 
@@ -203,6 +206,7 @@ export async function getAdminOrderRecords(
         createdAt: refund.created_at,
       })),
       cancellationRequest,
+      shipment: orderShipment(row.shipping_carrier, row.tracking_number),
     };
   });
 

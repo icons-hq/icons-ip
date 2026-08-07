@@ -810,6 +810,7 @@
   .order-payment-summary > div { display: flex; justify-content: space-between; gap: 16px; }
   .order-payment-summary dt { color: var(--dim); font-size: 11px; }
   .order-payment-summary dd { margin: 0; color: var(--text); font-size: 11px; text-align: right; }
+  .order-tracking-link { margin-top: 12px; }
   .order-card-pack-callout {
     display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 12px;
     margin-top: 20px; padding: 15px; border: 1px solid rgba(169,129,255,.26);
@@ -1317,12 +1318,17 @@
   }
   .admin-order-filters label { min-width: 0; display: flex; flex-direction: column; gap: 7px; }
   .admin-order-filters label > span { color: var(--faint); font-size: 10px; font-weight: 700; }
-  .admin-order-filters input, .admin-order-filters select, .admin-order-reject-form textarea {
+  .admin-order-filters input, .admin-order-filters select, .admin-order-reject-form textarea,
+  .admin-order-tracking-fields input, .admin-order-tracking-fields select {
     width: 100%; border: 1px solid var(--line); border-radius: 10px;
     background: rgba(255,255,255,.035); color: var(--text); font: inherit; outline: none;
   }
-  .admin-order-filters input, .admin-order-filters select { min-height: 40px; padding: 0 11px; font-size: 12px; }
-  .admin-order-filters input:focus, .admin-order-filters select:focus, .admin-order-reject-form textarea:focus {
+  .admin-order-filters input, .admin-order-filters select,
+  .admin-order-tracking-fields input, .admin-order-tracking-fields select {
+    min-height: 40px; padding: 0 11px; font-size: 12px;
+  }
+  .admin-order-filters input:focus, .admin-order-filters select:focus, .admin-order-reject-form textarea:focus,
+  .admin-order-tracking-fields input:focus, .admin-order-tracking-fields select:focus {
     border-color: rgba(45,226,255,.5); box-shadow: 0 0 0 3px rgba(45,226,255,.08);
   }
   .admin-order-filter-actions { display: flex; gap: 8px; }
@@ -1415,6 +1421,14 @@
   .admin-order-reject-form label { grid-column: 1 / -1; color: var(--faint); font-size: 10px; font-weight: 700; }
   .admin-order-reject-form textarea { grid-column: 1 / -1; min-height: 76px; resize: vertical; padding: 10px 11px; font-size: 12px; line-height: var(--editorial-leading-body); }
   .admin-order-reject-form > [role='alert'] { grid-column: 1 / -1; color: var(--pink); font-size: 10px; }
+  /* 운송장 입력은 두 필드가 짝이라 한 줄 액션 폼과 달리 전폭 세로 배치로 둔다. */
+  .admin-order-shipment-form { grid-column: 1 / -1; align-items: stretch; flex-direction: column; }
+  .admin-order-shipment-form .btn { align-self: start; }
+  .admin-order-tracking-fields {
+    display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; width: 100%;
+  }
+  .admin-order-tracking-fields label { color: var(--faint); font-size: 10px; font-weight: 700; }
+  .admin-order-tracking-fields > [role='alert'] { color: var(--pink); font-size: 10px; }
   .admin-order-action-feedback { min-width: 0; font-size: 10px; line-height: var(--editorial-leading-utility); }
   .admin-order-action-feedback:empty { display: none; }
   .admin-order-action-feedback [role='alert'] { color: var(--pink); }

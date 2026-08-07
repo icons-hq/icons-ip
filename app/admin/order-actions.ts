@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import {
   normalizeAdminCancellationDecisionForm,
   normalizeAdminOrderStatusForm,
+  normalizeAdminOrderTrackingForm,
   type AdminOrderFieldErrors,
 } from '@/lib/admin/orders';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
@@ -57,8 +58,10 @@ export async function updateAdminOrderStatusAction(
 
   const supabase = await createClient();
   const { error } = await supabase.rpc('admin_update_order_status', {
+    p_carrier: normalized.value.carrier,
     p_order_id: normalized.value.orderId,
     p_status: normalized.value.status,
+    p_tracking_number: normalized.value.trackingNumber,
   });
   if (error) {
     return { errors: { form: '주문 상태를 변경하지 못했습니다. 최신 상태를 확인해주세요.' } };
@@ -70,6 +73,30 @@ export async function updateAdminOrderStatusAction(
       ? '배송을 시작했습니다.'
       : '주문을 완료 처리했습니다.',
   };
+}
+
+export async function updateAdminOrderTrackingAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  const access = await requireStaffAction();
+  if (access.error) return access.error;
+
+  const normalized = normalizeAdminOrderTrackingForm(formData);
+  if (!normalized.ok) return { errors: normalized.errors };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_update_order_tracking', {
+    p_carrier: normalized.value.carrier,
+    p_order_id: normalized.value.orderId,
+    p_tracking_number: normalized.value.trackingNumber,
+  });
+  if (error) {
+    return { errors: { form: '운송장 정보를 저장하지 못했습니다. 최신 상태를 확인해주세요.' } };
+  }
+
+  revalidateOrderSurfaces(normalized.value.orderId);
+  return { message: '운송장 정보를 저장했습니다.' };
 }
 
 export async function approveAdminOrderCancellationAction(

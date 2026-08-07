@@ -90,6 +90,24 @@ export function OrderDetail({ order }: { order: OrderDetailData }) {
             )}
           </section>
 
+          {order.shipment && (
+            <section className="order-receipt-section" aria-labelledby="shipment-heading">
+              <h3 id="shipment-heading">배송 정보</h3>
+              <dl className="order-payment-summary">
+                <div><dt>택배사</dt><dd>{order.shipment.carrierLabel}</dd></div>
+                <div><dt>송장번호</dt><dd className="mono">{order.shipment.trackingNumber}</dd></div>
+              </dl>
+              <a
+                className="btn btn-ghost order-tracking-link"
+                href={order.shipment.trackingUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
+                배송조회
+              </a>
+            </section>
+          )}
+
           <section className="order-receipt-section" aria-labelledby="payment-summary-heading">
             <h3 id="payment-summary-heading">결제 정보</h3>
             {order.payment ? (

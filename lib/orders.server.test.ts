@@ -196,6 +196,8 @@ describe('loadOrderDetail', () => {
           user_id: userId,
           status: 'shipping',
           total: 54000,
+          shipping_carrier: 'hanjin',
+          tracking_number: '123456789012',
           address: {
             recipientName: '팬',
             phone: '01012345678',
@@ -296,10 +298,16 @@ describe('loadOrderDetail', () => {
         decisionNote: null,
       },
       cardPacks: { issuedCount: 3, availableCount: 1 },
+      shipment: {
+        carrier: 'hanjin',
+        carrierLabel: '한진택배',
+        trackingNumber: '123456789012',
+      },
     });
     expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|idempotency_key|raw|last_error_code/);
 
     expect(records.find((record) => record.table === 'orders')).toMatchObject({
+      select: 'id,user_id,status,total,address,created_at,shipping_carrier,tracking_number',
       eq: [['id', orderId], ['user_id', userId]],
       in: [['status', ['pending', 'paid', 'shipping', 'done', 'canceled']]],
       maybeSingle: true,

@@ -11,6 +11,7 @@ import {
   type OrderCancellationRequestStatus,
   type OrderListItem,
 } from './orders';
+import { orderShipment } from './orders/shipment';
 import { createClient } from '@/lib/supabase/server';
 
 interface OrderListRow {
@@ -23,6 +24,8 @@ interface OrderListRow {
 
 interface OrderDetailRow extends OrderListRow {
   address: unknown;
+  shipping_carrier: string | null;
+  tracking_number: string | null;
 }
 
 interface OrderListItemRow {
@@ -162,7 +165,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   const supabase = await createClient();
   const { data: orderData, error: orderError } = await supabase
     .from('orders')
-    .select('id,user_id,status,total,address,created_at')
+    .select('id,user_id,status,total,address,created_at,shipping_carrier,tracking_number')
     .eq('id', orderId)
     .eq('user_id', userId)
     .in('status', [...ORDER_DETAIL_STATUSES])
@@ -279,6 +282,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
           decisionNote: cancellationRequestRow.decision_note,
         }
       : null,
+    shipment: orderShipment(orderData.shipping_carrier, orderData.tracking_number),
     cardPacks: {
       issuedCount: ticketRows.length,
       availableCount: ticketRows.filter((ticket) => (
