@@ -251,6 +251,51 @@ select 1 / case when public.service_prepare_admin_artwork_upload(
 delete from public.admin_artwork_upload_claims
 where actor_id = '00000000-0000-4000-8000-000000011205';
 
+-- 검증을 마친 클레임은 staging 용량을 더 쓰지 않으므로 업로드 예산을 붙잡지 않는다
+-- (20260807140005). 같은 통에 세면 저장하지 않고 떠난 폼 두 장이 그 운영자의
+-- 업로드를 2시간 동안 전부 막는다.
+select public.service_prepare_admin_artwork_upload(
+  '00000000-0000-4000-8000-000000011205',
+  'catalog/card/10000000-0000-4000-8000-000000000020.png',
+  'card', 'image/png', 10, now() + interval '10 minutes'
+);
+select public.service_begin_admin_artwork_verification(
+  '00000000-0000-4000-8000-000000011205',
+  'catalog/card/10000000-0000-4000-8000-000000000020.png'
+);
+select 1 / case when public.service_verify_admin_artwork_upload(
+  '00000000-0000-4000-8000-000000011205',
+  'catalog/card/10000000-0000-4000-8000-000000000020.png',
+  10
+) then 1 else 0 end as assert_verified_claim_created;
+
+select 1 / case when (
+  select count(*) = 1
+  from public.admin_artwork_upload_claims
+  where actor_id = '00000000-0000-4000-8000-000000011205'
+    and status = 'verified'
+    and expires_at > now() + interval '1 hour'
+) then 1 else 0 end as assert_verified_claim_gets_form_window;
+
+do $$
+declare
+  slot integer;
+begin
+  for slot in 21..32 loop
+    if not public.service_prepare_admin_artwork_upload(
+      '00000000-0000-4000-8000-000000011205',
+      'catalog/card/10000000-0000-4000-8000-' || lpad(slot::text, 12, '0') || '.png',
+      'card', 'image/png', 10, now() + interval '10 minutes'
+    ) then
+      raise exception 'verified claim must not consume the upload budget, failed at slot %', slot;
+    end if;
+  end loop;
+end;
+$$;
+
+delete from public.admin_artwork_upload_claims
+where actor_id = '00000000-0000-4000-8000-000000011205';
+
 select public.service_prepare_admin_artwork_upload(
   '00000000-0000-4000-8000-000000011205',
   'catalog/card/20000000-0000-4000-8000-000000000001.png',
@@ -336,9 +381,42 @@ select public.service_reject_admin_artwork_upload(
   'catalog/card/20000000-0000-4000-8000-000000000004.png'
 );
 
+-- 남용 억제 창은 굿즈 폼 한 장(대표 1 + 갤러리 4 + 상세 1 = 6칸)을 한 번 채우고
+-- 한 번 갈아끼우는 12회까지 열려 있다. 4회였을 때는 다섯 번째 업로드가
+-- 파일에 아무 문제가 없는데도 "이미지 파일을 확인하지 못했습니다"로 막혔다.
+-- 5~12번째는 통과하고, 13번째에서 창이 닫힌다.
+do $$
+declare
+  slot integer;
+  path text;
+begin
+  for slot in 5..12 loop
+    path := 'catalog/card/20000000-0000-4000-8000-0000000000' || lpad(slot::text, 2, '0') || '.png';
+
+    perform public.service_prepare_admin_artwork_upload(
+      '00000000-0000-4000-8000-000000011205', path, 'card', 'image/png', 10,
+      now() + interval '10 minutes'
+    );
+
+    if not exists (
+      select 1
+      from public.service_begin_admin_artwork_verification(
+        '00000000-0000-4000-8000-000000011205', path
+      )
+    ) then
+      raise exception 'verification % should stay inside the abuse window', slot;
+    end if;
+
+    perform public.service_reject_admin_artwork_upload(
+      '00000000-0000-4000-8000-000000011205', path
+    );
+  end loop;
+end;
+$$;
+
 select public.service_prepare_admin_artwork_upload(
   '00000000-0000-4000-8000-000000011205',
-  'catalog/card/20000000-0000-4000-8000-000000000005.png',
+  'catalog/card/20000000-0000-4000-8000-000000000013.png',
   'card', 'image/png', 10, now() + interval '10 minutes'
 );
 
@@ -346,7 +424,7 @@ select 1 / case when not exists (
   select 1
   from public.service_begin_admin_artwork_verification(
     '00000000-0000-4000-8000-000000011205',
-    'catalog/card/20000000-0000-4000-8000-000000000005.png'
+    'catalog/card/20000000-0000-4000-8000-000000000013.png'
   )
 ) then 1 else 0 end as assert_actor_verification_rate_limit;
 
