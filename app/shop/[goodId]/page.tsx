@@ -13,8 +13,9 @@ const loadGoodDetail = cache(getCatalogGoodDetail);
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { goodId } = await params;
   const detail = await loadGoodDetail(goodId);
-  /* 없는 굿즈에서 throw 하지 않는다. 404 판정은 Page 한 곳이 한다. */
-  if (!detail) return { title: '굿즈를 찾을 수 없습니다 — ICONS' };
+  /* 없는 굿즈는 여기서 바로 404로 보낸다. 폴백 제목을 돌려주면 그 제목이
+     브라우저에 절대 도달하지 않으면서 테스트만 통과하는 죽은 분기가 된다. */
+  if (!detail) notFound();
 
   return {
     title: `${detail.good.name} — ICONS`,

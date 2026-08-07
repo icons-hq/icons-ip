@@ -77,10 +77,14 @@ describe('/shop/[goodId] page', () => {
     expect(block.description).toContain('아크릴 블록');
   });
 
-  /* 없는 굿즈에서 제목 생성이 깨지면 404 페이지 자체가 500 이 된다. */
-  it('없는 굿즈에서도 제목 생성이 깨지지 않는다', async () => {
-    const metadata = await generateMetadata({ params: Promise.resolve({ goodId: 'g999' }) });
-
-    expect(metadata.title).toBe('굿즈를 찾을 수 없습니다 — ICONS');
+  /*
+   * 없는 굿즈는 제목 생성 단계에서 바로 404 로 보낸다. 폴백 제목을 돌려주면
+   * not-found 바운더리가 그 제목을 버리므로 브라우저에 절대 도달하지 않는
+   * 죽은 분기가 되고, 테스트만 통과해 404 탭 제목을 오해하게 만든다.
+   */
+  it('없는 굿즈의 제목 생성은 404 로 보낸다', async () => {
+    await expect(
+      generateMetadata({ params: Promise.resolve({ goodId: 'g999' }) }),
+    ).rejects.toThrow('NEXT_NOT_FOUND');
   });
 });
