@@ -145,6 +145,13 @@ function artworkClaimFailure(message: string): AdminCatalogActionState | null {
     : null;
 }
 
+/* 폼 검증을 우회해 RPC 까지 닿은 고시정보 누락을 운영자 언어로 옮긴다 (#171). */
+function goodsNoticeFailure(message: string): AdminCatalogActionState | null {
+  return message.includes('goods_notice_required')
+    ? rpcFailure('고시정보를 모두 입력한 뒤 저장해주세요.')
+    : null;
+}
+
 function archivedParentFailure(message: string): AdminCatalogActionState | null {
   return message.includes('parent_archived')
     ? rpcFailure('상위 IP를 먼저 복원해주세요.')
@@ -288,6 +295,16 @@ export async function upsertAdminGoodAction(
     target_stock: value.stock,
     target_bg: value.bg,
     target_image_path: value.imagePath,
+    target_notice_maker: value.notice.maker,
+    target_notice_origin: value.notice.origin,
+    target_notice_material: value.notice.material,
+    target_notice_size: value.notice.size,
+    target_notice_made_on: value.notice.madeOn,
+    target_notice_as_manager: value.notice.asManager,
+    target_notice_as_contact: value.notice.asContact,
+    target_description: value.description,
+    target_gallery_paths: value.galleryPaths,
+    target_detail_image_path: value.detailImagePath,
     target_previous_id: value.previousId,
   });
 
@@ -295,6 +312,7 @@ export async function upsertAdminGoodAction(
     return catalogWriteIntentFailure(error.message)
       ?? artworkClaimFailure(error.message)
       ?? archivedParentFailure(error.message)
+      ?? goodsNoticeFailure(error.message)
       ?? rpcFailure('굿즈를 저장하지 못했습니다. 다시 시도해주세요.');
   }
 

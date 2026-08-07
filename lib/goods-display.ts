@@ -8,3 +8,8 @@ export const STOCK_LABEL: Record<Stock, string | null> = {
   soldout: '품절',
   ok: null,
 };
+
+/** 굿즈 상세페이지 경로 (#173). id 는 slug 지만 경로 조립을 한 곳에 모아둔다. */
+export function goodDetailHref(goodId: string): string {
+  return `/shop/${encodeURIComponent(goodId)}`;
+}

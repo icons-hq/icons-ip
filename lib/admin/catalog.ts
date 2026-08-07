@@ -1,4 +1,9 @@
 import type { Stock } from '@/lib/data';
+import {
+  GOODS_NOTICE_FIELDS,
+  missingGoodsNoticeKeys,
+  type GoodsNoticeInfo,
+} from '@/lib/goods-notice';
 import type { RarityKey } from '@/lib/rarity';
 
 export type AdminFieldErrors = Record<string, string>;
@@ -35,6 +40,11 @@ export interface AdminGoodFormValue {
   stock: Stock;
   bg: string | null;
   imagePath: string | null;
+  notice: GoodsNoticeInfo;
+  description: string | null;
+  /** 순서가 곧 노출 순서다. 빈 슬롯은 빠진 채로 온다. */
+  galleryPaths: string[];
+  detailImagePath: string | null;
 }
 
 export interface AdminStockAdjustmentFormValue {
@@ -148,6 +158,9 @@ const INTEGER_PATTERN = /^-?\d+$/;
 const INT32_MIN = -2147483648;
 const INT32_MAX = 2147483647;
 const STOCK_VALUES = new Set<Stock>(['low', 'ok', 'soldout']);
+/* 갤러리는 대표 이미지 외 최대 4장 (#172 · 계획 D6). DB check 제약과 같은 값이다. */
+export const GOODS_GALLERY_MAX = 4;
+export const GOODS_DESCRIPTION_MAX_LENGTH = 2000;
 const RARITY_VALUES = new Set<RarityKey>(['N', 'R', 'SR', 'SSR', 'HOLO']);
 const EVENT_MODES = new Set(['온라인', '오프라인']);
 const EVENT_STATUSES = new Set(['예매중', '예정', '진행중', '종료']);
@@ -262,6 +275,44 @@ function readPreviousId(formData: FormData, id: string, errors: AdminFieldErrors
   return previousId;
 }
 
+/*
+ * 고시정보는 법정 표기라 한 항목이라도 비면 저장을 막는다 (#171).
+ * 항목 목록은 lib/goods-notice.ts 하나에서만 늘어난다.
+ */
+function readGoodsNotice(formData: FormData, errors: AdminFieldErrors): GoodsNoticeInfo {
+  const notice = Object.fromEntries(
+    GOODS_NOTICE_FIELDS.map((field) => [field.key, nullableString(formData, field.formName)]),
+  ) as GoodsNoticeInfo;
+  const missing = new Set(missingGoodsNoticeKeys(notice));
+
+  for (const field of GOODS_NOTICE_FIELDS) {
+    if (missing.has(field.key)) errors[field.formName] = '고시정보 필수 항목입니다.';
+  }
+
+  return notice;
+}
+
+/*
+ * 갤러리는 번호가 붙은 슬롯 4칸이다 (#172). 운영자는 슬롯을 골라 순서를 정하고,
+ * 비운 슬롯은 배열에서 빠진다 — 배열 인덱스가 그대로 노출 순서가 된다.
+ */
+function readGoodsGalleryPaths(formData: FormData, errors: AdminFieldErrors): string[] {
+  const paths: string[] = [];
+
+  for (let slot = 0; slot < GOODS_GALLERY_MAX; slot += 1) {
+    const key = `galleryPath${slot}`;
+    const path = readString(formData, key);
+    if (!path) continue;
+    if (paths.includes(path)) {
+      errors[key] = '같은 이미지를 갤러리에 두 번 넣을 수 없습니다.';
+      continue;
+    }
+    paths.push(path);
+  }
+
+  return paths;
+}
+
 function validIpId(value: string, context: AdminCatalogContext, errors: AdminFieldErrors) {
   if (!value || !context.ipIds.has(value)) {
     errors.ipId = '등록된 IP를 선택해주세요.';
@@ -356,10 +407,16 @@ export function normalizeAdminGoodForm(
   const type = readString(formData, 'type');
   const stock = readString(formData, 'stock') as Stock;
   const price = nonNegativeInteger(formData, 'price', errors, '가격은 0 이상의 정수여야 합니다.');
+  const notice = readGoodsNotice(formData, errors);
+  const description = nullableString(formData, 'description');
+  const galleryPaths = readGoodsGalleryPaths(formData, errors);
 
   if (!name) errors.name = '굿즈 이름을 입력해주세요.';
   if (!type) errors.type = '굿즈 유형을 입력해주세요.';
   if (!STOCK_VALUES.has(stock)) errors.stock = '재고 상태를 선택해주세요.';
+  if (description && description.length > GOODS_DESCRIPTION_MAX_LENGTH) {
+    errors.description = '설명은 2,000자 이하로 입력해주세요.';
+  }
 
   if (Object.keys(errors).length) return { ok: false, errors };
 
@@ -376,6 +433,10 @@ export function normalizeAdminGoodForm(
       stock,
       bg: nullableString(formData, 'bg'),
       imagePath: nullableString(formData, 'imagePath'),
+      notice,
+      description,
+      galleryPaths,
+      detailImagePath: nullableString(formData, 'detailImagePath'),
     },
   };
 }
