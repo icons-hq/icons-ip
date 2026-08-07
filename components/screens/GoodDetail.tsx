@@ -40,11 +40,17 @@ function NoticeTable({ detail }: { detail: GoodDetailContent }) {
 
   return (
     <section aria-labelledby="goods-notice-heading" className="goods-detail-section">
+      {/* 제목은 용어집(CONTEXT.md '고시정보')을 따른다. 어드민 폼·lib/goods-notice.ts 와 같은 말이어야
+          운영자와 이용자가 같은 표를 다른 이름으로 부르지 않는다. */}
       <h2 className="mono" id="goods-notice-heading" style={{ color: 'var(--dim)', fontSize: 12, letterSpacing: '.16em', margin: 0 }}>
-        상품정보제공고시
+        고시정보
       </h2>
       {rows.length ? (
         <table className="goods-notice-table">
+          {/* 법정 고시 제도의 이름은 제목이 아니라 표 캡션에서 각주처럼 밝힌다. */}
+          <caption style={{ captionSide: 'top', color: 'var(--dim)', fontSize: 12, lineHeight: 1.7, paddingBottom: 10, textAlign: 'left' }}>
+            전자상거래법에 따라 표시하는 상품정보제공고시 항목입니다.
+          </caption>
           <tbody>
             {rows.map((row) => (
               <tr key={row.key}>
@@ -71,7 +77,13 @@ function ShippingGuide() {
       </h2>
       <ul style={{ color: 'var(--dim)', display: 'grid', fontSize: 13.5, gap: 8, lineHeight: 1.7, margin: 0, paddingLeft: 18 }}>
         <li>배송비 {krwAmountWords(SHIPPING_FEE)} · {krwAmountWords(FREE_SHIPPING_THRESHOLD)} 이상 구매 시 무료</li>
-        <li>결제 확인 후 영업일 기준 2~5일 이내 출고됩니다. 주말·공휴일은 제외됩니다.</li>
+        {/*
+         * 출고 기한의 진실원은 배송·반품 정책(/legal/shipping 1. 배송 안내)이다. 여기서 더 짧은
+         * 영업일 수를 따로 적으면 약관 제13조 3항이 손해배상 기준으로 삼는 "약정 배송기간"이
+         * 두 개가 되어, 어느 쪽이 약정인지 정할 수 없다. 그래서 정책 문장을 그대로 싣는다.
+         * 창고 출고 마감·휴무일이 확정되면(계획 H4) 정책 문서와 함께 좁힌다.
+         */}
+        <li>결제가 확정된 주문부터 순차 출고합니다. 별도의 약정이 없는 이상 청약일부터 7일 이내에 배송에 필요한 조치를 취합니다.</li>
         <li>도서산간 지역은 지역별 추가 배송비와 배송 일정이 별도 안내됩니다.</li>
       </ul>
     </section>

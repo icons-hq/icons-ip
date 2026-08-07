@@ -3,7 +3,18 @@ import { describe, expect, it, vi } from 'vitest';
 import { DATA, type Good, type Ip } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { EMPTY_GOODS_NOTICE } from '@/lib/goods-notice';
+import { getLegalDocument } from '@/lib/legal/documents';
 import { GoodDetail, GoodDetailView } from './GoodDetail';
+
+/* 상세페이지의 출고 기한 문장은 배송·반품 정책이 진실원이다.
+ * 정책이 바뀌면 이 값이 따라 바뀌고, 상세페이지가 안 따라오면 아래 테스트가 깨진다. */
+const SHIPPING_PERIOD_NOTICE = (() => {
+  const row = getLegalDocument('shipping')
+    ?.articles.flatMap((article) => article.table?.rows ?? [])
+    .find(([label]) => label === '배송 기간');
+  if (!row) throw new Error('배송·반품 정책에서 "배송 기간" 행을 찾지 못했다');
+  return row[1];
+})();
 
 const cart = vi.hoisted(() => ({
   add: vi.fn(),
@@ -108,7 +119,7 @@ describe('GoodDetail', () => {
   it('renders the goods notice table, shipping and return guidance', () => {
     const html = render();
 
-    expect(html).toContain('상품정보제공고시');
+    expect(html).toContain('고시정보');
     expect(html).toContain('제조사 / 수입사');
     expect(html).toContain('주식회사 아이콘스');
     expect(html).toContain('A/S 연락처');
@@ -116,6 +127,22 @@ describe('GoodDetail', () => {
     expect(html).toContain('배송비 3,000원 · 50,000원 이상 구매 시 무료');
     expect(html).toContain('교환 · 반품 안내');
     expect(html).toContain('7일 이내');
+  });
+
+  /* 표 제목은 용어집(CONTEXT.md '고시정보')을 따르고, 법정 고시 제도의 이름은 캡션 각주로만 남는다. */
+  it('고시정보 표 제목이 용어집 용어를 쓴다', () => {
+    const html = render();
+
+    expect(html).toMatch(/id="goods-notice-heading"[^>]*>고시정보</);
+    expect(html).toContain('전자상거래법에 따라 표시하는 상품정보제공고시 항목입니다.');
+  });
+
+  /* 상세페이지가 정책보다 짧은 출고 기한을 약속하면 약관 제13조의 "약정 배송기간"이 둘이 된다. */
+  it('출고 기한 고지가 배송·반품 정책과 같은 문장이다', () => {
+    const html = render();
+
+    expect(html).toContain(SHIPPING_PERIOD_NOTICE);
+    expect(html).not.toContain('영업일 기준');
   });
 
   /* 요약만으로는 반송비 부담·반품 절차·환급 기한을 확인할 수 없다. 전문으로 가는 길이 있어야 한다. */
@@ -140,7 +167,7 @@ describe('GoodDetail', () => {
     );
 
     expect(html).toContain('아크릴 블록');
-    expect(html).toContain('상품정보제공고시');
+    expect(html).toContain('고시정보');
     expect(html).toContain('>품절</button>');
     expect(html).toContain('disabled=""');
   });
@@ -155,7 +182,7 @@ describe('GoodDetail', () => {
     );
 
     expect(html).toContain(hongSil!.name);
-    expect(html).toContain('상품정보제공고시');
+    expect(html).toContain('고시정보');
     expect(html).toContain('교환 · 반품 안내');
   });
 
