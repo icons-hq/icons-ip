@@ -2,7 +2,8 @@
 
 > 상태: Active · 작성 2026-08-07 · 근거: [`first-sale-readiness.md`](./first-sale-readiness.md) §3.4(`N1`·`L4`) · 결정 D8
 > 코드 진실원: `lib/email/*`, `supabase/migrations/20260807130001_transactional_email_deliveries.sql`,
-> `supabase/migrations/20260807140001_email_delivery_admin_ops.sql`
+> `supabase/migrations/20260807140001_email_delivery_admin_ops.sql`,
+> `supabase/migrations/20260807150001_email_resend_order_state_gate.sql`
 
 앱이 직접 보내는 메일이다. Supabase Auth의 가입 확인·비밀번호 재설정 메일과는 **다른 경로**다
 (Auth 메일은 Supabase custom SMTP, 이 메일은 앱 서버의 HTTP 호출).
@@ -15,10 +16,10 @@
 |---|---|---|
 | provider 경계 | `lib/email/provider.server.ts` | HTTP 한 번. SDK 의존성 없음. env 없으면 no-op |
 | 본문 템플릿 | `lib/email/templates.ts` | 순수 함수. 네트워크·DB·env를 모른다 |
-| 발송 훅 | `lib/email/transactional.server.ts` | 주문 로드 → 클레임 → 발송 → 결과 기록. **throw하지 않는다** |
+| 발송 훅 | `lib/email/transactional.server.ts` | 주문 로드 → 사실 확인 → 클레임 → 발송 → 결과 기록. **throw하지 않는다** |
 | 발송 이력 | `email_deliveries` 테이블 + `claim_email_delivery` / `complete_email_delivery` | 멱등·재발송의 진실원 |
 | dedupe 키 | `lib/email/dedupe.ts` | `<template>:<orderId>` 형식의 진실원. 재발송이 행 하나에서 대상을 되찾는 근거 |
-| 운영 조회 | `lib/email/deliveries.server.ts` + `admin_search_email_deliveries` | 실패 목록 읽기(staff 전용) |
+| 운영 조회 | `lib/email/deliveries.server.ts` + `admin_search_email_deliveries` | `failed`·`pending` 목록 읽기(staff 전용) |
 
 발송 지점은 두 곳이다.
 
@@ -33,6 +34,29 @@
 결제 확정의 진실원은 토스 웹훅이다(`AGENTS.md` 불변). 발송 훅이 예외를 던지면 웹훅이 500으로
 떨어지고 토스가 확정을 재전송한다 — 메일 문제로 주문 상태를 흔드는 셈이다. 그래서 훅은 모든
 실패를 삼키고 결과 객체로만 보고한다. 실패는 `email_deliveries.status='failed'`로 남는다.
+
+### 왜 미발송 로그를 훅이 직접 남기는가
+
+훅이 결과 객체만 돌려주면 그 결과를 버리는 호출자 하나가 미발송을 통째로 지운다. 그래서
+로그는 호출부가 아니라 훅(`safely`)이 남긴다 — `sent`와 `already_delivered`를 뺀 모든 결과가
+주문 id와 사유를 달고 `console.error`로 나간다. 호출부는 결과를 다시 로그하지 않는다.
+같은 사건이 두 줄로 남으면 알림 임계값이 흔들린다.
+
+### 왜 발송 시점의 주문 상태를 다시 보는가
+
+재발송이 열리면서 발송 시점이 웹훅 확정 직후로 한정되지 않는다. 확인 메일이 실패해 `failed`로
+남은 주문이 다음날 청약철회로 `canceled`가 될 수 있고, 그때 "결제가 확인됐고 배송 준비를
+시작합니다"를 보내면 취소된 주문에 대한 거짓 고지다. 그래서 훅이 발송 직전에 `orders.status`를
+읽고 본문이 지금도 사실인 상태에서만 보낸다.
+
+| 템플릿 | 보내는 주문 상태 | 어긋나면 |
+|---|---|---|
+| `order_confirmation` | `paid` · `shipping` · `done` | `skipped` + `order_status_mismatch:<status>` 로그 |
+| `order_shipped` | `shipping` · `done` | 〃 |
+
+집합은 두 곳에 있다 — `lib/email/transactional.server.ts`의 `ACCURATE_ORDER_STATUSES`와
+`admin_request_email_resend`. 웹훅 경로는 DB 게이트를 지나지 않으므로 실제 안전장치는 훅이고,
+DB 게이트는 운영자에게 발송 전에 이유를 알려주는 역할이다. **바꿀 때 양쪽을 함께 바꾼다.**
 
 ### 왜 클레임과 결과 기록이 나뉘어 있는가
 
@@ -61,12 +85,22 @@
 | `EMAIL_PROVIDER_ENDPOINT` | — | 기본 `https://api.resend.com/emails`. 같은 모양의 API면 이 값만 바꿔 갈아끼운다 |
 | `SITE_URL` | — | 메일 본문 링크의 오리진. 기본 `https://iconsip.com` |
 
-**`EMAIL_PROVIDER_API_KEY` 또는 `EMAIL_FROM`이 없으면 발송을 건너뛰고 로그만 남긴다.**
-로컬·CI에서 빌드와 테스트가 깨지지 않는다. `prebuild` 필수 변수 검증에도 넣지 않는다 —
-메일 미설정은 배포를 막을 사유가 아니다.
+**`EMAIL_PROVIDER_API_KEY` 또는 `EMAIL_FROM`이 없으면 메일을 보내지 않는다.** 대신
+`email_deliveries`에 `status='failed'`, `last_error='provider_not_configured'`로 **기록은 남긴다.**
+발송을 앞에서 끊고 아무것도 남기지 않으면 확인 메일 0통·이력 0행·로그 0줄이 되어, 나중에 키를
+채운 운영자가 발송 이력을 열어도 "다시 보낼 메일이 없습니다"만 본다 — 구매자는 계약내용
+서면(L4)을 영영 못 받는다. 기록해 두면 키를 채운 뒤 `다시 보내기` 하나로 복구된다.
+
+빌드와 테스트는 깨지지 않는다. `prebuild` 필수 변수 검증에도 넣지 않는다 — 메일 미설정은
+배포를 막을 사유가 아니다.
+
+`SUPABASE_SERVICE_ROLE_KEY`가 없으면 주문도 못 읽고 이력도 못 남긴다. 이 경우에만 로그 한 줄
+(`service_role_not_configured`)이 유일한 흔적이다.
 
 Vercel에서는 Production·Preview 모두 sensitive로 등록한다. Preview에 실제 발신 도메인을
-쓰면 테스트 메일이 실사용자에게 갈 수 있으므로, Preview는 키를 비워 no-op으로 두는 것이 기본이다.
+쓰면 테스트 메일이 실사용자에게 갈 수 있으므로, Preview는 키를 비워 두는 것이 기본이다.
+Preview의 `email_deliveries`에는 `provider_not_configured` 행이 쌓인다 — 보내지 않은 사실의
+정확한 기록이므로 정상이다.
 
 ---
 
@@ -122,8 +156,13 @@ SPF·DKIM만으로는 수신 측 정책이 없다. 리포트부터 받는 정책
 
 ### 조회와 재발송
 
-어드민 **발송 이력** 화면(`components/admin/sections/EmailDeliverySection.tsx`)에서 한다.
-실패한 건이 목록에 쌓이고, 각 건의 `다시 보내기`가 재발송 경로다. **SQL 콘솔이 필요 없다.**
+어드민 사이드바 **메일 발송 이력** 섹션(`components/admin/sections/EmailDeliverySection.tsx`,
+`app/admin/page.tsx`가 로드해 `components/admin/Admin.tsx`가 렌더)에서 한다. 각 건의
+`다시 보내기`가 재발송 경로다. **SQL 콘솔이 필요 없다.**
+
+목록은 `failed`와 `pending`을 **둘 다** 읽는다(`loadEmailDeliveries`). `failed`만 읽으면,
+클레임 직후 함수 타임아웃이나 `complete_email_delivery` 실패로 죽은 발송이 `pending`으로
+영구히 남아 — 메일은 안 갔는데 목록에는 안 보이는 상태가 된다.
 
 `email_deliveries` 테이블은 RLS 활성 + 모든 롤 revoke다. **service role 세션에서도 직접
 `select`할 수 없다** — 시도하면 `permission denied for table email_deliveries`가 난다.
@@ -133,14 +172,41 @@ SPF·DKIM만으로는 수신 측 정책이 없다. 리포트부터 받는 정책
 | RPC | 실행 롤 | 역할 |
 |---|---|---|
 | `admin_search_email_deliveries(p_status, p_limit, p_offset)` | `authenticated` (내부에서 `is_staff()`) | 상태별 발송 이력 조회. 앱은 `lib/email/deliveries.server.ts`로 부른다 |
-| `admin_request_email_resend(p_dedupe_key)` | `authenticated` (내부에서 `is_staff()`) | 재발송 게이트. `audit_log`에 `admin.email_delivery.resend_requested`를 남기고 템플릿 이름을 돌려준다 |
+| `admin_request_email_resend(p_dedupe_key)` | `authenticated` (내부에서 `is_staff()`) | 재발송 게이트. 통과하면 `audit_log`에 `admin.email_delivery.resend_requested`를 남기고 템플릿 이름을 돌려준다 |
 
 재발송이 멱등을 깨지 않는 이유는 두 겹이다. `admin_request_email_resend`가 이미 `sent`인
 건을 거절하고, 통과하더라도 실제 발송은 `claim_email_delivery`를 다시 잡는 기존 훅이 한다.
 버튼을 연타해도 이미 도착한 메일이 두 번 가지 않는다.
 
+`다시 보내기`가 거절되는 이유는 다음과 같다. 거절되면 `audit_log`에도 남지 않는다 —
+일어나지 않은 발송을 기록하지 않는다.
+
+| 메시지 | 뜻 | 운영자가 할 일 |
+|---|---|---|
+| `email_already_sent` | 이미 도착했다 | 없음 |
+| `email_no_longer_accurate` | 주문 상태가 본문과 어긋난다(예: 청약철회로 `canceled`) | 없음. 이 건은 다시 보내면 안 된다 |
+| `order_missing` | 대상 주문이 사라졌다 | 없음 |
+| `email_delivery_not_found` · `email_delivery_target_unresolved` | 대상을 특정할 수 없다 | 개발자 확인 |
+
+`email_no_longer_accurate`로 막힌 행은 `failed`로 계속 남는다. 지우지 않는다 — "이 메일은
+끝내 가지 않았다"는 사실 자체가 기록이다.
+
 배송 시작 메일을 다시 보낼 때 운송장 값은 폼에서 오지 않는다. 발송 훅이 `orders`의
 `shipping_carrier`·`tracking_number`를 읽어 채운다.
+
+### 이력에 남지 않는 미발송
+
+발송 훅이 클레임 전에 멈추면 `email_deliveries`에 행이 생기지 않는다. 이 경우 로그가 유일한
+흔적이므로, 화면만 보고 "보낼 게 없다"고 판단하면 안 된다. 로그에서
+`[email] order confirmation not sent (order:<id>)` 를 찾는다.
+
+| 사유 | 이력 행 | 복구 |
+|---|---|---|
+| `service_role_not_configured` | 없음 | env 채운 뒤 로그의 주문 id로 확인. 재발송 대상이 없으므로 개발자 경로가 필요하다 |
+| `recipient_missing` | 없음 | `profiles.email`을 채운 뒤 위와 같다 |
+| `order_missing` | 없음 | 없음(대상이 없다) |
+| `order_status_mismatch:<status>` | 없음 | 없음. 보내면 안 되는 메일이다 |
+| `provider_not_configured` | **있음**(`failed`) | 키를 채우고 발송 이력에서 `다시 보내기` |
 
 ### 본문 확인
 
@@ -152,4 +218,8 @@ Gmail은 `<style>`을 떼어내고 Outlook은 flex·grid를 무시한다. 앱의
 ### 남은 것
 
 - 사업자 정보·고객센터 연락처의 메일 푸터 반영 — [#170](https://github.com/sangwopark19/icons-ip/issues/170)(#87 종속)
-- 발송 실패의 능동 알림(현재는 어드민이 발송 이력 화면을 열어야 안다)
+- 발송 실패의 능동 알림. 현재 미발송은 `console.error`로만 나가고, 운영자가 로그 알림을
+  걸어두지 않으면 발송 이력 화면을 열어야 안다
+- 이력 행이 없는 미발송(`recipient_missing` 등)의 화면 복구 경로. 지금은 로그를 보고
+  개발자가 처리한다
+- `admin_request_email_resend`의 SQL 스모크. `supabase/tests/`에 대응 파일이 아직 없다

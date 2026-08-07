@@ -45,6 +45,8 @@ function rpcCalls(name: string) {
   return mocks.rpc.mock.calls.filter((call) => call[0] === name);
 }
 
+let errorLog: ReturnType<typeof vi.spyOn<Console, 'error'>>;
+
 beforeEach(() => {
   mocks.serviceConfigured = true;
   mocks.providerConfigured = true;
@@ -59,6 +61,7 @@ beforeEach(() => {
   mocks.order = {
     id: ORDER_ID,
     user_id: 'user-1',
+    status: 'paid',
     total: 27_000,
     created_at: '2026-08-07T02:30:00.000Z',
     address: {
@@ -73,8 +76,15 @@ beforeEach(() => {
   ];
   mocks.profile = { email: 'buyer@example.com' };
   vi.spyOn(console, 'info').mockImplementation(() => {});
-  vi.spyOn(console, 'error').mockImplementation(() => {});
+  // vi.spyOn은 이미 spy인 메서드에 같은 mock을 돌려준다. 비우지 않으면 이전 테스트의
+  // 로그가 남아 "로그를 남기지 않는다"를 검증할 수 없다.
+  errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+  errorLog.mockClear();
 });
+
+function loggedLines() {
+  return errorLog.mock.calls.map((call) => String(call[0]));
+}
 
 describe('sendOrderConfirmationEmail', () => {
   it('클레임 → 발송 → 결과 기록 순서로 확인 메일을 보낸다', async () => {
@@ -119,23 +129,44 @@ describe('sendOrderConfirmationEmail', () => {
     expect(rpcCalls('complete_email_delivery')).toHaveLength(0);
   });
 
-  it('provider가 설정되지 않으면 이력도 남기지 않고 건너뛴다', async () => {
+  // provider 키 없이 첫 주문이 확정되면 이전에는 이력 0행·로그 0줄이었다. 나중에 키를
+  // 채운 운영자에게 "다시 보낼 메일이 없습니다"만 남으면 구매자는 서면을 영영 못 받는다.
+  it('provider가 설정되지 않아도 실패 이력을 남겨 나중에 다시 보낼 수 있게 한다', async () => {
     mocks.providerConfigured = false;
+    mocks.send.mockResolvedValue({ status: 'skipped', reason: 'provider_not_configured' });
 
     const result = await sendOrderConfirmationEmail(ORDER_ID);
 
-    expect(result.status).toBe('skipped');
-    expect(mocks.rpc).not.toHaveBeenCalled();
-    expect(mocks.send).not.toHaveBeenCalled();
+    expect(result).toEqual({ status: 'failed', error: 'provider_not_configured' });
+    expect(rpcCalls('claim_email_delivery')).toHaveLength(1);
+    expect(rpcCalls('complete_email_delivery')[0][1]).toMatchObject({
+      target_dedupe_key: `order_confirmation:${ORDER_ID}`,
+      target_status: 'failed',
+      target_error: 'provider_not_configured',
+    });
+    expect(loggedLines().some((line) => line.includes('provider_not_configured'))).toBe(true);
   });
 
-  it('service role이 없으면 건너뛴다', async () => {
+  it('service role이 없으면 건너뛰되 사유를 로그로 남긴다', async () => {
     mocks.serviceConfigured = false;
 
     const result = await sendOrderConfirmationEmail(ORDER_ID);
 
-    expect(result.status).toBe('skipped');
+    expect(result).toEqual({ status: 'skipped', reason: 'service_role_not_configured' });
     expect(mocks.send).not.toHaveBeenCalled();
+    expect(loggedLines().some((line) => (
+      line.includes('service_role_not_configured') && line.includes(ORDER_ID)
+    ))).toBe(true);
+  });
+
+  it('멱등이 흡수한 재전송은 로그를 남기지 않는다', async () => {
+    mocks.rpc.mockImplementation(async (name: string) => (
+      name === 'claim_email_delivery' ? { data: false, error: null } : { data: null, error: null }
+    ));
+
+    await sendOrderConfirmationEmail(ORDER_ID);
+
+    expect(loggedLines()).toHaveLength(0);
   });
 
   it('발송이 실패해도 예외를 던지지 않고 실패를 이력에 남긴다', async () => {
@@ -159,17 +190,54 @@ describe('sendOrderConfirmationEmail', () => {
     expect(mocks.send).not.toHaveBeenCalled();
   });
 
-  it('수신 이메일이 없으면 건너뛴다', async () => {
+  it('수신 이메일이 없으면 건너뛰되 사유를 로그로 남긴다', async () => {
     mocks.profile = { email: null };
 
     const result = await sendOrderConfirmationEmail(ORDER_ID);
 
     expect(result).toEqual({ status: 'skipped', reason: 'recipient_missing' });
     expect(mocks.send).not.toHaveBeenCalled();
+    expect(loggedLines().some((line) => (
+      line.includes('recipient_missing') && line.includes(ORDER_ID)
+    ))).toBe(true);
+  });
+
+  // 재발송은 임의 시점이다. 청약철회로 취소된 주문에 "결제가 확인됐고 배송 준비를
+  // 시작합니다"를 보내면 거짓 고지다.
+  it('취소된 주문에는 확인 메일을 다시 보내지 않는다', async () => {
+    mocks.order = { ...mocks.order, status: 'canceled' };
+
+    const result = await sendOrderConfirmationEmail(ORDER_ID);
+
+    expect(result).toEqual({ status: 'skipped', reason: 'order_status_mismatch:canceled' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(loggedLines().some((line) => line.includes('order_status_mismatch:canceled'))).toBe(true);
+  });
+
+  it('결제가 확정되지 않은 주문에는 확인 메일을 보내지 않는다', async () => {
+    mocks.order = { ...mocks.order, status: 'pending' };
+
+    const result = await sendOrderConfirmationEmail(ORDER_ID);
+
+    expect(result).toEqual({ status: 'skipped', reason: 'order_status_mismatch:pending' });
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it('배송·완료로 넘어간 주문에는 확인 메일을 다시 보낼 수 있다', async () => {
+    mocks.order = { ...mocks.order, status: 'done' };
+
+    const result = await sendOrderConfirmationEmail(ORDER_ID);
+
+    expect(result.status).toBe('sent');
   });
 });
 
 describe('sendOrderShippedEmail', () => {
+  beforeEach(() => {
+    mocks.order = { ...mocks.order, status: 'shipping' };
+  });
+
   it('운송장 값을 인자로 받아 본문에 넣는다', async () => {
     const result = await sendOrderShippedEmail({
       orderId: ORDER_ID,
@@ -212,5 +280,25 @@ describe('sendOrderShippedEmail', () => {
     expect(body).toContain('123456789012');
     expect(body).toContain('hanjin.com');
     expect(body).not.toContain('운송장 정보가 등록되면');
+  });
+
+  // 배송 후 청약철회로 주문이 취소되면 "배송지로 이동하고 있습니다"는 더 이상 사실이 아니다.
+  it('취소된 주문에는 배송 시작 메일을 다시 보내지 않는다', async () => {
+    mocks.order = { ...mocks.order, status: 'canceled' };
+
+    const result = await sendOrderShippedEmail({ orderId: ORDER_ID });
+
+    expect(result).toEqual({ status: 'skipped', reason: 'order_status_mismatch:canceled' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it('아직 배송을 시작하지 않은 주문에는 배송 시작 메일을 보내지 않는다', async () => {
+    mocks.order = { ...mocks.order, status: 'paid' };
+
+    const result = await sendOrderShippedEmail({ orderId: ORDER_ID });
+
+    expect(result).toEqual({ status: 'skipped', reason: 'order_status_mismatch:paid' });
+    expect(mocks.send).not.toHaveBeenCalled();
   });
 });
