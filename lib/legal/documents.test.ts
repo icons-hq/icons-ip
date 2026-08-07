@@ -10,7 +10,7 @@ import {
   PENDING_PROCESSOR_LABEL,
   type LegalDocument,
 } from './documents';
-import { SOCIAL_LOGIN_PROVIDERS, overseasSocialLogins } from './social-login';
+import { SOCIAL_LOGIN_LABELS } from './social-login';
 
 const documents = LEGAL_DOCUMENT_SLUGS.map((slug) => LEGAL_DOCUMENTS[slug]);
 
@@ -124,14 +124,8 @@ describe('법정 문서 레지스트리', () => {
   it('로그인 화면이 실제로 제공하는 소셜 로그인 제공자를 빠짐없이 기재한다 (#169)', () => {
     const text = [plainText(LEGAL_DOCUMENTS.privacy), plainText(LEGAL_DOCUMENTS.terms)].join('\n');
 
-    for (const provider of Object.values(SOCIAL_LOGIN_PROVIDERS)) {
-      expect(text, provider.label).toContain(provider.label);
-    }
-
-    const transfer = LEGAL_DOCUMENTS.privacy.articles.find((article) => article.heading.includes('국외'));
-    const receivers = transfer!.table!.rows.map((row) => row[0]);
-    for (const provider of overseasSocialLogins()) {
-      expect(receivers, provider.label).toContain(provider.entity);
+    for (const label of Object.values(SOCIAL_LOGIN_LABELS)) {
+      expect(text, label).toContain(label);
     }
   });
 });
@@ -205,6 +199,50 @@ describe('개인정보처리방침', () => {
 
     expect(wmsRow?.[0]).toBe(PENDING_PROCESSOR_LABEL);
     expect(PENDING_PROCESSOR_LABEL).toBe('확인 중');
+  });
+
+  /*
+   * signInWithSocialAction은 supabase.auth.signInWithOAuth로 만든 인가 요청 URL로 redirect할 뿐이다.
+   * 계정 식별자와 이메일은 제공자가 Supabase로 보내오는 값이라 방향이 반대다 —
+   * 제공자를 이전받는 자로 적으면 감사에서 제시할 전송 코드 경로가 없다.
+   */
+  it('국외 이전 표에 실제 전송 경로만 적는다 — 소셜 로그인 제공자는 이전받는 자가 아니다', () => {
+    const transfer = privacy.articles.find((article) => article.heading.includes('국외'));
+    const receivers = transfer!.table!.rows.map((row) => row[0]);
+
+    expect(receivers).toEqual(['Supabase, Inc.', 'Vercel, Inc.']);
+    for (const entity of ['Google LLC', 'Apple Inc.', '카카오']) {
+      expect(receivers, entity).not.toContain(entity);
+    }
+
+    /* 제공자가 표에서 빠진 이유는 로그인이 없어서가 아니라 방향이 반대여서다. */
+    const closing = transfer!.closing?.join('\n') ?? '';
+    expect(closing).toMatch(/이전하는 개인정보는 없습니다/);
+    expect(closing).toMatch(/Supabase, Inc\. 행의 이전 항목에 포함/);
+  });
+
+  /*
+   * 설정 화면(app/settings/actions.ts)은 nickname·avatarPath·marketing만 읽는다.
+   * 생년월일 입력 필드가 없는데도 방침이 설정 화면을 정정 경로로 가리키면,
+   * 문의 연락처가 비어 있는 지금 이용자에게 존재하지 않는 경로를 안내하게 된다.
+   */
+  it('자가 정정 경로로 설정 화면이 실제로 여는 항목만 안내한다', () => {
+    const rights = privacy.articles.find((article) => article.heading.includes('정보주체의 권리'));
+    const paragraphs = rights!.paragraphs!;
+    const selfService = paragraphs.find((paragraph) => paragraph.includes('설정 화면에서 직접 열람·수정'));
+
+    expect(selfService).toBeDefined();
+    expect(selfService).toContain('닉네임');
+    expect(selfService, '설정 화면에 생년월일 입력 필드가 없다').not.toMatch(/생년월일/);
+    expect(paragraphs.join('\n')).toMatch(/생년월일은 설정 화면에서 수정할 수 없습니다/);
+
+    const contact = privacy.articles.find((article) => article.heading.includes('문의처'));
+    const contactText = contact!.paragraphs!.join('\n');
+    if (!businessContactWords()) {
+      /* 연락처가 없는 동안 "개인정보를" 통째로 정정할 수 있다고 안내하면 안 된다. */
+      expect(contactText).not.toMatch(/개인정보를 직접 열람·정정/);
+      expect(contactText).toContain('닉네임');
+    }
   });
 });
 
