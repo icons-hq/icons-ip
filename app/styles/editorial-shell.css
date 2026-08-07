@@ -304,7 +304,8 @@
 
 .site-footer-editorial__grid {
   display: grid;
-  grid-template-columns: 1.4fr repeat(2, 1fr);
+  /* 카피 + 발견 · 내 활동 · 법정 고지 3개 링크 열 */
+  grid-template-columns: 1.4fr repeat(3, minmax(0, 1fr));
   gap: 44px;
   margin-top: clamp(64px, 8vw, 120px);
   padding-top: 24px;
@@ -324,8 +325,7 @@
   align-content: start;
 }
 
-.site-footer-editorial__links a,
-.site-footer-editorial__links span {
+.site-footer-editorial__links a {
   width: fit-content;
   color: #d7d7d1;
   font-size: 13px;
@@ -333,6 +333,42 @@
 
 .site-footer-editorial__links a:hover {
   color: var(--editorial-on-inverse);
+}
+
+/* 전자상거래법 판매자 정보 — 역상 푸터 두 곳(셸 푸터·홈 프리뷰 푸터)이 함께 쓴다.
+   항목 수가 유동적이라 고정 그리드 대신 wrap으로 흘려 모바일에서 라벨과 값이 갈라지지 않게 한다. */
+.business-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 34px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, .1);
+  font-family: var(--ff-body);
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: var(--editorial-leading-utility);
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.business-info__row {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.business-info__row dt {
+  flex: 0 0 auto;
+  color: #858580;
+  font-weight: 700;
+}
+
+.business-info__row dd {
+  margin: 0;
+  color: #c2c2bc;
+  overflow-wrap: anywhere;
 }
 
 .site-footer-editorial__meta {
@@ -452,7 +488,7 @@
   }
 
   .site-footer-editorial__grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .site-footer-editorial__copy {

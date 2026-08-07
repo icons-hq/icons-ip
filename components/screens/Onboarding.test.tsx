@@ -84,4 +84,19 @@ describe('Onboarding form contracts', () => {
     expect(html).toContain('class="onboarding-ip-tile"');
     expect(html).toContain('class="onboarding-ip-title"');
   });
+
+  it('필수 동의 항목에서 동의 대상 문서를 바로 열 수 있다', () => {
+    const html = render();
+
+    expect(html).toContain('href="/legal/terms"');
+    expect(html).toContain('href="/legal/privacy"');
+    /* 새 탭으로 열어 작성 중인 온보딩 입력값을 잃지 않게 한다. */
+    expect(html).toMatch(/href="\/legal\/terms"[^>]*target="_blank"/);
+  });
+
+  it('선택 동의 항목에는 문서 링크를 붙이지 않는다', () => {
+    const html = render();
+
+    expect(html.match(/전문 보기/g)).toHaveLength(2);
+  });
 });

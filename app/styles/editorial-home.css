@@ -2609,8 +2609,9 @@ html:has(.icons-preview)::-webkit-scrollbar {
 
 .icons-preview .footer-links {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  width: 62%;
+  /* EXPLORE · COMMUNITY · SOCIAL · LEGAL */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 74%;
   margin: 70px 0 90px auto;
   gap: 30px;
 }
@@ -2631,6 +2632,13 @@ html:has(.icons-preview)::-webkit-scrollbar {
 
 .icons-preview .footer-links a { width: fit-content; font-size: 15px; font-weight: 650; }
 .icons-preview .footer-links a:hover { color: var(--green); }
+
+/* 홈 프리뷰 푸터는 링크 블록이 이미 90px 여백을 남긴다 — 중복 구분선을 지운다. */
+.icons-preview .preview-footer-business {
+  margin: 0 0 26px;
+  padding-top: 0;
+  border-top: 0;
+}
 
 .icons-preview .footer-bottom {
   display: grid;
