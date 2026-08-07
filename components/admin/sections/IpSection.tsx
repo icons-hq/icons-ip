@@ -57,8 +57,9 @@ export function IpSection({
       </div>
       <div className="col" style={{ gap: 16, minWidth: 0 }}>
         <form action={action} className="card col" key={selected ? JSON.stringify(selected) : 'new-ip'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+          <input name="previousId" type="hidden" value={selected?.id ?? ''} />
           <div className="admin-form-grid">
-            <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="rilakkuma" />
+            <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="rilakkuma" readOnly={Boolean(selected)} />
             <Field defaultValue={selected?.title} error={state.errors?.title} label="IP 이름" name="title" placeholder="리락쿠마" />
             <Field defaultValue={selected?.sub} label="보조 설명" name="sub" placeholder="San-X · 캐릭터 IP" />
             <SelectField defaultValue={selected?.verticalKey} error={state.errors?.verticalKey} label="버티컬" name="verticalKey">

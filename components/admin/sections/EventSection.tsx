@@ -79,9 +79,10 @@ export function EventSection({
       </div>
       <div className="col" style={{ gap: 16, minWidth: 0 }}>
         <form action={action} className="card col" key={selected ? JSON.stringify(selected) : 'new-event'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+        <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
         <div className="admin-form-grid">
-          <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="e100" />
+          <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="e100" readOnly={Boolean(selected)} />
           <SelectField defaultValue={optional(selected?.ipId)} error={state.errors?.ipId} label="연결 IP" name="ipId">
             <option value="">플랫폼/합동 이벤트</option>
             {ipOptions.map((ip) => (

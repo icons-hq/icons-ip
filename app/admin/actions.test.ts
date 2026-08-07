@@ -366,6 +366,7 @@ describe('admin catalog actions', () => {
       target_bg: null,
       target_image_path: null,
       target_featured: true,
+      target_previous_id: null,
     });
   });
 
@@ -387,6 +388,7 @@ describe('admin catalog actions', () => {
       target_stock: 'ok',
       target_bg: null,
       target_image_path: null,
+      target_previous_id: null,
     });
     expect(mocks.getCatalogSnapshot).toHaveBeenCalledWith({ previewDefaultSource: 'supabase' });
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/');
@@ -574,6 +576,7 @@ describe('admin catalog actions', () => {
       target_accent: '#8B5CFF',
       target_bg: null,
       target_image_path: null,
+      target_previous_id: null,
     });
   });
 
@@ -584,6 +587,47 @@ describe('admin catalog actions', () => {
       errors: { form: '연결된 게임이 있어 이벤트 IP·운영 방식을 변경할 수 없습니다.' },
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  /* #181 — RPC가 막은 덮어쓰기를 운영자가 이해할 수 있는 문구로 옮긴다. */
+  it.each([
+    ['IP', upsertAdminIpAction, ipForm],
+    ['굿즈', upsertAdminGoodAction, goodForm],
+    ['카드', upsertAdminCardAction, cardForm],
+    ['이벤트', upsertAdminEventAction, eventForm],
+  ])('refuses to overwrite an existing %s record from the new-record form', async (_label, action, makeForm) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_id_taken' } });
+
+    await expect(action({}, makeForm())).resolves.toEqual({
+      errors: { id: '이미 사용 중인 ID입니다. 수정하려면 목록에서 선택해주세요.' },
+    });
+  });
+
+  it.each([
+    ['IP', upsertAdminIpAction, ipForm],
+    ['굿즈', upsertAdminGoodAction, goodForm],
+    ['카드', upsertAdminCardAction, cardForm],
+    ['이벤트', upsertAdminEventAction, eventForm],
+  ])('explains a vanished %s edit target', async (_label, action, makeForm) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_record_missing' } });
+
+    await expect(action({}, makeForm())).resolves.toEqual({
+      errors: { form: '수정할 항목을 찾을 수 없습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' },
+    });
+  });
+
+  it('passes the edit target to the good RPC so an update is not mistaken for a create', async () => {
+    const formData = goodForm();
+    formData.set('previousId', 'g100');
+
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+      message: '굿즈를 저장했습니다.',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'admin_upsert_good',
+      expect.objectContaining({ target_previous_id: 'g100' }),
+    );
   });
 
   it.each([
@@ -613,6 +657,7 @@ describe('admin catalog actions', () => {
       target_image_path: null,
       target_pool_id: '22222222-2222-4222-8222-222222222222',
       target_pool_binding_provided: true,
+      target_previous_id: null,
     });
   });
 

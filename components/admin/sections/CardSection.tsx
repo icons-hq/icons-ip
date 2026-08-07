@@ -69,9 +69,10 @@ export function CardSection({
       </div>
       <div className="col" style={{ gap: 16, minWidth: 0 }}>
         <form action={action} className="card col" key={selected ? JSON.stringify(selected) : 'new-card'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+        <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
         <div className="admin-form-grid">
-          <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="c100" />
+          <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="c100" readOnly={Boolean(selected)} />
           {pooled && selected ? (
             <ReadOnlyCatalogField label="연결 IP" name="ipId" value={selected.ipId}>
               {ipOptions.find((ip) => ip.id === selected.ipId)?.title ?? selected.ipId}

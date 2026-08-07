@@ -141,9 +141,10 @@ export function GoodSection({
       </div>
       <div className="col" style={{ gap: 16, minWidth: 0 }}>
         <form action={action} className="card col" key={selected ? JSON.stringify(selected) : 'new-good'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+          <input name="previousId" type="hidden" value={selected?.id ?? ''} />
           <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
           <div className="admin-form-grid">
-            <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="g100" />
+            <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="g100" readOnly={Boolean(selected)} />
             <SelectField defaultValue={selected?.ipId} error={state.errors?.ipId} label="연결 IP" name="ipId">
               <option value="">선택</option>
               {ipOptions.map((ip) => (

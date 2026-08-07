@@ -11,6 +11,7 @@ export interface AdminCatalogContext {
 }
 
 export interface AdminIpFormValue {
+  previousId: string | null;
   id: string;
   title: string;
   sub: string | null;
@@ -24,6 +25,7 @@ export interface AdminIpFormValue {
 }
 
 export interface AdminGoodFormValue {
+  previousId: string | null;
   id: string;
   ipId: string;
   name: string;
@@ -44,6 +46,7 @@ export interface AdminStockAdjustmentFormValue {
 }
 
 export interface AdminCardFormValue {
+  previousId: string | null;
   id: string;
   ipId: string;
   name: string;
@@ -112,6 +115,7 @@ export interface AdminGameContext {
 }
 
 export interface AdminEventFormValue {
+  previousId: string | null;
   id: string;
   ipId: string | null;
   title: string;
@@ -237,6 +241,27 @@ function localKstDateTimeToIso(formData: FormData, key: string, errors: AdminFie
   return new Date(Date.UTC(year, month - 1, day, hour - 9, minute)).toISOString();
 }
 
+/*
+ * 저장 의도를 폼에서 읽는다 (#181).
+ * 값이 없으면 신규 등록, 있으면 목록에서 선택한 레코드의 수정이다.
+ * 등록된 ID는 바꿀 수 없다 — 폼에서도 읽기 전용이고 우회 시 여기서 막힌다.
+ */
+function readPreviousId(formData: FormData, id: string, errors: AdminFieldErrors) {
+  const previousId = readString(formData, 'previousId');
+  if (!previousId) return null;
+
+  if (!SLUG_PATTERN.test(previousId)) {
+    errors.id = '수정 대상을 확인할 수 없습니다. 목록에서 다시 선택해주세요.';
+    return previousId;
+  }
+
+  if (previousId !== id) {
+    errors.id = '등록된 ID는 변경할 수 없습니다.';
+  }
+
+  return previousId;
+}
+
 function validIpId(value: string, context: AdminCatalogContext, errors: AdminFieldErrors) {
   if (!value || !context.ipIds.has(value)) {
     errors.ipId = '등록된 IP를 선택해주세요.';
@@ -290,6 +315,7 @@ export function normalizeAdminIpForm(
 ): AdminFormResult<AdminIpFormValue> {
   const errors: AdminFieldErrors = {};
   const id = readSlug(formData, 'id', errors, 'ID를 입력해주세요.');
+  const previousId = readPreviousId(formData, id, errors);
   const title = readString(formData, 'title');
   const verticalKey = readString(formData, 'verticalKey');
 
@@ -303,6 +329,7 @@ export function normalizeAdminIpForm(
   return {
     ok: true,
     value: {
+      previousId,
       id,
       title,
       sub: nullableString(formData, 'sub'),
@@ -323,6 +350,7 @@ export function normalizeAdminGoodForm(
 ): AdminFormResult<AdminGoodFormValue> {
   const errors: AdminFieldErrors = {};
   const id = readSlug(formData, 'id', errors, 'ID를 입력해주세요.');
+  const previousId = readPreviousId(formData, id, errors);
   const ipId = validIpId(readString(formData, 'ipId'), context, errors);
   const name = readString(formData, 'name');
   const type = readString(formData, 'type');
@@ -338,6 +366,7 @@ export function normalizeAdminGoodForm(
   return {
     ok: true,
     value: {
+      previousId,
       id,
       ipId,
       name,
@@ -407,6 +436,7 @@ export function normalizeAdminCardForm(
 ): AdminFormResult<AdminCardFormValue> {
   const errors: AdminFieldErrors = {};
   const id = readSlug(formData, 'id', errors, 'ID를 입력해주세요.');
+  const previousId = readPreviousId(formData, id, errors);
   const ipId = validIpId(readString(formData, 'ipId'), context, errors);
   const name = readString(formData, 'name');
   const rarity = readString(formData, 'rarity') as RarityKey;
@@ -420,6 +450,7 @@ export function normalizeAdminCardForm(
   return {
     ok: true,
     value: {
+      previousId,
       id,
       ipId,
       name,
@@ -678,6 +709,7 @@ export function normalizeAdminEventForm(
 ): AdminFormResult<AdminEventFormValue> {
   const errors: AdminFieldErrors = {};
   const id = readSlug(formData, 'id', errors, 'ID를 입력해주세요.');
+  const previousId = readPreviousId(formData, id, errors);
   const rawIpId = readString(formData, 'ipId');
   const title = readString(formData, 'title');
   const mode = readString(formData, 'mode');
@@ -695,6 +727,7 @@ export function normalizeAdminEventForm(
   return {
     ok: true,
     value: {
+      previousId,
       id,
       ipId: rawIpId || null,
       title,

@@ -151,6 +151,7 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminIpForm(formData, context)).toEqual({
       ok: true,
       value: {
+        previousId: null,
         id: 'hwasan',
         title: '화산강림',
         sub: '리디 · 로판',
@@ -162,6 +163,64 @@ describe('admin catalog form normalization', () => {
         imagePath: 'public-media/ip/hwasan.png',
         featured: true,
       },
+    });
+  });
+
+  /*
+   * #181 — 저장 의도를 폼이 명시한다. previousId 가 없으면 신규 등록이고,
+   * 있으면 목록에서 선택한 그 레코드의 수정이다. ID 변경은 허용하지 않는다.
+   */
+  it.each([
+    ['IP', normalizeAdminIpForm, () => {
+      const formData = new FormData();
+      formData.set('id', 'hwasan');
+      formData.set('title', '화산강림');
+      formData.set('verticalKey', 'rofan');
+      return formData;
+    }],
+    ['굿즈', normalizeAdminGoodForm, () => {
+      const formData = new FormData();
+      formData.set('id', 'g100');
+      formData.set('ipId', 'hwasan');
+      formData.set('name', '아크릴 스탠드');
+      formData.set('type', '아크릴 스탠드');
+      formData.set('price', '22000');
+      formData.set('stock', 'ok');
+      return formData;
+    }],
+    ['카드', normalizeAdminCardForm, () => {
+      const formData = new FormData();
+      formData.set('id', 'c100');
+      formData.set('ipId', 'hwasan');
+      formData.set('name', '청명 홀로 카드');
+      formData.set('rarity', 'HOLO');
+      return formData;
+    }],
+    ['이벤트', normalizeAdminEventForm, () => {
+      const formData = new FormData();
+      formData.set('id', 'e100');
+      formData.set('title', '합동 팝업');
+      formData.set('mode', '오프라인');
+      formData.set('status', '예정');
+      return formData;
+    }],
+  ])('carries the %s edit target and refuses to rename it', (_label, normalize, makeForm) => {
+    const editing = makeForm();
+    const editingId = String(editing.get('id'));
+    editing.set('previousId', editingId);
+
+    expect(normalize(editing, context)).toMatchObject({
+      ok: true,
+      value: { previousId: editingId, id: editingId },
+    });
+
+    const renamed = makeForm();
+    renamed.set('previousId', editingId);
+    renamed.set('id', `${editingId}-renamed`);
+
+    expect(normalize(renamed, context)).toMatchObject({
+      ok: false,
+      errors: { id: '등록된 ID는 변경할 수 없습니다.' },
     });
   });
 
@@ -196,6 +255,7 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminGoodForm(valid, context)).toEqual({
       ok: true,
       value: {
+        previousId: null,
         id: 'g100',
         ipId: 'hwasan',
         name: '화산강림 아크릴 스탠드',
@@ -307,6 +367,7 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminCardForm(valid, context)).toEqual({
       ok: true,
       value: {
+        previousId: null,
         id: 'c100',
         ipId: 'hwasan',
         name: '청명 홀로 카드',
@@ -442,6 +503,7 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminEventForm(formData, context)).toEqual({
       ok: true,
       value: {
+        previousId: null,
         id: 'e100',
         ipId: null,
         title: '합동 팝업',
