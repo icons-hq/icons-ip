@@ -252,7 +252,8 @@ function GrantForm({
         <button className="btn btn-holo" disabled={pending} style={{ minWidth: 150 }}>
           <Icon name="check" size={15} /> {pending ? '발급 중' : '카드팩 발급'}
         </button>
-        {/* removed */}
+        {/* 발급 성공·실패를 알린다. 이게 없으면 RPC 실패가 아무 표시 없이 삼켜진다. */}
+        <InlineNotice state={state} />
       </div>
     </form>
   );

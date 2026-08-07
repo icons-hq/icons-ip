@@ -54,8 +54,13 @@ export function businessInfoRows(info: BusinessInfo = BUSINESS_INFO): BusinessIn
     .filter((row) => row.value.length > 0);
 }
 
-/** 이용자가 실제로 연락을 닿게 할 수 있는 항목. 호스팅 제공자나 신고번호는 창구가 아니다. */
-const CONTACT_KEYS: (keyof BusinessInfo)[] = ['representative', 'phone', 'email'];
+/*
+ * 이용자가 실제로 연락을 **닿게** 할 수 있는 항목만이다.
+ * 대표자명은 창구가 아니라 창구의 이름표다 — 사업자등록증에 먼저 확정되므로
+ * 여기 넣으면 전화·이메일이 비어 있는 중간 상태에서 "창구가 있다"로 잘못 뒤집힌다.
+ * 호스팅 제공자와 신고번호도 창구가 아니다.
+ */
+const CONTACT_KEYS: (keyof BusinessInfo)[] = ['phone', 'email'];
 
 /** 문의 창구로 쓸 수 있는 행만. 비어 있으면 창구가 아직 없다는 뜻이다. */
 export function businessContactRows(info: BusinessInfo = BUSINESS_INFO): BusinessInfoRow[] {

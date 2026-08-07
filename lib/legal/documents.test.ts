@@ -146,12 +146,22 @@ describe('이용약관', () => {
     expect(text).toMatch(/유상으로 판매하지 않습니다/);
   });
 
-  /* 사용자-facing 공시 화면이 없다. 이행할 수 없는 공개 의무를 약관에 지지 않는다(ADR-0003·0004). */
-  it('개봉 결과는 서버가 정한다고만 밝히고 공시 의무를 만들지 않는다', () => {
+  /*
+   * 사용자-facing 공시 화면이 없다. 이행할 수 없는 공개 의무를 약관에 지지 않는다(ADR-0003·0004).
+   * 동시에 결제가 카드팩을 무상 지급할 수 있다는 사실(confirm_order_payment의 order_paid 트리거)을
+   * 부정하지 않는다 — "대금 지급 경로가 없다"고 쓰면 실제 동작과 정반대가 된다.
+   * 발급 후 구성 변경(ADR-0004)도 고지 대상이다.
+   */
+  it('개봉 결과의 결정 주체와 무상 지급 조건을 사실대로 밝힌다', () => {
     const cardArticle = terms.articles.find((article) => article.heading.includes('카드팩'));
+    const body = cardArticle?.paragraphs?.join('\n') ?? '';
 
-    expect(cardArticle?.paragraphs?.join('\n')).toMatch(/서버가 무작위로 결정/);
-    expect(cardArticle?.paragraphs?.join('\n')).not.toMatch(/공개합니다/);
+    expect(body).toMatch(/서버가 결정/);
+    expect(body).toMatch(/판매하지 않습니다/);
+    expect(body).toMatch(/조건을 충족하면 카드팩이 대가 없이 지급될 수 있습니다/);
+    expect(body).toMatch(/개봉 시점의 구성/);
+    expect(body).not.toMatch(/공개합니다/);
+    expect(body).not.toMatch(/영향을 줄 수 있는 경로는 없습니다/);
   });
 
   it('교환·마켓이 아직 제공되지 않는다는 사실을 밝힌다', () => {

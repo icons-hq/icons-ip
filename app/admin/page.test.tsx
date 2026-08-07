@@ -51,6 +51,7 @@ vi.mock('@/lib/auth/admin', () => ({
   })),
 }));
 vi.mock('@/lib/catalog', () => ({ getCatalogSnapshot: vi.fn(async () => ({ verticals: [], ips: [] })) }));
+vi.mock('@/lib/email/deliveries.server', () => ({ loadEmailDeliveries: vi.fn(async () => []) }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => {
     throw new Error(`NEXT_REDIRECT:${path}`);

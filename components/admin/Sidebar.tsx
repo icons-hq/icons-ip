@@ -16,6 +16,7 @@ const NAV_ITEMS: { id: AdminSection; label: string; icon: string }[] = [
   { id: 'ticket', label: '티켓 회차', icon: 'event' },
   { id: 'curations', label: '홈 큐레이션', icon: 'grid' },
   { id: 'notifications', label: '공지 발송', icon: 'bell' },
+  { id: 'emails', label: '메일 발송 이력', icon: 'bell' },
   { id: 'moderation', label: '모더레이션', icon: 'shield' },
   { id: 'members', label: '회원', icon: 'user' },
   { id: 'roles', label: '역할', icon: 'user' },

@@ -125,7 +125,7 @@ grant execute on function public.admin_update_order_status(
   uuid, public.order_status, text, text
 ) to authenticated;
 
--- 송장 오등록 정정 경로. 상태를 움직이지 않고 값만 교체하며, 이전 값과 새 값을
+-- 운송장 오등록 정정 경로. 상태를 움직이지 않고 값만 교체하며, 이전 값과 새 값을
 -- 함께 감사 로그에 남겨 수정 이력을 추적 가능하게 한다.
 create or replace function public.admin_update_order_tracking(
   p_order_id uuid,

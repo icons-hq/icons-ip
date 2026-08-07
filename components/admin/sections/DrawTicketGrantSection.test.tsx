@@ -195,4 +195,18 @@ describe('DrawTicketGrantSection', () => {
 
     expect(html).toContain('수동 발급 이력이 없습니다');
   });
+
+  /*
+   * 발급 RPC 가 실패하면 아무 표시 없이 폼만 되돌아온다 — 운영자는 발급된 줄 알고 넘어간다.
+   * 성공 메시지도 같은 자리에서 나온다.
+   */
+  it('발급 실패와 성공을 폼에서 알린다', () => {
+    hooks.selected = member;
+
+    hooks.grantState = { errors: { form: '정지된 회원에게는 발급할 수 없습니다.' } };
+    expect(render()).toContain('정지된 회원에게는 발급할 수 없습니다.');
+
+    hooks.grantState = { message: '카드팩 2개를 발급했습니다.' };
+    expect(render()).toContain('카드팩 2개를 발급했습니다.');
+  });
 });

@@ -14,6 +14,7 @@ import type {
   AdminTicketTypeRecord,
 } from '@/lib/admin/catalog.server';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
+import type { EmailDeliveryRecord } from '@/lib/email/deliveries.server';
 import type { AdminDrawTicketGrantRecord } from '@/lib/admin/draw-ticket-grants';
 import type { AdminInsights } from '@/lib/admin/insights.server';
 import type { AdminModerationRecords } from '@/lib/admin/moderation.server';
@@ -27,6 +28,7 @@ import { Sidebar } from './Sidebar';
 import { CardSection } from './sections/CardSection';
 import { CardPoolSection } from './sections/CardPoolSection';
 import { CurationSection } from './sections/CurationSection';
+import { EmailDeliverySection } from './sections/EmailDeliverySection';
 import { DrawTicketGrantSection } from './sections/DrawTicketGrantSection';
 import { EventSection } from './sections/EventSection';
 import { GoodSection } from './sections/GoodSection';
@@ -41,7 +43,7 @@ import { RewardPolicySection } from './sections/RewardPolicySection';
 import { RolesSection } from './sections/Roles';
 import { TicketSection } from './sections/TicketSection';
 
-export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'pool' | 'policy' | 'grants' | 'game' | 'event' | 'ticket' | 'curations' | 'notifications' | 'moderation' | 'members' | 'roles';
+export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'pool' | 'policy' | 'grants' | 'game' | 'event' | 'ticket' | 'curations' | 'notifications' | 'emails' | 'moderation' | 'members' | 'roles';
 
 const SECTION_TITLES: Record<AdminSection, string> = {
   overview: '개요',
@@ -57,6 +59,7 @@ const SECTION_TITLES: Record<AdminSection, string> = {
   ticket: '티켓 회차 관리',
   curations: '홈 큐레이션',
   notifications: '공지·알림 발송',
+  emails: '메일 발송 이력',
   moderation: '모더레이션',
   members: '회원 관리',
   roles: '역할 관리',
@@ -76,6 +79,7 @@ interface AdminProps {
   curationOperationId: string;
   curations: AdminCurationRecord[];
   drawTicketGrants: AdminDrawTicketGrantRecord[];
+  emailDeliveries: EmailDeliveryRecord[];
   grantOperationId: string;
   initialSection?: AdminSection;
   insights: AdminInsights;
@@ -108,6 +112,7 @@ export function Admin({
   curationOperationId,
   curations,
   drawTicketGrants,
+  emailDeliveries,
   grantOperationId,
   initialSection,
   insights,
@@ -335,6 +340,9 @@ export function Admin({
                 records={curations}
                 selected={selectedCuration}
               />
+            )}
+            {active === 'emails' && (
+              <EmailDeliverySection deliveries={emailDeliveries} />
             )}
             {active === 'notifications' && (
               <NotificationSection data={notificationConsole} operationId={notificationOperationId} />

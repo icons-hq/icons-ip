@@ -13,6 +13,7 @@ import { getAdminOrderRecords } from '@/lib/admin/orders.server';
 import { getAdminProfileRecords } from '@/lib/admin/roles.server';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { getCatalogSnapshot } from '@/lib/catalog';
+import { loadEmailDeliveries } from '@/lib/email/deliveries.server';
 
 export default async function AdminPage({
   searchParams,
@@ -31,7 +32,7 @@ export default async function AdminPage({
     notFound();
   }
 
-  const [catalog, records, moderation, insights, members, profiles, orders, notificationConsole, curations, drawTicketGrants] = await Promise.all([
+  const [catalog, records, moderation, insights, members, profiles, orders, notificationConsole, curations, drawTicketGrants, emailDeliveries] = await Promise.all([
     getCatalogSnapshot({ previewDefaultSource: 'supabase' }),
     getAdminCatalogRecords(),
     getAdminModerationRecords(),
@@ -42,6 +43,7 @@ export default async function AdminPage({
     getAdminNotificationConsoleData(),
     getAdminCurations(),
     getAdminDrawTicketGrants(),
+    loadEmailDeliveries(),
   ]);
 
   return (
@@ -53,6 +55,7 @@ export default async function AdminPage({
       }}
       catalog={catalog}
       drawTicketGrants={drawTicketGrants}
+      emailDeliveries={emailDeliveries}
       insights={insights}
       initialSection={query.section === 'orders' ? 'orders' : query.section === 'good' ? 'good' : query.section === 'ticket' ? 'ticket' : query.section === 'pool' ? 'pool' : query.section === 'policy' ? 'policy' : query.section === 'grants' ? 'grants' : query.section === 'game' ? 'game' : query.section === 'curations' ? 'curations' : query.section === 'notifications' ? 'notifications' : query.section === 'members' ? 'members' : 'overview'}
       members={members}

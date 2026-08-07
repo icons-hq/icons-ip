@@ -776,8 +776,10 @@ select 1 / case when (
   )
 ) then 1 else 0 end as assert_verified_failed_payment_converges_to_refund;
 
--- 배송 후 청약철회는 열려 있지만(#176) 결제 증거 없이는 여전히 fail closed다.
--- 상태가 아니라 provider 증거가 경계라는 점을 고정한다.
+-- 배송 후 청약철회는 열려 있지만(#176) 승인 경로 밖 호출에는 여전히 fail closed다.
+-- staff 결정이 남긴 claim이 없으면 결제 증거를 보기도 전에 거절한다 —
+-- 아래 710(증거 유효)과 함께, 증거 유무와 무관하게 claim이 경계임을 고정한다.
+-- claim이 있는 주문에서 증거가 경계라는 점은 703이 따로 고정한다.
 do $$
 declare
   blocked_order uuid;
@@ -793,10 +795,10 @@ begin
         '배송 이후 취소 시도',
         array['irrelevant-provider-key']::text[]
       );
-      raise exception 'shipping or done order should require payment evidence';
+      raise exception 'shipping or done order without a staff claim should be rejected';
     exception
       when raise_exception then
-        if sqlerrm <> 'payment evidence required' then raise; end if;
+        if sqlerrm <> 'order not cancelable' then raise; end if;
     end;
   end loop;
 end;

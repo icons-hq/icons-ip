@@ -78,10 +78,9 @@ function toRecord(row: DeliveryRow): EmailDeliveryRecord | null {
   };
 }
 
-/** 재발송이 필요한 건(실패 + 응답이 유실된 대기)을 최신순으로 읽는다. */
-export async function loadEmailDeliveries(
-  status: EmailDeliveryStatus | null = 'failed',
-  limit = DEFAULT_LIMIT,
+async function searchDeliveries(
+  status: EmailDeliveryStatus | null,
+  limit: number,
 ): Promise<EmailDeliveryRecord[]> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('admin_search_email_deliveries', {
@@ -94,4 +93,23 @@ export async function loadEmailDeliveries(
   return ((data ?? []) as DeliveryRow[])
     .map(toRecord)
     .filter((record): record is EmailDeliveryRecord => record !== null);
+}
+
+/*
+ * 재발송이 필요한 건을 최신순으로 읽는다.
+ *
+ * `failed`만 읽으면 안 된다. 발송 훅이 claim_email_delivery로 행을 잡은 뒤
+ * 함수 타임아웃이나 complete_email_delivery 실패로 죽으면 그 행은 `pending`으로
+ * 영구히 남는다 — 메일은 안 갔는데 목록에는 안 보이는 상태가 된다.
+ * DB 게이트(admin_request_email_resend)도 pending을 통과시키도록 만들어져 있다.
+ */
+export async function loadEmailDeliveries(limit = DEFAULT_LIMIT): Promise<EmailDeliveryRecord[]> {
+  const [failed, pending] = await Promise.all([
+    searchDeliveries('failed', limit),
+    searchDeliveries('pending', limit),
+  ]);
+
+  return [...failed, ...pending]
+    .sort((a, b) => b.claimedAt.localeCompare(a.claimedAt))
+    .slice(0, limit);
 }

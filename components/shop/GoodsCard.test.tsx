@@ -51,6 +51,31 @@ describe('GoodsCard', () => {
     expect(nameLink[2].replace(/<[^>]*>/g, '')).toContain('아크릴 블록');
   });
 
+  /*
+   * 이미지 링크를 접근성 트리에서 빼면서 그 안에 있던 배지·재고 칩까지 같이 숨기면
+   * 판매 상태가 스크린리더에서 통째로 사라진다(WCAG 1.3.1). 배지가 없는 재고 임박
+   * 굿즈는 이 칩이 유일한 노출 지점이다.
+   */
+  it('keeps the badge and stock chip readable outside the hidden image link', () => {
+    const badged = renderToStaticMarkup(
+      <GoodsCard action={<button type="button">담기</button>} good={good} href="/shop/g13" />,
+    );
+    const lowStock = renderToStaticMarkup(
+      <GoodsCard
+        action={<button type="button">담기</button>}
+        good={{ ...good, badge: undefined, stock: 'low' }}
+        href="/shop/g13"
+      />,
+    );
+
+    for (const [html, chip] of [[badged, '신상'], [lowStock, '품절임박']] as const) {
+      const imageLink = html.match(/<a\b[^>]*aria-hidden="true"[^>]*>[\s\S]*?<\/a>/)?.[0] ?? '';
+      expect(html).toContain(chip);
+      /* 칩이 aria-hidden 링크 바깥에 있다. */
+      expect(imageLink).not.toContain(chip);
+    }
+  });
+
   it('renders without a link when no detail href is given', () => {
     const html = renderToStaticMarkup(
       <GoodsCard action={<span>미리보기</span>} good={good} />,

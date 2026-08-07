@@ -39,13 +39,20 @@ export function GoodsCard({
   const media = (
     <div style={{ aspectRatio: '1 / 1', background: good.img, backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
       <span aria-hidden className="sheen" style={{ opacity: 0.3 }} />
-      {(good.badge ?? stockLabel) && (
-        <span className="mono" style={{ position: 'absolute', top: 12, left: 12, fontSize: 10.5, letterSpacing: '.06em', padding: '4px 10px', borderRadius: 6, color: '#fff', background: 'rgba(8,6,15,.7)', border: '1px solid rgba(255,255,255,.2)', backdropFilter: 'blur(6px)' }}>
-          {good.badge ?? stockLabel}
-        </span>
-      )}
     </div>
   );
+
+  /*
+   * 배지·재고 칩은 이미지 링크 **밖에** 둔다. 링크가 aria-hidden 이라 그 안에 두면
+   * '예약'·'품절임박' 같은 판매 상태가 접근성 트리에서 통째로 사라진다(WCAG 1.3.1).
+   * 배지가 없는 재고 임박 굿즈는 이 칩이 유일한 노출 지점이라 특히 그렇다.
+   */
+  const badgeText = good.badge ?? stockLabel;
+  const badge = badgeText ? (
+    <span className="mono" style={{ position: 'absolute', top: 12, left: 12, zIndex: 1, fontSize: 10.5, letterSpacing: '.06em', padding: '4px 10px', borderRadius: 6, color: '#fff', background: 'rgba(8,6,15,.7)', border: '1px solid rgba(255,255,255,.2)', backdropFilter: 'blur(6px)' }}>
+      {badgeText}
+    </span>
+  ) : null;
 
   const meta = (
     <>
@@ -60,16 +67,19 @@ export function GoodsCard({
       className="shop-card"
       style={{ ['--cell-accent' as string]: `${accent}55`, borderRadius: 22, border: '1px solid var(--line)', background: 'linear-gradient(180deg, var(--surface), var(--bg-2))', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
     >
-      {href ? (
-        <Link
-          aria-hidden
-          href={href}
-          style={{ color: 'inherit', display: 'block', textDecoration: 'none' }}
-          tabIndex={-1}
-        >
-          {media}
-        </Link>
-      ) : media}
+      <div style={{ position: 'relative' }}>
+        {href ? (
+          <Link
+            aria-hidden
+            href={href}
+            style={{ color: 'inherit', display: 'block', textDecoration: 'none' }}
+            tabIndex={-1}
+          >
+            {media}
+          </Link>
+        ) : media}
+        {badge}
+      </div>
       <div style={{ padding: '16px 16px 18px', display: 'flex', flexDirection: 'column', gap: 5, flex: 1 }}>
         {href ? (
           <Link href={href} style={{ color: 'inherit', display: 'flex', flexDirection: 'column', gap: 5, textDecoration: 'none' }}>
