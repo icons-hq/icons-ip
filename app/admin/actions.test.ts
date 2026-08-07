@@ -411,6 +411,9 @@ describe('admin catalog actions', () => {
       target_bg: null,
       target_image_path: null,
       ...goodsNoticeRpcArgs,
+      target_description: null,
+      target_gallery_paths: [],
+      target_detail_image_path: null,
       target_previous_id: null,
     });
     expect(mocks.getCatalogSnapshot).toHaveBeenCalledWith({ previewDefaultSource: 'supabase' });
@@ -663,6 +666,29 @@ describe('admin catalog actions', () => {
     await expect(action({}, makeForm())).resolves.toEqual({
       errors: { form: '상위 IP를 먼저 복원해주세요.' },
     });
+  });
+
+  /* #172 — 갤러리 슬롯은 순서를 지킨 배열 하나로 RPC 에 넘어간다. */
+  it('passes ordered gallery slots and detail content to the admin good RPC', async () => {
+    const formData = goodForm();
+    formData.set('description', '  붉은 실을 따라 놓인 아크릴 블록입니다.  ');
+    formData.set('galleryPath0', 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp');
+    formData.set('galleryPath1', '');
+    formData.set('galleryPath2', 'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp');
+    formData.set('detailImagePath', 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp');
+
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+      message: '굿즈를 저장했습니다.',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_good', expect.objectContaining({
+      target_description: '붉은 실을 따라 놓인 아크릴 블록입니다.',
+      target_gallery_paths: [
+        'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp',
+        'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp',
+      ],
+      target_detail_image_path: 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp',
+    }));
   });
 
   /* #171 — 폼 검증을 우회해 RPC 까지 닿은 고시정보 누락도 운영자 언어로 돌아온다. */

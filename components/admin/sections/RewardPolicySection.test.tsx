@@ -43,6 +43,11 @@ const goods: AdminGoodRecord[] = [
     bg: null,
     imagePath: null,
     notice: EMPTY_GOODS_NOTICE,
+    description: null,
+    galleryPaths: [],
+    galleryUrls: [],
+    detailImagePath: null,
+    detailImageUrl: null,
   },
   {
     id: 'good-b',
@@ -57,6 +62,11 @@ const goods: AdminGoodRecord[] = [
     bg: null,
     imagePath: null,
     notice: EMPTY_GOODS_NOTICE,
+    description: null,
+    galleryPaths: [],
+    galleryUrls: [],
+    detailImagePath: null,
+    detailImageUrl: null,
   },
 ];
 

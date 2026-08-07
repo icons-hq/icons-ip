@@ -291,6 +291,9 @@ describe('admin catalog form normalization', () => {
           asManager: '아이콘스 고객센터',
           asContact: '02-000-0000',
         },
+        description: null,
+        galleryPaths: [],
+        detailImagePath: null,
       },
     });
 
@@ -329,6 +332,57 @@ describe('admin catalog form normalization', () => {
       errors: {
         noticeOrigin: '고시정보 필수 항목입니다.',
         noticeAsContact: '고시정보 필수 항목입니다.',
+      },
+    });
+  });
+
+  /* #172 — 갤러리 순서는 슬롯 번호가 정한다. 빈 슬롯은 배열에서 빠진다. */
+  it('compacts gallery slots into an ordered path list', () => {
+    const formData = setGoodsNotice(new FormData());
+    formData.set('id', 'g13');
+    formData.set('ipId', 'hwasan');
+    formData.set('name', '아크릴 블록');
+    formData.set('type', '아크릴 블록');
+    formData.set('price', '12000');
+    formData.set('stock', 'ok');
+    formData.set('description', '  붉은 실을 따라 놓인 아크릴 블록입니다.  ');
+    formData.set('galleryPath0', '');
+    formData.set('galleryPath1', 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp');
+    formData.set('galleryPath2', '   ');
+    formData.set('galleryPath3', 'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp');
+    formData.set('detailImagePath', 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp');
+
+    expect(normalizeAdminGoodForm(formData, context)).toMatchObject({
+      ok: true,
+      value: {
+        description: '붉은 실을 따라 놓인 아크릴 블록입니다.',
+        galleryPaths: [
+          'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp',
+          'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp',
+        ],
+        detailImagePath: 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp',
+      },
+    });
+  });
+
+  it('rejects duplicated gallery images and an overlong description', () => {
+    const duplicate = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
+    const formData = setGoodsNotice(new FormData());
+    formData.set('id', 'g13');
+    formData.set('ipId', 'hwasan');
+    formData.set('name', '아크릴 블록');
+    formData.set('type', '아크릴 블록');
+    formData.set('price', '12000');
+    formData.set('stock', 'ok');
+    formData.set('description', 'ㄱ'.repeat(2001));
+    formData.set('galleryPath0', duplicate);
+    formData.set('galleryPath1', duplicate);
+
+    expect(normalizeAdminGoodForm(formData, context)).toEqual({
+      ok: false,
+      errors: {
+        description: '설명은 2,000자 이하로 입력해주세요.',
+        galleryPath1: '같은 이미지를 갤러리에 두 번 넣을 수 없습니다.',
       },
     });
   });

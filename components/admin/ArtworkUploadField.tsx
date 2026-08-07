@@ -81,18 +81,29 @@ export function restoreCommittedArtworkPreview(
   };
 }
 
+/*
+ * 한 폼에 같은 kind 의 업로드 칸이 여러 개 놓일 수 있다 (#172 굿즈 갤러리).
+ * name 은 제출 필드, fieldId 는 label·aria 연결용 접두다. 기본값은 kind 라서
+ * 칸이 하나뿐인 기존 섹션들의 마크업은 그대로다.
+ */
 export function ArtworkUploadField({
   allowRemove = false,
   currentPath,
   currentUrl,
+  fieldId,
   helpText,
   kind,
+  label = '아트워크 파일',
+  name = 'imagePath',
 }: {
   allowRemove?: boolean;
   currentPath: string | null;
   currentUrl: string | null;
+  fieldId?: string;
   helpText?: string;
   kind: AdminArtworkKind;
+  label?: string;
+  name?: string;
 }) {
   const [display, setDisplay] = useState(() => createArtworkDisplayState(currentPath, currentUrl));
   const [error, setError] = useState<string>();
@@ -219,9 +230,10 @@ export function ArtworkUploadField({
     clearFileInput();
   }
 
-  const errorId = `${kind}-artwork-error`;
-  const guidanceId = `${kind}-artwork-guidance`;
-  const helpId = `${kind}-artwork-help`;
+  const idPrefix = fieldId ?? kind;
+  const errorId = `${idPrefix}-artwork-error`;
+  const guidanceId = `${idPrefix}-artwork-guidance`;
+  const helpId = `${idPrefix}-artwork-help`;
   const describedBy = [helpId, helpText ? guidanceId : null, error ? errorId : null]
     .filter(Boolean)
     .join(' ');
@@ -261,7 +273,7 @@ export function ArtworkUploadField({
         </div>
         <div className="col admin-artwork-controls" style={{ flex: 1, gap: 8, minWidth: 0 }}>
           <label className="col" style={{ color: 'var(--dim)', fontSize: 13, gap: 7 }}>
-            아트워크 파일
+            {label}
             <input
               accept={ADMIN_ARTWORK_ACCEPT}
               aria-disabled={pending || undefined}
@@ -312,7 +324,7 @@ export function ArtworkUploadField({
           </div>
         </div>
       </div>
-      <input name="imagePath" readOnly type="hidden" value={display.imagePath} />
+      <input name={name} readOnly type="hidden" value={display.imagePath} />
       <div className="mono" style={{ color: 'var(--faint)', fontSize: 10, overflowWrap: 'anywhere' }}>
         현재 경로: {display.imagePath || '없음'}
       </div>

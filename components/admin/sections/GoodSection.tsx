@@ -5,6 +5,7 @@ import {
   adjustAdminStockAction,
   type AdminCatalogActionState,
 } from '@/app/admin/actions';
+import { GOODS_DESCRIPTION_MAX_LENGTH, GOODS_GALLERY_MAX } from '@/lib/admin/catalog';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import { GOODS_NOTICE_FIELDS, type GoodsNoticeInfo } from '@/lib/goods-notice';
 import {
@@ -16,7 +17,7 @@ import {
 import { Icon } from '@/components/ui/Icon';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
-import { Field, FormShell, InlineNotice, RecordList, SelectField, TextArea } from '../fields';
+import { ErrorText, Field, FormShell, InlineNotice, RecordList, SelectField, TextArea } from '../fields';
 
 const emptyStockState: AdminCatalogActionState = {};
 
@@ -130,6 +131,49 @@ function StockAdjustmentForm({
   );
 }
 
+/*
+ * 갤러리 (#172). 번호 붙은 슬롯 4칸이고 슬롯 순서가 곧 노출 순서다.
+ * 드래그 정렬 대신 슬롯을 고르게 하면 운영자가 순서를 정하는 목적은 그대로
+ * 달성하면서 업로드 칸은 이미 검증된 ArtworkUploadField 를 그대로 쓴다 —
+ * 이미지 제약(JPEG/PNG/WebP · 5MB · 8192px)도 자동으로 같이 적용된다.
+ */
+function GoodsGalleryFields({
+  galleryPaths,
+  galleryUrls,
+  state,
+}: {
+  galleryPaths: string[];
+  galleryUrls: string[];
+  state: AdminCatalogActionState;
+}) {
+  return (
+    <fieldset style={{ border: '1px solid var(--line)', borderRadius: 10, margin: 0, padding: 14 }}>
+      <legend className="mono" style={{ color: 'var(--dim)', fontSize: 11, padding: '0 6px' }}>
+        갤러리 (최대 {GOODS_GALLERY_MAX}장)
+      </legend>
+      <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: '0 0 12px' }}>
+        슬롯 번호 순서대로 상세페이지에 표시됩니다. 비워둔 슬롯은 건너뜁니다.
+      </p>
+      <div className="col" style={{ gap: 12 }}>
+        {Array.from({ length: GOODS_GALLERY_MAX }, (_, slot) => (
+          <div className="col" key={slot} style={{ gap: 6 }}>
+            <ArtworkUploadField
+              allowRemove
+              currentPath={galleryPaths[slot] ?? null}
+              currentUrl={galleryUrls[slot] ?? null}
+              fieldId={`good-gallery-${slot}`}
+              kind="good"
+              label={`갤러리 ${slot + 1}`}
+              name={`galleryPath${slot}`}
+            />
+            <ErrorText id={`galleryPath${slot}-error`}>{state.errors?.[`galleryPath${slot}`]}</ErrorText>
+          </div>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 export function GoodSection({
   action,
   adjustmentId,
@@ -213,7 +257,33 @@ export function GoodSection({
           <ArtworkUploadField
             currentPath={selected?.imagePath ?? null}
             currentUrl={selected?.imageUrl ?? null}
+            fieldId="good-main"
+            helpText="굿즈샵 목록 카드와 상세페이지 대표 이미지로 쓰입니다."
             kind="good"
+            label="대표 이미지"
+          />
+          <TextArea
+            defaultValue={selected?.description}
+            error={state.errors?.description}
+            label="상세 설명 (최대 2,000자)"
+            maxLength={GOODS_DESCRIPTION_MAX_LENGTH}
+            name="description"
+            placeholder="굿즈 구성과 특징을 짧게 설명해주세요."
+          />
+          <GoodsGalleryFields
+            galleryPaths={selected?.galleryPaths ?? []}
+            galleryUrls={selected?.galleryUrls ?? []}
+            state={state}
+          />
+          <ArtworkUploadField
+            allowRemove
+            currentPath={selected?.detailImagePath ?? null}
+            currentUrl={selected?.detailImageUrl ?? null}
+            fieldId="good-detail"
+            helpText="상세페이지 아래에 원래 비율로 길게 표시되는 이미지 1장입니다."
+            kind="good"
+            label="상세 이미지"
+            name="detailImagePath"
           />
           <FormShell pending={pending} state={state} />
         </form>

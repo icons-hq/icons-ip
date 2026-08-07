@@ -37,6 +37,11 @@ const good: AdminGoodRecord = {
     asManager: '아이콘스 고객센터',
     asContact: '02-000-0000',
   },
+  description: '붉은 실을 따라 놓인 아크릴 블록입니다.',
+  galleryPaths: ['public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp'],
+  galleryUrls: ['https://cdn.example/catalog/good/gallery-1.webp'],
+  detailImagePath: 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp',
+  detailImageUrl: 'https://cdn.example/catalog/good/detail.webp',
 };
 
 function renderGoodSection(
@@ -134,5 +139,41 @@ describe('GoodSection', () => {
     expect(html).toContain('value="02-000-0000"');
     expect(html).toContain('id="noticeOrigin-error"');
     expect(html).toContain('고시정보 필수 항목입니다.');
+  });
+
+  /* #172 — 설명·갤러리 4슬롯·상세 이미지가 같은 업로드 칸을 재사용한다. */
+  it('offers a description, four ordered gallery slots, and one detail image', () => {
+    const html = renderGoodSection(null);
+
+    expect(html).toMatch(/<textarea[^>]*name="description"/);
+    expect(html).toContain('갤러리 (최대 4장)');
+    for (const slot of [0, 1, 2, 3]) {
+      expect(html).toContain(`name="galleryPath${slot}"`);
+      expect(html).toContain(`갤러리 ${slot + 1}`);
+    }
+    expect(html).toContain('name="detailImagePath"');
+    expect(html).toContain('상세 이미지');
+    /* 이미지 제약은 공유 업로드 칸에서 그대로 따라온다. */
+    expect(html.match(/accept="image\/jpeg,image\/png,image\/webp"/g)).toHaveLength(6);
+    expect(html.match(/최대 5MB · 가로·세로 최대 8192px/g)).toHaveLength(6);
+  });
+
+  it('prefills gallery slots in stored order and keeps the detail image', () => {
+    const html = renderGoodSection(good);
+
+    expect(html).toContain('붉은 실을 따라 놓인 아크릴 블록입니다.');
+    expect(html).toContain('value="public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp"');
+    expect(html).toContain('src="https://cdn.example/catalog/good/gallery-1.webp"');
+    expect(html).toContain('value="public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp"');
+    expect(html).toContain('src="https://cdn.example/catalog/good/detail.webp"');
+  });
+
+  it('surfaces a duplicated gallery image error next to its slot', () => {
+    const html = renderGoodSection(good, {
+      errors: { galleryPath1: '같은 이미지를 갤러리에 두 번 넣을 수 없습니다.' },
+    });
+
+    expect(html).toContain('id="galleryPath1-error"');
+    expect(html).toContain('같은 이미지를 갤러리에 두 번 넣을 수 없습니다.');
   });
 });

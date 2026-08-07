@@ -302,6 +302,9 @@ export async function upsertAdminGoodAction(
     target_notice_made_on: value.notice.madeOn,
     target_notice_as_manager: value.notice.asManager,
     target_notice_as_contact: value.notice.asContact,
+    target_description: value.description,
+    target_gallery_paths: value.galleryPaths,
+    target_detail_image_path: value.detailImagePath,
     target_previous_id: value.previousId,
   });
 
