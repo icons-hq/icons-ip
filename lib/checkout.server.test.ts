@@ -64,7 +64,8 @@ describe('loadCheckoutOrder', () => {
         id: orderId,
         user_id: userId,
         status: 'pending',
-        total: 27000,
+        total: 30000,
+        shipping_fee: 3000,
         address: {
           recipientName: '팬',
           phone: '01012345678',
@@ -105,5 +106,60 @@ describe('loadCheckoutOrder', () => {
     expect(records.find((record) => record.table === 'order_items')?.select)
       .toBe('good_id,qty,unit_price,good_name_snapshot,good_type_snapshot');
     expect(records.some((record) => record.table === 'goods')).toBe(false);
+  });
+
+  it('carries the server-confirmed shipping fee snapshot into the payment screen', async () => {
+    const records: QueryRecord[] = [];
+    const orderId = '7ad4c967-3d48-44da-a665-64731ac33f62';
+    const userId = '1cc4d399-8e70-4f06-979d-8fb0f9c43fde';
+    mocks.client = {
+      from(table: string) {
+        return createQuery(table, records, {
+          orders: [{
+            id: orderId,
+            user_id: userId,
+            status: 'pending',
+            total: 18000,
+            shipping_fee: 3000,
+            address: null,
+            expires_at: null,
+            created_at: '2026-08-07T06:45:00.000Z',
+          }],
+          order_items: [],
+          payments: [],
+        });
+      },
+    };
+
+    const order = await loadCheckoutOrder(userId, orderId);
+
+    expect(order?.total).toBe(18000);
+    expect(order?.shippingFee).toBe(3000);
+  });
+
+  it('reads legacy orders without a shipping fee snapshot as free shipping', async () => {
+    const records: QueryRecord[] = [];
+    const orderId = '7ad4c967-3d48-44da-a665-64731ac33f62';
+    const userId = '1cc4d399-8e70-4f06-979d-8fb0f9c43fde';
+    mocks.client = {
+      from(table: string) {
+        return createQuery(table, records, {
+          orders: [{
+            id: orderId,
+            user_id: userId,
+            status: 'pending',
+            total: 27000,
+            shipping_fee: null,
+            address: null,
+            expires_at: null,
+            created_at: '2026-08-07T06:45:00.000Z',
+          }],
+          order_items: [],
+          payments: [],
+        });
+      },
+    };
+
+    await expect(loadCheckoutOrder(userId, orderId)).resolves.toMatchObject({ shippingFee: 0 });
   });
 });

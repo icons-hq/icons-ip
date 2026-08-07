@@ -95,6 +95,8 @@ export interface OrderDetail {
   id: string;
   status: OrderDetailStatus;
   total: number;
+  /** 주문 시점 배송비 스냅샷. total에 이미 포함되어 있다. */
+  shippingFee: number;
   address: CheckoutAddress | null;
   createdAt: string;
   items: OrderDetailItem[];

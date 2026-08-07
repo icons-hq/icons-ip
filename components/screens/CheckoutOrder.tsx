@@ -7,6 +7,7 @@ import { TossPaymentWidget } from '@/components/payments/TossPaymentWidget';
 import { checkoutOrderName, checkoutOrderState } from '@/lib/checkout';
 import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
 import { krw } from '@/lib/format';
+import { shippingFeeLabel } from '@/lib/shipping';
 
 interface CheckoutOrderProps {
   clientKey: string | null;
@@ -122,8 +123,8 @@ export function CheckoutOrder({ clientKey, customer, order }: CheckoutOrderProps
             ))}
           </div>
           <dl className="checkout-totals">
-            <div><dt>굿즈 금액</dt><dd>{krw(order.total)}</dd></div>
-            <div><dt>배송비</dt><dd>무료</dd></div>
+            <div><dt>굿즈 금액</dt><dd>{krw(order.total - order.shippingFee)}</dd></div>
+            <div><dt>배송비</dt><dd>{shippingFeeLabel(order.shippingFee)}</dd></div>
             <div className="checkout-total"><dt>결제 금액</dt><dd>{krw(order.total)}</dd></div>
           </dl>
           {order.address && (

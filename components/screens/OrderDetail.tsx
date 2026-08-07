@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { OrderCancellation } from '@/components/orders/OrderCancellation';
 import { Icon } from '@/components/ui/Icon';
 import { krw } from '@/lib/format';
+import { shippingFeeLabel } from '@/lib/shipping';
 import {
   formatOrderDate,
   formatOrderDateTime,
@@ -72,8 +73,8 @@ export function OrderDetail({ order }: { order: OrderDetailData }) {
             <h2>결제 금액</h2>
           </div>
           <dl className="checkout-totals">
-            <div><dt>굿즈 금액</dt><dd>{krw(order.total)}</dd></div>
-            <div><dt>배송비</dt><dd>무료</dd></div>
+            <div><dt>굿즈 금액</dt><dd>{krw(order.total - order.shippingFee)}</dd></div>
+            <div><dt>배송비</dt><dd>{shippingFeeLabel(order.shippingFee)}</dd></div>
             <div className="checkout-total"><dt>총 결제 금액</dt><dd>{krw(order.total)}</dd></div>
           </dl>
 
