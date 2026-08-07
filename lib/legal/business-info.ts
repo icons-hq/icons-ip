@@ -53,3 +53,17 @@ export function businessInfoRows(info: BusinessInfo = BUSINESS_INFO): BusinessIn
     .map((key) => ({ key, label: BUSINESS_INFO_LABELS[key], value: info[key].trim() }))
     .filter((row) => row.value.length > 0);
 }
+
+/** 이용자가 실제로 연락을 닿게 할 수 있는 항목. 호스팅 제공자나 신고번호는 창구가 아니다. */
+const CONTACT_KEYS: (keyof BusinessInfo)[] = ['representative', 'phone', 'email'];
+
+/** 문의 창구로 쓸 수 있는 행만. 비어 있으면 창구가 아직 없다는 뜻이다. */
+export function businessContactRows(info: BusinessInfo = BUSINESS_INFO): BusinessInfoRow[] {
+  return businessInfoRows(info).filter((row) => CONTACT_KEYS.includes(row.key));
+}
+
+/** "대표자 홍길동 · 전화 02-0000-0000" 형태의 문장 조각.
+ *  법정 문서 본문이 이 값에서 문의처 문장을 파생시킨다 — 값이 비면 문서가 창구를 가리키지 않는다(#87). */
+export function businessContactWords(info: BusinessInfo = BUSINESS_INFO): string {
+  return businessContactRows(info).map((row) => `${row.label} ${row.value}`).join(' · ');
+}
