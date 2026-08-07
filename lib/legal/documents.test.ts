@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { krwAmountWords } from '../format';
+import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '../shipping';
 import { businessContactWords } from './business-info';
 import {
   LEGAL_DOCUMENTS,
@@ -167,6 +169,47 @@ describe('이용약관', () => {
   it('공급받은 날부터 7일 청약철회를 명시한다', () => {
     expect(text).toMatch(/공급받은 날부터 7일/);
   });
+
+  /*
+   * finalize_order_cancellation_with_provider_evidence가 source='order_paid' ·
+   * consumed_at is null인 카드팩에 revoked_at을 찍어 회수한다. 회수 사실을 약관이
+   * 밝히지 않으면 이용자는 /packs에서 사라진 카드팩의 근거를 어디서도 찾을 수 없다.
+   */
+  it('청약철회 시 미개봉 카드팩이 회수된다는 사실을 밝힌다', () => {
+    const cardArticle = terms.articles.find((article) => article.heading.includes('카드팩'));
+    const body = cardArticle?.paragraphs?.join('\n') ?? '';
+
+    expect(body).toMatch(/청약철회가 처리되면 회수/);
+    expect(body).toMatch(/개봉하지 않은 카드팩/);
+    /* 이미 개봉한 카드팩과 그 카드는 보존된다(ADR-0003·0004). 반대로 적으면 사실과 어긋난다. */
+    expect(body).toMatch(/이미 개봉해 카드를 받은 카드팩과 그 카드는 회수하지 않습니다/);
+    /* 만료되지 않는다는 문장이 회수 고지와 충돌하지 않아야 한다. */
+    expect(body).toMatch(/시간이 지나 만료되지 않으며/);
+  });
+
+  /* 온보딩(app/onboarding/actions.ts)의 readBirthDate는 나이를 계산하지 않는다.
+     저장소에 나이 게이트가 없으므로 약관이 자동 차단을 약속하면 안 된다. */
+  it('나이를 자동 검증하지 않는다는 사실을 회원가입 조문에 밝힌다', () => {
+    const signup = terms.articles.find((article) => article.heading.includes('회원가입'));
+    expect(signup?.closing?.join('\n')).toMatch(/나이를 자동 검증해 가입을 차단하지 않습니다/);
+  });
+
+  /* /my에도 /settings에도 탈퇴 컨트롤이 없고 계정 삭제 액션·RPC도 없다(#102·#137).
+     "즉시 처리합니다"는 이용자가 찾을 수 없는 기능을 가리키는 고지다. */
+  it('탈퇴는 실제로 열려 있는 경로만 가리킨다', () => {
+    const withdrawal = terms.articles.find((article) => article.heading.includes('회원 탈퇴'));
+    const body = withdrawal!.paragraphs!.join('\n');
+
+    expect(body).not.toMatch(/회사는 즉시 탈퇴를 처리합니다/);
+    expect(body).toMatch(/직접 탈퇴를 실행하는 기능은 아직 없/);
+    if (businessContactWords()) {
+      expect(body).toContain(businessContactWords());
+    } else {
+      expect(body).toMatch(/연락처를 공개하는 즉시 그 창구로 탈퇴 요청을 접수합니다/);
+      /* 연락처가 없는 동안에도 이용자가 지금 할 수 있는 행동이 남아 있어야 한다. */
+      expect(body).toMatch(/설정 화면/);
+    }
+  });
 });
 
 describe('개인정보처리방침', () => {
@@ -189,8 +232,27 @@ describe('개인정보처리방침', () => {
 
     const processors = consignment!.table!.rows.map((row) => row[0]);
     expect(processors).toEqual(
-      expect.arrayContaining(['Supabase, Inc.', 'Vercel, Inc.', '토스페이먼츠 주식회사', '한진택배']),
+      expect.arrayContaining(['Supabase, Inc.', 'Vercel, Inc.', '토스페이먼츠 주식회사', '한진택배', 'Resend']),
     );
+  });
+
+  /*
+   * 주문 확인 메일은 lib/email/templates.ts의 addressLines()가 만든 배송지 전체를 담고
+   * lib/email/provider.server.ts가 기본 엔드포인트(api.resend.com, 미국)로 POST한다.
+   * 전송 코드 경로가 있는 수탁자를 표에서 빠뜨리면 위탁·국외이전 고지가 사실과 어긋난다.
+   */
+  it('트랜잭션 이메일 provider를 위탁·국외이전 표에 함께 담는다', () => {
+    const consignment = privacy.articles.find((article) => article.heading.includes('위탁'));
+    const transfer = privacy.articles.find((article) => article.heading.includes('국외'));
+
+    expect(consignment!.table!.rows.map((row) => row[0])).toContain('Resend');
+    expect(transfer!.table!.rows.map((row) => row[0])).toContain('Resend');
+
+    const emailTransfer = transfer!.table!.rows.find((row) => row[0] === 'Resend')!;
+    expect(emailTransfer[1]).toBe('미국');
+    for (const item of ['이메일 주소', '수령인 이름', '우편번호', '주소']) {
+      expect(emailTransfer[2], item).toContain(item);
+    }
   });
 
   it('법인명을 모르는 WMS 운영사는 지어내지 않고 확인 중으로 남긴다 (#177 H7)', () => {
@@ -210,7 +272,7 @@ describe('개인정보처리방침', () => {
     const transfer = privacy.articles.find((article) => article.heading.includes('국외'));
     const receivers = transfer!.table!.rows.map((row) => row[0]);
 
-    expect(receivers).toEqual(['Supabase, Inc.', 'Vercel, Inc.']);
+    expect(receivers).toEqual(['Supabase, Inc.', 'Vercel, Inc.', 'Resend']);
     for (const entity of ['Google LLC', 'Apple Inc.', '카카오']) {
       expect(receivers, entity).not.toContain(entity);
     }
@@ -244,15 +306,58 @@ describe('개인정보처리방침', () => {
       expect(contactText).toContain('닉네임');
     }
   });
+
+  /*
+   * 저장소 어디에도 나이 게이트가 없다 — readBirthDate는 "존재하는 날짜"와 "오늘 이전"만 본다.
+   * "수집하지 않습니다"는 수집을 막는 장치가 있다는 뜻이 되어 사실과 어긋난다.
+   * 게이트 도입은 법정대리인 동의 설계가 따로 필요한 별도 작업이다.
+   */
+  it('만 14세 미만 처리 고지를 나이 게이트 없는 현재 동작에 맞춘다', () => {
+    const rights = privacy.articles.find((article) => article.heading.includes('정보주체의 권리'));
+    const body = rights!.paragraphs!.join('\n');
+
+    expect(text).not.toMatch(/만 14세 미만 아동의 개인정보는 수집하지 않습니다/);
+    expect(body).toMatch(/나이를 자동 검증해 가입을 차단하지는 않으므로/);
+    expect(body).toMatch(/알게 된 경우/);
+    /* 처리 목적도 존재하지 않는 "가입 제한"을 근거로 삼으면 안 된다. */
+    expect(text).not.toMatch(/만 14세 미만 가입 제한/);
+  });
+
+  it('삭제·처리정지 요구를 약관 제7조의 탈퇴 경로로 연결한다', () => {
+    const rights = privacy.articles.find((article) => article.heading.includes('정보주체의 권리'));
+    const body = rights!.paragraphs!.join('\n');
+
+    expect(body).toMatch(/이용약관 제7조의 탈퇴 요청/);
+    expect(body).toMatch(/직접 탈퇴를 실행하는 기능은 아직 없/);
+  });
 });
 
 describe('배송·반품 정책', () => {
   const shipping = LEGAL_DOCUMENTS.shipping;
   const text = plainText(shipping);
 
-  it('확정된 배송비 정책값을 담는다 (계획 D5)', () => {
-    expect(text).toMatch(/3,000원/);
-    expect(text).toMatch(/50,000원 이상/);
+  /* 정책값을 문서가 다시 선언하면 lib/shipping.ts를 고쳐도 공개 고지만 옛값에 남는다.
+     리터럴이 아니라 상수를 참조해야 이 테스트가 그 어긋남을 잡는다. */
+  it('배송비 고지가 lib/shipping.ts의 정책값을 그대로 따른다 (계획 D5)', () => {
+    expect(text).toContain(krwAmountWords(SHIPPING_FEE));
+    expect(text).toContain(`${krwAmountWords(FREE_SHIPPING_THRESHOLD)} 이상`);
+    expect(source(), '배송비 상수를 문서가 자체 선언하면 정책 변경이 갈라진다')
+      .not.toMatch(/const\s+(SHIPPING_FEE|FREE_SHIPPING_THRESHOLD)\w*\s*=/);
+  });
+
+  /* 주문 상세의 청약철회는 주문 단위 하나뿐이고, cancelTossPayment가 cancelAmount 없이
+     전액을 취소한다. 부분 환불은 계획 §6의 명시적 제외 항목이다 — 문서가 약속하면 안 된다. */
+  it('부분 환급을 약속하지 않고 주문 단위 전액 취소만 안내한다', () => {
+    expect(text).not.toMatch(/일부만 반품하는 경우 반품 대상 굿즈의 대금을 기준으로 환급/);
+    expect(text).toMatch(/청약철회는 주문 단위로만 신청할 수 있습니다/);
+    expect(text).toMatch(/결제금액 전액이 취소/);
+    /* 일부만 반송하려는 이용자에게 실제로 할 수 있는 행동을 남긴다. */
+    expect(text).toMatch(/일부만 반송하고 싶다면/);
+  });
+
+  it('시스템이 하지 않는 배송비 공제를 고지하지 않는다', () => {
+    expect(text).not.toMatch(/공제될 수 있습니다/);
+    expect(text).toMatch(/공제하지 않습니다/);
   });
 
   it('반송비 부담 주체를 사유별로 나눈다', () => {
