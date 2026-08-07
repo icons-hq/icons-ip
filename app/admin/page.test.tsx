@@ -4,6 +4,7 @@ import AdminPage from './page';
 const mocks = vi.hoisted(() => ({
   admin: vi.fn(() => null),
   curations: vi.fn(async () => [{ id: 'curation-1' }]),
+  drawTicketGrants: vi.fn(async () => [{ operationId: 'grant-1' }]),
   randomUuid: vi.fn(),
 }));
 
@@ -22,6 +23,7 @@ vi.mock('@/lib/admin/catalog.server', () => ({
   })),
 }));
 vi.mock('@/lib/admin/curations.server', () => ({ getAdminCurations: mocks.curations }));
+vi.mock('@/lib/admin/draw-ticket-grants.server', () => ({ getAdminDrawTicketGrants: mocks.drawTicketGrants }));
 vi.mock('@/lib/admin/insights.server', () => ({ getAdminInsights: vi.fn(async () => ({})) }));
 vi.mock('@/lib/admin/moderation.server', () => ({ getAdminModerationRecords: vi.fn(async () => ({ reports: [] })) }));
 vi.mock('@/lib/admin/members.server', () => ({
@@ -64,6 +66,7 @@ describe('AdminPage reward-policy route', () => {
     vi.setSystemTime(new Date('2026-07-15T03:04:05.000Z'));
     mocks.admin.mockClear();
     mocks.curations.mockClear();
+    mocks.drawTicketGrants.mockClear();
     mocks.randomUuid.mockReset();
     mocks.randomUuid
       .mockReturnValueOnce('11111111-1111-4111-8111-111111111111')
@@ -79,7 +82,8 @@ describe('AdminPage reward-policy route', () => {
     mocks.randomUuid
       .mockReturnValueOnce('dddddddd-dddd-4ddd-8ddd-dddddddddddd')
       .mockReturnValueOnce('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee')
-      .mockReturnValueOnce('ffffffff-ffff-4fff-8fff-ffffffffffff');
+      .mockReturnValueOnce('ffffffff-ffff-4fff-8fff-ffffffffffff')
+      .mockReturnValueOnce('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb');
   });
 
   afterEach(() => {
@@ -139,6 +143,17 @@ describe('AdminPage reward-policy route', () => {
       curationDraftId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
       curationOperationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
       initialSection: 'curations',
+    });
+  });
+
+  it('카드팩 수동 발급 section을 파싱하고 이력과 독립 멱등키를 전달한다', async () => {
+    const screen = await AdminPage({ searchParams: Promise.resolve({ section: 'grants' }) });
+
+    expect(mocks.drawTicketGrants).toHaveBeenCalledOnce();
+    expect(screen.props).toMatchObject({
+      initialSection: 'grants',
+      drawTicketGrants: [{ operationId: 'grant-1' }],
+      grantOperationId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
     });
   });
 });

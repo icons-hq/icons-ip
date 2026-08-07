@@ -14,6 +14,7 @@ import type {
   AdminTicketTypeRecord,
 } from '@/lib/admin/catalog.server';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
+import type { AdminDrawTicketGrantRecord } from '@/lib/admin/draw-ticket-grants';
 import type { AdminInsights } from '@/lib/admin/insights.server';
 import type { AdminModerationRecords } from '@/lib/admin/moderation.server';
 import type { AdminMemberRole, AdminMemberSummary } from '@/lib/admin/members';
@@ -26,6 +27,7 @@ import { Sidebar } from './Sidebar';
 import { CardSection } from './sections/CardSection';
 import { CardPoolSection } from './sections/CardPoolSection';
 import { CurationSection } from './sections/CurationSection';
+import { DrawTicketGrantSection } from './sections/DrawTicketGrantSection';
 import { EventSection } from './sections/EventSection';
 import { GoodSection } from './sections/GoodSection';
 import { GameSection } from './sections/GameSection';
@@ -39,7 +41,7 @@ import { RewardPolicySection } from './sections/RewardPolicySection';
 import { RolesSection } from './sections/Roles';
 import { TicketSection } from './sections/TicketSection';
 
-export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'pool' | 'policy' | 'game' | 'event' | 'ticket' | 'curations' | 'notifications' | 'moderation' | 'members' | 'roles';
+export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'pool' | 'policy' | 'grants' | 'game' | 'event' | 'ticket' | 'curations' | 'notifications' | 'moderation' | 'members' | 'roles';
 
 const SECTION_TITLES: Record<AdminSection, string> = {
   overview: '개요',
@@ -49,6 +51,7 @@ const SECTION_TITLES: Record<AdminSection, string> = {
   card: '카드 관리',
   pool: '카드풀 관리',
   policy: '뽑기권 발급 정책',
+  grants: '카드팩 수동 발급',
   game: '게임 관리',
   event: '이벤트 관리',
   ticket: '티켓 회차 관리',
@@ -72,6 +75,8 @@ interface AdminProps {
   curationDraftId: string;
   curationOperationId: string;
   curations: AdminCurationRecord[];
+  drawTicketGrants: AdminDrawTicketGrantRecord[];
+  grantOperationId: string;
   initialSection?: AdminSection;
   insights: AdminInsights;
   moderation: AdminModerationRecords;
@@ -102,6 +107,8 @@ export function Admin({
   curationDraftId,
   curationOperationId,
   curations,
+  drawTicketGrants,
+  grantOperationId,
   initialSection,
   insights,
   moderation,
@@ -270,6 +277,13 @@ export function Admin({
                 pools={records.cardPools}
                 records={records.rewardPolicies}
                 selected={selectedPolicy}
+              />
+            )}
+            {active === 'grants' && (
+              <DrawTicketGrantSection
+                draftOperationId={grantOperationId}
+                grants={drawTicketGrants}
+                pools={records.cardPools}
               />
             )}
             {active === 'game' && (

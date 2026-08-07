@@ -10,6 +10,7 @@ const NAV_ITEMS: { id: AdminSection; label: string; icon: string }[] = [
   { id: 'card', label: '카드', icon: 'card' },
   { id: 'pool', label: '카드풀', icon: 'card' },
   { id: 'policy', label: '발급 정책', icon: 'card' },
+  { id: 'grants', label: '카드팩 수동 발급', icon: 'card' },
   { id: 'game', label: '게임', icon: 'event' },
   { id: 'event', label: '이벤트', icon: 'event' },
   { id: 'ticket', label: '티켓 회차', icon: 'event' },
