@@ -5,7 +5,10 @@ import {
   grantAdminDrawTicketsAction,
   type AdminDrawTicketGrantActionState,
 } from '@/app/admin/reward-grant-actions';
-import { searchAdminMembersAction } from '@/app/admin/member-actions';
+import {
+  searchAdminMembersAction,
+  type AdminMemberSearchActionState,
+} from '@/app/admin/member-actions';
 import type { AdminCardPoolRecord } from '@/lib/admin/catalog.server';
 import {
   DRAW_TICKET_GRANT_MAX_QUANTITY,
@@ -72,12 +75,10 @@ export function DrawTicketGrantSection({
         <>
           <MemberPicker
             action={searchAction}
-            members={searchState.members}
             onSelect={setSelected}
             pending={searchPending}
-            query={searchState.query}
-            queryError={searchState.errors?.query}
             selectedId={selected?.id ?? null}
+            state={searchState}
           />
           <GrantForm
             action={grantAction}
@@ -96,23 +97,26 @@ export function DrawTicketGrantSection({
   );
 }
 
+/*
+ * 검색 상태를 통째로 받는다. 필드별로 쪼개 받으면 errors.form 처럼 새로 생긴
+ * 실패 경로가 조용히 버려진다 — RPC 가 죽어 빈 목록이 돌아온 것과 "해당 회원이
+ * 없다"가 화면에서 같아 보이면 운영자가 소급 발급을 포기한다.
+ */
 function MemberPicker({
   action,
-  members,
   onSelect,
   pending,
-  query,
-  queryError,
   selectedId,
+  state,
 }: {
   action: (formData: FormData) => void;
-  members: AdminMemberSummary[];
   onSelect: (member: AdminMemberSummary | null) => void;
   pending: boolean;
-  query: string;
-  queryError?: string;
   selectedId: string | null;
+  state: AdminMemberSearchActionState;
 }) {
+  const queryError = state.errors?.query;
+
   return (
     <div className="col" style={{ gap: 8 }}>
       <form
@@ -128,7 +132,7 @@ function MemberPicker({
               aria-describedby={queryError ? 'grant-query-error' : undefined}
               aria-invalid={Boolean(queryError)}
               className="admin-field-control"
-              defaultValue={query}
+              defaultValue={state.query}
               maxLength={100}
               name="query"
               placeholder="이메일 또는 닉네임"
@@ -151,9 +155,10 @@ function MemberPicker({
           </div>
         </label>
         <ErrorText id="grant-query-error">{queryError}</ErrorText>
+        <InlineNotice state={state} />
       </form>
 
-      {members.map((member) => (
+      {state.members.map((member) => (
         <article key={member.id} className="card between" style={{ borderRadius: 10, flexWrap: 'wrap', gap: 12, padding: 14 }}>
           <div className="col" style={{ gap: 4, minWidth: 0 }}>
             <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
@@ -247,7 +252,7 @@ function GrantForm({
         <button className="btn btn-holo" disabled={pending} style={{ minWidth: 150 }}>
           <Icon name="check" size={15} /> {pending ? '발급 중' : '카드팩 발급'}
         </button>
-        <InlineNotice state={state} />
+        {/* removed */}
       </div>
     </form>
   );

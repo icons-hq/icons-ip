@@ -13,6 +13,13 @@ import { ipAccent, ipAccentInk } from '@/lib/ip-display';
  *
  * action 을 slot 으로 받는 이유는 어드민 미리보기(#184) 때문이다. 미리보기는
  * 장바구니에 손대면 안 되므로 같은 카드에 동작하지 않는 버튼을 꽂는다.
+ *
+ * 이미지 링크는 접근성 트리에서 숨긴다. 이미지 안에는 읽을 텍스트가 없어
+ * 접근 가능한 이름이 빈 문자열이 되고(link-name, WCAG 2.4.4), 이름을 붙여도
+ * 바로 아래 이름 링크와 목적지가 같아 스크린리더 링크 목록과 탭 순서에 굿즈마다
+ * 중복 항목이 하나씩 더 생긴다. 마우스로 이미지를 누르는 경로만 남기고
+ * 키보드·스크린리더는 이름 링크 하나로 간다 — aria-hidden 안에 초점 가능한
+ * 요소를 두면 안 되므로 tabIndex 도 같이 뺀다.
  */
 export function GoodsCard({
   action,
@@ -53,7 +60,16 @@ export function GoodsCard({
       className="shop-card"
       style={{ ['--cell-accent' as string]: `${accent}55`, borderRadius: 22, border: '1px solid var(--line)', background: 'linear-gradient(180deg, var(--surface), var(--bg-2))', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
     >
-      {href ? <Link href={href} style={{ color: 'inherit', display: 'block', textDecoration: 'none' }}>{media}</Link> : media}
+      {href ? (
+        <Link
+          aria-hidden
+          href={href}
+          style={{ color: 'inherit', display: 'block', textDecoration: 'none' }}
+          tabIndex={-1}
+        >
+          {media}
+        </Link>
+      ) : media}
       <div style={{ padding: '16px 16px 18px', display: 'flex', flexDirection: 'column', gap: 5, flex: 1 }}>
         {href ? (
           <Link href={href} style={{ color: 'inherit', display: 'flex', flexDirection: 'column', gap: 5, textDecoration: 'none' }}>

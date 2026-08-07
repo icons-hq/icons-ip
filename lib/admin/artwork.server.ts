@@ -9,7 +9,18 @@ import {
 import { normalizeAdminArtworkImage } from './artwork-image.server';
 import { createServiceClient } from '@/lib/supabase/service';
 
-const CLAIM_TTL_MS = 10 * 60 * 1000;
+/*
+ * 클레임 수명은 두 창으로 나뉜다.
+ *
+ * 여기 있는 값은 "업로드 창"이다 — prepare 로 staging 버킷 쓰기가 열린 뒤
+ * 검증까지 걸리는 시간. 앱이 prepare 직후 곧바로 올리므로 짧게 둔다
+ * (service_prepare_admin_artwork_upload 가 15분을 상한으로 강제한다).
+ *
+ * 검증에 성공하면 DB 가 만료를 "폼 작성 창"까지 연장한다
+ * (20260807140003). 운영자가 6칸을 채우고 고시정보를 적는 동안 먼저 올린
+ * 이미지의 클레임이 죽어 저장 트랜잭션 전체가 롤백되던 문제를 그쪽에서 닫는다.
+ */
+const UPLOAD_CLAIM_TTL_MS = 10 * 60 * 1000;
 const PUBLIC_MEDIA_BUCKET = 'public-media';
 const STAGING_BUCKET = 'admin-artwork-staging';
 
@@ -155,7 +166,7 @@ export async function createAdminArtworkUploadClaim(
     const service = createServiceClient();
     const { data, error } = await service.rpc('service_prepare_admin_artwork_upload', {
       p_actor_id: input.actorId,
-      p_expires_at: new Date(Date.now() + CLAIM_TTL_MS).toISOString(),
+      p_expires_at: new Date(Date.now() + UPLOAD_CLAIM_TTL_MS).toISOString(),
       p_kind: input.kind,
       p_mime_type: input.mimeType,
       p_path: input.path,
