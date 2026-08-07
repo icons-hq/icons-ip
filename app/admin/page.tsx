@@ -11,6 +11,7 @@ import { getAdminNotificationConsoleData } from '@/lib/admin/notifications.serve
 import { normalizeAdminOrderFilters } from '@/lib/admin/orders';
 import { getAdminOrderRecords } from '@/lib/admin/orders.server';
 import { getAdminProfileRecords } from '@/lib/admin/roles.server';
+import { adminSectionFromQuery } from '@/lib/admin/sections';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { getCatalogSnapshot } from '@/lib/catalog';
 import { loadEmailDeliveries } from '@/lib/email/deliveries.server';
@@ -57,7 +58,7 @@ export default async function AdminPage({
       drawTicketGrants={drawTicketGrants}
       emailDeliveries={emailDeliveries}
       insights={insights}
-      initialSection={query.section === 'orders' ? 'orders' : query.section === 'good' ? 'good' : query.section === 'ticket' ? 'ticket' : query.section === 'pool' ? 'pool' : query.section === 'policy' ? 'policy' : query.section === 'grants' ? 'grants' : query.section === 'game' ? 'game' : query.section === 'curations' ? 'curations' : query.section === 'notifications' ? 'notifications' : query.section === 'members' ? 'members' : 'overview'}
+      initialSection={adminSectionFromQuery(query.section)}
       members={members}
       moderation={moderation}
       notificationConsole={notificationConsole}

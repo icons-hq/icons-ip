@@ -22,6 +22,7 @@ import type { AdminMemberRole, AdminMemberSummary } from '@/lib/admin/members';
 import type { AdminNotificationConsoleData } from '@/lib/admin/notifications';
 import type { AdminOrderConsoleData } from '@/lib/admin/orders';
 import type { AdminProfileRecord } from '@/lib/admin/roles.server';
+import type { AdminSection } from '@/lib/admin/sections';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
@@ -43,7 +44,8 @@ import { RewardPolicySection } from './sections/RewardPolicySection';
 import { RolesSection } from './sections/Roles';
 import { TicketSection } from './sections/TicketSection';
 
-export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'pool' | 'policy' | 'grants' | 'game' | 'event' | 'ticket' | 'curations' | 'notifications' | 'emails' | 'moderation' | 'members' | 'roles';
+
+export type { AdminSection };
 
 const SECTION_TITLES: Record<AdminSection, string> = {
   overview: '개요',
