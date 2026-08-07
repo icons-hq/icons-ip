@@ -596,7 +596,7 @@ $$;
 -- Unchanged current paths remain editable without a second claim.
 select public.admin_upsert_ip(
   'qa-artwork-ip', 'QA artwork IP edited', null, 'character', null, null, null, null,
-  'public-media/catalog/ip/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.png', false
+  'public-media/catalog/ip/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.png', false, 'qa-artwork-ip'
 );
 
 -- Existing rows consume a replacement claim in the conflict UPDATE trigger,
@@ -631,7 +631,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000011201
 
 select public.admin_upsert_ip(
   'qa-artwork-ip', 'QA replacement artwork IP', null, 'character', null, null, null, null,
-  'public-media/catalog/ip/cccccccc-cccc-4ccc-8ccc-cccccccccccc.png', false
+  'public-media/catalog/ip/cccccccc-cccc-4ccc-8ccc-cccccccccccc.png', false, 'qa-artwork-ip'
 );
 
 select 1 / case when exists (

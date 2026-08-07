@@ -206,12 +206,20 @@ select 1 / case when (
   where order_id = :'order_id'::uuid
 ) then 1 else 0 end as assert_order_item_identity_snapshot_is_immutable;
 
+-- 배송비는 주문 시점 정책으로 서버가 계산해 스냅샷으로 남긴다 (#174 · 결정 D5).
+-- 굿즈 소계 25,000원은 무료배송 임계(50,000원) 미만이라 기본 배송비가 붙는다.
+select 1 / case when (
+  select shipping_fee = 3000 and total = 28000
+  from public.orders
+  where id = :'order_id'::uuid
+) then 1 else 0 end as assert_shipping_fee_snapshot_is_server_calculated;
+
 set local role service_role;
 select public.confirm_order_payment(
   'order-history-payment-601',
   :'order_id'::uuid,
   'order-history-provider-key-secret',
-  25000,
+  28000,
   '{"providerPayload":"must-not-reach-browser"}'::jsonb
 );
 reset role;
@@ -257,7 +265,7 @@ select 1 / case when (
   where purpose = 'order'
     and ref_id = :'order_id'::uuid
     and user_id = '00000000-0000-4000-8000-000000000601'
-    and amount = 25000
+    and amount = 28000
     and status = 'paid'
 ) then 1 else 0 end as assert_owner_can_read_safe_payment_summary;
 
