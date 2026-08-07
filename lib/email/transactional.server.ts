@@ -4,7 +4,7 @@ import { normalizeCheckoutAddress } from '../checkout';
 import { orderShipment, type OrderShipment } from '../orders/shipment';
 import { createServiceClient, getServiceRoleConfig } from '../supabase/service';
 import { orderEmailDedupeKey, type EmailTemplateName } from './dedupe';
-import { getEmailProviderConfig, sendTransactionalEmail } from './provider.server';
+import { sendTransactionalEmail } from './provider.server';
 import {
   renderOrderConfirmationEmail,
   renderOrderShippedEmail,
@@ -22,9 +22,28 @@ import {
  * 확인 메일은 1통이다.
  *
  * 배송비는 orders 컬럼을 읽지 않고 `총 결제금액 - 굿즈 합계`로 파생한다. 배송비 컬럼은
- * 다른 이슈(#174)의 범위이고, 어느 쪽이 먼저 들어와도 이 파생값은 맞다. */
+ * 다른 이슈(#174)의 범위이고, 어느 쪽이 먼저 들어와도 이 파생값은 맞다.
+ *
+ * 보내지 못한 사실은 반드시 관측 가능해야 한다. 결과를 버리는 호출자가 하나라도 있으면
+ * 미발송이 흔적 없이 사라지므로, 로그는 호출부가 아니라 이 훅이 직접 남긴다. */
 
 const DEFAULT_SITE_URL = 'https://iconsip.com';
+
+/* 메일 본문이 지금도 사실인 주문 상태.
+ *
+ * 발송은 더 이상 웹훅 확정 직후로 한정되지 않는다. 어드민 재발송은 임의 시점이고,
+ * 그 사이 주문이 청약철회로 canceled가 될 수 있다. 그때 "결제가 확인됐고 배송 준비를
+ * 시작합니다"를 보내면 취소된 주문에 대한 거짓 고지가 된다.
+ *
+ * DB 게이트(admin_request_email_resend)도 같은 집합을 본다. 웹훅 경로는 그 게이트를
+ * 지나지 않으므로 실제 안전장치는 이쪽이다 — 양쪽을 함께 바꾼다. */
+const ACCURATE_ORDER_STATUSES: Record<EmailTemplateName, readonly string[]> = {
+  order_confirmation: ['paid', 'shipping', 'done'],
+  order_shipped: ['shipping', 'done'],
+};
+
+/** 멱등이 정상 동작한 결과다. 매 웹훅 재전송마다 로그를 남길 이유가 없다. */
+const EXPECTED_SKIP_REASONS: readonly string[] = ['already_delivered'];
 
 export type TransactionalEmailResult =
   | { status: 'sent' }
@@ -34,6 +53,7 @@ export type TransactionalEmailResult =
 interface OrderRow {
   id: string;
   user_id: string;
+  status: string;
   total: number;
   created_at: string;
   address: unknown;
@@ -50,6 +70,7 @@ interface OrderItemRow {
 interface OrderEmailContext {
   recipient: string;
   orderId: string;
+  orderStatus: string;
   orderedAt: string;
   items: OrderEmailItem[];
   itemsSubtotal: number;
@@ -73,7 +94,7 @@ async function loadOrderEmailContext(
 ): Promise<OrderEmailContext | { skipped: string }> {
   const { data: orderData, error: orderError } = await service
     .from('orders')
-    .select('id,user_id,total,created_at,address,shipping_carrier,tracking_number')
+    .select('id,user_id,status,total,created_at,address,shipping_carrier,tracking_number')
     .eq('id', orderId)
     .maybeSingle();
   if (orderError) throw new Error(`Failed to load order for email: ${orderError.message}`);
@@ -109,6 +130,7 @@ async function loadOrderEmailContext(
   return {
     recipient,
     orderId: order.id,
+    orderStatus: order.status,
     orderedAt: order.created_at,
     items,
     itemsSubtotal,
@@ -118,6 +140,26 @@ async function loadOrderEmailContext(
     shipment: orderShipment(order.shipping_carrier, order.tracking_number),
     orderUrl: `${siteUrl()}/orders/${order.id}`,
   };
+}
+
+/**
+ * 발송 직전 컨텍스트.
+ *
+ * 주문을 읽는 것과 "이 메일이 지금도 사실인가"를 판정하는 것을 한 곳에 묶는다.
+ * 두 발송 함수가 각자 판정하면 한쪽만 고쳐졌을 때 거짓 고지가 다시 열린다.
+ */
+async function prepareOrderEmail(
+  service: ServiceClient,
+  template: EmailTemplateName,
+  orderId: string,
+): Promise<OrderEmailContext | { skipped: string }> {
+  const context = await loadOrderEmailContext(service, orderId);
+  if ('skipped' in context) return context;
+
+  if (!ACCURATE_ORDER_STATUSES[template].includes(context.orderStatus)) {
+    return { skipped: `order_status_mismatch:${context.orderStatus}` };
+  }
+  return context;
 }
 
 async function deliver(
@@ -160,37 +202,55 @@ async function deliver(
   return failure ? { status: 'failed', error: failure } : { status: 'sent' };
 }
 
+/**
+ * service role이 없으면 손댈 수 있는 게 아무것도 없다 — 주문도 못 읽고 이력도 못 남긴다.
+ * 유일하게 남길 수 있는 흔적이 로그이므로 여기서 끊는다.
+ *
+ * provider 키 없음은 여기서 막지 않는다. 그 상태로도 클레임과 결과 기록은 가능하고,
+ * 기록해 두면 나중에 키를 채운 운영자가 발송 이력에서 그대로 다시 보낼 수 있다.
+ * 앞에서 끊으면 확인 메일 0통·이력 0행·로그 0줄이 되어 복구할 대상 자체가 사라진다.
+ */
 function guardedEnvironment(): TransactionalEmailResult | null {
   if (!getServiceRoleConfig().isConfigured) {
     return { status: 'skipped', reason: 'service_role_not_configured' };
   }
-  if (!getEmailProviderConfig().isConfigured) {
-    return { status: 'skipped', reason: 'provider_not_configured' };
-  }
   return null;
 }
 
+/**
+ * 훅의 바깥 껍질. throw를 삼키고, 보내지 못한 사실을 반드시 로그로 남긴다.
+ *
+ * 호출부가 결과를 버려도 미발송은 관측 가능해야 한다 — 운영자가 나중에 발송 이력을
+ * 열었을 때 "다시 보낼 메일이 없습니다"만 보고 아무 일도 없었다고 믿게 두면 안 된다.
+ */
 async function safely(
   label: string,
+  orderId: string,
   run: () => Promise<TransactionalEmailResult>,
 ): Promise<TransactionalEmailResult> {
   try {
-    return await run();
+    const result = await run();
+    if (result.status === 'failed') {
+      console.error(`[email] ${label} failed (order:${orderId}): ${result.error}`);
+    } else if (result.status === 'skipped' && !EXPECTED_SKIP_REASONS.includes(result.reason)) {
+      console.error(`[email] ${label} not sent (order:${orderId}): ${result.reason}`);
+    }
+    return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`[email] ${label} failed: ${message}`);
+    console.error(`[email] ${label} failed (order:${orderId}): ${message}`);
     return { status: 'failed', error: message };
   }
 }
 
 /** 주문 확정(웹훅) 확인 메일. 전자상거래법상 계약내용 서면 교부 경로다(L4). */
 export function sendOrderConfirmationEmail(orderId: string): Promise<TransactionalEmailResult> {
-  return safely('order confirmation', async () => {
+  return safely('order confirmation', orderId, async () => {
     const blocked = guardedEnvironment();
     if (blocked) return blocked;
 
     const service = createServiceClient();
-    const context = await loadOrderEmailContext(service, orderId);
+    const context = await prepareOrderEmail(service, 'order_confirmation', orderId);
     if ('skipped' in context) return { status: 'skipped', reason: context.skipped };
 
     return deliver(service, {
@@ -216,12 +276,12 @@ export function sendOrderShippedEmail(input: {
   trackingNumber?: string | null;
   trackingUrl?: string | null;
 }): Promise<TransactionalEmailResult> {
-  return safely('order shipped', async () => {
+  return safely('order shipped', input.orderId, async () => {
     const blocked = guardedEnvironment();
     if (blocked) return blocked;
 
     const service = createServiceClient();
-    const context = await loadOrderEmailContext(service, input.orderId);
+    const context = await prepareOrderEmail(service, 'order_shipped', input.orderId);
     if ('skipped' in context) return { status: 'skipped', reason: context.skipped };
 
     return deliver(service, {
