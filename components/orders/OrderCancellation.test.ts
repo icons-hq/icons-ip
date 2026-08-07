@@ -65,11 +65,27 @@ describe('submitOrderCancellation', () => {
     });
   });
 
-  it.each(['shipping', 'done'] as const)('blocks self cancellation for %s and routes to support without invented contact details', (status) => {
+  it.each(['shipping', 'done'] as const)('keeps the withdrawal path open for %s with the receipt-based deadline', (status) => {
     const presentation = cancellationPresentation(status, null);
-    expect(presentation.canCancel).toBe(false);
-    expect(presentation.body).toContain('고객센터');
-    expect(presentation).not.toHaveProperty('actionLabel');
+    expect(presentation).toMatchObject({
+      canCancel: true,
+      heading: '청약철회 요청',
+      actionLabel: '청약철회 요청',
+    });
+    expect(presentation.body).toContain('7일');
+    expect(presentation.body).toContain('착불');
+  });
+
+  it('asks the shipped-order confirmation about returning the goods first', () => {
+    const markup = renderToStaticMarkup(createElement(OrderCancellation, {
+      orderId: '11111111-1111-4111-8111-111111111111',
+      status: 'done',
+      refund: null,
+      cancellationRequest: null,
+    }));
+
+    expect(markup).toContain('청약철회 요청');
+    expect(markup).not.toContain('고객센터에서 주문 상태와 처리 가능 여부를 확인해주세요');
   });
 
   it('shows a safe canceled-order refund summary', () => {

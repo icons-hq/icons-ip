@@ -89,9 +89,19 @@ function OrderStatusAction({
   );
 }
 
-function ApproveCancellationForm({ requestId }: { requestId: string }) {
+function ApproveCancellationForm({
+  orderStatus,
+  requestId,
+}: {
+  orderStatus: AdminOrderRecord['status'];
+  requestId: string;
+}) {
   const [state, action, pending] = useActionState(approveAdminOrderCancellationAction, EMPTY_ACTION_STATE);
-  const confirmation = '청약철회를 승인하고 결제 취소를 시작할까요?';
+  // 반품 입고 확인은 별도 상태가 아니라 승인 행위에 내포된다(D11). 배송이 나간 주문은
+  // 승인 즉시 결제가 취소되고 재고가 복원되므로 확인 문구로 그 전제를 묻는다.
+  const confirmation = orderStatus === 'shipping' || orderStatus === 'done'
+    ? '반품 물건 입고를 확인하셨나요? 승인하면 결제 취소와 재고 복원이 진행됩니다.'
+    : '청약철회를 승인하고 결제 취소를 시작할까요?';
 
   return (
     <form
@@ -305,7 +315,7 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
         ) : null}
         {cancellationRequest?.status === 'requested' ? (
           <>
-            <ApproveCancellationForm requestId={cancellationRequest.id} />
+            <ApproveCancellationForm orderStatus={order.status} requestId={cancellationRequest.id} />
             <RejectCancellationForm requestId={cancellationRequest.id} />
           </>
         ) : null}

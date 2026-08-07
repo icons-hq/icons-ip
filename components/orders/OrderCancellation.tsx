@@ -45,7 +45,12 @@ interface CancellationBasePresentation {
 }
 
 type CancellationPresentation =
-  | (CancellationBasePresentation & { canCancel: true; actionLabel: string })
+  | (CancellationBasePresentation & {
+      canCancel: true;
+      actionLabel: string;
+      confirmTitle: string;
+      confirmBody: string;
+    })
   | (CancellationBasePresentation & {
       canCancel: false;
       refundLabel?: string;
@@ -119,6 +124,8 @@ export function cancellationPresentation(
         ? `이전 취소 요청이 거절됐습니다. ${priorRejection.decisionNote ? `${priorRejection.decisionNote} ` : ''}주문 상태가 바뀌지 않았다면 다시 요청할 수 있습니다.`
         : '결제 내역이 없는 주문은 즉시 취소됩니다. 결제 시도가 확인되면 청약철회 요청으로 접수해 안전하게 확인합니다.',
       actionLabel: priorRejection ? '다시 주문 취소 요청' : '주문 취소',
+      confirmTitle: '이 주문을 취소할까요?',
+      confirmBody: '결제 내역이 없으면 즉시 취소하고, 내역이 있으면 청약철회 요청으로 접수합니다.',
       ...(priorRejection ? {
         requestLabel: '이전 요청 거절',
         requestRequestedAt: priorRejection.requestedAt,
@@ -135,6 +142,8 @@ export function cancellationPresentation(
         ? `이전 청약철회 요청이 거절됐습니다. ${priorRejection.decisionNote ? `${priorRejection.decisionNote} ` : ''}주문 상태가 바뀌지 않았다면 다시 요청할 수 있습니다.`
         : '배송 시작 전 주문입니다. 주문 취소와 결제 취소를 함께 요청합니다.',
       actionLabel: priorRejection ? '다시 청약철회 요청' : '청약철회 요청',
+      confirmTitle: '청약철회를 요청할까요?',
+      confirmBody: '주문과 결제 취소 처리를 요청합니다.',
       ...(priorRejection ? {
         requestLabel: '이전 요청 거절',
         requestRequestedAt: priorRejection.requestedAt,
@@ -143,23 +152,40 @@ export function cancellationPresentation(
     };
   }
 
-  if (status === 'canceled') {
+  // 배송이 시작된 뒤가 실물 반품의 주 경로다. 법정 고지가 "공급받은 날부터 7일"을
+  // 안내하는 만큼 같은 시점에 요청 버튼도 열어 둔다(D10).
+  if (status === 'shipping' || status === 'done') {
+    const deadlineNotice = status === 'shipping'
+      ? '배송이 시작된 주문입니다. 굿즈를 공급받은 날부터 7일 이내에 청약철회를 요청할 수 있습니다.'
+      : '배송이 완료된 주문입니다. 굿즈를 공급받은 날부터 7일 이내에 청약철회를 요청할 수 있습니다.';
+    const returnNotice = '요청이 승인되려면 굿즈가 반품 입고돼야 하고, 반품 배송은 고객 착불 반송입니다.';
+
     return {
-      canCancel: false,
-      heading: '취소·환불 상태',
-      body: refund
-        ? '주문은 취소됐고 환불 상태를 확인할 수 있어요.'
-        : '주문이 취소됐습니다. 결제 내역이 있었다면 결제수단의 취소 반영 시점을 확인해주세요.',
-      ...(refund
-        ? { refundLabel: refundStatusLabel(refund.status), refundCreatedAt: refund.createdAt }
-        : {}),
+      canCancel: true,
+      heading: priorRejection ? '청약철회 재요청' : '청약철회 요청',
+      body: priorRejection
+        ? `이전 청약철회 요청이 거절됐습니다. ${priorRejection.decisionNote ? `${priorRejection.decisionNote} ` : ''}${deadlineNotice} ${returnNotice}`
+        : `${deadlineNotice} ${returnNotice}`,
+      actionLabel: priorRejection ? '다시 청약철회 요청' : '청약철회 요청',
+      confirmTitle: '청약철회를 요청할까요?',
+      confirmBody: '요청 접수 후 굿즈를 착불로 반송해주세요. 반품 입고가 확인되면 결제 취소를 진행합니다.',
+      ...(priorRejection ? {
+        requestLabel: '이전 요청 거절',
+        requestRequestedAt: priorRejection.requestedAt,
+        ...(priorRejection.decidedAt ? { requestDecidedAt: priorRejection.decidedAt } : {}),
+      } : {}),
     };
   }
 
   return {
     canCancel: false,
-    heading: '셀프 취소가 제한된 주문입니다',
-    body: '배송이 시작됐거나 완료된 주문은 이 화면에서 취소할 수 없습니다. 고객센터에서 주문 상태와 처리 가능 여부를 확인해주세요.',
+    heading: '취소·환불 상태',
+    body: refund
+      ? '주문은 취소됐고 환불 상태를 확인할 수 있어요.'
+      : '주문이 취소됐습니다. 결제 내역이 있었다면 결제수단의 취소 반영 시점을 확인해주세요.',
+    ...(refund
+      ? { refundLabel: refundStatusLabel(refund.status), refundCreatedAt: refund.createdAt }
+      : {}),
   };
 }
 
@@ -234,8 +260,8 @@ export function OrderCancellation({ cancellationRequest, orderId, status, refund
         <div className="order-cancellation-actions" aria-live="polite" aria-atomic="true">
           {submission === 'confirming' ? (
             <div className="order-cancellation-confirm">
-              <strong>{status === 'pending' ? '이 주문을 취소할까요?' : '청약철회를 요청할까요?'}</strong>
-              <p>{status === 'pending' ? '결제 내역이 없으면 즉시 취소하고, 내역이 있으면 청약철회 요청으로 접수합니다.' : '주문과 결제 취소 처리를 요청합니다.'}</p>
+              <strong>{presentation.confirmTitle}</strong>
+              <p>{presentation.confirmBody}</p>
               <div>
                 <button autoFocus className="btn btn-ghost" type="button" onClick={closeConfirmation}>돌아가기</button>
                 <button className="btn order-cancellation-submit" type="button" onClick={() => void cancelOrder()}>{presentation.actionLabel}</button>

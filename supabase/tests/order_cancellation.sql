@@ -763,7 +763,8 @@ select 1 / case when (
   )
 ) then 1 else 0 end as assert_verified_failed_payment_converges_to_refund;
 
--- Shipping and completed orders are outside the self-service cancellation boundary.
+-- 배송 후 청약철회는 열려 있지만(#176) 결제 증거 없이는 여전히 fail closed다.
+-- 상태가 아니라 provider 증거가 경계라는 점을 고정한다.
 do $$
 declare
   blocked_order uuid;
@@ -779,10 +780,10 @@ begin
         '배송 이후 취소 시도',
         array['irrelevant-provider-key']::text[]
       );
-      raise exception 'shipping or done order should be rejected';
+      raise exception 'shipping or done order should require payment evidence';
     exception
       when raise_exception then
-        if sqlerrm <> 'order not cancelable' then raise; end if;
+        if sqlerrm <> 'payment evidence required' then raise; end if;
     end;
   end loop;
 end;
@@ -792,6 +793,31 @@ select 1 / case when (
   (select stock_qty = 9 from public.goods where id = 'order-cancel-shipping')
   and (select stock_qty = 9 from public.goods where id = 'order-cancel-done')
 ) then 1 else 0 end as assert_shipping_and_done_inventory_is_unchanged;
+
+-- 실물 반품의 주 경로는 물건을 받아본 뒤다. shipping·done 주문도 durable 요청을
+-- 남길 수 있어야 하고, 요청만으로는 재고나 주문 상태가 움직이지 않는다.
+set local role service_role;
+
+select 1 / case when public.request_order_cancellation(
+  '40000000-0000-4000-8000-000000000704',
+  '00000000-0000-4000-8000-000000000701',
+  '배송 중 청약철회 요청'
+) = 'requested' then 1 else 0 end as assert_shipping_order_accepts_withdrawal_request;
+
+select 1 / case when public.request_order_cancellation(
+  '40000000-0000-4000-8000-000000000705',
+  '00000000-0000-4000-8000-000000000701',
+  '수령 후 청약철회 요청'
+) = 'requested' then 1 else 0 end as assert_done_order_accepts_withdrawal_request;
+
+reset role;
+
+select 1 / case when (
+  (select status = 'shipping' from public.orders where id = '40000000-0000-4000-8000-000000000704')
+  and (select status = 'done' from public.orders where id = '40000000-0000-4000-8000-000000000705')
+  and (select stock_qty = 9 from public.goods where id = 'order-cancel-shipping')
+  and (select stock_qty = 9 from public.goods where id = 'order-cancel-done')
+) then 1 else 0 end as assert_post_shipping_request_does_not_move_state;
 
 -- Existing provider-terminal evidence is enough to converge local state on retries/webhooks.
 select public.cancel_order(

@@ -187,6 +187,23 @@ describe('OrdersSection', () => {
     expect(html).toContain('2 / 3 페이지');
   });
 
+  it.each(['shipping', 'done'] as const)('exposes the cancellation decision on a %s order', (status) => {
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+      status,
+      cancellationRequest: {
+        id: '33333333-3333-4333-8333-333333333333',
+        status: 'requested',
+        requestedAt: '2026-07-14T07:00:00.000Z',
+        decidedAt: null,
+        decisionNote: null,
+      },
+    })} />);
+
+    expect(html).toContain('청약철회 승인');
+    expect(html).toContain('요청 거절');
+    expect(html).toContain('data-confirm="반품 물건 입고를 확인하셨나요? 승인하면 결제 취소와 재고 복원이 진행됩니다."');
+  });
+
   it('renders explicit confirmations and an accessible rejection reason field', () => {
     const requestId = '33333333-3333-4333-8333-333333333333';
     const html = renderToStaticMarkup(<OrdersSection data={orderData({

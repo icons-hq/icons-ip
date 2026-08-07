@@ -44,6 +44,15 @@ select 1 / case when (
   and not has_function_privilege('service_role', 'public.admin_update_order_status(uuid,order_status)', 'execute')
 ) then 1 else 0 end as assert_shipping_rpc_is_authenticated_only;
 
+-- 배송 후 청약철회(#176)는 새 상태기계 대신 claim의 원상태 허용값만 넓혔다.
+select 1 / case when exists (
+  select 1
+  from pg_constraint
+  where conname = 'order_cancellation_claims_previous_status_check'
+    and pg_get_constraintdef(oid) like '%shipping%'
+    and pg_get_constraintdef(oid) like '%done%'
+) then 1 else 0 end as assert_cancellation_claim_allows_post_shipping_status;
+
 select 1 / case when (
   not has_table_privilege('anon', 'public.order_cancellation_requests', 'select')
   and not has_table_privilege('authenticated', 'public.order_cancellation_requests', 'select')
