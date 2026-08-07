@@ -22,6 +22,7 @@ interface OrderListRow {
 }
 
 interface OrderDetailRow extends OrderListRow {
+  shipping_fee: number | null;
   address: unknown;
 }
 
@@ -162,7 +163,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   const supabase = await createClient();
   const { data: orderData, error: orderError } = await supabase
     .from('orders')
-    .select('id,user_id,status,total,address,created_at')
+    .select('id,user_id,status,total,shipping_fee,address,created_at')
     .eq('id', orderId)
     .eq('user_id', userId)
     .in('status', [...ORDER_DETAIL_STATUSES])
@@ -248,6 +249,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     id: orderData.id,
     status,
     total: orderData.total,
+    shippingFee: orderData.shipping_fee ?? 0,
     address: normalizeCheckoutAddress(orderData.address),
     createdAt: orderData.created_at,
     items: ((itemsResult.data ?? []) as OrderDetailItemRow[]).map((item) => ({

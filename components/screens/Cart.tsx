@@ -6,7 +6,8 @@ import { useCart } from '@/components/shell/CartProvider';
 import { Icon } from '@/components/ui/Icon';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Good, Ip } from '@/lib/data';
-import { krw } from '@/lib/format';
+import { krw, krwAmountWords } from '@/lib/format';
+import { freeShippingRemainder, shippingFeeFor, shippingFeeLabel } from '@/lib/shipping';
 
 interface CartLine {
   goodId: string;
@@ -168,6 +169,9 @@ export function Cart({
   const unavailableCount = lines.filter(({ good, qty }) => (
     !good || good.stock === 'soldout' || good.stockQty <= 0 || qty > good.stockQty
   )).length;
+  /* 표시용 예상치다. 실제 청구액은 place_order가 같은 정책으로 다시 계산한다. */
+  const shippingFee = shippingFeeFor(subtotal);
+  const remainingForFreeShipping = freeShippingRemainder(subtotal);
 
   return (
     <main className="cart-page">
@@ -216,13 +220,18 @@ export function Cart({
                   <span>굿즈 금액</span>
                   <strong className="mono">{krw(subtotal)}</strong>
                 </div>
-                <div className="cart-summary-row cart-summary-row--dim">
+                <div className={`cart-summary-row${shippingFee === 0 ? ' cart-summary-row--dim' : ''}`}>
                   <span>배송비</span>
-                  <span>무료</span>
+                  <span className={shippingFee === 0 ? undefined : 'mono'}>{shippingFeeLabel(shippingFee)}</span>
                 </div>
+                {subtotal > 0 && remainingForFreeShipping > 0 && (
+                  <p className="cart-summary-note">
+                    {krwAmountWords(remainingForFreeShipping)} 더 담으면 무료배송이에요.
+                  </p>
+                )}
                 <div className="cart-summary-total">
                   <span>예상 결제 금액</span>
-                  <strong className="mono">{krw(subtotal)}</strong>
+                  <strong className="mono">{krw(subtotal + shippingFee)}</strong>
                 </div>
                 {unavailableCount > 0 && (
                   <p className="cart-summary-warning" role="alert">

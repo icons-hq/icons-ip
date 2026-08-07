@@ -13,6 +13,7 @@ import {
   type CheckoutAddressField,
 } from '@/lib/checkout';
 import { krw } from '@/lib/format';
+import { shippingFeeFor, shippingFeeLabel } from '@/lib/shipping';
 
 const actionErrors = {
   account_suspended: '정지된 계정은 새 주문을 만들 수 없어요.',
@@ -67,6 +68,8 @@ export function Checkout({ catalog, latestAddress, paymentAvailable, resumeOrder
     });
   }, [catalog.goods, catalog.ips, items]);
   const subtotal = lines.reduce((sum, line) => sum + (line.good?.price ?? 0) * line.qty, 0);
+  /* 표시용 예상치다. 결제 금액은 place_order가 확정한 orders.total을 따른다. */
+  const shippingFee = shippingFeeFor(subtotal);
   const unavailable = lines.some(({ good, qty }) => (
     !good || good.stock === 'soldout' || good.stockQty < qty
   ));
@@ -231,8 +234,8 @@ export function Checkout({ catalog, latestAddress, paymentAvailable, resumeOrder
           </div>
           <dl className="checkout-totals">
             <div><dt>굿즈 금액</dt><dd>{krw(subtotal)}</dd></div>
-            <div><dt>배송비</dt><dd>무료</dd></div>
-            <div className="checkout-total"><dt>결제 금액</dt><dd>{krw(subtotal)}</dd></div>
+            <div><dt>배송비</dt><dd>{shippingFeeLabel(shippingFee)}</dd></div>
+            <div className="checkout-total"><dt>결제 금액</dt><dd>{krw(subtotal + shippingFee)}</dd></div>
           </dl>
 
           {unavailable && <p className="checkout-error" role="alert">재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.</p>}

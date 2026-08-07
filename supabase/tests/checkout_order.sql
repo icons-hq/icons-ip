@@ -379,4 +379,28 @@ select 1 / case when (
   where user_id = '00000000-0000-4000-8000-000000000503' and good_id = 'g11'
 ) = 1 then 1 else 0 end as assert_soldout_preserves_cart;
 
+-- 배송비(#174)는 서버가 굿즈 소계로 정하고 주문 행에 스냅샷으로 남는다.
+-- 5만원 이상이던 위 첫 주문(99,000원)은 무료여야 한다.
+select 1 / case when (
+  select shipping_fee = 0 and total = 99000
+  from public.orders where id = :'first_order_id'::uuid
+) then 1 else 0 end as assert_free_shipping_above_threshold;
+
+delete from public.cart_items where user_id = '00000000-0000-4000-8000-000000000501';
+insert into public.cart_items (user_id, good_id, qty)
+values ('00000000-0000-4000-8000-000000000501', 'g2', 1);
+
+set local role service_role;
+select public.place_order(
+  '00000000-0000-4000-8000-000000000501',
+  '{"recipientName":"배송비","phone":"01012345678","postalCode":"12345","address1":"서울시 성동구"}'::jsonb,
+  '10000000-0000-4000-8000-000000000521'
+) as shipping_fee_order_id \gset
+reset role;
+
+select 1 / case when (
+  select shipping_fee = 3000 and total = 15000 + 3000
+  from public.orders where id = :'shipping_fee_order_id'::uuid
+) then 1 else 0 end as assert_flat_shipping_fee_below_threshold;
+
 rollback;

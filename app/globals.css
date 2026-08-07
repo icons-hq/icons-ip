@@ -552,6 +552,10 @@
   .cart-summary h2 { margin-bottom: 22px; }
   .cart-summary-row { display: flex; justify-content: space-between; gap: 16px; margin-top: 12px; font-size: 13.5px; }
   .cart-summary-row--dim { color: var(--dim); font-size: 12px; }
+  .cart-summary-note {
+    margin: 10px 0 0; padding: 8px 10px; border: 1px solid rgba(56,240,192,.24);
+    border-radius: 10px; background: rgba(56,240,192,.06); color: var(--mint); font-size: 12px;
+  }
   .cart-summary-total {
     display: flex; align-items: flex-end; justify-content: space-between; gap: 16px;
     margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line-2);
