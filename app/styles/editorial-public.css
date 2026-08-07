@@ -17,6 +17,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -54,6 +55,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -69,6 +71,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -88,6 +91,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -104,6 +108,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -118,6 +123,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -133,6 +139,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -152,6 +159,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -169,6 +177,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -184,6 +193,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -199,6 +209,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -217,6 +228,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -238,6 +250,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -254,6 +267,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -270,6 +284,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -288,6 +303,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -304,6 +320,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -320,6 +337,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -1318,6 +1336,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1335,6 +1354,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1351,6 +1371,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1394,6 +1415,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1433,6 +1455,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1693,6 +1716,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1725,6 +1749,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1748,6 +1773,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1759,6 +1785,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1770,6 +1797,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1781,6 +1809,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1800,6 +1829,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1816,10 +1846,125 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
   ) :where(.btn, .chip, .card, .shop-card, .binder-card, .event-card, .market-card, .exchange-card, .community-post) {
     border: 1px solid CanvasText !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Goods detail (#173)
+   -------------------------------------------------------------------------- */
+
+.goods-detail-page {
+  min-height: 100vh;
+  padding-block: 112px 96px;
+}
+
+.goods-detail-hero {
+  align-items: start;
+  display: grid;
+  gap: 30px;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+}
+
+.goods-detail-media {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goods-detail-stage {
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  overflow: hidden;
+  position: relative;
+}
+
+.goods-detail-thumbs {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.goods-detail-thumb {
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+  overflow: hidden;
+  padding: 0;
+}
+
+.goods-detail-thumb[aria-current="true"] {
+  border-color: var(--line-3);
+}
+
+.goods-detail-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goods-detail-purchase {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.goods-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 48px;
+}
+
+.goods-detail-long-image {
+  display: block;
+  height: auto;
+  max-width: 100%;
+}
+
+.goods-notice-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.goods-notice-table th,
+.goods-notice-table td {
+  border-top: 1px solid var(--line);
+  font-size: 13.5px;
+  line-height: 1.7;
+  padding: 11px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.goods-notice-table th {
+  color: var(--dim);
+  font-weight: 600;
+  white-space: nowrap;
+  width: 34%;
+}
+
+@media (max-width: 900px) {
+  .goods-detail-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .goods-detail-page {
+    padding-block: 92px 72px;
+  }
+
+  .goods-notice-table th {
+    white-space: normal;
   }
 }

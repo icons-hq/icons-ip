@@ -3,6 +3,8 @@ import 'server-only';
 import { blockedUserIds } from '@/lib/blocks.server';
 import { canViewCommunityPost, formatPostTime, type CommunityPostStatus } from '@/lib/community';
 import { DATA, type Card, type FandomEvent, type Good, type Ip, type Stock, type Vertical } from '@/lib/data';
+import type { GoodDetailContent } from '@/lib/goods-detail';
+import { EMPTY_GOODS_NOTICE } from '@/lib/goods-notice';
 import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
 import { isRarityKey } from '@/lib/rarity';
 import { getSupabaseConfig } from '@/lib/supabase/config';
@@ -47,6 +49,14 @@ export interface CatalogPostPreview {
   comments: number;
   time: string;
   tag: string;
+}
+
+/**
+ * 굿즈 상세페이지가 필요로 하는 값 묶음 (#173).
+ * 카탈로그 스냅샷의 Good 은 목록용이라 설명·갤러리·고시정보를 담지 않는다.
+ */
+export interface CatalogGoodDetail extends GoodDetailContent {
+  source: CatalogSnapshot['source'];
 }
 
 export interface CatalogIpDetail {
@@ -644,6 +654,78 @@ export async function getBinderCatalogOverlay(): Promise<BinderCatalogOverlay | 
 export async function getCatalogIp(id: string): Promise<Ip | null> {
   const catalog = await getCatalogSnapshot();
   return catalog.ips.find((ip) => ip.id === id) ?? null;
+}
+
+interface GoodDetailRow {
+  description: string | null;
+  gallery_paths: string[] | null;
+  detail_image_path: string | null;
+  notice_maker: string | null;
+  notice_origin: string | null;
+  notice_material: string | null;
+  notice_size: string | null;
+  notice_made_on: string | null;
+  notice_as_manager: string | null;
+  notice_as_contact: string | null;
+}
+
+/*
+ * 굿즈 상세 (#173). 목록 스냅샷에 없는 콘텐츠 컬럼만 따로 읽는다.
+ * 보관된 굿즈는 스냅샷에서 이미 빠져 있으므로 여기서도 null 이 되고, 라우트가 404 로 옮긴다.
+ */
+export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodDetail | null> {
+  const catalog = await getCatalogSnapshot();
+  const good = catalog.goods.find((item) => item.id === goodId);
+  if (!good) return null;
+
+  const ip = catalog.ips.find((item) => item.id === good.ip) ?? null;
+  const empty: CatalogGoodDetail = {
+    source: catalog.source,
+    good,
+    ip,
+    description: null,
+    gallery: [],
+    detailImageUrl: null,
+    notice: EMPTY_GOODS_NOTICE,
+  };
+  if (catalog.source !== 'supabase') return empty;
+
+  const supabase = await createClient();
+  const result = await supabase
+    .from('goods')
+    /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
+    .select('description,gallery_paths,detail_image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact')
+    .eq('id', goodId)
+    .is('archived_at', null)
+    .maybeSingle();
+
+  if (result.error) {
+    throw new Error(`Failed to load good detail: ${result.error.message}`);
+  }
+  if (!result.data) return empty;
+
+  const row = result.data as GoodDetailRow;
+  const imageUrlForPath = (path: string) => supabase.storage
+    .from(PUBLIC_MEDIA_BUCKET)
+    .getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
+
+  return {
+    source: catalog.source,
+    good,
+    ip,
+    description: row.description,
+    gallery: (row.gallery_paths ?? []).map((path) => imageBg(imageUrlForPath(path))),
+    detailImageUrl: row.detail_image_path ? imageUrlForPath(row.detail_image_path) : null,
+    notice: {
+      maker: row.notice_maker,
+      origin: row.notice_origin,
+      material: row.notice_material,
+      size: row.notice_size,
+      madeOn: row.notice_made_on,
+      asManager: row.notice_as_manager,
+      asContact: row.notice_as_contact,
+    },
+  };
 }
 
 export function buildCatalogIpDetail(
