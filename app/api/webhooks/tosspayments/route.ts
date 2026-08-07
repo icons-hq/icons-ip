@@ -12,6 +12,7 @@ import {
 } from '@/lib/payments/toss';
 import { cancelTossPayment, fetchTossPayment, getTossConfig } from '@/lib/payments/toss-api';
 import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
+import { sendOrderConfirmationEmail } from '@/lib/email/transactional.server';
 import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/service';
 
 /* 토스페이먼츠 웹훅 수신부(#88) — 주문/예매 확정의 단일 진실원.
@@ -121,7 +122,17 @@ async function applyConfirm(
           p_amount: payment.totalAmount,
           p_raw: raw,
         });
-  if (!error) return received();
+  if (!error) {
+    // 확인 메일은 확정의 부수효과다. 실패해도 200을 유지해야 토스가 확정을 재전송하지 않는다.
+    // 재전송이 오더라도 email_deliveries 클레임이 중복 발송을 막는다(#180).
+    if (ref.purpose === 'order') {
+      const delivery = await sendOrderConfirmationEmail(ref.refId);
+      if (delivery.status === 'failed') {
+        console.error(`[webhooks/tosspayments] confirmation email failed: ${delivery.error}`);
+      }
+    }
+    return received();
+  }
 
   if (mapConfirmRpcError(error.message) === 'retryable') {
     console.error(`[webhooks/tosspayments] confirm failed (retryable): ${error.message}`);

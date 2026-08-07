@@ -4,13 +4,14 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import {
   formatOrderDateTime,
+  LEGAL_WITHDRAWAL_NOTICE,
   refundStatusLabel,
   type OrderCancellationRequestSummary,
   type OrderDetailStatus,
   type OrderRefundSummary,
 } from '../../lib/orders';
 
-export const LEGAL_WITHDRAWAL_NOTICE = '계약내용에 관한 서면을 받은 날부터 7일 이내 청약철회를 요청할 수 있습니다. 재화 공급이 더 늦으면 공급받거나 공급이 시작된 날부터 7일입니다. 상품 훼손·사용 등 법정 제한 사유가 있으면 제한될 수 있습니다.';
+export { LEGAL_WITHDRAWAL_NOTICE };
 export const CANCELLATION_FAILURE_MESSAGE = '취소 요청을 처리하지 못했습니다. 주문 상태를 새로 확인한 뒤 다시 시도해주세요.';
 const REFUND_TIMING_NOTICE = '결제 취소가 처리되어도 결제수단에 따라 환불 반영 시점이 다를 수 있습니다.';
 
