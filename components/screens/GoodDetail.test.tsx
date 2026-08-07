@@ -118,6 +118,14 @@ describe('GoodDetail', () => {
     expect(html).toContain('7일 이내');
   });
 
+  /* 요약만으로는 반송비 부담·반품 절차·환급 기한을 확인할 수 없다. 전문으로 가는 길이 있어야 한다. */
+  it('교환·반품 안내에서 배송·반품 정책 전문으로 갈 수 있다', () => {
+    const html = render();
+
+    expect(html).toContain('href="/legal/shipping"');
+    expect(html).toContain('배송·반품 정책 전문 보기');
+  });
+
   it('explains a missing goods notice instead of rendering an empty table', () => {
     const html = render({ notice: EMPTY_GOODS_NOTICE });
 
