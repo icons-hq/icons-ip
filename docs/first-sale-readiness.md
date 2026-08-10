@@ -172,6 +172,27 @@
 
 > 운송장 입력의 **어드민 수기 필드 자체**는 H1~H7 없이도 만들 수 있다. WMS가 API를 제공하는 것으로 밝혀지면 그때 자동화하고, 수기 필드는 폴백으로 남긴다.
 
+#### 정정 — `#179 → 판매 개시`는 한 단계가 아니다 (2026-08-10 실측)
+
+위 그래프는 할당 수량만 확정되면 굿즈가 팔린다고 그렸지만, 굿즈를 판매 가능 상태로 만드는 데는 **두 개의 독립된 쓰기 경로**가 필요하다.
+
+| 대상 | 경로 | 고시정보 검증 |
+|---|---|---|
+| `stock_qty` | 어드민 실재고 조정 → `admin_adjust_stock` | 없음 |
+| `stock` 라벨 (`soldout`→`ok`) | 어드민 굿즈 등록·수정 폼 → `admin_upsert_good` | **7항목 전부 필수** |
+
+`admin_adjust_stock`은 `set stock_qty = ...` 하나만 하고 `stock` 텍스트 컬럼을 건드리지 않는다. 굿즈 폼은 고시정보가 한 항목이라도 비면 저장을 거부한다(`lib/admin/catalog.ts`의 `readGoodsNotice` — L3에서 의도적으로 넣은 법정 표기 가드). 그리고 구매 버튼은 **둘 다** 통과해야 열린다 — `good.stock === 'soldout' || good.stockQty <= 0`이면 비활성(`components/shop/AddToCartButton.tsx`).
+
+고시정보 7항목 중 **A/S 연락처**가 #87 의존이므로, 실제 사슬은 이렇다.
+
+```
+#87 (연락처 확정) ─→ #190 고시정보 asContact ─→ 굿즈 폼 저장 ─→ stock='ok' ─┐
+                                                                            ├─→ 구매 버튼 활성
+#177 (H 전체) ─→ #179 할당 수량 ─→ 실재고 조정 ─→ stock_qty > 0 ───────────┘
+```
+
+즉 **#179는 #177뿐 아니라 #87에도 막혀 있다.** 나머지 6개 고시 항목(제조사·원산지·소재·크기중량·제조연월·A/S 책임자)은 굿즈 제작 정보라 #87 없이 먼저 모을 수 있다.
+
 ---
 
 ## 5. `[human]` 게이트
@@ -199,6 +220,7 @@
 **[#87](https://github.com/sangwopark19/icons-ip/issues/87)** — 토스페이먼츠 상점 계약·라이브 키·통신판매업 신고 ([확인 요청 코멘트](https://github.com/sangwopark19/icons-ip/issues/87#issuecomment-5201806579))
 - 사업자 정보 표기용 데이터 6종(상호·대표자·사업자등록번호·통신판매업신고번호·주소·연락처)
 - **"인앱 주문 상세가 전자상거래법상 서면 교부로 충분한가"** — "아니오"면 D8의 이메일이 판매 개시 필수가 된다
+- **A/S 연락처를 대표 전화와 같게 쓸 것인가, 고객센터를 따로 둘 것인가** — 고시정보 7항목 중 하나다. 이 답이 없으면 굿즈 폼이 저장되지 않아 `stock` 전환이 막힌다(§4.1 정정 · [#190](https://github.com/sangwopark19/icons-ip/issues/190))
 
 ---
 
@@ -234,7 +256,7 @@
 
 ---
 
-## 8. 구현 현황 (2026-08-07)
+## 8. 구현 현황 (2026-08-07 구현 · 2026-08-10 실측 갱신)
 
 §3의 갭 중 에이전트가 코드로 풀 수 있는 것은 전부 닫혔다. 남은 것은 사람 응답에 종속된 항목뿐이다.
 
@@ -242,15 +264,15 @@
 |---|---|---|---|
 | L2 · L5 법정 문서 3종 | [#169](https://github.com/sangwopark19/icons-ip/issues/169) | 구현 | 법무 검토 병행(D12) · WMS 운영사 법인명(H7) |
 | L1 사업자 정보 표기 | [#170](https://github.com/sangwopark19/icons-ip/issues/170) | 구조 구현 · **값 공백** | [#87](https://github.com/sangwopark19/icons-ip/issues/87)의 사업자 정보 6종 |
-| L3 고시정보 | [#171](https://github.com/sangwopark19/icons-ip/issues/171) | 구현 | 홍실 3종 실제 값 입력(운영) |
-| C2 굿즈 콘텐츠 스키마 | [#172](https://github.com/sangwopark19/icons-ip/issues/172) | 구현 | 홍실 3종 이미지·설명 입력(운영) |
+| L3 고시정보 | [#171](https://github.com/sangwopark19/icons-ip/issues/171) | 구현 | 홍실 3종 실제 값 입력 → [#190](https://github.com/sangwopark19/icons-ip/issues/190) |
+| C2 굿즈 콘텐츠 스키마 | [#172](https://github.com/sangwopark19/icons-ip/issues/172) | 구현 | 홍실 3종 이미지·설명 입력 → [#190](https://github.com/sangwopark19/icons-ip/issues/190) |
 | C1 굿즈 상세페이지 | [#173](https://github.com/sangwopark19/icons-ip/issues/173) | 구현 | — |
 | C3 배송비 | [#174](https://github.com/sangwopark19/icons-ip/issues/174) | 구현 | 도서산간 추가요금(H6) |
 | C4 우편번호 검색 | [#175](https://github.com/sangwopark19/icons-ip/issues/175) | 구현 | — |
 | C5 배송 후 청약철회 | [#176](https://github.com/sangwopark19/icons-ip/issues/176) | 구현 | 반품 입고 주소·절차(H5) |
 | F2 운송장 등록·조회 | [#178](https://github.com/sangwopark19/icons-ip/issues/178) | **수기 경로만** 구현 | WMS 자동 수신(H1~H3) |
-| F3 할당 재고 | [#179](https://github.com/sangwopark19/icons-ip/issues/179) | 미착수 | `stock_qty` 확정(H 전체) |
-| N1 · L4 트랜잭션 이메일 | [#180](https://github.com/sangwopark19/icons-ip/issues/180) | 구현 | 발신 도메인 SPF/DKIM 설정(운영) |
+| F3 할당 재고 | [#179](https://github.com/sangwopark19/icons-ip/issues/179) | 미착수 | `stock_qty` 확정(H 전체) · `stock` 전환은 [#190](https://github.com/sangwopark19/icons-ip/issues/190) 선행(§4.1 정정) |
+| N1 · L4 트랜잭션 이메일 | [#180](https://github.com/sangwopark19/icons-ip/issues/180) | 구현 · **env 공백** | provider 키·발신자·SPF/DKIM → [#191](https://github.com/sangwopark19/icons-ip/issues/191) |
 | A1 ID 덮어쓰기 | [#181](https://github.com/sangwopark19/icons-ip/issues/181) | 구현 | — |
 | A7 목록 썸네일 | [#182](https://github.com/sangwopark19/icons-ip/issues/182) | 구현 | — |
 | A2~A6 내부 구현 필드 | [#183](https://github.com/sangwopark19/icons-ip/issues/183) | 구현 | — |
@@ -259,11 +281,13 @@
 
 ### 8.1 판매 개시를 아직 막는 것
 
-코드가 아니라 사람이 풀어야 한다.
+코드가 아니라 사람이 풀어야 한다. 2026-08-10에 프로덕션 `goods`와 Vercel production env를 직접 확인해 갱신했다.
 
-1. **[#87](https://github.com/sangwopark19/icons-ip/issues/87)** — 사업자 정보 6종. 없으면 푸터의 법정 표기가 비고, 법정 문서가 지정한 문의 창구가 존재하지 않는다.
+1. **[#87](https://github.com/sangwopark19/icons-ip/issues/87)** — 사업자 정보 6종. 없으면 푸터의 법정 표기가 비고, 법정 문서가 지정한 문의 창구가 존재하지 않는다. `BUSINESS_INFO`는 `hostingProvider`를 뺀 전 필드가 빈 문자열이다. 여기에 더해 **토스 라이브 키 전환**이 확인되지 않았다 — 프로덕션에 `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION`이 켜져 있어 테스트 키로 추정된다. 라이브 키로 교체하고 이 플래그를 제거해야 실제 돈을 받는다.
 2. **[#177](https://github.com/sangwopark19/icons-ip/issues/177)** — H1~H7. 특히 H7(WMS 운영사 법인명)이 없으면 개인정보처리방침의 처리위탁 목록을 완성할 수 없다.
-3. **[#179](https://github.com/sangwopark19/icons-ip/issues/179)** — 할당 재고 확정. 홍실 3종이 전부 `stock_qty=0`이라 지금은 아무것도 팔리지 않는다.
+3. **[#190](https://github.com/sangwopark19/icons-ip/issues/190)** — 운영 데이터 입력. 홍실 3종의 고시정보 7항목 × 3 = **21칸이 전부 공백**이고 설명·갤러리·상세 이미지도 없다. 고시정보가 차야 굿즈 폼이 저장되고, 그래야 `stock`이 `ok`로 바뀐다(§4.1 정정). A/S 연락처가 #87 의존이다.
+4. **[#179](https://github.com/sangwopark19/icons-ip/issues/179)** — 할당 재고 확정. 홍실 3종이 전부 `stock='soldout'`·`stock_qty=0`이라 지금은 아무것도 팔리지 않는다.
+5. **[#191](https://github.com/sangwopark19/icons-ip/issues/191)** — 발신 이메일 설정. `EMAIL_PROVIDER_API_KEY`·`EMAIL_FROM`이 Vercel production env에 없어 주문 확인 메일이 한 통도 나가지 않는다. **판매 개시 필수 여부는 #87의 "인앱 주문 상세가 서면 교부로 충분한가"에 달려 있다** — "아니오"면 블로커로 승격된다.
 
 ### 8.2 #178에서 남긴 범위
 
