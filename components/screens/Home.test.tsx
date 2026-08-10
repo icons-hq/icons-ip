@@ -622,6 +622,22 @@ describe('ICONS IP World Preview composition', () => {
     expect(html).not.toContain('파트너사');
   });
 
+  it('홈 푸터에서도 법정 고지 3종에 닿는다', () => {
+    const html = renderHome();
+
+    expect(html).toContain('<small>LEGAL</small>');
+    expect(html).toContain('href="/legal/terms"');
+    expect(html).toContain('href="/legal/privacy"');
+    expect(html).toContain('href="/legal/shipping"');
+  });
+
+  it('홈 푸터에도 사업자 정보를 표기한다', () => {
+    const html = renderHome();
+
+    expect(html).toContain('aria-label="사업자 정보"');
+    expect(html).toContain('호스팅 제공자');
+  });
+
   it('keeps the IP marquee centered, unclipped, and faster than the source preview', () => {
     const html = renderHome();
     const orbitClasses = [...html.matchAll(/class="(ip-orbit [^"]+)"/g)].map((match) => match[1]);

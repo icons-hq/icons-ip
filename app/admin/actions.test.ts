@@ -137,6 +137,27 @@ const adminRecords = {
   ticketTypes: [],
 };
 
+/* 고시정보는 저장 필수라서(#171) 굿즈 폼 픽스처가 항상 값을 채운다. */
+const goodsNoticeForm = {
+  noticeMaker: '주식회사 아이콘스',
+  noticeOrigin: '대한민국',
+  noticeMaterial: '아크릴',
+  noticeSize: '80 x 60 x 20mm · 90g',
+  noticeMadeOn: '2026-07',
+  noticeAsManager: '아이콘스 고객센터',
+  noticeAsContact: '02-000-0000',
+};
+
+const goodsNoticeRpcArgs = {
+  target_notice_maker: '주식회사 아이콘스',
+  target_notice_origin: '대한민국',
+  target_notice_material: '아크릴',
+  target_notice_size: '80 x 60 x 20mm · 90g',
+  target_notice_made_on: '2026-07',
+  target_notice_as_manager: '아이콘스 고객센터',
+  target_notice_as_contact: '02-000-0000',
+};
+
 function goodForm() {
   const formData = new FormData();
   formData.set('id', 'g100');
@@ -147,6 +168,7 @@ function goodForm() {
   formData.set('badge', '신상');
   formData.set('stock', 'ok');
   formData.set('stockQty', '12');
+  for (const [key, value] of Object.entries(goodsNoticeForm)) formData.set(key, value);
   return formData;
 }
 
@@ -366,6 +388,7 @@ describe('admin catalog actions', () => {
       target_bg: null,
       target_image_path: null,
       target_featured: true,
+      target_previous_id: null,
     });
   });
 
@@ -387,6 +410,11 @@ describe('admin catalog actions', () => {
       target_stock: 'ok',
       target_bg: null,
       target_image_path: null,
+      ...goodsNoticeRpcArgs,
+      target_description: null,
+      target_gallery_paths: [],
+      target_detail_image_path: null,
+      target_previous_id: null,
     });
     expect(mocks.getCatalogSnapshot).toHaveBeenCalledWith({ previewDefaultSource: 'supabase' });
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/');
@@ -574,6 +602,7 @@ describe('admin catalog actions', () => {
       target_accent: '#8B5CFF',
       target_bg: null,
       target_image_path: null,
+      target_previous_id: null,
     });
   });
 
@@ -586,6 +615,47 @@ describe('admin catalog actions', () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
+  /* #181 — RPC가 막은 덮어쓰기를 운영자가 이해할 수 있는 문구로 옮긴다. */
+  it.each([
+    ['IP', upsertAdminIpAction, ipForm],
+    ['굿즈', upsertAdminGoodAction, goodForm],
+    ['카드', upsertAdminCardAction, cardForm],
+    ['이벤트', upsertAdminEventAction, eventForm],
+  ])('refuses to overwrite an existing %s record from the new-record form', async (_label, action, makeForm) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_id_taken' } });
+
+    await expect(action({}, makeForm())).resolves.toEqual({
+      errors: { id: '이미 사용 중인 ID입니다. 수정하려면 목록에서 선택해주세요.' },
+    });
+  });
+
+  it.each([
+    ['IP', upsertAdminIpAction, ipForm],
+    ['굿즈', upsertAdminGoodAction, goodForm],
+    ['카드', upsertAdminCardAction, cardForm],
+    ['이벤트', upsertAdminEventAction, eventForm],
+  ])('explains a vanished %s edit target', async (_label, action, makeForm) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_record_missing' } });
+
+    await expect(action({}, makeForm())).resolves.toEqual({
+      errors: { form: '수정할 항목을 찾을 수 없습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' },
+    });
+  });
+
+  it('passes the edit target to the good RPC so an update is not mistaken for a create', async () => {
+    const formData = goodForm();
+    formData.set('previousId', 'g100');
+
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+      message: '굿즈를 저장했습니다.',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'admin_upsert_good',
+      expect.objectContaining({ target_previous_id: 'g100' }),
+    );
+  });
+
   it.each([
     ['굿즈', upsertAdminGoodAction, goodForm],
     ['카드', upsertAdminCardAction, cardForm],
@@ -596,6 +666,52 @@ describe('admin catalog actions', () => {
     await expect(action({}, makeForm())).resolves.toEqual({
       errors: { form: '상위 IP를 먼저 복원해주세요.' },
     });
+  });
+
+  /* #172 — 갤러리 슬롯은 순서를 지킨 배열 하나로 RPC 에 넘어간다. */
+  it('passes ordered gallery slots and detail content to the admin good RPC', async () => {
+    const formData = goodForm();
+    formData.set('description', '  붉은 실을 따라 놓인 아크릴 블록입니다.  ');
+    formData.set('galleryPath0', 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp');
+    formData.set('galleryPath1', '');
+    formData.set('galleryPath2', 'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp');
+    formData.set('detailImagePath', 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp');
+
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+      message: '굿즈를 저장했습니다.',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_good', expect.objectContaining({
+      target_description: '붉은 실을 따라 놓인 아크릴 블록입니다.',
+      target_gallery_paths: [
+        'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp',
+        'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp',
+      ],
+      target_detail_image_path: 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp',
+    }));
+  });
+
+  /* #171 — 폼 검증을 우회해 RPC 까지 닿은 고시정보 누락도 운영자 언어로 돌아온다. */
+  it('maps a goods notice guard raised by the admin RPC', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'goods_notice_required' } });
+
+    await expect(upsertAdminGoodAction({}, goodForm())).resolves.toEqual({
+      errors: { form: '고시정보를 모두 입력한 뒤 저장해주세요.' },
+    });
+  });
+
+  it('rejects a good form missing goods notice fields before calling the RPC', async () => {
+    const formData = goodForm();
+    formData.set('noticeOrigin', '  ');
+    formData.delete('noticeAsContact');
+
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+      errors: {
+        noticeOrigin: '고시정보 필수 항목입니다.',
+        noticeAsContact: '고시정보 필수 항목입니다.',
+      },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it('saves a card with an explicit pool binding through the audited RPC', async () => {
@@ -613,6 +729,7 @@ describe('admin catalog actions', () => {
       target_image_path: null,
       target_pool_id: '22222222-2222-4222-8222-222222222222',
       target_pool_binding_provided: true,
+      target_previous_id: null,
     });
   });
 

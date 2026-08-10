@@ -8,6 +8,7 @@ vi.mock('@/app/admin/order-actions', () => ({
   reconcileAdminOrderCancellationAction: vi.fn(),
   rejectAdminOrderCancellationAction: vi.fn(),
   updateAdminOrderStatusAction: vi.fn(),
+  updateAdminOrderTrackingAction: vi.fn(),
 }));
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
@@ -56,6 +57,7 @@ function orderData(overrides: Partial<AdminOrderRecord> = {}): AdminOrderConsole
       } as never],
       refunds: [],
       cancellationRequest: null,
+      shipment: null,
       ...overrides,
     }],
     pageSize: 20,
@@ -187,6 +189,56 @@ describe('OrdersSection', () => {
     expect(html).toContain('2 / 3 페이지');
   });
 
+  it.each(['shipping', 'done'] as const)('exposes the cancellation decision on a %s order', (status) => {
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+      status,
+      cancellationRequest: {
+        id: '33333333-3333-4333-8333-333333333333',
+        status: 'requested',
+        requestedAt: '2026-07-14T07:00:00.000Z',
+        decidedAt: null,
+        decisionNote: null,
+      },
+    })} />);
+
+    expect(html).toContain('청약철회 승인');
+    expect(html).toContain('요청 거절');
+    expect(html).toContain('data-confirm="반품 물건 입고를 확인하셨나요? 승인하면 결제 취소와 재고 복원이 진행됩니다."');
+  });
+
+  it('배송 시작 폼에서 택배사와 운송장번호를 필수로 받는다', () => {
+    const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
+
+    expect(html).toContain('name="carrier"');
+    expect(html).toContain('value="hanjin"');
+    expect(html).toContain('한진택배');
+    expect(html).toContain('name="trackingNumber"');
+    expect(html).toContain(`for="admin-order-tracking-${ORDER_ID}">운송장번호`);
+    expect(html).toContain('required=""');
+  });
+
+  it('운송장이 등록된 주문은 값과 수정 폼을 함께 보여준다', () => {
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+      status: 'shipping',
+      shipment: {
+        carrier: 'hanjin',
+        carrierLabel: '한진택배',
+        trackingNumber: '123456789012',
+        trackingUrl: 'https://carrier.example.test/track?no=123456789012',
+      },
+    })} />);
+
+    expect(html).toContain('123456789012');
+    expect(html).toContain('운송장 수정');
+    expect(html).toContain('data-confirm="운송장번호를 수정할까요? 변경 이력이 감사 로그에 남습니다."');
+  });
+
+  it('배송 전 주문에는 운송장 수정 폼을 노출하지 않는다', () => {
+    const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
+
+    expect(html).not.toContain('운송장 수정');
+  });
+
   it('renders explicit confirmations and an accessible rejection reason field', () => {
     const requestId = '33333333-3333-4333-8333-333333333333';
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
@@ -203,5 +255,35 @@ describe('OrdersSection', () => {
     expect(html).toContain('minLength="10"');
     expect(html).toContain('maxLength="200"');
     expect(html).toContain('aria-live="polite"');
+  });
+
+  /* 오류 상태는 서버 렌더에서 재현되지 않으므로 useActionState만 대체해 확인한다. */
+  it('운송장 입력 오류를 대응 필드에 aria-describedby로 연결한다', async () => {
+    vi.resetModules();
+    vi.doMock('react', async () => {
+      const actual = await vi.importActual<typeof import('react')>('react');
+      return {
+        ...actual,
+        useActionState: () => [
+          { errors: { carrier: '택배사를 선택해주세요.', trackingNumber: '운송장번호를 입력해주세요.' } },
+          () => {},
+          false,
+        ],
+      };
+    });
+
+    try {
+      const { OrdersSection: ErroredOrdersSection } = await import('./Orders');
+      const html = renderToStaticMarkup(<ErroredOrdersSection data={orderData()} />);
+
+      expect(html).toContain('운송장번호를 입력해주세요.');
+      expect(html).toContain(`aria-describedby="admin-order-carrier-error-${ORDER_ID}"`);
+      expect(html).toContain(`id="admin-order-carrier-error-${ORDER_ID}"`);
+      expect(html).toContain(`aria-describedby="admin-order-tracking-error-${ORDER_ID}"`);
+      expect(html).toContain(`id="admin-order-tracking-error-${ORDER_ID}"`);
+    } finally {
+      vi.doUnmock('react');
+      vi.resetModules();
+    }
   });
 });

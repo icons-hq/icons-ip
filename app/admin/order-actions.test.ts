@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   approveAdminOrderCancellationAction,
+  updateAdminOrderTrackingAction,
   reconcileAdminOrderCancellationAction,
   rejectAdminOrderCancellationAction,
+  resendOrderEmailAction,
   updateAdminOrderStatusAction,
 } from './order-actions';
 
@@ -24,6 +26,13 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   reconcile: vi.fn(),
   revalidatePath: vi.fn(),
+  sendShippedEmail: vi.fn(),
+  sendConfirmationEmail: vi.fn(),
+}));
+
+vi.mock('@/lib/email/transactional.server', () => ({
+  sendOrderShippedEmail: mocks.sendShippedEmail,
+  sendOrderConfirmationEmail: mocks.sendConfirmationEmail,
 }));
 
 vi.mock('@/lib/auth/admin', () => ({
@@ -46,6 +55,16 @@ function statusForm(status = 'shipping') {
   const formData = new FormData();
   formData.set('orderId', ORDER_ID);
   formData.set('status', status);
+  formData.set('carrier', 'hanjin');
+  formData.set('trackingNumber', '1234-5678-9012');
+  return formData;
+}
+
+function trackingForm(trackingNumber = '999888777666') {
+  const formData = new FormData();
+  formData.set('orderId', ORDER_ID);
+  formData.set('carrier', 'hanjin');
+  formData.set('trackingNumber', trackingNumber);
   return formData;
 }
 
@@ -71,6 +90,54 @@ describe('admin order actions', () => {
     mocks.reconcile.mockReset();
     mocks.reconcile.mockResolvedValue({ ok: true, status: 'completed' });
     mocks.revalidatePath.mockReset();
+    mocks.sendShippedEmail.mockReset();
+    mocks.sendShippedEmail.mockResolvedValue({ status: 'sent' });
+    mocks.sendConfirmationEmail.mockReset();
+    mocks.sendConfirmationEmail.mockResolvedValue({ status: 'sent' });
+  });
+
+  it('배송 시작 전이에서만 배송 시작 메일 훅을 부른다', async () => {
+    await updateAdminOrderStatusAction({}, statusForm('shipping'));
+    expect(mocks.sendShippedEmail).toHaveBeenCalledTimes(1);
+
+    mocks.sendShippedEmail.mockClear();
+    await updateAdminOrderStatusAction({}, statusForm('done'));
+    expect(mocks.sendShippedEmail).not.toHaveBeenCalled();
+  });
+
+  // 운송장을 넘기지 않으면 구매자는 "운송장 정보가 등록되면…"만 담긴 메일을 받고,
+  // dedupe 행이 sent로 닫혀 다시 보낼 수도 없다.
+  it('배송 시작 메일에 방금 등록한 운송장을 실어 보낸다', async () => {
+    await updateAdminOrderStatusAction({}, statusForm('shipping'));
+
+    expect(mocks.sendShippedEmail).toHaveBeenCalledWith({
+      orderId: ORDER_ID,
+      carrierName: '한진택배',
+      trackingNumber: '123456789012',
+      trackingUrl: expect.stringContaining('123456789012'),
+    });
+  });
+
+  it('배송 시작 메일 실패를 삼키지 않고 로그로 남긴다', async () => {
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+    mocks.sendShippedEmail.mockResolvedValue({ status: 'failed', error: 'resend 429' });
+
+    await expect(updateAdminOrderStatusAction({}, statusForm('shipping'))).resolves.toEqual({
+      message: '배송을 시작했습니다.',
+    });
+
+    expect(errorLog).toHaveBeenCalledWith(expect.stringContaining(ORDER_ID));
+    expect(errorLog).toHaveBeenCalledWith(expect.stringContaining('resend 429'));
+    errorLog.mockRestore();
+  });
+
+  it('상태 전이가 실패하면 배송 시작 메일을 보내지 않는다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'order not shippable' } });
+
+    const state = await updateAdminOrderStatusAction({}, statusForm('shipping'));
+
+    expect(state.errors?.form).toBeTruthy();
+    expect(mocks.sendShippedEmail).not.toHaveBeenCalled();
   });
 
   it('비로그인은 관리자 로그인으로 보내고 RPC를 호출하지 않는다', async () => {
@@ -102,8 +169,10 @@ describe('admin order actions', () => {
     });
 
     expect(mocks.rpc).toHaveBeenCalledWith('admin_update_order_status', {
+      p_carrier: 'hanjin',
       p_order_id: ORDER_ID,
       p_status: 'shipping',
+      p_tracking_number: '123456789012',
     });
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/orders');
@@ -114,6 +183,133 @@ describe('admin order actions', () => {
       errors: { status: '허용된 배송 상태를 선택해주세요.' },
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('운송장 없이는 배송 시작 RPC에 닿지 못한다', async () => {
+    const formData = new FormData();
+    formData.set('orderId', ORDER_ID);
+    formData.set('status', 'shipping');
+
+    await expect(updateAdminOrderStatusAction({}, formData)).resolves.toEqual({
+      errors: {
+        carrier: '택배사를 선택해주세요.',
+        trackingNumber: '운송장번호를 입력해주세요.',
+      },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('배송 완료 전이는 운송장 인자를 넘기지 않는다', async () => {
+    const formData = new FormData();
+    formData.set('orderId', ORDER_ID);
+    formData.set('status', 'done');
+
+    await expect(updateAdminOrderStatusAction({}, formData)).resolves.toEqual({
+      message: '주문을 완료 처리했습니다.',
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_update_order_status', {
+      p_carrier: null,
+      p_order_id: ORDER_ID,
+      p_status: 'done',
+      p_tracking_number: null,
+    });
+  });
+
+  it('운송장 수정은 정규화한 값으로 audited RPC를 호출한다', async () => {
+    await expect(updateAdminOrderTrackingAction({}, trackingForm(' 9998-8877-7666 '))).resolves.toEqual({
+      message: '운송장 정보를 저장했습니다.',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_update_order_tracking', {
+      p_carrier: 'hanjin',
+      p_order_id: ORDER_ID,
+      p_tracking_number: '999888777666',
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/orders/${ORDER_ID}`);
+  });
+
+  it('운송장 수정 RPC 실패는 DB 오류 원문을 숨긴다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'private db detail' } });
+
+    await expect(updateAdminOrderTrackingAction({}, trackingForm())).resolves.toEqual({
+      errors: { form: '운송장 정보를 저장하지 못했습니다. 최신 상태를 확인해주세요.' },
+    });
+  });
+
+  // 실패한 메일을 다시 보낼 경로가 없으면 구매자는 계약내용 서면(L4)을 영구히 못 받는다.
+  describe('재발송', () => {
+    function resendForm(dedupeKey: string) {
+      const formData = new FormData();
+      formData.set('dedupeKey', dedupeKey);
+      return formData;
+    }
+
+    it('실패한 주문 확인 메일을 audited 게이트를 지나 다시 보낸다', async () => {
+      await expect(
+        resendOrderEmailAction({}, resendForm(`order_confirmation:${ORDER_ID}`)),
+      ).resolves.toEqual({ message: '메일을 다시 보냈습니다.' });
+
+      expect(mocks.rpc).toHaveBeenCalledWith('admin_request_email_resend', {
+        p_dedupe_key: `order_confirmation:${ORDER_ID}`,
+      });
+      expect(mocks.sendConfirmationEmail).toHaveBeenCalledWith(ORDER_ID);
+      expect(mocks.sendShippedEmail).not.toHaveBeenCalled();
+    });
+
+    it('배송 시작 메일 재발송은 운송장을 발송 훅이 읽게 맡긴다', async () => {
+      await expect(
+        resendOrderEmailAction({}, resendForm(`order_shipped:${ORDER_ID}`)),
+      ).resolves.toEqual({ message: '메일을 다시 보냈습니다.' });
+
+      expect(mocks.sendShippedEmail).toHaveBeenCalledWith({ orderId: ORDER_ID });
+      expect(mocks.sendConfirmationEmail).not.toHaveBeenCalled();
+    });
+
+    it('이미 발송된 건은 DB 게이트에서 막히고 발송 훅에 닿지 않는다', async () => {
+      mocks.rpc.mockResolvedValue({ data: null, error: { message: 'email_already_sent' } });
+
+      const result = await resendOrderEmailAction({}, resendForm(`order_confirmation:${ORDER_ID}`));
+
+      expect(result.errors?.form).toBeTruthy();
+      expect(JSON.stringify(result)).not.toContain('email_already_sent');
+      expect(mocks.sendConfirmationEmail).not.toHaveBeenCalled();
+    });
+
+    it('클레임이 거절되면 보냈다고 거짓 보고하지 않는다', async () => {
+      mocks.sendConfirmationEmail.mockResolvedValue({
+        status: 'skipped',
+        reason: 'already_delivered',
+      });
+
+      const result = await resendOrderEmailAction({}, resendForm(`order_confirmation:${ORDER_ID}`));
+
+      expect(result.message).toBeUndefined();
+      expect(result.errors?.form).toBeTruthy();
+    });
+
+    it('형식을 벗어난 키는 DB에 닿기 전에 거절한다', async () => {
+      for (const key of ['', 'order_confirmation:not-a-uuid', `unknown_template:${ORDER_ID}`]) {
+        await expect(resendOrderEmailAction({}, resendForm(key))).resolves.toEqual({
+          errors: { form: '다시 보낼 수 있는 메일이 아닙니다.' },
+        });
+      }
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it('비staff는 앱과 DB 게이트 전에 차단한다', async () => {
+      mocks.adminState = {
+        isConfigured: true,
+        user: { id: 'fan-1', email: 'fan@icons.gg' },
+        role: 'user',
+        isStaff: false,
+      };
+
+      await expect(
+        resendOrderEmailAction({}, resendForm(`order_confirmation:${ORDER_ID}`)),
+      ).resolves.toEqual({ errors: { form: '관리자 권한이 필요합니다.' } });
+      expect(mocks.rpc).not.toHaveBeenCalled();
+      expect(mocks.sendConfirmationEmail).not.toHaveBeenCalled();
+    });
   });
 
   it('청약철회 승인 RPC가 성공한 뒤에만 서버가 provider를 정합화한다', async () => {

@@ -17,6 +17,7 @@ interface ExistingPayment {
 const mocks = vi.hoisted(() => ({
   fetchPayment: vi.fn(),
   cancel: vi.fn(),
+  sendConfirmationEmail: vi.fn(),
   rpc: vi.fn(),
   update: vi.fn(),
   updateEqFirst: vi.fn(),
@@ -46,6 +47,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/payments/checkout-availability', () => ({
   checkoutPaymentsEnabled: (reviewerAllowed: boolean) => reviewerAllowed,
+}));
+
+vi.mock('@/lib/email/transactional.server', () => ({
+  sendOrderConfirmationEmail: mocks.sendConfirmationEmail,
 }));
 
 vi.mock('@/lib/payments/toss-api', () => ({
@@ -161,6 +166,8 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
   beforeEach(() => {
     mocks.fetchPayment.mockReset();
     mocks.cancel.mockReset();
+    mocks.sendConfirmationEmail.mockReset();
+    mocks.sendConfirmationEmail.mockResolvedValue({ status: 'sent' });
     mocks.rpc.mockReset();
     mocks.update.mockReset();
     mocks.updateEqFirst.mockReset();
@@ -849,6 +856,48 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
       p_provider_raw: providerRaw,
       p_refund_confirmed: true,
     });
+  });
+
+  function confirmedCardPayment(purpose: 'order' | 'ticket' = 'order') {
+    return {
+      ...virtualAccountPayment('DONE'),
+      orderId: `${purpose}_${ORDER_UUID}`,
+      method: '카드',
+    };
+  }
+
+  it('주문 확정에 성공하면 확인 메일 훅을 1회 호출한다', async () => {
+    mocks.fetchPayment.mockResolvedValue({ ok: true, body: confirmedCardPayment() });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith('confirm_order_payment', expect.objectContaining({
+      p_order_id: ORDER_UUID,
+    }));
+    expect(mocks.sendConfirmationEmail).toHaveBeenCalledTimes(1);
+    expect(mocks.sendConfirmationEmail).toHaveBeenCalledWith(ORDER_UUID);
+  });
+
+  it('확인 메일 발송이 실패해도 주문 확정 응답은 200을 유지한다', async () => {
+    mocks.fetchPayment.mockResolvedValue({ ok: true, body: confirmedCardPayment() });
+    mocks.sendConfirmationEmail.mockResolvedValue({ status: 'failed', error: 'provider responded 500' });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ received: true });
+    expect(mocks.cancel).not.toHaveBeenCalled();
+  });
+
+  it('티켓 확정에는 굿즈 주문 확인 메일을 보내지 않는다', async () => {
+    mocks.existingPayment = ticketPayment();
+    mocks.fetchPayment.mockResolvedValue({ ok: true, body: confirmedCardPayment('ticket') });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(mocks.sendConfirmationEmail).not.toHaveBeenCalled();
   });
 
   it.each([

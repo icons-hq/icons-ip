@@ -3,6 +3,8 @@
 > 상태: Active · 작성 2026-07-13 · 근거: 그릴링 세션(범위 확정) + 코드베이스 심층 인벤토리
 > 실행판: [GitHub Project #8 — ICONS v1 Launch Readiness](https://github.com/users/sangwopark19/projects/8)
 > 각 이슈의 스펙 진실원은 issue body다. 이 문서는 **기준선·갭 분석·트랙 구조**의 진실원이다.
+>
+> ⚠️ 이 문서는 "**v1 기능이 존재하는가**"를 다룬다. "실제로 돈을 받고 물건을 보낼 수 있는가"는 별개 마일스톤이며 [`first-sale-readiness.md`](./first-sale-readiness.md)가 진실원이다.
 
 ---
 
@@ -18,7 +20,7 @@
 ## 2. 현재 상태 (이미 배선 완료)
 
 - **인증/온보딩**: 이메일/PW 가입·로그인, 확인 메일 콜백·재전송, 비밀번호 재설정, Google·Apple·Kakao 관리형 OAuth와 production provider·이메일 claim 설정, 온보딩 게이트(닉네임·생년월일·분리 동의·추천 IP 팔로우), 마케팅 동의 사후 변경. 소셜 로그인은 production 배포 후 controlled smoke가 남아 있다.
-- **공개 카탈로그**: 홈·IP 허브·굿즈·카드·이벤트 목록/상세가 Supabase 읽기 + mock 폴백. 홈은 활성 hero·announcement와 결정적으로 정렬한 최대 5개 featured IP 큐레이션을 소비하고, Postgres 통합 검색을 제공한다.
+- **공개 카탈로그**: 홈·IP 허브·굿즈 목록·카드·이벤트 목록/상세가 Supabase 읽기 + mock 폴백. 굿즈 상세(`/shop/[goodId]`)는 첫 실판매 준비 마일스톤에서 구현했다 — 2026-08-06 시점에는 미구현이었고 이 문단이 완료로 오기하고 있었다 → [first-sale-readiness §3.2 C1](./first-sale-readiness.md). 홈은 활성 hero·announcement와 결정적으로 정렬한 최대 5개 featured IP 큐레이션을 소비하고, Postgres 통합 검색을 제공한다.
 - **카드 리워드 코어**: `draw_tickets`·`reward_policies`·`card_grants` 스키마, `/packs` 개봉(`open_draw_ticket`), 바인더 보유 오버레이, 참여형 게임 card 보상(`play_game`), 대상 IP·선택 same-IP 굿즈·독립 카드풀 기반 누적 주문 발급 정책과 soft revoke 이력 보존.
 - **커뮤니티**: 작성(이미지)·댓글·좋아요·삭제·신고·차단 전부 Server Action + RPC 배선.
 - **어드민**: staff/admin 게이트, 카탈로그 upsert·보관/복원 4종, 홈 히어로·특집 IP·공지 배너 큐레이션, 카드풀 운영 기간·등급별 확률·카드 풀 바인딩, 뽑기권 발급 정책(`/admin?section=policy`)과 PII-free 발급/사용 가능/개봉/회수 집계, 신고 처리·포스트 숨김, 역할 부여·회수, 주문·배송·환불, 멱등 실재고 입고·보정, 티켓 회차·가격·정원·현장 검표, 마스킹 회원 검색·명시적 상세·계정 정지/해제, 실데이터 매출 대시보드 — 전부 audited. 큐레이션 공지 저장은 인앱 공지를 자동 발송하지 않는다.

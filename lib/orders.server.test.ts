@@ -195,7 +195,10 @@ describe('loadOrderDetail', () => {
           id: orderId,
           user_id: userId,
           status: 'shipping',
-          total: 54000,
+          total: 57000,
+          shipping_fee: 3000,
+          shipping_carrier: 'hanjin',
+          tracking_number: '123456789012',
           address: {
             recipientName: '팬',
             phone: '01012345678',
@@ -284,7 +287,8 @@ describe('loadOrderDetail', () => {
     expect(result).toMatchObject({
       id: orderId,
       status: 'shipping',
-      total: 54000,
+      total: 57000,
+      shippingFee: 3000,
       items: [{ goodId: 'goods-1', name: '아크릴 스탠드', type: '아크릴', qty: 2, unitPrice: 27000 }],
       payment: { amount: 54000, status: 'paid', createdAt: '2026-07-14T06:01:00.000Z' },
       refund: { status: 'requested', createdAt: '2026-07-14T07:30:00.000Z' },
@@ -296,10 +300,16 @@ describe('loadOrderDetail', () => {
         decisionNote: null,
       },
       cardPacks: { issuedCount: 3, availableCount: 1 },
+      shipment: {
+        carrier: 'hanjin',
+        carrierLabel: '한진택배',
+        trackingNumber: '123456789012',
+      },
     });
     expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|idempotency_key|raw|last_error_code/);
 
     expect(records.find((record) => record.table === 'orders')).toMatchObject({
+      select: 'id,user_id,status,total,shipping_fee,address,created_at,shipping_carrier,tracking_number',
       eq: [['id', orderId], ['user_id', userId]],
       in: [['status', ['pending', 'paid', 'shipping', 'done', 'canceled']]],
       maybeSingle: true,
@@ -352,6 +362,8 @@ describe('loadOrderDetail', () => {
     await expect(loadOrderDetail(userId, orderId)).resolves.toMatchObject({
       id: orderId,
       status: 'pending',
+      // 배송비 스냅샷이 없던 시절의 주문은 무료배송으로 읽는다.
+      shippingFee: 0,
       refund: null,
       cancellationRequest: null,
     });

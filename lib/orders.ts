@@ -1,4 +1,5 @@
 import type { CheckoutAddress } from './checkout';
+import type { OrderShipment } from './orders/shipment';
 
 export const VISIBLE_ORDER_STATUSES = ['paid', 'shipping', 'done', 'canceled'] as const;
 export const ORDER_DETAIL_STATUSES = ['pending', ...VISIBLE_ORDER_STATUSES] as const;
@@ -95,12 +96,15 @@ export interface OrderDetail {
   id: string;
   status: OrderDetailStatus;
   total: number;
+  /** 주문 시점 배송비 스냅샷. total에 이미 포함되어 있다. */
+  shippingFee: number;
   address: CheckoutAddress | null;
   createdAt: string;
   items: OrderDetailItem[];
   payment: OrderPaymentSummary | null;
   refund: OrderRefundSummary | null;
   cancellationRequest: OrderCancellationRequestSummary | null;
+  shipment: OrderShipment | null;
   cardPacks: {
     issuedCount: number;
     availableCount: number;
@@ -194,3 +198,7 @@ export function paymentStatusLabel(status: string): string {
       return '처리됨';
   }
 }
+
+/* 전자상거래법 청약철회 고지. 인앱 주문 상세와 주문 확인 메일이 같은 문구를 써야
+   "계약내용에 관한 서면"의 내용이 채널마다 갈리지 않는다(#180 · L4). */
+export const LEGAL_WITHDRAWAL_NOTICE = '계약내용에 관한 서면을 받은 날부터 7일 이내 청약철회를 요청할 수 있습니다. 재화 공급이 더 늦으면 공급받거나 공급이 시작된 날부터 7일입니다. 상품 훼손·사용 등 법정 제한 사유가 있으면 제한될 수 있습니다.';

@@ -11,7 +11,7 @@ import {
 } from '../../../lib/admin/catalog-archive';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
-import { Field, FormShell, RecordList, SelectField } from '../fields';
+import { ColorField, Field, FormShell, RecordList, SelectField } from '../fields';
 
 function optional(value: string | null | undefined) {
   return value ?? '';
@@ -75,13 +75,16 @@ export function EventSection({
           labelFor={(event) => formatAdminCatalogRecordLabel(`${event.id} · ${event.title}`, event.archivedAt)}
           onNew={() => onSelect(null)}
           onSelect={onSelect}
+          thumbnailKind="event"
+          thumbnailUrlFor={(event) => event.imageUrl}
         />
       </div>
       <div className="col" style={{ gap: 16, minWidth: 0 }}>
         <form action={action} className="card col" key={selected ? JSON.stringify(selected) : 'new-event'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+        <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
         <div className="admin-form-grid">
-          <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="e100" />
+          <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="e100" readOnly={Boolean(selected)} />
           <SelectField defaultValue={optional(selected?.ipId)} error={state.errors?.ipId} label="연결 IP" name="ipId">
             <option value="">플랫폼/합동 이벤트</option>
             {ipOptions.map((ip) => (
@@ -108,9 +111,11 @@ export function EventSection({
           <Field defaultValue={dateTimeInput(selected?.startsAt)} label="시작" name="startsAt" type="datetime-local" />
           <Field defaultValue={dateTimeInput(selected?.endsAt)} label="종료" name="endsAt" type="datetime-local" />
           <Field defaultValue={selected?.location} label="장소" name="location" />
-          <Field defaultValue={selected?.accent} label="액센트" name="accent" placeholder="#8B5CFF" />
+          <ColorField defaultValue={selected?.accent} fallback="#8B5CFF" label="액센트 색상" name="accent" />
         </div>
-        <Field defaultValue={selected?.bg} label="배경 CSS" name="bg" />
+        {/* 배경 CSS 자유입력을 운영자 폼에서 뺐다 (#183). 아트워크가 없는 레거시
+            레코드는 이 값으로 렌더되므로 그대로 실어 보내 보존한다. */}
+        <input name="bg" type="hidden" value={selected?.bg ?? ''} />
         <ArtworkUploadField
           currentPath={selected?.imagePath ?? null}
           currentUrl={selected?.imageUrl ?? null}

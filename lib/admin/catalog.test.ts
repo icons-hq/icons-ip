@@ -24,6 +24,22 @@ const context = {
   verticalKeys: new Set(['rofan', 'global']),
 };
 
+/* 고시정보는 저장 필수라서(#171) 굿즈 폼 픽스처는 항상 값을 채워야 한다. */
+const goodsNoticeValues: Record<string, string> = {
+  noticeMaker: '주식회사 아이콘스',
+  noticeOrigin: '대한민국',
+  noticeMaterial: '아크릴',
+  noticeSize: '80 x 60 x 20mm · 90g',
+  noticeMadeOn: '2026-07',
+  noticeAsManager: '아이콘스 고객센터',
+  noticeAsContact: '02-000-0000',
+};
+
+function setGoodsNotice(formData: FormData) {
+  for (const [key, value] of Object.entries(goodsNoticeValues)) formData.set(key, value);
+  return formData;
+}
+
 const readyPoolId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const unavailablePoolId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const gameContext = {
@@ -151,6 +167,7 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminIpForm(formData, context)).toEqual({
       ok: true,
       value: {
+        previousId: null,
         id: 'hwasan',
         title: '화산강림',
         sub: '리디 · 로판',
@@ -162,6 +179,65 @@ describe('admin catalog form normalization', () => {
         imagePath: 'public-media/ip/hwasan.png',
         featured: true,
       },
+    });
+  });
+
+  /*
+   * #181 — 저장 의도를 폼이 명시한다. previousId 가 없으면 신규 등록이고,
+   * 있으면 목록에서 선택한 그 레코드의 수정이다. ID 변경은 허용하지 않는다.
+   */
+  it.each([
+    ['IP', normalizeAdminIpForm, () => {
+      const formData = new FormData();
+      formData.set('id', 'hwasan');
+      formData.set('title', '화산강림');
+      formData.set('verticalKey', 'rofan');
+      return formData;
+    }],
+    ['굿즈', normalizeAdminGoodForm, () => {
+      const formData = new FormData();
+      formData.set('id', 'g100');
+      formData.set('ipId', 'hwasan');
+      formData.set('name', '아크릴 스탠드');
+      formData.set('type', '아크릴 스탠드');
+      formData.set('price', '22000');
+      formData.set('stock', 'ok');
+      setGoodsNotice(formData);
+      return formData;
+    }],
+    ['카드', normalizeAdminCardForm, () => {
+      const formData = new FormData();
+      formData.set('id', 'c100');
+      formData.set('ipId', 'hwasan');
+      formData.set('name', '청명 홀로 카드');
+      formData.set('rarity', 'HOLO');
+      return formData;
+    }],
+    ['이벤트', normalizeAdminEventForm, () => {
+      const formData = new FormData();
+      formData.set('id', 'e100');
+      formData.set('title', '합동 팝업');
+      formData.set('mode', '오프라인');
+      formData.set('status', '예정');
+      return formData;
+    }],
+  ])('carries the %s edit target and refuses to rename it', (_label, normalize, makeForm) => {
+    const editing = makeForm();
+    const editingId = String(editing.get('id'));
+    editing.set('previousId', editingId);
+
+    expect(normalize(editing, context)).toMatchObject({
+      ok: true,
+      value: { previousId: editingId, id: editingId },
+    });
+
+    const renamed = makeForm();
+    renamed.set('previousId', editingId);
+    renamed.set('id', `${editingId}-renamed`);
+
+    expect(normalize(renamed, context)).toMatchObject({
+      ok: false,
+      errors: { id: '등록된 ID는 변경할 수 없습니다.' },
     });
   });
 
@@ -183,7 +259,7 @@ describe('admin catalog form normalization', () => {
   });
 
   it('normalizes a valid good form and rejects negative price or unknown stock', () => {
-    const valid = new FormData();
+    const valid = setGoodsNotice(new FormData());
     valid.set('id', 'g100');
     valid.set('ipId', 'hwasan');
     valid.set('name', '화산강림 아크릴 스탠드');
@@ -196,6 +272,7 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminGoodForm(valid, context)).toEqual({
       ok: true,
       value: {
+        previousId: null,
         id: 'g100',
         ipId: 'hwasan',
         name: '화산강림 아크릴 스탠드',
@@ -205,10 +282,22 @@ describe('admin catalog form normalization', () => {
         stock: 'ok',
         bg: null,
         imagePath: null,
+        notice: {
+          maker: '주식회사 아이콘스',
+          origin: '대한민국',
+          material: '아크릴',
+          size: '80 x 60 x 20mm · 90g',
+          madeOn: '2026-07',
+          asManager: '아이콘스 고객센터',
+          asContact: '02-000-0000',
+        },
+        description: null,
+        galleryPaths: [],
+        detailImagePath: null,
       },
     });
 
-    const invalid = new FormData();
+    const invalid = setGoodsNotice(new FormData());
     invalid.set('id', 'g101');
     invalid.set('ipId', 'hwasan');
     invalid.set('name', '굿즈');
@@ -222,6 +311,78 @@ describe('admin catalog form normalization', () => {
       errors: {
         price: '가격은 0 이상의 정수여야 합니다.',
         stock: '재고 상태를 선택해주세요.',
+      },
+    });
+  });
+
+  /* #171 — 고시정보는 법정 표기라 한 항목이라도 비면 저장을 막는다. */
+  it('rejects a good form that leaves any goods notice field blank', () => {
+    const missing = setGoodsNotice(new FormData());
+    missing.set('id', 'g102');
+    missing.set('ipId', 'hwasan');
+    missing.set('name', '오로라 아크릴 키링');
+    missing.set('type', '아크릴 키링');
+    missing.set('price', '9000');
+    missing.set('stock', 'ok');
+    missing.set('noticeOrigin', '   ');
+    missing.delete('noticeAsContact');
+
+    expect(normalizeAdminGoodForm(missing, context)).toEqual({
+      ok: false,
+      errors: {
+        noticeOrigin: '고시정보 필수 항목입니다.',
+        noticeAsContact: '고시정보 필수 항목입니다.',
+      },
+    });
+  });
+
+  /* #172 — 갤러리 순서는 슬롯 번호가 정한다. 빈 슬롯은 배열에서 빠진다. */
+  it('compacts gallery slots into an ordered path list', () => {
+    const formData = setGoodsNotice(new FormData());
+    formData.set('id', 'g13');
+    formData.set('ipId', 'hwasan');
+    formData.set('name', '아크릴 블록');
+    formData.set('type', '아크릴 블록');
+    formData.set('price', '12000');
+    formData.set('stock', 'ok');
+    formData.set('description', '  붉은 실을 따라 놓인 아크릴 블록입니다.  ');
+    formData.set('galleryPath0', '');
+    formData.set('galleryPath1', 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp');
+    formData.set('galleryPath2', '   ');
+    formData.set('galleryPath3', 'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp');
+    formData.set('detailImagePath', 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp');
+
+    expect(normalizeAdminGoodForm(formData, context)).toMatchObject({
+      ok: true,
+      value: {
+        description: '붉은 실을 따라 놓인 아크릴 블록입니다.',
+        galleryPaths: [
+          'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp',
+          'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp',
+        ],
+        detailImagePath: 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp',
+      },
+    });
+  });
+
+  it('rejects duplicated gallery images and an overlong description', () => {
+    const duplicate = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
+    const formData = setGoodsNotice(new FormData());
+    formData.set('id', 'g13');
+    formData.set('ipId', 'hwasan');
+    formData.set('name', '아크릴 블록');
+    formData.set('type', '아크릴 블록');
+    formData.set('price', '12000');
+    formData.set('stock', 'ok');
+    formData.set('description', 'ㄱ'.repeat(2001));
+    formData.set('galleryPath0', duplicate);
+    formData.set('galleryPath1', duplicate);
+
+    expect(normalizeAdminGoodForm(formData, context)).toEqual({
+      ok: false,
+      errors: {
+        description: '설명은 2,000자 이하로 입력해주세요.',
+        galleryPath1: '같은 이미지를 갤러리에 두 번 넣을 수 없습니다.',
       },
     });
   });
@@ -307,6 +468,7 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminCardForm(valid, context)).toEqual({
       ok: true,
       value: {
+        previousId: null,
         id: 'c100',
         ipId: 'hwasan',
         name: '청명 홀로 카드',
@@ -442,6 +604,7 @@ describe('admin catalog form normalization', () => {
     expect(normalizeAdminEventForm(formData, context)).toEqual({
       ok: true,
       value: {
+        previousId: null,
         id: 'e100',
         ipId: null,
         title: '합동 팝업',

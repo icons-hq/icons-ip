@@ -7,6 +7,7 @@ import { Admin } from './Admin';
 const hooks = vi.hoisted(() => ({
   cardSelected: null as unknown,
   curationProps: null as unknown,
+  grantProps: null as unknown,
   gameProps: null as unknown,
   memberProps: null as unknown,
   notificationProps: null as unknown,
@@ -65,6 +66,14 @@ vi.mock('./sections/CurationSection', () => {
   };
   CurationSection.displayName = 'AdminCurationSectionMock';
   return { CurationSection };
+});
+vi.mock('./sections/DrawTicketGrantSection', () => {
+  const DrawTicketGrantSection = (props: unknown) => {
+    hooks.grantProps = props;
+    return null;
+  };
+  DrawTicketGrantSection.displayName = 'AdminDrawTicketGrantSectionMock';
+  return { DrawTicketGrantSection };
 });
 vi.mock('./sections/EventSection', () => ({ EventSection: () => null }));
 vi.mock('./sections/GoodSection', () => ({ GoodSection: () => null }));
@@ -223,6 +232,8 @@ function createProps(
     curationDraftActiveFrom: '2026-07-15T03:04:05.000Z',
     curationDraftId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
     curationOperationId: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+    drawTicketGrants: [],
+    grantOperationId: '77777777-7777-4777-8777-777777777777',
   } as unknown as Parameters<typeof Admin>[0];
 }
 
@@ -373,6 +384,23 @@ describe('Admin member console', () => {
     expect(hooks.memberProps).toEqual({
       actor: { id: 'staff-1', role: 'staff' },
       initialMembers: members,
+    });
+  });
+});
+
+describe('Admin 카드팩 수동 발급 section', () => {
+  beforeEach(() => {
+    hooks.grantProps = null;
+    hooks.stateValues = ['grants', false, null, null, null, null, null, null, null, null];
+  });
+
+  it('카드풀 목록과 서버 생성 멱등키를 그대로 넘긴다', () => {
+    renderAdmin(createProps([]));
+
+    expect(hooks.grantProps).toMatchObject({
+      draftOperationId: '77777777-7777-4777-8777-777777777777',
+      grants: [],
+      pools: [],
     });
   });
 });

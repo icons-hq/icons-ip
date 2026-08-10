@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { OrderCancellation } from '@/components/orders/OrderCancellation';
 import { Icon } from '@/components/ui/Icon';
 import { krw } from '@/lib/format';
+import { shippingFeeLabel } from '@/lib/shipping';
 import {
   formatOrderDate,
   formatOrderDateTime,
@@ -72,8 +73,8 @@ export function OrderDetail({ order }: { order: OrderDetailData }) {
             <h2>결제 금액</h2>
           </div>
           <dl className="checkout-totals">
-            <div><dt>굿즈 금액</dt><dd>{krw(order.total)}</dd></div>
-            <div><dt>배송비</dt><dd>무료</dd></div>
+            <div><dt>굿즈 금액</dt><dd>{krw(order.total - order.shippingFee)}</dd></div>
+            <div><dt>배송비</dt><dd>{shippingFeeLabel(order.shippingFee)}</dd></div>
             <div className="checkout-total"><dt>총 결제 금액</dt><dd>{krw(order.total)}</dd></div>
           </dl>
 
@@ -89,6 +90,24 @@ export function OrderDetail({ order }: { order: OrderDetailData }) {
               <p>배송지 정보를 확인할 수 없습니다.</p>
             )}
           </section>
+
+          {order.shipment && (
+            <section className="order-receipt-section" aria-labelledby="shipment-heading">
+              <h3 id="shipment-heading">배송 정보</h3>
+              <dl className="order-payment-summary">
+                <div><dt>택배사</dt><dd>{order.shipment.carrierLabel}</dd></div>
+                <div><dt>운송장번호</dt><dd className="mono">{order.shipment.trackingNumber}</dd></div>
+              </dl>
+              <a
+                className="btn btn-ghost order-tracking-link"
+                href={order.shipment.trackingUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
+                배송조회
+              </a>
+            </section>
+          )}
 
           <section className="order-receipt-section" aria-labelledby="payment-summary-heading">
             <h3 id="payment-summary-heading">결제 정보</h3>

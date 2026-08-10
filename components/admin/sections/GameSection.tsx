@@ -190,7 +190,7 @@ function GameForm({
         <Field
           defaultValue={selected?.id}
           error={state.errors?.id}
-          label="slug"
+          label="게임 주소 이름 (영문 소문자·숫자·하이픈)"
           name="id"
           readOnly={fieldsLocked}
           required

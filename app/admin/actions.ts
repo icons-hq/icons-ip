@@ -145,10 +145,31 @@ function artworkClaimFailure(message: string): AdminCatalogActionState | null {
     : null;
 }
 
+/* 폼 검증을 우회해 RPC 까지 닿은 고시정보 누락을 운영자 언어로 옮긴다 (#171). */
+function goodsNoticeFailure(message: string): AdminCatalogActionState | null {
+  return message.includes('goods_notice_required')
+    ? rpcFailure('고시정보를 모두 입력한 뒤 저장해주세요.')
+    : null;
+}
+
 function archivedParentFailure(message: string): AdminCatalogActionState | null {
   return message.includes('parent_archived')
     ? rpcFailure('상위 IP를 먼저 복원해주세요.')
     : null;
+}
+
+/* 신규 등록이 기존 레코드를 덮어쓰지 못하게 막은 RPC의 응답을 운영자 언어로 옮긴다 (#181). */
+function catalogWriteIntentFailure(message: string): AdminCatalogActionState | null {
+  if (message.includes('catalog_id_taken')) {
+    return { errors: { id: '이미 사용 중인 ID입니다. 수정하려면 목록에서 선택해주세요.' } };
+  }
+  if (message.includes('catalog_record_missing')) {
+    return rpcFailure('수정할 항목을 찾을 수 없습니다. 목록을 새로고침한 뒤 다시 시도해주세요.');
+  }
+  if (message.includes('catalog_id_immutable')) {
+    return { errors: { id: '등록된 ID는 변경할 수 없습니다.' } };
+  }
+  return null;
 }
 
 function archivedCatalogFailure(message: string): AdminCatalogActionState | null {
@@ -237,10 +258,12 @@ export async function upsertAdminIpAction(
     target_bg: value.bg,
     target_image_path: value.imagePath,
     target_featured: value.featured,
+    target_previous_id: value.previousId,
   });
 
   if (error) {
-    return artworkClaimFailure(error.message)
+    return catalogWriteIntentFailure(error.message)
+      ?? artworkClaimFailure(error.message)
       ?? rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.');
   }
 
@@ -272,11 +295,24 @@ export async function upsertAdminGoodAction(
     target_stock: value.stock,
     target_bg: value.bg,
     target_image_path: value.imagePath,
+    target_notice_maker: value.notice.maker,
+    target_notice_origin: value.notice.origin,
+    target_notice_material: value.notice.material,
+    target_notice_size: value.notice.size,
+    target_notice_made_on: value.notice.madeOn,
+    target_notice_as_manager: value.notice.asManager,
+    target_notice_as_contact: value.notice.asContact,
+    target_description: value.description,
+    target_gallery_paths: value.galleryPaths,
+    target_detail_image_path: value.detailImagePath,
+    target_previous_id: value.previousId,
   });
 
   if (error) {
-    return artworkClaimFailure(error.message)
+    return catalogWriteIntentFailure(error.message)
+      ?? artworkClaimFailure(error.message)
       ?? archivedParentFailure(error.message)
+      ?? goodsNoticeFailure(error.message)
       ?? rpcFailure('굿즈를 저장하지 못했습니다. 다시 시도해주세요.');
   }
 
@@ -353,10 +389,13 @@ export async function upsertAdminCardAction(
     target_image_path: value.imagePath,
     target_pool_id: value.poolId,
     target_pool_binding_provided: true,
+    target_previous_id: value.previousId,
   });
 
   if (error) {
     revalidatePath('/admin');
+    const writeIntentError = catalogWriteIntentFailure(error.message);
+    if (writeIntentError) return writeIntentError;
     const artworkError = artworkClaimFailure(error.message);
     if (artworkError) return artworkError;
     const parentError = archivedParentFailure(error.message);
@@ -717,9 +756,12 @@ export async function upsertAdminEventAction(
     target_accent: value.accent,
     target_bg: value.bg,
     target_image_path: value.imagePath,
+    target_previous_id: value.previousId,
   });
 
   if (error) {
+    const writeIntentError = catalogWriteIntentFailure(error.message);
+    if (writeIntentError) return writeIntentError;
     const artworkError = artworkClaimFailure(error.message);
     if (artworkError) return artworkError;
     const parentError = archivedParentFailure(error.message);

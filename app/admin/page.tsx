@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { Admin } from '@/components/admin/Admin';
 import { getAdminCatalogRecords } from '@/lib/admin/catalog.server';
 import { getAdminCurations } from '@/lib/admin/curations.server';
+import { getAdminDrawTicketGrants } from '@/lib/admin/draw-ticket-grants.server';
 import { getAdminInsights } from '@/lib/admin/insights.server';
 import { getAdminModerationRecords } from '@/lib/admin/moderation.server';
 import { getAdminMemberSummaries } from '@/lib/admin/members.server';
@@ -10,8 +11,10 @@ import { getAdminNotificationConsoleData } from '@/lib/admin/notifications.serve
 import { normalizeAdminOrderFilters } from '@/lib/admin/orders';
 import { getAdminOrderRecords } from '@/lib/admin/orders.server';
 import { getAdminProfileRecords } from '@/lib/admin/roles.server';
+import { adminSectionFromQuery } from '@/lib/admin/sections';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { getCatalogSnapshot } from '@/lib/catalog';
+import { loadEmailDeliveries } from '@/lib/email/deliveries.server';
 
 export default async function AdminPage({
   searchParams,
@@ -30,7 +33,7 @@ export default async function AdminPage({
     notFound();
   }
 
-  const [catalog, records, moderation, insights, members, profiles, orders, notificationConsole, curations] = await Promise.all([
+  const [catalog, records, moderation, insights, members, profiles, orders, notificationConsole, curations, drawTicketGrants, emailDeliveries] = await Promise.all([
     getCatalogSnapshot({ previewDefaultSource: 'supabase' }),
     getAdminCatalogRecords(),
     getAdminModerationRecords(),
@@ -40,6 +43,8 @@ export default async function AdminPage({
     getAdminOrderRecords(orderFilters),
     getAdminNotificationConsoleData(),
     getAdminCurations(),
+    getAdminDrawTicketGrants(),
+    loadEmailDeliveries(),
   ]);
 
   return (
@@ -50,8 +55,10 @@ export default async function AdminPage({
         role: auth.role ?? 'staff',
       }}
       catalog={catalog}
+      drawTicketGrants={drawTicketGrants}
+      emailDeliveries={emailDeliveries}
       insights={insights}
-      initialSection={query.section === 'orders' ? 'orders' : query.section === 'good' ? 'good' : query.section === 'ticket' ? 'ticket' : query.section === 'pool' ? 'pool' : query.section === 'policy' ? 'policy' : query.section === 'game' ? 'game' : query.section === 'curations' ? 'curations' : query.section === 'notifications' ? 'notifications' : query.section === 'members' ? 'members' : 'overview'}
+      initialSection={adminSectionFromQuery(query.section)}
       members={members}
       moderation={moderation}
       notificationConsole={notificationConsole}
@@ -75,6 +82,7 @@ export default async function AdminPage({
       curationDraftId={randomUUID()}
       curationOperationId={randomUUID()}
       curations={curations}
+      grantOperationId={randomUUID()}
     />
   );
 }

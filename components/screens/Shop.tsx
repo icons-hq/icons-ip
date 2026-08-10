@@ -2,84 +2,13 @@
 
 import { useState } from 'react';
 import type { CatalogSnapshot } from '@/lib/catalog';
-import type { Good, Ip } from '@/lib/data';
-import { krw } from '@/lib/format';
-import { STOCK_LABEL } from '@/lib/goods-display';
-import { ipAccent, ipAccentInk } from '@/lib/ip-display';
+import { goodDetailHref } from '@/lib/goods-display';
+import { ipAccent } from '@/lib/ip-display';
 import { ALL_IPS, GOODS_SORTS, selectShopGoods, type GoodsSort } from '@/lib/shop-catalog';
 import { useCart } from '@/components/shell/CartProvider';
+import { AddToCartButton } from '@/components/shop/AddToCartButton';
+import { GoodsCard } from '@/components/shop/GoodsCard';
 import { Empty } from '@/components/ui/Empty';
-
-
-function ShopGoodsCard({ g, ip }: { g: Good; ip?: Ip }) {
-  const { add, getQuantity, pending, ready } = useCart();
-  const quantity = getQuantity(g.id);
-  const sold = g.stock === 'soldout' || g.stockQty <= 0;
-  const atStockLimit = quantity >= g.stockQty;
-  const stockLabel = STOCK_LABEL[g.stock];
-  const accent = ip ? ipAccent(ip) : 'var(--violet-2)';
-  const accentInk = ip ? ipAccentInk(ip) : 'var(--editorial-ink-muted)';
-  const cartActionLabel = sold
-    ? `${g.name} 품절`
-    : !ready
-      ? `${g.name} 장바구니 준비 중`
-      : pending
-        ? `${g.name} 장바구니 저장 중`
-        : atStockLimit
-          ? `${g.name}, 장바구니 ${quantity}개, 재고 한도 ${g.stockQty}개`
-          : quantity > 0
-            ? `${g.name}, 장바구니 ${quantity}개, 한 개 더 담기`
-            : `${g.name} 장바구니에 한 개 담기`;
-
-  return (
-    <div
-      className="shop-card"
-      style={{ ['--cell-accent' as string]: `${accent}55`, borderRadius: 22, border: '1px solid var(--line)', background: 'linear-gradient(180deg, var(--surface), var(--bg-2))', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
-    >
-      <div style={{ aspectRatio: '1 / 1', background: g.img, backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' }}>
-        <span aria-hidden className="sheen" style={{ opacity: 0.3 }} />
-        {(g.badge ?? stockLabel) && (
-          <span className="mono" style={{ position: 'absolute', top: 12, left: 12, fontSize: 10.5, letterSpacing: '.06em', padding: '4px 10px', borderRadius: 6, color: '#fff', background: 'rgba(8,6,15,.7)', border: '1px solid rgba(255,255,255,.2)', backdropFilter: 'blur(6px)' }}>
-            {g.badge ?? stockLabel}
-          </span>
-        )}
-      </div>
-      <div style={{ padding: '16px 16px 18px', display: 'flex', flexDirection: 'column', gap: 5, flex: 1 }}>
-        <span className="mono" style={{ fontSize: 10.5, letterSpacing: '.14em', textTransform: 'uppercase', color: accentInk }}>{ip?.title ?? ''}</span>
-        <span style={{ fontWeight: 700, fontSize: 15, lineHeight: 1.35, textWrap: 'pretty' }}>{g.name}</span>
-        <span style={{ fontSize: 12.5, color: 'var(--dim)' }}>{g.type}{stockLabel && g.badge ? ` · ${stockLabel}` : ''}</span>
-        <div className="shop-card-purchase">
-          <span className="shop-card-price mono">{krw(g.price)}</span>
-          <button
-            type="button"
-            className="shop-cart-button"
-            onClick={() => void add(g.id, g.stockQty)}
-            disabled={sold || atStockLimit || !ready || pending}
-            aria-label={cartActionLabel}
-            style={{
-              height: 36, padding: '0 16px', borderRadius: 999, fontWeight: 700, fontSize: 12.5,
-              background: quantity > 0 ? 'rgba(255,255,255,.05)' : 'var(--text)',
-              color: sold || atStockLimit ? 'var(--faint)' : quantity > 0 ? 'var(--text)' : '#110D22',
-              border: quantity > 0 ? '1px solid rgba(255,255,255,.25)' : 'none',
-              opacity: sold || !ready ? 0.5 : 1,
-              transition: 'transform .18s ease, background .25s ease',
-            }}
-          >
-            {sold
-              ? '품절'
-              : !ready
-                ? '준비 중'
-                : atStockLimit
-                  ? `담김 · ${quantity}`
-                  : quantity > 0
-                    ? `담김 · ${quantity}`
-                    : '담기'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export function Shop({
   catalog,
@@ -195,7 +124,13 @@ export function Shop({
           ) : (
             <div className="shop-grid">
               {visible.map((g) => (
-                <ShopGoodsCard key={g.id} g={g} ip={ipsById.get(g.ip)} />
+                <GoodsCard
+                  action={<AddToCartButton good={g} />}
+                  good={g}
+                  href={goodDetailHref(g.id)}
+                  ip={ipsById.get(g.ip)}
+                  key={g.id}
+                />
               ))}
             </div>
           )}

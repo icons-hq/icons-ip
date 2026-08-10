@@ -60,11 +60,22 @@ const ipOptions = [
   { id: 'archived-ip', title: '보관 IP', archivedAt: '2026-07-01T00:00:00.000Z' },
 ];
 
+const eventOptions = [
+  { id: 'e100', title: '성수 팝업', archivedAt: null },
+];
+
+const goodOptions = [
+  { id: 'g13', title: '홍실 아크릴 블록', archivedAt: null },
+  { id: 'archived-good', title: '보관 굿즈', archivedAt: '2026-07-01T00:00:00.000Z' },
+];
+
 function renderSection(selected: AdminCurationRecord | null, records = selected ? [selected] : []) {
   return renderToStaticMarkup(
     <CurationSection
       draftActiveFrom="2026-07-15T03:04:05.000Z"
       draftId="22222222-2222-4222-8222-222222222222"
+      eventOptions={eventOptions}
+      goodOptions={goodOptions}
       ipOptions={ipOptions}
       onOpenNotifications={vi.fn()}
       onSelect={vi.fn()}
@@ -133,6 +144,17 @@ describe('CurationSection', () => {
     expect(mocks.reducer).toBe(mocks.action);
   });
 
+  /* 굿즈가 빠지면 첫 판매 굿즈를 홈에서 상세로 바로 보낼 수 없다. */
+  it('이동 대상 목록에 활성 굿즈 상세를 넣고 보관 굿즈는 뺀다', () => {
+    const html = renderSection(null);
+    const linkSelect = html.match(/<select[^>]*name="linkPath"[\s\S]*?<\/select>/)?.[0];
+
+    expect(linkSelect).toBeDefined();
+    expect(linkSelect).toContain('label="굿즈 상세"');
+    expect(linkSelect).toContain('<option value="/shop/g13">홍실 아크릴 블록 (g13)</option>');
+    expect(linkSelect).not.toContain('/shop/archived-good');
+  });
+
   it('특집 IP에서만 IP를 필수로 받고 보관 IP는 선택할 수 없게 한다', () => {
     const featured: AdminCurationRecord = {
       ...activeAnnouncement,
@@ -168,6 +190,8 @@ describe('CurationSection', () => {
     const tree = CurationSection({
       draftActiveFrom: '2026-07-15T03:04:05.000Z',
       draftId: '22222222-2222-4222-8222-222222222222',
+      eventOptions,
+      goodOptions,
       ipOptions,
       onOpenNotifications,
       onSelect: vi.fn(),
@@ -235,6 +259,8 @@ describe('CurationSection', () => {
     const originalTree = CurationSection({
       draftActiveFrom: '2026-07-15T03:04:05.000Z',
       draftId: '22222222-2222-4222-8222-222222222222',
+      eventOptions,
+      goodOptions,
       ipOptions,
       onOpenNotifications: vi.fn(),
       onSelect: vi.fn(),
@@ -246,6 +272,8 @@ describe('CurationSection', () => {
     const revalidatedTree = CurationSection({
       draftActiveFrom: '2026-07-15T03:04:05.000Z',
       draftId: '77777777-7777-4777-8777-777777777777',
+      eventOptions,
+      goodOptions,
       ipOptions,
       onOpenNotifications: vi.fn(),
       onSelect: vi.fn(),

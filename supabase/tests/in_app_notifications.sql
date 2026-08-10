@@ -436,6 +436,9 @@ select public.admin_upsert_good(
   '신상',
   'ok',
   null,
+  null,
+  '(주)아이콘즈', '대한민국', 'PVC', '80x80x30mm / 120g', '2026-07', '아이콘즈 CS', '02-000-0000',
+  null, null, null,
   null
 );
 
@@ -448,7 +451,10 @@ select public.admin_upsert_good(
   '신상',
   'ok',
   null,
-  null
+  null,
+  '(주)아이콘즈', '대한민국', 'PVC', '80x80x30mm / 120g', '2026-07', '아이콘즈 CS', '02-000-0000',
+  null, null, null,
+  'notification-runtime-good'
 );
 
 select public.admin_upsert_event(
@@ -476,7 +482,8 @@ select public.admin_upsert_event(
   null,
   null,
   null,
-  null
+  null,
+  'notification-runtime-event'
 );
 
 select public.admin_upsert_event(

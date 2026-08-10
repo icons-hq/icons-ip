@@ -3,6 +3,7 @@ import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import type { RarityKey } from '@/lib/rarity';
 import type { Stock } from '@/lib/data';
+import type { GoodsNoticeInfo } from '@/lib/goods-notice';
 import { normalizePublicMediaPath } from '@/lib/media';
 
 export interface AdminIpRecord {
@@ -34,6 +35,12 @@ export interface AdminGoodRecord {
   bg: string | null;
   imagePath: string | null;
   imageUrl?: string | null;
+  notice: GoodsNoticeInfo;
+  description: string | null;
+  galleryPaths: string[];
+  galleryUrls: string[];
+  detailImagePath: string | null;
+  detailImageUrl: string | null;
 }
 
 export interface AdminCardRecord {
@@ -245,6 +252,16 @@ interface GoodRow {
   stock_qty: number | null;
   bg: string | null;
   image_path: string | null;
+  notice_maker: string | null;
+  notice_origin: string | null;
+  notice_material: string | null;
+  notice_size: string | null;
+  notice_made_on: string | null;
+  notice_as_manager: string | null;
+  notice_as_contact: string | null;
+  description: string | null;
+  gallery_paths: string[] | null;
+  detail_image_path: string | null;
 }
 
 interface CardRow {
@@ -388,7 +405,8 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
       .order('id'),
     supabase
       .from('goods')
-      .select('id,archived_at,ip_id,name,type,price,badge,stock,stock_qty,bg,image_path')
+      /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
+      .select('id,archived_at,ip_id,name,type,price,badge,stock,stock_qty,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path')
       .order('id'),
     supabase
       .from('cards')
@@ -508,6 +526,22 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
       bg: row.bg,
       imagePath: row.image_path,
       imageUrl: imageUrlForPath(row.image_path),
+      notice: {
+        maker: row.notice_maker,
+        origin: row.notice_origin,
+        material: row.notice_material,
+        size: row.notice_size,
+        madeOn: row.notice_made_on,
+        asManager: row.notice_as_manager,
+        asContact: row.notice_as_contact,
+      },
+      description: row.description,
+      galleryPaths: row.gallery_paths ?? [],
+      galleryUrls: (row.gallery_paths ?? [])
+        .map((path) => imageUrlForPath(path))
+        .filter((url): url is string => Boolean(url)),
+      detailImagePath: row.detail_image_path,
+      detailImageUrl: imageUrlForPath(row.detail_image_path),
     })),
     cards,
     cardPools,

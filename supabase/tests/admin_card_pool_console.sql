@@ -85,20 +85,22 @@ select 1 / case when not has_function_privilege(
 
 select 1 / case when not has_function_privilege(
   'anon',
-  'public.admin_upsert_card(text,text,text,text,rarity,text,text,uuid,boolean)',
+  'public.admin_upsert_card(text,text,text,text,rarity,text,text,uuid,boolean,text)',
   'execute'
 ) and has_function_privilege(
   'authenticated',
-  'public.admin_upsert_card(text,text,text,text,rarity,text,text,uuid,boolean)',
+  'public.admin_upsert_card(text,text,text,text,rarity,text,text,uuid,boolean,text)',
   'execute'
 ) and not has_function_privilege(
   'service_role',
-  'public.admin_upsert_card(text,text,text,text,rarity,text,text,uuid,boolean)',
+  'public.admin_upsert_card(text,text,text,text,rarity,text,text,uuid,boolean,text)',
   'execute'
 ) then 1 else 0 end as assert_card_rpc_acl;
 
 select 1 / case when to_regprocedure(
   'public.admin_upsert_card(text,text,text,text,rarity,text,text)'
+) is null and to_regprocedure(
+  'public.admin_upsert_card(text,text,text,text,rarity,text,text,uuid,boolean)'
 ) is null then 1 else 0 end as assert_card_rpc_has_no_ambiguous_overload;
 
 select 1 / case when not has_function_privilege(
@@ -320,7 +322,8 @@ select public.admin_upsert_card(
   '001/999',
   'R',
   null,
-  null
+  null,
+  target_previous_id => 'admin-card-pool-card-r1'
 );
 
 select 1 / case when (
@@ -462,7 +465,8 @@ begin
       null,
       null,
       null,
-      true
+      true,
+      target_previous_id => 'admin-card-pool-card-r1'
     );
   exception
     when check_violation then
@@ -494,7 +498,8 @@ select public.admin_upsert_card(
   null,
   null,
   null,
-  true
+  true,
+  target_previous_id => 'admin-card-pool-card-r1'
 );
 
 select 1 / case when (
@@ -521,7 +526,8 @@ begin
       null,
       null,
       '20000000-0000-4000-8000-000000000901',
-      true
+      true,
+      target_previous_id => 'admin-card-pool-card-r2'
     );
   exception
     when check_violation then

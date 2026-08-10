@@ -63,4 +63,35 @@ describe('EventSection', () => {
     expect(html).toContain('보관 복원');
     expect(html).toContain('value="event"');
   });
+
+  /* #183 — 액센트는 hex 타이핑이 아니라 색상 선택으로 받는다. */
+  it('picks the accent as a colour and falls back to the platform accent', () => {
+    const blank = renderToStaticMarkup(
+      <EventSection
+        action={vi.fn()}
+        ipOptions={[]}
+        onSelect={vi.fn()}
+        pending={false}
+        records={[]}
+        selected={null}
+        state={{}}
+      />,
+    );
+    const stored = renderToStaticMarkup(
+      <EventSection
+        action={vi.fn()}
+        ipOptions={[]}
+        onSelect={vi.fn()}
+        pending={false}
+        records={[{ ...event, accent: '#FFD84D' }]}
+        selected={{ ...event, accent: '#FFD84D' }}
+        state={{}}
+      />,
+    );
+
+    expect(blank).toContain('type="color"');
+    expect(blank).toContain('value="#8B5CFF"');
+    expect(blank).not.toContain('placeholder="#8B5CFF"');
+    expect(stored).toContain('value="#FFD84D"');
+  });
 });

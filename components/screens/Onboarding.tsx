@@ -3,6 +3,7 @@
 import { startTransition, useActionState, useState, type FormEvent } from 'react';
 import { completeOnboardingAction, type OnboardingActionState } from '@/app/onboarding/actions';
 import { ipAccent } from '@/lib/ip-display';
+import { LEGAL_DOCUMENT_LABELS, legalDocumentHref, type LegalDocumentSlug } from '@/lib/legal/links';
 
 interface OnboardingProps {
   birthDate: string;
@@ -47,6 +48,7 @@ function TermRow({
   label,
   name,
   required,
+  slug,
 }: {
   defaultChecked?: boolean;
   errorId?: string;
@@ -54,26 +56,44 @@ function TermRow({
   label: string;
   name: string;
   required: boolean;
+  /** 동의 대상 문서. 링크는 label 바깥에 두어야 클릭이 체크박스를 토글하지 않는다. */
+  slug?: LegalDocumentSlug;
 }) {
   const [checked, setChecked] = useState(Boolean(defaultChecked));
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '10px 12px', borderRadius: 12, cursor: 'pointer' }}>
-      <input
-        aria-describedby={hasError ? errorId : undefined}
-        aria-invalid={hasError}
-        checked={checked}
-        name={name}
-        onChange={(e) => setChecked(e.target.checked)}
-        type="checkbox"
-        style={{ position: 'absolute', opacity: 0, width: 1, height: 1 }}
-      />
-      <span aria-hidden className="onboarding-checkmark" style={{ flex: '0 0 auto', width: 22, height: 22, borderRadius: 7, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800, color: checked ? '#fff' : 'var(--account-ink, #11110f)', border: `1px solid ${checked ? 'var(--account-ink, #11110f)' : 'var(--account-line, rgba(17,17,15,.18))'}`, background: checked ? 'var(--account-ink, #11110f)' : 'transparent', transition: 'all .2s ease' }}>
-        {checked ? '✓' : ''}
-      </span>
-      <span style={{ fontSize: 13.5, color: '#C9C3E4' }}>
-        {label} <span className="mono" style={{ fontSize: 10, color: required ? 'var(--pink)' : 'var(--faint)' }}>{required ? '필수' : '선택'}</span>
-      </span>
-    </label>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 11, flex: '1 1 auto', padding: '10px 12px', borderRadius: 12, cursor: 'pointer' }}>
+        <input
+          aria-describedby={hasError ? errorId : undefined}
+          aria-invalid={hasError}
+          checked={checked}
+          name={name}
+          onChange={(e) => setChecked(e.target.checked)}
+          type="checkbox"
+          style={{ position: 'absolute', opacity: 0, width: 1, height: 1 }}
+        />
+        <span aria-hidden className="onboarding-checkmark" style={{ flex: '0 0 auto', width: 22, height: 22, borderRadius: 7, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800, color: checked ? '#fff' : 'var(--account-ink, #11110f)', border: `1px solid ${checked ? 'var(--account-ink, #11110f)' : 'var(--account-line, rgba(17,17,15,.18))'}`, background: checked ? 'var(--account-ink, #11110f)' : 'transparent', transition: 'all .2s ease' }}>
+          {checked ? '✓' : ''}
+        </span>
+        <span style={{ fontSize: 13.5, color: '#C9C3E4' }}>
+          {label} <span className="mono" style={{ fontSize: 10, color: required ? 'var(--pink)' : 'var(--faint)' }}>{required ? '필수' : '선택'}</span>
+        </span>
+      </label>
+      {slug && (
+        /* 링크 목록으로 훑는 스크린리더에는 "전문 보기"만 두 번 남는다.
+           보이는 문구는 그대로 두고 접근 이름에 문서 이름을 붙여 서로 구분한다(WCAG 2.4.4). */
+        <a
+          aria-label={`${LEGAL_DOCUMENT_LABELS[slug]} 전문 보기`}
+          className="mono"
+          href={legalDocumentHref(slug)}
+          rel="noreferrer"
+          style={{ flex: '0 0 auto', padding: '0 8px', fontSize: 11, color: 'var(--dim)', textDecoration: 'underline' }}
+          target="_blank"
+        >
+          전문 보기
+        </a>
+      )}
+    </div>
   );
 }
 
@@ -224,9 +244,9 @@ export function Onboarding({
           </fieldset>
 
           <div className="col" style={{ gap: 4 }}>
-            <TermRow errorId="terms-error" hasError={Boolean(state.errors?.terms)} label="이용약관 동의" name="terms" required />
+            <TermRow errorId="terms-error" hasError={Boolean(state.errors?.terms)} label="이용약관 동의" name="terms" required slug="terms" />
             <ErrorText id="terms-error">{state.errors?.terms}</ErrorText>
-            <TermRow errorId="privacy-error" hasError={Boolean(state.errors?.privacy)} label="개인정보 처리방침 동의" name="privacy" required />
+            <TermRow errorId="privacy-error" hasError={Boolean(state.errors?.privacy)} label="개인정보 처리방침 동의" name="privacy" required slug="privacy" />
             <ErrorText id="privacy-error">{state.errors?.privacy}</ErrorText>
             <TermRow defaultChecked={initialMarketing} label="마케팅 정보 수신 동의" name="marketing" required={false} />
           </div>

@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { Field, SelectField, TextArea } from './fields';
+import { Field, RecordList, SelectField, TextArea } from './fields';
 
 vi.mock('@/components/ui/Icon', () => ({
   Icon: () => null,
@@ -49,5 +49,45 @@ describe('admin fields', () => {
     expect(html).toContain('readOnly=""');
     expect(html).toContain('<select');
     expect(html).toContain('required=""');
+  });
+
+  /* #182 — 목록에서 레코드를 눈으로 식별할 수 있어야 한다. */
+  it('shows a decorative thumbnail only for records that have artwork', () => {
+    const html = renderToStaticMarkup(
+      <RecordList
+        activeId={null}
+        items={[
+          { id: 'g13', imageUrl: 'https://cdn.test/g13.png' },
+          { id: 'g14', imageUrl: null },
+        ]}
+        labelFor={(good) => good.id}
+        onNew={() => {}}
+        onSelect={() => {}}
+        thumbnailKind="good"
+        thumbnailUrlFor={(good) => good.imageUrl}
+      />,
+    );
+
+    expect(html).toContain('src="https://cdn.test/g13.png"');
+    expect(html).toContain('alt=""');
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain('loading="lazy"');
+    /* 아트워크가 없는 g14 는 이미지 없이 라벨만 렌더된다. */
+    expect(html.match(/<img/g)).toHaveLength(1);
+    expect(html).toContain('g14');
+  });
+
+  it('keeps the list free of thumbnails when a section does not opt in', () => {
+    const html = renderToStaticMarkup(
+      <RecordList
+        activeId={null}
+        items={[{ id: 'e100' }]}
+        labelFor={(event) => event.id}
+        onNew={() => {}}
+        onSelect={() => {}}
+      />,
+    );
+
+    expect(html).not.toContain('<img');
   });
 });

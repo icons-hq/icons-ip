@@ -25,6 +25,23 @@ describe('Sidebar', () => {
     expect(html.indexOf('aria-label="게임"')).toBeLessThan(html.indexOf('aria-label="이벤트"'));
   });
 
+  it('카드 운영 영역에 수동 발급 콘솔을 발급 정책 바로 뒤에 노출한다', () => {
+    const html = renderToStaticMarkup(
+      <Sidebar
+        active="grants"
+        collapsed={false}
+        onCollapsedChange={vi.fn()}
+        onSectionChange={vi.fn()}
+        showRoles={false}
+      />,
+    );
+
+    expect(html).toContain('aria-label="카드팩 수동 발급"');
+    expect(html).toContain('aria-current="true"');
+    expect(html.indexOf('aria-label="발급 정책"')).toBeLessThan(html.indexOf('aria-label="카드팩 수동 발급"'));
+    expect(html.indexOf('aria-label="카드팩 수동 발급"')).toBeLessThan(html.indexOf('aria-label="게임"'));
+  });
+
   it('티 운영 영역에 공지 발송 콘솔을 노출한다', () => {
     const html = renderToStaticMarkup(
       <Sidebar

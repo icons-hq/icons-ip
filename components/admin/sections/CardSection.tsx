@@ -65,13 +65,16 @@ export function CardSection({
           labelFor={(card) => formatAdminCatalogRecordLabel(`${card.id} · ${card.name}`, card.archivedAt)}
           onNew={() => onSelect(null)}
           onSelect={onSelect}
+          thumbnailKind="card"
+          thumbnailUrlFor={(card) => card.imageUrl}
         />
       </div>
       <div className="col" style={{ gap: 16, minWidth: 0 }}>
         <form action={action} className="card col" key={selected ? JSON.stringify(selected) : 'new-card'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+        <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
         <div className="admin-form-grid">
-          <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="c100" />
+          <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="c100" readOnly={Boolean(selected)} />
           {pooled && selected ? (
             <ReadOnlyCatalogField label="연결 IP" name="ipId" value={selected.ipId}>
               {ipOptions.find((ip) => ip.id === selected.ipId)?.title ?? selected.ipId}
@@ -121,7 +124,9 @@ export function CardSection({
             풀에 연결된 카드는 먼저 풀을 해제한 뒤 IP·등급을 변경할 수 있습니다.
           </p>
         )}
-        <Field defaultValue={selected?.bg} label="배경 CSS" name="bg" />
+        {/* 배경 CSS 자유입력을 운영자 폼에서 뺐다 (#183). 아트워크가 없는 레거시
+            레코드는 이 값으로 렌더되므로 그대로 실어 보내 보존한다. */}
+        <input name="bg" type="hidden" value={selected?.bg ?? ''} />
         <ArtworkUploadField
           currentPath={selected?.imagePath ?? null}
           currentUrl={selected?.imageUrl ?? null}

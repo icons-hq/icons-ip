@@ -4,6 +4,8 @@ import { useActionState, useMemo, useState } from 'react';
 import { upsertAdminCurationAction } from '@/app/admin/curation-actions';
 import type { AdminCurationActionState, AdminCurationKind } from '@/lib/admin/curations';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
+import type { AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
+import { adminCurationTargetGroupsFor } from '@/lib/admin/curation-targets';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { ErrorText, Field, FormShell, RecordList, SelectField } from '../fields';
 
@@ -63,6 +65,8 @@ export function getCurationFormKey(
 export function CurationSection({
   draftActiveFrom,
   draftId,
+  eventOptions,
+  goodOptions,
   ipOptions,
   onOpenNotifications,
   onSelect,
@@ -72,7 +76,9 @@ export function CurationSection({
 }: {
   draftActiveFrom: string;
   draftId: string;
-  ipOptions: { id: string; title: string; archivedAt: string | null }[];
+  eventOptions: AdminCurationTargetRecord[];
+  goodOptions: AdminCurationTargetRecord[];
+  ipOptions: AdminCurationTargetRecord[];
   onOpenNotifications: () => void;
   onSelect: (curation: AdminCurationRecord | null) => void;
   operationId: string;
@@ -107,10 +113,14 @@ export function CurationSection({
           newLabel="새 홈 큐레이션"
           onNew={() => onSelect(null)}
           onSelect={onSelect}
+          thumbnailKind="curation"
+          thumbnailUrlFor={(curation) => curation.imageUrl}
         />
         <CurationForm
           draftActiveFrom={draftActiveFrom}
           draftId={draftId}
+          eventOptions={eventOptions}
+          goodOptions={goodOptions}
           ipOptions={ipOptions}
           key={getCurationFormKey(selected, draftId, operationId)}
           operationId={operationId}
@@ -124,13 +134,17 @@ export function CurationSection({
 function CurationForm({
   draftActiveFrom,
   draftId,
+  eventOptions,
+  goodOptions,
   ipOptions,
   operationId,
   selected,
 }: {
   draftActiveFrom: string;
   draftId: string;
-  ipOptions: { id: string; title: string; archivedAt: string | null }[];
+  eventOptions: AdminCurationTargetRecord[];
+  goodOptions: AdminCurationTargetRecord[];
+  ipOptions: AdminCurationTargetRecord[];
   operationId: string;
   selected: AdminCurationRecord | null;
 }) {
@@ -139,6 +153,13 @@ function CurationForm({
   const ipTitles = useMemo(
     () => new Map(ipOptions.map((ip) => [ip.id, ip.title])),
     [ipOptions],
+  );
+  const linkTargetGroups = useMemo(
+    () => adminCurationTargetGroupsFor(
+      { events: eventOptions, goods: goodOptions, ips: ipOptions },
+      selected?.linkPath ?? null,
+    ),
+    [eventOptions, goodOptions, ipOptions, selected?.linkPath],
   );
 
   return (
@@ -190,14 +211,22 @@ function CurationForm({
           name="title"
           required
         />
-        <Field
+        {/* 경로 자유입력을 화면 선택으로 바꿨다 (#183) — 오타가 404를 만들 수 없다. */}
+        <SelectField
           defaultValue={selected?.linkPath ?? '/'}
           error={state.errors?.linkPath}
-          label="이동할 내부 경로"
+          label="눌렀을 때 이동할 화면"
           name="linkPath"
-          placeholder="/ip/rilakkuma"
           required
-        />
+        >
+          {linkTargetGroups.map((group) => (
+            <optgroup key={group.label} label={group.label}>
+              {group.options.map((option) => (
+                <option key={option.path} value={option.path}>{option.label}</option>
+              ))}
+            </optgroup>
+          ))}
+        </SelectField>
         <Field
           defaultValue={selected?.displayOrder ?? 0}
           error={state.errors?.displayOrder}

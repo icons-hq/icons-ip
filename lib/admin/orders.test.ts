@@ -4,6 +4,7 @@ import {
   normalizeAdminCancellationDecisionForm,
   normalizeAdminOrderFilters,
   normalizeAdminOrderStatusForm,
+  normalizeAdminOrderTrackingForm,
 } from './orders';
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
@@ -60,16 +61,84 @@ describe('admin order mutation forms', () => {
     const formData = new FormData();
     formData.set('orderId', ORDER_ID);
     formData.set('status', 'shipping');
+    formData.set('carrier', 'hanjin');
+    formData.set('trackingNumber', '1234-5678-9012');
 
     expect(normalizeAdminOrderStatusForm(formData)).toEqual({
       ok: true,
-      value: { orderId: ORDER_ID, status: 'shipping' },
+      value: {
+        orderId: ORDER_ID,
+        status: 'shipping',
+        carrier: 'hanjin',
+        trackingNumber: '123456789012',
+      },
     });
 
     formData.set('status', 'canceled');
     expect(normalizeAdminOrderStatusForm(formData)).toEqual({
       ok: false,
       errors: { status: '허용된 배송 상태를 선택해주세요.' },
+    });
+  });
+
+  it('배송 시작은 운송장 없이 통과하지 못한다', () => {
+    const formData = new FormData();
+    formData.set('orderId', ORDER_ID);
+    formData.set('status', 'shipping');
+
+    expect(normalizeAdminOrderStatusForm(formData)).toEqual({
+      ok: false,
+      errors: {
+        carrier: '택배사를 선택해주세요.',
+        trackingNumber: '운송장번호를 입력해주세요.',
+      },
+    });
+
+    formData.set('carrier', 'unknown_carrier');
+    formData.set('trackingNumber', '12345');
+    expect(normalizeAdminOrderStatusForm(formData)).toEqual({
+      ok: false,
+      errors: {
+        carrier: '택배사를 선택해주세요.',
+        trackingNumber: '운송장번호는 하이픈을 뺀 8~30자리 영숫자여야 합니다.',
+      },
+    });
+  });
+
+  it('배송 완료 전이는 운송장 입력을 다시 받지 않는다', () => {
+    const formData = new FormData();
+    formData.set('orderId', ORDER_ID);
+    formData.set('status', 'done');
+    formData.set('carrier', 'hanjin');
+    formData.set('trackingNumber', '123456789012');
+
+    expect(normalizeAdminOrderStatusForm(formData)).toEqual({
+      ok: true,
+      value: { orderId: ORDER_ID, status: 'done', carrier: null, trackingNumber: null },
+    });
+  });
+
+  it('운송장 수정 폼은 주문·택배사·운송장번호를 모두 검증한다', () => {
+    const formData = new FormData();
+    formData.set('orderId', ORDER_ID);
+    formData.set('carrier', 'hanjin');
+    formData.set('trackingNumber', ' 1234 5678 9012 ');
+
+    expect(normalizeAdminOrderTrackingForm(formData)).toEqual({
+      ok: true,
+      value: { orderId: ORDER_ID, carrier: 'hanjin', trackingNumber: '123456789012' },
+    });
+
+    formData.set('orderId', 'not-a-uuid');
+    formData.set('carrier', '');
+    formData.set('trackingNumber', '');
+    expect(normalizeAdminOrderTrackingForm(formData)).toEqual({
+      ok: false,
+      errors: {
+        orderId: '주문을 찾을 수 없습니다.',
+        carrier: '택배사를 선택해주세요.',
+        trackingNumber: '운송장번호를 입력해주세요.',
+      },
     });
   });
 

@@ -142,7 +142,8 @@ values
   ('order-cancel-terminal', 'order-cancel-ip', '종결 결제 취소 굿즈', '테스트', 10000, 'ok', 9),
   ('order-cancel-reward', 'order-cancel-ip', '리워드 취소 굿즈', '테스트', 10000, 'ok', 9),
   ('order-cancel-failed-evidence', 'order-cancel-ip', '실패 장부 취소 굿즈', '테스트', 10000, 'ok', 9),
-  ('order-cancel-claim', 'order-cancel-ip', '취소 claim 굿즈', '테스트', 10000, 'ok', 9);
+  ('order-cancel-claim', 'order-cancel-ip', '취소 claim 굿즈', '테스트', 10000, 'ok', 9),
+  ('order-cancel-post-shipping', 'order-cancel-ip', '배송 후 취소 굿즈', '테스트', 10000, 'ok', 9);
 
 insert into public.orders (id, user_id, status, total, address, expires_at)
 values
@@ -183,6 +184,10 @@ values
   (
     '40000000-0000-4000-8000-000000000709',
     '00000000-0000-4000-8000-000000000701', 'paid', 10000, '{}'::jsonb, null
+  ),
+  (
+    '40000000-0000-4000-8000-000000000710',
+    '00000000-0000-4000-8000-000000000701', 'shipping', 10000, '{}'::jsonb, null
   );
 
 insert into public.order_items (
@@ -203,7 +208,8 @@ values
   ('40000000-0000-4000-8000-000000000706', 'order-cancel-terminal', 1, 10000, '종결 결제 취소 굿즈', '테스트', 'order-cancel-ip'),
   ('40000000-0000-4000-8000-000000000707', 'order-cancel-reward', 1, 10000, '리워드 취소 굿즈', '테스트', 'order-cancel-ip'),
   ('40000000-0000-4000-8000-000000000708', 'order-cancel-failed-evidence', 1, 10000, '실패 장부 취소 굿즈', '테스트', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000709', 'order-cancel-claim', 1, 10000, '취소 claim 굿즈', '테스트', 'order-cancel-ip');
+  ('40000000-0000-4000-8000-000000000709', 'order-cancel-claim', 1, 10000, '취소 claim 굿즈', '테스트', 'order-cancel-ip'),
+  ('40000000-0000-4000-8000-000000000710', 'order-cancel-post-shipping', 1, 10000, '배송 후 취소 굿즈', '테스트', 'order-cancel-ip');
 
 insert into public.payments (
   id, user_id, purpose, ref_id, amount, status,
@@ -245,6 +251,13 @@ values
     '00000000-0000-4000-8000-000000000701', 'order',
     '40000000-0000-4000-8000-000000000709', 10000, 'paid',
     'provider-key-claim', 'provider-key-claim', '{"secret":"claim"}'::jsonb
+  ),
+  (
+    '50000000-0000-4000-8000-000000000710',
+    '00000000-0000-4000-8000-000000000701', 'order',
+    '40000000-0000-4000-8000-000000000710', 10000, 'paid',
+    'provider-key-post-shipping', 'provider-key-post-shipping',
+    '{"secret":"post-shipping"}'::jsonb
   );
 
 insert into public.card_pools (id, ip_id, name, active_from)
@@ -763,7 +776,10 @@ select 1 / case when (
   )
 ) then 1 else 0 end as assert_verified_failed_payment_converges_to_refund;
 
--- Shipping and completed orders are outside the self-service cancellation boundary.
+-- 배송 후 청약철회는 열려 있지만(#176) 승인 경로 밖 호출에는 여전히 fail closed다.
+-- staff 결정이 남긴 claim이 없으면 결제 증거를 보기도 전에 거절한다 —
+-- 아래 710(증거 유효)과 함께, 증거 유무와 무관하게 claim이 경계임을 고정한다.
+-- claim이 있는 주문에서 증거가 경계라는 점은 703이 따로 고정한다.
 do $$
 declare
   blocked_order uuid;
@@ -779,7 +795,7 @@ begin
         '배송 이후 취소 시도',
         array['irrelevant-provider-key']::text[]
       );
-      raise exception 'shipping or done order should be rejected';
+      raise exception 'shipping or done order without a staff claim should be rejected';
     exception
       when raise_exception then
         if sqlerrm <> 'order not cancelable' then raise; end if;
@@ -792,6 +808,66 @@ select 1 / case when (
   (select stock_qty = 9 from public.goods where id = 'order-cancel-shipping')
   and (select stock_qty = 9 from public.goods where id = 'order-cancel-done')
 ) then 1 else 0 end as assert_shipping_and_done_inventory_is_unchanged;
+
+-- 결제 증거가 다 갖춰져도 승인 경로 밖 호출은 배송된 주문을 취소하지 못한다.
+-- 웹훅 TOCTOU가 paid로 읽고 부른 호출이 실제로는 shipping에 닿는 경우가 이것이고,
+-- staff 결정이 남긴 claim이 없으면 finalizer는 다시 fail closed다.
+do $$
+begin
+  begin
+    perform public.cancel_order_with_provider_evidence(
+      '40000000-0000-4000-8000-000000000710',
+      '운영 수기 정합화',
+      array['provider-key-post-shipping']::text[]
+    );
+    raise exception 'post-shipping cancellation without a staff claim should be rejected';
+  exception
+    when raise_exception then
+      if sqlerrm <> 'order not cancelable' then raise; end if;
+  end;
+end;
+$$;
+
+select 1 / case when (
+  (select status = 'shipping' from public.orders where id = '40000000-0000-4000-8000-000000000710')
+  and (select stock_qty = 9 from public.goods where id = 'order-cancel-post-shipping')
+  and (select status = 'paid' from public.payments where id = '50000000-0000-4000-8000-000000000710')
+  and not exists (
+    select 1
+    from public.refunds
+    where payment_id = '50000000-0000-4000-8000-000000000710'
+  )
+  and not exists (
+    select 1
+    from public.order_cancellation_claims
+    where order_id = '40000000-0000-4000-8000-000000000710'
+  )
+) then 1 else 0 end as assert_post_shipping_cancel_without_claim_preserves_order_and_stock;
+
+-- 실물 반품의 주 경로는 물건을 받아본 뒤다. shipping·done 주문도 durable 요청을
+-- 남길 수 있어야 하고, 요청만으로는 재고나 주문 상태가 움직이지 않는다.
+set local role service_role;
+
+select 1 / case when public.request_order_cancellation(
+  '40000000-0000-4000-8000-000000000704',
+  '00000000-0000-4000-8000-000000000701',
+  '배송 중 청약철회 요청'
+) = 'requested' then 1 else 0 end as assert_shipping_order_accepts_withdrawal_request;
+
+select 1 / case when public.request_order_cancellation(
+  '40000000-0000-4000-8000-000000000705',
+  '00000000-0000-4000-8000-000000000701',
+  '수령 후 청약철회 요청'
+) = 'requested' then 1 else 0 end as assert_done_order_accepts_withdrawal_request;
+
+reset role;
+
+select 1 / case when (
+  (select status = 'shipping' from public.orders where id = '40000000-0000-4000-8000-000000000704')
+  and (select status = 'done' from public.orders where id = '40000000-0000-4000-8000-000000000705')
+  and (select stock_qty = 9 from public.goods where id = 'order-cancel-shipping')
+  and (select stock_qty = 9 from public.goods where id = 'order-cancel-done')
+) then 1 else 0 end as assert_post_shipping_request_does_not_move_state;
 
 -- Existing provider-terminal evidence is enough to converge local state on retries/webhooks.
 select public.cancel_order(

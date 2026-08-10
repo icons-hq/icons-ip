@@ -136,4 +136,37 @@ describe('ArtworkUploadField', () => {
     expect(fileInput).toBeDefined();
     expect(fileInput).not.toContain('disabled');
   });
+
+  /*
+   * #172 — 굿즈 폼에는 같은 kind 의 업로드 칸이 6개 놓인다. 제출 필드명과
+   * aria 접두를 분리하지 않으면 id 가 겹치고 값이 서로를 덮어쓴다.
+   */
+  it('accepts a custom submit name, id prefix, and label for repeated fields', () => {
+    const html = renderToStaticMarkup(
+      <ArtworkUploadField
+        currentPath={null}
+        currentUrl={null}
+        fieldId="good-gallery-2"
+        kind="good"
+        label="갤러리 3"
+        name="galleryPath2"
+      />,
+    );
+
+    expect(html).toContain('name="galleryPath2"');
+    expect(html).toContain('id="good-gallery-2-artwork-help"');
+    expect(html).toContain('aria-describedby="good-gallery-2-artwork-help"');
+    expect(html).toContain('갤러리 3');
+    expect(html).not.toContain('name="imagePath"');
+  });
+
+  it('keeps the original submit name and id prefix by default', () => {
+    const html = renderToStaticMarkup(
+      <ArtworkUploadField currentPath={null} currentUrl={null} kind="good" />,
+    );
+
+    expect(html).toContain('name="imagePath"');
+    expect(html).toContain('id="good-artwork-help"');
+    expect(html).toContain('아트워크 파일');
+  });
 });

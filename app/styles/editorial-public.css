@@ -17,10 +17,14 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
-) {
+),
+/* 어드민 굿즈 미리보기(#184)는 어드민 표면 안에 놓이므로 #root 를 밝게 바꿀 수 없다.
+   같은 토큰 묶음을 미리보기 컨테이너에만 걸어 공개 화면과 같은 색으로 렌더한다. */
+.goods-detail-scope {
   --bg: var(--editorial-canvas, #f4f4f1);
   --bg-2: var(--editorial-canvas-soft, #efefeb);
   --surface: var(--editorial-surface, #fff);
@@ -54,6 +58,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -69,6 +74,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -88,6 +94,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -104,6 +111,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -118,6 +126,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -133,6 +142,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -152,6 +162,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -169,6 +180,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -184,6 +196,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -199,6 +212,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -217,6 +231,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -238,6 +253,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -254,6 +270,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -270,6 +287,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -288,6 +306,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -304,6 +323,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -320,6 +340,7 @@
   :has(.binder-cta-row),
   :has(.event-guide-grid),
   :has(.event-detail-page),
+  :has(.goods-detail-page),
   :has(form[action="/search"]),
   :has(.exchange-grid),
   :has(.community-main)
@@ -1318,6 +1339,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1335,6 +1357,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1351,6 +1374,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1394,6 +1418,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1433,6 +1458,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1693,6 +1719,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1725,6 +1752,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1748,6 +1776,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1759,6 +1788,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1770,6 +1800,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1781,6 +1812,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1800,6 +1832,7 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
@@ -1816,10 +1849,312 @@
     :has(.binder-cta-row),
     :has(.event-guide-grid),
     :has(.event-detail-page),
+    :has(.goods-detail-page),
     :has(form[action="/search"]),
     :has(.exchange-grid),
     :has(.community-main)
   ) :where(.btn, .chip, .card, .shop-card, .binder-card, .event-card, .market-card, .exchange-card, .community-post) {
     border: 1px solid CanvasText !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Goods detail (#173)
+   -------------------------------------------------------------------------- */
+
+.goods-detail-page {
+  min-height: 100vh;
+  padding-block: 112px 96px;
+}
+
+/* 미리보기 컨테이너는 페이지가 아니라 카드 안이다 — 전체 화면 높이와 상단
+   네비 여백을 걷어내고 나머지 레이아웃 규칙만 그대로 쓴다. */
+.goods-detail-scope {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  min-height: 0;
+  padding: 20px;
+}
+
+.goods-detail-hero {
+  align-items: start;
+  display: grid;
+  gap: 30px;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+}
+
+.goods-detail-media {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goods-detail-stage {
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  overflow: hidden;
+  position: relative;
+}
+
+.goods-detail-thumbs {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.goods-detail-thumb {
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+  overflow: hidden;
+  padding: 0;
+}
+
+.goods-detail-thumb[aria-current="true"] {
+  border-color: var(--line-3);
+}
+
+.goods-detail-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.goods-detail-purchase {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.goods-detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 48px;
+}
+
+.goods-detail-long-image {
+  display: block;
+  height: auto;
+  max-width: 100%;
+}
+
+.goods-notice-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.goods-notice-table th,
+.goods-notice-table td {
+  border-top: 1px solid var(--line);
+  font-size: 13.5px;
+  line-height: 1.7;
+  padding: 11px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.goods-notice-table th {
+  color: var(--dim);
+  font-weight: 600;
+  white-space: nowrap;
+  width: 34%;
+}
+
+@media (max-width: 900px) {
+  .goods-detail-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .goods-detail-page {
+    padding-block: 92px 72px;
+  }
+
+  .goods-notice-table th {
+    white-space: normal;
+  }
+}
+
+
+/* --------------------------------------------------------------------------
+   Legal documents — /legal/[document]
+   긴 본문을 읽는 유일한 공개 표면이다. 발견 화면의 대형 타이포와 파스텔 면 대신
+   흰 종이 위 한 칼럼과 hairline만 쓴다(DESIGN.md §8 flat-form-surface).
+   -------------------------------------------------------------------------- */
+
+.legal-doc {
+  background: var(--editorial-canvas);
+}
+
+.legal-doc__inner {
+  margin-inline: auto;
+  max-width: 860px;
+}
+
+.legal-doc__head {
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--editorial-line);
+}
+
+.legal-doc__title {
+  margin: 14px 0 0;
+  font-size: clamp(34px, 4.4vw, 60px);
+}
+
+.legal-doc__summary {
+  margin: 18px 0 0;
+  max-width: 54ch;
+  color: var(--editorial-ink-muted);
+  font-size: 16px;
+  line-height: var(--editorial-leading-body);
+}
+
+.legal-doc__effective {
+  margin: 16px 0 0;
+  color: var(--editorial-ink-faint);
+  font-size: 12px;
+  letter-spacing: .06em;
+}
+
+.legal-doc__switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.legal-doc__switch a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--editorial-line);
+  border-radius: 999px;
+  background: var(--editorial-surface);
+  color: var(--editorial-ink);
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: var(--editorial-leading-control);
+}
+
+.legal-doc__body {
+  margin-top: clamp(40px, 5vw, 64px);
+  padding: clamp(28px, 4vw, 48px) clamp(22px, 3.4vw, 44px);
+  border: 1px solid var(--editorial-line-soft);
+  border-radius: 14px;
+  background: var(--editorial-surface);
+}
+
+.legal-doc__article + .legal-doc__article {
+  margin-top: clamp(30px, 3.4vw, 44px);
+  padding-top: clamp(30px, 3.4vw, 44px);
+  border-top: 1px solid var(--editorial-line-soft);
+}
+
+.legal-doc__heading {
+  margin: 0;
+  color: var(--editorial-ink);
+  font-size: clamp(18px, 1.7vw, 22px);
+  font-weight: 800;
+  line-height: var(--editorial-leading-title);
+  letter-spacing: var(--editorial-tracking-title);
+}
+
+.legal-doc__paragraph {
+  margin: 14px 0 0;
+  color: var(--editorial-ink);
+  font-size: 15.5px;
+  line-height: var(--editorial-leading-body);
+}
+
+.legal-doc__list {
+  margin: 14px 0 0;
+  padding-left: 1.4em;
+  list-style: decimal;
+}
+
+.legal-doc__list li {
+  color: var(--editorial-ink);
+  font-size: 15.5px;
+  line-height: var(--editorial-leading-body);
+}
+
+.legal-doc__list li + li {
+  margin-top: 8px;
+}
+
+/* 표는 본문보다 넓어질 수 있다. 페이지 전체가 가로로 밀리지 않도록 표만 스크롤시킨다. */
+.legal-doc__table-scroll {
+  overflow-x: auto;
+  margin-top: 18px;
+  border: 1px solid var(--editorial-line-soft);
+  border-radius: 10px;
+}
+
+.legal-doc__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: var(--editorial-leading-body);
+}
+
+.legal-doc__table th,
+.legal-doc__table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--editorial-line-soft);
+  color: var(--editorial-ink);
+  /* 셀은 p·li와 달리 전역 keep-all 대상이 아니라 좁은 폭에서 어절이 음절 단위로 쪼개진다. */
+  word-break: keep-all;
+  text-align: left;
+  vertical-align: top;
+}
+
+.legal-doc__table thead th {
+  background: var(--editorial-canvas-soft);
+  color: var(--editorial-ink-muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+
+.legal-doc__table tbody th {
+  font-weight: 700;
+}
+
+.legal-doc__table tbody tr:last-child :where(th, td) {
+  border-bottom: 0;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .legal-doc__switch a:hover {
+    border-color: var(--editorial-line-strong);
+  }
+}
+
+@media (max-width: 720px) {
+  .legal-doc__body {
+    padding: 24px 18px;
+  }
+
+  .legal-doc__table {
+    font-size: 13px;
+  }
+
+  .legal-doc__table th,
+  .legal-doc__table td {
+    padding: 10px 12px;
+  }
+
+  /* 좁은 폭에서 구분 열이 한 글자씩 접히지 않게 한다 — 표는 자기 컨테이너 안에서 가로 스크롤된다. */
+  .legal-doc__table tbody th {
+    min-width: 6em;
   }
 }

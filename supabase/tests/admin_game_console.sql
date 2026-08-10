@@ -756,7 +756,8 @@ begin
   begin
     perform public.admin_upsert_event(
       'admin-game-event-online-b', 'admin-game-ip-a', '온라인 이벤트 B', '온라인', '진행중',
-      null, null, null, null, null, null
+      null, null, null, null, null, null,
+      target_previous_id => 'admin-game-event-online-b'
     );
   exception
     when check_violation then
@@ -772,7 +773,8 @@ begin
   begin
     perform public.admin_upsert_event(
       'admin-game-event-online-b', 'admin-game-ip-b', '온라인 이벤트 B', '오프라인', '진행중',
-      null, null, null, null, null, null
+      null, null, null, null, null, null,
+      target_previous_id => 'admin-game-event-online-b'
     );
   exception
     when check_violation then
@@ -785,7 +787,8 @@ $$;
 
 select public.admin_upsert_event(
   'admin-game-event-online-b', 'admin-game-ip-b', '온라인 이벤트 B 수정', '온라인', '진행중',
-  null, null, null, null, null, null
+  null, null, null, null, null, null,
+  target_previous_id => 'admin-game-event-online-b'
 );
 
 select 1 / case when (

@@ -14,18 +14,23 @@ import type {
   AdminTicketTypeRecord,
 } from '@/lib/admin/catalog.server';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
+import type { EmailDeliveryRecord } from '@/lib/email/deliveries.server';
+import type { AdminDrawTicketGrantRecord } from '@/lib/admin/draw-ticket-grants';
 import type { AdminInsights } from '@/lib/admin/insights.server';
 import type { AdminModerationRecords } from '@/lib/admin/moderation.server';
 import type { AdminMemberRole, AdminMemberSummary } from '@/lib/admin/members';
 import type { AdminNotificationConsoleData } from '@/lib/admin/notifications';
 import type { AdminOrderConsoleData } from '@/lib/admin/orders';
 import type { AdminProfileRecord } from '@/lib/admin/roles.server';
+import type { AdminSection } from '@/lib/admin/sections';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import { Header } from './Header';
 import { Sidebar } from './Sidebar';
 import { CardSection } from './sections/CardSection';
 import { CardPoolSection } from './sections/CardPoolSection';
 import { CurationSection } from './sections/CurationSection';
+import { EmailDeliverySection } from './sections/EmailDeliverySection';
+import { DrawTicketGrantSection } from './sections/DrawTicketGrantSection';
 import { EventSection } from './sections/EventSection';
 import { GoodSection } from './sections/GoodSection';
 import { GameSection } from './sections/GameSection';
@@ -39,7 +44,8 @@ import { RewardPolicySection } from './sections/RewardPolicySection';
 import { RolesSection } from './sections/Roles';
 import { TicketSection } from './sections/TicketSection';
 
-export type AdminSection = 'overview' | 'orders' | 'ip' | 'good' | 'card' | 'pool' | 'policy' | 'game' | 'event' | 'ticket' | 'curations' | 'notifications' | 'moderation' | 'members' | 'roles';
+
+export type { AdminSection };
 
 const SECTION_TITLES: Record<AdminSection, string> = {
   overview: '개요',
@@ -49,11 +55,13 @@ const SECTION_TITLES: Record<AdminSection, string> = {
   card: '카드 관리',
   pool: '카드풀 관리',
   policy: '뽑기권 발급 정책',
+  grants: '카드팩 수동 발급',
   game: '게임 관리',
   event: '이벤트 관리',
   ticket: '티켓 회차 관리',
   curations: '홈 큐레이션',
   notifications: '공지·알림 발송',
+  emails: '메일 발송 이력',
   moderation: '모더레이션',
   members: '회원 관리',
   roles: '역할 관리',
@@ -72,6 +80,9 @@ interface AdminProps {
   curationDraftId: string;
   curationOperationId: string;
   curations: AdminCurationRecord[];
+  drawTicketGrants: AdminDrawTicketGrantRecord[];
+  emailDeliveries: EmailDeliveryRecord[];
+  grantOperationId: string;
   initialSection?: AdminSection;
   insights: AdminInsights;
   moderation: AdminModerationRecords;
@@ -102,6 +113,9 @@ export function Admin({
   curationDraftId,
   curationOperationId,
   curations,
+  drawTicketGrants,
+  emailDeliveries,
+  grantOperationId,
   initialSection,
   insights,
   moderation,
@@ -143,6 +157,17 @@ export function Admin({
     () => records.ips
       .map((ip) => ({ id: ip.id, title: ip.title, archivedAt: ip.archivedAt })),
     [records.ips],
+  );
+  const eventOptions = useMemo(
+    () => records.events
+      .map((event) => ({ id: event.id, title: event.title, archivedAt: event.archivedAt })),
+    [records.events],
+  );
+  /* 굿즈 레코드의 표시 이름은 name 이다 — 대상 목록에서는 title 로 맞춘다. */
+  const goodOptions = useMemo(
+    () => records.goods
+      .map((good) => ({ id: good.id, title: good.name, archivedAt: good.archivedAt })),
+    [records.goods],
   );
   const selectedIp = useMemo(
     () => records.ips.find((ip) => ip.id === selectedIpId) ?? null,
@@ -217,6 +242,7 @@ export function Admin({
               <GoodSection
                 action={goodAction}
                 adjustmentId={stockAdjustmentId}
+                catalogIps={catalog.ips}
                 ipOptions={ipOptions}
                 onSelect={(good) => setSelectedGoodId(good?.id ?? null)}
                 pending={goodPending}
@@ -267,6 +293,13 @@ export function Admin({
                 selected={selectedPolicy}
               />
             )}
+            {active === 'grants' && (
+              <DrawTicketGrantSection
+                draftOperationId={grantOperationId}
+                grants={drawTicketGrants}
+                pools={records.cardPools}
+              />
+            )}
             {active === 'game' && (
               <GameSection
                 endOperationId={gameEndOperationId}
@@ -307,6 +340,8 @@ export function Admin({
               <CurationSection
                 draftActiveFrom={curationDraftActiveFrom}
                 draftId={curationDraftId}
+                eventOptions={eventOptions}
+                goodOptions={goodOptions}
                 ipOptions={ipOptions}
                 onOpenNotifications={() => setActive('notifications')}
                 onSelect={(curation) => setSelectedCurationId(curation?.id ?? null)}
@@ -314,6 +349,9 @@ export function Admin({
                 records={curations}
                 selected={selectedCuration}
               />
+            )}
+            {active === 'emails' && (
+              <EmailDeliverySection deliveries={emailDeliveries} />
             )}
             {active === 'notifications' && (
               <NotificationSection data={notificationConsole} operationId={notificationOperationId} />

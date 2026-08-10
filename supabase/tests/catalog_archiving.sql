@@ -672,7 +672,10 @@ select 1 / case when (
 
 select public.admin_upsert_good(
   'archive-life-good', 'archive-life-ip', '수명주기 굿즈 수정',
-  '테스트', 1000, null, 'soldout', null, null
+  '테스트', 1000, null, 'soldout', null, null,
+  '(주)아이콘즈', '대한민국', 'PVC', '80x80x30mm / 120g', '2026-07', '아이콘즈 CS', '02-000-0000',
+  null, null, null,
+  'archive-life-good'
 );
 select 1 / case when (
   select goods_count = 0 from public.ips where id = 'archive-life-ip'
@@ -696,7 +699,7 @@ select 1 / case when (
 
 select public.admin_upsert_card(
   'archive-life-card', 'archive-life-ip', '수명주기 카드 수정',
-  '001', 'N', null, null
+  '001', 'N', null, null, null, false, 'archive-life-card'
 );
 select 1 / case when (
   select cards_count = 0 from public.ips where id = 'archive-life-ip'
