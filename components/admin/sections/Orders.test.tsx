@@ -85,6 +85,7 @@ describe('OrdersSection', () => {
         cancellationRequest: {
           id: '33333333-3333-4333-8333-333333333333',
           status: 'requested' as const,
+          reasonType: 'change_of_mind' as const,
           requestedAt: '2026-07-14T07:00:00.000Z',
         },
       },
@@ -97,6 +98,7 @@ describe('OrdersSection', () => {
         cancellationRequest: {
           id: '33333333-3333-4333-8333-333333333333',
           status: 'needs_review' as const,
+          reasonType: 'change_of_mind' as const,
           requestedAt: '2026-07-14T07:00:00.000Z',
         },
       },
@@ -109,6 +111,7 @@ describe('OrdersSection', () => {
         cancellationRequest: {
           id: '33333333-3333-4333-8333-333333333333',
           status: 'processing' as const,
+          reasonType: 'change_of_mind' as const,
           requestedAt: '2026-07-14T07:00:00.000Z',
         },
       },
@@ -121,6 +124,7 @@ describe('OrdersSection', () => {
         cancellationRequest: {
           id: '33333333-3333-4333-8333-333333333333',
           status: 'rejected' as const,
+          reasonType: 'change_of_mind' as const,
           requestedAt: '2026-07-14T07:00:00.000Z',
           decidedAt: '2026-07-14T08:00:00.000Z',
           decisionNote: '배송 준비가 이미 완료되었습니다.',
@@ -135,6 +139,7 @@ describe('OrdersSection', () => {
         cancellationRequest: {
           id: '33333333-3333-4333-8333-333333333333',
           status: 'completed' as const,
+          reasonType: 'change_of_mind' as const,
           requestedAt: '2026-07-14T07:00:00.000Z',
           decidedAt: '2026-07-14T08:00:00.000Z',
         },
@@ -195,6 +200,7 @@ describe('OrdersSection', () => {
       cancellationRequest: {
         id: '33333333-3333-4333-8333-333333333333',
         status: 'requested',
+        reasonType: 'change_of_mind',
         requestedAt: '2026-07-14T07:00:00.000Z',
         decidedAt: null,
         decisionNote: null,
@@ -204,6 +210,96 @@ describe('OrdersSection', () => {
     expect(html).toContain('청약철회 승인');
     expect(html).toContain('요청 거절');
     expect(html).toContain('data-confirm="반품 물건 입고를 확인하셨나요? 승인하면 결제 취소와 재고 복원이 진행됩니다."');
+  });
+
+  /* 사유는 기한(7일 vs 3개월)과 반송비 부담 주체를 가른다. 운영자가 승인·거절을
+     누르는 화면에서 보여야 판단 근거가 된다(#196). */
+  it('하자·오배송 요청의 사유를 목록과 상세에 함께 노출한다', () => {
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+      status: 'shipping',
+      cancellationRequest: {
+        id: '33333333-3333-4333-8333-333333333333',
+        status: 'requested',
+        reasonType: 'defect',
+        requestedAt: '2026-07-14T07:00:00.000Z',
+        decidedAt: null,
+        decisionNote: null,
+      },
+    })} />);
+
+    expect(html).toContain('admin-order-row-reason');
+    expect(html).toContain(`aria-label="주문 ${ORDER_ID.slice(0, 8)} 선택 · 청약철회 상품 하자·오배송"`);
+    expect(html).toContain('상품 하자·오배송');
+    expect(html).toContain('admin-order-reason--defect');
+    expect(html).toContain('공급받은 날부터 3개월');
+    expect(html).toContain('반송비 회사 부담');
+  });
+
+  it('단순 변심 요청은 하자와 다른 사유 표시를 쓴다', () => {
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+      status: 'shipping',
+      cancellationRequest: {
+        id: '33333333-3333-4333-8333-333333333333',
+        status: 'requested',
+        reasonType: 'change_of_mind',
+        requestedAt: '2026-07-14T07:00:00.000Z',
+        decidedAt: null,
+        decisionNote: null,
+      },
+    })} />);
+
+    expect(html).toContain('단순 변심');
+    expect(html).toContain('admin-order-reason--change_of_mind');
+    expect(html).not.toContain('admin-order-reason--defect');
+    expect(html).toContain('공급받은 날부터 7일');
+    expect(html).toContain('반송비 이용자 부담');
+  });
+
+  it('청약철회 요청이 없는 주문은 사유 표시를 만들지 않는다', () => {
+    const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
+
+    expect(html).not.toContain('admin-order-reason');
+    expect(html).not.toContain('admin-order-row-reason');
+  });
+
+  /* 반송은 배송이 시작된 주문에서만 일어난다. 미출고 주문에 부담 주체를 띄우면
+     존재하지 않는 사건을 판단 근거로 제시하는 셈이다. */
+  it('미출고 주문에는 반송비 부담 주체를 표시하지 않는다', () => {
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+      status: 'paid',
+      cancellationRequest: {
+        id: '33333333-3333-4333-8333-333333333333',
+        status: 'requested',
+        reasonType: 'defect',
+        requestedAt: '2026-07-14T07:00:00.000Z',
+        decidedAt: null,
+        decisionNote: null,
+      },
+    })} />);
+
+    expect(html).toContain('상품 하자·오배송');
+    expect(html).toContain('공급받은 날부터 3개월');
+    expect(html).not.toContain('반송비');
+  });
+
+  /* 목록 배지는 승인 대기 건을 찾기 위한 것이다. 종료된 요청까지 남기면 처리
+     완료 주문이 미처리처럼 보인다. */
+  it.each(['completed', 'rejected'] as const)('처리가 끝난 %s 요청은 목록 배지를 만들지 않는다', (status) => {
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+      cancellationRequest: {
+        id: '33333333-3333-4333-8333-333333333333',
+        status,
+        reasonType: 'defect',
+        requestedAt: '2026-07-14T07:00:00.000Z',
+        decidedAt: '2026-07-14T08:00:00.000Z',
+        decisionNote: null,
+      },
+    })} />);
+
+    expect(html).not.toContain('admin-order-row-reason');
+    expect(html).toContain(`aria-label="주문 ${ORDER_ID.slice(0, 8)} 선택"`);
+    // 상세에는 남는다 — 어떤 사유로 종결됐는지는 사후에도 필요하다.
+    expect(html).toContain('admin-order-reason--defect');
   });
 
   it('배송 시작 폼에서 택배사와 운송장번호를 필수로 받는다', () => {
@@ -245,6 +341,7 @@ describe('OrdersSection', () => {
       cancellationRequest: {
         id: requestId,
         status: 'requested',
+        reasonType: 'change_of_mind',
         requestedAt: '2026-07-14T07:00:00.000Z',
       },
     })} />);

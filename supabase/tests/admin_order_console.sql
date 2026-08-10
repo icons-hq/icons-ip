@@ -66,6 +66,9 @@ select 1 / case when (
   and has_column_privilege('authenticated', 'public.order_cancellation_requests', 'decided_at', 'select')
   and has_column_privilege('authenticated', 'public.order_cancellation_requests', 'decision_note', 'select')
   and not has_column_privilege('authenticated', 'public.order_cancellation_requests', 'reason', 'select')
+  -- 사유 구분은 어드민 화면에 노출하지만 경로는 staff 게이트가 걸린 RPC 하나뿐이다.
+  -- 테이블 직접 읽기가 열리면 그 게이트를 우회한다(#196).
+  and not has_column_privilege('authenticated', 'public.order_cancellation_requests', 'reason_type', 'select')
   and not has_column_privilege('authenticated', 'public.order_cancellation_requests', 'requested_by', 'select')
   and not has_column_privilege('authenticated', 'public.order_cancellation_requests', 'decided_by', 'select')
   and not has_column_privilege('authenticated', 'public.order_cancellation_requests', 'last_error_code', 'select')
@@ -142,7 +145,8 @@ values
   ('admin-order-review', 'admin-order-ip', '검토 굿즈', '테스트', 20000, 'ok', 9),
   ('admin-order-shipping', 'admin-order-ip', '배송 굿즈', '테스트', 10000, 'ok', 9),
   ('admin-order-pending-paid', 'admin-order-ip', '결제행 보유 pending 굿즈', '테스트', 10000, 'ok', 9),
-  ('admin-order-post-shipping', 'admin-order-ip', '반품 굿즈', '테스트', 10000, 'ok', 9);
+  ('admin-order-post-shipping', 'admin-order-ip', '반품 굿즈', '테스트', 10000, 'ok', 9),
+  ('admin-order-defect', 'admin-order-ip', '하자 굿즈', '테스트', 10000, 'ok', 9);
 
 insert into public.orders (id, user_id, status, total, address, expires_at)
 values
@@ -151,7 +155,8 @@ values
   ('40000000-0000-4000-8000-000000000803', '00000000-0000-4000-8000-000000000803', 'paid', 20000, '{}'::jsonb, null),
   ('40000000-0000-4000-8000-000000000804', '00000000-0000-4000-8000-000000000803', 'paid', 10000, '{}'::jsonb, null),
   ('40000000-0000-4000-8000-000000000805', '00000000-0000-4000-8000-000000000803', 'pending', 10000, '{}'::jsonb, now() + interval '15 minutes'),
-  ('40000000-0000-4000-8000-000000000806', '00000000-0000-4000-8000-000000000803', 'paid', 10000, '{}'::jsonb, null);
+  ('40000000-0000-4000-8000-000000000806', '00000000-0000-4000-8000-000000000803', 'paid', 10000, '{}'::jsonb, null),
+  ('40000000-0000-4000-8000-000000000807', '00000000-0000-4000-8000-000000000803', 'paid', 10000, '{}'::jsonb, null);
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
@@ -163,7 +168,8 @@ values
   ('40000000-0000-4000-8000-000000000803', 'admin-order-review', 1, 20000, '검토 굿즈', '테스트', 'admin-order-ip'),
   ('40000000-0000-4000-8000-000000000804', 'admin-order-shipping', 1, 10000, '배송 굿즈', '테스트', 'admin-order-ip'),
   ('40000000-0000-4000-8000-000000000805', 'admin-order-pending-paid', 1, 10000, '결제행 보유 pending 굿즈', '테스트', 'admin-order-ip'),
-  ('40000000-0000-4000-8000-000000000806', 'admin-order-post-shipping', 1, 10000, '반품 굿즈', '테스트', 'admin-order-ip');
+  ('40000000-0000-4000-8000-000000000806', 'admin-order-post-shipping', 1, 10000, '반품 굿즈', '테스트', 'admin-order-ip'),
+  ('40000000-0000-4000-8000-000000000807', 'admin-order-defect', 1, 10000, '하자 굿즈', '테스트', 'admin-order-ip');
 
 insert into public.payments (
   id, user_id, purpose, ref_id, amount, status,
@@ -299,6 +305,14 @@ select public.request_order_cancellation(
   '사용자 청약철회',
   'change_of_mind'
 );
+-- 사유가 다른 요청을 하나 남긴다. 어드민 목록이 사유를 되돌려주지 않으면
+-- 운영자는 기한도 반품 배송비 부담 주체도 판단할 수 없다(#196).
+select public.request_order_cancellation(
+  '40000000-0000-4000-8000-000000000807',
+  '00000000-0000-4000-8000-000000000803',
+  '수령한 굿즈에 하자가 있습니다',
+  'defect'
+);
 
 reset role;
 
@@ -372,7 +386,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000803
 select set_config('request.jwt.claim.role', 'authenticated', true);
 
 select 1 / case when (
-  (select count(*) from public.order_cancellation_requests) = 4
+  (select count(*) from public.order_cancellation_requests) = 5
 ) then 1 else 0 end as assert_owner_reads_safe_cancellation_request_rows;
 
 do $$
@@ -856,10 +870,19 @@ select 1 / case when (
       and buyer_email = 'order-fan@example.test'
       and address = '{}'::jsonb
       and cancellation_request_status = 'completed'
+      and cancellation_reason_type = 'change_of_mind'
       and cancellation_requested_at is not null
       and cancellation_decided_at is not null
       and cancellation_decision_note is null
       and total_count = 1
+  )
+  -- 사유는 요청 행을 따라가야 한다. 기본값을 그대로 돌려주면 하자·오배송 요청이
+  -- 단순 변심으로 보이고, 3개월 기한과 판매자 귀책 배송비 판단이 무너진다.
+  and exists (
+    select 1
+    from public.admin_search_orders(null, null, null, '40000000-0000-4000-8000-000000000807', 20, 0)
+    where cancellation_request_status = 'requested'
+      and cancellation_reason_type = 'defect'
   )
 ) then 1 else 0 end as assert_admin_search_filters_in_database;
 

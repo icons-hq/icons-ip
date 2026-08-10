@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { normalizeCheckoutAddress } from '@/lib/checkout';
+import { isOrderWithdrawalReasonType, type OrderWithdrawalReasonType } from '@/lib/orders';
 import { orderShipment } from '@/lib/orders/shipment';
 import { createClient } from '@/lib/supabase/server';
 import {
@@ -29,6 +30,7 @@ interface SearchRow {
   updated_at: string;
   cancellation_request_id: string | null;
   cancellation_request_status: string | null;
+  cancellation_reason_type: string | null;
   cancellation_requested_at: string | null;
   cancellation_decided_at: string | null;
   cancellation_decision_note: string | null;
@@ -72,6 +74,15 @@ function requireRequestStatus(value: string): OrderCancellationRequestStatus {
     throw new Error('Failed to load admin orders: unsupported cancellation status');
   }
   return value as OrderCancellationRequestStatus;
+}
+
+// 사유 구분은 기한과 반품 배송비 부담 주체를 가른다. 모르는 값을 기본값으로 접으면
+// 운영자가 틀린 근거로 승인한다.
+function requireReasonType(value: string): OrderWithdrawalReasonType {
+  if (!isOrderWithdrawalReasonType(value)) {
+    throw new Error('Failed to load admin orders: unsupported cancellation reason type');
+  }
+  return value;
 }
 
 function buyerName(value: string | null, userId: string) {
@@ -166,6 +177,7 @@ export async function getAdminOrderRecords(
       ? {
           id: row.cancellation_request_id,
           status: requireRequestStatus(row.cancellation_request_status ?? ''),
+          reasonType: requireReasonType(row.cancellation_reason_type ?? ''),
           requestedAt: row.cancellation_requested_at ?? '',
           decidedAt: row.cancellation_decided_at,
           decisionNote: row.cancellation_decision_note,

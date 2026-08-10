@@ -11,6 +11,7 @@ import {
   type AdminOrderActionState,
 } from '@/app/admin/order-actions';
 import {
+  ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS,
   adminOrdersHref,
   type AdminOrderCancellationRequestRecord,
   type AdminOrderConsoleData,
@@ -20,10 +21,13 @@ import {
 } from '@/lib/admin/orders';
 import {
   formatOrderDateTime,
+  ORDER_WITHDRAWAL_DEADLINE_LABELS,
+  ORDER_WITHDRAWAL_REASON_LABELS,
   orderReferenceLabel,
   orderStatusMeta,
   paymentStatusLabel,
   refundStatusLabel,
+  type OrderWithdrawalReasonType,
 } from '@/lib/orders';
 import { SHIPPING_CARRIERS, type OrderShipment } from '@/lib/orders/shipment';
 import { formatKrw } from '../format';
@@ -46,6 +50,33 @@ const CANCELLATION_STATUS_LABELS: Record<OrderCancellationRequestStatus, string>
   completed: '취소 완료',
   rejected: '요청 거절',
 };
+
+/** 사유 배지. 하자·오배송은 기한과 배송비 부담이 달라 색으로도 구분한다. */
+function CancellationReasonBadge({
+  className,
+  reasonType,
+}: {
+  className?: string;
+  reasonType: OrderWithdrawalReasonType;
+}) {
+  return (
+    <span className={`${className ? `${className} ` : ''}admin-order-reason admin-order-reason--${reasonType}`}>
+      {ORDER_WITHDRAWAL_REASON_LABELS[reasonType]}
+    </span>
+  );
+}
+
+/** 승인·거절 판단이 남은 요청. 종결된 요청까지 목록에 표시하면 미처리 건과 섞인다. */
+const OPEN_CANCELLATION_STATUSES = new Set<OrderCancellationRequestStatus>([
+  'requested',
+  'processing',
+  'needs_review',
+]);
+
+function openCancellationRequest(order: AdminOrderRecord) {
+  const request = order.cancellationRequest;
+  return request && OPEN_CANCELLATION_STATUSES.has(request.status) ? request : null;
+}
 
 function confirmAction(event: React.FormEvent<HTMLFormElement>, message: string) {
   if (!window.confirm(message)) event.preventDefault();
@@ -347,6 +378,7 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
   const status = orderStatusMeta(order.status);
   const cancellationRequest = order.cancellationRequest;
   const canAdvanceOrderStatus = !cancellationRequest || cancellationRequest.status === 'rejected';
+  const hasShipped = order.status === 'shipping' || order.status === 'done';
 
   return (
     <article aria-labelledby="admin-order-detail-title" className="admin-order-detail card">
@@ -426,6 +458,17 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
               {formatOrderDateTime(cancellationRequest.requestedAt)}
             </time>
           </div>
+          <div className="admin-order-cancellation-reason">
+            <CancellationReasonBadge reasonType={cancellationRequest.reasonType} />
+            <small>
+              {ORDER_WITHDRAWAL_DEADLINE_LABELS[cancellationRequest.reasonType]}
+              {/* 반송은 배송이 시작된 주문에서만 일어난다. 미출고 건에 부담 주체를
+                  띄우면 존재하지 않는 사건을 판단 근거로 제시하게 된다. */}
+              {hasShipped
+                ? ` · ${ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS[cancellationRequest.reasonType]}`
+                : ''}
+            </small>
+          </div>
           {cancellationRequest.decisionNote ? (
             <p>처리 메모 · {cancellationRequest.decisionNote}</p>
           ) : null}
@@ -479,10 +522,16 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
             <strong>주문 {data.total.toLocaleString('ko-KR')}건</strong>
             <span className="faint mono">최근순</span>
           </div>
-          {data.items.map((order) => (
+          {data.items.map((order) => {
+            const openRequest = openCancellationRequest(order);
+            return (
             <Link
               aria-current={selected?.id === order.id ? 'true' : undefined}
-              aria-label={`주문 ${orderReferenceLabel(order.id)} 선택`}
+              /* aria-label이 행 내용을 덮어쓰므로 사유 배지를 이름에도 넣는다. 넣지
+                 않으면 스크린리더 사용자에게만 사유가 사라진다. */
+              aria-label={`주문 ${orderReferenceLabel(order.id)} 선택${
+                openRequest ? ` · 청약철회 ${ORDER_WITHDRAWAL_REASON_LABELS[openRequest.reasonType]}` : ''
+              }`}
               className={selected?.id === order.id ? 'admin-order-row on' : 'admin-order-row'}
               href={adminOrdersHref(data.filters, { orderId: order.id })}
               key={order.id}
@@ -490,9 +539,16 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
               <span className={`order-status order-status--${order.status}`}>{orderStatusMeta(order.status).label}</span>
               <strong>@{order.buyerName}</strong>
               <span className="faint mono">{orderReferenceLabel(order.id)}</span>
-              <span>{formatKrw(order.total)}</span>
+              <span className="admin-order-row-total">{formatKrw(order.total)}</span>
+              {openRequest ? (
+                <CancellationReasonBadge
+                  className="admin-order-row-reason"
+                  reasonType={openRequest.reasonType}
+                />
+              ) : null}
             </Link>
-          ))}
+            );
+          })}
           {!data.items.length ? <p className="muted">조건에 맞는 주문이 없습니다.</p> : null}
           {totalPages > 1 ? (
             <nav aria-label="주문 목록 페이지" className="admin-order-pagination">

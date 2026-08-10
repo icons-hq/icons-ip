@@ -5,6 +5,7 @@ import {
   CANCELLATION_FAILURE_MESSAGE,
   LEGAL_WITHDRAWAL_NOTICE,
   OrderCancellation,
+  WITHDRAWAL_REASON_LABELS,
   cancellationPresentation,
   submitOrderCancellation,
 } from './OrderCancellation';
@@ -12,6 +13,17 @@ import {
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: () => undefined }),
 }));
+
+/* 라벨을 어드민과 공유하는 토큰 조합으로 바꿨다(#196). 고객이 읽는 문구는
+   그대로여야 하므로 결과 문자열을 고정한다. */
+describe('WITHDRAWAL_REASON_LABELS', () => {
+  it('keeps the customer-facing wording that pairs each reason with its deadline', () => {
+    expect(WITHDRAWAL_REASON_LABELS).toEqual({
+      change_of_mind: '단순 변심 (공급받은 날부터 7일)',
+      defect: '상품 하자·오배송 (공급받은 날부터 3개월)',
+    });
+  });
+});
 
 describe('submitOrderCancellation', () => {
   it('posts the withdrawal reason and accepts only the public cancellation states', async () => {

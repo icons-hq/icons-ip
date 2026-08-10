@@ -1,3 +1,4 @@
+import type { OrderWithdrawalReasonType } from '@/lib/orders';
 import {
   isShippingCarrierCode,
   isTrackingNumber,
@@ -61,10 +62,21 @@ export interface AdminOrderRefundRecord {
 export interface AdminOrderCancellationRequestRecord {
   id: string;
   status: OrderCancellationRequestStatus;
+  reasonType: OrderWithdrawalReasonType;
   requestedAt: string;
   decidedAt: string | null;
   decisionNote: string | null;
 }
+
+/**
+ * 반송비 부담 주체는 귀책에서 갈린다. 승인 화면에서 운영자가 함께 봐야 한다.
+ * 표기는 배송정책 문서(`lib/legal/documents.ts` "반송비 부담")의 어휘를 따른다 —
+ * 운영자가 화면에서 본 말로 정책 원문을 찾을 수 있어야 한다.
+ */
+export const ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS: Record<OrderWithdrawalReasonType, string> = {
+  change_of_mind: '반송비 이용자 부담',
+  defect: '반송비 회사 부담',
+};
 
 export interface AdminOrderRecord {
   id: string;
