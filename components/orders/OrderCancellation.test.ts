@@ -14,7 +14,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 describe('submitOrderCancellation', () => {
-  it('posts without a body and accepts only the public cancellation states', async () => {
+  it('posts the withdrawal reason and accepts only the public cancellation states', async () => {
     const fetcher = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ status: 'requested' }), {
         status: 202,
@@ -24,22 +24,42 @@ describe('submitOrderCancellation', () => {
 
     await expect(submitOrderCancellation(
       '7ad4c967-3d48-44da-a665-64731ac33f62',
+      'change_of_mind',
       fetcher,
     )).resolves.toBe('requested');
 
     expect(fetcher).toHaveBeenCalledWith(
       '/api/orders/7ad4c967-3d48-44da-a665-64731ac33f62/cancel',
-      { method: 'POST' },
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ reasonType: 'change_of_mind' }),
+      },
     );
-    expect(fetcher.mock.calls[0]?.[1]).not.toHaveProperty('body');
+  });
+
+  it('기한이 지난 요청을 별도 상태로 구분해 돌려준다', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: { code: 'deadline_expired' } }), {
+        status: 409,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
+    await expect(submitOrderCancellation('order-id', 'change_of_mind', fetcher))
+      .resolves.toBe('deadline_expired');
   });
 
   it('returns false for HTTP failures without exposing the response body', async () => {
-    const json = vi.fn(() => Promise.resolve({ error: 'provider-secret' }));
+    // 실패 응답에서 읽는 값은 기한 초과 여부를 가르는 error.code 하나뿐이다.
+    // 그 밖의 본문은 어떤 형태로도 호출자에게 전달되지 않는다.
+    const json = vi.fn(() => Promise.resolve({ error: { detail: 'provider-secret' } }));
     const fetcher = vi.fn().mockResolvedValue({ ok: false, json });
 
-    await expect(submitOrderCancellation('order-id', fetcher)).resolves.toBe(false);
-    expect(json).not.toHaveBeenCalled();
+    const result = await submitOrderCancellation('order-id', 'change_of_mind', fetcher);
+
+    expect(result).toBe(false);
+    expect(JSON.stringify(result)).not.toContain('provider-secret');
   });
 
   it('fails closed for a successful response with an unexpected status', async () => {
@@ -48,7 +68,8 @@ describe('submitOrderCancellation', () => {
       json: vi.fn().mockResolvedValue({ status: 'provider-private-state' }),
     });
 
-    await expect(submitOrderCancellation('order-id', fetcher)).resolves.toBe(false);
+    await expect(submitOrderCancellation('order-id', 'change_of_mind', fetcher))
+      .resolves.toBe(false);
   });
 
   it('separates pre-payment cancellation from paid-order withdrawal', () => {
@@ -158,7 +179,8 @@ describe('submitOrderCancellation', () => {
   });
 
   it('keeps the statutory notice and fail-closed error copy exact', () => {
-    expect(LEGAL_WITHDRAWAL_NOTICE).toBe('계약내용에 관한 서면을 받은 날부터 7일 이내 청약철회를 요청할 수 있습니다. 재화 공급이 더 늦으면 공급받거나 공급이 시작된 날부터 7일입니다. 상품 훼손·사용 등 법정 제한 사유가 있으면 제한될 수 있습니다.');
+    // 고지 문구는 실제로 강제되는 기한과 일치해야 한다(#189).
+    expect(LEGAL_WITHDRAWAL_NOTICE).toBe('굿즈를 공급받은 날부터 7일 이내에 단순 변심 청약철회를 요청할 수 있습니다. 상품 하자나 오배송은 공급받은 날부터 3개월 이내에 요청할 수 있습니다. 상품 훼손·사용 등 법정 제한 사유가 있으면 제한될 수 있습니다.');
     expect(CANCELLATION_FAILURE_MESSAGE).toBe('취소 요청을 처리하지 못했습니다. 주문 상태를 새로 확인한 뒤 다시 시도해주세요.');
   });
 });

@@ -17,17 +17,44 @@ const REFUND_TIMING_NOTICE = '결제 취소가 처리되어도 결제수단에 �
 
 type CancellationFetch = (
   input: string,
-  init: { method: 'POST' },
+  init: { method: 'POST'; headers: Record<string, string>; body: string },
 ) => Promise<Pick<Response, 'ok' | 'json'>>;
 
-type CancellationSubmissionResult = 'requested' | 'canceled' | 'already_canceled' | false;
+// 청약철회 기한은 사유에 따라 다르다(#189). 단순 변심은 7일, 하자·오배송은
+// 3개월이다. 기한 판정 자체는 RPC가 하고 여기서는 사유만 전달한다.
+export const WITHDRAWAL_REASON_TYPES = ['change_of_mind', 'defect'] as const;
+export type WithdrawalReasonType = (typeof WITHDRAWAL_REASON_TYPES)[number];
+
+export const WITHDRAWAL_REASON_LABELS: Record<WithdrawalReasonType, string> = {
+  change_of_mind: '단순 변심 (공급받은 날부터 7일)',
+  defect: '상품 하자·오배송 (공급받은 날부터 3개월)',
+};
+
+export const DEADLINE_EXPIRED_MESSAGE = '청약철회 기한이 지난 주문입니다. 하자나 오배송이라면 고객센터로 문의해주세요.';
+
+type CancellationSubmissionResult =
+  | 'requested'
+  | 'canceled'
+  | 'already_canceled'
+  | 'deadline_expired'
+  | false;
 
 export async function submitOrderCancellation(
   orderId: string,
+  reasonType: WithdrawalReasonType,
   fetcher: CancellationFetch = fetch,
 ): Promise<CancellationSubmissionResult> {
-  const response = await fetcher(`/api/orders/${orderId}/cancel`, { method: 'POST' });
-  if (!response.ok) return false;
+  const response = await fetcher(`/api/orders/${orderId}/cancel`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ reasonType }),
+  });
+  if (!response.ok) {
+    // 기한 초과는 실패가 아니라 결과다. 재시도 안내 대신 사유를 알려야 한다.
+    const failure: unknown = await response.json().catch(() => null);
+    const code = (failure as { error?: { code?: unknown } } | null)?.error?.code;
+    return code === 'deadline_expired' ? 'deadline_expired' : false;
+  }
   const body: unknown = await response.json().catch(() => null);
   if (!body || typeof body !== 'object') return false;
   const status = (body as { status?: unknown }).status;
@@ -197,14 +224,25 @@ interface OrderCancellationProps {
   cancellationRequest: OrderCancellationRequestSummary | null;
 }
 
-type SubmissionState = 'idle' | 'confirming' | 'submitting' | 'requested' | 'success' | 'error';
+type SubmissionState =
+  | 'idle'
+  | 'confirming'
+  | 'submitting'
+  | 'requested'
+  | 'success'
+  | 'expired'
+  | 'error';
 
 export function OrderCancellation({ cancellationRequest, orderId, status, refund }: OrderCancellationProps) {
   const router = useRouter();
   const [submission, setSubmission] = useState<SubmissionState>('idle');
+  const [reasonType, setReasonType] = useState<WithdrawalReasonType>('change_of_mind');
   const openButtonRef = useRef<HTMLButtonElement>(null);
   const shouldRestoreFocus = useRef(false);
   const presentation = cancellationPresentation(status, refund, cancellationRequest);
+  // 배송 전 취소는 기한 판정 대상이 아니다. 사유를 물어도 결과가 같으므로
+  // 실물이 고객 손에 갈 수 있는 시점부터만 선택을 받는다.
+  const asksReason = status === 'shipping' || status === 'done';
 
   useEffect(() => {
     if (submission !== 'idle' || !shouldRestoreFocus.current) return;
@@ -222,13 +260,19 @@ export function OrderCancellation({ cancellationRequest, orderId, status, refund
 
     let result: CancellationSubmissionResult = false;
     try {
-      result = await submitOrderCancellation(orderId);
+      result = await submitOrderCancellation(orderId, asksReason ? reasonType : 'change_of_mind');
     } catch {
       result = false;
     }
 
     if (!result) {
       setSubmission('error');
+      router.refresh();
+      return;
+    }
+
+    if (result === 'deadline_expired') {
+      setSubmission('expired');
       router.refresh();
       return;
     }
@@ -263,6 +307,23 @@ export function OrderCancellation({ cancellationRequest, orderId, status, refund
             <div className="order-cancellation-confirm">
               <strong>{presentation.confirmTitle}</strong>
               <p>{presentation.confirmBody}</p>
+              {asksReason && (
+                <fieldset className="order-cancellation-reason">
+                  <legend>청약철회 사유</legend>
+                  {WITHDRAWAL_REASON_TYPES.map((value) => (
+                    <label key={value}>
+                      <input
+                        type="radio"
+                        name="withdrawal-reason-type"
+                        value={value}
+                        checked={reasonType === value}
+                        onChange={() => setReasonType(value)}
+                      />
+                      {WITHDRAWAL_REASON_LABELS[value]}
+                    </label>
+                  ))}
+                </fieldset>
+              )}
               <div>
                 <button autoFocus className="btn btn-ghost" type="button" onClick={closeConfirmation}>돌아가기</button>
                 <button className="btn order-cancellation-submit" type="button" onClick={() => void cancelOrder()}>{presentation.actionLabel}</button>
@@ -274,6 +335,8 @@ export function OrderCancellation({ cancellationRequest, orderId, status, refund
             <p className="order-cancellation-feedback order-cancellation-feedback--success" role="status">주문 취소 처리를 완료했습니다. 최신 상태를 불러오고 있어요.</p>
           ) : submission === 'requested' ? (
             <p className="order-cancellation-feedback order-cancellation-feedback--success" role="status">청약철회 요청을 접수했습니다. 최신 상태를 불러오고 있어요.</p>
+          ) : submission === 'expired' ? (
+            <p className="order-cancellation-feedback order-cancellation-feedback--error" role="alert">{DEADLINE_EXPIRED_MESSAGE}</p>
           ) : (
             <>
               {submission === 'error' && <p className="order-cancellation-feedback order-cancellation-feedback--error" role="alert">{CANCELLATION_FAILURE_MESSAGE}</p>}

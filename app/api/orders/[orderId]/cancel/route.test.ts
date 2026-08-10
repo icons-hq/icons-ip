@@ -48,10 +48,11 @@ vi.mock('@/lib/supabase/server', () => ({
   },
 }));
 
-function request(origin = 'https://icons.local') {
+function request(origin = 'https://icons.local', body?: unknown) {
   return new Request(`https://icons.local/api/orders/${ORDER_UUID}/cancel`, {
     method: 'POST',
-    headers: { Origin: origin },
+    headers: { Origin: origin, 'content-type': 'application/json' },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 }
 
@@ -148,9 +149,55 @@ describe('POST /api/orders/[orderId]/cancel', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('request_order_cancellation', {
       p_order_id: ORDER_UUID,
       p_reason: '사용자 주문 취소',
+      p_reason_type: 'change_of_mind',
       p_user_id: USER_ID,
     });
     expect(JSON.stringify(mocks.rpc.mock.calls)).not.toContain('paymentKey');
+  });
+
+  it('하자·오배송 사유를 RPC에 그대로 전달한다', async () => {
+    const response = await POST(
+      request('https://icons.local', { reasonType: 'defect' }),
+      context(),
+    );
+
+    expect(response.status).toBe(202);
+    expect(mocks.rpc).toHaveBeenCalledWith('request_order_cancellation', {
+      p_order_id: ORDER_UUID,
+      p_reason: '상품 하자·오배송',
+      p_reason_type: 'defect',
+      p_user_id: USER_ID,
+    });
+  });
+
+  it('사유를 명시하지 않으면 기한이 가장 짧은 단순 변심으로 처리한다', async () => {
+    const response = await POST(request(), context());
+
+    expect(response.status).toBe(202);
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'request_order_cancellation',
+      expect.objectContaining({ p_reason_type: 'change_of_mind' }),
+    );
+  });
+
+  it('허용되지 않은 사유는 RPC를 호출하지 않고 400으로 막는다', async () => {
+    const response = await POST(
+      request('https://icons.local', { reasonType: 'free_refund' }),
+      context(),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: { code: 'invalid_reason_type' } });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('기한이 지난 요청을 409로 구분해 응답한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'deadline_expired', error: null });
+
+    const response = await POST(request(), context());
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ error: { code: 'deadline_expired' } });
   });
 
   it('결제 없는 pending 주문의 자동 완료를 canceled로 응답한다', async () => {

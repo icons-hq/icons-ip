@@ -6,9 +6,9 @@ begin;
 -- ACL: user request is server-only; admin decisions stay authenticated + DB-gated.
 -- ---------------------------------------------------------------------------
 select 1 / case when (
-  not has_function_privilege('anon', 'public.request_order_cancellation(uuid,uuid,text)', 'execute')
-  and not has_function_privilege('authenticated', 'public.request_order_cancellation(uuid,uuid,text)', 'execute')
-  and has_function_privilege('service_role', 'public.request_order_cancellation(uuid,uuid,text)', 'execute')
+  not has_function_privilege('anon', 'public.request_order_cancellation(uuid,uuid,text,text)', 'execute')
+  and not has_function_privilege('authenticated', 'public.request_order_cancellation(uuid,uuid,text,text)', 'execute')
+  and has_function_privilege('service_role', 'public.request_order_cancellation(uuid,uuid,text,text)', 'execute')
 ) then 1 else 0 end as assert_request_rpc_is_service_only;
 
 select 1 / case when (
@@ -210,7 +210,8 @@ set local role service_role;
 select public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000801',
   '00000000-0000-4000-8000-000000000803',
-  '사용자 주문 취소'
+  '사용자 주문 취소',
+  'change_of_mind'
 );
 
 reset role;
@@ -226,7 +227,8 @@ set local role service_role;
 select public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000801',
   '00000000-0000-4000-8000-000000000803',
-  '사용자 주문 취소'
+  '사용자 주문 취소',
+  'change_of_mind'
 );
 reset role;
 
@@ -282,17 +284,20 @@ set local role service_role;
 select public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000802',
   '00000000-0000-4000-8000-000000000803',
-  '사용자 청약철회'
+  '사용자 청약철회',
+  'change_of_mind'
 );
 select public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000803',
   '00000000-0000-4000-8000-000000000803',
-  '사용자 청약철회'
+  '사용자 청약철회',
+  'change_of_mind'
 );
 select public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000805',
   '00000000-0000-4000-8000-000000000803',
-  '사용자 청약철회'
+  '사용자 청약철회',
+  'change_of_mind'
 );
 
 reset role;
@@ -799,7 +804,8 @@ $$;
 select public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000806',
   '00000000-0000-4000-8000-000000000803',
-  '수령 후 반품 요청'
+  '수령 후 반품 요청',
+  'change_of_mind'
 );
 
 reset role;

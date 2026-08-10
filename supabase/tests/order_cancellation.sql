@@ -29,9 +29,9 @@ select 1 / case when (
 
 select 1 / case when (
   to_regprocedure('public.claim_order_cancellation(uuid,uuid)') is null
-  and not has_function_privilege('anon', 'public.request_order_cancellation(uuid,uuid,text)', 'execute')
-  and not has_function_privilege('authenticated', 'public.request_order_cancellation(uuid,uuid,text)', 'execute')
-  and has_function_privilege('service_role', 'public.request_order_cancellation(uuid,uuid,text)', 'execute')
+  and not has_function_privilege('anon', 'public.request_order_cancellation(uuid,uuid,text,text)', 'execute')
+  and not has_function_privilege('authenticated', 'public.request_order_cancellation(uuid,uuid,text,text)', 'execute')
+  and has_function_privilege('service_role', 'public.request_order_cancellation(uuid,uuid,text,text)', 'execute')
 ) then 1 else 0 end as assert_durable_request_replaces_legacy_claim_rpc;
 
 select 1 / case when (
@@ -303,20 +303,23 @@ set local role service_role;
 select 1 / case when public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000709',
   '00000000-0000-4000-8000-000000000702',
-  '다른 사용자 취소 요청'
+  '다른 사용자 취소 요청',
+  'change_of_mind'
 ) = 'not_found' then 1 else 0 end as assert_other_user_cannot_request_order_cancellation;
 
 select 1 / case when public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000709',
   '00000000-0000-4000-8000-000000000701',
-  '사용자 청약철회 요청'
+  '사용자 청약철회 요청',
+  'change_of_mind'
 ) = 'requested' then 1 else 0 end as assert_owner_requests_paid_order_cancellation;
 
 -- 같은 요청 재시도는 기존 durable 요청을 그대로 반환한다.
 select 1 / case when public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000709',
   '00000000-0000-4000-8000-000000000701',
-  '사용자 청약철회 요청'
+  '사용자 청약철회 요청',
+  'change_of_mind'
 ) = 'already_requested' then 1 else 0 end as assert_cancellation_request_is_idempotent;
 
 reset role;
@@ -563,7 +566,8 @@ set local role service_role;
 select 1 / case when public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000702',
   '00000000-0000-4000-8000-000000000701',
-  '사용자 청약철회 요청'
+  '사용자 청약철회 요청',
+  'change_of_mind'
 ) = 'requested' then 1 else 0 end as assert_active_order_request_is_durable;
 reset role;
 
@@ -682,7 +686,8 @@ set local role service_role;
 select 1 / case when public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000703',
   '00000000-0000-4000-8000-000000000701',
-  '사용자 청약철회 요청'
+  '사용자 청약철회 요청',
+  'change_of_mind'
 ) = 'requested' then 1 else 0 end as assert_paid_order_requested_before_evidence_check;
 reset role;
 
@@ -851,13 +856,15 @@ set local role service_role;
 select 1 / case when public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000704',
   '00000000-0000-4000-8000-000000000701',
-  '배송 중 청약철회 요청'
+  '배송 중 청약철회 요청',
+  'change_of_mind'
 ) = 'requested' then 1 else 0 end as assert_shipping_order_accepts_withdrawal_request;
 
 select 1 / case when public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000705',
   '00000000-0000-4000-8000-000000000701',
-  '수령 후 청약철회 요청'
+  '수령 후 청약철회 요청',
+  'change_of_mind'
 ) = 'requested' then 1 else 0 end as assert_done_order_accepts_withdrawal_request;
 
 reset role;
