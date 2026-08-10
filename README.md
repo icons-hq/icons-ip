@@ -142,7 +142,7 @@ npm run hong-sil:download -- \
 
 GitHub Actions는 `CI/CD Pipeline` workflow 하나로 PR 검증(lint/test/build/Supabase local lint), Vercel preview 배포, production 배포를 처리한다.
 
-- `pull_request`: `validate` 통과 후 같은 repo 브랜치 PR이면 `deploy-vercel-preview`를 실행한다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
+- `pull_request`: `validate` 통과 후 같은 repo 브랜치 PR이면 `deploy-supabase-preview`를 실행하고, 그 다음 `deploy-vercel-preview`를 실행한다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
 - `merge_group`: `validate` job만 실행한다.
 - `push` to `main`: `validate` 통과 후 `deploy-supabase`를 실행하고, 그 다음 `deploy-vercel`을 실행한다.
 - `workflow_dispatch`: 수동 실행용 trigger다. 현재 수동 실행에서는 `validate`만 실행된다.
@@ -157,6 +157,8 @@ Vercel Git 연결은 프로젝트 메타데이터용으로 유지하지만, `ver
 SUPABASE_ACCESS_TOKEN
 SUPABASE_PROJECT_ID
 SUPABASE_DB_PASSWORD
+SUPABASE_PREVIEW_PROJECT_ID
+SUPABASE_PREVIEW_DB_PASSWORD
 VERCEL_TOKEN
 VERCEL_ORG_ID
 VERCEL_PROJECT_ID
@@ -169,6 +171,43 @@ CRON_SECRET
 - deployment secret 검사는 각 deploy job 안에서 수행한다. 누락 시 job이 즉시 실패하며, 필요한 GitHub Secret을 설정한 뒤 rerun해야 한다.
 - `.vercel/` 연결 파일은 commit하지 않고, workflow가 `VERCEL_ORG_ID`와 `VERCEL_PROJECT_ID`로 Vercel 원격 build/deploy를 요청한다.
 - Vercel 환경변수는 sensitive 상태로 preview와 production에 둔다. production deploy job은 GitHub `CRON_SECRET`을 Vercel production sensitive env에 stdin으로 동기화한 뒤 배포한다. 원격 build 안의 `prebuild` guard가 Supabase/Auth/결제 필수 변수, production `CRON_SECRET`, 토스 결제위젯 키 모드와 임시 테스트 결제 override를 검증하며 누락·불일치 시 배포를 실패시킨다. development 환경변수는 별도 요청 전까지 추가하지 않는다.
+
+## 프리뷰 환경
+
+PR 프리뷰는 **전용 Supabase 프로젝트**를 본다. 결정 배경과 trade-off는 [ADR-0006](docs/adr/0006-preview-supabase-project.md)에 있다. `deploy-supabase-preview`가 프리뷰 배포 전에 마이그레이션을 올리고 카탈로그 seed를 다시 적용하므로, 스키마를 바꾸는 PR도 프리뷰에서 앱과 DB의 버전이 맞는다.
+
+프리뷰 Supabase secret이 없으면 `deploy-vercel-preview`는 **건너뛴다**. 프리뷰가 운영 DB에 붙는 상태로 배포하지 않기 위한 기본값이며, 이유는 workflow warning과 job summary에 남는다.
+
+### 최초 구성 (사람이 해야 하는 단계)
+
+DB 비밀번호를 만들고 다루는 단계가 있어 자동화하지 않는다.
+
+1. Supabase 대시보드에서 조직 `icons`에 프로젝트 `icons-ip-preview`를 만든다. region은 프로덕션과 같은 `ap-northeast-2`. 월 $10이 든다.
+2. GitHub Secrets에 프리뷰 프로젝트 ref와 DB 비밀번호를 넣는다.
+
+   ```bash
+   gh secret set SUPABASE_PREVIEW_PROJECT_ID
+   gh secret set SUPABASE_PREVIEW_DB_PASSWORD
+   ```
+
+3. Vercel `icons-ip`의 **Preview 스코프만** 프리뷰 프로젝트 값으로 바꾼다.
+   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+   - `SUPABASE_SERVICE_ROLE_KEY` — 지금은 Preview·Production이 같은 항목 하나를 공유한다. Preview 스코프를 떼어내고 프리뷰 전용 항목을 새로 만들어야 한다.
+   - `ICONS_CATALOG_SOURCE=supabase`를 추가한다. 프리뷰 공개 화면도 프리뷰 DB를 읽어 실제 스테이징이 된다.
+   - `ICONS_PROTOTYPE`은 건드리지 않는다. 프로토타입 공유 배포가 이 값만 읽는다.
+4. 프리뷰 Supabase 프로젝트의 Auth Site URL과 redirect allow-list에 프리뷰 도메인 callback을 넣는다. 프리뷰에는 custom SMTP를 설정하지 않으므로 가입 확인 메일은 발송되지 않는다.
+
+`public-media`·`admin-artwork-staging` 버킷은 마이그레이션이 만들기 때문에 첫 `supabase db push`에서 함께 생성된다 — 프리뷰에서 어드민 아트워크 업로드까지 QA할 수 있다.
+
+### 구성 확인
+
+프리뷰 배포가 실제로 프리뷰 DB를 보는지는 배포된 번들에서 직접 확인한다. Vercel의 sensitive 환경변수는 값을 다시 읽을 수 없으므로 이 확인이 유일하게 신뢰할 수 있는 방법이다.
+
+```bash
+curl -s "$PREVIEW_URL" | grep -o '/_next/static/chunks/[^"]*\.js' | sort -u | while read -r chunk; do curl -s "$PREVIEW_URL$chunk"; done | grep -o 'https://[a-z0-9]\{20\}\.supabase\.co' | sort -u
+```
+
+프로덕션 ref가 나오면 Preview 환경변수가 아직 프로덕션을 가리키고 있다는 뜻이다.
 
 ## 프로젝트 지도
 

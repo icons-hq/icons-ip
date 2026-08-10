@@ -12,6 +12,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - issue 생성/수정, PR 생성, push, 배포, Supabase remote 적용, 외부 서비스 설정 변경은 사용자가 명시적으로 요청했거나 직전에 확인한 경우에만 수행한다.
 - Vercel Git 자동 배포는 `vercel.json`의 `git.deploymentEnabled: false`로 비활성화되어 있다. Preview와 production 배포는 GitHub Actions의 Vercel CLI 경로만 사용한다.
+- PR preview는 전용 Supabase 프로젝트를 본다. preview 배포 전에 `deploy-supabase-preview`가 migration을 올리므로 스키마 변경 PR도 preview에서 앱과 DB 버전이 맞는다. preview가 production 프로젝트를 가리키게 만들지 않고, preview DB에 운영 데이터를 넣지 않는다(ADR-0006).
 
 ## 공통 참조 규칙
 
