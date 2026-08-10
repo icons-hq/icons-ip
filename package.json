@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "hong-sil:download": "node scripts/hong-sil-downloader.mjs",
     "postinstall": "mkdir -p public/box2d && cp node_modules/box2d-wasm/dist/es/Box2D.wasm node_modules/box2d-wasm/dist/es/Box2D.simd.wasm public/box2d/"
   },
   "dependencies": {
@@ -33,6 +34,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "playwright-core": "^1.62.1",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.9"

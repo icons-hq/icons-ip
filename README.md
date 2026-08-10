@@ -110,7 +110,33 @@ npm run test   # Vitest 단위 테스트
 npm run lint   # ESLint
 npm run build  # production build
 npm run start  # build 결과 실행
+npm run hong-sil:download # 홍실퀘스트 신규·누락 이미지 다운로드
 ```
+
+### 홍실퀘스트 이미지 다운로더
+
+저작권자에게 허가받은 운영 자료를 갱신할 때 다음 명령을 실행한다. 로컬에 설치된 Google Chrome으로 회차 목록과 이미지 API를 확인하고, 기본적으로 `outputs/hong-sil-quest-webtoon-source/`에 회차별 폴더를 만든다.
+
+```bash
+npm run hong-sil:download
+```
+
+재실행하면 검증을 통과한 기존 회차와 이미지는 건너뛰고 새 회차, 누락 파일, 손상 파일만 다시 받는다. 이미지 서버가 응답하지 않으면 페이지가 제공한 대체 CDN URL을 순서대로 시도한다. 완료 후 다음 파일로 결과를 확인할 수 있다.
+
+- `source-manifest.json`: 회차, 원문 URL, 페이지별 이미지 출처
+- `download-report.json`: 신규·기존·실패 이미지 수와 실패 원인
+- `asset-index.json`: 이미지 크기, 포맷, 파일 크기, SHA-256 검증값
+
+다른 목록 URL이나 저장 위치, 동시 요청 수를 지정하려면 `--` 뒤에 옵션을 전달한다.
+
+```bash
+npm run hong-sil:download -- \
+  --url https://sbxh9.com/webtoon/17586 \
+  --output outputs/hong-sil-quest-webtoon-source \
+  --concurrency 10
+```
+
+`--concurrency`는 1~50을 허용한다. 일부 파일이 끝까지 실패하면 성공한 파일과 보고서는 그대로 보존하고 종료 코드 `1`을 반환하므로, `download-report.json`을 확인한 뒤 같은 명령을 다시 실행하면 된다.
 
 ## CI/CD
 
