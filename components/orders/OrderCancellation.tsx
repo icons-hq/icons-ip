@@ -5,10 +5,14 @@ import { useEffect, useRef, useState } from 'react';
 import {
   formatOrderDateTime,
   LEGAL_WITHDRAWAL_NOTICE,
+  ORDER_WITHDRAWAL_DEADLINE_LABELS,
+  ORDER_WITHDRAWAL_REASON_LABELS,
+  ORDER_WITHDRAWAL_REASON_TYPES,
   refundStatusLabel,
   type OrderCancellationRequestSummary,
   type OrderDetailStatus,
   type OrderRefundSummary,
+  type OrderWithdrawalReasonType,
 } from '../../lib/orders';
 
 export { LEGAL_WITHDRAWAL_NOTICE };
@@ -20,14 +24,12 @@ type CancellationFetch = (
   init: { method: 'POST'; headers: Record<string, string>; body: string },
 ) => Promise<Pick<Response, 'ok' | 'json'>>;
 
-// 청약철회 기한은 사유에 따라 다르다(#189). 단순 변심은 7일, 하자·오배송은
-// 3개월이다. 기한 판정 자체는 RPC가 하고 여기서는 사유만 전달한다.
-export const WITHDRAWAL_REASON_TYPES = ['change_of_mind', 'defect'] as const;
-export type WithdrawalReasonType = (typeof WITHDRAWAL_REASON_TYPES)[number];
-
-export const WITHDRAWAL_REASON_LABELS: Record<WithdrawalReasonType, string> = {
-  change_of_mind: '단순 변심 (공급받은 날부터 7일)',
-  defect: '상품 하자·오배송 (공급받은 날부터 3개월)',
+// 청약철회 기한은 사유에 따라 다르다(#189). 기한 판정 자체는 RPC가 하고 여기서는
+// 사유만 전달한다. 값과 기한 문구는 어드민 콘솔과 공유한다(#196) — 다만 고객에게는
+// 사유와 기한을 한 줄로 붙여 보여준다.
+export const WITHDRAWAL_REASON_LABELS: Record<OrderWithdrawalReasonType, string> = {
+  change_of_mind: `${ORDER_WITHDRAWAL_REASON_LABELS.change_of_mind} (${ORDER_WITHDRAWAL_DEADLINE_LABELS.change_of_mind})`,
+  defect: `${ORDER_WITHDRAWAL_REASON_LABELS.defect} (${ORDER_WITHDRAWAL_DEADLINE_LABELS.defect})`,
 };
 
 export const DEADLINE_EXPIRED_MESSAGE = '청약철회 기한이 지난 주문입니다. 하자나 오배송이라면 고객센터로 문의해주세요.';
@@ -41,7 +43,7 @@ type CancellationSubmissionResult =
 
 export async function submitOrderCancellation(
   orderId: string,
-  reasonType: WithdrawalReasonType,
+  reasonType: OrderWithdrawalReasonType,
   fetcher: CancellationFetch = fetch,
 ): Promise<CancellationSubmissionResult> {
   const response = await fetcher(`/api/orders/${orderId}/cancel`, {
@@ -236,7 +238,7 @@ type SubmissionState =
 export function OrderCancellation({ cancellationRequest, orderId, status, refund }: OrderCancellationProps) {
   const router = useRouter();
   const [submission, setSubmission] = useState<SubmissionState>('idle');
-  const [reasonType, setReasonType] = useState<WithdrawalReasonType>('change_of_mind');
+  const [reasonType, setReasonType] = useState<OrderWithdrawalReasonType>('change_of_mind');
   const openButtonRef = useRef<HTMLButtonElement>(null);
   const shouldRestoreFocus = useRef(false);
   const presentation = cancellationPresentation(status, refund, cancellationRequest);
@@ -310,7 +312,7 @@ export function OrderCancellation({ cancellationRequest, orderId, status, refund
               {asksReason && (
                 <fieldset className="order-cancellation-reason">
                   <legend>청약철회 사유</legend>
-                  {WITHDRAWAL_REASON_TYPES.map((value) => (
+                  {ORDER_WITHDRAWAL_REASON_TYPES.map((value) => (
                     <label key={value}>
                       <input
                         type="radio"

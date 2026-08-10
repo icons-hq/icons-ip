@@ -107,6 +107,7 @@ describe('getAdminOrderRecords', () => {
         updated_at: '2026-07-14T06:01:00.000Z',
         cancellation_request_id: '33333333-3333-4333-8333-333333333333',
         cancellation_request_status: 'requested',
+        cancellation_reason_type: 'defect',
         cancellation_requested_at: '2026-07-14T07:00:00.000Z',
         cancellation_decided_at: null,
         cancellation_decision_note: null,
@@ -172,6 +173,7 @@ describe('getAdminOrderRecords', () => {
         cancellationRequest: {
           id: '33333333-3333-4333-8333-333333333333',
           status: 'requested',
+          reasonType: 'defect',
           requestedAt: '2026-07-14T07:00:00.000Z',
           decidedAt: null,
           decisionNote: null,
@@ -183,7 +185,9 @@ describe('getAdminOrderRecords', () => {
         },
       }],
     });
-    expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|raw|reason/);
+    // 사유 구분(reasonType)은 운영 판단에 필요해 노출하지만, 고객이 적은 자유
+    // 서술 reason은 여전히 새면 안 된다. 키 이름으로 정확히 구분한다.
+    expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|"raw"|"reason"/);
     expect(records.find((record) => record.table === 'payments')?.select).toBe(
       'id,ref_id,amount,status,created_at',
     );
@@ -233,5 +237,36 @@ describe('getAdminOrderRecords', () => {
       errors: { order_items: 'private item failure' },
     });
     await expect(getAdminOrderRecords(filters)).rejects.toThrow('Failed to load admin order items');
+  });
+
+  // 사유 구분은 기한과 배송비 부담 주체를 가른다. 모르는 값을 조용히 단순 변심으로
+  // 접으면 운영자가 잘못된 근거로 승인한다.
+  it('fails closed on an unsupported cancellation reason type', async () => {
+    mocks.client = createClient({
+      records: [],
+      rpc: vi.fn(),
+      rpcRows: [{
+        id: ORDER_ID,
+        user_id: USER_ID,
+        buyer_name: 'fan',
+        buyer_email: null,
+        status: 'paid',
+        total: 1,
+        address: null,
+        created_at: '2026-07-14T06:00:00.000Z',
+        updated_at: '2026-07-14T06:00:00.000Z',
+        cancellation_request_id: '33333333-3333-4333-8333-333333333333',
+        cancellation_request_status: 'requested',
+        cancellation_reason_type: 'act_of_god',
+        cancellation_requested_at: '2026-07-14T07:00:00.000Z',
+        cancellation_decided_at: null,
+        cancellation_decision_note: null,
+        total_count: 1,
+      }],
+    });
+
+    await expect(getAdminOrderRecords(filters)).rejects.toThrow(
+      'unsupported cancellation reason type',
+    );
   });
 });

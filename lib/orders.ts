@@ -16,6 +16,21 @@ export const ORDER_CANCELLATION_REQUEST_STATUSES = [
 ] as const;
 export type OrderCancellationRequestStatus = (typeof ORDER_CANCELLATION_REQUEST_STATUSES)[number];
 
+// 청약철회 사유는 기한을 가른다(#189) — 단순 변심 7일, 하자·오배송 3개월.
+// DB의 order_cancellation_requests.reason_type check 제약과 같은 값이어야 한다.
+export const ORDER_WITHDRAWAL_REASON_TYPES = ['change_of_mind', 'defect'] as const;
+export type OrderWithdrawalReasonType = (typeof ORDER_WITHDRAWAL_REASON_TYPES)[number];
+
+export const ORDER_WITHDRAWAL_REASON_LABELS: Record<OrderWithdrawalReasonType, string> = {
+  change_of_mind: '단순 변심',
+  defect: '상품 하자·오배송',
+};
+
+export const ORDER_WITHDRAWAL_DEADLINE_LABELS: Record<OrderWithdrawalReasonType, string> = {
+  change_of_mind: '공급받은 날부터 7일',
+  defect: '공급받은 날부터 3개월',
+};
+
 export interface OrderStatusPresentation {
   label: string;
   title: string;
@@ -117,6 +132,10 @@ export function isVisibleOrderStatus(value: string): value is VisibleOrderStatus
 
 export function isOrderDetailStatus(value: string): value is OrderDetailStatus {
   return (ORDER_DETAIL_STATUSES as readonly string[]).includes(value);
+}
+
+export function isOrderWithdrawalReasonType(value: string): value is OrderWithdrawalReasonType {
+  return (ORDER_WITHDRAWAL_REASON_TYPES as readonly string[]).includes(value);
 }
 
 export function isOrderCancellationRequestStatus(value: string): value is OrderCancellationRequestStatus {
