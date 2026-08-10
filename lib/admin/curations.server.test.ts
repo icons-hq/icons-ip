@@ -115,7 +115,7 @@ describe('admin curation loader', () => {
 
     expect(mocks.from).toHaveBeenCalledWith('home_curations');
     expect(mocks.select).toHaveBeenCalledWith(
-      'id,kind,ip_id,title,image_path,link_path,display_order,active_from,active_to,enabled,created_at,updated_at',
+      'id,kind,ip_id,title,image_path,link_path,display_order,active_from,active_to,enabled,created_at,updated_at,ips(bg,image_path)',
     );
     expect(mocks.order.mock.calls).toEqual([
       ['kind', { ascending: true }],
@@ -127,6 +127,64 @@ describe('admin curation loader', () => {
     expect(mocks.getPublicUrl).toHaveBeenCalledWith(
       'catalog/curation/33333333-3333-4333-8333-333333333333.webp',
     );
+  });
+
+  /*
+   * 특집 IP 큐레이션은 자기 아트워크가 없으면 홈에서 IP 자신의 이미지로 나간다
+   * (`lib/catalog.ts`의 `imageBgByIpId`는 큐레이션 이미지가 있을 때만 덮어쓴다).
+   * 어드민 목록도 같은 그림을 보여줘야 운영자가 홈에 나갈 결과를 확인할 수 있다.
+   */
+  it('아트워크 없는 특집 IP는 대상 IP의 이미지로 미리보기를 채운다', async () => {
+    configureRows([
+      {
+        id: '44444444-4444-4444-8444-444444444444',
+        kind: 'featured_ip',
+        ip_id: 'rilakkuma',
+        title: '리락쿠마',
+        image_path: null,
+        link_path: '/ip/rilakkuma',
+        display_order: 0,
+        active_from: '2026-07-20T00:00:00.000Z',
+        active_to: null,
+        enabled: true,
+        created_at: '2026-07-20T00:00:00.000Z',
+        updated_at: '2026-07-20T00:00:00.000Z',
+        ips: {
+          bg: 'url("/generated/ip/rilakkuma.png") center / cover no-repeat, linear-gradient(150deg, #5a3517, #D68A2D 55%, #FFD84D)',
+          image_path: null,
+        },
+      },
+      {
+        id: '55555555-5555-4555-8555-555555555555',
+        kind: 'featured_ip',
+        ip_id: 'hwasan',
+        title: '화산강림',
+        image_path: null,
+        link_path: '/ip/hwasan',
+        display_order: 1,
+        active_from: '2026-07-20T00:00:00.000Z',
+        active_to: null,
+        enabled: true,
+        created_at: '2026-07-20T00:00:00.000Z',
+        updated_at: '2026-07-20T00:00:00.000Z',
+        ips: {
+          bg: 'linear-gradient(150deg, #2A2440, #4A3F73)',
+          image_path: 'public-media/catalog/ip/66666666-6666-4666-8666-666666666666.webp',
+        },
+      },
+    ]);
+
+    const [legacyBgIp, uploadedIp] = await getAdminCurations();
+
+    expect(legacyBgIp).toMatchObject({
+      imagePath: null,
+      imageUrl: '/generated/ip/rilakkuma.png',
+    });
+    /* IP가 아트워크를 올렸으면 그쪽이 이긴다 — bg는 gradient만 남은 상태다. */
+    expect(uploadedIp).toMatchObject({
+      imagePath: null,
+      imageUrl: 'https://storage.example/public-media/catalog/ip/66666666-6666-4666-8666-666666666666.webp',
+    });
   });
 
   it('calculates disabled, scheduled, active, and ended states at half-open boundaries', () => {
