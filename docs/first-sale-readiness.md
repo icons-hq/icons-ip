@@ -221,6 +221,7 @@
 - 사업자 정보 표기용 데이터 6종(상호·대표자·사업자등록번호·통신판매업신고번호·주소·연락처)
 - **"인앱 주문 상세가 전자상거래법상 서면 교부로 충분한가"** — "아니오"면 D8의 이메일이 판매 개시 필수가 된다
 - **A/S 연락처를 대표 전화와 같게 쓸 것인가, 고객센터를 따로 둘 것인가** — 고시정보 7항목 중 하나다. 이 답이 없으면 굿즈 폼이 저장되지 않아 `stock` 전환이 막힌다(§4.1 정정 · [#190](https://github.com/sangwopark19/icons-ip/issues/190))
+- 라이브 키를 발급받은 뒤 Vercel에 적용하는 절차는 §8.3에 있다 — 키 교체만으로는 빌드가 통과하지 않는다
 
 ---
 
@@ -256,7 +257,7 @@
 
 ---
 
-## 8. 구현 현황 (2026-08-07 구현 · 2026-08-10 실측 갱신)
+## 8. 구현 현황 (2026-08-07 구현 · 2026-08-10 실측 갱신 · 2026-08-11 결제 키 갱신)
 
 §3의 갭 중 에이전트가 코드로 풀 수 있는 것은 전부 닫혔다. 남은 것은 사람 응답에 종속된 항목뿐이다.
 
@@ -281,9 +282,9 @@
 
 ### 8.1 판매 개시를 아직 막는 것
 
-코드가 아니라 사람이 풀어야 한다. 2026-08-10에 프로덕션 `goods`와 Vercel production env를 직접 확인해 갱신했다.
+코드가 아니라 사람이 풀어야 한다. 2026-08-10에 프로덕션 `goods`와 Vercel production env를 직접 확인해 갱신했고, 2026-08-11에 결제 키 항목을 빌드 로그 실측으로 확정했다(§8.3).
 
-1. **[#87](https://github.com/sangwopark19/icons-ip/issues/87)** — 사업자 정보 6종. 없으면 푸터의 법정 표기가 비고, 법정 문서가 지정한 문의 창구가 존재하지 않는다. `BUSINESS_INFO`는 `hostingProvider`를 뺀 전 필드가 빈 문자열이다. 여기에 더해 **토스 라이브 키 전환**이 확인되지 않았다 — 프로덕션에 `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION`이 켜져 있어 테스트 키로 추정된다. 라이브 키로 교체하고 이 플래그를 제거해야 실제 돈을 받는다.
+1. **[#87](https://github.com/sangwopark19/icons-ip/issues/87)** — 사업자 정보 6종. 없으면 푸터의 법정 표기가 비고, 법정 문서가 지정한 문의 창구가 존재하지 않는다. `BUSINESS_INFO`는 `hostingProvider`를 뺀 전 필드가 빈 문자열이다. 여기에 더해 **토스 라이브 키 전환**이 남아 있다 — 프로덕션이 테스트 키라는 것은 2026-08-11 빌드 로그로 **확정**됐다(§8.3). 라이브 키로 교체해야 실제 돈을 받는다. 교체는 플래그 하나를 지우는 일이 아니라 **4개를 한 번에** 바꾸는 일이고, 하나라도 어긋나면 빌드가 fail closed로 막힌다(§8.3).
 2. **[#177](https://github.com/sangwopark19/icons-ip/issues/177)** — H1~H7. 특히 H7(WMS 운영사 법인명)이 없으면 개인정보처리방침의 처리위탁 목록을 완성할 수 없다.
 3. **[#190](https://github.com/sangwopark19/icons-ip/issues/190)** — 운영 데이터 입력. 홍실 3종의 고시정보 7항목 × 3 = **21칸이 전부 공백**이고 설명·갤러리·상세 이미지도 없다. 고시정보가 차야 굿즈 폼이 저장되고, 그래야 `stock`이 `ok`로 바뀐다(§4.1 정정). A/S 연락처가 #87 의존이다.
 4. **[#179](https://github.com/sangwopark19/icons-ip/issues/179)** — 할당 재고 확정. 홍실 3종이 전부 `stock='soldout'`·`stock_qty=0`이라 지금은 아무것도 팔리지 않는다.
@@ -292,6 +293,38 @@
 ### 8.2 #178에서 남긴 범위
 
 이슈 범위 4번(배송 시작 이메일에 운송장 포함)은 이메일 인프라([#180](https://github.com/sangwopark19/icons-ip/issues/180))에서 배선했다. WMS 자동 수신은 [#115](https://github.com/sangwopark19/icons-ip/issues/115)의 "물류 API 자동화"로 넘긴다 — 수기 운영에서 나온 실제 요구사항을 스펙 근거로 쓴다(§7).
+
+### 8.3 토스 라이브 키 전환 절차
+
+**현재 상태 (2026-08-11 실측).** 프로덕션은 테스트 키다. 키 값은 Vercel에서 Sensitive라 읽을 수 없지만 모드는 빌드 로그로 실측된다.
+
+```
+npx vercel inspect <production-deployment-url> --logs
+→ Vercel production environment verified; Toss widget test mode
+```
+
+교차 확인 — [`scripts/check-vercel-build-env.mjs`](../scripts/check-vercel-build-env.mjs)는 live 모드에서 `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY`가 남아 있으면 빌드를 거부한다. Production에 variantKey가 설정돼 있는데 배포가 통과한다는 사실 자체가 test 모드의 증거다.
+
+**프리뷰는 이미 분리했다** ([#199](https://github.com/sangwopark19/icons-ip/issues/199), 2026-08-11). 그전까지 `NEXT_PUBLIC_TOSS_CLIENT_KEY`·`TOSS_SECRET_KEY`는 Preview와 Production이 **하나의 항목**이어서, 그 값을 라이브로 바꾸면 모든 PR 프리뷰가 운영 상점 키를 갖게 되는 구조였다. 지금은 환경별 별도 항목이므로 Production만 교체하면 된다.
+
+**전환 시 Production에서 처리할 4개.** 순차 작업이 아니라 한 배포 안에서 전부 맞아야 한다.
+
+| # | 항목 | 조치 |
+|---|---|---|
+| 1 | `NEXT_PUBLIC_TOSS_CLIENT_KEY` · `TOSS_SECRET_KEY` | `live_gck_…` / `live_gsk_…` 쌍으로 교체. 두 키의 모드가 어긋나면 거부된다 |
+| 2 | `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY` (Production 행) | **삭제**. live 모드에 테스트 UI variantKey가 남으면 거부된다 |
+| 3 | `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION` | **삭제**. live 모드에서는 필요 없다 |
+| 4 | `TOSS_PAYMENT_KEY_PAIR_SHA256` | **라이브 쌍 기준으로 재계산**해 교체 |
+
+**4번이 가장 놓치기 쉽다.** `productionCheckoutEnabled`는 live 모드에서 참이 되므로 지문 검증이 그대로 살아 있고, 테스트 키 시절 지문이 남아 있으면 `Invalid Vercel production payment key-pair fingerprint`로 배포가 막힌다. 계산식은 두 **원문 키 값**을 NUL로 이어 SHA-256이다.
+
+```bash
+printf '%s\0%s' "$NEXT_PUBLIC_TOSS_CLIENT_KEY" "$TOSS_SECRET_KEY" | shasum -a 256
+```
+
+**Preview는 손대지 않는다.** 프리뷰는 계속 테스트 키와 `ICONS_REVIEW` variantKey를 쓴다. 프리뷰 빌드는 `TOSS_PAYMENT_KEY_PAIR_SHA256`을 요구하지 않는다 — 지문 검증은 `productionCheckoutEnabled`(= `target === 'production'`) 조건 안에서만 돌기 때문이다.
+
+전환 뒤 production 배포 로그가 `Toss widget live mode`로 바뀌는지 확인한다. 상점 계약·라이브 키 발급·웹훅 등록 자체는 [#87](https://github.com/sangwopark19/icons-ip/issues/87)의 human gate다.
 
 ---
 
