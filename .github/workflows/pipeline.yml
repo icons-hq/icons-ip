@@ -300,11 +300,110 @@ jobs:
       - name: Verify Supabase catalog baseline
         run: supabase db query --linked --file supabase/tests/catalog_baseline.sql
 
-  deploy-vercel-preview:
-    name: deploy-vercel-preview
+  # PR 프리뷰는 전용 Supabase 프로젝트를 본다. 이 job이 먼저 마이그레이션을 올리므로
+  # 프리뷰 앱과 스키마의 버전이 어긋나지 않는다 — production의
+  # deploy-vercel → deploy-supabase 순서와 같은 모양이다.
+  deploy-supabase-preview:
+    name: deploy-supabase-preview
     runs-on: ubuntu-latest
     needs: validate
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_PREVIEW_DB_PASSWORD }}
+      SUPABASE_PREVIEW_PROJECT_ID: ${{ secrets.SUPABASE_PREVIEW_PROJECT_ID }}
+      SUPABASE_PRODUCTION_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Check Supabase preview secrets
+        id: check
+        run: |
+          set -eo pipefail
+
+          # 프리뷰가 운영 프로젝트를 가리키면 PR 코드가 운영 데이터에 붙는다.
+          # 어드민 콘솔은 프리뷰에서도 Supabase를 강제로 보므로 실제로 도달한다 —
+          # 설정 실수를 조용히 통과시키지 않고 여기서 끊는다.
+          if [ -n "${SUPABASE_PREVIEW_PROJECT_ID}" ] \
+            && [ "${SUPABASE_PREVIEW_PROJECT_ID}" = "${SUPABASE_PRODUCTION_PROJECT_ID}" ]; then
+            echo "::error title=Preview Supabase must not be production::SUPABASE_PREVIEW_PROJECT_ID equals SUPABASE_PROJECT_ID"
+            exit 1
+          fi
+
+          # job env 이름이 아니라 **secret 이름**을 보고한다. `SUPABASE_DB_PASSWORD`는
+          # 프리뷰 secret을 담은 job 안의 이름이라, 그대로 안내하면 운영 secret을
+          # 덮어쓰게 만든다.
+          missing=""
+          [ -n "${SUPABASE_ACCESS_TOKEN}" ] || missing="${missing} SUPABASE_ACCESS_TOKEN"
+          [ -n "${SUPABASE_DB_PASSWORD}" ] || missing="${missing} SUPABASE_PREVIEW_DB_PASSWORD"
+          [ -n "${SUPABASE_PREVIEW_PROJECT_ID}" ] || missing="${missing} SUPABASE_PREVIEW_PROJECT_ID"
+
+          if [ -n "$missing" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Preview deployment skipped::프리뷰 Supabase가 구성되지 않았습니다 (누락:${missing})"
+            {
+              echo "### 프리뷰 배포를 건너뜀"
+              echo
+              echo "프리뷰 전용 Supabase 프로젝트가 구성되지 않아 이 PR은 프리뷰 배포가 없습니다."
+              echo "구성 전까지 프리뷰로 QA하거나 공유 링크를 만들 수 없습니다 — 깨진 프리뷰보다 없는 프리뷰가 정직합니다."
+              echo
+              echo "필요한 GitHub Secrets:${missing}. 설정 절차는 README.md의 프리뷰 환경 절을 참고하세요."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          echo "configured=true" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Supabase CLI
+        if: steps.check.outputs.configured == 'true'
+        uses: supabase/setup-cli@v2
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Link Supabase preview project
+        if: steps.check.outputs.configured == 'true'
+        run: supabase link --project-ref "$SUPABASE_PREVIEW_PROJECT_ID"
+
+      - name: Push Supabase migrations to preview
+        if: steps.check.outputs.configured == 'true'
+        run: supabase db push --linked
+
+      # 프리뷰 DB에는 운영 데이터를 두지 않는다. 카탈로그 seed는 멱등이라
+      # 리뷰어가 매 PR에서 같은 기준선을 본다.
+      - name: Seed preview catalog
+        if: steps.check.outputs.configured == 'true'
+        run: supabase db query --linked --file supabase/seed.sql
+
+      - name: Verify Supabase preview catalog baseline
+        if: steps.check.outputs.configured == 'true'
+        run: supabase db query --linked --file supabase/tests/catalog_baseline.sql
+
+      # 리뷰어가 이 프리뷰를 어디까지 믿어도 되는지 PR에서 바로 알 수 있어야 한다.
+      - name: Report preview database state
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          {
+            echo "### 프리뷰 데이터베이스"
+            echo
+            echo "- 프로젝트: \`${SUPABASE_PREVIEW_PROJECT_ID}\` (운영과 분리된 프리뷰 전용)"
+            echo "- 이 PR의 migration이 프리뷰 DB에 적용됐습니다 — 앱과 스키마 버전이 맞습니다."
+            echo "- 카탈로그 baseline은 migration에서 오고 \`supabase/seed.sql\`이 mock IP 값을 다시 덮습니다."
+            echo "- 어드민으로 새로 만든 레코드는 migration에 없어 프리뷰에 나타나지 않습니다."
+            echo "- 프리뷰 DB는 여러 열린 PR이 공유합니다. 실데이터가 없으므로 언제든 리셋할 수 있습니다."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-vercel-preview:
+    name: deploy-vercel-preview
+    runs-on: ubuntu-latest
+    needs: deploy-supabase-preview
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && needs.deploy-supabase-preview.outputs.configured == 'true'
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
