@@ -191,7 +191,7 @@ DB 비밀번호와 service_role 키를 다루는 단계는 사람만 할 수 있
 여섯 단계다.
 
 1. 프리뷰 DB 비밀번호 재설정 → `SUPABASE_PREVIEW_DB_PASSWORD` secret.
-2. 프리뷰 publishable key와 service_role key 복사.
+2. 프리뷰 publishable key와 secret key 복사. `SUPABASE_SERVICE_ROLE_KEY` 자리에는 legacy `service_role` JWT와 새 형식 `sb_secret_…` 둘 다 넣을 수 있다 — 앱은 키를 디코드하지 않고 그대로 넘기며, 두 형식 모두 `service_role` 전용 `service_*` RPC를 실행할 수 있다(로컬 스택에서 네 형식 비교로 실측: anon·publishable은 `42501 permission denied`). **현재 프리뷰는 `sb_secret_…`, 프로덕션은 legacy JWT를 쓴다.** 새 프로젝트에는 새 형식을 쓴다.
 3. `SUPABASE_SERVICE_ROLE_KEY`에서 **Preview 스코프 떼어내기.** 지금은 Preview·Production이 같은 항목 하나를 공유하므로 이 단계 전까지 프리뷰가 운영 DB에 붙어 있다. CLI로 지우면 레코드 전체가 사라져 운영 키까지 잃으므로 Vercel 대시보드에서 해야 한다.
 4. Vercel **Preview 스코프**의 `NEXT_PUBLIC_SUPABASE_URL`·`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`를 프리뷰 값으로 덮고 `ICONS_CATALOG_SOURCE=supabase`를 추가한다. 프리뷰 공개 화면도 프리뷰 DB를 읽어 실제 스테이징이 된다. `ICONS_PROTOTYPE`은 건드리지 않는다 — 프로토타입 공유 배포가 이 값만 읽는다.
 5. 프리뷰 프로젝트 Auth Site URL과 redirect allow-list에 프리뷰 도메인 callback을 넣는다. 프리뷰에는 custom SMTP를 설정하지 않으므로 가입 확인 메일은 발송되지 않는다.

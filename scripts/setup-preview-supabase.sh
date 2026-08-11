@@ -247,9 +247,10 @@ say "프리뷰 앱이 프리뷰 DB를 보게 하려면 키 두 개가 필요합�
 open_url "${SUPABASE_DASHBOARD}/settings/api-keys"
 step "publishable key(브라우저에 노출되는 공개 키)를 복사합니다."
 ask PREVIEW_PUBLISHABLE_KEY "publishable key:"
-step "service_role secret을 Reveal한 뒤 복사합니다."
-warn "service_role은 RLS를 우회합니다. 저장소·채팅·명령 인자에 남기지 마세요."
-ask_secret PREVIEW_SERVICE_ROLE_KEY "service_role key:"
+step "secret key(sb_secret_…)를 Reveal한 뒤 복사합니다."
+note "legacy 'service_role' JWT도 동작하지만 새 프로젝트는 sb_secret_ 형식을 쓴다."
+warn "이 키는 RLS를 우회합니다. 저장소·채팅·명령 인자에 남기지 마세요."
+ask_secret PREVIEW_SERVICE_ROLE_KEY "secret key (sb_secret_… 또는 service_role JWT):"
 
 # ── 3 ─────────────────────────────────────────────────────────────────────
 stage "공유 service role key에서 Preview 스코프 떼어내기"
