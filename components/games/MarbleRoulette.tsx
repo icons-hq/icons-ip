@@ -8,6 +8,7 @@ import { ipAccent } from '@/lib/ip-display';
 import { RARITY_ORDER, RARITY_META, type RarityKey } from '@/lib/rarity';
 import { loadBox2D } from '@/lib/games/box2d-loader';
 import { GamePlayError, type PopupGameHost } from '@/lib/games/host';
+import { imageUrlFromBg } from '@/lib/media';
 import {
   COURSE,
   FIXED_STEP,
@@ -61,11 +62,6 @@ function placeLabels<T>(lineup: readonly T[], granted: T, winnerIndex: number, s
   const shuffled = seededShuffle(rest, seededRng(`${seed}:labels`));
   shuffled.splice(winnerIndex, 0, granted);
   return shuffled;
-}
-
-/** mock 데이터의 CSS background 문자열에서 이미지 URL 추출 */
-function imageUrlOf(bg: string): string | null {
-  return bg.match(/url\("([^"]+)"\)/)?.[1] ?? null;
 }
 
 function loadImage(url: string): Promise<HTMLImageElement | null> {
@@ -365,7 +361,7 @@ async function goodsSkins(goodsIds: string[]): Promise<MarbleSkin[]> {
     goodsIds.map(async (id) => {
       const good = goodById(id);
       if (!good) throw new Error(`unknown goods: ${id}`);
-      const url = imageUrlOf(good.img);
+      const url = imageUrlFromBg(good.img);
       return {
         color: goodAccent(good),
         label: good.name.slice(0, 2),

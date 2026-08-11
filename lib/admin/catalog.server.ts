@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import type { RarityKey } from '@/lib/rarity';
 import type { Stock } from '@/lib/data';
 import type { GoodsNoticeInfo } from '@/lib/goods-notice';
-import { normalizePublicMediaPath } from '@/lib/media';
+import { imageUrlFromBg, normalizePublicMediaPath } from '@/lib/media';
 
 export interface AdminIpRecord {
   id: string;
@@ -389,6 +389,18 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
       .from('public-media')
       .getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
   };
+  /*
+   * 카탈로그 이미지는 두 갈래로 저장돼 있다 — 업로드된 아트워크는 `image_path`,
+   * 그 이전 레코드는 `bg` 안의 CSS `url()`. 공개 화면이 쓰는 우선순위와 같게 맞춘다
+   * (`lib/catalog.ts`의 `backgroundFor`). 어드민만 다른 순서를 보면 운영자가
+   * 화면에 나가고 있는 이미지를 확인할 수 없다.
+   *
+   * `imagePath`는 일부러 그대로 null로 남긴다. 그 덕에 업로드 칸의 "이미지 제거"가
+   * 잠긴 상태를 유지하고, hidden `imagePath`가 빈 값으로 왕복해 저장이 `bg`를 건드리지 않는다.
+   */
+  const previewUrlFor = (row: { bg: string | null; image_path: string | null }) => (
+    imageUrlForPath(row.image_path) ?? imageUrlFromBg(row.bg)
+  );
   const [
     ipsResult,
     goodsResult,
@@ -460,7 +472,7 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
     accent: row.accent,
     bg: row.bg,
     imagePath: row.image_path,
-    imageUrl: imageUrlForPath(row.image_path),
+    imageUrl: previewUrlFor(row),
   }));
   const eventTitles = new Map(events.map((event) => [event.id, event.title]));
   const cards = cardRows.map((row) => ({
@@ -473,7 +485,7 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
     rarity: row.rarity,
     bg: row.bg,
     imagePath: row.image_path,
-    imageUrl: imageUrlForPath(row.image_path),
+    imageUrl: previewUrlFor(row),
   }));
   const cardPools = cardPoolRows.map((row) => {
     const odds: Record<RarityKey, number> = { N: 0, R: 0, SR: 0, SSR: 0, HOLO: 0 };
@@ -509,7 +521,7 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
       glyph: row.glyph,
       bg: row.bg,
       imagePath: row.image_path,
-      imageUrl: imageUrlForPath(row.image_path),
+      imageUrl: previewUrlFor(row),
       featured: row.featured,
       fansCount: row.fans_count ?? 0,
     })),
@@ -525,7 +537,7 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
       stockQty: row.stock_qty ?? 0,
       bg: row.bg,
       imagePath: row.image_path,
-      imageUrl: imageUrlForPath(row.image_path),
+      imageUrl: previewUrlFor(row),
       notice: {
         maker: row.notice_maker,
         origin: row.notice_origin,

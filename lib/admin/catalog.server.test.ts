@@ -126,6 +126,59 @@ describe('getAdminCatalogRecords', () => {
     });
   });
 
+  /*
+   * 아트워크를 Storage에 올리기 전 레코드는 이미지가 `bg` 안에만 있다.
+   * 공개 화면은 그 값을 그대로 그리는데 어드민만 빈 칸이면 운영자가 레코드를 식별할 수 없다.
+   */
+  it('아트워크 경로가 없으면 bg 안의 이미지로 미리보기를 채운다', async () => {
+    mocks.client = createClient({
+      records: [],
+      rows: {
+        ips: [{
+          id: 'rilakkuma',
+          bg: 'url("/generated/ip/rilakkuma.png") center / cover no-repeat, linear-gradient(150deg, #5a3517, #D68A2D 55%, #FFD84D)',
+          image_path: null,
+        }],
+        goods: [{
+          id: 'g1',
+          bg: 'url("/generated/goods/g1.png") center / cover no-repeat, linear-gradient(150deg, #5a3517, #D68A2D 55%, #FFD84D)',
+          image_path: null,
+        }],
+        cards: [{
+          id: 'c1',
+          bg: 'url("/generated/cards/c1.png") center / cover no-repeat, linear-gradient(150deg, #5a3517, #D68A2D 55%, #FFD84D)',
+          image_path: null,
+        }],
+        events: [{
+          id: 'e1',
+          bg: 'url("/generated/events/e1.png") center / cover no-repeat, linear-gradient(150deg, #5a3517, #D68A2D 55%, #FFD84D)',
+          image_path: null,
+        }],
+      },
+    });
+
+    const result = await getAdminCatalogRecords();
+
+    expect(result.ips[0]).toMatchObject({ imagePath: null, imageUrl: '/generated/ip/rilakkuma.png' });
+    expect(result.goods[0]).toMatchObject({ imagePath: null, imageUrl: '/generated/goods/g1.png' });
+    expect(result.cards[0]).toMatchObject({ imagePath: null, imageUrl: '/generated/cards/c1.png' });
+    expect(result.events[0]).toMatchObject({ imagePath: null, imageUrl: '/generated/events/e1.png' });
+  });
+
+  /* gradient만 담은 bg는 이미지가 아니다 — 없는 아트워크를 있는 것처럼 만들지 않는다. */
+  it('bg가 gradient뿐이면 미리보기를 만들지 않는다', async () => {
+    mocks.client = createClient({
+      records: [],
+      rows: {
+        ips: [{ id: 'no-art', bg: 'linear-gradient(150deg, #2A2440, #4A3F73)', image_path: null }],
+      },
+    });
+
+    const result = await getAdminCatalogRecords();
+
+    expect(result.ips[0]).toMatchObject({ imagePath: null, imageUrl: null });
+  });
+
   it('loads active and archived catalog records with their archived timestamps', async () => {
     const records: QueryRecord[] = [];
     mocks.client = createClient({

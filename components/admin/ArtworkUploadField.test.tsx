@@ -56,6 +56,32 @@ describe('ArtworkUploadField', () => {
     expect(html).toContain('이미지 업로드');
   });
 
+  /*
+   * 레거시 `bg` 이미지를 미리보기로 받은 상태. 보여주는 것과 저장하는 것을 분리해야 한다 —
+   * 미리보기는 화면에 나가는 그림을 보여주되, 아직 아트워크가 업로드되지 않았으므로
+   * 제출값은 비어 있고 제거는 잠긴다. 저장이 `bg`를 건드리지 않는 근거다.
+   */
+  it('아트워크 경로 없이 받은 미리보기는 보여주기만 하고 제출값을 만들지 않는다', () => {
+    const html = renderToStaticMarkup(
+      <ArtworkUploadField
+        allowRemove
+        currentPath={null}
+        currentUrl="/generated/ip/rilakkuma.png"
+        kind="ip"
+      />,
+    );
+
+    expect(html).toContain('src="/generated/ip/rilakkuma.png"');
+    expect(html).toContain('name="imagePath"');
+    expect(html).toContain('value=""');
+    expect(html).toContain('현재 경로: 없음');
+    /* 제거할 아트워크가 없으므로 제거 버튼은 잠겨 있어야 한다. */
+    expect(html).toMatch(/admin-artwork-remove[^>]*disabled=""/);
+    /* 업로드는 아직 안 됐으니 "교체"가 아니라 "업로드"다. */
+    expect(html).toContain('이미지 업로드');
+    expect(html).not.toContain('이미지 교체');
+  });
+
   it('uses a 16:9 preview for home curation artwork', () => {
     const html = renderToStaticMarkup(
       <ArtworkUploadField currentPath={null} currentUrl={null} kind="curation" />,
