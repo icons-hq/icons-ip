@@ -59,18 +59,22 @@ URL과 public key 둘 중 하나라도 없으면 인증 미들웨어는 세션 �
 
 ## Supabase Auth URL 설정
 
-이메일 회원가입 확인 링크와 비밀번호 재설정 링크가 앱 세션으로 교환되려면 Supabase Dashboard → Authentication → URL Configuration에서 다음 값을 유지한다.
+Auth URL 설정은 손으로 관리하지 않는다. `scripts/sync-supabase-auth.mjs`가 진실원이고, workflow가 production과 preview 프로젝트에 각각 적용·검증한다. 대시보드에서 직접 바꾼 값은 다음 배포에서 되돌아간다.
+
+**Production** (`deploy-supabase`, `main` push):
 
 - Site URL: `https://iconsip.com`
-- Redirect URLs:
-  - `https://iconsip.com/auth/callback`
-  - `https://www.iconsip.com/auth/callback`
-  - `https://icons-ip.vercel.app/auth/callback`
-  - `https://icons-ip-*.vercel.app/auth/callback`
-  - `http://localhost:3000/auth/callback`
-  - `http://127.0.0.1:3000/auth/callback`
+- Redirect URLs: `https://iconsip.com/auth/callback`, `https://www.iconsip.com/auth/callback`, `https://icons-ip.vercel.app/auth/callback`, `http://localhost:3000/auth/callback`, `http://127.0.0.1:3000/auth/callback`
+- 제거 대상: `https://icons-ip-*.vercel.app/auth/callback`. preview가 전용 프로젝트를 보게 된 뒤로는 운영 allow-list에 있을 이유가 없고, 애초에 실제 preview 호스트와 맞지도 않았다(아래).
 
-Production의 가입 확인·비밀번호 재설정 메일은 allow-list와 정확히 맞도록 query 없는 `/auth/callback`만 사용한다. `iconsip.com`을 기본 Site URL로 쓰고, `www.iconsip.com`과 Vercel 기본 도메인 `icons-ip.vercel.app`도 같은 callback 경로로 허용하며, Vercel preview는 wildcard callback을 허용한다. Server Action은 안전한 `next`, 목적, 발급 시각을 서명된 `icons_auth_next` httpOnly 쿠키에 보존하며 일반 가입은 10분, recovery는 1시간 동안 신뢰한다.
+**Preview** (`deploy-supabase-preview`, PR):
+
+- Site URL: `https://icons-ip.vercel.app`
+- Redirect URLs: `https://icons-ip.vercel.app/auth/callback`, `https://icons-hongshil-vn.vercel.app/auth/callback`, `https://icons-*-sangwopark19icons-1055s-projects.vercel.app/auth/callback`, `https://icons-git-*-sangwopark19icons-1055s-projects.vercel.app/auth/callback`, local callback
+- preview 배포 호스트는 프로젝트 이름(`icons-ip`)이 아니라 **배포 접두 `icons-`**를 쓴다 — `icons-nb9vdpqs8-sangwopark19icons-1055s-projects.vercel.app` 형태다. 그래서 `icons-ip-*` 패턴은 어떤 preview URL과도 매칭되지 않았다. 팀 접미까지 붙여 좁힌다: `icons-*.vercel.app`은 남의 프로젝트까지 허용한다.
+- preview에는 custom SMTP가 없어 SMTP 강제와 mailer 설정 강제를 켜지 않는다. 이메일 확인이 필요한 가입 플로우는 preview에서 끝까지 갈 수 없다.
+
+Production의 가입 확인·비밀번호 재설정 메일은 allow-list와 정확히 맞도록 query 없는 `/auth/callback`만 사용한다. Server Action은 안전한 `next`, 목적, 발급 시각을 서명된 `icons_auth_next` httpOnly 쿠키에 보존하며 일반 가입은 10분, recovery는 1시간 동안 신뢰한다.
 
 Server Action이 만드는 callback origin은 production·www·기본 Vercel·local 고정 origin과 플랫폼이 제공한 현재 `VERCEL_URL`만 허용한다. 인식하지 못한 `Origin`·`X-Forwarded-Host`·`Host`는 신뢰하지 않고 `https://iconsip.com`으로 닫는다.
 
@@ -188,14 +192,15 @@ DB 비밀번호와 service_role 키를 다루는 단계는 사람만 할 수 있
 ./scripts/setup-preview-supabase.sh
 ```
 
-여섯 단계다.
+다섯 단계다.
 
 1. 프리뷰 DB 비밀번호 재설정 → `SUPABASE_PREVIEW_DB_PASSWORD` secret.
 2. 프리뷰 publishable key와 secret key 복사. `SUPABASE_SERVICE_ROLE_KEY` 자리에는 legacy `service_role` JWT와 새 형식 `sb_secret_…` 둘 다 넣을 수 있다 — 앱은 키를 디코드하지 않고 그대로 넘기며, 두 형식 모두 `service_role` 전용 `service_*` RPC를 실행할 수 있다(로컬 스택에서 네 형식 비교로 실측: anon·publishable은 `42501 permission denied`). **현재 프리뷰는 `sb_secret_…`, 프로덕션은 legacy JWT를 쓴다.** 새 프로젝트에는 새 형식을 쓴다.
 3. `SUPABASE_SERVICE_ROLE_KEY`에서 **Preview 스코프 떼어내기.** 지금은 Preview·Production이 같은 항목 하나를 공유하므로 이 단계 전까지 프리뷰가 운영 DB에 붙어 있다. CLI로 지우면 레코드 전체가 사라져 운영 키까지 잃으므로 Vercel 대시보드에서 해야 한다.
 4. Vercel **Preview 스코프**의 `NEXT_PUBLIC_SUPABASE_URL`·`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`를 프리뷰 값으로 덮고 `ICONS_CATALOG_SOURCE=supabase`를 추가한다. 프리뷰 공개 화면도 프리뷰 DB를 읽어 실제 스테이징이 된다. `ICONS_PROTOTYPE`은 건드리지 않는다 — 프로토타입 공유 배포가 이 값만 읽는다.
-5. 프리뷰 프로젝트 Auth Site URL과 redirect allow-list에 프리뷰 도메인 callback을 넣는다. 프리뷰에는 custom SMTP를 설정하지 않으므로 가입 확인 메일은 발송되지 않는다.
-6. GitHub Secrets와 Vercel Preview 환경변수를 확인하고 남은 일을 안내한다.
+5. GitHub Secrets와 Vercel Preview 환경변수를 확인하고 남은 일을 안내한다.
+
+Auth Site URL과 redirect allow-list는 위저드가 다루지 않는다 — workflow가 위 "Supabase Auth URL 설정" 절의 값으로 맞추고 검증한다.
 
 `SUPABASE_PREVIEW_PROJECT_ID`는 비밀이 아니라 프로젝트 ref라 위저드 밖에서도 넣을 수 있다.
 
