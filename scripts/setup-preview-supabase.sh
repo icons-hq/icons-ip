@@ -184,7 +184,7 @@ finish() {
 # Replace the example below. Set TOTAL_STAGES to match the stages you write.
 # ──────────────────────────────────────────────────────────────────────────
 
-TOTAL_STAGES=6
+TOTAL_STAGES=5
 
 # 프리뷰 Supabase 프로젝트 (운영과 분리된 전용 프로젝트).
 PREVIEW_REF="${PREVIEW_REF:-glwypjldklwpgdtymktm}"
@@ -281,19 +281,6 @@ fi
 vercel_env ICONS_CATALOG_SOURCE preview "supabase"
 
 # ── 5 ─────────────────────────────────────────────────────────────────────
-stage "프리뷰 프로젝트 Auth redirect 허용"
-say "프리뷰에서 로그인을 QA하려면 프리뷰 도메인 callback이 allow-list에 있어야 합니다."
-note "프리뷰에는 custom SMTP를 설정하지 않으므로 가입 확인 메일은 발송되지 않습니다."
-open_url "${SUPABASE_DASHBOARD}/auth/url-configuration"
-step "Site URL: https://${VERCEL_PROJECT}.vercel.app"
-step "Redirect URLs에 다음을 추가합니다:"
-note "  https://icons-*-${VERCEL_SCOPE}.vercel.app/auth/callback"
-note "  https://icons-git-*-${VERCEL_SCOPE}.vercel.app/auth/callback"
-note "  https://icons-hongshil-vn.vercel.app/auth/callback"
-note "  http://localhost:3000/auth/callback"
-pause "저장했으면 Enter를 누르세요."
-
-# ── 6 ─────────────────────────────────────────────────────────────────────
 stage "구성 확인"
 say "CI가 볼 값들이 실제로 들어갔는지 확인합니다."
 for name in SUPABASE_PREVIEW_PROJECT_ID SUPABASE_PREVIEW_DB_PASSWORD; do
@@ -307,6 +294,8 @@ say ""
 say "Vercel Preview 스코프:"
 npx --yes vercel env ls preview --scope "$VERCEL_SCOPE" 2>/dev/null \
   | grep -E 'SUPABASE|ICONS_CATALOG_SOURCE|ICONS_PROTOTYPE' || warn "vercel env ls 실패 — 대시보드에서 확인하세요"
+say ""
+note "Auth Site URL·redirect allow-list는 workflow가 맞춥니다(scripts/sync-supabase-auth.mjs) — 손댈 필요 없습니다."
 say ""
 say "남은 일 — 프리뷰 배포를 한 번 돌려서 실제로 프리뷰 DB를 보는지 확인합니다:"
 note "  1) PR의 CI를 rerun 하거나 새 커밋을 올립니다"

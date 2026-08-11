@@ -27,4 +27,5 @@ Vercel Preview 배포는 프로덕션 Supabase 프로젝트(`sbutbsghcxmxmxgrshw
 - **프리뷰가 실제 스테이징이 된다.** Preview 환경변수에 `ICONS_CATALOG_SOURCE=supabase`를 두어 공개 화면도 프리뷰 DB를 읽는다. 스키마 변경이 공개 화면까지 검증된다.
 - **프리뷰 secret이 없으면 프리뷰 배포를 건너뛴다.** `deploy-supabase-preview`가 `configured=false`를 내고 `deploy-vercel-preview`가 skip되며, warning과 step summary로 이유를 남긴다. 프리뷰를 공유 링크로 쓰는 작업(프로토타입 배포 등)은 구성 전까지 새 배포를 만들 수 없다.
 - **프리뷰 ref가 운영 ref와 같으면 job이 실패한다.** 설정 실수로 프리뷰가 다시 운영 DB를 가리키는 일을 코드로 막는다.
+- **Auth allow-list가 두 갈래로 갈린다.** 프리뷰 호스트 callback은 프리뷰 프로젝트에서 관리하고 운영 allow-list에서는 제거한다. `scripts/sync-supabase-auth.mjs`가 두 프로젝트에 각각 적용·검증하며, 폐기된 항목은 명시적 prune으로만 사라진다 — Supabase 설정은 한 번 들어간 값을 스스로 지우지 않는다. 이 정리 과정에서 운영 allow-list의 `icons-ip-*.vercel.app` 패턴이 실제 프리뷰 호스트(`icons-<hash>-<team>.vercel.app`)와 애초에 매칭되지 않았다는 것도 드러났다.
 - **되돌리기 비용**: 프로젝트를 지우고 Preview 환경변수를 운영 값으로 되돌리면 원상복구되지만, 그 순간 프리뷰가 다시 운영 데이터에 붙는다 — 그래서 기록한다.
