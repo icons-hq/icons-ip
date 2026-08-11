@@ -23,7 +23,7 @@ Vercel Preview 배포는 프로덕션 Supabase 프로젝트(`sbutbsghcxmxmxgrshw
 - **프리뷰 DB 하나를 모든 열린 PR이 공유한다** → 마이그레이션이 누적된다(대상 스키마 ⊇ 각 PR의 스키마). #196식 "컬럼 없음" 실패는 사라지고, 남는 위험은 폐기된 PR이 남긴 잔여 객체뿐이다. 프리뷰 DB에는 운영 데이터를 두지 않으므로 언제든 리셋할 수 있다.
 - **서로 다른 PR의 프리뷰 job이 같은 프로젝트에 동시에 `db push`할 수 있다.** workflow concurrency group은 ref별이라 PR 사이에는 직렬화되지 않는다. Supabase의 migration 잠금 때문에 한쪽이 실패할 수 있으며, 그 경우 재실행하면 통과한다.
 - **매 프리뷰 배포가 `supabase/seed.sql`을 다시 적용한다.** 멱등(`on conflict do update`)이라 리뷰어가 같은 카탈로그 기준선을 보지만, 프리뷰 어드민에서 카탈로그 값을 바꿔둔 채 새 커밋을 올리면 그 값은 되돌아간다.
-- **프리뷰 카탈로그는 프로덕션 콘텐츠와 다르다.** seed에는 홍실 퀘스트가 없다 — 어드민으로 등록된 IP는 seed가 아니라 운영 DB에만 있다. 스키마 QA에는 무해하고, 콘텐츠 QA가 필요해지면 seed 확장을 따로 판단한다.
+- **프리뷰 카탈로그는 프로덕션과 같다.** 공개 카탈로그 baseline이 immutable migration으로 관리되기 때문에(홍실 퀘스트도 `20260804061616_add_hong_sil_quest_catalog.sql`) `db push`만으로 프로덕션과 같은 내용이 들어온다 — 첫 적용 실측: ips 6, goods 15, cards 12, events 5, home_curations 5로 프로덕션과 동일. seed는 그 위에 mock IP 값을 다시 덮는 역할만 한다. 콘텐츠 QA도 프리뷰에서 가능하다. 어드민으로 새로 만든 레코드는 migration에 없으므로 프리뷰에 나타나지 않는다.
 - **프리뷰가 실제 스테이징이 된다.** Preview 환경변수에 `ICONS_CATALOG_SOURCE=supabase`를 두어 공개 화면도 프리뷰 DB를 읽는다. 스키마 변경이 공개 화면까지 검증된다.
 - **프리뷰 secret이 없으면 프리뷰 배포를 건너뛴다.** `deploy-supabase-preview`가 `configured=false`를 내고 `deploy-vercel-preview`가 skip되며, warning과 step summary로 이유를 남긴다. 프리뷰를 공유 링크로 쓰는 작업(프로토타입 배포 등)은 구성 전까지 새 배포를 만들 수 없다.
 - **프리뷰 ref가 운영 ref와 같으면 job이 실패한다.** 설정 실수로 프리뷰가 다시 운영 DB를 가리키는 일을 코드로 막는다.

@@ -391,7 +391,8 @@ jobs:
             echo
             echo "- 프로젝트: \`${SUPABASE_PREVIEW_PROJECT_ID}\` (운영과 분리된 프리뷰 전용)"
             echo "- 이 PR의 migration이 프리뷰 DB에 적용됐습니다 — 앱과 스키마 버전이 맞습니다."
-            echo "- 카탈로그는 \`supabase/seed.sql\` 기준으로 재적용됐습니다. 프로덕션 콘텐츠와 다릅니다."
+            echo "- 카탈로그 baseline은 migration에서 오고 \`supabase/seed.sql\`이 mock IP 값을 다시 덮습니다."
+            echo "- 어드민으로 새로 만든 레코드는 migration에 없어 프리뷰에 나타나지 않습니다."
             echo "- 프리뷰 DB는 여러 열린 PR이 공유합니다. 실데이터가 없으므로 언제든 리셋할 수 있습니다."
           } >> "$GITHUB_STEP_SUMMARY"
 
