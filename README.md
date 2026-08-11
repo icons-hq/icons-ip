@@ -178,24 +178,30 @@ PR 프리뷰는 **전용 Supabase 프로젝트**를 본다. 결정 배경과 tra
 
 프리뷰 Supabase secret이 없으면 `deploy-vercel-preview`는 **건너뛴다**. 프리뷰가 운영 DB에 붙는 상태로 배포하지 않기 위한 기본값이며, 이유는 workflow warning과 job summary에 남는다.
 
-### 최초 구성 (사람이 해야 하는 단계)
+### 최초 구성
 
-DB 비밀번호를 만들고 다루는 단계가 있어 자동화하지 않는다.
+프리뷰 프로젝트는 `icons-ip-preview`(ref `glwypjldklwpgdtymktm`, 조직 `icons`, region `ap-northeast-2`)다. 새로 만들어야 하면 같은 조직·region에 만들고, 프로젝트 하나에 월 $10이 든다.
 
-1. Supabase 대시보드에서 조직 `icons`에 프로젝트 `icons-ip-preview`를 만든다. region은 프로덕션과 같은 `ap-northeast-2`. 월 $10이 든다.
-2. GitHub Secrets에 프리뷰 프로젝트 ref와 DB 비밀번호를 넣는다.
+DB 비밀번호와 service_role 키를 다루는 단계는 사람만 할 수 있다. 위저드가 대시보드를 열어주고, 붙여넣은 값을 GitHub Secrets·Vercel에 넣고, 마지막에 확인까지 한다.
 
-   ```bash
-   gh secret set SUPABASE_PREVIEW_PROJECT_ID
-   gh secret set SUPABASE_PREVIEW_DB_PASSWORD
-   ```
+```bash
+./scripts/setup-preview-supabase.sh
+```
 
-3. Vercel `icons-ip`의 **Preview 스코프만** 프리뷰 프로젝트 값으로 바꾼다.
-   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-   - `SUPABASE_SERVICE_ROLE_KEY` — 지금은 Preview·Production이 같은 항목 하나를 공유한다. Preview 스코프를 떼어내고 프리뷰 전용 항목을 새로 만들어야 한다.
-   - `ICONS_CATALOG_SOURCE=supabase`를 추가한다. 프리뷰 공개 화면도 프리뷰 DB를 읽어 실제 스테이징이 된다.
-   - `ICONS_PROTOTYPE`은 건드리지 않는다. 프로토타입 공유 배포가 이 값만 읽는다.
-4. 프리뷰 Supabase 프로젝트의 Auth Site URL과 redirect allow-list에 프리뷰 도메인 callback을 넣는다. 프리뷰에는 custom SMTP를 설정하지 않으므로 가입 확인 메일은 발송되지 않는다.
+여섯 단계다.
+
+1. 프리뷰 DB 비밀번호 재설정 → `SUPABASE_PREVIEW_DB_PASSWORD` secret.
+2. 프리뷰 publishable key와 service_role key 복사.
+3. `SUPABASE_SERVICE_ROLE_KEY`에서 **Preview 스코프 떼어내기.** 지금은 Preview·Production이 같은 항목 하나를 공유하므로 이 단계 전까지 프리뷰가 운영 DB에 붙어 있다. CLI로 지우면 레코드 전체가 사라져 운영 키까지 잃으므로 Vercel 대시보드에서 해야 한다.
+4. Vercel **Preview 스코프**의 `NEXT_PUBLIC_SUPABASE_URL`·`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`를 프리뷰 값으로 덮고 `ICONS_CATALOG_SOURCE=supabase`를 추가한다. 프리뷰 공개 화면도 프리뷰 DB를 읽어 실제 스테이징이 된다. `ICONS_PROTOTYPE`은 건드리지 않는다 — 프로토타입 공유 배포가 이 값만 읽는다.
+5. 프리뷰 프로젝트 Auth Site URL과 redirect allow-list에 프리뷰 도메인 callback을 넣는다. 프리뷰에는 custom SMTP를 설정하지 않으므로 가입 확인 메일은 발송되지 않는다.
+6. GitHub Secrets와 Vercel Preview 환경변수를 확인하고 남은 일을 안내한다.
+
+`SUPABASE_PREVIEW_PROJECT_ID`는 비밀이 아니라 프로젝트 ref라 위저드 밖에서도 넣을 수 있다.
+
+```bash
+printf '%s' glwypjldklwpgdtymktm | gh secret set SUPABASE_PREVIEW_PROJECT_ID
+```
 
 `public-media`·`admin-artwork-staging` 버킷은 마이그레이션이 만들기 때문에 첫 `supabase db push`에서 함께 생성된다 — 프리뷰에서 어드민 아트워크 업로드까지 QA할 수 있다.
 
