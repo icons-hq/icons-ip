@@ -4,7 +4,7 @@
 
 **Goal:** 로그인·온보딩 완료 사용자가 `/settings`에서 1~30 grapheme 닉네임과 5MiB private Storage 아바타를 편집하게 한다.
 
-**Architecture:** 브라우저가 signed upload token으로 Supabase Storage에 파일을 직접 올리고, Server Action은 작은 metadata/path만 처리한다. prepare Action은 service-only `pending` claim을 먼저 남기고, 최종 Action은 저장 객체의 metadata와 magic bytes를 검증한 뒤 service-role-only RPC로 profile 행과 claim을 잠그고 1회만 갱신한다. Settings와 onboarding은 같은 닉네임 validator를 사용한다.
+**Architecture:** 브라우저가 로그인 세션의 standard upload로 Supabase Storage에 파일을 직접 올리고, Server Action은 작은 metadata/path만 처리한다. prepare Action은 service-only `pending` claim을 먼저 남기고 path만 반환한다. Storage RLS는 실제 upload 시점에 claim과 account write fence를 다시 평가한다. 최종 Action은 저장 객체의 metadata와 magic bytes를 검증한 뒤 service-role-only RPC로 profile 행과 claim을 잠그고 1회만 갱신한다. Settings와 onboarding은 같은 닉네임 validator를 사용한다.
 
 **Tech Stack:** Next.js 16 App Router/Server Actions, React 19, Supabase Auth/Postgres/Storage/RLS, Vitest, SQL smoke, local Supabase CLI.
 
@@ -117,7 +117,7 @@ npx vitest run lib/profile.server.test.ts app/onboarding/actions.test.ts lib/pro
 
 - [x] Stage exact files and commit `feat(account): 프로필 서버 저장을 연결`.
 
-### Task 4: signed upload grant와 final Action
+### Task 4: upload claim 준비와 final Action
 
 **Files:**
 
@@ -131,7 +131,7 @@ npx vitest run lib/profile.server.test.ts app/onboarding/actions.test.ts lib/pro
 - `updateProfileAction(state, formData)` accepting nickname and optional path only.
 
 - [x] Rewrite action tests around prepare/finalize. Assert no server Storage `upload()` and no file object in final payload.
-- [x] Cover config/login/onboarding gates, claim-before-grant ordering, signed token failure rejection, exact-user path rejection before Storage reads, `info()` size/contentType, `download()` signature, uniqueness, exactly-once candidate cleanup, replay/unknown cleanup denial and previous-path cleanup.
+- [x] Cover config/login/onboarding gates, claim-before-path ordering, path-only response, exact-user path rejection before Storage reads, `info()` size/contentType, `download()` signature, uniqueness, exactly-once candidate cleanup, replay/unknown cleanup denial and previous-path cleanup.
 - [x] Assert cleanup resolved error and rejection both trigger the safe fallback but preserve successful profile state.
 - [x] Run `npx vitest run app/settings/actions.test.ts` and confirm red.
 - [x] Implement prepare and final Actions with small inputs only.
@@ -154,14 +154,14 @@ npx vitest run lib/profile.server.test.ts app/onboarding/actions.test.ts lib/pro
 **UI contract:**
 
 - File input has no `name`; FormData cannot include file bytes.
-- Browser helper calls prepare then `uploadToSignedUrl(path, token, file, { contentType, upsert: false })`.
+- Browser helper calls prepare then authenticated `upload(path, file, { contentType, upsert: false })`; no signed upload token is minted.
 - Final FormData contains only nickname and optional `avatarPath` string.
 - `busy = uploadPending || finalPending` blocks duplicate submission.
 - Upload and marketing form statuses remain independent.
 - Page computes `avatarInitial` server-side; client does not recompute with `Intl`.
 - Inputs and buttons expose visible cyan keyboard focus rings.
 
-- [x] Write failing helper tests proving the file is sent only to `uploadToSignedUrl` and prepare receives metadata, not bytes.
+- [x] Write failing helper tests proving the file is sent only to authenticated Storage `upload` and prepare receives metadata, not bytes.
 - [x] Write failing Settings tests for nameless file input, final path-only FormData, direct-upload failure, pending state, independent forms, signed avatar/fallback `I`, and focus classes.
 - [x] Write failing page tests for server-computed initial, 3600-second signed preview, and signing-error fallback.
 - [x] Run focused tests and confirm red.
@@ -182,7 +182,7 @@ npx vitest run lib/profile-upload.client.test.ts components/screens/Settings.tes
 - Modify: `docs/launch-readiness-plan.md`
 - Modify: this design and plan only if implementation truth changed.
 
-- [x] Ensure durable docs describe separate profile/consent forms, browser signed direct upload, final metadata/magic validation, service-role-only locked identity RPC, server initial fallback, and the #102/#136/#137 split without claiming merge before it occurs.
+- [x] Ensure durable docs describe separate profile/consent forms, browser authenticated direct upload, final metadata/magic validation, service-role-only locked identity RPC, server initial fallback, and the #102/#136/#137 split without claiming merge before it occurs.
 - [x] Run all verification:
 
 ```bash

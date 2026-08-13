@@ -27,7 +27,7 @@ export async function uploadProfileAvatar(input: {
     const supabase = createClient();
     const { error } = await supabase.storage
       .from('user-uploads')
-      .uploadToSignedUrl(grant.path, grant.token, input.file, {
+      .upload(grant.path, input.file, {
         contentType: input.file.type,
         upsert: false,
       });

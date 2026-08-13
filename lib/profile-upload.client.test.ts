@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   prepare: vi.fn(),
   storageFrom: vi.fn(),
-  uploadToSignedUrl: vi.fn(),
+  upload: vi.fn(),
 }));
 
 vi.mock('@/app/settings/actions', () => ({
@@ -20,20 +20,19 @@ beforeEach(() => {
   mocks.createClient.mockReset();
   mocks.prepare.mockReset();
   mocks.storageFrom.mockReset();
-  mocks.uploadToSignedUrl.mockReset();
+  mocks.upload.mockReset();
 
   mocks.prepare.mockResolvedValue({
     ok: true,
     path: AVATAR_PATH,
-    token: 'signed-upload-token',
   });
-  mocks.uploadToSignedUrl.mockResolvedValue({
+  mocks.upload.mockResolvedValue({
     data: { path: AVATAR_PATH, fullPath: `user-uploads/${AVATAR_PATH}` },
     error: null,
   });
   mocks.storageFrom.mockImplementation((bucket: string) => {
     if (bucket !== 'user-uploads') throw new Error(`Unexpected bucket ${bucket}`);
-    return { uploadToSignedUrl: mocks.uploadToSignedUrl };
+    return { upload: mocks.upload };
   });
   mocks.createClient.mockReturnValue({ storage: { from: mocks.storageFrom } });
 });
@@ -55,9 +54,8 @@ describe('uploadProfileAvatar', () => {
       size: 4,
     });
     expect(Object.values(mocks.prepare.mock.calls[0][0])).not.toContain(file);
-    expect(mocks.uploadToSignedUrl).toHaveBeenCalledWith(
+    expect(mocks.upload).toHaveBeenCalledWith(
       AVATAR_PATH,
-      'signed-upload-token',
       file,
       { contentType: 'image/png', upsert: false },
     );
@@ -88,7 +86,7 @@ describe('uploadProfileAvatar', () => {
   });
 
   it('maps a resolved direct-upload error to a safe avatar message', async () => {
-    mocks.uploadToSignedUrl.mockResolvedValue({
+    mocks.upload.mockResolvedValue({
       data: null,
       error: { message: 'private storage detail' },
     });
@@ -107,7 +105,7 @@ describe('uploadProfileAvatar', () => {
 
   it.each([
     ['prepare', () => mocks.prepare.mockRejectedValue(new Error('private prepare rejection'))],
-    ['upload', () => mocks.uploadToSignedUrl.mockRejectedValue(new Error('private upload rejection'))],
+    ['upload', () => mocks.upload.mockRejectedValue(new Error('private upload rejection'))],
   ])('catches a %s rejection without exposing credentials or provider details', async (_label, arrange) => {
     arrange();
 

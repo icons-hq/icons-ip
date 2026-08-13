@@ -317,6 +317,14 @@ values (
   now() + interval '10 minutes'
 );
 
+set local role service_role;
+
+select 1 / case when public.service_prepare_profile_avatar_claim(
+  '00000000-0000-4000-8000-000000001371',
+  '00000000-0000-4000-8000-000000001371/profile/99999999-9999-4999-8999-999999999999.png'
+) then 1 else 0 end as assert_profile_upload_is_prepared_before_deletion_fence;
+
+reset role;
 set local role authenticated;
 
 select 1 / case when public.preview_my_account_deletion() =
@@ -600,6 +608,22 @@ with check (
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000001371', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
+
+do $$
+begin
+  begin
+    insert into storage.objects (bucket_id, name, owner_id)
+    values (
+      'user-uploads',
+      '00000000-0000-4000-8000-000000001371/profile/99999999-9999-4999-8999-999999999999.png',
+      '00000000-0000-4000-8000-000000001371'
+    );
+  exception
+    when insufficient_privilege then return;
+  end;
+  raise exception 'prepared profile upload redemption after deletion fence should be rejected by Data API RLS';
+end;
+$$;
 
 do $$
 begin

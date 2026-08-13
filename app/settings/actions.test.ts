@@ -12,7 +12,6 @@ import { MAX_PROFILE_IMAGE_BYTES, PROFILE_IMAGE_ERROR } from '@/lib/profile';
 const mocks = vi.hoisted(() => ({
   cleanupProfileAvatar: vi.fn(),
   createClient: vi.fn(),
-  createSignedUploadUrl: vi.fn(),
   dbEq: vi.fn(),
   dbUpdate: vi.fn(),
   download: vi.fn(),
@@ -94,7 +93,6 @@ beforeEach(() => {
   vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(AVATAR_UUID);
   mocks.cleanupProfileAvatar.mockReset();
   mocks.createClient.mockReset();
-  mocks.createSignedUploadUrl.mockReset();
   mocks.dbEq.mockReset();
   mocks.dbUpdate.mockReset();
   mocks.download.mockReset();
@@ -115,10 +113,6 @@ beforeEach(() => {
   mocks.cleanupProfileAvatar.mockResolvedValue(undefined);
   mocks.prepareProfileAvatarClaim.mockResolvedValue({ ok: true });
   mocks.rejectProfileAvatarClaim.mockResolvedValue({ cleanupSafe: true });
-  mocks.createSignedUploadUrl.mockResolvedValue({
-    data: { path: AVATAR_PATH, token: 'signed-upload-token' },
-    error: null,
-  });
   mocks.info.mockResolvedValue({
     data: { contentType: 'image/png', size: PNG_BYTES.byteLength },
     error: null,
@@ -140,7 +134,6 @@ beforeEach(() => {
   mocks.storageFrom.mockImplementation((bucket: string) => {
     if (bucket !== 'user-uploads') throw new Error(`Unexpected bucket ${bucket}`);
     return {
-      createSignedUploadUrl: mocks.createSignedUploadUrl,
       download: mocks.download,
       info: mocks.info,
       list: mocks.list,
@@ -267,7 +260,7 @@ describe('prepareProfileAvatarUploadAction', () => {
     });
 
     expect(mocks.getCurrentAuthState).not.toHaveBeenCalled();
-    expect(mocks.createSignedUploadUrl).not.toHaveBeenCalled();
+    expect(mocks.storageFrom).not.toHaveBeenCalled();
   });
 
   it('rejects a 5MiB+1 request before auth or Storage', async () => {
@@ -332,7 +325,7 @@ describe('prepareProfileAvatarUploadAction', () => {
     })).rejects.toThrow('NEXT_REDIRECT:/onboarding?next=%2Fsettings');
   });
 
-  it('creates a non-upsert signed grant for a server UUID path without file bytes', async () => {
+  it('prepares a server UUID path without minting a Storage-bypassing signed token', async () => {
     await expect(prepareProfileAvatarUploadAction({
       nickname: '  새 닉네임  ',
       mimeType: 'image/png',
@@ -340,49 +333,15 @@ describe('prepareProfileAvatarUploadAction', () => {
     })).resolves.toEqual({
       ok: true,
       path: AVATAR_PATH,
-      token: 'signed-upload-token',
     });
 
-    expect(mocks.createSignedUploadUrl).toHaveBeenCalledWith(AVATAR_PATH, { upsert: false });
     expect(mocks.prepareProfileAvatarClaim).toHaveBeenCalledWith({
       userId: USER_ID,
       path: AVATAR_PATH,
     });
-    expect(mocks.prepareProfileAvatarClaim.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.createSignedUploadUrl.mock.invocationCallOrder[0],
-    );
+    expect(mocks.storageFrom).not.toHaveBeenCalled();
     expect(mocks.upload).not.toHaveBeenCalled();
     expect(mocks.list).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ['resolved error', () => mocks.createSignedUploadUrl.mockResolvedValue({
-      data: null,
-      error: { message: 'private signed grant error' },
-    })],
-    ['rejection', () => mocks.createSignedUploadUrl.mockRejectedValue(
-      new Error('private signed grant rejection'),
-    )],
-  ])('maps a signed grant %s to a safe avatar error', async (_label, arrange) => {
-    arrange();
-
-    await expect(prepareProfileAvatarUploadAction({
-      nickname: 'fan',
-      mimeType: 'image/png',
-      size: PNG_BYTES.byteLength,
-    })).resolves.toEqual({
-      ok: false,
-      errors: { avatar: '아바타 업로드를 준비하지 못했습니다. 다시 시도해주세요.' },
-    });
-    expect(mocks.rejectProfileAvatarClaim).toHaveBeenCalledWith({
-      userId: USER_ID,
-      path: AVATAR_PATH,
-    });
-    expect(mocks.cleanupProfileAvatar).toHaveBeenCalledWith({
-      userId: USER_ID,
-      path: AVATAR_PATH,
-      stage: 'candidate',
-    });
   });
 
   it('does not grant or clean a path when the pending claim cannot be committed', async () => {
@@ -397,21 +356,24 @@ describe('prepareProfileAvatarUploadAction', () => {
       errors: { avatar: '아바타 업로드를 준비하지 못했습니다. 다시 시도해주세요.' },
     });
 
-    expect(mocks.createSignedUploadUrl).not.toHaveBeenCalled();
+    expect(mocks.storageFrom).not.toHaveBeenCalled();
     expect(mocks.rejectProfileAvatarClaim).not.toHaveBeenCalled();
     expect(mocks.cleanupProfileAvatar).not.toHaveBeenCalled();
   });
 
-  it('does not clean after an unknown claim-rejection result', async () => {
-    mocks.createSignedUploadUrl.mockRejectedValue(new Error('private grant rejection'));
-    mocks.rejectProfileAvatarClaim.mockResolvedValue({ cleanupSafe: false });
+  it('does not clean when claim preparation rejects with an unknown commit state', async () => {
+    mocks.prepareProfileAvatarClaim.mockRejectedValue(new Error('private claim rejection'));
 
-    await prepareProfileAvatarUploadAction({
+    await expect(prepareProfileAvatarUploadAction({
       nickname: 'fan',
       mimeType: 'image/png',
       size: PNG_BYTES.byteLength,
+    })).resolves.toEqual({
+      ok: false,
+      errors: { avatar: '아바타 업로드를 준비하지 못했습니다. 다시 시도해주세요.' },
     });
 
+    expect(mocks.rejectProfileAvatarClaim).not.toHaveBeenCalled();
     expect(mocks.cleanupProfileAvatar).not.toHaveBeenCalled();
   });
 });

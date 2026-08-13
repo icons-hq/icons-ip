@@ -48,7 +48,7 @@ export interface PrepareProfileAvatarUploadInput {
 }
 
 export type PrepareProfileAvatarUploadResult =
-  | { ok: true; path: string; token: string }
+  | { ok: true; path: string }
   | { ok: false; errors: NonNullable<SettingsActionState['errors']> };
 
 const SETTINGS_PATH = '/settings';
@@ -195,7 +195,6 @@ export async function prepareProfileAvatarUploadAction(
     };
   }
 
-  let claimedPath: string | null = null;
   try {
     const path = buildProfileAvatarPath({
       userId: required.user.id,
@@ -212,32 +211,8 @@ export async function prepareProfileAvatarUploadAction(
         errors: { avatar: '아바타 업로드를 준비하지 못했습니다. 다시 시도해주세요.' },
       };
     }
-    claimedPath = path;
-
-    const supabase = await createClient();
-    const { data, error } = await supabase.storage
-      .from(USER_UPLOADS_BUCKET)
-      .createSignedUploadUrl(path, { upsert: false });
-
-    if (error || typeof data?.token !== 'string' || !data.token) {
-      await rejectAndCleanupProfileAvatarCandidate({
-        userId: required.user.id,
-        path,
-      });
-      return {
-        ok: false,
-        errors: { avatar: '아바타 업로드를 준비하지 못했습니다. 다시 시도해주세요.' },
-      };
-    }
-
-    return { ok: true, path, token: data.token };
+    return { ok: true, path };
   } catch {
-    if (claimedPath) {
-      await rejectAndCleanupProfileAvatarCandidate({
-        userId: required.user.id,
-        path: claimedPath,
-      });
-    }
     return {
       ok: false,
       errors: { avatar: '아바타 업로드를 준비하지 못했습니다. 다시 시도해주세요.' },
