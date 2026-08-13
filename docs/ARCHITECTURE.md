@@ -277,7 +277,7 @@ Production Auth 설정:
   2. 순수 로직은 `npm run test`(`lib/payments/toss.test.ts`), DB 계층(확정 RPC·만료 sweep)은 로컬 psql로 RPC를 직접 호출해 확인한다.
   3. 웹훅 실수신은 ngrok 등으로 로컬을 노출해 개발자센터에 웹훅 URL(`https://<host>/api/webhooks/tosspayments`, `PAYMENT_STATUS_CHANGED`)을 등록하고 테스트 결제로 유발한다. 성공 기준은 10초 내 200 응답, 실패 시 최대 7회 재전송된다.
 - 프리뷰는 테스트 키와 정확히 `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY=ICONS_REVIEW`인 테스트 UI를 transitional compatibility 검증에만 쓴다. Production에서 신규 Toss live checkout이나 Toss 실결제 canary를 활성화하지 않는다. #205·#206 이전에는 기존 checkout 코드가 남지만 공개 판매 gate는 닫고, 전환 뒤에는 `provider=toss`로 확인된 기존 두 거래의 조회·취소·웹훅만 유지한다. 신규 결제는 #87의 승인 범위·rotated credential·보안/운영 답변과 #207 dark deploy 뒤 Korpay로 연다. 기존 Toss 거래가 공급사 콘솔과 내부 원장에서 모두 종결된 뒤에만 Toss runtime과 server secret 제거를 별도 PR로 수행한다.
-- Vercel preview/production 변수는 sensitive로 유지한다. GitHub Actions는 값을 복호화할 수 없는 `vercel pull` + prebuilt 경로를 쓰지 않고 Vercel 원격 build를 요청하며, `prebuild` guard가 Vercel build 안에서 필수 변수, 토스 키 모드, production 승인 키 쌍 지문을 검증한다. 키 문자열만으로 같은 상점 세트인지 추론할 수 없으므로 Preview/로컬의 정확한 두 값을 복사하고 실제 provider-backed 결제로 최종 확인한다.
+- Vercel preview/production 변수는 sensitive로 유지한다. GitHub Actions는 값을 복호화할 수 없는 `vercel pull` + prebuilt 경로를 쓰지 않고 Vercel 원격 build를 요청하며, `prebuild` guard가 Vercel build 안에서 필수 변수와 남은 Toss 호환 키 모드를 검증한다. Toss는 Preview/로컬 fixture와 기존 known-only 거래 readback으로만 확인한다. 실제 provider-backed canary는 #207의 rotated Korpay credential·공급사 취소 조율·직전 사용자 확인 뒤 최소 금액 1회로 한정한다.
 
 ---
 
