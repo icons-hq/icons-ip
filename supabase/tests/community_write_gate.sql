@@ -133,15 +133,39 @@ select 1 / case when exists (
 ) then 1 else 0 end as assert_capability_function_security_contract;
 
 select 1 / case when (
+  select count(*) = 1
+  from pg_catalog.pg_proc as procedure
+  join pg_catalog.pg_namespace as namespace on namespace.oid = procedure.pronamespace
+  where namespace.nspname = 'private'
+    and procedure.proname = 'guard_community_write'
+    and pg_catalog.pg_get_function_identity_arguments(procedure.oid) = ''
+    and procedure.prosecdef
+    and procedure.proconfig = array['search_path=""']
+) then 1 else 0 end as assert_single_community_write_guard_contract;
+
+select 1 / case when (
+  pg_catalog.to_regprocedure('private.guard_community_post_write()') is null
+  and pg_catalog.to_regprocedure('private.guard_community_comment_write()') is null
+) then 1 else 0 end as assert_legacy_community_write_guards_removed;
+
+select 1 / case when (
+  select count(*) = 2
+    and bool_and(trigger.tgfoid = pg_catalog.to_regprocedure('private.guard_community_write()'))
+  from pg_catalog.pg_trigger as trigger
+  where trigger.tgrelid in ('public.posts'::regclass, 'public.comments'::regclass)
+    and trigger.tgname in (
+      'trg_community_write_gate_posts',
+      'trg_community_write_gate_comments'
+    )
+) then 1 else 0 end as assert_community_write_triggers_share_one_guard;
+
+select 1 / case when (
   has_function_privilege('anon', 'public.community_write_capabilities()', 'execute')
   and has_function_privilege('authenticated', 'public.community_write_capabilities()', 'execute')
   and not has_function_privilege('service_role', 'public.community_write_capabilities()', 'execute')
-  and not has_function_privilege('anon', 'private.guard_community_post_write()', 'execute')
-  and not has_function_privilege('authenticated', 'private.guard_community_post_write()', 'execute')
-  and not has_function_privilege('service_role', 'private.guard_community_post_write()', 'execute')
-  and not has_function_privilege('anon', 'private.guard_community_comment_write()', 'execute')
-  and not has_function_privilege('authenticated', 'private.guard_community_comment_write()', 'execute')
-  and not has_function_privilege('service_role', 'private.guard_community_comment_write()', 'execute')
+  and not has_function_privilege('anon', 'private.guard_community_write()', 'execute')
+  and not has_function_privilege('authenticated', 'private.guard_community_write()', 'execute')
+  and not has_function_privilege('service_role', 'private.guard_community_write()', 'execute')
   and not has_function_privilege('anon', 'private.can_write_community_storage_object(text)', 'execute')
   and has_function_privilege('authenticated', 'private.can_write_community_storage_object(text)', 'execute')
   and not has_function_privilege('service_role', 'private.can_write_community_storage_object(text)', 'execute')
