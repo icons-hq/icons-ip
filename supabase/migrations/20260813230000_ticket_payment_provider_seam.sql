@@ -47,10 +47,29 @@ begin
       from public.tickets as ticket
       where ticket.ticket_order_id = ticket_order.id
     )
-      and not exists (
-        select 1
-        from public.ticket_order_reservations as reservation
-        where reservation.ticket_order_id = ticket_order.id
+      and (
+        not exists (
+          select 1
+          from public.ticket_order_reservations as reservation
+          where reservation.ticket_order_id = ticket_order.id
+        )
+        or not exists (
+          select 1
+          from public.ticket_order_reservations as reservation
+          join public.ticket_types as ticket_type
+            on ticket_type.id = reservation.ticket_type_id
+          where reservation.ticket_order_id = ticket_order.id
+            and ticket_type.event_id = ticket_order.event_id
+            and reservation.unit_price = ticket_type.price
+            and reservation.quantity::bigint * reservation.unit_price::bigint
+              = ticket_order.total
+            and reservation.quantity = (
+              select count(*)::integer
+              from public.tickets as ticket
+              where ticket.ticket_order_id = ticket_order.id
+                and ticket.ticket_type_id = reservation.ticket_type_id
+            )
+        )
       )
   ) then
     raise check_violation using message = 'legacy ticket reservation backfill mismatch';
@@ -82,6 +101,111 @@ grant select on table public.ticket_order_reservations
   to authenticated, service_role;
 grant insert, update, delete on table public.ticket_order_reservations
   to service_role;
+
+-- Payment reconciliation is a financially privileged, explicit staff action.
+-- Keep only opaque URL-safe operator/case references and the converged common
+-- outcome; email, provider payloads, and other PII are not accepted here.
+create table private.ticket_payment_reconciliation_audits (
+  claim_token uuid primary key,
+  operation text not null check (operation in ('payment', 'refund')),
+  target_id uuid not null,
+  actor_ref text not null check (actor_ref ~ '^[A-Za-z0-9_-]{16,128}$'),
+  case_ref text not null check (case_ref ~ '^[A-Za-z0-9_-]{16,128}$'),
+  claim_status text not null check (claim_status in ('claimed', 'in_progress', 'terminal')),
+  outcome public.payment_attempt_state,
+  requested_at timestamptz not null default now(),
+  finalized_at timestamptz,
+  check ((claim_status = 'terminal') = (outcome is not null)),
+  check ((outcome is null) = (finalized_at is null))
+);
+
+alter table private.ticket_payment_reconciliation_audits enable row level security;
+revoke all on table private.ticket_payment_reconciliation_audits
+  from public, anon, authenticated, service_role;
+
+create function private.record_ticket_reconciliation_audit(
+  p_claim_token uuid,
+  p_operation text,
+  p_target_id uuid,
+  p_actor_ref text,
+  p_case_ref text,
+  p_claim_status text,
+  p_outcome public.payment_attempt_state default null
+)
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $function$
+declare
+  v_audit private.ticket_payment_reconciliation_audits%rowtype;
+begin
+  if p_claim_token is null
+    or p_operation not in ('payment', 'refund')
+    or p_target_id is null
+    or p_actor_ref is null
+    or p_actor_ref !~ '^[A-Za-z0-9_-]{16,128}$'
+    or p_case_ref is null
+    or p_case_ref !~ '^[A-Za-z0-9_-]{16,128}$'
+    or p_claim_status not in ('claimed', 'in_progress', 'terminal')
+    or ((p_claim_status = 'terminal') is distinct from (p_outcome is not null))
+  then
+    raise invalid_parameter_value using message = 'ticket_reconciliation_audit_invalid';
+  end if;
+
+  insert into private.ticket_payment_reconciliation_audits (
+    claim_token,
+    operation,
+    target_id,
+    actor_ref,
+    case_ref,
+    claim_status,
+    outcome,
+    finalized_at
+  )
+  values (
+    p_claim_token,
+    p_operation,
+    p_target_id,
+    p_actor_ref,
+    p_case_ref,
+    p_claim_status,
+    p_outcome,
+    case when p_outcome is null then null else pg_catalog.clock_timestamp() end
+  )
+  on conflict (claim_token) do nothing;
+
+  select audit.*
+  into strict v_audit
+  from private.ticket_payment_reconciliation_audits as audit
+  where audit.claim_token = p_claim_token
+  for update;
+
+  if v_audit.operation is distinct from p_operation
+    or v_audit.target_id is distinct from p_target_id
+    or v_audit.actor_ref is distinct from p_actor_ref
+    or v_audit.case_ref is distinct from p_case_ref
+  then
+    raise unique_violation using message = 'ticket_reconciliation_audit_conflict';
+  end if;
+
+  if v_audit.claim_status <> 'terminal' then
+    update private.ticket_payment_reconciliation_audits
+    set
+      claim_status = p_claim_status,
+      outcome = p_outcome,
+      finalized_at = case
+        when p_outcome is null then null
+        else pg_catalog.clock_timestamp()
+      end
+    where claim_token = p_claim_token;
+  end if;
+end;
+$function$;
+
+revoke all on function private.record_ticket_reconciliation_audit(
+  uuid, text, uuid, text, text, text, public.payment_attempt_state
+) from public, anon, authenticated, service_role;
 
 create unique index payment_attempts_one_ticket_order_idx
   on public.payment_attempts (ref_id)
@@ -136,6 +260,38 @@ revoke all on function private.ticket_payment_attempt_json(public.payment_attemp
   from public, anon, authenticated, service_role;
 revoke all on function private.ticket_order_snapshot_matches(uuid, text, bigint)
   from public, anon, authenticated, service_role;
+
+-- An unpaid reservation no longer has placeholder ticket rows, so the admin
+-- console's historical ticket guard cannot see it. Lock only the fields that
+-- define the payable snapshot; capacity and the existing operational controls
+-- keep their prior contract.
+create function private.enforce_ticket_reservation_catalog_lock()
+returns trigger
+language plpgsql
+set search_path = ''
+as $function$
+begin
+  if (
+    old.event_id is distinct from new.event_id
+    or old.price is distinct from new.price
+  ) and exists (
+    select 1
+    from public.ticket_order_reservations as reservation
+    where reservation.ticket_type_id = old.id
+  ) then
+    raise check_violation using message = 'ticket_type_catalog_locked';
+  end if;
+  return new;
+end;
+$function$;
+
+revoke all on function private.enforce_ticket_reservation_catalog_lock()
+  from public, anon, authenticated, service_role;
+
+create trigger ticket_types_reservation_catalog_lock
+before update of event_id, price on public.ticket_types
+for each row
+execute function private.enforce_ticket_reservation_catalog_lock();
 
 -- New reservations hold capacity only. No ticket row exists until an approved
 -- provider finalization creates it with a QR in the same transaction.
@@ -653,6 +809,164 @@ begin
 end;
 $function$;
 
+-- Explicit staff reconciliation reclaims only ambiguous attempts (or a stale
+-- confirming claim). It never scans or retries automatically: an authorized
+-- service caller must name the attempt after reviewing the operational case.
+create function public.claim_ticket_payment_reconciliation(
+  p_attempt_id uuid,
+  p_claim_token uuid,
+  p_case_ref text
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $function$
+declare
+  v_attempt public.payment_attempts%rowtype;
+  v_order public.ticket_orders%rowtype;
+begin
+  if p_attempt_id is null
+    or p_claim_token is null
+    or p_case_ref is null
+    or p_case_ref !~ '^[A-Za-z0-9_-]{16,128}$'
+  then
+    raise invalid_parameter_value using message = 'ticket_reconciliation_claim_invalid';
+  end if;
+
+  select attempt.*
+  into v_attempt
+  from public.payment_attempts as attempt
+  where attempt.id = p_attempt_id
+    and attempt.purpose = 'ticket'
+    and attempt.provider = 'korpay';
+  if not found then
+    raise no_data_found using message = 'ticket_payment_attempt_not_found';
+  end if;
+
+  if v_attempt.state in ('approved', 'declined', 'canceled') then
+    perform private.record_ticket_reconciliation_audit(
+      p_claim_token,
+      'payment',
+      p_attempt_id,
+      'payment_reconciliation_service_v1',
+      p_case_ref,
+      'terminal',
+      v_attempt.state
+    );
+    return pg_catalog.jsonb_build_object(
+      'claim_status', 'terminal',
+      'attempt', private.ticket_payment_attempt_json(v_attempt),
+      'outcome', v_attempt.state
+    );
+  end if;
+  if v_attempt.state = 'confirming'
+    and v_attempt.claim_expires_at is not null
+    and v_attempt.claim_expires_at > pg_catalog.clock_timestamp()
+  then
+    perform private.record_ticket_reconciliation_audit(
+      p_claim_token,
+      'payment',
+      p_attempt_id,
+      'payment_reconciliation_service_v1',
+      p_case_ref,
+      'in_progress'
+    );
+    return pg_catalog.jsonb_build_object(
+      'claim_status', 'in_progress',
+      'attempt', private.ticket_payment_attempt_json(v_attempt)
+    );
+  end if;
+
+  select ticket_order.*
+  into v_order
+  from public.ticket_orders as ticket_order
+  where ticket_order.id = v_attempt.ref_id
+  for update;
+  if not found then
+    raise no_data_found using message = 'ticket_order_not_found';
+  end if;
+
+  perform request.id
+  from public.ticket_cancellation_requests as request
+  where request.ticket_order_id = v_order.id
+    and request.status in ('requested', 'processing', 'needs_review')
+  order by request.requested_at desc, request.id
+  for update of request;
+
+  select attempt.*
+  into v_attempt
+  from public.payment_attempts as attempt
+  where attempt.id = p_attempt_id
+    and attempt.purpose = 'ticket'
+    and attempt.provider = 'korpay'
+  for update;
+  if not found then
+    raise no_data_found using message = 'ticket_payment_attempt_not_found';
+  end if;
+
+  if v_attempt.state in ('approved', 'declined', 'canceled') then
+    perform private.record_ticket_reconciliation_audit(
+      p_claim_token,
+      'payment',
+      p_attempt_id,
+      'payment_reconciliation_service_v1',
+      p_case_ref,
+      'terminal',
+      v_attempt.state
+    );
+    return pg_catalog.jsonb_build_object(
+      'claim_status', 'terminal',
+      'attempt', private.ticket_payment_attempt_json(v_attempt),
+      'outcome', v_attempt.state
+    );
+  end if;
+  if v_attempt.state = 'confirming'
+    and v_attempt.claim_expires_at is not null
+    and v_attempt.claim_expires_at > pg_catalog.clock_timestamp()
+  then
+    perform private.record_ticket_reconciliation_audit(
+      p_claim_token,
+      'payment',
+      p_attempt_id,
+      'payment_reconciliation_service_v1',
+      p_case_ref,
+      'in_progress'
+    );
+    return pg_catalog.jsonb_build_object(
+      'claim_status', 'in_progress',
+      'attempt', private.ticket_payment_attempt_json(v_attempt)
+    );
+  end if;
+  if v_attempt.state not in ('unknown', 'needs_review', 'confirming') then
+    raise object_not_in_prerequisite_state using message = 'ticket_payment_not_reconcilable';
+  end if;
+
+  update public.payment_attempts
+  set
+    state = 'confirming',
+    claim_token = p_claim_token,
+    claim_expires_at = pg_catalog.clock_timestamp() + interval '10 minutes'
+  where id = v_attempt.id
+  returning * into v_attempt;
+
+  perform private.record_ticket_reconciliation_audit(
+    p_claim_token,
+    'payment',
+    p_attempt_id,
+    'payment_reconciliation_service_v1',
+    p_case_ref,
+    'claimed'
+  );
+
+  return pg_catalog.jsonb_build_object(
+    'claim_status', 'claimed',
+    'attempt', private.ticket_payment_attempt_json(v_attempt)
+  );
+end;
+$function$;
+
 create function public.finalize_ticket_payment_attempt(
   p_attempt_id uuid,
   p_claim_token uuid,
@@ -678,6 +992,7 @@ declare
   v_payment public.payments%rowtype;
   v_final_outcome public.payment_attempt_state;
   v_payment_key text;
+  v_has_active_cancellation boolean := false;
 begin
   if p_attempt_id is null
     or p_claim_token is null
@@ -716,6 +1031,13 @@ begin
     and request.status in ('requested', 'processing', 'needs_review')
   order by request.requested_at desc, request.id
   for update of request;
+
+  select exists (
+    select 1
+    from public.ticket_cancellation_requests as request
+    where request.ticket_order_id = v_order.id
+      and request.status in ('requested', 'processing', 'needs_review')
+  ) into v_has_active_cancellation;
 
   select attempt.*
   into v_attempt
@@ -777,11 +1099,6 @@ begin
       v_order.total
     )
     or exists (
-      select 1 from public.ticket_cancellation_requests as request
-      where request.ticket_order_id = v_order.id
-        and request.status in ('requested', 'processing', 'needs_review')
-    )
-    or exists (
       select 1 from public.tickets as ticket
       where ticket.ticket_order_id = v_order.id
     )
@@ -818,53 +1135,77 @@ begin
         or v_payment.amount is distinct from v_attempt.amount
         or v_payment.provider is distinct from v_attempt.provider
         or v_payment.payment_key is distinct from v_payment_key
+        or v_payment.status not in ('pending', 'paid')
+        or v_payment.raw is not null
       then
         v_final_outcome := 'needs_review';
       end if;
     else
-      insert into public.payments (
-        user_id,
-        purpose,
-        ref_id,
-        provider,
-        amount,
-        status,
-        payment_key,
-        idempotency_key,
-        raw
-      )
-      values (
-        v_attempt.user_id,
-        'ticket',
-        v_attempt.ref_id,
-        v_attempt.provider,
-        v_attempt.amount,
-        'paid',
-        v_payment_key,
-        'attempt:' || v_attempt.id::text,
-        null
-      )
-      returning * into v_payment;
+      begin
+        insert into public.payments (
+          user_id,
+          purpose,
+          ref_id,
+          provider,
+          amount,
+          status,
+          payment_key,
+          idempotency_key,
+          raw
+        )
+        values (
+          v_attempt.user_id,
+          'ticket',
+          v_attempt.ref_id,
+          v_attempt.provider,
+          v_attempt.amount,
+          'paid',
+          v_payment_key,
+          'attempt:' || v_attempt.id::text,
+          null
+        )
+        returning * into v_payment;
+      exception
+        when unique_violation then
+          v_final_outcome := 'needs_review';
+      end;
     end if;
   end if;
 
   if v_final_outcome = 'approved' then
-    update public.ticket_orders
-    set status = 'paid', expires_at = null
-    where id = v_order.id;
+    update public.payments
+    set status = 'paid'
+    where id = v_payment.id;
 
-    insert into public.tickets (
-      ticket_order_id,
-      ticket_type_id,
-      qr_token,
-      status
-    )
-    select
-      v_order.id,
-      v_reservation.ticket_type_id,
-      pg_catalog.encode(extensions.gen_random_bytes(16), 'hex'),
-      'valid'
-    from pg_catalog.generate_series(1, v_reservation.quantity);
+    if v_has_active_cancellation then
+      -- Record the provider approval without fulfilling a ticket order the
+      -- user already asked to cancel. This paid ledger is refund-ready while
+      -- pending order + absent QR keep admission fenced.
+      update public.ticket_cancellation_requests
+      set
+        status = 'needs_review',
+        attempt_token = null,
+        last_error_code = 'approved_requires_refund'
+      where ticket_order_id = v_order.id
+        and status in ('requested', 'processing', 'needs_review');
+    else
+      update public.ticket_orders
+      set status = 'paid', expires_at = null
+      where id = v_order.id;
+
+      insert into public.tickets (
+        ticket_order_id,
+        ticket_type_id,
+        qr_token,
+        status
+      )
+      select
+        v_order.id,
+        v_reservation.ticket_type_id,
+        pg_catalog.encode(extensions.gen_random_bytes(16), 'hex'),
+        'valid'
+      from pg_catalog.generate_series(1, v_reservation.quantity);
+    end if;
   elsif v_final_outcome in ('declined', 'canceled') then
     update public.ticket_types
     set sold = sold - v_reservation.quantity
@@ -873,6 +1214,18 @@ begin
     update public.ticket_orders
     set status = 'canceled', expires_at = null
     where id = v_order.id;
+
+    -- A reviewed no-capture outcome satisfies an active user cancellation.
+    -- Finish that durable request in the same order→request→attempt→type
+    -- critical section so it cannot remain stuck after capacity is restored.
+    update public.ticket_cancellation_requests
+    set
+      status = 'completed',
+      attempt_token = null,
+      completed_at = coalesce(completed_at, pg_catalog.clock_timestamp()),
+      last_error_code = null
+    where ticket_order_id = v_order.id
+      and status in ('requested', 'processing', 'needs_review');
   end if;
 
   if p_provider_payment_key is not null
@@ -919,6 +1272,54 @@ begin
   where id = v_attempt.id;
 
   return v_final_outcome;
+end;
+$function$;
+
+create function public.finalize_ticket_payment_reconciliation(
+  p_attempt_id uuid,
+  p_claim_token uuid,
+  p_outcome public.payment_attempt_state,
+  p_provider_payment_key text default null,
+  p_provider_transaction_id text default null,
+  p_provider_approval_reference text default null,
+  p_result_code text default null,
+  p_payment_method text default null,
+  p_masked_payment_method text default null,
+  p_approved_at timestamptz default null
+)
+returns public.payment_attempt_state
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $function$
+declare
+  v_outcome public.payment_attempt_state;
+begin
+  v_outcome := public.finalize_ticket_payment_attempt(
+    p_attempt_id,
+    p_claim_token,
+    p_outcome,
+    p_provider_payment_key,
+    p_provider_transaction_id,
+    p_provider_approval_reference,
+    p_result_code,
+    p_payment_method,
+    p_masked_payment_method,
+    p_approved_at
+  );
+  update private.ticket_payment_reconciliation_audits
+  set
+    claim_status = 'terminal',
+    outcome = v_outcome,
+    finalized_at = pg_catalog.clock_timestamp()
+  where claim_token = p_claim_token
+    and operation = 'payment'
+    and target_id = p_attempt_id;
+  if not found then
+    raise object_not_in_prerequisite_state using message = 'ticket_reconciliation_audit_missing';
+  end if;
+  return v_outcome;
 end;
 $function$;
 
@@ -1179,7 +1580,7 @@ begin
   if p_outcome = 'approved' and (
     p_refunded_amount is distinct from v_attempt.amount
     or v_attempt.state is distinct from 'approved'
-    or v_order.status is distinct from 'paid'
+    or v_order.status not in ('pending', 'paid')
     or v_payment.id is null
     or v_payment.provider is distinct from v_attempt.provider
     or v_payment.purpose is distinct from 'ticket'
@@ -1187,10 +1588,26 @@ begin
     or v_payment.user_id is distinct from v_order.user_id
     or v_payment.amount is distinct from v_order.total
     or v_payment.status is distinct from 'paid'
-    or exists (
-      select 1 from public.tickets as ticket
-      where ticket.ticket_order_id = v_order.id
-        and ticket.status <> 'valid'
+    or (
+      v_order.status = 'paid'
+      and (
+        not exists (
+          select 1 from public.tickets as ticket
+          where ticket.ticket_order_id = v_order.id
+        )
+        or exists (
+          select 1 from public.tickets as ticket
+          where ticket.ticket_order_id = v_order.id
+            and ticket.status <> 'valid'
+        )
+      )
+    )
+    or (
+      v_order.status = 'pending'
+      and exists (
+        select 1 from public.tickets as ticket
+        where ticket.ticket_order_id = v_order.id
+      )
     )
   ) then
     v_final_outcome := 'needs_review';
@@ -1289,6 +1706,226 @@ begin
   end if;
 
   return v_final_outcome;
+end;
+$function$;
+
+create function public.claim_ticket_refund_reconciliation(
+  p_request_id uuid,
+  p_claim_token uuid,
+  p_case_ref text
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $function$
+declare
+  v_order public.ticket_orders%rowtype;
+  v_request public.ticket_cancellation_requests%rowtype;
+  v_attempt public.payment_attempts%rowtype;
+begin
+  if p_request_id is null
+    or p_claim_token is null
+    or p_case_ref is null
+    or p_case_ref !~ '^[A-Za-z0-9_-]{16,128}$'
+  then
+    raise invalid_parameter_value using message = 'ticket_refund_reconciliation_invalid';
+  end if;
+
+  select ticket_order.*
+  into v_order
+  from public.ticket_orders as ticket_order
+  join public.ticket_cancellation_requests as request
+    on request.ticket_order_id = ticket_order.id
+  where request.id = p_request_id
+  for update of ticket_order;
+  if not found then
+    raise no_data_found using message = 'ticket_refund_not_found';
+  end if;
+
+  select request.*
+  into v_request
+  from public.ticket_cancellation_requests as request
+  where request.id = p_request_id
+    and request.ticket_order_id = v_order.id
+  for update;
+  if not found then
+    raise no_data_found using message = 'ticket_refund_not_found';
+  end if;
+
+  select attempt.*
+  into v_attempt
+  from public.payment_attempts as attempt
+  where attempt.purpose = 'ticket'
+    and attempt.ref_id = v_order.id
+    and attempt.provider = 'korpay'
+  for update;
+  if not found then
+    raise no_data_found using message = 'ticket_payment_attempt_not_found';
+  end if;
+
+  if v_request.status = 'completed' then
+    perform private.record_ticket_reconciliation_audit(
+      p_claim_token,
+      'refund',
+      p_request_id,
+      'payment_reconciliation_service_v1',
+      p_case_ref,
+      'terminal',
+      'approved'
+    );
+    return pg_catalog.jsonb_build_object(
+      'claim_status', 'terminal',
+      'attempt', private.ticket_payment_attempt_json(v_attempt),
+      'outcome', 'approved'
+    );
+  end if;
+  if v_request.status = 'processing'
+    and v_request.attempt_token is distinct from p_claim_token
+    and v_request.attempt_token is not null
+    and v_request.provider_started_at > pg_catalog.clock_timestamp() - interval '5 minutes'
+  then
+    perform private.record_ticket_reconciliation_audit(
+      p_claim_token,
+      'refund',
+      p_request_id,
+      'payment_reconciliation_service_v1',
+      p_case_ref,
+      'in_progress'
+    );
+    return pg_catalog.jsonb_build_object(
+      'claim_status', 'in_progress',
+      'attempt', private.ticket_payment_attempt_json(v_attempt)
+    );
+  end if;
+
+  perform ticket.id
+  from public.tickets as ticket
+  where ticket.ticket_order_id = v_order.id
+  order by ticket.id
+  for update of ticket;
+
+  perform ticket_type.id
+  from public.ticket_types as ticket_type
+  join public.ticket_order_reservations as reservation
+    on reservation.ticket_type_id = ticket_type.id
+  where reservation.ticket_order_id = v_order.id
+  for update of ticket_type;
+
+  if v_request.status not in ('needs_review', 'processing')
+    or v_order.status not in ('pending', 'paid')
+    or v_attempt.state is distinct from 'approved'
+    or v_attempt.payment_id is null
+    or not exists (
+      select 1
+      from public.payments as payment
+      where payment.id = v_attempt.payment_id
+        and payment.provider = v_attempt.provider
+        and payment.purpose = 'ticket'
+        and payment.ref_id = v_order.id
+        and payment.user_id = v_order.user_id
+        and payment.amount = v_order.total
+        and payment.status = 'paid'
+    )
+    or (
+      v_order.status = 'paid'
+      and (
+        not exists (
+          select 1 from public.tickets as ticket
+          where ticket.ticket_order_id = v_order.id
+        )
+        or exists (
+          select 1 from public.tickets as ticket
+          where ticket.ticket_order_id = v_order.id
+            and ticket.status <> 'valid'
+        )
+      )
+    )
+    or (
+      v_order.status = 'pending'
+      and exists (
+        select 1 from public.tickets as ticket
+        where ticket.ticket_order_id = v_order.id
+      )
+    )
+  then
+    raise object_not_in_prerequisite_state using message = 'ticket_refund_not_reconcilable';
+  end if;
+
+  update public.ticket_cancellation_requests
+  set
+    status = 'processing',
+    attempt_token = p_claim_token,
+    provider_started_at = pg_catalog.clock_timestamp(),
+    last_error_code = null
+  where id = v_request.id;
+
+  perform private.record_ticket_reconciliation_audit(
+    p_claim_token,
+    'refund',
+    p_request_id,
+    'payment_reconciliation_service_v1',
+    p_case_ref,
+    'claimed'
+  );
+
+  return pg_catalog.jsonb_build_object(
+    'claim_status', 'claimed',
+    'attempt', private.ticket_payment_attempt_json(v_attempt)
+  );
+end;
+$function$;
+
+create function public.finalize_ticket_refund_reconciliation(
+  p_request_id uuid,
+  p_attempt_id uuid,
+  p_claim_token uuid,
+  p_outcome public.payment_attempt_state,
+  p_refunded_amount bigint default null,
+  p_provider_payment_key text default null,
+  p_provider_transaction_id text default null,
+  p_provider_approval_reference text default null,
+  p_result_code text default null,
+  p_payment_method text default null,
+  p_masked_payment_method text default null,
+  p_approved_at timestamptz default null
+)
+returns public.payment_attempt_state
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $function$
+declare
+  v_outcome public.payment_attempt_state;
+begin
+  v_outcome := public.finalize_ticket_payment_refund(
+    p_request_id,
+    p_attempt_id,
+    p_claim_token,
+    p_outcome,
+    p_refunded_amount,
+    p_provider_payment_key,
+    p_provider_transaction_id,
+    p_provider_approval_reference,
+    p_result_code,
+    p_payment_method,
+    p_masked_payment_method,
+    p_approved_at
+  );
+  update private.ticket_payment_reconciliation_audits
+  set
+    claim_status = 'terminal',
+    outcome = v_outcome,
+    finalized_at = pg_catalog.clock_timestamp()
+  where claim_token = p_claim_token
+    and operation = 'refund'
+    and target_id = p_request_id;
+  if not found then
+    raise object_not_in_prerequisite_state using message = 'ticket_reconciliation_audit_missing';
+  end if;
+  return v_outcome;
 end;
 $function$;
 
@@ -1795,7 +2432,13 @@ set search_path = public, pg_temp
 as $function$
 declare
   v_count integer := 0;
+  v_can_expire boolean;
+  v_expired_prepared_transitioned boolean;
+  v_cancel_reason text;
+  v_request_id uuid;
   r record;
+  v_request record;
+  v_attempt public.payment_attempts%rowtype;
 begin
   for r in
     select orders.id
@@ -1804,18 +2447,21 @@ begin
       and orders.expires_at is not null
       and orders.expires_at < now() - interval '5 minutes'
       and not exists (
-        select 1 from public.payments as payment
+        select 1
+        from public.payments as payment
         where payment.purpose = 'order'
           and payment.ref_id = orders.id
           and payment.status in ('pending', 'paid')
       )
       and not exists (
-        select 1 from public.order_cancellation_requests as request
+        select 1
+        from public.order_cancellation_requests as request
         where request.order_id = orders.id
-          and request.status in ('requested', 'processing', 'needs_review')
+          and request.status in ('processing', 'needs_review')
       )
       and not exists (
-        select 1 from public.payment_attempts as attempt
+        select 1
+        from public.payment_attempts as attempt
         where attempt.purpose = 'order'
           and attempt.ref_id = orders.id
           and attempt.state in ('confirming', 'unknown', 'needs_review', 'approved')
@@ -1824,10 +2470,107 @@ begin
     limit 200
     for update of orders skip locked
   loop
-    perform public.cancel_order(r.id, '결제 시간 만료 자동 취소');
+    v_can_expire := true;
+    v_expired_prepared_transitioned := false;
+    v_cancel_reason := '결제 시간 만료 자동 취소';
+    v_request_id := null;
+
+    -- The baseline partial unique index guarantees one attempt per goods
+    -- order. Locking it only after the order matches claim/finalize exactly.
+    select attempt.*
+    into v_attempt
+    from public.payment_attempts as attempt
+    where attempt.purpose = 'order'
+      and attempt.ref_id = r.id
+    for update;
+
+    if found then
+      if v_attempt.state = 'prepared' then
+        if v_attempt.expires_at > pg_catalog.clock_timestamp() then
+          v_can_expire := false;
+        else
+          update public.payment_attempts as attempt
+          set
+            state = 'canceled',
+            claim_token = null,
+            claim_expires_at = null
+          where attempt.id = v_attempt.id
+            and attempt.state = 'prepared'
+            and attempt.expires_at <= pg_catalog.clock_timestamp()
+          returning true into v_expired_prepared_transitioned;
+
+          if not coalesce(v_expired_prepared_transitioned, false) then
+            v_can_expire := false;
+          end if;
+        end if;
+      elsif v_attempt.state in (
+        'confirming',
+        'unknown',
+        'needs_review',
+        'approved'
+      ) then
+        -- Defensive recheck after locking: a callback may have won after the
+        -- candidate snapshot but before this transaction acquired the order.
+        v_can_expire := false;
+      end if;
+    end if;
+
+    if not v_can_expire then
+      continue;
+    end if;
+
+    -- A user can request cancellation while the provider action is still
+    -- valid. That request intentionally holds inventory until the attempt TTL
+    -- proves the provider can no longer claim it. Lock and finish that durable
+    -- request in this same transaction; the compatibility cancel_order wrapper
+    -- correctly rejects active requests and therefore is used only when none
+    -- exists.
+    select request.id, request.reason
+    into v_request
+    from public.order_cancellation_requests as request
+    where request.order_id = r.id
+      and request.status = 'requested'
+    order by request.requested_at desc, request.id desc
+    limit 1
+    for update;
+
+    if found then
+      -- A durable request is provider-sensitive evidence. Close it only when
+      -- this exact order→attempt critical section proved the action TTL and
+      -- performed prepared→canceled itself. An absent, previously terminal,
+      -- or legacy failed-ledger attempt is not proof that cancellation is safe.
+      if not v_expired_prepared_transitioned then
+        continue;
+      end if;
+
+      v_request_id := v_request.id;
+      v_cancel_reason := v_request.reason;
+    end if;
+
+    if v_request_id is null then
+      perform public.cancel_order(r.id, v_cancel_reason);
+    else
+      perform public.finalize_order_cancellation_with_provider_evidence(
+        r.id,
+        v_cancel_reason,
+        array[]::text[]
+      );
+
+      update public.order_cancellation_requests as request
+      set
+        status = 'completed',
+        completed_at = pg_catalog.now(),
+        updated_at = pg_catalog.now()
+      where request.id = v_request_id
+        and request.status = 'requested';
+    end if;
+
     v_count := v_count + 1;
   end loop;
 
+  -- Ticket checkout follows the same lock order and attempt-TTL proof. A
+  -- durable cancellation request is completed only when this critical section
+  -- itself transitions its expired prepared attempt to canceled.
   for r in
     select ticket_orders.id
     from public.ticket_orders
@@ -1843,7 +2586,7 @@ begin
       and not exists (
         select 1 from public.ticket_cancellation_requests as request
         where request.ticket_order_id = ticket_orders.id
-          and request.status in ('requested', 'processing', 'needs_review')
+          and request.status in ('processing', 'needs_review')
       )
       and not exists (
         select 1 from public.payment_attempts as attempt
@@ -1855,7 +2598,76 @@ begin
     limit 200
     for update of ticket_orders skip locked
   loop
-    perform public.refund_ticket_order(r.id, '결제 시간 만료 자동 취소');
+    v_can_expire := true;
+    v_expired_prepared_transitioned := false;
+    v_request_id := null;
+
+    select attempt.*
+    into v_attempt
+    from public.payment_attempts as attempt
+    where attempt.purpose = 'ticket'
+      and attempt.ref_id = r.id
+    for update;
+
+    if found then
+      if v_attempt.state = 'prepared' then
+        if v_attempt.expires_at > pg_catalog.clock_timestamp() then
+          v_can_expire := false;
+        else
+          update public.payment_attempts as attempt
+          set
+            state = 'canceled',
+            claim_token = null,
+            claim_expires_at = null
+          where attempt.id = v_attempt.id
+            and attempt.state = 'prepared'
+            and attempt.expires_at <= pg_catalog.clock_timestamp()
+          returning true into v_expired_prepared_transitioned;
+
+          if not coalesce(v_expired_prepared_transitioned, false) then
+            v_can_expire := false;
+          end if;
+        end if;
+      elsif v_attempt.state in (
+        'confirming',
+        'unknown',
+        'needs_review',
+        'approved'
+      ) then
+        v_can_expire := false;
+      end if;
+    end if;
+
+    if not v_can_expire then
+      continue;
+    end if;
+
+    select request.id, request.requested_by
+    into v_request
+    from public.ticket_cancellation_requests as request
+    where request.ticket_order_id = r.id
+      and request.status = 'requested'
+    order by request.requested_at desc, request.id desc
+    limit 1
+    for update;
+
+    if found then
+      if not v_expired_prepared_transitioned then
+        continue;
+      end if;
+
+      v_request_id := v_request.id;
+    end if;
+
+    if v_request_id is null then
+      perform public.refund_ticket_order(r.id, '결제 시간 만료 자동 취소');
+    else
+      perform public.finalize_ticket_cancellation_request(
+        v_request_id,
+        v_request.requested_by
+      );
+    end if;
+
     v_count := v_count + 1;
   end loop;
   return v_count;
@@ -2002,10 +2814,22 @@ grant execute on function public.claim_ticket_payment_attempt(
   public.payment_provider, text, text, uuid
 ) to service_role;
 
+revoke all on function public.claim_ticket_payment_reconciliation(uuid, uuid, text)
+  from public, anon, authenticated, service_role;
+grant execute on function public.claim_ticket_payment_reconciliation(uuid, uuid, text)
+  to service_role;
+
 revoke all on function public.finalize_ticket_payment_attempt(
   uuid, uuid, public.payment_attempt_state, text, text, text, text, text, text, timestamptz
 ) from public, anon, authenticated, service_role;
 grant execute on function public.finalize_ticket_payment_attempt(
+  uuid, uuid, public.payment_attempt_state, text, text, text, text, text, text, timestamptz
+) to service_role;
+
+revoke all on function public.finalize_ticket_payment_reconciliation(
+  uuid, uuid, public.payment_attempt_state, text, text, text, text, text, text, timestamptz
+) from public, anon, authenticated, service_role;
+grant execute on function public.finalize_ticket_payment_reconciliation(
   uuid, uuid, public.payment_attempt_state, text, text, text, text, text, text, timestamptz
 ) to service_role;
 
@@ -2018,6 +2842,18 @@ revoke all on function public.finalize_ticket_payment_refund(
   uuid, uuid, uuid, public.payment_attempt_state, bigint, text, text, text, text, text, text, timestamptz
 ) from public, anon, authenticated, service_role;
 grant execute on function public.finalize_ticket_payment_refund(
+  uuid, uuid, uuid, public.payment_attempt_state, bigint, text, text, text, text, text, text, timestamptz
+) to service_role;
+
+revoke all on function public.claim_ticket_refund_reconciliation(uuid, uuid, text)
+  from public, anon, authenticated, service_role;
+grant execute on function public.claim_ticket_refund_reconciliation(uuid, uuid, text)
+  to service_role;
+
+revoke all on function public.finalize_ticket_refund_reconciliation(
+  uuid, uuid, uuid, public.payment_attempt_state, bigint, text, text, text, text, text, text, timestamptz
+) from public, anon, authenticated, service_role;
+grant execute on function public.finalize_ticket_refund_reconciliation(
   uuid, uuid, uuid, public.payment_attempt_state, bigint, text, text, text, text, text, text, timestamptz
 ) to service_role;
 

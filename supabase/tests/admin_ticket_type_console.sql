@@ -278,6 +278,16 @@ select 1 / case when (
   where id = '44444444-4444-4444-8444-444444444801'
 ) then 1 else 0 end as assert_update_preserves_sold_and_deferred_settings;
 
+select 1 / case when public.admin_upsert_ticket_type(
+  '33333333-3333-4333-8333-333333333809',
+  '44444444-4444-4444-8444-444444444801',
+  'admin-ticket-event-a',
+  '운영 표시명 변경',
+  25000,
+  2
+) = '44444444-4444-4444-8444-444444444801'::uuid then 1 else 0 end
+  as assert_reservation_allows_non_payment_name_change;
+
 do $$
 begin
   begin
@@ -324,11 +334,11 @@ begin
       end if;
       raise;
   end;
-  raise exception 'ticket history should lock event, name, and price';
+  raise exception 'reservation snapshot should lock event and price';
 end;
 $$;
 
--- 실제 환불 경로로 sold가 복원된 뒤에도 티켓 이력이 메타데이터를 잠근다.
+-- 실제 취소 경로로 sold가 복원된 뒤에도 reservation 이력이 결제 필드를 잠근다.
 reset role;
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
@@ -343,11 +353,11 @@ select 1 / case when (
   where id = :'reserved_ticket_order_id'::uuid
 ) then 1 else 0 end as assert_refund_cancels_ticket_order;
 
-select 1 / case when (
-  select count(*) = 2 and bool_and(status = 'refunded')
+select 1 / case when not exists (
+  select 1
   from public.tickets
   where ticket_order_id = :'reserved_ticket_order_id'::uuid
-) then 1 else 0 end as assert_refund_preserves_refunded_ticket_history;
+) then 1 else 0 end as assert_unpaid_refund_preserves_no_ticket_contract;
 
 select 1 / case when (
   select sold = 0
@@ -377,7 +387,7 @@ begin
       end if;
       raise;
   end;
-  raise exception 'refunded ticket history should keep event locked';
+  raise exception 'canceled reservation history should keep event locked';
 end;
 $$;
 

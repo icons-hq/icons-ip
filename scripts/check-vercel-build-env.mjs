@@ -33,6 +33,10 @@ export function validateVercelBuildEnvironment(environment) {
     && !/^[A-Za-z0-9_-]{16,128}$/.test(environment.CRON_SECRET)) {
     throw new Error('Invalid Vercel production CRON_SECRET: use 16-128 URL-safe characters');
   }
+  if (isPresent(environment.PAYMENT_RECONCILIATION_SECRET)
+    && !/^[A-Za-z0-9_-]{16,128}$/.test(environment.PAYMENT_RECONCILIATION_SECRET)) {
+    throw new Error(`Invalid Vercel ${target} PAYMENT_RECONCILIATION_SECRET: use 16-128 URL-safe characters`);
+  }
 
   const secretMode = paymentKeyMode(environment.TOSS_SECRET_KEY, 'secret');
   if (isPresent(environment.TOSS_SECRET_KEY) && secretMode === null) {
@@ -43,6 +47,7 @@ export function validateVercelBuildEnvironment(environment) {
     checked: true,
     legacyTossMode: secretMode,
     newCheckoutEnabled: false,
+    paymentReconciliationConfigured: isPresent(environment.PAYMENT_RECONCILIATION_SECRET),
   };
 }
 

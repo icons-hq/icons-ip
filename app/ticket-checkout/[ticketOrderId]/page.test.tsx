@@ -83,18 +83,18 @@ describe('/ticket-checkout/[ticketOrderId]', () => {
     mocks.prepare.mockResolvedValue(prepared);
   });
 
-  it('소유자 예매를 읽고 provider-neutral ticket checkout을 준비한다', async () => {
+  it('소유자 예매를 읽되 GET render에서는 payment attempt를 만들지 않는다', async () => {
     const html = renderToStaticMarkup(await Page({
       params: Promise.resolve({ ticketOrderId: orderId.toUpperCase() }),
     }));
 
     expect(mocks.loadOrder).toHaveBeenCalledWith(userId, orderId);
-    expect(mocks.prepare).toHaveBeenCalledWith({ userId, ticketOrderId: orderId });
+    expect(mocks.prepare).not.toHaveBeenCalled();
     expect(html).toContain(`data-order="${orderId}"`);
-    expect(html).toContain(`data-attempt="${attemptId}"`);
+    expect(html).toContain('data-attempt="unavailable"');
   });
 
-  it('provider gate·모호 attempt·준비 실패 시 결제 action을 닫는다', async () => {
+  it('provider gate·모호 attempt와 무관하게 render/prefetch는 무변이다', async () => {
     mocks.available = false;
     const disabled = renderToStaticMarkup(await Page({ params: Promise.resolve({ ticketOrderId: orderId }) }));
     expect(disabled).toContain('data-attempt="unavailable"');
@@ -107,9 +107,9 @@ describe('/ticket-checkout/[ticketOrderId]', () => {
     expect(mocks.prepare).not.toHaveBeenCalled();
 
     mocks.loadOrder.mockResolvedValue(order);
-    mocks.prepare.mockRejectedValue(new Error('private provider detail'));
-    const failed = renderToStaticMarkup(await Page({ params: Promise.resolve({ ticketOrderId: orderId }) }));
-    expect(failed).toContain('data-attempt="unavailable"');
+    const prefetched = renderToStaticMarkup(await Page({ params: Promise.resolve({ ticketOrderId: orderId }) }));
+    expect(prefetched).toContain('data-attempt="unavailable"');
+    expect(mocks.prepare).not.toHaveBeenCalled();
   });
 
   it('인증과 owner-scoped 예매 조회를 통과하지 못하면 prepare를 호출하지 않는다', async () => {

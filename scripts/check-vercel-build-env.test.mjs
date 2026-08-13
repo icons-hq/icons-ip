@@ -21,6 +21,7 @@ describe('validateVercelBuildEnvironment', () => {
       checked: true,
       legacyTossMode: null,
       newCheckoutEnabled: false,
+      paymentReconciliationConfigured: false,
     });
   });
 
@@ -37,6 +38,26 @@ describe('validateVercelBuildEnvironment', () => {
       VERCEL_ENV: 'production',
       CRON_SECRET: 'too short',
     })).toThrow('Invalid Vercel production CRON_SECRET');
+  });
+
+  it('keeps the dark-deploy secret optional and validates it only when provisioned', () => {
+    expect(validateVercelBuildEnvironment(baseEnvironment)).toMatchObject({
+      checked: true,
+      paymentReconciliationConfigured: false,
+    });
+
+    expect(validateVercelBuildEnvironment({
+      ...baseEnvironment,
+      VERCEL_ENV: 'production',
+      CRON_SECRET: 'cron_secret_for_production',
+    })).toMatchObject({ paymentReconciliationConfigured: false });
+
+    expect(() => validateVercelBuildEnvironment({
+      ...baseEnvironment,
+      VERCEL_ENV: 'production',
+      CRON_SECRET: 'cron_secret_for_production',
+      PAYMENT_RECONCILIATION_SECRET: 'too short',
+    })).toThrow('Invalid Vercel production PAYMENT_RECONCILIATION_SECRET');
   });
 
   it('accepts the legacy Supabase anon key name', () => {
@@ -76,6 +97,7 @@ describe('validateVercelBuildEnvironment', () => {
       checked: true,
       legacyTossMode: null,
       newCheckoutEnabled: false,
+      paymentReconciliationConfigured: false,
     });
   });
 

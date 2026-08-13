@@ -9,8 +9,12 @@ const mocks = vi.hoisted(() => ({
     bindCallbackNonce: vi.fn(),
     claimTicketAttempt: vi.fn(),
     finalizeTicketAttempt: vi.fn(),
+    claimTicketReconciliation: vi.fn(),
+    finalizeTicketReconciliation: vi.fn(),
     claimTicketRefund: vi.fn(),
     finalizeTicketRefund: vi.fn(),
+    claimTicketRefundReconciliation: vi.fn(),
+    finalizeTicketRefundReconciliation: vi.fn(),
   },
 }));
 
@@ -90,5 +94,97 @@ describe('createRuntimeTicketPaymentCheckout', () => {
     })).resolves.toMatchObject({ outcome: 'approved' });
     expect(mocks.getPaymentGateway).toHaveBeenCalledTimes(1);
     expect(refund).toHaveBeenCalledTimes(1);
+  });
+
+  it('명시적 reconciliation claim 뒤에만 runtime gateway 조회를 resolve한다', async () => {
+    const attempt = {
+      id: '30000000-0000-4000-8000-000000000206',
+      provider: 'korpay' as const,
+      purpose: 'ticket' as const,
+      refId: '20000000-0000-4000-8000-000000000206',
+      amount: 44_000,
+      currency: 'KRW',
+      idempotencyKey: 'ticket:20000000-0000-4000-8000-000000000206',
+      providerOrderId: 'T30000000000040008000000000000206',
+      providerProductCode: 'P30000000000040008000000000000206',
+      expiresAt: '2099-08-13T10:10:00.000Z',
+    };
+    const reconcile = vi.fn().mockResolvedValue({
+      attemptId: attempt.id,
+      provider: 'korpay',
+      outcome: 'approved',
+    });
+    mocks.getPaymentGateway.mockReturnValue({ reconcile });
+    mocks.repository.claimTicketReconciliation.mockResolvedValue({
+      status: 'claimed',
+      attempt,
+      claimToken: '50000000-0000-4000-8000-000000000206',
+    });
+    mocks.repository.finalizeTicketReconciliation.mockResolvedValue({
+      attemptId: attempt.id,
+      provider: 'korpay',
+      outcome: 'approved',
+    });
+
+    const checkout = createRuntimeTicketPaymentCheckout();
+    expect(mocks.getPaymentGateway).not.toHaveBeenCalled();
+
+    await expect(checkout.reconcilePayment({
+      attemptId: attempt.id,
+      caseRef: 'case_ticket_opaque_206',
+    }))
+      .resolves.toMatchObject({ outcome: 'approved' });
+    expect(mocks.repository.claimTicketReconciliation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        caseRef: 'case_ticket_opaque_206',
+      }),
+    );
+    expect(mocks.getPaymentGateway).toHaveBeenCalledTimes(1);
+    expect(reconcile).toHaveBeenCalledWith(attempt);
+  });
+
+  it('refund reconciliation도 전용 request claim 뒤에서만 provider 조회한다', async () => {
+    const attempt = {
+      id: '30000000-0000-4000-8000-000000000206',
+      provider: 'korpay' as const,
+      purpose: 'ticket' as const,
+      refId: '20000000-0000-4000-8000-000000000206',
+      amount: 44_000,
+      currency: 'KRW',
+      idempotencyKey: 'ticket:20000000-0000-4000-8000-000000000206',
+      providerOrderId: 'T30000000000040008000000000000206',
+      providerProductCode: 'P30000000000040008000000000000206',
+      expiresAt: '2099-08-13T10:10:00.000Z',
+    };
+    const reconcile = vi.fn().mockResolvedValue({
+      attemptId: attempt.id,
+      provider: 'korpay',
+      outcome: 'canceled',
+    });
+    mocks.getPaymentGateway.mockReturnValue({ reconcile });
+    mocks.repository.claimTicketRefundReconciliation.mockResolvedValue({
+      status: 'claimed',
+      attempt,
+      claimToken: '50000000-0000-4000-8000-000000000206',
+    });
+    mocks.repository.finalizeTicketRefundReconciliation.mockResolvedValue({
+      attemptId: attempt.id,
+      provider: 'korpay',
+      outcome: 'approved',
+      refundedAmount: attempt.amount,
+    });
+
+    const checkout = createRuntimeTicketPaymentCheckout();
+    await expect(checkout.reconcileRefund({
+      requestId: '40000000-0000-4000-8000-000000000206',
+      caseRef: 'case_refund_opaque_206',
+    })).resolves.toMatchObject({ outcome: 'approved', refundedAmount: 44_000 });
+    expect(mocks.repository.claimTicketRefundReconciliation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        caseRef: 'case_refund_opaque_206',
+      }),
+    );
+    expect(mocks.getPaymentGateway).toHaveBeenCalledTimes(1);
+    expect(reconcile).toHaveBeenCalledWith(attempt);
   });
 });

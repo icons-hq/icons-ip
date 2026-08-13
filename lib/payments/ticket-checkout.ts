@@ -23,6 +23,13 @@ export class TicketPaymentConfirmationInProgressError extends Error {
   }
 }
 
+export class TicketPaymentReconciliationInProgressError extends Error {
+  constructor() {
+    super('Ticket payment reconciliation is already in progress');
+    this.name = 'TicketPaymentReconciliationInProgressError';
+  }
+}
+
 export class TicketRefundInProgressError extends Error {
   constructor() {
     super('Ticket refund is already in progress');
@@ -93,12 +100,24 @@ export interface TicketPaymentAttemptRepository {
     readonly claimToken: string;
   }): Promise<TicketPaymentAttemptClaim>;
   finalizeTicketAttempt(input: TicketPaymentFinalization): Promise<ConfirmOutcome>;
+  claimTicketReconciliation(input: {
+    readonly attemptId: string;
+    readonly claimToken: string;
+    readonly caseRef: string;
+  }): Promise<TicketPaymentAttemptClaim>;
+  finalizeTicketReconciliation(input: TicketPaymentFinalization): Promise<ConfirmOutcome>;
   claimTicketRefund(input: {
     readonly requestId: string;
     readonly userId: string;
     readonly claimToken: string;
   }): Promise<TicketRefundClaim>;
   finalizeTicketRefund(input: TicketRefundFinalization): Promise<RefundOutcome>;
+  claimTicketRefundReconciliation(input: {
+    readonly requestId: string;
+    readonly claimToken: string;
+    readonly caseRef: string;
+  }): Promise<Exclude<TicketRefundClaim, { readonly status: 'legacy' }>>;
+  finalizeTicketRefundReconciliation(input: TicketRefundFinalization): Promise<RefundOutcome>;
 }
 
 export interface TicketPaymentCheckout {
@@ -111,6 +130,14 @@ export interface TicketPaymentCheckout {
     readonly callbackNonce: string;
     readonly providerPayload: unknown;
   }): Promise<ConfirmOutcome>;
+  reconcilePayment(input: {
+    readonly attemptId: string;
+    readonly caseRef: string;
+  }): Promise<ConfirmOutcome>;
+  reconcileRefund(input: {
+    readonly requestId: string;
+    readonly caseRef: string;
+  }): Promise<RefundOutcome>;
   refund(input: {
     readonly requestId: string;
     readonly userId: string;
@@ -211,6 +238,14 @@ function refundNeedsReview(
   };
 }
 
+const OPAQUE_RECONCILIATION_REF = /^[A-Za-z0-9_-]{16,128}$/;
+
+function assertReconciliationAudit(caseRef: string) {
+  if (!OPAQUE_RECONCILIATION_REF.test(caseRef)) {
+    throw new TicketPaymentContractError('invalid_reconciliation_audit');
+  }
+}
+
 /**
  * Deep module for paid ticket checkout and refund. The repository keeps
  * ownership, capacity, cancellation fencing, QR issuance, and idempotency in
@@ -294,6 +329,126 @@ export function createTicketPaymentCheckout({
         : identityMismatchOutcome(claim.attempt, providerOutcome.evidence);
 
       return repository.finalizeTicketAttempt({
+        attemptId: claim.attempt.id,
+        claimToken: claim.claimToken,
+        outcome,
+      });
+    },
+
+    async reconcilePayment({ attemptId, caseRef }) {
+      if (
+        typeof attemptId !== 'string'
+        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(attemptId)
+      ) {
+        throw new TicketPaymentContractError('invalid_reconciliation');
+      }
+      assertReconciliationAudit(caseRef);
+
+      const claim = await repository.claimTicketReconciliation({
+        attemptId,
+        claimToken: createClaimToken(),
+        caseRef,
+      });
+      assertAttempt(claim.attempt, provider);
+
+      if (claim.status === 'terminal') {
+        assertOutcome(claim.outcome, claim.attempt);
+        return claim.outcome;
+      }
+      if (claim.status === 'in_progress') {
+        throw new TicketPaymentReconciliationInProgressError();
+      }
+
+      let providerOutcome: ConfirmOutcome;
+      try {
+        providerOutcome = await gateway.reconcile(claim.attempt);
+      } catch {
+        providerOutcome = {
+          attemptId: claim.attempt.id,
+          provider: claim.attempt.provider,
+          outcome: 'unknown',
+          reasonCode: 'provider_unavailable',
+        };
+      }
+
+      const outcome = (
+        providerOutcome.attemptId === claim.attempt.id
+        && providerOutcome.provider === claim.attempt.provider
+      )
+        ? providerOutcome
+        : identityMismatchOutcome(claim.attempt, providerOutcome.evidence);
+
+      return repository.finalizeTicketReconciliation({
+        attemptId: claim.attempt.id,
+        claimToken: claim.claimToken,
+        outcome,
+      });
+    },
+
+    async reconcileRefund({ requestId, caseRef }) {
+      if (
+        typeof requestId !== 'string'
+        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(requestId)
+      ) {
+        throw new TicketPaymentContractError('invalid_refund_reconciliation');
+      }
+      assertReconciliationAudit(caseRef);
+
+      const claim = await repository.claimTicketRefundReconciliation({
+        requestId,
+        claimToken: createClaimToken(),
+        caseRef,
+      });
+      assertAttempt(claim.attempt, provider);
+      if (claim.status === 'terminal') {
+        assertRefundOutcome(claim.outcome, claim.attempt);
+        return claim.outcome;
+      }
+      if (claim.status === 'in_progress') throw new TicketRefundInProgressError();
+
+      let providerOutcome: ConfirmOutcome;
+      try {
+        providerOutcome = await gateway.reconcile(claim.attempt);
+      } catch {
+        providerOutcome = {
+          attemptId: claim.attempt.id,
+          provider: claim.attempt.provider,
+          outcome: 'unknown',
+          reasonCode: 'provider_unavailable',
+        };
+      }
+
+      let outcome: RefundOutcome;
+      if (
+        providerOutcome.attemptId !== claim.attempt.id
+        || providerOutcome.provider !== claim.attempt.provider
+      ) {
+        outcome = refundNeedsReview(
+          claim.attempt,
+          'provider_identity_mismatch',
+          providerOutcome.evidence,
+        );
+      } else if (providerOutcome.outcome === 'canceled') {
+        // In refund context `canceled` means the original provider transaction
+        // is fully canceled. The DB finalizer still rechecks amount/payment/QR.
+        outcome = {
+          attemptId: claim.attempt.id,
+          provider: claim.attempt.provider,
+          outcome: 'approved',
+          refundedAmount: claim.attempt.amount,
+          reasonCode: 'provider_refund_reconciled',
+          ...(providerOutcome.evidence ? { evidence: providerOutcome.evidence } : {}),
+        };
+      } else {
+        outcome = refundNeedsReview(
+          claim.attempt,
+          `refund_reconcile_${providerOutcome.outcome}`,
+          providerOutcome.evidence,
+        );
+      }
+
+      return repository.finalizeTicketRefundReconciliation({
+        requestId,
         attemptId: claim.attempt.id,
         claimToken: claim.claimToken,
         outcome,

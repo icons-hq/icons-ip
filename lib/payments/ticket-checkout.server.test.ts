@@ -89,6 +89,44 @@ describe('TicketPaymentAttemptRepository', () => {
     expect(JSON.stringify(rpc.calls[0])).not.toContain('raw');
   });
 
+  it('모호 결제 reconciliation은 전용 claim/finalization RPC와 allowlist만 사용한다', async () => {
+    const rpc = client({
+      claim_ticket_payment_reconciliation: { claim_status: 'claimed', attempt: attemptRow },
+      finalize_ticket_payment_reconciliation: 'approved',
+    });
+    const repository = createTicketPaymentAttemptRepository(rpc);
+
+    await expect(repository.claimTicketReconciliation({
+      attemptId: ATTEMPT_ID,
+      claimToken: CLAIM_TOKEN,
+      caseRef: 'case_ticket_opaque_206',
+    })).resolves.toMatchObject({ status: 'claimed', claimToken: CLAIM_TOKEN });
+
+    expect(rpc.calls[0].args).toMatchObject({
+      p_case_ref: 'case_ticket_opaque_206',
+    });
+
+    await repository.finalizeTicketReconciliation({
+      attemptId: ATTEMPT_ID,
+      claimToken: CLAIM_TOKEN,
+      outcome: {
+        attemptId: ATTEMPT_ID,
+        provider: 'korpay',
+        outcome: 'approved',
+        evidence: { providerTransactionId: 'reconcile-tid-206' },
+      },
+    });
+
+    expect(rpc.calls.map((call) => call.name)).toEqual([
+      'claim_ticket_payment_reconciliation',
+      'finalize_ticket_payment_reconciliation',
+    ]);
+    expect(rpc.calls[1].args).toMatchObject({
+      p_provider_transaction_id: 'reconcile-tid-206',
+    });
+    expect(JSON.stringify(rpc.calls)).not.toContain('raw');
+  });
+
   it('legacy와 Korpay 환급 claim을 구분하고 전액 결과를 멱등 finalization한다', async () => {
     const rpc = client({
       claim_ticket_payment_refund: { claim_status: 'claimed', attempt: attemptRow },
@@ -126,6 +164,41 @@ describe('TicketPaymentAttemptRepository', () => {
       userId: USER_ID,
       claimToken: CLAIM_TOKEN,
     })).resolves.toEqual({ status: 'legacy' });
+  });
+
+  it('refund reconciliation은 결제 reconciliation과 별도 request claim/finalizer를 사용한다', async () => {
+    const rpc = client({
+      claim_ticket_refund_reconciliation: { claim_status: 'claimed', attempt: attemptRow },
+      finalize_ticket_refund_reconciliation: 'approved',
+    });
+    const repository = createTicketPaymentAttemptRepository(rpc);
+
+    await expect(repository.claimTicketRefundReconciliation({
+      requestId: REQUEST_ID,
+      claimToken: CLAIM_TOKEN,
+      caseRef: 'case_refund_opaque_206',
+    })).resolves.toMatchObject({ status: 'claimed', claimToken: CLAIM_TOKEN });
+
+    expect(rpc.calls[0].args).toMatchObject({
+      p_case_ref: 'case_refund_opaque_206',
+    });
+
+    await repository.finalizeTicketRefundReconciliation({
+      requestId: REQUEST_ID,
+      attemptId: ATTEMPT_ID,
+      claimToken: CLAIM_TOKEN,
+      outcome: {
+        attemptId: ATTEMPT_ID,
+        provider: 'korpay',
+        outcome: 'approved',
+        refundedAmount: 44_000,
+      },
+    });
+
+    expect(rpc.calls.map((call) => call.name)).toEqual([
+      'claim_ticket_refund_reconciliation',
+      'finalize_ticket_refund_reconciliation',
+    ]);
   });
 
   it('DB guard가 outcome을 낮추면 승인으로 가장하지 않는다', async () => {

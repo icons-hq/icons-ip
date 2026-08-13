@@ -197,6 +197,25 @@ export function createTicketPaymentAttemptRepository(
       return guardedConfirmOutcome(input.outcome, finalized);
     },
 
+    async claimTicketReconciliation({ attemptId, claimToken, caseRef }) {
+      const claim = parseAttemptClaim(await rpc(client, 'claim_ticket_payment_reconciliation', {
+        p_attempt_id: attemptId,
+        p_claim_token: claimToken,
+        p_case_ref: caseRef,
+      }));
+      return claim.status === 'claimed' ? { ...claim, claimToken } : claim;
+    },
+
+    async finalizeTicketReconciliation(input: TicketPaymentFinalization) {
+      const finalized = parseOutcome(await rpc(client, 'finalize_ticket_payment_reconciliation', {
+        p_attempt_id: input.attemptId,
+        p_claim_token: input.claimToken,
+        p_outcome: input.outcome.outcome,
+        ...evidenceArgs(input.outcome.evidence),
+      }));
+      return guardedConfirmOutcome(input.outcome, finalized);
+    },
+
     async claimTicketRefund({ requestId, userId, claimToken }) {
       const claim = parseRefundClaim(await rpc(client, 'claim_ticket_payment_refund', {
         p_request_id: requestId,
@@ -208,6 +227,28 @@ export function createTicketPaymentAttemptRepository(
 
     async finalizeTicketRefund(input: TicketRefundFinalization) {
       const finalized = parseOutcome(await rpc(client, 'finalize_ticket_payment_refund', {
+        p_request_id: input.requestId,
+        p_attempt_id: input.attemptId,
+        p_claim_token: input.claimToken,
+        p_outcome: input.outcome.outcome,
+        p_refunded_amount: input.outcome.refundedAmount ?? null,
+        ...evidenceArgs(input.outcome.evidence),
+      }));
+      return guardedRefundOutcome(input.outcome, finalized);
+    },
+
+    async claimTicketRefundReconciliation({ requestId, claimToken, caseRef }) {
+      const claim = parseRefundClaim(await rpc(client, 'claim_ticket_refund_reconciliation', {
+        p_request_id: requestId,
+        p_claim_token: claimToken,
+        p_case_ref: caseRef,
+      }));
+      if (claim.status === 'legacy') throw new TicketPaymentRepositoryError();
+      return claim.status === 'claimed' ? { ...claim, claimToken } : claim;
+    },
+
+    async finalizeTicketRefundReconciliation(input: TicketRefundFinalization) {
+      const finalized = parseOutcome(await rpc(client, 'finalize_ticket_refund_reconciliation', {
         p_request_id: input.requestId,
         p_attempt_id: input.attemptId,
         p_claim_token: input.claimToken,

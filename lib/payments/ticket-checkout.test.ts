@@ -25,6 +25,9 @@ const ATTEMPT_ID = '30000000-0000-4000-8000-000000000206';
 const REQUEST_ID = '40000000-0000-4000-8000-000000000206';
 const PROVIDER_ORDER_ID = 'T30000000000040008000000000000206';
 const CALLBACK_NONCE = 'opaque-ticket-callback-nonce-206';
+const RECONCILIATION_AUDIT = {
+  caseRef: 'case_ticket_opaque_206',
+} as const;
 
 function attempt(overrides: Partial<PaymentAttempt> = {}): PaymentAttempt {
   return {
@@ -109,6 +112,7 @@ class MemoryTicketPaymentAttemptRepository implements TicketPaymentAttemptReposi
   refundClaimMode: TicketRefundClaim['status'] | null = null;
   finalizations: TicketPaymentFinalization[] = [];
   refundFinalizations: TicketRefundFinalization[] = [];
+  reconciliationAudits: Array<{ caseRef: string }> = [];
 
   async prepareTicketAttempt(input: {
     userId: string;
@@ -179,6 +183,41 @@ class MemoryTicketPaymentAttemptRepository implements TicketPaymentAttemptReposi
     return input.outcome;
   }
 
+  async claimTicketReconciliation(input: {
+    attemptId: string;
+    claimToken: string;
+    caseRef: string;
+  }) {
+    this.reconciliationAudits.push({ caseRef: input.caseRef });
+    const target = [...this.attempts.values()].find((entry) => entry.id === input.attemptId);
+    if (!target) throw new TicketPaymentContractError('reconciliation_not_found');
+    const current = this.outcomes.get(target.id);
+    if (current && current.outcome !== 'unknown' && current.outcome !== 'needs_review') {
+      return { status: 'terminal' as const, attempt: target, outcome: current };
+    }
+    if (this.confirmationClaimMode === 'in_progress') {
+      return { status: 'in_progress' as const, attempt: target };
+    }
+    this.claims.set(target.id, input.claimToken);
+    return { status: 'claimed' as const, attempt: target, claimToken: input.claimToken };
+  }
+
+  async finalizeTicketReconciliation(input: TicketPaymentFinalization) {
+    if (this.claims.get(input.attemptId) !== input.claimToken) {
+      throw new TicketPaymentContractError('claim_mismatch');
+    }
+    this.finalizations.push(input);
+    this.outcomes.set(input.attemptId, input.outcome);
+    if (input.outcome.outcome === 'approved') {
+      this.state.order = 'paid';
+      this.state.qrCount = 2;
+    } else if (input.outcome.outcome === 'declined' || input.outcome.outcome === 'canceled') {
+      this.state.order = 'canceled';
+      this.state.capacity = 'released';
+    }
+    return input.outcome;
+  }
+
   async claimTicketRefund(input: {
     requestId: string;
     userId: string;
@@ -220,16 +259,54 @@ class MemoryTicketPaymentAttemptRepository implements TicketPaymentAttemptReposi
     }
     return input.outcome;
   }
+
+  async claimTicketRefundReconciliation(input: {
+    requestId: string;
+    claimToken: string;
+    caseRef: string;
+  }) {
+    this.reconciliationAudits.push({ caseRef: input.caseRef });
+    const target = this.attempts.get(ORDER_ID);
+    if (!target || input.requestId !== REQUEST_ID) {
+      throw new TicketPaymentContractError('refund_reconciliation_not_found');
+    }
+    const replay = this.refundOutcomes.get(input.requestId);
+    if (replay?.outcome === 'approved') {
+      return { status: 'terminal' as const, attempt: target, outcome: replay };
+    }
+    if (this.refundClaimMode === 'in_progress') {
+      return { status: 'in_progress' as const, attempt: target };
+    }
+    this.state.cancellation = 'processing';
+    return { status: 'claimed' as const, attempt: target, claimToken: input.claimToken };
+  }
+
+  async finalizeTicketRefundReconciliation(input: TicketRefundFinalization) {
+    this.refundFinalizations.push(input);
+    this.refundOutcomes.set(input.requestId, input.outcome);
+    if (input.outcome.outcome === 'approved') {
+      this.state.order = 'canceled';
+      this.state.capacity = 'released';
+      this.state.qrCount = 0;
+      this.state.refundCount = 1;
+      this.state.cancellation = 'completed';
+    } else {
+      this.state.cancellation = 'needs_review';
+    }
+    return input.outcome;
+  }
 }
 
 function checkoutFixture(input: {
   confirm?: readonly ConfirmOutcome[];
+  reconcile?: readonly ConfirmOutcome[];
   refund?: readonly RefundOutcome[];
 } = {}) {
   const repository = new MemoryTicketPaymentAttemptRepository();
   const gateway = new FakePaymentGateway({
     prepare: [prepared()],
     confirm: input.confirm ?? [confirmOutcome('approved')],
+    reconcile: input.reconcile,
     refund: input.refund ?? [refundOutcome('approved')],
   });
   const checkout = createTicketPaymentCheckout({
@@ -357,6 +434,62 @@ describe('TicketPaymentCheckout', () => {
     expect(repository.finalizations).toHaveLength(1);
   });
 
+  it('명시적 staff reconciliation만 unknown 결제를 provider 재조회해 승인으로 수렴시킨다', async () => {
+    const unknown = confirmOutcome('unknown');
+    const approved = confirmOutcome('approved', {
+      evidence: { providerTransactionId: 'ticket-reconcile-206' },
+    });
+    const { checkout, repository } = checkoutFixture({
+      confirm: [unknown],
+      reconcile: [approved],
+    });
+    await checkout.prepare({ userId: USER_ID, ticketOrderId: ORDER_ID });
+    await expect(checkout.confirm(callback)).resolves.toEqual(unknown);
+
+    expect(repository.state).toMatchObject({ order: 'pending', capacity: 'reserved', qrCount: 0 });
+    await expect(checkout.reconcilePayment({
+      attemptId: ATTEMPT_ID,
+      ...RECONCILIATION_AUDIT,
+    })).resolves.toEqual(approved);
+    expect(repository.state).toMatchObject({ order: 'paid', capacity: 'reserved', qrCount: 2 });
+    expect(repository.reconciliationAudits).toEqual([RECONCILIATION_AUDIT]);
+  });
+
+  it('reconciliation audit context는 PII가 아닌 opaque URL-safe ref만 허용한다', async () => {
+    const { checkout, repository } = checkoutFixture();
+
+    await expect(checkout.reconcilePayment({
+      attemptId: ATTEMPT_ID,
+      caseRef: 'staff@example.test',
+    })).rejects.toMatchObject({ code: 'invalid_reconciliation_audit' });
+    await expect(checkout.reconcileRefund({
+      requestId: REQUEST_ID,
+      caseRef: 'short',
+    })).rejects.toMatchObject({ code: 'invalid_reconciliation_audit' });
+
+    expect(repository.reconciliationAudits).toEqual([]);
+  });
+
+  it('reconciliation이 계속 모호하면 QR·정원을 보존하고 terminal 승인 replay는 재조회하지 않는다', async () => {
+    const unknown = confirmOutcome('unknown');
+    const approved = confirmOutcome('approved');
+    const { checkout, repository } = checkoutFixture({
+      confirm: [unknown],
+      reconcile: [unknown, approved],
+    });
+    await checkout.prepare({ userId: USER_ID, ticketOrderId: ORDER_ID });
+    await checkout.confirm(callback);
+
+    await expect(checkout.reconcilePayment({ attemptId: ATTEMPT_ID, ...RECONCILIATION_AUDIT }))
+      .resolves.toEqual(unknown);
+    expect(repository.state).toMatchObject({ order: 'pending', capacity: 'reserved', qrCount: 0 });
+    await expect(checkout.reconcilePayment({ attemptId: ATTEMPT_ID, ...RECONCILIATION_AUDIT }))
+      .resolves.toEqual(approved);
+    await expect(checkout.reconcilePayment({ attemptId: ATTEMPT_ID, ...RECONCILIATION_AUDIT }))
+      .resolves.toEqual(approved);
+    expect(repository.state).toMatchObject({ order: 'paid', qrCount: 2 });
+  });
+
   it('gateway가 attempt 정체성을 바꾸면 승인·QR 대신 needs_review로 고정한다', async () => {
     const mismatched = confirmOutcome('approved', {
       attemptId: '30000000-0000-4000-8000-000000000999',
@@ -413,6 +546,64 @@ describe('TicketPaymentCheckout', () => {
         cancellation: 'needs_review',
       });
     }
+  });
+
+  it('환급 timeout은 전용 reconciliation에서 full provider cancellation만 완료로 수렴시킨다', async () => {
+    const { checkout, repository } = checkoutFixture({
+      refund: [refundOutcome('unknown')],
+      reconcile: [confirmOutcome('canceled', {
+        evidence: { providerTransactionId: 'ticket-refund-reconcile-206' },
+      })],
+    });
+    await checkout.prepare({ userId: USER_ID, ticketOrderId: ORDER_ID });
+    await checkout.confirm(callback);
+    await checkout.refund({
+      requestId: REQUEST_ID,
+      userId: USER_ID,
+      reason: '사용자 티켓 예매 취소',
+    });
+
+    expect(repository.state).toMatchObject({
+      order: 'paid',
+      capacity: 'reserved',
+      qrCount: 2,
+      cancellation: 'needs_review',
+    });
+    await expect(checkout.reconcileRefund({
+      requestId: REQUEST_ID,
+      ...RECONCILIATION_AUDIT,
+    })).resolves.toMatchObject({
+      outcome: 'approved',
+      refundedAmount: 44_000,
+      reasonCode: 'provider_refund_reconciled',
+    });
+    expect(repository.state).toMatchObject({
+      order: 'canceled',
+      capacity: 'released',
+      qrCount: 0,
+      refundCount: 1,
+      cancellation: 'completed',
+    });
+  });
+
+  it('환급 reconciliation이 unknown이면 좌석·QR·payment를 보존하고 다음 명시적 재조정을 허용한다', async () => {
+    const { checkout, repository } = checkoutFixture({
+      refund: [refundOutcome('unknown')],
+      reconcile: [confirmOutcome('unknown'), confirmOutcome('canceled')],
+    });
+    await checkout.prepare({ userId: USER_ID, ticketOrderId: ORDER_ID });
+    await checkout.confirm(callback);
+    await checkout.refund({
+      requestId: REQUEST_ID,
+      userId: USER_ID,
+      reason: '사용자 티켓 예매 취소',
+    });
+
+    await expect(checkout.reconcileRefund({ requestId: REQUEST_ID, ...RECONCILIATION_AUDIT }))
+      .resolves.toMatchObject({ outcome: 'needs_review' });
+    expect(repository.state).toMatchObject({ order: 'paid', capacity: 'reserved', qrCount: 2 });
+    await expect(checkout.reconcileRefund({ requestId: REQUEST_ID, ...RECONCILIATION_AUDIT }))
+      .resolves.toMatchObject({ outcome: 'approved', refundedAmount: 44_000 });
   });
 
   it('다른 환급 처리권이 있으면 gateway를 재호출하지 않는다', async () => {

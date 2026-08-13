@@ -42,6 +42,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ICONS_CATALOG_SOURCE=
 AUTH_SIGNUP_RESEND_SECRET=
 CRON_SECRET=
+PAYMENT_RECONCILIATION_SECRET=
 ```
 
 - `NEXT_PUBLIC_SUPABASE_URL`: Supabase 프로젝트 URL.
@@ -50,6 +51,7 @@ CRON_SECRET=
 - `ICONS_CATALOG_SOURCE`: 서버 전용 catalog/search source override. 값은 `mock` 또는 `supabase`만 허용한다. 비워두면 Vercel Preview는 `mock`, Supabase 환경변수가 있는 production/local은 `supabase`, Supabase 환경변수가 없으면 `mock`을 쓴다.
 - `AUTH_SIGNUP_RESEND_SECRET`: 회원가입 확인 메일 재전송 상태, 인증 `next`, 비밀번호 재설정 요청 제한 쿠키를 domain-separated HMAC으로 서명하는 서버 전용 secret. 긴 랜덤 값을 사용하고 `NEXT_PUBLIC_` prefix를 붙이지 않는다.
 - `CRON_SECRET`: production Vercel Cron이 만료된 관리자 아트워크 staging 객체를 정리할 때 쓰는 서버 전용 bearer secret. 16~128자의 URL-safe 랜덤 값을 사용하고 preview에는 필요하지 않다.
+- `PAYMENT_RECONCILIATION_SECRET`: 검토된 단일 결제·환급 건을 명시적으로 재조회하는 내부 route 전용 bearer secret. `CRON_SECRET`과 공유하지 않는다. #206 dark deploy에서는 미설정이 정상이며 route가 401로 닫힌다. 활성화 시 별도 승인 절차로 Production에만 16~128자의 URL-safe 랜덤 값을 두고 Preview/CI에는 넣지 않는다. 요청은 이메일 등 PII가 아닌 opaque URL-safe `caseRef`만 받으며 actor는 서버가 `payment_reconciliation_service_v1`으로 고정한다.
 
 ### Production 결제 활성화 경계
 
@@ -179,7 +181,7 @@ CRON_SECRET
 - GitHub Actions의 앱 빌드는 Node 26을 사용한다. Vercel project/runtime Node.js Version은 Vercel production Functions 공식 지원 범위인 24.x로 유지한다.
 - deployment secret 검사는 각 deploy job 안에서 수행한다. 누락 시 job이 즉시 실패하며, 필요한 GitHub Secret을 설정한 뒤 rerun해야 한다.
 - `.vercel/` 연결 파일은 commit하지 않고, workflow가 `VERCEL_ORG_ID`와 `VERCEL_PROJECT_ID`로 Vercel 원격 build/deploy를 요청한다.
-- Vercel 환경변수는 sensitive 상태로 각 환경에 둔다. production deploy job은 GitHub `CRON_SECRET`을 Vercel production sensitive env에 stdin으로 동기화한 뒤 배포한다. 원격 build 안의 `prebuild` guard가 Supabase/Auth 필수 변수와 production의 `CRON_SECRET`·server-only Toss legacy credential 형식을 검증하며 누락·불일치 시 배포를 실패시킨다. Preview는 Toss secret 없이 Fake-only로 통과하고 legacy route는 503이며, 어느 환경에서도 이 credential이 신규 checkout을 열지 않는다. development 환경변수는 별도 요청 전까지 추가하지 않는다.
+- Vercel 환경변수는 sensitive 상태로 각 환경에 둔다. production deploy job은 기존 관리자 아트워크용 GitHub `CRON_SECRET`만 Vercel production에 동기화한다. 결제 재조정 secret은 #206 dark deploy 범위에서 workflow가 provision/mutate하지 않으며, 값이 이미 있으면 원격 `prebuild` guard가 형식만 검증한다. Preview는 결제 재조정 secret과 Toss secret 없이 Fake-only로 통과하고 내부 재조정 route는 인증 실패, legacy route는 503이며 어느 credential도 신규 checkout을 열지 않는다. development 환경변수는 별도 요청 전까지 추가하지 않는다.
 
 ## 프리뷰 환경
 
