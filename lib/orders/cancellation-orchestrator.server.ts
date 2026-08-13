@@ -10,6 +10,7 @@ import {
   isIndeterminateTossFailure,
   verifyTossCancellationState,
 } from '../payments/toss';
+import { createLegacyTossPaymentRepository } from '../payments/legacy-toss-ledger.server';
 import { createServiceClient } from '../supabase/service';
 
 const PROVIDER_CANCEL_REASON = '관리자 승인 주문 취소';
@@ -91,6 +92,7 @@ const PAYMENT_STATUSES = new Set<CancellationPaymentStatus>([
 ]);
 function createDefaultDependencies(): CancellationReconciliationDependencies {
   const service = createServiceClient();
+  const tossPayments = createLegacyTossPaymentRepository(service);
 
   return {
     async loadContext(requestId) {
@@ -113,8 +115,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         throw new Error('invalid cancellation request state');
       }
 
-      const { data: paymentData, error: paymentError } = await service
-        .from('payments')
+      const { data: paymentData, error: paymentError } = await tossPayments
         .select('id,status,amount,payment_key')
         .eq('purpose', 'order')
         .eq('ref_id', request.order_id)

@@ -95,10 +95,14 @@ function normalizedTemplate(value) {
 
 export function isSafeRecoveryTemplate(value) {
   const normalized = normalizedTemplate(value);
-  return /{{\s*\.RedirectTo\s*}}/.test(normalized)
-    && /[?&]token_hash={{\s*\.TokenHash\s*}}/.test(normalized)
-    && /(?:[?&]|&amp;)type=recovery(?:["'&<\s]|$)/.test(normalized)
-    && !/{{\s*\.ConfirmationURL\s*}}/.test(normalized);
+  if (/<!--|-->|<(?:script|style|template|textarea)\b/i.test(normalized)) return false;
+
+  const recoveryAnchor = /<a\s+href\s*=\s*(["']){{\s*\.RedirectTo\s*}}\?token_hash={{\s*\.TokenHash\s*}}(?:&amp;|&)type=recovery\1\s*>/g;
+  const matches = [...normalized.matchAll(recoveryAnchor)];
+  if (matches.length !== 1) return false;
+
+  const remaining = normalized.replace(recoveryAnchor, '<a>');
+  return !/{{[\s\S]*?}}/.test(remaining);
 }
 
 export function isSatisfied({
@@ -170,7 +174,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
     : null;
   if (recoveryTemplate !== null && !isSafeRecoveryTemplate(recoveryTemplate)) {
     throw new Error(
-      'recovery email template must use {{ .RedirectTo }} with token_hash={{ .TokenHash }} and type=recovery',
+      'recovery email template must use one exact {{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery href',
     );
   }
 

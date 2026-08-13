@@ -59,7 +59,7 @@ URL과 public key 둘 중 하나라도 없으면 인증 미들웨어는 세션 �
 
 ## Supabase Auth URL 설정
 
-Auth URL·email link TTL·recovery template 설정은 손으로 관리하지 않는다. `scripts/sync-supabase-auth.mjs`, workflow, `supabase/templates/recovery.html`이 진실원이고, workflow가 production과 preview 프로젝트에 각각 적용·검증한다. 대시보드에서 직접 바꾼 값은 다음 배포에서 되돌아간다.
+Auth URL·email link TTL·recovery template 설정은 손으로 관리하지 않는다. `scripts/sync-supabase-auth.mjs`, workflow, `supabase/templates/recovery.html`이 진실원이다. workflow는 URL과 TTL을 production·preview 프로젝트에 각각 적용·검증하고, recovery template는 Production handler 배포가 성공한 뒤 Production에만 활성화·readback한다. 공유 Preview의 전역 template는 PR workflow가 바꾸지 않는다. 관리 대상 값을 대시보드에서 직접 바꾸면 해당 동기화 단계가 있는 다음 배포에서 되돌아간다.
 
 **Production** (`deploy-supabase`, `main` push):
 

@@ -5,6 +5,37 @@ import {
   type CancellationReconciliationDependencies,
 } from './cancellation-orchestrator.server';
 
+const defaultMocks = vi.hoisted(() => ({
+  fetchPayment: vi.fn(),
+  cancelPayment: vi.fn(),
+  rpc: vi.fn(),
+  request: null as Record<string, unknown> | null,
+  payments: [] as Array<Record<string, unknown>>,
+  filters: [] as Array<{ table: string; column: string; value: unknown }>,
+}));
+
+vi.mock('../payments/toss-api', () => ({
+  fetchTossPayment: defaultMocks.fetchPayment,
+  cancelTossPayment: defaultMocks.cancelPayment,
+}));
+vi.mock('../supabase/service', () => ({
+  createServiceClient: () => ({
+    rpc: defaultMocks.rpc,
+    from: (table: string) => {
+      const query = {
+        select: vi.fn(() => query),
+        eq: vi.fn((column: string, value: unknown) => {
+          defaultMocks.filters.push({ table, column, value });
+          return query;
+        }),
+        maybeSingle: vi.fn(async () => ({ data: defaultMocks.request, error: null })),
+        order: vi.fn(async () => ({ data: defaultMocks.payments, error: null })),
+      };
+      return query;
+    },
+  }),
+}));
+
 const REQUEST_ID = '11111111-1111-4111-8111-111111111111';
 const ORDER_ID = '22222222-2222-4222-8222-222222222222';
 const ACTOR_ID = '33333333-3333-4333-8333-333333333333';
@@ -89,6 +120,37 @@ function dependencies(
 describe('reconcileOrderCancellation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    defaultMocks.filters = [];
+    defaultMocks.request = {
+      id: REQUEST_ID,
+      order_id: ORDER_ID,
+      status: 'processing',
+    };
+    defaultMocks.payments = [{
+      id: 'payment-1',
+      provider: 'toss',
+      status: 'paid',
+      amount: 42000,
+      payment_key: PAYMENT_KEY,
+    }];
+    defaultMocks.fetchPayment.mockResolvedValue({
+      ok: true,
+      body: providerPayment({ state: 'fully_canceled' }),
+    });
+    defaultMocks.rpc.mockResolvedValue({ error: null });
+  });
+
+  it('default 취소 조회는 Toss 행만 읽어 다른 provider key를 Toss API에 전달하지 않는다', async () => {
+    await expect(reconcileOrderCancellation({
+      requestId: REQUEST_ID,
+      actorId: ACTOR_ID,
+    })).resolves.toEqual({ ok: true, status: 'completed' });
+
+    expect(defaultMocks.filters).toContainEqual({
+      table: 'payments',
+      column: 'provider',
+      value: 'toss',
+    });
   });
 
   it('이미 완료된 요청은 provider와 DB 완료 처리를 다시 호출하지 않는다', async () => {

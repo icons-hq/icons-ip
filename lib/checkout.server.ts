@@ -92,7 +92,7 @@ export async function loadCheckoutOrder(
       .eq('order_id', orderId)
       .order('id'),
     supabase
-      .from('payments')
+      .from('payment_summaries')
       .select('status')
       .eq('purpose', 'order')
       .eq('ref_id', orderId)

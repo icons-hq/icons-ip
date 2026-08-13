@@ -218,7 +218,7 @@ describe('loadOrderDetail', () => {
           good_name_snapshot: '아크릴 스탠드',
           good_type_snapshot: '아크릴',
         }],
-        payments: [{
+        payment_summaries: [{
           id: 'payment-2',
           user_id: userId,
           purpose: 'order',
@@ -314,7 +314,7 @@ describe('loadOrderDetail', () => {
       in: [['status', ['pending', 'paid', 'shipping', 'done', 'canceled']]],
       maybeSingle: true,
     });
-    expect(records.find((record) => record.table === 'payments')).toMatchObject({
+    expect(records.find((record) => record.table === 'payment_summaries')).toMatchObject({
       select: 'id,amount,status,created_at',
       eq: [['user_id', userId], ['purpose', 'order'], ['ref_id', orderId]],
       order: [['created_at', { ascending: false }], ['id', { ascending: false }]],
@@ -354,7 +354,7 @@ describe('loadOrderDetail', () => {
           created_at: '2026-07-14T06:00:00.000Z',
         }],
         order_items: [],
-        payments: [],
+        payment_summaries: [],
         draw_tickets: [],
       },
     });
