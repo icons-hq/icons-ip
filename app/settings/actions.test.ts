@@ -237,6 +237,17 @@ describe('requestAccountDeletionAction', () => {
       '123e4567-e89b-42d3-a456-426614174000',
     ))).resolves.toEqual({ error: '탈퇴 신청 기능을 준비 중입니다.' });
 
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'account_deletion_reauthentication_required' },
+    });
+    await expect(requestAccountDeletionAction({}, deletionForm(
+      '회원 탈퇴를 신청합니다',
+      '123e4567-e89b-42d3-a456-426614174000',
+    ))).resolves.toEqual({
+      error: '보안을 위해 다시 로그인한 뒤 탈퇴를 신청해주세요.',
+    });
+
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'raw private failure' } });
     await expect(requestAccountDeletionAction({}, deletionForm(
       '회원 탈퇴를 신청합니다',

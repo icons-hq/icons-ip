@@ -123,6 +123,9 @@ export async function requestAccountDeletionAction(
     if (error.message.includes('account_deletion_not_available')) {
       return { error: '탈퇴 신청 기능을 준비 중입니다.' };
     }
+    if (error.message.includes('account_deletion_reauthentication_required')) {
+      return { error: '보안을 위해 다시 로그인한 뒤 탈퇴를 신청해주세요.' };
+    }
     if (error.message.includes('account_deletion_idempotency_conflict')) {
       return { error: '이미 접수된 탈퇴 신청 상태를 확인해주세요.' };
     }

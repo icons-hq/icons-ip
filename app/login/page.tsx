@@ -1,5 +1,6 @@
 import { Login } from '@/components/screens/Login';
 import {
+  ACCOUNT_DELETION_PATH,
   ACCOUNT_SUSPENDED_PATH,
   authErrorMessage,
   isAccountSuspended,
@@ -24,6 +25,8 @@ export default async function Page({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const next = safeNextPath(firstParam(params.next));
   const requestedMode = firstParam(params.mode);
+  const explicitDeletionReauthentication = firstParam(params.reauth) === '1'
+    && next === ACCOUNT_DELETION_PATH;
   const initialMode = requestedMode === 'signup' || requestedMode === 'reset' ? requestedMode : 'signin';
   const initialError = initialMode === 'reset'
     ? passwordResetErrorMessage(firstParam(params.reset_error))
@@ -33,8 +36,10 @@ export default async function Page({ searchParams }: PageProps) {
     : undefined;
   const auth = await getCurrentAuthState();
 
-  if (auth.user) {
-    if (isAccountSuspended(auth.profile)) redirect(ACCOUNT_SUSPENDED_PATH);
+  if (auth.user && !explicitDeletionReauthentication) {
+    if (isAccountSuspended(auth.profile) && next !== ACCOUNT_DELETION_PATH) {
+      redirect(ACCOUNT_SUSPENDED_PATH);
+    }
     redirect(postAuthenticationPath(auth.profile, auth.user.email, next));
   }
 

@@ -5,11 +5,24 @@ alter table private.account_deletion_control
   add column shipment_tracking_hmac_key bytea not null
     default extensions.gen_random_bytes(32),
   add column shipment_tracking_key_version smallint not null default 1,
+  add column transaction_lookup_hmac_ready boolean not null default false,
+  add column legacy_transaction_evidence_ready boolean not null default false,
+  add column immutable_ticket_contract_ready boolean not null default false,
+  add column community_legal_records_ready boolean not null default false,
   add constraint account_deletion_tracking_hmac_key_length_check check (
     pg_catalog.octet_length(shipment_tracking_hmac_key) = 32
   ),
   add constraint account_deletion_tracking_key_version_check check (
     shipment_tracking_key_version > 0
+  ),
+  add constraint account_deletion_activation_readiness_check check (
+    not phase_one_enabled
+    or (
+      transaction_lookup_hmac_ready
+      and legacy_transaction_evidence_ready
+      and immutable_ticket_contract_ready
+      and community_legal_records_ready
+    )
   );
 
 alter table private.account_deletion_legal_snapshots
@@ -26,6 +39,174 @@ alter table private.account_deletion_legal_snapshots
       'ticket_check_in'
     )
   );
+
+create or replace function private.account_deletion_blockers(p_user_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with unresolved_payments as (
+    select
+      coalesce(attempt.payment_id::text, 'attempt:' || attempt.id::text) as blocker_ref,
+      coalesce(payment.purpose, attempt.purpose) as purpose
+    from public.payment_attempts as attempt
+    left join public.payments as payment on payment.id = attempt.payment_id
+    where attempt.user_id = p_user_id
+      and (
+        attempt.state in ('prepared', 'confirming', 'unknown', 'needs_review')
+        or (attempt.state = 'approved' and attempt.payment_id is null)
+      )
+
+    union
+
+    -- An attempt linked to the same legacy pending payment represents one
+    -- obligation, not two public blockers.
+    select payment.id::text, payment.purpose
+    from public.payments as payment
+    where payment.user_id = p_user_id
+      and payment.status = 'pending'
+  ),
+  unresolved_refunds as (
+    select refund.id::text as blocker_ref, payment.purpose
+    from public.refunds as refund
+    join public.payments as payment on payment.id = refund.payment_id
+    where payment.user_id = p_user_id
+      and refund.status in ('requested', 'failed')
+  ),
+  blocker_counts as (
+    select
+      1 as priority,
+      'active_order'::text as code,
+      pg_catalog.count(*)::integer as blocker_count,
+      '/orders'::text as path
+    from public.orders as order_record
+    where order_record.user_id = p_user_id
+      and order_record.status in ('pending', 'paid', 'shipping')
+
+    union all
+
+    select
+      2,
+      'active_cancellation',
+      pg_catalog.count(*)::integer,
+      '/orders'
+    from (
+      select request.order_id::text as blocker_ref
+      from public.order_cancellation_requests as request
+      join public.orders as order_record on order_record.id = request.order_id
+      where order_record.user_id = p_user_id
+        and request.status in ('requested', 'processing', 'needs_review')
+
+      union
+
+      select claim.order_id::text
+      from public.order_cancellation_claims as claim
+      join public.orders as order_record on order_record.id = claim.order_id
+      where order_record.user_id = p_user_id
+    ) as active_cancellation
+
+    union all
+
+    select 3, 'active_order_payment', pg_catalog.count(*)::integer, '/orders'
+    from unresolved_payments
+    where purpose = 'order'
+
+    union all
+
+    select 4, 'active_ticket_payment', pg_catalog.count(*)::integer, '/tickets'
+    from unresolved_payments
+    where purpose = 'ticket'
+
+    union all
+
+    select 5, 'active_payment_attempt', pg_catalog.count(*)::integer, '/settings'
+    from unresolved_payments
+    where purpose not in ('order', 'ticket')
+
+    union all
+
+    select 6, 'active_order_refund', pg_catalog.count(*)::integer, '/orders'
+    from unresolved_refunds
+    where purpose = 'order'
+
+    union all
+
+    select 7, 'active_ticket_refund', pg_catalog.count(*)::integer, '/tickets'
+    from unresolved_refunds
+    where purpose = 'ticket'
+
+    union all
+
+    select 8, 'active_refund', pg_catalog.count(*)::integer, '/settings'
+    from unresolved_refunds
+    where purpose not in ('order', 'ticket')
+
+    union all
+
+    select
+      9,
+      'active_ticket',
+      pg_catalog.count(*)::integer,
+      '/tickets'
+    from public.ticket_orders as ticket_order
+    join public.events as event on event.id = ticket_order.event_id
+    where ticket_order.user_id = p_user_id
+      and (
+        ticket_order.status = 'pending'
+        or (
+          ticket_order.status = 'paid'
+          and (event.ends_at is null or event.ends_at > pg_catalog.now())
+          and exists (
+            select 1
+            from public.tickets as ticket
+            where ticket.ticket_order_id = ticket_order.id
+              and ticket.status = 'valid'
+          )
+        )
+      )
+
+    union all
+
+    select
+      10,
+      'active_ticket_cancellation',
+      pg_catalog.count(*)::integer,
+      '/tickets'
+    from public.ticket_cancellation_requests as request
+    join public.ticket_orders as ticket_order
+      on ticket_order.id = request.ticket_order_id
+    where ticket_order.user_id = p_user_id
+      and request.status in ('requested', 'processing', 'needs_review')
+
+    union all
+
+    select
+      11,
+      'staff_handover',
+      pg_catalog.count(*)::integer,
+      '/settings'
+    from public.profiles as profile
+    where profile.id = p_user_id
+      and profile.role in ('staff', 'admin')
+  )
+  select coalesce(
+    pg_catalog.jsonb_agg(
+      pg_catalog.jsonb_build_object(
+        'code', blocker.code,
+        'count', blocker.blocker_count,
+        'path', blocker.path
+      )
+      order by blocker.priority
+    ) filter (where blocker.blocker_count > 0),
+    '[]'::jsonb
+  )
+  from blocker_counts as blocker;
+$$;
+
+revoke all on function private.account_deletion_blockers(uuid)
+  from public, anon, authenticated, service_role;
 
 create or replace function private.snapshot_account_deletion_legal_records(
   p_deletion_event_id uuid,
@@ -194,11 +375,7 @@ begin
     ) + interval '5 years'
   from public.orders as order_record
   where order_record.user_id = p_user_id
-    and (
-      order_record.shipping_carrier is not null
-      or order_record.shipped_at is not null
-      or order_record.delivered_at is not null
-    )
+    and order_record.delivered_at is not null
     and coalesce(
       order_record.delivered_at,
       order_record.shipped_at,
@@ -251,6 +428,15 @@ begin
     payment.created_at + interval '5 years'
   from public.payments as payment
   where payment.user_id = p_user_id
+    and exists (
+      select 1
+      from public.payment_attempts as attempt
+      join private.payment_provider_evidence as evidence
+        on evidence.payment_attempt_id = attempt.id
+      where attempt.payment_id = payment.id
+        and attempt.state = 'approved'
+        and evidence.approved_at is not null
+    )
     and payment.created_at + interval '5 years' > pg_catalog.now()
   on conflict (deletion_event_id, record_type, record_ref) do update
   set
@@ -304,6 +490,8 @@ begin
   left join public.ticket_cancellation_requests as ticket_request
     on ticket_request.id = refund.ticket_cancellation_request_id
   where payment.user_id = p_user_id
+    and refund.status = 'done'
+    and coalesce(order_request.completed_at, ticket_request.completed_at) is not null
     and refund.created_at + interval '5 years' > pg_catalog.now()
   on conflict (deletion_event_id, record_type, record_ref) do update
   set
@@ -330,53 +518,20 @@ begin
     pg_catalog.jsonb_build_object(
       'ticketOrderRef', ticket_order.id::text,
       'eventRef', ticket_order.event_id,
-      'eventTitle', event.title,
-      'eventStartsAt', event.starts_at,
-      'eventEndsAt', event.ends_at,
       'status', ticket_order.status,
       'total', ticket_order.total,
       'contractedAt', ticket_order.created_at,
-      'ticketTypes', coalesce(
-        (
-          select pg_catalog.jsonb_agg(
-            pg_catalog.jsonb_build_object(
-              'ticketTypeRef', grouped.ticket_type_id::text,
-              'ticketTypeName', grouped.ticket_type_name,
-              'unitPrice', grouped.unit_price,
-              'quantity', grouped.quantity
-            )
-            order by grouped.ticket_type_id
-          )
-          from (
-            select
-              ticket.ticket_type_id,
-              ticket_type.name as ticket_type_name,
-              ticket_type.price as unit_price,
-              pg_catalog.count(*)::integer as quantity
-            from public.tickets as ticket
-            join public.ticket_types as ticket_type
-              on ticket_type.id = ticket.ticket_type_id
-            where ticket.ticket_order_id = ticket_order.id
-            group by ticket.ticket_type_id, ticket_type.name, ticket_type.price
-          ) as grouped
-        ),
-        '[]'::jsonb
-      ),
       'tickets', coalesce(
         (
           select pg_catalog.jsonb_agg(
             pg_catalog.jsonb_build_object(
               'ticketRef', ticket.id::text,
               'ticketTypeRef', ticket.ticket_type_id::text,
-              'ticketTypeName', ticket_type.name,
-              'unitPrice', ticket_type.price,
               'status', ticket.status
             )
             order by ticket.id
           )
           from public.tickets as ticket
-          join public.ticket_types as ticket_type
-            on ticket_type.id = ticket.ticket_type_id
           where ticket.ticket_order_id = ticket_order.id
         ),
         '[]'::jsonb
@@ -385,7 +540,6 @@ begin
     'ticket_transaction_v1',
     ticket_order.created_at + interval '5 years'
   from public.ticket_orders as ticket_order
-  join public.events as event on event.id = ticket_order.event_id
   where ticket_order.user_id = p_user_id
     and ticket_order.created_at + interval '5 years' > pg_catalog.now()
   on conflict (deletion_event_id, record_type, record_ref) do update
@@ -502,6 +656,26 @@ end;
 $$;
 
 revoke all on function private.lock_account_action_subject(uuid)
+  from public, anon, authenticated, service_role;
+
+create function private.has_recent_account_authentication(p_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    (
+      select auth_user.last_sign_in_at >= pg_catalog.now() - interval '10 minutes'
+      from auth.users as auth_user
+      where auth_user.id = p_user_id
+    ),
+    false
+  );
+$$;
+
+revoke all on function private.has_recent_account_authentication(uuid)
   from public, anon, authenticated, service_role;
 
 -- A blocked request is not terminal. Existing fulfillment and payment workers
@@ -650,6 +824,11 @@ begin
     select 1 from public.profiles as profile where profile.id = v_user_id
   ) then
     raise no_data_found using message = 'account_not_found';
+  end if;
+
+  if not private.has_recent_account_authentication(v_user_id) then
+    raise object_not_in_prerequisite_state
+      using message = 'account_deletion_reauthentication_required';
   end if;
 
   perform private.lock_account_action_subject(v_user_id);

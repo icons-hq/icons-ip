@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import {
+  ACCOUNT_DELETION_PATH,
   ACCOUNT_SUSPENDED_PATH,
   AUTH_CALLBACK_PATH,
   AUTH_NEXT_COOKIE_NAME,
@@ -164,7 +165,7 @@ export async function GET(request: NextRequest) {
   const profile = await getProfileForUser(supabase, data.user.id);
   return redirectTo(
     request,
-    isAccountSuspended(profile)
+    isAccountSuspended(profile) && state.loginNext !== ACCOUNT_DELETION_PATH
       ? ACCOUNT_SUSPENDED_PATH
       : postAuthenticationPath(profile, data.user.email, state.loginNext),
     true,

@@ -39,7 +39,14 @@ where deletion_event_id in (
 delete from private.account_deletion_requests where subject_user_id = '${subject_id}'::uuid;
 delete from public.profiles where id = '${subject_id}'::uuid;
 delete from auth.users where id = '${subject_id}'::uuid;
-update private.account_deletion_control set phase_one_enabled = false where singleton;
+update private.account_deletion_control
+set
+  phase_one_enabled = false,
+  transaction_lookup_hmac_ready = false,
+  legacy_transaction_evidence_ready = false,
+  immutable_ticket_contract_ready = false,
+  community_legal_records_ready = false
+where singleton;
 SQL
 }
 
@@ -100,12 +107,12 @@ cleanup_fixtures
 psql_exec -q <<SQL >/dev/null
 insert into auth.users (
   id, aud, role, email, email_confirmed_at,
-  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at, last_sign_in_at
 )
 values (
   '${subject_id}', 'authenticated', 'authenticated',
   'account-deletion-concurrency@example.test', pg_catalog.now(),
-  '{}', '{}', pg_catalog.now(), pg_catalog.now()
+  '{}', '{}', pg_catalog.now(), pg_catalog.now(), pg_catalog.now()
 );
 
 update public.profiles
@@ -117,7 +124,14 @@ set
   onboarded_at = pg_catalog.now()
 where id = '${subject_id}'::uuid;
 
-update private.account_deletion_control set phase_one_enabled = true where singleton;
+update private.account_deletion_control
+set
+  transaction_lookup_hmac_ready = true,
+  legacy_transaction_evidence_ready = true,
+  immutable_ticket_contract_ready = true,
+  community_legal_records_ready = true,
+  phase_one_enabled = true
+where singleton;
 SQL
 
 # Request wins: the write must wait for the uncommitted fence, then fail.

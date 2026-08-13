@@ -3,8 +3,12 @@ export const ACCOUNT_DELETION_CONFIRMATION = '회원 탈퇴를 신청합니다';
 const blockerContracts = {
   active_order: '/orders',
   active_cancellation: '/orders',
+  active_order_payment: '/orders',
+  active_ticket_payment: '/tickets',
   active_payment_attempt: '/settings',
-  active_refund: '/orders',
+  active_order_refund: '/orders',
+  active_ticket_refund: '/tickets',
+  active_refund: '/settings',
   active_ticket: '/tickets',
   active_ticket_cancellation: '/tickets',
   staff_handover: '/settings',

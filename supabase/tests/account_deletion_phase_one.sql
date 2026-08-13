@@ -4,16 +4,16 @@ begin;
 
 insert into auth.users (
   id, aud, role, email, email_confirmed_at,
-  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at, last_sign_in_at
 )
 values
   (
     '00000000-0000-4000-8000-000000001371', 'authenticated', 'authenticated',
-    'deletion-one@example.test', now(), '{}', '{}', now(), now()
+    'deletion-one@example.test', now(), '{}', '{}', now(), now(), now()
   ),
   (
     '00000000-0000-4000-8000-000000001372', 'authenticated', 'authenticated',
-    'deletion-two@example.test', now(), '{}', '{}', now(), now()
+    'deletion-two@example.test', now(), '{}', '{}', now(), now(), now()
   );
 
 update public.profiles
@@ -62,8 +62,25 @@ $$;
 
 reset role;
 
+do $$
+begin
+  begin
+    update private.account_deletion_control
+    set phase_one_enabled = true;
+  exception
+    when check_violation then return;
+  end;
+  raise exception 'account deletion activation should require every retention evidence seam';
+end;
+$$;
+
 update private.account_deletion_control
-set phase_one_enabled = true;
+set
+  transaction_lookup_hmac_ready = true,
+  legacy_transaction_evidence_ready = true,
+  immutable_ticket_contract_ready = true,
+  community_legal_records_ready = true,
+  phase_one_enabled = true;
 
 set local role authenticated;
 
@@ -73,13 +90,55 @@ then 1 else 0 end as assert_empty_self_is_eligible;
 
 reset role;
 
+update auth.users
+set last_sign_in_at = now() - interval '11 minutes'
+where id = '00000000-0000-4000-8000-000000001371';
+
+set local role authenticated;
+
+do $$
+begin
+  begin
+    perform public.request_my_account_deletion(
+      '회원 탈퇴를 신청합니다',
+      '00000000-0000-4000-8000-000000001399'
+    );
+  exception
+    when object_not_in_prerequisite_state then
+      if sqlerrm = 'account_deletion_reauthentication_required' then return; end if;
+      raise;
+  end;
+  raise exception 'stale authentication should not authorize an account deletion request';
+end;
+$$;
+
+reset role;
+
+update auth.users
+set last_sign_in_at = now()
+where id = '00000000-0000-4000-8000-000000001371';
+
 insert into public.payments (
-  id, user_id, purpose, amount, status, idempotency_key
+  id, user_id, purpose, ref_id, amount, status, idempotency_key
 )
 values (
   '00000000-0000-4000-8000-000000001305',
   '00000000-0000-4000-8000-000000001371',
-  'wallet', 1000, 'pending', 'legacy-pending-payment'
+  'order', '00000000-0000-4000-8000-000000001399',
+  1000, 'pending', 'legacy-pending-payment'
+);
+
+insert into public.payment_attempts (
+  id, provider, user_id, purpose, ref_id, amount, state, idempotency_key,
+  provider_order_id, provider_product_code, payment_id, expires_at
+)
+values (
+  '00000000-0000-4000-8000-000000001309', 'toss',
+  '00000000-0000-4000-8000-000000001371', 'order',
+  '00000000-0000-4000-8000-000000001399', 1000, 'unknown',
+  'legacy-pending-payment-attempt', 'legacy-pending-order',
+  'legacy-pending-product', '00000000-0000-4000-8000-000000001305',
+  now() + interval '10 minutes'
 );
 
 set local role authenticated;
@@ -90,9 +149,9 @@ select 1 / case when public.preview_my_account_deletion() =
     'eligible', false,
     'blockers', jsonb_build_array(
       jsonb_build_object(
-        'code', 'active_payment_attempt',
+        'code', 'active_order_payment',
         'count', 1,
-        'path', '/settings'
+        'path', '/orders'
       )
     )
   )
@@ -103,6 +162,49 @@ reset role;
 update public.payments
 set status = 'failed'
 where id = '00000000-0000-4000-8000-000000001305';
+
+update public.payment_attempts
+set state = 'declined'
+where id = '00000000-0000-4000-8000-000000001309';
+
+insert into public.payments (
+  id, user_id, purpose, ref_id, amount, status, idempotency_key
+)
+values (
+  '00000000-0000-4000-8000-000000001307',
+  '00000000-0000-4000-8000-000000001371',
+  'ticket', '00000000-0000-4000-8000-000000001397',
+  1000, 'paid', 'pending-ticket-refund-payment'
+);
+
+insert into public.refunds (id, payment_id, amount, reason, status)
+values (
+  '00000000-0000-4000-8000-000000001308',
+  '00000000-0000-4000-8000-000000001307',
+  1000, 'must-not-be-snapshotted', 'requested'
+);
+
+set local role authenticated;
+
+select 1 / case when public.preview_my_account_deletion() =
+  jsonb_build_object(
+    'available', true,
+    'eligible', false,
+    'blockers', jsonb_build_array(
+      jsonb_build_object(
+        'code', 'active_ticket_refund',
+        'count', 1,
+        'path', '/tickets'
+      )
+    )
+  )
+then 1 else 0 end as assert_ticket_refund_uses_ticket_resolution_path;
+
+reset role;
+
+update public.refunds
+set status = 'done'
+where id = '00000000-0000-4000-8000-000000001308';
 
 set local role authenticated;
 
@@ -333,7 +435,7 @@ select 1 / case when public.preview_my_account_deletion() =
     'eligible', false,
     'blockers', jsonb_build_array(
       jsonb_build_object('code', 'active_order', 'count', 1, 'path', '/orders'),
-      jsonb_build_object('code', 'active_payment_attempt', 'count', 1, 'path', '/settings')
+      jsonb_build_object('code', 'active_order_payment', 'count', 1, 'path', '/orders')
     )
   )
 then 1 else 0 end as assert_only_self_obligations_are_evaluated;
@@ -347,7 +449,7 @@ select 1 / case when public.request_my_account_deletion(
   'nextAction', '/orders',
   'blockers', jsonb_build_array(
     jsonb_build_object('code', 'active_order', 'count', 1, 'path', '/orders'),
-    jsonb_build_object('code', 'active_payment_attempt', 'count', 1, 'path', '/settings')
+    jsonb_build_object('code', 'active_order_payment', 'count', 1, 'path', '/orders')
   )
 )
 then 1 else 0 end as assert_request_returns_only_opaque_status;
@@ -381,7 +483,7 @@ select 1 / case when public.get_my_account_deletion_status() =
     'nextAction', '/orders',
     'blockers', jsonb_build_array(
     jsonb_build_object('code', 'active_order', 'count', 1, 'path', '/orders'),
-    jsonb_build_object('code', 'active_payment_attempt', 'count', 1, 'path', '/settings')
+    jsonb_build_object('code', 'active_order_payment', 'count', 1, 'path', '/orders')
     )
   )
 then 1 else 0 end as assert_self_status_has_no_internal_identifier;
@@ -480,6 +582,17 @@ select 1 / case when exists (
     and (snapshot_data ->> 'refundedAt')::timestamptz = '2026-08-03T03:00:00Z'
 ) then 1 else 0 end as assert_payment_approval_and_refund_times_are_preserved;
 
+select 1 / case when not exists (
+  select 1
+  from private.account_deletion_legal_snapshots
+  where record_type in ('payment', 'refund', 'shipment')
+    and (
+      (record_type = 'payment' and snapshot_data ->> 'approvedAt' is null)
+      or (record_type = 'refund' and snapshot_data ->> 'refundedAt' is null)
+      or (record_type = 'shipment' and snapshot_data ->> 'suppliedAt' is null)
+    )
+) then 1 else 0 end as assert_unverified_approval_refund_and_supply_facts_are_not_snapshotted;
+
 select 1 / case when exists (
   select 1
   from private.account_deletion_legal_snapshots
@@ -495,6 +608,23 @@ select 1 / case when exists (
     and (snapshot_data ->> 'checkedAt')::timestamptz = '2026-08-04T01:30:00Z'
     and not (snapshot_data ? 'byStaff')
 ) then 1 else 0 end as assert_ticket_cancellation_and_check_in_are_allowlisted;
+
+select 1 / case when not exists (
+  select 1
+  from private.account_deletion_legal_snapshots
+  where record_type = 'ticket_order'
+    and (
+      snapshot_data ? 'eventTitle'
+      or snapshot_data ? 'eventStartsAt'
+      or snapshot_data ? 'eventEndsAt'
+      or snapshot_data ? 'ticketTypes'
+      or exists (
+        select 1
+        from pg_catalog.jsonb_array_elements(snapshot_data -> 'tickets') as ticket
+        where ticket ? 'ticketTypeName' or ticket ? 'unitPrice'
+      )
+    )
+) then 1 else 0 end as assert_mutable_ticket_catalog_is_not_legal_evidence;
 
 reset role;
 
@@ -727,6 +857,8 @@ select 1 / case when not has_function_privilege(
   'authenticated', 'private.reconcile_account_deletion_request(uuid)', 'EXECUTE'
 ) and not has_function_privilege(
   'authenticated', 'private.is_account_write_fenced(uuid)', 'EXECUTE'
+) and not has_function_privilege(
+  'authenticated', 'private.has_recent_account_authentication(uuid)', 'EXECUTE'
 ) and not has_function_privilege(
   'anon', 'private.can_write_account_storage_object()', 'EXECUTE'
 ) and has_function_privilege(

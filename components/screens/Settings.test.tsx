@@ -100,7 +100,9 @@ describe('Settings', () => {
     const html = render();
 
     expect(html).toContain('아직 탈퇴 신청을 받지 않습니다');
-    expect(html).toContain('실제 Storage·DB·Auth 삭제');
+    expect(html).toContain('실제 Storage·DB·Auth hard delete');
+    expect(html).toContain('해당 단계 직전에 대상과');
+    expect(html).toContain('비가역성을 다시 보여드리고 별도 확인을 받습니다');
     expect(html).not.toContain('name="confirmation"');
   });
 
@@ -137,7 +139,7 @@ describe('Settings', () => {
     });
 
     expect(html).toContain('진행 중인 의무');
-    expect(html).toContain('해결할 항목 2건 확인');
+    expect(html).toContain('진행 중인 굿즈 주문 2건 확인');
     expect(html).toContain('href="/orders"');
     expect(html).not.toContain('name="confirmation"');
   });
@@ -155,7 +157,7 @@ describe('Settings', () => {
     });
 
     expect(html).toContain('신청 전에 진행 중인 의무');
-    expect(html).toContain('신청 전 해결할 항목 2건 확인');
+    expect(html).toContain('신청 전 진행 중인 굿즈 주문 2건 확인');
     expect(html).toContain('href="/orders"');
     expect(html).toContain('name="confirmation"');
   });

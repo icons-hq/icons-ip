@@ -15,6 +15,26 @@ describe('account deletion public DTO', () => {
       eligible: false,
       blockers: [{ code: 'active_order', count: 2, path: '/orders' }],
     });
+
+    expect(normalizeAccountDeletionPreview({
+      available: true,
+      eligible: false,
+      blockers: [{ code: 'active_ticket_payment', count: 1, path: '/tickets' }],
+    })).toEqual({
+      available: true,
+      eligible: false,
+      blockers: [{ code: 'active_ticket_payment', count: 1, path: '/tickets' }],
+    });
+
+    expect(normalizeAccountDeletionPreview({
+      available: true,
+      eligible: false,
+      blockers: [{ code: 'active_ticket_refund', count: 1, path: '/tickets' }],
+    })).toEqual({
+      available: true,
+      eligible: false,
+      blockers: [{ code: 'active_ticket_refund', count: 1, path: '/tickets' }],
+    });
   });
 
   it('fails closed without reflecting malformed provider data', () => {

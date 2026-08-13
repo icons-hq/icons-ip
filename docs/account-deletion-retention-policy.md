@@ -17,7 +17,7 @@
 
 ## 2. 신청과 처리 순서
 
-신청 시 결과, 진행 중 의무, 되돌릴 수 없는 시점을 먼저 보여준다. 서버는 현재 세션과 `auth.uid()`를 다시 확인하며 브라우저가 삭제 대상 사용자 ID를 지정하지 못한다.
+신청 시 결과, 진행 중 의무, 되돌릴 수 없는 시점을 먼저 보여준다. 서버는 현재 세션과 `auth.uid()`를 다시 확인하며 브라우저가 삭제 대상 사용자 ID를 지정하지 못한다. 신청 RPC는 최근 10분 안에 성공한 sign-in 증거가 있어야 하고, 오래된 세션에는 전용 `reauth=1` 로그인 경로를 안내한다. 정지 계정도 이 self-service 재인증·탈퇴 경로만은 사용할 수 있다.
 
 처리 순서는 다음으로 고정한다.
 
@@ -31,6 +31,8 @@
 `hard delete`와 secondary tombstone 이후에는 reverse migration을 제공하지 않고 forward repair만 허용한다. 실제 Production hard delete 직전에는 대상과 비가역성을 다시 표시해 사용자 확인을 받는다.
 
 Phase 1에서 blocked request는 종결 상태가 아니다. 기존 주문·결제·환급 worker가 허용된 정합화 작업을 끝낸 뒤 동일 신청 replay 또는 상태 조회가 진행 의무와 allowlist snapshot을 다시 평가한다. blocker가 모두 해소되어도 `awaiting_notification`까지만 전진하며 hard delete를 시작하지 않는다.
+
+Phase 1 schema는 기본 OFF이며, 거래 lookup 연락처 HMAC/key version, legacy 승인·환급·공급의 검증된 시각, immutable 티켓 계약 snapshot, 승인된 커뮤니티·권리사건 보존 seam이 모두 준비됐다는 private readiness 값 없이는 DB constraint가 activation을 거부한다. 불완전한 legacy 행은 존재하지 않는 승인·환급·공급 사실을 추정해 snapshot하지 않는다.
 
 ## 3. 진행 중 의무 gate
 

@@ -36,6 +36,21 @@ function statusMessage(status: AccountDeletionStatus): string | null {
   return null;
 }
 
+const blockerLabels: Record<AccountDeletionStatus['blockers'][number]['code'], string> = {
+  active_order: '진행 중인 굿즈 주문',
+  active_cancellation: '굿즈 취소·환급 처리',
+  active_order_payment: '굿즈 결제 확인',
+  active_ticket_payment: '티켓 결제 확인',
+  active_payment_attempt: '결제 정합화',
+  active_order_refund: '굿즈 환급 처리',
+  active_ticket_refund: '티켓 환급 처리',
+  active_refund: '환급 정합화',
+  active_ticket: '진행 중인 티켓',
+  active_ticket_cancellation: '티켓 취소·환급 처리',
+  staff_handover: '운영 권한 인계',
+  not_available: '탈퇴 신청 준비',
+};
+
 export function AccountDeletionPanel({ presentation, requestKey }: AccountDeletionPanelProps) {
   const [actionState, action, pending] = useActionState(
     requestAccountDeletionAction,
@@ -63,8 +78,17 @@ export function AccountDeletionPanel({ presentation, requestKey }: AccountDeleti
       <p className="account-deletion-description">
         신청 즉시 새 구매·예매·작성·카드팩 개봉·게임·마케팅 변경이 중단됩니다.
         진행 중인 거래가 있으면 삭제는 보류됩니다. 법정 거래 기록은 분리 보존되며,
-        실제 Storage·DB·Auth 삭제는 필수 통지와 복원 방지 절차가 준비된 뒤 별도로 진행됩니다.
+        현재 신청 단계에서는 계정이 삭제되지 않습니다. 실제 Storage·DB·Auth hard delete와
+        복원 방지 원장 기록이 시작되면 되돌릴 수 없습니다. 해당 단계 직전에 대상과
+        비가역성을 다시 보여드리고 별도 확인을 받습니다.
       </p>
+
+      {presentation.preview.available && currentStatus.status === 'not_requested' && (
+        <p className="account-deletion-description">
+          신청 직전에 본인 세션을 다시 확인합니다. 오래된 세션이면{' '}
+          <a href="/login?next=%2Fsettings%2Fdelete-account&reauth=1">다시 로그인</a>해주세요.
+        </p>
+      )}
 
       {!presentation.preview.available && currentStatus.status === 'not_requested' && (
         <div className="account-deletion-feedback account-deletion-feedback--neutral" role="status">
@@ -90,7 +114,7 @@ export function AccountDeletionPanel({ presentation, requestKey }: AccountDeleti
             {visibleBlockers.map((blocker) => (
               <li key={blocker.code}>
                 <a href={blocker.path}>
-                  {isPreviewBlocker ? '신청 전 ' : ''}해결할 항목 {blocker.count}건 확인
+                  {isPreviewBlocker ? '신청 전 ' : ''}{blockerLabels[blocker.code]} {blocker.count}건 확인
                 </a>
               </li>
             ))}
