@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { sendOrderConfirmationEmail, sendOrderShippedEmail } from './transactional.server';
 
 const ORDER_ID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
@@ -45,7 +45,7 @@ function rpcCalls(name: string) {
   return mocks.rpc.mock.calls.filter((call) => call[0] === name);
 }
 
-let errorLog: ReturnType<typeof vi.spyOn<Console, 'error'>>;
+let errorLog: Mock<Console['error']>;
 
 beforeEach(() => {
   mocks.serviceConfigured = true;

@@ -63,7 +63,7 @@ describe('GoodsCard', () => {
     const lowStock = renderToStaticMarkup(
       <GoodsCard
         action={<button type="button">담기</button>}
-        good={{ ...good, badge: undefined, stock: 'low' }}
+        good={{ ...good, badge: null, stock: 'low' }}
         href="/shop/g13"
       />,
     );

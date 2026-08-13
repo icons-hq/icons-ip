@@ -39,15 +39,15 @@ async function classifyTossPaymentProvider(service: ServiceClient, paymentKey: s
     .classifyPaymentKey(paymentKey);
   if (classification.status === 'lookup_failed') {
     console.error(`[webhooks/tosspayments] provider guard lookup failed: ${classification.message}`);
-    return { response: errorJson(500, 'provider_guard_failed') } as const;
+    return { kind: 'blocked', response: errorJson(500, 'provider_guard_failed') } as const;
   }
   if (classification.status === 'known_other_provider') {
-    return { response: errorJson(409, 'payment_provider_mismatch') } as const;
+    return { kind: 'blocked', response: errorJson(409, 'payment_provider_mismatch') } as const;
   }
   if (classification.status === 'unknown_compatibility') {
-    return { response: errorJson(409, 'legacy_payment_unknown') } as const;
+    return { kind: 'blocked', response: errorJson(409, 'legacy_payment_unknown') } as const;
   }
-  return { classification } as const;
+  return { kind: 'allowed', classification } as const;
 }
 
 /** 결제를 종결 상태로 기록 — 승인 경로가 남긴 pending 행이 있으면 갱신, 없으면 추적용으로 신규 기록. */
@@ -440,7 +440,7 @@ async function recordCanceledExtraPayment(
   return received('extra_payment_canceled');
 }
 
-export async function POST(request: Request) {
+export async function POST(request: Request): Promise<Response> {
   let body: unknown;
   try {
     body = await request.json();
@@ -458,7 +458,7 @@ export async function POST(request: Request) {
 
   const service = createServiceClient();
   const providerGuard = await classifyTossPaymentProvider(service, event.paymentKey);
-  if ('response' in providerGuard) return providerGuard.response;
+  if (providerGuard.kind === 'blocked') return providerGuard.response;
 
   const verified = await fetchTossPayment(event.paymentKey);
   if (!verified.ok) {
