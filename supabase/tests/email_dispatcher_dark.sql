@@ -31,7 +31,11 @@ select 1 / case when (
   and not has_function_privilege('anon', 'public.reduce_email_provider_event(text,text,text,timestamptz)', 'execute')
   and not has_function_privilege('authenticated', 'public.reduce_email_provider_event(text,text,text,timestamptz)', 'execute')
   and has_function_privilege('service_role', 'public.reduce_email_provider_event(text,text,text,timestamptz)', 'execute')
+  and not has_function_privilege('anon', 'private.destroy_legacy_email_delivery_plaintext(timestamptz)', 'execute')
+  and not has_function_privilege('authenticated', 'private.destroy_legacy_email_delivery_plaintext(timestamptz)', 'execute')
   and not has_function_privilege('service_role', 'private.destroy_legacy_email_delivery_plaintext(timestamptz)', 'execute')
+  and not has_function_privilege('anon', 'private.destroy_email_dispatch_evidence(timestamptz)', 'execute')
+  and not has_function_privilege('authenticated', 'private.destroy_email_dispatch_evidence(timestamptz)', 'execute')
   and not has_function_privilege('service_role', 'private.destroy_email_dispatch_evidence(timestamptz)', 'execute')
 ) then 1 else 0 end as assert_email_rpc_acl_is_service_only;
 
@@ -170,6 +174,46 @@ select 1 / case when exists (
     and evidence_class = 'legacy_unverified'
 ) then 1 else 0 end as assert_new_legacy_writes_are_redacted;
 
+alter table public.email_deliveries disable trigger redact_legacy_email_delivery_write;
+insert into public.email_deliveries (
+  dedupe_key, template, recipient, subject, status, last_error, created_at
+) values
+  (
+    'order_confirmation:00000000-0000-4000-8000-000000001912',
+    'order_confirmation', 'legacy-old@invalid.test', 'Legacy old subject',
+    'failed', 'Legacy old error', pg_catalog.now() - interval '40 days'
+  ),
+  (
+    'order_confirmation:00000000-0000-4000-8000-000000001913',
+    'order_confirmation', 'legacy-recent@invalid.test', 'Legacy recent subject',
+    'failed', 'Legacy recent error', pg_catalog.now() - interval '5 days'
+  );
+alter table public.email_deliveries enable trigger redact_legacy_email_delivery_write;
+
+do $$
+begin
+  begin
+    perform private.destroy_legacy_email_delivery_plaintext(
+      pg_catalog.now() - interval '30 days'
+    );
+  exception when object_not_in_prerequisite_state then
+    if sqlerrm = 'email_retention_policy_not_ready' then return; end if;
+    raise;
+  end;
+  raise exception 'legacy plaintext destruction must remain closed before policy readiness';
+end;
+$$;
+
+select 1 / case when exists (
+  select 1 from public.email_deliveries
+  where dedupe_key = 'order_confirmation:00000000-0000-4000-8000-000000001912'
+    and recipient = 'legacy-old@invalid.test'
+    and subject = 'Legacy old subject'
+    and last_error = 'Legacy old error'
+    and retention_disposition = 'pending_policy'
+    and destroyed_at is null
+) then 1 else 0 end as assert_closed_legacy_retention_makes_zero_mutations;
+
 do $$
 begin
   begin
@@ -190,6 +234,34 @@ update private.email_dispatch_control set
   account_deletion_notice_ready = true,
   enabled = true
 where singleton;
+
+select 1 / case when private.destroy_legacy_email_delivery_plaintext(
+  pg_catalog.now() - interval '30 days'
+) = 1 then 1 else 0 end as assert_approved_legacy_retention_redacts_cutoff_scope;
+
+select 1 / case when (
+  select recipient = 'redacted@invalid.local'
+    and subject = 'legacy_order_confirmation'
+    and last_error = 'legacy_failure'
+    and retention_disposition = 'destroyed'
+    and destroyed_at is not null
+  from public.email_deliveries
+  where dedupe_key = 'order_confirmation:00000000-0000-4000-8000-000000001912'
+) then 1 else 0 end as assert_approved_legacy_retention_redacts_old_plaintext;
+
+select 1 / case when (
+  select recipient = 'legacy-recent@invalid.test'
+    and subject = 'Legacy recent subject'
+    and last_error = 'Legacy recent error'
+    and retention_disposition = 'pending_policy'
+    and destroyed_at is null
+  from public.email_deliveries
+  where dedupe_key = 'order_confirmation:00000000-0000-4000-8000-000000001913'
+) then 1 else 0 end as assert_approved_legacy_retention_preserves_newer_plaintext;
+
+select 1 / case when private.destroy_legacy_email_delivery_plaintext(
+  pg_catalog.now() - interval '30 days'
+) = 0 then 1 else 0 end as assert_legacy_retention_replay_is_idempotent;
 
 set local role service_role;
 

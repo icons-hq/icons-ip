@@ -170,6 +170,12 @@ begin
   if p_before is null or p_before > pg_catalog.now() then
     raise check_violation using message = 'invalid_email_retention_cutoff';
   end if;
+  if not exists (
+    select 1 from private.email_dispatch_control as control
+    where control.singleton and control.privacy_retention_ready
+  ) then
+    raise object_not_in_prerequisite_state using message = 'email_retention_policy_not_ready';
+  end if;
   update public.email_deliveries set
     recipient = 'redacted@invalid.local',
     subject = 'legacy_' || template,

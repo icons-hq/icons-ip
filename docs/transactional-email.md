@@ -50,10 +50,16 @@ Production dark deploy → masked env/readback → webhook → Auth 4개 흐름�
 
 legacy `email_deliveries`는 `legacy_unverified`로 분류한다. migration 이후 새 legacy write는
 recipient·subject·오류를 즉시 redaction하며 staff 조회도 masked 값만 반환한다. 기존 평문은
-승인된 cutoff로만 호출하는 private retention hook으로 파기한다. 신규 intent/event도 terminal
-evidence와 unmatched event만 파기하는 private hook을 제공하지만, **정확한 TTL 승인과 #137 탈퇴
-notice producer는 아직 사람 증거가 필요하다.** 따라서 `privacy_retention_ready`와
-`account_deletion_notice_ready`는 false로 유지하고 이 dark PR은 #191을 닫지 않는다.
+`privacy_retention_ready=true`와 승인된 cutoff를 모두 요구하는 private retention hook으로만
+파기한다. 신규 intent/event도 같은 readiness를 요구하며 terminal evidence와 unmatched event만
+파기한다. **정확한 TTL 승인과 #137 탈퇴 notice producer는 아직 사람 증거가 필요하다.** 따라서
+`privacy_retention_ready`와 `account_deletion_notice_ready`는 false로 유지하고 이 dark PR은
+#191을 닫지 않는다.
+
+`EMAIL_DISPATCH_HMAC_SECRET`은 현재 단일 key 버전이다. 값을 바로 교체하면 기존 source fence와
+provider reference digest를 새 callback/replay가 다시 만들 수 없어 정합성이 끊긴다. 운영
+key rotation은 versioned key ring과 drain/replay 절차가 별도 구현·검증되기 전까지 activation
+blocker이며, 이 dark PR에서는 임의 rotation이나 복수 key fallback을 열지 않는다.
 
 ---
 
