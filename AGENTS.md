@@ -87,7 +87,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ### Issue tracker
 
-GitHub Issues (`sangwopark19/icons-ip`) via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+GitHub Issues (`icons-hq/icons-ip`) via the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
