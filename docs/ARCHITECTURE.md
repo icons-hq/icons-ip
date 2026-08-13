@@ -136,7 +136,10 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - `carts` / `cart_items` (user_id, good_id, qty)
 - `orders` (id, user_id, status `pending|paid|shipping|done|canceled`, total, address jsonb, created_at)
 - `order_items` (order_id, good_id, qty, unit_price, good_name/type/ip_id_snapshot) — 주문 시점 굿즈 정체성·가격 장부
-- `payments` (id, provider `toss`, order_id?/charge_id?, amount, status, payment_key, **idempotency_key**, raw jsonb)
+- `payments` (id, provider `toss|korpay`, user_id, purpose, ref_id, amount, status, payment_key, **idempotency_key**, raw jsonb) — 기존 Toss raw 감사 원장은 서버 전용으로 보존한다.
+- `payment_attempts` (id, provider, user_id, purpose, ref_id, amount/currency, state, provider order/product code, claim lease, expires_at) — provider-neutral 승인 시도 원장. service role만 읽고 쓴다.
+- `private.payment_provider_evidence` (payment_attempt_id, kind, provider key/transaction/approval reference, result/payment method, approved_at) — allowlist 증거를 append-only로 보존하고 provider 원문 payload는 저장하지 않는다.
+- `payment_summaries` — `payments` owner/staff RLS를 따르는 security-invoker 안전 조회 표면. provider 비밀·멱등 키·raw를 노출하지 않는다.
 - `refunds` (id, payment_id, amount, reason, status)
 - `order_cancellation_requests` (id, order_id, requested_by, status, decision, provider 상태 코드, 시각) — 사용자 요청과 운영 결정의 durable 원장
 
@@ -262,7 +265,7 @@ Production Auth 설정:
 - 사용자 취소: 본인 `pending` 무결제 주문만 즉시 선점을 원복한다. 결제 행이 있는 `pending`과 `paid`는 `/api/orders/[orderId]/cancel`이 provider 식별자 없이 `requested` 원장만 만들고 결제 확정·배송 전이를 막는다. staff 승인 뒤 서버가 결제사 fresh GET → 전액 취소 POST → fresh GET을 수행하며, 전액 취소가 모두 확인된 경우에만 주문·재고·미사용 카드팩 soft revoke·환불을 원자적으로 완료한다. 발급 attribution과 누적 발급 이력은 보존하고 `/packs`와 개봉 경로에서는 회수 티켓을 제외한다. 주문 상세의 발급 수는 개봉·회수를 포함한 전체 이력, 사용 가능 수는 `consumed_at`과 `revoked_at`이 모두 null인 티켓만 센다. 타임아웃·부분 취소·응답 불일치는 `needs_review`에 남겨 같은 멱등키로 재정합화하고, provider 호출 전 `requested`만 거절할 수 있다. `shipping`·`done`도 같은 요청 경로를 쓴다. 반품 입고 확인은 별도 상태가 아니라 staff 승인 행위에 내포되고, 재고 복원은 기존과 같이 승인 뒤 finalizer 시점에 일어난다.
 - 티켓 취소: `/api/ticket-orders/[ticketOrderId]/cancel`은 same-origin·auth·onboarding·owner를 확인하고 order UUID 외 provider 입력을 받지 않는다. 시작 전 미사용 예매 전체만 수수료 없이 취소하며, 무결제 `pending`은 즉시 원복하고 결제 예매는 서버가 모든 결제를 fresh provider 증거로 정합화한다. QR은 raw token을 DTO·DOM·URL에 싣지 않고 paid+valid+비취소 상태를 재검증하는 no-store PNG Route Handler로만 제공한다.
 - 환불: `refunds` 완료 기록 + 재고 원복은 RPC가 담당한다. 토스 쪽 취소(`CANCELED` 웹훅) 등 기존 호환 경로는 active 청약철회 요청을 완료할 수 없고, 해당 요청은 관리자 fresh GET 전체 검증 경로에서만 종결한다. 현재 배송·수령 시각이 없으므로 법정 7일을 앱이 자동 판정하지 않는다.
-- 단일 PG 가정. 멀티 PG 필요 시 `payments.provider` + 어댑터 계층 도입.
+- 결제 원장은 `payments.provider`(`toss|korpay`)와 service-role 전용 `payment_attempts`로 provider-neutral expand를 마쳤다. 기존 행과 기존 confirm RPC는 호환 기본값 `toss`를 유지하고 기존 Toss `payment_key/raw`도 legacy 서버 감사 경로로 보존한다. 브라우저·staff 조회는 owner/staff RLS를 따르는 `payment_summaries`만 사용한다. 신규 provider 식별자·승인 참조는 allowlist 컬럼만 `private.payment_provider_evidence`에 append하며 원문 payload는 저장하지 않는다. 실제 신규 checkout 전환과 어댑터 선택은 후속 티켓에서 수행한다.
 
 ### 9.1 환경 변수 · 로컬/프리뷰 검증과 임시 production 테스트 검토
 

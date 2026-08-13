@@ -197,7 +197,7 @@ describe('loadTicketOrder', () => {
         sales_open_at: null,
       }],
       events: [{ id: eventId, title: '메이플 팝업' }],
-      payments: [{
+      payment_summaries: [{
         purpose: 'ticket',
         ref_id: ticketOrderId,
         status: 'failed',
@@ -240,7 +240,7 @@ describe('loadTicketOrder', () => {
       select: 'ticket_type_id',
       eq: [['ticket_order_id', ticketOrderId]],
     });
-    expect(records.find((record) => record.table === 'payments')).toMatchObject({
+    expect(records.find((record) => record.table === 'payment_summaries')).toMatchObject({
       select: 'status',
       eq: [['purpose', 'ticket'], ['ref_id', ticketOrderId]],
       order: [['created_at', { ascending: false }]],
@@ -271,7 +271,7 @@ describe('loadTicketOrder', () => {
     mocks.client = createClient({
       records: [],
       rows: rows(),
-      errors: { payments: 'private payment error' },
+      errors: { payment_summaries: 'private payment error' },
     });
 
     await expect(loadTicketOrder(userId, ticketOrderId)).rejects.toThrow('Failed to load ticket order payment');
@@ -339,7 +339,7 @@ describe('my ticket orders', () => {
         ends_at: null,
         location: null,
       }],
-      payments: [{
+      payment_summaries: [{
         id: paymentId,
         user_id: userId,
         purpose: 'ticket',
@@ -435,7 +435,7 @@ describe('my ticket orders', () => {
       select: 'id,ticket_order_id,ticket_type_id,status',
       in: [['ticket_order_id', [ticketOrderId, secondOrderId]]],
     });
-    expect(records.find((record) => record.table === 'payments')).toMatchObject({
+    expect(records.find((record) => record.table === 'payment_summaries')).toMatchObject({
       select: 'id,user_id,ref_id,amount,status,created_at',
       eq: [['user_id', userId], ['purpose', 'ticket']],
       in: [['ref_id', [ticketOrderId, secondOrderId]]],
@@ -491,7 +491,7 @@ describe('my ticket orders', () => {
   it('keeps the safe refund summary when a different payment attempt is newer', async () => {
     const records: QueryRecord[] = [];
     const data = historyRows();
-    data.payments.push({
+    data.payment_summaries.push({
       id: 'af10f4cd-8e98-402c-a266-4d10844b940c',
       user_id: userId,
       purpose: 'ticket',

@@ -85,7 +85,7 @@ describe('loadCheckoutOrder', () => {
         good_name_snapshot: '주문 당시 이름',
         good_type_snapshot: '아크릴',
       }],
-      payments: [],
+      payment_summaries: [],
       goods: [{ id: 'goods-1', name: '나중에 바뀐 이름', type: '변경됨' }],
     };
     mocks.client = {
@@ -126,7 +126,7 @@ describe('loadCheckoutOrder', () => {
             created_at: '2026-08-07T06:45:00.000Z',
           }],
           order_items: [],
-          payments: [],
+          payment_summaries: [],
         });
       },
     };
@@ -155,7 +155,7 @@ describe('loadCheckoutOrder', () => {
             created_at: '2026-08-07T06:45:00.000Z',
           }],
           order_items: [],
-          payments: [],
+          payment_summaries: [],
         });
       },
     };
