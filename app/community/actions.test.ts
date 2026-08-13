@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   insert: vi.fn(),
   loadPost: vi.fn(),
   rpc: vi.fn(),
+  communityWriteCapabilities: vi.fn(),
   upload: vi.fn(),
   revalidatePath: vi.fn(),
 }));
@@ -30,7 +31,9 @@ vi.mock('@/lib/catalog', () => ({
 }));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({
-    rpc: mocks.rpc,
+    rpc: (name: string, args?: unknown) => name === 'community_write_capabilities'
+      ? mocks.communityWriteCapabilities()
+      : mocks.rpc(name, args),
     from: (table: string) => {
       if (table !== 'posts') throw new Error(`Unexpected table ${table}`);
       const postQuery = {
@@ -85,6 +88,13 @@ const catalog: CatalogSnapshot = {
 
 const postId = '11111111-1111-4111-8111-111111111111';
 const commentId = '22222222-2222-4222-8222-222222222222';
+
+const enabledCommunityWriteCapabilities = {
+  postCreate: true,
+  postEdit: true,
+  commentCreate: true,
+  commentEdit: false,
+};
 
 function suspendCurrentUser() {
   if (!mocks.auth.profile) throw new Error('Expected an authenticated profile');
@@ -181,6 +191,11 @@ describe('createCommunityPostAction', () => {
     mocks.loadPost.mockResolvedValue({ data: { ip_id: 'hwasan' }, error: null });
     mocks.insert.mockReset();
     mocks.rpc.mockReset();
+    mocks.communityWriteCapabilities.mockReset();
+    mocks.communityWriteCapabilities.mockResolvedValue({
+      data: enabledCommunityWriteCapabilities,
+      error: null,
+    });
     mocks.upload.mockReset();
     mocks.revalidatePath.mockReset();
     mocks.insert.mockReturnValue({
@@ -224,6 +239,25 @@ describe('createCommunityPostAction', () => {
         ipId: 'IP 채널을 선택해주세요.',
       },
     });
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.insert).not.toHaveBeenCalled();
+  });
+
+  it('fails closed before image upload or post insert when post creation is disabled', async () => {
+    mocks.communityWriteCapabilities.mockResolvedValue({
+      data: { ...enabledCommunityWriteCapabilities, postCreate: false },
+      error: null,
+    });
+    const formData = postForm();
+    formData.set('image', new File(['image'], 'proof.png', { type: 'image/png' }));
+
+    await expect(createCommunityPostAction({}, formData)).resolves.toEqual({
+      errors: {
+        form: '커뮤니티 글쓰기는 운영 준비 중입니다. 기존 콘텐츠 열람·신고·삭제는 이용할 수 있습니다.',
+      },
+    });
+
+    expect(mocks.communityWriteCapabilities).toHaveBeenCalledOnce();
     expect(mocks.upload).not.toHaveBeenCalled();
     expect(mocks.insert).not.toHaveBeenCalled();
   });
@@ -301,6 +335,11 @@ describe('editCommunityPostAction', () => {
     mocks.loadPost.mockReset();
     mocks.loadPost.mockResolvedValue({ data: { ip_id: 'hwasan' }, error: null });
     mocks.rpc.mockReset();
+    mocks.communityWriteCapabilities.mockReset();
+    mocks.communityWriteCapabilities.mockResolvedValue({
+      data: enabledCommunityWriteCapabilities,
+      error: null,
+    });
     mocks.revalidatePath.mockReset();
   });
 
@@ -350,6 +389,23 @@ describe('editCommunityPostAction', () => {
         ipId: 'IP 채널을 선택해주세요.',
       },
     });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('fails closed before loading or editing a post when post edits are disabled', async () => {
+    mocks.communityWriteCapabilities.mockResolvedValue({
+      data: { ...enabledCommunityWriteCapabilities, postEdit: false },
+      error: null,
+    });
+
+    await expect(editCommunityPostAction({}, editPostForm())).resolves.toEqual({
+      errors: {
+        form: '커뮤니티 글쓰기는 운영 준비 중입니다. 기존 콘텐츠 열람·신고·삭제는 이용할 수 있습니다.',
+      },
+    });
+
+    expect(mocks.communityWriteCapabilities).toHaveBeenCalledOnce();
+    expect(mocks.loadPost).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
@@ -471,6 +527,11 @@ describe('community reaction actions', () => {
       isStaff: false,
     };
     mocks.rpc.mockReset();
+    mocks.communityWriteCapabilities.mockReset();
+    mocks.communityWriteCapabilities.mockResolvedValue({
+      data: enabledCommunityWriteCapabilities,
+      error: null,
+    });
     mocks.revalidatePath.mockReset();
   });
 
@@ -513,6 +574,22 @@ describe('community reaction actions', () => {
     await expect(createCommunityCommentAction({}, commentForm())).rejects.toThrow(
       'NEXT_REDIRECT:/account-suspended',
     );
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('fails closed before the comment RPC when comment creation is disabled', async () => {
+    mocks.communityWriteCapabilities.mockResolvedValue({
+      data: { ...enabledCommunityWriteCapabilities, commentCreate: false },
+      error: null,
+    });
+
+    await expect(createCommunityCommentAction({}, commentForm())).resolves.toEqual({
+      errors: {
+        form: '커뮤니티 글쓰기는 운영 준비 중입니다. 기존 콘텐츠 열람·신고·삭제는 이용할 수 있습니다.',
+      },
+    });
+
+    expect(mocks.communityWriteCapabilities).toHaveBeenCalledOnce();
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
