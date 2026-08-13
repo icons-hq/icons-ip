@@ -303,3 +303,51 @@ if [[ "$reverse_final_state" != "ok" ]]; then
 fi
 
 echo "PASS=cancellation-wins-callback-fails-closed"
+
+# The losing callback leaves a prepared attempt and a durable request. Once
+# that action's authoritative TTL elapses, the expiry worker must close the
+# attempt and request in one transaction before restoring inventory once.
+psql_exec -q <<SQL >/dev/null
+update public.orders
+set expires_at = pg_catalog.now() - interval '10 minutes'
+where id = '${order_id}'::uuid;
+update public.payment_attempts
+set expires_at = pg_catalog.now() - interval '10 minutes'
+where ref_id = '${order_id}'::uuid;
+SQL
+
+if [[ "$(psql_scalar 'select public.expire_stale_checkouts()')" != "1" ]]; then
+  echo "expired prepared attempt with a durable request was not swept" >&2
+  exit 1
+fi
+
+expiry_final_state="$(psql_scalar "
+  select case when
+    order_record.status = 'canceled'
+    and attempt.state = 'canceled'
+    and attempt.claim_token is null
+    and request.status = 'completed'
+    and request.completed_at is not null
+    and good.stock_qty = 11
+  then 'ok' else 'invalid' end
+  from public.orders as order_record
+  join public.payment_attempts as attempt
+    on attempt.purpose = 'order' and attempt.ref_id = order_record.id
+  join public.order_cancellation_requests as request
+    on request.order_id = order_record.id
+  join public.goods as good
+    on good.id = 'goods-payment-cancel-race-good'
+  where order_record.id = '${order_id}'::uuid
+")"
+
+if [[ "$expiry_final_state" != "ok" ]]; then
+  echo "expiry did not atomically complete attempt, request, order, and stock" >&2
+  exit 1
+fi
+
+if [[ "$(psql_scalar 'select public.expire_stale_checkouts()')" != "0" ]]; then
+  echo "requested-attempt expiry restored inventory more than once" >&2
+  exit 1
+fi
+
+echo "PASS=cancellation-race-eventually-expires-and-restores-once"

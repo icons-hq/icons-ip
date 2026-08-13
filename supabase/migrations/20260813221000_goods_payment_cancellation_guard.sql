@@ -225,7 +225,10 @@ as $function$
 declare
   v_count integer := 0;
   v_can_expire boolean;
+  v_cancel_reason text;
+  v_request_id uuid;
   r record;
+  v_request record;
   v_attempt public.payment_attempts%rowtype;
 begin
   for r in
@@ -245,7 +248,7 @@ begin
         select 1
         from public.order_cancellation_requests as request
         where request.order_id = orders.id
-          and request.status in ('requested', 'processing', 'needs_review')
+          and request.status in ('processing', 'needs_review')
       )
       and not exists (
         select 1
@@ -259,6 +262,8 @@ begin
     for update of orders skip locked
   loop
     v_can_expire := true;
+    v_cancel_reason := '결제 시간 만료 자동 취소';
+    v_request_id := null;
 
     -- The baseline partial unique index guarantees one attempt per goods
     -- order. Locking it only after the order matches claim/finalize exactly.
@@ -297,7 +302,44 @@ begin
       continue;
     end if;
 
-    perform public.cancel_order(r.id, '결제 시간 만료 자동 취소');
+    -- A user can request cancellation while the provider action is still
+    -- valid. That request intentionally holds inventory until the attempt TTL
+    -- proves the provider can no longer claim it. Lock and finish that durable
+    -- request in this same transaction; the compatibility cancel_order wrapper
+    -- correctly rejects active requests and therefore is used only when none
+    -- exists.
+    select request.id, request.reason
+    into v_request
+    from public.order_cancellation_requests as request
+    where request.order_id = r.id
+      and request.status = 'requested'
+    order by request.requested_at desc, request.id desc
+    limit 1
+    for update;
+
+    if found then
+      v_request_id := v_request.id;
+      v_cancel_reason := v_request.reason;
+    end if;
+
+    if v_request_id is null then
+      perform public.cancel_order(r.id, v_cancel_reason);
+    else
+      perform public.finalize_order_cancellation_with_provider_evidence(
+        r.id,
+        v_cancel_reason,
+        array[]::text[]
+      );
+
+      update public.order_cancellation_requests as request
+      set
+        status = 'completed',
+        completed_at = pg_catalog.now(),
+        updated_at = pg_catalog.now()
+      where request.id = v_request_id
+        and request.status = 'requested';
+    end if;
+
     v_count := v_count + 1;
   end loop;
 

@@ -349,3 +349,87 @@ if [[ "$terminal_claim" != *'"claim_status": "terminal"'* \
 fi
 
 echo "PASS=attempt-ttl-closes-action-before-inventory-release"
+
+# A cancellation request can win while the action is already expired. The
+# sweep uses SKIP LOCKED while that transaction owns the order, then the next
+# pass atomically closes attempt + request + order and restores stock once.
+psql_exec -q <<SQL >/dev/null
+delete from public.order_cancellation_requests where order_id = '${order_id}'::uuid;
+update public.orders
+set
+  status = 'pending',
+  expires_at = pg_catalog.now() - interval '10 minutes'
+where id = '${order_id}'::uuid;
+update public.payment_attempts
+set
+  state = 'prepared',
+  claim_token = null,
+  claim_expires_at = null,
+  expires_at = pg_catalog.now() - interval '10 minutes'
+where id = '${attempt_id}'::uuid;
+update public.goods
+set stock_qty = 10
+where id = 'goods-payment-expiry-claim-good';
+SQL
+
+: >"$expiry_log"
+request_application="${test_prefix}-request-first"
+docker exec -e PGAPPNAME="$request_application" -i "$db_container" \
+  psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t >"$expiry_log" 2>&1 <<SQL &
+begin;
+select public.request_order_cancellation(
+  '${order_id}', '${user_id}', '만료 결제 취소 경합', 'change_of_mind'
+);
+select pg_catalog.pg_sleep(2);
+commit;
+SQL
+request_client_pid=$!
+
+wait_for_backend_wait "$request_application" "Timeout" "$request_client_pid" "$expiry_log"
+
+if [[ "$(psql_scalar 'select public.expire_stale_checkouts()')" != "0" ]]; then
+  echo "expiry sweep did not skip a request-owned order lock" >&2
+  exit 1
+fi
+
+wait "$request_client_pid"
+if ! grep -qx 'requested' "$expiry_log"; then
+  echo "racing cancellation did not persist its durable request" >&2
+  sed -n '1,160p' "$expiry_log" >&2
+  exit 1
+fi
+
+if [[ "$(psql_scalar 'select public.expire_stale_checkouts()')" != "1" ]]; then
+  echo "post-request expiry did not close the expired prepared attempt" >&2
+  exit 1
+fi
+
+requested_expiry_state="$(psql_scalar "
+  select case when
+    order_record.status = 'canceled'
+    and attempt.state = 'canceled'
+    and request.status = 'completed'
+    and request.completed_at is not null
+    and good.stock_qty = 11
+  then 'ok' else 'invalid' end
+  from public.orders as order_record
+  join public.payment_attempts as attempt
+    on attempt.purpose = 'order' and attempt.ref_id = order_record.id
+  join public.order_cancellation_requests as request
+    on request.order_id = order_record.id
+  join public.goods as good
+    on good.id = 'goods-payment-expiry-claim-good'
+  where order_record.id = '${order_id}'::uuid
+")"
+
+if [[ "$requested_expiry_state" != "ok" ]]; then
+  echo "request/expiry race lost terminal state or restored stock incorrectly" >&2
+  exit 1
+fi
+
+if [[ "$(psql_scalar 'select public.expire_stale_checkouts()')" != "0" ]]; then
+  echo "request/expiry retry restored inventory more than once" >&2
+  exit 1
+fi
+
+echo "PASS=request-wins-lock-next-expiry-completes-once"

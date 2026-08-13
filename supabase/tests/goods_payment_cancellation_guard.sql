@@ -94,7 +94,8 @@ from (
     ('20000000-0000-4000-8000-000000002078'::uuid, '10000000-0000-4000-8000-000000002078'::uuid),
     ('20000000-0000-4000-8000-000000002079'::uuid, '10000000-0000-4000-8000-000000002079'::uuid),
     ('20000000-0000-4000-8000-000000002080'::uuid, '10000000-0000-4000-8000-000000002080'::uuid),
-    ('20000000-0000-4000-8000-000000002081'::uuid, '10000000-0000-4000-8000-000000002081'::uuid)
+    ('20000000-0000-4000-8000-000000002081'::uuid, '10000000-0000-4000-8000-000000002081'::uuid),
+    ('20000000-0000-4000-8000-000000002082'::uuid, '10000000-0000-4000-8000-000000002082'::uuid)
 ) as fixture(order_id, checkout_key);
 
 insert into public.order_items (
@@ -110,7 +111,7 @@ select
 from public.orders as order_record
 where order_record.id between
   '20000000-0000-4000-8000-000000002071'::uuid
-  and '20000000-0000-4000-8000-000000002081'::uuid;
+  and '20000000-0000-4000-8000-000000002082'::uuid;
 
 insert into public.payment_attempts (
   id, provider, user_id, purpose, ref_id, amount, currency, state,
@@ -152,7 +153,8 @@ from (
     ('30000000-0000-4000-8000-000000002078'::uuid, '20000000-0000-4000-8000-000000002078'::uuid, 'approved'),
     ('30000000-0000-4000-8000-000000002079'::uuid, '20000000-0000-4000-8000-000000002079'::uuid, 'prepared'),
     ('30000000-0000-4000-8000-000000002080'::uuid, '20000000-0000-4000-8000-000000002080'::uuid, 'prepared'),
-    ('30000000-0000-4000-8000-000000002081'::uuid, '20000000-0000-4000-8000-000000002081'::uuid, 'confirming')
+    ('30000000-0000-4000-8000-000000002081'::uuid, '20000000-0000-4000-8000-000000002081'::uuid, 'confirming'),
+    ('30000000-0000-4000-8000-000000002082'::uuid, '20000000-0000-4000-8000-000000002082'::uuid, 'prepared')
 ) as fixture(attempt_id, order_id, state);
 
 update public.orders
@@ -160,7 +162,8 @@ set expires_at = pg_catalog.now() - interval '10 minutes'
 where id in (
   '20000000-0000-4000-8000-000000002079',
   '20000000-0000-4000-8000-000000002080',
-  '20000000-0000-4000-8000-000000002081'
+  '20000000-0000-4000-8000-000000002081',
+  '20000000-0000-4000-8000-000000002082'
 );
 
 update public.payment_attempts
@@ -169,19 +172,23 @@ set callback_nonce_digest = case id
     then pg_catalog.repeat('9', 64)
   when '30000000-0000-4000-8000-000000002080'::uuid
     then pg_catalog.repeat('a', 64)
-  else pg_catalog.repeat('b', 64)
+  when '30000000-0000-4000-8000-000000002081'::uuid
+    then pg_catalog.repeat('b', 64)
+  else pg_catalog.repeat('c', 64)
 end
 where id in (
   '30000000-0000-4000-8000-000000002079',
   '30000000-0000-4000-8000-000000002080',
-  '30000000-0000-4000-8000-000000002081'
+  '30000000-0000-4000-8000-000000002081',
+  '30000000-0000-4000-8000-000000002082'
 );
 
 update public.payment_attempts
 set expires_at = pg_catalog.now() - interval '10 minutes'
 where id in (
   '30000000-0000-4000-8000-000000002079',
-  '30000000-0000-4000-8000-000000002081'
+  '30000000-0000-4000-8000-000000002081',
+  '30000000-0000-4000-8000-000000002082'
 );
 
 insert into public.payments (
@@ -342,7 +349,33 @@ select 1 / case when (
   where order_record.id = '20000000-0000-4000-8000-000000002078'
 ) then 1 else 0 end as assert_approved_attempt_allows_verified_refund_finalization;
 
-select 1 / case when public.expire_stale_checkouts() = 1
+do $request_expiry_candidates$
+declare
+  target_order uuid;
+  result text;
+begin
+  foreach target_order in array array[
+    '20000000-0000-4000-8000-000000002080'::uuid,
+    '20000000-0000-4000-8000-000000002081'::uuid,
+    '20000000-0000-4000-8000-000000002082'::uuid
+  ]
+  loop
+    result := public.request_order_cancellation(
+      target_order,
+      '00000000-0000-4000-8000-000000002071',
+      '결제 attempt 상태 확인 후 취소',
+      'change_of_mind'
+    );
+
+    if result is distinct from 'requested' then
+      raise exception 'expiry candidate request was not durable: order=%, result=%',
+        target_order, result;
+    end if;
+  end loop;
+end;
+$request_expiry_candidates$;
+
+select 1 / case when public.expire_stale_checkouts() = 2
   then 1 else 0 end as assert_expired_prepared_attempt_is_swept;
 
 select 1 / case when (
@@ -350,7 +383,7 @@ select 1 / case when (
     order_record.status = 'canceled'
     and attempt.state = 'canceled'
     and attempt.callback_nonce_digest = pg_catalog.repeat('9', 64)
-    and good.stock_qty = 14
+    and good.stock_qty = 15
   from public.orders as order_record
   join public.payment_attempts as attempt
     on attempt.ref_id = order_record.id
@@ -359,6 +392,25 @@ select 1 / case when (
     on good.id = 'goods-payment-cancel-guard-good'
   where order_record.id = '20000000-0000-4000-8000-000000002079'
 ) then 1 else 0 end as assert_expired_prepared_attempt_releases_inventory_once;
+
+select 1 / case when (
+  select
+    order_record.status = 'canceled'
+    and attempt.state = 'canceled'
+    and attempt.callback_nonce_digest = pg_catalog.repeat('c', 64)
+    and request.status = 'completed'
+    and request.completed_at is not null
+    and good.stock_qty = 15
+  from public.orders as order_record
+  join public.payment_attempts as attempt
+    on attempt.ref_id = order_record.id
+   and attempt.purpose = 'order'
+  join public.order_cancellation_requests as request
+    on request.order_id = order_record.id
+  join public.goods as good
+    on good.id = 'goods-payment-cancel-guard-good'
+  where order_record.id = '20000000-0000-4000-8000-000000002082'
+) then 1 else 0 end as assert_expired_prepared_request_completes_and_restores_once;
 
 select 1 / case when public.expire_stale_checkouts() = 0
   then 1 else 0 end as assert_expiry_sweep_is_idempotent;
@@ -369,10 +421,13 @@ select 1 / case when (
     and attempt.state = 'prepared'
     and attempt.callback_nonce_digest = pg_catalog.repeat('a', 64)
     and attempt.expires_at > pg_catalog.clock_timestamp()
+    and request.status = 'requested'
   from public.orders as order_record
   join public.payment_attempts as attempt
     on attempt.ref_id = order_record.id
    and attempt.purpose = 'order'
+  join public.order_cancellation_requests as request
+    on request.order_id = order_record.id
   where order_record.id = '20000000-0000-4000-8000-000000002080'
 ) then 1 else 0 end as assert_fresh_prepared_action_ttl_remains_reserved;
 
@@ -383,15 +438,18 @@ select 1 / case when (
     and attempt.callback_nonce_digest = pg_catalog.repeat('b', 64)
     and attempt.claim_token is not null
     and attempt.expires_at <= pg_catalog.clock_timestamp()
+    and request.status = 'requested'
   from public.orders as order_record
   join public.payment_attempts as attempt
     on attempt.ref_id = order_record.id
    and attempt.purpose = 'order'
+  join public.order_cancellation_requests as request
+    on request.order_id = order_record.id
   where order_record.id = '20000000-0000-4000-8000-000000002081'
 ) then 1 else 0 end as assert_confirming_attempt_remains_reserved_after_ttl;
 
 select 1 / case when (
-  select stock_qty = 14
+  select stock_qty = 15
   from public.goods
   where id = 'goods-payment-cancel-guard-good'
 ) then 1 else 0 end as assert_fresh_and_confirming_attempts_do_not_restore_inventory;
