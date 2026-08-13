@@ -83,6 +83,8 @@ jobs:
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_payment_cancellation_guard.sql
           bash supabase/tests/goods_payment_cancellation_guard_concurrency.sh
           bash supabase/tests/goods_payment_expiry_claim_concurrency.sh
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/ticket_payment_provider_seam.sql
+          bash supabase/tests/ticket_payment_provider_seam_concurrency.sh
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_cancellation.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_withdrawal_deadline.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_order_console.sql

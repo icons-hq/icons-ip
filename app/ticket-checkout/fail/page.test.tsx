@@ -14,7 +14,7 @@ describe('ticket checkout fail page', () => {
     }));
 
     expect(html).toContain(`href="/ticket-checkout/${referenceId}"`);
-    expect(html).toContain('같은 예매에서 다른 결제수단으로 다시 시도할 수 있습니다.');
+    expect(html).toContain('예매 상태와 정원 복원 여부를 확인해주세요.');
   });
 
   it('does not treat an order provider reference as a ticket booking', async () => {
@@ -24,5 +24,17 @@ describe('ticket checkout fail page', () => {
 
     expect(html).toContain('href="/events"');
     expect(html).not.toContain(`/ticket-checkout/${referenceId}`);
+  });
+
+  it('warns an ambiguous provider failure against duplicate payment', async () => {
+    const html = renderToStaticMarkup(await Page({
+      searchParams: Promise.resolve({
+        code: 'PAY_PROCESS_ABORTED',
+        ref: referenceId,
+      }),
+    }));
+
+    expect(html).toContain('예매 상태가 확정될 때까지 중복 결제를 피해주세요.');
+    expect(html).toContain('예매 상태 확인');
   });
 });

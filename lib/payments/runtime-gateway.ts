@@ -1,6 +1,8 @@
 import 'server-only';
 import type { PaymentGateway } from './gateway';
 
+export type NewPaymentCheckoutPurpose = 'order' | 'ticket';
+
 export class PaymentGatewayUnavailableError extends Error {
   constructor() {
     super('payment_gateway_unavailable');
@@ -19,8 +21,14 @@ const unavailableGateway: PaymentGateway = {
   refund: unavailable,
 };
 
-/** #207 installs the Korpay adapter and explicit rollout gate. */
+/** #207 installs the rotated Korpay adapter and credential readiness check. */
 export function paymentProviderConfigured() {
+  return false;
+}
+
+/** #207 owns the explicit, independently reversible new-checkout rollout gate. */
+export function newPaymentCheckoutEnabled(_purpose: NewPaymentCheckoutPurpose) {
+  void _purpose;
   return false;
 }
 

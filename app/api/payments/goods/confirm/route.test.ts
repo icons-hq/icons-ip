@@ -4,12 +4,14 @@ import { GoodsPaymentConfirmationInProgressError } from '@/lib/payments/goods-ch
 import { POST } from './route';
 
 const mocks = vi.hoisted(() => ({
-  enabled: true,
+  confirmationAvailable: true,
+  checkoutEnabled: false,
   confirm: vi.fn(),
 }));
 
 vi.mock('@/lib/payments/goods-checkout-availability', () => ({
-  goodsCheckoutPaymentsEnabled: () => mocks.enabled,
+  goodsPaymentConfirmationAvailable: () => mocks.confirmationAvailable,
+  goodsCheckoutPaymentsEnabled: () => mocks.checkoutEnabled,
 }));
 vi.mock('@/lib/payments/goods-checkout.runtime.server', () => ({
   createRuntimeGoodsPaymentCheckout: () => ({ confirm: mocks.confirm }),
@@ -39,12 +41,13 @@ function outcome(value: ConfirmOutcome['outcome']): ConfirmOutcome {
 
 describe('POST /api/payments/goods/confirm', () => {
   beforeEach(() => {
-    mocks.enabled = true;
+    mocks.confirmationAvailable = true;
+    mocks.checkoutEnabled = false;
     mocks.confirm.mockReset();
     mocks.confirm.mockResolvedValue(outcome('approved'));
   });
 
-  it('session 없이 opaque callback을 공통 confirm seam으로 전달한다', async () => {
+  it('신규 checkout OFF에서도 session 없이 known in-flight callback을 확정한다', async () => {
     const result = await POST(request(callback));
 
     expect(result.status).toBe(200);
@@ -53,6 +56,7 @@ describe('POST /api/payments/goods/confirm', () => {
       outcome: 'approved',
     });
     expect(mocks.confirm).toHaveBeenCalledWith(callback);
+    expect(mocks.checkoutEnabled).toBe(false);
   });
 
   it.each(['unknown', 'needs_review'] as const)(
@@ -88,11 +92,11 @@ describe('POST /api/payments/goods/confirm', () => {
   });
 
   it('runtime gate는 default OFF이고 내부 오류 원문을 응답하지 않는다', async () => {
-    mocks.enabled = false;
+    mocks.confirmationAvailable = false;
     const unavailable = await POST(request(callback));
     expect(unavailable.status).toBe(503);
 
-    mocks.enabled = true;
+    mocks.confirmationAvailable = true;
     mocks.confirm.mockRejectedValue(new Error('private provider secret'));
     const failed = await POST(request(callback));
     expect(failed.status).toBe(502);

@@ -13,10 +13,10 @@ function one(value: string | string[] | undefined) {
 }
 
 function safeFailureCopy(code: string | null) {
-  if (code === 'PAY_PROCESS_CANCELED') return '결제를 취소했어요. 같은 예매에서 다른 결제수단으로 다시 시도할 수 있습니다.';
-  if (code === 'PAY_PROCESS_ABORTED') return '결제 기관에서 요청을 완료하지 못했어요. 결제 정보를 확인하고 다시 시도해주세요.';
-  if (code === 'REJECT_CARD_COMPANY') return '카드사에서 승인을 거절했어요. 카드사 안내를 확인하거나 다른 결제수단을 선택해주세요.';
-  return '결제가 완료되지 않았어요. 예매 상태를 확인한 뒤 다시 시도해주세요.';
+  if (code === 'PAY_PROCESS_CANCELED') return '결제를 취소했어요. 예매 상태와 정원 복원 여부를 확인해주세요.';
+  if (code === 'PAY_PROCESS_ABORTED') return '결제 기관에서 요청을 완료하지 못했어요. 예매 상태가 확정될 때까지 중복 결제를 피해주세요.';
+  if (code === 'REJECT_CARD_COMPANY') return '카드사에서 승인을 거절했어요. 예매 상태를 확인한 뒤 회차를 다시 선택해주세요.';
+  return '결제가 완료되지 않았어요. 중복 결제 전에 예매 상태를 먼저 확인해주세요.';
 }
 
 export default async function Page({
@@ -37,7 +37,7 @@ export default async function Page({
         <h1>결제가 중단됐어요</h1>
         <p>{safeFailureCopy(one(query.code))}</p>
         {refId ? (
-          <Link className="btn btn-holo" href={`/ticket-checkout/${refId}`}>결제 다시 시도</Link>
+          <Link className="btn btn-holo" href={`/ticket-checkout/${refId}`}>예매 상태 확인</Link>
         ) : (
           <Link className="btn btn-holo" href="/events">이벤트 목록으로</Link>
         )}

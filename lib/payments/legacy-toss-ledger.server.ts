@@ -30,9 +30,9 @@ export type LegacyTossPaymentKeyClassification =
 /**
  * Owns the database boundary for the temporary Toss compatibility runtime.
  *
- * `unknown_compatibility` is limited to the ticket transition. Goods callbacks
- * require a provider=toss row whose purpose/reference/amount also match the
- * provider inquiry; new goods checkout is permanently closed.
+ * `unknown_compatibility` is a classification result, never authorization.
+ * Both new checkout paths are closed to Toss; webhook callers reject unknown
+ * keys before provider inquiry or local mutation.
  */
 export function createLegacyTossPaymentRepository(service: ServiceClient) {
   return {

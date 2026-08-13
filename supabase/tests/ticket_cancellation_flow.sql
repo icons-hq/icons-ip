@@ -94,12 +94,12 @@ select 1 / case when (
     'public.begin_ticket_payment_approval(uuid,uuid,text,bigint)',
     'execute'
   )
-  and has_function_privilege(
+  and not has_function_privilege(
     'service_role',
     'public.begin_ticket_payment_approval(uuid,uuid,text,bigint)',
     'execute'
   )
-) then 1 else 0 end as assert_ticket_cancellation_mutations_are_service_only;
+) then 1 else 0 end as assert_cancel_service_only_and_legacy_checkout_closed;
 
 select 1 / case when (
   not has_table_privilege('anon', 'public.ticket_cancellation_requests', 'select')
@@ -310,6 +310,24 @@ values
   ('95300000-0000-4000-8000-000000000021', '95100000-0000-4000-8000-000000000020', '95000000-0000-4000-8000-000000000020', null, 'valid'),
   ('95300000-0000-4000-8000-000000000022', '95100000-0000-4000-8000-000000000021', '95000000-0000-4000-8000-000000000021', null, 'valid');
 
+-- The provider-neutral ticket seam persists capacity separately from issued
+-- tickets. These legacy fixtures still carry placeholder tickets, so mirror
+-- their exact immutable reservation snapshot explicitly.
+insert into public.ticket_order_reservations (
+  ticket_order_id,
+  ticket_type_id,
+  quantity,
+  unit_price
+)
+select
+  ticket.ticket_order_id,
+  min(ticket.ticket_type_id::text)::uuid,
+  count(*)::integer,
+  ticket_type.price
+from public.tickets as ticket
+join public.ticket_types as ticket_type on ticket_type.id = ticket.ticket_type_id
+group by ticket.ticket_order_id, ticket_type.price;
+
 insert into public.payments (
   id, user_id, purpose, ref_id, amount, status,
   payment_key, idempotency_key, raw
@@ -339,319 +357,6 @@ set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select set_config('request.jwt.claim.sub', '', true);
 
--- provider 승인 호출 전 DB claim과 사용자 취소가 같은 order 잠금에서 경쟁한다.
-select * from public.request_ticket_cancellation(
-  '00000000-0000-4000-8000-000000009501',
-  '95100000-0000-4000-8000-000000000015'
-) \gset cancellation_first_
-do $$
-begin
-  begin
-    perform public.begin_ticket_payment_approval(
-      '00000000-0000-4000-8000-000000009501',
-      '95100000-0000-4000-8000-000000000015',
-      'ticket-approval-cancel-first-key',
-      10000
-    );
-    raise exception 'canceled allocation must not begin provider approval';
-  exception
-    when check_violation then
-      if sqlerrm <> 'ticket order not payable' then raise; end if;
-  end;
-end;
-$$;
-select 1 / case when :'cancellation_first_result' = 'completed'
-  and not exists (
-    select 1
-    from public.payments
-    where payment_key = 'ticket-approval-cancel-first-key'
-       or idempotency_key = 'ticket-approval-cancel-first-key'
-  )
-  and (
-    select status = 'canceled'
-    from public.ticket_orders
-    where id = '95100000-0000-4000-8000-000000000015'
-  )
-  and (
-    select sold = 0
-    from public.ticket_types
-    where id = '95000000-0000-4000-8000-000000000015'
-  ) then 1 else 0 end as assert_cancellation_first_prevents_provider_approval;
-
-select public.begin_ticket_payment_approval(
-  '00000000-0000-4000-8000-000000009501',
-  '95100000-0000-4000-8000-000000000016',
-  'ticket-approval-begin-first-key',
-  10000
-) as approval_first_result \gset
-select public.begin_ticket_payment_approval(
-  '00000000-0000-4000-8000-000000009501',
-  '95100000-0000-4000-8000-000000000016',
-  'ticket-approval-begin-first-key',
-  10000
-) as approval_first_replay_result \gset
-do $$
-begin
-  begin
-    perform public.begin_ticket_payment_approval(
-      '00000000-0000-4000-8000-000000009501',
-      '95100000-0000-4000-8000-000000000016',
-      'ticket-approval-begin-first-other-key',
-      10000
-    );
-    raise exception 'another active payment must not claim the same ticket order';
-  exception
-    when unique_violation then
-      if sqlerrm <> 'payment approval conflict' then raise; end if;
-  end;
-end;
-$$;
-select * from public.request_ticket_cancellation(
-  '00000000-0000-4000-8000-000000009501',
-  '95100000-0000-4000-8000-000000000016'
-) \gset approval_first_cancel_
-
-do $$
-begin
-  begin
-    perform public.begin_ticket_payment_approval(
-      '00000000-0000-4000-8000-000000009501',
-      '95100000-0000-4000-8000-000000000016',
-      'ticket-approval-after-cancel-key',
-      10000
-    );
-    raise exception 'active cancellation must block another provider approval';
-  exception
-    when check_violation then
-      if sqlerrm <> 'ticket cancellation in progress' then raise; end if;
-  end;
-
-  begin
-    perform public.confirm_ticket_payment(
-      'ticket-approval-begin-first-key',
-      '95100000-0000-4000-8000-000000000016',
-      'ticket-approval-begin-first-key',
-      10000,
-      '{"status":"DONE"}'::jsonb
-    );
-    raise exception 'active cancellation must block local payment confirmation';
-  exception
-    when check_violation then
-      if sqlerrm <> 'ticket cancellation in progress' then raise; end if;
-  end;
-end;
-$$;
-
-select 1 / case when :'approval_first_result' = 'pending'
-  and :'approval_first_replay_result' = 'pending'
-  and :'approval_first_cancel_result' = 'requested'
-  and (
-    select count(*) = 1
-      and bool_and(status = 'pending')
-      and bool_and(raw is null)
-    from public.payments
-    where purpose = 'ticket'
-      and ref_id = '95100000-0000-4000-8000-000000000016'
-  )
-  and not exists (
-    select 1
-    from public.payments
-    where payment_key = 'ticket-approval-after-cancel-key'
-       or idempotency_key = 'ticket-approval-after-cancel-key'
-  )
-  and (
-    select status = 'pending'
-    from public.ticket_orders
-    where id = '95100000-0000-4000-8000-000000000016'
-  )
-  and (
-    select sold = 1
-    from public.ticket_types
-    where id = '95000000-0000-4000-8000-000000000016'
-  ) then 1 else 0 end as assert_approval_first_preserves_allocation_for_reconcile;
-
-select public.refund_ticket_order_with_provider_evidence(
-  '95100000-0000-4000-8000-000000000016',
-  'provider approved placeholder refund',
-  'ticket-approval-begin-first-key',
-  '{"paymentKey":"ticket-approval-begin-first-key","status":"CANCELED","trace":"provider-raw-pending-approved"}'::jsonb,
-  true
-);
-select public.refund_ticket_order_with_provider_evidence(
-  '95100000-0000-4000-8000-000000000016',
-  'provider approved placeholder refund replay',
-  'ticket-approval-begin-first-key'
-);
-select 1 / case when (
-  select status = 'canceled'
-  from public.ticket_orders
-  where id = '95100000-0000-4000-8000-000000000016'
-) and (
-  select status = 'refunded'
-    and raw = '{"paymentKey":"ticket-approval-begin-first-key","status":"CANCELED","trace":"provider-raw-pending-approved"}'::jsonb
-  from public.payments
-  where idempotency_key = 'ticket-approval-begin-first-key'
-) and (
-  select count(*) = 1 and bool_and(refund.status = 'done')
-  from public.refunds as refund
-  join public.payments as payment on payment.id = refund.payment_id
-  where payment.idempotency_key = 'ticket-approval-begin-first-key'
-) and (
-  select sold = 0
-  from public.ticket_types
-  where id = '95000000-0000-4000-8000-000000000016'
-) then 1 else 0 end as assert_verified_pending_approval_refund_is_durable_and_idempotent;
-
-select public.begin_ticket_payment_approval(
-  '00000000-0000-4000-8000-000000009501',
-  '95100000-0000-4000-8000-000000000017',
-  'ticket-approval-confirmed-key',
-  10000
-) as approval_confirmed_first_result \gset
-select public.confirm_ticket_payment(
-  'ticket-approval-confirmed-key',
-  '95100000-0000-4000-8000-000000000017',
-  'ticket-approval-confirmed-key',
-  10000,
-  '{"status":"DONE"}'::jsonb
-);
-select public.begin_ticket_payment_approval(
-  '00000000-0000-4000-8000-000000009501',
-  '95100000-0000-4000-8000-000000000017',
-  'ticket-approval-confirmed-key',
-  10000
-) as approval_confirmed_replay_result \gset
-select 1 / case when :'approval_confirmed_first_result' = 'pending'
-  and :'approval_confirmed_replay_result' = 'already_confirmed'
-  and (
-    select status = 'paid'
-    from public.ticket_orders
-    where id = '95100000-0000-4000-8000-000000000017'
-  ) then 1 else 0 end as assert_exact_confirmed_replay_skips_provider_call;
-
-select public.begin_ticket_payment_approval(
-  '00000000-0000-4000-8000-000000009501',
-  '95100000-0000-4000-8000-000000000019',
-  'ticket-approval-heal-key',
-  10000
-) as approval_heal_result \gset
-select 1 / case when :'approval_heal_result' = 'pending'
-  and (
-    select count(*) = 1
-      and bool_and(status = 'pending')
-      and bool_and(payment_key = 'ticket-approval-heal-key')
-      and bool_and(raw = '{"stale":true}'::jsonb)
-    from public.payments
-    where idempotency_key = 'ticket-approval-heal-key'
-  ) then 1 else 0 end as assert_exact_pending_placeholder_preserves_existing_raw;
-
-do $$
-begin
-  begin
-    perform public.begin_ticket_payment_approval(
-      '00000000-0000-4000-8000-000000009501',
-      '95100000-0000-4000-8000-000000000020',
-      ' ticket-approval-invalid-key',
-      10000
-    );
-    raise exception 'non-canonical payment key must fail';
-  exception
-    when check_violation then
-      if sqlerrm <> 'invalid payment approval evidence' then raise; end if;
-  end;
-
-  begin
-    perform public.begin_ticket_payment_approval(
-      '00000000-0000-4000-8000-000000009501',
-      '95100000-0000-4000-8000-000000000020',
-      'ticket-approval-zero-key',
-      0
-    );
-    raise exception 'non-positive approval amount must fail';
-  exception
-    when check_violation then
-      if sqlerrm <> 'invalid payment approval evidence' then raise; end if;
-  end;
-
-  begin
-    perform public.begin_ticket_payment_approval(
-      '00000000-0000-4000-8000-000000009502',
-      '95100000-0000-4000-8000-000000000020',
-      'ticket-approval-foreign-key',
-      10000
-    );
-    raise exception 'foreign ticket order must be hidden';
-  exception
-    when no_data_found then
-      if sqlerrm <> 'ticket order not found' then raise; end if;
-  end;
-
-  begin
-    perform public.begin_ticket_payment_approval(
-      '00000000-0000-4000-8000-000000009501',
-      '95100000-0000-4000-8000-000000000018',
-      'ticket-approval-expired-key',
-      10000
-    );
-    raise exception 'expired ticket order must fail';
-  exception
-    when check_violation then
-      if sqlerrm <> 'ticket order expired' then raise; end if;
-  end;
-
-  begin
-    perform public.begin_ticket_payment_approval(
-      '00000000-0000-4000-8000-000000009501',
-      '95100000-0000-4000-8000-000000000020',
-      'ticket-approval-amount-key',
-      9000
-    );
-    raise exception 'approval amount mismatch must fail';
-  exception
-    when check_violation then
-      if sqlerrm <> 'amount mismatch' then raise; end if;
-  end;
-
-  begin
-    perform public.begin_ticket_payment_approval(
-      '00000000-0000-4000-8000-000000009501',
-      '95100000-0000-4000-8000-000000000020',
-      'ticket-cancel-paid-key',
-      10000
-    );
-    raise exception 'payment key metadata conflict must fail';
-  exception
-    when unique_violation then
-      if sqlerrm <> 'payment approval conflict' then raise; end if;
-  end;
-
-  begin
-    perform public.begin_ticket_payment_approval(
-      '00000000-0000-4000-8000-000000009501',
-      '95100000-0000-4000-8000-000000000021',
-      'ticket-approval-canceled-key',
-      10000
-    );
-    raise exception 'canceled payment placeholder must fail';
-  exception
-    when check_violation then
-      if sqlerrm <> 'payment not payable' then raise; end if;
-  end;
-
-  begin
-    perform public.begin_ticket_payment_approval(
-      '00000000-0000-4000-8000-000000009501',
-      '95100000-0000-4000-8000-000000000013',
-      'ticket-cancel-pending-failed-key',
-      10000
-    );
-    raise exception 'failed payment placeholder must fail';
-  exception
-    when check_violation then
-      if sqlerrm <> 'payment not payable' then raise; end if;
-  end;
-end;
-$$;
 
 -- pending + 결제 장부 0건은 요청 트랜잭션에서 즉시 선점과 티켓을 한 번만 닫는다.
 select * from public.request_ticket_cancellation(
@@ -940,7 +645,8 @@ select 1 / case when :'used_result' = 'not_cancelable'
     )
 ) then 1 else 0 end as assert_used_cutoff_and_ownership_policy;
 
--- failed-only 장부는 pending allocation만 명시적 reconcile 뒤 닫고 paid는 fail closed한다.
+-- failed-only 장부는 provider-neutral terminal failure로 보아 pending capacity를
+-- 즉시 닫고, paid order의 불일치만 계속 fail closed한다.
 select * from public.request_ticket_cancellation(
   '00000000-0000-4000-8000-000000009501',
   '95100000-0000-4000-8000-000000000013'
@@ -955,7 +661,7 @@ select public.complete_ticket_cancellation_request(
   '95500000-0000-4000-8000-000000000013',
   array[]::text[]
 );
-select 1 / case when :'pending_failed_result' = 'requested'
+select 1 / case when :'pending_failed_result' = 'completed'
   and (
     select status = 'completed'
     from public.ticket_cancellation_requests
