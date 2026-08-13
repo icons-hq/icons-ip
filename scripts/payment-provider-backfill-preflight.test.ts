@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   evaluatePaymentProviderBackfillPreflight,
+  parsePaymentProviderQueryResponse,
   runPaymentProviderBackfillPreflight,
 } from './payment-provider-backfill-preflight.mjs';
 
@@ -40,5 +41,23 @@ describe('payment provider backfill production preflight', () => {
       provider_column_exists: 'false',
       payment_count: '2',
     }))).rejects.toThrow('invalid provider backfill preflight snapshot');
+  });
+
+  it('CLI의 일반 JSON 배열과 agent-mode rows envelope를 같은 한 행으로 해석한다', () => {
+    const row = { provider_column_exists: false, payment_count: '2' };
+
+    expect(parsePaymentProviderQueryResponse(JSON.stringify([row]))).toEqual(row);
+    expect(parsePaymentProviderQueryResponse(JSON.stringify({
+      boundary: 'redacted',
+      rows: [row],
+      warning: 'untrusted database output',
+    }))).toEqual(row);
+
+    expect(() => parsePaymentProviderQueryResponse(JSON.stringify([])))
+      .toThrow('invalid provider backfill preflight query response');
+    expect(() => parsePaymentProviderQueryResponse(JSON.stringify([row, row])))
+      .toThrow('invalid provider backfill preflight query response');
+    expect(() => parsePaymentProviderQueryResponse('{"rows":"not-an-array"}'))
+      .toThrow('invalid provider backfill preflight query response');
   });
 });
