@@ -6,6 +6,7 @@ interface QueryState {
 }
 
 const mocks = vi.hoisted(() => ({
+  fromTables: [] as string[],
   profileRows: [{ id: '11111111-1111-4111-8111-111111111111', nickname: '구매자' }],
   rpcResult: {
     data: [{ current_count: '2', previous_count: 1 }],
@@ -17,6 +18,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({
     rpc: vi.fn(async () => mocks.rpcResult),
     from: (table: string) => {
+      mocks.fromTables.push(table);
       const state: QueryState = { head: false };
       const result = () => {
         if (state.head) return { data: null, error: null, count: 0 };
@@ -67,6 +69,7 @@ vi.mock('@/lib/supabase/server', () => ({
 
 describe('getAdminInsights profile boundaries', () => {
   beforeEach(() => {
+    mocks.fromTables = [];
     mocks.profileRows = [{ id: '11111111-1111-4111-8111-111111111111', nickname: '구매자' }];
     mocks.rpcResult = { data: [{ current_count: '2', previous_count: 1 }], error: null };
   });
@@ -79,6 +82,8 @@ describe('getAdminInsights profile boundaries', () => {
       expect.objectContaining({ id: 'order-1', buyerName: '구매자' }),
       expect.objectContaining({ id: 'ticket-order-1', buyerName: 'fan_222222' }),
     ]);
+    expect(mocks.fromTables).toContain('payment_summaries');
+    expect(mocks.fromTables).not.toContain('payments');
   });
 
   it('가입 집계 오류와 잘못된 집계는 닫힌 상태로 실패한다', async () => {

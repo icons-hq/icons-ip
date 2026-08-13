@@ -201,7 +201,7 @@ export async function loadTicketOrder(
       .select('ticket_type_id')
       .eq('ticket_order_id', ticketOrderId),
     supabase
-      .from('payments')
+      .from('payment_summaries')
       .select('status')
       .eq('purpose', 'ticket')
       .eq('ref_id', ticketOrderId)
@@ -365,7 +365,7 @@ export async function listTicketOrders(userId: string): Promise<TicketOrderListI
       .select('id,title,starts_at,ends_at,location')
       .in('id', eventIds),
     supabase
-      .from('payments')
+      .from('payment_summaries')
       .select('id,user_id,ref_id,amount,status,created_at')
       .eq('user_id', userId)
       .eq('purpose', 'ticket')
@@ -481,7 +481,7 @@ export async function loadTicketOrderDetail(
       .eq('id', orderData.event_id)
       .maybeSingle<TicketHistoryEventRow>(),
     supabase
-      .from('payments')
+      .from('payment_summaries')
       .select('id,user_id,ref_id,amount,status,created_at')
       .eq('user_id', userId)
       .eq('purpose', 'ticket')
