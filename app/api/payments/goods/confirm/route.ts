@@ -1,6 +1,7 @@
 import {
   GoodsPaymentConfirmationInProgressError,
   GoodsPaymentContractError,
+  type GoodsPaymentCheckout,
 } from '@/lib/payments/goods-checkout';
 import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
 import { createRuntimeGoodsPaymentCheckout } from '@/lib/payments/goods-checkout.runtime.server';
@@ -51,47 +52,62 @@ function response(outcome: string, attemptId: string, status: number) {
  * dependency; the opaque provider order id and nonce are atomically claimed in
  * Postgres. #207 may wrap this contract in Korpay's form/303 adapter.
  */
-export async function POST(request: Request) {
-  if (!goodsCheckoutPaymentsEnabled()) {
-    return Response.json({ error: 'payment_unavailable' }, { status: 503 });
-  }
+interface GoodsPaymentConfirmHandlerDependencies {
+  readonly paymentsEnabled: () => boolean;
+  readonly createCheckout: () => GoodsPaymentCheckout;
+}
 
-  let body: unknown;
-  try {
-    body = await readCallbackJson(request);
-  } catch (error) {
-    if (error instanceof CallbackTooLargeError) {
-      return Response.json({ error: 'invalid_callback' }, { status: 413 });
+export function createGoodsPaymentConfirmHandler({
+  paymentsEnabled,
+  createCheckout,
+}: GoodsPaymentConfirmHandlerDependencies) {
+  return async function handleGoodsPaymentConfirm(request: Request) {
+    if (!paymentsEnabled()) {
+      return Response.json({ error: 'payment_unavailable' }, { status: 503 });
     }
-    return Response.json({ error: 'invalid_callback' }, { status: 400 });
-  }
 
-  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-    return Response.json({ error: 'invalid_callback' }, { status: 400 });
-  }
-
-  const input = body as Record<string, unknown>;
-  try {
-    const outcome = await createRuntimeGoodsPaymentCheckout().confirm({
-      providerOrderId: input.providerOrderId as string,
-      callbackNonce: input.callbackNonce as string,
-      providerPayload: input.providerPayload,
-    });
-    return response(
-      outcome.outcome,
-      outcome.attemptId,
-      outcome.outcome === 'unknown' || outcome.outcome === 'needs_review' ? 202 : 200,
-    );
-  } catch (error) {
-    if (error instanceof GoodsPaymentConfirmationInProgressError) {
-      return Response.json({ outcome: 'unknown' }, {
-        status: 202,
-        headers: { 'cache-control': 'no-store' },
-      });
-    }
-    if (error instanceof GoodsPaymentContractError) {
+    let body: unknown;
+    try {
+      body = await readCallbackJson(request);
+    } catch (error) {
+      if (error instanceof CallbackTooLargeError) {
+        return Response.json({ error: 'invalid_callback' }, { status: 413 });
+      }
       return Response.json({ error: 'invalid_callback' }, { status: 400 });
     }
-    return Response.json({ error: 'payment_confirmation_failed' }, { status: 502 });
-  }
+
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+      return Response.json({ error: 'invalid_callback' }, { status: 400 });
+    }
+
+    const input = body as Record<string, unknown>;
+    try {
+      const outcome = await createCheckout().confirm({
+        providerOrderId: input.providerOrderId as string,
+        callbackNonce: input.callbackNonce as string,
+        providerPayload: input.providerPayload,
+      });
+      return response(
+        outcome.outcome,
+        outcome.attemptId,
+        outcome.outcome === 'unknown' || outcome.outcome === 'needs_review' ? 202 : 200,
+      );
+    } catch (error) {
+      if (error instanceof GoodsPaymentConfirmationInProgressError) {
+        return Response.json({ outcome: 'unknown' }, {
+          status: 202,
+          headers: { 'cache-control': 'no-store' },
+        });
+      }
+      if (error instanceof GoodsPaymentContractError) {
+        return Response.json({ error: 'invalid_callback' }, { status: 400 });
+      }
+      return Response.json({ error: 'payment_confirmation_failed' }, { status: 502 });
+    }
+  };
 }
+
+export const POST = createGoodsPaymentConfirmHandler({
+  paymentsEnabled: goodsCheckoutPaymentsEnabled,
+  createCheckout: createRuntimeGoodsPaymentCheckout,
+});

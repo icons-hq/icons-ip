@@ -2,7 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useActionState, useEffect, useMemo, useState } from 'react';
+import {
+  prepareGoodsPaymentAction,
+  type PrepareGoodsPaymentActionState,
+} from '@/app/checkout/actions';
 import { PreparedCheckoutAction } from '@/components/payments/PreparedCheckoutAction';
 import { checkoutOrderState } from '@/lib/checkout';
 import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
@@ -12,15 +16,57 @@ import { shippingFeeLabel } from '@/lib/shipping';
 
 interface CheckoutOrderProps {
   order: CheckoutOrderSnapshot;
-  prepared: PreparedCheckout | null;
 }
 
-export function CheckoutOrder({ order, prepared }: CheckoutOrderProps) {
+const emptyPrepareState: PrepareGoodsPaymentActionState = {};
+
+const prepareErrorCopy: Record<NonNullable<PrepareGoodsPaymentActionState['error']>, string> = {
+  auth_required: '로그인 상태를 다시 확인한 뒤 결제를 준비해주세요.',
+  not_found: '이 주문을 확인할 수 없습니다.',
+  not_payable: '이 주문은 더 이상 결제할 수 없습니다.',
+  payment_unavailable: '결제 환경을 준비 중입니다. 잠시 후 다시 시도해주세요.',
+};
+
+export function effectiveGoodsCheckoutExpiry(
+  orderExpiresAt: string,
+  providerExpiresAt?: string,
+) {
+  const orderExpiry = Date.parse(orderExpiresAt);
+  const providerExpiry = providerExpiresAt ? Date.parse(providerExpiresAt) : orderExpiry;
+  return Math.min(orderExpiry, providerExpiry);
+}
+
+export function preparedGoodsCheckoutUsable(
+  prepared: PreparedCheckout | undefined,
+  orderExpiresAt: string | null,
+  now: number,
+) {
+  return Boolean(
+    prepared
+    && orderExpiresAt
+    && effectiveGoodsCheckoutExpiry(orderExpiresAt, prepared.expiresAt) > now,
+  );
+}
+
+export function CheckoutOrder({ order }: CheckoutOrderProps) {
   const router = useRouter();
+  const [prepareState, prepareAction, preparePending] = useActionState(
+    prepareGoodsPaymentAction,
+    emptyPrepareState,
+  );
   const [pollAttempts, setPollAttempts] = useState(0);
   const [now, setNow] = useState<number | null>(null);
   const state = checkoutOrderState(order.status, order.paymentStatus, order.expiresAt, now ?? 0);
-  const expiresIn = order.expiresAt && now !== null ? Math.max(0, Date.parse(order.expiresAt) - now) : 0;
+  const effectiveExpiry = order.expiresAt
+    ? effectiveGoodsCheckoutExpiry(order.expiresAt, prepareState.prepared?.expiresAt)
+    : 0;
+  const preparedUsable = now !== null && preparedGoodsCheckoutUsable(
+    prepareState.prepared,
+    order.expiresAt,
+    now,
+  );
+  const preparedExpired = Boolean(prepareState.prepared && now !== null && !preparedUsable);
+  const expiresIn = now !== null ? Math.max(0, effectiveExpiry - now) : 0;
   const minutes = Math.floor(expiresIn / 60_000);
   const seconds = Math.floor((expiresIn % 60_000) / 1_000);
 
@@ -67,18 +113,32 @@ export function CheckoutOrder({ order, prepared }: CheckoutOrderProps) {
         <section className="checkout-order-main card">
           {state === 'payable' && now === null ? (
             <div className="checkout-state-panel" role="status">결제 가능 시간을 확인하고 있어요.</div>
-          ) : state === 'payable' && prepared ? (
+          ) : state === 'payable' && prepareState.prepared && preparedUsable ? (
             <>
               <div className="checkout-deadline" role="timer">
                 <span>재고 선점 남은 시간</span>
                 <strong className="mono">{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}</strong>
               </div>
-              <PreparedCheckoutAction prepared={prepared} />
+              <PreparedCheckoutAction prepared={prepareState.prepared} />
             </>
+          ) : state === 'payable' && preparedExpired ? (
+            <div className="checkout-state-panel" role="alert">
+              <h2>결제 준비 시간이 지났어요</h2>
+              <p>이 결제 action은 더 이상 사용할 수 없습니다. 주문 상세에서 취소한 뒤 새 주문을 만들어주세요.</p>
+            </div>
           ) : state === 'payable' ? (
             <div className="checkout-state-panel" role="alert">
-              <h2>결제 환경을 확인 중이에요</h2>
-              <p>주문은 생성됐지만 결제수단을 불러올 수 없습니다. 만료 전에 새로고침하거나 잠시 후 다시 시도해주세요.</p>
+              <h2>결제를 준비해주세요</h2>
+              <p>버튼을 누르면 로그인·주문 소유권·금액·재고 예약을 서버에서 다시 확인합니다.</p>
+              <form action={prepareAction}>
+                <input name="orderId" type="hidden" value={order.id} />
+                <button className="btn btn-holo checkout-submit" disabled={preparePending}>
+                  {preparePending ? '결제 준비 중' : '결제 준비하기'}
+                </button>
+              </form>
+              {prepareState.error && (
+                <p className="checkout-error">{prepareErrorCopy[prepareState.error]}</p>
+              )}
             </div>
           ) : (
             <div className={`checkout-state-panel checkout-state-panel--${state}`} role="status">

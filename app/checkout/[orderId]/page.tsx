@@ -5,9 +5,6 @@ import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { normalizeOrderReference } from '@/lib/checkout';
 import { loadCheckoutOrder } from '@/lib/checkout.server';
-import type { PreparedCheckout } from '@/lib/payments/gateway';
-import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
-import { createRuntimeGoodsPaymentCheckout } from '@/lib/payments/goods-checkout.runtime.server';
 
 export const metadata: Metadata = {
   title: '주문 결제 — ICONS',
@@ -27,27 +24,5 @@ export default async function Page({ params }: { params: Promise<{ orderId: stri
   const order = await loadCheckoutOrder(auth.user.id, orderId);
   if (!order) notFound();
 
-  let prepared: PreparedCheckout | null = null;
-  if (
-    goodsCheckoutPaymentsEnabled()
-    && order.status === 'pending'
-    && order.paymentStatus === null
-    && order.expiresAt
-  ) {
-    try {
-      prepared = await createRuntimeGoodsPaymentCheckout().prepare({
-        userId: auth.user.id,
-        orderId: order.id,
-      });
-    } catch {
-      prepared = null;
-    }
-  }
-
-  return (
-    <CheckoutOrder
-      order={order}
-      prepared={prepared}
-    />
-  );
+  return <CheckoutOrder order={order} />;
 }

@@ -6,6 +6,7 @@ import type {
   PaymentProvider,
   PaymentProviderEvidence,
 } from './gateway';
+import { PAYMENT_OUTCOMES } from './gateway';
 import type {
   GoodsPaymentAttemptClaim,
   GoodsPaymentAttemptRepository,
@@ -40,13 +41,7 @@ interface ClaimRow {
   readonly outcome?: PaymentOutcome;
 }
 
-const PAYMENT_OUTCOMES = new Set<PaymentOutcome>([
-  'approved',
-  'declined',
-  'canceled',
-  'unknown',
-  'needs_review',
-]);
+const paymentOutcomeSet = new Set<PaymentOutcome>(PAYMENT_OUTCOMES);
 
 export class GoodsPaymentRepositoryError extends Error {
   constructor() {
@@ -101,7 +96,7 @@ function parseClaim(value: unknown): GoodsPaymentAttemptClaim {
   if (
     row.claim_status === 'terminal'
     && typeof row.outcome === 'string'
-    && PAYMENT_OUTCOMES.has(row.outcome)
+    && paymentOutcomeSet.has(row.outcome)
   ) {
     return {
       status: 'terminal',
@@ -175,7 +170,7 @@ export function createGoodsPaymentAttemptRepository(client: RpcClient): GoodsPay
         p_outcome: input.outcome.outcome,
         ...evidenceArgs(input.outcome.evidence),
       });
-      if (typeof finalized !== 'string' || !PAYMENT_OUTCOMES.has(finalized as PaymentOutcome)) {
+      if (typeof finalized !== 'string' || !paymentOutcomeSet.has(finalized as PaymentOutcome)) {
         throw new GoodsPaymentRepositoryError();
       }
       if (finalized === input.outcome.outcome) return input.outcome;

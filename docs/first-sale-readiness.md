@@ -282,7 +282,7 @@
 
 아래 사람·운영 데이터 블로커와 결제 전환 구현이 모두 필요하다. 2026-08-10에 프로덕션 `goods`와 Vercel production env를 직접 확인했고, 2026-08-13 결제 provider 전환 계약을 §8.3에 반영했다.
 
-1. **[#87](https://github.com/sangwopark19/icons-ip/issues/87)** — 사업자 정보 6종과 Korpay 승인·보안·운영 답변. 없으면 푸터의 법정 표기와 문의 창구가 비고, rotated credential·조회/취소/모호 결제 계약을 검증할 수 없다. 굿즈는 provider runtime이 OFF이고, Toss checkout은 #206 티켓 전환 동안만 호환 유지하며 신규 Toss live 판매는 열지 않는다(§8.3).
+1. **[#87](https://github.com/icons-hq/icons-ip/issues/87)** — 사업자 정보 6종과 Korpay 승인·보안·운영 답변. 없으면 푸터의 법정 표기와 문의 창구가 비고, rotated credential·조회/취소/모호 결제 계약을 검증할 수 없다. 굿즈는 provider runtime이 OFF이고, Toss checkout은 #206 티켓 전환 동안만 호환 유지하며 신규 Toss live 판매는 열지 않는다(§8.3).
 2. **[#177](https://github.com/sangwopark19/icons-ip/issues/177)** — H1~H7. 특히 H7(WMS 운영사 법인명)이 없으면 개인정보처리방침의 처리위탁 목록을 완성할 수 없다.
 3. **[#190](https://github.com/sangwopark19/icons-ip/issues/190)** — 운영 데이터 입력. 홍실 3종의 고시정보 7항목 × 3 = **21칸이 전부 공백**이고 설명·갤러리·상세 이미지도 없다. 고시정보가 차야 굿즈 폼이 저장되고, 그래야 `stock`이 `ok`로 바뀐다(§4.1 정정). A/S 연락처가 #87 의존이다.
 4. **[#179](https://github.com/sangwopark19/icons-ip/issues/179)** — 할당 재고 확정. 홍실 3종이 전부 `stock='soldout'`·`stock_qty=0`이라 지금은 아무것도 팔리지 않는다.

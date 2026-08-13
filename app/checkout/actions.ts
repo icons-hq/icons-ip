@@ -9,7 +9,10 @@ import {
   normalizeOrderReference,
   type PlaceOrderErrorCode,
 } from '@/lib/checkout';
+import { loadCheckoutOrder } from '@/lib/checkout.server';
+import type { PreparedCheckout } from '@/lib/payments/gateway';
 import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
+import { createRuntimeGoodsPaymentCheckout } from '@/lib/payments/goods-checkout.runtime.server';
 import { createServiceClient } from '@/lib/supabase/service';
 
 type PlaceOrderActionError =
@@ -22,6 +25,47 @@ type PlaceOrderActionError =
 export type PlaceOrderActionResult =
   | { ok: true; orderId: string }
   | { ok: false; error: PlaceOrderActionError };
+
+export interface PrepareGoodsPaymentActionState {
+  readonly prepared?: PreparedCheckout;
+  readonly error?: 'auth_required' | 'not_found' | 'not_payable' | 'payment_unavailable';
+}
+
+export async function prepareGoodsPaymentAction(
+  _state: PrepareGoodsPaymentActionState,
+  formData: FormData,
+): Promise<PrepareGoodsPaymentActionState> {
+  const orderId = normalizeOrderReference(formData.get('orderId'));
+  if (!orderId) return { error: 'not_found' };
+
+  const auth = await getCurrentAuthState();
+  if (!auth.isConfigured || !auth.user) return { error: 'auth_required' };
+  if (
+    isAccountSuspended(auth.profile)
+    || !isOnboarded(auth.profile, auth.user.email)
+  ) return { error: 'auth_required' };
+  if (!goodsCheckoutPaymentsEnabled()) return { error: 'payment_unavailable' };
+
+  const order = await loadCheckoutOrder(auth.user.id, orderId);
+  if (!order) return { error: 'not_found' };
+  if (
+    order.status !== 'pending'
+    || order.paymentStatus !== null
+    || !order.expiresAt
+    || Date.parse(order.expiresAt) <= Date.now()
+  ) return { error: 'not_payable' };
+
+  try {
+    const prepared = await createRuntimeGoodsPaymentCheckout().prepare({
+      userId: auth.user.id,
+      orderId: order.id,
+    });
+    if (Date.parse(prepared.expiresAt) <= Date.now()) return { error: 'not_payable' };
+    return { prepared };
+  } catch {
+    return { error: 'payment_unavailable' };
+  }
+}
 
 export async function placeOrderAction(
   addressValue: unknown,
