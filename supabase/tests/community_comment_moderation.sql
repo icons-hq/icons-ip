@@ -2,6 +2,11 @@
 
 begin;
 
+update private.community_write_control
+set
+  post_create_enabled = true,
+  comment_create_enabled = true;
+
 create temporary table comment_moderation_results (
   name text primary key,
   id uuid not null

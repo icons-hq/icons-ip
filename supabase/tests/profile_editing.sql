@@ -2,6 +2,11 @@
 
 begin;
 
+-- This suite verifies the legacy community upload branch independently of the
+-- launch gate. Production activation remains a separate reviewed migration.
+update private.community_write_control
+set post_create_enabled = true;
+
 insert into auth.users (
   id,
   aud,

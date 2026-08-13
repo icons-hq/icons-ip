@@ -58,7 +58,7 @@
 | 결제 | Toss checkout·승인 API·웹훅 확정·만료 정리를 유지하면서 `payments.provider`, service-only `payment_attempts`/evidence, `PaymentGateway`/Fake seam을 additive expand했다. 기존 Production 결제 2건은 Toss로 backfill한다 | #205·#206에서 checkout을 seam으로 옮기고, rotated Korpay credential·승인 범위 확인 뒤 신규 Korpay를 연다. Toss는 기존 거래 조회·취소·웹훅만 유지 |
 | 카드 리워드 | 뽑기권(카드팩) 인벤토리·개봉과 바인더, 주문 결제 시 조건에 맞는 복수 정책의 누적 발급, 대상 IP·선택 same-IP 굿즈·독립 카드풀을 운영하는 관리자 정책 콘솔, 카드 보상형 참여형 게임·운영 콘솔과 서버 결정 `play_game` 연결 | goods variant·래플 운영은 출시 후 #115 |
 | 팝업 | 이벤트 목록·상세, audited 회차·현장 검표 콘솔, 멱등 예약·결제·웹훅 QR 발급, 본인 티켓 QR·예매 전체 취소/환불 | production 실제 결제 검증 |
-| 커뮤니티 | 공개 전체/팔로우 IP 기반 내 팬덤 피드와 IP 상세 preview 읽기, 최근 7일 트렌딩, 로그인·온보딩 완료 사용자 포스트 작성(선택 이미지 업로드 포함)·수정, 댓글, 좋아요, 작성자 삭제, 신고, 차단, 운영자 댓글 숨김이 Supabase RPC에 연결 | 운영 정책 문서 |
+| 커뮤니티 | 공개 전체/팔로우 IP 기반 내 팬덤 피드와 IP 상세 preview 읽기, 최근 7일 트렌딩, 포스트·댓글·좋아요·작성자 삭제·신고·차단·운영자 숨김 코드가 연결. 모든 post/comment 생성·수정과 community 이미지 upload는 DB·Storage gate에서 기본 OFF | 실제 수령인·대체 reviewer·통지·이의·복원·권리신고 경로와 rehearsal 뒤 별도 migration으로 활성화. 공개 읽기·신고·본인 삭제·권리행사는 유지 |
 | 검색 | Postgres `search_public_content` RPC로 IP·굿즈·카드·visible 포스트·태그를 그룹 검색 | 최근 검색어·인기 검색어 persistence |
 | 아트워크 | staff 전용 Supabase Storage 업로드·미리보기·교체 경로. 실제 라이선스 이미지는 운영자가 점진 투입 | 실제 콘텐츠 투입 |
 | 운영 | staff/admin 게이트, 카탈로그 CRUD·아트워크 업로드·감사되는 보관/복원, 카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩, audited 뽑기권 발급 정책·참여형 게임 운영, 커뮤니티 신고 처리, 주문·배송·청약철회/환불·실재고·티켓 회차·현장 검표, 마스킹 회원 검색·명시적 상세·감사되는 계정 정지/해제, 홈 히어로·특집 IP·공지 배너 큐레이션 콘솔 | 완료 |
@@ -153,7 +153,7 @@
 - `M` **신고 · 숨김 · 차단** (UGC 안전장치).
 - `M` 운영자 모더레이션(`/admin`에서 신고 처리·포스트 또는 개별 댓글 비공개). 숨김 댓글은 공개 피드·preview·댓글 수에서 제외하고 운영자 화면에만 원문과 상태를 유지한다.
 - `S` 트렌딩 태그, 팔로우 IP 기반 피드 개인화.
-- 정책: 명예훼손·불법촬영물·저작권 침해 신고 대응 절차(운영 정책 문서로 분리).
+- 정책: 명예훼손·불법촬영물·저작권 침해 신고 대응 절차는 [`커뮤니티 운영 정책`](./community-moderation-policy.md)으로 분리한다. 운영 준비가 증명되기 전에는 post/comment 생성·수정 gate를 열지 않는다.
 
 ### 5.7 검색 (P0~)
 

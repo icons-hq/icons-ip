@@ -9,7 +9,7 @@ ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 �
 - 화면은 `app/**/page.tsx`가 `components/screens/*` 컴포넌트를 렌더링하는 구조다.
 - 공개 카탈로그(IP, 굿즈, 카드, 이벤트)는 Supabase 환경변수가 있으면 DB를 읽고, 로컬 개발에서 환경변수가 없으면 `lib/data.ts` mock으로 fallback한다. Vercel Preview는 새 static mock catalog 확인을 위해 기본적으로 mock을 사용한다.
 - Supabase Auth/SSR은 이메일/비밀번호 가입·로그인, 확인 메일 콜백·재전송, 비밀번호 재설정 요청·콜백·새 비밀번호 저장·전역 로그아웃, 온보딩 완료 게이트와 IP 팔로우 보호 액션에 연결되어 있다. 환경변수가 없으면 인증 폼은 비활성화되고 세션 갱신은 no-op으로 동작한다.
-- 커뮤니티 공개 피드는 Supabase `posts`/`public_profiles`와 최근 7일 visible 포스트의 트렌딩 태그를 읽고, 로그인·온보딩 완료 사용자는 텍스트, 태그, 선택 이미지를 포함한 포스트를 작성할 수 있다. 댓글, 좋아요, 작성자 삭제, 신고, 차단도 Server Action + RPC로 연결되어 있다.
+- 커뮤니티 공개 피드는 Supabase `posts`/`public_profiles`와 최근 7일 visible 포스트의 트렌딩 태그를 읽는다. 포스트·댓글 Server Action과 RPC는 연결돼 있지만 생성·수정과 community 이미지 upload는 DB·Storage gate에서 기본 OFF다. 운영·법률 준비를 증명한 별도 migration 전까지 공개 읽기·좋아요·신고·차단·본인 삭제·운영자 숨김만 유지한다.
 - 검색은 Supabase 환경변수가 있으면 Postgres `search_public_content` RPC로 IP, 굿즈, 카드, visible 포스트, 태그를 그룹 검색하고, 로컬 fallback에서는 mock 데이터를 사용한다.
 - `/admin`은 staff/admin 게이트, 카탈로그 CRUD·보관/복원·아트워크 업로드, 카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩, 뽑기권 발급 정책, 카드 보상형 참여형 게임 등록·운영과 PII-free 플레이 집계, 감사 로그, 커뮤니티 신고 상태 변경과 포스트 숨김 처리 경로에 연결되어 있다. 기존 굿즈 variant는 #115 전까지 읽기 전용이다.
 - Google, Kakao, Apple 버튼은 Supabase 관리형 OAuth Server Action에 연결되어 있고 production Supabase provider도 모두 활성화되어 있다. Google은 production 공개 상태이며 Apple App ID·Services ID·callback·서명 키 구성이 완료됐다. Kakao는 `(주) 아이콘스` 비즈 앱, 로그인용 client secret, `account_email` 필수 동의·계정 정보 수집까지 설정했고 Supabase의 이메일 없는 사용자 허용은 꺼져 있다. 코드가 production에 배포된 뒤 controlled login smoke가 남아 있다.
@@ -59,28 +59,30 @@ URL과 public key 둘 중 하나라도 없으면 인증 미들웨어는 세션 �
 
 ## Supabase Auth URL 설정
 
-Auth URL 설정은 손으로 관리하지 않는다. `scripts/sync-supabase-auth.mjs`가 진실원이고, workflow가 production과 preview 프로젝트에 각각 적용·검증한다. 대시보드에서 직접 바꾼 값은 다음 배포에서 되돌아간다.
+Auth URL·email link TTL·recovery template 설정은 손으로 관리하지 않는다. `scripts/sync-supabase-auth.mjs`, workflow, `supabase/templates/recovery.html`이 진실원이고, workflow가 production과 preview 프로젝트에 각각 적용·검증한다. 대시보드에서 직접 바꾼 값은 다음 배포에서 되돌아간다.
 
 **Production** (`deploy-supabase`, `main` push):
 
 - Site URL: `https://iconsip.com`
-- Redirect URLs: `https://iconsip.com/auth/callback`, `https://www.iconsip.com/auth/callback`, `https://icons-ip.vercel.app/auth/callback`, `http://localhost:3000/auth/callback`, `http://127.0.0.1:3000/auth/callback`
+- Redirect URLs: `https://iconsip.com`, `https://www.iconsip.com`, `https://icons-ip.vercel.app`, `http://localhost:3000`, `http://127.0.0.1:3000` 각 origin의 `/auth/callback`과 `/auth/recovery/callback`
 - 제거 대상: `https://icons-ip-*.vercel.app/auth/callback`. preview가 전용 프로젝트를 보게 된 뒤로는 운영 allow-list에 있을 이유가 없고, 애초에 실제 preview 호스트와 맞지도 않았다(아래).
 
 **Preview** (`deploy-supabase-preview`, PR):
 
 - Site URL: `https://icons-ip.vercel.app`
-- Redirect URLs: `https://icons-ip.vercel.app/auth/callback`, `https://icons-hongshil-vn.vercel.app/auth/callback`, `https://icons-*-sangwopark19icons-1055s-projects.vercel.app/auth/callback`, `https://icons-git-*-sangwopark19icons-1055s-projects.vercel.app/auth/callback`, local callback
+- Redirect URLs: `https://icons-ip.vercel.app`, `https://icons-hongshil-vn.vercel.app`, `https://icons-*-sangwopark19icons-1055s-projects.vercel.app`, `https://icons-git-*-sangwopark19icons-1055s-projects.vercel.app` 각 origin과 local 두 origin의 `/auth/callback`·`/auth/recovery/callback`
 - preview 배포 호스트는 프로젝트 이름(`icons-ip`)이 아니라 **배포 접두 `icons-`**를 쓴다 — `icons-nb9vdpqs8-sangwopark19icons-1055s-projects.vercel.app` 형태다. 그래서 `icons-ip-*` 패턴은 어떤 preview URL과도 매칭되지 않았다. 팀 접미까지 붙여 좁힌다: `icons-*.vercel.app`은 남의 프로젝트까지 허용한다.
-- preview에는 custom SMTP가 없어 SMTP 강제와 mailer 설정 강제를 켜지 않는다. 이메일 확인이 필요한 가입 플로우는 preview에서 끝까지 갈 수 없다.
+- preview에는 custom SMTP가 없어 SMTP 강제와 confirmation/rate-limit 강제를 켜지 않는다. 다만 recovery template와 email link/OTP TTL 3,600초는 production과 같은 값으로 동기화·read-back한다. 이메일 확인이 필요한 가입 플로우는 preview에서 끝까지 갈 수 없다.
 
-Production의 가입 확인·비밀번호 재설정 메일은 allow-list와 정확히 맞도록 query 없는 `/auth/callback`만 사용한다. Server Action은 안전한 `next`, 목적, 발급 시각을 서명된 `icons_auth_next` httpOnly 쿠키에 보존하며 일반 가입은 10분, recovery는 1시간 동안 신뢰한다.
+가입 확인·OAuth는 query 없는 `/auth/callback`, 비밀번호 재설정은 query 없는 `/auth/recovery/callback`을 사용한다. 가입·OAuth의 안전한 `next`·목적·발급 시각은 `icons_auth_next`에 10분, recovery의 값은 경로가 분리된 `icons_auth_recovery_next`에 최대 3,600초 동안 서명된 httpOnly 쿠키로 보존한다. 신규 recovery 요청은 shared callback cookie를 만들지 않는다.
+
+전용 callback 전환 전에 발급된 메일만 `icons_auth_next`의 유효한 legacy `purpose: recovery`와 PKCE local recovery marker가 모두 남아 있을 때 shared callback에서 처리한다. marker만 recovery이면 생성된 세션과 응답 cookie를 폐기하고 `browser_mismatch`로 닫으며, legacy marker가 있는 provider·missing-code·exchange 실패는 raw provider code 없이 reset 오류 allow-list로 정규화한다. 이 호환 분기는 동기화된 email link TTL 3,600초와 승인된 안전 여유가 지난 뒤 제거한다.
 
 Server Action이 만드는 callback origin은 production·www·기본 Vercel·local 고정 origin과 플랫폼이 제공한 현재 `VERCEL_URL`만 허용한다. 인식하지 못한 `Origin`·`X-Forwarded-Host`·`Host`는 신뢰하지 않고 `https://iconsip.com`으로 닫는다.
 
 비밀번호 재설정 요청은 계정 존재 여부와 무관하게 같은 응답을 반환한다. 같은 브라우저의 정규화 이메일별 요청은 raw email 대신 HMAC digest를 담은 `icons_auth_password_reset` 쿠키로 총 3회/10분 제한하고, 활성 이메일 bucket은 12개로 제한해 브라우저 cookie 크기를 넘지 않게 한다. Supabase provider rate limit은 실제 상한으로 둔다. PKCE verifier도 요청 브라우저에 저장되므로 최신 메일 링크는 재설정을 요청한 브라우저에서 열어야 한다.
 
-Recovery callback은 code exchange 뒤 `getUser()`로 세션을 재검증하고 온보딩 여부와 무관하게 `/update-password`로 보낸다. 브라우저가 redirect 응답의 세션 cookie를 첫 SSR 요청보다 늦게 반영하면 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 한 번 다시 수행하며, 세션 확인 전에는 비밀번호 폼을 노출하지 않는다. 새 비밀번호 저장 뒤 global sign-out을 완료하면 `/login?password_reset=success`로 이동한다. 일반 가입 callback은 기존 온보딩 게이트를 유지하고, 회원가입 확인 메일 재전송은 서명된 httpOnly 쿠키로 3회/10분 window를 추적한 뒤 Supabase `auth.resend({ type: 'signup' })`를 사용한다. `main` 배포 workflow는 Site URL, Redirect URLs, 이메일 confirmation, 보안 이메일 변경, 이메일 전송 rate limit을 확인하고 누락 시 보정한다.
+전용 Recovery callback은 code exchange, 유효한 전용 서명 state, PKCE local recovery marker, `getUser()` 재검증을 모두 통과한 뒤에만 온보딩 여부와 무관하게 `/update-password`로 보낸다. 성공 조건이 어긋나면 local sign-out과 응답 session/recovery cookie 만료 뒤 제한된 reset 오류로 닫는다. 브라우저가 redirect 응답의 session cookie를 첫 SSR 요청보다 늦게 반영하면 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 한 번 다시 수행하며, 세션 확인 전에는 비밀번호 폼을 노출하지 않는다. 새 비밀번호 저장 뒤 global sign-out을 완료하면 `/login?password_reset=success`로 이동한다. 일반 가입 callback은 기존 온보딩 게이트를 유지하고, 회원가입 확인 메일 재전송은 서명된 httpOnly 쿠키로 3회/10분 window를 추적한 뒤 Supabase `auth.resend({ type: 'signup' })`를 사용한다. workflow는 Site URL, 두 callback의 Redirect URLs, recovery template 원문, email link/OTP TTL 3,600초와 기존 mailer 설정을 PATCH 후 정확히 read-back한다.
 
 ### 소셜 OAuth 공급자 운영
 
@@ -153,7 +155,7 @@ GitHub Actions는 `CI/CD Pipeline` workflow 하나로 PR 검증(lint/test/build/
 
 Vercel Git 연결은 프로젝트 메타데이터용으로 유지하지만, `vercel.json`의 `git.deploymentEnabled: false`로 Vercel Git 자동 배포는 생성하지 않는다. Preview와 production 배포 경로는 GitHub Actions의 Vercel CLI deploy만 사용한다.
 
-`deploy-supabase`는 Supabase Auth Site URL, Redirect URLs, confirmation/rate-limit 설정을 production callback 설정으로 먼저 확인·동기화하고, custom SMTP 필수 설정이 누락되면 migration을 원격에 push하기 전에 실패한다. Auth 설정 검증이 끝나면 linked Supabase project에 immutable migration만 push하고, 같은 read-only catalog canary로 production baseline을 즉시 확인한다. 이 단계가 Vercel 배포보다 먼저 실행되므로, 이후 `deploy-vercel` secret preflight나 Vercel 배포가 실패해도 Supabase migration과 Auth 설정은 이미 적용됐을 수 있다.
+`deploy-supabase`는 Supabase Auth Site URL, shared/recovery Redirect URLs, version-controlled recovery template, email link/OTP TTL 3,600초와 confirmation/rate-limit 설정을 먼저 확인·동기화하고, custom SMTP 필수 설정이 누락되면 migration을 원격에 push하기 전에 실패한다. Auth 설정 검증이 끝나면 linked Supabase project에 immutable migration만 push하고, 같은 read-only catalog canary로 production baseline을 즉시 확인한다. 이 단계가 Vercel 배포보다 먼저 실행되므로, 이후 `deploy-vercel` secret preflight나 Vercel 배포가 실패해도 Supabase migration과 Auth 설정은 이미 적용됐을 수 있다.
 
 배포 workflow에는 다음 GitHub Secrets가 필요하다.
 
@@ -200,7 +202,7 @@ DB 비밀번호와 service_role 키를 다루는 단계는 사람만 할 수 있
 4. Vercel **Preview 스코프**의 `NEXT_PUBLIC_SUPABASE_URL`·`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`를 프리뷰 값으로 덮고 `ICONS_CATALOG_SOURCE=supabase`를 추가한다. 프리뷰 공개 화면도 프리뷰 DB를 읽어 실제 스테이징이 된다. `ICONS_PROTOTYPE`은 건드리지 않는다 — 프로토타입 공유 배포가 이 값만 읽는다.
 5. GitHub Secrets와 Vercel Preview 환경변수를 확인하고 남은 일을 안내한다.
 
-Auth Site URL과 redirect allow-list는 위저드가 다루지 않는다 — workflow가 위 "Supabase Auth URL 설정" 절의 값으로 맞추고 검증한다.
+Auth Site URL, redirect allow-list, recovery template와 email link/OTP TTL은 위저드가 다루지 않는다 — workflow가 위 "Supabase Auth URL 설정" 절의 값으로 맞추고 검증한다.
 
 `SUPABASE_PREVIEW_PROJECT_ID`는 비밀이 아니라 프로젝트 ref라 위저드 밖에서도 넣을 수 있다.
 
@@ -223,7 +225,8 @@ curl -s "$PREVIEW_URL" | grep -o '/_next/static/chunks/[^"]*\.js' | sort -u | wh
 ## 프로젝트 지도
 
 - `app/`: Next.js App Router 라우트.
-- `app/auth/callback/route.ts`: Supabase Auth code exchange와 가입·소셜 로그인/onboarding 또는 recovery/update-password redirect 처리.
+- `app/auth/callback/route.ts`: 가입·소셜 로그인 code exchange와 onboarding 처리. 이미 발급된 recovery 링크의 제한된 TTL 호환 및 marker-only recovery fail-closed 포함.
+- `app/auth/recovery/callback/route.ts`: 비밀번호 재설정 전용 code exchange, PKCE/state/user 검증, 세션 정리와 update-password redirect 처리.
 - `app/login/actions.ts`: 이메일 로그인/회원가입, Google·Apple·Kakao OAuth 시작, 확인 메일 재전송, 비밀번호 재설정 메일 요청, 로그아웃 server action.
 - `app/update-password/`: recovery 세션 재검증, 새 비밀번호 저장, 전역 로그아웃.
 - `app/onboarding/actions.ts`: 프로필 완성과 추천 IP 팔로우 저장 server action.
