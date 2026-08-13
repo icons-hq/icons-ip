@@ -1,8 +1,12 @@
 import { Binder } from '@/components/screens/Binder';
 import { getBinderCatalogOverlay, getCatalogSnapshot } from '@/lib/catalog';
+import { readCardRewardsEnabled } from '@/lib/card-rewards/gate.server';
 
 export default async function Page() {
-  const catalog = await getCatalogSnapshot();
+  const [catalog, cardRewardsEnabled] = await Promise.all([
+    getCatalogSnapshot(),
+    readCardRewardsEnabled(),
+  ]);
   const overlay = catalog.source === 'supabase' ? await getBinderCatalogOverlay() : null;
   const cards = overlay
     ? [...new Map([...catalog.cards, ...overlay.cards].map((card) => [card.id, card])).values()]
@@ -13,6 +17,7 @@ export default async function Page() {
 
   return (
     <Binder
+      cardRewardsEnabled={cardRewardsEnabled}
       catalog={{ ...catalog, cards, ips }}
       ownedCardIds={overlay?.ownedCardIds ?? null}
     />

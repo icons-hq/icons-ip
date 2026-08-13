@@ -861,6 +861,7 @@ describe('admin catalog actions', () => {
   });
 
   it.each([
+    ['card_rewards_disabled', '카드 리워드는 현재 비활성화되어 있습니다.'],
     ['reward_pool_not_ready', '확률과 카드 구성이 완료된 운영 가능한 카드풀을 선택해주세요.'],
     ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
     ['game_pool_window_not_covered', '게임 운영 기간은 카드풀 운영 기간 안에 있어야 합니다.'],
@@ -938,6 +939,7 @@ describe('admin catalog actions', () => {
     ['reward_policy_pool_locked', '이미 발급 이력이 있어 카드풀을 변경할 수 없습니다.'],
     ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
     ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
+    ['card_rewards_disabled', '카드 리워드는 현재 비활성화되어 있습니다.'],
   ])('maps %s reward-policy RPC errors without leaking SQL', async (rpcMessage, expected) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
     const formData = rewardPolicyForm();

@@ -82,6 +82,8 @@ jobs:
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_card_pool_console.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_reward_policy_console.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_game_console.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/card_reward_global_gate.sql
+          bash supabase/tests/card_reward_global_gate_concurrency.sh
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/ticket_booking_flow.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/ticket_cancellation_flow.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/ticket_check_in_flow.sql

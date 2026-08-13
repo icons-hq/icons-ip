@@ -13,6 +13,7 @@ import { RARITY_ORDER } from '@/lib/rarity';
 import { hrefFor } from '@/lib/routes';
 import { useCart } from '@/components/shell/CartProvider';
 import { useHeroParallax, useTilt } from '@/components/ui/motion';
+import { useCardRewardsEnabled } from '@/components/shell/CardRewardAvailability';
 
 const eyebrowStyle = (color: string): React.CSSProperties => ({
   fontFamily: 'var(--ff-mono)', fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color,
@@ -158,6 +159,7 @@ export function IpHub({
   const { ip, goods, cards, events, posts } = detail;
   const { artRef, onMouseMove, onMouseLeave } = useHeroParallax({ x: -18, y: -12 });
   const { add, error: cartError, getQuantity, pending: cartPending, ready: cartReady } = useCart();
+  const cardRewardsEnabled = useCardRewardsEnabled();
 
   const accent = ipAccent(ip);
   const accentInk = ipAccentInk(ip);
@@ -342,7 +344,7 @@ export function IpHub({
             </div>
 
             {/* B · 카드팩 (모아요) */}
-            <div className="ipworld-cell ipw-packs" style={{ ['--cell-accent' as string]: 'rgba(139,92,255,.5)', background: 'linear-gradient(180deg, var(--surface-2), var(--bg-2))', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '28px 24px 26px', minHeight: 480 }}>
+            {cardRewardsEnabled && <div className="ipworld-cell ipw-packs" style={{ ['--cell-accent' as string]: 'rgba(139,92,255,.5)', background: 'linear-gradient(180deg, var(--surface-2), var(--bg-2))', overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '28px 24px 26px', minHeight: 480 }}>
               <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(420px 300px at 50% 30%, rgba(139,92,255,.22), transparent 70%)' }} />
               <span style={{ ...eyebrowStyle('var(--violet-2)'), position: 'relative' }}>모아요 · 카드팩</span>
               {topCard ? (
@@ -360,7 +362,7 @@ export function IpHub({
                 </Link>
                 <span className="money-caption" style={{ lineHeight: 1.6 }}>카드팩은 굿즈 구매 리워드로 무상 발급 · 개봉한 카드는 바인더에 보관</span>
               </div>
-            </div>
+            </div>}
 
             {/* C · 팝업 (만나요) */}
             <div className="ipworld-cell ipw-event" style={{ ['--cell-accent' as string]: 'rgba(56,240,192,.5)', overflow: 'hidden', position: 'relative', minHeight: 250, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', isolation: 'isolate' }}>

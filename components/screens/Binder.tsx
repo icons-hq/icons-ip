@@ -15,12 +15,14 @@ const MOCK_PRICE: Partial<Record<RarityKey, string>> = { HOLO: '₩48,000', SSR:
 
 function CardDetail({
   card,
+  cardRewardsEnabled,
   ip,
   hasOwnership,
   collection,
   onClose,
 }: {
   card: Card;
+  cardRewardsEnabled: boolean;
   ip: Ip | undefined;
   hasOwnership: boolean;
   collection: string;
@@ -74,7 +76,9 @@ function CardDetail({
               </>
             ) : (
               <>
-                <Link className="btn btn-holo" href={hrefFor('packs')} style={{ height: 46, fontSize: 14 }}>카드팩으로 획득 ✦</Link>
+                {cardRewardsEnabled && (
+                  <Link className="btn btn-holo" href={hrefFor('packs')} style={{ height: 46, fontSize: 14 }}>카드팩으로 획득 ✦</Link>
+                )}
                 <Link className="btn btn-ghost" href={hrefFor('exchange')} style={{ height: 46, fontSize: 14 }}>교환으로 획득</Link>
               </>
             )}
@@ -86,9 +90,11 @@ function CardDetail({
 }
 
 export function Binder({
+  cardRewardsEnabled,
   catalog,
   ownedCardIds = null,
 }: {
+  cardRewardsEnabled: boolean;
   catalog: Pick<CatalogSnapshot, 'source' | 'ips' | 'cards'>;
   /** supabase 모드 본인 보유(user_cards) — null = 미로그인/미설정(공개 도감) */
   ownedCardIds?: string[] | null;
@@ -248,13 +254,15 @@ export function Binder({
 
           {/* CTA row */}
           <div className="binder-cta-row" style={{ marginTop: 34 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, padding: '22px 26px', borderRadius: 20, border: '1px solid var(--line)', background: 'linear-gradient(150deg, rgba(139,92,255,.14), rgba(255,77,157,.08) 60%, transparent), var(--bg-2)' }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 16 }}>빈 칸을 채우고 싶다면</div>
-                <div style={{ fontSize: 13.5, color: 'var(--dim)', marginTop: 4 }}>보유한 카드팩을 개봉하고 새 카드를 만나보세요.</div>
+            {cardRewardsEnabled && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, padding: '22px 26px', borderRadius: 20, border: '1px solid var(--line)', background: 'linear-gradient(150deg, rgba(139,92,255,.14), rgba(255,77,157,.08) 60%, transparent), var(--bg-2)' }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 16 }}>빈 칸을 채우고 싶다면</div>
+                  <div style={{ fontSize: 13.5, color: 'var(--dim)', marginTop: 4 }}>보유한 카드팩을 개봉하고 새 카드를 만나보세요.</div>
+                </div>
+                <Link className="btn btn-holo" href={hrefFor('packs')} style={{ height: 44, fontSize: 14 }}>카드팩 열기 →</Link>
               </div>
-              <Link className="btn btn-holo" href={hrefFor('packs')} style={{ height: 44, fontSize: 14 }}>카드팩 열기 →</Link>
-            </div>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, padding: '22px 26px', borderRadius: 20, border: '1px solid var(--line)', background: 'linear-gradient(180deg, var(--surface), var(--bg-2))' }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 16 }}>중복 카드가 있나요?</div>
@@ -269,6 +277,7 @@ export function Binder({
       {detail && (
         <CardDetail
           card={detail}
+          cardRewardsEnabled={cardRewardsEnabled}
           ip={ipsById.get(detail.ip)}
           hasOwnership={hasOwnership}
           collection={collectionOf(detail)}

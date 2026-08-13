@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import { Icon } from '@/components/ui/Icon';
+import { useCardRewardsEnabled } from '@/components/shell/CardRewardAvailability';
 
 interface MyPageProps {
   avatarInitial: string;
@@ -53,6 +56,11 @@ const DESTINATIONS = [
 ] as const;
 
 export function MyPage({ avatarInitial, avatarUrl, nickname }: MyPageProps) {
+  const cardRewardsEnabled = useCardRewardsEnabled();
+  const destinations = DESTINATIONS.filter(
+    (destination) => cardRewardsEnabled || destination.href !== '/packs',
+  );
+
   return (
     <main className="screen my-page">
       <header className="my-header">
@@ -91,7 +99,7 @@ export function MyPage({ avatarInitial, avatarUrl, nickname }: MyPageProps) {
 
           <nav aria-label="마이페이지 메뉴">
             <ul className="my-destination-grid">
-              {DESTINATIONS.map((destination) => (
+              {destinations.map((destination) => (
                 <li key={destination.href}>
                   <Link className="my-destination card" href={destination.href}>
                     <span className="my-destination-icon" aria-hidden>

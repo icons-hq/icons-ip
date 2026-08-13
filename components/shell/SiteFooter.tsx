@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { LEGAL_DOCUMENT_LABELS, LEGAL_DOCUMENT_SLUGS, legalDocumentHref } from '@/lib/legal/links';
 import { hrefFor, isAuthShellPath } from '@/lib/routes';
 import { BusinessInfo } from './BusinessInfo';
+import { useCardRewardsEnabled } from './CardRewardAvailability';
 
 const DISCOVER_LINKS: [label: string, route: string][] = [
   ['IP 세계', 'iphub'],
@@ -25,6 +26,7 @@ const ACCOUNT_LINKS: [label: string, route: string][] = [
 
 export function SiteFooter() {
   const pathname = usePathname();
+  const cardRewardsEnabled = useCardRewardsEnabled();
   if (pathname === '/' || isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
 
   return (
@@ -41,9 +43,11 @@ export function SiteFooter() {
             하나의 세계에서 만나는 공개 팬덤 플랫폼입니다.
           </p>
           <nav aria-label="발견 메뉴" className="site-footer-editorial__links">
-            {DISCOVER_LINKS.map(([label, route]) => (
+            {DISCOVER_LINKS
+              .filter(([, route]) => cardRewardsEnabled || route !== 'packs')
+              .map(([label, route]) => (
               <Link key={route} href={hrefFor(route)}>{label}</Link>
-            ))}
+              ))}
           </nav>
           <nav aria-label="내 활동과 보조 메뉴" className="site-footer-editorial__links">
             {ACCOUNT_LINKS.map(([label, route]) => (

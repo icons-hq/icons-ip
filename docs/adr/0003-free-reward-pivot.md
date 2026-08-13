@@ -18,6 +18,7 @@ ICONS의 수집형 카드는 **유료 디지털 가챠**([ADR-0001](./0001-paid-
 - **용어 정리**: 사이트 전면·약관에서 '가챠/뽑기/충전/확률형' 유상 문구 제거(PG 컨펌 조건, [03-roadmap §0.5](../online-popup/03-roadmap.md)). '카드'는 무상 수집물로만 지칭.
 - **ADR-0002(게임 미니앱)는 그대로 유효.** BM 중립으로 설계돼 있어, 결과를 정하는 서버 경로가 유료 `pull_gacha`에서 무상 `grant_cards`/`draw_raffle`/`play_game`으로 바뀌어도 아키텍처는 동일하다.
 - **법무 잔여**: 게임물관리위원회 '게임물 비해당' 사전 상담, 무상 진정성 입증(상품가가 카드 유무와 무관하게 고정), 실물 청약철회 — [03-roadmap §3](../online-popup/03-roadmap.md) 체크리스트.
+- **운영 전 fail-closed**: 위 법무·운영 검토가 끝날 때까지 카드 리워드 전역 DB gate를 기본 OFF로 둔다. 신규 발급·개봉·게임·운영 활성화와 공개 CTA는 닫고 기존 보유 카드 바인더 조회만 유지한다. 활성화는 별도 검토 증거와 migration을 요구한다.
 - **되돌리기 비용**: 지갑 장부·RNG·법무 스탠스가 얽혀 재전환 비용이 크다 — 그래서 이 ADR로 기록한다.
 
 상세 근거는 [online-popup/01-report §1](../online-popup/01-report.md), 무료 모델 스펙은 [02-prd](../online-popup/02-prd.md)·[04-dev-spec](../online-popup/04-dev-spec.md) 참조.
