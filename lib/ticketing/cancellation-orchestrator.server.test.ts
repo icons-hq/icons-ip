@@ -12,6 +12,7 @@ const defaultMocks = vi.hoisted(() => ({
   request: null as Record<string, unknown> | null,
   order: null as Record<string, unknown> | null,
   payments: [] as Array<Record<string, unknown>>,
+  filters: [] as Array<{ table: string; column: string; value: unknown }>,
 }));
 
 vi.mock('../payments/toss-api', () => ({
@@ -24,7 +25,10 @@ vi.mock('../supabase/service', () => ({
     from: (table: string) => {
       const query = {
         select: vi.fn(() => query),
-        eq: vi.fn(() => query),
+        eq: vi.fn((column: string, value: unknown) => {
+          defaultMocks.filters.push({ table, column, value });
+          return query;
+        }),
         maybeSingle: vi.fn(async () => ({
           data: table === 'ticket_cancellation_requests'
             ? defaultMocks.request
@@ -136,6 +140,7 @@ const input = {
 describe('reconcileTicketCancellation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    defaultMocks.filters = [];
     defaultMocks.request = {
       id: REQUEST_ID,
       ticket_order_id: TICKET_ORDER_ID,
@@ -149,6 +154,7 @@ describe('reconcileTicketCancellation', () => {
     };
     defaultMocks.payments = [{
       id: PAYMENT_ID,
+      provider: 'toss',
       status: 'paid',
       amount: 42000,
       payment_key: PAYMENT_KEY,
@@ -292,6 +298,11 @@ describe('reconcileTicketCancellation', () => {
         p_refund_confirmed: true,
       },
     );
+    expect(defaultMocks.filters).toContainEqual({
+      table: 'payments',
+      column: 'provider',
+      value: 'toss',
+    });
     expect(JSON.stringify(result)).not.toMatch(/default-must-not-leak|ticket-payment-secret/);
   });
 

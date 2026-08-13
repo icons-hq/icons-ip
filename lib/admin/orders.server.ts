@@ -116,7 +116,7 @@ export async function getAdminOrderRecords(
       .in('order_id', orderIds)
       .order('id', { ascending: true }),
     supabase
-      .from('payments')
+      .from('payment_summaries')
       .select('id,ref_id,amount,status,created_at')
       .eq('purpose', 'order')
       .in('ref_id', orderIds)
