@@ -22,18 +22,23 @@ function redirectTo(
   request: NextRequest,
   path: string,
   authResponse?: AuthResponseState,
+  clearRecoveryState = false,
 ) {
   const response = NextResponse.redirect(new URL(path, request.url));
   applyAuthResponseState(response, authResponse);
-  response.cookies.set(AUTH_RECOVERY_NEXT_COOKIE_NAME, '', {
-    path: AUTH_RECOVERY_CALLBACK_PATH,
-    maxAge: 0,
-  });
+  if (clearRecoveryState) {
+    response.cookies.set(AUTH_RECOVERY_NEXT_COOKIE_NAME, '', {
+      path: AUTH_RECOVERY_CALLBACK_PATH,
+      maxAge: 0,
+    });
+  }
   return response;
 }
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('code');
+  const tokenHash = request.nextUrl.searchParams.get('token_hash');
+  const tokenType = request.nextUrl.searchParams.get('type');
   const signedState = authNextStateFromCookie(
     request.cookies.get(AUTH_RECOVERY_NEXT_COOKIE_NAME)?.value,
     Date.now(),
@@ -49,8 +54,14 @@ export async function GET(request: NextRequest) {
       passwordResetErrorLoginPath(publicPasswordRecoveryErrorCode(providerError), next),
     );
   }
-  if (!code) {
+  if (!code && !tokenHash) {
     return redirectTo(request, passwordResetErrorLoginPath('missing_code', next));
+  }
+  if (tokenHash && tokenType !== 'recovery') {
+    return redirectTo(request, passwordResetErrorLoginPath('browser_mismatch', next));
+  }
+  if (tokenHash && signedState?.purpose !== 'recovery') {
+    return redirectTo(request, passwordResetErrorLoginPath('browser_mismatch'));
   }
 
   const { isConfigured, key, url } = getSupabaseConfig();
@@ -63,7 +74,9 @@ export async function GET(request: NextRequest) {
     cookies: authCallbackCookieAdapter(request, authResponse),
   });
 
-  const { data: exchangeData, error } = await supabase.auth.exchangeCodeForSession(code);
+  const { data: exchangeData, error } = tokenHash
+    ? await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+    : await supabase.auth.exchangeCodeForSession(code ?? '');
   if (error) {
     return redirectTo(
       request,
@@ -71,7 +84,10 @@ export async function GET(request: NextRequest) {
       authResponse,
     );
   }
-  if (signedState?.purpose !== 'recovery' || !isRecoveryExchange(exchangeData)) {
+  const isVerifiedRecovery = tokenHash
+    ? Boolean(exchangeData?.session && exchangeData?.user)
+    : isRecoveryExchange(exchangeData);
+  if (signedState?.purpose !== 'recovery' || !isVerifiedRecovery) {
     await clearExchangedAuthSession(supabase, authResponse);
     return redirectTo(
       request,
@@ -90,5 +106,5 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return redirectTo(request, updatePasswordSessionReadyPath(next), authResponse);
+  return redirectTo(request, updatePasswordSessionReadyPath(next), authResponse, true);
 }
