@@ -1,6 +1,8 @@
 import 'server-only';
 import type { PaymentGateway } from './gateway';
 
+export type NewPaymentCheckoutPurpose = 'order' | 'ticket';
+
 export class PaymentGatewayUnavailableError extends Error {
   constructor() {
     super('payment_gateway_unavailable');
@@ -25,7 +27,8 @@ export function paymentProviderConfigured() {
 }
 
 /** #207 owns the explicit, independently reversible new-checkout rollout gate. */
-export function newPaymentCheckoutEnabled() {
+export function newPaymentCheckoutEnabled(_purpose: NewPaymentCheckoutPurpose) {
+  void _purpose;
   return false;
 }
 

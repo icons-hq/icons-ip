@@ -13,5 +13,5 @@ export function ticketPaymentProviderAvailable() {
 
 /** #207 owns the rotated Korpay adapter and independently reversible rollout gate. */
 export function ticketCheckoutPaymentsEnabled() {
-  return ticketPaymentProviderAvailable() && newPaymentCheckoutEnabled();
+  return ticketPaymentProviderAvailable() && newPaymentCheckoutEnabled('ticket');
 }

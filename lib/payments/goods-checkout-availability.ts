@@ -17,5 +17,5 @@ export function goodsPaymentConfirmationAvailable() {
 
 export function goodsCheckoutPaymentsEnabled() {
   return goodsPaymentConfirmationAvailable()
-    && newPaymentCheckoutEnabled();
+    && newPaymentCheckoutEnabled('order');
 }

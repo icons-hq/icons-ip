@@ -26,7 +26,8 @@ describe('payment runtime gateway', () => {
     vi.stubEnv('KORPAY_KEY', 'must-not-activate');
 
     expect(paymentProviderConfigured()).toBe(false);
-    expect(newPaymentCheckoutEnabled()).toBe(false);
+    expect(newPaymentCheckoutEnabled('order')).toBe(false);
+    expect(newPaymentCheckoutEnabled('ticket')).toBe(false);
     await expect(getPaymentGateway().prepare(attempt))
       .rejects.toBeInstanceOf(PaymentGatewayUnavailableError);
   });

@@ -6,18 +6,18 @@ import {
 
 const mocks = vi.hoisted(() => ({
   providerConfigured: false,
-  checkoutEnabled: false,
+  enabledPurposes: new Set<string>(),
 }));
 
 vi.mock('./runtime-gateway', () => ({
   paymentProviderConfigured: () => mocks.providerConfigured,
-  newPaymentCheckoutEnabled: () => mocks.checkoutEnabled,
+  newPaymentCheckoutEnabled: (purpose: string) => mocks.enabledPurposes.has(purpose),
 }));
 
 describe('goodsCheckoutPaymentsEnabled', () => {
   beforeEach(() => {
     mocks.providerConfigured = false;
-    mocks.checkoutEnabled = false;
+    mocks.enabledPurposes.clear();
     vi.unstubAllEnvs();
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://example.supabase.co');
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
@@ -32,7 +32,10 @@ describe('goodsCheckoutPaymentsEnabled', () => {
     expect(goodsPaymentConfirmationAvailable()).toBe(true);
     expect(goodsCheckoutPaymentsEnabled()).toBe(false);
 
-    mocks.checkoutEnabled = true;
+    mocks.enabledPurposes.add('ticket');
+    expect(goodsCheckoutPaymentsEnabled()).toBe(false);
+
+    mocks.enabledPurposes.add('order');
     expect(goodsCheckoutPaymentsEnabled()).toBe(true);
 
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
