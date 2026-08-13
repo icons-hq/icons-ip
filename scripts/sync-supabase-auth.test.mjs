@@ -51,9 +51,14 @@ describe('repository Auth redirect contract', () => {
 });
 
 describe('recovery email template contract', () => {
-  it('requires the provider confirmation URL instead of a hardcoded callback', () => {
-    expect(isSafeRecoveryTemplate('<a href="{{ .ConfirmationURL }}">reset</a>')).toBe(true);
-    expect(isSafeRecoveryTemplate('<a href="{{.ConfirmationURL}}">reset</a>')).toBe(true);
+  it('requires the dedicated callback with token hash and recovery type', () => {
+    expect(isSafeRecoveryTemplate(
+      '<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">reset</a>',
+    )).toBe(true);
+    expect(isSafeRecoveryTemplate('<a href="{{ .ConfirmationURL }}">reset</a>')).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=signup">reset</a>',
+    )).toBe(false);
     expect(isSafeRecoveryTemplate('<a href="{{ .SiteURL }}/auth/callback">reset</a>')).toBe(false);
     expect(isSafeRecoveryTemplate('<a href="https://iconsip.com/auth/callback">reset</a>')).toBe(false);
   });
@@ -208,7 +213,7 @@ describe('isSatisfied', () => {
   });
 
   it('version-controlled recovery template가 다르면 통과하지 않는다', () => {
-    const recoveryTemplate = '<a href="{{ .ConfirmationURL }}">reset</a>';
+    const recoveryTemplate = '<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">reset</a>';
 
     expect(isSatisfied({
       ...args,

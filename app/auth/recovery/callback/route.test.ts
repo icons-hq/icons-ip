@@ -10,6 +10,7 @@ const ORIGINAL_SECRET = process.env.AUTH_SIGNUP_RESEND_SECRET;
 const mocks = vi.hoisted(() => ({
   configured: true,
   exchangeCodeForSession: vi.fn(),
+  verifyOtp: vi.fn(),
   getUser: vi.fn(),
   signOut: vi.fn(),
   setAll: null as null | ((
@@ -34,6 +35,7 @@ vi.mock('@supabase/ssr', () => ({
     return {
       auth: {
         exchangeCodeForSession: mocks.exchangeCodeForSession,
+        verifyOtp: mocks.verifyOtp,
         getUser: mocks.getUser,
         signOut: mocks.signOut,
       },
@@ -65,6 +67,7 @@ describe('GET /auth/recovery/callback', () => {
     vi.setSystemTime(new Date('2026-08-12T00:00:00.000Z'));
     mocks.configured = true;
     mocks.exchangeCodeForSession.mockReset();
+    mocks.verifyOtp.mockReset();
     mocks.getUser.mockReset();
     mocks.signOut.mockReset();
     mocks.setAll = null;
@@ -109,6 +112,84 @@ describe('GET /auth/recovery/callback', () => {
     expect(response.headers.get('set-cookie')).toContain(`${AUTH_NEXT_COOKIE_NAME}=;`);
     expect(response.headers.get('set-cookie')).toContain('Path=/auth/recovery/callback');
     expect(response.headers.get('cache-control')).toContain('no-store');
+  });
+
+  it('verifies a recovery token hash and opens password update in the requesting browser', async () => {
+    mocks.verifyOtp.mockImplementationOnce(async () => {
+      mocks.setAll?.([
+        {
+          name: 'sb-local-auth-token',
+          value: 'session-value',
+          options: { httpOnly: true, path: '/', sameSite: 'lax' },
+        },
+      ], {
+        'Cache-Control': 'private, no-cache, no-store, must-revalidate, max-age=0',
+      });
+      return {
+        data: { session: { access_token: 'redacted' }, user: { id: 'user-1' } },
+        error: null,
+      };
+    });
+
+    const response = await GET(request(
+      '/auth/recovery/callback?token_hash=recovery-token-hash&type=recovery',
+      signedRecoveryCookie(),
+    ));
+
+    expect(mocks.verifyOtp).toHaveBeenCalledWith({
+      token_hash: 'recovery-token-hash',
+      type: 'recovery',
+    });
+    expect(mocks.exchangeCodeForSession).not.toHaveBeenCalled();
+    expect(mocks.getUser).toHaveBeenCalledOnce();
+    expect(locationPath(response)).toBe(
+      '/update-password?session_ready=1&next=%2Fcommunity%3Fsort%3Dhot',
+    );
+    expect(response.headers.get('set-cookie')).toContain('sb-local-auth-token=session-value');
+    expect(response.headers.get('cache-control')).toContain('no-store');
+  });
+
+  it('routes an expired or reused token hash through the recovery error UX', async () => {
+    mocks.verifyOtp.mockResolvedValueOnce({
+      data: { session: null, user: null },
+      error: { code: 'otp_expired', message: 'private token detail' },
+    });
+
+    const response = await GET(request(
+      '/auth/recovery/callback?token_hash=reused-token-hash&type=recovery',
+      signedRecoveryCookie(),
+    ));
+
+    expect(locationPath(response)).toBe(
+      '/login?mode=reset&reset_error=link_expired_or_used&next=%2Fcommunity%3Fsort%3Dhot',
+    );
+    expect(response.headers.get('location')).not.toContain('private');
+    expect(response.headers.get('location')).not.toContain('reused-token-hash');
+    expect(mocks.getUser).not.toHaveBeenCalled();
+  });
+
+  it('rejects a token hash with a non-recovery type before verification', async () => {
+    const response = await GET(request(
+      '/auth/recovery/callback?token_hash=recovery-token-hash&type=signup',
+      signedRecoveryCookie(),
+    ));
+
+    expect(locationPath(response)).toBe(
+      '/login?mode=reset&reset_error=browser_mismatch&next=%2Fcommunity%3Fsort%3Dhot',
+    );
+    expect(mocks.verifyOtp).not.toHaveBeenCalled();
+  });
+
+  it('does not consume a token hash when the requesting-browser state is missing', async () => {
+    const response = await GET(request(
+      '/auth/recovery/callback?token_hash=recovery-token-hash&type=recovery',
+    ));
+
+    expect(locationPath(response)).toBe(
+      '/login?mode=reset&reset_error=browser_mismatch',
+    );
+    expect(mocks.verifyOtp).not.toHaveBeenCalled();
+    expect(mocks.getUser).not.toHaveBeenCalled();
   });
 
   it('routes a different-browser PKCE failure to the public browser-mismatch code', async () => {
