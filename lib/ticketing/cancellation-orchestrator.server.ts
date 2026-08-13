@@ -135,6 +135,7 @@ function createDefaultDependencies(): TicketCancellationDependencies {
       const { data: paymentData, error: paymentError } = await service
         .from('payments')
         .select('id,status,amount,payment_key')
+        .eq('provider', 'toss')
         .eq('purpose', 'ticket')
         .eq('ref_id', request.ticket_order_id)
         .order('id', { ascending: true });

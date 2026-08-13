@@ -2,6 +2,27 @@
 
 begin;
 
+-- The migration records its own pre/post count evidence. Production currently
+-- expects two rows, but the additive migration remains safe for an empty local
+-- DB and refuses any update/count mismatch transactionally.
+select 1 / case when (
+  select before_total = after_total
+    and before_null = updated_count
+    and after_toss = before_total
+    and after_null = 0
+  from private.payment_migration_evidence
+  where migration_name = '20260813081620_provider_neutral_payment_ledger'
+) then 1 else 0 end as assert_provider_backfill_has_pre_post_invariants;
+
+select 1 / case when (
+  has_table_privilege('service_role', 'private.payment_migration_evidence', 'select')
+  and not has_table_privilege('service_role', 'private.payment_migration_evidence', 'insert')
+  and not has_table_privilege('service_role', 'private.payment_migration_evidence', 'update')
+  and not has_table_privilege('service_role', 'private.payment_migration_evidence', 'delete')
+  and not has_any_column_privilege('anon', 'private.payment_migration_evidence', 'select')
+  and not has_any_column_privilege('authenticated', 'private.payment_migration_evidence', 'select')
+) then 1 else 0 end as assert_provider_backfill_evidence_is_service_read_only;
+
 -- The ledger records the provider explicitly while preserving every legacy
 -- insert path as Toss until each checkout is moved behind a provider adapter.
 select 1 / case when (
@@ -13,6 +34,16 @@ select 1 / case when (
     where enumtypid = 'public.payment_provider'::regtype
   ) as providers
 ) then 1 else 0 end as assert_payment_provider_contract;
+
+select 1 / case when (
+  select array_agg(enum_value::text order by enum_order)
+    = array['order', 'ticket', 'wallet', 'prize_sale']::text[]
+  from (
+    select enumlabel as enum_value, enumsortorder as enum_order
+    from pg_enum
+    where enumtypid = 'public.payment_purpose'::regtype
+  ) as purposes
+) then 1 else 0 end as assert_payment_purpose_supports_physical_prize_sales;
 
 select 1 / case when (
   select array_agg(enum_value::text order by enum_order)

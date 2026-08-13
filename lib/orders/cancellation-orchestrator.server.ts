@@ -116,6 +116,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
       const { data: paymentData, error: paymentError } = await service
         .from('payments')
         .select('id,status,amount,payment_key')
+        .eq('provider', 'toss')
         .eq('purpose', 'order')
         .eq('ref_id', request.order_id)
         .order('id', { ascending: true });

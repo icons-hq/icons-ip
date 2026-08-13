@@ -34,6 +34,22 @@ function errorJson(status: number, code: string) {
   return NextResponse.json({ error: { code } }, { status });
 }
 
+async function guardTossPaymentProvider(service: ServiceClient, paymentKey: string) {
+  const { data, error } = await service
+    .from('payments')
+    .select('provider')
+    .eq('idempotency_key', paymentKey)
+    .maybeSingle();
+  if (error) {
+    console.error(`[webhooks/tosspayments] provider guard lookup failed: ${error.message}`);
+    return errorJson(500, 'provider_guard_failed');
+  }
+  if (data && (data as { provider?: unknown }).provider !== 'toss') {
+    return errorJson(409, 'payment_provider_mismatch');
+  }
+  return null;
+}
+
 /** 결제를 종결 상태로 기록 — 승인 경로가 남긴 pending 행이 있으면 갱신, 없으면 추적용으로 신규 기록. */
 async function recordTerminalPayment(
   service: ServiceClient,
@@ -45,6 +61,7 @@ async function recordTerminalPayment(
   const { data: existing, error: lookupError } = await service
     .from('payments')
     .select('id,status')
+    .eq('provider', 'toss')
     .eq('idempotency_key', payment.paymentKey)
     .maybeSingle();
   if (lookupError) {
@@ -58,6 +75,7 @@ async function recordTerminalPayment(
         .from('payments')
         .update({ status, raw })
         .eq('id', existing.id)
+        .eq('provider', 'toss')
         .eq('status', existing.status);
       if (error) {
         console.error(`[webhooks/tosspayments] terminal payment update failed: ${error.message}`);
@@ -82,6 +100,7 @@ async function recordTerminalPayment(
   const { error: insertError } = await service.from('payments').upsert(
     {
       user_id: (target as { user_id: string }).user_id,
+      provider: 'toss',
       purpose: ref.purpose,
       ref_id: ref.refId,
       amount: payment.totalAmount,
@@ -161,6 +180,7 @@ async function applyReflectCancel(
   const { data: existing, error } = await service
     .from('payments')
     .select('id,status,amount,purpose,ref_id,payment_key,idempotency_key')
+    .eq('provider', 'toss')
     .eq('idempotency_key', payment.paymentKey)
     .maybeSingle();
   if (error) {
@@ -255,6 +275,7 @@ async function applyReflectCancel(
       .from('payments')
       .update({ status: 'canceled', raw })
       .eq('id', existing.id)
+      .eq('provider', 'toss')
       .eq('status', existing.status);
     if (updateError) {
       console.error(`[webhooks/tosspayments] canceled payment record failed: ${updateError.message}`);
@@ -303,6 +324,7 @@ async function applyRecordFailure(service: ServiceClient, payment: NormalizedTos
   const { error } = await service
     .from('payments')
     .update({ status: 'failed', raw })
+    .eq('provider', 'toss')
     .eq('idempotency_key', payment.paymentKey)
     .eq('status', 'pending');
   if (error) {
@@ -366,6 +388,7 @@ async function decideProductionTestPayment(
     const { data: existingPayment, error: paymentError } = await service
       .from('payments')
       .select('status,amount,purpose,ref_id,payment_key,idempotency_key')
+      .eq('provider', 'toss')
       .eq('idempotency_key', payment.paymentKey)
       .maybeSingle();
     if (paymentError) throw new Error(`Failed to load confirmed payment: ${paymentError.message}`);
@@ -419,6 +442,7 @@ async function shouldPreserveConfirmedTargetForCanceledPayment(
   const { data: eventPayment, error: eventPaymentError } = await service
     .from('payments')
     .select('status,amount,purpose,ref_id,payment_key,idempotency_key')
+    .eq('provider', 'toss')
     .eq('idempotency_key', payment.paymentKey)
     .maybeSingle();
   if (eventPaymentError) {
@@ -433,6 +457,7 @@ async function shouldPreserveConfirmedTargetForCanceledPayment(
   const { data: confirmedPayment, error: confirmedPaymentError } = await service
     .from('payments')
     .select('status,amount,purpose,ref_id,payment_key,idempotency_key')
+    .eq('provider', 'toss')
     .eq('purpose', ref.purpose)
     .eq('ref_id', ref.refId)
     .eq('status', 'paid')
@@ -532,6 +557,10 @@ export async function POST(request: Request) {
     return errorJson(503, 'not_configured');
   }
 
+  const service = createServiceClient();
+  const providerGuardFailure = await guardTossPaymentProvider(service, event.paymentKey);
+  if (providerGuardFailure) return providerGuardFailure;
+
   const verified = await fetchTossPayment(event.paymentKey);
   if (!verified.ok) {
     // 조회 불가 = 우리 상점 결제가 아니거나 위조. 400도 토스 재전송은 막지 못하지만,
@@ -551,7 +580,6 @@ export async function POST(request: Request) {
     return errorJson(500, 'provider_response_mismatch');
   }
 
-  const service = createServiceClient();
   const completedRef = payment.status === 'DONE' ? parseTossOrderId(payment.orderId) : null;
   if (completedRef) {
     try {

@@ -8,6 +8,7 @@
 -- ============================================================================
 
 create type public.payment_provider as enum ('toss', 'korpay');
+alter type public.payment_purpose add value 'prize_sale';
 create type public.payment_attempt_state as enum (
   'prepared',
   'confirming',
@@ -33,9 +34,88 @@ grant usage on type public.payment_attempt_state to service_role;
 alter table public.payments
   add column provider public.payment_provider;
 
-update public.payments
-set provider = 'toss'
-where provider is null;
+create schema if not exists private;
+
+create table private.payment_migration_evidence (
+  migration_name text primary key,
+  before_total bigint not null check (before_total >= 0),
+  before_null bigint not null check (before_null >= 0),
+  updated_count bigint not null check (updated_count >= 0),
+  after_total bigint not null check (after_total >= 0),
+  after_toss bigint not null check (after_toss >= 0),
+  after_null bigint not null check (after_null >= 0),
+  recorded_at timestamptz not null default now()
+);
+
+alter table private.payment_migration_evidence enable row level security;
+
+do $payment_provider_backfill$
+declare
+  before_total bigint;
+  before_null bigint;
+  updated_count bigint;
+  after_total bigint;
+  after_toss bigint;
+  after_null bigint;
+begin
+  select count(*), count(*) filter (where provider is null)
+  into before_total, before_null
+  from public.payments;
+
+  update public.payments
+  set provider = 'toss'
+  where provider is null;
+  get diagnostics updated_count = row_count;
+
+  select
+    count(*),
+    count(*) filter (where provider = 'toss'),
+    count(*) filter (where provider is null)
+  into after_total, after_toss, after_null
+  from public.payments;
+
+  if updated_count <> before_null
+    or after_total <> before_total
+    or after_toss <> before_total
+    or after_null <> 0
+  then
+    raise exception using
+      errcode = '23514',
+      message = 'payment provider backfill invariant failed',
+      detail = format(
+        'before_total=%s before_null=%s updated=%s after_total=%s after_toss=%s after_null=%s',
+        before_total,
+        before_null,
+        updated_count,
+        after_total,
+        after_toss,
+        after_null
+      );
+  end if;
+
+  insert into private.payment_migration_evidence (
+    migration_name,
+    before_total,
+    before_null,
+    updated_count,
+    after_total,
+    after_toss,
+    after_null
+  )
+  values (
+    '20260813081620_provider_neutral_payment_ledger',
+    before_total,
+    before_null,
+    updated_count,
+    after_total,
+    after_toss,
+    after_null
+  );
+
+  raise notice 'payment provider backfill verified: before_total=%, updated=%, after_toss=%',
+    before_total, updated_count, after_toss;
+end;
+$payment_provider_backfill$;
 
 alter table public.payments
   alter column provider set default 'toss',
@@ -105,8 +185,6 @@ revoke all on table public.payment_attempts
   from public, anon, authenticated, service_role;
 grant select, insert, update on table public.payment_attempts to service_role;
 
-create schema if not exists private;
-
 create table private.payment_provider_evidence (
   id                          uuid primary key default extensions.gen_random_uuid(),
   payment_attempt_id          uuid not null
@@ -174,6 +252,9 @@ alter table private.payment_provider_evidence enable row level security;
 -- can append/read allowlisted evidence; updates and deletes remain forbidden so
 -- reconciliations add evidence instead of rewriting history.
 grant usage on schema private to service_role;
+revoke all on table private.payment_migration_evidence
+  from public, anon, authenticated, service_role;
+grant select on table private.payment_migration_evidence to service_role;
 revoke all on table private.payment_provider_evidence
   from public, anon, authenticated, service_role;
 grant select, insert on table private.payment_provider_evidence to service_role;

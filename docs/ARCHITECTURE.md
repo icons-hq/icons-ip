@@ -1,6 +1,6 @@
 # ICONS — 아키텍처
 
-> 상태: Draft · 최종 수정 2026-07-21 · 짝 문서: [`PRD.md`](./PRD.md)
+> 상태: Draft · 최종 수정 2026-08-13 · 짝 문서: [`PRD.md`](./PRD.md)
 > 이 문서는 **어떻게 만들 것인가**를 정의한다. 현재 코드베이스(프로토타입)에서 출발해 목표 아키텍처와 이전 경로를 기술한다.
 >
 > ⚠️ 이 프로젝트의 Next.js 16은 학습 데이터와 API/관례가 다를 수 있다(`AGENTS.md`). 실제 코드 작성 전 `node_modules/next/dist/docs/`를 확인한다. 본 문서가 코드 디테일과 어긋나면 코드를 따른다.
@@ -11,7 +11,7 @@
 
 1. **공개 우선 브라우징**: 카탈로그·피드는 비로그인 공개. 보호는 액션 단위(결제·가챠·작성·팔로우).
 2. **돈·재고는 DB에서 지킨다**: 가챠·티켓 재고·주문·지갑의 원자성은 Postgres 함수(RPC)+행 잠금으로 보장. 앱 레벨 동시성에 의존하지 않는다.
-3. **결제는 웹훅이 확정한다**: 클라이언트 성공 신호는 UX용. 주문/충전 확정은 토스페이먼츠 웹훅 + 멱등 처리.
+3. **결제는 provider 재검증이 확정한다**: 클라이언트 성공 신호와 callback body는 입력일 뿐이다. 서버가 `PaymentGateway`를 통해 provider 결과를 확인하고 DB 멱등 경계에서만 주문·티켓을 확정한다.
 4. **데이터 격리는 RLS로**: 사용자 데이터는 소유자 범위, 카탈로그는 공개 읽기, 관리자는 역할 + 감사 로그.
 5. **점진 이전**: `lib/data.ts` mock을 시드로 삼아 도메인별로 DB·페치로 교체. 프로토타입 화면을 버리지 않는다.
 
@@ -57,18 +57,18 @@
 │    └ /events/[id] → /ticket-checkout/[id] ──▶ 회차·예매·결제 상태          │
 │  Server Actions     ──rpc──▶ Supabase (인증 검증 + 최소 권한 RPC)          │
 │  Route Handlers                                                           │
-│    └ /api/payments/confirm          ──▶ 토스 승인(UX용 pending 기록)        │
+│    └ /api/payments/*                ──▶ provider-neutral 준비·확정·정합화    │
 │    └ /api/orders/[id]/cancel        ──▶ 청약철회 요청/무결제 즉시 원복      │
-│    └ /api/webhooks/tosspayments  ◀── 주문·티켓 결제 확정 (멱등)           │
+│    └ /api/webhooks/tosspayments  ◀── 기존 Toss 거래만 조회·취소·웹훅      │
 │    └ /api/cron/admin-artwork      ──▶ 만료 staging/public 후보 재조정      │
 │  /admin (role-gated)                                                      │
 └──────────────┬───────────────────────────────────────────┬──────────────┘
                │                                             │
-        ┌──────▼──────┐                              ┌───────▼────────┐
-        │ TossPayments │  결제/충전/환불               │   Supabase     │
-        │  결제창/위젯  │                              │  Postgres+RLS  │
-        │  + 웹훅       │                              │  RPC(SECDEF)   │
-        └─────────────┘                               │  Auth          │
+        ┌──────▼────────────┐                         ┌───────▼────────┐
+        │ PaymentGateway     │                         │   Supabase     │
+        │ Korpay (신규)      │                         │  Postgres+RLS  │
+        │ Toss (기존 거래만) │                         │  RPC(SECDEF)   │
+        └───────────────────┘                         │  Auth          │
                                                       │  Storage       │
                                                       └────────────────┘
                                                               │
@@ -78,7 +78,7 @@
 
 Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은 zone에 Resend 발송 인증용 DKIM/SPF/DMARC/MX 레코드를 둔다.
 
-핵심: **읽기**는 Server Component가 RLS 하에서 직접 조회. **상태 변경**은 Server Action이 검증 후 **RPC 함수** 호출. **돈 확정**은 토스 웹훅(Route Handler) → RPC. Auth 메일은 Supabase 기본 메일 provider가 아니라 Resend custom SMTP를 사용한다.
+핵심: **읽기**는 Server Component가 RLS 하에서 직접 조회. **상태 변경**은 Server Action이 검증 후 **RPC 함수** 호출. **돈 확정**은 `PaymentGateway.confirm/reconcile`의 검증 결과 → RPC이며 callback만으로 확정하지 않는다. 신규 결제는 Korpay, Toss는 이미 알려진 기존 거래의 조회·취소·웹훅에만 남긴다. Auth 메일은 Supabase 기본 메일 provider가 아니라 Resend custom SMTP를 사용한다.
 
 ---
 
@@ -89,7 +89,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 | 호스팅 | **Vercel** (Fluid Compute) | Next 16, Route Handler 웹훅·Cron |
 | DB/Auth/Storage | **Supabase** (Postgres + Auth + Storage) | 스캐폴딩 이미 존재 |
 | 인증 | Supabase Auth: **이메일/PW + Google + Apple + Kakao** OAuth 구현 | production provider 3종과 공급자 이메일 claim 설정 완료. 모든 가입 경로는 온보딩에서 프로필 완성하며 production 배포 후 controlled smoke 필요 |
-| 결제 | **토스페이먼츠** 직접(결제창/위젯 + 웹훅) | 단일 PG. 굿즈·티켓·지갑 충전 공용 |
+| 결제 | **Provider-neutral gateway** | 신규 Korpay 인증결제. Toss는 기존 거래의 조회·취소·웹훅만 허용하고 신규 checkout/confirm은 제거한다 |
 | 검색 | **Postgres** pg_trgm + ILIKE | 외부 검색엔진 없음(v1) |
 | 미디어 | **Supabase Storage** | public `public-media`(검증된 카탈로그/아트워크) + private `admin-artwork-staging`(검증 전 관리자 업로드)·`user-uploads`(사용자 업로드) |
 | 무결성 | **Postgres RPC**(SECURITY DEFINER) + RLS | 가챠·티켓·주문·지갑 |
@@ -205,7 +205,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - **`reserve_tickets(user_id, ticket_type_id, qty, reservation_key)`** — 결제 환경·인증·온보딩을 확인한 Server Action만 service role로 호출하며 브라우저 롤에는 execute를 열지 않는다. DB에서도 사용자 온보딩을 재확인하고 사용자+요청 키 advisory lock과 unique index로 재시도를 멱등화한다. 이벤트를 먼저 잠근 뒤 회차를 `FOR UPDATE`로 잠그고 예매 상태·유료 가격·오픈 시각·1인 한도·잔여를 재검증해 10분 `pending` 예매와 QR 없는 티켓 placeholder를 만든다. QR은 웹훅의 `confirm_ticket_payment`에서만 발급한다.
 - **`admin_upsert_ticket_type(operation_id, ticket_type_id, event_id, name, price, capacity)`** — operation/type UUID advisory lock 뒤 이벤트를 `FOR KEY SHARE`, 기존 회차를 `FOR UPDATE`로 잠근다. 최신 `sold` 미만 capacity를 거절하고, 티켓 이력이 생기면 이벤트·회차명·가격을 잠그며, 전후 상태를 `audit_log`에 멱등 기록한다. `sold`·`per_user_limit`·`sales_open_at`은 입력받거나 덮어쓰지 않는다.
 - **`place_order(user_id, address, checkout_key)`** — 결제 환경·인증·온보딩·production 검토 권한을 확인한 Server Action만 service role로 호출하며 브라우저 롤에는 execute를 열지 않는다. DB가 장바구니와 굿즈를 잠근 뒤 재고 검증·차감, 주문 당시 가격·이름·유형·IP를 고정한 `orders`/`order_items` 생성(`pending`)을 한 트랜잭션에서 수행한다.
-- **`begin_ticket_payment_approval` / `confirm_order_payment` / `confirm_ticket_payment`** — 티켓은 provider 승인 호출 전에 order→active cancellation request→payment 순서로 잠그고 `pending` payment claim을 먼저 남겨 무결제 취소와 외부 승인이 엇갈리지 않게 한다. 결제 확정은 웹훅에서 service role로 호출하며 **멱등 키=토스 paymentKey**로 중복 방지한다. (충전 `charge_wallet`은 ADR-0003으로 폐기)
+- **provider-neutral payment attempt / `confirm_order_payment` / `confirm_ticket_payment`** — 티켓은 provider 승인 호출 전에 order→active cancellation request→attempt 순서로 잠그고 claim을 먼저 남겨 무결제 취소와 외부 승인이 엇갈리지 않게 한다. `PaymentGateway.confirm/reconcile`의 검증된 공통 outcome만 service role finalizer에 전달하고 attempt idempotency key로 중복을 막는다. Toss paymentKey 멱등은 기존 Toss 거래 호환 경로에만 남긴다. (충전 `charge_wallet`은 ADR-0003으로 폐기)
 - **`request_order_cancellation` / `admin_decide_order_cancellation` / `complete_order_cancellation_request`** — 사용자 요청을 durable 원장에 남기고 staff 승인 뒤에만 provider 정합화를 시작한다. fresh GET으로 모든 대상 결제의 전액 취소를 검증한 뒤 재고·미사용 카드팩·환불 장부·주문 상태를 원자적으로 정리한다. 불확실한 결과는 claim을 유지한 `needs_review`로 격리하며 같은 멱등키로만 재정합화한다.
 - **`request_ticket_cancellation` / `begin_ticket_cancellation_reconcile` / `complete_ticket_cancellation_request`** — 이벤트 시작 전 미사용 예매 전체의 정책·마감·전액 환불 금액을 snapshot으로 남긴다. order→request→payments→tickets→ticket_types 잠금 순서와 5분 attempt lease로 confirm/check-in 경합과 중복 provider 처리를 막고, 모든 비실패 결제의 fresh GET→필요 시 전액 취소→fresh GET 증거가 일치할 때만 티켓·정원·환불을 원자 완료한다. 검증된 provider 원문과 실제 환불 근거를 결제 원장에 함께 보존하며, 불확실한 결과는 QR을 차단한 `needs_review`로 남긴다.
 - **`check_in_ticket(staff_id, qr_token)`** — service role만 실행하고 staff/admin을 DB에서 다시 확인한다. order→active cancellation request→ticket 순서로 잠근 뒤 `valid→used` 전이와 `check_ins`·`admin.ticket.checked_in` 감사를 한 트랜잭션에 기록한다. 재검표는 최초 시각을 반환하며, 환불·취소 진행·원장 불일치는 쓰기 없이 차단한다. QR 원문은 응답·감사에 남기지 않는다.
@@ -253,19 +253,22 @@ Production Auth 설정:
 
 ---
 
-## 9. 결제 통합 (토스페이먼츠)
+## 9. 결제 통합 (provider-neutral 목표와 Toss legacy)
 
-- 클라이언트: 결제위젯으로 결제 요청(주문·티켓 공용). 토스 `orderId`는 `order_<uuid>`/`ticket_<uuid>`로 결제 목적을 실어 발급한다(`lib/payments/toss.ts`).
+- 공개 계약은 `PaymentGateway.prepare(attempt)`, `confirm(returnInput)`, `reconcile(attempt)`, `refund(request)`다. 결과는 `approved | declined | canceled | unknown | needs_review`로 정규화한다. provider 구현은 `KorpayGateway`, 기존 거래 전용 `TossGateway`, 테스트 경계의 `FakePaymentGateway`다.
+- 신규 checkout은 후속 전환 티켓에서 Korpay adapter로 이동한다. 이 expand 단계에서는 아래 Toss 경로를 기존 거래 호환 모드로 유지하되 모든 조회·취소·웹훅 DB 접근을 `provider=toss`에 한정한다.
+
+- 기존 Toss 클라이언트: 현재 결제위젯으로 결제 요청(주문·티켓 공용). Toss 신규 checkout/confirm을 닫기 전까지 `orderId`는 `order_<uuid>`/`ticket_<uuid>`로 결제 목적을 실어 발급한다(`lib/payments/toss.ts`).
 - 승인: successUrl 콜백이 **`/api/payments/confirm`** 을 호출 → 본인 소유·pending·미만료·금액 일치를 검증한 뒤 토스 승인 API를 호출하고 `payments`에 `pending`으로 기록한다. **승인 성공은 UX 반영용이다.**
 - 확정: **웹훅 `/api/webhooks/tosspayments`(Route Handler)** 가 단일 진실원. 결제 웹훅에는 서명이 없으므로(서명 헤더는 지급대행 웹훅 전용) payload를 신뢰하지 않고 paymentKey로 **결제 조회 API를 재호출해 검증**한 뒤 `confirm_order_payment`/`confirm_ticket_payment` RPC(service_role, 멱등 키=paymentKey)를 호출한다. 검증된 조회 응답 원문을 `payments.raw`에 보존한다.
 - 주문 상세의 브라우저 조회는 본인 RLS와 결제 안전 컬럼(`id`,`user_id`,`purpose`,`ref_id`,`amount`,`status`,`created_at`), 환불 안전 컬럼(`id`,`payment_id`,`amount`,`status`,`created_at`), 본인 청약철회 요청의 공개 상태·처리 시각·결정 메모로 제한한다. 내부 오류 코드·요청 사유·actor와 `payment_key`·`idempotency_key`·`raw`는 서버 신뢰 경계에만 둔다.
-- 흐름: ① RPC로 `pending` 생성(재고 선점) → ② 토스 결제 → ③ 티켓은 승인 직전 DB payment claim, 승인 뒤 provider raw 보강(굿즈는 승인 뒤 `pending` 기록) → ④ 웹훅 확정(`paid`, 티켓 QR 발급/주문 확정) → ⑤ 실패·만료 시 선점 복원.
+- 기존 Toss 흐름: ① RPC로 `pending` 생성(재고 선점) → ② Toss 결제 → ③ 티켓은 승인 직전 DB payment claim, 승인 뒤 provider raw 보강(굿즈는 승인 뒤 `pending` 기록) → ④ 웹훅 확정(`paid`, 티켓 QR 발급/주문 확정) → ⑤ 실패·만료 시 선점 복원. 신규 provider 흐름은 공통 attempt와 outcome으로 교체한다.
 - 실패·만료 복원: 만료 등 확정 불가 결제는 웹훅이 **토스 취소 API로 자동 환불**하고, 해당 paymentKey를 `refund_ticket_order_with_provider_evidence`에 전달해 그 결제 시도만 정합화한다. 같은 예매에 다른 pending/paid 결제가 남아 있으면 예매·정원은 유지한다. 승인 이력 없는 만료 pending 주문·예매는 pg_cron이 매분 `expire_stale_checkouts()`로 `cancel_order`/`refund_ticket_order`를 재사용해 정리한다(승인 진행 중 건 제외, 만료 후 5분 유예).
 - 미지원 가상계좌: 입금 전 `WAITING_FOR_DEPOSIT`이면 토스를 먼저 자동 취소한 뒤 로컬 주문·재고를 원복한다. 입금 완료 건은 환불계좌 없이 자동 취소하지 않고 운영 오류로 노출한다.
 - 사용자 취소: 본인 `pending` 무결제 주문만 즉시 선점을 원복한다. 결제 행이 있는 `pending`과 `paid`는 `/api/orders/[orderId]/cancel`이 provider 식별자 없이 `requested` 원장만 만들고 결제 확정·배송 전이를 막는다. staff 승인 뒤 서버가 결제사 fresh GET → 전액 취소 POST → fresh GET을 수행하며, 전액 취소가 모두 확인된 경우에만 주문·재고·미사용 카드팩 soft revoke·환불을 원자적으로 완료한다. 발급 attribution과 누적 발급 이력은 보존하고 `/packs`와 개봉 경로에서는 회수 티켓을 제외한다. 주문 상세의 발급 수는 개봉·회수를 포함한 전체 이력, 사용 가능 수는 `consumed_at`과 `revoked_at`이 모두 null인 티켓만 센다. 타임아웃·부분 취소·응답 불일치는 `needs_review`에 남겨 같은 멱등키로 재정합화하고, provider 호출 전 `requested`만 거절할 수 있다. `shipping`·`done`도 같은 요청 경로를 쓴다. 반품 입고 확인은 별도 상태가 아니라 staff 승인 행위에 내포되고, 재고 복원은 기존과 같이 승인 뒤 finalizer 시점에 일어난다.
 - 티켓 취소: `/api/ticket-orders/[ticketOrderId]/cancel`은 same-origin·auth·onboarding·owner를 확인하고 order UUID 외 provider 입력을 받지 않는다. 시작 전 미사용 예매 전체만 수수료 없이 취소하며, 무결제 `pending`은 즉시 원복하고 결제 예매는 서버가 모든 결제를 fresh provider 증거로 정합화한다. QR은 raw token을 DTO·DOM·URL에 싣지 않고 paid+valid+비취소 상태를 재검증하는 no-store PNG Route Handler로만 제공한다.
 - 환불: `refunds` 완료 기록 + 재고 원복은 RPC가 담당한다. 토스 쪽 취소(`CANCELED` 웹훅) 등 기존 호환 경로는 active 청약철회 요청을 완료할 수 없고, 해당 요청은 관리자 fresh GET 전체 검증 경로에서만 종결한다. 현재 배송·수령 시각이 없으므로 법정 7일을 앱이 자동 판정하지 않는다.
-- 결제 원장은 `payments.provider`(`toss|korpay`)와 service-role 전용 `payment_attempts`로 provider-neutral expand를 마쳤다. 기존 행과 기존 confirm RPC는 호환 기본값 `toss`를 유지하고 기존 Toss `payment_key/raw`도 legacy 서버 감사 경로로 보존한다. 브라우저·staff 조회는 owner/staff RLS를 따르는 `payment_summaries`만 사용한다. 신규 provider 식별자·승인 참조는 allowlist 컬럼만 `private.payment_provider_evidence`에 append하며 원문 payload는 저장하지 않는다. 실제 신규 checkout 전환과 어댑터 선택은 후속 티켓에서 수행한다.
+- 결제 원장은 `payments.provider`(`toss|korpay`)와 service-role 전용 `payment_attempts`로 provider-neutral expand를 마쳤다. 기존 행과 기존 confirm RPC는 호환 기본값 `toss`를 유지하고 기존 Toss `payment_key/raw`도 legacy 서버 감사 경로로 보존한다. migration은 pre/post count를 `private.payment_migration_evidence`에 기록하고 [Production readback runbook](./runbooks/provider-neutral-payment-backfill.md)으로 기존 2건을 검증한다. 브라우저·staff 조회는 owner/staff RLS를 따르는 `payment_summaries`만 사용한다. 신규 provider 식별자·승인 참조는 allowlist 컬럼만 `private.payment_provider_evidence`에 append하며 원문 payload는 저장하지 않는다. 실제 신규 checkout 전환과 어댑터 선택은 후속 티켓에서 수행한다.
 
 ### 9.1 환경 변수 · 로컬/프리뷰 검증과 임시 production 테스트 검토
 
@@ -317,7 +320,7 @@ Production Auth 설정:
 2. **시드**: `lib/data.ts`의 IP/굿즈/카드/이벤트/포스트를 시드 스크립트로 적재(타입 이미 정의됨 → 매핑 단순).
 3. **읽기 교체**: screen 컴포넌트의 `DATA.*` 접근을 Server Component 페치로 점진 교체. `'use client'` 화면은 데이터를 props로 받도록 분리.
 4. **액션 도입**: 장바구니/팔로우/작성 등은 Server Action으로, 돈/재고는 RPC로.
-5. **결제 연결**: 토스 위젯 + 웹훅.
+5. **결제 연결**: provider-neutral attempt/finalizer → Korpay 신규 결제, Toss 기존 거래 정리.
 6. 단계는 [PRD §9](./PRD.md#9-출시-단계)의 P0→P3 순서를 따른다.
 
 `lib/routes.ts`의 라우트 맵·`useGo`는 유지(프로토타입 네비게이션 자산 재사용). 프로토타입의 `/exchange`·`/market` 화면은 v2까지 읽기/플레이스홀더로 둔다.
@@ -347,6 +350,7 @@ lib/
   ip-follow*.ts                       # 팔로우 상태/알림 설정/RPC helper
   notifications*.ts                  # 알림 DTO + 본인 최신 50건 loader
   admin/notifications*.ts            # 관리자 공지 form/추정/발송 이력 경계
+  payments/                           # PaymentGateway 공개 계약 + provider adapter/Fake
   supabase/{client,server,middleware} # 유지
   db/                                 # 쿼리·RPC 래퍼
 supabase/

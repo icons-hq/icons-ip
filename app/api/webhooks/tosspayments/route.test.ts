@@ -6,6 +6,7 @@ const OTHER_ORDER_UUID = 'c3f9b2d5-4e6f-407b-9c8d-0e1f2a3b4c5d';
 
 interface ExistingPayment {
   id: string;
+  provider: 'toss' | 'korpay';
   status: string;
   amount: number;
   purpose: 'order' | 'ticket';
@@ -22,9 +23,11 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   updateEqFirst: vi.fn(),
   updateEqSecond: vi.fn(),
+  updateEqThird: vi.fn(),
   upsert: vi.fn(),
   existingPayment: {
     id: 'payment-1',
+    provider: 'toss',
     status: 'pending',
     amount: 42000,
     purpose: 'order',
@@ -117,6 +120,7 @@ function virtualAccountPayment(status: 'WAITING_FOR_DEPOSIT' | 'DONE') {
 function ticketPayment(status = 'pending'): ExistingPayment {
   return {
     id: 'payment-1',
+    provider: 'toss',
     status,
     amount: 42000,
     purpose: 'ticket',
@@ -129,6 +133,7 @@ function ticketPayment(status = 'pending'): ExistingPayment {
 function orderPayment(status = 'pending'): ExistingPayment {
   return {
     id: 'payment-1',
+    provider: 'toss',
     status,
     amount: 42000,
     purpose: 'order',
@@ -172,9 +177,11 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
     mocks.update.mockReset();
     mocks.updateEqFirst.mockReset();
     mocks.updateEqSecond.mockReset();
+    mocks.updateEqThird.mockReset();
     mocks.upsert.mockReset();
     mocks.existingPayment = {
       id: 'payment-1',
+      provider: 'toss',
       status: 'pending',
       amount: 42000,
       purpose: 'order',
@@ -190,8 +197,27 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
     mocks.rpc.mockResolvedValue({ error: null });
     mocks.update.mockReturnValue({ eq: mocks.updateEqFirst });
     mocks.updateEqFirst.mockReturnValue({ eq: mocks.updateEqSecond });
-    mocks.updateEqSecond.mockResolvedValue({ error: null });
+    mocks.updateEqSecond.mockReturnValue({ eq: mocks.updateEqThird });
+    mocks.updateEqThird.mockResolvedValue({ error: null });
     mocks.upsert.mockResolvedValue({ error: null });
+  });
+
+  it('같은 payment key가 Korpay 원장에 속하면 Toss 조회·취소를 호출하지 않는다', async () => {
+    mocks.existingPayment = { ...orderPayment(), provider: 'korpay' };
+    mocks.fetchPayment.mockResolvedValue({
+      ok: true,
+      body: virtualAccountPayment('WAITING_FOR_DEPOSIT'),
+    });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'payment_provider_mismatch' },
+    });
+    expect(mocks.fetchPayment).not.toHaveBeenCalled();
+    expect(mocks.cancel).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it('입금 전 가상계좌를 취소하고 pending 주문·결제 기록을 함께 닫는다', async () => {
@@ -221,7 +247,7 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
 
   it('provider 취소 뒤 terminal 기록이 실패하면 로컬을 원복하되 웹훅 재시도를 요청한다', async () => {
     mocks.fetchPayment.mockResolvedValue({ ok: true, body: virtualAccountPayment('WAITING_FOR_DEPOSIT') });
-    mocks.updateEqSecond.mockResolvedValue({ error: { message: 'private database detail' } });
+    mocks.updateEqThird.mockResolvedValue({ error: { message: 'private database detail' } });
 
     const response = await POST(webhookRequest());
 
@@ -467,7 +493,7 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
     expect(response.status).toBe(200);
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ status: 'canceled' }));
-    expect(mocks.updateEqSecond).toHaveBeenCalledWith('status', 'failed');
+    expect(mocks.updateEqThird).toHaveBeenCalledWith('status', 'failed');
   });
 
   it.each([
@@ -660,7 +686,7 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
         method: '카드',
       },
     });
-    mocks.updateEqSecond.mockResolvedValue({ error: { message: 'private database detail' } });
+    mocks.updateEqThird.mockResolvedValue({ error: { message: 'private database detail' } });
 
     const response = await POST(webhookRequest());
 
