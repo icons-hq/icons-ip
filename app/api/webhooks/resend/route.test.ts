@@ -27,6 +27,27 @@ function request(body = RAW_BODY) {
   });
 }
 
+function oversizedStreamRequest() {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array(32 * 1024).fill(0x61));
+      controller.enqueue(new Uint8Array(32 * 1024 + 1).fill(0x62));
+      controller.close();
+    },
+  });
+  return new Request('https://icons.local/api/webhooks/resend', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'svix-id': 'svix-event-1',
+      'svix-timestamp': '123',
+      'svix-signature': 'v1,signature',
+    },
+    body,
+    duplex: 'half',
+  } as RequestInit & { duplex: 'half' });
+}
+
 describe('POST /api/webhooks/resend', () => {
   beforeEach(() => {
     vi.stubEnv('RESEND_WEBHOOK_SECRET', 'whsec_test');
@@ -77,6 +98,27 @@ describe('POST /api/webhooks/resend', () => {
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ ok: false });
+    expect(mocks.reduce).not.toHaveBeenCalled();
+  });
+
+  it('rejects an oversized signed body from content-length before signature work', async () => {
+    const oversized = request();
+    oversized.headers.set('content-length', String(64 * 1024 + 1));
+
+    const response = await POST(oversized);
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({ ok: false });
+    expect(mocks.verify).not.toHaveBeenCalled();
+    expect(mocks.reduce).not.toHaveBeenCalled();
+  });
+
+  it('stops a chunked signed body once the streamed bytes exceed the limit', async () => {
+    const response = await POST(oversizedStreamRequest());
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({ ok: false });
+    expect(mocks.verify).not.toHaveBeenCalled();
     expect(mocks.reduce).not.toHaveBeenCalled();
   });
 

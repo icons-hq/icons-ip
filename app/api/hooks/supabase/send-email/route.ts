@@ -1,6 +1,7 @@
 import { planAuthHookEmails } from '@/lib/email/auth-hook';
 import { emailDispatcherFromEnvironment } from '@/lib/email/dispatcher.server';
 import { verifySupabaseEmailHook } from '@/lib/email/signatures.server';
+import { RawBodyTooLargeError, readBoundedRawBody } from '@/lib/http/bounded-raw-body.server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -25,9 +26,12 @@ export async function POST(request: Request) {
   let rawBody: string;
   let payload: unknown;
   try {
-    rawBody = await request.text();
+    rawBody = await readBoundedRawBody(request);
     payload = verifySupabaseEmailHook(rawBody, request.headers, hookSecret);
-  } catch {
+  } catch (error) {
+    if (error instanceof RawBodyTooLargeError) {
+      return failure(413, 'hook_request_too_large');
+    }
     return failure(401, 'invalid_hook_request');
   }
 

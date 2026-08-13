@@ -142,11 +142,33 @@ security invoker
 set search_path = ''
 as $$
 begin
-  -- The transient recipient/subject still reach the provider from application memory,
-  -- but the legacy table never receives a new plaintext copy after this migration.
-  new.recipient := 'redacted@invalid.local';
-  new.subject := 'legacy_' || new.template;
-  new.last_error := case when new.last_error is null then null else 'legacy_failure' end;
+  if tg_op = 'INSERT' then
+    -- The transient recipient/subject still reach the provider from application
+    -- memory, but a new legacy row never receives a plaintext copy.
+    new.recipient := 'redacted@invalid.local';
+    new.subject := 'legacy_' || new.template;
+    new.last_error := case when new.last_error is null then null else 'legacy_failure' end;
+  elsif new.retention_disposition = 'destroyed'
+    and old.retention_disposition = 'pending_policy'
+    and new.destroyed_at is not null
+  then
+    -- The readiness-guarded retention hook is the only transition that may
+    -- destroy pre-migration evidence.
+    new.recipient := 'redacted@invalid.local';
+    new.subject := 'legacy_' || new.template;
+    new.last_error := case when old.last_error is null then null else 'legacy_failure' end;
+  else
+    -- Retry/completion remains operational while preserving the approved
+    -- retention scope. It cannot replace old plaintext or introduce a new raw
+    -- provider error after this migration.
+    new.recipient := old.recipient;
+    new.subject := old.subject;
+    new.last_error := case
+      when old.last_error is not null then old.last_error
+      when new.last_error is null then null
+      else 'legacy_failure'
+    end;
+  end if;
   new.evidence_class := 'legacy_unverified';
   return new;
 end;
@@ -710,6 +732,20 @@ begin
   if target_occurred_at is null or target_occurred_at > pg_catalog.now() + interval '5 minutes' then
     raise check_violation using message = 'invalid_email_provider_event_time';
   end if;
+
+  -- Every provider-reference owner/attachment path takes the digest lock first.
+  -- Event reducers then take the svix lock. This global order makes acceptance
+  -- versus webhook attachment atomic and makes concurrent duplicate delivery a
+  -- durable replay instead of a unique-violation response.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      'email-provider:' || encode(v_provider_digest, 'hex'),
+      0
+    )
+  );
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('email-provider-event:' || target_svix_id, 0)
+  );
 
   select * into v_existing
   from private.email_provider_events as event

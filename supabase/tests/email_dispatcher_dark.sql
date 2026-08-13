@@ -187,8 +187,56 @@ insert into public.email_deliveries (
     'order_confirmation:00000000-0000-4000-8000-000000001913',
     'order_confirmation', 'legacy-recent@invalid.test', 'Legacy recent subject',
     'failed', 'Legacy recent error', pg_catalog.now() - interval '5 days'
+  ),
+  (
+    'order_confirmation:00000000-0000-4000-8000-000000001914',
+    'order_confirmation', 'legacy-pending@invalid.test', 'Legacy pending subject',
+    'pending', null, pg_catalog.now() - interval '5 days'
   );
 alter table public.email_deliveries enable trigger redact_legacy_email_delivery_write;
+
+set local role service_role;
+
+select 1 / case when public.claim_email_delivery(
+  'order_confirmation:00000000-0000-4000-8000-000000001912',
+  'order_confirmation',
+  'retry-must-not-replace@example.test',
+  'Retry must not replace legacy subject',
+  interval '0 seconds'
+) then 1 else 0 end as assert_legacy_retry_remains_operable_before_retention_readiness;
+
+select public.complete_email_delivery(
+  'order_confirmation:00000000-0000-4000-8000-000000001912',
+  'failed',
+  'Retry must not replace legacy error'
+);
+
+select public.complete_email_delivery(
+  'order_confirmation:00000000-0000-4000-8000-000000001914',
+  'failed',
+  'New failure detail must never persist'
+);
+
+reset role;
+
+select 1 / case when exists (
+  select 1 from public.email_deliveries
+  where dedupe_key = 'order_confirmation:00000000-0000-4000-8000-000000001912'
+    and recipient = 'legacy-old@invalid.test'
+    and subject = 'Legacy old subject'
+    and last_error = 'Legacy old error'
+    and status = 'failed'
+    and attempt_count = 2
+) then 1 else 0 end as assert_pre_cutoff_retry_preserves_legacy_plaintext;
+
+select 1 / case when exists (
+  select 1 from public.email_deliveries
+  where dedupe_key = 'order_confirmation:00000000-0000-4000-8000-000000001914'
+    and recipient = 'legacy-pending@invalid.test'
+    and subject = 'Legacy pending subject'
+    and last_error = 'legacy_failure'
+    and status = 'failed'
+) then 1 else 0 end as assert_new_legacy_failure_is_stable_code_only;
 
 do $$
 begin

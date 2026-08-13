@@ -43,6 +43,27 @@ function request() {
   });
 }
 
+function oversizedStreamRequest() {
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(new Uint8Array(40 * 1024).fill(0x61));
+      controller.enqueue(new Uint8Array(25 * 1024).fill(0x62));
+      controller.close();
+    },
+  });
+  return new Request('https://icons.local/api/hooks/supabase/send-email', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'webhook-id': 'hook-1',
+      'webhook-timestamp': '123',
+      'webhook-signature': 'v1,signature',
+    },
+    body,
+    duplex: 'half',
+  } as RequestInit & { duplex: 'half' });
+}
+
 describe('POST /api/hooks/supabase/send-email', () => {
   beforeEach(() => {
     vi.stubEnv('SUPABASE_SEND_EMAIL_HOOK_SECRET', 'v1,whsec_test');
@@ -112,6 +133,31 @@ describe('POST /api/hooks/supabase/send-email', () => {
       error: { http_code: 401, message: 'invalid_hook_request' },
     });
     expect(mocks.plan).not.toHaveBeenCalled();
+    expect(mocks.enqueueAll).not.toHaveBeenCalled();
+  });
+
+  it('rejects an oversized signed body from content-length before signature work', async () => {
+    const oversized = request();
+    oversized.headers.set('content-length', String(64 * 1024 + 1));
+
+    const response = await POST(oversized);
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({
+      error: { http_code: 413, message: 'hook_request_too_large' },
+    });
+    expect(mocks.verify).not.toHaveBeenCalled();
+    expect(mocks.enqueueAll).not.toHaveBeenCalled();
+  });
+
+  it('stops a chunked signed body once the streamed bytes exceed the limit', async () => {
+    const response = await POST(oversizedStreamRequest());
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({
+      error: { http_code: 413, message: 'hook_request_too_large' },
+    });
+    expect(mocks.verify).not.toHaveBeenCalled();
     expect(mocks.enqueueAll).not.toHaveBeenCalled();
   });
 

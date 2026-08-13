@@ -1,6 +1,7 @@
 import { emailProviderEventReducerFromEnvironment } from '@/lib/email/dispatcher.server';
 import type { EmailProviderEventType } from '@/lib/email/dispatcher';
 import { verifyResendWebhook } from '@/lib/email/signatures.server';
+import { RawBodyTooLargeError, readBoundedRawBody } from '@/lib/http/bounded-raw-body.server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -59,9 +60,10 @@ export async function POST(request: Request) {
 
   let payload: unknown;
   try {
-    const rawBody = await request.text();
+    const rawBody = await readBoundedRawBody(request);
     payload = verifyResendWebhook(rawBody, request.headers, webhookSecret);
-  } catch {
+  } catch (error) {
+    if (error instanceof RawBodyTooLargeError) return response(false, 413);
     return response(false, 401);
   }
 
