@@ -84,14 +84,14 @@ describe('문의 창구 파생', () => {
   });
 
   /*
-   * 사업자등록증에 대표자명이 먼저 확정되므로 #87 진행 중 반드시 거치는 중간 상태다.
+   * 사업자등록증에 대표자명이 먼저 확정되므로 #239 진행 중 반드시 거치는 중간 상태다.
    * 이름표를 창구로 세면 문서가 다시 닿을 수 없는 곳을 유일한 권리 행사 경로로 지정한다.
    */
   it('대표자명만 채워진 상태는 창구가 생긴 것으로 보지 않는다', () => {
     expect(businessContactWords({ ...blank, representative: '박상우' })).toBe('');
   });
 
-  it('연락처가 하나도 없으면 빈 문자열이다 — 법정 문서가 없는 창구를 가리키지 않게 하는 신호다 (#87)', () => {
+  it('연락처가 하나도 없으면 빈 문자열이다 — 법정 문서가 없는 창구를 가리키지 않게 하는 신호다 (#239)', () => {
     expect(businessContactRows({ ...blank, hostingProvider: 'Vercel, Inc.' })).toEqual([]);
     expect(businessContactWords({ ...blank, hostingProvider: 'Vercel, Inc.' })).toBe('');
   });

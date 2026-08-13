@@ -1,6 +1,6 @@
 # ICONS v1 출시 준비 계획 (Launch Readiness)
 
-> 상태: Active · 작성 2026-07-13 · 범위 갱신 2026-08-13 · 근거: 그릴링 세션(범위 확정) + 코드베이스 심층 인벤토리
+> 상태: Active · 작성 2026-07-13 · 범위 갱신 2026-08-14 · 근거: 그릴링 세션(범위 확정) + 코드베이스 심층 인벤토리
 > 실행판: [GitHub Project #8 — ICONS v1 Launch Readiness](https://github.com/users/sangwopark19/projects/8)
 > 각 이슈의 스펙 진실원은 issue body다. 이 문서는 **기준선·갭 분석·트랙 구조**의 진실원이다.
 >
@@ -24,7 +24,7 @@
 - **카드 리워드 코어**: `draw_tickets`·`reward_policies`·`card_grants` 스키마, `/packs` 개봉(`open_draw_ticket`), 바인더 보유 오버레이, 참여형 게임 card 보상(`play_game`), 대상 IP·선택 same-IP 굿즈·독립 카드풀 기반 누적 주문 발급 정책과 soft revoke 이력 보존.
 - **커뮤니티**: 작성(이미지)·댓글·좋아요·삭제·신고·차단 전부 Server Action + RPC 배선.
 - **어드민**: staff/admin 게이트, 카탈로그 upsert·보관/복원 4종, 홈 히어로·특집 IP·공지 배너 큐레이션, 카드풀 운영 기간·등급별 확률·카드 풀 바인딩, 뽑기권 발급 정책(`/admin?section=policy`)과 PII-free 발급/사용 가능/개봉/회수 집계, 신고 처리·포스트 숨김, 역할 부여·회수, 주문·배송·환불, 멱등 실재고 입고·보정, 티켓 회차·가격·정원·현장 검표, 마스킹 회원 검색·명시적 상세·계정 정지/해제, 실데이터 매출 대시보드 — 전부 audited. 큐레이션 공지 저장은 인앱 공지를 자동 발송하지 않는다.
-- **커머스·티케팅 DB**: `orders`/`payments`/`refunds`/`order_cancellation_requests`/`ticket_types`/`tickets`/`ticket_cancellation_requests`/`check_ins` 스키마와 원자적 RPC가 존재한다. 커머스 흐름, 관리자 회차 콘솔, 공개 회차 선택·멱등 티켓 예약·현재 Toss 결제·웹훅 QR 발급, 내 티켓·예매 전체 취소/환불, staff 현장 검표가 앱에 연결됐다. provider-neutral 원장은 확장됐고 신규 checkout의 Korpay 전환은 #205·#206 뒤 #207에서 진행한다.
+- **커머스·티케팅 DB**: `orders`/`payments`/`refunds`/`order_cancellation_requests`/`ticket_types`/`tickets`/`ticket_cancellation_requests`/`check_ins` 스키마와 원자적 RPC가 존재한다. 커머스·티켓 흐름, 관리자 회차 콘솔, provider-neutral attempt/claim/finalizer, 내 주문·티켓·취소/환불, staff 현장 검표가 연결됐다. 신규 checkout은 provider adapter가 없어 목적별 gate가 기본 OFF이고, 기존 Toss 2건만 known-only 조회·취소·웹훅 정리 경로에 남는다. Korpay adapter와 rollout은 #207이 추적한다.
 - **인앱 알림**: 본인 RLS 알림함·unread 벨·마이페이지 진입점, 팔로우 IP별 드롭/이벤트 설정, IP·예정 이벤트 CTA가 연결됐다. 주문 상태·카드팩 발급·runtime staff 카탈로그 INSERT가 멱등 trigger로 발급하며, 관리자는 전체 사용자·특정 IP 팔로워 수를 미리 보고 audited 즉시 공지를 발송하며 최근 실제 발송 이력을 확인한다. 이메일·푸시·예약 발송은 제외한다(#104·#105).
 
 ## 3. 갭 분석 요약
@@ -34,11 +34,11 @@
 | 영역 | 현황 | 갭 → 이슈 |
 |---|---|---|
 | 장바구니 | localStorage·`cart_items` 병합과 재고 검증 완료(#89) | 완료 |
-| 체크아웃·결제 | 현재 Toss 승인·웹훅·만료 정리(#88), 배송지·주문·결제위젯(#90)과 provider-neutral 원장(#204) 연결 | #205·#206에서 굿즈·티켓 checkout을 seam으로 옮긴 뒤 rotated Korpay credential·승인 범위·보안/운영 답변을 #87·#207에서 검증. 신규 Toss live 활성화는 하지 않는다 |
+| 체크아웃·결제 | 배송지·주문과 provider-neutral 원장·굿즈/티켓 seam(#204~#206) 연결. 신규 provider gate 기본 OFF, 기존 Toss 2건은 known-only 정리 | rotated Korpay credential·승인 범위·보안/운영 답변을 #87·#207에서 검증. 신규 Toss checkout은 닫혀 있다 |
 | 주문 | 본인 내역·상세·카드팩 발급·배송 전 취소/청약철회(#91·#92), 관리자 주문·배송·환불 콘솔(#93) 완료 | 완료 |
-| 티켓 예매 | 공개 상세→회차/수량 선택→10분 선점→현재 Toss 결제→웹훅 QR 발급→내 티켓·예매 전체 취소/환불→현장 검표 연결(#54·#95·#97) | provider seam 전환 #206, Korpay dark deploy·controlled canary #207 |
+| 티켓 예매 | 공개 상세→회차/수량 선택→10분 선점→provider-neutral 결제 attempt→승인 후 QR 발급→내 티켓·예매 전체 취소/환불→현장 검표 연결(#54·#95·#97·#206). 신규 provider gate 기본 OFF | Korpay dark deploy·controlled canary #207 |
 | 인증 보조 | 비밀번호 재설정 완료(#101), Google·Apple·Kakao OAuth 배선과 provider·이메일 claim 설정 완료 | #17: production 배포·controlled smoke |
-| 계정 | 프로필 편집(#136)과 로그인·온보딩 보호 마이페이지(#103), 소셜 OAuth 코드·외부 provider 설정 완료. 마이페이지는 signed avatar·닉네임 요약과 주문·티켓·바인더·카드팩·알림함·설정 6개 실제 링크, 로그인별 desktop/mobile 진입점을 제공 | #102 [human] 탈퇴 보존 정책 → #137 탈퇴 실행, #17 production 배포·smoke |
+| 계정 | 프로필 편집(#136), 로그인·온보딩 보호 마이페이지(#103), 소셜 OAuth 배선. 탈퇴 Phase 1 self-only 요청·legal snapshot·write fence는 기본 OFF로 배포 | #137 완료는 #191 통지, Phase 2 hard delete, #215 secondary ledger·restore replay와 controlled destructive smoke에 의존 |
 | 알림 | 인앱 알림함·unread 벨·IP별 드롭/이벤트 설정·IP/예정 이벤트 CTA·어드민 공지 발송 완료(#104·#105) | 완료 |
 | 커뮤니티 | 최근 7일 visible 포스트 기반 트렌딩(#106), 전체/내 팬덤 피드와 홈 커뮤니티 우선순위(#107), 작성자 visible 포스트 수정(#108), 개별 댓글 숨김·공개 집계 제외(#109) 완료 | 완료 |
 | 교환/마켓 | v2 플레이스홀더(의도됨) | 유지 — 갭 아님 |
@@ -65,7 +65,7 @@
 | **Community** | #106 트렌딩 실데이터, #107 피드 개인화, #108 포스트 수정, #109 댓글 숨김, #110 운영 정책과 default-OFF write gate 완료 | 공개 활성화는 별도 운영 rehearsal·수령인 증거 뒤 수행 |
 | **Admin Ops** | #111 회원 조회·제재, #112 아트워크 업로드, #113 카탈로그 보관, #114 배너·공지·큐레이션 완료 | 완료 |
 
-2026-08-13 전환 계획으로 새 agent-executable 이슈 #204~#208·#210~#215가 생겼다. 사람 답변은 #87(Korpay), #208(CS·재무 직접환급), #209(NICE), #191(Resend 운영), #215(secondary compliance Supabase)에 남기고, 답변 전 관련 Production gate는 열지 않는다.
+2026-08-13 전환 계획의 machine-safe foundation #204~#206은 완료됐고 #207·#208·#210~#215는 외부 계약·운영 증거와 선행 이슈를 기다린다. 사람 답변은 #87(Korpay), #208(CS·재무 직접환급), #209(NICE), #191(Resend 운영), #215(secondary compliance Supabase)에 남기고, 답변 전 관련 Production gate는 열지 않는다.
 
 ## 5. 별도 트랙과 Not Planned 경계
 
@@ -75,15 +75,15 @@
 
 ## 6. 가정
 
-- 알림은 v1에서 **인앱만**. 이메일/푸시 발송은 규제(야간 발송 동의 등) 검토와 함께 출시 후.
+- 공개 알림은 v1에서 **인앱만**이다. 주문·Auth·탈퇴 같은 트랜잭션 이메일은 #191 dark path와 별도 운영 gate를 따르며, 마케팅 이메일·푸시는 규제 검토 전 열지 않는다.
 - 체크아웃·예매는 로그인 필수(보호 액션). 장바구니만 비로그인 로컬 허용 후 병합.
 - 좌석 지정 없음 — `ticket_types` capacity 카운트 모델 유지(`CONTEXT.md`).
-- 결제 callback body와 클라이언트 성공 신호는 진실원이 아니다. 현재 Toss 호환 경로는 provider 재조회·웹훅, 전환 뒤 Korpay는 `PaymentGateway.confirm/reconcile`과 DB 멱등 finalizer로만 확정한다. 돈·재고·발급은 Postgres RPC + 행 잠금 + 멱등(`AGENTS.md` 불변).
+- 결제 callback body와 클라이언트 성공 신호는 진실원이 아니다. 기존 Toss 2건은 known-only provider 재조회·웹훅으로 정리하고, 신규 Korpay는 `PaymentGateway.confirm/reconcile`과 DB 멱등 finalizer로만 확정한다. 돈·재고·발급은 Postgres RPC + 행 잠금 + 멱등(`AGENTS.md` 불변).
 - 기존 게임의 `goods` variant는 운영 콘솔에서 읽기 전용이다. 남아 있는 mock 연출은 실제 경품·구매권을 만들지 않으며 운영 경로로 활성화하지 않는다. 유한 실물 쿠지는 별도 `prize_sale` 도메인에서만 구현한다.
 
 ### 6.1 결제 전환 운영 경계
 
-- 현재 Toss checkout은 #205·#206 전환 동안만 호환 유지한다. 신규 Toss live key로 활성화하거나 실결제 canary를 수행하지 않는다.
+- 신규 Toss checkout은 #205·#206 완료와 함께 닫혔다. Toss live key로 다시 활성화하거나 Toss 실결제 canary를 수행하지 않는다.
 - 기존 Production Toss 결제 2건은 `provider=toss`로 보존하고 해당 거래의 조회·취소·웹훅만 유지한다. 두 거래가 공급사 콘솔에서도 최종 종결된 뒤 별도 PR에서 Toss runtime과 secret을 제거한다.
 - Korpay는 #87 공급사 답변과 credential rotation, #207 dark deploy가 끝나기 전 기본 OFF다. 실제 canary는 공급사 취소 접수를 조율한 최소 1,000원 1회이며 실행 직전 사용자 확인을 다시 받는다.
 

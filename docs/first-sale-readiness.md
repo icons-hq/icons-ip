@@ -1,6 +1,6 @@
 # ICONS 첫 실판매 준비 계획 (First Sale Readiness)
 
-> 상태: Active · 작성 2026-08-06 · 구현 2026-08-07 · 근거: 그릴링 세션(범위 확정) + 코드베이스 전수 감사
+> 상태: Active · 작성 2026-08-06 · 구현 2026-08-07 · 현재 진실원 갱신 2026-08-14 · 근거: 그릴링 세션(범위 확정) + 코드베이스 전수 감사
 > 대상 마일스톤: **홍실 퀘스트 굿즈 소프트런칭** — v1 출시([`launch-readiness-plan.md`](./launch-readiness-plan.md))와 **별개 마일스톤**이다.
 > 이 문서는 **기준선·갭 분석·트랙 구조**의 진실원이다. 각 이슈의 스펙 진실원은 issue body다.
 >
@@ -26,11 +26,11 @@
 | **D9** | **어드민 개선 = 안전장치 + 공통 시각화** | ID 덮어쓰기 방지 + `RecordList` 썸네일 전 섹션 + 내부 구현 노출 필드 정리. 공개화면 미리보기는 **굿즈만** 예외로 포함. |
 | **D10** | **배송 후 청약철회 = 시스템 경로** | 수동 처리하지 않는다. 기존 청약철회 인프라의 상태 제약을 넓혀 재사용한다. |
 | **D11** | **반품 입고 확인은 별도 상태가 아니다** | 운영자의 **승인 행위에 내포**된다. 상태기계를 늘리지 않는다. |
-| **D12** | **법무 검토는 게이트가 아니다** | 초안으로 판매를 개시하고 검토는 병행한다. 사업자 정보만 [#87](https://github.com/sangwopark19/icons-ip/issues/87)에 종속된다. |
+| **D12** | **법무 검토는 게이트가 아니다** | 초안 문서의 검토는 병행한다. 다만 공개 판매자 정보·통신판매업 신고번호·문의 창구는 [#239](https://github.com/icons-hq/icons-ip/issues/239)에서 확정되기 전 판매 gate를 열지 않는다. Korpay 계약·자격 증명은 [#87](https://github.com/icons-hq/icons-ip/issues/87)의 별도 범위다. |
 
 ### 왜 이 마일스톤이 v1 출시와 분리되는가
 
-[`launch-readiness-plan.md`](./launch-readiness-plan.md)는 "v1 기능이 존재하는가"의 진실원이고 대부분 완료 상태다. 이 문서는 "**실제로 돈을 받고 물건을 보낼 수 있는가**"를 다룬다. 두 질문의 답이 다르다 — 커머스 기능은 전부 배선됐지만 사업자 정보 표기도, 배송비도, 운송장도, 굿즈 상세페이지도 없다.
+[`launch-readiness-plan.md`](./launch-readiness-plan.md)는 "v1 기능이 존재하는가"의 진실원이고 대부분 완료 상태다. 이 문서는 "**실제로 돈을 받고 물건을 보낼 수 있는가**"를 다룬다. 두 질문의 답이 다르다. 이 계획을 작성한 2026-08-06에는 사업자 정보 표기·배송비·운송장·굿즈 상세페이지가 없었고, 현재 구현·운영 상태는 §8에서 갱신한다.
 
 ---
 
@@ -135,7 +135,8 @@
 | Track | 이슈 | 갭 | Dependency |
 |---|---|---|---|
 | **Legal** | [#169](https://github.com/sangwopark19/icons-ip/issues/169) 법정 문서 3종 + 라우트 + 푸터 링크 | L2 · L5 | Unblocked |
-| | [#170](https://github.com/sangwopark19/icons-ip/issues/170) 사업자 정보 표기 컴포넌트 | L1 | **Blocked** — #87 |
+| | [#170](https://github.com/icons-hq/icons-ip/issues/170) 사업자 정보 표기 컴포넌트 | L1 | 구현 완료 — 실제 값은 #239 |
+| | [#239](https://github.com/icons-hq/icons-ip/issues/239) `[human]` 사업자 정보·통신판매 신고·문의 창구 확정 | L1 | Unblocked |
 | | [#171](https://github.com/sangwopark19/icons-ip/issues/171) 굿즈 고시정보 스키마 + 어드민 입력 | L3 | Unblocked |
 | **Commerce** | [#172](https://github.com/sangwopark19/icons-ip/issues/172) 굿즈 상세 콘텐츠 스키마 + 어드민 입력 | C2 | Unblocked |
 | | [#173](https://github.com/sangwopark19/icons-ip/issues/173) **굿즈 상세페이지 `/shop/[goodId]`** | C1 | **Blocked** — #172·#171 |
@@ -144,7 +145,7 @@
 | | [#176](https://github.com/sangwopark19/icons-ip/issues/176) **배송 후 청약철회 경로** | C5 | Unblocked |
 | **Fulfillment** | [#177](https://github.com/sangwopark19/icons-ip/issues/177) `[human]` 물류 연동 사양 확인 (H1~H7) | F1 | Unblocked |
 | | [#178](https://github.com/sangwopark19/icons-ip/issues/178) 운송장 등록·조회 | F2 | 수기 경로는 착수 가능 → 구현 완료 |
-| | [#179](https://github.com/sangwopark19/icons-ip/issues/179) `[human]` 할당 재고 확정 + `stock_qty` 입력 | F3 | **Blocked** — #177 |
+| | [#179](https://github.com/icons-hq/icons-ip/issues/179) `[human]` 할당 재고 확정 + `stock_qty` 입력 | F3 | **Blocked** — #177 · #190 |
 | **Notifications** | [#180](https://github.com/sangwopark19/icons-ip/issues/180) 트랜잭션 이메일 인프라 + 템플릿 2종 | N1 · L4 | Unblocked |
 | **Admin Ops** | [#181](https://github.com/sangwopark19/icons-ip/issues/181) **ID 덮어쓰기 방지 5곳** (`bug`) | A1 | Unblocked |
 | | [#182](https://github.com/sangwopark19/icons-ip/issues/182) `RecordList` 썸네일 전 섹션 | A7 | Unblocked |
@@ -157,7 +158,8 @@
 ```
 #177 [human] H1~H7 (김단비) ──┬─→ #178 운송장 등록·조회
                               └─→ #179 할당 재고 확정 ──→ 판매 개시
-#87  [human] Korpay·사업자 정보 ─→ #170 사업자 정보 표기 ──→ 판매 개시
+#239 [human] 사업자 정보·문의 창구 ─→ 푸터·법정 문서 표기 ─→ 판매 개시
+#87  [human] Korpay 운영 계약 ─→ #207 Korpay adapter·canary ─→ 판매 개시
 
 #172 굿즈 콘텐츠 스키마 ──┬─→ #173 굿즈 상세페이지 ──→ #184 굿즈 상세 미리보기
 #171 고시정보 스키마 ─────┘
@@ -183,15 +185,15 @@
 
 `admin_adjust_stock`은 `set stock_qty = ...` 하나만 하고 `stock` 텍스트 컬럼을 건드리지 않는다. 굿즈 폼은 고시정보가 한 항목이라도 비면 저장을 거부한다(`lib/admin/catalog.ts`의 `readGoodsNotice` — L3에서 의도적으로 넣은 법정 표기 가드). 그리고 구매 버튼은 **둘 다** 통과해야 열린다 — `good.stock === 'soldout' || good.stockQty <= 0`이면 비활성(`components/shop/AddToCartButton.tsx`).
 
-고시정보 7항목 중 **A/S 연락처**가 #87 의존이므로, 실제 사슬은 이렇다.
+고시정보 7항목과 A/S 연락처는 #190에서 제품·운영 담당자가 직접 확정한다. #239의 공개 문의 창구와 같은 번호를 쓰려면 먼저 확정된 값을 다른 쪽에 맞추되, 두 이슈를 서로 `Blocked`로 만들지는 않는다. 실제 사슬은 이렇다.
 
 ```
-#87 (연락처 확정) ─→ #190 고시정보 asContact ─→ 굿즈 폼 저장 ─→ stock='ok' ─┐
+#190 고시정보·콘텐츠·A/S 연락처 ─→ 굿즈 폼 저장 ─→ stock='ok' ─────────────┐
                                                                             ├─→ 구매 버튼 활성
-#177 (H 전체) ─→ #179 할당 수량 ─→ 실재고 조정 ─→ stock_qty > 0 ───────────┘
+#177 (H 전체) ─→ #179 할당 수량·WMS 격리 ─→ stock_qty > 0 ─────────────────┘
 ```
 
-즉 **#179는 #177뿐 아니라 #87에도 막혀 있다.** 나머지 6개 고시 항목(제조사·원산지·소재·크기중량·제조연월·A/S 책임자)은 굿즈 제작 정보라 #87 없이 먼저 모을 수 있다.
+즉 **#179는 #177과 #190에 막혀 있고 #87에는 종속되지 않는다.** #87은 Korpay 공급사 계약·자격 증명 전용이고, #239는 공개 판매자 정보·문의 창구 전용이다.
 
 ---
 
@@ -215,13 +217,11 @@
 
 > H7 주의: 개인정보처리방침의 처리위탁 목록에 **한진택배와 WMS 운영사**를 명시해야 한다. 법인명을 모르면 문서를 완성할 수 없다.
 
-### 5.2 기존 이슈에 추가할 확인 항목
+### 5.2 분리된 확인 항목
 
-**[#87](https://github.com/sangwopark19/icons-ip/issues/87)** — Korpay 승인 범위·rotated credential·보안/조회/취소 운영 계약과 통신판매업 신고
-- 사업자 정보 표기용 데이터 6종(상호·대표자·사업자등록번호·통신판매업신고번호·주소·연락처)
-- **"인앱 주문 상세가 전자상거래법상 서면 교부로 충분한가"** — "아니오"면 D8의 이메일이 판매 개시 필수가 된다
-- **A/S 연락처를 대표 전화와 같게 쓸 것인가, 고객센터를 따로 둘 것인가** — 고시정보 7항목 중 하나다. 이 답이 없으면 굿즈 폼이 저장되지 않아 `stock` 전환이 막힌다(§4.1 정정 · [#190](https://github.com/sangwopark19/icons-ip/issues/190))
-- Korpay 공급사 questionnaire, credential rotation, dark deploy와 controlled canary는 #87·#207을 따른다. 기존 Toss는 알려진 legacy 거래 정리용으로만 보존한다.
+- **[#87](https://github.com/icons-hq/icons-ip/issues/87)** — Korpay 승인 범위·rotated credential·보안/조회/취소·정산 운영 계약. 공급사 questionnaire, credential rotation, #207 dark deploy와 controlled canary를 추적한다. 기존 Toss는 알려진 legacy 거래 정리용으로만 보존한다.
+- **[#239](https://github.com/icons-hq/icons-ip/issues/239)** — 상호·대표자·사업자등록번호·통신판매업 신고번호·주소·전화·이메일과 인앱 주문 상세의 서면 교부 충족 여부. 이 법적 판단과 별개로 D8과 #168은 #191 이메일 운영 활성화를 첫판매 크리티컬 패스로 유지한다.
+- **[#190](https://github.com/icons-hq/icons-ip/issues/190)** — 홍실 3종 고시정보·상세 콘텐츠와 A/S 연락처. 대표 전화 또는 별도 고객센터 번호를 이 이슈에서 확정하고 #239의 공개 문의 창구와 일치시킨다.
 
 ---
 
@@ -255,14 +255,14 @@
 
 ---
 
-## 8. 구현 현황 (2026-08-07 구현 · 2026-08-10 실측 갱신 · 2026-08-11 결제 키 갱신)
+## 8. 구현 현황 (2026-08-07 구현 · 2026-08-10 실측 · 2026-08-14 진실원 갱신)
 
 §3의 갭 중 에이전트가 코드로 풀 수 있는 것은 전부 닫혔다. 남은 것은 사람 응답에 종속된 항목뿐이다.
 
 | 갭 | 이슈 | 상태 | 남은 것 |
 |---|---|---|---|
 | L2 · L5 법정 문서 3종 | [#169](https://github.com/sangwopark19/icons-ip/issues/169) | 구현 | 법무 검토 병행(D12) · WMS 운영사 법인명(H7) |
-| L1 사업자 정보 표기 | [#170](https://github.com/sangwopark19/icons-ip/issues/170) | 구조 구현 · **값 공백** | [#87](https://github.com/sangwopark19/icons-ip/issues/87)의 사업자 정보 6종 |
+| L1 사업자 정보 표기 | [#170](https://github.com/icons-hq/icons-ip/issues/170) | 구조 구현 · **값 공백** | 공개 판매자 정보 7종과 문의 창구 → [#239](https://github.com/icons-hq/icons-ip/issues/239) |
 | L3 고시정보 | [#171](https://github.com/sangwopark19/icons-ip/issues/171) | 구현 | 홍실 3종 실제 값 입력 → [#190](https://github.com/sangwopark19/icons-ip/issues/190) |
 | C2 굿즈 콘텐츠 스키마 | [#172](https://github.com/sangwopark19/icons-ip/issues/172) | 구현 | 홍실 3종 이미지·설명 입력 → [#190](https://github.com/sangwopark19/icons-ip/issues/190) |
 | C1 굿즈 상세페이지 | [#173](https://github.com/sangwopark19/icons-ip/issues/173) | 구현 | — |
@@ -271,7 +271,7 @@
 | C5 배송 후 청약철회 | [#176](https://github.com/sangwopark19/icons-ip/issues/176) | 구현 | 반품 입고 주소·절차(H5) |
 | F2 운송장 등록·조회 | [#178](https://github.com/sangwopark19/icons-ip/issues/178) | **수기 경로만** 구현 | WMS 자동 수신(H1~H3) |
 | F3 할당 재고 | [#179](https://github.com/sangwopark19/icons-ip/issues/179) | 미착수 | `stock_qty` 확정(H 전체) · `stock` 전환은 [#190](https://github.com/sangwopark19/icons-ip/issues/190) 선행(§4.1 정정) |
-| N1 · L4 트랜잭션 이메일 | [#180](https://github.com/sangwopark19/icons-ip/issues/180) | 구현 · **env 공백** | provider 키·발신자·SPF/DKIM → [#191](https://github.com/sangwopark19/icons-ip/issues/191) |
+| N1 · L4 트랜잭션 이메일 | [#180](https://github.com/icons-hq/icons-ip/issues/180) · [#230](https://github.com/icons-hq/icons-ip/pull/230) | legacy 경로 유지 · Send Email Hook dark path 기본 OFF 배포 | 발신 도메인·키 rotation/drain·Production secret·Hook/readback·실수신 증거 → [#191](https://github.com/icons-hq/icons-ip/issues/191) |
 | A1 ID 덮어쓰기 | [#181](https://github.com/sangwopark19/icons-ip/issues/181) | 구현 | — |
 | A7 목록 썸네일 | [#182](https://github.com/sangwopark19/icons-ip/issues/182) | 구현 | — |
 | A2~A6 내부 구현 필드 | [#183](https://github.com/sangwopark19/icons-ip/issues/183) | 구현 | — |
@@ -282,12 +282,13 @@
 
 아래 사람·운영 데이터 블로커와 결제 전환 구현이 모두 필요하다. 2026-08-10에 프로덕션 `goods`와 Vercel production env를 직접 확인했고, 2026-08-13 결제 provider 전환 계약을 §8.3에 반영했다.
 
-1. **[#87](https://github.com/icons-hq/icons-ip/issues/87)** — 사업자 정보 6종과 Korpay 승인·보안·운영 답변. 없으면 푸터의 법정 표기와 문의 창구가 비고, rotated credential·조회/취소/모호 결제 계약을 검증할 수 없다. 굿즈·티켓 provider runtime은 OFF이고 신규 Toss live 판매는 열지 않는다(§8.3).
-2. **[#177](https://github.com/sangwopark19/icons-ip/issues/177)** — H1~H7. 특히 H7(WMS 운영사 법인명)이 없으면 개인정보처리방침의 처리위탁 목록을 완성할 수 없다.
-3. **[#190](https://github.com/sangwopark19/icons-ip/issues/190)** — 운영 데이터 입력. 홍실 3종의 고시정보 7항목 × 3 = **21칸이 전부 공백**이고 설명·갤러리·상세 이미지도 없다. 고시정보가 차야 굿즈 폼이 저장되고, 그래야 `stock`이 `ok`로 바뀐다(§4.1 정정). A/S 연락처가 #87 의존이다.
-4. **[#179](https://github.com/sangwopark19/icons-ip/issues/179)** — 할당 재고 확정. 홍실 3종이 전부 `stock='soldout'`·`stock_qty=0`이라 지금은 아무것도 팔리지 않는다.
-5. **[#191](https://github.com/sangwopark19/icons-ip/issues/191)** — 발신 이메일 설정. `EMAIL_PROVIDER_API_KEY`·`EMAIL_FROM`이 Vercel production env에 없어 주문 확인 메일이 한 통도 나가지 않는다. **판매 개시 필수 여부는 #87의 "인앱 주문 상세가 서면 교부로 충분한가"에 달려 있다** — "아니오"면 블로커로 승격된다.
-6. **[#207](https://github.com/icons-hq/icons-ip/issues/207)** — 굿즈·티켓 seam은 provider 기본 OFF로 구현됐다. Korpay dark deploy·controlled canary 증거 전에는 신규 공개 결제를 열지 않는다.
+1. **[#87](https://github.com/icons-hq/icons-ip/issues/87)** — Korpay 승인·보안·운영 답변과 노출된 자격 증명의 폐기·재발급 증거가 없다. rotated credential·조회/취소/모호 결제 계약 전에는 신규 provider를 열지 않는다.
+2. **[#239](https://github.com/icons-hq/icons-ip/issues/239)** — 공개 판매자 정보 7종·통신판매업 신고·문의 창구가 비어 있어 푸터와 법정 문서 표기를 완료할 수 없다.
+3. **[#177](https://github.com/icons-hq/icons-ip/issues/177)** — H1~H7. 특히 H7(WMS 운영사 법인명)이 없으면 개인정보처리방침의 처리위탁 목록을 완성할 수 없다.
+4. **[#190](https://github.com/icons-hq/icons-ip/issues/190)** — 홍실 3종의 고시정보 7항목 × 3 = **21칸이 전부 공백**이고 설명·갤러리·상세 이미지도 없다. A/S 연락처는 이 이슈에서 확정하며 #87과 무관하다.
+5. **[#179](https://github.com/icons-hq/icons-ip/issues/179)** — #177의 WMS 격리 계약과 #190의 필수 고시정보가 필요하다. 홍실 3종이 전부 `stock='soldout'`·`stock_qty=0`이라 지금은 아무것도 팔리지 않는다.
+6. **[#191](https://github.com/icons-hq/icons-ip/issues/191)** — legacy Supabase custom SMTP의 `no-reply@iconsip.com` Gmail 수신과 SPF·DKIM·DMARC pass는 확인됐다. 그러나 dark outbox/Hook은 기본 OFF이고, 승인된 TTL·HMAC rotation/drain·Production secrets·최종 DNS/From/Reply-To readback·Hook enable·Auth 4흐름과 secure email change 2메일·탈퇴 통지·webhook canary·direct SMTP 0 증거가 없다. D8과 #168에 따라 첫판매 크리티컬 패스로 유지하며, #239는 서면 교부의 법적 충분성을 별도로 확인한다.
+7. **[#207](https://github.com/icons-hq/icons-ip/issues/207)** — 굿즈·티켓 seam은 provider 기본 OFF로 구현됐다. Korpay dark deploy·controlled canary 증거 전에는 신규 공개 결제를 열지 않는다.
 
 ### 8.2 #178에서 남긴 범위
 
