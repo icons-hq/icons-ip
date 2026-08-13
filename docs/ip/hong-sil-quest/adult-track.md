@@ -4,15 +4,18 @@
 
 **현재 상태: 폐기하지 않은 설계·검토 증거지만 main 구현은 아니다.** 아래 prototype 구현은
 merge하지 않기로 한 closed draft [PR #167](https://github.com/icons-hq/icons-ip/pull/167)의 branch에만 남아 있다.
-현재 main에는 `components/prototype/hong-sil-vn/`이나 `?track=adult` route가 없고 사내 검토용
-배포도 활성화하지 않는다. 이 문서를 #210의 `AgeAssurance` 구현 완료 증거로 사용하지 않는다.
+현재 main과 Production에는 `components/prototype/hong-sil-vn/`이나 `?track=adult` route가 없다.
+다만 2026-08-14 확인 기준 PR #167의 [legacy Preview](https://icons-hongshil-vn.vercel.app/games/prototype-hong-sil-vn?track=adult)는
+로그인 없이 접근 가능하다. 이는 승인된 현재 검토 surface가 아니라 정리되지 않은 외부 배포 상태이며,
+접근 보호·폐기 결정은 [#242](https://github.com/icons-hq/icons-ip/issues/242)에서 추적한다. 화면의 자가 확인은
+NICE 인증·서버 gate·RLS가 아니므로 이 Preview나 문서를 #210의 `AgeAssurance` 구현 완료 증거로 사용하지 않는다.
 
 | | 상태 |
 |---|---|
 | 트랙 분기·게이팅 아키텍처 | 🗃️ PR #167 branch prototype only |
 | 확장 씬 3라운드(R5·R6·R7) | 🗃️ PR #167 branch에 작성 |
 | 정사 장면 본문 | ⬜ **집필 슬롯 3곳** — 원작자 집필분 (§0) |
-| 연령 게이트 UI | 🗃️ PR #167 branch prototype (자가 확인 · 실제 인증 아님) |
+| 연령 게이트 UI | 🗃️ PR #167 branch prototype (legacy Preview 공개 상태 · 자가 확인 · 실제 인증 아님 · #242) |
 | NICE `adult_19` 연령보증 | ⬜ 계약·구현 예정 (#209·#210) |
 | 게임물 등급분류 | ⬜ 미확정 |
 | 서버 게이팅·RLS | ⬜ 실서비스 전환 시 |
@@ -53,7 +56,8 @@ merge하지 않기로 한 closed draft [PR #167](https://github.com/icons-hq/ico
 
 ## 2. 실서비스 선행 조건 — 셋 다 해결돼야 출시한다
 
-프로토타입 검토는 이것들과 무관하게 지금 할 수 있다. 아래는 **실제 출시**의 조건이다.
+아래는 **실제 출시**의 조건이다. 별도 prototype 검토는 가능하지만, surviving legacy Preview는 승인된
+검토 surface가 아니며 #242에서 접근 범위를 확정하기 전 현재 검토용으로 재사용하지 않는다.
 
 ### 2.1 게임물 등급분류 *(프로토타입 검토와 병행)*
 
