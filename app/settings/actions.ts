@@ -6,6 +6,11 @@ import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import type { CurrentAuthState } from '@/lib/auth/server';
 import {
+  ACCOUNT_DELETION_CONFIRMATION,
+  normalizeAccountDeletionStatus,
+  type AccountDeletionStatus,
+} from '@/lib/account-deletion';
+import {
   buildProfileAvatarPath,
   matchesProfileImageMagicBytes,
   normalizeProfileImageMetadata,
@@ -30,6 +35,12 @@ export interface SettingsActionState {
   message?: string;
 }
 
+export interface AccountDeletionActionState {
+  error?: string;
+  message?: string;
+  status?: AccountDeletionStatus;
+}
+
 export interface PrepareProfileAvatarUploadInput {
   nickname: unknown;
   mimeType: unknown;
@@ -45,6 +56,7 @@ const USER_UPLOADS_BUCKET = 'user-uploads';
 const SETTINGS_CONFIG_ERROR = 'Supabase 환경변수를 설정한 뒤 설정을 변경할 수 있습니다.';
 const AVATAR_PATH_ERROR = '아바타 경로를 확인할 수 없습니다. 다시 업로드해주세요.';
 const AVATAR_VALIDATION_ERROR = '아바타 파일을 확인하지 못했습니다. 다시 업로드해주세요.';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type RequireSettingsAuthResult =
   | {
@@ -53,6 +65,19 @@ type RequireSettingsAuthResult =
       user: NonNullable<CurrentAuthState['user']>;
     }
   | { ok: false; state: SettingsActionState };
+
+type RequireAccountDeletionAuthResult =
+  | { ok: true; user: NonNullable<CurrentAuthState['user']> }
+  | { ok: false; error: string };
+
+async function requireAccountDeletionAuth(): Promise<RequireAccountDeletionAuthResult> {
+  const auth = await getCurrentAuthState();
+  if (!auth.isConfigured) return { ok: false, error: SETTINGS_CONFIG_ERROR };
+  if (!auth.user) {
+    redirect(`/login?next=${encodeURIComponent('/settings/delete-account')}`);
+  }
+  return { ok: true, user: auth.user };
+}
 
 async function requireSettingsAuth(): Promise<RequireSettingsAuthResult> {
   const auth = await getCurrentAuthState();
@@ -67,6 +92,53 @@ async function requireSettingsAuth(): Promise<RequireSettingsAuthResult> {
   }
 
   return { ok: true, auth, user: auth.user };
+}
+
+export async function requestAccountDeletionAction(
+  _state: AccountDeletionActionState,
+  formData: FormData,
+): Promise<AccountDeletionActionState> {
+  const confirmation = formData.get('confirmation');
+  const idempotencyKey = formData.get('idempotencyKey');
+
+  if (confirmation !== ACCOUNT_DELETION_CONFIRMATION) {
+    return { error: '확인 문구를 정확히 입력해주세요.' };
+  }
+  if (typeof idempotencyKey !== 'string' || !UUID_PATTERN.test(idempotencyKey)) {
+    return { error: '탈퇴 신청 화면을 새로고침한 뒤 다시 시도해주세요.' };
+  }
+
+  const required = await requireAccountDeletionAuth();
+  if (!required.ok) {
+    return { error: required.error };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('request_my_account_deletion', {
+    p_confirmation: confirmation,
+    p_idempotency_key: idempotencyKey,
+  });
+
+  if (error) {
+    if (error.message.includes('account_deletion_not_available')) {
+      return { error: '탈퇴 신청 기능을 준비 중입니다.' };
+    }
+    if (error.message.includes('account_deletion_idempotency_conflict')) {
+      return { error: '이미 접수된 탈퇴 신청 상태를 확인해주세요.' };
+    }
+    return { error: '탈퇴 신청을 접수하지 못했습니다. 다시 시도해주세요.' };
+  }
+
+  const status = normalizeAccountDeletionStatus(data);
+  if (status.status === 'not_requested') {
+    return { error: '탈퇴 신청 상태를 확인하지 못했습니다. 다시 시도해주세요.' };
+  }
+
+  revalidatePath(SETTINGS_PATH);
+  return {
+    message: '탈퇴 신청을 접수했어요. 계정은 아직 삭제되지 않았습니다.',
+    status,
+  };
 }
 
 async function safeCleanupProfileAvatar(input: {

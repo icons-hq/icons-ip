@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   prepareProfileAvatarUploadAction,
+  requestAccountDeletionAction,
   updateMarketingConsentAction,
   updateProfileAction,
 } from './actions';
@@ -19,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   info: vi.fn(),
   list: vi.fn(),
   prepareProfileAvatarClaim: vi.fn(),
+  rpc: vi.fn(),
   rejectProfileAvatarClaim: vi.fn(),
   revalidatePath: vi.fn(),
   storageFrom: vi.fn(),
@@ -100,6 +102,7 @@ beforeEach(() => {
   mocks.info.mockReset();
   mocks.list.mockReset();
   mocks.prepareProfileAvatarClaim.mockReset();
+  mocks.rpc.mockReset();
   mocks.rejectProfileAvatarClaim.mockReset();
   mocks.revalidatePath.mockReset();
   mocks.storageFrom.mockReset();
@@ -149,12 +152,104 @@ beforeEach(() => {
       if (table !== 'profiles') throw new Error(`Unexpected table ${table}`);
       return { update: mocks.dbUpdate };
     },
+    rpc: mocks.rpc,
     storage: { from: mocks.storageFrom },
   });
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe('requestAccountDeletionAction', () => {
+  function deletionForm(confirmation: string, idempotencyKey: string) {
+    const form = new FormData();
+    form.set('confirmation', confirmation);
+    form.set('idempotencyKey', idempotencyKey);
+    return form;
+  }
+
+  it('rejects a mismatched irreversible confirmation before auth or RPC', async () => {
+    await expect(requestAccountDeletionAction({}, deletionForm(
+      '탈퇴',
+      '123e4567-e89b-42d3-a456-426614174000',
+    ))).resolves.toEqual({ error: '확인 문구를 정확히 입력해주세요.' });
+
+    expect(mocks.getCurrentAuthState).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('submits only confirmation and an opaque idempotency key to the self-only RPC', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: {
+        status: 'processing',
+        phase: 'awaiting_notification',
+        nextAction: 'retry_later',
+        blockers: [],
+      },
+      error: null,
+    });
+
+    await expect(requestAccountDeletionAction({}, deletionForm(
+      '회원 탈퇴를 신청합니다',
+      '123e4567-e89b-42d3-a456-426614174000',
+    ))).resolves.toEqual({
+      message: '탈퇴 신청을 접수했어요. 계정은 아직 삭제되지 않았습니다.',
+      status: {
+        status: 'processing',
+        phase: 'awaiting_notification',
+        nextAction: 'retry_later',
+        blockers: [],
+      },
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('request_my_account_deletion', {
+      p_confirmation: '회원 탈퇴를 신청합니다',
+      p_idempotency_key: '123e4567-e89b-42d3-a456-426614174000',
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/settings');
+  });
+
+  it('keeps withdrawal available before onboarding is complete', async () => {
+    mocks.getCurrentAuthState.mockResolvedValue({
+      isConfigured: true,
+      user: { id: USER_ID, email: 'pending@icons.test' },
+      profile: null,
+      isStaff: false,
+    });
+    mocks.rpc.mockResolvedValue({
+      data: {
+        status: 'processing',
+        phase: 'awaiting_notification',
+        nextAction: 'retry_later',
+        blockers: [],
+      },
+      error: null,
+    });
+
+    await expect(requestAccountDeletionAction({}, deletionForm(
+      '회원 탈퇴를 신청합니다',
+      '123e4567-e89b-42d3-a456-426614174000',
+    ))).resolves.toMatchObject({ status: { status: 'processing' } });
+  });
+
+  it('maps disabled and unknown database errors without reflecting provider details', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'account_deletion_not_available: private detail' },
+    });
+
+    await expect(requestAccountDeletionAction({}, deletionForm(
+      '회원 탈퇴를 신청합니다',
+      '123e4567-e89b-42d3-a456-426614174000',
+    ))).resolves.toEqual({ error: '탈퇴 신청 기능을 준비 중입니다.' });
+
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'raw private failure' } });
+    await expect(requestAccountDeletionAction({}, deletionForm(
+      '회원 탈퇴를 신청합니다',
+      '123e4567-e89b-42d3-a456-426614174000',
+    ))).resolves.toEqual({ error: '탈퇴 신청을 접수하지 못했습니다. 다시 시도해주세요.' });
+  });
 });
 
 describe('prepareProfileAvatarUploadAction', () => {

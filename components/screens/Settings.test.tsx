@@ -12,6 +12,10 @@ interface MockActionState {
 }
 
 const mocks = vi.hoisted(() => ({
+  deletionAction: vi.fn(),
+  deletionPending: false,
+  deletionState: {} as { error?: string; message?: string },
+  deletionSubmit: vi.fn(),
   marketingAction: vi.fn(),
   marketingPending: false,
   marketingState: {} as MockActionState,
@@ -24,6 +28,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/app/settings/actions', () => ({
+  requestAccountDeletionAction: mocks.deletionAction,
   updateMarketingConsentAction: mocks.marketingAction,
   updateProfileAction: mocks.profileAction,
 }));
@@ -41,6 +46,9 @@ vi.mock('react', async () => {
       if (action === mocks.marketingAction) {
         return [mocks.marketingState, mocks.marketingSubmit, mocks.marketingPending];
       }
+      if (action === mocks.deletionAction) {
+        return [mocks.deletionState, mocks.deletionSubmit, mocks.deletionPending];
+      }
       throw new Error('Unexpected settings action');
     },
   };
@@ -49,6 +57,15 @@ vi.mock('react', async () => {
 function render(overrides: Partial<React.ComponentProps<typeof Settings>> = {}) {
   return renderToStaticMarkup(
     <Settings
+      accountDeletion={{
+        preview: {
+          available: false,
+          eligible: false,
+          blockers: [{ code: 'not_available', count: 1, path: '/settings' }],
+        },
+        status: { status: 'not_requested', phase: 'none', nextAction: '/settings', blockers: [] },
+      }}
+      accountDeletionRequestKey="123e4567-e89b-42d3-a456-426614174000"
       avatarInitial="아"
       avatarUrl="https://signed.example/avatar.png"
       email="fan@icons.gg"
@@ -70,11 +87,59 @@ function statusMarkup(html: string, label: string) {
 
 describe('Settings', () => {
   beforeEach(() => {
+    mocks.deletionPending = false;
+    mocks.deletionState = {};
     mocks.marketingPending = false;
     mocks.marketingState = {};
     mocks.profilePending = false;
     mocks.profileState = {};
     mocks.uploadProfileAvatar.mockReset();
+  });
+
+  it('keeps the destructive request default-off and explains unfinished phases', () => {
+    const html = render();
+
+    expect(html).toContain('아직 탈퇴 신청을 받지 않습니다');
+    expect(html).toContain('실제 Storage·DB·Auth 삭제');
+    expect(html).not.toContain('name="confirmation"');
+  });
+
+  it('requires the exact confirmation while exposing no target user identifier', () => {
+    const html = render({
+      accountDeletion: {
+        preview: { available: true, eligible: true, blockers: [] },
+        status: { status: 'not_requested', phase: 'none', nextAction: '/settings', blockers: [] },
+      },
+    });
+
+    expect(html).toContain('회원 탈퇴를 신청합니다');
+    expect(html).toContain('name="confirmation"');
+    expect(html).toContain('name="idempotencyKey"');
+    expect(html).not.toContain('name="userId"');
+    expect(html.match(/<form /g)).toHaveLength(3);
+  });
+
+  it('shows only blocker counts and recovery paths after a fenced request', () => {
+    const html = render({
+      accountDeletion: {
+        preview: {
+          available: true,
+          eligible: false,
+          blockers: [{ code: 'active_order', count: 2, path: '/orders' }],
+        },
+        status: {
+          status: 'blocked',
+          phase: 'fenced',
+          nextAction: '/orders',
+          blockers: [{ code: 'active_order', count: 2, path: '/orders' }],
+        },
+      },
+    });
+
+    expect(html).toContain('진행 중인 의무');
+    expect(html).toContain('해결할 항목 2건 확인');
+    expect(html).toContain('href="/orders"');
+    expect(html).not.toContain('name="confirmation"');
   });
 
   it('renders independent profile and marketing forms with an editable signed avatar preview', () => {
