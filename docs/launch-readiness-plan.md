@@ -60,9 +60,9 @@
 | **Commerce** | #89 실장바구니·#90 체크아웃·#91 주문 내역·#92 취소/청약철회·#93 어드민 주문 콘솔·#94 실재고 관리 완료 | 완료 |
 | **Ticketing** | #96 회차 콘솔·#54 예매 플로우·#95 내 티켓/환불·#97 현장 검표 완료. provider seam은 #206 | Korpay 활성화는 #87·#207 뒤 |
 | **Rewards Ops** | #98 카드풀·확률 콘솔, #99 발급 정책 콘솔, #100 게임 등록 콘솔 완료 | 완료 |
-| **Account** | #101 비밀번호 재설정, #136 프로필 편집, #103 마이페이지 완료. #17은 Google·Apple·Kakao OAuth 코드와 provider·이메일 claim 설정 완료, production 배포·smoke 잔여. #102 [human] 탈퇴 보존 정책, #137 탈퇴 실행(Blocked by #102) | #137은 #102 뒤, #17은 integration/deploy gate, #102는 human gate |
+| **Account** | #101 비밀번호 재설정, #136 프로필 편집, #103 마이페이지 완료. #102 탈퇴 보존 정책은 완료. #137은 Phase 1 요청/fence 뒤 #191 메일과 #215 secondary Supabase ledger·restore replay를 거쳐 hard delete까지 수행 | #137 완료는 #191·#215와 destructive canary 증거에 의존. #17은 integration/deploy gate |
 | **Notifications** | #104 알림함·IP 알림, #105 어드민 공지 발송 완료 | 완료 |
-| **Community** | #106 트렌딩 실데이터, #107 피드 개인화, #108 포스트 수정, #109 댓글 숨김 완료. #110 [human] 운영 정책 문서 | agent 실행 범위 완료 |
+| **Community** | #106 트렌딩 실데이터, #107 피드 개인화, #108 포스트 수정, #109 댓글 숨김, #110 운영 정책과 default-OFF write gate 완료 | 공개 활성화는 별도 운영 rehearsal·수령인 증거 뒤 수행 |
 | **Admin Ops** | #111 회원 조회·제재, #112 아트워크 업로드, #113 카탈로그 보관, #114 배너·공지·큐레이션 완료 | 완료 |
 
 2026-08-13 전환 계획으로 새 agent-executable 이슈 #204~#208·#210~#215가 생겼다. 사람 답변은 #87(Korpay), #208(CS·재무 직접환급), #209(NICE), #191(Resend 운영), #215(secondary compliance Supabase)에 남기고, 답변 전 관련 Production gate는 열지 않는다.

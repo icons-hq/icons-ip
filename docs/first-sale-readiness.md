@@ -280,13 +280,14 @@
 
 ### 8.1 판매 개시를 아직 막는 것
 
-코드가 아니라 사람이 풀어야 한다. 2026-08-10에 프로덕션 `goods`와 Vercel production env를 직접 확인했고, 2026-08-13 결제 provider 전환 계약을 §8.3에 반영했다.
+아래 사람·운영 데이터 블로커와 결제 전환 구현이 모두 필요하다. 2026-08-10에 프로덕션 `goods`와 Vercel production env를 직접 확인했고, 2026-08-13 결제 provider 전환 계약을 §8.3에 반영했다.
 
 1. **[#87](https://github.com/sangwopark19/icons-ip/issues/87)** — 사업자 정보 6종과 Korpay 승인·보안·운영 답변. 없으면 푸터의 법정 표기와 문의 창구가 비고, rotated credential·조회/취소/모호 결제 계약을 검증할 수 없다. 현재 Toss checkout은 #205·#206 전환 동안만 호환 유지하며 신규 Toss live 판매는 열지 않는다(§8.3).
 2. **[#177](https://github.com/sangwopark19/icons-ip/issues/177)** — H1~H7. 특히 H7(WMS 운영사 법인명)이 없으면 개인정보처리방침의 처리위탁 목록을 완성할 수 없다.
 3. **[#190](https://github.com/sangwopark19/icons-ip/issues/190)** — 운영 데이터 입력. 홍실 3종의 고시정보 7항목 × 3 = **21칸이 전부 공백**이고 설명·갤러리·상세 이미지도 없다. 고시정보가 차야 굿즈 폼이 저장되고, 그래야 `stock`이 `ok`로 바뀐다(§4.1 정정). A/S 연락처가 #87 의존이다.
 4. **[#179](https://github.com/sangwopark19/icons-ip/issues/179)** — 할당 재고 확정. 홍실 3종이 전부 `stock='soldout'`·`stock_qty=0`이라 지금은 아무것도 팔리지 않는다.
 5. **[#191](https://github.com/sangwopark19/icons-ip/issues/191)** — 발신 이메일 설정. `EMAIL_PROVIDER_API_KEY`·`EMAIL_FROM`이 Vercel production env에 없어 주문 확인 메일이 한 통도 나가지 않는다. **판매 개시 필수 여부는 #87의 "인앱 주문 상세가 서면 교부로 충분한가"에 달려 있다** — "아니오"면 블로커로 승격된다.
+6. **[#205](https://github.com/icons-hq/icons-ip/issues/205)·[#206](https://github.com/icons-hq/icons-ip/issues/206)·[#207](https://github.com/icons-hq/icons-ip/issues/207)** — 굿즈·티켓 checkout을 provider seam으로 옮기고 Korpay를 gate OFF로 dark deploy한 뒤 controlled canary 증거를 확보한다. 이 구현 전에는 신규 공개 결제를 열지 않는다.
 
 ### 8.2 #178에서 남긴 범위
 
