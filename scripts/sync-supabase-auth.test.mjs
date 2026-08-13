@@ -47,6 +47,19 @@ describe('repository Auth redirect contract', () => {
     expect(pipeline.match(/RECOVERY_TEMPLATE_PATH: supabase\/templates\/recovery\.html/g)).toHaveLength(2);
     expect(pipeline.match(/EMAIL_OTP_EXPIRY_SECONDS: "3600"/g)).toHaveLength(2);
     expect(isSafeRecoveryTemplate(recoveryTemplate)).toBe(true);
+
+    const previewDeploy = pipeline.indexOf('- name: Deploy Vercel preview');
+    const previewTemplate = pipeline.indexOf(
+      '- name: Activate recovery token-hash template in preview',
+    );
+    const productionDeploy = pipeline.indexOf('- name: Deploy Vercel production');
+    const productionTemplate = pipeline.indexOf(
+      '- name: Activate recovery token-hash template in production',
+    );
+    expect(previewDeploy).toBeGreaterThan(-1);
+    expect(previewTemplate).toBeGreaterThan(previewDeploy);
+    expect(productionDeploy).toBeGreaterThan(-1);
+    expect(productionTemplate).toBeGreaterThan(productionDeploy);
   });
 });
 

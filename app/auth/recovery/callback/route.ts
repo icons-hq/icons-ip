@@ -22,13 +22,16 @@ function redirectTo(
   request: NextRequest,
   path: string,
   authResponse?: AuthResponseState,
+  clearRecoveryState = false,
 ) {
   const response = NextResponse.redirect(new URL(path, request.url));
   applyAuthResponseState(response, authResponse);
-  response.cookies.set(AUTH_RECOVERY_NEXT_COOKIE_NAME, '', {
-    path: AUTH_RECOVERY_CALLBACK_PATH,
-    maxAge: 0,
-  });
+  if (clearRecoveryState) {
+    response.cookies.set(AUTH_RECOVERY_NEXT_COOKIE_NAME, '', {
+      path: AUTH_RECOVERY_CALLBACK_PATH,
+      maxAge: 0,
+    });
+  }
   return response;
 }
 
@@ -103,5 +106,5 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  return redirectTo(request, updatePasswordSessionReadyPath(next), authResponse);
+  return redirectTo(request, updatePasswordSessionReadyPath(next), authResponse, true);
 }

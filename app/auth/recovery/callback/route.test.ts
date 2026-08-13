@@ -165,6 +165,9 @@ describe('GET /auth/recovery/callback', () => {
     );
     expect(response.headers.get('location')).not.toContain('private');
     expect(response.headers.get('location')).not.toContain('reused-token-hash');
+    expect(response.headers.get('set-cookie') ?? '').not.toContain(
+      `${AUTH_NEXT_COOKIE_NAME}=;`,
+    );
     expect(mocks.getUser).not.toHaveBeenCalled();
   });
 
@@ -208,7 +211,7 @@ describe('GET /auth/recovery/callback', () => {
     );
     expect(response.headers.get('location')).not.toContain('pkce');
     expect(response.headers.get('location')).not.toContain('private');
-    expect(response.headers.get('set-cookie')).toContain(`${AUTH_NEXT_COOKIE_NAME}=;`);
+    expect(response.headers.get('set-cookie')).toBeNull();
     expect(mocks.getUser).not.toHaveBeenCalled();
   });
 
@@ -257,6 +260,9 @@ describe('GET /auth/recovery/callback', () => {
     expect(response.headers.get('set-cookie')).not.toContain('session-value');
     expect(response.headers.get('set-cookie')).toContain('sb-local-auth-token=;');
     expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
+    expect(response.headers.get('set-cookie') ?? '').not.toContain(
+      `${AUTH_NEXT_COOKIE_NAME}=;`,
+    );
     expect(mocks.getUser).not.toHaveBeenCalled();
   });
 
@@ -312,6 +318,9 @@ describe('GET /auth/recovery/callback', () => {
     expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
     expect(response.headers.get('set-cookie')).not.toContain('session-value');
     expect(response.headers.get('set-cookie')).toContain('sb-local-auth-token=;');
+    expect(response.headers.get('set-cookie') ?? '').not.toContain(
+      `${AUTH_NEXT_COOKIE_NAME}=;`,
+    );
     expect(response.headers.get('location')).not.toContain('private');
   });
 });
