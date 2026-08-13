@@ -97,7 +97,7 @@ async function loadOrderEmailContext(
     .select('id,user_id,status,total,created_at,address,shipping_carrier,tracking_number')
     .eq('id', orderId)
     .maybeSingle();
-  if (orderError) throw new Error(`Failed to load order for email: ${orderError.message}`);
+  if (orderError) throw new Error('order_email_load_failed');
   const order = orderData as OrderRow | null;
   if (!order) return { skipped: 'order_missing' };
 
@@ -106,14 +106,14 @@ async function loadOrderEmailContext(
     .select('good_name_snapshot,qty,unit_price')
     .eq('order_id', orderId)
     .order('id', { ascending: true });
-  if (itemError) throw new Error(`Failed to load order items for email: ${itemError.message}`);
+  if (itemError) throw new Error('order_email_items_load_failed');
 
   const { data: profileData, error: profileError } = await service
     .from('profiles')
     .select('email')
     .eq('id', order.user_id)
     .maybeSingle();
-  if (profileError) throw new Error(`Failed to load recipient for email: ${profileError.message}`);
+  if (profileError) throw new Error('order_email_recipient_load_failed');
 
   const recipient = (profileData as { email?: unknown } | null)?.email;
   if (typeof recipient !== 'string' || !recipient.includes('@')) {
@@ -177,7 +177,7 @@ async function deliver(
     target_recipient: input.recipient,
     target_subject: input.rendered.subject,
   });
-  if (claimError) throw new Error(`Failed to claim email delivery: ${claimError.message}`);
+  if (claimError) throw new Error('order_email_claim_failed');
   if (claimed !== true) return { status: 'skipped', reason: 'already_delivered' };
 
   const outcome = await sendTransactionalEmail({
@@ -186,9 +186,14 @@ async function deliver(
     text: input.rendered.text,
     html: input.rendered.html,
   });
-  const failure = outcome.status === 'sent'
+  const rawFailure = outcome.status === 'sent'
     ? null
     : outcome.status === 'failed' ? outcome.error : outcome.reason;
+  const failure = rawFailure === null
+    ? null
+    : /^(?:provider_http_[1-5][0-9]{2}|provider_network_error|provider_not_configured)$/.test(rawFailure)
+      ? rawFailure
+      : 'provider_failure';
 
   const { error: completeError } = await service.rpc('complete_email_delivery', {
     target_dedupe_key: input.dedupeKey,
@@ -196,7 +201,7 @@ async function deliver(
     target_error: failure,
   });
   if (completeError) {
-    console.error(`[email] delivery record failed: ${completeError.message}`);
+    console.error('[email] delivery_record_failed');
   }
 
   return failure ? { status: 'failed', error: failure } : { status: 'sent' };
@@ -236,10 +241,9 @@ async function safely(
       console.error(`[email] ${label} not sent (order:${orderId}): ${result.reason}`);
     }
     return result;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`[email] ${label} failed (order:${orderId}): ${message}`);
-    return { status: 'failed', error: message };
+  } catch {
+    console.error(`[email] ${label} failed (order:${orderId}): unexpected_email_failure`);
+    return { status: 'failed', error: 'unexpected_email_failure' };
   }
 }
 

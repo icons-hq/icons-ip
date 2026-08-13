@@ -44,7 +44,7 @@ export async function sendTransactionalEmail(
 ): Promise<EmailSendOutcome> {
   const config = getEmailProviderConfig();
   if (!config.isConfigured) {
-    console.info(`[email] provider not configured — skipped "${message.subject}"`);
+    console.info('[email] provider_not_configured');
     return { status: 'skipped', reason: 'provider_not_configured' };
   }
 
@@ -68,14 +68,11 @@ export async function sendTransactionalEmail(
     });
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      return { status: 'failed', error: `provider responded ${response.status} ${body}`.slice(0, 500) };
+      // Provider response bodies can echo recipient/content. Keep one stable code only.
+      return { status: 'failed', error: `provider_http_${response.status}` };
     }
     return { status: 'sent' };
-  } catch (error) {
-    return {
-      status: 'failed',
-      error: (error instanceof Error ? error.message : String(error)).slice(0, 500),
-    };
+  } catch {
+    return { status: 'failed', error: 'provider_network_error' };
   }
 }

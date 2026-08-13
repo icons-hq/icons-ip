@@ -1,12 +1,59 @@
 # 트랜잭션 이메일 운영 (#180)
 
-> 상태: Active · 작성 2026-08-07 · 근거: [`first-sale-readiness.md`](./first-sale-readiness.md) §3.4(`N1`·`L4`) · 결정 D8
+> 상태: Legacy Active · #191 Send Email Hook dark deploy 기본 OFF · 작성 2026-08-07 · 갱신 2026-08-13
 > 코드 진실원: `lib/email/*`, `supabase/migrations/20260807130001_transactional_email_deliveries.sql`,
 > `supabase/migrations/20260807140001_email_delivery_admin_ops.sql`,
-> `supabase/migrations/20260807150001_email_resend_order_state_gate.sql`
+> `supabase/migrations/20260807150001_email_resend_order_state_gate.sql`,
+> `supabase/migrations/20260813240000_email_dispatcher_dark.sql`
 
-앱이 직접 보내는 메일이다. Supabase Auth의 가입 확인·비밀번호 재설정 메일과는 **다른 경로**다
-(Auth 메일은 Supabase custom SMTP, 이 메일은 앱 서버의 HTTP 호출).
+현재 앱이 직접 보내는 주문 메일과 Supabase custom SMTP Auth 메일은 그대로 운영한다. #191은
+이를 즉시 교체하지 않고 Send Email Hook successor를 기본 OFF로 먼저 배포한다.
+
+## 0. #191 Send Email Hook dark path
+
+공개 seam은 `EmailDispatcher.enqueue/enqueueAll/dispatch/reduceProviderEvent`다. Auth Hook 요청은
+raw body Standard Webhooks 서명을 검증한 뒤 모든 메시지의 PII-free intent와 fence를 단일 batch
+RPC에서 먼저 commit한다. secure email change의 현재 주소·새 주소 두 intent가 0/2로 저장되기
+전에는 어느 쪽도 Resend로 보내지 않는다.
+
+- recipient, Hook source reference, Resend provider reference는 각각
+  `email:v1:recipient\0`·`email:v1:source\0`·`email:v1:provider\0` domain의 keyed HMAC만 저장한다.
+- subject·본문·raw Hook/webhook payload·provider 오류 본문은 저장하거나 로그하지 않는다.
+- Resend `Idempotency-Key`는 `email/<intent UUID>`로 고정한다. HTTP accepted는 `accepted`일 뿐
+  `delivered`가 아니다.
+- Supabase HTTP Auth Hook의 전체 제한은 5초다. Resend 요청은 2.5초에 중단해 서명·DB 작업
+  예산을 남기고, secure email change 두 발송은 모든 fence commit 후 병렬로 시작한다.
+- Resend가 key를 보존하는 24시간 창을 넘지 않도록 최초 provider claim부터 만료를 기록하고,
+  만료 5분 전부터 자동 retry를 `needs_review`로 막는다.
+- timeout/연결 유실은 같은 key로 제한 시간 안에서 retry하지만, 주소 거절 등 permanent provider
+  failure는 Hook에 503을 돌려 Auth 성공으로 가장하지 않으면서 intent를 `needs_review`로 고정한다.
+  새 provider acceptance와 durable `already_dispatched` replay만 empty HTTP 200으로 닫는다.
+- webhook은 exact raw body Svix 서명과 `svix-id` dedupe를 통과한 최소 projection만 저장한다.
+  reducer는 `sent/delayed/delivered/failed/suppressed/bounced/complained`를 단조 병합한다.
+- signup·email change link는 trusted Auth origin의 정확한 `/auth/callback`, recovery는 정확한
+  `/auth/recovery/callback`만 허용한다. secure email change는 Supabase 계약대로 현재 주소에
+  `token_hash_new`, 새 주소에 `token_hash`를 보낸다.
+
+### 기본 OFF와 활성화 경계
+
+`private.email_dispatch_control.enabled=false`가 기본이다. `hook_contract_ready`,
+`provider_credentials_ready`, `webhook_contract_ready`, `privacy_retention_ready`,
+`account_deletion_notice_ready`가 모두 true가 아니면 DB constraint가 활성화를 거부한다.
+Preview/CI에는 실 Resend/Hook secret을 두지 않고 fake 경로만 검증한다. Hook code/outbox →
+Production dark deploy → masked env/readback → webhook → Auth 4개 흐름과 secure email change 두 통
+실수신 → direct SMTP 0 순으로 확인하기 전에는 Supabase Send Email Hook을 켜거나 기존 SMTP를
+제거하지 않는다.
+
+필요한 server-only env는 `SUPABASE_SEND_EMAIL_HOOK_SECRET`, `EMAIL_DISPATCH_HMAC_SECRET`,
+`RESEND_API_KEY`, `RESEND_FROM`, `RESEND_REPLY_TO`, `RESEND_WEBHOOK_SECRET`이며 endpoint override가
+필요할 때만 `RESEND_API_ENDPOINT`를 쓴다. secret 값은 이 문서·로그·이슈에 남기지 않는다.
+
+legacy `email_deliveries`는 `legacy_unverified`로 분류한다. migration 이후 새 legacy write는
+recipient·subject·오류를 즉시 redaction하며 staff 조회도 masked 값만 반환한다. 기존 평문은
+승인된 cutoff로만 호출하는 private retention hook으로 파기한다. 신규 intent/event도 terminal
+evidence와 unmatched event만 파기하는 private hook을 제공하지만, **정확한 TTL 승인과 #137 탈퇴
+notice producer는 아직 사람 증거가 필요하다.** 따라서 `privacy_retention_ready`와
+`account_deletion_notice_ready`는 false로 유지하고 이 dark PR은 #191을 닫지 않는다.
 
 ---
 
