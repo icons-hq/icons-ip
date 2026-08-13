@@ -13,5 +13,11 @@
     "**/*.spec.ts",
     "**/*.spec.tsx"
   ],
-  "exclude": ["node_modules", ".next/dev/types"]
+  "exclude": [
+    "node_modules",
+    ".next/dev/types",
+    "prototypes/**",
+    ".worktrees/**",
+    ".claude/**"
+  ]
 }
