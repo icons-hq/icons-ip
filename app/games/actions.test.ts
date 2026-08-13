@@ -4,11 +4,13 @@ import { playGameAction } from './actions';
 
 const mocks = vi.hoisted(() => ({
   auth: null as unknown as CurrentAuthState,
+  enabled: true,
   rpc: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => ({ rpc: mocks.rpc }) }));
+vi.mock('@/lib/card-rewards/gate.server', () => ({ readCardRewardsEnabled: () => mocks.enabled }));
 
 function onboardedAuth(): CurrentAuthState {
   return {
@@ -28,7 +30,18 @@ function onboardedAuth(): CurrentAuthState {
 describe('playGameAction', () => {
   beforeEach(() => {
     mocks.auth = onboardedAuth();
+    mocks.enabled = true;
     mocks.rpc.mockReset();
+  });
+
+  it('fails closed before auth or RPC work while rewards are disabled', async () => {
+    mocks.enabled = false;
+
+    await expect(playGameAction('game-1')).resolves.toEqual({
+      ok: false,
+      error: 'rewards_disabled',
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it('rejects a suspended account before game play', async () => {

@@ -27,7 +27,12 @@ export interface PopupGameHost {
 }
 
 /** 원격 playGame 실패 — 게임은 이 코드로 로그인/온보딩 CTA를 분기한다. */
-export type GamePlayErrorCode = 'auth_required' | 'account_suspended' | 'onboarding_required' | 'play_failed';
+export type GamePlayErrorCode =
+  | 'rewards_disabled'
+  | 'auth_required'
+  | 'account_suspended'
+  | 'onboarding_required'
+  | 'play_failed';
 
 export class GamePlayError extends Error {
   constructor(readonly code: GamePlayErrorCode) {

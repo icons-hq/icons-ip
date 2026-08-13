@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { closeEditorialMenu, Nav, shouldHideEditorialHeader } from './Nav';
 import { SiteFooter } from './SiteFooter';
 
-const mocks = vi.hoisted(() => ({ pathname: '/', count: 4 }));
+const mocks = vi.hoisted(() => ({ pathname: '/', count: 4, cardRewardsEnabled: true }));
 
 vi.mock('next/navigation', () => ({
   usePathname: () => mocks.pathname,
@@ -13,6 +13,9 @@ vi.mock('./CartProvider', () => ({ useCart: () => ({ count: mocks.count }) }));
 vi.mock('./useGo', () => ({ useGo: () => vi.fn() }));
 vi.mock('./AuthButton', () => ({ AuthButton: () => <span>ACCOUNT</span> }));
 vi.mock('./NotificationBell', () => ({ NotificationBell: () => <span>NOTIFICATIONS</span> }));
+vi.mock('./CardRewardAvailability', () => ({
+  useCardRewardsEnabled: () => mocks.cardRewardsEnabled,
+}));
 
 describe('Living IP Editorial shell', () => {
   it('leaves the root route chrome to the exact preview home', () => {
@@ -41,6 +44,17 @@ describe('Living IP Editorial shell', () => {
     expect(html).toContain('href="/notifications"');
     expect(html).toContain('aria-label="장바구니, 4개"');
     expect(renderToStaticMarkup(<SiteFooter />)).toContain('class="site-footer-editorial"');
+    mocks.pathname = '/';
+  });
+
+  it('removes card-pack navigation from both header and footer while the gate is disabled', () => {
+    mocks.pathname = '/shop';
+    mocks.cardRewardsEnabled = false;
+
+    expect(renderToStaticMarkup(<Nav />)).not.toContain('href="/packs"');
+    expect(renderToStaticMarkup(<SiteFooter />)).not.toContain('href="/packs"');
+
+    mocks.cardRewardsEnabled = true;
     mocks.pathname = '/';
   });
 

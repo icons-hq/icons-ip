@@ -1,8 +1,13 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogIpDetail } from '@/lib/catalog';
 import type { IpFollowState } from '@/lib/ip-follow';
 import { IpHub } from './IpHub';
+
+const cardRewardGate = vi.hoisted(() => ({ enabled: true }));
+vi.mock('@/components/shell/CardRewardAvailability', () => ({
+  useCardRewardsEnabled: () => cardRewardGate.enabled,
+}));
 
 const actions = vi.hoisted(() => ({
   setPreferences: vi.fn(),
@@ -56,6 +61,10 @@ const detail: CatalogIpDetail = {
   posts: [],
 };
 
+afterEach(() => {
+  cardRewardGate.enabled = true;
+});
+
 function render(
   followState: IpFollowState,
   notificationError = false,
@@ -74,6 +83,14 @@ function render(
 }
 
 describe('IpHub notification preferences', () => {
+  it('hides the card-pack world cell while card rewards are disabled', () => {
+    cardRewardGate.enabled = false;
+    const html = render({ isFollowed: false, notifyDrops: false, notifyEvents: false });
+
+    expect(html).not.toContain('href="/packs"');
+    expect(html).not.toContain('모아요 · 카드팩');
+  });
+
   it('turns the non-followed placeholder into an explicit auto-follow notification action', () => {
     const html = render({ isFollowed: false, notifyDrops: false, notifyEvents: false });
 
