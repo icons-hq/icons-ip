@@ -2,6 +2,9 @@
 
 begin;
 
+update private.community_write_control
+set post_create_enabled = true;
+
 insert into auth.users (
   id,
   aud,

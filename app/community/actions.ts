@@ -50,6 +50,19 @@ export interface CommunityPostEditActionState {
 }
 
 const USER_UPLOADS_BUCKET = 'user-uploads';
+const COMMUNITY_WRITES_DISABLED_MESSAGE =
+  '커뮤니티 글쓰기는 운영 준비 중입니다. 기존 콘텐츠 열람·신고·삭제는 이용할 수 있습니다.';
+
+type CommunityWriteCapability = 'postCreate' | 'postEdit' | 'commentCreate';
+
+async function isCommunityWriteEnabled(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  capability: CommunityWriteCapability,
+) {
+  const { data, error } = await supabase.rpc('community_write_capabilities');
+  if (error || !data || typeof data !== 'object' || Array.isArray(data)) return false;
+  return (data as Record<string, unknown>)[capability] === true;
+}
 
 function readNext(formData: FormData) {
   const value = formData.get('next');
@@ -177,6 +190,10 @@ export async function createCommunityPostAction(
   if (!normalized.ok) return { errors: normalized.errors };
 
   const supabase = await createClient();
+  if (!await isCommunityWriteEnabled(supabase, 'postCreate')) {
+    return { errors: { form: COMMUNITY_WRITES_DISABLED_MESSAGE } };
+  }
+
   const { text, ipId, tag, image } = normalized.value;
   let imagePath: string | null = null;
 
@@ -237,6 +254,10 @@ export async function editCommunityPostAction(
 
   const catalog = await getCatalogSnapshot();
   const supabase = await createClient();
+  if (!await isCommunityWriteEnabled(supabase, 'postEdit')) {
+    return { errors: { form: COMMUNITY_WRITES_DISABLED_MESSAGE } };
+  }
+
   const postId = normalizeCommunityUuid(formData.get('postId'));
   const allowedIpIds = new Set(catalog.ips.map((ip) => ip.id));
 
@@ -292,6 +313,10 @@ export async function createCommunityCommentAction(
   if (!normalized.ok) return { errors: normalized.errors };
 
   const supabase = await createClient();
+  if (!await isCommunityWriteEnabled(supabase, 'commentCreate')) {
+    return { errors: { form: COMMUNITY_WRITES_DISABLED_MESSAGE } };
+  }
+
   const { error, data } = await supabase.rpc('create_post_comment', {
     target_post_id: normalized.value.postId,
     comment_text: normalized.value.text,
