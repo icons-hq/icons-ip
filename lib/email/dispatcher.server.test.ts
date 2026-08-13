@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     enqueueAll: vi.fn(),
     claimDispatch: vi.fn(),
     recordAccepted: vi.fn(),
+    recoverAcceptedPersistence: vi.fn(),
     recordDispatchFailure: vi.fn(),
     reduceProviderEvent: vi.fn(),
   },

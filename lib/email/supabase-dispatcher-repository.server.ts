@@ -98,6 +98,7 @@ function parseClaim(value: unknown): DispatchClaim {
     return {
       kind,
       intentId: uuid(row.intentId),
+      claimId: uuid(row.claimId),
       idempotencyKey: text(row.idempotencyKey),
     };
   }
@@ -129,6 +130,19 @@ function parseFailure(value: unknown): {
     state: nextState as 'queued' | 'unknown' | 'needs_review' | 'failed',
     retryable: row.retryable,
   };
+}
+
+function parseAcceptanceRecovery(value: unknown):
+  | { kind: 'released'; state: 'unknown' }
+  | { kind: 'preserved'; state: EmailDeliveryState } {
+  const row = object(value);
+  const kind = text(row.kind, 16);
+  const recoveredState = state(row.state);
+  if (kind === 'released' && recoveredState === 'unknown') {
+    return { kind, state: recoveredState };
+  }
+  if (kind === 'preserved') return { kind, state: recoveredState };
+  return invalid();
 }
 
 function parseReduced(value: unknown): ReduceProviderEventOutcome {
@@ -180,6 +194,16 @@ export function createSupabaseEmailDispatcherRepository(
         target_intent_id: input.intentId,
         target_provider_reference_digest: digest('provider', input.providerReference),
       }));
+    },
+    async recoverAcceptedPersistence(input) {
+      return parseAcceptanceRecovery(await rpc(
+        service,
+        'recover_email_acceptance_persistence_failure',
+        {
+          target_intent_id: input.intentId,
+          target_claim_id: input.claimId,
+        },
+      ));
     },
     async recordDispatchFailure(input): Promise<{
       state: 'queued' | 'unknown' | 'needs_review' | 'failed';

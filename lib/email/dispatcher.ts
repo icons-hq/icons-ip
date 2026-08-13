@@ -53,7 +53,7 @@ export interface DispatchEmailInput {
 }
 
 export type DispatchClaim =
-  | { kind: 'claimed'; intentId: string; idempotencyKey: string }
+  | { kind: 'claimed'; intentId: string; claimId: string; idempotencyKey: string }
   | { kind: 'disabled' | 'already_dispatched' | 'in_progress' | 'needs_review'; state: EmailDeliveryState };
 
 export type DispatchOutcome =
@@ -73,6 +73,21 @@ export type EmailProviderEventType =
   | 'failed';
 
 export type ProviderAcceptedState = 'accepted' | EmailProviderEventType;
+
+const PROVIDER_ACCEPTED_STATES = new Set<EmailDeliveryState>([
+  'accepted',
+  'sent',
+  'delivered',
+  'delayed',
+  'bounced',
+  'complained',
+  'suppressed',
+  'failed',
+]);
+
+function isProviderAcceptedState(state: EmailDeliveryState): state is ProviderAcceptedState {
+  return PROVIDER_ACCEPTED_STATES.has(state);
+}
 
 export interface ReduceProviderEventInput {
   svixId: string;
@@ -96,6 +111,13 @@ export interface EmailDispatcherRepository {
     intentId: string;
     providerReference: string;
   }): Promise<{ state: ProviderAcceptedState | 'needs_review' }>;
+  recoverAcceptedPersistence(input: {
+    intentId: string;
+    claimId: string;
+  }): Promise<
+    | { kind: 'released'; state: 'unknown' }
+    | { kind: 'preserved'; state: EmailDeliveryState }
+  >;
   recordDispatchFailure(input: {
     intentId: string;
     failure: 'retryable' | 'ambiguous' | 'permanent';
@@ -156,8 +178,27 @@ export function createEmailDispatcher(dependencies: {
           }
           return { kind: 'accepted', state: recorded.state };
         } catch {
-          // The provider may already have accepted the request. Returning retry makes the
-          // upstream Hook replay the same durable intent and Resend idempotency key.
+          // If acceptance did not commit, release only this exact dispatch claim so the
+          // Hook can immediately replay the durable Resend idempotency key. If it did
+          // commit before the response was lost, the guarded recovery returns the
+          // accepted lifecycle state without overwriting it.
+          try {
+            const recovered = await dependencies.repository.recoverAcceptedPersistence({
+              intentId: input.intentId,
+              claimId: claim.claimId,
+            });
+            if (recovered.kind === 'preserved') {
+              if (recovered.state === 'needs_review') {
+                return { kind: 'needs_review', state: 'needs_review' };
+              }
+              if (isProviderAcceptedState(recovered.state)) {
+                return { kind: 'accepted', state: recovered.state };
+              }
+            }
+          } catch {
+            // The lease remains a safe fallback. A later Hook replay can reclaim it
+            // after the bounded lease rather than risking a non-idempotent send.
+          }
           return { kind: 'retry', state: 'unknown' };
         }
       }

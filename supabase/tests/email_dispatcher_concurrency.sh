@@ -35,7 +35,9 @@ where intent_id in (
     and source_reference_digest in (
       decode(repeat('10', 32), 'hex'),
       decode(repeat('20', 32), 'hex'),
-      decode(repeat('30', 32), 'hex')
+      decode(repeat('30', 32), 'hex'),
+      decode(repeat('40', 32), 'hex'),
+      decode(repeat('50', 32), 'hex')
     )
 );
 delete from private.email_intents
@@ -43,7 +45,9 @@ where source = 'auth_hook'
   and source_reference_digest in (
     decode(repeat('10', 32), 'hex'),
     decode(repeat('20', 32), 'hex'),
-    decode(repeat('30', 32), 'hex')
+    decode(repeat('30', 32), 'hex'),
+    decode(repeat('40', 32), 'hex'),
+    decode(repeat('50', 32), 'hex')
   );
 update private.email_dispatch_control set
   enabled = false,
@@ -347,3 +351,147 @@ if [[ "$replay" != "duplicate" ]]; then
   exit 1
 fi
 echo "PASS=post-race-replay-is-idempotent"
+
+# If acceptance commits but its client response is lost, guarded recovery waits
+# for the intent row and preserves accepted instead of downgrading it.
+commit_recovery_intent="$(enqueue_claimed_intent '40' '41')"
+commit_recovery_claim="$(psql_scalar "
+  set role service_role;
+  select public.claim_email_intent_dispatch(
+    '${commit_recovery_intent}'::uuid, repeat('41', 32)
+  ) ->> 'claimId';
+  reset role;
+")"
+commit_holder_app="${test_prefix}-accept-commit-holder"
+commit_recovery_app="${test_prefix}-accept-commit-recovery"
+commit_holder_log="${work_dir}/accept-commit-holder.log"
+commit_recovery_log="${work_dir}/accept-commit-recovery.log"
+
+docker exec -e PGAPPNAME="$commit_holder_app" -i "$db_container" \
+  psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t >"$commit_holder_log" 2>&1 <<SQL &
+begin;
+set local role service_role;
+select public.record_email_intent_accepted(
+  '${commit_recovery_intent}'::uuid, repeat('d4', 32)
+);
+select pg_catalog.pg_sleep(2);
+commit;
+SQL
+commit_holder_pid=$!
+wait_for_backend_wait "$commit_holder_app" "Timeout" "$commit_holder_pid" "$commit_holder_log"
+
+docker exec -e PGAPPNAME="$commit_recovery_app" -i "$db_container" \
+  psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t >"$commit_recovery_log" 2>&1 <<SQL &
+set role service_role;
+select public.recover_email_acceptance_persistence_failure(
+  '${commit_recovery_intent}'::uuid, '${commit_recovery_claim}'::uuid
+);
+SQL
+commit_recovery_pid=$!
+wait_for_backend_wait "$commit_recovery_app" "Lock" "$commit_recovery_pid" "$commit_recovery_log"
+wait "$commit_holder_pid"
+wait "$commit_recovery_pid"
+
+grep -q '"kind": "preserved"' "$commit_recovery_log"
+grep -q '"state": "accepted"' "$commit_recovery_log"
+if [[ "$(psql_scalar "
+  select count(*) from private.email_intents
+  where id = '${commit_recovery_intent}'::uuid
+    and state = 'accepted'
+    and provider_reference_digest = decode(repeat('d4', 32), 'hex')
+")" != "1" ]]; then
+  echo "acceptance recovery downgraded a committed provider acceptance" >&2
+  exit 1
+fi
+echo "PASS=acceptance-commit-wins-recovery"
+
+# If the acceptance transaction rolls back, recovery waits for the same row and
+# releases only the exact claim to unknown. Dispatch metadata and the fence stay
+# byte-for-byte stable, so an immediate same-key retry remains auditable.
+rollback_recovery_intent="$(enqueue_claimed_intent '50' '51')"
+rollback_recovery_claim="$(psql_scalar "
+  set role service_role;
+  select public.claim_email_intent_dispatch(
+    '${rollback_recovery_intent}'::uuid, repeat('51', 32)
+  ) ->> 'claimId';
+  reset role;
+")"
+rollback_invariants_before="$(psql_scalar "
+  select pg_catalog.jsonb_build_object(
+    'attemptCount', intent.attempt_count,
+    'claimedAt', intent.claimed_at,
+    'firstDispatchedAt', intent.first_dispatched_at,
+    'idempotencyExpiresAt', intent.idempotency_expires_at,
+    'providerReferenceDigest', pg_catalog.encode(intent.provider_reference_digest, 'hex'),
+    'fence', (
+      select pg_catalog.to_jsonb(fence) - 'intent_id'
+      from private.email_intent_fences as fence
+      where fence.intent_id = intent.id
+    )
+  )::text
+  from private.email_intents as intent
+  where intent.id = '${rollback_recovery_intent}'::uuid
+")"
+rollback_holder_app="${test_prefix}-accept-rollback-holder"
+rollback_recovery_app="${test_prefix}-accept-rollback-recovery"
+rollback_holder_log="${work_dir}/accept-rollback-holder.log"
+rollback_recovery_log="${work_dir}/accept-rollback-recovery.log"
+
+docker exec -e PGAPPNAME="$rollback_holder_app" -i "$db_container" \
+  psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t >"$rollback_holder_log" 2>&1 <<SQL &
+begin;
+set local role service_role;
+select public.record_email_intent_accepted(
+  '${rollback_recovery_intent}'::uuid, repeat('e5', 32)
+);
+select pg_catalog.pg_sleep(2);
+rollback;
+SQL
+rollback_holder_pid=$!
+wait_for_backend_wait "$rollback_holder_app" "Timeout" "$rollback_holder_pid" "$rollback_holder_log"
+
+docker exec -e PGAPPNAME="$rollback_recovery_app" -i "$db_container" \
+  psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t >"$rollback_recovery_log" 2>&1 <<SQL &
+set role service_role;
+select public.recover_email_acceptance_persistence_failure(
+  '${rollback_recovery_intent}'::uuid, '${rollback_recovery_claim}'::uuid
+);
+SQL
+rollback_recovery_pid=$!
+wait_for_backend_wait "$rollback_recovery_app" "Lock" "$rollback_recovery_pid" "$rollback_recovery_log"
+wait "$rollback_holder_pid"
+wait "$rollback_recovery_pid"
+
+grep -q '"kind": "released"' "$rollback_recovery_log"
+grep -q '"state": "unknown"' "$rollback_recovery_log"
+rollback_invariants_after="$(psql_scalar "
+  select pg_catalog.jsonb_build_object(
+    'attemptCount', intent.attempt_count,
+    'claimedAt', intent.claimed_at,
+    'firstDispatchedAt', intent.first_dispatched_at,
+    'idempotencyExpiresAt', intent.idempotency_expires_at,
+    'providerReferenceDigest', pg_catalog.encode(intent.provider_reference_digest, 'hex'),
+    'fence', (
+      select pg_catalog.to_jsonb(fence) - 'intent_id'
+      from private.email_intent_fences as fence
+      where fence.intent_id = intent.id
+    )
+  )::text
+  from private.email_intents as intent
+  where intent.id = '${rollback_recovery_intent}'::uuid
+")"
+if [[ "$rollback_invariants_after" != "$rollback_invariants_before" ]]; then
+  echo "rollback recovery changed dispatch metadata or the intent fence" >&2
+  exit 1
+fi
+if [[ "$(psql_scalar "
+  select count(*) from private.email_intents
+  where id = '${rollback_recovery_intent}'::uuid
+    and state = 'unknown'
+    and dispatch_claim_id is null
+    and provider_reference_digest is null
+")" != "1" ]]; then
+  echo "rollback recovery did not release the exact uncommitted acceptance claim" >&2
+  exit 1
+fi
+echo "PASS=acceptance-rollback-releases-exact-claim"

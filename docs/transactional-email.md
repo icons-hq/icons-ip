@@ -4,7 +4,8 @@
 > 코드 진실원: `lib/email/*`, `supabase/migrations/20260807130001_transactional_email_deliveries.sql`,
 > `supabase/migrations/20260807140001_email_delivery_admin_ops.sql`,
 > `supabase/migrations/20260807150001_email_resend_order_state_gate.sql`,
-> `supabase/migrations/20260813240000_email_dispatcher_dark.sql`
+> `supabase/migrations/20260813240000_email_dispatcher_dark.sql`,
+> `supabase/migrations/20260813241000_email_dispatch_acceptance_recovery.sql`
 
 현재 앱이 직접 보내는 주문 메일과 Supabase custom SMTP Auth 메일은 그대로 운영한다. #191은
 이를 즉시 교체하지 않고 Send Email Hook successor를 기본 OFF로 먼저 배포한다.
@@ -28,6 +29,10 @@ RPC에서 먼저 commit한다. secure email change의 현재 주소·새 주소 
 - timeout/연결 유실은 같은 key로 제한 시간 안에서 retry하지만, 주소 거절 등 permanent provider
   failure는 Hook에 503을 돌려 Auth 성공으로 가장하지 않으면서 intent를 `needs_review`로 고정한다.
   새 provider acceptance와 durable `already_dispatched` replay만 empty HTTP 200으로 닫는다.
+- Resend accepted 뒤 DB acceptance 기록이 실패하면 exact dispatch claim만 `unknown`으로 전이해 다음
+  Hook replay가 즉시 같은 idempotency key를 재사용한다. 실제 DB commit 뒤 응답만 유실된 경우에는
+  row lock 뒤 확인한 `accepted` 또는 더 강한 lifecycle 상태를 보존해 재발송하지 않는다. 복구 RPC도
+  실패하면 fresh lease를 유지하고 10분 후 reclaim하는 보수적 fallback을 쓴다.
 - Hook과 webhook은 `Content-Length`와 실제 stream을 모두 64 KiB로 제한한 뒤 exact raw body
   서명을 검증한다. Auth parser가 소비하는 bounded scalar의 합은 5 KiB 미만이고 Resend lifecycle
   projection은 1 KiB 미만이므로 64 KiB는 10배 이상의 정상 계약 headroom을 두면서 5초 Hook 예산의

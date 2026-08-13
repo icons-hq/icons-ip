@@ -1,11 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createEmailDispatcher,
+  type EmailDeliveryState,
   type EmailDispatcherRepository,
   type EmailProvider,
+  type ProviderAcceptedState,
 } from './dispatcher';
 
 const INTENT_ID = '9b15cb25-98d8-4d9b-84e9-128e421430f5';
+const CLAIM_ID = '2decd9f6-7ebf-4b47-9392-d6658bf530ad';
 
 function repository(overrides: Partial<EmailDispatcherRepository> = {}): EmailDispatcherRepository {
   return {
@@ -22,9 +25,11 @@ function repository(overrides: Partial<EmailDispatcherRepository> = {}): EmailDi
     claimDispatch: vi.fn().mockResolvedValue({
       kind: 'claimed',
       intentId: INTENT_ID,
+      claimId: CLAIM_ID,
       idempotencyKey: `email/${INTENT_ID}`,
     }),
     recordAccepted: vi.fn().mockResolvedValue({ state: 'accepted' }),
+    recoverAcceptedPersistence: vi.fn().mockResolvedValue({ kind: 'released', state: 'unknown' }),
     recordDispatchFailure: vi.fn().mockResolvedValue({ state: 'unknown', retryable: true }),
     reduceProviderEvent: vi.fn().mockResolvedValue({
       kind: 'reduced', state: 'delivered', intentId: INTENT_ID,
@@ -143,9 +148,123 @@ describe('EmailDispatcher.dispatch', () => {
     })).resolves.toEqual({ kind: 'needs_review', state: 'needs_review' });
   });
 
-  it('asks the hook to retry with the same idempotency key when acceptance persistence is lost', async () => {
+  it('releases a lost acceptance write so an immediate Hook replay reuses the same idempotency key', async () => {
+    const claimDispatch = vi.fn()
+      .mockResolvedValueOnce({
+        kind: 'claimed', intentId: INTENT_ID, claimId: CLAIM_ID,
+        idempotencyKey: `email/${INTENT_ID}`,
+      })
+      .mockResolvedValueOnce({
+        kind: 'claimed', intentId: INTENT_ID,
+        claimId: 'eff6f95a-d8ee-4ac7-b449-2e8877444b83',
+        idempotencyKey: `email/${INTENT_ID}`,
+      });
     const repo = repository({
+      claimDispatch,
       recordAccepted: vi.fn().mockRejectedValue(new Error('database unavailable')),
+    });
+    const emailProvider = provider();
+    const dispatcher = createEmailDispatcher({ repository: repo, provider: emailProvider });
+
+    const input = {
+      intentId: INTENT_ID,
+      recipient: 'member@example.test',
+      message: { subject: '확인', text: '확인', html: '<p>확인</p>' },
+    };
+
+    await expect(dispatcher.dispatch(input)).resolves.toEqual({ kind: 'retry', state: 'unknown' });
+    await expect(dispatcher.dispatch(input)).resolves.toEqual({ kind: 'retry', state: 'unknown' });
+
+    expect(repo.recoverAcceptedPersistence).toHaveBeenNthCalledWith(1, {
+      intentId: INTENT_ID,
+      claimId: CLAIM_ID,
+    });
+    expect(emailProvider.send).toHaveBeenCalledTimes(2);
+    expect(emailProvider.send).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      idempotencyKey: `email/${INTENT_ID}`,
+    }));
+    expect(emailProvider.send).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      idempotencyKey: `email/${INTENT_ID}`,
+    }));
+  });
+
+  it('does not overwrite acceptance that committed before the database response was lost', async () => {
+    const repo = repository({
+      recordAccepted: vi.fn().mockRejectedValue(new Error('response lost after commit')),
+      recoverAcceptedPersistence: vi.fn().mockResolvedValue({
+        kind: 'preserved', state: 'accepted',
+      }),
+    });
+    const emailProvider = provider();
+    const dispatcher = createEmailDispatcher({ repository: repo, provider: emailProvider });
+
+    await expect(dispatcher.dispatch({
+      intentId: INTENT_ID,
+      recipient: 'member@example.test',
+      message: { subject: '확인', text: '확인', html: '<p>확인</p>' },
+    })).resolves.toEqual({ kind: 'accepted', state: 'accepted' });
+
+    expect(repo.recoverAcceptedPersistence).toHaveBeenCalledWith({
+      intentId: INTENT_ID,
+      claimId: CLAIM_ID,
+    });
+    expect(emailProvider.send).toHaveBeenCalledOnce();
+  });
+
+  it.each<ProviderAcceptedState>([
+    'accepted', 'sent', 'delivered', 'delayed', 'bounced',
+    'complained', 'suppressed', 'failed',
+  ])('acknowledges a preserved %s lifecycle after an acceptance response loss', async (state) => {
+    const repo = repository({
+      recordAccepted: vi.fn().mockRejectedValue(new Error('response lost after commit')),
+      recoverAcceptedPersistence: vi.fn().mockResolvedValue({ kind: 'preserved', state }),
+    });
+    const dispatcher = createEmailDispatcher({ repository: repo, provider: provider() });
+
+    await expect(dispatcher.dispatch({
+      intentId: INTENT_ID,
+      recipient: 'member@example.test',
+      message: { subject: '확인', text: '확인', html: '<p>확인</p>' },
+    })).resolves.toEqual({ kind: 'accepted', state });
+  });
+
+  it.each<EmailDeliveryState>(['queued', 'unknown', 'dispatching'])(
+    'retries when acceptance recovery preserves non-terminal %s state',
+    async (state) => {
+      const repo = repository({
+        recordAccepted: vi.fn().mockRejectedValue(new Error('acceptance persistence failed')),
+        recoverAcceptedPersistence: vi.fn().mockResolvedValue({ kind: 'preserved', state }),
+      });
+      const dispatcher = createEmailDispatcher({ repository: repo, provider: provider() });
+
+      await expect(dispatcher.dispatch({
+        intentId: INTENT_ID,
+        recipient: 'member@example.test',
+        message: { subject: '확인', text: '확인', html: '<p>확인</p>' },
+      })).resolves.toEqual({ kind: 'retry', state: 'unknown' });
+    },
+  );
+
+  it('stops retries when acceptance recovery preserves needs_review', async () => {
+    const repo = repository({
+      recordAccepted: vi.fn().mockRejectedValue(new Error('acceptance persistence failed')),
+      recoverAcceptedPersistence: vi.fn().mockResolvedValue({
+        kind: 'preserved', state: 'needs_review',
+      }),
+    });
+    const dispatcher = createEmailDispatcher({ repository: repo, provider: provider() });
+
+    await expect(dispatcher.dispatch({
+      intentId: INTENT_ID,
+      recipient: 'member@example.test',
+      message: { subject: '확인', text: '확인', html: '<p>확인</p>' },
+    })).resolves.toEqual({ kind: 'needs_review', state: 'needs_review' });
+  });
+
+  it('returns retry and leaves the lease fallback intact when recovery also fails', async () => {
+    const repo = repository({
+      recordAccepted: vi.fn().mockRejectedValue(new Error('acceptance persistence failed')),
+      recoverAcceptedPersistence: vi.fn().mockRejectedValue(new Error('recovery persistence failed')),
     });
     const dispatcher = createEmailDispatcher({ repository: repo, provider: provider() });
 
@@ -154,6 +273,11 @@ describe('EmailDispatcher.dispatch', () => {
       recipient: 'member@example.test',
       message: { subject: '확인', text: '확인', html: '<p>확인</p>' },
     })).resolves.toEqual({ kind: 'retry', state: 'unknown' });
+
+    expect(repo.recoverAcceptedPersistence).toHaveBeenCalledWith({
+      intentId: INTENT_ID,
+      claimId: CLAIM_ID,
+    });
   });
 
   it('does not contact the provider while the database activation gate is off', async () => {

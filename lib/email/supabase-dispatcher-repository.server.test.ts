@@ -118,6 +118,7 @@ describe('Supabase EmailDispatcher repository adapter', () => {
       data: {
         kind: 'claimed',
         intentId: '9b15cb25-98d8-4d9b-84e9-128e421430f5',
+        claimId: '2decd9f6-7ebf-4b47-9392-d6658bf530ad',
         idempotencyKey: 'email/9b15cb25-98d8-4d9b-84e9-128e421430f5',
       },
       error: null,
@@ -130,6 +131,7 @@ describe('Supabase EmailDispatcher repository adapter', () => {
     })).resolves.toEqual({
       kind: 'claimed',
       intentId: '9b15cb25-98d8-4d9b-84e9-128e421430f5',
+      claimId: '2decd9f6-7ebf-4b47-9392-d6658bf530ad',
       idempotencyKey: 'email/9b15cb25-98d8-4d9b-84e9-128e421430f5',
     });
     expect(mocks.rpc).toHaveBeenCalledWith('claim_email_intent_dispatch', {
@@ -195,6 +197,27 @@ describe('Supabase EmailDispatcher repository adapter', () => {
       intentId: '9b15cb25-98d8-4d9b-84e9-128e421430f5',
       providerReference: 'provider-message-1',
     })).resolves.toEqual({ state: 'delivered' });
+  });
+
+  it('recovers a lost acceptance write with claim identity and no provider payload', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: { kind: 'released', state: 'unknown' },
+      error: null,
+    });
+    const repository = createSupabaseEmailDispatcherRepository();
+
+    await expect(repository.recoverAcceptedPersistence({
+      intentId: '9b15cb25-98d8-4d9b-84e9-128e421430f5',
+      claimId: '2decd9f6-7ebf-4b47-9392-d6658bf530ad',
+    })).resolves.toEqual({ kind: 'released', state: 'unknown' });
+
+    expect(mocks.rpc).toHaveBeenCalledWith(
+      'recover_email_acceptance_persistence_failure',
+      {
+        target_intent_id: '9b15cb25-98d8-4d9b-84e9-128e421430f5',
+        target_claim_id: '2decd9f6-7ebf-4b47-9392-d6658bf530ad',
+      },
+    );
   });
 
   it('keeps a durable needs-review response instead of retrying a reference conflict', async () => {
