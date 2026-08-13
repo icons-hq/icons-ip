@@ -5,11 +5,11 @@ import {
   AUTH_CALLBACK_PATH,
   AUTH_NEXT_COOKIE_NAME,
   authErrorLoginPath,
-  authNextPathFromCookie,
   isAccountSuspended,
   isOnboarded,
   onboardingPath,
   passwordResetErrorLoginPath,
+  publicPasswordRecoveryErrorCode,
   safeNextPath,
   updatePasswordSessionReadyPath,
 } from '@/lib/auth/onboarding';
@@ -35,6 +35,9 @@ function redirectTo(
   authResponse?.headers.forEach((value, name) => {
     response.headers.set(name, value);
   });
+  if (!response.headers.has('cache-control')) {
+    response.headers.set('cache-control', 'private, no-store');
+  }
   if (clearAuthNext) {
     response.cookies.set(AUTH_NEXT_COOKIE_NAME, '', { path: AUTH_CALLBACK_PATH, maxAge: 0 });
   }
@@ -45,73 +48,94 @@ function callbackState(request: NextRequest) {
   const cookieValue = request.cookies.get(AUTH_NEXT_COOKIE_NAME)?.value;
   const signedState = authNextStateFromCookie(cookieValue, Date.now(), authCookieSecret());
   const queryNext = request.nextUrl.searchParams.get('next');
-  const fallbackNext = queryNext !== null
-    ? safeNextPath(queryNext)
-    : authNextPathFromCookie(cookieValue);
 
   return {
-    fallbackNext,
-    recoveryNext: signedState?.purpose === 'recovery' ? signedState.next : '/',
+    legacyRecoveryNext: signedState?.purpose === 'recovery' ? signedState.next : '/',
     loginNext: queryNext !== null
       ? safeNextPath(queryNext)
       : signedState?.purpose === 'signup' || signedState?.purpose === 'oauth'
         ? signedState.next
-        : fallbackNext,
+        : '/',
     signedState,
   };
+}
+
+function isRecoveryExchange(data: unknown) {
+  return Boolean(
+    data
+    && typeof data === 'object'
+    && 'redirectType' in data
+    && data.redirectType === 'recovery',
+  );
+}
+
+async function clearExchangedSession(
+  supabase: { auth: { signOut: (options: { scope: 'local' }) => Promise<unknown> } },
+  authResponse: AuthResponseState,
+) {
+  try {
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch {
+    // The response cookies below are still expired if local cleanup fails.
+  }
+  authResponse.cookies.forEach(({ options }, name) => {
+    authResponse.cookies.set(name, {
+      value: '',
+      options: { ...options, expires: new Date(0), maxAge: 0 },
+    });
+  });
 }
 
 function errorRedirect(
   request: NextRequest,
   code: string,
-  recovery: boolean,
   next: string,
   authResponse?: AuthResponseState,
 ) {
   return redirectTo(
     request,
-    recovery ? passwordResetErrorLoginPath(code, next) : authErrorLoginPath(code, next),
-    !recovery,
+    authErrorLoginPath(code, next),
+    true,
     authResponse,
   );
-}
-
-function isRecoveryExchange(data: unknown) {
-  // auth-js returns redirectType at runtime, but its public AuthTokenResponse type omits the field.
-  return Boolean(data && typeof data === 'object' && 'redirectType' in data && data.redirectType === 'recovery');
 }
 
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get('code');
   const state = callbackState(request);
-  const markedRecovery = state.signedState?.purpose === 'recovery';
   const providerError = request.nextUrl.searchParams.get('error_code') ?? request.nextUrl.searchParams.get('error');
 
   if (providerError) {
-    return errorRedirect(
-      request,
-      providerError,
-      markedRecovery,
-      markedRecovery ? state.recoveryNext : state.loginNext,
-    );
+    if (state.signedState?.purpose === 'recovery') {
+      return redirectTo(
+        request,
+        passwordResetErrorLoginPath(
+          publicPasswordRecoveryErrorCode(providerError),
+          state.legacyRecoveryNext,
+        ),
+      );
+    }
+    return errorRedirect(request, providerError, state.loginNext);
   }
   if (!code) {
-    return errorRedirect(
-      request,
-      'missing_code',
-      markedRecovery,
-      markedRecovery ? state.recoveryNext : state.loginNext,
-    );
+    if (state.signedState?.purpose === 'recovery') {
+      return redirectTo(
+        request,
+        passwordResetErrorLoginPath('missing_code', state.legacyRecoveryNext),
+      );
+    }
+    return errorRedirect(request, 'missing_code', state.loginNext);
   }
 
   const { isConfigured, key, url } = getSupabaseConfig();
   if (!isConfigured || !url || !key) {
-    return errorRedirect(
-      request,
-      'provider_disabled',
-      markedRecovery,
-      markedRecovery ? state.recoveryNext : state.loginNext,
-    );
+    if (state.signedState?.purpose === 'recovery') {
+      return redirectTo(
+        request,
+        passwordResetErrorLoginPath('recovery_unavailable', state.legacyRecoveryNext),
+      );
+    }
+    return errorRedirect(request, 'provider_disabled', state.loginNext);
   }
 
   const authResponse: AuthResponseState = {
@@ -136,36 +160,53 @@ export async function GET(request: NextRequest) {
   });
   const { data: exchangeData, error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
-    return errorRedirect(
+    if (state.signedState?.purpose === 'recovery') {
+      return redirectTo(
+        request,
+        passwordResetErrorLoginPath(
+          publicPasswordRecoveryErrorCode(error.code),
+          state.legacyRecoveryNext,
+        ),
+        true,
+        authResponse,
+      );
+    }
+    return errorRedirect(request, error.code ?? 'exchange_failed', state.loginNext, authResponse);
+  }
+
+  if (isRecoveryExchange(exchangeData) && state.signedState?.purpose !== 'recovery') {
+    await clearExchangedSession(supabase, authResponse);
+    return redirectTo(
       request,
-      error.code ?? 'exchange_failed',
-      markedRecovery,
-      markedRecovery ? state.recoveryNext : state.loginNext,
+      passwordResetErrorLoginPath('browser_mismatch'),
+      true,
       authResponse,
     );
   }
 
-  const recovery = isRecoveryExchange(exchangeData);
-  const next = recovery ? state.recoveryNext : state.loginNext;
-
   const { data, error: userError } = await supabase.auth.getUser();
   if (userError || !data.user) {
-    try {
-      await supabase.auth.signOut({ scope: 'local' });
-    } catch {
-      // The response cookies below are still expired even if local cleanup fails.
+    await clearExchangedSession(supabase, authResponse);
+    if (state.signedState?.purpose === 'recovery' && isRecoveryExchange(exchangeData)) {
+      return redirectTo(
+        request,
+        passwordResetErrorLoginPath('session_not_found', state.legacyRecoveryNext),
+        true,
+        authResponse,
+      );
     }
-    authResponse.cookies.forEach(({ options }, name) => {
-      authResponse.cookies.set(name, {
-        value: '',
-        options: { ...options, expires: new Date(0), maxAge: 0 },
-      });
-    });
-    return errorRedirect(request, 'exchange_failed', recovery, next, authResponse);
+    return errorRedirect(request, 'exchange_failed', state.loginNext, authResponse);
   }
 
-  if (recovery) {
-    return redirectTo(request, updatePasswordSessionReadyPath(next), false, authResponse);
+  // Keep links issued before the dedicated callback rollout usable for one Auth-link TTL.
+  // redirectType is only a local PKCE marker, so it never authorizes recovery by itself.
+  if (state.signedState?.purpose === 'recovery' && isRecoveryExchange(exchangeData)) {
+    return redirectTo(
+      request,
+      updatePasswordSessionReadyPath(state.legacyRecoveryNext),
+      true,
+      authResponse,
+    );
   }
 
   const profile = await getProfileForUser(supabase, data.user.id);
@@ -174,8 +215,8 @@ export async function GET(request: NextRequest) {
     isAccountSuspended(profile)
       ? ACCOUNT_SUSPENDED_PATH
       : isOnboarded(profile, data.user.email)
-        ? next
-        : onboardingPath(next),
+        ? state.loginNext
+        : onboardingPath(state.loginNext),
     true,
     authResponse,
   );

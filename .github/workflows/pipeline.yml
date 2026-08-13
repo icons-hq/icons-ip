@@ -139,12 +139,19 @@ jobs:
           SITE_URL: https://iconsip.com
           REQUIRE_SMTP: "true"
           ENFORCE_MAILER: "true"
+          EMAIL_OTP_EXPIRY_SECONDS: "3600"
+          RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
           REDIRECT_URLS: |
             https://iconsip.com/auth/callback
+            https://iconsip.com/auth/recovery/callback
             https://www.iconsip.com/auth/callback
+            https://www.iconsip.com/auth/recovery/callback
             https://icons-ip.vercel.app/auth/callback
+            https://icons-ip.vercel.app/auth/recovery/callback
             http://localhost:3000/auth/callback
+            http://localhost:3000/auth/recovery/callback
             http://127.0.0.1:3000/auth/callback
+            http://127.0.0.1:3000/auth/recovery/callback
           PRUNE_REDIRECT_URLS: |
             https://icons-ip-*.vercel.app/auth/callback
         run: node scripts/sync-supabase-auth.mjs
@@ -235,13 +242,21 @@ jobs:
           SITE_URL: https://icons-ip.vercel.app
           REQUIRE_SMTP: "false"
           ENFORCE_MAILER: "false"
+          EMAIL_OTP_EXPIRY_SECONDS: "3600"
+          RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
           REDIRECT_URLS: |
             https://icons-ip.vercel.app/auth/callback
+            https://icons-ip.vercel.app/auth/recovery/callback
             https://icons-hongshil-vn.vercel.app/auth/callback
+            https://icons-hongshil-vn.vercel.app/auth/recovery/callback
             https://icons-*-sangwopark19icons-1055s-projects.vercel.app/auth/callback
+            https://icons-*-sangwopark19icons-1055s-projects.vercel.app/auth/recovery/callback
             https://icons-git-*-sangwopark19icons-1055s-projects.vercel.app/auth/callback
+            https://icons-git-*-sangwopark19icons-1055s-projects.vercel.app/auth/recovery/callback
             http://localhost:3000/auth/callback
+            http://localhost:3000/auth/recovery/callback
             http://127.0.0.1:3000/auth/callback
+            http://127.0.0.1:3000/auth/recovery/callback
         run: node scripts/sync-supabase-auth.mjs
 
       - name: Link Supabase preview project

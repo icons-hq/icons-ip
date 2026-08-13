@@ -28,7 +28,7 @@
 | 셸 | Nav · MobNav · SiteFooter · CartProvider · AuthPresenceProvider · 로그인 사용자 unread-count 알림 벨 · `useGo` | `components/shell/*` |
 | 라우팅 맵 | 프로토타입 route-id ↔ 경로 | `lib/routes.ts` |
 | 데이터 | Supabase 공개 카탈로그(보관 항목 제외)와 현재 활성 홈 히어로·공지·특집 IP, 커뮤니티 visible 전체 피드·본인 `ip_follows` 기반 내 팬덤 피드/comment preview, Postgres 검색 읽기 + mock fallback. 보관된 IP의 기존 주문·바인더·팔로우·커뮤니티 이력 조회는 유지한다. Vercel Preview의 공개 카탈로그 기본값은 static mock이며 `ICONS_CATALOG_SOURCE=supabase`로 프리뷰 DB를 읽게 바꾼다 — 어드민 콘솔은 언제나 Supabase를 본다. IP 상세 커뮤니티 preview도 Supabase `posts`/`public_profiles`에서 읽음 | `lib/catalog.ts`, `lib/home-catalog.ts`, `lib/catalog-source.ts`, `lib/community.server.ts`, `lib/search.ts`, `lib/data.ts` |
-| 인증 | Supabase SSR 이메일/PW Auth, 확인·recovery 메일 callback, 비밀번호 재설정, 온보딩 게이트. 표시 전용 AuthPresenceProvider가 unknown/signed-in/signed-out 상태를 AuthButton·MobNav에 동기화하고 보호 판정은 각 Server Page가 수행한다. env 없으면 no-op/폼 비활성화 | `app/login/*`, `app/auth/callback/route.ts`, `app/update-password/*`, `app/onboarding/*`, `app/my/*`, `components/shell/AuthPresenceProvider.tsx`, `components/shell/AuthButton.tsx`, `lib/auth/*`, `lib/supabase/*`, 루트 `proxy.ts` |
+| 인증 | Supabase SSR 이메일/PW Auth, 가입/OAuth shared callback과 recovery 전용 callback, 비밀번호 재설정, 온보딩 게이트. 표시 전용 AuthPresenceProvider가 unknown/signed-in/signed-out 상태를 AuthButton·MobNav에 동기화하고 보호 판정은 각 Server Page가 수행한다. env 없으면 no-op/폼 비활성화 | `app/login/*`, `app/auth/callback/route.ts`, `app/auth/recovery/callback/route.ts`, `app/update-password/*`, `app/onboarding/*`, `app/my/*`, `components/shell/AuthPresenceProvider.tsx`, `components/shell/AuthButton.tsx`, `lib/auth/*`, `lib/supabase/*`, 루트 `proxy.ts` |
 | 보호 액션 | IP 팔로우/언팔로우·IP별 드롭/이벤트 알림 설정, 알림 읽음 처리, 온보딩 추천 IP 저장. 커뮤니티 포스트 작성·수정, 댓글, 좋아요, 작성자 삭제, 신고, 차단과 운영자 댓글 숨김은 Server Action + 최소 권한 RPC로 연결 | `app/ip/actions.ts`, `app/notifications/actions.ts`, `app/onboarding/actions.ts`, `app/community/actions.ts`, `app/admin/actions.ts`, `lib/ip-follow*`, `lib/notifications*`, `supabase/migrations/20260623090001_ip_follow_rpc.sql`, `supabase/migrations/20260624103001_community_comment_like_actions.sql`, `supabase/migrations/20260626090001_community_moderation_actions.sql`, `supabase/migrations/20260716090001_in_app_notifications.sql`, `supabase/migrations/20260716151616_community_post_editing.sql`, `supabase/migrations/20260717090001_community_comment_moderation.sql` |
 | 인앱 알림 | 본인 RLS 수신함 최신 50건·unread count, 보호 알림함/IP 설정 화면. 주문 상태·카드팩 발급·runtime staff 카탈로그 INSERT trigger와 audited 관리자 즉시 공지가 같은 transaction에서 멱등 발급 | `app/notifications/*`, `components/screens/Notifications.tsx`, `components/screens/NotificationSettings.tsx`, `components/shell/NotificationBell.tsx`, `components/admin/sections/NotificationSection.tsx`, `supabase/migrations/20260716090001_in_app_notifications.sql`, `supabase/migrations/20260716100001_admin_notification_console.sql` |
 | 굿즈 커머스 | 비로그인 localStorage·로그인 `cart_items` 병합, 멱등 `place_order` 재고 선점, 토스 결제위젯 redirect 승인, 웹훅 확정·만료 복원, 본인 주문 내역·상세·청약철회 요청·상태 조회 | `app/cart/*`, `app/checkout/*`, `app/orders/*`, `app/api/orders/*`, `app/api/payments/confirm`, `app/api/webhooks/tosspayments`, `lib/checkout*`, `lib/orders*`, `lib/payments/*` |
@@ -231,18 +231,18 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 2. 현재 수단: 이메일/PW와 Google/Apple/Kakao. 소셜 버튼은 공급자 allow-list를 둔 Server Action에서 Supabase `signInWithOAuth()`를 호출한다.
 3. 회원가입: Supabase `signUp()`으로 확인 메일을 발송한다. 같은 브라우저에서 같은 이메일을 반복 제출하면 서명된 httpOnly cookie로 3회/10분 window를 추적하고 `auth.resend({ type: 'signup' })`로 재발송한다.
 4. 비밀번호 재설정: `/login?mode=reset`은 계정 존재 여부와 무관한 응답을 반환하고, 정규화 이메일별 브라우저 요청을 서명 쿠키로 총 3회/10분 제한한다. 쿠키에는 raw email 대신 domain-separated HMAC digest만 저장하고, 활성 bucket은 12개로 제한한다.
-5. 가입 확인·recovery·OAuth의 `redirectTo`는 query 없는 `/auth/callback`이다. 서명된 `icons_auth_next`는 목적·안전한 `next`·발급 시각을 저장하고 signup/OAuth 10분, recovery 1시간을 검증한다. Recovery 목적지는 query보다 이 쿠키를 우선한다.
+5. 가입 확인·OAuth의 `redirectTo`는 query 없는 `/auth/callback`, recovery는 query 없는 `/auth/recovery/callback`이다. signup/OAuth는 `icons_auth_next`에 목적·안전한 `next`·발급 시각을 10분, recovery는 경로가 분리된 `icons_auth_recovery_next`에 같은 값을 최대 3,600초 동안 서명해 보존한다. 신규 recovery 요청은 shared callback state를 발급하지 않는다.
    - Callback origin은 고정 production/local origin 또는 플랫폼이 제공한 현재 `VERCEL_URL`만 허용하며, 임의의 요청 `Origin`/Host는 production canonical origin으로 정규화한다.
-6. Callback은 code exchange 뒤 `getUser()`로 사용자를 재검증한다. Recovery는 계정 정지·온보딩 게이트를 건너뛰고 `/update-password`로 보내 비밀번호 회복 경로를 유지한다. 일반 로그인·가입·OAuth callback은 profile이 정지 상태면 내부 사유 없는 `/account-suspended`로 먼저 보낸다. Redirect 직후 첫 SSR 요청이 아직 세션 cookie를 보지 못하면 성공 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 다시 수행하고, 세션 확인 전에는 비밀번호 폼을 렌더링하지 않는다. 가입과 OAuth는 profile/onboarding 판정 뒤 안전한 원래 경로로 복귀한다.
+6. 전용 recovery callback은 code exchange, 유효한 전용 서명 state, PKCE verifier의 local recovery marker, `getUser()` 재검증을 모두 통과한 뒤에만 계정 정지·온보딩 게이트를 건너뛰고 `/update-password`로 보낸다. 조건 불일치 시 local sign-out과 응답 session/recovery cookie 만료 뒤 reset 오류 allow-list로 닫고 provider 원문을 노출하지 않는다. 전환 전에 발급된 shared 링크는 유효한 legacy `icons_auth_next purpose=recovery`와 local recovery marker가 모두 있을 때만 처리하며, marker만 recovery이면 세션을 폐기하고 `browser_mismatch`로 닫는다. legacy 오류도 TTL 동안 reset UX로 정규화하며 이 분기는 Production email link TTL 3,600초와 승인된 안전 여유 뒤 제거한다. 일반 로그인·가입·OAuth callback은 profile이 정지 상태면 내부 사유 없는 `/account-suspended`로 먼저 보낸다. Redirect 직후 첫 SSR 요청이 아직 세션 cookie를 보지 못하면 성공 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 다시 수행하고, 세션 확인 전에는 비밀번호 폼을 렌더링하지 않는다. 가입과 OAuth는 profile/onboarding 판정 뒤 안전한 원래 경로로 복귀한다.
 7. `/update-password`는 인증 세션에서 `updateUser({ password })`를 호출한다. 성공 뒤 global sign-out을 완료하고 로그인 화면으로 보내며, 전역 로그아웃 실패는 비밀번호 변경 성공과 잔여 세션 위험을 분리해 안내한다.
 8. 일반 가입은 온보딩 완료 후 추천 IP 팔로우를 저장하고 보존된 `next` 경로로 이동한다.
 
 Production Auth 설정:
 
 - Site URL: `https://iconsip.com`
-- Redirect URLs: `https://iconsip.com/auth/callback`, `https://www.iconsip.com/auth/callback`, `https://icons-ip.vercel.app/auth/callback`, local callback. preview 호스트는 전용 preview 프로젝트의 allow-list에서 관리하며 production allow-list에서는 제거한다. Site URL·allow-list는 `scripts/sync-supabase-auth.mjs`가 두 프로젝트에 각각 적용·검증한다.
+- Redirect URLs: production·www·기본 Vercel·local origin마다 `/auth/callback`과 `/auth/recovery/callback`을 허용한다. preview 호스트의 두 callback은 전용 preview 프로젝트 allow-list에서만 관리하며 production allow-list에서는 제거한다. Site URL·allow-list는 `scripts/sync-supabase-auth.mjs`가 두 프로젝트에 각각 적용·검증한다.
 - 이메일 confirmation은 켜고, 가입 확인·비밀번호 재설정 메일은 Resend `iconsip.com` custom SMTP를 사용한다.
-- `main` 배포 workflow가 Supabase Management API로 Site URL, redirect allow-list, secure email change, email rate limit을 확인·동기화한다. custom SMTP 필수 필드가 비어 있으면 production 배포를 실패시킨다.
+- workflow가 Supabase Management API로 Site URL, 두 callback의 redirect allow-list, `supabase/templates/recovery.html` 원문, `mailer_otp_exp=3600`, secure email change와 email rate limit을 PATCH 후 read-back한다. custom SMTP 필수 필드가 비어 있으면 production 배포를 실패시킨다.
 - 외부 OAuth callback은 세 공급자 모두 `https://sbutbsghcxmxmxgrshwq.supabase.co/auth/v1/callback`이다. Google은 production 공개 앱, Apple은 `com.iconsip.app` primary App ID와 `com.iconsip.web` Services ID, Kakao는 앱 ID `1520482`의 REST API 키를 사용한다. Apple secret은 2027-01-18 이전에 교체한다.
 - Kakao 앱은 `(주) 아이콘스` 비즈 앱이고 `account_email`을 필수 동의·계정 정보 수집으로 요청한다. Supabase provider의 이메일 없는 사용자 허용은 꺼서 현재 `isOnboarded()`의 profile/auth email 필수 조건과 맞춘다.
 
@@ -326,7 +326,8 @@ Production Auth 설정:
 ```
 app/
   (existing screens)                  # 점진적으로 서버 페치 + 액션 연결
-  auth/callback/route.ts              # Auth code exchange + 가입/recovery 분기
+  auth/callback/route.ts              # 가입/OAuth exchange + bounded legacy recovery 호환
+  auth/recovery/callback/route.ts     # recovery 전용 exchange + fail-closed 세션 정리
   login/actions.ts                    # 이메일 Auth + signup resend + password reset request + logout
   update-password/                    # recovery 세션 재검증 + 비밀번호 변경 + global sign-out
   onboarding/actions.ts               # 프로필 완성 + 추천 IP 팔로우

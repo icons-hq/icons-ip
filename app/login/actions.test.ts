@@ -7,6 +7,7 @@ import {
 
 const AUTH_SIGNUP_RESEND_COOKIE_NAME = 'icons_auth_signup_resend';
 const AUTH_NEXT_COOKIE_NAME = 'icons_auth_next';
+const AUTH_RECOVERY_NEXT_COOKIE_NAME = 'icons_auth_recovery_next';
 const AUTH_PASSWORD_RESET_COOKIE_NAME = 'icons_auth_password_reset';
 const TEST_SIGNUP_RESEND_SECRET = 'test-signup-resend-secret-with-enough-entropy';
 const ORIGINAL_SIGNUP_RESEND_SECRET = process.env.AUTH_SIGNUP_RESEND_SECRET;
@@ -448,14 +449,15 @@ describe('requestPasswordResetAction', () => {
       message: '해당 이메일로 가입한 계정이 있다면 재설정 메일을 보냈습니다. 요청한 브라우저에서 최신 링크를 열어주세요.',
     });
     expect(mocks.resetPasswordForEmail).toHaveBeenCalledWith('fan@icons.gg', {
-      redirectTo: 'https://iconsip.com/auth/callback',
+      redirectTo: 'https://iconsip.com/auth/recovery/callback',
     });
 
-    const nextCookie = latestCookieSet(AUTH_NEXT_COOKIE_NAME);
+    const nextCookie = latestCookieSet(AUTH_RECOVERY_NEXT_COOKIE_NAME);
+    expect(latestCookieSet(AUTH_NEXT_COOKIE_NAME)).toBeUndefined();
     expect(nextCookie?.options).toMatchObject({
       httpOnly: true,
       maxAge: 60 * 60,
-      path: '/auth/callback',
+      path: '/auth/recovery/callback',
       sameSite: 'lax',
       secure: true,
     });
@@ -477,9 +479,9 @@ describe('requestPasswordResetAction', () => {
     await requestPasswordResetAction({}, resetFormData());
 
     expect(mocks.resetPasswordForEmail).toHaveBeenCalledWith('fan@icons.gg', {
-      redirectTo: 'https://iconsip.com/auth/callback',
+      redirectTo: 'https://iconsip.com/auth/recovery/callback',
     });
-    expect(latestCookieSet(AUTH_NEXT_COOKIE_NAME)?.options).toMatchObject({ secure: true });
+    expect(latestCookieSet(AUTH_RECOVERY_NEXT_COOKIE_NAME)?.options).toMatchObject({ secure: true });
   });
 
   it('accepts only the current platform-provided Vercel deployment origin for preview recovery', async () => {
@@ -491,7 +493,7 @@ describe('requestPasswordResetAction', () => {
     await requestPasswordResetAction({}, resetFormData());
 
     expect(mocks.resetPasswordForEmail).toHaveBeenCalledWith('fan@icons.gg', {
-      redirectTo: 'https://icons-ip-feature-team.vercel.app/auth/callback',
+      redirectTo: 'https://icons-ip-feature-team.vercel.app/auth/recovery/callback',
     });
   });
 

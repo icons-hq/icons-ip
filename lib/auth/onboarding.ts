@@ -22,8 +22,10 @@ interface AuthErrorLike {
 }
 
 export const AUTH_CALLBACK_PATH = '/auth/callback';
+export const AUTH_RECOVERY_CALLBACK_PATH = '/auth/recovery/callback';
 export const ACCOUNT_SUSPENDED_PATH = '/account-suspended';
 export const AUTH_NEXT_COOKIE_NAME = 'icons_auth_next';
+export const AUTH_RECOVERY_NEXT_COOKIE_NAME = 'icons_auth_recovery_next';
 export const AUTH_NEXT_COOKIE_MAX_AGE_SECONDS = 10 * 60;
 
 const GENERIC_AUTH_ERROR_MESSAGE = '인증을 완료하지 못했습니다. 다시 시도하거나 새 확인 메일을 요청해주세요.';
@@ -85,6 +87,10 @@ export function onboardingPath(next: string) {
 
 export function authCallbackUrl(origin: string): string {
   return new URL(AUTH_CALLBACK_PATH, origin).toString();
+}
+
+export function authRecoveryCallbackUrl(origin: string): string {
+  return new URL(AUTH_RECOVERY_CALLBACK_PATH, origin).toString();
 }
 
 export function authNextCookieValue(next: string): string {
@@ -174,6 +180,7 @@ export function passwordResetErrorMessage(code: string | null | undefined): stri
     case undefined:
       return undefined;
     case 'otp_expired':
+    case 'link_expired_or_used':
       return '비밀번호 재설정 링크가 만료되었거나 이미 사용되었습니다. 로그인 화면에서 새 재설정 메일을 요청해주세요.';
     case 'flow_state_expired':
     case 'flow_state_not_found':
@@ -181,6 +188,7 @@ export function passwordResetErrorMessage(code: string | null | undefined): stri
     case 'bad_oauth_callback':
     case 'exchange_failed':
     case 'pkce_code_verifier_not_found':
+    case 'browser_mismatch':
       return '이 브라우저에서 비밀번호 재설정을 완료할 수 없습니다. 재설정 메일을 요청한 브라우저에서 최신 링크를 열거나 새 메일을 요청해주세요.';
     case 'missing_code':
       return '비밀번호 재설정 링크가 올바르게 열리지 않았습니다. 로그인 화면에서 새 재설정 메일을 요청해주세요.';
@@ -188,8 +196,24 @@ export function passwordResetErrorMessage(code: string | null | undefined): stri
     case 'session_not_found':
     case 'reauthentication_needed':
       return '비밀번호 재설정 세션이 만료되었습니다. 로그인 화면에서 새 재설정 메일을 요청해주세요.';
+    case 'recovery_unavailable':
+      return '현재 비밀번호 재설정을 완료할 수 없습니다. 잠시 후 새 재설정 메일을 요청해주세요.';
     default:
       return GENERIC_PASSWORD_RESET_ERROR_MESSAGE;
+  }
+}
+
+export function publicPasswordRecoveryErrorCode(code: string | null | undefined) {
+  switch (normalizeAuthCode(code)) {
+    case 'pkce_code_verifier_not_found':
+    case 'bad_code_verifier':
+    case 'flow_state_expired':
+    case 'flow_state_not_found':
+      return 'browser_mismatch';
+    case 'otp_expired':
+      return 'link_expired_or_used';
+    default:
+      return 'unknown_recovery_error';
   }
 }
 
