@@ -113,11 +113,14 @@ Production에서 이메일/PW 가입을 운영하려면 Supabase Auth custom SMT
 ```bash
 npm run dev    # 개발 서버
 npm run test   # Vitest 단위 테스트
+npm run test:goods-payment-local-integration # full local Supabase Auth/API + Fake 결제 통합
 npm run lint   # ESLint
 npm run build  # production build
 npm run start  # build 결과 실행
 npm run hong-sil:download # 홍실퀘스트 신규·누락 이미지 다운로드
 ```
+
+굿즈 결제 local integration은 `npx supabase start`로 Auth·Data API까지 전체 로컬 스택이 실행 중일 때만 실행한다. DB만 띄우는 CI smoke는 동일한 public seam의 Vitest와 SQL·경합 테스트를 각각 실행하고, 이 full-stack 명령은 로컬 E2E 증거로 분리한다.
 
 ### 홍실퀘스트 이미지 다운로더
 
