@@ -17,7 +17,7 @@ ICONS의 수집형 카드는 **유료 디지털 가챠**([ADR-0001](./0001-paid-
 
 - **ADR-0001 supersede.** `wallets`/`wallet_ledger`·유료 `pulls`·`pull_gacha`·충전금은 폐기 대상이다. 이미 공유된 migration은 수정하지 않고 후속 additive migration과 gate로 비활성화한다.
 - **현재 발급 경로를 좁힌다.** 주문 리워드는 `draw_tickets`를 발급하고 사용자가 `open_draw_ticket`으로 개봉한다. 참여형 게임은 `play_game`이 서버에서 결과와 카드 발급을 함께 확정한다. 미션·래플은 이 ADR이 승인하거나 약속하는 경로가 아니다.
-- **서버 결정은 전달 계층과 독립이다.** 카드팩·게임 결과는 DB/RPC 신뢰 경계가 결정하고 브라우저는 확정 결과를 연출한다. 현재 계약은 [ADR-0004](./0004-draw-ticket-card-packs.md)와 [ARCHITECTURE §7](../ARCHITECTURE.md#7-db-rpc--신뢰-경계)에 둔다.
+- **서버 결정은 전달 계층과 독립이다.** 카드팩·게임 결과는 DB/RPC 신뢰 경계가 결정하고 브라우저는 확정 결과를 연출한다. 현재 계약은 [ADR-0004](./0004-draw-ticket-card-packs.md)와 [ARCHITECTURE §7](../ARCHITECTURE.md)에 둔다.
 - **법률·PG 증거는 별도다.** 무상성 표현, 상품가 독립성, 카드 확률·운영 방식은 활성화 전에 최신 법률·결제사 검토와 실제 동작이 일치해야 한다.
 - **실물 쿠지는 별도 경제다.** 19+ 꽝 없는 유한 실물 쿠지는 카드 리워드나 기존 게임 `goods` variant가 아니다. `prize_sale` 범위는 [#212](https://github.com/icons-hq/icons-ip/issues/212)·[#213](https://github.com/icons-hq/icons-ip/issues/213)에서 법률·IP·재고·환불·연령 증거와 함께 추적한다.
 - **되돌리기 비용**: 지갑 장부·RNG·표현·법률 스탠스가 함께 바뀌므로 유료 디지털 모델로 돌아가려면 새 제품·법률 결정이 필요하다.

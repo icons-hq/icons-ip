@@ -24,7 +24,7 @@ import { seededRng, seededShuffle } from '@/lib/games/seed';
  * (c1) 사전 시뮬로 우승 구슬을 알아내 서버 보상 라벨을 그 구슬에 배치하고,
  * 같은 시드로 화면 재생한다. 물리는 조작 없음, 결과는 100% 서버(mock).
  * 카메라: 출발 팩 전체 fit → 선두(최하단) 구슬 줌인 추적, 선두 교체 시 부드럽게 이동.
- * variant: 'card'=등급 구슬→무상 카드, 'goods'=굿즈 구슬 1:1(래플 연출 데모). */
+ * variant: 'card'=등급 구슬→무상 카드, 'goods'=굿즈 라벨을 쓰는 retired mock. */
 
 type Phase = 'ready' | 'loading' | 'racing' | 'reveal';
 
@@ -556,10 +556,9 @@ export function MarbleRoulette({
   }, [host, game.id, variant, simConfig, runRace, cards]);
 
   const share = useCallback(() => {
-    if (!granted) return;
-    const name = granted.kind === 'card' ? granted.card.name : granted.good.name;
+    if (!granted || granted.kind !== 'card') return;
     void host.share({
-      title: `${game.title} — ${name} 획득!`,
+      title: `${game.title} — ${granted.card.name} 획득!`,
       url: window.location.href,
     });
   }, [host, game.title, granted]);
@@ -718,7 +717,7 @@ export function MarbleRoulette({
               </>
             ) : (
               <>
-                <div className="eyebrow">우승 구슬 · 굿즈 추첨</div>
+                <div className="eyebrow">우승 구슬 · 굿즈 mock 연출</div>
                 <div
                   style={{
                     width: 'clamp(210px, 56vw, 264px)',
@@ -753,7 +752,9 @@ export function MarbleRoulette({
             )}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginTop: 20 }}>
               <button type="button" className="btn btn-holo" onClick={play} style={{ height: 46, padding: '0 24px' }}>다시 플레이</button>
-              <button type="button" className="btn btn-ghost" onClick={share} style={{ height: 46, padding: '0 20px' }}>공유</button>
+              {granted.kind === 'card' && (
+                <button type="button" className="btn btn-ghost" onClick={share} style={{ height: 46, padding: '0 20px' }}>공유</button>
+              )}
               <button type="button" className="btn btn-ghost" onClick={() => host.close()} style={{ height: 46, padding: '0 20px' }}>닫기</button>
             </div>
             <div className="money-caption" style={{ marginTop: 14 }}>

@@ -157,7 +157,7 @@
 ```
 #177 [human] H1~H7 (김단비) ──┬─→ #178 운송장 등록·조회
                               └─→ #179 할당 재고 확정 ──→ 판매 개시
-#87  [human] 토스·신고 ────────→ #170 사업자 정보 표기 ──→ 판매 개시
+#87  [human] Korpay·사업자 정보 ─→ #170 사업자 정보 표기 ──→ 판매 개시
 
 #172 굿즈 콘텐츠 스키마 ──┬─→ #173 굿즈 상세페이지 ──→ #184 굿즈 상세 미리보기
 #171 고시정보 스키마 ─────┘
@@ -217,11 +217,11 @@
 
 ### 5.2 기존 이슈에 추가할 확인 항목
 
-**[#87](https://github.com/sangwopark19/icons-ip/issues/87)** — 토스페이먼츠 상점 계약·라이브 키·통신판매업 신고 ([확인 요청 코멘트](https://github.com/sangwopark19/icons-ip/issues/87#issuecomment-5201806579))
+**[#87](https://github.com/sangwopark19/icons-ip/issues/87)** — Korpay 승인 범위·rotated credential·보안/조회/취소 운영 계약과 통신판매업 신고
 - 사업자 정보 표기용 데이터 6종(상호·대표자·사업자등록번호·통신판매업신고번호·주소·연락처)
 - **"인앱 주문 상세가 전자상거래법상 서면 교부로 충분한가"** — "아니오"면 D8의 이메일이 판매 개시 필수가 된다
 - **A/S 연락처를 대표 전화와 같게 쓸 것인가, 고객센터를 따로 둘 것인가** — 고시정보 7항목 중 하나다. 이 답이 없으면 굿즈 폼이 저장되지 않아 `stock` 전환이 막힌다(§4.1 정정 · [#190](https://github.com/sangwopark19/icons-ip/issues/190))
-- 라이브 키를 발급받은 뒤 Vercel에 적용하는 절차는 §8.3에 있다 — 키 교체만으로는 빌드가 통과하지 않는다
+- Korpay 공급사 questionnaire, credential rotation, dark deploy와 controlled canary는 #87·#207을 따른다. 기존 Toss는 알려진 legacy 거래 정리용으로만 보존한다.
 
 ---
 
@@ -280,9 +280,9 @@
 
 ### 8.1 판매 개시를 아직 막는 것
 
-코드가 아니라 사람이 풀어야 한다. 2026-08-10에 프로덕션 `goods`와 Vercel production env를 직접 확인해 갱신했고, 2026-08-11에 결제 키 항목을 빌드 로그 실측으로 확정했다(§8.3).
+코드가 아니라 사람이 풀어야 한다. 2026-08-10에 프로덕션 `goods`와 Vercel production env를 직접 확인했고, 2026-08-13 결제 provider 전환 계약을 §8.3에 반영했다.
 
-1. **[#87](https://github.com/sangwopark19/icons-ip/issues/87)** — 사업자 정보 6종. 없으면 푸터의 법정 표기가 비고, 법정 문서가 지정한 문의 창구가 존재하지 않는다. `BUSINESS_INFO`는 `hostingProvider`를 뺀 전 필드가 빈 문자열이다. 여기에 더해 **토스 라이브 키 전환**이 남아 있다 — 프로덕션이 테스트 키라는 것은 2026-08-11 빌드 로그로 **확정**됐다(§8.3). 라이브 키로 교체해야 실제 돈을 받는다. 교체는 플래그 하나를 지우는 일이 아니라 **4개를 한 번에** 바꾸는 일이고, 하나라도 어긋나면 빌드가 fail closed로 막힌다(§8.3).
+1. **[#87](https://github.com/sangwopark19/icons-ip/issues/87)** — 사업자 정보 6종과 Korpay 승인·보안·운영 답변. 없으면 푸터의 법정 표기와 문의 창구가 비고, rotated credential·조회/취소/모호 결제 계약을 검증할 수 없다. 현재 Toss checkout은 #205·#206 전환 동안만 호환 유지하며 신규 Toss live 판매는 열지 않는다(§8.3).
 2. **[#177](https://github.com/sangwopark19/icons-ip/issues/177)** — H1~H7. 특히 H7(WMS 운영사 법인명)이 없으면 개인정보처리방침의 처리위탁 목록을 완성할 수 없다.
 3. **[#190](https://github.com/sangwopark19/icons-ip/issues/190)** — 운영 데이터 입력. 홍실 3종의 고시정보 7항목 × 3 = **21칸이 전부 공백**이고 설명·갤러리·상세 이미지도 없다. 고시정보가 차야 굿즈 폼이 저장되고, 그래야 `stock`이 `ok`로 바뀐다(§4.1 정정). A/S 연락처가 #87 의존이다.
 4. **[#179](https://github.com/sangwopark19/icons-ip/issues/179)** — 할당 재고 확정. 홍실 3종이 전부 `stock='soldout'`·`stock_qty=0`이라 지금은 아무것도 팔리지 않는다.
@@ -292,37 +292,13 @@
 
 이슈 범위 4번(배송 시작 이메일에 운송장 포함)은 이메일 인프라([#180](https://github.com/sangwopark19/icons-ip/issues/180))에서 배선했다. WMS 자동 수신은 #177의 실제 연동 표면과 수기 운영 증거가 모인 뒤 별도 이슈로 만든다(§7). 폐기한 범용 팝업 범위에 종속하지 않는다.
 
-### 8.3 토스 라이브 키 전환 절차
+### 8.3 결제 provider 전환 절차
 
-**현재 상태 (2026-08-11 실측).** 프로덕션은 테스트 키다. 키 값은 Vercel에서 Sensitive라 읽을 수 없지만 모드는 빌드 로그로 실측된다.
-
-```
-npx vercel inspect <production-deployment-url> --logs
-→ Vercel production environment verified; Toss widget test mode
-```
-
-교차 확인 — [`scripts/check-vercel-build-env.mjs`](../scripts/check-vercel-build-env.mjs)는 live 모드에서 `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY`가 남아 있으면 빌드를 거부한다. Production에 variantKey가 설정돼 있는데 배포가 통과한다는 사실 자체가 test 모드의 증거다.
-
-**프리뷰는 이미 분리했다** ([#199](https://github.com/sangwopark19/icons-ip/issues/199), 2026-08-11). 그전까지 `NEXT_PUBLIC_TOSS_CLIENT_KEY`·`TOSS_SECRET_KEY`는 Preview와 Production이 **하나의 항목**이어서, 그 값을 라이브로 바꾸면 모든 PR 프리뷰가 운영 상점 키를 갖게 되는 구조였다. 지금은 환경별 별도 항목이므로 Production만 교체하면 된다.
-
-**전환 시 Production에서 처리할 4개.** 순차 작업이 아니라 한 배포 안에서 전부 맞아야 한다.
-
-| # | 항목 | 조치 |
-|---|---|---|
-| 1 | `NEXT_PUBLIC_TOSS_CLIENT_KEY` · `TOSS_SECRET_KEY` | `live_gck_…` / `live_gsk_…` 쌍으로 교체. 두 키의 모드가 어긋나면 거부된다 |
-| 2 | `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY` (Production 행) | **삭제**. live 모드에 테스트 UI variantKey가 남으면 거부된다 |
-| 3 | `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION` | **삭제**. live 모드에서는 필요 없다 |
-| 4 | `TOSS_PAYMENT_KEY_PAIR_SHA256` | **라이브 쌍 기준으로 재계산**해 교체 |
-
-**4번이 가장 놓치기 쉽다.** `productionCheckoutEnabled`는 live 모드에서 참이 되므로 지문 검증이 그대로 살아 있고, 테스트 키 시절 지문이 남아 있으면 `Invalid Vercel production payment key-pair fingerprint`로 배포가 막힌다. 계산식은 두 **원문 키 값**을 NUL로 이어 SHA-256이다.
-
-```bash
-printf '%s\0%s' "$NEXT_PUBLIC_TOSS_CLIENT_KEY" "$TOSS_SECRET_KEY" | shasum -a 256
-```
-
-**Preview는 손대지 않는다.** 프리뷰는 계속 테스트 키와 `ICONS_REVIEW` variantKey를 쓴다. 프리뷰 빌드는 `TOSS_PAYMENT_KEY_PAIR_SHA256`을 요구하지 않는다 — 지문 검증은 `productionCheckoutEnabled`(= `target === 'production'`) 조건 안에서만 돌기 때문이다.
-
-전환 뒤 production 배포 로그가 `Toss widget live mode`로 바뀌는지 확인한다. 상점 계약·라이브 키 발급·웹훅 등록 자체는 [#87](https://github.com/sangwopark19/icons-ip/issues/87)의 human gate다.
+- provider-neutral 원장(#204)은 기존 Production 결제 2건을 `provider=toss`로 backfill하고 민감 provider 증거를 private 원장으로 분리한다.
+- #205·#206이 굿즈·티켓 checkout을 공통 seam으로 옮길 때까지 현재 Toss checkout은 transitional compatibility로만 유지한다. 신규 Toss live key·신규 공개 판매를 활성화하지 않는다.
+- #87에서 Korpay의 승인 범위, 조회·취소·webhook/서명·멱등·timeout 계약과 rotated credential을 확인한 뒤 #207에서 dark deploy한다. Preview는 fake Korpay만 사용하고 실자격 증명을 두지 않는다.
+- 실제 Korpay canary는 공급사 취소 접수를 사전 조율하고 최소 1,000원 1회만 수행하며, 과금 직전에 대상·비용을 다시 표시해 사용자 확인을 받는다.
+- 기존 Toss 거래는 공급사 콘솔과 내부 원장에서 모두 종결될 때까지 known-only 조회·취소·웹훅과 server secret을 유지한다. 그 뒤 Toss runtime/secret 제거는 별도 PR이다.
 
 ---
 
@@ -330,5 +306,5 @@ printf '%s\0%s' "$NEXT_PUBLIC_TOSS_CLIENT_KEY" "$TOSS_SECRET_KEY" | shasum -a 25
 
 - 배송 실행 주체는 사내 물류(김포 창고)다. 3PL 위탁도 IP사 직배송도 아니다.
 - 첫 판매 기간에는 ICONS 할당 재고를 다른 채널이 건드리지 않는다(D4의 전제).
-- 결제 확정의 진실원은 토스 웹훅이다. 돈·재고는 Postgres RPC + 행 잠금 + 멱등([`AGENTS.md`](../AGENTS.md) 불변).
+- callback body와 클라이언트 성공 신호는 결제 확정의 진실원이 아니다. 현재 Toss 호환은 provider 재조회·웹훅, 목표 Korpay는 `PaymentGateway.confirm/reconcile`과 DB 멱등 finalizer를 사용한다. 돈·재고는 Postgres RPC + 행 잠금 + 멱등([`AGENTS.md`](../AGENTS.md) 불변).
 - 법무 검토는 판매 개시를 막지 않는다(D12). 개인정보처리방침은 코드에서 추출한 **사실 기술**이라 내용 리스크가 낮고, 이용약관은 공정위 표준약관 기반이라 골격 리스크가 낮다는 판단이다.
