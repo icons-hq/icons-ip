@@ -94,7 +94,15 @@ function normalizedTemplate(value) {
 }
 
 export function isSafeRecoveryTemplate(value) {
-  return /{{\s*\.ConfirmationURL\s*}}/.test(normalizedTemplate(value));
+  const normalized = normalizedTemplate(value);
+  if (/<!--|-->|<(?:script|style|template|textarea)\b/i.test(normalized)) return false;
+
+  const recoveryAnchor = /<a\s+href\s*=\s*(["']){{\s*\.RedirectTo\s*}}\?token_hash={{\s*\.TokenHash\s*}}(?:&amp;|&)type=recovery\1\s*>/g;
+  const matches = [...normalized.matchAll(recoveryAnchor)];
+  if (matches.length !== 1) return false;
+
+  const remaining = normalized.replace(recoveryAnchor, '<a>');
+  return !/{{[\s\S]*?}}/.test(remaining);
 }
 
 export function isSatisfied({
@@ -165,7 +173,9 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
     ? normalizedTemplate(await readFile(recoveryTemplatePath, 'utf8'))
     : null;
   if (recoveryTemplate !== null && !isSafeRecoveryTemplate(recoveryTemplate)) {
-    throw new Error('recovery email template must contain {{ .ConfirmationURL }}');
+    throw new Error(
+      'recovery email template must use one exact {{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery href',
+    );
   }
 
   const config = await readConfig({ token, projectRef });

@@ -9,8 +9,8 @@
 
 ## 1. 설계 원칙
 
-1. **공개 우선 브라우징**: 카탈로그·피드는 비로그인 공개. 보호는 액션 단위(결제·가챠·작성·팔로우).
-2. **돈·재고는 DB에서 지킨다**: 가챠·티켓 재고·주문·지갑의 원자성은 Postgres 함수(RPC)+행 잠금으로 보장. 앱 레벨 동시성에 의존하지 않는다.
+1. **공개 우선 브라우징**: 카탈로그·피드는 비로그인 공개. 보호는 액션 단위(결제·카드팩 개봉·게임 플레이·작성·팔로우).
+2. **돈·재고·무작위 결과는 DB에서 지킨다**: 주문·티켓 재고·카드 발급과 향후 실물 경품 배정의 원자성은 Postgres 함수(RPC)+행 잠금으로 보장한다. 앱 레벨 동시성이나 클라이언트 RNG에 의존하지 않는다.
 3. **결제는 provider 재검증이 확정한다**: 클라이언트 성공 신호와 callback body는 입력일 뿐이다. 서버가 `PaymentGateway`를 통해 provider 결과를 확인하고 DB 멱등 경계에서만 주문·티켓을 확정한다.
 4. **데이터 격리는 RLS로**: 사용자 데이터는 소유자 범위, 카탈로그는 공개 읽기, 관리자는 역할 + 감사 로그.
 5. **점진 이전**: `lib/data.ts` mock을 시드로 삼아 도메인별로 DB·페치로 교체. 프로토타입 화면을 버리지 않는다.
@@ -27,6 +27,7 @@
 | 화면 | App Router 라우트 ↔ screen 컴포넌트 | `app/**/page.tsx` → `components/screens/*` |
 | 셸 | Nav · MobNav · SiteFooter · CartProvider · AuthPresenceProvider · 로그인 사용자 unread-count 알림 벨 · `useGo` | `components/shell/*` |
 | 라우팅 맵 | 프로토타입 route-id ↔ 경로 | `lib/routes.ts` |
+| 실행 표면 | 현재 제품 런타임은 Next.js 웹 하나다. 범용 온라인 팝업 운영 레이어와 Expo/webview 호스트는 현 로드맵에 없으며 기존 `PopupGameHost` 이름은 네이티브 지원 약속이 아니다 | `app/`, `lib/games/*`, superseded ADR-0002 |
 | 데이터 | Supabase 공개 카탈로그(보관 항목 제외)와 현재 활성 홈 히어로·공지·특집 IP, 커뮤니티 visible 전체 피드·본인 `ip_follows` 기반 내 팬덤 피드/comment preview, Postgres 검색 읽기 + mock fallback. 보관된 IP의 기존 주문·바인더·팔로우·커뮤니티 이력 조회는 유지한다. Vercel Preview의 공개 카탈로그 기본값은 static mock이며 `ICONS_CATALOG_SOURCE=supabase`로 프리뷰 DB를 읽게 바꾼다 — 어드민 콘솔은 언제나 Supabase를 본다. IP 상세 커뮤니티 preview도 Supabase `posts`/`public_profiles`에서 읽음 | `lib/catalog.ts`, `lib/home-catalog.ts`, `lib/catalog-source.ts`, `lib/community.server.ts`, `lib/search.ts`, `lib/data.ts` |
 | 인증 | Supabase SSR 이메일/PW Auth, 가입/OAuth shared callback과 recovery 전용 callback, 비밀번호 재설정, 온보딩 게이트. 표시 전용 AuthPresenceProvider가 unknown/signed-in/signed-out 상태를 AuthButton·MobNav에 동기화하고 보호 판정은 각 Server Page가 수행한다. env 없으면 no-op/폼 비활성화 | `app/login/*`, `app/auth/callback/route.ts`, `app/auth/recovery/callback/route.ts`, `app/update-password/*`, `app/onboarding/*`, `app/my/*`, `components/shell/AuthPresenceProvider.tsx`, `components/shell/AuthButton.tsx`, `lib/auth/*`, `lib/supabase/*`, 루트 `proxy.ts` |
 | 보호 액션 | IP 팔로우/언팔로우·IP별 드롭/이벤트 알림 설정, 알림 읽음 처리, 온보딩 추천 IP 저장. 커뮤니티 포스트·댓글 작성 코드는 연결돼 있지만 생성·수정은 private control을 읽는 단일 trigger seam에서 기본 OFF다. 공개 읽기·좋아요·작성자 삭제·신고·차단과 운영자 숨김은 유지 | `app/ip/actions.ts`, `app/notifications/actions.ts`, `app/onboarding/actions.ts`, `app/community/actions.ts`, `app/admin/actions.ts`, `lib/ip-follow*`, `lib/notifications*`, `supabase/migrations/20260623090001_ip_follow_rpc.sql`, `supabase/migrations/20260624103001_community_comment_like_actions.sql`, `supabase/migrations/20260626090001_community_moderation_actions.sql`, `supabase/migrations/20260716090001_in_app_notifications.sql`, `supabase/migrations/20260716151616_community_post_editing.sql`, `supabase/migrations/20260717090001_community_comment_moderation.sql`, `supabase/migrations/20260813081224_community_write_gate.sql`, `supabase/migrations/20260813083505_deepen_community_write_guard.sql` |
@@ -89,10 +90,10 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 | 호스팅 | **Vercel** (Fluid Compute) | Next 16, Route Handler 웹훅·Cron |
 | DB/Auth/Storage | **Supabase** (Postgres + Auth + Storage) | 스캐폴딩 이미 존재 |
 | 인증 | Supabase Auth: **이메일/PW + Google + Apple + Kakao** OAuth 구현 | production provider 3종과 공급자 이메일 claim 설정 완료. 모든 가입 경로는 온보딩에서 프로필 완성하며 production 배포 후 controlled smoke 필요 |
-| 결제 | **Provider-neutral gateway** | 신규 Korpay 인증결제. Toss는 기존 거래의 조회·취소·웹훅만 허용하고 신규 checkout/confirm은 제거한다 |
+| 결제 | **Provider-neutral gateway** | 현재 Toss checkout을 #205·#206 전환까지 호환 유지한다. 신규 목표는 Korpay이며 전환 뒤 Toss는 기존 거래의 조회·취소·웹훅만 남긴다 |
 | 검색 | **Postgres** pg_trgm + ILIKE | 외부 검색엔진 없음(v1) |
 | 미디어 | **Supabase Storage** | public `public-media`(검증된 카탈로그/아트워크) + private `admin-artwork-staging`(검증 전 관리자 업로드)·`user-uploads`(사용자 업로드) |
-| 무결성 | **Postgres RPC**(SECURITY DEFINER) + RLS | 가챠·티켓·주문·지갑 |
+| 무결성 | **Postgres RPC**(SECURITY DEFINER) + RLS | 카드 발급·티켓·주문·재고 |
 
 ---
 
@@ -120,16 +121,13 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - 공개 홈은 `display_order, active_from, id` 순서의 첫 hero와 첫 announcement, 중복·누락 IP를 제외한 최대 5개 featured IP를 소비한다. 특집 전용 이미지가 있으면 해당 선택기의 아트워크를 덮어쓴다. Supabase source는 큐레이션이 비어도 legacy `ips.featured`로 돌아가지 않고 첫 5개 IP를 사용하며, mock source만 기존 featured fallback을 유지한다.
 - migration과 local seed는 기존 `ips.featured = true`인 미보관 IP를 결정적 UUID·순서의 featured 큐레이션으로 승계한다. 컬럼과 기존 카탈로그 RPC 인자는 배포 호환을 위해 유지한다.
 
-### 5.3 가챠 & 카드 (P2)
+### 5.3 무료 카드 리워드 (P2)
 - `card_pools` (id, ip_id, name, active_from/to) — 풀(픽업/한정 포함). 종료는 시작보다 뒤여야 한다.
 - `cards` (id, ip_id, pool_id, name, no, rarity `N|R|SR|SSR|HOLO`, image_path, archived_at) — 풀 바인딩 시 복합 FK로 같은 IP를 강제한다.
-- `pool_odds` (pool_id, rarity, probability) — **확률 공시 원천**. 5등급 전체가 범위·소수 5자리·정확한 합계 1을 만족하고, 양수 확률 등급에는 소속 카드가 있어야 한다.
+- `pool_odds` (pool_id, rarity, probability) — 카드팩·게임 결과의 운영 확률 원천. 5등급 전체가 범위·소수 5자리·정확한 합계 1을 만족하고, 양수 확률 등급에는 소속 카드가 있어야 한다.
 - `reward_policies` (id, pool_id, trigger, target_ip_id, target_good_id?, min_amount, tickets_per_grant, active, active_from/to) — 주문 대상 IP와 선택 same-IP 굿즈를 독립 보상 카드풀에 연결한다. 동일 주문에 매칭되는 정책은 모두 누적 적용한다.
 - `draw_tickets` (id, user_id, pool_id, source/source_id, ordinal, reward_policy_id?, consumed_at, revoked_at, created_at) — 발급 정책 attribution과 발급 이력을 보존한다. 기존 티켓은 `reward_policy_id`가 null일 수 있고, 주문 취소는 미개봉 티켓을 삭제하지 않고 soft revoke한다.
-- `wallets` (user_id, balance) — 충전 잔액
-- `wallet_ledger` (id, user_id, delta, reason `charge|pull|refund`, ref_id, created_at) — 장부
-- `pulls` (id, user_id, pool_id, cost, pity_before/after, created_at)
-- `pull_results` (pull_id, card_id, rarity)
+- `wallets` / `wallet_ledger` / `pulls` / `pull_results` — ADR-0001 시기의 legacy schema. ADR-0003으로 폐기됐으며 신규 제품 경로에서 읽거나 쓰지 않는다.
 - `user_cards` (user_id, card_id, qty, acquired_at) — 바인더(보유)
 - `games` (id=slug, type, title, event_id?, config, reward_pool_id?, per_user_daily_limit, active_from/to) — 카드 variant의 IP는 보상 카드풀에서 파생한다. 신규 운영 경로는 `marble_roulette`·10개 구슬·서버 생성 등급 라인업으로 고정한다.
 - `game_plays` (id, game_id, user_id, result, idempotency_key, created_at) — 서버가 결정한 결과의 멱등 재생 원장. 관리자 집계에는 사용자 ID·결과 payload를 노출하지 않는다.
@@ -199,11 +197,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 
 핵심 원자 연산은 `SECURITY DEFINER` Postgres 함수로 구현하고, Server Action에서 인증 컨텍스트로 호출한다.
 
-- **`pull_gacha(pool_id, count)`** — 1 트랜잭션:
-  1) 지갑 잔액 `FOR UPDATE` 잠금·차감 검증
-  2) `pool_odds` 기반 RNG 추첨 (+ **천장**: `pulls.pity` 누계로 보장 발동)
-  3) `pulls`/`pull_results` 기록, `user_cards` 적립(중복 시 정책 처리)
-  4) `wallet_ledger`에 `pull` 기록
+- **legacy `pull_gacha` / `charge_wallet`** — ADR-0003으로 폐기된 유료 경로다. 현재 제품·관리자·클라이언트에서 호출하지 않으며 신규 기능의 기반으로 삼지 않는다.
 - **`reserve_tickets(user_id, ticket_type_id, qty, reservation_key)`** — 결제 환경·인증·온보딩을 확인한 Server Action만 service role로 호출하며 브라우저 롤에는 execute를 열지 않는다. DB에서도 사용자 온보딩을 재확인하고 사용자+요청 키 advisory lock과 unique index로 재시도를 멱등화한다. 이벤트를 먼저 잠근 뒤 회차를 `FOR UPDATE`로 잠그고 예매 상태·유료 가격·오픈 시각·1인 한도·잔여를 재검증해 10분 `pending` 예매와 QR 없는 티켓 placeholder를 만든다. QR은 웹훅의 `confirm_ticket_payment`에서만 발급한다.
 - **`admin_upsert_ticket_type(operation_id, ticket_type_id, event_id, name, price, capacity)`** — operation/type UUID advisory lock 뒤 이벤트를 `FOR KEY SHARE`, 기존 회차를 `FOR UPDATE`로 잠근다. 최신 `sold` 미만 capacity를 거절하고, 티켓 이력이 생기면 이벤트·회차명·가격을 잠그며, 전후 상태를 `audit_log`에 멱등 기록한다. `sold`·`per_user_limit`·`sales_open_at`은 입력받거나 덮어쓰지 않는다.
 - **`place_order(user_id, address, checkout_key)`** — 결제 환경·인증·온보딩·production 검토 권한을 확인한 Server Action만 service role로 호출하며 브라우저 롤에는 execute를 열지 않는다. DB가 장바구니와 굿즈를 잠근 뒤 재고 검증·차감, 주문 당시 가격·이름·유형·IP를 고정한 `orders`/`order_items` 생성(`pending`)을 한 트랜잭션에서 수행한다.
@@ -215,7 +209,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - **`admin_adjust_stock`** — 화면별 UUID 멱등키를 advisory lock으로, 굿즈를 `FOR UPDATE`로 잠근다. 화면에서 본 수량과 현재 수량이 같을 때만 델타를 반영하고 감사 로그 ID·전후 수량·사유를 원장으로 남긴다. persisted `stock`은 수동 판매 게이트로 보존하며 공개 유효 상태는 `stock_qty <= 0 ? soldout : stock`으로 파생한다.
 - **`admin_upsert_card_pool` / `admin_set_pool_odds` / 확장된 `admin_upsert_card`** — 앞의 두 RPC는 operation UUID로 재시도를 멱등화한다. 세 RPC 모두 대상 풀 잠금 아래 같은 IP 바인딩·확률 합계·양수 등급 coverage를 검증한 뒤 전후 상태를 감사한다. 기존 7인자 카드 호출은 배포 호환을 위해 현재 풀 바인딩을 보존한다.
 - **`admin_upsert_reward_policy` / `admin_list_reward_policies`** — operation/policy UUID로 재시도를 멱등화하고, target IP·선택 same-IP 굿즈·독립 카드풀·금액·수량·기간·풀 준비도를 검증한 뒤 전후 상태를 감사한다. 직접 DML은 봉인하며 목록 RPC는 PII 없이 누적 발급·사용 가능·개봉·회수·주문 집계만 반환한다.
-- **`admin_upsert_game(target_operation_id, target_previous_game_id, target_game_id, target_title, target_reward_pool_id, target_event_id, target_per_user_daily_limit, target_active_from, target_active_to, target_end_now) → text` / `admin_list_games`** — `previous_game_id`와 operation UUID로 플레이 전 slug rename을 포함한 재시도를 멱등화한다. 신규 게임은 card variant·`marbleCount=10`으로만 만들고, 준비된 보상 카드풀의 양수 `pool_odds`를 largest-remainder 방식으로 10칸에 결정적으로 배분한다. 카드풀은 게임 창 전체를 덮어야 하고 optional 이벤트는 같은 IP의 `온라인` 모드여야 하며, 카드풀·이벤트 mutation도 이 계약을 깨뜨리지 못한다. 최초 플레이 뒤 slug·type·pool·event·config를 잠근다. `end_now=true`는 현재 시각이 운영 창에 포함되는 기존 카드 게임만 DB `statement_timestamp()`로 종료하고 같은 operation replay에는 최초 종료 시각을 보존한 채 멱등 성공한다. 직접 DML은 봉인하며 목록 RPC는 사용자 ID·결과 payload 없이 플레이 수·최근 플레이 시각만 집계한다. goods variant는 #115 전까지 읽기 전용이다.
+- **`admin_upsert_game(target_operation_id, target_previous_game_id, target_game_id, target_title, target_reward_pool_id, target_event_id, target_per_user_daily_limit, target_active_from, target_active_to, target_end_now) → text` / `admin_list_games`** — `previous_game_id`와 operation UUID로 플레이 전 slug rename을 포함한 재시도를 멱등화한다. 신규 게임은 card variant·`marbleCount=10`으로만 만들고, 준비된 보상 카드풀의 양수 `pool_odds`를 largest-remainder 방식으로 10칸에 결정적으로 배분한다. 카드풀은 게임 창 전체를 덮어야 하고 optional 이벤트는 같은 IP의 `온라인` 모드여야 하며, 카드풀·이벤트 mutation도 이 계약을 깨뜨리지 못한다. 최초 플레이 뒤 slug·type·pool·event·config를 잠근다. `end_now=true`는 현재 시각이 운영 창에 포함되는 기존 카드 게임만 DB `statement_timestamp()`로 종료하고 같은 operation replay에는 최초 종료 시각을 보존한 채 멱등 성공한다. 직접 DML은 봉인하며 목록 RPC는 사용자 ID·결과 payload 없이 플레이 수·최근 플레이 시각만 집계한다. 기존 `goods` variant는 운영 콘솔에서 읽기 전용이다. 남은 mock 연출은 실제 경품·구매권을 만들지 않으며 신규 실물 판매에 재사용하지 않는다.
 - **`confirm_order_payment`의 리워드 발급** — 결제 시점 주문 스냅샷으로 각 정책의 IP/선택 굿즈 소계를 계산하고 조건이 맞는 활성 정책을 모두 누적 적용한다. 티켓마다 `reward_policy_id`를 기록해 정책 attribution을 보존한다.
 - **`grant_cards` / `play_game` / `open_draw_ticket`** — 모든 카드 발급은 `grant_cards`가 풀을 공유 잠그고, `play_game`의 신규 결과만 현재 풀 운영 기간을 추가 검사한다. 이미 확정된 게임 결과는 이후 풀 종료에도 그대로 재생하고, 기존 미사용 카드팩은 풀 종료 후에도 개봉할 수 있다. 카드팩은 발급 시 확률 snapshot을 만들지 않아 개봉 시점의 최신 풀 구성·확률을 사용한다. 회수된 티켓은 개봉할 수 없고 공개 UX에서는 존재를 노출하지 않는 `not_found`로 정규화한다.
 - **`open_notification(notification_id)` / `set_ip_notification_preferences(ip_id, drops?, events?, auto_follow=false)`** — 두 RPC 모두 `auth.uid()`를 다시 확인하는 `SECURITY DEFINER` 함수다. 전자는 본인 알림의 `read_at`을 단조롭게 기록하고 앱 내부 `link_path`를 반환한다. 후자는 선택적으로 팔로우 생성과 채널 설정을 한 transaction에서 처리하고, 기존 팔로우에서는 null channel을 보존한다. 테이블 직접 mutation 권한은 열지 않는다.
@@ -227,7 +221,9 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - **`admin_search_members` / `admin_get_member_detail` / `admin_profile_signup_counts` / `admin_suspend_user` / `admin_unsuspend_user`** — profiles RLS는 self-only다. 목록은 이메일을 DB에서 마스킹하고, 명시적 상세만 전체 이메일·현재 `consents`·내부 사유·주문/예매/신고 집계를 반환하며, 대시보드 가입 수는 PII-free 집계만 반환한다. 받은 신고는 private subject snapshot으로 원문 삭제 뒤에도 보존한다. active staff는 user, active admin은 user/staff만 정지·해제하며 본인/admin 대상은 제외한다. 실제 상태 전이만 PII-free 감사하고 replay는 no-op이다. 정지된 privileged profile은 `is_staff()`가 false가 되며 정지 대상의 privileged role 승격도 거절한다. posts/comments/orders/ticket_orders/game_plays INSERT, 작성자 post UPDATE, draw-ticket 소비, staff check-in과 community Storage 업로드에는 DB guard를 두어 앱 사전 검사와 경합해도 전체 transaction을 롤백한다.
 - **`preview_my_account_deletion` / `request_my_account_deletion` / `get_my_account_deletion_status`** — target user ID를 받지 않고 `auth.uid()`만 사용하는 self-only seam이다. 정확한 확인 문구와 UUID idempotency key를 요구하고 진행 주문·취소·legacy pending 결제·provider-neutral 결제 시도·환급·유효 티켓·staff 권한을 fail closed로 평가한다. preview는 최초 신청 전에 opaque blocker를 보여준다. 최초 요청 transaction에서 allowlist legal snapshot과 write fence를 함께 만들며, 기존 거래의 webhook·환급·배송 정합화 UPDATE는 막지 않는다. 기존 요청의 idempotent replay와 status 조회는 같은 사용자 lock 아래 blocker와 snapshot을 다시 평가해 해소된 거래를 `awaiting_notification`으로 전진시킨다. 성공 상태도 `awaiting_notification`까지만 표시하고 #191 intent, Storage/DB/Auth hard delete, #215 tombstone 전에는 완료를 반환하지 않는다.
 
-규칙: 천장·확률 로직은 DB(또는 DB가 호출하는 신뢰 경로)에만 둔다(클라이언트 신뢰 금지). 모든 금전·재고 RPC는 멱등·감사 가능.
+규칙: 카드팩·참여형 게임의 결과는 DB(또는 DB가 호출하는 신뢰 경로)만 확정하고 클라이언트는 그 결과를 연출한다. 이 서버 신뢰 불변식은 전달 계층이나 superseded ADR-0002에 의존하지 않는다. 모든 금전·재고·발급 RPC는 멱등·감사 가능해야 한다.
+
+19+ 유한 실물 쿠지는 기존 `games`·`game_plays`·`draw_tickets`·카드 RNG와 데이터·경제·운영을 공유하지 않는다. 아직 as-built 스키마에는 없으며, `prize_sale` 예약→결제→개별 unit 배정은 [#212](https://github.com/icons-hq/icons-ip/issues/212), 공개 snapshot·last-one·결과 영수증·운영은 [#213](https://github.com/icons-hq/icons-ip/issues/213)의 acceptance evidence가 정본이다.
 
 ---
 
@@ -237,9 +233,9 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 2. 현재 수단: 이메일/PW와 Google/Apple/Kakao. 소셜 버튼은 공급자 allow-list를 둔 Server Action에서 Supabase `signInWithOAuth()`를 호출한다.
 3. 회원가입: Supabase `signUp()`으로 확인 메일을 발송한다. 같은 브라우저에서 같은 이메일을 반복 제출하면 서명된 httpOnly cookie로 3회/10분 window를 추적하고 `auth.resend({ type: 'signup' })`로 재발송한다.
 4. 비밀번호 재설정: `/login?mode=reset`은 계정 존재 여부와 무관한 응답을 반환하고, 정규화 이메일별 브라우저 요청을 서명 쿠키로 총 3회/10분 제한한다. 쿠키에는 raw email 대신 domain-separated HMAC digest만 저장하고, 활성 bucket은 12개로 제한한다.
-5. 가입 확인·OAuth의 `redirectTo`는 query 없는 `/auth/callback`, recovery는 query 없는 `/auth/recovery/callback`이다. signup/OAuth는 `icons_auth_next`에 목적·안전한 `next`·발급 시각을 10분, recovery는 경로가 분리된 `icons_auth_recovery_next`에 같은 값을 최대 3,600초 동안 서명해 보존한다. 신규 recovery 요청은 shared callback state를 발급하지 않는다.
+5. 가입 확인·OAuth의 `redirectTo`는 query 없는 `/auth/callback`이다. recovery 메일은 `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery`로 전용 `/auth/recovery/callback`을 호출하고 서버가 `verifyOtp`한다. query에는 `next`나 계정 식별자를 넣지 않는다. signup/OAuth는 `icons_auth_next`에 목적·안전한 `next`·발급 시각을 10분, recovery는 경로가 분리된 `icons_auth_recovery_next`에 같은 값을 최대 3,600초 동안 서명해 보존한다. 신규 recovery 요청은 shared callback state를 발급하지 않는다.
    - Callback origin은 고정 production/local origin 또는 플랫폼이 제공한 현재 `VERCEL_URL`만 허용하며, 임의의 요청 `Origin`/Host는 production canonical origin으로 정규화한다.
-6. 전용 recovery callback은 code exchange, 유효한 전용 서명 state, PKCE verifier의 local recovery marker, `getUser()` 재검증을 모두 통과한 뒤에만 계정 정지·온보딩 게이트를 건너뛰고 `/update-password`로 보낸다. 조건 불일치 시 local sign-out과 응답 session/recovery cookie 만료 뒤 reset 오류 allow-list로 닫고 provider 원문을 노출하지 않는다. 전환 전에 발급된 shared 링크는 유효한 legacy `icons_auth_next purpose=recovery`와 local recovery marker가 모두 있을 때만 처리하며, marker만 recovery이면 세션을 폐기하고 `browser_mismatch`로 닫는다. legacy 오류도 TTL 동안 reset UX로 정규화하며 이 분기는 Production email link TTL 3,600초와 승인된 안전 여유 뒤 제거한다. 일반 로그인·가입·OAuth callback은 profile이 정지 상태면 내부 사유 없는 `/account-suspended`로 먼저 보낸다. Redirect 직후 첫 SSR 요청이 아직 세션 cookie를 보지 못하면 성공 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 다시 수행하고, 세션 확인 전에는 비밀번호 폼을 렌더링하지 않는다. 가입과 OAuth는 profile/onboarding 판정 뒤 안전한 원래 경로로 복귀하되, 미완료 profile도 self-service 탈퇴 intent인 `/settings/delete-account`에는 먼저 복귀할 수 있다.
+6. 전용 recovery callback은 token-hash `verifyOtp(type=recovery)`, 유효한 전용 서명 state, `getUser()` 재검증을 모두 통과한 뒤에만 계정 정지·온보딩 게이트를 건너뛰고 `/update-password`로 보낸다. 전환 전에 발급된 PKCE code 링크는 기존 호환 분기에서만 처리한다. 조건 불일치 시 교환 과정에서 만들어진 local session만 폐기하고 reset 오류 allow-list로 닫되, signed recovery state는 최신 유효 링크를 다시 쓸 수 있도록 성공 또는 자체 TTL까지 보존한다. provider 원문은 노출하지 않는다. 전환 전에 발급된 shared 링크는 유효한 legacy `icons_auth_next purpose=recovery`와 local recovery marker가 모두 있을 때만 처리하며, marker만 recovery이면 세션을 폐기하고 `browser_mismatch`로 닫는다. legacy 오류도 TTL 동안 reset UX로 정규화하며 이 분기는 Production email link TTL 3,600초와 승인된 안전 여유 뒤 제거한다. 일반 로그인·가입·OAuth callback은 profile이 정지 상태면 내부 사유 없는 `/account-suspended`로 먼저 보낸다. Redirect 직후 첫 SSR 요청이 아직 세션 cookie를 보지 못하면 성공 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 다시 수행하고, 세션 확인 전에는 비밀번호 폼을 렌더링하지 않는다. 가입과 OAuth는 profile/onboarding 판정 뒤 안전한 원래 경로로 복귀하되, 미완료 profile도 self-service 탈퇴 intent인 `/settings/delete-account`에는 먼저 복귀할 수 있다.
 7. `/update-password`는 인증 세션에서 `updateUser({ password })`를 호출한다. 성공 뒤 global sign-out을 완료하고 로그인 화면으로 보내며, 전역 로그아웃 실패는 비밀번호 변경 성공과 잔여 세션 위험을 분리해 안내한다.
 8. 일반 가입은 온보딩 완료 후 추천 IP 팔로우를 저장하고 보존된 `next` 경로로 이동한다.
 
@@ -248,11 +244,11 @@ Production Auth 설정:
 - Site URL: `https://iconsip.com`
 - Redirect URLs: production·www·기본 Vercel·local origin마다 `/auth/callback`과 `/auth/recovery/callback`을 허용한다. preview 호스트의 두 callback은 전용 preview 프로젝트 allow-list에서만 관리하며 production allow-list에서는 제거한다. Site URL·allow-list는 `scripts/sync-supabase-auth.mjs`가 두 프로젝트에 각각 적용·검증한다.
 - 이메일 confirmation은 켜고, 가입 확인·비밀번호 재설정 메일은 Resend `iconsip.com` custom SMTP를 사용한다.
-- workflow가 Supabase Management API로 Site URL, 두 callback의 redirect allow-list, `supabase/templates/recovery.html` 원문, `mailer_otp_exp=3600`, secure email change와 email rate limit을 PATCH 후 read-back한다. custom SMTP 필수 필드가 비어 있으면 production 배포를 실패시킨다.
+- workflow가 Supabase Management API로 Site URL, 두 callback의 redirect allow-list, `mailer_otp_exp=3600`, secure email change와 email rate limit을 먼저 PATCH 후 read-back한다. Production Vercel 배포가 성공한 뒤에만 `supabase/templates/recovery.html` 원문을 활성화·read-back하며, shared preview Auth 프로젝트의 template는 PR workflow에서 바꾸지 않는다. custom SMTP 필수 필드가 비어 있으면 production 배포를 실패시킨다.
 - 외부 OAuth callback은 세 공급자 모두 `https://sbutbsghcxmxmxgrshwq.supabase.co/auth/v1/callback`이다. Google은 production 공개 앱, Apple은 `com.iconsip.app` primary App ID와 `com.iconsip.web` Services ID, Kakao는 앱 ID `1520482`의 REST API 키를 사용한다. Apple secret은 2027-01-18 이전에 교체한다.
 - Kakao 앱은 `(주) 아이콘스` 비즈 앱이고 `account_email`을 필수 동의·계정 정보 수집으로 요청한다. Supabase provider의 이메일 없는 사용자 허용은 꺼서 현재 `isOnboarded()`의 profile/auth email 필수 조건과 맞춘다.
 
-연령보증: 결제사 승인은 본인확인·연령보증을 대체하지 않는다. 공통 `AgeAssurance` seam에서 최소 연령과 19+ purpose를 분리하고, 공급사 검증 증거가 없거나 만료되면 해당 보호 액션을 차단한다.
+연령 상태: 현재 온보딩의 `profiles.birth_date`는 자가신고 프로필 값이며 연령보증 증거가 아니다. v1 14+ 강제 seam·경계일·기존 계정 처리·법정 문서는 [#188](https://github.com/icons-hq/icons-ip/issues/188)이 승인·구현될 때까지 미완료다. 목표 `AgeAssurance`는 `minimum_age_14`와 NICE 기반 `adult_19` purpose를 분리하며, 결제사 인증은 어느 purpose도 대체하지 않는다. 19+ 계약 discovery는 #209, 상품 gate는 #210에서 추적한다.
 
 ---
 
@@ -273,7 +269,7 @@ Production Auth 설정:
 - 환불: `refunds` 완료 기록 + 재고 원복은 RPC가 담당한다. 토스 쪽 취소(`CANCELED` 웹훅) 등 기존 호환 경로는 active 청약철회 요청을 완료할 수 없고, 해당 요청은 관리자 fresh GET 전체 검증 경로에서만 종결한다. 현재 배송·수령 시각이 없으므로 법정 7일을 앱이 자동 판정하지 않는다.
 - 결제 원장은 `payments.provider`(`toss|korpay`)와 service-role 전용 `payment_attempts`로 provider-neutral expand를 마쳤다. 기존 행과 기존 confirm RPC는 호환 기본값 `toss`를 유지하고 기존 Toss `payment_key/raw`도 legacy 서버 감사 경로로 보존한다. Production workflow는 provider column이 없을 때 기존 행이 정확히 2건인지 read-only preflight로 먼저 확인하고, migration의 pre/post count를 `private.payment_migration_evidence`에 기록한 뒤 [Production readback runbook](./runbooks/provider-neutral-payment-backfill.md)을 자동 실행한다. 브라우저·staff 조회는 owner/staff RLS를 따르는 `payment_summaries`를 표준 표면으로 사용한다. 신규 provider 식별자·승인 참조는 allowlist 컬럼만 `private.payment_provider_evidence`에 append하며 원문 payload는 저장하지 않는다. 실제 신규 checkout 전환과 어댑터 선택은 후속 티켓에서 수행한다.
 
-### 9.1 환경 변수 · 로컬/프리뷰 검증과 임시 production 테스트 검토
+### 9.1 환경 변수 · 로컬/프리뷰 Toss 호환 검증과 Production 전환 경계
 
 - 서버 전용 env: `TOSS_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `CRON_SECRET`, `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION`, `TOSS_PAYMENT_KEY_PAIR_SHA256`, `EMAIL_PROVIDER_API_KEY`, `EMAIL_FROM`, `EMAIL_REPLY_TO`, `EMAIL_PROVIDER_ENDPOINT`, `SITE_URL`. 클라이언트 번들에 노출하지 않는다(`NEXT_PUBLIC_` 접두사 금지). 위젯 공개 키와 공개 variantKey만 `NEXT_PUBLIC_TOSS_CLIENT_KEY`, `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY`로 전달한다.
 - 이메일 env는 `prebuild` 필수 변수에 넣지 않는다. 미설정이면 트랜잭션 메일을 조용히 건너뛰고 로그만 남긴다 — 메일 미구성은 배포를 막을 사유가 아니고, 발송 실패가 결제 확정을 흔들어서도 안 된다. 발신 도메인 인증(SPF·DKIM·DMARC) 절차는 [`transactional-email.md`](./transactional-email.md) §3에 있다.
@@ -283,8 +279,8 @@ Production Auth 설정:
   1. 결제위젯 연동 테스트 시크릿 키(`test_gsk_…`)를 `.env.local`의 `TOSS_SECRET_KEY`로, 가상계좌를 제외한 테스트 UI의 variantKey를 `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY=ICONS_REVIEW`로, 로컬 Supabase service key(`supabase status`)를 `SUPABASE_SERVICE_ROLE_KEY`로 설정한다.
   2. 순수 로직은 `npm run test`(`lib/payments/toss.test.ts`), DB 계층(확정 RPC·만료 sweep)은 로컬 psql로 RPC를 직접 호출해 확인한다.
   3. 웹훅 실수신은 ngrok 등으로 로컬을 노출해 개발자센터에 웹훅 URL(`https://<host>/api/webhooks/tosspayments`, `PAYMENT_STATUS_CHANGED`)을 등록하고 테스트 결제로 유발한다. 성공 기준은 10초 내 200 응답, 실패 시 최대 7회 재전송된다.
-- 프리뷰는 테스트 키와 정확히 `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY=ICONS_REVIEW`인 테스트 UI를 허용한다. Vercel production은 기본적으로 `live_gck_…`/`live_gsk_…` 쌍일 때만 주문 생성·위젯·승인·웹훅을 활성화한다. 예외적으로 승인된 사람 검토 동안에는 Preview/로컬에서 실제로 검증한 `test_gck_…`/`test_gsk_…`, 가상계좌를 제외한 `ICONS_REVIEW` 테스트 UI, 두 원문 키 값을 NUL로 이어 계산한 SHA-256 `TOSS_PAYMENT_KEY_PAIR_SHA256`, 서버 전용 `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION=true`가 모두 맞아야 한다. 주문·예매 생성과 승인 API는 활성 `staff`/`admin` 권한을 검사하고, 우회된 DONE 웹훅도 대상 소유자가 해당 권한 밖이면 provider를 자동 취소한 뒤 로컬 선점을 원복한다. 정확한 소문자 `true` 이외의 값, 키 모드·variantKey·지문 불일치 또는 누락은 fail closed이며 테스트 결제는 실제 결제수단을 출금하지 않는다. 이 임시 검토가 끝나면 override와 테스트 전용 variantKey를 제거하고 `live_gck_…`/`live_gsk_…` 및 승인 지문을 복원한다. 라이브 키는 테스트 전용 variantKey가 남아 있으면 빌드를 거부하며, 제거 후 기본 UI로 허용된다; 라이브 상점 계약·키·웹훅 등록(#87)은 별도 human gate다.
-- Vercel preview/production 변수는 sensitive로 유지한다. GitHub Actions는 값을 복호화할 수 없는 `vercel pull` + prebuilt 경로를 쓰지 않고 Vercel 원격 build를 요청하며, `prebuild` guard가 Vercel build 안에서 필수 변수, 토스 키 모드, production 승인 키 쌍 지문을 검증한다. 키 문자열만으로 같은 상점 세트인지 추론할 수 없으므로 Preview/로컬의 정확한 두 값을 복사하고 실제 provider-backed 결제로 최종 확인한다.
+- 프리뷰는 테스트 키와 정확히 `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY=ICONS_REVIEW`인 테스트 UI를 transitional compatibility 검증에만 쓴다. Production에서 신규 Toss live checkout이나 Toss 실결제 canary를 활성화하지 않는다. #205·#206 이전에는 기존 checkout 코드가 남지만 공개 판매 gate는 닫고, 전환 뒤에는 `provider=toss`로 확인된 기존 두 거래의 조회·취소·웹훅만 유지한다. 신규 결제는 #87의 승인 범위·rotated credential·보안/운영 답변과 #207 dark deploy 뒤 Korpay로 연다. 기존 Toss 거래가 공급사 콘솔과 내부 원장에서 모두 종결된 뒤에만 Toss runtime과 server secret 제거를 별도 PR로 수행한다.
+- Vercel preview/production 변수는 sensitive로 유지한다. GitHub Actions는 값을 복호화할 수 없는 `vercel pull` + prebuilt 경로를 쓰지 않고 Vercel 원격 build를 요청하며, `prebuild` guard가 Vercel build 안에서 필수 변수와 남은 Toss 호환 키 모드를 검증한다. Toss는 Preview/로컬 fixture와 기존 known-only 거래 readback으로만 확인한다. 실제 provider-backed canary는 #207의 rotated Korpay credential·공급사 취소 조율·직전 사용자 확인 뒤 최소 금액 1회로 한정한다.
 
 ---
 
@@ -370,9 +366,9 @@ docs/
 
 | 규제(요구사항) | 기술 반영 |
 |---|---|
-| 확률형 아이템 공시 | `pool_odds`를 가챠 화면에 노출, 변경 이력 `audit_log` |
-| 게임물 등급분류(연령) | 분류 결과에 따라 가챠 라우트에 연령 게이트(자가신고→필요 시 PASS) |
-| 전자금융(선불 충전 환불) | `wallets`/`wallet_ledger` + 환불 RPC, 미사용분 환불 경로 |
+| 카드 리워드 운영 증거 | `pool_odds` 변경과 카드 발급·개봉·회수 이력을 감사 가능하게 보존. 이것만으로 법적 적용 제외를 주장하지 않는다 |
+| 14+ 가입 기준 | 현재 `birth_date` 자가신고와 목표 `minimum_age_14` 증거를 구분. #188 전에는 강제 완료로 보지 않는다 |
+| 19+ 성인 상품 | NICE `adult_19` receipt와 private 상세·미디어 gate를 #209·#210에서 별도 구현. PG 인증으로 대체 금지 |
 | 전자상거래(청약철회) | `orders`/`refunds` 상태기계 + 환불 RPC |
 | PIPA/청소년보호 | `profiles.consents`·`birth_date`, 최소수집·동의·파기 |
 | UGC 안전 | `reports`/`blocks` + `/admin` 모더레이션 + 게시물 `status` |
@@ -381,7 +377,7 @@ docs/
 
 ## 16. 미해결 결정
 
-- **디지털 유료 가챠 채택 + 규제 스탠스** — 채택 완료. 결정 배경과 결과는 `docs/adr/0001-paid-digital-gacha.md`에 기록되어 있다.
-- **결제 provider 경계** — provider-neutral 원장과 `PaymentGateway` seam을 먼저 expand하고, 신규 Korpay 전환 뒤 Toss를 기존 거래 정리 전용으로 축소하기로 해결했다(§9, #204~#207).
-- 천장/중복카드 환원 등 가챠 세부 규칙.
+- **14+ 연령보증 세부 계약** — timezone·경계일·기존 계정 처리·증거 TTL은 #188 human acceptance가 필요하다.
+- **19+ NICE와 유한 실물 쿠지** — #209·#210·#212·#213의 계약·법률·IP·재고·환불 evidence가 필요하며 현재 as-built 기능이 아니다.
+- **결제 provider 전환** — provider-neutral 원장과 `PaymentGateway` seam은 expand를 마쳤다. #205·#206에서 신규 checkout을 Korpay로 옮길 때까지 Toss checkout을 호환 유지하고, 이후에는 기존 거래 정리 전용으로 축소한다(§9, #204~#207).
 - 한국어 검색 품질이 임계 넘는 시점의 외부 검색엔진 도입.

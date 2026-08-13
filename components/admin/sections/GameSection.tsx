@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useActionState, useState } from 'react';
 import {
   endAdminGameAction,
@@ -350,9 +349,9 @@ function ReadOnlyVariantNotice({ selected }: { selected: AdminGameRecord }) {
       <p style={{ color: 'var(--dim)', fontSize: 13, margin: 0 }}>
         {variantLabel(selected)}은 이 콘솔에서 등록하거나 편집할 수 없습니다.
       </p>
-      <Link href="https://github.com/sangwopark19/icons-ip/issues/115">
-        굿즈 variant 운영 범위 #115 보기
-      </Link>
+      <p style={{ color: 'var(--dim)', fontSize: 13, margin: 0 }}>
+        legacy 굿즈 variant는 현 로드맵에서 활성화하지 않으며 신규 실물 쿠지에 재사용하지 않습니다.
+      </p>
     </section>
   );
 }

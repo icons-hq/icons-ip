@@ -24,7 +24,7 @@ import { seededRng, seededShuffle } from '@/lib/games/seed';
  * (c1) 사전 시뮬로 우승 구슬을 알아내 서버 보상 라벨을 그 구슬에 배치하고,
  * 같은 시드로 화면 재생한다. 물리는 조작 없음, 결과는 100% 서버(mock).
  * 카메라: 출발 팩 전체 fit → 선두(최하단) 구슬 줌인 추적, 선두 교체 시 부드럽게 이동.
- * variant: 'card'=등급 구슬→무상 카드, 'goods'=굿즈 구슬 1:1(래플 연출 데모). */
+ * variant: 'card'=등급 구슬→무상 카드, 'goods'=굿즈 라벨을 쓰는 retired mock. */
 
 type Phase = 'ready' | 'loading' | 'racing' | 'reveal';
 
@@ -556,10 +556,9 @@ export function MarbleRoulette({
   }, [host, game.id, variant, simConfig, runRace, cards]);
 
   const share = useCallback(() => {
-    if (!granted) return;
-    const name = granted.kind === 'card' ? granted.card.name : granted.good.name;
+    if (!granted || granted.kind !== 'card') return;
     void host.share({
-      title: `${game.title} — ${name} 획득!`,
+      title: `${game.title} — ${granted.card.name} 획득!`,
       url: window.location.href,
     });
   }, [host, game.title, granted]);
@@ -579,7 +578,7 @@ export function MarbleRoulette({
     >
       <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <div>
-          <div className="eyebrow" style={{ color: 'var(--mint)' }}>온라인 팝업 · 참여형 게임</div>
+          <div className="eyebrow" style={{ color: 'var(--mint)' }}>웹 참여형 게임</div>
           <h1 className="h-lg" style={{ margin: '10px 0 0', fontFamily: 'var(--ff-display)' }}>{game.title}</h1>
           <span className="mono" style={{ display: 'inline-block', marginTop: 8, fontSize: 10.5, letterSpacing: '.14em', color: live ? 'var(--mint)' : 'var(--faint)', border: '1px solid var(--line-2)', borderRadius: 999, padding: '3px 10px' }}>
             {live ? 'LIVE · SERVER RESULT' : 'PoC · MOCK RESULT'}
@@ -633,7 +632,7 @@ export function MarbleRoulette({
             )}
             <div className="money-caption" style={{ textAlign: 'center', marginTop: 12 }}>
               {variant.kind === 'goods'
-                ? '래플 연출 데모 — 결과는 서버가 결정하며 물리 연출은 장식입니다'
+                ? 'legacy 굿즈 연출 데모 · 실제 경품이나 구매권이 생기지 않는 mock입니다'
                 : '무상 리워드 · 결과는 서버가 결정하며 물리 연출은 장식입니다'}
             </div>
           </>
@@ -718,7 +717,7 @@ export function MarbleRoulette({
               </>
             ) : (
               <>
-                <div className="eyebrow">우승 구슬 · 굿즈 추첨</div>
+                <div className="eyebrow">우승 구슬 · 굿즈 mock 연출</div>
                 <div
                   style={{
                     width: 'clamp(210px, 56vw, 264px)',
@@ -753,12 +752,14 @@ export function MarbleRoulette({
             )}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginTop: 20 }}>
               <button type="button" className="btn btn-holo" onClick={play} style={{ height: 46, padding: '0 24px' }}>다시 플레이</button>
-              <button type="button" className="btn btn-ghost" onClick={share} style={{ height: 46, padding: '0 20px' }}>공유</button>
+              {granted.kind === 'card' && (
+                <button type="button" className="btn btn-ghost" onClick={share} style={{ height: 46, padding: '0 20px' }}>공유</button>
+              )}
               <button type="button" className="btn btn-ghost" onClick={() => host.close()} style={{ height: 46, padding: '0 20px' }}>닫기</button>
             </div>
             <div className="money-caption" style={{ marginTop: 14 }}>
               {granted.kind === 'goods'
-                ? '래플 연출 데모 — 실물 굿즈 경품은 래플 당첨 후 정가 결제로 구매합니다 · PoC mock'
+                ? 'legacy 굿즈 연출 데모 · 실제 경품이나 구매권이 생기지 않습니다 · PoC mock'
                 : live
                   ? '게임 보상 카드는 무상으로 발급되어 바인더에 저장됩니다'
                   : '게임 보상 카드는 무상으로 발급됩니다 · PoC mock 결과'}

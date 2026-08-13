@@ -346,4 +346,4 @@
 - [art-direction.md](./art-direction.md) — 원화 발주 기준서
 - [adult-track.md](./adult-track.md) — 성인 트랙 설계와 선행조건
 - [CONTEXT.md](../../../CONTEXT.md) — 플랫폼 도메인 용어
-- [docs/adr/0002](../../adr/0002-cross-platform-popup-game-miniapps.md) — 게임 미니앱 아키텍처
+- [docs/ARCHITECTURE.md](../../ARCHITECTURE.md) §7 — 참여형 게임의 서버 신뢰 경계
