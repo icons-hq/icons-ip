@@ -5,9 +5,12 @@ import { cookies, headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import {
   AUTH_CALLBACK_PATH,
+  AUTH_RECOVERY_CALLBACK_PATH,
+  AUTH_RECOVERY_NEXT_COOKIE_NAME,
   AUTH_NEXT_COOKIE_NAME,
   ACCOUNT_SUSPENDED_PATH,
   authCallbackUrl,
+  authRecoveryCallbackUrl,
   authSignUpErrorMessage,
   isAccountSuspended,
   isOnboarded,
@@ -151,16 +154,18 @@ async function rememberAuthNextPath(
 ) {
   const cookieStore = await cookies();
   const safeNext = safeNextPath(next);
+  const callbackPath = purpose === 'recovery' ? AUTH_RECOVERY_CALLBACK_PATH : AUTH_CALLBACK_PATH;
+  const cookieName = purpose === 'recovery' ? AUTH_RECOVERY_NEXT_COOKIE_NAME : AUTH_NEXT_COOKIE_NAME;
 
   if (!secret || (purpose === 'signup' && safeNext === '/')) {
-    cookieStore.set(AUTH_NEXT_COOKIE_NAME, '', { path: AUTH_CALLBACK_PATH, maxAge: 0 });
+    cookieStore.set(cookieName, '', { path: callbackPath, maxAge: 0 });
     return;
   }
 
-  cookieStore.set(AUTH_NEXT_COOKIE_NAME, signedAuthNextCookieValue(safeNext, purpose, issuedAt, secret), {
+  cookieStore.set(cookieName, signedAuthNextCookieValue(safeNext, purpose, issuedAt, secret), {
     httpOnly: true,
     maxAge: purpose === 'recovery' ? AUTH_NEXT_RECOVERY_MAX_AGE_SECONDS : AUTH_NEXT_SIGNUP_MAX_AGE_SECONDS,
-    path: AUTH_CALLBACK_PATH,
+    path: callbackPath,
     sameSite: 'lax',
     secure: origin.startsWith('https://'),
   });
@@ -499,7 +504,7 @@ export async function requestPasswordResetAction(
 
   const supabase = await createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: authCallbackUrl(origin),
+    redirectTo: authRecoveryCallbackUrl(origin),
   });
   const operationalError = passwordResetOperationalErrorMessage(error);
   if (operationalError) return { errors: { form: operationalError } };
