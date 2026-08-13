@@ -162,9 +162,12 @@ describe('password reset paths and messages', () => {
 
   it.each([
     ['otp_expired', '만료되었거나 이미 사용'],
+    ['link_expired_or_used', '만료되었거나 이미 사용'],
     ['missing_code', '올바르게 열리지 않았습니다'],
     ['flow_state_expired', '요청한 브라우저'],
+    ['browser_mismatch', '요청한 브라우저'],
     ['session_not_found', '세션이 만료'],
+    ['recovery_unavailable', '잠시 후'],
     ['unknown', '비밀번호 재설정을 완료하지 못했습니다'],
   ])('maps recovery callback error %s', (code, expected) => {
     expect(passwordResetErrorMessage(code)).toContain(expected);
