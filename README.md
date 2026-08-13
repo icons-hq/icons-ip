@@ -77,7 +77,7 @@ Auth URL·email link TTL·recovery template 설정은 손으로 관리하지 않
 
 가입 확인·OAuth는 query 없는 `/auth/callback`을 사용한다. 비밀번호 재설정 메일은 Supabase의 `TokenHash`를 전용 `/auth/recovery/callback` query로 전달하고 서버에서 `verifyOtp(type=recovery)`한다. callback query에는 `next`나 계정 식별자를 넣지 않는다. 가입·OAuth의 안전한 `next`·목적·발급 시각은 `icons_auth_next`에 10분, recovery의 값은 경로가 분리된 `icons_auth_recovery_next`에 최대 3,600초 동안 서명된 httpOnly 쿠키로 보존한다. 신규 recovery 요청은 shared callback cookie를 만들지 않는다.
 
-전용 callback 전환 전에 발급된 메일만 `icons_auth_next`의 유효한 legacy `purpose: recovery`와 PKCE local recovery marker가 모두 남아 있을 때 shared callback에서 처리한다. marker만 recovery이면 생성된 세션과 응답 cookie를 폐기하고 `browser_mismatch`로 닫으며, legacy marker가 있는 provider·missing-code·exchange 실패는 raw provider code 없이 reset 오류 allow-list로 정규화한다. 이 호환 분기는 동기화된 email link TTL 3,600초와 승인된 안전 여유가 지난 뒤 제거한다.
+공용 `/auth/callback`은 가입 확인과 OAuth code exchange만 성공시킨다. exchange 결과가 recovery이면 signed marker 유무와 관계없이 생성된 local session과 응답 cookie를 폐기하고 reset 오류로 닫는다.
 
 Server Action이 만드는 callback origin은 production·www·기본 Vercel·local 고정 origin과 플랫폼이 제공한 현재 `VERCEL_URL`만 허용한다. 인식하지 못한 `Origin`·`X-Forwarded-Host`·`Host`는 신뢰하지 않고 `https://iconsip.com`으로 닫는다.
 
@@ -226,7 +226,7 @@ curl -s "$PREVIEW_URL" | grep -o '/_next/static/chunks/[^"]*\.js' | sort -u | wh
 ## 프로젝트 지도
 
 - `app/`: Next.js App Router 라우트.
-- `app/auth/callback/route.ts`: 가입·소셜 로그인 code exchange와 onboarding 처리. 이미 발급된 recovery 링크의 제한된 TTL 호환 및 marker-only recovery fail-closed 포함.
+- `app/auth/callback/route.ts`: 가입·소셜 로그인 code exchange와 onboarding 처리, recovery exchange fail-closed 포함.
 - `app/auth/recovery/callback/route.ts`: 비밀번호 재설정 전용 token-hash 검증, state/user 검증, 세션 정리와 update-password redirect 처리.
 - `app/login/actions.ts`: 이메일 로그인/회원가입, Google·Apple·Kakao OAuth 시작, 확인 메일 재전송, 비밀번호 재설정 메일 요청, 로그아웃 server action.
 - `app/update-password/`: recovery 세션 재검증, 새 비밀번호 저장, 전역 로그아웃.
