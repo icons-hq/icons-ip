@@ -24,6 +24,7 @@ interface AuthErrorLike {
 export const AUTH_CALLBACK_PATH = '/auth/callback';
 export const AUTH_RECOVERY_CALLBACK_PATH = '/auth/recovery/callback';
 export const ACCOUNT_SUSPENDED_PATH = '/account-suspended';
+export const ACCOUNT_DELETION_PATH = '/settings/delete-account';
 export const AUTH_NEXT_COOKIE_NAME = 'icons_auth_next';
 export const AUTH_RECOVERY_NEXT_COOKIE_NAME = 'icons_auth_recovery_next';
 export const AUTH_NEXT_COOKIE_MAX_AGE_SECONDS = 10 * 60;
@@ -54,6 +55,16 @@ export function isOnboarded(profile: ProfileForOnboarding | null | undefined, au
   const today = new Date();
   const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
   return birthDate <= todayUtc;
+}
+
+export function postAuthenticationPath(
+  profile: ProfileForOnboarding | null | undefined,
+  authEmail: string | null | undefined,
+  next: string,
+): string {
+  const safeNext = safeNextPath(next);
+  if (safeNext === ACCOUNT_DELETION_PATH) return safeNext;
+  return isOnboarded(profile, authEmail) ? safeNext : onboardingPath(safeNext);
 }
 
 export function safeNextPath(value: FormDataEntryValue | string | null | undefined): string {

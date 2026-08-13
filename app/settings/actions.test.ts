@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   prepareProfileAvatarUploadAction,
+  requestAccountDeletionAction,
   updateMarketingConsentAction,
   updateProfileAction,
 } from './actions';
@@ -11,7 +12,6 @@ import { MAX_PROFILE_IMAGE_BYTES, PROFILE_IMAGE_ERROR } from '@/lib/profile';
 const mocks = vi.hoisted(() => ({
   cleanupProfileAvatar: vi.fn(),
   createClient: vi.fn(),
-  createSignedUploadUrl: vi.fn(),
   dbEq: vi.fn(),
   dbUpdate: vi.fn(),
   download: vi.fn(),
@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   info: vi.fn(),
   list: vi.fn(),
   prepareProfileAvatarClaim: vi.fn(),
+  rpc: vi.fn(),
   rejectProfileAvatarClaim: vi.fn(),
   revalidatePath: vi.fn(),
   storageFrom: vi.fn(),
@@ -92,7 +93,6 @@ beforeEach(() => {
   vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(AVATAR_UUID);
   mocks.cleanupProfileAvatar.mockReset();
   mocks.createClient.mockReset();
-  mocks.createSignedUploadUrl.mockReset();
   mocks.dbEq.mockReset();
   mocks.dbUpdate.mockReset();
   mocks.download.mockReset();
@@ -100,6 +100,7 @@ beforeEach(() => {
   mocks.info.mockReset();
   mocks.list.mockReset();
   mocks.prepareProfileAvatarClaim.mockReset();
+  mocks.rpc.mockReset();
   mocks.rejectProfileAvatarClaim.mockReset();
   mocks.revalidatePath.mockReset();
   mocks.storageFrom.mockReset();
@@ -112,10 +113,6 @@ beforeEach(() => {
   mocks.cleanupProfileAvatar.mockResolvedValue(undefined);
   mocks.prepareProfileAvatarClaim.mockResolvedValue({ ok: true });
   mocks.rejectProfileAvatarClaim.mockResolvedValue({ cleanupSafe: true });
-  mocks.createSignedUploadUrl.mockResolvedValue({
-    data: { path: AVATAR_PATH, token: 'signed-upload-token' },
-    error: null,
-  });
   mocks.info.mockResolvedValue({
     data: { contentType: 'image/png', size: PNG_BYTES.byteLength },
     error: null,
@@ -137,7 +134,6 @@ beforeEach(() => {
   mocks.storageFrom.mockImplementation((bucket: string) => {
     if (bucket !== 'user-uploads') throw new Error(`Unexpected bucket ${bucket}`);
     return {
-      createSignedUploadUrl: mocks.createSignedUploadUrl,
       download: mocks.download,
       info: mocks.info,
       list: mocks.list,
@@ -149,12 +145,115 @@ beforeEach(() => {
       if (table !== 'profiles') throw new Error(`Unexpected table ${table}`);
       return { update: mocks.dbUpdate };
     },
+    rpc: mocks.rpc,
     storage: { from: mocks.storageFrom },
   });
 });
 
 afterEach(() => {
   vi.restoreAllMocks();
+});
+
+describe('requestAccountDeletionAction', () => {
+  function deletionForm(confirmation: string, idempotencyKey: string) {
+    const form = new FormData();
+    form.set('confirmation', confirmation);
+    form.set('idempotencyKey', idempotencyKey);
+    return form;
+  }
+
+  it('rejects a mismatched irreversible confirmation before auth or RPC', async () => {
+    await expect(requestAccountDeletionAction({}, deletionForm(
+      '탈퇴',
+      '123e4567-e89b-42d3-a456-426614174000',
+    ))).resolves.toEqual({ error: '확인 문구를 정확히 입력해주세요.' });
+
+    expect(mocks.getCurrentAuthState).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('submits only confirmation and an opaque idempotency key to the self-only RPC', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: {
+        status: 'processing',
+        phase: 'awaiting_notification',
+        nextAction: 'retry_later',
+        blockers: [],
+      },
+      error: null,
+    });
+
+    await expect(requestAccountDeletionAction({}, deletionForm(
+      '회원 탈퇴를 신청합니다',
+      '123e4567-e89b-42d3-a456-426614174000',
+    ))).resolves.toEqual({
+      message: '탈퇴 신청을 접수했어요. 계정은 아직 삭제되지 않았습니다.',
+      status: {
+        status: 'processing',
+        phase: 'awaiting_notification',
+        nextAction: 'retry_later',
+        blockers: [],
+      },
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('request_my_account_deletion', {
+      p_confirmation: '회원 탈퇴를 신청합니다',
+      p_idempotency_key: '123e4567-e89b-42d3-a456-426614174000',
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/settings');
+  });
+
+  it('keeps withdrawal available before onboarding is complete', async () => {
+    mocks.getCurrentAuthState.mockResolvedValue({
+      isConfigured: true,
+      user: { id: USER_ID, email: 'pending@icons.test' },
+      profile: null,
+      isStaff: false,
+    });
+    mocks.rpc.mockResolvedValue({
+      data: {
+        status: 'processing',
+        phase: 'awaiting_notification',
+        nextAction: 'retry_later',
+        blockers: [],
+      },
+      error: null,
+    });
+
+    await expect(requestAccountDeletionAction({}, deletionForm(
+      '회원 탈퇴를 신청합니다',
+      '123e4567-e89b-42d3-a456-426614174000',
+    ))).resolves.toMatchObject({ status: { status: 'processing' } });
+  });
+
+  it('maps disabled and unknown database errors without reflecting provider details', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'account_deletion_not_available: private detail' },
+    });
+
+    await expect(requestAccountDeletionAction({}, deletionForm(
+      '회원 탈퇴를 신청합니다',
+      '123e4567-e89b-42d3-a456-426614174000',
+    ))).resolves.toEqual({ error: '탈퇴 신청 기능을 준비 중입니다.' });
+
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'account_deletion_reauthentication_required' },
+    });
+    await expect(requestAccountDeletionAction({}, deletionForm(
+      '회원 탈퇴를 신청합니다',
+      '123e4567-e89b-42d3-a456-426614174000',
+    ))).resolves.toEqual({
+      error: '보안을 위해 다시 로그인한 뒤 탈퇴를 신청해주세요.',
+    });
+
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'raw private failure' } });
+    await expect(requestAccountDeletionAction({}, deletionForm(
+      '회원 탈퇴를 신청합니다',
+      '123e4567-e89b-42d3-a456-426614174000',
+    ))).resolves.toEqual({ error: '탈퇴 신청을 접수하지 못했습니다. 다시 시도해주세요.' });
+  });
 });
 
 describe('prepareProfileAvatarUploadAction', () => {
@@ -172,7 +271,7 @@ describe('prepareProfileAvatarUploadAction', () => {
     });
 
     expect(mocks.getCurrentAuthState).not.toHaveBeenCalled();
-    expect(mocks.createSignedUploadUrl).not.toHaveBeenCalled();
+    expect(mocks.storageFrom).not.toHaveBeenCalled();
   });
 
   it('rejects a 5MiB+1 request before auth or Storage', async () => {
@@ -237,7 +336,7 @@ describe('prepareProfileAvatarUploadAction', () => {
     })).rejects.toThrow('NEXT_REDIRECT:/onboarding?next=%2Fsettings');
   });
 
-  it('creates a non-upsert signed grant for a server UUID path without file bytes', async () => {
+  it('prepares a server UUID path without minting a Storage-bypassing signed token', async () => {
     await expect(prepareProfileAvatarUploadAction({
       nickname: '  새 닉네임  ',
       mimeType: 'image/png',
@@ -245,49 +344,15 @@ describe('prepareProfileAvatarUploadAction', () => {
     })).resolves.toEqual({
       ok: true,
       path: AVATAR_PATH,
-      token: 'signed-upload-token',
     });
 
-    expect(mocks.createSignedUploadUrl).toHaveBeenCalledWith(AVATAR_PATH, { upsert: false });
     expect(mocks.prepareProfileAvatarClaim).toHaveBeenCalledWith({
       userId: USER_ID,
       path: AVATAR_PATH,
     });
-    expect(mocks.prepareProfileAvatarClaim.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.createSignedUploadUrl.mock.invocationCallOrder[0],
-    );
+    expect(mocks.storageFrom).not.toHaveBeenCalled();
     expect(mocks.upload).not.toHaveBeenCalled();
     expect(mocks.list).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    ['resolved error', () => mocks.createSignedUploadUrl.mockResolvedValue({
-      data: null,
-      error: { message: 'private signed grant error' },
-    })],
-    ['rejection', () => mocks.createSignedUploadUrl.mockRejectedValue(
-      new Error('private signed grant rejection'),
-    )],
-  ])('maps a signed grant %s to a safe avatar error', async (_label, arrange) => {
-    arrange();
-
-    await expect(prepareProfileAvatarUploadAction({
-      nickname: 'fan',
-      mimeType: 'image/png',
-      size: PNG_BYTES.byteLength,
-    })).resolves.toEqual({
-      ok: false,
-      errors: { avatar: '아바타 업로드를 준비하지 못했습니다. 다시 시도해주세요.' },
-    });
-    expect(mocks.rejectProfileAvatarClaim).toHaveBeenCalledWith({
-      userId: USER_ID,
-      path: AVATAR_PATH,
-    });
-    expect(mocks.cleanupProfileAvatar).toHaveBeenCalledWith({
-      userId: USER_ID,
-      path: AVATAR_PATH,
-      stage: 'candidate',
-    });
   });
 
   it('does not grant or clean a path when the pending claim cannot be committed', async () => {
@@ -302,21 +367,24 @@ describe('prepareProfileAvatarUploadAction', () => {
       errors: { avatar: '아바타 업로드를 준비하지 못했습니다. 다시 시도해주세요.' },
     });
 
-    expect(mocks.createSignedUploadUrl).not.toHaveBeenCalled();
+    expect(mocks.storageFrom).not.toHaveBeenCalled();
     expect(mocks.rejectProfileAvatarClaim).not.toHaveBeenCalled();
     expect(mocks.cleanupProfileAvatar).not.toHaveBeenCalled();
   });
 
-  it('does not clean after an unknown claim-rejection result', async () => {
-    mocks.createSignedUploadUrl.mockRejectedValue(new Error('private grant rejection'));
-    mocks.rejectProfileAvatarClaim.mockResolvedValue({ cleanupSafe: false });
+  it('does not clean when claim preparation rejects with an unknown commit state', async () => {
+    mocks.prepareProfileAvatarClaim.mockRejectedValue(new Error('private claim rejection'));
 
-    await prepareProfileAvatarUploadAction({
+    await expect(prepareProfileAvatarUploadAction({
       nickname: 'fan',
       mimeType: 'image/png',
       size: PNG_BYTES.byteLength,
+    })).resolves.toEqual({
+      ok: false,
+      errors: { avatar: '아바타 업로드를 준비하지 못했습니다. 다시 시도해주세요.' },
     });
 
+    expect(mocks.rejectProfileAvatarClaim).not.toHaveBeenCalled();
     expect(mocks.cleanupProfileAvatar).not.toHaveBeenCalled();
   });
 });

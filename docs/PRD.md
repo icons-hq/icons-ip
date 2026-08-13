@@ -53,7 +53,7 @@
 | 영역 | 프로토타입 현황 | v1 목표 갭 |
 |---|---|---|
 | 데이터 | Supabase 환경변수가 있으면 공개 카탈로그와 검색, 커뮤니티 피드를 DB에서 읽고, 없으면 `lib/data.ts` mock으로 fallback. P0~P3 migration과 seed가 존재 | 결제/카드 리워드/티켓 도메인별 쓰기 흐름 연결 |
-| 인증 | 이메일/PW 가입·로그인, 확인 메일 콜백·재전송, 비밀번호 재설정, 온보딩 게이트. Google/Apple/Kakao OAuth 코드와 production provider·필수 이메일 claim 설정 완료. 현재 생년월일은 자가신고 값이며 연령보증 증거가 아니다 | production 배포 후 controlled smoke, 계정 삭제·동의 철회, 14+ 공통 연령보증 계약·기존 계정 처리 [#188](https://github.com/icons-hq/icons-ip/issues/188) |
+| 인증 | 이메일/PW 가입·로그인, 확인 메일 콜백·재전송, 비밀번호 재설정, 온보딩 게이트. Google/Apple/Kakao OAuth 코드와 production provider·필수 이메일 claim 설정 완료. 현재 생년월일은 자가신고 값이며 연령보증 증거가 아니다. 탈퇴 Phase 1은 self-only 요청·진행 의무 평가·private legal snapshot·account write fence까지 기본 OFF로 연결 | production Auth controlled smoke와 14+ 공통 연령보증 계약·기존 계정 처리 [#188](https://github.com/icons-hq/icons-ip/issues/188). 탈퇴는 #191 통지, Phase 2 hard delete, #215 secondary tombstone·restore replay와 controlled deletion smoke가 남음 |
 | IP 팔로우 | 온보딩 추천 IP 저장, IP 상세 팔로우/언팔로우·알림 설정, 홈 커뮤니티 우선순위와 내 팬덤 피드가 연결 | 완료 |
 | 장바구니·주문 | 비로그인 localStorage → 로그인 `cart_items` 병합, 수량·재고 검증, 본인 주문 내역·상세·청약철회 상태, 관리자 주문 검색·배송 전이·환불 정합화·실재고 수동 조정 | 완료 |
 | 결제 | Toss checkout·승인 API·웹훅 확정·만료 정리를 유지하면서 `payments.provider`, service-only `payment_attempts`/evidence, `PaymentGateway`/Fake seam을 additive expand했다. 기존 Production 결제 2건은 Toss로 backfill한다 | #205·#206에서 checkout을 seam으로 옮기고, rotated Korpay credential·승인 범위 확인 뒤 신규 Korpay를 연다. Toss는 기존 거래 조회·취소·웹훅만 유지 |

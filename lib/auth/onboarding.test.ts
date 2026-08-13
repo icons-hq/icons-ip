@@ -12,6 +12,7 @@ import {
   passwordResetErrorMessage,
   passwordResetSuccessLoginPath,
   passwordUpdateErrorMessage,
+  postAuthenticationPath,
   safeNextPath,
   updatePasswordPath,
   updatePasswordSessionReadyPath,
@@ -89,6 +90,20 @@ describe('safeNextPath', () => {
     undefined,
   ])('falls back for unsafe path %s', (value) => {
     expect(safeNextPath(value)).toBe('/');
+  });
+});
+
+describe('postAuthenticationPath', () => {
+  it('lets an authenticated user return to the self-service deletion route before onboarding', () => {
+    expect(postAuthenticationPath(null, 'fan@icons.gg', '/settings/delete-account')).toBe(
+      '/settings/delete-account',
+    );
+  });
+
+  it('keeps onboarding mandatory for every other protected destination', () => {
+    expect(postAuthenticationPath(null, 'fan@icons.gg', '/orders')).toBe(
+      '/onboarding?next=%2Forders',
+    );
   });
 });
 

@@ -105,4 +105,66 @@ describe('/login page', () => {
     })).rejects.toThrow('NEXT_REDIRECT:/account-suspended');
     expect(mocks.loginProps).toBeNull();
   });
+
+  it('returns an existing suspended session to self-service deletion', async () => {
+    mocks.auth = {
+      isConfigured: true,
+      user: { id: 'user-1', email: 'fan@icons.gg' },
+      profile: {
+        email: 'fan@icons.gg',
+        nickname: 'fan',
+        birth_date: '2000-01-01',
+        consents: { terms: true, privacy: true },
+        onboarded_at: '2026-07-01T00:00:00.000Z',
+        suspended_at: '2026-07-17T00:00:00.000Z',
+      },
+      isStaff: false,
+    };
+
+    await expect(Page({
+      searchParams: Promise.resolve({ next: '/settings/delete-account' }),
+    })).rejects.toThrow('NEXT_REDIRECT:/settings/delete-account');
+    expect(mocks.loginProps).toBeNull();
+  });
+
+  it('renders the sign-in form for an explicit deletion reauthentication request', async () => {
+    mocks.auth = {
+      isConfigured: true,
+      user: { id: 'user-1', email: 'fan@icons.gg' },
+      profile: {
+        email: 'fan@icons.gg',
+        nickname: 'fan',
+        birth_date: '2000-01-01',
+        consents: { terms: true, privacy: true },
+        onboarded_at: '2026-07-01T00:00:00.000Z',
+        suspended_at: '2026-07-17T00:00:00.000Z',
+      },
+      isStaff: false,
+    };
+
+    renderToStaticMarkup(await Page({
+      searchParams: Promise.resolve({
+        next: '/settings/delete-account',
+        reauth: '1',
+      }),
+    }));
+
+    expect(mocks.loginProps).toMatchObject({
+      initialMode: 'signin',
+      next: '/settings/delete-account',
+    });
+  });
+
+  it('returns an incomplete authenticated session to self-service deletion', async () => {
+    mocks.auth = {
+      isConfigured: true,
+      user: { id: 'user-1', email: 'fan@icons.gg' },
+      profile: null,
+      isStaff: false,
+    };
+
+    await expect(Page({
+      searchParams: Promise.resolve({ next: '/settings/delete-account' }),
+    })).rejects.toThrow('NEXT_REDIRECT:/settings/delete-account');
+  });
 });

@@ -23,11 +23,11 @@ vi.mock('next/navigation', () => ({
   },
 }));
 
-function formData() {
+function formData(next = '/orders') {
   const data = new FormData();
   data.set('email', 'fan@icons.gg');
   data.set('password', 'password1234');
-  data.set('next', '/orders');
+  data.set('next', next);
   return data;
 }
 
@@ -53,6 +53,29 @@ describe('signInWithEmailAction', () => {
 
     await expect(signInWithEmailAction({}, formData())).rejects.toThrow(
       'NEXT_REDIRECT:/account-suspended',
+    );
+  });
+
+  it('lets a suspended account reauthenticate for the self-service deletion route', async () => {
+    mocks.getProfileForUser.mockResolvedValue({
+      email: 'fan@icons.gg',
+      nickname: 'fan',
+      birth_date: '2000-01-01',
+      consents: { terms: true, privacy: true },
+      onboarded_at: '2026-07-01T00:00:00.000Z',
+      suspended_at: '2026-07-17T00:00:00.000Z',
+    });
+
+    await expect(signInWithEmailAction({}, formData('/settings/delete-account'))).rejects.toThrow(
+      'NEXT_REDIRECT:/settings/delete-account',
+    );
+  });
+
+  it('returns an incomplete account to the deletion route without forcing onboarding', async () => {
+    mocks.getProfileForUser.mockResolvedValue(null);
+
+    await expect(signInWithEmailAction({}, formData('/settings/delete-account'))).rejects.toThrow(
+      'NEXT_REDIRECT:/settings/delete-account',
     );
   });
 });

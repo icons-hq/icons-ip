@@ -213,6 +213,17 @@ describe('GET /auth/callback', () => {
     expect(response.headers.get('set-cookie')).toContain(`${AUTH_NEXT_COOKIE_NAME}=;`);
   });
 
+  it('returns an incomplete OAuth account to self-service deletion before onboarding', async () => {
+    mocks.getProfileForUser.mockResolvedValue({ ...completeProfile, onboarded_at: null });
+
+    const response = await GET(request(
+      '/auth/callback?code=oauth-code',
+      signedCookie('oauth', '/settings/delete-account'),
+    ));
+
+    expect(locationPath(response)).toBe('/settings/delete-account');
+  });
+
   it('returns an onboarded OAuth user to the original safe path', async () => {
     const response = await GET(request('/auth/callback?code=oauth-code', signedCookie('oauth')));
 
@@ -237,6 +248,20 @@ describe('GET /auth/callback', () => {
 
     expect(locationPath(response)).toBe('/account-suspended');
     expect(response.headers.get('set-cookie')).toContain(`${AUTH_NEXT_COOKIE_NAME}=;`);
+  });
+
+  it('returns a suspended OAuth session to the requested self-service deletion route', async () => {
+    mocks.getProfileForUser.mockResolvedValue({
+      ...completeProfile,
+      suspended_at: '2026-07-17T00:00:00.000Z',
+    });
+
+    const response = await GET(request(
+      '/auth/callback?code=oauth-code',
+      signedCookie('oauth', '/settings/delete-account'),
+    ));
+
+    expect(locationPath(response)).toBe('/settings/delete-account');
   });
 
   it('does not guess recovery purpose when another browser has neither marker nor verifier', async () => {
