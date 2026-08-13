@@ -113,6 +113,13 @@ export async function POST(request: Request) {
 
   const ref = parseTossOrderId(body.orderId);
   if (!ref) return errorJson(400, 'invalid_order_id', '주문 식별자 형식이 올바르지 않습니다.');
+  if (ref.purpose === 'ticket') {
+    return errorJson(
+      409,
+      'legacy_checkout_closed',
+      '신규 티켓 결제는 현재 결제 경로에서 진행할 수 없습니다.',
+    );
+  }
 
   const target = await loadPayableTarget(supabase, ref, user.id);
   if (!target) return errorJson(404, 'not_found', '주문을 찾을 수 없습니다.');

@@ -3,19 +3,18 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { TossPaymentWidget } from '@/components/payments/TossPaymentWidget';
+import { PreparedCheckoutAction } from '@/components/payments/PreparedCheckoutAction';
 import { krw } from '@/lib/format';
-import { ticketCheckoutState, ticketOrderName } from '@/lib/ticketing';
+import type { PreparedCheckout } from '@/lib/payments/gateway';
+import { ticketCheckoutState } from '@/lib/ticketing';
 import type { TicketOrderSnapshot } from '@/lib/ticketing.server';
 
 export function TicketCheckout({
-  clientKey,
-  customer,
   order,
+  prepared,
 }: {
-  clientKey: string | null;
-  customer: { id: string; email: string | null; name: string };
   order: TicketOrderSnapshot;
+  prepared: PreparedCheckout | null;
 }) {
   const router = useRouter();
   const [pollAttempts, setPollAttempts] = useState(0);
@@ -56,7 +55,7 @@ export function TicketCheckout({
       return {
         eyebrow: 'VERIFYING PAYMENT',
         title: '결제를 확인하고 있어요',
-        body: '승인은 접수됐고 웹훅으로 최종 상태를 확인 중입니다. 이 화면을 닫아도 확인은 계속됩니다.',
+        body: '결제사 결과를 서버에서 다시 확인 중입니다. 이 화면을 닫아도 예약은 자동 해제되지 않습니다.',
       };
     }
     if (state === 'closed') {
@@ -86,23 +85,13 @@ export function TicketCheckout({
         <section className="checkout-order-main card">
           {state === 'payable' && now === null ? (
             <div className="checkout-state-panel" role="status">결제 가능 시간을 확인하고 있어요.</div>
-          ) : state === 'payable' && clientKey ? (
+          ) : state === 'payable' && prepared ? (
             <>
               <div className="checkout-deadline" role="timer">
                 <span>회차 선점 남은 시간</span>
                 <strong className="mono">{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}</strong>
               </div>
-              <TossPaymentWidget
-                callbackBasePath="/ticket-checkout"
-                clientKey={clientKey}
-                customerEmail={customer.email}
-                customerKey={customer.id}
-                customerName={customer.name}
-                orderId={order.id}
-                orderName={ticketOrderName(order.eventTitle, order.ticketTypeName, order.qty)}
-                purpose="ticket"
-                total={order.total}
-              />
+              <PreparedCheckoutAction prepared={prepared} />
             </>
           ) : state === 'payable' ? (
             <div className="checkout-state-panel" role="alert">

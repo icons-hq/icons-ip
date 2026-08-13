@@ -5,7 +5,7 @@ import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { getCatalogSnapshot, getCatalogSource } from '@/lib/catalog';
 import { getIpFollowState } from '@/lib/ip-follow.server';
-import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
+import { ticketCheckoutPaymentsEnabled } from '@/lib/payments/ticket-checkout-availability';
 import { loadPublicTicketTypes } from '@/lib/ticketing.server';
 
 export const metadata: Metadata = {
@@ -55,7 +55,7 @@ export default async function Page({
       notificationError={firstParam(query.notification_error) === '1'}
       notificationSaved={firstParam(query.notification_saved) === '1'}
       notificationState={notificationState}
-      paymentAvailable={checkoutPaymentsEnabled(auth.isStaff)}
+      paymentAvailable={ticketCheckoutPaymentsEnabled()}
       sessions={sessions}
     />
   );

@@ -45,8 +45,9 @@ async function guardTossPaymentProvider(service: ServiceClient, paymentKey: stri
   if (classification.status === 'known_other_provider') {
     return errorJson(409, 'payment_provider_mismatch');
   }
-  // `unknown_compatibility` is allowed only until #205/#206 move both checkout
-  // paths. Webhook-first recovery can currently precede the local pending row.
+  if (classification.status !== 'known_toss') {
+    return errorJson(409, 'legacy_payment_unknown');
+  }
   return null;
 }
 

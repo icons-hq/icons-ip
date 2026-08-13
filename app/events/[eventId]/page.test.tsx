@@ -24,7 +24,9 @@ vi.mock('@/lib/auth/onboarding', () => ({
   isOnboarded: () => false,
   onboardingPath: (next: string) => `/onboarding?next=${encodeURIComponent(next)}`,
 }));
-vi.mock('@/lib/payments/checkout-availability', () => ({ checkoutPaymentsEnabled: () => false }));
+vi.mock('@/lib/payments/ticket-checkout-availability', () => ({
+  ticketCheckoutPaymentsEnabled: () => false,
+}));
 vi.mock('@/lib/ticketing.server', () => ({ loadPublicTicketTypes: mocks.loadSessions }));
 vi.mock('@/lib/ip-follow.server', () => ({ getIpFollowState: mocks.getIpFollowState }));
 vi.mock('@/components/screens/EventDetail', () => ({

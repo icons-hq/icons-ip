@@ -380,7 +380,7 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
   it.each([
     ['상품 주문', 'order', orderPayment('paid')],
     ['티켓 주문', 'ticket', ticketPayment('paid')],
-  ] as const)('이미 확정된 %s에 들어온 다른 결제는 provider만 취소하고 기존 target을 보존한다', async (
+  ] as const)('이미 확정된 %s에 들어온 unknown 결제는 Toss 조회 전 차단한다', async (
     _label,
     purpose,
     confirmedPayment,
@@ -414,21 +414,12 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
 
     const response = await POST(webhookRequest('pk_second'));
 
-    expect(response.status).toBe(200);
-    expect(mocks.cancel).toHaveBeenCalledWith(
-      'pk_second',
-      'ICONS 승인 계정 외 테스트 결제 자동 취소',
-    );
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ error: { code: 'legacy_payment_unknown' } });
+    expect(mocks.fetchPayment).not.toHaveBeenCalled();
+    expect(mocks.cancel).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
-    expect(mocks.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: 'canceled',
-        purpose,
-        ref_id: ORDER_UUID,
-        payment_key: 'pk_second',
-      }),
-      { onConflict: 'idempotency_key', ignoreDuplicates: true },
-    );
+    expect(mocks.upsert).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -499,7 +490,7 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
   it.each([
     ['상품 주문', 'order'],
     ['티켓 주문', 'ticket'],
-  ] as const)('terminal 기록 실패 뒤 fresh CANCELED로 재시도한 %s의 기존 target을 보존한다', async (
+  ] as const)('terminal 기록 없는 fresh CANCELED %s도 known-only 경계에서 차단한다', async (
     _label,
     purpose,
   ) => {
@@ -523,16 +514,11 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
 
     const response = await POST(webhookRequest('pk_second'));
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ error: { code: 'legacy_payment_unknown' } });
+    expect(mocks.fetchPayment).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
-    expect(mocks.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: 'canceled',
-        purpose,
-        payment_key: 'pk_second',
-      }),
-      { onConflict: 'idempotency_key', ignoreDuplicates: true },
-    );
+    expect(mocks.upsert).not.toHaveBeenCalled();
   });
 
   it('검토 권한 밖 결제가 provider에서 이미 취소됐어도 fresh GET 뒤 로컬 선점을 원복한다', async () => {
@@ -671,7 +657,9 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
 
     const response = await POST(webhookRequest());
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ error: { code: 'legacy_payment_unknown' } });
+    expect(mocks.fetchPayment).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.upsert).not.toHaveBeenCalled();
     expect(mocks.update).not.toHaveBeenCalled();
@@ -698,7 +686,7 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
     });
   });
 
-  it('#205·#206 전 webhook-first compatibility는 결제 행이 없어도 CANCELED terminal 증거를 복구한다', async () => {
+  it('결제 행이 없는 webhook-first CANCELED는 known-only 경계에서 차단한다', async () => {
     mocks.existingPayment = null;
     mocks.fetchPayment.mockResolvedValue({
       ok: true,
@@ -707,20 +695,14 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
 
     const response = await POST(webhookRequest());
 
-    expect(response.status).toBe(200);
-    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order_with_provider_evidence', expect.objectContaining({
-      p_provider_payment_keys: ['pk_virtual'],
-    }));
-    expect(mocks.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'canceled', ref_id: ORDER_UUID }),
-      { onConflict: 'idempotency_key', ignoreDuplicates: true },
-    );
-    expect(mocks.upsert.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.rpc.mock.invocationCallOrder[0]!,
-    );
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ error: { code: 'legacy_payment_unknown' } });
+    expect(mocks.fetchPayment).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.upsert).not.toHaveBeenCalled();
   });
 
-  it('CANCELED 웹훅의 terminal 증거 복구가 실패하면 로컬 취소 RPC를 호출하지 않는다', async () => {
+  it('unknown CANCELED는 terminal 기록 시도 자체를 하지 않는다', async () => {
     mocks.existingPayment = null;
     mocks.fetchPayment.mockResolvedValue({
       ok: true,
@@ -730,8 +712,10 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
 
     const response = await POST(webhookRequest());
 
-    expect(response.status).toBe(500);
-    await expect(response.json()).resolves.toEqual({ error: { code: 'terminal_record_failed' } });
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ error: { code: 'legacy_payment_unknown' } });
+    expect(mocks.fetchPayment).not.toHaveBeenCalled();
+    expect(mocks.upsert).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
@@ -944,8 +928,10 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
     const response = await POST(webhookRequest());
     const json = await response.json();
 
-    expect(response.status).toBe(500);
-    expect(json).toEqual({ error: { code: 'unsupported_ticket_payment_method' } });
+    expect(response.status).toBe(hasExisting ? 500 : 409);
+    expect(json).toEqual({
+      error: { code: hasExisting ? 'unsupported_ticket_payment_method' : 'legacy_payment_unknown' },
+    });
     expect(JSON.stringify(json)).not.toContain('pk_virtual');
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.upsert).not.toHaveBeenCalled();

@@ -1,14 +1,15 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import type { PreparedCheckout } from '@/lib/payments/gateway';
 import type { TicketOrderSnapshot } from '@/lib/ticketing.server';
 import { TicketCheckout } from './TicketCheckout';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
-vi.mock('@/components/payments/TossPaymentWidget', () => ({
-  TossPaymentWidget: (props: Record<string, unknown>) => (
-    <div data-payment-widget={JSON.stringify(props)} />
+vi.mock('@/components/payments/PreparedCheckoutAction', () => ({
+  PreparedCheckoutAction: (props: Record<string, unknown>) => (
+    <div data-prepared-checkout={JSON.stringify(props)} />
   ),
 }));
 
@@ -25,12 +26,22 @@ const order: TicketOrderSnapshot = {
   expiresAt: '2099-07-14T12:30:00.000Z',
 };
 
-function render(overrides: Partial<TicketOrderSnapshot> = {}, clientKey: string | null = 'test-client-key') {
+const prepared = {
+  attemptId: '44444444-4444-4444-8444-444444444444',
+  provider: 'korpay' as const,
+  callbackNonce: 'opaque-callback-nonce-for-ticket',
+  action: { kind: 'redirect' as const, url: 'https://payments.example.test' },
+  expiresAt: order.expiresAt as string,
+};
+
+function render(
+  overrides: Partial<TicketOrderSnapshot> = {},
+  preparedCheckout: PreparedCheckout | null = prepared,
+) {
   return renderToStaticMarkup(
     <TicketCheckout
-      clientKey={clientKey}
-      customer={{ id: 'user-1', email: 'fan@example.test', name: '아이콘즈 팬' }}
       order={{ ...order, ...overrides }}
+      prepared={preparedCheckout}
     />,
   );
 }
@@ -69,6 +80,6 @@ describe('TicketCheckout', () => {
 
     expect(closed).toContain('예매가 종료됐어요');
     expect(unavailable).toContain('결제 가능 시간을 확인하고 있어요');
-    expect(unavailable).not.toContain('data-payment-widget');
+    expect(unavailable).not.toContain('data-prepared-checkout');
   });
 });
