@@ -165,7 +165,9 @@ describe.skipIf(!runLocalIntegration)('goods payment confirm route local integra
       await expect(checkout.prepare({ userId: testUserId, orderId })).resolves.toEqual(prepared);
 
       const handler = createGoodsPaymentConfirmHandler({
-        paymentsEnabled: () => true,
+        // The durable attempt already exists; a rollout pause must drain this
+        // known in-flight callback without opening any new checkout.
+        confirmationAvailable: () => true,
         createCheckout: () => checkout,
       });
       const response = await handler(new Request(

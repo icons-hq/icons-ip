@@ -11,8 +11,11 @@ import {
  * ready. #207 owns the explicit Korpay rollout gate; #205 therefore remains
  * unavailable in every runtime while still being fully exercisable with Fake.
  */
+export function goodsPaymentConfirmationAvailable() {
+  return getServiceRoleConfig().isConfigured && paymentProviderConfigured();
+}
+
 export function goodsCheckoutPaymentsEnabled() {
-  return getServiceRoleConfig().isConfigured
-    && paymentProviderConfigured()
+  return goodsPaymentConfirmationAvailable()
     && newPaymentCheckoutEnabled();
 }

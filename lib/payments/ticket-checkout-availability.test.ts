@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ticketCheckoutPaymentsEnabled,
-  ticketPaymentReconciliationAvailable,
+  ticketPaymentProviderAvailable,
 } from './ticket-checkout-availability';
 
 const mocks = vi.hoisted(() => ({
@@ -29,19 +29,19 @@ describe('ticketCheckoutPaymentsEnabled', () => {
 
   it('provider가 준비돼도 rollout gate OFF면 신규 예매만 닫고 재조정은 유지한다', () => {
     mocks.providerConfigured = true;
-    expect(ticketPaymentReconciliationAvailable()).toBe(true);
+    expect(ticketPaymentProviderAvailable()).toBe(true);
     expect(ticketCheckoutPaymentsEnabled()).toBe(false);
 
     mocks.checkoutEnabled = true;
     expect(ticketCheckoutPaymentsEnabled()).toBe(true);
 
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
-    expect(ticketPaymentReconciliationAvailable()).toBe(false);
+    expect(ticketPaymentProviderAvailable()).toBe(false);
     expect(ticketCheckoutPaymentsEnabled()).toBe(false);
 
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', '');
-    expect(ticketPaymentReconciliationAvailable()).toBe(false);
+    expect(ticketPaymentProviderAvailable()).toBe(false);
     expect(ticketCheckoutPaymentsEnabled()).toBe(false);
   });
 });

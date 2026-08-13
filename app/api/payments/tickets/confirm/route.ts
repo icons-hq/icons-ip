@@ -2,7 +2,7 @@ import {
   TicketPaymentConfirmationInProgressError,
   TicketPaymentContractError,
 } from '@/lib/payments/ticket-checkout';
-import { ticketCheckoutPaymentsEnabled } from '@/lib/payments/ticket-checkout-availability';
+import { ticketPaymentProviderAvailable } from '@/lib/payments/ticket-checkout-availability';
 import { createRuntimeTicketPaymentCheckout } from '@/lib/payments/ticket-checkout.runtime.server';
 
 const MAX_CALLBACK_BYTES = 64 * 1024;
@@ -51,7 +51,7 @@ function outcomeResponse(outcome: string, attemptId: string, status: number) {
  * the Korpay form callback and explicit 303 result redirect.
  */
 export async function POST(request: Request) {
-  if (!ticketCheckoutPaymentsEnabled()) {
+  if (!ticketPaymentProviderAvailable()) {
     return Response.json({ error: 'payment_unavailable' }, { status: 503 });
   }
 

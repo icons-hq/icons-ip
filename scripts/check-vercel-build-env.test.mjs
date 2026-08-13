@@ -16,7 +16,8 @@ describe('validateVercelBuildEnvironment', () => {
   });
 
   it('accepts a Fake-only preview without a Toss credential and keeps checkout closed', () => {
-    const { TOSS_SECRET_KEY: _retired, ...previewEnvironment } = baseEnvironment;
+    const previewEnvironment = { ...baseEnvironment };
+    delete previewEnvironment.TOSS_SECRET_KEY;
     expect(validateVercelBuildEnvironment(previewEnvironment)).toEqual({
       checked: true,
       legacyTossMode: null,
@@ -86,7 +87,8 @@ describe('validateVercelBuildEnvironment', () => {
   });
 
   it('retired public widget flags cannot open preview checkout without a server credential', () => {
-    const { TOSS_SECRET_KEY: _retired, ...previewEnvironment } = baseEnvironment;
+    const previewEnvironment = { ...baseEnvironment };
+    delete previewEnvironment.TOSS_SECRET_KEY;
     expect(validateVercelBuildEnvironment({
       ...previewEnvironment,
       ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION: 'true',
@@ -102,7 +104,8 @@ describe('validateVercelBuildEnvironment', () => {
   });
 
   it('requires the known-only Toss server credential in production', () => {
-    const { TOSS_SECRET_KEY: _retired, ...productionEnvironment } = baseEnvironment;
+    const productionEnvironment = { ...baseEnvironment };
+    delete productionEnvironment.TOSS_SECRET_KEY;
     expect(() => validateVercelBuildEnvironment({
       ...productionEnvironment,
       VERCEL_ENV: 'production',

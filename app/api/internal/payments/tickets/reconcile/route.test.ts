@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/payments/ticket-checkout-availability', () => ({
-  ticketPaymentReconciliationAvailable: () => mocks.reconciliationAvailable,
+  ticketPaymentProviderAvailable: () => mocks.reconciliationAvailable,
   ticketCheckoutPaymentsEnabled: () => mocks.checkoutAvailable,
 }));
 vi.mock('@/lib/payments/ticket-checkout.runtime.server', () => ({

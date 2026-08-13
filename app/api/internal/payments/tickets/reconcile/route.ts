@@ -4,7 +4,7 @@ import {
   TicketPaymentReconciliationInProgressError,
   TicketRefundInProgressError,
 } from '@/lib/payments/ticket-checkout';
-import { ticketPaymentReconciliationAvailable } from '@/lib/payments/ticket-checkout-availability';
+import { ticketPaymentProviderAvailable } from '@/lib/payments/ticket-checkout-availability';
 import { createRuntimeTicketPaymentCheckout } from '@/lib/payments/ticket-checkout.runtime.server';
 
 function authorized(request: Request) {
@@ -32,7 +32,7 @@ function response(body: Record<string, unknown>, status: number) {
 /** Explicit, separately authorized recovery for one reviewed ticket case. */
 export async function POST(request: Request) {
   if (!authorized(request)) return response({ error: 'unauthorized' }, 401);
-  if (!ticketPaymentReconciliationAvailable()) {
+  if (!ticketPaymentProviderAvailable()) {
     return response({ error: 'payment_unavailable' }, 503);
   }
 

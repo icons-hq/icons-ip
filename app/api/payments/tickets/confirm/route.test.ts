@@ -6,12 +6,14 @@ import {
 import { POST } from './route';
 
 const mocks = vi.hoisted(() => ({
-  available: true,
+  confirmationAvailable: true,
+  checkoutAvailable: false,
   confirm: vi.fn(),
 }));
 
 vi.mock('@/lib/payments/ticket-checkout-availability', () => ({
-  ticketCheckoutPaymentsEnabled: () => mocks.available,
+  ticketPaymentProviderAvailable: () => mocks.confirmationAvailable,
+  ticketCheckoutPaymentsEnabled: () => mocks.checkoutAvailable,
 }));
 vi.mock('@/lib/payments/ticket-checkout.runtime.server', () => ({
   createRuntimeTicketPaymentCheckout: () => ({ confirm: mocks.confirm }),
@@ -33,7 +35,8 @@ function request(body: unknown, headers: HeadersInit = {}) {
 
 describe('POST /api/payments/tickets/confirm', () => {
   beforeEach(() => {
-    mocks.available = true;
+    mocks.confirmationAvailable = true;
+    mocks.checkoutAvailable = false;
     mocks.confirm.mockReset();
     mocks.confirm.mockResolvedValue({
       attemptId: '30000000-0000-4000-8000-000000000206',
@@ -42,11 +45,12 @@ describe('POST /api/payments/tickets/confirm', () => {
     });
   });
 
-  it('세션 없이 opaque order와 nonce만 deep module에 전달한다', async () => {
+  it('신규 checkout OFF에서도 세션 없이 known in-flight order와 nonce를 확정한다', async () => {
     const response = await POST(request(callback));
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({ outcome: 'approved' });
     expect(mocks.confirm).toHaveBeenCalledWith(callback);
+    expect(mocks.checkoutAvailable).toBe(false);
     expect(response.headers.get('cache-control')).toBe('no-store');
   });
 
@@ -65,9 +69,9 @@ describe('POST /api/payments/tickets/confirm', () => {
   });
 
   it('gate·malformed·oversize callback을 provider 호출 전에 차단한다', async () => {
-    mocks.available = false;
+    mocks.confirmationAvailable = false;
     expect((await POST(request(callback))).status).toBe(503);
-    mocks.available = true;
+    mocks.confirmationAvailable = true;
 
     expect((await POST(request([]))).status).toBe(400);
     expect((await POST(request(callback, { 'content-length': '65537' }))).status).toBe(413);

@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { goodsCheckoutPaymentsEnabled } from './goods-checkout-availability';
+import {
+  goodsCheckoutPaymentsEnabled,
+  goodsPaymentConfirmationAvailable,
+} from './goods-checkout-availability';
 
 const mocks = vi.hoisted(() => ({
   providerConfigured: false,
@@ -26,12 +29,14 @@ describe('goodsCheckoutPaymentsEnabled', () => {
 
   it('provider·rollout gate와 server trust boundary가 모두 준비돼야 열린다', () => {
     mocks.providerConfigured = true;
+    expect(goodsPaymentConfirmationAvailable()).toBe(true);
     expect(goodsCheckoutPaymentsEnabled()).toBe(false);
 
     mocks.checkoutEnabled = true;
     expect(goodsCheckoutPaymentsEnabled()).toBe(true);
 
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
+    expect(goodsPaymentConfirmationAvailable()).toBe(false);
     expect(goodsCheckoutPaymentsEnabled()).toBe(false);
   });
 });

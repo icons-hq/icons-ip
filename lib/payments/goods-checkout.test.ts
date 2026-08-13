@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type {
   ConfirmOutcome,
   PaymentAttempt,
@@ -180,6 +180,26 @@ describe('GoodsPaymentCheckout', () => {
 
     await expect(checkout.confirm(callback)).resolves.toEqual(approved);
     await expect(checkout.confirm(callback)).resolves.toEqual(approved);
+  });
+
+  it('unknown order 또는 nonce는 provider 호출 전에 거부한다', async () => {
+    const { checkout, repository } = checkoutFixture();
+    const confirmSpy = vi.spyOn(FakePaymentGateway.prototype, 'confirm');
+    await checkout.prepare({ userId: USER_ID, orderId: ORDER_ID });
+
+    await expect(checkout.confirm({
+      providerOrderId: 'Offfffffffff4fff8fffffffffffffff',
+      callbackNonce: CALLBACK_NONCE,
+      providerPayload: {},
+    })).rejects.toMatchObject({ code: 'invalid_callback' });
+    await expect(checkout.confirm({
+      providerOrderId: PROVIDER_ORDER_ID,
+      callbackNonce: 'wrong-opaque-nonce',
+      providerPayload: {},
+    })).rejects.toMatchObject({ code: 'invalid_callback' });
+    expect(confirmSpy).not.toHaveBeenCalled();
+    expect(repository.finalizations).toHaveLength(0);
+    confirmSpy.mockRestore();
   });
 
   it('다른 callback이 이미 claim한 attempt는 자동 재승인하지 않는다', async () => {

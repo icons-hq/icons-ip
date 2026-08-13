@@ -1,6 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import type { PreparedCheckout } from '@/lib/payments/gateway';
 import type { TicketOrderSnapshot } from '@/lib/ticketing.server';
 import {
   TicketCheckout,

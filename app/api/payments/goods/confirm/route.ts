@@ -3,7 +3,7 @@ import {
   GoodsPaymentContractError,
   type GoodsPaymentCheckout,
 } from '@/lib/payments/goods-checkout';
-import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
+import { goodsPaymentConfirmationAvailable } from '@/lib/payments/goods-checkout-availability';
 import { createRuntimeGoodsPaymentCheckout } from '@/lib/payments/goods-checkout.runtime.server';
 
 const MAX_CALLBACK_BYTES = 64 * 1024;
@@ -53,16 +53,16 @@ function response(outcome: string, attemptId: string, status: number) {
  * Postgres. #207 may wrap this contract in Korpay's form/303 adapter.
  */
 interface GoodsPaymentConfirmHandlerDependencies {
-  readonly paymentsEnabled: () => boolean;
+  readonly confirmationAvailable: () => boolean;
   readonly createCheckout: () => GoodsPaymentCheckout;
 }
 
 export function createGoodsPaymentConfirmHandler({
-  paymentsEnabled,
+  confirmationAvailable,
   createCheckout,
 }: GoodsPaymentConfirmHandlerDependencies) {
   return async function handleGoodsPaymentConfirm(request: Request) {
-    if (!paymentsEnabled()) {
+    if (!confirmationAvailable()) {
       return Response.json({ error: 'payment_unavailable' }, { status: 503 });
     }
 
@@ -108,6 +108,6 @@ export function createGoodsPaymentConfirmHandler({
 }
 
 export const POST = createGoodsPaymentConfirmHandler({
-  paymentsEnabled: goodsCheckoutPaymentsEnabled,
+  confirmationAvailable: goodsPaymentConfirmationAvailable,
   createCheckout: createRuntimeGoodsPaymentCheckout,
 });
