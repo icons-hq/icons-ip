@@ -3,13 +3,12 @@ import type { RarityKey } from '@/lib/rarity';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/client';
 
-/* PopupGameHost — 호스트(웹/Expo)↔게임 브리지 계약(게임 미니앱 스펙 §2).
- * 게임은 이 인터페이스만 의존하고, 결과·경품은 항상 서버가 결정한다(ADR-0002). */
+/* 웹 참여형 게임 host 계약. 현재 전달 표면은 Next.js 웹뿐이며,
+ * 카드 보상은 서버가 결정하고 retired goods variant는 mock 연출만 제공한다. */
 
 export type GrantedReward =
   | { kind: 'card'; cardId: string; rarity: RarityKey; isNew: boolean }
-  // 'goods'는 PoC 래플 연출 데모 전용 — 실물 굿즈의 무상 지급 경로가 아니다(ADR-0002 경품 경계).
-  // 실배선 시 굿즈 경품은 draw_raffle(당첨자 정가 결제 구매권) 계약으로만 존재한다.
+  // 'goods'는 historical PoC mock 전용 — 실물 굿즈·구매권·prize_sale 배정이 아니다.
   | { kind: 'goods'; goodsId: string };
 
 export interface GamePlayResult {
@@ -18,20 +17,9 @@ export interface GamePlayResult {
   animationSeed: string; // rewards에 도달하는 결정론적 코스메틱 연출 시드
 }
 
-export interface RaffleResult {
-  raffleId: string;
-  winners: string[];
-  serverSeed: string;
-  clientSeed: string;
-  animationSeed: string;
-  isWinner: boolean;
-}
-
 export interface PopupGameHost {
   getSession(): Promise<{ accessToken: string; userId: string } | null>;
   playGame(gameId: string): Promise<GamePlayResult>;
-  getRaffleResult(raffleId: string): Promise<RaffleResult>;
-  startPrizeCheckout(raffleId: string): Promise<void>;
   haptics(type: 'light' | 'success'): void;
   share(payload: { title: string; url: string }): Promise<void>;
   close(): void;
@@ -55,7 +43,7 @@ export class GamePlayError extends Error {
 
 export interface WebGameHostOptions {
   /** supabase 모드 card variant에서 주입(Server Action → play_game RPC).
-   * 미주입 시 mock 경로 — goods 래플 연출 데모는 실배선 전까지 항상 mock. */
+   * 미주입 시 mock 경로 — goods variant는 영구 비거래 historical mock. */
   remotePlay?: (
     gameId: string,
   ) => Promise<{ ok: true; result: GamePlayResult } | { ok: false; error: GamePlayErrorCode }>;
@@ -88,7 +76,7 @@ function randomSeed(): string {
 }
 
 /** 웹 호스트 — getSession 실배선. playGame은 remotePlay 주입 시 play_game RPC(#64),
- * 미주입 시 mock(굿즈 래플 연출 데모·mock 모드). */
+ * 미주입 시 카드 또는 retired goods mock 연출만 반환한다. */
 export function createWebGameHost(options: WebGameHostOptions = {}): PopupGameHost {
   return {
     async getSession() {
@@ -111,7 +99,7 @@ export function createWebGameHost(options: WebGameHostOptions = {}): PopupGameHo
       await new Promise((resolve) => setTimeout(resolve, 450));
       const variant = game.config.variant;
       if (variant.kind === 'goods') {
-        // 래플 연출 데모 — 균등 추첨. 실배선은 draw_raffle(commit-reveal)이 진실원.
+        // historical mock label 선택일 뿐 실제 당첨·재고·구매권을 만들지 않는다.
         const goodsId = variant.goodsIds[Math.floor(Math.random() * variant.goodsIds.length)];
         return {
           playId: crypto.randomUUID(),
@@ -127,14 +115,6 @@ export function createWebGameHost(options: WebGameHostOptions = {}): PopupGameHo
         rewards: [{ kind: 'card', cardId: card.id, rarity: card.rarity, isNew: !card.owned }],
         animationSeed: randomSeed(),
       };
-    },
-
-    async getRaffleResult() {
-      throw new Error('래플 시각화는 PoC 범위 밖입니다');
-    },
-
-    async startPrizeCheckout() {
-      throw new Error('래플 시각화는 PoC 범위 밖입니다');
     },
 
     haptics(type) {

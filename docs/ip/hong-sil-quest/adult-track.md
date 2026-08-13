@@ -11,7 +11,7 @@
 | 확장 씬 3라운드(R5·R6·R7) | ✅ 작성 |
 | 정사 장면 본문 | ⬜ **집필 슬롯 3곳** — 원작자 집필분 (§0) |
 | 연령 게이트 UI | ✅ 구현 (자가 확인 · 실제 인증 아님) |
-| 본인인증(PASS) | ⬜ 도입 예정 |
+| NICE `adult_19` 연령보증 | ⬜ 계약·구현 예정 (#209·#210) |
 | 게임물 등급분류 | ⬜ 미확정 |
 | 서버 게이팅·RLS | ⬜ 실서비스 전환 시 |
 
@@ -63,10 +63,10 @@
 
 ### 2.2 본인인증
 
-PRD §5.1이 본인확인을 `"자가신고 + 결제 시 결제사(토스페이먼츠) 위임"`으로 두고, `"게임물 등급에서 연령제한 요구 시 v1.x에 PASS 추가"`로 유보했다. 성인 트랙은 이 유보를 끝낸다.
+현재 온보딩의 생년월일은 자가신고 프로필 값이며 성인인증 증거가 아니다. 승인된 목표 계약은 공통 `AgeAssurance`에서 v1 가입용 `minimum_age_14`와 성인 상품용 `adult_19` purpose를 분리한다. 14+ 세부 정책은 [#188](https://github.com/icons-hq/icons-ip/issues/188), NICE 계약 discovery는 [#209](https://github.com/icons-hq/icons-ip/issues/209), 실제 19+ 상품 gate는 [#210](https://github.com/icons-hq/icons-ip/issues/210)이 정본이다. 아래 항목은 아직 구현·활성화되지 않았다.
 
-- [ ] PASS 등 본인인증 연동 (자가신고로는 부족)
-- [ ] 인증 결과 저장 범위와 보존 기간 (개인정보 최소수집)
+- [ ] NICE `adult_19` 연동과 callback 서명·replay·서버 재조회 계약 확정
+- [ ] provider·purpose·hashed transaction reference·age band·policy version·verified/expiry 시각만 저장하고 DOB·CI·DI·raw payload는 저장하지 않는 최소수집 계약
 - [ ] 미인증·미성년 계정의 트랙 접근 차단을 **RLS 레벨에서** 강제
 
 ### 2.3 라이선스 범위
@@ -74,7 +74,7 @@ PRD §5.1이 본인확인을 `"자가신고 + 결제 시 결제사(토스페이�
 - [ ] 계약서상 각색 권한에 성인 장면이 포함되는가
 - [ ] 원작 장면의 재현/각색 중 어느 쪽이 허용되는가
 - [ ] 원화 발주 시 성인 표현의 승인 절차
-- [ ] 앱스토어 배포 계획이 있다면 Apple/Google 정책 충돌 (ADR-0002가 앱 심사 리스크를 이미 기록)
+- [ ] 현재 제공 표면은 웹으로 한정한다. 향후 앱 배포를 다시 제안하면 당시 Apple/Google 정책을 새 ADR에서 검토한다
 
 ---
 
@@ -132,19 +132,19 @@ export const sceneBeats = (scene, flags, track = 'all-ages'): Beat[];
 ## 4. 게이팅 아키텍처
 
 ```
-[진입]
+[진입 — 목표 계약, 현재 미구현]
   → 로그인 필수
-  → profiles.age_verified = true 확인 (PASS 등 인증 결과)
+  → AgeAssurance.eligibility(userId, adult_19) 확인 (유효 NICE receipt)
   → 트랙 선택 UI (기본값 = 전연령)
   → 성인 트랙 선택 시 명시적 동의 1회 (세션 아님, 계정 단위 저장)
   → 서버가 성인 씬 청크를 세션에 바인딩해 전달
 ```
 
-**신뢰 경계** — [docs/ARCHITECTURE.md](../../ARCHITECTURE.md) §7·§15와 ADR-0002의 규율을 그대로 따른다.
+**신뢰 경계** — [docs/ARCHITECTURE.md](../../ARCHITECTURE.md) §7·§15의 서버 권한·RLS 규율을 따른다.
 
 - 연령 판정은 **서버**가 한다. 클라이언트 상태·쿼리 파라미터로 트랙을 바꿀 수 없어야 한다
-- 성인 씬 데이터에 **RLS**를 건다. `age_verified` 미충족 계정은 행 자체를 못 읽는다
-- 게임 번들은 첫파티 오리진 허용리스트에서만 로드한다 (ADR-0002)
+- 성인 씬 데이터에 **RLS**를 건다. 유효한 `adult_19` receipt가 없는 계정은 행 자체를 못 읽는다
+- 현재 게임은 웹 표면에서만 제공한다. 향후 별도 호스트를 추가하더라도 서버 연령 판정과 private 콘텐츠 경계를 우회할 수 없다
 - 정지된 계정은 트랙 접근을 잃는다 (기존 정지 규칙과 동일)
 
 **노출 정책**
@@ -163,7 +163,7 @@ export const sceneBeats = (scene, flags, track = 'all-ages'): Beat[];
 
 **실서비스 전환 전 (§2)**
 - 게임물 등급분류 결과
-- PASS 본인인증 연동 — 자가 확인 버튼을 대체한다
+- NICE `adult_19` 연령보증 연동 — 자가 확인 버튼을 대체한다
 - 서버 게이팅·RLS — 클라이언트 동적 import를 서버 바인딩으로 옮긴다
 - 계정 단위 동의 저장 — 지금은 메모리라 새로고침하면 사라진다
 
@@ -188,4 +188,4 @@ export const sceneBeats = (scene, flags, track = 'all-ages'): Beat[];
 - [game-scenario.md](./game-scenario.md) — 전연령 본편 시나리오
 - [docs/PRD.md](../../PRD.md) §5.1 본인확인 · §7 규제 · §11 미해결
 - [docs/ARCHITECTURE.md](../../ARCHITECTURE.md) §7·§15 서버 신뢰 경계
-- [ADR-0002](../../adr/0002-cross-platform-popup-game-miniapps.md) — 게임 미니앱 아키텍처와 앱 심사 리스크
+- [ADR-0004](../../adr/0004-draw-ticket-card-packs.md) — 서버 결정 카드팩·참여형 게임 경계

@@ -5,9 +5,8 @@ import { getGameCatalogEntry } from '@/lib/games/catalog';
 import { GameScreen } from '@/components/games/GameScreen';
 import { readCardRewardsEnabled } from '@/lib/card-rewards/gate.server';
 
-/* 게임 = 자기완결 웹 번들(ADR-0002). 셸 없이 풀블리드로 렌더되고,
- * Expo(V2+)는 이 URL을 webview로 그대로 로드한다.
- * 카탈로그는 supabase 모드에서 games 테이블, mock 모드에서 DATA.GAMES(#64). */
+/* 현재 제품의 웹 참여형 게임 경로. 셸 없이 풀블리드로 렌더되며,
+ * 카탈로그는 supabase 모드에서 games 테이블, mock 모드에서 DATA.GAMES(#64)를 쓴다. */
 
 const getEntry = cache(getGameCatalogEntry);
 const getCardRewardsEnabled = cache(readCardRewardsEnabled);

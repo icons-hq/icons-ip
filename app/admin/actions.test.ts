@@ -867,7 +867,7 @@ describe('admin catalog actions', () => {
     ['game_pool_window_not_covered', '게임 운영 기간은 카드풀 운영 기간 안에 있어야 합니다.'],
     ['game_event_ip_mismatch', '같은 IP의 온라인 이벤트만 선택할 수 있습니다.'],
     ['game_catalog_locked', '플레이 이력이 있어 ID·카드풀·이벤트·설정을 변경할 수 없습니다.'],
-    ['game_variant_read_only', '굿즈 보상형 게임은 #115에서 운영합니다.'],
+    ['game_variant_read_only', 'legacy 굿즈 게임은 읽기 전용이며 현 로드맵에서 운영하지 않습니다.'],
     ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
   ])('maps %s game RPC errors and preserves the failure boundary', async (rpcMessage, expected) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
@@ -883,6 +883,15 @@ describe('admin catalog actions', () => {
 
     await expect(endAdminGameAction({}, gameEndForm())).resolves.toEqual({
       errors: { form: '운영 중인 게임만 지금 종료할 수 있습니다.' },
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('keeps legacy goods games read-only without handing operations to a retired issue', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'game_variant_read_only' } });
+
+    await expect(endAdminGameAction({}, gameEndForm())).resolves.toEqual({
+      errors: { form: 'legacy 굿즈 게임은 읽기 전용이며 현 로드맵에서 운영하지 않습니다.' },
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });

@@ -1,6 +1,6 @@
 # ICONS
 
-ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 라이선스 **굿즈** 커머스, 수집형 디지털 **카드**(가챠), 팝업 티케팅, 커뮤니티, IP 허브를 하나의 "Holographic Midnight" 경험으로 묶는다.
+ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 라이선스 **굿즈** 커머스, 수집형 디지털 **카드**(무료 리워드), 팝업 티케팅, 커뮤니티, IP 허브를 하나의 "Holographic Midnight" 경험으로 묶는다.
 
 ## 현재 상태
 
@@ -12,9 +12,10 @@ ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 �
 - 커뮤니티 공개 피드는 Supabase `posts`/`public_profiles`와 최근 7일 visible 포스트의 트렌딩 태그를 읽는다. 포스트·댓글 Server Action과 RPC는 연결돼 있지만 생성·수정과 community 이미지 upload는 DB·Storage gate에서 기본 OFF다. 운영·법률 준비를 증명한 별도 migration 전까지 공개 읽기·좋아요·신고·차단·본인 삭제·운영자 숨김만 유지한다.
 - 디지털 카드 리워드는 DB 전역 gate에서 기본 OFF다. 법무·운영 승인을 반영한 별도 migration 전까지 카드팩·게임 공개 표면과 신규 발급·개봉·운영 활성화를 차단하고, 기존 보유 카드 바인더만 읽기 전용으로 유지한다.
 - 검색은 Supabase 환경변수가 있으면 Postgres `search_public_content` RPC로 IP, 굿즈, 카드, visible 포스트, 태그를 그룹 검색하고, 로컬 fallback에서는 mock 데이터를 사용한다.
-- `/admin`은 staff/admin 게이트, 카탈로그 CRUD·보관/복원·아트워크 업로드, 카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩, 뽑기권 발급 정책, 카드 보상형 참여형 게임 등록·운영과 PII-free 플레이 집계, 감사 로그, 커뮤니티 신고 상태 변경과 포스트 숨김 처리 경로에 연결되어 있다. 기존 굿즈 variant는 #115 전까지 읽기 전용이다.
+- `/admin`은 staff/admin 게이트, 카탈로그 CRUD·보관/복원·아트워크 업로드, 카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩, 뽑기권 발급 정책, 카드 보상형 참여형 게임 등록·운영과 PII-free 플레이 집계, 감사 로그, 커뮤니티 신고 상태 변경과 포스트 숨김 처리 경로에 연결되어 있다. 기존 게임 `goods` variant는 운영 콘솔에서 읽기 전용이고, mock 연출은 실제 경품·구매권을 만들지 않으며 신규 실물 판매에 쓰지 않는다.
 - Google, Kakao, Apple 버튼은 Supabase 관리형 OAuth Server Action에 연결되어 있고 production Supabase provider도 모두 활성화되어 있다. Google은 production 공개 상태이며 Apple App ID·Services ID·callback·서명 키 구성이 완료됐다. Kakao는 `(주) 아이콘스` 비즈 앱, 로그인용 client secret, `account_email` 필수 동의·계정 정보 수집까지 설정했고 Supabase의 이메일 없는 사용자 허용은 꺼져 있다. 코드가 production에 배포된 뒤 controlled login smoke가 남아 있다.
 - 굿즈·티켓 결제와 주문 원장, 티켓 현장 검표는 서버 경계에 연결되어 있다. production 실제 결제는 라이브 상점 설정 검증 전까지 비활성이다. 단, 승인된 사람 검토 동안에만 토스 테스트 결제위젯을 임시로 열 수 있으며 테스트 결제는 실제 결제수단을 출금하지 않는다.
+- 범용 온라인 팝업 운영 레이어와 Expo webview 호스트는 현 로드맵에 없다. 19+ 꽝 없는 유한 실물 쿠지는 기존 카드·게임과 분리된 `prize_sale`로 설계하며 [#212](https://github.com/icons-hq/icons-ip/issues/212)·[#213](https://github.com/icons-hq/icons-ip/issues/213)이 별도 추적한다.
 
 ## 빠른 시작
 

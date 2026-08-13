@@ -64,4 +64,11 @@ describe('remote game play errors', () => {
       expect.objectContaining<GamePlayError>({ code: 'account_suspended' }),
     );
   });
+
+  it('retired raffle and prize-checkout capabilities are absent from the web host', () => {
+    const host = createWebGameHost();
+
+    expect('getRaffleResult' in host).toBe(false);
+    expect('startPrizeCheckout' in host).toBe(false);
+  });
 });
