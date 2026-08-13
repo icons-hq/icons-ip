@@ -170,15 +170,16 @@ describe('sendOrderConfirmationEmail', () => {
   });
 
   it('발송이 실패해도 예외를 던지지 않고 실패를 이력에 남긴다', async () => {
-    mocks.send.mockResolvedValue({ status: 'failed', error: 'provider responded 500' });
+    mocks.send.mockResolvedValue({ status: 'failed', error: 'provider body contains buyer@example.com' });
 
     const result = await sendOrderConfirmationEmail(ORDER_ID);
 
-    expect(result.status).toBe('failed');
+    expect(result).toEqual({ status: 'failed', error: 'provider_failure' });
     expect(rpcCalls('complete_email_delivery')[0][1]).toMatchObject({
       target_status: 'failed',
-      target_error: 'provider responded 500',
+      target_error: 'provider_failure',
     });
+    expect(loggedLines().join('\n')).not.toMatch(/buyer@example\.com|provider body/);
   });
 
   it('주문을 읽지 못해도 예외를 던지지 않는다', async () => {
