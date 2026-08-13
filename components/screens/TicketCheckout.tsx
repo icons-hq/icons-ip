@@ -2,26 +2,70 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
-import { TossPaymentWidget } from '@/components/payments/TossPaymentWidget';
+import { useActionState, useEffect, useMemo, useState } from 'react';
+import {
+  prepareTicketPaymentAction,
+  type PrepareTicketPaymentActionState,
+} from '@/app/ticket-checkout/actions';
+import { PreparedCheckoutAction } from '@/components/payments/PreparedCheckoutAction';
 import { krw } from '@/lib/format';
-import { ticketCheckoutState, ticketOrderName } from '@/lib/ticketing';
+import type { PreparedCheckout } from '@/lib/payments/gateway';
+import { ticketCheckoutState } from '@/lib/ticketing';
 import type { TicketOrderSnapshot } from '@/lib/ticketing.server';
 
+const emptyPrepareState: PrepareTicketPaymentActionState = {};
+
+const prepareErrorCopy: Record<NonNullable<PrepareTicketPaymentActionState['error']>, string> = {
+  auth_required: '로그인 상태를 다시 확인한 뒤 결제를 준비해주세요.',
+  not_found: '이 예매를 확인할 수 없습니다.',
+  not_payable: '이 예매는 더 이상 결제할 수 없습니다.',
+  payment_unavailable: '결제 환경을 준비 중입니다. 잠시 후 다시 시도해주세요.',
+};
+
+export function effectiveTicketCheckoutExpiry(
+  orderExpiresAt: string,
+  providerExpiresAt?: string,
+) {
+  const orderExpiry = Date.parse(orderExpiresAt);
+  const providerExpiry = providerExpiresAt ? Date.parse(providerExpiresAt) : orderExpiry;
+  return Math.min(orderExpiry, providerExpiry);
+}
+
+export function preparedTicketCheckoutUsable(
+  prepared: PreparedCheckout | undefined,
+  orderExpiresAt: string | null,
+  now: number,
+) {
+  return Boolean(
+    prepared
+    && orderExpiresAt
+    && effectiveTicketCheckoutExpiry(orderExpiresAt, prepared.expiresAt) > now,
+  );
+}
+
 export function TicketCheckout({
-  clientKey,
-  customer,
   order,
 }: {
-  clientKey: string | null;
-  customer: { id: string; email: string | null; name: string };
   order: TicketOrderSnapshot;
 }) {
   const router = useRouter();
+  const [prepareState, prepareAction, preparePending] = useActionState(
+    prepareTicketPaymentAction,
+    emptyPrepareState,
+  );
   const [pollAttempts, setPollAttempts] = useState(0);
   const [now, setNow] = useState<number | null>(null);
   const state = ticketCheckoutState(order.status, order.paymentStatus, order.expiresAt, now ?? 0);
-  const expiresIn = order.expiresAt && now !== null ? Math.max(0, Date.parse(order.expiresAt) - now) : 0;
+  const effectiveExpiry = order.expiresAt
+    ? effectiveTicketCheckoutExpiry(order.expiresAt, prepareState.prepared?.expiresAt)
+    : 0;
+  const preparedUsable = now !== null && preparedTicketCheckoutUsable(
+    prepareState.prepared,
+    order.expiresAt,
+    now,
+  );
+  const preparedExpired = Boolean(prepareState.prepared && now !== null && !preparedUsable);
+  const expiresIn = now !== null ? Math.max(0, effectiveExpiry - now) : 0;
   const minutes = Math.floor(expiresIn / 60_000);
   const seconds = Math.floor((expiresIn % 60_000) / 1_000);
 
@@ -56,7 +100,7 @@ export function TicketCheckout({
       return {
         eyebrow: 'VERIFYING PAYMENT',
         title: '결제를 확인하고 있어요',
-        body: '승인은 접수됐고 웹훅으로 최종 상태를 확인 중입니다. 이 화면을 닫아도 확인은 계속됩니다.',
+        body: '결제사 결과를 서버에서 다시 확인 중입니다. 이 화면을 닫아도 예약은 자동 해제되지 않습니다.',
       };
     }
     if (state === 'closed') {
@@ -86,28 +130,32 @@ export function TicketCheckout({
         <section className="checkout-order-main card">
           {state === 'payable' && now === null ? (
             <div className="checkout-state-panel" role="status">결제 가능 시간을 확인하고 있어요.</div>
-          ) : state === 'payable' && clientKey ? (
+          ) : state === 'payable' && prepareState.prepared && preparedUsable ? (
             <>
               <div className="checkout-deadline" role="timer">
                 <span>회차 선점 남은 시간</span>
                 <strong className="mono">{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}</strong>
               </div>
-              <TossPaymentWidget
-                callbackBasePath="/ticket-checkout"
-                clientKey={clientKey}
-                customerEmail={customer.email}
-                customerKey={customer.id}
-                customerName={customer.name}
-                orderId={order.id}
-                orderName={ticketOrderName(order.eventTitle, order.ticketTypeName, order.qty)}
-                purpose="ticket"
-                total={order.total}
-              />
+              <PreparedCheckoutAction prepared={prepareState.prepared} />
             </>
+          ) : state === 'payable' && preparedExpired ? (
+            <div className="checkout-state-panel" role="alert">
+              <h2>결제 준비 시간이 지났어요</h2>
+              <p>이 결제 action은 더 이상 사용할 수 없습니다. 예매를 취소한 뒤 새로 예약해주세요.</p>
+            </div>
           ) : state === 'payable' ? (
             <div className="checkout-state-panel" role="alert">
-              <h2>결제 환경을 확인 중이에요</h2>
-              <p>예매는 생성됐지만 결제수단을 불러올 수 없습니다. 만료 전에 새로고침하거나 잠시 후 다시 시도해주세요.</p>
+              <h2>결제를 준비해주세요</h2>
+              <p>버튼을 누르면 로그인·예매 소유권·금액·회차 선점을 서버에서 다시 확인합니다.</p>
+              <form action={prepareAction}>
+                <input name="ticketOrderId" type="hidden" value={order.id} />
+                <button className="btn btn-holo checkout-submit" disabled={preparePending}>
+                  {preparePending ? '결제 준비 중' : '결제 준비하기'}
+                </button>
+              </form>
+              {prepareState.error && (
+                <p className="checkout-error">{prepareErrorCopy[prepareState.error]}</p>
+              )}
             </div>
           ) : (
             <div className={`checkout-state-panel checkout-state-panel--${state}`} role="status">

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { cancelTossPayment } from './toss-api';
+import { cancelTossPayment, getTossConfig } from './toss-api';
 
 const PAYMENT_KEY = 'ticket-payment-secret';
 
@@ -39,5 +39,21 @@ describe('cancelTossPayment', () => {
         }),
       }),
     );
+  });
+
+  it('공개 위젯 키나 production override 없이 server-only legacy API만 구성한다', () => {
+    vi.stubEnv('NEXT_PUBLIC_TOSS_CLIENT_KEY', '');
+    vi.stubEnv('ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION', '');
+    vi.stubEnv('VERCEL_ENV', 'production');
+
+    expect(getTossConfig()).toMatchObject({
+      secretKey: 'test_gsk_example',
+      isConfigured: true,
+    });
+  });
+
+  it('legacy server credential 형식이 아니면 구성되지 않은 것으로 처리한다', () => {
+    vi.stubEnv('TOSS_SECRET_KEY', 'test_sk_not_widget_secret');
+    expect(getTossConfig().isConfigured).toBe(false);
   });
 });

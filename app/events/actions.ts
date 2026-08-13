@@ -2,7 +2,7 @@
 
 import { isAccountSuspended, isOnboarded } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
-import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
+import { ticketCheckoutPaymentsEnabled } from '@/lib/payments/ticket-checkout-availability';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import {
@@ -37,7 +37,7 @@ export async function reserveTicketsAction(inputValue: unknown): Promise<Reserve
 
   const input = normalizeReserveTicketsInput(inputValue);
   if (!input) return { ok: false, error: 'invalid_request' };
-  if (!checkoutPaymentsEnabled(auth.isStaff)) return { ok: false, error: 'payment_unavailable' };
+  if (!ticketCheckoutPaymentsEnabled()) return { ok: false, error: 'payment_unavailable' };
 
   try {
     const supabase = await createClient();
