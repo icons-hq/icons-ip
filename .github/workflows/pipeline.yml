@@ -143,7 +143,6 @@ jobs:
           REQUIRE_SMTP: "true"
           ENFORCE_MAILER: "true"
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
-          RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
           REDIRECT_URLS: |
             https://iconsip.com/auth/callback
             https://iconsip.com/auth/recovery/callback
@@ -252,7 +251,6 @@ jobs:
           REQUIRE_SMTP: "false"
           ENFORCE_MAILER: "false"
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
-          RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
           REDIRECT_URLS: |
             https://icons-ip.vercel.app/auth/callback
             https://icons-ip.vercel.app/auth/recovery/callback
@@ -373,9 +371,12 @@ jobs:
         run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
 
       - name: Check Vercel deployment secrets
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
           missing=0
-          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID CRON_SECRET; do
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID CRON_SECRET SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_ID; do
             if [ -z "${!name}" ]; then
               echo "::error title=Missing GitHub secret::$name is required for Vercel deployment"
               missing=1
@@ -396,3 +397,14 @@ jobs:
         run: |
           deployment_url="$(vercel deploy --yes --prod --archive=tgz)"
           echo "Production deployment: $deployment_url" >> "$GITHUB_STEP_SUMMARY"
+
+      # handler와 기존 PKCE 호환 경로가 production에 먼저 올라간 뒤에만 새 링크를 발급한다.
+      - name: Activate recovery token-hash template in production
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SITE_URL: https://iconsip.com
+          REQUIRE_SMTP: "true"
+          ENFORCE_MAILER: "true"
+          RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
+        run: node scripts/sync-supabase-auth.mjs
