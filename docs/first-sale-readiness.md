@@ -220,7 +220,7 @@
 ### 5.2 분리된 확인 항목
 
 - **[#87](https://github.com/icons-hq/icons-ip/issues/87)** — Korpay 승인 범위·rotated credential·보안/조회/취소·정산 운영 계약. 공급사 questionnaire, credential rotation, #207 dark deploy와 controlled canary를 추적한다. 기존 Toss는 알려진 legacy 거래 정리용으로만 보존한다.
-- **[#239](https://github.com/icons-hq/icons-ip/issues/239)** — 상호·대표자·사업자등록번호·통신판매업 신고번호·주소·전화·이메일과 인앱 주문 상세의 서면 교부 충족 여부. 부족하다는 답이면 #191 이메일 운영 활성화를 판매 전 필수로 유지한다.
+- **[#239](https://github.com/icons-hq/icons-ip/issues/239)** — 상호·대표자·사업자등록번호·통신판매업 신고번호·주소·전화·이메일과 인앱 주문 상세의 서면 교부 충족 여부. 이 법적 판단과 별개로 D8과 #168은 #191 이메일 운영 활성화를 첫판매 크리티컬 패스로 유지한다.
 - **[#190](https://github.com/icons-hq/icons-ip/issues/190)** — 홍실 3종 고시정보·상세 콘텐츠와 A/S 연락처. 대표 전화 또는 별도 고객센터 번호를 이 이슈에서 확정하고 #239의 공개 문의 창구와 일치시킨다.
 
 ---
@@ -287,7 +287,7 @@
 3. **[#177](https://github.com/icons-hq/icons-ip/issues/177)** — H1~H7. 특히 H7(WMS 운영사 법인명)이 없으면 개인정보처리방침의 처리위탁 목록을 완성할 수 없다.
 4. **[#190](https://github.com/icons-hq/icons-ip/issues/190)** — 홍실 3종의 고시정보 7항목 × 3 = **21칸이 전부 공백**이고 설명·갤러리·상세 이미지도 없다. A/S 연락처는 이 이슈에서 확정하며 #87과 무관하다.
 5. **[#179](https://github.com/icons-hq/icons-ip/issues/179)** — #177의 WMS 격리 계약과 #190의 필수 고시정보가 필요하다. 홍실 3종이 전부 `stock='soldout'`·`stock_qty=0`이라 지금은 아무것도 팔리지 않는다.
-6. **[#191](https://github.com/icons-hq/icons-ip/issues/191)** — dark outbox/Hook 코드는 기본 OFF로 배포됐지만 발신 도메인·Production secret·Hook·실수신 증거가 없다. 첫판매 필수 여부는 #239의 서면 교부 판단을 따르고, Auth·탈퇴 통지 등 #191 자체 acceptance는 별개로 남는다.
+6. **[#191](https://github.com/icons-hq/icons-ip/issues/191)** — legacy Supabase custom SMTP의 `no-reply@iconsip.com` Gmail 수신과 SPF·DKIM·DMARC pass는 확인됐다. 그러나 dark outbox/Hook은 기본 OFF이고, 승인된 TTL·HMAC rotation/drain·Production secrets·최종 DNS/From/Reply-To readback·Hook enable·Auth 4흐름과 secure email change 2메일·탈퇴 통지·webhook canary·direct SMTP 0 증거가 없다. D8과 #168에 따라 첫판매 크리티컬 패스로 유지하며, #239는 서면 교부의 법적 충분성을 별도로 확인한다.
 7. **[#207](https://github.com/icons-hq/icons-ip/issues/207)** — 굿즈·티켓 seam은 provider 기본 OFF로 구현됐다. Korpay dark deploy·controlled canary 증거 전에는 신규 공개 결제를 열지 않는다.
 
 ### 8.2 #178에서 남긴 범위
