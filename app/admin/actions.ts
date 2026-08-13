@@ -549,6 +549,9 @@ export async function upsertAdminRewardPolicyAction(
   if (error) {
     const archivedError = archivedCatalogFailure(error.message);
     if (archivedError) return archivedError;
+    if (error.message.includes('card_rewards_disabled')) {
+      return rpcFailure('카드 리워드는 현재 비활성화되어 있습니다.');
+    }
     if (error.message.includes('auth_required')) {
       return rpcFailure('로그인이 필요합니다.');
     }
@@ -639,6 +642,9 @@ export async function upsertAdminGameAction(
   if (error) {
     const archivedError = archivedCatalogFailure(error.message);
     if (archivedError) return archivedError;
+    if (error.message.includes('card_rewards_disabled')) {
+      return rpcFailure('카드 리워드는 현재 비활성화되어 있습니다.');
+    }
     if (error.message.includes('auth_required')) return rpcFailure('로그인이 필요합니다.');
     if (error.message.includes('forbidden')) return rpcFailure('관리자 권한이 필요합니다.');
     if (error.message.includes('invalid_operation_id')) {

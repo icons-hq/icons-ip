@@ -5,6 +5,7 @@ import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { normalizeOrderReference } from '@/lib/checkout';
 import { loadOrderDetail } from '@/lib/orders.server';
+import { readCardRewardsEnabled } from '@/lib/card-rewards/gate.server';
 
 export const metadata: Metadata = {
   title: '주문 상세 — ICONS',
@@ -21,8 +22,11 @@ export default async function Page({ params }: PageProps<'/orders/[orderId]'>) {
   if (!auth.user) redirect(`/login?next=${encodeURIComponent(next)}`);
   if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath(next));
 
-  const order = await loadOrderDetail(auth.user.id, orderId);
+  const [order, cardRewardsEnabled] = await Promise.all([
+    loadOrderDetail(auth.user.id, orderId),
+    readCardRewardsEnabled(),
+  ]);
   if (!order) notFound();
 
-  return <OrderDetail order={order} />;
+  return <OrderDetail cardRewardsEnabled={cardRewardsEnabled} order={order} />;
 }

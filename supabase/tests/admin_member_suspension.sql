@@ -2,6 +2,8 @@
 
 begin;
 
+update private.card_reward_control set enabled = true where singleton;
+
 update private.community_write_control
 set
   post_create_enabled = true,

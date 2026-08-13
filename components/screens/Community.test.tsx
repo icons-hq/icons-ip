@@ -1,8 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CommunityFeedPost, CommunitySnapshot, CommunityViewerState } from '@/lib/community';
 import { Community } from './Community';
+
+const cardRewardGate = vi.hoisted(() => ({ enabled: true }));
+vi.mock('@/components/shell/CardRewardAvailability', () => ({
+  useCardRewardsEnabled: () => cardRewardGate.enabled,
+}));
 
 vi.mock('@/app/community/actions', () => ({
   blockCommunityUserAction: vi.fn(),
@@ -26,6 +31,10 @@ const snapshot: CommunitySnapshot = {
   posts: [],
   trending: [],
 };
+
+afterEach(() => {
+  cardRewardGate.enabled = true;
+});
 
 function render(trending: string[], posts: CommunityFeedPost[] = []) {
   return renderToStaticMarkup(
@@ -61,6 +70,14 @@ function communityCss() {
 }
 
 describe('Community composer', () => {
+  it('hides the card-pack rail while card rewards are disabled', () => {
+    cardRewardGate.enabled = false;
+    const html = render([]);
+
+    expect(html).not.toContain('href="/packs"');
+    expect(html).not.toContain('지금 열린 카드풀');
+  });
+
   it('uses a responsive composer shell and an accessible custom image picker', () => {
     const html = render([]);
     const css = communityCss();

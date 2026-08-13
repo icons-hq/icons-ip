@@ -120,6 +120,9 @@ export function parseAdminDrawTicketGrantRecord(value: unknown): AdminDrawTicket
 }
 
 export function mapAdminDrawTicketGrantError(message: string): string {
+  if (message.includes('card_rewards_disabled')) {
+    return '카드 리워드는 현재 비활성화되어 있습니다.';
+  }
   if (message.includes('reward_pool_not_ready') || message.includes('pool_not_found')) {
     return '지금 발급할 수 없는 카드풀입니다. 운영 기간과 등급별 확률·카드 구성을 확인해주세요.';
   }

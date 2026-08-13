@@ -20,6 +20,7 @@ import {
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { resolveCatalogSource } from '@/lib/catalog-source';
+import { readCardRewardsEnabled } from '@/lib/card-rewards/gate.server';
 
 /* 카드팩 개봉(#71) — 카드는 open_draw_ticket RPC가 결정하고(#62),
  * 클라이언트 reveal 연출은 코스메틱이다(ADR-0002). */
@@ -29,6 +30,7 @@ export type OpenPackResult =
   | { status: 'error'; code: OpenPackErrorCode; message: string };
 
 const ERROR_MESSAGES: Record<OpenPackErrorCode, string> = {
+  rewards_disabled: '카드 리워드는 현재 준비 중이에요.',
   account_suspended: '정지된 계정은 카드팩을 개봉할 수 없어요.',
   not_found: '카드팩을 찾을 수 없어요. 새로고침 후 다시 시도해주세요.',
   already_opened: '이미 개봉된 카드팩이에요. 새로고침 후 다시 시도해주세요.',
@@ -55,6 +57,8 @@ function openMockTicket(ticketId: string): OpenPackResult {
 }
 
 export async function openDrawTicketAction(ticketId: string): Promise<OpenPackResult> {
+  if (!await readCardRewardsEnabled()) return failure('rewards_disabled');
+
   const source = resolveCatalogSource({ isSupabaseConfigured: getSupabaseConfig().isConfigured });
   if (source === 'mock') {
     return ticketId.startsWith(MOCK_TICKET_PREFIX) ? openMockTicket(ticketId) : failure('not_found');

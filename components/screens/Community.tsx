@@ -27,6 +27,7 @@ import type {
 import { hrefFor } from '@/lib/routes';
 import { Icon } from '@/components/ui/Icon';
 import { Empty } from '@/components/ui/Empty';
+import { useCardRewardsEnabled } from '@/components/shell/CardRewardAvailability';
 
 const emptyState: CommunityPostActionState = {};
 const emptyCommentState: CommunityCommentActionState = {};
@@ -613,6 +614,7 @@ export function Community({
   snapshot: CommunitySnapshot;
   viewerState: CommunityViewerState;
 }) {
+  const cardRewardsEnabled = useCardRewardsEnabled();
   const [selectedChannelId, setSelectedChannelId] = useState(initialChannelId ?? 'all');
   const channels = snapshot.channels;
   const channelId = selectedChannelId === 'all' || channels.some((channel) => channel.id === selectedChannelId)
@@ -743,7 +745,7 @@ export function Community({
                 </div>
               </div>
             )}
-            <div style={{ borderRadius: 20, border: '1px solid rgba(139,92,255,.35)', background: 'linear-gradient(180deg, var(--surface-2), var(--bg-2))', padding: 18, position: 'relative', overflow: 'hidden' }}>
+            {cardRewardsEnabled && <div style={{ borderRadius: 20, border: '1px solid rgba(139,92,255,.35)', background: 'linear-gradient(180deg, var(--surface-2), var(--bg-2))', padding: 18, position: 'relative', overflow: 'hidden' }}>
               <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(300px 160px at 80% 0%, rgba(139,92,255,.2), transparent 70%)' }} />
               <div className="mono" style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--violet-2)', position: 'relative' }}>지금 열린 카드풀</div>
               <div style={{ fontWeight: 700, fontSize: 15.5, marginTop: 10, lineHeight: 1.4, position: 'relative' }}>
@@ -752,7 +754,7 @@ export function Community({
               <Link className="btn btn-holo btn-sm" href={hrefFor('packs')} style={{ marginTop: 14, position: 'relative', fontSize: 12.5 }}>
                 카드팩 열기 →
               </Link>
-            </div>
+            </div>}
           </div>
         </div>
       </section>

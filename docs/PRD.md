@@ -57,7 +57,7 @@
 | IP 팔로우 | 온보딩 추천 IP 저장, IP 상세 팔로우/언팔로우·알림 설정, 홈 커뮤니티 우선순위와 내 팬덤 피드가 연결 | 완료 |
 | 장바구니·주문 | 비로그인 localStorage → 로그인 `cart_items` 병합, 수량·재고 검증, 본인 주문 내역·상세·청약철회 상태, 관리자 주문 검색·배송 전이·환불 정합화·실재고 수동 조정 | 완료 |
 | 결제 | Toss checkout·승인 API·웹훅 확정·만료 정리를 유지하면서 `payments.provider`, service-only `payment_attempts`/evidence, `PaymentGateway`/Fake seam을 additive expand했다. 기존 Production 결제 2건은 Toss로 backfill한다 | #205·#206에서 checkout을 seam으로 옮기고, rotated Korpay credential·승인 범위 확인 뒤 신규 Korpay를 연다. Toss는 기존 거래 조회·취소·웹훅만 유지 |
-| 카드 리워드 | 뽑기권(카드팩) 인벤토리·개봉과 바인더, 주문 결제 시 조건에 맞는 복수 정책의 누적 발급, 대상 IP·선택 same-IP 굿즈·독립 카드풀을 운영하는 관리자 정책 콘솔, 카드 보상형 참여형 게임·운영 콘솔과 서버 결정 `play_game` 연결 | legacy `goods` variant는 운영 콘솔에서 읽기 전용이고 mock 연출은 실제 경품·구매권을 만들지 않으며, 범용 래플 운영은 현 로드맵 밖 |
+| 카드 리워드 | 뽑기권(카드팩) 인벤토리·개봉과 바인더, 주문 결제 시 조건에 맞는 복수 정책의 누적 발급, 대상 IP·선택 same-IP 굿즈·독립 카드풀을 운영하는 관리자 정책 콘솔, 카드 보상형 참여형 게임·운영 콘솔과 서버 결정 `play_game` 연결. 법무·운영 승인 전 DB 전역 gate는 기본 OFF이고 기존 바인더만 읽기 전용으로 유지 | 별도 승인 migration 전 신규 발급·개봉·게임·운영 활성화 차단. legacy `goods` variant는 읽기 전용이고 mock 연출은 실제 경품·구매권을 만들지 않으며, 범용 래플 운영은 현 로드맵 밖 |
 | 팝업 | 이벤트 목록·상세, audited 회차·현장 검표 콘솔, 멱등 예약·결제·웹훅 QR 발급, 본인 티켓 QR·예매 전체 취소/환불 | production 실제 결제 검증 |
 | 커뮤니티 | 공개 전체/팔로우 IP 기반 내 팬덤 피드와 IP 상세 preview 읽기, 최근 7일 트렌딩, 포스트·댓글·좋아요·작성자 삭제·신고·차단·운영자 숨김 코드가 연결. 모든 post/comment 생성·수정과 community 이미지 upload는 DB·Storage gate에서 기본 OFF | 실제 수령인·대체 reviewer·통지·이의·복원·권리신고 경로와 rehearsal 뒤 별도 migration으로 활성화. 공개 읽기·신고·본인 삭제·권리행사는 유지 |
 | 검색 | Postgres `search_public_content` RPC로 IP·굿즈·카드·visible 포스트·태그를 그룹 검색 | 최근 검색어·인기 검색어 persistence |
@@ -133,6 +133,8 @@
 ### 5.4 무료 카드 리워드 & 바인더 (P2)
 
 > 유료 가챠·충전금 모델은 폐기됐다([ADR-0003](./adr/0003-free-reward-pivot.md), [ADR-0001](./adr/0001-paid-digital-gacha.md) superseded). 카드 리워드의 현재 계약은 [ADR-0004](./adr/0004-draw-ticket-card-packs.md)와 이 절이다.
+
+> 운영 gate: 무료 리워드 모델 자체의 법무·운영 검토가 끝나기 전에는 DB 전역 gate를 OFF로 둔다. OFF 상태에서는 신규 주문 리워드 발급, 카드팩 개봉, 카드 보상형 게임 플레이, 수동 발급, 발급 정책·게임 활성화를 DB에서 차단하고 `/packs`·게임 공개 표면을 숨긴다. 기존 보유 카드 바인더 조회는 유지한다.
 
 - `M` **카드팩**: 조건에 맞는 굿즈 주문 확정은 특정 카드풀에 묶인 `draw_tickets`를 멱등 발급한다. 카드 자체를 유상 판매하거나 충전금·지갑을 제공하지 않는다.
 - `M` **개봉**: 사용자가 카드팩을 열 때 `open_draw_ticket`이 서버에서 카드를 결정·발급한다. 클라이언트 reveal은 결과를 바꾸지 못한다.
