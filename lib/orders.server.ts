@@ -185,7 +185,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       .eq('order_id', orderId)
       .order('id', { ascending: true }),
     supabase
-      .from('payments')
+      .from('payment_summaries')
       .select('id,amount,status,created_at')
       .eq('user_id', userId)
       .eq('purpose', 'order')

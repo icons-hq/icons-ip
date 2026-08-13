@@ -126,7 +126,7 @@ describe('getAdminOrderRecords', () => {
           good_name_snapshot: '화산강림 아크릴 스탠드',
           good_type_snapshot: '아크릴 스탠드',
         }],
-        payments: [{
+        payment_summaries: [{
           id: 'payment-1',
           ref_id: ORDER_ID,
           amount: 32000,
@@ -188,7 +188,7 @@ describe('getAdminOrderRecords', () => {
     // 사유 구분(reasonType)은 운영 판단에 필요해 노출하지만, 고객이 적은 자유
     // 서술 reason은 여전히 새면 안 된다. 키 이름으로 정확히 구분한다.
     expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|"raw"|"reason"/);
-    expect(records.find((record) => record.table === 'payments')?.select).toBe(
+    expect(records.find((record) => record.table === 'payment_summaries')?.select).toBe(
       'id,ref_id,amount,status,created_at',
     );
     expect(records.find((record) => record.table === 'refunds')?.select).toBe(
