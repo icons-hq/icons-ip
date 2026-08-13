@@ -15,6 +15,7 @@ import {
 } from '@/lib/payments/toss-api';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
+import { createLegacyTossPaymentRepository } from '@/lib/payments/legacy-toss-ledger.server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/service';
@@ -117,11 +118,11 @@ export async function POST(request: Request) {
   if (!target) return errorJson(404, 'not_found', '주문을 찾을 수 없습니다.');
 
   const service = createServiceClient();
+  const tossPayments = createLegacyTossPaymentRepository(service);
 
   if (target.status !== 'pending') {
     // 웹훅이 먼저 확정을 끝낸 재시도라면 성공으로 응답한다(콜백 페이지 새로고침 등).
-    const { data: paid } = await service
-      .from('payments')
+    const { data: paid } = await tossPayments
       .select('status')
       .eq('idempotency_key', body.paymentKey)
       .eq('status', 'paid')
@@ -173,7 +174,7 @@ export async function POST(request: Request) {
   }
 
   const recordPayment = (raw: unknown) =>
-    service.from('payments').upsert(
+    tossPayments.upsert(
       {
         user_id: user.id,
         purpose: ref.purpose,
@@ -189,15 +190,13 @@ export async function POST(request: Request) {
     );
   // 이전 시도가 남긴 stale failed 행 치유 — 웹훅 확정이 'payment not payable'로 막히지 않게.
   const healFailedRecord = (raw: unknown) =>
-    service
-      .from('payments')
+    tossPayments
       .update({ status: 'pending', raw })
       .eq('idempotency_key', body.paymentKey)
       .eq('status', 'failed');
   const recordPendingEvidence = async (raw: unknown) => {
     if (ref.purpose === 'ticket') {
-      const { error } = await service
-        .from('payments')
+      const { error } = await tossPayments
         .update({ raw })
         .eq('idempotency_key', body.paymentKey)
         .eq('status', 'pending');
@@ -233,12 +232,11 @@ export async function POST(request: Request) {
       raw,
     };
     const [{ error: insertError }, { error: updateError }] = await Promise.all([
-      service.from('payments').upsert(canceledPayment, {
+      tossPayments.upsert(canceledPayment, {
         onConflict: 'idempotency_key',
         ignoreDuplicates: true,
       }),
-      service
-        .from('payments')
+      tossPayments
         .update({ status: 'canceled', raw })
         .eq('idempotency_key', body.paymentKey)
         .eq('status', 'pending'),
@@ -275,8 +273,7 @@ export async function POST(request: Request) {
       // 네트워크 단절·토스 5xx·멱등 처리 중(409)은 토스 측 승인 성공 가능성이 남는다.
       const indeterminate = isIndeterminateTossFailure(confirmed);
       if (!indeterminate && ref.purpose === 'ticket') {
-        const { error } = await service
-          .from('payments')
+        const { error } = await tossPayments
           .update({ status: 'failed' })
           .eq('idempotency_key', body.paymentKey)
           .eq('status', 'pending');

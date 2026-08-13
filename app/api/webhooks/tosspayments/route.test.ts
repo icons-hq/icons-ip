@@ -698,7 +698,7 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
     });
   });
 
-  it('CANCELED 웹훅은 결제 행이 없어도 대상 주문을 닫고 terminal 증거를 복구한다', async () => {
+  it('#205·#206 전 webhook-first compatibility는 결제 행이 없어도 CANCELED terminal 증거를 복구한다', async () => {
     mocks.existingPayment = null;
     mocks.fetchPayment.mockResolvedValue({
       ok: true,

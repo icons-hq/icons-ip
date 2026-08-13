@@ -279,9 +279,11 @@ revoke all on table public.payment_summaries
   from public, anon, authenticated, service_role;
 grant select on table public.payment_summaries to authenticated, service_role;
 
--- A security-invoker view still requires underlying column privileges. Keep
--- only the columns projected by payment_summaries and explicitly seal provider
--- identifiers, idempotency data, raw evidence, and write privileges.
+-- A security-invoker view still requires underlying column privileges. That
+-- means authenticated callers can technically SELECT these same safe columns
+-- from the base table under owner/staff RLS; the security contract is no
+-- table-wide SELECT and no provider keys, idempotency data, raw evidence, or
+-- write privileges. payment_summaries remains the canonical application API.
 revoke all on table public.payments
   from public, anon, authenticated;
 grant select (

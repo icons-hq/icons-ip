@@ -249,26 +249,26 @@ Production Auth 설정:
 - 외부 OAuth callback은 세 공급자 모두 `https://sbutbsghcxmxmxgrshwq.supabase.co/auth/v1/callback`이다. Google은 production 공개 앱, Apple은 `com.iconsip.app` primary App ID와 `com.iconsip.web` Services ID, Kakao는 앱 ID `1520482`의 REST API 키를 사용한다. Apple secret은 2027-01-18 이전에 교체한다.
 - Kakao 앱은 `(주) 아이콘스` 비즈 앱이고 `account_email`을 필수 동의·계정 정보 수집으로 요청한다. Supabase provider의 이메일 없는 사용자 허용은 꺼서 현재 `isOnboarded()`의 profile/auth email 필수 조건과 맞춘다.
 
-본인확인: 자가신고 생년월일 + 결제 시 결제사 위임. (게임물 연령등급이 요구하면 §PRD 5.1대로 PASS 본인인증을 가챠/고액 결제 게이트에 추가.)
+연령보증: 결제사 승인은 본인확인·연령보증을 대체하지 않는다. 공통 `AgeAssurance` seam에서 최소 연령과 19+ purpose를 분리하고, 공급사 검증 증거가 없거나 만료되면 해당 보호 액션을 차단한다.
 
 ---
 
 ## 9. 결제 통합 (provider-neutral 목표와 Toss legacy)
 
 - 공개 계약은 `PaymentGateway.prepare(attempt)`, `confirm(returnInput)`, `reconcile(attempt)`, `refund(request)`다. 결과는 `approved | declined | canceled | unknown | needs_review`로 정규화한다. provider 구현은 `KorpayGateway`, 기존 거래 전용 `TossGateway`, 테스트 경계의 `FakePaymentGateway`다.
-- 신규 checkout은 후속 전환 티켓에서 Korpay adapter로 이동한다. 이 expand 단계에서는 아래 Toss 경로를 기존 거래 호환 모드로 유지하되 모든 조회·취소·웹훅 DB 접근을 `provider=toss`에 한정한다.
+- 신규 checkout은 후속 전환 티켓에서 Korpay adapter로 이동한다. 이 expand 단계에서는 아래 Toss 경로를 기존 거래 호환 모드로 유지하되 모든 조회·취소·웹훅 DB 접근을 `LegacyTossPaymentRepository`의 `provider=toss` 경계에 모은다. #205·#206이 끝나기 전에는 provider 승인이 local pending 기록보다 먼저 도착할 수 있어 웹훅의 unknown payment key 조회를 명시적 `unknown_compatibility` 예외로 허용한다. 두 checkout 전환 뒤에는 이 상태에서 provider를 호출하지 않는 known-only 테스트로 교체한다.
 
 - 기존 Toss 클라이언트: 현재 결제위젯으로 결제 요청(주문·티켓 공용). Toss 신규 checkout/confirm을 닫기 전까지 `orderId`는 `order_<uuid>`/`ticket_<uuid>`로 결제 목적을 실어 발급한다(`lib/payments/toss.ts`).
 - 승인: successUrl 콜백이 **`/api/payments/confirm`** 을 호출 → 본인 소유·pending·미만료·금액 일치를 검증한 뒤 토스 승인 API를 호출하고 `payments`에 `pending`으로 기록한다. **승인 성공은 UX 반영용이다.**
 - 확정: **웹훅 `/api/webhooks/tosspayments`(Route Handler)** 가 단일 진실원. 결제 웹훅에는 서명이 없으므로(서명 헤더는 지급대행 웹훅 전용) payload를 신뢰하지 않고 paymentKey로 **결제 조회 API를 재호출해 검증**한 뒤 `confirm_order_payment`/`confirm_ticket_payment` RPC(service_role, 멱등 키=paymentKey)를 호출한다. 검증된 조회 응답 원문을 `payments.raw`에 보존한다.
-- 주문 상세의 브라우저 조회는 본인 RLS와 결제 안전 컬럼(`id`,`user_id`,`purpose`,`ref_id`,`amount`,`status`,`created_at`), 환불 안전 컬럼(`id`,`payment_id`,`amount`,`status`,`created_at`), 본인 청약철회 요청의 공개 상태·처리 시각·결정 메모로 제한한다. 내부 오류 코드·요청 사유·actor와 `payment_key`·`idempotency_key`·`raw`는 서버 신뢰 경계에만 둔다.
+- 주문 상세의 브라우저 조회는 본인 RLS와 결제 안전 컬럼(`id`,`user_id`,`purpose`,`ref_id`,`provider`,`amount`,`status`,`created_at`), 환불 안전 컬럼(`id`,`payment_id`,`amount`,`status`,`created_at`), 본인 청약철회 요청의 공개 상태·처리 시각·결정 메모로 제한한다. security-invoker view가 base relation의 column privilege를 요구하므로 authenticated는 이 안전 컬럼을 직접 SELECT할 수도 있지만 table-wide SELECT와 `payment_key`·`idempotency_key`·`raw`는 거부한다. 내부 오류 코드·요청 사유·actor와 provider 원문은 서버 신뢰 경계에만 둔다.
 - 기존 Toss 흐름: ① RPC로 `pending` 생성(재고 선점) → ② Toss 결제 → ③ 티켓은 승인 직전 DB payment claim, 승인 뒤 provider raw 보강(굿즈는 승인 뒤 `pending` 기록) → ④ 웹훅 확정(`paid`, 티켓 QR 발급/주문 확정) → ⑤ 실패·만료 시 선점 복원. 신규 provider 흐름은 공통 attempt와 outcome으로 교체한다.
 - 실패·만료 복원: 만료 등 확정 불가 결제는 웹훅이 **토스 취소 API로 자동 환불**하고, 해당 paymentKey를 `refund_ticket_order_with_provider_evidence`에 전달해 그 결제 시도만 정합화한다. 같은 예매에 다른 pending/paid 결제가 남아 있으면 예매·정원은 유지한다. 승인 이력 없는 만료 pending 주문·예매는 pg_cron이 매분 `expire_stale_checkouts()`로 `cancel_order`/`refund_ticket_order`를 재사용해 정리한다(승인 진행 중 건 제외, 만료 후 5분 유예).
 - 미지원 가상계좌: 입금 전 `WAITING_FOR_DEPOSIT`이면 토스를 먼저 자동 취소한 뒤 로컬 주문·재고를 원복한다. 입금 완료 건은 환불계좌 없이 자동 취소하지 않고 운영 오류로 노출한다.
 - 사용자 취소: 본인 `pending` 무결제 주문만 즉시 선점을 원복한다. 결제 행이 있는 `pending`과 `paid`는 `/api/orders/[orderId]/cancel`이 provider 식별자 없이 `requested` 원장만 만들고 결제 확정·배송 전이를 막는다. staff 승인 뒤 서버가 결제사 fresh GET → 전액 취소 POST → fresh GET을 수행하며, 전액 취소가 모두 확인된 경우에만 주문·재고·미사용 카드팩 soft revoke·환불을 원자적으로 완료한다. 발급 attribution과 누적 발급 이력은 보존하고 `/packs`와 개봉 경로에서는 회수 티켓을 제외한다. 주문 상세의 발급 수는 개봉·회수를 포함한 전체 이력, 사용 가능 수는 `consumed_at`과 `revoked_at`이 모두 null인 티켓만 센다. 타임아웃·부분 취소·응답 불일치는 `needs_review`에 남겨 같은 멱등키로 재정합화하고, provider 호출 전 `requested`만 거절할 수 있다. `shipping`·`done`도 같은 요청 경로를 쓴다. 반품 입고 확인은 별도 상태가 아니라 staff 승인 행위에 내포되고, 재고 복원은 기존과 같이 승인 뒤 finalizer 시점에 일어난다.
 - 티켓 취소: `/api/ticket-orders/[ticketOrderId]/cancel`은 same-origin·auth·onboarding·owner를 확인하고 order UUID 외 provider 입력을 받지 않는다. 시작 전 미사용 예매 전체만 수수료 없이 취소하며, 무결제 `pending`은 즉시 원복하고 결제 예매는 서버가 모든 결제를 fresh provider 증거로 정합화한다. QR은 raw token을 DTO·DOM·URL에 싣지 않고 paid+valid+비취소 상태를 재검증하는 no-store PNG Route Handler로만 제공한다.
 - 환불: `refunds` 완료 기록 + 재고 원복은 RPC가 담당한다. 토스 쪽 취소(`CANCELED` 웹훅) 등 기존 호환 경로는 active 청약철회 요청을 완료할 수 없고, 해당 요청은 관리자 fresh GET 전체 검증 경로에서만 종결한다. 현재 배송·수령 시각이 없으므로 법정 7일을 앱이 자동 판정하지 않는다.
-- 결제 원장은 `payments.provider`(`toss|korpay`)와 service-role 전용 `payment_attempts`로 provider-neutral expand를 마쳤다. 기존 행과 기존 confirm RPC는 호환 기본값 `toss`를 유지하고 기존 Toss `payment_key/raw`도 legacy 서버 감사 경로로 보존한다. migration은 pre/post count를 `private.payment_migration_evidence`에 기록하고 [Production readback runbook](./runbooks/provider-neutral-payment-backfill.md)으로 기존 2건을 검증한다. 브라우저·staff 조회는 owner/staff RLS를 따르는 `payment_summaries`만 사용한다. 신규 provider 식별자·승인 참조는 allowlist 컬럼만 `private.payment_provider_evidence`에 append하며 원문 payload는 저장하지 않는다. 실제 신규 checkout 전환과 어댑터 선택은 후속 티켓에서 수행한다.
+- 결제 원장은 `payments.provider`(`toss|korpay`)와 service-role 전용 `payment_attempts`로 provider-neutral expand를 마쳤다. 기존 행과 기존 confirm RPC는 호환 기본값 `toss`를 유지하고 기존 Toss `payment_key/raw`도 legacy 서버 감사 경로로 보존한다. Production workflow는 provider column이 없을 때 기존 행이 정확히 2건인지 read-only preflight로 먼저 확인하고, migration의 pre/post count를 `private.payment_migration_evidence`에 기록한 뒤 [Production readback runbook](./runbooks/provider-neutral-payment-backfill.md)을 자동 실행한다. 브라우저·staff 조회는 owner/staff RLS를 따르는 `payment_summaries`를 표준 표면으로 사용한다. 신규 provider 식별자·승인 참조는 allowlist 컬럼만 `private.payment_provider_evidence`에 append하며 원문 payload는 저장하지 않는다. 실제 신규 checkout 전환과 어댑터 선택은 후속 티켓에서 수행한다.
 
 ### 9.1 환경 변수 · 로컬/프리뷰 검증과 임시 production 테스트 검토
 
@@ -350,7 +350,7 @@ lib/
   ip-follow*.ts                       # 팔로우 상태/알림 설정/RPC helper
   notifications*.ts                  # 알림 DTO + 본인 최신 50건 loader
   admin/notifications*.ts            # 관리자 공지 form/추정/발송 이력 경계
-  payments/                           # PaymentGateway 공개 계약 + provider adapter/Fake
+  payments/                           # PaymentGateway 계약 + legacy Toss ledger + provider adapter/Fake
   supabase/{client,server,middleware} # 유지
   db/                                 # 쿼리·RPC 래퍼
 supabase/
@@ -378,6 +378,6 @@ docs/
 ## 16. 미해결 결정
 
 - **디지털 유료 가챠 채택 + 규제 스탠스** — 채택 완료. 결정 배경과 결과는 `docs/adr/0001-paid-digital-gacha.md`에 기록되어 있다.
-- 단일 PG(토스페이먼츠) vs 멀티 PG 추상화 시점.
+- **결제 provider 경계** — provider-neutral 원장과 `PaymentGateway` seam을 먼저 expand하고, 신규 Korpay 전환 뒤 Toss를 기존 거래 정리 전용으로 축소하기로 해결했다(§9, #204~#207).
 - 천장/중복카드 환원 등 가챠 세부 규칙.
 - 한국어 검색 품질이 임계 넘는 시점의 외부 검색엔진 도입.

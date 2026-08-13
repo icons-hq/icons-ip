@@ -142,13 +142,21 @@ select 1 / case when (
 
 select 1 / case when (
   has_table_privilege('authenticated', 'public.payment_summaries', 'select')
-  and not has_table_privilege('anon', 'public.payment_summaries', 'select')
-  and not has_table_privilege('authenticated', 'public.payment_summaries', 'insert')
-  and not has_table_privilege('authenticated', 'public.payments', 'select')
-  and not has_column_privilege('authenticated', 'public.payments', 'payment_key', 'select')
-  and not has_column_privilege('authenticated', 'public.payments', 'idempotency_key', 'select')
-  and not has_column_privilege('authenticated', 'public.payments', 'raw', 'select')
-) then 1 else 0 end as assert_client_payment_acl_is_explicit_and_minimal;
+    and not has_table_privilege('anon', 'public.payment_summaries', 'select')
+    and not has_table_privilege('authenticated', 'public.payment_summaries', 'insert')
+    and not has_table_privilege('authenticated', 'public.payments', 'select')
+    and has_column_privilege('authenticated', 'public.payments', 'id', 'select')
+    and has_column_privilege('authenticated', 'public.payments', 'user_id', 'select')
+    and has_column_privilege('authenticated', 'public.payments', 'purpose', 'select')
+    and has_column_privilege('authenticated', 'public.payments', 'ref_id', 'select')
+    and has_column_privilege('authenticated', 'public.payments', 'provider', 'select')
+    and has_column_privilege('authenticated', 'public.payments', 'amount', 'select')
+    and has_column_privilege('authenticated', 'public.payments', 'status', 'select')
+    and has_column_privilege('authenticated', 'public.payments', 'created_at', 'select')
+    and not has_column_privilege('authenticated', 'public.payments', 'payment_key', 'select')
+    and not has_column_privilege('authenticated', 'public.payments', 'idempotency_key', 'select')
+    and not has_column_privilege('authenticated', 'public.payments', 'raw', 'select')
+) then 1 else 0 end as assert_client_payment_acl_blocks_table_wide_and_secret_reads;
 
 insert into auth.users (
   id, aud, role, email, email_confirmed_at,
