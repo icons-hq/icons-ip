@@ -3,19 +3,19 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
-import { TossPaymentWidget } from '@/components/payments/TossPaymentWidget';
-import { checkoutOrderName, checkoutOrderState } from '@/lib/checkout';
+import { PreparedCheckoutAction } from '@/components/payments/PreparedCheckoutAction';
+import { checkoutOrderState } from '@/lib/checkout';
 import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
 import { krw } from '@/lib/format';
+import type { PreparedCheckout } from '@/lib/payments/gateway';
 import { shippingFeeLabel } from '@/lib/shipping';
 
 interface CheckoutOrderProps {
-  clientKey: string | null;
-  customer: { id: string; email: string | null; name: string };
   order: CheckoutOrderSnapshot;
+  prepared: PreparedCheckout | null;
 }
 
-export function CheckoutOrder({ clientKey, customer, order }: CheckoutOrderProps) {
+export function CheckoutOrder({ order, prepared }: CheckoutOrderProps) {
   const router = useRouter();
   const [pollAttempts, setPollAttempts] = useState(0);
   const [now, setNow] = useState<number | null>(null);
@@ -45,7 +45,7 @@ export function CheckoutOrder({ clientKey, customer, order }: CheckoutOrderProps
 
   const statusCopy = useMemo(() => {
     if (state === 'complete') return { eyebrow: 'PAYMENT CONFIRMED', title: '결제가 확인됐어요', body: '주문이 안전하게 접수됐습니다. 배송 진행은 주문 내역에서 이어서 확인할 수 있어요.' };
-    if (state === 'checking') return { eyebrow: 'VERIFYING PAYMENT', title: '결제를 확인하고 있어요', body: '승인은 접수됐고 웹훅으로 최종 상태를 확인 중입니다. 이 화면을 닫아도 확인은 계속됩니다.' };
+    if (state === 'checking') return { eyebrow: 'VERIFYING PAYMENT', title: '결제를 확인하고 있어요', body: '결제사 확인 결과와 서버 원장을 대조하고 있습니다. 이 화면을 닫아도 확인은 계속됩니다.' };
     if (state === 'closed') return { eyebrow: 'CHECKOUT CLOSED', title: '결제 가능한 시간이 지났어요', body: '선점된 재고는 자동으로 복원됩니다. 새 장바구니에서 주문을 다시 만들어주세요.' };
     return null;
   }, [state]);
@@ -67,23 +67,13 @@ export function CheckoutOrder({ clientKey, customer, order }: CheckoutOrderProps
         <section className="checkout-order-main card">
           {state === 'payable' && now === null ? (
             <div className="checkout-state-panel" role="status">결제 가능 시간을 확인하고 있어요.</div>
-          ) : state === 'payable' && clientKey ? (
+          ) : state === 'payable' && prepared ? (
             <>
               <div className="checkout-deadline" role="timer">
                 <span>재고 선점 남은 시간</span>
                 <strong className="mono">{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}</strong>
               </div>
-              <TossPaymentWidget
-                callbackBasePath="/checkout"
-                clientKey={clientKey}
-                customerEmail={customer.email}
-                customerKey={customer.id}
-                customerName={customer.name}
-                orderId={order.id}
-                orderName={checkoutOrderName(order.items.map((item) => item.name))}
-                purpose="order"
-                total={order.total}
-              />
+              <PreparedCheckoutAction prepared={prepared} />
             </>
           ) : state === 'payable' ? (
             <div className="checkout-state-panel" role="alert">

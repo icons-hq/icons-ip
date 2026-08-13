@@ -4,12 +4,14 @@ import { placeOrderAction } from './actions';
 
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
+  paymentAvailable: true,
   rpc: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
-/* getServiceRoleConfig는 호출 시점에 env를 읽는다. 실제 구현을 남겨야
-   SUPABASE_SERVICE_ROLE_KEY를 비우는 "결제 불가" 테스트가 의미를 갖는다. */
+vi.mock('@/lib/payments/goods-checkout-availability', () => ({
+  goodsCheckoutPaymentsEnabled: () => mocks.paymentAvailable,
+}));
 vi.mock('@/lib/supabase/service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/supabase/service')>()),
   createServiceClient: () => ({ rpc: mocks.rpc }),
@@ -46,12 +48,11 @@ describe('placeOrderAction', () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
     mocks.auth = onboardedAuth();
+    mocks.paymentAvailable = true;
     mocks.rpc.mockReset();
     mocks.rpc.mockResolvedValue({ data: orderId, error: null });
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://example.supabase.co');
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
-    vi.stubEnv('NEXT_PUBLIC_TOSS_CLIENT_KEY', 'test_gck_example');
-    vi.stubEnv('TOSS_SECRET_KEY', 'test_gsk_example');
   });
 
   it('normalizes fulfillment data and sends no client amount or item list', async () => {
@@ -82,7 +83,7 @@ describe('placeOrderAction', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it('requires an authenticated onboarded user and matching payment keys', async () => {
+  it('requires an authenticated onboarded user and an available provider seam', async () => {
     mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
     await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({
       ok: false,
@@ -96,7 +97,7 @@ describe('placeOrderAction', () => {
     });
 
     mocks.auth = onboardedAuth();
-    vi.stubEnv('TOSS_SECRET_KEY', 'live_gsk_example');
+    mocks.paymentAvailable = false;
     await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({
       ok: false,
       error: 'payment_unavailable',
@@ -121,37 +122,13 @@ describe('placeOrderAction', () => {
   });
 
   it('does not reserve stock when the payment settlement service is unavailable', async () => {
-    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
+    mocks.paymentAvailable = false;
 
     await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({
       ok: false,
       error: 'payment_unavailable',
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
-  });
-
-  it('disables test payments in the production Vercel runtime', async () => {
-    vi.stubEnv('VERCEL_ENV', 'production');
-
-    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({
-      ok: false,
-      error: 'payment_unavailable',
-    });
-    expect(mocks.rpc).not.toHaveBeenCalled();
-  });
-
-  it('allows production test orders only for an active staff reviewer', async () => {
-    vi.stubEnv('VERCEL_ENV', 'production');
-    vi.stubEnv('ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION', 'true');
-
-    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({
-      ok: false,
-      error: 'payment_unavailable',
-    });
-    expect(mocks.rpc).not.toHaveBeenCalled();
-
-    mocks.auth = { ...onboardedAuth(), isStaff: true };
-    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: true, orderId });
   });
 
   it.each([

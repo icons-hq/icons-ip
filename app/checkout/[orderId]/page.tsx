@@ -5,7 +5,9 @@ import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { normalizeOrderReference } from '@/lib/checkout';
 import { loadCheckoutOrder } from '@/lib/checkout.server';
-import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
+import type { PreparedCheckout } from '@/lib/payments/gateway';
+import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
+import { createRuntimeGoodsPaymentCheckout } from '@/lib/payments/goods-checkout.runtime.server';
 
 export const metadata: Metadata = {
   title: '주문 결제 — ICONS',
@@ -25,18 +27,27 @@ export default async function Page({ params }: { params: Promise<{ orderId: stri
   const order = await loadCheckoutOrder(auth.user.id, orderId);
   if (!order) notFound();
 
-  const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
-  const configured = checkoutPaymentsEnabled(auth.isStaff);
+  let prepared: PreparedCheckout | null = null;
+  if (
+    goodsCheckoutPaymentsEnabled()
+    && order.status === 'pending'
+    && order.paymentStatus === null
+    && order.expiresAt
+  ) {
+    try {
+      prepared = await createRuntimeGoodsPaymentCheckout().prepare({
+        userId: auth.user.id,
+        orderId: order.id,
+      });
+    } catch {
+      prepared = null;
+    }
+  }
 
   return (
     <CheckoutOrder
-      clientKey={configured ? clientKey ?? null : null}
-      customer={{
-        id: auth.user.id,
-        email: auth.profile?.email ?? auth.user.email,
-        name: auth.profile?.nickname ?? 'ICONS 팬',
-      }}
       order={order}
+      prepared={prepared}
     />
   );
 }

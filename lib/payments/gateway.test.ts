@@ -39,6 +39,7 @@ function checkout(attemptId = ATTEMPT_ID): PreparedCheckout {
       url: 'https://payments.example.test/authenticate',
       fields: { orderNumber: 'O30000000000040008000000000000901' },
     },
+    callbackNonce: 'opaque-single-use-nonce',
     expiresAt: '2026-08-13T10:10:00.000Z',
   };
 }

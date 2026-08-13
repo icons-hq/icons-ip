@@ -9,7 +9,7 @@ import {
   normalizeOrderReference,
   type PlaceOrderErrorCode,
 } from '@/lib/checkout';
-import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
+import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
 import { createServiceClient } from '@/lib/supabase/service';
 
 type PlaceOrderActionError =
@@ -40,7 +40,7 @@ export async function placeOrderAction(
   const checkoutKey = normalizeCheckoutKey(checkoutKeyValue);
   if (!checkoutKey) return { ok: false, error: 'invalid_request' };
 
-  if (!checkoutPaymentsEnabled(auth.isStaff)) {
+  if (!goodsCheckoutPaymentsEnabled()) {
     return { ok: false, error: 'payment_unavailable' };
   }
 
