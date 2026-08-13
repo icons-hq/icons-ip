@@ -302,8 +302,6 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_PREVIEW_PROJECT_ID: ${{ secrets.SUPABASE_PREVIEW_PROJECT_ID }}
 
     steps:
       - name: Check out repository
@@ -324,7 +322,7 @@ jobs:
       - name: Check Vercel deployment secrets
         run: |
           missing=0
-          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID SUPABASE_ACCESS_TOKEN SUPABASE_PREVIEW_PROJECT_ID; do
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
             if [ -z "${!name}" ]; then
               echo "::error title=Missing GitHub secret::$name is required for Vercel preview deployment"
               missing=1
@@ -336,17 +334,6 @@ jobs:
         run: |
           deployment_url="$(vercel deploy --yes --archive=tgz)"
           echo "Preview deployment: $deployment_url" >> "$GITHUB_STEP_SUMMARY"
-
-      # 새 token-hash 링크를 발급하기 전에 해당 callback 코드가 먼저 배포되어야 한다.
-      # 배포가 실패하면 기존 template를 그대로 두므로 recovery 링크가 깨지지 않는다.
-      - name: Activate recovery token-hash template in preview
-        env:
-          PROJECT_REF: ${{ secrets.SUPABASE_PREVIEW_PROJECT_ID }}
-          SITE_URL: https://icons-ip.vercel.app
-          REQUIRE_SMTP: "false"
-          ENFORCE_MAILER: "false"
-          RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
-        run: node scripts/sync-supabase-auth.mjs
 
   deploy-vercel:
     name: deploy-vercel

@@ -72,7 +72,7 @@ Auth URL·email link TTL·recovery template 설정은 손으로 관리하지 않
 - Site URL: `https://icons-ip.vercel.app`
 - Redirect URLs: `https://icons-ip.vercel.app`, `https://icons-hongshil-vn.vercel.app`, `https://icons-*-sangwopark19icons-1055s-projects.vercel.app`, `https://icons-git-*-sangwopark19icons-1055s-projects.vercel.app` 각 origin과 local 두 origin의 `/auth/callback`·`/auth/recovery/callback`
 - preview 배포 호스트는 프로젝트 이름(`icons-ip`)이 아니라 **배포 접두 `icons-`**를 쓴다 — `icons-nb9vdpqs8-sangwopark19icons-1055s-projects.vercel.app` 형태다. 그래서 `icons-ip-*` 패턴은 어떤 preview URL과도 매칭되지 않았다. 팀 접미까지 붙여 좁힌다: `icons-*.vercel.app`은 남의 프로젝트까지 허용한다.
-- preview에는 custom SMTP가 없어 SMTP 강제와 confirmation/rate-limit 강제를 켜지 않는다. 다만 recovery template와 email link/OTP TTL 3,600초는 production과 같은 값으로 동기화·read-back한다. 이메일 확인이 필요한 가입 플로우는 preview에서 끝까지 갈 수 없다.
+- preview에는 custom SMTP가 없어 SMTP 강제와 confirmation/rate-limit 강제를 켜지 않는다. email link/OTP TTL 3,600초와 callback allow-list만 동기화한다. recovery template는 여러 PR이 공유하는 preview Auth 프로젝트의 전역 설정이므로 PR workflow에서 바꾸지 않으며, 이메일 확인이 필요한 가입 플로우는 preview에서 끝까지 갈 수 없다.
 
 가입 확인·OAuth는 query 없는 `/auth/callback`을 사용한다. 비밀번호 재설정 메일은 Supabase의 `TokenHash`를 전용 `/auth/recovery/callback` query로 전달하고 서버에서 `verifyOtp(type=recovery)`한다. callback query에는 `next`나 계정 식별자를 넣지 않는다. 가입·OAuth의 안전한 `next`·목적·발급 시각은 `icons_auth_next`에 10분, recovery의 값은 경로가 분리된 `icons_auth_recovery_next`에 최대 3,600초 동안 서명된 httpOnly 쿠키로 보존한다. 신규 recovery 요청은 shared callback cookie를 만들지 않는다.
 
@@ -82,7 +82,7 @@ Server Action이 만드는 callback origin은 production·www·기본 Vercel·lo
 
 비밀번호 재설정 요청은 계정 존재 여부와 무관하게 같은 응답을 반환한다. 같은 브라우저의 정규화 이메일별 요청은 raw email 대신 HMAC digest를 담은 `icons_auth_password_reset` 쿠키로 총 3회/10분 제한하고, 활성 이메일 bucket은 12개로 제한해 브라우저 cookie 크기를 넘지 않게 한다. Supabase provider rate limit은 실제 상한으로 둔다. 전용 callback의 서명 state가 요청 브라우저에만 있으므로 최신 메일 링크는 재설정을 요청한 브라우저에서 열어야 한다.
 
-전용 Recovery callback은 token-hash `verifyOtp(type=recovery)`, 유효한 전용 서명 state, `getUser()` 재검증을 모두 통과한 뒤에만 온보딩 여부와 무관하게 `/update-password`로 보낸다. 전환 전에 발급된 PKCE code 링크는 TTL 호환 분기에서만 처리한다. 성공 조건이 어긋나면 local sign-out과 응답 session/recovery cookie 만료 뒤 제한된 reset 오류로 닫는다. 브라우저가 redirect 응답의 session cookie를 첫 SSR 요청보다 늦게 반영하면 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 한 번 다시 수행하며, 세션 확인 전에는 비밀번호 폼을 노출하지 않는다. 새 비밀번호 저장 뒤 global sign-out을 완료하면 `/login?password_reset=success`로 이동한다. 일반 가입 callback은 기존 온보딩 게이트를 유지하고, 회원가입 확인 메일 재전송은 서명된 httpOnly 쿠키로 3회/10분 window를 추적한 뒤 Supabase `auth.resend({ type: 'signup' })`를 사용한다. workflow는 Site URL, 두 callback의 Redirect URLs, recovery template 원문, email link/OTP TTL 3,600초와 기존 mailer 설정을 PATCH 후 정확히 read-back한다.
+전용 Recovery callback은 token-hash `verifyOtp(type=recovery)`, 유효한 전용 서명 state, `getUser()` 재검증을 모두 통과한 뒤에만 온보딩 여부와 무관하게 `/update-password`로 보낸다. 전환 전에 발급된 PKCE code 링크는 TTL 호환 분기에서만 처리한다. 성공 조건이 어긋나면 교환 과정에서 만들어진 local session만 폐기하고 제한된 reset 오류로 닫는다. signed recovery state는 최신 유효 링크를 다시 쓸 수 있도록 성공하거나 자체 3,600초 TTL이 끝날 때까지 보존한다. 브라우저가 redirect 응답의 session cookie를 첫 SSR 요청보다 늦게 반영하면 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 한 번 다시 수행하며, 세션 확인 전에는 비밀번호 폼을 노출하지 않는다. 새 비밀번호 저장 뒤 global sign-out을 완료하면 `/login?password_reset=success`로 이동한다. 일반 가입 callback은 기존 온보딩 게이트를 유지하고, 회원가입 확인 메일 재전송은 서명된 httpOnly 쿠키로 3회/10분 window를 추적한 뒤 Supabase `auth.resend({ type: 'signup' })`를 사용한다. workflow는 Site URL, 두 callback의 Redirect URLs, email link/OTP TTL 3,600초와 기존 mailer 설정을 먼저 동기화한다. Production Vercel 배포가 성공한 뒤에만 recovery template 원문을 PATCH하고 read-back한다.
 
 ### 소셜 OAuth 공급자 운영
 
@@ -155,7 +155,7 @@ GitHub Actions는 `CI/CD Pipeline` workflow 하나로 PR 검증(lint/test/build/
 
 Vercel Git 연결은 프로젝트 메타데이터용으로 유지하지만, `vercel.json`의 `git.deploymentEnabled: false`로 Vercel Git 자동 배포는 생성하지 않는다. Preview와 production 배포 경로는 GitHub Actions의 Vercel CLI deploy만 사용한다.
 
-`deploy-supabase`는 Supabase Auth Site URL, shared/recovery Redirect URLs, version-controlled recovery template, email link/OTP TTL 3,600초와 confirmation/rate-limit 설정을 먼저 확인·동기화하고, custom SMTP 필수 설정이 누락되면 migration을 원격에 push하기 전에 실패한다. Auth 설정 검증이 끝나면 linked Supabase project에 immutable migration만 push하고, 같은 read-only catalog canary로 production baseline을 즉시 확인한다. 이 단계가 Vercel 배포보다 먼저 실행되므로, 이후 `deploy-vercel` secret preflight나 Vercel 배포가 실패해도 Supabase migration과 Auth 설정은 이미 적용됐을 수 있다.
+`deploy-supabase`는 Supabase Auth Site URL, shared/recovery Redirect URLs, email link/OTP TTL 3,600초와 confirmation/rate-limit 설정을 먼저 확인·동기화하고, custom SMTP 필수 설정이 누락되면 migration을 원격에 push하기 전에 실패한다. Auth 설정 검증이 끝나면 linked Supabase project에 immutable migration만 push하고, 같은 read-only catalog canary로 production baseline을 즉시 확인한다. 이 단계가 Vercel 배포보다 먼저 실행되므로, 이후 `deploy-vercel` secret preflight나 Vercel 배포가 실패해도 migration과 template를 제외한 Auth 설정은 이미 적용됐을 수 있다. 새 token-hash handler가 Production에 성공적으로 배포된 뒤에만 `deploy-vercel`의 마지막 단계가 version-controlled recovery template를 활성화하고 read-back한다.
 
 배포 workflow에는 다음 GitHub Secrets가 필요하다.
 
