@@ -11,7 +11,7 @@ select 1 / case when (
     and after_toss = before_total
     and after_null = 0
   from private.payment_migration_evidence
-  where migration_name = '20260813081620_provider_neutral_payment_ledger'
+  where migration_name = '20260813182100_provider_neutral_payment_ledger'
 ) then 1 else 0 end as assert_provider_backfill_has_pre_post_invariants;
 
 select 1 / case when (
@@ -22,6 +22,47 @@ select 1 / case when (
   and not has_any_column_privilege('anon', 'private.payment_migration_evidence', 'select')
   and not has_any_column_privilege('authenticated', 'private.payment_migration_evidence', 'select')
 ) then 1 else 0 end as assert_provider_backfill_evidence_is_service_read_only;
+
+-- Fresh local/Preview projects have no rows, while the one-time Production
+-- backfill is approved only for the two known Toss rows. Any other count must
+-- fail inside the migration transaction rather than after db push commits.
+select private.assert_payment_provider_backfill_count(0::bigint);
+select private.assert_payment_provider_backfill_count(2::bigint);
+
+do $payment_provider_backfill_count_contract$
+declare
+  rejected boolean := false;
+begin
+  begin
+    perform private.assert_payment_provider_backfill_count(3::bigint);
+  exception
+    when check_violation then
+      rejected := true;
+  end;
+
+  if not rejected then
+    raise exception 'payment provider backfill count 3 must be rejected';
+  end if;
+end;
+$payment_provider_backfill_count_contract$;
+
+select 1 / case when (
+  not has_function_privilege(
+    'service_role',
+    'private.assert_payment_provider_backfill_count(bigint)',
+    'execute'
+  )
+  and not has_function_privilege(
+    'authenticated',
+    'private.assert_payment_provider_backfill_count(bigint)',
+    'execute'
+  )
+  and not has_function_privilege(
+    'anon',
+    'private.assert_payment_provider_backfill_count(bigint)',
+    'execute'
+  )
+) then 1 else 0 end as assert_provider_backfill_count_guard_is_private;
 
 -- The ledger records the provider explicitly while preserving every legacy
 -- insert path as Toss until each checkout is moved behind a provider adapter.

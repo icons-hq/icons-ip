@@ -36,9 +36,29 @@ alter table public.payments
 
 create schema if not exists private;
 
+create function private.assert_payment_provider_backfill_count(
+  candidate_count bigint
+)
+returns void
+language plpgsql
+set search_path = ''
+as $function$
+begin
+  if candidate_count is null or candidate_count not in (0, 2) then
+    raise exception using
+      errcode = '23514',
+      message = 'payment provider backfill requires zero rows or exactly two rows',
+      detail = format('observed_count=%s', candidate_count);
+  end if;
+end;
+$function$;
+
+revoke all on function private.assert_payment_provider_backfill_count(bigint)
+  from public, anon, authenticated, service_role;
+
 create table private.payment_migration_evidence (
   migration_name text primary key,
-  before_total bigint not null check (before_total >= 0),
+  before_total bigint not null check (before_total in (0, 2)),
   before_null bigint not null check (before_null >= 0),
   updated_count bigint not null check (updated_count >= 0),
   after_total bigint not null check (after_total >= 0),
@@ -58,9 +78,16 @@ declare
   after_toss bigint;
   after_null bigint;
 begin
+  -- Keep the approved-count read and the backfill in one write-excluding
+  -- critical section. This closes the gap between workflow preflight and the
+  -- migration itself if another legacy Toss row appears before db push.
+  lock table public.payments in access exclusive mode;
+
   select count(*), count(*) filter (where provider is null)
   into before_total, before_null
   from public.payments;
+
+  perform private.assert_payment_provider_backfill_count(before_total);
 
   update public.payments
   set provider = 'toss'
@@ -103,7 +130,7 @@ begin
     after_null
   )
   values (
-    '20260813081620_provider_neutral_payment_ledger',
+    '20260813182100_provider_neutral_payment_ledger',
     before_total,
     before_null,
     updated_count,
@@ -299,6 +326,6 @@ grant select (
 
 grant select, insert, update, delete on table public.payments to service_role;
 
--- This migration intentionally creates no callable function. Consequently it
--- introduces no default EXECUTE grant; future attempt/evidence RPCs must revoke
--- PUBLIC, anon, authenticated, and service_role before granting their caller.
+-- The only migration helper lives in private and has EXECUTE revoked from every
+-- application role. Future attempt/evidence RPCs must likewise revoke PUBLIC,
+-- anon, authenticated, and service_role before granting their intended caller.

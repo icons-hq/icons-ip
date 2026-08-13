@@ -13,7 +13,7 @@ set
   after_total = 2,
   after_toss = 2,
   after_null = 0
-where migration_name = '20260813081620_provider_neutral_payment_ledger';
+where migration_name = '20260813182100_provider_neutral_payment_ledger';
 
 insert into auth.users (
   id, aud, role, email, email_confirmed_at,

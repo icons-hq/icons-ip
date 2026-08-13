@@ -20,9 +20,11 @@ suffix, 배포 전 SHA를 #204에 기록한다.
 
 ## migration과 배포 후 검증
 
-Migration은 실행 시점의 전체 행 수와 null provider 수를 snapshot하고, 수정 행 수·전체 행
-수 보존·모든 기존 행의 `provider=toss`·null 0을 같은 transaction에서 검증한다. 불변식이
-어긋나면 migration 전체가 rollback된다.
+Migration은 workflow preflight와 별개로 `payments` 쓰기를 잠근 뒤 실행 시점의 전체 행 수를
+다시 읽는다. 빈 local/Preview의 0건 또는 승인된 Production 2건만 허용하며, 1건·3건 이상은
+provider update 전에 같은 transaction 안에서 실패한다. 이어 null provider 수, 수정 행 수,
+전체 행 수 보존, 모든 기존 행의 `provider=toss`, null 0을 검증한다. 어느 불변식이든 어긋나면
+migration 전체가 rollback된다.
 
 배포 후 workflow는 Production 전용 기대값 2를 migration evidence에 고정한 readback을
 자동 실행한다.
