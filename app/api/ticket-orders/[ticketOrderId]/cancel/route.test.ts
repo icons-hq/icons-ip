@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CurrentAuthState } from '@/lib/auth/server';
+import {
+  TicketPaymentContractError,
+  TicketRefundInProgressError,
+} from '@/lib/payments/ticket-checkout';
 import { POST } from './route';
 
 const TICKET_ORDER_ID = '22222222-2222-4222-8222-222222222222';
@@ -20,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   orderEq: vi.fn(),
   rpc: vi.fn(),
   reconcile: vi.fn(),
+  refund: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
@@ -51,6 +56,9 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 vi.mock('@/lib/ticketing/cancellation-orchestrator.server', () => ({
   reconcileTicketCancellation: mocks.reconcile,
+}));
+vi.mock('@/lib/payments/ticket-checkout.runtime.server', () => ({
+  createRuntimeTicketPaymentCheckout: () => ({ refund: mocks.refund }),
 }));
 
 function onboardedAuth(): CurrentAuthState {
@@ -94,6 +102,8 @@ describe('POST /api/ticket-orders/[ticketOrderId]/cancel', () => {
     mocks.orderEq.mockReset();
     mocks.rpc.mockReset();
     mocks.reconcile.mockReset();
+    mocks.refund.mockReset();
+    mocks.refund.mockRejectedValue(new TicketPaymentContractError('legacy_payment'));
     mocks.rpc.mockImplementation(async (name: string) => {
       if (name === 'request_ticket_cancellation') {
         return { data: requestResult('requested'), error: null };
@@ -132,6 +142,47 @@ describe('POST /api/ticket-orders/[ticketOrderId]/cancel', () => {
       attemptToken: beginCall?.[1].p_attempt_token,
     });
     expect(JSON.stringify(mocks.rpc.mock.calls)).not.toMatch(/payment.?key|amount/i);
+  });
+
+  it('Korpay 환급은 provider-neutral seam에서 완료하고 legacy Toss를 호출하지 않는다', async () => {
+    mocks.refund.mockResolvedValue({
+      attemptId: '44444444-4444-4444-8444-444444444444',
+      provider: 'korpay',
+      outcome: 'approved',
+      refundedAmount: 44_000,
+    });
+
+    const response = await POST(request(), context());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ status: 'canceled' });
+    expect(mocks.refund).toHaveBeenCalledWith({
+      requestId: REQUEST_ID,
+      userId: USER_ID,
+      reason: '사용자 티켓 예매 취소',
+    });
+    expect(mocks.rpc).not.toHaveBeenCalledWith(
+      'begin_ticket_cancellation_reconcile',
+      expect.any(Object),
+    );
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+  });
+
+  it('Korpay 환급 모호·중복 상태는 capacity를 자동 해제하지 않고 202다', async () => {
+    mocks.refund.mockResolvedValueOnce({
+      attemptId: '44444444-4444-4444-8444-444444444444',
+      provider: 'korpay',
+      outcome: 'needs_review',
+    });
+    const reviewing = await POST(request(), context());
+    expect(reviewing.status).toBe(202);
+    await expect(reviewing.json()).resolves.toEqual({ status: 'reviewing' });
+
+    mocks.refund.mockRejectedValueOnce(new TicketRefundInProgressError());
+    const processing = await POST(request(), context());
+    expect(processing.status).toBe(202);
+    await expect(processing.json()).resolves.toEqual({ status: 'processing' });
+    expect(mocks.reconcile).not.toHaveBeenCalled();
   });
 
   it('same-origin이 아니거나 canonical UUID가 아니면 인증·DB 쓰기 전에 차단한다', async () => {

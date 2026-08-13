@@ -54,7 +54,7 @@
 
 ### 2.2 이미 배선되어 재사용 가능한 것
 
-- **커머스 코어**: 장바구니 병합, `place_order` 원자적 재고 선점, 15분 pending 만료, 토스 결제위젯, 웹훅 확정, 주문 내역·상세.
+- **커머스 코어**: 장바구니 병합, `place_order` 원자적 재고 선점, 15분 pending 만료, 굿즈·티켓 provider-neutral attempt/claim/finalizer, 주문 내역·상세. 티켓은 승인 전 개별 티켓/QR을 만들지 않는다. 실제 Korpay adapter와 rollout gate는 #207 전까지 OFF다.
 - **청약철회 인프라**: `order_cancellation_claims` durable claim, orchestrator, 토스 취소 호출, `refunds` 장부, 재고 복원. **배송 전 범위에서만** 동작한다(§3.2).
 - **어드민 주문 콘솔**: 상태·기간·쿼리 검색, 주문 항목 조회, 배송 상태 전이, 청약철회 승인/거절. 전부 audited.
 - **어드민 카탈로그 콘솔**: IP·굿즈·카드·이벤트·큐레이션 upsert, 아트워크 업로드(**미리보기 있음**), 보관/복원, 멱등 실재고 조정.
@@ -282,12 +282,12 @@
 
 아래 사람·운영 데이터 블로커와 결제 전환 구현이 모두 필요하다. 2026-08-10에 프로덕션 `goods`와 Vercel production env를 직접 확인했고, 2026-08-13 결제 provider 전환 계약을 §8.3에 반영했다.
 
-1. **[#87](https://github.com/sangwopark19/icons-ip/issues/87)** — 사업자 정보 6종과 Korpay 승인·보안·운영 답변. 없으면 푸터의 법정 표기와 문의 창구가 비고, rotated credential·조회/취소/모호 결제 계약을 검증할 수 없다. 현재 Toss checkout은 #205·#206 전환 동안만 호환 유지하며 신규 Toss live 판매는 열지 않는다(§8.3).
+1. **[#87](https://github.com/icons-hq/icons-ip/issues/87)** — 사업자 정보 6종과 Korpay 승인·보안·운영 답변. 없으면 푸터의 법정 표기와 문의 창구가 비고, rotated credential·조회/취소/모호 결제 계약을 검증할 수 없다. 굿즈·티켓 provider runtime은 OFF이고 신규 Toss live 판매는 열지 않는다(§8.3).
 2. **[#177](https://github.com/sangwopark19/icons-ip/issues/177)** — H1~H7. 특히 H7(WMS 운영사 법인명)이 없으면 개인정보처리방침의 처리위탁 목록을 완성할 수 없다.
 3. **[#190](https://github.com/sangwopark19/icons-ip/issues/190)** — 운영 데이터 입력. 홍실 3종의 고시정보 7항목 × 3 = **21칸이 전부 공백**이고 설명·갤러리·상세 이미지도 없다. 고시정보가 차야 굿즈 폼이 저장되고, 그래야 `stock`이 `ok`로 바뀐다(§4.1 정정). A/S 연락처가 #87 의존이다.
 4. **[#179](https://github.com/sangwopark19/icons-ip/issues/179)** — 할당 재고 확정. 홍실 3종이 전부 `stock='soldout'`·`stock_qty=0`이라 지금은 아무것도 팔리지 않는다.
 5. **[#191](https://github.com/sangwopark19/icons-ip/issues/191)** — 발신 이메일 설정. `EMAIL_PROVIDER_API_KEY`·`EMAIL_FROM`이 Vercel production env에 없어 주문 확인 메일이 한 통도 나가지 않는다. **판매 개시 필수 여부는 #87의 "인앱 주문 상세가 서면 교부로 충분한가"에 달려 있다** — "아니오"면 블로커로 승격된다.
-6. **[#205](https://github.com/icons-hq/icons-ip/issues/205)·[#206](https://github.com/icons-hq/icons-ip/issues/206)·[#207](https://github.com/icons-hq/icons-ip/issues/207)** — 굿즈·티켓 checkout을 provider seam으로 옮기고 Korpay를 gate OFF로 dark deploy한 뒤 controlled canary 증거를 확보한다. 이 구현 전에는 신규 공개 결제를 열지 않는다.
+6. **[#207](https://github.com/icons-hq/icons-ip/issues/207)** — 굿즈·티켓 seam은 provider 기본 OFF로 구현됐다. Korpay dark deploy·controlled canary 증거 전에는 신규 공개 결제를 열지 않는다.
 
 ### 8.2 #178에서 남긴 범위
 
@@ -296,7 +296,7 @@
 ### 8.3 결제 provider 전환 절차
 
 - provider-neutral 원장(#204)은 기존 Production 결제 2건을 `provider=toss`로 backfill하고 민감 provider 증거를 private 원장으로 분리한다.
-- #205·#206이 굿즈·티켓 checkout을 공통 seam으로 옮길 때까지 현재 Toss checkout은 transitional compatibility로만 유지한다. 신규 Toss live key·신규 공개 판매를 활성화하지 않는다.
+- #205와 #206에서 굿즈·티켓 checkout을 공통 seam으로 옮기고 실제 provider를 기본 OFF로 닫았다. Toss는 기존 거래 정리에만 남기며 신규 Toss live key·신규 공개 판매를 활성화하지 않는다.
 - #87에서 Korpay의 승인 범위, 조회·취소·webhook/서명·멱등·timeout 계약과 rotated credential을 확인한 뒤 #207에서 dark deploy한다. Preview는 fake Korpay만 사용하고 실자격 증명을 두지 않는다.
 - 실제 Korpay canary는 공급사 취소 접수를 사전 조율하고 최소 1,000원 1회만 수행하며, 과금 직전에 대상·비용을 다시 표시해 사용자 확인을 받는다.
 - 기존 Toss 거래는 공급사 콘솔과 내부 원장에서 모두 종결될 때까지 known-only 조회·취소·웹훅과 server secret을 유지한다. 그 뒤 Toss runtime/secret 제거는 별도 PR이다.
@@ -307,5 +307,5 @@
 
 - 배송 실행 주체는 사내 물류(김포 창고)다. 3PL 위탁도 IP사 직배송도 아니다.
 - 첫 판매 기간에는 ICONS 할당 재고를 다른 채널이 건드리지 않는다(D4의 전제).
-- callback body와 클라이언트 성공 신호는 결제 확정의 진실원이 아니다. 현재 Toss 호환은 provider 재조회·웹훅, 목표 Korpay는 `PaymentGateway.confirm/reconcile`과 DB 멱등 finalizer를 사용한다. 돈·재고는 Postgres RPC + 행 잠금 + 멱등([`AGENTS.md`](../AGENTS.md) 불변).
+- callback body와 클라이언트 성공 신호는 결제 확정의 진실원이 아니다. Toss는 알려진 기존 거래만 provider 재조회·웹훅으로 정리하고, 신규 Korpay는 `PaymentGateway.confirm/reconcile`과 DB 멱등 finalizer를 사용한다. 돈·재고는 Postgres RPC + 행 잠금 + 멱등([`AGENTS.md`](../AGENTS.md) 불변).
 - 법무 검토는 판매 개시를 막지 않는다(D12). 개인정보처리방침은 코드에서 추출한 **사실 기술**이라 내용 리스크가 낮고, 이용약관은 공정위 표준약관 기반이라 골격 리스크가 낮다는 판단이다.

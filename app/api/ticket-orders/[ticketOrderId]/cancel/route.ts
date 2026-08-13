@@ -6,6 +6,11 @@ import { createClient } from '@/lib/supabase/server';
 import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/service';
 import { normalizeTicketReference } from '@/lib/ticketing';
 import { reconcileTicketCancellation } from '@/lib/ticketing/cancellation-orchestrator.server';
+import {
+  TicketPaymentContractError,
+  TicketRefundInProgressError,
+} from '@/lib/payments/ticket-checkout';
+import { createRuntimeTicketPaymentCheckout } from '@/lib/payments/ticket-checkout.runtime.server';
 
 interface TicketOrderRow {
   id: string;
@@ -157,6 +162,27 @@ export async function POST(
 
   const requestId = normalizeTicketReference(requestRow.request_id);
   if (!requestId) return errorJson(502, 'cancel_failed');
+
+  try {
+    const refund = await createRuntimeTicketPaymentCheckout().refund({
+      requestId,
+      userId: auth.user.id,
+      reason: '사용자 티켓 예매 취소',
+    });
+    return refund.outcome === 'approved'
+      ? NextResponse.json({ status: 'canceled' })
+      : NextResponse.json({ status: 'reviewing' }, { status: 202 });
+  } catch (error) {
+    if (error instanceof TicketRefundInProgressError) {
+      return NextResponse.json({ status: 'processing' }, { status: 202 });
+    }
+    if (!(error instanceof TicketPaymentContractError) || error.code !== 'legacy_payment') {
+      return NextResponse.json({ status: 'reviewing' }, { status: 202 });
+    }
+  }
+
+  // Existing Toss rows remain known-only. The provider-neutral repository
+  // explicitly returns `legacy_payment`; only then may the old reconciler run.
   const attemptToken = crypto.randomUUID();
 
   let beginResult: unknown;

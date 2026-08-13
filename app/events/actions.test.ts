@@ -14,9 +14,13 @@ const mocks = vi.hoisted(() => ({
     } as unknown,
     error: null as { message: string } | null,
   },
+  paymentsEnabled: true,
 }));
 
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
+vi.mock('@/lib/payments/ticket-checkout-availability', () => ({
+  ticketCheckoutPaymentsEnabled: () => mocks.paymentsEnabled,
+}));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({ from: mocks.from }),
 }));
@@ -62,6 +66,7 @@ describe('reserveTicketsAction', () => {
     mocks.auth = onboardedAuth();
     mocks.from.mockReset();
     mocks.serviceRpc.mockReset();
+    mocks.paymentsEnabled = true;
     mocks.eligibility = {
       data: { id: ticketTypeId, price: 22000, events: { status: '예매중' } },
       error: null,
@@ -70,8 +75,6 @@ describe('reserveTicketsAction', () => {
     mocks.serviceRpc.mockResolvedValue({ data: ticketOrderId, error: null });
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://example.supabase.co');
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
-    vi.stubEnv('NEXT_PUBLIC_TOSS_CLIENT_KEY', 'test_gck_example');
-    vi.stubEnv('TOSS_SECRET_KEY', 'test_gsk_example');
   });
 
   it('checks current paid booking eligibility before calling the exact idempotent RPC', async () => {
@@ -138,14 +141,7 @@ describe('reserveTicketsAction', () => {
   });
 
   it('fails closed before reserving capacity when settlement is unavailable', async () => {
-    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
-    await expect(reserveTicketsAction(input)).resolves.toEqual({
-      ok: false,
-      error: 'payment_unavailable',
-    });
-
-    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
-    vi.stubEnv('TOSS_SECRET_KEY', 'live_gsk_example');
+    mocks.paymentsEnabled = false;
     await expect(reserveTicketsAction(input)).resolves.toEqual({
       ok: false,
       error: 'payment_unavailable',

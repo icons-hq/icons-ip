@@ -11,7 +11,6 @@ import {
   type TossOrderRef,
 } from '@/lib/payments/toss';
 import { cancelTossPayment, fetchTossPayment, getTossConfig } from '@/lib/payments/toss-api';
-import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
 import { createLegacyTossPaymentRepository } from '@/lib/payments/legacy-toss-ledger.server';
 import { sendOrderConfirmationEmail } from '@/lib/email/transactional.server';
 import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/service';
@@ -35,19 +34,20 @@ function errorJson(status: number, code: string) {
   return NextResponse.json({ error: { code } }, { status });
 }
 
-async function guardTossPaymentProvider(service: ServiceClient, paymentKey: string) {
+async function classifyTossPaymentProvider(service: ServiceClient, paymentKey: string) {
   const classification = await createLegacyTossPaymentRepository(service)
     .classifyPaymentKey(paymentKey);
   if (classification.status === 'lookup_failed') {
     console.error(`[webhooks/tosspayments] provider guard lookup failed: ${classification.message}`);
-    return errorJson(500, 'provider_guard_failed');
+    return { response: errorJson(500, 'provider_guard_failed') } as const;
   }
   if (classification.status === 'known_other_provider') {
-    return errorJson(409, 'payment_provider_mismatch');
+    return { response: errorJson(409, 'payment_provider_mismatch') } as const;
   }
-  // `unknown_compatibility` is allowed only until #205/#206 move both checkout
-  // paths. Webhook-first recovery can currently precede the local pending row.
-  return null;
+  if (classification.status === 'unknown_compatibility') {
+    return { response: errorJson(409, 'legacy_payment_unknown') } as const;
+  }
+  return { classification } as const;
 }
 
 /** 결제를 종결 상태로 기록 — 승인 경로가 남긴 pending 행이 있으면 갱신, 없으면 추적용으로 신규 기록. */
@@ -325,8 +325,6 @@ async function applyRecordFailure(service: ServiceClient, payment: NormalizedTos
   return received();
 }
 
-type ProductionTestPaymentDecision = 'allow' | 'reject-and-restore' | 'reject-provider-only';
-
 type LocalPaymentIdentity = {
   status: string;
   amount: number;
@@ -357,54 +355,6 @@ function matchesTargetPayment(
     && local.payment_key === payment.paymentKey
     && local.idempotency_key === payment.paymentKey,
   );
-}
-
-async function decideProductionTestPayment(
-  service: ServiceClient,
-  ref: TossOrderRef,
-  payment: NormalizedTossPayment,
-): Promise<ProductionTestPaymentDecision> {
-  const table = ref.purpose === 'order' ? 'orders' : 'ticket_orders';
-  const { data: target, error } = await service
-    .from(table)
-    .select('user_id,status,total')
-    .eq('id', ref.refId)
-    .maybeSingle();
-  if (error) throw new Error(`Failed to load ${table} reviewer: ${error.message}`);
-  if (!target) return 'reject-and-restore';
-
-  const localTarget = target as { user_id: string; status: string; total: number };
-  const alreadyConfirmedTarget = isConfirmedTarget(ref, localTarget.status);
-  if (alreadyConfirmedTarget) {
-    const { data: existingPayment, error: paymentError } = await createLegacyTossPaymentRepository(service)
-      .select('status,amount,purpose,ref_id,payment_key,idempotency_key')
-      .eq('idempotency_key', payment.paymentKey)
-      .maybeSingle();
-    if (paymentError) throw new Error(`Failed to load confirmed payment: ${paymentError.message}`);
-    const existing = existingPayment as LocalPaymentIdentity | null;
-    if (
-      existing?.status === 'paid'
-      && matchesTargetPayment(existing, ref, payment, localTarget.total)
-    ) {
-      return 'allow';
-    }
-    return 'reject-provider-only';
-  }
-
-  const { data: profile, error: profileError } = await service
-    .from('profiles')
-    .select('role,suspended_at')
-    .eq('id', localTarget.user_id)
-    .maybeSingle();
-  if (profileError) throw new Error(`Failed to load reviewer profile: ${profileError.message}`);
-  const reviewer = profile as { role: string | null; suspended_at: string | null } | null;
-  const reviewerAllowed = checkoutPaymentsEnabled(Boolean(
-    reviewer
-    && !reviewer.suspended_at
-    && (reviewer.role === 'staff' || reviewer.role === 'admin'),
-  ));
-  if (reviewerAllowed) return 'allow';
-  return 'reject-and-restore';
 }
 
 /**
@@ -490,43 +440,6 @@ async function recordCanceledExtraPayment(
   return received('extra_payment_canceled');
 }
 
-async function rejectUnapprovedProductionTestPayment(
-  service: ServiceClient,
-  ref: TossOrderRef,
-  payment: NormalizedTossPayment,
-  preserveConfirmedTarget = false,
-) {
-  const canceled = await cancelTossPayment(payment.paymentKey, 'ICONS 승인 계정 외 테스트 결제 자동 취소');
-  if (!canceled.ok && canceled.code !== 'ALREADY_CANCELED_PAYMENT') {
-    console.error(`[webhooks/tosspayments] unapproved test payment auto-cancel failed: ${canceled.code}`);
-    return errorJson(500, 'auto_cancel_failed');
-  }
-  const canceledResult = canceled.ok ? canceled : await fetchTossPayment(payment.paymentKey);
-  if (!canceledResult.ok) {
-    console.error(`[webhooks/tosspayments] canceled test payment verification failed: ${canceledResult.code}`);
-    return errorJson(500, 'auto_cancel_verification_failed');
-  }
-  const cancellation = verifyTossCancellationState(canceledResult.body, {
-    paymentKey: payment.paymentKey,
-    orderId: payment.orderId,
-    amount: payment.totalAmount,
-    type: payment.type,
-    currency: payment.currency,
-  });
-  const canceledPayment = normalizeTossPayment(canceledResult.body);
-  if (!cancellation.ok || cancellation.state !== 'fully_canceled' || !canceledPayment) {
-    console.error('[webhooks/tosspayments] unapproved test payment cancellation shape invalid');
-    return errorJson(500, 'auto_cancel_verification_failed');
-  }
-  if (preserveConfirmedTarget) {
-    if (!await recordTerminalPayment(service, ref, canceledPayment, 'canceled', canceledResult.body)) {
-      return errorJson(500, 'terminal_record_failed');
-    }
-    return received('unapproved_test_payment_canceled');
-  }
-  return applyReflectCancel(service, ref, canceledPayment, canceledResult.body);
-}
-
 export async function POST(request: Request) {
   let body: unknown;
   try {
@@ -544,8 +457,8 @@ export async function POST(request: Request) {
   }
 
   const service = createServiceClient();
-  const providerGuardFailure = await guardTossPaymentProvider(service, event.paymentKey);
-  if (providerGuardFailure) return providerGuardFailure;
+  const providerGuard = await classifyTossPaymentProvider(service, event.paymentKey);
+  if ('response' in providerGuard) return providerGuard.response;
 
   const verified = await fetchTossPayment(event.paymentKey);
   if (!verified.ok) {
@@ -566,22 +479,22 @@ export async function POST(request: Request) {
     return errorJson(500, 'provider_response_mismatch');
   }
 
-  const completedRef = payment.status === 'DONE' ? parseTossOrderId(payment.orderId) : null;
-  if (completedRef) {
-    try {
-      const decision = await decideProductionTestPayment(service, completedRef, payment);
-      if (decision !== 'allow') {
-        return rejectUnapprovedProductionTestPayment(
-          service,
-          completedRef,
-          payment,
-          decision === 'reject-provider-only',
-        );
-      }
-    } catch (error) {
-      console.error(`[webhooks/tosspayments] reviewer lookup failed: ${error instanceof Error ? error.message : String(error)}`);
-      return errorJson(500, 'reviewer_lookup_failed');
-    }
+  const providerRef = parseTossOrderId(payment.orderId);
+  if (
+    providerGuard.classification.status === 'known_toss'
+    && (
+      !providerRef
+      || providerGuard.classification.purpose !== providerRef.purpose
+      || providerGuard.classification.refId !== providerRef.refId
+      || providerGuard.classification.amount !== payment.totalAmount
+      || providerGuard.classification.idempotencyKey !== payment.paymentKey
+      || (
+        providerGuard.classification.paymentKey !== null
+        && providerGuard.classification.paymentKey !== payment.paymentKey
+      )
+    )
+  ) {
+    return errorJson(409, 'legacy_payment_identity_mismatch');
   }
 
   const action = decideWebhookAction(payment);

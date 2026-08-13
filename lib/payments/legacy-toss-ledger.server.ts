@@ -15,7 +15,14 @@ interface LegacyTossSelectQuery<T> extends PromiseLike<{
 }
 
 export type LegacyTossPaymentKeyClassification =
-  | { status: 'known_toss' }
+  | {
+      status: 'known_toss';
+      purpose: 'order' | 'ticket';
+      refId: string;
+      amount: number;
+      paymentKey: string | null;
+      idempotencyKey: string;
+    }
   | { status: 'known_other_provider' }
   | { status: 'unknown_compatibility' }
   | { status: 'lookup_failed'; message: string };
@@ -23,24 +30,46 @@ export type LegacyTossPaymentKeyClassification =
 /**
  * Owns the database boundary for the temporary Toss compatibility runtime.
  *
- * `unknown_compatibility` intentionally remains possible while #205/#206 still
- * use Toss checkout: a provider-approved callback can reach the webhook before
- * its local pending row. Once both checkout seams move, the strict known-only
- * follow-up test must reject this state before any Toss inquiry or write.
+ * `unknown_compatibility` is a classification result, never authorization.
+ * Both new checkout paths are closed to Toss; webhook callers reject unknown
+ * keys before provider inquiry or local mutation.
  */
 export function createLegacyTossPaymentRepository(service: ServiceClient) {
   return {
     async classifyPaymentKey(paymentKey: string): Promise<LegacyTossPaymentKeyClassification> {
       const { data, error } = await service
         .from('payments')
-        .select('provider')
+        .select('provider,purpose,ref_id,amount,payment_key,idempotency_key')
         .eq('idempotency_key', paymentKey)
         .maybeSingle();
       if (error) return { status: 'lookup_failed', message: error.message };
       if (!data) return { status: 'unknown_compatibility' };
-      return (data as { provider?: unknown }).provider === 'toss'
-        ? { status: 'known_toss' }
-        : { status: 'known_other_provider' };
+      const row = data as {
+        provider?: unknown;
+        purpose?: unknown;
+        ref_id?: unknown;
+        amount?: unknown;
+        payment_key?: unknown;
+        idempotency_key?: unknown;
+      };
+      if (row.provider !== 'toss') return { status: 'known_other_provider' };
+      if (
+        (row.purpose !== 'order' && row.purpose !== 'ticket')
+        || typeof row.ref_id !== 'string'
+        || typeof row.amount !== 'number'
+        || !Number.isSafeInteger(row.amount)
+        || row.amount <= 0
+        || (row.payment_key !== null && typeof row.payment_key !== 'string')
+        || typeof row.idempotency_key !== 'string'
+      ) return { status: 'lookup_failed', message: 'invalid legacy Toss payment identity' };
+      return {
+        status: 'known_toss',
+        purpose: row.purpose,
+        refId: row.ref_id,
+        amount: row.amount,
+        paymentKey: row.payment_key,
+        idempotencyKey: row.idempotency_key,
+      };
     },
 
     select<T = Record<string, unknown>>(columns: string) {

@@ -14,7 +14,7 @@ ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 �
 - 검색은 Supabase 환경변수가 있으면 Postgres `search_public_content` RPC로 IP, 굿즈, 카드, visible 포스트, 태그를 그룹 검색하고, 로컬 fallback에서는 mock 데이터를 사용한다.
 - `/admin`은 staff/admin 게이트, 카탈로그 CRUD·보관/복원·아트워크 업로드, 카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩, 뽑기권 발급 정책, 카드 보상형 참여형 게임 등록·운영과 PII-free 플레이 집계, 감사 로그, 커뮤니티 신고 상태 변경과 포스트 숨김 처리 경로에 연결되어 있다. 기존 게임 `goods` variant는 운영 콘솔에서 읽기 전용이고, mock 연출은 실제 경품·구매권을 만들지 않으며 신규 실물 판매에 쓰지 않는다.
 - Google, Kakao, Apple 버튼은 Supabase 관리형 OAuth Server Action에 연결되어 있고 production Supabase provider도 모두 활성화되어 있다. Google은 production 공개 상태이며 Apple App ID·Services ID·callback·서명 키 구성이 완료됐다. Kakao는 `(주) 아이콘스` 비즈 앱, 로그인용 client secret, `account_email` 필수 동의·계정 정보 수집까지 설정했고 Supabase의 이메일 없는 사용자 허용은 꺼져 있다. 코드가 production에 배포된 뒤 controlled login smoke가 남아 있다.
-- 굿즈·티켓 결제와 주문 원장, 티켓 현장 검표는 서버 경계에 연결되어 있다. production 실제 결제는 라이브 상점 설정 검증 전까지 비활성이다. 단, 승인된 사람 검토 동안에만 토스 테스트 결제위젯을 임시로 열 수 있으며 테스트 결제는 실제 결제수단을 출금하지 않는다.
+- 굿즈와 티켓 checkout은 provider-neutral attempt/claim/finalizer와 `PaymentGateway` 경계로 이동했지만 Korpay adapter·rollout gate는 #207 전까지 기본 OFF다. 기존 Toss 거래는 알려진 결제의 조회·취소·웹훅 정리 경로로만 남고 신규 Toss checkout은 닫혀 있다. production 실제 결제는 라이브 상점 설정 검증 전까지 비활성이다.
 - 범용 온라인 팝업 운영 레이어와 Expo webview 호스트는 현 로드맵에 없다. 19+ 꽝 없는 유한 실물 쿠지는 기존 카드·게임과 분리된 `prize_sale`로 설계하며 [#212](https://github.com/icons-hq/icons-ip/issues/212)·[#213](https://github.com/icons-hq/icons-ip/issues/213)이 별도 추적한다.
 
 ## 빠른 시작
@@ -51,6 +51,7 @@ RESEND_REPLY_TO=
 RESEND_WEBHOOK_SECRET=
 # Optional Resend-compatible endpoint override; normally leave empty.
 RESEND_API_ENDPOINT=
+PAYMENT_RECONCILIATION_SECRET=
 ```
 
 - `NEXT_PUBLIC_SUPABASE_URL`: Supabase 프로젝트 URL.
@@ -63,14 +64,13 @@ RESEND_API_ENDPOINT=
 - `EMAIL_DISPATCH_HMAC_SECRET`: recipient·source·provider reference를 목적 분리 keyed HMAC으로 투영하는 32자 이상 서버 secret이다.
 - `RESEND_API_KEY`·`RESEND_FROM`·`RESEND_REPLY_TO`: durable EmailDispatcher의 Resend HTTP 발송 설정이다. Preview·CI에는 실값을 두지 않는다.
 - `RESEND_API_ENDPOINT`: 호환성 검증에만 쓰는 선택적 endpoint override다. 일반 운영에서는 비워 둔다.
+- `PAYMENT_RECONCILIATION_SECRET`: 검토된 단일 결제·환급 건을 명시적으로 재조회하는 내부 route 전용 bearer secret. `CRON_SECRET`과 공유하지 않는다. #206 dark deploy에서는 미설정이 정상이며 route가 401로 닫힌다. 활성화 시 별도 승인 절차로 Production에만 16~128자의 URL-safe 랜덤 값을 두고 Preview/CI에는 넣지 않는다. 요청은 이메일 등 PII가 아닌 opaque URL-safe `caseRef`만 받으며 actor는 서버가 `payment_reconciliation_service_v1`으로 고정한다.
 
 #191 코드는 dark deploy 상태다. DB gate는 기본 OFF이고 Supabase Send Email Hook도 사람이 운영 증거를 확인하기 전에는 활성화하지 않는다. 기존 Supabase custom SMTP와 주문 메일 경로는 실제 Auth 흐름 canary와 direct SMTP 0 증거가 끝날 때까지 유지한다. 상세 순서는 [`docs/transactional-email.md`](./docs/transactional-email.md)에 있다.
 
-### Production 토스 테스트 결제 검토 모드 (임시)
+### Production 결제 활성화 경계
 
-`iconsip.com`에서 사람 검토를 해야 할 때만, Vercel Production 환경변수에 Preview/로컬에서 검증한 결제위젯 세트의 `NEXT_PUBLIC_TOSS_CLIENT_KEY=test_gck_…`, `TOSS_SECRET_KEY=test_gsk_…`, 가상계좌를 제외한 테스트 UI의 `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY=ICONS_REVIEW`, 두 원문 키 값의 승인된 SHA-256인 `TOSS_PAYMENT_KEY_PAIR_SHA256`, 서버 전용 `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION=true`를 함께 설정한다. override는 정확히 소문자 `true`, variantKey는 정확히 `ICONS_REVIEW`여야 하며, 키 모드·variantKey·지문이 틀리거나 누락되면 fail closed로 결제를 열지 않는다. 이 기간에는 정지되지 않은 `staff`/`admin` 계정만 주문·예매 생성과 승인·웹훅 확정을 진행할 수 있고, 그 밖의 계정이 우회해 만든 승인 건은 자동 취소한다. 테스트 결제는 실제 결제수단을 출금하지 않는다.
-
-이 모드는 라이브 상점 검증을 대체하지 않는 임시 검토용이다. 검토 승인 뒤에는 `ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION`과 테스트 전용 `NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY`를 제거하고, 동일한 결제위젯 세트의 `live_gck_…`/`live_gsk_…` 키와 그 지문을 복원한 다음 production 배포로 확인한다. 라이브 키는 override 없이 기본 UI로 정상 동작한다.
+신규 굿즈·티켓 결제는 실제 provider가 없는 상태에서 fail closed다. Provider adapter readiness와 목적별(`order`·`ticket`) 신규 checkout rollout gate를 분리해 일반 굿즈 staff canary와 티켓 판매를 독립 활성화·rollback한다. 판매 gate를 내리면 해당 목적의 새 reserve·prepare·provider session 생성만 차단한다. 이미 DB에 durable한 attempt의 opaque order+nonce callback은 readiness 경계에서 계속 claim·확정하고, 검토된 기존 모호 결제·환급 한 건은 별도 재조정 경계로 복구한다. 알 수 없는 order·nonce는 provider 호출 전에 거부한다. Toss 결제위젯과 `/api/payments/confirm`을 이용한 신규 결제는 열지 않으며, 공개 위젯 키·variant·production test override·키 지문은 더 이상 checkout 활성화 조건이 아니다. Production의 서버 전용 `TOSS_SECRET_KEY`만 `provider=toss`로 확인된 기존 거래의 조회·취소·웹훅 정리가 끝날 때까지 유지한다. Fake-only Preview에는 이 secret을 두지 않아 legacy route도 503으로 닫는다. Korpay는 #87의 rotated credential과 #207 dark deploy·controlled canary 전까지 활성화하지 않는다.
 
 URL과 public key 둘 중 하나라도 없으면 인증 미들웨어는 세션 갱신을 건너뛰고, 공개 카탈로그는 로컬 개발용 mock 데이터로 fallback한다. `AUTH_SIGNUP_RESEND_SECRET`이 없으면 회원가입 재전송 제한과 서명된 `next` 보존을 신뢰할 수 없으며, 비밀번호 재설정 요청은 fail closed한다. Vercel preview와 production 배포는 Supabase 공개 환경변수 또는 이 secret이 없으면 workflow preflight에서 실패한다.
 
@@ -130,11 +130,14 @@ Production에서 이메일/PW 가입을 운영하려면 Supabase Auth custom SMT
 ```bash
 npm run dev    # 개발 서버
 npm run test   # Vitest 단위 테스트
+npm run test:goods-payment-local-integration # full local Supabase Auth/API + Fake 결제 통합
 npm run lint   # ESLint
 npm run build  # production build
 npm run start  # build 결과 실행
 npm run hong-sil:download # 홍실퀘스트 신규·누락 이미지 다운로드
 ```
+
+굿즈 결제 local integration은 `npx supabase start`로 Auth·Data API까지 전체 로컬 스택이 실행 중일 때만 실행한다. DB만 띄우는 CI smoke는 동일한 public seam의 Vitest와 SQL·경합 테스트를 각각 실행하고, 이 full-stack 명령은 로컬 E2E 증거로 분리한다.
 
 ### 홍실퀘스트 이미지 다운로더
 
@@ -193,7 +196,7 @@ CRON_SECRET
 - GitHub Actions의 앱 빌드는 Node 26을 사용한다. Vercel project/runtime Node.js Version은 Vercel production Functions 공식 지원 범위인 24.x로 유지한다.
 - deployment secret 검사는 각 deploy job 안에서 수행한다. 누락 시 job이 즉시 실패하며, 필요한 GitHub Secret을 설정한 뒤 rerun해야 한다.
 - `.vercel/` 연결 파일은 commit하지 않고, workflow가 `VERCEL_ORG_ID`와 `VERCEL_PROJECT_ID`로 Vercel 원격 build/deploy를 요청한다.
-- Vercel 환경변수는 sensitive 상태로 preview와 production에 둔다. production deploy job은 GitHub `CRON_SECRET`을 Vercel production sensitive env에 stdin으로 동기화한 뒤 배포한다. 원격 build 안의 `prebuild` guard가 Supabase/Auth/결제 필수 변수, production `CRON_SECRET`, 토스 결제위젯 키 모드와 임시 테스트 결제 override를 검증하며 누락·불일치 시 배포를 실패시킨다. development 환경변수는 별도 요청 전까지 추가하지 않는다.
+- Vercel 환경변수는 sensitive 상태로 각 환경에 둔다. production deploy job은 기존 관리자 아트워크용 GitHub `CRON_SECRET`만 Vercel production에 동기화한다. 결제 재조정 secret은 #206 dark deploy 범위에서 workflow가 provision/mutate하지 않으며, 값이 이미 있으면 원격 `prebuild` guard가 형식만 검증한다. Preview는 결제 재조정 secret과 Toss secret 없이 Fake-only로 통과하고 내부 재조정 route는 인증 실패, legacy route는 503이며 어느 credential도 신규 checkout을 열지 않는다. development 환경변수는 별도 요청 전까지 추가하지 않는다.
 
 ## 프리뷰 환경
 
@@ -275,5 +278,5 @@ curl -s "$PREVIEW_URL" | grep -o '/_next/static/chunks/[^"]*\.js' | sort -u | wh
 - 보호 액션은 구매, 가챠, 예매, 작성, 팔로우 시점에 로그인 게이트를 둔다.
 - `/exchange`와 `/market`은 v2 전까지 프로토타입/플레이스홀더로 유지한다.
 - 돈, 재고, 가챠 RNG, 천장, 티켓 검표는 클라이언트 상태에 맡기지 않는다. Supabase Postgres RPC, RLS, 행 잠금, 멱등 처리를 기준으로 구현한다.
-- 결제 확정의 진실원은 토스페이먼츠 웹훅이다. 클라이언트 성공 콜백만으로 주문, 충전, 티켓을 확정하지 않는다.
+- 결제 확정은 provider-neutral `PaymentGateway.confirm/reconcile` 결과와 DB finalizer를 진실원으로 삼는다. 기존 Toss 거래만 provider 재조회·웹훅 계약을 유지하며, 어느 경로도 클라이언트 성공 콜백만으로 주문·티켓을 확정하지 않는다.
 - Next.js 16 관련 API, 라우팅, proxy/middleware, metadata, caching 코드를 수정하기 전에는 `node_modules/next/dist/docs/`의 현재 버전 문서를 확인한다.
