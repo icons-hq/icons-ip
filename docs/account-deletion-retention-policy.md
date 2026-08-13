@@ -84,6 +84,8 @@ Phase 1 schema는 기본 OFF이며, 거래 lookup 연락처 HMAC/key version, le
 
 compliance 프로젝트에는 직접 식별자·이메일·DOB·거래 payload를 넣지 않는다. 환경별 keyed-HMAC subject tombstone과 append-only event key, canonical digest, 단조 sequence, generation, ack 시각만 둔다.
 
+현재 [local contract](./deletion-ledger-local-contract.md)는 versioned HMAC/canonical encoding, deterministic fake, signed pagination과 disabled adapter까지만 구현했다. Production runtime은 기본 disabled이고 remote I/O는 없으며, 별도 프로젝트·credential·backup·restore drill과 Production 연결은 #215가 완료될 때까지 열지 않는다.
+
 - 같은 event key와 같은 digest는 기존 ack를 반환한다.
 - 같은 key에 다른 digest가 오면 conflict로 중단하고 자동 덮어쓰지 않는다.
 - Production 앱에는 append-only credential만, 복원 운영자에는 scan-only credential만 제공한다.
