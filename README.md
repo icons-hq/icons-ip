@@ -132,6 +132,7 @@ npm run dev    # 개발 서버
 npm run test   # Vitest 단위 테스트
 npm run test:goods-payment-local-integration # full local Supabase Auth/API + Fake 결제 통합
 npm run lint   # ESLint
+npm run typecheck # Next route type 생성 + test 전용 TypeScript 검사
 npm run build  # production build
 npm run start  # build 결과 실행
 npm run hong-sil:download # 홍실퀘스트 신규·누락 이미지 다운로드
@@ -166,7 +167,7 @@ npm run hong-sil:download -- \
 
 ## CI/CD
 
-GitHub Actions는 `CI/CD Pipeline` workflow 하나로 PR 검증(lint/test/build/Supabase local lint), Vercel preview 배포, production 배포를 처리한다.
+GitHub Actions는 `CI/CD Pipeline` workflow 하나로 PR 검증(lint/typecheck/test/build/Supabase local lint), Vercel preview 배포, production 배포를 처리한다.
 
 - `pull_request`: `validate` 통과 후 같은 repo 브랜치 PR이면 `deploy-supabase-preview`를 실행하고, 그 다음 `deploy-vercel-preview`를 실행한다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
 - `merge_group`: `validate` job만 실행한다.
@@ -191,7 +192,7 @@ VERCEL_PROJECT_ID
 CRON_SECRET
 ```
 
-- PR에서는 `npm run lint`, `npm run build`, local Supabase migration reset/lint 후 Vercel preview를 배포한다.
+- PR에서는 `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build`, local Supabase migration reset/lint 후 Vercel preview를 배포한다.
 - production 배포는 `main` push에서만 실행한다.
 - GitHub Actions의 앱 빌드는 Node 26을 사용한다. Vercel project/runtime Node.js Version은 Vercel production Functions 공식 지원 범위인 24.x로 유지한다.
 - deployment secret 검사는 각 deploy job 안에서 수행한다. 누락 시 job이 즉시 실패하며, 필요한 GitHub Secret을 설정한 뒤 rerun해야 한다.

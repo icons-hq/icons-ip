@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "next typegen && tsc --project tsconfig.test.json --noEmit --incremental false",
     "test": "vitest run",
     "test:goods-payment-local-integration": "bash supabase/tests/goods_payment_route_integration.sh",
     "hong-sil:download": "node scripts/hong-sil-downloader.mjs",

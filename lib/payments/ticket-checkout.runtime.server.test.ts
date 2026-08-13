@@ -49,9 +49,9 @@ describe('createRuntimeTicketPaymentCheckout', () => {
       requestId: '40000000-0000-4000-8000-000000000206',
       userId: '00000000-0000-4000-8000-000000000206',
       reason: '사용자 티켓 예매 취소',
-    })).rejects.toMatchObject<TicketPaymentContractError>({
+    })).rejects.toMatchObject({
       code: 'legacy_payment',
-    });
+    } satisfies Partial<TicketPaymentContractError>);
     expect(mocks.getPaymentGateway).not.toHaveBeenCalled();
   });
 

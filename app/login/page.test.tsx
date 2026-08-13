@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import type { CurrentAuthState } from '@/lib/auth/server';
 import Page from './page';
 
 const mocks = vi.hoisted(() => ({
   auth: {
     isConfigured: true,
     user: null as { id: string; email: string | null } | null,
-    profile: null,
+    profile: null as CurrentAuthState['profile'],
     isStaff: false,
   },
   loginProps: null as Record<string, unknown> | null,

@@ -13,7 +13,9 @@ let b2: Box2DModule;
 
 beforeAll(async () => {
   const factory = nodeRequire('box2d-wasm/dist/umd/Box2D.simd.js') as typeof Box2DFactory;
-  const wasmBinary = readFileSync(nodeRequire.resolve('box2d-wasm/dist/umd/Box2D.simd.wasm'));
+  const wasmBinary = Uint8Array.from(
+    readFileSync(nodeRequire.resolve('box2d-wasm/dist/umd/Box2D.simd.wasm')),
+  ).buffer;
   b2 = await factory({ wasmBinary });
 });
 

@@ -41,8 +41,8 @@ function cameraError(name: string) {
 
 function scanner() {
   return {
-    start: vi.fn(async () => undefined),
-    destroy: vi.fn(),
+    start: vi.fn<TicketCameraScanner['start']>(async () => undefined),
+    destroy: vi.fn<TicketCameraScanner['destroy']>(),
   } satisfies TicketCameraScanner;
 }
 
@@ -188,7 +188,7 @@ describe('ticket camera lifecycle', () => {
   it('destroys a scanner that resolves after the session was stopped without starting it', async () => {
     const instance = scanner();
     let resolveLoader: ((value: TicketCameraScanner) => void) | undefined;
-    const loader: TicketCameraScannerLoader = vi.fn(() => new Promise((resolve) => {
+    const loader: TicketCameraScannerLoader = vi.fn(() => new Promise<TicketCameraScanner>((resolve) => {
       resolveLoader = resolve;
     }));
     const controller = new TicketCameraController(loader, useExistingVideoStream);
@@ -210,7 +210,7 @@ describe('ticket camera lifecycle', () => {
   it('ignores a loader rejection from a session that was already stopped', async () => {
     const failure = new Error('stale loader failure');
     let rejectLoader: ((reason: unknown) => void) | undefined;
-    const loader: TicketCameraScannerLoader = vi.fn(() => new Promise((_resolve, reject) => {
+    const loader: TicketCameraScannerLoader = vi.fn(() => new Promise<TicketCameraScanner>((_resolve, reject) => {
       rejectLoader = reject;
     }));
     const controller = new TicketCameraController(loader, useExistingVideoStream);
@@ -252,7 +252,7 @@ describe('ticket camera lifecycle', () => {
   it('does not stop a replacement stream when stale scanner startup resolves', async () => {
     const instance = scanner();
     let resolveStart: (() => void) | undefined;
-    instance.start.mockImplementation(() => new Promise((resolve) => {
+    instance.start.mockImplementation(() => new Promise<void>((resolve) => {
       resolveStart = resolve;
     }));
     const controller = new TicketCameraController(async () => instance, useExistingVideoStream);

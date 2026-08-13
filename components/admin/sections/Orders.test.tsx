@@ -1,6 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import type { AdminOrderConsoleData, AdminOrderRecord } from '@/lib/admin/orders';
+import type {
+  AdminOrderCancellationRequestRecord,
+  AdminOrderConsoleData,
+  AdminOrderRecord,
+} from '@/lib/admin/orders';
 import { OrdersSection } from './Orders';
 
 vi.mock('@/app/admin/order-actions', () => ({
@@ -12,6 +16,20 @@ vi.mock('@/app/admin/order-actions', () => ({
 }));
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
+
+function cancellationRequest(
+  overrides: Partial<AdminOrderCancellationRequestRecord> = {},
+): AdminOrderCancellationRequestRecord {
+  return {
+    id: '33333333-3333-4333-8333-333333333333',
+    status: 'requested',
+    reasonType: 'change_of_mind',
+    requestedAt: '2026-07-14T07:00:00.000Z',
+    decidedAt: null,
+    decisionNote: null,
+    ...overrides,
+  };
+}
 
 function orderData(overrides: Partial<AdminOrderRecord> = {}): AdminOrderConsoleData {
   return {
@@ -82,12 +100,7 @@ describe('OrdersSection', () => {
     {
       name: 'requested cancellation',
       overrides: {
-        cancellationRequest: {
-          id: '33333333-3333-4333-8333-333333333333',
-          status: 'requested' as const,
-          reasonType: 'change_of_mind' as const,
-          requestedAt: '2026-07-14T07:00:00.000Z',
-        },
+        cancellationRequest: cancellationRequest(),
       },
       visible: ['청약철회 승인', '요청 거절'],
       hidden: ['배송 시작', '배송 완료', '상태 다시 확인'],
@@ -95,12 +108,7 @@ describe('OrdersSection', () => {
     {
       name: 'needs-review cancellation',
       overrides: {
-        cancellationRequest: {
-          id: '33333333-3333-4333-8333-333333333333',
-          status: 'needs_review' as const,
-          reasonType: 'change_of_mind' as const,
-          requestedAt: '2026-07-14T07:00:00.000Z',
-        },
+        cancellationRequest: cancellationRequest({ status: 'needs_review' }),
       },
       visible: ['상태 다시 확인'],
       hidden: ['배송 시작', '배송 완료', '청약철회 승인', '요청 거절'],
@@ -108,12 +116,7 @@ describe('OrdersSection', () => {
     {
       name: 'processing cancellation',
       overrides: {
-        cancellationRequest: {
-          id: '33333333-3333-4333-8333-333333333333',
-          status: 'processing' as const,
-          reasonType: 'change_of_mind' as const,
-          requestedAt: '2026-07-14T07:00:00.000Z',
-        },
+        cancellationRequest: cancellationRequest({ status: 'processing' }),
       },
       visible: ['처리 상태 확인'],
       hidden: ['배송 시작', '배송 완료', '청약철회 승인', '요청 거절'],
@@ -121,14 +124,11 @@ describe('OrdersSection', () => {
     {
       name: 'rejected cancellation on a paid order',
       overrides: {
-        cancellationRequest: {
-          id: '33333333-3333-4333-8333-333333333333',
-          status: 'rejected' as const,
-          reasonType: 'change_of_mind' as const,
-          requestedAt: '2026-07-14T07:00:00.000Z',
+        cancellationRequest: cancellationRequest({
+          status: 'rejected',
           decidedAt: '2026-07-14T08:00:00.000Z',
           decisionNote: '배송 준비가 이미 완료되었습니다.',
-        },
+        }),
       },
       visible: ['배송 시작', '요청 거절'],
       hidden: ['배송 완료', '청약철회 승인', '상태 다시 확인'],
@@ -136,13 +136,10 @@ describe('OrdersSection', () => {
     {
       name: 'completed cancellation awaiting an order refresh',
       overrides: {
-        cancellationRequest: {
-          id: '33333333-3333-4333-8333-333333333333',
-          status: 'completed' as const,
-          reasonType: 'change_of_mind' as const,
-          requestedAt: '2026-07-14T07:00:00.000Z',
+        cancellationRequest: cancellationRequest({
+          status: 'completed',
           decidedAt: '2026-07-14T08:00:00.000Z',
-        },
+        }),
       },
       visible: ['취소 완료'],
       hidden: ['배송 시작', '배송 완료', '청약철회 승인', '요청 거절', '상태 다시 확인'],
@@ -338,12 +335,9 @@ describe('OrdersSection', () => {
   it('renders explicit confirmations and an accessible rejection reason field', () => {
     const requestId = '33333333-3333-4333-8333-333333333333';
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
-      cancellationRequest: {
+      cancellationRequest: cancellationRequest({
         id: requestId,
-        status: 'requested',
-        reasonType: 'change_of_mind',
-        requestedAt: '2026-07-14T07:00:00.000Z',
-      },
+      }),
     })} />);
 
     expect(html).toContain('data-confirm="청약철회를 승인하고 결제 취소를 시작할까요?"');
