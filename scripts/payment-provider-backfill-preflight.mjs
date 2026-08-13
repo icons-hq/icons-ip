@@ -66,11 +66,18 @@ async function querySupabaseSnapshot(target, sql) {
     ['db', 'query', target, '--output-format', 'json', sql],
     { encoding: 'utf8', maxBuffer: 1024 * 1024 },
   );
+  return parsePaymentProviderQueryResponse(stdout);
+}
+
+export function parsePaymentProviderQueryResponse(stdout) {
   const response = JSON.parse(stdout);
-  if (!response || !Array.isArray(response.rows) || response.rows.length !== 1) {
+  // CLI 2.101 emits a bare row array in ordinary CI, but wraps it in
+  // `{ rows, boundary, warning }` when agent mode is active.
+  const rows = Array.isArray(response) ? response : response?.rows;
+  if (!Array.isArray(rows) || rows.length !== 1) {
     throw new Error('invalid provider backfill preflight query response');
   }
-  return response.rows[0];
+  return rows[0];
 }
 
 async function main() {
