@@ -1,10 +1,8 @@
 ---
-status: superseded
+status: accepted
 ---
 
 # 온라인 팝업 게임요소를 첫파티 webview 미니앱으로 구현하고 웹·Expo 동일 경험을 구조로 보장한다
-
-> 2026-08-13 superseded: #66과 #115를 현재 제품 범위에서 제거했다. 이 문서는 당시 검토한 전달 계층의 역사 기록이며 현행 구현 지시나 active acceptance criteria가 아니다. 웹 참여형 게임의 현재 경계는 루트 PRD·ARCHITECTURE와 ADR-0003·0004를 따른다.
 
 온라인 팝업의 게임요소(마블 룰렛 등 참여형 게임·래플 추첨)를 **자기완결 웹 번들 = 게임, 호스트가 띄운다**는 첫파티 미니앱 아키텍처로 구현한다. 웹은 게임을 라우트로 직접 렌더하고, 추후 Expo 네이티브 앱은 같은 원격 URL을 `react-native-webview`로 로드한다. **하나의 번들, 두 호스트**여서 "웹·앱 동일 경험"이 규율이 아니라 구조로 보장된다. 게임 결과는 항상 서버 RPC가 결정하고 게임은 그 결과를 재생하는 **렌더러**이며, 호스트↔게임은 세션 주입과 네이티브 편의만 노출하는 **얇은 브리지** 하나로 연결한다.
 
@@ -29,4 +27,4 @@ status: superseded
 - **웹 우선, 앱은 계약으로 대비**: 게임은 V1에 **웹으로 먼저** 만들되 처음부터 브리지 계약(세션·서버 RPC·자기완결 번들) 뒤에서 구현한다. 그러면 Expo webview 임베딩(V2/V3)이 재작성 없이 얹힌다.
 - **되돌리기 비용**: 모든 게임이 이 브리지 계약과 렌더러 규율에 묶이므로 사후 변경 비용이 크다 — 그래서 이 ADR로 기록한다.
 
-당시 상세 스펙과 제품 범위는 historical archive인 [online-popup/05-game-miniapp-spec.md](../online-popup/05-game-miniapp-spec.md)와 [02-prd.md §4.10](../online-popup/02-prd.md)에 보존한다. 현행 서버 신뢰 경계는 [ARCHITECTURE.md](../ARCHITECTURE.md)를 따른다.
+상세 스펙은 [online-popup/05-game-miniapp-spec.md](../online-popup/05-game-miniapp-spec.md), 제품 범위는 [02-prd.md §4.10](../online-popup/02-prd.md), 서버 신뢰 경계는 [ARCHITECTURE.md §7·§15](../ARCHITECTURE.md) 참조.
