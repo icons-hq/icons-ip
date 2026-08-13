@@ -95,7 +95,9 @@ from (
     ('20000000-0000-4000-8000-000000002079'::uuid, '10000000-0000-4000-8000-000000002079'::uuid),
     ('20000000-0000-4000-8000-000000002080'::uuid, '10000000-0000-4000-8000-000000002080'::uuid),
     ('20000000-0000-4000-8000-000000002081'::uuid, '10000000-0000-4000-8000-000000002081'::uuid),
-    ('20000000-0000-4000-8000-000000002082'::uuid, '10000000-0000-4000-8000-000000002082'::uuid)
+    ('20000000-0000-4000-8000-000000002082'::uuid, '10000000-0000-4000-8000-000000002082'::uuid),
+    ('20000000-0000-4000-8000-000000002083'::uuid, '10000000-0000-4000-8000-000000002083'::uuid),
+    ('20000000-0000-4000-8000-000000002084'::uuid, '10000000-0000-4000-8000-000000002084'::uuid)
 ) as fixture(order_id, checkout_key);
 
 insert into public.order_items (
@@ -111,7 +113,7 @@ select
 from public.orders as order_record
 where order_record.id between
   '20000000-0000-4000-8000-000000002071'::uuid
-  and '20000000-0000-4000-8000-000000002082'::uuid;
+  and '20000000-0000-4000-8000-000000002084'::uuid;
 
 insert into public.payment_attempts (
   id, provider, user_id, purpose, ref_id, amount, currency, state,
@@ -160,10 +162,17 @@ from (
 update public.orders
 set expires_at = pg_catalog.now() - interval '10 minutes'
 where id in (
+  '20000000-0000-4000-8000-000000002071',
+  '20000000-0000-4000-8000-000000002072',
+  '20000000-0000-4000-8000-000000002073',
+  '20000000-0000-4000-8000-000000002074',
+  '20000000-0000-4000-8000-000000002075',
   '20000000-0000-4000-8000-000000002079',
   '20000000-0000-4000-8000-000000002080',
   '20000000-0000-4000-8000-000000002081',
-  '20000000-0000-4000-8000-000000002082'
+  '20000000-0000-4000-8000-000000002082',
+  '20000000-0000-4000-8000-000000002083',
+  '20000000-0000-4000-8000-000000002084'
 );
 
 update public.payment_attempts
@@ -195,18 +204,31 @@ insert into public.payments (
   id, user_id, purpose, ref_id, provider, amount, status,
   payment_key, idempotency_key, raw
 )
-values (
-  '50000000-0000-4000-8000-000000002078',
-  '00000000-0000-4000-8000-000000002071',
-  'order',
-  '20000000-0000-4000-8000-000000002078',
-  'korpay',
-  31000,
-  'paid',
-  'goods-cancel-guard-refunded-provider-key',
-  'attempt:30000000-0000-4000-8000-000000002078',
-  null
-);
+values
+  (
+    '50000000-0000-4000-8000-000000002078',
+    '00000000-0000-4000-8000-000000002071',
+    'order',
+    '20000000-0000-4000-8000-000000002078',
+    'korpay',
+    31000,
+    'paid',
+    'goods-cancel-guard-refunded-provider-key',
+    'attempt:30000000-0000-4000-8000-000000002078',
+    null
+  ),
+  (
+    '50000000-0000-4000-8000-000000002084',
+    '00000000-0000-4000-8000-000000002071',
+    'order',
+    '20000000-0000-4000-8000-000000002084',
+    'toss',
+    31000,
+    'failed',
+    'goods-cancel-guard-legacy-failed-key',
+    'legacy-failed:20000000-0000-4000-8000-000000002084',
+    null
+  );
 
 update public.payment_attempts
 set payment_id = '50000000-0000-4000-8000-000000002078'
@@ -349,6 +371,25 @@ select 1 / case when (
   where order_record.id = '20000000-0000-4000-8000-000000002078'
 ) then 1 else 0 end as assert_approved_attempt_allows_verified_refund_finalization;
 
+-- Historical/admin-created requests can exist without a provider-neutral
+-- attempt. The expiry worker must not infer provider safety from that absence.
+insert into public.order_cancellation_requests (
+  id,
+  order_id,
+  requested_by,
+  reason,
+  reason_type,
+  status
+)
+values (
+  '60000000-0000-4000-8000-000000002083',
+  '20000000-0000-4000-8000-000000002083',
+  '00000000-0000-4000-8000-000000002071',
+  'provider attempt가 없는 기존 요청 보존',
+  'change_of_mind',
+  'requested'
+);
+
 do $request_expiry_candidates$
 declare
   target_order uuid;
@@ -357,7 +398,8 @@ begin
   foreach target_order in array array[
     '20000000-0000-4000-8000-000000002080'::uuid,
     '20000000-0000-4000-8000-000000002081'::uuid,
-    '20000000-0000-4000-8000-000000002082'::uuid
+    '20000000-0000-4000-8000-000000002082'::uuid,
+    '20000000-0000-4000-8000-000000002084'::uuid
   ]
   loop
     result := public.request_order_cancellation(
@@ -411,6 +453,49 @@ select 1 / case when (
     on good.id = 'goods-payment-cancel-guard-good'
   where order_record.id = '20000000-0000-4000-8000-000000002082'
 ) then 1 else 0 end as assert_expired_prepared_request_completes_and_restores_once;
+
+select 1 / case when (
+  select pg_catalog.count(*) = 5
+  from public.orders as order_record
+  join public.payment_attempts as attempt
+    on attempt.purpose = 'order'
+   and attempt.ref_id = order_record.id
+  join public.order_cancellation_requests as request
+    on request.order_id = order_record.id
+  where order_record.id between
+      '20000000-0000-4000-8000-000000002071'::uuid
+      and '20000000-0000-4000-8000-000000002075'::uuid
+    and order_record.status = 'pending'
+    and request.status = 'requested'
+    and attempt.state in (
+      'prepared', 'confirming', 'unknown', 'needs_review', 'approved'
+    )
+) then 1 else 0 end as assert_unresolved_attempts_survive_order_expiry;
+
+select 1 / case when (
+  select
+    order_record.status = 'pending'
+    and request.status = 'requested'
+  from public.orders as order_record
+  join public.order_cancellation_requests as request
+    on request.order_id = order_record.id
+  where order_record.id = '20000000-0000-4000-8000-000000002083'
+) then 1 else 0 end as assert_no_attempt_request_is_not_inferred_safe;
+
+select 1 / case when (
+  select
+    order_record.status = 'pending'
+    and request.status = 'requested'
+    and payment.provider = 'toss'
+    and payment.status = 'failed'
+  from public.orders as order_record
+  join public.order_cancellation_requests as request
+    on request.order_id = order_record.id
+  join public.payments as payment
+    on payment.purpose = 'order'
+   and payment.ref_id = order_record.id
+  where order_record.id = '20000000-0000-4000-8000-000000002084'
+) then 1 else 0 end as assert_failed_legacy_ledger_request_is_not_inferred_safe;
 
 select 1 / case when public.expire_stale_checkouts() = 0
   then 1 else 0 end as assert_expiry_sweep_is_idempotent;

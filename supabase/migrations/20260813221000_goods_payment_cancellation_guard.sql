@@ -225,6 +225,7 @@ as $function$
 declare
   v_count integer := 0;
   v_can_expire boolean;
+  v_expired_prepared_transitioned boolean;
   v_cancel_reason text;
   v_request_id uuid;
   r record;
@@ -262,6 +263,7 @@ begin
     for update of orders skip locked
   loop
     v_can_expire := true;
+    v_expired_prepared_transitioned := false;
     v_cancel_reason := '결제 시간 만료 자동 취소';
     v_request_id := null;
 
@@ -284,7 +286,14 @@ begin
             state = 'canceled',
             claim_token = null,
             claim_expires_at = null
-          where attempt.id = v_attempt.id;
+          where attempt.id = v_attempt.id
+            and attempt.state = 'prepared'
+            and attempt.expires_at <= pg_catalog.clock_timestamp()
+          returning true into v_expired_prepared_transitioned;
+
+          if not coalesce(v_expired_prepared_transitioned, false) then
+            v_can_expire := false;
+          end if;
         end if;
       elsif v_attempt.state in (
         'confirming',
@@ -318,6 +327,14 @@ begin
     for update;
 
     if found then
+      -- A durable request is provider-sensitive evidence. Close it only when
+      -- this exact order→attempt critical section proved the action TTL and
+      -- performed prepared→canceled itself. An absent, previously terminal,
+      -- or legacy failed-ledger attempt is not proof that cancellation is safe.
+      if not v_expired_prepared_transitioned then
+        continue;
+      end if;
+
       v_request_id := v_request.id;
       v_cancel_reason := v_request.reason;
     end if;
