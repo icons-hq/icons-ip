@@ -1,6 +1,6 @@
 # ICONS — 아키텍처
 
-> 상태: Draft · 최종 수정 2026-08-13 · 짝 문서: [`PRD.md`](./PRD.md)
+> 상태: Draft · 최종 수정 2026-08-14 · 짝 문서: [`PRD.md`](./PRD.md)
 > 이 문서는 **어떻게 만들 것인가**를 정의한다. 현재 코드베이스(프로토타입)에서 출발해 목표 아키텍처와 이전 경로를 기술한다.
 >
 > ⚠️ 이 프로젝트의 Next.js 16은 학습 데이터와 API/관례가 다를 수 있다(`AGENTS.md`). 실제 코드 작성 전 `node_modules/next/dist/docs/`를 확인한다. 본 문서가 코드 디테일과 어긋나면 코드를 따른다.
@@ -42,6 +42,7 @@
 | 도메인/DNS | `iconsip.com` primary, `www.iconsip.com` alias, `icons-ip.vercel.app` fallback. DNS는 Cloudflare에서 관리 | Cloudflare DNS, Vercel Domains |
 | Auth 메일 | 현재 Supabase Auth custom SMTP → Resend. 후속 Send Email Hook 경로는 raw-body 서명 → PII-free intent/fence atomic enqueue → stable Resend idempotency → signed webhook reducer로 dark deploy되며 DB gate 기본 OFF다 | `app/api/hooks/supabase/send-email`, `app/api/webhooks/resend`, `lib/email/*`, `private.email_*` |
 | 트랜잭션 메일 | 기존 주문 확인·배송 시작 경로는 canary까지 유지한다. 신규 `EmailDispatcher.enqueue/enqueueAll/dispatch/reduceProviderEvent`는 provider acceptance와 delivery를 분리하고 recipient·subject·raw error/provider payload를 저장하지 않는다 | `lib/email/*`, `supabase/migrations/20260807130001_transactional_email_deliveries.sql`, `supabase/migrations/20260813240000_email_dispatcher_dark.sql`, [`transactional-email.md`](./transactional-email.md) |
+| Secondary deletion ledger | versioned subject HMAC·fixed-field canonical digest와 same-key replay/conflict, 단조 sequence, signed stable pagination을 local fake로 검증한다. Production selector는 remote/env 없이 disabled로 fail closed하며 compliance 프로젝트·credential·restore replay는 #215 범위다 | `lib/privacy/deletion-ledger/*`, [`deletion-ledger-local-contract.md`](./deletion-ledger-local-contract.md) |
 
 **요청 프록시 주의**: 루트 `proxy.ts`가 `export function proxy()` + `config.matcher`로 동작한다(Next 16에서 미들웨어가 이 형태). `lib/supabase/middleware.ts`의 `updateSession`을 호출하며 **보호 액션 전까지 로그인 리다이렉트는 하지 않는다**(공개 브라우징 정책).
 
