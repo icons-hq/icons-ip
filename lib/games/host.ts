@@ -131,6 +131,8 @@ export function createWebGameHost(options: WebGameHostOptions = {}): PopupGameHo
 
     close() {
       if (window.history.length > 1) window.history.back();
+      // PopupGameHost는 React router 밖의 adapter이며, fallback은 의도적인 full-page exit다.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       else window.location.assign('/');
     },
 
