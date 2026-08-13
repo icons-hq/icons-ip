@@ -12,7 +12,13 @@ import {
   type OrderDetail as OrderDetailData,
 } from '@/lib/orders';
 
-export function OrderDetail({ order }: { order: OrderDetailData }) {
+export function OrderDetail({
+  cardRewardsEnabled = false,
+  order,
+}: {
+  cardRewardsEnabled?: boolean;
+  order: OrderDetailData;
+}) {
   const status = orderStatusMeta(order.status);
   const date = formatOrderDate(order.createdAt);
 
@@ -122,7 +128,7 @@ export function OrderDetail({ order }: { order: OrderDetailData }) {
             )}
           </section>
 
-          {order.cardPacks.issuedCount > 0 && (
+          {cardRewardsEnabled && order.cardPacks.issuedCount > 0 && (
             <section className="order-card-pack-callout" aria-labelledby="card-pack-heading">
               <span className="order-card-pack-icon" aria-hidden><Icon name="card" size={22} /></span>
               <div>

@@ -33,6 +33,18 @@ const NAV_LINKS = [
   { label: '커뮤니티', href: '/community' },
 ];
 
+function isCardRewardDestination(href: string): boolean {
+  try {
+    const pathname = decodeURIComponent(new URL(href, 'https://icons.local').pathname);
+    return pathname === '/packs'
+      || pathname.startsWith('/packs/')
+      || pathname === '/games'
+      || pathname.startsWith('/games/');
+  } catch {
+    return true;
+  }
+}
+
 const HERO_ACCENTS = ['#f6d17d', '#c4e5ae', '#a6c5e6', '#ffdaff', '#ffe888'];
 const HERO_ACCENT_BY_SLIDE_ID: Record<string, string> = {
   'ip-rilakkuma': '#f6d17d',
@@ -153,11 +165,14 @@ function Artwork({
   );
 }
 
-function PreviewHeader() {
+function PreviewHeader({ cardRewardsEnabled }: { cardRewardsEnabled: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { hidden, reveal } = useHeaderScrollHide({ forceVisible: menuOpen });
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const navLinks = cardRewardsEnabled
+    ? NAV_LINKS
+    : NAV_LINKS.filter((item) => item.href !== '/packs');
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -216,7 +231,7 @@ function PreviewHeader() {
           ICONS
         </Link>
         <nav aria-label="주요 메뉴" className="desktop-nav">
-          {NAV_LINKS.map((item) => <Link href={item.href} key={item.href}>{item.label}</Link>)}
+          {navLinks.map((item) => <Link href={item.href} key={item.href}>{item.label}</Link>)}
         </nav>
         <Link className="header-cta" href="/ip">
           IP 둘러보기 <span aria-hidden>↗</span>
@@ -246,7 +261,7 @@ function PreviewHeader() {
       >
         <div className="mobile-menu__top"><span>ICONS MENU</span><span>SEOUL · 2026</span></div>
         <nav aria-label="모바일 메뉴">
-          {NAV_LINKS.map((item, index) => (
+          {navLinks.map((item, index) => (
             <Link href={item.href} key={item.href} onClick={() => setMenuOpen(false)} tabIndex={menuOpen ? undefined : -1}>
               <small>{String(index + 1).padStart(2, '0')}</small>{item.label}<span aria-hidden>↗</span>
             </Link>
@@ -707,12 +722,14 @@ function useFeatureParallax(disabled: boolean) {
 }
 
 function WorldFeatures({
+  cardRewardsEnabled,
   catalog,
   followedIpIdSet,
   orderedIpIds,
   selectedIp,
   postPreviewByIpId,
 }: {
+  cardRewardsEnabled: boolean;
   catalog: CatalogSnapshot;
   followedIpIdSet: ReadonlySet<string>;
   orderedIpIds: readonly string[];
@@ -790,20 +807,22 @@ function WorldFeatures({
         </div>
       </article>
 
-      <article className="feature feature--blue">
-        <div className="feature-copy">
-          <span className="feature-number">03</span><p className="eyebrow dark">COLLECT THE MOMENT</p>
-          <h3>갖는 순간부터<br />기록되는 카드</h3>
-          <p>굿즈 주문과 참여 경험으로 받은 무료 카드팩을 열고, 소중한 장면을 바인더에 모아보세요.</p>
-          <Link href="/packs">카드 경험 보기 <span aria-hidden>↗</span></Link>
-        </div>
-        <div className="feature-art feature-art--cards">
-          <div className="collect-card collect-card--back feature-float" data-end="25" data-parallax="true" data-start="-18"><Artwork background={cardBackgrounds[0]} /></div>
-          <div className="collect-card collect-card--middle feature-float" data-end="-32" data-parallax="true" data-start="18"><Artwork background={cardBackgrounds[1]} /></div>
-          <div className="collect-card collect-card--front feature-float" data-end="12" data-parallax="true" data-start="-8"><Artwork background={cardBackgrounds[2]} /><span>HOLO</span></div>
-          <div className="card-pack">CARD PACK<br /><b>FREE REWARD</b></div>
-        </div>
-      </article>
+      {cardRewardsEnabled && (
+        <article className="feature feature--blue">
+          <div className="feature-copy">
+            <span className="feature-number">03</span><p className="eyebrow dark">COLLECT THE MOMENT</p>
+            <h3>갖는 순간부터<br />기록되는 카드</h3>
+            <p>굿즈 주문과 참여 경험으로 받은 무료 카드팩을 열고, 소중한 장면을 바인더에 모아보세요.</p>
+            <Link href="/packs">카드 경험 보기 <span aria-hidden>↗</span></Link>
+          </div>
+          <div className="feature-art feature-art--cards">
+            <div className="collect-card collect-card--back feature-float" data-end="25" data-parallax="true" data-start="-18"><Artwork background={cardBackgrounds[0]} /></div>
+            <div className="collect-card collect-card--middle feature-float" data-end="-32" data-parallax="true" data-start="18"><Artwork background={cardBackgrounds[1]} /></div>
+            <div className="collect-card collect-card--front feature-float" data-end="12" data-parallax="true" data-start="-8"><Artwork background={cardBackgrounds[2]} /><span>HOLO</span></div>
+            <div className="card-pack">CARD PACK<br /><b>FREE REWARD</b></div>
+          </div>
+        </article>
+      )}
     </section>
   );
 }
@@ -847,7 +866,7 @@ function FinalCta({ ips }: { ips: Ip[] }) {
   );
 }
 
-function PreviewFooter() {
+function PreviewFooter({ cardRewardsEnabled }: { cardRewardsEnabled: boolean }) {
   return (
     <footer className="site-footer">
       <div className="footer-top">
@@ -856,7 +875,7 @@ function PreviewFooter() {
       </div>
       <div className="footer-links">
         <div><small>EXPLORE</small><Link href="/ip">IP</Link><Link href="/shop">굿즈</Link><Link href="/events">팝업</Link></div>
-        <div><small>COMMUNITY</small><Link href="/community">커뮤니티</Link><Link href="/packs">카드</Link><Link href="/login">팬덤 가입</Link></div>
+        <div><small>COMMUNITY</small><Link href="/community">커뮤니티</Link>{cardRewardsEnabled && <Link href="/packs">카드</Link>}<Link href="/login">팬덤 가입</Link></div>
         <div><small>SOCIAL</small><a href="#top">Instagram ↗</a><a href="#top">YouTube ↗</a><a href="#top">X ↗</a></div>
         <div>
           <small>LEGAL</small>
@@ -874,11 +893,13 @@ function PreviewFooter() {
 }
 
 export function Home({
+  cardRewardsEnabled,
   catalog,
   curation,
   followedIpIds,
   postPreviewByIpId,
 }: {
+  cardRewardsEnabled: boolean;
   catalog: CatalogSnapshot;
   curation: HomeCurationSnapshot;
   followedIpIds: string[];
@@ -893,9 +914,17 @@ export function Home({
   const selectedIp = selectableIps[0] ?? null;
   const hasPreviewDataset = REFERENCE_FEATURED_IP_IDS
     .every((id) => catalog.ips.some((ip) => ip.id === id));
+  const curatedHero = !cardRewardsEnabled && curation.hero && isCardRewardDestination(curation.hero.href)
+    ? null
+    : curation.hero;
+  const curatedAnnouncement = !cardRewardsEnabled
+    && curation.announcement
+    && isCardRewardDestination(curation.announcement.href)
+    ? null
+    : curation.announcement;
 
   const announcement = useMemo<HomeBanner | null>(() => {
-    if (curation.announcement) return curation.announcement;
+    if (curatedAnnouncement) return curatedAnnouncement;
     const event = hasPreviewDataset ? catalog.events.find((item) => item.id === 'e2') : null;
     if (event) return {
       id: `event-${event.id}`,
@@ -909,8 +938,8 @@ export function Home({
       imageBg: null,
       href: hrefFor('ip', selectedIp.id),
     } : null;
-  }, [catalog.events, curation.announcement, hasPreviewDataset, selectedIp]);
-  const announcementDateLabel = curation.announcement === null && announcement?.id === 'event-e2'
+  }, [catalog.events, curatedAnnouncement, hasPreviewDataset, selectedIp]);
+  const announcementDateLabel = curatedAnnouncement === null && announcement?.id === 'event-e2'
     ? '2026.07.12'
     : '';
 
@@ -924,10 +953,10 @@ export function Home({
     const card = preferredCard ?? (selectedIp ? catalog.cards.find((item) => item.ip === selectedIp.id) : null);
     if (good) scenes.push({ id: `good-${good.id}`, controlLabel: '굿즈', kicker: 'OFFICIAL GOODS', title: '좋아하는 마음이\n손에 잡히는 순간', detail: `${good.name} · ${good.badge ?? 'OFFICIAL'}`, background: good.img, color: '#c4e5ae' });
     if (event) scenes.push({ id: `event-${event.id}`, controlLabel: '팝업', kicker: 'POP-UP EXPERIENCE', title: '화면 너머의 세계를\n직접 만나는 하루', detail: `${event.title} · ${event.status}`, background: event.img, color: '#ffdaff' });
-    if (card) scenes.push({ id: `card-${card.id}`, controlLabel: '카드', kicker: 'DIGITAL CARD', title: '모으는 재미까지\n하나의 IP 안에서', detail: `${card.name} · ${card.rarity}`, background: card.bg, color: '#a6c5e6' });
+    if (cardRewardsEnabled && card) scenes.push({ id: `card-${card.id}`, controlLabel: '카드', kicker: 'DIGITAL CARD', title: '모으는 재미까지\n하나의 IP 안에서', detail: `${card.name} · ${card.rarity}`, background: card.bg, color: '#a6c5e6' });
     if (scenes.length === 0 && selectedIp) scenes.push({ id: `ip-${selectedIp.id}`, controlLabel: 'IP', kicker: 'ONE IP, ONE WORLD', title: selectedIp.tagline, detail: selectedIp.title, background: selectedIp.bg, color: '#c4e5ae' });
     return scenes;
-  }, [catalog.cards, catalog.events, catalog.goods, hasPreviewDataset, selectedIp]);
+  }, [cardRewardsEnabled, catalog.cards, catalog.events, catalog.goods, hasPreviewDataset, selectedIp]);
 
   const experiences = useMemo<ExperienceItem[]>(() => {
     const items: ExperienceItem[] = [];
@@ -940,6 +969,7 @@ export function Home({
       if (good) items.push({ id: `good-${good.id}`, tag: 'GOODS', title: good.name, meta: meta ?? `${good.badge ?? good.type} · ${krw(good.price)}`, background: good.img, href: '/shop' });
     };
     const addCard = (id: string) => {
+      if (!cardRewardsEnabled) return;
       const card = catalog.cards.find((item) => item.id === id);
       if (card) items.push({ id: `card-${card.id}`, tag: 'CARD', title: card.name, meta: `${RARITY_META[card.rarity].label} · ${card.no}`, background: card.bg, href: '/packs' });
     };
@@ -959,16 +989,16 @@ export function Home({
     const card = catalog.cards.find((item) => item.ip === selectedIp.id);
     if (good) items.push({ id: `good-${good.id}`, tag: good.badge ?? 'GOODS', title: good.name, meta: `${krw(good.price)} · ${good.type}`, background: good.img, href: '/shop' });
     if (event) items.push({ id: `event-${event.id}`, tag: `${event.mode} · ${event.status}`, title: event.title, meta: `${event.date} · ${event.loc}`, background: event.img, href: `/events/${event.id}` });
-    if (card) items.push({ id: `card-${card.id}`, tag: `${card.rarity} · CARD`, title: card.name, meta: `${RARITY_META[card.rarity].label} · ${card.no}`, background: card.bg, href: '/packs' });
+    if (cardRewardsEnabled && card) items.push({ id: `card-${card.id}`, tag: `${card.rarity} · CARD`, title: card.name, meta: `${RARITY_META[card.rarity].label} · ${card.no}`, background: card.bg, href: '/packs' });
     return items;
-  }, [catalog.cards, catalog.events, catalog.goods, hasPreviewDataset, selectedIp]);
+  }, [cardRewardsEnabled, catalog.cards, catalog.events, catalog.goods, hasPreviewDataset, selectedIp]);
 
   return (
     <div className="icons-preview">
-      <PreviewHeader />
+      <PreviewHeader cardRewardsEnabled={cardRewardsEnabled} />
       <main id="top">
-        {(selectedIp || curation.hero) && (
-          <HeroCarousel catalog={catalog} curatedHero={curation.hero} selectedIp={selectedIp} selectableIps={selectableIps} />
+        {(selectedIp || curatedHero) && (
+          <HeroCarousel catalog={catalog} curatedHero={curatedHero} selectedIp={selectedIp} selectableIps={selectableIps} />
         )}
         {announcement && <AnnouncementBanner announcement={announcement} dateLabel={announcementDateLabel} />}
         {selectedIp ? (
@@ -977,6 +1007,7 @@ export function Home({
             <FilmWindow scenes={filmScenes} />
             <Experiences items={experiences} />
             <WorldFeatures
+              cardRewardsEnabled={cardRewardsEnabled}
               catalog={catalog}
               followedIpIdSet={followedIpIdSet}
               orderedIpIds={selectableIpIds}
@@ -993,7 +1024,7 @@ export function Home({
           </section>
         )}
       </main>
-      <PreviewFooter />
+      <PreviewFooter cardRewardsEnabled={cardRewardsEnabled} />
     </div>
   );
 }

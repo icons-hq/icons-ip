@@ -3,6 +3,7 @@ import type { Card, Ip } from '@/lib/data';
 import Page from './page';
 
 const mocks = vi.hoisted(() => ({
+  cardRewardsEnabled: false,
   getBinderCatalogOverlay: vi.fn(),
   getCatalogSnapshot: vi.fn(),
 }));
@@ -11,6 +12,9 @@ vi.mock('@/components/screens/Binder', () => ({ Binder: () => null }));
 vi.mock('@/lib/catalog', () => ({
   getBinderCatalogOverlay: mocks.getBinderCatalogOverlay,
   getCatalogSnapshot: mocks.getCatalogSnapshot,
+}));
+vi.mock('@/lib/card-rewards/gate.server', () => ({
+  readCardRewardsEnabled: () => mocks.cardRewardsEnabled,
 }));
 
 const activeCard: Card = {
@@ -75,6 +79,7 @@ describe('binder page', () => {
     expect(props.catalog.cards.map((card) => card.id)).toEqual(['c-active', 'c-archived']);
     expect(props.catalog.ips).toEqual([archivedIp]);
     expect(props.ownedCardIds).toEqual(['c-active', 'c-archived']);
+    expect((page.props as { cardRewardsEnabled: boolean }).cardRewardsEnabled).toBe(false);
   });
 
   it('keeps the public catalog unchanged for a signed-out viewer', async () => {

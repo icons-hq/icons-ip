@@ -5,16 +5,21 @@ import { usePathname } from 'next/navigation';
 import { MOB_ITEMS, hrefFor, isActive, isAuthShellPath } from '@/lib/routes';
 import { useCart } from './CartProvider';
 import { useAuthPresence } from './AuthPresenceProvider';
+import { useCardRewardsEnabled } from './CardRewardAvailability';
 
 export function MobNav() {
   const pathname = usePathname();
   const { count } = useCart();
   const presence = useAuthPresence();
+  const cardRewardsEnabled = useCardRewardsEnabled();
+  const availableItems = cardRewardsEnabled
+    ? MOB_ITEMS
+    : MOB_ITEMS.filter((item) => item.id !== 'packs');
   const items = presence === 'signed-in'
-    ? MOB_ITEMS.map((item) => item.id === 'cart' ? { id: 'my', label: '마이' } : item)
+    ? availableItems.map((item) => item.id === 'cart' ? { id: 'my', label: '마이' } : item)
     : presence === 'signed-out'
-      ? MOB_ITEMS
-      : MOB_ITEMS.slice(0, -1);
+      ? availableItems
+      : availableItems.slice(0, -1);
 
   if (
     isAuthShellPath(pathname)

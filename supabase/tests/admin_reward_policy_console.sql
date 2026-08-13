@@ -2,6 +2,8 @@
 
 begin;
 
+update private.card_reward_control set enabled = true where singleton;
+
 -- The operating contract is explicit and legacy tickets remain valid.
 select 1 / case when (
   select count(*) = 4
@@ -790,7 +792,7 @@ reset role;
 -- The row lock and mutually exclusive predicates are the DB race contract.
 with definitions as (
   select
-    pg_get_functiondef('public.open_draw_ticket(uuid)'::regprocedure) as open_body,
+    pg_get_functiondef('public.open_draw_ticket_unguarded(uuid)'::regprocedure) as open_body,
     pg_get_functiondef(
       'public.finalize_order_cancellation_with_provider_evidence(uuid,text,text[])'::regprocedure
     ) as cancel_body
