@@ -47,10 +47,10 @@ export interface Card {
   owned: boolean;
   bg: string;
 }
-/* 참여형 게임 카탈로그 — games 테이블 초안(게임 미니앱 스펙 §3) 미러. 실배선은 play_game(#64) */
+/* 참여형 게임 카탈로그 — games 테이블 미러. 실배선은 play_game(#64) */
 export type GameVariant =
   | { kind: 'card'; rarityLineup: RarityKey[] } // 구슬 = 등급 확률 극장, 보상 = 무상 카드
-  | { kind: 'goods'; goodsIds: string[] }; // 구슬 = 굿즈 1:1 — 래플 연출 데모(실물 무상 지급 경로 아님, ADR-0002)
+  | { kind: 'goods'; goodsIds: string[] }; // legacy 연출 데모 전용. 활성 판매나 prize_sale 경로가 아니다.
 
 export interface Game {
   id: string;

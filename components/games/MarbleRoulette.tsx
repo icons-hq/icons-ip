@@ -579,7 +579,7 @@ export function MarbleRoulette({
     >
       <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <div>
-          <div className="eyebrow" style={{ color: 'var(--mint)' }}>온라인 팝업 · 참여형 게임</div>
+          <div className="eyebrow" style={{ color: 'var(--mint)' }}>웹 참여형 게임</div>
           <h1 className="h-lg" style={{ margin: '10px 0 0', fontFamily: 'var(--ff-display)' }}>{game.title}</h1>
           <span className="mono" style={{ display: 'inline-block', marginTop: 8, fontSize: 10.5, letterSpacing: '.14em', color: live ? 'var(--mint)' : 'var(--faint)', border: '1px solid var(--line-2)', borderRadius: 999, padding: '3px 10px' }}>
             {live ? 'LIVE · SERVER RESULT' : 'PoC · MOCK RESULT'}

@@ -4,8 +4,7 @@ import { cache } from 'react';
 import { getGameCatalogEntry } from '@/lib/games/catalog';
 import { GameScreen } from '@/components/games/GameScreen';
 
-/* 게임 = 자기완결 웹 번들(ADR-0002). 셸 없이 풀블리드로 렌더되고,
- * Expo(V2+)는 이 URL을 webview로 그대로 로드한다.
+/* 현재 참여형 게임은 웹 전용 풀블리드 화면이다. Expo/webview 호스트는 현 로드맵에 없다.
  * 카탈로그는 supabase 모드에서 games 테이블, mock 모드에서 DATA.GAMES(#64). */
 
 const getEntry = cache(getGameCatalogEntry);

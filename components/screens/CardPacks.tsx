@@ -14,7 +14,7 @@ import { useTilt } from '@/components/ui/motion';
 
 /* 카드팩 개봉 화면(#71) — 구매로 발급된 뽑기권(UI "카드팩")을 풀별로 보여주고
  * 개봉한다. 카드는 open_draw_ticket RPC(서버)가 결정하고, reveal 연출은
- * 코스메틱이다(ADR-0002 · ADR-0004). 옛 유료 뽑기 화면(Gacha.tsx)의 포일·reveal
+ * 코스메틱이다(ADR-0004). 옛 유료 뽑기 화면(Gacha.tsx)의 포일·reveal
  * 연출을 무료 모델로 재목적화했다 — 가격·천장·확률 공시·클라 RNG는 제거. */
 
 function MachineCard({ card }: { card: Card }) {
