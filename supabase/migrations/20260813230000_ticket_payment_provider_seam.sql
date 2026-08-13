@@ -731,9 +731,9 @@ begin
     and request.status in ('requested', 'processing', 'needs_review')
   order by request.requested_at desc, request.id
   for update of request;
-  if found then
-    raise object_not_in_prerequisite_state using message = 'ticket_cancellation_in_progress';
-  end if;
+  -- A cancellation may race an already-created provider session. Keep the
+  -- request fenced, but still learn provider truth for this known order+nonce.
+  -- The finalizer records approval without issuing QR and makes it refund-ready.
 
   select attempt.*
   into v_attempt
@@ -1391,6 +1391,14 @@ begin
       'outcome', 'needs_review'
     );
   end if;
+  if v_attempt.state = 'prepared' then
+    -- A provider session exists but no callback truth does. Do not call refund
+    -- or release capacity; callback drain or authoritative attempt TTL must win.
+    return pg_catalog.jsonb_build_object(
+      'claim_status', 'in_progress',
+      'attempt', private.ticket_payment_attempt_json(v_attempt)
+    );
+  end if;
   if v_request.status = 'processing'
     and v_request.attempt_token is distinct from p_claim_token
     and v_request.attempt_token is not null
@@ -2031,7 +2039,7 @@ begin
     select 1 from public.payment_attempts as attempt
     where attempt.purpose = 'ticket'
       and attempt.ref_id = v_order_id
-      and attempt.state in ('confirming', 'approved', 'unknown', 'needs_review')
+      and attempt.state in ('prepared', 'confirming', 'approved', 'unknown', 'needs_review')
   ) then
     return 'processing';
   end if;
@@ -2298,7 +2306,7 @@ begin
       select 1 from public.payment_attempts as attempt
       where attempt.purpose = 'ticket'
         and attempt.ref_id = p_ticket_order_id
-        and attempt.state in ('confirming', 'approved', 'unknown', 'needs_review')
+        and attempt.state in ('prepared', 'confirming', 'approved', 'unknown', 'needs_review')
     )
   then
     result := public.finalize_ticket_cancellation_request(request_id, p_user_id);

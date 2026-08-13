@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { TicketPaymentContractError } from './ticket-checkout';
+import {
+  TicketPaymentContractError,
+  TicketRefundInProgressError,
+} from './ticket-checkout';
 import { createRuntimeTicketPaymentCheckout } from './ticket-checkout.runtime.server';
 
 const mocks = vi.hoisted(() => ({
@@ -94,6 +97,33 @@ describe('createRuntimeTicketPaymentCheckout', () => {
     })).resolves.toMatchObject({ outcome: 'approved' });
     expect(mocks.getPaymentGateway).toHaveBeenCalledTimes(1);
     expect(refund).toHaveBeenCalledTimes(1);
+  });
+
+  it('prepared provider session의 취소 요청은 callback/TTL을 기다리고 refund provider를 호출하지 않는다', async () => {
+    const attempt = {
+      id: '30000000-0000-4000-8000-000000000206',
+      provider: 'korpay' as const,
+      purpose: 'ticket' as const,
+      refId: '20000000-0000-4000-8000-000000000206',
+      amount: 44_000,
+      currency: 'KRW',
+      idempotencyKey: 'ticket:20000000-0000-4000-8000-000000000206',
+      providerOrderId: 'T30000000000040008000000000000206',
+      providerProductCode: 'P30000000000040008000000000000206',
+      expiresAt: '2099-08-13T10:10:00.000Z',
+    };
+    mocks.repository.claimTicketRefund.mockResolvedValue({
+      status: 'in_progress',
+      attempt,
+    });
+
+    const checkout = createRuntimeTicketPaymentCheckout();
+    await expect(checkout.refund({
+      requestId: '40000000-0000-4000-8000-000000000206',
+      userId: '00000000-0000-4000-8000-000000000206',
+      reason: '사용자 티켓 예매 취소',
+    })).rejects.toBeInstanceOf(TicketRefundInProgressError);
+    expect(mocks.getPaymentGateway).not.toHaveBeenCalled();
   });
 
   it('명시적 reconciliation claim 뒤에만 runtime gateway 조회를 resolve한다', async () => {

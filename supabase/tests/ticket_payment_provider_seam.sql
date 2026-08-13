@@ -478,6 +478,129 @@ select 1 / case when (
   select 1 from public.tickets where ticket_order_id = :'unknown_order_id'::uuid
 ) then 1 else 0 end as assert_unknown_preserves_capacity_without_qr;
 
+-- A user may cancel after the provider session was created but before its
+-- callback arrives. Keep the prepared attempt and capacity until callback or
+-- authoritative TTL; never reinterpret the missing callback as no payment.
+select public.reserve_tickets(
+  '00000000-0000-4000-8000-000000002061',
+  '10000000-0000-4000-8000-000000002069',
+  1,
+  '20000000-0000-4000-8000-000000002073'
+) as inflight_cancel_order_id \gset
+select public.prepare_ticket_payment_attempt(
+  '00000000-0000-4000-8000-000000002061', :'inflight_cancel_order_id', 'korpay'
+);
+select id as inflight_cancel_attempt_id, provider_order_id as inflight_cancel_provider_order_id
+from public.payment_attempts where ref_id = :'inflight_cancel_order_id'::uuid \gset
+select public.bind_ticket_payment_callback_nonce(:'inflight_cancel_attempt_id', repeat('d', 64));
+
+select request_id as inflight_cancel_request_id, result as inflight_cancel_result
+from public.request_ticket_cancellation(
+  '00000000-0000-4000-8000-000000002061', :'inflight_cancel_order_id'
+) \gset
+select public.claim_ticket_payment_refund(
+  :'inflight_cancel_request_id',
+  '00000000-0000-4000-8000-000000002061',
+  '44000000-0000-4000-8000-000000002070'
+) as inflight_cancel_refund_claim \gset
+
+select 1 / case when :'inflight_cancel_result' = 'requested'
+  and :'inflight_cancel_refund_claim'::jsonb ->> 'claim_status' = 'in_progress'
+  and (
+    select ticket_order.status = 'pending'
+      and attempt.state = 'prepared'
+      and request.status = 'requested'
+      and ticket_type.sold = 1
+    from public.ticket_orders as ticket_order
+    join public.payment_attempts as attempt on attempt.ref_id = ticket_order.id
+    join public.ticket_cancellation_requests as request
+      on request.ticket_order_id = ticket_order.id
+    join public.ticket_order_reservations as reservation
+      on reservation.ticket_order_id = ticket_order.id
+    join public.ticket_types as ticket_type on ticket_type.id = reservation.ticket_type_id
+    where ticket_order.id = :'inflight_cancel_order_id'::uuid
+  )
+then 1 else 0 end as assert_prepared_cancel_waits_without_refund_or_capacity_release;
+
+select public.claim_ticket_payment_attempt(
+  'korpay', :'inflight_cancel_provider_order_id', repeat('d', 64),
+  '45000000-0000-4000-8000-000000002070'
+);
+select public.finalize_ticket_payment_attempt(
+  :'inflight_cancel_attempt_id',
+  '45000000-0000-4000-8000-000000002070',
+  'approved',
+  null,
+  'ticket-inflight-approval-2070',
+  'ticket-inflight-reference-2070',
+  '0000',
+  'CARD',
+  '2070-****-****-0000',
+  now()
+);
+
+select 1 / case when (
+  select ticket_order.status = 'pending'
+    and attempt.state = 'approved'
+    and payment.status = 'paid'
+    and request.status = 'needs_review'
+    and request.last_error_code = 'approved_requires_refund'
+    and ticket_type.sold = 1
+  from public.ticket_orders as ticket_order
+  join public.payment_attempts as attempt on attempt.ref_id = ticket_order.id
+  join public.payments as payment on payment.id = attempt.payment_id
+  join public.ticket_cancellation_requests as request
+    on request.ticket_order_id = ticket_order.id
+  join public.ticket_order_reservations as reservation
+    on reservation.ticket_order_id = ticket_order.id
+  join public.ticket_types as ticket_type on ticket_type.id = reservation.ticket_type_id
+  where ticket_order.id = :'inflight_cancel_order_id'::uuid
+) and not exists (
+  select 1 from public.tickets where ticket_order_id = :'inflight_cancel_order_id'::uuid
+) then 1 else 0 end as assert_inflight_approval_records_ledger_without_qr;
+
+select public.claim_ticket_refund_reconciliation(
+  :'inflight_cancel_request_id',
+  '46000000-0000-4000-8000-000000002070',
+  'case_inflight_refund_2070'
+);
+select public.finalize_ticket_refund_reconciliation(
+  :'inflight_cancel_request_id',
+  :'inflight_cancel_attempt_id',
+  '46000000-0000-4000-8000-000000002070',
+  'approved',
+  20000,
+  null,
+  'ticket-inflight-refund-2070',
+  'ticket-inflight-refund-ref-2070',
+  '0000',
+  'CARD',
+  '2070-****-****-0000',
+  now()
+);
+
+select 1 / case when (
+  select ticket_order.status = 'canceled'
+    and payment.status = 'refunded'
+    and request.status = 'completed'
+    and ticket_type.sold = 0
+  from public.ticket_orders as ticket_order
+  join public.payment_attempts as attempt on attempt.ref_id = ticket_order.id
+  join public.payments as payment on payment.id = attempt.payment_id
+  join public.ticket_cancellation_requests as request
+    on request.ticket_order_id = ticket_order.id
+  join public.ticket_order_reservations as reservation
+    on reservation.ticket_order_id = ticket_order.id
+  join public.ticket_types as ticket_type on ticket_type.id = reservation.ticket_type_id
+  where ticket_order.id = :'inflight_cancel_order_id'::uuid
+) and (
+  select count(*) = 1 and bool_and(status = 'done')
+  from public.refunds
+  where ticket_cancellation_request_id = :'inflight_cancel_request_id'::uuid
+) and not exists (
+  select 1 from public.tickets where ticket_order_id = :'inflight_cancel_order_id'::uuid
+) then 1 else 0 end as assert_inflight_approval_refund_converges_once;
+
 select public.reserve_tickets(
   '00000000-0000-4000-8000-000000002061',
   '10000000-0000-4000-8000-000000002069',
