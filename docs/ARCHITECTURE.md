@@ -236,7 +236,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 4. 비밀번호 재설정: `/login?mode=reset`은 계정 존재 여부와 무관한 응답을 반환하고, 정규화 이메일별 브라우저 요청을 서명 쿠키로 총 3회/10분 제한한다. 쿠키에는 raw email 대신 domain-separated HMAC digest만 저장하고, 활성 bucket은 12개로 제한한다.
 5. 가입 확인·OAuth의 `redirectTo`는 query 없는 `/auth/callback`이다. recovery 메일은 `{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery`로 전용 `/auth/recovery/callback`을 호출하고 서버가 `verifyOtp`한다. query에는 `next`나 계정 식별자를 넣지 않는다. signup/OAuth는 `icons_auth_next`에 목적·안전한 `next`·발급 시각을 10분, recovery는 경로가 분리된 `icons_auth_recovery_next`에 같은 값을 최대 3,600초 동안 서명해 보존한다. 신규 recovery 요청은 shared callback state를 발급하지 않는다.
    - Callback origin은 고정 production/local origin 또는 플랫폼이 제공한 현재 `VERCEL_URL`만 허용하며, 임의의 요청 `Origin`/Host는 production canonical origin으로 정규화한다.
-6. 전용 recovery callback은 token-hash `verifyOtp(type=recovery)`, 유효한 전용 서명 state, `getUser()` 재검증을 모두 통과한 뒤에만 계정 정지·온보딩 게이트를 건너뛰고 `/update-password`로 보낸다. 전환 전에 발급된 PKCE code 링크는 기존 호환 분기에서만 처리한다. 조건 불일치 시 교환 과정에서 만들어진 local session만 폐기하고 reset 오류 allow-list로 닫되, signed recovery state는 최신 유효 링크를 다시 쓸 수 있도록 성공 또는 자체 TTL까지 보존한다. provider 원문은 노출하지 않는다. 전환 전에 발급된 shared 링크는 유효한 legacy `icons_auth_next purpose=recovery`와 local recovery marker가 모두 있을 때만 처리하며, marker만 recovery이면 세션을 폐기하고 `browser_mismatch`로 닫는다. legacy 오류도 TTL 동안 reset UX로 정규화하며 이 분기는 Production email link TTL 3,600초와 승인된 안전 여유 뒤 제거한다. 일반 로그인·가입·OAuth callback은 profile이 정지 상태면 내부 사유 없는 `/account-suspended`로 먼저 보낸다. Redirect 직후 첫 SSR 요청이 아직 세션 cookie를 보지 못하면 성공 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 다시 수행하고, 세션 확인 전에는 비밀번호 폼을 렌더링하지 않는다. 가입과 OAuth는 profile/onboarding 판정 뒤 안전한 원래 경로로 복귀하되, 미완료 profile도 self-service 탈퇴 intent인 `/settings/delete-account`에는 먼저 복귀할 수 있다.
+6. 전용 recovery callback은 `token_hash`와 `type=recovery`만 허용한다. token-hash `verifyOtp(type=recovery)`, 유효한 전용 서명 state, `getUser()` 재검증을 모두 통과한 뒤에만 계정 정지·온보딩 게이트를 건너뛰고 `/update-password`로 보낸다. `code`만 있는 PKCE 링크는 session exchange 없이 reset 오류 allow-list로 닫는다. 조건 불일치 시 검증 과정에서 만들어진 local session만 폐기하되, signed recovery state는 최신 유효 링크를 다시 쓸 수 있도록 성공 또는 자체 TTL까지 보존한다. provider 원문은 노출하지 않는다. 공용 callback의 code exchange 결과가 recovery이면 signed marker 유무와 관계없이 local session과 응답 cookie를 폐기하고 reset 오류로 닫는다. 일반 로그인·가입·OAuth callback은 profile이 정지 상태면 내부 사유 없는 `/account-suspended`로 먼저 보내되, self-service 탈퇴 intent인 `/settings/delete-account` 복귀는 예외로 허용한다. Redirect 직후 첫 SSR 요청이 아직 세션 cookie를 보지 못하면 성공 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 다시 수행하고, 세션 확인 전에는 비밀번호 폼을 렌더링하지 않는다. 가입과 OAuth는 profile/onboarding 판정 뒤 안전한 원래 경로로 복귀하되, 미완료 profile도 self-service 탈퇴 intent에는 먼저 복귀할 수 있다.
 7. `/update-password`는 인증 세션에서 `updateUser({ password })`를 호출한다. 성공 뒤 global sign-out을 완료하고 로그인 화면으로 보내며, 전역 로그아웃 실패는 비밀번호 변경 성공과 잔여 세션 위험을 분리해 안내한다.
 8. 일반 가입은 온보딩 완료 후 추천 IP 팔로우를 저장하고 보존된 `next` 경로로 이동한다.
 
@@ -332,8 +332,8 @@ Production Auth 설정:
 ```
 app/
   (existing screens)                  # 점진적으로 서버 페치 + 액션 연결
-  auth/callback/route.ts              # 가입/OAuth exchange + bounded legacy recovery 호환
-  auth/recovery/callback/route.ts     # recovery 전용 exchange + fail-closed 세션 정리
+  auth/callback/route.ts              # 가입/OAuth exchange + recovery fail-closed
+  auth/recovery/callback/route.ts     # recovery token-hash 검증 + fail-closed 세션 정리
   login/actions.ts                    # 이메일 Auth + signup resend + password reset request + logout
   update-password/                    # recovery 세션 재검증 + 비밀번호 변경 + global sign-out
   onboarding/actions.ts               # 프로필 완성 + 추천 IP 팔로우

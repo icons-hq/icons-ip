@@ -100,7 +100,7 @@
 
 - `M` 이메일/비밀번호 가입·로그인.
 - `M` 이메일 확인 메일 콜백과 재전송. 같은 브라우저에서 같은 이메일로 반복 가입을 시도하면 최신 확인 메일을 재발송하되, 과도한 반복은 10분 window로 제한한다.
-- `M` 비밀번호 재설정: 계정 존재 여부를 노출하지 않는 메일 요청 → PKCE callback → 새 비밀번호 저장 → 전역 로그아웃. 같은 브라우저의 정규화 이메일별 요청은 총 3회/10분으로 제한하고 provider rate limit을 실제 상한으로 둔다.
+- `M` 비밀번호 재설정: 계정 존재 여부를 노출하지 않는 메일 요청 → 전용 token-hash callback → 새 비밀번호 저장 → 전역 로그아웃. 같은 브라우저의 정규화 이메일별 요청은 총 3회/10분으로 제한하고 provider rate limit을 실제 상한으로 둔다.
 - `M` 소셜 로그인: **Google · Apple · Kakao**. 세 버튼은 Supabase 관리형 OAuth에 연결됐고 production provider도 활성화됐다. Google은 production 공개, Apple은 웹 App ID·Services ID·키, Kakao는 비즈 앱·필수 `account_email` 동의 구성이 완료됐다. production 배포 뒤 신규·기존 사용자 controlled smoke가 남아 있다.
 - `M` 소셜 로그인이어도 **온보딩에서 이메일·닉네임·생년월일(자가신고)·약관/마케팅 동의를 수집**하여 프로필을 완성한다.
 - `M` 공개 페이지는 비로그인 접근 가능. 보호 액션은 로그인 게이트.
