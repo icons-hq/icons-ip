@@ -155,9 +155,9 @@ RLS: `games` 공개 읽기·staff 쓰기. `game_plays` 본인 읽기, 쓰기는 
 
 ---
 
-## 7. 구현 순서 & 이슈 보드
+## 7. 당시 구현 순서 & 이슈 보드
 
-Project #5는 폐쇄된 역사 보드다. 신규·잔여 실행은 활성 **GitHub Project #8 "ICONS v1 Launch Readiness"**의 post-launch `Popup Layer` track에서 추적하고, 스케줄링은 그 보드의 `Dependency` 필드(`Unblocked`부터 시작)를 진실원으로 한다.
+아래 표는 2026-07 당시의 추적 상태를 보존한 historical snapshot이다. 신규·잔여 실행 지시가 아니며, #66과 #115는 2026-08-13 현재 제품 범위에서 제거됐다.
 
 | 순서 | 이슈 | Dependency |
 |---|---|---|
@@ -165,5 +165,5 @@ Project #5는 폐쇄된 역사 보드다. 신규·잔여 실행은 활성 **GitH
 | 무료 모델 심장 | [#62](https://github.com/icons-hq/icons-ip/issues/62) 무료 리워드 발급 코어 (`card_grants`·`grant_cards`) | ✅ 완료 (PR #72, 2026-07-06) |
 | 게임 서버 경로 | [#64](https://github.com/icons-hq/icons-ip/issues/64) 참여형 게임 서버 (`play_game`) | ✅ 완료 (2026-07-07) |
 | 피벗 정리 | [#65](https://github.com/icons-hq/icons-ip/issues/65) 유료 가챠 코드 비활성 | ✅ 완료 (2026-07-07) |
-| 크로스플랫폼(V2) | [#66](https://github.com/icons-hq/icons-ip/issues/66) Expo webview 임베딩 | Blocked (앱 셸·스토어·Apple 4.7·BFF bridge 보안 계약 승인) |
+| 크로스플랫폼(V2) | [#66](https://github.com/icons-hq/icons-ip/issues/66) Expo webview 임베딩 | 당시 Blocked, 이후 current scope에서 제거 |
 | — | [#67](https://github.com/icons-hq/icons-ip/issues/67) [Epic] 온라인 팝업 게임 레이어 & 무료 리워드 피벗 | Epic |

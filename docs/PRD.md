@@ -123,7 +123,7 @@
 
 ### 5.4 가챠 & 수집형 카드 (P2)
 
-> ⚠️ **폐기(2026-07-03)**: 유료 가챠·충전금 모델은 **무료 리워드로 피벗**했다([ADR-0003](./adr/0003-free-reward-pivot.md), [ADR-0001](./adr/0001-paid-digital-gacha.md) superseded). 아래 유상 가챠·충전·확률 공시·전자금융 관련 요구(§4.1의 "디지털 유료"·§7·§8·§9 P2 포함)는 무효이며, 카드는 실물 구매·미션·게임·래플의 **무상 리워드**로 지급된다. 실제 스펙은 [docs/online-popup/](./online-popup/02-prd.md)를 따른다.
+> ⚠️ **폐기(2026-07-03)**: 유료 가챠·충전금 모델은 **무료 리워드로 피벗**했다([ADR-0003](./adr/0003-free-reward-pivot.md), [ADR-0001](./adr/0001-paid-digital-gacha.md) superseded). 아래 유상 가챠·충전·확률 공시·전자금융 관련 요구(§4.1의 "디지털 유료"·§7·§8·§9 P2 포함)는 무효다. 현행 무료 카드 리워드 요구사항은 이 문서 §5.5와 [ADR-0003](./adr/0003-free-reward-pivot.md)·[ADR-0004](./adr/0004-draw-ticket-card-packs.md)가 정본이며, `docs/online-popup/`은 2026-08-12 보관한 historical research다.
 
 - `M` **지갑**: 토스페이먼츠로 캐시/포인트 **충전**, 잔액·거래내역.
 - `M` **가챠 뽑기**: 카드풀에서 RNG 추첨, **단챠/연챠**, 결과 연출.
@@ -249,4 +249,4 @@
 - 카드의 **디지털 자산 성격**(소유 이전 가능 여부)은 v1에서 비이전(계정 귀속) 가정. 교환은 v2.
 - 결제 단일 PG(토스페이먼츠) 가정. 멀티 PG 필요 시 추상화 계층 추가(ARCH 참조).
 - **BM 확정(2026-07-03)**: 유료 가챠를 폐기하고 **무료 리워드 모델**로 피벗했다([`docs/adr/0003-free-reward-pivot.md`](./adr/0003-free-reward-pivot.md), 0001 superseded). §5.4의 유상 가챠·충전금·확률 공시·전자금융 항목은 이 결정으로 대체된다.
-- 관련 산출물: 도메인 용어는 `CONTEXT.md`, 온라인 팝업 제품 스펙은 [`docs/online-popup/`](./online-popup/02-prd.md), 게임 미니앱은 [`docs/adr/0002-cross-platform-popup-game-miniapps.md`](./adr/0002-cross-platform-popup-game-miniapps.md).
+- 관련 산출물: 도메인 용어는 `CONTEXT.md`, 현행 제품 범위는 이 문서와 accepted ADR, 과거 온라인 팝업 탐색은 historical archive인 [`docs/online-popup/`](./online-popup/01-report.md)에 둔다. 게임 미니앱 ADR-0002는 2026-08-13 superseded되어 현재 구현 지시가 아니다.
