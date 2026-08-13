@@ -2,6 +2,12 @@
 
 begin;
 
+update private.community_write_control
+set
+  post_create_enabled = true,
+  post_edit_enabled = true,
+  comment_create_enabled = true;
+
 -- ---------------------------------------------------------------------------
 -- Schema, callable boundaries, and least-privilege profile reads.
 -- ---------------------------------------------------------------------------
