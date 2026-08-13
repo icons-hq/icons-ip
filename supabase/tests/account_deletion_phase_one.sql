@@ -82,6 +82,70 @@ set
   community_legal_records_ready = true,
   phase_one_enabled = true;
 
+insert into auth.sessions (id, user_id, created_at, updated_at)
+values
+  (
+    '00000000-0000-4000-8000-000000001373',
+    '00000000-0000-4000-8000-000000001371',
+    now() - interval '11 minutes',
+    now()
+  ),
+  (
+    '00000000-0000-4000-8000-000000001374',
+    '00000000-0000-4000-8000-000000001371',
+    now(),
+    now()
+  ),
+  (
+    '00000000-0000-4000-8000-000000001375',
+    '00000000-0000-4000-8000-000000001372',
+    now(),
+    now()
+  );
+
+select set_config('request.jwt.claims', '{}', true);
+select 1 / case when not private.has_recent_account_authentication(
+  '00000000-0000-4000-8000-000000001371'
+) then 1 else 0 end as assert_missing_session_claim_fails_closed;
+
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-000000001371","role":"authenticated","session_id":"not-a-uuid"}',
+  true
+);
+select 1 / case when not private.has_recent_account_authentication(
+  '00000000-0000-4000-8000-000000001371'
+) then 1 else 0 end as assert_malformed_session_claim_fails_closed;
+
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-000000001371","role":"authenticated","session_id":"00000000-0000-4000-8000-000000001375"}',
+  true
+);
+select 1 / case when not private.has_recent_account_authentication(
+  '00000000-0000-4000-8000-000000001371'
+) then 1 else 0 end as assert_other_users_session_fails_closed;
+
+-- A fresh login in another browser updates auth.users.last_sign_in_at. The
+-- old current session must remain stale instead of borrowing that freshness.
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-000000001371","role":"authenticated","session_id":"00000000-0000-4000-8000-000000001373"}',
+  true
+);
+select 1 / case when not private.has_recent_account_authentication(
+  '00000000-0000-4000-8000-000000001371'
+) then 1 else 0 end as assert_old_current_session_cannot_borrow_fresh_other_session;
+
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-000000001371","role":"authenticated","session_id":"00000000-0000-4000-8000-000000001374"}',
+  true
+);
+select 1 / case when private.has_recent_account_authentication(
+  '00000000-0000-4000-8000-000000001371'
+) then 1 else 0 end as assert_fresh_current_session_passes;
+
 set local role authenticated;
 
 select 1 / case when public.preview_my_account_deletion() =
@@ -90,9 +154,11 @@ then 1 else 0 end as assert_empty_self_is_eligible;
 
 reset role;
 
-update auth.users
-set last_sign_in_at = now() - interval '11 minutes'
-where id = '00000000-0000-4000-8000-000000001371';
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-000000001371","role":"authenticated","session_id":"00000000-0000-4000-8000-000000001373"}',
+  true
+);
 
 set local role authenticated;
 
@@ -114,9 +180,11 @@ $$;
 
 reset role;
 
-update auth.users
-set last_sign_in_at = now()
-where id = '00000000-0000-4000-8000-000000001371';
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-000000001371","role":"authenticated","session_id":"00000000-0000-4000-8000-000000001374"}',
+  true
+);
 
 insert into public.payments (
   id, user_id, purpose, ref_id, amount, status, idempotency_key
@@ -790,6 +858,11 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000001372', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-000000001372","role":"authenticated","session_id":"00000000-0000-4000-8000-000000001375"}',
+  true
+);
 
 insert into storage.objects (bucket_id, name, owner_id)
 values (
@@ -802,6 +875,11 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000001371', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-000000001371","role":"authenticated","session_id":"00000000-0000-4000-8000-000000001374"}',
+  true
+);
 
 do $$
 begin

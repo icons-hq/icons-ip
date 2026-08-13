@@ -4,6 +4,7 @@ set -euo pipefail
 db_container="${SUPABASE_DB_CONTAINER:-supabase_db_icons-ip}"
 test_prefix="account-deletion-concurrency-$$"
 subject_id="00000000-0000-4000-8000-000000001381"
+session_id="00000000-0000-4000-8000-000000001383"
 first_key="00000000-0000-4000-8000-000000001391"
 second_key="00000000-0000-4000-8000-000000001392"
 work_dir="$(mktemp -d)"
@@ -124,6 +125,14 @@ set
   onboarded_at = pg_catalog.now()
 where id = '${subject_id}'::uuid;
 
+insert into auth.sessions (id, user_id, created_at, updated_at)
+values (
+  '${session_id}'::uuid,
+  '${subject_id}'::uuid,
+  pg_catalog.now(),
+  pg_catalog.now()
+);
+
 update private.account_deletion_control
 set
   transaction_lookup_hmac_ready = true,
@@ -146,6 +155,11 @@ begin;
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '${subject_id}', true);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"${subject_id}","role":"authenticated","session_id":"${session_id}"}',
+  true
+);
 select public.request_my_account_deletion(
   '회원 탈퇴를 신청합니다',
   '${first_key}'::uuid
@@ -199,6 +213,11 @@ begin;
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '${subject_id}', true);
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"${subject_id}","role":"authenticated","session_id":"${session_id}"}',
+  true
+);
 select public.request_my_account_deletion(
   '회원 탈퇴를 신청합니다',
   '${second_key}'::uuid
