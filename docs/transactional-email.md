@@ -1,12 +1,77 @@
 # 트랜잭션 이메일 운영 (#180)
 
-> 상태: Active · 작성 2026-08-07 · 근거: [`first-sale-readiness.md`](./first-sale-readiness.md) §3.4(`N1`·`L4`) · 결정 D8
+> 상태: Legacy Active · #191 Send Email Hook dark deploy 기본 OFF · 작성 2026-08-07 · 갱신 2026-08-13
 > 코드 진실원: `lib/email/*`, `supabase/migrations/20260807130001_transactional_email_deliveries.sql`,
 > `supabase/migrations/20260807140001_email_delivery_admin_ops.sql`,
-> `supabase/migrations/20260807150001_email_resend_order_state_gate.sql`
+> `supabase/migrations/20260807150001_email_resend_order_state_gate.sql`,
+> `supabase/migrations/20260813240000_email_dispatcher_dark.sql`,
+> `supabase/migrations/20260813241000_email_dispatch_acceptance_recovery.sql`
 
-앱이 직접 보내는 메일이다. Supabase Auth의 가입 확인·비밀번호 재설정 메일과는 **다른 경로**다
-(Auth 메일은 Supabase custom SMTP, 이 메일은 앱 서버의 HTTP 호출).
+현재 앱이 직접 보내는 주문 메일과 Supabase custom SMTP Auth 메일은 그대로 운영한다. #191은
+이를 즉시 교체하지 않고 Send Email Hook successor를 기본 OFF로 먼저 배포한다.
+
+## 0. #191 Send Email Hook dark path
+
+공개 seam은 `EmailDispatcher.enqueue/enqueueAll/dispatch/reduceProviderEvent`다. Auth Hook 요청은
+raw body Standard Webhooks 서명을 검증한 뒤 모든 메시지의 PII-free intent와 fence를 단일 batch
+RPC에서 먼저 commit한다. secure email change의 현재 주소·새 주소 두 intent가 0/2로 저장되기
+전에는 어느 쪽도 Resend로 보내지 않는다.
+
+- recipient, Hook source reference, Resend provider reference는 각각
+  `email:v1:recipient\0`·`email:v1:source\0`·`email:v1:provider\0` domain의 keyed HMAC만 저장한다.
+- subject·본문·raw Hook/webhook payload·provider 오류 본문은 저장하거나 로그하지 않는다.
+- Resend `Idempotency-Key`는 `email/<intent UUID>`로 고정한다. HTTP accepted는 `accepted`일 뿐
+  `delivered`가 아니다.
+- Supabase HTTP Auth Hook의 전체 제한은 5초다. Resend 요청은 2.5초에 중단해 서명·DB 작업
+  예산을 남기고, secure email change 두 발송은 모든 fence commit 후 병렬로 시작한다.
+- Resend가 key를 보존하는 24시간 창을 넘지 않도록 최초 provider claim부터 만료를 기록하고,
+  만료 5분 전부터 자동 retry를 `needs_review`로 막는다.
+- timeout/연결 유실은 같은 key로 제한 시간 안에서 retry하지만, 주소 거절 등 permanent provider
+  failure는 Hook에 503을 돌려 Auth 성공으로 가장하지 않으면서 intent를 `needs_review`로 고정한다.
+  새 provider acceptance와 durable `already_dispatched` replay만 empty HTTP 200으로 닫는다.
+- Resend accepted 뒤 DB acceptance 기록이 실패하면 exact dispatch claim만 `unknown`으로 전이해 다음
+  Hook replay가 즉시 같은 idempotency key를 재사용한다. 실제 DB commit 뒤 응답만 유실된 경우에는
+  row lock 뒤 확인한 `accepted` 또는 더 강한 lifecycle 상태를 보존해 재발송하지 않는다. 복구 RPC도
+  실패하면 fresh lease를 유지하고 10분 후 reclaim하는 보수적 fallback을 쓴다.
+- Hook과 webhook은 `Content-Length`와 실제 stream을 모두 64 KiB로 제한한 뒤 exact raw body
+  서명을 검증한다. Auth parser가 소비하는 bounded scalar의 합은 5 KiB 미만이고 Resend lifecycle
+  projection은 1 KiB 미만이므로 64 KiB는 10배 이상의 정상 계약 headroom을 두면서 5초 Hook 예산의
+  서명 전 메모리·CPU를 제한한다. webhook은 `svix-id` dedupe를 통과한 최소 projection만 저장한다.
+  reducer는 `sent/delayed/delivered/failed/suppressed/bounced/complained`를 단조 병합한다.
+  provider reference digest→`svix-id` 순서의 transaction advisory lock으로 acceptance와 webhook,
+  동일 event의 동시 replay를 직렬화한다.
+- signup·email change link는 trusted Auth origin의 정확한 `/auth/callback`, recovery는 정확한
+  `/auth/recovery/callback`만 허용한다. secure email change는 Supabase 계약대로 현재 주소에
+  `token_hash_new`, 새 주소에 `token_hash`를 보낸다.
+
+### 기본 OFF와 활성화 경계
+
+`private.email_dispatch_control.enabled=false`가 기본이다. `hook_contract_ready`,
+`provider_credentials_ready`, `webhook_contract_ready`, `privacy_retention_ready`,
+`account_deletion_notice_ready`가 모두 true가 아니면 DB constraint가 활성화를 거부한다.
+Preview/CI에는 실 Resend/Hook secret을 두지 않고 fake 경로만 검증한다. Hook code/outbox →
+Production dark deploy → masked env/readback → webhook → Auth 4개 흐름과 secure email change 두 통
+실수신 → direct SMTP 0 순으로 확인하기 전에는 Supabase Send Email Hook을 켜거나 기존 SMTP를
+제거하지 않는다.
+
+필요한 server-only env는 `SUPABASE_SEND_EMAIL_HOOK_SECRET`, `EMAIL_DISPATCH_HMAC_SECRET`,
+`RESEND_API_KEY`, `RESEND_FROM`, `RESEND_REPLY_TO`, `RESEND_WEBHOOK_SECRET`이며 endpoint override가
+필요할 때만 `RESEND_API_ENDPOINT`를 쓴다. secret 값은 이 문서·로그·이슈에 남기지 않는다.
+
+legacy `email_deliveries`는 `legacy_unverified`로 분류한다. migration 이후 새 legacy 행은
+recipient·subject·오류를 즉시 redaction하며 staff 조회도 masked 값만 반환한다. migration 전
+평문 행의 retry/completion은 기존 recipient·subject·오류를 보존하고, 기존 오류가 null인 경우에만
+새 raw 오류 대신 `legacy_failure`를 기록한다. 기존 평문 파기는 `privacy_retention_ready=true`와
+승인된 cutoff를 모두 요구하는 private retention hook만 수행한다. 신규 intent/event도 같은
+readiness를 요구하며 terminal evidence와 unmatched event만 파기한다. **정확한 TTL 승인과 #137
+탈퇴 notice producer는 아직 사람 증거가 필요하다.** 따라서
+`privacy_retention_ready`와 `account_deletion_notice_ready`는 false로 유지하고 이 dark PR은
+#191을 닫지 않는다.
+
+`EMAIL_DISPATCH_HMAC_SECRET`은 현재 단일 key 버전이다. 값을 바로 교체하면 기존 source fence와
+provider reference digest를 새 callback/replay가 다시 만들 수 없어 정합성이 끊긴다. 운영
+key rotation은 versioned key ring과 drain/replay 절차가 별도 구현·검증되기 전까지 activation
+blocker이며, 이 dark PR에서는 임의 rotation이나 복수 key fallback을 열지 않는다.
 
 ---
 
@@ -21,9 +86,12 @@
 | dedupe 키 | `lib/email/dedupe.ts` | `<template>:<orderId>` 형식의 진실원. 재발송이 행 하나에서 대상을 되찾는 근거 |
 | 운영 조회 | `lib/email/deliveries.server.ts` + `admin_search_email_deliveries` | `failed`·`pending` 목록 읽기(staff 전용) |
 
-발송 지점은 두 곳이다.
+legacy 발송 지점은 두 곳이다.
 
-- **주문 확인** — 토스 웹훅(`app/api/webhooks/tosspayments/route.ts`)이 `confirm_order_payment` 성공 직후 호출한다.
+- **주문 확인** — 신규 주문의 결제 진실원은 provider-neutral
+  `finalize_goods_payment_attempt`다. 현재 legacy 메일 호출은 이미 알려진 기존 Toss 거래만 처리하는
+  Toss webhook(`app/api/webhooks/tosspayments/route.ts`)에 남아 있다. 신규 checkout을 위한 메일
+  producer는 #191 dark path의 활성화·canary 전에는 열지 않는다.
 - **배송 시작** — 어드민 배송 전이(`app/admin/order-actions.ts`)가 `shipping` 전이 성공 직후 호출한다.
   택배사·운송장번호·조회 링크를 **그대로 넘긴다**. 인자를 생략하면 발송 훅이 `orders`의
   `shipping_carrier`·`tracking_number`에서 읽는다(재발송 경로가 이 폴백을 쓴다).
@@ -31,9 +99,10 @@
 
 ### 왜 메일 실패가 주문을 막지 않는가
 
-결제 확정의 진실원은 토스 웹훅이다(`AGENTS.md` 불변). 발송 훅이 예외를 던지면 웹훅이 500으로
-떨어지고 토스가 확정을 재전송한다 — 메일 문제로 주문 상태를 흔드는 셈이다. 그래서 훅은 모든
-실패를 삼키고 결과 객체로만 보고한다. 실패는 `email_deliveries.status='failed'`로 남는다.
+신규 결제 확정의 진실원은 provider-neutral finalizer이며, known-only Toss webhook은 기존 Toss
+거래의 조회·취소·webhook 호환 경로다. 어느 경로든 발송 훅 예외가 PG 응답을 500으로 바꾸거나
+이미 확정된 주문 상태를 흔들어서는 안 된다. 그래서 legacy 훅은 모든 실패를 삼키고 결과 객체로만
+보고한다. 실패는 `email_deliveries.status='failed'`로 남는다.
 
 ### 왜 미발송 로그를 훅이 직접 남기는가
 
@@ -55,15 +124,17 @@
 | `order_shipped` | `shipping` · `done` | 〃 |
 
 집합은 두 곳에 있다 — `lib/email/transactional.server.ts`의 `ACCURATE_ORDER_STATUSES`와
-`admin_request_email_resend`. 웹훅 경로는 DB 게이트를 지나지 않으므로 실제 안전장치는 훅이고,
-DB 게이트는 운영자에게 발송 전에 이유를 알려주는 역할이다. **바꿀 때 양쪽을 함께 바꾼다.**
+`admin_request_email_resend`. legacy known-only Toss webhook 경로는 DB 게이트를 지나지 않으므로
+실제 안전장치는 훅이고, DB 게이트는 운영자에게 발송 전에 이유를 알려주는 역할이다. **바꿀 때
+양쪽을 함께 바꾼다.**
 
 ### 왜 클레임과 결과 기록이 나뉘어 있는가
 
 발송은 HTTP다. DB 트랜잭션으로 감쌀 수 없다. `claim_email_delivery`가 행을 잠가 발송 권한을
 한 호출자에게만 주고(`true`), 발송이 끝나면 `complete_email_delivery`가 결과를 닫는다.
-토스가 최대 7회 재전송해도 확인 메일은 1통이다. 응답이 유실돼 `pending`으로 남은 클레임은
-10분(`target_retry_after`) 뒤에 다시 잡을 수 있어, 한 번의 사고로 메일이 영구히 막히지 않는다.
+provider callback replay와 known-only Toss webhook 재전달이 겹쳐도 legacy 확인 메일은 1통이다.
+응답이 유실돼 `pending`으로 남은 클레임은 10분(`target_retry_after`) 뒤에 다시 잡을 수 있어,
+한 번의 사고로 메일이 영구히 막히지 않는다.
 
 ### 배송비 표기
 
@@ -86,7 +157,9 @@ DB 게이트는 운영자에게 발송 전에 이유를 알려주는 역할이�
 | `SITE_URL` | — | 메일 본문 링크의 오리진. 기본 `https://iconsip.com` |
 
 **`EMAIL_PROVIDER_API_KEY` 또는 `EMAIL_FROM`이 없으면 메일을 보내지 않는다.** 대신
-`email_deliveries`에 `status='failed'`, `last_error='provider_not_configured'`로 **기록은 남긴다.**
+`email_deliveries`에 `status='failed'` 행을 남긴다. 런타임 결과·로그의 사유는
+`provider_not_configured`이고, #191 dark migration 이후 ledger의 `last_error`는 PII-free stable code
+`legacy_failure`만 저장한다.
 발송을 앞에서 끊고 아무것도 남기지 않으면 확인 메일 0통·이력 0행·로그 0줄이 되어, 나중에 키를
 채운 운영자가 발송 이력을 열어도 "다시 보낼 메일이 없습니다"만 본다 — 구매자는 계약내용
 서면(L4)을 영영 못 받는다. 기록해 두면 키를 채운 뒤 `다시 보내기` 하나로 복구된다.
@@ -99,8 +172,8 @@ DB 게이트는 운영자에게 발송 전에 이유를 알려주는 역할이�
 
 Vercel에서는 Production·Preview 모두 sensitive로 등록한다. Preview에 실제 발신 도메인을
 쓰면 테스트 메일이 실사용자에게 갈 수 있으므로, Preview는 키를 비워 두는 것이 기본이다.
-Preview의 `email_deliveries`에는 `provider_not_configured` 행이 쌓인다 — 보내지 않은 사실의
-정확한 기록이므로 정상이다.
+Preview의 `email_deliveries`에는 해당 `failed` 행이 쌓인다 — 보내지 않은 사실의 정확한 기록이며
+raw provider 사유 대신 `legacy_failure`만 저장되는 것이 정상이다.
 
 ---
 

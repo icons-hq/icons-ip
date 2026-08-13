@@ -40,8 +40,8 @@
 | 프리뷰 환경 | PR 프리뷰는 전용 Supabase 프로젝트를 본다. 프리뷰 ref가 운영 ref와 같으면 job이 실패하고, 프리뷰 secret이 없으면 프리뷰 배포를 건너뛴다. 프리뷰 DB에는 운영 데이터를 두지 않는다 | [ADR-0006](adr/0006-preview-supabase-project.md), `.github/workflows/pipeline.yml` |
 | Production runtime | Vercel project/runtime Node.js Version은 공식 지원 범위인 24.x 유지 | Vercel Project Settings |
 | 도메인/DNS | `iconsip.com` primary, `www.iconsip.com` alias, `icons-ip.vercel.app` fallback. DNS는 Cloudflare에서 관리 | Cloudflare DNS, Vercel Domains |
-| Auth 메일 | Supabase Auth custom SMTP → Resend. Sender는 `no-reply@iconsip.com`, Resend domain은 `iconsip.com` | Supabase Auth SMTP, Resend |
-| 트랜잭션 메일 | 앱이 직접 보내는 주문 확인·배송 시작 메일. Resend 호환 HTTP(SDK 의존성 없음), env 없으면 no-op. 멱등·재발송은 `email_deliveries` 클레임이 담당하고 발송 실패는 주문·결제 상태에 영향을 주지 않는다 | `lib/email/*`, `supabase/migrations/20260807130001_transactional_email_deliveries.sql`, [`transactional-email.md`](./transactional-email.md) |
+| Auth 메일 | 현재 Supabase Auth custom SMTP → Resend. 후속 Send Email Hook 경로는 raw-body 서명 → PII-free intent/fence atomic enqueue → stable Resend idempotency → signed webhook reducer로 dark deploy되며 DB gate 기본 OFF다 | `app/api/hooks/supabase/send-email`, `app/api/webhooks/resend`, `lib/email/*`, `private.email_*` |
+| 트랜잭션 메일 | 기존 주문 확인·배송 시작 경로는 canary까지 유지한다. 신규 `EmailDispatcher.enqueue/enqueueAll/dispatch/reduceProviderEvent`는 provider acceptance와 delivery를 분리하고 recipient·subject·raw error/provider payload를 저장하지 않는다 | `lib/email/*`, `supabase/migrations/20260807130001_transactional_email_deliveries.sql`, `supabase/migrations/20260813240000_email_dispatcher_dark.sql`, [`transactional-email.md`](./transactional-email.md) |
 
 **요청 프록시 주의**: 루트 `proxy.ts`가 `export function proxy()` + `config.matcher`로 동작한다(Next 16에서 미들웨어가 이 형태). `lib/supabase/middleware.ts`의 `updateSession`을 호출하며 **보호 액션 전까지 로그인 리다이렉트는 하지 않는다**(공개 브라우징 정책).
 
@@ -269,8 +269,8 @@ Production Auth 설정:
 
 ### 9.1 환경 변수 · Toss known-only 검증과 Production 전환 경계
 
-- 서버 전용 env: Production legacy 정리용 `TOSS_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, 관리자 아트워크 cron 전용 `CRON_SECRET`, 결제 재조정 전용 `PAYMENT_RECONCILIATION_SECRET`, `EMAIL_PROVIDER_API_KEY`, `EMAIL_FROM`, `EMAIL_REPLY_TO`, `EMAIL_PROVIDER_ENDPOINT`, `SITE_URL`. 클라이언트 번들에 노출하지 않는다(`NEXT_PUBLIC_` 접두사 금지). 두 bearer secret은 서로 공유하지 않는다. Toss 공개 위젯 키·variant·production test override·키 지문은 신규 checkout 활성화 계약에서 제거했다.
-- 이메일 env는 `prebuild` 필수 변수에 넣지 않는다. 미설정이면 트랜잭션 메일을 조용히 건너뛰고 로그만 남긴다 — 메일 미구성은 배포를 막을 사유가 아니고, 발송 실패가 결제 확정을 흔들어서도 안 된다. 발신 도메인 인증(SPF·DKIM·DMARC) 절차는 [`transactional-email.md`](./transactional-email.md) §3에 있다.
+- 서버 전용 env: Production legacy 정리용 `TOSS_SECRET_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, 관리자 아트워크 cron 전용 `CRON_SECRET`, 결제 재조정 전용 `PAYMENT_RECONCILIATION_SECRET`, legacy `EMAIL_PROVIDER_API_KEY`·`EMAIL_FROM`·`EMAIL_REPLY_TO`·`EMAIL_PROVIDER_ENDPOINT`, #191 `SUPABASE_SEND_EMAIL_HOOK_SECRET`·`EMAIL_DISPATCH_HMAC_SECRET`·`RESEND_API_KEY`·`RESEND_FROM`·`RESEND_REPLY_TO`·`RESEND_WEBHOOK_SECRET`·`RESEND_API_ENDPOINT`, `SITE_URL`. 클라이언트 번들에 노출하지 않는다(`NEXT_PUBLIC_` 접두사 금지). 두 bearer secret은 서로 공유하지 않는다. Toss 공개 위젯 키·variant·production test override·키 지문은 신규 checkout 활성화 계약에서 제거했다.
+- 이메일 env는 dark deploy의 `prebuild` 필수 변수에 넣지 않는다. #191 Hook 라우트는 미설정 시 503이고 DB gate도 기본 OFF라 실제 Hook을 켜기 전에는 트래픽을 받지 않는다. legacy 주문 메일 미구성도 결제 확정을 흔들지 않는다. 발신 도메인 인증과 활성화 절차는 [`transactional-email.md`](./transactional-email.md)에 있다.
 - Production의 `TOSS_SECRET_KEY`는 기존 `provider=toss` 결제의 fresh GET·취소·웹훅 재조회에만 사용한다. 키 또는 service role이 없으면 해당 legacy 서버 경로는 503(`not_configured`)으로 fail closed한다. `test_gsk_…`/`live_gsk_…` 위젯 시크릿 형식만 허용하고 API 개별연동 `test_sk_…`는 거절한다. client key가 없어도 known-only 서버 정리는 가능하지만 신규 checkout은 열리지 않는다.
 - 로컬 검증은 `TOSS_SECRET_KEY`와 로컬 `SUPABASE_SERVICE_ROLE_KEY`를 서버에만 넣고 `npm test`의 Toss API·known-only guard, 로컬 SQL 회귀를 실행한다. 웹훅 실수신은 기존 거래 fixture를 대상으로만 개발자센터 URL을 등록해 10초 내 응답과 provider identity 대조를 확인한다.
 - 프리뷰는 굿즈·티켓 Fake gateway 공개 동작 테스트만 실행하며 Toss·Korpay 실자격 증명을 넣지 않는다. Toss legacy route는 secret 부재 시 503으로 닫힌다. Production에서 신규 Toss live checkout이나 Toss 실결제 canary를 활성화하지 않고 `provider=toss`로 확인된 기존 두 거래의 조회·취소·웹훅만 유지한다. 신규 결제는 #87의 승인 범위·rotated credential·보안/운영 답변과 #207 dark deploy 뒤 Korpay로 연다. 기존 Toss 거래가 공급사 콘솔과 내부 원장에서 모두 종결된 뒤에만 Toss runtime과 server secret 제거를 별도 PR로 수행한다.

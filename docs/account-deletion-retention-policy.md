@@ -23,7 +23,7 @@
 
 1. `request/fence`: self-only 요청과 멱등키를 기록하고 새 구매·예매·작성·카드팩 개봉·게임·마케팅과 새·갱신 커뮤니티 Storage 업로드를 차단한다. 신청과 보호 write는 같은 사용자별 transaction lock으로 순서를 정한다.
 2. `legal snapshot`: 아래 매트릭스에 해당하는 최소 record와 `retain_until`을 분리 저장한다.
-3. `email fence`: #191의 durable outbox와 Resend/Supabase Send Email Hook이 탈퇴 대상의 새 발송을 막고 in-flight 결과를 종결한다.
+3. `email fence`: #191의 durable outbox와 Resend/Supabase Send Email Hook이 탈퇴 대상의 새 발송을 막고 in-flight 결과를 종결한다. dark schema에는 `notification_intent_id`와 fail-closed fence 판정만 추가하며, 탈퇴 notice producer·실수신 증거 전에는 Phase 2 worker를 열지 않는다.
 4. `hard delete`: 커뮤니티 연결 해제와 이미지 삭제, Storage 잔여 0건, 일반 DB 개인정보 삭제, 전역 sign-out과 Auth hard delete를 순서대로 수행한다.
 5. `secondary tombstone`: compliance 프로젝트에 같은 event를 멱등 append하고 durable ack를 기록한다. 실패한 요청은 완료로 표시하지 않고 PII 없는 primary request에서 재시도한다.
 6. `restore replay`: 운영 DB 복원 시 compliance sequence 이후 event를 replay해 복원된 subject를 다시 제거한 뒤에만 writer와 public traffic을 연다.
