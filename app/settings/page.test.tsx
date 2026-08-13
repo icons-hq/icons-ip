@@ -118,6 +118,32 @@ describe('/settings page', () => {
     }), undefined);
   });
 
+  it('keeps the settings fallback available when Supabase is not configured', async () => {
+    mocks.auth = {
+      isConfigured: false,
+      user: null,
+      profile: null,
+      isStaff: false,
+    };
+
+    renderToStaticMarkup(await Page());
+
+    expect(mocks.accountDeletion).not.toHaveBeenCalled();
+    expect(mocks.settings).toHaveBeenCalledWith(expect.objectContaining({
+      accountDeletion: {
+        preview: {
+          available: false,
+          eligible: false,
+          blockers: [{ code: 'not_available', count: 1, path: '/settings' }],
+        },
+        status: {
+          status: 'not_requested', phase: 'none', nextAction: '/settings', blockers: [],
+        },
+      },
+      isConfigured: false,
+    }), undefined);
+  });
+
   it('describes profile editing in page metadata', () => {
     expect(metadata.description).toContain('편집');
   });

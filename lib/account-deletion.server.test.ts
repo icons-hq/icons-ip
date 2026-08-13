@@ -39,10 +39,28 @@ describe('getAccountDeletionPresentation', () => {
     ]);
   });
 
-  it('fails closed when either database read errors', async () => {
+  it.each([
+    [
+      { data: null, error: { message: 'private preview error' } },
+      {
+        data: {
+          status: 'processing', phase: 'awaiting_notification',
+          nextAction: 'retry_later', blockers: [],
+        },
+        error: null,
+      },
+    ],
+    [
+      { data: { available: true, eligible: true, blockers: [] }, error: null },
+      { data: null, error: { message: 'private status error' } },
+    ],
+  ])('fails the whole presentation closed when either database read errors', async (
+    previewResult,
+    statusResult,
+  ) => {
     mocks.rpc
-      .mockResolvedValueOnce({ data: null, error: { message: 'private preview error' } })
-      .mockResolvedValueOnce({ data: null, error: { message: 'private status error' } });
+      .mockResolvedValueOnce(previewResult)
+      .mockResolvedValueOnce(statusResult);
 
     await expect(getAccountDeletionPresentation()).resolves.toEqual({
       preview: {

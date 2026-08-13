@@ -133,12 +133,24 @@ as $$
       'active_payment_attempt',
       pg_catalog.count(*)::integer,
       '/settings'
-    from public.payment_attempts as attempt
-    where attempt.user_id = p_user_id
-      and (
-        attempt.state in ('prepared', 'confirming', 'unknown', 'needs_review')
-        or (attempt.state = 'approved' and attempt.payment_id is null)
-      )
+    from (
+      select attempt.id::text as blocker_ref
+      from public.payment_attempts as attempt
+      where attempt.user_id = p_user_id
+        and (
+          attempt.state in ('prepared', 'confirming', 'unknown', 'needs_review')
+          or (attempt.state = 'approved' and attempt.payment_id is null)
+        )
+
+      union all
+
+      -- Legacy payment rows predate provider-neutral attempts. Keep their
+      -- unresolved state fail-closed until staff reconciliation finishes.
+      select payment.id::text
+      from public.payments as payment
+      where payment.user_id = p_user_id
+        and payment.status = 'pending'
+    ) as unresolved_payment
 
     union all
 

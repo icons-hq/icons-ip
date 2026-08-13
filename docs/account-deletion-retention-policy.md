@@ -36,7 +36,7 @@
 |---|---|---|
 | `orders` | `pending`, `paid`, `shipping` | 주문 상세의 결제·만료·취소·배송·반품 처리 |
 | 주문 취소·환불 | `requested`, `processing`, `needs_review`, provider claim 존재 | 해당 주문의 환급 정합화 |
-| 결제 시도 | `prepared`, `confirming`, `unknown`, `needs_review` 또는 payment 원장 없는 `approved` | staff 결제 정합화 |
+| 결제·시도 | legacy payment `pending`, attempt `prepared`, `confirming`, `unknown`, `needs_review` 또는 payment 원장 없는 `approved` | staff 결제 정합화 |
 | `ticket_orders`, `tickets` | 미정리 `pending`, 종료 전 `paid`·`valid` 티켓 | 예매 상세의 만료·취소·사용 또는 이벤트 종료 |
 | 티켓 취소 | `requested`, `processing`, `needs_review` | 해당 예매의 환급 정합화 |
 | staff/admin | 활성 운영 권한 또는 미인계 회사 자산 | 권한 회수와 책임자 인수인계 |

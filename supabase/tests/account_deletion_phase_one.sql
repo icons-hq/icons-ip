@@ -71,6 +71,41 @@ select 1 / case when public.preview_my_account_deletion() =
   jsonb_build_object('available', true, 'eligible', true, 'blockers', '[]'::jsonb)
 then 1 else 0 end as assert_empty_self_is_eligible;
 
+reset role;
+
+insert into public.payments (
+  id, user_id, purpose, amount, status, idempotency_key
+)
+values (
+  '00000000-0000-4000-8000-000000001305',
+  '00000000-0000-4000-8000-000000001371',
+  'wallet', 1000, 'pending', 'legacy-pending-payment'
+);
+
+set local role authenticated;
+
+select 1 / case when public.preview_my_account_deletion() =
+  jsonb_build_object(
+    'available', true,
+    'eligible', false,
+    'blockers', jsonb_build_array(
+      jsonb_build_object(
+        'code', 'active_payment_attempt',
+        'count', 1,
+        'path', '/settings'
+      )
+    )
+  )
+then 1 else 0 end as assert_legacy_pending_payment_fails_closed;
+
+reset role;
+
+update public.payments
+set status = 'failed'
+where id = '00000000-0000-4000-8000-000000001305';
+
+set local role authenticated;
+
 do $$
 begin
   begin

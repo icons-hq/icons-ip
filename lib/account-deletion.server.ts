@@ -3,6 +3,7 @@ import 'server-only';
 import {
   normalizeAccountDeletionPreview,
   normalizeAccountDeletionStatus,
+  UNAVAILABLE_ACCOUNT_DELETION_PRESENTATION,
   type AccountDeletionPresentation,
 } from './account-deletion';
 import { createClient } from './supabase/server';
@@ -14,12 +15,12 @@ export async function getAccountDeletionPresentation(): Promise<AccountDeletionP
     supabase.rpc('get_my_account_deletion_status'),
   ]);
 
+  if (previewResult.error || statusResult.error) {
+    return UNAVAILABLE_ACCOUNT_DELETION_PRESENTATION;
+  }
+
   return {
-    preview: normalizeAccountDeletionPreview(
-      previewResult.error ? null : previewResult.data,
-    ),
-    status: normalizeAccountDeletionStatus(
-      statusResult.error ? null : statusResult.data,
-    ),
+    preview: normalizeAccountDeletionPreview(previewResult.data),
+    status: normalizeAccountDeletionStatus(statusResult.data),
   };
 }

@@ -2,27 +2,13 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { connection } from 'next/server';
 import { AccountDeletionPanel } from '@/components/account/AccountDeletionPanel';
-import type { AccountDeletionPresentation } from '@/lib/account-deletion';
+import { UNAVAILABLE_ACCOUNT_DELETION_PRESENTATION } from '@/lib/account-deletion';
 import { getAccountDeletionPresentation } from '@/lib/account-deletion.server';
 import { getCurrentAuthState } from '@/lib/auth/server';
 
 export const metadata: Metadata = {
   title: '회원 탈퇴 — ICONS',
   description: '진행 중인 의무를 확인하고 회원 탈퇴를 신청합니다.',
-};
-
-const unavailablePresentation: AccountDeletionPresentation = {
-  preview: {
-    available: false,
-    eligible: false,
-    blockers: [{ code: 'not_available', count: 1, path: '/settings' }],
-  },
-  status: {
-    status: 'not_requested',
-    phase: 'none',
-    nextAction: '/settings',
-    blockers: [],
-  },
 };
 
 export default async function Page() {
@@ -34,7 +20,7 @@ export default async function Page() {
 
   const presentation = auth.isConfigured
     ? await getAccountDeletionPresentation()
-    : unavailablePresentation;
+    : UNAVAILABLE_ACCOUNT_DELETION_PRESENTATION;
 
   return (
     <main style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', padding: '110px 0 80px' }}>

@@ -50,6 +50,11 @@ const notRequestedStatus: AccountDeletionStatus = {
   blockers: [],
 };
 
+export const UNAVAILABLE_ACCOUNT_DELETION_PRESENTATION: AccountDeletionPresentation = {
+  preview: unavailablePreview,
+  status: notRequestedStatus,
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
