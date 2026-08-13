@@ -35,19 +35,17 @@ function errorJson(status: number, code: string) {
   return NextResponse.json({ error: { code } }, { status });
 }
 
-async function guardTossPaymentProvider(service: ServiceClient, paymentKey: string) {
+async function classifyTossPaymentProvider(service: ServiceClient, paymentKey: string) {
   const classification = await createLegacyTossPaymentRepository(service)
     .classifyPaymentKey(paymentKey);
   if (classification.status === 'lookup_failed') {
     console.error(`[webhooks/tosspayments] provider guard lookup failed: ${classification.message}`);
-    return errorJson(500, 'provider_guard_failed');
+    return { response: errorJson(500, 'provider_guard_failed') } as const;
   }
   if (classification.status === 'known_other_provider') {
-    return errorJson(409, 'payment_provider_mismatch');
+    return { response: errorJson(409, 'payment_provider_mismatch') } as const;
   }
-  // `unknown_compatibility` is allowed only until #205/#206 move both checkout
-  // paths. Webhook-first recovery can currently precede the local pending row.
-  return null;
+  return { classification } as const;
 }
 
 /** 결제를 종결 상태로 기록 — 승인 경로가 남긴 pending 행이 있으면 갱신, 없으면 추적용으로 신규 기록. */
@@ -544,8 +542,8 @@ export async function POST(request: Request) {
   }
 
   const service = createServiceClient();
-  const providerGuardFailure = await guardTossPaymentProvider(service, event.paymentKey);
-  if (providerGuardFailure) return providerGuardFailure;
+  const providerGuard = await classifyTossPaymentProvider(service, event.paymentKey);
+  if ('response' in providerGuard) return providerGuard.response;
 
   const verified = await fetchTossPayment(event.paymentKey);
   if (!verified.ok) {
@@ -564,6 +562,30 @@ export async function POST(request: Request) {
   if (payment.paymentKey !== event.paymentKey) {
     console.error('[webhooks/tosspayments] provider payment identity mismatch');
     return errorJson(500, 'provider_response_mismatch');
+  }
+
+  const providerRef = parseTossOrderId(payment.orderId);
+  if (
+    providerGuard.classification.status === 'unknown_compatibility'
+    && providerRef?.purpose !== 'ticket'
+  ) {
+    return errorJson(409, 'legacy_payment_unknown');
+  }
+  if (
+    providerGuard.classification.status === 'known_toss'
+    && (
+      !providerRef
+      || providerGuard.classification.purpose !== providerRef.purpose
+      || providerGuard.classification.refId !== providerRef.refId
+      || providerGuard.classification.amount !== payment.totalAmount
+      || providerGuard.classification.idempotencyKey !== payment.paymentKey
+      || (
+        providerGuard.classification.paymentKey !== null
+        && providerGuard.classification.paymentKey !== payment.paymentKey
+      )
+    )
+  ) {
+    return errorJson(409, 'legacy_payment_identity_mismatch');
   }
 
   const completedRef = payment.status === 'DONE' ? parseTossOrderId(payment.orderId) : null;

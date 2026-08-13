@@ -5,7 +5,6 @@ import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { normalizeOrderReference } from '@/lib/checkout';
 import { loadCheckoutOrder } from '@/lib/checkout.server';
-import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
 
 export const metadata: Metadata = {
   title: '주문 결제 — ICONS',
@@ -25,18 +24,5 @@ export default async function Page({ params }: { params: Promise<{ orderId: stri
   const order = await loadCheckoutOrder(auth.user.id, orderId);
   if (!order) notFound();
 
-  const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
-  const configured = checkoutPaymentsEnabled(auth.isStaff);
-
-  return (
-    <CheckoutOrder
-      clientKey={configured ? clientKey ?? null : null}
-      customer={{
-        id: auth.user.id,
-        email: auth.profile?.email ?? auth.user.email,
-        name: auth.profile?.nickname ?? 'ICONS 팬',
-      }}
-      order={order}
-    />
-  );
+  return <CheckoutOrder order={order} />;
 }

@@ -86,6 +86,10 @@ async function loadPayableTarget(
   return data as { id: string; user_id: string; status: string; total: number; expires_at: string | null } | null;
 }
 
+function isLegacyGoodsCheckout(ref: TossOrderRef) {
+  return ref.purpose === 'order';
+}
+
 export async function POST(request: Request) {
   if (!getSupabaseConfig().isConfigured || !getServiceRoleConfig().isConfigured || !getTossConfig().isConfigured) {
     return errorJson(503, 'not_configured', '결제 환경이 구성되지 않았습니다.');
@@ -113,6 +117,9 @@ export async function POST(request: Request) {
 
   const ref = parseTossOrderId(body.orderId);
   if (!ref) return errorJson(400, 'invalid_order_id', '주문 식별자 형식이 올바르지 않습니다.');
+  if (isLegacyGoodsCheckout(ref)) {
+    return errorJson(409, 'legacy_checkout_closed', '기존 굿즈 결제 경로는 종료되었습니다.');
+  }
 
   const target = await loadPayableTarget(supabase, ref, user.id);
   if (!target) return errorJson(404, 'not_found', '주문을 찾을 수 없습니다.');

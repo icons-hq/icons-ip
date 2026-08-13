@@ -9,9 +9,9 @@
 
 **ICONS**는 서브컬처 팬덤을 위한 **슈퍼앱**이다. 공식 라이선스 굿즈 커머스를 척추로, 수집형 디지털 카드(무료 리워드), 팝업/티케팅, 팬 커뮤니티, IP 허브를 하나의 "Holographic Midnight" 경험으로 묶는다.
 
-현재 리포(`/Users/sangwopark19/icons/icons-ip`)는 Claude Design 핸드오프를 옮긴 **시각적 프로토타입**에서 출발했다. App Router 화면에 Supabase 공개 카탈로그, 이메일/PW Auth, 온보딩, IP 팔로우, 커뮤니티, 검색, admin 경로가 연결되어 있다. 굿즈 실장바구니와 체크아웃·토스 승인/웹훅, 본인 주문 내역·청약철회 요청, 관리자 주문·배송·환불·실재고·티켓 회차·회원 제재·카탈로그 아트워크 업로드·보관/복원·홈 큐레이션 콘솔, 공개 회차 선택·티켓 예매 결제·웹훅 QR 발급, 내 티켓·예매 취소/환불, staff 현장 검표까지 연결됐다. 이 PRD는 프로토타입을 **실제 출시 제품**으로 전환하기 위한 요구사항을 정의한다.
+현재 리포(`/Users/sangwopark19/icons/icons-ip`)는 Claude Design 핸드오프를 옮긴 **시각적 프로토타입**에서 출발했다. App Router 화면에 Supabase 공개 카탈로그, 이메일/PW Auth, 온보딩, IP 팔로우, 커뮤니티, 검색, admin 경로가 연결되어 있다. 굿즈 실장바구니와 provider-neutral checkout attempt(운영 provider 기본 OFF), 본인 주문 내역·청약철회 요청, 관리자 주문·배송·환불·실재고·티켓 회차·회원 제재·카탈로그 아트워크 업로드·보관/복원·홈 큐레이션 콘솔, 공개 회차 선택·Toss 호환 티켓 예매 결제·웹훅 QR 발급, 내 티켓·예매 취소/환불, staff 현장 검표까지 연결됐다. 이 PRD는 프로토타입을 **실제 출시 제품**으로 전환하기 위한 요구사항을 정의한다.
 
-결제 전환의 정본은 **신규 Korpay, 기존 Toss legacy**다. 현재 #204는 원장과 gateway seam만 확장한 단계라 #205·#206 전환 전까지 기존 Toss checkout을 유지한다. 두 checkout이 이동한 뒤 Toss는 이미 알려진 `provider=toss` 거래의 조회·취소·웹훅에만 남기며, Korpay credential rotation과 승인 범위가 끝나기 전에는 신규 provider를 활성화하지 않는다.
+결제 전환의 정본은 **신규 Korpay, 기존 Toss legacy**다. #205에서 굿즈 checkout은 공통 attempt/claim/finalizer로 이동했고 실제 provider가 없는 상태로 기본 OFF다. 티켓은 #206 전환 전까지 Toss 호환 checkout을 유지한다. 두 checkout이 이동한 뒤 Toss는 이미 알려진 `provider=toss` 거래의 조회·취소·웹훅에만 남기며, Korpay credential rotation과 승인 범위가 끝나기 전에는 신규 provider를 활성화하지 않는다.
 
 ### 1.1 제품 비전
 
@@ -56,7 +56,7 @@
 | 인증 | 이메일/PW 가입·로그인, 확인 메일 콜백·재전송, 비밀번호 재설정, 온보딩 게이트. Google/Apple/Kakao OAuth 코드와 production provider·필수 이메일 claim 설정 완료. 현재 생년월일은 자가신고 값이며 연령보증 증거가 아니다. 탈퇴 Phase 1은 self-only 요청·진행 의무 평가·private legal snapshot·account write fence까지 기본 OFF로 연결 | production Auth controlled smoke와 14+ 공통 연령보증 계약·기존 계정 처리 [#188](https://github.com/icons-hq/icons-ip/issues/188). 탈퇴는 #191 통지, Phase 2 hard delete, #215 secondary tombstone·restore replay와 controlled deletion smoke가 남음 |
 | IP 팔로우 | 온보딩 추천 IP 저장, IP 상세 팔로우/언팔로우·알림 설정, 홈 커뮤니티 우선순위와 내 팬덤 피드가 연결 | 완료 |
 | 장바구니·주문 | 비로그인 localStorage → 로그인 `cart_items` 병합, 수량·재고 검증, 본인 주문 내역·상세·청약철회 상태, 관리자 주문 검색·배송 전이·환불 정합화·실재고 수동 조정 | 완료 |
-| 결제 | Toss checkout·승인 API·웹훅 확정·만료 정리를 유지하면서 `payments.provider`, service-only `payment_attempts`/evidence, `PaymentGateway`/Fake seam을 additive expand했다. 기존 Production 결제 2건은 Toss로 backfill한다 | #205·#206에서 checkout을 seam으로 옮기고, rotated Korpay credential·승인 범위 확인 뒤 신규 Korpay를 연다. Toss는 기존 거래 조회·취소·웹훅만 유지 |
+| 결제 | 굿즈는 service-only attempt/nonce/claim/finalizer와 `PaymentGateway`/Fake seam으로 이동하고 provider gate를 기본 OFF로 뒀다. 티켓은 Toss checkout·승인 API·웹훅 확정 호환을 유지한다. 기존 Production 결제 2건은 Toss로 backfill한다 | #206에서 티켓 checkout을 seam으로 옮기고, rotated Korpay credential·승인 범위 확인 뒤 #207에서 신규 Korpay를 연다. Toss는 기존 거래 조회·취소·웹훅만 유지 |
 | 카드 리워드 | 뽑기권(카드팩) 인벤토리·개봉과 바인더, 주문 결제 시 조건에 맞는 복수 정책의 누적 발급, 대상 IP·선택 same-IP 굿즈·독립 카드풀을 운영하는 관리자 정책 콘솔, 카드 보상형 참여형 게임·운영 콘솔과 서버 결정 `play_game` 연결. 법무·운영 승인 전 DB 전역 gate는 기본 OFF이고 기존 바인더만 읽기 전용으로 유지 | 별도 승인 migration 전 신규 발급·개봉·게임·운영 활성화 차단. legacy `goods` variant는 읽기 전용이고 mock 연출은 실제 경품·구매권을 만들지 않으며, 범용 래플 운영은 현 로드맵 밖 |
 | 팝업 | 이벤트 목록·상세, audited 회차·현장 검표 콘솔, 멱등 예약·결제·웹훅 QR 발급, 본인 티켓 QR·예매 전체 취소/환불 | production 실제 결제 검증 |
 | 커뮤니티 | 공개 전체/팔로우 IP 기반 내 팬덤 피드와 IP 상세 preview 읽기, 최근 7일 트렌딩, 포스트·댓글·좋아요·작성자 삭제·신고·차단·운영자 숨김 코드가 연결. 모든 post/comment 생성·수정과 community 이미지 upload는 DB·Storage gate에서 기본 OFF | 실제 수령인·대체 reviewer·통지·이의·복원·권리신고 경로와 rehearsal 뒤 별도 migration으로 활성화. 공개 읽기·신고·본인 삭제·권리행사는 유지 |
@@ -189,7 +189,7 @@
 1. **첫 방문(비로그인)**: 홈 → IP 탐색 → 굿즈/카드 구경(공개). 액션 시 로그인 유도.
 2. **온보딩**: 소셜/이메일 로그인 → 이메일·닉네임·생년월일·동의 입력 → 관심 IP 팔로우.
 3. **비밀번호 재설정**: 로그인 → 재설정 메일 요청 → 요청한 브라우저에서 최신 링크 열기 → 새 비밀번호 저장 → 새 비밀번호로 로그인.
-4. **굿즈 구매**: 굿즈 상세 → 장바구니 → 체크아웃 → provider 결제(현재 Toss, 목표 Korpay) → 주문완료 → 내역.
+4. **굿즈 구매**: 굿즈 상세 → 장바구니 → 체크아웃 → provider-neutral attempt/confirm(현재 gate OFF, 목표 Korpay) → 주문완료 → 내역.
 5. **카드 리워드**: 굿즈 주문 또는 무료 참여형 게임 → 카드팩 발급/서버 결과 확정 → 개봉 연출 → 바인더 적립.
 6. **티켓**: 이벤트 상세 → 회차/수량 선택 → provider 결제(현재 Toss, 목표 Korpay) → 전자티켓(QR) → 현장 검표.
 7. **커뮤니티**: 피드 → 글 작성(이미지)·수정 → 반응/댓글 → (문제 시) 신고/차단.
@@ -252,6 +252,6 @@
 - **14+ 가입 기준**: 공통 `AgeAssurance` 계약, 기존 계정 dry-run과 법정 문서는 #188 acceptance evidence가 필요하다. 현재 자가신고는 완료 증거가 아니다.
 - **19+ 성인인증**: NICE 계약·callback·최소 데이터는 #209, 실제 상품 gate는 #210에서 별도 추적한다.
 - 카드의 **디지털 자산 성격**(소유 이전 가능 여부)은 v1에서 비이전(계정 귀속) 가정. 교환은 v2.
-- provider-neutral 원장은 expand를 마쳤지만 현재 runtime은 #205·#206 전환 전까지 Toss 굿즈·티켓 checkout을 유지한다. 목표 신규 결제는 Korpay이며, 전환 뒤 기존 Production Toss 2건만 legacy 조회·취소·웹훅으로 종결한다(ARCH §9). 이 문서 정리는 provider 활성화를 의미하지 않는다.
+- provider-neutral 원장과 굿즈 checkout seam은 구현됐지만 실제 provider는 기본 OFF이고, 티켓 runtime만 #206 전환 전까지 Toss checkout을 유지한다. 목표 신규 결제는 Korpay이며, 전환 뒤 기존 Production Toss 2건만 legacy 조회·취소·웹훅으로 종결한다(ARCH §9). 이 문서 정리는 provider 활성화를 의미하지 않는다.
 - **BM 확정(2026-07-03)**: 유료 가챠를 폐기하고 **무료 리워드 모델**로 피벗했다([`docs/adr/0003-free-reward-pivot.md`](./adr/0003-free-reward-pivot.md), 0001 superseded). §5.4의 유상 가챠·충전금·확률 공시·전자금융 항목은 이 결정으로 대체된다.
 - 관련 산출물: 도메인 용어는 `CONTEXT.md`, 무료 카드 리워드는 [ADR-0003](./adr/0003-free-reward-pivot.md)·[ADR-0004](./adr/0004-draw-ticket-card-packs.md), 19+ 유한 실물 쿠지는 #212·#213이 각각 정본이다. [ADR-0002](./adr/0002-cross-platform-popup-game-miniapps.md)는 superseded 이력이며 현 로드맵의 구현 근거가 아니다.
