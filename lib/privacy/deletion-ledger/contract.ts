@@ -5,6 +5,7 @@ import { createHash, createHmac } from 'node:crypto';
 import {
   encodeCanonicalField,
   isCanonicalUtcMillisecondTimestamp,
+  isWellFormedUnicode,
 } from './internal';
 
 const subjectTombstoneBrand: unique symbol = Symbol('deletion-ledger-subject-tombstone');
@@ -155,11 +156,19 @@ function encodeEventKeyHmacInput(
   ].join('');
 }
 
-function copyHmacKey({
-  namespace,
-  keyVersion,
-  keyMaterial,
-}: VersionedHmacFactoryOptions): Uint8Array {
+interface HmacFactorySnapshot {
+  readonly namespace: string;
+  readonly keyVersion: string;
+  readonly key: Uint8Array;
+}
+
+function snapshotHmacFactoryOptions(
+  options: VersionedHmacFactoryOptions,
+): HmacFactorySnapshot {
+  if (!options || typeof options !== 'object') return invalidContractInput();
+  const namespace = options.namespace;
+  const keyVersion = options.keyVersion;
+  const keyMaterial = options.keyMaterial;
   if (
     typeof namespace !== 'string'
     || !SAFE_IDENTIFIER.test(namespace)
@@ -170,13 +179,18 @@ function copyHmacKey({
   ) {
     return invalidContractInput();
   }
-  return Uint8Array.from(keyMaterial);
+  return Object.freeze({
+    namespace,
+    keyVersion,
+    key: Uint8Array.from(keyMaterial),
+  });
 }
 
 function validateTransientReference(reference: string): void {
   if (
     typeof reference !== 'string'
     || reference.length === 0
+    || !isWellFormedUnicode(reference)
     || Buffer.byteLength(reference, 'utf8') > 512
   ) {
     return invalidContractInput();
@@ -186,8 +200,7 @@ function validateTransientReference(reference: string): void {
 export function createVersionedEventKeyFactory(
   options: VersionedHmacFactoryOptions,
 ): DeletionEventKeyFactory {
-  const { namespace, keyVersion } = options;
-  const key = copyHmacKey(options);
+  const { namespace, keyVersion, key } = snapshotHmacFactoryOptions(options);
 
   return (eventReference) => {
     validateTransientReference(eventReference);
@@ -222,8 +235,7 @@ export function digestDeletionLedgerEvent(event: DeletionLedgerEvent): string {
 export function createVersionedSubjectHmacFactory(
   options: VersionedHmacFactoryOptions,
 ): SubjectHmacFactory {
-  const { namespace, keyVersion } = options;
-  const key = copyHmacKey(options);
+  const { namespace, keyVersion, key } = snapshotHmacFactoryOptions(options);
 
   return (subjectReference) => {
     validateTransientReference(subjectReference);

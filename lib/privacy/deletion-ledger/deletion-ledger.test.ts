@@ -43,6 +43,56 @@ function inMemoryLedger(pageSize = 2, generation = 'g1') {
 }
 
 describe('secondary deletion ledger contract', () => {
+  it('rejects ill-formed Unicode references before HMAC encoding', () => {
+    const createEventKey = createVersionedEventKeyFactory({
+      namespace: 'local-test',
+      keyVersion: 'k1',
+      keyMaterial: FIXTURE_HMAC_KEY,
+    });
+    const createSubjectHmac = createVersionedSubjectHmacFactory({
+      namespace: 'local-test',
+      keyVersion: 'k1',
+      keyMaterial: FIXTURE_HMAC_KEY,
+    });
+
+    for (const illFormedReference of ['\uD800', '\uD801', '\uDC00']) {
+      expect(() => createEventKey(illFormedReference)).toThrow(TypeError);
+      expect(() => createSubjectHmac(illFormedReference)).toThrow(TypeError);
+    }
+    expect(() => createEventKey('synthetic-😀-reference')).not.toThrow();
+  });
+
+  it('snapshots every accessor-backed HMAC option exactly once', () => {
+    function accessorOptions() {
+      const reads = { namespace: 0, keyVersion: 0, keyMaterial: 0 };
+      const options = {
+        get namespace() {
+          reads.namespace += 1;
+          return reads.namespace === 1 ? 'local-test' : 'unexpected-namespace';
+        },
+        get keyVersion() {
+          reads.keyVersion += 1;
+          return reads.keyVersion === 1 ? 'k1' : '1990-01-01';
+        },
+        get keyMaterial() {
+          reads.keyMaterial += 1;
+          return reads.keyMaterial === 1 ? FIXTURE_HMAC_KEY : new Uint8Array(31);
+        },
+      };
+      return { options, reads };
+    }
+
+    const eventKeyCase = accessorOptions();
+    const createEventKey = createVersionedEventKeyFactory(eventKeyCase.options);
+    expect(eventKeyCase.reads).toEqual({ namespace: 1, keyVersion: 1, keyMaterial: 1 });
+    expect(createEventKey('synthetic-event-reference')).toMatch(/^evt_v1_k1_/);
+
+    const subjectCase = accessorOptions();
+    const createSubjectHmac = createVersionedSubjectHmacFactory(subjectCase.options);
+    expect(subjectCase.reads).toEqual({ namespace: 1, keyVersion: 1, keyMaterial: 1 });
+    expect(createSubjectHmac('synthetic-subject')).toMatchObject({ keyVersion: 'k1' });
+  });
+
   it('requires factory-branded subject tombstones at the public type boundary', () => {
     type PlainStructuralTombstone = {
       readonly encodingVersion: 1;

@@ -36,7 +36,7 @@ event에는 다음 고정 필드만 canonicalize한다.
 7. 64자리 lowercase HMAC digest
 8. millisecond precision UTC `occurredAt`
 
-원문 user UUID, email, DOB, 거래 payload는 event key나 event payload에 넣지 않는다. event key는 원문 operation reference를 직접 받지 않고 `DeletionEventKeyFactory`의 domain-separated HMAC 출력만 받으며 TypeScript brand와 runtime format 검증을 함께 적용한다. subject 원문은 주입된 `SubjectHmacFactory` 호출 중에만 사용하고 반환 tombstone에는 남기지 않는다. subject tombstone도 factory만 붙일 수 있는 비공개 TypeScript/runtime symbol brand를 요구해 plain structural object의 HMAC 사칭을 거절하며 symbol은 직렬화 결과에 나오지 않는다. 두 factory의 key version은 PII를 끼워 넣을 수 없는 `k1`, `k2`, … 형식으로 제한한다.
+원문 user UUID, email, DOB, 거래 payload는 event key나 event payload에 넣지 않는다. event key는 원문 operation reference를 직접 받지 않고 `DeletionEventKeyFactory`의 domain-separated HMAC 출력만 받으며 TypeScript brand와 runtime format 검증을 함께 적용한다. subject 원문은 주입된 `SubjectHmacFactory` 호출 중에만 사용하고 반환 tombstone에는 남기지 않는다. 두 factory는 ill-formed Unicode reference를 UTF-8 변환 전에 거절해 서로 다른 UTF-16 입력이 replacement character로 합쳐지지 않게 한다. subject tombstone도 factory만 붙일 수 있는 비공개 TypeScript/runtime symbol brand를 요구해 plain structural object의 HMAC 사칭을 거절하며 symbol은 직렬화 결과에 나오지 않는다. 두 factory의 key version은 PII를 끼워 넣을 수 없는 `k1`, `k2`, … 형식으로 제한한다. options는 namespace, key version, key material을 각각 정확히 한 번 snapshot한 뒤 그 동일 값만 검증·사용한다.
 
 event-key factory 입력은 다음 순서로 고정한다.
 
