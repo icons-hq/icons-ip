@@ -289,6 +289,17 @@ describe('GET /auth/callback', () => {
     expect(response.headers.get('set-cookie')).toContain(`${AUTH_NEXT_COOKIE_NAME}=;`);
   });
 
+  it('returns an incomplete OAuth account to self-service deletion before onboarding', async () => {
+    mocks.getProfileForUser.mockResolvedValue({ ...completeProfile, onboarded_at: null });
+
+    const response = await GET(request(
+      '/auth/callback?code=oauth-code',
+      signedCookie('oauth', '/settings/delete-account'),
+    ));
+
+    expect(locationPath(response)).toBe('/settings/delete-account');
+  });
+
   it('returns an onboarded OAuth user to the original safe path', async () => {
     const response = await GET(request('/auth/callback?code=oauth-code', signedCookie('oauth')));
 

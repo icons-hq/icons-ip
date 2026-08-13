@@ -23,11 +23,11 @@ vi.mock('next/navigation', () => ({
   },
 }));
 
-function formData() {
+function formData(next = '/orders') {
   const data = new FormData();
   data.set('email', 'fan@icons.gg');
   data.set('password', 'password1234');
-  data.set('next', '/orders');
+  data.set('next', next);
   return data;
 }
 
@@ -53,6 +53,14 @@ describe('signInWithEmailAction', () => {
 
     await expect(signInWithEmailAction({}, formData())).rejects.toThrow(
       'NEXT_REDIRECT:/account-suspended',
+    );
+  });
+
+  it('returns an incomplete account to the deletion route without forcing onboarding', async () => {
+    mocks.getProfileForUser.mockResolvedValue(null);
+
+    await expect(signInWithEmailAction({}, formData('/settings/delete-account'))).rejects.toThrow(
+      'NEXT_REDIRECT:/settings/delete-account',
     );
   });
 });

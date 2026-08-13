@@ -139,6 +139,149 @@ values
     '{"recipient":"other-private-value"}'::jsonb
   );
 
+insert into public.orders (
+  id, user_id, status, total, address, shipping_carrier, tracking_number,
+  shipped_at, delivered_at
+)
+values (
+  '00000000-0000-4000-8000-000000001306',
+  '00000000-0000-4000-8000-000000001371',
+  'done', 33000,
+  '{"recipient":"never-snapshot","phone":"010-secret"}'::jsonb,
+  'hanjin', '123456789012',
+  '2026-08-01T01:00:00Z', '2026-08-02T02:00:00Z'
+);
+
+insert into public.order_cancellation_requests (
+  id, order_id, requested_by, reason, reason_type, status,
+  decided_at, provider_started_at, completed_at, requested_at
+)
+values (
+  '00000000-0000-4000-8000-000000001310',
+  '00000000-0000-4000-8000-000000001306',
+  '00000000-0000-4000-8000-000000001371',
+  'free text must not be snapshotted', 'defect', 'completed',
+  '2026-08-03T01:00:00Z', '2026-08-03T02:00:00Z',
+  '2026-08-03T03:00:00Z', '2026-08-03T00:00:00Z'
+);
+
+insert into public.payments (
+  id, user_id, purpose, ref_id, provider, amount, status, idempotency_key
+)
+values (
+  '00000000-0000-4000-8000-000000001311',
+  '00000000-0000-4000-8000-000000001371',
+  'order', '00000000-0000-4000-8000-000000001306', 'korpay',
+  33000, 'paid', 'legal-snapshot-order-payment'
+);
+
+insert into public.payment_attempts (
+  id, provider, user_id, purpose, ref_id, amount, state, idempotency_key,
+  provider_order_id, provider_product_code, payment_id, expires_at
+)
+values (
+  '00000000-0000-4000-8000-000000001312', 'korpay',
+  '00000000-0000-4000-8000-000000001371', 'order',
+  '00000000-0000-4000-8000-000000001306', 33000, 'approved',
+  'legal-snapshot-order-attempt', 'O00000000000040008000000000001312',
+  'P00000000000040008000000000001312',
+  '00000000-0000-4000-8000-000000001311', now() + interval '10 minutes'
+);
+
+insert into private.payment_provider_evidence (
+  id, payment_attempt_id, evidence_kind, provider_transaction_id, approved_at
+)
+values (
+  '00000000-0000-4000-8000-000000001313',
+  '00000000-0000-4000-8000-000000001312',
+  'confirm', 'private-provider-transaction', '2026-08-01T00:30:00Z'
+);
+
+insert into public.refunds (
+  id, payment_id, amount, reason, status, cancellation_request_id
+)
+values (
+  '00000000-0000-4000-8000-000000001314',
+  '00000000-0000-4000-8000-000000001311',
+  33000, 'private refund reason', 'done',
+  '00000000-0000-4000-8000-000000001310'
+);
+
+insert into public.events (
+  id, title, mode, status, starts_at, ends_at
+)
+values (
+  'account-deletion-legal-event', '법정 snapshot 이벤트', '오프라인', '종료',
+  '2026-08-04T01:00:00Z', '2026-08-04T03:00:00Z'
+);
+
+insert into public.ticket_types (
+  id, event_id, name, price, capacity
+)
+values (
+  '00000000-0000-4000-8000-000000001315',
+  'account-deletion-legal-event', '오후 회차', 15000, 10
+);
+
+insert into public.ticket_orders (
+  id, user_id, event_id, status, total
+)
+values (
+  '00000000-0000-4000-8000-000000001316',
+  '00000000-0000-4000-8000-000000001371',
+  'account-deletion-legal-event', 'canceled', 15000
+);
+
+insert into public.tickets (
+  id, ticket_order_id, ticket_type_id, qr_token, status
+)
+values (
+  '00000000-0000-4000-8000-000000001317',
+  '00000000-0000-4000-8000-000000001316',
+  '00000000-0000-4000-8000-000000001315',
+  'private-qr-token', 'refunded'
+);
+
+insert into public.check_ins (ticket_id, checked_at)
+values (
+  '00000000-0000-4000-8000-000000001317',
+  '2026-08-04T01:30:00Z'
+);
+
+insert into public.ticket_cancellation_requests (
+  id, ticket_order_id, requested_by, source, status, policy_code, cutoff_at,
+  gross_amount, fee_amount, refund_amount, reason, provider_started_at,
+  completed_at, requested_at
+)
+values (
+  '00000000-0000-4000-8000-000000001318',
+  '00000000-0000-4000-8000-000000001316',
+  '00000000-0000-4000-8000-000000001371',
+  'user', 'completed', 'event_start_full_refund_v1', '2026-08-04T01:00:00Z',
+  15000, 0, 15000, 'free text ticket reason',
+  '2026-08-03T05:00:00Z', '2026-08-03T06:00:00Z', '2026-08-03T04:00:00Z'
+);
+
+insert into public.payments (
+  id, user_id, purpose, ref_id, amount, status, idempotency_key
+)
+values (
+  '00000000-0000-4000-8000-000000001319',
+  '00000000-0000-4000-8000-000000001371',
+  'ticket', '00000000-0000-4000-8000-000000001316',
+  15000, 'refunded', 'legal-snapshot-ticket-payment'
+);
+
+insert into public.refunds (
+  id, payment_id, amount, reason, status, ticket_cancellation_request_id
+)
+values (
+  '00000000-0000-4000-8000-000000001320',
+  '00000000-0000-4000-8000-000000001319',
+  15000, 'private ticket refund reason', 'done',
+  '00000000-0000-4000-8000-000000001318'
+);
+
 insert into public.posts (id, user_id, text, status)
 values (
   '00000000-0000-4000-8000-000000001303',
@@ -257,7 +400,7 @@ select 1 / case when exists (
       'status', 'pending',
       'total', 11000,
       'shippingFee', 0,
-      'createdAt', (select created_at from public.orders where id = '00000000-0000-4000-8000-000000001301'),
+      'contractedAt', (select created_at from public.orders where id = '00000000-0000-4000-8000-000000001301'),
       'items', '[]'::jsonb
     )
 ) then 1 else 0 end as assert_legal_snapshot_is_allowlisted_and_minimal;
@@ -267,9 +410,114 @@ select 1 / case when not exists (
   from private.account_deletion_legal_snapshots
   where snapshot_data::text like '%do-not-copy%'
      or snapshot_data::text like '%secret%'
+     or snapshot_data::text like '%free text must not be snapshotted%'
+     or snapshot_data::text like '%private refund reason%'
+     or snapshot_data::text like '%private ticket refund reason%'
+     or snapshot_data::text like '%private-qr-token%'
      or snapshot_data ? 'email'
      or snapshot_data ? 'address'
 ) then 1 else 0 end as assert_raw_pii_is_not_snapshotted;
+
+select 1 / case when (
+  select array_agg(distinct record_type order by record_type)
+  from private.account_deletion_legal_snapshots
+) @> array[
+  'order_cancellation', 'shipment', 'payment', 'refund',
+  'ticket_order', 'ticket_cancellation', 'ticket_check_in'
+]::text[] then 1 else 0 end as assert_required_legal_record_types_are_snapshotted;
+
+select 1 / case when exists (
+  select 1
+  from private.account_deletion_legal_snapshots
+  where record_type = 'order_cancellation'
+    and record_ref = '00000000-0000-4000-8000-000000001310'
+    and snapshot_data = jsonb_build_object(
+      'cancellationRef', '00000000-0000-4000-8000-000000001310',
+      'orderRef', '00000000-0000-4000-8000-000000001306',
+      'status', 'completed',
+      'decision', 'approved',
+      'reasonType', 'defect',
+      'requestedAt', '2026-08-03T00:00:00+00'::timestamptz,
+      'decidedAt', '2026-08-03T01:00:00+00'::timestamptz,
+      'providerStartedAt', '2026-08-03T02:00:00+00'::timestamptz,
+      'completedAt', '2026-08-03T03:00:00+00'::timestamptz
+    )
+) then 1 else 0 end as assert_withdrawal_decision_is_allowlisted;
+
+select 1 / case when exists (
+  select 1
+  from private.account_deletion_legal_snapshots
+  where record_type = 'shipment'
+    and record_ref = '00000000-0000-4000-8000-000000001306'
+    and snapshot_data ->> 'carrier' = 'hanjin'
+    and snapshot_data ->> 'shippedAt' is not null
+    and snapshot_data ->> 'suppliedAt' is not null
+    and snapshot_data ->> 'opaqueTrackingRef' ~ '^[0-9a-f]{64}$'
+    and snapshot_data -> 'trackingKeyVersion' = '1'::jsonb
+    and snapshot_data::text not like '%123456789012%'
+) then 1 else 0 end as assert_shipping_snapshot_uses_opaque_tracking_ref;
+
+select 1 / case when exists (
+  select 1
+  from private.account_deletion_legal_snapshots
+  where record_type = 'payment'
+    and record_ref = '00000000-0000-4000-8000-000000001311'
+    and (snapshot_data ->> 'approvedAt')::timestamptz = '2026-08-01T00:30:00Z'
+    and snapshot_data::text not like '%private-provider-transaction%'
+) and exists (
+  select 1
+  from private.account_deletion_legal_snapshots
+  where record_type = 'refund'
+    and record_ref = '00000000-0000-4000-8000-000000001314'
+    and (snapshot_data ->> 'refundedAt')::timestamptz = '2026-08-03T03:00:00Z'
+) then 1 else 0 end as assert_payment_approval_and_refund_times_are_preserved;
+
+select 1 / case when exists (
+  select 1
+  from private.account_deletion_legal_snapshots
+  where record_type = 'ticket_cancellation'
+    and record_ref = '00000000-0000-4000-8000-000000001318'
+    and snapshot_data ->> 'policyCode' = 'event_start_full_refund_v1'
+    and (snapshot_data ->> 'completedAt')::timestamptz = '2026-08-03T06:00:00Z'
+) and exists (
+  select 1
+  from private.account_deletion_legal_snapshots
+  where record_type = 'ticket_check_in'
+    and record_ref = '00000000-0000-4000-8000-000000001317'
+    and (snapshot_data ->> 'checkedAt')::timestamptz = '2026-08-04T01:30:00Z'
+    and not (snapshot_data ? 'byStaff')
+) then 1 else 0 end as assert_ticket_cancellation_and_check_in_are_allowlisted;
+
+reset role;
+
+update public.orders
+set status = 'done'
+where id = '00000000-0000-4000-8000-000000001301';
+
+update public.payment_attempts
+set state = 'declined'
+where id = '00000000-0000-4000-8000-000000001304';
+
+set local role authenticated;
+
+select 1 / case when public.get_my_account_deletion_status() =
+  jsonb_build_object(
+    'status', 'processing',
+    'phase', 'awaiting_notification',
+    'nextAction', 'retry_later',
+    'blockers', '[]'::jsonb
+  )
+then 1 else 0 end as assert_status_reconciles_after_obligations_finish;
+
+reset role;
+
+select 1 / case when exists (
+  select 1
+  from private.account_deletion_legal_snapshots
+  where record_type = 'order'
+    and record_ref = '00000000-0000-4000-8000-000000001301'
+    and snapshot_data ->> 'status' = 'done'
+) then 1 else 0 end as assert_reconcile_refreshes_existing_legal_snapshot;
 
 do $$
 begin
@@ -324,7 +572,82 @@ end;
 $$;
 
 reset role;
+
+update private.community_write_control
+set post_create_enabled = true
+where singleton;
+
+insert into storage.objects (bucket_id, name, owner_id, metadata)
+values (
+  'user-uploads',
+  '00000000-0000-4000-8000-000000001371/community/88888888-8888-4888-8888-888888888888.png',
+  '00000000-0000-4000-8000-000000001371',
+  '{"stage":"before-fence-update"}'::jsonb
+);
+
+create policy account_deletion_test_user_upload_update
+on storage.objects for update
+to authenticated
+using (
+  bucket_id = 'user-uploads'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+)
+with check (
+  bucket_id = 'user-uploads'
+  and (storage.foldername(name))[1] = (select auth.uid())::text
+);
+
 set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000001371', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+do $$
+begin
+  begin
+    insert into storage.objects (bucket_id, name, owner_id)
+    values (
+      'user-uploads',
+      '00000000-0000-4000-8000-000000001371/community/66666666-6666-4666-8666-666666666666.png',
+      '00000000-0000-4000-8000-000000001371'
+    );
+  exception
+    when insufficient_privilege then return;
+  end;
+  raise exception 'fenced community Storage INSERT should be rejected by Data API RLS';
+end;
+$$;
+
+do $$
+declare
+  affected integer;
+begin
+  update storage.objects
+  set metadata = '{"stage":"after-fence-update"}'::jsonb
+  where bucket_id = 'user-uploads'
+    and name = '00000000-0000-4000-8000-000000001371/community/88888888-8888-4888-8888-888888888888.png';
+  get diagnostics affected = row_count;
+  if affected <> 0 then
+    raise exception 'fenced community Storage UPDATE should be rejected by Data API RLS';
+  end if;
+end;
+$$;
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000001372', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+
+insert into storage.objects (bucket_id, name, owner_id)
+values (
+  'user-uploads',
+  '00000000-0000-4000-8000-000000001372/community/77777777-7777-4777-8777-777777777777.png',
+  '00000000-0000-4000-8000-000000001372'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000001371', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
 
 do $$
 begin
@@ -345,21 +668,45 @@ reset role;
 
 -- Existing obligations remain reconcilable after the fence.
 update public.orders
-set status = 'paid'
+set updated_at = pg_catalog.now()
 where id = '00000000-0000-4000-8000-000000001301';
 
 select 1 / case when not has_table_privilege(
   'anon', 'private.account_deletion_requests', 'SELECT'
 )
+  and not has_table_privilege('anon', 'private.account_deletion_control', 'SELECT')
+  and not has_table_privilege('authenticated', 'private.account_deletion_control', 'SELECT')
+  and not has_table_privilege('service_role', 'private.account_deletion_control', 'SELECT')
   and not has_table_privilege('authenticated', 'private.account_deletion_requests', 'SELECT')
   and not has_table_privilege('service_role', 'private.account_deletion_requests', 'SELECT')
   and not has_table_privilege('service_role', 'private.account_deletion_legal_snapshots', 'SELECT')
 then 1 else 0 end as assert_private_ledgers_are_not_data_api_readable;
 
+select 1 / case when (
+  select count(*) = 2
+    and bool_and(not policy.polpermissive)
+    and bool_and(policy.polroles = array['authenticated'::regrole::oid])
+    and bool_and(policy.polcmd in ('a', 'w'))
+  from pg_catalog.pg_policy as policy
+  where policy.polrelid = 'storage.objects'::regclass
+    and policy.polname in (
+      'user_uploads_account_fence_insert',
+      'user_uploads_account_fence_update'
+    )
+) then 1 else 0 end as assert_account_storage_fence_is_restrictive;
+
 select 1 / case when not has_function_privilege(
   'anon', 'public.request_my_account_deletion(text,uuid)', 'EXECUTE'
 ) and has_function_privilege(
   'authenticated', 'public.request_my_account_deletion(text,uuid)', 'EXECUTE'
+) and not has_function_privilege(
+  'authenticated', 'private.reconcile_account_deletion_request(uuid)', 'EXECUTE'
+) and not has_function_privilege(
+  'authenticated', 'private.is_account_write_fenced(uuid)', 'EXECUTE'
+) and not has_function_privilege(
+  'anon', 'private.can_write_account_storage_object()', 'EXECUTE'
+) and has_function_privilege(
+  'authenticated', 'private.can_write_account_storage_object()', 'EXECUTE'
 ) then 1 else 0 end as assert_self_rpc_grants_are_minimal;
 
 rollback;

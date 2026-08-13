@@ -3,8 +3,8 @@ import {
   ACCOUNT_SUSPENDED_PATH,
   authErrorMessage,
   isAccountSuspended,
-  isOnboarded,
   passwordResetErrorMessage,
+  postAuthenticationPath,
   safeNextPath,
 } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
@@ -35,8 +35,7 @@ export default async function Page({ searchParams }: PageProps) {
 
   if (auth.user) {
     if (isAccountSuspended(auth.profile)) redirect(ACCOUNT_SUSPENDED_PATH);
-    if (isOnboarded(auth.profile, auth.user.email)) redirect(next);
-    redirect(`/onboarding?next=${encodeURIComponent(next)}`);
+    redirect(postAuthenticationPath(auth.profile, auth.user.email, next));
   }
 
   // 좌측 브랜드 패널 플로팅 카드 — 상위 등급 카드 아트 3장

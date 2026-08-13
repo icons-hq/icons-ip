@@ -6,8 +6,7 @@ import {
   AUTH_NEXT_COOKIE_NAME,
   authErrorLoginPath,
   isAccountSuspended,
-  isOnboarded,
-  onboardingPath,
+  postAuthenticationPath,
   passwordResetErrorLoginPath,
   publicPasswordRecoveryErrorCode,
   safeNextPath,
@@ -167,9 +166,7 @@ export async function GET(request: NextRequest) {
     request,
     isAccountSuspended(profile)
       ? ACCOUNT_SUSPENDED_PATH
-      : isOnboarded(profile, data.user.email)
-        ? state.loginNext
-        : onboardingPath(state.loginNext),
+      : postAuthenticationPath(profile, data.user.email, state.loginNext),
     true,
     authResponse,
   );

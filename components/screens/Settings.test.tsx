@@ -142,6 +142,24 @@ describe('Settings', () => {
     expect(html).not.toContain('name="confirmation"');
   });
 
+  it('shows current opaque blockers before the first request', () => {
+    const html = render({
+      accountDeletion: {
+        preview: {
+          available: true,
+          eligible: false,
+          blockers: [{ code: 'active_order', count: 2, path: '/orders' }],
+        },
+        status: { status: 'not_requested', phase: 'none', nextAction: '/settings', blockers: [] },
+      },
+    });
+
+    expect(html).toContain('신청 전에 진행 중인 의무');
+    expect(html).toContain('신청 전 해결할 항목 2건 확인');
+    expect(html).toContain('href="/orders"');
+    expect(html).toContain('name="confirmation"');
+  });
+
   it('renders independent profile and marketing forms with an editable signed avatar preview', () => {
     const html = render();
 

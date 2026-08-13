@@ -105,4 +105,17 @@ describe('/login page', () => {
     })).rejects.toThrow('NEXT_REDIRECT:/account-suspended');
     expect(mocks.loginProps).toBeNull();
   });
+
+  it('returns an incomplete authenticated session to self-service deletion', async () => {
+    mocks.auth = {
+      isConfigured: true,
+      user: { id: 'user-1', email: 'fan@icons.gg' },
+      profile: null,
+      isStaff: false,
+    };
+
+    await expect(Page({
+      searchParams: Promise.resolve({ next: '/settings/delete-account' }),
+    })).rejects.toThrow('NEXT_REDIRECT:/settings/delete-account');
+  });
 });

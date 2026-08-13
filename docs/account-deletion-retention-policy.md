@@ -21,7 +21,7 @@
 
 처리 순서는 다음으로 고정한다.
 
-1. `request/fence`: self-only 요청과 멱등키를 기록하고 새 구매·예매·작성·카드팩 개봉·게임·마케팅을 차단한다.
+1. `request/fence`: self-only 요청과 멱등키를 기록하고 새 구매·예매·작성·카드팩 개봉·게임·마케팅과 새·갱신 커뮤니티 Storage 업로드를 차단한다. 신청과 보호 write는 같은 사용자별 transaction lock으로 순서를 정한다.
 2. `legal snapshot`: 아래 매트릭스에 해당하는 최소 record와 `retain_until`을 분리 저장한다.
 3. `email fence`: #191의 durable outbox와 Resend/Supabase Send Email Hook이 탈퇴 대상의 새 발송을 막고 in-flight 결과를 종결한다.
 4. `hard delete`: 커뮤니티 연결 해제와 이미지 삭제, Storage 잔여 0건, 일반 DB 개인정보 삭제, 전역 sign-out과 Auth hard delete를 순서대로 수행한다.
@@ -29,6 +29,8 @@
 6. `restore replay`: 운영 DB 복원 시 compliance sequence 이후 event를 replay해 복원된 subject를 다시 제거한 뒤에만 writer와 public traffic을 연다.
 
 `hard delete`와 secondary tombstone 이후에는 reverse migration을 제공하지 않고 forward repair만 허용한다. 실제 Production hard delete 직전에는 대상과 비가역성을 다시 표시해 사용자 확인을 받는다.
+
+Phase 1에서 blocked request는 종결 상태가 아니다. 기존 주문·결제·환급 worker가 허용된 정합화 작업을 끝낸 뒤 동일 신청 replay 또는 상태 조회가 진행 의무와 allowlist snapshot을 다시 평가한다. blocker가 모두 해소되어도 `awaiting_notification`까지만 전진하며 hard delete를 시작하지 않는다.
 
 ## 3. 진행 중 의무 gate
 

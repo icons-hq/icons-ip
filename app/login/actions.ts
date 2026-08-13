@@ -13,8 +13,8 @@ import {
   authRecoveryCallbackUrl,
   authSignUpErrorMessage,
   isAccountSuspended,
-  isOnboarded,
   onboardingPath,
+  postAuthenticationPath,
   safeNextPath,
 } from '@/lib/auth/onboarding';
 import {
@@ -348,7 +348,7 @@ export async function signInWithEmailAction(_state: AuthActionState, formData: F
 
   const profile = await getProfileForUser(supabase, data.user.id);
   if (isAccountSuspended(profile)) redirect(ACCOUNT_SUSPENDED_PATH);
-  redirect(isOnboarded(profile, data.user.email) ? next : onboardingPath(next));
+  redirect(postAuthenticationPath(profile, data.user.email, next));
 }
 
 export async function signUpWithEmailAction(_state: AuthActionState, formData: FormData): Promise<AuthActionState> {
