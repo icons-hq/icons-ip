@@ -111,7 +111,9 @@ set email = case id
     birth_date = '2000-01-01',
     consents = '{"terms":true,"privacy":true}',
     onboarded_at = now(),
-    role = case when id = '${staff_user}'::uuid then 'staff' else 'user' end
+    role = (
+      case when id = '${staff_user}'::uuid then 'staff' else 'user' end
+    )::public.user_role
 where id in ('${owner_one}'::uuid, '${owner_two}'::uuid, '${staff_user}'::uuid);
 
 insert into public.events (id, title, mode, status, starts_at)

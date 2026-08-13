@@ -4,13 +4,16 @@ import {
   TicketPaymentReconciliationInProgressError,
   TicketRefundInProgressError,
 } from '@/lib/payments/ticket-checkout';
-import { ticketCheckoutPaymentsEnabled } from '@/lib/payments/ticket-checkout-availability';
+import { ticketPaymentReconciliationAvailable } from '@/lib/payments/ticket-checkout-availability';
 import { createRuntimeTicketPaymentCheckout } from '@/lib/payments/ticket-checkout.runtime.server';
 
 function authorized(request: Request) {
   const secret = process.env.PAYMENT_RECONCILIATION_SECRET;
   const authorization = request.headers.get('authorization');
-  if (!secret || !authorization?.startsWith('Bearer ')) return false;
+  if (!secret
+    || !/^[A-Za-z0-9_-]{16,128}$/.test(secret)
+    || !authorization?.startsWith('Bearer ')
+  ) return false;
 
   const expected = Buffer.from(secret);
   const actual = Buffer.from(authorization.slice('Bearer '.length));
@@ -29,7 +32,9 @@ function response(body: Record<string, unknown>, status: number) {
 /** Explicit, separately authorized recovery for one reviewed ticket case. */
 export async function POST(request: Request) {
   if (!authorized(request)) return response({ error: 'unauthorized' }, 401);
-  if (!ticketCheckoutPaymentsEnabled()) return response({ error: 'payment_unavailable' }, 503);
+  if (!ticketPaymentReconciliationAvailable()) {
+    return response({ error: 'payment_unavailable' }, 503);
+  }
 
   let body: unknown;
   try {

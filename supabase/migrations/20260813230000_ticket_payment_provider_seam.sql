@@ -326,6 +326,8 @@ begin
     raise not_null_violation using message = 'user required';
   end if;
 
+  perform private.assert_active_user(v_user);
+
   if not exists (
     select 1
     from public.profiles as profile
@@ -338,7 +340,6 @@ begin
       and profile.onboarded_at is not null
       and profile.consents ->> 'terms' = 'true'
       and profile.consents ->> 'privacy' = 'true'
-      and profile.suspended_at is null
   ) or private.is_account_write_fenced(v_user) then
     raise insufficient_privilege using message = 'onboarding required';
   end if;

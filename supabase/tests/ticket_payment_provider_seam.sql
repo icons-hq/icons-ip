@@ -131,6 +131,35 @@ on conflict (id) do update set
   per_user_limit = excluded.per_user_limit,
   sales_open_at = excluded.sales_open_at;
 
+update public.profiles
+set suspended_at = now(),
+    suspension_reason = 'ticket payment seam regression'
+where id = '00000000-0000-4000-8000-000000002062';
+
+do $suspended_reservation_contract$
+begin
+  begin
+    perform public.reserve_tickets(
+      '00000000-0000-4000-8000-000000002062',
+      '10000000-0000-4000-8000-000000002061',
+      1,
+      '20000000-0000-4000-8000-000000002060'
+    );
+  exception when insufficient_privilege then
+    if sqlerrm = 'account_suspended' then
+      return;
+    end if;
+    raise;
+  end;
+  raise exception 'suspended ticket reservation should preserve account_suspended';
+end;
+$suspended_reservation_contract$;
+
+update public.profiles
+set suspended_at = null,
+    suspension_reason = null
+where id = '00000000-0000-4000-8000-000000002062';
+
 select public.reserve_tickets(
   '00000000-0000-4000-8000-000000002061',
   '10000000-0000-4000-8000-000000002061',
@@ -317,14 +346,17 @@ select public.claim_ticket_payment_attempt(
   '40000000-0000-4000-8000-000000002067'
 );
 
+select set_config('test.stale_ticket_attempt_id', :'stale_attempt_id', true);
+
 do $ticket_stale_claim_reconciliation$
 declare
   active_claim jsonb;
   reclaimed_claim jsonb;
   terminal_claim jsonb;
+  stale_attempt_id uuid := current_setting('test.stale_ticket_attempt_id')::uuid;
 begin
   active_claim := public.claim_ticket_payment_reconciliation(
-    :'stale_attempt_id',
+    stale_attempt_id,
     '41000000-0000-4000-8000-000000002067',
     'case_stale_payment_2067'
   );
@@ -336,10 +368,10 @@ begin
   -- died before finalize. Only the explicit reconciliation path may recover.
   update public.payment_attempts
   set claim_expires_at = now() - interval '1 second'
-  where id = :'stale_attempt_id'::uuid;
+  where id = stale_attempt_id;
 
   reclaimed_claim := public.claim_ticket_payment_reconciliation(
-    :'stale_attempt_id',
+    stale_attempt_id,
     '41000000-0000-4000-8000-000000002067',
     'case_stale_payment_2067'
   );
@@ -348,7 +380,7 @@ begin
   end if;
 
   if public.finalize_ticket_payment_reconciliation(
-    :'stale_attempt_id',
+    stale_attempt_id,
     '41000000-0000-4000-8000-000000002067',
     'approved',
     null,
@@ -363,7 +395,7 @@ begin
   end if;
 
   terminal_claim := public.claim_ticket_payment_reconciliation(
-    :'stale_attempt_id',
+    stale_attempt_id,
     '41000000-0000-4000-8000-000000002068',
     'case_stale_payment_replay_2067'
   );

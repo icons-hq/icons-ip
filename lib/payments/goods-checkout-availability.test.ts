@@ -1,15 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { goodsCheckoutPaymentsEnabled } from './goods-checkout-availability';
 
-const mocks = vi.hoisted(() => ({ providerConfigured: false }));
+const mocks = vi.hoisted(() => ({
+  providerConfigured: false,
+  checkoutEnabled: false,
+}));
 
 vi.mock('./runtime-gateway', () => ({
   paymentProviderConfigured: () => mocks.providerConfigured,
+  newPaymentCheckoutEnabled: () => mocks.checkoutEnabled,
 }));
 
 describe('goodsCheckoutPaymentsEnabled', () => {
   beforeEach(() => {
     mocks.providerConfigured = false;
+    mocks.checkoutEnabled = false;
     vi.unstubAllEnvs();
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://example.supabase.co');
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
@@ -19,8 +24,11 @@ describe('goodsCheckoutPaymentsEnabled', () => {
     expect(goodsCheckoutPaymentsEnabled()).toBe(false);
   });
 
-  it('provider gate와 server trust boundary가 모두 준비돼야 열린다', () => {
+  it('provider·rollout gate와 server trust boundary가 모두 준비돼야 열린다', () => {
     mocks.providerConfigured = true;
+    expect(goodsCheckoutPaymentsEnabled()).toBe(false);
+
+    mocks.checkoutEnabled = true;
     expect(goodsCheckoutPaymentsEnabled()).toBe(true);
 
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');

@@ -1,7 +1,10 @@
 import 'server-only';
 
 import { getServiceRoleConfig } from '../supabase/service';
-import { paymentProviderConfigured } from './runtime-gateway';
+import {
+  newPaymentCheckoutEnabled,
+  paymentProviderConfigured,
+} from './runtime-gateway';
 
 /**
  * Goods reservations are created only when the provider-neutral server path is
@@ -9,5 +12,7 @@ import { paymentProviderConfigured } from './runtime-gateway';
  * unavailable in every runtime while still being fully exercisable with Fake.
  */
 export function goodsCheckoutPaymentsEnabled() {
-  return getServiceRoleConfig().isConfigured && paymentProviderConfigured();
+  return getServiceRoleConfig().isConfigured
+    && paymentProviderConfigured()
+    && newPaymentCheckoutEnabled();
 }
