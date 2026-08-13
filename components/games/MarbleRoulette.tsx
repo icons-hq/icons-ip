@@ -633,7 +633,7 @@ export function MarbleRoulette({
             )}
             <div className="money-caption" style={{ textAlign: 'center', marginTop: 12 }}>
               {variant.kind === 'goods'
-                ? '래플 연출 데모 — 결과는 서버가 결정하며 물리 연출은 장식입니다'
+                ? 'legacy 굿즈 연출 데모 · 실제 경품이나 구매권이 생기지 않는 mock입니다'
                 : '무상 리워드 · 결과는 서버가 결정하며 물리 연출은 장식입니다'}
             </div>
           </>
@@ -758,7 +758,7 @@ export function MarbleRoulette({
             </div>
             <div className="money-caption" style={{ marginTop: 14 }}>
               {granted.kind === 'goods'
-                ? '래플 연출 데모 — 실물 굿즈 경품은 래플 당첨 후 정가 결제로 구매합니다 · PoC mock'
+                ? 'legacy 굿즈 연출 데모 · 실제 경품이나 구매권이 생기지 않습니다 · PoC mock'
                 : live
                   ? '게임 보상 카드는 무상으로 발급되어 바인더에 저장됩니다'
                   : '게임 보상 카드는 무상으로 발급됩니다 · PoC mock 결과'}

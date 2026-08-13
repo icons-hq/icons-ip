@@ -673,7 +673,7 @@ export async function upsertAdminGameAction(
       return rpcFailure('플레이 이력이 있어 ID·카드풀·이벤트·설정을 변경할 수 없습니다.');
     }
     if (error.message.includes('game_variant_read_only')) {
-      return rpcFailure('굿즈 보상형 게임은 #115에서 운영합니다.');
+      return rpcFailure('legacy 굿즈 게임은 읽기 전용이며 현 로드맵에서 운영하지 않습니다.');
     }
     if (error.message.includes('game_id_conflict')) return rpcFailure('이미 사용 중인 게임 ID입니다.');
     if (error.message.includes('game_not_found')) return rpcFailure('게임을 찾을 수 없습니다.');
@@ -717,7 +717,7 @@ export async function endAdminGameAction(
       return rpcFailure('운영 중인 게임만 지금 종료할 수 있습니다.');
     }
     if (error.message.includes('game_variant_read_only')) {
-      return rpcFailure('굿즈 보상형 게임은 #115에서 운영합니다.');
+      return rpcFailure('legacy 굿즈 게임은 읽기 전용이며 현 로드맵에서 운영하지 않습니다.');
     }
     if (error.message.includes('game_not_found')) return rpcFailure('게임을 찾을 수 없습니다.');
     if (error.message.includes('operation_conflict')) {

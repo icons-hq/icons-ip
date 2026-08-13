@@ -1,7 +1,7 @@
 import type { Box2DModule } from './box2d-loader';
 import { seededRng, seededShuffle } from './seed';
 
-/* 마블 룰렛 물리 시뮬. 결과(보상)는 서버가 정하고 여기는 코스메틱 연출만 담당한다(ADR-0004).
+/* 마블 룰렛 물리 시뮬. 결과(보상)는 서버가 정하고 여기는 코스메틱 연출만 담당한다(ADR-0002).
  * (c1) 계약: 같은 시드 + 고정 타임스텝 + 같은 wasm 번들이면 헤드리스 사전 시뮬과
  * 화면 재생이 동일한 궤적·동일한 우승 구슬에 도달한다.
  * 회전 막대는 kinematic body(정확 적분)라 결정론을 깨지 않는다. */

@@ -3,12 +3,13 @@ import type { RarityKey } from '@/lib/rarity';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/client';
 
-/* PopupGameHost — 현재 웹 참여형 게임의 호스트 계약.
- * 이름에 남은 Popup은 legacy이며 Expo 지원을 뜻하지 않는다. 카드 결과는 서버가 결정한다(ADR-0004). */
+/* PopupGameHost — 호스트(웹/Expo)↔게임 브리지 계약(게임 미니앱 스펙 §2).
+ * 게임은 이 인터페이스만 의존하고, 결과·경품은 항상 서버가 결정한다(ADR-0002). */
 
 export type GrantedReward =
   | { kind: 'card'; cardId: string; rarity: RarityKey; isNew: boolean }
-  // 'goods'는 legacy PoC 연출 데모 전용이다. 활성 판매 경로가 아니며 실물 prize_sale에 재사용하지 않는다.
+  // 'goods'는 PoC 래플 연출 데모 전용 — 실물 굿즈의 무상 지급 경로가 아니다(ADR-0002 경품 경계).
+  // 실배선 시 굿즈 경품은 draw_raffle(당첨자 정가 결제 구매권) 계약으로만 존재한다.
   | { kind: 'goods'; goodsId: string };
 
 export interface GamePlayResult {
@@ -29,9 +30,7 @@ export interface RaffleResult {
 export interface PopupGameHost {
   getSession(): Promise<{ accessToken: string; userId: string } | null>;
   playGame(gameId: string): Promise<GamePlayResult>;
-  /** Legacy prototype-only API. 현 로드맵의 실물 쿠지는 별도 prize_sale seam을 사용한다. */
   getRaffleResult(raffleId: string): Promise<RaffleResult>;
-  /** Legacy prototype-only API. 신규 checkout에 연결하지 않는다. */
   startPrizeCheckout(raffleId: string): Promise<void>;
   haptics(type: 'light' | 'success'): void;
   share(payload: { title: string; url: string }): Promise<void>;

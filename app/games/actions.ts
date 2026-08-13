@@ -5,7 +5,7 @@ import { getCurrentAuthState } from '@/lib/auth/server';
 import { createClient } from '@/lib/supabase/server';
 import type { GamePlayResult } from '@/lib/games/host';
 
-/* 참여형 게임 플레이(#64) — 결과는 play_game RPC가 결정한다(ADR-0004).
+/* 참여형 게임 플레이(#64) — 결과는 play_game RPC가 결정한다(ADR-0002).
  * 게임은 공개 진입이므로 미로그인은 redirect가 아니라 에러 객체로 돌려주고,
  * 로그인 CTA는 풀블리드 게임 화면 안에서 노출한다. */
 

@@ -22,7 +22,7 @@ import { getSupabaseConfig } from '@/lib/supabase/config';
 import { resolveCatalogSource } from '@/lib/catalog-source';
 
 /* 카드팩 개봉(#71) — 카드는 open_draw_ticket RPC가 결정하고(#62),
- * 클라이언트 reveal 연출은 코스메틱이다(ADR-0004). */
+ * 클라이언트 reveal 연출은 코스메틱이다(ADR-0002). */
 
 export type OpenPackResult =
   | { status: 'opened'; cards: OpenedCard[] }
