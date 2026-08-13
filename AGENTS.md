@@ -21,7 +21,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - UI 문구, 도메인 용어, 사용자-facing 이름을 다룰 때는 `CONTEXT.md`를 먼저 읽는다.
 - 제품 범위, v1/v2 경계, P0~P3 우선순위가 걸린 작업은 `docs/PRD.md`를 먼저 읽는다.
 - DB, Auth, 결제, 권한, 라우팅 구조, mock→real 이전 작업은 `docs/ARCHITECTURE.md`를 먼저 읽는다.
-- 카드 리워드, 뽑기권, RNG, 게임 미니앱, 래플이 걸린 작업은 `docs/adr/0003-free-reward-pivot.md`·`docs/adr/0004-draw-ticket-card-packs.md`·`docs/adr/0002-cross-platform-popup-game-miniapps.md`도 함께 읽는다. 유료 가챠 유물(`wallets`·`pulls` 등)을 다루면 `docs/adr/0001-paid-digital-gacha.md`(superseded)를 참조한다.
+- 카드 리워드, 뽑기권, RNG, 참여형 게임이 걸린 작업은 `docs/adr/0003-free-reward-pivot.md`·`docs/adr/0004-draw-ticket-card-packs.md`를 함께 읽는다. `docs/adr/0002-cross-platform-popup-game-miniapps.md`는 superseded 이력이며 Expo나 범용 게임 미니앱 구현의 근거로 쓰지 않는다. 유료 가챠 유물(`wallets`·`pulls` 등)을 다루면 `docs/adr/0001-paid-digital-gacha.md`(superseded)를 참조한다.
+- 19+ 유한 실물 쿠지는 기존 디지털 카드·뽑기권·참여형 게임과 분리된 `prize_sale` 도메인이다. 현재 구현 범위와 선행 증거는 GitHub #212·#213을 따른다.
 - issue tracker, triage label, agent skill 운영 작업은 `docs/agents/`를 먼저 읽는다.
 
 문서가 서로 충돌하면 조용히 덮어쓰지 말고, 어떤 문서와 충돌하는지 먼저 밝힌다. 코드와 문서가 충돌하면 현재 동작은 코드가 진실이고, 문서는 별도 요청이 있을 때 갱신한다.
@@ -32,13 +33,14 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 수집형 디지털 `카드`와 실물 `굿즈`를 혼용하지 않는다.
 - `팬덤 가입`은 v1에서 무료 `팔로우`다. 유료 `멤버십`과 섞지 않는다.
 - `교환`은 카드 C2C, `마켓`은 굿즈 C2C다. 둘 다 v1에서는 플레이스홀더/v2 범위다.
-- 유료 가챠·`충전금`은 폐기됐다(ADR-0003·ADR-0004). `카드`는 `뽑기권`(UI 표기 "카드팩") 개봉과 참여형 게임의 무상 리워드로만 발급된다. 굿즈·티켓은 토스페이먼츠로 직접 결제한다.
+- 유료 가챠·`충전금`은 폐기됐다(ADR-0003·ADR-0004). `카드`는 `뽑기권`(UI 표기 "카드팩") 개봉과 참여형 게임의 무상 리워드로만 발급된다. 굿즈·티켓 신규 결제의 목표 provider는 Korpay다. 현재 provider-neutral expand 단계에서는 #205·#206 전환 전까지 Toss checkout을 호환 유지하고, 전환 뒤 Toss는 `provider=toss`인 기존 거래의 조회·취소·웹훅에만 남긴다.
+- 범용 온라인 팝업 운영 레이어와 Expo webview 호스트는 현 로드맵 범위가 아니다. 기존 게임 `goods` variant는 운영 콘솔에서 읽기 전용이며, 남아 있는 mock 연출은 실제 경품·구매권을 만들지 않는다. 실물 쿠지에 재사용하지 않는다.
 
 ## 구현 원칙
 
 - 공개 브라우징을 유지한다. IP·굿즈·카드·이벤트·커뮤니티 읽기는 기본 공개이고, 로그인은 구매·카드팩 개봉·게임 플레이·예매·작성·팔로우 같은 보호 액션 시점에 요구한다.
-- 돈, 재고, 카드 발급 RNG, 뽑기권 발급·개봉, 래플 추첨, 티켓 검표는 클라이언트나 앱 레벨 상태에 맡기지 않는다. Supabase Postgres RPC, RLS, 행 잠금, 멱등 처리를 기준으로 구현한다.
-- 결제 확정의 진실원은 토스페이먼츠 웹훅이다. 클라이언트 성공 콜백만으로 주문, 충전, 티켓을 확정하지 않는다.
+- 돈, 재고, 카드 발급 RNG, 뽑기권 발급·개봉, 유한 실물 경품 배정, 티켓 검표는 클라이언트나 앱 레벨 상태에 맡기지 않는다. Supabase Postgres RPC, RLS, 행 잠금, 멱등 처리를 기준으로 구현한다.
+- 결제 callback body와 클라이언트 성공 신호는 확정의 진실원이 아니다. 현재 Toss 호환 경로는 웹훅 수신 뒤 provider 재조회 결과로 확정하고, Korpay 전환 뒤에는 서버 전용 `PaymentGateway.confirm/reconcile` 결과와 DB 멱등 finalizer로만 주문·티켓을 확정한다.
 - 관리자 권한은 `profiles.role`과 RLS 양쪽에서 확인하고, 민감 작업은 감사 가능해야 한다.
 - `exchange`와 `market` 화면은 v2 전까지 프로토타입/플레이스홀더로 유지한다.
 

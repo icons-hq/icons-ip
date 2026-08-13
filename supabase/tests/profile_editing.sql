@@ -2,6 +2,11 @@
 
 begin;
 
+-- This suite verifies the legacy community upload branch independently of the
+-- launch gate. Production activation remains a separate reviewed migration.
+update private.community_write_control
+set post_create_enabled = true;
+
 insert into auth.users (
   id,
   aud,
@@ -822,11 +827,11 @@ select 1 / case when has_schema_privilege(
   'anon',
   'private',
   'USAGE'
-) and not has_schema_privilege(
+) and has_schema_privilege(
   'service_role',
   'private',
   'USAGE'
-) then 1 else 0 end as assert_private_schema_usage_is_least_privilege;
+) then 1 else 0 end as assert_private_schema_usage_matches_object_scoped_consumers;
 
 select 1 / case when has_function_privilege(
   'authenticated',

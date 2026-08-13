@@ -12,6 +12,7 @@ import {
 } from '@/lib/payments/toss';
 import { cancelTossPayment, fetchTossPayment, getTossConfig } from '@/lib/payments/toss-api';
 import { checkoutPaymentsEnabled } from '@/lib/payments/checkout-availability';
+import { createLegacyTossPaymentRepository } from '@/lib/payments/legacy-toss-ledger.server';
 import { sendOrderConfirmationEmail } from '@/lib/email/transactional.server';
 import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/service';
 
@@ -34,6 +35,21 @@ function errorJson(status: number, code: string) {
   return NextResponse.json({ error: { code } }, { status });
 }
 
+async function guardTossPaymentProvider(service: ServiceClient, paymentKey: string) {
+  const classification = await createLegacyTossPaymentRepository(service)
+    .classifyPaymentKey(paymentKey);
+  if (classification.status === 'lookup_failed') {
+    console.error(`[webhooks/tosspayments] provider guard lookup failed: ${classification.message}`);
+    return errorJson(500, 'provider_guard_failed');
+  }
+  if (classification.status === 'known_other_provider') {
+    return errorJson(409, 'payment_provider_mismatch');
+  }
+  // `unknown_compatibility` is allowed only until #205/#206 move both checkout
+  // paths. Webhook-first recovery can currently precede the local pending row.
+  return null;
+}
+
 /** 결제를 종결 상태로 기록 — 승인 경로가 남긴 pending 행이 있으면 갱신, 없으면 추적용으로 신규 기록. */
 async function recordTerminalPayment(
   service: ServiceClient,
@@ -42,8 +58,8 @@ async function recordTerminalPayment(
   status: 'canceled' | 'failed',
   raw: unknown,
 ) {
-  const { data: existing, error: lookupError } = await service
-    .from('payments')
+  const tossPayments = createLegacyTossPaymentRepository(service);
+  const { data: existing, error: lookupError } = await tossPayments
     .select('id,status')
     .eq('idempotency_key', payment.paymentKey)
     .maybeSingle();
@@ -54,8 +70,7 @@ async function recordTerminalPayment(
 
   if (existing) {
     if (existing.status === 'pending' || (status === 'canceled' && existing.status === 'failed')) {
-      const { error } = await service
-        .from('payments')
+      const { error } = await tossPayments
         .update({ status, raw })
         .eq('id', existing.id)
         .eq('status', existing.status);
@@ -79,7 +94,7 @@ async function recordTerminalPayment(
   }
   if (!target) return true;
 
-  const { error: insertError } = await service.from('payments').upsert(
+  const { error: insertError } = await tossPayments.upsert(
     {
       user_id: (target as { user_id: string }).user_id,
       purpose: ref.purpose,
@@ -158,8 +173,8 @@ async function applyReflectCancel(
   payment: NormalizedTossPayment,
   raw: unknown,
 ) {
-  const { data: existing, error } = await service
-    .from('payments')
+  const tossPayments = createLegacyTossPaymentRepository(service);
+  const { data: existing, error } = await tossPayments
     .select('id,status,amount,purpose,ref_id,payment_key,idempotency_key')
     .eq('idempotency_key', payment.paymentKey)
     .maybeSingle();
@@ -251,8 +266,7 @@ async function applyReflectCancel(
   }
 
   if (existing.status === 'pending' || existing.status === 'canceled' || existing.status === 'failed') {
-    const { error: updateError } = await service
-      .from('payments')
+    const { error: updateError } = await tossPayments
       .update({ status: 'canceled', raw })
       .eq('id', existing.id)
       .eq('status', existing.status);
@@ -300,8 +314,7 @@ async function applyCancelUnsupported(
 
 /** ABORTED·EXPIRED → 승인 경로가 남긴 pending 기록만 실패로 닫는다(없으면 반영할 것 없음). */
 async function applyRecordFailure(service: ServiceClient, payment: NormalizedTossPayment, raw: unknown) {
-  const { error } = await service
-    .from('payments')
+  const { error } = await createLegacyTossPaymentRepository(service)
     .update({ status: 'failed', raw })
     .eq('idempotency_key', payment.paymentKey)
     .eq('status', 'pending');
@@ -363,8 +376,7 @@ async function decideProductionTestPayment(
   const localTarget = target as { user_id: string; status: string; total: number };
   const alreadyConfirmedTarget = isConfirmedTarget(ref, localTarget.status);
   if (alreadyConfirmedTarget) {
-    const { data: existingPayment, error: paymentError } = await service
-      .from('payments')
+    const { data: existingPayment, error: paymentError } = await createLegacyTossPaymentRepository(service)
       .select('status,amount,purpose,ref_id,payment_key,idempotency_key')
       .eq('idempotency_key', payment.paymentKey)
       .maybeSingle();
@@ -416,8 +428,8 @@ async function shouldPreserveConfirmedTargetForCanceledPayment(
   const localTarget = target as { status: string; total: number };
   if (!isConfirmedTarget(ref, localTarget.status)) return false;
 
-  const { data: eventPayment, error: eventPaymentError } = await service
-    .from('payments')
+  const tossPayments = createLegacyTossPaymentRepository(service);
+  const { data: eventPayment, error: eventPaymentError } = await tossPayments
     .select('status,amount,purpose,ref_id,payment_key,idempotency_key')
     .eq('idempotency_key', payment.paymentKey)
     .maybeSingle();
@@ -430,8 +442,7 @@ async function shouldPreserveConfirmedTargetForCanceledPayment(
     return false;
   }
 
-  const { data: confirmedPayment, error: confirmedPaymentError } = await service
-    .from('payments')
+  const { data: confirmedPayment, error: confirmedPaymentError } = await tossPayments
     .select('status,amount,purpose,ref_id,payment_key,idempotency_key')
     .eq('purpose', ref.purpose)
     .eq('ref_id', ref.refId)
@@ -532,6 +543,10 @@ export async function POST(request: Request) {
     return errorJson(503, 'not_configured');
   }
 
+  const service = createServiceClient();
+  const providerGuardFailure = await guardTossPaymentProvider(service, event.paymentKey);
+  if (providerGuardFailure) return providerGuardFailure;
+
   const verified = await fetchTossPayment(event.paymentKey);
   if (!verified.ok) {
     // 조회 불가 = 우리 상점 결제가 아니거나 위조. 400도 토스 재전송은 막지 못하지만,
@@ -551,7 +566,6 @@ export async function POST(request: Request) {
     return errorJson(500, 'provider_response_mismatch');
   }
 
-  const service = createServiceClient();
   const completedRef = payment.status === 'DONE' ? parseTossOrderId(payment.orderId) : null;
   if (completedRef) {
     try {

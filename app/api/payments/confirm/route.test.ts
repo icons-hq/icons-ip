@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   updateEqFirst: vi.fn(),
   updateEqSecond: vi.fn(),
+  updateEqThird: vi.fn(),
   userTable: null as string | null,
   target: {
     id: 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c',
@@ -124,11 +125,13 @@ describe('POST /api/payments/confirm', () => {
     mocks.update.mockReset();
     mocks.updateEqFirst.mockReset();
     mocks.updateEqSecond.mockReset();
+    mocks.updateEqThird.mockReset();
     mocks.userTable = null;
     mocks.upsert.mockResolvedValue({ error: null });
     mocks.update.mockReturnValue({ eq: mocks.updateEqFirst });
     mocks.updateEqFirst.mockReturnValue({ eq: mocks.updateEqSecond });
-    mocks.updateEqSecond.mockResolvedValue({ error: null });
+    mocks.updateEqSecond.mockReturnValue({ eq: mocks.updateEqThird });
+    mocks.updateEqThird.mockResolvedValue({ error: null });
     mocks.confirm.mockResolvedValue({ ok: true, body: approvedPayment() });
     mocks.cancel.mockResolvedValue({ ok: true, body: { status: 'CANCELED' } });
     mocks.fetchPayment.mockResolvedValue({ ok: true, body: approvedPayment() });
@@ -288,7 +291,7 @@ describe('POST /api/payments/confirm', () => {
       amount: 42000,
     });
     expect(mocks.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'pending', raw: approvedPayment() }),
+      expect.objectContaining({ provider: 'toss', status: 'pending', raw: approvedPayment() }),
       { onConflict: 'idempotency_key', ignoreDuplicates: true },
     );
   });
@@ -394,8 +397,9 @@ describe('POST /api/payments/confirm', () => {
 
     expect(response.status).toBe(200);
     expect(mocks.update).toHaveBeenCalledWith({ raw: approved });
-    expect(mocks.updateEqFirst).toHaveBeenCalledWith('idempotency_key', 'pk_1');
-    expect(mocks.updateEqSecond).toHaveBeenCalledWith('status', 'pending');
+    expect(mocks.updateEqFirst).toHaveBeenCalledWith('provider', 'toss');
+    expect(mocks.updateEqSecond).toHaveBeenCalledWith('idempotency_key', 'pk_1');
+    expect(mocks.updateEqThird).toHaveBeenCalledWith('status', 'pending');
     expect(mocks.upsert).not.toHaveBeenCalled();
   });
 
@@ -412,8 +416,9 @@ describe('POST /api/payments/confirm', () => {
 
     expect(response.status).toBe(400);
     expect(mocks.update).toHaveBeenCalledWith({ status: 'failed' });
-    expect(mocks.updateEqFirst).toHaveBeenCalledWith('idempotency_key', 'pk_1');
-    expect(mocks.updateEqSecond).toHaveBeenCalledWith('status', 'pending');
+    expect(mocks.updateEqFirst).toHaveBeenCalledWith('provider', 'toss');
+    expect(mocks.updateEqSecond).toHaveBeenCalledWith('idempotency_key', 'pk_1');
+    expect(mocks.updateEqThird).toHaveBeenCalledWith('status', 'pending');
     expect(JSON.stringify(json)).not.toContain('provider raw message');
   });
 

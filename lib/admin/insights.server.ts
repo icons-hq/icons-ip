@@ -132,7 +132,7 @@ export async function getAdminInsights(): Promise<AdminInsights> {
   const [payments, items, ordersResult, ticketOrdersResult, pipelineCounts, signupCountsResult] = await Promise.all([
     fetchAllRows<PaymentRow>('payments', (from, to) =>
       supabase
-        .from('payments')
+        .from('payment_summaries')
         .select('purpose,amount,created_at')
         .eq('status', 'paid')
         .in('purpose', ['order', 'ticket'])

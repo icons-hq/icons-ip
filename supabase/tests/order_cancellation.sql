@@ -2,6 +2,8 @@
 
 begin;
 
+update private.card_reward_control set enabled = true where singleton;
+
 -- Only trusted server paths may close a local order after provider cancellation.
 select 1 / case when (
   not has_function_privilege(

@@ -10,6 +10,7 @@ import {
   normalizeTossPayment,
   verifyTossCancellationState,
 } from '../payments/toss';
+import { createLegacyTossPaymentRepository } from '../payments/legacy-toss-ledger.server';
 import { createServiceClient } from '../supabase/service';
 import { normalizeTicketReference } from '../ticketing';
 
@@ -108,6 +109,7 @@ const PAYMENT_STATUSES = new Set<TicketCancellationPaymentStatus>([
 
 function createDefaultDependencies(): TicketCancellationDependencies {
   const service = createServiceClient();
+  const tossPayments = createLegacyTossPaymentRepository(service);
 
   return {
     async loadContext(requestId, userId) {
@@ -132,8 +134,7 @@ function createDefaultDependencies(): TicketCancellationDependencies {
       if (orderError || !orderData) throw new Error('ticket order lookup failed');
       const order = orderData as Record<string, unknown>;
 
-      const { data: paymentData, error: paymentError } = await service
-        .from('payments')
+      const { data: paymentData, error: paymentError } = await tossPayments
         .select('id,status,amount,payment_key')
         .eq('purpose', 'ticket')
         .eq('ref_id', request.ticket_order_id)

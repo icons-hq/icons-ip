@@ -2,6 +2,8 @@
 
 begin;
 
+update private.card_reward_control set enabled = true where singleton;
+
 insert into auth.users (
   id, aud, role, email, email_confirmed_at,
   raw_app_meta_data, raw_user_meta_data, created_at, updated_at
@@ -799,7 +801,7 @@ select 1 / case when (
 ) then 1 else 0 end as assert_linked_event_display_fields_remain_mutable;
 
 select lower(pg_get_functiondef(
-  'public.admin_upsert_game(uuid,text,text,text,uuid,text,integer,timestamp with time zone,timestamp with time zone,boolean)'::regprocedure
+  'public.admin_upsert_game_unguarded(uuid,text,text,text,uuid,text,integer,timestamp with time zone,timestamp with time zone,boolean)'::regprocedure
 )) as admin_game_function_body \gset
 
 select 1 / case when strpos(:'admin_game_function_body', 'pg_advisory_xact_lock') > 0
@@ -807,7 +809,7 @@ select 1 / case when strpos(:'admin_game_function_body', 'pg_advisory_xact_lock'
   and strpos(:'admin_game_function_body', 'for share') > 0
   then 1 else 0 end as assert_game_upsert_serializes_catalog_dependencies;
 
-select lower(pg_get_functiondef('public.play_game(text)'::regprocedure))
+select lower(pg_get_functiondef('public.play_game_unguarded(text)'::regprocedure))
   as play_game_function_body \gset
 
 select 1 / case when strpos(:'play_game_function_body', 'for share') > 0

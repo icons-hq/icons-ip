@@ -5,6 +5,7 @@ import { isRarityKey } from '../rarity';
 import { getSupabaseConfig } from '../supabase/config';
 import { createClient } from '../supabase/server';
 import { resolveCatalogSource, type CatalogSource } from '../catalog-source';
+import { readCardRewardsEnabled } from '../card-rewards/gate.server';
 
 /* 게임 카탈로그 fetch — 소비 표면이 /games/[gameId] 하나라 CatalogSnapshot에
  * 넣지 않고 도메인 전용으로 둔다(mock을 시드로 도메인별 점진 이전). */
@@ -116,6 +117,8 @@ export function toEventGameLinks(games: Array<Game | null>): EventGameLink[] {
 }
 
 export async function listEventGameLinks(): Promise<EventGameLink[]> {
+  if (!await readCardRewardsEnabled()) return [];
+
   const source = resolveCatalogSource({ isSupabaseConfigured: getSupabaseConfig().isConfigured });
   if (source === 'mock') return toEventGameLinks(DATA.GAMES);
 

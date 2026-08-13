@@ -4,16 +4,19 @@ import { isAccountSuspended, isOnboarded } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { createClient } from '@/lib/supabase/server';
 import type { GamePlayResult } from '@/lib/games/host';
+import { readCardRewardsEnabled } from '@/lib/card-rewards/gate.server';
 
-/* 참여형 게임 플레이(#64) — 결과는 play_game RPC가 결정한다(ADR-0002).
+/* 참여형 게임 플레이(#64) — 결과는 play_game RPC가 결정한다(ADR-0004).
  * 게임은 공개 진입이므로 미로그인은 redirect가 아니라 에러 객체로 돌려주고,
  * 로그인 CTA는 풀블리드 게임 화면 안에서 노출한다. */
 
 export type PlayGameActionResult =
   | { ok: true; result: GamePlayResult }
-  | { ok: false; error: 'auth_required' | 'account_suspended' | 'onboarding_required' | 'play_failed' };
+  | { ok: false; error: 'rewards_disabled' | 'auth_required' | 'account_suspended' | 'onboarding_required' | 'play_failed' };
 
 export async function playGameAction(gameId: string): Promise<PlayGameActionResult> {
+  if (!await readCardRewardsEnabled()) return { ok: false, error: 'rewards_disabled' };
+
   const auth = await getCurrentAuthState();
   if (!auth.isConfigured || !auth.user) return { ok: false, error: 'auth_required' };
   if (isAccountSuspended(auth.profile)) return { ok: false, error: 'account_suspended' };
