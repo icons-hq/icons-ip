@@ -12,10 +12,14 @@ import {
   updateProfileAction,
   type SettingsActionState,
 } from '@/app/settings/actions';
+import { AccountDeletionPanel } from '@/components/account/AccountDeletionPanel';
+import type { AccountDeletionPresentation } from '@/lib/account-deletion';
 import { PROFILE_IMAGE_ACCEPT } from '@/lib/profile';
 import { uploadProfileAvatar } from '@/lib/profile-upload.client';
 
 interface SettingsProps {
+  accountDeletion: AccountDeletionPresentation;
+  accountDeletionRequestKey: string;
   avatarInitial: string;
   avatarUrl: string | null;
   email: string;
@@ -73,7 +77,16 @@ function MarketingConsentRow({ defaultChecked }: { defaultChecked: boolean }) {
   );
 }
 
-export function Settings({ avatarInitial, avatarUrl, email, initialMarketing, isConfigured, nickname }: SettingsProps) {
+export function Settings({
+  accountDeletion,
+  accountDeletionRequestKey,
+  avatarInitial,
+  avatarUrl,
+  email,
+  initialMarketing,
+  isConfigured,
+  nickname,
+}: SettingsProps) {
   const [profileState, profileAction, profilePending] = useActionState(updateProfileAction, emptyState);
   const [marketingState, marketingAction, marketingPending] = useActionState(updateMarketingConsentAction, emptyState);
   const [uploadErrors, setUploadErrors] = useState<SettingsActionState['errors']>();
@@ -215,6 +228,13 @@ export function Settings({ avatarInitial, avatarUrl, email, initialMarketing, is
             필수 동의는 서비스 이용을 위해 유지돼요 · 마케팅 수신 동의는 언제든 변경할 수 있어요
           </p>
         </form>
+
+        <div style={{ marginTop: 36, paddingTop: 28, borderTop: '1px solid var(--line-2)' }}>
+          <AccountDeletionPanel
+            presentation={accountDeletion}
+            requestKey={accountDeletionRequestKey}
+          />
+        </div>
       </div>
     </div>
   );

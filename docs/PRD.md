@@ -53,7 +53,7 @@
 | 영역 | 프로토타입 현황 | v1 목표 갭 |
 |---|---|---|
 | 데이터 | Supabase 환경변수가 있으면 공개 카탈로그와 검색, 커뮤니티 피드를 DB에서 읽고, 없으면 `lib/data.ts` mock으로 fallback. P0~P3 migration과 seed가 존재 | 결제/카드 리워드/티켓 도메인별 쓰기 흐름 연결 |
-| 인증 | 이메일/PW 가입·로그인, 확인 메일 콜백·재전송, 비밀번호 재설정, 온보딩 게이트. Google/Apple/Kakao OAuth 코드와 production provider·필수 이메일 claim 설정 완료. 현재 생년월일은 자가신고 값이며 연령보증 증거가 아니다 | production 배포 후 controlled smoke, 계정 삭제·동의 철회, 14+ 공통 연령보증 계약·기존 계정 처리 [#188](https://github.com/icons-hq/icons-ip/issues/188) |
+| 인증 | 이메일/PW 가입·로그인, 확인 메일 콜백·재전송, 비밀번호 재설정, 온보딩 게이트. Google/Apple/Kakao OAuth 코드와 production provider·필수 이메일 claim 설정 완료. 현재 생년월일은 자가신고 값이며 연령보증 증거가 아니다. 탈퇴 Phase 1은 self-only 요청·진행 의무 평가·private legal snapshot·account write fence까지 기본 OFF로 연결 | production Auth controlled smoke와 14+ 공통 연령보증 계약·기존 계정 처리 [#188](https://github.com/icons-hq/icons-ip/issues/188). 탈퇴는 #191 통지, Phase 2 hard delete, #215 secondary tombstone·restore replay와 controlled deletion smoke가 남음 |
 | IP 팔로우 | 온보딩 추천 IP 저장, IP 상세 팔로우/언팔로우·알림 설정, 홈 커뮤니티 우선순위와 내 팬덤 피드가 연결 | 완료 |
 | 장바구니·주문 | 비로그인 localStorage → 로그인 `cart_items` 병합, 수량·재고 검증, 본인 주문 내역·상세·청약철회 상태, 관리자 주문 검색·배송 전이·환불 정합화·실재고 수동 조정 | 완료 |
 | 결제 | 굿즈는 service-only attempt/nonce/claim/finalizer와 `PaymentGateway`/Fake seam으로 이동하고 provider gate를 기본 OFF로 뒀다. 티켓은 Toss checkout·승인 API·웹훅 확정 호환을 유지한다. 기존 Production 결제 2건은 Toss로 backfill한다 | #206에서 티켓 checkout을 seam으로 옮기고, rotated Korpay credential·승인 범위 확인 뒤 #207에서 신규 Korpay를 연다. Toss는 기존 거래 조회·취소·웹훅만 유지 |
@@ -100,7 +100,7 @@
 
 - `M` 이메일/비밀번호 가입·로그인.
 - `M` 이메일 확인 메일 콜백과 재전송. 같은 브라우저에서 같은 이메일로 반복 가입을 시도하면 최신 확인 메일을 재발송하되, 과도한 반복은 10분 window로 제한한다.
-- `M` 비밀번호 재설정: 계정 존재 여부를 노출하지 않는 메일 요청 → PKCE callback → 새 비밀번호 저장 → 전역 로그아웃. 같은 브라우저의 정규화 이메일별 요청은 총 3회/10분으로 제한하고 provider rate limit을 실제 상한으로 둔다.
+- `M` 비밀번호 재설정: 계정 존재 여부를 노출하지 않는 메일 요청 → 전용 token-hash callback → 새 비밀번호 저장 → 전역 로그아웃. 같은 브라우저의 정규화 이메일별 요청은 총 3회/10분으로 제한하고 provider rate limit을 실제 상한으로 둔다.
 - `M` 소셜 로그인: **Google · Apple · Kakao**. 세 버튼은 Supabase 관리형 OAuth에 연결됐고 production provider도 활성화됐다. Google은 production 공개, Apple은 웹 App ID·Services ID·키, Kakao는 비즈 앱·필수 `account_email` 동의 구성이 완료됐다. production 배포 뒤 신규·기존 사용자 controlled smoke가 남아 있다.
 - `M` 소셜 로그인이어도 **온보딩에서 이메일·닉네임·생년월일(자가신고)·약관/마케팅 동의를 수집**하여 프로필을 완성한다.
 - `M` 공개 페이지는 비로그인 접근 가능. 보호 액션은 로그인 게이트.

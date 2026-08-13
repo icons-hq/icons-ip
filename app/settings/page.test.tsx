@@ -4,6 +4,7 @@ import type { CurrentAuthState } from '@/lib/auth/server';
 import Page, { metadata } from './page';
 
 const mocks = vi.hoisted(() => ({
+  accountDeletion: vi.fn(),
   auth: null as unknown as CurrentAuthState,
   avatarPresentation: vi.fn(),
   onboarded: true,
@@ -12,6 +13,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/components/screens/Settings', () => ({
   Settings: mocks.settings,
+}));
+vi.mock('@/lib/account-deletion.server', () => ({
+  getAccountDeletionPresentation: mocks.accountDeletion,
 }));
 vi.mock('@/lib/auth/onboarding', () => ({
   isOnboarded: () => mocks.onboarded,
@@ -54,6 +58,13 @@ describe('/settings page', () => {
     mocks.auth = onboardedAuth(
       '00000000-0000-4000-8000-000000001201/profile/22222222-2222-4222-8222-222222222222.png',
     );
+    mocks.accountDeletion.mockReset();
+    mocks.accountDeletion.mockResolvedValue({
+      preview: { available: false, eligible: false, blockers: [
+        { code: 'not_available', count: 1, path: '/settings' },
+      ] },
+      status: { status: 'not_requested', phase: 'none', nextAction: '/settings', blockers: [] },
+    });
     mocks.avatarPresentation.mockReset();
     mocks.avatarPresentation.mockResolvedValue({
       avatarInitial: '아',
@@ -87,6 +98,11 @@ describe('/settings page', () => {
       nickname: '아이콘즈 팬',
     });
     expect(mocks.settings).toHaveBeenCalledWith(expect.objectContaining({
+      accountDeletion: expect.objectContaining({
+        preview: expect.objectContaining({ available: false }),
+        status: expect.objectContaining({ status: 'not_requested' }),
+      }),
+      accountDeletionRequestKey: expect.stringMatching(/^[0-9a-f-]{36}$/),
       avatarInitial: '아',
       avatarUrl: 'https://signed.example/avatar.png',
     }), undefined);
@@ -99,6 +115,32 @@ describe('/settings page', () => {
     expect(mocks.settings).toHaveBeenLastCalledWith(expect.objectContaining({
       avatarInitial: '👩‍🎤',
       avatarUrl: null,
+    }), undefined);
+  });
+
+  it('keeps the settings fallback available when Supabase is not configured', async () => {
+    mocks.auth = {
+      isConfigured: false,
+      user: null,
+      profile: null,
+      isStaff: false,
+    };
+
+    renderToStaticMarkup(await Page());
+
+    expect(mocks.accountDeletion).not.toHaveBeenCalled();
+    expect(mocks.settings).toHaveBeenCalledWith(expect.objectContaining({
+      accountDeletion: {
+        preview: {
+          available: false,
+          eligible: false,
+          blockers: [{ code: 'not_available', count: 1, path: '/settings' }],
+        },
+        status: {
+          status: 'not_requested', phase: 'none', nextAction: '/settings', blockers: [],
+        },
+      },
+      isConfigured: false,
     }), undefined);
   });
 
