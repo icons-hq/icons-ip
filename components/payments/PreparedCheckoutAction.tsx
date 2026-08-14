@@ -1,4 +1,5 @@
 import type { PreparedCheckout } from '@/lib/payments/gateway';
+import { KorpayClientCheckout } from './KorpayClientCheckout';
 
 interface PreparedCheckoutActionProps {
   readonly prepared: PreparedCheckout;
@@ -36,6 +37,10 @@ export function PreparedCheckoutAction({ prepared }: PreparedCheckoutActionProps
       return <p className="checkout-error" role="alert">결제 준비 주소를 확인하지 못했습니다.</p>;
     }
     return <a className="btn btn-holo checkout-submit" href={prepared.action.url}>결제 계속하기</a>;
+  }
+
+  if (prepared.action.kind === 'client_sdk') {
+    return <KorpayClientCheckout payload={prepared.action.payload} />;
   }
 
   return (

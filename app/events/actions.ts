@@ -37,7 +37,9 @@ export async function reserveTicketsAction(inputValue: unknown): Promise<Reserve
 
   const input = normalizeReserveTicketsInput(inputValue);
   if (!input) return { ok: false, error: 'invalid_request' };
-  if (!ticketCheckoutPaymentsEnabled()) return { ok: false, error: 'payment_unavailable' };
+  if (!ticketCheckoutPaymentsEnabled(auth.user.id)) {
+    return { ok: false, error: 'payment_unavailable' };
+  }
 
   try {
     const supabase = await createClient();
@@ -53,6 +55,8 @@ export async function reserveTicketsAction(inputValue: unknown): Promise<Reserve
       || normalizeTicketReference(eligibilityData.id) !== input.ticketTypeId
       || !Number.isInteger(eligibilityData.price)
       || eligibilityData.price <= 0
+      || !Number.isSafeInteger(eligibilityData.price * input.qty)
+      || eligibilityData.price * input.qty < 1_000
       || eventStatus(eligibilityData.events) !== '예매중'
     ) {
       return { ok: false, error: 'not_bookable' };

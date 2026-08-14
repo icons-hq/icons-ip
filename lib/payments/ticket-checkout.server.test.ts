@@ -68,7 +68,12 @@ describe('TicketPaymentAttemptRepository', () => {
       attemptId: ATTEMPT_ID,
       provider: 'korpay',
       outcome: 'approved',
-      evidence: { providerTransactionId: 'tid-206', maskedPaymentMethod: '1234-****-****-5678' },
+      evidence: {
+        providerTransactionId: 'tid-206',
+        maskedPaymentMethod: '1234-****-****-5678',
+        approvedAt: '2025-12-11T06:11:01.000Z',
+        resultCode: '3001',
+      },
     };
 
     await expect(repository.finalizeTicketAttempt({
@@ -84,6 +89,8 @@ describe('TicketPaymentAttemptRepository', () => {
         p_outcome: 'approved',
         p_provider_transaction_id: 'tid-206',
         p_masked_payment_method: '1234-****-****-5678',
+        p_approved_at: '2025-12-11T06:11:01.000Z',
+        p_result_code: '3001',
       }),
     });
     expect(JSON.stringify(rpc.calls[0])).not.toContain('raw');

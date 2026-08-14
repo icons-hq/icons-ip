@@ -29,10 +29,20 @@ const reservationErrors: Record<string, string> = {
 type AuthState = 'signed-out' | 'onboarding' | 'ready';
 type ReservationAttempt = { qty: number; reservationKey: string; ticketTypeId: string };
 
+function minimumPayableQuantity(session: PublicTicketType) {
+  return session.price > 0 ? Math.max(1, Math.ceil(1_000 / session.price)) : 1;
+}
+
 function disabledReason(event: FandomEvent, session: PublicTicketType, paymentAvailable: boolean) {
   if (event.status !== '예매중') return '현재 예매 가능한 이벤트가 아니에요.';
   if (session.remaining <= 0) return '정원 마감';
   if (session.price <= 0) return '0원 회차는 현재 예매할 수 없어요.';
+  if (minimumPayableQuantity(session) > session.maxQuantity) {
+    if (session.maxQuantity < session.remaining) {
+      return '1인 예매 한도로는 결제사 최소 금액을 맞출 수 없어요.';
+    }
+    return '남은 수량으로는 결제사 최소 금액을 맞출 수 없어요.';
+  }
   if (!paymentAvailable) return '결제 환경을 확인 중이라 지금은 예매할 수 없어요.';
   return null;
 }
@@ -117,7 +127,7 @@ export function EventDetail({
   const router = useRouter();
   const firstBookable = sessions.find((session) => !disabledReason(event, session, paymentAvailable));
   const [selectedId, setSelectedId] = useState(firstBookable?.id ?? '');
-  const [qty, setQty] = useState(1);
+  const [qty, setQty] = useState(firstBookable ? minimumPayableQuantity(firstBookable) : 1);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryLocked, setRetryLocked] = useState(false);
@@ -132,15 +142,16 @@ export function EventDetail({
 
   const changeSelection = (id: string) => {
     if (inputsLocked || attemptRef.current) return;
+    const nextSession = sessions.find((session) => session.id === id);
     setSelectedId(id);
-    setQty(1);
+    setQty(nextSession ? minimumPayableQuantity(nextSession) : 1);
     setError(null);
     attemptRef.current = null;
   };
 
   const changeQty = (next: number) => {
     if (!selected || inputsLocked || attemptRef.current) return;
-    setQty(Math.min(selected.remaining, Math.max(1, next)));
+    setQty(Math.min(selected.maxQuantity, Math.max(minimumPayableQuantity(selected), next)));
     setError(null);
     attemptRef.current = null;
   };
@@ -262,19 +273,19 @@ export function EventDetail({
               <div className="event-qty-field">
                 <label htmlFor="event-ticket-qty">수량</label>
                 <div className="event-qty-control">
-                  <button aria-label="수량 줄이기" disabled={qty <= 1 || inputsLocked} onClick={() => changeQty(qty - 1)} type="button">−</button>
+                  <button aria-label="수량 줄이기" disabled={qty <= minimumPayableQuantity(selected) || inputsLocked} onClick={() => changeQty(qty - 1)} type="button">−</button>
                   <input
                     disabled={inputsLocked}
                     id="event-ticket-qty"
                     inputMode="numeric"
-                    max={selected.remaining}
-                    min={1}
+                    max={selected.maxQuantity}
+                    min={minimumPayableQuantity(selected)}
                     name="qty"
                     onChange={(qtyEvent) => changeQty(Number(qtyEvent.target.value))}
                     type="number"
                     value={qty}
                   />
-                  <button aria-label="수량 늘리기" disabled={qty >= selected.remaining || inputsLocked} onClick={() => changeQty(qty + 1)} type="button">+</button>
+                  <button aria-label="수량 늘리기" disabled={qty >= selected.maxQuantity || inputsLocked} onClick={() => changeQty(qty + 1)} type="button">+</button>
                 </div>
               </div>
               <dl className="checkout-totals">
@@ -303,7 +314,7 @@ export function EventDetail({
           ) : (
             <button className="btn btn-holo checkout-submit" disabled type="button">예매할 수 없음</button>
           )}
-          <p className="money-caption">예약 후 10분 동안 정원이 선점됩니다. 결제 완료는 웹훅 확인 후 안내합니다.</p>
+          <p className="money-caption">예약 후 10분 동안 정원이 선점됩니다. 결제사 승인 결과를 서버에서 확인한 뒤 완료를 안내합니다.</p>
         </aside>
       </form>
 

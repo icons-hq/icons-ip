@@ -15,7 +15,7 @@ const footNoteFor = (s: string) => (s === '예매중' ? '잔여 회차 있음' :
 const eventHref = (id: string) => `/events/${encodeURIComponent(id)}`;
 
 const GUIDE = [
-  { n: '01', t: '예매', d: '회차와 인원을 고르고 토스페이먼츠로 결제해요.' },
+  { n: '01', t: '예매', d: '회차와 인원을 고르고 결제해요. 결제사 승인 확인 후 티켓이 발급돼요.' },
   { n: '02', t: 'QR 전자티켓', d: '마이 티켓에 QR이 발급돼요. 종이 티켓은 없어요.' },
   { n: '03', t: '스캔 입장', d: '현장에서 QR을 스캔하면 줄 없이 바로 입장해요.' },
 ];

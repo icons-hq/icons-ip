@@ -65,7 +65,7 @@ export function SiteFooter() {
 
         <div className="site-footer-editorial__meta">
           <span>© ICONS</span>
-          <span>공식 라이선스 · 무상 카드 리워드 · 토스페이먼츠 안전 결제</span>
+          <span>공식 라이선스 · 무상 카드 리워드 · 결제사 승인 확인 후 주문 확정</span>
         </div>
       </div>
     </footer>

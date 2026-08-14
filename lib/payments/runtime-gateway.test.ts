@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PaymentAttempt } from './gateway';
 import {
   PaymentGatewayUnavailableError,
@@ -17,18 +17,82 @@ const attempt: PaymentAttempt = {
   idempotencyKey: 'goods:20000000-0000-4000-8000-000000000205',
   providerOrderId: 'O30000000000040008000000000000205',
   providerProductCode: 'P30000000000040008000000000000205',
-  expiresAt: '2099-08-13T10:10:00.000Z',
+  expiresAt: new Date(Date.now() + 9 * 60_000).toISOString(),
 };
 
+const CANARY_USER_ID = '10000000-0000-4000-8000-000000000207';
+
+function configureProvider(siteUrl = 'https://iconsip.com') {
+  vi.stubEnv('VERCEL_ENV', 'production');
+  vi.stubEnv('KORPAY_MID', 'test12345m');
+  vi.stubEnv('KORPAY_KEY', 'c2VydmVyLW9ubHkta29ycGF5LWtleS0yMDc=');
+  vi.stubEnv('SITE_URL', siteUrl);
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe('payment runtime gateway', () => {
-  it('실 provider adapter가 배포되기 전에는 환경변수와 무관하게 fail closed한다', async () => {
-    vi.stubEnv('KORPAY_MID', 'must-not-activate');
-    vi.stubEnv('KORPAY_KEY', 'must-not-activate');
+  it('자격 증명이 없거나 일부만 있으면 fail closed한다', async () => {
+    vi.stubEnv('KORPAY_MID', 'test12345m');
 
     expect(paymentProviderConfigured()).toBe(false);
     expect(newPaymentCheckoutEnabled('order')).toBe(false);
-    expect(newPaymentCheckoutEnabled('ticket')).toBe(false);
     await expect(getPaymentGateway().prepare(attempt))
       .rejects.toBeInstanceOf(PaymentGatewayUnavailableError);
+  });
+
+  it('유효한 Production server config로 real adapter를 구성하되 목적 gate는 기본 OFF다', async () => {
+    configureProvider();
+
+    expect(paymentProviderConfigured()).toBe(true);
+    expect(newPaymentCheckoutEnabled('order')).toBe(false);
+    expect(newPaymentCheckoutEnabled('ticket')).toBe(false);
+    await expect(getPaymentGateway().prepare(attempt)).resolves.toMatchObject({
+      provider: 'korpay',
+      action: { kind: 'client_sdk' },
+    });
+  });
+
+  it('실자격 증명이 잘못 놓여도 Production 밖에서는 live adapter를 열지 않는다', async () => {
+    configureProvider();
+    vi.stubEnv('VERCEL_ENV', 'preview');
+
+    expect(paymentProviderConfigured()).toBe(false);
+    expect(newPaymentCheckoutEnabled('order')).toBe(false);
+    await expect(getPaymentGateway().prepare(attempt))
+      .rejects.toBeInstanceOf(PaymentGatewayUnavailableError);
+  });
+
+  it('order와 ticket public rollout gate는 exact true에서만 독립적으로 열린다', () => {
+    configureProvider();
+    vi.stubEnv('KORPAY_ORDER_CHECKOUT_ENABLED', 'true');
+    vi.stubEnv('KORPAY_TICKET_CHECKOUT_ENABLED', 'TRUE');
+
+    expect(newPaymentCheckoutEnabled('order')).toBe(true);
+    expect(newPaymentCheckoutEnabled('ticket')).toBe(false);
+  });
+
+  it('public gate OFF에서도 목적별 단일 canary user만 통과시킨다', () => {
+    configureProvider();
+    vi.stubEnv('KORPAY_ORDER_CANARY_USER_ID', CANARY_USER_ID);
+    vi.stubEnv('KORPAY_TICKET_CANARY_USER_ID', 'not-a-uuid');
+
+    expect(newPaymentCheckoutEnabled('order', CANARY_USER_ID)).toBe(true);
+    expect(newPaymentCheckoutEnabled('order', '10000000-0000-4000-8000-000000000208')).toBe(false);
+    expect(newPaymentCheckoutEnabled('order')).toBe(false);
+    expect(newPaymentCheckoutEnabled('ticket', 'not-a-uuid')).toBe(false);
+  });
+
+  it('Production은 canonical origin과 UUID v1-5만 build guard와 동일하게 허용한다', () => {
+    vi.stubEnv('VERCEL_ENV', 'production');
+    configureProvider('https://iconsip.com?redirect=evil');
+    expect(paymentProviderConfigured()).toBe(false);
+
+    configureProvider('https://iconsip.com');
+    vi.stubEnv('KORPAY_ORDER_CANARY_USER_ID', '10000000-0000-7000-8000-000000000207');
+    expect(paymentProviderConfigured()).toBe(true);
+    expect(newPaymentCheckoutEnabled('order', '10000000-0000-7000-8000-000000000207')).toBe(false);
   });
 });

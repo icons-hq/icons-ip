@@ -11,7 +11,7 @@ export function ticketPaymentProviderAvailable() {
   return getServiceRoleConfig().isConfigured && paymentProviderConfigured();
 }
 
-/** #207 owns the rotated Korpay adapter and independently reversible rollout gate. */
-export function ticketCheckoutPaymentsEnabled() {
-  return ticketPaymentProviderAvailable() && newPaymentCheckoutEnabled('ticket');
+/** #207 owns the Korpay adapter and independently reversible rollout/canary gate. */
+export function ticketCheckoutPaymentsEnabled(userId?: string) {
+  return ticketPaymentProviderAvailable() && newPaymentCheckoutEnabled('ticket', userId);
 }

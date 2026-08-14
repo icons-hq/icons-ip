@@ -26,7 +26,7 @@ export async function prepareTicketPaymentAction(
     isAccountSuspended(auth.profile)
     || !isOnboarded(auth.profile, auth.user.email)
   ) return { error: 'auth_required' };
-  if (!ticketCheckoutPaymentsEnabled()) return { error: 'payment_unavailable' };
+  if (!ticketCheckoutPaymentsEnabled(auth.user.id)) return { error: 'payment_unavailable' };
 
   const order = await loadTicketOrder(auth.user.id, ticketOrderId);
   if (!order) return { error: 'not_found' };

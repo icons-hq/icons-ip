@@ -87,6 +87,8 @@ describe('GoodsPaymentAttemptRepository', () => {
       evidence: {
         providerTransactionId: 'txn-205',
         maskedPaymentMethod: '1234-****-****-5678',
+        approvedAt: '2025-12-11T06:11:01.000Z',
+        resultCode: '3001',
       },
     };
 
@@ -99,6 +101,8 @@ describe('GoodsPaymentAttemptRepository', () => {
       p_attempt_id: ATTEMPT_ID,
       p_provider_transaction_id: 'txn-205',
       p_masked_payment_method: '1234-****-****-5678',
+      p_approved_at: '2025-12-11T06:11:01.000Z',
+      p_result_code: '3001',
     }));
     expect(JSON.stringify(mocks.rpc.mock.calls)).not.toContain('providerPayload');
     expect(JSON.stringify(mocks.rpc.mock.calls)).not.toContain('fake_approved');

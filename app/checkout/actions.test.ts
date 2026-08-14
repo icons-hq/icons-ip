@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
   loadOrder: vi.fn(),
   paymentAvailable: true,
+  availabilityUserIds: [] as Array<string | undefined>,
   prepare: vi.fn(),
   rpc: vi.fn(),
 }));
@@ -15,7 +16,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
 vi.mock('@/lib/checkout.server', () => ({ loadCheckoutOrder: mocks.loadOrder }));
 vi.mock('@/lib/payments/goods-checkout-availability', () => ({
-  goodsCheckoutPaymentsEnabled: () => mocks.paymentAvailable,
+  goodsCheckoutPaymentsEnabled: (userId?: string) => {
+    mocks.availabilityUserIds.push(userId);
+    return mocks.paymentAvailable;
+  },
 }));
 vi.mock('@/lib/payments/goods-checkout.runtime.server', () => ({
   createRuntimeGoodsPaymentCheckout: () => ({ prepare: mocks.prepare }),
@@ -82,6 +86,7 @@ describe('placeOrderAction', () => {
     vi.unstubAllEnvs();
     mocks.auth = onboardedAuth();
     mocks.paymentAvailable = true;
+    mocks.availabilityUserIds = [];
     mocks.loadOrder.mockReset();
     mocks.loadOrder.mockResolvedValue(checkoutOrder);
     mocks.prepare.mockReset();
@@ -106,6 +111,7 @@ describe('placeOrderAction', () => {
       },
       p_checkout_key: checkoutKey,
     });
+    expect(mocks.availabilityUserIds).toContain(userId);
   });
 
   it('rejects malformed runtime inputs before writing', async () => {

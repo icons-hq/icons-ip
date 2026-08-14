@@ -50,6 +50,7 @@ const sessions: PublicTicketType[] = [
     capacity: 80,
     sold: 12,
     remaining: 68,
+    maxQuantity: 4,
   },
   {
     id: '22222222-2222-4222-8222-222222222222',
@@ -59,6 +60,7 @@ const sessions: PublicTicketType[] = [
     capacity: 20,
     sold: 20,
     remaining: 0,
+    maxQuantity: 0,
   },
 ];
 
@@ -113,6 +115,23 @@ describe('EventDetail', () => {
     expect(scheduled).toContain('현재 예매 가능한 이벤트가 아니에요');
   });
 
+  it('단가가 1,000원 미만이어도 총액을 맞출 수 있으면 최소 수량으로 예매한다', () => {
+    const html = render({ sessions: [{ ...sessions[0]!, price: 600 }] });
+
+    expect(html).toContain('value="2"');
+    expect(html).toContain('₩1,200');
+    expect(html).not.toContain('결제사 최소 금액 미만 회차는 현재 예매할 수 없어요');
+  });
+
+  it('최소 결제 총액이 1인 한도 안에서 불가능하면 회차를 비활성화한다', () => {
+    const html = render({
+      sessions: [{ ...sessions[0]!, price: 200, remaining: 10, maxQuantity: 4 }],
+    });
+
+    expect(html).toContain('1인 예매 한도로는 결제사 최소 금액을 맞출 수 없어요');
+    expect(html).toContain('disabled=""');
+  });
+
   it('fails closed before reservation when payment is unavailable', () => {
     const html = render({ paymentAvailable: false });
 
@@ -125,6 +144,8 @@ describe('EventDetail', () => {
 
     expect(html).toContain('전자티켓 이용 안내');
     expect(html).toContain('결제 확인 후 내 티켓에서 QR을 확인');
+    expect(html).toContain('결제사 승인 결과를 서버에서 확인한 뒤 완료를 안내합니다');
+    expect(html).not.toContain('웹훅 확인 후');
     expect(html).toContain('href="/tickets"');
   });
 

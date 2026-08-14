@@ -170,26 +170,34 @@ describe.skipIf(!runLocalIntegration)('goods payment confirm route local integra
         confirmationAvailable: () => true,
         createCheckout: () => checkout,
       });
+      const callback = new URLSearchParams({
+        resultCode: '0000',
+        message: 'fake authenticated',
+        paymentKey: `fake-payment-key-${suffix}`,
+        merchantId: 'test12345m',
+        orderNumber: attempt.providerOrderId,
+        amount: String(attempt.amount),
+        reserved: callbackNonce,
+      });
       const response = await handler(new Request(
         'http://127.0.0.1/api/payments/goods/confirm',
         {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            providerOrderId: attempt.providerOrderId,
-            callbackNonce,
-            providerPayload: { fake: true, outcome: paymentOutcome },
-          }),
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: callback.toString(),
         },
       ));
 
-      expect(response.status).toBe(
-        paymentOutcome === 'unknown' || paymentOutcome === 'needs_review' ? 202 : 200,
+      expect(response.status).toBe(303);
+      expect(response.headers.get('location')).toBe(
+        paymentOutcome === 'approved'
+          ? '/orders?payment=approved'
+          : paymentOutcome === 'unknown' || paymentOutcome === 'needs_review'
+            ? '/orders?payment=checking'
+            : '/orders?payment=failed',
       );
-      await expect(response.json()).resolves.toEqual({
-        attemptId: attempt.id,
-        outcome: paymentOutcome,
-      });
+      expect(response.headers.get('location')).not.toContain(`fake-payment-key-${suffix}`);
+      await expect(response.text()).resolves.toBe('');
     }
 
     const orderIds = [...outcomeOrders.values()];
