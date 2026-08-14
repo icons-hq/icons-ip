@@ -153,8 +153,8 @@ describe('OrdersSection', () => {
     expect(html).not.toContain('처리 상태 확인');
   });
 
-  it.each(['prepared', 'declined', 'canceled'] as const)(
-    'keeps safe cancellation reconciliation for a Korpay %s attempt with no provider capture',
+  it.each(['declined', 'canceled'] as const)(
+    'keeps legacy cancellation reconciliation for a terminal Korpay %s attempt with no provider capture',
     (state) => {
       const request = cancellationRequest({ status: 'processing' });
       const html = renderToStaticMarkup(<OrdersSection data={orderData({
@@ -175,6 +175,28 @@ describe('OrdersSection', () => {
       expect(html).not.toContain('현재 결제 처리 또는 다른 운영 확인이 진행 중입니다.');
     },
   );
+
+  it('routes a prepared Korpay attempt through the expiry-aware no-capture action', () => {
+    const request = cancellationRequest({ status: 'processing' });
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+      cancellationRequest: request,
+      manualRecoveryAttempt: {
+        attemptId: '44444444-4444-4444-8444-444444444444',
+        requestId: request.id,
+        providerOrderId: 'O0123456789ABCDEF',
+        state: 'prepared',
+        amount: 32000,
+        currency: 'KRW',
+        manualRecoveryAvailable: false,
+      },
+    })} />);
+
+    expect(html).toContain('Korpay 만료 상태 확인');
+    expect(html).toContain('Korpay 결제 세션이 만료되었는지 확인할까요?');
+    expect(html).toContain(`name="requestId" value="${request.id}"`);
+    expect(html).not.toContain('Korpay 전액 취소 반영');
+    expect(html).not.toContain('처리 상태 확인');
+  });
 
   it.each([
     {

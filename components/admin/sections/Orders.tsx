@@ -330,13 +330,19 @@ function RejectCancellationForm({ requestId }: { requestId: string }) {
 }
 
 function ReconcileCancellationForm({
+  preparedKorpay = false,
   request,
 }: {
+  preparedKorpay?: boolean;
   request: AdminOrderCancellationRequestRecord;
 }) {
   const [state, action, pending] = useActionState(reconcileAdminOrderCancellationAction, EMPTY_ACTION_STATE);
-  const confirmation = '결제 취소 상태를 다시 확인할까요?';
-  const label = request.status === 'processing' ? '처리 상태 확인' : '상태 다시 확인';
+  const confirmation = preparedKorpay
+    ? 'Korpay 결제 세션이 만료되었는지 확인할까요?'
+    : '결제 취소 상태를 다시 확인할까요?';
+  const label = preparedKorpay
+    ? 'Korpay 만료 상태 확인'
+    : request.status === 'processing' ? '처리 상태 확인' : '상태 다시 확인';
 
   return (
     <form
@@ -621,7 +627,10 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
         ) : null}
         {(cancellationRequest?.status === 'processing' || cancellationRequest?.status === 'needs_review')
           && !usesKorpayManualRecovery ? (
-          <ReconcileCancellationForm request={cancellationRequest} />
+          <ReconcileCancellationForm
+            preparedKorpay={manualRecoveryAttempt?.state === 'prepared'}
+            request={cancellationRequest}
+          />
         ) : null}
         {manualRecoveryAttempt?.manualRecoveryAvailable ? (
           <ManualKorpayCancellationForm

@@ -359,6 +359,14 @@ describe('admin order actions', () => {
     });
   });
 
+  it('진행 중인 결제 상태는 완료로 거짓 보고하지 않고 주문·재고 보존을 안내한다', async () => {
+    mocks.reconcile.mockResolvedValue({ ok: true, status: 'in_progress' });
+
+    await expect(approveAdminOrderCancellationAction({}, requestForm())).resolves.toEqual({
+      message: '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 최신 상태를 확인한 뒤 다시 시도하고, 상태가 계속되면 관리자 결제 담당자에게 결제사 원장 확인을 요청해주세요.',
+    });
+  });
+
   it('거절 사유는 DB RPC로 기록하되 provider를 호출하지 않는다', async () => {
     const form = requestForm();
 
@@ -385,6 +393,14 @@ describe('admin order actions', () => {
     expect(mocks.reconcile).toHaveBeenCalledWith({
       actorId: 'staff-1',
       requestId: REQUEST_ID,
+    });
+  });
+
+  it('재정합화에서도 진행 중인 결제 상태를 needs_review 오류로 표시하지 않는다', async () => {
+    mocks.reconcile.mockResolvedValue({ ok: true, status: 'in_progress' });
+
+    await expect(reconcileAdminOrderCancellationAction({}, requestForm())).resolves.toEqual({
+      message: '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 최신 상태를 확인한 뒤 다시 시도하고, 상태가 계속되면 관리자 결제 담당자에게 결제사 원장 확인을 요청해주세요.',
     });
   });
 
