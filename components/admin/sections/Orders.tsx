@@ -65,6 +65,10 @@ const GOODS_PAYMENT_ATTEMPT_STATE_LABELS: Record<
   needs_review: '운영 확인 필요',
 };
 
+const KORPAY_MANUAL_RECOVERY_STATES = new Set<
+  NonNullable<AdminOrderRecord['manualRecoveryAttempt']>['state']
+>(['confirming', 'approved', 'unknown', 'needs_review']);
+
 /** 사유 배지. 하자·오배송은 기한과 배송비 부담이 달라 색으로도 구분한다. */
 function CancellationReasonBadge({
   className,
@@ -464,6 +468,9 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
     && (cancellationRequest.status === 'processing' || cancellationRequest.status === 'needs_review')
     ? order.manualRecoveryAttempt
     : null;
+  const usesKorpayManualRecovery = manualRecoveryAttempt
+    ? KORPAY_MANUAL_RECOVERY_STATES.has(manualRecoveryAttempt.state)
+    : false;
 
   return (
     <article aria-labelledby="admin-order-detail-title" className="admin-order-detail card">
@@ -578,7 +585,7 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
                   <dd>₩{manualRecoveryAttempt.amount.toLocaleString('ko-KR')} · {manualRecoveryAttempt.currency}</dd>
                 </div>
               </dl>
-              {!manualRecoveryAttempt.manualRecoveryAvailable ? (
+              {usesKorpayManualRecovery && !manualRecoveryAttempt.manualRecoveryAvailable ? (
                 <p>현재 결제 처리 또는 다른 운영 확인이 진행 중입니다.</p>
               ) : null}
             </>
@@ -613,7 +620,7 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
           </>
         ) : null}
         {(cancellationRequest?.status === 'processing' || cancellationRequest?.status === 'needs_review')
-          && !manualRecoveryAttempt ? (
+          && !usesKorpayManualRecovery ? (
           <ReconcileCancellationForm request={cancellationRequest} />
         ) : null}
         {manualRecoveryAttempt?.manualRecoveryAvailable ? (
