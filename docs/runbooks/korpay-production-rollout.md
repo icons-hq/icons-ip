@@ -177,6 +177,12 @@ canonical alias와 runtime boolean readback에서 해당 목적의 canary만 tru
   해제하지 않는다.
 - Korpay status/reconcile/cancel endpoint를 임의로 만들지 않는다. 운영자는 공급사 관리 화면과
   [#208](https://github.com/icons-hq/icons-ip/issues/208)의 수동 CS·재무 절차로 확인한다.
+- 아직 승인 claim을 얻지 않은 `prepared` 굿즈 attempt는 결제·환불 원장이 없는 no-capture
+  상태다. fresh 또는 만료 시각이 없는 attempt는 주문·재고를 그대로 유지하고, 관리자 화면의
+  `Korpay 만료 상태 확인`으로 exact attempt TTL을 다시 확인한다. TTL이 지난 `prepared`만
+  service-role RPC가 attempt·취소 요청·주문·재고를 한 transaction에서 종결하며, 이 경로에는
+  공급사 취소 접수나 전액취소 attestation을 만들지 않는다. callback이 먼저 `confirming` 이상을
+  선점했으면 이 예외를 적용하지 않고 아래 수동 원장 확인 절차로 넘긴다.
 - 취소는 공급사 수동 접수 증거와 최종 상태를 확인한 뒤에만 내부 refund/finalizer를 완료한다.
   카드 승인 취소가 확인되지 않았는데 재고·정원만 복원하지 않는다.
 - 관리자 화면의 opaque Korpay 주문번호와 KRW 금액을 공급사 원장과 대조하고, 전액 취소 완료
