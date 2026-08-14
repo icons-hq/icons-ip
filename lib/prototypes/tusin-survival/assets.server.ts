@@ -25,13 +25,25 @@ const ASSET_FILES = {
     contentType: 'image/png',
     relativePath: 'zephyr-directions.png',
   },
+  'zephyr-action-atlas': {
+    contentType: 'image/png',
+    relativePath: 'zephyr-action-atlas.png',
+  },
   'enemy-atlas': {
     contentType: 'image/png',
     relativePath: 'enemy-atlas.png',
   },
+  'enemy-motion-atlas': {
+    contentType: 'image/png',
+    relativePath: 'enemy-motion-atlas.png',
+  },
   'final-boss': {
     contentType: 'image/png',
     relativePath: 'final-boss.png',
+  },
+  'final-boss-motion-atlas': {
+    contentType: 'image/png',
+    relativePath: 'final-boss-motion-atlas.png',
   },
   'ability-icon-atlas': {
     contentType: 'image/png',
@@ -40,6 +52,10 @@ const ASSET_FILES = {
   'combat-vfx-atlas': {
     contentType: 'image/png',
     relativePath: 'combat-vfx-atlas.png',
+  },
+  'combat-motion-atlas': {
+    contentType: 'image/png',
+    relativePath: 'combat-motion-atlas.png',
   },
   'pickup-atlas': {
     contentType: 'image/png',

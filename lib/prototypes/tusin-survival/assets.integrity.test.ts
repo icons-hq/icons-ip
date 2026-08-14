@@ -26,11 +26,15 @@ const MANIFEST_ROW =
 
 const EXPECTED_COLOR_MODELS = {
   'ability-icon-atlas': { label: 'RGB', pngColorType: 2 },
+  'combat-motion-atlas': { label: 'RGBA', pngColorType: 6 },
   'combat-vfx-atlas': { label: 'RGBA', pngColorType: 6 },
   'dark-cathedral-floor': { label: 'RGB', pngColorType: 2 },
   'enemy-atlas': { label: 'RGBA', pngColorType: 6 },
+  'enemy-motion-atlas': { label: 'RGBA', pngColorType: 6 },
   'final-boss': { label: 'RGBA', pngColorType: 6 },
+  'final-boss-motion-atlas': { label: 'RGBA', pngColorType: 6 },
   'pickup-atlas': { label: 'RGBA', pngColorType: 6 },
+  'zephyr-action-atlas': { label: 'RGBA', pngColorType: 6 },
   'zephyr-directions': { label: 'RGBA', pngColorType: 6 },
 } as const satisfies Record<
   TusinSurvivalAssetId,

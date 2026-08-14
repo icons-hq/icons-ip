@@ -15,6 +15,8 @@ describe('interactive Tusin Survival runtime', () => {
 
     expect(canvasSource).toContain('runtime.getRecordedRun()');
     expect(canvasSource).toContain("outcome.status === 'TERMINAL'");
+    expect(canvasSource).toContain('resultMode && resultOverlayReady');
+    expect(canvasSource).toContain('resultMode && !resultOverlayReady');
   });
 
   it('브라우저 composition root가 공용 engine command log와 같은 결과를 만든다', () => {

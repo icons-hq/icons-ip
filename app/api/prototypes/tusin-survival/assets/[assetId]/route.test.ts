@@ -13,10 +13,14 @@ import { GET } from './route';
 
 const EXPECTED_ASSET_IDS = [
   'zephyr-directions',
+  'zephyr-action-atlas',
   'enemy-atlas',
+  'enemy-motion-atlas',
   'final-boss',
+  'final-boss-motion-atlas',
   'ability-icon-atlas',
   'combat-vfx-atlas',
+  'combat-motion-atlas',
   'pickup-atlas',
   'dark-cathedral-floor',
 ] as const;

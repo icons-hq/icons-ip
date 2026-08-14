@@ -6,10 +6,14 @@ const ASSET_ROUTE = '/api/prototypes/tusin-survival/assets';
  */
 export const TUSIN_SURVIVAL_ASSET_IDS = [
   'zephyr-directions',
+  'zephyr-action-atlas',
   'enemy-atlas',
+  'enemy-motion-atlas',
   'final-boss',
+  'final-boss-motion-atlas',
   'ability-icon-atlas',
   'combat-vfx-atlas',
+  'combat-motion-atlas',
   'pickup-atlas',
   'dark-cathedral-floor',
 ] as const;

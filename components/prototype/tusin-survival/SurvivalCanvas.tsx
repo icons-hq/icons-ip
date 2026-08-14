@@ -25,6 +25,7 @@ import { tusinSurvivalPack } from '@/lib/prototypes/tusin-survival/packs/tusin';
 import { evaluateMockRewards } from '@/lib/prototypes/tusin-survival/rewards';
 import { tusinSurvivalAssetUrl } from '@/lib/prototypes/tusin-survival/assets';
 import { GameAudio } from './audio';
+import { createCombatPresentation } from './presentation';
 import { renderRuntimeFrame, type RenderSettings } from './render';
 import {
   createRuntime,
@@ -279,12 +280,14 @@ export default function SurvivalCanvas() {
   const pauseDialogRef = useRef<HTMLDivElement | null>(null);
   const imagesRef = useRef<SpriteImages | null>(null);
   const latestSnapshotRef = useRef(initialRun.snapshot);
+  const previousRenderSnapshotRef = useRef(initialRun.snapshot);
   const keysRef = useRef(new Set<string>());
   const touchRef = useRef<TouchStickState | null>(null);
   const settingsRef = useRef(DEFAULT_SETTINGS);
   const audioRef = useRef<GameAudio | null>(null);
   const resultSavedRef = useRef<string | null>(null);
   const previousModeRef = useRef<RuntimeMode>(initialRun.snapshot.mode);
+  const [combatPresentation] = useState(createCombatPresentation);
 
   const [snapshot, setSnapshot] = useState(initialRun.snapshot);
   const [seedInput, setSeedInput] = useState(initialRun.seed);
@@ -303,15 +306,26 @@ export default function SurvivalCanvas() {
     outcome: null,
   });
   const [resultSnapshot, setResultSnapshot] = useState<RunResult | null>(null);
+  const [resultOverlayReady, setResultOverlayReady] = useState(false);
   const [fps, setFps] = useState(0);
-  const [telemetry, setTelemetry] = useState({ frameMs: 0, simulationMs: 0, renderMs: 0 });
+  const [telemetry, setTelemetry] = useState({
+    frameMs: 0,
+    simulationMs: 0,
+    presentationMs: 0,
+    renderMs: 0,
+  });
   const [toast, setToast] = useState<string | null>(null);
 
   const commit = useCallback((next: RuntimeSnapshot) => {
+    const previous = latestSnapshotRef.current;
+    previousRenderSnapshotRef.current = previous;
     latestSnapshotRef.current = next;
+    audioRef.current?.playCombat(
+      combatPresentation.consume(previous, next, performance.now()),
+    );
     setSnapshot(next);
     return next;
-  }, []);
+  }, [combatPresentation]);
 
   useEffect(() => {
     settingsRef.current = settings;
@@ -372,6 +386,7 @@ export default function SurvivalCanvas() {
     let fpsStartedAt = lastFrameAt;
     let frameCount = 0;
     let sampledSimulationMs = 0;
+    let sampledPresentationMs = 0;
     let sampledRenderMs = 0;
 
     const frame = (now: number) => {
@@ -380,29 +395,42 @@ export default function SurvivalCanvas() {
       accumulator += elapsed;
       let latest = latestSnapshotRef.current;
       let simulated = false;
-      const simulationStartedAt = performance.now();
 
       while (accumulator >= FIXED_STEP_MS) {
         if (latest.mode === 'RUNNING' || latest.mode === 'FINAL_BOSS') {
+          const previous = latest;
+          const simulationStartedAt = performance.now();
           latest = runtimeRef.current!.step(currentIntent(keysRef.current, touchRef.current));
+          sampledSimulationMs += performance.now() - simulationStartedAt;
+          previousRenderSnapshotRef.current = previous;
           latestSnapshotRef.current = latest;
+          const eventTime = now - accumulator + FIXED_STEP_MS;
+          const presentationStartedAt = performance.now();
+          audioRef.current?.playCombat(
+            combatPresentation.consume(previous, latest, eventTime),
+          );
+          sampledPresentationMs += performance.now() - presentationStartedAt;
           simulated = true;
         }
         accumulator -= FIXED_STEP_MS;
         if (latest.mode !== 'RUNNING' && latest.mode !== 'FINAL_BOSS') break;
       }
-      sampledSimulationMs += performance.now() - simulationStartedAt;
-
       if (simulated && (now - lastUiAt > 90 || latest.mode !== snapshot.mode)) {
         setSnapshot(latest);
         lastUiAt = now;
       }
 
       const images = imagesRef.current;
+      const presentationStartedAt = performance.now();
+      const presentationFrame = combatPresentation.sample(now, settingsRef.current);
+      sampledPresentationMs += performance.now() - presentationStartedAt;
       const renderStartedAt = performance.now();
       if (images) {
         const bounds = canvas.getBoundingClientRect();
         const dpr = canvas.width / Math.max(1, bounds.width);
+        const interpolationAlpha = latest.mode === 'RUNNING' || latest.mode === 'FINAL_BOSS'
+          ? accumulator / FIXED_STEP_MS
+          : 1;
         context.setTransform(dpr, 0, 0, dpr, 0, 0);
         context.clearRect(0, 0, bounds.width, bounds.height);
         renderRuntimeFrame(
@@ -411,6 +439,9 @@ export default function SurvivalCanvas() {
           latest,
           { width: bounds.width, height: bounds.height },
           settingsRef.current,
+          presentationFrame,
+          previousRenderSnapshotRef.current,
+          interpolationAlpha,
         );
       }
       sampledRenderMs += performance.now() - renderStartedAt;
@@ -430,18 +461,20 @@ export default function SurvivalCanvas() {
         setTelemetry({
           frameMs: sampleWindowMs / sampledFrames,
           simulationMs: sampledSimulationMs / sampledFrames,
+          presentationMs: sampledPresentationMs / sampledFrames,
           renderMs: sampledRenderMs / sampledFrames,
         });
         frameCount = 0;
         fpsStartedAt = now;
         sampledSimulationMs = 0;
+        sampledPresentationMs = 0;
         sampledRenderMs = 0;
       }
       animationFrame = requestAnimationFrame(frame);
     };
     animationFrame = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(animationFrame);
-  }, [assetsReady, snapshot.mode]);
+  }, [assetsReady, combatPresentation, snapshot.mode]);
 
   useEffect(() => {
     const previous = previousModeRef.current;
@@ -452,6 +485,17 @@ export default function SurvivalCanvas() {
     if (snapshot.mode === 'FINAL_TRANSITION') audioRef.current?.play('boss');
     if (snapshot.mode === 'RESULT_CLEAR') audioRef.current?.play('clear');
     if (snapshot.mode === 'RESULT_LOSS') audioRef.current?.play('loss');
+  }, [snapshot.mode]);
+
+  useEffect(() => {
+    if (snapshot.mode !== 'RESULT_CLEAR' && snapshot.mode !== 'RESULT_LOSS') return;
+    const revealDelayMs = settingsRef.current.reducedMotion
+      ? 0
+      : snapshot.mode === 'RESULT_CLEAR'
+        ? 780
+        : 360;
+    const timeout = window.setTimeout(() => setResultOverlayReady(true), revealDelayMs);
+    return () => window.clearTimeout(timeout);
   }, [snapshot.mode]);
 
   useEffect(() => {
@@ -575,13 +619,16 @@ export default function SurvivalCanvas() {
     resultSavedRef.current = null;
     setReplayVerification({ status: 'idle', outcome: null });
     setResultSnapshot(null);
+    setResultOverlayReady(false);
     setCurrentRecordId(null);
     setSeedInput(nextSeed);
     keysRef.current.clear();
     touchRef.current = null;
     setTouchStick(null);
     commit(next);
-  }, [commit]);
+    previousRenderSnapshotRef.current = next;
+    combatPresentation.reset(next, performance.now());
+  }, [combatPresentation, commit]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -629,7 +676,7 @@ export default function SurvivalCanvas() {
       ?? (screen ? focusableElements(screen)[0] : null)
       ?? screen;
     target?.focus();
-  }, [assetError, assetsReady, snapshot.mode]);
+  }, [assetError, assetsReady, resultOverlayReady, snapshot.mode]);
 
   useEffect(() => {
     if (snapshot.mode !== 'PAUSED') return;
@@ -846,6 +893,7 @@ export default function SurvivalCanvas() {
               <span>{fps} FPS</span>
               <span>{telemetry.frameMs.toFixed(1)}ms FRAME</span>
               <span>{telemetry.simulationMs.toFixed(2)}ms SIM</span>
+              <span>{telemetry.presentationMs.toFixed(2)}ms PRESENT</span>
               <span>{telemetry.renderMs.toFixed(2)}ms RENDER</span>
               <span>{snapshot.metrics.enemyCount} ENEMY</span>
               <span>{snapshot.metrics.projectileCount} PROJECTILE</span>
@@ -1125,7 +1173,25 @@ export default function SurvivalCanvas() {
         </div>
       ) : null}
 
-      {resultMode ? (
+      {resultMode && !resultOverlayReady ? (
+        <div
+          className={styles.resultPrelude}
+          role="region"
+          aria-labelledby="result-prelude-title"
+          data-game-state={snapshot.mode}
+          tabIndex={-1}
+        >
+          <span>전투 결과 확정</span>
+          <strong id="result-prelude-title">
+            {canonicalResult?.state === 'RESULTS_CLEAR' || snapshot.mode === 'RESULT_CLEAR'
+              ? '선봉장 격파'
+              : '전선 붕괴'}
+          </strong>
+          <span>{(canonicalResult?.rawScore ?? snapshot.score.rawScore).toLocaleString('ko-KR')} RAW SCORE</span>
+        </div>
+      ) : null}
+
+      {resultMode && resultOverlayReady ? (
         <div
           className={styles.screenOverlay}
           role="region"

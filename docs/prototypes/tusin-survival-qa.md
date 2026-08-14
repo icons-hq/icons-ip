@@ -15,7 +15,7 @@
 
 `ICONS_PROTOTYPE`은 라우트 노출 플래그이지 사용자 인증이 아니다. 현재 asset route의 `private`는 캐시 정책과 서버 파일 격리를 뜻하며, 플래그가 켜진 배포의 URL 접근자를 인증하지 않는다. 공유 preview로 올릴 때는 Vercel Deployment Protection 또는 페이지·asset route 양쪽의 staff 인증을 먼저 추가한다.
 
-브라우저 캡처는 Git에 포함하지 않는 `output/playwright/tusin-survival/`에 보존한다. 최종 확인 캡처는 `final-boss-1440-clean-v2.png`, `touch-stick-360-final.png`, `replay-verified-loss-1440.png`다.
+브라우저 캡처는 Git에 포함하지 않는 Codex visualization 출력에 보존한다. game-feel pass의 최종 확인 캡처는 1440×900 일반 검격, 360×800 floating stick 이동·검격, 최종보스 대기·붕괴·결과 reveal 순서다.
 
 ## 실제 플레이 흐름
 
@@ -24,6 +24,10 @@
 | 시작 화면과 seed | 무작위 seed 생성, 동일 seed 재도전, 실제 보상 비활성 안내 확인 |
 | 키보드 이동·자동공격 | 캐릭터 이동과 60Hz 자동공격 진행 확인 |
 | 모바일 이동 | 화면 임의 지점에서 floating stick 생성, 드래그 방향 이동, 손을 떼면 해제 확인 |
+| 액션 sprite | 4방향별 idle·run 2프레임과 검격 anticipation·impact·recovery가 실제 이동·공격 상태에 맞춰 바뀜을 확인 |
+| 투사체 표현 | 6종 무기를 cleave·비행체·orbit·heavy projectile·chain·aura로 분리하고 startup·active·impact·afterglow를 확인 |
+| 타격 피드백 | 실제 HP delta 피해 숫자, 피격 pose·recoil, 충돌 잔광, 카메라 impulse, 화면 flash, 무기별 WebAudio cue 연결 확인 |
+| 사망 피드백 | 일반 적과 최종보스의 별도 붕괴 frame을 확인하고, 결과·점수 compact banner와 접근성 알림은 즉시 노출한 채 상세 패널만 780ms 뒤 확장함을 확인 |
 | 레벨업 | simulation 정지, 3개 선택지, 현재 active/passive와 점수 표시, 선택 후 재개 확인 |
 | 상자 | 상자 모달, 보유 장비 강화와 진화 판정 경로 확인 |
 | 일시정지 | 음량과 플래시·흔들림·피해 숫자·붉은 파편·움직임 줄이기 설정 확인 |
@@ -36,7 +40,7 @@
 
 ## 성능·반응형
 
-- 내부 `STRESS` 시나리오에서 적 1,000체와 투사체 1,500개를 주입한 상태로 표시 FPS 60, 평균 simulation 5.92ms, render 0.96ms를 확인했다.
+- 1440×900 headless Chromium의 내부 `STRESS` 시나리오에서 적 1,000체와 투사체 1,500개를 주입한 상태로 표시 78 FPS·12.8ms frame, 평균 simulation 8.37ms, presentation/audio 0.41ms, render 1.48ms를 확인했다.
 - 360·720·1199·1440px 폭에서 document 가로 overflow가 없었다. 360×800 시작 패널의 긴 내용은 패널 내부만 스크롤하며, 주 동작 버튼은 자동 초점 후 viewport 안에 완전히 표시된다.
 - 데스크톱과 모바일 브라우저 콘솔의 warning/error는 0건이었다.
 - `prefers-reduced-motion: reduce`에서 XP bar와 버튼의 animation이 제거되고 transition이 사실상 0으로 축소됨을 확인했다.
@@ -44,7 +48,7 @@
 
 ## 자동 검증
 
-- 관련 Vitest 8파일 76개 테스트 통과
+- 관련 Vitest 10파일 98개 테스트 통과
 - prototype·asset route·engine·pack·reward 범위 ESLint 통과
 - `ICONS_PROTOTYPE=1 npm run build` 통과(Next.js compile, TypeScript, route generation 포함)
 - 결정론 테스트는 live runtime과 replay가 같은 `ContentPackRuntime`을 사용하며 이동·레벨업·상자·일시정지·최종전환 입력과 6+6+진화 결과가 일치하는지 검증한다.
@@ -59,6 +63,10 @@
 | active/passive 슬롯 | 좌상단 6+6 슬롯과 레벨 배지를 유지 | 일치 |
 | 최종보스 구분 | 별도 전환, 고유 sprite, 전체 HP rail과 boss split을 사용 | 일치 |
 | 레벨업 선택 | 전투 배경을 유지한 정지형 3선택과 현재 빌드 패널을 사용 | 일치 |
+| 캐릭터 동작 | 정지 일러스트 대신 방향별 이동·공격 예비·접촉·회수 action atlas를 사용 | 개선 완료 |
+| 무기 동작 | 동일한 회전 사각형 대신 무기별 궤적·크기·잔광·충돌 lifecycle을 사용 | 개선 완료 |
+| 피격·사망 | 실제 피해량, hit pose, recoil, death linger, 최종보스 결과 reveal 지연을 사용 | 개선 완료 |
+| 사운드 | 무기 발동·일반/강한 충돌·처치·플레이어 피격을 서로 다른 합성 cue로 분리하고 밀집 tick은 피격·처치를 우선 | 개선 완료 |
 | 일반 전투 밀도 | 첫 30초는 학습 여백을 위해 콘셉트보다 의도적으로 낮고 시간에 따라 증가 | 의도된 차이 |
 | 디버그 패널 | 내부 QA 전용이며 공개 승격 시 제거하거나 staff 도구로 격리 | 의도된 차이 |
 
