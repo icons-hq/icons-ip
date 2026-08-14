@@ -9,6 +9,12 @@ on:
       - main
   merge_group:
   workflow_dispatch:
+    inputs:
+      production_redeploy:
+        description: Redeploy the current main commit with updated Production configuration
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -363,8 +369,27 @@ jobs:
   deploy-vercel:
     name: deploy-vercel
     runs-on: ubuntu-latest
-    needs: deploy-supabase
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - validate
+      - deploy-supabase
+    # push는 기존 DB→앱 순서를 유지한다. config-only 수동 재배포는 validate가
+    # 성공하고 main에서 명시적으로 승인된 경우에만, 건너뛴 DB job을 우회한다.
+    if: >-
+      !cancelled()
+      && needs.validate.result == 'success'
+      && (
+        (
+          github.event_name == 'push'
+          && github.ref == 'refs/heads/main'
+          && needs.deploy-supabase.result == 'success'
+        )
+        || (
+          github.event_name == 'workflow_dispatch'
+          && github.ref == 'refs/heads/main'
+          && inputs.production_redeploy == true
+          && needs.deploy-supabase.result == 'skipped'
+        )
+      )
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -417,6 +442,8 @@ jobs:
 
       # handler와 기존 PKCE 호환 경로가 production에 먼저 올라간 뒤에만 새 링크를 발급한다.
       - name: Activate recovery token-hash template in production
+        # config-only 재배포는 Supabase 원격 설정도 변경하지 않는다.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID }}
