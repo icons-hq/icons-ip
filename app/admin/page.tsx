@@ -40,7 +40,7 @@ export default async function AdminPage({
     getAdminInsights(),
     getAdminMemberSummaries(''),
     auth.role === 'admin' ? getAdminProfileRecords() : Promise.resolve([]),
-    getAdminOrderRecords(orderFilters),
+    getAdminOrderRecords(orderFilters, auth.role === 'admin'),
     getAdminNotificationConsoleData(),
     getAdminCurations(),
     getAdminDrawTicketGrants(),

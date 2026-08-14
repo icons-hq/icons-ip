@@ -23,15 +23,19 @@ interface QueryRecord {
 function createClient(input: {
   rpcRows?: Row[];
   rpcError?: string;
+  rpcRowsByName?: Record<string, Row[]>;
+  rpcErrorsByName?: Record<string, string>;
   rows?: Record<string, Row[]>;
   errors?: Record<string, string>;
   records: QueryRecord[];
   rpc: ReturnType<typeof vi.fn>;
 }) {
   return {
-    rpc: input.rpc.mockImplementation(async () => ({
-      data: input.rpcRows ?? [],
-      error: input.rpcError ? { message: input.rpcError } : null,
+    rpc: input.rpc.mockImplementation(async (name: string) => ({
+      data: input.rpcRowsByName?.[name] ?? input.rpcRows ?? [],
+      error: input.rpcErrorsByName?.[name]
+        ? { message: input.rpcErrorsByName[name] }
+        : input.rpcError ? { message: input.rpcError } : null,
     })),
     from(table: string) {
       const record: QueryRecord = { table, select: null, eq: [], in: [], order: [] };
@@ -208,6 +212,114 @@ describe('getAdminOrderRecords', () => {
       total: 0,
     });
     expect(records).toEqual([]);
+  });
+
+  it('loads only the staff-safe Korpay attempt summary for its active cancellation request', async () => {
+    const records: QueryRecord[] = [];
+    const rpc = vi.fn();
+    const requestId = '33333333-3333-4333-8333-333333333333';
+    mocks.client = createClient({
+      records,
+      rpc,
+      rpcRowsByName: {
+        admin_search_orders: [{
+          id: ORDER_ID,
+          user_id: USER_ID,
+          buyer_name: 'maple_fan',
+          buyer_email: 'fan@example.test',
+          status: 'paid',
+          total: 32000,
+          address: null,
+          created_at: '2026-07-14T06:00:00.000Z',
+          updated_at: '2026-07-14T06:01:00.000Z',
+          cancellation_request_id: requestId,
+          cancellation_request_status: 'needs_review',
+          cancellation_reason_type: 'change_of_mind',
+          cancellation_requested_at: '2026-07-14T07:00:00.000Z',
+          cancellation_decided_at: '2026-07-14T07:05:00.000Z',
+          cancellation_decision_note: null,
+          shipping_carrier: null,
+          tracking_number: null,
+          total_count: 1,
+        }],
+        admin_goods_manual_recovery_attempts: [{
+          order_id: ORDER_ID,
+          request_id: requestId,
+          attempt_id: '44444444-4444-4444-8444-444444444444',
+          provider_order_id: 'O0123456789ABCDEF',
+          state: 'approved',
+          amount: 32000,
+          currency: 'KRW',
+          created_at: '2026-07-14T06:00:30.000Z',
+          updated_at: '2026-07-14T06:01:00.000Z',
+          manual_recovery_available: true,
+          payment_key: 'must-not-leak',
+          tid: 'must-not-leak',
+        }],
+      },
+      rows: { order_items: [], payment_summaries: [] },
+    });
+
+    const result = await getAdminOrderRecords({ ...filters, page: 1 }, true);
+
+    expect(rpc).toHaveBeenCalledWith('admin_goods_manual_recovery_attempts', {
+      p_order_ids: [ORDER_ID],
+    });
+    expect(result.items[0].manualRecoveryAttempt).toEqual({
+      attemptId: '44444444-4444-4444-8444-444444444444',
+      requestId,
+      providerOrderId: 'O0123456789ABCDEF',
+      state: 'approved',
+      amount: 32000,
+      currency: 'KRW',
+      manualRecoveryAvailable: true,
+    });
+    expect(JSON.stringify(result.items[0].manualRecoveryAttempt)).not.toMatch(/payment_key|tid|must-not-leak/);
+  });
+
+  it('fails closed when a Korpay attempt summary does not match the active request', async () => {
+    const requestId = '33333333-3333-4333-8333-333333333333';
+    mocks.client = createClient({
+      records: [],
+      rpc: vi.fn(),
+      rpcRowsByName: {
+        admin_search_orders: [{
+          id: ORDER_ID,
+          user_id: USER_ID,
+          buyer_name: 'maple_fan',
+          buyer_email: null,
+          status: 'pending',
+          total: 32000,
+          address: null,
+          created_at: '2026-07-14T06:00:00.000Z',
+          updated_at: '2026-07-14T06:01:00.000Z',
+          cancellation_request_id: requestId,
+          cancellation_request_status: 'needs_review',
+          cancellation_reason_type: 'change_of_mind',
+          cancellation_requested_at: '2026-07-14T07:00:00.000Z',
+          cancellation_decided_at: null,
+          cancellation_decision_note: null,
+          shipping_carrier: null,
+          tracking_number: null,
+          total_count: 1,
+        }],
+        admin_goods_manual_recovery_attempts: [{
+          order_id: ORDER_ID,
+          request_id: '55555555-5555-4555-8555-555555555555',
+          attempt_id: '44444444-4444-4444-8444-444444444444',
+          provider_order_id: 'O0123456789ABCDEF',
+          state: 'unknown',
+          amount: 32000,
+          currency: 'KRW',
+          manual_recovery_available: true,
+        }],
+      },
+      rows: { order_items: [], payment_summaries: [] },
+    });
+
+    await expect(getAdminOrderRecords({ ...filters, page: 1 }, true)).rejects.toThrow(
+      'mismatched payment attempt relation',
+    );
   });
 
   it('throws on RPC or child query failures instead of rendering a false empty ledger', async () => {

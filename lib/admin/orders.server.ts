@@ -6,17 +6,21 @@ import { orderShipment } from '@/lib/orders/shipment';
 import { createClient } from '@/lib/supabase/server';
 import {
   ADMIN_ORDER_STATUSES,
+  GOODS_PAYMENT_ATTEMPT_STATES,
   ORDER_CANCELLATION_REQUEST_STATUSES,
   type AdminOrderConsoleData,
   type AdminOrderFilters,
   type AdminOrderRecord,
   type AdminOrderStatus,
+  type GoodsPaymentAttemptState,
   type OrderCancellationRequestStatus,
 } from './orders';
 
 const PAGE_SIZE = 20;
 const ORDER_STATUS_SET = new Set<string>(ADMIN_ORDER_STATUSES);
 const REQUEST_STATUS_SET = new Set<string>(ORDER_CANCELLATION_REQUEST_STATUSES);
+const ATTEMPT_STATE_SET = new Set<string>(GOODS_PAYMENT_ATTEMPT_STATES);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 interface SearchRow {
   id: string;
@@ -64,6 +68,17 @@ interface RefundRow {
   created_at: string;
 }
 
+interface ManualRecoveryAttemptRow {
+  order_id: string;
+  request_id: string;
+  attempt_id: string;
+  provider_order_id: string;
+  state: string;
+  amount: number;
+  currency: string;
+  manual_recovery_available: boolean;
+}
+
 function requireOrderStatus(value: string): AdminOrderStatus {
   if (!ORDER_STATUS_SET.has(value)) throw new Error('Failed to load admin orders: unsupported status');
   return value as AdminOrderStatus;
@@ -74,6 +89,47 @@ function requireRequestStatus(value: string): OrderCancellationRequestStatus {
     throw new Error('Failed to load admin orders: unsupported cancellation status');
   }
   return value as OrderCancellationRequestStatus;
+}
+
+function requireAttemptState(value: string): GoodsPaymentAttemptState {
+  if (!ATTEMPT_STATE_SET.has(value)) {
+    throw new Error('Failed to load admin orders: unsupported payment attempt state');
+  }
+  return value as GoodsPaymentAttemptState;
+}
+
+function normalizeManualRecoveryAttemptRow(value: ManualRecoveryAttemptRow) {
+  if (!UUID_PATTERN.test(value.order_id)
+    || !UUID_PATTERN.test(value.request_id)
+    || !UUID_PATTERN.test(value.attempt_id)
+    || typeof value.provider_order_id !== 'string'
+    || value.provider_order_id !== value.provider_order_id.trim()
+    || value.provider_order_id.length < 1
+    || value.provider_order_id.length > 200
+    || !Number.isSafeInteger(value.amount)
+    || value.amount < 0
+    || typeof value.currency !== 'string'
+    || !/^[A-Z]{3}$/.test(value.currency)
+    || typeof value.manual_recovery_available !== 'boolean'
+  ) {
+    throw new Error('Failed to load admin orders: invalid payment attempt summary');
+  }
+  const state = requireAttemptState(value.state);
+  if (value.manual_recovery_available
+    && !['confirming', 'approved', 'unknown', 'needs_review'].includes(state)
+  ) {
+    throw new Error('Failed to load admin orders: invalid payment recovery availability');
+  }
+  return {
+    orderId: value.order_id,
+    requestId: value.request_id,
+    attemptId: value.attempt_id,
+    providerOrderId: value.provider_order_id,
+    state,
+    amount: value.amount,
+    currency: value.currency,
+    manualRecoveryAvailable: value.manual_recovery_available,
+  };
 }
 
 // 사유 구분은 기한과 반품 배송비 부담 주체를 가른다. 모르는 값을 기본값으로 접으면
@@ -91,6 +147,7 @@ function buyerName(value: string | null, userId: string) {
 
 export async function getAdminOrderRecords(
   filters: AdminOrderFilters,
+  includeManualRecovery = false,
 ): Promise<AdminOrderConsoleData> {
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('admin_search_orders', {
@@ -109,7 +166,13 @@ export async function getAdminOrderRecords(
   }
 
   const orderIds = rows.map((row) => row.id);
-  const [itemsResult, paymentsResult] = await Promise.all([
+  const recoveryOrderIds = includeManualRecovery
+    ? rows.filter((row) => row.cancellation_request_id
+      && (row.cancellation_request_status === 'processing'
+        || row.cancellation_request_status === 'needs_review'))
+      .map((row) => row.id)
+    : [];
+  const [itemsResult, paymentsResult, recoveryAttemptsResult] = await Promise.all([
     supabase
       .from('order_items')
       .select('id,order_id,qty,unit_price,good_name_snapshot,good_type_snapshot')
@@ -122,6 +185,11 @@ export async function getAdminOrderRecords(
       .in('ref_id', orderIds)
       .order('created_at', { ascending: true })
       .order('id', { ascending: true }),
+    recoveryOrderIds.length
+      ? supabase.rpc('admin_goods_manual_recovery_attempts', {
+          p_order_ids: recoveryOrderIds,
+        })
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   if (itemsResult.error) {
@@ -130,9 +198,13 @@ export async function getAdminOrderRecords(
   if (paymentsResult.error) {
     throw new Error(`Failed to load admin order payments: ${paymentsResult.error.message}`);
   }
+  if (recoveryAttemptsResult.error) {
+    throw new Error(`Failed to load admin payment attempts: ${recoveryAttemptsResult.error.message}`);
+  }
 
   const itemRows = (itemsResult.data ?? []) as ItemRow[];
   const paymentRows = (paymentsResult.data ?? []) as PaymentRow[];
+  const recoveryAttemptRows = (recoveryAttemptsResult.data ?? []) as ManualRecoveryAttemptRow[];
   let refundRows: RefundRow[] = [];
   if (paymentRows.length) {
     const { data: refundData, error: refundError } = await supabase
@@ -172,6 +244,18 @@ export async function getAdminOrderRecords(
     refundsByOrder.set(orderId, entries);
   }
 
+  const recoveryAttemptByOrder = new Map<
+    string,
+    ReturnType<typeof normalizeManualRecoveryAttemptRow>
+  >();
+  for (const row of recoveryAttemptRows) {
+    const attempt = normalizeManualRecoveryAttemptRow(row);
+    if (!orderIds.includes(attempt.orderId) || recoveryAttemptByOrder.has(attempt.orderId)) {
+      throw new Error('Failed to load admin orders: invalid payment attempt relation');
+    }
+    recoveryAttemptByOrder.set(attempt.orderId, attempt);
+  }
+
   const items: AdminOrderRecord[] = rows.map((row) => {
     const cancellationRequest = row.cancellation_request_id
       ? {
@@ -186,6 +270,15 @@ export async function getAdminOrderRecords(
 
     if (cancellationRequest && !cancellationRequest.requestedAt) {
       throw new Error('Failed to load admin orders: incomplete cancellation request');
+    }
+
+    const relatedAttempt = recoveryAttemptByOrder.get(row.id) ?? null;
+    if (relatedAttempt && (
+      !cancellationRequest
+      || !['processing', 'needs_review'].includes(cancellationRequest.status)
+      || relatedAttempt.requestId !== cancellationRequest.id
+    )) {
+      throw new Error('Failed to load admin orders: mismatched payment attempt relation');
     }
 
     return {
@@ -218,6 +311,15 @@ export async function getAdminOrderRecords(
         createdAt: refund.created_at,
       })),
       cancellationRequest,
+      manualRecoveryAttempt: relatedAttempt && {
+        attemptId: relatedAttempt.attemptId,
+        requestId: relatedAttempt.requestId,
+        providerOrderId: relatedAttempt.providerOrderId,
+        state: relatedAttempt.state,
+        amount: relatedAttempt.amount,
+        currency: relatedAttempt.currency,
+        manualRecoveryAvailable: relatedAttempt.manualRecoveryAvailable,
+      },
       shipment: orderShipment(row.shipping_carrier, row.tracking_number),
     };
   });

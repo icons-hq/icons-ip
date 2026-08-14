@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   approveAdminOrderCancellationAction,
+  recoverAdminGoodsPaymentAction,
   updateAdminOrderTrackingAction,
   reconcileAdminOrderCancellationAction,
   rejectAdminOrderCancellationAction,
@@ -10,6 +11,8 @@ import {
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 const REQUEST_ID = '22222222-2222-4222-8222-222222222222';
+const ATTEMPT_ID = '33333333-3333-4333-8333-333333333333';
+const ADMIN_ID = '44444444-4444-4444-8444-444444444444';
 
 const mocks = vi.hoisted(() => ({
   adminState: {
@@ -25,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   },
   rpc: vi.fn(),
   reconcile: vi.fn(),
+  recoverGoodsPayment: vi.fn(),
   revalidatePath: vi.fn(),
   sendShippedEmail: vi.fn(),
   sendConfirmationEmail: vi.fn(),
@@ -40,6 +44,9 @@ vi.mock('@/lib/auth/admin', () => ({
 }));
 vi.mock('@/lib/orders/cancellation-orchestrator.server', () => ({
   reconcileOrderCancellation: mocks.reconcile,
+}));
+vi.mock('@/lib/payments/goods-manual-recovery.server', () => ({
+  recoverGoodsPaymentManually: mocks.recoverGoodsPayment,
 }));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({ rpc: mocks.rpc }),
@@ -89,6 +96,8 @@ describe('admin order actions', () => {
     mocks.rpc.mockResolvedValue({ data: null, error: null });
     mocks.reconcile.mockReset();
     mocks.reconcile.mockResolvedValue({ ok: true, status: 'completed' });
+    mocks.recoverGoodsPayment.mockReset();
+    mocks.recoverGoodsPayment.mockResolvedValue({ outcome: 'provider_cancel_confirmed' });
     mocks.revalidatePath.mockReset();
     mocks.sendShippedEmail.mockReset();
     mocks.sendShippedEmail.mockResolvedValue({ status: 'sent' });
@@ -376,6 +385,72 @@ describe('admin order actions', () => {
     expect(mocks.reconcile).toHaveBeenCalledWith({
       actorId: 'staff-1',
       requestId: REQUEST_ID,
+    });
+  });
+
+  describe('Korpay 굿즈 수동 복구', () => {
+    function cancellationForm(attestation = 'provider_cancel_confirmed') {
+      const form = new FormData();
+      form.set('attemptId', ATTEMPT_ID);
+      form.set('requestId', REQUEST_ID);
+      form.set('operatorAttestation', attestation);
+      form.set('paymentKey', 'browser-must-not-control-this');
+      return form;
+    }
+
+    it('취소 확인은 exact attestation과 opaque case만 전달한다', async () => {
+      mocks.adminState.user = { id: ADMIN_ID, email: 'admin@icons.gg' };
+      mocks.adminState.role = 'admin';
+      mocks.recoverGoodsPayment.mockResolvedValue({ outcome: 'provider_cancel_confirmed' });
+
+      await expect(recoverAdminGoodsPaymentAction({}, cancellationForm())).resolves.toEqual({
+        message: 'Korpay 전액 취소 확인을 주문 정합화에 반영했습니다.',
+      });
+
+      expect(mocks.recoverGoodsPayment).toHaveBeenCalledWith({
+        operation: 'provider_cancel_confirmed',
+        attemptId: ATTEMPT_ID,
+        actorId: ADMIN_ID,
+        requestId: REQUEST_ID,
+        operatorAttested: true,
+      });
+      expect(JSON.stringify(mocks.recoverGoodsPayment.mock.calls)).not.toContain(
+        'browser-must-not-control-this',
+      );
+    });
+
+    it('잘못된 attestation과 staff 계정은 deep module 전에 차단한다', async () => {
+      mocks.adminState.user = { id: ADMIN_ID, email: 'admin@icons.gg' };
+      mocks.adminState.role = 'admin';
+      await expect(recoverAdminGoodsPaymentAction(
+        {},
+        cancellationForm('yes'),
+      )).resolves.toEqual(expect.objectContaining({ errors: expect.any(Object) }));
+
+      mocks.adminState = {
+        isConfigured: true,
+        user: { id: 'staff-1', email: 'staff@icons.gg' },
+        role: 'staff',
+        isStaff: true,
+      };
+      await expect(recoverAdminGoodsPaymentAction({}, cancellationForm())).resolves.toEqual({
+        errors: { form: 'Korpay 수동 복구는 관리자 계정만 수행할 수 있습니다.' },
+      });
+      expect(mocks.recoverGoodsPayment).not.toHaveBeenCalled();
+    });
+
+    it('active lease와 repository 오류를 성공으로 거짓 보고하지 않는다', async () => {
+      mocks.adminState.user = { id: ADMIN_ID, email: 'admin@icons.gg' };
+      mocks.adminState.role = 'admin';
+      mocks.recoverGoodsPayment.mockResolvedValueOnce({ outcome: 'in_progress' });
+      await expect(recoverAdminGoodsPaymentAction({}, cancellationForm())).resolves.toEqual({
+        errors: { form: '다른 운영 확인이 진행 중입니다. 잠시 뒤 최신 상태를 확인해주세요.' },
+      });
+
+      mocks.recoverGoodsPayment.mockRejectedValueOnce(new Error('private db detail'));
+      const failed = await recoverAdminGoodsPaymentAction({}, cancellationForm());
+      expect(failed.errors?.form).toBeTruthy();
+      expect(JSON.stringify(failed)).not.toContain('private');
     });
   });
 });

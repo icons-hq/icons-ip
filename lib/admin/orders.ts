@@ -10,6 +10,17 @@ export const ADMIN_ORDER_STATUSES = ['pending', 'paid', 'shipping', 'done', 'can
 export type AdminOrderStatus = (typeof ADMIN_ORDER_STATUSES)[number];
 export type AdminOrderStatusFilter = AdminOrderStatus | 'all';
 
+export const GOODS_PAYMENT_ATTEMPT_STATES = [
+  'prepared',
+  'confirming',
+  'approved',
+  'declined',
+  'canceled',
+  'unknown',
+  'needs_review',
+] as const;
+export type GoodsPaymentAttemptState = (typeof GOODS_PAYMENT_ATTEMPT_STATES)[number];
+
 export const ORDER_CANCELLATION_REQUEST_STATUSES = [
   'requested',
   'processing',
@@ -59,6 +70,16 @@ export interface AdminOrderRefundRecord {
   createdAt: string;
 }
 
+export interface AdminGoodsManualRecoveryAttemptRecord {
+  attemptId: string;
+  requestId: string;
+  providerOrderId: string;
+  state: GoodsPaymentAttemptState;
+  amount: number;
+  currency: string;
+  manualRecoveryAvailable: boolean;
+}
+
 export interface AdminOrderCancellationRequestRecord {
   id: string;
   status: OrderCancellationRequestStatus;
@@ -92,6 +113,7 @@ export interface AdminOrderRecord {
   payments: AdminOrderPaymentRecord[];
   refunds: AdminOrderRefundRecord[];
   cancellationRequest: AdminOrderCancellationRequestRecord | null;
+  manualRecoveryAttempt: AdminGoodsManualRecoveryAttemptRecord | null;
   shipment: OrderShipment | null;
 }
 
@@ -282,6 +304,41 @@ export function normalizeAdminCancellationDecisionForm(
 
   if (Object.keys(errors).length) return { ok: false, errors };
   return { ok: true, value: { requestId } };
+}
+
+export function normalizeAdminGoodsManualRecoveryForm(
+  formData: FormData,
+): AdminOrderFormResult<{
+  operation: 'provider_cancel_confirmed';
+  attemptId: string;
+  requestId: string;
+  operatorAttested: true;
+}> {
+  const attemptId = readFormString(formData, 'attemptId').toLowerCase();
+  const requestId = readFormString(formData, 'requestId').toLowerCase();
+  const attestation = readFormString(formData, 'operatorAttestation');
+  const errors: AdminOrderFieldErrors = {};
+
+  if (!UUID_PATTERN.test(attemptId)) {
+    errors.attemptId = '결제 시도를 찾을 수 없습니다.';
+  }
+  if (!UUID_PATTERN.test(requestId)) {
+    errors.requestId = '청약철회 요청을 찾을 수 없습니다.';
+  }
+  if (attestation !== 'provider_cancel_confirmed') {
+    errors.operatorAttestation = '결제사 원장에서 전액 취소를 확인해야 합니다.';
+  }
+  if (Object.keys(errors).length) return { ok: false, errors };
+
+  return {
+    ok: true,
+    value: {
+      operation: 'provider_cancel_confirmed',
+      attemptId,
+      requestId,
+      operatorAttested: true,
+    },
+  };
 }
 
 export function adminOrdersHref(
