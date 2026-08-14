@@ -108,6 +108,7 @@ describe('POST /api/payments/goods/confirm', () => {
     });
     expect((await POST(wrongType)).status).toBe(400);
     expect((await POST(request({ reserved: undefined }))).status).toBe(400);
+    expect((await POST(request({ paymentKey: 'p'.repeat(201) }))).status).toBe(400);
 
     const duplicate = new Request('https://icons.example/api/payments/goods/confirm', {
       method: 'POST',

@@ -28,6 +28,17 @@ interface TicketTypeRow {
   price: number;
   capacity: number;
   sold: number;
+  per_user_limit: number;
+}
+
+interface ActiveTicketOrderIdRow {
+  id: string;
+}
+
+interface TicketReservationQuantityRow {
+  ticket_order_id: string;
+  ticket_type_id: string;
+  quantity: number;
 }
 
 interface TicketOrderRow {
@@ -182,26 +193,66 @@ function paymentStatusWithAttempt(
   return paymentStatus;
 }
 
-export async function loadPublicTicketTypes(eventId: string): Promise<PublicTicketType[]> {
+export async function loadPublicTicketTypes(
+  eventId: string,
+  userId?: string,
+): Promise<PublicTicketType[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('ticket_types')
-    .select('id,event_id,name,price,capacity,sold')
+    .select('id,event_id,name,price,capacity,sold,per_user_limit')
     .eq('event_id', eventId)
     .order('name')
     .order('id');
 
   if (error) throw new Error(`Failed to load public ticket types: ${error.message}`);
 
-  return ((data ?? []) as TicketTypeRow[]).map((row) => ({
-    id: row.id,
-    eventId: row.event_id,
-    name: row.name,
-    price: row.price,
-    capacity: row.capacity,
-    sold: row.sold,
-    remaining: Math.max(0, row.capacity - row.sold),
-  }));
+  const reservedByType = new Map<string, number>();
+  if (userId) {
+    const { data: orderData, error: orderError } = await supabase
+      .from('ticket_orders')
+      .select('id')
+      .eq('user_id', userId)
+      .in('status', ['pending', 'paid']);
+    if (orderError) throw new Error('Failed to load ticket purchase availability');
+
+    const orderIds = ((orderData ?? []) as ActiveTicketOrderIdRow[]).map((row) => row.id);
+    if (orderIds.length > 0) {
+      const { data: reservationData, error: reservationError } = await supabase
+        .from('ticket_order_reservations')
+        .select('ticket_order_id,ticket_type_id,quantity')
+        .in('ticket_order_id', orderIds);
+      if (reservationError) throw new Error('Failed to load ticket purchase availability');
+
+      for (const reservation of (reservationData ?? []) as TicketReservationQuantityRow[]) {
+        if (!Number.isInteger(reservation.quantity) || reservation.quantity <= 0) continue;
+        reservedByType.set(
+          reservation.ticket_type_id,
+          (reservedByType.get(reservation.ticket_type_id) ?? 0) + reservation.quantity,
+        );
+      }
+    }
+  }
+
+  return ((data ?? []) as TicketTypeRow[]).map((row) => {
+    const remaining = Math.max(0, row.capacity - row.sold);
+    const perUserLimit = Number.isInteger(row.per_user_limit) && row.per_user_limit > 0
+      ? row.per_user_limit
+      : 0;
+    return {
+      id: row.id,
+      eventId: row.event_id,
+      name: row.name,
+      price: row.price,
+      capacity: row.capacity,
+      sold: row.sold,
+      remaining,
+      maxQuantity: Math.min(
+        remaining,
+        Math.max(0, perUserLimit - (reservedByType.get(row.id) ?? 0)),
+      ),
+    };
+  });
 }
 
 export async function loadTicketOrder(

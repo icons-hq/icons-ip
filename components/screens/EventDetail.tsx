@@ -37,7 +37,10 @@ function disabledReason(event: FandomEvent, session: PublicTicketType, paymentAv
   if (event.status !== '예매중') return '현재 예매 가능한 이벤트가 아니에요.';
   if (session.remaining <= 0) return '정원 마감';
   if (session.price <= 0) return '0원 회차는 현재 예매할 수 없어요.';
-  if (minimumPayableQuantity(session) > session.remaining) {
+  if (minimumPayableQuantity(session) > session.maxQuantity) {
+    if (session.maxQuantity < session.remaining) {
+      return '1인 예매 한도로는 결제사 최소 금액을 맞출 수 없어요.';
+    }
     return '남은 수량으로는 결제사 최소 금액을 맞출 수 없어요.';
   }
   if (!paymentAvailable) return '결제 환경을 확인 중이라 지금은 예매할 수 없어요.';
@@ -148,7 +151,7 @@ export function EventDetail({
 
   const changeQty = (next: number) => {
     if (!selected || inputsLocked || attemptRef.current) return;
-    setQty(Math.min(selected.remaining, Math.max(minimumPayableQuantity(selected), next)));
+    setQty(Math.min(selected.maxQuantity, Math.max(minimumPayableQuantity(selected), next)));
     setError(null);
     attemptRef.current = null;
   };
@@ -275,14 +278,14 @@ export function EventDetail({
                     disabled={inputsLocked}
                     id="event-ticket-qty"
                     inputMode="numeric"
-                    max={selected.remaining}
+                    max={selected.maxQuantity}
                     min={minimumPayableQuantity(selected)}
                     name="qty"
                     onChange={(qtyEvent) => changeQty(Number(qtyEvent.target.value))}
                     type="number"
                     value={qty}
                   />
-                  <button aria-label="수량 늘리기" disabled={qty >= selected.remaining || inputsLocked} onClick={() => changeQty(qty + 1)} type="button">+</button>
+                  <button aria-label="수량 늘리기" disabled={qty >= selected.maxQuantity || inputsLocked} onClick={() => changeQty(qty + 1)} type="button">+</button>
                 </div>
               </div>
               <dl className="checkout-totals">

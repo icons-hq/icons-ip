@@ -26,11 +26,13 @@ export default async function Page({
 }) {
   const { eventId } = await params;
   const catalogSource = getCatalogSource();
-  const [catalog, auth, sessions] = await Promise.all([
+  const [catalog, auth] = await Promise.all([
     getCatalogSnapshot(),
     getCurrentAuthState(),
-    catalogSource === 'supabase' ? loadPublicTicketTypes(eventId) : Promise.resolve([]),
   ]);
+  const sessions = catalogSource === 'supabase'
+    ? await loadPublicTicketTypes(eventId, auth.user?.id)
+    : [];
   const event = catalog.events.find((item) => item.id === eventId);
   if (!event) notFound();
   const ip = catalog.ips.find((item) => item.id === event.ip) ?? null;

@@ -29,13 +29,12 @@ const unavailableGateway: PaymentGateway = {
 };
 
 function runtimeConfiguration() {
+  if (process.env.VERCEL_ENV !== 'production') return null;
   const merchantId = process.env.KORPAY_MID?.trim() ?? '';
   const merchantKey = process.env.KORPAY_KEY?.trim() ?? '';
   const siteUrl = process.env.SITE_URL?.trim() ?? '';
   if (!isKorpayMerchantId(merchantId) || !isKorpayMerchantKey(merchantKey)) return null;
-  const normalizedSiteUrl = normalizeKorpaySiteUrl(siteUrl, {
-    production: process.env.VERCEL_ENV === 'production',
-  });
+  const normalizedSiteUrl = normalizeKorpaySiteUrl(siteUrl, { production: true });
   return normalizedSiteUrl ? { merchantId, merchantKey, siteUrl: normalizedSiteUrl } : null;
 }
 

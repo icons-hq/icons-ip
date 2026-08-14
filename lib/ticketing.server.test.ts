@@ -145,6 +145,7 @@ describe('loadPublicTicketTypes', () => {
       capacity: 25,
       sold: 7,
       remaining: 18,
+      maxQuantity: 4,
     }, {
       id: '8be5d078-4e59-4f8b-a776-75842bd44073',
       eventId,
@@ -153,15 +154,64 @@ describe('loadPublicTicketTypes', () => {
       capacity: 10,
       sold: 12,
       remaining: 0,
+      maxQuantity: 0,
     }]);
 
     expect(records[0]).toMatchObject({
       table: 'ticket_types',
-      select: 'id,event_id,name,price,capacity,sold',
+      select: 'id,event_id,name,price,capacity,sold,per_user_limit',
       eq: [['event_id', eventId]],
       order: [['name', undefined], ['id', undefined]],
     });
     expect(JSON.stringify(await loadPublicTicketTypes(eventId))).not.toMatch(/per_user_limit|sales_open_at|qr_token/);
+  });
+
+  it('로그인 사용자의 기존 pending·paid 예매를 1인 잔여 한도에서 차감한다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({
+      records,
+      rows: {
+        ticket_types: [{
+          id: ticketTypeId,
+          event_id: eventId,
+          name: '7월 25일 오후 회차',
+          price: 600,
+          capacity: 25,
+          sold: 7,
+          per_user_limit: 4,
+        }],
+        ticket_orders: [
+          { id: ticketOrderId, user_id: userId, status: 'paid' },
+          { id: '5cbcbfed-202d-4676-821a-7706398e57c1', user_id: userId, status: 'canceled' },
+        ],
+        ticket_order_reservations: [
+          { ticket_order_id: ticketOrderId, ticket_type_id: ticketTypeId, quantity: 2 },
+          {
+            ticket_order_id: '5cbcbfed-202d-4676-821a-7706398e57c1',
+            ticket_type_id: ticketTypeId,
+            quantity: 1,
+          },
+        ],
+      },
+    });
+
+    await expect(loadPublicTicketTypes(eventId, userId)).resolves.toEqual([expect.objectContaining({
+      id: ticketTypeId,
+      maxQuantity: 2,
+    })]);
+    expect(records.slice(1)).toEqual([
+      expect.objectContaining({
+        table: 'ticket_orders',
+        select: 'id',
+        eq: [['user_id', userId]],
+        in: [['status', ['pending', 'paid']]],
+      }),
+      expect.objectContaining({
+        table: 'ticket_order_reservations',
+        select: 'ticket_order_id,ticket_type_id,quantity',
+        in: [['ticket_order_id', [ticketOrderId]]],
+      }),
+    ]);
   });
 
   it('throws on query failure instead of rendering a false empty state', async () => {

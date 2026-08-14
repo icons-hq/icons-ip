@@ -6,6 +6,7 @@ export interface PublicTicketType {
   capacity: number;
   sold: number;
   remaining: number;
+  maxQuantity: number;
 }
 
 export interface TicketOrderSnapshot {

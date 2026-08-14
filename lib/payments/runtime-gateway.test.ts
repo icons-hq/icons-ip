@@ -22,7 +22,8 @@ const attempt: PaymentAttempt = {
 
 const CANARY_USER_ID = '10000000-0000-4000-8000-000000000207';
 
-function configureProvider(siteUrl = 'https://icons.example') {
+function configureProvider(siteUrl = 'https://iconsip.com') {
+  vi.stubEnv('VERCEL_ENV', 'production');
   vi.stubEnv('KORPAY_MID', 'test12345m');
   vi.stubEnv('KORPAY_KEY', 'c2VydmVyLW9ubHkta29ycGF5LWtleS0yMDc=');
   vi.stubEnv('SITE_URL', siteUrl);
@@ -52,6 +53,16 @@ describe('payment runtime gateway', () => {
       provider: 'korpay',
       action: { kind: 'client_sdk' },
     });
+  });
+
+  it('실자격 증명이 잘못 놓여도 Production 밖에서는 live adapter를 열지 않는다', async () => {
+    configureProvider();
+    vi.stubEnv('VERCEL_ENV', 'preview');
+
+    expect(paymentProviderConfigured()).toBe(false);
+    expect(newPaymentCheckoutEnabled('order')).toBe(false);
+    await expect(getPaymentGateway().prepare(attempt))
+      .rejects.toBeInstanceOf(PaymentGatewayUnavailableError);
   });
 
   it('order와 ticket public rollout gate는 exact true에서만 독립적으로 열린다', () => {

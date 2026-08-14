@@ -26,6 +26,8 @@
    callback 모두 canonical Production origin을 사용한다.
 4. Korpay는 인증 결과를 `application/x-www-form-urlencoded` POST로 callback한다. 앱은 body
    크기·형식·필수 필드를 제한하고 opaque order+nonce를 DB에서 먼저 원자 claim한다.
+   공개 가이드에는 callback signature나 status 조회 API가 없고 nonce는 SDK payload를 받은
+   구매자에게 보이므로, 이 값만으로 provider 발신 진위를 증명한다고 간주하지 않는다.
 5. 인증 성공일 때만 서버가 paymentKey로 Korpay confirm을 정확히 한 번 호출한다. callback과
    confirm의 MID·주문번호·금액·통화·결제수단을 attempt와 엄격히 대조한다. callback body나
    브라우저 성공 신호만으로 주문·티켓을 확정하지 않는다.
@@ -80,10 +82,27 @@ gate와 canary allowlist를 모두 내려도 이미 DB에 durable하게 준비�
 6. 새 deployment가 Ready이고 canonical production alias가 같은 deployment와 exact SHA를
    가리키는지 확인한다.
 7. 새 deployment에서 `SITE_URL=https://iconsip.com`, provider readiness는 true, 목적별 public
-   readiness와 canary configured는 모두 false인지 안전한 metadata로 readback한다. 아직 결제
-   session을 만들지 않는다.
+   readiness와 canary configured는 모두 false인지 안전한 metadata로 readback한다. 식별자 없는
+   malformed callback POST가 readiness `503`이 아니라 parser `400`에서 끝나는지도 확인한다.
+   이 probe는 provider·DB를 호출하지 않으며, SITE_URL·gate 값은 build log와 Vercel metadata로
+   별도 확인한다. 아직 결제 session을 만들지 않는다.
 
 ## Controlled canary
+
+실결제 canary도 현재 약관·개인정보처리방침이 표시하는 결제수단·수탁자와 일치해야
+한다. Korpay 결제수단·수탁자 개정의 시행일, 사전 공지, 기존 회원 동의 처리가
+승인·반영·배포되기 전에는 canary user ID를 등록하거나 실과금을 시작하지 않는다.
+
+현재 공개 계약만으로는 구매자가 자기 order+nonce에 임의 paymentKey를 먼저 보내 callback
+claim을 선점하는 것을 암호학적으로 차단할 수 없다. 따라서 canary는 신뢰하는 단일 actor로만
+수행한다. provider가 서명 검증 또는 자동 상태 조회 계약을 제공하거나, definitive invalid-key
+claim 재개방과 ambiguous hold 해제 SLA가 별도 승인되기 전에는 목적별 public gate를 `true`로
+열지 않는다.
+
+굿즈는 provider confirm 뒤 DB finalizer 전에 프로세스가 종료될 때 stale `confirming`을 자동
+재확인할 공식 provider API가 없다. [#208](https://github.com/icons-hq/icons-ip/issues/208)에서
+공급사 원장 확인, audited 수동 소유 전환, 승인 또는 취소 finalization 절차와 담당자를 검증하기
+전에는 굿즈 실과금 canary도 시작하지 않는다.
 
 실제 과금 직전에 아래 값을 사용자에게 다시 보여 주고 명시 확인을 받는다. 과거의 구현 승인이나
 자격 증명 등록 승인을 과금 승인으로 재사용하지 않는다.

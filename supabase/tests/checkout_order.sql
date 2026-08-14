@@ -403,4 +403,43 @@ select 1 / case when (
   from public.orders where id = :'shipping_fee_order_id'::uuid
 ) then 1 else 0 end as assert_flat_shipping_fee_below_threshold;
 
+-- A zero-priced catalog item cannot consume inventory into an order that the
+-- configured card provider can never prepare.
+reset role;
+update public.goods set price = 0, stock = 'ok', stock_qty = 2 where id = 'g11';
+delete from public.cart_items where user_id = '00000000-0000-4000-8000-000000000503';
+insert into public.cart_items (user_id, good_id, qty)
+values ('00000000-0000-4000-8000-000000000503', 'g11', 1);
+
+set local role service_role;
+do $$
+begin
+  begin
+    perform public.place_order(
+      '00000000-0000-4000-8000-000000000503',
+      '{"recipientName":"최소금액","phone":"01098765432","postalCode":"11111","address1":"부산시"}'::jsonb,
+      '10000000-0000-4000-8000-000000000512'
+    );
+    raise exception 'zero-total order should be rejected';
+  exception
+    when check_violation then
+      if sqlerrm <> 'payment amount below provider minimum' then raise; end if;
+  end;
+end;
+$$;
+reset role;
+
+select 1 / case when not exists (
+  select 1 from public.orders
+  where user_id = '00000000-0000-4000-8000-000000000503'
+    and checkout_key = '10000000-0000-4000-8000-000000000512'
+) then 1 else 0 end as assert_zero_total_order_rolled_back;
+select 1 / case when (
+  select stock_qty from public.goods where id = 'g11'
+) = 2 then 1 else 0 end as assert_zero_total_order_preserves_stock;
+select 1 / case when (
+  select qty from public.cart_items
+  where user_id = '00000000-0000-4000-8000-000000000503' and good_id = 'g11'
+) = 1 then 1 else 0 end as assert_zero_total_order_preserves_cart;
+
 rollback;

@@ -96,7 +96,7 @@ describe('/events/[eventId]', () => {
     const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: event.id }) }));
 
     expect(html).toContain('data-session-count="1"');
-    expect(mocks.loadSessions).toHaveBeenCalledWith(event.id);
+    expect(mocks.loadSessions).toHaveBeenCalledWith(event.id, undefined);
   });
 
   it('loads IP preferences only for a scheduled event with an IP', async () => {

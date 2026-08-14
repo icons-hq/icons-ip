@@ -86,8 +86,8 @@ export async function parseKorpayCallback(request: Request) {
     || !/^[1-9][0-9]{0,11}$/.test(amount)
     || !validText(reserved, 512)
     || !/^[A-Za-z0-9_-]{16,255}$/.test(reserved)
-    || (resultCode === '0000' && !validText(paymentKey, 512))
-    || (paymentKey !== null && !validText(paymentKey, 512))
+    || (resultCode === '0000' && !validText(paymentKey, 200))
+    || (paymentKey !== null && !validText(paymentKey, 200))
   ) {
     throw new KorpayCallbackInvalidError();
   }

@@ -20,6 +20,7 @@ const MERCHANT_ID = /^[A-Za-z0-9]{10}$/;
 const PROVIDER_ORDER_ID = /^[OT][0-9a-f]{32}$/i;
 const PROVIDER_PRODUCT_CODE = /^P[0-9a-f]{32}$/i;
 const PROVIDER_REFERENCE = /^[\x21-\x7e]{1,512}$/;
+const PROVIDER_PAYMENT_KEY = /^[\x21-\x7e]{1,200}$/;
 const RESULT_CODE = /^[A-Za-z0-9]{3,8}$/;
 const AUTHENTICATION_FAILURE_CODE = /^(?:E00[13456789]|E01[0-3]|E999|ES00[1-9]|EP001|EM00[1-8]|EB00[1-3])$/;
 
@@ -93,6 +94,15 @@ function kstTimestamp(date: Date) {
   return `${value.get('year')}${value.get('month')}${value.get('day')}${value.get('hour')}${value.get('minute')}${value.get('second')}`;
 }
 
+function approvedAtIso(value: unknown) {
+  if (typeof value !== 'string' || !/^[0-9]{14}$/.test(value)) return null;
+  const localIso = `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`
+    + `T${value.slice(8, 10)}:${value.slice(10, 12)}:${value.slice(12, 14)}+09:00`;
+  const date = new Date(localIso);
+  if (!Number.isFinite(date.getTime()) || kstTimestamp(date) !== value) return null;
+  return date.toISOString();
+}
+
 function safeString(value: unknown, maxLength = 512): value is string {
   return typeof value === 'string'
     && value.length > 0
@@ -161,6 +171,7 @@ function validCard(value: unknown): value is Record<string, unknown> {
     && typeof value.approvalCode === 'string'
     && /^[0-9]{2}$/.test(value.approvalCode)
     && safeString(value.approvalNumber, 100)
+    && value.approvalNumber === value.approvalNumber.trim()
     && typeof value.installment === 'string'
     && /^[0-9]{2}$/.test(value.installment)
     && typeof value.usePointAmt === 'string'
@@ -180,7 +191,26 @@ function approvedEvidence(
     providerApprovalReference: card.approvalNumber as string,
     resultCode: '3001',
     paymentMethod: 'CARD',
-    maskedPaymentMethod: card.cardNumber as string,
+    maskedPaymentMethod: (card.cardNumber as string).replace(/[ -]/g, ''),
+    approvedAt: approvedAtIso(payload.approvedAt)!,
+  };
+}
+
+function reviewEvidence(
+  payload: Record<string, unknown>,
+  paymentKey: string,
+  resultCode?: string,
+): PaymentProviderEvidence {
+  const providerTransactionId = safeString(payload.tid, 200)
+    && PROVIDER_REFERENCE.test(payload.tid)
+    ? payload.tid
+    : null;
+  const approvedAt = approvedAtIso(payload.approvedAt);
+  return {
+    providerPaymentKey: paymentKey,
+    ...(providerTransactionId ? { providerTransactionId } : {}),
+    ...(resultCode ? { resultCode } : {}),
+    ...(approvedAt ? { approvedAt } : {}),
   };
 }
 
@@ -198,8 +228,7 @@ function confirmIdentityMatches(
     && payload.reserved === input.callbackNonce
     && safeString(payload.tid, 200)
     && PROVIDER_REFERENCE.test(payload.tid)
-    && typeof payload.approvedAt === 'string'
-    && /^[0-9]{14}$/.test(payload.approvedAt)
+    && approvedAtIso(payload.approvedAt) !== null
     && validCard(payload.card);
 }
 
@@ -237,11 +266,20 @@ function outcomeFromConfirmResponse(
   merchantId: string,
   paymentKey: string,
 ): ConfirmOutcome {
-  if (!plainRecord(responsePayload) || !RESULT_CODE.test(String(responsePayload.resultCode ?? ''))) {
-    return baseOutcome(input.attempt, 'unknown', 'provider_invalid_response') as ConfirmOutcome;
+  if (
+    !plainRecord(responsePayload)
+    || typeof responsePayload.resultCode !== 'string'
+    || !RESULT_CODE.test(responsePayload.resultCode)
+  ) {
+    return baseOutcome(
+      input.attempt,
+      'unknown',
+      'provider_invalid_response',
+      { providerPaymentKey: paymentKey, resultCode: 'provider_invalid_response' },
+    ) as ConfirmOutcome;
   }
   const resultCode = responsePayload.resultCode as string;
-  const evidence = { resultCode };
+  const evidence = reviewEvidence(responsePayload, paymentKey, resultCode);
   if (resultCode === '1651' || resultCode === '1681') {
     return baseOutcome(
       input.attempt,
@@ -261,7 +299,7 @@ function outcomeFromConfirmResponse(
       input.attempt,
       'needs_review',
       'provider_identity_mismatch',
-      evidence,
+      { ...evidence, resultCode: '3001_identity_mismatch' },
     ) as ConfirmOutcome;
   }
   return baseOutcome(
@@ -397,7 +435,7 @@ export function createKorpayPaymentGateway(options: KorpayGatewayOptions): Payme
       }
 
       const paymentKey = input.providerPayload.paymentKey;
-      if (!safeString(paymentKey) || !PROVIDER_REFERENCE.test(paymentKey)) {
+      if (!safeString(paymentKey, 200) || !PROVIDER_PAYMENT_KEY.test(paymentKey)) {
         return baseOutcome(input.attempt, 'needs_review', 'provider_invalid_callback') as ConfirmOutcome;
       }
 
@@ -413,13 +451,23 @@ export function createKorpayPaymentGateway(options: KorpayGatewayOptions): Payme
           cache: 'no-store',
           signal: controller.signal,
         });
-        if (!response.ok) {
-          return baseOutcome(input.attempt, 'unknown', 'provider_http_error') as ConfirmOutcome;
+        if (response.status !== 200) {
+          return baseOutcome(
+            input.attempt,
+            'unknown',
+            'provider_http_error',
+            { providerPaymentKey: paymentKey, resultCode: 'provider_http_error' },
+          ) as ConfirmOutcome;
         }
         const responsePayload = await readBoundedResponse(response);
         return outcomeFromConfirmResponse(input, responsePayload, merchantId, paymentKey);
       } catch {
-        return baseOutcome(input.attempt, 'unknown', 'provider_unavailable') as ConfirmOutcome;
+        return baseOutcome(
+          input.attempt,
+          'unknown',
+          'provider_unavailable',
+          { providerPaymentKey: paymentKey, resultCode: 'provider_unavailable' },
+        ) as ConfirmOutcome;
       } finally {
         clearTimeout(timeout);
       }
