@@ -29,11 +29,17 @@ const reservationErrors: Record<string, string> = {
 type AuthState = 'signed-out' | 'onboarding' | 'ready';
 type ReservationAttempt = { qty: number; reservationKey: string; ticketTypeId: string };
 
+function minimumPayableQuantity(session: PublicTicketType) {
+  return session.price > 0 ? Math.max(1, Math.ceil(1_000 / session.price)) : 1;
+}
+
 function disabledReason(event: FandomEvent, session: PublicTicketType, paymentAvailable: boolean) {
   if (event.status !== '예매중') return '현재 예매 가능한 이벤트가 아니에요.';
   if (session.remaining <= 0) return '정원 마감';
   if (session.price <= 0) return '0원 회차는 현재 예매할 수 없어요.';
-  if (session.price < 1_000) return '결제사 최소 금액 미만 회차는 현재 예매할 수 없어요.';
+  if (minimumPayableQuantity(session) > session.remaining) {
+    return '남은 수량으로는 결제사 최소 금액을 맞출 수 없어요.';
+  }
   if (!paymentAvailable) return '결제 환경을 확인 중이라 지금은 예매할 수 없어요.';
   return null;
 }
@@ -118,7 +124,7 @@ export function EventDetail({
   const router = useRouter();
   const firstBookable = sessions.find((session) => !disabledReason(event, session, paymentAvailable));
   const [selectedId, setSelectedId] = useState(firstBookable?.id ?? '');
-  const [qty, setQty] = useState(1);
+  const [qty, setQty] = useState(firstBookable ? minimumPayableQuantity(firstBookable) : 1);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [retryLocked, setRetryLocked] = useState(false);
@@ -133,15 +139,16 @@ export function EventDetail({
 
   const changeSelection = (id: string) => {
     if (inputsLocked || attemptRef.current) return;
+    const nextSession = sessions.find((session) => session.id === id);
     setSelectedId(id);
-    setQty(1);
+    setQty(nextSession ? minimumPayableQuantity(nextSession) : 1);
     setError(null);
     attemptRef.current = null;
   };
 
   const changeQty = (next: number) => {
     if (!selected || inputsLocked || attemptRef.current) return;
-    setQty(Math.min(selected.remaining, Math.max(1, next)));
+    setQty(Math.min(selected.remaining, Math.max(minimumPayableQuantity(selected), next)));
     setError(null);
     attemptRef.current = null;
   };
@@ -263,13 +270,13 @@ export function EventDetail({
               <div className="event-qty-field">
                 <label htmlFor="event-ticket-qty">수량</label>
                 <div className="event-qty-control">
-                  <button aria-label="수량 줄이기" disabled={qty <= 1 || inputsLocked} onClick={() => changeQty(qty - 1)} type="button">−</button>
+                  <button aria-label="수량 줄이기" disabled={qty <= minimumPayableQuantity(selected) || inputsLocked} onClick={() => changeQty(qty - 1)} type="button">−</button>
                   <input
                     disabled={inputsLocked}
                     id="event-ticket-qty"
                     inputMode="numeric"
                     max={selected.remaining}
-                    min={1}
+                    min={minimumPayableQuantity(selected)}
                     name="qty"
                     onChange={(qtyEvent) => changeQty(Number(qtyEvent.target.value))}
                     type="number"

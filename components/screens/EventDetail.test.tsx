@@ -102,17 +102,23 @@ describe('EventDetail', () => {
     expect(html).toContain('로그인하고 예매');
   });
 
-  it('disables sold-out, below-minimum, and non-booking event sessions with an explanation', () => {
+  it('disables sold-out, zero-price, and non-booking event sessions with an explanation', () => {
     const soldOut = render({ sessions: [sessions[1]!] });
     const free = render({ sessions: [{ ...sessions[0]!, price: 0 }] });
-    const belowMinimum = render({ sessions: [{ ...sessions[0]!, price: 999 }] });
     const scheduled = render({ event: { ...event, status: '예정' } });
 
     expect(soldOut).toContain('정원 마감');
     expect(soldOut).toContain('disabled=""');
     expect(free).toContain('0원 회차는 현재 예매할 수 없어요');
-    expect(belowMinimum).toContain('결제사 최소 금액 미만 회차는 현재 예매할 수 없어요');
     expect(scheduled).toContain('현재 예매 가능한 이벤트가 아니에요');
+  });
+
+  it('단가가 1,000원 미만이어도 총액을 맞출 수 있으면 최소 수량으로 예매한다', () => {
+    const html = render({ sessions: [{ ...sessions[0]!, price: 600 }] });
+
+    expect(html).toContain('value="2"');
+    expect(html).toContain('₩1,200');
+    expect(html).not.toContain('결제사 최소 금액 미만 회차는 현재 예매할 수 없어요');
   });
 
   it('fails closed before reservation when payment is unavailable', () => {
