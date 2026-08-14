@@ -128,6 +128,7 @@ describe('OrdersSection', () => {
       'data-confirm="표시된 Korpay 주문번호·금액의 전액 취소 완료를 원장에서 확인했다"',
     );
     expect(html).toContain('Korpay 전액 취소 반영');
+    expect(html).toContain('admin-order-korpay-recovery-submit');
     expect(html).not.toContain('상태 다시 확인');
   });
 
@@ -428,6 +429,52 @@ describe('OrdersSection', () => {
       expect(html).toContain(`id="admin-order-carrier-error-${ORDER_ID}"`);
       expect(html).toContain(`aria-describedby="admin-order-tracking-error-${ORDER_ID}"`);
       expect(html).toContain(`id="admin-order-tracking-error-${ORDER_ID}"`);
+    } finally {
+      vi.doUnmock('react');
+      vi.resetModules();
+    }
+  });
+
+  it('Korpay 원장 확인 오류를 attestation checkbox에 연결한다', async () => {
+    vi.resetModules();
+    const focus = vi.fn();
+    vi.doMock('react', async () => {
+      const actual = await vi.importActual<typeof import('react')>('react');
+      return {
+        ...actual,
+        useActionState: () => [
+          { errors: { operatorAttestation: '결제사 원장에서 전액 취소를 확인해야 합니다.' } },
+          () => {},
+          false,
+        ],
+        useEffect: (effect: () => void) => effect(),
+        useRef: () => ({ current: { focus } }),
+      };
+    });
+
+    try {
+      const { OrdersSection: ErroredOrdersSection } = await import('./Orders');
+      const request = cancellationRequest({ status: 'needs_review' });
+      const attemptId = '44444444-4444-4444-8444-444444444444';
+      const html = renderToStaticMarkup(<ErroredOrdersSection data={orderData({
+        cancellationRequest: request,
+        manualRecoveryAttempt: {
+          attemptId,
+          requestId: request.id,
+          providerOrderId: 'O0123456789ABCDEF',
+          state: 'unknown',
+          amount: 32000,
+          currency: 'KRW',
+          manualRecoveryAvailable: true,
+        },
+      })} />);
+      const errorId = `admin-korpay-cancel-attestation-error-${attemptId}`;
+
+      expect(html).toContain('결제사 원장에서 전액 취소를 확인해야 합니다.');
+      expect(html).toContain(`aria-describedby="${errorId}"`);
+      expect(html).toContain('aria-invalid="true"');
+      expect(html).toContain(`id="${errorId}" role="alert"`);
+      expect(focus).toHaveBeenCalledOnce();
     } finally {
       vi.doUnmock('react');
       vi.resetModules();

@@ -15,6 +15,10 @@ on:
         required: false
         type: boolean
         default: false
+      production_source_run_id:
+        description: Successful push/main CI/CD Pipeline run ID for this exact commit
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -32,8 +36,53 @@ jobs:
   validate:
     name: validate
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
 
     steps:
+      - name: Verify deployed Production source
+        if: >-
+          github.event_name == 'workflow_dispatch'
+          && inputs.production_redeploy == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.production_source_run_id }}
+        run: |
+          if [[ ! "$SOURCE_RUN_ID" =~ ^[1-9][0-9]{5,}$ ]]; then
+            echo "::error title=Invalid Production source::Provide the successful push/main run ID for this exact commit"
+            exit 1
+          fi
+
+          run_json="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}")"
+          if ! jq -e --arg sha "$GITHUB_SHA" '
+            .event == "push"
+            and .head_branch == "main"
+            and .head_sha == $sha
+            and .conclusion == "success"
+            and .path == ".github/workflows/pipeline.yml"
+          ' <<<"$run_json" >/dev/null; then
+            echo "::error title=Unsafe Production source::The run must be a successful push/main deployment for this exact SHA"
+            exit 1
+          fi
+
+          jobs_json="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}/jobs?per_page=100")"
+          if ! jq -e '
+            any(.jobs[]; .name == "deploy-supabase" and .conclusion == "success")
+            and any(.jobs[]; .name == "deploy-vercel" and .conclusion == "success")
+          ' <<<"$jobs_json" >/dev/null; then
+            echo "::error title=Incomplete Production source::Supabase and Vercel must both have succeeded"
+            exit 1
+          fi
+
       - name: Check out repository
         uses: actions/checkout@v6
 

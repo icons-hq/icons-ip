@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState } from 'react';
+import { useActionState, useEffect, useRef } from 'react';
 import {
   approveAdminOrderCancellationAction,
   recoverAdminGoodsPaymentAction,
@@ -361,8 +361,15 @@ function ManualKorpayCancellationForm({
     recoverAdminGoodsPaymentAction,
     EMPTY_ACTION_STATE,
   );
+  const attestationRef = useRef<HTMLInputElement>(null);
   const confirmation = '표시된 Korpay 주문번호·금액의 전액 취소 완료를 원장에서 확인했다';
   const attestationId = `admin-korpay-cancel-attestation-${attemptId}`;
+  const attestationErrorId = `admin-korpay-cancel-attestation-error-${attemptId}`;
+  const attestationError = state.errors?.operatorAttestation;
+
+  useEffect(() => {
+    if (attestationError) attestationRef.current?.focus();
+  }, [attestationError]);
 
   return (
     <form
@@ -375,18 +382,34 @@ function ManualKorpayCancellationForm({
       <input name="requestId" type="hidden" value={requestId} />
       <label htmlFor={attestationId}>
         <input
+          aria-describedby={attestationError ? attestationErrorId : undefined}
+          aria-invalid={attestationError ? true : undefined}
           disabled={pending}
           id={attestationId}
           name="operatorAttestation"
+          ref={attestationRef}
           required
           type="checkbox"
           value="provider_cancel_confirmed"
         />
         <span>표시된 Korpay 주문번호와 금액의 전액 취소 완료를 원장에서 확인했습니다.</span>
       </label>
-      <button className="btn btn-sm" disabled={pending} type="submit">
+      <button
+        className="btn btn-sm admin-order-korpay-recovery-submit"
+        disabled={pending}
+        type="submit"
+      >
         {pending ? '반영 중' : 'Korpay 전액 취소 반영'}
       </button>
+      {attestationError ? (
+        <span
+          className="admin-order-korpay-recovery-error"
+          id={attestationErrorId}
+          role="alert"
+        >
+          {attestationError}
+        </span>
+      ) : null}
       <ActionFeedback state={state} />
     </form>
   );

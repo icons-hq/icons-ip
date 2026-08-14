@@ -32,10 +32,13 @@
 - `2026-08-21` 시행 전에는 Korpay 굿즈·티켓 canary를 모두 등록·활성화하지 않고,
   목적별 public gate도 `false`로 유지한다. 시행일이 지났다는 사실만으로 canary나
   공개 판매 게이트를 열지 않고, 이 runbook의 나머지 조건과 #208을 함께 충족한다.
-- 현재 결제 취소·환급 운영 소유자는 **회사 대표자 또는 관리자** 역할이다. 개인
-  이메일 주소를 runbook에 기록하지 않는다. 공개 판매 전에 지정된 회사 직원에게 접수
-  채널, 처리 SLA, 상태·금액 대조 방법, 완료 증거 보관 위치, 에스컬레이션 경로를 문서로
-  인계하고 #208의 담당자를 갱신한다.
+- 현재 결제 취소·환급 운영 소유자는 canary 관리자 계정을 소유한 **회사 대표자** 한 명이다.
+  개인 이메일 주소를 runbook에 기록하지 않는다. 수동 취소 반영 UI·Server Action·DB RPC는
+  모두 활성 `admin` 역할만 허용한다. 공개 판매 전에는 지정된 회사 직원에게 접수 채널,
+  처리 SLA, 상태·금액 대조 방법, 완료 증거 보관 위치, 에스컬레이션 경로를 문서로 인계하고,
+  그 담당자에게 필요한 `admin` 권한을 명시적으로 부여·검증한 뒤 기존 담당자의 권한을
+  회수한다. 인계가 끝나기 전에는 모든 `staff`가 이 권한을 가진 것으로 간주하지 않고
+  #208의 담당자를 갱신한다.
 
 ## 결제 프로토콜
 
@@ -85,6 +88,12 @@ Vercel 환경변수의 추가·수정·삭제는 이미 생성된 deployment의 
 배포한 exact Git SHA와 canonical production alias가 그 deployment를 가리키는지 확인한 뒤 안전한
 boolean runtime readback까지 일치해야 변경이 적용된 것으로 본다.
 
+설정만 바뀐 Production 재배포는 `workflow_dispatch`의 `production_redeploy=true`와
+`production_source_run_id`를 함께 사용한다. source run은 **현재 main의 exact SHA**에서 실행된
+성공한 `push` CI/CD Pipeline이어야 하고, 그 run의 `deploy-supabase`와 `deploy-vercel`이 모두
+성공해야 한다. workflow가 이 조건을 GitHub Actions API로 검증하지 못하면 앱만 재배포하지
+않고 중단한다. 이 경계는 DB migration 적용에 실패한 SHA 위에 새 앱만 배포하는 것을 막는다.
+
 Provider credential readiness와 목적별 rollout gate는 독립이다. public gate가 `false`여도 해당
 목적의 canary UUID가 정확히 일치하면 그 인증 사용자만 새 provider session을 만들 수 있다.
 gate와 canary allowlist를 모두 내려도 이미 DB에 durable하게 준비된 known order+nonce callback은
@@ -122,9 +131,19 @@ claim 재개방과 ambiguous hold 해제 SLA가 별도 승인되기 전에는 �
 열지 않는다.
 
 굿즈는 provider confirm 뒤 DB finalizer 전에 프로세스가 종료될 때 stale `confirming`을 자동
-재확인할 공식 provider API가 없다. [#208](https://github.com/icons-hq/icons-ip/issues/208)에서
-공급사 원장 확인, audited 수동 소유 전환, 승인 또는 취소 finalization 절차와 담당자를 검증하기
-전에는 굿즈 실과금 canary도 시작하지 않는다.
+재확인할 공식 provider API가 없다. 현재 admin-only 수동 seam은 공급사 원장에서 **전액 취소가
+완료된 사실**을 운영자가 먼저 확인한 경우에만 `provider_cancel_confirmed`를 반영한다. DB는
+단일 claim 아래 주문·취소 요청·attempt의 사용자, 금액, KRW, snapshot과 payment provenance를
+재검증한다. 이미 `approved`인 attempt는 exact linked payment만 환불 종결한다. `confirming`,
+`unknown`, `needs_review`는 payment/refund를 합성하지 않은 채 attempt·주문·재고를 한 번만
+취소 종결한다. 이 seam은 모호한 승인을 재구성하거나 문서화되지 않은 Korpay API를 호출하지
+않는다.
+
+따라서 [#208](https://github.com/icons-hq/icons-ip/issues/208)의 전체 범위가 끝나지 않았더라도
+이 단일 관리자 canary의 취소 반영 경계는 준비되어 있다. 다만 실과금 전에 실제 가맹점 관리
+화면 또는 공급사가 지정한 접수 채널, 전액 취소 완료 상태와 보관할 증거, 현재 운영 소유자의
+즉시 대응 가능 여부를 직접 확인해야 한다. 이를 확인하지 못하면 굿즈 canary를 시작하지 않는다.
+공개 판매와 다른 직원에게의 인계, 직접 환급·모호 승인 처리 확장은 계속 #208 잔여 범위다.
 
 실제 과금 직전에 아래 값을 사용자에게 다시 보여 주고 명시 확인을 받는다. 과거의 구현 승인이나
 자격 증명 등록 승인을 과금 승인으로 재사용하지 않는다.
@@ -137,7 +156,8 @@ claim 재개방과 ambiguous hold 해제 SLA가 별도 승인되기 전에는 �
 - 취소 계획: #208 담당자, 공급사 수동 접수 채널, 접수 시점, 완료 확인 근거
 
 확인을 받은 뒤 해당 목적의 `KORPAY_*_CANARY_USER_ID`만 Production에 등록하고 public gate는
-`false`로 유지한다. 이어 승인된 exact main SHA를 GitHub Actions Production 경로로 다시 배포하고,
+`false`로 유지한다. 이어 승인된 exact main SHA와 그 SHA의 성공한 Production source run ID를
+GitHub Actions Production 재배포 입력으로 전달하고,
 canonical alias와 runtime boolean readback에서 해당 목적의 canary만 true인지 확인한다. 환경변수
 등록만 하고 기존 deployment에서 canary를 시작하지 않는다. 이 확인 뒤 canary를 한 번만 수행한다.
 다음 항목을 원문 식별자 없이 확인한다.
@@ -159,6 +179,11 @@ canonical alias와 runtime boolean readback에서 해당 목적의 canary만 tru
   [#208](https://github.com/icons-hq/icons-ip/issues/208)의 수동 CS·재무 절차로 확인한다.
 - 취소는 공급사 수동 접수 증거와 최종 상태를 확인한 뒤에만 내부 refund/finalizer를 완료한다.
   카드 승인 취소가 확인되지 않았는데 재고·정원만 복원하지 않는다.
+- 관리자 화면의 opaque Korpay 주문번호와 KRW 금액을 공급사 원장과 대조하고, 전액 취소 완료
+  attestation과 브라우저 재확인을 모두 통과한 경우에만 수동 반영한다. private audit에는 자동
+  audit ID·기록 시각, DB에서 검증한 admin actor UUID, 내부 order·request·attempt 식별자,
+  operation, opaque case, prior state, outcome을 남기고 public audit에도 같은 내부 linkage와 actor를
+  기록한다. paymentKey, TID, PAN, 승인번호, provider raw는 입력·화면·audit에 복사하지 않는다.
 
 ## Rollback과 callback drain
 
@@ -166,8 +191,9 @@ canonical alias와 runtime boolean readback에서 해당 목적의 canary만 tru
 
 1. 해당 목적의 public gate를 `false`로 바꾸고 canary user ID를 제거한다. 이 시점에는 기존
    deployment 동작이 아직 바뀌지 않았다고 간주한다.
-2. config-only rollback이면 현재 승인된 main SHA, 코드 결함이면 검토된 revert가 반영된 exact
-   main SHA를 GitHub Actions Production 경로로 새로 배포한다.
+2. config-only rollback이면 현재 승인된 main SHA와 그 SHA의 성공한 Production source run ID,
+   코드 결함이면 검토된 revert가 반영된 exact main SHA의 성공 run ID를 GitHub Actions Production
+   경로에 전달해 새로 배포한다.
 3. 새 deployment가 Ready인지, canonical production alias가 그 deployment와 exact SHA를
    가리키는지 확인한다.
 4. 새 deployment의 안전한 boolean readback에서 해당 public gate와 canary configured가 모두

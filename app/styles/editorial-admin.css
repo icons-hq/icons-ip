@@ -1711,6 +1711,25 @@ textarea.admin-notification-control {
   margin-top: 2px;
 }
 
+.admin-shell .admin-order-korpay-recovery-submit {
+  border-color: var(--editorial-danger);
+  background: var(--editorial-danger);
+  color: var(--editorial-on-inverse);
+}
+
+.admin-shell .admin-order-korpay-recovery-submit:hover {
+  border-color: color-mix(in srgb, var(--editorial-danger) 86%, #000);
+  background: color-mix(in srgb, var(--editorial-danger) 86%, #000);
+  color: var(--editorial-on-inverse);
+}
+
+.admin-order-korpay-recovery-error {
+  grid-column: 1 / -1;
+  color: var(--editorial-danger);
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .admin-order-korpay-recovery-form .admin-order-action-feedback {
   grid-column: 1 / -1;
 }
