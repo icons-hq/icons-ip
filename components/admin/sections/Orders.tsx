@@ -14,6 +14,7 @@ import {
 import {
   ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS,
   adminOrdersHref,
+  isKorpayManualRecoveryState,
   type AdminOrderCancellationRequestRecord,
   type AdminOrderConsoleData,
   type AdminOrderFilters,
@@ -64,10 +65,6 @@ const GOODS_PAYMENT_ATTEMPT_STATE_LABELS: Record<
   unknown: '결과 불명',
   needs_review: '운영 확인 필요',
 };
-
-const KORPAY_MANUAL_RECOVERY_STATES = new Set<
-  NonNullable<AdminOrderRecord['manualRecoveryAttempt']>['state']
->(['confirming', 'approved', 'unknown', 'needs_review']);
 
 /** 사유 배지. 하자·오배송은 기한과 배송비 부담이 달라 색으로도 구분한다. */
 function CancellationReasonBadge({
@@ -330,18 +327,22 @@ function RejectCancellationForm({ requestId }: { requestId: string }) {
 }
 
 function ReconcileCancellationForm({
-  preparedKorpay = false,
+  preparedKorpay,
   request,
 }: {
-  preparedKorpay?: boolean;
+  preparedKorpay?: {
+    amount: number;
+    currency: string;
+    providerOrderId: string;
+  };
   request: AdminOrderCancellationRequestRecord;
 }) {
   const [state, action, pending] = useActionState(reconcileAdminOrderCancellationAction, EMPTY_ACTION_STATE);
   const confirmation = preparedKorpay
-    ? 'Korpay 결제 세션이 만료되었는지 확인할까요?'
+    ? `Korpay 주문 ${preparedKorpay.providerOrderId} · ₩${preparedKorpay.amount.toLocaleString('ko-KR')} ${preparedKorpay.currency} 결제 세션의 만료를 확인할까요? 이미 만료됐다면 주문 취소와 재고 복원이 즉시 완료됩니다.`
     : '결제 취소 상태를 다시 확인할까요?';
   const label = preparedKorpay
-    ? 'Korpay 만료 상태 확인'
+    ? 'Korpay 만료·취소 처리'
     : request.status === 'processing' ? '처리 상태 확인' : '상태 다시 확인';
 
   return (
@@ -361,10 +362,16 @@ function ReconcileCancellationForm({
 }
 
 function ManualKorpayCancellationForm({
+  amount,
   attemptId,
+  currency,
+  providerOrderId,
   requestId,
 }: {
+  amount: number;
   attemptId: string;
+  currency: string;
+  providerOrderId: string;
   requestId: string;
 }) {
   const [state, action, pending] = useActionState(
@@ -372,7 +379,7 @@ function ManualKorpayCancellationForm({
     EMPTY_ACTION_STATE,
   );
   const attestationRef = useRef<HTMLInputElement>(null);
-  const confirmation = '표시된 Korpay 주문번호·금액의 전액 취소 완료를 원장에서 확인했다';
+  const confirmation = `Korpay 주문 ${providerOrderId} · ₩${amount.toLocaleString('ko-KR')} ${currency}의 전액 취소 완료를 원장에서 확인했습니다. 반영하면 확인된 결제에는 환불 원장을 남기고, 주문 취소와 재고 복원을 즉시 완료합니다. 계속할까요?`;
   const attestationId = `admin-korpay-cancel-attestation-${attemptId}`;
   const attestationErrorId = `admin-korpay-cancel-attestation-error-${attemptId}`;
   const attestationError = state.errors?.operatorAttestation;
@@ -475,7 +482,7 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
     ? order.manualRecoveryAttempt
     : null;
   const usesKorpayManualRecovery = manualRecoveryAttempt
-    ? KORPAY_MANUAL_RECOVERY_STATES.has(manualRecoveryAttempt.state)
+    ? isKorpayManualRecoveryState(manualRecoveryAttempt.state)
     : false;
 
   return (
@@ -628,13 +635,22 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
         {(cancellationRequest?.status === 'processing' || cancellationRequest?.status === 'needs_review')
           && !usesKorpayManualRecovery ? (
           <ReconcileCancellationForm
-            preparedKorpay={manualRecoveryAttempt?.state === 'prepared'}
+            preparedKorpay={manualRecoveryAttempt?.state === 'prepared'
+              ? {
+                  amount: manualRecoveryAttempt.amount,
+                  currency: manualRecoveryAttempt.currency,
+                  providerOrderId: manualRecoveryAttempt.providerOrderId,
+                }
+              : undefined}
             request={cancellationRequest}
           />
         ) : null}
         {manualRecoveryAttempt?.manualRecoveryAvailable ? (
           <ManualKorpayCancellationForm
+            amount={manualRecoveryAttempt.amount}
             attemptId={manualRecoveryAttempt.attemptId}
+            currency={manualRecoveryAttempt.currency}
+            providerOrderId={manualRecoveryAttempt.providerOrderId}
             requestId={manualRecoveryAttempt.requestId}
           />
         ) : null}

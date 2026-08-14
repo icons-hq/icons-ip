@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server';
 import {
   ADMIN_ORDER_STATUSES,
   GOODS_PAYMENT_ATTEMPT_STATES,
+  isKorpayManualRecoveryState,
   ORDER_CANCELLATION_REQUEST_STATUSES,
   type AdminOrderConsoleData,
   type AdminOrderFilters,
@@ -115,9 +116,7 @@ function normalizeManualRecoveryAttemptRow(value: ManualRecoveryAttemptRow) {
     throw new Error('Failed to load admin orders: invalid payment attempt summary');
   }
   const state = requireAttemptState(value.state);
-  if (value.manual_recovery_available
-    && !['confirming', 'approved', 'unknown', 'needs_review'].includes(state)
-  ) {
+  if (value.manual_recovery_available && !isKorpayManualRecoveryState(state)) {
     throw new Error('Failed to load admin orders: invalid payment recovery availability');
   }
   return {

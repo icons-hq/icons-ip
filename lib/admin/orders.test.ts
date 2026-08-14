@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   adminOrdersHref,
+  isKorpayManualRecoveryState,
   normalizeAdminCancellationDecisionForm,
   normalizeAdminGoodsManualRecoveryForm,
   normalizeAdminOrderFilters,
@@ -11,6 +12,18 @@ import {
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 const REQUEST_ID = '22222222-2222-4222-8222-222222222222';
 const ATTEMPT_ID = '33333333-3333-4333-8333-333333333333';
+
+describe('Korpay manual recovery states', () => {
+  it.each(['confirming', 'approved', 'unknown', 'needs_review'] as const)(
+    '%s 상태를 원장 확인 대상으로 분류한다',
+    (state) => expect(isKorpayManualRecoveryState(state)).toBe(true),
+  );
+
+  it.each(['prepared', 'declined', 'canceled'] as const)(
+    '%s 상태를 수동 원장 확인에서 제외한다',
+    (state) => expect(isKorpayManualRecoveryState(state)).toBe(false),
+  );
+});
 
 describe('normalizeAdminOrderFilters', () => {
   it('정상 검색 조건과 KST 기간·페이지를 보존한다', () => {

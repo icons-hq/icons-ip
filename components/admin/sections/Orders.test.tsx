@@ -125,7 +125,7 @@ describe('OrdersSection', () => {
     expect(html).toContain('value="provider_cancel_confirmed"');
     expect(html).toContain('required=""');
     expect(html).toContain(
-      'data-confirm="표시된 Korpay 주문번호·금액의 전액 취소 완료를 원장에서 확인했다"',
+      'data-confirm="Korpay 주문 O0123456789ABCDEF · ₩32,000 KRW의 전액 취소 완료를 원장에서 확인했습니다. 반영하면 확인된 결제에는 환불 원장을 남기고, 주문 취소와 재고 복원을 즉시 완료합니다. 계속할까요?"',
     );
     expect(html).toContain('Korpay 전액 취소 반영');
     expect(html).toContain('admin-order-korpay-recovery-submit');
@@ -191,8 +191,10 @@ describe('OrdersSection', () => {
       },
     })} />);
 
-    expect(html).toContain('Korpay 만료 상태 확인');
-    expect(html).toContain('Korpay 결제 세션이 만료되었는지 확인할까요?');
+    expect(html).toContain('Korpay 만료·취소 처리');
+    expect(html).toContain(
+      'Korpay 주문 O0123456789ABCDEF · ₩32,000 KRW 결제 세션의 만료를 확인할까요? 이미 만료됐다면 주문 취소와 재고 복원이 즉시 완료됩니다.',
+    );
     expect(html).toContain(`name="requestId" value="${request.id}"`);
     expect(html).not.toContain('Korpay 전액 취소 반영');
     expect(html).not.toContain('처리 상태 확인');

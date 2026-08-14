@@ -21,6 +21,17 @@ export const GOODS_PAYMENT_ATTEMPT_STATES = [
 ] as const;
 export type GoodsPaymentAttemptState = (typeof GOODS_PAYMENT_ATTEMPT_STATES)[number];
 
+const KORPAY_MANUAL_RECOVERY_STATE_SET = new Set<GoodsPaymentAttemptState>([
+  'confirming',
+  'approved',
+  'unknown',
+  'needs_review',
+]);
+
+export function isKorpayManualRecoveryState(state: GoodsPaymentAttemptState) {
+  return KORPAY_MANUAL_RECOVERY_STATE_SET.has(state);
+}
+
 export const ORDER_CANCELLATION_REQUEST_STATUSES = [
   'requested',
   'processing',
