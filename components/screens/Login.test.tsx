@@ -121,4 +121,11 @@ describe('Login', () => {
     expect(html).toContain('role="status"');
     expect(html).toContain('비밀번호를 변경했습니다. 새 비밀번호로 로그인해주세요.');
   });
+
+  it('describes payment confirmation without naming a legacy provider', () => {
+    const html = render();
+
+    expect(html).toContain('결제사 승인 확인 후 주문 확정');
+    expect(html).not.toContain('토스페이먼츠 안전 결제');
+  });
 });

@@ -55,6 +55,8 @@ export async function reserveTicketsAction(inputValue: unknown): Promise<Reserve
       || normalizeTicketReference(eligibilityData.id) !== input.ticketTypeId
       || !Number.isInteger(eligibilityData.price)
       || eligibilityData.price <= 0
+      || !Number.isSafeInteger(eligibilityData.price * input.qty)
+      || eligibilityData.price * input.qty < 1_000
       || eventStatus(eligibilityData.events) !== '예매중'
     ) {
       return { ok: false, error: 'not_bookable' };

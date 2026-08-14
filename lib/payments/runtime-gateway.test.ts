@@ -22,10 +22,10 @@ const attempt: PaymentAttempt = {
 
 const CANARY_USER_ID = '10000000-0000-4000-8000-000000000207';
 
-function configureProvider() {
+function configureProvider(siteUrl = 'https://icons.example') {
   vi.stubEnv('KORPAY_MID', 'test12345m');
   vi.stubEnv('KORPAY_KEY', 'c2VydmVyLW9ubHkta29ycGF5LWtleS0yMDc=');
-  vi.stubEnv('SITE_URL', 'https://icons.example');
+  vi.stubEnv('SITE_URL', siteUrl);
 }
 
 afterEach(() => {
@@ -72,5 +72,16 @@ describe('payment runtime gateway', () => {
     expect(newPaymentCheckoutEnabled('order', '10000000-0000-4000-8000-000000000208')).toBe(false);
     expect(newPaymentCheckoutEnabled('order')).toBe(false);
     expect(newPaymentCheckoutEnabled('ticket', 'not-a-uuid')).toBe(false);
+  });
+
+  it('Production은 canonical origin과 UUID v1-5만 build guard와 동일하게 허용한다', () => {
+    vi.stubEnv('VERCEL_ENV', 'production');
+    configureProvider('https://iconsip.com?redirect=evil');
+    expect(paymentProviderConfigured()).toBe(false);
+
+    configureProvider('https://iconsip.com');
+    vi.stubEnv('KORPAY_ORDER_CANARY_USER_ID', '10000000-0000-7000-8000-000000000207');
+    expect(paymentProviderConfigured()).toBe(true);
+    expect(newPaymentCheckoutEnabled('order', '10000000-0000-7000-8000-000000000207')).toBe(false);
   });
 });

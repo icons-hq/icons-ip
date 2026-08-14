@@ -41,6 +41,7 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ICONS_CATALOG_SOURCE=
 AUTH_SIGNUP_RESEND_SECRET=
+SITE_URL=https://iconsip.com
 CRON_SECRET=
 # #191 dark path: Production only; Preview/CI leave empty and Hook stays disabled.
 SUPABASE_SEND_EMAIL_HOOK_SECRET=
@@ -67,6 +68,7 @@ KORPAY_TICKET_CANARY_USER_ID=
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: legacy Supabase anon public key. `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`가 없을 때 fallback으로만 사용한다.
 - `ICONS_CATALOG_SOURCE`: 서버 전용 catalog/search source override. 값은 `mock` 또는 `supabase`만 허용한다. 비워두면 Vercel Preview는 `mock`, Supabase 환경변수가 있는 production/local은 `supabase`, Supabase 환경변수가 없으면 `mock`을 쓴다.
 - `AUTH_SIGNUP_RESEND_SECRET`: 회원가입 확인 메일 재전송 상태, 인증 `next`, 비밀번호 재설정 요청 제한 쿠키를 domain-separated HMAC으로 서명하는 서버 전용 secret. 긴 랜덤 값을 사용하고 `NEXT_PUBLIC_` prefix를 붙이지 않는다.
+- `SITE_URL`: secret이 아닌 서버 전용 canonical public origin이다. Production은 정확히 `https://iconsip.com`을 사용하며 Korpay 굿즈·티켓 `returnUrl` callback도 이 origin 아래에서 생성한다. Preview/CI는 필요하면 각 환경의 일반 서버 origin을 둘 수 있지만 Korpay 실자격 증명과 canary actor는 두지 않고 목적별 gate를 닫는다. `SITE_URL`만으로 live checkout이 열리지는 않는다.
 - `CRON_SECRET`: production Vercel Cron이 만료된 관리자 아트워크 staging 객체를 정리할 때 쓰는 서버 전용 bearer secret. 16~128자의 URL-safe 랜덤 값을 사용하고 preview에는 필요하지 않다.
 - `SUPABASE_SEND_EMAIL_HOOK_SECRET`·`RESEND_WEBHOOK_SECRET`: #191 Hook/webhook의 raw body 서명 검증용 서버 secret이다.
 - `EMAIL_DISPATCH_HMAC_SECRET`: recipient·source·provider reference를 목적 분리 keyed HMAC으로 투영하는 32자 이상 서버 secret이다.
@@ -81,7 +83,7 @@ KORPAY_TICKET_CANARY_USER_ID=
 
 ### Production 결제 활성화 경계
 
-Korpay 계약 완료와 현재 운영 자격 증명의 사용 가능 상태는 2026-08-14 사용자 확인으로 정정됐다. 이는 공급사 서면 증거나 19+ 유한 실물 쿠지 승인 범위를 뜻하지 않는다. 연동 계약은 코페이 인증결제 가이드 v1.2.2와 `@korpay/sdk` 1.1.8에 맞춘 서버 prepare → 브라우저 SDK → `application/x-www-form-urlencoded` callback → 서버 confirm → 명시적 303 redirect다.
+Korpay 계약 완료와 현재 운영 자격 증명의 사용 가능 상태는 2026-08-14 사용자 확인으로 정정됐다. 이는 공급사 서면 증거나 19+ 유한 실물 쿠지 승인 범위를 뜻하지 않는다. 연동 계약은 코페이 인증결제 가이드 v1.2.2와 `@korpay/sdk` 1.1.8에 맞춘 서버 prepare → 브라우저 SDK → `application/x-www-form-urlencoded` callback → 서버 confirm → 명시적 303 redirect다. Production의 Korpay callback은 `SITE_URL=https://iconsip.com`에서 만든 canonical origin만 사용한다.
 
 Provider credential readiness와 목적별(`order`·`ticket`) rollout gate를 분리한다. 판매 gate를 내리면 해당 목적의 새 reserve·prepare·provider session 생성만 차단하고, 이미 DB에 durable한 attempt의 known opaque order+nonce callback은 계속 claim·확정한다. 알 수 없는 order·nonce는 provider 호출 전에 거부한다. 코페이가 공개한 가이드에는 자동 status/reconcile/cancel API가 없으므로 모호 결과를 추측하거나 자동 재시도하지 않고 `needs_review`로 격리하며, 취소는 #208의 수동 운영 절차로 처리한다. Toss 결제위젯과 `/api/payments/confirm`을 이용한 신규 결제는 열지 않고, Production의 `TOSS_SECRET_KEY`는 알려진 기존 거래가 종결될 때까지만 유지한다.
 

@@ -102,14 +102,16 @@ describe('EventDetail', () => {
     expect(html).toContain('로그인하고 예매');
   });
 
-  it('disables sold-out, zero-price, and non-booking event sessions with an explanation', () => {
+  it('disables sold-out, below-minimum, and non-booking event sessions with an explanation', () => {
     const soldOut = render({ sessions: [sessions[1]!] });
     const free = render({ sessions: [{ ...sessions[0]!, price: 0 }] });
+    const belowMinimum = render({ sessions: [{ ...sessions[0]!, price: 999 }] });
     const scheduled = render({ event: { ...event, status: '예정' } });
 
     expect(soldOut).toContain('정원 마감');
     expect(soldOut).toContain('disabled=""');
     expect(free).toContain('0원 회차는 현재 예매할 수 없어요');
+    expect(belowMinimum).toContain('결제사 최소 금액 미만 회차는 현재 예매할 수 없어요');
     expect(scheduled).toContain('현재 예매 가능한 이벤트가 아니에요');
   });
 
@@ -125,6 +127,8 @@ describe('EventDetail', () => {
 
     expect(html).toContain('전자티켓 이용 안내');
     expect(html).toContain('결제 확인 후 내 티켓에서 QR을 확인');
+    expect(html).toContain('결제사 승인 결과를 서버에서 확인한 뒤 완료를 안내합니다');
+    expect(html).not.toContain('웹훅 확인 후');
     expect(html).toContain('href="/tickets"');
   });
 

@@ -11,7 +11,7 @@ const baseEnvironment = {
 };
 
 const validKorpayEnvironment = {
-  SITE_URL: 'https://icons.example',
+  SITE_URL: 'https://iconsip.com',
   KORPAY_MID: 'test12345m',
   KORPAY_KEY: 'A'.repeat(32),
 };
@@ -145,6 +145,18 @@ describe('validateVercelBuildEnvironment', () => {
     expect(() => validateVercelBuildEnvironment(productionEnvironment({
       SITE_URL: 'http://icons.example',
     }))).toThrow('Invalid Vercel production SITE_URL');
+
+    for (const siteUrl of [
+      'https://user:pass@iconsip.com',
+      'https://iconsip.com/checkout',
+      'https://iconsip.com?redirect=evil',
+      'https://iconsip.com#fragment',
+      'https://wrong.example',
+    ]) {
+      expect(() => validateVercelBuildEnvironment(productionEnvironment({
+        SITE_URL: siteUrl,
+      }))).toThrow('Invalid Vercel production SITE_URL');
+    }
   });
 
   it('reports missing Korpay production variables by name without credential material', () => {
@@ -211,6 +223,10 @@ describe('validateVercelBuildEnvironment', () => {
 
     expect(() => validateVercelBuildEnvironment(productionEnvironment({
       KORPAY_TICKET_CANARY_USER_ID: 'not-a-uuid',
+    }))).toThrow('Invalid Vercel production KORPAY_TICKET_CANARY_USER_ID');
+
+    expect(() => validateVercelBuildEnvironment(productionEnvironment({
+      KORPAY_TICKET_CANARY_USER_ID: '10000000-0000-7000-8000-000000000207',
     }))).toThrow('Invalid Vercel production KORPAY_TICKET_CANARY_USER_ID');
 
     expect(() => validateVercelBuildEnvironment({

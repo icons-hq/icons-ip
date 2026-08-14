@@ -166,6 +166,7 @@ export function mapReserveTicketsError(message: unknown): ReserveTicketsErrorCod
     normalized.includes('ticket type not found')
     || normalized.includes('event not bookable')
     || normalized.includes('paid ticket required')
+    || normalized.includes('payment amount below provider minimum')
   ) return 'not_bookable';
   if (normalized.includes('sales not open')) return 'sales_not_open';
   if (normalized.includes('sold out')) return 'sold_out';

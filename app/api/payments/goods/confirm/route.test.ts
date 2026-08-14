@@ -120,14 +120,16 @@ describe('POST /api/payments/goods/confirm', () => {
     expect(mocks.confirm).not.toHaveBeenCalled();
   });
 
-  it('runtime readiness OFF와 내부 오류는 원문 없이 fail closed한다', async () => {
+  it('runtime readiness OFF는 503, parsed callback의 내부 오류는 checking 303으로 fail closed한다', async () => {
     mocks.confirmationAvailable = false;
     expect((await POST(request())).status).toBe(503);
 
     mocks.confirmationAvailable = true;
     mocks.confirm.mockRejectedValue(new Error('private provider secret'));
     const failed = await POST(request());
-    expect(failed.status).toBe(502);
+    expect(failed.status).toBe(303);
+    expect(failed.headers.get('location')).toBe('/orders?payment=checking');
+    expect(failed.headers.get('location')).not.toContain(fields.paymentKey);
     expect(await failed.text()).not.toContain('private provider secret');
   });
 });

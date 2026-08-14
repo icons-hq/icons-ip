@@ -1,5 +1,11 @@
 import 'server-only';
 import type { PaymentGateway } from './gateway';
+import {
+  isKorpayMerchantId,
+  isKorpayMerchantKey,
+  isKorpayUuid,
+  normalizeKorpaySiteUrl,
+} from './korpay-config.mjs';
 import { createKorpayPaymentGateway } from './korpay-gateway.server';
 
 export type NewPaymentCheckoutPurpose = 'order' | 'ticket';
@@ -22,31 +28,15 @@ const unavailableGateway: PaymentGateway = {
   refund: unavailable,
 };
 
-const KORPAY_MID = /^[A-Za-z0-9]{10}$/;
-const KORPAY_KEY = /^[A-Za-z0-9+/]{30,254}={0,2}$/;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 function runtimeConfiguration() {
   const merchantId = process.env.KORPAY_MID?.trim() ?? '';
   const merchantKey = process.env.KORPAY_KEY?.trim() ?? '';
   const siteUrl = process.env.SITE_URL?.trim() ?? '';
-  if (!KORPAY_MID.test(merchantId) || !KORPAY_KEY.test(merchantKey)) return null;
-
-  try {
-    const url = new URL(siteUrl);
-    const localHttp = url.protocol === 'http:'
-      && (url.hostname === 'localhost' || url.hostname === '127.0.0.1');
-    if (
-      (url.protocol !== 'https:' && !localHttp)
-      || url.username
-      || url.password
-      || url.search
-      || url.hash
-    ) return null;
-    return { merchantId, merchantKey, siteUrl: url.origin };
-  } catch {
-    return null;
-  }
+  if (!isKorpayMerchantId(merchantId) || !isKorpayMerchantKey(merchantKey)) return null;
+  const normalizedSiteUrl = normalizeKorpaySiteUrl(siteUrl, {
+    production: process.env.VERCEL_ENV === 'production',
+  });
+  return normalizedSiteUrl ? { merchantId, merchantKey, siteUrl: normalizedSiteUrl } : null;
 }
 
 /** Credentials make the adapter ready; rollout gates remain independent. */
@@ -72,9 +62,9 @@ export function newPaymentCheckoutEnabled(
     ? process.env.KORPAY_ORDER_CANARY_USER_ID
     : process.env.KORPAY_TICKET_CANARY_USER_ID;
   return typeof userId === 'string'
-    && UUID.test(userId)
+    && isKorpayUuid(userId)
     && typeof canaryUserId === 'string'
-    && UUID.test(canaryUserId)
+    && isKorpayUuid(canaryUserId)
     && userId === canaryUserId;
 }
 

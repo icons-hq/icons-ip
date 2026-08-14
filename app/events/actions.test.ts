@@ -171,6 +171,19 @@ describe('reserveTicketsAction', () => {
     expect(mocks.serviceRpc).not.toHaveBeenCalled();
   });
 
+  it('Korpay 최소 금액 미만은 정원을 선점하기 전에 거절한다', async () => {
+    mocks.eligibility = {
+      data: { id: ticketTypeId, price: 499, events: { status: '예매중' } },
+      error: null,
+    };
+
+    await expect(reserveTicketsAction(input)).resolves.toEqual({
+      ok: false,
+      error: 'not_bookable',
+    });
+    expect(mocks.serviceRpc).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['account_suspended', 'account_suspended'],
     ['auth required', 'auth_required'],
@@ -178,6 +191,7 @@ describe('reserveTicketsAction', () => {
     ['ticket type not found', 'not_bookable'],
     ['event not bookable', 'not_bookable'],
     ['paid ticket required', 'not_bookable'],
+    ['payment amount below provider minimum', 'not_bookable'],
     ['sales not open', 'sales_not_open'],
     ['sold out', 'sold_out'],
     ['per-user limit exceeded', 'per_user_limit'],

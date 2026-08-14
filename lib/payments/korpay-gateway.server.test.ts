@@ -37,11 +37,11 @@ function successResponse(
     reserved,
     card: {
       cardNumber: '1234********5678',
-      approvalCode: 'issuer-code',
+      approvalCode: '01',
       installment: '00',
       approvalNumber: 'approval-205',
-      usePointAmt: 0,
-      remainPointAmt: 0,
+      usePointAmt: '0',
+      remainPointAmt: '0',
     },
     ...overrides,
   };
@@ -177,6 +177,36 @@ describe('Korpay payment gateway', () => {
     ['amount', { amount: ATTEMPT.amount + 1 }],
     ['payMethod', { payMethod: 'BANK' }],
     ['card', { card: null }],
+    ['unmasked card', {
+      card: {
+        cardNumber: '4111111111111111',
+        approvalCode: '01',
+        installment: '00',
+        approvalNumber: 'approval-205',
+        usePointAmt: '0',
+        remainPointAmt: '0',
+      },
+    }],
+    ['issuer code', {
+      card: {
+        cardNumber: '1234********5678',
+        approvalCode: 'issuer-code',
+        installment: '00',
+        approvalNumber: 'approval-205',
+        usePointAmt: '0',
+        remainPointAmt: '0',
+      },
+    }],
+    ['point amount', {
+      card: {
+        cardNumber: '1234********5678',
+        approvalCode: '01',
+        installment: '00',
+        approvalNumber: 'approval-205',
+        usePointAmt: 0,
+        remainPointAmt: '0',
+      },
+    }],
   ])('confirm response %s mismatch는 승인하지 않는다', async (_field, overrides) => {
     const nonce = await preparedNonce();
     const fetchImpl = vi.fn(async () => Response.json(successResponse(nonce, overrides)));
@@ -230,6 +260,16 @@ describe('Korpay payment gateway', () => {
       callbackNonce: nonce,
       providerPayload: callbackPayload(nonce, { resultCode: 'E999', paymentKey: undefined }),
     })).resolves.toMatchObject({ outcome: 'declined', reasonCode: 'provider_authentication_failed' });
+    await expect(subject.confirm({
+      attempt: ATTEMPT,
+      idempotencyKey: `confirm:${ATTEMPT.id}`,
+      providerOrderId: ATTEMPT.providerOrderId,
+      callbackNonce: nonce,
+      providerPayload: callbackPayload(nonce, { resultCode: 'E002', paymentKey: undefined }),
+    })).resolves.toMatchObject({
+      outcome: 'needs_review',
+      reasonCode: 'provider_existing_order_requires_review',
+    });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -253,6 +293,25 @@ describe('Korpay payment gateway', () => {
       providerPayload: callbackPayload(nonce),
     })).resolves.toMatchObject({ outcome: 'declined', reasonCode: 'provider_declined' });
   });
+
+  it.each(['1523', '2002', 'A999'])(
+    '모호하거나 알 수 없는 confirm 코드 %s는 재고를 풀지 않는다',
+    async (resultCode) => {
+      const nonce = await preparedNonce();
+      const subject = gateway(vi.fn(async () => Response.json({ resultCode })) as typeof fetch);
+
+      await expect(subject.confirm({
+        attempt: ATTEMPT,
+        idempotencyKey: `confirm:${ATTEMPT.id}`,
+        providerOrderId: ATTEMPT.providerOrderId,
+        callbackNonce: nonce,
+        providerPayload: callbackPayload(nonce),
+      })).resolves.toMatchObject({
+        outcome: 'unknown',
+        reasonCode: 'provider_ambiguous_result',
+      });
+    },
+  );
 
   it('timeout, non-JSON, oversized 응답은 자동 재시도 없이 unknown이다', async () => {
     const nonce = await preparedNonce();

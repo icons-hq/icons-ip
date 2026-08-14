@@ -1,6 +1,12 @@
 import { pathToFileURL } from 'node:url';
 
 import { paymentKeyMode } from '../lib/payments/key-mode.mjs';
+import {
+  isKorpayMerchantId,
+  isKorpayMerchantKey,
+  isKorpayUuid,
+  normalizeKorpaySiteUrl,
+} from '../lib/payments/korpay-config.mjs';
 
 const VERCEL_TARGETS = new Set(['preview', 'production']);
 const KORPAY_GATE_NAMES = [
@@ -11,9 +17,6 @@ const KORPAY_CANARY_NAMES = [
   'KORPAY_ORDER_CANARY_USER_ID',
   'KORPAY_TICKET_CANARY_USER_ID',
 ];
-const KORPAY_MID_PATTERN = /^[A-Za-z0-9]{10}$/;
-const KORPAY_KEY_PATTERN = /^(?=.{32,256}$)[A-Za-z0-9+/]+={0,2}$/;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function isPresent(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -25,15 +28,6 @@ function parseBooleanGate(environment, target, name) {
   if (value === 'true') return true;
   if (value === 'false') return false;
   throw new Error(`Invalid Vercel ${target} ${name}: use true, false, or leave unset`);
-}
-
-function isHttpsUrl(value) {
-  if (!isPresent(value)) return false;
-  try {
-    return new URL(value).protocol === 'https:';
-  } catch {
-    return false;
-  }
 }
 
 export function validateVercelBuildEnvironment(environment) {
@@ -95,18 +89,18 @@ export function validateVercelBuildEnvironment(environment) {
   }
 
   if (target === 'production') {
-    if (!KORPAY_MID_PATTERN.test(environment.KORPAY_MID)) {
+    if (!isKorpayMerchantId(environment.KORPAY_MID)) {
       throw new Error('Invalid Vercel production KORPAY_MID: use exactly 10 ASCII letters or digits');
     }
-    if (!KORPAY_KEY_PATTERN.test(environment.KORPAY_KEY)) {
+    if (!isKorpayMerchantKey(environment.KORPAY_KEY)) {
       throw new Error('Invalid Vercel production KORPAY_KEY: use 32-256 base64 characters');
     }
-    if (!isHttpsUrl(environment.SITE_URL)) {
-      throw new Error('Invalid Vercel production SITE_URL: use an HTTPS URL');
+    if (!normalizeKorpaySiteUrl(environment.SITE_URL, { production: true })) {
+      throw new Error('Invalid Vercel production SITE_URL: use the canonical HTTPS origin');
     }
     for (const name of KORPAY_CANARY_NAMES) {
-      if (isPresent(environment[name]) && !UUID_PATTERN.test(environment[name])) {
-        throw new Error(`Invalid Vercel production ${name}: use a UUID`);
+      if (isPresent(environment[name]) && !isKorpayUuid(environment[name])) {
+        throw new Error(`Invalid Vercel production ${name}: use a UUID v1-5`);
       }
     }
   }

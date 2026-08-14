@@ -21,6 +21,7 @@ const PROVIDER_ORDER_ID = /^[OT][0-9a-f]{32}$/i;
 const PROVIDER_PRODUCT_CODE = /^P[0-9a-f]{32}$/i;
 const PROVIDER_REFERENCE = /^[\x21-\x7e]{1,512}$/;
 const RESULT_CODE = /^[A-Za-z0-9]{3,8}$/;
+const AUTHENTICATION_FAILURE_CODE = /^(?:E00[13456789]|E01[0-3]|E999|ES00[1-9]|EP001|EM00[1-8]|EB00[1-3])$/;
 
 interface KorpayGatewayOptions {
   readonly merchantId: string;
@@ -152,12 +153,20 @@ function callbackIdentityMatches(
 
 function validCard(value: unknown): value is Record<string, unknown> {
   if (!plainRecord(value)) return false;
+  const compactCardNumber = typeof value.cardNumber === 'string'
+    ? value.cardNumber.replace(/[ -]/g, '')
+    : '';
   return safeString(value.cardNumber, 32)
-    && /^[0-9* -]{8,32}$/.test(value.cardNumber)
-    && safeString(value.approvalCode, 100)
+    && /^[0-9]{4,8}\*{4,16}[0-9]{2,8}$/.test(compactCardNumber)
+    && typeof value.approvalCode === 'string'
+    && /^[0-9]{2}$/.test(value.approvalCode)
     && safeString(value.approvalNumber, 100)
     && typeof value.installment === 'string'
-    && /^[0-9]{2}$/.test(value.installment);
+    && /^[0-9]{2}$/.test(value.installment)
+    && typeof value.usePointAmt === 'string'
+    && /^(?:0|[1-9][0-9]{0,11})$/.test(value.usePointAmt)
+    && typeof value.remainPointAmt === 'string'
+    && /^(?:0|[1-9][0-9]{0,11})$/.test(value.remainPointAmt);
 }
 
 function approvedEvidence(
@@ -241,8 +250,11 @@ function outcomeFromConfirmResponse(
       evidence,
     ) as ConfirmOutcome;
   }
-  if (resultCode !== '3001') {
+  if (resultCode === '3002') {
     return baseOutcome(input.attempt, 'declined', 'provider_declined', evidence) as ConfirmOutcome;
+  }
+  if (resultCode !== '3001') {
+    return baseOutcome(input.attempt, 'unknown', 'provider_ambiguous_result', evidence) as ConfirmOutcome;
   }
   if (!confirmIdentityMatches(responsePayload, input, merchantId)) {
     return baseOutcome(
@@ -356,12 +368,31 @@ export function createKorpayPaymentGateway(options: KorpayGatewayOptions): Payme
           { resultCode },
         ) as ConfirmOutcome;
       }
+      if (resultCode === 'E002') {
+        return baseOutcome(
+          input.attempt,
+          'needs_review',
+          'provider_existing_order_requires_review',
+          { resultCode },
+        ) as ConfirmOutcome;
+      }
       if (resultCode !== '0000') {
+        const evidence = typeof resultCode === 'string' && RESULT_CODE.test(resultCode)
+          ? { resultCode }
+          : undefined;
+        if (!AUTHENTICATION_FAILURE_CODE.test(String(resultCode ?? ''))) {
+          return baseOutcome(
+            input.attempt,
+            'needs_review',
+            'provider_unknown_authentication_result',
+            evidence,
+          ) as ConfirmOutcome;
+        }
         return baseOutcome(
           input.attempt,
           'declined',
           'provider_authentication_failed',
-          typeof resultCode === 'string' && RESULT_CODE.test(resultCode) ? { resultCode } : undefined,
+          evidence,
         ) as ConfirmOutcome;
       }
 

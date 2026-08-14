@@ -33,6 +33,7 @@ function disabledReason(event: FandomEvent, session: PublicTicketType, paymentAv
   if (event.status !== '예매중') return '현재 예매 가능한 이벤트가 아니에요.';
   if (session.remaining <= 0) return '정원 마감';
   if (session.price <= 0) return '0원 회차는 현재 예매할 수 없어요.';
+  if (session.price < 1_000) return '결제사 최소 금액 미만 회차는 현재 예매할 수 없어요.';
   if (!paymentAvailable) return '결제 환경을 확인 중이라 지금은 예매할 수 없어요.';
   return null;
 }
@@ -303,7 +304,7 @@ export function EventDetail({
           ) : (
             <button className="btn btn-holo checkout-submit" disabled type="button">예매할 수 없음</button>
           )}
-          <p className="money-caption">예약 후 10분 동안 정원이 선점됩니다. 결제 완료는 웹훅 확인 후 안내합니다.</p>
+          <p className="money-caption">예약 후 10분 동안 정원이 선점됩니다. 결제사 승인 결과를 서버에서 확인한 뒤 완료를 안내합니다.</p>
         </aside>
       </form>
 

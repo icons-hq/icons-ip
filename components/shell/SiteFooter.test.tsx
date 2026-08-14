@@ -55,6 +55,13 @@ describe('SiteFooter 법정 고지 링크', () => {
     }
   });
 
+  it('결제 확정 원칙을 legacy provider 이름 없이 안내한다', () => {
+    const html = render();
+
+    expect(html).toContain('결제사 승인 확인 후 주문 확정');
+    expect(html).not.toContain('토스페이먼츠 안전 결제');
+  });
+
   it('홈과 인증 셸에서는 푸터를 렌더하지 않는다', () => {
     for (const pathname of ['/', '/login', '/update-password', '/account-suspended', '/admin', '/games/roulette']) {
       mocks.pathname = pathname;

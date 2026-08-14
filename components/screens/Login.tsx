@@ -169,7 +169,7 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
           <div className="mono" style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 26, fontSize: 11.5, color: 'var(--faint)', letterSpacing: '.04em' }}>
             <span>✓ 공식 라이선스 정품만 입점</span>
             <span>✓ 수집 카드는 구매·게임 무상 리워드</span>
-            <span>✓ 토스페이먼츠 안전 결제</span>
+            <span>✓ 결제사 승인 확인 후 주문 확정</span>
           </div>
         </div>
       </div>

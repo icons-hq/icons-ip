@@ -102,10 +102,12 @@ describe('POST /api/payments/tickets/confirm', () => {
     expect(mocks.confirm).not.toHaveBeenCalled();
   });
 
-  it('내부 오류 원문 없이 502로 fail closed한다', async () => {
+  it('parsed callback의 내부 오류는 원문 없이 checking 303으로 fail closed한다', async () => {
     mocks.confirm.mockRejectedValue(new Error('secret provider detail'));
     const failure = await POST(request());
-    expect(failure.status).toBe(502);
+    expect(failure.status).toBe(303);
+    expect(failure.headers.get('location')).toBe('/tickets?payment=checking');
+    expect(failure.headers.get('location')).not.toContain(fields.paymentKey);
     expect(await failure.text()).not.toContain('secret provider detail');
   });
 });

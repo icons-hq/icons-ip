@@ -77,7 +77,8 @@ values
   ('10000000-0000-4000-8000-000000000a13', 'ticket-booking-live', '다중 결제 대기 회차', 10000, 10, 0, 4, null),
   ('10000000-0000-4000-8000-000000000a14', 'ticket-booking-live', '결제 증거 환불 회차', 10000, 10, 0, 4, null),
   ('10000000-0000-4000-8000-000000000a15', 'ticket-booking-live', 'paid 장부 불일치 회차', 10000, 10, 0, 4, null),
-  ('10000000-0000-4000-8000-000000000a16', 'ticket-booking-live', '결제 키 불일치 회차', 10000, 10, 0, 4, null)
+  ('10000000-0000-4000-8000-000000000a16', 'ticket-booking-live', '결제 키 불일치 회차', 10000, 10, 0, 4, null),
+  ('10000000-0000-4000-8000-000000000a17', 'ticket-booking-live', 'Korpay 최소 금액 미만', 999, 10, 0, 4, null)
 on conflict (id) do update set
   event_id = excluded.event_id,
   name = excluded.name,
@@ -242,7 +243,8 @@ begin
       ('10000000-0000-4000-8000-000000000a03'::uuid, '20000000-0000-4000-8000-000000000a03'::uuid, 'event not bookable'::text),
       ('10000000-0000-4000-8000-000000000a04'::uuid, '20000000-0000-4000-8000-000000000a04'::uuid, 'event not bookable'::text),
       ('10000000-0000-4000-8000-000000000a05'::uuid, '20000000-0000-4000-8000-000000000a05'::uuid, 'paid ticket required'::text),
-      ('10000000-0000-4000-8000-000000000a06'::uuid, '20000000-0000-4000-8000-000000000a06'::uuid, 'sales not open'::text)
+      ('10000000-0000-4000-8000-000000000a06'::uuid, '20000000-0000-4000-8000-000000000a06'::uuid, 'sales not open'::text),
+      ('10000000-0000-4000-8000-000000000a17'::uuid, '20000000-0000-4000-8000-000000000a17'::uuid, 'payment amount below provider minimum'::text)
     ) as invalid_values(ticket_type_id, reservation_key, expected_message)
   loop
     begin

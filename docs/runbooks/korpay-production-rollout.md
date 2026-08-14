@@ -22,7 +22,8 @@
    생성한다. MKEY는 이 경계 밖으로 내보내지 않는다.
 3. 서버가 만든 일회성 payload를 `@korpay/sdk` 1.1.8에 전달한다. `merchantId`는 provider가
    요구하는 SDK 필드로 이 payload에만 포함되고 `NEXT_PUBLIC_` 환경변수나 정적 번들 설정이
-   아니다.
+   아니다. Production `returnUrl`은 `SITE_URL=https://iconsip.com`에서 만들며 굿즈·티켓
+   callback 모두 canonical Production origin을 사용한다.
 4. Korpay는 인증 결과를 `application/x-www-form-urlencoded` POST로 callback한다. 앱은 body
    크기·형식·필수 필드를 제한하고 opaque order+nonce를 DB에서 먼저 원자 claim한다.
 5. 인증 성공일 때만 서버가 paymentKey로 Korpay confirm을 정확히 한 번 호출한다. callback과
@@ -36,6 +37,7 @@
 
 | 변수 | Production | Preview / CI |
 |---|---|---|
+| `SITE_URL` | `https://iconsip.com`; 일반 server config, 필수 | 환경별 일반 server origin을 둘 수 있음; Korpay를 단독 활성화하지 않음 |
 | `KORPAY_MID` | sensitive, 필수 | 없어야 함 |
 | `KORPAY_KEY` | sensitive, 필수; MKEY 서버 전용 | 없어야 함 |
 | `KORPAY_ORDER_CHECKOUT_ENABLED` | 기본 `false`; 공개 굿즈 판매 승인 뒤에만 `true` | unset 또는 `false` |
@@ -43,10 +45,21 @@
 | `KORPAY_ORDER_CANARY_USER_ID` | 선택적 단일 인증 사용자 UUID; 기본 미설정 | 없어야 함 |
 | `KORPAY_TICKET_CANARY_USER_ID` | 선택적 단일 인증 사용자 UUID; 기본 미설정 | 없어야 함 |
 
+`SITE_URL`은 secret이 아닌 일반 server config다. Production에서는 정확히
+`https://iconsip.com`으로 등록해 Korpay callback origin을 고정한다. Preview/CI에 `SITE_URL`
+자체가 있어도 괜찮지만 Korpay 실자격 증명과 canary user ID는 없어야 하고 public gate는
+닫혀 있어야 한다.
+
 자격 증명과 canary user ID는 Vercel Production에 직접 sensitive 값으로 등록한다. GitHub
 Secret, 저장소 파일, Preview, CI로 복제하지 않는다. 현재 optional canary user ID가 등록됐다고
 가정하지 않는다. CLI를 쓸 때는 값을 명령 인자나 shell history에 넣지 말고 interactive hidden
 stdin으로 입력한다.
+
+Vercel 환경변수의 추가·수정·삭제는 이미 생성된 deployment의 runtime을 바꾸지 않는다.
+`SITE_URL`, credential, public gate, canary user ID를 바꿀 때마다 그 변경 뒤에 **GitHub Actions의 Production
+배포 경로로 새 deployment**를 만들어야 한다. 새 deployment가 Ready인 것만으로 끝내지 않고,
+배포한 exact Git SHA와 canonical production alias가 그 deployment를 가리키는지 확인한 뒤 안전한
+boolean runtime readback까지 일치해야 변경이 적용된 것으로 본다.
 
 Provider credential readiness와 목적별 rollout gate는 독립이다. public gate가 `false`여도 해당
 목적의 canary UUID가 정확히 일치하면 그 인증 사용자만 새 provider session을 만들 수 있다.
@@ -55,14 +68,20 @@ gate와 canary allowlist를 모두 내려도 이미 DB에 durable하게 준비�
 
 ## Dark deploy
 
-1. Production에 `KORPAY_MID`·`KORPAY_KEY`를 sensitive 값으로 등록한다. 출력에는 값이나
+1. Production의 일반 server config `SITE_URL`을 정확히 `https://iconsip.com`으로 등록하거나
+   exact-value metadata로 readback한다.
+2. Production에 `KORPAY_MID`·`KORPAY_KEY`를 sensitive 값으로 등록한다. 출력에는 값이나
    fingerprint가 아니라 변수명, 대상 환경, 존재 여부만 남긴다.
-2. 두 public gate를 `false`로 등록하거나 readback한다. canary actor는 아직 등록하지 않는다.
-3. Preview/CI에 Korpay credential과 canary actor가 없고 gate가 열리지 않는지 확인한다.
-4. PR 검증과 Production build를 통과시킨다. build log에 secret, hash 입력, paymentKey 또는
-   provider 원문이 없는지 확인한다.
-5. Production에서 provider readiness는 true, 목적별 public readiness는 false인지 안전한
-   boolean metadata로 readback한다. 아직 결제 session을 만들지 않는다.
+3. 두 public gate를 `false`로 등록한다. canary actor는 아직 등록하지 않는다.
+4. Preview/CI에 `SITE_URL` 같은 일반 server config가 있더라도 Korpay credential과 canary actor가
+   없고 gate가 열리지 않는지 확인한다.
+5. PR 검증 뒤 승인된 exact main SHA를 GitHub Actions Production 경로로 새로 배포한다. build
+   log에 secret, hash 입력, paymentKey 또는 provider 원문이 없는지 확인한다.
+6. 새 deployment가 Ready이고 canonical production alias가 같은 deployment와 exact SHA를
+   가리키는지 확인한다.
+7. 새 deployment에서 `SITE_URL=https://iconsip.com`, provider readiness는 true, 목적별 public
+   readiness와 canary configured는 모두 false인지 안전한 metadata로 readback한다. 아직 결제
+   session을 만들지 않는다.
 
 ## Controlled canary
 
@@ -77,7 +96,10 @@ gate와 canary allowlist를 모두 내려도 이미 DB에 durable하게 준비�
 - 취소 계획: #208 담당자, 공급사 수동 접수 채널, 접수 시점, 완료 확인 근거
 
 확인을 받은 뒤 해당 목적의 `KORPAY_*_CANARY_USER_ID`만 Production에 등록하고 public gate는
-`false`로 유지한다. canary는 한 번만 수행한다. 다음 항목을 원문 식별자 없이 확인한다.
+`false`로 유지한다. 이어 승인된 exact main SHA를 GitHub Actions Production 경로로 다시 배포하고,
+canonical alias와 runtime boolean readback에서 해당 목적의 canary만 true인지 확인한다. 환경변수
+등록만 하고 기존 deployment에서 canary를 시작하지 않는다. 이 확인 뒤 canary를 한 번만 수행한다.
+다음 항목을 원문 식별자 없이 확인한다.
 
 - prepare 1회, known callback claim 1회, provider confirm 1회
 - callback 응답이 provider 값을 포함하지 않는 303인지
@@ -99,9 +121,19 @@ gate와 canary allowlist를 모두 내려도 이미 DB에 durable하게 준비�
 
 ## Rollback과 callback drain
 
-문제가 생기면 먼저 해당 목적의 public gate를 `false`로 내리고 canary user ID를 제거해 새
-reserve·prepare·provider session을 막는다. 자격 증명은 즉시 삭제하지 않는다. 이미 준비된
-known callback이 만료·종결될 때까지 readiness를 유지해 claim·confirm·finalize를 drain한다.
+문제가 생기면 다음 순서를 고정한다.
+
+1. 해당 목적의 public gate를 `false`로 바꾸고 canary user ID를 제거한다. 이 시점에는 기존
+   deployment 동작이 아직 바뀌지 않았다고 간주한다.
+2. config-only rollback이면 현재 승인된 main SHA, 코드 결함이면 검토된 revert가 반영된 exact
+   main SHA를 GitHub Actions Production 경로로 새로 배포한다.
+3. 새 deployment가 Ready인지, canonical production alias가 그 deployment와 exact SHA를
+   가리키는지 확인한다.
+4. 새 deployment의 안전한 boolean readback에서 해당 public gate와 canary configured가 모두
+   false인지 확인한다. 이때부터 새 reserve·prepare·provider session이 차단된 것으로 본다.
+
+자격 증명은 즉시 삭제하지 않는다. 이미 준비된 known callback이 만료·종결될 때까지 provider
+readiness를 유지해 claim·confirm·finalize를 drain한다.
 
 drain 동안 다음 집계만 확인한다.
 
@@ -111,12 +143,13 @@ drain 동안 다음 집계만 확인한다.
 - #208 수동 확인 대상 count와 담당자
 
 모든 in-flight attempt가 terminal 또는 명시적 `needs_review` 운영 소유 상태가 된 뒤에만
-credential 교체·삭제를 별도 승인 범위로 검토한다.
+credential 교체·삭제를 별도 승인 범위로 검토한다. credential을 교체·삭제한 경우에도 같은
+Actions 새 Production deployment → exact SHA/canonical alias → boolean readback 순서를 반복한다.
 
 ## 남길 증거
 
-- 배포 SHA, PR, Actions와 Vercel deployment URL
-- 환경별 변수 **이름·존재 여부·sensitive 여부·public gate boolean**만 담은 readback
+- 배포 exact SHA, PR, Actions, Vercel deployment URL과 canonical production alias 대상
+- canonical `SITE_URL`의 공개 exact 값과 환경별 변수 **이름·존재 여부·sensitive 여부·public gate boolean**만 담은 readback
 - canary 직전 사용자 확인 시각과 승인된 목적·대상·사용자·금액·취소 계획
 - 원문 provider 식별자 없는 DB 상태 transition과 멱등 count
 - 공급사 수동 취소 접수·완료 여부와 #208 운영 근거

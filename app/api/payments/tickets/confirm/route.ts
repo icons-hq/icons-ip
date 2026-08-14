@@ -42,6 +42,6 @@ export async function POST(request: Request) {
     if (error instanceof TicketPaymentContractError) {
       return korpayRedirect('/tickets?payment=failed');
     }
-    return Response.json({ error: 'payment_confirmation_failed' }, { status: 502 });
+    return korpayRedirect('/tickets?payment=checking');
   }
 }
