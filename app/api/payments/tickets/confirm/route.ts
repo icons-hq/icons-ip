@@ -4,91 +4,43 @@ import {
 } from '@/lib/payments/ticket-checkout';
 import { ticketPaymentProviderAvailable } from '@/lib/payments/ticket-checkout-availability';
 import { createRuntimeTicketPaymentCheckout } from '@/lib/payments/ticket-checkout.runtime.server';
+import {
+  KorpayCallbackTooLargeError,
+  korpayRedirect,
+  parseKorpayCallback,
+} from '@/lib/payments/korpay-callback.server';
 
-const MAX_CALLBACK_BYTES = 64 * 1024;
-
-class CallbackTooLargeError extends Error {}
-
-async function readCallbackJson(request: Request): Promise<unknown> {
-  const declaredLength = Number(request.headers.get('content-length') ?? '0');
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_CALLBACK_BYTES) {
-    throw new CallbackTooLargeError();
-  }
-  if (!request.body) throw new SyntaxError('missing callback body');
-
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let totalLength = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    totalLength += value.byteLength;
-    if (totalLength > MAX_CALLBACK_BYTES) {
-      await reader.cancel();
-      throw new CallbackTooLargeError();
-    }
-    chunks.push(value);
-  }
-
-  const body = new Uint8Array(totalLength);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(body));
+function redirectForOutcome(outcome: string) {
+  if (outcome === 'approved') return '/tickets?payment=approved';
+  if (outcome === 'unknown' || outcome === 'needs_review') return '/tickets?payment=checking';
+  return '/tickets?payment=failed';
 }
 
-function outcomeResponse(outcome: string, attemptId: string, status: number) {
-  return Response.json({ attemptId, outcome }, {
-    status,
-    headers: { 'cache-control': 'no-store' },
-  });
-}
-
-/**
- * Session-independent provider-neutral ingress. #207 wraps this contract in
- * the Korpay form callback and explicit 303 result redirect.
- */
+/** Session-independent, bounded Korpay form callback ingress. */
 export async function POST(request: Request) {
   if (!ticketPaymentProviderAvailable()) {
     return Response.json({ error: 'payment_unavailable' }, { status: 503 });
   }
 
-  let body: unknown;
+  let callback;
   try {
-    body = await readCallbackJson(request);
+    callback = await parseKorpayCallback(request);
   } catch (error) {
     return Response.json(
       { error: 'invalid_callback' },
-      { status: error instanceof CallbackTooLargeError ? 413 : 400 },
+      { status: error instanceof KorpayCallbackTooLargeError ? 413 : 400 },
     );
-  }
-  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-    return Response.json({ error: 'invalid_callback' }, { status: 400 });
   }
 
-  const input = body as Record<string, unknown>;
   try {
-    const outcome = await createRuntimeTicketPaymentCheckout().confirm({
-      providerOrderId: input.providerOrderId as string,
-      callbackNonce: input.callbackNonce as string,
-      providerPayload: input.providerPayload,
-    });
-    return outcomeResponse(
-      outcome.outcome,
-      outcome.attemptId,
-      outcome.outcome === 'unknown' || outcome.outcome === 'needs_review' ? 202 : 200,
-    );
+    const outcome = await createRuntimeTicketPaymentCheckout().confirm(callback);
+    return korpayRedirect(redirectForOutcome(outcome.outcome));
   } catch (error) {
     if (error instanceof TicketPaymentConfirmationInProgressError) {
-      return Response.json({ outcome: 'unknown' }, {
-        status: 202,
-        headers: { 'cache-control': 'no-store' },
-      });
+      return korpayRedirect('/tickets?payment=checking');
     }
     if (error instanceof TicketPaymentContractError) {
-      return Response.json({ error: 'invalid_callback' }, { status: 400 });
+      return korpayRedirect('/tickets?payment=failed');
     }
     return Response.json({ error: 'payment_confirmation_failed' }, { status: 502 });
   }

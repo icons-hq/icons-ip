@@ -26,7 +26,7 @@
 | **D9** | **어드민 개선 = 안전장치 + 공통 시각화** | ID 덮어쓰기 방지 + `RecordList` 썸네일 전 섹션 + 내부 구현 노출 필드 정리. 공개화면 미리보기는 **굿즈만** 예외로 포함. |
 | **D10** | **배송 후 청약철회 = 시스템 경로** | 수동 처리하지 않는다. 기존 청약철회 인프라의 상태 제약을 넓혀 재사용한다. |
 | **D11** | **반품 입고 확인은 별도 상태가 아니다** | 운영자의 **승인 행위에 내포**된다. 상태기계를 늘리지 않는다. |
-| **D12** | **법무 검토는 게이트가 아니다** | 초안 문서의 검토는 병행한다. 다만 공개 판매자 정보·통신판매업 신고번호·문의 창구는 [#239](https://github.com/icons-hq/icons-ip/issues/239)에서 확정되기 전 판매 gate를 열지 않는다. Korpay 계약·자격 증명은 [#87](https://github.com/icons-hq/icons-ip/issues/87)의 별도 범위다. |
+| **D12** | **법무 검토는 게이트가 아니다** | 초안 문서의 검토는 병행한다. 다만 공개 판매자 정보·통신판매업 신고번호·문의 창구는 [#239](https://github.com/icons-hq/icons-ip/issues/239)에서 확정되기 전 판매 gate를 열지 않는다. Korpay 계약 완료와 현재 자격 증명 사용 가능 상태는 2026-08-14 확인됐지만, controlled canary·취소 운영은 [#207](https://github.com/icons-hq/icons-ip/issues/207)·[#208](https://github.com/icons-hq/icons-ip/issues/208)의 별도 범위다. |
 
 ### 왜 이 마일스톤이 v1 출시와 분리되는가
 
@@ -54,7 +54,7 @@
 
 ### 2.2 이미 배선되어 재사용 가능한 것
 
-- **커머스 코어**: 장바구니 병합, `place_order` 원자적 재고 선점, 15분 pending 만료, 굿즈·티켓 provider-neutral attempt/claim/finalizer, 주문 내역·상세. 티켓은 승인 전 개별 티켓/QR을 만들지 않는다. 실제 Korpay adapter와 rollout gate는 #207 전까지 OFF다.
+- **커머스 코어**: 장바구니 병합, `place_order` 원자적 재고 선점, 15분 pending 만료, 굿즈·티켓 provider-neutral attempt/claim/finalizer, Korpay SDK 인증·승인, 주문 내역·상세. 티켓은 승인 전 개별 티켓/QR을 만들지 않는다. 목적별 public rollout gate는 #207 canary·readback 전까지 OFF다.
 - **청약철회 인프라**: `order_cancellation_claims` durable claim, orchestrator, 토스 취소 호출, `refunds` 장부, 재고 복원. **배송 전 범위에서만** 동작한다(§3.2).
 - **어드민 주문 콘솔**: 상태·기간·쿼리 검색, 주문 항목 조회, 배송 상태 전이, 청약철회 승인/거절. 전부 audited.
 - **어드민 카탈로그 콘솔**: IP·굿즈·카드·이벤트·큐레이션 upsert, 아트워크 업로드(**미리보기 있음**), 보관/복원, 멱등 실재고 조정.
@@ -159,7 +159,8 @@
 #177 [human] H1~H7 (김단비) ──┬─→ #178 운송장 등록·조회
                               └─→ #179 할당 재고 확정 ──→ 판매 개시
 #239 [human] 사업자 정보·문의 창구 ─→ 푸터·법정 문서 표기 ─→ 판매 개시
-#87  [human] Korpay 운영 계약 ─→ #207 Korpay adapter·canary ─→ 판매 개시
+#87  [resolved] Korpay 계약·credential 확인 ─→ #207 Korpay rollout·canary ─→ 판매 개시
+                                                    └─→ #208 수동 취소·모호 결제 운영
 
 #172 굿즈 콘텐츠 스키마 ──┬─→ #173 굿즈 상세페이지 ──→ #184 굿즈 상세 미리보기
 #171 고시정보 스키마 ─────┘
@@ -193,7 +194,7 @@
 #177 (H 전체) ─→ #179 할당 수량·WMS 격리 ─→ stock_qty > 0 ─────────────────┘
 ```
 
-즉 **#179는 #177과 #190에 막혀 있고 #87에는 종속되지 않는다.** #87은 Korpay 공급사 계약·자격 증명 전용이고, #239는 공개 판매자 정보·문의 창구 전용이다.
+즉 **#179는 #177과 #190에 막혀 있고 Korpay 계약에는 종속되지 않는다.** Korpay 계약 완료와 현재 자격 증명 사용 가능 상태는 2026-08-14 확인됐으며, #239는 공개 판매자 정보·문의 창구 전용이다.
 
 ---
 
@@ -219,7 +220,7 @@
 
 ### 5.2 분리된 확인 항목
 
-- **[#87](https://github.com/icons-hq/icons-ip/issues/87)** — Korpay 승인 범위·rotated credential·보안/조회/취소·정산 운영 계약. 공급사 questionnaire, credential rotation, #207 dark deploy와 controlled canary를 추적한다. 기존 Toss는 알려진 legacy 거래 정리용으로만 보존한다.
+- **[#87](https://github.com/icons-hq/icons-ip/issues/87)** — 2026-08-14 사용자 확인으로 Korpay 계약 완료와 현재 운영 credential 사용 가능 상태가 확정됐다. 이는 공급사 서면 증거나 19+ 유한 실물 쿠지 승인이 아니다. 기술 rollout·controlled canary는 #207, 문서화된 자동 취소 API가 없는 거래의 수동 운영은 #208이 추적한다. 기존 Toss는 알려진 legacy 거래 정리용으로만 보존한다.
 - **[#239](https://github.com/icons-hq/icons-ip/issues/239)** — 상호·대표자·사업자등록번호·통신판매업 신고번호·주소·전화·이메일과 인앱 주문 상세의 서면 교부 충족 여부. 이 법적 판단과 별개로 D8과 #168은 #191 이메일 운영 활성화를 첫판매 크리티컬 패스로 유지한다.
 - **[#190](https://github.com/icons-hq/icons-ip/issues/190)** — 홍실 3종 고시정보·상세 콘텐츠와 A/S 연락처. 대표 전화 또는 별도 고객센터 번호를 이 이슈에서 확정하고 #239의 공개 문의 창구와 일치시킨다.
 
@@ -280,15 +281,14 @@
 
 ### 8.1 판매 개시를 아직 막는 것
 
-아래 사람·운영 데이터 블로커와 결제 전환 구현이 모두 필요하다. 2026-08-10에 프로덕션 `goods`와 Vercel production env를 직접 확인했고, 2026-08-13 결제 provider 전환 계약을 §8.3에 반영했다.
+아래 사람·운영 데이터 블로커와 결제 rollout 증거가 모두 필요하다. 2026-08-10에 프로덕션 `goods`와 Vercel production env를 직접 확인했고, 2026-08-14 결제 provider 전환 계약을 §8.3에 갱신했다. #87의 계약·credential human gate는 같은 날 사용자 확인으로 해소했으며 아래 미해결 블로커에 포함하지 않는다.
 
-1. **[#87](https://github.com/icons-hq/icons-ip/issues/87)** — Korpay 승인·보안·운영 답변과 노출된 자격 증명의 폐기·재발급 증거가 없다. rotated credential·조회/취소/모호 결제 계약 전에는 신규 provider를 열지 않는다.
-2. **[#239](https://github.com/icons-hq/icons-ip/issues/239)** — 공개 판매자 정보 7종·통신판매업 신고·문의 창구가 비어 있어 푸터와 법정 문서 표기를 완료할 수 없다.
-3. **[#177](https://github.com/icons-hq/icons-ip/issues/177)** — H1~H7. 특히 H7(WMS 운영사 법인명)이 없으면 개인정보처리방침의 처리위탁 목록을 완성할 수 없다.
-4. **[#190](https://github.com/icons-hq/icons-ip/issues/190)** — 홍실 3종의 고시정보 7항목 × 3 = **21칸이 전부 공백**이고 설명·갤러리·상세 이미지도 없다. A/S 연락처는 이 이슈에서 확정하며 #87과 무관하다.
-5. **[#179](https://github.com/icons-hq/icons-ip/issues/179)** — #177의 WMS 격리 계약과 #190의 필수 고시정보가 필요하다. 홍실 3종이 전부 `stock='soldout'`·`stock_qty=0`이라 지금은 아무것도 팔리지 않는다.
-6. **[#191](https://github.com/icons-hq/icons-ip/issues/191)** — legacy Supabase custom SMTP의 `no-reply@iconsip.com` Gmail 수신과 SPF·DKIM·DMARC pass는 확인됐다. 그러나 dark outbox/Hook은 기본 OFF이고, 승인된 TTL·HMAC rotation/drain·Production secrets·최종 DNS/From/Reply-To readback·Hook enable·Auth 4흐름과 secure email change 2메일·탈퇴 통지·webhook canary·direct SMTP 0 증거가 없다. D8과 #168에 따라 첫판매 크리티컬 패스로 유지하며, #239는 서면 교부의 법적 충분성을 별도로 확인한다.
-7. **[#207](https://github.com/icons-hq/icons-ip/issues/207)** — 굿즈·티켓 seam은 provider 기본 OFF로 구현됐다. Korpay dark deploy·controlled canary 증거 전에는 신규 공개 결제를 열지 않는다.
+1. **[#239](https://github.com/icons-hq/icons-ip/issues/239)** — 공개 판매자 정보 7종·통신판매업 신고·문의 창구가 비어 있어 푸터와 법정 문서 표기를 완료할 수 없다.
+2. **[#177](https://github.com/icons-hq/icons-ip/issues/177)** — H1~H7. 특히 H7(WMS 운영사 법인명)이 없으면 개인정보처리방침의 처리위탁 목록을 완성할 수 없다.
+3. **[#190](https://github.com/icons-hq/icons-ip/issues/190)** — 홍실 3종의 고시정보 7항목 × 3 = **21칸이 전부 공백**이고 설명·갤러리·상세 이미지도 없다. A/S 연락처는 이 이슈에서 확정하며 Korpay 계약과 무관하다.
+4. **[#179](https://github.com/icons-hq/icons-ip/issues/179)** — #177의 WMS 격리 계약과 #190의 필수 고시정보가 필요하다. 홍실 3종이 전부 `stock='soldout'`·`stock_qty=0`이라 지금은 아무것도 팔리지 않는다.
+5. **[#191](https://github.com/icons-hq/icons-ip/issues/191)** — legacy Supabase custom SMTP의 `no-reply@iconsip.com` Gmail 수신과 SPF·DKIM·DMARC pass는 확인됐다. 그러나 dark outbox/Hook은 기본 OFF이고, 승인된 TTL·HMAC rotation/drain·Production secrets·최종 DNS/From/Reply-To readback·Hook enable·Auth 4흐름과 secure email change 2메일·탈퇴 통지·webhook canary·direct SMTP 0 증거가 없다. D8과 #168에 따라 첫판매 크리티컬 패스로 유지하며, #239는 서면 교부의 법적 충분성을 별도로 확인한다.
+6. **[#207](https://github.com/icons-hq/icons-ip/issues/207)** — 굿즈·티켓 Korpay 인증·승인 경로는 연결됐지만 public gate는 기본 OFF다. Production dark deploy·controlled canary·원장 readback 전에는 신규 공개 결제를 열지 않는다. 취소와 모호 결과는 #208 수동 운영 증거가 필요하다.
 
 ### 8.2 #178에서 남긴 범위
 
@@ -298,8 +298,10 @@
 
 - provider-neutral 원장(#204)은 기존 Production 결제 2건을 `provider=toss`로 backfill하고 민감 provider 증거를 private 원장으로 분리한다.
 - #205와 #206에서 굿즈·티켓 checkout을 공통 seam으로 옮기고 실제 provider를 기본 OFF로 닫았다. Toss는 기존 거래 정리에만 남기며 신규 Toss live key·신규 공개 판매를 활성화하지 않는다.
-- #87에서 Korpay의 승인 범위, 조회·취소·webhook/서명·멱등·timeout 계약과 rotated credential을 확인한 뒤 #207에서 dark deploy한다. Preview는 fake Korpay만 사용하고 실자격 증명을 두지 않는다.
-- 실제 Korpay canary는 공급사 취소 접수를 사전 조율하고 최소 1,000원 1회만 수행하며, 과금 직전에 대상·비용을 다시 표시해 사용자 확인을 받는다.
+- Korpay 계약 완료와 현재 운영 credential 사용 가능 상태는 2026-08-14 사용자 확인으로 확정됐다. 이는 공급사 서면 증거나 19+ 유한 실물 쿠지 승인 범위가 아니다. 구현은 인증결제 가이드 v1.2.2와 `@korpay/sdk` 1.1.8의 prepare SDK → form-urlencoded callback → confirm 계약을 따른다.
+- 실자격 증명은 Production에만 sensitive 값으로 두고 Preview/CI에는 넣지 않는다. 굿즈·티켓 public gate는 각각 기본 OFF이고, gate를 내려도 이미 durable한 known callback은 계속 drain한다.
+- 공식 가이드에는 자동 status/reconcile/cancel API가 문서화되어 있지 않다. 모호 결과는 자동 재시도하지 않고 `needs_review`로 보존하며 취소는 #208 수동 운영 절차를 따른다.
+- 실제 Korpay canary는 정확한 대상·금액·사용자·취소 계획을 고정한 뒤 1회만 수행하며, 과금 직전에 다시 사용자 확인을 받는다.
 - 기존 Toss 거래는 공급사 콘솔과 내부 원장에서 모두 종결될 때까지 known-only 조회·취소·웹훅과 server secret을 유지한다. 그 뒤 Toss runtime/secret 제거는 별도 PR이다.
 
 ---
@@ -308,5 +310,5 @@
 
 - 배송 실행 주체는 사내 물류(김포 창고)다. 3PL 위탁도 IP사 직배송도 아니다.
 - 첫 판매 기간에는 ICONS 할당 재고를 다른 채널이 건드리지 않는다(D4의 전제).
-- callback body와 클라이언트 성공 신호는 결제 확정의 진실원이 아니다. Toss는 알려진 기존 거래만 provider 재조회·웹훅으로 정리하고, 신규 Korpay는 `PaymentGateway.confirm/reconcile`과 DB 멱등 finalizer를 사용한다. 돈·재고는 Postgres RPC + 행 잠금 + 멱등([`AGENTS.md`](../AGENTS.md) 불변).
+- callback body와 클라이언트 성공 신호는 결제 확정의 진실원이 아니다. Toss는 알려진 기존 거래만 provider 재조회·웹훅으로 정리하고, 신규 Korpay는 서버 confirm의 엄격한 응답 검증과 DB 멱등 finalizer를 사용한다. 문서화되지 않은 reconcile/cancel endpoint를 가정하지 않는다. 돈·재고는 Postgres RPC + 행 잠금 + 멱등([`AGENTS.md`](../AGENTS.md) 불변).
 - 법무 검토는 판매 개시를 막지 않는다(D12). 개인정보처리방침은 코드에서 추출한 **사실 기술**이라 내용 리스크가 낮고, 이용약관은 공정위 표준약관 기반이라 골격 리스크가 낮다는 판단이다.

@@ -10,6 +10,7 @@ const orderId = '20000000-0000-4000-8000-000000000206';
 const mocks = vi.hoisted(() => ({
   auth: null as unknown as CurrentAuthState,
   available: true,
+  availabilityUserIds: [] as Array<string | undefined>,
   loadOrder: vi.fn(),
   prepare: vi.fn(),
 }));
@@ -17,7 +18,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
 vi.mock('@/lib/ticketing.server', () => ({ loadTicketOrder: mocks.loadOrder }));
 vi.mock('@/lib/payments/ticket-checkout-availability', () => ({
-  ticketCheckoutPaymentsEnabled: () => mocks.available,
+  ticketCheckoutPaymentsEnabled: (candidateUserId?: string) => {
+    mocks.availabilityUserIds.push(candidateUserId);
+    return mocks.available;
+  },
 }));
 vi.mock('@/lib/payments/ticket-checkout.runtime.server', () => ({
   createRuntimeTicketPaymentCheckout: () => ({ prepare: mocks.prepare }),
@@ -73,6 +77,7 @@ describe('prepareTicketPaymentAction', () => {
   beforeEach(() => {
     mocks.auth = onboardedAuth();
     mocks.available = true;
+    mocks.availabilityUserIds = [];
     mocks.loadOrder.mockReset();
     mocks.loadOrder.mockResolvedValue(order);
     mocks.prepare.mockReset();
@@ -83,6 +88,7 @@ describe('prepareTicketPaymentAction', () => {
     await expect(prepareTicketPaymentAction({}, formData())).resolves.toEqual({ prepared });
     expect(mocks.loadOrder).toHaveBeenCalledWith(userId, orderId);
     expect(mocks.prepare).toHaveBeenCalledWith({ userId, ticketOrderId: orderId });
+    expect(mocks.availabilityUserIds).toContain(userId);
   });
 
   it('비로그인·foreign 예매·provider OFF는 attempt를 만들지 않는다', async () => {

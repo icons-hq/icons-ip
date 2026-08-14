@@ -37,7 +37,9 @@ export async function reserveTicketsAction(inputValue: unknown): Promise<Reserve
 
   const input = normalizeReserveTicketsInput(inputValue);
   if (!input) return { ok: false, error: 'invalid_request' };
-  if (!ticketCheckoutPaymentsEnabled()) return { ok: false, error: 'payment_unavailable' };
+  if (!ticketCheckoutPaymentsEnabled(auth.user.id)) {
+    return { ok: false, error: 'payment_unavailable' };
+  }
 
   try {
     const supabase = await createClient();

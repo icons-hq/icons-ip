@@ -2,6 +2,7 @@ import 'server-only';
 
 import { normalizeCheckoutAddress, type CheckoutAddress } from './checkout';
 import { createClient } from './supabase/server';
+import { createServiceClient } from './supabase/service';
 
 interface OrderRow {
   id: string;
@@ -84,8 +85,13 @@ export async function loadCheckoutOrder(
     .eq('user_id', userId)
     .maybeSingle<OrderRow>();
   if (orderError || !orderData) return null;
+  const paymentLedger = createServiceClient();
 
-  const [{ data: itemData, error: itemError }, { data: paymentData, error: paymentError }] = await Promise.all([
+  const [
+    { data: itemData, error: itemError },
+    { data: paymentData, error: paymentError },
+    { data: attemptData, error: attemptError },
+  ] = await Promise.all([
     supabase
       .from('order_items')
       .select('good_id,qty,unit_price,good_name_snapshot,good_type_snapshot')
@@ -99,8 +105,17 @@ export async function loadCheckoutOrder(
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle<{ status: string }>(),
+    paymentLedger
+      .from('payment_attempts')
+      .select('state')
+      .eq('user_id', userId)
+      .eq('purpose', 'order')
+      .eq('ref_id', orderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle<{ state: string }>(),
   ]);
-  if (itemError || paymentError) return null;
+  if (itemError || paymentError || attemptError) return null;
 
   const itemRows = (itemData ?? []) as OrderItemRow[];
 
@@ -112,7 +127,11 @@ export async function loadCheckoutOrder(
     address: normalizeCheckoutAddress(orderData.address),
     expiresAt: orderData.expires_at,
     createdAt: orderData.created_at,
-    paymentStatus: paymentData?.status ?? null,
+    paymentStatus: (
+      attemptData?.state === 'confirming'
+      || attemptData?.state === 'unknown'
+      || attemptData?.state === 'needs_review'
+    ) ? 'pending' : paymentData?.status ?? null,
     items: itemRows.map((item) => ({
       goodId: item.good_id,
       name: item.good_name_snapshot,

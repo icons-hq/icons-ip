@@ -15,11 +15,15 @@ const mocks = vi.hoisted(() => ({
     error: null as { message: string } | null,
   },
   paymentsEnabled: true,
+  availabilityUserIds: [] as Array<string | undefined>,
 }));
 
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
 vi.mock('@/lib/payments/ticket-checkout-availability', () => ({
-  ticketCheckoutPaymentsEnabled: () => mocks.paymentsEnabled,
+  ticketCheckoutPaymentsEnabled: (userId?: string) => {
+    mocks.availabilityUserIds.push(userId);
+    return mocks.paymentsEnabled;
+  },
 }));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({ from: mocks.from }),
@@ -67,6 +71,7 @@ describe('reserveTicketsAction', () => {
     mocks.from.mockReset();
     mocks.serviceRpc.mockReset();
     mocks.paymentsEnabled = true;
+    mocks.availabilityUserIds = [];
     mocks.eligibility = {
       data: { id: ticketTypeId, price: 22000, events: { status: '예매중' } },
       error: null,
@@ -92,6 +97,7 @@ describe('reserveTicketsAction', () => {
       p_reservation_key: reservationKey,
       p_user_id: 'user-1',
     });
+    expect(mocks.availabilityUserIds).toContain('user-1');
   });
 
   it('rejects malformed or browser-priced input before reading or writing', async () => {

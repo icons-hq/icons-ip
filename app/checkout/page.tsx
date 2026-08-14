@@ -28,7 +28,7 @@ export default async function Page() {
       catalog={{ goods: catalog.goods, ips: catalog.ips }}
       latestAddress={latestAddress}
       resumeOrderId={resumeOrderId}
-      paymentAvailable={goodsCheckoutPaymentsEnabled()}
+      paymentAvailable={goodsCheckoutPaymentsEnabled(auth.user.id)}
     />
   );
 }

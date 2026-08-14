@@ -3,9 +3,37 @@ import { pathToFileURL } from 'node:url';
 import { paymentKeyMode } from '../lib/payments/key-mode.mjs';
 
 const VERCEL_TARGETS = new Set(['preview', 'production']);
+const KORPAY_GATE_NAMES = [
+  'KORPAY_ORDER_CHECKOUT_ENABLED',
+  'KORPAY_TICKET_CHECKOUT_ENABLED',
+];
+const KORPAY_CANARY_NAMES = [
+  'KORPAY_ORDER_CANARY_USER_ID',
+  'KORPAY_TICKET_CANARY_USER_ID',
+];
+const KORPAY_MID_PATTERN = /^[A-Za-z0-9]{10}$/;
+const KORPAY_KEY_PATTERN = /^(?=.{32,256}$)[A-Za-z0-9+/]+={0,2}$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function isPresent(value) {
   return typeof value === 'string' && value.trim().length > 0;
+}
+
+function parseBooleanGate(environment, target, name) {
+  const value = environment[name];
+  if (value === undefined || value === '') return false;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  throw new Error(`Invalid Vercel ${target} ${name}: use true, false, or leave unset`);
+}
+
+function isHttpsUrl(value) {
+  if (!isPresent(value)) return false;
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 export function validateVercelBuildEnvironment(environment) {
@@ -17,7 +45,15 @@ export function validateVercelBuildEnvironment(environment) {
     'AUTH_SIGNUP_RESEND_SECRET',
     'SUPABASE_SERVICE_ROLE_KEY',
   ];
-  if (target === 'production') required.push('TOSS_SECRET_KEY', 'CRON_SECRET');
+  if (target === 'production') {
+    required.push(
+      'TOSS_SECRET_KEY',
+      'CRON_SECRET',
+      'KORPAY_MID',
+      'KORPAY_KEY',
+      'SITE_URL',
+    );
+  }
   const missing = required.filter((name) => !isPresent(environment[name]));
 
   if (!isPresent(environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
@@ -27,6 +63,52 @@ export function validateVercelBuildEnvironment(environment) {
 
   if (missing.length > 0) {
     throw new Error(`Missing Vercel ${target} environment: ${missing.join(', ')}`);
+  }
+
+  const korpayOrderCheckoutEnabled = parseBooleanGate(
+    environment,
+    target,
+    'KORPAY_ORDER_CHECKOUT_ENABLED',
+  );
+  const korpayTicketCheckoutEnabled = parseBooleanGate(
+    environment,
+    target,
+    'KORPAY_TICKET_CHECKOUT_ENABLED',
+  );
+
+  if (target === 'preview') {
+    for (const name of ['KORPAY_MID', 'KORPAY_KEY']) {
+      if (isPresent(environment[name])) {
+        throw new Error(`Invalid Vercel preview ${name}: Korpay credentials are production-only`);
+      }
+    }
+    for (const name of KORPAY_GATE_NAMES) {
+      if (environment[name] === 'true') {
+        throw new Error(`Invalid Vercel preview ${name}: checkout must remain disabled`);
+      }
+    }
+    for (const name of KORPAY_CANARY_NAMES) {
+      if (isPresent(environment[name])) {
+        throw new Error(`Invalid Vercel preview ${name}: canary users are production-only`);
+      }
+    }
+  }
+
+  if (target === 'production') {
+    if (!KORPAY_MID_PATTERN.test(environment.KORPAY_MID)) {
+      throw new Error('Invalid Vercel production KORPAY_MID: use exactly 10 ASCII letters or digits');
+    }
+    if (!KORPAY_KEY_PATTERN.test(environment.KORPAY_KEY)) {
+      throw new Error('Invalid Vercel production KORPAY_KEY: use 32-256 base64 characters');
+    }
+    if (!isHttpsUrl(environment.SITE_URL)) {
+      throw new Error('Invalid Vercel production SITE_URL: use an HTTPS URL');
+    }
+    for (const name of KORPAY_CANARY_NAMES) {
+      if (isPresent(environment[name]) && !UUID_PATTERN.test(environment[name])) {
+        throw new Error(`Invalid Vercel production ${name}: use a UUID`);
+      }
+    }
   }
 
   if (target === 'production'
@@ -43,11 +125,22 @@ export function validateVercelBuildEnvironment(environment) {
     throw new Error(`Invalid Vercel ${target} Toss legacy server key`);
   }
 
+  const korpayOrderCanaryConfigured = isPresent(environment.KORPAY_ORDER_CANARY_USER_ID);
+  const korpayTicketCanaryConfigured = isPresent(environment.KORPAY_TICKET_CANARY_USER_ID);
+
   return {
     checked: true,
     legacyTossMode: secretMode,
-    newCheckoutEnabled: false,
+    newCheckoutEnabled: korpayOrderCheckoutEnabled
+      || korpayTicketCheckoutEnabled
+      || korpayOrderCanaryConfigured
+      || korpayTicketCanaryConfigured,
     paymentReconciliationConfigured: isPresent(environment.PAYMENT_RECONCILIATION_SECRET),
+    korpayConfigured: target === 'production',
+    korpayOrderCheckoutEnabled,
+    korpayTicketCheckoutEnabled,
+    korpayOrderCanaryConfigured,
+    korpayTicketCanaryConfigured,
   };
 }
 
@@ -62,7 +155,14 @@ function main() {
     const legacyStatus = result.legacyTossMode
       ? `Toss legacy ${result.legacyTossMode} API available`
       : 'Toss legacy API unavailable (Fake-only preview)';
-    console.log(`Vercel ${process.env.VERCEL_ENV} environment verified; ${legacyStatus} and new checkout disabled`);
+    console.log(
+      `Vercel ${process.env.VERCEL_ENV} environment verified; ${legacyStatus}; `
+      + `Korpay configured=${result.korpayConfigured}, `
+      + `order checkout enabled=${result.korpayOrderCheckoutEnabled}, `
+      + `ticket checkout enabled=${result.korpayTicketCheckoutEnabled}, `
+      + `order canary configured=${result.korpayOrderCanaryConfigured}, `
+      + `ticket canary configured=${result.korpayTicketCanaryConfigured}`,
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'Invalid Vercel build environment');
     process.exitCode = 1;

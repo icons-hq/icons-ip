@@ -7,17 +7,21 @@ import {
 const mocks = vi.hoisted(() => ({
   providerConfigured: false,
   enabledPurposes: new Set<string>(),
+  canaryUserId: null as string | null,
 }));
 
 vi.mock('./runtime-gateway', () => ({
   paymentProviderConfigured: () => mocks.providerConfigured,
-  newPaymentCheckoutEnabled: (purpose: string) => mocks.enabledPurposes.has(purpose),
+  newPaymentCheckoutEnabled: (purpose: string, userId?: string) => (
+    mocks.enabledPurposes.has(purpose) || userId === mocks.canaryUserId
+  ),
 }));
 
 describe('goodsCheckoutPaymentsEnabled', () => {
   beforeEach(() => {
     mocks.providerConfigured = false;
     mocks.enabledPurposes.clear();
+    mocks.canaryUserId = null;
     vi.unstubAllEnvs();
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://example.supabase.co');
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
@@ -41,5 +45,13 @@ describe('goodsCheckoutPaymentsEnabled', () => {
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
     expect(goodsPaymentConfirmationAvailable()).toBe(false);
     expect(goodsCheckoutPaymentsEnabled()).toBe(false);
+  });
+
+  it('public gate OFF에서도 인증된 단일 canary user id를 runtime gate에 전달한다', () => {
+    mocks.providerConfigured = true;
+    mocks.canaryUserId = '10000000-0000-4000-8000-000000000207';
+
+    expect(goodsCheckoutPaymentsEnabled()).toBe(false);
+    expect(goodsCheckoutPaymentsEnabled(mocks.canaryUserId)).toBe(true);
   });
 });

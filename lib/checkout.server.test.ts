@@ -1,9 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import { loadCheckoutOrder } from './checkout.server';
 
-const mocks = vi.hoisted(() => ({ client: null as unknown }));
+const mocks = vi.hoisted(() => ({
+  client: null as unknown,
+  serviceClient: null as unknown,
+}));
 
 vi.mock('./supabase/server', () => ({ createClient: () => mocks.client }));
+vi.mock('./supabase/service', () => ({ createServiceClient: () => mocks.serviceClient }));
 
 interface QueryRecord {
   table: string;
@@ -93,6 +97,7 @@ describe('loadCheckoutOrder', () => {
         return createQuery(table, records, rowsByTable);
       },
     };
+    mocks.serviceClient = mocks.client;
 
     const order = await loadCheckoutOrder(userId, orderId);
 
@@ -130,6 +135,7 @@ describe('loadCheckoutOrder', () => {
         });
       },
     };
+    mocks.serviceClient = mocks.client;
 
     const order = await loadCheckoutOrder(userId, orderId);
 
@@ -159,7 +165,62 @@ describe('loadCheckoutOrder', () => {
         });
       },
     };
+    mocks.serviceClient = mocks.client;
 
     await expect(loadCheckoutOrder(userId, orderId)).resolves.toMatchObject({ shippingFee: 0 });
   });
+
+  it.each(['confirming', 'unknown', 'needs_review'])(
+    '%s payment attempt는 결제 원장 행이 아직 없어도 checking으로 합성한다',
+    async (state) => {
+      const records: QueryRecord[] = [];
+      const serviceRecords: QueryRecord[] = [];
+      const orderId = '7ad4c967-3d48-44da-a665-64731ac33f62';
+      const userId = '1cc4d399-8e70-4f06-979d-8fb0f9c43fde';
+      const rowsByTable = {
+        orders: [{
+          id: orderId,
+          user_id: userId,
+          status: 'pending',
+          total: 31000,
+          shipping_fee: 3000,
+          address: null,
+          expires_at: '2026-08-14T10:00:00.000Z',
+          created_at: '2026-08-14T09:45:00.000Z',
+        }],
+        order_items: [],
+        payment_summaries: [],
+      };
+      mocks.client = {
+        from(table: string) {
+          return createQuery(table, records, rowsByTable);
+        },
+      };
+      mocks.serviceClient = {
+        from(table: string) {
+          return createQuery(table, serviceRecords, {
+            payment_attempts: [{
+              user_id: userId,
+              purpose: 'order',
+              ref_id: orderId,
+              state,
+              created_at: '2026-08-14T09:46:00.000Z',
+            }],
+          });
+        },
+      };
+
+      await expect(loadCheckoutOrder(userId, orderId)).resolves.toMatchObject({
+        paymentStatus: 'pending',
+      });
+      expect(serviceRecords.find((record) => record.table === 'payment_attempts')).toMatchObject({
+        select: 'state',
+        eq: [
+          ['user_id', userId],
+          ['purpose', 'order'],
+          ['ref_id', orderId],
+        ],
+      });
+    },
+  );
 });

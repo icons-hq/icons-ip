@@ -44,7 +44,7 @@ export async function prepareGoodsPaymentAction(
     isAccountSuspended(auth.profile)
     || !isOnboarded(auth.profile, auth.user.email)
   ) return { error: 'auth_required' };
-  if (!goodsCheckoutPaymentsEnabled()) return { error: 'payment_unavailable' };
+  if (!goodsCheckoutPaymentsEnabled(auth.user.id)) return { error: 'payment_unavailable' };
 
   const order = await loadCheckoutOrder(auth.user.id, orderId);
   if (!order) return { error: 'not_found' };
@@ -84,7 +84,7 @@ export async function placeOrderAction(
   const checkoutKey = normalizeCheckoutKey(checkoutKeyValue);
   if (!checkoutKey) return { ok: false, error: 'invalid_request' };
 
-  if (!goodsCheckoutPaymentsEnabled()) {
+  if (!goodsCheckoutPaymentsEnabled(auth.user.id)) {
     return { ok: false, error: 'payment_unavailable' };
   }
 
