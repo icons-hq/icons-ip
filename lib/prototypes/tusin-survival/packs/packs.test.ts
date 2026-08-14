@@ -162,6 +162,112 @@ describe('tusinSurvivalPack', () => {
       );
     }
   });
+
+  it('레벨 기반 spawn 배율이 유효한 레벨과 양수 배율만 받게 한다', () => {
+    const invalidLevel = clonePack(tusinSurvivalPack);
+    invalidLevel.spawnLevelScaling = [{
+      minimumPlayerLevel: 1.5,
+      cadenceScale: 0.6,
+      budgetScale: 1.5,
+    }];
+
+    const invalidCadence = clonePack(tusinSurvivalPack);
+    invalidCadence.spawnLevelScaling = [{
+      minimumPlayerLevel: 2,
+      cadenceScale: 0,
+      budgetScale: 1.5,
+    }];
+
+    const invalidBudget = clonePack(tusinSurvivalPack);
+    invalidBudget.spawnLevelScaling = [{
+      minimumPlayerLevel: 2,
+      cadenceScale: 0.6,
+      budgetScale: Number.NaN,
+    }];
+
+    for (const invalid of [invalidLevel, invalidCadence, invalidBudget]) {
+      expect(validateContentPack(invalid).map((issue) => issue.code)).toContain(
+        'INVALID_SPAWN_SCALING',
+      );
+    }
+  });
+
+  it('고밀도 웨이브용으로 모든 active와 evolution의 전투 예산을 상향한다', () => {
+    const activeBudget = Object.fromEntries(tusinSurvivalPack.actives.map((active) => {
+      const first = active.levels[0]!.tuning;
+      const maximum = active.levels.at(-1)!.tuning;
+      return [active.id, {
+        first: {
+          cooldownTicks: first.cooldownTicks,
+          damage: first.damage,
+          amount: first.amount,
+          area: first.area,
+          durationTicks: first.durationTicks,
+          pierce: first.pierce,
+          chainTargets: first.chainTargets,
+        },
+        maximum: {
+          cooldownTicks: maximum.cooldownTicks,
+          damage: maximum.damage,
+          amount: maximum.amount,
+          area: maximum.area,
+          durationTicks: maximum.durationTicks,
+          pierce: maximum.pierce,
+          chainTargets: maximum.chainTargets,
+        },
+      }];
+    }));
+
+    expect(activeBudget).toEqual({
+      'basic-sword-strike': {
+        first: { cooldownTicks: 30, damage: 24, amount: 1, area: 560, durationTicks: 10, pierce: 5, chainTargets: 0 },
+        maximum: { cooldownTicks: 22, damage: 56, amount: 1, area: 680, durationTicks: 10, pierce: 13, chainTargets: 0 },
+      },
+      'cloud-dragon-ascent': {
+        first: { cooldownTicks: 70, damage: 40, amount: 1, area: 480, durationTicks: 90, pierce: 7, chainTargets: 0 },
+        maximum: { cooldownTicks: 54, damage: 84, amount: 2, area: 660, durationTicks: 90, pierce: 15, chainTargets: 0 },
+      },
+      'sword-of-light': {
+        first: { cooldownTicks: 68, damage: 16, amount: 2, area: 360, durationTicks: 220, pierce: 4, chainTargets: 0 },
+        maximum: { cooldownTicks: 56, damage: 36, amount: 5, area: 488, durationTicks: 320, pierce: 8, chainTargets: 0 },
+      },
+      'gram-dragon-slayer': {
+        first: { cooldownTicks: 88, damage: 76, amount: 1, area: 560, durationTicks: 85, pierce: 12, chainTargets: 0 },
+        maximum: { cooldownTicks: 68, damage: 148, amount: 1, area: 760, durationTicks: 85, pierce: 20, chainTargets: 0 },
+      },
+      'lightning-fall': {
+        first: { cooldownTicks: 76, damage: 42, amount: 1, area: 460, durationTicks: 18, pierce: 1, chainTargets: 6 },
+        maximum: { cooldownTicks: 60, damage: 86, amount: 1, area: 620, durationTicks: 18, pierce: 1, chainTargets: 14 },
+      },
+      'black-dragon-chain': {
+        first: { cooldownTicks: 104, damage: 26, amount: 2, area: 520, durationTicks: 190, pierce: 7, chainTargets: 0 },
+        maximum: { cooldownTicks: 84, damage: 58, amount: 3, area: 740, durationTicks: 278, pierce: 15, chainTargets: 0 },
+      },
+    });
+
+    const evolutionBudget = Object.fromEntries(tusinSurvivalPack.evolutions.map((evolution) => [
+      evolution.id,
+      {
+        cooldownTicks: evolution.tuning.cooldownTicks,
+        damage: evolution.tuning.damage,
+        amount: evolution.tuning.amount,
+        area: evolution.tuning.area,
+        speedPerTick: evolution.tuning.speedPerTick,
+        durationTicks: evolution.tuning.durationTicks,
+        pierce: evolution.tuning.pierce,
+        chainTargets: evolution.tuning.chainTargets,
+      },
+    ]));
+
+    expect(evolutionBudget).toEqual({
+      'iron-wall-sword-path': { cooldownTicks: 20, damage: 120, amount: 2, area: 1200, speedPerTick: 1, durationTicks: 16, pierce: 24, chainTargets: 0 },
+      'swift-cloud-dragon': { cooldownTicks: 42, damage: 88, amount: 3, area: 760, speedPerTick: 240, durationTicks: 120, pierce: 14, chainTargets: 0 },
+      'purifying-light-sword': { cooldownTicks: 46, damage: 58, amount: 9, area: 620, speedPerTick: 300, durationTicks: 330, pierce: 8, chainTargets: 0 },
+      requiem: { cooldownTicks: 68, damage: 250, amount: 2, area: 900, speedPerTick: 260, durationTicks: 110, pierce: 32, chainTargets: 0 },
+      'regression-thunder': { cooldownTicks: 50, damage: 105, amount: 2, area: 760, speedPerTick: 1, durationTicks: 54, pierce: 1, chainTargets: 15 },
+      'last-dragon-shackle': { cooldownTicks: 72, damage: 82, amount: 4, area: 1050, speedPerTick: 480, durationTicks: 320, pierce: 18, chainTargets: 6 },
+    });
+  });
 });
 
 describe('geometricTestPack', () => {

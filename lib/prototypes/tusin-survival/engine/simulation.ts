@@ -1181,15 +1181,31 @@ class ContentPackRuntime implements InteractiveRuntime {
   }
 
   private spawnScheduledEncounters() {
+    let spawnScale: NonNullable<ContentPack['spawnLevelScaling']>[number] | undefined;
+    for (const tier of this.pack.spawnLevelScaling ?? []) {
+      if (
+        tier.minimumPlayerLevel <= this.player.level
+        && (!spawnScale || tier.minimumPlayerLevel > spawnScale.minimumPlayerLevel)
+      ) {
+        spawnScale = tier;
+      }
+    }
+    const cadenceScale = spawnScale?.cadenceScale ?? 1;
+    const budgetScale = spawnScale?.budgetScale ?? 1;
+
     for (const entry of this.pack.timeline) {
       if (entry.kind === 'wave') {
+        const cadenceTicks = Math.max(1, Math.round(entry.cadenceTicks * cadenceScale));
         if (
           this.stageTick >= entry.atTick
           && this.stageTick < entry.untilTick
-          && (this.stageTick - entry.atTick) % entry.cadenceTicks === 0
+          && (this.stageTick - entry.atTick) % cadenceTicks === 0
         ) {
           const available = Math.max(0, 220 - this.enemies.length);
-          const count = Math.min(available, Math.max(1, Math.ceil(entry.budget / 8)));
+          const count = Math.min(
+            available,
+            Math.max(1, Math.ceil(entry.budget * budgetScale / 8)),
+          );
           for (let index = 0; index < count; index += 1) {
             const enemyId = entry.enemyIds[Math.floor(this.spawnRandom.nextFloat() * entry.enemyIds.length)]!;
             this.spawnEnemy(enemyId, 'NORMAL');

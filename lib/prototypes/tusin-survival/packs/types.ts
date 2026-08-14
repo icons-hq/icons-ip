@@ -275,6 +275,11 @@ export interface ContentPack extends VersionedPack {
     finalBoss: BossContentDefinition;
   };
   timeline: TimelineEntry[];
+  spawnLevelScaling?: Array<{
+    minimumPlayerLevel: number;
+    cadenceScale: number;
+    budgetScale: number;
+  }>;
   xpCurve: {
     maxLevel: number;
     base: number;

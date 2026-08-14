@@ -117,6 +117,10 @@ first playable의 필드 렌더링은 Canvas2D를 사용하고, 게임 판정은
 
 밸런스 목표는 첫 플레이 클리어율 30~40%, 시스템을 이해한 플레이어의 클리어율 60~70%다. 이는 내부 playtest 표본으로 조정하는 목표이며 개인별 보상 확률을 뜻하지 않는다.
 
+`tusin-survival-pack-v2`는 첫 레벨업 전의 학습 여백을 유지하고, 플레이어 레벨 2부터 wave cadence를 `0.6배`, budget을 `1.5배`로 적용한다. 따라서 opening pressure는 2마리/5초에서 3마리/3초로 바뀌며 이후 구간도 약 2.2~2.8배 밀도로 상승한다. 이 규칙은 IP 분기가 아니라 pack의 선택적 `spawnLevelScaling` 데이터로 선언한다.
+
+높아진 밀도에 맞춰 6개 active와 6개 evolution은 피해·재사용 주기뿐 아니라 범위·관통·연쇄·지속시간을 함께 상향한다. 기본 검격의 `area`는 1레벨 560에서 5레벨 680으로 증가하고 철벽검로는 1,200이다. 모바일에서 검기 발사를 읽을 수 있도록 운룡등천과 그람의 이동 속도는 각각 180·200 world unit/tick, 대응 evolution은 240·260으로 낮추며 TTL을 늘려 유효 사거리를 유지한다. authoritative 수치가 바뀌므로 이전 replay와 구분되는 content version과 pack digest를 사용한다.
+
 active weapon은 최대 5레벨, passive는 최대 3레벨이다. 한 런의 슬롯 상한은 active 6칸, passive 6칸이며 시작 무기도 active 슬롯을 차지한다. 모든 아이템은 프로토타입에서 처음부터 offer pool에 들어간다. 평균적인 성공 런에서 2~3개 evolution을 완성하도록 XP·상자·offer를 튜닝하며, 6개 진화가 항상 완성되도록 보장하지 않는다.
 
 | Active weapon | Paired passive | Evolution | 출처 처리 |

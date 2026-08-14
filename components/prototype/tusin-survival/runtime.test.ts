@@ -2,7 +2,10 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { runRecordedCommands } from '@/lib/prototypes/tusin-survival/engine';
+import {
+  createInteractiveRuntime,
+  runRecordedCommands,
+} from '@/lib/prototypes/tusin-survival/engine';
 import { tusinSurvivalPack } from '@/lib/prototypes/tusin-survival/packs/tusin';
 import { createRuntime } from './runtime';
 
@@ -129,6 +132,87 @@ describe('interactive Tusin Survival runtime', () => {
     const fight = runtime.getSnapshot();
     expect(fight.mode).toBe('FINAL_BOSS');
     expect(fight.enemies.filter((enemy) => enemy.role === 'FINAL_BOSS')).toHaveLength(1);
+  });
+
+  it('기본 검격은 전방 600 월드 유닛의 소형 적까지 명중한다', () => {
+    const pack = structuredClone(tusinSurvivalPack);
+    const finalBoss = pack.finalBoss!;
+
+    pack.contentVersion = 'tusin-basic-sword-range-fixture-v1';
+    pack.simulation = {
+      ...pack.simulation,
+      stageDurationTicks: 1,
+      bossFightBudgetTicks: 60,
+    };
+    pack.waves = [];
+    pack.timeline = [{
+      kind: 'final-boss-transition',
+      id: 'basic-sword-range-transition',
+      atTick: 1,
+      bossId: finalBoss.id,
+    }];
+    pack.finalBoss = {
+      ...finalBoss,
+      spawnTick: 1,
+      x: pack.player.startX + 600,
+      y: pack.player.startY,
+    };
+    pack.enemies[finalBoss.enemyId] = {
+      ...pack.enemies[finalBoss.enemyId]!,
+      maxHp: 999,
+      moveSpeedPerTick: 0,
+      contactDamage: 0,
+      contactRadius: 80,
+    };
+
+    const runtime = createInteractiveRuntime(pack, 'basic-sword-range-seed');
+    runtime.start();
+    runtime.step({ x: 1, y: 0 });
+    runtime.continueFinalTransition();
+
+    const before = runtime.getSnapshot().enemies.find((enemy) => enemy.role === 'FINAL_BOSS')!;
+    for (let tick = 0; tick < 40; tick += 1) runtime.step({ x: 0, y: 0 });
+    const after = runtime.getSnapshot().enemies.find((enemy) => enemy.id === before.id)!;
+
+    expect(after.hp).toBeLessThan(before.hp);
+    expect(after.hp).toBe(975);
+  });
+
+  it('검기 투사체는 모바일에서 읽을 수 있는 속도와 체공 시간을 가진다', () => {
+    const cases = [
+      {
+        weaponId: 'cloud-dragon-ascent',
+        kind: 'PROJECTILE',
+        speedPerTick: 180,
+        durationTicks: 90,
+      },
+      {
+        weaponId: 'gram-dragon-slayer',
+        kind: 'HEAVY_PROJECTILE',
+        speedPerTick: 200,
+        durationTicks: 85,
+      },
+    ] as const;
+
+    for (const expected of cases) {
+      const pack = structuredClone(tusinSurvivalPack);
+      pack.contentVersion = `tusin-${expected.weaponId}-visibility-fixture-v1`;
+      pack.player.weaponId = expected.weaponId;
+
+      const runtime = createInteractiveRuntime(pack, `visibility-${expected.weaponId}`);
+      runtime.start();
+      const origin = runtime.getSnapshot().player;
+      runtime.step();
+
+      const projectile = runtime.getSnapshot().projectiles.find((candidate) => (
+        candidate.weaponId === expected.weaponId
+      ))!;
+      const traveled = Math.hypot(projectile.x - origin.x, projectile.y - origin.y);
+
+      expect(projectile.kind).toBe(expected.kind);
+      expect(traveled).toBeCloseTo(expected.speedPerTick, 2);
+      expect(projectile.ttlTicks).toBe(expected.durationTicks - 1);
+    }
   });
 
   it('6:00 도달만으로 clear하지 않고 최종보스를 처치했을 때만 clear한다', () => {

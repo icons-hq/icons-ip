@@ -14,6 +14,7 @@ const mockRewardKinds = new Set<string>(MOCK_REWARD_KINDS);
 export type PackValidationIssueCode =
   | 'PHYSICAL_REWARDS_MUST_BE_FALSE'
   | 'INVALID_SIMULATION'
+  | 'INVALID_SPAWN_SCALING'
   | 'INVALID_SLOT_LIMIT'
   | 'INSUFFICIENT_SLOT_CONTENT'
   | 'INVALID_LEVEL_COUNT'
@@ -104,6 +105,25 @@ export function validateContentPack(pack: ContentPack): PackValidationIssue[] {
       'simulation',
       '60Hz stage clock과 별도 boss budget이 maxTicks에 정확히 반영되어야 한다.',
     );
+  }
+
+  const spawnLevels = new Set<number>();
+  for (const [index, tier] of (pack.spawnLevelScaling ?? []).entries()) {
+    const valid =
+      isPositiveInteger(tier.minimumPlayerLevel) &&
+      Number.isFinite(tier.cadenceScale) &&
+      tier.cadenceScale > 0 &&
+      Number.isFinite(tier.budgetScale) &&
+      tier.budgetScale > 0 &&
+      !spawnLevels.has(tier.minimumPlayerLevel);
+    if (!valid) {
+      add(
+        'INVALID_SPAWN_SCALING',
+        `spawnLevelScaling.${index}`,
+        'spawn tier는 중복 없는 양의 정수 레벨과 유한한 양수 배율을 가져야 한다.',
+      );
+    }
+    spawnLevels.add(tier.minimumPlayerLevel);
   }
 
   if (

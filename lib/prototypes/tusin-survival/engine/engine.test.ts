@@ -279,4 +279,60 @@ describe('shared interactive and replay seam', () => {
       /packs\/tusin|tusinSurvivalPack|제피르|투신전생기|DRAGON|GRAM/,
     );
   });
+
+  it('첫 레벨업 이후 pack이 지정한 cadence와 budget으로 적 압박을 높인다', () => {
+    const pack: ContentPack = structuredClone(geometricTestPack);
+    const enemyId = pack.enemyArchetypes[0]!.id;
+
+    pack.contentVersion = 'geometric-level-spawn-scaling-fixture-v1';
+    pack.maxTicks = 600;
+    pack.simulation = {
+      ...pack.simulation,
+      stageDurationTicks: 600,
+    };
+    pack.timeline = [{
+      kind: 'wave',
+      id: 'level-scaled-wave',
+      atTick: 0,
+      untilTick: 600,
+      cadenceTicks: 60,
+      budget: 8,
+      enemyIds: [enemyId],
+    }];
+    pack.waves = [];
+    pack.spawnLevelScaling = [{
+      minimumPlayerLevel: 2,
+      cadenceScale: 0.5,
+      budgetScale: 2,
+    }];
+    pack.enemies[enemyId] = {
+      ...pack.enemies[enemyId]!,
+      maxHp: 999_999,
+      moveSpeedPerTick: 0,
+      contactDamage: 0,
+      dropXp: 0,
+    };
+
+    const levelOne = createInteractiveRuntime(pack, 'level-one-spawn-seed');
+    levelOne.start();
+    for (let tick = 0; tick < 31; tick += 1) levelOne.step();
+
+    const levelTwo = createInteractiveRuntime(pack, 'level-two-spawn-seed');
+    levelTwo.start();
+    levelTwo.step();
+    levelTwo.debugGrantXp(pack.level.xpThresholds[0]!);
+    levelTwo.chooseOffer(0);
+    for (let tick = 0; tick < 30; tick += 1) levelTwo.step();
+
+    expect(levelOne.getSnapshot()).toMatchObject({
+      stageTick: 31,
+      player: { level: 1 },
+      metrics: { enemyCount: 1 },
+    });
+    expect(levelTwo.getSnapshot()).toMatchObject({
+      stageTick: 31,
+      player: { level: 2 },
+      metrics: { enemyCount: 3 },
+    });
+  });
 });

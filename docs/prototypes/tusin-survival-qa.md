@@ -25,7 +25,7 @@
 | 키보드 이동·자동공격 | 캐릭터 이동과 60Hz 자동공격 진행 확인 |
 | 모바일 이동 | 화면 임의 지점에서 floating stick 생성, 드래그 방향 이동, 손을 떼면 해제 확인 |
 | 액션 sprite | 4방향별 idle·run 2프레임과 검격 anticipation·impact·recovery가 실제 이동·공격 상태에 맞춰 바뀜을 확인 |
-| 투사체 표현 | 6종 무기를 cleave·비행체·orbit·heavy projectile·chain·aura로 분리하고 startup·active·impact·afterglow를 확인 |
+| 투사체 표현 | 6종 무기를 cleave·비행체·orbit·heavy projectile·chain·aura로 분리하고 startup·active·impact·afterglow를 확인. 이동 검기 2종은 모바일 판독성을 위해 180·200 world unit/tick으로 감속하고 TTL을 보강 |
 | 타격 피드백 | 실제 HP delta 피해 숫자, 피격 pose·recoil, 충돌 잔광, 카메라 impulse, 화면 flash, 무기별 WebAudio cue 연결 확인 |
 | 사망 피드백 | 일반 적과 최종보스의 별도 붕괴 frame을 확인하고, 결과·점수 compact banner와 접근성 알림은 즉시 노출한 채 상세 패널만 780ms 뒤 확장함을 확인 |
 | 레벨업 | simulation 정지, 3개 선택지, 현재 active/passive와 점수 표시, 선택 후 재개 확인 |
@@ -36,6 +36,7 @@
 | 결정론 replay | 같은 공용 엔진으로 입력 로그를 재실행해 실제 브라우저 LOSS 결과와 digest가 일치하고 `RUN VERIFIED LOCALLY`로 확정되는 경로 확인 |
 | 디버그 격리 | debug 사용 런이 로컬 순위와 모든 mock 보상에서 제외됨을 결과 화면에서 확인 |
 | 보상 안전장치 | 구매권·실물·재고·결제·배송 호출이 없고 모든 결과가 mock으로 표시됨을 확인 |
+| 전투 밸런스 v2 | 기본 검격 사거리 확대, 첫 레벨업 전 희소 spawn 유지, 레벨 2부터 cadence 0.6배·budget 1.5배, 6개 active·6개 evolution의 군중 처리 성능 상향 확인 |
 | 키보드 접근성 | 시작·레벨업 상태의 주 동작 초점, 일시정지 모달 초점 진입·순환·ESC 복귀, 차단 상태의 HUD `inert` 확인 |
 
 ## 성능·반응형
@@ -48,7 +49,7 @@
 
 ## 자동 검증
 
-- 관련 Vitest 10파일 98개 테스트 통과
+- 관련 Vitest 10파일 103개 테스트 통과
 - prototype·asset route·engine·pack·reward 범위 ESLint 통과
 - `ICONS_PROTOTYPE=1 npm run build` 통과(Next.js compile, TypeScript, route generation 포함)
 - 결정론 테스트는 live runtime과 replay가 같은 `ContentPackRuntime`을 사용하며 이동·레벨업·상자·일시정지·최종전환 입력과 6+6+진화 결과가 일치하는지 검증한다.
@@ -67,7 +68,7 @@
 | 무기 동작 | 동일한 회전 사각형 대신 무기별 궤적·크기·잔광·충돌 lifecycle을 사용 | 개선 완료 |
 | 피격·사망 | 실제 피해량, hit pose, recoil, death linger, 최종보스 결과 reveal 지연을 사용 | 개선 완료 |
 | 사운드 | 무기 발동·일반/강한 충돌·처치·플레이어 피격을 서로 다른 합성 cue로 분리하고 밀집 tick은 피격·처치를 우선 | 개선 완료 |
-| 일반 전투 밀도 | 첫 30초는 학습 여백을 위해 콘셉트보다 의도적으로 낮고 시간에 따라 증가 | 의도된 차이 |
+| 일반 전투 밀도 | 첫 레벨업 전은 학습 여백을 유지하고, 레벨 2부터 pack 기반 cadence·budget 배율로 즉시 증가 | 개선 완료 |
 | 디버그 패널 | 내부 QA 전용이며 공개 승격 시 제거하거나 staff 도구로 격리 | 의도된 차이 |
 
 ## 출시 승격 전 남은 게이트
