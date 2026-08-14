@@ -442,4 +442,24 @@ select 1 / case when (
   where user_id = '00000000-0000-4000-8000-000000000503' and good_id = 'g11'
 ) = 1 then 1 else 0 end as assert_zero_total_order_preserves_cart;
 
+do $$
+begin
+  begin
+    update public.orders
+    set total = 1000000000000
+    where user_id = '00000000-0000-4000-8000-000000000501'
+      and checkout_key = '10000000-0000-4000-8000-000000000501';
+    raise exception 'provider maximum should reject oversized goods total';
+  exception
+    when check_violation then
+      if sqlerrm <> 'payment amount above provider maximum' then raise; end if;
+  end;
+end;
+$$;
+select 1 / case when (
+  select total from public.orders
+  where user_id = '00000000-0000-4000-8000-000000000501'
+    and checkout_key = '10000000-0000-4000-8000-000000000501'
+) = 99000 then 1 else 0 end as assert_oversized_goods_total_rolled_back;
+
 rollback;

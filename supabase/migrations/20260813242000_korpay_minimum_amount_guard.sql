@@ -12,6 +12,9 @@ begin
   if new.status = 'pending' and new.total > 0 and new.total < 1000 then
     raise check_violation using message = 'payment amount below provider minimum';
   end if;
+  if new.status = 'pending' and new.total > 999999999999 then
+    raise check_violation using message = 'payment amount above provider maximum';
+  end if;
   return new;
 end;
 $$;
@@ -40,6 +43,9 @@ as $$
 begin
   if new.status = 'pending' and new.total < 1000 then
     raise check_violation using message = 'payment amount below provider minimum';
+  end if;
+  if new.status = 'pending' and new.total > 999999999999 then
+    raise check_violation using message = 'payment amount above provider maximum';
   end if;
   return new;
 end;

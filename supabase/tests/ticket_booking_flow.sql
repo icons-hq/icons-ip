@@ -325,6 +325,24 @@ select 1 / case when (
   from public.ticket_orders
   where id = :'first_ticket_order_id'::uuid
 ) then 1 else 0 end as assert_pending_ticket_order_uses_db_truth_and_ten_minute_expiry;
+
+do $$
+begin
+  begin
+    update public.ticket_orders
+    set total = 1000000000000
+    where reservation_key = '20000000-0000-4000-8000-000000000a20';
+    raise exception 'provider maximum should reject oversized ticket total';
+  exception
+    when check_violation then
+      if sqlerrm <> 'payment amount above provider maximum' then raise; end if;
+  end;
+end;
+$$;
+select 1 / case when (
+  select total from public.ticket_orders
+  where reservation_key = '20000000-0000-4000-8000-000000000a20'
+) = 24000 then 1 else 0 end as assert_oversized_ticket_total_rolled_back;
 select 1 / case when (
   select ticket_type_id = '10000000-0000-4000-8000-000000000a01'
     and quantity = 2
