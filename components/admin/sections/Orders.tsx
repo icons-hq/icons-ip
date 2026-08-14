@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState } from 'react';
+import { useActionState, useEffect, useRef } from 'react';
 import {
   approveAdminOrderCancellationAction,
+  recoverAdminGoodsPaymentAction,
   reconcileAdminOrderCancellationAction,
   rejectAdminOrderCancellationAction,
   updateAdminOrderStatusAction,
@@ -13,6 +14,7 @@ import {
 import {
   ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS,
   adminOrdersHref,
+  isKorpayManualRecoveryState,
   type AdminOrderCancellationRequestRecord,
   type AdminOrderConsoleData,
   type AdminOrderFilters,
@@ -49,6 +51,19 @@ const CANCELLATION_STATUS_LABELS: Record<OrderCancellationRequestStatus, string>
   needs_review: '운영 확인 필요',
   completed: '취소 완료',
   rejected: '요청 거절',
+};
+
+const GOODS_PAYMENT_ATTEMPT_STATE_LABELS: Record<
+  NonNullable<AdminOrderRecord['manualRecoveryAttempt']>['state'],
+  string
+> = {
+  prepared: '결제 준비',
+  confirming: '승인 확인 중',
+  approved: '승인 완료',
+  declined: '승인 거절',
+  canceled: '취소 완료',
+  unknown: '결과 불명',
+  needs_review: '운영 확인 필요',
 };
 
 /** 사유 배지. 하자·오배송은 기한과 배송비 부담이 달라 색으로도 구분한다. */
@@ -312,13 +327,23 @@ function RejectCancellationForm({ requestId }: { requestId: string }) {
 }
 
 function ReconcileCancellationForm({
+  preparedKorpay,
   request,
 }: {
+  preparedKorpay?: {
+    amount: number;
+    currency: string;
+    providerOrderId: string;
+  };
   request: AdminOrderCancellationRequestRecord;
 }) {
   const [state, action, pending] = useActionState(reconcileAdminOrderCancellationAction, EMPTY_ACTION_STATE);
-  const confirmation = '결제 취소 상태를 다시 확인할까요?';
-  const label = request.status === 'processing' ? '처리 상태 확인' : '상태 다시 확인';
+  const confirmation = preparedKorpay
+    ? `Korpay 주문 ${preparedKorpay.providerOrderId} · ₩${preparedKorpay.amount.toLocaleString('ko-KR')} ${preparedKorpay.currency} 결제 세션의 만료를 확인할까요? 이미 만료됐다면 주문 취소와 재고 복원이 즉시 완료됩니다.`
+    : '결제 취소 상태를 다시 확인할까요?';
+  const label = preparedKorpay
+    ? 'Korpay 만료·취소 처리'
+    : request.status === 'processing' ? '처리 상태 확인' : '상태 다시 확인';
 
   return (
     <form
@@ -331,6 +356,77 @@ function ReconcileCancellationForm({
       <button className="btn btn-sm" disabled={pending} type="submit">
         {pending ? '확인 중' : label}
       </button>
+      <ActionFeedback state={state} />
+    </form>
+  );
+}
+
+function ManualKorpayCancellationForm({
+  amount,
+  attemptId,
+  currency,
+  providerOrderId,
+  requestId,
+}: {
+  amount: number;
+  attemptId: string;
+  currency: string;
+  providerOrderId: string;
+  requestId: string;
+}) {
+  const [state, action, pending] = useActionState(
+    recoverAdminGoodsPaymentAction,
+    EMPTY_ACTION_STATE,
+  );
+  const attestationRef = useRef<HTMLInputElement>(null);
+  const confirmation = `Korpay 주문 ${providerOrderId} · ₩${amount.toLocaleString('ko-KR')} ${currency}의 전액 취소 완료를 원장에서 확인했습니다. 반영하면 확인된 결제에는 환불 원장을 남기고, 주문 취소와 재고 복원을 즉시 완료합니다. 계속할까요?`;
+  const attestationId = `admin-korpay-cancel-attestation-${attemptId}`;
+  const attestationErrorId = `admin-korpay-cancel-attestation-error-${attemptId}`;
+  const attestationError = state.errors?.operatorAttestation;
+
+  useEffect(() => {
+    if (attestationError) attestationRef.current?.focus();
+  }, [attestationError]);
+
+  return (
+    <form
+      action={action}
+      className="admin-order-korpay-recovery-form"
+      data-confirm={confirmation}
+      onSubmit={(event) => confirmAction(event, confirmation)}
+    >
+      <input name="attemptId" type="hidden" value={attemptId} />
+      <input name="requestId" type="hidden" value={requestId} />
+      <label htmlFor={attestationId}>
+        <input
+          aria-describedby={attestationError ? attestationErrorId : undefined}
+          aria-invalid={attestationError ? true : undefined}
+          disabled={pending}
+          id={attestationId}
+          name="operatorAttestation"
+          ref={attestationRef}
+          required
+          type="checkbox"
+          value="provider_cancel_confirmed"
+        />
+        <span>표시된 Korpay 주문번호와 금액의 전액 취소 완료를 원장에서 확인했습니다.</span>
+      </label>
+      <button
+        className="btn btn-sm admin-order-korpay-recovery-submit"
+        disabled={pending}
+        type="submit"
+      >
+        {pending ? '반영 중' : 'Korpay 전액 취소 반영'}
+      </button>
+      {attestationError ? (
+        <span
+          className="admin-order-korpay-recovery-error"
+          id={attestationErrorId}
+          role="alert"
+        >
+          {attestationError}
+        </span>
+      ) : null}
       <ActionFeedback state={state} />
     </form>
   );
@@ -379,6 +475,15 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
   const cancellationRequest = order.cancellationRequest;
   const canAdvanceOrderStatus = !cancellationRequest || cancellationRequest.status === 'rejected';
   const hasShipped = order.status === 'shipping' || order.status === 'done';
+  const manualRecoveryAttempt = order.manualRecoveryAttempt
+    && cancellationRequest
+    && order.manualRecoveryAttempt.requestId === cancellationRequest.id
+    && (cancellationRequest.status === 'processing' || cancellationRequest.status === 'needs_review')
+    ? order.manualRecoveryAttempt
+    : null;
+  const usesKorpayManualRecovery = manualRecoveryAttempt
+    ? isKorpayManualRecoveryState(manualRecoveryAttempt.state)
+    : false;
 
   return (
     <article aria-labelledby="admin-order-detail-title" className="admin-order-detail card">
@@ -472,6 +577,32 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
           {cancellationRequest.decisionNote ? (
             <p>처리 메모 · {cancellationRequest.decisionNote}</p>
           ) : null}
+          {manualRecoveryAttempt ? (
+            <>
+              <h4 className="admin-order-korpay-title">Korpay 원장 확인 정보</h4>
+              <dl className="admin-order-summary admin-order-korpay-summary">
+                <div>
+                  <dt>Korpay 주문번호</dt>
+                  <dd className="mono">{manualRecoveryAttempt.providerOrderId}</dd>
+                </div>
+                <div>
+                  <dt>결제 시도 ID</dt>
+                  <dd className="mono">{manualRecoveryAttempt.attemptId}</dd>
+                </div>
+                <div>
+                  <dt>시도 상태</dt>
+                  <dd>{GOODS_PAYMENT_ATTEMPT_STATE_LABELS[manualRecoveryAttempt.state]}</dd>
+                </div>
+                <div>
+                  <dt>원장 확인 금액</dt>
+                  <dd>₩{manualRecoveryAttempt.amount.toLocaleString('ko-KR')} · {manualRecoveryAttempt.currency}</dd>
+                </div>
+              </dl>
+              {usesKorpayManualRecovery && !manualRecoveryAttempt.manualRecoveryAvailable ? (
+                <p>현재 결제 처리 또는 다른 운영 확인이 진행 중입니다.</p>
+              ) : null}
+            </>
+          ) : null}
         </section>
       ) : null}
 
@@ -501,8 +632,27 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
             <RejectCancellationForm requestId={cancellationRequest.id} />
           </>
         ) : null}
-        {cancellationRequest?.status === 'processing' || cancellationRequest?.status === 'needs_review' ? (
-          <ReconcileCancellationForm request={cancellationRequest} />
+        {(cancellationRequest?.status === 'processing' || cancellationRequest?.status === 'needs_review')
+          && !usesKorpayManualRecovery ? (
+          <ReconcileCancellationForm
+            preparedKorpay={manualRecoveryAttempt?.state === 'prepared'
+              ? {
+                  amount: manualRecoveryAttempt.amount,
+                  currency: manualRecoveryAttempt.currency,
+                  providerOrderId: manualRecoveryAttempt.providerOrderId,
+                }
+              : undefined}
+            request={cancellationRequest}
+          />
+        ) : null}
+        {manualRecoveryAttempt?.manualRecoveryAvailable ? (
+          <ManualKorpayCancellationForm
+            amount={manualRecoveryAttempt.amount}
+            attemptId={manualRecoveryAttempt.attemptId}
+            currency={manualRecoveryAttempt.currency}
+            providerOrderId={manualRecoveryAttempt.providerOrderId}
+            requestId={manualRecoveryAttempt.requestId}
+          />
         ) : null}
       </div>
     </article>

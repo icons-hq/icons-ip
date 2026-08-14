@@ -189,7 +189,9 @@ GitHub Actions는 `CI/CD Pipeline` workflow 하나로 PR 검증(lint/typecheck/t
 - `pull_request`: `validate` 통과 후 같은 repo 브랜치 PR이면 `deploy-supabase-preview`를 실행하고, 그 다음 `deploy-vercel-preview`를 실행한다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
 - `merge_group`: `validate` job만 실행한다.
 - `push` to `main`: `validate` 통과 후 `deploy-supabase`를 실행하고, 그 다음 `deploy-vercel`을 실행한다.
-- `workflow_dispatch`: 수동 실행용 trigger다. 현재 수동 실행에서는 `validate`만 실행된다.
+- `workflow_dispatch`: 기본은 `validate`만 실행한다. `production_redeploy=true`와 현재 main의
+  exact SHA에서 `deploy-supabase`·`deploy-vercel`이 모두 성공한 push run ID를 함께 전달한 경우에만
+  Supabase/Auth mutation 없이 Vercel Production을 설정 변경분으로 다시 배포한다.
 
 Vercel Git 연결은 프로젝트 메타데이터용으로 유지하지만, `vercel.json`의 `git.deploymentEnabled: false`로 Vercel Git 자동 배포는 생성하지 않는다. Preview와 production 배포 경로는 GitHub Actions의 Vercel CLI deploy만 사용한다.
 
@@ -210,7 +212,8 @@ CRON_SECRET
 ```
 
 - PR에서는 `npm run lint`, `npm run typecheck`, `npm run test`, `npm run build`, local Supabase migration reset/lint 후 Vercel preview를 배포한다.
-- production 배포는 `main` push에서만 실행한다.
+- production의 DB→앱 배포는 `main` push에서만 실행한다. 설정만 바뀐 앱 재배포는 동일 SHA의
+  성공한 Production source run을 기계적으로 확인한 위 `workflow_dispatch` 경로만 사용한다.
 - GitHub Actions의 앱 빌드는 Node 26을 사용한다. Vercel project/runtime Node.js Version은 Vercel production Functions 공식 지원 범위인 24.x로 유지한다.
 - deployment secret 검사는 각 deploy job 안에서 수행한다. 누락 시 job이 즉시 실패하며, 필요한 GitHub Secret을 설정한 뒤 rerun해야 한다.
 - `.vercel/` 연결 파일은 commit하지 않고, workflow가 `VERCEL_ORG_ID`와 `VERCEL_PROJECT_ID`로 Vercel 원격 build/deploy를 요청한다.

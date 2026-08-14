@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
   normalizeAdminCancellationDecisionForm,
+  normalizeAdminGoodsManualRecoveryForm,
   normalizeAdminOrderStatusForm,
   normalizeAdminOrderTrackingForm,
   type AdminOrderFieldErrors,
@@ -15,6 +16,7 @@ import {
   sendOrderShippedEmail,
 } from '@/lib/email/transactional.server';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
+import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recovery.server';
 import { orderShipment } from '@/lib/orders/shipment';
 import { createClient } from '@/lib/supabase/server';
 
@@ -51,6 +53,7 @@ async function reconcileApprovedRequest(requestId: string, actorId: string) {
 }
 
 const REVIEW_REQUIRED = '결제 취소 상태를 확정하지 못했습니다. 운영 화면의 최신 상태에서 다시 확인해주세요.';
+const PAYMENT_RECONCILIATION_IN_PROGRESS = '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 최신 상태를 확인한 뒤 다시 시도하고, 상태가 계속되면 관리자 결제 담당자에게 결제사 원장 확인을 요청해주세요.';
 
 export async function updateAdminOrderStatusAction(
   _state: AdminOrderActionState,
@@ -184,6 +187,7 @@ export async function approveAdminOrderCancellationAction(
   const result = await reconcileApprovedRequest(normalized.value.requestId, access.auth.user.id);
   revalidateOrderSurfaces();
   if (!result.ok) return { errors: { form: REVIEW_REQUIRED } };
+  if (result.status === 'in_progress') return { message: PAYMENT_RECONCILIATION_IN_PROGRESS };
   return { message: '청약철회를 완료했습니다.' };
 }
 
@@ -232,5 +236,36 @@ export async function reconcileAdminOrderCancellationAction(
   const result = await reconcileApprovedRequest(normalized.value.requestId, access.auth.user.id);
   revalidateOrderSurfaces();
   if (!result.ok) return { errors: { form: REVIEW_REQUIRED } };
+  if (result.status === 'in_progress') return { message: PAYMENT_RECONCILIATION_IN_PROGRESS };
   return { message: '결제 취소 상태를 정합화했습니다.' };
+}
+
+export async function recoverAdminGoodsPaymentAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  const access = await requireStaffAction();
+  if (access.error || !access.auth?.user) {
+    return access.error ?? { errors: { form: '관리자 권한이 필요합니다.' } };
+  }
+  if (access.auth.role !== 'admin') {
+    return { errors: { form: 'Korpay 수동 복구는 관리자 계정만 수행할 수 있습니다.' } };
+  }
+
+  const normalized = normalizeAdminGoodsManualRecoveryForm(formData);
+  if (!normalized.ok) return { errors: normalized.errors };
+
+  try {
+    const result = await recoverGoodsPaymentManually({
+      ...normalized.value,
+      actorId: access.auth.user.id,
+    });
+    revalidateOrderSurfaces();
+    if (result.outcome === 'in_progress') {
+      return { errors: { form: '다른 운영 확인이 진행 중입니다. 잠시 뒤 최신 상태를 확인해주세요.' } };
+    }
+    return { message: 'Korpay 전액 취소 확인을 주문 정합화에 반영했습니다.' };
+  } catch {
+    return { errors: { form: 'Korpay 수동 취소 상태를 반영하지 못했습니다. 최신 상태를 확인해주세요.' } };
+  }
 }

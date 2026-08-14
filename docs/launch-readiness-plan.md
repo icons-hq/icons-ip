@@ -34,7 +34,7 @@
 | 영역 | 현황 | 갭 → 이슈 |
 |---|---|---|
 | 장바구니 | localStorage·`cart_items` 병합과 재고 검증 완료(#89) | 완료 |
-| 체크아웃·결제 | 배송지·주문, provider-neutral 원장·굿즈/티켓 seam(#204~#206), Korpay SDK 인증·승인 경로 연결. 신규 provider gate 기본 OFF, 기존 Toss 2건은 known-only 정리 | #207 controlled canary·운영 readback. Korpay 취소와 모호 결과는 #208 수동 처리, 신규 Toss checkout은 닫혀 있다 |
+| 체크아웃·결제 | 배송지·주문, provider-neutral 원장·굿즈/티켓 seam(#204~#206), Korpay SDK 인증·승인 경로 연결. 신규 provider gate 기본 OFF, 기존 Toss 2건은 known-only 정리. admin-only 굿즈 전액취소 확인·원자 반영 seam까지 준비 | #207 controlled canary·운영 readback. 실제 공급사 취소 채널·담당자 인계와 모호 승인 확장은 #208, 신규 Toss checkout은 닫혀 있다 |
 | 주문 | 본인 내역·상세·카드팩 발급·배송 전 취소/청약철회(#91·#92), 관리자 주문·배송·환불 콘솔(#93) 완료 | 완료 |
 | 티켓 예매 | 공개 상세→회차/수량 선택→10분 선점→provider-neutral 결제 attempt→승인 후 QR 발급→내 티켓·예매 전체 취소/환불→현장 검표 연결(#54·#95·#97·#206). 신규 provider gate 기본 OFF | Korpay dark deploy·controlled canary #207 |
 | 인증 보조 | 비밀번호 재설정 완료(#101), Google·Apple·Kakao OAuth 배선과 provider·이메일 claim 설정 완료 | #17: production 배포·controlled smoke |
@@ -56,7 +56,7 @@
 
 | Track | 이슈 | 의존성 |
 |---|---|---|
-| **Payments** | #204 provider-neutral 원장 → #205·#206 checkout seam → #87 Korpay 계약·credential 사용 가능 상태 확인 → #207 Korpay dark deploy·controlled canary | #87 human gate는 2026-08-14 해소. #207 canary·readback 전 public Production gate OFF; 취소·모호 결과는 #208 수동 처리 |
+| **Payments** | #204 provider-neutral 원장 → #205·#206 checkout seam → #87 Korpay 계약·credential 사용 가능 상태 확인 → #207 Korpay dark deploy·controlled canary | #87 human gate는 2026-08-14 해소. #207 canary·readback 전 public Production gate OFF; admin-only 취소 반영 seam 밖의 공급사 채널·인계·모호 결과는 #208 |
 | **Commerce** | #89 실장바구니·#90 체크아웃·#91 주문 내역·#92 취소/청약철회·#93 어드민 주문 콘솔·#94 실재고 관리 완료 | 완료 |
 | **Ticketing** | #96 회차 콘솔·#54 예매 플로우·#95 내 티켓/환불·#97 현장 검표 완료. provider seam은 #206 | Korpay public ticket gate는 #207 canary·readback 뒤 |
 | **Rewards Ops** | #98 카드풀·확률 콘솔, #99 발급 정책 콘솔, #100 게임 등록 콘솔 완료 | 완료 |

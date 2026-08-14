@@ -103,6 +103,7 @@ function dependencies(
 ): CancellationReconciliationDependencies {
   return {
     loadContext: vi.fn(async () => context()),
+    reconcileExpiredPreparedGoods: vi.fn(async () => 'not_applicable' as const),
     fetchPayment: vi.fn(async () => ({
       ok: true as const,
       body: providerPayment({ state: 'fully_canceled' }),
@@ -137,7 +138,12 @@ describe('reconcileOrderCancellation', () => {
       ok: true,
       body: providerPayment({ state: 'fully_canceled' }),
     });
-    defaultMocks.rpc.mockResolvedValue({ error: null });
+    defaultMocks.rpc.mockImplementation(async (name: string) => ({
+      data: name === 'reconcile_expired_prepared_goods_cancellation'
+        ? 'not_applicable'
+        : null,
+      error: null,
+    }));
   });
 
   it('default 취소 조회는 Toss 행만 읽어 다른 provider key를 Toss API에 전달하지 않는다', async () => {
@@ -181,6 +187,91 @@ describe('reconcileOrderCancellation', () => {
 
     expect(deps.fetchPayment).not.toHaveBeenCalled();
     expect(deps.cancelPayment).not.toHaveBeenCalled();
+  });
+
+  it('fresh prepared Korpay 세션은 in_progress로 유지하고 Toss 완료나 needs_review를 호출하지 않는다', async () => {
+    const deps = dependencies({
+      reconcileExpiredPreparedGoods: vi.fn(async () => 'in_progress' as const),
+    });
+
+    await expect(reconcileOrderCancellation(
+      { requestId: REQUEST_ID, actorId: ACTOR_ID },
+      deps,
+    )).resolves.toEqual({ ok: true, status: 'in_progress' });
+
+    expect(deps.reconcileExpiredPreparedGoods).toHaveBeenCalledWith({
+      requestId: REQUEST_ID,
+      actorId: ACTOR_ID,
+    });
+    expect(deps.fetchPayment).not.toHaveBeenCalled();
+    expect(deps.cancelPayment).not.toHaveBeenCalled();
+    expect(deps.completeRequest).not.toHaveBeenCalled();
+    expect(deps.markNeedsReview).not.toHaveBeenCalled();
+  });
+
+  it('expired prepared Korpay 세션을 원자 완료하면 Toss provider 경로를 건너뛴다', async () => {
+    const deps = dependencies({
+      reconcileExpiredPreparedGoods: vi.fn(async () => 'completed' as const),
+    });
+
+    await expect(reconcileOrderCancellation(
+      { requestId: REQUEST_ID, actorId: ACTOR_ID },
+      deps,
+    )).resolves.toEqual({ ok: true, status: 'completed' });
+
+    expect(deps.fetchPayment).not.toHaveBeenCalled();
+    expect(deps.cancelPayment).not.toHaveBeenCalled();
+    expect(deps.completeRequest).not.toHaveBeenCalled();
+    expect(deps.markNeedsReview).not.toHaveBeenCalled();
+  });
+
+  it('needs_review prepared Korpay 요청도 전용 no-capture 경로에서만 재확인한다', async () => {
+    const deps = dependencies({
+      loadContext: vi.fn(async () => context({ status: 'needs_review' })),
+      reconcileExpiredPreparedGoods: vi.fn(async () => 'in_progress' as const),
+    });
+
+    await expect(reconcileOrderCancellation(
+      { requestId: REQUEST_ID, actorId: ACTOR_ID },
+      deps,
+    )).resolves.toEqual({ ok: true, status: 'in_progress' });
+
+    expect(deps.fetchPayment).not.toHaveBeenCalled();
+    expect(deps.completeRequest).not.toHaveBeenCalled();
+    expect(deps.markNeedsReview).not.toHaveBeenCalled();
+  });
+
+  it('needs_review 요청이 prepared Korpay 대상이 아니면 legacy Toss provider를 호출하지 않는다', async () => {
+    const deps = dependencies({
+      loadContext: vi.fn(async () => context({ status: 'needs_review' })),
+      reconcileExpiredPreparedGoods: vi.fn(async () => 'not_applicable' as const),
+    });
+
+    await expect(reconcileOrderCancellation(
+      { requestId: REQUEST_ID, actorId: ACTOR_ID },
+      deps,
+    )).resolves.toEqual({ ok: false, code: 'request_not_ready' });
+
+    expect(deps.fetchPayment).not.toHaveBeenCalled();
+    expect(deps.completeRequest).not.toHaveBeenCalled();
+    expect(deps.markNeedsReview).not.toHaveBeenCalled();
+  });
+
+  it('prepared Korpay 상태 조회 실패는 Toss empty-payment fallback이나 needs_review로 확장하지 않는다', async () => {
+    const deps = dependencies({
+      reconcileExpiredPreparedGoods: vi.fn(async () => {
+        throw new Error('private db detail');
+      }),
+    });
+
+    await expect(reconcileOrderCancellation(
+      { requestId: REQUEST_ID, actorId: ACTOR_ID },
+      deps,
+    )).resolves.toEqual({ ok: false, code: 'local_state_unavailable' });
+
+    expect(deps.fetchPayment).not.toHaveBeenCalled();
+    expect(deps.completeRequest).not.toHaveBeenCalled();
+    expect(deps.markNeedsReview).not.toHaveBeenCalled();
   });
 
   it('fresh GET이 이미 전액 취소를 증명하면 POST 없이 로컬 요청을 완료한다', async () => {

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   adminOrdersHref,
+  isKorpayManualRecoveryState,
   normalizeAdminCancellationDecisionForm,
+  normalizeAdminGoodsManualRecoveryForm,
   normalizeAdminOrderFilters,
   normalizeAdminOrderStatusForm,
   normalizeAdminOrderTrackingForm,
@@ -9,6 +11,19 @@ import {
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 const REQUEST_ID = '22222222-2222-4222-8222-222222222222';
+const ATTEMPT_ID = '33333333-3333-4333-8333-333333333333';
+
+describe('Korpay manual recovery states', () => {
+  it.each(['confirming', 'approved', 'unknown', 'needs_review'] as const)(
+    '%s 상태를 원장 확인 대상으로 분류한다',
+    (state) => expect(isKorpayManualRecoveryState(state)).toBe(true),
+  );
+
+  it.each(['prepared', 'declined', 'canceled'] as const)(
+    '%s 상태를 수동 원장 확인에서 제외한다',
+    (state) => expect(isKorpayManualRecoveryState(state)).toBe(false),
+  );
+});
 
 describe('normalizeAdminOrderFilters', () => {
   it('정상 검색 조건과 KST 기간·페이지를 보존한다', () => {
@@ -171,6 +186,31 @@ describe('admin order mutation forms', () => {
     expect(normalizeAdminCancellationDecisionForm(formData, 'reject')).toEqual({
       ok: false,
       errors: { reason: '거절 사유를 10자 이상 200자 이하로 입력해주세요.' },
+    });
+  });
+
+  it('Korpay 취소 확인은 request와 exact attestation을 요구한다', () => {
+    const formData = new FormData();
+    formData.set('attemptId', ATTEMPT_ID);
+    formData.set('requestId', REQUEST_ID);
+    formData.set('operatorAttestation', 'provider_cancel_confirmed');
+
+    expect(normalizeAdminGoodsManualRecoveryForm(formData)).toEqual({
+      ok: true,
+      value: {
+        operation: 'provider_cancel_confirmed',
+        attemptId: ATTEMPT_ID,
+        requestId: REQUEST_ID,
+        operatorAttested: true,
+      },
+    });
+
+    formData.set('operatorAttestation', 'yes');
+    expect(normalizeAdminGoodsManualRecoveryForm(formData)).toEqual({
+      ok: false,
+      errors: {
+        operatorAttestation: '결제사 원장에서 전액 취소를 확인해야 합니다.',
+      },
     });
   });
 });

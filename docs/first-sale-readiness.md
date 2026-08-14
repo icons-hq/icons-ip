@@ -301,6 +301,7 @@
 - Korpay 계약 완료와 현재 운영 credential 사용 가능 상태는 2026-08-14 사용자 확인으로 확정됐다. 이는 공급사 서면 증거나 19+ 유한 실물 쿠지 승인 범위가 아니다. 구현은 인증결제 가이드 v1.2.2와 `@korpay/sdk` 1.1.8의 prepare SDK → form-urlencoded callback → confirm 계약을 따른다.
 - 실자격 증명은 Production에만 sensitive 값으로 두고 Preview/CI에는 넣지 않는다. 굿즈·티켓 public gate는 각각 기본 OFF이고, gate를 내려도 이미 durable한 known callback은 계속 drain한다.
 - 공식 가이드에는 자동 status/reconcile/cancel API가 문서화되어 있지 않다. 모호 결과는 자동 재시도하지 않고 `needs_review`로 보존하며 취소는 #208 수동 운영 절차를 따른다.
+- 굿즈는 활성 admin이 공급사 원장에서 opaque 주문번호·금액의 전액 취소 완료를 확인한 뒤에만 DB claim/finalizer로 환불 장부·주문·재고를 멱등 종결한다. 이 경로는 공급사 취소를 실행하거나 모호한 승인을 재구성하지 않으며, 실제 접수 채널·직원 인계·모호 승인 처리는 #208에 남는다.
 - 실제 Korpay canary는 정확한 대상·금액·사용자·취소 계획을 고정한 뒤 1회만 수행하며, 과금 직전에 다시 사용자 확인을 받는다.
 - 기존 Toss 거래는 공급사 콘솔과 내부 원장에서 모두 종결될 때까지 known-only 조회·취소·웹훅과 server secret을 유지한다. 그 뒤 Toss runtime/secret 제거는 별도 PR이다.
 

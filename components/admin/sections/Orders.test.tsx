@@ -9,6 +9,7 @@ import { OrdersSection } from './Orders';
 
 vi.mock('@/app/admin/order-actions', () => ({
   approveAdminOrderCancellationAction: vi.fn(),
+  recoverAdminGoodsPaymentAction: vi.fn(),
   reconcileAdminOrderCancellationAction: vi.fn(),
   rejectAdminOrderCancellationAction: vi.fn(),
   updateAdminOrderStatusAction: vi.fn(),
@@ -75,6 +76,7 @@ function orderData(overrides: Partial<AdminOrderRecord> = {}): AdminOrderConsole
       } as never],
       refunds: [],
       cancellationRequest: null,
+      manualRecoveryAttempt: null,
       shipment: null,
       ...overrides,
     }],
@@ -94,6 +96,108 @@ describe('OrdersSection', () => {
     expect(html).toContain('서울 성동구 성수이로 1');
     expect(html).toContain('배송 시작');
     expect(html).not.toContain('must-not-render');
+  });
+
+  it('shows the related safe Korpay reference and exact provider-ledger attestation action', () => {
+    const request = cancellationRequest({ status: 'needs_review' });
+    const attemptId = '44444444-4444-4444-8444-444444444444';
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+      cancellationRequest: request,
+      manualRecoveryAttempt: {
+        attemptId,
+        requestId: request.id,
+        providerOrderId: 'O0123456789ABCDEF',
+        state: 'confirming',
+        amount: 32000,
+        currency: 'KRW',
+        manualRecoveryAvailable: true,
+      },
+    })} />);
+
+    expect(html).toContain('Korpay 원장 확인 정보');
+    expect(html).toContain('O0123456789ABCDEF');
+    expect(html).toContain('32,000');
+    expect(html).toContain('KRW');
+    expect(html).toContain(`name="attemptId" value="${attemptId}"`);
+    expect(html).toContain(`name="requestId" value="${request.id}"`);
+    expect(html).not.toContain('name="operation"');
+    expect(html).toContain('name="operatorAttestation"');
+    expect(html).toContain('value="provider_cancel_confirmed"');
+    expect(html).toContain('required=""');
+    expect(html).toContain(
+      'data-confirm="Korpay 주문 O0123456789ABCDEF · ₩32,000 KRW의 전액 취소 완료를 원장에서 확인했습니다. 반영하면 확인된 결제에는 환불 원장을 남기고, 주문 취소와 재고 복원을 즉시 완료합니다. 계속할까요?"',
+    );
+    expect(html).toContain('Korpay 전액 취소 반영');
+    expect(html).toContain('admin-order-korpay-recovery-submit');
+    expect(html).not.toContain('상태 다시 확인');
+  });
+
+  it('shows a related active Korpay attempt without exposing the manual action before takeover is safe', () => {
+    const request = cancellationRequest({ status: 'processing' });
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+      cancellationRequest: request,
+      manualRecoveryAttempt: {
+        attemptId: '44444444-4444-4444-8444-444444444444',
+        requestId: request.id,
+        providerOrderId: 'O0123456789ABCDEF',
+        state: 'confirming',
+        amount: 32000,
+        currency: 'KRW',
+        manualRecoveryAvailable: false,
+      },
+    })} />);
+
+    expect(html).toContain('Korpay 원장 확인 정보');
+    expect(html).toContain('현재 결제 처리 또는 다른 운영 확인이 진행 중입니다.');
+    expect(html).not.toContain('Korpay 전액 취소 반영');
+    expect(html).not.toContain('처리 상태 확인');
+  });
+
+  it.each(['declined', 'canceled'] as const)(
+    'keeps legacy cancellation reconciliation for a terminal Korpay %s attempt with no provider capture',
+    (state) => {
+      const request = cancellationRequest({ status: 'processing' });
+      const html = renderToStaticMarkup(<OrdersSection data={orderData({
+        cancellationRequest: request,
+        manualRecoveryAttempt: {
+          attemptId: '44444444-4444-4444-8444-444444444444',
+          requestId: request.id,
+          providerOrderId: 'O0123456789ABCDEF',
+          state,
+          amount: 32000,
+          currency: 'KRW',
+          manualRecoveryAvailable: false,
+        },
+      })} />);
+
+      expect(html).toContain('처리 상태 확인');
+      expect(html).not.toContain('Korpay 전액 취소 반영');
+      expect(html).not.toContain('현재 결제 처리 또는 다른 운영 확인이 진행 중입니다.');
+    },
+  );
+
+  it('routes a prepared Korpay attempt through the expiry-aware no-capture action', () => {
+    const request = cancellationRequest({ status: 'processing' });
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+      cancellationRequest: request,
+      manualRecoveryAttempt: {
+        attemptId: '44444444-4444-4444-8444-444444444444',
+        requestId: request.id,
+        providerOrderId: 'O0123456789ABCDEF',
+        state: 'prepared',
+        amount: 32000,
+        currency: 'KRW',
+        manualRecoveryAvailable: false,
+      },
+    })} />);
+
+    expect(html).toContain('Korpay 만료·취소 처리');
+    expect(html).toContain(
+      'Korpay 주문 O0123456789ABCDEF · ₩32,000 KRW 결제 세션의 만료를 확인할까요? 이미 만료됐다면 주문 취소와 재고 복원이 즉시 완료됩니다.',
+    );
+    expect(html).toContain(`name="requestId" value="${request.id}"`);
+    expect(html).not.toContain('Korpay 전액 취소 반영');
+    expect(html).not.toContain('처리 상태 확인');
   });
 
   it.each([
@@ -372,6 +476,52 @@ describe('OrdersSection', () => {
       expect(html).toContain(`id="admin-order-carrier-error-${ORDER_ID}"`);
       expect(html).toContain(`aria-describedby="admin-order-tracking-error-${ORDER_ID}"`);
       expect(html).toContain(`id="admin-order-tracking-error-${ORDER_ID}"`);
+    } finally {
+      vi.doUnmock('react');
+      vi.resetModules();
+    }
+  });
+
+  it('Korpay 원장 확인 오류를 attestation checkbox에 연결한다', async () => {
+    vi.resetModules();
+    const focus = vi.fn();
+    vi.doMock('react', async () => {
+      const actual = await vi.importActual<typeof import('react')>('react');
+      return {
+        ...actual,
+        useActionState: () => [
+          { errors: { operatorAttestation: '결제사 원장에서 전액 취소를 확인해야 합니다.' } },
+          () => {},
+          false,
+        ],
+        useEffect: (effect: () => void) => effect(),
+        useRef: () => ({ current: { focus } }),
+      };
+    });
+
+    try {
+      const { OrdersSection: ErroredOrdersSection } = await import('./Orders');
+      const request = cancellationRequest({ status: 'needs_review' });
+      const attemptId = '44444444-4444-4444-8444-444444444444';
+      const html = renderToStaticMarkup(<ErroredOrdersSection data={orderData({
+        cancellationRequest: request,
+        manualRecoveryAttempt: {
+          attemptId,
+          requestId: request.id,
+          providerOrderId: 'O0123456789ABCDEF',
+          state: 'unknown',
+          amount: 32000,
+          currency: 'KRW',
+          manualRecoveryAvailable: true,
+        },
+      })} />);
+      const errorId = `admin-korpay-cancel-attestation-error-${attemptId}`;
+
+      expect(html).toContain('결제사 원장에서 전액 취소를 확인해야 합니다.');
+      expect(html).toContain(`aria-describedby="${errorId}"`);
+      expect(html).toContain('aria-invalid="true"');
+      expect(html).toContain(`id="${errorId}" role="alert"`);
+      expect(focus).toHaveBeenCalledOnce();
     } finally {
       vi.doUnmock('react');
       vi.resetModules();

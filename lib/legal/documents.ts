@@ -81,6 +81,14 @@ export interface LegalArticle {
   closing?: string[];
 }
 
+/** 현행 본문을 바꾸지 않고 개정 일정과 내용을 미리 알리는 사전 공지. */
+export interface LegalRevisionNotice {
+  announcedDate: string;
+  effectiveDate: string;
+  heading: string;
+  changes: string[];
+}
+
 export interface LegalDocument {
   slug: LegalDocumentSlug;
   /** 문서 제목. 페이지 h1과 metadata에 함께 쓴다. */
@@ -89,6 +97,7 @@ export interface LegalDocument {
   navLabel: string;
   summary: string;
   effectiveDate: string;
+  pendingRevision?: LegalRevisionNotice;
   articles: LegalArticle[];
 }
 
@@ -98,6 +107,15 @@ const terms: LegalDocument = {
   navLabel: LEGAL_DOCUMENT_LABELS.terms,
   summary: '굿즈 구매, 카드팩과 카드, 팝업 티켓, 커뮤니티 이용에 적용되는 회사와 이용자의 권리·의무를 정합니다.',
   effectiveDate: LEGAL_EFFECTIVE_DATES.terms,
+  pendingRevision: {
+    announcedDate: '2026-08-14',
+    effectiveDate: '2026-08-21',
+    heading: '결제대행사 변경 예정 안내',
+    changes: [
+      '2026년 8월 21일부터 새 굿즈 주문과 티켓 예매의 대금은 주식회사 코페이를 통한 신용·체크카드 결제로 지급할 수 있습니다.',
+      '2026년 8월 21일 전에 토스페이먼츠 주식회사로 처리된 기존 결제 기록은 조회, 결제 취소와 환급 처리를 위해 계속 보관·처리합니다.',
+    ],
+  },
   articles: [
     {
       heading: '제1조 (목적)',
@@ -331,6 +349,15 @@ const privacy: LegalDocument = {
   navLabel: LEGAL_DOCUMENT_LABELS.privacy,
   summary: 'ICONS가 실제로 수집하는 항목, 이용 목적, 보유 기간, 처리위탁과 국외 이전, 이용자의 권리 행사 방법을 안내합니다.',
   effectiveDate: LEGAL_EFFECTIVE_DATES.privacy,
+  pendingRevision: {
+    announcedDate: '2026-08-14',
+    effectiveDate: '2026-08-21',
+    heading: '결제 처리 수탁자 추가 예정 안내',
+    changes: [
+      '개인정보 처리업무 수탁자에 주식회사 코페이를 추가합니다. 위탁 업무는 새 굿즈·티켓 카드 결제 처리, 결제 취소와 환급 처리이며, 보유·이용기간은 관련 법령이 정한 보존기간까지입니다.',
+      '토스페이먼츠 주식회사는 기존 결제 기록의 조회, 결제 취소와 환급 처리를 위해 수탁자 목록에 유지합니다.',
+    ],
+  },
   articles: [
     {
       heading: '제1조 (수집하는 개인정보 항목과 수집 방법)',

@@ -103,6 +103,46 @@ describe('법정 문서 레지스트리', () => {
     expect(source(), '문서 셋이 시행일 상수 하나를 공유하면 개정 이력을 만들 수 없다').not.toMatch(/const EFFECTIVE_DATE\b/);
   });
 
+  it('현행 2026-08-07 본문은 유지하고 terms·privacy에만 Korpay 사전 공지를 노출한다', () => {
+    const termsNotice = LEGAL_DOCUMENTS.terms.pendingRevision;
+    const privacyNotice = LEGAL_DOCUMENTS.privacy.pendingRevision;
+
+    expect(LEGAL_DOCUMENTS.terms.effectiveDate).toBe('2026-08-07');
+    expect(LEGAL_DOCUMENTS.privacy.effectiveDate).toBe('2026-08-07');
+    expect(LEGAL_DOCUMENTS.shipping.pendingRevision).toBeUndefined();
+
+    for (const notice of [termsNotice, privacyNotice]) {
+      expect(notice?.announcedDate).toBe('2026-08-14');
+      expect(notice?.effectiveDate).toBe('2026-08-21');
+      expect(notice?.heading.length).toBeGreaterThan(0);
+      expect(notice?.changes.length).toBeGreaterThan(0);
+    }
+
+    const termsPaymentArticle = LEGAL_DOCUMENTS.terms.articles.find((article) => article.heading.includes('지급방법'))!;
+    expect(termsPaymentArticle.paragraphs?.join('\n')).toMatch(/토스페이먼츠/);
+    expect(termsPaymentArticle.paragraphs?.join('\n')).not.toMatch(/코페이/);
+
+    const activeProcessors = LEGAL_DOCUMENTS.privacy.articles
+      .find((article) => article.heading.includes('위탁'))!
+      .table!.rows.map((row) => row[0]);
+    expect(activeProcessors).toContain('토스페이먼츠 주식회사');
+    expect(activeProcessors).not.toContain('주식회사 코페이');
+  });
+
+  it('예정 개정은 Korpay 신규 카드 결제와 Toss 기존 결제 조회·취소·환급 유지를 알린다', () => {
+    const noticeText = [
+      ...LEGAL_DOCUMENTS.terms.pendingRevision!.changes,
+      ...LEGAL_DOCUMENTS.privacy.pendingRevision!.changes,
+    ].join('\n');
+
+    expect(noticeText).toMatch(/주식회사 코페이/);
+    expect(noticeText).toMatch(/새.*굿즈.*티켓.*카드 결제/);
+    expect(noticeText).toMatch(/토스페이먼츠 주식회사/);
+    for (const operation of ['조회', '취소', '환급']) {
+      expect(noticeText, operation).toContain(operation);
+    }
+  });
+
   it('문의처 문장은 사업자 정보에서 파생된다 — 연락처가 비어 있으면 없는 창구를 가리키지 않는다 (#87)', () => {
     const contact = businessContactWords();
     const privacyText = plainText(LEGAL_DOCUMENTS.privacy);

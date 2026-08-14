@@ -5,6 +5,13 @@ const mocks = vi.hoisted(() => ({
   admin: vi.fn(() => null),
   curations: vi.fn(async () => [{ id: 'curation-1' }]),
   drawTicketGrants: vi.fn(async () => [{ operationId: 'grant-1' }]),
+  orders: vi.fn(async () => ({})),
+  authState: {
+    isConfigured: true,
+    user: { id: '11111111-1111-4111-8111-111111111111', email: 'staff@icons.gg' },
+    role: 'staff' as 'staff' | 'admin',
+    isStaff: true,
+  },
   randomUuid: vi.fn(),
 }));
 
@@ -40,15 +47,10 @@ vi.mock('@/lib/admin/notifications.server', () => ({
   getAdminNotificationConsoleData: vi.fn(async () => ({ audiences: [], history: [] })),
 }));
 vi.mock('@/lib/admin/orders', () => ({ normalizeAdminOrderFilters: vi.fn(() => ({})) }));
-vi.mock('@/lib/admin/orders.server', () => ({ getAdminOrderRecords: vi.fn(async () => ({})) }));
+vi.mock('@/lib/admin/orders.server', () => ({ getAdminOrderRecords: mocks.orders }));
 vi.mock('@/lib/admin/roles.server', () => ({ getAdminProfileRecords: vi.fn(async () => []) }));
 vi.mock('@/lib/auth/admin', () => ({
-  getCurrentAdminAuthState: vi.fn(async () => ({
-    isConfigured: true,
-    user: { id: '11111111-1111-4111-8111-111111111111', email: 'staff@icons.gg' },
-    role: 'staff',
-    isStaff: true,
-  })),
+  getCurrentAdminAuthState: vi.fn(async () => mocks.authState),
 }));
 vi.mock('@/lib/catalog', () => ({ getCatalogSnapshot: vi.fn(async () => ({ verticals: [], ips: [] })) }));
 vi.mock('@/lib/email/deliveries.server', () => ({ loadEmailDeliveries: vi.fn(async () => []) }));
@@ -68,6 +70,8 @@ describe('AdminPage reward-policy route', () => {
     mocks.admin.mockClear();
     mocks.curations.mockClear();
     mocks.drawTicketGrants.mockClear();
+    mocks.orders.mockClear();
+    mocks.authState.role = 'staff';
     mocks.randomUuid.mockReset();
     mocks.randomUuid
       .mockReturnValueOnce('11111111-1111-4111-8111-111111111111')
@@ -132,6 +136,15 @@ describe('AdminPage reward-policy route', () => {
       initialSection: 'members',
       members: [expect.objectContaining({ maskedEmail: 'f***@icons.gg' })],
     });
+  });
+
+  it('Korpay 수동 복구 요약은 admin 세션에서만 주문 loader에 요청한다', async () => {
+    await AdminPage({ searchParams: Promise.resolve({ section: 'orders' }) });
+    expect(mocks.orders).toHaveBeenLastCalledWith({}, false);
+
+    mocks.authState.role = 'admin';
+    await AdminPage({ searchParams: Promise.resolve({ section: 'orders' }) });
+    expect(mocks.orders).toHaveBeenLastCalledWith({}, true);
   });
 
   it('promised searchParams의 큐레이션 section과 운영 초기값을 전달한다', async () => {
