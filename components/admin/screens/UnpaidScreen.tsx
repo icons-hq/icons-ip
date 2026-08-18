@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { BankDepositQueue } from '@/components/admin/BankDepositQueue';
 import { UnpaidActionsPanel } from '@/components/admin/UnpaidActionsPanel';
 import {
   ConsoleFilterPanel,
@@ -41,7 +42,7 @@ export function UnpaidScreen({
   /** 임박 판정 기준 시각. 테스트 주입용. */
   now?: Date;
 }) {
-  const { filters, pageSize, rows, total } = data;
+  const { deposits, filters, pageSize, rows, total } = data;
   const selected = rows.find((row) => row.id === filters.selectedOrderId) ?? null;
 
   const gridRows: ConsoleGridRow[] = rows.map((row) => {
@@ -97,6 +98,8 @@ export function UnpaidScreen({
           목록에서 주문을 고르면 입금 확인·기한 연장·즉시 취소를 처리할 수 있습니다.
         </p>
       )}
+
+      <BankDepositQueue deposits={deposits} />
 
       {filters.selectedOrderId && !selected && (
         <p className="admin-note" role="status">

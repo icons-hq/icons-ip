@@ -141,3 +141,81 @@ export async function cancelUnpaidBankTransferOrderAction(
   revalidateUnpaidSurfaces(normalized.value.orderId);
   return { message: '미입금 주문을 취소하고 재고를 복원했습니다.' };
 }
+
+/*
+ * 계좌수집 입금 내역 처리(#257).
+ *
+ * 확정은 admin_confirm_bank_deposit → admin_confirm_bank_transfer_deposit →
+ * finalize_goods_payment_attempt로 이어진다. 자동 확정은 없다 — 매칭은 제안이고,
+ * 마지막 클릭은 사람이 한다(ADR-0007).
+ */
+const DEPOSIT_CONFIRM_FAILED = '입금 내역을 확정하지 못했습니다. 최신 상태를 확인해주세요.';
+const DEPOSIT_IGNORE_FAILED = '입금 내역을 보류하지 못했습니다. 최신 상태를 확인해주세요.';
+
+function depositErrorMessage(message: string | null | undefined, fallback: string) {
+  const value = (message ?? '').toLowerCase();
+  if (value.includes('deposit_already_decided')) {
+    return '이미 처리된 입금입니다. 목록을 새로고침해주세요.';
+  }
+  if (value.includes('deposit_not_ignorable')) {
+    return '이미 처리된 입금이라 보류할 수 없습니다.';
+  }
+  if (value.includes('deposit_not_found')) return '입금 내역을 찾을 수 없습니다.';
+  return rpcErrorMessage(message, fallback);
+}
+
+export async function confirmBankDepositAction(
+  _state: AdminUnpaidActionState,
+  formData: FormData,
+): Promise<AdminUnpaidActionState> {
+  const denied = await requireStaffAction();
+  if (denied) return denied;
+
+  const depositId = String(formData.get('depositId') ?? '').trim();
+  const orderId = String(formData.get('orderId') ?? '').trim();
+  if (!depositId || !orderId) return { error: '입금과 주문을 함께 선택해주세요.' };
+
+  const memo = String(formData.get('memo') ?? '').trim();
+  if (memo.length < 5 || memo.length > 200) {
+    return {
+      error: '입금 근거를 5자 이상 200자 이하로 남겨주세요. 제안을 그대로 받아들이는 경우에도 무엇을 보고 확정했는지 남겨야 합니다.',
+    };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_confirm_bank_deposit', {
+    p_deposit_id: depositId,
+    p_order_id: orderId,
+    p_memo: memo,
+  });
+  if (error) return { error: depositErrorMessage(error.message, DEPOSIT_CONFIRM_FAILED) };
+
+  revalidateUnpaidSurfaces(orderId);
+  return { message: '입금 내역을 주문에 연결하고 결제완료로 확정했습니다.' };
+}
+
+export async function ignoreBankDepositAction(
+  _state: AdminUnpaidActionState,
+  formData: FormData,
+): Promise<AdminUnpaidActionState> {
+  const denied = await requireStaffAction();
+  if (denied) return denied;
+
+  const depositId = String(formData.get('depositId') ?? '').trim();
+  if (!depositId) return { error: '입금 내역을 찾을 수 없습니다.' };
+
+  const reason = String(formData.get('reason') ?? '').trim();
+  if (reason.length < 5 || reason.length > 200) {
+    return { error: '보류 사유를 5자 이상 200자 이하로 남겨주세요. 반환 절차의 근거가 됩니다.' };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_ignore_bank_deposit', {
+    p_deposit_id: depositId,
+    p_reason: reason,
+  });
+  if (error) return { error: depositErrorMessage(error.message, DEPOSIT_IGNORE_FAILED) };
+
+  revalidatePath('/admin/sales/unpaid');
+  return { message: '입금 내역을 큐에서 내렸습니다. 기록은 남습니다.' };
+}

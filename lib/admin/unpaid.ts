@@ -32,11 +32,30 @@ export interface AdminUnpaidOrderRow {
   attemptState: string | null;
 }
 
+/**
+ * 계좌수집 입금 내역 한 건 (#257). 확정은 여전히 사람이 누른다 — `suggested*`는
+ * 제안일 뿐이고, 콘솔은 확신도를 그대로 보여 준다.
+ */
+export interface AdminBankDepositRow {
+  id: string;
+  source: string;
+  externalId: string;
+  depositedAt: string;
+  depositorName: string;
+  amount: number;
+  rawReference: string | null;
+  suggestedOrderId: string | null;
+  suggestedOrderCode: string | null;
+  suggestedConfidence: string | null;
+}
+
 export interface AdminUnpaidConsoleData {
   filters: AdminUnpaidFilters;
   rows: AdminUnpaidOrderRow[];
   pageSize: number;
   total: number;
+  /** 미매칭 입금 큐. 어댑터가 없으면 항상 비어 있다(#255). */
+  deposits: AdminBankDepositRow[];
 }
 
 function readParam(
