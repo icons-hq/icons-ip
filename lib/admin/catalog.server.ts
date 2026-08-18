@@ -225,6 +225,57 @@ export interface AdminCatalogRecords {
   ticketTypes: AdminTicketTypeRecord[];
 }
 
+/** 로더가 실제로 조회할 레코드 종류. 화면 하나가 8종을 전부 끌어오지 않게 고르는 단위다. */
+export type AdminCatalogRecordKind = keyof AdminCatalogRecords;
+
+const ADMIN_CATALOG_RECORD_KINDS: readonly AdminCatalogRecordKind[] = [
+  'ips',
+  'goods',
+  'cards',
+  'cardPools',
+  'rewardPolicies',
+  'games',
+  'events',
+  'ticketTypes',
+];
+
+/*
+ * 파생값이 다른 종류의 행을 필요로 하는 지점.
+ *
+ * 카드풀의 `rewardReady`는 풀에 묶인 카드가 등급별로 있는지 봐야 계산되고,
+ * 발급 정책의 status는 카드풀 상태를, 티켓 회차의 `eventTitle`은 이벤트 제목을 본다.
+ * 요청한 종류만 쿼리하면 이 파생값이 조용히 틀린 답(전부 `pool-unavailable`, 제목 대신 id)이
+ * 되므로, 의존하는 종류는 반환하지 않더라도 조회는 한다.
+ */
+const ADMIN_CATALOG_RECORD_DEPENDENCIES: Record<AdminCatalogRecordKind, readonly AdminCatalogRecordKind[]> = {
+  ips: [],
+  goods: [],
+  cards: [],
+  cardPools: ['cards'],
+  rewardPolicies: ['cardPools'],
+  games: [],
+  events: [],
+  ticketTypes: ['events'],
+};
+
+function resolveQueriedKinds(
+  include: readonly AdminCatalogRecordKind[] | undefined,
+): Set<AdminCatalogRecordKind> {
+  if (!include) return new Set(ADMIN_CATALOG_RECORD_KINDS);
+
+  const queried = new Set<AdminCatalogRecordKind>();
+  const visit = (kind: AdminCatalogRecordKind) => {
+    if (queried.has(kind)) return;
+    queried.add(kind);
+    for (const dependency of ADMIN_CATALOG_RECORD_DEPENDENCIES[kind]) visit(dependency);
+  };
+  for (const kind of include) visit(kind);
+  return queried;
+}
+
+/* 조회하지 않은 종류 자리에 넣는 빈 결과. 아래 error 검사·매핑 코드를 그대로 태우기 위해서다. */
+const skippedResult = Promise.resolve({ data: [] as never[], error: null as { message: string } | null });
+
 interface IpRow {
   id: string;
   archived_at: string | null;
@@ -381,7 +432,22 @@ function hasReadyPoolOdds(pool: CardPoolRow, cards: CardRow[]) {
   ));
 }
 
-export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
+/*
+ * 어드민 카탈로그 레코드 로더.
+ *
+ * `include`를 주면 그 종류(와 파생에 필요한 종류)만 조회하고, 요청하지 않은 키는 빈 배열로
+ * 돌려준다. 반환 타입이 그대로라 호출부는 안 깨진다. 화면별 라우트로 쪼개기 전에는 어떤
+ * 화면을 열어도 8종 쿼리가 전부 나갔다. `include`를 생략하면 예전처럼 전부 조회한다.
+ *
+ * 권한 가드는 여기 없다 — 각 page가 로더보다 먼저 `requireAdminScreenAccess`를 await 한다.
+ */
+export async function getAdminCatalogRecords(
+  options: { include?: readonly AdminCatalogRecordKind[] } = {},
+): Promise<AdminCatalogRecords> {
+  const queried = resolveQueriedKinds(options.include);
+  const requested = options.include
+    ? new Set<AdminCatalogRecordKind>(options.include)
+    : new Set(ADMIN_CATALOG_RECORD_KINDS);
   const supabase = await createClient();
   const imageUrlForPath = (path: string | null) => {
     if (!path) return null;
@@ -411,36 +477,48 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
     rewardPoliciesResult,
     gamesResult,
   ] = await Promise.all([
-    supabase
-      .from('ips')
-      .select('id,archived_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count')
-      .order('id'),
-    supabase
-      .from('goods')
-      /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-      .select('id,archived_at,ip_id,name,type,price,badge,stock,stock_qty,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path')
-      .order('id'),
-    supabase
-      .from('cards')
-      .select('id,archived_at,ip_id,pool_id,name,no,rarity,bg,image_path')
-      .order('id'),
-    supabase
-      .from('card_pools')
-      .select('id,ip_id,name,active_from,active_to,updated_at,pool_odds(rarity,probability)')
-      .order('active_from', { ascending: false })
-      .order('name'),
-    supabase
-      .from('events')
-      .select('id,archived_at,ip_id,title,mode,status,starts_at,ends_at,location,accent,bg,image_path')
-      .order('id'),
-    supabase
-      .from('ticket_types')
-      .select('id,event_id,name,price,capacity,sold,updated_at,tickets(id)')
-      .order('event_id')
-      .order('name')
-      .limit(1, { referencedTable: 'tickets' }),
-    supabase.rpc('admin_list_reward_policies'),
-    supabase.rpc('admin_list_games'),
+    queried.has('ips')
+      ? supabase
+        .from('ips')
+        .select('id,archived_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count')
+        .order('id')
+      : skippedResult,
+    queried.has('goods')
+      ? supabase
+        .from('goods')
+        /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
+        .select('id,archived_at,ip_id,name,type,price,badge,stock,stock_qty,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path')
+        .order('id')
+      : skippedResult,
+    queried.has('cards')
+      ? supabase
+        .from('cards')
+        .select('id,archived_at,ip_id,pool_id,name,no,rarity,bg,image_path')
+        .order('id')
+      : skippedResult,
+    queried.has('cardPools')
+      ? supabase
+        .from('card_pools')
+        .select('id,ip_id,name,active_from,active_to,updated_at,pool_odds(rarity,probability)')
+        .order('active_from', { ascending: false })
+        .order('name')
+      : skippedResult,
+    queried.has('events')
+      ? supabase
+        .from('events')
+        .select('id,archived_at,ip_id,title,mode,status,starts_at,ends_at,location,accent,bg,image_path')
+        .order('id')
+      : skippedResult,
+    queried.has('ticketTypes')
+      ? supabase
+        .from('ticket_types')
+        .select('id,event_id,name,price,capacity,sold,updated_at,tickets(id)')
+        .order('event_id')
+        .order('name')
+        .limit(1, { referencedTable: 'tickets' })
+      : skippedResult,
+    queried.has('rewardPolicies') ? supabase.rpc('admin_list_reward_policies') : skippedResult,
+    queried.has('games') ? supabase.rpc('admin_list_games') : skippedResult,
   ]);
 
   if (ipsResult.error) throw new Error(`Failed to load admin IPs: ${ipsResult.error.message}`);
@@ -509,7 +587,7 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
     ready: pool.rewardReady,
   }]));
 
-  return {
+  const loaded: AdminCatalogRecords = {
     ips: ((ipsResult.data ?? []) as IpRow[]).map((row) => ({
       id: row.id,
       archivedAt: row.archived_at,
@@ -639,5 +717,22 @@ export async function getAdminCatalogRecords(): Promise<AdminCatalogRecords> {
       hasTicketHistory: (row.tickets?.length ?? 0) > 0,
       updatedAt: row.updated_at,
     })),
+  };
+
+  /*
+   * 요청하지 않은 종류는 빈 배열로 돌려준다.
+   *
+   * 파생값 때문에 조회한 종류(카드풀의 카드, 티켓 회차의 이벤트 등)가 화면까지 새 나가면
+   * 화면이 "왜 여기 있는지 모르는 데이터"에 의존하기 시작한다. include가 곧 계약이다.
+   */
+  return {
+    ips: requested.has('ips') ? loaded.ips : [],
+    goods: requested.has('goods') ? loaded.goods : [],
+    cards: requested.has('cards') ? loaded.cards : [],
+    cardPools: requested.has('cardPools') ? loaded.cardPools : [],
+    rewardPolicies: requested.has('rewardPolicies') ? loaded.rewardPolicies : [],
+    games: requested.has('games') ? loaded.games : [],
+    events: requested.has('events') ? loaded.events : [],
+    ticketTypes: requested.has('ticketTypes') ? loaded.ticketTypes : [],
   };
 }

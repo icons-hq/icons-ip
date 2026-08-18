@@ -310,7 +310,8 @@ Production Auth 설정:
 ## 12. 운영 백오피스 `/admin`
 
 - 같은 Next 앱의 라우트 그룹. 진입 시 `profiles.role ∈ {staff, admin}` 검사(라우트 + RLS 이중).
-- 기능: 카탈로그 CRUD·보관 상태 필터·참조 가드 보관/복원, 홈 히어로·특집 IP·공지 배너의 순서·KST 기간·활성 관리(`/admin?section=curations`), **카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩**, 뽑기권 발급 정책(`/admin?section=policy`), 참여형 게임(`/admin?section=game`) 관리, 이벤트·티켓 회차, 독립 모바일 현장 검표(`/admin/check-in`), 주문 검색·배송 전이·청약철회/환불 정합화, 인앱 공지 수신자 추정·즉시 발송·이력(`/admin?section=notifications`), 커뮤니티 신고·포스트/댓글 숨김, 마스킹 회원 검색·명시적 상세·정지/해제(`/admin?section=members`). 큐레이션 공지 저장은 알림 fan-out을 일으키지 않고 공지 발송 콘솔로의 navigation만 제공한다.
+- 셸 구조: 대분류 9개 > 소분류의 2단 메뉴와 **화면별 라우트**다(`app/admin/(shell)/**`). IA 정의는 `lib/admin/navigation.ts`가 소유하고 사이드바·헤더 제목·레거시 리다이렉트가 여기서 파생된다. 옛 `?section=` 딥링크는 `/admin`이 새 라우트로 넘긴다. 화면마다 자기 로더만 실행하며, 권한 게이트의 진실원은 각 page의 `requireAdminScreenAccess(경로)`다 — layout은 pathname을 몰라 로그인 `next`를 정확히 만들 수 없어서 미인증 처리를 page에 맡긴다. `/admin/check-in`은 route group 밖이라 셸 없이 전체화면으로 뜬다.
+- 기능: 카탈로그 CRUD·보관 상태 필터·참조 가드 보관/복원, 홈 히어로·특집 IP·공지 배너의 순서·KST 기간·활성 관리(`/admin/display/curations`), **카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩**, 뽑기권 발급 정책(`/admin/catalog/policies`), 참여형 게임(`/admin/catalog/games`) 관리, 이벤트·티켓 회차, 독립 모바일 현장 검표(`/admin/check-in`), 주문 검색·배송 전이·청약철회/환불 정합화, 인앱 공지 수신자 추정·즉시 발송·이력(`/admin/messaging/notifications`), 커뮤니티 신고·포스트/댓글 숨김, 마스킹 회원 검색·명시적 상세·정지/해제(`/admin/community/members`). 큐레이션 공지 저장은 알림 fan-out을 일으키지 않고 공지 발송 콘솔로의 navigation만 제공한다.
 - 모든 민감 작업은 `audit_log` 기록.
 
 ---

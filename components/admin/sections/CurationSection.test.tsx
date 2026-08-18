@@ -77,7 +77,6 @@ function renderSection(selected: AdminCurationRecord | null, records = selected 
       eventOptions={eventOptions}
       goodOptions={goodOptions}
       ipOptions={ipOptions}
-      onOpenNotifications={vi.fn()}
       onSelect={vi.fn()}
       operationId="33333333-3333-4333-8333-333333333333"
       records={records}
@@ -185,29 +184,15 @@ describe('CurationSection', () => {
     expect(html).not.toContain('현재 특집 IP:');
   });
 
-  it('공지 배너는 이미지가 선택이고 CTA는 공지 발송 화면으로만 이동한다', () => {
-    const onOpenNotifications = vi.fn();
-    const tree = CurationSection({
-      draftActiveFrom: '2026-07-15T03:04:05.000Z',
-      draftId: '22222222-2222-4222-8222-222222222222',
-      eventOptions,
-      goodOptions,
-      ipOptions,
-      onOpenNotifications,
-      onSelect: vi.fn(),
-      operationId: '33333333-3333-4333-8333-333333333333',
-      records: [activeAnnouncement],
-      selected: activeAnnouncement,
-    });
-    const cta = findElement(
-      tree,
-      (element) => element.type === 'button'
-        && (element.props as { className?: string }).className === 'btn btn-ghost admin-curation-notification-cta',
-    );
+  /* CTA가 부모 상태를 바꾸던 콜백이었을 때는 큐레이션 화면 밖에서 재사용할 수 없었다. */
+  it('공지 배너는 이미지가 선택이고 CTA는 공지 발송 라우트 링크다', () => {
+    const html = renderSection(activeAnnouncement);
 
-    expect(renderToStaticMarkup(tree)).toContain('공지 배너 이미지는 선택입니다.');
-    (cta?.props as { onClick: () => void }).onClick();
-    expect(onOpenNotifications).toHaveBeenCalledOnce();
+    expect(html).toContain('공지 배너 이미지는 선택입니다.');
+    expect(html).toMatch(
+      /<a[^>]*class="btn btn-ghost admin-curation-notification-cta"[^>]*href="\/admin\/messaging\/notifications"/,
+    );
+    expect(html).not.toContain('<button class="btn btn-ghost admin-curation-notification-cta"');
     expect(mocks.notificationAction).not.toHaveBeenCalled();
   });
 
@@ -262,7 +247,6 @@ describe('CurationSection', () => {
       eventOptions,
       goodOptions,
       ipOptions,
-      onOpenNotifications: vi.fn(),
       onSelect: vi.fn(),
       operationId: '33333333-3333-4333-8333-333333333333',
       records: [activeAnnouncement],
@@ -275,7 +259,6 @@ describe('CurationSection', () => {
       eventOptions,
       goodOptions,
       ipOptions,
-      onOpenNotifications: vi.fn(),
       onSelect: vi.fn(),
       operationId: '88888888-8888-4888-8888-888888888888',
       records: [latest],

@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { cache } from 'react';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 
@@ -20,7 +21,12 @@ interface AdminProfileRow {
   suspended_at: string | null;
 }
 
-export async function getCurrentAdminAuthState(): Promise<CurrentAdminAuthState> {
+/*
+ * 요청 하나 안에서 결과를 재사용한다. 어드민 셸은 layout 과 page 가 각각
+ * 권한을 확인하므로 cache 가 없으면 화면마다 auth.getUser() + profiles select 가
+ * 두 벌씩 나간다. 같은 요청 안에서 세션이 바뀌지 않으므로 안전하다.
+ */
+export const getCurrentAdminAuthState = cache(async (): Promise<CurrentAdminAuthState> => {
   if (!getSupabaseConfig().isConfigured) {
     return { isConfigured: false, user: null, role: null, isStaff: false };
   }
@@ -49,4 +55,4 @@ export async function getCurrentAdminAuthState(): Promise<CurrentAdminAuthState>
     role,
     isStaff: !profile?.suspended_at && (role === 'staff' || role === 'admin'),
   };
-}
+});

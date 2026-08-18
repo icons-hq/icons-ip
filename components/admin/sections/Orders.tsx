@@ -434,8 +434,7 @@ function ManualKorpayCancellationForm({
 
 function OrderFilters({ filters }: { filters: AdminOrderFilters }) {
   return (
-    <form action="/admin" className="admin-order-filters card" method="get">
-      <input name="section" type="hidden" value="orders" />
+    <form action="/admin/sales/orders" className="admin-order-filters card" method="get">
       <label>
         <span>주문 검색</span>
         <input
@@ -464,7 +463,7 @@ function OrderFilters({ filters }: { filters: AdminOrderFilters }) {
       </label>
       <div className="admin-order-filter-actions">
         <button className="btn btn-sm" type="submit">검색</button>
-        <Link className="btn btn-sm btn-ghost" href="/admin?section=orders&page=1">초기화</Link>
+        <Link className="btn btn-sm btn-ghost" href="/admin/sales/orders?page=1">초기화</Link>
       </div>
     </form>
   );

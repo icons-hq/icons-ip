@@ -225,7 +225,7 @@ describe('adminOrdersHref', () => {
       status: 'paid',
       to: '2026-07-14',
     }, { orderId: ORDER_ID, page: 1 })).toBe(
-      `/admin?section=orders&status=paid&from=2026-07-01&to=2026-07-14&query=maple+fan&page=1&order=${ORDER_ID}`,
+      `/admin/sales/orders?status=paid&from=2026-07-01&to=2026-07-14&query=maple+fan&page=1&order=${ORDER_ID}`,
     );
   });
 });
