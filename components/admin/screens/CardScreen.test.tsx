@@ -4,7 +4,8 @@ import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
 import { CardScreen } from './CardScreen';
 
 const mocks = vi.hoisted(() => ({
-  cardSection: vi.fn(() => null),
+  /* props를 받는 것으로 선언해야 mock.calls[0][0]이 빈 튜플로 좁혀지지 않는다. */
+  cardSection: vi.fn<(props: unknown) => null>(() => null),
 }));
 
 vi.mock('@/app/admin/actions', () => ({
