@@ -47,6 +47,13 @@ const DESTINATIONS = [
     meta: 'INBOX',
   },
   {
+    description: '배송이 완료된 굿즈에 별점과 후기를 남기고 관리하세요.',
+    href: '/my/reviews',
+    icon: 'star',
+    label: '내 리뷰',
+    meta: 'REVIEW',
+  },
+  {
     description: '주문·배송, 취소/반품/교환, 상품에 대해 운영자에게 문의하세요.',
     href: '/my/inquiries',
     icon: 'chat',

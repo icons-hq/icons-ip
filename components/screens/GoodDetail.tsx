@@ -149,12 +149,19 @@ export function GoodDetailView({
   cartAction,
   detail,
   embedded = false,
+  reviews,
   showBackLink = true,
 }: {
   cartAction: ReactNode;
   detail: GoodDetailContent;
   /** 어드민 미리보기처럼 다른 화면 안에 놓일 때. #root 캔버스를 건드리지 않는다. */
   embedded?: boolean;
+  /**
+   * 리뷰 블록(#254). 담기 버튼과 같은 이유로 slot이다 — 이 화면은 `'use client'`인데
+   * 리뷰는 서버에서 읽어 서버에서 그린다. 어드민 미리보기는 저장 전 입력값으로
+   * 화면을 그리므로 아무것도 넘기지 않는다(아직 존재하지 않는 굿즈에는 리뷰가 없다).
+   */
+  reviews?: ReactNode;
   showBackLink?: boolean;
 }) {
   const { good, ip } = detail;
@@ -243,6 +250,9 @@ export function GoodDetailView({
           </section>
         )}
 
+        {/* 리뷰가 고시정보보다 위에 온다. 살지 말지를 정하는 사람이 먼저 읽는 것은
+            법정 표기가 아니라 먼저 산 사람의 말이다. */}
+        {reviews}
         <NoticeTable detail={detail} />
         <ShippingGuide />
         <ReturnGuide />
@@ -253,11 +263,18 @@ export function GoodDetailView({
 }
 
 /** 공개 라우트용. 목록 카드와 같은 재고·수량 제약을 그대로 쓴다. */
-export function GoodDetail({ detail }: { detail: GoodDetailContent }) {
+export function GoodDetail({
+  detail,
+  reviews,
+}: {
+  detail: GoodDetailContent;
+  reviews?: ReactNode;
+}) {
   return (
     <GoodDetailView
       cartAction={<AddToCartButton good={detail.good} variant="detail" />}
       detail={detail}
+      reviews={reviews}
     />
   );
 }

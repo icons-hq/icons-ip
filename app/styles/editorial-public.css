@@ -1965,6 +1965,176 @@
   width: 34%;
 }
 
+/* --------------------------------------------------------------------------
+   굿즈 리뷰 (#254)
+
+   서버에서 그리는 블록이라 클라이언트 상태가 없다. 정렬·필터·페이지는 전부 링크다.
+   -------------------------------------------------------------------------- */
+
+.goods-review-summary {
+  display: grid;
+  align-items: center;
+  gap: 20px;
+  grid-template-columns: minmax(140px, auto) minmax(0, 1fr);
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.goods-review-average {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.goods-review-average > strong {
+  font-size: 36px;
+  line-height: 1.05;
+}
+
+/* 별은 장식이 아니라 값이다. 색만으로 채움/빈 칸을 나누면 저대비 환경에서
+   평점이 통째로 사라지므로 문자 자체를 ★/☆로 나눈다. */
+.goods-review-stars {
+  color: var(--amber);
+  font-size: 14px;
+  letter-spacing: .12em;
+  white-space: nowrap;
+}
+
+.goods-review-distribution {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.goods-review-distribution > li {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  grid-template-columns: 34px minmax(0, 1fr) 44px;
+}
+
+.goods-review-distribution-label,
+.goods-review-distribution-count {
+  color: var(--dim);
+  font-family: var(--ff-mono);
+  font-size: 11px;
+}
+
+.goods-review-distribution-count {
+  text-align: right;
+}
+
+.goods-review-distribution-track {
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.goods-review-distribution-bar {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--amber);
+}
+
+.goods-review-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.goods-review-list {
+  display: grid;
+  gap: 18px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goods-review-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.goods-review-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.goods-review-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.goods-review-photos img {
+  display: block;
+  width: 96px;
+  height: 96px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  object-fit: cover;
+}
+
+/* 운영자 답글은 왼쪽 테두리로 구분한다. 배경색을 쓰면 카드 경계와 겹쳐
+   어느 쪽이 누구 말인지 오히려 흐려진다(어드민 문의 스레드와 같은 규율). */
+.goods-review-reply {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0 10px 14px;
+  border-inline-start: 3px solid var(--violet-2, var(--line-3));
+}
+
+.goods-review-action {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-decoration: underline;
+}
+
+.goods-review-report {
+  margin: 0;
+}
+
+.goods-review-pagination {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  grid-template-columns: 1fr auto 1fr;
+  padding-top: 8px;
+}
+
+.goods-review-pagination > :last-child {
+  justify-self: end;
+}
+
+@media (max-width: 720px) {
+  .goods-review-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 900px) {
   .goods-detail-hero {
     grid-template-columns: minmax(0, 1fr);
