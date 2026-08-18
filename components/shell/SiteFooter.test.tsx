@@ -69,3 +69,18 @@ describe('SiteFooter 법정 고지 링크', () => {
     }
   });
 });
+
+describe('SiteFooter 도메인 용어', () => {
+  beforeEach(() => {
+    mocks.pathname = '/shop';
+  });
+
+  /* 굿즈 클레임 유형 "교환"(회수 후 재출고)이 생기면서 카드 C2C는 "트레이드"로 개명됐다.
+   * 푸터에 옛 표기가 남으면 두 개념이 같은 이름으로 보인다. */
+  it('카드 C2C 링크를 트레이드로 부른다', () => {
+    const html = render();
+
+    expect(html).toContain('카드 트레이드');
+    expect(html).not.toContain('카드 교환');
+  });
+});

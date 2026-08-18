@@ -41,7 +41,7 @@ function ExchangeCard({ x }: { x: ExchangeItem }) {
               <span style={{ color: 'var(--faint)' }}>원함 · </span>{x.want}
             </div>
             <Link className="btn btn-ghost btn-sm" href={CTA_HREF} style={{ marginTop: 'auto', height: 38, fontSize: 13 }}>
-              교환 제안하기
+              트레이드 제안하기
             </Link>
           </>
         )}
@@ -65,14 +65,14 @@ export function Exchange() {
       <header style={{ padding: 'clamp(108px, 12vw, 140px) 0 0' }}>
         <div className="wrap" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 24 }}>
           <div>
-            <div className="eyebrow rise" style={{ color: 'var(--cyan)' }}>모아요 · CARD EXCHANGE</div>
-            <h1 className="rise" style={{ margin: '14px 0 0', fontFamily: 'var(--ff-display)', fontWeight: 700, fontSize: 'clamp(36px, 5vw, 64px)', lineHeight: 1.04, letterSpacing: '-0.04em', animationDelay: '.08s' }}>카드 교환 마켓</h1>
+            <div className="eyebrow rise" style={{ color: 'var(--cyan)' }}>모아요 · CARD TRADE</div>
+            <h1 className="rise" style={{ margin: '14px 0 0', fontFamily: 'var(--ff-display)', fontWeight: 700, fontSize: 'clamp(36px, 5vw, 64px)', lineHeight: 1.04, letterSpacing: '-0.04em', animationDelay: '.08s' }}>카드 트레이드</h1>
             <p className="rise" style={{ margin: '14px 0 0', fontSize: 15, color: '#C9C3E4', maxWidth: 480, textWrap: 'pretty', animationDelay: '.16s' }}>
-              팬들끼리 직거래·경매로 한정 카드를 교환하세요.
+              팬들끼리 직거래·경매로 한정 카드를 트레이드하세요.
             </p>
           </div>
           <div className="rise" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 9, animationDelay: '.22s' }}>
-            <Link className="btn btn-holo" href={hrefFor('binder')} style={{ height: 48, padding: '0 26px' }}>＋ 교환 등록</Link>
+            <Link className="btn btn-holo" href={hrefFor('binder')} style={{ height: 48, padding: '0 26px' }}>＋ 트레이드 등록</Link>
             <span className="money-caption">등록 수수료는 정식 오픈 시 안내됩니다</span>
           </div>
         </div>
@@ -98,7 +98,7 @@ export function Exchange() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 26, padding: '15px 18px', borderRadius: 14, border: '1px solid rgba(56,240,192,.2)', background: 'rgba(56,240,192,.05)' }}>
             <span style={{ flex: '0 0 auto', width: 24, height: 24, borderRadius: 99, display: 'grid', placeItems: 'center', background: 'rgba(56,240,192,.14)', color: 'var(--mint)', fontSize: 12, fontWeight: 700 }}>✓</span>
             <span className="mono" style={{ fontSize: 11.5, color: 'var(--dim)', letterSpacing: '.02em' }}>
-              교환 체결 방식(소유권 동시 이전)과 수수료는 정식 오픈 시 확정·공지됩니다
+              트레이드 체결 방식(소유권 동시 이전)과 수수료는 정식 오픈 시 확정·공지됩니다
             </span>
           </div>
         </div>

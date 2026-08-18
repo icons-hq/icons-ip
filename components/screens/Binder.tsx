@@ -10,7 +10,7 @@ import { hrefFor } from '@/lib/routes';
 import { Empty } from '@/components/ui/Empty';
 import { Modal } from '@/components/ui/Modal';
 
-/* mock 시세 — 실제 시세는 v2 교환/마켓 데이터가 진실원 (현행 바인더도 mock 표기) */
+/* mock 시세 — 실제 시세는 v2 트레이드/마켓 데이터가 진실원 (현행 바인더도 mock 표기) */
 const MOCK_PRICE: Partial<Record<RarityKey, string>> = { HOLO: '₩48,000', SSR: '₩30,000', SR: '₩18,000', R: '₩12,000', N: '₩8,000' };
 
 function CardDetail({
@@ -53,8 +53,8 @@ function CardDetail({
           <div className="mono" style={{ fontSize: 12, color: 'var(--faint)', marginTop: 6 }}>No. {card.no}</div>
           <p style={{ margin: '14px 0 0', fontSize: 14, color: 'var(--dim)', textWrap: 'pretty' }}>
             {owned
-              ? '보유 중인 카드입니다. 교환 마켓에 등록하거나 프로필에 전시할 수 있어요.'
-              : '아직 보유하지 않은 카드입니다. 카드팩 · 교환으로 획득할 수 있어요.'}
+              ? '보유 중인 카드입니다. 트레이드에 등록하거나 프로필에 전시할 수 있어요.'
+              : '아직 보유하지 않은 카드입니다. 카드팩 · 트레이드로 획득할 수 있어요.'}
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 20 }}>
             {([
@@ -71,7 +71,7 @@ function CardDetail({
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 22 }}>
             {owned ? (
               <>
-                <Link className="btn btn-holo" href={hrefFor('exchange')} style={{ height: 46, fontSize: 14 }}>교환 등록 ⇄</Link>
+                <Link className="btn btn-holo" href={hrefFor('exchange')} style={{ height: 46, fontSize: 14 }}>트레이드 등록 ⇄</Link>
                 <Link className="btn btn-ghost" href={hrefFor('community')} style={{ height: 46, fontSize: 14 }}>전시하기</Link>
               </>
             ) : (
@@ -79,7 +79,7 @@ function CardDetail({
                 {cardRewardsEnabled && (
                   <Link className="btn btn-holo" href={hrefFor('packs')} style={{ height: 46, fontSize: 14 }}>카드팩으로 획득 ✦</Link>
                 )}
-                <Link className="btn btn-ghost" href={hrefFor('exchange')} style={{ height: 46, fontSize: 14 }}>교환으로 획득</Link>
+                <Link className="btn btn-ghost" href={hrefFor('exchange')} style={{ height: 46, fontSize: 14 }}>트레이드로 획득</Link>
               </>
             )}
           </div>
@@ -266,9 +266,9 @@ export function Binder({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, padding: '22px 26px', borderRadius: 20, border: '1px solid var(--line)', background: 'linear-gradient(180deg, var(--surface), var(--bg-2))' }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 16 }}>중복 카드가 있나요?</div>
-                <div style={{ fontSize: 13.5, color: 'var(--dim)', marginTop: 4 }}>교환 마켓에서 직거래하거나 경매에 올려보세요.</div>
+                <div style={{ fontSize: 13.5, color: 'var(--dim)', marginTop: 4 }}>트레이드에서 직거래하거나 경매에 올려보세요.</div>
               </div>
-              <Link className="btn btn-ghost" href={hrefFor('exchange')} style={{ height: 44, fontSize: 14 }}>교환 마켓으로 ⇄</Link>
+              <Link className="btn btn-ghost" href={hrefFor('exchange')} style={{ height: 44, fontSize: 14 }}>트레이드로 ⇄</Link>
             </div>
           </div>
         </div>
