@@ -12,6 +12,7 @@ import {
   type OrderListItem,
 } from './orders';
 import { orderShipment } from './orders/shipment';
+import { getShippingCarrierRegistry } from './orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
 
 interface OrderListRow {
@@ -288,7 +289,11 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
           decisionNote: cancellationRequestRow.decision_note,
         }
       : null,
-    shipment: orderShipment(orderData.shipping_carrier, orderData.tracking_number),
+    shipment: orderShipment(
+      await getShippingCarrierRegistry(),
+      orderData.shipping_carrier,
+      orderData.tracking_number,
+    ),
     cardPacks: {
       issuedCount: ticketRows.length,
       availableCount: ticketRows.filter((ticket) => (

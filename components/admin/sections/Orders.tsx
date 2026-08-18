@@ -12,6 +12,8 @@ import {
   type AdminOrderActionState,
 } from '@/app/admin/order-actions';
 import {
+  ADMIN_ORDER_STATUSES,
+  ADMIN_ORDER_STATUS_LABELS,
   ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS,
   adminOrdersHref,
   isKorpayManualRecoveryState,
@@ -32,19 +34,22 @@ import {
   refundStatusLabel,
   type OrderWithdrawalReasonType,
 } from '@/lib/orders';
-import { SHIPPING_CARRIERS, type OrderShipment } from '@/lib/orders/shipment';
+import {
+  selectableShippingCarriers,
+  type OrderShipment,
+  type ShippingCarrierRegistry,
+} from '@/lib/orders/shipment';
 import { formatKrw } from '../format';
 
-/* 사다리 순서 그대로 둔다 — 드롭다운 순서가 운영자에게는 단계 순서다(#250). */
+/* 사다리 순서 그대로 둔다 — 드롭다운 순서가 운영자에게는 단계 순서다(#250).
+   문구는 ADMIN_ORDER_STATUS_LABELS에서 가져온다. 여기에 다시 적으면 일괄 등록
+   실패 리포트가 쓰는 말과 갈라진다(#251). */
 const STATUS_OPTIONS: Array<{ value: AdminOrderFilters['status']; label: string }> = [
   { value: 'all', label: '전체 상태' },
-  { value: 'pending', label: '결제 대기' },
-  { value: 'paid', label: '신규주문' },
-  { value: 'confirmed', label: '발주확인' },
-  { value: 'shipping', label: '배송중' },
-  { value: 'delivered', label: '배송완료' },
-  { value: 'done', label: '거래확정' },
-  { value: 'canceled', label: '취소' },
+  ...ADMIN_ORDER_STATUSES.map((status) => ({
+    value: status,
+    label: ADMIN_ORDER_STATUS_LABELS[status],
+  })),
 ];
 
 const EMPTY_ACTION_STATE: AdminOrderActionState = {};
@@ -110,12 +115,21 @@ function ActionFeedback({ state }: { state: AdminOrderActionState }) {
   );
 }
 
+/**
+ * 택배사 드롭다운.
+ *
+ * 목록은 DB 레지스트리에서 온다(#251). 비활성 택배사는 뺀다 — 고를 수 있는데
+ * 저장이 거절되는 선택지는 운영자에게 원인 없는 실패로 보인다. 이미 그 택배사로
+ * 나간 주문의 조회 링크는 별개로 살아 있다.
+ */
 function CarrierSelect({
+  carriers,
   defaultValue,
   describedBy,
   disabled,
   id,
 }: {
+  carriers: ShippingCarrierRegistry;
   defaultValue?: string;
   describedBy?: string;
   disabled: boolean;
@@ -131,7 +145,7 @@ function CarrierSelect({
       required
     >
       <option disabled value="">택배사 선택</option>
-      {SHIPPING_CARRIERS.map((carrier) => (
+      {selectableShippingCarriers(carriers).map((carrier) => (
         <option key={carrier.code} value={carrier.code}>{carrier.label}</option>
       ))}
     </select>
@@ -139,12 +153,14 @@ function CarrierSelect({
 }
 
 function TrackingFields({
+  carriers,
   errors,
   idPrefix,
   orderId,
   pending,
   shipment,
 }: {
+  carriers: ShippingCarrierRegistry;
   errors: AdminOrderActionState['errors'];
   idPrefix: string;
   orderId: string;
@@ -161,6 +177,7 @@ function TrackingFields({
     <div className="admin-order-tracking-fields">
       <label htmlFor={carrierId}>택배사</label>
       <CarrierSelect
+        carriers={carriers}
         defaultValue={shipment?.carrier}
         describedBy={errors?.carrier ? carrierErrorId : undefined}
         disabled={pending}
@@ -195,11 +212,13 @@ const STATUS_ACTION_CONFIRMATIONS: Record<AdminOrderFormStatus, string> = {
 };
 
 function OrderStatusAction({
+  carriers,
   label,
   orderId,
   shipment,
   status,
 }: {
+  carriers: ShippingCarrierRegistry;
   label: string;
   orderId: string;
   shipment: OrderShipment | null;
@@ -222,6 +241,7 @@ function OrderStatusAction({
       {/* 운송장 없이 배송을 시작하면 고객이 추적할 수 없다. DB도 같은 조건으로 거절한다. */}
       {status === 'shipping' ? (
         <TrackingFields
+          carriers={carriers}
           errors={state.errors}
           idPrefix="admin-order"
           orderId={orderId}
@@ -238,9 +258,11 @@ function OrderStatusAction({
 }
 
 function UpdateTrackingForm({
+  carriers,
   orderId,
   shipment,
 }: {
+  carriers: ShippingCarrierRegistry;
   orderId: string;
   shipment: OrderShipment | null;
 }) {
@@ -256,6 +278,7 @@ function UpdateTrackingForm({
     >
       <input name="orderId" type="hidden" value={orderId} />
       <TrackingFields
+        carriers={carriers}
         errors={state.errors}
         idPrefix="admin-order-edit"
         orderId={orderId}
@@ -478,7 +501,13 @@ function OrderFilters({ filters }: { filters: AdminOrderFilters }) {
   );
 }
 
-function OrderDetail({ order }: { order: AdminOrderRecord }) {
+function OrderDetail({
+  carriers,
+  order,
+}: {
+  carriers: ShippingCarrierRegistry;
+  order: AdminOrderRecord;
+}) {
   const status = orderStatusMeta(order.status);
   const cancellationRequest = order.cancellationRequest;
   const canAdvanceOrderStatus = !cancellationRequest || cancellationRequest.status === 'rejected';
@@ -621,6 +650,7 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
       <div className="admin-order-actions">
         {canAdvanceOrderStatus && order.status === 'paid' ? (
           <OrderStatusAction
+            carriers={carriers}
             label="발주확인"
             orderId={order.id}
             shipment={order.shipment}
@@ -629,6 +659,7 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
         ) : null}
         {canAdvanceOrderStatus && order.status === 'confirmed' ? (
           <OrderStatusAction
+            carriers={carriers}
             label="발송처리"
             orderId={order.id}
             shipment={order.shipment}
@@ -637,6 +668,7 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
         ) : null}
         {canAdvanceOrderStatus && order.status === 'shipping' ? (
           <OrderStatusAction
+            carriers={carriers}
             label="배송완료"
             orderId={order.id}
             shipment={order.shipment}
@@ -646,7 +678,7 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
         {/* delivered→done은 자동 거래확정 잡이 맡는다. 운영자 버튼을 두면
             청약철회 창을 사람 손으로 조기 종료시킬 수 있다. */}
         {hasShipped ? (
-          <UpdateTrackingForm orderId={order.id} shipment={order.shipment} />
+          <UpdateTrackingForm carriers={carriers} orderId={order.id} shipment={order.shipment} />
         ) : null}
         {cancellationRequest?.status === 'requested' ? (
           <>
@@ -746,7 +778,7 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
             </nav>
           ) : null}
         </aside>
-        {selected ? <OrderDetail order={selected} /> : null}
+        {selected ? <OrderDetail carriers={data.carriers} order={selected} /> : null}
       </div>
     </section>
   );
