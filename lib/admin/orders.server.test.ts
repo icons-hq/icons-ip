@@ -128,6 +128,8 @@ describe('getAdminOrderRecords', () => {
         updated_at: '2026-07-14T06:01:00.000Z',
         cancellation_request_id: '33333333-3333-4333-8333-333333333333',
         cancellation_request_status: 'requested',
+        cancellation_claim_type: 'cancel',
+        cancellation_stage: 'requested',
         cancellation_reason_type: 'defect',
         cancellation_requested_at: '2026-07-14T07:00:00.000Z',
         cancellation_decided_at: null,
@@ -194,6 +196,8 @@ describe('getAdminOrderRecords', () => {
         cancellationRequest: {
           id: '33333333-3333-4333-8333-333333333333',
           status: 'requested',
+          claimType: 'cancel',
+          stage: 'requested',
           reasonType: 'defect',
           requestedAt: '2026-07-14T07:00:00.000Z',
           decidedAt: null,
@@ -260,6 +264,8 @@ describe('getAdminOrderRecords', () => {
           updated_at: '2026-07-14T06:01:00.000Z',
           cancellation_request_id: requestId,
           cancellation_request_status: 'needs_review',
+          cancellation_claim_type: 'cancel',
+          cancellation_stage: 'needs_review',
           cancellation_reason_type: 'change_of_mind',
           cancellation_requested_at: '2026-07-14T07:00:00.000Z',
           cancellation_decided_at: '2026-07-14T07:05:00.000Z',
@@ -321,6 +327,8 @@ describe('getAdminOrderRecords', () => {
           updated_at: '2026-07-14T06:01:00.000Z',
           cancellation_request_id: requestId,
           cancellation_request_status: 'needs_review',
+          cancellation_claim_type: 'cancel',
+          cancellation_stage: 'needs_review',
           cancellation_reason_type: 'change_of_mind',
           cancellation_requested_at: '2026-07-14T07:00:00.000Z',
           cancellation_decided_at: null,
@@ -377,6 +385,37 @@ describe('getAdminOrderRecords', () => {
     await expect(getAdminOrderRecords(filters)).rejects.toThrow('Failed to load admin order items');
   });
 
+  /* 모르는 단계를 'requested'로 접으면 수거 중인 반품이 주문 콘솔에서 승인
+     가능한 청약철회로 보인다(#252 F1). 사유 구분과 같은 이유로 fail closed다. */
+  it('fails closed on an unsupported claim stage', async () => {
+    mocks.client = createClient({
+      records: [],
+      rpc: vi.fn(),
+      rpcRows: [{
+        id: ORDER_ID,
+        user_id: USER_ID,
+        buyer_name: 'fan',
+        buyer_email: null,
+        status: 'paid',
+        total: 1,
+        address: null,
+        created_at: '2026-07-14T06:00:00.000Z',
+        updated_at: '2026-07-14T06:00:00.000Z',
+        cancellation_request_id: '33333333-3333-4333-8333-333333333333',
+        cancellation_request_status: 'requested',
+        cancellation_claim_type: 'cancel',
+        cancellation_stage: 'awaiting_courier',
+        cancellation_reason_type: 'change_of_mind',
+        cancellation_requested_at: '2026-07-14T07:00:00.000Z',
+        cancellation_decided_at: null,
+        cancellation_decision_note: null,
+        total_count: 1,
+      }],
+    });
+
+    await expect(getAdminOrderRecords(filters)).rejects.toThrow('unsupported claim stage');
+  });
+
   // 사유 구분은 기한과 배송비 부담 주체를 가른다. 모르는 값을 조용히 단순 변심으로
   // 접으면 운영자가 잘못된 근거로 승인한다.
   it('fails closed on an unsupported cancellation reason type', async () => {
@@ -395,6 +434,8 @@ describe('getAdminOrderRecords', () => {
         updated_at: '2026-07-14T06:00:00.000Z',
         cancellation_request_id: '33333333-3333-4333-8333-333333333333',
         cancellation_request_status: 'requested',
+        cancellation_claim_type: 'cancel',
+        cancellation_stage: 'requested',
         cancellation_reason_type: 'act_of_god',
         cancellation_requested_at: '2026-07-14T07:00:00.000Z',
         cancellation_decided_at: null,

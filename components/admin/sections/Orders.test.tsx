@@ -41,6 +41,8 @@ function cancellationRequest(
   return {
     id: '33333333-3333-4333-8333-333333333333',
     status: 'requested',
+    claimType: 'cancel',
+    stage: 'requested',
     reasonType: 'change_of_mind',
     requestedAt: '2026-07-14T07:00:00.000Z',
     decidedAt: null,
@@ -256,7 +258,10 @@ describe('OrdersSection', () => {
     {
       name: 'needs-review cancellation',
       overrides: {
-        cancellationRequest: cancellationRequest({ status: 'needs_review' }),
+        cancellationRequest: cancellationRequest({
+          stage: 'needs_review',
+          status: 'needs_review',
+        }),
       },
       visible: ['상태 다시 확인'],
       hidden: ['발주확인', '발송처리', '배송완료', '청약철회 승인', '요청 거절'],
@@ -264,7 +269,10 @@ describe('OrdersSection', () => {
     {
       name: 'processing cancellation',
       overrides: {
-        cancellationRequest: cancellationRequest({ status: 'processing' }),
+        cancellationRequest: cancellationRequest({
+          stage: 'processing',
+          status: 'processing',
+        }),
       },
       visible: ['처리 상태 확인'],
       hidden: ['발주확인', '발송처리', '배송완료', '청약철회 승인', '요청 거절'],
@@ -273,24 +281,67 @@ describe('OrdersSection', () => {
       name: 'rejected cancellation on a paid order',
       overrides: {
         cancellationRequest: cancellationRequest({
+          stage: 'rejected',
           status: 'rejected',
           decidedAt: '2026-07-14T08:00:00.000Z',
           decisionNote: '배송 준비가 이미 완료되었습니다.',
         }),
       },
-      visible: ['발주확인', '요청 거절'],
-      hidden: ['발송처리', '배송완료', '청약철회 승인', '상태 다시 확인'],
+      visible: ['발주확인', '거부'],
+      hidden: ['발송처리', '배송완료', '청약철회 승인', '요청 거절', '상태 다시 확인', '클레임 콘솔에서 처리'],
     },
     {
       name: 'completed cancellation awaiting an order refresh',
       overrides: {
         cancellationRequest: cancellationRequest({
+          stage: 'completed',
           status: 'completed',
           decidedAt: '2026-07-14T08:00:00.000Z',
         }),
       },
-      visible: ['취소 완료'],
-      hidden: ['발주확인', '발송처리', '배송완료', '청약철회 승인', '요청 거절', '상태 다시 확인'],
+      visible: ['처리완료'],
+      hidden: [
+        '발주확인', '발송처리', '배송완료', '청약철회 승인', '요청 거절', '상태 다시 확인',
+        '클레임 콘솔에서 처리',
+      ],
+    },
+    /* 새 stage는 전부 status='requested'로 투영된다. 주문 콘솔이 그 투영으로
+       판단하면 수거 중인 반품에 [청약철회 승인]이 뜨고, 누르면 입고 확인을
+       건너뛴 채 전액 환불과 재고 복원이 끝난다(#252 F1). */
+    {
+      name: 'return claim being collected',
+      overrides: {
+        status: 'delivered' as const,
+        cancellationRequest: cancellationRequest({ claimType: 'return', stage: 'collecting' }),
+      },
+      visible: ['클레임 콘솔에서 처리', '수거중'],
+      hidden: ['청약철회 승인', '요청 거절'],
+    },
+    {
+      name: 'exchange claim already received',
+      overrides: {
+        status: 'delivered' as const,
+        cancellationRequest: cancellationRequest({ claimType: 'exchange', stage: 'collected' }),
+      },
+      visible: ['클레임 콘솔에서 처리', '교환 클레임', '입고완료'],
+      hidden: ['청약철회 승인', '요청 거절'],
+    },
+    {
+      name: 'claim on hold',
+      overrides: {
+        status: 'delivered' as const,
+        cancellationRequest: cancellationRequest({ claimType: 'return', stage: 'on_hold' }),
+      },
+      visible: ['클레임 콘솔에서 처리', '보류'],
+      hidden: ['청약철회 승인', '요청 거절'],
+    },
+    {
+      name: 'cancel claim under review',
+      overrides: {
+        cancellationRequest: cancellationRequest({ stage: 'in_review' }),
+      },
+      visible: ['클레임 콘솔에서 처리', '검토중'],
+      hidden: ['청약철회 승인', '요청 거절'],
     },
     {
       name: 'confirmed order',
@@ -356,14 +407,7 @@ describe('OrdersSection', () => {
   it.each(['shipping', 'done'] as const)('exposes the cancellation decision on a %s order', (status) => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
       status,
-      cancellationRequest: {
-        id: '33333333-3333-4333-8333-333333333333',
-        status: 'requested',
-        reasonType: 'change_of_mind',
-        requestedAt: '2026-07-14T07:00:00.000Z',
-        decidedAt: null,
-        decisionNote: null,
-      },
+      cancellationRequest: cancellationRequest(),
     })} />);
 
     expect(html).toContain('청약철회 승인');
@@ -376,14 +420,7 @@ describe('OrdersSection', () => {
   it('하자·오배송 요청의 사유를 목록과 상세에 함께 노출한다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
       status: 'shipping',
-      cancellationRequest: {
-        id: '33333333-3333-4333-8333-333333333333',
-        status: 'requested',
-        reasonType: 'defect',
-        requestedAt: '2026-07-14T07:00:00.000Z',
-        decidedAt: null,
-        decisionNote: null,
-      },
+      cancellationRequest: cancellationRequest({ reasonType: 'defect' }),
     })} />);
 
     expect(html).toContain('admin-order-row-reason');
@@ -397,14 +434,7 @@ describe('OrdersSection', () => {
   it('단순 변심 요청은 하자와 다른 사유 표시를 쓴다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
       status: 'shipping',
-      cancellationRequest: {
-        id: '33333333-3333-4333-8333-333333333333',
-        status: 'requested',
-        reasonType: 'change_of_mind',
-        requestedAt: '2026-07-14T07:00:00.000Z',
-        decidedAt: null,
-        decisionNote: null,
-      },
+      cancellationRequest: cancellationRequest(),
     })} />);
 
     expect(html).toContain('단순 변심');
@@ -426,14 +456,7 @@ describe('OrdersSection', () => {
   it('미출고 주문에는 반송비 부담 주체를 표시하지 않는다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
       status: 'paid',
-      cancellationRequest: {
-        id: '33333333-3333-4333-8333-333333333333',
-        status: 'requested',
-        reasonType: 'defect',
-        requestedAt: '2026-07-14T07:00:00.000Z',
-        decidedAt: null,
-        decisionNote: null,
-      },
+      cancellationRequest: cancellationRequest({ reasonType: 'defect' }),
     })} />);
 
     expect(html).toContain('상품 하자·오배송');
@@ -445,14 +468,12 @@ describe('OrdersSection', () => {
      완료 주문이 미처리처럼 보인다. */
   it.each(['completed', 'rejected'] as const)('처리가 끝난 %s 요청은 목록 배지를 만들지 않는다', (status) => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
-      cancellationRequest: {
-        id: '33333333-3333-4333-8333-333333333333',
+      cancellationRequest: cancellationRequest({
         status,
+        stage: status,
         reasonType: 'defect',
-        requestedAt: '2026-07-14T07:00:00.000Z',
         decidedAt: '2026-07-14T08:00:00.000Z',
-        decisionNote: null,
-      },
+      }),
     })} />);
 
     expect(html).not.toContain('admin-order-row-reason');

@@ -103,14 +103,16 @@ describe('법정 문서 레지스트리', () => {
     expect(source(), '문서 셋이 시행일 상수 하나를 공유하면 개정 이력을 만들 수 없다').not.toMatch(/const EFFECTIVE_DATE\b/);
   });
 
-  it('현행 2026-08-18 본문은 유지하고 terms·privacy에만 Korpay 사전 공지를 노출한다', () => {
+  it('현행 2026-08-20 본문은 유지하고 terms·privacy에만 Korpay 사전 공지를 노출한다', () => {
     const termsNotice = LEGAL_DOCUMENTS.terms.pendingRevision;
     const privacyNotice = LEGAL_DOCUMENTS.privacy.pendingRevision;
 
-    /* 2026-08-18 개정 — 인앱 1:1 문의를 실제 접수 경로로 명시(#253).
-       Korpay 사전 공지(2026-08-21)는 그대로 남는다. 두 개정은 서로 다른 사안이다. */
-    expect(LEGAL_DOCUMENTS.terms.effectiveDate).toBe('2026-08-18');
-    expect(LEGAL_DOCUMENTS.privacy.effectiveDate).toBe('2026-08-18');
+    /* 2026-08-20 개정 — 교환 클레임과 환불계좌 수집(#252).
+       Korpay 사전 공지(2026-08-21)는 그대로 남는다. 두 개정은 서로 다른 사안이고,
+       현행 시행일이 예정 시행일보다 앞서야 "예정"이 거짓말이 되지 않는다. */
+    expect(LEGAL_DOCUMENTS.terms.effectiveDate).toBe('2026-08-20');
+    expect(LEGAL_DOCUMENTS.privacy.effectiveDate).toBe('2026-08-20');
+    expect(LEGAL_DOCUMENTS.terms.effectiveDate < (termsNotice?.effectiveDate ?? '')).toBe(true);
     expect(LEGAL_DOCUMENTS.shipping.pendingRevision).toBeUndefined();
 
     for (const notice of [termsNotice, privacyNotice]) {

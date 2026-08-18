@@ -349,7 +349,8 @@ describe('loadOrderDetail', () => {
       maybeSingle: true,
     });
     expect(records.find((record) => record.table === 'order_cancellation_requests')).toMatchObject({
-      select: 'id,status,requested_at,decided_at,decision_note',
+      select: 'id,status,claim_type,stage,reference,requested_at,decided_at,decision_note,'
+        + 'reship_carrier,reship_tracking_number',
       eq: [['order_id', orderId]],
       order: [['requested_at', { ascending: false }]],
       limit: 1,

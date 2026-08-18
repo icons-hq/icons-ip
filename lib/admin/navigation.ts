@@ -44,9 +44,9 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'dispatch', label: '발주·발송 관리', href: '/admin/sales/dispatch', status: 'ready' },
       { id: 'shipping', label: '배송현황 관리', href: '/admin/sales/shipping', status: 'ready' },
       { id: 'settled', label: '거래확정 내역', href: '/admin/sales/settled', status: 'ready' },
-      { id: 'claims-cancels', label: '취소 관리', href: '/admin/sales/claims/cancels', status: 'planned' },
-      { id: 'claims-returns', label: '반품 관리', href: '/admin/sales/claims/returns', status: 'planned' },
-      { id: 'claims-exchanges', label: '교환 관리', href: '/admin/sales/claims/exchanges', status: 'planned' },
+      { id: 'claims-cancels', label: '취소 관리', href: '/admin/sales/claims/cancels', status: 'ready' },
+      { id: 'claims-returns', label: '반품 관리', href: '/admin/sales/claims/returns', status: 'ready' },
+      { id: 'claims-exchanges', label: '교환 관리', href: '/admin/sales/claims/exchanges', status: 'ready' },
     ],
   },
   {

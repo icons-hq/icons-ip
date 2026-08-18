@@ -17,12 +17,12 @@ import {
   ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS,
   adminOrdersHref,
   isKorpayManualRecoveryState,
+  isLegacyDecidableCancellation,
   type AdminOrderCancellationRequestRecord,
   type AdminOrderConsoleData,
   type AdminOrderFilters,
   type AdminOrderFormStatus,
   type AdminOrderRecord,
-  type OrderCancellationRequestStatus,
 } from '@/lib/admin/orders';
 import {
   formatOrderDateTime,
@@ -34,6 +34,12 @@ import {
   refundStatusLabel,
   type OrderWithdrawalReasonType,
 } from '@/lib/orders';
+import {
+  isOpenOrderClaimStage,
+  ORDER_CLAIM_STAGE_LABELS,
+  ORDER_CLAIM_TYPE_LABELS,
+  ORDER_CLAIM_TYPE_SLUGS,
+} from '@/lib/orders/claims';
 import {
   selectableShippingCarriers,
   type OrderShipment,
@@ -53,14 +59,6 @@ const STATUS_OPTIONS: Array<{ value: AdminOrderFilters['status']; label: string 
 ];
 
 const EMPTY_ACTION_STATE: AdminOrderActionState = {};
-
-const CANCELLATION_STATUS_LABELS: Record<OrderCancellationRequestStatus, string> = {
-  requested: '승인 대기',
-  processing: '결제 취소 중',
-  needs_review: '운영 확인 필요',
-  completed: '취소 완료',
-  rejected: '요청 거절',
-};
 
 const GOODS_PAYMENT_ATTEMPT_STATE_LABELS: Record<
   NonNullable<AdminOrderRecord['manualRecoveryAttempt']>['state'],
@@ -90,16 +88,10 @@ function CancellationReasonBadge({
   );
 }
 
-/** 승인·거절 판단이 남은 요청. 종결된 요청까지 목록에 표시하면 미처리 건과 섞인다. */
-const OPEN_CANCELLATION_STATUSES = new Set<OrderCancellationRequestStatus>([
-  'requested',
-  'processing',
-  'needs_review',
-]);
-
+/** 처리가 남은 클레임. 종결된 요청까지 목록에 표시하면 미처리 건과 섞인다. */
 function openCancellationRequest(order: AdminOrderRecord) {
   const request = order.cancellationRequest;
-  return request && OPEN_CANCELLATION_STATUSES.has(request.status) ? request : null;
+  return request && isOpenOrderClaimStage(request.stage) ? request : null;
 }
 
 function confirmAction(event: React.FormEvent<HTMLFormElement>, message: string) {
@@ -595,9 +587,11 @@ function OrderDetail({
         <section className="admin-order-cancellation" aria-labelledby="admin-order-cancellation-title">
           <div className="admin-order-cancellation-heading">
             <div>
-              <span>청약철회 요청</span>
+              {/* 유형과 절차 단계를 그대로 쓴다. status 투영만 보이면 수거 중인
+                  반품이 "청약철회 요청 · 요청 접수"로 표시된다(#252). */}
+              <span>{ORDER_CLAIM_TYPE_LABELS[cancellationRequest.claimType]} 클레임</span>
               <h3 id="admin-order-cancellation-title">
-                {CANCELLATION_STATUS_LABELS[cancellationRequest.status]}
+                {ORDER_CLAIM_STAGE_LABELS[cancellationRequest.stage]}
               </h3>
             </div>
             <time dateTime={cancellationRequest.requestedAt}>
@@ -680,11 +674,27 @@ function OrderDetail({
         {hasShipped ? (
           <UpdateTrackingForm carriers={carriers} orderId={order.id} shipment={order.shipment} />
         ) : null}
-        {cancellationRequest?.status === 'requested' ? (
+        {/* 주문 콘솔이 소유하는 것은 "접수 단계의 취소"뿐이다. 반품·교환과 검토중·
+            수거중·입고완료·보류는 절차가 다르고, 여기서 승인하면 입고 확인을
+            건너뛴 채 전액 환불과 재고 복원이 끝난다. DB도 같은 경계를 지키지만
+            (claim_requires_claim_console), 버튼을 그려 두고 실패 문구로 알리는
+            것은 안내가 아니다. */}
+        {cancellationRequest && isLegacyDecidableCancellation(cancellationRequest) ? (
           <>
             <ApproveCancellationForm orderStatus={order.status} requestId={cancellationRequest.id} />
             <RejectCancellationForm requestId={cancellationRequest.id} />
           </>
+        ) : null}
+        {cancellationRequest
+          && !isLegacyDecidableCancellation(cancellationRequest)
+          && cancellationRequest.stage !== 'completed'
+          && cancellationRequest.stage !== 'rejected' ? (
+          <Link
+            className="btn btn-sm btn-ghost"
+            href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[cancellationRequest.claimType]}/${cancellationRequest.id}`}
+          >
+            클레임 콘솔에서 처리
+          </Link>
         ) : null}
         {(cancellationRequest?.status === 'processing' || cancellationRequest?.status === 'needs_review')
           && !usesKorpayManualRecovery ? (
