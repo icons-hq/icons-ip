@@ -32,7 +32,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - `CONTEXT.md`의 용어를 우선한다.
 - 수집형 디지털 `카드`와 실물 `굿즈`를 혼용하지 않는다.
 - `팬덤 가입`은 v1에서 무료 `팔로우`다. 유료 `멤버십`과 섞지 않는다.
-- `교환`은 카드 C2C, `마켓`은 굿즈 C2C다. 둘 다 v1에서는 플레이스홀더/v2 범위다.
+- `트레이드`는 카드 C2C(구 명칭 "교환"), `마켓`은 굿즈 C2C다. 둘 다 v1에서는 플레이스홀더/v2 범위다. `교환`은 굿즈 `클레임` 유형(회수 후 재출고)으로만 쓴다.
 - 유료 가챠·`충전금`은 폐기됐다(ADR-0003·ADR-0004). `카드`는 `뽑기권`(UI 표기 "카드팩") 개봉과 참여형 게임의 무상 리워드로만 발급된다. 굿즈·티켓 신규 결제의 provider는 Korpay다. 두 checkout은 provider-neutral seam으로 이동했고 gate 기본값은 OFF지만, 2026-08-18 Production 굿즈 gate를 공개 ON으로 전환했다. 티켓 gate와 두 canary는 OFF이며 Toss는 `provider=toss`인 기존 거래의 조회·취소·웹훅에만 남긴다. 현재 rollout 증거와 잔여 위험은 `docs/runbooks/korpay-production-rollout.md`를 따른다.
 - 범용 온라인 팝업 운영 레이어와 Expo webview 호스트는 현 로드맵 범위가 아니다. 기존 게임 `goods` variant는 운영 콘솔에서 읽기 전용이며, 남아 있는 mock 연출은 실제 경품·구매권을 만들지 않는다. 실물 쿠지에 재사용하지 않는다.
 
