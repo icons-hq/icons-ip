@@ -104,8 +104,10 @@ export function orderClaimReferenceLabel(reference: number) {
 /**
  * 유형별로 다음에 가능한 단계.
  *
- * 화면이 액션 버튼을 고를 때와 서버 액션이 입력을 좁힐 때 같은 표를 본다 —
- * 화면에만 두면 버튼이 없는 전이를 폼 조작으로 부를 수 있다.
+ * 이 표는 화면이 어떤 버튼을 그릴지 정하는 안내이지 게이트가 아니다. 폼을 조작해
+ * 없는 전이를 부르면 막는 것은 DB RPC의 stage 전제조건이고, 서버 액션은 입력의
+ * 형태만 좁힌다. 그래서 이 표가 DB 규칙과 갈라지면 "눌러도 항상 실패하는 버튼"이나
+ * "DB는 허용하는데 화면에서 사라진 처리"가 생긴다 — 규칙을 바꿀 때 둘을 함께 본다.
  */
 const NEXT_STAGES: Record<OrderClaimType, Partial<Record<OrderClaimStage, OrderClaimStage[]>>> = {
   cancel: {
@@ -139,6 +141,41 @@ export function orderClaimNextStages(
   stage: OrderClaimStage,
 ): OrderClaimStage[] {
   return NEXT_STAGES[claimType][stage] ?? [];
+}
+
+/**
+ * 보류를 벗긴 실질 단계.
+ *
+ * `on_hold`는 절차의 단계가 아니라 그 위에 덮인 표시다. 판정에 stage만 쓰면
+ * `processing`에서 건 보류가 "아직 착수 전"으로 보인다. DB의
+ * `admin_decide_order_claim`이 같은 식을 쓴다.
+ */
+export function orderClaimEffectiveStage(
+  stage: OrderClaimStage,
+  heldFrom: OrderClaimStage | null,
+): OrderClaimStage {
+  return stage === 'on_hold' ? heldFrom ?? 'requested' : stage;
+}
+
+/**
+ * 거부 가능 여부.
+ *
+ * 환불 원장과 durable claim이 열리기 전까지만 거부할 수 있다. `processing`·
+ * `needs_review`를 거부하면 주문이 "취소 진행 중"인 채로 남아 완료도 취소도
+ * 되지 않는다 — DB가 `claim_not_rejectable`로 막는 것과 같은 규칙이다.
+ */
+const REJECTABLE_STAGES = new Set<OrderClaimStage>([
+  'requested',
+  'in_review',
+  'collecting',
+  'collected',
+]);
+
+export function canRejectOrderClaim(
+  stage: OrderClaimStage,
+  heldFrom: OrderClaimStage | null,
+) {
+  return REJECTABLE_STAGES.has(orderClaimEffectiveStage(stage, heldFrom));
 }
 
 /**

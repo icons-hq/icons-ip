@@ -30,6 +30,7 @@ function detail(overrides: Partial<AdminClaimDetail> = {}): AdminClaimDetail {
       decisionNote: null,
       holdReason: null,
       heldAt: null,
+      heldFrom: null,
       requestedAt: '2026-08-18T01:00:00.000Z',
       decidedAt: '2026-08-18T02:00:00.000Z',
       collectingAt: '2026-08-18T02:00:00.000Z',
@@ -168,6 +169,57 @@ describe('ClaimDetailScreen', () => {
     const html = render();
 
     expect(html).toContain('부분 환불을 약속하지 마세요');
+  });
+
+  /* [환불 완료 확정]은 이 화면에서 가장 위험한 버튼이다. 단계만 보고 그리면 레거시
+     경로로 종결된 클레임(정합화는 끝났고 refunds.completed_at만 비어 있는 상태)에도
+     떠서, 누르면 정합화 재시작이 cancellation_request_not_reconcilable로 항상
+     실패한다 — 그리고 "주문과 재고는 그대로 유지됩니다"라는 거짓 문구가 뜬다. */
+  it('이미 종결된 클레임에는 정합화가 다시 돈다고 말하지 않는다', () => {
+    const base = detail();
+    const html = render({
+      claim: { ...base.claim, stage: 'completed', completedAt: '2026-08-20T01:00:00.000Z' },
+      refund: { ...base.refund!, status: 'done', completedAt: null },
+    });
+
+    expect(html).toContain('환불 완료를 원장에 기록');
+    expect(html).toContain('이 클레임은 이미 종결됐습니다');
+    expect(html).not.toContain('주문과 재고는 그대로 유지됩니다');
+    expect(html).not.toContain('재고 복원 · 카드팩 회수 포함');
+  });
+
+  /* 원장 행이 없으면 RPC가 claim_refund_ledger_missing으로 막는다. 버튼을 그려 두면
+     운영자는 실패 문구로 그 사실을 배운다. */
+  it('환불 원장이 없으면 완료 버튼 대신 사유를 보여준다', () => {
+    const base = detail();
+    const html = render({
+      claim: { ...base.claim, stage: 'processing' },
+      refund: null,
+    });
+
+    expect(html).not.toContain('환불 완료 확정');
+    expect(html).toContain('환불 원장이 없어 완료를 기록할 수 없습니다');
+  });
+
+  /* 거부는 durable claim과 환불 intent가 열리기 전까지만 가능하다. processing에서
+     거부하면 주문이 "취소 진행 중"인 채로 얼어붙는다(DB의 claim_not_rejectable). */
+  it('처리에 착수한 클레임에는 거부 폼을 그리지 않는다', () => {
+    const base = detail();
+    const html = render({ claim: { ...base.claim, stage: 'processing' } });
+
+    expect(html).not.toContain('거부 사유');
+  });
+
+  /* 보류는 단계가 아니라 그 위에 덮인 표시다. processing에서 건 보류를 "아직 착수
+     전"으로 읽으면 같은 동결을 거부 버튼으로 만들 수 있다. */
+  it('보류는 보류 직전 단계로 거부 가능 여부를 가른다', () => {
+    const base = detail();
+    const held = (heldFrom: 'collecting' | 'processing') => render({
+      claim: { ...base.claim, stage: 'on_hold', heldFrom, holdReason: '반송비 정산 확인 중' },
+    });
+
+    expect(held('collecting')).toContain('거부 사유');
+    expect(held('processing')).not.toContain('거부 사유');
   });
 
   it('목록으로 돌아가는 링크를 남긴다', () => {

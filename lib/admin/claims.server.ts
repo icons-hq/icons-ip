@@ -181,6 +181,8 @@ export interface AdminClaimDetail {
     decisionNote: string | null;
     holdReason: string | null;
     heldAt: string | null;
+    /** 보류 해제 시 돌아갈 단계. 보류가 아니면 null이다. */
+    heldFrom: OrderClaimStage | null;
     requestedAt: string;
     decidedAt: string | null;
     collectingAt: string | null;
@@ -254,6 +256,7 @@ export async function loadAdminClaimDetail(
       decisionNote: text(claim.decisionNote),
       holdReason: text(claim.holdReason),
       heldAt: text(claim.heldAt),
+      heldFrom: isOrderClaimStage(claim.heldFrom) ? claim.heldFrom : null,
       requestedAt: String(claim.requestedAt ?? ''),
       decidedAt: text(claim.decidedAt),
       collectingAt: text(claim.collectingAt),

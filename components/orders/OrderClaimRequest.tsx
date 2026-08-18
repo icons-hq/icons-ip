@@ -102,7 +102,10 @@ export function claimStageNotice(claim: OrderCancellationRequestSummary): string
         ? '반송하신 굿즈가 입고됐습니다. 교환 상품 재출고를 준비하고 있습니다.'
         : '반송하신 굿즈가 입고됐습니다. 영업일 기준 3일 이내에 환급 절차를 진행합니다.';
     case 'on_hold':
-      return `처리가 보류됐습니다. ${claim.decisionNote ?? '자세한 내용은 1:1 문의로 확인해주세요.'}`;
+      /* 보류 사유는 hold_reason이고 그 칸은 구매자에게 grant하지 않는다(운영 메모).
+         decisionNote는 승인 시 비워지므로 여기서 읽으면 언제나 fallback만 나갔다.
+         사유는 보류 시점의 알림 본문으로 이미 전달된다. */
+      return '처리가 보류됐습니다. 보류 사유는 알림으로 안내해드렸습니다. 추가로 궁금한 점은 1:1 문의로 알려주세요.';
     case 'processing':
       return '환급 절차를 진행하고 있습니다. 결제수단에 따라 반영 시점이 다를 수 있습니다.';
     case 'needs_review':

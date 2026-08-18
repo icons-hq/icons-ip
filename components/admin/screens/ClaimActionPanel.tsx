@@ -12,6 +12,7 @@ import {
   ORDER_CLAIM_REFUND_METHOD_LABELS,
   ORDER_CLAIM_REFUND_METHODS,
   ORDER_CLAIM_STAGE_LABELS,
+  canRejectOrderClaim,
   orderClaimNextStages,
   type OrderClaimStage,
   type OrderClaimType,
@@ -20,16 +21,22 @@ import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 
 /* 클레임 액션 패널(#252).
  *
- * 버튼은 지금 가능한 전이만 그린다(orderClaimNextStages). 서버 액션과 DB가 같은
- * 표를 다시 보므로 폼을 조작해도 없는 전이는 통과하지 못한다 — 화면은 안내이지
- * 게이트가 아니다.
+ * 버튼은 지금 가능한 전이만 그린다(orderClaimNextStages · canRejectOrderClaim).
+ *
+ * 게이트는 DB다. 서버 액션은 폼의 형태만 좁히고 전이표를 다시 보지 않으므로,
+ * 폼을 조작해 없는 전이를 부르면 막는 것은 RPC의 stage 전제조건이다. 그래서 이
+ * 화면의 표와 DB 규칙이 갈라지면 두 가지가 생긴다 — 눌러도 항상 실패하는 버튼,
+ * 또는 DB는 허용하는데 화면에서 사라진 처리. 둘 다 같은 모듈(lib/orders/claims.ts)을
+ * 보게 해서 갈라지지 않게 한다.
  *
  * 액션마다 별도 폼이다. 한 폼에 여러 버튼을 두면 엔터 제출이 마크업 순서에 따라
  * 엉뚱한 액션으로 간다.
  *
- * [환불 완료]가 이 화면에서 가장 위험한 버튼이다. 그 액션은 기존 정합화 경로를
- * 먼저 태우고, 그 경로가 재고를 복원하고 미개봉 카드팩을 회수한 뒤에야 원장에
- * 완료를 적는다. 순서를 뒤집으면 "환불 완료인데 재고는 그대로"가 된다. */
+ * [환불 완료]가 이 화면에서 가장 위험한 버튼이다. 아직 종결되지 않은 클레임에서는
+ * 그 액션이 기존 정합화 경로를 먼저 태우고, 그 경로가 재고를 복원하고 미개봉
+ * 카드팩을 회수한 뒤에야 원장에 완료를 적는다. 순서를 뒤집으면 "환불 완료인데
+ * 재고는 그대로"가 된다. 이미 종결된 클레임에서는 정합화가 끝난 뒤이므로 남은
+ * 일이 원장 기록뿐이고, 문구도 그렇게 말해야 한다. */
 
 const EMPTY_STATE: AdminClaimActionState = {};
 
@@ -54,8 +61,12 @@ export interface ClaimActionPanelProps {
   orderId: string;
   stage: OrderClaimStage;
   carriers: ShippingCarrierRegistry;
+  /** 보류 해제 시 돌아갈 단계. 거부 가능 여부가 여기서 갈린다. */
+  heldFrom: OrderClaimStage | null;
   /** 코페이 취소 접수 양식. 접수 채널이 이메일이라 콘솔이 붙여넣을 본문을 만든다. */
   cancellationForm: string | null;
+  /** 환불 원장 행이 열려 있는가. 없으면 완료를 적을 대상 자체가 없다. */
+  refundLedgerOpen: boolean;
   refundFiled: boolean;
   refundCompleted: boolean;
 }
@@ -65,9 +76,11 @@ export function ClaimActionPanel({
   carriers,
   claimId,
   claimType,
+  heldFrom,
   orderId,
   refundCompleted,
   refundFiled,
+  refundLedgerOpen,
   stage,
 }: ClaimActionPanelProps) {
   const [decisionState, decisionAction, decisionPending] = useActionState(
@@ -93,13 +106,26 @@ export function ClaimActionPanel({
   const canReview = stage === 'requested';
   const canHold = next.includes('on_hold');
   const canResume = stage === 'on_hold';
-  const canReject = next.includes('rejected');
+  const canReject = canRejectOrderClaim(stage, heldFrom);
   const canCollect = claimType !== 'cancel' && stage === 'collecting';
   const canFileRefund = claimType !== 'exchange'
     && (stage === 'collected' || stage === 'processing');
+  /* 완료를 적을 수 있는지는 단계가 아니라 원장이 정한다. 레거시 경로로 종결된
+     클레임은 stage가 completed여도 refunds.completed_at이 비어 있고, 반대로 원장
+     행이 아예 없는 주문에는 적을 대상이 없다(RPC가 claim_refund_ledger_missing으로
+     막는다). 단계만 보면 "누르면 반드시 실패하는 버튼"이 생긴다. */
+  const refundStageReached = stage === 'processing'
+    || stage === 'needs_review'
+    || stage === 'completed';
   const canCompleteRefund = claimType !== 'exchange'
-    && (stage === 'processing' || stage === 'needs_review' || stage === 'completed')
+    && refundStageReached
+    && refundLedgerOpen
     && !refundCompleted;
+  const refundLedgerMissing = claimType !== 'exchange'
+    && refundStageReached
+    && !refundLedgerOpen;
+  /* 이미 종결된 클레임에서는 정합화가 더 돌지 않는다. 남은 일은 원장 기록뿐이다. */
+  const refundFinalizationPending = stage !== 'completed';
   const canReship = claimType === 'exchange' && stage === 'collected';
 
   return (
@@ -253,14 +279,24 @@ export function ClaimActionPanel({
             <input id="claim-refund-complete-note" maxLength={300} name="note" type="text" />
           </label>
           <button className="btn btn-sm" disabled={refundPending} type="submit">
-            환불 완료 확정 (재고 복원 · 카드팩 회수 포함)
+            {refundFinalizationPending
+              ? '환불 완료 확정 (재고 복원 · 카드팩 회수 포함)'
+              : '환불 완료를 원장에 기록'}
           </button>
           <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
-            결제사 원장에서 전액 취소를 확인한 뒤 눌러주세요. 확인되지 않으면 주문과 재고는
-            그대로 유지됩니다.
+            {refundFinalizationPending
+              ? '결제사 원장에서 전액 취소를 확인한 뒤 눌러주세요. 확인되지 않으면 주문과 재고는 그대로 유지됩니다.'
+              : '이 클레임은 이미 종결됐습니다. 주문 취소·재고 복원·카드팩 회수는 끝났고, 여기서는 환불 원장에 완료 기록만 남깁니다.'}
           </p>
           <Feedback state={refundState} />
         </form>
+      ) : null}
+
+      {refundLedgerMissing ? (
+        <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>
+          이 주문에는 환불 원장이 없어 완료를 기록할 수 없습니다. 결제 내역을 먼저
+          확인해주세요.
+        </p>
       ) : null}
 
       {canReship ? (

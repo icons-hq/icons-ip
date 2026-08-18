@@ -32,6 +32,10 @@
 -- 아래 CHECK가 불일치를 금지하고, 트리거가 레거시 writer의 status 변경을 stage로
 -- 자동 승격한다(그래서 기존 함수를 한 줄도 고치지 않아도 두 값이 갈라지지 않는다).
 --
+-- 투영을 계산하는 곳은 private.order_claim_status_for_stage 하나다. 새 RPC들은
+-- stage만 쓰고 status는 적지 않는다 — 전이마다 status를 손으로 계산하면 하나가
+-- 틀리는 순간 그 전이가 CHECK에 막혀 클레임이 어느 단계에서도 못 나간다.
+--
 --   stage                      →  status (레거시 투영)
 --   ------------------------------------------------------
 --   requested                  →  requested   (접수)
@@ -57,9 +61,14 @@
 --   · 원문은 private 스키마의 별도 테이블에만 둔다(service_role 전용, staff 읽기
 --     표면 없음). public 조인 대상이 아니므로 실수로 목록에 섞일 수 없다.
 --   · 화면에는 마스킹 값만 나간다. 마스킹은 저장 시점에 만들어 원문 없이도 읽힌다.
---   · 환불 완료 30일 뒤 원문을 파기한다(purge_expired_claim_refund_accounts).
---     30일은 카드사·은행 재확인 요청이 들어올 수 있는 실무 창을 최소로 잡은 값이며,
---     #208의 답이 더 짧은 기간을 정하면 그 값으로 줄인다.
+--   · 클레임이 종결(completed·rejected)되면 30일 뒤 원문을 파기한다
+--     (seal_order_claim_refund_account → purge_expired_claim_refund_accounts).
+--     기준은 "환불이 완료됐는가"가 아니라 "클레임이 끝났는가"다 — 거절로 끝난 건도
+--     송금할 계좌가 더는 필요 없고, 완료 기록을 남기지 않는 레거시 정합화 경로로
+--     끝난 건도 마찬가지다. 30일은 카드사·은행 재확인 요청이 들어올 수 있는 실무
+--     창을 최소로 잡은 값이며, #208의 답이 더 짧은 기간을 정하면 그 값으로 줄인다.
+--   · 교환에는 계좌를 저장하지 않는다. 재출고로 끝나므로 돈이 돌아갈 경로가 없고,
+--     목적 없는 수집은 보관 기간을 아무리 짧게 잡아도 정당화되지 않는다.
 -- 이 가정은 #208 코멘트에도 남긴다.
 --
 -- ## 재고 복원과 카드팩 회수는 여기서 하지 않는다
@@ -150,6 +159,10 @@ alter table public.order_cancellation_requests
   ));
 
 -- stage → status 투영. 이 제약이 "두 컬럼이지만 상태기계는 하나"를 강제한다.
+-- 값을 만드는 곳은 private.order_claim_status_for_stage 하나뿐이고, 이 CHECK는
+-- 그 함수를 우회한 쓰기를 거절하는 단언이다. 둘 다 고칠 일이 생기면 함수를 먼저
+-- 고치고 여기를 맞춘다 — CHECK가 함수를 호출하게 만들면 그 함수에 대한 execute를
+-- 모든 writer 롤에 열어야 해서 private 봉인이 무의미해진다.
 alter table public.order_cancellation_requests
   add constraint order_cancellation_requests_stage_projection_check
   check (
@@ -204,6 +217,32 @@ create index order_cancellation_requests_claim_queue_idx
   on public.order_cancellation_requests (claim_type, stage, requested_at desc);
 
 /*
+ * stage → status 투영의 단 하나의 구현.
+ *
+ * 절차 상태기계는 stage다. status는 그 파생값이며, 이 함수가 그 파생을 독점한다 —
+ * RPC들이 각자 status를 계산하면 언젠가 하나가 틀리고(#252 F3의 resume이 그랬다)
+ * 투영 CHECK가 그 경로를 통째로 막아 클레임이 어느 단계에서도 못 나가게 된다.
+ * 그래서 새 RPC들은 stage만 쓰고 status는 아예 적지 않는다.
+ */
+create or replace function private.order_claim_status_for_stage(p_stage text)
+returns text
+language sql
+immutable
+set search_path = ''
+as $function$
+  select case p_stage
+    when 'processing' then 'processing'
+    when 'needs_review' then 'needs_review'
+    when 'completed' then 'completed'
+    when 'rejected' then 'rejected'
+    else 'requested'
+  end;
+$function$;
+
+revoke all on function private.order_claim_status_for_stage(text)
+  from public, anon, authenticated, service_role;
+
+/*
  * 레거시 writer가 status만 바꿔도 stage가 따라간다.
  *
  * admin_decide_order_cancellation · complete_order_cancellation_request ·
@@ -211,8 +250,7 @@ create index order_cancellation_requests_claim_queue_idx
  * finalize_goods_manual_payment_recovery는 전부 status만 쓴다. 이 트리거가 없으면
  * 그 함수들이 CHECK 위반으로 실패하거나(투영 불일치) 두 값이 갈라진다.
  *
- * 반대 방향(새 RPC)은 stage와 status를 함께 명시하므로 이 트리거가 덮어쓰지
- * 않는다 — stage가 이미 바뀐 UPDATE는 그대로 통과시킨다.
+ * 반대 방향(새 RPC)은 stage만 쓰고, 그 경우 status는 여기서 파생된다.
  */
 create or replace function private.project_order_claim_stage()
 returns trigger
@@ -224,33 +262,42 @@ as $function$
 begin
   -- INSERT: 레거시 경로는 status만 준다(예: 20260714190001의 needs_review 이관).
   -- stage는 컬럼 기본값 'requested'로 채워지므로 그대로 두면 투영 CHECK를 어긴다.
-  -- stage를 명시한 호출자(새 RPC)는 건드리지 않는다.
+  -- 새 경로는 반대로 stage만 준다. 둘 다 명시한 INSERT는 손대지 않는다 — 그 조합이
+  -- 틀렸다면 조용히 고치는 것보다 CHECK로 막히는 편이 낫다.
   if tg_op = 'INSERT' then
     if new.stage is not distinct from 'requested'
       and new.status is distinct from 'requested'
     then
       new.stage := new.status;
+    elsif new.stage is distinct from 'requested'
+      and new.status is not distinct from 'requested'
+    then
+      new.status := private.order_claim_status_for_stage(new.stage);
     end if;
     return new;
   end if;
 
-  if new.status is distinct from old.status
+  if new.stage is distinct from old.stage
+    and new.status is not distinct from old.status
+  then
+    -- 절차가 움직였고 호출자는 status를 적지 않았다. 파생값은 여기서 만든다.
+    new.status := private.order_claim_status_for_stage(new.stage);
+  elsif new.status is distinct from old.status
     and new.stage is not distinct from old.stage
   then
-    new.stage := case new.status
-      when 'processing' then 'processing'
-      when 'needs_review' then 'needs_review'
-      when 'completed' then 'completed'
-      when 'rejected' then 'rejected'
-      -- requested로 되돌리는 레거시 경로(정합화 재시도)는 절차를 처음으로
-      -- 감지 않는다. 보류가 아니었다면 검토 단계로 돌려 놓는다.
-      else case
-        when old.stage in ('collecting', 'collected', 'on_hold') then old.stage
-        else 'requested'
-      end
+    -- 레거시 writer. status에서 stage를 되돌린다 — requested로 감는 경로(정합화
+    -- 재시도)는 절차를 처음으로 감지 않고 이미 지난 단계를 보존한다.
+    new.stage := case
+      when new.status in ('processing', 'needs_review', 'completed', 'rejected')
+        then new.status
+      when old.stage in ('in_review', 'collecting', 'collected', 'on_hold')
+        then old.stage
+      else 'requested'
     end;
+    new.status := private.order_claim_status_for_stage(new.stage);
   end if;
 
+  -- 둘 다 바꾼 UPDATE는 그대로 통과시킨다. 일치하면 CHECK가 받고, 어긋나면 막는다.
   return new;
 end;
 $function$;
@@ -321,6 +368,47 @@ alter table private.claim_refund_accounts enable row level security;
 revoke all on table private.claim_refund_accounts
   from public, anon, authenticated, service_role;
 grant select, insert, update on table private.claim_refund_accounts to service_role;
+
+/*
+ * 파기 기한은 "클레임이 끝났다"는 사실 하나에서 잡힌다.
+ *
+ * 환불 완료 기록(admin_record_order_claim_refund)에서만 잡으면 거절로 끝난 건과
+ * 레거시 정합화 경로로 completed가 된 건의 계좌 원문이 purge_after = null로 남고,
+ * 파기 잡의 부분 인덱스(`where purged_at is null and purge_after is not null`)가
+ * 그 행을 아예 보지 않아 원문이 무기한 남는다. 종결 stage에 도달하는 경로가
+ * 여럿(새 RPC · 레거시 status 쓰기 · 교환 재출고)이므로 판정은 테이블 하나가
+ * 한다 — 경로마다 적으면 언젠가 하나가 빠진다.
+ */
+create or replace function private.seal_order_claim_refund_account()
+returns trigger
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $function$
+begin
+  if new.stage in ('completed', 'rejected')
+    and (tg_op = 'INSERT' or old.stage is distinct from new.stage)
+  then
+    update private.claim_refund_accounts as account
+    set purge_after = coalesce(
+      account.purge_after,
+      pg_catalog.now() + '30 days'::interval
+    )
+    where account.claim_id = new.id
+      and account.purged_at is null;
+  end if;
+
+  return null;
+end;
+$function$;
+
+create trigger trg_order_cancellation_requests_seal_refund_account
+after insert or update on public.order_cancellation_requests
+for each row execute function private.seal_order_claim_refund_account();
+
+revoke all on function private.seal_order_claim_refund_account()
+  from public, anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
 -- 4. refunds 원장 확장 — 수단·처리자·시각·상계
@@ -450,13 +538,13 @@ begin
     return 'already_requested';
   end if;
 
+  -- status는 적지 않는다. 투영은 private.order_claim_status_for_stage 하나가 만든다.
   insert into public.order_cancellation_requests (
     order_id,
     requested_by,
     reason,
     reason_type,
     claim_type,
-    status,
     stage
   )
   values (
@@ -465,14 +553,22 @@ begin
     p_reason,
     p_reason_type,
     p_claim_type,
-    'requested',
     'requested'
   )
   returning id into v_claim_id;
 
-  -- 환불계좌는 무통장 환불의 유일한 경로이고 카드 fallback의 안전망이다.
-  -- 세 칸이 모두 있을 때만 저장한다 — 반쪽 계좌는 송금에 쓸 수 없다.
-  if p_bank_name is not null
+  /*
+   * 환불계좌는 무통장 환불의 유일한 경로이고 카드 fallback의 안전망이다.
+   * 세 칸이 모두 있을 때만 저장한다 — 반쪽 계좌는 송금에 쓸 수 없다.
+   *
+   * 교환에는 저장하지 않는다. 교환의 종결은 재출고이고 어떤 경로로도 돈이
+   * 돌아가지 않으므로 계좌를 받을 목적 자체가 없다. 화면은 반품에만 폼을
+   * 보이지만 API로는 실어 보낼 수 있으므로 접수 함수가 거른다. 취소·반품은
+   * 결제사 취소가 막혔을 때 송금이 유일한 경로라 계속 받고, 보관 기간은
+   * 종결 stage에서 seal_order_claim_refund_account가 잡는다.
+   */
+  if p_claim_type <> 'exchange'
+    and p_bank_name is not null
     and p_account_number is not null
     and p_account_holder is not null
   then
@@ -516,7 +612,6 @@ begin
 
     update public.order_cancellation_requests
     set
-      status = 'completed',
       stage = 'completed',
       completed_at = now(),
       updated_at = now()
@@ -583,7 +678,6 @@ begin
 
     update public.order_cancellation_requests
     set
-      status = 'processing',
       stage = 'processing',
       decided_at = now(),
       provider_started_at = now(),
@@ -608,6 +702,7 @@ begin
 
     perform private.notify_order_claim(
       v_claim_id,
+      'auto_approved',
       '취소 요청이 접수됐어요',
       '발송 전 주문이라 자동으로 승인됐습니다. 결제 취소 처리를 시작합니다.'
     );
@@ -617,6 +712,7 @@ begin
 
   perform private.notify_order_claim(
     v_claim_id,
+    'requested',
     '클레임 요청이 접수됐어요',
     '요청을 접수했습니다. 담당자가 확인한 뒤 진행 상황을 알려드립니다.'
   );
@@ -713,11 +809,15 @@ grant execute on function public.mask_refund_account_holder(text) to service_rol
 /*
  * 클레임 상태 변화 알림.
  *
- * dedupe_key에 stage를 넣어 같은 단계를 두 번 알리지 않는다. 상태가 실제로
- * 바뀔 때만 새 행이 생긴다.
+ * dedupe_key는 stage가 아니라 이벤트로 나눈다. stage만 넣으면 한 단계에서 두 가지
+ * 사건이 일어나는 경우 — 취소 승인(processing 진입)과 그 뒤의 환불 접수 — 뒤엣것이
+ * 영구히 삼켜진다. 같은 사건의 재시도만 막으면 되므로 키는 이벤트 + 클레임 +
+ * 그 전이의 updated_at이다. 보류/재개를 반복해도 매번 알림이 나가고, 같은 트랜잭션
+ * 안에서 두 번 부르면 한 번만 남는다.
  */
 create or replace function private.notify_order_claim(
   p_claim_id uuid,
+  p_event text,
   p_title text,
   p_body text
 )
@@ -757,13 +857,14 @@ begin
     '/orders/' || v_claim.order_id::text,
     'order_claim',
     v_claim.id::text,
-    'claim:' || v_claim.stage || ':' || v_claim.id::text
+    'claim:' || p_event || ':' || v_claim.id::text
+      || ':' || pg_catalog.to_char(v_claim.updated_at, 'YYYYMMDDHH24MISSUS')
   )
   on conflict (user_id, dedupe_key) do nothing;
 end;
 $function$;
 
-revoke all on function private.notify_order_claim(uuid, text, text)
+revoke all on function private.notify_order_claim(uuid, text, text, text)
   from public, anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
@@ -787,8 +888,15 @@ declare
   v_delivered_at timestamptz;
   v_claim record;
   v_next_stage text;
-  v_next_status text;
   v_payment_count integer;
+  /*
+   * 보류를 벗긴 실질 단계.
+   *
+   * on_hold는 절차의 단계가 아니라 그 위에 덮인 표시다. 보류 중인 클레임을
+   * 판정할 때 stage만 보면 processing에서 건 보류가 "아직 착수 전"으로 보인다.
+   * lib/orders/claims.ts의 orderClaimEffectiveStage와 같은 정의다.
+   */
+  v_effective_stage text;
 begin
   if v_actor is null or not public.is_staff() then
     raise insufficient_privilege using message = 'staff required';
@@ -824,6 +932,11 @@ begin
     raise exception using message = 'claim_not_decidable';
   end if;
 
+  v_effective_stage := case
+    when v_claim.stage = 'on_hold' then coalesce(v_claim.held_from, 'requested')
+    else v_claim.stage
+  end;
+
   if p_decision = 'reject' then
     if p_note is null
       or btrim(p_note) <> p_note
@@ -832,9 +945,22 @@ begin
       raise check_violation using message = 'invalid rejection reason';
     end if;
 
+    /*
+     * 거절은 처리에 착수하기 전에만 가능하다.
+     *
+     * processing·needs_review는 이미 durable claim과 refunds(status='requested')를
+     * 열어 둔 상태다. 그 상태에서 요청만 rejected로 닫으면 주문은 "취소 진행 중"인
+     * 채로 남고 complete_order_cancellation_request가 cancellation_request_not_processing
+     * 으로 막아 돈이 갇힌다. needs_review는 Korpay 수동 복구 seam까지 함께 닫혀
+     * 복구 경로가 하나도 남지 않는다. 그 단계에서 되돌릴 일이 있으면 거절이 아니라
+     * 보류·정합화로 처리한다.
+     */
+    if v_effective_stage not in ('requested', 'in_review', 'collecting', 'collected') then
+      raise exception using message = 'claim_not_rejectable';
+    end if;
+
     update public.order_cancellation_requests
     set
-      status = 'rejected',
       stage = 'rejected',
       decided_by = v_actor,
       decision_note = p_note,
@@ -858,6 +984,7 @@ begin
 
     perform private.notify_order_claim(
       p_claim_id,
+      'rejected',
       '클레임 요청이 거절됐어요',
       '요청이 거절됐습니다. 사유: ' || p_note
     );
@@ -877,7 +1004,6 @@ begin
 
     update public.order_cancellation_requests
     set
-      status = 'requested',
       stage = 'on_hold',
       held_from = v_claim.stage,
       hold_reason = p_note,
@@ -901,6 +1027,7 @@ begin
 
     perform private.notify_order_claim(
       p_claim_id,
+      'held',
       '클레임 처리가 보류됐어요',
       '처리가 보류됐습니다. 사유: ' || p_note
     );
@@ -914,9 +1041,10 @@ begin
 
     v_next_stage := coalesce(v_claim.held_from, 'requested');
 
+    -- status를 여기서 계산하지 않는다. held_from이 needs_review면 이 자리에서
+    -- 'requested'를 적어 투영 CHECK에 막혔고, 보류가 영원히 풀리지 않았다(F3).
     update public.order_cancellation_requests
     set
-      status = case when v_next_stage = 'processing' then 'processing' else 'requested' end,
       stage = v_next_stage,
       held_from = null,
       hold_reason = null,
@@ -939,6 +1067,7 @@ begin
 
     perform private.notify_order_claim(
       p_claim_id,
+      'resumed',
       '클레임 처리가 재개됐어요',
       '보류가 해제되어 처리가 다시 시작됐습니다.'
     );
@@ -952,7 +1081,6 @@ begin
 
     update public.order_cancellation_requests
     set
-      status = 'requested',
       stage = 'in_review',
       decided_by = v_actor,
       updated_at = now()
@@ -996,10 +1124,8 @@ begin
   -- 취소는 회수할 물건이 없으므로 곧장 환불 처리로 간다. 반품·교환은 수거부터다.
   if v_claim.claim_type = 'cancel' then
     v_next_stage := 'processing';
-    v_next_status := 'processing';
   else
     v_next_stage := 'collecting';
-    v_next_status := 'requested';
   end if;
 
   if v_next_stage = 'processing' then
@@ -1048,7 +1174,6 @@ begin
 
   update public.order_cancellation_requests
   set
-    status = v_next_status,
     stage = v_next_stage,
     decided_by = v_actor,
     decision_note = null,
@@ -1076,6 +1201,7 @@ begin
 
   perform private.notify_order_claim(
     p_claim_id,
+    'approved',
     '클레임 요청이 승인됐어요',
     case
       when v_next_stage = 'collecting'
@@ -1092,6 +1218,364 @@ revoke all on function public.admin_decide_order_claim(uuid, text, text)
   from public, anon, authenticated, service_role;
 grant execute on function public.admin_decide_order_claim(uuid, text, text)
   to authenticated;
+
+/*
+ * 레거시 주문 콘솔의 승인·거절은 "접수 단계의 취소"만 소유한다.
+ *
+ * 이 함수는 활성 요청을 status로 판정했다(`status <> 'requested'`면 거절). 새
+ * stage — in_review · collecting · collected · on_hold — 는 전부
+ * status='requested'로 투영되므로, 그 판정에는 수거 중인 반품과 입고까지 끝난
+ * 교환과 보류 중인 클레임이 전부 "결정 가능"으로 보인다. 승인하면 무슨 일이
+ * 벌어지는가:
+ *
+ *   반품(collecting) → durable claim + 환불 intent 생성 → 정합화가 주문을 취소하고
+ *     재고를 복원하고 미개봉 카드팩을 회수한다. 굿즈는 아직 고객에게 있다.
+ *     D11이 명시 상태로 승격한 "입고 확인"이 통째로 건너뛰어진다.
+ *   교환(collected) → refunds 행이 생긴다. "교환에는 환불이 없다"가 깨진다.
+ *   보류(on_hold)  → 보류가 조용히 사라지고 hold_reason만 유령으로 남는다.
+ *
+ * 그래서 판정을 status가 아니라 절차 상태기계(stage)에서 한다. 나머지는 전부
+ * 클레임 콘솔(admin_decide_order_claim)의 몫이다.
+ *
+ * 20260818090001의 정의를 그대로 옮기고 이 전제조건만 더한다.
+ */
+create or replace function public.admin_decide_order_cancellation(
+  p_request_id uuid,
+  p_decision text,
+  p_note text
+)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_actor uuid := (select auth.uid());
+  v_order_id uuid;
+  v_order_status public.order_status;
+  v_delivered_at timestamptz;
+  v_request record;
+  v_payment_count integer;
+begin
+  if v_actor is null or not public.is_staff() then
+    raise insufficient_privilege using message = 'staff required';
+  end if;
+
+  if p_decision not in ('approve', 'reject') then
+    raise check_violation using message = 'invalid cancellation decision';
+  end if;
+
+  select request.order_id
+  into v_order_id
+  from public.order_cancellation_requests as request
+  where request.id = p_request_id;
+
+  if v_order_id is null then
+    raise no_data_found using message = 'cancellation_request_not_found';
+  end if;
+
+  select orders.status, orders.delivered_at
+  into v_order_status, v_delivered_at
+  from public.orders
+  where orders.id = v_order_id
+  for update;
+
+  select request.*
+  into v_request
+  from public.order_cancellation_requests as request
+  where request.id = p_request_id
+  for update;
+
+  if v_request.status <> 'requested' then
+    raise exception using message = 'cancellation_request_not_decidable';
+  end if;
+
+  -- status만으로는 부족하다. 새 stage는 전부 'requested'로 투영된다.
+  if v_request.claim_type <> 'cancel' or v_request.stage <> 'requested' then
+    raise exception using message = 'claim_requires_claim_console';
+  end if;
+
+  if v_order_status not in (
+    'pending', 'paid', 'confirmed', 'shipping', 'delivered', 'done'
+  ) then
+    raise exception using message = 'order_not_cancelable';
+  end if;
+
+  if p_decision = 'reject' then
+    if p_note is null
+      or btrim(p_note) <> p_note
+      or length(p_note) not between 10 and 200
+    then
+      raise check_violation using message = 'invalid rejection reason';
+    end if;
+
+    update public.order_cancellation_requests
+    set
+      status = 'rejected',
+      decided_by = v_actor,
+      decision_note = p_note,
+      decided_at = now(),
+      updated_at = now()
+    where id = p_request_id;
+
+    insert into public.audit_log (actor_id, action, target, diff)
+    values (
+      v_actor,
+      'admin.order.cancellation_rejected',
+      'order:' || v_order_id::text,
+      jsonb_build_object(
+        'requestId', p_request_id,
+        'from', 'requested',
+        'to', 'rejected',
+        'reason', p_note
+      )
+    );
+    return;
+  end if;
+
+  if public.order_withdrawal_deadline_passed(
+    v_delivered_at,
+    v_request.reason_type,
+    v_request.requested_at
+  ) then
+    raise check_violation using message = 'withdrawal_deadline_expired';
+  end if;
+
+  insert into public.order_cancellation_claims (
+    order_id,
+    requested_by,
+    previous_status
+  )
+  values (
+    v_order_id,
+    v_request.requested_by,
+    v_order_status
+  )
+  on conflict (order_id) do nothing;
+
+  insert into public.refunds (
+    payment_id,
+    amount,
+    reason,
+    status,
+    cancellation_request_id
+  )
+  select
+    payment.id,
+    payment.amount,
+    v_request.reason,
+    case when refund.status = 'done' then 'done' else 'requested' end,
+    p_request_id
+  from public.payments as payment
+  left join public.refunds as refund on refund.payment_id = payment.id
+  where payment.purpose = 'order'
+    and payment.ref_id = v_order_id
+    and payment.status in ('pending', 'paid', 'canceled', 'refunded')
+  on conflict (payment_id) do update
+  set
+    cancellation_request_id = excluded.cancellation_request_id,
+    reason = coalesce(public.refunds.reason, excluded.reason),
+    status = case
+      when public.refunds.status = 'done' then 'done'
+      else 'requested'
+    end;
+
+  select count(*)::integer
+  into v_payment_count
+  from public.payments as payment
+  where payment.purpose = 'order'
+    and payment.ref_id = v_order_id
+    and payment.status in ('pending', 'paid', 'canceled', 'refunded');
+
+  update public.order_cancellation_requests
+  set
+    status = 'processing',
+    decided_by = v_actor,
+    decision_note = null,
+    decided_at = now(),
+    provider_started_at = now(),
+    updated_at = now()
+  where id = p_request_id;
+
+  insert into public.audit_log (actor_id, action, target, diff)
+  values (
+    v_actor,
+    'admin.order.cancellation_approved',
+    'order:' || v_order_id::text,
+    jsonb_build_object(
+      'requestId', p_request_id,
+      'from', 'requested',
+      'to', 'processing',
+      'previousOrderStatus', v_order_status::text,
+      'reasonType', v_request.reason_type,
+      'paymentCount', v_payment_count
+    )
+  );
+end;
+$$;
+
+revoke all on function public.admin_decide_order_cancellation(uuid, text, text)
+  from public, anon, authenticated, service_role;
+grant execute on function public.admin_decide_order_cancellation(uuid, text, text)
+  to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 13. 주문 콘솔에 클레임 유형·단계를 싣는다
+-- ---------------------------------------------------------------------------
+/*
+ * 주문 콘솔이 "청약철회 요청 · 요청 접수"만 그리면 수거 중인 반품도 그렇게 보인다.
+ * 위 게이트가 그 승인을 거절하더라도, 버튼이 그려져 있는 한 운영자는 누른다 —
+ * 그리고 실패 문구로 상황을 배운다. 콘솔이 claim_type과 stage를 함께 읽어야
+ * 애초에 그 버튼을 그리지 않고 클레임 콘솔로 보낼 수 있다.
+ *
+ * 반환 컬럼이 늘어 시그니처가 바뀌므로 drop 후 재생성한다(20260818100001 선례).
+ */
+drop function if exists public.admin_search_orders(
+  text, date, date, text, integer, integer, timestamptz
+);
+
+create or replace function public.admin_search_orders(
+  p_status text default null,
+  p_from date default null,
+  p_to date default null,
+  p_query text default null,
+  p_limit integer default 20,
+  p_offset integer default 0,
+  p_confirmed_before timestamptz default null
+)
+returns table (
+  id uuid,
+  user_id uuid,
+  buyer_name text,
+  buyer_email text,
+  status public.order_status,
+  total bigint,
+  address jsonb,
+  created_at timestamptz,
+  updated_at timestamptz,
+  shipping_carrier text,
+  tracking_number text,
+  confirmed_at timestamptz,
+  shipped_at timestamptz,
+  delivered_at timestamptz,
+  done_at timestamptz,
+  cancellation_request_id uuid,
+  cancellation_request_status text,
+  cancellation_reason_type text,
+  cancellation_requested_at timestamptz,
+  cancellation_decided_at timestamptz,
+  cancellation_decision_note text,
+  cancellation_claim_type text,
+  cancellation_stage text,
+  total_count bigint
+)
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_query text := nullif(btrim(coalesce(p_query, '')), '');
+  v_limit integer := least(greatest(coalesce(p_limit, 20), 1), 100);
+  v_offset integer := greatest(coalesce(p_offset, 0), 0);
+begin
+  if (select auth.uid()) is null or not public.is_staff() then
+    raise insufficient_privilege using message = 'staff required';
+  end if;
+
+  if p_status is not null
+    and not exists (
+      select 1
+      from unnest(enum_range(null::public.order_status)) as allowed(value)
+      where allowed.value::text = p_status
+    )
+  then
+    raise check_violation using message = 'invalid order status filter';
+  end if;
+
+  if p_from is not null and p_to is not null and p_from > p_to then
+    raise check_violation using message = 'invalid order date range';
+  end if;
+
+  if v_query is not null and length(v_query) > 100 then
+    raise check_violation using message = 'order search query too long';
+  end if;
+
+  return query
+  select
+    orders.id,
+    orders.user_id,
+    profile.nickname as buyer_name,
+    profile.email as buyer_email,
+    orders.status,
+    orders.total,
+    orders.address,
+    orders.created_at,
+    orders.updated_at,
+    orders.shipping_carrier,
+    orders.tracking_number,
+    orders.confirmed_at,
+    orders.shipped_at,
+    orders.delivered_at,
+    orders.done_at,
+    cancellation.id as cancellation_request_id,
+    cancellation.status as cancellation_request_status,
+    cancellation.reason_type as cancellation_reason_type,
+    cancellation.requested_at as cancellation_requested_at,
+    cancellation.decided_at as cancellation_decided_at,
+    cancellation.decision_note as cancellation_decision_note,
+    cancellation.claim_type as cancellation_claim_type,
+    cancellation.stage as cancellation_stage,
+    count(*) over()::bigint as total_count
+  from public.orders as orders
+  join public.profiles as profile on profile.id = orders.user_id
+  left join lateral (
+    select
+      request.id,
+      request.status,
+      request.reason_type,
+      request.requested_at,
+      request.decided_at,
+      request.decision_note,
+      request.claim_type,
+      request.stage
+    from public.order_cancellation_requests as request
+    where request.order_id = orders.id
+    order by request.requested_at desc, request.id desc
+    limit 1
+  ) as cancellation on true
+  where (p_status is null or orders.status::text = p_status)
+    and (
+      p_from is null
+      or orders.created_at >= (p_from::timestamp at time zone 'Asia/Seoul')
+    )
+    and (
+      p_to is null
+      or orders.created_at < ((p_to + 1)::timestamp at time zone 'Asia/Seoul')
+    )
+    -- 발주확인 기록이 없는 주문은 지연 목록에 넣지 않는다. confirmed_at이 비어
+    -- 있다는 것은 사다리 도입 전 행이라는 뜻이고, 없는 기산점으로 "지연"이라고
+    -- 부르면 운영자가 실제로 늦은 주문을 못 찾는다.
+    and (p_confirmed_before is null or orders.confirmed_at < p_confirmed_before)
+    and (
+      v_query is null
+      or position(lower(v_query) in lower(orders.id::text)) > 0
+      or position(lower(v_query) in lower(coalesce(profile.email, ''))) > 0
+      or position(lower(v_query) in lower(coalesce(profile.nickname, ''))) > 0
+    )
+  order by orders.created_at desc, orders.id desc
+  limit v_limit
+  offset v_offset;
+end;
+$$;
+
+revoke all on function public.admin_search_orders(
+  text, date, date, text, integer, integer, timestamptz
+) from public, anon, authenticated, service_role;
+grant execute on function public.admin_search_orders(
+  text, date, date, text, integer, integer, timestamptz
+) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 8. 수거·입고 확인
@@ -1153,7 +1637,6 @@ begin
 
   update public.order_cancellation_requests
   set
-    status = 'requested',
     stage = p_stage,
     collected_at = case when p_stage = 'collected' then now() else collected_at end,
     updated_at = now()
@@ -1174,6 +1657,7 @@ begin
 
   perform private.notify_order_claim(
     p_claim_id,
+    'collected',
     '반송한 굿즈가 입고됐어요',
     case
       when v_claim.claim_type = 'exchange'
@@ -1267,6 +1751,24 @@ begin
     raise exception using message = 'exchange_has_no_refund';
   end if;
 
+  /*
+   * 계좌 송금은 받아 둔 계좌가 있을 때만 적을 수 있다.
+   *
+   * 없는 계좌로 'bank_transfer'를 기록하면 원장은 송금했다고 말하고 구매자에게는
+   * "등록하신 환불계좌로 송금을 접수했습니다"가 나간다 — 존재하지 않는 계좌를
+   * 근거로 한 안내다. 파기된 행(purged_at)은 통과시킨다: 수집 사실은 남아 있고,
+   * 그때 송금은 실제로 그 계좌로 갔다.
+   */
+  if p_method = 'bank_transfer'
+    and not exists (
+      select 1
+      from private.claim_refund_accounts as account
+      where account.claim_id = p_claim_id
+    )
+  then
+    raise exception using message = 'claim_refund_account_missing';
+  end if;
+
   perform payment.id
   from public.payments as payment
   where payment.purpose = 'order'
@@ -1319,17 +1821,19 @@ begin
 
       update public.order_cancellation_requests
       set
-        status = 'processing',
         stage = 'processing',
         provider_started_at = coalesce(provider_started_at, now()),
         updated_at = now()
       where id = p_claim_id;
     end if;
 
+    -- 수단·처리자·접수시각은 첫 기록이 이긴다. 재접수가 덮으면 이미 계좌로 송금한
+    -- 건이 결제사 취소로 보이고, 실제로 접수한 사람이 마지막 클릭한 사람으로 바뀐다.
+    -- 갱신 가능한 것은 상계·정산 메모뿐이다.
     update public.refunds as refund
     set
-      method = p_method,
-      handled_by = v_actor,
+      method = coalesce(refund.method, p_method),
+      handled_by = coalesce(refund.handled_by, v_actor),
       filed_at = coalesce(refund.filed_at, now()),
       settlement_note = coalesce(p_note, refund.settlement_note)
     from public.payments as payment
@@ -1353,6 +1857,7 @@ begin
 
     perform private.notify_order_claim(
       p_claim_id,
+      'refund_filed',
       '환불 접수가 완료됐어요',
       case
         when p_method = 'bank_transfer'
@@ -1388,10 +1893,9 @@ begin
     raise exception using message = 'claim_refund_ledger_missing';
   end if;
 
-  -- 환불계좌 원문은 완료 30일 뒤 파기한다(#208 안전 기본값).
-  update private.claim_refund_accounts as account
-  set purge_after = coalesce(account.purge_after, now() + interval '30 days')
-  where account.claim_id = p_claim_id;
+  -- 환불계좌 파기 기한은 여기서 잡지 않는다. 클레임이 종결 stage에 닿는 순간
+  -- private.seal_order_claim_refund_account가 이미 잡았다 — 거절·교환·레거시
+  -- 완료까지 같은 규칙을 받으려면 판정이 한 곳에 있어야 한다.
 
   insert into public.audit_log (actor_id, action, target, diff)
   values (
@@ -1409,6 +1913,7 @@ begin
 
   perform private.notify_order_claim(
     p_claim_id,
+    'refund_completed',
     '환불이 완료됐어요',
     '환급 처리가 완료됐습니다. 결제수단에 따라 반영 시점이 다를 수 있습니다.'
   );
@@ -1489,7 +1994,6 @@ begin
 
   update public.order_cancellation_requests
   set
-    status = 'completed',
     stage = 'completed',
     reship_carrier = v_carrier,
     reship_tracking_number = v_tracking,
@@ -1514,6 +2018,7 @@ begin
 
   perform private.notify_order_claim(
     p_claim_id,
+    'reshipped',
     '교환 상품이 재출고됐어요',
     '교환 상품을 새 운송장으로 발송했습니다.'
   );
@@ -1740,6 +2245,9 @@ begin
       'decisionNote', v_claim.decision_note,
       'holdReason', v_claim.hold_reason,
       'heldAt', v_claim.held_at,
+      -- 보류를 풀었을 때 돌아갈 단계. 화면이 이 값을 봐야 processing에서 건 보류에
+      -- 거부 버튼을 그리지 않는다(DB의 claim_not_rejectable와 같은 판정).
+      'heldFrom', v_claim.held_from,
       'requestedAt', v_claim.requested_at,
       'decidedAt', v_claim.decided_at,
       'collectingAt', v_claim.collecting_at,

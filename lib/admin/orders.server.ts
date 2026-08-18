@@ -2,6 +2,12 @@ import 'server-only';
 
 import { normalizeCheckoutAddress } from '@/lib/checkout';
 import { isOrderWithdrawalReasonType, type OrderWithdrawalReasonType } from '@/lib/orders';
+import {
+  isOrderClaimStage,
+  isOrderClaimType,
+  type OrderClaimStage,
+  type OrderClaimType,
+} from '@/lib/orders/claims';
 import { orderShipment } from '@/lib/orders/shipment';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
@@ -40,6 +46,8 @@ interface SearchRow {
   cancellation_requested_at: string | null;
   cancellation_decided_at: string | null;
   cancellation_decision_note: string | null;
+  cancellation_claim_type: string | null;
+  cancellation_stage: string | null;
   shipping_carrier: string | null;
   tracking_number: string | null;
   total_count: number;
@@ -130,6 +138,22 @@ function normalizeManualRecoveryAttemptRow(value: ManualRecoveryAttemptRow) {
     currency: value.currency,
     manualRecoveryAvailable: value.manual_recovery_available,
   };
+}
+
+// 클레임 유형·단계도 모르는 값을 기본값으로 접지 않는다. 'cancel'/'requested'로
+// 접으면 수거 중인 반품이 주문 콘솔에서 승인 가능한 청약철회로 보인다(#252 F1).
+function requireClaimType(value: string): OrderClaimType {
+  if (!isOrderClaimType(value)) {
+    throw new Error('Failed to load admin orders: unsupported claim type');
+  }
+  return value;
+}
+
+function requireClaimStage(value: string): OrderClaimStage {
+  if (!isOrderClaimStage(value)) {
+    throw new Error('Failed to load admin orders: unsupported claim stage');
+  }
+  return value;
 }
 
 // 사유 구분은 기한과 반품 배송비 부담 주체를 가른다. 모르는 값을 기본값으로 접으면
@@ -264,6 +288,8 @@ export async function getAdminOrderRecords(
       ? {
           id: row.cancellation_request_id,
           status: requireRequestStatus(row.cancellation_request_status ?? ''),
+          claimType: requireClaimType(row.cancellation_claim_type ?? ''),
+          stage: requireClaimStage(row.cancellation_stage ?? ''),
           reasonType: requireReasonType(row.cancellation_reason_type ?? ''),
           requestedAt: row.cancellation_requested_at ?? '',
           decidedAt: row.cancellation_decided_at,

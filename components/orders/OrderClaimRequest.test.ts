@@ -115,11 +115,20 @@ describe('claimStageNotice', () => {
       .toContain('재출고를 준비');
   });
 
-  it('보류와 거부는 사유를 함께 전달한다', () => {
-    expect(claimStageNotice(claim({ stage: 'on_hold', decisionNote: '반송 비용 정산 확인 중' })))
-      .toContain('반송 비용 정산 확인 중');
+  it('거부는 사유를 함께 전달한다', () => {
     expect(claimStageNotice(claim({ stage: 'rejected', decisionNote: '사용 흔적이 있습니다' })))
       .toContain('사용 흔적이 있습니다');
+  });
+
+  /* 보류 사유는 hold_reason이고 그 칸은 구매자에게 grant하지 않는다. decisionNote는
+     승인 시 비워지므로 여기서 읽으면 언제나 fallback만 나갔다 — 있지도 않은 값을
+     읽는 분기가 남아 있으면 다음 사람이 "사유가 전달된다"고 믿는다. */
+  it('보류 안내는 decisionNote를 읽지 않는다', () => {
+    const notice = claimStageNotice(claim({ stage: 'on_hold', decisionNote: '승인 당시 메모' }));
+
+    expect(notice).not.toContain('승인 당시 메모');
+    expect(notice).toContain('알림');
+    expect(notice).toContain('1:1 문의');
   });
 
   it('사유가 없으면 문의 경로를 안내한다', () => {

@@ -9,6 +9,7 @@ import {
   normalizeAdminClaimRefundForm,
   normalizeAdminClaimReshipmentForm,
 } from '@/lib/admin/claims';
+import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
 import { getCurrentAdminAuthState, type AdminRole } from '@/lib/auth/admin';
 import { isOrderClaimType, type OrderClaimType } from '@/lib/orders/claims';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
@@ -57,6 +58,12 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('exchange_has_no_refund')) return '교환 클레임에는 환불이 없습니다.';
   if (value.includes('claim_type_has_no_collection')) return '취소 클레임에는 수거 단계가 없습니다.';
   if (value.includes('claim_type_has_no_reshipment')) return '교환 클레임만 재출고를 기록할 수 있습니다.';
+  if (value.includes('claim_not_rejectable')) {
+    return '처리에 착수한 클레임은 거부할 수 없습니다. 결제 취소를 마치거나, 사람이 판단할 일이면 보류로 남겨주세요.';
+  }
+  if (value.includes('claim_refund_account_missing')) {
+    return '이 클레임에는 등록된 환불계좌가 없습니다. 계좌 송금 대신 결제사 취소로 접수하거나, 구매자에게 계좌를 먼저 받아주세요.';
+  }
   if (value.includes('claim_not_decidable')) return '지금 단계에서는 처리할 수 없습니다. 최신 상태를 확인해주세요.';
   if (value.includes('claim_not_collectable')) return '수거 단계가 아닙니다. 최신 상태를 확인해주세요.';
   if (value.includes('claim_not_refundable')) return '환불을 접수할 수 있는 단계가 아닙니다.';
@@ -227,20 +234,35 @@ export async function recordOrderClaimRefundAction(
   if (!normalized.ok) return { error: normalized.error };
 
   const supabase = await createClient();
+  let finalizationRan = false;
 
   if (normalized.value.stage === 'completed') {
     const orderId = String(formData.get('orderId') ?? '');
     if (!orderId) return { error: REFUND_FAILED };
 
-    const finalized = await finalizeClaimPayment(supabase, {
-      claimId: normalized.value.claimId,
-      orderId,
-      actorId: access.userId,
-      isAdmin: access.role === 'admin',
-    });
-    if (!finalized.ok) {
-      revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
-      return { error: finalized.error };
+    /* 이미 종결된 클레임에는 정합화를 다시 걸지 않는다.
+     *
+     * admin_begin_order_cancellation_reconcile은 completed 요청을
+     * cancellation_request_not_reconcilable로 거절한다. 그래서 레거시 경로로
+     * 완료된 건(재고 복원·카드팩 회수는 이미 끝났고 refunds.completed_at만 비어
+     * 있는 상태)에 이 액션을 걸면 원장 기록에 닿기도 전에 항상 실패했다. 단계는
+     * 폼이 아니라 DB에서 읽는다 — 클라이언트가 보낸 값으로 정합화를 건너뛸지
+     * 정하면 그 자체가 게이트 우회가 된다. */
+    const current = await loadAdminClaimDetail(normalized.value.claimId);
+    if (!current) return { error: '클레임을 찾을 수 없습니다.' };
+
+    if (current.claim.stage !== 'completed') {
+      finalizationRan = true;
+      const finalized = await finalizeClaimPayment(supabase, {
+        claimId: normalized.value.claimId,
+        orderId,
+        actorId: access.userId,
+        isAdmin: access.role === 'admin',
+      });
+      if (!finalized.ok) {
+        revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
+        return { error: finalized.error };
+      }
     }
   }
 
@@ -256,10 +278,13 @@ export async function recordOrderClaimRefundAction(
   }
 
   revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
+  if (normalized.value.stage === 'filed') return { message: '환불 접수를 기록했습니다.' };
+  /* 이미 종결된 클레임에는 재고 복원·카드팩 회수가 방금 일어나지 않았다. 문구가
+     일어나지 않은 일을 보고하면 운영자가 그 주문을 다시 확인할 근거를 잃는다. */
   return {
-    message: normalized.value.stage === 'filed'
-      ? '환불 접수를 기록했습니다.'
-      : '환불 완료를 기록했습니다. 재고 복원과 카드팩 회수가 함께 확정됐습니다.',
+    message: finalizationRan
+      ? '환불 완료를 기록했습니다. 재고 복원과 카드팩 회수가 함께 확정됐습니다.'
+      : '환불 완료를 원장에 기록했습니다. 주문 취소와 재고 복원은 이미 확정된 상태였습니다.',
   };
 }
 

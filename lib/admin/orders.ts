@@ -1,4 +1,5 @@
 import type { OrderWithdrawalReasonType } from '@/lib/orders';
+import type { OrderClaimStage, OrderClaimType } from '@/lib/orders/claims';
 import {
   isSelectableShippingCarrier,
   isTrackingNumber,
@@ -121,10 +122,27 @@ export interface AdminGoodsManualRecoveryAttemptRecord {
 export interface AdminOrderCancellationRequestRecord {
   id: string;
   status: OrderCancellationRequestStatus;
+  /**
+   * 클레임 유형과 절차 단계(#252).
+   *
+   * `status`는 레거시 투영이라 수거 중인 반품·입고까지 끝난 교환·보류 중인
+   * 클레임이 전부 `requested`로 보인다. 주문 콘솔의 승인·거절 버튼은 그 값으로
+   * 판단하면 안 된다 — DB가 `claim_requires_claim_console`로 막더라도, 버튼이
+   * 그려져 있는 한 운영자는 누르고 실패 문구로 상황을 배우게 된다.
+   */
+  claimType: OrderClaimType;
+  stage: OrderClaimStage;
   reasonType: OrderWithdrawalReasonType;
   requestedAt: string;
   decidedAt: string | null;
   decisionNote: string | null;
+}
+
+/** 레거시 주문 콘솔이 직접 처리할 수 있는 클레임. 나머지는 클레임 콘솔의 몫이다. */
+export function isLegacyDecidableCancellation(
+  request: AdminOrderCancellationRequestRecord | null,
+) {
+  return Boolean(request && request.claimType === 'cancel' && request.stage === 'requested');
 }
 
 /**

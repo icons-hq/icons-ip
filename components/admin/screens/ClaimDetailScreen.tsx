@@ -259,9 +259,11 @@ export function ClaimDetailScreen({
             carriers={carriers}
             claimId={claim.id}
             claimType={claim.claimType}
+            heldFrom={claim.heldFrom}
             orderId={claim.orderId}
             refundCompleted={Boolean(refund?.completedAt)}
             refundFiled={Boolean(refund?.filedAt)}
+            refundLedgerOpen={Boolean(refund)}
             stage={claim.stage}
           />
         </div>

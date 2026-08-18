@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
   addBusinessDays,
   buildKorpayCancellationForm,
+  canRejectOrderClaim,
   isOpenOrderClaimStage,
   normalizeRefundAccount,
   ORDER_CLAIM_STAGES,
   ORDER_CLAIM_TYPES,
   orderClaimAvailability,
+  orderClaimEffectiveStage,
   orderClaimNextStages,
   orderClaimReferenceLabel,
   orderClaimSlaState,
@@ -50,6 +52,32 @@ describe('단계 전이표', () => {
     expect(orderClaimNextStages('return', 'requested')).toContain('collecting');
     expect(orderClaimNextStages('return', 'collecting')).toContain('collected');
     expect(orderClaimNextStages('return', 'collected')).toContain('processing');
+  });
+
+  /* 거부는 durable claim과 환불 intent가 열리기 전까지만 가능하다. processing·
+     needs_review를 거부하면 주문이 "취소 진행 중"인 채로 얼어붙고 완료도 취소도
+     되지 않는다 — DB의 claim_not_rejectable와 같은 규칙이다. */
+  it('처리에 착수한 뒤에는 거부할 수 없다', () => {
+    expect(canRejectOrderClaim('requested', null)).toBe(true);
+    expect(canRejectOrderClaim('in_review', null)).toBe(true);
+    expect(canRejectOrderClaim('collecting', null)).toBe(true);
+    expect(canRejectOrderClaim('collected', null)).toBe(true);
+    expect(canRejectOrderClaim('processing', null)).toBe(false);
+    expect(canRejectOrderClaim('needs_review', null)).toBe(false);
+    expect(canRejectOrderClaim('completed', null)).toBe(false);
+    expect(canRejectOrderClaim('rejected', null)).toBe(false);
+  });
+
+  /* 보류는 단계가 아니라 그 위에 덮인 표시다. stage만 보면 processing에서 건
+     보류가 "아직 착수 전"으로 보여 같은 동결을 만들 수 있다. */
+  it('보류는 보류 직전 단계로 판정한다', () => {
+    expect(orderClaimEffectiveStage('on_hold', 'processing')).toBe('processing');
+    expect(orderClaimEffectiveStage('on_hold', null)).toBe('requested');
+    expect(orderClaimEffectiveStage('collecting', 'processing')).toBe('collecting');
+
+    expect(canRejectOrderClaim('on_hold', 'collecting')).toBe(true);
+    expect(canRejectOrderClaim('on_hold', 'processing')).toBe(false);
+    expect(canRejectOrderClaim('on_hold', 'needs_review')).toBe(false);
   });
 
   it('종결 단계에서는 더 갈 곳이 없다', () => {

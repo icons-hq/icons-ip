@@ -168,6 +168,58 @@ values
     now() - interval '3 days', now() - interval '1 day'
   );
 
+-- 적대적 리뷰가 재현한 결함(F1~F6)을 고정하기 위한 주문들. 위 픽스처와 섞지 않는다 —
+-- 아래 검증들은 파일 끝의 전용 절에서만 돌고, 그 전 절들의 집계(교환 1건 등)를
+-- 흔들지 않아야 한다.
+insert into public.orders (id, user_id, status, total, address, expires_at, shipped_at, delivered_at)
+values
+  -- H: 수거 중인 반품 — 레거시 승인이 통과시키면 안 된다
+  (
+    '41000000-0000-4000-8000-000000000c08',
+    '00000000-0000-4000-8000-000000000c01', 'delivered', 10000, '{}'::jsonb, null,
+    now() - interval '3 days', now() - interval '1 day'
+  ),
+  -- I: 입고까지 끝난 교환 — 레거시 승인이 환불 원장을 열면 안 된다
+  (
+    '41000000-0000-4000-8000-000000000c09',
+    '00000000-0000-4000-8000-000000000c01', 'delivered', 10000, '{}'::jsonb, null,
+    now() - interval '3 days', now() - interval '1 day'
+  ),
+  -- J: 보류 중인 반품 — 레거시 승인이 보류를 지우면 안 된다
+  (
+    '41000000-0000-4000-8000-000000000c10',
+    '00000000-0000-4000-8000-000000000c01', 'delivered', 10000, '{}'::jsonb, null,
+    now() - interval '3 days', now() - interval '1 day'
+  ),
+  -- K: 자동 승인된 취소 — 거절 가드와 needs_review 보류·재개
+  (
+    '41000000-0000-4000-8000-000000000c11',
+    '00000000-0000-4000-8000-000000000c01', 'paid', 10000, '{}'::jsonb, null, null, null
+  ),
+  -- L: 거절되는 반품 — 환불계좌 파기 기한이 종결과 함께 잡혀야 한다
+  (
+    '41000000-0000-4000-8000-000000000c12',
+    '00000000-0000-4000-8000-000000000c01', 'delivered', 10000, '{}'::jsonb, null,
+    now() - interval '3 days', now() - interval '1 day'
+  ),
+  -- M: 레거시 경로로 완료되는 취소 — 파기 기한과 원장 완료 기록
+  (
+    '41000000-0000-4000-8000-000000000c13',
+    '00000000-0000-4000-8000-000000000c01', 'paid', 10000, '{}'::jsonb, null, null, null
+  ),
+  -- N: 교환 접수에 계좌가 실려 와도 저장하지 않는다
+  (
+    '41000000-0000-4000-8000-000000000c14',
+    '00000000-0000-4000-8000-000000000c01', 'delivered', 10000, '{}'::jsonb, null,
+    now() - interval '3 days', now() - interval '1 day'
+  ),
+  -- O: 환불 접수 재호출이 수단·처리자를 덮어쓰지 않는다
+  (
+    '41000000-0000-4000-8000-000000000c15',
+    '00000000-0000-4000-8000-000000000c01', 'delivered', 10000, '{}'::jsonb, null,
+    now() - interval '3 days', now() - interval '1 day'
+  );
+
 insert into public.order_items (
   order_id, good_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
 )
@@ -181,7 +233,15 @@ where order_record.id in (
   '41000000-0000-4000-8000-000000000c04',
   '41000000-0000-4000-8000-000000000c05',
   '41000000-0000-4000-8000-000000000c06',
-  '41000000-0000-4000-8000-000000000c07'
+  '41000000-0000-4000-8000-000000000c07',
+  '41000000-0000-4000-8000-000000000c08',
+  '41000000-0000-4000-8000-000000000c09',
+  '41000000-0000-4000-8000-000000000c10',
+  '41000000-0000-4000-8000-000000000c11',
+  '41000000-0000-4000-8000-000000000c12',
+  '41000000-0000-4000-8000-000000000c13',
+  '41000000-0000-4000-8000-000000000c14',
+  '41000000-0000-4000-8000-000000000c15'
 );
 
 insert into public.payments (
@@ -202,6 +262,26 @@ values
     '42000000-0000-4000-8000-000000000c04',
     '00000000-0000-4000-8000-000000000c01', 'order',
     '41000000-0000-4000-8000-000000000c04', 10000, 'paid', 'pk_claim_c04', 'idem_claim_c04'
+  ),
+  (
+    '42000000-0000-4000-8000-000000000c09',
+    '00000000-0000-4000-8000-000000000c01', 'order',
+    '41000000-0000-4000-8000-000000000c09', 10000, 'paid', 'pk_claim_c09', 'idem_claim_c09'
+  ),
+  (
+    '42000000-0000-4000-8000-000000000c11',
+    '00000000-0000-4000-8000-000000000c01', 'order',
+    '41000000-0000-4000-8000-000000000c11', 10000, 'paid', 'pk_claim_c11', 'idem_claim_c11'
+  ),
+  (
+    '42000000-0000-4000-8000-000000000c13',
+    '00000000-0000-4000-8000-000000000c01', 'order',
+    '41000000-0000-4000-8000-000000000c13', 10000, 'paid', 'pk_claim_c13', 'idem_claim_c13'
+  ),
+  (
+    '42000000-0000-4000-8000-000000000c15',
+    '00000000-0000-4000-8000-000000000c01', 'order',
+    '41000000-0000-4000-8000-000000000c15', 10000, 'paid', 'pk_claim_c15', 'idem_claim_c15'
   );
 
 -- 교환 주문에 미개봉 카드팩을 하나 붙여 둔다. 교환은 이 카드팩을 회수하지 않아야 한다.
@@ -698,12 +778,30 @@ select 1 / case when (
   where order_id = '41000000-0000-4000-8000-000000000c03'
 ) then 1 else 0 end as assert_reconciliation_retry_keeps_the_collection_history;
 
--- 투영을 어기는 조합은 CHECK가 거절한다.
+-- stage만 쓰는 UPDATE는 status를 파생값으로 채운다. 새 RPC들이 전부 이 경로다 —
+-- 전이마다 status를 손으로 계산하지 않게 만든 지점이다.
+update public.order_cancellation_requests
+set stage = 'collecting'
+where order_id = '41000000-0000-4000-8000-000000000c03';
+
+select 1 / case when (
+  select stage = 'collecting' and status = 'requested'
+  from public.order_cancellation_requests
+  where order_id = '41000000-0000-4000-8000-000000000c03'
+) then 1 else 0 end as assert_stage_only_writes_derive_the_projected_status;
+
+update public.order_cancellation_requests
+set stage = 'processing'
+where order_id = '41000000-0000-4000-8000-000000000c03';
+
+-- 두 값을 함께 쓰면서 어긋난 조합은 조용히 고치지 않고 CHECK가 거절한다.
+-- 트리거가 무엇이든 덮어쓰게 만들면 이 단언이 도달 불가능해지고, 잘못된 쌍을 쓴
+-- 호출자는 자기가 틀렸다는 사실을 영영 모른다.
 do $$
 begin
   begin
     update public.order_cancellation_requests
-    set stage = 'collecting', status = 'processing'
+    set stage = 'collecting', status = 'completed'
     where order_id = '41000000-0000-4000-8000-000000000c03';
   exception when check_violation then
     return;
@@ -753,9 +851,18 @@ select 1 / case when (
   ) as detail
 ) then 1 else 0 end as assert_claim_detail_carries_card_pack_context;
 
+-- `-> 'accountNumber' is null`은 그 키가 애초에 없으므로 구조적으로 항상 참이었다.
+-- 원문이 "어디에도" 없다는 것을 페이로드 전체 텍스트로 확인한다 — 나중에 누가
+-- 다른 칸(예: settlementNote, timeline diff)에 원문을 흘려도 여기서 걸린다.
 select 1 / case when (
   select detail -> 'refundAccount' ->> 'maskedAccount' = '국민은행 *********7890'
-    and detail -> 'refundAccount' -> 'accountNumber' is null
+    and detail -> 'refundAccount' ->> 'maskedHolder' = '홍**'
+    and not (detail -> 'refundAccount' ? 'accountNumber')
+    and not (detail -> 'refundAccount' ? 'accountHolder')
+    and not (detail -> 'refundAccount' ? 'bankName')
+    and position('110-1234-567890' in detail::text) = 0
+    and position('1101234567890' in detail::text) = 0
+    and position('홍길동' in detail::text) = 0
   from public.admin_order_claim_detail(
     (select id from public.order_cancellation_requests
      where order_id = '41000000-0000-4000-8000-000000000c03')
@@ -786,5 +893,487 @@ select 1 / case when (
   join public.order_cancellation_requests as request on request.id = account.claim_id
   where request.order_id = '41000000-0000-4000-8000-000000000c03'
 ) then 1 else 0 end as assert_purge_clears_the_raw_account_and_keeps_the_evidence;
+
+-- ---------------------------------------------------------------------------
+-- 레거시 승인은 클레임 콘솔의 단계를 결정하지 못한다 (F1)
+-- ---------------------------------------------------------------------------
+-- 새 stage(in_review·collecting·collected·on_hold)는 전부 status='requested'로
+-- 투영된다. admin_decide_order_cancellation이 status만 보면 "수거 중인 반품"을
+-- 결정 가능으로 읽고, 승인하면 입고 확인을 건너뛴 채 전액 환불·재고 복원·카드팩
+-- 회수가 끝난다. 그래서 그 함수는 stage를 직접 본다.
+set local role service_role;
+
+select public.request_order_claim(
+  '41000000-0000-4000-8000-000000000c08',
+  '00000000-0000-4000-8000-000000000c01',
+  'return', '수거 중 반품', 'change_of_mind'
+);
+select public.request_order_claim(
+  '41000000-0000-4000-8000-000000000c09',
+  '00000000-0000-4000-8000-000000000c01',
+  'exchange', '입고된 교환', 'change_of_mind'
+);
+select public.request_order_claim(
+  '41000000-0000-4000-8000-000000000c10',
+  '00000000-0000-4000-8000-000000000c01',
+  'return', '보류된 반품', 'change_of_mind'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000c02', true);
+
+select public.admin_decide_order_claim(
+  (select id from public.order_cancellation_requests
+   where order_id = '41000000-0000-4000-8000-000000000c08'),
+  'approve', null
+);
+select public.admin_decide_order_claim(
+  (select id from public.order_cancellation_requests
+   where order_id = '41000000-0000-4000-8000-000000000c09'),
+  'approve', null
+);
+select public.admin_record_order_claim_collection(
+  (select id from public.order_cancellation_requests
+   where order_id = '41000000-0000-4000-8000-000000000c09'),
+  'collected'
+);
+select public.admin_decide_order_claim(
+  (select id from public.order_cancellation_requests
+   where order_id = '41000000-0000-4000-8000-000000000c10'),
+  'approve', null
+);
+select public.admin_decide_order_claim(
+  (select id from public.order_cancellation_requests
+   where order_id = '41000000-0000-4000-8000-000000000c10'),
+  'hold', '반송 배송비 정산이 확인되지 않았습니다'
+);
+
+do $$
+declare
+  blocked_order uuid;
+begin
+  foreach blocked_order in array array[
+    '41000000-0000-4000-8000-000000000c08'::uuid,
+    '41000000-0000-4000-8000-000000000c09'::uuid,
+    '41000000-0000-4000-8000-000000000c10'::uuid
+  ]
+  loop
+    begin
+      perform public.admin_decide_order_cancellation(
+        (select id from public.order_cancellation_requests where order_id = blocked_order),
+        'approve',
+        null
+      );
+      raise exception 'legacy approval must refuse claim-console stages (%)', blocked_order;
+    exception
+      when others then
+        if sqlerrm <> 'claim_requires_claim_console' then raise; end if;
+    end;
+  end loop;
+end;
+$$;
+
+-- 레거시 거절도 같은 경계를 지킨다. 수거 중인 반품을 주문 콘솔에서 닫으면
+-- 클레임 콘솔의 절차가 통째로 사라진다.
+do $$
+begin
+  begin
+    perform public.admin_decide_order_cancellation(
+      (select id from public.order_cancellation_requests
+       where order_id = '41000000-0000-4000-8000-000000000c08'),
+      'reject',
+      '주문 콘솔에서 닫으려는 시도입니다'
+    );
+    raise exception 'legacy rejection must refuse claim-console stages';
+  exception
+    when others then
+      if sqlerrm <> 'claim_requires_claim_console' then raise; end if;
+  end;
+end;
+$$;
+
+reset role;
+
+-- 절차와 돈이 그대로여야 한다: durable claim 없음, 환불 원장 없음, 보류 유지.
+select 1 / case when (
+  not exists (
+    select 1 from public.order_cancellation_claims
+    where order_id in (
+      '41000000-0000-4000-8000-000000000c08',
+      '41000000-0000-4000-8000-000000000c09',
+      '41000000-0000-4000-8000-000000000c10'
+    )
+  )
+  and not exists (
+    select 1 from public.refunds
+    where payment_id = '42000000-0000-4000-8000-000000000c09'
+  )
+  and (
+    select request.stage = 'collecting' and request.status = 'requested'
+    from public.order_cancellation_requests as request
+    where request.order_id = '41000000-0000-4000-8000-000000000c08'
+  )
+  and (
+    select request.stage = 'collected'
+    from public.order_cancellation_requests as request
+    where request.order_id = '41000000-0000-4000-8000-000000000c09'
+  )
+  and (
+    select request.stage = 'on_hold' and request.hold_reason is not null
+    from public.order_cancellation_requests as request
+    where request.order_id = '41000000-0000-4000-8000-000000000c10'
+  )
+) then 1 else 0 end as assert_legacy_decision_leaves_claim_console_stages_untouched;
+
+-- 취소 클레임의 접수 단계는 레거시 경로가 계속 처리할 수 있어야 한다(회귀 방지).
+select 1 / case when (
+  select request.stage = 'requested' and request.claim_type = 'cancel'
+  from public.order_cancellation_requests as request
+  where request.order_id = '41000000-0000-4000-8000-000000000c02'
+) then 1 else 0 end as assert_legacy_path_still_owns_requested_cancels;
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000c02', true);
+
+select public.admin_decide_order_cancellation(
+  (select id from public.order_cancellation_requests
+   where order_id = '41000000-0000-4000-8000-000000000c02'),
+  'approve',
+  null
+);
+
+reset role;
+
+select 1 / case when (
+  select request.stage = 'processing' and request.status = 'processing'
+  from public.order_cancellation_requests as request
+  where request.order_id = '41000000-0000-4000-8000-000000000c02'
+) then 1 else 0 end as assert_legacy_approval_still_works_on_requested_cancels;
+
+-- ---------------------------------------------------------------------------
+-- 거절 가드 · needs_review 보류 재개 · 알림 dedupe (F2 · F3 · F6)
+-- ---------------------------------------------------------------------------
+set local role service_role;
+
+select 1 / case when (
+  public.request_order_claim(
+    '41000000-0000-4000-8000-000000000c11',
+    '00000000-0000-4000-8000-000000000c01',
+    'cancel', '자동 승인 취소', 'change_of_mind'
+  ) = 'auto_approved'
+) then 1 else 0 end as assert_reject_guard_fixture_starts_in_processing;
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000c02', true);
+
+-- 계좌를 등록하지 않은 클레임에 계좌 송금을 적을 수 없다. 적히면 구매자에게
+-- "등록하신 환불계좌로 송금을 접수했습니다"라는 거짓 안내가 나간다.
+do $$
+begin
+  begin
+    perform public.admin_record_order_claim_refund(
+      (select id from public.order_cancellation_requests
+       where order_id = '41000000-0000-4000-8000-000000000c11'),
+      'bank_transfer', 'filed', null
+    );
+    raise exception 'bank transfer must require a registered refund account';
+  exception
+    when others then
+      if sqlerrm <> 'claim_refund_account_missing' then raise; end if;
+  end;
+end;
+$$;
+
+select public.admin_record_order_claim_refund(
+  (select id from public.order_cancellation_requests
+   where order_id = '41000000-0000-4000-8000-000000000c11'),
+  'pg_cancel', 'filed', null
+);
+
+reset role;
+
+-- dedupe 키가 단계만 담으면 승인 알림이 'claim:processing:<id>'를 점유해 같은
+-- 단계에서 일어난 "환불 접수" 알림이 영구히 삼켜진다.
+select 1 / case when (
+  (
+    select count(*)
+    from public.notifications
+    where source_type = 'order_claim'
+      and source_id = (
+        select request.id::text
+        from public.order_cancellation_requests as request
+        where request.order_id = '41000000-0000-4000-8000-000000000c11'
+      )
+  ) = 2
+) then 1 else 0 end as assert_claim_notifications_are_not_swallowed_within_a_stage;
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000c02', true);
+
+-- 처리에 착수한 클레임을 거절하면 durable claim과 환불 intent가 남은 채 주문이
+-- 영구 동결된다(complete_order_cancellation_request가 processing을 요구한다).
+do $$
+begin
+  begin
+    perform public.admin_decide_order_claim(
+      (select id from public.order_cancellation_requests
+       where order_id = '41000000-0000-4000-8000-000000000c11'),
+      'reject', '처리 착수 뒤에는 거절할 수 없어야 합니다'
+    );
+    raise exception 'a processing claim must not be rejectable';
+  exception
+    when others then
+      if sqlerrm <> 'claim_not_rejectable' then raise; end if;
+  end;
+end;
+$$;
+
+reset role;
+
+update public.order_cancellation_requests
+set status = 'needs_review'
+where order_id = '41000000-0000-4000-8000-000000000c11';
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000c02', true);
+
+-- needs_review 거절은 Korpay 수동 복구 seam까지 막아 복구 경로를 전부 없앤다.
+do $$
+begin
+  begin
+    perform public.admin_decide_order_claim(
+      (select id from public.order_cancellation_requests
+       where order_id = '41000000-0000-4000-8000-000000000c11'),
+      'reject', '정합화 대기 중에는 거절할 수 없어야 합니다'
+    );
+    raise exception 'a needs_review claim must not be rejectable';
+  exception
+    when others then
+      if sqlerrm <> 'claim_not_rejectable' then raise; end if;
+  end;
+end;
+$$;
+
+select public.admin_decide_order_claim(
+  (select id from public.order_cancellation_requests
+   where order_id = '41000000-0000-4000-8000-000000000c11'),
+  'hold', '결제사 원장 확인을 기다리는 중입니다'
+);
+
+-- 재개가 needs_review로 돌아갈 때 status를 requested로 쓰면 투영 CHECK가 막아
+-- 보류가 영원히 풀리지 않는다. 남는 선택지가 거절뿐이면 위의 동결과 같아진다.
+select 1 / case when (
+  public.admin_decide_order_claim(
+    (select id from public.order_cancellation_requests
+     where order_id = '41000000-0000-4000-8000-000000000c11'),
+    'resume', null
+  ) = 'needs_review'
+) then 1 else 0 end as assert_a_hold_taken_from_needs_review_can_be_resumed;
+
+reset role;
+
+select 1 / case when (
+  select request.stage = 'needs_review'
+    and request.status = 'needs_review'
+    and request.held_from is null
+    and request.hold_reason is null
+  from public.order_cancellation_requests as request
+  where request.order_id = '41000000-0000-4000-8000-000000000c11'
+) then 1 else 0 end as assert_resume_derives_the_status_from_the_restored_stage;
+
+-- ---------------------------------------------------------------------------
+-- 환불계좌 파기 기한은 종결과 함께 잡힌다 (F4)
+-- ---------------------------------------------------------------------------
+-- purge_after를 "환불 완료 기록"에서만 잡으면 거절·교환·레거시 완료로 끝난 건의
+-- 계좌 원문이 무기한 남는다. 파기 잡의 부분 인덱스는 purge_after가 null인 행을
+-- 아예 보지 않는다.
+set local role service_role;
+
+select public.request_order_claim(
+  '41000000-0000-4000-8000-000000000c12',
+  '00000000-0000-4000-8000-000000000c01',
+  'return', '거절될 반품', 'change_of_mind',
+  '신한은행', '110-2222-333333', '김파기'
+);
+select public.request_order_claim(
+  '41000000-0000-4000-8000-000000000c13',
+  '00000000-0000-4000-8000-000000000c01',
+  'cancel', '레거시로 완료될 취소', 'change_of_mind',
+  '우리은행', '110-4444-555555', '이레거시'
+);
+-- 교환은 환불이 없다. 화면은 계좌 폼을 그리지 않지만 API로 실어 보낼 수 있으므로
+-- 접수 함수가 저장 자체를 거부해야 한다(수집 목적 없음).
+select public.request_order_claim(
+  '41000000-0000-4000-8000-000000000c14',
+  '00000000-0000-4000-8000-000000000c01',
+  'exchange', '계좌가 실린 교환', 'change_of_mind',
+  '하나은행', '110-6666-777777', '박교환'
+);
+
+reset role;
+
+select 1 / case when (
+  not exists (
+    select 1
+    from private.claim_refund_accounts as account
+    join public.order_cancellation_requests as request on request.id = account.claim_id
+    where request.order_id = '41000000-0000-4000-8000-000000000c14'
+  )
+) then 1 else 0 end as assert_exchange_intake_never_stores_a_refund_account;
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000c02', true);
+
+select public.admin_decide_order_claim(
+  (select id from public.order_cancellation_requests
+   where order_id = '41000000-0000-4000-8000-000000000c12'),
+  'approve', null
+);
+select public.admin_decide_order_claim(
+  (select id from public.order_cancellation_requests
+   where order_id = '41000000-0000-4000-8000-000000000c12'),
+  'reject', '반송 굿즈에 사용 흔적이 있어 재판매가 불가능합니다'
+);
+
+reset role;
+
+-- 레거시 완료 경로(finalizer가 status만 쓴다)도 같은 규칙을 받아야 한다.
+update public.order_cancellation_requests
+set status = 'completed', completed_at = now()
+where order_id = '41000000-0000-4000-8000-000000000c13';
+
+select 1 / case when (
+  (
+    select account.purge_after is not null
+    from private.claim_refund_accounts as account
+    join public.order_cancellation_requests as request on request.id = account.claim_id
+    where request.order_id = '41000000-0000-4000-8000-000000000c12'
+  )
+  and (
+    select account.purge_after is not null
+    from private.claim_refund_accounts as account
+    join public.order_cancellation_requests as request on request.id = account.claim_id
+    where request.order_id = '41000000-0000-4000-8000-000000000c13'
+  )
+) then 1 else 0 end as assert_terminal_stages_schedule_the_account_purge;
+
+-- purge_after가 이미 잡힌 행만 앞당긴다. 여기서 값을 새로 만들어 주면 "종결이
+-- 기한을 잡는가"라는 질문을 테스트가 대신 답해 버려 파기 잡 검증이 공허해진다.
+update private.claim_refund_accounts as account
+set purge_after = now() - interval '1 day'
+where account.purge_after is not null
+  and account.claim_id in (
+    select request.id
+    from public.order_cancellation_requests as request
+    where request.order_id in (
+      '41000000-0000-4000-8000-000000000c12',
+      '41000000-0000-4000-8000-000000000c13'
+    )
+  );
+
+select 1 / case when (
+  public.purge_expired_claim_refund_accounts() = 2
+) then 1 else 0 end as assert_the_purge_job_reaches_rejected_and_legacy_completed_claims;
+
+select 1 / case when (
+  (
+    select bool_and(
+      account.account_number is null
+      and account.bank_name is null
+      and account.account_holder is null
+      and account.purged_at is not null
+    )
+    from private.claim_refund_accounts as account
+    join public.order_cancellation_requests as request on request.id = account.claim_id
+    where request.order_id in (
+      '41000000-0000-4000-8000-000000000c12',
+      '41000000-0000-4000-8000-000000000c13'
+    )
+  )
+) then 1 else 0 end as assert_the_purge_clears_both_terminal_claims;
+
+-- ---------------------------------------------------------------------------
+-- 레거시로 완료된 클레임의 환불 원장 마감 (F5)
+-- ---------------------------------------------------------------------------
+-- 클레임이 이미 completed면 정합화는 더 부를 수 없다. 남은 일은 원장 주석뿐이고,
+-- 그 기록은 성공해야 한다 — 콘솔이 "항상 실패하는 버튼"을 그리지 않으려면
+-- 서버가 이 경로를 실제로 지원해야 한다.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000c02', true);
+
+select 1 / case when (
+  public.admin_record_order_claim_refund(
+    (select id from public.order_cancellation_requests
+     where order_id = '41000000-0000-4000-8000-000000000c13'),
+    'pg_cancel', 'completed', null
+  ) = 'completed'
+) then 1 else 0 end as assert_a_legacy_completed_claim_can_still_close_its_ledger;
+
+reset role;
+
+select 1 / case when (
+  select refund.completed_at is not null and refund.method = 'pg_cancel'
+  from public.refunds as refund
+  where refund.payment_id = '42000000-0000-4000-8000-000000000c13'
+) then 1 else 0 end as assert_ledger_completion_is_recorded_once_finalized;
+
+-- ---------------------------------------------------------------------------
+-- 환불 접수 재호출은 수단과 처리자를 덮지 않는다 (F6)
+-- ---------------------------------------------------------------------------
+set local role service_role;
+
+select public.request_order_claim(
+  '41000000-0000-4000-8000-000000000c15',
+  '00000000-0000-4000-8000-000000000c01',
+  'return', '계좌 송금 반품', 'change_of_mind',
+  '국민은행', '110-8888-999999', '최송금'
+);
+
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000c02', true);
+
+select public.admin_decide_order_claim(
+  (select id from public.order_cancellation_requests
+   where order_id = '41000000-0000-4000-8000-000000000c15'),
+  'approve', null
+);
+select public.admin_record_order_claim_collection(
+  (select id from public.order_cancellation_requests
+   where order_id = '41000000-0000-4000-8000-000000000c15'),
+  'collected'
+);
+select public.admin_record_order_claim_refund(
+  (select id from public.order_cancellation_requests
+   where order_id = '41000000-0000-4000-8000-000000000c15'),
+  'bank_transfer', 'filed', '무통장 송금 접수'
+);
+
+-- 두 번째 접수 호출이 수단을 덮으면 이미 송금한 건이 결제사 취소로 보인다.
+select public.admin_record_order_claim_refund(
+  (select id from public.order_cancellation_requests
+   where order_id = '41000000-0000-4000-8000-000000000c15'),
+  'pg_cancel', 'filed', '메모만 갱신'
+);
+
+reset role;
+
+select 1 / case when (
+  select refund.method = 'bank_transfer'
+    and refund.handled_by = '00000000-0000-4000-8000-000000000c02'
+    and refund.settlement_note = '메모만 갱신'
+  from public.refunds as refund
+  where refund.payment_id = '42000000-0000-4000-8000-000000000c15'
+) then 1 else 0 end as assert_refiling_never_overwrites_the_recorded_method;
 
 rollback;

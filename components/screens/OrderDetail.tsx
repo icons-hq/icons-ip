@@ -15,6 +15,7 @@ import {
   type OrderDetail as OrderDetailData,
   type OrderDetailStatus,
 } from '@/lib/orders';
+import { isOpenOrderClaimStage } from '@/lib/orders/claims';
 import {
   orderWithdrawalDaysRemaining,
   orderWithdrawalDeadline,
@@ -112,6 +113,11 @@ export function OrderDetail({
   const status = orderStatusMeta(order.status);
   const date = formatOrderDate(order.createdAt);
   const at = now ?? new Date();
+  const claimRequest = order.cancellationRequest;
+  const isCancelClaim = claimRequest?.claimType === 'cancel';
+  const activeCancelClaim = Boolean(
+    claimRequest && isCancelClaim && isOpenOrderClaimStage(claimRequest.stage),
+  );
 
   return (
     <main className="screen order-detail-page">
@@ -163,12 +169,14 @@ export function OrderDetail({
             status={order.status}
           />
 
-          {/* 취소(청약철회)와 반품·교환은 다른 절차다. 취소 패널은 진행 중인 반품·교환을
-              자기 상태로 오해하지 않도록 취소 클레임일 때만 그린다 — 레거시 status
-              투영에서는 수거 중인 반품도 '요청 접수'로 보인다(#252). */}
-          {!order.cancellationRequest || order.cancellationRequest.claimType === 'cancel' ? (
+          {/* 취소(청약철회)와 반품·교환은 다른 절차이고 패널도 둘이다. 한 클레임을
+              두 패널이 동시에 그리면 같은 건의 진행 상태가 두 번, 서로 다른 말로
+              나온다 — 취소 클레임은 위 패널이, 반품·교환은 아래 패널이 소유한다.
+              레거시 status 투영에서는 수거 중인 반품도 '요청 접수'로 보이므로
+              판정은 claimType과 stage로 한다(#252). */}
+          {!claimRequest || isCancelClaim ? (
             <OrderCancellation
-              cancellationRequest={order.cancellationRequest}
+              cancellationRequest={claimRequest}
               deliveredAt={order.deliveredAt}
               orderId={order.id}
               refund={order.refund}
@@ -176,11 +184,16 @@ export function OrderDetail({
             />
           ) : null}
 
-          <OrderClaimRequest
-            claim={order.cancellationRequest}
-            orderId={order.id}
-            status={order.status}
-          />
+          {/* 진행 중인 취소가 있으면 반품·교환 패널을 그리지 않는다. 어차피 접수할
+              수 없고(주문당 활성 클레임 1건), 그리면 취소 클레임의 상태를 다시
+              말하게 된다. 취소가 끝나거나 거절된 뒤에는 다시 연다. */}
+          {!activeCancelClaim ? (
+            <OrderClaimRequest
+              claim={isCancelClaim ? null : claimRequest}
+              orderId={order.id}
+              status={order.status}
+            />
+          ) : null}
 
           {/* 청약철회(클레임 접수) 바로 아래에 둔다. 둘은 다른 일이다 — 철회는 절차이고
               문의는 질문이다. 붙여 두면 "무엇을 눌러야 하는지" 헷갈리는 대신 두 경로가
