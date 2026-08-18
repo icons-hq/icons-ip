@@ -16,8 +16,6 @@ export interface AdminScreen {
   status: AdminScreenStatus;
   /** `admin` 역할만 볼 수 있는 화면. staff에게는 메뉴에서도 감춘다. */
   adminOnly?: boolean;
-  /** 셸(사이드바·헤더) 밖에서 전체화면으로 뜨는 화면. */
-  fullscreen?: boolean;
 }
 
 export interface AdminNavGroup {
@@ -54,7 +52,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
   {
     id: 'cs',
     label: '문의·리뷰 관리',
-    icon: 'bell',
+    icon: 'chat',
     screens: [
       { id: 'inquiries', label: '1:1 문의', href: '/admin/cs/inquiries', status: 'planned' },
       { id: 'reviews', label: '리뷰 관리', href: '/admin/cs/reviews', status: 'planned' },
@@ -79,7 +77,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
   {
     id: 'display',
     label: '전시 관리',
-    icon: 'grid',
+    icon: 'star',
     screens: [
       { id: 'curations', label: '홈 큐레이션', href: '/admin/display/curations', status: 'ready' },
     ],
@@ -106,7 +104,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
   {
     id: 'stats',
     label: '통계',
-    icon: 'grid',
+    icon: 'trendUp',
     screens: [
       { id: 'stats-sales', label: '판매분석', href: '/admin/stats/sales', status: 'planned' },
       { id: 'stats-claims', label: '클레임', href: '/admin/stats/claims', status: 'planned' },
@@ -118,7 +116,8 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: '현장 운영',
     icon: 'event',
     screens: [
-      { id: 'check-in', label: '티켓 검표', href: '/admin/check-in', status: 'ready', fullscreen: true },
+      /* 검표는 `(shell)` route group 밖이라 사이드바 없이 전체화면으로 뜬다. */
+      { id: 'check-in', label: '티켓 검표', href: '/admin/check-in', status: 'ready' },
     ],
   },
 ];

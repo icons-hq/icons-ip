@@ -1,9 +1,10 @@
 'use client';
 
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useMemo } from 'react';
 import { upsertAdminEventAction, type AdminCatalogActionState } from '@/app/admin/actions';
 import { EventSection } from '@/components/admin/sections/EventSection';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
+import { toRecordOptions, useSelectedRecord } from './record-selection';
 
 const emptyState: AdminCatalogActionState = {};
 
@@ -15,19 +16,15 @@ export function EventScreen({
   ips: AdminCatalogRecords['ips'];
   records: AdminCatalogRecords['events'];
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [state, action, pending] = useActionState(upsertAdminEventAction, emptyState);
-  const ipOptions = useMemo(
-    () => ips.map((ip) => ({ id: ip.id, title: ip.title, archivedAt: ip.archivedAt })),
-    [ips],
-  );
-  const selected = records.find((event) => event.id === selectedId) ?? null;
+  const ipOptions = useMemo(() => toRecordOptions(ips), [ips]);
+  const { selected, select } = useSelectedRecord(records);
 
   return (
     <EventSection
       action={action}
       ipOptions={ipOptions}
-      onSelect={(event) => setSelectedId(event?.id ?? null)}
+      onSelect={select}
       pending={pending}
       records={records}
       selected={selected}

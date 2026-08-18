@@ -1,10 +1,11 @@
 'use client';
 
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useMemo } from 'react';
 import { upsertAdminGoodAction, type AdminCatalogActionState } from '@/app/admin/actions';
 import { GoodSection } from '@/components/admin/sections/GoodSection';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
 import type { CatalogSnapshot } from '@/lib/catalog';
+import { toRecordOptions, useSelectedRecord } from './record-selection';
 
 const emptyState: AdminCatalogActionState = {};
 
@@ -25,13 +26,9 @@ export function GoodScreen({
   ips: AdminCatalogRecords['ips'];
   records: AdminCatalogRecords['goods'];
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [state, action, pending] = useActionState(upsertAdminGoodAction, emptyState);
-  const ipOptions = useMemo(
-    () => ips.map((ip) => ({ id: ip.id, title: ip.title, archivedAt: ip.archivedAt })),
-    [ips],
-  );
-  const selected = records.find((good) => good.id === selectedId) ?? null;
+  const ipOptions = useMemo(() => toRecordOptions(ips), [ips]);
+  const { selected, select } = useSelectedRecord(records);
 
   return (
     <GoodSection
@@ -39,7 +36,7 @@ export function GoodScreen({
       adjustmentId={adjustmentId}
       catalogIps={catalogIps}
       ipOptions={ipOptions}
-      onSelect={(good) => setSelectedId(good?.id ?? null)}
+      onSelect={select}
       pending={pending}
       records={records}
       selected={selected}

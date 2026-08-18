@@ -1,10 +1,11 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState } from 'react';
 import { upsertAdminIpAction, type AdminCatalogActionState } from '@/app/admin/actions';
 import { IpSection } from '@/components/admin/sections/IpSection';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
 import type { CatalogSnapshot } from '@/lib/catalog';
+import { useSelectedRecord } from './record-selection';
 
 const emptyState: AdminCatalogActionState = {};
 
@@ -22,14 +23,13 @@ export function IpScreen({
   records: AdminCatalogRecords['ips'];
   verticals: CatalogSnapshot['verticals'];
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [state, action, pending] = useActionState(upsertAdminIpAction, emptyState);
-  const selected = records.find((ip) => ip.id === selectedId) ?? null;
+  const { selected, select } = useSelectedRecord(records);
 
   return (
     <IpSection
       action={action}
-      onSelect={(ip) => setSelectedId(ip?.id ?? null)}
+      onSelect={select}
       pending={pending}
       records={records}
       selected={selected}

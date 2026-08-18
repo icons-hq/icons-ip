@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
 import { CurationSection } from '@/components/admin/sections/CurationSection';
 import type { AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
+import { useSelectedRecord } from './record-selection';
 
 /*
  * 홈 큐레이션 화면의 클라이언트 래퍼.
@@ -30,8 +30,7 @@ export function CurationScreen({
   operationId: string;
   records: AdminCurationRecord[];
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = records.find((curation) => curation.id === selectedId) ?? null;
+  const { selected, select } = useSelectedRecord(records);
 
   return (
     <CurationSection
@@ -40,7 +39,7 @@ export function CurationScreen({
       eventOptions={eventOptions}
       goodOptions={goodOptions}
       ipOptions={ipOptions}
-      onSelect={(curation) => setSelectedId(curation?.id ?? null)}
+      onSelect={select}
       operationId={operationId}
       records={records}
       selected={selected}

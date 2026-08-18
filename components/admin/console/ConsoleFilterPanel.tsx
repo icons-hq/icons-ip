@@ -64,7 +64,7 @@ export interface ConsoleSearchFilter {
 export interface ConsoleFilterPanelProps {
   /** GET 폼이 향하는 경로. 예: `/admin/orders`. */
   action: string;
-  /** 제출·프리셋·초기화 링크에 함께 실어 보낼 고정 파라미터. 예: `{ section: 'orders' }`. */
+  /** 제출·프리셋·초기화 링크에 함께 실어 보낼 고정 파라미터. 예: `{ tab: 'unpaid' }`. */
   hiddenFields?: Record<string, string>;
   /** 기간 필터. 생략하면 기간 영역 자체를 렌더하지 않는다. */
   dateRange?: ConsoleDateRangeFilter;

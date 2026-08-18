@@ -44,8 +44,10 @@ vi.mock('@/components/admin/screens/GoodScreen', () => ({ GoodScreen: mocks.scre
 vi.mock('@/components/admin/screens/CardScreen', () => ({ CardScreen: mocks.screens.card }));
 vi.mock('@/components/admin/screens/CardPoolScreen', () => ({ CardPoolScreen: mocks.screens.cardPool }));
 vi.mock('@/components/admin/screens/RewardPolicyScreen', () => ({ RewardPolicyScreen: mocks.screens.rewardPolicy }));
-vi.mock('@/components/admin/screens/DrawTicketGrantScreen', () => ({
-  DrawTicketGrantScreen: mocks.screens.drawTicketGrant,
+/* 이 화면은 래퍼 없이 섹션을 바로 렌더한다 — 섹션이 회원 검색·발급 상태를
+ * 이미 자기 안에 들고 있어 래퍼가 통과만 시키는 중간자였다. */
+vi.mock('@/components/admin/sections/DrawTicketGrantSection', () => ({
+  DrawTicketGrantSection: mocks.screens.drawTicketGrant,
 }));
 vi.mock('@/components/admin/screens/GameScreen', () => ({ GameScreen: mocks.screens.game }));
 vi.mock('@/components/admin/screens/EventScreen', () => ({ EventScreen: mocks.screens.event }));

@@ -9,7 +9,7 @@ export default async function AdminDisplayCurationsPage() {
 
   const [curations, records] = await Promise.all([
     getAdminCurations(),
-    getAdminCatalogRecords(),
+    getAdminCatalogRecords({ include: ['events', 'goods', 'ips'] }),
   ]);
 
   return (

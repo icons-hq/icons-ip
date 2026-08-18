@@ -104,10 +104,10 @@ describe('AdminDisplayCurationsPage', () => {
     });
   });
 
-  it('카탈로그 레코드를 인자 없이 요청하고 다른 화면의 로더는 부르지 않는다', async () => {
+  it('쓰는 카탈로그 종류만 요청하고 다른 화면의 로더는 부르지 않는다', async () => {
     await AdminDisplayCurationsPage();
 
-    expect(mocks.catalogRecords).toHaveBeenCalledWith();
+    expect(mocks.catalogRecords).toHaveBeenCalledWith({ include: ['events', 'goods', 'ips'] });
     expect(mocks.notifications).not.toHaveBeenCalled();
     expect(mocks.orders).not.toHaveBeenCalled();
   });

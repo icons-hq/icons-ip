@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
 import { GameSection } from '@/components/admin/sections/GameSection';
-import type { AdminCatalogRecords, AdminGameRecord } from '@/lib/admin/catalog.server';
+import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
+import { useSelectedRecord } from './record-selection';
 
 /*
  * 게임 화면 래퍼.
@@ -22,14 +22,13 @@ export function GameScreen({
   pools: AdminCatalogRecords['cardPools'];
   records: AdminCatalogRecords['games'];
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = records.find((game) => game.id === selectedId) ?? null;
+  const { selected, select } = useSelectedRecord(records);
 
   return (
     <GameSection
       endOperationId={endOperationId}
       events={events}
-      onSelect={(game: AdminGameRecord | null) => setSelectedId(game?.id ?? null)}
+      onSelect={select}
       operationId={operationId}
       pools={pools}
       records={records}

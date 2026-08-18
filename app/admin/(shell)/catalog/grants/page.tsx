@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { DrawTicketGrantScreen } from '@/components/admin/screens/DrawTicketGrantScreen';
+import { DrawTicketGrantSection } from '@/components/admin/sections/DrawTicketGrantSection';
 import { getAdminCatalogRecords } from '@/lib/admin/catalog.server';
 import { getAdminDrawTicketGrants } from '@/lib/admin/draw-ticket-grants.server';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
@@ -13,7 +13,7 @@ export default async function AdminCatalogGrantsPage() {
   ]);
 
   return (
-    <DrawTicketGrantScreen
+    <DrawTicketGrantSection
       draftOperationId={randomUUID()}
       grants={grants}
       pools={records.cardPools}

@@ -1,9 +1,10 @@
 'use client';
 
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useMemo } from 'react';
 import { upsertAdminCardAction, type AdminCatalogActionState } from '@/app/admin/actions';
 import { CardSection } from '@/components/admin/sections/CardSection';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
+import { toRecordOptions, useSelectedRecord } from './record-selection';
 
 const emptyState: AdminCatalogActionState = {};
 
@@ -25,23 +26,19 @@ export function CardScreen({
   pools: AdminCatalogRecords['cardPools'];
   records: AdminCatalogRecords['cards'];
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId);
   const [state, action, pending] = useActionState(upsertAdminCardAction, emptyState);
-  const ipOptions = useMemo(
-    () => ips.map((ip) => ({ id: ip.id, title: ip.title, archivedAt: ip.archivedAt })),
-    [ips],
-  );
+  const ipOptions = useMemo(() => toRecordOptions(ips), [ips]);
   const poolOptions = useMemo(
     () => pools.map((pool) => ({ id: pool.id, ipId: pool.ipId, name: pool.name })),
     [pools],
   );
-  const selected = records.find((card) => card.id === selectedId) ?? null;
+  const { selected, select } = useSelectedRecord(records, initialSelectedId);
 
   return (
     <CardSection
       action={action}
       ipOptions={ipOptions}
-      onSelect={(card) => setSelectedId(card?.id ?? null)}
+      onSelect={select}
       pending={pending}
       poolOptions={poolOptions}
       records={records}

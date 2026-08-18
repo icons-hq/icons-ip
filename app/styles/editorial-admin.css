@@ -141,7 +141,10 @@
 /* 준비 중 화면은 라우트가 없다 — 자리만 보여 주고 클릭을 막는다. */
 .admin-nav-item-planned {
   cursor: default;
-  opacity: .42;
+  /* opacity 로 흐리면 이미 muted 인 잉크 위에 겹쳐 대비가 AA 아래로 떨어진다.
+     상태는 색이 아니라 "준비 중" 라벨과 aria-disabled 가 전달한다. */
+  color: var(--editorial-ink-muted);
+  font-style: italic;
 }
 
 .admin-nav-item-planned:hover {

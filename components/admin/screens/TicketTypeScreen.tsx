@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { TicketSection } from '@/components/admin/sections/TicketSection';
-import type { AdminCatalogRecords, AdminTicketTypeRecord } from '@/lib/admin/catalog.server';
+import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
+import { useSelectedRecord } from './record-selection';
 
 /*
  * 티켓 회차 화면 래퍼.
@@ -20,18 +21,17 @@ export function TicketTypeScreen({
   operationId: string;
   records: AdminCatalogRecords['ticketTypes'];
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const eventOptions = useMemo(
     () => events.map((event) => ({ id: event.id, title: event.title, archivedAt: event.archivedAt })),
     [events],
   );
-  const selected = records.find((ticketType) => ticketType.id === selectedId) ?? null;
+  const { selected, select } = useSelectedRecord(records);
 
   return (
     <TicketSection
       draftId={draftId}
       eventOptions={eventOptions}
-      onSelect={(ticketType: AdminTicketTypeRecord | null) => setSelectedId(ticketType?.id ?? null)}
+      onSelect={select}
       operationId={operationId}
       records={records}
       selected={selected}

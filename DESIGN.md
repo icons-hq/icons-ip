@@ -17,6 +17,7 @@ authority:
     public: app/styles/editorial-public.css
     account-commerce: app/styles/editorial-account-commerce.css
     admin: app/styles/editorial-admin.css
+    admin-console: app/styles/admin-console.css
     legacy-compatibility: app/globals.css
   route-map: lib/routes.ts
   note: >
@@ -401,7 +402,7 @@ home-contract:
 
 | 화면군 | 현재 범위 | 목표 표현 | 기능 불변 조건 |
 |---|---|---|---|
-| 관리자 셸 | `/admin`의 15개 섹션 | 좌측/상단 탐색+master-detail, 1240–1440px 작업대 | staff 권한과 section query 유지 |
+| 관리자 셸 | `/admin/**` 화면별 라우트 | 2단 사이드바(대분류>소분류)+master-detail, 1240–1440px 작업대 | staff 권한과 `?section=` 하위 호환 리다이렉트 유지 |
 | 주문·회원·신고 | 검색, 상태 전이, 제재, moderation | 읽기 밀도 높은 표·상세·확인 dialog | 마스킹, 권한 계층, 감사, 멱등 operation ID 유지 |
 | 굿즈·티켓·카드풀·정책·게임 | 카탈로그와 운영 설정 | field group과 상태 요약을 파스텔이 아닌 중립 면으로 분리 | 기존 action, hidden input, 잠금 규칙 유지 |
 | 홈 큐레이션·아트워크 | 히어로/공지/특집과 업로드 claim | 실제 홈 비율 preview와 저장 상태 분리 | 검증·promote·remove opt-in·업로드 제한 유지 |

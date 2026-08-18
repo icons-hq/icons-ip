@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { CardPoolSection } from '@/components/admin/sections/CardPoolSection';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
+import { toRecordOptions, useSelectedRecord } from './record-selection';
 
 /*
  * 카드풀 화면 래퍼.
@@ -27,12 +28,8 @@ export function CardPoolScreen({
   operationId: string;
   records: AdminCatalogRecords['cardPools'];
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const ipOptions = useMemo(
-    () => ips.map((ip) => ({ id: ip.id, title: ip.title, archivedAt: ip.archivedAt })),
-    [ips],
-  );
-  const selected = records.find((pool) => pool.id === selectedId) ?? null;
+  const ipOptions = useMemo(() => toRecordOptions(ips), [ips]);
+  const { selected, select } = useSelectedRecord(records);
 
   return (
     <CardPoolSection
@@ -41,7 +38,7 @@ export function CardPoolScreen({
       draftId={draftId}
       ipOptions={ipOptions}
       oddsOperationId={oddsOperationId}
-      onSelect={(pool) => setSelectedId(pool?.id ?? null)}
+      onSelect={select}
       operationId={operationId}
       records={records}
       selected={selected}
