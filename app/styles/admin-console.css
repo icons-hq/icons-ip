@@ -1,0 +1,436 @@
+/*
+ * ICONS — 운영 콘솔 목록 패턴
+ *
+ * 판매관리·클레임·문의·리뷰 콘솔이 공유하는 화면 구조의 스타일:
+ * 필터 패널 → 상태별 카운트 칩 → 그리드 → 일괄 액션 바 → 페이지네이션.
+ *
+ * 시각 기준은 editorial-admin.css의 `.admin-order-*` 규칙이다. 색·간격은 전부 기존
+ * `--editorial-*` 토큰만 쓴다. 새 색을 정의하지 않는다.
+ * 버튼 계열 override는 `.btn`(0,1,0)을 확실히 이기도록 `.admin-shell`로 한정한다.
+ */
+
+/* --------------------------------------------------------------------------
+   레이아웃 컨테이너
+   -------------------------------------------------------------------------- */
+
+.admin-console {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* --------------------------------------------------------------------------
+   필터 패널 — GET 폼, 기간 프리셋, 상태, 검색
+   -------------------------------------------------------------------------- */
+
+.admin-console-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(140px, .5fr) minmax(240px, 1fr) auto;
+  align-items: end;
+  gap: 12px 14px;
+  padding: 16px;
+  border-color: var(--editorial-line) !important;
+  border-radius: 14px;
+}
+
+.admin-console-filter-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.admin-console-filter-label,
+.admin-console-filter-dates label > span {
+  color: var(--editorial-ink-muted);
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.admin-console-filter-period {
+  gap: 9px;
+}
+
+.admin-console-filter-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-shell .admin-console-preset {
+  min-height: 34px;
+  padding: 0 13px;
+  font-size: 12px;
+}
+
+.admin-shell .admin-console-preset.on {
+  border-color: var(--editorial-brand-green);
+  background: var(--editorial-pastel-green);
+  color: var(--editorial-ink);
+}
+
+.admin-console-filter-dates {
+  display: flex;
+  min-width: 0;
+  align-items: end;
+  gap: 8px;
+}
+
+.admin-console-filter-dates label {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-console-filter-tilde {
+  padding-bottom: 12px;
+  color: var(--editorial-ink-faint);
+}
+
+.admin-console-filter-search-row {
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+}
+
+.admin-console-filter-search-row > select {
+  flex: 0 0 auto;
+  max-width: 44%;
+}
+
+.admin-console-filter-search-row > input {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.admin-console-filter-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-console-filter-actions .btn {
+  min-height: 44px;
+}
+
+/* --------------------------------------------------------------------------
+   상태별 카운트 칩 — 0건도 자리를 지킨다
+   -------------------------------------------------------------------------- */
+
+.admin-console-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-console-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid var(--editorial-line-soft);
+  border-radius: 999px;
+  background: var(--editorial-surface);
+  color: var(--editorial-ink);
+  text-decoration: none;
+  transition:
+    border-color var(--editorial-motion-fast) ease,
+    background var(--editorial-motion-fast) ease;
+}
+
+a.admin-console-chip:hover {
+  border-color: var(--editorial-line);
+  background: var(--editorial-canvas-soft);
+}
+
+.admin-console-chip.on,
+.admin-console-chip[aria-current='true'] {
+  border-color: var(--editorial-line-strong);
+  background: var(--editorial-canvas-soft);
+}
+
+.admin-console-chip-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-console-chip-count {
+  font-family: var(--ff-mono);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.admin-console-chip--info .admin-console-chip-count {
+  color: var(--editorial-info);
+}
+
+.admin-console-chip--success .admin-console-chip-count {
+  color: var(--editorial-success);
+}
+
+.admin-console-chip--warning .admin-console-chip-count {
+  color: var(--editorial-warning);
+}
+
+.admin-console-chip--danger .admin-console-chip-count {
+  color: var(--editorial-danger);
+}
+
+/* --------------------------------------------------------------------------
+   그리드 — 정렬 링크, 행 선택, 빈 상태
+   -------------------------------------------------------------------------- */
+
+.admin-console-grid {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--editorial-line);
+  border-radius: 14px;
+  background: var(--editorial-surface);
+}
+
+/* 컬럼이 많은 콘솔에서 표만 가로 스크롤한다. 페이지 자체가 밀리면 안 된다. */
+.admin-console-grid-scroll {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-color: var(--editorial-line) transparent;
+  scrollbar-width: thin;
+}
+
+.admin-console-grid-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+/* 표 이름은 스크린리더에만 남긴다. display:none이면 읽히지 않는다. */
+.admin-console-grid-caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.admin-console-grid-table th {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--editorial-line);
+  color: var(--editorial-ink-muted);
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.admin-console-grid-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--editorial-line-soft);
+  color: var(--editorial-ink);
+  vertical-align: middle;
+}
+
+.admin-console-grid-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-console-grid-table th[data-align='end'],
+.admin-console-grid-table td[data-align='end'] {
+  text-align: end;
+}
+
+.admin-console-grid-table tbody tr:hover {
+  background: var(--editorial-canvas-soft);
+}
+
+.admin-console-grid-table tbody tr[data-selected='true'] {
+  background: var(--editorial-pastel-green);
+}
+
+.admin-console-grid-check {
+  width: 44px;
+  text-align: center;
+}
+
+.admin-console-grid-check-col {
+  width: 44px;
+}
+
+.admin-console-grid-check input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--editorial-brand-green);
+}
+
+.admin-console-grid-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.admin-console-grid-sort:hover {
+  color: var(--editorial-ink);
+}
+
+.admin-console-grid-sort.on {
+  color: var(--editorial-ink);
+}
+
+.admin-console-grid-sort-mark {
+  color: var(--editorial-ink-faint);
+  font-size: 11px;
+}
+
+.admin-console-grid-sort.on .admin-console-grid-sort-mark {
+  color: var(--editorial-ink);
+}
+
+.admin-console-grid-link {
+  color: var(--editorial-ink);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.admin-console-grid-link:hover {
+  text-decoration: underline;
+}
+
+.admin-console-grid-empty {
+  padding: 40px 12px !important;
+  text-align: center;
+}
+
+.admin-console-grid-empty > .muted {
+  color: var(--editorial-ink-muted);
+  font-size: 12px;
+}
+
+.admin-console-grid-sort:focus-visible,
+.admin-console-grid-link:focus-visible,
+.admin-console-chip:focus-visible,
+.admin-console-preset:focus-visible {
+  outline: 2px solid var(--editorial-focus);
+  outline-offset: 3px;
+}
+
+/* --------------------------------------------------------------------------
+   일괄 액션 바 — 선택된 행이 있을 때만 렌더된다
+   -------------------------------------------------------------------------- */
+
+.admin-console-bulk-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 11px 14px;
+  border: 1px solid var(--editorial-line);
+  border-radius: 11px;
+  background: var(--editorial-canvas-soft);
+}
+
+.admin-console-bulk-count {
+  margin: 0;
+  color: var(--editorial-ink);
+  font-size: 12px;
+}
+
+.admin-console-bulk-count strong {
+  font-family: var(--ff-mono);
+  font-weight: 750;
+}
+
+.admin-console-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-inline-start: auto;
+}
+
+.admin-shell .admin-console-bulk-action {
+  min-height: 38px;
+}
+
+.admin-shell .admin-console-bulk-action--danger {
+  border-color: var(--editorial-danger);
+  background: var(--editorial-danger);
+  color: var(--editorial-on-inverse);
+}
+
+.admin-shell .admin-console-bulk-action--danger:hover {
+  border-color: color-mix(in srgb, var(--editorial-danger) 86%, #000);
+  background: color-mix(in srgb, var(--editorial-danger) 86%, #000);
+  color: var(--editorial-on-inverse);
+}
+
+.admin-shell .admin-console-bulk-action:disabled {
+  opacity: .55;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------------------
+   페이지네이션 — .admin-order-pagination과 같은 3분할 기하
+   -------------------------------------------------------------------------- */
+
+.admin-console-pagination {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--editorial-line);
+}
+
+.admin-console-pagination > :last-child {
+  justify-self: end;
+}
+
+.admin-console-pagination-summary {
+  color: var(--editorial-ink-faint);
+  font-family: var(--ff-mono);
+  font-size: 10px;
+  text-align: center;
+}
+
+/* --------------------------------------------------------------------------
+   반응형 — 좁은 화면에서는 필터가 한 열로 쌓인다
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 1180px) {
+  .admin-console-filters {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .admin-console-filter-period {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .admin-console-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-console-filter-actions .btn,
+  .admin-shell .admin-console-preset,
+  .admin-shell .admin-console-bulk-action {
+    min-height: 44px;
+  }
+
+  .admin-console-bulk-actions {
+    width: 100%;
+    margin-inline-start: 0;
+  }
+
+  .admin-console-pagination .btn {
+    min-height: 44px;
+  }
+}

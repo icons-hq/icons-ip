@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { AdminInsights } from '@/lib/admin/insights.server';
 import type { AdminReportRecord } from '@/lib/admin/moderation.server';
 import { Icon } from '@/components/ui/Icon';
@@ -11,11 +12,9 @@ import { reportTargetLabels } from './Moderation';
 
 export function OverviewSection({
   insights,
-  onOpenModeration,
   reports,
 }: {
   insights: AdminInsights;
-  onOpenModeration: () => void;
   reports: AdminReportRecord[];
 }) {
   const recent = reports.slice(0, 5);
@@ -65,9 +64,9 @@ export function OverviewSection({
             <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>최근 신고</h2>
             <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>커뮤니티 신고 최신 5건</div>
           </div>
-          <button className="btn btn-sm btn-ghost" onClick={onOpenModeration} type="button">
+          <Link className="btn btn-sm btn-ghost" href="/admin/community/moderation">
             모두 보기 <Icon name="arrow" size={14} />
-          </button>
+          </Link>
         </div>
         {recent.map((report) => (
           <div key={report.id} className="between" style={{ borderTop: '1px solid var(--line)', gap: 12, padding: '11px 0' }}>

@@ -352,17 +352,21 @@ export function normalizeAdminGoodsManualRecoveryForm(
   };
 }
 
+/**
+ * 주문 목록 링크. 필터는 쿼리로 남고 화면은 라우트가 정한다 —
+ * 섹션 전환이 `?section=`이던 시절의 파라미터는 더 이상 붙이지 않는다.
+ */
 export function adminOrdersHref(
   filters: AdminOrderFilters,
   overrides: Partial<Pick<AdminOrderFilters, 'orderId' | 'page'>> = {},
 ) {
   const next = { ...filters, ...overrides };
-  const params = new URLSearchParams({ section: 'orders' });
+  const params = new URLSearchParams();
   if (next.status !== 'all') params.set('status', next.status);
   if (next.from) params.set('from', next.from);
   if (next.to) params.set('to', next.to);
   if (next.query) params.set('query', next.query);
   params.set('page', String(next.page));
   if (next.orderId) params.set('order', next.orderId);
-  return `/admin?${params.toString()}`;
+  return `/admin/sales/orders?${params.toString()}`;
 }

@@ -850,4 +850,155 @@ describe('getAdminCatalogRecords', () => {
       'Failed to load admin games: game summary unavailable',
     );
   });
+  /*
+   * 화면별 라우트가 갈라지기 전에는 어떤 화면을 열어도 8종 쿼리가 전부 나갔다.
+   * include는 그 낭비를 막는 계약이므로 "요청하지 않은 테이블은 건드리지 않는다"를 고정한다.
+   */
+  it('include에 없는 종류는 쿼리하지 않는다', async () => {
+    const records: QueryRecord[] = [];
+    const rpcRecords: string[] = [];
+    mocks.client = createClient({ records, rpcRecords, rows: { ips: [{ id: 'hwasan' }] } });
+
+    const result = await getAdminCatalogRecords({ include: ['ips'] });
+
+    expect(records.map((record) => record.table)).toEqual(['ips']);
+    expect(rpcRecords).toEqual([]);
+    expect(result.ips).toHaveLength(1);
+    expect(result.goods).toEqual([]);
+    expect(result.cards).toEqual([]);
+    expect(result.cardPools).toEqual([]);
+    expect(result.rewardPolicies).toEqual([]);
+    expect(result.games).toEqual([]);
+    expect(result.events).toEqual([]);
+    expect(result.ticketTypes).toEqual([]);
+  });
+
+  /* include를 생략한 호출부(레거시 어드민 페이지)가 조용히 빈 화면이 되지 않아야 한다. */
+  it('include를 생략하면 8종을 모두 조회해 돌려준다', async () => {
+    const records: QueryRecord[] = [];
+    const rpcRecords: string[] = [];
+    mocks.client = createClient({
+      records,
+      rpcRecords,
+      rows: {
+        ips: [{ id: 'hwasan' }],
+        goods: [{ id: 'g1', ip_id: 'hwasan' }],
+        cards: [{ id: 'c1', ip_id: 'hwasan', pool_id: null, rarity: 'N' }],
+        card_pools: [{
+          id: '11111111-1111-4111-8111-111111111111',
+          ip_id: 'hwasan',
+          name: '풀',
+          active_from: '2026-07-15T00:00:00.000Z',
+          active_to: null,
+          updated_at: '2026-07-15T00:00:00.000Z',
+          pool_odds: [],
+        }],
+        events: [{ id: 'e1', title: '화산강림 팝업' }],
+        ticket_types: [{ id: 't1', event_id: 'e1', name: '1회차', price: 0, capacity: 1, sold: 0 }],
+      },
+      rpcRows: {
+        admin_list_reward_policies: [{
+          id: 'p1',
+          pool_id: '11111111-1111-4111-8111-111111111111',
+          trigger: 'order_paid',
+          target_ip_id: 'hwasan',
+          target_good_id: null,
+          min_amount: 0,
+          tickets_per_grant: 1,
+          active: false,
+          active_from: '2026-07-15T00:00:00.000Z',
+          active_to: null,
+          created_at: '2026-07-15T00:00:00.000Z',
+          updated_at: '2026-07-15T00:00:00.000Z',
+          issued_count: 0,
+          available_count: 0,
+          opened_count: 0,
+          revoked_count: 0,
+          order_count: 0,
+          last_issued_at: null,
+        }],
+        admin_list_games: [{
+          id: 'game-1',
+          type: 'marble_roulette',
+          title: '마블',
+          variant_kind: 'goods',
+          per_user_daily_limit: 1,
+          active_from: '2026-07-15T00:00:00.000Z',
+          active_to: null,
+          created_at: '2026-07-15T00:00:00.000Z',
+          updated_at: '2026-07-15T00:00:00.000Z',
+          play_count: 0,
+        }],
+      },
+    });
+
+    const result = await getAdminCatalogRecords();
+
+    expect(records.map((record) => record.table).sort()).toEqual([
+      'card_pools',
+      'cards',
+      'events',
+      'goods',
+      'ips',
+      'ticket_types',
+    ]);
+    expect(rpcRecords.sort()).toEqual(['admin_list_games', 'admin_list_reward_policies']);
+    expect(Object.entries(result).every(([, value]) => value.length === 1)).toBe(true);
+  });
+
+  /*
+   * 파생값이 다른 종류의 행을 본다 — 티켓 회차 제목은 events, 정책 status는 카드풀(과 그 카드)이다.
+   * include를 곧이곧대로 따르면 화면은 조용히 틀린 값(제목 대신 id, 전부 pool-unavailable)을 본다.
+   */
+  it('파생에 필요한 종류는 조회하되 반환하지는 않는다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({
+      records,
+      rows: {
+        events: [{ id: 'e1', title: '화산강림 팝업' }],
+        ticket_types: [{ id: 't1', event_id: 'e1', name: '1회차', price: 0, capacity: 1, sold: 0 }],
+      },
+    });
+
+    const result = await getAdminCatalogRecords({ include: ['ticketTypes'] });
+
+    expect(records.map((record) => record.table).sort()).toEqual(['events', 'ticket_types']);
+    expect(result.ticketTypes[0].eventTitle).toBe('화산강림 팝업');
+    expect(result.events).toEqual([]);
+  });
+
+  it('카드풀만 요청해도 카드로 계산하는 rewardReady를 유지한다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({
+      records,
+      rows: {
+        cards: [
+          { id: 'c1', ip_id: 'hwasan', pool_id: 'pool-1', rarity: 'R', archived_at: null },
+          { id: 'c2', ip_id: 'hwasan', pool_id: 'pool-1', rarity: 'SSR', archived_at: null },
+          { id: 'c3', ip_id: 'hwasan', pool_id: 'pool-1', rarity: 'HOLO', archived_at: null },
+        ],
+        card_pools: [{
+          id: 'pool-1',
+          ip_id: 'hwasan',
+          name: '풀',
+          active_from: '2026-07-15T00:00:00.000Z',
+          active_to: null,
+          updated_at: '2026-07-15T00:00:00.000Z',
+          pool_odds: [
+            { rarity: 'N', probability: 0 },
+            { rarity: 'R', probability: 0.7 },
+            { rarity: 'SR', probability: 0 },
+            { rarity: 'SSR', probability: 0.2 },
+            { rarity: 'HOLO', probability: 0.1 },
+          ],
+        }],
+      },
+    });
+
+    const result = await getAdminCatalogRecords({ include: ['cardPools'] });
+
+    expect(records.map((record) => record.table).sort()).toEqual(['card_pools', 'cards']);
+    expect(result.cardPools[0].rewardReady).toBe(true);
+    expect(result.cards).toEqual([]);
+  });
 });

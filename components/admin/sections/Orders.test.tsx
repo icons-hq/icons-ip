@@ -281,16 +281,16 @@ describe('OrdersSection', () => {
 
     const html = renderToStaticMarkup(<OrdersSection data={data} />);
 
-    expect(html).toContain('action="/admin"');
-    expect(html).toContain('type="hidden" name="section" value="orders"');
+    expect(html).toContain('action="/admin/sales/orders"');
+    expect(html).not.toContain('name="section"');
     expect(html).toContain(
-      'href="/admin?section=orders&amp;status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=2&amp;order=44444444-4444-4444-8444-444444444444"',
+      'href="/admin/sales/orders?status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=2&amp;order=44444444-4444-4444-8444-444444444444"',
     );
     expect(html).toContain(
-      'href="/admin?section=orders&amp;status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=1"',
+      'href="/admin/sales/orders?status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=1"',
     );
     expect(html).toContain(
-      'href="/admin?section=orders&amp;status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=3"',
+      'href="/admin/sales/orders?status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=3"',
     );
     expect(html).toContain('2 / 3 페이지');
   });
