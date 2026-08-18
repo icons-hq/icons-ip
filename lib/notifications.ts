@@ -1,6 +1,9 @@
+// DB의 notifications.type CHECK 제약과 같은 목록이어야 한다.
+// order_confirmed는 없다 — 발주확인은 운영 내부 단계라 구매자에게 알릴 것이 없다(#250).
 export type NotificationType =
   | 'order_paid'
   | 'order_shipping'
+  | 'order_delivered'
   | 'draw_ticket_issued'
   | 'drop_published'
   | 'event_published'

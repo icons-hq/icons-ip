@@ -129,7 +129,7 @@ describe('loadOrders', () => {
     expect(records.find((record) => record.table === 'orders')).toMatchObject({
       select: 'id,user_id,status,total,created_at',
       eq: [['user_id', userId]],
-      in: [['status', ['paid', 'shipping', 'done', 'canceled']]],
+      in: [['status', ['paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled']]],
       order: [['created_at', { ascending: false }], ['id', { ascending: false }]],
     });
     expect(records.find((record) => record.table === 'order_items')).toMatchObject({
@@ -309,9 +309,9 @@ describe('loadOrderDetail', () => {
     expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|idempotency_key|raw|last_error_code/);
 
     expect(records.find((record) => record.table === 'orders')).toMatchObject({
-      select: 'id,user_id,status,total,shipping_fee,address,created_at,shipping_carrier,tracking_number',
+      select: 'id,user_id,status,total,shipping_fee,address,created_at,shipping_carrier,tracking_number,delivered_at',
       eq: [['id', orderId], ['user_id', userId]],
-      in: [['status', ['pending', 'paid', 'shipping', 'done', 'canceled']]],
+      in: [['status', ['pending', 'paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled']]],
       maybeSingle: true,
     });
     expect(records.find((record) => record.table === 'payment_summaries')).toMatchObject({

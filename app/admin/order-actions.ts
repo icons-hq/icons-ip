@@ -8,6 +8,7 @@ import {
   normalizeAdminOrderStatusForm,
   normalizeAdminOrderTrackingForm,
   type AdminOrderFieldErrors,
+  type AdminOrderFormStatus,
 } from '@/lib/admin/orders';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { parseOrderEmailDedupeKey } from '@/lib/email/dedupe';
@@ -15,6 +16,7 @@ import {
   sendOrderConfirmationEmail,
   sendOrderShippedEmail,
 } from '@/lib/email/transactional.server';
+import { orderReferenceLabel } from '@/lib/orders';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
 import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recovery.server';
 import { orderShipment } from '@/lib/orders/shipment';
@@ -55,6 +57,16 @@ async function reconcileApprovedRequest(requestId: string, actorId: string) {
 const REVIEW_REQUIRED = '결제 취소 상태를 확정하지 못했습니다. 운영 화면의 최신 상태에서 다시 확인해주세요.';
 const PAYMENT_RECONCILIATION_IN_PROGRESS = '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 최신 상태를 확인한 뒤 다시 시도하고, 상태가 계속되면 관리자 결제 담당자에게 결제사 원장 확인을 요청해주세요.';
 
+/**
+ * 전이별 완료 문구(#250). "완료 처리"는 done이 거래확정으로 재정의되면서
+ * 배송완료와 뜻이 갈렸다 — 운영자가 어느 칸을 밀었는지 문구로 알 수 있어야 한다.
+ */
+const STATUS_TRANSITION_MESSAGES: Record<AdminOrderFormStatus, string> = {
+  confirmed: '주문을 발주확인했습니다.',
+  shipping: '배송을 시작했습니다.',
+  delivered: '배송완료로 변경했습니다.',
+};
+
 export async function updateAdminOrderStatusAction(
   _state: AdminOrderActionState,
   formData: FormData,
@@ -94,11 +106,90 @@ export async function updateAdminOrderStatusAction(
   }
 
   revalidateOrderSurfaces(normalized.value.orderId);
-  return {
-    message: normalized.value.status === 'shipping'
-      ? '배송을 시작했습니다.'
-      : '주문을 완료 처리했습니다.',
-  };
+  return { message: STATUS_TRANSITION_MESSAGES[normalized.value.status] };
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+/* 한 번에 미는 상한. 상한이 없으면 전체선택 한 번이 수백 건의 순차 RPC가 된다. */
+const BULK_CONFIRM_LIMIT = 100;
+
+/**
+ * 신규주문 일괄 발주확인(#250).
+ *
+ * 건별로 기존 `admin_update_order_status`를 부른다. 일괄 전용 RPC를 만들지 않는
+ * 이유는 전이 규칙·활성 클레임 검사·감사 로그가 이미 그 함수 안에 있기 때문이다 —
+ * 우회로를 하나 더 만들면 규칙이 두 벌이 된다.
+ *
+ * 한 건이 실패해도 나머지를 멈추지 않는다. 발주확인이 거절되는 흔한 이유는 그 주문에
+ * 취소 클레임이 열려 있어서인데, 그 한 건 때문에 선택한 40건이 통째로 실패하면
+ * 운영자는 무엇이 처리됐는지 모른 채 다시 전부 누르게 된다. 대신 성공·실패 건수를
+ * 세어 돌려준다. 개별 실패 사유는 화면에 늘어놓지 않는다 — 목록을 새로고침하면
+ * 남아 있는 건이 곧 실패한 건이다.
+ */
+export async function bulkConfirmAdminOrdersAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  const access = await requireStaffAction();
+  if (access.error) return access.error;
+
+  const orderIds = [...new Set(
+    formData.getAll('orderIds')
+      .filter((value): value is string => typeof value === 'string')
+      .map((value) => value.trim().toLowerCase())
+      .filter((value) => UUID_PATTERN.test(value)),
+  )];
+
+  if (!orderIds.length) return { errors: { form: '발주확인할 주문을 선택해주세요.' } };
+  if (orderIds.length > BULK_CONFIRM_LIMIT) {
+    return {
+      errors: {
+        form: `한 번에 발주확인할 수 있는 주문은 ${BULK_CONFIRM_LIMIT}건까지입니다. 기간을 좁혀 나눠 처리해주세요.`,
+      },
+    };
+  }
+
+  const supabase = await createClient();
+  let confirmed = 0;
+  const failed: string[] = [];
+
+  for (const orderId of orderIds) {
+    const { error } = await supabase.rpc('admin_update_order_status', {
+      p_carrier: null,
+      p_order_id: orderId,
+      p_status: 'confirmed',
+      p_tracking_number: null,
+    });
+    if (error) {
+      failed.push(orderId);
+      continue;
+    }
+    confirmed += 1;
+  }
+
+  for (const orderId of orderIds) revalidateOrderSurfaces(orderId);
+  revalidatePath('/admin/sales/dispatch');
+
+  if (!confirmed) {
+    return {
+      errors: {
+        form: `선택한 ${orderIds.length}건을 발주확인하지 못했습니다. 취소 요청이 열려 있거나 이미 상태가 바뀐 주문일 수 있습니다: ${
+          failed.map(orderReferenceLabel).join(', ')
+        }`,
+      },
+    };
+  }
+  if (failed.length) {
+    /* 실패 건수만 알려주면 운영자가 100건 목록에서 어느 주문이 남았는지 찾지
+       못한다. 주문번호를 그대로 실어 보낸다 — 원인은 주문마다 다를 수 있으므로
+       (취소 요청·이미 바뀐 상태·일시적 오류) 한 가지로 단정하지 않는다. */
+    return {
+      message: `${confirmed}건을 발주확인했습니다. 처리하지 못한 ${failed.length}건: ${
+        failed.map(orderReferenceLabel).join(', ')
+      } — 주문 상세에서 취소 요청 여부와 현재 상태를 확인해주세요.`,
+    };
+  }
+  return { message: `${confirmed}건을 발주확인했습니다.` };
 }
 
 export async function updateAdminOrderTrackingAction(

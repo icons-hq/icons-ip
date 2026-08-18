@@ -62,6 +62,15 @@ describe('normalizeAdminOrderFilters', () => {
     });
   });
 
+  // 새 사다리 단계가 필터 허용 목록에 없으면 발주확인·배송완료 주문만 모아
+  // 보는 화면이 통째로 'all'로 떨어진다(#250).
+  it.each(['pending', 'paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled'] as const)(
+    '%s 상태 필터를 사다리 값으로 받는다',
+    (status) => {
+      expect(normalizeAdminOrderFilters({ status })).toMatchObject({ status });
+    },
+  );
+
   it('실재하지 않는 달력 날짜와 과도한 검색어를 거른다', () => {
     expect(normalizeAdminOrderFilters({
       from: '2026-02-30',
@@ -72,7 +81,7 @@ describe('normalizeAdminOrderFilters', () => {
 });
 
 describe('admin order mutation forms', () => {
-  it('배송 상태 전이는 shipping·done만 허용한다', () => {
+  it('상태 폼은 사다리 중간 세 칸만 허용한다', () => {
     const formData = new FormData();
     formData.set('orderId', ORDER_ID);
     formData.set('status', 'shipping');
@@ -89,11 +98,15 @@ describe('admin order mutation forms', () => {
       },
     });
 
-    formData.set('status', 'canceled');
-    expect(normalizeAdminOrderStatusForm(formData)).toEqual({
-      ok: false,
-      errors: { status: '허용된 배송 상태를 선택해주세요.' },
-    });
+    /* paid·done·canceled는 각각 결제 웹훅·자동 거래확정 잡·청약철회 경로가
+       소유한다. 운영자 폼이 그 칸을 밀 수 있으면 소유권이 두 곳이 된다(#250). */
+    for (const owned of ['pending', 'paid', 'done', 'canceled']) {
+      formData.set('status', owned);
+      expect(normalizeAdminOrderStatusForm(formData)).toEqual({
+        ok: false,
+        errors: { status: '허용된 주문 상태를 선택해주세요.' },
+      });
+    }
   });
 
   it('배송 시작은 운송장 없이 통과하지 못한다', () => {
@@ -120,16 +133,19 @@ describe('admin order mutation forms', () => {
     });
   });
 
-  it('배송 완료 전이는 운송장 입력을 다시 받지 않는다', () => {
+  it.each([
+    ['발주확인', 'confirmed'],
+    ['배송완료', 'delivered'],
+  ])('%s 전이는 운송장 입력을 다시 받지 않는다', (_label, status) => {
     const formData = new FormData();
     formData.set('orderId', ORDER_ID);
-    formData.set('status', 'done');
+    formData.set('status', status);
     formData.set('carrier', 'hanjin');
     formData.set('trackingNumber', '123456789012');
 
     expect(normalizeAdminOrderStatusForm(formData)).toEqual({
       ok: true,
-      value: { orderId: ORDER_ID, status: 'done', carrier: null, trackingNumber: null },
+      value: { orderId: ORDER_ID, status, carrier: null, trackingNumber: null },
     });
   });
 

@@ -14,6 +14,7 @@ import {
   type OrderRefundSummary,
   type OrderWithdrawalReasonType,
 } from '../../lib/orders';
+import { orderWithdrawalDeadlinePassed } from '../../lib/orders/withdrawal';
 
 export { LEGAL_WITHDRAWAL_NOTICE };
 export const CANCELLATION_FAILURE_MESSAGE = '취소 요청을 처리하지 못했습니다. 주문 상태를 새로 확인한 뒤 다시 시도해주세요.';
@@ -138,6 +139,13 @@ export function cancellationPresentation(
   status: OrderDetailStatus,
   refund: OrderRefundSummary | null,
   cancellationRequest: OrderCancellationRequestSummary | null = null,
+  /*
+   * 배송 이후 문구는 상태가 아니라 기한에서 나와야 한다. delivered→done은 하루 한 번
+   * 도는 잡이 옮기므로 변심 7일이 지난 뒤에도 주문이 최대 하루 더 delivered에 남는다.
+   * 상태로만 문구를 고르면 그 사이 화면은 "7일 이내에 요청할 수 있습니다"라고 하는데
+   * DB는 deadline_expired를 돌려주고, 같은 페이지의 기한 안내는 창이 닫혔다고 적는다.
+   */
+  options: { deliveredAt?: string | null; at?: Date } = {},
 ): CancellationPresentation {
   if (cancellationRequest && cancellationRequest.status !== 'rejected') {
     return requestPresentation(cancellationRequest);
@@ -184,10 +192,23 @@ export function cancellationPresentation(
 
   // 배송이 시작된 뒤가 실물 반품의 주 경로다. 법정 고지가 "공급받은 날부터 7일"을
   // 안내하는 만큼 같은 시점에 요청 버튼도 열어 둔다(D10).
-  if (status === 'shipping' || status === 'done') {
-    const deadlineNotice = status === 'shipping'
-      ? '배송이 시작된 주문입니다. 굿즈를 공급받은 날부터 7일 이내에 청약철회를 요청할 수 있습니다.'
-      : '배송이 완료된 주문입니다. 굿즈를 공급받은 날부터 7일 이내에 청약철회를 요청할 수 있습니다.';
+  if (status === 'shipping' || status === 'delivered' || status === 'done') {
+    /* 사다리가 늘면서 "배송 이후"가 셋이 됐다(#250). done은 변심 창이 이미 닫힌
+       거래확정이지만 하자·오배송은 공급받은 날부터 3개월 남아 있으므로 요청
+       경로를 계속 연다 — 기한 판정의 진실원은 DB다. */
+    const changeOfMindOpen = !orderWithdrawalDeadlinePassed(
+      options.deliveredAt,
+      'change_of_mind',
+      options.at ?? new Date(),
+    );
+    const stateNotice = status === 'shipping'
+      ? '배송이 시작된 주문입니다.'
+      : status === 'delivered'
+        ? '배송이 완료된 주문입니다.'
+        : '거래가 확정된 주문입니다.';
+    const deadlineNotice = changeOfMindOpen
+      ? `${stateNotice} 굿즈를 공급받은 날부터 7일 이내에 청약철회를 요청할 수 있습니다.`
+      : `${stateNotice} 단순 변심 기한은 지났고, 상품 하자·오배송은 공급받은 날부터 3개월 이내에 요청할 수 있습니다.`;
     const returnNotice = '요청이 승인되려면 굿즈가 반품 입고돼야 하고, 반품 배송은 고객 착불 반송입니다.';
 
     return {
@@ -224,6 +245,8 @@ interface OrderCancellationProps {
   status: OrderDetailStatus;
   refund: OrderRefundSummary | null;
   cancellationRequest: OrderCancellationRequestSummary | null;
+  /** 청약철회 기한의 기산점(공급받은 날). 문구와 기본 사유가 여기서 갈린다. */
+  deliveredAt: string | null;
 }
 
 type SubmissionState =
@@ -235,16 +258,28 @@ type SubmissionState =
   | 'expired'
   | 'error';
 
-export function OrderCancellation({ cancellationRequest, orderId, status, refund }: OrderCancellationProps) {
+export function OrderCancellation({
+  cancellationRequest,
+  deliveredAt,
+  orderId,
+  status,
+  refund,
+}: OrderCancellationProps) {
   const router = useRouter();
   const [submission, setSubmission] = useState<SubmissionState>('idle');
-  const [reasonType, setReasonType] = useState<OrderWithdrawalReasonType>('change_of_mind');
+  /* 변심 창이 이미 닫힌 주문에서 변심을 기본값으로 두면 첫 제출이 반드시
+     deadline_expired로 튕긴다. 열려 있을 때만 변심으로 시작한다. */
+  const [reasonType, setReasonType] = useState<OrderWithdrawalReasonType>(
+    orderWithdrawalDeadlinePassed(deliveredAt, 'change_of_mind', new Date())
+      ? 'defect'
+      : 'change_of_mind',
+  );
   const openButtonRef = useRef<HTMLButtonElement>(null);
   const shouldRestoreFocus = useRef(false);
-  const presentation = cancellationPresentation(status, refund, cancellationRequest);
+  const presentation = cancellationPresentation(status, refund, cancellationRequest, { deliveredAt });
   // 배송 전 취소는 기한 판정 대상이 아니다. 사유를 물어도 결과가 같으므로
   // 실물이 고객 손에 갈 수 있는 시점부터만 선택을 받는다.
-  const asksReason = status === 'shipping' || status === 'done';
+  const asksReason = status === 'shipping' || status === 'delivered' || status === 'done';
 
   useEffect(() => {
     if (submission !== 'idle' || !shouldRestoreFocus.current) return;

@@ -777,9 +777,13 @@
     width: fit-content; padding: 0 10px; border: 1px solid var(--line-2); border-radius: 999px;
     font-size: 10px; font-weight: 800; white-space: nowrap;
   }
-  .order-status--paid { color: var(--violet-2); background: rgba(169,129,255,.07); border-color: rgba(169,129,255,.28); }
+  /* 사다리 6단계를 6색으로 나누지 않는다(#250). 색은 국면을 묶고 — 결제 후 준비(violet),
+     배송 계열(cyan), 거래확정(mint) — 단계 이름은 라벨이 말한다. 새 색은 만들지 않는다. */
+  .order-status--paid,
+  .order-status--confirmed { color: var(--violet-2); background: rgba(169,129,255,.07); border-color: rgba(169,129,255,.28); }
   .order-status--pending { color: var(--amber); background: rgba(255,178,61,.07); border-color: rgba(255,178,61,.28); }
-  .order-status--shipping { color: var(--cyan); background: rgba(45,226,255,.06); border-color: rgba(45,226,255,.26); }
+  .order-status--shipping,
+  .order-status--delivered { color: var(--cyan); background: rgba(45,226,255,.06); border-color: rgba(45,226,255,.26); }
   .order-status--done { color: var(--mint); background: rgba(56,240,192,.06); border-color: rgba(56,240,192,.25); }
   .order-status--canceled { color: var(--pink); background: rgba(255,77,157,.06); border-color: rgba(255,77,157,.24); }
   .order-list-total { justify-self: end; font-size: 14px; }
@@ -802,6 +806,21 @@
   .order-detail-back:hover { color: var(--text); }
   .order-detail-status-row { margin-bottom: 15px; }
   .order-detail-meta { display: flex; align-items: center; gap: 9px; margin-top: 18px; color: var(--faint); font-size: 10px; }
+  /* 사다리 진행 표시(#250). 지나온 단계·현재 단계·남은 단계를 색이 아니라 강조로
+     구분한다 — 상태 배지가 이미 국면 색을 쓰고 있어 색을 하나 더 얹으면 어느 쪽이
+     지금 상태인지 흐려진다. */
+  .order-detail-ladder {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+    margin-top: 16px; padding: 0; list-style: none;
+    font-size: 10px; letter-spacing: .04em;
+  }
+  .order-detail-ladder-step { color: var(--faint); }
+  .order-detail-ladder-step + .order-detail-ladder-step::before {
+    content: '›'; margin-right: 10px; color: var(--line-2);
+  }
+  .order-detail-ladder-step[data-state="done"] { color: var(--dim); }
+  .order-detail-ladder-step[data-state="current"] { color: var(--text); font-weight: 800; }
+  .order-detail-withdrawal { margin-top: 18px; font-size: 11px; line-height: 1.65; }
   .order-detail-layout {
     display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 400px);
     gap: 20px; align-items: start; padding-bottom: clamp(76px, 9vw, 112px);

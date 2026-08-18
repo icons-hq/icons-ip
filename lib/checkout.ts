@@ -143,7 +143,9 @@ export function checkoutOrderState(
   expiresAt: string | null,
   now: number = Date.now(),
 ): CheckoutOrderState {
-  if (orderStatus === 'paid' || orderStatus === 'shipping' || orderStatus === 'done') {
+  // 결제가 끝난 뒤의 모든 사다리 단계는 "결제 완료"다(#250). 새 단계가 빠지면
+  // 발주확인된 주문의 결제 화면이 만료된 주문처럼 닫혀 보인다.
+  if (orderStatus !== 'pending' && orderStatus !== 'canceled') {
     return 'complete';
   }
   if (orderStatus !== 'pending') return 'closed';

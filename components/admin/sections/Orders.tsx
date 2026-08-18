@@ -18,6 +18,7 @@ import {
   type AdminOrderCancellationRequestRecord,
   type AdminOrderConsoleData,
   type AdminOrderFilters,
+  type AdminOrderFormStatus,
   type AdminOrderRecord,
   type OrderCancellationRequestStatus,
 } from '@/lib/admin/orders';
@@ -34,12 +35,15 @@ import {
 import { SHIPPING_CARRIERS, type OrderShipment } from '@/lib/orders/shipment';
 import { formatKrw } from '../format';
 
+/* 사다리 순서 그대로 둔다 — 드롭다운 순서가 운영자에게는 단계 순서다(#250). */
 const STATUS_OPTIONS: Array<{ value: AdminOrderFilters['status']; label: string }> = [
   { value: 'all', label: '전체 상태' },
   { value: 'pending', label: '결제 대기' },
-  { value: 'paid', label: '결제 완료' },
-  { value: 'shipping', label: '배송 중' },
-  { value: 'done', label: '완료' },
+  { value: 'paid', label: '신규주문' },
+  { value: 'confirmed', label: '발주확인' },
+  { value: 'shipping', label: '배송중' },
+  { value: 'delivered', label: '배송완료' },
+  { value: 'done', label: '거래확정' },
   { value: 'canceled', label: '취소' },
 ];
 
@@ -183,6 +187,13 @@ function TrackingFields({
   );
 }
 
+/* 거래확정(done)은 자동 잡이 소유한다 — 여기 버튼으로 미는 칸이 아니다. */
+const STATUS_ACTION_CONFIRMATIONS: Record<AdminOrderFormStatus, string> = {
+  confirmed: '주문을 발주확인 처리할까요? 이후 발송처리 단계로 넘어갑니다.',
+  shipping: '입력한 택배사·운송장번호로 배송을 시작할까요? 고객 주문 상세에 그대로 노출됩니다.',
+  delivered: '주문을 배송완료로 변경할까요? 이 시점부터 청약철회 기한이 시작됩니다.',
+};
+
 function OrderStatusAction({
   label,
   orderId,
@@ -192,12 +203,10 @@ function OrderStatusAction({
   label: string;
   orderId: string;
   shipment: OrderShipment | null;
-  status: 'shipping' | 'done';
+  status: AdminOrderFormStatus;
 }) {
   const [state, action, pending] = useActionState(updateAdminOrderStatusAction, EMPTY_ACTION_STATE);
-  const confirmation = status === 'shipping'
-    ? '입력한 택배사·운송장번호로 배송을 시작할까요? 고객 주문 상세에 그대로 노출됩니다.'
-    : '주문을 배송 완료 처리할까요?';
+  const confirmation = STATUS_ACTION_CONFIRMATIONS[status];
 
   return (
     <form
@@ -473,7 +482,11 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
   const status = orderStatusMeta(order.status);
   const cancellationRequest = order.cancellationRequest;
   const canAdvanceOrderStatus = !cancellationRequest || cancellationRequest.status === 'rejected';
-  const hasShipped = order.status === 'shipping' || order.status === 'done';
+  /* 반송비 부담 주체는 실제로 물건이 나간 뒤에만 의미가 있다. 사다리가 늘어
+     배송 이후 상태가 셋이 됐다(#250). */
+  const hasShipped = order.status === 'shipping'
+    || order.status === 'delivered'
+    || order.status === 'done';
   const manualRecoveryAttempt = order.manualRecoveryAttempt
     && cancellationRequest
     && order.manualRecoveryAttempt.requestId === cancellationRequest.id
@@ -608,7 +621,15 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
       <div className="admin-order-actions">
         {canAdvanceOrderStatus && order.status === 'paid' ? (
           <OrderStatusAction
-            label="배송 시작"
+            label="발주확인"
+            orderId={order.id}
+            shipment={order.shipment}
+            status="confirmed"
+          />
+        ) : null}
+        {canAdvanceOrderStatus && order.status === 'confirmed' ? (
+          <OrderStatusAction
+            label="발송처리"
             orderId={order.id}
             shipment={order.shipment}
             status="shipping"
@@ -616,13 +637,15 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
         ) : null}
         {canAdvanceOrderStatus && order.status === 'shipping' ? (
           <OrderStatusAction
-            label="배송 완료"
+            label="배송완료"
             orderId={order.id}
             shipment={order.shipment}
-            status="done"
+            status="delivered"
           />
         ) : null}
-        {order.status === 'shipping' || order.status === 'done' ? (
+        {/* delivered→done은 자동 거래확정 잡이 맡는다. 운영자 버튼을 두면
+            청약철회 창을 사람 손으로 조기 종료시킬 수 있다. */}
+        {hasShipped ? (
           <UpdateTrackingForm orderId={order.id} shipment={order.shipment} />
         ) : null}
         {cancellationRequest?.status === 'requested' ? (
