@@ -37,6 +37,11 @@ export interface Good {
   stock: Stock;
   stockQty: number;
   img: string;
+  /**
+   * 무통장 입금 허용 여부 (#256). 없으면 허용 — DB 기본값과 같다.
+   * 한정 드롭처럼 재고가 24시간 묶이면 곤란한 굿즈만 운영자가 끈다.
+   */
+  allowBankTransfer?: boolean;
 }
 export interface Card {
   id: string;

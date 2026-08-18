@@ -40,7 +40,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     icon: 'bag',
     screens: [
       { id: 'orders', label: '주문 통합검색', href: '/admin/sales/orders', status: 'ready' },
-      { id: 'unpaid', label: '미입금 확인', href: '/admin/sales/unpaid', status: 'planned' },
+      { id: 'unpaid', label: '미입금 확인', href: '/admin/sales/unpaid', status: 'ready' },
       { id: 'dispatch', label: '발주·발송 관리', href: '/admin/sales/dispatch', status: 'ready' },
       { id: 'shipping', label: '배송현황 관리', href: '/admin/sales/shipping', status: 'ready' },
       { id: 'settled', label: '거래확정 내역', href: '/admin/sales/settled', status: 'ready' },

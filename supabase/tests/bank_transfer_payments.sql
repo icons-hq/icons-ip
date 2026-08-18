@@ -202,6 +202,25 @@ select 1 / case when (
   where id = :'bank_order_id'
 ) then 1 else 0 end as assert_bank_transfer_holds_stock_for_a_day;
 
+-- 원장 anchor는 주문과 함께 열린다. "결제 준비" 클릭을 기다리면 이미 이체한
+-- 구매자의 입금을 운영자가 확인할 대상이 없다.
+select 1 / case when (
+  select count(*) = 1
+    and bool_and(attempt.provider = 'bank_transfer')
+    and bool_and(attempt.state = 'prepared')
+  from public.payment_attempts as attempt
+  where attempt.purpose = 'order'
+    and attempt.ref_id = :'bank_order_id'::uuid
+) then 1 else 0 end as assert_order_creation_opens_the_ledger_anchor;
+
+-- 카드 주문에는 아직 attempt가 없다 — 결제 준비가 그 시점이다.
+select 1 / case when (
+  select count(*) = 0
+  from public.payment_attempts as attempt
+  join public.orders on orders.id = attempt.ref_id
+  where orders.payment_method = 'card'
+) then 1 else 0 end as assert_card_orders_wait_for_prepare;
+
 -- 안내 알림은 주문을 만든 순간 나간다. 금액과 입금자명 코드가 그때 정해진다.
 reset role;
 select 1 / case when (
@@ -335,11 +354,19 @@ begin
 end;
 $$;
 
+-- 다시 불러도 같은 attempt를 돌려준다. 재시도가 두 번째 선점을 만들면 안 된다.
 select public.prepare_goods_payment_attempt(
   '00000000-0000-4000-8000-000000000d01',
   :'bank_order_id'::uuid,
   'bank_transfer'::public.payment_provider
 );
+
+select 1 / case when (
+  select count(*) = 1
+  from public.payment_attempts as attempt
+  where attempt.purpose = 'order'
+    and attempt.ref_id = :'bank_order_id'::uuid
+) then 1 else 0 end as assert_prepare_is_idempotent;
 
 -- attempt TTL이 곧 입금 기한이다. 짧게 잡히면 입금 확인이 만료된 attempt를
 -- 붙잡고 실패한다.
@@ -474,12 +501,6 @@ select public.place_order(
   'bank_transfer'::public.order_payment_method
 ) as extend_order_id \gset
 
-select public.prepare_goods_payment_attempt(
-  '00000000-0000-4000-8000-000000000d01',
-  :'extend_order_id'::uuid,
-  'bank_transfer'::public.payment_provider
-);
-
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000d02', true);
 
@@ -576,12 +597,6 @@ select public.place_order(
   '9a000000-0000-4000-8000-000000000005'::uuid,
   'bank_transfer'::public.order_payment_method
 ) as expiring_order_id \gset
-
-select public.prepare_goods_payment_attempt(
-  '00000000-0000-4000-8000-000000000d01',
-  :'expiring_order_id'::uuid,
-  'bank_transfer'::public.payment_provider
-);
 
 reset role;
 

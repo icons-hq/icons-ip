@@ -112,6 +112,7 @@ interface GoodRow {
   stock_qty: number;
   bg: string | null;
   image_path: string | null;
+  allow_bank_transfer: boolean | null;
 }
 
 interface CardRow {
@@ -378,6 +379,7 @@ function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
     stock: stockQty <= 0 ? 'soldout' : toStock(row.stock),
     stockQty,
     img: backgroundFor(row.bg, row.image_path, imageUrlForPath, DATA.GOODS[0]?.img ?? ''),
+    allowBankTransfer: row.allow_bank_transfer ?? true,
   };
 }
 
@@ -514,7 +516,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
-      .select('id,ip_id,name,type,price,badge,stock,stock_qty,bg,image_path')
+      .select('id,ip_id,name,type,price,badge,stock,stock_qty,bg,image_path,allow_bank_transfer')
       .is('archived_at', null)
       .order('id'),
     supabase

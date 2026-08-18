@@ -32,6 +32,8 @@ export interface AdminGoodRecord {
   badge: string | null;
   stock: Stock;
   stockQty: number;
+  /** 무통장 입금 허용 여부 (#256). 한정 드롭은 꺼서 24시간 재고 잠김을 막는다. */
+  allowBankTransfer: boolean;
   bg: string | null;
   imagePath: string | null;
   imageUrl?: string | null;
@@ -301,6 +303,7 @@ interface GoodRow {
   badge: string | null;
   stock: Stock;
   stock_qty: number | null;
+  allow_bank_transfer: boolean | null;
   bg: string | null;
   image_path: string | null;
   notice_maker: string | null;
@@ -487,7 +490,7 @@ export async function getAdminCatalogRecords(
       ? supabase
         .from('goods')
         /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-        .select('id,archived_at,ip_id,name,type,price,badge,stock,stock_qty,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path')
+        .select('id,archived_at,ip_id,name,type,price,badge,stock,stock_qty,allow_bank_transfer,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path')
         .order('id')
       : skippedResult,
     queried.has('cards')
@@ -613,6 +616,7 @@ export async function getAdminCatalogRecords(
       badge: row.badge,
       stock: row.stock,
       stockQty: row.stock_qty ?? 0,
+      allowBankTransfer: row.allow_bank_transfer ?? true,
       bg: row.bg,
       imagePath: row.image_path,
       imageUrl: previewUrlFor(row),

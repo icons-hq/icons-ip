@@ -349,6 +349,15 @@ begin
       shipping_fee = v_shipping_fee
   where id = v_order;
 
+  -- 무통장에는 결제사 왕복이 없다. 그래서 원장 anchor(payment_attempts)를 여기서
+  -- 바로 연다 — 없으면 운영자가 입금을 확인할 대상 자체가 없고, "결제 준비" 버튼을
+  -- 눌러야 생기는 구조는 구매자가 이미 이체한 뒤에도 확인이 안 되는 창을 만든다.
+  -- 새 함수를 두지 않고 카드와 같은 prepare를 부른다: 소유권·금액·스냅샷·정지
+  -- 계정 검사가 한 곳에만 있어야 한다.
+  if p_payment_method = 'bank_transfer' then
+    perform public.prepare_goods_payment_attempt(v_user, v_order, 'bank_transfer');
+  end if;
+
   -- 무통장 주문은 만든 순간이 안내 시점이다. 금액·입금자명 코드·기한이 모두
   -- 정해졌고, 이 알림을 놓치면 구매자는 어디로 얼마를 보낼지 알 수 없다.
   if p_payment_method = 'bank_transfer' then

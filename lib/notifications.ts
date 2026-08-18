@@ -10,6 +10,10 @@ export type NotificationType =
   | 'announcement'
   /* 1:1 문의 답변(#253). 발송은 admin_answer_inquiry가 같은 트랜잭션에서 남긴다. */
   | 'inquiry_answered'
+  /* 무통장 입금 안내(#256). place_order가 주문을 만든 트랜잭션에서 함께 남긴다 —
+     금액·입금자명 코드·기한이 그때 정해지고, 이 알림을 놓치면 구매자는 어디로
+     얼마를 보낼지 알 수 없다. */
+  | 'order_bank_transfer_pending'
   /* 클레임 단계 변화(#252) — 접수·승인·거부·보류·입고·환불·재출고를 한 타입으로
      묶는다. 단계마다 타입을 나누면 DB CHECK와 이 union이 아홉 번 갈라진다. */
   | 'claim_updated';

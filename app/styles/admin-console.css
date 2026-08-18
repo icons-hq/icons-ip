@@ -520,3 +520,90 @@ a.admin-console-chip:hover {
     min-height: 44px;
   }
 }
+
+/* 미입금 확인 콘솔 (#256).
+   임박 배지는 목록에서 "지금 처리해야 하는 행"만 가리킨다. 기한이 남은 행까지
+   물들이면 신호가 죽는다. */
+.admin-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.admin-badge--warn {
+  border-color: rgba(255, 178, 61, 0.35);
+  background: rgba(255, 178, 61, 0.08);
+  color: var(--amber);
+}
+
+.admin-unpaid-actions {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.admin-unpaid-actions header h3 {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.admin-unpaid-actions header p {
+  margin: 0;
+  color: var(--dim);
+  font-size: 11px;
+}
+
+.admin-unpaid-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.admin-unpaid-action label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.admin-unpaid-action label span {
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.admin-unpaid-action input {
+  min-height: 40px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.admin-unpaid-action .admin-error,
+.admin-unpaid-action .admin-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+}
+
+.admin-unpaid-action .admin-error {
+  color: var(--pink);
+}
+
+.admin-unpaid-action .admin-note {
+  color: var(--dim);
+}
+
+@media (max-width: 760px) {
+  .admin-unpaid-action {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
