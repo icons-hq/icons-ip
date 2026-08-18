@@ -61,9 +61,12 @@
   서명 또는 provider 상태조회 부재, #208의 공급사 취소 채널·담당자 인계·모호 승인 운영을
   해소하지 않는다. 이는 사용자 승인에 따른 운영 예외이며 이후 rollout의 안전한 선례로
   재사용하지 않는다.
-- 모호 승인, 취소 불능, 법정 고지 불일치 또는 운영자 부재가 확인되면 아래 rollback 순서로
-  굿즈 gate를 즉시 `false`로 되돌리고 새 Production deployment의 boolean readback까지
-  확인한다.
+- `2026-08-18`부터 `2026-08-20`까지 현행 법정 본문과 Korpay 공개 결제가 일치하지 않는
+  상태는 위에서 승인한 운영 예외 자체이므로 그것만으로 rollback을 반복 실행하지 않는다.
+  `2026-08-21 00:00 KST`까지 개정 본문이 Production에 활성화되지 않으면 아래 rollback
+  순서로 굿즈 gate를 즉시 `false`로 되돌린다. 그전이라도 이 전환 범위를 벗어난 새로운
+  법정 고지 불일치, 모호 승인, 취소 불능 또는 운영자 부재가 확인되면 즉시 rollback하고
+  새 Production deployment의 boolean readback까지 확인한다.
 
 ## 결제 프로토콜
 
