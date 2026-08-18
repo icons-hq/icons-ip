@@ -55,22 +55,41 @@
 --
 -- 이 CHECK와 lib/notifications.ts의 union은 같은 목록이어야 한다. 한쪽만 넓히면
 -- 새 타입이 화면에서 사라지거나(앱) insert가 런타임에 막힌다(DB).
-alter table public.notifications
-  drop constraint notifications_type_check;
-alter table public.notifications
-  add constraint notifications_type_check check (
-    type in (
-      'order_paid',
-      'order_shipping',
-      'order_delivered',
-      'draw_ticket_issued',
-      'drop_published',
-      'event_published',
-      'announcement',
-      'inquiry_answered',
-      'review_replied'
-    )
+--
+-- 목록을 통째로 다시 쓰지 않고 기존 정의에서 값을 읽어 덧붙인다. 손으로 적은
+-- 목록은 브랜치가 갈라진 사이에 다른 마이그레이션이 추가한 타입을 조용히
+-- 지운다 — 실제로 이 마이그레이션이 claim_updated(#252)를 지웠고, 클레임 결정이
+-- 같은 트랜잭션에서 알림을 넣기 때문에 클레임 처리 전체가 실패할 뻔했다.
+do $$
+declare
+  v_def text;
+  v_values text;
+begin
+  select pg_get_constraintdef(constraint_row.oid)
+  into strict v_def
+  from pg_catalog.pg_constraint as constraint_row
+  where constraint_row.conrelid = 'public.notifications'::regclass
+    and constraint_row.conname = 'notifications_type_check';
+
+  select string_agg(distinct quote_literal(matched[1]), ', ')
+  into v_values
+  from regexp_matches(v_def, '''([a-z_]+)''::text', 'g') as matched;
+
+  if v_values is null then
+    raise exception 'notifications_type_check has no readable type list';
+  end if;
+
+  if position('''review_replied''' in v_values) = 0 then
+    v_values := v_values || ', ' || quote_literal('review_replied');
+  end if;
+
+  execute 'alter table public.notifications drop constraint notifications_type_check';
+  execute format(
+    'alter table public.notifications add constraint notifications_type_check check (type in (%s))',
+    v_values
   );
+end;
+$$;
 
 -- ---------------------------------------------------------------------------
 -- 1. 첨부 경로 형식
