@@ -16,6 +16,7 @@ import {
   sendOrderConfirmationEmail,
   sendOrderShippedEmail,
 } from '@/lib/email/transactional.server';
+import { orderReferenceLabel } from '@/lib/orders';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
 import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recovery.server';
 import { orderShipment } from '@/lib/orders/shipment';
@@ -172,13 +173,20 @@ export async function bulkConfirmAdminOrdersAction(
   if (!confirmed) {
     return {
       errors: {
-        form: `선택한 ${orderIds.length}건을 발주확인하지 못했습니다. 취소 요청이 열려 있거나 이미 상태가 바뀐 주문일 수 있습니다.`,
+        form: `선택한 ${orderIds.length}건을 발주확인하지 못했습니다. 취소 요청이 열려 있거나 이미 상태가 바뀐 주문일 수 있습니다: ${
+          failed.map(orderReferenceLabel).join(', ')
+        }`,
       },
     };
   }
   if (failed.length) {
+    /* 실패 건수만 알려주면 운영자가 100건 목록에서 어느 주문이 남았는지 찾지
+       못한다. 주문번호를 그대로 실어 보낸다 — 원인은 주문마다 다를 수 있으므로
+       (취소 요청·이미 바뀐 상태·일시적 오류) 한 가지로 단정하지 않는다. */
     return {
-      message: `${confirmed}건을 발주확인했습니다. ${failed.length}건은 처리하지 못했습니다 — 목록에 남은 주문의 취소 요청 여부를 확인해주세요.`,
+      message: `${confirmed}건을 발주확인했습니다. 처리하지 못한 ${failed.length}건: ${
+        failed.map(orderReferenceLabel).join(', ')
+      } — 주문 상세에서 취소 요청 여부와 현재 상태를 확인해주세요.`,
     };
   }
   return { message: `${confirmed}건을 발주확인했습니다.` };

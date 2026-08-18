@@ -1,6 +1,7 @@
 import {
   ConsoleCountChips,
   ConsoleFilterPanel,
+  ConsoleGrid,
   ConsolePagination,
   type ConsoleGridColumn,
   type ConsoleGridRow,
@@ -8,6 +9,7 @@ import {
 import {
   ADMIN_DISPATCH_TABS,
   adminDispatchElapsedLabel,
+  adminDispatchTab,
   adminDispatchHref,
   adminDispatchItemLabel,
   type AdminDispatchConsoleData,
@@ -23,7 +25,11 @@ const COLUMNS: ConsoleGridColumn[] = [
   { key: 'buyer', label: '구매자', width: '130px' },
   { key: 'items', label: '굿즈' },
   { key: 'qty', label: '수량', align: 'end', width: '70px' },
-  { key: 'payment', label: '결제수단', width: '110px' },
+  /* 이슈는 "결제수단"을 요구하지만 카드·무통장은 staff 읽기 표면에 없다.
+     값이 결제사이므로 헤더도 결제사라고 적는다 — 헤더만 결제수단으로 두면
+     전 행이 "토스페이먼츠"인 화면을 운영자가 결제수단으로 읽는다.
+     실제 수단 구분은 #256이 provider에 bank_transfer를 더하면 살아난다. */
+  { key: 'payment', label: '결제사', width: '110px' },
   { key: 'total', label: '결제금액', align: 'end', width: '110px' },
   { key: 'elapsed', label: '경과시간', align: 'end', width: '90px' },
 ];
@@ -46,10 +52,10 @@ function paymentProviderLabel(provider: string | null) {
 }
 
 /**
- * 발주·발송 관리 — 신규주문 탭.
+ * 발주·발송 관리.
  *
- * 탭은 사다리의 한 칸씩이고 지금 열린 칸은 신규주문(`paid`)뿐이다. 발송 대기
- * (`confirmed`)와 발송처리 UI는 #251이 같은 탭 구조 위에 얹는다.
+ * 탭은 사다리의 한 칸씩이다. 신규주문(`paid`)은 일괄 발주확인까지, 발송 대기
+ * (`confirmed`)는 목록까지 — 발송처리 UI는 #251이 같은 탭 구조 위에 얹는다.
  *
  * 금액은 `formatKrw`의 만 단위 축약을 쓰지 않는다. 발주확인 직전에 운영자가 보는
  * 숫자는 결제 원장과 대조하는 값이라 ₩3만으로 접히면 대조가 불가능하다.
@@ -66,7 +72,7 @@ export function DispatchScreen({
 
   const rowsForGrid: ConsoleGridRow[] = rows.map((row) => ({
     id: row.id,
-    href: `/admin/sales/orders?status=paid&page=1&order=${row.id}`,
+    href: `/admin/sales/orders?status=${adminDispatchTab(filters.tab).status}&page=1&order=${row.id}`,
     selectLabel: `주문 ${orderReferenceLabel(row.id)} 선택`,
     cells: [
       <span className="mono" key="reference">{orderReferenceLabel(row.id)}</span>,
@@ -104,16 +110,27 @@ export function DispatchScreen({
         label="처리 단계별 건수"
       />
 
-      <DispatchOrderGrid
-        caption="신규주문 목록"
-        columns={COLUMNS}
-        emptyLabel="발주확인을 기다리는 신규주문이 없습니다."
-        rows={rowsForGrid}
-      />
+      {filters.tab === 'new' ? (
+        <DispatchOrderGrid
+          caption="신규주문 목록"
+          columns={COLUMNS}
+          emptyLabel="발주확인을 기다리는 신규주문이 없습니다."
+          rows={rowsForGrid}
+        />
+      ) : (
+        /* 발송 대기는 아직 목록만이다. 행 선택은 발송처리 UI(#251)와 함께 열린다 —
+           고를 수는 있는데 할 수 있는 일이 없으면 운영자가 버튼을 찾아 헤맨다. */
+        <ConsoleGrid
+          caption="발송 대기 목록"
+          columns={COLUMNS}
+          emptyLabel="발송을 기다리는 주문이 없습니다."
+          rows={rowsForGrid}
+        />
+      )}
 
       <ConsolePagination
         hrefForPage={(page) => adminDispatchHref(filters, { page })}
-        label="신규주문 페이지"
+        label="발주·발송 페이지"
         page={filters.page}
         pageSize={pageSize}
         total={total}

@@ -496,4 +496,62 @@ select 1 / case when (
   )
 ) then 1 else 0 end as assert_settlement_matches_the_change_of_mind_window;
 
+-- ---------------------------------------------------------------------------
+-- 기아 방지: 클레임이 걸린 주문이 배치 예산을 먹지 않는다.
+--
+-- 후보 쿼리가 아니라 루프 안에서 continue로 거르면, 스스로 풀리지 않는 클레임
+-- (needs_review로 주차된 요청 등)이 limit만큼 쌓이는 순간 뒤의 멀쩡한 주문이
+-- 영원히 확정되지 않는다. delivered_at 오름차순이라 막힌 행이 늘 맨 앞에 선다.
+insert into public.orders (id, user_id, status, total, shipping_fee, delivered_at)
+select
+  ('40000000-0000-4000-8000-0000000009' || lpad(n::text, 2, '0'))::uuid,
+  '00000000-0000-4000-8000-000000000901',
+  'delivered',
+  10000,
+  0,
+  /* 막힌 주문일수록 오래된 공급일 — 정렬상 맨 앞에 서게 만든다. */
+  now() - interval '90 days' + (n || ' seconds')::interval
+from generate_series(10, 39) as n
+on conflict (id) do nothing;
+
+-- 30건 전부에 풀리지 않는 클레임을 건다.
+insert into public.order_cancellation_requests (order_id, requested_by, reason, status)
+select
+  ('40000000-0000-4000-8000-0000000009' || lpad(n::text, 2, '0'))::uuid,
+  '00000000-0000-4000-8000-000000000901',
+  '검토 보류',
+  'needs_review'
+from generate_series(10, 39) as n;
+
+-- 그 뒤에 정상 주문 하나를 둔다(공급일이 더 최근이라 정렬상 뒤에 선다).
+insert into public.orders (id, user_id, status, total, shipping_fee, delivered_at)
+values (
+  '40000000-0000-4000-8000-000000000940',
+  '00000000-0000-4000-8000-000000000901',
+  'delivered',
+  10000,
+  0,
+  now() - interval '20 days'
+)
+on conflict (id) do nothing;
+
+select public.settle_delivered_orders();
+
+select 1 / case when (
+  select status = 'done'
+  from public.orders
+  where id = '40000000-0000-4000-8000-000000000940'
+) then 1 else 0 end as assert_blocked_claims_do_not_starve_settlement;
+
+-- 막힌 주문들은 그대로 delivered에 남는다.
+select 1 / case when (
+  select count(*) = 30
+  from public.orders
+  where id in (
+    select ('40000000-0000-4000-8000-0000000009' || lpad(n::text, 2, '0'))::uuid
+    from generate_series(10, 39) as n
+  )
+    and status = 'delivered'
+) then 1 else 0 end as assert_blocked_claims_stay_unsettled;
+
 rollback;

@@ -3,13 +3,13 @@ import type { AdminOrderItemRecord, AdminOrderStatus } from './orders';
 /**
  * 발주·발송 관리 콘솔(#250).
  *
- * 탭은 사다리의 한 칸씩을 본다. 지금 열려 있는 칸은 신규주문(`paid`)뿐이고,
- * 발송 대기(`confirmed`)는 발송처리 UI와 함께 #251이 얹는다 — 탭 자체를 먼저
- * 세워 두는 이유는, 나중에 탭 구조를 도입하면 그때까지 만들어진 링크·북마크가
- * 전부 깨지기 때문이다.
+ * 탭은 사다리의 한 칸씩을 본다. 발송 대기(`confirmed`)는 목록만 열어 두고
+ * 발송처리 UI는 #251이 얹는다 — 적체가 어디에 쌓였는지는 운영자가 처리 수단보다
+ * 먼저 알아야 하고, 탭을 나중에 도입하면 그때까지 만들어진 링크·북마크가 깨진다.
  */
 export const ADMIN_DISPATCH_TABS = [
   { id: 'new', label: '신규주문', status: 'paid' },
+  { id: 'ready', label: '발송 대기', status: 'confirmed' },
 ] as const satisfies ReadonlyArray<{ id: string; label: string; status: AdminOrderStatus }>;
 
 export type AdminDispatchTabId = (typeof ADMIN_DISPATCH_TABS)[number]['id'];

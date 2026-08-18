@@ -163,6 +163,7 @@ export function OrderDetail({
 
           <OrderCancellation
             cancellationRequest={order.cancellationRequest}
+            deliveredAt={order.deliveredAt}
             orderId={order.id}
             refund={order.refund}
             status={order.status}

@@ -234,11 +234,7 @@ async function applyReflectCancel(
     return errorJson(500, 'terminal_record_failed');
   }
 
-  if (
-    target.status === 'pending'
-    || target.status === 'paid'
-    || target.status === 'canceled'
-  ) {
+  if (REFLECT_CANCELABLE_TARGET_STATUSES.has(target.status)) {
     const { error: rpcError } = ref.purpose === 'order'
       ? await service.rpc('cancel_order_with_provider_evidence', {
           p_order_id: ref.refId,
@@ -256,7 +252,9 @@ async function applyReflectCancel(
       console.error(`[webhooks/tosspayments] canceled checkout close failed: ${rpcError.message}`);
       return errorJson(500, 'cancel_reflect_failed');
     }
-  } else if (target.status !== 'canceled') {
+  } else {
+    /* 출고 이후(shipping·delivered·done)는 구매자 클레임이 만든 durable claim이 있어야
+       finalize가 돈다. 웹훅이 임의로 반품 없는 취소를 밀어넣지 않도록 여기서 멈춘다. */
     console.error(`[webhooks/tosspayments] canceled payment has non-cancelable target status: ${target.status}`);
     return errorJson(500, 'cancel_reflect_failed');
   }
@@ -349,6 +347,22 @@ const CONFIRMED_ORDER_STATUSES = new Set([
   'shipping',
   'delivered',
   'done',
+]);
+
+/*
+ * 결제사 취소를 로컬에 즉시 반영해도 되는 주문 상태.
+ *
+ * 출고 전(`pending`·`paid`·`confirmed`)까지다. `confirmed`가 빠져 있으면 운영자가
+ * 발주확인을 누른 뒤 결제사에서 취소된 주문이 500으로 튕겨 나가, 돈은 환불됐는데
+ * 로컬은 paid·재고 차감·뽑기권 유효인 채로 발송 대기에 남는다(#250).
+ * 출고 이후는 durable claim이 필요해 일부러 제외한다 —
+ * `finalize_order_cancellation_with_provider_evidence`의 게이트와 같은 경계다.
+ */
+const REFLECT_CANCELABLE_TARGET_STATUSES = new Set([
+  'pending',
+  'paid',
+  'confirmed',
+  'canceled',
 ]);
 
 function isConfirmedTarget(ref: TossOrderRef, status: string) {

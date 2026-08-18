@@ -1329,16 +1329,40 @@ declare
   v_count integer := 0;
   r record;
 begin
+  /*
+   * 클레임이 걸린 주문은 후보 쿼리에서 미리 걸러낸다.
+   *
+   * 루프 안에서 continue로 건너뛰면 그 행이 limit 예산을 먹는다. delivered_at 오름차순
+   * 정렬이라 오래 막힌 행이 늘 맨 앞에 서고, needs_review로 주차된 요청처럼 스스로
+   * 풀리지 않는 클레임이 예산만큼 쌓이면 뒤의 멀쩡한 주문이 영원히 확정되지 않는다.
+   * (실측: 막힌 행 200건 + 정상 1건이면 반환값이 계속 0이다.)
+   *
+   * limit은 한 번의 실행이 무한정 길어지지 않게 두는 안전장치다. 초과분은 다음 날
+   * 오래된 것부터 빠지므로 밀려도 순서는 지켜진다.
+   */
   for r in
     select orders.id
     from public.orders
     where orders.status = 'delivered'
       and orders.delivered_at is not null
       and orders.delivered_at + interval '8 days' < now()
+      and not exists (
+        select 1
+        from public.order_cancellation_requests as request
+        where request.order_id = orders.id
+          and request.status in ('requested', 'processing', 'needs_review')
+      )
+      and not exists (
+        select 1
+        from public.order_cancellation_claims as claim
+        where claim.order_id = orders.id
+      )
     order by orders.delivered_at, orders.id
-    limit 200
+    limit 1000
     for update of orders skip locked
   loop
+    /* 후보를 고른 뒤 행 잠금을 얻기 전에 클레임이 끼어들 수 있다. 예산과 무관한
+       방어용 재확인이라 여기서는 continue가 기아를 만들지 않는다. */
     if exists (
       select 1
       from public.order_cancellation_requests as request
@@ -1374,6 +1398,14 @@ revoke all on function public.settle_delivered_orders()
   from public, anon, authenticated, service_role;
 grant execute on function public.settle_delivered_orders() to service_role;
 
+-- 스케줄러 선택: 이슈 #250은 `app/api/cron/` 표면을 지목했지만 pg_cron으로 간다.
+-- 이 잡은 DB 안에서 완결된다 — 외부 입력도, HTTP 응답도 필요 없다. Vercel cron으로
+-- 두면 CRON_SECRET 왕복과 vercel.json 항목이 늘고, 배포 환경이 잡의 실행 여부를
+-- 좌우한다. 같은 성격의 `expire_stale_checkouts`가 이미 pg_cron에 있어 운영자가
+-- 확인할 자리도 한 곳으로 모인다. 반대로 실행 이력이 Vercel 로그에 안 남는 것이
+-- 이 선택의 비용이며, 관측이 필요해지면 잡이 audit_log를 남기게 하는 편이
+-- 표면을 옮기는 것보다 싸다.
+--
 -- UTC 18:00 = KST 03:00. 하루 한 번이면 충분하다 — 8일 경계는 시각 단위로
 -- 다투는 값이 아니고, 확정이 늦어지는 쪽이 고객에게 유리하다.
 -- cron.schedule은 이름 기준 upsert라 재적용에도 안전하다.

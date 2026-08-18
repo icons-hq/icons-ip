@@ -606,6 +606,59 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
     });
   });
 
+  /*
+   * 출고 전 사다리 전체가 결제사 취소를 즉시 반영할 수 있어야 한다(#250).
+   *
+   * confirmed가 빠져 있으면 운영자가 발주확인을 누른 뒤 결제사에서 취소된 주문이
+   * 500으로 튕긴다 — 돈은 환불됐는데 로컬은 결제 완료·재고 차감·뽑기권 유효인 채로
+   * 발송 대기에 남고, 토스는 재전송을 반복한다. 복구 경로도 없다.
+   */
+  it.each([
+    ['결제 완료', 'paid'],
+    ['발주확인', 'confirmed'],
+  ] as const)('%s 주문의 결제사 취소를 로컬에 즉시 반영한다', async (_label, orderStatus) => {
+    mocks.existingPayment = orderPayment('paid');
+    mocks.target = { user_id: 'user-1', status: orderStatus, total: 42000 };
+    mocks.fetchPayment.mockResolvedValue({
+      ok: true,
+      body: { ...virtualAccountPayment('DONE'), status: 'CANCELED', method: '카드' },
+    });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith('cancel_order_with_provider_evidence', {
+      p_order_id: ORDER_UUID,
+      p_reason: '토스 결제 취소 웹훅 반영',
+      p_provider_payment_keys: ['pk_virtual'],
+    });
+  });
+
+  /*
+   * 출고 이후는 반대로 막혀 있어야 한다. durable claim 없이 finalize가 돌면
+   * 반품 없는 취소가 재고를 되돌린다 — DB 게이트와 같은 경계다.
+   */
+  it.each([
+    ['배송중', 'shipping'],
+    ['배송완료', 'delivered'],
+    ['거래확정', 'done'],
+  ] as const)('%s 주문은 결제사 취소를 자동 반영하지 않는다', async (_label, orderStatus) => {
+    mocks.existingPayment = orderPayment('paid');
+    mocks.target = { user_id: 'user-1', status: orderStatus, total: 42000 };
+    mocks.fetchPayment.mockResolvedValue({
+      ok: true,
+      body: { ...virtualAccountPayment('DONE'), status: 'CANCELED', method: '카드' },
+    });
+
+    const response = await POST(webhookRequest());
+
+    expect(response.status).toBe(500);
+    expect(mocks.rpc).not.toHaveBeenCalledWith(
+      'cancel_order_with_provider_evidence',
+      expect.anything(),
+    );
+  });
+
   it('local failed 결제도 verified CANCELED key로 paid 주문을 terminal 상태에 수렴시킨다', async () => {
     mocks.existingPayment = orderPayment('failed');
     mocks.target = { user_id: 'user-1', status: 'paid', total: 42000 };

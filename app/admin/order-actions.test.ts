@@ -529,7 +529,9 @@ describe('admin order actions', () => {
 
       expect(mocks.rpc).toHaveBeenCalledTimes(2);
       expect(state.message).toContain('1건을 발주확인했습니다');
-      expect(state.message).toContain('1건은 처리하지 못했습니다');
+      /* 건수만으로는 100건 목록에서 남은 주문을 못 찾는다. 주문번호를 실어 보낸다. */
+      expect(state.message).toContain('처리하지 못한 1건');
+      expect(state.message).toContain('11111111');
     });
 
     it('전부 실패하면 성공 문구를 내보내지 않는다', async () => {
