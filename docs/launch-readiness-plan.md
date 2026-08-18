@@ -41,7 +41,7 @@
 | 계정 | 프로필 편집(#136), 로그인·온보딩 보호 마이페이지(#103), 소셜 OAuth 배선. 탈퇴 Phase 1 self-only 요청·legal snapshot·write fence는 기본 OFF로 배포 | #137 완료는 #191 통지, Phase 2 hard delete, #215 secondary ledger·restore replay와 controlled destructive smoke에 의존 |
 | 알림 | 인앱 알림함·unread 벨·IP별 드롭/이벤트 설정·IP/예정 이벤트 CTA·어드민 공지 발송 완료(#104·#105) | 완료 |
 | 커뮤니티 | 최근 7일 visible 포스트 기반 트렌딩(#106), 전체/내 팬덤 피드와 홈 커뮤니티 우선순위(#107), 작성자 visible 포스트 수정(#108), 개별 댓글 숨김·공개 집계 제외(#109) 완료 | 완료 |
-| 교환/마켓 | v2 플레이스홀더(의도됨) | 유지 — 갭 아님 |
+| 트레이드/마켓 | v2 플레이스홀더(의도됨) | 유지 — 갭 아님 |
 
 ### 3.2 어드민·DB 표면
 

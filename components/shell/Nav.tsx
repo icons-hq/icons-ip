@@ -26,7 +26,7 @@ const SECONDARY_LINKS = [
   { href: hrefFor('binder'), label: '내 바인더' },
   { href: hrefFor('tickets'), label: '내 티켓' },
   { href: hrefFor('market'), label: '굿즈 마켓' },
-  { href: hrefFor('exchange'), label: '카드 교환' },
+  { href: hrefFor('exchange'), label: '카드 트레이드' },
 ];
 
 export function Nav() {

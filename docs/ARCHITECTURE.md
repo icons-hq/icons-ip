@@ -168,7 +168,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 ### 5.7 운영
 - `audit_log` (id, actor_id, action, target, diff jsonb, created_at)
 
-> v2(연기) 테이블: `listings`/`offers`/`trades`/`escrow`/`payouts`(마켓·교환), `memberships`/`subscriptions`(유료 팬덤). 스키마 자리만 예약.
+> v2(연기) 테이블: `listings`/`offers`/`trades`/`escrow`/`payouts`(굿즈 마켓·카드 트레이드), `memberships`/`subscriptions`(유료 팬덤). 스키마 자리만 예약.
 
 ---
 

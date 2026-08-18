@@ -20,7 +20,7 @@ const ACCOUNT_LINKS: [label: string, route: string][] = [
   ['내 티켓', 'tickets'],
   ['바인더', 'binder'],
   ['알림함', 'notifications'],
-  ['카드 교환', 'exchange'],
+  ['카드 트레이드', 'exchange'],
   ['굿즈 마켓', 'market'],
 ];
 
