@@ -30,7 +30,7 @@ describe('MyPage', () => {
 
     expect(html).not.toContain('href="/packs"');
     expect(html).not.toContain('>카드팩</');
-    expect(html.match(/class="my-destination card"/g)).toHaveLength(6);
+    expect(html.match(/class="my-destination card"/g)).toHaveLength(7);
   });
 
   it('renders the private profile summary without account identifiers', () => {
@@ -65,6 +65,7 @@ describe('MyPage', () => {
       ['/binder', '바인더'],
       ['/packs', '카드팩'],
       ['/notifications', '알림함'],
+      ['/my/reviews', '내 리뷰'],
       ['/my/inquiries', '1:1 문의'],
       ['/settings', '설정'],
     ]) {
@@ -74,6 +75,6 @@ describe('MyPage', () => {
 
     expect(html).not.toContain('준비중');
     expect(html).not.toContain('<button');
-    expect(html.match(/class="my-destination card"/g)).toHaveLength(7);
+    expect(html.match(/class="my-destination card"/g)).toHaveLength(8);
   });
 });

@@ -12,6 +12,7 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   announcement: '공지',
   inquiry_answered: '문의',
   claim_updated: '클레임',
+  review_replied: '리뷰',
 };
 
 const TYPE_ICONS: Record<NotificationType, string> = {
@@ -24,6 +25,7 @@ const TYPE_ICONS: Record<NotificationType, string> = {
   announcement: 'bell',
   inquiry_answered: 'chat',
   claim_updated: 'bag',
+  review_replied: 'star',
 };
 
 const notificationDate = new Intl.DateTimeFormat('ko-KR', {

@@ -2,6 +2,13 @@ import Link from 'next/link';
 import { OrderCancellation } from '@/components/orders/OrderCancellation';
 import { OrderClaimRequest } from '@/components/orders/OrderClaimRequest';
 import { newInquiryHref } from '@/lib/inquiries';
+import type { MyReviewTarget } from '@/lib/reviews.server';
+import {
+  editReviewHref,
+  newReviewHref,
+  REVIEW_WINDOW_DAYS,
+  reviewDaysRemaining,
+} from '@/lib/reviews';
 import { Icon } from '@/components/ui/Icon';
 import { krw } from '@/lib/format';
 import { shippingFeeLabel } from '@/lib/shipping';
@@ -45,6 +52,58 @@ function OrderLadder({ status }: { status: OrderDetailStatus }) {
         </li>
       ))}
     </ol>
+  );
+}
+
+/*
+ * 리뷰 진입점(#254).
+ *
+ * 배송완료 이상 주문에서만 나타난다 — 자격을 서버가 판정하고 화면은 그 결과를
+ * 보여줄 뿐이라, 목록이 비면 블록 자체가 없다. 아직 못 쓰는 상태에서 버튼만 띄우면
+ * 눌렀을 때 거절당하는 경로가 생긴다.
+ *
+ * 작성 기한을 함께 말한다. 배송완료 후 90일은 길어 보이지만, 리뷰를 쓰려고 마음먹은
+ * 시점이 지나면 대개 다시 오지 않는다.
+ */
+function OrderReviewEntry({
+  now,
+  targets,
+}: {
+  now: Date;
+  targets: MyReviewTarget[];
+}) {
+  if (!targets.length) return null;
+
+  return (
+    <section aria-labelledby="order-review-heading" className="order-detail-inquiry">
+      <h3 className="mono" id="order-review-heading" style={{ color: 'var(--dim)', fontSize: 11, letterSpacing: '.14em', margin: 0 }}>
+        리뷰
+      </h3>
+      <ul className="col" style={{ gap: 8, listStyle: 'none', margin: 0, padding: 0, width: '100%' }}>
+        {targets.map((target) => {
+          const daysLeft = reviewDaysRemaining(target.deliveredAt, now);
+
+          return (
+            <li className="between" key={`${target.orderId}:${target.goodId}`} style={{ alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 13.5, minWidth: 0 }}>{target.goodName}</span>
+              {target.review ? (
+                <Link className="btn btn-sm btn-ghost" href={editReviewHref(target.review.id)}>
+                  내 리뷰 보기
+                </Link>
+              ) : target.writable ? (
+                <Link className="btn btn-sm" href={newReviewHref(target.orderId, target.goodId)}>
+                  리뷰 쓰기{daysLeft ? ` (${daysLeft}일 남음)` : ''}
+                </Link>
+              ) : (
+                <span className="faint" style={{ fontSize: 12.5 }}>
+                  작성 기한(배송완료 후 {REVIEW_WINDOW_DAYS}일)이 지났습니다
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
@@ -104,11 +163,14 @@ export function OrderDetail({
   cardRewardsEnabled = false,
   now,
   order,
+  reviewTargets = [],
 }: {
   cardRewardsEnabled?: boolean;
   /** 기한 계산 기준 시각. 테스트 주입용 — 비우면 렌더 시각을 쓴다. */
   now?: Date;
   order: OrderDetailData;
+  /** 배송완료 이상 주문의 굿즈별 리뷰 상태(#254). 그 전에는 빈 배열이다. */
+  reviewTargets?: MyReviewTarget[];
 }) {
   const status = orderStatusMeta(order.status);
   const date = formatOrderDate(order.createdAt);
@@ -162,6 +224,8 @@ export function OrderDetail({
               </article>
             ))}
           </div>
+
+          <OrderReviewEntry now={at} targets={reviewTargets} />
 
           <WithdrawalDeadlineNotice
             deliveredAt={order.deliveredAt}

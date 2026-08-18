@@ -47,7 +47,7 @@
 **요청 프록시 주의**: 루트 `proxy.ts`가 `export function proxy()` + `config.matcher`로 동작한다(Next 16에서 미들웨어가 이 형태). `lib/supabase/middleware.ts`의 `updateSession`을 호출하며 **보호 액션 전까지 로그인 리다이렉트는 하지 않는다**(공개 브라우징 정책).
 
 화면↔라우트 매핑(현재):
-`/`·`/ip`·`/ip/[id]`·`/shop`·`/cart`·`/checkout`·`/checkout/[orderId]`·`/checkout/success`·`/checkout/fail`·`/orders`·`/orders/[orderId]`·`/packs`·`/binder`·`/exchange`·`/community`·`/events`·`/events/[eventId]`·`/ticket-checkout/[ticketOrderId]`·`/ticket-checkout/success`·`/ticket-checkout/fail`·`/tickets`·`/tickets/[ticketOrderId]`·`/notifications`·`/notifications/settings`·`/my`·`/my/inquiries`·`/my/inquiries/new`·`/my/inquiries/[inquiryId]`·`/settings`·`/market`·`/search`·`/login`·`/update-password`·`/account-suspended`·`/admin`
+`/`·`/ip`·`/ip/[id]`·`/shop`·`/cart`·`/checkout`·`/checkout/[orderId]`·`/checkout/success`·`/checkout/fail`·`/orders`·`/orders/[orderId]`·`/packs`·`/binder`·`/exchange`·`/community`·`/events`·`/events/[eventId]`·`/ticket-checkout/[ticketOrderId]`·`/ticket-checkout/success`·`/ticket-checkout/fail`·`/tickets`·`/tickets/[ticketOrderId]`·`/notifications`·`/notifications/settings`·`/my`·`/my/inquiries`·`/my/inquiries/new`·`/my/inquiries/[inquiryId]`·`/my/reviews`·`/my/reviews/new`·`/my/reviews/[reviewId]`·`/settings`·`/market`·`/search`·`/login`·`/update-password`·`/account-suspended`·`/admin`
 
 ---
 
@@ -169,6 +169,9 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - `audit_log` (id, actor_id, action, target, diff jsonb, created_at)
 - `inquiries` (id, reference identity, user_id, category `order|claim|good|account|etc`, title, status `open|answered|closed`, order_id, good_id, handled_by, created_at, last_message_at, answered_at, closed_at) / `inquiry_messages` (inquiry_id, author `user|staff`, author_id, body, image_paths text[], created_at) / `inquiry_reply_templates` — 인앱 1:1 문의 스레드. 문의는 대화이고 클레임은 절차라 `order_cancellation_*`와 기록을 섞지 않는다. 연결 주문·굿즈는 맥락일 뿐이라 삭제 시 `set null`로 대화만 남긴다. 첨부는 `user-uploads` 버킷의 `<uid>/inquiry/` 접두를 쓴다 — 커뮤니티 경로를 재사용하면 커뮤니티 글쓰기 control이 문의 첨부까지 잠근다.
 
+- `reviews` (id, user_id, good_id, order_id, rating smallint 1~5, body, image_paths text[], status `visible|hidden`, hidden_reason/hidden_at/hidden_by, admin_reply/admin_reply_at/admin_reply_by, created_at, edited_at, updated_at, unique(order_id, good_id, user_id)) — 굿즈 리뷰. 작성 자격은 **`delivered` 이상 주문 + 그 주문의 굿즈 + 배송완료 후 90일 + 주문×굿즈당 1회**이고 전부 `create_good_review` 안에서 판정한다. 작성자 삭제는 행을 지우고 운영자 블라인드는 `status`만 바꾼다 — 원문이 남아야 블라인드 사유를 검증할 수 있다. 첨부는 `user-uploads` 버킷의 `<uid>/review/` 접두를 쓴다. v1에는 리뷰 보상이 없어 적립·정산 컬럼이 없다.
+- `good_review_stats` (view) — 굿즈별 리뷰 개수·평균·별점 1~5 분포·사진 리뷰 수. **캐시 컬럼이 아니라 집계 뷰다.** 리뷰 하나가 움직이는 파생값이 일곱 개이고 그 값을 바꾸는 경로가 다섯(작성·수정·삭제·블라인드·해제)이라, 캐시로 두면 "별 4.7개(3건)"인데 목록에는 1점짜리만 보이는 화면이 만들어진다. 반면 이 파생값에는 `fans_count` 같은 동시성 압력이 없다(상한이 판매량이다). 굿즈 목록 전면에 평점을 얹게 되면 그때 materialized view나 트리거 유지 컬럼으로 승격한다.
+
 > v2(연기) 테이블: `listings`/`offers`/`trades`/`escrow`/`payouts`(굿즈 마켓·카드 트레이드), `memberships`/`subscriptions`(유료 팬덤). 스키마 자리만 예약.
 
 ---
@@ -188,6 +191,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 | inquiries/inquiry_messages | **본인 + staff** | 직접 쓰기 없음. 접수·추가 질문은 `create_inquiry`/`append_inquiry_message`, 답변·종결은 staff를 재검사하는 audited RPC. 상태 전이(사용자 → open, 운영자 → answered)는 전부 RPC 안에 있다 |
 | tickets/ticket_cancellation_requests | **본인만 안전 컬럼** | QR 원문·provider/attempt/error 정보는 서버 경계 전용, 쓰기는 신뢰 RPC/service role만 |
 | posts/comments/likes | 공개 읽기(visible). hidden 댓글 원문은 댓글/포스트 작성자와 staff만 | post/comment 생성·수정은 private control 기반 단일 trigger에서 기본 OFF이며 앱 역할은 control을 바꾸지 못한다. 삭제·반응·신고·숨김은 각 최소 권한 RPC로 유지 |
+| reviews | **공개(anon)는 visible만**. 작성자는 블라인드된 자기 리뷰도, staff는 전체 | 직접 쓰기 없음. 작성·수정·삭제는 `create_good_review`/`update_good_review`/`delete_good_review`, 답글·블라인드는 staff를 재검사하는 audited RPC. 평균·분포는 `good_review_stats` 뷰라 앱이 증감하지 않는다 |
 | reports/blocks | 본인+운영 | 본인 |
 | audit_log | admin only | RPC만 |
 
@@ -315,7 +319,7 @@ Production Auth 설정:
 
 - 같은 Next 앱의 라우트 그룹. 진입 시 `profiles.role ∈ {staff, admin}` 검사(라우트 + RLS 이중).
 - 셸 구조: 대분류 9개 > 소분류의 2단 메뉴와 **화면별 라우트**다(`app/admin/(shell)/**`). IA 정의는 `lib/admin/navigation.ts`가 소유하고 사이드바·헤더 제목·레거시 리다이렉트가 여기서 파생된다. 옛 `?section=` 딥링크는 `/admin`이 새 라우트로 넘긴다. 화면마다 자기 로더만 실행하며, 권한 게이트의 진실원은 각 page의 `requireAdminScreenAccess(경로)`다 — layout은 pathname을 몰라 로그인 `next`를 정확히 만들 수 없어서 미인증 처리를 page에 맡긴다. `/admin/check-in`은 route group 밖이라 셸 없이 전체화면으로 뜬다.
-- 기능: 카탈로그 CRUD·보관 상태 필터·참조 가드 보관/복원, 홈 히어로·특집 IP·공지 배너의 순서·KST 기간·활성 관리(`/admin/display/curations`), **카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩**, 뽑기권 발급 정책(`/admin/catalog/policies`), 참여형 게임(`/admin/catalog/games`) 관리, 이벤트·티켓 회차, 독립 모바일 현장 검표(`/admin/check-in`), 주문 검색·배송 전이·청약철회/환불 정합화, 인앱 공지 수신자 추정·즉시 발송·이력(`/admin/messaging/notifications`), 커뮤니티 신고·포스트/댓글 숨김, 마스킹 회원 검색·명시적 상세·정지/해제(`/admin/community/members`), 1:1 문의 큐·스레드 답변·답변 템플릿·종결과 연결 주문/구매자 컨텍스트 패널(`/admin/cs/inquiries`). 큐레이션 공지 저장은 알림 fan-out을 일으키지 않고 공지 발송 콘솔로의 navigation만 제공한다.
+- 기능: 카탈로그 CRUD·보관 상태 필터·참조 가드 보관/복원, 홈 히어로·특집 IP·공지 배너의 순서·KST 기간·활성 관리(`/admin/display/curations`), **카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩**, 뽑기권 발급 정책(`/admin/catalog/policies`), 참여형 게임(`/admin/catalog/games`) 관리, 이벤트·티켓 회차, 독립 모바일 현장 검표(`/admin/check-in`), 주문 검색·배송 전이·청약철회/환불 정합화, 인앱 공지 수신자 추정·즉시 발송·이력(`/admin/messaging/notifications`), 커뮤니티 신고·포스트/댓글 숨김, 마스킹 회원 검색·명시적 상세·정지/해제(`/admin/community/members`), 1:1 문의 큐·스레드 답변·답변 템플릿·종결과 연결 주문/구매자 컨텍스트 패널(`/admin/cs/inquiries`), 리뷰 관리 콘솔의 기간·평점·상태·사진/답글 유무 필터와 저평점(1~2점) 고정 필터·운영자 답글·사유가 붙는 블라인드/해제(`/admin/cs/reviews`). 큐레이션 공지 저장은 알림 fan-out을 일으키지 않고 공지 발송 콘솔로의 navigation만 제공한다.
 - 모든 민감 작업은 `audit_log` 기록.
 
 ---

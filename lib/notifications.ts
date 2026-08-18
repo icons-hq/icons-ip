@@ -13,6 +13,9 @@ export type NotificationType =
   /* 클레임 단계 변화(#252) — 접수·승인·거부·보류·입고·환불·재출고를 한 타입으로
      묶는다. 단계마다 타입을 나누면 DB CHECK와 이 union이 아홉 번 갈라진다. */
   | 'claim_updated';
+  /* 리뷰 운영자 답글(#254). 첫 답글에서만 나간다 — 답글을 다듬을 때마다 알리면
+     "운영자가 또 뭐라고 했다"로 읽혀 알림 자체의 신뢰가 깎인다. */
+  | 'review_replied';
 
 export interface NotificationRow {
   id: string;

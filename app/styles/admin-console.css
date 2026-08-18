@@ -487,6 +487,61 @@ a.admin-console-chip:hover {
 }
 
 /* --------------------------------------------------------------------------
+   리뷰 관리 — 고정 필터, 별점 강조, 행 처리 패널
+   -------------------------------------------------------------------------- */
+
+/* 저평점 필터는 목록의 어떤 조건보다 먼저 읽혀야 한다. 필터 패널 안에 넣으면
+   다른 셀렉트와 같은 무게가 되어 "찾아서 거는" 조건이 된다. */
+.admin-console-pinned-filter {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-inline-start: 3px solid var(--pink);
+}
+
+/* 별점은 색만으로 구분하지 않는다 — 색각 이상이나 저대비 환경에서 색 하나에
+   기대면 저평점 강조가 그냥 사라진다(SLA 톤과 같은 규율). */
+[data-low-rating="true"] {
+  color: var(--pink);
+  font-weight: 700;
+}
+
+[data-review-status="hidden"] {
+  color: var(--editorial-ink-faint);
+  font-weight: 600;
+}
+
+/* 처리 패널은 접힌 채로 시작한다. 20건의 입력창이 동시에 펼쳐져 있으면 목록이
+   "고르는 화면"이 아니라 "스크롤하는 화면"이 된다. */
+.admin-review-actions > summary {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+
+.admin-review-actions > summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-review-actions textarea,
+.admin-review-actions input[type='text'] {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--editorial-line);
+  border-radius: 8px;
+  background: var(--editorial-surface);
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+}
+
+/* --------------------------------------------------------------------------
    반응형 — 좁은 화면에서는 필터가 한 열로 쌓인다
    -------------------------------------------------------------------------- */
 
