@@ -5,6 +5,7 @@ import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { getCatalogSnapshot } from '@/lib/catalog';
 import { loadLatestCheckoutAddress, loadLatestPendingCheckoutOrderId } from '@/lib/checkout.server';
+import { bankTransferCheckoutEnabled } from '@/lib/payments/bank-transfer.server';
 import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
 
 export const metadata: Metadata = {
@@ -29,6 +30,7 @@ export default async function Page() {
       latestAddress={latestAddress}
       resumeOrderId={resumeOrderId}
       paymentAvailable={goodsCheckoutPaymentsEnabled(auth.user.id)}
+      bankTransferAvailable={bankTransferCheckoutEnabled()}
     />
   );
 }

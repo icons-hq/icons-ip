@@ -51,6 +51,7 @@ const checkoutOrder: CheckoutOrderSnapshot = {
   expiresAt: '2099-08-13T10:10:00.000Z',
   createdAt: '2026-08-13T10:00:00.000Z',
   paymentStatus: null,
+  paymentMethod: 'card' as const,
   items: [],
 };
 
@@ -110,6 +111,9 @@ describe('placeOrderAction', () => {
         deliveryNote: '',
       },
       p_checkout_key: checkoutKey,
+      /* 결제수단을 넘기지 않은 호출은 카드다. 무통장 24시간 선점을 기본값으로
+         흘려보내면 재고가 하루씩 묶인다(#256). */
+      p_payment_method: 'card',
     });
     expect(mocks.availabilityUserIds).toContain(userId);
   });

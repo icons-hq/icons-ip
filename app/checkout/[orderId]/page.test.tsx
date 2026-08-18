@@ -37,6 +37,7 @@ const order: CheckoutOrderSnapshot = {
   expiresAt: '2099-08-13T10:10:00.000Z',
   createdAt: '2026-08-13T10:00:00.000Z',
   paymentStatus: null,
+  paymentMethod: 'card' as const,
   items: [],
 };
 
