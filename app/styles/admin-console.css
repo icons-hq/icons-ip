@@ -755,3 +755,64 @@ a.admin-console-chip:hover {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* 통계 리포트 (#258). 조회 전용이라 액션 컨트롤이 없고, 요약 → 표 순서로 읽는다. */
+.admin-stats h3 {
+  margin: 22px 0 10px;
+  font-size: 14px;
+}
+
+.admin-stats-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.admin-stats-summary > div {
+  display: grid;
+  gap: 5px;
+  padding: 13px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+}
+
+.admin-stats-summary span {
+  color: var(--dim);
+  font-size: 11px;
+}
+
+.admin-stats-summary strong {
+  font-size: 17px;
+}
+
+.admin-stats-share {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-stats-share li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: baseline;
+  gap: 14px;
+  padding: 11px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.admin-stats-share li span:last-child {
+  color: var(--dim);
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .admin-stats-share li {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 6px;
+  }
+}

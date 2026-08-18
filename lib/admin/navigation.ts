@@ -106,9 +106,9 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: '통계',
     icon: 'trendUp',
     screens: [
-      { id: 'stats-sales', label: '판매분석', href: '/admin/stats/sales', status: 'planned' },
-      { id: 'stats-claims', label: '클레임', href: '/admin/stats/claims', status: 'planned' },
-      { id: 'stats-customers', label: '고객현황', href: '/admin/stats/customers', status: 'planned' },
+      { id: 'stats-sales', label: '판매분석', href: '/admin/stats/sales', status: 'ready' },
+      { id: 'stats-claims', label: '클레임', href: '/admin/stats/claims', status: 'ready' },
+      { id: 'stats-customers', label: '고객현황', href: '/admin/stats/customers', status: 'ready' },
     ],
   },
   {
