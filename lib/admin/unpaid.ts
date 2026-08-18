@@ -23,6 +23,8 @@ export interface AdminUnpaidOrderRow {
   id: string;
   buyerName: string;
   buyerId: string;
+  /** 배송지 수령인. 안내한 입금자명을 콘솔에서 다시 만들기 위한 값이다. */
+  recipientName: string;
   total: number;
   createdAt: string;
   expiresAt: string | null;

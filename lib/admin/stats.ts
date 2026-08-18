@@ -104,11 +104,20 @@ export interface AdminSalesTicketRow {
   revenue: number;
 }
 
+export interface AdminSalesOccurrenceRow {
+  ticketTypeId: string;
+  occurrenceName: string;
+  eventTitle: string;
+  ticketCount: number;
+  revenue: number;
+}
+
 export interface AdminSalesReport {
   daily: AdminSalesDailyRow[];
   paymentMethods: AdminSalesMethodRow[];
   goods: AdminSalesGoodRow[];
   tickets: AdminSalesTicketRow[];
+  ticketOccurrences: AdminSalesOccurrenceRow[];
 }
 
 export interface AdminClaimTypeRow {

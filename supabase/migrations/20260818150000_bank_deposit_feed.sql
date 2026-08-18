@@ -176,9 +176,22 @@ as $function$
           and position(peer.recipient in peer_name.name) > 0
       ) = 1
   )
-  select id, confidence from by_code
-  union all
-  select id, confidence from by_amount where not exists (select 1 from by_code)
+  -- 정렬 없이 limit 1을 쓰면 후보가 둘일 때 제안이 실행마다 달라진다. 확신도가
+  -- 높은 쪽을 먼저 보고, 같으면 주문 id로 고정한다 — 같은 입금에 같은 제안이
+  -- 나와야 운영자가 화면을 새로고침하고 다른 주문을 보지 않는다.
+  select id, confidence
+  from (
+    select id, confidence from by_code
+    union all
+    select id, confidence from by_amount where not exists (select 1 from by_code)
+  ) as suggestion
+  order by
+    case confidence
+      when 'code_amount' then 0
+      when 'code' then 1
+      else 2
+    end,
+    id
   limit 1;
 $function$;
 

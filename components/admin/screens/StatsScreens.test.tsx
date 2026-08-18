@@ -27,6 +27,15 @@ const sales: AdminSalesReport = {
   tickets: [
     { eventId: 'e1', eventTitle: '팝업 이벤트', orderCount: 1, ticketCount: 2, revenue: 40000 },
   ],
+  ticketOccurrences: [
+    {
+      ticketTypeId: 't1',
+      occurrenceName: '1회차 14:00',
+      eventTitle: '팝업 이벤트',
+      ticketCount: 2,
+      revenue: 40000,
+    },
+  ],
 };
 
 describe('StatsSalesScreen', () => {
@@ -52,14 +61,25 @@ describe('StatsSalesScreen', () => {
     const html = renderToStaticMarkup(<StatsSalesScreen data={sales} filters={filters} />);
 
     expect(html).toContain('굿즈별 판매 순위');
-    expect(html).toContain('티켓 매출');
+    expect(html).toContain('티켓 매출 · 이벤트');
     expect(html).toContain('팝업 이벤트');
+    /* 이벤트 합계만으로는 어느 회차가 안 팔리는지 볼 수 없다. */
+    expect(html).toContain('티켓 매출 · 회차');
+    expect(html).toContain('1회차 14:00');
+  });
+
+  /* IP 필터가 URL에만 있으면 운영자가 쓸 수 없다. */
+  it('굿즈 순위용 IP 필터 컨트롤을 노출한다', () => {
+    const html = renderToStaticMarkup(<StatsSalesScreen data={sales} filters={filters} />);
+
+    expect(html).toContain('name="ip"');
+    expect(html).toContain('IP 필터');
   });
 
   it('데이터가 없어도 빈 상태를 말한다', () => {
     const html = renderToStaticMarkup(
       <StatsSalesScreen
-        data={{ daily: [], paymentMethods: [], goods: [], tickets: [] }}
+        data={{ daily: [], paymentMethods: [], goods: [], tickets: [], ticketOccurrences: [] }}
         filters={filters}
       />,
     );

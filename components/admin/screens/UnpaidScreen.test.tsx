@@ -23,6 +23,7 @@ function consoleData(overrides: Partial<AdminUnpaidConsoleData> = {}): AdminUnpa
       {
         id: '9a3f21c0-1111-4000-8000-000000000abc',
         buyerName: '홍길동',
+        recipientName: '홍길동',
         buyerId: '00000000-0000-4000-8000-000000000d01',
         total: 23000,
         createdAt: '2026-08-17T09:00:00.000Z',
@@ -35,6 +36,7 @@ function consoleData(overrides: Partial<AdminUnpaidConsoleData> = {}): AdminUnpa
       {
         id: '55550000-2222-4000-8000-000000000def',
         buyerName: '김철수',
+        recipientName: '김철수',
         buyerId: '00000000-0000-4000-8000-000000000d03',
         total: 41000,
         createdAt: '2026-08-17T22:00:00.000Z',
@@ -57,6 +59,10 @@ describe('UnpaidScreen', () => {
     expect(html).toContain('23,000');
     expect(html).toContain('2시간 0분 남음');
     expect(html).toContain('무통장 굿즈 × 1');
+    /* 안내한 입금자명을 그대로 실어야 통장 화면과 눈으로 맞출 수 있다. */
+    expect(html).toContain('홍길동9A3F21C0');
+    /* 확정이 중간에 멈춘 주문은 상태로 드러나야 한다. */
+    expect(html).toContain('입금 대기');
   });
 
   /*
@@ -69,6 +75,25 @@ describe('UnpaidScreen', () => {
     expect(html).toContain('연장됨');
     /* 2시간 남은 주문 하나만 임박이다 — 20시간 남은 주문까지 붉으면 신호가 죽는다. */
     expect(html.match(/admin-badge--warn/g)).toHaveLength(1);
+  });
+
+  /*
+   * finalizer가 needs_review를 내면 그 주문은 확인도 취소도 특별 경로로만 풀린다.
+   * 목록에서 눈에 띄지 않으면 재고를 문 채 조용히 남는다.
+   */
+  it('정합화가 필요한 주문을 상태로 강조한다', () => {
+    const data = consoleData();
+    const html = renderToStaticMarkup(
+      <UnpaidScreen
+        data={{
+          ...data,
+          rows: [{ ...data.rows[0], attemptState: 'needs_review' }],
+        }}
+        now={now}
+      />,
+    );
+
+    expect(html).toContain('정합화 필요');
   });
 
   it('주문을 고르기 전에는 처리 폼을 열지 않는다', () => {

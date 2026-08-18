@@ -902,6 +902,7 @@ returns table (
   order_id uuid,
   buyer_name text,
   buyer_id uuid,
+  recipient_name text,
   total bigint,
   created_at timestamptz,
   expires_at timestamptz,
@@ -937,6 +938,9 @@ begin
       private.bank_transfer_deposit_code(orders.id) as code,
       coalesce(nullif(btrim(profile.nickname), ''), 'fan_' || left(orders.user_id::text, 6))
         as buyer,
+      -- 안내한 입금자명은 수령인 + 주문코드다. 주소 전체가 아니라 이 한 칸만
+      -- 나간다 — 대조에 필요한 것이 그것뿐이다.
+      coalesce(nullif(btrim(orders.address ->> 'recipientName'), ''), '') as recipient,
       (
         select attempt.state
         from public.payment_attempts as attempt
@@ -969,6 +973,7 @@ begin
     filtered.id,
     filtered.buyer,
     filtered.user_id,
+    filtered.recipient,
     filtered.total,
     filtered.created_at,
     filtered.expires_at,
@@ -1170,6 +1175,15 @@ $function$;
 
 -- 즉시 취소. 미입금이라 환불할 돈이 없다 — 재고 복원만 하면 된다. 만료 스윕과
 -- 같은 순서(attempt를 먼저 닫고 주문을 취소)를 따른다.
+--
+-- `prepared`뿐 아니라 `needs_review`·`unknown` attempt도 취소할 수 있어야 한다.
+-- finalizer가 확정 직전 검사에서 걸리면 attempt가 `prepared`를 벗어나는데, 그러면
+-- 확인도 취소도 막히고 만료 스윕까지 그 상태를 건너뛴다 — 주문이 재고를 문 채
+-- 콘솔에서 빠져나갈 길이 없어진다. 카드에는 #208 수동 복구 경로가 있지만
+-- 무통장에는 없으므로 이 함수가 그 출구다.
+--
+-- 다만 결제 원장이 열려 있으면 막는다. 무통장은 PG 왕복이 없어 `payments` 행이
+-- 곧 "확정된 돈"이고, 그 상태에서 취소하면 환불 없이 재고만 되돌아간다.
 create function public.admin_cancel_unpaid_bank_transfer_order(
   p_order_id uuid,
   p_reason text
@@ -1219,8 +1233,18 @@ begin
   for update;
 
   if found then
-    if v_attempt.state is distinct from 'prepared' then
+    if v_attempt.state not in ('prepared', 'needs_review', 'unknown') then
       raise object_not_in_prerequisite_state using message = 'bank_transfer_attempt_not_cancelable';
+    end if;
+
+    if exists (
+      select 1
+      from public.payments as payment
+      where payment.purpose = 'order'
+        and payment.ref_id = v_order.id
+        and payment.status in ('pending', 'paid')
+    ) then
+      raise object_not_in_prerequisite_state using message = 'bank_transfer_payment_exists';
     end if;
 
     update public.payment_attempts
@@ -1237,7 +1261,11 @@ begin
     v_actor,
     'admin.order.bank_transfer_canceled',
     'order:' || v_order.id::text,
-    jsonb_build_object('reason', v_reason, 'amount', v_order.total)
+    jsonb_build_object(
+      'reason', v_reason,
+      'amount', v_order.total,
+      'attemptState', v_attempt.state
+    )
   );
 end;
 $function$;

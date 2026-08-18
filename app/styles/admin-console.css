@@ -816,3 +816,33 @@ a.admin-console-chip:hover {
     row-gap: 6px;
   }
 }
+
+.admin-stats-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.admin-stats-filter label {
+  display: grid;
+  gap: 6px;
+}
+
+.admin-stats-filter label span {
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.admin-stats-filter input {
+  min-height: 40px;
+  min-width: 200px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+}

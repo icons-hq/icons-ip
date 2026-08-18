@@ -578,6 +578,86 @@ select 1 / case when (
 ) then 1 else 0 end as assert_unpaid_cancel_creates_no_payment;
 
 -- ---------------------------------------------------------------------------
+-- 확정이 needs_review로 멈춰도 출구가 있다
+-- ---------------------------------------------------------------------------
+-- finalizer는 확정 직전 상태를 다시 본다. 거기서 걸리면 attempt가 `prepared`를
+-- 벗어나는데, 그 상태를 취소도 못 하게 두면 주문이 재고를 문 채 콘솔에서
+-- 빠져나갈 길이 없어진다(만료 스윕도 needs_review attempt는 건너뛴다).
+reset role;
+
+insert into public.cart_items (user_id, good_id, qty)
+values ('00000000-0000-4000-8000-000000000d01', 'bank-goods', 1);
+
+select public.place_order(
+  '00000000-0000-4000-8000-000000000d01'::uuid,
+  jsonb_build_object(
+    'recipientName', '정합화',
+    'phone', '01012345678',
+    'postalCode', '06236',
+    'address1', '서울시 강남구'
+  ),
+  '9a000000-0000-4000-8000-000000000006'::uuid,
+  'bank_transfer'::public.order_payment_method
+) as stuck_order_id \gset
+
+-- 입금 확인 직전에 계정이 정지됐다. finalizer의 approved 가드가 여기서 걸린다.
+update public.profiles
+set suspended_at = now(), suspension_reason = '무통장 스모크용 정지'
+where id = '00000000-0000-4000-8000-000000000d01';
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000d02', true);
+
+select public.admin_confirm_bank_transfer_deposit(
+  :'stuck_order_id'::uuid,
+  '국민 23,000원 정합화 대조 완료'
+) as stuck_outcome \gset
+
+select 1 / case when :'stuck_outcome' <> 'approved' then 1 else 0 end
+  as assert_fenced_confirmation_does_not_approve;
+
+reset role;
+
+select 1 / case when (
+  select attempt.state = 'needs_review'
+  from public.payment_attempts as attempt
+  where attempt.ref_id = :'stuck_order_id'::uuid
+) then 1 else 0 end as assert_stuck_attempt_leaves_prepared;
+
+-- 만료 스윕은 이 상태를 건드리지 않는다 — 그래서 운영자 출구가 필요하다.
+update public.orders
+set expires_at = now() - interval '10 minutes'
+where id = :'stuck_order_id'::uuid;
+
+select public.expire_stale_checkouts();
+
+select 1 / case when (
+  select orders.status = 'pending'
+  from public.orders
+  where orders.id = :'stuck_order_id'::uuid
+) then 1 else 0 end as assert_sweep_leaves_a_needs_review_order_alone;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000d02', true);
+
+select public.admin_cancel_unpaid_bank_transfer_order(
+  :'stuck_order_id'::uuid,
+  '정합화가 필요한 상태로 멈춰 재고를 되돌린다'
+);
+
+reset role;
+
+select 1 / case when (
+  select orders.status = 'canceled'
+  from public.orders
+  where orders.id = :'stuck_order_id'::uuid
+) then 1 else 0 end as assert_operator_can_release_a_stuck_order;
+
+update public.profiles
+set suspended_at = null, suspension_reason = null
+where id = '00000000-0000-4000-8000-000000000d01';
+
+-- ---------------------------------------------------------------------------
 -- 만료 스윕 — 24시간이 지나면 자동 취소
 -- ---------------------------------------------------------------------------
 -- 주문 생성과 attempt 준비는 service role 경계 안에 있다. 스모크는 superuser

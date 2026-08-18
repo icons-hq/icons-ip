@@ -127,6 +127,25 @@ begin
     group by ticket_scoped.event_id
     order by revenue desc, ticket_scoped.event_id
     limit 20
+  ),
+  -- 회차 축. 이벤트 합계만으로는 "어느 회차가 안 팔리는가"를 볼 수 없고, 그
+  -- 판단이 정원 조정의 근거다. 매출은 예약 스냅샷(수량 × 단가)에서 센다 —
+  -- ticket_orders.total은 회차별로 쪼갤 수 없다.
+  ticket_occurrences as (
+    select
+      reservation.ticket_type_id,
+      max(coalesce(ticket_type.name, '이름 없는 회차')) as occurrence_name,
+      max(coalesce(event.title, ticket_scoped.event_id)) as event_title,
+      sum(reservation.quantity) as ticket_count,
+      sum(reservation.quantity::bigint * reservation.unit_price::bigint) as revenue
+    from ticket_scoped
+    join public.ticket_order_reservations as reservation
+      on reservation.ticket_order_id = ticket_scoped.id
+    left join public.ticket_types as ticket_type on ticket_type.id = reservation.ticket_type_id
+    left join public.events as event on event.id = ticket_scoped.event_id
+    group by reservation.ticket_type_id
+    order by revenue desc, reservation.ticket_type_id
+    limit 20
   )
   select jsonb_build_object(
     'daily', coalesce((
@@ -176,6 +195,18 @@ begin
         )
       )
       from tickets
+    ), '[]'::jsonb),
+    'ticketOccurrences', coalesce((
+      select jsonb_agg(
+        jsonb_build_object(
+          'ticketTypeId', ticket_occurrences.ticket_type_id,
+          'occurrenceName', ticket_occurrences.occurrence_name,
+          'eventTitle', ticket_occurrences.event_title,
+          'ticketCount', ticket_occurrences.ticket_count,
+          'revenue', ticket_occurrences.revenue
+        )
+      )
+      from ticket_occurrences
     ), '[]'::jsonb)
   )
   into v_result;

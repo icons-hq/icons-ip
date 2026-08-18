@@ -272,6 +272,12 @@ select 1 / case when (
   (:'scoped_sales'::jsonb -> 'daily') = (:'sales'::jsonb -> 'daily')
 ) then 1 else 0 end as assert_ip_filter_does_not_touch_daily_revenue;
 
+-- 티켓은 이벤트 축과 회차 축을 따로 낸다. 이벤트 합계만으로는 어느 회차가 안
+-- 팔리는지 볼 수 없고, 그 판단이 정원 조정의 근거다.
+select 1 / case when (
+  :'sales'::jsonb ? 'tickets' and :'sales'::jsonb ? 'ticketOccurrences'
+) then 1 else 0 end as assert_ticket_report_has_both_axes;
+
 -- ---------------------------------------------------------------------------
 -- 클레임
 -- ---------------------------------------------------------------------------

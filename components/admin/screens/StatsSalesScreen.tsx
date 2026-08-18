@@ -23,6 +23,13 @@ const GOODS_COLUMNS: ConsoleGridColumn[] = [
   { key: 'revenue', label: '금액', align: 'end', width: '130px' },
 ];
 
+const OCCURRENCE_COLUMNS: ConsoleGridColumn[] = [
+  { key: 'occurrence', label: '회차' },
+  { key: 'event', label: '이벤트', width: '180px' },
+  { key: 'ticketCount', label: '티켓 수', align: 'end', width: '100px' },
+  { key: 'revenue', label: '매출', align: 'end', width: '130px' },
+];
+
 const TICKET_COLUMNS: ConsoleGridColumn[] = [
   { key: 'event', label: '이벤트' },
   { key: 'orderCount', label: '예매 건수', align: 'end', width: '110px' },
@@ -52,6 +59,17 @@ export function StatsSalesScreen({
   return (
     <section className="admin-console admin-stats">
       <StatsRangeTabs base="/admin/stats/sales" filters={filters} />
+
+      {/* IP 필터는 굿즈 순위만 좁힌다. 일별 매출까지 좁히면 두 숫자가 서로 다른
+          모집단을 말하게 된다. */}
+      <form action="/admin/stats/sales" className="admin-stats-filter" method="get">
+        <input name="days" type="hidden" value={filters.days} />
+        <label>
+          <span>IP 필터 (굿즈 순위)</span>
+          <input defaultValue={filters.ipId} maxLength={64} name="ip" placeholder="예: hwasan" />
+        </label>
+        <button className="btn btn-ghost">적용</button>
+      </form>
 
       <div className="admin-stats-summary">
         <div><span>기간 매출</span><strong className="mono">{krw(totalRevenue)}</strong></div>
@@ -112,9 +130,9 @@ export function StatsSalesScreen({
         }))}
       />
 
-      <h3>티켓 매출</h3>
+      <h3>티켓 매출 · 이벤트</h3>
       <ConsoleGrid
-        caption="티켓 매출"
+        caption="이벤트별 티켓 매출"
         columns={TICKET_COLUMNS}
         emptyLabel="이 기간에 확정된 예매가 없습니다."
         rows={data.tickets.map((row) => ({
@@ -122,6 +140,24 @@ export function StatsSalesScreen({
           cells: [
             row.eventTitle,
             row.orderCount.toLocaleString('ko-KR'),
+            row.ticketCount.toLocaleString('ko-KR'),
+            <span className="mono" key="revenue">{krw(row.revenue)}</span>,
+          ],
+        }))}
+      />
+
+      {/* 이벤트 합계만으로는 "어느 회차가 안 팔리는가"를 볼 수 없다. 그 판단이
+          정원 조정의 근거라 회차 축을 따로 둔다. */}
+      <h3>티켓 매출 · 회차</h3>
+      <ConsoleGrid
+        caption="회차별 티켓 매출"
+        columns={OCCURRENCE_COLUMNS}
+        emptyLabel="이 기간에 확정된 예매가 없습니다."
+        rows={(data.ticketOccurrences ?? []).map((row) => ({
+          id: row.ticketTypeId,
+          cells: [
+            row.occurrenceName,
+            row.eventTitle,
             row.ticketCount.toLocaleString('ko-KR'),
             <span className="mono" key="revenue">{krw(row.revenue)}</span>,
           ],

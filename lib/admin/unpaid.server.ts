@@ -13,6 +13,7 @@ interface UnpaidRow {
   order_id: string;
   buyer_name: string | null;
   buyer_id: string;
+  recipient_name: string | null;
   total: number;
   created_at: string;
   expires_at: string | null;
@@ -76,6 +77,7 @@ export async function getAdminUnpaidOrders(
     id: row.order_id,
     buyerName: row.buyer_name?.trim() || `fan_${row.buyer_id.slice(0, 6)}`,
     buyerId: row.buyer_id,
+    recipientName: row.recipient_name?.trim() ?? '',
     total: row.total,
     createdAt: row.created_at,
     expiresAt: row.expires_at,
