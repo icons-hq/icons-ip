@@ -5,6 +5,7 @@ import { Icon } from '@/components/ui/Icon';
 const TYPE_LABELS: Record<NotificationType, string> = {
   order_paid: '주문',
   order_shipping: '배송',
+  order_delivered: '배송',
   draw_ticket_issued: '카드팩',
   drop_published: '드롭',
   event_published: '이벤트',
@@ -14,6 +15,7 @@ const TYPE_LABELS: Record<NotificationType, string> = {
 const TYPE_ICONS: Record<NotificationType, string> = {
   order_paid: 'bag',
   order_shipping: 'bag',
+  order_delivered: 'bag',
   draw_ticket_issued: 'spark',
   drop_published: 'shop',
   event_published: 'event',

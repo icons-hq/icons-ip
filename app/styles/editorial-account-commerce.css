@@ -1452,7 +1452,9 @@ body:has(input[name='passwordConfirmation']) :is(a, button, input):focus-visible
 }
 
 .order-status--paid,
+.order-status--confirmed,
 .order-status--shipping,
+.order-status--delivered,
 .ticket-status--active {
   border-color: color-mix(in srgb, var(--account-info) 28%, transparent);
   background: color-mix(in srgb, var(--account-blue) 44%, var(--account-surface));
@@ -1528,6 +1530,24 @@ body:has(input[name='passwordConfirmation']) :is(a, button, input):focus-visible
 
 .order-detail-status-row {
   color: var(--account-ink);
+}
+
+/* 라이트 표면에서도 지나온 단계·현재 단계·남은 단계가 갈려야 한다. 어둠 대신
+   잉크 농도로 구분한다 — 다크 레이어의 faint/dim/text와 같은 역할 순서다. */
+.order-detail-ladder-step {
+  color: var(--account-faint);
+}
+
+.order-detail-ladder-step[data-state="done"] {
+  color: var(--account-muted);
+}
+
+.order-detail-ladder-step[data-state="current"] {
+  color: var(--account-ink);
+}
+
+.order-detail-withdrawal {
+  color: var(--account-muted);
 }
 
 .order-detail-back:hover,

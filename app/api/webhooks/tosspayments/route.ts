@@ -334,10 +334,25 @@ type LocalPaymentIdentity = {
   idempotency_key: string;
 };
 
+/**
+ * 결제가 확정된 이후의 주문 상태 집합.
+ *
+ * 굿즈 주문 사다리는 pending → paid → confirmed → shipping → delivered → done이고
+ * paid 이후는 전부 "돈을 이미 받은" 단계다(#250). 하나라도 빠지면 그 상태에 머무는
+ * 주문이 "확정되지 않은 target"으로 보여, 뒤늦게 들어온 다른 결제의 CANCELED 웹훅이
+ * 멀쩡한 주문을 통째로 취소 경로로 보낸다. 사다리에 단계를 더할 때 여기도 함께 넓힌다.
+ * 티켓 주문에는 배송 사다리가 없어 paid 하나가 확정 상태의 전부다.
+ */
+const CONFIRMED_ORDER_STATUSES = new Set([
+  'paid',
+  'confirmed',
+  'shipping',
+  'delivered',
+  'done',
+]);
+
 function isConfirmedTarget(ref: TossOrderRef, status: string) {
-  return ref.purpose === 'order'
-    ? status === 'paid' || status === 'shipping' || status === 'done'
-    : status === 'paid';
+  return ref.purpose === 'order' ? CONFIRMED_ORDER_STATUSES.has(status) : status === 'paid';
 }
 
 function matchesTargetPayment(

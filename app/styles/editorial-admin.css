@@ -1438,13 +1438,15 @@ textarea.admin-notification-control {
 }
 
 .order-status--paid,
+.order-status--confirmed,
 .order-status--done {
   border-color: rgba(63, 125, 56, .35) !important;
   background: rgba(196, 229, 174, .48) !important;
   color: var(--editorial-success) !important;
 }
 
-.order-status--shipping {
+.order-status--shipping,
+.order-status--delivered {
   border-color: rgba(54, 92, 168, .35) !important;
   background: rgba(166, 197, 230, .42) !important;
   color: var(--editorial-info) !important;

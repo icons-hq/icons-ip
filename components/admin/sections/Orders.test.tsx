@@ -85,8 +85,23 @@ function orderData(overrides: Partial<AdminOrderRecord> = {}): AdminOrderConsole
   };
 }
 
+/*
+ * 상태 버튼 라벨(`발주확인`·`배송완료`)은 상태 필터 드롭다운 문구와 글자가 같아
+ * 화면 어디에나 존재한다(#250). 어떤 전이 폼이 실제로 떴는지는 hidden input의
+ * 값으로만 정확히 가려낼 수 있다.
+ */
+const STATUS_ACTION_MARKERS: Record<string, string> = {
+  발주확인: 'name="status" value="confirmed"',
+  발송처리: 'name="status" value="shipping"',
+  배송완료: 'name="status" value="delivered"',
+};
+
+function actionMarker(label: string) {
+  return STATUS_ACTION_MARKERS[label] ?? label;
+}
+
 describe('OrdersSection', () => {
-  it('renders staff-safe order detail and the paid-to-shipping action without provider secrets', () => {
+  it('renders staff-safe order detail and the paid-to-confirmed action without provider secrets', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
 
     expect(html).toContain('주문 검색');
@@ -94,7 +109,7 @@ describe('OrdersSection', () => {
     expect(html).toContain('fan@example.test');
     expect(html).toContain('화산강림 아크릴 스탠드');
     expect(html).toContain('서울 성동구 성수이로 1');
-    expect(html).toContain('배송 시작');
+    expect(html).toContain(STATUS_ACTION_MARKERS['발주확인']);
     expect(html).not.toContain('must-not-render');
   });
 
@@ -207,7 +222,7 @@ describe('OrdersSection', () => {
         cancellationRequest: cancellationRequest(),
       },
       visible: ['청약철회 승인', '요청 거절'],
-      hidden: ['배송 시작', '배송 완료', '상태 다시 확인'],
+      hidden: ['발주확인', '발송처리', '배송완료', '상태 다시 확인'],
     },
     {
       name: 'needs-review cancellation',
@@ -215,7 +230,7 @@ describe('OrdersSection', () => {
         cancellationRequest: cancellationRequest({ status: 'needs_review' }),
       },
       visible: ['상태 다시 확인'],
-      hidden: ['배송 시작', '배송 완료', '청약철회 승인', '요청 거절'],
+      hidden: ['발주확인', '발송처리', '배송완료', '청약철회 승인', '요청 거절'],
     },
     {
       name: 'processing cancellation',
@@ -223,7 +238,7 @@ describe('OrdersSection', () => {
         cancellationRequest: cancellationRequest({ status: 'processing' }),
       },
       visible: ['처리 상태 확인'],
-      hidden: ['배송 시작', '배송 완료', '청약철회 승인', '요청 거절'],
+      hidden: ['발주확인', '발송처리', '배송완료', '청약철회 승인', '요청 거절'],
     },
     {
       name: 'rejected cancellation on a paid order',
@@ -234,8 +249,8 @@ describe('OrdersSection', () => {
           decisionNote: '배송 준비가 이미 완료되었습니다.',
         }),
       },
-      visible: ['배송 시작', '요청 거절'],
-      hidden: ['배송 완료', '청약철회 승인', '상태 다시 확인'],
+      visible: ['발주확인', '요청 거절'],
+      hidden: ['발송처리', '배송완료', '청약철회 승인', '상태 다시 확인'],
     },
     {
       name: 'completed cancellation awaiting an order refresh',
@@ -246,19 +261,33 @@ describe('OrdersSection', () => {
         }),
       },
       visible: ['취소 완료'],
-      hidden: ['배송 시작', '배송 완료', '청약철회 승인', '요청 거절', '상태 다시 확인'],
+      hidden: ['발주확인', '발송처리', '배송완료', '청약철회 승인', '요청 거절', '상태 다시 확인'],
+    },
+    {
+      name: 'confirmed order',
+      overrides: { status: 'confirmed' as const },
+      visible: ['발송처리'],
+      hidden: ['발주확인', '배송완료', '청약철회 승인', '요청 거절', '상태 다시 확인'],
     },
     {
       name: 'shipping order',
       overrides: { status: 'shipping' as const },
-      visible: ['배송 완료'],
-      hidden: ['배송 시작', '청약철회 승인', '요청 거절', '상태 다시 확인'],
+      visible: ['배송완료'],
+      hidden: ['발주확인', '발송처리', '청약철회 승인', '요청 거절', '상태 다시 확인'],
+    },
+    /* delivered→done은 자동 거래확정 잡이 소유한다. 운영자 버튼이 생기면
+       청약철회 창을 사람 손으로 조기 종료시킬 수 있다. */
+    {
+      name: 'delivered order awaiting automatic settlement',
+      overrides: { status: 'delivered' as const },
+      visible: ['운송장 수정'],
+      hidden: ['발주확인', '발송처리', '배송완료', '청약철회 승인', '요청 거절'],
     },
   ])('exposes only the allowed action for $name', ({ overrides, visible, hidden }) => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData(overrides)} />);
 
-    for (const label of visible) expect(html).toContain(label);
-    for (const label of hidden) expect(html).not.toContain(label);
+    for (const label of visible) expect(html).toContain(actionMarker(label));
+    for (const label of hidden) expect(html).not.toContain(actionMarker(label));
   });
 
   it('preserves filters when selecting an order and moving through 20-row pages', () => {
@@ -403,8 +432,8 @@ describe('OrdersSection', () => {
     expect(html).toContain('admin-order-reason--defect');
   });
 
-  it('배송 시작 폼에서 택배사와 운송장번호를 필수로 받는다', () => {
-    const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
+  it('발송처리 폼에서 택배사와 운송장번호를 필수로 받는다', () => {
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'confirmed' })} />);
 
     expect(html).toContain('name="carrier"');
     expect(html).toContain('value="hanjin"');
@@ -469,7 +498,9 @@ describe('OrdersSection', () => {
 
     try {
       const { OrdersSection: ErroredOrdersSection } = await import('./Orders');
-      const html = renderToStaticMarkup(<ErroredOrdersSection data={orderData()} />);
+      const html = renderToStaticMarkup(
+        <ErroredOrdersSection data={orderData({ status: 'confirmed' })} />,
+      );
 
       expect(html).toContain('운송장번호를 입력해주세요.');
       expect(html).toContain(`aria-describedby="admin-order-carrier-error-${ORDER_ID}"`);

@@ -108,7 +108,10 @@ describe('checkoutOrderState', () => {
   it('separates payable, complete, and closed orders', () => {
     expect(checkoutOrderState('pending', null, '2026-07-14T05:10:00.000Z', now)).toBe('payable');
     expect(checkoutOrderState('paid', 'paid', null, now)).toBe('complete');
+    expect(checkoutOrderState('confirmed', 'paid', null, now)).toBe('complete');
     expect(checkoutOrderState('shipping', 'paid', null, now)).toBe('complete');
+    expect(checkoutOrderState('delivered', 'paid', null, now)).toBe('complete');
+    expect(checkoutOrderState('done', 'paid', null, now)).toBe('complete');
     expect(checkoutOrderState('pending', null, '2026-07-14T04:59:59.000Z', now)).toBe('closed');
     expect(checkoutOrderState('canceled', 'canceled', null, now)).toBe('closed');
   });

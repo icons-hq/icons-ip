@@ -37,9 +37,11 @@ const DEFAULT_SITE_URL = 'https://iconsip.com';
  *
  * DB 게이트(admin_request_email_resend)도 같은 집합을 본다. 웹훅 경로는 그 게이트를
  * 지나지 않으므로 실제 안전장치는 이쪽이다 — 양쪽을 함께 바꾼다. */
+// 사다리가 늘면 이 집합도 함께 넓힌다(#250). 빠뜨리면 발주확인·배송완료된 주문의
+// 확인 메일이 order_status_mismatch로 조용히 건너뛰어져 재발송조차 되지 않는다.
 const ACCURATE_ORDER_STATUSES: Record<EmailTemplateName, readonly string[]> = {
-  order_confirmation: ['paid', 'shipping', 'done'],
-  order_shipped: ['shipping', 'done'],
+  order_confirmation: ['paid', 'confirmed', 'shipping', 'delivered', 'done'],
+  order_shipped: ['shipping', 'delivered', 'done'],
 };
 
 /** 멱등이 정상 동작한 결과다. 매 웹훅 재전송마다 로그를 남길 이유가 없다. */

@@ -6,21 +6,110 @@ import { shippingFeeLabel } from '@/lib/shipping';
 import {
   formatOrderDate,
   formatOrderDateTime,
+  ORDER_WITHDRAWAL_DEADLINE_LABELS,
   orderReferenceLabel,
   orderStatusMeta,
   paymentStatusLabel,
   type OrderDetail as OrderDetailData,
+  type OrderDetailStatus,
 } from '@/lib/orders';
+import {
+  orderWithdrawalDaysRemaining,
+  orderWithdrawalDeadline,
+} from '@/lib/orders/withdrawal';
+
+/*
+ * 구매자가 보는 사다리(#250). pending은 결제가 끝나지 않은 선점이고 canceled는
+ * 사다리를 벗어난 종결이라 두 상태에서는 진행 표시를 그리지 않는다 — 지나갈 일이
+ * 없는 단계를 "남은 단계"로 보여주면 기다리면 도착한다는 잘못된 약속이 된다.
+ */
+const ORDER_LADDER_STEPS = ['paid', 'confirmed', 'shipping', 'delivered', 'done'] as const;
+
+function OrderLadder({ status }: { status: OrderDetailStatus }) {
+  const currentIndex = (ORDER_LADDER_STEPS as readonly string[]).indexOf(status);
+  if (currentIndex < 0) return null;
+
+  return (
+    <ol aria-label="주문 진행 단계" className="order-detail-ladder">
+      {ORDER_LADDER_STEPS.map((step, index) => (
+        <li
+          aria-current={index === currentIndex ? 'step' : undefined}
+          className="order-detail-ladder-step"
+          data-state={index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'upcoming'}
+          key={step}
+        >
+          {orderStatusMeta(step).label}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/*
+ * 청약철회 기한 안내.
+ *
+ * 기산점은 delivered_at(재화를 공급받은 날)이다 — 주문일도, 발송일도 아니다(#189).
+ * 판정의 진실원은 DB의 order_withdrawal_deadline_passed이고 이 블록은 같은 규칙의
+ * 고지다. 공급 전에는 남은 일수를 지어내지 않고 "아직 시작하지 않았다"만 말한다.
+ */
+function WithdrawalDeadlineNotice({
+  deliveredAt,
+  now,
+  status,
+}: {
+  deliveredAt: string | null;
+  now: Date;
+  status: OrderDetailStatus;
+}) {
+  if (status === 'canceled') return null;
+
+  if (!deliveredAt) {
+    return (
+      <p className="order-detail-withdrawal faint">
+        단순 변심 청약철회 기한({ORDER_WITHDRAWAL_DEADLINE_LABELS.change_of_mind})은
+        {' '}배송이 완료된 날부터 시작됩니다.
+      </p>
+    );
+  }
+
+  const deadline = orderWithdrawalDeadline(deliveredAt, 'change_of_mind');
+  const daysLeft = orderWithdrawalDaysRemaining(deliveredAt, 'change_of_mind', now);
+  if (!deadline || daysLeft === null) return null;
+
+  return (
+    <p className="order-detail-withdrawal faint">
+      <span>배송완료 </span>
+      <time dateTime={deliveredAt}>{formatOrderDate(deliveredAt)}</time>
+      <span> · </span>
+      {daysLeft > 0 ? (
+        <>
+          <span>단순 변심 청약철회 </span>
+          <time dateTime={deadline.toISOString()}>{formatOrderDate(deadline.toISOString())}</time>
+          <span>까지 (약 {daysLeft}일 남음)</span>
+        </>
+      ) : (
+        <span>
+          단순 변심 청약철회 기한이 지났습니다. 상품 하자·오배송은
+          {' '}{ORDER_WITHDRAWAL_DEADLINE_LABELS.defect} 이내에 요청할 수 있습니다.
+        </span>
+      )}
+    </p>
+  );
+}
 
 export function OrderDetail({
   cardRewardsEnabled = false,
+  now,
   order,
 }: {
   cardRewardsEnabled?: boolean;
+  /** 기한 계산 기준 시각. 테스트 주입용 — 비우면 렌더 시각을 쓴다. */
+  now?: Date;
   order: OrderDetailData;
 }) {
   const status = orderStatusMeta(order.status);
   const date = formatOrderDate(order.createdAt);
+  const at = now ?? new Date();
 
   return (
     <main className="screen order-detail-page">
@@ -34,6 +123,7 @@ export function OrderDetail({
           </div>
           <h1 className="h-xl">{status.title}</h1>
           <p>{status.body}</p>
+          <OrderLadder status={order.status} />
           <div className="order-detail-meta mono">
             <span>ORDER · {orderReferenceLabel(order.id)}</span>
             <span aria-hidden>·</span>
@@ -64,6 +154,12 @@ export function OrderDetail({
               </article>
             ))}
           </div>
+
+          <WithdrawalDeadlineNotice
+            deliveredAt={order.deliveredAt}
+            now={at}
+            status={order.status}
+          />
 
           <OrderCancellation
             cancellationRequest={order.cancellationRequest}

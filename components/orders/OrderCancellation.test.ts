@@ -98,7 +98,7 @@ describe('submitOrderCancellation', () => {
     });
   });
 
-  it.each(['shipping', 'done'] as const)('keeps the withdrawal path open for %s with the receipt-based deadline', (status) => {
+  it.each(['shipping', 'delivered'] as const)('keeps the withdrawal path open for %s with the receipt-based deadline', (status) => {
     const presentation = cancellationPresentation(status, null);
     expect(presentation).toMatchObject({
       canCancel: true,
@@ -107,6 +107,15 @@ describe('submitOrderCancellation', () => {
     });
     expect(presentation.body).toContain('7일');
     expect(presentation.body).toContain('착불');
+  });
+
+  /* done은 변심 창이 닫힌 뒤의 상태다. 요청 경로는 열어 두되 7일을 계속
+     안내하면 이미 지난 기한을 아직 남은 것처럼 읽힌다(#250). */
+  it('거래확정 주문에는 변심 7일 대신 하자 3개월을 안내한다', () => {
+    const presentation = cancellationPresentation('done', null);
+    expect(presentation).toMatchObject({ canCancel: true, actionLabel: '청약철회 요청' });
+    expect(presentation.body).toContain('3개월');
+    expect(presentation.body).not.toContain('7일');
   });
 
   it('asks the shipped-order confirmation about returning the goods first', () => {

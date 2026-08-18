@@ -184,10 +184,15 @@ export function cancellationPresentation(
 
   // 배송이 시작된 뒤가 실물 반품의 주 경로다. 법정 고지가 "공급받은 날부터 7일"을
   // 안내하는 만큼 같은 시점에 요청 버튼도 열어 둔다(D10).
-  if (status === 'shipping' || status === 'done') {
+  if (status === 'shipping' || status === 'delivered' || status === 'done') {
+    /* 사다리가 늘면서 "배송 이후"가 셋이 됐다(#250). done은 변심 창이 이미 닫힌
+       거래확정이지만 하자·오배송은 공급받은 날부터 3개월 남아 있으므로 요청
+       경로를 계속 연다 — 기한 판정의 진실원은 DB다. */
     const deadlineNotice = status === 'shipping'
       ? '배송이 시작된 주문입니다. 굿즈를 공급받은 날부터 7일 이내에 청약철회를 요청할 수 있습니다.'
-      : '배송이 완료된 주문입니다. 굿즈를 공급받은 날부터 7일 이내에 청약철회를 요청할 수 있습니다.';
+      : status === 'delivered'
+        ? '배송이 완료된 주문입니다. 굿즈를 공급받은 날부터 7일 이내에 청약철회를 요청할 수 있습니다.'
+        : '거래가 확정된 주문입니다. 단순 변심 기한은 지났고, 상품 하자·오배송은 공급받은 날부터 3개월 이내에 요청할 수 있습니다.';
     const returnNotice = '요청이 승인되려면 굿즈가 반품 입고돼야 하고, 반품 배송은 고객 착불 반송입니다.';
 
     return {
@@ -244,7 +249,7 @@ export function OrderCancellation({ cancellationRequest, orderId, status, refund
   const presentation = cancellationPresentation(status, refund, cancellationRequest);
   // 배송 전 취소는 기한 판정 대상이 아니다. 사유를 물어도 결과가 같으므로
   // 실물이 고객 손에 갈 수 있는 시점부터만 선택을 받는다.
-  const asksReason = status === 'shipping' || status === 'done';
+  const asksReason = status === 'shipping' || status === 'delivered' || status === 'done';
 
   useEffect(() => {
     if (submission !== 'idle' || !shouldRestoreFocus.current) return;

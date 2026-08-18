@@ -6,7 +6,17 @@ import {
   type OrderShipment,
 } from '@/lib/orders/shipment';
 
-export const ADMIN_ORDER_STATUSES = ['pending', 'paid', 'shipping', 'done', 'canceled'] as const;
+// DB의 order_status enum과 같은 순서를 유지한다 — 상태 필터의 표시 순서가
+// 사다리 순서 그 자체다(#250).
+export const ADMIN_ORDER_STATUSES = [
+  'pending',
+  'paid',
+  'confirmed',
+  'shipping',
+  'delivered',
+  'done',
+  'canceled',
+] as const;
 export type AdminOrderStatus = (typeof ADMIN_ORDER_STATUSES)[number];
 export type AdminOrderStatusFilter = AdminOrderStatus | 'all';
 
@@ -146,7 +156,15 @@ type AdminOrderSearchParams = Record<string, SearchParamValue>;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const ORDER_STATUS_SET = new Set<string>(ADMIN_ORDER_STATUSES);
-const SHIPPING_STATUS_SET = new Set<string>(['shipping', 'done']);
+/**
+ * 어드민 상태 폼이 직접 밀 수 있는 전이 대상(#250).
+ *
+ * `admin_update_order_status`가 받는 값과 같아야 한다 — `paid`는 결제 웹훅이,
+ * `done`은 자동 거래확정 잡이, `canceled`는 청약철회 경로가 각각 소유하므로
+ * 운영자 폼이 손댈 수 있는 것은 사다리 중간 세 칸뿐이다.
+ */
+const SHIPPING_STATUS_SET = new Set<string>(['confirmed', 'shipping', 'delivered']);
+export type AdminOrderFormStatus = 'confirmed' | 'shipping' | 'delivered';
 
 function singleParam(value: SearchParamValue) {
   return typeof value === 'string' ? value : '';
@@ -231,7 +249,7 @@ export function normalizeAdminOrderStatusForm(
   formData: FormData,
 ): AdminOrderFormResult<{
   orderId: string;
-  status: 'shipping' | 'done';
+  status: AdminOrderFormStatus;
   carrier: string | null;
   trackingNumber: string | null;
 }> {
@@ -240,15 +258,21 @@ export function normalizeAdminOrderStatusForm(
   const errors: AdminOrderFieldErrors = {};
 
   if (!UUID_PATTERN.test(orderId)) errors.orderId = '주문을 찾을 수 없습니다.';
-  if (!SHIPPING_STATUS_SET.has(status)) errors.status = '허용된 배송 상태를 선택해주세요.';
+  if (!SHIPPING_STATUS_SET.has(status)) errors.status = '허용된 주문 상태를 선택해주세요.';
   if (Object.keys(errors).length) return { ok: false, errors };
 
-  // 배송 완료 전이는 이미 등록된 운송장을 그대로 둔다. 재입력을 받으면 완료 시점에
-  // 운송장이 조용히 바뀌는 경로가 생긴다 — 수정은 전용 폼에서만 감사와 함께 한다.
-  if (status === 'done') {
+  // 운송장을 받는 것은 발송처리(shipping)뿐이다. 발주확인·배송완료 전이에서 재입력을
+  // 받으면 그 시점에 운송장이 조용히 바뀌는 경로가 생긴다 — 수정은 전용 폼에서만
+  // 감사와 함께 한다. DB도 입력이 없으면 기존 운송장을 유지한다.
+  if (status !== 'shipping') {
     return {
       ok: true,
-      value: { orderId, status: 'done', carrier: null, trackingNumber: null },
+      value: {
+        orderId,
+        status: status as Exclude<AdminOrderFormStatus, 'shipping'>,
+        carrier: null,
+        trackingNumber: null,
+      },
     };
   }
 

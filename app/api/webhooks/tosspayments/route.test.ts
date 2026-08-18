@@ -430,6 +430,44 @@ describe('POST /api/webhooks/tosspayments virtual-account cleanup', () => {
     expect(mocks.updateEqThird).toHaveBeenCalledWith('status', 'failed');
   });
 
+  /*
+   * 사다리 중간 상태(#250). paid만 확정으로 보면 발주확인·배송중·배송완료 주문은
+   * "미확정 target"으로 분류돼, 뒤늦게 들어온 다른 결제의 CANCELED가 멀쩡한 주문을
+   * 취소 RPC로 보낸다 — 돈이 걸린 경로라 상태별로 못 박는다.
+   */
+  it.each([
+    ['발주확인', 'confirmed'],
+    ['배송중', 'shipping'],
+    ['배송완료', 'delivered'],
+    ['거래확정', 'done'],
+  ] as const)('%s 상품 주문도 후속 CANCELED 결제에서 기존 target을 보존한다', async (
+    _label,
+    orderStatus,
+  ) => {
+    const confirmedPayment = paymentRecord('order', 'paid', 'pk_virtual');
+    const canceledSecondPayment = {
+      ...virtualAccountPayment('DONE'),
+      paymentKey: 'pk_second',
+      orderId: `order_${ORDER_UUID}`,
+      method: '카드',
+      status: 'CANCELED',
+      balanceAmount: 0,
+      cancels: [{ cancelAmount: 42000, cancelStatus: 'DONE' }],
+    };
+    mocks.target = { user_id: 'user-1', status: orderStatus, total: 42000 };
+    mocks.confirmedTargetPayment = confirmedPayment;
+    mocks.paymentsByKey = {
+      pk_virtual: confirmedPayment,
+      pk_second: paymentRecord('order', 'canceled', 'pk_second'),
+    };
+    mocks.fetchPayment.mockResolvedValue({ ok: true, body: canceledSecondPayment });
+
+    const response = await POST(webhookRequest('pk_second'));
+
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it('fresh GET이 webhook event와 다른 paymentKey를 반환하면 로컬 mutation 없이 fail closed한다', async () => {
     mocks.fetchPayment.mockResolvedValue({
       ok: true,

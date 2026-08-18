@@ -1,7 +1,17 @@
 import type { CheckoutAddress } from './checkout';
 import type { OrderShipment } from './orders/shipment';
 
-export const VISIBLE_ORDER_STATUSES = ['paid', 'shipping', 'done', 'canceled'] as const;
+// 주문 목록에 보이는 상태. pending은 결제가 끝나지 않은 선점이라 별도 취급한다.
+// 사다리는 pending → paid → confirmed → shipping → delivered → done이고
+// DB의 order_status enum과 같은 순서를 유지한다(#250).
+export const VISIBLE_ORDER_STATUSES = [
+  'paid',
+  'confirmed',
+  'shipping',
+  'delivered',
+  'done',
+  'canceled',
+] as const;
 export const ORDER_DETAIL_STATUSES = ['pending', ...VISIBLE_ORDER_STATUSES] as const;
 
 export type VisibleOrderStatus = (typeof VISIBLE_ORDER_STATUSES)[number];
@@ -51,16 +61,30 @@ const STATUS_PRESENTATION: Record<OrderDetailStatus, OrderStatusPresentation> = 
     body: '결제가 확인됐고 배송 준비를 시작합니다.',
     tone: 'paid',
   },
+  confirmed: {
+    label: '발주확인',
+    title: '주문을 확인하고 준비 중이에요',
+    body: '판매자가 주문을 확인했고 발송 준비를 하고 있습니다.',
+    tone: 'confirmed',
+  },
   shipping: {
     label: '배송중',
     title: '굿즈가 배송 중이에요',
     body: '주문한 굿즈가 배송지로 이동하고 있습니다.',
     tone: 'shipping',
   },
+  delivered: {
+    label: '배송완료',
+    title: '굿즈가 배송 완료됐어요',
+    body: '배송이 완료됐습니다. 문제가 있으면 아래에서 청약철회를 요청할 수 있어요.',
+    tone: 'delivered',
+  },
   done: {
-    label: '완료',
-    title: '주문이 완료됐어요',
-    body: '배송이 완료된 주문입니다.',
+    // "완료"가 아니라 "거래확정"이다(CONTEXT.md). 변심 청약철회 창이 닫혔다는
+    // 뜻이고, 하자·오배송 클레임은 공급받은 날부터 3개월까지 남아 있다.
+    label: '거래확정',
+    title: '거래가 확정됐어요',
+    body: '배송완료 후 청약철회 기간이 지나 거래가 확정된 주문입니다.',
     tone: 'done',
   },
   canceled: {
@@ -115,6 +139,16 @@ export interface OrderDetail {
   shippingFee: number;
   address: CheckoutAddress | null;
   createdAt: string;
+  /**
+   * 재화를 공급받은 날(#189). 청약철회 기한의 법정 기산점이라 구매자 화면이
+   * 남은 기간을 계산할 유일한 근거다. shipping→delivered 전이에서 기록되고,
+   * 그 전에는 null이다 — 기한이 아직 시작하지 않았다는 뜻이다.
+   *
+   * optional이 아니라 required다(#250). 주문 상세가 이 값으로 남은 기간을 말하는
+   * 이상, 값을 빠뜨린 호출자는 "기한 없음"이 아니라 컴파일 오류를 받아야 한다 —
+   * 조용히 undefined가 흘러들면 화면이 이유 없이 안내를 감춘다.
+   */
+  deliveredAt: string | null;
   items: OrderDetailItem[];
   payment: OrderPaymentSummary | null;
   refund: OrderRefundSummary | null;

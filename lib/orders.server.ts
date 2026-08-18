@@ -27,6 +27,7 @@ interface OrderDetailRow extends OrderListRow {
   address: unknown;
   shipping_carrier: string | null;
   tracking_number: string | null;
+  delivered_at: string | null;
 }
 
 interface OrderListItemRow {
@@ -166,7 +167,9 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   const supabase = await createClient();
   const { data: orderData, error: orderError } = await supabase
     .from('orders')
-    .select('id,user_id,status,total,shipping_fee,address,created_at,shipping_carrier,tracking_number')
+    // delivered_at은 청약철회 기한의 기산점이다(#189). 이 값이 없으면 주문
+    // 상세가 남은 기간을 말할 근거가 없다.
+    .select('id,user_id,status,total,shipping_fee,address,created_at,shipping_carrier,tracking_number,delivered_at')
     .eq('id', orderId)
     .eq('user_id', userId)
     .in('status', [...ORDER_DETAIL_STATUSES])
@@ -255,6 +258,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     shippingFee: orderData.shipping_fee ?? 0,
     address: normalizeCheckoutAddress(orderData.address),
     createdAt: orderData.created_at,
+    deliveredAt: orderData.delivered_at,
     items: ((itemsResult.data ?? []) as OrderDetailItemRow[]).map((item) => ({
       goodId: item.good_id,
       name: item.good_name_snapshot,
