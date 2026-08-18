@@ -1215,6 +1215,7 @@ begin
   from public.payment_attempts as attempt
   where attempt.purpose = 'order'
     and attempt.ref_id = v_order.id
+    and attempt.provider = 'bank_transfer'
   for update;
 
   if found then

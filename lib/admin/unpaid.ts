@@ -98,8 +98,20 @@ interface AdminUnpaidReasonForm {
 
 /**
  * 근거 문자열 검증. 앞뒤 공백을 다듬은 뒤 길이를 본다 — 공백만 200자를 넣어
- * "근거를 남겼다"고 기록되면 감사 로그가 거짓말을 한다.
+ * "근거를 남겼다"고 기록되면 감사 로그가 거짓말을 한다. 경계값은 DB CHECK와
+ * 같은 값이어야 폼과 RPC가 같은 것을 거절한다.
  */
+export function normalizeAdminUnpaidReason(
+  value: FormDataEntryValue | null,
+  invalidMessage: string,
+): AdminUnpaidFormResult<string> {
+  const reason = String(value ?? '').trim();
+  if (reason.length < ADMIN_UNPAID_MEMO_MIN || reason.length > ADMIN_UNPAID_MEMO_MAX) {
+    return { ok: false, error: invalidMessage };
+  }
+  return { ok: true, value: reason };
+}
+
 export function normalizeAdminUnpaidReasonForm(
   formData: FormData,
   field: string,
@@ -108,9 +120,7 @@ export function normalizeAdminUnpaidReasonForm(
   const orderId = String(formData.get('orderId') ?? '').trim();
   if (!orderId) return { ok: false, error: '주문을 찾을 수 없습니다.' };
 
-  const reason = String(formData.get(field) ?? '').trim();
-  if (reason.length < ADMIN_UNPAID_MEMO_MIN || reason.length > ADMIN_UNPAID_MEMO_MAX) {
-    return { ok: false, error: emptyMessage };
-  }
-  return { ok: true, value: { orderId, reason } };
+  const reason = normalizeAdminUnpaidReason(formData.get(field), emptyMessage);
+  if (!reason.ok) return reason;
+  return { ok: true, value: { orderId, reason: reason.value } };
 }

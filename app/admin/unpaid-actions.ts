@@ -2,7 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { normalizeAdminUnpaidReasonForm } from '@/lib/admin/unpaid';
+import {
+  normalizeAdminUnpaidReason,
+  normalizeAdminUnpaidReasonForm,
+} from '@/lib/admin/unpaid';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -48,6 +51,20 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   return fallback;
 }
 
+/**
+ * finalizer는 `approved` 말고도 `needs_review`를 돌려줄 수 있다 — 확정 직전에
+ * 계정이 정지됐거나 주문 스냅샷이 어긋난 경우다. 그때 "결제완료로 확정했습니다"를
+ * 띄우면 운영자가 발주 큐에서 찾다가 없어서야 알게 된다. 결과를 그대로 말한다.
+ */
+function finalizationResult(outcome: unknown, successMessage: string): AdminUnpaidActionState {
+  if (outcome === 'approved') return { message: successMessage };
+  return {
+    error: `입금 기록은 남았지만 주문이 결제완료로 확정되지 않았습니다(결과: ${
+      typeof outcome === 'string' ? outcome : 'unknown'
+    }). 결제 원장을 확인한 뒤 수동 정합화가 필요합니다.`,
+  };
+}
+
 async function requireStaffAction(): Promise<AdminUnpaidActionState | null> {
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user) {
@@ -82,14 +99,14 @@ export async function confirmBankTransferDepositAction(
   if (!normalized.ok) return { error: normalized.error };
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_confirm_bank_transfer_deposit', {
+  const { data, error } = await supabase.rpc('admin_confirm_bank_transfer_deposit', {
     p_order_id: normalized.value.orderId,
     p_memo: normalized.value.reason,
   });
   if (error) return { error: rpcErrorMessage(error.message, CONFIRM_FAILED) };
 
   revalidateUnpaidSurfaces(normalized.value.orderId);
-  return { message: '입금을 확인해 주문을 결제완료로 확정했습니다.' };
+  return finalizationResult(data, '입금을 확인해 주문을 결제완료로 확정했습니다.');
 }
 
 export async function extendBankTransferDeadlineAction(
@@ -175,23 +192,22 @@ export async function confirmBankDepositAction(
   const orderId = String(formData.get('orderId') ?? '').trim();
   if (!depositId || !orderId) return { error: '입금과 주문을 함께 선택해주세요.' };
 
-  const memo = String(formData.get('memo') ?? '').trim();
-  if (memo.length < 5 || memo.length > 200) {
-    return {
-      error: '입금 근거를 5자 이상 200자 이하로 남겨주세요. 제안을 그대로 받아들이는 경우에도 무엇을 보고 확정했는지 남겨야 합니다.',
-    };
-  }
+  const memo = normalizeAdminUnpaidReason(
+    formData.get('memo'),
+    '입금 근거를 5자 이상 200자 이하로 남겨주세요. 제안을 그대로 받아들이는 경우에도 무엇을 보고 확정했는지 남겨야 합니다.',
+  );
+  if (!memo.ok) return { error: memo.error };
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_confirm_bank_deposit', {
+  const { data, error } = await supabase.rpc('admin_confirm_bank_deposit', {
     p_deposit_id: depositId,
     p_order_id: orderId,
-    p_memo: memo,
+    p_memo: memo.value,
   });
   if (error) return { error: depositErrorMessage(error.message, DEPOSIT_CONFIRM_FAILED) };
 
   revalidateUnpaidSurfaces(orderId);
-  return { message: '입금 내역을 주문에 연결하고 결제완료로 확정했습니다.' };
+  return finalizationResult(data, '입금 내역을 주문에 연결하고 결제완료로 확정했습니다.');
 }
 
 export async function ignoreBankDepositAction(
@@ -204,15 +220,16 @@ export async function ignoreBankDepositAction(
   const depositId = String(formData.get('depositId') ?? '').trim();
   if (!depositId) return { error: '입금 내역을 찾을 수 없습니다.' };
 
-  const reason = String(formData.get('reason') ?? '').trim();
-  if (reason.length < 5 || reason.length > 200) {
-    return { error: '보류 사유를 5자 이상 200자 이하로 남겨주세요. 반환 절차의 근거가 됩니다.' };
-  }
+  const reason = normalizeAdminUnpaidReason(
+    formData.get('reason'),
+    '보류 사유를 5자 이상 200자 이하로 남겨주세요. 반환 절차의 근거가 됩니다.',
+  );
+  if (!reason.ok) return { error: reason.error };
 
   const supabase = await createClient();
   const { error } = await supabase.rpc('admin_ignore_bank_deposit', {
     p_deposit_id: depositId,
-    p_reason: reason,
+    p_reason: reason.value,
   });
   if (error) return { error: depositErrorMessage(error.message, DEPOSIT_IGNORE_FAILED) };
 

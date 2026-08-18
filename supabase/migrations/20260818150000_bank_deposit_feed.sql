@@ -271,6 +271,14 @@ begin
     raise insufficient_privilege using message = 'staff required';
   end if;
 
+  -- 잠금 순서: orders → bank_deposits → payment_attempts → payments.
+  -- 주문을 먼저 잡아 #256의 확정·연장·취소와 같은 순서를 유지한다. 입금 행을
+  -- 먼저 잡으면 같은 주문을 두 운영자가 서로 다른 순서로 잠가 교착이 난다.
+  perform 1
+  from public.orders
+  where orders.id = p_order_id
+  for update;
+
   select deposit.* into v_deposit
   from public.bank_deposits as deposit
   where deposit.id = p_deposit_id
@@ -286,26 +294,43 @@ begin
 
   v_outcome := public.admin_confirm_bank_transfer_deposit(p_order_id, p_memo);
 
-  update public.bank_deposits
-  set
-    status = 'matched',
-    matched_order_id = p_order_id,
-    matched_at = now(),
-    decided_by = v_actor,
-    decision_note = btrim(coalesce(p_memo, ''))
-  where id = v_deposit.id;
+  -- finalizer가 approved가 아닌 값(needs_review 등)을 돌려주면 주문은 결제완료가
+  -- 아니다. 그때 입금을 matched로 닫으면 "돈은 들어왔고 주문은 안 된" 건이
+  -- 큐에서 사라진다 — 정합화가 끝날 때까지 큐에 남겨 둔다. attempt는 이미
+  -- 종결 상태라 재확정은 막히고, 사람이 원장을 보고 처리해야 한다.
+  if v_outcome = 'approved' then
+    update public.bank_deposits
+    set
+      status = 'matched',
+      matched_order_id = p_order_id,
+      matched_at = now(),
+      decided_by = v_actor,
+      decision_note = btrim(coalesce(p_memo, ''))
+    where id = v_deposit.id;
+  else
+    update public.bank_deposits
+    set
+      decided_by = v_actor,
+      decision_note = btrim(coalesce(p_memo, ''))
+        || ' / 확정 실패: ' || v_outcome::text
+    where id = v_deposit.id;
+  end if;
 
   insert into public.audit_log (actor_id, action, target, diff)
   values (
     v_actor,
-    'admin.bank_deposit.matched',
+    case when v_outcome = 'approved'
+      then 'admin.bank_deposit.matched'
+      else 'admin.bank_deposit.match_failed'
+    end,
     'order:' || p_order_id::text,
     jsonb_build_object(
       'depositId', v_deposit.id,
       'source', v_deposit.source,
       'externalId', v_deposit.external_id,
       'amount', v_deposit.amount,
-      'depositorName', v_deposit.depositor_name
+      'depositorName', v_deposit.depositor_name,
+      'outcome', v_outcome
     )
   );
 

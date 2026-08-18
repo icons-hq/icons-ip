@@ -357,6 +357,87 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- 확정이 approved로 끝나지 않으면 입금을 닫지 않는다
+-- ---------------------------------------------------------------------------
+-- finalizer는 확정 직전 상태(정지 계정·스냅샷 불일치 등)를 다시 보고 needs_review를
+-- 돌려줄 수 있다. 그때 입금을 matched로 닫으면 "돈은 들어왔는데 주문은 안 된" 건이
+-- 큐에서 사라져 아무도 정합화하지 않는다.
+reset role;
+
+insert into public.cart_items (user_id, good_id, qty)
+values ('00000000-0000-4000-8000-000000000e01', 'deposit-goods', 1);
+
+select public.place_order(
+  '00000000-0000-4000-8000-000000000e01'::uuid,
+  jsonb_build_object(
+    'recipientName', '정지될사람',
+    'phone', '01011112222',
+    'postalCode', '06236',
+    'address1', '서울시 마포구'
+  ),
+  'aa000000-0000-4000-8000-000000000003'::uuid,
+  'bank_transfer'::public.order_payment_method
+) as fenced_order_id \gset
+
+select public.record_bank_deposits(
+  'fake',
+  jsonb_build_array(
+    jsonb_build_object(
+      'externalId', 'dep-006',
+      'depositedAt', now()::text,
+      'depositorName', '정지될사람' || private.bank_transfer_deposit_code(:'fenced_order_id'::uuid),
+      'amount', 23000
+    )
+  )
+);
+
+-- 입금이 들어온 뒤 계정이 정지됐다. finalizer의 approved 가드가 여기서 걸린다.
+update public.profiles
+set suspended_at = now(), suspension_reason = '통계 스모크용 정지'
+where id = '00000000-0000-4000-8000-000000000e01';
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000e02', true);
+
+select deposit_id as fenced_deposit_id
+from public.admin_bank_deposit_queue()
+where external_id = 'dep-006' \gset
+
+select public.admin_confirm_bank_deposit(
+  :'fenced_deposit_id'::uuid,
+  :'fenced_order_id'::uuid,
+  '입금자명 코드 일치, 금액 동일'
+) as fenced_outcome \gset
+
+select 1 / case when :'fenced_outcome' <> 'approved' then 1 else 0 end
+  as assert_fenced_account_does_not_approve;
+
+reset role;
+
+select 1 / case when (
+  select orders.status = 'pending' from public.orders where orders.id = :'fenced_order_id'::uuid
+) then 1 else 0 end as assert_unapproved_order_stays_unpaid;
+
+-- 입금은 큐에 남는다. 사유는 기록되되 matched로 닫히지 않는다.
+select 1 / case when (
+  select status = 'unmatched'
+    and matched_order_id is null
+    and decision_note like '%확정 실패%'
+  from public.bank_deposits
+  where external_id = 'dep-006'
+) then 1 else 0 end as assert_unapproved_deposit_stays_in_the_queue;
+
+select 1 / case when (
+  select count(*) = 1
+  from public.audit_log
+  where action = 'admin.bank_deposit.match_failed'
+) then 1 else 0 end as assert_failed_match_is_audited_separately;
+
+update public.profiles
+set suspended_at = null, suspension_reason = null
+where id = '00000000-0000-4000-8000-000000000e01';
+
+-- ---------------------------------------------------------------------------
 -- 미아 입금 — 지우지 않고 사유와 함께 내린다
 -- ---------------------------------------------------------------------------
 select deposit_id as orphan_id
