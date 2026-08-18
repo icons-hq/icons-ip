@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { OrderCancellation } from '@/components/orders/OrderCancellation';
+import { newInquiryHref } from '@/lib/inquiries';
 import { Icon } from '@/components/ui/Icon';
 import { krw } from '@/lib/format';
 import { shippingFeeLabel } from '@/lib/shipping';
@@ -168,6 +169,21 @@ export function OrderDetail({
             refund={order.refund}
             status={order.status}
           />
+
+          {/* 청약철회(클레임 접수) 바로 아래에 둔다. 둘은 다른 일이다 — 철회는 절차이고
+              문의는 질문이다. 붙여 두면 "무엇을 눌러야 하는지" 헷갈리는 대신 두 경로가
+              모두 있다는 사실이 한눈에 보인다. */}
+          <div className="order-detail-inquiry">
+            <Link
+              className="btn btn-ghost"
+              href={newInquiryHref({ category: 'order', orderId: order.id })}
+            >
+              이 주문 문의하기
+            </Link>
+            <span className="faint" style={{ fontSize: 12.5 }}>
+              주문번호와 배송 정보가 함께 전달되어 운영자가 바로 확인할 수 있습니다.
+            </span>
+          </div>
         </section>
 
         <aside className="order-detail-receipt card" aria-label="주문 영수증">

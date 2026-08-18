@@ -821,6 +821,11 @@
   .order-detail-ladder-step[data-state="done"] { color: var(--dim); }
   .order-detail-ladder-step[data-state="current"] { color: var(--text); font-weight: 800; }
   .order-detail-withdrawal { margin-top: 18px; font-size: 11px; line-height: 1.65; }
+  /* 문의 진입점 — 청약철회 블록 아래. 버튼과 설명이 같은 줄에서 갈라지지 않게 세로로 쌓는다. */
+  .order-detail-inquiry {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+    margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line);
+  }
   .order-detail-layout {
     display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 400px);
     gap: 20px; align-items: start; padding-bottom: clamp(76px, 9vw, 112px);

@@ -320,6 +320,35 @@
   padding: clamp(22px, 2.5vw, 38px);
 }
 
+/* 셸 배지 슬롯 — 헤더와 본문 사이. 처리할 일이 있을 때만 그려지므로(#253)
+   빈 상태의 여백을 미리 잡아 두지 않는다. */
+.admin-shell-badges {
+  display: flex;
+  width: min(100%, 1488px);
+  align-self: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 clamp(22px, 2.5vw, 38px);
+}
+
+.admin-shell-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid var(--amber);
+  border-radius: 999px;
+  color: var(--editorial-ink);
+  font-size: 12.5px;
+  text-decoration: none;
+}
+
+.admin-shell-badge strong {
+  color: var(--amber);
+  font-family: var(--ff-mono);
+  font-size: 12px;
+}
+
 .admin-content > .rise {
   min-width: 0;
 }

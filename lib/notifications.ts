@@ -7,7 +7,9 @@ export type NotificationType =
   | 'draw_ticket_issued'
   | 'drop_published'
   | 'event_published'
-  | 'announcement';
+  | 'announcement'
+  /* 1:1 문의 답변(#253). 발송은 admin_answer_inquiry가 같은 트랜잭션에서 남긴다. */
+  | 'inquiry_answered';
 
 export interface NotificationRow {
   id: string;

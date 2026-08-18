@@ -283,7 +283,7 @@
 
 아래 사람·운영 데이터 블로커와 결제 rollout 증거가 모두 필요하다. 2026-08-10에 프로덕션 `goods`와 Vercel production env를 직접 확인했고, 2026-08-14 결제 provider 전환 계약을 §8.3에 갱신했다. #87의 계약·credential human gate는 같은 날 사용자 확인으로 해소했으며 아래 미해결 블로커에 포함하지 않는다.
 
-1. **[#239](https://github.com/icons-hq/icons-ip/issues/239)** — 공개 판매자 정보 7종·통신판매업 신고·문의 창구가 비어 있어 푸터와 법정 문서 표기를 완료할 수 없다.
+1. **[#239](https://github.com/icons-hq/icons-ip/issues/239)** — 공개 판매자 정보 7종·통신판매업 신고가 비어 있어 푸터와 법정 문서의 사업자 정보 표기를 완료할 수 없다. 문의 창구 중 **인앱 채널은 [#253](https://github.com/icons-hq/icons-ip/issues/253)의 1:1 문의(`/my/inquiries`)가 제공**하며 법정 문서 본문이 이 경로를 가리킨다(2026-08-18 개정). 비로그인 이용자와 기관 조회용 공개 연락처는 여전히 #239의 범위다.
 2. **[#177](https://github.com/icons-hq/icons-ip/issues/177)** — H1~H7. 특히 H7(WMS 운영사 법인명)이 없으면 개인정보처리방침의 처리위탁 목록을 완성할 수 없다.
 3. **[#190](https://github.com/icons-hq/icons-ip/issues/190)** — 홍실 3종의 고시정보 7항목 × 3 = **21칸이 전부 공백**이고 설명·갤러리·상세 이미지도 없다. A/S 연락처는 이 이슈에서 확정하며 Korpay 계약과 무관하다.
 4. **[#179](https://github.com/icons-hq/icons-ip/issues/179)** — #177의 WMS 격리 계약과 #190의 필수 고시정보가 필요하다. 홍실 3종이 전부 `stock='soldout'`·`stock_qty=0`이라 지금은 아무것도 팔리지 않는다.

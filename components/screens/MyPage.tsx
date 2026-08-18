@@ -47,6 +47,13 @@ const DESTINATIONS = [
     meta: 'INBOX',
   },
   {
+    description: '주문·배송, 취소/반품/교환, 상품에 대해 운영자에게 문의하세요.',
+    href: '/my/inquiries',
+    icon: 'chat',
+    label: '1:1 문의',
+    meta: 'SUPPORT',
+  },
+  {
     description: '프로필과 정보 수신 동의를 관리하세요.',
     href: '/settings',
     icon: 'user',

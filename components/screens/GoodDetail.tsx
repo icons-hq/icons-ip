@@ -5,6 +5,7 @@ import { useState, type ReactNode } from 'react';
 import { krw, krwAmountWords } from '@/lib/format';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { STOCK_LABEL } from '@/lib/goods-display';
+import { newInquiryHref } from '@/lib/inquiries';
 import { goodsNoticeRows } from '@/lib/goods-notice';
 import { ipAccent, ipAccentInk } from '@/lib/ip-display';
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
@@ -109,6 +110,29 @@ function ReturnGuide() {
         style={{ alignSelf: 'flex-start', color: 'var(--dim)', fontSize: 12, letterSpacing: '.06em', textDecoration: 'underline' }}
       >
         {LEGAL_DOCUMENT_LABELS.shipping} 전문 보기
+      </Link>
+    </section>
+  );
+}
+
+/*
+ * 상품 문의 진입점(#253).
+ *
+ * 공개 브라우징을 깨지 않는다 — 링크는 비로그인에게도 보이고, 로그인은 문의 화면이
+ * 요구한다. 여기서 감추면 "물어볼 데가 없는 상품"으로 보인다.
+ */
+function InquiryEntry({ goodId }: { goodId: string }) {
+  return (
+    <section aria-labelledby="goods-inquiry-heading" className="goods-detail-section">
+      <h2 className="mono" id="goods-inquiry-heading" style={{ color: 'var(--dim)', fontSize: 12, letterSpacing: '.16em', margin: 0 }}>
+        상품 문의
+      </h2>
+      <p style={{ color: 'var(--dim)', fontSize: 13.5, lineHeight: 1.7, margin: 0 }}>
+        구성, 재고, 배송 일정처럼 이 굿즈에 대해 궁금한 점을 운영자에게 비공개로 물어볼 수 있습니다.
+        영업일 기준 24시간 안에 첫 답변을 드립니다.
+      </p>
+      <Link className="btn btn-ghost" href={newInquiryHref({ category: 'good', goodId })} style={{ alignSelf: 'flex-start' }}>
+        상품 문의하기
       </Link>
     </section>
   );
@@ -222,6 +246,7 @@ export function GoodDetailView({
         <NoticeTable detail={detail} />
         <ShippingGuide />
         <ReturnGuide />
+        <InquiryEntry goodId={good.id} />
       </div>
     </Root>
   );

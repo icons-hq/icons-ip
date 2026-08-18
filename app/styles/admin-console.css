@@ -401,6 +401,46 @@ a.admin-console-chip:hover {
 }
 
 /* --------------------------------------------------------------------------
+   1:1 문의 — SLA 강조와 상세 2열
+   -------------------------------------------------------------------------- */
+
+/* SLA는 운영자가 목록에서 가장 먼저 보는 값이다. 색만으로 구분하지 않고 굵기까지
+   함께 바꾼다 — 색각 이상이나 저대비 환경에서 색 하나에 기대면 강조가 사라진다. */
+[data-sla-tone="warning"] {
+  color: var(--amber);
+  font-weight: 600;
+}
+
+[data-sla-tone="danger"] {
+  color: var(--pink);
+  font-weight: 700;
+}
+
+[data-sla-tone="settled"] {
+  color: var(--editorial-ink-faint);
+}
+
+.admin-inquiry-layout {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1.6fr) minmax(260px, .9fr);
+  gap: 16px;
+  align-items: start;
+}
+
+/* 운영자 메시지는 왼쪽 테두리로 구분한다. 배경색을 쓰면 어드민 서피스 위에서
+   카드 경계와 겹쳐 어느 쪽이 누구 말인지 오히려 흐려진다. */
+.admin-inquiry-thread > li[data-author="staff"] {
+  border-inline-start: 3px solid var(--violet, var(--editorial-line));
+}
+
+@media (max-width: 1080px) {
+  .admin-inquiry-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* --------------------------------------------------------------------------
    반응형 — 좁은 화면에서는 필터가 한 열로 쌓인다
    -------------------------------------------------------------------------- */
 

@@ -27,6 +27,19 @@ const failedDelivery: EmailDeliveryRecord = {
   claimedAt: '2026-08-07T02:30:00.000Z',
   completedAt: '2026-08-07T02:30:01.000Z',
   createdAt: '2026-08-07T02:00:00.000Z',
+  resendable: true,
+};
+
+/* 문의 답변 메일은 주문 상태로 사실성을 판정할 수 없어 재발송 게이트가 거절한다(#253).
+   누르면 반드시 실패하는 버튼을 그리는 대신 이유를 적는다. */
+const inquiryDelivery: EmailDeliveryRecord = {
+  ...failedDelivery,
+  dedupeKey: 'inquiry_answered:5f2b9c11-3d5e-4f6a-8b7c-9d0e1f2a3b4c',
+  template: 'inquiry_answered',
+  templateLabel: '문의 답변',
+  orderId: null,
+  subject: '[ICONS] 문의에 답변이 등록됐어요',
+  resendable: false,
 };
 
 describe('EmailDeliverySection', () => {
@@ -47,5 +60,15 @@ describe('EmailDeliverySection', () => {
 
     expect(html).toContain('다시 보낼 메일이 없습니다');
     expect(html).not.toContain('다시 보내기');
+  });
+});
+
+describe('EmailDeliverySection · 주문에 매이지 않는 메일', () => {
+  it('문의 답변 메일에는 재발송 버튼 대신 이유를 보여준다', () => {
+    const html = renderToStaticMarkup(<EmailDeliverySection deliveries={[inquiryDelivery]} />);
+
+    expect(html).toContain('문의 답변');
+    expect(html).not.toContain('다시 보내기');
+    expect(html).toContain('1:1 문의 화면에서 답변을 다시 등록해주세요');
   });
 });
