@@ -635,7 +635,20 @@ select 1 / case when (
   from public.good_reviews('review-goods', 'recent', true)
 ) = 0 then 1 else 0 end as assert_photo_filter;
 
--- 비로그인은 쓸 수 없다.
+-- 비로그인 쓰기 차단은 두 겹이다: `anon`에게 EXECUTE가 없고(파일 상단
+-- `assert_review_rpc_acl`), 함수 자신도 주체가 없으면 거절한다. 아래는 두 번째
+-- 겹을 런타임으로 확인한다 — 세션은 `authenticated`지만 주체(`sub`)가 비어
+-- 있으니 `auth.uid()`가 null이고, 함수가 `auth_required`로 막아야 한다.
+--
+-- 여기서 `anon`으로 직접 호출하지 않는 이유는 커버리지가 아니라 CI 환경이다.
+-- CI가 고정한 postgres 이미지(supabase/postgres 17.6.1.106, CLI 2.101.0)는
+-- EXECUTE 권한 없는 함수를 호출하면 오류 대신 백엔드가 segfault한다(로컬
+-- 17.6.1.143에서는 정상 오류). ACL 거부 자체는 상단 단언이 선언적으로 고정하므로
+-- 런타임으로 한 번 더 밟을 이유가 없다.
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '', true);
+
 do $$
 declare
   accepted boolean := false;
@@ -646,11 +659,11 @@ begin
     );
     accepted := true;
   exception
-    when insufficient_privilege or invalid_authorization_specification then accepted := false;
+    when invalid_authorization_specification then accepted := false;
   end;
 
   if accepted then
-    raise exception 'anonymous review creation should be blocked';
+    raise exception 'subjectless review creation should be blocked';
   end if;
 end;
 $$;
