@@ -1,6 +1,6 @@
 # ICONS 첫 실판매 준비 계획 (First Sale Readiness)
 
-> 상태: Active · 작성 2026-08-06 · 구현 2026-08-07 · 현재 진실원 갱신 2026-08-14 · 근거: 그릴링 세션(범위 확정) + 코드베이스 전수 감사
+> 상태: Active · 작성 2026-08-06 · 구현 2026-08-07 · 현재 진실원 갱신 2026-08-18 · 근거: 그릴링 세션(범위 확정) + 코드베이스 전수 감사
 > 대상 마일스톤: **홍실 퀘스트 굿즈 소프트런칭** — v1 출시([`launch-readiness-plan.md`](./launch-readiness-plan.md))와 **별개 마일스톤**이다.
 > 이 문서는 **기준선·갭 분석·트랙 구조**의 진실원이다. 각 이슈의 스펙 진실원은 issue body다.
 >
@@ -26,7 +26,7 @@
 | **D9** | **어드민 개선 = 안전장치 + 공통 시각화** | ID 덮어쓰기 방지 + `RecordList` 썸네일 전 섹션 + 내부 구현 노출 필드 정리. 공개화면 미리보기는 **굿즈만** 예외로 포함. |
 | **D10** | **배송 후 청약철회 = 시스템 경로** | 수동 처리하지 않는다. 기존 청약철회 인프라의 상태 제약을 넓혀 재사용한다. |
 | **D11** | **반품 입고 확인은 별도 상태가 아니다** | 운영자의 **승인 행위에 내포**된다. 상태기계를 늘리지 않는다. |
-| **D12** | **법무 검토는 게이트가 아니다** | 초안 문서의 검토는 병행한다. 다만 공개 판매자 정보·통신판매업 신고번호·문의 창구는 [#239](https://github.com/icons-hq/icons-ip/issues/239)에서 확정되기 전 판매 gate를 열지 않는다. Korpay 계약 완료와 현재 자격 증명 사용 가능 상태는 2026-08-14 확인됐지만, controlled canary·취소 운영은 [#207](https://github.com/icons-hq/icons-ip/issues/207)·[#208](https://github.com/icons-hq/icons-ip/issues/208)의 별도 범위다. |
+| **D12** | **법무 검토는 게이트가 아니다** | 초안 문서의 검토는 병행한다. 승인된 기본 경계에서는 공개 판매자 정보·통신판매업 신고번호·문의 창구를 [#239](https://github.com/icons-hq/icons-ip/issues/239)에서 확정하기 전 판매 gate를 열지 않는다. 굿즈 public gate는 2026-08-18 사용자 지시로 예외적으로 ON이 됐지만 #239가 해결·면제된 것은 아니다. 2026-08-21 법정 본문 활성화와 취소 운영도 [#207](https://github.com/icons-hq/icons-ip/issues/207)·[#208](https://github.com/icons-hq/icons-ip/issues/208)의 미해결 범위다. |
 
 ### 왜 이 마일스톤이 v1 출시와 분리되는가
 
@@ -54,7 +54,7 @@
 
 ### 2.2 이미 배선되어 재사용 가능한 것
 
-- **커머스 코어**: 장바구니 병합, `place_order` 원자적 재고 선점, 15분 pending 만료, 굿즈·티켓 provider-neutral attempt/claim/finalizer, Korpay SDK 인증·승인, 주문 내역·상세. 티켓은 승인 전 개별 티켓/QR을 만들지 않는다. 목적별 public rollout gate는 #207 canary·readback 전까지 OFF다.
+- **커머스 코어**: 장바구니 병합, `place_order` 원자적 재고 선점, 15분 pending 만료, 굿즈·티켓 provider-neutral attempt/claim/finalizer, Korpay SDK 인증·승인, 주문 내역·상세. 티켓은 승인 전 개별 티켓/QR을 만들지 않는다. 2026-08-18 굿즈 public gate는 ON, 티켓 gate와 canary는 OFF다.
 - **청약철회 인프라**: `order_cancellation_claims` durable claim, orchestrator, 토스 취소 호출, `refunds` 장부, 재고 복원. **배송 전 범위에서만** 동작한다(§3.2).
 - **어드민 주문 콘솔**: 상태·기간·쿼리 검색, 주문 항목 조회, 배송 상태 전이, 청약철회 승인/거절. 전부 audited.
 - **어드민 카탈로그 콘솔**: IP·굿즈·카드·이벤트·큐레이션 upsert, 아트워크 업로드(**미리보기 있음**), 보관/복원, 멱등 실재고 조정.
@@ -220,7 +220,7 @@
 
 ### 5.2 분리된 확인 항목
 
-- **[#87](https://github.com/icons-hq/icons-ip/issues/87)** — 2026-08-14 사용자 확인으로 Korpay 계약 완료와 현재 운영 credential 사용 가능 상태가 확정됐다. 이는 공급사 서면 증거나 19+ 유한 실물 쿠지 승인이 아니다. 기술 rollout·controlled canary는 #207, 문서화된 자동 취소 API가 없는 거래의 수동 운영은 #208이 추적한다. 기존 Toss는 알려진 legacy 거래 정리용으로만 보존한다.
+- **[#87](https://github.com/icons-hq/icons-ip/issues/87)** — 2026-08-14 사용자 확인으로 Korpay 계약 완료와 현재 운영 credential 사용 가능 상태가 확정됐다. 이는 공급사 서면 증거나 19+ 유한 실물 쿠지 승인이 아니다. 공개 전환 뒤 결제·원장 readback과 법정 본문 활성화는 #207, 문서화된 자동 취소 API가 없는 거래의 수동 운영은 #208이 추적한다. 기존 Toss는 알려진 legacy 거래 정리용으로만 보존한다.
 - **[#239](https://github.com/icons-hq/icons-ip/issues/239)** — 상호·대표자·사업자등록번호·통신판매업 신고번호·주소·전화·이메일과 인앱 주문 상세의 서면 교부 충족 여부. 이 법적 판단과 별개로 D8과 #168은 #191 이메일 운영 활성화를 첫판매 크리티컬 패스로 유지한다.
 - **[#190](https://github.com/icons-hq/icons-ip/issues/190)** — 홍실 3종 고시정보·상세 콘텐츠와 A/S 연락처. 대표 전화 또는 별도 고객센터 번호를 이 이슈에서 확정하고 #239의 공개 문의 창구와 일치시킨다.
 
@@ -256,7 +256,7 @@
 
 ---
 
-## 8. 구현 현황 (2026-08-07 구현 · 2026-08-10 실측 · 2026-08-14 진실원 갱신)
+## 8. 구현 현황 (2026-08-07 구현 · 2026-08-10 실측 · 2026-08-18 진실원 갱신)
 
 §3의 갭 중 에이전트가 코드로 풀 수 있는 것은 전부 닫혔다. 남은 것은 사람 응답에 종속된 항목뿐이다.
 
@@ -288,7 +288,7 @@
 3. **[#190](https://github.com/icons-hq/icons-ip/issues/190)** — 홍실 3종의 고시정보 7항목 × 3 = **21칸이 전부 공백**이고 설명·갤러리·상세 이미지도 없다. A/S 연락처는 이 이슈에서 확정하며 Korpay 계약과 무관하다.
 4. **[#179](https://github.com/icons-hq/icons-ip/issues/179)** — #177의 WMS 격리 계약과 #190의 필수 고시정보가 필요하다. 홍실 3종이 전부 `stock='soldout'`·`stock_qty=0`이라 지금은 아무것도 팔리지 않는다.
 5. **[#191](https://github.com/icons-hq/icons-ip/issues/191)** — legacy Supabase custom SMTP의 `no-reply@iconsip.com` Gmail 수신과 SPF·DKIM·DMARC pass는 확인됐다. 그러나 dark outbox/Hook은 기본 OFF이고, 승인된 TTL·HMAC rotation/drain·Production secrets·최종 DNS/From/Reply-To readback·Hook enable·Auth 4흐름과 secure email change 2메일·탈퇴 통지·webhook canary·direct SMTP 0 증거가 없다. D8과 #168에 따라 첫판매 크리티컬 패스로 유지하며, #239는 서면 교부의 법적 충분성을 별도로 확인한다.
-6. **[#207](https://github.com/icons-hq/icons-ip/issues/207)** — 굿즈·티켓 Korpay 인증·승인 경로는 연결됐지만 public gate는 기본 OFF다. Production dark deploy·controlled canary·원장 readback 전에는 신규 공개 결제를 열지 않는다. 취소와 모호 결과는 #208 수동 운영 증거가 필요하다.
+6. **[#207](https://github.com/icons-hq/icons-ip/issues/207)** — 굿즈·티켓 Korpay 인증·승인 경로가 연결됐고 2026-08-18 굿즈 public gate를 ON으로 배포했다. 티켓 gate와 canary는 OFF이며, 실제 결제·원장 readback과 2026-08-21 법정 본문 활성화가 남아 있다. 취소와 모호 결과는 #208 수동 운영 증거가 필요하다.
 
 ### 8.2 #178에서 남긴 범위
 
@@ -299,10 +299,10 @@
 - provider-neutral 원장(#204)은 기존 Production 결제 2건을 `provider=toss`로 backfill하고 민감 provider 증거를 private 원장으로 분리한다.
 - #205와 #206에서 굿즈·티켓 checkout을 공통 seam으로 옮기고 실제 provider를 기본 OFF로 닫았다. Toss는 기존 거래 정리에만 남기며 신규 Toss live key·신규 공개 판매를 활성화하지 않는다.
 - Korpay 계약 완료와 현재 운영 credential 사용 가능 상태는 2026-08-14 사용자 확인으로 확정됐다. 이는 공급사 서면 증거나 19+ 유한 실물 쿠지 승인 범위가 아니다. 구현은 인증결제 가이드 v1.2.2와 `@korpay/sdk` 1.1.8의 prepare SDK → form-urlencoded callback → confirm 계약을 따른다.
-- 실자격 증명은 Production에만 sensitive 값으로 두고 Preview/CI에는 넣지 않는다. 굿즈·티켓 public gate는 각각 기본 OFF이고, gate를 내려도 이미 durable한 known callback은 계속 drain한다.
+- 실자격 증명은 Production에만 sensitive 값으로 두고 Preview/CI에는 넣지 않는다. 목적별 gate 기본값은 OFF지만 2026-08-18 Production 굿즈 gate는 ON, 티켓 gate와 canary는 OFF다. gate를 내려도 이미 durable한 known callback은 계속 drain한다.
 - 공식 가이드에는 자동 status/reconcile/cancel API가 문서화되어 있지 않다. 모호 결과는 자동 재시도하지 않고 `needs_review`로 보존하며 취소는 #208 수동 운영 절차를 따른다.
 - 굿즈는 활성 admin이 공급사 원장에서 opaque 주문번호·금액의 전액 취소 완료를 확인한 뒤에만 DB claim/finalizer로 환불 장부·주문·재고를 멱등 종결한다. 이 경로는 공급사 취소를 실행하거나 모호한 승인을 재구성하지 않으며, 실제 접수 채널·직원 인계·모호 승인 처리는 #208에 남는다.
-- 실제 Korpay canary는 정확한 대상·금액·사용자·취소 계획을 고정한 뒤 1회만 수행하며, 과금 직전에 다시 사용자 확인을 받는다.
+- 공개 전환 뒤 실제 결제 검증도 정확한 대상·금액·사용자·취소 계획을 고정하고 과금 직전에 다시 사용자 확인을 받는다. 공개 gate ON은 2026-08-21 법정 본문 활성화나 #208의 취소·모호 승인 운영을 대신하지 않는다.
 - 기존 Toss 거래는 공급사 콘솔과 내부 원장에서 모두 종결될 때까지 known-only 조회·취소·웹훅과 server secret을 유지한다. 그 뒤 Toss runtime/secret 제거는 별도 PR이다.
 
 ---

@@ -14,7 +14,7 @@ ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 �
 - 검색은 Supabase 환경변수가 있으면 Postgres `search_public_content` RPC로 IP, 굿즈, 카드, visible 포스트, 태그를 그룹 검색하고, 로컬 fallback에서는 mock 데이터를 사용한다.
 - `/admin`은 staff/admin 게이트, 카탈로그 CRUD·보관/복원·아트워크 업로드, 카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩, 뽑기권 발급 정책, 카드 보상형 참여형 게임 등록·운영과 PII-free 플레이 집계, 감사 로그, 커뮤니티 신고 상태 변경과 포스트 숨김 처리 경로에 연결되어 있다. 기존 게임 `goods` variant는 운영 콘솔에서 읽기 전용이고, mock 연출은 실제 경품·구매권을 만들지 않으며 신규 실물 판매에 쓰지 않는다.
 - Google, Kakao, Apple 버튼은 Supabase 관리형 OAuth Server Action에 연결되어 있고 production Supabase provider도 모두 활성화되어 있다. Google은 production 공개 상태이며 Apple App ID·Services ID·callback·서명 키 구성이 완료됐다. Kakao는 `(주) 아이콘스` 비즈 앱, 로그인용 client secret, `account_email` 필수 동의·계정 정보 수집까지 설정했고 Supabase의 이메일 없는 사용자 허용은 꺼져 있다. 코드가 production에 배포된 뒤 controlled login smoke가 남아 있다.
-- 굿즈와 티켓 checkout은 provider-neutral attempt/claim/finalizer와 `PaymentGateway` 경계, Korpay SDK prepare→form-urlencoded callback→confirm 경로에 연결됐다. 목적별 rollout gate는 기본 OFF이고, 기존 Toss 거래는 알려진 결제의 조회·취소·웹훅 정리 경로로만 남는다. production 실제 결제는 controlled canary 전까지 비활성이다.
+- 굿즈와 티켓 checkout은 provider-neutral attempt/claim/finalizer와 `PaymentGateway` 경계, Korpay SDK prepare→form-urlencoded callback→confirm 경로에 연결됐다. 목적별 rollout gate의 기본값은 OFF지만, 2026-08-18 Production 굿즈 gate를 공개 ON으로 전환해 로그인·온보딩 완료 사용자가 결제를 시작할 수 있다. 티켓 gate와 두 canary는 OFF이며 기존 Toss 거래는 알려진 결제의 조회·취소·웹훅 정리 경로로만 남는다.
 - 범용 온라인 팝업 운영 레이어와 Expo webview 호스트는 현 로드맵에 없다. 19+ 꽝 없는 유한 실물 쿠지는 기존 카드·게임과 분리된 `prize_sale`로 설계하며 [#212](https://github.com/icons-hq/icons-ip/issues/212)·[#213](https://github.com/icons-hq/icons-ip/issues/213)이 별도 추적한다.
 
 ## 빠른 시작
@@ -87,7 +87,7 @@ Korpay 계약 완료와 현재 운영 자격 증명의 사용 가능 상태는 2
 
 Provider credential readiness와 목적별(`order`·`ticket`) rollout gate를 분리한다. 판매 gate를 내리면 해당 목적의 새 reserve·prepare·provider session 생성만 차단하고, 이미 DB에 durable한 attempt의 known opaque order+nonce callback은 계속 claim·확정한다. 알 수 없는 order·nonce는 provider 호출 전에 거부한다. 코페이가 공개한 가이드에는 자동 status/reconcile/cancel API가 없으므로 모호 결과를 추측하거나 자동 재시도하지 않고 `needs_review`로 격리하며, 취소는 #208의 수동 운영 절차로 처리한다. Toss 결제위젯과 `/api/payments/confirm`을 이용한 신규 결제는 열지 않고, Production의 `TOSS_SECRET_KEY`는 알려진 기존 거래가 종결될 때까지만 유지한다.
 
-실결제 canary는 정확한 대상·금액·사용자·취소 계획을 먼저 고정하고 과금 직전에 다시 확인받은 1회만 수행한다. 환경별 배치, 활성화, drain, rollback과 증거 기록은 [`docs/runbooks/korpay-production-rollout.md`](./docs/runbooks/korpay-production-rollout.md)를 따른다.
+2026-08-18 사용자 지시로 Production 굿즈 public gate를 ON으로 전환했고 티켓 gate와 canary는 OFF로 유지했다. 이는 2026-08-21 개정 법정 문서 활성화, callback 서명·자동 상태조회 부재, #208 수동 취소 운영을 해소하지 않는다. 실제 배포 증거, drain, rollback과 잔여 위험은 [`docs/runbooks/korpay-production-rollout.md`](./docs/runbooks/korpay-production-rollout.md)를 따른다.
 
 URL과 public key 둘 중 하나라도 없으면 인증 미들웨어는 세션 갱신을 건너뛰고, 공개 카탈로그는 로컬 개발용 mock 데이터로 fallback한다. `AUTH_SIGNUP_RESEND_SECRET`이 없으면 회원가입 재전송 제한과 서명된 `next` 보존을 신뢰할 수 없으며, 비밀번호 재설정 요청은 fail closed한다. Vercel preview와 production 배포는 Supabase 공개 환경변수 또는 이 secret이 없으면 workflow preflight에서 실패한다.
 
@@ -217,7 +217,7 @@ CRON_SECRET
 - GitHub Actions의 앱 빌드는 Node 26을 사용한다. Vercel project/runtime Node.js Version은 Vercel production Functions 공식 지원 범위인 24.x로 유지한다.
 - deployment secret 검사는 각 deploy job 안에서 수행한다. 누락 시 job이 즉시 실패하며, 필요한 GitHub Secret을 설정한 뒤 rerun해야 한다.
 - `.vercel/` 연결 파일은 commit하지 않고, workflow가 `VERCEL_ORG_ID`와 `VERCEL_PROJECT_ID`로 Vercel 원격 build/deploy를 요청한다.
-- Vercel 환경변수는 sensitive 상태로 각 환경에 둔다. production deploy job은 기존 관리자 아트워크용 GitHub `CRON_SECRET`만 Vercel production에 동기화한다. Korpay credential·optional canary actor는 Vercel Production에만 별도 등록하고 GitHub, Preview, CI에는 복제하지 않는다. public 목적별 gate는 기본 `false`다. 결제 재조정 secret은 workflow가 provision/mutate하지 않으며, 값이 이미 있으면 원격 `prebuild` guard가 형식만 검증한다. Preview에는 현재 legacy Toss 환경변수 잔여가 있지만 신규 checkout을 열지 않고 알려지지 않은 거래를 provider 호출 전에 거부한다. 이 잔여 정리는 Korpay rollout과 분리한다. development 환경변수는 별도 요청 전까지 추가하지 않는다.
+- Vercel 환경변수는 sensitive 상태로 각 환경에 둔다. production deploy job은 기존 관리자 아트워크용 GitHub `CRON_SECRET`만 Vercel production에 동기화한다. Korpay credential·optional canary actor는 Vercel Production에만 별도 등록하고 GitHub, Preview, CI에는 복제하지 않는다. public 목적별 gate의 기본값은 `false`이며 현재 Production은 굿즈만 `true`, 티켓은 `false`다. 결제 재조정 secret은 workflow가 provision/mutate하지 않으며, 값이 이미 있으면 원격 `prebuild` guard가 형식만 검증한다. Preview에는 현재 legacy Toss 환경변수 잔여가 있지만 신규 checkout을 열지 않고 알려지지 않은 거래를 provider 호출 전에 거부한다. 이 잔여 정리는 Korpay rollout과 분리한다. development 환경변수는 별도 요청 전까지 추가하지 않는다.
 
 ## 프리뷰 환경
 

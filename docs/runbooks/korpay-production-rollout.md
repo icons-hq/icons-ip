@@ -29,16 +29,41 @@
   내부 관리자 계정 하나뿐이므로 기존 고객 재동의·데이터 backfill migration은 하지 않는다. 고객이
   생긴 뒤에는 이 판단을 재사용하지 않고 변경 영향과 개별 통지·재동의 필요를 다시
   판단한다.
-- `2026-08-21` 시행 전에는 Korpay 굿즈·티켓 canary를 모두 등록·활성화하지 않고,
-  목적별 public gate도 `false`로 유지한다. 시행일이 지났다는 사실만으로 canary나
-  공개 판매 게이트를 열지 않고, 이 runbook의 나머지 조건과 #208을 함께 충족한다.
+- `2026-08-21` 시행 전에는 Korpay 굿즈·티켓 canary와 목적별 public gate를 모두
+  닫는 것이 승인된 기본 rollout 경계였다. `2026-08-18` 사용자의 명시적 운영 지시로
+  굿즈 public gate만 예외적으로 열었으며, 아래 운영 readback과 잔여 위험을 이 문서에
+  그대로 보존한다. 티켓 gate와 두 canary는 닫힌 상태를 유지한다.
 - 현재 결제 취소·환급 운영 소유자는 canary 관리자 계정을 소유한 **회사 대표자** 한 명이다.
   개인 이메일 주소를 runbook에 기록하지 않는다. 수동 취소 반영 UI·Server Action·DB RPC는
-  모두 활성 `admin` 역할만 허용한다. 공개 판매 전에는 지정된 회사 직원에게 접수 채널,
-  처리 SLA, 상태·금액 대조 방법, 완료 증거 보관 위치, 에스컬레이션 경로를 문서로 인계하고,
-  그 담당자에게 필요한 `admin` 권한을 명시적으로 부여·검증한 뒤 기존 담당자의 권한을
-  회수한다. 인계가 끝나기 전에는 모든 `staff`가 이 권한을 가진 것으로 간주하지 않고
-  #208의 담당자를 갱신한다.
+  모두 활성 `admin` 역할만 허용한다. 승인된 기본 경계에서는 공개 판매 전에 지정된 회사
+  직원에게 접수 채널, 처리 SLA, 상태·금액 대조 방법, 완료 증거 보관 위치, 에스컬레이션
+  경로를 문서로 인계해야 했다. 2026-08-18 예외 전환 시점에는 인계가 끝나지 않았으므로
+  현재 대표자가 대응 가능 상태를 유지하고, 지정 담당자에게 필요한 `admin` 권한을
+  명시적으로 부여·검증한 뒤 기존 담당자의 권한을 회수한다. 모든 `staff`가 이 권한을 가진
+  것으로 간주하지 않고 #208의 담당자를 갱신한다.
+
+### 2026-08-18 굿즈 공개 활성화 readback
+
+- Production `KORPAY_ORDER_CHECKOUT_ENABLED=true`,
+  `KORPAY_TICKET_CHECKOUT_ENABLED=false`이며 두 canary user ID는 미설정이다. 따라서
+  로그인과 필수 온보딩을 마친 모든 사용자가 굿즈 checkout을 시작할 수 있다.
+- 배포 source는 `main@a0b12227179caee47bf773151d845fd623fd3d5a`, 검증된
+  Production source run은 [31770654341](https://github.com/icons-hq/icons-ip/actions/runs/31770654341),
+  config-only 재배포는 [32085023278](https://github.com/icons-hq/icons-ip/actions/runs/32085023278)이다.
+  수동 실행은 전체 validate와 Vercel Production 배포에 성공했고 Supabase job은 의도대로
+  건너뛰었다.
+- 새 Vercel deployment `https://icons-i15y9nvea-sangwopark19icons-1055s-projects.vercel.app`는
+  `Ready` 뒤 `https://iconsip.com`에 alias됐고 build readback은
+  Korpay configured, 굿즈 checkout ON, 티켓 checkout OFF, canary 0을 확인했다. 로그인된
+  Production `/checkout`에서도 주문 생성 버튼의 활성 상태를 확인했지만 실제 주문·과금은
+  실행하지 않았다.
+- 이 공개 활성화는 `2026-08-21` 개정 약관·개인정보처리방침의 활성 본문 배포, callback
+  서명 또는 provider 상태조회 부재, #208의 공급사 취소 채널·담당자 인계·모호 승인 운영을
+  해소하지 않는다. 이는 사용자 승인에 따른 운영 예외이며 이후 rollout의 안전한 선례로
+  재사용하지 않는다.
+- 모호 승인, 취소 불능, 법정 고지 불일치 또는 운영자 부재가 확인되면 아래 rollback 순서로
+  굿즈 gate를 즉시 `false`로 되돌리고 새 Production deployment의 boolean readback까지
+  확인한다.
 
 ## 결제 프로토콜
 
@@ -125,10 +150,13 @@ gate와 canary allowlist를 모두 내려도 이미 DB에 durable하게 준비�
 승인·반영·배포되기 전에는 canary user ID를 등록하거나 실과금을 시작하지 않는다.
 
 현재 공개 계약만으로는 구매자가 자기 order+nonce에 임의 paymentKey를 먼저 보내 callback
-claim을 선점하는 것을 암호학적으로 차단할 수 없다. 따라서 canary는 신뢰하는 단일 actor로만
-수행한다. provider가 서명 검증 또는 자동 상태 조회 계약을 제공하거나, definitive invalid-key
-claim 재개방과 ambiguous hold 해제 SLA가 별도 승인되기 전에는 목적별 public gate를 `true`로
-열지 않는다.
+claim을 선점하는 것을 암호학적으로 차단할 수 없다. 승인된 기본 경계에서는 canary를 신뢰하는
+단일 actor로만 수행하고, provider가 서명 검증 또는 자동 상태 조회 계약을 제공하거나 definitive
+invalid-key claim 재개방과 ambiguous hold 해제 SLA가 별도 승인되기 전에는 목적별 public gate를
+`true`로 열지 않는다. 2026-08-18 사용자 지시로 굿즈 gate가 이 경계보다 먼저 열렸으므로,
+보호 계약이 추가될 때까지 현재 admin 취소 담당자의 즉시 대응 가능 여부와 rollback 준비 상태를
+계속 확인하고 모호 승인·취소 불능 징후가 있으면 새 결제를 즉시 닫는다. 티켓 gate는 `false`로
+유지한다.
 
 굿즈는 provider confirm 뒤 DB finalizer 전에 프로세스가 종료될 때 stale `confirming`을 자동
 재확인할 공식 provider API가 없다. 현재 admin-only 수동 seam은 공급사 원장에서 **전액 취소가
