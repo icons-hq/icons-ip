@@ -103,12 +103,14 @@ describe('법정 문서 레지스트리', () => {
     expect(source(), '문서 셋이 시행일 상수 하나를 공유하면 개정 이력을 만들 수 없다').not.toMatch(/const EFFECTIVE_DATE\b/);
   });
 
-  it('현행 2026-08-07 본문은 유지하고 terms·privacy에만 Korpay 사전 공지를 노출한다', () => {
+  it('현행 2026-08-18 본문은 유지하고 terms·privacy에만 Korpay 사전 공지를 노출한다', () => {
     const termsNotice = LEGAL_DOCUMENTS.terms.pendingRevision;
     const privacyNotice = LEGAL_DOCUMENTS.privacy.pendingRevision;
 
-    expect(LEGAL_DOCUMENTS.terms.effectiveDate).toBe('2026-08-07');
-    expect(LEGAL_DOCUMENTS.privacy.effectiveDate).toBe('2026-08-07');
+    /* 2026-08-18 개정 — 인앱 1:1 문의를 실제 접수 경로로 명시(#253).
+       Korpay 사전 공지(2026-08-21)는 그대로 남는다. 두 개정은 서로 다른 사안이다. */
+    expect(LEGAL_DOCUMENTS.terms.effectiveDate).toBe('2026-08-18');
+    expect(LEGAL_DOCUMENTS.privacy.effectiveDate).toBe('2026-08-18');
     expect(LEGAL_DOCUMENTS.shipping.pendingRevision).toBeUndefined();
 
     for (const notice of [termsNotice, privacyNotice]) {
@@ -153,9 +155,13 @@ describe('법정 문서 레지스트리', () => {
       if (contact) {
         expect(text).toContain(contact);
       } else {
-        expect(text).toContain('공개된 연락처가 없습니다');
+        /* 공개 연락처는 여전히 #239가 확정한다. 다만 "창구가 없다"고 쓰면 거짓이다 —
+           인앱 1:1 문의(#253)가 실제로 열려 있는 접수 경로다. */
+        expect(text).toMatch(/공개 문의 연락처는 사업자 등록 절차가 끝나는 대로/);
         expect(text).not.toMatch(/사업자 정보에 표기된 (대표자와 )?연락처/);
+        expect(text).not.toMatch(/공개된 연락처가 없습니다/);
       }
+      expect(text).toContain('1:1 문의(/my/inquiries)');
     }
 
     /* 연락처가 없는 동안에도 이용자가 실제로 쓸 수 있는 경로가 남아 있어야 한다. */
@@ -244,11 +250,10 @@ describe('이용약관', () => {
     expect(body).toMatch(/직접 탈퇴를 실행하는 기능은 아직 없/);
     if (businessContactWords()) {
       expect(body).toContain(businessContactWords());
-    } else {
-      expect(body).toMatch(/연락처를 공개하는 즉시 그 창구로 탈퇴 요청을 접수합니다/);
-      /* 연락처가 없는 동안에도 이용자가 지금 할 수 있는 행동이 남아 있어야 한다. */
-      expect(body).toMatch(/설정 화면/);
     }
+    /* 연락처 공개 여부와 무관하게, 지금 열려 있는 접수 경로를 가리켜야 한다(#253). */
+    expect(body).toMatch(/1:1 문의\(\/my\/inquiries\)/);
+    expect(body).toMatch(/탈퇴 요청은/);
   });
 });
 

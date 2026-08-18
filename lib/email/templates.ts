@@ -140,14 +140,16 @@ function htmlButton(url: string, label: string) {
     + `</td></tr>`;
 }
 
-function htmlDocument(reference: string, body: string) {
+/* 푸터의 식별자 라벨은 메일마다 다르다. 주문 메일은 주문번호, 문의 답변 메일은
+   문의번호다 — 라벨을 고정하면 문의 메일 푸터가 "주문번호 #12"라고 거짓말을 한다. */
+function htmlDocument(reference: string, body: string, referenceLabel = '주문번호') {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#F5F4FA;padding:24px 0;">`
     + `<tr><td align="center">`
     + `<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" style="max-width:600px;width:100%;background:#FFFFFF;border:1px solid ${LINE};border-radius:14px;font-family:'Apple SD Gothic Neo',-apple-system,'Segoe UI',Roboto,sans-serif;">`
     + `<tr><td style="padding:24px 24px 0 24px;font-size:14px;font-weight:800;letter-spacing:.08em;color:${ACCENT};">ICONS</td></tr>`
     + body
     + `<tr><td style="padding:20px 24px 24px 24px;border-top:1px solid ${LINE};font-size:11px;line-height:1.7;color:${MUTED};">`
-    + `주문번호 ${escapeHtml(reference)} · 이 메일은 발신 전용입니다. 문의는 ICONS 고객센터로 보내주세요.`
+    + `${escapeHtml(referenceLabel)} ${escapeHtml(reference)} · 이 메일은 발신 전용입니다. 문의는 ICONS 1:1 문의로 보내주세요.`
     + `</td></tr>`
     + `</table></td></tr></table>`;
 }
@@ -249,6 +251,72 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
     htmlAddress(input.address),
     htmlButton(input.orderUrl, '주문 상세 보기'),
   ].join(''));
+
+  return { subject, text, html };
+}
+
+export interface InquiryAnsweredEmailInput {
+  /** 문의번호. 운영자와 이용자가 서로 부르는 값이라 uuid가 아니라 순번이다. */
+  reference: number;
+  categoryLabel: string;
+  title: string;
+  /** 운영자가 등록한 답변 본문. 줄바꿈은 그대로 살린다. */
+  answerBody: string;
+  inquiryUrl: string;
+}
+
+/* 답변 본문의 줄바꿈만 살린다. 문단 태그로 감싸지 않는 이유는 운영자가 목록·인사말을
+   자유롭게 쓰기 때문이다 — 빈 줄을 문단으로 해석하면 의도한 간격이 사라진다. */
+function htmlAnswerBody(body: string) {
+  const lines = body
+    .split('\n')
+    .map((line) => escapeHtml(line))
+    .join('<br />');
+  return `<tr><td style="padding:0 24px 12px 24px;font-size:14px;line-height:1.8;color:${INK};">${lines}</td></tr>`;
+}
+
+/**
+ * 1:1 문의 답변 알림 메일(#253).
+ *
+ * 답변 본문을 그대로 싣는다. "답변이 등록됐습니다"만 보내고 링크를 누르게 하면
+ * 메일함에서 답을 확인할 수 없어 이용자가 같은 질문을 다시 접수한다.
+ *
+ * 이 메일은 주문 상태에 매이지 않는다 — "답변이 등록됐다"는 사실은 그 뒤에 문의가
+ * 종결돼도 계속 참이라 주문 메일 같은 사실성 게이트가 없다.
+ */
+export function renderInquiryAnsweredEmail(input: InquiryAnsweredEmailInput): RenderedEmail {
+  const reference = `#${input.reference}`;
+  const subject = `[ICONS] 문의에 답변이 등록됐어요 (문의번호 ${reference})`;
+
+  const text = textBlock([
+    'ICONS 1:1 문의에 답변이 등록됐어요.',
+    '',
+    `문의번호: ${reference}`,
+    `문의 유형: ${input.categoryLabel}`,
+    `제목: ${input.title}`,
+    '',
+    '[답변]',
+    input.answerBody,
+    '',
+    '추가로 궁금한 점이 있으면 같은 문의에 이어서 질문할 수 있습니다.',
+    '',
+    `문의 상세: ${input.inquiryUrl}`,
+  ]);
+
+  const html = htmlDocument(reference, [
+    htmlHeading('문의에 답변이 등록됐어요'),
+    htmlParagraph('보내주신 1:1 문의에 운영자가 답변했습니다.'),
+    htmlSectionTitle('문의 정보'),
+    htmlDefinitionRows([
+      ['문의번호', reference],
+      ['문의 유형', input.categoryLabel],
+      ['제목', input.title],
+    ]),
+    htmlSectionTitle('답변'),
+    htmlAnswerBody(input.answerBody),
+    htmlParagraph('추가로 궁금한 점이 있으면 같은 문의에 이어서 질문할 수 있습니다.'),
+    htmlButton(input.inquiryUrl, '문의 상세 보기'),
+  ].join(''), '문의번호');
 
   return { subject, text, html };
 }

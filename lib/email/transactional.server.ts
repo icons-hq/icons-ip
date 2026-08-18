@@ -4,9 +4,15 @@ import { normalizeCheckoutAddress } from '../checkout';
 import { orderShipment, type OrderShipment } from '../orders/shipment';
 import { loadShippingCarrierRegistry } from '../orders/shipment.server';
 import { createServiceClient, getServiceRoleConfig } from '../supabase/service';
-import { orderEmailDedupeKey, type EmailTemplateName } from './dedupe';
+import {
+  inquiryEmailDedupeKey,
+  orderEmailDedupeKey,
+  type EmailTemplateName,
+  type OrderEmailTemplateName,
+} from './dedupe';
 import { sendTransactionalEmail } from './provider.server';
 import {
+  renderInquiryAnsweredEmail,
   renderOrderConfirmationEmail,
   renderOrderShippedEmail,
   type OrderEmailItem,
@@ -40,7 +46,7 @@ const DEFAULT_SITE_URL = 'https://iconsip.com';
  * 지나지 않으므로 실제 안전장치는 이쪽이다 — 양쪽을 함께 바꾼다. */
 // 사다리가 늘면 이 집합도 함께 넓힌다(#250). 빠뜨리면 발주확인·배송완료된 주문의
 // 확인 메일이 order_status_mismatch로 조용히 건너뛰어져 재발송조차 되지 않는다.
-const ACCURATE_ORDER_STATUSES: Record<EmailTemplateName, readonly string[]> = {
+const ACCURATE_ORDER_STATUSES: Record<OrderEmailTemplateName, readonly string[]> = {
   order_confirmation: ['paid', 'confirmed', 'shipping', 'delivered', 'done'],
   order_shipped: ['shipping', 'delivered', 'done'],
 };
@@ -157,7 +163,7 @@ async function loadOrderEmailContext(
  */
 async function prepareOrderEmail(
   service: ServiceClient,
-  template: EmailTemplateName,
+  template: OrderEmailTemplateName,
   orderId: string,
 ): Promise<OrderEmailContext | { skipped: string }> {
   const context = await loadOrderEmailContext(service, orderId);
@@ -237,26 +243,26 @@ function guardedEnvironment(): TransactionalEmailResult | null {
  */
 async function safely(
   label: string,
-  orderId: string,
+  reference: string,
   run: () => Promise<TransactionalEmailResult>,
 ): Promise<TransactionalEmailResult> {
   try {
     const result = await run();
     if (result.status === 'failed') {
-      console.error(`[email] ${label} failed (order:${orderId}): ${result.error}`);
+      console.error(`[email] ${label} failed (${reference}): ${result.error}`);
     } else if (result.status === 'skipped' && !EXPECTED_SKIP_REASONS.includes(result.reason)) {
-      console.error(`[email] ${label} not sent (order:${orderId}): ${result.reason}`);
+      console.error(`[email] ${label} not sent (${reference}): ${result.reason}`);
     }
     return result;
   } catch {
-    console.error(`[email] ${label} failed (order:${orderId}): unexpected_email_failure`);
+    console.error(`[email] ${label} failed (${reference}): unexpected_email_failure`);
     return { status: 'failed', error: 'unexpected_email_failure' };
   }
 }
 
 /** 주문 확정(웹훅) 확인 메일. 전자상거래법상 계약내용 서면 교부 경로다(L4). */
 export function sendOrderConfirmationEmail(orderId: string): Promise<TransactionalEmailResult> {
-  return safely('order confirmation', orderId, async () => {
+  return safely('order confirmation', `order:${orderId}`, async () => {
     const blocked = guardedEnvironment();
     if (blocked) return blocked;
 
@@ -287,7 +293,7 @@ export function sendOrderShippedEmail(input: {
   trackingNumber?: string | null;
   trackingUrl?: string | null;
 }): Promise<TransactionalEmailResult> {
-  return safely('order shipped', input.orderId, async () => {
+  return safely('order shipped', `order:${input.orderId}`, async () => {
     const blocked = guardedEnvironment();
     if (blocked) return blocked;
 
@@ -307,6 +313,54 @@ export function sendOrderShippedEmail(input: {
         trackingNumber: input.trackingNumber ?? context.shipment?.trackingNumber ?? null,
         trackingUrl: input.trackingUrl ?? context.shipment?.trackingUrl ?? null,
         orderUrl: context.orderUrl,
+      }),
+    });
+  });
+}
+
+export interface InquiryAnsweredEmailRequest {
+  /** 답변 메시지 id. dedupe_key가 되므로 스레드 id를 넘기면 두 번째 답변이 막힌다. */
+  messageId: string;
+  inquiryId: string;
+  reference: number;
+  categoryLabel: string;
+  title: string;
+  answerBody: string;
+  recipient: string | null;
+}
+
+/**
+ * 1:1 문의 답변 알림 메일(#253).
+ *
+ * 인앱 알림은 `admin_answer_inquiry`가 같은 트랜잭션에서 남긴다. 메일만 밖에서 보낸다 —
+ * HTTP는 트랜잭션에 넣을 수 없고, 메일 실패가 답변 등록을 되돌리면 안 되기 때문이다.
+ * 다른 발송 훅과 같은 규율로 절대 throw하지 않는다.
+ *
+ * 주문 메일과 달리 사실성 게이트가 없다. "답변이 등록됐다"는 문의가 종결된 뒤에도
+ * 계속 참이라 되돌아볼 상태가 없다.
+ */
+export function sendInquiryAnsweredEmail(
+  input: InquiryAnsweredEmailRequest,
+): Promise<TransactionalEmailResult> {
+  return safely('inquiry answered', `inquiry:${input.inquiryId}`, async () => {
+    const blocked = guardedEnvironment();
+    if (blocked) return blocked;
+
+    const recipient = input.recipient?.trim();
+    if (!recipient || !recipient.includes('@')) {
+      return { status: 'skipped', reason: 'recipient_missing' };
+    }
+
+    return deliver(createServiceClient(), {
+      dedupeKey: inquiryEmailDedupeKey(input.messageId),
+      template: 'inquiry_answered',
+      recipient,
+      rendered: renderInquiryAnsweredEmail({
+        answerBody: input.answerBody,
+        categoryLabel: input.categoryLabel,
+        inquiryUrl: `${siteUrl()}/my/inquiries/${input.inquiryId}`,
+        reference: input.reference,
+        title: input.title,
       }),
     });
   });

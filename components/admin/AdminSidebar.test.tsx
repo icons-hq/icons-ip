@@ -62,7 +62,9 @@ describe('AdminSidebar 2단 메뉴', () => {
 
     expect(html).toContain('준비 중');
     expect(html).toContain('aria-disabled="true"');
-    expect(html).not.toContain('href="/admin/cs/inquiries"');
+    expect(html).not.toContain('href="/admin/cs/reviews"');
     expect(html).not.toContain('href="/admin/stats/sales"');
+    /* 1:1 문의는 #253으로 열렸다 — 같은 그룹의 ready 화면은 링크로 남아야 한다. */
+    expect(html).toContain('href="/admin/cs/inquiries"');
   });
 });

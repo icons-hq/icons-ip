@@ -10,6 +10,7 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   drop_published: '드롭',
   event_published: '이벤트',
   announcement: '공지',
+  inquiry_answered: '문의',
 };
 
 const TYPE_ICONS: Record<NotificationType, string> = {
@@ -20,6 +21,7 @@ const TYPE_ICONS: Record<NotificationType, string> = {
   drop_published: 'shop',
   event_published: 'event',
   announcement: 'bell',
+  inquiry_answered: 'chat',
 };
 
 const notificationDate = new Intl.DateTimeFormat('ko-KR', {

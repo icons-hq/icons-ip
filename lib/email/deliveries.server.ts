@@ -4,6 +4,7 @@ import { createClient } from '../supabase/server';
 import {
   isEmailDeliveryStatus,
   isEmailTemplateName,
+  isOrderEmailTemplateName,
   parseOrderEmailDedupeKey,
   type EmailDeliveryStatus,
   type EmailTemplateName,
@@ -23,8 +24,16 @@ export interface EmailDeliveryRecord {
   dedupeKey: string;
   template: EmailTemplateName;
   templateLabel: string;
-  /** 주문 메일이면 대상 주문 id. 형식을 벗어난 키는 null이다. */
+  /** 주문 메일이면 대상 주문 id. 형식을 벗어난 키와 주문 메일이 아닌 템플릿은 null이다. */
   orderId: string | null;
+  /**
+   * 발송 이력에서 다시 보낼 수 있는가.
+   *
+   * 재발송 게이트는 대상 주문의 현재 상태로 "이 본문이 지금도 사실인가"를 판정한다.
+   * 주문에 매이지 않는 템플릿은 그 판정을 할 근거가 없어 게이트가 거절한다 —
+   * 그래서 버튼도 그리지 않는다. 누르면 실패하는 버튼은 운영자를 두 번 속인다.
+   */
+  resendable: boolean;
   recipient: string;
   subject: string;
   status: EmailDeliveryStatus;
@@ -51,6 +60,7 @@ interface DeliveryRow {
 const TEMPLATE_LABELS: Record<EmailTemplateName, string> = {
   order_confirmation: '주문 확인',
   order_shipped: '배송 시작',
+  inquiry_answered: '문의 답변',
 };
 
 export function emailTemplateLabel(template: EmailTemplateName): string {
@@ -67,6 +77,8 @@ function toRecord(row: DeliveryRow): EmailDeliveryRecord | null {
     template: row.template,
     templateLabel: emailTemplateLabel(row.template),
     orderId: parseOrderEmailDedupeKey(row.dedupe_key)?.orderId ?? null,
+    resendable: isOrderEmailTemplateName(row.template)
+      && parseOrderEmailDedupeKey(row.dedupe_key) !== null,
     recipient: row.recipient,
     subject: row.subject,
     status: row.status,
