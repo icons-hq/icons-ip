@@ -8,10 +8,28 @@ import {
   normalizeAdminOrderStatusForm,
   normalizeAdminOrderTrackingForm,
 } from './orders';
+import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 const REQUEST_ID = '22222222-2222-4222-8222-222222222222';
 const ATTEMPT_ID = '33333333-3333-4333-8333-333333333333';
+
+/* 택배사 목록의 진실원은 DB 레지스트리다(#251). 폼 검증도 상수가 아니라 넘겨받은
+   레지스트리를 본다 — 비활성 택배사를 고른 저장을 폼이 먼저 막는지 함께 고정한다. */
+const CARRIERS: ShippingCarrierRegistry = [
+  {
+    code: 'hanjin',
+    label: '한진택배',
+    active: true,
+    trackingUrlTemplate: 'https://example.test/track?no={trackingNumber}',
+  },
+  {
+    code: 'retired_courier',
+    label: '계약종료 택배',
+    active: false,
+    trackingUrlTemplate: 'https://example.test/old?no={trackingNumber}',
+  },
+];
 
 describe('Korpay manual recovery states', () => {
   it.each(['confirming', 'approved', 'unknown', 'needs_review'] as const)(
@@ -88,7 +106,7 @@ describe('admin order mutation forms', () => {
     formData.set('carrier', 'hanjin');
     formData.set('trackingNumber', '1234-5678-9012');
 
-    expect(normalizeAdminOrderStatusForm(formData)).toEqual({
+    expect(normalizeAdminOrderStatusForm(formData, CARRIERS)).toEqual({
       ok: true,
       value: {
         orderId: ORDER_ID,
@@ -102,7 +120,7 @@ describe('admin order mutation forms', () => {
        소유한다. 운영자 폼이 그 칸을 밀 수 있으면 소유권이 두 곳이 된다(#250). */
     for (const owned of ['pending', 'paid', 'done', 'canceled']) {
       formData.set('status', owned);
-      expect(normalizeAdminOrderStatusForm(formData)).toEqual({
+      expect(normalizeAdminOrderStatusForm(formData, CARRIERS)).toEqual({
         ok: false,
         errors: { status: '허용된 주문 상태를 선택해주세요.' },
       });
@@ -114,7 +132,7 @@ describe('admin order mutation forms', () => {
     formData.set('orderId', ORDER_ID);
     formData.set('status', 'shipping');
 
-    expect(normalizeAdminOrderStatusForm(formData)).toEqual({
+    expect(normalizeAdminOrderStatusForm(formData, CARRIERS)).toEqual({
       ok: false,
       errors: {
         carrier: '택배사를 선택해주세요.',
@@ -124,12 +142,27 @@ describe('admin order mutation forms', () => {
 
     formData.set('carrier', 'unknown_carrier');
     formData.set('trackingNumber', '12345');
-    expect(normalizeAdminOrderStatusForm(formData)).toEqual({
+    expect(normalizeAdminOrderStatusForm(formData, CARRIERS)).toEqual({
       ok: false,
       errors: {
         carrier: '택배사를 선택해주세요.',
         trackingNumber: '운송장번호는 하이픈을 뺀 8~30자리 영숫자여야 합니다.',
       },
+    });
+  });
+
+  /* 등록만 되어 있고 계약이 끝난 택배사로 새 운송장을 붙이면 DB 게이트가
+     거절한다. 폼이 먼저 막지 않으면 운영자는 이유를 알 수 없는 저장 실패를 본다. */
+  it('비활성 택배사는 새 운송장에 붙일 수 없다', () => {
+    const formData = new FormData();
+    formData.set('orderId', ORDER_ID);
+    formData.set('status', 'shipping');
+    formData.set('carrier', 'retired_courier');
+    formData.set('trackingNumber', '123456789012');
+
+    expect(normalizeAdminOrderStatusForm(formData, CARRIERS)).toEqual({
+      ok: false,
+      errors: { carrier: '택배사를 선택해주세요.' },
     });
   });
 
@@ -143,7 +176,7 @@ describe('admin order mutation forms', () => {
     formData.set('carrier', 'hanjin');
     formData.set('trackingNumber', '123456789012');
 
-    expect(normalizeAdminOrderStatusForm(formData)).toEqual({
+    expect(normalizeAdminOrderStatusForm(formData, CARRIERS)).toEqual({
       ok: true,
       value: { orderId: ORDER_ID, status, carrier: null, trackingNumber: null },
     });
@@ -155,7 +188,7 @@ describe('admin order mutation forms', () => {
     formData.set('carrier', 'hanjin');
     formData.set('trackingNumber', ' 1234 5678 9012 ');
 
-    expect(normalizeAdminOrderTrackingForm(formData)).toEqual({
+    expect(normalizeAdminOrderTrackingForm(formData, CARRIERS)).toEqual({
       ok: true,
       value: { orderId: ORDER_ID, carrier: 'hanjin', trackingNumber: '123456789012' },
     });
@@ -163,7 +196,7 @@ describe('admin order mutation forms', () => {
     formData.set('orderId', 'not-a-uuid');
     formData.set('carrier', '');
     formData.set('trackingNumber', '');
-    expect(normalizeAdminOrderTrackingForm(formData)).toEqual({
+    expect(normalizeAdminOrderTrackingForm(formData, CARRIERS)).toEqual({
       ok: false,
       errors: {
         orderId: '주문을 찾을 수 없습니다.',

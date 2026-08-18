@@ -2,6 +2,7 @@ import 'server-only';
 
 import { normalizeCheckoutAddress } from '../checkout';
 import { orderShipment, type OrderShipment } from '../orders/shipment';
+import { loadShippingCarrierRegistry } from '../orders/shipment.server';
 import { createServiceClient, getServiceRoleConfig } from '../supabase/service';
 import { orderEmailDedupeKey, type EmailTemplateName } from './dedupe';
 import { sendTransactionalEmail } from './provider.server';
@@ -122,6 +123,10 @@ async function loadOrderEmailContext(
     return { skipped: 'recipient_missing' };
   }
 
+  /* 웹훅 경로라 쿠키 클라이언트를 만들 수 없다. 레지스트리는 공개 읽기 테이블이므로
+     이미 들고 있는 service 클라이언트로 그대로 읽는다(#251). */
+  const carriers = await loadShippingCarrierRegistry(service);
+
   const items = ((itemData ?? []) as OrderItemRow[]).map((row) => ({
     name: row.good_name_snapshot,
     qty: row.qty,
@@ -139,7 +144,7 @@ async function loadOrderEmailContext(
     shippingFee: Math.max(0, order.total - itemsSubtotal),
     total: order.total,
     address: normalizeCheckoutAddress(order.address),
-    shipment: orderShipment(order.shipping_carrier, order.tracking_number),
+    shipment: orderShipment(carriers, order.shipping_carrier, order.tracking_number),
     orderUrl: `${siteUrl()}/orders/${order.id}`,
   };
 }

@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ADMIN_DISPATCH_DELAY_DAYS,
+  adminDispatchConfirmedDays,
+  adminDispatchConfirmedDaysLabel,
+  adminDispatchDelayThreshold,
   adminDispatchElapsedLabel,
   adminDispatchHref,
   adminDispatchItemLabel,
   adminDispatchItemSummary,
   adminDispatchTab,
+  isAdminDispatchDelayed,
+  normalizeAdminDispatchDelayForm,
   normalizeAdminDispatchFilters,
 } from './dispatch';
 import type { AdminOrderItemRecord } from './orders';
@@ -44,6 +50,14 @@ describe('발주·발송 콘솔 필터', () => {
 
   it('탭은 사다리의 상태 한 칸을 가리킨다', () => {
     expect(adminDispatchTab('new').status).toBe('paid');
+    expect(adminDispatchTab('ready').status).toBe('confirmed');
+  });
+
+  /* 발송지연은 상태가 아니라 같은 confirmed를 오래 묵은 것만 남긴 뷰다. 새 enum
+     값을 만들면 발송처리 때 되돌려야 하는 전이가 생긴다(#251). */
+  it('발송지연 탭은 새 상태가 아니라 confirmed의 부분집합이다', () => {
+    expect(adminDispatchTab('delayed').status).toBe('confirmed');
+    expect(adminDispatchTab('delayed')).toHaveProperty('delayedOnly', true);
   });
 });
 
@@ -97,5 +111,95 @@ describe('경과시간', () => {
   it('미래 시각은 방금으로 접고 깨진 값은 하이픈으로 접는다', () => {
     expect(adminDispatchElapsedLabel(created, new Date('2026-08-17T00:00:00.000Z'))).toBe('방금');
     expect(adminDispatchElapsedLabel('not-a-date', new Date(created))).toBe('-');
+  });
+});
+
+describe('발주확인 경과일과 발송지연', () => {
+  const now = new Date('2026-08-18T06:00:00.000Z');
+
+  it('발주확인 시각부터 일 단위로 센다', () => {
+    expect(adminDispatchConfirmedDays('2026-08-14T06:00:00.000Z', now)).toBe(4);
+    expect(adminDispatchConfirmedDaysLabel('2026-08-14T06:00:00.000Z', now)).toBe('4일');
+  });
+
+  /* 사다리 도입 전 행은 confirmed_at이 비어 있다. 0일로 접으면 방금 발주확인한
+     주문과 구분되지 않고, 지연 목록에서도 가장 안전해 보인다. */
+  it('발주확인 기록이 없으면 경과일을 지어내지 않는다', () => {
+    expect(adminDispatchConfirmedDays(null, now)).toBeNull();
+    expect(adminDispatchConfirmedDaysLabel(null, now)).toBe('미기록');
+    expect(isAdminDispatchDelayed(null, now)).toBe(false);
+  });
+
+  it('시계 오차로 들어온 미래 발주확인 시각을 음수로 흘리지 않는다', () => {
+    expect(adminDispatchConfirmedDays('2026-08-20T06:00:00.000Z', now)).toBe(0);
+  });
+
+  it('임계값 이상 묵은 주문만 지연으로 본다', () => {
+    expect(ADMIN_DISPATCH_DELAY_DAYS).toBe(3);
+    expect(isAdminDispatchDelayed('2026-08-16T06:00:00.000Z', now)).toBe(false);
+    expect(isAdminDispatchDelayed('2026-08-15T06:00:00.000Z', now)).toBe(true);
+  });
+
+  /* 며칠을 지연으로 볼지는 운영 정책이다. 경계 계산을 앱에 두면 정책이 바뀌어도
+     마이그레이션이 필요 없다 — DB 함수는 절대 시각만 받는다. */
+  it('지연 경계를 절대 시각으로 낸다', () => {
+    expect(adminDispatchDelayThreshold(now).toISOString()).toBe('2026-08-15T06:00:00.000Z');
+  });
+});
+
+describe('지연 메모 폼', () => {
+  const ORDER_ID = '11111111-1111-4111-8111-111111111111';
+
+  function form(values: Record<string, string>) {
+    const formData = new FormData();
+    for (const [key, value] of Object.entries(values)) formData.set(key, value);
+    return formData;
+  }
+
+  it('사유와 발송 예정일을 함께 저장한다', () => {
+    expect(normalizeAdminDispatchDelayForm(form({
+      orderId: ORDER_ID,
+      reason: ' 작가 재입고 지연 ',
+      expectedShipDate: '2026-08-20',
+    }))).toEqual({
+      ok: true,
+      value: { orderId: ORDER_ID, reason: '작가 재입고 지연', expectedShipDate: '2026-08-20' },
+    });
+  });
+
+  /* 모르는 날짜를 지어내면 CS에서 그대로 약속이 된다. 비우는 것이 정상 경로다. */
+  it('발송 예정일은 비워 둘 수 있다', () => {
+    expect(normalizeAdminDispatchDelayForm(form({
+      orderId: ORDER_ID,
+      reason: '재고 확인 중',
+      expectedShipDate: '',
+    }))).toMatchObject({ ok: true, value: { expectedShipDate: null } });
+  });
+
+  /* 해제 수단이 없으면 운영자가 사유를 '해결'로 덮어쓰고 지연 목록이 줄지 않는다. */
+  it('사유를 비우면 메모 해제로 읽고 예정일도 함께 버린다', () => {
+    expect(normalizeAdminDispatchDelayForm(form({
+      orderId: ORDER_ID,
+      reason: '   ',
+      expectedShipDate: '2026-08-20',
+    }))).toEqual({
+      ok: true,
+      value: { orderId: ORDER_ID, reason: null, expectedShipDate: null },
+    });
+  });
+
+  /* 운영자가 적은 날짜가 조용히 사라지면 저장된 줄 안다. */
+  it('깨진 주문 id와 날짜는 버리지 않고 되돌린다', () => {
+    expect(normalizeAdminDispatchDelayForm(form({
+      orderId: 'not-a-uuid',
+      reason: '재고 확인 중',
+      expectedShipDate: '2026-02-30',
+    }))).toEqual({
+      ok: false,
+      errors: {
+        orderId: '주문을 찾을 수 없습니다.',
+        expectedShipDate: '발송 예정일을 YYYY-MM-DD 형식으로 입력해주세요.',
+      },
+    });
   });
 });

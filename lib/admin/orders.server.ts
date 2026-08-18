@@ -3,6 +3,7 @@ import 'server-only';
 import { normalizeCheckoutAddress } from '@/lib/checkout';
 import { isOrderWithdrawalReasonType, type OrderWithdrawalReasonType } from '@/lib/orders';
 import { orderShipment } from '@/lib/orders/shipment';
+import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
 import {
   ADMIN_ORDER_STATUSES,
@@ -149,6 +150,9 @@ export async function getAdminOrderRecords(
   includeManualRecovery = false,
 ): Promise<AdminOrderConsoleData> {
   const supabase = await createClient();
+  /* 드롭다운과 배송조회 링크가 같은 레지스트리를 봐야 한다. 클라이언트 콘솔에는
+     상수가 없으므로 목록 응답에 실어 보낸다(#251). */
+  const carriers = await getShippingCarrierRegistry();
   const { data, error } = await supabase.rpc('admin_search_orders', {
     p_from: filters.from,
     p_limit: PAGE_SIZE,
@@ -161,7 +165,7 @@ export async function getAdminOrderRecords(
   if (error) throw new Error(`Failed to load admin orders: ${error.message}`);
   const rows = (data ?? []) as SearchRow[];
   if (!rows.length) {
-    return { filters, items: [], pageSize: PAGE_SIZE, total: 0 };
+    return { carriers, filters, items: [], pageSize: PAGE_SIZE, total: 0 };
   }
 
   const orderIds = rows.map((row) => row.id);
@@ -319,11 +323,12 @@ export async function getAdminOrderRecords(
         currency: relatedAttempt.currency,
         manualRecoveryAvailable: relatedAttempt.manualRecoveryAvailable,
       },
-      shipment: orderShipment(row.shipping_carrier, row.tracking_number),
+      shipment: orderShipment(carriers, row.shipping_carrier, row.tracking_number),
     };
   });
 
   return {
+    carriers,
     filters,
     items,
     pageSize: PAGE_SIZE,

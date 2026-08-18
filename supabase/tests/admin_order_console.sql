@@ -33,9 +33,9 @@ select 1 / case when (
   not has_function_privilege('anon', 'public.admin_begin_order_cancellation_reconcile(uuid)', 'execute')
   and has_function_privilege('authenticated', 'public.admin_begin_order_cancellation_reconcile(uuid)', 'execute')
   and not has_function_privilege('service_role', 'public.admin_begin_order_cancellation_reconcile(uuid)', 'execute')
-  and not has_function_privilege('anon', 'public.admin_search_orders(text,date,date,text,integer,integer)', 'execute')
-  and has_function_privilege('authenticated', 'public.admin_search_orders(text,date,date,text,integer,integer)', 'execute')
-  and not has_function_privilege('service_role', 'public.admin_search_orders(text,date,date,text,integer,integer)', 'execute')
+  and not has_function_privilege('anon', 'public.admin_search_orders(text,date,date,text,integer,integer,timestamptz)', 'execute')
+  and has_function_privilege('authenticated', 'public.admin_search_orders(text,date,date,text,integer,integer,timestamptz)', 'execute')
+  and not has_function_privilege('service_role', 'public.admin_search_orders(text,date,date,text,integer,integer,timestamptz)', 'execute')
 ) then 1 else 0 end as assert_admin_reconcile_and_search_are_authenticated_only;
 
 select 1 / case when (

@@ -4,6 +4,23 @@ import { loadOrderDetail, loadOrders } from './orders.server';
 const mocks = vi.hoisted(() => ({ client: null as unknown }));
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => mocks.client }));
+/* 택배사 레지스트리는 DB(`public.shipping_carriers`)에서 온다(#251). 앱에 상수
+   목록이 없으므로 테스트도 고정 레지스트리를 주입한다 — 여기서 확인하려는 것은
+   목록 자체가 아니라 운송장이 그 목록을 거쳐 그려지는가다. */
+vi.mock('@/lib/orders/shipment.server', () => {
+  const carriers = [{
+    code: 'hanjin',
+    label: '한진택배',
+    active: true,
+    trackingUrlTemplate: 'https://www.hanjin.com/kor/CMS/DeliveryMgr/WaybillResult.do'
+      + '?mCode=MN038&schLang=KR&wblnumText2={trackingNumber}',
+  }];
+  return {
+    getShippingCarrierRegistry: async () => carriers,
+    loadShippingCarrierRegistry: async () => carriers,
+  };
+});
+
 
 type Row = Record<string, unknown>;
 type QueryResult = { data: Row[] | Row | null; error: { message: string } | null };

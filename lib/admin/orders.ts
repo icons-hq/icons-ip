@@ -1,9 +1,10 @@
 import type { OrderWithdrawalReasonType } from '@/lib/orders';
 import {
-  isShippingCarrierCode,
+  isSelectableShippingCarrier,
   isTrackingNumber,
   normalizeTrackingNumber,
   type OrderShipment,
+  type ShippingCarrierRegistry,
 } from '@/lib/orders/shipment';
 
 // DB의 order_status enum과 같은 순서를 유지한다 — 상태 필터의 표시 순서가
@@ -19,6 +20,22 @@ export const ADMIN_ORDER_STATUSES = [
 ] as const;
 export type AdminOrderStatus = (typeof ADMIN_ORDER_STATUSES)[number];
 export type AdminOrderStatusFilter = AdminOrderStatus | 'all';
+
+/**
+ * 상태 표기의 단일 진실원.
+ *
+ * 필터 드롭다운과 오류 문구가 같은 말을 써야 한다 — 일괄 등록 실패 리포트가
+ * "confirmed가 아닙니다"라고 적으면 운영자는 화면 어디에서도 그 단어를 찾을 수 없다.
+ */
+export const ADMIN_ORDER_STATUS_LABELS: Record<AdminOrderStatus, string> = {
+  pending: '결제 대기',
+  paid: '신규주문',
+  confirmed: '발주확인',
+  shipping: '배송중',
+  delivered: '배송완료',
+  done: '거래확정',
+  canceled: '취소',
+};
 
 export const GOODS_PAYMENT_ATTEMPT_STATES = [
   'prepared',
@@ -143,6 +160,12 @@ export interface AdminOrderConsoleData {
   filters: AdminOrderFilters;
   pageSize: number;
   total: number;
+  /**
+   * 운송장 폼이 고를 수 있는 택배사(#251). 목록 응답에 함께 실어 보낸다 —
+   * 콘솔은 클라이언트 컴포넌트라 DB 레지스트리를 직접 읽을 수 없고, 상수 목록을
+   * 다시 두면 레지스트리와 갈라진다.
+   */
+  carriers: ShippingCarrierRegistry;
 }
 
 export type AdminOrderFieldErrors = Record<string, string>;
@@ -227,14 +250,23 @@ interface TrackingInput {
   trackingNumber: string;
 }
 
-/** 택배사·운송장번호를 함께 검증한다. 둘 중 하나만 남으면 DB 쌍 제약에 걸린다. */
-function readTrackingInput(formData: FormData): AdminOrderFormResult<TrackingInput> {
+/**
+ * 택배사·운송장번호를 함께 검증한다. 둘 중 하나만 남으면 DB 쌍 제약에 걸린다.
+ *
+ * 택배사 판정은 레지스트리를 받아서 한다(#251). **활성** 택배사만 통과시킨다 —
+ * 등록만 되어 있고 계약이 끝난 코드로 새 운송장을 붙이면 DB 게이트에서 거절돼
+ * 운영자는 이유를 알 수 없는 저장 실패를 본다.
+ */
+function readTrackingInput(
+  formData: FormData,
+  carriers: ShippingCarrierRegistry,
+): AdminOrderFormResult<TrackingInput> {
   const carrier = readFormString(formData, 'carrier');
   const rawTrackingNumber = readFormString(formData, 'trackingNumber');
   const trackingNumber = normalizeTrackingNumber(rawTrackingNumber);
   const errors: AdminOrderFieldErrors = {};
 
-  if (!isShippingCarrierCode(carrier)) errors.carrier = '택배사를 선택해주세요.';
+  if (!isSelectableShippingCarrier(carriers, carrier)) errors.carrier = '택배사를 선택해주세요.';
   if (!trackingNumber) {
     errors.trackingNumber = '운송장번호를 입력해주세요.';
   } else if (!isTrackingNumber(trackingNumber)) {
@@ -247,6 +279,7 @@ function readTrackingInput(formData: FormData): AdminOrderFormResult<TrackingInp
 
 export function normalizeAdminOrderStatusForm(
   formData: FormData,
+  carriers: ShippingCarrierRegistry,
 ): AdminOrderFormResult<{
   orderId: string;
   status: AdminOrderFormStatus;
@@ -276,7 +309,7 @@ export function normalizeAdminOrderStatusForm(
     };
   }
 
-  const tracking = readTrackingInput(formData);
+  const tracking = readTrackingInput(formData, carriers);
   if (!tracking.ok) return tracking;
 
   return {
@@ -292,9 +325,10 @@ export function normalizeAdminOrderStatusForm(
 
 export function normalizeAdminOrderTrackingForm(
   formData: FormData,
+  carriers: ShippingCarrierRegistry,
 ): AdminOrderFormResult<{ orderId: string; carrier: string; trackingNumber: string }> {
   const orderId = readFormString(formData, 'orderId').toLowerCase();
-  const tracking = readTrackingInput(formData);
+  const tracking = readTrackingInput(formData, carriers);
   const errors: AdminOrderFieldErrors = {
     ...(UUID_PATTERN.test(orderId) ? {} : { orderId: '주문을 찾을 수 없습니다.' }),
     ...(tracking.ok ? {} : tracking.errors),

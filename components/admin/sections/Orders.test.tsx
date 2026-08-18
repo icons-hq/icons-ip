@@ -18,6 +18,23 @@ vi.mock('@/app/admin/order-actions', () => ({
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 
+/* 택배사 드롭다운은 DB 레지스트리에서 온다(#251). 상수 목록이 없으므로 콘솔이
+   목록 응답에 실려 온 값을 그대로 쓰는지 함께 고정한다. */
+const CARRIERS = [
+  {
+    code: 'hanjin',
+    label: '한진택배',
+    active: true,
+    trackingUrlTemplate: 'https://example.test/track?no={trackingNumber}',
+  },
+  {
+    code: 'retired_courier',
+    label: '계약종료 택배',
+    active: false,
+    trackingUrlTemplate: 'https://example.test/old?no={trackingNumber}',
+  },
+];
+
 function cancellationRequest(
   overrides: Partial<AdminOrderCancellationRequestRecord> = {},
 ): AdminOrderCancellationRequestRecord {
@@ -34,6 +51,7 @@ function cancellationRequest(
 
 function orderData(overrides: Partial<AdminOrderRecord> = {}): AdminOrderConsoleData {
   return {
+    carriers: CARRIERS,
     filters: {
       from: null,
       orderId: ORDER_ID,
@@ -101,6 +119,17 @@ function actionMarker(label: string) {
 }
 
 describe('OrdersSection', () => {
+  /* 택배사 드롭다운을 상수로 채우면 레지스트리와 갈라져 저장은 되는데 조회는
+     안 되는 운송장이 생긴다. 비활성 택배사는 고를 수 없어야 한다(#251). */
+  it('택배사 드롭다운을 레지스트리의 활성 택배사로만 채운다', () => {
+    const html = renderToStaticMarkup(
+      <OrdersSection data={orderData({ status: 'confirmed' })} />,
+    );
+
+    expect(html).toContain('<option value="hanjin">한진택배</option>');
+    expect(html).not.toContain('계약종료 택배');
+  });
+
   it('renders staff-safe order detail and the paid-to-confirmed action without provider secrets', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
 
