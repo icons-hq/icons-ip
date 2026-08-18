@@ -5,8 +5,10 @@ import { UnpaidScreen } from './UnpaidScreen';
 
 vi.mock('@/app/admin/unpaid-actions', () => ({
   cancelUnpaidBankTransferOrderAction: vi.fn(),
+  confirmBankDepositAction: vi.fn(),
   confirmBankTransferDepositAction: vi.fn(),
   extendBankTransferDeadlineAction: vi.fn(),
+  ignoreBankDepositAction: vi.fn(),
 }));
 
 const now = new Date('2026-08-18T00:00:00.000Z');
@@ -16,6 +18,7 @@ function consoleData(overrides: Partial<AdminUnpaidConsoleData> = {}): AdminUnpa
     filters: { query: '', page: 1, selectedOrderId: null },
     pageSize: 20,
     total: 2,
+    deposits: [],
     rows: [
       {
         id: '9a3f21c0-1111-4000-8000-000000000abc',
@@ -124,5 +127,69 @@ describe('UnpaidScreen', () => {
     );
 
     expect(html).toContain('이미 처리됐을 수 있어요');
+  });
+});
+
+describe('UnpaidScreen 입금 내역 큐', () => {
+  const deposit = {
+    id: 'd1',
+    source: 'fake',
+    externalId: 'dep-001',
+    depositedAt: '2026-08-17T23:00:00.000Z',
+    depositorName: '홍길동9A3F21C0',
+    amount: 23000,
+    rawReference: '기업 12345',
+    suggestedOrderId: '9a3f21c0-1111-4000-8000-000000000abc',
+    suggestedOrderCode: '9A3F21C0',
+    suggestedConfidence: 'code_amount',
+  };
+
+  it('연동 전에는 큐가 비어 있다고 분명히 말한다', () => {
+    const html = renderToStaticMarkup(<UnpaidScreen data={consoleData()} now={now} />);
+
+    expect(html).toContain('미매칭 입금이 없습니다');
+  });
+
+  it('제안이 있어도 확정 버튼은 사람이 누르게 둔다', () => {
+    const html = renderToStaticMarkup(
+      <UnpaidScreen data={consoleData({ deposits: [deposit] })} now={now} />,
+    );
+
+    expect(html).toContain('주문코드·금액 일치');
+    expect(html).toContain('이 주문으로 확정');
+    expect(html).toContain('큐에서 내리기');
+  });
+
+  /* 금액이 다른 제안은 부분 입금일 수도, 남의 주문일 수도 있다. */
+  it('금액이 다른 제안은 한 번 더 보라고 경고한다', () => {
+    const html = renderToStaticMarkup(
+      <UnpaidScreen
+        data={consoleData({ deposits: [{ ...deposit, suggestedConfidence: 'code' }] })}
+        now={now}
+      />,
+    );
+
+    expect(html).toContain('금액이 다릅니다');
+  });
+
+  /* 미아 입금은 지우지 않는다 — 반환 절차의 근거가 이 행이다. */
+  it('제안이 없는 입금은 확정 폼 없이 보류 폼만 준다', () => {
+    const html = renderToStaticMarkup(
+      <UnpaidScreen
+        data={consoleData({
+          deposits: [{
+            ...deposit,
+            suggestedOrderId: null,
+            suggestedOrderCode: null,
+            suggestedConfidence: null,
+          }],
+        })}
+        now={now}
+      />,
+    );
+
+    expect(html).toContain('대조되는 미입금 주문을 찾지 못했습니다');
+    expect(html).not.toContain('이 주문으로 확정');
+    expect(html).toContain('큐에서 내리기');
   });
 });
