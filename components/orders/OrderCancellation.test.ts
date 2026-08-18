@@ -211,9 +211,15 @@ describe('submitOrderCancellation', () => {
     const presentation = cancellationPresentation('paid', null, {
       id: '22222222-2222-4222-8222-222222222222',
       status: requestStatus,
+      /* 취소 패널은 취소 클레임만 그린다(#252). 반품·교환은 OrderClaimRequest가 맡는다. */
+      claimType: 'cancel',
+      stage: requestStatus,
+      reference: 12,
       requestedAt: '2026-07-14T07:30:00.000Z',
       decidedAt: null,
       decisionNote: null,
+      reshipCarrier: null,
+      reshipTrackingNumber: null,
     });
 
     expect(presentation).toMatchObject({ canCancel: false, heading: expect.stringContaining(heading) });
@@ -225,9 +231,14 @@ describe('submitOrderCancellation', () => {
     const rejectedRequest = {
       id: '22222222-2222-4222-8222-222222222222',
       status: 'rejected' as const,
+      claimType: 'cancel' as const,
+      stage: 'rejected' as const,
+      reference: 12,
       requestedAt: '2026-07-14T07:30:00.000Z',
       decidedAt: '2026-07-14T08:00:00.000Z',
       decisionNote: '배송 준비 상태를 확인해주세요',
+      reshipCarrier: null,
+      reshipTrackingNumber: null,
     };
 
     expect(cancellationPresentation('paid', null, rejectedRequest)).toMatchObject({

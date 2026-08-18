@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { OrderCancellation } from '@/components/orders/OrderCancellation';
+import { OrderClaimRequest } from '@/components/orders/OrderClaimRequest';
 import { newInquiryHref } from '@/lib/inquiries';
 import { Icon } from '@/components/ui/Icon';
 import { krw } from '@/lib/format';
@@ -162,11 +163,22 @@ export function OrderDetail({
             status={order.status}
           />
 
-          <OrderCancellation
-            cancellationRequest={order.cancellationRequest}
-            deliveredAt={order.deliveredAt}
+          {/* 취소(청약철회)와 반품·교환은 다른 절차다. 취소 패널은 진행 중인 반품·교환을
+              자기 상태로 오해하지 않도록 취소 클레임일 때만 그린다 — 레거시 status
+              투영에서는 수거 중인 반품도 '요청 접수'로 보인다(#252). */}
+          {!order.cancellationRequest || order.cancellationRequest.claimType === 'cancel' ? (
+            <OrderCancellation
+              cancellationRequest={order.cancellationRequest}
+              deliveredAt={order.deliveredAt}
+              orderId={order.id}
+              refund={order.refund}
+              status={order.status}
+            />
+          ) : null}
+
+          <OrderClaimRequest
+            claim={order.cancellationRequest}
             orderId={order.id}
-            refund={order.refund}
             status={order.status}
           />
 

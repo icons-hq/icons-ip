@@ -326,11 +326,20 @@ select 1 / case when public.request_order_cancellation(
 
 reset role;
 
+-- 발주확인 전(paid) 변심 취소는 운영자 개입 없이 환불 접수까지 자동 승인된다(#252).
+-- 그래서 durable 요청은 requested가 아니라 processing으로 남고, 승인이 만드는
+-- durable claim과 환불 intent가 함께 있어야 한다.
 select 1 / case when (
-  select count(*) = 1 and bool_and(status = 'requested')
+  select count(*) = 1 and bool_and(status = 'processing' and stage = 'processing')
   from public.order_cancellation_requests
   where order_id = '40000000-0000-4000-8000-000000000709'
 ) then 1 else 0 end as assert_cancellation_request_is_durable;
+
+select 1 / case when (
+  select count(*) = 1
+  from public.order_cancellation_claims
+  where order_id = '40000000-0000-4000-8000-000000000709'
+) then 1 else 0 end as assert_auto_approved_cancel_seals_transitions;
 
 do $$
 begin
@@ -354,20 +363,39 @@ select 1 / case when (
   where id = '40000000-0000-4000-8000-000000000709'
 ) then 1 else 0 end as assert_request_blocks_fulfillment_transition;
 
--- staff 승인 시에만 provider 호출용 claim과 환불 intent가 생성된다.
+-- 발주확인 전 변심 취소는 자동 승인이라 staff 결정 단계가 없다(#252).
+-- 이미 processing인 요청에 승인을 다시 걸면 거부돼야 한다 — 두 번 승인하면
+-- durable claim과 환불 intent가 중복 생성될 수 있다.
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000703', true);
 
-select public.admin_decide_order_cancellation(
-  (select id from public.order_cancellation_requests
-   where order_id = '40000000-0000-4000-8000-000000000709'),
-  'approve',
-  null
-);
+do $$
+declare
+  decided boolean := false;
+begin
+  begin
+    perform public.admin_decide_order_cancellation(
+      (select id from public.order_cancellation_requests
+       where order_id = '40000000-0000-4000-8000-000000000709'),
+      'approve',
+      null
+    );
+    decided := true;
+  exception
+    when others then
+      if sqlerrm <> 'cancellation_request_not_decidable' then raise; end if;
+  end;
+
+  if decided then
+    raise exception 'auto-approved cancellation should not be decidable again';
+  end if;
+end;
+$$;
 
 reset role;
 
+-- 자동 승인이 staff 승인과 같은 산출물(claim + 환불 intent)을 남긴다.
 select 1 / case when (
   exists (
     select 1 from public.order_cancellation_claims
@@ -379,7 +407,7 @@ select 1 / case when (
     where payment_id = '50000000-0000-4000-8000-000000000709'
       and status = 'requested'
   )
-) then 1 else 0 end as assert_staff_approval_creates_claim_and_refund_intent;
+) then 1 else 0 end as assert_auto_approval_creates_claim_and_refund_intent;
 
 set local role service_role;
 
@@ -573,16 +601,34 @@ select 1 / case when public.request_order_cancellation(
 ) = 'requested' then 1 else 0 end as assert_active_order_request_is_durable;
 reset role;
 
+-- 발주확인 전 변심 취소는 접수 시점에 자동 승인된다(#252). 그 경우 요청은 이미
+-- processing이라 staff 결정이 거부되므로, 아직 requested인 경우에만 승인한다.
+-- 어느 경로든 산출물(durable claim + 환불 intent)은 같아야 한다.
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000703', true);
-select public.admin_decide_order_cancellation(
-  (select id from public.order_cancellation_requests
-   where order_id = '40000000-0000-4000-8000-000000000702'),
-  'approve',
-  null
-);
+
+do $$
+declare
+  request_id uuid;
+begin
+  select id into request_id
+  from public.order_cancellation_requests
+  where order_id = '40000000-0000-4000-8000-000000000702' and status = 'requested';
+
+  if request_id is not null then
+    perform public.admin_decide_order_cancellation(request_id, 'approve', null);
+  end if;
+end;
+$$;
+
 reset role;
+
+select 1 / case when (
+  select count(*) = 1
+  from public.order_cancellation_claims
+  where order_id = '40000000-0000-4000-8000-000000000702'
+) then 1 else 0 end as assert_approved_cancellation_sealed_0702;
 
 do $$
 begin
@@ -693,16 +739,34 @@ select 1 / case when public.request_order_cancellation(
 ) = 'requested' then 1 else 0 end as assert_paid_order_requested_before_evidence_check;
 reset role;
 
+-- 발주확인 전 변심 취소는 접수 시점에 자동 승인된다(#252). 그 경우 요청은 이미
+-- processing이라 staff 결정이 거부되므로, 아직 requested인 경우에만 승인한다.
+-- 어느 경로든 산출물(durable claim + 환불 intent)은 같아야 한다.
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000703', true);
-select public.admin_decide_order_cancellation(
-  (select id from public.order_cancellation_requests
-   where order_id = '40000000-0000-4000-8000-000000000703'),
-  'approve',
-  null
-);
+
+do $$
+declare
+  request_id uuid;
+begin
+  select id into request_id
+  from public.order_cancellation_requests
+  where order_id = '40000000-0000-4000-8000-000000000703' and status = 'requested';
+
+  if request_id is not null then
+    perform public.admin_decide_order_cancellation(request_id, 'approve', null);
+  end if;
+end;
+$$;
+
 reset role;
+
+select 1 / case when (
+  select count(*) = 1
+  from public.order_cancellation_claims
+  where order_id = '40000000-0000-4000-8000-000000000703'
+) then 1 else 0 end as assert_approved_cancellation_sealed_0703;
 
 do $$
 begin

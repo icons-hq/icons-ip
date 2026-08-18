@@ -9,7 +9,10 @@ export type NotificationType =
   | 'event_published'
   | 'announcement'
   /* 1:1 문의 답변(#253). 발송은 admin_answer_inquiry가 같은 트랜잭션에서 남긴다. */
-  | 'inquiry_answered';
+  | 'inquiry_answered'
+  /* 클레임 단계 변화(#252) — 접수·승인·거부·보류·입고·환불·재출고를 한 타입으로
+     묶는다. 단계마다 타입을 나누면 DB CHECK와 이 union이 아홉 번 갈라진다. */
+  | 'claim_updated';
 
 export interface NotificationRow {
   id: string;

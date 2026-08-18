@@ -11,6 +11,7 @@ import {
   type OrderCancellationRequestStatus,
   type OrderListItem,
 } from './orders';
+import { isOrderClaimStage, isOrderClaimType } from './orders/claims';
 import { orderShipment } from './orders/shipment';
 import { getShippingCarrierRegistry } from './orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
@@ -68,9 +69,14 @@ interface RefundRow {
 interface CancellationRequestRow {
   id: string;
   status: string;
+  claim_type: string;
+  stage: string;
+  reference: number;
   requested_at: string;
   decided_at: string | null;
   decision_note: string | null;
+  reship_carrier: string | null;
+  reship_tracking_number: string | null;
 }
 
 function requireDetailStatus(status: string) {
@@ -204,7 +210,10 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       .eq('source_id', orderId),
     supabase
       .from('order_cancellation_requests')
-      .select('id,status,requested_at,decided_at,decision_note')
+      .select(
+        'id,status,claim_type,stage,reference,requested_at,decided_at,decision_note,'
+        + 'reship_carrier,reship_tracking_number',
+      )
       .eq('order_id', orderId)
       .order('requested_at', { ascending: false })
       .limit(1)
@@ -284,9 +293,20 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       ? {
           id: cancellationRequestRow.id,
           status: cancellationRequestStatus,
+          /* 모르는 값은 가장 좁은 쪽으로 접는다 — 취소·접수는 어떤 유형에서도
+             거짓말이 되지 않는 안내다. */
+          claimType: isOrderClaimType(cancellationRequestRow.claim_type)
+            ? cancellationRequestRow.claim_type
+            : 'cancel',
+          stage: isOrderClaimStage(cancellationRequestRow.stage)
+            ? cancellationRequestRow.stage
+            : 'requested',
+          reference: Number(cancellationRequestRow.reference ?? 0),
           requestedAt: cancellationRequestRow.requested_at,
           decidedAt: cancellationRequestRow.decided_at,
           decisionNote: cancellationRequestRow.decision_note,
+          reshipCarrier: cancellationRequestRow.reship_carrier,
+          reshipTrackingNumber: cancellationRequestRow.reship_tracking_number,
         }
       : null,
     shipment: orderShipment(

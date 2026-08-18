@@ -1,5 +1,6 @@
 import type { CheckoutAddress } from './checkout';
 import type { OrderShipment } from './orders/shipment';
+import type { OrderClaimStage, OrderClaimType } from './orders/claims';
 
 // 주문 목록에 보이는 상태. pending은 결제가 끝나지 않은 선점이라 별도 취급한다.
 // 사다리는 pending → paid → confirmed → shipping → delivered → done이고
@@ -126,9 +127,22 @@ export interface OrderRefundSummary {
 export interface OrderCancellationRequestSummary {
   id: string;
   status: OrderCancellationRequestStatus;
+  /**
+   * 클레임 유형과 절차 단계(#252).
+   *
+   * `status`는 레거시 투영이라 반품이 수거 중이어도 `requested`로 보인다. 구매자
+   * 화면이 "요청을 접수했습니다"만 말하면 이미 반송한 사람이 아무 일도 일어나지
+   * 않았다고 읽는다 — 진행 안내는 반드시 `stage`에서 나와야 한다.
+   */
+  claimType: OrderClaimType;
+  stage: OrderClaimStage;
+  reference: number;
   requestedAt: string;
   decidedAt: string | null;
   decisionNote: string | null;
+  /** 교환 재출고 운송장. 교환이 아니면 항상 null이다. */
+  reshipCarrier: string | null;
+  reshipTrackingNumber: string | null;
 }
 
 export interface OrderDetail {

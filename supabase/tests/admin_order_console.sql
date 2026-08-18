@@ -287,11 +287,13 @@ select 1 / case when (
 -- ---------------------------------------------------------------------------
 set local role service_role;
 
+-- 발주확인 전 변심 취소는 접수 즉시 자동 승인되므로 거절 시나리오가 성립하지 않는다(#252).
+-- 하자 클레임은 상태와 무관하게 운영자 판단을 거치므로 거절 경로는 여기로 검증한다.
 select public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000802',
   '00000000-0000-4000-8000-000000000803',
-  '사용자 청약철회',
-  'change_of_mind'
+  '수령한 굿즈에 하자가 있습니다',
+  'defect'
 );
 select public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000803',
@@ -482,11 +484,21 @@ select 1 / case when (
 -- ---------------------------------------------------------------------------
 -- Approval creates claim/refund intent; uncertain provider state stays fail closed.
 -- ---------------------------------------------------------------------------
-select public.admin_decide_order_cancellation(
-  (select id from public.order_cancellation_requests where order_id = '40000000-0000-4000-8000-000000000803'),
-  'approve',
-  null
-);
+-- 발주확인 전 변심 취소는 접수 시점에 자동 승인된다(#252). 이미 processing인
+-- 요청에 승인을 다시 걸면 거부되므로 아직 requested일 때만 결정한다.
+do $$
+declare
+  request_id uuid;
+begin
+  select id into request_id
+  from public.order_cancellation_requests
+  where order_id = '40000000-0000-4000-8000-000000000803' and status = 'requested';
+
+  if request_id is not null then
+    perform public.admin_decide_order_cancellation(request_id, 'approve', null);
+  end if;
+end;
+$$;
 
 reset role;
 
@@ -857,11 +869,21 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000802', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 
-select public.admin_decide_order_cancellation(
-  (select id from public.order_cancellation_requests where order_id = '40000000-0000-4000-8000-000000000806'),
-  'approve',
-  null
-);
+-- 발주확인 전 변심 취소는 접수 시점에 자동 승인된다(#252). 이미 processing인
+-- 요청에 승인을 다시 걸면 거부되므로 아직 requested일 때만 결정한다.
+do $$
+declare
+  request_id uuid;
+begin
+  select id into request_id
+  from public.order_cancellation_requests
+  where order_id = '40000000-0000-4000-8000-000000000806' and status = 'requested';
+
+  if request_id is not null then
+    perform public.admin_decide_order_cancellation(request_id, 'approve', null);
+  end if;
+end;
+$$;
 
 reset role;
 set local role service_role;

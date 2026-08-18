@@ -420,6 +420,52 @@ a.admin-console-chip:hover {
   color: var(--editorial-ink-faint);
 }
 
+/* 클레임 상세(#252) — 왼쪽 맥락, 오른쪽 처리. 문의 상세와 같은 비율을 쓰되
+   오른쪽이 폼이라 최소 폭을 조금 더 준다. */
+.admin-claim-detail-layout {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1.3fr) minmax(300px, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin-top: 16px;
+}
+
+/* 액션은 폼마다 독립이다(엔터 제출이 엉뚱한 액션으로 가지 않도록). 폼 사이를
+   구분선으로 나눠 어떤 버튼이 어떤 입력과 묶이는지 눈으로 보이게 한다. */
+.admin-claim-actions {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-claim-actions > form {
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--editorial-rule);
+}
+
+.admin-claim-actions > form:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.admin-claim-actions label {
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+}
+
+.admin-claim-actions textarea {
+  resize: vertical;
+}
+
+@media (max-width: 900px) {
+  .admin-claim-detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .admin-inquiry-layout {
   display: grid;
   min-width: 0;
