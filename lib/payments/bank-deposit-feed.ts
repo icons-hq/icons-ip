@@ -84,7 +84,10 @@ export function normalizeBankDepositBatch(values: readonly unknown[]): BankDepos
   return normalized;
 }
 
-export type BankDepositConfidence = 'code_amount' | 'code' | 'amount_name';
+/** DB `suggest_bank_deposit_order`가 낼 수 있는 확신도의 전부. */
+const BANK_DEPOSIT_CONFIDENCES = ['code_amount', 'code', 'amount_name'] as const;
+
+export type BankDepositConfidence = (typeof BANK_DEPOSIT_CONFIDENCES)[number];
 
 /** 콘솔에 보여줄 매칭 확신도 문구. DB `suggest_bank_deposit_order`가 주는 값이다. */
 export const BANK_DEPOSIT_CONFIDENCE_LABELS: Record<BankDepositConfidence, string> = {
@@ -93,17 +96,27 @@ export const BANK_DEPOSIT_CONFIDENCE_LABELS: Record<BankDepositConfidence, strin
   amount_name: '금액·이름 일치 · 코드 없음',
 };
 
-export function bankDepositConfidenceLabel(value: string | null): string {
-  if (value && value in BANK_DEPOSIT_CONFIDENCE_LABELS) {
-    return BANK_DEPOSIT_CONFIDENCE_LABELS[value as BankDepositConfidence];
-  }
-  return '제안 없음';
+/**
+ * DB가 준 확신도 문자열을 아는 값으로 좁힌다. `normalizeBankDepositRecord`와 같은
+ * 규칙이다 — 모르는 값은 추측해 채우지 않고 버린다. 버려진 제안은 콘솔에 "제안 없음"
+ * 으로 떠서 사람이 직접 주문을 고르게 된다.
+ *
+ * 좁히기를 이 한 곳에 모아 두면 아래 표시 함수와 콘솔 행 타입이 세 값만 알면 된다.
+ */
+export function normalizeBankDepositConfidence(value: unknown): BankDepositConfidence | null {
+  /* 아는 값과 하나씩 맞춰 본다. `value in LABELS`는 프로토타입 체인까지 보므로
+     'toString' 같은 입력이 확신도로 승격되고, 라벨 조회가 문자열 대신 함수를 낸다. */
+  return BANK_DEPOSIT_CONFIDENCES.find((known) => known === value) ?? null;
+}
+
+export function bankDepositConfidenceLabel(value: BankDepositConfidence | null): string {
+  return value ? BANK_DEPOSIT_CONFIDENCE_LABELS[value] : '제안 없음';
 }
 
 /**
  * 금액이 다른 제안은 확정 전에 사람이 한 번 더 봐야 한다 — 부분 입금이나
  * 수수료 차감일 수도 있고, 남의 주문일 수도 있다.
  */
-export function bankDepositNeedsSecondLook(confidence: string | null) {
+export function bankDepositNeedsSecondLook(confidence: BankDepositConfidence | null) {
   return confidence === 'code';
 }

@@ -3,6 +3,7 @@ import {
   bankDepositConfidenceLabel,
   bankDepositNeedsSecondLook,
   normalizeBankDepositBatch,
+  normalizeBankDepositConfidence,
   normalizeBankDepositRecord,
 } from './bank-deposit-feed';
 import { FakeBankDepositAdapter } from './fake-bank-deposit-adapter';
@@ -81,11 +82,32 @@ describe('FakeBankDepositAdapter', () => {
 });
 
 describe('매칭 확신도 표기', () => {
+  /* DB 경계에서 한 번만 좁힌다. 여기서 걸러진 값은 화면까지 `null`로 내려가
+     "제안 없음"이 되고, 아래 라벨·경고 함수는 세 값만 알면 된다. */
+  it('아는 세 값만 통과시키고 나머지는 제안 없음으로 버린다', () => {
+    expect(normalizeBankDepositConfidence('code_amount')).toBe('code_amount');
+    expect(normalizeBankDepositConfidence('code')).toBe('code');
+    expect(normalizeBankDepositConfidence('amount_name')).toBe('amount_name');
+    expect(normalizeBankDepositConfidence('made-up')).toBeNull();
+    expect(normalizeBankDepositConfidence('')).toBeNull();
+    expect(normalizeBankDepositConfidence(null)).toBeNull();
+    expect(normalizeBankDepositConfidence(undefined)).toBeNull();
+    expect(normalizeBankDepositConfidence(3)).toBeNull();
+  });
+
+  /* `value in LABELS`로 좁히면 여기가 통과하고, 라벨 조회가 문자열 대신
+     Object.prototype의 함수를 돌려준다. */
+  it.each(['toString', 'constructor', 'hasOwnProperty', '__proto__'])(
+    '프로토타입 키 %o를 확신도로 승격시키지 않는다',
+    (key) => {
+      expect(normalizeBankDepositConfidence(key)).toBeNull();
+    },
+  );
+
   it('DB가 주는 값을 운영자 문구로 옮긴다', () => {
     expect(bankDepositConfidenceLabel('code_amount')).toBe('주문코드·금액 일치');
     expect(bankDepositConfidenceLabel('amount_name')).toBe('금액·이름 일치 · 코드 없음');
     expect(bankDepositConfidenceLabel(null)).toBe('제안 없음');
-    expect(bankDepositConfidenceLabel('made-up')).toBe('제안 없음');
   });
 
   /* 금액이 다른 제안은 부분 입금일 수도, 남의 주문일 수도 있다. */
