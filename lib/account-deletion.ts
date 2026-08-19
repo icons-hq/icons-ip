@@ -17,6 +17,10 @@ const blockerContracts = {
 
 export type AccountDeletionBlockerCode = keyof typeof blockerContracts;
 
+// `code in blockerContracts`는 프로토타입 체인까지 훑는다. 지금은 아래 path 대조가
+// 막지만, 코드 허용 판정이 다른 필드의 방어 한 겹에만 기대지 않게 한다.
+const ACCOUNT_DELETION_BLOCKER_CODES: readonly string[] = Object.keys(blockerContracts);
+
 export interface AccountDeletionBlocker {
   code: AccountDeletionBlockerCode;
   count: number;
@@ -70,7 +74,7 @@ function normalizeBlockers(value: unknown): AccountDeletionBlocker[] | null {
   for (const candidate of value) {
     if (!isRecord(candidate)) return null;
     const { code, count, path } = candidate;
-    if (typeof code !== 'string' || !(code in blockerContracts)) return null;
+    if (typeof code !== 'string' || !ACCOUNT_DELETION_BLOCKER_CODES.includes(code)) return null;
     const typedCode = code as AccountDeletionBlockerCode;
     const expectedPath = blockerContracts[typedCode];
     if (!Number.isSafeInteger(count) || (count as number) < 1) return null;
