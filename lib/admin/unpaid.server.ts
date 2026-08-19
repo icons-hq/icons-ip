@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { normalizeBankDepositConfidence } from '@/lib/payments/bank-deposit-feed';
 import { createClient } from '@/lib/supabase/server';
 import {
   ADMIN_UNPAID_PAGE_SIZE,
@@ -71,7 +72,7 @@ export async function getAdminUnpaidOrders(
     rawReference: row.raw_reference,
     suggestedOrderId: row.suggested_order_id,
     suggestedOrderCode: row.suggested_order_code,
-    suggestedConfidence: row.suggested_confidence,
+    suggestedConfidence: normalizeBankDepositConfidence(row.suggested_confidence),
   }));
   const unpaid: AdminUnpaidOrderRow[] = rows.map((row) => ({
     id: row.order_id,

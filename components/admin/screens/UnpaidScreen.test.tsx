@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import type { AdminUnpaidConsoleData } from '@/lib/admin/unpaid';
+import type { AdminBankDepositRow, AdminUnpaidConsoleData } from '@/lib/admin/unpaid';
 import { UnpaidScreen } from './UnpaidScreen';
 
 vi.mock('@/app/admin/unpaid-actions', () => ({
@@ -156,7 +156,7 @@ describe('UnpaidScreen', () => {
 });
 
 describe('UnpaidScreen 입금 내역 큐', () => {
-  const deposit = {
+  const deposit: AdminBankDepositRow = {
     id: 'd1',
     source: 'fake',
     externalId: 'dep-001',

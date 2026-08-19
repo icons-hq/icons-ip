@@ -6,6 +6,8 @@
  * 갖는다 — 메모 없는 확정, 사유 없는 연장·취소를 폼 단계에서 막는다.
  */
 
+import type { BankDepositConfidence } from '@/lib/payments/bank-deposit-feed';
+
 export const ADMIN_UNPAID_PAGE_SIZE = 20;
 
 /** 근거 메모 길이. DB CHECK와 같은 값이어야 폼과 RPC가 같은 것을 거절한다. */
@@ -48,7 +50,7 @@ export interface AdminBankDepositRow {
   rawReference: string | null;
   suggestedOrderId: string | null;
   suggestedOrderCode: string | null;
-  suggestedConfidence: string | null;
+  suggestedConfidence: BankDepositConfidence | null;
 }
 
 export interface AdminUnpaidConsoleData {
