@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { Settings } from '@/components/screens/Settings';
 import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
+import { getAccountDeletionPresentation } from '@/lib/account-deletion.server';
+import { UNAVAILABLE_ACCOUNT_DELETION_PRESENTATION } from '@/lib/account-deletion';
 import { getProfileAvatarPresentation } from '@/lib/profile-avatar.server';
 
 export const metadata: Metadata = {
@@ -22,13 +24,20 @@ export default async function Page() {
   }
 
   const nickname = auth.profile?.nickname ?? '';
-  const avatar = await getProfileAvatarPresentation({
-    avatarPath: auth.profile?.avatar_path ?? null,
-    nickname,
-  });
+  const [avatar, accountDeletion] = await Promise.all([
+    getProfileAvatarPresentation({
+      avatarPath: auth.profile?.avatar_path ?? null,
+      nickname,
+    }),
+    auth.isConfigured
+      ? getAccountDeletionPresentation()
+      : UNAVAILABLE_ACCOUNT_DELETION_PRESENTATION,
+  ]);
 
   return (
     <Settings
+      accountDeletion={accountDeletion}
+      accountDeletionRequestKey={crypto.randomUUID()}
       avatarInitial={avatar.avatarInitial}
       avatarUrl={avatar.avatarUrl}
       email={auth.profile?.email ?? auth.user?.email ?? ''}

@@ -2,10 +2,17 @@ import 'server-only';
 
 import { normalizeCheckoutAddress } from '../checkout';
 import { orderShipment, type OrderShipment } from '../orders/shipment';
+import { loadShippingCarrierRegistry } from '../orders/shipment.server';
 import { createServiceClient, getServiceRoleConfig } from '../supabase/service';
-import { orderEmailDedupeKey, type EmailTemplateName } from './dedupe';
+import {
+  inquiryEmailDedupeKey,
+  orderEmailDedupeKey,
+  type EmailTemplateName,
+  type OrderEmailTemplateName,
+} from './dedupe';
 import { sendTransactionalEmail } from './provider.server';
 import {
+  renderInquiryAnsweredEmail,
   renderOrderConfirmationEmail,
   renderOrderShippedEmail,
   type OrderEmailItem,
@@ -37,9 +44,11 @@ const DEFAULT_SITE_URL = 'https://iconsip.com';
  *
  * DB 게이트(admin_request_email_resend)도 같은 집합을 본다. 웹훅 경로는 그 게이트를
  * 지나지 않으므로 실제 안전장치는 이쪽이다 — 양쪽을 함께 바꾼다. */
-const ACCURATE_ORDER_STATUSES: Record<EmailTemplateName, readonly string[]> = {
-  order_confirmation: ['paid', 'shipping', 'done'],
-  order_shipped: ['shipping', 'done'],
+// 사다리가 늘면 이 집합도 함께 넓힌다(#250). 빠뜨리면 발주확인·배송완료된 주문의
+// 확인 메일이 order_status_mismatch로 조용히 건너뛰어져 재발송조차 되지 않는다.
+const ACCURATE_ORDER_STATUSES: Record<OrderEmailTemplateName, readonly string[]> = {
+  order_confirmation: ['paid', 'confirmed', 'shipping', 'delivered', 'done'],
+  order_shipped: ['shipping', 'delivered', 'done'],
 };
 
 /** 멱등이 정상 동작한 결과다. 매 웹훅 재전송마다 로그를 남길 이유가 없다. */
@@ -97,7 +106,7 @@ async function loadOrderEmailContext(
     .select('id,user_id,status,total,created_at,address,shipping_carrier,tracking_number')
     .eq('id', orderId)
     .maybeSingle();
-  if (orderError) throw new Error(`Failed to load order for email: ${orderError.message}`);
+  if (orderError) throw new Error('order_email_load_failed');
   const order = orderData as OrderRow | null;
   if (!order) return { skipped: 'order_missing' };
 
@@ -106,19 +115,23 @@ async function loadOrderEmailContext(
     .select('good_name_snapshot,qty,unit_price')
     .eq('order_id', orderId)
     .order('id', { ascending: true });
-  if (itemError) throw new Error(`Failed to load order items for email: ${itemError.message}`);
+  if (itemError) throw new Error('order_email_items_load_failed');
 
   const { data: profileData, error: profileError } = await service
     .from('profiles')
     .select('email')
     .eq('id', order.user_id)
     .maybeSingle();
-  if (profileError) throw new Error(`Failed to load recipient for email: ${profileError.message}`);
+  if (profileError) throw new Error('order_email_recipient_load_failed');
 
   const recipient = (profileData as { email?: unknown } | null)?.email;
   if (typeof recipient !== 'string' || !recipient.includes('@')) {
     return { skipped: 'recipient_missing' };
   }
+
+  /* 웹훅 경로라 쿠키 클라이언트를 만들 수 없다. 레지스트리는 공개 읽기 테이블이므로
+     이미 들고 있는 service 클라이언트로 그대로 읽는다(#251). */
+  const carriers = await loadShippingCarrierRegistry(service);
 
   const items = ((itemData ?? []) as OrderItemRow[]).map((row) => ({
     name: row.good_name_snapshot,
@@ -137,7 +150,7 @@ async function loadOrderEmailContext(
     shippingFee: Math.max(0, order.total - itemsSubtotal),
     total: order.total,
     address: normalizeCheckoutAddress(order.address),
-    shipment: orderShipment(order.shipping_carrier, order.tracking_number),
+    shipment: orderShipment(carriers, order.shipping_carrier, order.tracking_number),
     orderUrl: `${siteUrl()}/orders/${order.id}`,
   };
 }
@@ -150,7 +163,7 @@ async function loadOrderEmailContext(
  */
 async function prepareOrderEmail(
   service: ServiceClient,
-  template: EmailTemplateName,
+  template: OrderEmailTemplateName,
   orderId: string,
 ): Promise<OrderEmailContext | { skipped: string }> {
   const context = await loadOrderEmailContext(service, orderId);
@@ -177,7 +190,7 @@ async function deliver(
     target_recipient: input.recipient,
     target_subject: input.rendered.subject,
   });
-  if (claimError) throw new Error(`Failed to claim email delivery: ${claimError.message}`);
+  if (claimError) throw new Error('order_email_claim_failed');
   if (claimed !== true) return { status: 'skipped', reason: 'already_delivered' };
 
   const outcome = await sendTransactionalEmail({
@@ -186,9 +199,14 @@ async function deliver(
     text: input.rendered.text,
     html: input.rendered.html,
   });
-  const failure = outcome.status === 'sent'
+  const rawFailure = outcome.status === 'sent'
     ? null
     : outcome.status === 'failed' ? outcome.error : outcome.reason;
+  const failure = rawFailure === null
+    ? null
+    : /^(?:provider_http_[1-5][0-9]{2}|provider_network_error|provider_not_configured)$/.test(rawFailure)
+      ? rawFailure
+      : 'provider_failure';
 
   const { error: completeError } = await service.rpc('complete_email_delivery', {
     target_dedupe_key: input.dedupeKey,
@@ -196,7 +214,7 @@ async function deliver(
     target_error: failure,
   });
   if (completeError) {
-    console.error(`[email] delivery record failed: ${completeError.message}`);
+    console.error('[email] delivery_record_failed');
   }
 
   return failure ? { status: 'failed', error: failure } : { status: 'sent' };
@@ -225,27 +243,26 @@ function guardedEnvironment(): TransactionalEmailResult | null {
  */
 async function safely(
   label: string,
-  orderId: string,
+  reference: string,
   run: () => Promise<TransactionalEmailResult>,
 ): Promise<TransactionalEmailResult> {
   try {
     const result = await run();
     if (result.status === 'failed') {
-      console.error(`[email] ${label} failed (order:${orderId}): ${result.error}`);
+      console.error(`[email] ${label} failed (${reference}): ${result.error}`);
     } else if (result.status === 'skipped' && !EXPECTED_SKIP_REASONS.includes(result.reason)) {
-      console.error(`[email] ${label} not sent (order:${orderId}): ${result.reason}`);
+      console.error(`[email] ${label} not sent (${reference}): ${result.reason}`);
     }
     return result;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(`[email] ${label} failed (order:${orderId}): ${message}`);
-    return { status: 'failed', error: message };
+  } catch {
+    console.error(`[email] ${label} failed (${reference}): unexpected_email_failure`);
+    return { status: 'failed', error: 'unexpected_email_failure' };
   }
 }
 
 /** 주문 확정(웹훅) 확인 메일. 전자상거래법상 계약내용 서면 교부 경로다(L4). */
 export function sendOrderConfirmationEmail(orderId: string): Promise<TransactionalEmailResult> {
-  return safely('order confirmation', orderId, async () => {
+  return safely('order confirmation', `order:${orderId}`, async () => {
     const blocked = guardedEnvironment();
     if (blocked) return blocked;
 
@@ -276,7 +293,7 @@ export function sendOrderShippedEmail(input: {
   trackingNumber?: string | null;
   trackingUrl?: string | null;
 }): Promise<TransactionalEmailResult> {
-  return safely('order shipped', input.orderId, async () => {
+  return safely('order shipped', `order:${input.orderId}`, async () => {
     const blocked = guardedEnvironment();
     if (blocked) return blocked;
 
@@ -296,6 +313,54 @@ export function sendOrderShippedEmail(input: {
         trackingNumber: input.trackingNumber ?? context.shipment?.trackingNumber ?? null,
         trackingUrl: input.trackingUrl ?? context.shipment?.trackingUrl ?? null,
         orderUrl: context.orderUrl,
+      }),
+    });
+  });
+}
+
+export interface InquiryAnsweredEmailRequest {
+  /** 답변 메시지 id. dedupe_key가 되므로 스레드 id를 넘기면 두 번째 답변이 막힌다. */
+  messageId: string;
+  inquiryId: string;
+  reference: number;
+  categoryLabel: string;
+  title: string;
+  answerBody: string;
+  recipient: string | null;
+}
+
+/**
+ * 1:1 문의 답변 알림 메일(#253).
+ *
+ * 인앱 알림은 `admin_answer_inquiry`가 같은 트랜잭션에서 남긴다. 메일만 밖에서 보낸다 —
+ * HTTP는 트랜잭션에 넣을 수 없고, 메일 실패가 답변 등록을 되돌리면 안 되기 때문이다.
+ * 다른 발송 훅과 같은 규율로 절대 throw하지 않는다.
+ *
+ * 주문 메일과 달리 사실성 게이트가 없다. "답변이 등록됐다"는 문의가 종결된 뒤에도
+ * 계속 참이라 되돌아볼 상태가 없다.
+ */
+export function sendInquiryAnsweredEmail(
+  input: InquiryAnsweredEmailRequest,
+): Promise<TransactionalEmailResult> {
+  return safely('inquiry answered', `inquiry:${input.inquiryId}`, async () => {
+    const blocked = guardedEnvironment();
+    if (blocked) return blocked;
+
+    const recipient = input.recipient?.trim();
+    if (!recipient || !recipient.includes('@')) {
+      return { status: 'skipped', reason: 'recipient_missing' };
+    }
+
+    return deliver(createServiceClient(), {
+      dedupeKey: inquiryEmailDedupeKey(input.messageId),
+      template: 'inquiry_answered',
+      recipient,
+      rendered: renderInquiryAnsweredEmail({
+        answerBody: input.answerBody,
+        categoryLabel: input.categoryLabel,
+        inquiryUrl: `${siteUrl()}/my/inquiries/${input.inquiryId}`,
+        reference: input.reference,
+        title: input.title,
       }),
     });
   });

@@ -78,6 +78,29 @@ export function LegalDocumentScreen({ document }: { document: LegalDocument }) {
           ))}
         </nav>
 
+        {document.pendingRevision && (
+          <aside
+            aria-labelledby={`${document.slug}-pending-revision-heading`}
+            className="legal-doc__revision"
+          >
+            <p className="eyebrow legal-doc__revision-kicker">개정 사전 공지</p>
+            <h2
+              className="legal-doc__revision-heading"
+              id={`${document.slug}-pending-revision-heading`}
+            >
+              {document.pendingRevision.heading}
+            </h2>
+            <p className="mono legal-doc__revision-meta">
+              공지일 {document.pendingRevision.announcedDate}
+              <span aria-hidden>·</span>
+              시행 예정일 {document.pendingRevision.effectiveDate}
+            </p>
+            <ul className="legal-doc__revision-changes">
+              {document.pendingRevision.changes.map((change) => <li key={change}>{change}</li>)}
+            </ul>
+          </aside>
+        )}
+
         <div className="legal-doc__body">
           {document.articles.map((article) => (
             <section key={article.heading} className="legal-doc__article">

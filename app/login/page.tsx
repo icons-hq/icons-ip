@@ -1,10 +1,11 @@
 import { Login } from '@/components/screens/Login';
 import {
+  ACCOUNT_DELETION_PATH,
   ACCOUNT_SUSPENDED_PATH,
   authErrorMessage,
   isAccountSuspended,
-  isOnboarded,
   passwordResetErrorMessage,
+  postAuthenticationPath,
   safeNextPath,
 } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
@@ -24,6 +25,8 @@ export default async function Page({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const next = safeNextPath(firstParam(params.next));
   const requestedMode = firstParam(params.mode);
+  const explicitDeletionReauthentication = firstParam(params.reauth) === '1'
+    && next === ACCOUNT_DELETION_PATH;
   const initialMode = requestedMode === 'signup' || requestedMode === 'reset' ? requestedMode : 'signin';
   const initialError = initialMode === 'reset'
     ? passwordResetErrorMessage(firstParam(params.reset_error))
@@ -33,10 +36,11 @@ export default async function Page({ searchParams }: PageProps) {
     : undefined;
   const auth = await getCurrentAuthState();
 
-  if (auth.user) {
-    if (isAccountSuspended(auth.profile)) redirect(ACCOUNT_SUSPENDED_PATH);
-    if (isOnboarded(auth.profile, auth.user.email)) redirect(next);
-    redirect(`/onboarding?next=${encodeURIComponent(next)}`);
+  if (auth.user && !explicitDeletionReauthentication) {
+    if (isAccountSuspended(auth.profile) && next !== ACCOUNT_DELETION_PATH) {
+      redirect(ACCOUNT_SUSPENDED_PATH);
+    }
+    redirect(postAuthenticationPath(auth.profile, auth.user.email, next));
   }
 
   // 좌측 브랜드 패널 플로팅 카드 — 상위 등급 카드 아트 3장

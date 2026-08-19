@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { paymentsEnabledForRuntime } from './config';
+import { paymentKeyMode } from './config';
 import { tossBasicAuthHeader } from './toss';
 
 /* 토스페이먼츠 코어 API 호출 경계(#88). 시크릿 키는 서버 전용 env로만 읽는다.
@@ -12,13 +12,10 @@ export function getTossConfig() {
   const secretKey = process.env.TOSS_SECRET_KEY;
   return {
     secretKey,
-    isConfigured: paymentsEnabledForRuntime(
-      process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY,
-      secretKey,
-      process.env.VERCEL_ENV,
-      process.env.NODE_ENV,
-      process.env.ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION,
-    ),
+    // New Toss checkout is closed. The remaining API surface only reconciles
+    // provider=toss rows already present in the ledger, so no public widget
+    // key or production checkout override participates in this server gate.
+    isConfigured: paymentKeyMode(secretKey, 'secret') !== null,
   };
 }
 

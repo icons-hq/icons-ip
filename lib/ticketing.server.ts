@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { createServiceClient } from '@/lib/supabase/service';
 import { createClient } from '@/lib/supabase/server';
 import type {
   PublicTicketType,
@@ -27,6 +28,17 @@ interface TicketTypeRow {
   price: number;
   capacity: number;
   sold: number;
+  per_user_limit: number;
+}
+
+interface ActiveTicketOrderIdRow {
+  id: string;
+}
+
+interface TicketReservationQuantityRow {
+  ticket_order_id: string;
+  ticket_type_id: string;
+  quantity: number;
 }
 
 interface TicketOrderRow {
@@ -40,6 +52,13 @@ interface TicketOrderRow {
 
 interface TicketRow {
   ticket_type_id: string;
+}
+
+interface TicketReservationRow {
+  ticket_order_id: string;
+  ticket_type_id: string;
+  quantity: number;
+  unit_price: number;
 }
 
 interface TicketTypeSnapshotRow {
@@ -85,6 +104,12 @@ interface TicketPaymentRow {
   ref_id: string;
   amount: number;
   status: string;
+  created_at: string;
+}
+
+interface TicketPaymentAttemptRow {
+  ref_id: string;
+  state: string;
   created_at: string;
 }
 
@@ -158,26 +183,76 @@ function firstByKey<T>(rows: T[], key: (row: T) => string): Map<string, T> {
   return map;
 }
 
-export async function loadPublicTicketTypes(eventId: string): Promise<PublicTicketType[]> {
+function paymentStatusWithAttempt(
+  paymentStatus: string | null,
+  attemptState: string | null,
+) {
+  if (attemptState === 'confirming' || attemptState === 'unknown' || attemptState === 'needs_review') {
+    return 'pending';
+  }
+  return paymentStatus;
+}
+
+export async function loadPublicTicketTypes(
+  eventId: string,
+  userId?: string,
+): Promise<PublicTicketType[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('ticket_types')
-    .select('id,event_id,name,price,capacity,sold')
+    .select('id,event_id,name,price,capacity,sold,per_user_limit')
     .eq('event_id', eventId)
     .order('name')
     .order('id');
 
   if (error) throw new Error(`Failed to load public ticket types: ${error.message}`);
 
-  return ((data ?? []) as TicketTypeRow[]).map((row) => ({
-    id: row.id,
-    eventId: row.event_id,
-    name: row.name,
-    price: row.price,
-    capacity: row.capacity,
-    sold: row.sold,
-    remaining: Math.max(0, row.capacity - row.sold),
-  }));
+  const reservedByType = new Map<string, number>();
+  if (userId) {
+    const { data: orderData, error: orderError } = await supabase
+      .from('ticket_orders')
+      .select('id')
+      .eq('user_id', userId)
+      .in('status', ['pending', 'paid']);
+    if (orderError) throw new Error('Failed to load ticket purchase availability');
+
+    const orderIds = ((orderData ?? []) as ActiveTicketOrderIdRow[]).map((row) => row.id);
+    if (orderIds.length > 0) {
+      const { data: reservationData, error: reservationError } = await supabase
+        .from('ticket_order_reservations')
+        .select('ticket_order_id,ticket_type_id,quantity')
+        .in('ticket_order_id', orderIds);
+      if (reservationError) throw new Error('Failed to load ticket purchase availability');
+
+      for (const reservation of (reservationData ?? []) as TicketReservationQuantityRow[]) {
+        if (!Number.isInteger(reservation.quantity) || reservation.quantity <= 0) continue;
+        reservedByType.set(
+          reservation.ticket_type_id,
+          (reservedByType.get(reservation.ticket_type_id) ?? 0) + reservation.quantity,
+        );
+      }
+    }
+  }
+
+  return ((data ?? []) as TicketTypeRow[]).map((row) => {
+    const remaining = Math.max(0, row.capacity - row.sold);
+    const perUserLimit = Number.isInteger(row.per_user_limit) && row.per_user_limit > 0
+      ? row.per_user_limit
+      : 0;
+    return {
+      id: row.id,
+      eventId: row.event_id,
+      name: row.name,
+      price: row.price,
+      capacity: row.capacity,
+      sold: row.sold,
+      remaining,
+      maxQuantity: Math.min(
+        remaining,
+        Math.max(0, perUserLimit - (reservedByType.get(row.id) ?? 0)),
+      ),
+    };
+  });
 }
 
 export async function loadTicketOrder(
@@ -194,8 +269,14 @@ export async function loadTicketOrder(
 
   if (orderError) throw new Error(`Failed to load ticket order: ${orderError.message}`);
   if (!orderData) return null;
+  const paymentLedger = createServiceClient();
 
-  const [ticketsResult, paymentResult] = await Promise.all([
+  const [reservationResult, ticketsResult, paymentResult, attemptResult] = await Promise.all([
+    supabase
+      .from('ticket_order_reservations')
+      .select('ticket_type_id,quantity,unit_price')
+      .eq('ticket_order_id', ticketOrderId)
+      .maybeSingle<Omit<TicketReservationRow, 'ticket_order_id'>>(),
     supabase
       .from('tickets')
       .select('ticket_type_id')
@@ -208,19 +289,48 @@ export async function loadTicketOrder(
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle<{ status: string }>(),
+    paymentLedger
+      .from('payment_attempts')
+      .select('state')
+      .eq('user_id', userId)
+      .eq('purpose', 'ticket')
+      .eq('ref_id', ticketOrderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle<{ state: string }>(),
   ]);
 
+  if (reservationResult.error) {
+    throw new Error(`Failed to load ticket reservation: ${reservationResult.error.message}`);
+  }
   if (ticketsResult.error) {
     throw new Error(`Failed to load ticket order items: ${ticketsResult.error.message}`);
   }
   if (paymentResult.error) {
     throw new Error(`Failed to load ticket order payment: ${paymentResult.error.message}`);
   }
+  if (attemptResult.error) {
+    throw new Error(`Failed to load ticket payment attempt: ${attemptResult.error.message}`);
+  }
 
   const tickets = (ticketsResult.data ?? []) as TicketRow[];
   const ticketTypeIds = new Set(tickets.map((ticket) => ticket.ticket_type_id));
-  if (tickets.length === 0 || ticketTypeIds.size !== 1) return null;
-  const ticketTypeId = tickets[0].ticket_type_id;
+  const reservation = reservationResult.data;
+  if (
+    !reservation
+    || !Number.isInteger(reservation.quantity)
+    || reservation.quantity <= 0
+    || !Number.isInteger(reservation.unit_price)
+    || reservation.unit_price <= 0
+    || reservation.quantity * reservation.unit_price !== orderData.total
+    || (orderData.status === 'paid' && tickets.length !== reservation.quantity)
+    || (tickets.length > 0 && (
+      ticketTypeIds.size !== 1
+      || tickets[0].ticket_type_id !== reservation.ticket_type_id
+      || tickets.length !== reservation.quantity
+    ))
+  ) return null;
+  const ticketTypeId = reservation.ticket_type_id;
 
   const [ticketTypeResult, eventResult] = await Promise.all([
     supabase
@@ -250,10 +360,13 @@ export async function loadTicketOrder(
     eventTitle: eventResult.data.title,
     ticketTypeId: ticketTypeResult.data.id,
     ticketTypeName: ticketTypeResult.data.name,
-    qty: tickets.length,
+    qty: reservation.quantity,
     total: orderData.total,
     status: orderData.status,
-    paymentStatus: paymentResult.data?.status ?? null,
+    paymentStatus: paymentStatusWithAttempt(
+      paymentResult.data?.status ?? null,
+      attemptResult.data?.state ?? null,
+    ),
     expiresAt: orderData.expires_at,
   };
 }
@@ -294,7 +407,9 @@ function buildListItem({
   event,
   order,
   payment,
+  paymentAttempt,
   refund,
+  reservation,
   ticketType,
   tickets,
 }: {
@@ -302,13 +417,27 @@ function buildListItem({
   event: TicketHistoryEventRow | undefined;
   order: TicketHistoryOrderRow;
   payment: TicketPaymentRow | undefined;
+  paymentAttempt: TicketPaymentAttemptRow | undefined;
   refund: TicketRefundRow | undefined;
+  reservation: TicketReservationRow | undefined;
   ticketType: TicketHistoryTypeRow | undefined;
   tickets: TicketHistoryRow[];
 }): TicketOrderListItem | null {
-  const ticketTypeId = requireSingleTicketType(tickets);
+  const issuedTicketTypeId = requireSingleTicketType(tickets);
+  const ticketTypeId = reservation?.ticket_type_id;
   if (
     !ticketTypeId
+    || !reservation
+    || !Number.isInteger(reservation.quantity)
+    || reservation.quantity <= 0
+    || !Number.isInteger(reservation.unit_price)
+    || reservation.unit_price <= 0
+    || reservation.quantity * reservation.unit_price !== order.total
+    || (order.status === 'paid' && tickets.length !== reservation.quantity)
+    || (tickets.length > 0 && (
+      issuedTicketTypeId !== ticketTypeId
+      || tickets.length !== reservation.quantity
+    ))
     || !event
     || !ticketType
     || ticketType.id !== ticketTypeId
@@ -322,10 +451,13 @@ function buildListItem({
     eventTitle: event.title,
     ticketTypeId,
     ticketTypeName: ticketType.name,
-    qty: tickets.length,
+    qty: reservation.quantity,
     total: order.total,
     status: ticketOrderStatus(order.status),
-    paymentStatus: payment?.status ?? null,
+    paymentStatus: paymentStatusWithAttempt(
+      payment?.status ?? null,
+      paymentAttempt?.state ?? null,
+    ),
     createdAt: order.created_at,
     startsAt: event.starts_at,
     endsAt: event.ends_at,
@@ -354,7 +486,12 @@ export async function listTicketOrders(userId: string): Promise<TicketOrderListI
 
   const orderIds = orders.map((order) => order.id);
   const eventIds = [...new Set(orders.map((order) => order.event_id))];
-  const [ticketsResult, eventsResult, paymentsResult, cancellationsResult] = await Promise.all([
+  const paymentLedger = createServiceClient();
+  const [reservationsResult, ticketsResult, eventsResult, paymentsResult, attemptsResult, cancellationsResult] = await Promise.all([
+    supabase
+      .from('ticket_order_reservations')
+      .select('ticket_order_id,ticket_type_id,quantity,unit_price')
+      .in('ticket_order_id', orderIds),
     supabase
       .from('tickets')
       .select('id,ticket_order_id,ticket_type_id,status')
@@ -372,6 +509,13 @@ export async function listTicketOrders(userId: string): Promise<TicketOrderListI
       .in('ref_id', orderIds)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false }),
+    paymentLedger
+      .from('payment_attempts')
+      .select('ref_id,state,created_at')
+      .eq('user_id', userId)
+      .eq('purpose', 'ticket')
+      .in('ref_id', orderIds)
+      .order('created_at', { ascending: false }),
     supabase
       .from('ticket_cancellation_requests')
       .select('id,ticket_order_id,source,status,policy_code,cutoff_at,gross_amount,fee_amount,refund_amount,requested_at,completed_at,updated_at')
@@ -380,16 +524,19 @@ export async function listTicketOrders(userId: string): Promise<TicketOrderListI
       .order('id', { ascending: false }),
   ]);
 
+  if (reservationsResult.error) throw new Error(`Failed to load ticket reservations: ${reservationsResult.error.message}`);
   if (ticketsResult.error) throw new Error(`Failed to load ticket order items: ${ticketsResult.error.message}`);
   if (eventsResult.error) throw new Error(`Failed to load ticket order events: ${eventsResult.error.message}`);
   if (paymentsResult.error) throw new Error(`Failed to load ticket order payments: ${paymentsResult.error.message}`);
+  if (attemptsResult.error) throw new Error(`Failed to load ticket payment attempts: ${attemptsResult.error.message}`);
   if (cancellationsResult.error) {
     throw new Error(`Failed to load ticket cancellation requests: ${cancellationsResult.error.message}`);
   }
 
   const tickets = (ticketsResult.data ?? []) as TicketHistoryRow[];
   const payments = (paymentsResult.data ?? []) as TicketPaymentRow[];
-  const ticketTypeIds = [...new Set(tickets.map((ticket) => ticket.ticket_type_id))];
+  const reservations = (reservationsResult.data ?? []) as TicketReservationRow[];
+  const ticketTypeIds = [...new Set(reservations.map((reservation) => reservation.ticket_type_id))];
   const paymentIds = payments.map((payment) => payment.id);
   const [ticketTypesResult, refundsResult] = await Promise.all([
     ticketTypeIds.length > 0
@@ -412,6 +559,13 @@ export async function listTicketOrders(userId: string): Promise<TicketOrderListI
 
   const ticketsMap = ticketsByOrder(tickets);
   const paymentsMap = paymentsByOrder(payments);
+  const reservationsMap = new Map(
+    reservations.map((reservation) => [reservation.ticket_order_id, reservation]),
+  );
+  const attemptsMap = firstByKey(
+    (attemptsResult.data ?? []) as TicketPaymentAttemptRow[],
+    (attempt) => attempt.ref_id,
+  );
   const eventsMap = new Map(
     ((eventsResult.data ?? []) as TicketHistoryEventRow[]).map((event) => [event.id, event]),
   );
@@ -433,7 +587,8 @@ export async function listTicketOrders(userId: string): Promise<TicketOrderListI
 
   return orders.map((order) => {
     const orderTickets = ticketsMap.get(order.id) ?? [];
-    const ticketTypeId = requireSingleTicketType(orderTickets);
+    const reservation = reservationsMap.get(order.id);
+    const ticketTypeId = reservation?.ticket_type_id;
     const orderPayments = paymentsMap.get(order.id) ?? [];
     const payment = orderPayments[0];
     const refund = orderPayments
@@ -445,7 +600,9 @@ export async function listTicketOrders(userId: string): Promise<TicketOrderListI
       event: eventsMap.get(order.event_id),
       order,
       payment,
+      paymentAttempt: attemptsMap.get(order.id),
       refund,
+      reservation,
       ticketType: ticketTypeId ? typesMap.get(ticketTypeId) : undefined,
       tickets: orderTickets,
     });
@@ -468,8 +625,14 @@ export async function loadTicketOrderDetail(
 
   if (orderError) throw new Error(`Failed to load ticket order detail: ${orderError.message}`);
   if (!orderData) return null;
+  const paymentLedger = createServiceClient();
 
-  const [ticketsResult, eventResult, paymentsResult, cancellationResult] = await Promise.all([
+  const [reservationResult, ticketsResult, eventResult, paymentsResult, attemptResult, cancellationResult] = await Promise.all([
+    supabase
+      .from('ticket_order_reservations')
+      .select('ticket_order_id,ticket_type_id,quantity,unit_price')
+      .eq('ticket_order_id', ticketOrderId)
+      .maybeSingle<TicketReservationRow>(),
     supabase
       .from('tickets')
       .select('id,ticket_order_id,ticket_type_id,status')
@@ -488,6 +651,15 @@ export async function loadTicketOrderDetail(
       .eq('ref_id', ticketOrderId)
       .order('created_at', { ascending: false })
       .order('id', { ascending: false }),
+    paymentLedger
+      .from('payment_attempts')
+      .select('ref_id,state,created_at')
+      .eq('user_id', userId)
+      .eq('purpose', 'ticket')
+      .eq('ref_id', ticketOrderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle<TicketPaymentAttemptRow>(),
     supabase
       .from('ticket_cancellation_requests')
       .select('id,ticket_order_id,source,status,policy_code,cutoff_at,gross_amount,fee_amount,refund_amount,requested_at,completed_at,updated_at')
@@ -496,15 +668,18 @@ export async function loadTicketOrderDetail(
       .order('id', { ascending: false }),
   ]);
 
+  if (reservationResult.error) throw new Error(`Failed to load ticket reservation: ${reservationResult.error.message}`);
   if (ticketsResult.error) throw new Error(`Failed to load ticket order items: ${ticketsResult.error.message}`);
   if (eventResult.error) throw new Error(`Failed to load ticket order event: ${eventResult.error.message}`);
   if (paymentsResult.error) throw new Error(`Failed to load ticket order payments: ${paymentsResult.error.message}`);
+  if (attemptResult.error) throw new Error(`Failed to load ticket payment attempt: ${attemptResult.error.message}`);
   if (cancellationResult.error) {
     throw new Error(`Failed to load ticket cancellation request: ${cancellationResult.error.message}`);
   }
 
   const tickets = (ticketsResult.data ?? []) as TicketHistoryRow[];
-  const ticketTypeId = requireSingleTicketType(tickets);
+  const reservation = reservationResult.data;
+  const ticketTypeId = reservation?.ticket_type_id;
   if (!ticketTypeId || !eventResult.data) return null;
   const payments = (paymentsResult.data ?? []) as TicketPaymentRow[];
   payments.sort((left, right) => (
@@ -543,7 +718,9 @@ export async function loadTicketOrderDetail(
     event: eventResult.data,
     order: orderData,
     payment,
+    paymentAttempt: attemptResult.data ?? undefined,
     refund: refundResult.data ?? undefined,
+    reservation,
     ticketType: ticketTypeResult.data,
     tickets,
   });

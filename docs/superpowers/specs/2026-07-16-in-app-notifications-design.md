@@ -1,7 +1,7 @@
 # 인앱 알림함과 IP 알림 설정 설계
 
 작성일: 2026-07-16
-대상 이슈: [#104](https://github.com/sangwopark19/icons-ip/issues/104)
+대상 이슈: [#104](https://github.com/icons-hq/icons-ip/issues/104)
 
 ## 목표
 

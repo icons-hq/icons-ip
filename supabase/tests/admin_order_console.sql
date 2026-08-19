@@ -33,9 +33,9 @@ select 1 / case when (
   not has_function_privilege('anon', 'public.admin_begin_order_cancellation_reconcile(uuid)', 'execute')
   and has_function_privilege('authenticated', 'public.admin_begin_order_cancellation_reconcile(uuid)', 'execute')
   and not has_function_privilege('service_role', 'public.admin_begin_order_cancellation_reconcile(uuid)', 'execute')
-  and not has_function_privilege('anon', 'public.admin_search_orders(text,date,date,text,integer,integer)', 'execute')
-  and has_function_privilege('authenticated', 'public.admin_search_orders(text,date,date,text,integer,integer)', 'execute')
-  and not has_function_privilege('service_role', 'public.admin_search_orders(text,date,date,text,integer,integer)', 'execute')
+  and not has_function_privilege('anon', 'public.admin_search_orders(text,date,date,text,integer,integer,timestamptz)', 'execute')
+  and has_function_privilege('authenticated', 'public.admin_search_orders(text,date,date,text,integer,integer,timestamptz)', 'execute')
+  and not has_function_privilege('service_role', 'public.admin_search_orders(text,date,date,text,integer,integer,timestamptz)', 'execute')
 ) then 1 else 0 end as assert_admin_reconcile_and_search_are_authenticated_only;
 
 select 1 / case when (
@@ -287,11 +287,13 @@ select 1 / case when (
 -- ---------------------------------------------------------------------------
 set local role service_role;
 
+-- 발주확인 전 변심 취소는 접수 즉시 자동 승인되므로 거절 시나리오가 성립하지 않는다(#252).
+-- 하자 클레임은 상태와 무관하게 운영자 판단을 거치므로 거절 경로는 여기로 검증한다.
 select public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000802',
   '00000000-0000-4000-8000-000000000803',
-  '사용자 청약철회',
-  'change_of_mind'
+  '수령한 굿즈에 하자가 있습니다',
+  'defect'
 );
 select public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000803',
@@ -463,6 +465,13 @@ select 1 / case when (
 
 select public.admin_update_order_status(
   '40000000-0000-4000-8000-000000000802',
+  'confirmed',
+  null,
+  null
+);
+
+select public.admin_update_order_status(
+  '40000000-0000-4000-8000-000000000802',
   'shipping',
   'hanjin',
   '111122223333'
@@ -475,11 +484,21 @@ select 1 / case when (
 -- ---------------------------------------------------------------------------
 -- Approval creates claim/refund intent; uncertain provider state stays fail closed.
 -- ---------------------------------------------------------------------------
-select public.admin_decide_order_cancellation(
-  (select id from public.order_cancellation_requests where order_id = '40000000-0000-4000-8000-000000000803'),
-  'approve',
-  null
-);
+-- 발주확인 전 변심 취소는 접수 시점에 자동 승인된다(#252). 이미 processing인
+-- 요청에 승인을 다시 걸면 거부되므로 아직 requested일 때만 결정한다.
+do $$
+declare
+  request_id uuid;
+begin
+  select id into request_id
+  from public.order_cancellation_requests
+  where order_id = '40000000-0000-4000-8000-000000000803' and status = 'requested';
+
+  if request_id is not null then
+    perform public.admin_decide_order_cancellation(request_id, 'approve', null);
+  end if;
+end;
+$$;
 
 reset role;
 
@@ -674,11 +693,31 @@ select 1 / case when (
 ) then 1 else 0 end as assert_completion_retry_is_idempotent;
 
 -- ---------------------------------------------------------------------------
--- Shipping state machine: paid -> shipping -> done, no skips or reversals.
+-- 사다리(#250): paid -> confirmed -> shipping -> delivered. 건너뛰기·역행은 없고
+-- done(거래확정)은 어드민 전이가 아니라 settle_delivered_orders()가 만든다.
 -- ---------------------------------------------------------------------------
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000802', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
+
+-- 발송 전 단계를 건너뛰면 전이 자체가 거부된다.
+do $$
+begin
+  begin
+    perform public.admin_update_order_status(
+      '40000000-0000-4000-8000-000000000804', 'shipping', 'hanjin', '444455556666'
+    );
+  exception when others then
+    if sqlerrm = 'invalid_order_transition' then return; end if;
+    raise;
+  end;
+  raise exception 'paid order should not skip 발주확인';
+end;
+$$;
+
+select public.admin_update_order_status(
+  '40000000-0000-4000-8000-000000000804', 'confirmed', null, null
+);
 
 -- 운송장 없이 배송 시작은 DB에서 fail closed한다(#178).
 do $$
@@ -711,7 +750,7 @@ end;
 $$;
 
 select 1 / case when (
-  (select status from public.orders where id = '40000000-0000-4000-8000-000000000804') = 'paid'
+  (select status from public.orders where id = '40000000-0000-4000-8000-000000000804') = 'confirmed'
   and (select shipping_carrier is null and tracking_number is null
        from public.orders where id = '40000000-0000-4000-8000-000000000804')
 ) then 1 else 0 end as assert_unregistered_carrier_does_not_start_shipping;
@@ -719,8 +758,8 @@ select 1 / case when (
 select public.admin_update_order_status(
   '40000000-0000-4000-8000-000000000804', 'shipping', 'hanjin', '444455556666'
 );
-select public.admin_update_order_status('40000000-0000-4000-8000-000000000804', 'done', null, null);
-select public.admin_update_order_status('40000000-0000-4000-8000-000000000804', 'done', null, null);
+select public.admin_update_order_status('40000000-0000-4000-8000-000000000804', 'delivered', null, null);
+select public.admin_update_order_status('40000000-0000-4000-8000-000000000804', 'delivered', null, null);
 
 do $$
 begin
@@ -732,23 +771,23 @@ begin
     if sqlerrm = 'invalid_order_transition' then return; end if;
     raise;
   end;
-  raise exception 'done order should not transition backwards';
+  raise exception 'delivered order should not transition backwards';
 end;
 $$;
 
 select 1 / case when (
-  (select status from public.orders where id = '40000000-0000-4000-8000-000000000804') = 'done'
+  (select status from public.orders where id = '40000000-0000-4000-8000-000000000804') = 'delivered'
   and (select count(*) from public.audit_log
     where actor_id = '00000000-0000-4000-8000-000000000802'
       and action = 'admin.order.status_updated'
-      and target = 'order:40000000-0000-4000-8000-000000000804') = 2
+      and target = 'order:40000000-0000-4000-8000-000000000804') = 3
 ) then 1 else 0 end as assert_shipping_transitions_are_guarded_idempotent_and_audited;
 
--- 완료 전이는 등록된 운송장을 지우지 않고, 정정은 이전 값과 함께 감사된다.
+-- 배송완료 전이는 등록된 운송장을 지우지 않고, 정정은 이전 값과 함께 감사된다.
 select 1 / case when (
   (select shipping_carrier = 'hanjin' and tracking_number = '444455556666'
    from public.orders where id = '40000000-0000-4000-8000-000000000804')
-) then 1 else 0 end as assert_done_transition_keeps_the_waybill;
+) then 1 else 0 end as assert_delivered_transition_keeps_the_waybill;
 
 select public.admin_update_order_tracking(
   '40000000-0000-4000-8000-000000000804', 'hanjin', '777788889999'
@@ -792,6 +831,9 @@ select 1 / case when (
 -- 배송 후 청약철회(#176)는 staff 승인 경로에서만 열린다.
 -- ---------------------------------------------------------------------------
 select public.admin_update_order_status(
+  '40000000-0000-4000-8000-000000000806', 'confirmed', null, null
+);
+select public.admin_update_order_status(
   '40000000-0000-4000-8000-000000000806', 'shipping', 'hanjin', '222233334444'
 );
 
@@ -827,11 +869,21 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000802', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 
-select public.admin_decide_order_cancellation(
-  (select id from public.order_cancellation_requests where order_id = '40000000-0000-4000-8000-000000000806'),
-  'approve',
-  null
-);
+-- 발주확인 전 변심 취소는 접수 시점에 자동 승인된다(#252). 이미 processing인
+-- 요청에 승인을 다시 걸면 거부되므로 아직 requested일 때만 결정한다.
+do $$
+declare
+  request_id uuid;
+begin
+  select id into request_id
+  from public.order_cancellation_requests
+  where order_id = '40000000-0000-4000-8000-000000000806' and status = 'requested';
+
+  if request_id is not null then
+    perform public.admin_decide_order_cancellation(request_id, 'approve', null);
+  end if;
+end;
+$$;
 
 reset role;
 set local role service_role;
@@ -862,7 +914,7 @@ select set_config('request.jwt.claim.role', 'authenticated', true);
 -- Search stays DB-side and staff-gated.
 select 1 / case when (
   (select count(*) from public.admin_search_orders(null, null, null, 'order-fan@example.test', 20, 0)) >= 4
-  and (select count(*) from public.admin_search_orders('done', null, null, '40000000-0000-4000-8000-000000000804', 20, 0)) = 1
+  and (select count(*) from public.admin_search_orders('delivered', null, null, '40000000-0000-4000-8000-000000000804', 20, 0)) = 1
   and exists (
     select 1
     from public.admin_search_orders(null, null, null, '40000000-0000-4000-8000-000000000803', 20, 0)

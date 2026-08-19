@@ -12,7 +12,14 @@ function repositoryFixture(provider: 'toss' | 'korpay' | null = 'toss') {
       return query;
     }),
     maybeSingle: vi.fn(async () => ({
-      data: provider === null ? null : { provider },
+      data: provider === null ? null : {
+        provider,
+        purpose: 'order',
+        ref_id: '20000000-0000-4000-8000-000000000205',
+        amount: 42000,
+        payment_key: 'provider-payment-key',
+        idempotency_key: 'provider-payment-key',
+      },
       error: null,
     })),
     upsert,
@@ -33,7 +40,6 @@ function repositoryFixture(provider: 'toss' | 'korpay' | null = 'toss') {
 
 describe('LegacyTossPaymentRepository', () => {
   it.each([
-    ['toss', 'known_toss'],
     ['korpay', 'known_other_provider'],
     [null, 'unknown_compatibility'],
   ] as const)('payment key의 local provider=%s 상태를 분류한다', async (provider, expected) => {
@@ -41,6 +47,19 @@ describe('LegacyTossPaymentRepository', () => {
 
     await expect(repository.classifyPaymentKey('provider-payment-key')).resolves.toEqual({
       status: expected,
+    });
+  });
+
+  it('known Toss는 legacy 목적·대상·금액 identity를 함께 반환한다', async () => {
+    const { repository } = repositoryFixture('toss');
+
+    await expect(repository.classifyPaymentKey('provider-payment-key')).resolves.toEqual({
+      status: 'known_toss',
+      purpose: 'order',
+      refId: '20000000-0000-4000-8000-000000000205',
+      amount: 42000,
+      paymentKey: 'provider-payment-key',
+      idempotencyKey: 'provider-payment-key',
     });
   });
 

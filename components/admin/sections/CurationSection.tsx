@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState, useMemo, useState } from 'react';
 import { upsertAdminCurationAction } from '@/app/admin/curation-actions';
 import type { AdminCurationActionState, AdminCurationKind } from '@/lib/admin/curations';
@@ -68,7 +69,6 @@ export function CurationSection({
   eventOptions,
   goodOptions,
   ipOptions,
-  onOpenNotifications,
   onSelect,
   operationId,
   records,
@@ -79,7 +79,6 @@ export function CurationSection({
   eventOptions: AdminCurationTargetRecord[];
   goodOptions: AdminCurationTargetRecord[];
   ipOptions: AdminCurationTargetRecord[];
-  onOpenNotifications: () => void;
   onSelect: (curation: AdminCurationRecord | null) => void;
   operationId: string;
   records: AdminCurationRecord[];
@@ -93,13 +92,10 @@ export function CurationSection({
           <h2 id="admin-curation-heading">홈 큐레이션</h2>
           <p>공개 홈의 히어로, 특집 IP, 공지 배너의 노출 순서와 기간을 관리합니다.</p>
         </div>
-        <button
-          className="btn btn-ghost admin-curation-notification-cta"
-          onClick={onOpenNotifications}
-          type="button"
-        >
+        {/* 공지 발송이 별도 라우트가 되면서 부모 상태 전환 콜백이 링크가 됐다. */}
+        <Link className="btn btn-ghost admin-curation-notification-cta" href="/admin/messaging/notifications">
           인앱 공지는 공지 발송에서 별도 발송
-        </button>
+        </Link>
       </header>
 
       <div className="admin-master-detail">

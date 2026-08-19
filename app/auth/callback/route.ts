@@ -1,17 +1,15 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import {
+  ACCOUNT_DELETION_PATH,
   ACCOUNT_SUSPENDED_PATH,
   AUTH_CALLBACK_PATH,
   AUTH_NEXT_COOKIE_NAME,
   authErrorLoginPath,
   isAccountSuspended,
-  isOnboarded,
-  onboardingPath,
+  postAuthenticationPath,
   passwordResetErrorLoginPath,
-  publicPasswordRecoveryErrorCode,
   safeNextPath,
-  updatePasswordSessionReadyPath,
 } from '@/lib/auth/onboarding';
 import {
   applyAuthResponseState,
@@ -45,7 +43,7 @@ function callbackState(request: NextRequest) {
   const queryNext = request.nextUrl.searchParams.get('next');
 
   return {
-    legacyRecoveryNext: signedState?.purpose === 'recovery' ? signedState.next : '/',
+    recoveryNext: signedState?.purpose === 'recovery' ? signedState.next : '/',
     loginNext: queryNext !== null
       ? safeNextPath(queryNext)
       : signedState?.purpose === 'signup' || signedState?.purpose === 'oauth'
@@ -75,35 +73,14 @@ export async function GET(request: NextRequest) {
   const providerError = request.nextUrl.searchParams.get('error_code') ?? request.nextUrl.searchParams.get('error');
 
   if (providerError) {
-    if (state.signedState?.purpose === 'recovery') {
-      return redirectTo(
-        request,
-        passwordResetErrorLoginPath(
-          publicPasswordRecoveryErrorCode(providerError),
-          state.legacyRecoveryNext,
-        ),
-      );
-    }
     return errorRedirect(request, providerError, state.loginNext);
   }
   if (!code) {
-    if (state.signedState?.purpose === 'recovery') {
-      return redirectTo(
-        request,
-        passwordResetErrorLoginPath('missing_code', state.legacyRecoveryNext),
-      );
-    }
     return errorRedirect(request, 'missing_code', state.loginNext);
   }
 
   const { isConfigured, key, url } = getSupabaseConfig();
   if (!isConfigured || !url || !key) {
-    if (state.signedState?.purpose === 'recovery') {
-      return redirectTo(
-        request,
-        passwordResetErrorLoginPath('recovery_unavailable', state.legacyRecoveryNext),
-      );
-    }
     return errorRedirect(request, 'provider_disabled', state.loginNext);
   }
 
@@ -113,25 +90,14 @@ export async function GET(request: NextRequest) {
   });
   const { data: exchangeData, error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
-    if (state.signedState?.purpose === 'recovery') {
-      return redirectTo(
-        request,
-        passwordResetErrorLoginPath(
-          publicPasswordRecoveryErrorCode(error.code),
-          state.legacyRecoveryNext,
-        ),
-        true,
-        authResponse,
-      );
-    }
     return errorRedirect(request, error.code ?? 'exchange_failed', state.loginNext, authResponse);
   }
 
-  if (isRecoveryExchange(exchangeData) && state.signedState?.purpose !== 'recovery') {
+  if (isRecoveryExchange(exchangeData)) {
     await clearExchangedAuthSession(supabase, authResponse);
     return redirectTo(
       request,
-      passwordResetErrorLoginPath('browser_mismatch'),
+      passwordResetErrorLoginPath('browser_mismatch', state.recoveryNext),
       true,
       authResponse,
     );
@@ -140,36 +106,15 @@ export async function GET(request: NextRequest) {
   const { data, error: userError } = await supabase.auth.getUser();
   if (userError || !data.user) {
     await clearExchangedAuthSession(supabase, authResponse);
-    if (state.signedState?.purpose === 'recovery' && isRecoveryExchange(exchangeData)) {
-      return redirectTo(
-        request,
-        passwordResetErrorLoginPath('session_not_found', state.legacyRecoveryNext),
-        true,
-        authResponse,
-      );
-    }
     return errorRedirect(request, 'exchange_failed', state.loginNext, authResponse);
-  }
-
-  // Keep links issued before the dedicated callback rollout usable for one Auth-link TTL.
-  // redirectType is only a local PKCE marker, so it never authorizes recovery by itself.
-  if (state.signedState?.purpose === 'recovery' && isRecoveryExchange(exchangeData)) {
-    return redirectTo(
-      request,
-      updatePasswordSessionReadyPath(state.legacyRecoveryNext),
-      true,
-      authResponse,
-    );
   }
 
   const profile = await getProfileForUser(supabase, data.user.id);
   return redirectTo(
     request,
-    isAccountSuspended(profile)
+    isAccountSuspended(profile) && state.loginNext !== ACCOUNT_DELETION_PATH
       ? ACCOUNT_SUSPENDED_PATH
-      : isOnboarded(profile, data.user.email)
-        ? state.loginNext
-        : onboardingPath(state.loginNext),
+      : postAuthenticationPath(profile, data.user.email, state.loginNext),
     true,
     authResponse,
   );

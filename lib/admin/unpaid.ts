@@ -1,0 +1,130 @@
+/**
+ * 미입금 확인 콘솔 (#256).
+ *
+ * 이 화면의 일은 "돈이 들어왔는지"를 사람이 판단하고 그 판단에 근거를 붙이는
+ * 것이다. 확정 자체는 DB finalizer가 하므로 여기서는 근거를 강제하는 규칙만
+ * 갖는다 — 메모 없는 확정, 사유 없는 연장·취소를 폼 단계에서 막는다.
+ */
+
+import type { BankDepositConfidence } from '@/lib/payments/bank-deposit-feed';
+
+export const ADMIN_UNPAID_PAGE_SIZE = 20;
+
+/** 근거 메모 길이. DB CHECK와 같은 값이어야 폼과 RPC가 같은 것을 거절한다. */
+export const ADMIN_UNPAID_MEMO_MIN = 5;
+export const ADMIN_UNPAID_MEMO_MAX = 200;
+
+export interface AdminUnpaidFilters {
+  query: string;
+  page: number;
+  /** 상세 액션 패널을 열 주문. 없으면 목록만 보여준다. */
+  selectedOrderId: string | null;
+}
+
+export interface AdminUnpaidOrderRow {
+  id: string;
+  buyerName: string;
+  buyerId: string;
+  /** 배송지 수령인. 안내한 입금자명을 콘솔에서 다시 만들기 위한 값이다. */
+  recipientName: string;
+  total: number;
+  createdAt: string;
+  expiresAt: string | null;
+  extendedAt: string | null;
+  depositCode: string;
+  itemSummary: string;
+  attemptState: string | null;
+}
+
+/**
+ * 계좌수집 입금 내역 한 건 (#257). 확정은 여전히 사람이 누른다 — `suggested*`는
+ * 제안일 뿐이고, 콘솔은 확신도를 그대로 보여 준다.
+ */
+export interface AdminBankDepositRow {
+  id: string;
+  source: string;
+  externalId: string;
+  depositedAt: string;
+  depositorName: string;
+  amount: number;
+  rawReference: string | null;
+  suggestedOrderId: string | null;
+  suggestedOrderCode: string | null;
+  suggestedConfidence: BankDepositConfidence | null;
+}
+
+export interface AdminUnpaidConsoleData {
+  filters: AdminUnpaidFilters;
+  rows: AdminUnpaidOrderRow[];
+  pageSize: number;
+  total: number;
+  /** 미매칭 입금 큐. 어댑터가 없으면 항상 비어 있다(#255). */
+  deposits: AdminBankDepositRow[];
+}
+
+function readParam(
+  params: Record<string, string | string[] | undefined>,
+  key: string,
+) {
+  const value = params[key];
+  return Array.isArray(value) ? value[0] ?? '' : value ?? '';
+}
+
+export function normalizeAdminUnpaidFilters(
+  params: Record<string, string | string[] | undefined>,
+): AdminUnpaidFilters {
+  const page = Number.parseInt(readParam(params, 'page'), 10);
+  const selected = readParam(params, 'order').trim();
+  return {
+    query: readParam(params, 'q').trim().slice(0, 100),
+    page: Number.isFinite(page) && page > 0 ? page : 1,
+    selectedOrderId: selected || null,
+  };
+}
+
+export function adminUnpaidHref(filters: Partial<AdminUnpaidFilters>) {
+  const params = new URLSearchParams();
+  if (filters.query) params.set('q', filters.query);
+  if (filters.page && filters.page > 1) params.set('page', String(filters.page));
+  if (filters.selectedOrderId) params.set('order', filters.selectedOrderId);
+  const query = params.toString();
+  return query ? `/admin/sales/unpaid?${query}` : '/admin/sales/unpaid';
+}
+
+export type AdminUnpaidFormResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; error: string };
+
+interface AdminUnpaidReasonForm {
+  orderId: string;
+  reason: string;
+}
+
+/**
+ * 근거 문자열 검증. 앞뒤 공백을 다듬은 뒤 길이를 본다 — 공백만 200자를 넣어
+ * "근거를 남겼다"고 기록되면 감사 로그가 거짓말을 한다. 경계값은 DB CHECK와
+ * 같은 값이어야 폼과 RPC가 같은 것을 거절한다.
+ */
+export function normalizeAdminUnpaidReason(
+  value: FormDataEntryValue | null,
+  invalidMessage: string,
+): AdminUnpaidFormResult<string> {
+  const reason = String(value ?? '').trim();
+  if (reason.length < ADMIN_UNPAID_MEMO_MIN || reason.length > ADMIN_UNPAID_MEMO_MAX) {
+    return { ok: false, error: invalidMessage };
+  }
+  return { ok: true, value: reason };
+}
+
+export function normalizeAdminUnpaidReasonForm(
+  formData: FormData,
+  field: string,
+  emptyMessage: string,
+): AdminUnpaidFormResult<AdminUnpaidReasonForm> {
+  const orderId = String(formData.get('orderId') ?? '').trim();
+  if (!orderId) return { ok: false, error: '주문을 찾을 수 없습니다.' };
+
+  const reason = normalizeAdminUnpaidReason(formData.get(field), emptyMessage);
+  if (!reason.ok) return reason;
+  return { ok: true, value: { orderId, reason: reason.value } };
+}

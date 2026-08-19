@@ -20,7 +20,7 @@ const ACCOUNT_LINKS: [label: string, route: string][] = [
   ['내 티켓', 'tickets'],
   ['바인더', 'binder'],
   ['알림함', 'notifications'],
-  ['카드 교환', 'exchange'],
+  ['카드 트레이드', 'exchange'],
   ['굿즈 마켓', 'market'],
 ];
 
@@ -65,7 +65,7 @@ export function SiteFooter() {
 
         <div className="site-footer-editorial__meta">
           <span>© ICONS</span>
-          <span>공식 라이선스 · 무상 카드 리워드 · 토스페이먼츠 안전 결제</span>
+          <span>공식 라이선스 · 무상 카드 리워드 · 결제사 승인 확인 후 주문 확정</span>
         </div>
       </div>
     </footer>

@@ -74,6 +74,14 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000802', true);
 
+-- 사다리가 늘어 발송 전에 발주확인을 거친다(#250).
+select public.admin_update_order_status(
+  '40000000-0000-4000-8000-000000000801',
+  'confirmed',
+  null,
+  null
+);
+
 select public.admin_update_order_status(
   '40000000-0000-4000-8000-000000000801',
   'shipping',
@@ -94,9 +102,10 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000802', true);
 
+-- 공급일은 이제 배송완료(delivered) 전이가 확정한다(#250). done은 거래확정이다.
 select public.admin_update_order_status(
   '40000000-0000-4000-8000-000000000801',
-  'done',
+  'delivered',
   null,
   null
 );
@@ -108,7 +117,7 @@ select 1 / case when (
   select delivered_at is not null and delivered_at >= shipped_at
   from public.orders
   where id = '40000000-0000-4000-8000-000000000801'
-) then 1 else 0 end as assert_done_transition_records_delivered_at;
+) then 1 else 0 end as assert_delivered_transition_records_delivered_at;
 
 -- ----------------------------------------------------------------------------
 -- 기한 평가. 단순 변심은 공급일부터 7일, 하자·오배송은 3개월이다.

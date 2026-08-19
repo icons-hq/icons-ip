@@ -4,6 +4,23 @@ import { loadOrderDetail, loadOrders } from './orders.server';
 const mocks = vi.hoisted(() => ({ client: null as unknown }));
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => mocks.client }));
+/* 택배사 레지스트리는 DB(`public.shipping_carriers`)에서 온다(#251). 앱에 상수
+   목록이 없으므로 테스트도 고정 레지스트리를 주입한다 — 여기서 확인하려는 것은
+   목록 자체가 아니라 운송장이 그 목록을 거쳐 그려지는가다. */
+vi.mock('@/lib/orders/shipment.server', () => {
+  const carriers = [{
+    code: 'hanjin',
+    label: '한진택배',
+    active: true,
+    trackingUrlTemplate: 'https://www.hanjin.com/kor/CMS/DeliveryMgr/WaybillResult.do'
+      + '?mCode=MN038&schLang=KR&wblnumText2={trackingNumber}',
+  }];
+  return {
+    getShippingCarrierRegistry: async () => carriers,
+    loadShippingCarrierRegistry: async () => carriers,
+  };
+});
+
 
 type Row = Record<string, unknown>;
 type QueryResult = { data: Row[] | Row | null; error: { message: string } | null };
@@ -124,12 +141,13 @@ describe('loadOrders', () => {
       createdAt: '2026-07-14T06:00:00.000Z',
       itemLabel: '아크릴 스탠드 외 1건',
       itemCount: 3,
+      paymentMethod: 'card',
     }]);
 
     expect(records.find((record) => record.table === 'orders')).toMatchObject({
-      select: 'id,user_id,status,total,created_at',
+      select: 'id,user_id,status,total,created_at,payment_method',
       eq: [['user_id', userId]],
-      in: [['status', ['paid', 'shipping', 'done', 'canceled']]],
+      in: [['status', ['paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled']]],
       order: [['created_at', { ascending: false }], ['id', { ascending: false }]],
     });
     expect(records.find((record) => record.table === 'order_items')).toMatchObject({
@@ -169,6 +187,7 @@ describe('loadOrders', () => {
         createdAt: '2026-07-14T07:00:00.000Z',
         itemLabel: '취소 확인 중 굿즈',
         itemCount: 1,
+        paymentMethod: 'card',
       },
       {
         id: orderId,
@@ -177,6 +196,7 @@ describe('loadOrders', () => {
         createdAt: '2026-07-14T06:00:00.000Z',
         itemLabel: '완료 주문 굿즈',
         itemCount: 1,
+        paymentMethod: 'card',
       },
     ]);
     expect(records.find((record) => record.table === 'order_cancellation_requests')).toMatchObject({
@@ -309,9 +329,9 @@ describe('loadOrderDetail', () => {
     expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|idempotency_key|raw|last_error_code/);
 
     expect(records.find((record) => record.table === 'orders')).toMatchObject({
-      select: 'id,user_id,status,total,shipping_fee,address,created_at,shipping_carrier,tracking_number',
+      select: 'id,user_id,status,total,shipping_fee,address,created_at,shipping_carrier,tracking_number,delivered_at,payment_method,expires_at',
       eq: [['id', orderId], ['user_id', userId]],
-      in: [['status', ['pending', 'paid', 'shipping', 'done', 'canceled']]],
+      in: [['status', ['pending', 'paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled']]],
       maybeSingle: true,
     });
     expect(records.find((record) => record.table === 'payment_summaries')).toMatchObject({
@@ -332,7 +352,8 @@ describe('loadOrderDetail', () => {
       maybeSingle: true,
     });
     expect(records.find((record) => record.table === 'order_cancellation_requests')).toMatchObject({
-      select: 'id,status,requested_at,decided_at,decision_note',
+      select: 'id,status,claim_type,stage,reference,requested_at,decided_at,decision_note,'
+        + 'reship_carrier,reship_tracking_number',
       eq: [['order_id', orderId]],
       order: [['requested_at', { ascending: false }]],
       limit: 1,

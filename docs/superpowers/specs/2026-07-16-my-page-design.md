@@ -1,7 +1,7 @@
 # 마이페이지 통합 진입점 설계
 
 작성일: 2026-07-16
-대상 이슈: [#103](https://github.com/sangwopark19/icons-ip/issues/103)
+대상 이슈: [#103](https://github.com/icons-hq/icons-ip/issues/103)
 
 ## 목표
 

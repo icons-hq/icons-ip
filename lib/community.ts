@@ -1,7 +1,10 @@
 import type { Good } from './data';
 
 export type CommunityPostStatus = 'visible' | 'hidden';
-export type CommunityReportTarget = 'post' | 'comment' | 'user';
+/* DB의 report_target enum과 같은 목록이어야 한다. 'review'는 굿즈 리뷰다(#254) —
+   커뮤니티 글은 아니지만 신고 큐를 도메인별로 쪼개면 어느 큐를 안 봤는지가 사고
+   원인이 되므로 같은 테이블·같은 절차로 처리한다. */
+export type CommunityReportTarget = 'post' | 'comment' | 'review' | 'user';
 export type CommunityReportStatus = 'open' | 'reviewing' | 'resolved' | 'dismissed';
 export type CommunityFeedScope = 'all' | 'fandom';
 export type CommunityViewerState = 'guest' | 'onboarding' | 'onboarded';
@@ -198,7 +201,7 @@ function normalizeTag(value: string) {
 }
 
 function isCommunityReportTarget(value: string): value is CommunityReportTarget {
-  return value === 'post' || value === 'comment' || value === 'user';
+  return value === 'post' || value === 'comment' || value === 'review' || value === 'user';
 }
 
 function imageFromFormData(value: FormDataEntryValue | null) {

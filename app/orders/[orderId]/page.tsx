@@ -5,6 +5,7 @@ import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { normalizeOrderReference } from '@/lib/checkout';
 import { loadOrderDetail } from '@/lib/orders.server';
+import { loadOrderReviewTargets } from '@/lib/reviews.server';
 import { readCardRewardsEnabled } from '@/lib/card-rewards/gate.server';
 
 export const metadata: Metadata = {
@@ -22,11 +23,20 @@ export default async function Page({ params }: PageProps<'/orders/[orderId]'>) {
   if (!auth.user) redirect(`/login?next=${encodeURIComponent(next)}`);
   if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath(next));
 
-  const [order, cardRewardsEnabled] = await Promise.all([
+  /* 리뷰 대상은 배송완료 이상 주문에서만 행이 돌아온다(#254). 그 판정을 화면이
+     다시 하지 않도록 RPC 결과를 그대로 넘긴다. */
+  const [order, cardRewardsEnabled, reviewTargets] = await Promise.all([
     loadOrderDetail(auth.user.id, orderId),
     readCardRewardsEnabled(),
+    loadOrderReviewTargets(orderId),
   ]);
   if (!order) notFound();
 
-  return <OrderDetail cardRewardsEnabled={cardRewardsEnabled} order={order} />;
+  return (
+    <OrderDetail
+      cardRewardsEnabled={cardRewardsEnabled}
+      order={order}
+      reviewTargets={reviewTargets}
+    />
+  );
 }

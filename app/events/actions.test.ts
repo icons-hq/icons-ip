@@ -14,9 +14,17 @@ const mocks = vi.hoisted(() => ({
     } as unknown,
     error: null as { message: string } | null,
   },
+  paymentsEnabled: true,
+  availabilityUserIds: [] as Array<string | undefined>,
 }));
 
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
+vi.mock('@/lib/payments/ticket-checkout-availability', () => ({
+  ticketCheckoutPaymentsEnabled: (userId?: string) => {
+    mocks.availabilityUserIds.push(userId);
+    return mocks.paymentsEnabled;
+  },
+}));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({ from: mocks.from }),
 }));
@@ -62,6 +70,8 @@ describe('reserveTicketsAction', () => {
     mocks.auth = onboardedAuth();
     mocks.from.mockReset();
     mocks.serviceRpc.mockReset();
+    mocks.paymentsEnabled = true;
+    mocks.availabilityUserIds = [];
     mocks.eligibility = {
       data: { id: ticketTypeId, price: 22000, events: { status: '예매중' } },
       error: null,
@@ -70,8 +80,6 @@ describe('reserveTicketsAction', () => {
     mocks.serviceRpc.mockResolvedValue({ data: ticketOrderId, error: null });
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://example.supabase.co');
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
-    vi.stubEnv('NEXT_PUBLIC_TOSS_CLIENT_KEY', 'test_gck_example');
-    vi.stubEnv('TOSS_SECRET_KEY', 'test_gsk_example');
   });
 
   it('checks current paid booking eligibility before calling the exact idempotent RPC', async () => {
@@ -89,6 +97,7 @@ describe('reserveTicketsAction', () => {
       p_reservation_key: reservationKey,
       p_user_id: 'user-1',
     });
+    expect(mocks.availabilityUserIds).toContain('user-1');
   });
 
   it('rejects malformed or browser-priced input before reading or writing', async () => {
@@ -138,14 +147,7 @@ describe('reserveTicketsAction', () => {
   });
 
   it('fails closed before reserving capacity when settlement is unavailable', async () => {
-    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
-    await expect(reserveTicketsAction(input)).resolves.toEqual({
-      ok: false,
-      error: 'payment_unavailable',
-    });
-
-    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
-    vi.stubEnv('TOSS_SECRET_KEY', 'live_gsk_example');
+    mocks.paymentsEnabled = false;
     await expect(reserveTicketsAction(input)).resolves.toEqual({
       ok: false,
       error: 'payment_unavailable',
@@ -169,6 +171,19 @@ describe('reserveTicketsAction', () => {
     expect(mocks.serviceRpc).not.toHaveBeenCalled();
   });
 
+  it('Korpay 최소 금액 미만은 정원을 선점하기 전에 거절한다', async () => {
+    mocks.eligibility = {
+      data: { id: ticketTypeId, price: 499, events: { status: '예매중' } },
+      error: null,
+    };
+
+    await expect(reserveTicketsAction(input)).resolves.toEqual({
+      ok: false,
+      error: 'not_bookable',
+    });
+    expect(mocks.serviceRpc).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['account_suspended', 'account_suspended'],
     ['auth required', 'auth_required'],
@@ -176,6 +191,7 @@ describe('reserveTicketsAction', () => {
     ['ticket type not found', 'not_bookable'],
     ['event not bookable', 'not_bookable'],
     ['paid ticket required', 'not_bookable'],
+    ['payment amount below provider minimum', 'not_bookable'],
     ['sales not open', 'sales_not_open'],
     ['sold out', 'sold_out'],
     ['per-user limit exceeded', 'per_user_limit'],

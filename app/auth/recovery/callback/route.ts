@@ -12,7 +12,6 @@ import {
   authCallbackCookieAdapter,
   clearExchangedAuthSession,
   createAuthResponseState,
-  isRecoveryExchange,
   type AuthResponseState,
 } from '@/lib/auth/callback.server';
 import { authCookieSecret, authNextStateFromCookie } from '@/lib/auth/recovery.server';
@@ -36,7 +35,6 @@ function redirectTo(
 }
 
 export async function GET(request: NextRequest) {
-  const code = request.nextUrl.searchParams.get('code');
   const tokenHash = request.nextUrl.searchParams.get('token_hash');
   const tokenType = request.nextUrl.searchParams.get('type');
   const signedState = authNextStateFromCookie(
@@ -54,13 +52,13 @@ export async function GET(request: NextRequest) {
       passwordResetErrorLoginPath(publicPasswordRecoveryErrorCode(providerError), next),
     );
   }
-  if (!code && !tokenHash) {
+  if (!tokenHash) {
     return redirectTo(request, passwordResetErrorLoginPath('missing_code', next));
   }
-  if (tokenHash && tokenType !== 'recovery') {
+  if (tokenType !== 'recovery') {
     return redirectTo(request, passwordResetErrorLoginPath('browser_mismatch', next));
   }
-  if (tokenHash && signedState?.purpose !== 'recovery') {
+  if (signedState?.purpose !== 'recovery') {
     return redirectTo(request, passwordResetErrorLoginPath('browser_mismatch'));
   }
 
@@ -74,9 +72,10 @@ export async function GET(request: NextRequest) {
     cookies: authCallbackCookieAdapter(request, authResponse),
   });
 
-  const { data: exchangeData, error } = tokenHash
-    ? await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
-    : await supabase.auth.exchangeCodeForSession(code ?? '');
+  const { data: verificationData, error } = await supabase.auth.verifyOtp({
+    token_hash: tokenHash,
+    type: 'recovery',
+  });
   if (error) {
     return redirectTo(
       request,
@@ -84,9 +83,7 @@ export async function GET(request: NextRequest) {
       authResponse,
     );
   }
-  const isVerifiedRecovery = tokenHash
-    ? Boolean(exchangeData?.session && exchangeData?.user)
-    : isRecoveryExchange(exchangeData);
+  const isVerifiedRecovery = Boolean(verificationData?.session && verificationData?.user);
   if (signedState?.purpose !== 'recovery' || !isVerifiedRecovery) {
     await clearExchangedAuthSession(supabase, authResponse);
     return redirectTo(

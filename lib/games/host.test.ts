@@ -51,7 +51,7 @@ describe('remote game play errors', () => {
     });
 
     await expect(host.playGame('game-1')).rejects.toEqual(
-      expect.objectContaining<GamePlayError>({ code: 'rewards_disabled' }),
+      expect.objectContaining({ code: 'rewards_disabled' } satisfies Partial<GamePlayError>),
     );
   });
 
@@ -61,7 +61,7 @@ describe('remote game play errors', () => {
     });
 
     await expect(host.playGame('game-1')).rejects.toEqual(
-      expect.objectContaining<GamePlayError>({ code: 'account_suspended' }),
+      expect.objectContaining({ code: 'account_suspended' } satisfies Partial<GamePlayError>),
     );
   });
 

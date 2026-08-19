@@ -53,6 +53,26 @@ describe('/legal/[document] 라우트', () => {
     expect(html).toContain('확인 중');
   });
 
+  it.each(['terms', 'privacy'] as const)('%s에 개정 공지일·시행 예정일과 변경 내용을 본문 앞에 노출한다', async (slug) => {
+    const document = LEGAL_DOCUMENTS[slug];
+    const notice = document.pendingRevision!;
+    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: slug }) }));
+
+    expect(html).toContain('개정 사전 공지');
+    expect(html).toContain(`공지일 ${notice.announcedDate}`);
+    expect(html).toContain(`시행 예정일 ${notice.effectiveDate}`);
+    expect(html).toContain(notice.heading);
+    for (const change of notice.changes) {
+      expect(html).toContain(change);
+    }
+  });
+
+  it('개정 예정이 없는 배송·반품 정책에는 사전 공지를 표시하지 않는다', async () => {
+    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: 'shipping' }) }));
+
+    expect(html).not.toContain('개정 사전 공지');
+  });
+
   it('다른 두 문서로 서로 이동할 수 있다', async () => {
     const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: 'terms' }) }));
 

@@ -37,6 +37,11 @@ export interface Good {
   stock: Stock;
   stockQty: number;
   img: string;
+  /**
+   * 무통장 입금 허용 여부 (#256). 없으면 허용 — DB 기본값과 같다.
+   * 한정 드롭처럼 재고가 24시간 묶이면 곤란한 굿즈만 운영자가 끈다.
+   */
+  allowBankTransfer?: boolean;
 }
 export interface Card {
   id: string;
@@ -225,7 +230,7 @@ const POSTS: Post[] = [
   { id: 'p3', user: 'gom_duck', ipName: '담곰이', avatar: '#F7A8C7', text: '담곰이 오리친구 카드 SSR 떴어요. 데스크 매트랑 같이 놓으니까 귀여움이 딱 맞습니다', likes: 503, comments: 91, time: '1시간 전', tag: '카드자랑', img: imageBg('/generated/cards/c6.png', grad('#70485a', '#F7A8C7', '#FFF3D6')) },
   { id: 'p4', user: 'picnic_friends', ipName: '카카오프렌즈', avatar: '#FFD84D', text: '피크닉 세트 구성 좋네요. 라이언이랑 어피치 소품을 같이 진열하기 좋습니다', likes: 189, comments: 27, time: '2시간 전', tag: '굿즈인증', img: imageBg('/generated/goods/g9.png', grad('#66421d', '#FFD84D', '#FF9AAF')) },
   { id: 'p5', user: 'levi_display', ipName: '진격의 거인', avatar: '#A981FF', text: '리바이 아크릴 스탠드 예약했습니다. 카드 배경이 차분해서 같이 전시하기 좋겠어요', likes: 421, comments: 57, time: '34분 전', tag: '예약인증', img: imageBg('/generated/goods/g11.png', grad('#2b251f', '#6B705C', '#A981FF')) },
-  { id: 'p6', user: 'pinkbean_stage', ipName: '메이플스토리', avatar: '#38F0C0', text: '핑크빈 스테이지 HOLO 아직 못 얻었습니다. 주황버섯 점프 카드랑 교환 가능하신 분 찾습니다', likes: 287, comments: 39, time: '1시간 전', tag: '카드교환', img: null },
+  { id: 'p6', user: 'pinkbean_stage', ipName: '메이플스토리', avatar: '#38F0C0', text: '핑크빈 스테이지 HOLO 아직 못 얻었습니다. 주황버섯 점프 카드랑 트레이드 가능하신 분 찾습니다', likes: 287, comments: 39, time: '1시간 전', tag: '카드트레이드', img: null },
 ];
 
 const EXCHANGES: Exchange[] = [
@@ -246,7 +251,7 @@ const MARKET: MarketItem[] = [
   { id: 'm6', name: '카카오프렌즈 피크닉 세트 일부 구성', ip: 'kakao-friends', type: '한정 세트', price: 48000, cond: 'B급', seller: 'picnic_box', verified: true, bg: imageBg('/generated/goods/g9.png', grad('#66421d', '#FFD84D', '#FF9AAF')) },
 ];
 
-const TRENDING = ['#리락쿠마', '#메이플스토리', '#담곰이', '#카카오프렌즈', '#리바이', '#팝업인증', '#한정굿즈', '#카드교환', '#피크닉세트', '#낮잠쿠션'];
+const TRENDING = ['#리락쿠마', '#메이플스토리', '#담곰이', '#카카오프렌즈', '#리바이', '#팝업인증', '#한정굿즈', '#카드트레이드', '#피크닉세트', '#낮잠쿠션'];
 
 const STATS = { fans: '76.5만', ips: 6, goods: '13', events: 5 };
 

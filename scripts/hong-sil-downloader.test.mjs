@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 
 import { afterEach, describe, expect, it } from 'vitest';
+import sharp from 'sharp';
 
 const PNG_1X1 = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl3sAAAAASUVORK5CYII=',
@@ -20,7 +21,7 @@ afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
 });
 
-async function startFixtureServer({ initialEpisodes } = {}) {
+async function startFixtureServer({ initialEpisodes, imageFixtures = new Map() } = {}) {
   let origin;
   const episodeHits = new Map();
   const imageHits = new Map();
@@ -92,7 +93,7 @@ async function startFixtureServer({ initialEpisodes } = {}) {
         return;
       }
       response.setHeader('content-type', 'application/octet-stream');
-      response.end(PNG_1X1);
+      response.end(imageFixtures.get(url.pathname) ?? PNG_1X1);
       return;
     }
 
@@ -263,6 +264,55 @@ describe('hong-sil downloader CLI', () => {
       format: 'png',
       sha256: createHash('sha256').update(PNG_1X1).digest('hex'),
     });
+  }, 60_000);
+
+  it('preserves GIF and AVIF extensions and records Sharp metadata for both formats', async () => {
+    const gif = await sharp({
+      create: {
+        background: { alpha: 1, b: 70, g: 50, r: 30 },
+        channels: 4,
+        height: 2,
+        width: 3,
+      },
+    }).gif().toBuffer();
+    const avif = await sharp({
+      create: {
+        background: { alpha: 0.5, b: 30, g: 50, r: 70 },
+        channels: 4,
+        height: 4,
+        width: 5,
+      },
+    }).avif().toBuffer();
+    const fixture = await startFixtureServer({
+      initialEpisodes: [{
+        id: 'episode-modern-formats',
+        title: '포맷 검증 1화',
+        apiPages: [
+          { page: 1, srcPath: '/cdn/page-one.bin' },
+          { page: 2, srcPath: '/cdn/page-two.bin' },
+        ],
+      }],
+      imageFixtures: new Map([
+        ['/cdn/page-one.bin', gif],
+        ['/cdn/page-two.bin', avif],
+      ]),
+    });
+    const output = await mkdtemp(join(tmpdir(), 'hong-sil-downloader-formats-'));
+    cleanups.push(() => rm(output, { recursive: true, force: true }));
+
+    const result = await runDownloader([
+      '--url', `${fixture.origin}/webtoon/17586`,
+      '--output', output,
+    ]);
+
+    expect(result).toMatchObject({ code: 0, stderr: '' });
+    expect(existsSync(join(output, '001_포맷_검증_1화', 'page-001.gif'))).toBe(true);
+    expect(existsSync(join(output, '001_포맷_검증_1화', 'page-002.avif'))).toBe(true);
+    const index = JSON.parse(await readFile(join(output, 'asset-index.json'), 'utf8'));
+    expect(index.episodes[0].pages).toEqual([
+      expect.objectContaining({ page: 1, width: 3, height: 2, format: 'gif' }),
+      expect.objectContaining({ page: 2, width: 5, height: 4, format: 'heif' }),
+    ]);
   }, 60_000);
 
   it('keeps successful files and exits with a precise report when a page fails', async () => {

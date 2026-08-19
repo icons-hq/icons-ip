@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { normalizeCheckoutPaymentMethod } from './checkout';
+
 import { normalizeCheckoutAddress } from './checkout';
 import {
   isOrderDetailStatus,
@@ -11,7 +13,9 @@ import {
   type OrderCancellationRequestStatus,
   type OrderListItem,
 } from './orders';
+import { isOrderClaimStage, isOrderClaimType } from './orders/claims';
 import { orderShipment } from './orders/shipment';
+import { getShippingCarrierRegistry } from './orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
 
 interface OrderListRow {
@@ -20,6 +24,7 @@ interface OrderListRow {
   status: string;
   total: number;
   created_at: string;
+  payment_method: string | null;
 }
 
 interface OrderDetailRow extends OrderListRow {
@@ -27,6 +32,8 @@ interface OrderDetailRow extends OrderListRow {
   address: unknown;
   shipping_carrier: string | null;
   tracking_number: string | null;
+  delivered_at: string | null;
+  expires_at: string | null;
 }
 
 interface OrderListItemRow {
@@ -66,9 +73,14 @@ interface RefundRow {
 interface CancellationRequestRow {
   id: string;
   status: string;
+  claim_type: string;
+  stage: string;
+  reference: number;
   requested_at: string;
   decided_at: string | null;
   decision_note: string | null;
+  reship_carrier: string | null;
+  reship_tracking_number: string | null;
 }
 
 function requireDetailStatus(status: string) {
@@ -83,7 +95,7 @@ export async function loadOrders(userId: string): Promise<OrderListItem[]> {
   const [orderResult, requestResult] = await Promise.all([
     supabase
       .from('orders')
-      .select('id,user_id,status,total,created_at')
+      .select('id,user_id,status,total,created_at,payment_method')
       .eq('user_id', userId)
       .in('status', [...VISIBLE_ORDER_STATUSES])
       .order('created_at', { ascending: false })
@@ -108,7 +120,7 @@ export async function loadOrders(userId: string): Promise<OrderListItem[]> {
   if (requestedOrderIds.length) {
     const { data: pendingData, error: pendingError } = await supabase
       .from('orders')
-      .select('id,user_id,status,total,created_at')
+      .select('id,user_id,status,total,created_at,payment_method')
       .eq('user_id', userId)
       .eq('status', 'pending')
       .in('id', requestedOrderIds)
@@ -158,6 +170,7 @@ export async function loadOrders(userId: string): Promise<OrderListItem[]> {
       createdAt: order.created_at,
       itemLabel: summary.label,
       itemCount: summary.itemCount,
+      paymentMethod: normalizeCheckoutPaymentMethod(order.payment_method) ?? 'card',
     };
   });
 }
@@ -166,7 +179,9 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   const supabase = await createClient();
   const { data: orderData, error: orderError } = await supabase
     .from('orders')
-    .select('id,user_id,status,total,shipping_fee,address,created_at,shipping_carrier,tracking_number')
+    // delivered_at은 청약철회 기한의 기산점이다(#189). 이 값이 없으면 주문
+    // 상세가 남은 기간을 말할 근거가 없다.
+    .select('id,user_id,status,total,shipping_fee,address,created_at,shipping_carrier,tracking_number,delivered_at,payment_method,expires_at')
     .eq('id', orderId)
     .eq('user_id', userId)
     .in('status', [...ORDER_DETAIL_STATUSES])
@@ -200,7 +215,10 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       .eq('source_id', orderId),
     supabase
       .from('order_cancellation_requests')
-      .select('id,status,requested_at,decided_at,decision_note')
+      .select(
+        'id,status,claim_type,stage,reference,requested_at,decided_at,decision_note,'
+        + 'reship_carrier,reship_tracking_number',
+      )
       .eq('order_id', orderId)
       .order('requested_at', { ascending: false })
       .limit(1)
@@ -255,6 +273,9 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     shippingFee: orderData.shipping_fee ?? 0,
     address: normalizeCheckoutAddress(orderData.address),
     createdAt: orderData.created_at,
+    deliveredAt: orderData.delivered_at,
+    paymentMethod: normalizeCheckoutPaymentMethod(orderData.payment_method) ?? 'card',
+    expiresAt: orderData.expires_at,
     items: ((itemsResult.data ?? []) as OrderDetailItemRow[]).map((item) => ({
       goodId: item.good_id,
       name: item.good_name_snapshot,
@@ -279,12 +300,27 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       ? {
           id: cancellationRequestRow.id,
           status: cancellationRequestStatus,
+          /* 모르는 값은 가장 좁은 쪽으로 접는다 — 취소·접수는 어떤 유형에서도
+             거짓말이 되지 않는 안내다. */
+          claimType: isOrderClaimType(cancellationRequestRow.claim_type)
+            ? cancellationRequestRow.claim_type
+            : 'cancel',
+          stage: isOrderClaimStage(cancellationRequestRow.stage)
+            ? cancellationRequestRow.stage
+            : 'requested',
+          reference: Number(cancellationRequestRow.reference ?? 0),
           requestedAt: cancellationRequestRow.requested_at,
           decidedAt: cancellationRequestRow.decided_at,
           decisionNote: cancellationRequestRow.decision_note,
+          reshipCarrier: cancellationRequestRow.reship_carrier,
+          reshipTrackingNumber: cancellationRequestRow.reship_tracking_number,
         }
       : null,
-    shipment: orderShipment(orderData.shipping_carrier, orderData.tracking_number),
+    shipment: orderShipment(
+      await getShippingCarrierRegistry(),
+      orderData.shipping_carrier,
+      orderData.tracking_number,
+    ),
     cardPacks: {
       issuedCount: ticketRows.length,
       availableCount: ticketRows.filter((ticket) => (

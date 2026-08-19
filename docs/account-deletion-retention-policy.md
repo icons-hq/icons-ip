@@ -4,7 +4,7 @@
 >
 > 적용 범위: 회원 계정, 커뮤니티 작성물, 굿즈·티켓 거래, Storage 객체, Auth 사용자와 복원 가능한 백업
 >
-> 시행 경계: 이 문서는 법률의견이 아니다. #137의 삭제 worker, #191의 이메일 fence, 별도 Supabase compliance 프로젝트와 복원 replay가 검증되기 전에는 탈퇴 완료를 제공하거나 고지하지 않는다.
+> 시행 경계: 이 문서는 법률의견이 아니다. #137 Phase 1의 self-only request·legal snapshot·write fence는 기본 OFF로 구현됐지만, 삭제 worker, #191 이메일 fence, 별도 Supabase compliance 프로젝트와 복원 replay가 검증되기 전에는 활성화하거나 탈퇴 완료를 제공·고지하지 않는다.
 
 ## 1. 확정 결정
 
@@ -17,18 +17,22 @@
 
 ## 2. 신청과 처리 순서
 
-신청 시 결과, 진행 중 의무, 되돌릴 수 없는 시점을 먼저 보여준다. 서버는 현재 세션과 `auth.uid()`를 다시 확인하며 브라우저가 삭제 대상 사용자 ID를 지정하지 못한다.
+신청 시 결과, 진행 중 의무, 되돌릴 수 없는 시점을 먼저 보여준다. 서버는 현재 세션과 `auth.uid()`를 다시 확인하며 브라우저가 삭제 대상 사용자 ID를 지정하지 못한다. 신청 RPC는 현재 JWT의 `session_id`가 같은 사용자의 최근 10분 내 생성된 `auth.sessions` 행인지 확인한다. 다른 브라우저의 새 로그인으로 바뀌는 전역 `last_sign_in_at`은 현재 세션의 재인증 증거로 쓰지 않는다. 오래된 세션에는 전용 `reauth=1` 로그인 경로를 안내하며, 정지 계정도 이 self-service 재인증·탈퇴 경로만은 사용할 수 있다.
 
 처리 순서는 다음으로 고정한다.
 
-1. `request/fence`: self-only 요청과 멱등키를 기록하고 새 구매·예매·작성·카드팩 개봉·게임·마케팅을 차단한다.
+1. `request/fence`: self-only 요청과 멱등키를 기록하고 새 구매·예매·작성·카드팩 개봉·게임·마케팅과 새·갱신 커뮤니티 Storage 업로드를 차단한다. 신청과 보호 write는 같은 사용자별 transaction lock으로 순서를 정한다.
 2. `legal snapshot`: 아래 매트릭스에 해당하는 최소 record와 `retain_until`을 분리 저장한다.
-3. `email fence`: #191의 durable outbox와 Resend/Supabase Send Email Hook이 탈퇴 대상의 새 발송을 막고 in-flight 결과를 종결한다.
+3. `email fence`: #191의 durable outbox와 Resend/Supabase Send Email Hook이 탈퇴 대상의 새 발송을 막고 in-flight 결과를 종결한다. dark schema에는 `notification_intent_id`와 fail-closed fence 판정만 추가하며, 탈퇴 notice producer·실수신 증거 전에는 Phase 2 worker를 열지 않는다.
 4. `hard delete`: 커뮤니티 연결 해제와 이미지 삭제, Storage 잔여 0건, 일반 DB 개인정보 삭제, 전역 sign-out과 Auth hard delete를 순서대로 수행한다.
 5. `secondary tombstone`: compliance 프로젝트에 같은 event를 멱등 append하고 durable ack를 기록한다. 실패한 요청은 완료로 표시하지 않고 PII 없는 primary request에서 재시도한다.
 6. `restore replay`: 운영 DB 복원 시 compliance sequence 이후 event를 replay해 복원된 subject를 다시 제거한 뒤에만 writer와 public traffic을 연다.
 
 `hard delete`와 secondary tombstone 이후에는 reverse migration을 제공하지 않고 forward repair만 허용한다. 실제 Production hard delete 직전에는 대상과 비가역성을 다시 표시해 사용자 확인을 받는다.
+
+Phase 1에서 blocked request는 종결 상태가 아니다. 기존 주문·결제·환급 worker가 허용된 정합화 작업을 끝낸 뒤 동일 신청 replay 또는 상태 조회가 진행 의무와 allowlist snapshot을 다시 평가한다. blocker가 모두 해소되어도 `awaiting_notification`까지만 전진하며 hard delete를 시작하지 않는다.
+
+Phase 1 schema는 기본 OFF이며, 거래 lookup 연락처 HMAC/key version, legacy 승인·환급·공급의 검증된 시각, immutable 티켓 계약 snapshot, 승인된 커뮤니티·권리사건 보존 seam이 모두 준비됐다는 private readiness 값 없이는 DB constraint가 activation을 거부한다. 불완전한 legacy 행은 존재하지 않는 승인·환급·공급 사실을 추정해 snapshot하지 않는다.
 
 ## 3. 진행 중 의무 gate
 
@@ -36,6 +40,7 @@
 |---|---|---|
 | `orders` | `pending`, `paid`, `shipping` | 주문 상세의 결제·만료·취소·배송·반품 처리 |
 | 주문 취소·환불 | `requested`, `processing`, `needs_review`, provider claim 존재 | 해당 주문의 환급 정합화 |
+| 결제·시도 | legacy payment `pending`, attempt `prepared`, `confirming`, `unknown`, `needs_review` 또는 payment 원장 없는 `approved` | staff 결제 정합화 |
 | `ticket_orders`, `tickets` | 미정리 `pending`, 종료 전 `paid`·`valid` 티켓 | 예매 상세의 만료·취소·사용 또는 이벤트 종료 |
 | 티켓 취소 | `requested`, `processing`, `needs_review` | 해당 예매의 환급 정합화 |
 | staff/admin | 활성 운영 권한 또는 미인계 회사 자산 | 권한 회수와 책임자 인수인계 |
@@ -78,6 +83,8 @@
 - `scanAfter(sequence, pageToken)`
 
 compliance 프로젝트에는 직접 식별자·이메일·DOB·거래 payload를 넣지 않는다. 환경별 keyed-HMAC subject tombstone과 append-only event key, canonical digest, 단조 sequence, generation, ack 시각만 둔다.
+
+현재 [local contract](./deletion-ledger-local-contract.md)는 versioned HMAC/canonical encoding, deterministic fake, signed pagination과 disabled adapter까지만 구현했다. Production runtime은 기본 disabled이고 remote I/O는 없으며, 별도 프로젝트·credential·backup·restore drill과 Production 연결은 #215가 완료될 때까지 열지 않는다.
 
 - 같은 event key와 같은 digest는 기존 ack를 반환한다.
 - 같은 key에 다른 digest가 오면 conflict로 중단하고 자동 덮어쓰지 않는다.

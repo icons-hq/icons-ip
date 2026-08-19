@@ -7,11 +7,27 @@ const WINDOW_DAYS = 30;
 const RECENT_ORDER_LIMIT = 5;
 const TOP_IP_LIMIT = 5;
 
-export const ADMIN_ORDER_STATUSES = ['pending', 'paid', 'shipping', 'done', 'canceled'] as const;
+// 주문 파이프라인 카드의 단계. DB의 order_status enum 순서를 그대로 따른다(#250).
+export const ADMIN_ORDER_STATUSES = [
+  'pending',
+  'paid',
+  'confirmed',
+  'shipping',
+  'delivered',
+  'done',
+  'canceled',
+] as const;
 export type AdminOrderStatus = (typeof ADMIN_ORDER_STATUSES)[number];
 
-/** 매출로 집계하는 주문 상태 — 결제 확정 이후 */
-const REVENUE_ORDER_STATUSES: AdminOrderStatus[] = ['paid', 'shipping', 'done'];
+/** 매출로 집계하는 주문 상태 — 결제 확정 이후. 발주확인·배송완료도 결제가 끝난
+ *  단계이므로 빠지면 사다리를 지나는 동안 매출이 사라졌다 돌아온다(#250). */
+const REVENUE_ORDER_STATUSES: AdminOrderStatus[] = [
+  'paid',
+  'confirmed',
+  'shipping',
+  'delivered',
+  'done',
+];
 
 export interface AdminMetricWindow {
   current: number;

@@ -1,7 +1,7 @@
 # 커뮤니티 포스트 수정 설계
 
 작성일: 2026-07-16
-대상 이슈: [#108](https://github.com/sangwopark19/icons-ip/issues/108)
+대상 이슈: [#108](https://github.com/icons-hq/icons-ip/issues/108)
 
 ## 목표
 

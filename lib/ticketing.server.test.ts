@@ -6,9 +6,15 @@ import {
   loadTicketOrderDetail,
 } from './ticketing.server';
 
-const mocks = vi.hoisted(() => ({ client: null as unknown }));
+const mocks = vi.hoisted(() => ({
+  client: null as unknown,
+  serviceClient: null as unknown,
+}));
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => mocks.client }));
+vi.mock('@/lib/supabase/service', () => ({
+  createServiceClient: () => mocks.serviceClient ?? mocks.client,
+}));
 
 type Row = Record<string, unknown>;
 type QueryResult = { data: Row[] | Row | null; error: { message: string } | null };
@@ -102,6 +108,7 @@ const userId = '1cc4d399-8e70-4f06-979d-8fb0f9c43fde';
 
 beforeEach(() => {
   mocks.client = null;
+  mocks.serviceClient = null;
 });
 
 describe('loadPublicTicketTypes', () => {
@@ -138,6 +145,7 @@ describe('loadPublicTicketTypes', () => {
       capacity: 25,
       sold: 7,
       remaining: 18,
+      maxQuantity: 4,
     }, {
       id: '8be5d078-4e59-4f8b-a776-75842bd44073',
       eventId,
@@ -146,15 +154,64 @@ describe('loadPublicTicketTypes', () => {
       capacity: 10,
       sold: 12,
       remaining: 0,
+      maxQuantity: 0,
     }]);
 
     expect(records[0]).toMatchObject({
       table: 'ticket_types',
-      select: 'id,event_id,name,price,capacity,sold',
+      select: 'id,event_id,name,price,capacity,sold,per_user_limit',
       eq: [['event_id', eventId]],
       order: [['name', undefined], ['id', undefined]],
     });
     expect(JSON.stringify(await loadPublicTicketTypes(eventId))).not.toMatch(/per_user_limit|sales_open_at|qr_token/);
+  });
+
+  it('로그인 사용자의 기존 pending·paid 예매를 1인 잔여 한도에서 차감한다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({
+      records,
+      rows: {
+        ticket_types: [{
+          id: ticketTypeId,
+          event_id: eventId,
+          name: '7월 25일 오후 회차',
+          price: 600,
+          capacity: 25,
+          sold: 7,
+          per_user_limit: 4,
+        }],
+        ticket_orders: [
+          { id: ticketOrderId, user_id: userId, status: 'paid' },
+          { id: '5cbcbfed-202d-4676-821a-7706398e57c1', user_id: userId, status: 'canceled' },
+        ],
+        ticket_order_reservations: [
+          { ticket_order_id: ticketOrderId, ticket_type_id: ticketTypeId, quantity: 2 },
+          {
+            ticket_order_id: '5cbcbfed-202d-4676-821a-7706398e57c1',
+            ticket_type_id: ticketTypeId,
+            quantity: 1,
+          },
+        ],
+      },
+    });
+
+    await expect(loadPublicTicketTypes(eventId, userId)).resolves.toEqual([expect.objectContaining({
+      id: ticketTypeId,
+      maxQuantity: 2,
+    })]);
+    expect(records.slice(1)).toEqual([
+      expect.objectContaining({
+        table: 'ticket_orders',
+        select: 'id',
+        eq: [['user_id', userId]],
+        in: [['status', ['pending', 'paid']]],
+      }),
+      expect.objectContaining({
+        table: 'ticket_order_reservations',
+        select: 'ticket_order_id,ticket_type_id,quantity',
+        in: [['ticket_order_id', [ticketOrderId]]],
+      }),
+    ]);
   });
 
   it('throws on query failure instead of rendering a false empty state', async () => {
@@ -179,15 +236,13 @@ describe('loadTicketOrder', () => {
         total: 44000,
         expires_at: '2026-07-14T12:10:00.000Z',
       }],
-      tickets: [{
+      ticket_order_reservations: [{
         ticket_order_id: ticketOrderId,
         ticket_type_id: ticketTypeId,
-        qr_token: 'must-not-leak',
-      }, {
-        ticket_order_id: ticketOrderId,
-        ticket_type_id: ticketTypeId,
-        qr_token: 'must-not-leak-either',
+        quantity: 2,
+        unit_price: 22000,
       }],
+      tickets: [],
       ticket_types: [{
         id: ticketTypeId,
         event_id: eventId,
@@ -210,6 +265,12 @@ describe('loadTicketOrder', () => {
         status: 'pending',
         created_at: '2026-07-14T12:00:00.000Z',
         payment_key: 'must-not-leak',
+      }],
+      payment_attempts: [{
+        user_id: userId,
+        purpose: 'ticket',
+        ref_id: ticketOrderId,
+        state: 'confirming',
       }],
     };
   }
@@ -236,9 +297,10 @@ describe('loadTicketOrder', () => {
       eq: [['id', ticketOrderId], ['user_id', userId]],
       maybeSingle: true,
     });
-    expect(records.find((record) => record.table === 'tickets')).toMatchObject({
-      select: 'ticket_type_id',
+    expect(records.find((record) => record.table === 'ticket_order_reservations')).toMatchObject({
+      select: 'ticket_type_id,quantity,unit_price',
       eq: [['ticket_order_id', ticketOrderId]],
+      maybeSingle: true,
     });
     expect(records.find((record) => record.table === 'payment_summaries')).toMatchObject({
       select: 'status',
@@ -250,6 +312,30 @@ describe('loadTicketOrder', () => {
     expect(JSON.stringify(records)).not.toMatch(/qr_token|payment_key|raw|per_user_limit|sales_open_at/);
   });
 
+  it('surfaces an ambiguous provider attempt as checking without ticket or QR rows', async () => {
+    const records: QueryRecord[] = [];
+    const serviceRecords: QueryRecord[] = [];
+    const data = rows();
+    data.payment_summaries = [];
+    data.payment_attempts[0].state = 'unknown';
+    mocks.client = createClient({ records, rows: data });
+    mocks.serviceClient = createClient({ records: serviceRecords, rows: data });
+
+    await expect(loadTicketOrder(userId, ticketOrderId)).resolves.toMatchObject({
+      qty: 2,
+      status: 'pending',
+      paymentStatus: 'pending',
+    });
+    expect(records.some((record) => record.table === 'payment_attempts')).toBe(false);
+    expect(serviceRecords.find((record) => record.table === 'payment_attempts')).toMatchObject({
+      select: 'state',
+      eq: [['user_id', userId], ['purpose', 'ticket'], ['ref_id', ticketOrderId]],
+      order: [['created_at', { ascending: false }]],
+      limit: 1,
+      maybeSingle: true,
+    });
+  });
+
   it('returns null without querying child records when the order is not owned by the viewer', async () => {
     const records: QueryRecord[] = [];
     mocks.client = createClient({ records, rows: rows() });
@@ -258,11 +344,21 @@ describe('loadTicketOrder', () => {
     expect(records.map((record) => record.table)).toEqual(['ticket_orders']);
   });
 
-  it('fails closed when placeholder tickets disagree on their ticket type', async () => {
+  it('fails closed when the reservation snapshot disagrees with the order total', async () => {
     const records: QueryRecord[] = [];
     const inconsistent = rows();
-    inconsistent.tickets[1].ticket_type_id = '8be5d078-4e59-4f8b-a776-75842bd44073';
+    inconsistent.ticket_order_reservations[0].quantity = 1;
     mocks.client = createClient({ records, rows: inconsistent });
+
+    await expect(loadTicketOrder(userId, ticketOrderId)).resolves.toBeNull();
+  });
+
+  it('does not report a paid booking as complete when its issued tickets are missing', async () => {
+    const inconsistent = rows();
+    inconsistent.ticket_orders[0].status = 'paid';
+    inconsistent.ticket_orders[0].expires_at = null;
+    inconsistent.payment_summaries[0].status = 'paid';
+    mocks.client = createClient({ records: [], rows: inconsistent });
 
     await expect(loadTicketOrder(userId, ticketOrderId)).resolves.toBeNull();
   });
@@ -311,11 +407,17 @@ describe('my ticket orders', () => {
         ticket_type_id: ticketTypeId,
         status: 'valid',
         qr_token: 'must-not-leak',
+      }],
+      ticket_order_reservations: [{
+        ticket_order_id: ticketOrderId,
+        ticket_type_id: ticketTypeId,
+        quantity: 2,
+        unit_price: 22000,
       }, {
-        id: '3bc2fa6a-9314-4d62-8797-1720a44b11eb',
         ticket_order_id: secondOrderId,
         ticket_type_id: '8be5d078-4e59-4f8b-a776-75842bd44073',
-        status: 'valid',
+        quantity: 1,
+        unit_price: 19000,
       }],
       ticket_types: [{
         id: ticketTypeId,
@@ -413,7 +515,7 @@ describe('my ticket orders', () => {
       startsAt: null,
       endsAt: null,
       location: null,
-      ticketStatuses: ['valid'],
+      ticketStatuses: [],
       cancellationRequest: {
         status: 'requested',
         requestedAt: '2026-07-15T02:30:00.000Z',
@@ -483,7 +585,7 @@ describe('my ticket orders', () => {
     expect(JSON.stringify(records)).not.toMatch(/qr_token|payment_key|raw|attempt_token|last_error_code|requested_by|reason/);
 
     const inconsistent = historyRows();
-    inconsistent.tickets[1].ticket_type_id = '8be5d078-4e59-4f8b-a776-75842bd44073';
+    inconsistent.ticket_order_reservations[0].quantity = 1;
     mocks.client = createClient({ records: [], rows: inconsistent });
     await expect(loadTicketOrderDetail(userId, ticketOrderId)).resolves.toBeNull();
   });

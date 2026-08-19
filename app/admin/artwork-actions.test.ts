@@ -70,6 +70,11 @@ describe('prepareAdminArtworkUploadAction', () => {
     { kind: 'ip', mimeType: 'image/png', size: 0 },
     { kind: 'ip', mimeType: 'image/png', size: 1.5 },
     { kind: 'ip', mimeType: 'image/png', size: ADMIN_ARTWORK_MAX_BYTES + 1 },
+    // A prototype key that reaches the extension lookup would stringify a function
+    // into the object path and leave a claim no later parse can match.
+    { kind: 'ip', mimeType: 'toString', size: 1 },
+    { kind: 'ip', mimeType: 'constructor', size: 1 },
+    { kind: 'toString', mimeType: 'image/png', size: 1 },
   ])('validates metadata before auth, claims, or Storage %#', async (input) => {
     await expect(prepareAdminArtworkUploadAction(input)).resolves.toEqual({
       ok: false,

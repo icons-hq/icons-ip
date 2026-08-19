@@ -125,83 +125,7 @@ describe('GET /auth/callback', () => {
     expect(response.headers.get('cache-control')).toBe('private, no-store');
   });
 
-  it('keeps an already-issued same-browser recovery link working during rollout', async () => {
-    mocks.exchangeCodeForSession.mockResolvedValue({
-      data: { redirectType: 'recovery' },
-      error: null,
-    });
-
-    const response = await GET(request(
-      '/auth/callback?code=legacy-recovery-code',
-      signedCookie('recovery'),
-    ));
-
-    expect(locationPath(response)).toBe(
-      '/update-password?session_ready=1&next=%2Fcommunity%3Fsort%3Dhot',
-    );
-    expect(mocks.getProfileForUser).not.toHaveBeenCalled();
-    expect(response.headers.get('set-cookie')).toContain(`${AUTH_NEXT_COOKIE_NAME}=;`);
-  });
-
-  it('normalizes legacy recovery provider failures onto the reset UX', async () => {
-    const response = await GET(request(
-      '/auth/callback?error_code=private_provider_failure&error_description=private-token-detail',
-      signedCookie('recovery'),
-    ));
-
-    expect(locationPath(response)).toBe(
-      '/login?mode=reset&reset_error=unknown_recovery_error&next=%2Fcommunity%3Fsort%3Dhot',
-    );
-    expect(response.headers.get('location')).not.toContain('private_provider_failure');
-    expect(response.headers.get('location')).not.toContain('private-token-detail');
-    expect(response.headers.get('set-cookie')).toContain(`${AUTH_NEXT_COOKIE_NAME}=;`);
-  });
-
-  it('keeps a legacy recovery link with no code on the reset UX', async () => {
-    const response = await GET(request(
-      '/auth/callback',
-      signedCookie('recovery'),
-    ));
-
-    expect(locationPath(response)).toBe(
-      '/login?mode=reset&reset_error=missing_code&next=%2Fcommunity%3Fsort%3Dhot',
-    );
-  });
-
-  it('normalizes a legacy recovery exchange failure without exposing provider details', async () => {
-    mocks.exchangeCodeForSession.mockResolvedValue({
-      data: { redirectType: null },
-      error: { code: 'private_exchange_failure', message: 'private-token-detail' },
-    });
-
-    const response = await GET(request(
-      '/auth/callback?code=legacy-recovery-code',
-      signedCookie('recovery'),
-    ));
-
-    expect(locationPath(response)).toBe(
-      '/login?mode=reset&reset_error=unknown_recovery_error&next=%2Fcommunity%3Fsort%3Dhot',
-    );
-    expect(response.headers.get('location')).not.toContain('private_exchange_failure');
-    expect(response.headers.get('location')).not.toContain('private-token-detail');
-    expect(mocks.getUser).not.toHaveBeenCalled();
-  });
-
-  it('keeps a legacy recovery provider outage on the reset UX', async () => {
-    mocks.configured = false;
-
-    const response = await GET(request(
-      '/auth/callback?code=legacy-recovery-code',
-      signedCookie('recovery'),
-    ));
-
-    expect(locationPath(response)).toBe(
-      '/login?mode=reset&reset_error=recovery_unavailable&next=%2Fcommunity%3Fsort%3Dhot',
-    );
-    expect(mocks.exchangeCodeForSession).not.toHaveBeenCalled();
-  });
-
-  it('clears a legacy recovery session that cannot be revalidated', async () => {
+  it('fails closed and clears a recovery exchange with a stale signed marker', async () => {
     mocks.exchangeCodeForSession.mockImplementationOnce(async () => {
       mocks.setAll?.([
         {
@@ -212,10 +136,6 @@ describe('GET /auth/callback', () => {
       ], {});
       return { data: { redirectType: 'recovery' }, error: null };
     });
-    mocks.getUser.mockResolvedValue({
-      data: { user: null },
-      error: { code: 'session_not_found' },
-    });
 
     const response = await GET(request(
       '/auth/callback?code=legacy-recovery-code',
@@ -223,11 +143,15 @@ describe('GET /auth/callback', () => {
     ));
 
     expect(locationPath(response)).toBe(
-      '/login?mode=reset&reset_error=session_not_found&next=%2Fcommunity%3Fsort%3Dhot',
+      '/login?mode=reset&reset_error=browser_mismatch&next=%2Fcommunity%3Fsort%3Dhot',
     );
+    expect(mocks.getUser).not.toHaveBeenCalled();
+    expect(mocks.getProfileForUser).not.toHaveBeenCalled();
     expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
     expect(response.headers.get('set-cookie')).not.toContain('legacy-recovery-session');
     expect(response.headers.get('set-cookie')).toContain('sb-local-auth-token=;');
+    expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
+    expect(response.headers.get('set-cookie')).toContain(`${AUTH_NEXT_COOKIE_NAME}=;`);
   });
 
   it('forwards exchanged session cookies and no-store headers onto the redirect response', async () => {
@@ -289,6 +213,17 @@ describe('GET /auth/callback', () => {
     expect(response.headers.get('set-cookie')).toContain(`${AUTH_NEXT_COOKIE_NAME}=;`);
   });
 
+  it('returns an incomplete OAuth account to self-service deletion before onboarding', async () => {
+    mocks.getProfileForUser.mockResolvedValue({ ...completeProfile, onboarded_at: null });
+
+    const response = await GET(request(
+      '/auth/callback?code=oauth-code',
+      signedCookie('oauth', '/settings/delete-account'),
+    ));
+
+    expect(locationPath(response)).toBe('/settings/delete-account');
+  });
+
   it('returns an onboarded OAuth user to the original safe path', async () => {
     const response = await GET(request('/auth/callback?code=oauth-code', signedCookie('oauth')));
 
@@ -313,6 +248,20 @@ describe('GET /auth/callback', () => {
 
     expect(locationPath(response)).toBe('/account-suspended');
     expect(response.headers.get('set-cookie')).toContain(`${AUTH_NEXT_COOKIE_NAME}=;`);
+  });
+
+  it('returns a suspended OAuth session to the requested self-service deletion route', async () => {
+    mocks.getProfileForUser.mockResolvedValue({
+      ...completeProfile,
+      suspended_at: '2026-07-17T00:00:00.000Z',
+    });
+
+    const response = await GET(request(
+      '/auth/callback?code=oauth-code',
+      signedCookie('oauth', '/settings/delete-account'),
+    ));
+
+    expect(locationPath(response)).toBe('/settings/delete-account');
   });
 
   it('does not guess recovery purpose when another browser has neither marker nor verifier', async () => {

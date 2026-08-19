@@ -32,15 +32,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - `CONTEXT.md`의 용어를 우선한다.
 - 수집형 디지털 `카드`와 실물 `굿즈`를 혼용하지 않는다.
 - `팬덤 가입`은 v1에서 무료 `팔로우`다. 유료 `멤버십`과 섞지 않는다.
-- `교환`은 카드 C2C, `마켓`은 굿즈 C2C다. 둘 다 v1에서는 플레이스홀더/v2 범위다.
-- 유료 가챠·`충전금`은 폐기됐다(ADR-0003·ADR-0004). `카드`는 `뽑기권`(UI 표기 "카드팩") 개봉과 참여형 게임의 무상 리워드로만 발급된다. 굿즈·티켓 신규 결제의 목표 provider는 Korpay다. 현재 provider-neutral expand 단계에서는 #205·#206 전환 전까지 Toss checkout을 호환 유지하고, 전환 뒤 Toss는 `provider=toss`인 기존 거래의 조회·취소·웹훅에만 남긴다.
+- `트레이드`는 카드 C2C(구 명칭 "교환"), `마켓`은 굿즈 C2C다. 둘 다 v1에서는 플레이스홀더/v2 범위다. `교환`은 굿즈 `클레임` 유형(회수 후 재출고)으로만 쓴다.
+- 유료 가챠·`충전금`은 폐기됐다(ADR-0003·ADR-0004). `카드`는 `뽑기권`(UI 표기 "카드팩") 개봉과 참여형 게임의 무상 리워드로만 발급된다. 굿즈·티켓 신규 결제의 provider는 Korpay다. 두 checkout은 provider-neutral seam으로 이동했고 gate 기본값은 OFF지만, 2026-08-18 Production 굿즈 gate를 공개 ON으로 전환했다. 티켓 gate와 두 canary는 OFF이며 Toss는 `provider=toss`인 기존 거래의 조회·취소·웹훅에만 남긴다. 현재 rollout 증거와 잔여 위험은 `docs/runbooks/korpay-production-rollout.md`를 따른다.
 - 범용 온라인 팝업 운영 레이어와 Expo webview 호스트는 현 로드맵 범위가 아니다. 기존 게임 `goods` variant는 운영 콘솔에서 읽기 전용이며, 남아 있는 mock 연출은 실제 경품·구매권을 만들지 않는다. 실물 쿠지에 재사용하지 않는다.
 
 ## 구현 원칙
 
 - 공개 브라우징을 유지한다. IP·굿즈·카드·이벤트·커뮤니티 읽기는 기본 공개이고, 로그인은 구매·카드팩 개봉·게임 플레이·예매·작성·팔로우 같은 보호 액션 시점에 요구한다.
 - 돈, 재고, 카드 발급 RNG, 뽑기권 발급·개봉, 유한 실물 경품 배정, 티켓 검표는 클라이언트나 앱 레벨 상태에 맡기지 않는다. Supabase Postgres RPC, RLS, 행 잠금, 멱등 처리를 기준으로 구현한다.
-- 결제 callback body와 클라이언트 성공 신호는 확정의 진실원이 아니다. 현재 Toss 호환 경로는 웹훅 수신 뒤 provider 재조회 결과로 확정하고, Korpay 전환 뒤에는 서버 전용 `PaymentGateway.confirm/reconcile` 결과와 DB 멱등 finalizer로만 주문·티켓을 확정한다.
+- 결제 callback body와 클라이언트 성공 신호는 확정의 진실원이 아니다. 굿즈·티켓 seam은 서버 전용 `PaymentGateway.confirm/reconcile` 결과와 DB 멱등 finalizer로만 신규 결제를 확정한다. 기존 Toss 거래만 웹훅 수신 뒤 provider 재조회 결과로 정합화한다.
 - 관리자 권한은 `profiles.role`과 RLS 양쪽에서 확인하고, 민감 작업은 감사 가능해야 한다.
 - `exchange`와 `market` 화면은 v2 전까지 프로토타입/플레이스홀더로 유지한다.
 
@@ -87,7 +87,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ### Issue tracker
 
-GitHub Issues (`sangwopark19/icons-ip`) via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+GitHub Issues (`icons-hq/icons-ip`) via the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

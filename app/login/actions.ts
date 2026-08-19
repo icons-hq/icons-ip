@@ -9,12 +9,13 @@ import {
   AUTH_RECOVERY_NEXT_COOKIE_NAME,
   AUTH_NEXT_COOKIE_NAME,
   ACCOUNT_SUSPENDED_PATH,
+  ACCOUNT_DELETION_PATH,
   authCallbackUrl,
   authRecoveryCallbackUrl,
   authSignUpErrorMessage,
   isAccountSuspended,
-  isOnboarded,
   onboardingPath,
+  postAuthenticationPath,
   safeNextPath,
 } from '@/lib/auth/onboarding';
 import {
@@ -30,6 +31,7 @@ import {
 import { getProfileForUser } from '@/lib/auth/server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
+import { CANONICAL_AUTH_ORIGIN, trustedAuthOrigin } from '@/lib/auth/trusted-origin';
 
 export interface AuthActionState {
   message?: string;
@@ -65,14 +67,6 @@ const AUTH_SIGNUP_RESEND_COOKIE_MAX_AGE_SECONDS = 24 * 60 * 60;
 const AUTH_SIGNUP_RESEND_STATE_MAX_AGE_MS = AUTH_SIGNUP_RESEND_COOKIE_MAX_AGE_SECONDS * 1000;
 const AUTH_SIGNUP_RESEND_WINDOW_MS = 10 * 60 * 1000;
 const AUTH_SIGNUP_RESEND_MAX_ATTEMPTS = 3;
-const CANONICAL_AUTH_ORIGIN = 'https://iconsip.com';
-const STATIC_AUTH_ORIGINS = new Set([
-  CANONICAL_AUTH_ORIGIN,
-  'https://www.iconsip.com',
-  'https://icons-ip.vercel.app',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-]);
 const SIGNUP_CONFIRMATION_SENT_MESSAGE = '가입 확인 메일을 보냈습니다. 받은편지함과 스팸함에서 최신 확인 메일을 열어주세요. 이미 가입한 이메일이라면 로그인도 시도할 수 있습니다.';
 const SIGNUP_CONFIRMATION_RESENT_MESSAGE = '새 확인 메일을 보냈습니다. 받은편지함과 스팸함에서 최신 확인 메일을 열어주세요.';
 const PASSWORD_RESET_SENT_MESSAGE = '해당 이메일로 가입한 계정이 있다면 재설정 메일을 보냈습니다. 요청한 브라우저에서 최신 링크를 열어주세요.';
@@ -103,29 +97,6 @@ function validateCredentials(formData: FormData): { ok: true; credentials: Crede
 
   if (Object.keys(errors).length) return { ok: false, state: { errors } };
   return { ok: true, credentials: { email, password, next } };
-}
-
-function normalizedOrigin(value: string | null) {
-  if (!value) return undefined;
-
-  try {
-    return new URL(value).origin;
-  } catch {
-    return undefined;
-  }
-}
-
-function currentVercelOrigin() {
-  const host = process.env.VERCEL_URL?.trim();
-  if (!host || !/^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.vercel\.app$/i.test(host)) return undefined;
-  return `https://${host.toLowerCase()}`;
-}
-
-function trustedAuthOrigin(value: string | null) {
-  const origin = normalizedOrigin(value);
-  if (!origin) return undefined;
-  if (STATIC_AUTH_ORIGINS.has(origin) || origin === currentVercelOrigin()) return origin;
-  return undefined;
 }
 
 async function requestOrigin() {
@@ -347,8 +318,10 @@ export async function signInWithEmailAction(_state: AuthActionState, formData: F
   }
 
   const profile = await getProfileForUser(supabase, data.user.id);
-  if (isAccountSuspended(profile)) redirect(ACCOUNT_SUSPENDED_PATH);
-  redirect(isOnboarded(profile, data.user.email) ? next : onboardingPath(next));
+  if (isAccountSuspended(profile) && next !== ACCOUNT_DELETION_PATH) {
+    redirect(ACCOUNT_SUSPENDED_PATH);
+  }
+  redirect(postAuthenticationPath(profile, data.user.email, next));
 }
 
 export async function signUpWithEmailAction(_state: AuthActionState, formData: FormData): Promise<AuthActionState> {

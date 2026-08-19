@@ -116,6 +116,42 @@
   scrollbar-width: thin;
 }
 
+/* 2단 메뉴 — 대분류 헤딩 + 소분류 항목.
+   접힘 상태에서는 헤딩과 라벨이 함께 숨어 아이콘 한 줄로 떨어진다. */
+.admin-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.admin-nav-group + .admin-nav-group {
+  margin-top: 10px;
+}
+
+.admin-nav-group-label {
+  margin: 0 0 4px;
+  padding: 0 10px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* 준비 중 화면은 라우트가 없다 — 자리만 보여 주고 클릭을 막는다. */
+.admin-nav-item-planned {
+  cursor: default;
+  /* opacity 로 흐리면 이미 muted 인 잉크 위에 겹쳐 대비가 AA 아래로 떨어진다.
+     상태는 색이 아니라 "준비 중" 라벨과 aria-disabled 가 전달한다. */
+  color: var(--editorial-ink-muted);
+  font-style: italic;
+}
+
+.admin-nav-item-planned:hover {
+  background: transparent;
+  color: var(--dim);
+}
+
 .admin-nav-item {
   position: relative;
   display: flex;
@@ -191,6 +227,14 @@
 
 .admin-shell.collapsed .admin-main {
   margin-left: 80px;
+}
+
+.admin-shell.collapsed .admin-nav-group-label {
+  display: none;
+}
+
+.admin-shell.collapsed .admin-nav-group + .admin-nav-group {
+  margin-top: 6px;
 }
 
 .admin-shell.collapsed .admin-nav-label {
@@ -274,6 +318,35 @@
   flex: 1;
   align-self: center;
   padding: clamp(22px, 2.5vw, 38px);
+}
+
+/* 셸 배지 슬롯 — 헤더와 본문 사이. 처리할 일이 있을 때만 그려지므로(#253)
+   빈 상태의 여백을 미리 잡아 두지 않는다. */
+.admin-shell-badges {
+  display: flex;
+  width: min(100%, 1488px);
+  align-self: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 clamp(22px, 2.5vw, 38px);
+}
+
+.admin-shell-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid var(--amber);
+  border-radius: 999px;
+  color: var(--editorial-ink);
+  font-size: 12.5px;
+  text-decoration: none;
+}
+
+.admin-shell-badge strong {
+  color: var(--amber);
+  font-family: var(--ff-mono);
+  font-size: 12px;
 }
 
 .admin-content > .rise {
@@ -1394,13 +1467,15 @@ textarea.admin-notification-control {
 }
 
 .order-status--paid,
+.order-status--confirmed,
 .order-status--done {
   border-color: rgba(63, 125, 56, .35) !important;
   background: rgba(196, 229, 174, .48) !important;
   color: var(--editorial-success) !important;
 }
 
-.order-status--shipping {
+.order-status--shipping,
+.order-status--delivered {
   border-color: rgba(54, 92, 168, .35) !important;
   background: rgba(166, 197, 230, .42) !important;
   color: var(--editorial-info) !important;
@@ -1649,6 +1724,22 @@ textarea.admin-notification-control {
   overflow-wrap: break-word;
 }
 
+.admin-order-korpay-title {
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid rgba(154, 91, 0, .2);
+  font-family: var(--ff-mono);
+  font-size: 10px;
+}
+
+.admin-order-korpay-summary {
+  margin-top: 10px;
+}
+
+.admin-order-korpay-summary dd.mono {
+  font-size: 10px;
+}
+
 .admin-order-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1667,6 +1758,55 @@ textarea.admin-notification-control {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+
+.admin-order-korpay-recovery-form {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid rgba(154, 91, 0, .26);
+  border-radius: 10px;
+  background: rgba(255, 232, 136, .24);
+}
+
+.admin-order-korpay-recovery-form > label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--editorial-ink-muted);
+  font-size: 11px;
+  line-height: var(--editorial-leading-body);
+}
+
+.admin-order-korpay-recovery-form input[type='checkbox'] {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.admin-shell .admin-order-korpay-recovery-submit {
+  border-color: var(--editorial-danger);
+  background: var(--editorial-danger);
+  color: var(--editorial-on-inverse);
+}
+
+.admin-shell .admin-order-korpay-recovery-submit:hover {
+  border-color: color-mix(in srgb, var(--editorial-danger) 86%, #000);
+  background: color-mix(in srgb, var(--editorial-danger) 86%, #000);
+  color: var(--editorial-on-inverse);
+}
+
+.admin-order-korpay-recovery-error {
+  grid-column: 1 / -1;
+  color: var(--editorial-danger);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.admin-order-korpay-recovery-form .admin-order-action-feedback {
+  grid-column: 1 / -1;
 }
 
 .admin-order-reject-form {

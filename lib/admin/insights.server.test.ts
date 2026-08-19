@@ -7,6 +7,7 @@ interface QueryState {
 
 const mocks = vi.hoisted(() => ({
   fromTables: [] as string[],
+  inFilters: [] as Array<{ table: string; column: string; values: unknown }>,
   profileRows: [{ id: '11111111-1111-4111-8111-111111111111', nickname: '구매자' }],
   rpcResult: {
     data: [{ current_count: '2', previous_count: 1 }],
@@ -55,7 +56,12 @@ vi.mock('@/lib/supabase/server', () => ({
           return query;
         },
         eq: () => (state.head ? Promise.resolve(result()) : query),
-        in: () => (table === 'public_profiles' || table === 'ips' ? Promise.resolve(result()) : query),
+        in: (column: string, values: unknown) => {
+          mocks.inFilters.push({ table, column, values });
+          return table === 'public_profiles' || table === 'ips'
+            ? Promise.resolve(result())
+            : query;
+        },
         gte: () => query,
         lt: () => query,
         order: () => query,
@@ -70,6 +76,7 @@ vi.mock('@/lib/supabase/server', () => ({
 describe('getAdminInsights profile boundaries', () => {
   beforeEach(() => {
     mocks.fromTables = [];
+    mocks.inFilters = [];
     mocks.profileRows = [{ id: '11111111-1111-4111-8111-111111111111', nickname: '구매자' }];
     mocks.rpcResult = { data: [{ current_count: '2', previous_count: 1 }], error: null };
   });
@@ -84,6 +91,29 @@ describe('getAdminInsights profile boundaries', () => {
     ]);
     expect(mocks.fromTables).toContain('payment_summaries');
     expect(mocks.fromTables).not.toContain('payments');
+  });
+
+  it('주문 파이프라인은 사다리 전 단계를 enum 순서대로 낸다', async () => {
+    const result = await getAdminInsights();
+
+    expect(result.pipeline.map((stage) => stage.status)).toEqual([
+      'pending',
+      'paid',
+      'confirmed',
+      'shipping',
+      'delivered',
+      'done',
+      'canceled',
+    ]);
+  });
+
+  // 발주확인·배송완료는 결제가 끝난 단계다. 빠지면 사다리를 지나는 동안
+  // 매출이 사라졌다가 done에서 되살아난다(#250).
+  it('매출 집계는 결제 확정 이후의 모든 사다리 단계를 포함한다', async () => {
+    await getAdminInsights();
+
+    const revenueFilter = mocks.inFilters.find((filter) => filter.column === 'order.status');
+    expect(revenueFilter?.values).toEqual(['paid', 'confirmed', 'shipping', 'delivered', 'done']);
   });
 
   it('가입 집계 오류와 잘못된 집계는 닫힌 상태로 실패한다', async () => {

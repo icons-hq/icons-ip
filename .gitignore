@@ -40,7 +40,8 @@ docs/online-popup/*
 !docs/online-popup/04-dev-spec.md
 !docs/online-popup/05-game-miniapp-spec.md
 docs/online-popup/experience/
-docs/research/
+docs/research/*
+!docs/research/2026-08-12-interim-stakeholder-decisions.md
 
 # 로컬 프로토타입 (각자 node_modules·dist·test-results를 갖는 별도 프로젝트)
 /prototypes/

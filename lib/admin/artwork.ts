@@ -13,6 +13,7 @@ const ADMIN_ARTWORK_EXTENSIONS: Record<AdminArtworkMimeType, 'jpg' | 'png' | 'we
   'image/png': 'png',
   'image/webp': 'webp',
 };
+const ADMIN_ARTWORK_MIME_TYPES: readonly string[] = Object.keys(ADMIN_ARTWORK_EXTENSIONS);
 const ADMIN_ARTWORK_MIME_BY_EXTENSION: Record<'jpg' | 'png' | 'webp', AdminArtworkMimeType> = {
   jpg: 'image/jpeg',
   png: 'image/png',
@@ -48,8 +49,10 @@ function isAdminArtworkKind(value: unknown): value is AdminArtworkKind {
   return typeof value === 'string' && ADMIN_ARTWORK_KINDS.has(value as AdminArtworkKind);
 }
 
+// `value in EXTENSIONS`는 프로토타입 체인까지 훑어 'toString' 같은 입력을 MIME으로
+// 인정한다. 그러면 확장자 조회가 함수를 돌려주고 경로 템플릿이 그것을 문자열화한다.
 function isAdminArtworkMimeType(value: unknown): value is AdminArtworkMimeType {
-  return typeof value === 'string' && value in ADMIN_ARTWORK_EXTENSIONS;
+  return typeof value === 'string' && ADMIN_ARTWORK_MIME_TYPES.includes(value);
 }
 
 export function normalizeAdminArtworkMetadata(input: {

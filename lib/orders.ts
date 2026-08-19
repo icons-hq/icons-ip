@@ -1,7 +1,18 @@
-import type { CheckoutAddress } from './checkout';
+import type { CheckoutPaymentMethod, CheckoutAddress } from './checkout';
 import type { OrderShipment } from './orders/shipment';
+import type { OrderClaimStage, OrderClaimType } from './orders/claims';
 
-export const VISIBLE_ORDER_STATUSES = ['paid', 'shipping', 'done', 'canceled'] as const;
+// 주문 목록에 보이는 상태. pending은 결제가 끝나지 않은 선점이라 별도 취급한다.
+// 사다리는 pending → paid → confirmed → shipping → delivered → done이고
+// DB의 order_status enum과 같은 순서를 유지한다(#250).
+export const VISIBLE_ORDER_STATUSES = [
+  'paid',
+  'confirmed',
+  'shipping',
+  'delivered',
+  'done',
+  'canceled',
+] as const;
 export const ORDER_DETAIL_STATUSES = ['pending', ...VISIBLE_ORDER_STATUSES] as const;
 
 export type VisibleOrderStatus = (typeof VISIBLE_ORDER_STATUSES)[number];
@@ -51,16 +62,30 @@ const STATUS_PRESENTATION: Record<OrderDetailStatus, OrderStatusPresentation> = 
     body: '결제가 확인됐고 배송 준비를 시작합니다.',
     tone: 'paid',
   },
+  confirmed: {
+    label: '발주확인',
+    title: '주문을 확인하고 준비 중이에요',
+    body: '판매자가 주문을 확인했고 발송 준비를 하고 있습니다.',
+    tone: 'confirmed',
+  },
   shipping: {
     label: '배송중',
     title: '굿즈가 배송 중이에요',
     body: '주문한 굿즈가 배송지로 이동하고 있습니다.',
     tone: 'shipping',
   },
+  delivered: {
+    label: '배송완료',
+    title: '굿즈가 배송 완료됐어요',
+    body: '배송이 완료됐습니다. 문제가 있으면 아래에서 청약철회를 요청할 수 있어요.',
+    tone: 'delivered',
+  },
   done: {
-    label: '완료',
-    title: '주문이 완료됐어요',
-    body: '배송이 완료된 주문입니다.',
+    // "완료"가 아니라 "거래확정"이다(CONTEXT.md). 변심 청약철회 창이 닫혔다는
+    // 뜻이고, 하자·오배송 클레임은 공급받은 날부터 3개월까지 남아 있다.
+    label: '거래확정',
+    title: '거래가 확정됐어요',
+    body: '배송완료 후 청약철회 기간이 지나 거래가 확정된 주문입니다.',
     tone: 'done',
   },
   canceled: {
@@ -78,6 +103,8 @@ export interface OrderListItem {
   createdAt: string;
   itemLabel: string;
   itemCount: number;
+  /** 주문 생성 시점에 고정된 결제수단(#256). */
+  paymentMethod: CheckoutPaymentMethod;
 }
 
 export interface OrderDetailItem {
@@ -102,9 +129,22 @@ export interface OrderRefundSummary {
 export interface OrderCancellationRequestSummary {
   id: string;
   status: OrderCancellationRequestStatus;
+  /**
+   * 클레임 유형과 절차 단계(#252).
+   *
+   * `status`는 레거시 투영이라 반품이 수거 중이어도 `requested`로 보인다. 구매자
+   * 화면이 "요청을 접수했습니다"만 말하면 이미 반송한 사람이 아무 일도 일어나지
+   * 않았다고 읽는다 — 진행 안내는 반드시 `stage`에서 나와야 한다.
+   */
+  claimType: OrderClaimType;
+  stage: OrderClaimStage;
+  reference: number;
   requestedAt: string;
   decidedAt: string | null;
   decisionNote: string | null;
+  /** 교환 재출고 운송장. 교환이 아니면 항상 null이다. */
+  reshipCarrier: string | null;
+  reshipTrackingNumber: string | null;
 }
 
 export interface OrderDetail {
@@ -115,6 +155,23 @@ export interface OrderDetail {
   shippingFee: number;
   address: CheckoutAddress | null;
   createdAt: string;
+  /**
+   * 재화를 공급받은 날(#189). 청약철회 기한의 법정 기산점이라 구매자 화면이
+   * 남은 기간을 계산할 유일한 근거다. shipping→delivered 전이에서 기록되고,
+   * 그 전에는 null이다 — 기한이 아직 시작하지 않았다는 뜻이다.
+   *
+   * optional이 아니라 required다(#250). 주문 상세가 이 값으로 남은 기간을 말하는
+   * 이상, 값을 빠뜨린 호출자는 "기한 없음"이 아니라 컴파일 오류를 받아야 한다 —
+   * 조용히 undefined가 흘러들면 화면이 이유 없이 안내를 감춘다.
+   */
+  deliveredAt: string | null;
+  /** 주문 생성 시점에 고정된 결제수단(#256). */
+  paymentMethod: CheckoutPaymentMethod;
+  /**
+   * 무통장 입금 기한. `pending` 무통장 주문에만 있다 — 확정되면 서버가 비운다.
+   * 값이 있으면 아직 돈이 들어오지 않았다는 뜻이므로 화면이 안내를 띄운다.
+   */
+  expiresAt: string | null;
   items: OrderDetailItem[];
   payment: OrderPaymentSummary | null;
   refund: OrderRefundSummary | null;
