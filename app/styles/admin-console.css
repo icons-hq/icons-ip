@@ -846,3 +846,17 @@ a.admin-console-chip:hover {
   font-family: inherit;
   font-size: 13px;
 }
+
+/* 대시보드 → 상세 리포트 (#258). 대시보드는 한눈에 보는 자리로 남기고,
+   같은 지표를 기간·축으로 파고드는 일은 리포트가 맡는다. */
+.admin-overview-reports {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-overview-reports .muted {
+  margin-inline-end: 4px;
+  font-size: 12.5px;
+}

@@ -139,6 +139,12 @@ const customers: AdminCustomerReport = {
   buyerCount: 2,
   repeatBuyerCount: 1,
   inquiries: { total: 2, unanswered: 1, averageFirstResponseHours: 4 },
+  reviews: {
+    total: 4,
+    unanswered: 1,
+    averageRating: 4.25,
+    distribution: [0, 1, 0, 0, 3],
+  },
 };
 
 describe('StatsCustomersScreen', () => {
@@ -163,12 +169,32 @@ describe('StatsCustomersScreen', () => {
     expect(html).toContain('기간 내 재구매율');
   });
 
-  /* 리뷰 도메인(#254)이 아직 없다는 사실을 화면이 숨기지 않는다. */
-  it('리뷰 지표가 아직 없다는 것을 말한다', () => {
+  it('리뷰 평균과 평점 분포를 함께 보여준다', () => {
     const html = renderToStaticMarkup(
       <StatsCustomersScreen data={customers} filters={filters} />,
     );
 
-    expect(html).toContain('리뷰 지표');
+    expect(html).toContain('4.25');
+    expect(html).toContain('75.0%');
+    expect(html).toContain('답글 없음');
+  });
+
+  /*
+   * 0점은 존재할 수 없는 평점이다. 리뷰가 없을 때 평균 자리에 0이 찍히면
+   * "최악의 평점"으로 읽힌다.
+   */
+  it('리뷰가 없으면 평균을 0으로 만들지 않는다', () => {
+    const html = renderToStaticMarkup(
+      <StatsCustomersScreen
+        data={{
+          ...customers,
+          reviews: { total: 0, unanswered: 0, averageRating: null, distribution: [0, 0, 0, 0, 0] },
+        }}
+        filters={filters}
+      />,
+    );
+
+    expect(html).toContain('이 기간에 작성된 리뷰가 없습니다');
+    expect(html).toContain('—');
   });
 });

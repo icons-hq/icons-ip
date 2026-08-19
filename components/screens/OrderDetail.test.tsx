@@ -15,6 +15,8 @@ function order(overrides: Partial<OrderDetailData> = {}): OrderDetailData {
     status: 'shipping',
     total: 30000,
     shippingFee: 3000,
+    paymentMethod: 'card',
+    expiresAt: null,
     address: {
       recipientName: '김팬',
       phone: '01012345678',
@@ -130,5 +132,39 @@ describe('OrderDetail', () => {
     expect(html).toContain('단순 변심 청약철회 기한이 지났습니다');
     expect(html).toContain('공급받은 날부터 3개월');
     expect(html).not.toContain('일 남음');
+  });
+});
+
+describe('OrderDetail 무통장 입금 대기', () => {
+  /*
+   * 지금까지 입금 안내로 돌아가는 길은 알림 링크와 결제 화면뿐이었다. 구매자가
+   * "얼마를 어디로 보내야 하지"를 다시 찾는 자리는 주문 내역이다.
+   */
+  it('아직 입금이 안 된 무통장 주문에 안내로 가는 길을 연다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'pending', paymentMethod: 'bank_transfer', total: 23000 })} />);
+
+    expect(html).toContain('입금을 기다리고 있어요');
+    expect(html).toContain('23,000');
+    expect(html).toContain(`href="/checkout/${ORDER_ID}"`);
+  });
+
+  /* 계좌 값은 서버 설정에서만 읽는다(#255). 주문 내역이 두 번째 출처가 되면 안 된다. */
+  it('계좌 정보를 주문 내역에 복제하지 않는다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'pending', paymentMethod: 'bank_transfer' })} />);
+
+    expect(html).not.toContain('예금주');
+    expect(html).not.toContain('계좌번호');
+  });
+
+  it('확정된 무통장 주문에는 입금 안내를 남기지 않는다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'paid', paymentMethod: 'bank_transfer' })} />);
+
+    expect(html).not.toContain('입금을 기다리고 있어요');
+  });
+
+  it('카드 주문은 그대로다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'pending' })} />);
+
+    expect(html).not.toContain('입금을 기다리고 있어요');
   });
 });

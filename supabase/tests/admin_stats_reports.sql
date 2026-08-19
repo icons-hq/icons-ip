@@ -198,6 +198,29 @@ values (
   now() - interval '2 days' + interval '10 hours'
 );
 
+-- 리뷰 셋. 블라인드된 하나는 평점 분포에서 빠져야 한다 — 공개 표면의 평균과
+-- 같은 기준이어야 두 화면이 다른 평점을 말하지 않는다.
+insert into public.reviews (
+  user_id, good_id, order_id, rating, body, status, admin_reply, admin_reply_at,
+  hidden_reason, hidden_at, created_at
+)
+values
+  (
+    '00000000-0000-4000-8000-000000000f01', 'stats-goods-a',
+    '42000000-0000-4000-8000-000000000f01', 5, '아주 만족스럽습니다',
+    'visible', '감사합니다', now(), null, null, now() - interval '2 days'
+  ),
+  (
+    '00000000-0000-4000-8000-000000000f01', 'stats-goods-b',
+    '42000000-0000-4000-8000-000000000f02', 3, '보통이었습니다',
+    'visible', null, null, null, null, now() - interval '1 day'
+  ),
+  (
+    '00000000-0000-4000-8000-000000000f03', 'stats-goods-a',
+    '42000000-0000-4000-8000-000000000f03', 1, '블라인드된 리뷰입니다',
+    'hidden', null, null, '운영 정책 위반', now(), now() - interval '1 day'
+  );
+
 insert into public.inquiries (user_id, category, title, status, created_at, answered_at)
 values
   (
@@ -345,6 +368,29 @@ select 1 / case when (
   and (:'customers'::jsonb -> 'inquiries' ->> 'unanswered')::bigint = 1
   and (:'customers'::jsonb -> 'inquiries' ->> 'averageFirstResponseHours')::numeric = 4.0
 ) then 1 else 0 end as assert_inquiry_metrics_measure_first_response;
+
+select 1 / case when (
+  (:'customers'::jsonb -> 'reviews' ->> 'total')::bigint = 2
+  and (:'customers'::jsonb -> 'reviews' ->> 'unanswered')::bigint = 1
+  and (:'customers'::jsonb -> 'reviews' ->> 'averageRating')::numeric = 4.00
+) then 1 else 0 end as assert_review_metrics_exclude_blinded_reviews;
+
+-- 분포는 1점부터 5점까지 순서대로다. 블라인드된 1점이 여기 들어오면 공개
+-- 화면과 운영자 화면이 다른 평점을 말한다.
+select 1 / case when (
+  (:'customers'::jsonb -> 'reviews' -> 'distribution') = '[0, 0, 1, 0, 1]'::jsonb
+) then 1 else 0 end as assert_rating_distribution_matches_the_public_surface;
+
+-- 리뷰가 없는 기간의 평균은 0이 아니라 값 없음이다. 0점은 존재할 수 없다.
+select public.admin_customer_report(
+  now() - interval '400 days',
+  now() - interval '300 days'
+) as empty_customers \gset
+
+select 1 / case when (
+  (:'empty_customers'::jsonb -> 'reviews' ->> 'total')::bigint = 0
+  and (:'empty_customers'::jsonb -> 'reviews' -> 'averageRating') = 'null'::jsonb
+) then 1 else 0 end as assert_empty_review_range_has_no_average;
 
 -- ---------------------------------------------------------------------------
 -- 잘못된 기간 · 비 staff
