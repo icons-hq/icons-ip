@@ -10,6 +10,7 @@ import { useGo } from './useGo';
 import { AuthButton } from './AuthButton';
 import { NotificationBell } from './NotificationBell';
 import { useHeaderScrollHide } from './useHeaderScrollHide';
+import { useCardRewardsEnabled } from './CardRewardAvailability';
 
 export { shouldHideEditorialHeader } from './useHeaderScrollHide';
 
@@ -25,17 +26,18 @@ const SECONDARY_LINKS = [
   { href: hrefFor('binder'), label: '내 바인더' },
   { href: hrefFor('tickets'), label: '내 티켓' },
   { href: hrefFor('market'), label: '굿즈 마켓' },
-  { href: hrefFor('exchange'), label: '카드 교환' },
+  { href: hrefFor('exchange'), label: '카드 트레이드' },
 ];
 
 export function Nav() {
   const pathname = usePathname();
+  const cardRewardsEnabled = useCardRewardsEnabled();
   // 게임은 자기완결 번들, 어드민은 자체 작업대, 인증은 집중형 셸, 홈은 자체 헤더를 사용한다.
   if (pathname === '/' || isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
-  return <EditorialHeader pathname={pathname} />;
+  return <EditorialHeader cardRewardsEnabled={cardRewardsEnabled} pathname={pathname} />;
 }
 
-function EditorialHeader({ pathname }: { pathname: string }) {
+function EditorialHeader({ cardRewardsEnabled, pathname }: { cardRewardsEnabled: boolean; pathname: string }) {
   const go = useGo();
   const { count } = useCart();
   const [menuState, setMenuState] = useState({ open: false, pathname });
@@ -44,6 +46,9 @@ function EditorialHeader({ pathname }: { pathname: string }) {
   const menuRef = useRef<HTMLDivElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const closeMenu = () => setMenuState(closeEditorialMenu(pathname));
+  const navItems = cardRewardsEnabled
+    ? NAV_ITEMS
+    : NAV_ITEMS.filter((item) => item.id !== 'packs');
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -123,7 +128,7 @@ function EditorialHeader({ pathname }: { pathname: string }) {
           </Link>
 
           <nav aria-label="주요 내비게이션" className="editorial-header__nav" inert={menuOpen ? true : undefined}>
-            {NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const active = isActive(item.id, pathname);
               return (
                 <Link
@@ -183,7 +188,7 @@ function EditorialHeader({ pathname }: { pathname: string }) {
       >
         <div className="editorial-menu__inner">
           <nav aria-label="전체 메뉴" className="editorial-menu__primary">
-            {NAV_ITEMS.map((item, index) => (
+            {navItems.map((item, index) => (
               <Link
                 key={item.id}
                 aria-current={isActive(item.id, pathname) ? 'page' : undefined}

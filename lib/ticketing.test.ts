@@ -55,6 +55,7 @@ describe('ticketing reservation contract', () => {
     ['ticket type not found', 'not_bookable'],
     ['event not bookable', 'not_bookable'],
     ['paid ticket required', 'not_bookable'],
+    ['payment amount below provider minimum', 'not_bookable'],
     ['sales not open', 'sales_not_open'],
     ['sold out', 'sold_out'],
     ['per-user limit exceeded', 'per_user_limit'],

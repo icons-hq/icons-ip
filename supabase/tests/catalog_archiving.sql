@@ -2,6 +2,13 @@
 
 begin;
 
+update private.card_reward_control set enabled = true where singleton;
+
+update private.community_write_control
+set
+  post_create_enabled = true,
+  post_edit_enabled = true;
+
 -- ---------------------------------------------------------------------------
 -- Schema, read-history preservation, and callable boundaries.
 -- ---------------------------------------------------------------------------
@@ -964,7 +971,7 @@ select 1 / case when (
     'public.edit_own_post(uuid,text,text,text)'::regprocedure
   ) ilike '%selected_archived_at%'
   and pg_catalog.pg_get_functiondef(
-    'public.play_game(text)'::regprocedure
+    'public.play_game_unguarded(text)'::regprocedure
   ) ilike '%event_record.archived_at%'
   and pg_catalog.pg_get_functiondef(
     'public.admin_list_games()'::regprocedure

@@ -17,6 +17,7 @@ authority:
     public: app/styles/editorial-public.css
     account-commerce: app/styles/editorial-account-commerce.css
     admin: app/styles/editorial-admin.css
+    admin-console: app/styles/admin-console.css
     legacy-compatibility: app/globals.css
   route-map: lib/routes.ts
   note: >
@@ -46,7 +47,7 @@ breakpoints:
 - `Living IP Editorial`은 전역 기본값이며, 기존 `Holographic Midnight` 재질은 수집형 카드와 필요한 역상 표면에만 제한적으로 남는다. 실제 클래스와 동작은 `app/styles/editorial-*.css`, `app/globals.css`, 해당 컴포넌트가 함께 진실이다.
 - 시각 시스템은 전면 교체하지만, 공개 브라우징, 인증, 장바구니, 주문, 결제, 카드팩, 예매, QR, 관리자 권한을 포함한 기능 계약은 바꾸지 않는다.
 - 페이지를 새로 보이게 만들기 위해 실제 데이터 대신 정적 배열, 가짜 수치, 가짜 후기, 존재하지 않는 링크를 넣지 않는다.
-- 용어는 `CONTEXT.md`를 따른다. 수집형 디지털 **카드**와 실물 **굿즈**, 카드 C2C **교환**과 굿즈 C2C **마켓**을 혼용하지 않는다.
+- 용어는 `CONTEXT.md`를 따른다. 수집형 디지털 **카드**와 실물 **굿즈**, 카드 C2C **트레이드**와 굿즈 C2C **마켓**을 혼용하지 않는다. **교환**은 굿즈 클레임 유형(회수 후 재출고)으로만 쓴다.
 
 ## 1. 정체성
 
@@ -362,7 +363,7 @@ home-contract:
 | 이벤트 | `/events`, `/events/[eventId]` | 포스터 중심 에디토리얼 목록과 상세 | 회차·잔여·알림·예매 진입 계약 유지 |
 | 검색 | `/search` | 큰 검색 입력과 종류별 결과 챕터 | 실제 `getSearchSnapshot`, URL 검색 상태 유지 |
 | 카드팩·바인더 | `/packs`, `/binder` | 밝은 전시장 안에서 카드 자체만 홀로 물성 | 카드풀·확률·소유·개봉 액션 계약 유지 |
-| 마켓·교환 | `/market`, `/exchange` | 밝은 미래 기능 안내, 실제 범위와 준비 상태 명시 | v2 플레이스홀더와 보호 액션 유지 |
+| 마켓·트레이드 | `/market`, `/exchange` | 밝은 미래 기능 안내, 실제 범위와 준비 상태 명시 | v2 플레이스홀더와 보호 액션 유지 |
 
 ### 참여와 팬덤
 
@@ -401,7 +402,7 @@ home-contract:
 
 | 화면군 | 현재 범위 | 목표 표현 | 기능 불변 조건 |
 |---|---|---|---|
-| 관리자 셸 | `/admin`의 15개 섹션 | 좌측/상단 탐색+master-detail, 1240–1440px 작업대 | staff 권한과 section query 유지 |
+| 관리자 셸 | `/admin/**` 화면별 라우트 | 2단 사이드바(대분류>소분류)+master-detail, 1240–1440px 작업대 | staff 권한과 `?section=` 하위 호환 리다이렉트 유지 |
 | 주문·회원·신고 | 검색, 상태 전이, 제재, moderation | 읽기 밀도 높은 표·상세·확인 dialog | 마스킹, 권한 계층, 감사, 멱등 operation ID 유지 |
 | 굿즈·티켓·카드풀·정책·게임 | 카탈로그와 운영 설정 | field group과 상태 요약을 파스텔이 아닌 중립 면으로 분리 | 기존 action, hidden input, 잠금 규칙 유지 |
 | 홈 큐레이션·아트워크 | 히어로/공지/특집과 업로드 claim | 실제 홈 비율 preview와 저장 상태 분리 | 검증·promote·remove opt-in·업로드 제한 유지 |

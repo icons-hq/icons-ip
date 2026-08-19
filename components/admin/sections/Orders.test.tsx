@@ -1,10 +1,15 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import type { AdminOrderConsoleData, AdminOrderRecord } from '@/lib/admin/orders';
+import type {
+  AdminOrderCancellationRequestRecord,
+  AdminOrderConsoleData,
+  AdminOrderRecord,
+} from '@/lib/admin/orders';
 import { OrdersSection } from './Orders';
 
 vi.mock('@/app/admin/order-actions', () => ({
   approveAdminOrderCancellationAction: vi.fn(),
+  recoverAdminGoodsPaymentAction: vi.fn(),
   reconcileAdminOrderCancellationAction: vi.fn(),
   rejectAdminOrderCancellationAction: vi.fn(),
   updateAdminOrderStatusAction: vi.fn(),
@@ -13,8 +18,42 @@ vi.mock('@/app/admin/order-actions', () => ({
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 
+/* 택배사 드롭다운은 DB 레지스트리에서 온다(#251). 상수 목록이 없으므로 콘솔이
+   목록 응답에 실려 온 값을 그대로 쓰는지 함께 고정한다. */
+const CARRIERS = [
+  {
+    code: 'hanjin',
+    label: '한진택배',
+    active: true,
+    trackingUrlTemplate: 'https://example.test/track?no={trackingNumber}',
+  },
+  {
+    code: 'retired_courier',
+    label: '계약종료 택배',
+    active: false,
+    trackingUrlTemplate: 'https://example.test/old?no={trackingNumber}',
+  },
+];
+
+function cancellationRequest(
+  overrides: Partial<AdminOrderCancellationRequestRecord> = {},
+): AdminOrderCancellationRequestRecord {
+  return {
+    id: '33333333-3333-4333-8333-333333333333',
+    status: 'requested',
+    claimType: 'cancel',
+    stage: 'requested',
+    reasonType: 'change_of_mind',
+    requestedAt: '2026-07-14T07:00:00.000Z',
+    decidedAt: null,
+    decisionNote: null,
+    ...overrides,
+  };
+}
+
 function orderData(overrides: Partial<AdminOrderRecord> = {}): AdminOrderConsoleData {
   return {
+    carriers: CARRIERS,
     filters: {
       from: null,
       orderId: ORDER_ID,
@@ -57,6 +96,7 @@ function orderData(overrides: Partial<AdminOrderRecord> = {}): AdminOrderConsole
       } as never],
       refunds: [],
       cancellationRequest: null,
+      manualRecoveryAttempt: null,
       shipment: null,
       ...overrides,
     }],
@@ -65,8 +105,34 @@ function orderData(overrides: Partial<AdminOrderRecord> = {}): AdminOrderConsole
   };
 }
 
+/*
+ * 상태 버튼 라벨(`발주확인`·`배송완료`)은 상태 필터 드롭다운 문구와 글자가 같아
+ * 화면 어디에나 존재한다(#250). 어떤 전이 폼이 실제로 떴는지는 hidden input의
+ * 값으로만 정확히 가려낼 수 있다.
+ */
+const STATUS_ACTION_MARKERS: Record<string, string> = {
+  발주확인: 'name="status" value="confirmed"',
+  발송처리: 'name="status" value="shipping"',
+  배송완료: 'name="status" value="delivered"',
+};
+
+function actionMarker(label: string) {
+  return STATUS_ACTION_MARKERS[label] ?? label;
+}
+
 describe('OrdersSection', () => {
-  it('renders staff-safe order detail and the paid-to-shipping action without provider secrets', () => {
+  /* 택배사 드롭다운을 상수로 채우면 레지스트리와 갈라져 저장은 되는데 조회는
+     안 되는 운송장이 생긴다. 비활성 택배사는 고를 수 없어야 한다(#251). */
+  it('택배사 드롭다운을 레지스트리의 활성 택배사로만 채운다', () => {
+    const html = renderToStaticMarkup(
+      <OrdersSection data={orderData({ status: 'confirmed' })} />,
+    );
+
+    expect(html).toContain('<option value="hanjin">한진택배</option>');
+    expect(html).not.toContain('계약종료 택배');
+  });
+
+  it('renders staff-safe order detail and the paid-to-confirmed action without provider secrets', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
 
     expect(html).toContain('주문 검색');
@@ -74,90 +140,234 @@ describe('OrdersSection', () => {
     expect(html).toContain('fan@example.test');
     expect(html).toContain('화산강림 아크릴 스탠드');
     expect(html).toContain('서울 성동구 성수이로 1');
-    expect(html).toContain('배송 시작');
+    expect(html).toContain(STATUS_ACTION_MARKERS['발주확인']);
     expect(html).not.toContain('must-not-render');
+  });
+
+  it('shows the related safe Korpay reference and exact provider-ledger attestation action', () => {
+    const request = cancellationRequest({ status: 'needs_review' });
+    const attemptId = '44444444-4444-4444-8444-444444444444';
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+      cancellationRequest: request,
+      manualRecoveryAttempt: {
+        attemptId,
+        requestId: request.id,
+        providerOrderId: 'O0123456789ABCDEF',
+        state: 'confirming',
+        amount: 32000,
+        currency: 'KRW',
+        manualRecoveryAvailable: true,
+      },
+    })} />);
+
+    expect(html).toContain('Korpay 원장 확인 정보');
+    expect(html).toContain('O0123456789ABCDEF');
+    expect(html).toContain('32,000');
+    expect(html).toContain('KRW');
+    expect(html).toContain(`name="attemptId" value="${attemptId}"`);
+    expect(html).toContain(`name="requestId" value="${request.id}"`);
+    expect(html).not.toContain('name="operation"');
+    expect(html).toContain('name="operatorAttestation"');
+    expect(html).toContain('value="provider_cancel_confirmed"');
+    expect(html).toContain('required=""');
+    expect(html).toContain(
+      'data-confirm="Korpay 주문 O0123456789ABCDEF · ₩32,000 KRW의 전액 취소 완료를 원장에서 확인했습니다. 반영하면 확인된 결제에는 환불 원장을 남기고, 주문 취소와 재고 복원을 즉시 완료합니다. 계속할까요?"',
+    );
+    expect(html).toContain('Korpay 전액 취소 반영');
+    expect(html).toContain('admin-order-korpay-recovery-submit');
+    expect(html).not.toContain('상태 다시 확인');
+  });
+
+  it('shows a related active Korpay attempt without exposing the manual action before takeover is safe', () => {
+    const request = cancellationRequest({ status: 'processing' });
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+      cancellationRequest: request,
+      manualRecoveryAttempt: {
+        attemptId: '44444444-4444-4444-8444-444444444444',
+        requestId: request.id,
+        providerOrderId: 'O0123456789ABCDEF',
+        state: 'confirming',
+        amount: 32000,
+        currency: 'KRW',
+        manualRecoveryAvailable: false,
+      },
+    })} />);
+
+    expect(html).toContain('Korpay 원장 확인 정보');
+    expect(html).toContain('현재 결제 처리 또는 다른 운영 확인이 진행 중입니다.');
+    expect(html).not.toContain('Korpay 전액 취소 반영');
+    expect(html).not.toContain('처리 상태 확인');
+  });
+
+  it.each(['declined', 'canceled'] as const)(
+    'keeps legacy cancellation reconciliation for a terminal Korpay %s attempt with no provider capture',
+    (state) => {
+      const request = cancellationRequest({ status: 'processing' });
+      const html = renderToStaticMarkup(<OrdersSection data={orderData({
+        cancellationRequest: request,
+        manualRecoveryAttempt: {
+          attemptId: '44444444-4444-4444-8444-444444444444',
+          requestId: request.id,
+          providerOrderId: 'O0123456789ABCDEF',
+          state,
+          amount: 32000,
+          currency: 'KRW',
+          manualRecoveryAvailable: false,
+        },
+      })} />);
+
+      expect(html).toContain('처리 상태 확인');
+      expect(html).not.toContain('Korpay 전액 취소 반영');
+      expect(html).not.toContain('현재 결제 처리 또는 다른 운영 확인이 진행 중입니다.');
+    },
+  );
+
+  it('routes a prepared Korpay attempt through the expiry-aware no-capture action', () => {
+    const request = cancellationRequest({ status: 'processing' });
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+      cancellationRequest: request,
+      manualRecoveryAttempt: {
+        attemptId: '44444444-4444-4444-8444-444444444444',
+        requestId: request.id,
+        providerOrderId: 'O0123456789ABCDEF',
+        state: 'prepared',
+        amount: 32000,
+        currency: 'KRW',
+        manualRecoveryAvailable: false,
+      },
+    })} />);
+
+    expect(html).toContain('Korpay 만료·취소 처리');
+    expect(html).toContain(
+      'Korpay 주문 O0123456789ABCDEF · ₩32,000 KRW 결제 세션의 만료를 확인할까요? 이미 만료됐다면 주문 취소와 재고 복원이 즉시 완료됩니다.',
+    );
+    expect(html).toContain(`name="requestId" value="${request.id}"`);
+    expect(html).not.toContain('Korpay 전액 취소 반영');
+    expect(html).not.toContain('처리 상태 확인');
   });
 
   it.each([
     {
       name: 'requested cancellation',
       overrides: {
-        cancellationRequest: {
-          id: '33333333-3333-4333-8333-333333333333',
-          status: 'requested' as const,
-          reasonType: 'change_of_mind' as const,
-          requestedAt: '2026-07-14T07:00:00.000Z',
-        },
+        cancellationRequest: cancellationRequest(),
       },
       visible: ['청약철회 승인', '요청 거절'],
-      hidden: ['배송 시작', '배송 완료', '상태 다시 확인'],
+      hidden: ['발주확인', '발송처리', '배송완료', '상태 다시 확인'],
     },
     {
       name: 'needs-review cancellation',
       overrides: {
-        cancellationRequest: {
-          id: '33333333-3333-4333-8333-333333333333',
-          status: 'needs_review' as const,
-          reasonType: 'change_of_mind' as const,
-          requestedAt: '2026-07-14T07:00:00.000Z',
-        },
+        cancellationRequest: cancellationRequest({
+          stage: 'needs_review',
+          status: 'needs_review',
+        }),
       },
       visible: ['상태 다시 확인'],
-      hidden: ['배송 시작', '배송 완료', '청약철회 승인', '요청 거절'],
+      hidden: ['발주확인', '발송처리', '배송완료', '청약철회 승인', '요청 거절'],
     },
     {
       name: 'processing cancellation',
       overrides: {
-        cancellationRequest: {
-          id: '33333333-3333-4333-8333-333333333333',
-          status: 'processing' as const,
-          reasonType: 'change_of_mind' as const,
-          requestedAt: '2026-07-14T07:00:00.000Z',
-        },
+        cancellationRequest: cancellationRequest({
+          stage: 'processing',
+          status: 'processing',
+        }),
       },
       visible: ['처리 상태 확인'],
-      hidden: ['배송 시작', '배송 완료', '청약철회 승인', '요청 거절'],
+      hidden: ['발주확인', '발송처리', '배송완료', '청약철회 승인', '요청 거절'],
     },
     {
       name: 'rejected cancellation on a paid order',
       overrides: {
-        cancellationRequest: {
-          id: '33333333-3333-4333-8333-333333333333',
-          status: 'rejected' as const,
-          reasonType: 'change_of_mind' as const,
-          requestedAt: '2026-07-14T07:00:00.000Z',
+        cancellationRequest: cancellationRequest({
+          stage: 'rejected',
+          status: 'rejected',
           decidedAt: '2026-07-14T08:00:00.000Z',
           decisionNote: '배송 준비가 이미 완료되었습니다.',
-        },
+        }),
       },
-      visible: ['배송 시작', '요청 거절'],
-      hidden: ['배송 완료', '청약철회 승인', '상태 다시 확인'],
+      visible: ['발주확인', '거부'],
+      hidden: ['발송처리', '배송완료', '청약철회 승인', '요청 거절', '상태 다시 확인', '클레임 콘솔에서 처리'],
     },
     {
       name: 'completed cancellation awaiting an order refresh',
       overrides: {
-        cancellationRequest: {
-          id: '33333333-3333-4333-8333-333333333333',
-          status: 'completed' as const,
-          reasonType: 'change_of_mind' as const,
-          requestedAt: '2026-07-14T07:00:00.000Z',
+        cancellationRequest: cancellationRequest({
+          stage: 'completed',
+          status: 'completed',
           decidedAt: '2026-07-14T08:00:00.000Z',
-        },
+        }),
       },
-      visible: ['취소 완료'],
-      hidden: ['배송 시작', '배송 완료', '청약철회 승인', '요청 거절', '상태 다시 확인'],
+      visible: ['처리완료'],
+      hidden: [
+        '발주확인', '발송처리', '배송완료', '청약철회 승인', '요청 거절', '상태 다시 확인',
+        '클레임 콘솔에서 처리',
+      ],
+    },
+    /* 새 stage는 전부 status='requested'로 투영된다. 주문 콘솔이 그 투영으로
+       판단하면 수거 중인 반품에 [청약철회 승인]이 뜨고, 누르면 입고 확인을
+       건너뛴 채 전액 환불과 재고 복원이 끝난다(#252 F1). */
+    {
+      name: 'return claim being collected',
+      overrides: {
+        status: 'delivered' as const,
+        cancellationRequest: cancellationRequest({ claimType: 'return', stage: 'collecting' }),
+      },
+      visible: ['클레임 콘솔에서 처리', '수거중'],
+      hidden: ['청약철회 승인', '요청 거절'],
+    },
+    {
+      name: 'exchange claim already received',
+      overrides: {
+        status: 'delivered' as const,
+        cancellationRequest: cancellationRequest({ claimType: 'exchange', stage: 'collected' }),
+      },
+      visible: ['클레임 콘솔에서 처리', '교환 클레임', '입고완료'],
+      hidden: ['청약철회 승인', '요청 거절'],
+    },
+    {
+      name: 'claim on hold',
+      overrides: {
+        status: 'delivered' as const,
+        cancellationRequest: cancellationRequest({ claimType: 'return', stage: 'on_hold' }),
+      },
+      visible: ['클레임 콘솔에서 처리', '보류'],
+      hidden: ['청약철회 승인', '요청 거절'],
+    },
+    {
+      name: 'cancel claim under review',
+      overrides: {
+        cancellationRequest: cancellationRequest({ stage: 'in_review' }),
+      },
+      visible: ['클레임 콘솔에서 처리', '검토중'],
+      hidden: ['청약철회 승인', '요청 거절'],
+    },
+    {
+      name: 'confirmed order',
+      overrides: { status: 'confirmed' as const },
+      visible: ['발송처리'],
+      hidden: ['발주확인', '배송완료', '청약철회 승인', '요청 거절', '상태 다시 확인'],
     },
     {
       name: 'shipping order',
       overrides: { status: 'shipping' as const },
-      visible: ['배송 완료'],
-      hidden: ['배송 시작', '청약철회 승인', '요청 거절', '상태 다시 확인'],
+      visible: ['배송완료'],
+      hidden: ['발주확인', '발송처리', '청약철회 승인', '요청 거절', '상태 다시 확인'],
+    },
+    /* delivered→done은 자동 거래확정 잡이 소유한다. 운영자 버튼이 생기면
+       청약철회 창을 사람 손으로 조기 종료시킬 수 있다. */
+    {
+      name: 'delivered order awaiting automatic settlement',
+      overrides: { status: 'delivered' as const },
+      visible: ['운송장 수정'],
+      hidden: ['발주확인', '발송처리', '배송완료', '청약철회 승인', '요청 거절'],
     },
   ])('exposes only the allowed action for $name', ({ overrides, visible, hidden }) => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData(overrides)} />);
 
-    for (const label of visible) expect(html).toContain(label);
-    for (const label of hidden) expect(html).not.toContain(label);
+    for (const label of visible) expect(html).toContain(actionMarker(label));
+    for (const label of hidden) expect(html).not.toContain(actionMarker(label));
   });
 
   it('preserves filters when selecting an order and moving through 20-row pages', () => {
@@ -180,16 +390,16 @@ describe('OrdersSection', () => {
 
     const html = renderToStaticMarkup(<OrdersSection data={data} />);
 
-    expect(html).toContain('action="/admin"');
-    expect(html).toContain('type="hidden" name="section" value="orders"');
+    expect(html).toContain('action="/admin/sales/orders"');
+    expect(html).not.toContain('name="section"');
     expect(html).toContain(
-      'href="/admin?section=orders&amp;status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=2&amp;order=44444444-4444-4444-8444-444444444444"',
+      'href="/admin/sales/orders?status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=2&amp;order=44444444-4444-4444-8444-444444444444"',
     );
     expect(html).toContain(
-      'href="/admin?section=orders&amp;status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=1"',
+      'href="/admin/sales/orders?status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=1"',
     );
     expect(html).toContain(
-      'href="/admin?section=orders&amp;status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=3"',
+      'href="/admin/sales/orders?status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=3"',
     );
     expect(html).toContain('2 / 3 페이지');
   });
@@ -197,14 +407,7 @@ describe('OrdersSection', () => {
   it.each(['shipping', 'done'] as const)('exposes the cancellation decision on a %s order', (status) => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
       status,
-      cancellationRequest: {
-        id: '33333333-3333-4333-8333-333333333333',
-        status: 'requested',
-        reasonType: 'change_of_mind',
-        requestedAt: '2026-07-14T07:00:00.000Z',
-        decidedAt: null,
-        decisionNote: null,
-      },
+      cancellationRequest: cancellationRequest(),
     })} />);
 
     expect(html).toContain('청약철회 승인');
@@ -217,14 +420,7 @@ describe('OrdersSection', () => {
   it('하자·오배송 요청의 사유를 목록과 상세에 함께 노출한다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
       status: 'shipping',
-      cancellationRequest: {
-        id: '33333333-3333-4333-8333-333333333333',
-        status: 'requested',
-        reasonType: 'defect',
-        requestedAt: '2026-07-14T07:00:00.000Z',
-        decidedAt: null,
-        decisionNote: null,
-      },
+      cancellationRequest: cancellationRequest({ reasonType: 'defect' }),
     })} />);
 
     expect(html).toContain('admin-order-row-reason');
@@ -238,14 +434,7 @@ describe('OrdersSection', () => {
   it('단순 변심 요청은 하자와 다른 사유 표시를 쓴다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
       status: 'shipping',
-      cancellationRequest: {
-        id: '33333333-3333-4333-8333-333333333333',
-        status: 'requested',
-        reasonType: 'change_of_mind',
-        requestedAt: '2026-07-14T07:00:00.000Z',
-        decidedAt: null,
-        decisionNote: null,
-      },
+      cancellationRequest: cancellationRequest(),
     })} />);
 
     expect(html).toContain('단순 변심');
@@ -267,14 +456,7 @@ describe('OrdersSection', () => {
   it('미출고 주문에는 반송비 부담 주체를 표시하지 않는다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
       status: 'paid',
-      cancellationRequest: {
-        id: '33333333-3333-4333-8333-333333333333',
-        status: 'requested',
-        reasonType: 'defect',
-        requestedAt: '2026-07-14T07:00:00.000Z',
-        decidedAt: null,
-        decisionNote: null,
-      },
+      cancellationRequest: cancellationRequest({ reasonType: 'defect' }),
     })} />);
 
     expect(html).toContain('상품 하자·오배송');
@@ -286,14 +468,12 @@ describe('OrdersSection', () => {
      완료 주문이 미처리처럼 보인다. */
   it.each(['completed', 'rejected'] as const)('처리가 끝난 %s 요청은 목록 배지를 만들지 않는다', (status) => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
-      cancellationRequest: {
-        id: '33333333-3333-4333-8333-333333333333',
+      cancellationRequest: cancellationRequest({
         status,
+        stage: status,
         reasonType: 'defect',
-        requestedAt: '2026-07-14T07:00:00.000Z',
         decidedAt: '2026-07-14T08:00:00.000Z',
-        decisionNote: null,
-      },
+      }),
     })} />);
 
     expect(html).not.toContain('admin-order-row-reason');
@@ -302,8 +482,8 @@ describe('OrdersSection', () => {
     expect(html).toContain('admin-order-reason--defect');
   });
 
-  it('배송 시작 폼에서 택배사와 운송장번호를 필수로 받는다', () => {
-    const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
+  it('발송처리 폼에서 택배사와 운송장번호를 필수로 받는다', () => {
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'confirmed' })} />);
 
     expect(html).toContain('name="carrier"');
     expect(html).toContain('value="hanjin"');
@@ -338,12 +518,9 @@ describe('OrdersSection', () => {
   it('renders explicit confirmations and an accessible rejection reason field', () => {
     const requestId = '33333333-3333-4333-8333-333333333333';
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
-      cancellationRequest: {
+      cancellationRequest: cancellationRequest({
         id: requestId,
-        status: 'requested',
-        reasonType: 'change_of_mind',
-        requestedAt: '2026-07-14T07:00:00.000Z',
-      },
+      }),
     })} />);
 
     expect(html).toContain('data-confirm="청약철회를 승인하고 결제 취소를 시작할까요?"');
@@ -371,13 +548,61 @@ describe('OrdersSection', () => {
 
     try {
       const { OrdersSection: ErroredOrdersSection } = await import('./Orders');
-      const html = renderToStaticMarkup(<ErroredOrdersSection data={orderData()} />);
+      const html = renderToStaticMarkup(
+        <ErroredOrdersSection data={orderData({ status: 'confirmed' })} />,
+      );
 
       expect(html).toContain('운송장번호를 입력해주세요.');
       expect(html).toContain(`aria-describedby="admin-order-carrier-error-${ORDER_ID}"`);
       expect(html).toContain(`id="admin-order-carrier-error-${ORDER_ID}"`);
       expect(html).toContain(`aria-describedby="admin-order-tracking-error-${ORDER_ID}"`);
       expect(html).toContain(`id="admin-order-tracking-error-${ORDER_ID}"`);
+    } finally {
+      vi.doUnmock('react');
+      vi.resetModules();
+    }
+  });
+
+  it('Korpay 원장 확인 오류를 attestation checkbox에 연결한다', async () => {
+    vi.resetModules();
+    const focus = vi.fn();
+    vi.doMock('react', async () => {
+      const actual = await vi.importActual<typeof import('react')>('react');
+      return {
+        ...actual,
+        useActionState: () => [
+          { errors: { operatorAttestation: '결제사 원장에서 전액 취소를 확인해야 합니다.' } },
+          () => {},
+          false,
+        ],
+        useEffect: (effect: () => void) => effect(),
+        useRef: () => ({ current: { focus } }),
+      };
+    });
+
+    try {
+      const { OrdersSection: ErroredOrdersSection } = await import('./Orders');
+      const request = cancellationRequest({ status: 'needs_review' });
+      const attemptId = '44444444-4444-4444-8444-444444444444';
+      const html = renderToStaticMarkup(<ErroredOrdersSection data={orderData({
+        cancellationRequest: request,
+        manualRecoveryAttempt: {
+          attemptId,
+          requestId: request.id,
+          providerOrderId: 'O0123456789ABCDEF',
+          state: 'unknown',
+          amount: 32000,
+          currency: 'KRW',
+          manualRecoveryAvailable: true,
+        },
+      })} />);
+      const errorId = `admin-korpay-cancel-attestation-error-${attemptId}`;
+
+      expect(html).toContain('결제사 원장에서 전액 취소를 확인해야 합니다.');
+      expect(html).toContain(`aria-describedby="${errorId}"`);
+      expect(html).toContain('aria-invalid="true"');
+      expect(html).toContain(`id="${errorId}" role="alert"`);
+      expect(focus).toHaveBeenCalledOnce();
     } finally {
       vi.doUnmock('react');
       vi.resetModules();

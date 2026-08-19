@@ -46,6 +46,32 @@ describe('normalizeAdminArtworkImage', () => {
     expect(new TextDecoder().decode(result?.bytes)).not.toContain('<script>payload</script>');
   });
 
+  it('preserves a PNG alpha channel while JPEG output remains three-channel and opaque', async () => {
+    const rgbaSource = await sharp({
+      create: {
+        background: { alpha: 0.5, b: 90, g: 60, r: 30 },
+        channels: 4,
+        height: 2,
+        width: 2,
+      },
+    }).png().toBuffer();
+    const jpegSource = await sharp(rgbaSource).jpeg().toBuffer();
+
+    const pngResult = await normalizeAdminArtworkImage(rgbaSource, 'image/png');
+    const jpegResult = await normalizeAdminArtworkImage(jpegSource, 'image/jpeg');
+
+    expect(pngResult).not.toBeNull();
+    expect(jpegResult).not.toBeNull();
+    await expect(sharp(pngResult?.bytes).metadata()).resolves.toMatchObject({
+      channels: 4,
+      hasAlpha: true,
+    });
+    await expect(sharp(jpegResult?.bytes).metadata()).resolves.toMatchObject({
+      channels: 3,
+      hasAlpha: false,
+    });
+  });
+
   it.each([
     ['header-only PNG', new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), 'image/png'],
     ['declared MIME mismatch', new Uint8Array([0xff, 0xd8, 0xff, 0x00]), 'image/png'],

@@ -1,15 +1,29 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CurrentAuthState } from '@/lib/auth/server';
-import { placeOrderAction } from './actions';
+import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
+import type { PreparedCheckout } from '@/lib/payments/gateway';
+import { placeOrderAction, prepareGoodsPaymentAction } from './actions';
 
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
+  loadOrder: vi.fn(),
+  paymentAvailable: true,
+  availabilityUserIds: [] as Array<string | undefined>,
+  prepare: vi.fn(),
   rpc: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
-/* getServiceRoleConfig는 호출 시점에 env를 읽는다. 실제 구현을 남겨야
-   SUPABASE_SERVICE_ROLE_KEY를 비우는 "결제 불가" 테스트가 의미를 갖는다. */
+vi.mock('@/lib/checkout.server', () => ({ loadCheckoutOrder: mocks.loadOrder }));
+vi.mock('@/lib/payments/goods-checkout-availability', () => ({
+  goodsCheckoutPaymentsEnabled: (userId?: string) => {
+    mocks.availabilityUserIds.push(userId);
+    return mocks.paymentAvailable;
+  },
+}));
+vi.mock('@/lib/payments/goods-checkout.runtime.server', () => ({
+  createRuntimeGoodsPaymentCheckout: () => ({ prepare: mocks.prepare }),
+}));
 vi.mock('@/lib/supabase/service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/supabase/service')>()),
   createServiceClient: () => ({ rpc: mocks.rpc }),
@@ -26,6 +40,32 @@ const address = {
 const checkoutKey = '7ad4c967-3d48-44da-a665-64731ac33f62';
 const orderId = '5cbcbbed-202d-4676-821a-7706398e57c0';
 const userId = '00000000-0000-4000-8000-000000000001';
+const paymentAttemptId = '30000000-0000-4000-8000-000000000205';
+
+const checkoutOrder: CheckoutOrderSnapshot = {
+  id: orderId,
+  status: 'pending',
+  total: 31_000,
+  shippingFee: 3_000,
+  address: null,
+  expiresAt: '2099-08-13T10:10:00.000Z',
+  createdAt: '2026-08-13T10:00:00.000Z',
+  paymentStatus: null,
+  paymentMethod: 'card' as const,
+  items: [],
+};
+
+const prepared: PreparedCheckout = {
+  attemptId: paymentAttemptId,
+  provider: 'korpay',
+  action: {
+    kind: 'form_post',
+    url: 'https://payments.example.test/authenticate',
+    fields: { orderNumber: 'O30000000000040008000000000000205' },
+  },
+  callbackNonce: 'opaque-callback-nonce-205',
+  expiresAt: '2099-08-13T10:10:00.000Z',
+};
 
 function onboardedAuth(): CurrentAuthState {
   return {
@@ -46,12 +86,16 @@ describe('placeOrderAction', () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
     mocks.auth = onboardedAuth();
+    mocks.paymentAvailable = true;
+    mocks.availabilityUserIds = [];
+    mocks.loadOrder.mockReset();
+    mocks.loadOrder.mockResolvedValue(checkoutOrder);
+    mocks.prepare.mockReset();
+    mocks.prepare.mockResolvedValue(prepared);
     mocks.rpc.mockReset();
     mocks.rpc.mockResolvedValue({ data: orderId, error: null });
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://example.supabase.co');
     vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-key');
-    vi.stubEnv('NEXT_PUBLIC_TOSS_CLIENT_KEY', 'test_gck_example');
-    vi.stubEnv('TOSS_SECRET_KEY', 'test_gsk_example');
   });
 
   it('normalizes fulfillment data and sends no client amount or item list', async () => {
@@ -67,7 +111,11 @@ describe('placeOrderAction', () => {
         deliveryNote: '',
       },
       p_checkout_key: checkoutKey,
+      /* 결제수단을 넘기지 않은 호출은 카드다. 무통장 24시간 선점을 기본값으로
+         흘려보내면 재고가 하루씩 묶인다(#256). */
+      p_payment_method: 'card',
     });
+    expect(mocks.availabilityUserIds).toContain(userId);
   });
 
   it('rejects malformed runtime inputs before writing', async () => {
@@ -82,7 +130,7 @@ describe('placeOrderAction', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it('requires an authenticated onboarded user and matching payment keys', async () => {
+  it('requires an authenticated onboarded user and an available provider seam', async () => {
     mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
     await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({
       ok: false,
@@ -96,7 +144,7 @@ describe('placeOrderAction', () => {
     });
 
     mocks.auth = onboardedAuth();
-    vi.stubEnv('TOSS_SECRET_KEY', 'live_gsk_example');
+    mocks.paymentAvailable = false;
     await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({
       ok: false,
       error: 'payment_unavailable',
@@ -121,37 +169,13 @@ describe('placeOrderAction', () => {
   });
 
   it('does not reserve stock when the payment settlement service is unavailable', async () => {
-    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
+    mocks.paymentAvailable = false;
 
     await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({
       ok: false,
       error: 'payment_unavailable',
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
-  });
-
-  it('disables test payments in the production Vercel runtime', async () => {
-    vi.stubEnv('VERCEL_ENV', 'production');
-
-    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({
-      ok: false,
-      error: 'payment_unavailable',
-    });
-    expect(mocks.rpc).not.toHaveBeenCalled();
-  });
-
-  it('allows production test orders only for an active staff reviewer', async () => {
-    vi.stubEnv('VERCEL_ENV', 'production');
-    vi.stubEnv('ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION', 'true');
-
-    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({
-      ok: false,
-      error: 'payment_unavailable',
-    });
-    expect(mocks.rpc).not.toHaveBeenCalled();
-
-    mocks.auth = { ...onboardedAuth(), isStaff: true };
-    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: true, orderId });
   });
 
   it.each([
@@ -179,5 +203,57 @@ describe('placeOrderAction', () => {
       ok: false,
       error: 'unavailable',
     });
+  });
+});
+
+describe('prepareGoodsPaymentAction', () => {
+  beforeEach(() => {
+    mocks.auth = onboardedAuth();
+    mocks.paymentAvailable = true;
+    mocks.loadOrder.mockReset();
+    mocks.loadOrder.mockResolvedValue(checkoutOrder);
+    mocks.prepare.mockReset();
+    mocks.prepare.mockResolvedValue(prepared);
+  });
+
+  function formData(value: unknown = orderId) {
+    const data = new FormData();
+    if (typeof value === 'string') data.set('orderId', value);
+    return data;
+  }
+
+  it('사용자 POST action에서 auth와 owner-scoped 주문을 재검사한 뒤 prepare한다', async () => {
+    await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ prepared });
+    expect(mocks.loadOrder).toHaveBeenCalledWith(userId, orderId);
+    expect(mocks.prepare).toHaveBeenCalledWith({ userId, orderId });
+  });
+
+  it('비로그인·foreign 주문·provider OFF는 attempt를 만들지 않는다', async () => {
+    mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
+    await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({
+      error: 'auth_required',
+    });
+
+    mocks.auth = onboardedAuth();
+    mocks.loadOrder.mockResolvedValue(null);
+    await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ error: 'not_found' });
+
+    mocks.loadOrder.mockResolvedValue(checkoutOrder);
+    mocks.paymentAvailable = false;
+    await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({
+      error: 'payment_unavailable',
+    });
+    expect(mocks.prepare).not.toHaveBeenCalled();
+  });
+
+  it('만료·결제된 주문은 provider 호출 전에 거부한다', async () => {
+    mocks.loadOrder.mockResolvedValue({
+      ...checkoutOrder,
+      paymentStatus: 'pending',
+    });
+    await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({
+      error: 'not_payable',
+    });
+    expect(mocks.prepare).not.toHaveBeenCalled();
   });
 });

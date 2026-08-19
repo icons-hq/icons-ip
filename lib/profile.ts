@@ -16,6 +16,7 @@ const PROFILE_IMAGE_EXTENSIONS: Record<ProfileImageMime, 'jpg' | 'png' | 'webp'>
   'image/webp': 'webp',
 };
 
+const PROFILE_IMAGE_MIME_TYPES: readonly string[] = Object.keys(PROFILE_IMAGE_EXTENSIONS);
 const PROFILE_IMAGE_MIME_BY_EXTENSION: Record<'jpg' | 'png' | 'webp', ProfileImageMime> = {
   jpg: 'image/jpeg',
   png: 'image/png',
@@ -39,8 +40,10 @@ export type ProfileFormResult =
   | { ok: true; value: { nickname: string; avatar: File | null } }
   | { ok: false; errors: { nickname?: string; avatar?: string } };
 
+// `value in EXTENSIONS`는 프로토타입 체인까지 훑어 'toString' 같은 입력을 MIME으로
+// 인정한다. 그러면 확장자 조회가 함수를 돌려주고 경로 템플릿이 그것을 문자열화한다.
 function isSupportedProfileImageMime(value: unknown): value is ProfileImageMime {
-  return typeof value === 'string' && value in PROFILE_IMAGE_EXTENSIONS;
+  return typeof value === 'string' && PROFILE_IMAGE_MIME_TYPES.includes(value);
 }
 
 function exceedsProfileNicknameGraphemeLimit(value: string): boolean {

@@ -10,6 +10,7 @@ import {
   isIndeterminateTossFailure,
   verifyTossCancellationState,
 } from '../payments/toss';
+import { createLegacyTossPaymentRepository } from '../payments/legacy-toss-ledger.server';
 import { createServiceClient } from '../supabase/service';
 
 const PROVIDER_CANCEL_REASON = '관리자 승인 주문 취소';
@@ -52,11 +53,20 @@ export type CancellationReconciliationCode =
   | 'local_finalize_failed';
 
 export type CancellationReconciliationResult =
-  | { ok: true; status: 'completed' | 'already_completed' }
+  | { ok: true; status: 'completed' | 'already_completed' | 'in_progress' }
   | { ok: false; code: CancellationReconciliationCode };
+
+export type ExpiredPreparedGoodsReconciliation =
+  | 'completed'
+  | 'in_progress'
+  | 'not_applicable';
 
 export interface CancellationReconciliationDependencies {
   loadContext(requestId: string): Promise<CancellationReconciliationContext | null>;
+  reconcileExpiredPreparedGoods(input: {
+    requestId: string;
+    actorId: string;
+  }): Promise<ExpiredPreparedGoodsReconciliation>;
   fetchPayment(paymentKey: string): Promise<TossApiResult>;
   cancelPayment(input: {
     paymentKey: string;
@@ -91,6 +101,7 @@ const PAYMENT_STATUSES = new Set<CancellationPaymentStatus>([
 ]);
 function createDefaultDependencies(): CancellationReconciliationDependencies {
   const service = createServiceClient();
+  const tossPayments = createLegacyTossPaymentRepository(service);
 
   return {
     async loadContext(requestId) {
@@ -113,8 +124,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         throw new Error('invalid cancellation request state');
       }
 
-      const { data: paymentData, error: paymentError } = await service
-        .from('payments')
+      const { data: paymentData, error: paymentError } = await tossPayments
         .select('id,status,amount,payment_key')
         .eq('purpose', 'order')
         .eq('ref_id', request.order_id)
@@ -148,6 +158,23 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         status: request.status as CancellationRequestStatus,
         payments,
       };
+    },
+    async reconcileExpiredPreparedGoods({ requestId, actorId }) {
+      const { data, error } = await service.rpc(
+        'reconcile_expired_prepared_goods_cancellation',
+        {
+          p_actor_id: actorId,
+          p_request_id: requestId,
+        },
+      );
+      if (error
+        || (data !== 'completed'
+          && data !== 'in_progress'
+          && data !== 'not_applicable')
+      ) {
+        throw new Error('prepared goods cancellation reconciliation failed');
+      }
+      return data;
     },
     fetchPayment: fetchTossPayment,
     cancelPayment: ({ paymentKey, cancelReason }) => (
@@ -217,6 +244,24 @@ export async function reconcileOrderCancellation(
 
   if (!context) return { ok: false, code: 'request_not_found' };
   if (context.status === 'completed') return { ok: true, status: 'already_completed' };
+  if (context.status !== 'processing' && context.status !== 'needs_review') {
+    return { ok: false, code: 'request_not_ready' };
+  }
+
+  // A Korpay prepared session has no provider capture to cancel. Its durable
+  // action TTL, not an empty Toss ledger, decides when stock can be released.
+  // The service-only RPC owns that exact expiry check under the money locks.
+  let preparedGoods: ExpiredPreparedGoodsReconciliation;
+  try {
+    preparedGoods = await dependencies.reconcileExpiredPreparedGoods(input);
+  } catch {
+    return { ok: false, code: 'local_state_unavailable' };
+  }
+  if (preparedGoods === 'completed') return { ok: true, status: 'completed' };
+  if (preparedGoods === 'in_progress') return { ok: true, status: 'in_progress' };
+  // needs_review is admitted only for the dedicated no-capture decision above.
+  // Legacy Toss reconciliation still requires admin_begin... to have restored
+  // the request to processing before any provider call.
   if (context.status !== 'processing') return { ok: false, code: 'request_not_ready' };
 
   const verifiedPaymentKeys: string[] = [];

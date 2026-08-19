@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type { AdminInsights } from '@/lib/admin/insights.server';
 import type { AdminReportRecord } from '@/lib/admin/moderation.server';
 import { Icon } from '@/components/ui/Icon';
@@ -11,11 +12,9 @@ import { reportTargetLabels } from './Moderation';
 
 export function OverviewSection({
   insights,
-  onOpenModeration,
   reports,
 }: {
   insights: AdminInsights;
-  onOpenModeration: () => void;
   reports: AdminReportRecord[];
 }) {
   const recent = reports.slice(0, 5);
@@ -54,6 +53,24 @@ export function OverviewSection({
         <OrderPipeline stages={insights.pipeline} />
       </div>
 
+      {/*
+        이 대시보드는 "지금 어떤가"를 한눈에 보는 자리로 남긴다(#258). 같은 지표를
+        기간·축을 바꿔 파고드는 일은 통계 리포트가 맡으므로, 겹치는 카드 바로 아래에
+        그 길을 열어 둔다 — 링크가 없으면 운영자가 여기서 더 깊이 보려다 못 찾는다.
+      */}
+      <nav aria-label="상세 리포트" className="admin-overview-reports">
+        <span className="muted">더 자세히 보기</span>
+        <Link className="btn btn-sm btn-ghost" href="/admin/stats/sales">
+          판매분석 <Icon name="arrow" size={14} />
+        </Link>
+        <Link className="btn btn-sm btn-ghost" href="/admin/stats/claims">
+          클레임 <Icon name="arrow" size={14} />
+        </Link>
+        <Link className="btn btn-sm btn-ghost" href="/admin/stats/customers">
+          고객현황 <Icon name="arrow" size={14} />
+        </Link>
+      </nav>
+
       <div className="admin-overview-bottom">
         <RecentOrders orders={insights.recentOrders} />
         <TopIps ips={insights.topIps} />
@@ -65,9 +82,9 @@ export function OverviewSection({
             <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>최근 신고</h2>
             <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>커뮤니티 신고 최신 5건</div>
           </div>
-          <button className="btn btn-sm btn-ghost" onClick={onOpenModeration} type="button">
+          <Link className="btn btn-sm btn-ghost" href="/admin/community/moderation">
             모두 보기 <Icon name="arrow" size={14} />
-          </button>
+          </Link>
         </div>
         {recent.map((report) => (
           <div key={report.id} className="between" style={{ borderTop: '1px solid var(--line)', gap: 12, padding: '11px 0' }}>

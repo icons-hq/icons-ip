@@ -861,12 +861,13 @@ describe('admin catalog actions', () => {
   });
 
   it.each([
+    ['card_rewards_disabled', '카드 리워드는 현재 비활성화되어 있습니다.'],
     ['reward_pool_not_ready', '확률과 카드 구성이 완료된 운영 가능한 카드풀을 선택해주세요.'],
     ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
     ['game_pool_window_not_covered', '게임 운영 기간은 카드풀 운영 기간 안에 있어야 합니다.'],
     ['game_event_ip_mismatch', '같은 IP의 온라인 이벤트만 선택할 수 있습니다.'],
     ['game_catalog_locked', '플레이 이력이 있어 ID·카드풀·이벤트·설정을 변경할 수 없습니다.'],
-    ['game_variant_read_only', '굿즈 보상형 게임은 #115에서 운영합니다.'],
+    ['game_variant_read_only', 'legacy 굿즈 게임은 읽기 전용이며 현 로드맵에서 운영하지 않습니다.'],
     ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
   ])('maps %s game RPC errors and preserves the failure boundary', async (rpcMessage, expected) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
@@ -882,6 +883,15 @@ describe('admin catalog actions', () => {
 
     await expect(endAdminGameAction({}, gameEndForm())).resolves.toEqual({
       errors: { form: '운영 중인 게임만 지금 종료할 수 있습니다.' },
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('keeps legacy goods games read-only without handing operations to a retired issue', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'game_variant_read_only' } });
+
+    await expect(endAdminGameAction({}, gameEndForm())).resolves.toEqual({
+      errors: { form: 'legacy 굿즈 게임은 읽기 전용이며 현 로드맵에서 운영하지 않습니다.' },
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
@@ -938,6 +948,7 @@ describe('admin catalog actions', () => {
     ['reward_policy_pool_locked', '이미 발급 이력이 있어 카드풀을 변경할 수 없습니다.'],
     ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
     ['operation_conflict', '이미 처리된 저장 요청입니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
+    ['card_rewards_disabled', '카드 리워드는 현재 비활성화되어 있습니다.'],
   ])('maps %s reward-policy RPC errors without leaking SQL', async (rpcMessage, expected) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });
     const formData = rewardPolicyForm();

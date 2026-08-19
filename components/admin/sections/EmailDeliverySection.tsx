@@ -52,9 +52,9 @@ export function EmailDeliverySection({ deliveries }: { deliveries: EmailDelivery
   return (
     <section className="col" style={{ gap: 14 }}>
       <p className="muted" style={{ fontSize: 13, margin: 0 }}>
-        주문 확인·배송 시작 메일의 발송 이력입니다. 주문 확인 메일은 전자상거래법상 계약내용에
-        관한 서면이라 실패한 건은 반드시 다시 보내야 합니다. 이미 발송된 건은 다시 보내도
-        중복 발송되지 않습니다.
+        주문 확인·배송 시작·문의 답변 메일의 발송 이력입니다. 주문 확인 메일은 전자상거래법상
+        계약내용에 관한 서면이라 실패한 건은 반드시 다시 보내야 합니다. 이미 발송된 건은 다시
+        보내도 중복 발송되지 않습니다.
       </p>
 
       {!deliveries.length ? (
@@ -92,7 +92,15 @@ export function EmailDeliverySection({ deliveries }: { deliveries: EmailDelivery
                   실패 사유: {delivery.lastError}
                 </span>
               ) : null}
-              <ResendForm delivery={delivery} />
+              {delivery.resendable ? (
+                <ResendForm delivery={delivery} />
+              ) : (
+                /* 문의 답변 메일은 주문 상태로 사실성을 판정할 수 없어 게이트가 거절한다.
+                   재발송 경로는 운영자가 문의 상세에서 답변을 다시 등록하는 것이다. */
+                <span className="muted" style={{ fontSize: 12 }}>
+                  이 메일은 발송 이력에서 다시 보낼 수 없습니다. 1:1 문의 화면에서 답변을 다시 등록해주세요.
+                </span>
+              )}
             </li>
           ))}
         </ul>

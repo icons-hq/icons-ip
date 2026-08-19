@@ -5,6 +5,7 @@ import { useState, type ReactNode } from 'react';
 import { krw, krwAmountWords } from '@/lib/format';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { STOCK_LABEL } from '@/lib/goods-display';
+import { newInquiryHref } from '@/lib/inquiries';
 import { goodsNoticeRows } from '@/lib/goods-notice';
 import { ipAccent, ipAccentInk } from '@/lib/ip-display';
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
@@ -83,7 +84,7 @@ function ShippingGuide() {
          * 두 개가 되어, 어느 쪽이 약정인지 정할 수 없다. 그래서 정책 문장을 그대로 싣는다.
          * 창고 출고 마감·휴무일이 확정되면(계획 H4) 정책 문서와 함께 좁힌다.
          */}
-        <li>대금을 먼저 지급하는 선지급 주문이므로, 결제가 확정된 날부터 3영업일 이내에 배송에 필요한 조치를 취합니다. 공급 절차가 늦어지면 그 진행 상황을 알립니다.</li>
+        <li>대금을 먼저 지급하는 선지급 주문이므로, 결제가 확정된 날부터 3영업일 이내에 배송에 필요한 조치를 취합니다. 무통장 입금 주문은 입금이 확인된 날이 결제 확정일입니다. 공급 절차가 늦어지면 그 진행 상황을 알립니다.</li>
         <li>도서산간 지역은 지역별 추가 배송비와 배송 일정이 별도 안내됩니다.</li>
       </ul>
     </section>
@@ -115,6 +116,29 @@ function ReturnGuide() {
 }
 
 /*
+ * 상품 문의 진입점(#253).
+ *
+ * 공개 브라우징을 깨지 않는다 — 링크는 비로그인에게도 보이고, 로그인은 문의 화면이
+ * 요구한다. 여기서 감추면 "물어볼 데가 없는 상품"으로 보인다.
+ */
+function InquiryEntry({ goodId }: { goodId: string }) {
+  return (
+    <section aria-labelledby="goods-inquiry-heading" className="goods-detail-section">
+      <h2 className="mono" id="goods-inquiry-heading" style={{ color: 'var(--dim)', fontSize: 12, letterSpacing: '.16em', margin: 0 }}>
+        상품 문의
+      </h2>
+      <p style={{ color: 'var(--dim)', fontSize: 13.5, lineHeight: 1.7, margin: 0 }}>
+        구성, 재고, 배송 일정처럼 이 굿즈에 대해 궁금한 점을 운영자에게 비공개로 물어볼 수 있습니다.
+        영업일 기준 24시간 안에 첫 답변을 드립니다.
+      </p>
+      <Link className="btn btn-ghost" href={newInquiryHref({ category: 'good', goodId })} style={{ alignSelf: 'flex-start' }}>
+        상품 문의하기
+      </Link>
+    </section>
+  );
+}
+
+/*
  * 굿즈 상세 화면 (#173).
  *
  * 장바구니에 손대지 않는 순수 표시 컴포넌트다. 담기 버튼은 slot 으로 받는다 —
@@ -125,12 +149,19 @@ export function GoodDetailView({
   cartAction,
   detail,
   embedded = false,
+  reviews,
   showBackLink = true,
 }: {
   cartAction: ReactNode;
   detail: GoodDetailContent;
   /** 어드민 미리보기처럼 다른 화면 안에 놓일 때. #root 캔버스를 건드리지 않는다. */
   embedded?: boolean;
+  /**
+   * 리뷰 블록(#254). 담기 버튼과 같은 이유로 slot이다 — 이 화면은 `'use client'`인데
+   * 리뷰는 서버에서 읽어 서버에서 그린다. 어드민 미리보기는 저장 전 입력값으로
+   * 화면을 그리므로 아무것도 넘기지 않는다(아직 존재하지 않는 굿즈에는 리뷰가 없다).
+   */
+  reviews?: ReactNode;
   showBackLink?: boolean;
 }) {
   const { good, ip } = detail;
@@ -219,20 +250,31 @@ export function GoodDetailView({
           </section>
         )}
 
+        {/* 리뷰가 고시정보보다 위에 온다. 살지 말지를 정하는 사람이 먼저 읽는 것은
+            법정 표기가 아니라 먼저 산 사람의 말이다. */}
+        {reviews}
         <NoticeTable detail={detail} />
         <ShippingGuide />
         <ReturnGuide />
+        <InquiryEntry goodId={good.id} />
       </div>
     </Root>
   );
 }
 
 /** 공개 라우트용. 목록 카드와 같은 재고·수량 제약을 그대로 쓴다. */
-export function GoodDetail({ detail }: { detail: GoodDetailContent }) {
+export function GoodDetail({
+  detail,
+  reviews,
+}: {
+  detail: GoodDetailContent;
+  reviews?: ReactNode;
+}) {
   return (
     <GoodDetailView
       cartAction={<AddToCartButton good={detail.good} variant="detail" />}
       detail={detail}
+      reviews={reviews}
     />
   );
 }

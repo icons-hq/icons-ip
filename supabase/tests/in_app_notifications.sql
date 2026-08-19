@@ -2,6 +2,8 @@
 
 begin;
 
+update private.card_reward_control set enabled = true where singleton;
+
 -- The inbox is a real private ledger, not a client-owned table.
 select 1 / case when to_regclass('public.notifications') is not null then 1 else 0 end
   as assert_notifications_table_exists;

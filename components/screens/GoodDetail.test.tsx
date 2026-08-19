@@ -137,12 +137,19 @@ describe('GoodDetail', () => {
     expect(html).toContain('전자상거래법에 따라 표시하는 상품정보제공고시 항목입니다.');
   });
 
-  /* 상세페이지가 정책보다 짧은 출고 기한을 약속하면 약관 제13조의 "약정 배송기간"이 둘이 된다. */
+  /* 상세페이지가 정책보다 짧은 출고 기한을 약속하면 약관 제13조의 "약정 배송기간"이 둘이 된다.
+     검사는 배송 안내 절로 좁힌다 — 다른 절(문의 답변 SLA 등)이 쓰는 "영업일"까지 금지하면
+     실제 위험(출고 기한이 둘이 되는 것)과 무관한 문구가 이 규칙에 걸린다. */
   it('출고 기한 고지가 배송·반품 정책과 같은 문장이다', () => {
     const html = render();
+    const shippingSection = html.slice(
+      html.indexOf('goods-shipping-heading'),
+      html.indexOf('goods-return-heading'),
+    );
 
     expect(html).toContain(SHIPPING_PERIOD_NOTICE);
-    expect(html).not.toContain('영업일 기준');
+    expect(shippingSection).toContain(SHIPPING_PERIOD_NOTICE);
+    expect(shippingSection).not.toContain('영업일 기준');
   });
 
   /* 요약만으로는 반송비 부담·반품 절차·환급 기한을 확인할 수 없다. 전문으로 가는 길이 있어야 한다. */

@@ -30,6 +30,7 @@ function commentReport(status: 'visible' | 'hidden'): AdminReportRecord {
     targetPostId: '22222222-2222-4222-8222-222222222222',
     targetCommentId: '11111111-1111-4111-8111-111111111111',
     targetCommentStatus: status,
+    targetReviewId: null,
     targetAuthorId: 'author-1',
     targetAuthorName: '작성자',
     reporterName: '신고자',

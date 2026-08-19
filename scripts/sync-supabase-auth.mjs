@@ -13,7 +13,11 @@
  *   PRUNE_REDIRECT_URLS     줄바꿈 구분(선택). allow-list에서 반드시 빠져야 하는 항목.
  *   REQUIRE_SMTP            'true'면 custom SMTP 미설정 시 실패한다.
  *   ENFORCE_MAILER          'true'면 confirmation·rate limit 설정까지 강제한다.
+ *   EMAIL_OTP_EXPIRY_SECONDS 선택. email link/OTP TTL을 숫자로 일치시키고 read-back한다.
+ *   RECOVERY_TEMPLATE_PATH  선택. recovery 메일 본문을 파일과 일치시키고 read-back한다.
  */
+
+import { readFile } from 'node:fs/promises';
 
 const API_ROOT = 'https://api.supabase.com/v1/projects';
 
@@ -85,9 +89,40 @@ export function mailerPatch({ enforceMailer }) {
   };
 }
 
-export function isSatisfied({ config, siteUrl, allowList, enforceMailer }) {
+function normalizedTemplate(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+export function isSafeRecoveryTemplate(value) {
+  const normalized = normalizedTemplate(value);
+  if (/<!--|-->|<(?:script|style|template|textarea)\b/i.test(normalized)) return false;
+
+  const recoveryAnchor = /<a\s+href\s*=\s*(["']){{\s*\.RedirectTo\s*}}\?token_hash={{\s*\.TokenHash\s*}}(?:&amp;|&)type=recovery\1\s*>/g;
+  const matches = [...normalized.matchAll(recoveryAnchor)];
+  if (matches.length !== 1) return false;
+
+  const remaining = normalized.replace(recoveryAnchor, '<a>');
+  return !/{{[\s\S]*?}}/.test(remaining);
+}
+
+export function isSatisfied({
+  config,
+  siteUrl,
+  allowList,
+  enforceMailer,
+  recoveryTemplate = null,
+  emailOtpExpirySeconds = null,
+}) {
   if ((config.site_url ?? '') !== siteUrl) return false;
   if ((config.uri_allow_list ?? '') !== allowList) return false;
+  if (
+    emailOtpExpirySeconds !== null
+    && Number(config.mailer_otp_exp) !== emailOtpExpirySeconds
+  ) return false;
+  if (
+    recoveryTemplate !== null
+    && normalizedTemplate(config.mailer_templates_recovery_content) !== recoveryTemplate
+  ) return false;
   if (!enforceMailer) return true;
   /* 갓 만든 프로젝트는 mailer_autoconfirm을 아예 돌려주지 않는다 — 빈 값은 통과시킨다. */
   const autoconfirm = config.mailer_autoconfirm;
@@ -125,6 +160,23 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
   const prune = parseLines(env.PRUNE_REDIRECT_URLS);
   const requireSmtp = env.REQUIRE_SMTP === 'true';
   const enforceMailer = env.ENFORCE_MAILER === 'true';
+  const emailOtpExpiryRaw = env.EMAIL_OTP_EXPIRY_SECONDS?.trim();
+  const emailOtpExpirySeconds = emailOtpExpiryRaw ? Number(emailOtpExpiryRaw) : null;
+  if (
+    emailOtpExpirySeconds !== null
+    && (!Number.isInteger(emailOtpExpirySeconds) || emailOtpExpirySeconds <= 0)
+  ) {
+    throw new Error('EMAIL_OTP_EXPIRY_SECONDS must be a positive integer');
+  }
+  const recoveryTemplatePath = env.RECOVERY_TEMPLATE_PATH?.trim();
+  const recoveryTemplate = recoveryTemplatePath
+    ? normalizedTemplate(await readFile(recoveryTemplatePath, 'utf8'))
+    : null;
+  if (recoveryTemplate !== null && !isSafeRecoveryTemplate(recoveryTemplate)) {
+    throw new Error(
+      'recovery email template must use one exact {{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery href',
+    );
+  }
 
   const config = await readConfig({ token, projectRef });
 
@@ -142,12 +194,25 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
   if (allow.added.length > 0) log(`adding redirect URLs: ${allow.added.join(', ')}`);
   if (allow.removed.length > 0) log(`removing redirect URLs: ${allow.removed.join(', ')}`);
 
-  if (isSatisfied({ config, siteUrl, allowList: allow.list, enforceMailer })) {
+  if (isSatisfied({
+    config,
+    siteUrl,
+    allowList: allow.list,
+    enforceMailer,
+    recoveryTemplate,
+    emailOtpExpirySeconds,
+  })) {
     log(`Supabase Auth configuration for ${projectRef} is already up to date.`);
     return { patched: false };
   }
 
-  const patch = { site_url: siteUrl, uri_allow_list: allow.list, ...mailerPatch({ enforceMailer }) };
+  const patch = {
+    site_url: siteUrl,
+    uri_allow_list: allow.list,
+    ...mailerPatch({ enforceMailer }),
+    ...(emailOtpExpirySeconds === null ? {} : { mailer_otp_exp: emailOtpExpirySeconds }),
+    ...(recoveryTemplate === null ? {} : { mailer_templates_recovery_content: recoveryTemplate }),
+  };
   const response = await fetch(`${API_ROOT}/${projectRef}/config/auth`, {
     method: 'PATCH',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -162,7 +227,14 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
   /* PATCH가 200이어도 반영은 곧바로 읽히지 않는다 — 확인까지 해야 동기화라고 말할 수 있다. */
   for (let attempt = 1; attempt <= 5; attempt += 1) {
     const verified = await readConfig({ token, projectRef });
-    if (isSatisfied({ config: verified, siteUrl, allowList: allow.list, enforceMailer })) {
+    if (isSatisfied({
+      config: verified,
+      siteUrl,
+      allowList: allow.list,
+      enforceMailer,
+      recoveryTemplate,
+      emailOtpExpirySeconds,
+    })) {
       log(`Supabase Auth configuration for ${projectRef} updated.`);
       return { patched: true };
     }
@@ -175,7 +247,9 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
     + `site_url=${final.site_url}, uri_allow_list=${final.uri_allow_list}, `
     + `mailer_autoconfirm=${final.mailer_autoconfirm}, `
     + `mailer_secure_email_change_enabled=${final.mailer_secure_email_change_enabled}, `
-    + `rate_limit_email_sent=${final.rate_limit_email_sent}`,
+    + `rate_limit_email_sent=${final.rate_limit_email_sent}, `
+    + `mailer_otp_exp=${final.mailer_otp_exp}, `
+    + `recovery_template=${recoveryTemplate === null ? 'not-managed' : 'mismatch'}`,
   );
 }
 

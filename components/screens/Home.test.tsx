@@ -66,6 +66,7 @@ function renderHome(overrides: Partial<ComponentProps<typeof Home>> = {}) {
     ip('six', '여섯 번째 IP'),
   ]);
   const props: ComponentProps<typeof Home> = {
+    cardRewardsEnabled: true,
     catalog: baseCatalog,
     curation: {
       hero: null,
@@ -81,6 +82,23 @@ function renderHome(overrides: Partial<ComponentProps<typeof Home>> = {}) {
 }
 
 describe('Home curation', () => {
+  it('hides every card-pack destination and reward CTA while the global gate is disabled', () => {
+    const html = renderHome({
+      cardRewardsEnabled: false,
+      curation: {
+        hero: { id: 'pack-hero', title: '카드팩', imageBg: '#111', href: '/packs' },
+        announcement: { id: 'game-notice', title: '게임', imageBg: null, href: '/games/reward' },
+        featuredIpIds: [],
+      },
+    });
+
+    expect(html).not.toContain('href="/packs"');
+    expect(html).not.toContain('href="/games/reward"');
+    expect(html).not.toContain('>카드팩</');
+    expect(html).not.toContain('COLLECT THE MOMENT');
+    expect(html).not.toContain('FREE REWARD');
+  });
+
   it('places an active curation first in the preview hero without changing its target', () => {
     const html = renderHome({
       curation: {

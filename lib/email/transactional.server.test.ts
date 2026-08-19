@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { sendOrderConfirmationEmail, sendOrderShippedEmail } from './transactional.server';
 
 const ORDER_ID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
@@ -36,6 +36,23 @@ vi.mock('../supabase/service', () => ({
   }),
 }));
 
+/* 택배사 레지스트리는 DB(`public.shipping_carriers`)에서 온다(#251). 앱에 상수
+   목록이 없으므로 테스트도 고정 레지스트리를 주입한다 — 여기서 확인하려는 것은
+   목록 자체가 아니라 운송장이 그 목록을 거쳐 그려지는가다. */
+vi.mock('@/lib/orders/shipment.server', () => {
+  const carriers = [{
+    code: 'hanjin',
+    label: '한진택배',
+    active: true,
+    trackingUrlTemplate: 'https://www.hanjin.com/kor/CMS/DeliveryMgr/WaybillResult.do'
+      + '?mCode=MN038&schLang=KR&wblnumText2={trackingNumber}',
+  }];
+  return {
+    getShippingCarrierRegistry: async () => carriers,
+    loadShippingCarrierRegistry: async () => carriers,
+  };
+});
+
 vi.mock('./provider.server', () => ({
   getEmailProviderConfig: () => ({ isConfigured: mocks.providerConfigured }),
   sendTransactionalEmail: mocks.send,
@@ -45,7 +62,7 @@ function rpcCalls(name: string) {
   return mocks.rpc.mock.calls.filter((call) => call[0] === name);
 }
 
-let errorLog: ReturnType<typeof vi.spyOn<Console, 'error'>>;
+let errorLog: Mock<Console['error']>;
 
 beforeEach(() => {
   mocks.serviceConfigured = true;
@@ -170,15 +187,16 @@ describe('sendOrderConfirmationEmail', () => {
   });
 
   it('발송이 실패해도 예외를 던지지 않고 실패를 이력에 남긴다', async () => {
-    mocks.send.mockResolvedValue({ status: 'failed', error: 'provider responded 500' });
+    mocks.send.mockResolvedValue({ status: 'failed', error: 'provider body contains buyer@example.com' });
 
     const result = await sendOrderConfirmationEmail(ORDER_ID);
 
-    expect(result.status).toBe('failed');
+    expect(result).toEqual({ status: 'failed', error: 'provider_failure' });
     expect(rpcCalls('complete_email_delivery')[0][1]).toMatchObject({
       target_status: 'failed',
-      target_error: 'provider responded 500',
+      target_error: 'provider_failure',
     });
+    expect(loggedLines().join('\n')).not.toMatch(/buyer@example\.com|provider body/);
   });
 
   it('주문을 읽지 못해도 예외를 던지지 않는다', async () => {

@@ -12,6 +12,7 @@ import {
   type CheckoutAddress,
   type CheckoutAddressErrors,
   type CheckoutAddressField,
+  type CheckoutPaymentMethod,
 } from '@/lib/checkout';
 import { krw } from '@/lib/format';
 import type { ComposedPostcodeAddress } from '@/lib/postcode';
@@ -24,6 +25,7 @@ const actionErrors = {
   auth_required: '로그인이 만료됐어요. 다시 로그인해주세요.',
   onboarding_required: '프로필 설정을 먼저 완료해주세요.',
   payment_unavailable: '현재 결제 환경을 확인 중이에요. 잠시 후 다시 시도해주세요.',
+  bank_transfer_blocked: '무통장 입금을 쓸 수 없는 굿즈가 담겨 있어요. 카드로 결제해주세요.',
   empty_cart: '장바구니가 비어 있어요.',
   out_of_stock: '결제 직전 재고가 변경됐어요. 장바구니에서 수량을 다시 확인해주세요.',
   unavailable: '주문을 만들지 못했어요. 잠시 후 다시 시도해주세요.',
@@ -33,6 +35,8 @@ interface CheckoutProps {
   catalog: Pick<CatalogSnapshot, 'goods' | 'ips'>;
   latestAddress: CheckoutAddress | null;
   paymentAvailable: boolean;
+  /** 법인계좌가 설정돼 있는지. 없으면 무통장 자체가 뜨지 않는다(#255). */
+  bankTransferAvailable: boolean;
   resumeOrderId: string | null;
 }
 
@@ -45,13 +49,20 @@ const addressFieldOrder: CheckoutAddressField[] = [
   'deliveryNote',
 ];
 
-export function Checkout({ catalog, latestAddress, paymentAvailable, resumeOrderId }: CheckoutProps) {
+export function Checkout({
+  catalog,
+  latestAddress,
+  paymentAvailable,
+  bankTransferAvailable,
+  resumeOrderId,
+}: CheckoutProps) {
   const router = useRouter();
   const { items, ready, mode, pending: cartPending, error: cartError, refresh } = useCart();
   const checkoutKey = useRef<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<CheckoutAddressErrors>({});
+  const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>('card');
   const [address, setAddress] = useState<CheckoutAddress>({
     recipientName: latestAddress?.recipientName ?? '',
     phone: latestAddress?.phone ?? '',
@@ -75,6 +86,16 @@ export function Checkout({ catalog, latestAddress, paymentAvailable, resumeOrder
   const unavailable = lines.some(({ good, qty }) => (
     !good || good.stock === 'soldout' || good.stockQty < qty
   ));
+  /*
+   * 한 굿즈라도 무통장을 막았으면 주문 전체가 막힌다 — 주문 단위로 선점 창이
+   * 정해지므로 품목별로 다른 기한을 줄 수 없다. 서버도 place_order에서 같은
+   * 판단을 한다(여기 판단은 UI 안내일 뿐 게이트가 아니다).
+   */
+  const bankTransferBlockedByCart = lines.some(({ good }) => good?.allowBankTransfer === false);
+  const bankTransferSelectable = bankTransferAvailable && !bankTransferBlockedByCart;
+  const methodAvailable = paymentMethod === 'bank_transfer'
+    ? bankTransferSelectable
+    : paymentAvailable;
 
   const setField = (field: keyof CheckoutAddress, value: string) => {
     setAddress((current) => ({ ...current, [field]: value }));
@@ -123,7 +144,7 @@ export function Checkout({ catalog, latestAddress, paymentAvailable, resumeOrder
     checkoutKey.current ??= crypto.randomUUID();
     let result: Awaited<ReturnType<typeof placeOrderAction>>;
     try {
-      result = await placeOrderAction(address, checkoutKey.current);
+      result = await placeOrderAction(address, checkoutKey.current, paymentMethod);
     } catch {
       setSubmitError(actionErrors.unavailable);
       setSubmitting(false);
@@ -257,13 +278,60 @@ export function Checkout({ catalog, latestAddress, paymentAvailable, resumeOrder
             <div className="checkout-total"><dt>결제 금액</dt><dd>{krw(subtotal + shippingFee)}</dd></div>
           </dl>
 
+          <fieldset className="checkout-method" aria-describedby="checkout-method-note">
+            <legend>결제수단</legend>
+            <label className="checkout-method-option">
+              <input
+                type="radio"
+                name="paymentMethod"
+                value="card"
+                checked={paymentMethod === 'card'}
+                disabled={!paymentAvailable}
+                onChange={() => setPaymentMethod('card')}
+              />
+              <span>
+                <strong>신용·체크카드</strong>
+                <small>결제 후 바로 확정됩니다. 재고 선점 15분.</small>
+              </span>
+            </label>
+            <label className="checkout-method-option">
+              <input
+                type="radio"
+                name="paymentMethod"
+                value="bank_transfer"
+                checked={paymentMethod === 'bank_transfer'}
+                disabled={!bankTransferSelectable}
+                onChange={() => setPaymentMethod('bank_transfer')}
+              />
+              <span>
+                <strong>무통장 입금</strong>
+                <small>
+                  {bankTransferBlockedByCart
+                    ? '이 주문에는 무통장을 쓸 수 없는 굿즈가 있어요.'
+                    : bankTransferAvailable
+                      ? '안내된 계좌로 24시간 안에 입금하면 확인 후 확정됩니다.'
+                      : '지금은 무통장 입금을 받지 않습니다.'}
+                </small>
+              </span>
+            </label>
+          </fieldset>
+          <p className="money-caption" id="checkout-method-note">
+            결제수단은 주문을 만들 때 고정됩니다. 바꾸려면 주문을 취소하고 다시 만들어야 해요.
+          </p>
+
           {unavailable && <p className="checkout-error" role="alert">재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.</p>}
-          {!paymentAvailable && <p className="checkout-error" role="alert">결제 환경을 확인 중이라 지금은 주문을 만들 수 없어요.</p>}
+          {!methodAvailable && <p className="checkout-error" role="alert">선택한 결제수단을 지금은 쓸 수 없어요. 다른 수단을 골라주세요.</p>}
           {submitError && <p className="checkout-error" role="alert">{submitError}</p>}
-          <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || unavailable || !paymentAvailable}>
-            {submitting ? '재고를 확인하는 중' : '주문 만들고 결제하기'}
+          <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || unavailable || !methodAvailable}>
+            {submitting
+              ? '재고를 확인하는 중'
+              : paymentMethod === 'bank_transfer' ? '주문 만들고 입금 안내 받기' : '주문 만들고 결제하기'}
           </button>
-          <p className="money-caption">이 버튼은 결제를 완료하지 않습니다. 다음 화면에서 결제수단과 약관을 확인합니다.</p>
+          <p className="money-caption">
+            {paymentMethod === 'bank_transfer'
+              ? '이 버튼은 결제를 완료하지 않습니다. 다음 화면에서 입금 계좌와 기한을 안내합니다.'
+              : '이 버튼은 결제를 완료하지 않습니다. 다음 화면에서 결제수단과 약관을 확인합니다.'}
+          </p>
           <Link className="checkout-back" href="/cart">← 장바구니 수정</Link>
         </aside>
       </form>

@@ -48,6 +48,9 @@ export function Orders({ orders }: { orders: OrderListItem[] }) {
                       </div>
                       <div className="order-list-item-copy">
                         <strong>{order.itemLabel}</strong>
+                        {order.paymentMethod === 'bank_transfer' && order.status === 'pending' && (
+                          <span className="order-list-badge">입금 대기</span>
+                        )}
                         <span>{order.itemCount}개 굿즈</span>
                       </div>
                       <span className={`order-status order-status--${status.tone}`}>{status.label}</span>

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { LEGAL_DOCUMENT_LABELS, LEGAL_DOCUMENT_SLUGS, legalDocumentHref } from '@/lib/legal/links';
 import { hrefFor, isAuthShellPath } from '@/lib/routes';
 import { BusinessInfo } from './BusinessInfo';
+import { useCardRewardsEnabled } from './CardRewardAvailability';
 
 const DISCOVER_LINKS: [label: string, route: string][] = [
   ['IP 세계', 'iphub'],
@@ -19,12 +20,13 @@ const ACCOUNT_LINKS: [label: string, route: string][] = [
   ['내 티켓', 'tickets'],
   ['바인더', 'binder'],
   ['알림함', 'notifications'],
-  ['카드 교환', 'exchange'],
+  ['카드 트레이드', 'exchange'],
   ['굿즈 마켓', 'market'],
 ];
 
 export function SiteFooter() {
   const pathname = usePathname();
+  const cardRewardsEnabled = useCardRewardsEnabled();
   if (pathname === '/' || isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
 
   return (
@@ -41,9 +43,11 @@ export function SiteFooter() {
             하나의 세계에서 만나는 공개 팬덤 플랫폼입니다.
           </p>
           <nav aria-label="발견 메뉴" className="site-footer-editorial__links">
-            {DISCOVER_LINKS.map(([label, route]) => (
+            {DISCOVER_LINKS
+              .filter(([, route]) => cardRewardsEnabled || route !== 'packs')
+              .map(([label, route]) => (
               <Link key={route} href={hrefFor(route)}>{label}</Link>
-            ))}
+              ))}
           </nav>
           <nav aria-label="내 활동과 보조 메뉴" className="site-footer-editorial__links">
             {ACCOUNT_LINKS.map(([label, route]) => (
@@ -61,7 +65,7 @@ export function SiteFooter() {
 
         <div className="site-footer-editorial__meta">
           <span>© ICONS</span>
-          <span>공식 라이선스 · 무상 카드 리워드 · 토스페이먼츠 안전 결제</span>
+          <span>공식 라이선스 · 무상 카드 리워드 · 결제사 승인 확인 후 주문 확정</span>
         </div>
       </div>
     </footer>

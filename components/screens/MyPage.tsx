@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import { Icon } from '@/components/ui/Icon';
+import { useCardRewardsEnabled } from '@/components/shell/CardRewardAvailability';
 
 interface MyPageProps {
   avatarInitial: string;
@@ -44,6 +47,20 @@ const DESTINATIONS = [
     meta: 'INBOX',
   },
   {
+    description: '배송이 완료된 굿즈에 별점과 후기를 남기고 관리하세요.',
+    href: '/my/reviews',
+    icon: 'star',
+    label: '내 리뷰',
+    meta: 'REVIEW',
+  },
+  {
+    description: '주문·배송, 취소/반품/교환, 상품에 대해 운영자에게 문의하세요.',
+    href: '/my/inquiries',
+    icon: 'chat',
+    label: '1:1 문의',
+    meta: 'SUPPORT',
+  },
+  {
     description: '프로필과 정보 수신 동의를 관리하세요.',
     href: '/settings',
     icon: 'user',
@@ -53,6 +70,11 @@ const DESTINATIONS = [
 ] as const;
 
 export function MyPage({ avatarInitial, avatarUrl, nickname }: MyPageProps) {
+  const cardRewardsEnabled = useCardRewardsEnabled();
+  const destinations = DESTINATIONS.filter(
+    (destination) => cardRewardsEnabled || destination.href !== '/packs',
+  );
+
   return (
     <main className="screen my-page">
       <header className="my-header">
@@ -91,7 +113,7 @@ export function MyPage({ avatarInitial, avatarUrl, nickname }: MyPageProps) {
 
           <nav aria-label="마이페이지 메뉴">
             <ul className="my-destination-grid">
-              {DESTINATIONS.map((destination) => (
+              {destinations.map((destination) => (
                 <li key={destination.href}>
                   <Link className="my-destination card" href={destination.href}>
                     <span className="my-destination-icon" aria-hidden>

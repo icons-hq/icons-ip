@@ -1,10 +1,25 @@
+// DB의 notifications.type CHECK 제약과 같은 목록이어야 한다.
+// order_confirmed는 없다 — 발주확인은 운영 내부 단계라 구매자에게 알릴 것이 없다(#250).
 export type NotificationType =
   | 'order_paid'
   | 'order_shipping'
+  | 'order_delivered'
   | 'draw_ticket_issued'
   | 'drop_published'
   | 'event_published'
-  | 'announcement';
+  | 'announcement'
+  /* 1:1 문의 답변(#253). 발송은 admin_answer_inquiry가 같은 트랜잭션에서 남긴다. */
+  | 'inquiry_answered'
+  /* 무통장 입금 안내(#256). place_order가 주문을 만든 트랜잭션에서 함께 남긴다 —
+     금액·입금자명 코드·기한이 그때 정해지고, 이 알림을 놓치면 구매자는 어디로
+     얼마를 보낼지 알 수 없다. */
+  | 'order_bank_transfer_pending'
+  /* 클레임 단계 변화(#252) — 접수·승인·거부·보류·입고·환불·재출고를 한 타입으로
+     묶는다. 단계마다 타입을 나누면 DB CHECK와 이 union이 아홉 번 갈라진다. */
+  | 'claim_updated'
+  /* 리뷰 운영자 답글(#254). 첫 답글에서만 나간다 — 답글을 다듬을 때마다 알리면
+     "운영자가 또 뭐라고 했다"로 읽혀 알림 자체의 신뢰가 깎인다. */
+  | 'review_replied';
 
 export interface NotificationRow {
   id: string;

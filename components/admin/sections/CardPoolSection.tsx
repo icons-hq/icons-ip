@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState, useMemo, useState } from 'react';
 import {
   setAdminPoolOddsAction,
@@ -47,7 +48,6 @@ export function CardPoolSection({
   draftId,
   ipOptions,
   oddsOperationId,
-  onEditCard,
   onSelect,
   operationId,
   records,
@@ -58,7 +58,6 @@ export function CardPoolSection({
   draftId: string;
   ipOptions: { id: string; title: string; archivedAt: string | null }[];
   oddsOperationId: string;
-  onEditCard: (card: AdminCardRecord) => void;
   onSelect: (pool: AdminCardPoolRecord | null) => void;
   operationId: string;
   records: AdminCardPoolRecord[];
@@ -97,7 +96,7 @@ export function CardPoolSection({
           operationId={oddsOperationId}
           selected={selected}
         />
-        <PoolCardRoster cards={poolCards} onEditCard={onEditCard} selected={selected} />
+        <PoolCardRoster cards={poolCards} selected={selected} />
       </div>
     </div>
   );
@@ -257,13 +256,18 @@ function OddsForm({
   );
 }
 
+/*
+ * 카드 편집은 카드 화면으로 넘기는 링크다.
+ *
+ * 어드민이 화면별 라우트로 갈라지기 전에는 부모(Admin.tsx)의 상태를 바꿔 섹션을
+ * 전환하는 콜백이었다. 이제는 화면끼리 상태를 공유하지 않으므로 `?cardId=`로 넘긴다 —
+ * 새 탭·북마크·뒤로가기가 그대로 동작하는 것은 덤이다.
+ */
 function PoolCardRoster({
   cards,
-  onEditCard,
   selected,
 }: {
   cards: AdminCardRecord[];
-  onEditCard: (card: AdminCardRecord) => void;
   selected: AdminCardPoolRecord | null;
 }) {
   const missingRarities = selected
@@ -292,7 +296,7 @@ function PoolCardRoster({
             <strong>{card.archivedAt ? `[보관] ${card.name}` : card.name}</strong>
             <div className="mono" style={{ color: 'var(--dim)', fontSize: 11, marginTop: 4 }}>{card.rarity} · {card.id}</div>
           </div>
-          <button className="btn" onClick={() => onEditCard(card)} type="button">카드 편집</button>
+          <Link className="btn" href={`/admin/catalog/cards?cardId=${encodeURIComponent(card.id)}`}>카드 편집</Link>
         </div>
       ))}
     </section>

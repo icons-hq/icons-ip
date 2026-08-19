@@ -58,6 +58,8 @@ describe('sendTransactionalEmail', () => {
 
     expect(result.status).toBe('skipped');
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(console.info).toHaveBeenCalledWith('[email] provider_not_configured');
+    expect(JSON.stringify(vi.mocked(console.info).mock.calls)).not.toContain(message.subject);
   });
 
   it('설정되면 provider 엔드포인트로 발신 정보와 본문을 보낸다', async () => {

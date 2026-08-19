@@ -22,6 +22,7 @@ import { GoodsCard } from '@/components/shop/GoodsCard';
 import { Icon } from '@/components/ui/Icon';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
+import { GoodBankTransferControl } from '../GoodBankTransferControl';
 import { ErrorText, Field, FormShell, InlineNotice, RecordList, SelectField, TextArea } from '../fields';
 
 const emptyStockState: AdminCatalogActionState = {};
@@ -417,6 +418,13 @@ export function GoodSection({
         />
         {selected && !selected.archivedAt && (
           <StockAdjustmentForm adjustmentId={adjustmentId} good={selected} key={`stock-${selected.id}`} />
+        )}
+        {selected && !selected.archivedAt && (
+          <GoodBankTransferControl
+            allowBankTransfer={selected.allowBankTransfer}
+            id={selected.id}
+            key={`bank-${selected.id}:${selected.allowBankTransfer}`}
+          />
         )}
         {selected && (
           <CatalogArchiveControl

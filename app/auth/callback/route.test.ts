@@ -99,21 +99,59 @@ describe('GET /auth/callback', () => {
     else process.env.AUTH_SIGNUP_RESEND_SECRET = ORIGINAL_SECRET;
   });
 
-  it('prioritizes signed recovery next, revalidates the user, and bypasses onboarding', async () => {
-    mocks.exchangeCodeForSession.mockResolvedValue({ data: { redirectType: 'recovery' }, error: null });
+  it('fails closed and clears a recovery exchange without a signed legacy marker', async () => {
+    mocks.exchangeCodeForSession.mockImplementationOnce(async () => {
+      mocks.setAll?.([
+        {
+          name: 'sb-local-auth-token',
+          value: 'recovery-session-value',
+          options: { httpOnly: true, path: '/', sameSite: 'lax' },
+        },
+      ], {});
+      return { data: { redirectType: 'recovery' }, error: null };
+    });
+
+    const response = await GET(request('/auth/callback?code=recovery-code'));
+
+    expect(locationPath(response)).toBe(
+      '/login?mode=reset&reset_error=browser_mismatch',
+    );
+    expect(mocks.getUser).not.toHaveBeenCalled();
+    expect(mocks.getProfileForUser).not.toHaveBeenCalled();
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(response.headers.get('set-cookie')).not.toContain('recovery-session-value');
+    expect(response.headers.get('set-cookie')).toContain('sb-local-auth-token=;');
+    expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
+    expect(response.headers.get('cache-control')).toBe('private, no-store');
+  });
+
+  it('fails closed and clears a recovery exchange with a stale signed marker', async () => {
+    mocks.exchangeCodeForSession.mockImplementationOnce(async () => {
+      mocks.setAll?.([
+        {
+          name: 'sb-local-auth-token',
+          value: 'legacy-recovery-session',
+          options: { httpOnly: true, path: '/', sameSite: 'lax' },
+        },
+      ], {});
+      return { data: { redirectType: 'recovery' }, error: null };
+    });
 
     const response = await GET(request(
-      '/auth/callback?code=recovery-code&next=%2Fshop',
+      '/auth/callback?code=legacy-recovery-code',
       signedCookie('recovery'),
     ));
 
-    expect(mocks.exchangeCodeForSession).toHaveBeenCalledWith('recovery-code');
-    expect(mocks.getUser).toHaveBeenCalledOnce();
-    expect(mocks.getProfileForUser).not.toHaveBeenCalled();
     expect(locationPath(response)).toBe(
-      '/update-password?session_ready=1&next=%2Fcommunity%3Fsort%3Dhot',
+      '/login?mode=reset&reset_error=browser_mismatch&next=%2Fcommunity%3Fsort%3Dhot',
     );
-    expect(response.headers.get('set-cookie')).toBeNull();
+    expect(mocks.getUser).not.toHaveBeenCalled();
+    expect(mocks.getProfileForUser).not.toHaveBeenCalled();
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(response.headers.get('set-cookie')).not.toContain('legacy-recovery-session');
+    expect(response.headers.get('set-cookie')).toContain('sb-local-auth-token=;');
+    expect(response.headers.get('set-cookie')).toContain('Max-Age=0');
+    expect(response.headers.get('set-cookie')).toContain(`${AUTH_NEXT_COOKIE_NAME}=;`);
   });
 
   it('forwards exchanged session cookies and no-store headers onto the redirect response', async () => {
@@ -127,23 +165,14 @@ describe('GET /auth/callback', () => {
       ], {
         'Cache-Control': 'private, no-cache, no-store, must-revalidate, max-age=0',
       });
-      return { data: { redirectType: 'recovery' }, error: null };
+      return { data: { redirectType: 'signup' }, error: null };
     });
 
-    const response = await GET(request('/auth/callback?code=recovery-code', signedCookie('recovery')));
+    const response = await GET(request('/auth/callback?code=signup-code', signedCookie('signup')));
 
     expect(response.headers.get('set-cookie')).toContain('sb-local-auth-token=session-value');
     expect(response.headers.get('cache-control')).toContain('private');
-    expect(locationPath(response)).toContain('/update-password');
-  });
-
-  it('uses the authoritative recovery redirect type when no marker is available', async () => {
-    mocks.exchangeCodeForSession.mockResolvedValue({ data: { redirectType: 'recovery' }, error: null });
-
-    const response = await GET(request('/auth/callback?code=recovery-code&next=%2Fshop'));
-
-    expect(locationPath(response)).toBe('/update-password?session_ready=1');
-    expect(mocks.getProfileForUser).not.toHaveBeenCalled();
+    expect(locationPath(response)).toBe('/community?sort=hot');
   });
 
   it('uses the successful exchange type instead of a stale recovery marker', async () => {
@@ -184,6 +213,17 @@ describe('GET /auth/callback', () => {
     expect(response.headers.get('set-cookie')).toContain(`${AUTH_NEXT_COOKIE_NAME}=;`);
   });
 
+  it('returns an incomplete OAuth account to self-service deletion before onboarding', async () => {
+    mocks.getProfileForUser.mockResolvedValue({ ...completeProfile, onboarded_at: null });
+
+    const response = await GET(request(
+      '/auth/callback?code=oauth-code',
+      signedCookie('oauth', '/settings/delete-account'),
+    ));
+
+    expect(locationPath(response)).toBe('/settings/delete-account');
+  });
+
   it('returns an onboarded OAuth user to the original safe path', async () => {
     const response = await GET(request('/auth/callback?code=oauth-code', signedCookie('oauth')));
 
@@ -210,30 +250,18 @@ describe('GET /auth/callback', () => {
     expect(response.headers.get('set-cookie')).toContain(`${AUTH_NEXT_COOKIE_NAME}=;`);
   });
 
-  it.each([
-    ['/auth/callback?error_code=otp_expired', 'otp_expired'],
-    ['/auth/callback', 'missing_code'],
-  ])('routes identifiable recovery failure %s to reset-specific UX', async (path, code) => {
-    const response = await GET(request(path, signedCookie('recovery')));
-
-    expect(locationPath(response)).toBe(
-      `/login?mode=reset&reset_error=${code}&next=%2Fcommunity%3Fsort%3Dhot`,
-    );
-    expect(response.headers.get('set-cookie')).toBeNull();
-  });
-
-  it('routes a recovery exchange failure to reset-specific UX', async () => {
-    mocks.exchangeCodeForSession.mockResolvedValue({
-      data: { redirectType: null },
-      error: { code: 'pkce_code_verifier_not_found' },
+  it('returns a suspended OAuth session to the requested self-service deletion route', async () => {
+    mocks.getProfileForUser.mockResolvedValue({
+      ...completeProfile,
+      suspended_at: '2026-07-17T00:00:00.000Z',
     });
 
-    const response = await GET(request('/auth/callback?code=stale-code', signedCookie('recovery')));
+    const response = await GET(request(
+      '/auth/callback?code=oauth-code',
+      signedCookie('oauth', '/settings/delete-account'),
+    ));
 
-    expect(locationPath(response)).toBe(
-      '/login?mode=reset&reset_error=pkce_code_verifier_not_found&next=%2Fcommunity%3Fsort%3Dhot',
-    );
-    expect(mocks.getUser).not.toHaveBeenCalled();
+    expect(locationPath(response)).toBe('/settings/delete-account');
   });
 
   it('does not guess recovery purpose when another browser has neither marker nor verifier', async () => {
@@ -260,7 +288,7 @@ describe('GET /auth/callback', () => {
     );
   });
 
-  it('routes failed user revalidation according to the recovery purpose', async () => {
+  it('clears an exchanged signup session when user revalidation fails', async () => {
     mocks.exchangeCodeForSession.mockImplementationOnce(async () => {
       mocks.setAll?.([
         {
@@ -269,14 +297,14 @@ describe('GET /auth/callback', () => {
           options: { httpOnly: true, path: '/', sameSite: 'lax' },
         },
       ], {});
-      return { data: { redirectType: 'recovery' }, error: null };
+      return { data: { redirectType: 'signup' }, error: null };
     });
     mocks.getUser.mockResolvedValue({ data: { user: null }, error: { code: 'session_not_found' } });
 
-    const response = await GET(request('/auth/callback?code=recovery-code', signedCookie('recovery')));
+    const response = await GET(request('/auth/callback?code=signup-code', signedCookie('signup')));
 
     expect(locationPath(response)).toBe(
-      '/login?mode=reset&reset_error=exchange_failed&next=%2Fcommunity%3Fsort%3Dhot',
+      '/login?mode=signin&auth_error=exchange_failed&next=%2Fcommunity%3Fsort%3Dhot',
     );
     expect(mocks.getProfileForUser).not.toHaveBeenCalled();
     expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });

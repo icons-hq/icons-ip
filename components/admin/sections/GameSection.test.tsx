@@ -287,7 +287,7 @@ describe('GameSection', () => {
     expect(unavailableHtml).toContain('지금 종료');
   });
 
-  it.each(['goods', 'unknown'] as const)('renders %s variants as read-only with the #115 handoff', (variantKind) => {
+  it.each(['goods', 'unknown'] as const)('renders %s variants as retired read-only surfaces', (variantKind) => {
     const selected: AdminGameRecord = {
       ...activeGame,
       id: `${variantKind}-game`,
@@ -306,8 +306,9 @@ describe('GameSection', () => {
     const html = renderGameSection({ records: [selected], selected });
 
     expect(html).toContain('읽기 전용');
-    expect(html).toContain('href="https://github.com/sangwopark19/icons-ip/issues/115"');
-    expect(html).toContain('#115');
+    expect(html).toContain('현 로드맵에서 활성화하지 않으며');
+    expect(html).toContain('신규 실물 쿠지에 재사용하지 않습니다');
+    expect(html).not.toContain('issues/115');
     expect(html).not.toContain('name="title"');
     expect(html).not.toContain('지금 종료');
     expect(html).not.toMatch(/>\s*저장\s*</);

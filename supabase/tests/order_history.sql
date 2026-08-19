@@ -2,6 +2,11 @@
 
 begin;
 
+-- This legacy regression suite verifies reward attribution while the new
+-- production control defaults OFF. Enable it only inside this rolled-back
+-- fixture; default-OFF and issuance blocking live in card_reward_global_gate.
+update private.card_reward_control set enabled = true where singleton;
+
 -- Historical item identity must be stored on every order item.
 select 1 / case when (
   select count(*) = 3 and bool_and(is_nullable = 'NO')

@@ -77,7 +77,8 @@ values
   ('10000000-0000-4000-8000-000000000a13', 'ticket-booking-live', '다중 결제 대기 회차', 10000, 10, 0, 4, null),
   ('10000000-0000-4000-8000-000000000a14', 'ticket-booking-live', '결제 증거 환불 회차', 10000, 10, 0, 4, null),
   ('10000000-0000-4000-8000-000000000a15', 'ticket-booking-live', 'paid 장부 불일치 회차', 10000, 10, 0, 4, null),
-  ('10000000-0000-4000-8000-000000000a16', 'ticket-booking-live', '결제 키 불일치 회차', 10000, 10, 0, 4, null)
+  ('10000000-0000-4000-8000-000000000a16', 'ticket-booking-live', '결제 키 불일치 회차', 10000, 10, 0, 4, null),
+  ('10000000-0000-4000-8000-000000000a17', 'ticket-booking-live', 'Korpay 최소 금액 미만', 999, 10, 0, 4, null)
 on conflict (id) do update set
   event_id = excluded.event_id,
   name = excluded.name,
@@ -242,7 +243,8 @@ begin
       ('10000000-0000-4000-8000-000000000a03'::uuid, '20000000-0000-4000-8000-000000000a03'::uuid, 'event not bookable'::text),
       ('10000000-0000-4000-8000-000000000a04'::uuid, '20000000-0000-4000-8000-000000000a04'::uuid, 'event not bookable'::text),
       ('10000000-0000-4000-8000-000000000a05'::uuid, '20000000-0000-4000-8000-000000000a05'::uuid, 'paid ticket required'::text),
-      ('10000000-0000-4000-8000-000000000a06'::uuid, '20000000-0000-4000-8000-000000000a06'::uuid, 'sales not open'::text)
+      ('10000000-0000-4000-8000-000000000a06'::uuid, '20000000-0000-4000-8000-000000000a06'::uuid, 'sales not open'::text),
+      ('10000000-0000-4000-8000-000000000a17'::uuid, '20000000-0000-4000-8000-000000000a17'::uuid, 'payment amount below provider minimum'::text)
     ) as invalid_values(ticket_type_id, reservation_key, expected_message)
   loop
     begin
@@ -323,14 +325,34 @@ select 1 / case when (
   from public.ticket_orders
   where id = :'first_ticket_order_id'::uuid
 ) then 1 else 0 end as assert_pending_ticket_order_uses_db_truth_and_ten_minute_expiry;
+
+do $$
+begin
+  begin
+    update public.ticket_orders
+    set total = 1000000000000
+    where reservation_key = '20000000-0000-4000-8000-000000000a20';
+    raise exception 'provider maximum should reject oversized ticket total';
+  exception
+    when check_violation then
+      if sqlerrm <> 'payment amount above provider maximum' then raise; end if;
+  end;
+end;
+$$;
 select 1 / case when (
-  select count(*) = 2
-    and bool_and(ticket_type_id = '10000000-0000-4000-8000-000000000a01')
-    and bool_and(status = 'valid')
-    and bool_and(qr_token is null)
-  from public.tickets
+  select total from public.ticket_orders
+  where reservation_key = '20000000-0000-4000-8000-000000000a20'
+) = 24000 then 1 else 0 end as assert_oversized_ticket_total_rolled_back;
+select 1 / case when (
+  select ticket_type_id = '10000000-0000-4000-8000-000000000a01'
+    and quantity = 2
+    and unit_price = 12000
+  from public.ticket_order_reservations
   where ticket_order_id = :'first_ticket_order_id'::uuid
-) then 1 else 0 end as assert_reservation_creates_qr_free_placeholders;
+) and not exists (
+  select 1 from public.tickets
+  where ticket_order_id = :'first_ticket_order_id'::uuid
+) then 1 else 0 end as assert_reservation_creates_no_preapproval_tickets;
 select 1 / case when (
   select sold = 2
   from public.ticket_types
@@ -431,108 +453,31 @@ select 1 / case when not exists (
   where reservation_key = '20000000-0000-4000-8000-000000000a23'
 ) then 1 else 0 end as assert_other_user_cannot_read_ticket_order;
 
--- 결제 확정은 order 행을 먼저 잠그고, 기존 장부의 모든 replay 필드를 대조한다.
+-- Legacy Toss finalization is known-only: an existing local Toss row and the
+-- historical placeholder tickets must both be present. New ticket checkout is
+-- exercised by ticket_payment_provider_seam.sql instead.
 reset role;
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select set_config('request.jwt.claim.sub', '', true);
 
-do $$
-declare
-  target_order_id uuid;
-  target_user_id uuid;
-begin
-  select ticket_order.id, ticket_order.user_id
-    into target_order_id, target_user_id
-  from public.ticket_orders as ticket_order
-  where ticket_order.reservation_key = '20000000-0000-4000-8000-000000000a20';
+insert into public.tickets (ticket_order_id, ticket_type_id, qr_token, status)
+select
+  :'first_ticket_order_id'::uuid,
+  '10000000-0000-4000-8000-000000000a01'::uuid,
+  null,
+  'valid'
+from pg_catalog.generate_series(1, 2);
 
-  begin
-    insert into public.payments (
-      user_id, purpose, ref_id, amount, status, payment_key, idempotency_key, raw
-    )
-    values (
-      target_user_id, 'order', target_order_id, 24000, 'pending',
-      'ticket-payment-main', 'ticket-payment-main', '{}'::jsonb
-    );
-    perform public.confirm_ticket_payment(
-      'ticket-payment-main', target_order_id, 'ticket-payment-main', 24000, '{}'::jsonb
-    );
-    raise exception 'payment purpose mismatch should be rejected';
-  exception
-    when unique_violation then
-      if sqlerrm <> 'idempotency conflict' then raise; end if;
-  end;
-
-  begin
-    insert into public.payments (
-      user_id, purpose, ref_id, amount, status, payment_key, idempotency_key, raw
-    )
-    values (
-      target_user_id, 'ticket', '30000000-0000-4000-8000-000000000a01', 24000,
-      'pending', 'ticket-payment-main', 'ticket-payment-main', '{}'::jsonb
-    );
-    perform public.confirm_ticket_payment(
-      'ticket-payment-main', target_order_id, 'ticket-payment-main', 24000, '{}'::jsonb
-    );
-    raise exception 'payment ref mismatch should be rejected';
-  exception
-    when unique_violation then
-      if sqlerrm <> 'idempotency conflict' then raise; end if;
-  end;
-
-  begin
-    insert into public.payments (
-      user_id, purpose, ref_id, amount, status, payment_key, idempotency_key, raw
-    )
-    values (
-      '00000000-0000-4000-8000-000000000a03', 'ticket', target_order_id, 24000,
-      'pending', 'ticket-payment-main', 'ticket-payment-main', '{}'::jsonb
-    );
-    perform public.confirm_ticket_payment(
-      'ticket-payment-main', target_order_id, 'ticket-payment-main', 24000, '{}'::jsonb
-    );
-    raise exception 'payment user mismatch should be rejected';
-  exception
-    when unique_violation then
-      if sqlerrm <> 'idempotency conflict' then raise; end if;
-  end;
-
-  begin
-    insert into public.payments (
-      user_id, purpose, ref_id, amount, status, payment_key, idempotency_key, raw
-    )
-    values (
-      target_user_id, 'ticket', target_order_id, 23000, 'pending',
-      'ticket-payment-main', 'ticket-payment-main', '{}'::jsonb
-    );
-    perform public.confirm_ticket_payment(
-      'ticket-payment-main', target_order_id, 'ticket-payment-main', 24000, '{}'::jsonb
-    );
-    raise exception 'payment amount mismatch should be rejected';
-  exception
-    when unique_violation then
-      if sqlerrm <> 'idempotency conflict' then raise; end if;
-  end;
-
-  begin
-    insert into public.payments (
-      user_id, purpose, ref_id, amount, status, payment_key, idempotency_key, raw
-    )
-    values (
-      target_user_id, 'ticket', target_order_id, 24000, 'pending',
-      'different-payment-key', 'ticket-payment-main', '{}'::jsonb
-    );
-    perform public.confirm_ticket_payment(
-      'ticket-payment-main', target_order_id, 'ticket-payment-main', 24000, '{}'::jsonb
-    );
-    raise exception 'provider payment key mismatch should be rejected';
-  exception
-    when unique_violation then
-      if sqlerrm <> 'idempotency conflict' then raise; end if;
-  end;
-end;
-$$;
+insert into public.payments (
+  user_id, purpose, ref_id, provider, amount, status,
+  payment_key, idempotency_key, raw
+)
+values (
+  '00000000-0000-4000-8000-000000000a01',
+  'ticket', :'first_ticket_order_id'::uuid, 'toss', 24000, 'pending',
+  'ticket-payment-main', 'ticket-payment-main', null
+);
 
 select public.confirm_ticket_payment(
   'ticket-payment-main',
@@ -541,36 +486,6 @@ select public.confirm_ticket_payment(
   24000,
   '{"status":"DONE"}'::jsonb
 );
-
-select 1 / case when (
-  select status = 'paid' and expires_at is null
-  from public.ticket_orders
-  where id = :'first_ticket_order_id'::uuid
-) then 1 else 0 end as assert_verified_webhook_marks_ticket_order_paid;
-select 1 / case when (
-  select purpose = 'ticket'
-    and ref_id = :'first_ticket_order_id'::uuid
-    and user_id = '00000000-0000-4000-8000-000000000a01'
-    and amount = 24000
-    and status = 'paid'
-    and payment_key = 'ticket-payment-main'
-    and idempotency_key = 'ticket-payment-main'
-  from public.payments
-  where idempotency_key = 'ticket-payment-main'
-) then 1 else 0 end as assert_ticket_payment_ledger_is_exact;
-select 1 / case when (
-  select count(*) = 2
-    and count(qr_token) = 2
-    and count(distinct qr_token) = 2
-  from public.tickets
-  where ticket_order_id = :'first_ticket_order_id'::uuid
-) then 1 else 0 end as assert_confirmation_issues_unique_qr_tokens;
-
-select string_agg(qr_token, ',' order by id) as qr_tokens_before_replay
-from public.tickets
-where ticket_order_id = :'first_ticket_order_id'::uuid
-\gset
-
 select public.confirm_ticket_payment(
   'ticket-payment-main',
   :'first_ticket_order_id'::uuid,
@@ -580,381 +495,43 @@ select public.confirm_ticket_payment(
 );
 
 select 1 / case when (
-  select count(*) = 1
-  from public.payments
-  where idempotency_key = 'ticket-payment-main'
+  select ticket_order.status = 'paid'
+    and ticket_order.expires_at is null
+    and payment.provider = 'toss'
+    and payment.status = 'paid'
+  from public.ticket_orders as ticket_order
+  join public.payments as payment on payment.ref_id = ticket_order.id
+  where ticket_order.id = :'first_ticket_order_id'::uuid
 ) and (
-  select string_agg(qr_token, ',' order by id)
+  select count(*) = 2
+    and count(qr_token) = 2
+    and count(distinct qr_token) = 2
   from public.tickets
   where ticket_order_id = :'first_ticket_order_id'::uuid
-) = :'qr_tokens_before_replay'
-then 1 else 0 end as assert_exact_confirmation_replay_is_noop;
+) then 1 else 0 end as assert_known_legacy_toss_replay_issues_qr_once;
 
 do $$
 declare
   target_order_id uuid;
+  rejected boolean := false;
 begin
-  select id into target_order_id
+  select id into strict target_order_id
   from public.ticket_orders
-  where reservation_key = '20000000-0000-4000-8000-000000000a20';
+  where reservation_key = '20000000-0000-4000-8000-000000000a21';
 
   begin
     perform public.confirm_ticket_payment(
-      'ticket-payment-main', target_order_id, 'ticket-payment-main', 24001, '{}'::jsonb
+      'unknown-ticket-payment', target_order_id,
+      'unknown-ticket-payment', 10000, '{}'::jsonb
     );
-    raise exception 'paid replay with a different amount should be rejected';
-  exception
-    when unique_violation then
-      if sqlerrm <> 'idempotency conflict' then raise; end if;
+  exception when object_not_in_prerequisite_state then
+    rejected := sqlerrm = 'legacy_toss_payment_unknown';
   end;
-
-  begin
-    perform public.confirm_ticket_payment(
-      'ticket-payment-main', target_order_id, 'different-payment-key', 24000, '{}'::jsonb
-    );
-    raise exception 'paid replay with a different payment key should be rejected';
-  exception
-    when unique_violation then
-      if sqlerrm <> 'idempotency conflict' then raise; end if;
-  end;
+  if not rejected then
+    raise exception 'unknown Toss ticket payment must stay closed';
+  end if;
 end;
 $$;
-
--- 취소된 한 paymentKey는 같은 예매의 다른 live 결제를 취소하거나 선점을 원복하지 않는다.
-select public.reserve_tickets(
-  '00000000-0000-4000-8000-000000000a01',
-  '10000000-0000-4000-8000-000000000a13',
-  1,
-  '20000000-0000-4000-8000-000000000a40'
-) as multi_pending_ticket_order_id \gset
-
-insert into public.payments (
-  user_id, purpose, ref_id, amount, status, payment_key, idempotency_key, raw
-)
-values
-  (
-    '00000000-0000-4000-8000-000000000a01', 'ticket',
-    :'multi_pending_ticket_order_id'::uuid, 10000, 'pending',
-    'ticket-payment-live-other', 'ticket-payment-live-other', '{}'::jsonb
-  ),
-  (
-    '00000000-0000-4000-8000-000000000a01', 'ticket',
-    :'multi_pending_ticket_order_id'::uuid, 10000, 'canceled',
-    'ticket-payment-canceled-current', 'ticket-payment-canceled-current', '{}'::jsonb
-  );
-
-select public.refund_ticket_order_with_provider_evidence(
-  :'multi_pending_ticket_order_id'::uuid,
-  '다른 결제 대기 보존 테스트',
-  'ticket-payment-canceled-current'
-);
-
-select 1 / case when (
-  select status = 'pending'
-  from public.ticket_orders
-  where id = :'multi_pending_ticket_order_id'::uuid
-) and (
-  select sold = 1
-  from public.ticket_types
-  where id = '10000000-0000-4000-8000-000000000a13'
-) and (
-  select count(*) = 1 and bool_and(status = 'valid')
-  from public.tickets
-  where ticket_order_id = :'multi_pending_ticket_order_id'::uuid
-) and (
-  select count(*) = 1
-  from public.payments
-  where purpose = 'ticket'
-    and ref_id = :'multi_pending_ticket_order_id'::uuid
-    and payment_key = 'ticket-payment-live-other'
-    and status = 'pending'
-) then 1 else 0 end as assert_other_live_payment_preserves_allocation;
-
--- 마지막 live 시도 자체가 provider에서 취소되면 pending 예매만 닫고 환불 장부는 만들지 않는다.
-select public.refund_ticket_order_with_provider_evidence(
-  :'multi_pending_ticket_order_id'::uuid,
-  '마지막 결제 대기 취소 테스트',
-  'ticket-payment-live-other'
-);
-select public.refund_ticket_order_with_provider_evidence(
-  :'multi_pending_ticket_order_id'::uuid,
-  '마지막 결제 대기 취소 replay',
-  'ticket-payment-live-other'
-);
-
-select 1 / case when (
-  select status = 'canceled'
-  from public.ticket_orders
-  where id = :'multi_pending_ticket_order_id'::uuid
-) and (
-  select sold = 0
-  from public.ticket_types
-  where id = '10000000-0000-4000-8000-000000000a13'
-) and (
-  select count(*) = 1 and bool_and(status = 'refunded')
-  from public.tickets
-  where ticket_order_id = :'multi_pending_ticket_order_id'::uuid
-) and (
-  select count(*) = 2 and bool_and(status = 'canceled')
-  from public.payments
-  where purpose = 'ticket'
-    and ref_id = :'multi_pending_ticket_order_id'::uuid
-) and not exists (
-  select 1
-  from public.refunds as refund
-  join public.payments as payment on payment.id = refund.payment_id
-  where payment.purpose = 'ticket'
-    and payment.ref_id = :'multi_pending_ticket_order_id'::uuid
-) then 1 else 0 end as assert_last_canceled_pending_attempt_closes_once_without_refund;
-
--- 취소 key가 다른 결제 시도면 paid 예매를 유지하고, 실제 paid key일 때만 환불·원복한다.
-select public.reserve_tickets(
-  '00000000-0000-4000-8000-000000000a01',
-  '10000000-0000-4000-8000-000000000a14',
-  1,
-  '20000000-0000-4000-8000-000000000a41'
-) as multi_paid_ticket_order_id \gset
-
-select public.confirm_ticket_payment(
-  'ticket-payment-paid-actual',
-  :'multi_paid_ticket_order_id'::uuid,
-  'ticket-payment-paid-actual',
-  10000,
-  '{"status":"DONE"}'::jsonb
-);
-
-insert into public.payments (
-  user_id, purpose, ref_id, amount, status, payment_key, idempotency_key, raw
-)
-values
-  (
-    '00000000-0000-4000-8000-000000000a01', 'ticket',
-    :'multi_paid_ticket_order_id'::uuid, 10000, 'canceled',
-    'ticket-payment-canceled-retry', 'ticket-payment-canceled-retry', '{}'::jsonb
-  ),
-  (
-    '00000000-0000-4000-8000-000000000a01', 'ticket',
-    :'multi_paid_ticket_order_id'::uuid, 10000, 'pending',
-    'ticket-payment-pending-retry', 'ticket-payment-pending-retry', '{}'::jsonb
-  );
-
-select public.refund_ticket_order_with_provider_evidence(
-  :'multi_paid_ticket_order_id'::uuid,
-  '다른 취소 시도는 paid 예매 보존',
-  'ticket-payment-canceled-retry'
-);
-
-select 1 / case when (
-  select status = 'paid'
-  from public.ticket_orders
-  where id = :'multi_paid_ticket_order_id'::uuid
-) and (
-  select sold = 1
-  from public.ticket_types
-  where id = '10000000-0000-4000-8000-000000000a14'
-) and (
-  select count(*) = 1 and count(qr_token) = 1 and bool_and(status = 'valid')
-  from public.tickets
-  where ticket_order_id = :'multi_paid_ticket_order_id'::uuid
-) and (
-  select status = 'paid'
-  from public.payments
-  where payment_key = 'ticket-payment-paid-actual'
-) then 1 else 0 end as assert_unrelated_canceled_key_cannot_refund_paid_booking;
-
-select public.refund_ticket_order_with_provider_evidence(
-  :'multi_paid_ticket_order_id'::uuid,
-  '실제 paid key provider 취소',
-  'ticket-payment-paid-actual'
-);
-
-select 1 / case when (
-  select status = 'paid'
-  from public.ticket_orders
-  where id = :'multi_paid_ticket_order_id'::uuid
-) and (
-  select sold = 1
-  from public.ticket_types
-  where id = '10000000-0000-4000-8000-000000000a14'
-) and (
-  select count(*) = 1 and count(qr_token) = 1 and bool_and(status = 'valid')
-  from public.tickets
-  where ticket_order_id = :'multi_paid_ticket_order_id'::uuid
-) and (
-  select status = 'refunded'
-  from public.payments
-  where payment_key = 'ticket-payment-paid-actual'
-) and (
-  select status = 'pending'
-  from public.payments
-  where payment_key = 'ticket-payment-pending-retry'
-) then 1 else 0 end as assert_paid_key_refund_preserves_other_live_attempt;
-
-select public.refund_ticket_order_with_provider_evidence(
-  :'multi_paid_ticket_order_id'::uuid,
-  '남은 pending key provider 취소',
-  'ticket-payment-pending-retry'
-);
-select public.refund_ticket_order_with_provider_evidence(
-  :'multi_paid_ticket_order_id'::uuid,
-  '남은 pending key provider 취소 replay',
-  'ticket-payment-pending-retry'
-);
-select public.refund_ticket_order_with_provider_evidence(
-  :'multi_paid_ticket_order_id'::uuid,
-  '실제 paid key provider 취소 replay',
-  'ticket-payment-paid-actual'
-);
-
-select 1 / case when (
-  select status = 'canceled' and expires_at is null
-  from public.ticket_orders
-  where id = :'multi_paid_ticket_order_id'::uuid
-) and (
-  select sold = 0
-  from public.ticket_types
-  where id = '10000000-0000-4000-8000-000000000a14'
-) and (
-  select count(*) = 1 and bool_and(status = 'refunded')
-  from public.tickets
-  where ticket_order_id = :'multi_paid_ticket_order_id'::uuid
-) and (
-  select status = 'refunded'
-  from public.payments
-  where payment_key = 'ticket-payment-paid-actual'
-) and (
-  select count(*) = 1 and bool_and(refund.status = 'done')
-  from public.refunds as refund
-  join public.payments as payment on payment.id = refund.payment_id
-  where payment.payment_key = 'ticket-payment-paid-actual'
-) then 1 else 0 end as assert_actual_paid_key_refund_is_exact_and_idempotent;
-
--- paid 주문인데 실제 paid/refunded 결제 증거가 없으면 재고를 원복하지 않고 실패한다.
-select public.reserve_tickets(
-  '00000000-0000-4000-8000-000000000a01',
-  '10000000-0000-4000-8000-000000000a15',
-  1,
-  '20000000-0000-4000-8000-000000000a42'
-) as inconsistent_paid_ticket_order_id \gset
-
-reset role;
-update public.ticket_orders
-set
-  status = 'paid',
-  expires_at = null
-where id = :'inconsistent_paid_ticket_order_id'::uuid;
-
-insert into public.payments (
-  user_id, purpose, ref_id, amount, status, payment_key, idempotency_key, raw
-)
-values (
-  '00000000-0000-4000-8000-000000000a01', 'ticket',
-  :'inconsistent_paid_ticket_order_id'::uuid, 10000, 'canceled',
-  'ticket-payment-no-paid-evidence', 'ticket-payment-no-paid-evidence', '{}'::jsonb
-);
-
-set local role service_role;
-select set_config('request.jwt.claim.role', 'service_role', true);
-do $$
-declare
-  target_order_id uuid;
-begin
-  select id into target_order_id
-  from public.ticket_orders
-  where reservation_key = '20000000-0000-4000-8000-000000000a42';
-
-  begin
-    perform public.refund_ticket_order_with_provider_evidence(
-      target_order_id,
-      'paid 장부 불일치 테스트',
-      'ticket-payment-no-paid-evidence'
-    );
-    raise exception 'paid order without paid cancellation evidence should fail closed';
-  exception
-    when check_violation then
-      if sqlerrm <> 'payment evidence required' then raise; end if;
-  end;
-end;
-$$;
-
-select 1 / case when (
-  select status = 'paid'
-  from public.ticket_orders
-  where id = :'inconsistent_paid_ticket_order_id'::uuid
-) and (
-  select sold = 1
-  from public.ticket_types
-  where id = '10000000-0000-4000-8000-000000000a15'
-) and (
-  select count(*) = 1 and bool_and(status = 'valid')
-  from public.tickets
-  where ticket_order_id = :'inconsistent_paid_ticket_order_id'::uuid
-) and (
-  select status = 'canceled'
-  from public.payments
-  where idempotency_key = 'ticket-payment-no-paid-evidence'
-) then 1 else 0 end as assert_paid_order_without_paid_evidence_fails_closed;
-
--- provider paymentKey는 같은 idempotency key의 장부와 정확히 일치해야 한다.
-select public.reserve_tickets(
-  '00000000-0000-4000-8000-000000000a01',
-  '10000000-0000-4000-8000-000000000a16',
-  1,
-  '20000000-0000-4000-8000-000000000a43'
-) as mismatched_key_ticket_order_id \gset
-
-reset role;
-insert into public.payments (
-  user_id, purpose, ref_id, amount, status, payment_key, idempotency_key, raw
-)
-values (
-  '00000000-0000-4000-8000-000000000a01', 'ticket',
-  :'mismatched_key_ticket_order_id'::uuid, 10000, 'canceled',
-  'ticket-payment-provider-mismatch', 'ticket-payment-idem-mismatch', '{}'::jsonb
-);
-
-set local role service_role;
-select set_config('request.jwt.claim.role', 'service_role', true);
-do $$
-declare
-  target_order_id uuid;
-begin
-  select id into target_order_id
-  from public.ticket_orders
-  where reservation_key = '20000000-0000-4000-8000-000000000a43';
-
-  begin
-    perform public.refund_ticket_order_with_provider_evidence(
-      target_order_id,
-      '결제 키 불일치 테스트',
-      'ticket-payment-provider-mismatch'
-    );
-    raise exception 'provider payment key mismatch should be rejected';
-  exception
-    when check_violation then
-      if sqlerrm <> 'payment evidence mismatch' then raise; end if;
-  end;
-end;
-$$;
-
-select 1 / case when (
-  select status = 'pending'
-  from public.ticket_orders
-  where id = :'mismatched_key_ticket_order_id'::uuid
-) and (
-  select sold = 1
-  from public.ticket_types
-  where id = '10000000-0000-4000-8000-000000000a16'
-) and (
-  select count(*) = 1 and bool_and(status = 'valid')
-  from public.tickets
-  where ticket_order_id = :'mismatched_key_ticket_order_id'::uuid
-) and (
-  select status = 'canceled'
-  from public.payments
-  where idempotency_key = 'ticket-payment-idem-mismatch'
-) then 1 else 0 end as assert_provider_and_idempotency_keys_must_match;
-
 -- 만료 sweep은 승인 증거가 없는 reservation만 원복한다.
 reset role;
 set local role service_role;
@@ -1008,14 +585,14 @@ select 1 / case when (
   from public.ticket_orders
   where id = :'expiring_ticket_order_id'::uuid
 ) and (
-  select count(*) = 2 and bool_and(status = 'refunded')
+  select count(*) = 0
   from public.tickets
   where ticket_order_id = :'expiring_ticket_order_id'::uuid
 ) and (
   select sold = 0
   from public.ticket_types
   where id = '10000000-0000-4000-8000-000000000a09'
-) then 1 else 0 end as assert_expiry_restores_sold_and_refunds_placeholders;
+) then 1 else 0 end as assert_expiry_restores_sold_without_preapproval_tickets;
 select 1 / case when (
   select status = 'pending'
   from public.ticket_orders

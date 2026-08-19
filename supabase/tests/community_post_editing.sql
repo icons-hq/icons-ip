@@ -2,6 +2,11 @@
 
 begin;
 
+update private.community_write_control
+set
+  post_create_enabled = true,
+  post_edit_enabled = true;
+
 create temporary table community_post_editing_results (
   name text primary key,
   result jsonb not null

@@ -24,7 +24,9 @@ vi.mock('@/lib/auth/onboarding', () => ({
   isOnboarded: () => false,
   onboardingPath: (next: string) => `/onboarding?next=${encodeURIComponent(next)}`,
 }));
-vi.mock('@/lib/payments/checkout-availability', () => ({ checkoutPaymentsEnabled: () => false }));
+vi.mock('@/lib/payments/ticket-checkout-availability', () => ({
+  ticketCheckoutPaymentsEnabled: () => false,
+}));
 vi.mock('@/lib/ticketing.server', () => ({ loadPublicTicketTypes: mocks.loadSessions }));
 vi.mock('@/lib/ip-follow.server', () => ({ getIpFollowState: mocks.getIpFollowState }));
 vi.mock('@/components/screens/EventDetail', () => ({
@@ -94,7 +96,7 @@ describe('/events/[eventId]', () => {
     const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: event.id }) }));
 
     expect(html).toContain('data-session-count="1"');
-    expect(mocks.loadSessions).toHaveBeenCalledWith(event.id);
+    expect(mocks.loadSessions).toHaveBeenCalledWith(event.id, undefined);
   });
 
   it('loads IP preferences only for a scheduled event with an IP', async () => {

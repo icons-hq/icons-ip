@@ -12,28 +12,27 @@ Status: Implemented with local browser QA and independent security review; deliv
 
 아바타 제품 계약은 JPEG, PNG, WebP 형식과 5MiB 이하 크기다. Vercel Functions의 요청·응답 payload 한도는 4.5MB이므로 5MiB 파일을 Server Action이나 Route Handler의 multipart body로 보내면 애플리케이션 코드보다 앞에서 거절될 수 있다. Next.js의 `serverActions.bodySizeLimit`은 이 플랫폼 한도를 높이지 못한다.
 
-따라서 파일 바이트는 브라우저에서 Supabase Storage로 직접 보내고, Server Action은 작은 metadata·signed-upload grant·최종 Storage path만 처리한다. Supabase도 6MB 이하 파일에는 standard upload를 권장하며, signed upload URL과 `uploadToSignedUrl`을 제공한다.
+따라서 파일 바이트는 브라우저에서 Supabase Storage로 직접 보내고, Server Action은 작은 metadata와 최종 Storage path만 처리한다. Supabase도 6MB 이하 파일에는 standard upload를 권장한다. 2026-08-13 보안 보강 이후에는 signed-upload token을 발급하지 않고 로그인한 브라우저가 `upload()`를 호출해 Storage RLS가 실제 업로드 시점에 다시 평가되게 한다.
 
 참조:
 
 - https://vercel.com/docs/functions/limitations
 - https://vercel.com/kb/guide/how-to-bypass-vercel-body-size-limit-serverless-functions
 - https://supabase.com/docs/guides/storage/uploads/standard-uploads
-- https://supabase.com/docs/reference/javascript/file-buckets-createsigneduploadurl
-- https://supabase.com/docs/reference/javascript/file-buckets-uploadtosignedurl
+- https://supabase.com/docs/reference/javascript/storage-from-upload
 
 ## 선택한 흐름
 
 프로필 아바타 저장은 `prepare → direct upload → finalize` 세 단계다.
 
 1. 브라우저가 닉네임과 선택 파일의 MIME·size만 `prepareProfileAvatarUploadAction`에 보낸다.
-2. Action은 입력과 인증·온보딩을 확인하고, 서버가 만든 `<uid>/profile/<uuid-v4>.<ext>` 경로를 service-only 원장에 `pending`으로 먼저 기록한 뒤 one-time signed upload token을 반환한다.
-3. Storage INSERT RLS가 strict same-user profile path와 그 경로의 `pending` claim을 함께 확인한 뒤, 브라우저는 `uploadToSignedUrl`로 파일 바이트를 `user-uploads`에 직접 전송한다.
+2. Action은 입력과 인증·온보딩을 확인하고, 서버가 만든 `<uid>/profile/<uuid-v4>.<ext>` 경로를 service-only 원장에 `pending`으로 먼저 기록한 뒤 경로만 반환한다.
+3. 브라우저는 로그인 세션으로 `upload(path, file, { contentType, upsert: false })`를 호출한다. Storage INSERT RLS는 실제 업로드 시점에 strict same-user profile path, 해당 경로의 `pending` claim, account write fence를 함께 확인한다.
 4. 브라우저는 닉네임과 신규 `avatarPath` 문자열만 `updateProfileAction`에 보낸다. 파일 input에는 `name`을 두지 않아 FormData에 파일 바이트가 들어가지 않게 한다.
 5. Action은 Storage metadata, MIME·확장자, 실제 magic bytes를 검증한 후 service-role-only RPC로 profile 행과 같은 사용자의 `pending` claim을 잠그고 원자적으로 갱신한다.
 6. RPC가 반환한 실제 직전 아바타 한 개만 제거한다. 후보 검증 실패나 DB 실패는 원장이 `rejected` 전이를 확정해 `cleanup_safe`를 반환한 경우에만 신규 후보를 제거하며, replay·응답 유실·transport 예외에서는 제거하지 않는다.
 
-브라우저가 prepare 뒤 finalize 전에 종료되거나 네트워크가 끊기면 `pending` claim과 signed-upload 후보가 남을 수 있다. 이를 완전히 없애려면 만료 job이 필요하므로 #136 최소 범위에서는 운영 위험으로 기록한다. Action이 관찰한 cleanup 실패는 `audit_log`에 actor, path, stage만 남기며 원문 오류나 민감정보는 기록하지 않는다.
+브라우저가 prepare 뒤 finalize 전에 종료되거나 네트워크가 끊기면 `pending` claim 또는 업로드된 후보가 남을 수 있다. 이를 완전히 없애려면 만료 job이 필요하므로 #136 최소 범위에서는 운영 위험으로 기록한다. Action이 관찰한 cleanup 실패는 `audit_log`에 actor, path, stage만 남기며 원문 오류나 민감정보는 기록하지 않는다.
 
 ## 모듈 경계
 
@@ -52,7 +51,7 @@ Supabase와 React에 의존하지 않는 공용 계약을 소유한다.
 
 ### `app/settings/actions.ts`
 
-`prepareProfileAvatarUploadAction`은 닉네임과 선언된 파일 metadata를 먼저 검증하고, settings auth gate를 통과한 뒤 service-only RPC로 exact path를 `pending` claim으로 등록한다. 등록 성공 뒤에만 사용자 세션 Storage client로 `createSignedUploadUrl(path, { upsert: false })`를 호출하며, `{ path, token }` 외 파일·credential은 반환하지 않는다. grant 발급 실패는 claim을 `rejected`로 확정한 경우에만 cleanup한다.
+`prepareProfileAvatarUploadAction`은 닉네임과 선언된 파일 metadata를 먼저 검증하고, settings auth gate를 통과한 뒤 service-only RPC로 exact path를 `pending` claim으로 등록한다. 등록 성공 시 `{ path }`만 반환하고 Storage token이나 파일·credential은 반환하지 않는다. 브라우저 helper가 사용자 세션 Storage client로 standard upload를 수행하므로 deletion fence를 포함한 INSERT RLS가 redemption 시점에 적용된다.
 
 `updateProfileAction`은 다음 순서를 지킨다.
 
@@ -113,7 +112,7 @@ Migration 구현은 local reset·SQL smoke·실제 Storage API RLS로 검증한�
 ## 테스트
 
 - 순수 계약: raw 512 code-unit ceiling, 30/31 grapheme와 긴 ZWJ emoji, exact path, MIME/size, magic bytes, fallback initial.
-- actions: prepare claim→signed token 순서, final payload 무파일 계약, Storage info/download 검증, first finalize/replay, known rejection의 exactly-once cleanup, unknown transport cleanup 금지, previous retirement와 hardened audit fallback.
+- actions: prepare claim→path-only 응답, signed token 부재, final payload 무파일 계약, Storage info/download 검증, first finalize/replay, known rejection의 exactly-once cleanup, unknown transport cleanup 금지, previous retirement와 hardened audit fallback.
 - onboarding: settings와 같은 30-grapheme 계약이 DB write 전에 적용됨.
 - UI/page: file input에 `name`이 없음, direct upload helper, 독립 상태, pending, focus class, 서버 계산 initial, signed preview fallback.
 - SQL smoke: fail-closed ECMAScript trim constraints, normalized uniqueness, authenticated direct update 거절, service-only 원장·RPC ACL/security, first finalize/replay, rejected cleanup 1회, previous retirement, audit RPC, public profile sync, actual Storage RLS(unclaimed·active profile 거부, pending profile·community 허용)과 DELETE/catalog 계약.
@@ -132,7 +131,7 @@ Migration 구현은 local reset·SQL smoke·실제 Storage API RLS로 검증한�
 
 - 회원 탈퇴와 법정 보존 원장
 - 커뮤니티 대용량 업로드 경로 개선
-- abandoned `pending` claim과 signed-upload 객체를 만료 청소하는 job
+- abandoned `pending` claim과 업로드 후보 객체를 만료 청소하는 job
 - 커뮤니티 피드의 프로필 아바타 노출
 - 이미지 crop/resize 편집기
 - 이메일 변경

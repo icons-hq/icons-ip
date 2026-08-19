@@ -9,6 +9,16 @@ on:
       - main
   merge_group:
   workflow_dispatch:
+    inputs:
+      production_redeploy:
+        description: Redeploy the current main commit with updated Production configuration
+        required: false
+        type: boolean
+        default: false
+      production_source_run_id:
+        description: Successful push/main CI/CD Pipeline run ID for this exact commit
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -26,8 +36,53 @@ jobs:
   validate:
     name: validate
     runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
 
     steps:
+      - name: Verify deployed Production source
+        if: >-
+          github.event_name == 'workflow_dispatch'
+          && inputs.production_redeploy == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.production_source_run_id }}
+        run: |
+          if [[ ! "$SOURCE_RUN_ID" =~ ^[1-9][0-9]{5,}$ ]]; then
+            echo "::error title=Invalid Production source::Provide the successful push/main run ID for this exact commit"
+            exit 1
+          fi
+
+          run_json="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}")"
+          if ! jq -e --arg sha "$GITHUB_SHA" '
+            .event == "push"
+            and .head_branch == "main"
+            and .head_sha == $sha
+            and .conclusion == "success"
+            and .path == ".github/workflows/pipeline.yml"
+          ' <<<"$run_json" >/dev/null; then
+            echo "::error title=Unsafe Production source::The run must be a successful push/main deployment for this exact SHA"
+            exit 1
+          fi
+
+          jobs_json="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}/jobs?per_page=100")"
+          if ! jq -e '
+            any(.jobs[]; .name == "deploy-supabase" and .conclusion == "success")
+            and any(.jobs[]; .name == "deploy-vercel" and .conclusion == "success")
+          ' <<<"$jobs_json" >/dev/null; then
+            echo "::error title=Incomplete Production source::Supabase and Vercel must both have succeeded"
+            exit 1
+          fi
+
       - name: Check out repository
         uses: actions/checkout@v6
 
@@ -42,6 +97,9 @@ jobs:
 
       - name: Run lint
         run: npm run lint
+
+      - name: Run TypeScript checks
+        run: npm run typecheck
 
       - name: Run tests
         run: npm run test
@@ -64,6 +122,11 @@ jobs:
         run: |
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/catalog_baseline.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/profile_editing.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/account_deletion_phase_one.sql
+          bash supabase/tests/account_deletion_phase_one_concurrency.sh
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/email_dispatcher_dark.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/email_dispatch_acceptance_recovery.sql
+          bash supabase/tests/email_dispatcher_concurrency.sh
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/in_app_notifications.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_notification_console.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_role_management.sql
@@ -74,14 +137,30 @@ jobs:
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/cart_items.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/checkout_order.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_history.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/payment_provider_foundation.sql
+          bash scripts/test-payment-provider-production-readback.sh
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_payment_provider_seam.sql
+          bash supabase/tests/goods_payment_provider_seam_concurrency.sh
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_payment_cancellation_guard.sql
+          bash supabase/tests/goods_payment_cancellation_guard_concurrency.sh
+          bash supabase/tests/goods_payment_expiry_claim_concurrency.sh
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_payment_manual_recovery.sql
+          bash supabase/tests/goods_payment_manual_recovery_concurrency.sh
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/ticket_payment_provider_seam.sql
+          bash supabase/tests/ticket_payment_provider_seam_concurrency.sh
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_cancellation.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_withdrawal_deadline.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_status_ladder.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_order_console.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shipping_carrier_registry.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_dispatch_delay_notes.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_stock_adjustment.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_ticket_type_console.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_card_pool_console.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_reward_policy_console.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_game_console.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/card_reward_global_gate.sql
+          bash supabase/tests/card_reward_global_gate_concurrency.sh
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/ticket_booking_flow.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/ticket_cancellation_flow.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/ticket_check_in_flow.sql
@@ -91,8 +170,15 @@ jobs:
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/community_feed_personalization.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/community_post_editing.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/community_comment_moderation.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/community_write_gate.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/search_public_content.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/catalog_archiving.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/inquiry_threads.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_claims.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_reviews.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/bank_transfer_payments.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/bank_deposit_feed.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_stats_reports.sql
 
       - name: Lint local database
         run: supabase db lint --local --fail-on error
@@ -139,12 +225,18 @@ jobs:
           SITE_URL: https://iconsip.com
           REQUIRE_SMTP: "true"
           ENFORCE_MAILER: "true"
+          EMAIL_OTP_EXPIRY_SECONDS: "3600"
           REDIRECT_URLS: |
             https://iconsip.com/auth/callback
+            https://iconsip.com/auth/recovery/callback
             https://www.iconsip.com/auth/callback
+            https://www.iconsip.com/auth/recovery/callback
             https://icons-ip.vercel.app/auth/callback
+            https://icons-ip.vercel.app/auth/recovery/callback
             http://localhost:3000/auth/callback
+            http://localhost:3000/auth/recovery/callback
             http://127.0.0.1:3000/auth/callback
+            http://127.0.0.1:3000/auth/recovery/callback
           PRUNE_REDIRECT_URLS: |
             https://icons-ip-*.vercel.app/auth/callback
         run: node scripts/sync-supabase-auth.mjs
@@ -152,8 +244,14 @@ jobs:
       - name: Link Supabase project
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
 
+      - name: Verify payment provider backfill preflight
+        run: node scripts/payment-provider-backfill-preflight.mjs --linked
+
       - name: Push Supabase migrations
         run: supabase db push --linked
+
+      - name: Verify payment provider backfill readback
+        run: supabase db query --linked --file supabase/tests/payment_provider_production_readback.sql
 
       - name: Verify Supabase catalog baseline
         run: supabase db query --linked --file supabase/tests/catalog_baseline.sql
@@ -235,13 +333,20 @@ jobs:
           SITE_URL: https://icons-ip.vercel.app
           REQUIRE_SMTP: "false"
           ENFORCE_MAILER: "false"
+          EMAIL_OTP_EXPIRY_SECONDS: "3600"
           REDIRECT_URLS: |
             https://icons-ip.vercel.app/auth/callback
+            https://icons-ip.vercel.app/auth/recovery/callback
             https://icons-hongshil-vn.vercel.app/auth/callback
+            https://icons-hongshil-vn.vercel.app/auth/recovery/callback
             https://icons-*-sangwopark19icons-1055s-projects.vercel.app/auth/callback
+            https://icons-*-sangwopark19icons-1055s-projects.vercel.app/auth/recovery/callback
             https://icons-git-*-sangwopark19icons-1055s-projects.vercel.app/auth/callback
+            https://icons-git-*-sangwopark19icons-1055s-projects.vercel.app/auth/recovery/callback
             http://localhost:3000/auth/callback
+            http://localhost:3000/auth/recovery/callback
             http://127.0.0.1:3000/auth/callback
+            http://127.0.0.1:3000/auth/recovery/callback
         run: node scripts/sync-supabase-auth.mjs
 
       - name: Link Supabase preview project
@@ -324,8 +429,27 @@ jobs:
   deploy-vercel:
     name: deploy-vercel
     runs-on: ubuntu-latest
-    needs: deploy-supabase
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - validate
+      - deploy-supabase
+    # push는 기존 DB→앱 순서를 유지한다. config-only 수동 재배포는 validate가
+    # 성공하고 main에서 명시적으로 승인된 경우에만, 건너뛴 DB job을 우회한다.
+    if: >-
+      !cancelled()
+      && needs.validate.result == 'success'
+      && (
+        (
+          github.event_name == 'push'
+          && github.ref == 'refs/heads/main'
+          && needs.deploy-supabase.result == 'success'
+        )
+        || (
+          github.event_name == 'workflow_dispatch'
+          && github.ref == 'refs/heads/main'
+          && inputs.production_redeploy == true
+          && needs.deploy-supabase.result == 'skipped'
+        )
+      )
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -349,9 +473,12 @@ jobs:
         run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
 
       - name: Check Vercel deployment secrets
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
           missing=0
-          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID CRON_SECRET; do
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID CRON_SECRET SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_ID; do
             if [ -z "${!name}" ]; then
               echo "::error title=Missing GitHub secret::$name is required for Vercel deployment"
               missing=1
@@ -372,3 +499,16 @@ jobs:
         run: |
           deployment_url="$(vercel deploy --yes --prod --archive=tgz)"
           echo "Production deployment: $deployment_url" >> "$GITHUB_STEP_SUMMARY"
+
+      # handler와 기존 PKCE 호환 경로가 production에 먼저 올라간 뒤에만 새 링크를 발급한다.
+      - name: Activate recovery token-hash template in production
+        # config-only 재배포는 Supabase 원격 설정도 변경하지 않는다.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SITE_URL: https://iconsip.com
+          REQUIRE_SMTP: "true"
+          ENFORCE_MAILER: "true"
+          RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
+        run: node scripts/sync-supabase-auth.mjs

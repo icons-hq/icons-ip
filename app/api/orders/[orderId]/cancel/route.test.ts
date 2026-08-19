@@ -191,6 +191,22 @@ describe('POST /api/orders/[orderId]/cancel', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  // 허용 목록을 own key로 대조하지 않으면 Object.prototype의 키가 사유로 승격되고,
+  // RPC 인자가 문자열 대신 함수가 되어 400이어야 할 요청이 502로 새어 나간다.
+  it.each(['toString', 'constructor', 'valueOf'])(
+    '프로토타입 키 %s는 사유로 통과하지 못한다',
+    async (reasonType) => {
+      const response = await POST(
+        request('https://icons.local', { reasonType }),
+        context(),
+      );
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: { code: 'invalid_reason_type' } });
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    },
+  );
+
   it('기한이 지난 요청을 409로 구분해 응답한다', async () => {
     mocks.rpc.mockResolvedValue({ data: 'deadline_expired', error: null });
 

@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState } from 'react';
+import { useActionState, useEffect, useRef } from 'react';
 import {
   approveAdminOrderCancellationAction,
+  recoverAdminGoodsPaymentAction,
   reconcileAdminOrderCancellationAction,
   rejectAdminOrderCancellationAction,
   updateAdminOrderStatusAction,
@@ -11,13 +12,17 @@ import {
   type AdminOrderActionState,
 } from '@/app/admin/order-actions';
 import {
+  ADMIN_ORDER_STATUSES,
+  ADMIN_ORDER_STATUS_LABELS,
   ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS,
   adminOrdersHref,
+  isKorpayManualRecoveryState,
+  isLegacyDecidableCancellation,
   type AdminOrderCancellationRequestRecord,
   type AdminOrderConsoleData,
   type AdminOrderFilters,
+  type AdminOrderFormStatus,
   type AdminOrderRecord,
-  type OrderCancellationRequestStatus,
 } from '@/lib/admin/orders';
 import {
   formatOrderDateTime,
@@ -29,26 +34,43 @@ import {
   refundStatusLabel,
   type OrderWithdrawalReasonType,
 } from '@/lib/orders';
-import { SHIPPING_CARRIERS, type OrderShipment } from '@/lib/orders/shipment';
+import {
+  isOpenOrderClaimStage,
+  ORDER_CLAIM_STAGE_LABELS,
+  ORDER_CLAIM_TYPE_LABELS,
+  ORDER_CLAIM_TYPE_SLUGS,
+} from '@/lib/orders/claims';
+import {
+  selectableShippingCarriers,
+  type OrderShipment,
+  type ShippingCarrierRegistry,
+} from '@/lib/orders/shipment';
 import { formatKrw } from '../format';
 
+/* 사다리 순서 그대로 둔다 — 드롭다운 순서가 운영자에게는 단계 순서다(#250).
+   문구는 ADMIN_ORDER_STATUS_LABELS에서 가져온다. 여기에 다시 적으면 일괄 등록
+   실패 리포트가 쓰는 말과 갈라진다(#251). */
 const STATUS_OPTIONS: Array<{ value: AdminOrderFilters['status']; label: string }> = [
   { value: 'all', label: '전체 상태' },
-  { value: 'pending', label: '결제 대기' },
-  { value: 'paid', label: '결제 완료' },
-  { value: 'shipping', label: '배송 중' },
-  { value: 'done', label: '완료' },
-  { value: 'canceled', label: '취소' },
+  ...ADMIN_ORDER_STATUSES.map((status) => ({
+    value: status,
+    label: ADMIN_ORDER_STATUS_LABELS[status],
+  })),
 ];
 
 const EMPTY_ACTION_STATE: AdminOrderActionState = {};
 
-const CANCELLATION_STATUS_LABELS: Record<OrderCancellationRequestStatus, string> = {
-  requested: '승인 대기',
-  processing: '결제 취소 중',
+const GOODS_PAYMENT_ATTEMPT_STATE_LABELS: Record<
+  NonNullable<AdminOrderRecord['manualRecoveryAttempt']>['state'],
+  string
+> = {
+  prepared: '결제 준비',
+  confirming: '승인 확인 중',
+  approved: '승인 완료',
+  declined: '승인 거절',
+  canceled: '취소 완료',
+  unknown: '결과 불명',
   needs_review: '운영 확인 필요',
-  completed: '취소 완료',
-  rejected: '요청 거절',
 };
 
 /** 사유 배지. 하자·오배송은 기한과 배송비 부담이 달라 색으로도 구분한다. */
@@ -66,16 +88,10 @@ function CancellationReasonBadge({
   );
 }
 
-/** 승인·거절 판단이 남은 요청. 종결된 요청까지 목록에 표시하면 미처리 건과 섞인다. */
-const OPEN_CANCELLATION_STATUSES = new Set<OrderCancellationRequestStatus>([
-  'requested',
-  'processing',
-  'needs_review',
-]);
-
+/** 처리가 남은 클레임. 종결된 요청까지 목록에 표시하면 미처리 건과 섞인다. */
 function openCancellationRequest(order: AdminOrderRecord) {
   const request = order.cancellationRequest;
-  return request && OPEN_CANCELLATION_STATUSES.has(request.status) ? request : null;
+  return request && isOpenOrderClaimStage(request.stage) ? request : null;
 }
 
 function confirmAction(event: React.FormEvent<HTMLFormElement>, message: string) {
@@ -91,12 +107,21 @@ function ActionFeedback({ state }: { state: AdminOrderActionState }) {
   );
 }
 
+/**
+ * 택배사 드롭다운.
+ *
+ * 목록은 DB 레지스트리에서 온다(#251). 비활성 택배사는 뺀다 — 고를 수 있는데
+ * 저장이 거절되는 선택지는 운영자에게 원인 없는 실패로 보인다. 이미 그 택배사로
+ * 나간 주문의 조회 링크는 별개로 살아 있다.
+ */
 function CarrierSelect({
+  carriers,
   defaultValue,
   describedBy,
   disabled,
   id,
 }: {
+  carriers: ShippingCarrierRegistry;
   defaultValue?: string;
   describedBy?: string;
   disabled: boolean;
@@ -112,7 +137,7 @@ function CarrierSelect({
       required
     >
       <option disabled value="">택배사 선택</option>
-      {SHIPPING_CARRIERS.map((carrier) => (
+      {selectableShippingCarriers(carriers).map((carrier) => (
         <option key={carrier.code} value={carrier.code}>{carrier.label}</option>
       ))}
     </select>
@@ -120,12 +145,14 @@ function CarrierSelect({
 }
 
 function TrackingFields({
+  carriers,
   errors,
   idPrefix,
   orderId,
   pending,
   shipment,
 }: {
+  carriers: ShippingCarrierRegistry;
   errors: AdminOrderActionState['errors'];
   idPrefix: string;
   orderId: string;
@@ -142,6 +169,7 @@ function TrackingFields({
     <div className="admin-order-tracking-fields">
       <label htmlFor={carrierId}>택배사</label>
       <CarrierSelect
+        carriers={carriers}
         defaultValue={shipment?.carrier}
         describedBy={errors?.carrier ? carrierErrorId : undefined}
         disabled={pending}
@@ -168,21 +196,28 @@ function TrackingFields({
   );
 }
 
+/* 거래확정(done)은 자동 잡이 소유한다 — 여기 버튼으로 미는 칸이 아니다. */
+const STATUS_ACTION_CONFIRMATIONS: Record<AdminOrderFormStatus, string> = {
+  confirmed: '주문을 발주확인 처리할까요? 이후 발송처리 단계로 넘어갑니다.',
+  shipping: '입력한 택배사·운송장번호로 배송을 시작할까요? 고객 주문 상세에 그대로 노출됩니다.',
+  delivered: '주문을 배송완료로 변경할까요? 이 시점부터 청약철회 기한이 시작됩니다.',
+};
+
 function OrderStatusAction({
+  carriers,
   label,
   orderId,
   shipment,
   status,
 }: {
+  carriers: ShippingCarrierRegistry;
   label: string;
   orderId: string;
   shipment: OrderShipment | null;
-  status: 'shipping' | 'done';
+  status: AdminOrderFormStatus;
 }) {
   const [state, action, pending] = useActionState(updateAdminOrderStatusAction, EMPTY_ACTION_STATE);
-  const confirmation = status === 'shipping'
-    ? '입력한 택배사·운송장번호로 배송을 시작할까요? 고객 주문 상세에 그대로 노출됩니다.'
-    : '주문을 배송 완료 처리할까요?';
+  const confirmation = STATUS_ACTION_CONFIRMATIONS[status];
 
   return (
     <form
@@ -198,6 +233,7 @@ function OrderStatusAction({
       {/* 운송장 없이 배송을 시작하면 고객이 추적할 수 없다. DB도 같은 조건으로 거절한다. */}
       {status === 'shipping' ? (
         <TrackingFields
+          carriers={carriers}
           errors={state.errors}
           idPrefix="admin-order"
           orderId={orderId}
@@ -214,9 +250,11 @@ function OrderStatusAction({
 }
 
 function UpdateTrackingForm({
+  carriers,
   orderId,
   shipment,
 }: {
+  carriers: ShippingCarrierRegistry;
   orderId: string;
   shipment: OrderShipment | null;
 }) {
@@ -232,6 +270,7 @@ function UpdateTrackingForm({
     >
       <input name="orderId" type="hidden" value={orderId} />
       <TrackingFields
+        carriers={carriers}
         errors={state.errors}
         idPrefix="admin-order-edit"
         orderId={orderId}
@@ -312,13 +351,23 @@ function RejectCancellationForm({ requestId }: { requestId: string }) {
 }
 
 function ReconcileCancellationForm({
+  preparedKorpay,
   request,
 }: {
+  preparedKorpay?: {
+    amount: number;
+    currency: string;
+    providerOrderId: string;
+  };
   request: AdminOrderCancellationRequestRecord;
 }) {
   const [state, action, pending] = useActionState(reconcileAdminOrderCancellationAction, EMPTY_ACTION_STATE);
-  const confirmation = '결제 취소 상태를 다시 확인할까요?';
-  const label = request.status === 'processing' ? '처리 상태 확인' : '상태 다시 확인';
+  const confirmation = preparedKorpay
+    ? `Korpay 주문 ${preparedKorpay.providerOrderId} · ₩${preparedKorpay.amount.toLocaleString('ko-KR')} ${preparedKorpay.currency} 결제 세션의 만료를 확인할까요? 이미 만료됐다면 주문 취소와 재고 복원이 즉시 완료됩니다.`
+    : '결제 취소 상태를 다시 확인할까요?';
+  const label = preparedKorpay
+    ? 'Korpay 만료·취소 처리'
+    : request.status === 'processing' ? '처리 상태 확인' : '상태 다시 확인';
 
   return (
     <form
@@ -336,10 +385,80 @@ function ReconcileCancellationForm({
   );
 }
 
+function ManualKorpayCancellationForm({
+  amount,
+  attemptId,
+  currency,
+  providerOrderId,
+  requestId,
+}: {
+  amount: number;
+  attemptId: string;
+  currency: string;
+  providerOrderId: string;
+  requestId: string;
+}) {
+  const [state, action, pending] = useActionState(
+    recoverAdminGoodsPaymentAction,
+    EMPTY_ACTION_STATE,
+  );
+  const attestationRef = useRef<HTMLInputElement>(null);
+  const confirmation = `Korpay 주문 ${providerOrderId} · ₩${amount.toLocaleString('ko-KR')} ${currency}의 전액 취소 완료를 원장에서 확인했습니다. 반영하면 확인된 결제에는 환불 원장을 남기고, 주문 취소와 재고 복원을 즉시 완료합니다. 계속할까요?`;
+  const attestationId = `admin-korpay-cancel-attestation-${attemptId}`;
+  const attestationErrorId = `admin-korpay-cancel-attestation-error-${attemptId}`;
+  const attestationError = state.errors?.operatorAttestation;
+
+  useEffect(() => {
+    if (attestationError) attestationRef.current?.focus();
+  }, [attestationError]);
+
+  return (
+    <form
+      action={action}
+      className="admin-order-korpay-recovery-form"
+      data-confirm={confirmation}
+      onSubmit={(event) => confirmAction(event, confirmation)}
+    >
+      <input name="attemptId" type="hidden" value={attemptId} />
+      <input name="requestId" type="hidden" value={requestId} />
+      <label htmlFor={attestationId}>
+        <input
+          aria-describedby={attestationError ? attestationErrorId : undefined}
+          aria-invalid={attestationError ? true : undefined}
+          disabled={pending}
+          id={attestationId}
+          name="operatorAttestation"
+          ref={attestationRef}
+          required
+          type="checkbox"
+          value="provider_cancel_confirmed"
+        />
+        <span>표시된 Korpay 주문번호와 금액의 전액 취소 완료를 원장에서 확인했습니다.</span>
+      </label>
+      <button
+        className="btn btn-sm admin-order-korpay-recovery-submit"
+        disabled={pending}
+        type="submit"
+      >
+        {pending ? '반영 중' : 'Korpay 전액 취소 반영'}
+      </button>
+      {attestationError ? (
+        <span
+          className="admin-order-korpay-recovery-error"
+          id={attestationErrorId}
+          role="alert"
+        >
+          {attestationError}
+        </span>
+      ) : null}
+      <ActionFeedback state={state} />
+    </form>
+  );
+}
+
 function OrderFilters({ filters }: { filters: AdminOrderFilters }) {
   return (
-    <form action="/admin" className="admin-order-filters card" method="get">
-      <input name="section" type="hidden" value="orders" />
+    <form action="/admin/sales/orders" className="admin-order-filters card" method="get">
       <label>
         <span>주문 검색</span>
         <input
@@ -368,17 +487,36 @@ function OrderFilters({ filters }: { filters: AdminOrderFilters }) {
       </label>
       <div className="admin-order-filter-actions">
         <button className="btn btn-sm" type="submit">검색</button>
-        <Link className="btn btn-sm btn-ghost" href="/admin?section=orders&page=1">초기화</Link>
+        <Link className="btn btn-sm btn-ghost" href="/admin/sales/orders?page=1">초기화</Link>
       </div>
     </form>
   );
 }
 
-function OrderDetail({ order }: { order: AdminOrderRecord }) {
+function OrderDetail({
+  carriers,
+  order,
+}: {
+  carriers: ShippingCarrierRegistry;
+  order: AdminOrderRecord;
+}) {
   const status = orderStatusMeta(order.status);
   const cancellationRequest = order.cancellationRequest;
   const canAdvanceOrderStatus = !cancellationRequest || cancellationRequest.status === 'rejected';
-  const hasShipped = order.status === 'shipping' || order.status === 'done';
+  /* 반송비 부담 주체는 실제로 물건이 나간 뒤에만 의미가 있다. 사다리가 늘어
+     배송 이후 상태가 셋이 됐다(#250). */
+  const hasShipped = order.status === 'shipping'
+    || order.status === 'delivered'
+    || order.status === 'done';
+  const manualRecoveryAttempt = order.manualRecoveryAttempt
+    && cancellationRequest
+    && order.manualRecoveryAttempt.requestId === cancellationRequest.id
+    && (cancellationRequest.status === 'processing' || cancellationRequest.status === 'needs_review')
+    ? order.manualRecoveryAttempt
+    : null;
+  const usesKorpayManualRecovery = manualRecoveryAttempt
+    ? isKorpayManualRecoveryState(manualRecoveryAttempt.state)
+    : false;
 
   return (
     <article aria-labelledby="admin-order-detail-title" className="admin-order-detail card">
@@ -449,9 +587,11 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
         <section className="admin-order-cancellation" aria-labelledby="admin-order-cancellation-title">
           <div className="admin-order-cancellation-heading">
             <div>
-              <span>청약철회 요청</span>
+              {/* 유형과 절차 단계를 그대로 쓴다. status 투영만 보이면 수거 중인
+                  반품이 "청약철회 요청 · 요청 접수"로 표시된다(#252). */}
+              <span>{ORDER_CLAIM_TYPE_LABELS[cancellationRequest.claimType]} 클레임</span>
               <h3 id="admin-order-cancellation-title">
-                {CANCELLATION_STATUS_LABELS[cancellationRequest.status]}
+                {ORDER_CLAIM_STAGE_LABELS[cancellationRequest.stage]}
               </h3>
             </div>
             <time dateTime={cancellationRequest.requestedAt}>
@@ -472,13 +612,49 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
           {cancellationRequest.decisionNote ? (
             <p>처리 메모 · {cancellationRequest.decisionNote}</p>
           ) : null}
+          {manualRecoveryAttempt ? (
+            <>
+              <h4 className="admin-order-korpay-title">Korpay 원장 확인 정보</h4>
+              <dl className="admin-order-summary admin-order-korpay-summary">
+                <div>
+                  <dt>Korpay 주문번호</dt>
+                  <dd className="mono">{manualRecoveryAttempt.providerOrderId}</dd>
+                </div>
+                <div>
+                  <dt>결제 시도 ID</dt>
+                  <dd className="mono">{manualRecoveryAttempt.attemptId}</dd>
+                </div>
+                <div>
+                  <dt>시도 상태</dt>
+                  <dd>{GOODS_PAYMENT_ATTEMPT_STATE_LABELS[manualRecoveryAttempt.state]}</dd>
+                </div>
+                <div>
+                  <dt>원장 확인 금액</dt>
+                  <dd>₩{manualRecoveryAttempt.amount.toLocaleString('ko-KR')} · {manualRecoveryAttempt.currency}</dd>
+                </div>
+              </dl>
+              {usesKorpayManualRecovery && !manualRecoveryAttempt.manualRecoveryAvailable ? (
+                <p>현재 결제 처리 또는 다른 운영 확인이 진행 중입니다.</p>
+              ) : null}
+            </>
+          ) : null}
         </section>
       ) : null}
 
       <div className="admin-order-actions">
         {canAdvanceOrderStatus && order.status === 'paid' ? (
           <OrderStatusAction
-            label="배송 시작"
+            carriers={carriers}
+            label="발주확인"
+            orderId={order.id}
+            shipment={order.shipment}
+            status="confirmed"
+          />
+        ) : null}
+        {canAdvanceOrderStatus && order.status === 'confirmed' ? (
+          <OrderStatusAction
+            carriers={carriers}
+            label="발송처리"
             orderId={order.id}
             shipment={order.shipment}
             status="shipping"
@@ -486,23 +662,61 @@ function OrderDetail({ order }: { order: AdminOrderRecord }) {
         ) : null}
         {canAdvanceOrderStatus && order.status === 'shipping' ? (
           <OrderStatusAction
-            label="배송 완료"
+            carriers={carriers}
+            label="배송완료"
             orderId={order.id}
             shipment={order.shipment}
-            status="done"
+            status="delivered"
           />
         ) : null}
-        {order.status === 'shipping' || order.status === 'done' ? (
-          <UpdateTrackingForm orderId={order.id} shipment={order.shipment} />
+        {/* delivered→done은 자동 거래확정 잡이 맡는다. 운영자 버튼을 두면
+            청약철회 창을 사람 손으로 조기 종료시킬 수 있다. */}
+        {hasShipped ? (
+          <UpdateTrackingForm carriers={carriers} orderId={order.id} shipment={order.shipment} />
         ) : null}
-        {cancellationRequest?.status === 'requested' ? (
+        {/* 주문 콘솔이 소유하는 것은 "접수 단계의 취소"뿐이다. 반품·교환과 검토중·
+            수거중·입고완료·보류는 절차가 다르고, 여기서 승인하면 입고 확인을
+            건너뛴 채 전액 환불과 재고 복원이 끝난다. DB도 같은 경계를 지키지만
+            (claim_requires_claim_console), 버튼을 그려 두고 실패 문구로 알리는
+            것은 안내가 아니다. */}
+        {cancellationRequest && isLegacyDecidableCancellation(cancellationRequest) ? (
           <>
             <ApproveCancellationForm orderStatus={order.status} requestId={cancellationRequest.id} />
             <RejectCancellationForm requestId={cancellationRequest.id} />
           </>
         ) : null}
-        {cancellationRequest?.status === 'processing' || cancellationRequest?.status === 'needs_review' ? (
-          <ReconcileCancellationForm request={cancellationRequest} />
+        {cancellationRequest
+          && !isLegacyDecidableCancellation(cancellationRequest)
+          && cancellationRequest.stage !== 'completed'
+          && cancellationRequest.stage !== 'rejected' ? (
+          <Link
+            className="btn btn-sm btn-ghost"
+            href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[cancellationRequest.claimType]}/${cancellationRequest.id}`}
+          >
+            클레임 콘솔에서 처리
+          </Link>
+        ) : null}
+        {(cancellationRequest?.status === 'processing' || cancellationRequest?.status === 'needs_review')
+          && !usesKorpayManualRecovery ? (
+          <ReconcileCancellationForm
+            preparedKorpay={manualRecoveryAttempt?.state === 'prepared'
+              ? {
+                  amount: manualRecoveryAttempt.amount,
+                  currency: manualRecoveryAttempt.currency,
+                  providerOrderId: manualRecoveryAttempt.providerOrderId,
+                }
+              : undefined}
+            request={cancellationRequest}
+          />
+        ) : null}
+        {manualRecoveryAttempt?.manualRecoveryAvailable ? (
+          <ManualKorpayCancellationForm
+            amount={manualRecoveryAttempt.amount}
+            attemptId={manualRecoveryAttempt.attemptId}
+            currency={manualRecoveryAttempt.currency}
+            providerOrderId={manualRecoveryAttempt.providerOrderId}
+            requestId={manualRecoveryAttempt.requestId}
+          />
         ) : null}
       </div>
     </article>
@@ -574,7 +788,7 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
             </nav>
           ) : null}
         </aside>
-        {selected ? <OrderDetail order={selected} /> : null}
+        {selected ? <OrderDetail carriers={data.carriers} order={selected} /> : null}
       </div>
     </section>
   );

@@ -12,6 +12,7 @@ import {
   passwordResetErrorMessage,
   passwordResetSuccessLoginPath,
   passwordUpdateErrorMessage,
+  postAuthenticationPath,
   safeNextPath,
   updatePasswordPath,
   updatePasswordSessionReadyPath,
@@ -92,6 +93,20 @@ describe('safeNextPath', () => {
   });
 });
 
+describe('postAuthenticationPath', () => {
+  it('lets an authenticated user return to the self-service deletion route before onboarding', () => {
+    expect(postAuthenticationPath(null, 'fan@icons.gg', '/settings/delete-account')).toBe(
+      '/settings/delete-account',
+    );
+  });
+
+  it('keeps onboarding mandatory for every other protected destination', () => {
+    expect(postAuthenticationPath(null, 'fan@icons.gg', '/orders')).toBe(
+      '/onboarding?next=%2Forders',
+    );
+  });
+});
+
 describe('nextPathWithSearch', () => {
   it('returns the pathname when search params are empty', () => {
     expect(nextPathWithSearch('/community', new URLSearchParams())).toBe('/community');
@@ -162,9 +177,12 @@ describe('password reset paths and messages', () => {
 
   it.each([
     ['otp_expired', '만료되었거나 이미 사용'],
+    ['link_expired_or_used', '만료되었거나 이미 사용'],
     ['missing_code', '올바르게 열리지 않았습니다'],
     ['flow_state_expired', '요청한 브라우저'],
+    ['browser_mismatch', '요청한 브라우저'],
     ['session_not_found', '세션이 만료'],
+    ['recovery_unavailable', '잠시 후'],
     ['unknown', '비밀번호 재설정을 완료하지 못했습니다'],
   ])('maps recovery callback error %s', (code, expected) => {
     expect(passwordResetErrorMessage(code)).toContain(expected);

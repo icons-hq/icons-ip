@@ -25,6 +25,56 @@ describe('WITHDRAWAL_REASON_LABELS', () => {
   });
 });
 
+/*
+ * delivered→done은 하루 한 번 도는 잡이 옮긴다. 변심 7일이 지난 뒤에도 주문이
+ * 최대 하루 더 delivered에 남으므로, 문구를 상태로만 고르면 그 사이 화면은
+ * "7일 이내에 요청할 수 있습니다"라고 말하는데 DB는 deadline_expired를 돌려준다.
+ */
+describe('cancellationPresentation 기한 문구', () => {
+  const DELIVERED_AT = '2026-08-01T00:00:00.000Z';
+
+  it('변심 창이 열려 있으면 7일 안내를 한다', () => {
+    const presentation = cancellationPresentation('delivered', null, null, {
+      deliveredAt: DELIVERED_AT,
+      at: new Date('2026-08-05T00:00:00.000Z'),
+    });
+
+    expect(presentation.body).toContain('7일 이내에 청약철회를 요청할 수 있습니다');
+    expect(presentation.body).not.toContain('단순 변심 기한은 지났고');
+  });
+
+  it('변심 창이 닫힌 delivered 주문은 하자 3개월만 안내한다', () => {
+    const presentation = cancellationPresentation('delivered', null, null, {
+      deliveredAt: DELIVERED_AT,
+      at: new Date('2026-08-09T00:00:00.000Z'),
+    });
+
+    expect(presentation.body).toContain('단순 변심 기한은 지났고');
+    expect(presentation.body).toContain('3개월');
+    expect(presentation.body).not.toContain('7일 이내에 청약철회를 요청할 수 있습니다');
+  });
+
+  /* 옛 사다리에서 done에 도달한 주문은 공급일이 최근일 수 있고 변심 창이 아직 열려
+     있다. 상태만 보고 "기한이 지났다"고 적으면 구매자가 권리를 포기한다. */
+  it('공급일이 최근인 done 주문은 변심 창이 열려 있다고 안내한다', () => {
+    const presentation = cancellationPresentation('done', null, null, {
+      deliveredAt: DELIVERED_AT,
+      at: new Date('2026-08-04T00:00:00.000Z'),
+    });
+
+    expect(presentation.body).toContain('7일 이내에 청약철회를 요청할 수 있습니다');
+  });
+
+  it('공급일이 없으면 기한이 시작하지 않은 것으로 본다', () => {
+    const presentation = cancellationPresentation('shipping', null, null, {
+      deliveredAt: null,
+      at: new Date('2026-08-09T00:00:00.000Z'),
+    });
+
+    expect(presentation.body).toContain('7일 이내에 청약철회를 요청할 수 있습니다');
+  });
+});
+
 describe('submitOrderCancellation', () => {
   it('posts the withdrawal reason and accepts only the public cancellation states', async () => {
     const fetcher = vi.fn().mockResolvedValue(
@@ -98,7 +148,7 @@ describe('submitOrderCancellation', () => {
     });
   });
 
-  it.each(['shipping', 'done'] as const)('keeps the withdrawal path open for %s with the receipt-based deadline', (status) => {
+  it.each(['shipping', 'delivered'] as const)('keeps the withdrawal path open for %s with the receipt-based deadline', (status) => {
     const presentation = cancellationPresentation(status, null);
     expect(presentation).toMatchObject({
       canCancel: true,
@@ -109,8 +159,27 @@ describe('submitOrderCancellation', () => {
     expect(presentation.body).toContain('착불');
   });
 
+  /* done은 보통 변심 창이 닫힌 뒤의 상태다. 다만 판정 근거는 상태가 아니라
+     공급받은 날이다 — 기산점을 주면 그 날짜로 문구가 갈린다(#250). */
+  it('거래확정 주문에는 변심 7일 대신 하자 3개월을 안내한다', () => {
+    const presentation = cancellationPresentation('done', null, null, {
+      deliveredAt: '2026-08-01T00:00:00.000Z',
+      at: new Date('2026-08-20T00:00:00.000Z'),
+    });
+    expect(presentation).toMatchObject({ canCancel: true, actionLabel: '청약철회 요청' });
+    expect(presentation.body).toContain('3개월');
+    expect(presentation.body).not.toContain('7일');
+  });
+
+  /* 기산점이 없으면 기한이 시작하지 않은 것으로 본다 —
+     `order_withdrawal_deadline_passed`와 같은 경계이고, 고객에게 유리한 쪽이다. */
+  it('공급일을 모르는 주문은 기한이 닫혔다고 단정하지 않는다', () => {
+    const presentation = cancellationPresentation('done', null);
+    expect(presentation.body).toContain('7일');
+  });
+
   it('asks the shipped-order confirmation about returning the goods first', () => {
-    const markup = renderToStaticMarkup(createElement(OrderCancellation, {
+    const markup = renderToStaticMarkup(createElement(OrderCancellation, { deliveredAt: null,
       orderId: '11111111-1111-4111-8111-111111111111',
       status: 'done',
       refund: null,
@@ -142,9 +211,15 @@ describe('submitOrderCancellation', () => {
     const presentation = cancellationPresentation('paid', null, {
       id: '22222222-2222-4222-8222-222222222222',
       status: requestStatus,
+      /* 취소 패널은 취소 클레임만 그린다(#252). 반품·교환은 OrderClaimRequest가 맡는다. */
+      claimType: 'cancel',
+      stage: requestStatus,
+      reference: 12,
       requestedAt: '2026-07-14T07:30:00.000Z',
       decidedAt: null,
       decisionNote: null,
+      reshipCarrier: null,
+      reshipTrackingNumber: null,
     });
 
     expect(presentation).toMatchObject({ canCancel: false, heading: expect.stringContaining(heading) });
@@ -156,9 +231,14 @@ describe('submitOrderCancellation', () => {
     const rejectedRequest = {
       id: '22222222-2222-4222-8222-222222222222',
       status: 'rejected' as const,
+      claimType: 'cancel' as const,
+      stage: 'rejected' as const,
+      reference: 12,
       requestedAt: '2026-07-14T07:30:00.000Z',
       decidedAt: '2026-07-14T08:00:00.000Z',
       decisionNote: '배송 준비 상태를 확인해주세요',
+      reshipCarrier: null,
+      reshipTrackingNumber: null,
     };
 
     expect(cancellationPresentation('paid', null, rejectedRequest)).toMatchObject({
@@ -172,7 +252,7 @@ describe('submitOrderCancellation', () => {
     });
     expect(cancellationPresentation('paid', null, rejectedRequest).body).toContain('거절');
 
-    const markup = renderToStaticMarkup(createElement(OrderCancellation, {
+    const markup = renderToStaticMarkup(createElement(OrderCancellation, { deliveredAt: null,
       orderId: '11111111-1111-4111-8111-111111111111',
       status: 'paid',
       refund: null,

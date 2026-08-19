@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { LEGAL_WITHDRAWAL_NOTICE } from '../orders';
-import { renderOrderConfirmationEmail, renderOrderShippedEmail } from './templates';
+import {
+  renderInquiryAnsweredEmail,
+  renderOrderConfirmationEmail,
+  renderOrderShippedEmail,
+} from './templates';
 
 const ORDER_ID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
 
@@ -169,5 +173,45 @@ describe('renderOrderShippedEmail', () => {
 
     expect(email.html).not.toContain('javascript:');
     expect(email.text).not.toContain('javascript:');
+  });
+});
+
+describe('renderInquiryAnsweredEmail (#253)', () => {
+  const input = {
+    reference: 12,
+    categoryLabel: '주문/배송',
+    title: '배송이 아직 안 왔어요',
+    answerBody: '안녕하세요.\n오늘 발송 예정입니다.',
+    inquiryUrl: 'https://iconsip.com/my/inquiries/aaaa',
+  };
+
+  /* "답변이 등록됐습니다"만 보내고 링크를 누르게 하면 메일함에서 답을 확인할 수 없어
+     이용자가 같은 질문을 다시 접수한다. */
+  it('답변 본문을 메일에 그대로 싣는다', () => {
+    const email = renderInquiryAnsweredEmail(input);
+
+    expect(email.subject).toContain('문의번호 #12');
+    expect(email.text).toContain('오늘 발송 예정입니다.');
+    expect(email.html).toContain('오늘 발송 예정입니다.');
+    expect(email.text).toContain(input.inquiryUrl);
+  });
+
+  it('줄바꿈을 살린다', () => {
+    expect(renderInquiryAnsweredEmail(input).html).toContain('안녕하세요.<br />오늘 발송 예정입니다.');
+  });
+
+  /* 푸터 라벨을 고정하면 문의 메일이 "주문번호 #12"라고 거짓말을 한다. */
+  it('푸터가 주문번호가 아니라 문의번호를 가리킨다', () => {
+    const html = renderInquiryAnsweredEmail(input).html;
+
+    expect(html).toContain('문의번호 #12 ·');
+    expect(html).not.toContain('주문번호 #12');
+  });
+
+  it('본문을 이스케이프해 메일에 마크업을 주입하지 못하게 한다', () => {
+    const email = renderInquiryAnsweredEmail({ ...input, answerBody: '<script>x</script>' });
+
+    expect(email.html).not.toContain('<script>');
+    expect(email.html).toContain('&lt;script&gt;');
   });
 });

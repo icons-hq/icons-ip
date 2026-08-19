@@ -1,8 +1,16 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MyPage } from './MyPage';
 
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => <span aria-hidden /> }));
+const cardRewardGate = vi.hoisted(() => ({ enabled: true }));
+vi.mock('@/components/shell/CardRewardAvailability', () => ({
+  useCardRewardsEnabled: () => cardRewardGate.enabled,
+}));
+
+afterEach(() => {
+  cardRewardGate.enabled = true;
+});
 
 function render(overrides: Partial<React.ComponentProps<typeof MyPage>> = {}) {
   return renderToStaticMarkup(
@@ -16,6 +24,15 @@ function render(overrides: Partial<React.ComponentProps<typeof MyPage>> = {}) {
 }
 
 describe('MyPage', () => {
+  it('hides the card-pack destination while card rewards are disabled', () => {
+    cardRewardGate.enabled = false;
+    const html = render();
+
+    expect(html).not.toContain('href="/packs"');
+    expect(html).not.toContain('>카드팩</');
+    expect(html.match(/class="my-destination card"/g)).toHaveLength(7);
+  });
+
   it('renders the private profile summary without account identifiers', () => {
     const html = render();
 
@@ -48,6 +65,8 @@ describe('MyPage', () => {
       ['/binder', '바인더'],
       ['/packs', '카드팩'],
       ['/notifications', '알림함'],
+      ['/my/reviews', '내 리뷰'],
+      ['/my/inquiries', '1:1 문의'],
       ['/settings', '설정'],
     ]) {
       expect(html.match(new RegExp(`href="${href}"`, 'g'))).toHaveLength(1);
@@ -56,6 +75,6 @@ describe('MyPage', () => {
 
     expect(html).not.toContain('준비중');
     expect(html).not.toContain('<button');
-    expect(html.match(/class="my-destination card"/g)).toHaveLength(6);
+    expect(html.match(/class="my-destination card"/g)).toHaveLength(8);
   });
 });

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState, type FormEvent } from 'react';
 import {
   hideCommunityCommentAction,
@@ -25,6 +26,7 @@ export function confirmCommunityCommentHide(event: FormEvent<HTMLFormElement>) {
 export const reportTargetLabels = {
   post: '포스트',
   comment: '댓글',
+  review: '리뷰',
   user: '사용자',
 } as const;
 
@@ -103,6 +105,28 @@ function HideCommentForm({ report }: { report: AdminReportRecord }) {
   );
 }
 
+/*
+ * 리뷰 신고(#254)는 여기서 처리하지 않는다.
+ *
+ * 블라인드는 사유와 감사 로그가 붙는 행위라 리뷰 콘솔의 폼이 맡고, DB도 리뷰
+ * 신고가 포스트·댓글 숨김으로 소비되는 것을 report_target_mismatch로 막는다.
+ * 그래서 이 카드에는 처리 버튼 대신 정확한 대상으로 가는 링크만 둔다 — 검색으로
+ * 근처를 찾게 만들면 운영자가 엉뚱한 리뷰를 내릴 수 있다.
+ */
+function ReviewModerationLink({ report }: { report: AdminReportRecord }) {
+  if (!report.targetReviewId) return null;
+
+  return (
+    <Link
+      className="btn btn-sm btn-ghost admin-field-control"
+      href={`/admin/cs/reviews?reviewId=${report.targetReviewId}`}
+      style={{ minHeight: 44 }}
+    >
+      <Icon name="chat" size={14} /> 리뷰 관리에서 열기
+    </Link>
+  );
+}
+
 export function ModerationSection({ reports }: { reports: AdminReportRecord[] }) {
   return (
     <section className="col" style={{ gap: 12 }}>
@@ -126,6 +150,7 @@ export function ModerationSection({ reports }: { reports: AdminReportRecord[] })
             <ReportStatusForm report={report} />
             <HideCommentForm report={report} />
             <HidePostForm report={report} />
+            <ReviewModerationLink report={report} />
           </div>
         </article>
       ))}

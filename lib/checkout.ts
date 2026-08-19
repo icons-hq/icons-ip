@@ -15,7 +15,15 @@ export type PlaceOrderErrorCode =
   | 'empty_cart'
   | 'out_of_stock'
   | 'invalid_address'
+  | 'bank_transfer_blocked'
   | 'unavailable';
+
+/** 주문서에서 고르는 결제수단. DB `public.order_payment_method`와 같은 값. */
+export type CheckoutPaymentMethod = 'card' | 'bank_transfer';
+
+export function normalizeCheckoutPaymentMethod(value: unknown): CheckoutPaymentMethod | null {
+  return value === 'card' || value === 'bank_transfer' ? value : null;
+}
 
 export type CheckoutOrderState = 'payable' | 'checking' | 'complete' | 'closed';
 
@@ -134,6 +142,7 @@ export function mapPlaceOrderError(message: unknown): PlaceOrderErrorCode {
   if (normalized.includes('cart empty')) return 'empty_cart';
   if (normalized.includes('out of stock')) return 'out_of_stock';
   if (normalized.includes('invalid checkout address')) return 'invalid_address';
+  if (normalized.includes('bank transfer blocked')) return 'bank_transfer_blocked';
   return 'unavailable';
 }
 
@@ -143,7 +152,9 @@ export function checkoutOrderState(
   expiresAt: string | null,
   now: number = Date.now(),
 ): CheckoutOrderState {
-  if (orderStatus === 'paid' || orderStatus === 'shipping' || orderStatus === 'done') {
+  // 결제가 끝난 뒤의 모든 사다리 단계는 "결제 완료"다(#250). 새 단계가 빠지면
+  // 발주확인된 주문의 결제 화면이 만료된 주문처럼 닫혀 보인다.
+  if (orderStatus !== 'pending' && orderStatus !== 'canceled') {
     return 'complete';
   }
   if (orderStatus !== 'pending') return 'closed';

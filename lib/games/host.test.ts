@@ -45,13 +45,30 @@ describe('GAMES 카탈로그 일관성', () => {
 });
 
 describe('remote game play errors', () => {
+  it('keeps the global reward gate code for fail-closed game guidance', async () => {
+    const host = createWebGameHost({
+      remotePlay: async () => ({ ok: false, error: 'rewards_disabled' }),
+    });
+
+    await expect(host.playGame('game-1')).rejects.toEqual(
+      expect.objectContaining({ code: 'rewards_disabled' } satisfies Partial<GamePlayError>),
+    );
+  });
+
   it('keeps the account suspension code for generic game guidance', async () => {
     const host = createWebGameHost({
       remotePlay: async () => ({ ok: false, error: 'account_suspended' }),
     });
 
     await expect(host.playGame('game-1')).rejects.toEqual(
-      expect.objectContaining<GamePlayError>({ code: 'account_suspended' }),
+      expect.objectContaining({ code: 'account_suspended' } satisfies Partial<GamePlayError>),
     );
+  });
+
+  it('retired raffle and prize-checkout capabilities are absent from the web host', () => {
+    const host = createWebGameHost();
+
+    expect('getRaffleResult' in host).toBe(false);
+    expect('startPrizeCheckout' in host).toBe(false);
   });
 });
