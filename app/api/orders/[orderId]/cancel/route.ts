@@ -1,17 +1,16 @@
 import { NextResponse } from 'next/server';
 import { normalizeOrderReference } from '@/lib/checkout';
+import { isOrderWithdrawalReasonType, type OrderWithdrawalReasonType } from '@/lib/orders';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/service';
 
 // 사유에 따라 청약철회 기한이 다르다(#189). 값 자체는 RPC가 다시 검증하지만,
 // 허용 밖 입력은 DB에 닿기 전에 막는다.
-const CANCEL_REASONS = {
+const CANCEL_REASONS: Record<OrderWithdrawalReasonType, string> = {
   change_of_mind: '사용자 주문 취소',
   defect: '상품 하자·오배송',
-} as const;
-
-type CancellationReasonType = keyof typeof CANCEL_REASONS;
+};
 
 interface OrderRow {
   id: string;
@@ -20,15 +19,14 @@ interface OrderRow {
 
 // 사유를 생략한 요청은 기한이 가장 짧은 단순 변심으로 본다. 기본값이 관대한
 // 쪽이면 폼을 비우는 것만으로 3개월 기한을 얻는다.
-async function readReasonType(request: Request): Promise<CancellationReasonType | null> {
+async function readReasonType(request: Request): Promise<OrderWithdrawalReasonType | null> {
   const body: unknown = await request.json().catch(() => null);
   if (!body || typeof body !== 'object') return 'change_of_mind';
 
   const reasonType = (body as { reasonType?: unknown }).reasonType;
   if (reasonType === undefined || reasonType === null) return 'change_of_mind';
-  return typeof reasonType === 'string' && reasonType in CANCEL_REASONS
-    ? (reasonType as CancellationReasonType)
-    : null;
+  if (typeof reasonType !== 'string' || !isOrderWithdrawalReasonType(reasonType)) return null;
+  return reasonType;
 }
 
 function errorJson(status: number, code: string) {
