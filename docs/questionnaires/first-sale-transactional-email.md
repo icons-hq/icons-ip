@@ -10,7 +10,7 @@
 
 ## 배경
 
-앱 발송 경로는 구현됐지만 Production의 `EMAIL_PROVIDER_API_KEY`와 `EMAIL_FROM`이 비어 있습니다. Supabase Auth 메일과 별도 경로이며, 처리자 승인·전역 발송 fence·provider 호출 전 원장·로그 redaction 전에는 Production 활성화가 차단됩니다.
+앱 발송 경로는 구현됐지만 Production의 `RESEND_API_KEY`와 `RESEND_FROM`이 비어 있습니다. Supabase Auth 메일과 별도 경로이며, 처리자 승인·전역 발송 fence·provider 호출 전 원장·로그 redaction 전에는 Production 활성화가 차단됩니다.
 
 ## 답변 방법
 
@@ -142,17 +142,35 @@ Resend 기준 idempotency window는 24시간입니다. provider 수락 직후 �
 
 ## Vercel Production 환경변수
 
-### `EMAIL_PROVIDER_API_KEY`가 Sensitive 값으로 등록됐습니까?
+> **#191 dispatcher 기준이다.** `EMAIL_PROVIDER_API_KEY`·`EMAIL_FROM`은 legacy
+> `sendTransactionalEmail` 어댑터(`lib/email/provider.server.ts`)가 읽는 구 변수이고, 이것만
+> 채우면 #191이 요구하는 durable outbound intent와 탈퇴 fence를 우회한 채 메일이 나간다.
+> 아래는 `lib/email/resend-provider.server.ts`와 Send Email Hook 경로가 읽는 변수다
+> (`docs/transactional-email.md` §참조).
+
+### `RESEND_API_KEY`가 Sensitive 값으로 등록됐습니까?
 
 > 등록 여부 / 환경 / 마스킹된 증거:
 
-### `EMAIL_FROM`에 사용할 발신자 문자열은 무엇입니까?
+### `RESEND_FROM`에 사용할 발신자 문자열은 무엇입니까?
 
-> 예: `ICONS <no-reply@iconsip.com>`:
+> 예: `ICONS <no-reply@iconsip.com>` — 로컬 파트 뒤의 도메인이 인증된 도메인이어야 합니다:
 
 ### 회신 주소를 사용할 예정입니까?
 
-> `EMAIL_REPLY_TO` 값 또는 `미사용`:
+> `RESEND_REPLY_TO` 값 또는 `미사용`:
+
+### `RESEND_WEBHOOK_SECRET`을 발급하고 Resend webhook endpoint를 등록했습니까?
+
+> 발급 여부 / endpoint URL / 구독 event:
+
+### Supabase Auth 메일을 Send Email Hook으로 전환할 준비가 됐습니까?
+
+> `SUPABASE_SEND_EMAIL_HOOK_SECRET`·`EMAIL_DISPATCH_HMAC_SECRET` 발급 여부 / 전달 채널:
+
+### 전용 API endpoint를 써야 합니까?
+
+> `RESEND_API_ENDPOINT` 값 또는 `기본값 사용`:
 
 ### 기본 provider endpoint를 사용합니까?
 

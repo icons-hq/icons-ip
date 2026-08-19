@@ -311,12 +311,12 @@
 
 | 담당자 | 확인서 | 연결 이슈 |
 |---|---|---|
-| 사업자·법무·결제 계약 담당자 | [첫 실판매 사업자·법무·토스 확인서](./questionnaires/first-sale-business-legal-toss.md) | [#239](https://github.com/icons-hq/icons-ip/issues/239) |
+| 사업자·법무 담당자 | [첫 실판매 사업자·법무 확인서](./questionnaires/first-sale-business-legal.md) | [#239](https://github.com/icons-hq/icons-ip/issues/239) |
 | 카카오팀 김단비 과장님·WMS 물류 담당자 | [첫 실판매 물류·WMS 확인서](./questionnaires/first-sale-logistics-wms.md) | [#177](https://github.com/icons-hq/icons-ip/issues/177) · [#179](https://github.com/icons-hq/icons-ip/issues/179) |
 | 홍실 퀘스트 굿즈 제작·MD 담당자 | [홍실 퀘스트 굿즈 운영 데이터 확인서](./questionnaires/first-sale-goods-data.md) | [#190](https://github.com/icons-hq/icons-ip/issues/190) |
 | iconsip.com 도메인·이메일 인프라 담당자 | [트랜잭션 이메일 인프라 확인서](./questionnaires/first-sale-transactional-email.md) | [#191](https://github.com/icons-hq/icons-ip/issues/191) |
 
-확인서는 2026-08-11에 작성돼 아직 회신이 없다. 사업자·법무 확인서의 `토스페이먼츠` 섹션은 2026-08-14 Korpay 전환 이후 historical이다.
+확인서는 2026-08-11에 작성돼 아직 회신이 없다. 사업자·법무 확인서의 `토스페이먼츠` 섹션은 2026-08-14 Korpay 전환 이후 historical이라 답변 대상이 아니다.
 
 ---
 
