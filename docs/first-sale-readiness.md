@@ -305,6 +305,19 @@
 - 공개 전환 뒤 실제 결제 검증도 정확한 대상·금액·사용자·취소 계획을 고정하고 과금 직전에 다시 사용자 확인을 받는다. 공개 gate ON은 2026-08-21 법정 본문 활성화나 #208의 취소·모호 승인 운영을 대신하지 않는다.
 - 기존 Toss 거래는 공급사 콘솔과 내부 원장에서 모두 종결될 때까지 known-only 조회·취소·웹훅과 server secret을 유지한다. 그 뒤 Toss runtime/secret 제거는 별도 PR이다.
 
+### 8.4 담당자별 확인서
+
+남은 사람 의존성을 추측값으로 채우지 않도록 답변 주체별 확인서를 분리했다. 회신은 각 이슈의 완료 근거가 되며, API 키·시크릿·비밀번호는 문서나 GitHub 이슈에 기록하지 않는다.
+
+| 담당자 | 확인서 | 연결 이슈 |
+|---|---|---|
+| 사업자·법무 담당자 | [첫 실판매 사업자·법무 확인서](./questionnaires/first-sale-business-legal.md) | [#239](https://github.com/icons-hq/icons-ip/issues/239) |
+| 카카오팀 김단비 과장님·WMS 물류 담당자 | [첫 실판매 물류·WMS 확인서](./questionnaires/first-sale-logistics-wms.md) | [#177](https://github.com/icons-hq/icons-ip/issues/177) · [#179](https://github.com/icons-hq/icons-ip/issues/179) |
+| 홍실 퀘스트 굿즈 제작·MD 담당자 | [홍실 퀘스트 굿즈 운영 데이터 확인서](./questionnaires/first-sale-goods-data.md) | [#190](https://github.com/icons-hq/icons-ip/issues/190) |
+| iconsip.com 도메인·이메일 인프라 담당자 | [트랜잭션 이메일 인프라 확인서](./questionnaires/first-sale-transactional-email.md) | [#191](https://github.com/icons-hq/icons-ip/issues/191) |
+
+확인서는 2026-08-11에 작성돼 아직 회신이 없다. 사업자·법무 확인서의 `토스페이먼츠` 섹션은 2026-08-14 Korpay 전환 이후 historical이라 답변 대상이 아니다.
+
 ---
 
 ## 9. 가정
