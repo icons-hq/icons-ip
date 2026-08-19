@@ -53,6 +53,24 @@ export function OverviewSection({
         <OrderPipeline stages={insights.pipeline} />
       </div>
 
+      {/*
+        이 대시보드는 "지금 어떤가"를 한눈에 보는 자리로 남긴다(#258). 같은 지표를
+        기간·축을 바꿔 파고드는 일은 통계 리포트가 맡으므로, 겹치는 카드 바로 아래에
+        그 길을 열어 둔다 — 링크가 없으면 운영자가 여기서 더 깊이 보려다 못 찾는다.
+      */}
+      <nav aria-label="상세 리포트" className="admin-overview-reports">
+        <span className="muted">더 자세히 보기</span>
+        <Link className="btn btn-sm btn-ghost" href="/admin/stats/sales">
+          판매분석 <Icon name="arrow" size={14} />
+        </Link>
+        <Link className="btn btn-sm btn-ghost" href="/admin/stats/claims">
+          클레임 <Icon name="arrow" size={14} />
+        </Link>
+        <Link className="btn btn-sm btn-ghost" href="/admin/stats/customers">
+          고객현황 <Icon name="arrow" size={14} />
+        </Link>
+      </nav>
+
       <div className="admin-overview-bottom">
         <RecentOrders orders={insights.recentOrders} />
         <TopIps ips={insights.topIps} />

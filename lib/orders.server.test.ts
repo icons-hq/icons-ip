@@ -141,10 +141,11 @@ describe('loadOrders', () => {
       createdAt: '2026-07-14T06:00:00.000Z',
       itemLabel: '아크릴 스탠드 외 1건',
       itemCount: 3,
+      paymentMethod: 'card',
     }]);
 
     expect(records.find((record) => record.table === 'orders')).toMatchObject({
-      select: 'id,user_id,status,total,created_at',
+      select: 'id,user_id,status,total,created_at,payment_method',
       eq: [['user_id', userId]],
       in: [['status', ['paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled']]],
       order: [['created_at', { ascending: false }], ['id', { ascending: false }]],
@@ -186,6 +187,7 @@ describe('loadOrders', () => {
         createdAt: '2026-07-14T07:00:00.000Z',
         itemLabel: '취소 확인 중 굿즈',
         itemCount: 1,
+        paymentMethod: 'card',
       },
       {
         id: orderId,
@@ -194,6 +196,7 @@ describe('loadOrders', () => {
         createdAt: '2026-07-14T06:00:00.000Z',
         itemLabel: '완료 주문 굿즈',
         itemCount: 1,
+        paymentMethod: 'card',
       },
     ]);
     expect(records.find((record) => record.table === 'order_cancellation_requests')).toMatchObject({
@@ -326,7 +329,7 @@ describe('loadOrderDetail', () => {
     expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|idempotency_key|raw|last_error_code/);
 
     expect(records.find((record) => record.table === 'orders')).toMatchObject({
-      select: 'id,user_id,status,total,shipping_fee,address,created_at,shipping_carrier,tracking_number,delivered_at',
+      select: 'id,user_id,status,total,shipping_fee,address,created_at,shipping_carrier,tracking_number,delivered_at,payment_method,expires_at',
       eq: [['id', orderId], ['user_id', userId]],
       in: [['status', ['pending', 'paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled']]],
       maybeSingle: true,

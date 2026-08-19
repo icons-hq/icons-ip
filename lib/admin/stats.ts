@@ -158,6 +158,15 @@ export interface AdminCustomerReport {
     unanswered: number;
     averageFirstResponseHours: number | null;
   };
+  reviews: {
+    total: number;
+    /** 운영자 답글이 아직 없는 리뷰. */
+    unanswered: number;
+    /** 리뷰가 없으면 null — 0점은 존재할 수 없는 평점이다. */
+    averageRating: number | null;
+    /** 1점부터 5점까지 순서대로. */
+    distribution: number[];
+  };
 }
 
 export const ADMIN_PAYMENT_METHOD_LABELS: Record<string, string> = {
@@ -199,6 +208,11 @@ export function adminShareOfTotal(value: number, total: number): number | null {
 
 export function adminPercentLabel(value: number | null) {
   return value === null ? '—' : `${value.toFixed(1)}%`;
+}
+
+/** 평점 분포 한 칸의 구성비. 리뷰가 없으면 막대도 없다. */
+export function adminRatingShare(count: number, total: number) {
+  return adminShareOfTotal(count, total);
 }
 
 /** 기간 내 재구매율. 구매자가 없으면 비율이 없다. */

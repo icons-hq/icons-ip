@@ -1,4 +1,4 @@
-import type { CheckoutAddress } from './checkout';
+import type { CheckoutPaymentMethod, CheckoutAddress } from './checkout';
 import type { OrderShipment } from './orders/shipment';
 import type { OrderClaimStage, OrderClaimType } from './orders/claims';
 
@@ -103,6 +103,8 @@ export interface OrderListItem {
   createdAt: string;
   itemLabel: string;
   itemCount: number;
+  /** 주문 생성 시점에 고정된 결제수단(#256). */
+  paymentMethod: CheckoutPaymentMethod;
 }
 
 export interface OrderDetailItem {
@@ -163,6 +165,13 @@ export interface OrderDetail {
    * 조용히 undefined가 흘러들면 화면이 이유 없이 안내를 감춘다.
    */
   deliveredAt: string | null;
+  /** 주문 생성 시점에 고정된 결제수단(#256). */
+  paymentMethod: CheckoutPaymentMethod;
+  /**
+   * 무통장 입금 기한. `pending` 무통장 주문에만 있다 — 확정되면 서버가 비운다.
+   * 값이 있으면 아직 돈이 들어오지 않았다는 뜻이므로 화면이 안내를 띄운다.
+   */
+  expiresAt: string | null;
   items: OrderDetailItem[];
   payment: OrderPaymentSummary | null;
   refund: OrderRefundSummary | null;

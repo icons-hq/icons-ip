@@ -202,6 +202,28 @@ export function OrderDetail({
         </div>
       </header>
 
+      {/*
+        무통장 주문의 입금 안내는 지금까지 알림 링크와 결제 화면에만 있었다.
+        구매자가 나중에 "얼마를 어디로 보내야 하지"를 다시 찾는 자리는 주문
+        내역이므로, 아직 돈이 들어오지 않은 동안 여기서도 길을 열어 준다.
+        계좌 값 자체는 싣지 않는다 — 서버 설정에서만 읽는 값이고(#255),
+        결제 화면이 그 한 곳이다.
+      */}
+      {order.paymentMethod === 'bank_transfer' && order.status === 'pending' && (
+        <div className="wrap">
+          <div className="order-detail-deposit card" role="status">
+            <div>
+              <strong>입금을 기다리고 있어요</strong>
+              <p>
+                안내된 계좌로 {krw(order.total)}을 기한 안에 입금하면 확인 후 주문이 확정됩니다.
+                기한이 지나면 자동으로 취소되고 재고는 복원돼요.
+              </p>
+            </div>
+            <Link className="btn btn-holo" href={`/checkout/${order.id}`}>입금 안내 보기</Link>
+          </div>
+        </div>
+      )}
+
       <div className="wrap order-detail-layout">
         <section className="order-detail-main card" aria-labelledby="ordered-goods-heading">
           <div className="checkout-section-heading checkout-section-heading--compact">

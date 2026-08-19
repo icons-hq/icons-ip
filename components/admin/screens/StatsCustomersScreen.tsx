@@ -2,6 +2,7 @@ import { StatsRangeTabs } from '@/components/admin/StatsRangeTabs';
 import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console';
 import {
   adminPercentLabel,
+  adminRatingShare,
   adminRepeatRate,
   type AdminCustomerReport,
   type AdminStatsFilters,
@@ -19,8 +20,8 @@ const SIGNUP_COLUMNS: ConsoleGridColumn[] = [
  * 라벨에 기간을 붙여 둔다 — 그 구분이 없으면 7일 창의 낮은 재구매율을 이탈로
  * 읽는다.
  *
- * 리뷰 지표(평점 분포)는 여기 없다. 리뷰 도메인(#254)이 아직 main에 없어서
- * 조회할 테이블이 없다 — 그 브랜치가 들어온 뒤 이 화면에 한 절을 더한다.
+ * 리뷰 평균은 공개 표면(`good_review_stats`)과 같은 기준이다 — 블라인드된 리뷰는
+ * 빠진다. 두 곳이 다른 평균을 말하면 운영자가 구매자 화면을 신뢰하지 못한다.
  */
 export function StatsCustomersScreen({
   data,
@@ -74,6 +75,44 @@ export function StatsCustomersScreen({
         </div>
       </div>
 
+      <h3>리뷰</h3>
+      <div className="admin-stats-summary">
+        <div>
+          <span>작성</span>
+          <strong className="mono">{data.reviews.total.toLocaleString('ko-KR')}</strong>
+        </div>
+        <div>
+          <span>답글 없음</span>
+          <strong className="mono">{data.reviews.unanswered.toLocaleString('ko-KR')}</strong>
+        </div>
+        <div>
+          <span>평균 평점</span>
+          <strong className="mono">
+            {data.reviews.averageRating === null ? '—' : data.reviews.averageRating.toFixed(2)}
+          </strong>
+        </div>
+      </div>
+
+      {data.reviews.total === 0 ? (
+        <p className="admin-note">이 기간에 작성된 리뷰가 없습니다.</p>
+      ) : (
+        <ul className="admin-stats-share">
+          {[5, 4, 3, 2, 1].map((score) => {
+            const count = data.reviews.distribution[score - 1] ?? 0;
+            return (
+              <li key={score}>
+                <span>{score}점</span>
+                <strong className="mono">{count.toLocaleString('ko-KR')}</strong>
+                <span className="mono">
+                  {adminPercentLabel(adminRatingShare(count, data.reviews.total))}
+                </span>
+                <span>{score === 1 || score === 2 ? '불만' : score === 3 ? '보통' : '만족'}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
       <h3>신규 가입 추이</h3>
       <ConsoleGrid
         caption="신규 가입 추이"
@@ -88,9 +127,6 @@ export function StatsCustomersScreen({
         }))}
       />
 
-      <p className="admin-note">
-        리뷰 지표(평점 분포·리뷰 수)는 리뷰 도메인이 들어온 뒤 이 화면에 더합니다.
-      </p>
     </section>
   );
 }
