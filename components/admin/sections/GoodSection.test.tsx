@@ -13,6 +13,7 @@ vi.mock('@/components/ui/Icon', () => ({
 }));
 vi.mock('../../../app/admin/archive-actions', () => ({
   archiveAdminCatalogRecordAction: vi.fn(),
+  setGoodBankTransferAction: vi.fn(),
   unarchiveAdminCatalogRecordAction: vi.fn(),
 }));
 vi.mock('../../../lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: vi.fn() }));
@@ -42,6 +43,7 @@ const good: AdminGoodRecord = {
   badge: '신상',
   stock: 'low',
   stockQty: 12,
+  allowBankTransfer: true,
   bg: null,
   imagePath: null,
   notice: {
@@ -95,7 +97,8 @@ describe('GoodSection', () => {
     expect(html).toContain('name="adjustmentId"');
     expect(html).toContain('name="expectedStockQty"');
     expect(html).toContain('재고 조정');
-    expect(html.match(/<form/g)).toHaveLength(3);
+    /* 저장 · 재고 조정 · 무통장 토글(#256) · 보관 네 개다. */
+    expect(html.match(/<form/g)).toHaveLength(4);
   });
 
   it('derives soldout for zero quantity without changing the raw stock label', () => {
@@ -204,8 +207,8 @@ describe('GoodSection', () => {
 
     expect(html).toContain('담기 (미리보기)');
     expect(html).not.toContain('shop-cart-button');
-    /* 저장 폼 · 재고 조정 폼 · 보관 폼 세 개 그대로다. 미리보기는 폼을 늘리지 않는다. */
-    expect(html.match(/<form/g)).toHaveLength(3);
+    /* 저장 · 재고 조정 · 무통장 토글 · 보관 네 개 그대로다. 미리보기는 폼을 늘리지 않는다. */
+    expect(html.match(/<form/g)).toHaveLength(4);
   });
 
   it('previews the selected record values before any edit', () => {

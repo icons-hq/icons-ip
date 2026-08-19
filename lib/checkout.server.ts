@@ -1,6 +1,11 @@
 import 'server-only';
 
-import { normalizeCheckoutAddress, type CheckoutAddress } from './checkout';
+import {
+  normalizeCheckoutAddress,
+  normalizeCheckoutPaymentMethod,
+  type CheckoutAddress,
+  type CheckoutPaymentMethod,
+} from './checkout';
 import { createClient } from './supabase/server';
 import { createServiceClient } from './supabase/service';
 
@@ -13,6 +18,7 @@ interface OrderRow {
   address: unknown;
   expires_at: string | null;
   created_at: string;
+  payment_method: string | null;
 }
 
 interface OrderItemRow {
@@ -41,6 +47,8 @@ export interface CheckoutOrderSnapshot {
   expiresAt: string | null;
   createdAt: string;
   paymentStatus: string | null;
+  /** 주문 생성 시점에 고정된 결제수단 (#256). */
+  paymentMethod: CheckoutPaymentMethod;
   items: CheckoutOrderItem[];
 }
 
@@ -80,7 +88,7 @@ export async function loadCheckoutOrder(
   const supabase = await createClient();
   const { data: orderData, error: orderError } = await supabase
     .from('orders')
-    .select('id,user_id,status,total,shipping_fee,address,expires_at,created_at')
+    .select('id,user_id,status,total,shipping_fee,address,expires_at,created_at,payment_method')
     .eq('id', orderId)
     .eq('user_id', userId)
     .maybeSingle<OrderRow>();
@@ -132,6 +140,7 @@ export async function loadCheckoutOrder(
       || attemptData?.state === 'unknown'
       || attemptData?.state === 'needs_review'
     ) ? 'pending' : paymentData?.status ?? null,
+    paymentMethod: normalizeCheckoutPaymentMethod(orderData.payment_method) ?? 'card',
     items: itemRows.map((item) => ({
       goodId: item.good_id,
       name: item.good_name_snapshot,

@@ -66,9 +66,12 @@ select 1 / case when (
 
 -- The ledger records the provider explicitly while preserving every legacy
 -- insert path as Toss until each checkout is moved behind a provider adapter.
+-- `bank_transfer` (#256) is a provider in the same ledger rather than a parallel
+-- table: the confirmation path differs only in that no PG round trip produces
+-- the evidence, and the finalizer stays the single place an order turns paid.
 select 1 / case when (
   select array_agg(enum_value::text order by enum_order)
-    = array['toss', 'korpay']::text[]
+    = array['toss', 'korpay', 'bank_transfer']::text[]
   from (
     select enumlabel as enum_value, enumsortorder as enum_order
     from pg_enum

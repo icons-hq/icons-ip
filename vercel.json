@@ -5,6 +5,10 @@
     {
       "path": "/api/cron/admin-artwork",
       "schedule": "17 3 * * *"
+    },
+    {
+      "path": "/api/cron/bank-deposits",
+      "schedule": "*/15 * * * *"
     }
   ],
   "git": {

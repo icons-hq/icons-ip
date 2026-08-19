@@ -5,6 +5,7 @@ import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { normalizeOrderReference } from '@/lib/checkout';
 import { loadCheckoutOrder } from '@/lib/checkout.server';
+import { getBankTransferAccount } from '@/lib/payments/bank-transfer.server';
 
 export const metadata: Metadata = {
   title: '주문 결제 — ICONS',
@@ -24,5 +25,12 @@ export default async function Page({ params }: { params: Promise<{ orderId: stri
   const order = await loadCheckoutOrder(auth.user.id, orderId);
   if (!order) notFound();
 
-  return <CheckoutOrder order={order} />;
+  return (
+    <CheckoutOrder
+      order={order}
+      bankTransferAccount={
+        order.paymentMethod === 'bank_transfer' ? getBankTransferAccount() : null
+      }
+    />
+  );
 }

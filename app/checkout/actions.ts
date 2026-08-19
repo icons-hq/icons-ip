@@ -6,11 +6,13 @@ import {
   mapPlaceOrderError,
   normalizeCheckoutAddress,
   normalizeCheckoutKey,
+  normalizeCheckoutPaymentMethod,
   normalizeOrderReference,
   type PlaceOrderErrorCode,
 } from '@/lib/checkout';
 import { loadCheckoutOrder } from '@/lib/checkout.server';
 import type { PreparedCheckout } from '@/lib/payments/gateway';
+import { bankTransferCheckoutEnabled } from '@/lib/payments/bank-transfer.server';
 import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
 import { createRuntimeGoodsPaymentCheckout } from '@/lib/payments/goods-checkout.runtime.server';
 import { createServiceClient } from '@/lib/supabase/service';
@@ -70,6 +72,7 @@ export async function prepareGoodsPaymentAction(
 export async function placeOrderAction(
   addressValue: unknown,
   checkoutKeyValue: unknown,
+  paymentMethodValue: unknown = 'card',
 ): Promise<PlaceOrderActionResult> {
   const auth = await getCurrentAuthState();
   if (!auth.isConfigured || !auth.user) return { ok: false, error: 'auth_required' };
@@ -84,7 +87,15 @@ export async function placeOrderAction(
   const checkoutKey = normalizeCheckoutKey(checkoutKeyValue);
   if (!checkoutKey) return { ok: false, error: 'invalid_request' };
 
-  if (!goodsCheckoutPaymentsEnabled(auth.user.id)) {
+  const paymentMethod = normalizeCheckoutPaymentMethod(paymentMethodValue);
+  if (!paymentMethod) return { ok: false, error: 'invalid_request' };
+
+  // 수단별로 게이트가 다르다. 무통장에는 결제사가 없으므로 PG rollout gate가
+  // 닫혀 있어도 열릴 수 있고, 반대로 계좌가 없으면 카드가 열려 있어도 닫힌다.
+  const available = paymentMethod === 'bank_transfer'
+    ? bankTransferCheckoutEnabled()
+    : goodsCheckoutPaymentsEnabled(auth.user.id);
+  if (!available) {
     return { ok: false, error: 'payment_unavailable' };
   }
 
@@ -96,6 +107,7 @@ export async function placeOrderAction(
       p_user_id: auth.user.id,
       p_address: address,
       p_checkout_key: checkoutKey,
+      p_payment_method: paymentMethod,
     });
     data = result.data;
     error = result.error;

@@ -40,7 +40,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     icon: 'bag',
     screens: [
       { id: 'orders', label: '주문 통합검색', href: '/admin/sales/orders', status: 'ready' },
-      { id: 'unpaid', label: '미입금 확인', href: '/admin/sales/unpaid', status: 'planned' },
+      { id: 'unpaid', label: '미입금 확인', href: '/admin/sales/unpaid', status: 'ready' },
       { id: 'dispatch', label: '발주·발송 관리', href: '/admin/sales/dispatch', status: 'ready' },
       { id: 'shipping', label: '배송현황 관리', href: '/admin/sales/shipping', status: 'ready' },
       { id: 'settled', label: '거래확정 내역', href: '/admin/sales/settled', status: 'ready' },
@@ -106,9 +106,9 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: '통계',
     icon: 'trendUp',
     screens: [
-      { id: 'stats-sales', label: '판매분석', href: '/admin/stats/sales', status: 'planned' },
-      { id: 'stats-claims', label: '클레임', href: '/admin/stats/claims', status: 'planned' },
-      { id: 'stats-customers', label: '고객현황', href: '/admin/stats/customers', status: 'planned' },
+      { id: 'stats-sales', label: '판매분석', href: '/admin/stats/sales', status: 'ready' },
+      { id: 'stats-claims', label: '클레임', href: '/admin/stats/claims', status: 'ready' },
+      { id: 'stats-customers', label: '고객현황', href: '/admin/stats/customers', status: 'ready' },
     ],
   },
   {

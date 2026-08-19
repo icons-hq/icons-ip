@@ -56,16 +56,26 @@ describe('AdminSidebar 2단 메뉴', () => {
     expect(render('admin')).toContain('href="/admin/community/roles"');
   });
 
-  /* 준비 중 화면은 라우트가 없다 — 링크로 걸면 404가 난다. */
-  it('준비 중 화면은 자리만 두고 링크를 걸지 않는다', () => {
+  /*
+   * 에픽 #248이 끝나면서 셸의 `planned` 자리 표시가 전부 소진됐다. 새 화면을
+   * `planned`로 추가하면 이 단언이 먼저 깨져 "메뉴에는 있는데 라우트가 없는"
+   * 상태를 알려 준다.
+   */
+  it('메뉴에 준비 중 자리 표시가 남아 있지 않다', () => {
     const html = render();
 
-    expect(html).toContain('준비 중');
-    expect(html).toContain('aria-disabled="true"');
-    expect(html).not.toContain('href="/admin/sales/unpaid"');
-    expect(html).not.toContain('href="/admin/stats/sales"');
-    /* 1:1 문의는 #253, 리뷰 관리는 #254로 열렸다 — ready 화면은 링크로 남아야 한다. */
+    expect(html).not.toContain('준비 중');
+    expect(html).not.toContain('aria-disabled="true"');
+  });
+
+  it('에픽 #248이 연 화면들이 모두 링크로 붙어 있다', () => {
+    const html = render();
+
     expect(html).toContain('href="/admin/cs/inquiries"');
     expect(html).toContain('href="/admin/cs/reviews"');
+    expect(html).toContain('href="/admin/sales/unpaid"');
+    expect(html).toContain('href="/admin/stats/sales"');
+    expect(html).toContain('href="/admin/stats/claims"');
+    expect(html).toContain('href="/admin/stats/customers"');
   });
 });
