@@ -4,7 +4,10 @@ import { cache } from 'react';
 import { GoodDetail } from '@/components/screens/GoodDetail';
 import { getCatalogGoodDetail } from '@/lib/catalog';
 
-type PageProps = { params: Promise<{ goodId: string }> };
+type PageProps = {
+  params: Promise<{ goodId: string }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+};
 
 /* generateMetadata 와 Page 가 같은 요청에서 카탈로그를 두 번 읽지 않도록 묶는다. */
 const loadGoodDetail = cache(getCatalogGoodDetail);
@@ -24,10 +27,31 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 /* 공개 브라우징 원칙 — 로그인 없이 열람할 수 있고, 로그인은 담기 시점에만 필요하다. */
-export default async function Page({ params }: PageProps) {
+export default async function Page({ params, searchParams }: PageProps) {
   const { goodId } = await params;
   const detail = await loadGoodDetail(goodId);
   if (!detail) notFound();
+
+  /* 홈과 같은 환경 경계 안에서 상세 표현만 바꾼다. */
+  const prototypeEnabled = process.env.ICONS_PROTOTYPE === '1'
+    && process.env.VERCEL_ENV !== 'production';
+  if (prototypeEnabled) {
+    const [{ LineFriendsGoodDetailPrototype }, { normalizePrototypeVariant }] = await Promise.all([
+      import('@/components/prototype/line-friends/LineFriendsGoodDetailPrototype'),
+      import('@/components/prototype/line-friends/variants'),
+    ]);
+    const query = searchParams ? await searchParams : {};
+    return (
+      <>
+        <style data-prototype-styles="line-friends-detail">{`@import url("/prototype/line-friends/chrome.css");
+@import url("/prototype/line-friends/detail.css");`}</style>
+        <LineFriendsGoodDetailPrototype
+          detail={detail}
+          variant={normalizePrototypeVariant(query.variant)}
+        />
+      </>
+    );
+  }
 
   return <GoodDetail detail={detail} />;
 }

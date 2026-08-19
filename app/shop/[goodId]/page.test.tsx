@@ -1,17 +1,21 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogGoodDetail } from '@/lib/catalog';
 import Page, { generateMetadata } from './page';
 
 const mocks = vi.hoisted(() => ({
   details: [] as CatalogGoodDetail[],
   goodDetail: vi.fn<(props: Record<string, unknown>) => null>(() => null),
+  goodDetailPrototype: vi.fn<(props: Record<string, unknown>) => null>(() => null),
 }));
 
 vi.mock('next/navigation', () => ({
   notFound: () => { throw new Error('NEXT_NOT_FOUND'); },
 }));
 vi.mock('@/components/screens/GoodDetail', () => ({ GoodDetail: mocks.goodDetail }));
+vi.mock('@/components/prototype/line-friends/LineFriendsGoodDetailPrototype', () => ({
+  LineFriendsGoodDetailPrototype: mocks.goodDetailPrototype,
+}));
 vi.mock('@/lib/catalog', () => ({
   getCatalogGoodDetail: async (id: string) => mocks.details.find((item) => item.good.id === id) ?? null,
 }));
@@ -47,11 +51,19 @@ function detailFor(id: string, name: string, price: number): CatalogGoodDetail {
 }
 
 beforeEach(() => {
+  delete process.env.ICONS_PROTOTYPE;
+  delete process.env.VERCEL_ENV;
   mocks.goodDetail.mockClear();
+  mocks.goodDetailPrototype.mockClear();
   mocks.details = [
     detailFor('g13', '아크릴 블록', 12000),
     detailFor('g14', '오로라 아크릴 키링', 9000),
   ];
+});
+
+afterEach(() => {
+  delete process.env.ICONS_PROTOTYPE;
+  delete process.env.VERCEL_ENV;
 });
 
 describe('/shop/[goodId] page', () => {
@@ -60,6 +72,87 @@ describe('/shop/[goodId] page', () => {
     renderToStaticMarkup(await Page({ params: Promise.resolve({ goodId: 'g13' }) }));
 
     expect(mocks.goodDetail.mock.calls[0]?.[0]).toEqual({ detail: mocks.details[0] });
+  });
+
+  it('keeps the current detail screen when the prototype flag is not configured', async () => {
+    const html = renderToStaticMarkup(
+      await Page({
+        params: Promise.resolve({ goodId: 'g13' }),
+        searchParams: Promise.resolve({ variant: 'B' }),
+      }),
+    );
+
+    expect(mocks.goodDetail.mock.calls[0]?.[0]).toEqual({ detail: mocks.details[0] });
+    expect(mocks.goodDetailPrototype).not.toHaveBeenCalled();
+    expect(html).not.toContain('/prototype/line-friends/');
+  });
+
+  it.each(['A', 'B', 'C'] as const)(
+    'renders storefront prototype variant %s when enabled',
+    async (variant) => {
+      process.env.ICONS_PROTOTYPE = '1';
+
+      const html = renderToStaticMarkup(
+        await Page({
+          params: Promise.resolve({ goodId: 'g13' }),
+          searchParams: Promise.resolve({ variant }),
+        }),
+      );
+
+      expect(mocks.goodDetail).not.toHaveBeenCalled();
+      expect(mocks.goodDetailPrototype.mock.calls[0]?.[0]).toEqual({
+        detail: mocks.details[0],
+        variant,
+      });
+      expect(html).toContain('/prototype/line-friends/chrome.css');
+      expect(html).toContain('/prototype/line-friends/detail.css');
+    },
+  );
+
+  it.each([
+    ['an invalid variant', { variant: 'unexpected' }],
+    ['a missing variant', {}],
+  ])('falls back to variant A for %s', async (_case, searchParams) => {
+    process.env.ICONS_PROTOTYPE = '1';
+
+    renderToStaticMarkup(
+      await Page({
+        params: Promise.resolve({ goodId: 'g13' }),
+        searchParams: Promise.resolve(searchParams),
+      }),
+    );
+
+    expect(mocks.goodDetailPrototype.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ variant: 'A' }),
+    );
+  });
+
+  it('keeps the current detail in Vercel production even when the prototype flag is set', async () => {
+    process.env.ICONS_PROTOTYPE = '1';
+    process.env.VERCEL_ENV = 'production';
+
+    const html = renderToStaticMarkup(
+      await Page({
+        params: Promise.resolve({ goodId: 'g13' }),
+        searchParams: Promise.resolve({ variant: 'C' }),
+      }),
+    );
+
+    expect(mocks.goodDetail).toHaveBeenCalledOnce();
+    expect(mocks.goodDetailPrototype).not.toHaveBeenCalled();
+    expect(html).not.toContain('/prototype/line-friends/');
+  });
+
+  it('keeps the existing 404 behavior while the prototype is enabled', async () => {
+    process.env.ICONS_PROTOTYPE = '1';
+
+    await expect(
+      Page({
+        params: Promise.resolve({ goodId: 'g999' }),
+        searchParams: Promise.resolve({ variant: 'A' }),
+      }),
+    ).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(mocks.goodDetailPrototype).not.toHaveBeenCalled();
   });
 
   it('404s for an unknown good id', async () => {
