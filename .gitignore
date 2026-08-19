@@ -33,7 +33,13 @@ docs/claude-design/project/assets/
 *.pem
 
 # local research / working docs (repo에 커밋하지 않는 로컬 작업 문서)
-docs/online-popup/
+docs/online-popup/*
+!docs/online-popup/01-report.md
+!docs/online-popup/02-prd.md
+!docs/online-popup/03-roadmap.md
+!docs/online-popup/04-dev-spec.md
+!docs/online-popup/05-game-miniapp-spec.md
+docs/online-popup/experience/
 docs/research/*
 !docs/research/2026-08-12-interim-stakeholder-decisions.md
 
