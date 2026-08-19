@@ -139,7 +139,7 @@ provider callback replay와 known-only Toss webhook 재전달이 겹쳐도 legac
 ### 배송비 표기
 
 메일은 `orders`의 배송비 컬럼을 읽지 않고 `총 결제금액 - 굿즈 합계`로 파생한다.
-배송비 도입([#174](https://github.com/sangwopark19/icons-ip/issues/174))이 먼저 들어와도, 나중에 들어와도 표기가 맞는다.
+배송비 도입([#174](https://github.com/icons-hq/icons-ip/issues/174))이 먼저 들어와도, 나중에 들어와도 표기가 맞는다.
 배송비가 0이면 "무료"로 적는다.
 
 ---
@@ -290,7 +290,7 @@ Gmail은 `<style>`을 떼어내고 Outlook은 flex·grid를 무시한다. 앱의
 
 ### 남은 것
 
-- 사업자 정보·고객센터 연락처의 메일 푸터 반영 — [#170](https://github.com/sangwopark19/icons-ip/issues/170)(#87 종속)
+- 사업자 정보·고객센터 연락처의 메일 푸터 반영 — [#170](https://github.com/icons-hq/icons-ip/issues/170)(#87 종속)
 - 발송 실패의 능동 알림. 현재 미발송은 `console.error`로만 나가고, 운영자가 로그 알림을
   걸어두지 않으면 발송 이력 화면을 열어야 안다
 - 이력 행이 없는 미발송(`recipient_missing` 등)의 화면 복구 경로. 지금은 로그를 보고

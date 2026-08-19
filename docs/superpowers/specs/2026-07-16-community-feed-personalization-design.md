@@ -1,7 +1,7 @@
 # 커뮤니티 피드 개인화 설계
 
 작성일: 2026-07-16
-대상 이슈: [#107](https://github.com/sangwopark19/icons-ip/issues/107)
+대상 이슈: [#107](https://github.com/icons-hq/icons-ip/issues/107)
 
 ## 목표
 

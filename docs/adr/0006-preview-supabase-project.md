@@ -6,7 +6,7 @@ status: accepted
 
 Vercel Preview 배포는 프로덕션 Supabase 프로젝트(`sbutbsghcxmxmxgrshwq`)를 가리키고 있었고, `SUPABASE_SERVICE_ROLE_KEY`는 Preview·Production이 같은 항목 하나를 공유했다. 공개 카탈로그는 `resolveCatalogSource`가 `VERCEL_ENV=preview`에서 mock으로 fallback하지만 **어드민 콘솔은 `app/admin/page.tsx`·`app/admin/actions.ts`에서 `previewDefaultSource: 'supabase'`로 강제**한다. 인증·주문·결제·커뮤니티 쓰기도 같다. 즉 아무 PR의 프리뷰 배포가 RLS를 우회할 수 있는 키로 운영 데이터를 읽고 쓸 수 있었다.
 
-동시에 `deploy-vercel-preview`에는 마이그레이션 단계가 없고 `deploy-supabase`는 `main` push 전용이라, 스키마를 바꾸는 PR은 프리뷰에서 **앱은 새 버전, DB는 구 버전**이 됐다([#196](https://github.com/sangwopark19/icons-ip/pull/196)에서 `admin_search_orders`의 신규 컬럼이 없어 어드민 주문 섹션 전체가 fail closed로 터졌다. [#197](https://github.com/sangwopark19/icons-ip/issues/197)).
+동시에 `deploy-vercel-preview`에는 마이그레이션 단계가 없고 `deploy-supabase`는 `main` push 전용이라, 스키마를 바꾸는 PR은 프리뷰에서 **앱은 새 버전, DB는 구 버전**이 됐다([#196](https://github.com/icons-hq/icons-ip/pull/196)에서 `admin_search_orders`의 신규 컬럼이 없어 어드민 주문 섹션 전체가 fail closed로 터졌다. [#197](https://github.com/icons-hq/icons-ip/issues/197)).
 
 프리뷰 전용 Supabase 프로젝트를 하나 상시 운영하고, `deploy-supabase-preview` job이 프리뷰 배포 **전에** 마이그레이션을 올린다. production의 `deploy-vercel → needs: deploy-supabase` 순서와 같은 모양이 된다.
 
