@@ -135,6 +135,10 @@ describe('profile image metadata', () => {
     { mimeType: 'image/png', size: MAX_PROFILE_IMAGE_BYTES + 1 },
     { mimeType: 'image/svg+xml', size: 1 },
     { mimeType: null, size: 1 },
+    // Object.prototype keys must not survive the allowlist: a matched prototype key
+    // makes the extension lookup return a function that the path template stringifies.
+    { mimeType: 'toString', size: 1 },
+    { mimeType: 'constructor', size: 1 },
   ])('rejects invalid metadata %#', (input) => {
     expect(normalizeProfileImageMetadata(input)).toEqual({
       ok: false,
