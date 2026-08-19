@@ -50,6 +50,23 @@ describe('account deletion public DTO', () => {
     });
   });
 
+  // A prototype key would have passed an `in` allowlist. The path contract catches it
+  // today, so this pins the rejection instead of leaving it to a single downstream guard.
+  it.each(['toString', 'constructor', 'valueOf'])(
+    'rejects the prototype key %s as a blocker code',
+    (code) => {
+      expect(normalizeAccountDeletionPreview({
+        available: true,
+        eligible: false,
+        blockers: [{ code, count: 1, path: '/settings' }],
+      })).toEqual({
+        available: false,
+        eligible: false,
+        blockers: [{ code: 'not_available', count: 1, path: '/settings' }],
+      });
+    },
+  );
+
   it('returns only opaque request phases and safe next actions', () => {
     expect(normalizeAccountDeletionStatus({
       status: 'blocked',

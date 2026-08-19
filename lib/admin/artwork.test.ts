@@ -36,6 +36,11 @@ describe('admin artwork metadata', () => {
     { kind: 'ip', mimeType: 'image/png', size: 1.5 },
     { kind: 'ip', mimeType: 'image/png', size: ADMIN_ARTWORK_MAX_BYTES + 1 },
     { kind: 'ip', mimeType: 'image/png', size: Number.NaN },
+    // Object.prototype keys must not survive the allowlist: a matched prototype key
+    // makes the extension lookup return a function that the path template stringifies.
+    { kind: 'ip', mimeType: 'toString', size: 1 },
+    { kind: 'ip', mimeType: 'constructor', size: 1 },
+    { kind: 'toString', mimeType: 'image/png', size: 1 },
   ])('rejects unsupported or unsafe metadata %#', (input) => {
     expect(normalizeAdminArtworkMetadata(input)).toEqual({
       ok: false,
