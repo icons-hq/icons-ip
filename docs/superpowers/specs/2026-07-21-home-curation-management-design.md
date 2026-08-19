@@ -1,7 +1,7 @@
 # 홈 큐레이션 관리 설계
 
 작성일: 2026-07-21
-대상 이슈: [#114](https://github.com/sangwopark19/icons-ip/issues/114)
+대상 이슈: [#114](https://github.com/icons-hq/icons-ip/issues/114)
 
 ## 목표
 

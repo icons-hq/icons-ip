@@ -1,7 +1,7 @@
 # 관리자 인앱 공지 발송 콘솔 설계
 
 작성일: 2026-07-16
-대상 이슈: [#105](https://github.com/sangwopark19/icons-ip/issues/105)
+대상 이슈: [#105](https://github.com/icons-hq/icons-ip/issues/105)
 
 ## 목표
 

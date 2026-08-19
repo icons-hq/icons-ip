@@ -1,7 +1,7 @@
 # 커뮤니티 트렌딩 태그 설계
 
 작성일: 2026-07-16
-대상 이슈: [#106](https://github.com/sangwopark19/icons-ip/issues/106)
+대상 이슈: [#106](https://github.com/icons-hq/icons-ip/issues/106)
 
 ## 목표
 

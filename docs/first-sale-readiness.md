@@ -130,28 +130,28 @@
 
 [GitHub Project #8](https://github.com/users/sangwopark19/projects/8)에 `Phase: First Sale`을 추가하고 기존 보드에서 관리한다. 새 보드를 만들지 않는다. `Track`에 **Fulfillment**·**Legal**을 추가했고 나머지는 기존 Track을 재사용한다.
 
-에픽은 **[#168](https://github.com/sangwopark19/icons-ip/issues/168)**이다.
+에픽은 **[#168](https://github.com/icons-hq/icons-ip/issues/168)**이다.
 
 | Track | 이슈 | 갭 | Dependency |
 |---|---|---|---|
-| **Legal** | [#169](https://github.com/sangwopark19/icons-ip/issues/169) 법정 문서 3종 + 라우트 + 푸터 링크 | L2 · L5 | Unblocked |
+| **Legal** | [#169](https://github.com/icons-hq/icons-ip/issues/169) 법정 문서 3종 + 라우트 + 푸터 링크 | L2 · L5 | Unblocked |
 | | [#170](https://github.com/icons-hq/icons-ip/issues/170) 사업자 정보 표기 컴포넌트 | L1 | 구현 완료 — 실제 값은 #239 |
 | | [#239](https://github.com/icons-hq/icons-ip/issues/239) `[human]` 사업자 정보·통신판매 신고·문의 창구 확정 | L1 | Unblocked |
-| | [#171](https://github.com/sangwopark19/icons-ip/issues/171) 굿즈 고시정보 스키마 + 어드민 입력 | L3 | Unblocked |
-| **Commerce** | [#172](https://github.com/sangwopark19/icons-ip/issues/172) 굿즈 상세 콘텐츠 스키마 + 어드민 입력 | C2 | Unblocked |
-| | [#173](https://github.com/sangwopark19/icons-ip/issues/173) **굿즈 상세페이지 `/shop/[goodId]`** | C1 | **Blocked** — #172·#171 |
-| | [#174](https://github.com/sangwopark19/icons-ip/issues/174) 배송비 도입 (`orders.shipping_fee` 스냅샷) | C3 | Unblocked |
-| | [#175](https://github.com/sangwopark19/icons-ip/issues/175) 우편번호 검색 도입 | C4 | Unblocked |
-| | [#176](https://github.com/sangwopark19/icons-ip/issues/176) **배송 후 청약철회 경로** | C5 | Unblocked |
-| **Fulfillment** | [#177](https://github.com/sangwopark19/icons-ip/issues/177) `[human]` 물류 연동 사양 확인 (H1~H7) | F1 | Unblocked |
-| | [#178](https://github.com/sangwopark19/icons-ip/issues/178) 운송장 등록·조회 | F2 | 수기 경로는 착수 가능 → 구현 완료 |
+| | [#171](https://github.com/icons-hq/icons-ip/issues/171) 굿즈 고시정보 스키마 + 어드민 입력 | L3 | Unblocked |
+| **Commerce** | [#172](https://github.com/icons-hq/icons-ip/issues/172) 굿즈 상세 콘텐츠 스키마 + 어드민 입력 | C2 | Unblocked |
+| | [#173](https://github.com/icons-hq/icons-ip/issues/173) **굿즈 상세페이지 `/shop/[goodId]`** | C1 | **Blocked** — #172·#171 |
+| | [#174](https://github.com/icons-hq/icons-ip/issues/174) 배송비 도입 (`orders.shipping_fee` 스냅샷) | C3 | Unblocked |
+| | [#175](https://github.com/icons-hq/icons-ip/issues/175) 우편번호 검색 도입 | C4 | Unblocked |
+| | [#176](https://github.com/icons-hq/icons-ip/issues/176) **배송 후 청약철회 경로** | C5 | Unblocked |
+| **Fulfillment** | [#177](https://github.com/icons-hq/icons-ip/issues/177) `[human]` 물류 연동 사양 확인 (H1~H7) | F1 | Unblocked |
+| | [#178](https://github.com/icons-hq/icons-ip/issues/178) 운송장 등록·조회 | F2 | 수기 경로는 착수 가능 → 구현 완료 |
 | | [#179](https://github.com/icons-hq/icons-ip/issues/179) `[human]` 할당 재고 확정 + `stock_qty` 입력 | F3 | **Blocked** — #177 · #190 |
-| **Notifications** | [#180](https://github.com/sangwopark19/icons-ip/issues/180) 트랜잭션 이메일 인프라 + 템플릿 2종 | N1 · L4 | Unblocked |
-| **Admin Ops** | [#181](https://github.com/sangwopark19/icons-ip/issues/181) **ID 덮어쓰기 방지 5곳** (`bug`) | A1 | Unblocked |
-| | [#182](https://github.com/sangwopark19/icons-ip/issues/182) `RecordList` 썸네일 전 섹션 | A7 | Unblocked |
-| | [#183](https://github.com/sangwopark19/icons-ip/issues/183) 내부 구현 노출 필드 정리 | A2~A6 | Unblocked |
-| | [#184](https://github.com/sangwopark19/icons-ip/issues/184) 굿즈 상세 미리보기 | A8 | **Blocked** — #173 |
-| | [#185](https://github.com/sangwopark19/icons-ip/issues/185) 수동 뽑기권 발급 경로 | A9 | Unblocked |
+| **Notifications** | [#180](https://github.com/icons-hq/icons-ip/issues/180) 트랜잭션 이메일 인프라 + 템플릿 2종 | N1 · L4 | Unblocked |
+| **Admin Ops** | [#181](https://github.com/icons-hq/icons-ip/issues/181) **ID 덮어쓰기 방지 5곳** (`bug`) | A1 | Unblocked |
+| | [#182](https://github.com/icons-hq/icons-ip/issues/182) `RecordList` 썸네일 전 섹션 | A7 | Unblocked |
+| | [#183](https://github.com/icons-hq/icons-ip/issues/183) 내부 구현 노출 필드 정리 | A2~A6 | Unblocked |
+| | [#184](https://github.com/icons-hq/icons-ip/issues/184) 굿즈 상세 미리보기 | A8 | **Blocked** — #173 |
+| | [#185](https://github.com/icons-hq/icons-ip/issues/185) 수동 뽑기권 발급 경로 | A9 | Unblocked |
 
 ### 4.1 의존성과 순서
 
@@ -202,7 +202,7 @@
 
 에이전트가 코드로 풀 수 없고, 답이 와야 설계가 확정되는 항목이다.
 
-### 5.1 김단비 과장(카카오팀) 확인 — [#177](https://github.com/sangwopark19/icons-ip/issues/177)
+### 5.1 김단비 과장(카카오팀) 확인 — [#177](https://github.com/icons-hq/icons-ip/issues/177)
 
 물류 스택: **김포 창고 · 한진택배 · WMS 사용**(2026-08-06 확인).
 
@@ -262,22 +262,22 @@
 
 | 갭 | 이슈 | 상태 | 남은 것 |
 |---|---|---|---|
-| L2 · L5 법정 문서 3종 | [#169](https://github.com/sangwopark19/icons-ip/issues/169) | 구현 | 법무 검토 병행(D12) · WMS 운영사 법인명(H7) |
+| L2 · L5 법정 문서 3종 | [#169](https://github.com/icons-hq/icons-ip/issues/169) | 구현 | 법무 검토 병행(D12) · WMS 운영사 법인명(H7) |
 | L1 사업자 정보 표기 | [#170](https://github.com/icons-hq/icons-ip/issues/170) | 구조 구현 · **값 공백** | 공개 판매자 정보 7종과 문의 창구 → [#239](https://github.com/icons-hq/icons-ip/issues/239) |
-| L3 고시정보 | [#171](https://github.com/sangwopark19/icons-ip/issues/171) | 구현 | 홍실 3종 실제 값 입력 → [#190](https://github.com/sangwopark19/icons-ip/issues/190) |
-| C2 굿즈 콘텐츠 스키마 | [#172](https://github.com/sangwopark19/icons-ip/issues/172) | 구현 | 홍실 3종 이미지·설명 입력 → [#190](https://github.com/sangwopark19/icons-ip/issues/190) |
-| C1 굿즈 상세페이지 | [#173](https://github.com/sangwopark19/icons-ip/issues/173) | 구현 | — |
-| C3 배송비 | [#174](https://github.com/sangwopark19/icons-ip/issues/174) | 구현 | 도서산간 추가요금(H6) |
-| C4 우편번호 검색 | [#175](https://github.com/sangwopark19/icons-ip/issues/175) | 구현 | — |
-| C5 배송 후 청약철회 | [#176](https://github.com/sangwopark19/icons-ip/issues/176) | 구현 | 반품 입고 주소·절차(H5) |
-| F2 운송장 등록·조회 | [#178](https://github.com/sangwopark19/icons-ip/issues/178) | **수기 경로만** 구현 | WMS 자동 수신(H1~H3) |
-| F3 할당 재고 | [#179](https://github.com/sangwopark19/icons-ip/issues/179) | 미착수 | `stock_qty` 확정(H 전체) · `stock` 전환은 [#190](https://github.com/sangwopark19/icons-ip/issues/190) 선행(§4.1 정정) |
+| L3 고시정보 | [#171](https://github.com/icons-hq/icons-ip/issues/171) | 구현 | 홍실 3종 실제 값 입력 → [#190](https://github.com/icons-hq/icons-ip/issues/190) |
+| C2 굿즈 콘텐츠 스키마 | [#172](https://github.com/icons-hq/icons-ip/issues/172) | 구현 | 홍실 3종 이미지·설명 입력 → [#190](https://github.com/icons-hq/icons-ip/issues/190) |
+| C1 굿즈 상세페이지 | [#173](https://github.com/icons-hq/icons-ip/issues/173) | 구현 | — |
+| C3 배송비 | [#174](https://github.com/icons-hq/icons-ip/issues/174) | 구현 | 도서산간 추가요금(H6) |
+| C4 우편번호 검색 | [#175](https://github.com/icons-hq/icons-ip/issues/175) | 구현 | — |
+| C5 배송 후 청약철회 | [#176](https://github.com/icons-hq/icons-ip/issues/176) | 구현 | 반품 입고 주소·절차(H5) |
+| F2 운송장 등록·조회 | [#178](https://github.com/icons-hq/icons-ip/issues/178) | **수기 경로만** 구현 | WMS 자동 수신(H1~H3) |
+| F3 할당 재고 | [#179](https://github.com/icons-hq/icons-ip/issues/179) | 미착수 | `stock_qty` 확정(H 전체) · `stock` 전환은 [#190](https://github.com/icons-hq/icons-ip/issues/190) 선행(§4.1 정정) |
 | N1 · L4 트랜잭션 이메일 | [#180](https://github.com/icons-hq/icons-ip/issues/180) · [#230](https://github.com/icons-hq/icons-ip/pull/230) | legacy 경로 유지 · Send Email Hook dark path 기본 OFF 배포 | 발신 도메인·키 rotation/drain·Production secret·Hook/readback·실수신 증거 → [#191](https://github.com/icons-hq/icons-ip/issues/191) |
-| A1 ID 덮어쓰기 | [#181](https://github.com/sangwopark19/icons-ip/issues/181) | 구현 | — |
-| A7 목록 썸네일 | [#182](https://github.com/sangwopark19/icons-ip/issues/182) | 구현 | — |
-| A2~A6 내부 구현 필드 | [#183](https://github.com/sangwopark19/icons-ip/issues/183) | 구현 | — |
-| A8 굿즈 미리보기 | [#184](https://github.com/sangwopark19/icons-ip/issues/184) | 구현 | — |
-| A9 수동 뽑기권 발급 | [#185](https://github.com/sangwopark19/icons-ip/issues/185) | 구현 | — |
+| A1 ID 덮어쓰기 | [#181](https://github.com/icons-hq/icons-ip/issues/181) | 구현 | — |
+| A7 목록 썸네일 | [#182](https://github.com/icons-hq/icons-ip/issues/182) | 구현 | — |
+| A2~A6 내부 구현 필드 | [#183](https://github.com/icons-hq/icons-ip/issues/183) | 구현 | — |
+| A8 굿즈 미리보기 | [#184](https://github.com/icons-hq/icons-ip/issues/184) | 구현 | — |
+| A9 수동 뽑기권 발급 | [#185](https://github.com/icons-hq/icons-ip/issues/185) | 구현 | — |
 
 ### 8.1 판매 개시를 아직 막는 것
 
@@ -292,7 +292,7 @@
 
 ### 8.2 #178에서 남긴 범위
 
-이슈 범위 4번(배송 시작 이메일에 운송장 포함)은 이메일 인프라([#180](https://github.com/sangwopark19/icons-ip/issues/180))에서 배선했다. WMS 자동 수신은 #177의 실제 연동 표면과 수기 운영 증거가 모인 뒤 별도 이슈로 만든다(§7). 폐기한 범용 팝업 범위에 종속하지 않는다.
+이슈 범위 4번(배송 시작 이메일에 운송장 포함)은 이메일 인프라([#180](https://github.com/icons-hq/icons-ip/issues/180))에서 배선했다. WMS 자동 수신은 #177의 실제 연동 표면과 수기 운영 증거가 모인 뒤 별도 이슈로 만든다(§7). 폐기한 범용 팝업 범위에 종속하지 않는다.
 
 ### 8.3 결제 provider 전환 절차
 
