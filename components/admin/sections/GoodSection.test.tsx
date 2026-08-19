@@ -13,8 +13,10 @@ vi.mock('@/components/ui/Icon', () => ({
 }));
 vi.mock('../../../app/admin/archive-actions', () => ({
   archiveAdminCatalogRecordAction: vi.fn(),
-  setGoodBankTransferAction: vi.fn(),
   unarchiveAdminCatalogRecordAction: vi.fn(),
+}));
+vi.mock('../../../app/admin/good-bank-transfer-actions', () => ({
+  setGoodBankTransferAction: vi.fn(),
 }));
 vi.mock('../../../lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: vi.fn() }));
 
