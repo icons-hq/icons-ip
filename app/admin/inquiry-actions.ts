@@ -8,7 +8,6 @@ import {
   buildInquiryUploadPath,
   inquiryCategoryLabel,
   MAX_INQUIRY_BODY_LENGTH,
-  MAX_INQUIRY_IMAGES,
   normalizeInquiryReplyForm,
 } from '@/lib/inquiries';
 import { createClient } from '@/lib/supabase/server';
@@ -215,6 +214,3 @@ export async function deleteInquiryReplyTemplateAction(
   if (inquiryId) revalidatePath(`/admin/cs/inquiries/${inquiryId}`);
   return { message: '답변 템플릿을 삭제했습니다.' };
 }
-
-/** 첨부 제한은 폼과 액션이 같은 값을 봐야 한다. 화면이 import해 안내 문구에 쓴다. */
-export const ADMIN_INQUIRY_MAX_IMAGES = MAX_INQUIRY_IMAGES;
