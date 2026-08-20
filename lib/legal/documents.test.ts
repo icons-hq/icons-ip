@@ -106,9 +106,9 @@ describe('법정 문서 레지스트리', () => {
   it('2026-08-21 개정을 본문으로 승격하고 사전 공지를 걷는다', () => {
     /* 공지 2026-08-14 → 시행 2026-08-21. 시행일이 되면 예고가 아니라 본문이 진실이어야 한다.
        사전 공지를 남겨두면 이미 시행된 내용을 계속 "예정"이라고 알리게 된다. */
-    expect(LEGAL_DOCUMENTS.terms.effectiveDate).toBe('2026-08-21');
-    expect(LEGAL_DOCUMENTS.privacy.effectiveDate).toBe('2026-08-21');
-    /* shipping도 같이 오른다 — #239 연락처 확정으로 세 문서의 문의처 문장이 함께 바뀐다. */
+    expect(LEGAL_DOCUMENTS.terms.effectiveDate).toBe('2026-08-22');
+    expect(LEGAL_DOCUMENTS.privacy.effectiveDate).toBe('2026-08-22');
+    /* shipping은 08-21에 머문다 — 가입 연령은 배송정책 본문에 나오지 않는다. */
     expect(LEGAL_DOCUMENTS.shipping.effectiveDate).toBe('2026-08-21');
 
     for (const document of documents) {
@@ -226,11 +226,17 @@ describe('이용약관', () => {
     expect(body).toMatch(/시간이 지나 만료되지 않으며/);
   });
 
-  /* 온보딩(app/onboarding/actions.ts)의 readBirthDate는 나이를 계산하지 않는다.
-     저장소에 나이 게이트가 없으므로 약관이 자동 차단을 약속하면 안 된다. */
-  it('나이를 자동 검증하지 않는다는 사실을 회원가입 조문에 밝힌다', () => {
+  /* #188 · ADR-0009 — 게이트가 생겼다. 앱 폼과 profiles 트리거가 만 14세 미만 생년월일
+     저장을 거부하므로, 문서가 계속 "차단하지 않는다"고 말하면 실제 동작과 정반대가 된다. */
+  it('만 14세 가입 게이트를 회원가입 조문에 밝힌다', () => {
     const signup = terms.articles.find((article) => article.heading.includes('회원가입'));
-    expect(signup?.closing?.join('\n')).toMatch(/나이를 자동 검증해 가입을 차단하지 않습니다/);
+    const closing = signup!.closing!.join('\n');
+
+    expect(closing).toMatch(/만 14세 미만인 경우 회원가입을 완료할 수 없습니다/);
+    expect(closing).toMatch(/법정대리인의 동의를 통한 가입 경로는 제공하지 않습니다/);
+    expect(closing).not.toMatch(/자동 검증해 가입을 차단하지 않습니다/);
+    /* 판정 기준 시간대가 문서에 있어야 이용자가 경계일 결과를 예측할 수 있다. */
+    expect(closing).toMatch(/한국 표준시/);
   });
 
   /* /my에도 /settings에도 탈퇴 컨트롤이 없고 계정 삭제 액션·RPC도 없다(#102·#137).
@@ -346,19 +352,16 @@ describe('개인정보처리방침', () => {
   });
 
   /*
-   * 저장소 어디에도 나이 게이트가 없다 — readBirthDate는 "존재하는 날짜"와 "오늘 이전"만 본다.
-   * "수집하지 않습니다"는 수집을 막는 장치가 있다는 뜻이 되어 사실과 어긋난다.
-   * 게이트 도입은 법정대리인 동의 설계가 따로 필요한 별도 작업이다.
+   * #188 · ADR-0009 — 게이트가 생겼으므로 "수집하지 않습니다"가 사실이 됐다.
+   * 다만 게이트가 있어도 우회 가입이 드러날 수 있으므로 사후 정지·파기 절차는 남긴다.
    */
-  it('만 14세 미만 처리 고지를 나이 게이트 없는 현재 동작에 맞춘다', () => {
+  it('만 14세 미만 처리 고지가 실제 게이트와 일치한다', () => {
     const rights = privacy.articles.find((article) => article.heading.includes('정보주체의 권리'));
     const body = rights!.paragraphs!.join('\n');
 
-    expect(text).not.toMatch(/만 14세 미만 아동의 개인정보는 수집하지 않습니다/);
-    expect(body).toMatch(/나이를 자동 검증해 가입을 차단하지는 않으므로/);
+    expect(body).toMatch(/만 14세 미만 아동의 개인정보를 수집하지 않습니다/);
+    expect(body).not.toMatch(/차단하지는 않으므로/);
     expect(body).toMatch(/알게 된 경우/);
-    /* 처리 목적도 존재하지 않는 "가입 제한"을 근거로 삼으면 안 된다. */
-    expect(text).not.toMatch(/만 14세 미만 가입 제한/);
   });
 
   it('삭제·처리정지 요구를 약관 제7조의 탈퇴 경로로 연결한다', () => {
