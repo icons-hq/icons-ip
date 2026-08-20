@@ -32,6 +32,7 @@ interface ClaimQueueRow {
   claim_type: string;
   stage: string;
   reason_type: string;
+  buyer_id: string;
   buyer_name: string | null;
   buyer_email: string | null;
   order_status: string;
@@ -78,7 +79,7 @@ function toRow(row: ClaimQueueRow): AdminClaimRow {
     reasonType: (isOrderWithdrawalReasonType(row.reason_type)
       ? row.reason_type
       : 'change_of_mind') as OrderWithdrawalReasonType,
-    buyerName: adminClaimBuyerLabel(row.buyer_name, row.order_id),
+    buyerName: adminClaimBuyerLabel(row.buyer_name, row.buyer_id),
     buyerEmail: row.buyer_email,
     orderStatus: row.order_status,
     orderTotal: toNumber(row.order_total),

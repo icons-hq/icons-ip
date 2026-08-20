@@ -91,10 +91,11 @@ describe('클레임 필터 정규화', () => {
 });
 
 describe('구매자 표기와 집계', () => {
-  it('닉네임이 비면 주문번호 축약을 쓴다', () => {
-    expect(adminClaimBuyerLabel(null, '11111111-1111-4111-8111-111111111111'))
-      .toBe('fan_111111');
-    expect(adminClaimBuyerLabel(' maple ', '11111111-1111-4111-8111-111111111111'))
+  /* seed는 구매자 id다 — 주문 콘솔의 fan_ 축약과 같은 구매자에 같은 이름이 나와야 한다. */
+  it('닉네임이 비면 구매자 id 축약을 쓴다', () => {
+    expect(adminClaimBuyerLabel(null, 'ab12cd34-5678-4abc-8def-111111111111'))
+      .toBe('fan_ab12cd');
+    expect(adminClaimBuyerLabel(' maple ', 'ab12cd34-5678-4abc-8def-111111111111'))
       .toBe('maple');
   });
 

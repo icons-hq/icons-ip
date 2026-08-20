@@ -841,6 +841,14 @@ select 1 / case when (
   ) = 1
 ) then 1 else 0 end as assert_claim_search_filters_by_type;
 
+-- 익명 fan_ 표기의 seed는 구매자 id다. 목록이 구매자 id를 직접 실어야 클레임
+-- 콘솔이 주문 콘솔과 같은 구매자에 같은 축약을 그린다(20260820090000).
+select 1 / case when (
+  select bool_and(claim.buyer_id = orders.user_id) and count(*) > 0
+  from public.admin_search_order_claims(null, null, null, null, null, null, 100, 0) as claim
+  join public.orders as orders on orders.id = claim.order_id
+) then 1 else 0 end as assert_claim_search_carries_buyer_identity;
+
 -- 상세는 뽑기권 발급 여부와 마스킹된 환불계좌를 함께 싣는다. 원문은 싣지 않는다.
 select 1 / case when (
   select detail -> 'cardPacks' ->> 'issued' = '1'
