@@ -199,9 +199,9 @@ export function adminClaimBackHref(claimType: OrderClaimType, back: unknown) {
   return adminClaimHref(claimType, normalizeAdminClaimFilters(known));
 }
 
-/** 구매자 표기. 닉네임이 비면 주문 콘솔과 같은 fan_ 축약을 쓴다. */
-export function adminClaimBuyerLabel(name: string | null, orderId: string) {
-  return name?.trim() || `fan_${orderId.replaceAll('-', '').slice(0, 6)}`;
+/** 구매자 표기. 닉네임이 비면 주문 콘솔과 같은 fan_ 축약(구매자 id 앞 6자)을 쓴다. */
+export function adminClaimBuyerLabel(name: string | null, buyerId: string) {
+  return name?.trim() || `fan_${buyerId.slice(0, 6)}`;
 }
 
 /** 칩에 쓰는 미처리 합계. `open` 필터가 가리키는 집합과 같은 정의를 쓴다. */
