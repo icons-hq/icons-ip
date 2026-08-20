@@ -189,7 +189,7 @@ export function Onboarding({
             className="onboarding-birth-fieldset"
           >
             <legend>생년월일</legend>
-            <span className="onboarding-birth-hint" id="birth-date-hint">예: 2000년 1월 31일</span>
+            <span className="onboarding-birth-hint" id="birth-date-hint">예: 2000년 1월 31일 · 만 14세 이상만 가입할 수 있어요</span>
             <div className="onboarding-birth-inputs">
               <label htmlFor="birth-year">
                 연도

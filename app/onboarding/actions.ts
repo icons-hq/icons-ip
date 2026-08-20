@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { meetsMinimumSignupAge } from '@/lib/age/minimum-age';
 import { safeNextPath } from '@/lib/auth/onboarding';
 import { buildRecommendedIpFollowChanges, uniqueSelectedIpIds } from '@/lib/ip-follow';
 import { normalizeProfileNickname } from '@/lib/profile';
@@ -23,6 +24,10 @@ function readString(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === 'string' ? value : '';
 }
+
+/* 앱 폼과 DB 트리거가 같은 문장을 쓴다. 우회 경로로 막혔을 때만 다른 말이 나오면
+ * 이용자는 같은 거절을 두 가지 이유로 읽는다. */
+const MINIMUM_AGE_ERROR = '만 14세 이상만 가입할 수 있습니다.';
 
 function readBirthDate(formData: FormData) {
   let year = readString(formData, 'birthYear').trim();
@@ -68,6 +73,12 @@ function readBirthDate(formData: FormData) {
   const todayUtc = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
   if (birthDate > todayUtc) {
     return { error: '생년월일은 오늘 또는 이전 날짜로 입력해주세요.', value: '' };
+  }
+
+  /* v1 가입 기준은 만 14세다(ADR-0009). 여기서 막는 것은 이용자에게 이유를 보여주기
+   * 위해서이고, 실제 강제는 profiles 트리거가 한다 — 이 폼을 거치지 않는 쓰기도 있다. */
+  if (!meetsMinimumSignupAge(value)) {
+    return { error: MINIMUM_AGE_ERROR, value: '' };
   }
 
   return { value };
@@ -183,7 +194,13 @@ export async function completeOnboardingAction(
     .select('id')
     .single();
 
-  if (error) return { errors: { form: '프로필을 저장하지 못했습니다. 다시 시도해주세요.' } };
+  if (error) {
+    /* 트리거가 막은 경우다. 폼 검증과 같은 필드·같은 문장으로 되돌려 준다. */
+    if (error.message.includes('minimum_age_required')) {
+      return { errors: { birthDate: MINIMUM_AGE_ERROR } };
+    }
+    return { errors: { form: '프로필을 저장하지 못했습니다. 다시 시도해주세요.' } };
+  }
 
   for (const ipId of followChanges.toFollow) {
     const { error: followError } = await supabase.rpc('follow_ip', { target_ip_id: ipId });

@@ -171,6 +171,51 @@ describe('completeOnboardingAction profile identity', () => {
     expect(mocks.createClient).not.toHaveBeenCalled();
   });
 
+  /*
+   * #188 · ADR-0009 — v1 가입 기준은 만 14세다. 고정 날짜를 박으면 스위트가 시간이
+   * 지나면서 의미를 잃으므로, KST 오늘에서 상대로 만든다.
+   */
+  function birthDateForExactAge(age: number) {
+    const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const month = kst.getUTCMonth() + 1;
+    /* 2월 29일에 돌리면 대상 연도에 그 날짜가 없을 수 있다 — 하루 당겨도 판정은 같은 쪽이다. */
+    const day = month === 2 && kst.getUTCDate() === 29 ? 28 : kst.getUTCDate();
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return `${kst.getUTCFullYear() - age}-${pad(month)}-${pad(day)}`;
+  }
+
+  it('rejects an under-14 birth date before any writes', async () => {
+    const formData = onboardingForm('fan');
+    formData.set('birthDate', birthDateForExactAge(13));
+
+    await expect(completeOnboardingAction({}, formData)).resolves.toEqual({
+      errors: { birthDate: '만 14세 이상만 가입할 수 있습니다.' },
+    });
+
+    expect(mocks.getSupabaseConfig).not.toHaveBeenCalled();
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  /* 경계일은 거부가 아니라 허용 쪽이다 — 생일 당일에 가입할 수 있어야 한다. */
+  it('accepts the exact fourteenth birthday', async () => {
+    const formData = onboardingForm('fan');
+    formData.set('birthDate', birthDateForExactAge(14));
+
+    await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/community');
+    expect(mocks.profilePayloads[0]?.birth_date).toBe(birthDateForExactAge(14));
+  });
+
+  /* DB 트리거가 앱 검증을 우회한 쓰기를 막았을 때, 이용자에게는 같은 문장이 보여야 한다. */
+  it('maps the database age guard to the same field error', async () => {
+    mocks.profileResults.push({ data: null, error: { message: 'minimum_age_required' } });
+
+    const formData = onboardingForm('fan');
+
+    await expect(completeOnboardingAction({}, formData)).resolves.toEqual({
+      errors: { birthDate: '만 14세 이상만 가입할 수 있습니다.' },
+    });
+  });
+
   it('accepts 30 family graphemes and saves nickname only through the identity helper', async () => {
     const nickname = familyEmoji.repeat(30);
 

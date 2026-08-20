@@ -64,6 +64,12 @@ describe('Onboarding form contracts', () => {
     expect(html).not.toContain('type="date"');
   });
 
+  /* 기준을 입력 전에 알려야 거절이 놀랍지 않다. 에러 문구로만 알리면 이용자는
+     생년월일을 다 채우고 나서야 자기가 가입할 수 없다는 걸 안다(#188 · ADR-0009). */
+  it('생년월일 입력 전에 만 14세 기준을 알린다', () => {
+    expect(render()).toContain('만 14세 이상만 가입할 수 있어요');
+  });
+
   it('keeps onboarding checkmarks flat and presents IP names without a dark image filter', () => {
     const component = source();
     const html = render({
