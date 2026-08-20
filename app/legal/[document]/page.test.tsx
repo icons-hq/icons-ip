@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { LEGAL_DOCUMENTS } from '@/lib/legal/documents';
+import { LegalDocumentScreen } from '@/components/screens/LegalDocument';
+import { LEGAL_DOCUMENTS, LEGAL_DOCUMENT_SLUGS } from '@/lib/legal/documents';
 import Page, { generateMetadata, generateStaticParams } from './page';
 
 vi.mock('next/navigation', () => ({
@@ -53,10 +54,19 @@ describe('/legal/[document] 라우트', () => {
     expect(html).toContain('확인 중');
   });
 
-  it.each(['terms', 'privacy'] as const)('%s에 개정 공지일·시행 예정일과 변경 내용을 본문 앞에 노출한다', async (slug) => {
-    const document = LEGAL_DOCUMENTS[slug];
-    const notice = document.pendingRevision!;
-    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: slug }) }));
+  /* 2026-08-21 개정으로 세 문서의 사전 공지를 모두 본문으로 승격했다(#207).
+     배너는 다음 개정에서 다시 쓰므로 fixture로 지켜 둔다 — 실제 문서에서 사라졌다고
+     컴포넌트 분기의 검증까지 함께 잃으면, 다음 공지가 조용히 렌더되지 않는다. */
+  it('사전 공지가 있는 문서는 공지일·시행 예정일과 변경 내용을 본문 앞에 노출한다', () => {
+    const notice = {
+      announcedDate: '2026-09-01',
+      effectiveDate: '2026-09-08',
+      heading: '개정 예정 안내',
+      changes: ['첫 번째 변경 내용입니다.', '두 번째 변경 내용입니다.'],
+    };
+    const html = renderToStaticMarkup(
+      <LegalDocumentScreen document={{ ...LEGAL_DOCUMENTS.terms, pendingRevision: notice }} />,
+    );
 
     expect(html).toContain('개정 사전 공지');
     expect(html).toContain(`공지일 ${notice.announcedDate}`);
@@ -67,10 +77,12 @@ describe('/legal/[document] 라우트', () => {
     }
   });
 
-  it('개정 예정이 없는 배송·반품 정책에는 사전 공지를 표시하지 않는다', async () => {
-    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: 'shipping' }) }));
+  it('현재 세 문서는 시행이 끝나 사전 공지 배너를 렌더하지 않는다', async () => {
+    for (const slug of LEGAL_DOCUMENT_SLUGS) {
+      const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: slug }) }));
 
-    expect(html).not.toContain('개정 사전 공지');
+      expect(html, slug).not.toContain('개정 사전 공지');
+    }
   });
 
   it('다른 두 문서로 서로 이동할 수 있다', async () => {
