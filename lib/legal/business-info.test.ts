@@ -40,6 +40,25 @@ describe('사업자 정보 상수', () => {
       expect(typeof value).toBe('string');
     }
   });
+
+  /* 값이 비면 businessInfoRows가 그 행을 만들지 않는다 — 누락은 실패가 아니라 침묵으로 나타난다.
+     공개 화면이 실제로 무엇을 표기하는지는 이 테스트만 붙잡는다(#239). */
+  it('확정된 사업자 정보가 전자상거래법 필수 표기를 빠짐없이 채운다 (#239)', () => {
+    expect(businessInfoRows()).toHaveLength(Object.keys(BUSINESS_INFO_LABELS).length);
+    expect(BUSINESS_INFO.companyName).toBe('(주)아이콘스');
+    expect(BUSINESS_INFO.representative.length).toBeGreaterThan(0);
+    expect(BUSINESS_INFO.registrationNumber).toMatch(/^\d{3}-\d{2}-\d{5}$/);
+    expect(BUSINESS_INFO.mailOrderNumber.length).toBeGreaterThan(0);
+    expect(BUSINESS_INFO.address).toContain('서울특별시');
+    expect(BUSINESS_INFO.email).toContain('@');
+  });
+
+  /* 법정 문서 세 건이 이 값에서 문의처 문장을 파생시킨다. 비어 있으면 문서가
+     "등록 절차가 끝나는 대로 공개한다"는 대기 문구로 되돌아간다(documents.ts). */
+  it('문의 창구가 실제로 열려 있다 — 법정 문서의 문의처 문장이 여기서 나온다', () => {
+    expect(businessContactWords()).toContain('전화 ');
+    expect(businessContactWords()).toContain('이메일 ');
+  });
 });
 
 describe('businessInfoRows', () => {

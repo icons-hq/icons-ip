@@ -103,47 +103,38 @@ describe('법정 문서 레지스트리', () => {
     expect(source(), '문서 셋이 시행일 상수 하나를 공유하면 개정 이력을 만들 수 없다').not.toMatch(/const EFFECTIVE_DATE\b/);
   });
 
-  it('현행 2026-08-20 본문은 유지하고 terms·privacy에만 Korpay 사전 공지를 노출한다', () => {
-    const termsNotice = LEGAL_DOCUMENTS.terms.pendingRevision;
-    const privacyNotice = LEGAL_DOCUMENTS.privacy.pendingRevision;
+  it('2026-08-21 개정을 본문으로 승격하고 사전 공지를 걷는다', () => {
+    /* 공지 2026-08-14 → 시행 2026-08-21. 시행일이 되면 예고가 아니라 본문이 진실이어야 한다.
+       사전 공지를 남겨두면 이미 시행된 내용을 계속 "예정"이라고 알리게 된다. */
+    expect(LEGAL_DOCUMENTS.terms.effectiveDate).toBe('2026-08-21');
+    expect(LEGAL_DOCUMENTS.privacy.effectiveDate).toBe('2026-08-21');
+    /* shipping도 같이 오른다 — #239 연락처 확정으로 세 문서의 문의처 문장이 함께 바뀐다. */
+    expect(LEGAL_DOCUMENTS.shipping.effectiveDate).toBe('2026-08-21');
 
-    /* 2026-08-20 개정 — 교환 클레임과 환불계좌 수집(#252).
-       Korpay 사전 공지(2026-08-21)는 그대로 남는다. 두 개정은 서로 다른 사안이고,
-       현행 시행일이 예정 시행일보다 앞서야 "예정"이 거짓말이 되지 않는다. */
-    expect(LEGAL_DOCUMENTS.terms.effectiveDate).toBe('2026-08-20');
-    expect(LEGAL_DOCUMENTS.privacy.effectiveDate).toBe('2026-08-20');
-    expect(LEGAL_DOCUMENTS.terms.effectiveDate < (termsNotice?.effectiveDate ?? '')).toBe(true);
-    expect(LEGAL_DOCUMENTS.shipping.pendingRevision).toBeUndefined();
-
-    for (const notice of [termsNotice, privacyNotice]) {
-      expect(notice?.announcedDate).toBe('2026-08-14');
-      expect(notice?.effectiveDate).toBe('2026-08-21');
-      expect(notice?.heading.length).toBeGreaterThan(0);
-      expect(notice?.changes.length).toBeGreaterThan(0);
+    for (const document of documents) {
+      expect(document.pendingRevision, document.slug).toBeUndefined();
     }
-
-    const termsPaymentArticle = LEGAL_DOCUMENTS.terms.articles.find((article) => article.heading.includes('지급방법'))!;
-    expect(termsPaymentArticle.paragraphs?.join('\n')).toMatch(/토스페이먼츠/);
-    expect(termsPaymentArticle.paragraphs?.join('\n')).not.toMatch(/코페이/);
-
-    const activeProcessors = LEGAL_DOCUMENTS.privacy.articles
-      .find((article) => article.heading.includes('위탁'))!
-      .table!.rows.map((row) => row[0]);
-    expect(activeProcessors).toContain('토스페이먼츠 주식회사');
-    expect(activeProcessors).not.toContain('주식회사 코페이');
   });
 
-  it('예정 개정은 Korpay 신규 카드 결제와 Toss 기존 결제 조회·취소·환급 유지를 알린다', () => {
-    const noticeText = [
-      ...LEGAL_DOCUMENTS.terms.pendingRevision!.changes,
-      ...LEGAL_DOCUMENTS.privacy.pendingRevision!.changes,
-    ].join('\n');
+  it('본문이 Korpay 신규 카드 결제와 Toss 기존 결제 조회·취소·환급 유지를 함께 밝힌다', () => {
+    const termsPayment = LEGAL_DOCUMENTS.terms.articles
+      .find((article) => article.heading.includes('지급방법'))!
+      .paragraphs!.join('\n');
 
-    expect(noticeText).toMatch(/주식회사 코페이/);
-    expect(noticeText).toMatch(/새.*굿즈.*티켓.*카드 결제/);
-    expect(noticeText).toMatch(/토스페이먼츠 주식회사/);
+    /* 신규 결제는 코페이, 기존 기록은 토스 — 한쪽만 적으면 이용자가 자기 결제의
+       처리 주체와 취소·환급 경로를 특정할 수 없다. */
+    expect(termsPayment).toMatch(/코페이/);
+    expect(termsPayment).toMatch(/토스페이먼츠/);
+
+    const processorRows = LEGAL_DOCUMENTS.privacy.articles
+      .find((article) => article.heading.includes('위탁'))!
+      .table!.rows;
+    const processors = new Map(processorRows.map((row) => [row[0], row.join(' ')]));
+
+    expect([...processors.keys()]).toContain('주식회사 코페이');
+    /* 토스는 목록에서 빠지지 않는다 — 기존 거래의 취소·환급 주체가 사라지면 안 된다. */
     for (const operation of ['조회', '취소', '환급']) {
-      expect(noticeText, operation).toContain(operation);
+      expect(processors.get('토스페이먼츠 주식회사'), operation).toContain(operation);
     }
   });
 

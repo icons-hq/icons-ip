@@ -1,10 +1,12 @@
 /* 전자상거래법상 필수인 판매자 정보의 단일 주입 지점.
  *
- * 상호·대표자·사업자등록번호·통신판매업 신고번호·주소·연락처는 #239가 확정해야
- * 값을 채울 수 있다. 그때 이 상수 하나만 고치면 모든 공개 화면 푸터가 따라온다.
+ * 2026-08-20 #239에서 7개 공개값이 확정됐다. 이 상수 하나만 고치면 푸터, 법정 문서
+ * 세 건의 문의처 문장, 굿즈 고시정보의 A/S 연락처가 모두 같은 값을 가리킨다.
  *
  * 값이 비어 있으면 businessInfoRows가 그 행을 만들지 않는다 — 신고 전 배포에서
  * "사업자등록번호"라는 라벨만 덩그러니 노출되면 오히려 표시 위반처럼 보인다.
+ * 이 fallback은 값이 확정된 뒤에도 유지한다: 항목이 하나 비는 중간 상태는
+ * 사업장 이전이나 신고 갱신 때 다시 온다.
  */
 
 export interface BusinessInfo {
@@ -30,14 +32,13 @@ export const BUSINESS_INFO_LABELS: Record<keyof BusinessInfo, string> = {
 };
 
 export const BUSINESS_INFO: BusinessInfo = {
-  companyName: '',
-  representative: '',
-  registrationNumber: '',
-  /* 통신판매업 신고 전이다. 번호를 임의로 채우지 않는다(#239). */
-  mailOrderNumber: '',
-  address: '',
-  phone: '',
-  email: '',
+  companyName: '(주)아이콘스',
+  representative: '정승준',
+  registrationNumber: '109-86-27576',
+  mailOrderNumber: '2025-서울마포-1494',
+  address: '서울특별시 마포구 월드컵로8길 69, 1,2,3,4,5층(서교동, 마루)',
+  phone: '010-9822-8724',
+  email: 'yskim@mariannekate.com',
   /* 호스팅 제공자는 #239의 나머지 공개값과 무관하게 확정돼 있다 — 개인정보처리방침의 처리위탁과 같은 사실이다. */
   hostingProvider: 'Vercel, Inc.',
 };
