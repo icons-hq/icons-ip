@@ -276,6 +276,17 @@
   border-radius: 3px;
 }
 
+.studentPhoto {
+  display: inline-block;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border: 1px solid rgba(227, 216, 196, .52);
+  border-radius: 3px;
+  background-color: #262825;
+  background-position: center;
+  background-size: cover;
+}
+
 .avatarHead,
 .avatarBody {
   position: absolute;
@@ -317,6 +328,7 @@
 
 .sealRow {
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .seal,
@@ -335,6 +347,10 @@
 .sealOn {
   border-color: rgba(224, 122, 47, .9);
   color: #ffae6d;
+}
+
+.sealStatus {
+  font-weight: 800;
 }
 
 .zoneRail {
@@ -595,14 +611,24 @@
 }
 
 .opening {
+  --opening-viewport-height: 100vh;
+  --opening-max-height-offset: 48px;
   position: fixed;
   z-index: 90;
   inset: 0;
   display: grid;
-  place-items: center;
+  align-items: center;
+  align-items: safe center;
+  justify-items: center;
   padding: 24px;
   isolation: isolate;
   background: #020505;
+}
+
+@supports (height: 100dvh) {
+  .opening {
+    --opening-viewport-height: 100dvh;
+  }
 }
 
 .openingReduced .openingImage > img {
@@ -627,7 +653,11 @@
 }
 
 .openingFrame {
+  box-sizing: border-box;
   width: min(100%, 548px);
+  max-height: calc(var(--opening-viewport-height) - var(--opening-max-height-offset));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: clamp(28px, 4vw, 54px);
   border: 1px solid rgba(232, 218, 192, .42);
   background: rgba(5, 12, 11, .8);
@@ -726,6 +756,92 @@
 .openingForm .primaryButton {
   width: 100%;
   margin-top: 4px;
+}
+
+.photoUpload {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(222, 207, 181, .25);
+  border-radius: 4px;
+  background: rgba(0, 0, 0, .14);
+}
+
+.photoUploadCompact {
+  gap: 7px;
+  padding: 10px;
+  text-align: left;
+}
+
+.photoUpload > label:first-child,
+.photoConsent {
+  color: #e7e1d5;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.photoUpload label span,
+.photoConsent span,
+.photoUpload p {
+  color: #aaa597;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.photoUpload input[type='file'] {
+  min-height: 44px;
+  color: #d9d0c0;
+  font: inherit;
+  font-size: 12px;
+}
+
+.photoUpload input[type='file']:focus-visible,
+.photoConsent input:focus-visible {
+  outline: 2px solid #f29850;
+  outline-offset: 3px;
+}
+
+.photoPreview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.photoPreview .textButton {
+  min-height: 40px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.photoConsent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.45;
+}
+
+.photoConsent input {
+  width: 16px;
+  height: 16px;
+  margin: 1px 0 0;
+  accent-color: #ed7925;
+}
+
+.photoUpload p,
+.photoError {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.photoError {
+  color: #ffb07b !important;
+  font-size: 12px !important;
+}
+
+.revisitActions {
+  display: grid;
+  gap: 13px;
+  margin-top: 24px;
 }
 
 .skipButton {
@@ -1224,6 +1340,7 @@
   }
 
   .opening {
+    --opening-max-height-offset: 32px;
     padding: 16px;
   }
 

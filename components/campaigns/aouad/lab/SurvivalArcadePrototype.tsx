@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AOUAD_IMAGES, AOUAD_POPUP_PATH } from '@/lib/campaigns/aouad/content';
+import { getOptionalStorage } from '@/lib/campaigns/aouad/browser-storage';
 import {
   createAouadComparisonResult,
   saveAouadComparisonResult,
@@ -21,6 +22,10 @@ import {
   type SurvivalArcadeInput,
   type SurvivalArcadeState,
 } from '@/lib/campaigns/aouad/lab/survival-arcade';
+import {
+  createAouadActiveClock,
+  stepAouadActiveClock,
+} from '@/lib/campaigns/aouad/lab/active-clock';
 import { ComparisonResultActions } from './ComparisonResultActions';
 import styles from './aouad-lab.module.css';
 
@@ -54,15 +59,22 @@ export function SurvivalArcadePrototype() {
   const pressedKeysRef = useRef(new Set<string>());
   const touchPointerRef = useRef<{ id: number; x: number; y: number } | null>(null);
   const frameTimingRef = useRef<SurvivalArcadeFrameTiming>(initialSurvivalArcadeFrameTiming);
-  const lastFrameRef = useRef(0);
-  const previousFrameActiveRef = useRef(false);
+  const activeClockRef = useRef(createAouadActiveClock());
+  const pendingActiveDurationRef = useRef(0);
+  const resultHeadingRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
 
   useEffect(() => {
-    if (result) saveAouadComparisonResult(window.localStorage, result);
+    if (!result) return;
+    const storage = getOptionalStorage();
+    if (storage) saveAouadComparisonResult(storage, result);
+  }, [result]);
+
+  useEffect(() => {
+    if (result) resultHeadingRef.current?.focus();
   }, [result]);
 
   const start = useCallback((retryCount = 0) => {
@@ -72,8 +84,8 @@ export function SurvivalArcadePrototype() {
     inputRef.current = { x: 0, y: 0 };
     pressedKeysRef.current.clear();
     frameTimingRef.current = initialSurvivalArcadeFrameTiming;
-    lastFrameRef.current = performance.now();
-    previousFrameActiveRef.current = false;
+    activeClockRef.current = createAouadActiveClock(performance.now());
+    pendingActiveDurationRef.current = 0;
     runRef.current = { runId: arcadeRunId(now), startedAt: new Date(now).toISOString(), retryCount };
     setArcade(initial);
     setResult(null);
@@ -85,14 +97,25 @@ export function SurvivalArcadePrototype() {
     start((runRef.current?.retryCount ?? result?.retryCount ?? 0) + 1);
   }, [result?.retryCount, start]);
 
+  const transitionActivity = useCallback((active: boolean) => {
+    const next = stepAouadActiveClock(activeClockRef.current, performance.now(), {
+      active,
+      visible: document.visibilityState === 'visible',
+    });
+    activeClockRef.current = next.clock;
+    pendingActiveDurationRef.current += next.activeDurationMs;
+  }, []);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
       if (event.key === 'Escape') {
         if (phaseRef.current === 'running') {
+          transitionActivity(false);
           phaseRef.current = 'paused';
           setPhase('paused');
         } else if (phaseRef.current === 'paused') {
+          transitionActivity(true);
           phaseRef.current = 'running';
           setPhase('running');
         }
@@ -115,24 +138,28 @@ export function SurvivalArcadePrototype() {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, []);
+  }, [transitionActivity]);
 
   useEffect(() => {
     let frameId = 0;
-    lastFrameRef.current = performance.now();
     const onVisibilityChange = () => {
-      lastFrameRef.current = performance.now();
-      previousFrameActiveRef.current = false;
+      const next = stepAouadActiveClock(activeClockRef.current, performance.now(), {
+        active: phaseRef.current === 'running',
+        visible: document.visibilityState === 'visible',
+      });
+      activeClockRef.current = next.clock;
+      pendingActiveDurationRef.current += next.activeDurationMs;
     };
     const frame = (now: number) => {
-      const visibleAndRunning = phaseRef.current === 'running' && document.visibilityState === 'visible';
-      const delta = visibleAndRunning && previousFrameActiveRef.current
-        ? Math.max(0, now - lastFrameRef.current)
-        : 0;
-      lastFrameRef.current = now;
-      previousFrameActiveRef.current = visibleAndRunning;
-      if (visibleAndRunning) {
-        let timing = advanceSurvivalArcadeFrameTiming(frameTimingRef.current, delta, true);
+      const activityFrame = stepAouadActiveClock(activeClockRef.current, now, {
+        active: phaseRef.current === 'running',
+        visible: document.visibilityState === 'visible',
+      });
+      activeClockRef.current = activityFrame.clock;
+      const activeDurationMs = pendingActiveDurationRef.current + activityFrame.activeDurationMs;
+      pendingActiveDurationRef.current = 0;
+      if (activeDurationMs > 0) {
+        let timing = advanceSurvivalArcadeFrameTiming(frameTimingRef.current, activeDurationMs, true);
         let next = arcadeRef.current;
         while (timing.simulationAccumulatorMs >= SURVIVAL_ARCADE_FIXED_STEP_MS - 1e-9 && next.resultType === null) {
           next = stepSurvivalArcadeSimulation(next, inputRef.current, SURVIVAL_ARCADE_FIXED_STEP_MS);
@@ -160,6 +187,10 @@ export function SurvivalArcadePrototype() {
           }));
           phaseRef.current = 'result';
           setPhase('result');
+          activeClockRef.current = stepAouadActiveClock(activeClockRef.current, now, {
+            active: false,
+            visible: document.visibilityState === 'visible',
+          }).clock;
           inputRef.current = { x: 0, y: 0 };
           pressedKeysRef.current.clear();
         }
@@ -176,13 +207,15 @@ export function SurvivalArcadePrototype() {
 
   const togglePause = useCallback(() => {
     if (phaseRef.current === 'running') {
+      transitionActivity(false);
       phaseRef.current = 'paused';
       setPhase('paused');
     } else if (phaseRef.current === 'paused') {
+      transitionActivity(true);
       phaseRef.current = 'running';
       setPhase('running');
     }
-  }, []);
+  }, [transitionActivity]);
 
   const pointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (phaseRef.current !== 'running') return;
@@ -234,7 +267,8 @@ export function SurvivalArcadePrototype() {
           <header className={styles.prototypeHeader}><Link href={`${AOUAD_POPUP_PATH}/lab`}>← 비교 허브</Link><span>03 · RESULT</span></header>
           <section className={styles.resultPanel} data-result={result.resultType}>
             <p className={styles.eyebrow}>{success ? 'SURVIVED · LOCAL RECORD' : 'CAUGHT · LOCAL RECORD'}</p>
-            <h1>{success ? '180초를 버텼다.' : '위험 신호가 너무 가까웠다.'}</h1>
+            <h1 tabIndex={-1} ref={resultHeadingRef}>{success ? '180초를 버텼다.' : '위험 신호가 너무 가까웠다.'}</h1>
+            <p className={styles.shareStatus} role="status" aria-live="polite">3분 생존 결과: {success ? '180초를 버텼다.' : '위험 신호가 너무 가까웠다.'}</p>
             <p>{success ? '효산고의 소음을 끝까지 피했습니다.' : '시작 지점에서 즉시 다시 시도할 수 있습니다.'} 결과는 내부 비교를 위한 로컬 기록입니다.</p>
             <dl className={styles.resultMeta}>
               <div><dt>버틴 시간</dt><dd>{Math.floor(result.activeDurationMs / 1000)}초</dd></div>

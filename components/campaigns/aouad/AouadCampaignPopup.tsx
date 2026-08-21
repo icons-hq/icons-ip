@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from 'react';
 import {
   AOUAD_AVATAR_COLORS,
   AOUAD_AVATAR_IDS,
@@ -20,14 +20,33 @@ import {
 import { trackAouadCampaignEvent } from '@/lib/campaigns/aouad/analytics';
 import { cafeteriaActionForPreference } from '@/lib/campaigns/aouad/accessibility';
 import { isAouadOpeningReady } from '@/lib/campaigns/aouad/opening';
+import {
+  isAouadOpeningDismissedInDocument,
+  markAouadOpeningDismissedInDocument,
+} from '@/lib/campaigns/aouad/opening-session';
 import { shareAouadResult } from '@/lib/campaigns/aouad/share';
 import { aouadRallyCount, isAouadRallyComplete } from '@/lib/campaigns/aouad/state';
-import { AouadCampaignProvider, useAouadCampaign } from './AouadCampaignProvider';
+import { validateAouadStudentPhoto } from '@/lib/campaigns/aouad/student-photo';
+import {
+  getAouadStudentPhotoSession,
+  setAouadStudentPhotoShareConsent,
+  setAouadStudentPhotoUrl,
+} from '@/lib/campaigns/aouad/student-photo-session';
+import { LAST_BELL_ROUTE_LABELS } from '@/lib/prototypes/last-bell/routes';
+import { useAouadCampaign } from './AouadCampaignProvider';
 import { useAouadCampaignAudio } from './useAouadCampaignAudio';
 import styles from './aouad-campaign.module.css';
 
 type AouadCampaignPopupProps = { zone?: AouadZoneId };
 type OpeningMode = 'full' | 'skip' | 'reduced';
+type OpeningCeremonyProps = {
+  studentPhotoUrl: string | null;
+  includeStudentPhotoInShare: boolean;
+  onStudentPhotoUrlChange: (url: string | null) => void;
+  onIncludeStudentPhotoInShareChange: (include: boolean) => void;
+  onOpenChange: (open: boolean) => void;
+};
+type StudentPhotoControlsProps = Omit<OpeningCeremonyProps, 'onOpenChange'> & { compact?: boolean };
 
 function useReducedMotion(): boolean {
   const [reduced, setReduced] = useState(() => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
@@ -53,57 +72,124 @@ function Avatar({ avatar, size = 44 }: { avatar: AouadAvatarId | null; size?: nu
   );
 }
 
-function StudentIdCard({ compact = false }: { compact?: boolean }) {
+function StudentPortrait({ avatar, photoUrl, size }: { avatar: AouadAvatarId | null; photoUrl: string | null; size: number }) {
+  if (photoUrl) {
+    return <span className={styles.studentPhoto} style={{ width: size, height: size, backgroundImage: `url("${photoUrl}")` }} role="img" aria-label="내가 업로드한 학생증 사진" />;
+  }
+  return <Avatar avatar={avatar} size={size} />;
+}
+
+function StudentIdCard({ compact = false, studentPhotoUrl = null }: { compact?: boolean; studentPhotoUrl?: string | null }) {
   const { state, lastBellCompletion } = useAouadCampaign();
   const rallyCount = aouadRallyCount(state);
   return (
     <section className={`${styles.studentId} ${compact ? styles.studentIdCompact : ''}`} aria-label="내 학생증">
       <div className={styles.studentIdHeader}><b>효산고등학교</b><span>학생증</span></div>
       <div className={styles.studentIdBody}>
-        <Avatar avatar={state.student.avatar} size={compact ? 76 : 112} />
+        <StudentPortrait avatar={state.student.avatar} photoUrl={studentPhotoUrl} size={compact ? 76 : 112} />
         <div className={styles.studentIdInfo}>
           <span>성명</span><b>{state.student.name ?? '미기재'}</b>
           <span>학년/반</span><b>학급 미확정</b>
           <span>개인 수색</span><b>{rallyCount} / {AOUAD_RALLY_ZONE_IDS.length}</b>
         </div>
       </div>
-      <div className={styles.sealRow}>
-        <span className={lastBellCompletion ? styles.sealOn : styles.seal}>마지막 종</span>
-        <span className={isAouadRallyComplete(state) ? styles.sealOn : styles.seal}>개인 수색</span>
+      <div className={styles.sealRow} aria-label="학생증 인장">
+        <span className={lastBellCompletion ? styles.sealOn : styles.seal} aria-label={`마지막 종 인장 ${lastBellCompletion ? '획득' : '미획득'}`}>마지막 종{lastBellCompletion ? <span className={styles.sealStatus} aria-hidden="true"> ✓</span> : null}</span>
+        {AOUAD_RALLY_ZONE_IDS.map((zone) => {
+          const acquired = state.zones[zone];
+          return <span key={zone} className={acquired ? styles.sealOn : styles.seal} aria-label={`${AOUAD_ZONES[zone].name} 인장 ${acquired ? '획득' : '미획득'}`}>{AOUAD_ZONES[zone].name}{acquired ? <span className={styles.sealStatus} aria-hidden="true"> ✓</span> : null}</span>;
+        })}
       </div>
     </section>
   );
 }
 
-function OpeningCeremony() {
+function StudentPhotoControls({
+  studentPhotoUrl,
+  includeStudentPhotoInShare,
+  onStudentPhotoUrlChange,
+  onIncludeStudentPhotoInShareChange,
+  compact = false,
+}: StudentPhotoControlsProps) {
+  const [photoError, setPhotoError] = useState('');
+  const photoFieldId = useId();
+  const photoInputId = `aouad-student-photo-${photoFieldId}`;
+  const photoPrivacyId = `aouad-photo-privacy-${photoFieldId}`;
+  const photoErrorId = `aouad-photo-error-${photoFieldId}`;
+  const photoDescribedBy = photoError ? `${photoPrivacyId} ${photoErrorId}` : photoPrivacyId;
+  const selectPhoto = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+    const validation = validateAouadStudentPhoto(file);
+    if (!validation.accepted) {
+      setPhotoError(validation.reason === 'type' ? 'JPG, PNG, WebP 이미지만 사용할 수 있습니다.' : '사진은 2MB 이하만 사용할 수 있습니다.');
+      return;
+    }
+    try {
+      onStudentPhotoUrlChange(URL.createObjectURL(file));
+      onIncludeStudentPhotoInShareChange(false);
+      setPhotoError('');
+    } catch {
+      setPhotoError('이 브라우저에서는 사진 미리보기를 만들 수 없습니다.');
+    }
+  };
+
+  return (
+    <div className={`${styles.photoUpload} ${compact ? styles.photoUploadCompact : ''}`}>
+      <label htmlFor={photoInputId}>학생증 사진 <span>선택 · JPG, PNG, WebP · 2MB 이하</span></label>
+      <input id={photoInputId} type="file" accept="image/jpeg,image/png,image/webp" onChange={selectPhoto} aria-describedby={photoDescribedBy} aria-invalid={photoError ? true : undefined} />
+      {studentPhotoUrl ? <div className={styles.photoPreview}><StudentPortrait avatar={null} photoUrl={studentPhotoUrl} size={52} /><button type="button" className={styles.textButton} onClick={() => { onStudentPhotoUrlChange(null); onIncludeStudentPhotoInShareChange(false); }}>사진 지우기</button></div> : null}
+      <label className={styles.photoConsent}><input type="checkbox" checked={includeStudentPhotoInShare} disabled={!studentPhotoUrl} onChange={(event) => onIncludeStudentPhotoInShareChange(event.target.checked)} /> 공유 카드에 내 사진을 포함합니다 <span>기본 꺼짐</span></label>
+      <p id={photoPrivacyId}>사진은 이 브라우저 메모리에만 잠시 보관됩니다. 진행 상태·분석에는 저장하거나 보내지 않습니다.</p>
+      {photoError ? <p id={photoErrorId} className={styles.photoError} role="status" aria-live="polite">{photoError}</p> : null}
+    </div>
+  );
+}
+
+function OpeningCeremony({
+  studentPhotoUrl,
+  includeStudentPhotoInShare,
+  onStudentPhotoUrlChange,
+  onIncludeStudentPhotoInShareChange,
+  onOpenChange,
+}: OpeningCeremonyProps) {
   const { state, markOpeningSeen } = useAouadCampaign();
   const reduced = useReducedMotion();
   const [ready, setReady] = useState(reduced);
   const [name, setName] = useState('');
   const [avatar, setAvatar] = useState<AouadAvatarId | null>(null);
+  const [dismissed, setDismissed] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const primaryFocusRef = useRef<HTMLButtonElement>(null);
   const skipFocusRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
-  const openingReady = isAouadOpeningReady(ready, reduced);
+  const isRevisit = state.openingSeen;
+  const openingReady = isRevisit || isAouadOpeningReady(ready, reduced);
+  const isOpen = !dismissed;
   const complete = (mode: OpeningMode) => {
-    markOpeningSeen({ name: name.trim() || null, avatar });
-    trackAouadCampaignEvent({ type: 'opening_completed', mode });
+    if (!isRevisit) {
+      markOpeningSeen({ name: name.trim() || null, avatar });
+      trackAouadCampaignEvent({ type: 'opening_completed', mode });
+    }
+    markAouadOpeningDismissedInDocument();
+    setDismissed(true);
+    onOpenChange(false);
   };
   const skipFromKeyboard = useEffectEvent(() => complete('skip'));
 
   useEffect(() => {
-    if (state.openingSeen) return undefined;
+    if (!isOpen || isRevisit) return undefined;
     if (reduced) {
       const frame = window.requestAnimationFrame(() => setReady(true));
       return () => window.cancelAnimationFrame(frame);
     }
     const timer = window.setTimeout(() => setReady(true), 10_000);
     return () => window.clearTimeout(timer);
-  }, [state.openingSeen, reduced]);
+  }, [isOpen, isRevisit, reduced]);
 
   useEffect(() => {
-    if (state.openingSeen) return undefined;
+    if (!isOpen) return undefined;
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const trapFocus = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -134,26 +220,37 @@ function OpeningCeremony() {
       document.removeEventListener('keydown', trapFocus);
       previousFocusRef.current?.focus();
     };
-  }, [state.openingSeen]);
+  }, [isOpen]);
 
   useEffect(() => {
-    if (state.openingSeen) return undefined;
+    if (!isOpen) return undefined;
     const frame = window.requestAnimationFrame(() => {
       (openingReady ? primaryFocusRef.current : skipFocusRef.current)?.focus();
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [state.openingSeen, openingReady]);
+  }, [isOpen, openingReady]);
 
-  if (state.openingSeen) return null;
+  if (!isOpen) return null;
 
   return (
     <div ref={dialogRef} className={`${styles.opening} ${reduced ? styles.openingReduced : ''}`} role="dialog" aria-modal="true" aria-labelledby="aouad-opening-title">
       <div className={styles.openingImage} aria-hidden="true"><Image src={AOUAD_IMAGES.theater} alt="" fill preload sizes="100vw" /></div>
       <div className={styles.openingFrame}>
-        <p className={styles.openingKicker}>효산시, 사태 이후</p>
-        <h1 id="aouad-opening-title">…들려?<br />들리면 대답해 줘.</h1>
-        <p>옥상에 모닥불을 켰어.<br />우리, 다시 모이자.</p>
-        {openingReady ? (
+        <p className={styles.openingKicker}>{isRevisit ? '효산고 재소집' : '효산시, 사태 이후'}</p>
+        <h1 id="aouad-opening-title">{isRevisit ? <>다시,<br />효산고로.</> : <>…들려?<br />들리면 대답해 줘.</>}</h1>
+        <p>{isRevisit ? <>지난 기록은 이 기기에 남아 있어.<br />짧게 확인하고 다시 들어가자.</> : <>옥상에 모닥불을 켰어.<br />우리, 다시 모이자.</>}</p>
+        {isRevisit ? (
+          <div className={styles.revisitActions}>
+            <StudentPhotoControls
+              studentPhotoUrl={studentPhotoUrl}
+              includeStudentPhotoInShare={includeStudentPhotoInShare}
+              onStudentPhotoUrlChange={onStudentPhotoUrlChange}
+              onIncludeStudentPhotoInShareChange={onIncludeStudentPhotoInShareChange}
+              compact
+            />
+            <button ref={primaryFocusRef} type="button" className={styles.primaryButton} onClick={() => complete('skip')}>다시 들어가기</button>
+          </div>
+        ) : openingReady ? (
           <div className={styles.openingForm}>
             <label htmlFor="aouad-name">내 학생증에 적을 이름 <span>선택</span></label>
             <input id="aouad-name" value={name} maxLength={12} placeholder="이름 없이 등교할 수도 있어" onChange={(event) => setName(event.target.value)} />
@@ -164,11 +261,17 @@ function OpeningCeremony() {
                 </button>
               ))}
             </div>
+            <StudentPhotoControls
+              studentPhotoUrl={studentPhotoUrl}
+              includeStudentPhotoInShare={includeStudentPhotoInShare}
+              onStudentPhotoUrlChange={onStudentPhotoUrlChange}
+              onIncludeStudentPhotoInShareChange={onIncludeStudentPhotoInShareChange}
+            />
             <button ref={primaryFocusRef} type="button" className={styles.primaryButton} onClick={() => complete(reduced ? 'reduced' : 'full')}>등교하기</button>
           </div>
         ) : <p className={styles.openingWait} aria-live="polite">신호를 복원하는 중…</p>}
       </div>
-      {!reduced && <button ref={skipFocusRef} type="button" className={styles.skipButton} onClick={() => complete('skip')}>건너뛰기</button>}
+      <button ref={skipFocusRef} type="button" className={styles.skipButton} onClick={() => complete('skip')}>건너뛰기</button>
     </div>
   );
 }
@@ -187,7 +290,7 @@ function ZoneTile({ zone }: { zone: AouadZoneId }) {
   );
 }
 
-function LastBellRecord() {
+function LastBellRecord({ studentPhotoUrl, includeStudentPhotoInShare }: { studentPhotoUrl: string | null; includeStudentPhotoInShare: boolean }) {
   const { lastBellCompletion } = useAouadCampaign();
   const [status, setStatus] = useState('');
 
@@ -198,6 +301,7 @@ function LastBellRecord() {
       url: typeof window === 'undefined' ? AOUAD_POPUP_PATH : window.location.href,
       routeLabel: '효산고등학교 · 마지막 수업',
       durationLabel: lastBellCompletion ? `${formatDuration(lastBellCompletion.activeDurationMs)} · ${playStyleLabel(lastBellCompletion.playStyle)}` : '기록을 준비 중입니다',
+      photo: includeStudentPhotoInShare && studentPhotoUrl ? { src: studentPhotoUrl } : undefined,
     });
     if (result !== 'cancelled') trackAouadCampaignEvent({ type: 'share_clicked', method: result });
     setStatus(result === 'web-share' ? '공유 창을 열었습니다.' : result === 'clipboard' ? '공유 문구를 복사했습니다.' : result === 'download' ? '기록 카드를 저장했습니다.' : result === 'cancelled' ? '공유를 취소했습니다.' : '이 기기에서는 공유를 지원하지 않습니다.');
@@ -210,9 +314,9 @@ function LastBellRecord() {
       <div className={styles.recordPanelContent}>
         <span>내 생존 기록</span>
         <b>{lastBellCompletion ? '마지막 종을 지나온 학생' : '아직 남겨지지 않은 기록'}</b>
-        <p>{lastBellCompletion ? `${routeLabel(lastBellCompletion.routeId)} · ${formatDuration(lastBellCompletion.activeDurationMs)} · ${playStyleLabel(lastBellCompletion.playStyle)}` : '게임을 마치면 여기에 생존 인장이 찍힙니다.'}</p>
+        <p>{lastBellCompletion ? `${LAST_BELL_ROUTE_LABELS[lastBellCompletion.routeId]} · ${formatDuration(lastBellCompletion.activeDurationMs)} · ${playStyleLabel(lastBellCompletion.playStyle)}` : '게임을 마치면 여기에 생존 인장이 찍힙니다.'}</p>
         <div className={styles.recordActions}>
-          <Link href="/games/prototype-last-bell" prefetch={false} className={styles.outlineButton} onClick={() => trackAouadCampaignEvent({ type: 'game_continue_clicked' })}>{lastBellCompletion ? '기록 다시 보기' : '게임 시작'}</Link>
+          <Link href="/games/prototype-last-bell" prefetch={false} className={styles.outlineButton} onClick={() => trackAouadCampaignEvent({ type: 'game_continue_clicked' })}>{lastBellCompletion ? '다시 플레이' : '게임 시작'}</Link>
           <button type="button" className={styles.textButton} onClick={() => void share()} disabled={!lastBellCompletion}>기록 공유</button>
         </div>
         {status ? <p className={styles.statusText} role="status">{status}</p> : null}
@@ -230,11 +334,15 @@ function playStyleLabel(style: 'listener' | 'shadow' | 'runner' | 'resilient'): 
   return { listener: '듣는 사람', shadow: '숨는 사람', runner: '달리는 사람', resilient: '버틴 사람' }[style];
 }
 
-function routeLabel(route: 'central' | 'rear' | 'systems'): string {
-  return { central: '중앙 복도', rear: '후면 계단', systems: '설비 통로' }[route];
-}
-
-function Hub() {
+function Hub({
+  studentPhotoUrl,
+  includeStudentPhotoInShare,
+  preloadHero,
+}: {
+  studentPhotoUrl: string | null;
+  includeStudentPhotoInShare: boolean;
+  preloadHero: boolean;
+}) {
   const { state } = useAouadCampaign();
   useEffect(() => { trackAouadCampaignEvent({ type: 'campaign_view', surface: 'hub' }); }, []);
 
@@ -245,7 +353,7 @@ function Hub() {
         <span>효산고등학교</span>
       </header>
       <section className={styles.hero}>
-        <Image className={styles.heroImage} src={AOUAD_IMAGES.hero} alt="비 내린 밤의 효산고등학교" fill preload={state.openingSeen} sizes="100vw" />
+        <Image className={styles.heroImage} src={AOUAD_IMAGES.hero} alt="비 내린 밤의 효산고등학교" fill preload={preloadHero && state.openingSeen} sizes="100vw" />
         <div className={styles.heroShade} />
         <div className={styles.heroCopy}>
           <p>지금, 우리 학교로</p>
@@ -258,7 +366,7 @@ function Hub() {
             <Link href={`${AOUAD_POPUP_PATH}/store`} className={styles.storeButton} onClick={() => trackAouadCampaignEvent({ type: 'store_preview_viewed' })}>상품 바로 보기</Link>
           </div>
         </div>
-        <div className={styles.heroStudentId}><StudentIdCard /></div>
+        <div className={styles.heroStudentId}><StudentIdCard studentPhotoUrl={studentPhotoUrl} /></div>
       </section>
       <section className={styles.zoneRail} aria-label="효산고 수색 구역">
         {(['classroom', 'cafeteria', 'broadcast', 'theater', 'rooftop'] as const).map((zone) => <ZoneTile key={zone} zone={zone} />)}
@@ -270,7 +378,7 @@ function Hub() {
           <span><b>매점 — 보급소</b><small>굿즈 진열 미리보기 · 위시만 저장됩니다</small></span>
           {state.wishlist.length ? <em>위시 {state.wishlist.length}</em> : null}
         </Link>
-        <div id="survival-record"><LastBellRecord /></div>
+        <div id="survival-record"><LastBellRecord studentPhotoUrl={studentPhotoUrl} includeStudentPhotoInShare={includeStudentPhotoInShare} /></div>
         <section className={styles.newsPanel}>
           <span>캠페인 안내 — 방송실</span>
           <b>게임과 팝업을 오가며, 내가 남긴 기록을 다시 확인하세요.</b>
@@ -286,14 +394,14 @@ function Hub() {
   );
 }
 
-function ZoneHeader({ zone }: { zone: AouadZoneId }) {
+function ZoneHeader({ zone, preloadHero }: { zone: AouadZoneId; preloadHero: boolean }) {
   const { state } = useAouadCampaign();
   const item = AOUAD_ZONES[zone];
   return (
     <header className={styles.zoneHeader}>
       <Link href={AOUAD_POPUP_PATH} className={styles.backLink}>← 팝업 허브</Link>
       <div><span>{item.subtitle}</span><h1>{item.name}</h1></div>
-      <Image src={item.image} alt="" fill sizes="100vw" preload={state.openingSeen} />
+      <Image src={item.image} alt="" fill sizes="100vw" preload={preloadHero && state.openingSeen} />
       <i />
     </header>
   );
@@ -399,7 +507,7 @@ function RooftopZone() {
   return <section className={styles.zoneContent}><p className={styles.zoneLead}>이곳의 불씨와 수색 기록은 개인 로컬 진행입니다. 공동 수치나 방명록은 아직 열지 않습니다.</p><div className={styles.rooftop}><div className={styles.ember} aria-hidden="true">✦</div><span>내가 남긴 불씨</span><b>{state.rooftopEmbers}</b><button type="button" className={styles.primaryButton} onClick={() => { addRooftopEmber(); playAudio(state.rooftopEmbers === 0 ? 'survivorStamp' : 'rooftopWind'); trackAouadCampaignEvent({ type: 'zone_completed', zone: 'rooftop' }); }}>불씨 남기기</button><p>{complete ? '개인 수색 인장이 학생증에 남았습니다.' : '다른 수색 구역도 지나면 개인 수색 인장이 완성됩니다.'}</p></div></section>;
 }
 
-function ZoneView({ zone }: { zone: AouadZoneId }) {
+function ZoneView({ zone, preloadHero }: { zone: AouadZoneId; preloadHero: boolean }) {
   useEffect(() => { trackAouadCampaignEvent({ type: 'campaign_view', surface: 'zone' }); trackAouadCampaignEvent({ type: 'popup_viewed', zone }); }, [zone]);
   const content = useMemo(() => {
     switch (zone) {
@@ -411,15 +519,38 @@ function ZoneView({ zone }: { zone: AouadZoneId }) {
       case 'rooftop': return <RooftopZone />;
     }
   }, [zone]);
-  return <main className={styles.campaignMain}><ZoneHeader zone={zone} />{content}<nav className={styles.zoneNav} aria-label="다른 수색 구역">{AOUAD_ZONE_IDS.map((id) => <Link key={id} href={`${AOUAD_POPUP_PATH}/${id}`} aria-current={zone === id ? 'page' : undefined}>{AOUAD_ZONES[id].name}</Link>)}</nav></main>;
+  return <main className={styles.campaignMain}><ZoneHeader zone={zone} preloadHero={preloadHero} />{content}<nav className={styles.zoneNav} aria-label="다른 수색 구역">{AOUAD_ZONE_IDS.map((id) => <Link key={id} href={`${AOUAD_POPUP_PATH}/${id}`} aria-current={zone === id ? 'page' : undefined}>{AOUAD_ZONES[id].name}</Link>)}</nav></main>;
 }
 
 function AouadCampaignExperience({ zone }: AouadCampaignPopupProps) {
   const { hydrated } = useAouadCampaign();
+  const showOpeningForDocument = !isAouadOpeningDismissedInDocument();
+  const [openingOpen, setOpeningOpen] = useState(showOpeningForDocument);
+  const [studentPhoto, setStudentPhoto] = useState(getAouadStudentPhotoSession);
+
+  const replaceStudentPhotoUrl = useCallback((next: string | null) => {
+    setStudentPhoto(setAouadStudentPhotoUrl(next));
+  }, []);
+
+  const setStudentPhotoConsent = useCallback((include: boolean) => {
+    setStudentPhoto(setAouadStudentPhotoShareConsent(include));
+  }, []);
+
   if (!hydrated) return <main className={styles.loading} aria-live="polite">효산고 재소집을 준비하고 있습니다.</main>;
-  return <><OpeningCeremony />{zone ? <ZoneView zone={zone} /> : <Hub />}</>;
+  return <>
+    {showOpeningForDocument ? <OpeningCeremony
+      studentPhotoUrl={studentPhoto.photoUrl}
+      includeStudentPhotoInShare={studentPhoto.includeInShare}
+      onStudentPhotoUrlChange={replaceStudentPhotoUrl}
+      onIncludeStudentPhotoInShareChange={setStudentPhotoConsent}
+      onOpenChange={setOpeningOpen}
+    /> : null}
+    {zone
+      ? <ZoneView zone={zone} preloadHero={!openingOpen} />
+      : <Hub studentPhotoUrl={studentPhoto.photoUrl} includeStudentPhotoInShare={studentPhoto.includeInShare} preloadHero={!openingOpen} />}
+  </>;
 }
 
 export function AouadCampaignPopup(props: AouadCampaignPopupProps) {
-  return <AouadCampaignProvider><AouadCampaignExperience {...props} /></AouadCampaignProvider>;
+  return <AouadCampaignExperience {...props} />;
 }

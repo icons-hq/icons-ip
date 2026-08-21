@@ -3,8 +3,12 @@
 import Link from 'next/link';
 import { useCallback, useState, type Ref } from 'react';
 import type { AouadComparisonResult } from '@/lib/campaigns/aouad/lab/comparison';
-import { shareAouadComparisonResult } from '@/lib/campaigns/aouad/lab/share';
+import {
+  comparisonSharePhotoFromSession,
+  shareAouadComparisonResult,
+} from '@/lib/campaigns/aouad/lab/share';
 import { AOUAD_POPUP_PATH } from '@/lib/campaigns/aouad/content';
+import { getAouadStudentPhotoSession } from '@/lib/campaigns/aouad/student-photo-session';
 import styles from './aouad-lab.module.css';
 
 type ComparisonResultActionsProps = {
@@ -17,8 +21,15 @@ type ComparisonResultActionsProps = {
 export function ComparisonResultActions({ result, candidateName, onRetry, primaryActionRef }: ComparisonResultActionsProps) {
   const [shareStatus, setShareStatus] = useState('');
   const share = useCallback(async () => {
-    const method = await shareAouadComparisonResult(result, candidateName, window.location.href);
-    setShareStatus(method === 'web-share' ? '공유 시트를 열었습니다.' : method === 'clipboard' ? '결과 텍스트를 복사했습니다.' : '이 브라우저에서는 공유를 사용할 수 없습니다.');
+    const photo = comparisonSharePhotoFromSession(getAouadStudentPhotoSession());
+    const method = await shareAouadComparisonResult(result, candidateName, window.location.href, { photo });
+    setShareStatus(
+      method === 'web-share' ? '공유 시트를 열었습니다.'
+        : method === 'download' ? '비교 기록 카드를 저장했습니다.'
+          : method === 'clipboard' ? '결과 텍스트를 복사했습니다.'
+            : method === 'cancelled' ? '공유를 취소했습니다.'
+              : '이 브라우저에서는 공유를 사용할 수 없습니다.',
+    );
   }, [candidateName, result]);
 
   return (

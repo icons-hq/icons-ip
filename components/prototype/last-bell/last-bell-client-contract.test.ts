@@ -34,9 +34,21 @@ describe('last bell runtime/client contracts', () => {
 
   it('persists the Last Bell result into the shared comparison contract and renders common result actions', () => {
     expect(clientSource).toContain('comparisonResultFromLastBell');
-    expect(clientSource).toContain('saveAouadComparisonResult(window.localStorage');
+    expect(clientSource).toContain('saveAouadComparisonResult(storage, comparisonResult)');
     expect(clientSource).toContain('<ComparisonResultActions');
     expect(clientSource).toContain('primaryActionRef={modalPrimaryRef}');
+  });
+
+  it('uses the optional browser-storage seam for all local progress reads and writes', () => {
+    expect(clientSource).toContain("import { getOptionalStorage } from '@/lib/campaigns/aouad/browser-storage'");
+    expect(clientSource).toContain('const storage = getOptionalStorage();');
+    expect(clientSource).not.toContain('window.localStorage');
+  });
+
+  it('uses the shared approved route label registry in completion UI', () => {
+    expect(clientSource).toContain("import { LAST_BELL_ROUTE_LABELS } from '@/lib/prototypes/last-bell/routes'");
+    expect(clientSource).toContain('LAST_BELL_ROUTE_LABELS[completionRecord.routeId]');
+    expect(clientSource).not.toContain("systems: '설비실 안내선'");
   });
 
   it('tracks active wall time separately from fixed simulation steps and excludes inactive presentation states', () => {

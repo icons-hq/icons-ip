@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { connection } from 'next/server';
+import { AouadCampaignProvider } from '@/components/campaigns/aouad/AouadCampaignProvider';
 import { isLastBellPrototypeEnabled } from '@/lib/prototypes/last-bell/gate.server';
 
 export const metadata: Metadata = {
@@ -12,5 +13,5 @@ export const metadata: Metadata = {
 export default async function LastBellPopupLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   await connection();
   if (!isLastBellPrototypeEnabled()) notFound();
-  return children;
+  return <AouadCampaignProvider>{children}</AouadCampaignProvider>;
 }

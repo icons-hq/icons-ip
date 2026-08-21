@@ -11,10 +11,12 @@ type CardHarness = {
   fillText: ReturnType<typeof vi.fn>;
   anchorClick: ReturnType<typeof vi.fn>;
   toBlob: ReturnType<typeof vi.fn>;
+  drawImage: ReturnType<typeof vi.fn>;
 };
 
 function installCardHarness({ downloadFails = false } = {}): CardHarness {
   const fillText = vi.fn();
+  const drawImage = vi.fn();
   const anchorClick = downloadFails ? vi.fn(() => { throw new Error('download blocked'); }) : vi.fn();
   const toBlob = vi.fn((callback: (blob: Blob | null) => void) => callback(new Blob(['record'], { type: 'image/png' })));
   const context = {
@@ -26,6 +28,12 @@ function installCardHarness({ downloadFails = false } = {}): CardHarness {
     strokeRect: vi.fn(),
     font: '',
     fillText,
+    save: vi.fn(),
+    beginPath: vi.fn(),
+    rect: vi.fn(),
+    clip: vi.fn(),
+    drawImage,
+    restore: vi.fn(),
   };
   const canvas = { width: 0, height: 0, getContext: () => context, toBlob };
   vi.stubGlobal('document', { createElement: (tag: string) => tag === 'canvas' ? canvas : { click: anchorClick } });
@@ -38,7 +46,7 @@ function installCardHarness({ downloadFails = false } = {}): CardHarness {
       this.name = name;
     }
   });
-  return { fillText, anchorClick, toBlob };
+  return { fillText, anchorClick, toBlob, drawImage };
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -69,6 +77,61 @@ describe('AOUAD result sharing', () => {
     expect(shared).not.toHaveProperty('avatar');
     expect(harness.fillText.mock.calls.flat()).not.toContain('학생 25번');
     expect(harness.fillText.mock.calls.flat()).not.toContain('preset-1');
+  });
+
+  it('falls back from unsupported image sharing to text Web Share before local fallbacks', async () => {
+    const harness = installCardHarness();
+    const share = vi.fn().mockResolvedValue(undefined);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+
+    const result = await shareAouadResult(payload, {
+      share,
+      canShare: vi.fn(() => false),
+      clipboard: { writeText },
+    } satisfies AouadShareNavigator);
+
+    expect(result).toBe('web-share');
+    expect(share).toHaveBeenCalledOnce();
+    expect(share).toHaveBeenCalledWith(payload);
+    expect(harness.anchorClick).not.toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('downloads the image card when Web Share is unavailable before copying text', async () => {
+    const harness = installCardHarness();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+
+    const result = await shareAouadResult(payload, { clipboard: { writeText } } satisfies AouadShareNavigator);
+
+    expect(result).toBe('download');
+    expect(harness.anchorClick).toHaveBeenCalledOnce();
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('center-crops an explicitly opted-in local photo without stretching it', async () => {
+    const harness = installCardHarness();
+    const source = { width: 492, height: 246 } as unknown as CanvasImageSource;
+
+    const result = await shareAouadResult({ ...payload, photo: { source } }, {
+      share: vi.fn().mockResolvedValue(undefined),
+      canShare: vi.fn(() => false),
+    } satisfies AouadShareNavigator);
+
+    expect(result).toBe('web-share');
+    expect(harness.drawImage).toHaveBeenCalledWith(source, 123, 0, 246, 246, 836, 174, 246, 246);
+  });
+
+  it('skips a photo with invalid intrinsic dimensions without failing to share', async () => {
+    const harness = installCardHarness();
+    const source = { width: 0, height: 246 } as unknown as CanvasImageSource;
+
+    const result = await shareAouadResult({ ...payload, photo: { source } }, {
+      share: vi.fn().mockResolvedValue(undefined),
+      canShare: vi.fn(() => false),
+    } satisfies AouadShareNavigator);
+
+    expect(result).toBe('web-share');
+    expect(harness.drawImage).not.toHaveBeenCalled();
   });
 
   it('downloads the image before attempting clipboard fallback', async () => {

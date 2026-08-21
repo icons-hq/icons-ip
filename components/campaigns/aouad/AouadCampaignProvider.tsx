@@ -20,6 +20,7 @@ import {
   loadLastBellCompletion,
   type LastBellCompletionRecord,
 } from '@/lib/prototypes/last-bell/completion';
+import { getOptionalStorage } from '@/lib/campaigns/aouad/browser-storage';
 import type {
   AouadAvatarId,
   AouadIfEndingId,
@@ -52,10 +53,11 @@ export function AouadCampaignProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      const completion = loadLastBellCompletion(window.localStorage);
+      const storage = getOptionalStorage();
+      const completion = storage ? loadLastBellCompletion(storage) : null;
       setLastBellCompletion(completion);
       setState((previous) => ({
-        ...loadAouadCampaignState(window.localStorage),
+        ...(storage ? loadAouadCampaignState(storage) : initialAouadCampaignState),
         lastBellCompletionSeen: completion !== null || previous.lastBellCompletionSeen,
       }));
       setHydrated(true);
@@ -67,7 +69,8 @@ export function AouadCampaignProvider({ children }: { children: ReactNode }) {
     setState((previous) => {
       const next = transform(previous);
       // Storage is best-effort. The current session remains usable if it fails.
-      saveAouadCampaignState(window.localStorage, next);
+      const storage = getOptionalStorage();
+      if (storage) saveAouadCampaignState(storage, next);
       return next;
     });
   }, []);

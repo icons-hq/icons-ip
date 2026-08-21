@@ -28,9 +28,32 @@ describe('AOUAD G2 lab client contracts', () => {
   });
 
   it('keeps the arcade clock visible-only while simulation stays fixed-step', () => {
+    expect(infection).toContain("from '@/lib/campaigns/aouad/lab/active-clock'");
+    expect(infection).toContain("document.addEventListener('visibilitychange', onVisibilityChange)");
+    expect(infection).toContain("document.visibilityState === 'visible'");
+    expect(infection).not.toContain('performance.now() - (view.run?.startedPerformance');
     expect(arcade).toContain("document.visibilityState === 'visible'");
     expect(arcade).toContain("document.addEventListener('visibilitychange', onVisibilityChange)");
+    expect(arcade).toContain("from '@/lib/campaigns/aouad/lab/active-clock'");
+    expect(arcade).toContain('pendingActiveDurationRef.current += next.activeDurationMs');
+    expect(arcade).not.toContain('activeClockRef.current = createAouadActiveClock();');
     expect(arcade).toContain('stepSurvivalArcadeSimulation(next, inputRef.current, SURVIVAL_ARCADE_FIXED_STEP_MS)');
+  });
+
+  it('moves focus to each completed candidate result and announces it to assistive technology', () => {
+    for (const source of [infection, arcade]) {
+      expect(source).toContain('resultHeadingRef.current?.focus()');
+      expect(source).toContain('tabIndex={-1} ref={resultHeadingRef}');
+      expect(source).toContain('role="status" aria-live="polite"');
+    }
+  });
+
+  it('keeps G2 result persistence usable when browser storage is unavailable', () => {
+    for (const source of [infection, arcade]) {
+      expect(source).toContain("from '@/lib/campaigns/aouad/browser-storage'");
+      expect(source).toContain('getOptionalStorage()');
+      expect(source).not.toContain('saveAouadComparisonResult(window.localStorage');
+    }
   });
 
   it('shows a replacement focus ring for the keyboard-focusable arcade arena', () => {

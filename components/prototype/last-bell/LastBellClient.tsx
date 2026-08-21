@@ -41,7 +41,9 @@ import {
   comparisonResultFromLastBell,
   saveAouadComparisonResult,
 } from '@/lib/campaigns/aouad/lab/comparison';
+import { getOptionalStorage } from '@/lib/campaigns/aouad/browser-storage';
 import { requestLastBellPointerLock } from '@/lib/prototypes/last-bell/pointer-lock';
+import { LAST_BELL_ROUTE_LABELS } from '@/lib/prototypes/last-bell/routes';
 import { ComparisonResultActions } from '@/components/campaigns/aouad/lab/ComparisonResultActions';
 import { useLastBellAudio } from './useLastBellAudio';
 import styles from './last-bell.module.css';
@@ -52,12 +54,6 @@ const LastBellRuntime = dynamic(
 );
 
 type InputVector = { x: number; y: number };
-
-const ROUTE_LABEL = {
-  central: '정면 복도',
-  rear: '후문 사물함',
-  systems: '설비실 안내선',
-} as const;
 
 const PLAY_STYLE_LABEL = {
   listener: '소리를 읽은 생존자',
@@ -140,9 +136,15 @@ export function LastBellClient() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
+      const storage = getOptionalStorage();
+      if (!storage) {
+        setSavedCheckpoint(null);
+        setCompletionRecord(null);
+        return;
+      }
       try {
-        setSavedCheckpoint(loadLastBellCheckpoint(window.localStorage));
-        setCompletionRecord(loadLastBellCompletion(window.localStorage));
+        setSavedCheckpoint(loadLastBellCheckpoint(storage));
+        setCompletionRecord(loadLastBellCompletion(storage));
       } catch {
         setSavedCheckpoint(null);
         setCompletionRecord(null);
@@ -169,15 +171,17 @@ export function LastBellClient() {
   }, [openingArmed, state.phase]);
 
   useEffect(() => {
+    const storage = getOptionalStorage();
+    if (!storage) return;
     try {
       if (state.phase === 'corridor' && state.checkpoint === 'corridor' && state.doorLocked && !state.captured) {
-        const payload = saveLastBellCheckpoint(window.localStorage, 'ch1_handoff', state, runMetricsRef.current, state.routeId, state.routeObjective);
+        const payload = saveLastBellCheckpoint(storage, 'ch1_handoff', state, runMetricsRef.current, state.routeId, state.routeObjective);
         window.setTimeout(() => setSavedCheckpoint(payload), 0);
       } else if (state.phase === 'power' && state.powerRestored && !state.captured) {
-        const payload = saveLastBellCheckpoint(window.localStorage, 'ch1_power_restored', state, runMetricsRef.current, state.routeId, state.routeObjective);
+        const payload = saveLastBellCheckpoint(storage, 'ch1_power_restored', state, runMetricsRef.current, state.routeId, state.routeObjective);
         window.setTimeout(() => setSavedCheckpoint(payload), 0);
       } else if (state.phase === 'complete') {
-        clearLastBellCheckpoint(window.localStorage);
+        clearLastBellCheckpoint(storage);
         window.setTimeout(() => setSavedCheckpoint(null), 0);
       }
     } catch {
@@ -234,11 +238,13 @@ export function LastBellClient() {
     completionSavedRef.current = true;
     const record = createLastBellCompletionRecord(runMetricsRef.current, routeId, new Date().toISOString());
     let saved = record;
+    const storage = getOptionalStorage();
     try {
-      const storage = window.localStorage;
-      saved = saveLastBellCompletion(storage, record) ?? record;
-      const comparisonResult = comparisonResultFromLastBell(saved);
-      if (comparisonResult) saveAouadComparisonResult(window.localStorage, comparisonResult);
+      if (storage) {
+        saved = saveLastBellCompletion(storage, record) ?? record;
+        const comparisonResult = comparisonResultFromLastBell(saved);
+        if (comparisonResult) saveAouadComparisonResult(storage, comparisonResult);
+      }
     } catch {
       // Storage can be blocked; the in-memory completion and game flow remain valid.
     }
@@ -304,7 +310,8 @@ export function LastBellClient() {
   }, [setNearestValue]);
 
   const restartFromComplete = useCallback(() => {
-    try { clearLastBellCompletion(window.localStorage); } catch { /* local presentation is optional */ }
+    const storage = getOptionalStorage();
+    try { if (storage) clearLastBellCompletion(storage); } catch { /* local presentation is optional */ }
     window.location.reload();
   }, []);
 
@@ -493,7 +500,7 @@ export function LastBellClient() {
   const progress = `${Math.round((openingElapsed / 30) * 100)}%`;
   const prompt = interactionDescriptorFor(nearest)?.copy ?? null;
   const runtimeActive = !paused && !portrait && !showOpening && !state.captured && state.phase !== 'complete';
-  const completeRouteLabel = completionRecord?.routeId ? ROUTE_LABEL[completionRecord.routeId] : state.routeId ? ROUTE_LABEL[state.routeId] : null;
+  const completeRouteLabel = completionRecord?.routeId ? LAST_BELL_ROUTE_LABELS[completionRecord.routeId] : state.routeId ? LAST_BELL_ROUTE_LABELS[state.routeId] : null;
   const completeDuration = completionRecord?.activeDurationMs ?? 0;
   const completeStyle = completionRecord?.playStyle ?? null;
   const comparisonResult = completionRecord ? comparisonResultFromLastBell(completionRecord) : null;

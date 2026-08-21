@@ -2,8 +2,9 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useCallback, useEffect, useReducer } from 'react';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
 import { AOUAD_IMAGES, AOUAD_POPUP_PATH } from '@/lib/campaigns/aouad/content';
+import { getOptionalStorage } from '@/lib/campaigns/aouad/browser-storage';
 import {
   createAouadComparisonResult,
   saveAouadComparisonResult,
@@ -15,10 +16,14 @@ import {
   type InfectionRecordChoice,
   type InfectionRecordState,
 } from '@/lib/campaigns/aouad/lab/infection-record';
+import {
+  createAouadActiveClock,
+  stepAouadActiveClock,
+} from '@/lib/campaigns/aouad/lab/active-clock';
 import { ComparisonResultActions } from './ComparisonResultActions';
 import styles from './aouad-lab.module.css';
 
-type InfectionRun = { runId: string; startedAt: string; startedPerformance: number };
+type InfectionRun = { runId: string; startedAt: string };
 type InfectionViewState = {
   story: InfectionRecordState;
   run: InfectionRun | null;
@@ -113,24 +118,55 @@ const resultCopy = {
 
 export function InfectionRecordPrototype() {
   const [view, dispatch] = useReducer(infectionReducer, initialViewState);
+  const activeClockRef = useRef(createAouadActiveClock());
+  const activeDurationRef = useRef(0);
+  const resultHeadingRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
-    if (view.result) saveAouadComparisonResult(window.localStorage, view.result);
+    if (!view.result) return;
+    const storage = getOptionalStorage();
+    if (storage) saveAouadComparisonResult(storage, view.result);
   }, [view.result]);
+
+  useEffect(() => {
+    if (view.result) resultHeadingRef.current?.focus();
+  }, [view.result]);
+
+  useEffect(() => {
+    if (!view.run || view.story.stage === 'briefing' || view.story.stage === 'result') return;
+    const onVisibilityChange = () => {
+      const next = stepAouadActiveClock(activeClockRef.current, performance.now(), {
+        active: true,
+        visible: document.visibilityState === 'visible',
+      });
+      activeClockRef.current = next.clock;
+      activeDurationRef.current += next.activeDurationMs;
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [view.run, view.story.stage]);
 
   const start = useCallback(() => {
     const now = Date.now();
-    dispatch({ type: 'start', run: { runId: infectionRunId(now), startedAt: new Date(now).toISOString(), startedPerformance: performance.now() } });
+    activeClockRef.current = createAouadActiveClock(performance.now());
+    activeDurationRef.current = 0;
+    dispatch({ type: 'start', run: { runId: infectionRunId(now), startedAt: new Date(now).toISOString() } });
   }, []);
 
   const choose = useCallback((choice: InfectionRecordChoice) => {
+    const next = stepAouadActiveClock(activeClockRef.current, performance.now(), {
+      active: true,
+      visible: document.visibilityState === 'visible',
+    });
+    activeClockRef.current = next.clock;
+    activeDurationRef.current += next.activeDurationMs;
     dispatch({
       type: 'choose',
       choice,
       completedAt: new Date().toISOString(),
-      activeDurationMs: Math.max(0, performance.now() - (view.run?.startedPerformance ?? performance.now())),
+      activeDurationMs: activeDurationRef.current,
     });
-  }, [view.run?.startedPerformance]);
+  }, []);
 
   if (view.story.stage === 'briefing') {
     return (
@@ -159,7 +195,8 @@ export function InfectionRecordPrototype() {
           <header className={styles.prototypeHeader}><Link href={`${AOUAD_POPUP_PATH}/lab`}>← 비교 허브</Link><span>02 · RESULT</span></header>
           <section className={styles.resultPanel} data-result={view.result.resultType}>
             <p className={styles.eyebrow}>{copy.eyebrow}</p>
-            <h1>{copy.title}</h1>
+            <h1 tabIndex={-1} ref={resultHeadingRef}>{copy.title}</h1>
+            <p className={styles.shareStatus} role="status" aria-live="polite">감염 기록 결과: {copy.title}</p>
             <p>{copy.text}</p>
             <dl className={styles.resultMeta}>
               <div><dt>감염 노출</dt><dd>{view.story.exposure}회</dd></div>
