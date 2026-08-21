@@ -390,10 +390,10 @@ OCC_*
 
 목표 합계는 25–35분이다. Chapter별 고정 objective/setpiece를 유지하고 2–3개 route risk layout만 seed로 바꾼다. Chapter 콘텐츠는 `ChapterDefinition` 데이터와 semantic commands로 추가하며 runtime에 `if (chapterId === ...)` 분기를 쌓지 않는다.
 
-전체 게임 production 전에는 별도 승인 아래 다음을 선행한다.
+전체 게임 production 전의 문서 정렬 상태와 별도 승인 선행 조건은 다음과 같다.
 
-1. PRD/ARCHITECTURE의 “게임 플레이 로그인 보호”와 `game-concept.md`의 “게스트 전체 스토리 허용” 충돌 해소
-2. 익명 run id, seed 발급, event validation, 계정 이전 계약
+1. **반영 완료** — PRD §4.3과 ARCHITECTURE §2.1에서 현재 `local-prototype`과 production `anonymous-story-run`의 별도 권위 경계를 분리
+2. **남은 production guest gate** — 서버 익명 run ID·seed 발급, 순서가 있는 Chapter event 검증, 검증된 기록 기반 순위 제출·계정 이전 계약 구현
 3. survivor 번호/학급 roster의 공식 표기 확정
 4. Chapter 2–4 공식 대사·공간·오디오 승인
 

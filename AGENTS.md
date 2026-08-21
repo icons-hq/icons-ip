@@ -38,7 +38,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## 구현 원칙
 
-- 공개 브라우징을 유지한다. IP·굿즈·카드·이벤트·커뮤니티 읽기는 기본 공개이고, 로그인은 구매·카드팩 개봉·게임 플레이·예매·작성·팔로우 같은 보호 액션 시점에 요구한다.
+- 공개 브라우징을 유지한다. IP·굿즈·카드·이벤트·커뮤니티 읽기는 기본 공개이고, 로그인은 구매·카드팩 개봉·일반 `/games/[gameId]` 카드 보상형 게임 플레이·예매·작성·팔로우 같은 보호 액션 시점에 요구한다.
+- 지우학2 비보상 스토리나 `/games/prototype-last-bell`을 다룰 때는 `docs/PRD.md` §4.3·`docs/ARCHITECTURE.md` §2.1의 `local-prototype`/`anonymous-story-run` 권위 경계를 먼저 읽는다. 일반 게임의 로그인·서버 결과 계약과 범용 온라인 팝업 운영 레이어 비목표는 유지한다.
 - 돈, 재고, 카드 발급 RNG, 뽑기권 발급·개봉, 유한 실물 경품 배정, 티켓 검표는 클라이언트나 앱 레벨 상태에 맡기지 않는다. Supabase Postgres RPC, RLS, 행 잠금, 멱등 처리를 기준으로 구현한다.
 - 결제 callback body와 클라이언트 성공 신호는 확정의 진실원이 아니다. 굿즈·티켓 seam은 서버 전용 `PaymentGateway.confirm/reconcile` 결과와 DB 멱등 finalizer로만 신규 결제를 확정한다. 기존 Toss 거래만 웹훅 수신 뒤 provider 재조회 결과로 정합화한다.
 - 관리자 권한은 `profiles.role`과 RLS 양쪽에서 확인하고, 민감 작업은 감사 가능해야 한다.

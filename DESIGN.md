@@ -372,6 +372,7 @@ home-contract:
 | 커뮤니티 | `/community` | 에디토리얼 피드, 흰 게시물, 파스텔 채널 레일 | 작성·수정·좋아요·댓글·신고·차단 FormData 계약 유지 |
 | 알림 | `/notifications`, `/notifications/settings` | 읽기 쉬운 inbox와 IP별 스위치 | 최신 50건, unread, 안전 링크, 설정 action 유지 |
 | 게임 | `/games/[gameId]` | IP 세계 안의 독립 풀블리드 장면 | 서버 판정, 일일 한도, 결과·보상 계약 유지 |
+| 지우학2 비보상 스토리 프로토타입 | `/games/prototype-last-bell` | 지우학2 IP 시즌의 독립 풀블리드 장면 | exact env gate·`noindex`, 보상·순위·계정 기록 권위 없는 게스트 로컬 진행 유지 |
 
 ### 인증과 계정
 
@@ -473,12 +474,13 @@ preferred-unchanged:
 - Server Component의 데이터 조회, page prop shape, redirect, `revalidatePath`/`revalidateTag`를 바꾸지 않는다.
 - `<form action>`, Server Action import, field `name`, hidden input의 이름·값, operation ID를 보존한다.
 - 장바구니의 비로그인 localStorage↔로그인 DB 동기화와 실패 rollback을 보존한다.
-- 공개 IP·굿즈·카드·이벤트·커뮤니티 읽기를 로그인 뒤로 옮기지 않는다. 로그인은 구매, 카드팩 개봉, 게임, 예매, 작성, 팔로우 같은 보호 행동 시점에 요구한다.
+- 공개 IP·굿즈·카드·이벤트·커뮤니티 읽기를 로그인 뒤로 옮기지 않는다. 로그인은 구매, 카드팩 개봉, 일반 `/games/[gameId]` 카드 보상형 게임, 예매, 작성, 팔로우 같은 보호 행동 시점에 요구한다.
 - 가격, 재고, 카드 발급 RNG, 카드팩 발급·개봉, 티켓 수용량, 래플, QR 유효성을 클라이언트 상태로 이전하지 않는다.
 - 토스페이먼츠의 결제 진실원은 웹훅이다. `#toss-payment-methods`, `#toss-agreement`, purpose, order ID, callback URL, confirm payload를 그대로 유지한다.
 - service role, raw provider payload, secret은 서버 경계 밖으로 내보내지 않는다.
 - 관리자 권한은 `profiles.role`과 RLS 양쪽의 기존 검증을 유지하고 모든 민감 작업의 감사 가능성을 보존한다.
-- 게임은 렌더링을 바꿔도 서버 결과, WASM/physics, 일일 한도, 보상 확정을 변경하지 않는다.
+- 일반 `/games/[gameId]` 카드 보상형 게임은 렌더링을 바꿔도 서버 결과, WASM/physics, 일일 한도, 보상 확정을 변경하지 않는다.
+- 지우학2 비보상 스토리만 `docs/PRD.md` §4.3·`docs/ARCHITECTURE.md` §2.1의 별도 권위 경계를 따른다. 현재 env-gated·`noindex`인 `/games/prototype-last-bell`은 게스트의 로컬 완료·checkpoint가 보상·순위·계정 기록 권위를 갖지 않는 `local-prototype`이다. production 게스트 공개는 서버의 익명 run ID·seed 발급과 순서·소요 시간·불가능한 이동을 포함한 Chapter 이벤트 검증이 선행돼야 하며, 검증 기록만 순위 제출·계정 이전에 사용한다. 이 예외는 범용 온라인 팝업 운영 레이어를 승인하지 않는다.
 
 ### 회귀 기준선
 

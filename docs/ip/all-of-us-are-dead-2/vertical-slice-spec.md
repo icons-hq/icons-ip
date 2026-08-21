@@ -454,7 +454,7 @@ type LocalCheckpointV1 = {
 - encounter retry: persistence를 기다리지 않고 memory snapshot 사용, 같은 layout 유지
 - production server run과 leaderboard에는 제출하지 않음
 
-현재 PRD/ARCHITECTURE는 게임 플레이에 로그인을 요구하지만 `game-concept.md`는 게스트 전체 스토리를 요구한다. prototype의 local-only guest 예외는 production 정책을 바꾸지 않는다. 서버 run을 붙이기 전 해당 문서를 별도 승인으로 정렬한다.
+PRD §4.3과 ARCHITECTURE §2.1은 지우학2 비보상 스토리를 현재의 `local-prototype`과 production 목표인 `anonymous-story-run`으로 분리해 정렬했다. production 게스트 공개의 남은 gate는 서버의 익명 run ID·seed 발급, 순서가 있는 Chapter event 검증, 검증된 기록 기반 순위 제출·계정 이전 계약의 별도 승인과 구현이다.
 
 ## 13. 접근성 상세
 
