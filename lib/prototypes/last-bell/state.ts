@@ -1,3 +1,5 @@
+import { interactionDescriptorFor } from './interactions';
+
 export const LAST_BELL_STATE_VERSION = 1;
 
 export type LastBellPhase =
@@ -17,7 +19,7 @@ export type LastBellState = {
   fireDoorLocked: boolean;
   bellTriggered: boolean;
   captured: boolean;
-  checkpoint: 'classroom' | 'corridor' | 'power' | 'post_bell';
+  checkpoint: 'classroom' | 'corridor' | 'power';
 };
 
 export type LastBellAction =
@@ -30,7 +32,7 @@ export type LastBellAction =
   | { type: 'LOCK_FIRE_DOOR' }
   | { type: 'TRIGGER_BELL' }
   | { type: 'REACH_CHAPTER_EXIT' }
-  | { type: 'RESTORE_CHECKPOINT'; checkpointId: 'ch1_handoff' | 'ch1_power_restored' | 'ch1_post_bell_safe' }
+  | { type: 'RESTORE_CHECKPOINT'; checkpointId: 'ch1_handoff' | 'ch1_power_restored' }
   | { type: 'CAPTURED' }
   | { type: 'RETRY' };
 
@@ -72,7 +74,7 @@ export function reduceLastBellState(
           }
         : state;
     case 'TOGGLE_HIDE':
-      return state.phase === 'classroom' || state.phase === 'corridor'
+      return state.phase === 'classroom' || state.phase === 'corridor' || state.phase === 'power' || state.phase === 'bell'
         ? { ...state, hiding: !state.hiding }
         : state;
     case 'TOGGLE_LISTEN':
@@ -95,7 +97,7 @@ export function reduceLastBellState(
         : state;
     case 'TRIGGER_BELL':
       return state.phase === 'bell' && state.powerRestored && state.fireDoorLocked
-        ? { ...state, bellTriggered: true, checkpoint: 'post_bell', listening: false }
+        ? { ...state, bellTriggered: true, checkpoint: 'power', listening: false }
         : state;
     case 'REACH_CHAPTER_EXIT':
       return state.phase === 'bell' && state.bellTriggered
@@ -109,17 +111,6 @@ export function reduceLastBellState(
           doorLocked: true,
           powerRestored: true,
           checkpoint: 'power',
-        };
-      }
-      if (action.checkpointId === 'ch1_post_bell_safe') {
-        return {
-          ...initialLastBellState,
-          phase: 'bell',
-          doorLocked: true,
-          powerRestored: true,
-          fireDoorLocked: true,
-          bellTriggered: true,
-          checkpoint: 'post_bell',
         };
       }
       return {
@@ -137,23 +128,12 @@ export function reduceLastBellState(
       if (state.checkpoint === 'power') {
         return {
           ...initialLastBellState,
-          // The player returns just before the panel interaction. Keeping the
-          // phase as corridor makes RESTORE_POWER reachable after a retry.
-          phase: 'corridor',
-          doorLocked: true,
-          powerRestored: false,
-          checkpoint: 'power',
-        };
-      }
-      if (state.checkpoint === 'post_bell') {
-        return {
-          ...initialLastBellState,
-          phase: 'bell',
+          // Power is the last safe checkpoint; the panel stays restored so a
+          // retry cannot bypass the chase by replaying the post-bell setpiece.
+          phase: 'power',
           doorLocked: true,
           powerRestored: true,
-          fireDoorLocked: true,
-          bellTriggered: true,
-          checkpoint: 'post_bell',
+          checkpoint: 'power',
         };
       }
       return {
@@ -189,7 +169,7 @@ export const LAST_BELL_ANCHORS = {
   corridor_listen: { x: 0, z: 20 },
   corridor_hide_left: { x: -2, z: 22 },
   corridor_hide_right: { x: 2, z: 34 },
-  bell_hide: { x: 1.7, z: 45 },
+  bell_hide: { x: -2, z: 48 },
   utility_panel: { x: 3, z: 29 },
   fire_door_lock: { x: 0, z: 41 },
   bell_trigger: { x: 0, z: 48 },
@@ -211,7 +191,8 @@ export function canInteractAt(
   anchor: LastBellAnchorId,
   position: { x: number; z: number },
 ): boolean {
-  if (distanceToAnchor(position, anchor) > 2.25) return false;
+  const interactionRadius = interactionDescriptorFor(anchor)?.radius ?? 2.25;
+  if (distanceToAnchor(position, anchor) > interactionRadius) return false;
   switch (anchor) {
     case 'classroom_door':
       return state.phase === 'classroom' && !state.doorLocked;

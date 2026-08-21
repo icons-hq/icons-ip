@@ -4,7 +4,7 @@ export const LAST_BELL_CHECKPOINT_KEY = 'icons:last-bell:checkpoint:v1';
 export const LAST_BELL_CHECKPOINT_SCHEMA_VERSION = 1;
 export const LAST_BELL_CHECKPOINT_TTL_MS = 24 * 60 * 60 * 1000;
 
-export type LastBellCheckpointId = 'ch1_handoff' | 'ch1_power_restored' | 'ch1_post_bell_safe';
+export type LastBellCheckpointId = 'ch1_handoff' | 'ch1_power_restored';
 
 export type LastBellCheckpointPayload = {
   schemaVersion: 1;
@@ -25,7 +25,7 @@ export type LastBellCheckpointPayload = {
 export type CheckpointStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 function isCheckpointId(value: unknown): value is LastBellCheckpointId {
-  return value === 'ch1_handoff' || value === 'ch1_power_restored' || value === 'ch1_post_bell_safe';
+  return value === 'ch1_handoff' || value === 'ch1_power_restored';
 }
 
 function isPayload(value: unknown): value is LastBellCheckpointPayload {
@@ -101,7 +101,6 @@ export function clearLastBellCheckpoint(storage: CheckpointStorage): void {
 }
 
 export function checkpointIdLabel(checkpointId: LastBellCheckpointId): string {
-  if (checkpointId === 'ch1_power_restored') return '전력 복구 직전';
-  if (checkpointId === 'ch1_post_bell_safe') return '종 세트피스 직전';
+  if (checkpointId === 'ch1_power_restored') return '전력 복구 후';
   return '복도 진입 직전';
 }

@@ -1,18 +1,22 @@
 'use client';
 
-/* Full-bleed cinematic plates intentionally bypass next/image optimization. */
-/* eslint-disable @next/next/no-img-element */
-
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import Image from 'next/image';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import {
   canInteractAt,
   initialLastBellState,
   objectiveForState,
   reduceLastBellState,
-  type LastBellAnchorId,
 } from '@/lib/prototypes/last-bell/state';
-import { LAST_BELL_ASSETS, type LastBellAudioId } from '@/lib/prototypes/last-bell/assets';
+import { LAST_BELL_ASSETS } from '@/lib/prototypes/last-bell/assets';
+import {
+  INTERACTION_DESCRIPTORS,
+  interactionDescriptorFor,
+  type LastBellInteractionAnchor,
+} from '@/lib/prototypes/last-bell/interactions';
+import { lastBellDoorHandoffFor, type LastBellDoorId } from '@/lib/prototypes/last-bell/engine/movement';
+import type { LastBellDoorHandoffCommand } from './LastBellRuntime';
 import {
   checkpointIdLabel,
   clearLastBellCheckpoint,
@@ -30,23 +34,7 @@ const LastBellRuntime = dynamic(
 
 type InputVector = { x: number; y: number };
 
-const INTERACTION_COPY: Partial<Record<LastBellAnchorId, string>> = {
-  classroom_door: '문 잠그기',
-  desk_hide: '책상 뒤에 숨기',
-  corridor_hide_left: '사물함 틈에 숨기',
-  corridor_hide_right: '복도 벽감에 숨기',
-  bell_hide: '계단 옆 틈에 숨기',
-  utility_panel: '비상전원 올리기',
-  fire_door_lock: '화재문 잠그기',
-  bell_trigger: '마지막 종 울리기',
-  chapter_exit: '안전 계단으로 들어가기',
-};
-
-const ACTION_AUDIO: Partial<Record<LastBellAnchorId, LastBellAudioId>> = {
-  classroom_door: 'doorPounding',
-  utility_panel: 'breaker',
-  bell_trigger: 'bell',
-};
+const INTERACTIVE_ANCHORS = INTERACTION_DESCRIPTORS.map(({ anchor }) => anchor);
 
 function getPortraitState() {
   return typeof window !== 'undefined' && window.innerHeight > window.innerWidth;
@@ -56,12 +44,15 @@ export function LastBellClient() {
   const [state, dispatch] = useReducer(reduceLastBellState, initialLastBellState);
   const [openingElapsed, setOpeningElapsed] = useState(0);
   const [openingArmed, setOpeningArmed] = useState(false);
-  const [nearest, setNearest] = useState<LastBellAnchorId | null>(null);
+  const [nearest, setNearest] = useState<LastBellInteractionAnchor | null>(null);
   const [danger, setDanger] = useState(0);
   const [paused, setPaused] = useState(false);
   const [portrait, setPortrait] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [handoff, setHandoff] = useState<LastBellDoorHandoffCommand | null>(null);
   const [savedCheckpoint, setSavedCheckpoint] = useState<LastBellCheckpointPayload | null>(null);
+  const nearestRef = useRef<LastBellInteractionAnchor | null>(null);
+  const phaseRef = useRef(state.phase);
   const moveRef = useRef<InputVector>({ x: 0, y: 0 });
   const lookRef = useRef<InputVector>({ x: 0, y: 0 });
   const runRef = useRef(false);
@@ -72,6 +63,26 @@ export function LastBellClient() {
   const pressedKeysRef = useRef(new Set<string>());
   const hadPointerLockRef = useRef(false);
   const audio = useLastBellAudio();
+  const activeModal = state.phase === 'complete'
+    ? 'complete'
+    : state.captured
+      ? 'captured'
+      : paused && state.phase !== 'opening'
+        ? 'paused'
+        : null;
+  const modalOpen = activeModal !== null;
+  const modalOpenRef = useRef(false);
+  const modalRef = useRef<HTMLElement | null>(null);
+  const modalPrimaryRef = useRef<HTMLButtonElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    modalOpenRef.current = modalOpen;
+  }, [modalOpen]);
+
+  useEffect(() => {
+    phaseRef.current = state.phase;
+  }, [state.phase]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -105,9 +116,6 @@ export function LastBellClient() {
       } else if (state.phase === 'power' && state.powerRestored && !state.captured) {
         const payload = saveLastBellCheckpoint(window.localStorage, 'ch1_power_restored', state);
         window.setTimeout(() => setSavedCheckpoint(payload), 0);
-      } else if (state.phase === 'bell' && state.bellTriggered && !state.captured) {
-        const payload = saveLastBellCheckpoint(window.localStorage, 'ch1_post_bell_safe', state);
-        window.setTimeout(() => setSavedCheckpoint(payload), 0);
       } else if (state.phase === 'complete') {
         clearLastBellCheckpoint(window.localStorage);
         window.setTimeout(() => setSavedCheckpoint(null), 0);
@@ -121,15 +129,16 @@ export function LastBellClient() {
     audio.syncPhase(state.phase, state.listening, state.hiding);
   }, [audio, state.hiding, state.listening, state.phase]);
 
-  const availableAnchors = useMemo<LastBellAnchorId[]>(() => [
-    'classroom_door', 'desk_hide', 'corridor_hide_left', 'corridor_hide_right', 'bell_hide', 'utility_panel', 'fire_door_lock', 'bell_trigger', 'chapter_exit',
-  ], []);
+  const setNearestValue = useCallback((next: LastBellInteractionAnchor | null) => {
+    nearestRef.current = next;
+    setNearest((current) => current === next ? current : next);
+  }, []);
 
   const onPosition = useCallback((position: { x: number; z: number }) => {
     positionRef.current = position;
-    const next = availableAnchors.find((anchor) => canInteractAt(state, anchor, position)) ?? null;
-    setNearest((current) => current === next ? current : next);
-  }, [availableAnchors, state]);
+    const next = INTERACTIVE_ANCHORS.find((anchor) => canInteractAt(state, anchor, position)) ?? null;
+    setNearestValue(next);
+  }, [setNearestValue, state]);
 
   const onDanger = useCallback((distance: number) => {
     const value = state.bellTriggered ? Math.max(0, Math.min(1, 1 - (distance - 1.5) / 25)) : Math.min(.28, Math.max(0, 1 - distance / 25));
@@ -137,21 +146,45 @@ export function LastBellClient() {
     if (now - lastDangerReportRef.current < 120) return;
     lastDangerReportRef.current = now;
     setDanger(value);
-    if (state.bellTriggered && distance < 1.5 && !state.hiding && !state.captured) dispatch({ type: 'CAPTURED' });
+  }, [state.bellTriggered]);
+
+  const onCapture = useCallback(() => {
+    if (state.bellTriggered && !state.hiding && !state.captured) dispatch({ type: 'CAPTURED' });
   }, [state.bellTriggered, state.captured, state.hiding]);
+
+  const requestDoorHandoff = useCallback((door: LastBellDoorId) => {
+    const nextHandoff = lastBellDoorHandoffFor(door);
+    setHandoff((current) => ({ ...nextHandoff, nonce: (current?.nonce ?? 0) + 1 }));
+  }, []);
 
   const interact = useCallback(() => {
     audio.unlock();
-    if (!nearest) return;
-    if (nearest === 'classroom_door') dispatch({ type: 'LOCK_CLASSROOM_DOOR' });
-    if (nearest?.includes('hide')) dispatch({ type: 'TOGGLE_HIDE' });
-    if (nearest === 'utility_panel') dispatch({ type: 'RESTORE_POWER' });
-    if (nearest === 'fire_door_lock') dispatch({ type: 'LOCK_FIRE_DOOR' });
-    if (nearest === 'bell_trigger') dispatch({ type: 'TRIGGER_BELL' });
-    if (nearest === 'chapter_exit') dispatch({ type: 'REACH_CHAPTER_EXIT' });
-    const sound = ACTION_AUDIO[nearest];
-    if (sound) audio.play(sound, { volume: sound === 'doorPounding' ? .42 : .68 });
-  }, [audio, nearest]);
+    const descriptor = interactionDescriptorFor(nearestRef.current);
+    if (!descriptor) return;
+    switch (descriptor.action) {
+      case 'lockClassroomDoor':
+        dispatch({ type: 'LOCK_CLASSROOM_DOOR' });
+        requestDoorHandoff('classroom');
+        break;
+      case 'toggleHide':
+        dispatch({ type: 'TOGGLE_HIDE' });
+        break;
+      case 'restorePower':
+        dispatch({ type: 'RESTORE_POWER' });
+        break;
+      case 'lockFireDoor':
+        dispatch({ type: 'LOCK_FIRE_DOOR' });
+        requestDoorHandoff('fire');
+        break;
+      case 'triggerBell':
+        dispatch({ type: 'TRIGGER_BELL' });
+        break;
+      case 'reachChapterExit':
+        dispatch({ type: 'REACH_CHAPTER_EXIT' });
+        break;
+    }
+    if (descriptor.audio) audio.play(descriptor.audio.id, { volume: descriptor.audio.volume });
+  }, [audio, requestDoorHandoff]);
 
   const toggleListen = useCallback(() => {
     audio.unlock();
@@ -160,30 +193,80 @@ export function LastBellClient() {
 
   const toggleHide = useCallback(() => {
     audio.unlock();
-    if (nearest?.includes('hide')) dispatch({ type: 'TOGGLE_HIDE' });
-  }, [audio, nearest]);
+    if (interactionDescriptorFor(nearestRef.current)?.action === 'toggleHide') dispatch({ type: 'TOGGLE_HIDE' });
+  }, [audio]);
 
   const retryFromCheckpoint = useCallback(() => {
     moveRef.current = { x: 0, y: 0 };
     lookRef.current = { x: 0, y: 0 };
     runRef.current = false;
-    setNearest(null);
+    setNearestValue(null);
     setDanger(0);
     setPaused(false);
     setRetryNonce((value) => value + 1);
     dispatch({ type: 'RETRY' });
+  }, [setNearestValue]);
+
+  const restartFromComplete = useCallback(() => {
+    window.location.reload();
   }, []);
+
+  const modalPrimaryAction = useCallback(() => {
+    if (activeModal === 'paused') setPaused(false);
+    else if (activeModal === 'captured') retryFromCheckpoint();
+    else if (activeModal === 'complete') restartFromComplete();
+  }, [activeModal, restartFromComplete, retryFromCheckpoint]);
+
+  useEffect(() => {
+    if (!modalOpen) return;
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    pressedKeysRef.current.clear();
+    moveRef.current = { x: 0, y: 0 };
+    runRef.current = false;
+    const focusFrame = window.requestAnimationFrame(() => modalPrimaryRef.current?.focus());
+    const onModalKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        modalPrimaryAction();
+      } else if (event.key === 'Tab') {
+        const container = modalRef.current;
+        const focusable = container
+          ? Array.from(container.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')).filter((element) => !element.hasAttribute('disabled'))
+          : [];
+        if (focusable.length === 0) {
+          event.preventDefault();
+        } else {
+          const currentIndex = focusable.indexOf(document.activeElement as HTMLElement);
+          const nextIndex = currentIndex < 0
+            ? 0
+            : event.shiftKey
+              ? (currentIndex === 0 ? focusable.length - 1 : currentIndex - 1)
+              : (currentIndex === focusable.length - 1 ? 0 : currentIndex + 1);
+          event.preventDefault();
+          focusable[nextIndex]?.focus();
+        }
+      }
+      event.stopPropagation();
+    };
+    document.addEventListener('keydown', onModalKeyDown, true);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener('keydown', onModalKeyDown, true);
+      if (previousFocusRef.current && document.contains(previousFocusRef.current)) previousFocusRef.current.focus();
+      previousFocusRef.current = null;
+    };
+  }, [activeModal, modalOpen, modalPrimaryAction, moveRef, runRef]);
 
   const continueFromCheckpoint = useCallback(() => {
     if (!savedCheckpoint) return;
     audio.unlock();
     setOpeningElapsed(30);
     setOpeningArmed(true);
-    setNearest(null);
+    setNearestValue(null);
     setDanger(0);
     setRetryNonce((value) => value + 1);
     dispatch({ type: 'RESTORE_CHECKPOINT', checkpointId: savedCheckpoint.checkpointId });
-  }, [audio, savedCheckpoint]);
+  }, [audio, savedCheckpoint, setNearestValue]);
 
   useEffect(() => {
     const refreshMovement = () => {
@@ -194,6 +277,7 @@ export function LastBellClient() {
       };
     };
     const onKeyDown = (event: KeyboardEvent) => {
+      if (modalOpenRef.current) return;
       const key = event.key.toLowerCase();
       if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
         pressedKeysRef.current.add(key);
@@ -207,6 +291,7 @@ export function LastBellClient() {
       if (event.key === 'Escape') setPaused((value) => !value);
     };
     const onKeyUp = (event: KeyboardEvent) => {
+      if (modalOpenRef.current) return;
       const key = event.key.toLowerCase();
       pressedKeysRef.current.delete(key);
       refreshMovement();
@@ -242,7 +327,7 @@ export function LastBellClient() {
     window.addEventListener('pointercancel', onTouchEnd);
     const onPointerLock = () => {
       if (document.pointerLockElement) hadPointerLockRef.current = true;
-      else if (hadPointerLockRef.current && state.phase !== 'opening') setPaused(true);
+      else if (hadPointerLockRef.current && phaseRef.current !== 'opening') setPaused(true);
     };
     document.addEventListener('pointerlockchange', onPointerLock);
     return () => {
@@ -255,7 +340,7 @@ export function LastBellClient() {
       window.removeEventListener('pointercancel', onTouchEnd);
       document.removeEventListener('pointerlockchange', onPointerLock);
     };
-  }, [interact, state.phase, toggleHide, toggleListen]);
+  }, [interact, toggleHide, toggleListen]);
 
   const setOpeningStart = useCallback(() => {
     audio.unlock();
@@ -296,7 +381,7 @@ export function LastBellClient() {
 
   const showOpening = state.phase === 'opening';
   const progress = `${Math.round((openingElapsed / 30) * 100)}%`;
-  const prompt = nearest ? INTERACTION_COPY[nearest] : null;
+  const prompt = interactionDescriptorFor(nearest)?.copy ?? null;
   const runtimeActive = !paused && !portrait && !showOpening && !state.captured && state.phase !== 'complete';
 
   return (
@@ -310,8 +395,10 @@ export function LastBellClient() {
           resetNonce={retryNonce}
           checkpoint={state.checkpoint}
           active={runtimeActive}
+          handoff={handoff}
           onPosition={onPosition}
           onDanger={onDanger}
+          onCapture={onCapture}
           onCanvasInteract={pointerLock}
         />
         <div className={styles.hud} aria-live="polite">
@@ -365,8 +452,8 @@ export function LastBellClient() {
 
       {showOpening && (
         <section className={styles.cinematic} aria-label="30초 오프닝">
-          <img className={styles.cinematicImage} src={LAST_BELL_ASSETS.openingPlate} alt="늦은 오후, 아직 평온한 한국 고등학교 교실" />
-          {openingElapsed > 21 && <img className={`${styles.cinematicImage} ${styles.cinematicImageOutbreak}`} src={LAST_BELL_ASSETS.outbreakPlate} alt="교실 문 너머로 번지는 이상 징후" />}
+          <Image className={styles.cinematicImage} src={LAST_BELL_ASSETS.openingPlate} alt="늦은 오후, 아직 평온한 한국 고등학교 교실" fill preload sizes="100vw" />
+          {openingElapsed > 21 && <Image className={`${styles.cinematicImage} ${styles.cinematicImageOutbreak}`} src={LAST_BELL_ASSETS.outbreakPlate} alt="교실 문 너머로 번지는 이상 징후" fill sizes="100vw" />}
           <div className={styles.cinematicShade} />
           <div className={styles.cinematicCopy}>
             <span className={styles.serial}>HYOSAN HIGH · C-201 · 2025.03.18</span>
@@ -383,36 +470,36 @@ export function LastBellClient() {
         </section>
       )}
 
-      {paused && !showOpening && (
-        <section className={styles.statusOverlay} aria-label="일시정지">
+      {activeModal === 'paused' && (
+        <section ref={modalRef} className={styles.statusOverlay} role="dialog" aria-modal="true" aria-labelledby="last-bell-modal-title" aria-describedby="last-bell-modal-description" aria-label="일시정지">
           <div className={styles.statusPanel}>
             <span className={styles.serial}>PAUSED · C-201</span>
-            <h2>잠깐, 숨을 고른다.</h2>
-            <p>Esc를 누르거나 아래 버튼을 눌러 학교로 돌아가세요.</p>
-            <button type="button" className={styles.primaryButton} onClick={() => setPaused(false)}>계속하기</button>
+            <h2 id="last-bell-modal-title">잠깐, 숨을 고른다.</h2>
+            <p id="last-bell-modal-description">Esc를 누르거나 아래 버튼을 눌러 학교로 돌아가세요.</p>
+            <button ref={modalPrimaryRef} type="button" className={styles.primaryButton} onClick={modalPrimaryAction}>계속하기</button>
           </div>
         </section>
       )}
 
-      {state.captured && (
-        <section className={styles.statusOverlay} aria-label="붙잡힘">
+      {activeModal === 'captured' && (
+        <section ref={modalRef} className={styles.statusOverlay} role="dialog" aria-modal="true" aria-labelledby="last-bell-modal-title" aria-describedby="last-bell-modal-description" aria-label="붙잡힘">
           <div className={styles.statusPanel}>
             <span className={styles.serial}>ENCOUNTER RESET · SAME SEED</span>
-            <h2>소리가 너무 가까웠다.</h2>
-            <p>마지막 안전 체크포인트에서 같은 학교, 같은 위험 배치로 다시 시작합니다. 숨을 참으며 Q를 눌러 들어보세요.</p>
-            <button type="button" className={styles.primaryButton} onClick={retryFromCheckpoint}>다시 시도</button>
+            <h2 id="last-bell-modal-title">소리가 너무 가까웠다.</h2>
+            <p id="last-bell-modal-description">마지막 안전 체크포인트에서 같은 학교, 같은 위험 배치로 다시 시작합니다. 숨을 참으며 Q를 눌러 들어보세요.</p>
+            <button ref={modalPrimaryRef} type="button" className={styles.primaryButton} onClick={modalPrimaryAction}>다시 시도</button>
           </div>
         </section>
       )}
 
-      {state.phase === 'complete' && (
-        <section className={styles.statusOverlay} aria-label="Chapter 1 완료">
+      {activeModal === 'complete' && (
+        <section ref={modalRef} className={styles.statusOverlay} role="dialog" aria-modal="true" aria-labelledby="last-bell-modal-title" aria-describedby="last-bell-modal-description" aria-label="Chapter 1 완료">
           <div className={styles.statusPanel}>
-            <img src={LAST_BELL_ASSETS.logo} alt="지금 우리 학교는" />
+            <Image src={LAST_BELL_ASSETS.logo} alt="지금 우리 학교는" width={500} height={533} sizes="3.6rem" />
             <span className={styles.serial}>CHAPTER 01 COMPLETE</span>
-            <h2>마지막 종이 울렸다.</h2>
-            <p>방화문 너머의 계단에 도착했습니다. Chapter 1 체크포인트는 완료와 함께 정리됩니다.</p>
-            <button type="button" className={styles.primaryButton} onClick={() => window.location.reload()}>처음부터 보기</button>
+            <h2 id="last-bell-modal-title">마지막 종이 울렸다.</h2>
+            <p id="last-bell-modal-description">방화문 너머의 계단에 도착했습니다. Chapter 1 체크포인트는 완료와 함께 정리됩니다.</p>
+            <button ref={modalPrimaryRef} type="button" className={styles.primaryButton} onClick={modalPrimaryAction}>처음부터 보기</button>
           </div>
         </section>
       )}

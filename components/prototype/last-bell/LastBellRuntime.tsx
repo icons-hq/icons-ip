@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import type { MutableRefObject } from 'react';
 import type { LastBellState } from '@/lib/prototypes/last-bell/state';
 import { LAST_BELL_ANCHORS } from '@/lib/prototypes/last-bell/state';
-import { clampLastBellPosition, LAST_BELL_FIXED_STEP, stepLastBellPosition } from '@/lib/prototypes/last-bell/engine/movement';
+import { clampLastBellPosition, LAST_BELL_FIXED_STEP, stepLastBellPosition, type LastBellDoorHandoff } from '@/lib/prototypes/last-bell/engine/movement';
 import { checkpointPositionFor } from '@/lib/prototypes/last-bell/engine/checkpoint';
 import { LAST_BELL_CHASE_SPAWN, stepLastBellEscapeChase, type ChaseEnemy } from '@/lib/prototypes/last-bell/engine/chase';
 import { LAST_BELL_ASSETS } from '@/lib/prototypes/last-bell/assets';
@@ -14,6 +14,8 @@ import styles from './last-bell.module.css';
 
 type InputVector = { x: number; y: number };
 type Position = { x: number; z: number };
+
+export type LastBellDoorHandoffCommand = LastBellDoorHandoff & { nonce: number };
 
 export type LastBellRuntimeProps = {
   state: LastBellState;
@@ -23,8 +25,10 @@ export type LastBellRuntimeProps = {
   resetNonce: number;
   checkpoint: LastBellState['checkpoint'];
   active: boolean;
+  handoff: LastBellDoorHandoffCommand | null;
   onPosition: (position: Position) => void;
   onDanger: (distance: number) => void;
+  onCapture: () => void;
   onCanvasInteract: () => void;
 };
 
@@ -152,7 +156,7 @@ function Corridor({ textures }: { textures: SchoolTextures }) {
           <Box position={[.08, .15, 0]} args={[.06, 2.1, 1.45]} color="#465b4a" />
         </group>
       ))}
-      {[22, 34].map((z) => (
+      {[22, 34, 48].map((z) => (
         <group key={`locker-${z}`} position={[-2.82, 1.35, z]}>
           {[0, .55, 1.1].map((offset) => <Box key={offset} position={[0, 0, offset - .55]} args={[.16, 2.35, .45]} color="#687064" map={locker} roughness={.58} metalness={.08} />)}
           <Box position={[.1, -.04, 0]} args={[.05, .06, 1.8]} color="#b9dbd9" emissive="#b9dbd9" intensity={.12} />
@@ -201,7 +205,7 @@ function Door({ z, locked, fire = false, textures }: { z: number; locked: boolea
       <Box position={[-1.14, 0, 0]} args={[.16, 3, .22]} color="#9d927b" />
       <Box position={[1.14, 0, 0]} args={[.16, 3, .22]} color="#9d927b" />
       <Box position={[0, 1.42, 0]} args={[2.45, .16, .22]} color="#9d927b" />
-      <group position={[locked ? 1.55 : 0, 0, .02]}>
+      <group position={[0, 0, .02]}>
         <Box position={[0, 0, 0]} args={[2.05, 2.75, .1]} color={fire ? '#6e2e2d' : '#465b4a'} />
         <mesh position={[0, .25, .07]}>
           <planeGeometry args={[1.48, 1.75]} />
@@ -270,18 +274,18 @@ function Enemy({ z, x, active, enemyRef }: { z: number; x: number; active: boole
   );
 }
 
-function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active, onPosition, onDanger, onCanvasInteract }: LastBellRuntimeProps) {
+function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active, handoff, onPosition, onDanger, onCapture, onCanvasInteract }: LastBellRuntimeProps) {
   const { camera, gl } = useThree();
   const textures = useSchoolTextures(Math.min(gl.capabilities.getMaxAnisotropy(), 4));
   const positionRef = useRef<Position>({ x: 0, z: 9 });
   const yawRef = useRef(Math.PI);
   const pitchRef = useRef(0);
-  const chaseRef = useRef(0);
   const patrolRef = useRef(0);
   const chaseStartedRef = useRef(false);
   const enemyPositionsRef = useRef<ChaseEnemy[]>(LAST_BELL_CHASE_SPAWN.map((enemy) => ({ ...enemy })));
   const accumulatorRef = useRef(0);
   const lastReportRef = useRef(0);
+  const captureReportedRef = useRef(false);
   const enemyOneRef = useRef<THREE.Group>(null);
   const enemyTwoRef = useRef<THREE.Group>(null);
   const checkpointRef = useRef(checkpoint);
@@ -301,17 +305,30 @@ function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active
     positionRef.current = checkpointPosition;
     yawRef.current = checkpointState.yaw;
     pitchRef.current = 0;
-    chaseRef.current = checkpointState.chaseSeconds;
     patrolRef.current = 0;
     chaseStartedRef.current = false;
     enemyPositionsRef.current = LAST_BELL_CHASE_SPAWN.map((enemy) => ({ ...enemy }));
     accumulatorRef.current = 0;
+    captureReportedRef.current = false;
     moveRef.current = { x: 0, y: 0 };
     lookRef.current = { x: 0, y: 0 };
     runRef.current = false;
     camera.position.set(checkpointPosition.x, 1.68, checkpointPosition.z);
     camera.rotation.set(0, checkpointState.yaw, 0, 'YXZ');
   }, [camera, moveRef, lookRef, resetNonce, runRef]);
+
+  useEffect(() => {
+    if (!handoff) return;
+    positionRef.current = { ...handoff.position };
+    yawRef.current = handoff.yaw;
+    pitchRef.current = 0;
+    accumulatorRef.current = 0;
+    moveRef.current = { x: 0, y: 0 };
+    lookRef.current = { x: 0, y: 0 };
+    runRef.current = false;
+    camera.position.set(handoff.position.x, 1.68, handoff.position.z);
+    camera.rotation.set(0, handoff.yaw, 0, 'YXZ');
+  }, [camera, handoff, lookRef, moveRef, runRef]);
 
   useFrame((_, delta) => {
     if (!active) {
@@ -321,12 +338,30 @@ function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active
       return;
     }
     const input = state.hiding ? { x: 0, y: 0 } : moveRef.current;
+    const activeChase = state.bellTriggered && state.phase !== 'complete' && state.phase !== 'opening';
+    if (activeChase && !chaseStartedRef.current) {
+      chaseStartedRef.current = true;
+      enemyPositionsRef.current = LAST_BELL_CHASE_SPAWN.map((enemy) => ({ ...enemy }));
+    }
     accumulatorRef.current += Math.min(delta, .1);
     while (accumulatorRef.current >= LAST_BELL_FIXED_STEP) {
+      const previousPosition = positionRef.current;
       positionRef.current = clampLastBellPosition(
-        stepLastBellPosition(positionRef.current, input, yawRef.current, LAST_BELL_FIXED_STEP, runRef.current ? 3.35 : 1.85),
+        stepLastBellPosition(previousPosition, input, yawRef.current, LAST_BELL_FIXED_STEP, runRef.current ? 3.35 : 1.85),
         { doorLocked: state.doorLocked, fireDoorLocked: state.fireDoorLocked },
+        previousPosition,
       );
+      patrolRef.current += LAST_BELL_FIXED_STEP;
+      if (activeChase) {
+        const fixedDistance = stepLastBellEscapeChase(positionRef.current, enemyPositionsRef.current, LAST_BELL_FIXED_STEP, state.hiding);
+        if (!state.hiding && fixedDistance < 1.5 && !captureReportedRef.current) {
+          captureReportedRef.current = true;
+          onCapture();
+        }
+      } else {
+        enemyPositionsRef.current[0] = { x: 1.4, z: 45 + Math.sin(patrolRef.current * .45) * 2 };
+        enemyPositionsRef.current[1] = { x: -1.1, z: 47 + Math.sin(patrolRef.current * .38 + 1.2) * 1.5 };
+      }
       accumulatorRef.current -= LAST_BELL_FIXED_STEP;
     }
     const next = positionRef.current;
@@ -345,23 +380,10 @@ function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active
       lastReportRef.current = now;
     }
 
-    const activeChase = state.bellTriggered && state.phase !== 'complete' && state.phase !== 'opening';
-    patrolRef.current += delta;
-    if (activeChase && !chaseStartedRef.current) {
-      chaseStartedRef.current = true;
-      enemyPositionsRef.current = LAST_BELL_CHASE_SPAWN.map((enemy) => ({ ...enemy }));
-    }
-    let distance: number;
-    if (activeChase) {
-      distance = stepLastBellEscapeChase(next, enemyPositionsRef.current, delta, state.hiding);
-    } else {
-      enemyPositionsRef.current[0] = { x: 1.4, z: 45 + Math.sin(patrolRef.current * .45) * 2 };
-      enemyPositionsRef.current[1] = { x: -1.1, z: 47 + Math.sin(patrolRef.current * .38 + 1.2) * 1.5 };
-      distance = Math.min(
-        Math.hypot(next.x - enemyPositionsRef.current[0].x, next.z - enemyPositionsRef.current[0].z),
-        Math.hypot(next.x - enemyPositionsRef.current[1].x, next.z - enemyPositionsRef.current[1].z),
-      );
-    }
+    const distance = Math.min(
+      Math.hypot(next.x - enemyPositionsRef.current[0].x, next.z - enemyPositionsRef.current[0].z),
+      Math.hypot(next.x - enemyPositionsRef.current[1].x, next.z - enemyPositionsRef.current[1].z),
+    );
     if (shouldReport) onDanger(distance);
     if (enemyOneRef.current) enemyOneRef.current.position.set(enemyPositionsRef.current[0].x, 0, enemyPositionsRef.current[0].z);
     if (enemyTwoRef.current) enemyTwoRef.current.position.set(enemyPositionsRef.current[1].x, 0, enemyPositionsRef.current[1].z);

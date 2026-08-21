@@ -1,0 +1,43 @@
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+
+const clientSource = readFileSync(new URL('./LastBellClient.tsx', import.meta.url), 'utf8');
+const runtimeSource = readFileSync(new URL('./LastBellRuntime.tsx', import.meta.url), 'utf8');
+
+describe('last bell runtime/client contracts', () => {
+  it('uses the typed interaction registry and opening preload hint', () => {
+    expect(clientSource).toContain('INTERACTION_DESCRIPTORS.map');
+    expect(clientSource).toContain('interactionDescriptorFor(nearestRef.current)?.action');
+    expect(clientSource).not.toContain('INTERACTION_COPY');
+    expect(clientSource).not.toContain('ACTION_AUDIO');
+    expect(clientSource).toContain('preload sizes="100vw"');
+  });
+
+  it('keeps keyboard actions stable while reading the latest nearest descriptor ref', () => {
+    expect(clientSource).toContain('const nearestRef = useRef<LastBellInteractionAnchor | null>(null);');
+    expect(clientSource).toContain('const setNearestValue = useCallback');
+    expect(clientSource).toContain('nearestRef.current = next;');
+    expect(clientSource).toContain('interactionDescriptorFor(nearestRef.current)');
+    expect(clientSource).toContain('const prompt = interactionDescriptorFor(nearest)?.copy ?? null;');
+    expect(clientSource).toContain('}, [interact, toggleHide, toggleListen]);');
+    expect(clientSource).not.toContain('}, [interact, state.phase, toggleHide, toggleListen]);');
+  });
+
+  it('uses one primary action for every modal Escape path', () => {
+    expect(clientSource).toContain("if (event.key === 'Escape')");
+    expect(clientSource).toContain('modalPrimaryAction();');
+    expect(clientSource).toContain('onClick={modalPrimaryAction}');
+    expect(clientSource).toContain("if (activeModal === 'paused') setPaused(false)");
+    expect(clientSource).toContain("else if (activeModal === 'captured') retryFromCheckpoint()");
+    expect(clientSource).toContain("else if (activeModal === 'complete') restartFromComplete()");
+  });
+
+  it('keeps closed door leaves, atomic handoff, and fixed-step capture separate from danger sampling', () => {
+    expect(runtimeSource).not.toContain('locked ? 1.55');
+    expect(runtimeSource).toContain('handoff: LastBellDoorHandoffCommand | null');
+    expect(runtimeSource).toContain('previousPosition');
+    expect(runtimeSource).toContain('captureReportedRef');
+    expect(runtimeSource).toContain('captureReportedRef.current = false');
+    expect(runtimeSource).toContain('onCapture();');
+  });
+});

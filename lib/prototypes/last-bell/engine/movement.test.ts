@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clampLastBellPosition, stepLastBellPosition } from './movement';
+import { clampLastBellPosition, lastBellDoorHandoffFor, stepLastBellPosition } from './movement';
 
 function simulate(frameSeconds: number) {
   let position = { x: 0, z: 9 };
@@ -31,5 +31,22 @@ describe('last bell camera-relative movement', () => {
     expect(clampLastBellPosition({ x: 0, z: 42 }, { doorLocked: true, fireDoorLocked: false }).z).toBe(40.2);
     expect(clampLastBellPosition({ x: 0, z: 42 }, { doorLocked: true, fireDoorLocked: true }).z).toBe(42);
     expect(clampLastBellPosition({ x: 0, z: 40 }, { doorLocked: true, fireDoorLocked: true }).z).toBe(40);
+  });
+
+  it('uses an atomic handoff and keeps both door leaves closed', () => {
+    expect(lastBellDoorHandoffFor('classroom')).toEqual({ position: { x: 0, z: 14.2 }, yaw: Math.PI });
+    expect(lastBellDoorHandoffFor('fire')).toEqual({ position: { x: 0, z: 42.2 }, yaw: Math.PI });
+    expect(clampLastBellPosition({ x: 0, z: 14.2 }, { doorLocked: true, fireDoorLocked: false }, { x: 0, z: 12.2 }).z).toBe(14.2);
+    expect(clampLastBellPosition({ x: 0, z: 42.2 }, { doorLocked: true, fireDoorLocked: true }, { x: 0, z: 40.2 }).z).toBe(42.2);
+  });
+
+  it('blocks reverse passage after each handoff while allowing forward travel', () => {
+    const classroom = lastBellDoorHandoffFor('classroom').position;
+    expect(clampLastBellPosition({ ...classroom, z: 12 }, { doorLocked: true, fireDoorLocked: false }, classroom).z).toBe(13.8);
+    expect(clampLastBellPosition({ ...classroom, z: 12 }, { doorLocked: true, fireDoorLocked: false }, { ...classroom, z: 13.8 }).z).toBe(13.8);
+    const fire = lastBellDoorHandoffFor('fire').position;
+    expect(clampLastBellPosition({ ...fire, z: 40 }, { doorLocked: true, fireDoorLocked: true }, fire).z).toBe(41.2);
+    expect(clampLastBellPosition({ ...fire, z: 40 }, { doorLocked: true, fireDoorLocked: true }, { ...fire, z: 41.2 }).z).toBe(41.2);
+    expect(clampLastBellPosition({ ...fire, z: 43 }, { doorLocked: true, fireDoorLocked: true }, fire).z).toBe(43);
   });
 });

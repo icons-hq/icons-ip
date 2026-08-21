@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   clearLastBellCheckpoint,
+  checkpointIdLabel,
   LAST_BELL_CHECKPOINT_KEY,
   LAST_BELL_CHECKPOINT_TTL_MS,
   loadLastBellCheckpoint,
@@ -38,10 +39,24 @@ describe('last bell local checkpoint adapter', () => {
     expect(loadLastBellCheckpoint(storage)).toBeNull();
   });
 
+  it('rejects the removed post-bell checkpoint payload', () => {
+    const storage = new MemoryStorage();
+    saveLastBellCheckpoint(storage, 'ch1_power_restored', semantic);
+    const payload = JSON.parse(storage.getItem(LAST_BELL_CHECKPOINT_KEY) ?? '{}') as Record<string, unknown>;
+    payload.checkpointId = 'ch1_post_bell_safe';
+    storage.setItem(LAST_BELL_CHECKPOINT_KEY, JSON.stringify(payload));
+    expect(loadLastBellCheckpoint(storage)).toBeNull();
+    expect(storage.getItem(LAST_BELL_CHECKPOINT_KEY)).toBeNull();
+  });
+
   it('clears the checkpoint when the Chapter is complete', () => {
     const storage = new MemoryStorage();
     saveLastBellCheckpoint(storage, 'ch1_handoff', { ...semantic, phase: 'corridor' });
     clearLastBellCheckpoint(storage);
     expect(loadLastBellCheckpoint(storage)).toBeNull();
+  });
+
+  it('labels the power checkpoint as restored, not before restoration', () => {
+    expect(checkpointIdLabel('ch1_power_restored')).toBe('전력 복구 후');
   });
 });
