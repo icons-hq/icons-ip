@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: {
+    '/api/prototypes/tusin-survival/assets/*': [
+      './private-assets/tusin-survival/**/*',
+    ],
+  },
   async redirects() {
     // 유료 뽑기 화면(/gacha)을 카드팩 개봉 화면으로 재목적화(#71) — 구 링크 보존
     return [{ source: '/gacha', destination: '/packs', permanent: true }];
