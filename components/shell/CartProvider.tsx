@@ -39,9 +39,9 @@ interface CartCtx {
   pending: boolean;
   error: string | null;
   getQuantity: (goodId: string) => number;
-  add: (goodId: string, stockQty: number) => Promise<void>;
-  setQuantity: (goodId: string, qty: number, stockQty: number) => Promise<void>;
-  remove: (goodId: string) => Promise<void>;
+  add: (goodId: string, stockQty: number) => Promise<boolean>;
+  setQuantity: (goodId: string, qty: number, stockQty: number) => Promise<boolean>;
+  remove: (goodId: string) => Promise<boolean>;
   refresh: () => Promise<void>;
   resetForSignOut: () => void;
 }
@@ -194,10 +194,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [pathname, sync]);
 
   const setQuantity = useCallback(async (goodId: string, qty: number, stockQty: number) => {
-    if (!ready || pendingRef.current) return;
+    if (!ready || pendingRef.current) return false;
     if (qty > stockQty || (qty > 0 && stockQty <= 0)) {
       setError(STOCK_ERROR);
-      return;
+      return false;
     }
 
     const previous = itemsRef.current;
@@ -206,7 +206,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     if (modeRef.current === 'local') {
       keepAsLocal(next);
-      return;
+      return true;
     }
 
     replaceItems(next);
@@ -217,27 +217,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
         ? await deleteCartItemAction(goodId)
         : await setCartItemQuantityAction(goodId, qty);
 
-      if (operationVersion !== operationVersionRef.current) return;
+      if (operationVersion !== operationVersionRef.current) return false;
 
       if (result.ok) {
         replaceItems(result.items);
         replaceMode(result.mode);
-        return;
+        return true;
       }
 
       if (result.mode === 'local') {
         keepAsLocal(next);
         setError(result.error ?? null);
-        return;
+        return true;
       }
 
       replaceItems(previous);
       setError(result.error ?? '장바구니를 저장하지 못했습니다.');
+      return false;
     } catch {
       if (operationVersion === operationVersionRef.current) {
         replaceItems(previous);
         setError('장바구니를 저장하지 못했습니다. 다시 시도해주세요.');
       }
+      return false;
     } finally {
       if (operationVersion === operationVersionRef.current) {
         replacePending(false);
@@ -251,11 +253,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const add = useCallback(async (goodId: string, stockQty: number) => {
     const currentQty = itemsRef.current.find((item) => item.goodId === goodId)?.qty ?? 0;
-    await setQuantity(goodId, currentQty + 1, stockQty);
+    return setQuantity(goodId, currentQty + 1, stockQty);
   }, [setQuantity]);
 
   const remove = useCallback(async (goodId: string) => {
-    await setQuantity(goodId, 0, Number.MAX_SAFE_INTEGER);
+    return setQuantity(goodId, 0, Number.MAX_SAFE_INTEGER);
   }, [setQuantity]);
 
   const resetForSignOut = useCallback(() => {
