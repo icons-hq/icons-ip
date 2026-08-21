@@ -32,6 +32,25 @@ describe('last bell runtime/client contracts', () => {
     expect(clientSource).toContain("else if (activeModal === 'complete') restartFromComplete()");
   });
 
+  it('persists the Last Bell result into the shared comparison contract and renders common result actions', () => {
+    expect(clientSource).toContain('comparisonResultFromLastBell');
+    expect(clientSource).toContain('saveAouadComparisonResult(window.localStorage');
+    expect(clientSource).toContain('<ComparisonResultActions');
+    expect(clientSource).toContain('primaryActionRef={modalPrimaryRef}');
+  });
+
+  it('tracks active wall time separately from fixed simulation steps and excludes inactive presentation states', () => {
+    expect(clientSource).toContain('const onActiveTime = useCallback');
+    expect(clientSource).toContain('!paused && !portrait && !showOpening && !state.captured');
+    expect(runtimeSource).toContain('stepLastBellActivityClock');
+    expect(runtimeSource).toContain('onActiveTime(activityFrame.activeDurationMs)');
+  });
+
+  it('routes canvas interaction through a rejection-safe pointer lock helper', () => {
+    expect(clientSource).toContain('requestLastBellPointerLock(canvas)');
+    expect(clientSource).not.toContain('canvas.requestPointerLock?.()');
+  });
+
   it('keeps closed door leaves, atomic handoff, and fixed-step capture separate from danger sampling', () => {
     expect(runtimeSource).not.toContain('locked ? 1.55');
     expect(runtimeSource).toContain('handoff: LastBellDoorHandoffCommand | null');

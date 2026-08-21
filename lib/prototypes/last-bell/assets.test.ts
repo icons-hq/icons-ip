@@ -119,6 +119,19 @@ describe('last bell asset contract', () => {
     expect(officialAssets.map((asset) => asset.path.split('/').at(-1)).sort()).toEqual(readdirSync(officialDirectory).sort());
   });
 
+  it('resolves every manifest source reference to an existing asset id', () => {
+    const manifest = readManifest();
+    const ids = new Set(manifest.assets.map((asset) => asset.id));
+    const references = manifest.assets
+      .filter((asset) => asset.source_url.startsWith('manifest://'))
+      .map((asset) => ({ assetId: asset.id, sourceId: asset.source_url.slice('manifest://'.length) }));
+
+    expect(references.length).toBeGreaterThan(0);
+    for (const reference of references) {
+      expect(ids.has(reference.sourceId), `${reference.assetId} -> ${reference.sourceId}`).toBe(true);
+    }
+  });
+
   it('rejects manifest paths that escape the repo or public generated root', () => {
     expect(() => resolveManifestAssetPath('../package.json')).toThrow(/escapes/);
     expect(() => resolveManifestAssetPath('/generated/../../package.json')).toThrow(/escapes/);

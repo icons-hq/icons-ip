@@ -4,8 +4,8 @@ import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import {
-  canInteractAt,
   initialLastBellState,
+  nearestInteractableAnchor,
   objectiveForState,
   reduceLastBellState,
 } from '@/lib/prototypes/last-bell/state';
@@ -25,7 +25,8 @@ import {
   type LastBellCheckpointPayload,
 } from '@/lib/prototypes/last-bell/persistence';
 import {
-  advanceLastBellRunMetrics,
+  advanceLastBellActiveDuration,
+  advanceLastBellSimulationMetrics,
   clearLastBellCompletion,
   createLastBellCompletionRecord,
   createLastBellRunMetrics,
@@ -36,6 +37,12 @@ import {
   type LastBellCompletionRecord,
   type LastBellRunMetrics,
 } from '@/lib/prototypes/last-bell/completion';
+import {
+  comparisonResultFromLastBell,
+  saveAouadComparisonResult,
+} from '@/lib/campaigns/aouad/lab/comparison';
+import { requestLastBellPointerLock } from '@/lib/prototypes/last-bell/pointer-lock';
+import { ComparisonResultActions } from '@/components/campaigns/aouad/lab/ComparisonResultActions';
 import { useLastBellAudio } from './useLastBellAudio';
 import styles from './last-bell.module.css';
 
@@ -45,9 +52,6 @@ const LastBellRuntime = dynamic(
 );
 
 type InputVector = { x: number; y: number };
-
-const POPUP_PATH = '/games/prototype-last-bell/popup';
-const POPUP_STORE_PATH = `${POPUP_PATH}/store`;
 
 const ROUTE_LABEL = {
   central: '정면 복도',
@@ -96,6 +100,7 @@ export function LastBellClient() {
   const [completionRecord, setCompletionRecord] = useState<LastBellCompletionRecord | null>(null);
   const nearestRef = useRef<LastBellInteractionAnchor | null>(null);
   const phaseRef = useRef(state.phase);
+  const routeIdRef = useRef(state.routeId);
   const moveRef = useRef<InputVector>({ x: 0, y: 0 });
   const lookRef = useRef<InputVector>({ x: 0, y: 0 });
   const runRef = useRef(false);
@@ -119,7 +124,6 @@ export function LastBellClient() {
   const modalOpenRef = useRef(false);
   const modalRef = useRef<HTMLElement | null>(null);
   const modalPrimaryRef = useRef<HTMLButtonElement | null>(null);
-  const completePrimaryRef = useRef<HTMLAnchorElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -129,6 +133,10 @@ export function LastBellClient() {
   useEffect(() => {
     phaseRef.current = state.phase;
   }, [state.phase]);
+
+  useEffect(() => {
+    routeIdRef.current = state.routeId;
+  }, [state.routeId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -171,12 +179,6 @@ export function LastBellClient() {
       } else if (state.phase === 'complete') {
         clearLastBellCheckpoint(window.localStorage);
         window.setTimeout(() => setSavedCheckpoint(null), 0);
-        if (!completionSavedRef.current && state.routeId) {
-          completionSavedRef.current = true;
-          const record = createLastBellCompletionRecord(runMetricsRef.current, state.routeId, new Date().toISOString());
-          const saved = saveLastBellCompletion(window.localStorage, record);
-          window.setTimeout(() => setCompletionRecord(saved ?? record), 0);
-        }
       }
     } catch {
       // local progress is optional; a storage-blocked browser still plays.
@@ -194,7 +196,7 @@ export function LastBellClient() {
 
   const onPosition = useCallback((position: { x: number; z: number }) => {
     positionRef.current = position;
-    const next = INTERACTIVE_ANCHORS.find((anchor) => canInteractAt(state, anchor, position)) ?? null;
+    const next = nearestInteractableAnchor(state, INTERACTIVE_ANCHORS, position);
     setNearestValue(next);
   }, [setNearestValue, state]);
 
@@ -213,13 +215,34 @@ export function LastBellClient() {
     }
   }, [state.bellTriggered, state.captured, state.hiding]);
 
+  const onActiveTime = useCallback((durationMs: number) => {
+    runMetricsRef.current = advanceLastBellActiveDuration(runMetricsRef.current, durationMs);
+  }, []);
+
   const onSimulationStep = useCallback((durationMs: number, flags: { listening: boolean; hiding: boolean; running: boolean }) => {
-    runMetricsRef.current = advanceLastBellRunMetrics(runMetricsRef.current, durationMs, flags);
+    runMetricsRef.current = advanceLastBellSimulationMetrics(runMetricsRef.current, durationMs, flags);
   }, []);
 
   const requestDoorHandoff = useCallback((door: LastBellDoorId) => {
     const nextHandoff = lastBellDoorHandoffFor(door);
     setHandoff((current) => ({ ...nextHandoff, nonce: (current?.nonce ?? 0) + 1 }));
+  }, []);
+
+  const finalizeCompletion = useCallback(() => {
+    const routeId = routeIdRef.current;
+    if (!routeId || completionSavedRef.current) return;
+    completionSavedRef.current = true;
+    const record = createLastBellCompletionRecord(runMetricsRef.current, routeId, new Date().toISOString());
+    let saved = record;
+    try {
+      const storage = window.localStorage;
+      saved = saveLastBellCompletion(storage, record) ?? record;
+      const comparisonResult = comparisonResultFromLastBell(saved);
+      if (comparisonResult) saveAouadComparisonResult(window.localStorage, comparisonResult);
+    } catch {
+      // Storage can be blocked; the in-memory completion and game flow remain valid.
+    }
+    setCompletionRecord(saved);
   }, []);
 
   const interact = useCallback(() => {
@@ -251,11 +274,12 @@ export function LastBellClient() {
         dispatch({ type: 'TRIGGER_BELL' });
         break;
       case 'reachChapterExit':
+        finalizeCompletion();
         dispatch({ type: 'REACH_CHAPTER_EXIT' });
         break;
     }
     if (descriptor.audio) audio.play(descriptor.audio.id, { volume: descriptor.audio.volume });
-  }, [audio, requestDoorHandoff]);
+  }, [audio, finalizeCompletion, requestDoorHandoff]);
 
   const toggleListen = useCallback(() => {
     audio.unlock();
@@ -297,8 +321,7 @@ export function LastBellClient() {
     moveRef.current = { x: 0, y: 0 };
     runRef.current = false;
     const focusFrame = window.requestAnimationFrame(() => {
-      if (activeModal === 'complete') completePrimaryRef.current?.focus();
-      else modalPrimaryRef.current?.focus();
+      modalPrimaryRef.current?.focus();
     });
     const onModalKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -449,7 +472,7 @@ export function LastBellClient() {
   const pointerLock = useCallback(() => {
     audio.unlock();
     const canvas = document.querySelector('canvas');
-    if (canvas && document.pointerLockElement !== canvas) void canvas.requestPointerLock?.();
+    if (canvas && document.pointerLockElement !== canvas) void requestLastBellPointerLock(canvas);
   }, [audio]);
 
   const changeStick = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
@@ -473,6 +496,7 @@ export function LastBellClient() {
   const completeRouteLabel = completionRecord?.routeId ? ROUTE_LABEL[completionRecord.routeId] : state.routeId ? ROUTE_LABEL[state.routeId] : null;
   const completeDuration = completionRecord?.activeDurationMs ?? 0;
   const completeStyle = completionRecord?.playStyle ?? null;
+  const comparisonResult = completionRecord ? comparisonResultFromLastBell(completionRecord) : null;
 
   return (
     <main className={styles.root} data-portrait={portrait ? 'true' : 'false'}>
@@ -489,6 +513,7 @@ export function LastBellClient() {
           onPosition={onPosition}
           onDanger={onDanger}
           onCapture={onCapture}
+          onActiveTime={onActiveTime}
           onSimulationStep={onSimulationStep}
           onCanvasInteract={pointerLock}
         />
@@ -596,11 +621,9 @@ export function LastBellClient() {
               <div><dt>생존 방식</dt><dd>{completeStyle ? PLAY_STYLE_LABEL[completeStyle] : '기록 정리 중'}</dd></div>
               <div><dt>붙잡힘</dt><dd>{completionRecord?.captureCount ?? 0}회</dd></div>
             </dl>
-            <div className={styles.completionActions}>
-              <a ref={completePrimaryRef} className={styles.primaryButton} href={POPUP_PATH}>생존 기록이 있는 팝업으로</a>
-              <a className={styles.ghostButton} href={POPUP_STORE_PATH}>매점 미리보기</a>
-              <button type="button" className={styles.ghostButton} onClick={modalPrimaryAction}>다시 플레이</button>
-            </div>
+            {comparisonResult
+              ? <ComparisonResultActions result={comparisonResult} candidateName="Last Bell" onRetry={restartFromComplete} primaryActionRef={modalPrimaryRef} />
+              : <button ref={modalPrimaryRef} type="button" className={styles.primaryButton} onClick={restartFromComplete}>다시 하기</button>}
           </div>
         </section>
       )}

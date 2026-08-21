@@ -43,16 +43,21 @@ describe('AOUAD G2 comparison result contract', () => {
   });
 
   it('adapts a valid Last Bell local completion without adding reward authority', () => {
+    const storage = new MemoryStorage();
     const record = createLastBellCompletionRecord(
       createLastBellRunMetrics({ runId: 'last-bell-run', startedAt: '2026-08-21T00:00:00.000Z' }),
       'rear',
       '2026-08-21T00:00:30.000Z',
     );
-    expect(comparisonResultFromLastBell(record)).toMatchObject({
+    const comparison = comparisonResultFromLastBell(record);
+    expect(comparison).toMatchObject({
       candidateId: 'last-bell',
       resultType: 'escaped-rear',
       authority: 'local-prototype',
       rewardEligible: false,
     });
+    expect(comparison && saveAouadComparisonResult(storage, comparison)).toEqual(comparison);
+    expect(loadAouadComparisonResult(storage, 'last-bell')).toEqual(comparison);
+    expect(storage.getItem('icons:aouad-comparison:v1:last-bell')).toBe(JSON.stringify(comparison));
   });
 });

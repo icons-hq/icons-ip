@@ -85,6 +85,40 @@ describe('AOUAD result sharing', () => {
     expect(writeText).not.toHaveBeenCalled();
   });
 
+  it('stops after a cancelled file share without reopening share or using local fallbacks', async () => {
+    const harness = installCardHarness();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const share = vi.fn().mockRejectedValue(new DOMException('dismissed', 'AbortError'));
+
+    const result = await shareAouadResult(payload, {
+      share,
+      canShare: vi.fn(() => true),
+      clipboard: { writeText },
+    } satisfies AouadShareNavigator);
+
+    expect(result).toBe('cancelled');
+    expect(share).toHaveBeenCalledOnce();
+    expect(harness.anchorClick).not.toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('stops after a cancelled text share without downloading or copying', async () => {
+    const harness = installCardHarness();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    const share = vi.fn().mockRejectedValue(new DOMException('dismissed', 'AbortError'));
+
+    const result = await shareAouadResult(payload, {
+      share,
+      canShare: vi.fn(() => false),
+      clipboard: { writeText },
+    } satisfies AouadShareNavigator);
+
+    expect(result).toBe('cancelled');
+    expect(share).toHaveBeenCalledOnce();
+    expect(harness.anchorClick).not.toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
   it('falls back to clipboard after text sharing and image download both fail', async () => {
     installCardHarness({ downloadFails: true });
     const writeText = vi.fn().mockResolvedValue(undefined);

@@ -1,4 +1,4 @@
-export type AouadShareResult = 'web-share' | 'clipboard' | 'download' | 'unavailable';
+export type AouadShareResult = 'web-share' | 'clipboard' | 'download' | 'cancelled' | 'unavailable';
 
 export type AouadSharePayload = {
   title: string;
@@ -16,6 +16,15 @@ export type AouadShareNavigator = {
 };
 
 const RESULT_CARD_FILENAME = 'last-bell-survival-record.png';
+
+function isShareCancellation(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) return false;
+  try {
+    return 'name' in error && error.name === 'AbortError';
+  } catch {
+    return false;
+  }
+}
 
 async function createResultCard(payload: AouadSharePayload): Promise<Blob | null> {
   if (typeof document === 'undefined') return null;
@@ -92,8 +101,9 @@ export async function shareAouadResult(
         await navigatorRef.share(fileShareData);
         return 'web-share';
       }
-    } catch {
-      // Unsupported file sharing and a dismissed picker both fall through to text sharing.
+    } catch (error) {
+      if (isShareCancellation(error)) return 'cancelled';
+      // Unsupported file sharing falls through to text sharing.
     }
   }
 
@@ -102,8 +112,9 @@ export async function shareAouadResult(
       await navigatorRef.share({ title: payload.title, text: payload.text, url: payload.url });
       return 'web-share';
     }
-  } catch {
-    // A cancelled native share falls through to a local-only alternative.
+  } catch (error) {
+    if (isShareCancellation(error)) return 'cancelled';
+    // An unsupported native share falls through to a local-only alternative.
   }
 
   if (await downloadResultCard(cardBlob)) return 'download';

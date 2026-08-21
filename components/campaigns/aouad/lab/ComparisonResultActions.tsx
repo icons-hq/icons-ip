@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type Ref } from 'react';
 import type { AouadComparisonResult } from '@/lib/campaigns/aouad/lab/comparison';
 import { shareAouadComparisonResult } from '@/lib/campaigns/aouad/lab/share';
 import { AOUAD_POPUP_PATH } from '@/lib/campaigns/aouad/content';
@@ -11,9 +11,10 @@ type ComparisonResultActionsProps = {
   result: AouadComparisonResult;
   candidateName: string;
   onRetry: () => void;
+  primaryActionRef?: Ref<HTMLButtonElement>;
 };
 
-export function ComparisonResultActions({ result, candidateName, onRetry }: ComparisonResultActionsProps) {
+export function ComparisonResultActions({ result, candidateName, onRetry, primaryActionRef }: ComparisonResultActionsProps) {
   const [shareStatus, setShareStatus] = useState('');
   const share = useCallback(async () => {
     const method = await shareAouadComparisonResult(result, candidateName, window.location.href);
@@ -22,7 +23,7 @@ export function ComparisonResultActions({ result, candidateName, onRetry }: Comp
 
   return (
     <div className={styles.resultActions}>
-      <button type="button" className={styles.primaryButton} onClick={onRetry}>다시 하기</button>
+      <button ref={primaryActionRef} type="button" className={styles.primaryButton} onClick={onRetry}>다시 하기</button>
       <button type="button" className={styles.secondaryButton} onClick={share}>결과 공유</button>
       <Link className={styles.secondaryButton} href={AOUAD_POPUP_PATH}>팝업으로 돌아가기</Link>
       <Link className={styles.secondaryButton} href={`${AOUAD_POPUP_PATH}/store`}>매점 미리보기</Link>

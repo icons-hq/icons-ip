@@ -116,7 +116,7 @@ const runtimeImages = [
   height,
   usage,
   source_type: 'generated-runtime-plate',
-  source_url: `manifest://${sourceId}`,
+  source_url: `manifest://campaign-concept-${sourceId}`,
   reference: [SAMPLE_URL],
   provenance: `Generated PNG master converted to WebP with ${conversion}.`,
   editing: 'lossy-webp-runtime-derivative',

@@ -10,10 +10,14 @@ import {
   type AouadComparisonResult,
 } from '@/lib/campaigns/aouad/lab/comparison';
 import {
+  advanceSurvivalArcadeFrameTiming,
+  initialSurvivalArcadeFrameTiming,
   initialSurvivalArcadeState,
-  stepSurvivalArcade,
+  stepSurvivalArcadeSimulation,
+  synchronizeSurvivalArcadeActiveTime,
   SURVIVAL_ARCADE_DURATION_MS,
   SURVIVAL_ARCADE_FIXED_STEP_MS,
+  type SurvivalArcadeFrameTiming,
   type SurvivalArcadeInput,
   type SurvivalArcadeState,
 } from '@/lib/campaigns/aouad/lab/survival-arcade';
@@ -49,6 +53,9 @@ export function SurvivalArcadePrototype() {
   const inputRef = useRef<SurvivalArcadeInput>({ x: 0, y: 0 });
   const pressedKeysRef = useRef(new Set<string>());
   const touchPointerRef = useRef<{ id: number; x: number; y: number } | null>(null);
+  const frameTimingRef = useRef<SurvivalArcadeFrameTiming>(initialSurvivalArcadeFrameTiming);
+  const lastFrameRef = useRef(0);
+  const previousFrameActiveRef = useRef(false);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -64,6 +71,9 @@ export function SurvivalArcadePrototype() {
     arcadeRef.current = initial;
     inputRef.current = { x: 0, y: 0 };
     pressedKeysRef.current.clear();
+    frameTimingRef.current = initialSurvivalArcadeFrameTiming;
+    lastFrameRef.current = performance.now();
+    previousFrameActiveRef.current = false;
     runRef.current = { runId: arcadeRunId(now), startedAt: new Date(now).toISOString(), retryCount };
     setArcade(initial);
     setResult(null);
@@ -109,18 +119,30 @@ export function SurvivalArcadePrototype() {
 
   useEffect(() => {
     let frameId = 0;
-    let lastFrame = performance.now();
-    let accumulator = 0;
+    lastFrameRef.current = performance.now();
+    const onVisibilityChange = () => {
+      lastFrameRef.current = performance.now();
+      previousFrameActiveRef.current = false;
+    };
     const frame = (now: number) => {
-      const delta = Math.min(100, now - lastFrame);
-      lastFrame = now;
-      if (phaseRef.current === 'running') {
-        accumulator += delta;
+      const visibleAndRunning = phaseRef.current === 'running' && document.visibilityState === 'visible';
+      const delta = visibleAndRunning && previousFrameActiveRef.current
+        ? Math.max(0, now - lastFrameRef.current)
+        : 0;
+      lastFrameRef.current = now;
+      previousFrameActiveRef.current = visibleAndRunning;
+      if (visibleAndRunning) {
+        let timing = advanceSurvivalArcadeFrameTiming(frameTimingRef.current, delta, true);
         let next = arcadeRef.current;
-        while (accumulator >= SURVIVAL_ARCADE_FIXED_STEP_MS && next.resultType === null) {
-          next = stepSurvivalArcade(next, inputRef.current, SURVIVAL_ARCADE_FIXED_STEP_MS);
-          accumulator -= SURVIVAL_ARCADE_FIXED_STEP_MS;
+        while (timing.simulationAccumulatorMs >= SURVIVAL_ARCADE_FIXED_STEP_MS - 1e-9 && next.resultType === null) {
+          next = stepSurvivalArcadeSimulation(next, inputRef.current, SURVIVAL_ARCADE_FIXED_STEP_MS);
+          timing = {
+            ...timing,
+            simulationAccumulatorMs: timing.simulationAccumulatorMs - SURVIVAL_ARCADE_FIXED_STEP_MS,
+          };
         }
+        next = synchronizeSurvivalArcadeActiveTime(next, timing.activeElapsedMs);
+        frameTimingRef.current = timing;
         if (next !== arcadeRef.current) {
           arcadeRef.current = next;
           setArcade(next);
@@ -144,8 +166,12 @@ export function SurvivalArcadePrototype() {
       }
       frameId = window.requestAnimationFrame(frame);
     };
+    document.addEventListener('visibilitychange', onVisibilityChange);
     frameId = window.requestAnimationFrame(frame);
-    return () => window.cancelAnimationFrame(frameId);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.cancelAnimationFrame(frameId);
+    };
   }, []);
 
   const togglePause = useCallback(() => {
@@ -187,7 +213,7 @@ export function SurvivalArcadePrototype() {
         <div className={styles.prototype}>
           <header className={styles.prototypeHeader}><Link href={`${AOUAD_POPUP_PATH}/lab`}>← 비교 허브</Link><span>03 · SURVIVAL ARCADE</span></header>
           <section className={styles.storyPanel}>
-            <div className={styles.storyImage}><Image src={AOUAD_IMAGES.cafeteria} alt="위험을 피해 움직여야 하는 효산고 급식실" fill preload sizes="(max-width: 680px) calc(100vw - 1.25rem), 42rem" /><div className={styles.storyShade} /></div>
+            <div className={styles.storyImage}><Image src={AOUAD_IMAGES.cafeteria} alt="위험을 피해 움직여야 하는 효산고 급식실" fill loading="eager" sizes="(max-width: 680px) calc(100vw - 1.25rem), 42rem" /><div className={styles.storyShade} /></div>
             <div className={styles.storyContent}>
               <p className={styles.eyebrow}>180 SECOND SURVIVAL</p>
               <h1>180초 동안<br />위험 신호를 피해라.</h1>

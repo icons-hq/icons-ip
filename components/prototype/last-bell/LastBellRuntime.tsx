@@ -9,6 +9,7 @@ import { LAST_BELL_ANCHORS } from '@/lib/prototypes/last-bell/state';
 import { clampLastBellPosition, LAST_BELL_FIXED_STEP, stepLastBellPosition, type LastBellDoorHandoff } from '@/lib/prototypes/last-bell/engine/movement';
 import { checkpointPositionFor } from '@/lib/prototypes/last-bell/engine/checkpoint';
 import { LAST_BELL_CHASE_SPAWN, stepLastBellEscapeChase, type ChaseEnemy } from '@/lib/prototypes/last-bell/engine/chase';
+import { createLastBellActivityClock, stepLastBellActivityClock } from '@/lib/prototypes/last-bell/engine/activity-clock';
 import { LAST_BELL_ASSETS } from '@/lib/prototypes/last-bell/assets';
 import styles from './last-bell.module.css';
 
@@ -29,6 +30,7 @@ export type LastBellRuntimeProps = {
   onPosition: (position: Position) => void;
   onDanger: (distance: number) => void;
   onCapture: () => void;
+  onActiveTime: (durationMs: number) => void;
   onSimulationStep: (durationMs: number, flags: { listening: boolean; hiding: boolean; running: boolean }) => void;
   onCanvasInteract: () => void;
 };
@@ -294,7 +296,7 @@ function Enemy({ z, x, active, enemyRef }: { z: number; x: number; active: boole
   );
 }
 
-function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active, handoff, onPosition, onDanger, onCapture, onSimulationStep, onCanvasInteract }: LastBellRuntimeProps) {
+function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active, handoff, onPosition, onDanger, onCapture, onActiveTime, onSimulationStep, onCanvasInteract }: LastBellRuntimeProps) {
   const { camera, gl } = useThree();
   const textures = useSchoolTextures(Math.min(gl.capabilities.getMaxAnisotropy(), 4));
   const positionRef = useRef<Position>({ x: 0, z: 9 });
@@ -306,6 +308,8 @@ function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active
   const accumulatorRef = useRef(0);
   const lastReportRef = useRef(0);
   const captureReportedRef = useRef(false);
+  const activityClockRef = useRef(createLastBellActivityClock());
+  const activeRef = useRef(active);
   const enemyOneRef = useRef<THREE.Group>(null);
   const enemyTwoRef = useRef<THREE.Group>(null);
   const checkpointRef = useRef(checkpoint);
@@ -313,6 +317,23 @@ function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active
   useEffect(() => {
     checkpointRef.current = checkpoint;
   }, [checkpoint]);
+
+  useEffect(() => {
+    activeRef.current = active;
+    activityClockRef.current = createLastBellActivityClock(
+      active && document.visibilityState === 'visible' ? performance.now() : undefined,
+    );
+  }, [active]);
+
+  useEffect(() => {
+    const resetActivityClock = () => {
+      activityClockRef.current = createLastBellActivityClock(
+        activeRef.current && document.visibilityState === 'visible' ? performance.now() : undefined,
+      );
+    };
+    document.addEventListener('visibilitychange', resetActivityClock);
+    return () => document.removeEventListener('visibilitychange', resetActivityClock);
+  }, []);
 
   useEffect(() => {
     gl.domElement.addEventListener('pointerdown', onCanvasInteract);
@@ -351,6 +372,12 @@ function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active
   }, [camera, handoff, lookRef, moveRef, runRef]);
 
   useFrame((_, delta) => {
+    const activityFrame = stepLastBellActivityClock(activityClockRef.current, performance.now(), {
+      active,
+      visible: document.visibilityState === 'visible',
+    });
+    activityClockRef.current = activityFrame.clock;
+    if (activityFrame.activeDurationMs > 0) onActiveTime(activityFrame.activeDurationMs);
     if (!active) {
       moveRef.current = { x: 0, y: 0 };
       lookRef.current = { x: 0, y: 0 };

@@ -63,6 +63,7 @@
 .arcadePanel { padding: clamp(1rem, 4vw, 1.5rem); }
 .arcadeTopline { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: .75rem; color: var(--lab-muted); font: 700 .68rem/1.2 ui-monospace, monospace; letter-spacing: .06em; }
 .arcadeArena { position: relative; aspect-ratio: 1 / 1.18; overflow: hidden; border: 1px solid rgba(245, 242, 234, .25); background: linear-gradient(135deg, #172c28, #0d1715); touch-action: none; outline: none; }
+.arcadeArena:focus-visible { outline: 3px solid #ffd092; outline-offset: 4px; }
 .arcadeArena::before, .arcadeArena::after { content: ''; position: absolute; inset: 0; pointer-events: none; }
 .arcadeArena::before { background: repeating-linear-gradient(90deg, transparent 0 19.5%, rgba(245, 242, 234, .08) 19.8% 20%); }
 .arcadeArena::after { background: repeating-linear-gradient(0deg, transparent 0 19.5%, rgba(245, 242, 234, .06) 19.8% 20%); }

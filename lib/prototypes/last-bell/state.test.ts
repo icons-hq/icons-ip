@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canInteractAt,
   initialLastBellState,
+  nearestInteractableAnchor,
   objectiveForState,
   reduceLastBellState,
 } from './state';
@@ -123,6 +124,22 @@ describe('last bell chapter state', () => {
     const powered = reduceLastBellState(routed, { type: 'RESTORE_POWER' });
     const bell = reduceLastBellState(reduceLastBellState(powered, { type: 'LOCK_FIRE_DOOR' }), { type: 'TRIGGER_BELL' });
     expect(reduceLastBellState(bell, { type: 'REACH_CHAPTER_EXIT' })).toMatchObject({ phase: 'complete', routeId });
+  });
+
+  it.each([
+    ['route_central', { x: 0, z: 17.4 }],
+    ['route_rear', { x: -1.7, z: 17.4 }],
+    ['route_systems', { x: 1.7, z: 17.4 }],
+  ] as const)('selects the nearest valid %s anchor when route choices overlap', (expected, position) => {
+    const corridor = reduceLastBellState(
+      reduceLastBellState(initialLastBellState, { type: 'SKIP_OPENING' }),
+      { type: 'LOCK_CLASSROOM_DOOR' },
+    );
+    expect(nearestInteractableAnchor(
+      corridor,
+      ['route_central', 'route_rear', 'route_systems'],
+      position,
+    )).toBe(expected);
   });
 
   it('retries a post-bell capture from the power checkpoint', () => {

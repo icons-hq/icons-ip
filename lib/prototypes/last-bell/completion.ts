@@ -124,8 +124,17 @@ export function createLastBellRunMetrics({
   };
 }
 
-/** Advance only from the fixed simulation step so render cadence cannot alter a result. */
-export function advanceLastBellRunMetrics(
+/** Advance the visible activity clock independently from simulation clamping. */
+export function advanceLastBellActiveDuration(
+  metrics: LastBellRunMetrics,
+  durationMs: number,
+): LastBellRunMetrics {
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return metrics;
+  return { ...metrics, activeDurationMs: metrics.activeDurationMs + durationMs };
+}
+
+/** Advance behavior counters only from the fixed simulation step. */
+export function advanceLastBellSimulationMetrics(
   metrics: LastBellRunMetrics,
   durationMs: number,
   flags: LastBellMetricFlags,
@@ -133,7 +142,6 @@ export function advanceLastBellRunMetrics(
   if (!Number.isFinite(durationMs) || durationMs <= 0) return metrics;
   return {
     ...metrics,
-    activeDurationMs: metrics.activeDurationMs + durationMs,
     listeningDurationMs: metrics.listeningDurationMs + (flags.listening ? durationMs : 0),
     hidingDurationMs: metrics.hidingDurationMs + (flags.hiding ? durationMs : 0),
     runningDurationMs: metrics.runningDurationMs + (flags.running ? durationMs : 0),

@@ -138,7 +138,7 @@ export function InfectionRecordPrototype() {
         <div className={styles.prototype}>
           <header className={styles.prototypeHeader}><Link href={`${AOUAD_POPUP_PATH}/lab`}>← 비교 허브</Link><span>02 · INFECTION RECORD</span></header>
           <section className={styles.storyPanel}>
-            <div className={styles.storyImage}><Image src={AOUAD_IMAGES.classroom} alt="감염 징후가 시작된 효산고 교실" fill preload sizes="(max-width: 680px) calc(100vw - 1.25rem), 42rem" /><div className={styles.storyShade} /></div>
+            <div className={styles.storyImage}><Image src={AOUAD_IMAGES.classroom} alt="감염 징후가 시작된 효산고 교실" fill loading="eager" sizes="(max-width: 680px) calc(100vw - 1.25rem), 42rem" /><div className={styles.storyShade} /></div>
             <div className={styles.storyContent}>
               <p className={styles.eyebrow}>2D BRANCHING EXPERIENCE</p>
               <h1>세 번의 선택으로<br />당신의 감염 기록을 남긴다.</h1>
@@ -179,7 +179,7 @@ export function InfectionRecordPrototype() {
       <div className={styles.prototype}>
         <header className={styles.prototypeHeader}><Link href={`${AOUAD_POPUP_PATH}/lab`}>← 비교 허브</Link><span>02 · CHOICE {view.story.choices.length + 1}/3</span></header>
         <section className={styles.storyPanel}>
-          <div className={styles.storyImage}><Image src={scene.image} alt="" fill sizes="(max-width: 680px) calc(100vw - 1.25rem), 42rem" /><div className={styles.storyShade} /></div>
+          <div className={styles.storyImage}><Image src={scene.image} alt="" fill loading="eager" sizes="(max-width: 680px) calc(100vw - 1.25rem), 42rem" /><div className={styles.storyShade} /></div>
           <div className={styles.storyContent}>
             <p className={styles.eyebrow}>{scene.eyebrow}</p>
             <h1>{scene.title}</h1>

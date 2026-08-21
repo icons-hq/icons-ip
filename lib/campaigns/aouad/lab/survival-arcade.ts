@@ -1,9 +1,14 @@
 export const SURVIVAL_ARCADE_DURATION_MS = 180_000;
 export const SURVIVAL_ARCADE_FIXED_STEP_MS = 1000 / 30;
+export const SURVIVAL_ARCADE_MAX_SIMULATION_FRAME_MS = 250;
 
 export type SurvivalArcadeInput = { x: number; y: number };
 export type SurvivalArcadeHazard = { id: string; x: number; y: number; vx: number; vy: number; radius: number };
 export type SurvivalArcadeResultType = 'survived' | 'caught';
+export type SurvivalArcadeFrameTiming = {
+  activeElapsedMs: number;
+  simulationAccumulatorMs: number;
+};
 
 export type SurvivalArcadeState = {
   elapsedMs: number;
@@ -21,6 +26,11 @@ export const initialSurvivalArcadeState: SurvivalArcadeState = {
     { id: 'crossing', x: 0, y: 44, vx: 18, vy: 0, radius: 5 },
   ],
   resultType: null,
+};
+
+export const initialSurvivalArcadeFrameTiming: SurvivalArcadeFrameTiming = {
+  activeElapsedMs: 0,
+  simulationAccumulatorMs: 0,
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -44,7 +54,12 @@ function bounce(hazard: SurvivalArcadeHazard, deltaMs: number): SurvivalArcadeHa
   return { ...hazard, x, y, vx, vy };
 }
 
-export function stepSurvivalArcade(
+/**
+ * Advances only deterministic 30Hz movement/collision state. The visible
+ * active wall clock is synchronized separately so low render cadence cannot
+ * stretch a three-minute run.
+ */
+export function stepSurvivalArcadeSimulation(
   state: SurvivalArcadeState,
   input: SurvivalArcadeInput,
   deltaMs = SURVIVAL_ARCADE_FIXED_STEP_MS,
@@ -60,6 +75,16 @@ export function stepSurvivalArcade(
   };
   const hazards = state.hazards.map((hazard) => bounce(hazard, deltaMs));
   const caught = hazards.some((hazard) => Math.hypot(player.x - hazard.x, player.y - hazard.y) <= player.radius + hazard.radius);
+  return { ...state, player, hazards, resultType: caught ? 'caught' : null };
+}
+
+export function stepSurvivalArcade(
+  state: SurvivalArcadeState,
+  input: SurvivalArcadeInput,
+  deltaMs = SURVIVAL_ARCADE_FIXED_STEP_MS,
+): SurvivalArcadeState {
+  const simulated = stepSurvivalArcadeSimulation(state, input, deltaMs);
+  if (simulated === state) return state;
   const nextElapsedMs = state.elapsedMs + deltaMs;
   // A 30Hz step cannot represent 1/30s exactly in binary. Snap only at the
   // authored finish line so render cadence cannot require an extra frame.
@@ -67,9 +92,33 @@ export function stepSurvivalArcade(
     ? SURVIVAL_ARCADE_DURATION_MS
     : nextElapsedMs;
   return {
+    ...simulated,
     elapsedMs,
-    player,
-    hazards,
-    resultType: caught ? 'caught' : elapsedMs >= SURVIVAL_ARCADE_DURATION_MS ? 'survived' : null,
+    resultType: simulated.resultType === 'caught' ? 'caught' : elapsedMs >= SURVIVAL_ARCADE_DURATION_MS ? 'survived' : null,
   };
+}
+
+export function advanceSurvivalArcadeFrameTiming(
+  timing: SurvivalArcadeFrameTiming,
+  frameDeltaMs: number,
+  visibleAndRunning: boolean,
+): SurvivalArcadeFrameTiming {
+  if (!visibleAndRunning || !Number.isFinite(frameDeltaMs) || frameDeltaMs <= 0) return timing;
+  return {
+    activeElapsedMs: Math.min(SURVIVAL_ARCADE_DURATION_MS, timing.activeElapsedMs + frameDeltaMs),
+    simulationAccumulatorMs: timing.simulationAccumulatorMs + Math.min(frameDeltaMs, SURVIVAL_ARCADE_MAX_SIMULATION_FRAME_MS),
+  };
+}
+
+export function synchronizeSurvivalArcadeActiveTime(
+  state: SurvivalArcadeState,
+  activeElapsedMs: number,
+): SurvivalArcadeState {
+  if (!Number.isFinite(activeElapsedMs)) return state;
+  const elapsedMs = clamp(activeElapsedMs, 0, SURVIVAL_ARCADE_DURATION_MS);
+  const resultType = state.resultType === 'caught'
+    ? 'caught'
+    : elapsedMs >= SURVIVAL_ARCADE_DURATION_MS ? 'survived' : null;
+  if (state.elapsedMs === elapsedMs && state.resultType === resultType) return state;
+  return { ...state, elapsedMs, resultType };
 }

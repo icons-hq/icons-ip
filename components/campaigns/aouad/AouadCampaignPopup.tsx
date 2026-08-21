@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import {
   AOUAD_AVATAR_COLORS,
   AOUAD_AVATAR_IDS,
@@ -63,7 +63,7 @@ function StudentIdCard({ compact = false }: { compact?: boolean }) {
         <Avatar avatar={state.student.avatar} size={compact ? 76 : 112} />
         <div className={styles.studentIdInfo}>
           <span>성명</span><b>{state.student.name ?? '미기재'}</b>
-          <span>학년/반</span><b>2학년 5반</b>
+          <span>학년/반</span><b>학급 미확정</b>
           <span>개인 수색</span><b>{rallyCount} / {AOUAD_RALLY_ZONE_IDS.length}</b>
         </div>
       </div>
@@ -86,6 +86,11 @@ function OpeningCeremony() {
   const skipFocusRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const openingReady = isAouadOpeningReady(ready, reduced);
+  const complete = (mode: OpeningMode) => {
+    markOpeningSeen({ name: name.trim() || null, avatar });
+    trackAouadCampaignEvent({ type: 'opening_completed', mode });
+  };
+  const skipFromKeyboard = useEffectEvent(() => complete('skip'));
 
   useEffect(() => {
     if (state.openingSeen) return undefined;
@@ -101,6 +106,11 @@ function OpeningCeremony() {
     if (state.openingSeen) return undefined;
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const trapFocus = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        skipFromKeyboard();
+        return;
+      }
       if (event.key !== 'Tab') return;
       const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
         'button:not([disabled]), input:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
@@ -136,14 +146,9 @@ function OpeningCeremony() {
 
   if (state.openingSeen) return null;
 
-  const complete = (mode: OpeningMode) => {
-    markOpeningSeen({ name: name.trim() || null, avatar });
-    trackAouadCampaignEvent({ type: 'opening_completed', mode });
-  };
-
   return (
     <div ref={dialogRef} className={`${styles.opening} ${reduced ? styles.openingReduced : ''}`} role="dialog" aria-modal="true" aria-labelledby="aouad-opening-title">
-      <div className={styles.openingImage} aria-hidden="true"><Image src={AOUAD_IMAGES.theater} alt="" fill sizes="100vw" /></div>
+      <div className={styles.openingImage} aria-hidden="true"><Image src={AOUAD_IMAGES.theater} alt="" fill preload sizes="100vw" /></div>
       <div className={styles.openingFrame}>
         <p className={styles.openingKicker}>효산시, 사태 이후</p>
         <h1 id="aouad-opening-title">…들려?<br />들리면 대답해 줘.</h1>
@@ -194,8 +199,8 @@ function LastBellRecord() {
       routeLabel: '효산고등학교 · 마지막 수업',
       durationLabel: lastBellCompletion ? `${formatDuration(lastBellCompletion.activeDurationMs)} · ${playStyleLabel(lastBellCompletion.playStyle)}` : '기록을 준비 중입니다',
     });
-    trackAouadCampaignEvent({ type: 'share_clicked', method: result });
-    setStatus(result === 'web-share' ? '공유 창을 열었습니다.' : result === 'clipboard' ? '공유 문구를 복사했습니다.' : result === 'download' ? '기록 카드를 저장했습니다.' : '이 기기에서는 공유를 지원하지 않습니다.');
+    if (result !== 'cancelled') trackAouadCampaignEvent({ type: 'share_clicked', method: result });
+    setStatus(result === 'web-share' ? '공유 창을 열었습니다.' : result === 'clipboard' ? '공유 문구를 복사했습니다.' : result === 'download' ? '기록 카드를 저장했습니다.' : result === 'cancelled' ? '공유를 취소했습니다.' : '이 기기에서는 공유를 지원하지 않습니다.');
   };
 
   return (
@@ -240,12 +245,12 @@ function Hub() {
         <span>효산고등학교</span>
       </header>
       <section className={styles.hero}>
-        <Image className={styles.heroImage} src={AOUAD_IMAGES.hero} alt="비 내린 밤의 효산고등학교" fill preload sizes="100vw" />
+        <Image className={styles.heroImage} src={AOUAD_IMAGES.hero} alt="비 내린 밤의 효산고등학교" fill preload={state.openingSeen} sizes="100vw" />
         <div className={styles.heroShade} />
         <div className={styles.heroCopy}>
           <p>지금, 우리 학교로</p>
           <h1>마지막 종</h1>
-          <span>5–7분의 생존 이야기<br />선택은 기록이 되고, 기록은 당신을 증명한다.</span>
+          <span>압축 수직 슬라이스 · 내부 비교 후보<br />선택은 기록이 되고, 기록은 당신을 증명한다.</span>
           <div className={styles.heroActions}>
             <Link href="/games/prototype-last-bell" prefetch={false} className={styles.primaryButton} onClick={() => trackAouadCampaignEvent({ type: 'game_start_clicked' })}>게임 시작</Link>
             <Link href="/games/prototype-last-bell" prefetch={false} className={styles.secondaryButton} onClick={() => trackAouadCampaignEvent({ type: 'game_continue_clicked' })}>이어하기</Link>
@@ -282,12 +287,13 @@ function Hub() {
 }
 
 function ZoneHeader({ zone }: { zone: AouadZoneId }) {
+  const { state } = useAouadCampaign();
   const item = AOUAD_ZONES[zone];
   return (
     <header className={styles.zoneHeader}>
       <Link href={AOUAD_POPUP_PATH} className={styles.backLink}>← 팝업 허브</Link>
       <div><span>{item.subtitle}</span><h1>{item.name}</h1></div>
-      <Image src={item.image} alt="" fill sizes="100vw" preload />
+      <Image src={item.image} alt="" fill sizes="100vw" preload={state.openingSeen} />
       <i />
     </header>
   );
@@ -331,13 +337,13 @@ function CafeteriaZone() {
     return () => cancelAnimationFrame(frame);
   }, [running, reduced]);
 
-  const attempt = () => {
-    const action = cafeteriaActionForPreference(reduced, running);
+  const attempt = (staticAlternative = false) => {
+    const action = cafeteriaActionForPreference(reduced, running, staticAlternative);
     if (action === 'complete') {
       setRunning(false);
       completeZone('cafeteria');
       trackAouadCampaignEvent({ type: 'zone_completed', zone: 'cafeteria' });
-      setMessage('정적인 대체 입력으로 배식대를 지나왔습니다. 수색 인장을 남겼어요.');
+      setMessage('시각적 위치를 읽지 않는 정적 안내로 배식대를 지나왔습니다. 수색 인장을 남겼어요.');
       return;
     }
     if (action === 'start') {
@@ -356,7 +362,7 @@ function CafeteriaZone() {
     }
   };
 
-  return <section className={styles.zoneContent}><p className={styles.zoneLead}>위협을 과장하지 않고, 소리의 타이밍을 읽는 짧은 체험입니다.</p><div className={styles.timingGame}><span className={styles.timingTarget}>{reduced ? '정적 대체 입력' : '조용한 구간'}</span><div className={styles.timingTrack}><i style={{ left: `${position}%` }} /></div><button type="button" className={styles.primaryButton} onClick={attempt}>{reduced ? '조용히 지나가기' : running ? '발을 멈춘다' : '이동 시작'}</button><p role="status">{message}</p></div></section>;
+  return <section className={styles.zoneContent}><p className={styles.zoneLead}>위협을 과장하지 않고, 소리의 타이밍을 읽는 짧은 체험입니다.</p><div className={styles.timingGame}><span className={styles.timingTarget}>{reduced ? '정적 대체 입력' : '조용한 구간'}</span><div className={styles.timingTrack} aria-hidden="true"><i style={{ left: `${position}%` }} /></div><button type="button" className={styles.primaryButton} onClick={() => attempt()}>{reduced ? '조용히 지나가기' : running ? '발을 멈춘다' : '이동 시작'}</button>{!reduced ? <button type="button" className={styles.textButton} onClick={() => attempt(true)} aria-describedby="cafeteria-static-help">정적 안내로 지나가기</button> : null}<p id="cafeteria-static-help">화면의 움직이는 점을 보지 않아도 정적 안내 버튼으로 같은 수색 인장을 받을 수 있습니다.</p><p role="status" aria-live="polite">{message}</p></div></section>;
 }
 
 function BroadcastZone() {

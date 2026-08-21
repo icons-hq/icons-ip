@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  advanceLastBellRunMetrics,
+  advanceLastBellActiveDuration,
+  advanceLastBellSimulationMetrics,
   clearLastBellCompletion,
   createLastBellCompletionRecord,
   createLastBellRunMetrics,
@@ -46,9 +47,10 @@ describe('Last Bell local completion', () => {
     while (elapsed < 1 - 1e-9) {
       const delta = Math.min(frameSeconds, 1 - elapsed);
       elapsed += delta;
+      metrics = advanceLastBellActiveDuration(metrics, delta * 1000);
       accumulator += delta;
       while (accumulator >= LAST_BELL_FIXED_STEP - 1e-12) {
-        metrics = advanceLastBellRunMetrics(metrics, LAST_BELL_FIXED_STEP * 1000, {
+        metrics = advanceLastBellSimulationMetrics(metrics, LAST_BELL_FIXED_STEP * 1000, {
           listening: ticks < 10,
           hiding: ticks >= 10 && ticks < 20,
           running: ticks >= 20,
@@ -63,6 +65,29 @@ describe('Last Bell local completion', () => {
     expect(metrics.listeningDurationMs).toBeCloseTo(1000 / 3, 6);
     expect(metrics.hidingDurationMs).toBeCloseTo(1000 / 3, 6);
     expect(metrics.runningDurationMs).toBeCloseTo(1000 / 3, 6);
+  });
+
+  it('keeps 5fps visible activity on wall time while simulation catch-up stays clamped', () => {
+    let metrics = createLastBellRunMetrics({ runId: 'five-fps-run', startedAt: '2026-08-21T00:00:00.000Z' });
+    let accumulator = 0;
+    let ticks = 0;
+    for (let frame = 0; frame < 5; frame += 1) {
+      metrics = advanceLastBellActiveDuration(metrics, 200);
+      accumulator += Math.min(.2, .1);
+      while (accumulator >= LAST_BELL_FIXED_STEP - 1e-12) {
+        metrics = advanceLastBellSimulationMetrics(metrics, LAST_BELL_FIXED_STEP * 1000, {
+          listening: true,
+          hiding: false,
+          running: false,
+        });
+        ticks += 1;
+        accumulator -= LAST_BELL_FIXED_STEP;
+      }
+    }
+
+    expect(metrics.activeDurationMs).toBe(1000);
+    expect(ticks).toBe(15);
+    expect(metrics.listeningDurationMs).toBeCloseTo(500, 6);
   });
 
   it('counts capture and retry separately before selecting a resilient style', () => {

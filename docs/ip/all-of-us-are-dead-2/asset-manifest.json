@@ -698,7 +698,7 @@
       "path": "/generated/aouad-campaign/generated/hero-school-night.webp",
       "usage": "popup hub hero and campaign entry backdrop",
       "source_type": "generated-runtime-plate",
-      "source_url": "manifest://popup-hero-school-night-source",
+      "source_url": "manifest://campaign-concept-popup-hero-school-night-source",
       "reference": [
         "https://icons-plan.vercel.app/sample/aouad"
       ],
@@ -718,7 +718,7 @@
       "path": "/generated/aouad-campaign/generated/sol/reunion-radio-room-opening.webp",
       "usage": "broadcast zone hero with responsive overlay safe area",
       "source_type": "generated-runtime-plate",
-      "source_url": "manifest://popup-broadcast-source",
+      "source_url": "manifest://campaign-concept-popup-broadcast-source",
       "reference": [
         "https://icons-plan.vercel.app/sample/aouad"
       ],
@@ -738,7 +738,7 @@
       "path": "/generated/aouad-campaign/generated/sol/rooftop-survival-record.webp",
       "usage": "rooftop zone and personal survival-record backdrop",
       "source_type": "generated-runtime-plate",
-      "source_url": "manifest://popup-rooftop-source",
+      "source_url": "manifest://campaign-concept-popup-rooftop-source",
       "reference": [
         "https://icons-plan.vercel.app/sample/aouad"
       ],

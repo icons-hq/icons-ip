@@ -237,6 +237,24 @@ export function distanceToAnchor(
   return Math.hypot(position.x - target.x, position.z - target.z);
 }
 
+export function nearestInteractableAnchor<const Anchor extends LastBellAnchorId>(
+  state: LastBellState,
+  anchors: readonly Anchor[],
+  position: { x: number; z: number },
+): Anchor | null {
+  let nearest: Anchor | null = null;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  for (const anchor of anchors) {
+    if (!canInteractAt(state, anchor, position)) continue;
+    const distance = distanceToAnchor(position, anchor);
+    if (distance < nearestDistance) {
+      nearest = anchor;
+      nearestDistance = distance;
+    }
+  }
+  return nearest;
+}
+
 export function canInteractAt(
   state: LastBellState,
   anchor: LastBellAnchorId,

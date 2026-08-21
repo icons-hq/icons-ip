@@ -19,7 +19,7 @@ export function ComparisonLabHub() {
         <section className={styles.candidateGrid} aria-label="비교 후보">
           {candidates.map((candidate) => (
             <Link key={candidate.id} className={styles.candidateCard} href={candidate.href} prefetch={candidate.id === 'last-bell' ? false : undefined}>
-              <div className={styles.candidateImage}><Image src={candidate.image} alt="" fill sizes="(max-width: 680px) 8.5rem, 33vw" /></div>
+              <div className={styles.candidateImage}><Image src={candidate.image} alt="" fill loading="eager" sizes="(max-width: 680px) 8.5rem, 33vw" /></div>
               <div className={styles.candidateBody}>
                 <span className={styles.candidateIndex}>CANDIDATE {candidate.index}</span>
                 <h2>{candidate.title}</h2>
