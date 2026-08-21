@@ -182,9 +182,10 @@ function createLastBellRuntime(config: {
 
 2차 소스의 현재 대조 기준은 다음과 같다.
 
-- 저장소: `icons-hq/icons` main commit `dc67a4c0ae6ece52d82d97df555fe032685f94d2`
+- 저장소: `icons-hq/icons` pinned commit `d63c7f0c4c5851c9722afdd895c87b72a7217c2d`
 - 경로: `50_apps/plan-viewer/public/ip-popups/aouad/`
-- 라이브: <https://icons-plan.vercel.app/ip-popups/aouad>
+- 라이브 기획: <https://icons-plan.vercel.app/ip-popups/aouad>
+- 라이브 온라인 팝업 샘플: <https://icons-plan.vercel.app/sample/aouad>
 - 대조 결과: 저장소와 라이브 디자인 자료 탭의 24개 이미지가 일치
 
 이 이미지는 로고, 로딩/Chapter 카드, 오프닝 plate, 승인된 diegetic poster/texture에 사용할 수 있다. 라이브 URL을 hotlink하지 않고 원본을 프로젝트 자산 파이프라인으로 복사하여 해시를 기록한다. 생성 환경 이미지는 시네마틱 plate·로딩·Chapter 카드·시각 기준으로만 사용하고, 이동 가능한 공간을 billboard나 2D 배경으로 대체하지 않는다.

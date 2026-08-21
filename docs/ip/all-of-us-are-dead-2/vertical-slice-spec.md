@@ -373,7 +373,7 @@ quality 변경은 그래픽 표현만 바꾸며 AI tick, 감지 거리, 이동 �
 ### 11.1 현재 source hierarchy
 
 1. 공식 Netflix/효산고 원본이 도착하면 최우선
-2. 권리 확보된 `icons-hq/icons` commit `dc67a4c0ae6ece52d82d97df555fe032685f94d2`의 `50_apps/plan-viewer/public/ip-popups/aouad/` 24개 이미지와 <https://icons-plan.vercel.app/ip-popups/aouad>
+2. 권리 확보된 `icons-hq/icons` commit `d63c7f0c4c5851c9722afdd895c87b72a7217c2d`의 `50_apps/plan-viewer/public/ip-popups/aouad/` 24개 이미지와 <https://icons-plan.vercel.app/ip-popups/aouad>, <https://icons-plan.vercel.app/sample/aouad>
 3. clean-room procedural/generated prototype geometry와 texture
 4. provenance가 남은 외부 일반 환경 참고
 

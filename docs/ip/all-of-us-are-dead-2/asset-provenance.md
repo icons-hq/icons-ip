@@ -3,6 +3,8 @@
 > 기준일: 2026-08-21
 >
 > 기계 판독 목록: `asset-manifest.json`
+>
+> 온라인 팝업 공식 24개·추가 생성 이미지·음향: [`campaign-asset-provenance.md`](./campaign-asset-provenance.md)
 
 ## 1. 권리 판단
 
@@ -15,10 +17,11 @@
 
 | 우선 | 출처 | 사용 목적 | 프로젝트 포함 여부 |
 | --- | --- | --- | --- |
-| 1 | [ICONS AOUAD 기획 페이지](https://icons-plan.vercel.app/ip-popups/aouad) | 디자인 에셋 스택, 공간·존 문법, 공식 스틸 선별 | 원본 저장소 파일만 선별 포함 |
-| 1 | [`icons-hq/icons` AOUAD 매니페스트](https://github.com/icons-hq/icons/blob/main/40_dev/snapshots/2026-08-20_aouad-web-assets-manifest.md) | 파일명, 원본 TMDB path, 당시 수집 상태 확인 | 문서만 참고 |
-| 1 | [`icons-hq/icons` AOUAD 샘플](https://github.com/icons-hq/icons/tree/main/50_apps/plan-viewer/components/aouad) | 교실·급식실·방송실·옥상 역할과 이미지 매핑 | 코드 미포함 |
-| 1 | [`icons-hq/icons` AOUAD 이미지](https://github.com/icons-hq/icons/tree/main/50_apps/plan-viewer/public/ip-popups/aouad) | 공식 IP 팔레트, 교복, 학교 공간, 로고 | 아래 5개 선별·변환 포함 |
+| 1 | [ICONS AOUAD 온라인 팝업 샘플](https://icons-plan.vercel.app/sample/aouad) | 10초 입장, 벤토 허브, 학생증, 6개 존의 기준 동작 | 현재 저장소로 재구현 |
+| 1 | [ICONS AOUAD 기획 페이지](https://icons-plan.vercel.app/ip-popups/aouad) | 디자인 에셋 스택, 공간·존 문법, 공식 스틸 선별 | 원본 저장소 파일 포함 |
+| 1 | [`icons-hq/icons` AOUAD 매니페스트](https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/40_dev/snapshots/2026-08-20_aouad-web-assets-manifest.md) | 파일명, 원본 TMDB path, 당시 수집 상태 확인 | 문서만 참고 |
+| 1 | [`icons-hq/icons` AOUAD 샘플](https://github.com/icons-hq/icons/tree/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/components/aouad) | 교실·급식실·방송실·옥상 역할과 이미지 매핑 | iframe 없이 도메인·라우트로 분해해 구현 |
+| 1 | [`icons-hq/icons` AOUAD 이미지](https://github.com/icons-hq/icons/tree/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad) | 공식 IP 팔레트, 교복, 학교 공간, 로고 | 24개 원본과 게임용 선별 변환본 포함 |
 | 2 | [Netflix Tudum 공식 허브](https://www.netflix.com/tudum/all-of-us-are-dead) | 공식 시즌1 스틸·에피소드 공간·BTS 진입점 | 참고만 |
 | 2 | [감독 Lee JQ BTS](https://www.netflix.com/tudum/videos/behind-the-scenes-with-director-lee-jq-all-of-us-are-dead-s1) | 학교 세트의 반복 복도·교실 제작 감각 | 참고만 |
 | 2 | [About Netflix 공개 소개](https://about.netflix.com/news/highly-anticipated-ya-zombie-series-all-of-us-are-dead-slated-for-worldwide) | 학교 운동장·대규모 위협의 공식 톤 | 참고만 |
@@ -31,7 +34,7 @@
 
 ## 3. 확보된 공식 IP 에셋 선별
 
-모든 원본은 private repository `icons-hq/icons@main`에서 읽기 전용으로 확인했다. 이미지 파일은 `cwebp 1.6.0 -q 90 -m 6`으로 변환했으며 로고의 알파 PNG는 원본을 보존했다.
+모든 원본은 private repository `icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d`에서 읽기 전용으로 확인했다. 게임용 선별 파일은 `cwebp 1.6.0 -q 90 -m 6`으로 변환했으며 로고의 알파 PNG는 원본을 보존했다. 온라인 팝업용 24개 원본은 재압축 없이 별도 디렉터리에 포함했고 상세 기록은 `campaign-asset-provenance.md`에 있다.
 
 | 프로젝트 파일 | 원 저장소 경로 | 원본 기록 | 역할 | 권리 상태 |
 | --- | --- | --- | --- | --- |

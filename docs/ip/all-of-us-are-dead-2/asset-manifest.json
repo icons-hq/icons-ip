@@ -5,177 +5,266 @@
   "rights_confirmation": {
     "confirmed_by": "user",
     "confirmed_at": "2026-08-21",
-    "scope": "All of Us Are Dead IP, supplied AOUAD image assets, production and sales rights",
-    "overrides_historical_manifest_warning": true
+    "scope": "All of Us Are Dead seasons 1 and 2 IP, supplied AOUAD image assets, interactive production, merchandise production and sales rights",
+    "overrides_historical_manifest_warning": true,
+    "status": "LOCKED",
+    "seasons": [
+      "season-1",
+      "season-2"
+    ]
   },
   "assets": [
     {
       "id": "concept-desktop-opening-calm",
       "path": "docs/ip/all-of-us-are-dead-2/concepts/desktop-opening-calm.png",
-      "dimensions": { "width": 1672, "height": 941 },
+      "dimensions": {
+        "width": 1672,
+        "height": 941
+      },
       "usage": "desktop visual concept and opening cinematic master",
       "source_type": "generated-concept",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-93275f96-9885-4a62-a50d-c96ff74c57bf.png",
-      "reference": ["https://icons-plan.vercel.app/ip-popups/aouad", "https://www.netflix.com/tudum/all-of-us-are-dead"],
+      "reference": [
+        "https://icons-plan.vercel.app/ip-popups/aouad",
+        "https://www.netflix.com/tudum/all-of-us-are-dead"
+      ],
       "provenance": "Built-in image_gen; art direction by gpt-5.6-sol max; original PNG preserved.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 1861287,
-      "sha256": "c32a34cd0d66256cfe66108cd7067694f3e9cc92027392f11173e88be35609c2"
+      "sha256": "c32a34cd0d66256cfe66108cd7067694f3e9cc92027392f11173e88be35609c2",
+      "editing": "original-generation-output"
     },
     {
       "id": "concept-mobile-corridor-stealth",
       "path": "docs/ip/all-of-us-are-dead-2/concepts/mobile-corridor-stealth.png",
-      "dimensions": { "width": 1672, "height": 941 },
+      "dimensions": {
+        "width": 1672,
+        "height": 941
+      },
       "usage": "mobile landscape composition and touch-safe visual concept",
       "source_type": "generated-concept",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-96ecf31a-7af5-4a3e-be75-dbbe1435b01e.png",
-      "reference": ["https://icons-plan.vercel.app/ip-popups/aouad", "https://commons.wikimedia.org/wiki/Category:School_corridors"],
+      "reference": [
+        "https://icons-plan.vercel.app/ip-popups/aouad",
+        "https://commons.wikimedia.org/wiki/Category:School_corridors"
+      ],
       "provenance": "Built-in image_gen; art direction by gpt-5.6-sol max; original PNG preserved.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 2200171,
-      "sha256": "a39e433f20f4ac33b64e2f128e22e2c9d7847a5c86ab3dab1b4c7e0d821e1fdb"
+      "sha256": "a39e433f20f4ac33b64e2f128e22e2c9d7847a5c86ab3dab1b4c7e0d821e1fdb",
+      "editing": "original-generation-output"
     },
     {
       "id": "env-opening-classroom-calm",
       "path": "/generated/last-bell/environments/opening-classroom-calm.webp",
-      "dimensions": { "width": 1672, "height": 941 },
+      "dimensions": {
+        "width": 1672,
+        "height": 941
+      },
       "usage": "opening cinematic plate and procedural 3D lighting/material anchor",
       "source_type": "generated-runtime-plate",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-93275f96-9885-4a62-a50d-c96ff74c57bf.png",
-      "reference": ["https://icons-plan.vercel.app/ip-popups/aouad", "https://www.koreatimes.co.kr/southkorea/society/20171115/classroom-design-gaining-attention"],
+      "reference": [
+        "https://icons-plan.vercel.app/ip-popups/aouad",
+        "https://www.koreatimes.co.kr/southkorea/society/20171115/classroom-design-gaining-attention"
+      ],
       "provenance": "Built-in image_gen, converted with cwebp 1.6.0 -q 88 -m 6.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 127366,
-      "sha256": "e897ef6a2a307ab417762d86f032cf0051ea870b5b944b80408992c35360e0c6"
+      "sha256": "e897ef6a2a307ab417762d86f032cf0051ea870b5b944b80408992c35360e0c6",
+      "editing": "generated-and-converted"
     },
     {
       "id": "env-corridor-stealth",
       "path": "/generated/last-bell/environments/corridor-stealth.webp",
-      "dimensions": { "width": 1672, "height": 941 },
+      "dimensions": {
+        "width": 1672,
+        "height": 941
+      },
       "usage": "corridor stealth lighting, crop, and mobile safe-area anchor",
       "source_type": "generated-runtime-plate",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-96ecf31a-7af5-4a3e-be75-dbbe1435b01e.png",
-      "reference": ["https://icons-plan.vercel.app/ip-popups/aouad", "https://unsplash.com/photos/a-hallway-with-many-paintings-on-the-walls-g8s1NJqptEk"],
+      "reference": [
+        "https://icons-plan.vercel.app/ip-popups/aouad",
+        "https://unsplash.com/photos/a-hallway-with-many-paintings-on-the-walls-g8s1NJqptEk"
+      ],
       "provenance": "Built-in image_gen, converted with cwebp 1.6.0 -q 88 -m 6.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 189388,
-      "sha256": "75484038b553613777c1699ede83737be52761670cfdfea5edc45084ded87919"
+      "sha256": "75484038b553613777c1699ede83737be52761670cfdfea5edc45084ded87919",
+      "editing": "generated-and-converted"
     },
     {
       "id": "env-outbreak-classroom-door",
       "path": "/generated/last-bell/environments/outbreak-classroom-door.webp",
-      "dimensions": { "width": 1672, "height": 941 },
+      "dimensions": {
+        "width": 1672,
+        "height": 941
+      },
       "usage": "outbreak transition cinematic plate and classroom-door composition anchor",
       "source_type": "generated-runtime-plate",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-7061e46c-a343-45e0-a3df-ae86539c17c9.png",
-      "reference": ["https://icons-plan.vercel.app/ip-popups/aouad", "https://www.netflix.com/tudum/videos/behind-the-scenes-with-director-lee-jq-all-of-us-are-dead-s1"],
+      "reference": [
+        "https://icons-plan.vercel.app/ip-popups/aouad",
+        "https://www.netflix.com/tudum/videos/behind-the-scenes-with-director-lee-jq-all-of-us-are-dead-s1"
+      ],
       "provenance": "Built-in image_gen, converted with cwebp 1.6.0 -q 88 -m 6.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 103540,
-      "sha256": "ac04bbe34483adb388f46ad9c583802d82951e8c84f863ed54fec802eae63ae7"
+      "sha256": "ac04bbe34483adb388f46ad9c583802d82951e8c84f863ed54fec802eae63ae7",
+      "editing": "generated-and-converted"
     },
     {
       "id": "env-emergency-power-panel",
       "path": "/generated/last-bell/environments/emergency-power-panel.webp",
-      "dimensions": { "width": 1672, "height": 941 },
+      "dimensions": {
+        "width": 1672,
+        "height": 941
+      },
       "usage": "emergency-power interaction, lighting, and material anchor",
       "source_type": "generated-runtime-plate",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-084453b5-bf97-4aba-ad54-f17a07cab538.png",
-      "reference": ["https://icons-plan.vercel.app/ip-popups/aouad", "https://commons.wikimedia.org/wiki/Category:School_corridors"],
+      "reference": [
+        "https://icons-plan.vercel.app/ip-popups/aouad",
+        "https://commons.wikimedia.org/wiki/Category:School_corridors"
+      ],
       "provenance": "Built-in image_gen, converted with cwebp 1.6.0 -q 88 -m 6.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 120734,
-      "sha256": "e86c62486d5cb15b40b407dc1aa21132a6627d350a53bfb81dc1ab808a82a856"
+      "sha256": "e86c62486d5cb15b40b407dc1aa21132a6627d350a53bfb81dc1ab808a82a856",
+      "editing": "generated-and-converted"
     },
     {
       "id": "env-last-bell-corridor",
       "path": "/generated/last-bell/environments/last-bell-corridor.webp",
-      "dimensions": { "width": 1672, "height": 941 },
+      "dimensions": {
+        "width": 1672,
+        "height": 941
+      },
       "usage": "Chapter 1 bell setpiece lighting and threat-layout anchor",
       "source_type": "generated-runtime-plate",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-35a1d5b2-651e-4261-98e3-73b87abdfd78.png",
-      "reference": ["https://icons-plan.vercel.app/ip-popups/aouad", "https://www.netflix.com/tudum/all-of-us-are-dead"],
+      "reference": [
+        "https://icons-plan.vercel.app/ip-popups/aouad",
+        "https://www.netflix.com/tudum/all-of-us-are-dead"
+      ],
       "provenance": "Built-in image_gen, converted with cwebp 1.6.0 -q 88 -m 6.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 144436,
-      "sha256": "c38d3fc2f1879f1cb4664c8e500ff695a8ec715b69cef2593b334bd60b70f856"
+      "sha256": "c38d3fc2f1879f1cb4664c8e500ff695a8ec715b69cef2593b334bd60b70f856",
+      "editing": "generated-and-converted"
     },
     {
       "id": "official-aouad-title-logo",
       "path": "/generated/last-bell/official/aouad-title-logo.png",
-      "dimensions": { "width": 500, "height": 533 },
+      "dimensions": {
+        "width": 500,
+        "height": 533
+      },
       "usage": "official IP title overlay and chapter card",
       "source_type": "rights-secured-ip-asset",
-      "source_url": "https://github.com/icons-hq/icons/blob/main/50_apps/plan-viewer/public/ip-popups/aouad/logo-title.png",
-      "reference": ["TMDB:/jCGHmELMmlaXJI2AWFRp868vuyN.png"],
-      "provenance": "Copied from icons-hq/icons@main without pixel conversion; alpha preserved.",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/logo-title.png",
+      "reference": [
+        "TMDB:/jCGHmELMmlaXJI2AWFRp868vuyN.png"
+      ],
+      "provenance": "Copied from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d without pixel conversion; alpha preserved.",
       "license": "User-confirmed All of Us Are Dead IP asset rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 105491,
-      "sha256": "8a915b0158c688385cc4cfee0d2d6631439e0e989b7179984a5528fb9aa204da"
+      "sha256": "8a915b0158c688385cc4cfee0d2d6631439e0e989b7179984a5528fb9aa204da",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "editing": "copied-without-pixel-edit"
     },
     {
       "id": "official-classroom-outbreak",
       "path": "/generated/last-bell/official/classroom-outbreak.webp",
-      "dimensions": { "width": 1280, "height": 720 },
+      "dimensions": {
+        "width": 1280,
+        "height": 720
+      },
       "usage": "official outbreak cinematic flash or chapter transition",
       "source_type": "rights-secured-ip-asset",
-      "source_url": "https://github.com/icons-hq/icons/blob/main/50_apps/plan-viewer/public/ip-popups/aouad/still-classroom-outbreak.jpg",
-      "reference": ["TMDB:/a6KSSuzIzyR8WnTC0sKIG6WKtTx.jpg"],
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/still-classroom-outbreak.jpg",
+      "reference": [
+        "TMDB:/a6KSSuzIzyR8WnTC0sKIG6WKtTx.jpg"
+      ],
       "provenance": "Source JPEG converted with cwebp 1.6.0 -q 90 -m 6.",
       "license": "User-confirmed All of Us Are Dead IP asset rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 171286,
-      "sha256": "c2e242cb84afea91a2ee64848288351fe004f47ee2e7f7f25dc7591c00a38c30"
+      "sha256": "c2e242cb84afea91a2ee64848288351fe004f47ee2e7f7f25dc7591c00a38c30",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "editing": "converted-to-webp"
     },
     {
       "id": "official-corridor-run",
       "path": "/generated/last-bell/official/corridor-run.webp",
-      "dimensions": { "width": 1280, "height": 720 },
+      "dimensions": {
+        "width": 1280,
+        "height": 720
+      },
       "usage": "official corridor threat cinematic flash or chapter transition",
       "source_type": "rights-secured-ip-asset",
-      "source_url": "https://github.com/icons-hq/icons/blob/main/50_apps/plan-viewer/public/ip-popups/aouad/still-corridor-run.jpg",
-      "reference": ["TMDB:/mnSYTrGI1HFuyjOsqySxIszwD4x.jpg"],
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/still-corridor-run.jpg",
+      "reference": [
+        "TMDB:/mnSYTrGI1HFuyjOsqySxIszwD4x.jpg"
+      ],
       "provenance": "Source JPEG converted with cwebp 1.6.0 -q 90 -m 6.",
       "license": "User-confirmed All of Us Are Dead IP asset rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 147194,
-      "sha256": "020a16e19f98131a402c1213f518a3976164e4064ef25cfac64afa691779b31e"
+      "sha256": "020a16e19f98131a402c1213f518a3976164e4064ef25cfac64afa691779b31e",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "editing": "converted-to-webp"
     },
     {
       "id": "official-classroom-barricade",
       "path": "/generated/last-bell/official/classroom-barricade.webp",
-      "dimensions": { "width": 1280, "height": 720 },
+      "dimensions": {
+        "width": 1280,
+        "height": 720
+      },
       "usage": "official barricade interaction reference and transition card",
       "source_type": "rights-secured-ip-asset",
-      "source_url": "https://github.com/icons-hq/icons/blob/main/50_apps/plan-viewer/public/ip-popups/aouad/still-barricade.jpg",
-      "reference": ["TMDB:/zCb05qGce7IhrbFxvxsM1NedHCk.jpg"],
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/still-barricade.jpg",
+      "reference": [
+        "TMDB:/zCb05qGce7IhrbFxvxsM1NedHCk.jpg"
+      ],
       "provenance": "Source JPEG converted with cwebp 1.6.0 -q 90 -m 6.",
       "license": "User-confirmed All of Us Are Dead IP asset rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 335008,
-      "sha256": "0953165abc5cad72052981c4022434db003b5fa1292533eba8bc43cb8f9b2c78"
+      "sha256": "0953165abc5cad72052981c4022434db003b5fa1292533eba8bc43cb8f9b2c78",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "editing": "converted-to-webp"
     },
     {
       "id": "official-school-aerial",
       "path": "/generated/last-bell/official/school-aerial.webp",
-      "dimensions": { "width": 500, "height": 741 },
+      "dimensions": {
+        "width": 500,
+        "height": 741
+      },
       "usage": "full Hyosan High route-map and later chapter expansion reference",
       "source_type": "rights-secured-ip-asset",
-      "source_url": "https://github.com/icons-hq/icons/blob/main/50_apps/plan-viewer/public/ip-popups/aouad/poster-school-aerial.jpg",
-      "reference": ["TMDB:/dW0SoORYV7vkpR4gAlST6WTmZEs.jpg"],
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/poster-school-aerial.jpg",
+      "reference": [
+        "TMDB:/dW0SoORYV7vkpR4gAlST6WTmZEs.jpg"
+      ],
       "provenance": "Source JPEG converted with cwebp 1.6.0 -q 90 -m 6.",
       "license": "User-confirmed All of Us Are Dead IP asset rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 142192,
-      "sha256": "052d9593f056e3c347160e07168106ee5c7818359e413af29edaf5fb0db74632"
+      "sha256": "052d9593f056e3c347160e07168106ee5c7818359e413af29edaf5fb0db74632",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "editing": "converted-to-webp"
     },
     {
       "id": "audio-classroom-fluorescent-ambience",
@@ -188,12 +277,15 @@
       "usage": "calm classroom ambience and fluorescent hum bed",
       "source_type": "procedural-audio",
       "source_url": "ffmpeg-lavfi://self-generated/seed-4101",
-      "reference": ["https://omgaudio.vercel.app/"],
+      "reference": [
+        "https://omgaudio.vercel.app/"
+      ],
       "provenance": "FFmpeg 8.1.2 sine/noise synthesis; exact recipe in asset-provenance.md.",
       "license": "ICONS-original-procedural-audio",
       "license_status": "project-original-no-external-samples",
       "byte_size": 147600,
-      "sha256": "46f70ed4d27157e5409fd184f68b1e4944aca24317cfce427ebe94ecf89832ef"
+      "sha256": "46f70ed4d27157e5409fd184f68b1e4944aca24317cfce427ebe94ecf89832ef",
+      "editing": "original-procedural-synthesis"
     },
     {
       "id": "audio-last-classroom-drone",
@@ -206,12 +298,15 @@
       "usage": "low musical tension bed for outbreak transition and exploration",
       "source_type": "procedural-audio",
       "source_url": "ffmpeg-lavfi://self-generated/seed-4113",
-      "reference": ["https://opengameart.org/content/ambient-horror"],
+      "reference": [
+        "https://opengameart.org/content/ambient-horror"
+      ],
       "provenance": "FFmpeg 8.1.2 sine/noise synthesis; exact recipe in asset-provenance.md.",
       "license": "ICONS-original-procedural-audio",
       "license_status": "project-original-no-external-samples",
       "byte_size": 205445,
-      "sha256": "e954606d569b916ec3aca2647f1a67d293376cf2237b4f6befb7217d100025eb"
+      "sha256": "e954606d569b916ec3aca2647f1a67d293376cf2237b4f6befb7217d100025eb",
+      "editing": "original-procedural-synthesis"
     },
     {
       "id": "audio-outbreak-door-pounding",
@@ -224,12 +319,15 @@
       "usage": "outbreak transition impact and classroom-door pressure",
       "source_type": "procedural-audio",
       "source_url": "ffmpeg-lavfi://self-generated/seeds-4201-4202",
-      "reference": ["https://opengameart.org/content/horror-sfx"],
+      "reference": [
+        "https://opengameart.org/content/horror-sfx"
+      ],
       "provenance": "FFmpeg 8.1.2 sine/noise synthesis; exact recipe in asset-provenance.md.",
       "license": "ICONS-original-procedural-audio",
       "license_status": "project-original-no-external-samples",
       "byte_size": 556878,
-      "sha256": "8362e9e3cfd05fee6c8e1991bdea7342c386813756ee58464ecc074561ca5d38"
+      "sha256": "8362e9e3cfd05fee6c8e1991bdea7342c386813756ee58464ecc074561ca5d38",
+      "editing": "original-procedural-synthesis"
     },
     {
       "id": "audio-school-bell-malfunction",
@@ -242,12 +340,15 @@
       "usage": "Chapter 1 last-bell setpiece trigger",
       "source_type": "procedural-audio",
       "source_url": "ffmpeg-lavfi://self-generated/seed-4211",
-      "reference": ["https://opengameart.org/content/horror-sfx"],
+      "reference": [
+        "https://opengameart.org/content/horror-sfx"
+      ],
       "provenance": "FFmpeg 8.1.2 metallic sine/noise synthesis; exact recipe in asset-provenance.md.",
       "license": "ICONS-original-procedural-audio",
       "license_status": "project-original-no-external-samples",
       "byte_size": 729678,
-      "sha256": "979f8b20b3c91ed408628a4f3614ff313b9f75960c7fff7769d42f6b41ab721c"
+      "sha256": "979f8b20b3c91ed408628a4f3614ff313b9f75960c7fff7769d42f6b41ab721c",
+      "editing": "original-procedural-synthesis"
     },
     {
       "id": "audio-distant-infected-groan",
@@ -260,12 +361,15 @@
       "usage": "nonverbal distant infected texture for directional sound cues",
       "source_type": "procedural-audio",
       "source_url": "ffmpeg-lavfi://self-generated/seed-4221",
-      "reference": ["https://omgaudio.vercel.app/"],
+      "reference": [
+        "https://omgaudio.vercel.app/"
+      ],
       "provenance": "FFmpeg 8.1.2 low-frequency vibrato/noise synthesis; no human recording.",
       "license": "ICONS-original-procedural-audio",
       "license_status": "project-original-no-external-samples",
       "byte_size": 47830,
-      "sha256": "6b378350c00f69cada4f53acea1518b5af36722dab8c9093402f09cdc82c38e5"
+      "sha256": "6b378350c00f69cada4f53acea1518b5af36722dab8c9093402f09cdc82c38e5",
+      "editing": "original-procedural-synthesis"
     },
     {
       "id": "audio-breaker-switch-electric",
@@ -278,12 +382,15 @@
       "usage": "emergency-power breaker interaction confirmation",
       "source_type": "procedural-audio",
       "source_url": "ffmpeg-lavfi://self-generated/seeds-4231-4232",
-      "reference": ["https://opengameart.org/content/horror-sfx"],
+      "reference": [
+        "https://opengameart.org/content/horror-sfx"
+      ],
       "provenance": "FFmpeg 8.1.2 spark, clunk, sub and electrical arc synthesis.",
       "license": "ICONS-original-procedural-audio",
       "license_status": "project-original-no-external-samples",
       "byte_size": 230478,
-      "sha256": "08b5e34ade9971df05e8998c9790d2c3b6b9d59c7e22572b0c40ad3dfd48afe1"
+      "sha256": "08b5e34ade9971df05e8998c9790d2c3b6b9d59c7e22572b0c40ad3dfd48afe1",
+      "editing": "original-procedural-synthesis"
     },
     {
       "id": "audio-corridor-footsteps",
@@ -296,12 +403,15 @@
       "usage": "alternating distant corridor footsteps and listening tutorial cue",
       "source_type": "procedural-audio",
       "source_url": "ffmpeg-lavfi://self-generated/seeds-4241-4242",
-      "reference": ["https://opengameart.org/content/horror-sfx"],
+      "reference": [
+        "https://opengameart.org/content/horror-sfx"
+      ],
       "provenance": "FFmpeg 8.1.2 body/slap synthesis with deterministic timing and stereo pan.",
       "license": "ICONS-original-procedural-audio",
       "license_status": "project-original-no-external-samples",
       "byte_size": 643278,
-      "sha256": "8360e25cc0295106d46f6bcc5c434db09a7fc1c09dc051ae0af4fdbe688ae67f"
+      "sha256": "8360e25cc0295106d46f6bcc5c434db09a7fc1c09dc051ae0af4fdbe688ae67f",
+      "editing": "original-procedural-synthesis"
     },
     {
       "id": "audio-breath-heartbeat-loop",
@@ -314,117 +424,955 @@
       "usage": "player exertion, hiding pressure, and capture warning layer",
       "source_type": "procedural-audio",
       "source_url": "ffmpeg-lavfi://self-generated/seeds-4251-4252",
-      "reference": ["https://omgaudio.vercel.app/"],
+      "reference": [
+        "https://omgaudio.vercel.app/"
+      ],
       "provenance": "FFmpeg 8.1.2 pink-noise breathing and sine/noise heartbeat synthesis.",
       "license": "ICONS-original-procedural-audio",
       "license_status": "project-original-no-external-samples",
       "byte_size": 58482,
-      "sha256": "08c9292f90a4b24ad72294694bcbe15a0ecfecefee7f3701999cc021b6d2a07b"
+      "sha256": "08c9292f90a4b24ad72294694bcbe15a0ecfecefee7f3701999cc021b6d2a07b",
+      "editing": "original-procedural-synthesis"
     },
     {
       "id": "material-school-atlas",
       "path": "/generated/last-bell/materials/school-material-atlas.webp",
-      "dimensions": { "width": 1024, "height": 1024 },
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
       "usage": "2x2 visual source atlas for ivory plaster, sage paint, wired glass, and beige locker metal; use individual maps at runtime",
       "source_type": "generated-material-atlas",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-bf081cac-a695-49c8-9aae-4e1e3a48db94.png",
       "generation_prompt": "Exact 2x2 square atlas: aged ivory plaster, institutional sage paint, smoke-gray wired frosted glass, beige locker metal; orthographic flat diffuse, tileable-ish, no baked light, text or watermark.",
-      "reference": ["https://icons-plan.vercel.app/ip-popups/aouad", "/generated/last-bell/environments/opening-classroom-calm.webp"],
+      "reference": [
+        "https://icons-plan.vercel.app/ip-popups/aouad",
+        "/generated/last-bell/environments/opening-classroom-calm.webp"
+      ],
       "provenance": "Built-in image_gen 1254x1254 PNG, resized with cwebp 1.6.0 -q 90 -m 6; art direction by gpt-5.6-sol max.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 279774,
-      "sha256": "375ca63a62d8fb7b6ade28a2a217774d3a51d67372f3608860238077b38564d2"
+      "sha256": "375ca63a62d8fb7b6ade28a2a217774d3a51d67372f3608860238077b38564d2",
+      "editing": "generated-and-converted"
     },
     {
       "id": "material-aged-ivory-plaster",
       "path": "/generated/last-bell/materials/aged-ivory-plaster.webp",
-      "dimensions": { "width": 1024, "height": 1024 },
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
       "usage": "procedural classroom and corridor upper-wall base-color map",
       "source_type": "derived-generated-material",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-bf081cac-a695-49c8-9aae-4e1e3a48db94.png#crop=0,0,626,626",
       "generation_prompt": "Aged ivory plaster #C7BEAA with restrained grime, hairline cracks and fine school-wall texture; flat diffuse, tileable-ish, no lighting or text.",
-      "reference": ["https://icons-plan.vercel.app/ip-popups/aouad", "https://www.netflix.com/tudum/videos/behind-the-scenes-with-director-lee-jq-all-of-us-are-dead-s1"],
+      "reference": [
+        "https://icons-plan.vercel.app/ip-popups/aouad",
+        "https://www.netflix.com/tudum/videos/behind-the-scenes-with-director-lee-jq-all-of-us-are-dead-s1"
+      ],
       "provenance": "Top-left 626x626 quadrant cropped from generated atlas at 0,0, resized to 1024x1024 and encoded with cwebp 1.6.0 -q 90 -m 6.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 238248,
-      "sha256": "65b22d7a0b16c27d372c3f42f14bf822595d627f948fc59a80c7c79ccf005193"
+      "sha256": "65b22d7a0b16c27d372c3f42f14bf822595d627f948fc59a80c7c79ccf005193",
+      "editing": "derived-and-converted"
     },
     {
       "id": "material-institutional-sage-paint",
       "path": "/generated/last-bell/materials/institutional-sage-paint.webp",
-      "dimensions": { "width": 1024, "height": 1024 },
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
       "usage": "procedural classroom and corridor lower-wall base-color map",
       "source_type": "derived-generated-material",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-bf081cac-a695-49c8-9aae-4e1e3a48db94.png#crop=628,0,626,626",
       "generation_prompt": "Institutional sage lower-wall paint #465B4A with restrained wear and horizontal scratches; flat diffuse, tileable-ish, no lighting or text.",
-      "reference": ["https://icons-plan.vercel.app/ip-popups/aouad", "/generated/last-bell/environments/corridor-stealth.webp"],
+      "reference": [
+        "https://icons-plan.vercel.app/ip-popups/aouad",
+        "/generated/last-bell/environments/corridor-stealth.webp"
+      ],
       "provenance": "Top-right 626x626 quadrant cropped from generated atlas at 628,0, resized to 1024x1024 and encoded with cwebp 1.6.0 -q 90 -m 6.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 126802,
-      "sha256": "96959a89c8fddd2b11bbefe12483f496340c3782d48505cc453e37d4813747ff"
+      "sha256": "96959a89c8fddd2b11bbefe12483f496340c3782d48505cc453e37d4813747ff",
+      "editing": "derived-and-converted"
     },
     {
       "id": "material-wired-frosted-glass",
       "path": "/generated/last-bell/materials/wired-frosted-glass.webp",
-      "dimensions": { "width": 1024, "height": 1024 },
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
       "usage": "procedural classroom-door wired/frosted-glass base-color and pattern map",
       "source_type": "derived-generated-material",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-bf081cac-a695-49c8-9aae-4e1e3a48db94.png#crop=0,628,626,626",
       "generation_prompt": "Smoke-gray wired frosted glass with regular embedded diamond mesh and pebbled translucent surface; flat diffuse, tileable-ish, no reflection, lighting or text.",
-      "reference": ["https://icons-plan.vercel.app/ip-popups/aouad", "/generated/last-bell/environments/outbreak-classroom-door.webp"],
+      "reference": [
+        "https://icons-plan.vercel.app/ip-popups/aouad",
+        "/generated/last-bell/environments/outbreak-classroom-door.webp"
+      ],
       "provenance": "Bottom-left 626x626 quadrant cropped from generated atlas at 0,628, resized to 1024x1024 and encoded with cwebp 1.6.0 -q 90 -m 6; runtime shader supplies transmission and opacity.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 213906,
-      "sha256": "e359d37ed68d70dd758274aaea0323c16bc8d8be72b8c35285240ff2938061db"
+      "sha256": "e359d37ed68d70dd758274aaea0323c16bc8d8be72b8c35285240ff2938061db",
+      "editing": "derived-and-converted"
     },
     {
       "id": "material-beige-locker-metal",
       "path": "/generated/last-bell/materials/beige-locker-metal.webp",
-      "dimensions": { "width": 1024, "height": 1024 },
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
       "usage": "procedural classroom locker and utility-cabinet painted-metal base-color map",
       "source_type": "derived-generated-material",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-bf081cac-a695-49c8-9aae-4e1e3a48db94.png#crop=628,628,626,626",
       "generation_prompt": "Muted beige locker metal #A99D83 with subtle orange peel, small chips and fine scratches; flat diffuse, tileable-ish, no lighting or text.",
-      "reference": ["https://icons-plan.vercel.app/ip-popups/aouad", "/generated/last-bell/environments/opening-classroom-calm.webp"],
+      "reference": [
+        "https://icons-plan.vercel.app/ip-popups/aouad",
+        "/generated/last-bell/environments/opening-classroom-calm.webp"
+      ],
       "provenance": "Bottom-right 626x626 quadrant cropped from generated atlas at 628,628, resized to 1024x1024 and encoded with cwebp 1.6.0 -q 90 -m 6.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 166692,
-      "sha256": "820d21e5bba2a7a903d9782f4d14c5c35c51b63d0144bfdc3366ee79e4795e0e"
+      "sha256": "820d21e5bba2a7a903d9782f4d14c5c35c51b63d0144bfdc3366ee79e4795e0e",
+      "editing": "derived-and-converted"
     },
     {
       "id": "material-dark-gray-linoleum",
       "path": "/generated/last-bell/materials/dark-gray-linoleum.webp",
-      "dimensions": { "width": 1024, "height": 1024 },
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
       "usage": "procedural classroom and corridor floor base-color map",
       "source_type": "generated-runtime-material",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-9b6ccce0-9f6b-49bc-979e-93d66b56ba31.png",
       "generation_prompt": "Dark gray-green Korean school linoleum with fine aggregate flecks, soft foot scuffs and micro scratches; orthographic flat diffuse, tileable-ish, no baked reflection, shadow or text.",
-      "reference": ["https://icons-plan.vercel.app/ip-popups/aouad", "/generated/last-bell/environments/last-bell-corridor.webp"],
+      "reference": [
+        "https://icons-plan.vercel.app/ip-popups/aouad",
+        "/generated/last-bell/environments/last-bell-corridor.webp"
+      ],
       "provenance": "Built-in image_gen 1254x1254 PNG resized to 1024x1024 and encoded with cwebp 1.6.0 -q 90 -m 6; art direction by gpt-5.6-sol max.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 161998,
-      "sha256": "91b35eee7ebb88e8e3244436949d6e5d941d9eb6048ca33ef4caed97f5498ba3"
+      "sha256": "91b35eee7ebb88e8e3244436949d6e5d941d9eb6048ca33ef4caed97f5498ba3",
+      "editing": "generated-and-converted"
     },
     {
       "id": "material-worn-desk-wood",
       "path": "/generated/last-bell/materials/worn-desk-wood.webp",
-      "dimensions": { "width": 1024, "height": 1024 },
+      "dimensions": {
+        "width": 1024,
+        "height": 1024
+      },
       "usage": "procedural student-desk and lectern top base-color map",
       "source_type": "generated-runtime-material",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-43c93bcf-7eac-4539-b939-f61dd9f26176.png",
       "generation_prompt": "Aged medium-dark Korean school desk laminate #72563B with fine horizontal grain, dull wear and shallow scratches; orthographic flat diffuse, tileable-ish, no carving, lighting or text.",
-      "reference": ["https://icons-plan.vercel.app/ip-popups/aouad", "/generated/last-bell/environments/opening-classroom-calm.webp"],
+      "reference": [
+        "https://icons-plan.vercel.app/ip-popups/aouad",
+        "/generated/last-bell/environments/opening-classroom-calm.webp"
+      ],
       "provenance": "Built-in image_gen 1254x1254 PNG resized to 1024x1024 and encoded with cwebp 1.6.0 -q 90 -m 6; art direction by gpt-5.6-sol max.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
       "byte_size": 222306,
-      "sha256": "e5c74aecbd230bab2845fcfe0c0705ddedbf86702c784982345b07b57ebb7cdb"
+      "sha256": "e5c74aecbd230bab2845fcfe0c0705ddedbf86702c784982345b07b57ebb7cdb",
+      "editing": "generated-and-converted"
+    },
+    {
+      "id": "campaign-concept-popup-hub-desktop",
+      "path": "docs/ip/all-of-us-are-dead-2/concepts/popup-hub-desktop.png",
+      "usage": "desktop popup hub approved visual concept",
+      "source_type": "generated-campaign-concept",
+      "source_url": "builtin-imagegen://01a021d5-de9c-7f60-b018-e650d3224aa3/exec-66dcc5c8-ee67-4097-892d-2c03fcd56b3d.png",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad",
+        "docs/ip/all-of-us-are-dead-2/concepts/popup-hub-desktop.png"
+      ],
+      "provenance": "Built-in image generation; art direction and review by gpt-5.6-sol max; original PNG preserved.",
+      "editing": "original-generation-output",
+      "license": "ICONS-project-generated-under-confirmed-IP-rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1536,
+        "height": 1024
+      },
+      "byte_size": 2200764,
+      "sha256": "a0f4a25f3ab060671350eebe452097be8b4944bc187e52bd7498eea97d05ab13"
+    },
+    {
+      "id": "campaign-concept-popup-hub-mobile",
+      "path": "docs/ip/all-of-us-are-dead-2/concepts/popup-hub-mobile.png",
+      "usage": "390px-first popup hub approved visual concept",
+      "source_type": "generated-campaign-concept",
+      "source_url": "builtin-imagegen://01a021d5-de9c-7f60-b018-e650d3224aa3/exec-562cb75e-882c-4e1d-8d21-3427c6bc9777.png",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad",
+        "docs/ip/all-of-us-are-dead-2/concepts/popup-hub-desktop.png"
+      ],
+      "provenance": "Built-in image generation; art direction and review by gpt-5.6-sol max; original PNG preserved.",
+      "editing": "original-generation-output",
+      "license": "ICONS-project-generated-under-confirmed-IP-rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 853,
+        "height": 1844
+      },
+      "byte_size": 1965247,
+      "sha256": "0bd3cab4bc448f6cb0ff743e3f9a738be884c666fd6a58cc27c5c5db809fa66e"
+    },
+    {
+      "id": "campaign-concept-popup-hero-school-night-source",
+      "path": "docs/ip/all-of-us-are-dead-2/concepts/popup-hero-school-night-source.png",
+      "usage": "campaign night-school hero master",
+      "source_type": "generated-campaign-concept",
+      "source_url": "builtin-imagegen://01a021d5-de9c-7f60-b018-e650d3224aa3/exec-05c86ceb-cf90-4860-b76e-f63a6b0a02db.png",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad",
+        "docs/ip/all-of-us-are-dead-2/concepts/popup-hub-desktop.png"
+      ],
+      "provenance": "Built-in image generation; art direction and review by gpt-5.6-sol max; original PNG preserved.",
+      "editing": "original-generation-output",
+      "license": "ICONS-project-generated-under-confirmed-IP-rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1672,
+        "height": 941
+      },
+      "byte_size": 1947267,
+      "sha256": "5224f521eea59e699ffeaeab1af21e6a3785670bf77b33ff70efc77c3e8ec5d6"
+    },
+    {
+      "id": "campaign-concept-popup-broadcast-source",
+      "path": "docs/ip/all-of-us-are-dead-2/concepts/popup-broadcast-source.png",
+      "usage": "broadcast-room campaign plate master",
+      "source_type": "generated-campaign-concept",
+      "source_url": "builtin-imagegen://01a022fa-db4b-7f01-8221-5f7ced2642d5/exec-4366aceb-da38-4dde-ab19-7f2dc18ec32b.png",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad",
+        "docs/ip/all-of-us-are-dead-2/concepts/popup-hub-desktop.png"
+      ],
+      "provenance": "Built-in image generation; art direction and review by gpt-5.6-sol max; original PNG preserved.",
+      "editing": "original-generation-output",
+      "license": "ICONS-project-generated-under-confirmed-IP-rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1672,
+        "height": 941
+      },
+      "byte_size": 1500603,
+      "sha256": "6440c26e24ad9c2575eee938d4015019c10bd1a715af370406a7330e2ab499d6"
+    },
+    {
+      "id": "campaign-concept-popup-rooftop-source",
+      "path": "docs/ip/all-of-us-are-dead-2/concepts/popup-rooftop-source.png",
+      "usage": "rooftop survival-record plate master",
+      "source_type": "generated-campaign-concept",
+      "source_url": "builtin-imagegen://01a022fa-db4b-7f01-8221-5f7ced2642d5/exec-ef577d51-0aaf-4c42-84c3-f8ed31b47ce2.png",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad",
+        "docs/ip/all-of-us-are-dead-2/concepts/popup-hub-desktop.png"
+      ],
+      "provenance": "Built-in image generation; art direction and review by gpt-5.6-sol max; original PNG preserved.",
+      "editing": "original-generation-output",
+      "license": "ICONS-project-generated-under-confirmed-IP-rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1536,
+        "height": 1024
+      },
+      "byte_size": 2208193,
+      "sha256": "37987604c05821239980e6e314788aa5676b98d9d0f0fca418a505d029d5934b"
+    },
+    {
+      "id": "campaign-runtime-hero-school-night",
+      "path": "/generated/aouad-campaign/generated/hero-school-night.webp",
+      "usage": "popup hub hero and campaign entry backdrop",
+      "source_type": "generated-runtime-plate",
+      "source_url": "manifest://popup-hero-school-night-source",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Generated PNG master converted to WebP with cwebp 1.6.0 q84 m6.",
+      "editing": "lossy-webp-runtime-derivative",
+      "license": "ICONS-project-generated-under-confirmed-IP-rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1672,
+        "height": 941
+      },
+      "byte_size": 98884,
+      "sha256": "f4174bce3fe809c7c9045854e0a32bf9bf5a48b9a01ae6ff4c6ec4fa42f5d2a3"
+    },
+    {
+      "id": "campaign-runtime-broadcast-room",
+      "path": "/generated/aouad-campaign/generated/sol/reunion-radio-room-opening.webp",
+      "usage": "broadcast zone hero with responsive overlay safe area",
+      "source_type": "generated-runtime-plate",
+      "source_url": "manifest://popup-broadcast-source",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Generated PNG master converted to WebP with cwebp 1.6.0 q86 m6 sharp_yuv.",
+      "editing": "lossy-webp-runtime-derivative",
+      "license": "ICONS-project-generated-under-confirmed-IP-rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1672,
+        "height": 941
+      },
+      "byte_size": 59024,
+      "sha256": "cc40c330f2e1af5f4f0af0feb3dc4272f7aaffa96c5ffaa470984b0f1f61ceb0"
+    },
+    {
+      "id": "campaign-runtime-rooftop-record",
+      "path": "/generated/aouad-campaign/generated/sol/rooftop-survival-record.webp",
+      "usage": "rooftop zone and personal survival-record backdrop",
+      "source_type": "generated-runtime-plate",
+      "source_url": "manifest://popup-rooftop-source",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Generated PNG master converted to WebP with cwebp 1.6.0 q86 m6 sharp_yuv.",
+      "editing": "lossy-webp-runtime-derivative",
+      "license": "ICONS-project-generated-under-confirmed-IP-rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1536,
+        "height": 1024
+      },
+      "byte_size": 130076,
+      "sha256": "d82735760da86406cac202649ffd794fdea2b4b82b3d72678172250bb62f02b2"
+    },
+    {
+      "id": "campaign-audio-radio-static-bed",
+      "path": "/generated/aouad-campaign/generated/sol/radio-static-bed.wav",
+      "duration_seconds": 2.4,
+      "usage": "broadcast-room radio static ambience",
+      "source_type": "procedural-audio",
+      "source_url": "ffmpeg-lavfi://self-generated/seeded-4041-7319/radio-static-bed",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Original deterministic FFmpeg sine/noise synthesis (seeded-4041-7319); no external sample.",
+      "reproducibility": "seeded-4041-7319",
+      "editing": "original-procedural-synthesis",
+      "license": "ICONS-original-procedural-audio",
+      "license_status": "project-original-no-external-samples",
+      "dimensions": null,
+      "codec": "pcm_s16le",
+      "sample_rate_hz": 48000,
+      "channels": 1,
+      "byte_size": 230478,
+      "sha256": "984ec4310cc01e587f3f9b368188ccfe2cc48755fb4b673ba93d824d3031d64c"
+    },
+    {
+      "id": "campaign-audio-rooftop-wind-bed",
+      "path": "/generated/aouad-campaign/generated/sol/rooftop-wind-bed.wav",
+      "duration_seconds": 4.2,
+      "usage": "rooftop zone wind ambience",
+      "source_type": "procedural-audio",
+      "source_url": "ffmpeg-lavfi://self-generated/seeded-1984-6027/rooftop-wind-bed",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Original deterministic FFmpeg sine/noise synthesis (seeded-1984-6027); no external sample.",
+      "reproducibility": "seeded-1984-6027",
+      "editing": "original-procedural-synthesis",
+      "license": "ICONS-original-procedural-audio",
+      "license_status": "project-original-no-external-samples",
+      "dimensions": null,
+      "codec": "pcm_s16le",
+      "sample_rate_hz": 48000,
+      "channels": 1,
+      "byte_size": 403278,
+      "sha256": "869ccb724d451360ba135d672735b23fc1d0516096c607746b5607a2161007c8"
+    },
+    {
+      "id": "campaign-audio-radio-response-confirm",
+      "path": "/generated/aouad-campaign/generated/sol/radio-response-confirm.wav",
+      "duration_seconds": 0.82,
+      "usage": "broadcast response interaction confirmation",
+      "source_type": "procedural-audio",
+      "source_url": "ffmpeg-lavfi://self-generated/unseeded-canonical-hash/radio-response-confirm",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Original FFmpeg sine/noise synthesis with unseeded noise; recorded SHA-256 is canonical and exact reruns may differ; no external sample.",
+      "reproducibility": "unseeded-canonical-hash",
+      "editing": "original-procedural-synthesis",
+      "license": "ICONS-original-procedural-audio",
+      "license_status": "project-original-no-external-samples",
+      "dimensions": null,
+      "codec": "pcm_s16le",
+      "sample_rate_hz": 48000,
+      "channels": 1,
+      "byte_size": 78798,
+      "sha256": "8dd7192e68bfb6a09de55cdd5ae25a82edcd6bb7453533b0c587237b13115153"
+    },
+    {
+      "id": "campaign-audio-survivor-record-stamp",
+      "path": "/generated/aouad-campaign/generated/sol/survivor-record-stamp.wav",
+      "duration_seconds": 0.34,
+      "usage": "survival-record seal confirmation",
+      "source_type": "procedural-audio",
+      "source_url": "ffmpeg-lavfi://self-generated/unseeded-canonical-hash/survivor-record-stamp",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Original FFmpeg sine/noise synthesis with unseeded noise; recorded SHA-256 is canonical and exact reruns may differ; no external sample.",
+      "reproducibility": "unseeded-canonical-hash",
+      "editing": "original-procedural-synthesis",
+      "license": "ICONS-original-procedural-audio",
+      "license_status": "project-original-no-external-samples",
+      "dimensions": null,
+      "codec": "pcm_s16le",
+      "sample_rate_hz": 48000,
+      "channels": 1,
+      "byte_size": 32718,
+      "sha256": "44e54dc8669c59484f5e1a5096060143a816291d48b6566bae97d7a1650bdafb"
+    },
+    {
+      "id": "campaign-audio-campaign-zone-unlock",
+      "path": "/generated/aouad-campaign/generated/sol/campaign-zone-unlock.wav",
+      "duration_seconds": 0.985,
+      "usage": "local campaign zone completion confirmation",
+      "source_type": "procedural-audio",
+      "source_url": "ffmpeg-lavfi://self-generated/unseeded-canonical-hash/campaign-zone-unlock",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Original FFmpeg sine/noise synthesis with unseeded noise; recorded SHA-256 is canonical and exact reruns may differ; no external sample.",
+      "reproducibility": "unseeded-canonical-hash",
+      "editing": "original-procedural-synthesis",
+      "license": "ICONS-original-procedural-audio",
+      "license_status": "project-original-no-external-samples",
+      "dimensions": null,
+      "codec": "pcm_s16le",
+      "sample_rate_hz": 48000,
+      "channels": 1,
+      "byte_size": 94638,
+      "sha256": "9420dd5e5a08e9136aa157fdc18815d7665804206cf2a0816fc05d2049171168"
+    },
+    {
+      "id": "campaign-official-key-armed-group",
+      "path": "/generated/aouad-campaign/official/key-armed-group.jpg",
+      "usage": "campaign hero alternate and action-group archive",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/key-armed-group.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1280,
+        "height": 720
+      },
+      "byte_size": 202952,
+      "sha256": "02d0950caafe67774398998f58c41866b0ccd5f5b889efb5acad3a0bc910fc46"
+    },
+    {
+      "id": "campaign-official-key-title-art",
+      "path": "/generated/aouad-campaign/official/key-title-art.jpg",
+      "usage": "campaign title-art archive and poster crop",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/key-title-art.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1280,
+        "height": 1920
+      },
+      "byte_size": 357612,
+      "sha256": "ce0af8b411c0a56732c79a981773875ab88a38363b5c26d72632d5e95dfff693"
+    },
+    {
+      "id": "campaign-official-key-yearbook-blood",
+      "path": "/generated/aouad-campaign/official/key-yearbook-blood.jpg",
+      "usage": "opening yearbook detail and classroom archive",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/key-yearbook-blood.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1280,
+        "height": 720
+      },
+      "byte_size": 158238,
+      "sha256": "989997cd2e7408439b93b15add3779024dc9c52310f4abafa05329f129ccf03c"
+    },
+    {
+      "id": "campaign-official-logo-title",
+      "path": "/generated/aouad-campaign/official/logo-title.png",
+      "usage": "official title mark in the campaign header",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/logo-title.png",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 500,
+        "height": 533
+      },
+      "byte_size": 105491,
+      "sha256": "8a915b0158c688385cc4cfee0d2d6631439e0e989b7179984a5528fb9aa204da"
+    },
+    {
+      "id": "campaign-official-poster-action-group",
+      "path": "/generated/aouad-campaign/official/poster-action-group.jpg",
+      "usage": "collection poster and action-zone supporting image",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/poster-action-group.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 500,
+        "height": 741
+      },
+      "byte_size": 84750,
+      "sha256": "078be9ef0337675d1a955d233bca1a6b11dc9570e0ef43ddcd68d9a9f5cb6f89"
+    },
+    {
+      "id": "campaign-official-poster-archery",
+      "path": "/generated/aouad-campaign/official/poster-archery.jpg",
+      "usage": "collection poster and rooftop supporting image",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/poster-archery.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 500,
+        "height": 741
+      },
+      "byte_size": 83982,
+      "sha256": "d0df7064eef90367b5dffeee3f96582c78c1af5918925e3079e7fa98207a1d19"
+    },
+    {
+      "id": "campaign-official-poster-duo-dark",
+      "path": "/generated/aouad-campaign/official/poster-duo-dark.jpg",
+      "usage": "collection poster and IF-theater supporting image",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/poster-duo-dark.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 500,
+        "height": 750
+      },
+      "byte_size": 65861,
+      "sha256": "ffbc4717cfc3d71d50af8635a1ad8411cfc5056e6eb19a9e9dc4a46cbf44d32e"
+    },
+    {
+      "id": "campaign-official-poster-main-kr",
+      "path": "/generated/aouad-campaign/official/poster-main-kr.jpg",
+      "usage": "campaign poster archive",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/poster-main-kr.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 500,
+        "height": 741
+      },
+      "byte_size": 71943,
+      "sha256": "c58cffb8eda746aa716296f091e68fd20e34ff9de83aab72e9b87b011c1cd718"
+    },
+    {
+      "id": "campaign-official-poster-school-aerial",
+      "path": "/generated/aouad-campaign/official/poster-school-aerial.jpg",
+      "usage": "school-map archive and route reference",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/poster-school-aerial.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 500,
+        "height": 741
+      },
+      "byte_size": 108598,
+      "sha256": "76c75a3f3d3472dfcc89f6975bed6f83050ec35afb1f0a5b797699d59ed37ee0"
+    },
+    {
+      "id": "campaign-official-poster-villain",
+      "path": "/generated/aouad-campaign/official/poster-villain.jpg",
+      "usage": "collection poster and threat archive",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/poster-villain.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 500,
+        "height": 741
+      },
+      "byte_size": 79771,
+      "sha256": "7939ac0058bd34de29f5369ad49ba376a12ef6ddebe8ee50830be65175879142"
+    },
+    {
+      "id": "campaign-official-promo-cast-profile",
+      "path": "/generated/aouad-campaign/official/promo-cast-profile.jpg",
+      "usage": "campaign news and cast archive",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/promo-cast-profile.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1280,
+        "height": 720
+      },
+      "byte_size": 115522,
+      "sha256": "d1c490c0006f13dd6dacad7ec8784b73292fa599b8b73a5b0ca00033009d1635"
+    },
+    {
+      "id": "campaign-official-still-armed-group-walk",
+      "path": "/generated/aouad-campaign/official/still-armed-group-walk.jpg",
+      "usage": "collection action still",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/still-armed-group-walk.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1280,
+        "height": 720
+      },
+      "byte_size": 216528,
+      "sha256": "dcc6f029cbe3b06afa24e4da9662f6b3157fcad1264283d413c568da2d24adfb"
+    },
+    {
+      "id": "campaign-official-still-barricade",
+      "path": "/generated/aouad-campaign/official/still-barricade.jpg",
+      "usage": "classroom zone hero",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/still-barricade.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1280,
+        "height": 720
+      },
+      "byte_size": 236553,
+      "sha256": "de550fe5dbfda14b54af589fdc6793bd5d76f4741bb010ef217714bed9514daf"
+    },
+    {
+      "id": "campaign-official-still-bonfire",
+      "path": "/generated/aouad-campaign/official/still-bonfire.jpg",
+      "usage": "rooftop memory archive without synthetic community counts",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/still-bonfire.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1280,
+        "height": 720
+      },
+      "byte_size": 235077,
+      "sha256": "04190b041980f708f4e2f25c9e2d9ddefc42b0438c48110dbaeb6068747e9aa1"
+    },
+    {
+      "id": "campaign-official-still-classroom-outbreak",
+      "path": "/generated/aouad-campaign/official/still-classroom-outbreak.jpg",
+      "usage": "outbreak transition and classroom archive",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/still-classroom-outbreak.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1280,
+        "height": 720
+      },
+      "byte_size": 159693,
+      "sha256": "8feebed85a2208deb4fef13ea9518d977586f3e0391692530f4bd7dbcceadeb6"
+    },
+    {
+      "id": "campaign-official-still-corridor-run",
+      "path": "/generated/aouad-campaign/official/still-corridor-run.jpg",
+      "usage": "IF-theater and pursuit archive",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/still-corridor-run.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1280,
+        "height": 720
+      },
+      "byte_size": 144568,
+      "sha256": "c1fb286a81ad57143b199eaf813101ecd56442beb67877d9033b52e0f1951315"
+    },
+    {
+      "id": "campaign-official-still-gym-group",
+      "path": "/generated/aouad-campaign/official/still-gym-group.jpg",
+      "usage": "cafeteria and group-survival archive",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/still-gym-group.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1280,
+        "height": 720
+      },
+      "byte_size": 253062,
+      "sha256": "65143c61c4e0e8e8ae0c2f381e1c5eaa5851d85f453e020f78dea3e31d4db58e"
+    },
+    {
+      "id": "campaign-official-still-infirmary",
+      "path": "/generated/aouad-campaign/official/still-infirmary.jpg",
+      "usage": "infection-record supporting image",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/still-infirmary.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1280,
+        "height": 720
+      },
+      "byte_size": 206404,
+      "sha256": "0ed3a7b25c9bdc6ff2f53efc8b98c2a58ee32c7d3c36fb2d7de6ed677c09cc93"
+    },
+    {
+      "id": "campaign-official-still-jeolbi-closeup",
+      "path": "/generated/aouad-campaign/official/still-jeolbi-closeup.jpg",
+      "usage": "infection-record close-up archive",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/still-jeolbi-closeup.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1280,
+        "height": 720
+      },
+      "byte_size": 62404,
+      "sha256": "cf1dc7a47bbbd1cb1390d338e9ea50b90059e972a431da1dd2f2b5ef4a9ac6fb"
+    },
+    {
+      "id": "campaign-official-still-library",
+      "path": "/generated/aouad-campaign/official/still-library.jpg",
+      "usage": "classroom record and library archive",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/still-library.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1280,
+        "height": 720
+      },
+      "byte_size": 246584,
+      "sha256": "56cf8727d4678d88d013c8472488d111fe46c5055bc1f5deabd7534db2d3bc53"
+    },
+    {
+      "id": "campaign-official-still-music-room",
+      "path": "/generated/aouad-campaign/official/still-music-room.jpg",
+      "usage": "broadcast and music-room archive",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/still-music-room.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1279,
+        "height": 719
+      },
+      "byte_size": 170346,
+      "sha256": "e7c700877600f8eae66e29e43dbcfee40f97dc76b1bee660910d1432c21d129b"
+    },
+    {
+      "id": "campaign-official-still-schoolyard",
+      "path": "/generated/aouad-campaign/official/still-schoolyard.jpg",
+      "usage": "schoolyard and survival-arcade archive",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/still-schoolyard.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1280,
+        "height": 720
+      },
+      "byte_size": 157769,
+      "sha256": "44e855474aa8cf966a6ed7083c26dcbb088c826de68981f8fbce3468377a7938"
+    },
+    {
+      "id": "campaign-official-still-window-pair",
+      "path": "/generated/aouad-campaign/official/still-window-pair.jpg",
+      "usage": "student-record and relationship archive",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/still-window-pair.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1280,
+        "height": 720
+      },
+      "byte_size": 146006,
+      "sha256": "c3d09f7303bff7cf710a39da2a79c63ec94fb4d36b418719633a57044cb0ad3d"
+    },
+    {
+      "id": "campaign-official-still-zombie-rush",
+      "path": "/generated/aouad-campaign/official/still-zombie-rush.jpg",
+      "usage": "survival-arcade threat archive",
+      "source_type": "rights-secured-ip-asset",
+      "source_url": "https://github.com/icons-hq/icons/blob/d63c7f0c4c5851c9722afdd895c87b72a7217c2d/50_apps/plan-viewer/public/ip-popups/aouad/still-zombie-rush.jpg",
+      "source_commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+      "reference": [
+        "https://icons-plan.vercel.app/sample/aouad"
+      ],
+      "provenance": "Copied byte-for-byte from icons-hq/icons@d63c7f0c4c5851c9722afdd895c87b72a7217c2d; no pixel edit.",
+      "editing": "copied-without-pixel-edit",
+      "license": "User-confirmed All of Us Are Dead IP asset rights",
+      "license_status": "LOCKED-user-confirmed-2026-08-21",
+      "dimensions": {
+        "width": 1279,
+        "height": 720
+      },
+      "byte_size": 134872,
+      "sha256": "46c5479e29e52e14a1d89e5ab8be6a162f293dec5b476d4d92b59abd070e85da"
     }
-  ]
+  ],
+  "source_lock": {
+    "repository": "icons-hq/icons",
+    "commit": "d63c7f0c4c5851c9722afdd895c87b72a7217c2d",
+    "sample_url": "https://icons-plan.vercel.app/sample/aouad",
+    "source_directory": "50_apps/plan-viewer/public/ip-popups/aouad",
+    "external_runtime_dependency": false
+  }
 }

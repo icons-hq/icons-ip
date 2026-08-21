@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'node:fs';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { LAST_BELL_ASSETS } from './assets';
@@ -9,12 +9,31 @@ const publicRoot = resolve(root, 'public');
 const manifestPath = resolve(root, 'docs/ip/all-of-us-are-dead-2/asset-manifest.json');
 
 type ManifestAsset = {
+  id: string;
   path: string;
+  usage: string;
+  source_type: string;
+  source_url: string;
+  source_commit?: string;
+  editing: string;
+  license_status: string;
   byte_size: number;
   sha256: string;
 };
 
-type AssetManifest = { assets: ManifestAsset[] };
+type AssetManifest = {
+  rights_confirmation: { status: string };
+  source_lock: {
+    repository: string;
+    commit: string;
+    sample_url: string;
+    source_directory: string;
+    external_runtime_dependency: boolean;
+  };
+  assets: ManifestAsset[];
+};
+
+const AOUAD_SOURCE_COMMIT = 'd63c7f0c4c5851c9722afdd895c87b72a7217c2d';
 
 function readManifest(): AssetManifest {
   return JSON.parse(readFileSync(manifestPath, 'utf8')) as AssetManifest;
@@ -62,16 +81,42 @@ describe('last bell asset contract', () => {
     for (const assetPath of runtimeAssetPaths()) expect(paths.has(assetPath)).toBe(true);
   });
 
-  it('keeps all 27 manifest files present with the recorded size and SHA-256', () => {
+  it('keeps all 64 unified game and campaign files present with recorded integrity', () => {
     const manifest = readManifest();
-    expect(manifest.assets).toHaveLength(27);
+    expect(manifest.assets).toHaveLength(64);
     for (const asset of manifest.assets) {
       const filePath = resolveManifestAssetPath(asset.path);
       const bytes = readFileSync(filePath);
+      expect(asset.id.length, asset.path).toBeGreaterThan(0);
+      expect(asset.usage.length, asset.path).toBeGreaterThan(0);
+      expect(asset.source_type.length, asset.path).toBeGreaterThan(0);
+      expect(asset.source_url.length, asset.path).toBeGreaterThan(0);
+      expect(asset.editing.length, asset.path).toBeGreaterThan(0);
+      expect(asset.license_status.length, asset.path).toBeGreaterThan(0);
       expect(statSync(filePath).isFile(), asset.path).toBe(true);
       expect(bytes.byteLength, asset.path).toBe(asset.byte_size);
       expect(createHash('sha256').update(bytes).digest('hex'), asset.path).toBe(asset.sha256);
     }
+  });
+
+  it('locks the campaign source and all 24 official images to the approved commit', () => {
+    const manifest = readManifest();
+    expect(manifest.rights_confirmation.status).toBe('LOCKED');
+    expect(manifest.source_lock).toEqual({
+      repository: 'icons-hq/icons',
+      commit: AOUAD_SOURCE_COMMIT,
+      sample_url: 'https://icons-plan.vercel.app/sample/aouad',
+      source_directory: '50_apps/plan-viewer/public/ip-popups/aouad',
+      external_runtime_dependency: false,
+    });
+
+    const officialAssets = manifest.assets.filter((asset) => asset.id.startsWith('campaign-official-'));
+    expect(officialAssets).toHaveLength(24);
+    expect(officialAssets.every((asset) => asset.source_commit === AOUAD_SOURCE_COMMIT)).toBe(true);
+    expect(officialAssets.every((asset) => asset.source_url.includes(`/blob/${AOUAD_SOURCE_COMMIT}/`))).toBe(true);
+
+    const officialDirectory = resolve(publicRoot, 'generated/aouad-campaign/official');
+    expect(officialAssets.map((asset) => asset.path.split('/').at(-1)).sort()).toEqual(readdirSync(officialDirectory).sort());
   });
 
   it('rejects manifest paths that escape the repo or public generated root', () => {
