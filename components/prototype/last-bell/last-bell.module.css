@@ -125,6 +125,14 @@
   transition: background .18s ease, border-color .18s ease, transform .18s ease;
 }
 
+.ghostButton,
+.primaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .ghostButton:hover,
 .actionButton:hover,
 .primaryButton:hover {
@@ -334,6 +342,46 @@
 .statusPanel p { margin: .75rem 0 1.5rem; color: var(--muted); font-size: .84rem; line-height: 1.6; }
 .statusPanel .primaryButton { min-width: 9rem; }
 
+.completionRecord {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .5rem;
+  margin: 0 0 1.35rem;
+  text-align: left;
+}
+
+.completionRecord div {
+  min-width: 0;
+  padding: .62rem .7rem;
+  border: 1px solid rgba(241, 240, 232, .14);
+  background: rgba(241, 240, 232, .035);
+}
+
+.completionRecord dt {
+  color: var(--muted);
+  font: 700 .56rem/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .08em;
+}
+
+.completionRecord dd {
+  margin: .3rem 0 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: .74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.completionActions {
+  display: grid;
+  gap: .55rem;
+}
+
+.completionActions .ghostButton,
+.completionActions .primaryButton {
+  width: 100%;
+}
+
 .rotateHint {
   position: absolute;
   inset: 0;
@@ -418,6 +466,7 @@
   .mobileActions { display: grid; grid-template-columns: repeat(2, 3.2rem); gap: .5rem; }
   .actionButton { display: grid; place-items: center; width: 3.2rem; height: 3.2rem; padding: 0; border-radius: 50%; background: rgba(23, 29, 26, .52); font-size: .62rem; }
   .actionButtonActive { border-color: var(--red); color: #ffb2b2; }
+  .completionRecord { grid-template-columns: 1fr; }
 }
 
 @media (prefers-reduced-motion: reduce) {

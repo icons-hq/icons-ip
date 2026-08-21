@@ -1,6 +1,22 @@
 import { interactionDescriptorFor } from './interactions';
 
-export const LAST_BELL_STATE_VERSION = 1;
+export const LAST_BELL_STATE_VERSION = 2;
+
+export const LAST_BELL_ROUTE_IDS = ['central', 'rear', 'systems'] as const;
+export type LastBellRouteId = (typeof LAST_BELL_ROUTE_IDS)[number];
+export type LastBellRouteObjective = 'central_listen' | 'rear_key' | 'systems_map';
+
+const ROUTE_OBJECTIVE: Record<LastBellRouteId, LastBellRouteObjective> = {
+  central: 'central_listen',
+  rear: 'rear_key',
+  systems: 'systems_map',
+};
+
+const ROUTE_OBJECTIVE_COPY: Record<LastBellRouteObjective, string> = {
+  central_listen: '정면 복도에서 Q로 소리를 듣고 동선을 확인하라',
+  rear_key: '후문 사물함에서 비상키를 회수하라',
+  systems_map: '배전 경로도를 확인해 설비실로 들어가라',
+};
 
 export type LastBellPhase =
   | 'opening'
@@ -20,19 +36,28 @@ export type LastBellState = {
   bellTriggered: boolean;
   captured: boolean;
   checkpoint: 'classroom' | 'corridor' | 'power';
+  routeId: LastBellRouteId | null;
+  routeObjective: LastBellRouteObjective | null;
 };
 
 export type LastBellAction =
   | { type: 'SKIP_OPENING' }
   | { type: 'START_PLAY' }
   | { type: 'LOCK_CLASSROOM_DOOR' }
+  | { type: 'SELECT_ROUTE'; routeId: LastBellRouteId }
+  | { type: 'COMPLETE_ROUTE_OBJECTIVE'; routeId: LastBellRouteId }
   | { type: 'TOGGLE_HIDE' }
   | { type: 'TOGGLE_LISTEN' }
   | { type: 'RESTORE_POWER' }
   | { type: 'LOCK_FIRE_DOOR' }
   | { type: 'TRIGGER_BELL' }
   | { type: 'REACH_CHAPTER_EXIT' }
-  | { type: 'RESTORE_CHECKPOINT'; checkpointId: 'ch1_handoff' | 'ch1_power_restored' }
+  | {
+    type: 'RESTORE_CHECKPOINT';
+    checkpointId: 'ch1_handoff' | 'ch1_power_restored';
+    routeId?: LastBellRouteId;
+    routeObjective?: LastBellRouteObjective | null;
+  }
   | { type: 'CAPTURED' }
   | { type: 'RETRY' };
 
@@ -46,6 +71,8 @@ export const initialLastBellState: LastBellState = {
   bellTriggered: false,
   captured: false,
   checkpoint: 'classroom',
+  routeId: null,
+  routeObjective: null,
 };
 
 /**
@@ -73,6 +100,17 @@ export function reduceLastBellState(
             listening: false,
           }
         : state;
+    case 'SELECT_ROUTE':
+      return state.phase === 'corridor' && state.routeId === null
+        ? { ...state, routeId: action.routeId, routeObjective: ROUTE_OBJECTIVE[action.routeId], listening: false }
+        : state;
+    case 'COMPLETE_ROUTE_OBJECTIVE':
+      return state.phase === 'corridor'
+        && state.routeId === action.routeId
+        && state.routeObjective === ROUTE_OBJECTIVE[action.routeId]
+        && (action.routeId !== 'central' || state.listening)
+        ? { ...state, routeObjective: null, listening: false }
+        : state;
     case 'TOGGLE_HIDE':
       return state.phase === 'classroom' || state.phase === 'corridor' || state.phase === 'power' || state.phase === 'bell'
         ? { ...state, hiding: !state.hiding }
@@ -82,7 +120,7 @@ export function reduceLastBellState(
         ? { ...state, listening: !state.listening }
         : state;
     case 'RESTORE_POWER':
-      return state.phase === 'corridor' && state.doorLocked
+      return state.phase === 'corridor' && state.doorLocked && state.routeId !== null && state.routeObjective === null
         ? {
             ...state,
             phase: 'power',
@@ -105,12 +143,14 @@ export function reduceLastBellState(
         : state;
     case 'RESTORE_CHECKPOINT':
       if (action.checkpointId === 'ch1_power_restored') {
+        if (!action.routeId) return initialLastBellState;
         return {
           ...initialLastBellState,
           phase: 'power',
           doorLocked: true,
           powerRestored: true,
           checkpoint: 'power',
+          routeId: action.routeId,
         };
       }
       return {
@@ -118,6 +158,8 @@ export function reduceLastBellState(
         phase: 'corridor',
         doorLocked: true,
         checkpoint: 'corridor',
+        routeId: action.routeId ?? null,
+        routeObjective: action.routeId ? action.routeObjective ?? ROUTE_OBJECTIVE[action.routeId] : null,
       };
     case 'CAPTURED':
       return state.phase === 'corridor' || state.phase === 'power' || state.phase === 'bell'
@@ -134,6 +176,7 @@ export function reduceLastBellState(
           doorLocked: true,
           powerRestored: true,
           checkpoint: 'power',
+          routeId: state.routeId,
         };
       }
       return {
@@ -157,6 +200,8 @@ export const LAST_BELL_OBJECTIVES: Record<LastBellPhase, string> = {
 };
 
 export function objectiveForState(state: LastBellState): string {
+  if (state.phase === 'corridor' && state.routeId === null) return '정면 · 후문 · 설비실 중 전력 복구 경로를 선택하라';
+  if (state.phase === 'corridor' && state.routeObjective) return ROUTE_OBJECTIVE_COPY[state.routeObjective];
   if (state.phase === 'power' && state.powerRestored) return '비상전원이 돌아왔다. 화재문을 잠가라';
   if (state.phase === 'bell' && state.bellTriggered) return '안전 계단으로 들어가 Chapter 1을 완료하라';
   return LAST_BELL_OBJECTIVES[state.phase];
@@ -167,6 +212,12 @@ export const LAST_BELL_ANCHORS = {
   classroom_door: { x: 0, z: 13 },
   desk_hide: { x: -3, z: 6 },
   corridor_listen: { x: 0, z: 20 },
+  route_central: { x: 0, z: 17.4 },
+  route_rear: { x: -1.7, z: 17.4 },
+  route_systems: { x: 1.7, z: 17.4 },
+  central_listen: { x: 0, z: 23 },
+  rear_key: { x: -1.8, z: 24.8 },
+  systems_map: { x: 1.8, z: 26.6 },
   corridor_hide_left: { x: -2, z: 22 },
   corridor_hide_right: { x: 2, z: 34 },
   bell_hide: { x: -2, z: 48 },
@@ -203,8 +254,18 @@ export function canInteractAt(
       return (state.phase === 'corridor' || state.phase === 'power') && !state.bellTriggered;
     case 'bell_hide':
       return state.phase === 'bell' && state.bellTriggered;
+    case 'route_central':
+    case 'route_rear':
+    case 'route_systems':
+      return state.phase === 'corridor' && state.routeId === null;
+    case 'central_listen':
+      return state.phase === 'corridor' && state.routeId === 'central' && state.routeObjective === 'central_listen' && state.listening;
+    case 'rear_key':
+      return state.phase === 'corridor' && state.routeId === 'rear' && state.routeObjective === 'rear_key';
+    case 'systems_map':
+      return state.phase === 'corridor' && state.routeId === 'systems' && state.routeObjective === 'systems_map';
     case 'utility_panel':
-      return state.phase === 'corridor' && !state.powerRestored;
+      return state.phase === 'corridor' && state.routeId !== null && state.routeObjective === null && !state.powerRestored;
     case 'fire_door_lock':
       return state.phase === 'power' && state.powerRestored && !state.fireDoorLocked;
     case 'bell_trigger':

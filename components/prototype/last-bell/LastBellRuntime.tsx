@@ -29,6 +29,7 @@ export type LastBellRuntimeProps = {
   onPosition: (position: Position) => void;
   onDanger: (distance: number) => void;
   onCapture: () => void;
+  onSimulationStep: (durationMs: number, flags: { listening: boolean; hiding: boolean; running: boolean }) => void;
   onCanvasInteract: () => void;
 };
 
@@ -136,7 +137,19 @@ function Classroom({ textures }: { textures: SchoolTextures }) {
   );
 }
 
-function Corridor({ textures }: { textures: SchoolTextures }) {
+function RouteBeacon({ x, z, active, color }: { x: number; z: number; active: boolean; color: string }) {
+  return (
+    <group position={[x, .08, z]} visible={active}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[.22, .42, 16]} />
+        <meshBasicMaterial color={color} transparent opacity={.76} />
+      </mesh>
+      <pointLight position={[0, .45, 0]} color={color} intensity={1.2} distance={2.4} />
+    </group>
+  );
+}
+
+function Corridor({ textures, state }: { textures: SchoolTextures; state: LastBellState }) {
   const doors = useMemo(() => [18, 24, 31, 37, 44].map((z) => z), []);
   const plaster = repeatedTexture(textures.agedIvoryPlaster, 'plaster-4x1.5', 4, 1.5);
   const sage = repeatedTexture(textures.institutionalSagePaint, 'sage-4x1', 4, 1);
@@ -194,6 +207,13 @@ function Corridor({ textures }: { textures: SchoolTextures }) {
         <cylinderGeometry args={[.055, .055, 3.2, 8]} />
         <meshStandardMaterial color="#858276" metalness={.65} roughness={.35} />
       </mesh>
+      <RouteBeacon x={0} z={17.4} color="#e5a45c" active={state.phase === 'corridor' && state.routeId === null} />
+      <RouteBeacon x={-1.7} z={17.4} color="#b9dbd9" active={state.phase === 'corridor' && state.routeId === null} />
+      <RouteBeacon x={1.7} z={17.4} color="#c3292e" active={state.phase === 'corridor' && state.routeId === null} />
+      <RouteBeacon x={0} z={23} color="#e5a45c" active={state.routeObjective === 'central_listen'} />
+      <RouteBeacon x={-1.8} z={24.8} color="#b9dbd9" active={state.routeObjective === 'rear_key'} />
+      <RouteBeacon x={1.8} z={26.6} color="#c3292e" active={state.routeObjective === 'systems_map'} />
+      <RouteBeacon x={3 - .45} z={29} color="#e5a45c" active={state.phase === 'corridor' && state.routeId !== null && state.routeObjective === null} />
     </group>
   );
 }
@@ -274,7 +294,7 @@ function Enemy({ z, x, active, enemyRef }: { z: number; x: number; active: boole
   );
 }
 
-function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active, handoff, onPosition, onDanger, onCapture, onCanvasInteract }: LastBellRuntimeProps) {
+function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active, handoff, onPosition, onDanger, onCapture, onSimulationStep, onCanvasInteract }: LastBellRuntimeProps) {
   const { camera, gl } = useThree();
   const textures = useSchoolTextures(Math.min(gl.capabilities.getMaxAnisotropy(), 4));
   const positionRef = useRef<Position>({ x: 0, z: 9 });
@@ -362,6 +382,11 @@ function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active
         enemyPositionsRef.current[0] = { x: 1.4, z: 45 + Math.sin(patrolRef.current * .45) * 2 };
         enemyPositionsRef.current[1] = { x: -1.1, z: 47 + Math.sin(patrolRef.current * .38 + 1.2) * 1.5 };
       }
+      onSimulationStep(LAST_BELL_FIXED_STEP * 1000, {
+        listening: state.listening,
+        hiding: state.hiding,
+        running: runRef.current,
+      });
       accumulatorRef.current -= LAST_BELL_FIXED_STEP;
     }
     const next = positionRef.current;
@@ -401,7 +426,7 @@ function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active
       <pointLight position={[0, 2.6, 15]} intensity={state.phase === 'classroom' ? .2 : 1.1} color="#c3292e" distance={12} />
       <pointLight position={[0, 2.4, 48]} intensity={state.bellTriggered ? 5.5 : .15} color="#c3292e" distance={14} decay={2} />
       <Classroom textures={textures} />
-      <Corridor textures={textures} />
+      <Corridor textures={textures} state={state} />
       <Door z={13} locked={state.doorLocked} textures={textures} />
       <Door z={41} locked={state.fireDoorLocked} fire textures={textures} />
       <UtilityPanel active={state.powerRestored} />

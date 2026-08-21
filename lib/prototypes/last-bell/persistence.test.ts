@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createLastBellRunMetrics } from './completion';
 import {
   clearLastBellCheckpoint,
   checkpointIdLabel,
@@ -18,40 +19,45 @@ class MemoryStorage implements CheckpointStorage {
 }
 
 const semantic = { phase: 'power' as const, doorLocked: true, powerRestored: true, fireDoorLocked: false, bellTriggered: false };
+const metrics = createLastBellRunMetrics({ runId: 'checkpoint-run', startedAt: '2026-08-21T00:00:00.000Z' });
 
 describe('last bell local checkpoint adapter', () => {
-  it('round-trips a versioned semantic checkpoint for 24 hours', () => {
+  it('round-trips a v2 semantic checkpoint with its route and deterministic run metrics', () => {
     const storage = new MemoryStorage();
     const now = Date.parse('2026-08-21T00:00:00.000Z');
-    const saved = saveLastBellCheckpoint(storage, 'ch1_power_restored', semantic, now);
+    const saved = saveLastBellCheckpoint(storage, 'ch1_power_restored', semantic, metrics, 'systems', null, now);
+    expect(saved).toMatchObject({ schemaVersion: 2, stateVersion: 2, routeId: 'systems', routeObjective: null, runMetrics: metrics });
     expect(saved?.expiresAt).toBe('2026-08-22T00:00:00.000Z');
-    expect(loadLastBellCheckpoint(storage, now + LAST_BELL_CHECKPOINT_TTL_MS - 1)?.checkpointId).toBe('ch1_power_restored');
+    expect(loadLastBellCheckpoint(storage, now + LAST_BELL_CHECKPOINT_TTL_MS - 1)).toMatchObject({ checkpointId: 'ch1_power_restored', routeId: 'systems', runId: 'checkpoint-run' });
     expect(loadLastBellCheckpoint(storage, now + LAST_BELL_CHECKPOINT_TTL_MS)).toBeNull();
     expect(storage.getItem(LAST_BELL_CHECKPOINT_KEY)).toBeNull();
   });
 
-  it('deletes malformed or version-mismatched payloads', () => {
+  it('rejects a power checkpoint without a completed route', () => {
+    const storage = new MemoryStorage();
+    expect(saveLastBellCheckpoint(storage, 'ch1_power_restored', semantic, metrics, null, null)).toBeNull();
+  });
+
+  it('deletes malformed, version-mismatched, and legacy v1 payloads as a safe new run', () => {
     const storage = new MemoryStorage();
     storage.setItem(LAST_BELL_CHECKPOINT_KEY, JSON.stringify({ schemaVersion: 99 }));
     expect(loadLastBellCheckpoint(storage)).toBeNull();
     expect(storage.getItem(LAST_BELL_CHECKPOINT_KEY)).toBeNull();
-    storage.setItem(LAST_BELL_CHECKPOINT_KEY, '{bad json');
-    expect(loadLastBellCheckpoint(storage)).toBeNull();
-  });
 
-  it('rejects the removed post-bell checkpoint payload', () => {
-    const storage = new MemoryStorage();
-    saveLastBellCheckpoint(storage, 'ch1_power_restored', semantic);
-    const payload = JSON.parse(storage.getItem(LAST_BELL_CHECKPOINT_KEY) ?? '{}') as Record<string, unknown>;
-    payload.checkpointId = 'ch1_post_bell_safe';
-    storage.setItem(LAST_BELL_CHECKPOINT_KEY, JSON.stringify(payload));
+    const saved = saveLastBellCheckpoint(storage, 'ch1_power_restored', semantic, metrics, 'rear', null);
+    const legacy = JSON.parse(JSON.stringify(saved)) as Record<string, unknown>;
+    legacy.schemaVersion = 1;
+    delete legacy.routeId;
+    delete legacy.routeObjective;
+    delete legacy.runMetrics;
+    storage.setItem(LAST_BELL_CHECKPOINT_KEY, JSON.stringify(legacy));
     expect(loadLastBellCheckpoint(storage)).toBeNull();
     expect(storage.getItem(LAST_BELL_CHECKPOINT_KEY)).toBeNull();
   });
 
   it('clears the checkpoint when the Chapter is complete', () => {
     const storage = new MemoryStorage();
-    saveLastBellCheckpoint(storage, 'ch1_handoff', { ...semantic, phase: 'corridor' });
+    saveLastBellCheckpoint(storage, 'ch1_handoff', { ...semantic, phase: 'corridor' }, metrics, null, null);
     clearLastBellCheckpoint(storage);
     expect(loadLastBellCheckpoint(storage)).toBeNull();
   });

@@ -6,8 +6,8 @@ describe('chapter one deterministic QA seam', () => {
   it('completes the ordered happy path without UI or network', () => {
     const result = runChapterOneHappyPath();
     expect(result.passed).toBe(true);
-    expect(result.states.map((state) => state.phase)).toEqual(['opening', 'classroom', 'corridor', 'power', 'bell', 'bell', 'complete']);
-    expect(result.states[5].checkpoint).toBe('power');
+    expect(result.states.map((state) => state.phase)).toEqual(['opening', 'classroom', 'corridor', 'corridor', 'corridor', 'corridor', 'power', 'bell', 'bell', 'complete']);
+    expect(result.states[8].checkpoint).toBe('power');
   });
 
   it('restores retry attempts to a safe semantic checkpoint', () => {

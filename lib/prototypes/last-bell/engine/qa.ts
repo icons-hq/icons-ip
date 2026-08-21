@@ -5,6 +5,9 @@ export function runChapterOneHappyPath(): { passed: boolean; states: LastBellSta
   const actions = [
     { type: 'SKIP_OPENING' },
     { type: 'LOCK_CLASSROOM_DOOR' },
+    { type: 'SELECT_ROUTE', routeId: 'central' },
+    { type: 'TOGGLE_LISTEN' },
+    { type: 'COMPLETE_ROUTE_OBJECTIVE', routeId: 'central' },
     { type: 'RESTORE_POWER' },
     { type: 'LOCK_FIRE_DOOR' },
     { type: 'TRIGGER_BELL' },

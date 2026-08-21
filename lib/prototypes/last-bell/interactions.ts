@@ -1,5 +1,5 @@
 import type { LastBellAudioId } from './assets';
-import type { LastBellAnchorId } from './state';
+import type { LastBellAnchorId, LastBellRouteId } from './state';
 
 export type LastBellInteractiveAnchor = Exclude<
   LastBellAnchorId,
@@ -8,6 +8,8 @@ export type LastBellInteractiveAnchor = Exclude<
 
 export type LastBellInteractionAction =
   | 'lockClassroomDoor'
+  | 'selectRoute'
+  | 'completeRouteObjective'
   | 'toggleHide'
   | 'restorePower'
   | 'lockFireDoor'
@@ -18,6 +20,7 @@ export type LastBellInteractionDescriptor = {
   anchor: LastBellInteractiveAnchor;
   copy: string;
   action: LastBellInteractionAction;
+  routeId?: LastBellRouteId;
   radius?: number;
   audio?: { id: LastBellAudioId; volume: number };
 };
@@ -25,6 +28,12 @@ export type LastBellInteractionDescriptor = {
 /** The only source of truth for player-facing anchor interactions. */
 export const INTERACTION_DESCRIPTORS = [
   { anchor: 'classroom_door', copy: '문을 통과해 잠그기', action: 'lockClassroomDoor', audio: { id: 'doorPounding', volume: .42 } },
+  { anchor: 'route_central', copy: '정면 복도로 가기', action: 'selectRoute', routeId: 'central' },
+  { anchor: 'route_rear', copy: '후문 사물함 길로 가기', action: 'selectRoute', routeId: 'rear' },
+  { anchor: 'route_systems', copy: '설비실 안내선을 따라가기', action: 'selectRoute', routeId: 'systems' },
+  { anchor: 'central_listen', copy: '들린 동선을 확인하기', action: 'completeRouteObjective', routeId: 'central' },
+  { anchor: 'rear_key', copy: '비상키 회수하기', action: 'completeRouteObjective', routeId: 'rear' },
+  { anchor: 'systems_map', copy: '배전 경로 확인하기', action: 'completeRouteObjective', routeId: 'systems' },
   { anchor: 'desk_hide', copy: '책상 뒤에 숨기', action: 'toggleHide' },
   { anchor: 'corridor_hide_left', copy: '사물함 틈에 숨기', action: 'toggleHide' },
   { anchor: 'corridor_hide_right', copy: '복도 벽감에 숨기', action: 'toggleHide' },

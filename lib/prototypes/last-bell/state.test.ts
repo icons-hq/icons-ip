@@ -12,7 +12,9 @@ describe('last bell chapter state', () => {
     expect(skipped.phase).toBe('classroom');
     expect(reduceLastBellState(skipped, { type: 'RESTORE_POWER' })).toEqual(skipped);
     const corridor = reduceLastBellState(skipped, { type: 'LOCK_CLASSROOM_DOOR' });
-    const power = reduceLastBellState(corridor, { type: 'RESTORE_POWER' });
+    const selected = reduceLastBellState(corridor, { type: 'SELECT_ROUTE', routeId: 'rear' });
+    const routed = reduceLastBellState(selected, { type: 'COMPLETE_ROUTE_OBJECTIVE', routeId: 'rear' });
+    const power = reduceLastBellState(routed, { type: 'RESTORE_POWER' });
     expect(power.phase).toBe('power');
     expect(reduceLastBellState(power, { type: 'TRIGGER_BELL' })).toEqual(power);
   });
@@ -89,9 +91,38 @@ describe('last bell chapter state', () => {
   });
 
   it('restores saved semantic checkpoints without replaying the opening', () => {
-    const power = reduceLastBellState(initialLastBellState, { type: 'RESTORE_CHECKPOINT', checkpointId: 'ch1_power_restored' });
-    expect(power).toMatchObject({ phase: 'power', doorLocked: true, powerRestored: true, checkpoint: 'power' });
+    const power = reduceLastBellState(initialLastBellState, { type: 'RESTORE_CHECKPOINT', checkpointId: 'ch1_power_restored', routeId: 'systems' });
+    expect(power).toMatchObject({ phase: 'power', doorLocked: true, powerRestored: true, checkpoint: 'power', routeId: 'systems' });
     expect(objectiveForState(power)).toBe('비상전원이 돌아왔다. 화재문을 잠가라');
+  });
+
+  it('restores an in-progress route objective instead of silently skipping it', () => {
+    const corridor = reduceLastBellState(initialLastBellState, {
+      type: 'RESTORE_CHECKPOINT',
+      checkpointId: 'ch1_handoff',
+      routeId: 'rear',
+      routeObjective: 'rear_key',
+    });
+    expect(corridor).toMatchObject({ phase: 'corridor', routeId: 'rear', routeObjective: 'rear_key' });
+    expect(reduceLastBellState(corridor, { type: 'RESTORE_POWER' })).toEqual(corridor);
+    expect(reduceLastBellState(corridor, { type: 'COMPLETE_ROUTE_OBJECTIVE', routeId: 'rear' }).routeObjective).toBeNull();
+  });
+
+  it.each(['central', 'rear', 'systems'] as const)('requires a distinct %s route objective before power and allows it to finish', (routeId) => {
+    const corridor = reduceLastBellState(
+      reduceLastBellState(initialLastBellState, { type: 'SKIP_OPENING' }),
+      { type: 'LOCK_CLASSROOM_DOOR' },
+    );
+    const selected = reduceLastBellState(corridor, { type: 'SELECT_ROUTE', routeId });
+    expect(objectiveForState(selected)).not.toBe(objectiveForState(corridor));
+    expect(reduceLastBellState(selected, { type: 'RESTORE_POWER' })).toEqual(selected);
+    const prepared = routeId === 'central'
+      ? reduceLastBellState(selected, { type: 'TOGGLE_LISTEN' })
+      : selected;
+    const routed = reduceLastBellState(prepared, { type: 'COMPLETE_ROUTE_OBJECTIVE', routeId });
+    const powered = reduceLastBellState(routed, { type: 'RESTORE_POWER' });
+    const bell = reduceLastBellState(reduceLastBellState(powered, { type: 'LOCK_FIRE_DOOR' }), { type: 'TRIGGER_BELL' });
+    expect(reduceLastBellState(bell, { type: 'REACH_CHAPTER_EXIT' })).toMatchObject({ phase: 'complete', routeId });
   });
 
   it('retries a post-bell capture from the power checkpoint', () => {

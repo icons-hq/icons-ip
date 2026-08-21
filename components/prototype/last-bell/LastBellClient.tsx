@@ -24,6 +24,18 @@ import {
   saveLastBellCheckpoint,
   type LastBellCheckpointPayload,
 } from '@/lib/prototypes/last-bell/persistence';
+import {
+  advanceLastBellRunMetrics,
+  clearLastBellCompletion,
+  createLastBellCompletionRecord,
+  createLastBellRunMetrics,
+  loadLastBellCompletion,
+  recordLastBellCapture,
+  recordLastBellRetry,
+  saveLastBellCompletion,
+  type LastBellCompletionRecord,
+  type LastBellRunMetrics,
+} from '@/lib/prototypes/last-bell/completion';
 import { useLastBellAudio } from './useLastBellAudio';
 import styles from './last-bell.module.css';
 
@@ -34,10 +46,40 @@ const LastBellRuntime = dynamic(
 
 type InputVector = { x: number; y: number };
 
+const POPUP_PATH = '/games/prototype-last-bell/popup';
+const POPUP_STORE_PATH = `${POPUP_PATH}/store`;
+
+const ROUTE_LABEL = {
+  central: '정면 복도',
+  rear: '후문 사물함',
+  systems: '설비실 안내선',
+} as const;
+
+const PLAY_STYLE_LABEL = {
+  listener: '소리를 읽은 생존자',
+  shadow: '그림자를 따른 생존자',
+  runner: '끝까지 달린 생존자',
+  resilient: '다시 일어난 생존자',
+} as const;
+
 const INTERACTIVE_ANCHORS = INTERACTION_DESCRIPTORS.map(({ anchor }) => anchor);
 
 function getPortraitState() {
   return typeof window !== 'undefined' && window.innerHeight > window.innerWidth;
+}
+
+function createLocalRunMetrics(now = new Date()): LastBellRunMetrics {
+  const startedAt = now.toISOString();
+  const entropy = Math.random().toString(36).slice(2, 10);
+  return createLastBellRunMetrics({
+    runId: `last-bell-${now.getTime().toString(36)}-${entropy}`,
+    startedAt,
+  });
+}
+
+function formatActiveDuration(durationMs: number): string {
+  const totalSeconds = Math.max(0, Math.round(durationMs / 1000));
+  return `${Math.floor(totalSeconds / 60)}분 ${String(totalSeconds % 60).padStart(2, '0')}초`;
 }
 
 export function LastBellClient() {
@@ -51,6 +93,7 @@ export function LastBellClient() {
   const [retryNonce, setRetryNonce] = useState(0);
   const [handoff, setHandoff] = useState<LastBellDoorHandoffCommand | null>(null);
   const [savedCheckpoint, setSavedCheckpoint] = useState<LastBellCheckpointPayload | null>(null);
+  const [completionRecord, setCompletionRecord] = useState<LastBellCompletionRecord | null>(null);
   const nearestRef = useRef<LastBellInteractionAnchor | null>(null);
   const phaseRef = useRef(state.phase);
   const moveRef = useRef<InputVector>({ x: 0, y: 0 });
@@ -62,6 +105,8 @@ export function LastBellClient() {
   const lastDangerReportRef = useRef(0);
   const pressedKeysRef = useRef(new Set<string>());
   const hadPointerLockRef = useRef(false);
+  const runMetricsRef = useRef<LastBellRunMetrics>(createLocalRunMetrics());
+  const completionSavedRef = useRef(false);
   const audio = useLastBellAudio();
   const activeModal = state.phase === 'complete'
     ? 'complete'
@@ -74,6 +119,7 @@ export function LastBellClient() {
   const modalOpenRef = useRef(false);
   const modalRef = useRef<HTMLElement | null>(null);
   const modalPrimaryRef = useRef<HTMLButtonElement | null>(null);
+  const completePrimaryRef = useRef<HTMLAnchorElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -86,7 +132,13 @@ export function LastBellClient() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      try { setSavedCheckpoint(loadLastBellCheckpoint(window.localStorage)); } catch { setSavedCheckpoint(null); }
+      try {
+        setSavedCheckpoint(loadLastBellCheckpoint(window.localStorage));
+        setCompletionRecord(loadLastBellCompletion(window.localStorage));
+      } catch {
+        setSavedCheckpoint(null);
+        setCompletionRecord(null);
+      }
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -111,14 +163,20 @@ export function LastBellClient() {
   useEffect(() => {
     try {
       if (state.phase === 'corridor' && state.checkpoint === 'corridor' && state.doorLocked && !state.captured) {
-        const payload = saveLastBellCheckpoint(window.localStorage, 'ch1_handoff', state);
+        const payload = saveLastBellCheckpoint(window.localStorage, 'ch1_handoff', state, runMetricsRef.current, state.routeId, state.routeObjective);
         window.setTimeout(() => setSavedCheckpoint(payload), 0);
       } else if (state.phase === 'power' && state.powerRestored && !state.captured) {
-        const payload = saveLastBellCheckpoint(window.localStorage, 'ch1_power_restored', state);
+        const payload = saveLastBellCheckpoint(window.localStorage, 'ch1_power_restored', state, runMetricsRef.current, state.routeId, state.routeObjective);
         window.setTimeout(() => setSavedCheckpoint(payload), 0);
       } else if (state.phase === 'complete') {
         clearLastBellCheckpoint(window.localStorage);
         window.setTimeout(() => setSavedCheckpoint(null), 0);
+        if (!completionSavedRef.current && state.routeId) {
+          completionSavedRef.current = true;
+          const record = createLastBellCompletionRecord(runMetricsRef.current, state.routeId, new Date().toISOString());
+          const saved = saveLastBellCompletion(window.localStorage, record);
+          window.setTimeout(() => setCompletionRecord(saved ?? record), 0);
+        }
       }
     } catch {
       // local progress is optional; a storage-blocked browser still plays.
@@ -149,8 +207,15 @@ export function LastBellClient() {
   }, [state.bellTriggered]);
 
   const onCapture = useCallback(() => {
-    if (state.bellTriggered && !state.hiding && !state.captured) dispatch({ type: 'CAPTURED' });
+    if (state.bellTriggered && !state.hiding && !state.captured) {
+      runMetricsRef.current = recordLastBellCapture(runMetricsRef.current);
+      dispatch({ type: 'CAPTURED' });
+    }
   }, [state.bellTriggered, state.captured, state.hiding]);
+
+  const onSimulationStep = useCallback((durationMs: number, flags: { listening: boolean; hiding: boolean; running: boolean }) => {
+    runMetricsRef.current = advanceLastBellRunMetrics(runMetricsRef.current, durationMs, flags);
+  }, []);
 
   const requestDoorHandoff = useCallback((door: LastBellDoorId) => {
     const nextHandoff = lastBellDoorHandoffFor(door);
@@ -165,6 +230,12 @@ export function LastBellClient() {
       case 'lockClassroomDoor':
         dispatch({ type: 'LOCK_CLASSROOM_DOOR' });
         requestDoorHandoff('classroom');
+        break;
+      case 'selectRoute':
+        if (descriptor.routeId) dispatch({ type: 'SELECT_ROUTE', routeId: descriptor.routeId });
+        break;
+      case 'completeRouteObjective':
+        if (descriptor.routeId) dispatch({ type: 'COMPLETE_ROUTE_OBJECTIVE', routeId: descriptor.routeId });
         break;
       case 'toggleHide':
         dispatch({ type: 'TOGGLE_HIDE' });
@@ -203,11 +274,13 @@ export function LastBellClient() {
     setNearestValue(null);
     setDanger(0);
     setPaused(false);
+    runMetricsRef.current = recordLastBellRetry(runMetricsRef.current);
     setRetryNonce((value) => value + 1);
     dispatch({ type: 'RETRY' });
   }, [setNearestValue]);
 
   const restartFromComplete = useCallback(() => {
+    try { clearLastBellCompletion(window.localStorage); } catch { /* local presentation is optional */ }
     window.location.reload();
   }, []);
 
@@ -223,7 +296,10 @@ export function LastBellClient() {
     pressedKeysRef.current.clear();
     moveRef.current = { x: 0, y: 0 };
     runRef.current = false;
-    const focusFrame = window.requestAnimationFrame(() => modalPrimaryRef.current?.focus());
+    const focusFrame = window.requestAnimationFrame(() => {
+      if (activeModal === 'complete') completePrimaryRef.current?.focus();
+      else modalPrimaryRef.current?.focus();
+    });
     const onModalKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -265,7 +341,14 @@ export function LastBellClient() {
     setNearestValue(null);
     setDanger(0);
     setRetryNonce((value) => value + 1);
-    dispatch({ type: 'RESTORE_CHECKPOINT', checkpointId: savedCheckpoint.checkpointId });
+    runMetricsRef.current = savedCheckpoint.runMetrics;
+    completionSavedRef.current = false;
+    dispatch({
+      type: 'RESTORE_CHECKPOINT',
+      checkpointId: savedCheckpoint.checkpointId,
+      routeId: savedCheckpoint.routeId ?? undefined,
+      routeObjective: savedCheckpoint.routeObjective,
+    });
   }, [audio, savedCheckpoint, setNearestValue]);
 
   useEffect(() => {
@@ -345,6 +428,8 @@ export function LastBellClient() {
   const setOpeningStart = useCallback(() => {
     audio.unlock();
     if (!openingArmed) {
+      completionSavedRef.current = false;
+      setCompletionRecord(null);
       setOpeningArmed(true);
       audio.play('classroomAmbience', { volume: .26, loop: true });
       return;
@@ -354,6 +439,8 @@ export function LastBellClient() {
 
   const skipOpening = useCallback(() => {
     audio.unlock();
+    completionSavedRef.current = false;
+    setCompletionRecord(null);
     setOpeningElapsed(30);
     setOpeningArmed(true);
     dispatch({ type: 'SKIP_OPENING' });
@@ -383,6 +470,9 @@ export function LastBellClient() {
   const progress = `${Math.round((openingElapsed / 30) * 100)}%`;
   const prompt = interactionDescriptorFor(nearest)?.copy ?? null;
   const runtimeActive = !paused && !portrait && !showOpening && !state.captured && state.phase !== 'complete';
+  const completeRouteLabel = completionRecord?.routeId ? ROUTE_LABEL[completionRecord.routeId] : state.routeId ? ROUTE_LABEL[state.routeId] : null;
+  const completeDuration = completionRecord?.activeDurationMs ?? 0;
+  const completeStyle = completionRecord?.playStyle ?? null;
 
   return (
     <main className={styles.root} data-portrait={portrait ? 'true' : 'false'}>
@@ -399,6 +489,7 @@ export function LastBellClient() {
           onPosition={onPosition}
           onDanger={onDanger}
           onCapture={onCapture}
+          onSimulationStep={onSimulationStep}
           onCanvasInteract={pointerLock}
         />
         <div className={styles.hud} aria-live="polite">
@@ -498,8 +589,18 @@ export function LastBellClient() {
             <Image src={LAST_BELL_ASSETS.logo} alt="지금 우리 학교는" width={500} height={533} sizes="3.6rem" />
             <span className={styles.serial}>CHAPTER 01 COMPLETE</span>
             <h2 id="last-bell-modal-title">마지막 종이 울렸다.</h2>
-            <p id="last-bell-modal-description">방화문 너머의 계단에 도착했습니다. Chapter 1 체크포인트는 완료와 함께 정리됩니다.</p>
-            <button ref={modalPrimaryRef} type="button" className={styles.primaryButton} onClick={modalPrimaryAction}>처음부터 보기</button>
+            <p id="last-bell-modal-description">방화문 너머의 계단에 도착했습니다. 이 기록은 로컬 생존 기록일 뿐, 보상·순위·구매 권한을 만들지 않습니다.</p>
+            <dl className={styles.completionRecord} aria-label="생존 기록 요약">
+              <div><dt>경로</dt><dd>{completeRouteLabel}</dd></div>
+              <div><dt>활동 시간</dt><dd>{formatActiveDuration(completeDuration)}</dd></div>
+              <div><dt>생존 방식</dt><dd>{completeStyle ? PLAY_STYLE_LABEL[completeStyle] : '기록 정리 중'}</dd></div>
+              <div><dt>붙잡힘</dt><dd>{completionRecord?.captureCount ?? 0}회</dd></div>
+            </dl>
+            <div className={styles.completionActions}>
+              <a ref={completePrimaryRef} className={styles.primaryButton} href={POPUP_PATH}>생존 기록이 있는 팝업으로</a>
+              <a className={styles.ghostButton} href={POPUP_STORE_PATH}>매점 미리보기</a>
+              <button type="button" className={styles.ghostButton} onClick={modalPrimaryAction}>다시 플레이</button>
+            </div>
           </div>
         </section>
       )}
