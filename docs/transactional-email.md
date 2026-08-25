@@ -1,6 +1,6 @@
 # 트랜잭션 이메일 운영 (#180)
 
-> 상태: Legacy Active · #191 Send Email Hook dark deploy 기본 OFF · 작성 2026-08-07 · 갱신 2026-08-13
+> 상태: Legacy Active · #191 Send Email Hook dark deploy 기본 OFF · 작성 2026-08-07 · 갱신 2026-08-25
 > 코드 진실원: `lib/email/*`, `supabase/migrations/20260807130001_transactional_email_deliveries.sql`,
 > `supabase/migrations/20260807140001_email_delivery_admin_ops.sql`,
 > `supabase/migrations/20260807150001_email_resend_order_state_gate.sql`,
@@ -86,12 +86,23 @@ blocker이며, 이 dark PR에서는 임의 rotation이나 복수 key fallback을
 | dedupe 키 | `lib/email/dedupe.ts` | `<template>:<orderId>` 형식의 진실원. 재발송이 행 하나에서 대상을 되찾는 근거 |
 | 운영 조회 | `lib/email/deliveries.server.ts` + `admin_search_email_deliveries` | `failed`·`pending` 목록 읽기(staff 전용) |
 
-legacy 발송 지점은 두 곳이다.
+legacy 발송 지점은 주문 확인 세 곳, 배송 시작 한 곳이다.
 
 - **주문 확인** — 신규 주문의 결제 진실원은 provider-neutral
-  `finalize_goods_payment_attempt`다. 현재 legacy 메일 호출은 이미 알려진 기존 Toss 거래만 처리하는
-  Toss webhook(`app/api/webhooks/tosspayments/route.ts`)에 남아 있다. 신규 checkout을 위한 메일
-  producer는 #191 dark path의 활성화·canary 전에는 열지 않는다.
+  `finalize_goods_payment_attempt`이며, 2026-08-25부터 신규 확정 경로에도 producer를 배선했다
+  (#239 서면 교부 잔여 판단·D8 — "#191 활성화 전에는 열지 않는다"던 2026-08-13 결정을 뒤집은
+  것이고, Hook successor 전환 자체는 여전히 #191을 따른다).
+  1. **Korpay confirm** — `createGoodsPaymentCheckout`의 `onApproved` seam이 DB finalizer가
+     approved를 확정했을 때와 approved terminal replay가 돌아왔을 때 훅을 부른다(중복은
+     dedupe가 막고, replay 호출은 확정 후·발송 전에 죽은 최초 callback의 복구 경로다).
+     배선은 composition root `lib/payments/goods-checkout.runtime.server.ts`에 있다.
+  2. **무통장 입금 확정** — `app/admin/unpaid-actions.ts`의 두 확정 액션(직접 확정·입금 내역
+     연결)이 `admin_confirm_bank_transfer_deposit`/`admin_confirm_bank_deposit`의 approved
+     반환 직후 훅을 부른다.
+  3. **legacy Toss webhook**(`app/api/webhooks/tosspayments/route.ts`) — 이미 알려진 기존
+     Toss 거래 전용.
+
+  세 경로 모두 dedupe key가 `order_confirmation:<orderId>` 하나라, 어떤 조합으로 겹쳐도 1통이다.
 - **배송 시작** — 어드민 배송 전이(`app/admin/order-actions.ts`)가 `shipping` 전이 성공 직후 호출한다.
   택배사·운송장번호·조회 링크를 **그대로 넘긴다**. 인자를 생략하면 발송 훅이 `orders`의
   `shipping_carrier`·`tracking_number`에서 읽는다(재발송 경로가 이 폴백을 쓴다).
@@ -120,8 +131,8 @@ legacy 발송 지점은 두 곳이다.
 
 | 템플릿 | 보내는 주문 상태 | 어긋나면 |
 |---|---|---|
-| `order_confirmation` | `paid` · `shipping` · `done` | `skipped` + `order_status_mismatch:<status>` 로그 |
-| `order_shipped` | `shipping` · `done` | 〃 |
+| `order_confirmation` | `paid` · `confirmed` · `shipping` · `delivered` · `done` | `skipped` + `order_status_mismatch:<status>` 로그 |
+| `order_shipped` | `shipping` · `delivered` · `done` | 〃 |
 
 집합은 두 곳에 있다 — `lib/email/transactional.server.ts`의 `ACCURATE_ORDER_STATUSES`와
 `admin_request_email_resend`. legacy known-only Toss webhook 경로는 DB 게이트를 지나지 않으므로
@@ -172,6 +183,10 @@ provider callback replay와 known-only Toss webhook 재전달이 겹쳐도 legac
 
 Vercel에서는 Production·Preview 모두 sensitive로 등록한다. Preview에 실제 발신 도메인을
 쓰면 테스트 메일이 실사용자에게 갈 수 있으므로, Preview는 키를 비워 두는 것이 기본이다.
+
+Production용 앱 전용 키는 `icons-ip-app-transactional`(2026-08-25 발급, sending 전용,
+`iconsip.com` 도메인 제한)이다. Supabase Auth SMTP가 쓰는 키(`icons-ip-supabase-auth` 등)와
+분리해 두었으므로 한쪽 rotation이 다른 쪽 발송을 끊지 않는다. secret 값은 이 문서에 남기지 않는다.
 Preview의 `email_deliveries`에는 해당 `failed` 행이 쌓인다 — 보내지 않은 사실의 정확한 기록이며
 raw provider 사유 대신 `legacy_failure`만 저장되는 것이 정상이다.
 
