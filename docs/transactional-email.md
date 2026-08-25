@@ -98,7 +98,9 @@ legacy 발송 지점은 주문 확인 세 곳, 배송 시작 한 곳이다.
      배선은 composition root `lib/payments/goods-checkout.runtime.server.ts`에 있다.
   2. **무통장 입금 확정** — `app/admin/unpaid-actions.ts`의 두 확정 액션(직접 확정·입금 내역
      연결)이 `admin_confirm_bank_transfer_deposit`/`admin_confirm_bank_deposit`의 approved
-     반환 직후 훅을 부른다.
+     반환 직후 훅을 부른다. '이미 처리됨' 계열 거절(`order_not_unpaid`·
+     `deposit_already_decided`) 재시도에도 훅을 다시 불러, 확정 커밋 후·발송 전에 죽은
+     요청이 남긴 무기록 미발송을 복구한다(1의 terminal replay와 같은 규율).
   3. **legacy Toss webhook**(`app/api/webhooks/tosspayments/route.ts`) — 이미 알려진 기존
      Toss 거래 전용.
 

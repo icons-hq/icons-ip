@@ -79,6 +79,23 @@ async function finalizationResult(
   };
 }
 
+/**
+ * '이미 처리됨' 계열 거절은 확정 커밋 후·발송 전에 죽은 요청의 재시도일 수 있다.
+ * 그 창에서는 메일도 email_deliveries 행도 없어 재발송 표면에 잡히지 않으므로,
+ * 재시도를 복구 경로로 쓴다 — Korpay approved terminal replay와 같은 규율이다.
+ * 훅은 멱등(클레임 dedupe)이고 발송 직전 사실성 게이트가 취소·미결제 주문을
+ * 거르므로, 이미 보냈으면 skip, 보내면 안 되는 상태면 보내지 않는다.
+ */
+async function recoverConfirmationEmailOnReplay(
+  message: string | null | undefined,
+  orderId: string,
+): Promise<void> {
+  const value = (message ?? '').toLowerCase();
+  if (value.includes('order_not_unpaid') || value.includes('deposit_already_decided')) {
+    await sendOrderConfirmationEmail(orderId);
+  }
+}
+
 async function requireStaffAction(): Promise<AdminUnpaidActionState | null> {
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user) {
@@ -117,7 +134,10 @@ export async function confirmBankTransferDepositAction(
     p_order_id: normalized.value.orderId,
     p_memo: normalized.value.reason,
   });
-  if (error) return { error: rpcErrorMessage(error.message, CONFIRM_FAILED) };
+  if (error) {
+    await recoverConfirmationEmailOnReplay(error.message, normalized.value.orderId);
+    return { error: rpcErrorMessage(error.message, CONFIRM_FAILED) };
+  }
 
   revalidateUnpaidSurfaces(normalized.value.orderId);
   return finalizationResult(
@@ -222,7 +242,10 @@ export async function confirmBankDepositAction(
     p_order_id: orderId,
     p_memo: memo.value,
   });
-  if (error) return { error: depositErrorMessage(error.message, DEPOSIT_CONFIRM_FAILED) };
+  if (error) {
+    await recoverConfirmationEmailOnReplay(error.message, orderId);
+    return { error: depositErrorMessage(error.message, DEPOSIT_CONFIRM_FAILED) };
+  }
 
   revalidateUnpaidSurfaces(orderId);
   return finalizationResult(data, orderId, '입금 내역을 주문에 연결하고 결제완료로 확정했습니다.');

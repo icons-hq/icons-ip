@@ -98,6 +98,27 @@ describe('admin unpaid actions', () => {
     expect(mocks.sendConfirmationEmail).not.toHaveBeenCalled();
   });
 
+  it('이미 처리된 주문 재시도는 유실됐을 수 있는 확인 메일을 복구한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'order_not_unpaid' } });
+
+    const result = await confirmBankTransferDepositAction({}, transferForm());
+
+    // 확정 커밋 후·발송 전에 죽은 요청의 재시도 창구다 — 훅 멱등이 중복을 막는다.
+    expect(result.error).toContain('이미 처리된 주문');
+    expect(mocks.sendConfirmationEmail).toHaveBeenCalledTimes(1);
+    expect(mocks.sendConfirmationEmail).toHaveBeenCalledWith(ORDER_ID);
+  });
+
+  it('이미 처리된 입금 재시도도 같은 복구 훅을 부른다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'deposit_already_decided' } });
+
+    const result = await confirmBankDepositAction({}, depositForm());
+
+    expect(result.error).toContain('이미 처리된 입금');
+    expect(mocks.sendConfirmationEmail).toHaveBeenCalledTimes(1);
+    expect(mocks.sendConfirmationEmail).toHaveBeenCalledWith(ORDER_ID);
+  });
+
   it('RPC 실패는 메일 훅에 닿지 않는다', async () => {
     mocks.rpc.mockResolvedValue({
       data: null,
