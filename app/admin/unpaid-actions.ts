@@ -7,6 +7,7 @@ import {
   normalizeAdminUnpaidReasonForm,
 } from '@/lib/admin/unpaid';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { sendOrderConfirmationEmail } from '@/lib/email/transactional.server';
 import { createClient } from '@/lib/supabase/server';
 
 /*
@@ -14,8 +15,9 @@ import { createClient } from '@/lib/supabase/server';
  *
  * 이 파일은 주문을 결제완료로 바꾸지 않는다. 확정은 DB
  * admin_confirm_bank_transfer_deposit → finalize_goods_payment_attempt 경로가
- * 하고, 여기서는 폼 검증과 운영자 문구만 맡는다. 앱이 orders.status를 직접
- * 건드리기 시작하면 재고·원장·뽑기권 부수효과가 두 곳으로 갈라진다.
+ * 하고, 여기서는 폼 검증·운영자 문구와 확정 뒤 확인 메일 훅만 맡는다. 앱이
+ * orders.status를 직접 건드리기 시작하면 재고·원장·뽑기권 부수효과가 두 곳으로
+ * 갈라진다.
  */
 
 export interface AdminUnpaidActionState {
@@ -55,14 +57,43 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
  * finalizer는 `approved` 말고도 `needs_review`를 돌려줄 수 있다 — 확정 직전에
  * 계정이 정지됐거나 주문 스냅샷이 어긋난 경우다. 그때 "결제완료로 확정했습니다"를
  * 띄우면 운영자가 발주 큐에서 찾다가 없어서야 알게 된다. 결과를 그대로 말한다.
+ *
+ * `approved`면 주문 확인 메일까지 이어서 보낸다(전자상거래법 서면 교부, #239·D8).
+ * 카드 결제는 Korpay confirm 경로가 같은 메일을 보내므로, 무통장도 이 깔때기를
+ * 지나는 두 확정 액션(직접 확정·입금 내역 연결)이 같은 훅을 부른다. 훅은 절대
+ * throw하지 않고 email_deliveries 클레임으로 멱등이라 결과 반환을 막지 않는다.
  */
-function finalizationResult(outcome: unknown, successMessage: string): AdminUnpaidActionState {
-  if (outcome === 'approved') return { message: successMessage };
+async function finalizationResult(
+  outcome: unknown,
+  orderId: string,
+  successMessage: string,
+): Promise<AdminUnpaidActionState> {
+  if (outcome === 'approved') {
+    await sendOrderConfirmationEmail(orderId);
+    return { message: successMessage };
+  }
   return {
     error: `입금 기록은 남았지만 주문이 결제완료로 확정되지 않았습니다(결과: ${
       typeof outcome === 'string' ? outcome : 'unknown'
     }). 결제 원장을 확인한 뒤 수동 정합화가 필요합니다.`,
   };
+}
+
+/**
+ * '이미 처리됨' 계열 거절은 확정 커밋 후·발송 전에 죽은 요청의 재시도일 수 있다.
+ * 그 창에서는 메일도 email_deliveries 행도 없어 재발송 표면에 잡히지 않으므로,
+ * 재시도를 복구 경로로 쓴다 — Korpay approved terminal replay와 같은 규율이다.
+ * 훅은 멱등(클레임 dedupe)이고 발송 직전 사실성 게이트가 취소·미결제 주문을
+ * 거르므로, 이미 보냈으면 skip, 보내면 안 되는 상태면 보내지 않는다.
+ */
+async function recoverConfirmationEmailOnReplay(
+  message: string | null | undefined,
+  orderId: string,
+): Promise<void> {
+  const value = (message ?? '').toLowerCase();
+  if (value.includes('order_not_unpaid') || value.includes('deposit_already_decided')) {
+    await sendOrderConfirmationEmail(orderId);
+  }
 }
 
 async function requireStaffAction(): Promise<AdminUnpaidActionState | null> {
@@ -103,10 +134,17 @@ export async function confirmBankTransferDepositAction(
     p_order_id: normalized.value.orderId,
     p_memo: normalized.value.reason,
   });
-  if (error) return { error: rpcErrorMessage(error.message, CONFIRM_FAILED) };
+  if (error) {
+    await recoverConfirmationEmailOnReplay(error.message, normalized.value.orderId);
+    return { error: rpcErrorMessage(error.message, CONFIRM_FAILED) };
+  }
 
   revalidateUnpaidSurfaces(normalized.value.orderId);
-  return finalizationResult(data, '입금을 확인해 주문을 결제완료로 확정했습니다.');
+  return finalizationResult(
+    data,
+    normalized.value.orderId,
+    '입금을 확인해 주문을 결제완료로 확정했습니다.',
+  );
 }
 
 export async function extendBankTransferDeadlineAction(
@@ -204,10 +242,13 @@ export async function confirmBankDepositAction(
     p_order_id: orderId,
     p_memo: memo.value,
   });
-  if (error) return { error: depositErrorMessage(error.message, DEPOSIT_CONFIRM_FAILED) };
+  if (error) {
+    await recoverConfirmationEmailOnReplay(error.message, orderId);
+    return { error: depositErrorMessage(error.message, DEPOSIT_CONFIRM_FAILED) };
+  }
 
   revalidateUnpaidSurfaces(orderId);
-  return finalizationResult(data, '입금 내역을 주문에 연결하고 결제완료로 확정했습니다.');
+  return finalizationResult(data, orderId, '입금 내역을 주문에 연결하고 결제완료로 확정했습니다.');
 }
 
 export async function ignoreBankDepositAction(

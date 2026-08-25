@@ -60,6 +60,8 @@ class MemoryGoodsPaymentAttemptRepository implements GoodsPaymentAttemptReposito
   prepareCount = 0;
   finalizations: GoodsPaymentFinalization[] = [];
   claimMode: GoodsPaymentAttemptClaim['status'] | null = null;
+  /** DB finalization guard 재현 — gateway 결과와 다른 종결을 되돌린다. */
+  finalizeOutcomeOverride: ConfirmOutcome['outcome'] | null = null;
 
   async prepareOrderAttempt(input: {
     userId: string;
@@ -111,8 +113,15 @@ class MemoryGoodsPaymentAttemptRepository implements GoodsPaymentAttemptReposito
       throw new GoodsPaymentContractError('claim_mismatch');
     }
     this.finalizations.push(input);
-    this.outcomes.set(input.attemptId, input.outcome);
-    return input.outcome;
+    const finalized = this.finalizeOutcomeOverride
+      ? {
+          ...input.outcome,
+          outcome: this.finalizeOutcomeOverride,
+          reasonCode: 'database_finalization_guard',
+        }
+      : input.outcome;
+    this.outcomes.set(input.attemptId, finalized);
+    return finalized;
   }
 }
 
@@ -126,7 +135,10 @@ function outcome(value: ConfirmOutcome['outcome'], overrides: Partial<ConfirmOut
   };
 }
 
-function checkoutFixture(confirm: readonly ConfirmOutcome[] = [outcome('approved')]) {
+function checkoutFixture(
+  confirm: readonly ConfirmOutcome[] = [outcome('approved')],
+  onApproved?: (attempt: PaymentAttempt) => Promise<unknown>,
+) {
   const repository = new MemoryGoodsPaymentAttemptRepository();
   const gateway = new FakePaymentGateway({ prepare: [prepared()], confirm });
   const checkout = createGoodsPaymentCheckout({
@@ -134,9 +146,16 @@ function checkoutFixture(confirm: readonly ConfirmOutcome[] = [outcome('approved
     gateway,
     repository,
     createClaimToken: () => '40000000-0000-4000-8000-000000000205',
+    onApproved,
   });
   return { checkout, repository };
 }
+
+const CALLBACK = {
+  providerOrderId: PROVIDER_ORDER_ID,
+  callbackNonce: CALLBACK_NONCE,
+  providerPayload: { resultCode: '0000' },
+} as const;
 
 describe('GoodsPaymentCheckout', () => {
   it('같은 굿즈 주문 준비를 하나의 provider-neutral attempt와 checkout으로 재생한다', async () => {
@@ -262,5 +281,66 @@ describe('GoodsPaymentCheckout', () => {
     });
     expect(repository.finalizations).toHaveLength(1);
     expect(repository.finalizations[0]?.outcome.outcome).toBe('unknown');
+  });
+
+  it('approved 확정은 onApproved에 주문 attempt를 넘겨 알린다', async () => {
+    const onApproved = vi.fn().mockResolvedValue(undefined);
+    const { checkout } = checkoutFixture([outcome('approved')], onApproved);
+    await checkout.prepare({ userId: USER_ID, orderId: ORDER_ID });
+
+    await expect(checkout.confirm(CALLBACK)).resolves.toMatchObject({ outcome: 'approved' });
+
+    expect(onApproved).toHaveBeenCalledTimes(1);
+    expect(onApproved).toHaveBeenCalledWith(
+      expect.objectContaining({ id: ATTEMPT_ID, refId: ORDER_ID, purpose: 'order' }),
+    );
+  });
+
+  it.each(['declined', 'canceled', 'unknown', 'needs_review'] as const)(
+    '%s 종결은 onApproved를 부르지 않는다',
+    async (paymentOutcome) => {
+      const onApproved = vi.fn().mockResolvedValue(undefined);
+      const { checkout } = checkoutFixture([outcome(paymentOutcome)], onApproved);
+      await checkout.prepare({ userId: USER_ID, orderId: ORDER_ID });
+
+      await checkout.confirm(CALLBACK);
+      expect(onApproved).not.toHaveBeenCalled();
+    },
+  );
+
+  it('approved terminal replay도 onApproved를 다시 불러 유실된 알림을 복구한다', async () => {
+    const onApproved = vi.fn().mockResolvedValue(undefined);
+    const { checkout } = checkoutFixture([outcome('approved')], onApproved);
+    await checkout.prepare({ userId: USER_ID, orderId: ORDER_ID });
+
+    await checkout.confirm(CALLBACK);
+    await checkout.confirm(CALLBACK);
+
+    // 중복 발송 억제는 hook 구현(email_deliveries 클레임)의 몫이다.
+    expect(onApproved).toHaveBeenCalledTimes(2);
+  });
+
+  it('DB finalization guard가 approved를 뒤집으면 onApproved를 부르지 않는다', async () => {
+    const onApproved = vi.fn().mockResolvedValue(undefined);
+    const { checkout, repository } = checkoutFixture([outcome('approved')], onApproved);
+    repository.finalizeOutcomeOverride = 'needs_review';
+    await checkout.prepare({ userId: USER_ID, orderId: ORDER_ID });
+
+    await expect(checkout.confirm(CALLBACK)).resolves.toMatchObject({
+      outcome: 'needs_review',
+      reasonCode: 'database_finalization_guard',
+    });
+    expect(onApproved).not.toHaveBeenCalled();
+  });
+
+  it('onApproved가 던져도 확정 결과는 그대로 돌아온다', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const onApproved = vi.fn().mockRejectedValue(new Error('mail provider exploded'));
+    const { checkout } = checkoutFixture([outcome('approved')], onApproved);
+    await checkout.prepare({ userId: USER_ID, orderId: ORDER_ID });
+
+    await expect(checkout.confirm(CALLBACK)).resolves.toMatchObject({ outcome: 'approved' });
+    expect(onApproved).toHaveBeenCalledTimes(1);
+    errorSpy.mockRestore();
   });
 });

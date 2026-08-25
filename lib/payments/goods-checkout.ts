@@ -77,6 +77,14 @@ interface GoodsPaymentCheckoutDependencies {
   readonly gateway: PaymentGateway;
   readonly repository: GoodsPaymentAttemptRepository;
   readonly createClaimToken?: () => string;
+  /**
+   * 승인 종결 알림 seam(주문 확인 메일 등). DB finalizer가 approved를 확정했을 때와
+   * approved terminal replay가 돌아왔을 때 불린다 — replay에도 부르는 이유는 최초
+   * callback이 확정 후·알림 전에 죽었을 때 중복 callback이 유일한 재시도 경로라서다.
+   * 그래서 hook은 멱등해야 하고(중복 호출에도 효과 1회), 실패해도 확정 결과를 바꾸면
+   * 안 되므로 throw는 삼켜진다 — 실패 관측은 hook 구현의 책임이다.
+   */
+  readonly onApproved?: (attempt: PaymentAttempt) => Promise<unknown>;
 }
 
 function callbackNonceDigest(value: string) {
@@ -134,7 +142,18 @@ export function createGoodsPaymentCheckout({
   gateway,
   repository,
   createClaimToken = randomUUID,
+  onApproved,
 }: GoodsPaymentCheckoutDependencies): GoodsPaymentCheckout {
+  async function notifyApproved(attempt: PaymentAttempt) {
+    if (!onApproved) return;
+    try {
+      await onApproved(attempt);
+    } catch {
+      // 알림 실패가 이미 확정된 결제 결과를 checking/failed로 둔갑시키면 안 된다.
+      console.error('[payments/goods] approved notification failed');
+    }
+  }
+
   return {
     async prepare({ userId, orderId }) {
       const attempt = await repository.prepareOrderAttempt({ userId, orderId, provider });
@@ -169,7 +188,10 @@ export function createGoodsPaymentCheckout({
       });
       assertAttempt(claim.attempt, provider);
 
-      if (claim.status === 'terminal') return claim.outcome;
+      if (claim.status === 'terminal') {
+        if (claim.outcome.outcome === 'approved') await notifyApproved(claim.attempt);
+        return claim.outcome;
+      }
       if (claim.status === 'in_progress') {
         throw new GoodsPaymentConfirmationInProgressError();
       }
@@ -198,11 +220,15 @@ export function createGoodsPaymentCheckout({
         ? providerOutcome
         : providerIdentityMismatchOutcome(claim.attempt, providerOutcome.evidence);
 
-      return repository.finalizeOrderAttempt({
+      // gateway가 아니라 DB finalizer의 판정을 알림 기준으로 삼는다 — finalization
+      // guard가 approved를 needs_review로 뒤집으면 확정되지 않은 주문에 알리면 안 된다.
+      const finalized = await repository.finalizeOrderAttempt({
         attemptId: claim.attempt.id,
         claimToken: claim.claimToken,
         outcome,
       });
+      if (finalized.outcome === 'approved') await notifyApproved(claim.attempt);
+      return finalized;
     },
   };
 }
