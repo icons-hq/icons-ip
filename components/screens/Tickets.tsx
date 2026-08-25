@@ -13,6 +13,24 @@ const groupCopy: Record<TicketOrderGroup, { title: string; description: string }
   past: { title: '지난 티켓', description: '사용 또는 취소가 끝난 예매입니다.' },
 };
 
+/** Korpay confirm 콜백(/api/payments/tickets/confirm)이 /tickets?payment=…로 붙이는 결과값. */
+export type TicketsPaymentResult = 'approved' | 'checking' | 'failed';
+
+const paymentResultCopy: Record<TicketsPaymentResult, { title: string; body: string }> = {
+  approved: {
+    title: '결제가 확인됐어요',
+    body: '예매가 안전하게 접수됐습니다. 사용 가능한 티켓에서 전자티켓 QR을 열 수 있어요.',
+  },
+  checking: {
+    title: '결제를 확인하고 있어요',
+    body: '결제사 확인 결과와 서버 원장을 대조하고 있습니다. 잠시 후 이 페이지를 새로고침하면 최신 상태가 반영돼요.',
+  },
+  failed: {
+    title: '결제가 완료되지 않았어요',
+    body: '결제가 승인되지 않아 예매가 확정되지 않았습니다. 이벤트 페이지에서 다시 예매할 수 있어요.',
+  },
+};
+
 function eventSchedule(startsAt: string | null) {
   if (!startsAt) return '일정 미정';
   const date = new Date(startsAt);
@@ -27,7 +45,15 @@ function eventSchedule(startsAt: string | null) {
   }).format(date);
 }
 
-export function Tickets({ orders, now }: { orders: TicketOrderListItem[]; now?: number }) {
+export function Tickets({
+  orders,
+  now,
+  paymentResult,
+}: {
+  orders: TicketOrderListItem[];
+  now?: number;
+  paymentResult?: TicketsPaymentResult;
+}) {
   const groups = groupTicketOrders(orders, now);
 
   return (
@@ -41,6 +67,21 @@ export function Tickets({ orders, now }: { orders: TicketOrderListItem[]; now?: 
       </header>
 
       <div className="wrap tickets-content">
+        {paymentResult && (
+          <div
+            className={`tickets-payment-banner tickets-payment-banner--${paymentResult}`}
+            role={paymentResult === 'failed' ? 'alert' : 'status'}
+          >
+            <strong>{paymentResultCopy[paymentResult].title}</strong>
+            <p>{paymentResultCopy[paymentResult].body}</p>
+            {paymentResult === 'checking' && (
+              <p>
+                시간이 지나도 예매에 반영되지 않으면 고객센터{' '}
+                <Link href="/my/inquiries">1:1 문의</Link>로 알려주세요.
+              </p>
+            )}
+          </div>
+        )}
         {orders.length === 0 ? (
           <div className="tickets-empty card">
             <div className="tickets-empty-icon" aria-hidden><Icon name="event" size={30} /></div>
