@@ -17,12 +17,16 @@ const PAYMENT_RESULT_COPY: Record<OrdersPaymentResult, { title: string; body: st
     body: '주문이 안전하게 접수됐습니다. 배송 진행은 아래 주문에서 이어서 확인할 수 있어요.',
   },
   checking: {
+    // 미확정 attempt는 자동 상태조회 없이 수동 CS·재무 절차로만 풀린다
+    // (docs/runbooks/korpay-production-rollout.md). 새로고침으로 해소된다고 약속하지 않는다.
     title: '결제를 확인하고 있어요',
-    body: '결제사 확인 결과와 서버 원장을 대조하고 있습니다. 잠시 후 이 페이지를 새로고침하면 최신 상태가 반영돼요.',
+    body: '결제사 승인 결과를 확인하고 있습니다. 확인이 끝나면 주문이 결제 완료로 표시돼요.',
   },
   failed: {
+    // 실패한 카드 주문은 목록에 나타나지 않고 상세에도 재시도 컨트롤이 없다.
+    // 갈 수 있는 길(재고 복원 후 재주문)만 안내한다.
     title: '결제가 완료되지 않았어요',
-    body: '결제가 승인되지 않아 주문은 결제 전 상태로 남아 있습니다. 주문 상세에서 결제를 다시 시도할 수 있어요.',
+    body: '결제가 승인되지 않았습니다. 선점된 재고는 시간이 지나면 자동으로 복원되니, 굿즈샵에서 다시 담아 주문해주세요.',
   },
 };
 
@@ -33,6 +37,13 @@ export function Orders({
   orders: OrderListItem[];
   paymentResult?: OrdersPaymentResult;
 }) {
+  // ?payment=는 클라이언트가 만들 수 있는 입력이다. "결제가 확인됐어요"는 DB가 결제
+  // 완료 국면 주문을 실제로 보여줄 때만 말한다 — 쿼리 단독으로는 승인 표시를 만들지 않는다.
+  const hasPaidPhaseOrder = orders.some(
+    (order) => order.status !== 'pending' && order.status !== 'canceled',
+  );
+  const banner = paymentResult === 'approved' && !hasPaidPhaseOrder ? undefined : paymentResult;
+
   return (
     <main className="screen orders-page">
       <header className="orders-header">
@@ -45,17 +56,23 @@ export function Orders({
 
       <section className="orders-section" aria-labelledby="orders-list-heading">
         <div className="wrap">
-          {paymentResult && (
+          {banner && (
             <div
-              className={`orders-payment-banner orders-payment-banner--${paymentResult}`}
-              role={paymentResult === 'failed' ? 'alert' : 'status'}
+              className={`orders-payment-banner orders-payment-banner--${banner}`}
+              role={banner === 'failed' ? 'alert' : 'status'}
             >
-              <strong>{PAYMENT_RESULT_COPY[paymentResult].title}</strong>
-              <p>{PAYMENT_RESULT_COPY[paymentResult].body}</p>
-              {paymentResult === 'checking' && (
+              <strong>{PAYMENT_RESULT_COPY[banner].title}</strong>
+              <p>{PAYMENT_RESULT_COPY[banner].body}</p>
+              {banner === 'checking' && (
                 <p>
-                  시간이 지나도 주문에 반영되지 않으면 고객센터{' '}
-                  <Link href="/my/inquiries">1:1 문의</Link>로 알려주세요.
+                  주문에 반영되지 않았거나 결제 금액이 빠져나갔다면 고객센터{' '}
+                  <Link href="/my/inquiries">1:1 문의</Link>로 알려주세요. 확인 후 처리 결과를
+                  안내드립니다.
+                </p>
+              )}
+              {banner === 'failed' && (
+                <p>
+                  <Link href="/shop">굿즈샵 둘러보기</Link>
                 </p>
               )}
             </div>
