@@ -8,7 +8,31 @@ import {
   type OrderListItem,
 } from '@/lib/orders';
 
-export function Orders({ orders }: { orders: OrderListItem[] }) {
+/** Korpay confirm 콜백(/api/payments/goods/confirm)이 /orders?payment=…로 붙이는 결과값. */
+export type OrdersPaymentResult = 'approved' | 'checking' | 'failed';
+
+const PAYMENT_RESULT_COPY: Record<OrdersPaymentResult, { title: string; body: string }> = {
+  approved: {
+    title: '결제가 확인됐어요',
+    body: '주문이 안전하게 접수됐습니다. 배송 진행은 아래 주문에서 이어서 확인할 수 있어요.',
+  },
+  checking: {
+    title: '결제를 확인하고 있어요',
+    body: '결제사 확인 결과와 서버 원장을 대조하고 있습니다. 잠시 후 이 페이지를 새로고침하면 최신 상태가 반영돼요.',
+  },
+  failed: {
+    title: '결제가 완료되지 않았어요',
+    body: '결제가 승인되지 않아 주문은 결제 전 상태로 남아 있습니다. 주문 상세에서 결제를 다시 시도할 수 있어요.',
+  },
+};
+
+export function Orders({
+  orders,
+  paymentResult,
+}: {
+  orders: OrderListItem[];
+  paymentResult?: OrdersPaymentResult;
+}) {
   return (
     <main className="screen orders-page">
       <header className="orders-header">
@@ -21,6 +45,21 @@ export function Orders({ orders }: { orders: OrderListItem[] }) {
 
       <section className="orders-section" aria-labelledby="orders-list-heading">
         <div className="wrap">
+          {paymentResult && (
+            <div
+              className={`orders-payment-banner orders-payment-banner--${paymentResult}`}
+              role={paymentResult === 'failed' ? 'alert' : 'status'}
+            >
+              <strong>{PAYMENT_RESULT_COPY[paymentResult].title}</strong>
+              <p>{PAYMENT_RESULT_COPY[paymentResult].body}</p>
+              {paymentResult === 'checking' && (
+                <p>
+                  시간이 지나도 주문에 반영되지 않으면 고객센터{' '}
+                  <Link href="/my/inquiries">1:1 문의</Link>로 알려주세요.
+                </p>
+              )}
+            </div>
+          )}
           <div className="orders-section-heading">
             <h2 id="orders-list-heading">최근 주문</h2>
             <span className="mono">{orders.length}건</span>
