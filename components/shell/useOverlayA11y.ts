@@ -31,10 +31,14 @@ export function useOverlayA11y({
     if (!open) return;
     const previousOverflow = document.body.style.overflow;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    /* 본문과 푸터를 inert로 덮어 오버레이 밖으로 탭이 새지 않게 한다. */
+    /* 다이얼로그 밖 상호작용 표면 전부를 inert로 덮는다 — 본문·푸터만 덮으면
+       유틸바·헤더 컨트롤·탭바가 접근성 트리에 남아 모달인데 밖을 조작할 수 있게 된다.
+       검색 패널은 .wc-header "안"에 있으므로 헤더 전체가 아니라 형제 행들만 개별로 덮는다. */
     const backgroundElements = [
       document.getElementById('root'),
-      document.querySelector<HTMLElement>('.wc-footer'),
+      ...document.querySelectorAll<HTMLElement>(
+        '.wc-footer, .wc-utilbar, .wc-header__bar, .wc-gnb-wrap, .wc-tabbar',
+      ),
     ].filter((element): element is HTMLElement => Boolean(element));
     const previousInert = backgroundElements.map((element) => element.inert);
     document.body.style.overflow = 'hidden';

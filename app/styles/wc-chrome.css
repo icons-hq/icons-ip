@@ -131,6 +131,13 @@
    헤더 행 (로고 · 아이콘)
    ------------------------------------------------------------------ */
 
+/* 헤더가 뷰포트 상단에 닿았는지를 IntersectionObserver로 판정하기 위한 1px 센티널.
+   음수 마진으로 레이아웃 높이를 상쇄해 화면에는 아무 공간도 차지하지 않는다. */
+.wc-header-sentinel {
+  height: 1px;
+  margin-bottom: -1px;
+}
+
 .wc-header {
   position: sticky;
   top: 0;

@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Nav, shouldCondenseWcHeader } from './Nav';
+import { Nav } from './Nav';
 import { MenuSheet } from './MenuSheet';
 import { SearchOverlay } from './SearchOverlay';
 import { SiteFooter } from './SiteFooter';
@@ -114,11 +114,13 @@ describe('White Catalog 전역 셸', () => {
     expect(html).toContain('wc-header');
   });
 
-  /* 최상단 미세 스크롤(터치 바운스·앵커 점프)에서 GNB가 깜빡이지 않도록 임계값을 잠근다. */
-  it('맨 위 미세 스크롤에서는 헤더를 축약하지 않는다', () => {
-    expect(shouldCondenseWcHeader(0)).toBe(false);
-    expect(shouldCondenseWcHeader(2)).toBe(false);
-    expect(shouldCondenseWcHeader(3)).toBe(true);
+  /* 축약 판정은 스크롤 절대값이 아니라 헤더 직전 센티널의 뷰포트 이탈로 한다(IntersectionObserver).
+   * 유틸바·공지 스트립이 아직 보이는데 GNB부터 접히는 조기 축약을 막는 구조 계약이다. */
+  it('헤더 앞에 축약 판정용 센티널을 두고 SSR에서는 항상 펼친 상태로 시작한다', () => {
+    const html = renderToStaticMarkup(<Nav />);
+
+    expect(html).toMatch(/class="wc-header-sentinel"><\/div><header/);
+    expect(html).toContain('data-condensed="false"');
   });
 
   it('전체 메뉴 시트가 쇼핑·세계·내 활동·거래 그룹과 인증 액션을 담는다', () => {

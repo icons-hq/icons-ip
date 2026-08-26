@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useEffect, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react';
+import { Suspense, useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type RefObject } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { signOutAction } from '@/app/login/actions';
 import { nextPathWithSearch } from '@/lib/auth/onboarding';
@@ -25,11 +25,6 @@ import { MenuSheet } from './MenuSheet';
 import { loadUnreadNotificationCount, notificationNavigationKey } from './NotificationBell';
 import { SearchOverlay } from './SearchOverlay';
 
-/** 2px 이하는 브라우저 스크롤 복원·바운스가 만드는 잡음이라 GNB를 접지 않는다. */
-export function shouldCondenseWcHeader(scrollY: number): boolean {
-  return scrollY > 2;
-}
-
 /** 검색 오버레이와 전체 메뉴 시트는 동시에 열리지 않는다 — 하나의 상태로 다룬다. */
 type OverlayKind = 'none' | 'search' | 'sheet';
 
@@ -41,30 +36,34 @@ function loginHref() {
   )}`;
 }
 
-/** 스크롤 위치를 rAF로 묶어 한 프레임에 한 번만 축약 여부를 갱신한다. SSR 초기값은 항상 펼침이다. */
-function useHeaderCondensed() {
+/* 축약 기준은 스크롤 절대값이 아니라 "헤더가 뷰포트 상단에 닿았는가"다.
+   유틸바(그리고 S3의 공지 스트립)가 아직 화면에 있는데 GNB부터 접히면 54px 레이아웃 점프가 보인다.
+   접힘과 해제의 경계를 하나로 쓰면 접히면서 줄어든 54px에 스크롤 앵커링이 맞물려 경계 위에서 출렁이므로,
+   레퍼런스(R-01 §3.1)의 "최상단 근처에서 해제"를 그대로 둔다 — 접힘은 헤더 직전 센티널이 뷰포트를 벗어날 때,
+   해제는 크롬 최상단 센티널이 다시 보일 때. 두 센티널 사이가 히스테리시스 밴드다. SSR 초기값은 항상 펼침이다. */
+function useHeaderCondensed(
+  topSentinelRef: RefObject<HTMLElement | null>,
+  headerSentinelRef: RefObject<HTMLElement | null>,
+) {
   const [condensed, setCondensed] = useState(false);
 
   useEffect(() => {
-    let frame = 0;
-
-    const sync = () => {
-      frame = 0;
-      setCondensed(shouldCondenseWcHeader(window.scrollY));
-    };
-    const onScroll = () => {
-      if (frame) return;
-      frame = window.requestAnimationFrame(sync);
-    };
-
-    // 새로고침으로 복원된 스크롤 위치를 첫 프레임에 반영한다.
-    sync();
-    window.addEventListener('scroll', onScroll, { passive: true });
+    const top = topSentinelRef.current;
+    const boundary = headerSentinelRef.current;
+    if (!top || !boundary) return;
+    const expandObserver = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) setCondensed(false);
+    });
+    const condenseObserver = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) setCondensed(true);
+    });
+    expandObserver.observe(top);
+    condenseObserver.observe(boundary);
     return () => {
-      window.removeEventListener('scroll', onScroll);
-      if (frame) window.cancelAnimationFrame(frame);
+      expandObserver.disconnect();
+      condenseObserver.disconnect();
     };
-  }, []);
+  }, [headerSentinelRef, topSentinelRef]);
 
   return condensed;
 }
@@ -87,9 +86,15 @@ export function Nav() {
 
 function WcChrome({ cardRewardsEnabled, pathname }: { cardRewardsEnabled: boolean; pathname: string }) {
   const { count } = useCart();
-  const condensed = useHeaderCondensed();
-  /* 저장된 pathname이 지금과 다르면 닫힌 것으로 본다 — 라우트가 바뀌면 오버레이가 자동으로 닫힌다. */
+  const topSentinelRef = useRef<HTMLDivElement>(null);
+  const headerSentinelRef = useRef<HTMLDivElement>(null);
+  const condensed = useHeaderCondensed(topSentinelRef, headerSentinelRef);
   const [overlay, setOverlay] = useState<{ kind: OverlayKind; pathname: string }>({ kind: 'none', pathname });
+  /* 라우트가 바뀌면 렌더 중에 상태를 실제로 리셋한다(useHeaderScrollHide의 resetKey 패턴).
+     파생 불리언으로 가리기만 하면 뒤로/앞으로 가기로 같은 경로에 돌아왔을 때 옛 상태가 되살아나 오버레이가 멋대로 다시 열린다. */
+  if (overlay.pathname !== pathname) {
+    setOverlay({ kind: 'none', pathname });
+  }
   const searchOpen = overlay.pathname === pathname && overlay.kind === 'search';
   const sheetOpen = overlay.pathname === pathname && overlay.kind === 'sheet';
   const closeOverlay = () => setOverlay({ kind: 'none', pathname });
@@ -104,6 +109,8 @@ function WcChrome({ cardRewardsEnabled, pathname }: { cardRewardsEnabled: boolea
 
   return (
     <div className="wc-root wc-chrome">
+      {/* 축약 해제 센티널 — 이게 다시 보이는 "최상단 근처"에서만 GNB를 펼친다. */}
+      <div ref={topSentinelRef} aria-hidden className="wc-header-sentinel" />
       <a className="wc-skip-link" href="#root">본문으로 건너뛰기</a>
 
       {/* notice-strip: 큐레이션 kind(notice_strip)가 S3에서 생기기 전까지 데이터가 없어 렌더하지 않는다.
@@ -122,6 +129,8 @@ function WcChrome({ cardRewardsEnabled, pathname }: { cardRewardsEnabled: boolea
         </div>
       </nav>
 
+      {/* 축약 판정 센티널 — 뷰포트를 벗어나는 순간이 헤더가 top:0에 붙는 순간이다. */}
+      <div ref={headerSentinelRef} aria-hidden className="wc-header-sentinel" />
       <header className="wc-header" data-condensed={condensed ? 'true' : 'false'}>
         <div className="wc-header__bar">
           <div className="wc-container wc-header__bar-inner">
@@ -236,7 +245,14 @@ function CategoryMegaItem({
 }) {
   const liRef = useRef<HTMLLIElement>(null);
   const triggerRef = useRef<HTMLAnchorElement>(null);
-  const [megaOpen, setMegaOpen] = useState(false);
+  /* 셸은 라우트 전환에도 살아남는다 — 링크로 이동해도 포인터·포커스가 li 안에 남아
+     mouseleave/blur가 안 올 수 있어, 경로가 바뀌면 렌더 중에 닫힌 상태로 리셋한다. */
+  const [mega, setMega] = useState({ open: false, pathname });
+  if (mega.pathname !== pathname) {
+    setMega({ open: false, pathname });
+  }
+  const megaOpen = mega.open && mega.pathname === pathname;
+  const setMegaOpen = (open: boolean) => setMega({ open, pathname });
 
   const onBlurCapture = (event: FocusEvent<HTMLLIElement>) => {
     // 포커스가 항목 안에서 옮겨 다니는 동안에는 닫지 않는다.
@@ -284,6 +300,7 @@ function CategoryMegaItem({
                       aria-current={isActive(item.id, pathname) ? 'page' : undefined}
                       className="wc-mega__link"
                       href={hrefFor(item.id)}
+                      onClick={() => setMegaOpen(false)}
                     >
                       {item.label}
                     </Link>
