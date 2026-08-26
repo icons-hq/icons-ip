@@ -153,22 +153,23 @@
     "verified_store_browser_qa": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/verified-store-qa-evidence.json"
   },
   "deployment_validation": {
-    "github_actions_run": 32926041500,
-    "validated_commit": "fe350a7",
+    "github_actions_run": 32930111721,
+    "validated_commit": "55b036c",
     "supabase_preview": "pass-migrations-seed-baseline-and-db-contracts",
     "public_cart_compatibility_migration": "supabase/migrations/20260826023403_last_bell_public_cart_compatibility.sql",
-    "vercel_preview_url": "https://icons-jfi487yqv-sangwopark19icons-1055s-projects.vercel.app",
+    "vercel_preview_url": "https://icons-58myxkklg-sangwopark19icons-1055s-projects.vercel.app",
     "verified_route": "/experiences/all-of-us-are-dead/last-bell",
+    "verified_store_route": "/experiences/all-of-us-are-dead/last-bell/store",
     "feature_flag_scope": "preview-only-branch-ps-feat-last-bell-vertical-slice",
     "preview_checkout": "pr-head-branch-preserved-for-vercel-env-overrides",
-    "browser_readback": "pass-three-viewports-first-door-console-clean",
+    "browser_readback": "pass-game-shell-and-verified-store-three-viewports-targets-images-console-and-overflow-clean",
     "production": "not-deployed"
   },
   "status": {
     "automated_contracts": "pass",
     "local_production_build_browser_qa": "pass-three-viewports-entry-skip-first-door-console-clean",
     "verified_store_browser_qa": "pass-three-viewports-ten-products-images-console-and-overflow-clean",
-    "preview_deployment": "pass-supabase-migrations-vercel-preview-three-viewports-first-door-console-clean",
+    "preview_deployment": "pass-supabase-migrations-vercel-preview-game-shell-and-store-three-viewports-console-clean",
     "production_release": "approved-release-candidate-pending-production-readback",
     "public_cart_compatibility": "pass-public-goods-unchanged-story-entitlement-guarded",
     "automated_asset_contracts": "pass",

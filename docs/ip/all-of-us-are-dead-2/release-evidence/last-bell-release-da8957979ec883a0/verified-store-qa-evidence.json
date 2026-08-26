@@ -10,6 +10,34 @@
     "next_version": "16.3.0",
     "production_build": true
   },
+  "preview_readback": {
+    "status": "pass",
+    "reviewed_at": "2026-08-26T13:33:32+09:00",
+    "github_actions_run": 32930111721,
+    "validated_commit": "55b036c",
+    "base_url": "https://icons-58myxkklg-sangwopark19icons-1055s-projects.vercel.app",
+    "store": {
+      "route": "/experiences/all-of-us-are-dead/last-bell/store",
+      "viewports": [
+        { "id": "desktop", "width": 1280, "height": 720, "document_client_width": 1270, "document_scroll_width": 1270, "document_scroll_height": 2449, "product_grid_columns": 4 },
+        { "id": "mobile-landscape", "width": 844, "height": 390, "document_client_width": 834, "document_scroll_width": 834, "document_scroll_height": 3622, "product_grid_columns": 2 },
+        { "id": "mobile-portrait", "width": 390, "height": 844, "document_client_width": 380, "document_scroll_width": 380, "document_scroll_height": 2765, "product_grid_columns": 2 }
+      ],
+      "product_cards": 10,
+      "loaded_images": 11,
+      "broken_images": 0,
+      "horizontal_overflow": false,
+      "minimum_measured_interactive_target_css_px": 44,
+      "console_errors": 0
+    },
+    "game_shell": {
+      "route": "/experiences/all-of-us-are-dead/last-bell",
+      "viewport": { "width": 1280, "height": 720 },
+      "canvas_count": 1,
+      "horizontal_overflow": false,
+      "console_errors": 0
+    }
+  },
   "acceptance": {
     "p0_findings": 0,
     "product_cards": 10,
