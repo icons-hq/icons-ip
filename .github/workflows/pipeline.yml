@@ -436,7 +436,7 @@ jobs:
               --project-ref "$SUPABASE_PREVIEW_PROJECT_ID" \
               --output json
           )"
-          for name in POSTGRES_URL SUPABASE_URL SUPABASE_PUBLISHABLE_KEY SUPABASE_SERVICE_ROLE_KEY; do
+          for name in POSTGRES_URL SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
             value="$(jq -r --arg name "$name" '.[$name] // empty' <<<"$credentials")"
             if [ -z "$value" ]; then
               echo "::error title=Missing Supabase branch credential::$name is unavailable"
@@ -445,6 +445,16 @@ jobs:
             echo "::add-mask::$value"
             printf '%s=%s\n' "$name" "$value" >> "$GITHUB_ENV"
           done
+          public_key="$(
+            jq -r '.SUPABASE_PUBLISHABLE_KEY // .SUPABASE_ANON_KEY // empty' \
+              <<<"$credentials"
+          )"
+          if [ -z "$public_key" ]; then
+            echo "::error title=Missing Supabase branch credential::No publishable or anon key is available"
+            exit 1
+          fi
+          echo "::add-mask::$public_key"
+          printf 'SUPABASE_PUBLISHABLE_KEY=%s\n' "$public_key" >> "$GITHUB_ENV"
           printf 'PROJECT_REF=%s\n' "$branch_project_ref" >> "$GITHUB_ENV"
 
       # 실제 preview 호스트는 프로젝트 이름(`icons-ip`)이 아니라 배포 접두(`icons-`)를
@@ -621,7 +631,7 @@ jobs:
               --output json
           )"
           resolved_supabase_url=""
-          for name in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY SUPABASE_SERVICE_ROLE_KEY; do
+          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
             value="$(jq -r --arg name "$name" '.[$name] // empty' <<<"$credentials")"
             if [ -z "$value" ]; then
               echo "::error title=Missing Supabase deployment credential::$name is unavailable"
@@ -633,6 +643,16 @@ jobs:
             echo "::add-mask::$value"
             printf '%s=%s\n' "$name" "$value" >> "$GITHUB_ENV"
           done
+          public_key="$(
+            jq -r '.SUPABASE_PUBLISHABLE_KEY // .SUPABASE_ANON_KEY // empty' \
+              <<<"$credentials"
+          )"
+          if [ -z "$public_key" ]; then
+            echo "::error title=Missing Supabase deployment credential::No publishable or anon key is available"
+            exit 1
+          fi
+          echo "::add-mask::$public_key"
+          printf 'SUPABASE_PUBLISHABLE_KEY=%s\n' "$public_key" >> "$GITHUB_ENV"
 
           if [ "$resolved_supabase_url" = "https://${SUPABASE_PRODUCTION_PROJECT_ID}.supabase.co" ]; then
             echo "::error title=Preview resolved to production::Refusing Vercel deployment"

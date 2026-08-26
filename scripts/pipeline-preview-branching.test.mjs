@@ -50,6 +50,9 @@ describe('Supabase preview branch workflow contract', () => {
     expect(prepare.run).toContain('--region ap-northeast-2');
     expect(prepare.run).toContain('--size micro');
     expect(prepare.run).not.toContain('--with-data');
+    expect(prepare.run).toContain(
+      '.SUPABASE_PUBLISHABLE_KEY // .SUPABASE_ANON_KEY // empty',
+    );
     expect(push.if).toContain("database_mode == 'isolated'");
     expect(push.run).toBe('supabase db push --db-url "$POSTGRES_URL" --include-seed --yes');
     expect(verify.if).toContain("database_mode == 'isolated'");
@@ -66,6 +69,7 @@ describe('Supabase preview branch workflow contract', () => {
     expect(load.run).toContain('supabase branches get "$expected_branch"');
     expect(load.run).toContain('SUPABASE_PREVIEW_PROJECT_ID');
     expect(load.run).toContain('SUPABASE_PRODUCTION_PROJECT_ID');
+    expect(load.run).toContain('.SUPABASE_PUBLISHABLE_KEY // .SUPABASE_ANON_KEY // empty');
     for (const name of [
       'NEXT_PUBLIC_SUPABASE_URL',
       'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
