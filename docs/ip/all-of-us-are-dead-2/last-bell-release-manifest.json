@@ -150,13 +150,14 @@
     "browser_qa": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser-qa-evidence.json"
   },
   "deployment_validation": {
-    "github_actions_run": 32923471193,
-    "validated_commit": "3977884",
+    "github_actions_run": 32926041500,
+    "validated_commit": "fe350a7",
     "supabase_preview": "pass-migrations-seed-baseline-and-db-contracts",
     "public_cart_compatibility_migration": "supabase/migrations/20260826023403_last_bell_public_cart_compatibility.sql",
-    "vercel_preview_url": "https://icons-figslnzst-sangwopark19icons-1055s-projects.vercel.app",
+    "vercel_preview_url": "https://icons-jfi487yqv-sangwopark19icons-1055s-projects.vercel.app",
     "verified_route": "/experiences/all-of-us-are-dead/last-bell",
     "feature_flag_scope": "preview-only-branch-ps-feat-last-bell-vertical-slice",
+    "preview_checkout": "pr-head-branch-preserved-for-vercel-env-overrides",
     "browser_readback": "pass-three-viewports-first-door-console-clean",
     "production": "not-deployed"
   },
