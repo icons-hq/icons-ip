@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getAccountDeletionPresentation } from './account-deletion.server';
+import {
+  getAccountDeletionPresentation,
+  getCurrentAccountDeletionWriteFenceState,
+} from './account-deletion.server';
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -72,5 +75,37 @@ describe('getAccountDeletionPresentation', () => {
         status: 'not_requested', phase: 'none', nextAction: '/settings', blockers: [],
       },
     });
+  });
+});
+
+describe('getCurrentAccountDeletionWriteFenceState', () => {
+  beforeEach(() => {
+    mocks.createClient.mockReset();
+    mocks.rpc.mockReset();
+    mocks.createClient.mockResolvedValue({ rpc: mocks.rpc });
+  });
+
+  it('permits only the exact public not-requested status returned by the self RPC', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: { status: 'not_requested', phase: 'none', nextAction: '/settings', blockers: [] },
+      error: null,
+    });
+
+    await expect(getCurrentAccountDeletionWriteFenceState()).resolves.toBe('clear');
+    expect(mocks.rpc).toHaveBeenCalledWith('get_my_account_deletion_status');
+  });
+
+  it.each([
+    { status: 'blocked', phase: 'fenced', nextAction: '/settings', blockers: [{ code: 'not_available', count: 1, path: '/settings' }] },
+    { status: 'processing', phase: 'awaiting_notification', nextAction: 'retry_later', blockers: [] },
+    { status: 'not_requested', phase: 'none', nextAction: '/settings', blockers: 'not-an-array' },
+  ])('treats non-clear or malformed public deletion status as a write fence', async (data) => {
+    mocks.rpc.mockResolvedValue({ data, error: null });
+    await expect(getCurrentAccountDeletionWriteFenceState()).resolves.toBe('fenced');
+  });
+
+  it('fails closed when the self-scoped status RPC is unavailable', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'rpc unavailable' } });
+    await expect(getCurrentAccountDeletionWriteFenceState()).resolves.toBe('unavailable');
   });
 });

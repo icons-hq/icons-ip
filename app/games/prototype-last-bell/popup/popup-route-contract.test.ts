@@ -35,7 +35,16 @@ describe('AOUAD popup route contract', () => {
   it('preloads only the visible hub or zone hero after the persistent in-memory opening state is dismissed', () => {
     expect(popup).toContain('preloadHero={!openingOpen}');
     expect(popup.match(/preload=\{preloadHero && state\.openingSeen\}/g)).toHaveLength(2);
-    expect(popup).toContain('? <ZoneView zone={zone} preloadHero={!openingOpen} />');
-    expect(popup).toContain(': <Hub studentPhotoUrl={studentPhoto.photoUrl} includeStudentPhotoInShare={studentPhoto.includeInShare} preloadHero={!openingOpen} />');
+    expect(popup).toContain('? <ZoneView zone={zone} preloadHero={!openingOpen} entry={entry} />');
+    expect(popup).toContain(': <Hub studentPhotoUrl={studentPhoto.photoUrl} includeStudentPhotoInShare={studentPhoto.includeInShare} preloadHero={!openingOpen} entry={entry} />');
+  });
+
+  it('passes request-time auth and verified-host context without making the client shell authoritative', () => {
+    expect(page).toContain('getAouadGameEntryContext()');
+    expect(page).toContain('<AouadCampaignPopup entry={entry} />');
+    expect(zonePage).toContain('<AouadCampaignPopup zone={zone} entry={entry} />');
+    expect(popup).toContain("entry.authority === 'verified-candidate'");
+    expect(popup).toContain('로그인하고 시작');
+    expect(popup).toContain('게스트로 시작');
   });
 });

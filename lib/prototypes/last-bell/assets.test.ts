@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from 'n
 import { isAbsolute, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { LAST_BELL_ASSETS } from './assets';
+import { LAST_BELL_3D_DELIVERY_FILE_PATHS } from './environment3d';
 
 const root = resolve(process.cwd());
 const publicRoot = resolve(root, 'public');
@@ -35,6 +36,29 @@ type AssetManifest = {
 
 const AOUAD_SOURCE_COMMIT = 'd63c7f0c4c5851c9722afdd895c87b72a7217c2d';
 
+const REJECTED_CHAPTER_ONE_CONCEPTS = [
+  {
+    id: 'concept-ch1-entry-brand-v1',
+    path: 'docs/ip/all-of-us-are-dead-2/concepts/ch1-entry-brand-v1.png',
+    sha256: '4bfb507e65f4896eddee6d2ede1a51d6257748d6e726920f11a8875e57f4d91c',
+  },
+  {
+    id: 'concept-ch1-cold-open-seated-v1',
+    path: 'docs/ip/all-of-us-are-dead-2/concepts/ch1-cold-open-seated-v1.png',
+    sha256: '4ff1dba0a542fe2a0f8d40dcce302c01c5e60702c386902866a08f4fdd3ff003',
+  },
+  {
+    id: 'concept-ch1-start-room-first-door-v1',
+    path: 'docs/ip/all-of-us-are-dead-2/concepts/ch1-start-room-first-door-v1.png',
+    sha256: '4ecf039505f397e1848c4bddb9079f2848171fa79318a1798b76cd45e940f47d',
+  },
+  {
+    id: 'concept-ch1-mobile-hud-844x390-v1',
+    path: 'docs/ip/all-of-us-are-dead-2/concepts/ch1-mobile-hud-844x390-v1.png',
+    sha256: '8d5c24b167d8d98138c8d04eb342c725fde0dc2723e98485e3614d1eae826048',
+  },
+] as const;
+
 function readManifest(): AssetManifest {
   return JSON.parse(readFileSync(manifestPath, 'utf8')) as AssetManifest;
 }
@@ -59,15 +83,16 @@ function resolveManifestAssetPath(assetPath: string) {
 
 function runtimeAssetPaths() {
   return [
-    LAST_BELL_ASSETS.openingPlate,
-    LAST_BELL_ASSETS.outbreakPlate,
-    LAST_BELL_ASSETS.corridorPlate,
-    LAST_BELL_ASSETS.powerPlate,
-    LAST_BELL_ASSETS.bellPlate,
     LAST_BELL_ASSETS.logo,
-    ...Object.values(LAST_BELL_ASSETS.materials),
     ...Object.values(LAST_BELL_ASSETS.audio),
+    ...LAST_BELL_3D_DELIVERY_FILE_PATHS,
   ];
+}
+
+function exportedAssetPaths(value: unknown): string[] {
+  if (typeof value === 'string') return [value];
+  if (value && typeof value === 'object') return Object.values(value).flatMap(exportedAssetPaths);
+  return [];
 }
 
 describe('last bell asset contract', () => {
@@ -81,9 +106,9 @@ describe('last bell asset contract', () => {
     for (const assetPath of runtimeAssetPaths()) expect(paths.has(assetPath)).toBe(true);
   });
 
-  it('keeps all 64 unified game and campaign files present with recorded integrity', () => {
+  it('keeps all 74 active game and campaign files present with recorded integrity', () => {
     const manifest = readManifest();
-    expect(manifest.assets).toHaveLength(64);
+    expect(manifest.assets).toHaveLength(74);
     for (const asset of manifest.assets) {
       const filePath = resolveManifestAssetPath(asset.path);
       const bytes = readFileSync(filePath);
@@ -97,6 +122,24 @@ describe('last bell asset contract', () => {
       expect(bytes.byteLength, asset.path).toBe(asset.byte_size);
       expect(createHash('sha256').update(bytes).digest('hex'), asset.path).toBe(asset.sha256);
     }
+  });
+
+  it('rejects the four replaced Chapter 1 concepts from the manifest and runtime', () => {
+    const manifest = readManifest();
+    const manifestIds = new Set(manifest.assets.map((asset) => asset.id));
+    const exportedPaths = exportedAssetPaths(LAST_BELL_ASSETS);
+
+    for (const rejected of REJECTED_CHAPTER_ONE_CONCEPTS) {
+      expect(manifestIds, rejected.id).not.toContain(rejected.id);
+      expect(existsSync(resolve(root, rejected.path)), rejected.id).toBe(false);
+      expect(exportedPaths, rejected.id).not.toContain(rejected.path);
+      expect(rejected.sha256).toMatch(/^[a-f0-9]{64}$/);
+    }
+  });
+
+  it('keeps generated legacy material maps out of the active post-strike runtime', () => {
+    expect('materials' in LAST_BELL_ASSETS).toBe(false);
+    expect(existsSync(resolve(root, 'components/prototype/last-bell/scene/SchoolMaterials.tsx'))).toBe(false);
   });
 
   it('locks the campaign source and all 24 official images to the approved commit', () => {

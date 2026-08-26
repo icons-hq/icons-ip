@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="replaceable candle graphic layer" data-stable-key="candle">
+  <rect width="512" height="512" rx="32" fill="#ded9ba"/>
+  <path d="M256 112a144 144 0 1 0 0 288a144 144 0 1 0 0-288M256 160a96 96 0 1 0 0 192a96 96 0 1 0 0-192M256 208a48 48 0 1 0 0 96a48 48 0 1 0 0-96" fill="none" stroke="#17656b" stroke-width="18"/><path d="M256 70v52" stroke="#a24e26" stroke-width="20" stroke-linecap="round"/>
+</svg>

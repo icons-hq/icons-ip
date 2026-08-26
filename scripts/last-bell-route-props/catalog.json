@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "build_id_prefix": "last-bell-route-props",
+  "stage_only": true,
+  "transfer_hard_cap_mib": 6,
+  "props": [
+    {
+      "key": "classroom-desk-chair",
+      "display_name": "Damaged Korean classroom desk and chair",
+      "anchor": "environment.classroom.desk-chair",
+      "collision_m": [2.4, 1.45, 1.6]
+    },
+    {
+      "key": "locker-bank",
+      "display_name": "Damaged school locker bank",
+      "anchor": "environment.corridor.locker-bank",
+      "collision_m": [2.9, 0.58, 2.4]
+    },
+    {
+      "key": "broken-fluorescent",
+      "display_name": "Broken fluorescent ceiling fixture",
+      "anchor": "environment.classroom.broken-fluorescent",
+      "collision_m": [2.4, 0.4, 0.34]
+    },
+    {
+      "key": "debris-cluster",
+      "display_name": "Mixed plaster brick and concrete debris cluster",
+      "anchor": "environment.corridor.debris-cluster",
+      "collision_m": [2.2, 1.3, 0.85]
+    },
+    {
+      "key": "rooftop-hvac",
+      "display_name": "Rooftop HVAC and vent assembly",
+      "anchor": "environment.rooftop.hvac-vent",
+      "collision_m": [2.6, 1.6, 2.1]
+    },
+    {
+      "key": "campfire-kit",
+      "display_name": "Firewood and campfire prop",
+      "anchor": "environment.rooftop.campfire-kit",
+      "collision_m": [1.65, 1.65, 0.8]
+    }
+  ]
+}

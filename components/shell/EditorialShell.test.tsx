@@ -77,8 +77,8 @@ describe('Living IP Editorial shell', () => {
     mocks.pathname = '/';
   });
 
-  it('does not render the product shell on auth, game, or admin routes', () => {
-    for (const pathname of ['/login', '/games/roulette', '/admin']) {
+  it('does not render the product shell on auth, game, immersive experience, or admin routes', () => {
+    for (const pathname of ['/login', '/games/roulette', '/experiences/all-of-us-are-dead/last-bell', '/admin']) {
       mocks.pathname = pathname;
       expect(renderToStaticMarkup(<Nav />)).toBe('');
     }

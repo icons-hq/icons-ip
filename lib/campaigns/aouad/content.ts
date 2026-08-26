@@ -1,3 +1,8 @@
+import {
+  LAST_BELL_PRODUCT_CATALOG,
+  type LastBellCollectibleKey,
+} from './last-bell-products';
+
 export const AOUAD_POPUP_PATH = '/games/prototype-last-bell/popup';
 
 export const AOUAD_ZONE_IDS = [
@@ -102,12 +107,14 @@ export const AOUAD_IF_ENDINGS = [
 
 export type AouadIfEndingId = (typeof AOUAD_IF_ENDINGS)[number]['id'];
 
-export const AOUAD_STORE_PREVIEW = [
-  { id: 'id-set', name: '효산고 학생증 세트', category: '신분', image: AOUAD_IMAGES.classroom },
-  { id: 'survival-pouch', name: '생존 키트 파우치', category: '보급', image: AOUAD_IMAGES.cafeteria },
-  { id: 'radio-keyring', name: '무전기 키링', category: '신호', image: AOUAD_IMAGES.broadcast },
-  { id: 'ember-candle', name: '모닥불 캔들', category: '기록', image: AOUAD_IMAGES.rooftop },
-] as const;
+export const AOUAD_STORE_PREVIEW = LAST_BELL_PRODUCT_CATALOG.map((item) => ({
+  ...item,
+  id: item.key,
+  image: item.thumbnailPath,
+})) satisfies readonly (typeof LAST_BELL_PRODUCT_CATALOG[number] & {
+  id: LastBellCollectibleKey;
+  image: string;
+})[];
 
 export type AouadStorePreviewId = (typeof AOUAD_STORE_PREVIEW)[number]['id'];
 

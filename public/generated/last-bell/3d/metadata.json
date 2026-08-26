@@ -1,0 +1,342 @@
+{
+  "schema": 1,
+  "build_id": "last-bell-3d-e3367030b580e17d",
+  "generated_by": "scripts/last-bell-3d/build.py + build.sh",
+  "art_source": "deterministic-authored + approved-polyhaven-cc0-pbr",
+  "no_source_pixel_projection": true,
+  "external_pbr_provenance": "raw/polyhaven-pbr/provenance.json",
+  "physical_texture_scale_m": {
+    "Dirty_Floor_Tile": 2,
+    "Charred_Plaster": 1.8,
+    "Smoked_Aluminium": 1,
+    "Worn_Wood": 0.6,
+    "Exposed_Brick": 1.4,
+    "Wired_Glass": 0.65,
+    "Blackboard": 1.2,
+    "Hyosan_Yellow": 1.5,
+    "School_PaintedLower": 1.8,
+    "School_UpperPaint": 1.8,
+    "Damaged_AcousticCeiling": 0.8,
+    "Door_RustedMetal": 1
+  },
+  "coordinate_contract": {
+    "start_room": "x[-7,7] z[-2,13.2] y[0,4]",
+    "player_start": [
+      0,
+      1.68,
+      4
+    ],
+    "door_closed_transform": [
+      0,
+      1.5,
+      13
+    ],
+    "portal": "x[-1.1,1.1] z[12.85,13.15]",
+    "first_bay": "x[-3,3] z[13.2,25] y[0,4]",
+    "cold_open_camera": [
+      2.5,
+      1.44,
+      9.6
+    ]
+  },
+  "static_lightmaps": {
+    "start-room": {
+      "png": "raw/bakes/start-room-static-ao.png",
+      "state": "cycles-ground-receiver-ao"
+    },
+    "first-bay": {
+      "png": "raw/bakes/first-bay-static-ao.png",
+      "state": "cycles-ground-receiver-ao"
+    },
+    "entry": {
+      "png": "raw/bakes/entry-static-ao.png",
+      "state": "cycles-ground-receiver-ao"
+    }
+  },
+  "texture_policy": {
+    "base_and_emissive": "ETC1S KTX2 in GLBs",
+    "normal_orm_and_static_ao": "UASTC KTX2",
+    "geometry": "EXT_meshopt_compression",
+    "uv0": "PBR",
+    "uv1": "PBR secondary UVs; AO-receiver floors are explicitly packed non-overlap"
+  },
+  "assets": {
+    "entry": {
+      "path": "entry.glb",
+      "lightmaps": [
+        {
+          "path": "lightmaps/entry-medium.ktx2",
+          "tier": "medium",
+          "nodes": [
+            "Entry_WetForecourt"
+          ],
+          "uv": "uv1",
+          "intensity": 1,
+          "kind": "cycles-ground-receiver-ao"
+        }
+      ]
+    },
+    "startRoom": {
+      "path": "start-room.glb",
+      "lightmaps": [
+        {
+          "path": "lightmaps/start-room-medium.ktx2",
+          "tier": "medium",
+          "nodes": [
+            "StartRoom_DirtyTileFloor"
+          ],
+          "uv": "uv1",
+          "intensity": 1,
+          "kind": "cycles-ground-receiver-ao"
+        }
+      ]
+    },
+    "firstBay": {
+      "path": "first-bay.glb",
+      "lightmaps": [
+        {
+          "path": "lightmaps/first-bay-medium.ktx2",
+          "tier": "medium",
+          "nodes": [
+            "FirstBay_DirtyTileFloor"
+          ],
+          "uv": "uv1",
+          "intensity": 1,
+          "kind": "cycles-ground-receiver-ao"
+        }
+      ]
+    },
+    "classroomDoor": {
+      "path": "classroom-door.glb",
+      "lightmaps": []
+    }
+  },
+  "critical_transfer": {
+    "bytes": 16326468,
+    "mib": 15.57,
+    "target_mib": 18,
+    "hard_cap_mib": 25
+  },
+  "models": [
+    {
+      "file": "entry.glb",
+      "bytes": 4241884,
+      "sha256": "8ad2bd5ab0c233b3c392b6c48181c19fe239c0c013e310c3d7df4fdbe6dbacff",
+      "kib": 4142.5,
+      "triangles": 23284,
+      "primitives": 134,
+      "materials": 12,
+      "textures": 34,
+      "nodes": 140,
+      "scene_nodes": 140,
+      "semantic_extras": 140,
+      "uv1_primitives": 134,
+      "opaque_materials": 10,
+      "blend_materials": 2,
+      "transparent_material_names": [
+        "Wired_Glass",
+        "Damage_Decal_Atlas"
+      ],
+      "instanced_nodes": 0,
+      "draw_call_estimate": 134,
+      "raw_bounds": {
+        "min": [
+          -14.4,
+          -0.16,
+          -3.5
+        ],
+        "max": [
+          14.4,
+          5.4,
+          5.77
+        ]
+      },
+      "optimized_bounds_approx": {
+        "min": [
+          -253944.25,
+          -83558.401,
+          -114676.75
+        ],
+        "max": [
+          253944.25,
+          83563.501,
+          114676.75
+        ]
+      },
+      "extensions_used": [
+        "EXT_meshopt_compression",
+        "KHR_mesh_quantization",
+        "KHR_texture_basisu"
+      ]
+    },
+    {
+      "file": "start-room.glb",
+      "bytes": 6430560,
+      "sha256": "82742cd531cf346ac0b4c1f502312f5a96d07438042c7125be8082d6e4b05e42",
+      "kib": 6279.8,
+      "triangles": 32654,
+      "primitives": 244,
+      "materials": 15,
+      "textures": 43,
+      "nodes": 283,
+      "scene_nodes": 283,
+      "semantic_extras": 283,
+      "uv1_primitives": 244,
+      "opaque_materials": 13,
+      "blend_materials": 2,
+      "transparent_material_names": [
+        "Damage_Decal_Atlas",
+        "Wired_Glass"
+      ],
+      "instanced_nodes": 0,
+      "draw_call_estimate": 249,
+      "raw_bounds": {
+        "min": [
+          -7,
+          -0.189,
+          -2.2
+        ],
+        "max": [
+          7,
+          4.01,
+          13.2
+        ]
+      },
+      "optimized_bounds_approx": {
+        "min": [
+          -229360.397,
+          -65547.999,
+          -249023.597
+        ],
+        "max": [
+          229360.397,
+          65551.999,
+          249034.797
+        ]
+      },
+      "extensions_used": [
+        "EXT_meshopt_compression",
+        "KHR_mesh_quantization",
+        "KHR_texture_basisu"
+      ]
+    },
+    {
+      "file": "first-bay.glb",
+      "bytes": 4062088,
+      "sha256": "ab7e6fb79e457c90988ffbd8ff9727973193603d73598cff00862c71a55b3c6a",
+      "kib": 3966.9,
+      "triangles": 13088,
+      "primitives": 113,
+      "materials": 12,
+      "textures": 34,
+      "nodes": 128,
+      "scene_nodes": 128,
+      "semantic_extras": 128,
+      "uv1_primitives": 113,
+      "opaque_materials": 10,
+      "blend_materials": 2,
+      "transparent_material_names": [
+        "Wired_Glass",
+        "Damage_Decal_Atlas"
+      ],
+      "instanced_nodes": 0,
+      "draw_call_estimate": 113,
+      "raw_bounds": {
+        "min": [
+          -3,
+          -0.16,
+          13.2
+        ],
+        "max": [
+          3,
+          4,
+          25.009
+        ]
+      },
+      "optimized_bounds_approx": {
+        "min": [
+          -98305.802,
+          -65541.101,
+          -193306.203
+        ],
+        "max": [
+          98305.802,
+          65545.101,
+          193344.403
+        ]
+      },
+      "extensions_used": [
+        "EXT_meshopt_compression",
+        "KHR_mesh_quantization",
+        "KHR_texture_basisu"
+      ]
+    },
+    {
+      "file": "classroom-door.glb",
+      "bytes": 712872,
+      "sha256": "485b54d9fb4aa812535ee5853f57080d3a7df4b7b5752728b5e55956208784d8",
+      "kib": 696.2,
+      "triangles": 3636,
+      "primitives": 31,
+      "materials": 3,
+      "textures": 9,
+      "nodes": 38,
+      "scene_nodes": 38,
+      "semantic_extras": 38,
+      "uv1_primitives": 31,
+      "opaque_materials": 2,
+      "blend_materials": 1,
+      "transparent_material_names": [
+        "Wired_Glass"
+      ],
+      "instanced_nodes": 0,
+      "draw_call_estimate": 31,
+      "raw_bounds": {
+        "min": [
+          -1.72,
+          -1.53,
+          -0.205
+        ],
+        "max": [
+          1.73,
+          1.725,
+          0.17
+        ]
+      },
+      "optimized_bounds_approx": {
+        "min": [
+          -52099.391,
+          -50133.479,
+          -4586.74
+        ],
+        "max": [
+          52099.671,
+          50133.539,
+          4586.78
+        ]
+      },
+      "extensions_used": [
+        "EXT_meshopt_compression",
+        "KHR_mesh_quantization",
+        "KHR_texture_basisu"
+      ]
+    }
+  ],
+  "lightmaps": [
+    {
+      "file": "lightmaps/entry-medium.ktx2",
+      "bytes": 251764,
+      "sha256": "86a9741d883687c7233e734344caa3aadf4b284c89d23270338fc7d9368b54e2"
+    },
+    {
+      "file": "lightmaps/first-bay-medium.ktx2",
+      "bytes": 455562,
+      "sha256": "46760ab9ba84f7a78dd5ee5633c01f18b4cea320e74348ba5ab470f98fa4155f"
+    },
+    {
+      "file": "lightmaps/start-room-medium.ktx2",
+      "bytes": 171738,
+      "sha256": "eb8f0048d12cb79693b3caec452ce1ed1f96b78733d0348299ed9736b2c609e5"
+    }
+  ]
+}

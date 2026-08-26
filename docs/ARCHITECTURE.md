@@ -1,6 +1,6 @@
 # ICONS — 아키텍처
 
-> 상태: Draft · 최종 수정 2026-08-21 · 짝 문서: [`PRD.md`](./PRD.md)
+> 상태: Draft · 최종 수정 2026-08-25 · 짝 문서: [`PRD.md`](./PRD.md)
 > 이 문서는 **어떻게 만들 것인가**를 정의한다. 현재 코드베이스(프로토타입)에서 출발해 목표 아키텍처와 이전 경로를 기술한다.
 >
 > ⚠️ 이 프로젝트의 Next.js 16은 학습 데이터와 API/관례가 다를 수 있다(`AGENTS.md`). 실제 코드 작성 전 `node_modules/next/dist/docs/`를 확인한다. 본 문서가 코드 디테일과 어긋나면 코드를 따른다.
@@ -9,7 +9,7 @@
 
 ## 1. 설계 원칙
 
-1. **공개 우선 브라우징**: 카탈로그·피드는 비로그인 공개. 보호는 액션 단위(결제·카드팩 개봉·게임 플레이·작성·팔로우). 단, PRD §4.3의 지우학2 비보상 스토리 플레이만 별도 게스트 권위 경계를 사용한다.
+1. **공개 우선 브라우징**: 카탈로그·피드는 비로그인 공개. 보호는 액션 단위(결제·카드팩 개봉·게임 플레이·작성·팔로우). 단, PRD §4.3의 Last Bell 스토리 플레이는 별도 게스트 run 권위 경계를 사용하고 구매권 계정 이전 시 로그인한다.
 2. **돈·재고·무작위 결과는 DB에서 지킨다**: 주문·티켓 재고·카드 발급과 향후 실물 경품 배정의 원자성은 Postgres 함수(RPC)+행 잠금으로 보장한다. 앱 레벨 동시성이나 클라이언트 RNG에 의존하지 않는다.
 3. **결제는 provider 재검증이 확정한다**: 클라이언트 성공 신호와 callback body는 입력일 뿐이다. 서버가 `PaymentGateway`를 통해 provider 결과를 확인하고 DB 멱등 경계에서만 주문·티켓을 확정한다.
 4. **데이터 격리는 RLS로**: 사용자 데이터는 소유자 범위, 카탈로그는 공개 읽기, 관리자는 역할 + 감사 로그.
@@ -28,7 +28,7 @@
 | 셸 | Nav · MobNav · SiteFooter · CartProvider · AuthPresenceProvider · 로그인 사용자 unread-count 알림 벨 · `useGo` | `components/shell/*` |
 | 라우팅 맵 | 프로토타입 route-id ↔ 경로 | `lib/routes.ts` |
 | 실행 표면 | 현재 제품 런타임은 Next.js 웹 하나다. 범용 온라인 팝업 운영 레이어와 Expo/webview 호스트는 현 로드맵에 없으며 기존 `PopupGameHost` 이름은 네이티브 지원 약속이 아니다 | `app/`, `lib/games/*`, superseded ADR-0002 |
-| IP 시즌 비보상 스토리 | 현재 `/games/prototype-last-bell`은 서버 전용 exact env gate가 없으면 404인 `noindex` 독립 prototype이다. 게스트의 Chapter 완료와 24시간 checkpoint는 클라이언트·localStorage 범위이며 보상·순위·계정 기록 권위가 없다 | `app/games/prototype-last-bell`, `lib/prototypes/last-bell/*`, `docs/ip/all-of-us-are-dead-2/*` |
+| Last Bell 스토리 캠페인 | `/games/prototype-last-bell`은 local QA 전용이고 구매권을 만들지 않는다. 별도 gate의 `/experiences/all-of-us-are-dead/last-bell`은 `VerifiedRunHost`와 service-only RPC로 run·수집·출구를 검증하고, 계정 귀속 뒤에만 스토리 구매권을 조회한다 | `app/games/prototype-last-bell`, `app/experiences/all-of-us-are-dead/last-bell`, `app/api/experiences/last-bell`, `lib/experiences/last-bell`, `supabase/migrations/20260825023830_last_bell_verified_runs_and_entitlements.sql` |
 | 데이터 | Supabase 공개 카탈로그(보관 항목 제외)와 현재 활성 홈 히어로·공지·특집 IP, 커뮤니티 visible 전체 피드·본인 `ip_follows` 기반 내 팬덤 피드/comment preview, Postgres 검색 읽기 + mock fallback. 보관된 IP의 기존 주문·바인더·팔로우·커뮤니티 이력 조회는 유지한다. Vercel Preview의 공개 카탈로그 기본값은 static mock이며 `ICONS_CATALOG_SOURCE=supabase`로 프리뷰 DB를 읽게 바꾼다 — 어드민 콘솔은 언제나 Supabase를 본다. IP 상세 커뮤니티 preview도 Supabase `posts`/`public_profiles`에서 읽음 | `lib/catalog.ts`, `lib/home-catalog.ts`, `lib/catalog-source.ts`, `lib/community.server.ts`, `lib/search.ts`, `lib/data.ts` |
 | 인증 | Supabase SSR 이메일/PW Auth, 가입/OAuth shared callback과 recovery 전용 callback, 비밀번호 재설정, 온보딩 게이트. 표시 전용 AuthPresenceProvider가 unknown/signed-in/signed-out 상태를 AuthButton·MobNav에 동기화하고 보호 판정은 각 Server Page가 수행한다. env 없으면 no-op/폼 비활성화 | `app/login/*`, `app/auth/callback/route.ts`, `app/auth/recovery/callback/route.ts`, `app/update-password/*`, `app/onboarding/*`, `app/my/*`, `components/shell/AuthPresenceProvider.tsx`, `components/shell/AuthButton.tsx`, `lib/auth/*`, `lib/supabase/*`, 루트 `proxy.ts` |
 | 보호 액션 | IP 팔로우/언팔로우·IP별 드롭/이벤트 알림 설정, 알림 읽음 처리, 온보딩 추천 IP 저장. 커뮤니티 포스트·댓글 작성 코드는 연결돼 있지만 생성·수정은 private control을 읽는 단일 trigger seam에서 기본 OFF다. 공개 읽기·좋아요·작성자 삭제·신고·차단과 운영자 숨김은 유지 | `app/ip/actions.ts`, `app/notifications/actions.ts`, `app/onboarding/actions.ts`, `app/community/actions.ts`, `app/admin/actions.ts`, `lib/ip-follow*`, `lib/notifications*`, `supabase/migrations/20260623090001_ip_follow_rpc.sql`, `supabase/migrations/20260624103001_community_comment_like_actions.sql`, `supabase/migrations/20260626090001_community_moderation_actions.sql`, `supabase/migrations/20260716090001_in_app_notifications.sql`, `supabase/migrations/20260716151616_community_post_editing.sql`, `supabase/migrations/20260717090001_community_comment_moderation.sql`, `supabase/migrations/20260813081224_community_write_gate.sql`, `supabase/migrations/20260813083505_deepen_community_write_guard.sql` |
@@ -56,9 +56,11 @@
 |---|---|---|
 | `reward-game` | 일반 `/games/[gameId]` | 로그인 후 `play_game`이 결과와 카드 발급을 서버에서 확정한다. 클라이언트는 확정 결과만 연출한다. |
 | `local-prototype` | 현재 `/games/prototype-last-bell` | `ICONS_LAST_BELL_PROTOTYPE === "1"`일 때만 열리고 그 외에는 404이며 `noindex, nofollow`다. 게스트의 클라이언트 완료·checkpoint는 `leaderboardEligible: false`인 로컬 진행일 뿐 보상, 순위, 계정 기록, 상품·구매 권한을 만들지 않는다. |
-| `anonymous-story-run` | 지우학2 비보상 스토리의 production 목표 | 공개 전에 서버가 opaque run ID·seed를 발급하고 Chapter 통과 이벤트의 순서·소요 시간·불가능한 이동을 검증해야 한다. 순위 제출과 로그인 계정 이전은 이 검증 기록만 사용하며, 정확한 저장·이전 계약 승인 전에는 production 게스트 표면을 열지 않는다. |
+| `verified-story-run` | gate된 `/experiences/all-of-us-are-dead/last-bell` | `ICONS_LAST_BELL_VERIFIED_EXPERIENCE=1`과 `ICONS_LAST_BELL_VERIFIED_CATALOG=1`이 함께 열린 Last Bell 캠페인 한정 예외다. 로그인 사용자는 계정 run, 게스트는 raw token을 `HttpOnly; Secure; SameSite=Lax` 쿠키에만 두고 DB에는 SHA-256 digest만 저장한다. 서버가 sequence·milestone·물리적 최소 전이 시간·chapter/zone/checkpoint·중복 수집을 검증하며, 검증된 엔딩 또는 재플레이 출구의 수집품만 구매권으로 귀속한다. 최소 전이 시간은 event burst 방지용이고 플레이 목표 시간은 실제 경로의 5회 측정으로 승인한다. |
 
-`anonymous-story-run`의 실시간 이동·AI는 클라이언트가 시뮬레이션할 수 있지만 서버 결과 권위가 필요한 순위·계정 기록은 클라이언트 완료 신호만으로 만들지 않는다. 로그인은 계정 귀속 서버 저장·순위 등록·계정 이전·구매·공유처럼 계정이 필요한 후속 액션에서 요구한다. 스토리 완료는 `games`·`game_plays`·`draw_tickets`·카드 발급, 상품 혜택·할인·재고·구매 자격과 연결하지 않는다.
+`verified-story-run`의 실시간 이동·AI는 React 밖 `LastBellSimulation`의 30Hz fixed step에서 실행하고 R3F는 snapshot을 렌더링한다. Route Handler는 `POST /api/experiences/last-bell/runs`, `POST /api/experiences/last-bell/runs/[runId]/events`, `POST /api/experiences/last-bell/runs/[runId]/complete`, `POST /api/experiences/last-bell/runs/[runId]/claim`, `GET /api/me/last-bell-inventory`만 노출하며 service role RPC가 실제 권위를 가진다. active run은 24시간, 완주한 게스트 claim은 7일이다. 클라이언트는 `good_id`를 제출하지 않고 versioned collectible→good 매핑을 서버가 결정한다.
+
+`goods.purchase_access='story_entitlement'`인 상품은 직접 cart DML, 로그인 cart merge, order item 생성에서 모두 유효 구매권을 재검증한다. 주문 생성 시 entitlement snapshot을 남기며, 구매권은 재고를 예약하지 않고 판매 종료 뒤에는 새 주문을 만들 수 없다. 주문이 판매기간 안에 생성됐다면 기존 checkout TTL과 `PaymentGateway` 계약을 그대로 사용한다. 스토리 run은 `games`·`game_plays`·`draw_tickets`·카드 발급·할인·RNG와 연결하지 않는다.
 
 이 경계는 지우학2 IP 시즌 캠페인에만 적용한다. 일반 카드 보상형 참여형 게임의 로그인·`play_game` 계약과 범용 온라인 팝업 운영 레이어 비목표는 그대로 유지한다.
 
@@ -208,7 +210,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 | reports/blocks | 본인+운영 | 본인 |
 | audit_log | admin only | RPC만 |
 
-- `local-prototype`은 `games`, `game_plays`, `draw_tickets`를 읽거나 쓰지 않는다. production `anonymous-story-run`의 저장·RLS·계정 이전 모델은 별도 승인 전까지 현재 데이터 모델에 추가하지 않는다.
+- `local-prototype`은 `games`, `game_plays`, `draw_tickets`를 읽거나 쓰지 않는다. production 익명 run은 일반 기능으로 추가하지 않는다. 다만 승인된 Last Bell `verified-story-run`만 raw token 대신 guest digest를 저장하고, 위 두 env gate와 service-only RPC를 모두 통과할 때 계정 이전을 허용한다.
 - 돈/재고가 걸린 INSERT/UPDATE는 테이블 직접 쓰기 대신 **RPC(SECURITY DEFINER)** 로만 허용.
 - 카드풀·확률·카드·발급 정책의 직접 write 권한과 정책도 제거하고, staff/admin audited RPC만 허용한다.
 - 관리자 권한은 `profiles.role`로 판정, `/admin` 라우트와 RLS 양쪽에서 검사.
@@ -247,7 +249,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - **`admin_search_members` / `admin_get_member_detail` / `admin_profile_signup_counts` / `admin_suspend_user` / `admin_unsuspend_user`** — profiles RLS는 self-only다. 목록은 이메일을 DB에서 마스킹하고, 명시적 상세만 전체 이메일·현재 `consents`·내부 사유·주문/예매/신고 집계를 반환하며, 대시보드 가입 수는 PII-free 집계만 반환한다. 받은 신고는 private subject snapshot으로 원문 삭제 뒤에도 보존한다. active staff는 user, active admin은 user/staff만 정지·해제하며 본인/admin 대상은 제외한다. 실제 상태 전이만 PII-free 감사하고 replay는 no-op이다. 정지된 privileged profile은 `is_staff()`가 false가 되며 정지 대상의 privileged role 승격도 거절한다. posts/comments/orders/ticket_orders/game_plays INSERT, 작성자 post UPDATE, draw-ticket 소비, staff check-in과 community Storage 업로드에는 DB guard를 두어 앱 사전 검사와 경합해도 전체 transaction을 롤백한다.
 - **`preview_my_account_deletion` / `request_my_account_deletion` / `get_my_account_deletion_status`** — target user ID를 받지 않고 `auth.uid()`만 사용하는 self-only seam이다. 정확한 확인 문구와 UUID idempotency key를 요구하고 진행 주문·취소·legacy pending 결제·provider-neutral 결제 시도·환급·유효 티켓·staff 권한을 fail closed로 평가한다. preview는 최초 신청 전에 opaque blocker를 보여준다. 최초 요청 transaction에서 allowlist legal snapshot과 write fence를 함께 만들며, 기존 거래의 webhook·환급·배송 정합화 UPDATE는 막지 않는다. 기존 요청의 idempotent replay와 status 조회는 같은 사용자 lock 아래 blocker와 snapshot을 다시 평가해 해소된 거래를 `awaiting_notification`으로 전진시킨다. 성공 상태도 `awaiting_notification`까지만 표시하고 #191 intent, Storage/DB/Auth hard delete, #215 tombstone 전에는 완료를 반환하지 않는다.
 
-규칙: 카드팩·카드 보상형 참여형 게임의 결과는 DB(또는 DB가 호출하는 신뢰 경로)만 확정하고 클라이언트는 그 결과를 연출한다. 지우학2 `local-prototype`의 Chapter 완료는 이 문장의 "결과"가 아니라 권위 없는 로컬 진행이며, production 순위·계정 기록에는 §2.1의 검증된 `anonymous-story-run`만 사용할 수 있다. 이 서버 신뢰 불변식은 전달 계층이나 superseded ADR-0002에 의존하지 않는다. 모든 금전·재고·발급 RPC는 멱등·감사 가능해야 한다.
+규칙: 카드팩·카드 보상형 참여형 게임의 결과는 DB(또는 DB가 호출하는 신뢰 경로)만 확정하고 클라이언트는 그 결과를 연출한다. 지우학2 `local-prototype`의 Chapter 완료는 이 문장의 "결과"가 아니라 권위 없는 로컬 진행이며, Last Bell 캠페인의 production 계정 기록·구매권에는 위의 제한된 `verified-story-run`만 사용할 수 있다. 이는 범용 익명 run을 허용하지 않는 좁은 예외다. 이 서버 신뢰 불변식은 전달 계층이나 superseded ADR-0002에 의존하지 않는다. 모든 금전·재고·발급 RPC는 멱등·감사 가능해야 한다.
 
 19+ 유한 실물 쿠지는 기존 `games`·`game_plays`·`draw_tickets`·카드 RNG와 데이터·경제·운영을 공유하지 않는다. 아직 as-built 스키마에는 없으며, `prize_sale` 예약→결제→개별 unit 배정은 [#212](https://github.com/icons-hq/icons-ip/issues/212), 공개 snapshot·last-one·결과 영수증·운영은 [#213](https://github.com/icons-hq/icons-ip/issues/213)의 acceptance evidence가 정본이다.
 

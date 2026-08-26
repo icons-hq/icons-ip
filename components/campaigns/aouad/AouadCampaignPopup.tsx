@@ -33,11 +33,16 @@ import {
   setAouadStudentPhotoUrl,
 } from '@/lib/campaigns/aouad/student-photo-session';
 import { LAST_BELL_ROUTE_LABELS } from '@/lib/prototypes/last-bell/routes';
+import type { AouadGameEntryContext } from '@/lib/campaigns/aouad/game-entry';
+import { isLastBellCollectibleKey, type LastBellCollectibleKey } from '@/lib/campaigns/aouad/last-bell-products';
 import { useAouadCampaign } from './AouadCampaignProvider';
 import { useAouadCampaignAudio } from './useAouadCampaignAudio';
 import styles from './aouad-campaign.module.css';
 
-type AouadCampaignPopupProps = { zone?: AouadZoneId };
+type AouadCampaignPopupProps = {
+  zone?: AouadZoneId;
+  entry: AouadGameEntryContext;
+};
 type OpeningMode = 'full' | 'skip' | 'reduced';
 type OpeningCeremonyProps = {
   studentPhotoUrl: string | null;
@@ -290,7 +295,15 @@ function ZoneTile({ zone }: { zone: AouadZoneId }) {
   );
 }
 
-function LastBellRecord({ studentPhotoUrl, includeStudentPhotoInShare }: { studentPhotoUrl: string | null; includeStudentPhotoInShare: boolean }) {
+function LastBellRecord({
+  studentPhotoUrl,
+  includeStudentPhotoInShare,
+  entry,
+}: {
+  studentPhotoUrl: string | null;
+  includeStudentPhotoInShare: boolean;
+  entry: AouadGameEntryContext;
+}) {
   const { lastBellCompletion } = useAouadCampaign();
   const [status, setStatus] = useState('');
 
@@ -316,7 +329,7 @@ function LastBellRecord({ studentPhotoUrl, includeStudentPhotoInShare }: { stude
         <b>{lastBellCompletion ? '마지막 종을 지나온 학생' : '아직 남겨지지 않은 기록'}</b>
         <p>{lastBellCompletion ? `${LAST_BELL_ROUTE_LABELS[lastBellCompletion.routeId]} · ${formatDuration(lastBellCompletion.activeDurationMs)} · ${playStyleLabel(lastBellCompletion.playStyle)}` : '게임을 마치면 여기에 생존 인장이 찍힙니다.'}</p>
         <div className={styles.recordActions}>
-          <Link href="/games/prototype-last-bell" prefetch={false} className={styles.outlineButton} onClick={() => trackAouadCampaignEvent({ type: 'game_continue_clicked' })}>{lastBellCompletion ? '다시 플레이' : '게임 시작'}</Link>
+          <Link href={entry.gameHref} prefetch={false} className={styles.outlineButton} onClick={() => trackAouadCampaignEvent({ type: 'game_continue_clicked' })}>{lastBellCompletion ? '다시 플레이' : '게임 시작'}</Link>
           <button type="button" className={styles.textButton} onClick={() => void share()} disabled={!lastBellCompletion}>기록 공유</button>
         </div>
         {status ? <p className={styles.statusText} role="status">{status}</p> : null}
@@ -338,10 +351,12 @@ function Hub({
   studentPhotoUrl,
   includeStudentPhotoInShare,
   preloadHero,
+  entry,
 }: {
   studentPhotoUrl: string | null;
   includeStudentPhotoInShare: boolean;
   preloadHero: boolean;
+  entry: AouadGameEntryContext;
 }) {
   const { state } = useAouadCampaign();
   useEffect(() => { trackAouadCampaignEvent({ type: 'campaign_view', surface: 'hub' }); }, []);
@@ -350,7 +365,7 @@ function Hub({
     <main className={styles.campaignMain}>
       <header className={styles.campaignHeader}>
         <Link href={AOUAD_POPUP_PATH} className={styles.wordmark}>지금, 우리 학교로</Link>
-        <span>효산고등학교</span>
+        <span>{entry.isAuthenticated ? `${entry.displayName ?? '생존자'} · 계정 연결` : '효산고등학교'}</span>
       </header>
       <section className={styles.hero}>
         <Image className={styles.heroImage} src={AOUAD_IMAGES.hero} alt="비 내린 밤의 효산고등학교" fill preload={preloadHero && state.openingSeen} sizes="100vw" />
@@ -358,10 +373,15 @@ function Hub({
         <div className={styles.heroCopy}>
           <p>지금, 우리 학교로</p>
           <h1>마지막 종</h1>
-          <span>압축 수직 슬라이스 · 내부 비교 후보<br />선택은 기록이 되고, 기록은 당신을 증명한다.</span>
+          <span>2개 챕터 · 약 10분의 잠입 생존<br />폭격 이후의 효산고에서 옥상의 불빛을 확인하라.</span>
           <div className={styles.heroActions}>
-            <Link href="/games/prototype-last-bell" prefetch={false} className={styles.primaryButton} onClick={() => trackAouadCampaignEvent({ type: 'game_start_clicked' })}>게임 시작</Link>
-            <Link href="/games/prototype-last-bell" prefetch={false} className={styles.secondaryButton} onClick={() => trackAouadCampaignEvent({ type: 'game_continue_clicked' })}>이어하기</Link>
+            {entry.isAuthenticated ? (
+              <Link href={entry.gameHref} prefetch={false} className={styles.primaryButton} onClick={() => trackAouadCampaignEvent({ type: 'game_start_clicked' })}>계정으로 시작</Link>
+            ) : entry.authConfigured ? (
+              <Link href={`/login?next=${encodeURIComponent(entry.gameHref)}`} prefetch={false} className={styles.primaryButton}>로그인하고 시작</Link>
+            ) : null}
+            <Link href={entry.gameHref} prefetch={false} className={styles.secondaryButton} onClick={() => trackAouadCampaignEvent({ type: 'game_start_clicked' })}>{entry.authority === 'verified-candidate' ? '게스트로 시작' : '로컬 QA 시작'}</Link>
+            <Link href={entry.gameHref} prefetch={false} className={styles.secondaryButton} onClick={() => trackAouadCampaignEvent({ type: 'game_continue_clicked' })}>이어하기</Link>
             <a href="#survival-record" className={styles.subtleButton}>내 생존 기록</a>
             <Link href={`${AOUAD_POPUP_PATH}/store`} className={styles.storeButton} onClick={() => trackAouadCampaignEvent({ type: 'store_preview_viewed' })}>상품 바로 보기</Link>
           </div>
@@ -378,7 +398,7 @@ function Hub({
           <span><b>매점 — 보급소</b><small>굿즈 진열 미리보기 · 위시만 저장됩니다</small></span>
           {state.wishlist.length ? <em>위시 {state.wishlist.length}</em> : null}
         </Link>
-        <div id="survival-record"><LastBellRecord studentPhotoUrl={studentPhotoUrl} includeStudentPhotoInShare={includeStudentPhotoInShare} /></div>
+        <div id="survival-record"><LastBellRecord studentPhotoUrl={studentPhotoUrl} includeStudentPhotoInShare={includeStudentPhotoInShare} entry={entry} /></div>
         <section className={styles.newsPanel}>
           <span>캠페인 안내 — 방송실</span>
           <b>게임과 팝업을 오가며, 내가 남긴 기록을 다시 확인하세요.</b>
@@ -494,10 +514,80 @@ function TheaterZone() {
   return <section className={styles.zoneContent}><p className={styles.zoneLead}>정사가 아닌, 그날의 다른 선택을 상상하는 짧은 기록입니다.</p><div className={styles.endingGrid}>{AOUAD_IF_ENDINGS.map((ending) => <button key={ending.id} type="button" className={state.theaterEndings.includes(ending.id) ? styles.endingChosen : styles.endingCard} onClick={() => { selectTheaterEnding(ending.id); trackAouadCampaignEvent({ type: 'zone_completed', zone: 'theater' }); }}><span>IF 기록</span><b>{ending.name}</b><p>{ending.description}</p></button>)}</div></section>;
 }
 
-function StoreZone() {
+function formatPreviewPrice(value: number): string {
+  return `${new Intl.NumberFormat('ko-KR').format(value)}원`;
+}
+
+function StoreZone({ entry }: { entry: AouadGameEntryContext }) {
   const { state, toggleWishlist } = useAouadCampaign();
+  const requestKey = `${entry.authority}:${entry.isAuthenticated}`;
+  const canLoadEntitlements = entry.authority === 'verified-candidate' && entry.isAuthenticated;
+  const [inventoryResult, setInventoryResult] = useState<{
+    requestKey: string;
+    status: 'ready' | 'error';
+    entitlements: Partial<Record<LastBellCollectibleKey, { goodId: string; isPurchasable: boolean }>>;
+  } | null>(null);
+  const inventoryStatus = !canLoadEntitlements
+    ? 'idle'
+    : inventoryResult?.requestKey === requestKey ? inventoryResult.status : 'loading';
+  const entitlements = canLoadEntitlements && inventoryResult?.requestKey === requestKey
+    ? inventoryResult.entitlements
+    : {};
   useEffect(() => { trackAouadCampaignEvent({ type: 'store_preview_viewed' }); }, []);
-  return <section className={styles.zoneContent}><p className={styles.zoneLead}>판매 전 미리보기입니다. 가격, 재고, 판매 일정은 아직 표시하지 않으며 위시만 이 기기에 저장합니다.</p><div className={styles.storeGrid}>{AOUAD_STORE_PREVIEW.map((item) => { const wished = state.wishlist.includes(item.id); return <article key={item.id} className={styles.productCard}><div className={styles.productImage}><Image src={item.image} alt="" fill sizes="(max-width: 640px) 50vw, 25vw" /></div><span>{item.category}</span><b>{item.name}</b><button type="button" className={wished ? styles.wishActive : styles.wishButton} onClick={() => { toggleWishlist(item.id); trackAouadCampaignEvent({ type: 'wishlist_toggled', itemId: item.id, active: !wished }); }}>{wished ? '위시 해제' : '위시에 담기'}</button></article>; })}</div></section>;
+  useEffect(() => {
+    if (!canLoadEntitlements) return undefined;
+    const controller = new AbortController();
+    void fetch('/api/me/last-bell-inventory', { credentials: 'same-origin', signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`inventory_${response.status}`);
+        return response.json() as Promise<unknown>;
+      })
+      .then((body) => {
+        if (!body || typeof body !== 'object' || !('items' in body) || !Array.isArray(body.items)) throw new Error('invalid_inventory');
+        const verified: Partial<Record<LastBellCollectibleKey, { goodId: string; isPurchasable: boolean }>> = {};
+        for (const item of body.items) {
+          if (!item || typeof item !== 'object') continue;
+          const candidate = item as Record<string, unknown>;
+          if (!isLastBellCollectibleKey(String(candidate.collectibleKey ?? '')) || typeof candidate.goodId !== 'string' || typeof candidate.isPurchasable !== 'boolean') continue;
+          verified[candidate.collectibleKey as LastBellCollectibleKey] = { goodId: candidate.goodId, isPurchasable: candidate.isPurchasable };
+        }
+        setInventoryResult({ requestKey, status: 'ready', entitlements: verified });
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setInventoryResult({ requestKey, status: 'error', entitlements: {} });
+      });
+    return () => controller.abort();
+  }, [canLoadEntitlements, requestKey]);
+  return (
+    <section className={styles.zoneContent}>
+      <p className={styles.zoneLead}>게임에서 직접 발견한 상품만 엔딩 이후 구매권이 열립니다. 아래 가격은 Preview 가안이며 재고·판매 일정·IP 검수 완료 전에는 판매되지 않습니다.</p>
+      <div className={styles.storeGrid}>
+        {AOUAD_STORE_PREVIEW.map((item) => {
+          const wished = state.wishlist.includes(item.id);
+          const entitlement = entitlements[item.id];
+          const accessLabel = entitlement
+            ? entitlement.isPurchasable ? '구매권 검증 완료' : '판매 기간 종료'
+            : inventoryStatus === 'loading' ? '구매권 확인 중'
+              : '구매권 필요 · 게임 수집 후 해금';
+          return (
+            <article key={item.id} className={styles.productCard}>
+              <div className={styles.productImage}><Image src={item.image} alt={`${item.name} 3D 제품 렌더`} fill sizes="(max-width: 640px) 50vw, 25vw" /></div>
+              <span>{item.category} · {item.chapterId === 'chapter-01' ? 'CHAPTER 1' : 'CHAPTER 2'}</span>
+              <b>{item.name}</b>
+              <small className={styles.productPlacement}>{item.placement}</small>
+              <strong className={styles.productPrice}>{formatPreviewPrice(item.previewPriceWon)} <em>가안</em></strong>
+              <p className={styles.productAccess} data-unlocked={entitlement?.isPurchasable || undefined}>{accessLabel}</p>
+              {entitlement?.isPurchasable ? <Link className={styles.productBuyButton} href={`/shop/${encodeURIComponent(entitlement.goodId)}`}>구매하기</Link> : null}
+              <button type="button" className={wished ? styles.wishActive : styles.wishButton} onClick={() => { toggleWishlist(item.id); trackAouadCampaignEvent({ type: 'wishlist_toggled', itemId: item.id, active: !wished }); }}>{wished ? '위시 해제' : '위시에 담기'}</button>
+            </article>
+          );
+        })}
+      </div>
+      {!entry.isAuthenticated && entry.authConfigured ? <p className={styles.storeAuthNote}><Link href={`/login?next=${encodeURIComponent(`${AOUAD_POPUP_PATH}/store`)}`}>로그인</Link>하면 완주 후 구매권을 계정에 저장할 수 있습니다. 게스트 수집 기록은 쿠키가 사라지면 복구할 수 없습니다.</p> : null}
+      {inventoryStatus === 'error' ? <p className={styles.storeAuthNote} role="status">구매권을 불러오지 못했습니다. 상품 상세와 결제 단계에서도 구매권을 다시 검증합니다.</p> : null}
+    </section>
+  );
 }
 
 function RooftopZone() {
@@ -507,7 +597,7 @@ function RooftopZone() {
   return <section className={styles.zoneContent}><p className={styles.zoneLead}>이곳의 불씨와 수색 기록은 개인 로컬 진행입니다. 공동 수치나 방명록은 아직 열지 않습니다.</p><div className={styles.rooftop}><div className={styles.ember} aria-hidden="true">✦</div><span>내가 남긴 불씨</span><b>{state.rooftopEmbers}</b><button type="button" className={styles.primaryButton} onClick={() => { addRooftopEmber(); playAudio(state.rooftopEmbers === 0 ? 'survivorStamp' : 'rooftopWind'); trackAouadCampaignEvent({ type: 'zone_completed', zone: 'rooftop' }); }}>불씨 남기기</button><p>{complete ? '개인 수색 인장이 학생증에 남았습니다.' : '다른 수색 구역도 지나면 개인 수색 인장이 완성됩니다.'}</p></div></section>;
 }
 
-function ZoneView({ zone, preloadHero }: { zone: AouadZoneId; preloadHero: boolean }) {
+function ZoneView({ zone, preloadHero, entry }: { zone: AouadZoneId; preloadHero: boolean; entry: AouadGameEntryContext }) {
   useEffect(() => { trackAouadCampaignEvent({ type: 'campaign_view', surface: 'zone' }); trackAouadCampaignEvent({ type: 'popup_viewed', zone }); }, [zone]);
   const content = useMemo(() => {
     switch (zone) {
@@ -515,14 +605,14 @@ function ZoneView({ zone, preloadHero }: { zone: AouadZoneId; preloadHero: boole
       case 'cafeteria': return <CafeteriaZone />;
       case 'broadcast': return <BroadcastZone />;
       case 'theater': return <TheaterZone />;
-      case 'store': return <StoreZone />;
+      case 'store': return <StoreZone entry={entry} />;
       case 'rooftop': return <RooftopZone />;
     }
-  }, [zone]);
+  }, [entry, zone]);
   return <main className={styles.campaignMain}><ZoneHeader zone={zone} preloadHero={preloadHero} />{content}<nav className={styles.zoneNav} aria-label="다른 수색 구역">{AOUAD_ZONE_IDS.map((id) => <Link key={id} href={`${AOUAD_POPUP_PATH}/${id}`} aria-current={zone === id ? 'page' : undefined}>{AOUAD_ZONES[id].name}</Link>)}</nav></main>;
 }
 
-function AouadCampaignExperience({ zone }: AouadCampaignPopupProps) {
+function AouadCampaignExperience({ zone, entry }: AouadCampaignPopupProps) {
   const { hydrated } = useAouadCampaign();
   const showOpeningForDocument = !isAouadOpeningDismissedInDocument();
   const [openingOpen, setOpeningOpen] = useState(showOpeningForDocument);
@@ -546,8 +636,8 @@ function AouadCampaignExperience({ zone }: AouadCampaignPopupProps) {
       onOpenChange={setOpeningOpen}
     /> : null}
     {zone
-      ? <ZoneView zone={zone} preloadHero={!openingOpen} />
-      : <Hub studentPhotoUrl={studentPhoto.photoUrl} includeStudentPhotoInShare={studentPhoto.includeInShare} preloadHero={!openingOpen} />}
+      ? <ZoneView zone={zone} preloadHero={!openingOpen} entry={entry} />
+      : <Hub studentPhotoUrl={studentPhoto.photoUrl} includeStudentPhotoInShare={studentPhoto.includeInShare} preloadHero={!openingOpen} entry={entry} />}
   </>;
 }
 

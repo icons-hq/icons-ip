@@ -54,6 +54,12 @@ const zoneIds = new Set<string>(AOUAD_ZONE_IDS);
 const avatarIds = new Set<string>(AOUAD_AVATAR_IDS);
 const deskRecordIds = new Set<string>(AOUAD_DESK_RECORDS.map((record) => record.id));
 const storeIds = new Set<string>(AOUAD_STORE_PREVIEW.map((item) => item.id));
+const legacyStoreIdMap: Record<string, AouadStorePreviewId> = {
+  'id-set': 'idcard',
+  'survival-pouch': 'kit',
+  'radio-keyring': 'radio',
+  'ember-candle': 'candle',
+};
 const endingIds = new Set<AouadIfEndingId>(['signal', 'voice', 'dawn']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -63,6 +69,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function stringsFrom(value: unknown, allowed?: ReadonlySet<string>, limit = 8): string[] {
   if (!Array.isArray(value)) return [];
   return Array.from(new Set(value.filter((item): item is string => typeof item === 'string' && (!allowed || allowed.has(item))))).slice(0, limit);
+}
+
+function storeIdsFrom(value: unknown): AouadStorePreviewId[] {
+  if (!Array.isArray(value)) return [];
+  const normalized = value.flatMap((item) => {
+    if (typeof item !== 'string') return [];
+    const candidate = legacyStoreIdMap[item] ?? item;
+    return storeIds.has(candidate) ? [candidate as AouadStorePreviewId] : [];
+  });
+  return Array.from(new Set(normalized)).slice(0, AOUAD_STORE_PREVIEW.length);
 }
 
 function safeName(value: unknown): string | null {
@@ -93,7 +109,7 @@ export function parseAouadCampaignState(value: unknown): AouadCampaignState | nu
   const zones = readZones(rawZones);
   const classroomRecords = stringsFrom(candidate.classroomRecords ?? value.desks, deskRecordIds);
   const theaterEndings = stringsFrom(candidate.theaterEndings ?? value.endings, endingIds) as AouadIfEndingId[];
-  const wishlist = stringsFrom(candidate.wishlist ?? value.wishes, storeIds) as AouadStorePreviewId[];
+  const wishlist = storeIdsFrom(candidate.wishlist ?? value.wishes);
   const avatar = avatarIds.has(String(student.avatar)) ? student.avatar as AouadAvatarId : null;
 
   // Existing pre-schema sessions represented a cleared zone by `clears.zone`.

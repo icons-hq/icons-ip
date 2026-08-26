@@ -140,5 +140,5 @@ Avoid: apocalyptic city destruction, fire, dramatic explosions, fantasy, cyberpu
 - 오디오는 사용자 제스처 뒤에만 재생하고 autoplay 실패가 진행을 막지 않게 한다.
 - 학생 이름과 로컬 avatar는 이미지·분석 이벤트·서버에 기본 포함하지 않는다.
 - 공식 이미지와 생성 이미지는 manifest의 `source_type`으로 구분한다.
-- 매점은 미리보기·위시만 제공한다. 가격, SKU, 재고, 판매 일정, 가짜 희소성은 상품 그릴링 전까지 넣지 않는다.
+- 매점은 `last-bell-release-5d4e01edf754dd4e`의 10개 상품 렌더와 Preview 가안 가격을 표시한다. 실제 `good_id`, 구매 가능 여부, 재고, 판매 종료는 verified inventory와 기존 상품·주문 서버 계약만 신뢰하며 클라이언트가 임의 SKU를 제출할 수 없다. 가안 가격은 production 판매 활성화 근거가 아니다.
 - 공동 수치와 방명록은 서버·moderation 경계가 생길 때까지 표시하지 않는다.

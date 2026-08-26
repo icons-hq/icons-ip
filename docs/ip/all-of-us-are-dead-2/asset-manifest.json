@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "project": "ALL OF US ARE DEAD: LAST BELL",
-  "generated_at": "2026-08-21",
+  "generated_at": "2026-08-24",
   "rights_confirmation": {
     "confirmed_by": "user",
     "confirmed_at": "2026-08-21",
@@ -21,7 +21,7 @@
         "width": 1672,
         "height": 941
       },
-      "usage": "desktop visual concept and opening cinematic master",
+      "usage": "legacy generated concept; deprecated for hyosan-post-strike-night and not design truth, runtime fallback, or profile reference",
       "source_type": "generated-concept",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-93275f96-9885-4a62-a50d-c96ff74c57bf.png",
       "reference": [
@@ -31,6 +31,7 @@
       "provenance": "Built-in image_gen; art direction by gpt-5.6-sol max; original PNG preserved.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
+      "profile_status": "deprecated-for-hyosan-post-strike-night-2026-08-24",
       "byte_size": 1861287,
       "sha256": "c32a34cd0d66256cfe66108cd7067694f3e9cc92027392f11173e88be35609c2",
       "editing": "original-generation-output"
@@ -42,7 +43,7 @@
         "width": 1672,
         "height": 941
       },
-      "usage": "mobile landscape composition and touch-safe visual concept",
+      "usage": "legacy generated concept; deprecated for hyosan-post-strike-night and not design truth, runtime fallback, or profile reference",
       "source_type": "generated-concept",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-96ecf31a-7af5-4a3e-be75-dbbe1435b01e.png",
       "reference": [
@@ -52,6 +53,7 @@
       "provenance": "Built-in image_gen; art direction by gpt-5.6-sol max; original PNG preserved.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
+      "profile_status": "deprecated-for-hyosan-post-strike-night-2026-08-24",
       "byte_size": 2200171,
       "sha256": "a39e433f20f4ac33b64e2f128e22e2c9d7847a5c86ab3dab1b4c7e0d821e1fdb",
       "editing": "original-generation-output"
@@ -63,7 +65,7 @@
         "width": 1672,
         "height": 941
       },
-      "usage": "opening cinematic plate and procedural 3D lighting/material anchor",
+      "usage": "legacy generated plate; deprecated for hyosan-post-strike-night and not an active runtime fallback",
       "source_type": "generated-runtime-plate",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-93275f96-9885-4a62-a50d-c96ff74c57bf.png",
       "reference": [
@@ -73,6 +75,7 @@
       "provenance": "Built-in image_gen, converted with cwebp 1.6.0 -q 88 -m 6.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
+      "profile_status": "deprecated-for-hyosan-post-strike-night-2026-08-24",
       "byte_size": 127366,
       "sha256": "e897ef6a2a307ab417762d86f032cf0051ea870b5b944b80408992c35360e0c6",
       "editing": "generated-and-converted"
@@ -84,7 +87,7 @@
         "width": 1672,
         "height": 941
       },
-      "usage": "corridor stealth lighting, crop, and mobile safe-area anchor",
+      "usage": "legacy generated plate; deprecated for hyosan-post-strike-night and not an active runtime fallback",
       "source_type": "generated-runtime-plate",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-96ecf31a-7af5-4a3e-be75-dbbe1435b01e.png",
       "reference": [
@@ -94,6 +97,7 @@
       "provenance": "Built-in image_gen, converted with cwebp 1.6.0 -q 88 -m 6.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
+      "profile_status": "deprecated-for-hyosan-post-strike-night-2026-08-24",
       "byte_size": 189388,
       "sha256": "75484038b553613777c1699ede83737be52761670cfdfea5edc45084ded87919",
       "editing": "generated-and-converted"
@@ -105,7 +109,7 @@
         "width": 1672,
         "height": 941
       },
-      "usage": "outbreak transition cinematic plate and classroom-door composition anchor",
+      "usage": "legacy generated plate; deprecated for hyosan-post-strike-night and not an active runtime fallback",
       "source_type": "generated-runtime-plate",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-7061e46c-a343-45e0-a3df-ae86539c17c9.png",
       "reference": [
@@ -115,6 +119,7 @@
       "provenance": "Built-in image_gen, converted with cwebp 1.6.0 -q 88 -m 6.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
+      "profile_status": "deprecated-for-hyosan-post-strike-night-2026-08-24",
       "byte_size": 103540,
       "sha256": "ac04bbe34483adb388f46ad9c583802d82951e8c84f863ed54fec802eae63ae7",
       "editing": "generated-and-converted"
@@ -126,7 +131,7 @@
         "width": 1672,
         "height": 941
       },
-      "usage": "emergency-power interaction, lighting, and material anchor",
+      "usage": "legacy generated plate; deprecated for hyosan-post-strike-night and not an active runtime fallback",
       "source_type": "generated-runtime-plate",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-084453b5-bf97-4aba-ad54-f17a07cab538.png",
       "reference": [
@@ -136,6 +141,7 @@
       "provenance": "Built-in image_gen, converted with cwebp 1.6.0 -q 88 -m 6.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
+      "profile_status": "deprecated-for-hyosan-post-strike-night-2026-08-24",
       "byte_size": 120734,
       "sha256": "e86c62486d5cb15b40b407dc1aa21132a6627d350a53bfb81dc1ab808a82a856",
       "editing": "generated-and-converted"
@@ -147,7 +153,7 @@
         "width": 1672,
         "height": 941
       },
-      "usage": "Chapter 1 bell setpiece lighting and threat-layout anchor",
+      "usage": "legacy generated plate; deprecated for hyosan-post-strike-night and not an active runtime fallback",
       "source_type": "generated-runtime-plate",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-35a1d5b2-651e-4261-98e3-73b87abdfd78.png",
       "reference": [
@@ -157,6 +163,7 @@
       "provenance": "Built-in image_gen, converted with cwebp 1.6.0 -q 88 -m 6.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
+      "profile_status": "deprecated-for-hyosan-post-strike-night-2026-08-24",
       "byte_size": 144436,
       "sha256": "c38d3fc2f1879f1cb4664c8e500ff695a8ec715b69cef2593b334bd60b70f856",
       "editing": "generated-and-converted"
@@ -441,7 +448,7 @@
         "width": 1024,
         "height": 1024
       },
-      "usage": "2x2 visual source atlas for ivory plaster, sage paint, wired glass, and beige locker metal; use individual maps at runtime",
+      "usage": "legacy generated material atlas; not used by hyosan-post-strike-night runtime or visual truth",
       "source_type": "generated-material-atlas",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-bf081cac-a695-49c8-9aae-4e1e3a48db94.png",
       "generation_prompt": "Exact 2x2 square atlas: aged ivory plaster, institutional sage paint, smoke-gray wired frosted glass, beige locker metal; orthographic flat diffuse, tileable-ish, no baked light, text or watermark.",
@@ -452,6 +459,7 @@
       "provenance": "Built-in image_gen 1254x1254 PNG, resized with cwebp 1.6.0 -q 90 -m 6; art direction by gpt-5.6-sol max.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
+      "profile_status": "deprecated-for-hyosan-post-strike-night-2026-08-24",
       "byte_size": 279774,
       "sha256": "375ca63a62d8fb7b6ade28a2a217774d3a51d67372f3608860238077b38564d2",
       "editing": "generated-and-converted"
@@ -463,7 +471,7 @@
         "width": 1024,
         "height": 1024
       },
-      "usage": "procedural classroom and corridor upper-wall base-color map",
+      "usage": "legacy generated material; not used by hyosan-post-strike-night runtime or visual truth",
       "source_type": "derived-generated-material",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-bf081cac-a695-49c8-9aae-4e1e3a48db94.png#crop=0,0,626,626",
       "generation_prompt": "Aged ivory plaster #C7BEAA with restrained grime, hairline cracks and fine school-wall texture; flat diffuse, tileable-ish, no lighting or text.",
@@ -474,6 +482,7 @@
       "provenance": "Top-left 626x626 quadrant cropped from generated atlas at 0,0, resized to 1024x1024 and encoded with cwebp 1.6.0 -q 90 -m 6.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
+      "profile_status": "deprecated-for-hyosan-post-strike-night-2026-08-24",
       "byte_size": 238248,
       "sha256": "65b22d7a0b16c27d372c3f42f14bf822595d627f948fc59a80c7c79ccf005193",
       "editing": "derived-and-converted"
@@ -485,7 +494,7 @@
         "width": 1024,
         "height": 1024
       },
-      "usage": "procedural classroom and corridor lower-wall base-color map",
+      "usage": "legacy generated material; not used by hyosan-post-strike-night runtime or visual truth",
       "source_type": "derived-generated-material",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-bf081cac-a695-49c8-9aae-4e1e3a48db94.png#crop=628,0,626,626",
       "generation_prompt": "Institutional sage lower-wall paint #465B4A with restrained wear and horizontal scratches; flat diffuse, tileable-ish, no lighting or text.",
@@ -496,6 +505,7 @@
       "provenance": "Top-right 626x626 quadrant cropped from generated atlas at 628,0, resized to 1024x1024 and encoded with cwebp 1.6.0 -q 90 -m 6.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
+      "profile_status": "deprecated-for-hyosan-post-strike-night-2026-08-24",
       "byte_size": 126802,
       "sha256": "96959a89c8fddd2b11bbefe12483f496340c3782d48505cc453e37d4813747ff",
       "editing": "derived-and-converted"
@@ -507,7 +517,7 @@
         "width": 1024,
         "height": 1024
       },
-      "usage": "procedural classroom-door wired/frosted-glass base-color and pattern map",
+      "usage": "legacy generated material; not used by hyosan-post-strike-night runtime or visual truth",
       "source_type": "derived-generated-material",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-bf081cac-a695-49c8-9aae-4e1e3a48db94.png#crop=0,628,626,626",
       "generation_prompt": "Smoke-gray wired frosted glass with regular embedded diamond mesh and pebbled translucent surface; flat diffuse, tileable-ish, no reflection, lighting or text.",
@@ -518,6 +528,7 @@
       "provenance": "Bottom-left 626x626 quadrant cropped from generated atlas at 0,628, resized to 1024x1024 and encoded with cwebp 1.6.0 -q 90 -m 6; runtime shader supplies transmission and opacity.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
+      "profile_status": "deprecated-for-hyosan-post-strike-night-2026-08-24",
       "byte_size": 213906,
       "sha256": "e359d37ed68d70dd758274aaea0323c16bc8d8be72b8c35285240ff2938061db",
       "editing": "derived-and-converted"
@@ -529,7 +540,7 @@
         "width": 1024,
         "height": 1024
       },
-      "usage": "procedural classroom locker and utility-cabinet painted-metal base-color map",
+      "usage": "legacy generated material; not used by hyosan-post-strike-night runtime or visual truth",
       "source_type": "derived-generated-material",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-bf081cac-a695-49c8-9aae-4e1e3a48db94.png#crop=628,628,626,626",
       "generation_prompt": "Muted beige locker metal #A99D83 with subtle orange peel, small chips and fine scratches; flat diffuse, tileable-ish, no lighting or text.",
@@ -540,6 +551,7 @@
       "provenance": "Bottom-right 626x626 quadrant cropped from generated atlas at 628,628, resized to 1024x1024 and encoded with cwebp 1.6.0 -q 90 -m 6.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
+      "profile_status": "deprecated-for-hyosan-post-strike-night-2026-08-24",
       "byte_size": 166692,
       "sha256": "820d21e5bba2a7a903d9782f4d14c5c35c51b63d0144bfdc3366ee79e4795e0e",
       "editing": "derived-and-converted"
@@ -551,7 +563,7 @@
         "width": 1024,
         "height": 1024
       },
-      "usage": "procedural classroom and corridor floor base-color map",
+      "usage": "legacy generated material; not used by hyosan-post-strike-night runtime or visual truth",
       "source_type": "generated-runtime-material",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-9b6ccce0-9f6b-49bc-979e-93d66b56ba31.png",
       "generation_prompt": "Dark gray-green Korean school linoleum with fine aggregate flecks, soft foot scuffs and micro scratches; orthographic flat diffuse, tileable-ish, no baked reflection, shadow or text.",
@@ -562,6 +574,7 @@
       "provenance": "Built-in image_gen 1254x1254 PNG resized to 1024x1024 and encoded with cwebp 1.6.0 -q 90 -m 6; art direction by gpt-5.6-sol max.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
+      "profile_status": "deprecated-for-hyosan-post-strike-night-2026-08-24",
       "byte_size": 161998,
       "sha256": "91b35eee7ebb88e8e3244436949d6e5d941d9eb6048ca33ef4caed97f5498ba3",
       "editing": "generated-and-converted"
@@ -573,7 +586,7 @@
         "width": 1024,
         "height": 1024
       },
-      "usage": "procedural student-desk and lectern top base-color map",
+      "usage": "legacy generated material; not used by hyosan-post-strike-night runtime or visual truth",
       "source_type": "generated-runtime-material",
       "source_url": "builtin-imagegen://01a0224c-e72a-7fe0-9358-afdc4165beee/exec-43c93bcf-7eac-4539-b939-f61dd9f26176.png",
       "generation_prompt": "Aged medium-dark Korean school desk laminate #72563B with fine horizontal grain, dull wear and shallow scratches; orthographic flat diffuse, tileable-ish, no carving, lighting or text.",
@@ -584,6 +597,7 @@
       "provenance": "Built-in image_gen 1254x1254 PNG resized to 1024x1024 and encoded with cwebp 1.6.0 -q 90 -m 6; art direction by gpt-5.6-sol max.",
       "license": "ICONS-project-generated-under-confirmed-IP-rights",
       "license_status": "cleared-by-user-confirmation-2026-08-21",
+      "profile_status": "deprecated-for-hyosan-post-strike-night-2026-08-24",
       "byte_size": 222306,
       "sha256": "e5c74aecbd230bab2845fcfe0c0705ddedbf86702c784982345b07b57ebb7cdb",
       "editing": "generated-and-converted"
@@ -1366,6 +1380,168 @@
       },
       "byte_size": 134872,
       "sha256": "46c5479e29e52e14a1d89e5ab8be6a162f293dec5b476d4d92b59abd070e85da"
+    },
+    {
+      "id": "last-bell-3d-entry-glb",
+      "path": "/generated/last-bell/3d/entry.glb",
+      "usage": "post-strike Hyosan entrance cold-open geometry",
+      "source_type": "project-authored-3d-with-cc0-pbr",
+      "source_url": "repo://scripts/last-bell-3d/build.py",
+      "reference": [
+        "docs/ip/all-of-us-are-dead-2/hyosan-visual-reference.md",
+        "docs/ip/all-of-us-are-dead-2/asset-provenance.md#poly-haven-cc0-pbr"
+      ],
+      "provenance": "Project-authored Blender geometry with pinned Poly Haven CC0 PBR inputs and a project-authored keyed damage atlas for local glass and floor-contact detail. Reference frames set spatial, damage, and palette targets only; drama or Netflix source pixels are not projected or baked into materials. Exact upstream URLs and hashes are recorded by the build pipeline.",
+      "editing": "blender-5.2-gltf-transform-4.4.2-meshopt-ktx2",
+      "license": "Mixed: project-authored geometry under the approved campaign production scope; embedded or baked Poly Haven inputs under CC0-1.0",
+      "license_status": "LOCKED-mixed-project-and-cc0-provenance-2026-08-24",
+      "byte_size": 4241884,
+      "sha256": "8ad2bd5ab0c233b3c392b6c48181c19fe239c0c013e310c3d7df4fdbe6dbacff"
+    },
+    {
+      "id": "last-bell-3d-start-room-glb",
+      "path": "/generated/last-bell/3d/start-room.glb",
+      "usage": "destroyed classroom authored geometry and PBR materials",
+      "source_type": "project-authored-3d-with-cc0-pbr",
+      "source_url": "repo://scripts/last-bell-3d/build.py",
+      "reference": [
+        "docs/ip/all-of-us-are-dead-2/hyosan-visual-reference.md",
+        "docs/ip/all-of-us-are-dead-2/asset-provenance.md#poly-haven-cc0-pbr"
+      ],
+      "provenance": "Project-authored Blender geometry with pinned Poly Haven CC0 PBR inputs and a project-authored keyed damage atlas for local glass and floor-contact detail. Reference frames set spatial, damage, and palette targets only; drama or Netflix source pixels are not projected or baked into materials. Exact upstream URLs and hashes are recorded by the build pipeline.",
+      "editing": "blender-5.2-gltf-transform-4.4.2-meshopt-ktx2",
+      "license": "Mixed: project-authored geometry under the approved campaign production scope; embedded or baked Poly Haven inputs under CC0-1.0",
+      "license_status": "LOCKED-mixed-project-and-cc0-provenance-2026-08-24",
+      "byte_size": 6430560,
+      "sha256": "82742cd531cf346ac0b4c1f502312f5a96d07438042c7125be8082d6e4b05e42"
+    },
+    {
+      "id": "last-bell-3d-first-bay-glb",
+      "path": "/generated/last-bell/3d/first-bay.glb",
+      "usage": "first corridor bay authored geometry and PBR materials",
+      "source_type": "project-authored-3d-with-cc0-pbr",
+      "source_url": "repo://scripts/last-bell-3d/build.py",
+      "reference": [
+        "docs/ip/all-of-us-are-dead-2/hyosan-visual-reference.md",
+        "docs/ip/all-of-us-are-dead-2/asset-provenance.md#poly-haven-cc0-pbr"
+      ],
+      "provenance": "Project-authored Blender geometry with pinned Poly Haven CC0 PBR inputs and a project-authored keyed damage atlas for local glass and floor-contact detail. Reference frames set spatial, damage, and palette targets only; drama or Netflix source pixels are not projected or baked into materials. Exact upstream URLs and hashes are recorded by the build pipeline.",
+      "editing": "blender-5.2-gltf-transform-4.4.2-meshopt-ktx2",
+      "license": "Mixed: project-authored geometry under the approved campaign production scope; embedded or baked Poly Haven inputs under CC0-1.0",
+      "license_status": "LOCKED-mixed-project-and-cc0-provenance-2026-08-24",
+      "byte_size": 4062088,
+      "sha256": "ab7e6fb79e457c90988ffbd8ff9727973193603d73598cff00862c71a55b3c6a"
+    },
+    {
+      "id": "last-bell-3d-classroom-door-glb",
+      "path": "/generated/last-bell/3d/classroom-door.glb",
+      "usage": "smooth simulation-driven classroom sliding door",
+      "source_type": "project-authored-3d-with-cc0-pbr",
+      "source_url": "repo://scripts/last-bell-3d/build.py",
+      "reference": [
+        "docs/ip/all-of-us-are-dead-2/hyosan-visual-reference.md",
+        "docs/ip/all-of-us-are-dead-2/asset-provenance.md#poly-haven-cc0-pbr"
+      ],
+      "provenance": "Project-authored Blender geometry with pinned Poly Haven CC0 PBR inputs and a project-authored keyed damage atlas for local glass and floor-contact detail. Reference frames set spatial, damage, and palette targets only; drama or Netflix source pixels are not projected or baked into materials. Exact upstream URLs and hashes are recorded by the build pipeline.",
+      "editing": "blender-5.2-gltf-transform-4.4.2-meshopt-ktx2",
+      "license": "Mixed: project-authored geometry under the approved campaign production scope; embedded or baked Poly Haven inputs under CC0-1.0",
+      "license_status": "LOCKED-mixed-project-and-cc0-provenance-2026-08-24",
+      "byte_size": 712872,
+      "sha256": "485b54d9fb4aa812535ee5853f57080d3a7df4b7b5752728b5e55956208784d8"
+    },
+    {
+      "id": "last-bell-3d-metadata",
+      "path": "/generated/last-bell/3d/metadata.json",
+      "usage": "runtime node, UV1, lightmap, provenance, and transfer-budget contract",
+      "source_type": "project-original-generated-3d-metadata",
+      "source_url": "repo://scripts/last-bell-3d/build.py",
+      "reference": [
+        "docs/ip/all-of-us-are-dead-2/hyosan-visual-reference.md",
+        "docs/ip/all-of-us-are-dead-2/asset-provenance.md#poly-haven-cc0-pbr"
+      ],
+      "provenance": "Generated from the validated delivery pack; records runtime nodes, bounds, lightmap bindings, PBR provenance pointer, and transfer budgets.",
+      "editing": "blender-5.2-gltf-transform-4.4.2-meshopt-ktx2",
+      "license": "Project-original metadata under the approved campaign production scope",
+      "license_status": "LOCKED-project-original-2026-08-24",
+      "byte_size": 7960,
+      "sha256": "393f42badabb0cecfd8ebb86f46172a93816372e61f22818593dac373b41005b"
+    },
+    {
+      "id": "last-bell-3d-entry-lightmap",
+      "path": "/generated/last-bell/3d/lightmaps/entry-medium.ktx2",
+      "usage": "entrance static ground-contact AO lightmap",
+      "source_type": "project-authored-3d-with-cc0-pbr",
+      "source_url": "repo://scripts/last-bell-3d/build.py",
+      "reference": [
+        "docs/ip/all-of-us-are-dead-2/hyosan-visual-reference.md",
+        "docs/ip/all-of-us-are-dead-2/asset-provenance.md#poly-haven-cc0-pbr"
+      ],
+      "provenance": "Project-authored Blender geometry with pinned Poly Haven CC0 PBR inputs and a project-authored keyed damage atlas for local glass and floor-contact detail. Reference frames set spatial, damage, and palette targets only; drama or Netflix source pixels are not projected or baked into materials. Exact upstream URLs and hashes are recorded by the build pipeline.",
+      "editing": "blender-5.2-gltf-transform-4.4.2-meshopt-ktx2",
+      "license": "Mixed: project-authored geometry under the approved campaign production scope; embedded or baked Poly Haven inputs under CC0-1.0",
+      "license_status": "LOCKED-mixed-project-and-cc0-provenance-2026-08-24",
+      "byte_size": 251764,
+      "sha256": "86a9741d883687c7233e734344caa3aadf4b284c89d23270338fc7d9368b54e2"
+    },
+    {
+      "id": "last-bell-3d-start-room-lightmap",
+      "path": "/generated/last-bell/3d/lightmaps/start-room-medium.ktx2",
+      "usage": "classroom static ground-contact AO lightmap",
+      "source_type": "project-authored-3d-with-cc0-pbr",
+      "source_url": "repo://scripts/last-bell-3d/build.py",
+      "reference": [
+        "docs/ip/all-of-us-are-dead-2/hyosan-visual-reference.md",
+        "docs/ip/all-of-us-are-dead-2/asset-provenance.md#poly-haven-cc0-pbr"
+      ],
+      "provenance": "Project-authored Blender geometry with pinned Poly Haven CC0 PBR inputs and a project-authored keyed damage atlas for local glass and floor-contact detail. Reference frames set spatial, damage, and palette targets only; drama or Netflix source pixels are not projected or baked into materials. Exact upstream URLs and hashes are recorded by the build pipeline.",
+      "editing": "blender-5.2-gltf-transform-4.4.2-meshopt-ktx2",
+      "license": "Mixed: project-authored geometry under the approved campaign production scope; embedded or baked Poly Haven inputs under CC0-1.0",
+      "license_status": "LOCKED-mixed-project-and-cc0-provenance-2026-08-24",
+      "byte_size": 171738,
+      "sha256": "eb8f0048d12cb79693b3caec452ce1ed1f96b78733d0348299ed9736b2c609e5"
+    },
+    {
+      "id": "last-bell-3d-first-bay-lightmap",
+      "path": "/generated/last-bell/3d/lightmaps/first-bay-medium.ktx2",
+      "usage": "corridor static ground-contact AO lightmap",
+      "source_type": "project-authored-3d-with-cc0-pbr",
+      "source_url": "repo://scripts/last-bell-3d/build.py",
+      "reference": [
+        "docs/ip/all-of-us-are-dead-2/hyosan-visual-reference.md",
+        "docs/ip/all-of-us-are-dead-2/asset-provenance.md#poly-haven-cc0-pbr"
+      ],
+      "provenance": "Project-authored Blender geometry with pinned Poly Haven CC0 PBR inputs and a project-authored keyed damage atlas for local glass and floor-contact detail. Reference frames set spatial, damage, and palette targets only; drama or Netflix source pixels are not projected or baked into materials. Exact upstream URLs and hashes are recorded by the build pipeline.",
+      "editing": "blender-5.2-gltf-transform-4.4.2-meshopt-ktx2",
+      "license": "Mixed: project-authored geometry under the approved campaign production scope; embedded or baked Poly Haven inputs under CC0-1.0",
+      "license_status": "LOCKED-mixed-project-and-cc0-provenance-2026-08-24",
+      "byte_size": 455562,
+      "sha256": "46760ab9ba84f7a78dd5ee5633c01f18b4cea320e74348ba5ab470f98fa4155f"
+    },
+    {
+      "id": "last-bell-3d-basis-transcoder-js",
+      "path": "/generated/last-bell/3d/basis/basis_transcoder.js",
+      "usage": "KTX2 Basis Universal browser transcoder",
+      "source_type": "third-party-runtime-transcoder",
+      "source_url": "https://github.com/mrdoob/three.js/tree/r182/examples/jsm/libs/basis",
+      "provenance": "Copied byte-for-byte from the installed three@0.182.0 Basis Universal runtime bundle.",
+      "editing": "copied-without-byte-edit",
+      "license": "Apache-2.0 Basis Universal runtime distributed with three@0.182.0",
+      "license_status": "LOCKED-third-party-license-recorded-2026-08-24",
+      "byte_size": 57529,
+      "sha256": "8478b5b6d6b74e7d3082b89f6417321d8d1dc0307f2b30d4484bb11b441696a1"
+    },
+    {
+      "id": "last-bell-3d-basis-transcoder-wasm",
+      "path": "/generated/last-bell/3d/basis/basis_transcoder.wasm",
+      "usage": "KTX2 Basis Universal WebAssembly transcoder",
+      "source_type": "third-party-runtime-transcoder",
+      "source_url": "https://github.com/mrdoob/three.js/tree/r182/examples/jsm/libs/basis",
+      "provenance": "Copied byte-for-byte from the installed three@0.182.0 Basis Universal runtime bundle.",
+      "editing": "copied-without-byte-edit",
+      "license": "Apache-2.0 Basis Universal runtime distributed with three@0.182.0",
+      "license_status": "LOCKED-third-party-license-recorded-2026-08-24",
+      "byte_size": 527333,
+      "sha256": "6cf17dc889352c42e9acf8897107978d127005fe3386c36a0e3845e27967630a"
     }
   ],
   "source_lock": {

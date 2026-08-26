@@ -39,6 +39,15 @@ describe('AOUAD popup shell contract', () => {
     expect(css).toContain('@media (max-width: 640px)');
   });
 
+  it('reads server-verified Last Bell entitlements before exposing a shop CTA', () => {
+    expect(source).toContain("fetch('/api/me/last-bell-inventory'");
+    expect(source).toContain("entry.authority === 'verified-candidate' && entry.isAuthenticated");
+    expect(source).toContain('isLastBellCollectibleKey');
+    expect(source).toContain('entitlement?.isPurchasable');
+    expect(source).toContain('href={`/shop/${encodeURIComponent(entitlement.goodId)}`}');
+    expect(source).toContain('상품 상세와 결제 단계에서도 구매권을 다시 검증합니다.');
+  });
+
   it('makes the opening a contained modal with focus recovery', () => {
     expect(source).toContain('role="dialog" aria-modal="true"');
     expect(source).toContain("event.key !== 'Tab'");
@@ -99,7 +108,7 @@ describe('AOUAD popup shell contract', () => {
   });
 
   it('keeps prototype copy honest and avoids an unconfirmed canonical class', () => {
-    expect(source).toContain('압축 수직 슬라이스 · 내부 비교 후보');
+    expect(source).toContain('2개 챕터 · 약 10분의 잠입 생존');
     expect(source).toContain('학급 미확정');
     expect(source).not.toContain('5–7분의 생존 이야기');
     expect(source).not.toContain('2학년 5반');

@@ -1,15 +1,20 @@
 # 《지금 우리 학교는: 마지막 종》 에셋 출처·권리·생성 기록
 
-> 기준일: 2026-08-21
+> 기준일: 2026-08-25
 >
 > 기계 판독 목록: `asset-manifest.json`
 >
 > 온라인 팝업 공식 24개·추가 생성 이미지·음향: [`campaign-asset-provenance.md`](./campaign-asset-provenance.md)
+>
+> 조정 release build: `last-bell-release-da8957979ec883a0` ([`last-bell-release-manifest.json`](./last-bell-release-manifest.json))
+
+오프닝, 2챕터 route, 좀비·남라 교체 seam, 10개 상품, 교체형 대사, 검증 run 스키마와 QA 증거는 위 release manifest에서 하나의 build로 묶는다. 각 하위 pack의 content-addressed build ID는 독립 재생성과 검증을 위해 그대로 보존한다.
 
 ## 1. 권리 판단
 
 - `icons-hq/icons`의 `2026-08-20_aouad-web-assets-manifest.md`에는 당시 수집 상태가 `권리 미확보·내부 참고 한정`으로 기록되어 있다.
 - 사용자는 2026-08-21 이 작업에서 **지우학 IP, 해당 이미지 에셋, 제작·판매권을 모두 확보했다**고 명시 확인했다.
+- 사용자는 2026-08-26 Netflix와의 협의 및 current Last Bell 환경·캐릭터·오프닝·대사 승인을 완료했다고 다시 명시 확인했다. 승인 대상 build와 동일한 렌더·SHA는 `release-evidence/`와 release manifest에 고정한다.
 - 현재 프로젝트의 사용 판단에는 사용자의 최신 권리 확인이 과거 매니페스트 경고를 대체한다. 선별된 AOUAD 스틸·포스터·공식 로고를 게임 및 캠페인 산출물에 포함할 수 있다.
 - 이 확인은 제3자 마켓의 별도 3D 모델·음원 라이선스까지 자동 확장하지 않는다. 별도 후보는 해당 파일의 라이선스를 독립 검수한다.
 
@@ -56,27 +61,40 @@
 - 런타임 최적화: `cwebp 1.6.0 -q 88 -m 6`
 - 공통 제약: 16:9, 텍스트·숫자·로고·워터마크·가짜 HUD 없음, 고어 없음, 배우·유명인 얼굴 없음, 한국 학교의 실제 물성과 게임 가독성 유지.
 
-### 실제 프롬프트 요약과 원본 매핑
+### historical generated prompt 요약과 원본 매핑
 
-| 생성 ID | 원본 파일 | 요청 요약 | 채택 파일 |
+| 생성 ID | 원본 파일 | historical 요청 요약 | legacy 보존 파일 |
 | --- | --- | --- | --- |
-| `opening-calm` | `exec-93275f96-9885-4a62-a50d-c96ff74c57bf.png` | 늦은 오후 평범한 효산고 교실, 앉은 1인칭, 아이보리·초록·낡은 목재, 문 너머 긴 복도, HUD 안전 영역 | `concepts/desktop-opening-calm.png`, `environments/opening-classroom-calm.webp` |
-| `corridor-stealth` | `exec-96ecf31a-7af5-4a3e-be75-dbbe1435b01e.png` | 모바일 가로, 문틀 뒤에 숨은 1인칭, 먼 감염자 실루엣, 냉색 복도와 적색 경고등, 좌우 터치 안전 영역 | `concepts/mobile-corridor-stealth.png`, `environments/corridor-stealth.webp` |
+| `opening-calm` | `exec-93275f96-9885-4a62-a50d-c96ff74c57bf.png` | 늦은 오후 평범한 효산고 교실, 앉은 1인칭, 아이보리·초록·낡은 목재, 문 너머 긴 복도, HUD 안전 영역 | `concepts/desktop-opening-calm.png`, `environments/opening-classroom-calm.webp` — current profile에 사용하지 않음 |
+| `corridor-stealth` | `exec-96ecf31a-7af5-4a3e-be75-dbbe1435b01e.png` | 모바일 가로, 문틀 뒤에 숨은 1인칭, 먼 감염자 실루엣, 냉색 복도와 적색 경고등, 좌우 터치 안전 영역 | `concepts/mobile-corridor-stealth.png`, `environments/corridor-stealth.webp` — current profile에 사용하지 않음 |
 | `outbreak-door` | `exec-7061e46c-a343-45e0-a3df-ae86539c17c9.png` | 같은 교실의 발병 순간, 망입유리 뒤 손·실루엣, 문 잠금이 focal point, 고어 없는 급전환 | `environments/outbreak-classroom-door.webp` |
 | `emergency-power` | `exec-084453b5-bf97-4aba-ad54-f17a07cab538.png` | 좁은 학교 설비실, 손전등과 기계식 배전반, 왼쪽 퇴로와 먼 실루엣, 상호작용 가독성 | `environments/emergency-power-panel.webp` |
 | `last-bell` | `exec-35a1d5b2-651e-4261-98e3-73b87abdfd78.png` | 전원 복구 뒤 종이 울린 긴 복도, 냉색·적색 순차 점등, 동시에 반응하는 먼 감염자 실루엣, 계단 퇴로 | `environments/last-bell-corridor.webp` |
 
-이 파일들은 3D 메시 대체물이 아니다. 오프닝 시네마틱 플레이트, 조명·재질·구도 정본, 챕터·실패 카드로 사용하고, 실제 이동·은신·충돌은 R3F/Three 절차형 3D에서 처리한다.
+이 파일들은 3D 메시 대체물이 아니다. 현재 `hyosan-post-strike-night` profile에서는 위 생성 환경 plate를 시각 정본이나 runtime fallback으로 사용하지 않는다. 다른 legacy 경로의 provenance는 보존하되, 실제 공간은 authored GLB로 렌더하고 이동·은신·충돌은 R3F/Three의 안정된 gameplay 계약으로 처리한다.
 
-## 5. 절차형 3D 재질 팩
+### 4.1 Chapter 1 rejected generation record — 2026-08-24
 
-### 생성·파생 방식
+아래 네 생성물은 `2026-08-24`에 제거·거절됐다. 사유는 현재 frame-zero가 **수개월 뒤, 폭격 후 파괴된 효산고 야간**인데도 정상 수업/정돈된 교실 시간과 아트 디렉션을 제시했기 때문이다. 파일과 manifest record는 삭제했고, 이 표는 provenance 추적용 hash 기록일 뿐 제품 디자인 정본이나 runtime fallback이 아니다.
+
+| 생성 ID | 원본 | SHA-256 | 상태 |
+| --- | --- | --- | --- |
+| `ch1-entry-brand-v1` | `exec-81785d29-66e9-4726-9575-b2da39dd8770.png` | `4bfb507e65f4896eddee6d2ede1a51d6257748d6e726920f11a8875e57f4d91c` | rejected; removed |
+| `ch1-cold-open-seated-v1` | `exec-41e0b2ae-b8ac-45c8-8654-3d2b461bdb5f.png` | `4ff1dba0a542fe2a0f8d40dcce302c01c5e60702c386902866a08f4fdd3ff003` | rejected; removed |
+| `ch1-start-room-first-door-v1` | `exec-ff6c4d25-bc52-4ade-9fa6-8f124c6f2411.png` | `4ecf039505f397e1848c4bddb9079f2848171fa79318a1798b76cd45e940f47d` | rejected; removed |
+| `ch1-mobile-hud-844x390-v1` | `exec-cd872ba1-d7fd-469c-be72-8d4c64505a8b.png` | `8d5c24b167d8d98138c8d04eb342c725fde0dc2723e98485e3614d1eae826048` | rejected; removed |
+
+## 5. 은퇴한 generated 3D 재질 기록
+
+`hyosan-post-strike-night` current runtime은 아래 generated atlas/맵을 fetch하거나 shader map으로 사용하지 않는다. 현재 교실·첫 bay·entry facade의 정상 경로는 Blender에서 제작한 authored GLB와 아래 Poly Haven CC0 PBR/모델이다. 실제 attachment는 공간·손상·팔레트의 reference-only truth이며 source pixel을 재질이나 bundle에 투영하지 않는다. 아래 기록은 다른 legacy surface의 provenance를 보존하기 위한 것이며, 이 profile의 visual truth, runtime fallback, material fallback이 아니다.
+
+### 역사적 생성·파생 방식
 
 - 아트 디렉션·선별: `gpt-5.6-sol`, reasoning `max`.
 - 생성: Codex 기본 `image_gen`. 정사각, 정면 직교, flat diffuse, 텍스트·워터마크·인물·방향성 그림자·구운 반사 없음.
 - 원본은 모두 `1254×1254` PNG이며, 채택본은 `cwebp 1.6.0 -q 90 -m 6`으로 `1024×1024` WebP에 최적화했다.
 - 재질 atlas는 정확한 2×2 구획이다. quadrant bleed를 피하려고 원본 1254px에서 `626×626`을 `(0,0)`, `(628,0)`, `(0,628)`, `(628,628)` 좌표로 crop한 뒤 각각 1024px로 리사이즈했다.
-- 권리 상태: ICONS 프로젝트 자체 생성물이며, 2026-08-21 사용자가 확인한 AOUAD 제작 권리 범위 안의 효산고 fallback 아트다.
+- 권리 상태: ICONS 프로젝트 자체 생성물이며, 2026-08-21 사용자가 확인한 AOUAD 제작 권리 범위 안의 historical fallback 아트다.
 
 ### 실제 생성 프롬프트와 source
 
@@ -86,15 +104,43 @@
 | `dark-gray-linoleum` · `exec-9b6ccce0-9f6b-49bc-979e-93d66b56ba31.png` | 한국 학교의 dark gray-green linoleum base color, fine aggregate flecks, soft foot scuffs와 미세 긁힘, square seamless/tileable-ish, orthographic flat diffuse, no grout, object, horizon, baked reflection, directional shadow, text, watermark. | `cac3956d11cc0cc313daedc6368757eee0c0384ded6b56bb91124a7377c97c50` | `dark-gray-linoleum.webp` |
 | `worn-desk-wood` · `exec-43c93bcf-7eac-4539-b939-f61dd9f26176.png` | 오래 쓴 한국 학교 책상용 medium-dark brown laminate `#72563B`, 가는 수평 grain과 둔한 마모·얕은 긁힘, square seamless/tileable-ish, orthographic flat diffuse, no carved writing, highlight, shadow, text, watermark. | `c52491dea6754a173a20b07f132febc0475cd1e7d1f5334ef32f0ba09b543da4` | `worn-desk-wood.webp` |
 
-세 PNG source는 `/Users/sangwopark19/.codex/generated_images/01a0224c-e72a-7fe0-9358-afdc4165beee/`에서 생성됐고 runtime/public에는 최적화한 WebP만 포함한다. 맵은 tileable-ish fallback으로 승인했지만 수학적 무봉합 스캔은 아니다. 긴 복도에서는 베이별 UV offset과 제한적인 180도 회전으로 특징 반복을 흩뜨리고, 망입유리는 패턴 방향이 바뀌지 않게 회전하지 않는다. 권장 repeat·roughness·metalness·transmission은 `visual-spec.md`의 `절차형 3D fallback 재질` 표를 따른다.
+세 PNG source는 historical generation record로만 남는다. generated map을 현재 runtime/public bundle에 의존시키지 않으며, `visual-spec.md`의 current source rule보다 우선하지 않는다.
 
-## 6. 3D 후속 후보
+## 6. Poly Haven CC0 PBR
 
-- [Korean highschool classroom GLB](https://sketchfab.com/3d-models/korean-highschool-classroom-03f592577eb34754a73bd04d8c8db7e5)
-  - 후보 페이지 표기: CC BY, 다운로드 가능, 약 80.9k tris.
-  - 현재 상태: **다운로드·반입하지 않음**.
-  - 도입 전 확인: 실제 다운로드 파일의 라이선스 파일, 저작자 표기 문구, 텍스처 포함 여부, 축척, draw call, 모바일 메모리, UV·라이트맵, 충돌용 단순화.
-  - 공식 효산고 3D가 제공되면 공식 에셋이 우선이며 후보 GLB를 대체한다.
+현재 authored GLB의 중립 PBR source는 Poly Haven 공식 asset page/API에서 받은 CC0 에셋이다. `scripts/last-bell-3d/fetch-polyhaven-pbr.mjs`가 공식 API 응답의 파일 URL·MD5와 info metadata를 읽고, 프로젝트가 고정한 API response hash와 실제 다운로드 hash를 검증한다. 생성된 전체 기록은 저장소 밖 build output의 `raw/polyhaven-pbr/provenance.json`에 남는다.
+
+| Poly Haven asset | 저자 | 반입 해상도 | 현재 역할 |
+| --- | --- | ---: | --- |
+| [`worn_tile_floor`](https://polyhaven.com/a/worn_tile_floor) | Dimitrios Savva | 512px | 교실·복도·entry의 오염된 바닥 BaseColor/normal/ORM |
+| [`worn_plaster_wall`](https://polyhaven.com/a/worn_plaster_wall) | Dimitrios Savva | 512px | 탄 흔적과 박리가 있는 plaster BaseColor/normal/ORM |
+| [`green_metal_rust`](https://polyhaven.com/a/green_metal_rust) | Rob Tuytel | 512px | 문틀·창틀·철물의 산화 금속 BaseColor/normal/ORM |
+| [`fine_grained_wood`](https://polyhaven.com/a/fine_grained_wood) | Rob Tuytel | 512px | 책상·가구 목재 BaseColor/normal/ORM |
+| [`red_brick_03`](https://polyhaven.com/a/red_brick_03) | Rob Tuytel | 512px | 파손 벽체 내부의 노출 벽돌 BaseColor/normal/ORM |
+| [`concrete_debris`](https://polyhaven.com/a/concrete_debris) | Amal Kumar | 512px | 붕괴 원점 직하부의 콘크리트 잔해·바닥 퇴적 BaseColor/normal/ORM |
+| [`broken_brick_wall`](https://polyhaven.com/a/broken_brick_wall) | Amal Kumar | 512px | 문설주·벽체 파단의 recessed 조적 코어 BaseColor/normal/ORM |
+| [`SchoolDesk_01`](https://polyhaven.com/a/SchoolDesk_01) | Ethan Place | 1K model | 전경용 학교 책상 hero mesh; 반복 배치는 linked mesh |
+| [`SchoolChair_01`](https://polyhaven.com/a/SchoolChair_01) | Ethan Place | 1K model | 전경용 학교 의자 hero mesh; 반복 배치는 linked mesh |
+
+- 라이선스: 모두 `CC0-1.0`. 제3자 상표·배우 얼굴·드라마 source pixel은 포함하지 않는다.
+- Blender source는 BaseColor·normal·ORM을 물리 스케일로 연결하고, static receiver에만 별도 UV1 contact AO를 사용한다.
+- 배포본은 KTX2와 Meshopt로 압축하며 local decoder만 사용한다. 정적 lightmap은 16-sample Cycles **ground AO**이고 GI 또는 방향성 조명 bake로 설명하지 않는다.
+- 512px/1K 제한은 모바일 texture memory와 25MiB pack hard cap을 위한 의도적인 선택이다. 실사감은 초고해상도보다 실제 비례, bevel, roughness variation, 파괴 단면, 조명과 접촉 그림자에서 만든다.
+
+### current project-authored damage atlas
+
+유리 충격 균열과 바닥 접촉 먼지처럼 작은 국소 손상에는 프로젝트 자체 생성 `scripts/last-bell-3d/assets/last-bell-damage-atlas-v1.png`을 사용한다. 원본은 Codex `image_gen`으로 만든 4×4 damage element atlas이며 드라마 캡처·Netflix source pixel·배우 얼굴·텍스트를 포함하지 않는다. 빌드 전처리는 흰 배경을 soft alpha로 keying하고 edge color를 decontaminate한 뒤 필요한 셀만 선택한다. 벽체의 큰 파손은 atlas로 위장하지 않고 실제 plaster segment, recessed brick core, rebar와 바닥 잔해 geometry로 구성한다.
+
+| 항목 | SHA-256 | 기록 |
+| --- | --- | --- |
+| 생성 원본 | `b842ba15b335ae7b4b9423c2503948758a00e83bf53223cd7d7624649910db9f` | `scripts/last-bell-3d/assets/last-bell-damage-atlas-v1.png` |
+| keyed 파생본 | `0b2a7f74a0c1e55f477aa3d0ff0173c9a56c99b935196d60183f06e432f44e0e` | build output `raw/textures/damage-atlas-v1-keyed.png`; 512px white-distance soft alpha key |
+
+기계 판독 provenance는 build output의 `raw/damage-atlas-provenance.json`에 기록하며, source/output 경로는 저장소 상대 경로로 고정한다.
+
+### 검토했으나 반입하지 않은 후보
+
+- [Korean highschool classroom GLB](https://sketchfab.com/3d-models/korean-highschool-classroom-03f592577eb34754a73bd04d8c8db7e5): 페이지 표기는 CC BY·다운로드 가능·약 80.9k tris지만 현재 파일·텍스처·귀속 문구를 제품에 반입하지 않았다. 공식 효산고 3D가 제공되면 현재 semantic anchor와 collision 계약을 유지한 채 authored geometry를 교체한다.
 
 ## 7. 오디오 제작
 
@@ -155,7 +201,7 @@
 
 ## 9. 알려진 한계
 
-- 공식 효산고 3D 원본과 공식 원작 오디오 파일은 현재 저장소에 없다. 절차형 3D replacement seam과 자체 합성 오디오로 수직 슬라이스를 진행한다.
-- 생성 환경의 교실 구조는 시각 정본이지 원작 세트의 치수 복제본이 아니다. 공식 GLB 도착 시 안정 앵커·충돌·이벤트 계약을 유지하고 메시를 교체한다.
-- 생성 재질은 base-color fallback만 제공한다. normal·roughness·height map과 수학적 무봉합 보장은 없으며, 공식 GLB/PBR 재질 도착 시 texture slot 단위로 교체한다.
+- 공식 효산고 3D 원본과 공식 원작 오디오 파일은 현재 저장소에 없다. 정상 경로는 reference-matched authored GLB와 자체 합성 오디오이며, 절차형 3D는 load/decode 실패 때만 나타나는 기능 복구 경로다.
+- authored 교실·복도·entry는 여러 attachment에서 교차 확인한 비례·소실점·손상 문법을 재구성했지만 원작 세트의 측량 치수 복제본은 아니다. 공식 GLB 도착 시 semantic anchor·충돌·이벤트 계약을 유지하고 메시를 교체한다.
+- 현재 PBR은 BaseColor·normal·ORM과 static ground AO를 제공한다. 변위/height tessellation과 실시간 GI는 브라우저 예산에서 제외했으며, 큰 파손은 geometry, 중간 파손은 layered material/mesh, 미세 표면은 normal·roughness로 분담한다.
 - `last-bell-corridor.webp`의 감염자는 얼굴·부상 표현이 없는 실루엣 정본이다. 실제 3D 적 모델의 애니메이션 품질을 대신 검증하지 않는다.

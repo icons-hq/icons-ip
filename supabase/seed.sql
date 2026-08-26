@@ -93,6 +93,20 @@ insert into public.ips (
     176400,
     1,
     2
+  ),
+  (
+    'all-of-us-are-dead',
+    '지금 우리 학교는',
+    'Last Bell · IP 시즌 캠페인 Preview',
+    'anime',
+    'LAST BELL',
+    'url("/generated/aouad-campaign/generated/hero-school-night.webp") center / cover no-repeat, linear-gradient(150deg, #020607, #0b3035 60%, #cc6e32)',
+    '죽은 학교의 마지막 종이 울린다',
+    '검증된 2챕터 스토리에서 직접 발견한 굿즈의 구매권을 여는 Preview 전용 캠페인 카탈로그입니다.',
+    false,
+    0,
+    10,
+    0
   )
 -- fans_count는 최초 seed 값만 넣고, 이후 팔로우 RPC가 유지하는 공개 카운트를 덮어쓰지 않는다.
 on conflict (id) do update set
@@ -161,6 +175,60 @@ on conflict (id) do update set
   stock_qty = excluded.stock_qty,
   bg = excluded.bg,
   updated_at = now();
+
+-- Last Bell preview-only draft catalog. Production deployments never execute
+-- seed.sql; price, stock, notices and IP/manufacturing review must be replaced
+-- with approved records before any production feature gate is enabled.
+insert into public.goods (
+  id, ip_id, name, type, price, badge, stock, stock_qty, bg, image_path, purchase_access
+) values
+  ('aouad-last-bell-idcard', 'all-of-us-are-dead', '효산고 학생증 — 생존자 에디션', '신분', 18000, 'Preview 가안', 'ok', 50, 'linear-gradient(150deg, #11191a, #244449)', '/generated/last-bell/products/idcard/thumbnail.webp', 'story_entitlement'),
+  ('aouad-last-bell-badge', 'all-of-us-are-dead', '2학년 5반 명찰 뱃지 세트', '수집', 8000, 'Preview 가안', 'ok', 50, 'linear-gradient(150deg, #13191b, #43525a)', '/generated/last-bell/products/badge/thumbnail.webp', 'story_entitlement'),
+  ('aouad-last-bell-photo', 'all-of-us-are-dead', '생존자 포토카드 팩', '수집', 6000, 'Preview 가안', 'ok', 50, 'linear-gradient(150deg, #11191a, #28434a)', '/generated/last-bell/products/photo/thumbnail.webp', 'story_entitlement'),
+  ('aouad-last-bell-radio', 'all-of-us-are-dead', '무전기 키링 「다방」 페어', '생존 키트', 16000, 'Preview 가안', 'ok', 50, 'linear-gradient(150deg, #101718, #34494b)', '/generated/last-bell/products/radio/thumbnail.webp', 'story_entitlement'),
+  ('aouad-last-bell-kit', 'all-of-us-are-dead', '생존 키트 파우치', '생존 키트', 22000, 'Preview 가안', 'ok', 50, 'linear-gradient(150deg, #151918, #46504a)', '/generated/last-bell/products/kit/thumbnail.webp', 'story_entitlement'),
+  ('aouad-last-bell-zipup', 'all-of-us-are-dead', '효산고 체육복 집업 — 시즌2 기다림 에디션', '의류', 69000, 'Preview 가안', 'ok', 50, 'linear-gradient(150deg, #111719, #263940)', '/generated/last-bell/products/zipup/thumbnail.webp', 'story_entitlement'),
+  ('aouad-last-bell-archery', 'all-of-us-are-dead', '양궁부 화살 북마크 + 연필 세트', '문구', 9000, 'Preview 가안', 'ok', 50, 'linear-gradient(150deg, #191815, #554a39)', '/generated/last-bell/products/archery/thumbnail.webp', 'story_entitlement'),
+  ('aouad-last-bell-postcard', 'all-of-us-are-dead', '무전 엽서 세트 「살아 있으면, 옥상으로」', '문구', 7000, 'Preview 가안', 'ok', 50, 'linear-gradient(150deg, #15191b, #35505a)', '/generated/last-bell/products/postcard/thumbnail.webp', 'story_entitlement'),
+  ('aouad-last-bell-candle', 'all-of-us-are-dead', '모닥불 캔들 — 옥상의 밤', '수집', 24000, 'Preview 가안', 'ok', 50, 'linear-gradient(150deg, #151719, #a6572d)', '/generated/last-bell/products/candle/thumbnail.webp', 'story_entitlement'),
+  ('aouad-last-bell-blanket', 'all-of-us-are-dead', '옥상 S.O.S 블랭킷', '생활', 39000, 'Preview 가안', 'ok', 50, 'linear-gradient(150deg, #121819, #405056)', '/generated/last-bell/products/blanket/thumbnail.webp', 'story_entitlement')
+on conflict (id) do update set
+  ip_id = excluded.ip_id,
+  name = excluded.name,
+  type = excluded.type,
+  price = excluded.price,
+  badge = excluded.badge,
+  stock = excluded.stock,
+  stock_qty = excluded.stock_qty,
+  bg = excluded.bg,
+  image_path = excluded.image_path,
+  purchase_access = excluded.purchase_access,
+  updated_at = now();
+
+insert into private.last_bell_catalog_versions (version, active_from, retired_at)
+values ('last-bell-preview-v1', '2026-08-25 00:00:00+09', null)
+on conflict (version) do update set
+  active_from = excluded.active_from,
+  retired_at = excluded.retired_at;
+
+insert into private.last_bell_collectible_goods (
+  catalog_version, collectible_key, good_id, chapter_id, zone_id, sale_ends_at
+) values
+  ('last-bell-preview-v1', 'idcard', 'aouad-last-bell-idcard', 'chapter-01', 'classroom', '2026-12-31 23:59:59+09'),
+  ('last-bell-preview-v1', 'badge', 'aouad-last-bell-badge', 'chapter-01', 'corridor', '2026-12-31 23:59:59+09'),
+  ('last-bell-preview-v1', 'photo', 'aouad-last-bell-photo', 'chapter-01', 'corridor', '2026-12-31 23:59:59+09'),
+  ('last-bell-preview-v1', 'radio', 'aouad-last-bell-radio', 'chapter-01', 'broadcast', '2026-12-31 23:59:59+09'),
+  ('last-bell-preview-v1', 'kit', 'aouad-last-bell-kit', 'chapter-01', 'infirmary', '2026-12-31 23:59:59+09'),
+  ('last-bell-preview-v1', 'zipup', 'aouad-last-bell-zipup', 'chapter-01', 'infirmary', '2026-12-31 23:59:59+09'),
+  ('last-bell-preview-v1', 'archery', 'aouad-last-bell-archery', 'chapter-01', 'broadcast', '2026-12-31 23:59:59+09'),
+  ('last-bell-preview-v1', 'postcard', 'aouad-last-bell-postcard', 'chapter-01', 'corridor', '2026-12-31 23:59:59+09'),
+  ('last-bell-preview-v1', 'candle', 'aouad-last-bell-candle', 'chapter-02', 'stairwell', '2026-12-31 23:59:59+09'),
+  ('last-bell-preview-v1', 'blanket', 'aouad-last-bell-blanket', 'chapter-02', 'stairwell', '2026-12-31 23:59:59+09')
+on conflict (catalog_version, collectible_key) do update set
+  good_id = excluded.good_id,
+  chapter_id = excluded.chapter_id,
+  zone_id = excluded.zone_id,
+  sale_ends_at = excluded.sale_ends_at;
 
 insert into public.cards (id, ip_id, name, no, rarity, bg) values
   ('c1', 'rilakkuma', '리락쿠마 · 낮잠 시간', '001/080', 'HOLO', 'url("/generated/cards/c1.png") center / cover no-repeat, linear-gradient(150deg, #5a3517, #D68A2D 55%, #FFD84D)'),

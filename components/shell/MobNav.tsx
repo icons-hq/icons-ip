@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MOB_ITEMS, hrefFor, isActive, isAuthShellPath } from '@/lib/routes';
+import { MOB_ITEMS, hrefFor, isActive, isAuthShellPath, isImmersiveShellPath } from '@/lib/routes';
 import { useCart } from './CartProvider';
 import { useAuthPresence } from './AuthPresenceProvider';
 import { useCardRewardsEnabled } from './CardRewardAvailability';
@@ -25,7 +25,7 @@ export function MobNav() {
     isAuthShellPath(pathname)
     || pathname.startsWith('/checkout')
     || pathname.startsWith('/ticket-checkout')
-    || pathname.startsWith('/games')
+    || isImmersiveShellPath(pathname)
     || pathname.startsWith('/admin')
   ) return null;
   return (

@@ -191,7 +191,7 @@ export function reduceLastBellState(
 }
 
 export const LAST_BELL_OBJECTIVES: Record<LastBellPhase, string> = {
-  opening: '마지막 수업이 끝나기를 기다린다',
+  opening: '붕괴한 효산고의 첫 문을 확인한다',
   classroom: '문을 잠그고 복도로 나가야 한다',
   corridor: '소리를 듣고 설비실의 비상전원을 찾아라',
   power: '배전반을 올리고 화재문으로 돌아가라',
@@ -210,7 +210,7 @@ export function objectiveForState(state: LastBellState): string {
 export const LAST_BELL_ANCHORS = {
   classroom_spawn: { x: 0, z: 4 },
   classroom_door: { x: 0, z: 13 },
-  desk_hide: { x: -3, z: 6 },
+  desk_hide: { x: -3.35, z: 2.85 },
   corridor_listen: { x: 0, z: 20 },
   route_central: { x: 0, z: 17.4 },
   route_rear: { x: -1.7, z: 17.4 },

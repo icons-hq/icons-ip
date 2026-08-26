@@ -1,22 +1,65 @@
 'use client';
 
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { MutableRefObject } from 'react';
 import type { LastBellState } from '@/lib/prototypes/last-bell/state';
-import { LAST_BELL_ANCHORS } from '@/lib/prototypes/last-bell/state';
 import { clampLastBellPosition, LAST_BELL_FIXED_STEP, stepLastBellPosition, type LastBellDoorHandoff } from '@/lib/prototypes/last-bell/engine/movement';
 import { checkpointPositionFor } from '@/lib/prototypes/last-bell/engine/checkpoint';
-import { LAST_BELL_CHASE_SPAWN, stepLastBellEscapeChase, type ChaseEnemy } from '@/lib/prototypes/last-bell/engine/chase';
 import { createLastBellActivityClock, stepLastBellActivityClock } from '@/lib/prototypes/last-bell/engine/activity-clock';
-import { LAST_BELL_ASSETS } from '@/lib/prototypes/last-bell/assets';
+import {
+  CHAPTER_01_CLASSROOM_DOOR_PORTAL,
+  CHAPTER_01_CONTENT,
+  CHAPTER_01_PLAYER_START,
+} from '@/lib/prototypes/last-bell/content/chapter-01';
+import { createDoorSystem, type DoorCommand, type DoorLifecycle, type DoorSnapshot } from '@/lib/prototypes/last-bell/engine/doors';
+import type { EntryDirectorPhase } from '@/lib/prototypes/last-bell/entry-director';
+import { HYOSAN_POST_STRIKE_NIGHT } from '@/lib/prototypes/last-bell/environment-profile';
+import { lastBellQualityTierForDpr } from '@/lib/prototypes/last-bell/environment3d';
+import {
+  LastBellSimulation,
+  LAST_BELL_SIMULATION_STEP_SECONDS,
+} from '@/lib/prototypes/last-bell/runtime/simulation';
+import type {
+  LastBellRuntimeEvent,
+  LastBellSimulationSnapshot,
+} from '@/lib/prototypes/last-bell/runtime/types';
+import { ChapterOneScene } from './scene/ChapterOneScene';
+import { FlashlightRig } from './scene/FlashlightRig';
+import { POST_STRIKE_RENDER_GUARDRAILS } from './scene/postStrikeLookdev';
 import styles from './last-bell.module.css';
 
 type InputVector = { x: number; y: number };
 type Position = { x: number; z: number };
+const NOOP_SCENE_READY = () => {};
 
+type RuntimeQaMetrics = {
+  renderer?: { calls: number; triangles: number; points: number; lines: number };
+  fps?: number;
+};
+
+function publishRuntimeQaMetrics(patch: RuntimeQaMetrics): void {
+  const scope = globalThis as typeof globalThis & { __ICONS_LAST_BELL_QA__?: Record<string, unknown> };
+  scope.__ICONS_LAST_BELL_QA__ = { ...scope.__ICONS_LAST_BELL_QA__, ...patch };
+}
+
+/** The pre-existing fire-door handoff is intentionally separate from the classroom slider. */
 export type LastBellDoorHandoffCommand = LastBellDoorHandoff & { nonce: number };
+export type EntryPhase = EntryDirectorPhase;
+export type DoorPhase = DoorLifecycle;
+
+export type LastBellSceneDoorCommand = {
+  door: 'classroom' | 'fire';
+  action: 'open' | 'close-lock';
+  nonce: number;
+};
+
+/** Optional bridge for the verified two-chapter host. The legacy QA client can omit it. */
+export type LastBellRuntimeCommand = {
+  interactionId: string;
+  nonce: number;
+};
 
 export type LastBellRuntimeProps = {
   state: LastBellState;
@@ -26,293 +69,110 @@ export type LastBellRuntimeProps = {
   resetNonce: number;
   checkpoint: LastBellState['checkpoint'];
   active: boolean;
-  handoff: LastBellDoorHandoffCommand | null;
+  /** Existing fire-door handoff; classroom passage is command-driven and never teleports. */
+  handoff?: LastBellDoorHandoffCommand | null;
+  entryPhase?: EntryPhase;
+  flashlightOn?: boolean;
+  crouching?: boolean;
+  doorCommand?: LastBellSceneDoorCommand | null;
+  runtimeCommand?: LastBellRuntimeCommand | null;
+  /** 0 disables camera bob; values above 1 are clamped to the authored maximum. */
+  headBobStrength?: number;
+  /** Reduced motion removes JavaScript camera interpolation and bob. */
+  reducedMotion?: boolean;
+  onSceneReady?: () => void;
+  onDoorStateChange?: (door: 'classroom' | 'fire', phase: DoorPhase) => void;
   onPosition: (position: Position) => void;
   onDanger: (distance: number) => void;
-  onCapture: () => void;
   onActiveTime: (durationMs: number) => void;
   onSimulationStep: (durationMs: number, flags: { listening: boolean; hiding: boolean; running: boolean }) => void;
+  /** Emits renderer-independent campaign events; it never creates a reward locally. */
+  onRuntimeEvent?: (event: LastBellRuntimeEvent) => void;
+  onRuntimeSnapshot?: (snapshot: LastBellSimulationSnapshot) => void;
   onCanvasInteract: () => void;
 };
 
-const wallMaterial = { color: '#c7beaa', roughness: .88, metalness: 0 };
-const sageMaterial = { color: '#465b4a', roughness: .96, metalness: 0 };
-const woodMaterial = { color: '#72563b', roughness: .9, metalness: 0 };
-
-type SchoolTextures = Partial<Record<keyof typeof LAST_BELL_ASSETS.materials, THREE.Texture>>;
-const schoolTextureCache: SchoolTextures = {};
-const schoolTextureVariantCache = new Map<string, THREE.Texture>();
-const SCHOOL_MATERIAL_KEYS: Array<Exclude<keyof typeof LAST_BELL_ASSETS.materials, 'atlas'>> = [
-  'agedIvoryPlaster',
-  'institutionalSagePaint',
-  'darkGrayLinoleum',
-  'wiredFrostedGlass',
-  'beigeLockerMetal',
-  'wornDeskWood',
-];
-
-function repeatedTexture(texture: THREE.Texture | undefined, cacheKey: string, repeatX: number, repeatY: number): THREE.Texture | undefined {
-  if (!texture) return undefined;
-  const cached = schoolTextureVariantCache.get(cacheKey);
-  if (cached) return cached;
-  const variant = texture.clone();
-  variant.needsUpdate = true;
-  variant.wrapS = THREE.RepeatWrapping;
-  variant.wrapT = THREE.RepeatWrapping;
-  variant.repeat.set(repeatX, repeatY);
-  schoolTextureVariantCache.set(cacheKey, variant);
-  return variant;
+function playerOccupant(position: Position) {
+  return {
+    id: 'player',
+    bounds: {
+      min: { x: position.x - .26, y: 0, z: position.z - .26 },
+      max: { x: position.x + .26, y: 1.8, z: position.z + .26 },
+    },
+  };
 }
 
-function useSchoolTextures(anisotropy: number): SchoolTextures {
-  const [, setVersion] = useState(0);
-  useEffect(() => {
-    const loader = new THREE.TextureLoader();
-    SCHOOL_MATERIAL_KEYS.forEach((textureKey) => {
-      const path = LAST_BELL_ASSETS.materials[textureKey];
-      if (schoolTextureCache[textureKey]) return;
-      loader.load(path, (texture) => {
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        texture.anisotropy = anisotropy;
-        schoolTextureCache[textureKey] = texture;
-        setVersion((value) => value + 1);
-      }, undefined, () => {
-        // Generated material maps are an enhancement; procedural colors remain valid.
-      });
-    });
-  }, [anisotropy]);
-  return schoolTextureCache;
+function classroomDoorSnapshot(system: ReturnType<typeof createDoorSystem>): DoorSnapshot | null {
+  return system.snapshot().doors.find((door) => door.id === 'door.classroom.slide') ?? null;
 }
 
-function Box({ position, args, color, emissive, intensity = 0, map, roughness = .84, metalness = 0, envMapIntensity = 1 }: { position: [number, number, number]; args: [number, number, number]; color: string; emissive?: string; intensity?: number; map?: THREE.Texture; roughness?: number; metalness?: number; envMapIntensity?: number }) {
-  return (
-    <mesh position={position} castShadow receiveShadow>
-      <boxGeometry args={args} />
-      <meshStandardMaterial color={map ? '#ffffff' : color} map={map} roughness={roughness} metalness={metalness} envMapIntensity={envMapIntensity} emissive={emissive} emissiveIntensity={intensity} />
-    </mesh>
-  );
+function enqueueClassroomDoorCommand(pending: DoorCommand[], action: LastBellSceneDoorCommand['action']): void {
+  if (action === 'open') {
+    pending.push({ doorId: 'door.classroom.slide', type: 'open' });
+    return;
+  }
+  pending.push({ doorId: 'door.classroom.slide', type: 'close' });
+  pending.push({ doorId: 'door.classroom.slide', type: 'lock' });
 }
 
-function Desk({ x, z, rotation = 0, texture }: { x: number; z: number; rotation?: number; texture?: THREE.Texture }) {
-  return (
-    <group position={[x, 0, z]} rotation={[0, rotation, 0]}>
-      <Box position={[0, 1, 0]} args={[1.7, .12, .7]} {...woodMaterial} map={texture} roughness={.62} />
-      <Box position={[-.68, .5, -.24]} args={[.08, 1, .08]} color="#3e3329" />
-      <Box position={[.68, .5, -.24]} args={[.08, 1, .08]} color="#3e3329" />
-      <Box position={[-.68, .5, .24]} args={[.08, 1, .08]} color="#3e3329" />
-      <Box position={[.68, .5, .24]} args={[.08, 1, .08]} color="#3e3329" />
-      <Box position={[0, .57, .48]} args={[1.2, .75, .06]} color="#17271f" />
-    </group>
-  );
-}
-
-function Classroom({ textures }: { textures: SchoolTextures }) {
-  const desks = useMemo(() => [-1.9, 1.1, 4.1, 7.1].flatMap((z) => [-3.5, -1.1, 1.3, 3.7].map((x) => ({ x, z }))), []);
-  const plaster = repeatedTexture(textures.agedIvoryPlaster, 'plaster-4x1.5', 4, 1.5);
-  const linoleum = repeatedTexture(textures.darkGrayLinoleum, 'linoleum-classroom-2x8', 2, 8);
-  const wood = repeatedTexture(textures.wornDeskWood, 'desk-wood-1x1', 1, 1);
-  return (
-    <group>
-      <Box position={[0, -.14, 6]} args={[14, .28, 16]} color="#3d4038" map={linoleum} roughness={.54} envMapIntensity={.2} />
-      <Box position={[-7, 2, 6]} args={[.24, 4, 16]} {...wallMaterial} map={plaster} roughness={.82} />
-      <Box position={[7, 2, 6]} args={[.24, 4, 16]} {...wallMaterial} map={plaster} roughness={.82} />
-      <Box position={[0, 3.4, -2]} args={[14, 2.8, .24]} {...wallMaterial} map={plaster} roughness={.82} />
-      <Box position={[-5.8, 2.8, 14]} args={[2.4, 2.4, .2]} color="#c7beaa" />
-      <Box position={[5.8, 2.8, 14]} args={[2.4, 2.4, .2]} color="#c7beaa" />
-      <Box position={[0, 2.7, -1.84]} args={[7.5, 1.65, .12]} color="#17271f" />
-      <Box position={[0, 1, -.95]} args={[2.9, .95, .78]} color="#72563b" />
-      <Box position={[0, 1.54, -.95]} args={[3.15, .07, .92]} color="#8f6c4b" />
-      {desks.map((desk) => <Desk key={`${desk.x}:${desk.z}`} {...desk} texture={wood} />)}
-      <Box position={[-5.8, 1.5, 5.5]} args={[.8, 2.8, 1.3]} color="#d1c8b5" />
-      <Box position={[-5.8, 2.2, 5.5]} args={[.84, .08, 1.33]} color="#465b4a" />
-      <Box position={[5.8, 1.5, 5.5]} args={[.8, 2.8, 1.3]} color="#d1c8b5" />
-      {[1.5, 6.2, 10.8].map((z) => (
-        <group key={`window-${z}`} position={[-6.84, 2.35, z]}>
-          <Box position={[0, 0, 0]} args={[.04, 1.45, 2.7]} color="#b9dbd9" emissive="#b9dbd9" intensity={.12} />
-          <Box position={[.05, 0, -.72]} args={[.07, 1.62, .08]} color="#9d927b" />
-          <Box position={[.05, 0, .72]} args={[.07, 1.62, .08]} color="#9d927b" />
-        </group>
-      ))}
-    </group>
-  );
-}
-
-function RouteBeacon({ x, z, active, color }: { x: number; z: number; active: boolean; color: string }) {
-  return (
-    <group position={[x, .08, z]} visible={active}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[.22, .42, 16]} />
-        <meshBasicMaterial color={color} transparent opacity={.76} />
-      </mesh>
-      <pointLight position={[0, .45, 0]} color={color} intensity={1.2} distance={2.4} />
-    </group>
-  );
-}
-
-function Corridor({ textures, state }: { textures: SchoolTextures; state: LastBellState }) {
-  const doors = useMemo(() => [18, 24, 31, 37, 44].map((z) => z), []);
-  const plaster = repeatedTexture(textures.agedIvoryPlaster, 'plaster-4x1.5', 4, 1.5);
-  const sage = repeatedTexture(textures.institutionalSagePaint, 'sage-4x1', 4, 1);
-  const linoleum = repeatedTexture(textures.darkGrayLinoleum, 'linoleum-corridor-2x20', 2, 20);
-  const locker = repeatedTexture(textures.beigeLockerMetal, 'locker-1x2', 1, 2);
-  return (
-    <group>
-      <Box position={[0, -.15, 34]} args={[6, .3, 42]} color="#343a35" map={linoleum} roughness={.54} envMapIntensity={.2} />
-      <Box position={[-3, .92, 34]} args={[.24, 1.85, 42]} {...sageMaterial} map={sage} roughness={.78} />
-      <Box position={[-3, 2.87, 34]} args={[.24, 2.05, 42]} {...wallMaterial} map={plaster} roughness={.82} />
-      <Box position={[3, .92, 34]} args={[.24, 1.85, 42]} {...sageMaterial} map={sage} roughness={.78} />
-      <Box position={[3, 2.87, 34]} args={[.24, 2.05, 42]} {...wallMaterial} map={plaster} roughness={.82} />
-      <Box position={[0, 4, 34]} args={[6, .24, 42]} color="#242b27" />
-      {doors.map((z) => (
-        <group key={z} position={[-2.82, 1.5, z]}>
-          <Box position={[0, 0, 0]} args={[.1, 2.8, 1.9]} color="#9e967f" />
-          <Box position={[.08, .15, 0]} args={[.06, 2.1, 1.45]} color="#465b4a" />
-        </group>
-      ))}
-      {[22, 34, 48].map((z) => (
-        <group key={`locker-${z}`} position={[-2.82, 1.35, z]}>
-          {[0, .55, 1.1].map((offset) => <Box key={offset} position={[0, 0, offset - .55]} args={[.16, 2.35, .45]} color="#687064" map={locker} roughness={.58} metalness={.08} />)}
-          <Box position={[.1, -.04, 0]} args={[.05, .06, 1.8]} color="#b9dbd9" emissive="#b9dbd9" intensity={.12} />
-        </group>
-      ))}
-      {[26, 38].map((z) => (
-        <group key={`alcove-${z}`} position={[2.72, .62, z]}>
-          <Box position={[0, 0, -.72]} args={[.36, 1.25, .12]} color="#9d927b" />
-          <Box position={[0, 0, .72]} args={[.36, 1.25, .12]} color="#9d927b" />
-          <Box position={[0, .08, 0]} args={[.36, .12, 1.55]} color="#72563b" />
-        </group>
-      ))}
-      {[20, 28, 36, 44].map((z) => <Box key={z} position={[2.82, 1.8, z]} args={[.1, 2.8, 2]} color="#b2aa97" />)}
-      {[17, 26, 35, 44].map((z) => (
-        <group key={z}>
-          <Box position={[0, 3.83, z]} args={[1.2, .08, .34]} color="#b9dbd9" emissive="#b9dbd9" intensity={1.15} />
-          <pointLight position={[0, 3.45, z]} color="#b9dbd9" intensity={2.1} distance={8} decay={2} />
-        </group>
-      ))}
-      <pointLight position={[0, 1.9, 41]} color="#c3292e" intensity={2.4} distance={7} decay={2} />
-      {[19, 30, 43].map((z) => (
-        <group key={`poster-${z}`} position={[2.84, 2.25, z]}>
-          <Box position={[0, 0, 0]} args={[.04, .9, .62]} color={z === 30 ? '#c7beaa' : '#72563b'} />
-          <Box position={[-.03, .05, 0]} args={[.04, .05, .38]} color="#e5a45c" emissive="#e5a45c" intensity={.2} />
-        </group>
-      ))}
-      <group position={[2.78, 1.12, 33.2]} rotation={[0, Math.PI / 2, 0]}>
-        <mesh>
-          <cylinderGeometry args={[.18, .18, .72, 10]} />
-          <meshStandardMaterial color="#c3292e" roughness={.55} />
-        </mesh>
-        <Box position={[0, -.44, 0]} args={[.16, .12, .12]} color="#a99e8a" />
-      </group>
-      <mesh position={[-2.86, 2.9, 29]} rotation={[0, Math.PI / 2, 0]}>
-        <cylinderGeometry args={[.055, .055, 3.2, 8]} />
-        <meshStandardMaterial color="#858276" metalness={.65} roughness={.35} />
-      </mesh>
-      <RouteBeacon x={0} z={17.4} color="#e5a45c" active={state.phase === 'corridor' && state.routeId === null} />
-      <RouteBeacon x={-1.7} z={17.4} color="#b9dbd9" active={state.phase === 'corridor' && state.routeId === null} />
-      <RouteBeacon x={1.7} z={17.4} color="#c3292e" active={state.phase === 'corridor' && state.routeId === null} />
-      <RouteBeacon x={0} z={23} color="#e5a45c" active={state.routeObjective === 'central_listen'} />
-      <RouteBeacon x={-1.8} z={24.8} color="#b9dbd9" active={state.routeObjective === 'rear_key'} />
-      <RouteBeacon x={1.8} z={26.6} color="#c3292e" active={state.routeObjective === 'systems_map'} />
-      <RouteBeacon x={3 - .45} z={29} color="#e5a45c" active={state.phase === 'corridor' && state.routeId !== null && state.routeObjective === null} />
-    </group>
-  );
-}
-
-function Door({ z, locked, fire = false, textures }: { z: number; locked: boolean; fire?: boolean; textures: SchoolTextures }) {
-  const glass = repeatedTexture(textures.wiredFrostedGlass, 'glass-1.2x1.6', 1.2, 1.6);
-  return (
-    <group position={[0, 1.5, z]}>
-      <Box position={[-1.14, 0, 0]} args={[.16, 3, .22]} color="#9d927b" />
-      <Box position={[1.14, 0, 0]} args={[.16, 3, .22]} color="#9d927b" />
-      <Box position={[0, 1.42, 0]} args={[2.45, .16, .22]} color="#9d927b" />
-      <group position={[0, 0, .02]}>
-        <Box position={[0, 0, 0]} args={[2.05, 2.75, .1]} color={fire ? '#6e2e2d' : '#465b4a'} />
-        <mesh position={[0, .25, .07]}>
-          <planeGeometry args={[1.48, 1.75]} />
-          <meshPhysicalMaterial color={glass ? '#ffffff' : '#b9dbd9'} map={glass} roughness={.68} metalness={0} transmission={.2} transparent opacity={.62} />
-        </mesh>
-        <Box position={[.78, .05, .14]} args={[.08, .15, .06]} color={locked ? '#c3292e' : '#e5a45c'} emissive={locked ? '#c3292e' : '#e5a45c'} intensity={.7} />
-      </group>
-      <Box position={[0, -.65, .13]} args={[2.1, .08, .12]} color="#72563b" />
-    </group>
-  );
-}
-
-function UtilityPanel({ active }: { active: boolean }) {
-  return (
-    <group position={[3, 1.55, 29]} rotation={[0, -Math.PI / 2, 0]}>
-      <Box position={[0, 0, 0]} args={[1.5, 2.35, .18]} color="#858276" />
-      <Box position={[0, .3, .12]} args={[1.15, 1.45, .03]} color="#202825" />
-      <Box position={[-.3, .28, .16]} args={[.18, .76, .07]} color={active ? '#b9dbd9' : '#c3292e'} emissive={active ? '#b9dbd9' : '#c3292e'} intensity={active ? .9 : .35} />
-      <Box position={[.15, .28, .16]} args={[.18, .76, .07]} color={active ? '#b9dbd9' : '#c3292e'} emissive={active ? '#b9dbd9' : '#c3292e'} intensity={active ? .9 : .35} />
-      <Box position={[.5, .28, .16]} args={[.18, .76, .07]} color={active ? '#b9dbd9' : '#c3292e'} emissive={active ? '#b9dbd9' : '#c3292e'} intensity={active ? .9 : .35} />
-    </group>
-  );
-}
-
-function Bell({ active }: { active: boolean }) {
-  return (
-    <group position={[0, 3.1, 48]}>
-      <mesh rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[.52, .75, .8, 20]} />
-        <meshStandardMaterial color="#8e7350" metalness={.7} roughness={.32} emissive={active ? '#c3292e' : '#000'} emissiveIntensity={active ? .9 : 0} />
-      </mesh>
-      <pointLight color={active ? '#c3292e' : '#e5a45c'} intensity={active ? 7 : .4} distance={8} />
-    </group>
-  );
-}
-
-function Enemy({ z, x, active, enemyRef }: { z: number; x: number; active: boolean; enemyRef: React.RefObject<THREE.Group | null> }) {
-  return (
-    <group ref={enemyRef} position={[x, 0, z]} visible={active}>
-      <mesh position={[0, 1.65, 0]}>
-        <capsuleGeometry args={[.3, 1.05, 4, 8]} />
-        <meshStandardMaterial color="#101613" roughness={1} transparent opacity={.9} />
-      </mesh>
-      <mesh position={[0, 2.5, 0]}>
-        <sphereGeometry args={[.38, 8, 6]} />
-        <meshStandardMaterial color="#111915" roughness={1} transparent opacity={.9} />
-      </mesh>
-      <mesh position={[-.47, 1.65, .04]} rotation={[0, 0, -.28]}>
-        <capsuleGeometry args={[.1, .75, 3, 6]} />
-        <meshStandardMaterial color="#101613" roughness={1} transparent opacity={.86} />
-      </mesh>
-      <mesh position={[.47, 1.56, -.03]} rotation={[0, 0, .4]}>
-        <capsuleGeometry args={[.1, .8, 3, 6]} />
-        <meshStandardMaterial color="#101613" roughness={1} transparent opacity={.86} />
-      </mesh>
-      <mesh position={[-.18, .55, 0]} rotation={[0, 0, -.1]}>
-        <capsuleGeometry args={[.12, .74, 3, 6]} />
-        <meshStandardMaterial color="#101613" roughness={1} transparent opacity={.86} />
-      </mesh>
-      <mesh position={[.2, .55, .02]} rotation={[0, 0, .1]}>
-        <capsuleGeometry args={[.12, .74, 3, 6]} />
-        <meshStandardMaterial color="#101613" roughness={1} transparent opacity={.86} />
-      </mesh>
-      <pointLight position={[0, 1.4, -.2]} color="#c3292e" intensity={.35} distance={2.4} />
-    </group>
-  );
-}
-
-function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active, handoff, onPosition, onDanger, onCapture, onActiveTime, onSimulationStep, onCanvasInteract }: LastBellRuntimeProps) {
+function RuntimeScene({
+  state,
+  moveRef,
+  lookRef,
+  runRef,
+  resetNonce,
+  checkpoint,
+  active,
+  handoff,
+  entryPhase = 'playing',
+  flashlightOn = true,
+  crouching = false,
+  doorCommand = null,
+  runtimeCommand = null,
+  headBobStrength = 1,
+  reducedMotion = false,
+  onDoorStateChange,
+  onPosition,
+  onDanger,
+  onActiveTime,
+  onSimulationStep,
+  onRuntimeEvent,
+  onRuntimeSnapshot,
+  onCanvasInteract,
+  onSceneReady,
+}: LastBellRuntimeProps) {
   const { camera, gl } = useThree();
-  const textures = useSchoolTextures(Math.min(gl.capabilities.getMaxAnisotropy(), 4));
-  const positionRef = useRef<Position>({ x: 0, z: 9 });
+  const dpr = useThree((three) => three.viewport.dpr);
+  const quality = lastBellQualityTierForDpr(dpr);
+  const positionRef = useRef<Position>({ x: CHAPTER_01_PLAYER_START.x, z: CHAPTER_01_PLAYER_START.z });
   const yawRef = useRef(Math.PI);
   const pitchRef = useRef(0);
-  const patrolRef = useRef(0);
-  const chaseStartedRef = useRef(false);
-  const enemyPositionsRef = useRef<ChaseEnemy[]>(LAST_BELL_CHASE_SPAWN.map((enemy) => ({ ...enemy })));
   const accumulatorRef = useRef(0);
   const lastReportRef = useRef(0);
-  const captureReportedRef = useRef(false);
+  const qaElapsedRef = useRef(0);
+  const qaFramesRef = useRef(0);
   const activityClockRef = useRef(createLastBellActivityClock());
   const activeRef = useRef(active);
-  const enemyOneRef = useRef<THREE.Group>(null);
-  const enemyTwoRef = useRef<THREE.Group>(null);
   const checkpointRef = useRef(checkpoint);
+  const headBobPhaseRef = useRef(0);
+  const lastResetNonceRef = useRef<number | null>(null);
+  const lastDoorCommandNonceRef = useRef<number | null>(null);
+  const lastLegacyHandoffNonceRef = useRef<number | null>(null);
+  const pendingDoorCommandsRef = useRef<DoorCommand[]>([]);
+  const campaignSimulationRef = useRef(new LastBellSimulation());
+  const runtimeEventCallbackRef = useRef(onRuntimeEvent);
+  const runtimeSnapshotCallbackRef = useRef(onRuntimeSnapshot);
+  const lastRuntimeCommandNonceRef = useRef<number | null>(null);
+  const [initialDoorSystem] = useState(() => createDoorSystem(CHAPTER_01_CONTENT.doors));
+  const [initialClassroomDoor] = useState(() => classroomDoorSnapshot(initialDoorSystem));
+  const doorSystemRef = useRef(initialDoorSystem);
+  const classroomDoorRef = useRef<DoorSnapshot | null>(initialClassroomDoor);
+  const lastClassroomDoorPhaseRef = useRef<DoorPhase>(initialClassroomDoor?.state ?? 'closed');
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+
+  useEffect(() => {
+    cameraRef.current = camera as THREE.PerspectiveCamera;
+  }, [camera]);
 
   useEffect(() => {
     checkpointRef.current = checkpoint;
@@ -341,25 +201,29 @@ function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active
   }, [gl, onCanvasInteract]);
 
   useEffect(() => {
-    const checkpointState = checkpointPositionFor(checkpointRef.current);
-    const checkpointPosition = { x: checkpointState.x, z: checkpointState.z };
-    positionRef.current = checkpointPosition;
-    yawRef.current = checkpointState.yaw;
-    pitchRef.current = 0;
-    patrolRef.current = 0;
-    chaseStartedRef.current = false;
-    enemyPositionsRef.current = LAST_BELL_CHASE_SPAWN.map((enemy) => ({ ...enemy }));
-    accumulatorRef.current = 0;
-    captureReportedRef.current = false;
-    moveRef.current = { x: 0, y: 0 };
-    lookRef.current = { x: 0, y: 0 };
-    runRef.current = false;
-    camera.position.set(checkpointPosition.x, 1.68, checkpointPosition.z);
-    camera.rotation.set(0, checkpointState.yaw, 0, 'YXZ');
-  }, [camera, moveRef, lookRef, resetNonce, runRef]);
+    if (!doorCommand || doorCommand.door !== 'classroom') return;
+    if (lastDoorCommandNonceRef.current === doorCommand.nonce) return;
+    lastDoorCommandNonceRef.current = doorCommand.nonce;
+    enqueueClassroomDoorCommand(pendingDoorCommandsRef.current, doorCommand.action);
+    campaignSimulationRef.current.queueInteraction(
+      doorCommand.action === 'open' ? 'ch1.classroom-door.open' : 'ch1.classroom-door.lock',
+    );
+  }, [doorCommand]);
 
   useEffect(() => {
-    if (!handoff) return;
+    runtimeEventCallbackRef.current = onRuntimeEvent;
+    runtimeSnapshotCallbackRef.current = onRuntimeSnapshot;
+  }, [onRuntimeEvent, onRuntimeSnapshot]);
+
+  useEffect(() => {
+    if (!runtimeCommand || lastRuntimeCommandNonceRef.current === runtimeCommand.nonce) return;
+    lastRuntimeCommandNonceRef.current = runtimeCommand.nonce;
+    campaignSimulationRef.current.queueInteraction(runtimeCommand.interactionId);
+  }, [runtimeCommand]);
+
+  useEffect(() => {
+    if (!handoff || lastLegacyHandoffNonceRef.current === handoff.nonce) return;
+    lastLegacyHandoffNonceRef.current = handoff.nonce;
     positionRef.current = { ...handoff.position };
     yawRef.current = handoff.yaw;
     pitchRef.current = 0;
@@ -371,59 +235,164 @@ function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active
     camera.rotation.set(0, handoff.yaw, 0, 'YXZ');
   }, [camera, handoff, lookRef, moveRef, runRef]);
 
+  useEffect(() => {
+    if (lastResetNonceRef.current === resetNonce) return;
+    lastResetNonceRef.current = resetNonce;
+    const checkpointState = checkpointPositionFor(checkpointRef.current);
+    const checkpointPosition = { x: checkpointState.x, z: checkpointState.z };
+    positionRef.current = checkpointPosition;
+    yawRef.current = checkpointState.yaw;
+    pitchRef.current = 0;
+    headBobPhaseRef.current = 0;
+    const checkpointAfterClassroomDoor = checkpointPosition.z >= CHAPTER_01_CLASSROOM_DOOR_PORTAL.max.z + .26;
+    accumulatorRef.current = 0;
+    pendingDoorCommandsRef.current = [];
+    const system = createDoorSystem(CHAPTER_01_CONTENT.doors);
+    if (state.doorLocked || checkpointAfterClassroomDoor) system.advance({ deltaSeconds: 0, commands: [{ doorId: 'door.classroom.slide', type: 'lock' }] });
+    doorSystemRef.current = system;
+    // The authored first-bay renderer retains its existing contract. The full
+    // campaign sim is reset beside it, never by a mesh transform or React UI.
+    campaignSimulationRef.current = new LastBellSimulation();
+    classroomDoorRef.current = classroomDoorSnapshot(system);
+    lastClassroomDoorPhaseRef.current = classroomDoorRef.current?.state ?? 'closed';
+    moveRef.current = { x: 0, y: 0 };
+    lookRef.current = { x: 0, y: 0 };
+    runRef.current = false;
+    camera.position.set(checkpointPosition.x, 1.68, checkpointPosition.z);
+    camera.rotation.set(0, checkpointState.yaw, 0, 'YXZ');
+  }, [camera, lookRef, moveRef, resetNonce, runRef, state.doorLocked]);
+
   useFrame((_, delta) => {
+    const sceneCamera = cameraRef.current;
+    if (!sceneCamera) return;
+    qaElapsedRef.current += delta;
+    qaFramesRef.current += 1;
+    if (qaElapsedRef.current >= 1) {
+      publishRuntimeQaMetrics({
+        renderer: {
+          calls: gl.info.render.calls,
+          triangles: gl.info.render.triangles,
+          points: gl.info.render.points,
+          lines: gl.info.render.lines,
+        },
+        fps: Number((qaFramesRef.current / qaElapsedRef.current).toFixed(1)),
+      });
+      qaElapsedRef.current = 0;
+      qaFramesRef.current = 0;
+    }
+    const cinematicPhase = entryPhase !== 'playing';
+    if (cinematicPhase) {
+      const exteriorEntry = entryPhase === 'preflight' || entryPhase === 'brand';
+      const lowInteriorColdOpen = entryPhase === 'cold-open';
+      // The entry facade is separate. Cold-open takes the authored rear-room
+      // composition, while aperture resolves to the stable player-start seam.
+      const targetX = exteriorEntry
+        ? POST_STRIKE_RENDER_GUARDRAILS.camera.entry.position[0]
+        : lowInteriorColdOpen
+          ? POST_STRIKE_RENDER_GUARDRAILS.camera.coldOpen.position[0]
+          : CHAPTER_01_PLAYER_START.x;
+      const targetHeight = exteriorEntry
+        ? POST_STRIKE_RENDER_GUARDRAILS.camera.entry.position[1]
+        : lowInteriorColdOpen
+          ? POST_STRIKE_RENDER_GUARDRAILS.camera.coldOpen.position[1]
+          : CHAPTER_01_PLAYER_START.y;
+      const targetZ = exteriorEntry
+        ? POST_STRIKE_RENDER_GUARDRAILS.camera.entry.position[2]
+        : lowInteriorColdOpen
+          ? POST_STRIKE_RENDER_GUARDRAILS.camera.coldOpen.position[2]
+          : CHAPTER_01_PLAYER_START.z;
+      const targetYaw = exteriorEntry
+        ? POST_STRIKE_RENDER_GUARDRAILS.camera.entry.yaw
+        : lowInteriorColdOpen
+          ? POST_STRIKE_RENDER_GUARDRAILS.camera.coldOpen.yaw
+          : Math.PI;
+      const targetPitch = lowInteriorColdOpen ? POST_STRIKE_RENDER_GUARDRAILS.camera.coldOpen.pitch : 0;
+      if (reducedMotion) {
+        sceneCamera.position.set(targetX, targetHeight, targetZ);
+        yawRef.current = targetYaw;
+        pitchRef.current = targetPitch;
+      } else {
+        sceneCamera.position.x = THREE.MathUtils.damp(sceneCamera.position.x, targetX, 8, delta);
+        sceneCamera.position.y = THREE.MathUtils.damp(sceneCamera.position.y, targetHeight, 8, delta);
+        sceneCamera.position.z = THREE.MathUtils.damp(sceneCamera.position.z, targetZ, 8, delta);
+        yawRef.current = THREE.MathUtils.damp(yawRef.current, targetYaw, 8, delta);
+        pitchRef.current = THREE.MathUtils.damp(pitchRef.current, targetPitch, 8, delta);
+      }
+      sceneCamera.rotation.set(pitchRef.current, yawRef.current, 0, 'YXZ');
+    }
+
     const activityFrame = stepLastBellActivityClock(activityClockRef.current, performance.now(), {
       active,
       visible: document.visibilityState === 'visible',
     });
     activityClockRef.current = activityFrame.clock;
     if (activityFrame.activeDurationMs > 0) onActiveTime(activityFrame.activeDurationMs);
-    if (!active) {
+
+    if (!active || cinematicPhase) {
       moveRef.current = { x: 0, y: 0 };
       lookRef.current = { x: 0, y: 0 };
       runRef.current = false;
       return;
     }
+
     const input = state.hiding ? { x: 0, y: 0 } : moveRef.current;
-    const activeChase = state.bellTriggered && state.phase !== 'complete' && state.phase !== 'opening';
-    if (activeChase && !chaseStartedRef.current) {
-      chaseStartedRef.current = true;
-      enemyPositionsRef.current = LAST_BELL_CHASE_SPAWN.map((enemy) => ({ ...enemy }));
-    }
     accumulatorRef.current += Math.min(delta, .1);
     while (accumulatorRef.current >= LAST_BELL_FIXED_STEP) {
       const previousPosition = positionRef.current;
+      const system = doorSystemRef.current!;
+      const doorFrame = system.advance({
+        deltaSeconds: LAST_BELL_FIXED_STEP,
+        commands: pendingDoorCommandsRef.current.splice(0),
+        occupants: [playerOccupant(previousPosition)],
+      });
+      const nextDoor = doorFrame.doors.find((door) => door.id === 'door.classroom.slide') ?? null;
+      classroomDoorRef.current = nextDoor;
+      if (nextDoor && nextDoor.state !== lastClassroomDoorPhaseRef.current) {
+        lastClassroomDoorPhaseRef.current = nextDoor.state;
+        onDoorStateChange?.('classroom', nextDoor.state);
+      }
+
       positionRef.current = clampLastBellPosition(
-        stepLastBellPosition(previousPosition, input, yawRef.current, LAST_BELL_FIXED_STEP, runRef.current ? 3.35 : 1.85),
-        { doorLocked: state.doorLocked, fireDoorLocked: state.fireDoorLocked },
+        stepLastBellPosition(previousPosition, input, yawRef.current, LAST_BELL_FIXED_STEP, crouching ? 1.12 : runRef.current ? 3.35 : 1.85),
+        {
+          fireDoorLocked: true,
+          classroomDoorPassable: nextDoor?.passable === true,
+          classroomDoorPortal: {
+            min: CHAPTER_01_CLASSROOM_DOOR_PORTAL.min,
+            max: CHAPTER_01_CLASSROOM_DOOR_PORTAL.max,
+          },
+        },
         previousPosition,
       );
-      patrolRef.current += LAST_BELL_FIXED_STEP;
-      if (activeChase) {
-        const fixedDistance = stepLastBellEscapeChase(positionRef.current, enemyPositionsRef.current, LAST_BELL_FIXED_STEP, state.hiding);
-        if (!state.hiding && fixedDistance < 1.5 && !captureReportedRef.current) {
-          captureReportedRef.current = true;
-          onCapture();
-        }
-      } else {
-        enemyPositionsRef.current[0] = { x: 1.4, z: 45 + Math.sin(patrolRef.current * .45) * 2 };
-        enemyPositionsRef.current[1] = { x: -1.1, z: 47 + Math.sin(patrolRef.current * .38 + 1.2) * 1.5 };
-      }
       onSimulationStep(LAST_BELL_FIXED_STEP * 1000, {
         listening: state.listening,
         hiding: state.hiding,
         running: runRef.current,
       });
+      const campaignFrame = campaignSimulationRef.current.advance(LAST_BELL_SIMULATION_STEP_SECONDS, {
+        movement: input,
+        facingRadians: yawRef.current,
+        flashlightOn,
+        listening: state.listening,
+        hiding: state.hiding,
+        running: runRef.current,
+      });
+      for (const event of campaignFrame.events) runtimeEventCallbackRef.current?.(event);
+      runtimeSnapshotCallbackRef.current?.(campaignFrame.snapshot);
       accumulatorRef.current -= LAST_BELL_FIXED_STEP;
     }
-    const next = positionRef.current;
 
     yawRef.current -= lookRef.current.x * .0022;
     pitchRef.current = THREE.MathUtils.clamp(pitchRef.current - lookRef.current.y * .0022, -1.15, 1.15);
     lookRef.current.x = 0;
     lookRef.current.y = 0;
-    camera.position.set(next.x, 1.68 + (state.hiding ? -.22 : 0), next.z);
-    camera.rotation.set(pitchRef.current, yawRef.current, 0, 'YXZ');
+    const next = positionRef.current;
+    const moving = !state.hiding && Math.hypot(input.x, input.y) > .08;
+    const clampedHeadBob = reducedMotion ? 0 : THREE.MathUtils.clamp(headBobStrength, 0, 1);
+    if (moving && !reducedMotion) headBobPhaseRef.current += delta * (runRef.current ? 12.5 : 8.2);
+    const bob = moving ? Math.sin(headBobPhaseRef.current) * .012 * clampedHeadBob : 0;
+    sceneCamera.position.set(next.x, 1.68 + (state.hiding ? -.74 : crouching ? -.34 : 0) + bob, next.z);
+    sceneCamera.rotation.set(pitchRef.current, yawRef.current, 0, 'YXZ');
 
     const now = performance.now();
     const shouldReport = now - lastReportRef.current > 120;
@@ -432,38 +401,27 @@ function Scene({ state, moveRef, lookRef, runRef, resetNonce, checkpoint, active
       lastReportRef.current = now;
     }
 
-    const distance = Math.min(
-      Math.hypot(next.x - enemyPositionsRef.current[0].x, next.z - enemyPositionsRef.current[0].z),
-      Math.hypot(next.x - enemyPositionsRef.current[1].x, next.z - enemyPositionsRef.current[1].z),
-    );
-    if (shouldReport) onDanger(distance);
-    if (enemyOneRef.current) enemyOneRef.current.position.set(enemyPositionsRef.current[0].x, 0, enemyPositionsRef.current[0].z);
-    if (enemyTwoRef.current) enemyTwoRef.current.position.set(enemyPositionsRef.current[1].x, 0, enemyPositionsRef.current[1].z);
-    const sway = Math.sin(performance.now() * .006) * (state.bellTriggered ? .08 : .025);
-    if (enemyOneRef.current) enemyOneRef.current.rotation.z = sway;
-    if (enemyTwoRef.current) enemyTwoRef.current.rotation.z = -sway * 1.2;
+    if (shouldReport) onDanger(99);
   });
 
   return (
     <>
-      <color attach="background" args={[state.bellTriggered ? '#251d1d' : '#202a25']} />
-      <fog attach="fog" args={[state.bellTriggered ? '#251d1d' : '#202a25', 12, 58]} />
-      <ambientLight intensity={state.phase === 'classroom' ? .9 : .46} color={state.phase === 'classroom' ? '#e5d3b8' : '#b9dbd9'} />
-      <directionalLight position={[-5, 9, 2]} intensity={state.phase === 'classroom' ? 2.2 : .55} color={state.phase === 'classroom' ? '#e5a45c' : '#b9dbd9'} />
-      <pointLight position={[0, 2.6, 15]} intensity={state.phase === 'classroom' ? .2 : 1.1} color="#c3292e" distance={12} />
-      <pointLight position={[0, 2.4, 48]} intensity={state.bellTriggered ? 5.5 : .15} color="#c3292e" distance={14} decay={2} />
-      <Classroom textures={textures} />
-      <Corridor textures={textures} state={state} />
-      <Door z={13} locked={state.doorLocked} textures={textures} />
-      <Door z={41} locked={state.fireDoorLocked} fire textures={textures} />
-      <UtilityPanel active={state.powerRestored} />
-      <Bell active={state.bellTriggered} />
-      <Enemy enemyRef={enemyOneRef} z={52} x={1.4} active={state.doorLocked && state.phase !== 'complete'} />
-      <Enemy enemyRef={enemyTwoRef} z={54.4} x={-1.1} active={state.doorLocked && state.phase !== 'complete'} />
-      <mesh position={[LAST_BELL_ANCHORS.chapter_exit.x, .02, LAST_BELL_ANCHORS.chapter_exit.z]}>
-        <circleGeometry args={[1.25, 32]} />
-        <meshBasicMaterial color="#e5a45c" transparent opacity={state.phase === 'complete' ? .22 : 0} />
-      </mesh>
+      {/* The torch stays off for the low post-strike cold-open; it starts only
+          at the existing aperture/player handoff, without changing control. */}
+      <FlashlightRig on={flashlightOn && entryPhase === 'playing'} shadowMapSize={quality.shadowMapSize} />
+      <ChapterOneScene
+        entryPhase={entryPhase}
+        classroomDoorRef={classroomDoorRef}
+        playerPositionRef={positionRef}
+        playerStealth={{
+          stealthState: state.hiding ? 'hidden' : crouching ? 'crouched' : 'standing',
+          hidingSpotId: state.hiding ? 'ch1.hide.desk' : null,
+          stealthTransitionSeconds: 0,
+        }}
+        quality={quality}
+        reducedMotion={reducedMotion}
+        onEnvironmentMounted={onSceneReady ?? NOOP_SCENE_READY}
+      />
     </>
   );
 }
@@ -472,12 +430,27 @@ export function LastBellRuntime(props: LastBellRuntimeProps) {
   return (
     <Canvas
       className={styles.canvas}
-      camera={{ position: [0, 1.68, 9], fov: 68, near: .05, far: 80 }}
-      dpr={[1, 1.5]}
+      camera={{
+        position: POST_STRIKE_RENDER_GUARDRAILS.camera.entry.position as [number, number, number],
+        fov: POST_STRIKE_RENDER_GUARDRAILS.camera.projection.fov,
+        near: POST_STRIKE_RENDER_GUARDRAILS.camera.projection.near,
+        far: POST_STRIKE_RENDER_GUARDRAILS.camera.projection.far,
+      }}
+      dpr={[1, 1.35]}
+      shadows="soft"
       gl={{ antialias: true, powerPreference: 'high-performance' }}
-      onCreated={({ gl }) => { gl.setClearColor('#171d1a'); }}
+      onCreated={({ gl }) => {
+        gl.outputColorSpace = THREE.SRGBColorSpace;
+        gl.toneMapping = THREE.ACESFilmicToneMapping;
+        gl.toneMappingExposure = HYOSAN_POST_STRIKE_NIGHT.lighting.exposure;
+        gl.shadowMap.enabled = true;
+        gl.shadowMap.type = THREE.PCFSoftShadowMap;
+        gl.setClearColor('#05090c');
+      }}
     >
-      <Scene {...props} />
+      <RuntimeScene {...props} />
     </Canvas>
   );
 }
+
+export default LastBellRuntime;

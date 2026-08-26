@@ -5,70 +5,77 @@ const clientSource = readFileSync(new URL('./LastBellClient.tsx', import.meta.ur
 const runtimeSource = readFileSync(new URL('./LastBellRuntime.tsx', import.meta.url), 'utf8');
 
 describe('last bell runtime/client contracts', () => {
-  it('uses the typed interaction registry and opening preload hint', () => {
+  it('keeps the heavy 3D runtime dynamically loaded without a hidden review interaction seam', () => {
+    expect(clientSource).toContain("dynamic(\n  () => import('./LastBellRuntime')");
     expect(clientSource).toContain('INTERACTION_DESCRIPTORS.map');
-    expect(clientSource).toContain('interactionDescriptorFor(nearestRef.current)?.action');
+    expect(clientSource).not.toContain('reviewGate');
+    expect(runtimeSource).not.toContain('reviewGate');
+    expect(clientSource).toContain('interactionDescriptorFor(nearestRef.current)');
+    expect(clientSource).toContain("'classroom_door'");
     expect(clientSource).not.toContain('INTERACTION_COPY');
     expect(clientSource).not.toContain('ACTION_AUDIO');
-    expect(clientSource).toContain('preload sizes="100vw"');
   });
 
-  it('keeps keyboard actions stable while reading the latest nearest descriptor ref', () => {
-    expect(clientSource).toContain('const nearestRef = useRef<LastBellInteractionAnchor | null>(null);');
-    expect(clientSource).toContain('const setNearestValue = useCallback');
-    expect(clientSource).toContain('nearestRef.current = next;');
-    expect(clientSource).toContain('interactionDescriptorFor(nearestRef.current)');
-    expect(clientSource).toContain('const prompt = interactionDescriptorFor(nearest)?.copy ?? null;');
-    expect(clientSource).toContain('}, [interact, toggleHide, toggleListen]);');
-    expect(clientSource).not.toContain('}, [interact, state.phase, toggleHide, toggleListen]);');
+  it('runs the director from transient animation state instead of the removed 30-second raster timer', () => {
+    expect(clientSource).toContain('const entryDirectorRef = useRef(new EntryDirector());');
+    expect(clientSource).toContain('window.requestAnimationFrame(advance)');
+    expect(clientSource).toContain("dispatch({ type: 'START_PLAY' });");
+    expect(clientSource).not.toContain('openingElapsed');
+    expect(clientSource).not.toContain('setInterval');
   });
 
-  it('uses one primary action for every modal Escape path', () => {
-    expect(clientSource).toContain("if (event.key === 'Escape')");
-    expect(clientSource).toContain('modalPrimaryAction();');
-    expect(clientSource).toContain('onClick={modalPrimaryAction}');
-    expect(clientSource).toContain("if (activeModal === 'paused') setPaused(false)");
-    expect(clientSource).toContain("else if (activeModal === 'captured') retryFromCheckpoint()");
-    expect(clientSource).toContain("else if (activeModal === 'complete') restartFromComplete()");
+  it('keeps Canvas mounted and drives its entry, lighting, door, and comfort seams by public props', () => {
+    expect(clientSource).toContain('entryPhase={entryPhase}');
+    expect(clientSource).toContain('flashlightOn={flashlightOn}');
+    expect(clientSource).toContain('headBobStrength={reduceMotion ? 0 : headBobStrength}');
+    expect(clientSource).toContain('reducedMotion={reduceMotion}');
+    expect(clientSource).toContain('doorCommand={doorCommand}');
+    expect(clientSource).toContain('onSceneReady={onSceneReady}');
+    expect(clientSource).toContain('onDoorStateChange={onDoorStateChange}');
+    expect(runtimeSource).toContain('entryPhase?: EntryPhase;');
+    expect(runtimeSource).toContain('flashlightOn?: boolean;');
+    expect(runtimeSource).toContain('reducedMotion?: boolean;');
   });
 
-  it('persists the Last Bell result into the shared comparison contract and renders common result actions', () => {
+  it('requires an actual classroom-door locked callback before the reducer advances', () => {
+    expect(clientSource).toContain("requestDoorCommand('classroom', 'open')");
+    expect(clientSource).toContain("requestDoorCommand('classroom', 'close-lock')");
+    expect(clientSource).toContain("classroomDoorStageRef.current === 'crossed'");
+    expect(clientSource).toContain("doorState === 'locked' && classroomDoorStageRef.current === 'locking'");
+    expect(clientSource).toContain("dispatch({ type: 'LOCK_CLASSROOM_DOOR' });");
+    expect(clientSource).not.toContain("requestDoorHandoff('classroom')");
+  });
+
+  it('unlocks audio and tries pointer lock from the entry gesture without making refusal blocking', () => {
+    expect(clientSource).toContain('const beginEntry = useCallback');
+    expect(clientSource).toContain('audio.unlock();');
+    expect(clientSource).toContain('void requestPointerLock();');
+    expect(clientSource).toContain('시점을 켜려면 화면을 한 번 클릭하세요.');
+    expect(clientSource).toContain('requestLastBellPointerLock(canvas)');
+  });
+
+  it('uses touch controls without a desktop pointer-lock prompt in compact landscape', () => {
+    expect(clientSource).toContain('function usesTouchGameplayHud()');
+    expect(clientSource).toContain("window.matchMedia('(pointer: coarse)').matches");
+    expect(clientSource).toContain("window.matchMedia('(max-height: 480px) and (orientation: landscape)').matches");
+    expect(clientSource).toContain('if (usesTouchGameplayHud())');
+    expect(clientSource).toContain('setPointerLockHint(false);');
+    expect(clientSource).toContain('<span className={styles.touchPrompt}>행동</span>');
+  });
+
+  it('keeps keyboard handlers gated from the opening while using refs for transient input', () => {
+    expect(clientSource).toContain('const gameplayInputEnabledRef = useRef(false);');
+    expect(clientSource).toContain('if (modalOpenRef.current || !gameplayInputEnabledRef.current) return;');
+    expect(clientSource).toContain("if (key === 'f') toggleFlashlight();");
+    expect(clientSource).toContain('moveRef.current');
+    expect(clientSource).toContain('lookRef.current');
+  });
+
+  it('persists the Last Bell result through optional browser storage and shared comparison actions', () => {
+    expect(clientSource).toContain("import { getOptionalStorage } from '@/lib/campaigns/aouad/browser-storage'");
+    expect(clientSource).not.toContain('window.localStorage');
     expect(clientSource).toContain('comparisonResultFromLastBell');
     expect(clientSource).toContain('saveAouadComparisonResult(storage, comparisonResult)');
     expect(clientSource).toContain('<ComparisonResultActions');
-    expect(clientSource).toContain('primaryActionRef={modalPrimaryRef}');
-  });
-
-  it('uses the optional browser-storage seam for all local progress reads and writes', () => {
-    expect(clientSource).toContain("import { getOptionalStorage } from '@/lib/campaigns/aouad/browser-storage'");
-    expect(clientSource).toContain('const storage = getOptionalStorage();');
-    expect(clientSource).not.toContain('window.localStorage');
-  });
-
-  it('uses the shared approved route label registry in completion UI', () => {
-    expect(clientSource).toContain("import { LAST_BELL_ROUTE_LABELS } from '@/lib/prototypes/last-bell/routes'");
-    expect(clientSource).toContain('LAST_BELL_ROUTE_LABELS[completionRecord.routeId]');
-    expect(clientSource).not.toContain("systems: '설비실 안내선'");
-  });
-
-  it('tracks active wall time separately from fixed simulation steps and excludes inactive presentation states', () => {
-    expect(clientSource).toContain('const onActiveTime = useCallback');
-    expect(clientSource).toContain('!paused && !portrait && !showOpening && !state.captured');
-    expect(runtimeSource).toContain('stepLastBellActivityClock');
-    expect(runtimeSource).toContain('onActiveTime(activityFrame.activeDurationMs)');
-  });
-
-  it('routes canvas interaction through a rejection-safe pointer lock helper', () => {
-    expect(clientSource).toContain('requestLastBellPointerLock(canvas)');
-    expect(clientSource).not.toContain('canvas.requestPointerLock?.()');
-  });
-
-  it('keeps closed door leaves, atomic handoff, and fixed-step capture separate from danger sampling', () => {
-    expect(runtimeSource).not.toContain('locked ? 1.55');
-    expect(runtimeSource).toContain('handoff: LastBellDoorHandoffCommand | null');
-    expect(runtimeSource).toContain('previousPosition');
-    expect(runtimeSource).toContain('captureReportedRef');
-    expect(runtimeSource).toContain('captureReportedRef.current = false');
-    expect(runtimeSource).toContain('onCapture();');
   });
 });

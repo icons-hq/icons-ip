@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="replaceable badge graphic layer" data-stable-key="badge">
+  <rect width="512" height="512" rx="32" fill="#17656b"/>
+  <rect x="74" y="180" width="106" height="120" rx="14" fill="#ded9ba"/><rect x="203" y="180" width="106" height="120" rx="14" fill="#ded9ba"/><rect x="332" y="180" width="106" height="120" rx="14" fill="#ded9ba"/><path d="M98 232h58M227 232h58M356 232h58" stroke="#16252a" stroke-width="18"/><path d="M84 352h35M142 352h35M213 352h35M271 352h35M342 352h35" stroke="#ded9ba" stroke-width="22" stroke-linecap="round"/>
+</svg>

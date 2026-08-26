@@ -42,7 +42,7 @@ describe('AouadCampaignState', () => {
       zones: { classroom: true, cafeteria: true, broadcast: true, theater: true, rooftop: true },
       classroomRecords: ['radio', 'journal', 'coupon'],
       theaterEndings: ['signal'],
-      wishlist: ['id-set'],
+      wishlist: ['idcard'],
     });
   });
 

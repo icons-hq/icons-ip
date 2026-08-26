@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { NAV_ITEMS, hrefFor, isActive, isAuthShellPath } from '@/lib/routes';
+import { NAV_ITEMS, hrefFor, isActive, isAuthShellPath, isImmersiveShellPath } from '@/lib/routes';
 import { Icon } from '@/components/ui/Icon';
 import { useCart } from './CartProvider';
 import { useGo } from './useGo';
@@ -33,7 +33,7 @@ export function Nav() {
   const pathname = usePathname();
   const cardRewardsEnabled = useCardRewardsEnabled();
   // 게임은 자기완결 번들, 어드민은 자체 작업대, 인증은 집중형 셸, 홈은 자체 헤더를 사용한다.
-  if (pathname === '/' || isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
+  if (pathname === '/' || isAuthShellPath(pathname) || isImmersiveShellPath(pathname) || pathname.startsWith('/admin')) return null;
   return <EditorialHeader cardRewardsEnabled={cardRewardsEnabled} pathname={pathname} />;
 }
 
