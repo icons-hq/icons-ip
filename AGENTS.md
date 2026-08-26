@@ -10,9 +10,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 # AGENTS.md
 
-## 기본 작업 원칙
+## 배포와 Preview
 
-- issue 생성/수정, PR 생성, push, 배포, Supabase remote 적용, 외부 서비스 설정 변경은 사용자가 명시적으로 요청했거나 직전에 확인한 경우에만 수행한다.
 - Vercel Git 자동 배포는 `vercel.json`의 `git.deploymentEnabled: false`로 비활성화되어 있다. Preview와 production 배포는 GitHub Actions의 Vercel CLI 경로만 사용한다.
 - PR preview는 전용 Supabase 프로젝트를 본다. preview 배포 전에 `deploy-supabase-preview`가 migration을 올리므로 스키마 변경 PR도 preview에서 앱과 DB 버전이 맞는다. preview가 production 프로젝트를 가리키게 만들지 않고, preview DB에 운영 데이터를 넣지 않는다(ADR-0006).
 
@@ -36,7 +35,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - 수집형 디지털 `카드`와 실물 `굿즈`를 혼용하지 않는다.
 - `팬덤 가입`은 v1에서 무료 `팔로우`다. 유료 `멤버십`과 섞지 않는다.
 - `트레이드`는 카드 C2C(구 명칭 "교환"), `마켓`은 굿즈 C2C다. 둘 다 v1에서는 플레이스홀더/v2 범위다. `교환`은 굿즈 `클레임` 유형(회수 후 재출고)으로만 쓴다.
-- 유료 가챠·`충전금`은 폐기됐다(ADR-0003·ADR-0004). `카드`는 `뽑기권`(UI 표기 "카드팩") 개봉과 참여형 게임의 무상 리워드로만 발급된다. 굿즈·티켓 신규 결제의 provider는 Korpay다. 두 checkout은 provider-neutral seam으로 이동했고 gate 기본값은 OFF지만, 2026-08-18 Production 굿즈 gate를 공개 ON으로 전환했다. 티켓 gate와 두 canary는 OFF이며 Toss는 `provider=toss`인 기존 거래의 조회·취소·웹훅에만 남긴다. 현재 rollout 증거와 잔여 위험은 `docs/runbooks/korpay-production-rollout.md`를 따른다.
+- 유료 가챠·`충전금`은 폐기됐다(ADR-0003·ADR-0004). `카드`는 `뽑기권`(UI 표기 "카드팩") 개봉과 참여형 게임의 무상 리워드로만 발급된다. 굿즈·티켓 신규 결제의 provider는 Korpay이고 provider-neutral seam 뒤에서 gate로 제어된다. Toss는 `provider=toss`인 기존 거래의 조회·취소·웹훅에만 남긴다. 현재 gate 상태·rollout 증거·잔여 위험은 `docs/runbooks/korpay-production-rollout.md`를 따른다.
 - 범용 온라인 팝업 운영 레이어와 Expo webview 호스트는 현 로드맵 범위가 아니다. 기존 게임 `goods` variant는 운영 콘솔에서 읽기 전용이며, 남아 있는 mock 연출은 실제 경품·구매권을 만들지 않는다. 실물 쿠지에 재사용하지 않는다.
 
 ## 구현 원칙
@@ -51,9 +50,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## 프론트엔드 규칙
 
 - Next.js 16, React 19, Tailwind v4 기준으로 작성한다.
-- Next.js API, 라우팅, proxy/middleware, metadata, caching 관련 코드를 쓰기 전에는 `node_modules/next/dist/docs/`에서 현재 버전 문서를 확인한다.
 - `app/globals.css`의 "Holographic Midnight" 디자인 시스템과 기존 컴포넌트 패턴을 우선한다.
-- 색·타이포·컴포넌트·표면별 디자인 규율은 루트 `DESIGN.md`(기계 판독용 디자인 스펙)를 따른다. 토큰 진실원은 `app/globals.css`이며, 문서와 코드가 충돌하면 코드가 진실이다.
+- 색·타이포·컴포넌트·표면별 디자인 규율은 루트 `DESIGN.md`(기계 판독용 디자인 스펙)를 따른다. 토큰 진실원은 `app/globals.css`다.
 - 라우트는 `app/**/page.tsx`에서 screen 컴포넌트로 연결하는 현 구조를 존중한다.
 - 프로토타입 라우트 id와 실제 경로 매핑은 `lib/routes.ts`를 기준으로 한다.
 
@@ -69,7 +67,6 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 - 코드 변경 후 가능한 범위에서 `npm run lint`와 `npm run build`를 실행한다.
 - Supabase migration을 변경한 경우 Supabase CLI가 설정되어 있으면 로컬 DB에 적용 검증을 수행한다.
-- 실행하지 못한 검증은 최종 응답에 명시한다.
 
 ## 작업 계획과 Git
 

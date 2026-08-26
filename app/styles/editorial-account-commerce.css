@@ -1508,6 +1508,53 @@ body:has(input[name='passwordConfirmation']) :is(a, button, input):focus-visible
   color: var(--account-muted);
 }
 
+/* 결제 콜백 결과 배너 — order-status·ticket-status 국면 팔레트(pastel + semantic ink)를 재사용한다. */
+.orders-payment-banner,
+.tickets-payment-banner {
+  border-radius: 14px;
+  border-color: var(--account-line);
+  background: var(--account-surface);
+  color: var(--account-ink);
+}
+
+.orders-payment-banner p,
+.tickets-payment-banner p {
+  color: var(--account-ink);
+}
+
+.orders-payment-banner--approved,
+.tickets-payment-banner--approved {
+  border-color: color-mix(in srgb, var(--account-success) 28%, transparent);
+  background: color-mix(in srgb, var(--account-green) 52%, var(--account-surface));
+}
+
+.orders-payment-banner--approved strong,
+.tickets-payment-banner--approved strong {
+  color: var(--account-success);
+}
+
+.orders-payment-banner--checking,
+.tickets-payment-banner--checking {
+  border-color: color-mix(in srgb, var(--account-warning) 30%, transparent);
+  background: color-mix(in srgb, var(--account-yellow) 52%, var(--account-surface));
+}
+
+.orders-payment-banner--checking strong,
+.tickets-payment-banner--checking strong {
+  color: var(--account-warning);
+}
+
+.orders-payment-banner--failed,
+.tickets-payment-banner--failed {
+  border-color: color-mix(in srgb, var(--account-danger) 28%, transparent);
+  background: color-mix(in srgb, var(--account-pink) 50%, var(--account-surface));
+}
+
+.orders-payment-banner--failed strong,
+.tickets-payment-banner--failed strong {
+  color: var(--account-danger);
+}
+
 .orders-empty {
   border-radius: 14px;
   background: var(--account-surface);

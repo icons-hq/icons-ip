@@ -50,4 +50,38 @@ describe('Tickets', () => {
     expect(html).toContain('이벤트 둘러보기');
     expect(html).toContain('href="/events"');
   });
+
+  it('payment 결과가 없으면 결제 배너를 렌더하지 않는다', () => {
+    const html = renderToStaticMarkup(<Tickets orders={[order]} />);
+
+    expect(html).not.toContain('tickets-payment-banner');
+    expect(html).toContain('메이플 팝업');
+  });
+
+  it('approved면 결제 확인 안내를 status로 렌더한다', () => {
+    const html = renderToStaticMarkup(<Tickets orders={[order]} paymentResult="approved" />);
+
+    expect(html).toContain('tickets-payment-banner--approved');
+    expect(html).toContain('role="status"');
+    expect(html).toContain('결제가 확인됐어요');
+  });
+
+  it('checking이면 확인 중 안내와 고객센터 1:1 문의 링크를 렌더한다', () => {
+    const html = renderToStaticMarkup(<Tickets orders={[order]} paymentResult="checking" />);
+
+    expect(html).toContain('tickets-payment-banner--checking');
+    expect(html).toContain('role="status"');
+    expect(html).toContain('결제를 확인하고 있어요');
+    expect(html).toContain('고객센터');
+    expect(html).toContain('href="/my/inquiries"');
+  });
+
+  it('failed면 실패 안내를 alert로 렌더하고, 빈 예매 목록에서도 유지한다', () => {
+    const html = renderToStaticMarkup(<Tickets orders={[]} paymentResult="failed" />);
+
+    expect(html).toContain('tickets-payment-banner--failed');
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('결제가 완료되지 않았어요');
+    expect(html).toContain('아직 예매한 티켓이 없어요');
+  });
 });

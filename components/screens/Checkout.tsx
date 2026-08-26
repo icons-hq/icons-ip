@@ -49,6 +49,19 @@ const addressFieldOrder: CheckoutAddressField[] = [
   'deliveryNote',
 ];
 
+/*
+ * 선택된 수단의 게이트 하나만 본다. 라디오 disabled·제출 버튼·submit 가드가
+ * 전부 이 판정을 공유해야 한다 — 가드만 카드 게이트를 보면 무통장만 열린
+ * 구성에서 버튼은 활성인데 제출이 조용히 무시된다. 서버도 placeOrderAction에서
+ * 같은 수단별 판정을 한다.
+ */
+export function checkoutMethodAvailable(
+  paymentMethod: CheckoutPaymentMethod,
+  gates: { card: boolean; bankTransfer: boolean },
+): boolean {
+  return paymentMethod === 'bank_transfer' ? gates.bankTransfer : gates.card;
+}
+
 export function Checkout({
   catalog,
   latestAddress,
@@ -62,7 +75,11 @@ export function Checkout({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<CheckoutAddressErrors>({});
-  const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>('card');
+  /* 카드 게이트가 닫혀 있으면 열려 있는 무통장으로 시작한다 — 고를 수 없는
+     라디오가 선택된 채 뜨지 않게. 두 게이트 prop은 서버가 내려주는 고정값이다. */
+  const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>(
+    paymentAvailable || !bankTransferAvailable ? 'card' : 'bank_transfer',
+  );
   const [address, setAddress] = useState<CheckoutAddress>({
     recipientName: latestAddress?.recipientName ?? '',
     phone: latestAddress?.phone ?? '',
@@ -93,9 +110,10 @@ export function Checkout({
    */
   const bankTransferBlockedByCart = lines.some(({ good }) => good?.allowBankTransfer === false);
   const bankTransferSelectable = bankTransferAvailable && !bankTransferBlockedByCart;
-  const methodAvailable = paymentMethod === 'bank_transfer'
-    ? bankTransferSelectable
-    : paymentAvailable;
+  const methodAvailable = checkoutMethodAvailable(paymentMethod, {
+    card: paymentAvailable,
+    bankTransfer: bankTransferSelectable,
+  });
 
   const setField = (field: keyof CheckoutAddress, value: string) => {
     setAddress((current) => ({ ...current, [field]: value }));
@@ -125,7 +143,7 @@ export function Checkout({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (submitting || cartPending || mode !== 'server' || unavailable || !paymentAvailable) return;
+    if (submitting || cartPending || mode !== 'server' || unavailable || !methodAvailable) return;
 
     const nextFieldErrors = checkoutAddressErrors(address);
     if (Object.keys(nextFieldErrors).length > 0) {
