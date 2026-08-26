@@ -2,30 +2,49 @@
 status: accepted
 ---
 
-# PR 프리뷰는 전용 Supabase 프로젝트를 본다
+# PR 프리뷰 DB를 shared main과 isolated branches로 분리한다
 
-Vercel Preview 배포는 프로덕션 Supabase 프로젝트(`sbutbsghcxmxmxgrshwq`)를 가리키고 있었고, `SUPABASE_SERVICE_ROLE_KEY`는 Preview·Production이 같은 항목 하나를 공유했다. 공개 카탈로그는 `resolveCatalogSource`가 `VERCEL_ENV=preview`에서 mock으로 fallback하지만 **어드민 콘솔은 `app/admin/page.tsx`·`app/admin/actions.ts`에서 `previewDefaultSource: 'supabase'`로 강제**한다. 인증·주문·결제·커뮤니티 쓰기도 같다. 즉 아무 PR의 프리뷰 배포가 RLS를 우회할 수 있는 키로 운영 데이터를 읽고 쓸 수 있었다.
+Vercel Preview가 production Supabase 프로젝트를 보던 초기 문제를 막기 위해 2026-08-11부터 전용 프로젝트 `icons-ip-preview`를 운영했다. 그러나 모든 PR migration을 이 프로젝트 하나에 누적하는 방식은 다른 종류의 교차 오염을 만들었다. 아직 merge되지 않은 PR이 먼저 올린 migration은 shared preview의 remote history에 남고, 그 migration 파일이 없는 다른 PR의 `supabase db push`를 실패시켰다. PR #321의 migration 7개가 다른 PR preview를 막은 사례가 전환 계기다.
 
-동시에 `deploy-vercel-preview`에는 마이그레이션 단계가 없고 `deploy-supabase`는 `main` push 전용이라, 스키마를 바꾸는 PR은 프리뷰에서 **앱은 새 버전, DB는 구 버전**이 됐다([#196](https://github.com/icons-hq/icons-ip/pull/196)에서 `admin_search_orders`의 신규 컬럼이 없어 어드민 주문 섹션 전체가 fail closed로 터졌다. [#197](https://github.com/icons-hq/icons-ip/issues/197)).
+## Decision
 
-프리뷰 전용 Supabase 프로젝트를 하나 상시 운영하고, `deploy-supabase-preview` job이 프리뷰 배포 **전에** 마이그레이션을 올린다. production의 `deploy-vercel → needs: deploy-supabase` 순서와 같은 모양이 된다.
+- Production 프로젝트 `icons-ip`는 production 배포만 사용한다. Preview workflow는 production ref와 일치하면 즉시 실패하며 production 데이터나 자격 증명을 복제하지 않는다.
+- `icons-ip-preview`의 default `main` branch는 repo `main`의 schema와 seed만 유지한다. `push` to `main`에서 production migration이 성공한 뒤 `sync-supabase-preview-main`이 동일 migration과 seed, preview Auth URL 설정을 적용한다.
+- PR 전체 diff에 Supabase 배포 상태를 바꾸는 파일이 없으면 Vercel Preview는 `icons-ip-preview/main`을 읽는다. PR workflow는 shared main에 migration, seed, Auth 설정을 쓰지 않는다.
+- `supabase/migrations/**`, `supabase/functions/**`, `supabase/templates/**`, `supabase/config.toml`, `supabase/roles.sql`, `supabase/seed.sql`, `scripts/sync-supabase-auth.mjs` 중 하나라도 바뀌면 무데이터 Supabase Preview Branch `pr-<number>`를 만든다.
+- PR migration은 review 중 수정·삭제될 수 있으므로 isolated branch는 각 workflow 실행에서 기존 `pr-<number>`를 지운 뒤 현재 PR head로 다시 만든다. 생성 시 production 데이터를 clone하지 않고, migration과 seed를 적용한 뒤 catalog baseline을 확인한다.
+- Vercel CLI는 배포 직전에 선택된 `main` 또는 `pr-<number>`의 URL·publishable key·service role key를 Supabase Management API에서 다시 읽어 build-time과 runtime에 동적으로 주입한다. secret 값은 job output으로 전달하지 않는다.
+- PR이 close 또는 merge되면 별도 cleanup workflow가 해당 non-default `pr-<number>`만 삭제한다. app-only로 바뀐 PR에 남은 동일 이름의 branch도 다음 preview 실행에서 삭제한다.
+- `.vercelignore`는 로컬 `outputs/` 제작 산출물을 명시적으로 제외한다. Preview workflow는 Vercel dry-run manifest에서 이 경로가 포함되거나 source가 900MB·15,000개에 도달하면 실제 upload 전에 실패한다. Vercel에는 review 중인 repo 파일과 최종 runtime asset만 전송한다.
+
+## Mode selection
+
+| PR 변경 | Supabase target | PR의 remote mutation |
+| --- | --- | --- |
+| 앱·UI·문서·테스트만 | `icons-ip-preview/main` | 없음 |
+| migration/config/seed/Auth sync 등 | `icons-ip-preview/pr-<number>` | branch 재생성 후 현재 PR migration·seed 적용 |
+| fork PR | 없음 | secret 경계 때문에 validate만 실행 |
 
 ## Considered Options
 
-- **PR마다 Supabase 브랜치** — 시간당 $0.01344(열려 있는 동안만)로 짧은 PR이면 더 싸고, PR의 스키마와 정확히 일치한다. 하지만 브랜치마다 API URL·키가 달라져 Vercel의 정적 Preview 환경변수로는 표현할 수 없다. `vercel deploy`에 env를 동적으로 주입하고, 브랜치 생성 완료를 기다리고, PR close 시 삭제하는 workflow를 새로 만들어야 한다. 배선이 늘어난 만큼 조용히 어긋날 자리도 늘어난다. 폐기.
-- **스키마 변경 PR은 프리뷰를 건너뛴다** — 비용 0, 변경 최소. "깨진 프리뷰보다 없는 프리뷰가 정직하다"는 맞지만 프리뷰가 운영 DB를 보는 문제가 그대로 남는다. 폐기 — 다만 프리뷰 secret이 없을 때의 **fallback 동작**으로는 채택했다.
-- **문서화만 한다** — 위와 같은 이유로 폐기.
-- **전용 프로젝트 1개 상시 (채택)** — 월 $10. Preview 환경변수가 정적이라 배선이 단순하고, 운영 DB 노출이 즉시 사라진다.
+- **Preview가 production을 본다** — 운영 데이터와 service role key가 PR 코드에 노출되므로 폐기한다.
+- **모든 PR이 shared preview에 migration을 누적한다** — 배선은 단순하지만 unmerged migration drift가 다른 PR을 실패시키고, 어느 PR의 schema인지 설명할 수 없어 폐기한다.
+- **모든 PR에 branch를 만든다** — 가장 단순한 격리 모델이지만 앱 전용 변경에도 branch 생성 시간과 compute 비용이 든다. DB 배포 변경이 있는 PR만 격리하는 hybrid를 채택한다.
+- **DB 변경 PR은 Preview를 건너뛴다** — drift는 없지만 앱과 새 schema의 통합 검수를 잃으므로 폐기한다.
+- **Supabase GitHub integration이 lifecycle을 소유한다** — Vercel Git 자동 배포가 꺼져 있고 GitHub Actions가 현재 배포 진실원이므로, branch lifecycle도 Supabase CLI를 호출하는 workflow가 소유한다.
 
 ## Consequences
 
-- **월 $10이 든다.** 되돌릴 수 있는 비용이지만 조직에 프로젝트가 하나 늘고 seed·Auth 설정을 관리해야 한다.
-- **프리뷰 DB 하나를 모든 열린 PR이 공유한다** → 마이그레이션이 누적된다(대상 스키마 ⊇ 각 PR의 스키마). #196식 "컬럼 없음" 실패는 사라지고, 남는 위험은 폐기된 PR이 남긴 잔여 객체뿐이다. 프리뷰 DB에는 운영 데이터를 두지 않으므로 언제든 리셋할 수 있다.
-- **서로 다른 PR의 프리뷰 job이 같은 프로젝트에 동시에 `db push`할 수 있다.** workflow concurrency group은 ref별이라 PR 사이에는 직렬화되지 않는다. Supabase의 migration 잠금 때문에 한쪽이 실패할 수 있으며, 그 경우 재실행하면 통과한다.
-- **매 프리뷰 배포가 `supabase/seed.sql`을 다시 적용한다.** 멱등(`on conflict do update`)이라 리뷰어가 같은 카탈로그 기준선을 보지만, 프리뷰 어드민에서 카탈로그 값을 바꿔둔 채 새 커밋을 올리면 그 값은 되돌아간다.
-- **프리뷰 카탈로그는 프로덕션과 같다.** 공개 카탈로그 baseline이 immutable migration으로 관리되기 때문에(홍실 퀘스트도 `20260804061616_add_hong_sil_quest_catalog.sql`) `db push`만으로 프로덕션과 같은 내용이 들어온다 — 첫 적용 실측: ips 6, goods 15, cards 12, events 5, home_curations 5로 프로덕션과 동일. seed는 그 위에 mock IP 값을 다시 덮는 역할만 한다. 콘텐츠 QA도 프리뷰에서 가능하다. 어드민으로 새로 만든 레코드는 migration에 없으므로 프리뷰에 나타나지 않는다.
-- **프리뷰가 실제 스테이징이 된다.** Preview 환경변수에 `ICONS_CATALOG_SOURCE=supabase`를 두어 공개 화면도 프리뷰 DB를 읽는다. 스키마 변경이 공개 화면까지 검증된다.
-- **프리뷰 secret이 없으면 프리뷰 배포를 건너뛴다.** `deploy-supabase-preview`가 `configured=false`를 내고 `deploy-vercel-preview`가 skip되며, warning과 step summary로 이유를 남긴다. 프리뷰를 공유 링크로 쓰는 작업(프로토타입 배포 등)은 구성 전까지 새 배포를 만들 수 없다.
-- **프리뷰 ref가 운영 ref와 같으면 job이 실패한다.** 설정 실수로 프리뷰가 다시 운영 DB를 가리키는 일을 코드로 막는다.
-- **Auth allow-list가 두 갈래로 갈린다.** 프리뷰 호스트 callback은 프리뷰 프로젝트에서 관리하고 운영 allow-list에서는 제거한다. `scripts/sync-supabase-auth.mjs`가 두 프로젝트에 각각 적용·검증하며, 폐기된 항목은 명시적 prune으로만 사라진다 — Supabase 설정은 한 번 들어간 값을 스스로 지우지 않는다. 이 정리 과정에서 운영 allow-list의 `icons-ip-*.vercel.app` 패턴이 실제 프리뷰 호스트(`icons-<hash>-<team>.vercel.app`)와 애초에 매칭되지 않았다는 것도 드러났다.
-- **되돌리기 비용**: 프로젝트를 지우고 Preview 환경변수를 운영 값으로 되돌리면 원상복구되지만, 그 순간 프리뷰가 다시 운영 데이터에 붙는다 — 그래서 기록한다.
+- 다른 PR의 unmerged migration은 shared main이나 서로의 branch에 들어가지 않는다. PR #321 같은 대형 기능 preview가 열려 있어도 앱 전용 PR과 다른 schema PR의 CI를 막지 않는다.
+- isolated preview는 branch 생성 대기만큼 느려지고 branch compute 비용이 든다. branch는 PR close 때 삭제하며, DB 변경이 없는 PR에는 만들지 않는다.
+- isolated branch는 무상태 review 환경이다. 새 commit마다 재생성되므로 어드민에서 만든 임시 데이터는 보존되지 않고, 이전 commit의 Vercel URL은 branch 교체·삭제 뒤 DB 기능이 깨질 수 있다.
+- shared main도 운영 데이터는 갖지 않는다. catalog baseline은 versioned migration과 멱등 seed로 만들며 production 콘텐츠를 dump/clone하지 않는다.
+- Preview Auth에는 custom SMTP를 강제하지 않는다. callback allow-list와 OTP TTL은 shared main에서는 main sync가, isolated branch에서는 branch 생성 workflow가 관리한다. 전역 recovery template의 실제 production 활성화는 계속 production 배포 뒤에만 수행한다.
+- GitHub Secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PREVIEW_PROJECT_ID`, `SUPABASE_PROJECT_ID`는 PR branch 선택과 production guard에 필요하다. `SUPABASE_PREVIEW_DB_PASSWORD`는 shared main을 repo main으로 동기화할 때만 쓴다.
+
+## Recovery
+
+- isolated branch가 stale하거나 migration history가 의심되면 해당 PR의 preview job을 rerun한다. workflow가 `pr-<number>`를 재생성한다.
+- close cleanup이 실패하면 production/default branch가 아닌 정확한 `pr-<number>`인지 확인한 뒤 cleanup workflow를 rerun하거나 Supabase CLI로 그 branch만 삭제한다.
+- shared main이 repo main과 다르면 production ref가 아님을 먼저 확인하고, `icons-ip-preview`를 main migration + seed로 reset한 뒤 `sync-supabase-preview-main`을 rerun한다.
+- 어떤 복구 절차에서도 production 프로젝트를 reset하거나 Preview target으로 사용하지 않는다.
