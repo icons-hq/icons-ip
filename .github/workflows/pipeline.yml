@@ -252,7 +252,7 @@ jobs:
         run: node scripts/payment-provider-backfill-preflight.mjs --linked
 
       - name: Push Supabase migrations
-        run: supabase db push --linked
+        run: supabase db push --linked --include-roles
 
       - name: Verify payment provider backfill readback
         run: supabase db query --linked --file supabase/tests/payment_provider_production_readback.sql
@@ -558,7 +558,7 @@ jobs:
 
       - name: Apply migrations and seed to isolated preview
         if: steps.check.outputs.configured == 'true' && steps.mode.outputs.database_mode == 'isolated'
-        run: supabase db push --db-url "$POSTGRES_URL" --include-seed --yes
+        run: supabase db push --db-url "$POSTGRES_URL" --include-roles --include-seed --yes
 
       - name: Deploy Edge Functions to isolated preview
         if: >-
@@ -856,7 +856,7 @@ jobs:
         run: supabase link --project-ref "$SUPABASE_PREVIEW_PROJECT_ID"
 
       - name: Apply main migrations and seed to shared preview
-        run: supabase db push --linked --include-seed --yes
+        run: supabase db push --linked --include-roles --include-seed --yes
 
       - name: Verify shared preview catalog baseline
         run: supabase db query --linked --file supabase/tests/catalog_baseline.sql

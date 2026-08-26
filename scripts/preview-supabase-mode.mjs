@@ -4,8 +4,9 @@ const ISOLATED_PREVIEW_PATHS = [
   /^supabase\/migrations\//,
   /^supabase\/functions\//,
   /^supabase\/templates\//,
-  /^supabase\/(?:config\.toml|roles\.sql|seed\.sql)$/,
+  /^supabase\/(?:roles\.sql|seed\.sql)$/,
   /^scripts\/sync-supabase-auth\.mjs$/,
+  /^scripts\/preview-supabase-mode\.mjs$/,
   /^\.github\/workflows\/pipeline\.yml$/,
 ];
 

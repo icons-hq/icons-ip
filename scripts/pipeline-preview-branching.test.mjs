@@ -81,7 +81,9 @@ describe('Supabase preview branch workflow contract', () => {
       '.SUPABASE_PUBLISHABLE_KEY // .SUPABASE_ANON_KEY // empty',
     );
     expect(push.if).toContain("database_mode == 'isolated'");
-    expect(push.run).toBe('supabase db push --db-url "$POSTGRES_URL" --include-seed --yes');
+    expect(push.run).toBe(
+      'supabase db push --db-url "$POSTGRES_URL" --include-roles --include-seed --yes',
+    );
     expect(functions.if).toContain("functions_changed == 'true'");
     expect(functions.run).toContain('supabase functions deploy');
     expect(functions.run).toContain('--project-ref "$PROJECT_REF"');
@@ -134,7 +136,7 @@ describe('Supabase preview branch workflow contract', () => {
 
     expect(job.needs).toBe('deploy-supabase');
     expect(job.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
-    expect(push.run).toBe('supabase db push --linked --include-seed --yes');
+    expect(push.run).toBe('supabase db push --linked --include-roles --include-seed --yes');
     expect(check.run).toContain(
       '[ "$SUPABASE_PREVIEW_PROJECT_ID" = "$SUPABASE_PRODUCTION_PROJECT_ID" ]',
     );

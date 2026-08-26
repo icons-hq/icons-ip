@@ -8,12 +8,12 @@ import {
 describe('preview Supabase database mode', () => {
   it.each([
     'supabase/migrations/20260826090000_example.sql',
-    'supabase/config.toml',
     'supabase/seed.sql',
     'supabase/roles.sql',
     'supabase/functions/example/index.ts',
     'supabase/templates/recovery.html',
     'scripts/sync-supabase-auth.mjs',
+    'scripts/preview-supabase-mode.mjs',
     '.github/workflows/pipeline.yml',
   ])('isolates deploy-affecting path %s', (filePath) => {
     expect(requiresIsolatedPreviewDatabase(filePath)).toBe(true);
@@ -21,6 +21,7 @@ describe('preview Supabase database mode', () => {
 
   it.each([
     'supabase/tests/catalog_baseline.sql',
+    'supabase/config.toml',
     'app/page.tsx',
     'README.md',
     '.github/workflows/supabase-preview-cleanup.yml',
