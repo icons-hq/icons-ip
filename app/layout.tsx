@@ -8,6 +8,7 @@ import './styles/editorial-public.css';
 import './styles/editorial-account-commerce.css';
 import './styles/editorial-admin.css';
 import './styles/admin-console.css';
+import './styles/wc-foundation.css';
 import { AuthPresenceProvider } from '@/components/shell/AuthPresenceProvider';
 import { CartProvider } from '@/components/shell/CartProvider';
 import { Nav } from '@/components/shell/Nav';
