@@ -1,6 +1,6 @@
-/* GNB·모바일 탭·유틸 항목의 단일 진실원이다. 표면마다 자체 배열을 들고 있으면 항목이 조용히 갈라진다.
-   아직 여기로 모이지 않은 잔여물이 둘 남아 있다: components/screens/Home.tsx의 하드코딩 내비게이션(S3에서 제거),
-   components/shell/SiteFooter.tsx의 자체 링크 튜플(S2 재작성에서 흡수). 그때까지는 병존 상태다. */
+/* GNB·모바일 탭·유틸·푸터·메뉴 항목의 단일 진실원이다. 표면마다 자체 배열을 들고 있으면 항목이 조용히 갈라진다.
+   components/shell/SiteFooter.tsx의 자체 링크 튜플은 S2 재작성에서 FOOTER_* 상수로 흡수했다.
+   아직 여기로 모이지 않은 잔여물은 하나다: components/screens/Home.tsx의 하드코딩 내비게이션(S3에서 제거). */
 
 export interface NavItem {
   id: string;
@@ -106,3 +106,78 @@ export function isAuthShellPath(pathname: string): boolean {
     || pathname === '/update-password'
     || pathname === '/account-suspended';
 }
+
+/* 제목 있는 링크 묶음 — 메가메뉴와 모바일 시트가 같은 모양을 공유한다. */
+export interface NavGroup {
+  heading: string;
+  items: NavItem[];
+}
+
+/* 푸터 상단 행 — 회사·정책. 법정 고지 3종은 lib/legal/links.ts가 컴포넌트에서 이어 붙인다.
+   '오프라인 팝업'은 전용 경로(S8)가 생기기 전까지 현행 예매 표면(/events)으로 진입한다. */
+export const FOOTER_PRIMARY_ITEMS: NavItem[] = [
+  { id: 'about', label: '회사 소개' },
+  { id: 'events', label: '오프라인 팝업' },
+];
+
+export const FOOTER_DISCOVER_ITEMS: NavItem[] = [
+  { id: 'iphub', label: '온라인 팝업' },
+  { id: 'shop', label: '굿즈샵' },
+  { id: 'packs', label: '카드팩' },
+  { id: 'events', label: '이벤트' },
+  { id: 'community', label: '커뮤니티' },
+];
+
+export const FOOTER_ACCOUNT_ITEMS: NavItem[] = [
+  { id: 'orders', label: '주문조회' },
+  { id: 'tickets', label: '내 티켓' },
+  { id: 'binder', label: '바인더' },
+  { id: 'wish', label: '위시리스트' },
+  { id: 'notifications', label: '알림함' },
+  { id: 'exchange', label: '카드 트레이드' },
+  { id: 'market', label: '굿즈 마켓' },
+];
+
+/* 카테고리 메가메뉴 — goods.type 표준화(S4) 전까지 실존 라우트 그룹만 노출한다. */
+export const CATEGORY_MEGA_GROUPS: NavGroup[] = [
+  { heading: '굿즈샵', items: [
+    { id: 'shop', label: '전체 굿즈' },
+    { id: 'new', label: 'NEW' },
+    { id: 'best', label: 'BEST' },
+  ] },
+  { heading: '수집', items: [
+    { id: 'packs', label: '카드팩' },
+    { id: 'binder', label: '바인더' },
+  ] },
+  { heading: '거래', items: [
+    { id: 'market', label: '굿즈 마켓' },
+    { id: 'exchange', label: '카드 트레이드' },
+  ] },
+];
+
+/* 모바일 전체 메뉴 시트 — 바텀바 '메뉴' 탭과 모바일 GNB '카테고리' 탭이 함께 연다. */
+export const MENU_SHEET_GROUPS: NavGroup[] = [
+  { heading: '쇼핑', items: [
+    { id: 'shop', label: '전체 굿즈' },
+    { id: 'new', label: 'NEW' },
+    { id: 'best', label: 'BEST' },
+    { id: 'packs', label: '카드팩' },
+  ] },
+  { heading: '세계', items: [
+    { id: 'iphub', label: '온라인 팝업' },
+    { id: 'events', label: '이벤트' },
+    { id: 'community', label: '커뮤니티' },
+  ] },
+  { heading: '내 활동', items: [
+    { id: 'orders', label: '주문조회' },
+    { id: 'tickets', label: '내 티켓' },
+    { id: 'binder', label: '바인더' },
+    { id: 'wish', label: '위시리스트' },
+    { id: 'notifications', label: '알림함' },
+    { id: 'my', label: '마이페이지' },
+  ] },
+  { heading: '거래', items: [
+    { id: 'market', label: '굿즈 마켓' },
+    { id: 'exchange', label: '카드 트레이드' },
+  ] },
+];

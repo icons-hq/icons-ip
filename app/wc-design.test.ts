@@ -87,3 +87,51 @@ describe('White Catalog design wiring', () => {
     expect(css).not.toMatch(/:root\s*\{[^}]*--wc-/s);
   });
 });
+
+describe('White Catalog global chrome wiring', () => {
+  it('loads the chrome layer after the White Catalog foundation', () => {
+    /* 크롬 규칙은 파운데이션 토큰과 프리미티브 위에 얹힌다. 순서가 뒤집히면 같은 특정성에서 크롬이 먼저 밀린다. */
+    const layout = read('./layout.tsx');
+
+    expect(layout).toContain("'./styles/wc-chrome.css'");
+    expect(layout.indexOf("'./styles/wc-chrome.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-foundation.css'"),
+    );
+  });
+
+  it('keeps the chrome stylesheet scoped, rootless, and free of the reference accent', () => {
+    /* 셸은 모든 라우트에 올라간다 — 전역 element 규칙 하나가 이행 전 표면과 어드민까지 통째로 끌고 간다. */
+    const css = read('./styles/wc-chrome.css');
+
+    expect(css).not.toMatch(/^\s*(?:html|body|:root|h[1-6]|a|p|ul|ol|button|input|\*)\s*[,{:]/m);
+    expect(css).not.toMatch(/:root\s*\{[^}]*--wc-/s);
+    expect(css).not.toMatch(/#F83BAA/i);
+    expect(css).not.toMatch(/#FD4BBB/i);
+    expect(css).not.toMatch(/line-height:\s*(?:0?\.)\d+/);
+  });
+
+  it('pins the sticky header above the rest of the chrome', () => {
+    /* 헤더가 스크롤에 붙지 않으면 축약 애니메이션과 메가메뉴 앵커가 모두 의미를 잃는다.
+     * z-index는 오버레이·바텀바와 겹치는 순서를 결정하는 계약값이다. */
+    const css = read('./styles/wc-chrome.css');
+
+    expect(css).toMatch(/\.wc-header\s*\{[^}]*position:\s*sticky/s);
+    expect(css).toMatch(/\.wc-header\s*\{[^}]*z-index:\s*3/s);
+  });
+
+  it('never reuses the reference site accent pink in the new shell components', () => {
+    /* 레퍼런스 사이트의 브랜드 액센트를 그대로 옮기면 디자인 도용이 된다. 값 자체를 저장소에서 막는다. */
+    const sources = [
+      '../components/shell/Nav.tsx',
+      '../components/shell/SearchOverlay.tsx',
+      '../components/shell/MenuSheet.tsx',
+      '../components/shell/BottomTabBar.tsx',
+      '../components/shell/SiteFooter.tsx',
+    ].map(read);
+
+    for (const source of sources) {
+      expect(source).not.toMatch(/#F83BAA/i);
+      expect(source).not.toMatch(/#FD4BBB/i);
+    }
+  });
+});

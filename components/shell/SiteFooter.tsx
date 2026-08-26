@@ -2,68 +2,74 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { BUSINESS_INFO, businessContactWords } from '@/lib/legal/business-info';
 import { LEGAL_DOCUMENT_LABELS, LEGAL_DOCUMENT_SLUGS, legalDocumentHref } from '@/lib/legal/links';
-import { hrefFor, isAuthShellPath } from '@/lib/routes';
+import {
+  FOOTER_ACCOUNT_ITEMS,
+  FOOTER_DISCOVER_ITEMS,
+  FOOTER_PRIMARY_ITEMS,
+  hrefFor,
+  isAuthShellPath,
+} from '@/lib/routes';
 import { BusinessInfo } from './BusinessInfo';
 import { useCardRewardsEnabled } from './CardRewardAvailability';
 
-const DISCOVER_LINKS: [label: string, route: string][] = [
-  ['IP 세계', 'iphub'],
-  ['공식 굿즈', 'shop'],
-  ['카드팩', 'packs'],
-  ['팝업과 이벤트', 'events'],
-  ['팬 커뮤니티', 'community'],
-];
-
-const ACCOUNT_LINKS: [label: string, route: string][] = [
-  ['내 주문', 'orders'],
-  ['내 티켓', 'tickets'],
-  ['바인더', 'binder'],
-  ['알림함', 'notifications'],
-  ['카드 트레이드', 'exchange'],
-  ['굿즈 마켓', 'market'],
-];
-
+/* White Catalog 푸터. 링크 목록은 전부 lib/routes.ts가 진실원이고 여기서는 배치만 한다.
+ * 법정 고지 3종은 회사·정책 행 뒤에 이어 붙는다 — 사업자 정보와 함께 표시 의무가 걸린 블록이라
+ * 접이식(details) 안이라도 마크업에서 사라지지 않는다. */
 export function SiteFooter() {
   const pathname = usePathname();
   const cardRewardsEnabled = useCardRewardsEnabled();
   if (pathname === '/' || isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
 
-  return (
-    <footer className="site-footer-editorial">
-      <div className="site-footer-editorial__inner">
-        <Link className="site-footer-editorial__brand" href="/" aria-label="ICONS 홈">
-          <span aria-hidden className="site-footer-editorial__brand-mark" />
-          <span>ICONS</span>
-        </Link>
+  /* 카드 리워드가 꺼진 배포에서는 카드팩 진입점을 노출하지 않는다. */
+  const discoverItems = FOOTER_DISCOVER_ITEMS.filter((item) => cardRewardsEnabled || item.id !== 'packs');
 
-        <div className="site-footer-editorial__grid">
-          <p className="site-footer-editorial__copy">
-            좋아하는 IP의 공식 굿즈, 무상 카드 리워드, 팝업 티켓과 팬 커뮤니티를
-            하나의 세계에서 만나는 공개 팬덤 플랫폼입니다.
-          </p>
-          <nav aria-label="발견 메뉴" className="site-footer-editorial__links">
-            {DISCOVER_LINKS
-              .filter(([, route]) => cardRewardsEnabled || route !== 'packs')
-              .map(([label, route]) => (
-              <Link key={route} href={hrefFor(route)}>{label}</Link>
-              ))}
-          </nav>
-          <nav aria-label="내 활동과 보조 메뉴" className="site-footer-editorial__links">
-            {ACCOUNT_LINKS.map(([label, route]) => (
-              <Link key={route} href={hrefFor(route)}>{label}</Link>
+  return (
+    <footer className="wc-root wc-footer">
+      <div className="wc-footer__inner">
+        <nav aria-label="회사·정책" className="wc-footer__primary">
+          <ul>
+            {FOOTER_PRIMARY_ITEMS.map((item) => (
+              <li key={item.id}><Link href={hrefFor(item.id)}>{item.label}</Link></li>
             ))}
-          </nav>
-          <nav aria-label="법정 고지" className="site-footer-editorial__links">
             {LEGAL_DOCUMENT_SLUGS.map((slug) => (
-              <Link key={slug} href={legalDocumentHref(slug)}>{LEGAL_DOCUMENT_LABELS[slug]}</Link>
+              <li key={slug}><Link href={legalDocumentHref(slug)}>{LEGAL_DOCUMENT_LABELS[slug]}</Link></li>
             ))}
-          </nav>
+          </ul>
+        </nav>
+
+        <p className="wc-footer__logo"><Link aria-label="ICONS 홈" href="/">ICONS</Link></p>
+
+        <div className="wc-footer__middle">
+          <div className="wc-footer__cs">
+            <h2 className="wc-footer__heading">고객센터</h2>
+            <p className="wc-footer__cs-lines">{businessContactWords()}</p>
+            <details className="wc-footer__biz">
+              <summary>{BUSINESS_INFO.companyName} 사업자 정보</summary>
+              <BusinessInfo className="wc-footer__biz-rows" />
+            </details>
+          </div>
+
+          <div className="wc-footer__cols">
+            <nav aria-label="발견 메뉴" className="wc-footer__links">
+              <ul>
+                {discoverItems.map((item) => (
+                  <li key={item.id}><Link href={hrefFor(item.id)}>{item.label}</Link></li>
+                ))}
+              </ul>
+            </nav>
+            <nav aria-label="내 활동 메뉴" className="wc-footer__links">
+              <ul>
+                {FOOTER_ACCOUNT_ITEMS.map((item) => (
+                  <li key={item.id}><Link href={hrefFor(item.id)}>{item.label}</Link></li>
+                ))}
+              </ul>
+            </nav>
+          </div>
         </div>
 
-        <BusinessInfo />
-
-        <div className="site-footer-editorial__meta">
+        <div className="wc-footer__line">
           <span>© ICONS</span>
           <span>공식 라이선스 · 무상 카드 리워드 · 결제사 승인 확인 후 주문 확정</span>
         </div>
