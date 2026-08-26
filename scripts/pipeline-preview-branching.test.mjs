@@ -47,6 +47,9 @@ describe('Supabase preview branch workflow contract', () => {
     expect(gate.env).toEqual({ GH_TOKEN: '${{ github.token }}' });
     expect(gate.run).toContain('git show "$PR_BASE_SHA:.github/workflows/pipeline.yml"');
     expect(gate.run).toContain("grep -q '^  sync-supabase-preview-main:'");
+    expect(gate.run).toContain(
+      "grep -q '^  sync-supabase-preview-main:' .github/workflows/pipeline.yml",
+    );
     expect(gate.run).toContain('head_sha=${PR_BASE_SHA}');
     expect(gate.run).toContain('.name == "deploy-supabase" and .conclusion == "success"');
     expect(gate.run).toContain(

@@ -357,10 +357,14 @@ jobs:
 
           base_workflow="$(git show "$PR_BASE_SHA:.github/workflows/pipeline.yml")"
           if ! grep -q '^  sync-supabase-preview-main:' <<<"$base_workflow"; then
+            if ! grep -q '^  sync-supabase-preview-main:' .github/workflows/pipeline.yml; then
+              echo "::error title=Shared preview sync contract is missing::The base and PR head both lack sync-supabase-preview-main"
+              exit 1
+            fi
             {
               echo "### Shared preview base 확인"
               echo
-              echo "- bootstrap: base workflow가 아직 shared sync job 도입 전입니다."
+              echo "- bootstrap: 이 PR이 base에 없던 shared sync job을 처음 도입합니다."
               echo "- 이 PR이 main에 반영된 다음 base SHA부터 성공한 sync 증거를 강제합니다."
             } >> "$GITHUB_STEP_SUMMARY"
             exit 0
