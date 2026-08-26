@@ -1,0 +1,659 @@
+/* White Catalog v4 파운데이션 — 루트 DESIGN.md §2~5가 정본이다.
+   모든 규칙은 `.wc-` 접두 클래스 셀렉터로만 시작하고 전역 element 스타일을 두지 않는다.
+   아직 White Catalog로 이행되지 않은 editorial 표면과 어드민이 같은 문서에 공존하므로,
+   전역 규칙 하나가 그쪽 지면을 통째로 깨뜨릴 수 있어서다.
+   토큰도 문서 루트가 아니라 `.wc-root` 스코프에 담는다 — 같은 이유.
+   S9에서 이행이 끝나면 이 파일을 전역으로 승격한다. */
+
+/* ------------------------------------------------------------------
+   지면과 토큰
+   ------------------------------------------------------------------ */
+
+.wc-root {
+  --wc-surface: #FFFFFF;
+  --wc-surface-grey: #F6F8FA;
+  --wc-surface-grey-2: #F3F3F3;
+  --wc-surface-icon-tile: #F8F8F8;
+  --wc-ink: #111111;
+  --wc-ink-sub: #3F3F3F;
+  --wc-ink-tertiary: #616161;
+  --wc-ink-disabled: #BBBBBB;
+  --wc-hairline: #EBEDEE;
+  --wc-hairline-dark: rgba(17,17,17,.1);
+  --wc-line-control: #C8CACC;
+  --wc-line-divider: #A0A0A0;
+  --wc-accent: #78BB53;
+  --wc-accent-tint: rgba(120,187,83,.12);
+  --wc-success: #3F7D38;
+  --wc-warning: #9A5B00;
+  --wc-danger: #B8324A;
+  --wc-info: #365CA8;
+  --wc-focus: #5B74FF;
+  --wc-dim: rgba(0,0,0,.7);
+  --wc-scrim: rgba(0,0,0,.3);
+  --wc-shadow-popup: 0 4px 5px rgba(18,18,18,.05);
+  --wc-duration-short: .1s;
+  --wc-duration-default: .2s;
+  --wc-duration-medium: .3s;
+  --wc-duration-long: .5s;
+  --wc-ease-out-slow: cubic-bezier(0,0,.3,1);
+  --wc-radius-badge: 1px;
+  --wc-radius-form: 2px;
+  --wc-radius-cta: 4px;
+  --wc-radius-sheet: 8px;
+  --wc-container-max: 1212px;
+  --wc-gutter: 16px;
+  --wc-font: Pretendard, -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Segoe UI', sans-serif;
+
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  color-scheme: light;
+  font-family: var(--wc-font);
+  font-size: 14px;
+  line-height: 1.8;
+  letter-spacing: -.2px;
+  word-break: keep-all;
+}
+
+/* ------------------------------------------------------------------
+   유틸리티
+   ------------------------------------------------------------------ */
+
+.wc-root :focus-visible {
+  outline: 2px solid var(--wc-focus);
+  outline-offset: 2px;
+}
+
+.wc-container {
+  max-width: var(--wc-container-max);
+  margin-inline: auto;
+  padding-inline: var(--wc-gutter);
+}
+
+.wc-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.wc-breakable {
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+/* editorial 파운데이션의 `:lang(ko):is(p, li, dd, blockquote)` 규칙이 단일 클래스보다
+   구체적이라 ID·URL이 그대로 붙어버린다. 지면 안에서는 한 단계 올려 확실히 이긴다. */
+.wc-root .wc-breakable {
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+.wc-skeleton {
+  display: block;
+  background: var(--wc-surface-grey-2);
+  animation: wc-skeleton-pulse 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes wc-skeleton-pulse {
+  0% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: .55;
+  }
+}
+
+/* ------------------------------------------------------------------
+   버튼
+   ------------------------------------------------------------------ */
+
+.wc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 50px;
+  padding: 0 15px;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.11;
+  text-align: center;
+  text-decoration: none;
+  border: 1px solid var(--wc-line-control);
+  border-radius: var(--wc-radius-cta);
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  cursor: pointer;
+  transition: background-color var(--wc-duration-default), border-color var(--wc-duration-default), color var(--wc-duration-default);
+}
+
+.wc-btn.primary {
+  background: var(--wc-ink);
+  border-color: var(--wc-ink);
+  color: #FFFFFF;
+}
+
+.wc-btn.accent {
+  background: var(--wc-accent);
+  border-color: var(--wc-accent);
+  color: #FFFFFF;
+}
+
+.wc-btn:disabled,
+.wc-btn.disabled {
+  background: var(--wc-ink-disabled);
+  border-color: var(--wc-ink-disabled);
+  color: #FFFFFF;
+  cursor: not-allowed;
+}
+
+.wc-btn + .wc-btn {
+  margin-top: 7px;
+}
+
+.wc-btn-group {
+  display: flex;
+  gap: 8px;
+}
+
+.wc-btn-group > .wc-btn {
+  flex: 1;
+  margin-top: 0;
+}
+
+/* ------------------------------------------------------------------
+   배지
+   ------------------------------------------------------------------ */
+
+.wc-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  border: 1px solid transparent;
+  border-radius: var(--wc-radius-badge);
+  background: var(--wc-accent-tint);
+  color: var(--wc-accent);
+}
+
+.wc-badge.outline {
+  background: var(--wc-surface);
+  border-color: var(--wc-accent-tint);
+}
+
+/* ------------------------------------------------------------------
+   가격
+   ------------------------------------------------------------------ */
+
+.wc-price {
+  display: flex;
+  flex-direction: column;
+}
+
+.wc-price__original {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--wc-ink-disabled);
+  text-decoration: line-through;
+}
+
+.wc-price__row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.wc-price__rate {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wc-accent);
+}
+
+.wc-price__amount {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wc-ink);
+}
+
+/* ------------------------------------------------------------------
+   상품 카드
+   ------------------------------------------------------------------ */
+
+.wc-product-card {
+  display: block;
+  color: inherit;
+}
+
+.wc-product-card__media {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background: var(--wc-surface-grey-2);
+}
+
+.wc-product-card__media-link {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.wc-product-card__image {
+  width: 100%;
+  height: 100%;
+  background-color: var(--wc-surface-grey-2);
+}
+
+.wc-product-card__soldout {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 33.4%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 700;
+  font-style: italic;
+  letter-spacing: .5px;
+  background: var(--wc-scrim);
+  color: #FFFFFF;
+}
+
+.wc-product-card__action {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+
+.wc-product-card__info {
+  padding-top: 12px;
+}
+
+.wc-product-card__badges {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.wc-product-card__brand {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wc-ink);
+}
+
+/* editorial 파운데이션이 h1~h3에 display 폰트를 강제하므로 지면 폰트를 되돌린다. */
+.wc-product-card__name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0 0 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--wc-ink-sub);
+}
+
+.wc-product-card__name-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.wc-product-card__name-link:hover {
+  text-decoration: underline;
+}
+
+/* ------------------------------------------------------------------
+   섹션 헤딩
+   ------------------------------------------------------------------ */
+
+.wc-section-heading {
+  display: block;
+  margin: 0 0 24px;
+}
+
+.wc-section-heading__title {
+  margin: 0;
+  font-family: inherit;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.33;
+  letter-spacing: -.8px;
+  color: var(--wc-ink);
+}
+
+.wc-section-heading__subcopy {
+  margin: 10px 0 0;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--wc-ink);
+}
+
+/* ------------------------------------------------------------------
+   슬라이더
+   ------------------------------------------------------------------ */
+
+.wc-slider {
+  display: block;
+}
+
+.wc-slider__track {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.wc-slider__track::-webkit-scrollbar {
+  display: none;
+}
+
+.wc-slider__track > * {
+  flex: none;
+  scroll-snap-align: start;
+}
+
+.wc-slider__controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  margin-top: 40px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--wc-ink);
+}
+
+/* 카운터가 넘어갈 때 폭이 흔들리지 않게 고정폭 숫자를 쓴다. */
+.wc-slider__fraction {
+  font-variant-numeric: tabular-nums;
+}
+
+.wc-slider__arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border: none;
+  background: none;
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-slider__arrow:disabled {
+  opacity: .3;
+  cursor: default;
+}
+
+/* ------------------------------------------------------------------
+   탭
+   ------------------------------------------------------------------ */
+
+.wc-tabs {
+  display: block;
+}
+
+.wc-tabs__list {
+  display: flex;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-tabs__tab {
+  position: relative;
+  flex: none;
+  height: 54px;
+  padding: 0 32px;
+  font-family: inherit;
+  font-size: 20px;
+  font-weight: 700;
+  border: none;
+  background: none;
+  color: var(--wc-line-divider);
+  cursor: pointer;
+}
+
+.wc-tabs__tab.active {
+  color: var(--wc-ink);
+}
+
+.wc-tabs__tab.active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: currentColor;
+}
+
+.wc-tabs__panel {
+  padding-top: 24px;
+}
+
+.wc-tabs__panel[hidden] {
+  display: none;
+}
+
+/* ------------------------------------------------------------------
+   더 보기
+   ------------------------------------------------------------------ */
+
+.wc-view-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 50px;
+  padding: 0 30px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  border: 1.5px solid var(--wc-ink);
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-view-more:disabled {
+  border-color: var(--wc-line-control);
+  color: var(--wc-ink-disabled);
+  cursor: default;
+}
+
+/* ------------------------------------------------------------------
+   수량 스테퍼
+   ------------------------------------------------------------------ */
+
+.wc-stepper {
+  display: inline-flex;
+  align-items: center;
+  width: 92px;
+  height: 32px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-surface);
+}
+
+.wc-stepper__btn {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-stepper__btn.is-limit {
+  color: var(--wc-ink-disabled);
+}
+
+.wc-stepper__input {
+  flex: none;
+  width: 28px;
+  height: 30px;
+  padding: 0;
+  text-align: center;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  border: none;
+  background: none;
+  color: var(--wc-ink);
+  -webkit-appearance: textfield;
+  appearance: textfield;
+}
+
+.wc-stepper__input::-webkit-outer-spin-button,
+.wc-stepper__input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------
+   빈 상태
+   ------------------------------------------------------------------ */
+
+.wc-empty {
+  padding: 80px 16px;
+  text-align: center;
+}
+
+.wc-empty__title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-empty__desc {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-empty__action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+.wc-empty__action .wc-btn {
+  width: auto;
+  min-width: 220px;
+}
+
+/* 단일 버튼 최소폭 220px이 2버튼 그룹에서는 모바일 폭을 넘긴다.
+   그룹 안에서는 최소폭을 풀고 그룹 자체로 폭을 제한한다. */
+.wc-empty__action .wc-btn-group {
+  width: 100%;
+  max-width: 448px;
+}
+
+.wc-empty__action .wc-btn-group .wc-btn {
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------------
+   전면 폴백
+   ------------------------------------------------------------------ */
+
+.wc-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 480px;
+  padding: 64px 16px;
+}
+
+/* ------------------------------------------------------------------
+   로딩 스켈레톤
+   ------------------------------------------------------------------ */
+
+.wc-loading {
+  padding: 48px 0 96px;
+}
+
+.wc-loading__heading {
+  width: 220px;
+  height: 32px;
+  margin-bottom: 24px;
+}
+
+.wc-loading__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 40px 7px;
+}
+
+.wc-loading__media {
+  aspect-ratio: 3 / 4;
+}
+
+.wc-loading__line {
+  height: 13px;
+  margin-top: 8px;
+}
+
+.wc-loading__media + .wc-loading__line {
+  margin-top: 12px;
+}
+
+/* ------------------------------------------------------------------
+   데스크톱 (>=750px)
+   ------------------------------------------------------------------ */
+
+@media (min-width: 750px) {
+  .wc-root {
+    font-size: 16px;
+  }
+
+  .wc-view-more {
+    width: auto;
+    min-width: 300px;
+  }
+
+  .wc-loading__grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 50px 16px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   모션 축소
+   ------------------------------------------------------------------ */
+
+@media (prefers-reduced-motion: reduce) {
+  .wc-root *,
+  .wc-root *::before,
+  .wc-root *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
