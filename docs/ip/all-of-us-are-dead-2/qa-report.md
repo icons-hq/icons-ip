@@ -143,7 +143,7 @@
 
 | 명령/검사 | 결과 |
 | --- | --- |
-| `npm test` | 통과: 373 files passed, 1 skipped / 3,461 tests passed, 1 skipped |
+| `npm test` | 최신 `origin/main` 병합 뒤 통과: 378 files passed, 1 skipped / 3,502 tests passed, 1 skipped |
 | `npm run typecheck` | 통과 |
 | `npm run lint` | exit 0; 기존 `scripts/hong-sil-downloader.mjs:294` warning 1건만 존재 |
 | `npm run build` | 통과; Next.js 16.3.0 production build와 verified page·5개 API route 포함 |
