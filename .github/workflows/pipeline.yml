@@ -4,6 +4,10 @@ on:
   pull_request:
     branches:
       - main
+      # White Catalog 스테이지 PR(#322, base=통합 브랜치)도 validate와 preview 배포를 받아
+      # 스테이지마다 시각 검수가 가능해야 한다. 프로덕션 job은 push+main 조건이라 여기 영향이 없다.
+      # S9 일괄 전환 후 통합 브랜치와 함께 제거한다.
+      - ps/feat/lfs-storefront-redesign
   push:
     branches:
       - main
