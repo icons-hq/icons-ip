@@ -24,6 +24,9 @@ insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, purcha
 select 'last-bell-test-g' || n, 'rilakkuma', 'Last Bell test ' || n, 'test', 10000 + n, 'ok', 10, 'story_entitlement'
 from generate_series(1, 10) as n;
 
+insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, purchase_access)
+values ('last-bell-test-public', 'rilakkuma', 'Last Bell public compatibility', 'test', 10000, 'ok', 10, 'public');
+
 insert into private.last_bell_catalog_versions (version, active_from)
 values ('last-bell-test-v1', now() - interval '1 minute');
 insert into private.last_bell_collectible_goods (catalog_version, collectible_key, good_id, chapter_id, zone_id, sale_ends_at)
@@ -187,6 +190,24 @@ delete from private.account_action_fences
 where subject_user_id = '00000000-0000-4000-8000-000000000703';
 delete from private.account_deletion_requests
 where subject_user_id = '00000000-0000-4000-8000-000000000703';
+
+-- Last Bell is an additive access mode. Its trigger must not change ordinary
+-- public-good cart behavior for the authenticated owner.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000703', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+insert into public.cart_items (user_id, good_id, qty)
+values ('00000000-0000-4000-8000-000000000703', 'last-bell-test-public', 1);
+select 1 / case when exists (
+  select 1 from public.cart_items
+  where user_id = '00000000-0000-4000-8000-000000000703'
+    and good_id = 'last-bell-test-public'
+    and qty = 1
+) then 1 else 0 end as assert_public_good_cart_behavior_is_unchanged;
+delete from public.cart_items
+where user_id = '00000000-0000-4000-8000-000000000703'
+  and good_id = 'last-bell-test-public';
+reset role;
 
 -- Restricted goods cannot be inserted directly, merged, or ordered from a
 -- stale cart without an entitlement.
