@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "reviewed_at": "2026-08-26",
+  "camera_contract": "neutral 1280x720 52mm source review; not a runtime acceptance render",
+  "assets": {
+    "abandoned-house": {
+      "verdict": "conditional-pass",
+      "allowed_role": "non-navigable distant destroyed adjacent-building mass only",
+      "forbidden_roles": [
+        "hyosan-school-identity",
+        "corridor-shell",
+        "navigable-rooftop-headhouse"
+      ],
+      "required_work": [
+        "aggressive topology reduction",
+        "crop to silhouette-only subset",
+        "cold-night material grade",
+        "runtime parallax and transfer-budget review"
+      ],
+      "review_render": "abandoned-house.png",
+      "review_render_sha256": "32704ac536869f8af0f11cb493c95f48c35043055b5c7971217f0111fb846206"
+    },
+    "scan-rubble-pile-a": {
+      "verdict": "conditional-pass",
+      "allowed_role": "foreground and midground structural rubble subset",
+      "forbidden_roles": ["uncropped full source mesh", "raw public runtime delivery"],
+      "required_work": [
+        "decimation with silhouette preservation",
+        "remove non-contributing underside",
+        "shared authored PBR remap",
+        "portal-clearance validation"
+      ],
+      "review_render": "scan-rubble-pile-a.png",
+      "review_render_sha256": "88ca7883e6d00698fedd605f4ee7b8384ae2e7e65471620309508fe918f8db7b"
+    },
+    "painted-concrete-blocks": {
+      "verdict": "conditional-pass",
+      "allowed_role": "sparse rooftop or utility-room concrete prop variant",
+      "forbidden_roles": ["repeated decorative rhythm", "school-identity landmark"],
+      "required_work": ["select individual variants", "desaturate/regrade", "collision proxy"],
+      "review_render": "painted-concrete-blocks.png",
+      "review_render_sha256": "5b93e23a967e232277a14f613cc09fa5222255272a1908158f279c9fe8aa6cea"
+    },
+    "scan-rubble-ruins": {
+      "verdict": "reject-until-rematerialed",
+      "reason": "neutral review reveals unusable black/specular source response",
+      "required_work": ["replace all source materials", "decimate", "rerender before composition"],
+      "review_render": "scan-rubble-ruins.png",
+      "review_render_sha256": "e13c4714a5d6155d70fffae9cc7a1f7e85bc79b98d746f2621695f334c10981a"
+    },
+    "scan-old-broken-floor": {
+      "verdict": "reject-until-rematerialed",
+      "reason": "neutral review reveals unusable black/specular response and excessive source density",
+      "required_work": ["replace all source materials", "reduce from 1.5M vertices", "crop", "rerender"],
+      "review_render": "scan-old-broken-floor.png",
+      "review_render_sha256": "c4c77efc49697077af8549b9514bdc64047f3f9365a8a8031cb587fd6e911243"
+    }
+  },
+  "promotion_rule": "A conditional source pass never promotes a route. Only an actual player-camera runtime render with P0 visual defects equal to zero can promote a derivative delivery GLB."
+}

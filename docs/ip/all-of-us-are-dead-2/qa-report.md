@@ -143,7 +143,7 @@
 
 | 명령/검사 | 결과 |
 | --- | --- |
-| `npm test` | 최신 `origin/main` 병합 뒤 통과: 378 files passed, 1 skipped / 3,502 tests passed, 1 skipped |
+| `npm test` | 최신 `origin/main` 병합 및 clean-runner provenance 회귀 추가 뒤 통과: 379 files passed, 1 skipped / 3,503 tests passed, 1 skipped |
 | `npm run typecheck` | 통과 |
 | `npm run lint` | exit 0; 기존 `scripts/hong-sil-downloader.mjs:294` warning 1건만 존재 |
 | `npm run build` | 통과; Next.js 16.3.0 production build와 verified page·5개 API route 포함 |
@@ -151,7 +151,7 @@
 | `supabase/tests/last_bell_verified_runs.sql` | ACL/RLS, run 순서, replay, guest claim, multitab, 직접 cart/merge/order 우회, order snapshot 통과 |
 | `supabase/tests/last_bell_preview_catalog.sql` | Preview 10상품 mapping·가안 seed canary 통과 |
 | `npx supabase db lint --local` | schema lint 오류 없음 |
-| 4개 Last Bell asset validator + 환경 자동 디자인 gate | opening, 상품 10종, source-archive campaign pack, public route·character `r18` strict validator가 모두 통과했다. 생성 reference 기반 환경 자동 디자인 gate도 6/6 통과했다. human visual·external IP 승인은 build-matched 렌더와 별도 근거로 고정했다. |
+| 4개 Last Bell asset validator + 환경 자동 디자인 gate | opening, 상품 10종, source-archive campaign pack, public route·character `r18` strict validator가 모두 통과했다. clean CI runner에서는 커밋된 CC0 provenance pin과 5개 source-review render hash를 재검증하고, raw DCC source가 존재하는 로컬 빌드에서는 같은 source GLB hash까지 추가로 재검증한다. 생성 reference 기반 환경 자동 디자인 gate도 6/6 통과했다. human visual·external IP 승인은 build-matched 렌더와 별도 근거로 고정했다. |
 | public release guard | 통과: public GLB marker, route·character 및 opening build ID, human/external-IP 승인, 16개 DCC/delivery render와 10개 fresh browser screenshot의 실제 SHA-256, 3개 viewport의 P0·overflow·console·interaction 계약을 재검증 |
 | fixed-step matrix | 5/15/30/60/120Hz와 200ms stall 결정론 테스트 통과 |
 | evidence-driven route contract | idle 시간만으로 objective가 열리지 않고, 실제 locker cover → 보건실·방송실 수색 → HeavyObstacle → power/noise → fire-door 통과·잠금 → 계단실 2개 inspection → rooftop 접근 순서가 필요하다. 5/15/30/60/120Hz와 200ms stall에서 같은 semantic 결과를 확인했다. deterministic 경로 테스트는 사람의 첫 성공 10분 측정을 대체하지 않는다. |

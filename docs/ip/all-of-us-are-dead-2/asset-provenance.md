@@ -106,6 +106,10 @@
 
 세 PNG source는 historical generation record로만 남는다. generated map을 현재 runtime/public bundle에 의존시키지 않으며, `visual-spec.md`의 current source rule보다 우선하지 않는다.
 
+### 환경 복구 CC0 source attestation
+
+route 복구에 사용한 BlenderKit CC0 photogrammetry 원본은 public runtime에 배포하지 않는다. clean CI는 `release-evidence/last-bell-route-character-99f9d262441685b4/source-provenance/`에 고정한 upstream asset ID·license·원본 bytes·SHA-256과 5개 neutral source-review render의 실제 SHA-256을 검증하고, 로컬 DCC 빌드에 private raw source가 있으면 동일 hash를 한 번 더 읽어 확인한다. 이 attestation은 source conditional pass를 최종 route 승인으로 승격하지 않으며, 최종 승격은 별도의 player-camera `r18` 자동 gate와 build-matched human/external-IP evidence만 따른다.
+
 ## 6. Poly Haven CC0 PBR
 
 현재 authored GLB의 중립 PBR source는 Poly Haven 공식 asset page/API에서 받은 CC0 에셋이다. `scripts/last-bell-3d/fetch-polyhaven-pbr.mjs`가 공식 API 응답의 파일 URL·MD5와 info metadata를 읽고, 프로젝트가 고정한 API response hash와 실제 다운로드 hash를 검증한다. 생성된 전체 기록은 저장소 밖 build output의 `raw/polyhaven-pbr/provenance.json`에 남는다.

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 const [directoryArg, reportArg, openingDirectoryArg] = process.argv.slice(2);
 if (!directoryArg || !reportArg) throw new Error('usage: validate.mjs <delivery-dir> <report.json> [opening-delivery-dir]');
@@ -17,12 +17,18 @@ const forbiddenQualityMarkers = /(?:^|[^a-z0-9])(?:placeholder|clay|procedural|f
 const routePropBuildId = 'last-bell-route-props-71a10d1704393e9a';
 const blenderKitSourceProvenance = 'outputs/last-bell-environment-recovery-sources/blenderkit-cc0/provenance.json';
 const blenderKitSourceVisualGate = 'outputs/last-bell-environment-recovery-sources/review/source-visual-gate.json';
+const blenderKitCommittedSourceProvenance = 'docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/source-provenance/blenderkit-cc0-provenance.json';
+const blenderKitCommittedSourceVisualGate = 'docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/source-provenance/source-visual-gate.json';
+const blenderKitRawSourceDirectory = resolve(
+  process.env.LAST_BELL_RAW_SOURCE_ROOT
+    ?? join(repoRoot, 'outputs/last-bell-environment-recovery-sources/blenderkit-cc0'),
+);
 const blenderKitSources = {
-  'abandoned-house': { file: 'abandoned-house.glb', assetBaseId: '94e53774-84d7-430e-89bd-12cf7b2ef828', sha256: '618d5f5153470d9039c11d6dc82eb1625416d383d6e1efcc5b23005b71a94660' },
-  'painted-concrete-blocks': { file: 'painted-concrete-blocks.glb', assetBaseId: '049c6887-3484-4725-b8ae-8749d7b68e1f', sha256: 'efd2e80aa3f957da81e64d68d0bcd11526f5bb2b215f12d88206a6357793e29e' },
-  'scan-old-broken-floor': { file: 'scan-old-broken-floor.glb', assetBaseId: 'c4f28476-3d97-46dc-8969-cbf704059205', sha256: '77e8919e10008374ad67a078be3bf2a697704297129ac61708856403ae46ac34' },
-  'scan-rubble-pile-a': { file: 'scan-rubble-pile-a.glb', assetBaseId: '930f3a3b-b6c3-4971-ab86-ce65c93b2a3c', sha256: 'cf9681a80565cfd9845b63b39a205758cf904807917da7f5e216368d5ab9a58e' },
-  'scan-rubble-ruins': { file: 'scan-rubble-ruins.glb', assetBaseId: '853f291b-6f22-4900-9979-75826dac8c27', sha256: '6a51c2a3f63f3acc2417494f673bb068d55152e27d64dd758c5e51e167c8ee33' },
+  'abandoned-house': { file: 'abandoned-house.glb', bytes: 16590128, assetBaseId: '94e53774-84d7-430e-89bd-12cf7b2ef828', sha256: '618d5f5153470d9039c11d6dc82eb1625416d383d6e1efcc5b23005b71a94660' },
+  'painted-concrete-blocks': { file: 'painted-concrete-blocks.glb', bytes: 27264460, assetBaseId: '049c6887-3484-4725-b8ae-8749d7b68e1f', sha256: 'efd2e80aa3f957da81e64d68d0bcd11526f5bb2b215f12d88206a6357793e29e' },
+  'scan-old-broken-floor': { file: 'scan-old-broken-floor.glb', bytes: 20673356, assetBaseId: 'c4f28476-3d97-46dc-8969-cbf704059205', sha256: '77e8919e10008374ad67a078be3bf2a697704297129ac61708856403ae46ac34' },
+  'scan-rubble-pile-a': { file: 'scan-rubble-pile-a.glb', bytes: 21871380, assetBaseId: '930f3a3b-b6c3-4971-ab86-ce65c93b2a3c', sha256: 'cf9681a80565cfd9845b63b39a205758cf904807917da7f5e216368d5ab9a58e' },
+  'scan-rubble-ruins': { file: 'scan-rubble-ruins.glb', bytes: 7505172, assetBaseId: '853f291b-6f22-4900-9979-75826dac8c27', sha256: '6a51c2a3f63f3acc2417494f673bb068d55152e27d64dd758c5e51e167c8ee33' },
 };
 const polyHavenDuct = {
   asset: 'modular_airduct_circular_01',
@@ -406,8 +412,8 @@ function validateArtDirection(key, indexed, expected) {
 }
 
 function validatePinnedBlenderKitInputs() {
-  const provenancePath = join(repoRoot, blenderKitSourceProvenance);
-  const visualGatePath = join(repoRoot, blenderKitSourceVisualGate);
+  const provenancePath = join(repoRoot, blenderKitCommittedSourceProvenance);
+  const visualGatePath = join(repoRoot, blenderKitCommittedSourceVisualGate);
   const provenance = JSON.parse(readFileSync(provenancePath, 'utf8'));
   const policy = provenance.policy ?? {};
   if (provenance.schema_version !== 1 || policy.accepted_license !== 'cc_zero'
@@ -419,12 +425,24 @@ function validatePinnedBlenderKitInputs() {
   for (const [key, expected] of Object.entries(blenderKitSources)) {
     const record = (provenance.assets ?? []).find((candidate) => candidate.key === key);
     if (!record || record.license !== 'cc_zero' || record.asset_base_id !== expected.assetBaseId
-      || record.local_file !== expected.file || record.sha256 !== expected.sha256) {
+      || record.local_file !== expected.file || record.bytes !== expected.bytes || record.sha256 !== expected.sha256) {
       throw new Error(`${key}: pinned BlenderKit provenance record is invalid`);
     }
-    const sourceBytes = readFileSync(join(repoRoot, 'outputs/last-bell-environment-recovery-sources/blenderkit-cc0', expected.file));
-    if (hash(sourceBytes) !== expected.sha256) throw new Error(`${key}: private BlenderKit source file no longer matches its pin`);
-    sources[key] = { sha256: expected.sha256, asset_base_id: expected.assetBaseId, raw_runtime_delivery: false };
+    const rawSourcePath = join(blenderKitRawSourceDirectory, expected.file);
+    const rawSourceRevalidated = existsSync(rawSourcePath);
+    if (rawSourceRevalidated) {
+      const sourceBytes = readFileSync(rawSourcePath);
+      if (sourceBytes.length !== expected.bytes || hash(sourceBytes) !== expected.sha256) {
+        throw new Error(`${key}: private BlenderKit source file no longer matches its pin`);
+      }
+    }
+    sources[key] = {
+      sha256: expected.sha256,
+      bytes: expected.bytes,
+      asset_base_id: expected.assetBaseId,
+      raw_runtime_delivery: false,
+      raw_source_revalidated: rawSourceRevalidated,
+    };
   }
   const gate = JSON.parse(readFileSync(visualGatePath, 'utf8'));
   if (gate.schema !== 1
@@ -432,11 +450,25 @@ function validatePinnedBlenderKitInputs() {
     throw new Error('BlenderKit source visual gate is missing the P0 runtime-promotion rule');
   }
   for (const key of Object.keys(blenderKitSources)) {
-    if (!gate.assets?.[key]?.verdict || !Array.isArray(gate.assets[key].required_work)) {
+    const gateAsset = gate.assets?.[key];
+    if (!gateAsset?.verdict || !Array.isArray(gateAsset.required_work)
+      || typeof gateAsset.review_render !== 'string'
+      || !/^[a-f0-9]{64}$/.test(gateAsset.review_render_sha256 ?? '')) {
       throw new Error(`${key}: BlenderKit source visual gate is incomplete`);
     }
+    const renderPath = join(dirname(visualGatePath), 'review', gateAsset.review_render);
+    if (hash(readFileSync(renderPath)) !== gateAsset.review_render_sha256) {
+      throw new Error(`${key}: committed BlenderKit source review render no longer matches its pin`);
+    }
   }
-  return { provenance: blenderKitSourceProvenance, visual_gate: blenderKitSourceVisualGate, sources };
+  return {
+    provenance: blenderKitSourceProvenance,
+    visual_gate: blenderKitSourceVisualGate,
+    committed_provenance_evidence: blenderKitCommittedSourceProvenance,
+    committed_visual_gate_evidence: blenderKitCommittedSourceVisualGate,
+    raw_source_files_revalidated: Object.values(sources).filter((source) => source.raw_source_revalidated).length,
+    sources,
+  };
 }
 
 function validateBlenderKitDerivatives(key, indexed, expected) {
