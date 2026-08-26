@@ -417,6 +417,10 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+        with:
+          # The default pull_request checkout is a detached synthetic merge SHA.
+          # Keep the real head branch so Vercel can apply branch-scoped Preview env.
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
