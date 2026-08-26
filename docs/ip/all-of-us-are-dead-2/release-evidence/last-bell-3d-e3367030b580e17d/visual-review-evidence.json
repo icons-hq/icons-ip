@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "status": "approved-human-art-review",
+  "external_ip_approval": "approved-external-ip-review",
+  "reviewer_type": "human",
+  "reviewer_id": "workspace-user-netflix-approval-20260826",
+  "reviewed_at": "2026-08-26T10:44:37+09:00",
+  "reviewed_build_id": "last-bell-3d-e3367030b580e17d",
+  "approval_source": "direct workspace user confirmation of Netflix coordination and approval",
+  "p0_findings": 0,
+  "comparison_renders": [
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-3d-e3367030b580e17d/review/entry.png",
+      "sha256": "0d675efb6d29a9652c5bd946c8a7dd488172b39215bf51e300801364cfe38126",
+      "camera_contract": {
+        "camera_id": "opening-entry-authored-camera",
+        "fov_degrees": 50.6924,
+        "exposure": 0,
+        "width": 1280,
+        "height": 720
+      }
+    },
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-3d-e3367030b580e17d/review/cold-open.png",
+      "sha256": "33376303ca4973d7a14dc4cd16e81a0ca430f5b591e64175c6dc2f122c113491",
+      "camera_contract": {
+        "camera_id": "opening-cold-open-authored-camera",
+        "fov_degrees": 65.4705,
+        "exposure": 0,
+        "width": 1280,
+        "height": 720
+      }
+    },
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-3d-e3367030b580e17d/review/gameplay.png",
+      "sha256": "e2b29a4c14774ce83186fd7e7d24c5c8387f1c57ffb539a489905201c8dbbae4",
+      "camera_contract": {
+        "camera_id": "opening-gameplay-authored-camera",
+        "fov_degrees": 65.4705,
+        "exposure": 0,
+        "width": 1280,
+        "height": 720
+      }
+    },
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-3d-e3367030b580e17d/review/open-door.png",
+      "sha256": "20fdd8d638a74ba909b4c584ec3fab6eef4c86f366fe3b9960e69b0f1ee4c70b",
+      "camera_contract": {
+        "camera_id": "opening-open-door-authored-camera",
+        "fov_degrees": 69.3903,
+        "exposure": 0,
+        "width": 1280,
+        "height": 720
+      }
+    }
+  ],
+  "frame_metrics": {
+    "opening-entry-authored-camera": {
+      "entropy": 5.386964981815254,
+      "mean_channel_stdev": 17.685,
+      "channel_range": 184
+    },
+    "opening-cold-open-authored-camera": {
+      "entropy": 6.141359747940442,
+      "mean_channel_stdev": 24.051,
+      "channel_range": 166
+    },
+    "opening-gameplay-authored-camera": {
+      "entropy": 3.797936452385329,
+      "mean_channel_stdev": 16.607,
+      "channel_range": 179
+    },
+    "opening-open-door-authored-camera": {
+      "entropy": 5.7658887106681505,
+      "mean_channel_stdev": 22.958,
+      "channel_range": 213
+    }
+  }
+}

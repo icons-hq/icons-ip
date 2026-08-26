@@ -1,0 +1,446 @@
+{
+  "schema": 1,
+  "release_build_id": "last-bell-release-da8957979ec883a0",
+  "generated_at": "2026-08-26T01:03:00+09:00",
+  "scope": "two-chapter-ten-minute-local-and-preview-candidate",
+  "runtime_contract": {
+    "chapters": [
+      "chapter-01",
+      "chapter-02"
+    ],
+    "collectibles": [
+      "idcard",
+      "badge",
+      "photo",
+      "radio",
+      "kit",
+      "zipup",
+      "archery",
+      "postcard",
+      "candle",
+      "blanket"
+    ],
+    "verified_route": "/experiences/all-of-us-are-dead/last-bell",
+    "verified_store_route": "/experiences/all-of-us-are-dead/last-bell/store",
+    "local_qa_route": "/games/prototype-last-bell"
+  },
+  "components": {
+    "opening_3d": {
+      "build_id": "last-bell-3d-e3367030b580e17d",
+      "manifest": "public/generated/last-bell/3d/metadata.json",
+      "visual_review": {
+        "status": "approved-human-art-review",
+        "external_ip_approval": "approved-external-ip-review",
+        "evidence": {
+          "schema": 1,
+          "status": "approved-human-art-review",
+          "external_ip_approval": "approved-external-ip-review",
+          "reviewer_type": "human",
+          "reviewer_id": "workspace-user-netflix-approval-20260826",
+          "reviewed_at": "2026-08-26T10:44:37+09:00",
+          "reviewed_build_id": "last-bell-3d-e3367030b580e17d",
+          "approval_source": "direct workspace user confirmation of Netflix coordination and approval",
+          "p0_findings": 0,
+          "comparison_renders": [
+            {
+              "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-3d-e3367030b580e17d/review/entry.png",
+              "sha256": "0d675efb6d29a9652c5bd946c8a7dd488172b39215bf51e300801364cfe38126",
+              "camera_contract": {
+                "camera_id": "opening-entry-authored-camera",
+                "fov_degrees": 50.6924,
+                "exposure": 0,
+                "width": 1280,
+                "height": 720
+              }
+            },
+            {
+              "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-3d-e3367030b580e17d/review/cold-open.png",
+              "sha256": "33376303ca4973d7a14dc4cd16e81a0ca430f5b591e64175c6dc2f122c113491",
+              "camera_contract": {
+                "camera_id": "opening-cold-open-authored-camera",
+                "fov_degrees": 65.4705,
+                "exposure": 0,
+                "width": 1280,
+                "height": 720
+              }
+            },
+            {
+              "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-3d-e3367030b580e17d/review/gameplay.png",
+              "sha256": "e2b29a4c14774ce83186fd7e7d24c5c8387f1c57ffb539a489905201c8dbbae4",
+              "camera_contract": {
+                "camera_id": "opening-gameplay-authored-camera",
+                "fov_degrees": 65.4705,
+                "exposure": 0,
+                "width": 1280,
+                "height": 720
+              }
+            },
+            {
+              "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-3d-e3367030b580e17d/review/open-door.png",
+              "sha256": "20fdd8d638a74ba909b4c584ec3fab6eef4c86f366fe3b9960e69b0f1ee4c70b",
+              "camera_contract": {
+                "camera_id": "opening-open-door-authored-camera",
+                "fov_degrees": 69.3903,
+                "exposure": 0,
+                "width": 1280,
+                "height": 720
+              }
+            }
+          ],
+          "frame_metrics": {
+            "opening-entry-authored-camera": {
+              "entropy": 5.386964981815254,
+              "mean_channel_stdev": 17.685,
+              "channel_range": 184
+            },
+            "opening-cold-open-authored-camera": {
+              "entropy": 6.141359747940442,
+              "mean_channel_stdev": 24.051,
+              "channel_range": 166
+            },
+            "opening-gameplay-authored-camera": {
+              "entropy": 3.797936452385329,
+              "mean_channel_stdev": 16.607,
+              "channel_range": 179
+            },
+            "opening-open-door-authored-camera": {
+              "entropy": 5.7658887106681505,
+              "mean_channel_stdev": 22.958,
+              "channel_range": 213
+            }
+          }
+        }
+      }
+    },
+    "campaign_3d": {
+      "build_id": "last-bell-campaign-3d-v1",
+      "manifest": "public/generated/last-bell/3d/campaign/campaign-asset-manifest.json",
+      "source_only": true,
+      "runtime_delivery": "zone-local streamed route and character GLBs only"
+    },
+    "products": {
+      "build_id": "last-bell-products-f12d1120f2426103",
+      "manifest": "docs/ip/all-of-us-are-dead-2/last-bell-product-asset-manifest.json",
+      "manifest_sha256": "6866b08bd6adf01ddc1709bf64a3a34504f7120bbf7dfe62ac81e75d8fd420c1",
+      "delivery_status": "public-in-game-delivery-p1-sales-disabled"
+    },
+    "replaceable_characters": {
+      "build_id": "last-bell-route-character-99f9d262441685b4",
+      "manifest": "docs/ip/all-of-us-are-dead-2/last-bell-character-asset-seams.json"
+    },
+    "narrative": {
+      "build_id": "last-bell-narrative-ko-v1",
+      "module": "lib/prototypes/last-bell/narrative.ts",
+      "locale": "ko-KR",
+      "review_status": "approved-external-ip-dialogue-review"
+    },
+    "verified_run_schema": {
+      "build_id": "last-bell-verified-run-20260826034850",
+      "migrations": [
+        "supabase/migrations/20260825023830_last_bell_verified_runs_and_entitlements.sql",
+        "supabase/migrations/20260825043125_last_bell_verified_run_security_fences.sql",
+        "supabase/migrations/20260825043126_last_bell_verified_run_intro_skip_timing.sql",
+        "supabase/migrations/20260825044500_last_bell_first_door_physical_checkpoint.sql",
+        "supabase/migrations/20260826000500_last_bell_evidence_driven_progression.sql",
+        "supabase/migrations/20260826034850_last_bell_claim_all_completed_guest_runs.sql"
+      ]
+    }
+  },
+  "evidence": {
+    "provenance": "docs/ip/all-of-us-are-dead-2/asset-provenance.md",
+    "qa_report": "docs/ip/all-of-us-are-dead-2/qa-report.md",
+    "browser_qa": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser-qa-evidence.json",
+    "verified_store_browser_qa": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/verified-store-qa-evidence.json"
+  },
+  "deployment_validation": {
+    "github_actions_run": 32930111721,
+    "validated_commit": "55b036c",
+    "supabase_preview": "pass-migrations-seed-baseline-and-db-contracts",
+    "public_cart_compatibility_migration": "supabase/migrations/20260826023403_last_bell_public_cart_compatibility.sql",
+    "vercel_preview_url": "https://icons-58myxkklg-sangwopark19icons-1055s-projects.vercel.app",
+    "verified_route": "/experiences/all-of-us-are-dead/last-bell",
+    "verified_store_route": "/experiences/all-of-us-are-dead/last-bell/store",
+    "feature_flag_scope": "preview-only-branch-ps-feat-last-bell-vertical-slice",
+    "preview_checkout": "pr-head-branch-preserved-for-vercel-env-overrides",
+    "browser_readback": "pass-game-shell-and-verified-store-three-viewports-targets-images-console-and-overflow-clean",
+    "production": "not-deployed"
+  },
+  "status": {
+    "automated_contracts": "pass",
+    "local_production_build_browser_qa": "pass-three-viewports-entry-skip-first-door-console-clean",
+    "verified_store_browser_qa": "pass-three-viewports-ten-products-images-console-and-overflow-clean",
+    "preview_deployment": "pass-supabase-migrations-vercel-preview-game-shell-and-store-three-viewports-console-clean",
+    "production_release": "approved-release-candidate-pending-production-readback",
+    "public_cart_compatibility": "pass-public-goods-unchanged-story-entitlement-guarded",
+    "automated_asset_contracts": "pass",
+    "opening_visual_asset_review": "approved-human-art-and-external-ip-review",
+    "internal_visual_asset_review": "approved-human-art-review",
+    "external_ip_asset_approval": "approved-external-ip-review",
+    "product_visual_asset_review": "root-review-approved-for-in-game-delivery-p0-clear",
+    "product_ip_and_manufacturing_review": "p1-final-graphics-and-manufacturing-pending",
+    "product_sales_activation": "disabled-pending-ip-and-manufacturing-review"
+  },
+  "visual_review": {
+    "status": "approved-human-art-review",
+    "automated_contracts": "pass",
+    "external_ip_approval": "approved-external-ip-review",
+    "evidence": {
+      "schema": 1,
+      "status": "approved-human-art-review",
+      "external_ip_approval": "approved-external-ip-review",
+      "reviewer_type": "human",
+      "reviewer_id": "workspace-user-netflix-approval-20260826",
+      "reviewed_at": "2026-08-26T10:44:37+09:00",
+      "reviewed_build_id": "last-bell-route-character-99f9d262441685b4",
+      "approval_source": "direct workspace user confirmation of Netflix coordination and approval",
+      "p0_findings": 0,
+      "comparison_renders": [
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/corridor-player-height-1280x720.png",
+          "sha256": "e33e61d96e3e968fbb174851b093de21841d777f04d7738c28fbfd04077a631e",
+          "camera_contract": {
+            "camera_id": "player-height-corridor",
+            "fov_degrees": 62,
+            "exposure": 1.05,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/infirmary-player-height-1280x720.png",
+          "sha256": "46c2c46efea3fa4c3c2a85aa077da6ba9fa9884bb6e3b668356963f3ac4c566f",
+          "camera_contract": {
+            "camera_id": "player-height-infirmary",
+            "fov_degrees": 62,
+            "exposure": 1.05,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/broadcast-player-height-1280x720.png",
+          "sha256": "3c3c4b21ec350cb18573ebc21bfa2271ce997522c44ace298b7ab320b7a9e2f0",
+          "camera_contract": {
+            "camera_id": "player-height-broadcast",
+            "fov_degrees": 62,
+            "exposure": 1.05,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/utility-player-height-1280x720.png",
+          "sha256": "14a04315993cbfc1f8270c16dec2e51378eb9cd0eb0bb434d552ac6bdda93985",
+          "camera_contract": {
+            "camera_id": "player-height-utility",
+            "fov_degrees": 62,
+            "exposure": 1.05,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/stairwell-player-height-1280x720.png",
+          "sha256": "4f2112da594f32b8ac0a1895085dccd2b9c493f47dd83016cbd54dbe74ad7813",
+          "camera_contract": {
+            "camera_id": "player-height-stairwell",
+            "fov_degrees": 62,
+            "exposure": 1.05,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/rooftop-player-height-1280x720.png",
+          "sha256": "fb282ff380af4e18d7b6a6e56464b8f68eb8cf5af7f63461bfe57f22dd544845",
+          "camera_contract": {
+            "camera_id": "player-height-rooftop",
+            "fov_degrees": 62,
+            "exposure": 1.05,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/zombie-student-full-front-768x768.png",
+          "sha256": "1781787e491330b658806443d8b98836be73190ded20fcb7791227c70120b322",
+          "camera_contract": {
+            "camera_id": "full-front-zombie-student",
+            "fov_degrees": 38,
+            "exposure": 1.2,
+            "width": 768,
+            "height": 768
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/zombie-athletics-full-front-768x768.png",
+          "sha256": "77d97c56ef966e4a6c0cfef982fc50d5b2285b22c6fcb4bca35236760bbbb889",
+          "camera_contract": {
+            "camera_id": "full-front-zombie-athletics",
+            "fov_degrees": 38,
+            "exposure": 1.2,
+            "width": 768,
+            "height": 768
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/zombie-staff-full-front-768x768.png",
+          "sha256": "501d3ee99024543ba4db7bc0bb818317e82a7916c4a70de91a7e3d4cf6ec3277",
+          "camera_contract": {
+            "camera_id": "full-front-zombie-staff",
+            "fov_degrees": 38,
+            "exposure": 1.2,
+            "width": 768,
+            "height": 768
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/namra-rooftop-full-front-768x768.png",
+          "sha256": "8c2abc93687bdf8f08a1e53797bd778d9a02af60cece59aa1718216e3928e124",
+          "camera_contract": {
+            "camera_id": "full-front-namra-rooftop",
+            "fov_degrees": 38,
+            "exposure": 1.2,
+            "width": 768,
+            "height": 768
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/zombie-student-three-quarter-768x768.png",
+          "sha256": "c14b5cbdc57cfad58cc6a1775662fe86be4c699859b603d82f47c6c113fcb3f3",
+          "camera_contract": {
+            "camera_id": "full-three-quarter-zombie-student",
+            "fov_degrees": 38,
+            "exposure": 1.2,
+            "width": 768,
+            "height": 768
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/namra-rooftop-three-quarter-768x768.png",
+          "sha256": "80be3e70aa0bdacdf159a4a34178e4577a7bcdb07f2350ca5ebe31e0d223697f",
+          "camera_contract": {
+            "camera_id": "full-three-quarter-namra-rooftop",
+            "fov_degrees": 38,
+            "exposure": 1.2,
+            "width": 768,
+            "height": 768
+          }
+        }
+      ],
+      "comparisons": [
+        {
+          "key": "corridor",
+          "delivery_sha256": "4c5d031d13ad0e7f8069d900e883fa80aee5182b29a1c72357d151b90c41eea3",
+          "rendered_delivery_sha256": "4c5d031d13ad0e7f8069d900e883fa80aee5182b29a1c72357d151b90c41eea3",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/corridor-player-height-1280x720.png",
+          "frame": {
+            "entropy": 5.899781339767287,
+            "mean_channel_stdev": 18.792,
+            "channel_range": 209
+          }
+        },
+        {
+          "key": "infirmary",
+          "delivery_sha256": "b274b933fbf02fb4227d37ad6f8bed8b7664e310f903257b3d946ce6f28ad03f",
+          "rendered_delivery_sha256": "b274b933fbf02fb4227d37ad6f8bed8b7664e310f903257b3d946ce6f28ad03f",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/infirmary-player-height-1280x720.png",
+          "frame": {
+            "entropy": 5.057702019636054,
+            "mean_channel_stdev": 17.855,
+            "channel_range": 146
+          }
+        },
+        {
+          "key": "broadcast",
+          "delivery_sha256": "587f6286adecf977d24dbce03d787073f8a2af951e01b31fa44972067624bb41",
+          "rendered_delivery_sha256": "587f6286adecf977d24dbce03d787073f8a2af951e01b31fa44972067624bb41",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/broadcast-player-height-1280x720.png",
+          "frame": {
+            "entropy": 5.21051727035956,
+            "mean_channel_stdev": 18.197,
+            "channel_range": 220
+          }
+        },
+        {
+          "key": "utility",
+          "delivery_sha256": "b291d3103da2616642177420795e15c60c973f80f53f195b72fcb7802464e0fa",
+          "rendered_delivery_sha256": "b291d3103da2616642177420795e15c60c973f80f53f195b72fcb7802464e0fa",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/utility-player-height-1280x720.png",
+          "frame": {
+            "entropy": 4.854227723220902,
+            "mean_channel_stdev": 16.212,
+            "channel_range": 177
+          }
+        },
+        {
+          "key": "stairwell",
+          "delivery_sha256": "3b440a543e172a9077e226465ec67d67ed42cfe04c1acebe1bc536d8773a83da",
+          "rendered_delivery_sha256": "3b440a543e172a9077e226465ec67d67ed42cfe04c1acebe1bc536d8773a83da",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/stairwell-player-height-1280x720.png",
+          "frame": {
+            "entropy": 5.230603048721605,
+            "mean_channel_stdev": 14.826,
+            "channel_range": 135
+          }
+        },
+        {
+          "key": "rooftop",
+          "delivery_sha256": "4c7ded6d8d8445ab808a20daf63a6e14750a33e4f3d60af491f161776bb2b439",
+          "rendered_delivery_sha256": "4c7ded6d8d8445ab808a20daf63a6e14750a33e4f3d60af491f161776bb2b439",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/rooftop-player-height-1280x720.png",
+          "frame": {
+            "entropy": 5.412331082001401,
+            "mean_channel_stdev": 22.011,
+            "channel_range": 255
+          }
+        },
+        {
+          "key": "zombie-student",
+          "delivery_sha256": "babeeb56c8c763517138ec25de1d151cd90bf66dce4378d6cd56c3855904abef",
+          "rendered_delivery_sha256": "babeeb56c8c763517138ec25de1d151cd90bf66dce4378d6cd56c3855904abef",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/zombie-student-full-front-768x768.png",
+          "frame": {
+            "entropy": 3.0496278693353815,
+            "mean_channel_stdev": 31.54,
+            "channel_range": 254
+          }
+        },
+        {
+          "key": "zombie-athletics",
+          "delivery_sha256": "59403af41cc13ef6989816bfc7e62c3e1b3943472905b30a19ae68c849c1ebd2",
+          "rendered_delivery_sha256": "59403af41cc13ef6989816bfc7e62c3e1b3943472905b30a19ae68c849c1ebd2",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/zombie-athletics-full-front-768x768.png",
+          "frame": {
+            "entropy": 2.859041488645744,
+            "mean_channel_stdev": 30.131,
+            "channel_range": 254
+          }
+        },
+        {
+          "key": "zombie-staff",
+          "delivery_sha256": "c2f06bdc887e43996d9560a86b69dd76b8a824e0883d15c6f6d01c1653d85bf8",
+          "rendered_delivery_sha256": "c2f06bdc887e43996d9560a86b69dd76b8a824e0883d15c6f6d01c1653d85bf8",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/zombie-staff-full-front-768x768.png",
+          "frame": {
+            "entropy": 2.9545828578156943,
+            "mean_channel_stdev": 30.009,
+            "channel_range": 254
+          }
+        },
+        {
+          "key": "namra-rooftop",
+          "delivery_sha256": "844d1384297e2fcbb6fff98fd43eba2afa9dd8a048bb5a0a19f07cd7d024df4e",
+          "rendered_delivery_sha256": "844d1384297e2fcbb6fff98fd43eba2afa9dd8a048bb5a0a19f07cd7d024df4e",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/namra-rooftop-full-front-768x768.png",
+          "frame": {
+            "entropy": 3.0413784268275776,
+            "mean_channel_stdev": 30.935,
+            "channel_range": 254
+          }
+        }
+      ]
+    }
+  },
+  "no_clay_primitive_final": true
+}

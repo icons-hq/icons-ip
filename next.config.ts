@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Three's package exports contain browser-first ESM that needs to be transpiled
+  // by Next's bundler when the prototype is loaded dynamically on the client.
+  transpilePackages: ['three'],
   async redirects() {
     // 유료 뽑기 화면(/gacha)을 카드팩 개봉 화면으로 재목적화(#71) — 구 링크 보존
     return [{ source: '/gacha', destination: '/packs', permanent: true }];

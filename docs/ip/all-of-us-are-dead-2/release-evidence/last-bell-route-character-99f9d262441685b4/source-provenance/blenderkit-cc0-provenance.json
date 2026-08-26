@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-25T17:00:02.735Z",
+  "upstream": "https://www.blenderkit.com/",
+  "policy": {
+    "accepted_license": "cc_zero",
+    "source_role": "private-photogrammetry-input-only",
+    "public_runtime_delivery": false,
+    "required_derivative_steps": [
+      "blender-import",
+      "topology-cleanup-and-decimation",
+      "project-authored-material-and-uv-review",
+      "collision-and-semantic-anchors",
+      "ktx2-textures",
+      "meshopt-geometry",
+      "human-runtime-visual-gate"
+    ]
+  },
+  "assets": [
+    {
+      "key": "abandoned-house",
+      "name": "Abandoned House",
+      "asset_base_id": "94e53774-84d7-430e-89bd-12cf7b2ef828",
+      "revision_id": "7cb3f4f0-2a23-4c7b-abfe-d9587adee35e",
+      "license": "cc_zero",
+      "source_page": "https://www.blenderkit.com/asset-gallery-detail/94e53774-84d7-430e-89bd-12cf7b2ef828/",
+      "metadata_endpoint": "https://www.blenderkit.com/api/v1/search/?query=asset_type%3Amodel+asset_base_id%3A94e53774-84d7-430e-89bd-12cf7b2ef828&dict_parameters=1&page_size=10",
+      "download_endpoint": "https://www.blenderkit.com/api/v1/downloads/1041556/",
+      "file_id": 1041556,
+      "file_type": "gltf",
+      "local_file": "abandoned-house.glb",
+      "bytes": 16590128,
+      "sha256": "618d5f5153470d9039c11d6dc82eb1625416d383d6e1efcc5b23005b71a94660"
+    },
+    {
+      "key": "painted-concrete-blocks",
+      "name": "Painted Concrete Blocks (Photoscanned)",
+      "asset_base_id": "049c6887-3484-4725-b8ae-8749d7b68e1f",
+      "revision_id": "08830d0a-8518-42e0-8ddc-9375863df281",
+      "license": "cc_zero",
+      "source_page": "https://www.blenderkit.com/asset-gallery-detail/049c6887-3484-4725-b8ae-8749d7b68e1f/",
+      "metadata_endpoint": "https://www.blenderkit.com/api/v1/search/?query=asset_type%3Amodel+asset_base_id%3A049c6887-3484-4725-b8ae-8749d7b68e1f&dict_parameters=1&page_size=10",
+      "download_endpoint": "https://www.blenderkit.com/api/v1/downloads/501417/",
+      "file_id": 501417,
+      "file_type": "gltf",
+      "local_file": "painted-concrete-blocks.glb",
+      "bytes": 27264460,
+      "sha256": "efd2e80aa3f957da81e64d68d0bcd11526f5bb2b215f12d88206a6357793e29e"
+    },
+    {
+      "key": "scan-old-broken-floor",
+      "name": "Scan Old broken floor",
+      "asset_base_id": "c4f28476-3d97-46dc-8969-cbf704059205",
+      "revision_id": "53ba4669-ed62-40c0-a01c-c0afa36422d7",
+      "license": "cc_zero",
+      "source_page": "https://www.blenderkit.com/asset-gallery-detail/c4f28476-3d97-46dc-8969-cbf704059205/",
+      "metadata_endpoint": "https://www.blenderkit.com/api/v1/search/?query=asset_type%3Amodel+asset_base_id%3Ac4f28476-3d97-46dc-8969-cbf704059205&dict_parameters=1&page_size=10",
+      "download_endpoint": "https://www.blenderkit.com/api/v1/downloads/963779/",
+      "file_id": 963779,
+      "file_type": "gltf",
+      "local_file": "scan-old-broken-floor.glb",
+      "bytes": 20673356,
+      "sha256": "77e8919e10008374ad67a078be3bf2a697704297129ac61708856403ae46ac34"
+    },
+    {
+      "key": "scan-rubble-pile-a",
+      "name": "Scan Pile of rubble",
+      "asset_base_id": "930f3a3b-b6c3-4971-ab86-ce65c93b2a3c",
+      "revision_id": "8d90c8f1-172d-4d91-9590-997a3d6e2c19",
+      "license": "cc_zero",
+      "source_page": "https://www.blenderkit.com/asset-gallery-detail/930f3a3b-b6c3-4971-ab86-ce65c93b2a3c/",
+      "metadata_endpoint": "https://www.blenderkit.com/api/v1/search/?query=asset_type%3Amodel+asset_base_id%3A930f3a3b-b6c3-4971-ab86-ce65c93b2a3c&dict_parameters=1&page_size=10",
+      "download_endpoint": "https://www.blenderkit.com/api/v1/downloads/777119/",
+      "file_id": 777119,
+      "file_type": "gltf",
+      "local_file": "scan-rubble-pile-a.glb",
+      "bytes": 21871380,
+      "sha256": "cf9681a80565cfd9845b63b39a205758cf904807917da7f5e216368d5ab9a58e"
+    },
+    {
+      "key": "scan-rubble-ruins",
+      "name": "Scan Rubble ruins",
+      "asset_base_id": "853f291b-6f22-4900-9979-75826dac8c27",
+      "revision_id": "01def269-bd99-43ff-b060-c1129a9bd1fb",
+      "license": "cc_zero",
+      "source_page": "https://www.blenderkit.com/asset-gallery-detail/853f291b-6f22-4900-9979-75826dac8c27/",
+      "metadata_endpoint": "https://www.blenderkit.com/api/v1/search/?query=asset_type%3Amodel+asset_base_id%3A853f291b-6f22-4900-9979-75826dac8c27&dict_parameters=1&page_size=10",
+      "download_endpoint": "https://www.blenderkit.com/api/v1/downloads/983311/",
+      "file_id": 983311,
+      "file_type": "gltf",
+      "local_file": "scan-rubble-ruins.glb",
+      "bytes": 7505172,
+      "sha256": "6a51c2a3f63f3acc2417494f673bb068d55152e27d64dd758c5e51e167c8ee33"
+    }
+  ]
+}

@@ -1,0 +1,1595 @@
+{
+  "schema": 1,
+  "build_id": "last-bell-route-character-99f9d262441685b4",
+  "review_status": "textured-PBR delivery with UV0/UV1, semantic anchors, colliders, LOD contract, and skinned replacement seams",
+  "visual_review": {
+    "status": "approved-human-art-review",
+    "automated_contracts": "pass",
+    "external_ip_approval": "approved-external-ip-review",
+    "evidence": {
+      "schema": 1,
+      "status": "approved-human-art-review",
+      "external_ip_approval": "approved-external-ip-review",
+      "reviewer_type": "human",
+      "reviewer_id": "workspace-user-netflix-approval-20260826",
+      "reviewed_at": "2026-08-26T10:44:37+09:00",
+      "reviewed_build_id": "last-bell-route-character-99f9d262441685b4",
+      "approval_source": "direct workspace user confirmation of Netflix coordination and approval",
+      "p0_findings": 0,
+      "comparison_renders": [
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/corridor-player-height-1280x720.png",
+          "sha256": "e33e61d96e3e968fbb174851b093de21841d777f04d7738c28fbfd04077a631e",
+          "camera_contract": {
+            "camera_id": "player-height-corridor",
+            "fov_degrees": 62,
+            "exposure": 1.05,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/infirmary-player-height-1280x720.png",
+          "sha256": "46c2c46efea3fa4c3c2a85aa077da6ba9fa9884bb6e3b668356963f3ac4c566f",
+          "camera_contract": {
+            "camera_id": "player-height-infirmary",
+            "fov_degrees": 62,
+            "exposure": 1.05,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/broadcast-player-height-1280x720.png",
+          "sha256": "3c3c4b21ec350cb18573ebc21bfa2271ce997522c44ace298b7ab320b7a9e2f0",
+          "camera_contract": {
+            "camera_id": "player-height-broadcast",
+            "fov_degrees": 62,
+            "exposure": 1.05,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/utility-player-height-1280x720.png",
+          "sha256": "14a04315993cbfc1f8270c16dec2e51378eb9cd0eb0bb434d552ac6bdda93985",
+          "camera_contract": {
+            "camera_id": "player-height-utility",
+            "fov_degrees": 62,
+            "exposure": 1.05,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/stairwell-player-height-1280x720.png",
+          "sha256": "4f2112da594f32b8ac0a1895085dccd2b9c493f47dd83016cbd54dbe74ad7813",
+          "camera_contract": {
+            "camera_id": "player-height-stairwell",
+            "fov_degrees": 62,
+            "exposure": 1.05,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/rooftop-player-height-1280x720.png",
+          "sha256": "fb282ff380af4e18d7b6a6e56464b8f68eb8cf5af7f63461bfe57f22dd544845",
+          "camera_contract": {
+            "camera_id": "player-height-rooftop",
+            "fov_degrees": 62,
+            "exposure": 1.05,
+            "width": 1280,
+            "height": 720
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/zombie-student-full-front-768x768.png",
+          "sha256": "1781787e491330b658806443d8b98836be73190ded20fcb7791227c70120b322",
+          "camera_contract": {
+            "camera_id": "full-front-zombie-student",
+            "fov_degrees": 38,
+            "exposure": 1.2,
+            "width": 768,
+            "height": 768
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/zombie-athletics-full-front-768x768.png",
+          "sha256": "77d97c56ef966e4a6c0cfef982fc50d5b2285b22c6fcb4bca35236760bbbb889",
+          "camera_contract": {
+            "camera_id": "full-front-zombie-athletics",
+            "fov_degrees": 38,
+            "exposure": 1.2,
+            "width": 768,
+            "height": 768
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/zombie-staff-full-front-768x768.png",
+          "sha256": "501d3ee99024543ba4db7bc0bb818317e82a7916c4a70de91a7e3d4cf6ec3277",
+          "camera_contract": {
+            "camera_id": "full-front-zombie-staff",
+            "fov_degrees": 38,
+            "exposure": 1.2,
+            "width": 768,
+            "height": 768
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/namra-rooftop-full-front-768x768.png",
+          "sha256": "8c2abc93687bdf8f08a1e53797bd778d9a02af60cece59aa1718216e3928e124",
+          "camera_contract": {
+            "camera_id": "full-front-namra-rooftop",
+            "fov_degrees": 38,
+            "exposure": 1.2,
+            "width": 768,
+            "height": 768
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/zombie-student-three-quarter-768x768.png",
+          "sha256": "c14b5cbdc57cfad58cc6a1775662fe86be4c699859b603d82f47c6c113fcb3f3",
+          "camera_contract": {
+            "camera_id": "full-three-quarter-zombie-student",
+            "fov_degrees": 38,
+            "exposure": 1.2,
+            "width": 768,
+            "height": 768
+          }
+        },
+        {
+          "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/namra-rooftop-three-quarter-768x768.png",
+          "sha256": "80be3e70aa0bdacdf159a4a34178e4577a7bcdb07f2350ca5ebe31e0d223697f",
+          "camera_contract": {
+            "camera_id": "full-three-quarter-namra-rooftop",
+            "fov_degrees": 38,
+            "exposure": 1.2,
+            "width": 768,
+            "height": 768
+          }
+        }
+      ],
+      "comparisons": [
+        {
+          "key": "corridor",
+          "delivery_sha256": "4c5d031d13ad0e7f8069d900e883fa80aee5182b29a1c72357d151b90c41eea3",
+          "rendered_delivery_sha256": "4c5d031d13ad0e7f8069d900e883fa80aee5182b29a1c72357d151b90c41eea3",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/corridor-player-height-1280x720.png",
+          "frame": {
+            "entropy": 5.899781339767287,
+            "mean_channel_stdev": 18.792,
+            "channel_range": 209
+          }
+        },
+        {
+          "key": "infirmary",
+          "delivery_sha256": "b274b933fbf02fb4227d37ad6f8bed8b7664e310f903257b3d946ce6f28ad03f",
+          "rendered_delivery_sha256": "b274b933fbf02fb4227d37ad6f8bed8b7664e310f903257b3d946ce6f28ad03f",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/infirmary-player-height-1280x720.png",
+          "frame": {
+            "entropy": 5.057702019636054,
+            "mean_channel_stdev": 17.855,
+            "channel_range": 146
+          }
+        },
+        {
+          "key": "broadcast",
+          "delivery_sha256": "587f6286adecf977d24dbce03d787073f8a2af951e01b31fa44972067624bb41",
+          "rendered_delivery_sha256": "587f6286adecf977d24dbce03d787073f8a2af951e01b31fa44972067624bb41",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/broadcast-player-height-1280x720.png",
+          "frame": {
+            "entropy": 5.21051727035956,
+            "mean_channel_stdev": 18.197,
+            "channel_range": 220
+          }
+        },
+        {
+          "key": "utility",
+          "delivery_sha256": "b291d3103da2616642177420795e15c60c973f80f53f195b72fcb7802464e0fa",
+          "rendered_delivery_sha256": "b291d3103da2616642177420795e15c60c973f80f53f195b72fcb7802464e0fa",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/utility-player-height-1280x720.png",
+          "frame": {
+            "entropy": 4.854227723220902,
+            "mean_channel_stdev": 16.212,
+            "channel_range": 177
+          }
+        },
+        {
+          "key": "stairwell",
+          "delivery_sha256": "3b440a543e172a9077e226465ec67d67ed42cfe04c1acebe1bc536d8773a83da",
+          "rendered_delivery_sha256": "3b440a543e172a9077e226465ec67d67ed42cfe04c1acebe1bc536d8773a83da",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/stairwell-player-height-1280x720.png",
+          "frame": {
+            "entropy": 5.230603048721605,
+            "mean_channel_stdev": 14.826,
+            "channel_range": 135
+          }
+        },
+        {
+          "key": "rooftop",
+          "delivery_sha256": "4c7ded6d8d8445ab808a20daf63a6e14750a33e4f3d60af491f161776bb2b439",
+          "rendered_delivery_sha256": "4c7ded6d8d8445ab808a20daf63a6e14750a33e4f3d60af491f161776bb2b439",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/rooftop-player-height-1280x720.png",
+          "frame": {
+            "entropy": 5.412331082001401,
+            "mean_channel_stdev": 22.011,
+            "channel_range": 255
+          }
+        },
+        {
+          "key": "zombie-student",
+          "delivery_sha256": "babeeb56c8c763517138ec25de1d151cd90bf66dce4378d6cd56c3855904abef",
+          "rendered_delivery_sha256": "babeeb56c8c763517138ec25de1d151cd90bf66dce4378d6cd56c3855904abef",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/zombie-student-full-front-768x768.png",
+          "frame": {
+            "entropy": 3.0496278693353815,
+            "mean_channel_stdev": 31.54,
+            "channel_range": 254
+          }
+        },
+        {
+          "key": "zombie-athletics",
+          "delivery_sha256": "59403af41cc13ef6989816bfc7e62c3e1b3943472905b30a19ae68c849c1ebd2",
+          "rendered_delivery_sha256": "59403af41cc13ef6989816bfc7e62c3e1b3943472905b30a19ae68c849c1ebd2",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/zombie-athletics-full-front-768x768.png",
+          "frame": {
+            "entropy": 2.859041488645744,
+            "mean_channel_stdev": 30.131,
+            "channel_range": 254
+          }
+        },
+        {
+          "key": "zombie-staff",
+          "delivery_sha256": "c2f06bdc887e43996d9560a86b69dd76b8a824e0883d15c6f6d01c1653d85bf8",
+          "rendered_delivery_sha256": "c2f06bdc887e43996d9560a86b69dd76b8a824e0883d15c6f6d01c1653d85bf8",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/zombie-staff-full-front-768x768.png",
+          "frame": {
+            "entropy": 2.9545828578156943,
+            "mean_channel_stdev": 30.009,
+            "channel_range": 254
+          }
+        },
+        {
+          "key": "namra-rooftop",
+          "delivery_sha256": "844d1384297e2fcbb6fff98fd43eba2afa9dd8a048bb5a0a19f07cd7d024df4e",
+          "rendered_delivery_sha256": "844d1384297e2fcbb6fff98fd43eba2afa9dd8a048bb5a0a19f07cd7d024df4e",
+          "render": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-route-character-99f9d262441685b4/review/namra-rooftop-full-front-768x768.png",
+          "frame": {
+            "entropy": 3.0413784268275776,
+            "mean_channel_stdev": 30.935,
+            "channel_range": 254
+          }
+        }
+      ]
+    }
+  },
+  "no_clay_primitive_final": true,
+  "authored_delivery_required": true,
+  "delivery_failure_policy": {
+    "route_visible_primitive_substitute": false,
+    "namra_visible_primitive_substitute": false,
+    "required_response": "keep the authored asset unmounted and surface an actionable load status"
+  },
+  "source_provenance": {
+    "human_base_meshes": {
+      "source": "outputs/last-bell-character-sources/human-base-meshes-bundle-v1.4.1/human_base_meshes_bundle.blend",
+      "source_url": "https://download.blender.org/demo/asset-bundles/human-base-meshes/human-base-meshes-bundle-v1.4.1.zip",
+      "version": "v1.4.1",
+      "license": "CC0-1.0",
+      "sha256": "811f43accbb31a88266d932f8f5563b2d13586fca0ba2693aad1f5fe582b3515",
+      "delivery_use": "realistic body topology only; actor likeness is not asserted"
+    },
+    "material_maps": {
+      "source": "outputs/last-bell-3d/raw/polyhaven-pbr/provenance.json",
+      "license": "CC0-1.0",
+      "delivery_use": "embedded KTX2 base-color, normal, and ORM maps"
+    },
+    "authored_route_model_geometry": {
+      "source": "outputs/last-bell-product-assets/route-character-assets/polyhaven-route-model-provenance.json",
+      "license": "CC0-1.0",
+      "delivery_use": "official authored geometry is flattened into zone-local GLBs and remapped to shared route PBR atlases"
+    },
+    "lookdev_references": {
+      "namra_rooftop_turnaround": {
+        "source": "outputs/last-bell-character-sources/lookdev/namra-rooftop-turnaround-v1.png",
+        "sha256": "968dcc210435f64c4db0234960e812ad1ad1d52cf84659035f9712c10e3016ec",
+        "use": "internal material direction only; not embedded and not a likeness approval"
+      },
+      "zombie_student_turnaround": {
+        "source": "outputs/last-bell-character-sources/lookdev/zombie-student-turnaround-v1.png",
+        "sha256": "2350702a0b9381857dd894e6c9cbc27a6a1b28bc69fba4948bab965714de7674",
+        "use": "internal dirt and infection material direction only; not embedded"
+      },
+      "uniform_a_zombie_turnaround_v2": {
+        "source": "outputs/last-bell-character-sources/lookdev/uniform-a-zombie-turnaround-v2.png",
+        "sha256": "d7bc8e0270bd4fa7dfd57eb57e244acb68dbb292df0ee4a3a967dd88360f896d",
+        "use": "internal original adult-uniform silhouette direction only; not embedded, not a performer likeness claim, and not a shipping texture"
+      },
+      "zombie_athletics_turnaround": {
+        "source": "outputs/last-bell-character-sources/lookdev/zombie-athletics-turnaround-v1.png",
+        "sha256": "deb9ab5e1df56aa84df727c63db38449ec246dfbe81b52c5d40e927810fab1b7",
+        "use": "internal adult-athletics wardrobe direction only; not embedded"
+      },
+      "zombie_staff_turnaround": {
+        "source": "outputs/last-bell-character-sources/lookdev/zombie-staff-turnaround-v1.png",
+        "sha256": "5c35fa322c24db8970ee8b9d330bf4f3500ab9e4768d57654355cc3f26c8e3bb",
+        "use": "internal adult-staff wardrobe direction only; not embedded"
+      }
+    }
+  },
+  "routes": [
+    {
+      "zone_id": "corridor",
+      "model": "public/generated/last-bell/3d/routes/corridor.glb",
+      "sha256": "4c5d031d13ad0e7f8069d900e883fa80aee5182b29a1c72357d151b90c41eea3",
+      "bytes": 10939144,
+      "required_contract": [
+        "LOD0_Route",
+        "semantic Anchor_* nodes",
+        "Meshopt"
+      ],
+      "world_contract": {
+        "bounds": {
+          "min": [
+            -3,
+            24
+          ],
+          "max": [
+            3,
+            67
+          ]
+        },
+        "portals": {
+          "Portal_Infirmary": [
+            4.45,
+            0.2,
+            32
+          ],
+          "Portal_Broadcast": [
+            -4.45,
+            0.2,
+            43
+          ],
+          "Portal_Utility": [
+            0,
+            0.2,
+            61
+          ]
+        },
+        "doors": {},
+        "clearances": {
+          "portal.infirmary": {
+            "min": [
+              2.48,
+              0.2,
+              30.1
+            ],
+            "max": [
+              4.52,
+              2.65,
+              34
+            ],
+            "mesh_blockers": 0
+          },
+          "portal.broadcast": {
+            "min": [
+              -4.52,
+              0.2,
+              37.9
+            ],
+            "max": [
+              -2.48,
+              2.65,
+              47.4
+            ],
+            "mesh_blockers": 0
+          }
+        },
+        "authored_props": {
+          "broken-fluorescent": {
+            "instances": 6,
+            "build_id": "last-bell-route-props-71a10d1704393e9a"
+          },
+          "classroom-desk-chair": {
+            "instances": 2,
+            "build_id": "last-bell-route-props-71a10d1704393e9a"
+          },
+          "locker-bank": {
+            "instances": 1,
+            "build_id": "last-bell-route-props-71a10d1704393e9a"
+          },
+          "debris-cluster": {
+            "instances": 4,
+            "build_id": "last-bell-route-props-71a10d1704393e9a"
+          }
+        },
+        "art_direction": {
+          "boolean_wall_break": 6,
+          "hanging_fluorescent_meshes": 21,
+          "authored_debris_meshes": 40
+        },
+        "blenderkit_derivatives": {
+          "scan-rubble-pile-a": {
+            "nodes": 1,
+            "raw_runtime_delivery": false,
+            "sha256": "cf9681a80565cfd9845b63b39a205758cf904807917da7f5e216368d5ab9a58e",
+            "authored_pbr_material_sources": [
+              "Poly Haven CC0 dirty-floor-tile"
+            ]
+          },
+          "scan-old-broken-floor": {
+            "nodes": 1,
+            "raw_runtime_delivery": false,
+            "sha256": "77e8919e10008374ad67a078be3bf2a697704297129ac61708856403ae46ac34",
+            "authored_pbr_material_sources": [
+              "Poly Haven CC0 tarred-gravel"
+            ]
+          },
+          "scan-rubble-ruins": {
+            "nodes": 1,
+            "raw_runtime_delivery": false,
+            "sha256": "6a51c2a3f63f3acc2417494f673bb068d55152e27d64dd758c5e51e167c8ee33",
+            "authored_pbr_material_sources": [
+              "Poly Haven CC0 exposed-brick"
+            ]
+          }
+        },
+        "polyhaven_duct": null,
+        "polyhaven_details": {
+          "mounted_fluorescent_lights": {
+            "instances": 8,
+            "pieces": 56,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/mounted_fluorescent_lights"
+          },
+          "korean_fire_extinguisher_01": {
+            "instances": 1,
+            "pieces": 1,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/korean_fire_extinguisher_01"
+          },
+          "utility_box_01": {
+            "instances": 1,
+            "pieces": 1,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/utility_box_01"
+          },
+          "SchoolDesk_01": {
+            "instances": 2,
+            "pieces": 2,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/SchoolDesk_01"
+          },
+          "SchoolChair_01": {
+            "instances": 4,
+            "pieces": 4,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/SchoolChair_01"
+          }
+        },
+        "runtime_hearth": null,
+        "structural_material_audit": null,
+        "hiding": {
+          "hiding.locker.corridor": {
+            "pivot": "Hide_Locker_Corridor_Pivot",
+            "panel": "Hide_Locker_Corridor_Panel",
+            "animation": "Hide_Locker_Corridor_OpenClose"
+          }
+        }
+      }
+    },
+    {
+      "zone_id": "infirmary",
+      "model": "public/generated/last-bell/3d/routes/infirmary.glb",
+      "sha256": "b274b933fbf02fb4227d37ad6f8bed8b7664e310f903257b3d946ce6f28ad03f",
+      "bytes": 689564,
+      "required_contract": [
+        "LOD0_Route",
+        "semantic Anchor_* nodes",
+        "Meshopt"
+      ],
+      "world_contract": {
+        "bounds": {
+          "min": [
+            4,
+            27
+          ],
+          "max": [
+            10,
+            38
+          ]
+        },
+        "portals": {
+          "Portal_Corridor": [
+            4.45,
+            0.2,
+            32
+          ]
+        },
+        "doors": {},
+        "clearances": {
+          "portal.infirmary": {
+            "min": [
+              2.48,
+              0.2,
+              30.1
+            ],
+            "max": [
+              4.52,
+              2.65,
+              34
+            ],
+            "mesh_blockers": 0
+          }
+        },
+        "authored_props": {},
+        "art_direction": {},
+        "blenderkit_derivatives": {},
+        "polyhaven_duct": null,
+        "polyhaven_details": {},
+        "runtime_hearth": null,
+        "structural_material_audit": null,
+        "hiding": {}
+      }
+    },
+    {
+      "zone_id": "broadcast",
+      "model": "public/generated/last-bell/3d/routes/broadcast.glb",
+      "sha256": "587f6286adecf977d24dbce03d787073f8a2af951e01b31fa44972067624bb41",
+      "bytes": 691440,
+      "required_contract": [
+        "LOD0_Route",
+        "semantic Anchor_* nodes",
+        "Meshopt"
+      ],
+      "world_contract": {
+        "bounds": {
+          "min": [
+            -10,
+            37
+          ],
+          "max": [
+            -4,
+            49
+          ]
+        },
+        "portals": {
+          "Portal_Corridor": [
+            -4.45,
+            0.2,
+            43
+          ]
+        },
+        "doors": {},
+        "clearances": {
+          "portal.broadcast": {
+            "min": [
+              -4.52,
+              0.2,
+              37.9
+            ],
+            "max": [
+              -2.48,
+              2.65,
+              47.4
+            ],
+            "mesh_blockers": 0
+          }
+        },
+        "authored_props": {},
+        "art_direction": {},
+        "blenderkit_derivatives": {},
+        "polyhaven_duct": null,
+        "polyhaven_details": {},
+        "runtime_hearth": null,
+        "structural_material_audit": null,
+        "hiding": {}
+      }
+    },
+    {
+      "zone_id": "utility",
+      "model": "public/generated/last-bell/3d/routes/utility.glb",
+      "sha256": "b291d3103da2616642177420795e15c60c973f80f53f195b72fcb7802464e0fa",
+      "bytes": 857272,
+      "required_contract": [
+        "LOD0_Route",
+        "semantic Anchor_* nodes",
+        "Meshopt"
+      ],
+      "world_contract": {
+        "bounds": {
+          "min": [
+            -3,
+            61
+          ],
+          "max": [
+            3,
+            67
+          ]
+        },
+        "portals": {
+          "Portal_Stairwell": [
+            0,
+            0.2,
+            67
+          ]
+        },
+        "doors": {},
+        "clearances": {},
+        "authored_props": {},
+        "art_direction": {},
+        "blenderkit_derivatives": {},
+        "polyhaven_duct": null,
+        "polyhaven_details": {},
+        "runtime_hearth": null,
+        "structural_material_audit": null,
+        "hiding": {}
+      }
+    },
+    {
+      "zone_id": "stairwell",
+      "model": "public/generated/last-bell/3d/routes/stairwell.glb",
+      "sha256": "3b440a543e172a9077e226465ec67d67ed42cfe04c1acebe1bc536d8773a83da",
+      "bytes": 697444,
+      "required_contract": [
+        "LOD0_Route",
+        "semantic Anchor_* nodes",
+        "Meshopt"
+      ],
+      "world_contract": {
+        "bounds": {
+          "min": [
+            -3.65,
+            67
+          ],
+          "max": [
+            3.65,
+            82
+          ]
+        },
+        "portals": {
+          "Portal_Fire": [
+            0,
+            0.2,
+            67
+          ],
+          "Portal_Rooftop": [
+            0,
+            0.2,
+            82
+          ]
+        },
+        "doors": {
+          "door.fire": {
+            "pivot": [
+              -1.65,
+              1.5,
+              67
+            ],
+            "closed": [
+              0,
+              1.5,
+              67
+            ]
+          },
+          "door.rooftop": {
+            "pivot": [
+              -1.65,
+              1.5,
+              82
+            ],
+            "closed": [
+              0,
+              1.5,
+              82
+            ]
+          }
+        },
+        "clearances": {},
+        "authored_props": {},
+        "art_direction": {},
+        "blenderkit_derivatives": {},
+        "polyhaven_duct": null,
+        "polyhaven_details": {},
+        "runtime_hearth": null,
+        "structural_material_audit": null,
+        "hiding": {}
+      }
+    },
+    {
+      "zone_id": "rooftop",
+      "model": "public/generated/last-bell/3d/routes/rooftop.glb",
+      "sha256": "4c7ded6d8d8445ab808a20daf63a6e14750a33e4f3d60af491f161776bb2b439",
+      "bytes": 7047672,
+      "required_contract": [
+        "LOD0_Route",
+        "semantic Anchor_* nodes",
+        "Meshopt"
+      ],
+      "world_contract": {
+        "bounds": {
+          "min": [
+            -10.001,
+            82
+          ],
+          "max": [
+            10.001,
+            108
+          ]
+        },
+        "portals": {
+          "Portal_RooftopDoor": [
+            0,
+            0.2,
+            82
+          ]
+        },
+        "doors": {},
+        "clearances": {},
+        "authored_props": {
+          "debris-cluster": {
+            "instances": 5,
+            "build_id": "last-bell-route-props-71a10d1704393e9a"
+          }
+        },
+        "art_direction": {
+          "authored_debris_meshes": 50,
+          "headhouse_group": 1
+        },
+        "blenderkit_derivatives": {
+          "scan-rubble-pile-a": {
+            "nodes": 2,
+            "raw_runtime_delivery": false,
+            "sha256": "cf9681a80565cfd9845b63b39a205758cf904807917da7f5e216368d5ab9a58e",
+            "authored_pbr_material_sources": [
+              "Poly Haven CC0 dirty-floor-tile"
+            ]
+          },
+          "scan-rubble-ruins": {
+            "nodes": 1,
+            "raw_runtime_delivery": false,
+            "sha256": "6a51c2a3f63f3acc2417494f673bb068d55152e27d64dd758c5e51e167c8ee33",
+            "authored_pbr_material_sources": [
+              "Poly Haven CC0 dirty-floor-tile"
+            ]
+          },
+          "scan-old-broken-floor": {
+            "nodes": 1,
+            "raw_runtime_delivery": false,
+            "sha256": "77e8919e10008374ad67a078be3bf2a697704297129ac61708856403ae46ac34",
+            "authored_pbr_material_sources": [
+              "Poly Haven CC0 dirty-floor-tile"
+            ]
+          },
+          "painted-concrete-blocks": {
+            "nodes": 6,
+            "raw_runtime_delivery": false,
+            "sha256": "efd2e80aa3f957da81e64d68d0bcd11526f5bb2b215f12d88206a6357793e29e",
+            "authored_pbr_material_sources": [
+              "Poly Haven CC0 dirty-floor-tile"
+            ]
+          },
+          "abandoned-house": {
+            "nodes": 1,
+            "raw_runtime_delivery": false,
+            "sha256": "618d5f5153470d9039c11d6dc82eb1625416d383d6e1efcc5b23005b71a94660",
+            "authored_pbr_material_sources": [
+              "Poly Haven CC0 exposed-brick"
+            ]
+          }
+        },
+        "polyhaven_duct": {
+          "asset": "modular_airduct_circular_01",
+          "license": "CC0-1.0",
+          "pieces": 4,
+          "api": "https://api.polyhaven.com/files/modular_airduct_circular_01"
+        },
+        "polyhaven_details": {
+          "exterior_aircon_unit": {
+            "instances": 1,
+            "pieces": 2,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/exterior_aircon_unit"
+          },
+          "modular_industrial_pipes_01": {
+            "instances": 1,
+            "pieces": 8,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/modular_industrial_pipes_01"
+          },
+          "portable_generator": {
+            "instances": 1,
+            "pieces": 4,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/portable_generator"
+          },
+          "SchoolDesk_01": {
+            "instances": 1,
+            "pieces": 1,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/SchoolDesk_01"
+          },
+          "SchoolChair_01": {
+            "instances": 3,
+            "pieces": 3,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/SchoolChair_01"
+          }
+        },
+        "runtime_hearth": {
+          "anchor": "Anchor_RooftopFire_RuntimeParticleLight",
+          "blocks": 6,
+          "logs": 3,
+          "static_flame_meshes": 0
+        },
+        "structural_material_audit": {
+          "slab": [
+            "PBR_Tarred_Gravel_Roof_Macro"
+          ],
+          "headhouse_nodes": {
+            "RooftopVisibleHeadHouseBrokenRoofEast": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseBrokenRoofWest": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseConcreteLintel": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseConcreteSpall_0": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseConcreteSpall_1": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseConcreteSpall_2": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseConcreteSpall_3": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseCopingFragment_0": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseCopingFragment_1": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseCopingFragment_2": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseCopingFragment_3": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseDoorHandle_+1": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseDoorHandle_-1": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseDoorHeader": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseDoorInset_+1": [
+              "PBR_Rooftop_HeadHouse_DoorRecess"
+            ],
+            "RooftopVisibleHeadHouseDoorInset_-1": [
+              "PBR_Rooftop_HeadHouse_DoorRecess"
+            ],
+            "RooftopVisibleHeadHouseDoorJamb_E": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseDoorJamb_W": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseDoorMullion": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseDoubleDoor_+1": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseDoubleDoor_-1": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseEastExposedAggregate": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseEastExposedBrick": [
+              "PBR_Rooftop_HeadHouse_ExposedBrick"
+            ],
+            "RooftopVisibleHeadHousePlasterWing_+1": [
+              "PBR_Rooftop_HeadHouse_CharredPlaster"
+            ],
+            "RooftopVisibleHeadHousePlasterWing_-1": [
+              "PBR_Rooftop_HeadHouse_CharredPlaster"
+            ],
+            "RooftopVisibleHeadHouseRearWall": [
+              "PBR_Rooftop_HeadHouse_CharredPlaster"
+            ],
+            "RooftopVisibleHeadHouseRebar_0": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseRebar_1": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseRebar_2": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseRebar_3": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseSideBlastEast": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseSideBlastWest": [
+              "PBR_Rooftop_HeadHouse_ExposedBrick"
+            ],
+            "RooftopVisibleHeadHouseSideReturn_+1": [
+              "PBR_Rooftop_HeadHouse_ExposedBrick"
+            ],
+            "RooftopVisibleHeadHouseSideReturn_-1": [
+              "PBR_Rooftop_HeadHouse_ExposedBrick"
+            ],
+            "RooftopVisibleHeadHouseWestExposedAggregate": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseWestExposedBrick": [
+              "PBR_Rooftop_HeadHouse_ExposedBrick"
+            ]
+          }
+        },
+        "hiding": {}
+      }
+    }
+  ],
+  "zombie_common_rig": {
+    "rig_id": "zombie-common-v1",
+    "variants": [
+      {
+        "key": "zombie-student",
+        "model": "public/generated/last-bell/3d/characters/zombie-student.glb",
+        "sha256": "babeeb56c8c763517138ec25de1d151cd90bf66dce4378d6cd56c3855904abef",
+        "clips": [
+          "Capture",
+          "Chase",
+          "Investigate",
+          "Patrol",
+          "Search"
+        ]
+      },
+      {
+        "key": "zombie-athletics",
+        "model": "public/generated/last-bell/3d/characters/zombie-athletics.glb",
+        "sha256": "59403af41cc13ef6989816bfc7e62c3e1b3943472905b30a19ae68c849c1ebd2",
+        "clips": [
+          "Capture",
+          "Chase",
+          "Investigate",
+          "Patrol",
+          "Search"
+        ]
+      },
+      {
+        "key": "zombie-staff",
+        "model": "public/generated/last-bell/3d/characters/zombie-staff.glb",
+        "sha256": "c2f06bdc887e43996d9560a86b69dd76b8a824e0883d15c6f6d01c1653d85bf8",
+        "clips": [
+          "Capture",
+          "Chase",
+          "Investigate",
+          "Patrol",
+          "Search"
+        ]
+      }
+    ],
+    "material_variant_contract": "student-uniform | athletics | staff; identical Armature_Common node and Patrol/Investigate/Search/Chase/Capture semantic clips",
+    "review_status": "approved authored skinned zombie delivery for matching build"
+  },
+  "namra_rooftop": {
+    "key": "character.namra.rooftop",
+    "model": "public/generated/last-bell/3d/characters/namra-rooftop.glb",
+    "sha256": "844d1384297e2fcbb6fff98fd43eba2afa9dd8a048bb5a0a19f07cd7d024df4e",
+    "clips": [
+      "Detect_Threat",
+      "Idle_Rooftop",
+      "Restrain"
+    ],
+    "replace_seam": "Character_Root + Armature_Common + semantic clip names; approved delivery remains replaceable by stable seam",
+    "review_status": "approved authored rooftop character delivery for matching build"
+  },
+  "transfer": {
+    "bytes": 24927228,
+    "mib": 23.772,
+    "target_mib": 20,
+    "hard_cap_mib": 24,
+    "target_met": false
+  },
+  "world_contract": {
+    "classroom": {
+      "bounds": {
+        "min": [
+          -7,
+          -2
+        ],
+        "max": [
+          7,
+          13.2
+        ]
+      },
+      "door_root": "ClassroomDoor_Root",
+      "hiding": {
+        "id": "hiding.desk.classroom",
+        "anchor": [
+          -3.35,
+          0.05,
+          2.85
+        ],
+        "cover": "Hide_Desk_Classroom_Cover",
+        "animation": "Hide_Desk_Classroom_EnterExit",
+        "extent": [
+          1.023,
+          1.156,
+          1.052
+        ]
+      }
+    },
+    "routes": {
+      "corridor": {
+        "bounds": {
+          "min": [
+            -3,
+            24
+          ],
+          "max": [
+            3,
+            67
+          ]
+        },
+        "portals": {
+          "Portal_Infirmary": [
+            4.45,
+            0.2,
+            32
+          ],
+          "Portal_Broadcast": [
+            -4.45,
+            0.2,
+            43
+          ],
+          "Portal_Utility": [
+            0,
+            0.2,
+            61
+          ]
+        },
+        "doors": {},
+        "clearances": {
+          "portal.infirmary": {
+            "min": [
+              2.48,
+              0.2,
+              30.1
+            ],
+            "max": [
+              4.52,
+              2.65,
+              34
+            ],
+            "mesh_blockers": 0
+          },
+          "portal.broadcast": {
+            "min": [
+              -4.52,
+              0.2,
+              37.9
+            ],
+            "max": [
+              -2.48,
+              2.65,
+              47.4
+            ],
+            "mesh_blockers": 0
+          }
+        },
+        "authored_props": {
+          "broken-fluorescent": {
+            "instances": 6,
+            "build_id": "last-bell-route-props-71a10d1704393e9a"
+          },
+          "classroom-desk-chair": {
+            "instances": 2,
+            "build_id": "last-bell-route-props-71a10d1704393e9a"
+          },
+          "locker-bank": {
+            "instances": 1,
+            "build_id": "last-bell-route-props-71a10d1704393e9a"
+          },
+          "debris-cluster": {
+            "instances": 4,
+            "build_id": "last-bell-route-props-71a10d1704393e9a"
+          }
+        },
+        "art_direction": {
+          "boolean_wall_break": 6,
+          "hanging_fluorescent_meshes": 21,
+          "authored_debris_meshes": 40
+        },
+        "blenderkit_derivatives": {
+          "scan-rubble-pile-a": {
+            "nodes": 1,
+            "raw_runtime_delivery": false,
+            "sha256": "cf9681a80565cfd9845b63b39a205758cf904807917da7f5e216368d5ab9a58e",
+            "authored_pbr_material_sources": [
+              "Poly Haven CC0 dirty-floor-tile"
+            ]
+          },
+          "scan-old-broken-floor": {
+            "nodes": 1,
+            "raw_runtime_delivery": false,
+            "sha256": "77e8919e10008374ad67a078be3bf2a697704297129ac61708856403ae46ac34",
+            "authored_pbr_material_sources": [
+              "Poly Haven CC0 tarred-gravel"
+            ]
+          },
+          "scan-rubble-ruins": {
+            "nodes": 1,
+            "raw_runtime_delivery": false,
+            "sha256": "6a51c2a3f63f3acc2417494f673bb068d55152e27d64dd758c5e51e167c8ee33",
+            "authored_pbr_material_sources": [
+              "Poly Haven CC0 exposed-brick"
+            ]
+          }
+        },
+        "polyhaven_duct": null,
+        "polyhaven_details": {
+          "mounted_fluorescent_lights": {
+            "instances": 8,
+            "pieces": 56,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/mounted_fluorescent_lights"
+          },
+          "korean_fire_extinguisher_01": {
+            "instances": 1,
+            "pieces": 1,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/korean_fire_extinguisher_01"
+          },
+          "utility_box_01": {
+            "instances": 1,
+            "pieces": 1,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/utility_box_01"
+          },
+          "SchoolDesk_01": {
+            "instances": 2,
+            "pieces": 2,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/SchoolDesk_01"
+          },
+          "SchoolChair_01": {
+            "instances": 4,
+            "pieces": 4,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/SchoolChair_01"
+          }
+        },
+        "runtime_hearth": null,
+        "structural_material_audit": null,
+        "hiding": {
+          "hiding.locker.corridor": {
+            "pivot": "Hide_Locker_Corridor_Pivot",
+            "panel": "Hide_Locker_Corridor_Panel",
+            "animation": "Hide_Locker_Corridor_OpenClose"
+          }
+        }
+      },
+      "infirmary": {
+        "bounds": {
+          "min": [
+            4,
+            27
+          ],
+          "max": [
+            10,
+            38
+          ]
+        },
+        "portals": {
+          "Portal_Corridor": [
+            4.45,
+            0.2,
+            32
+          ]
+        },
+        "doors": {},
+        "clearances": {
+          "portal.infirmary": {
+            "min": [
+              2.48,
+              0.2,
+              30.1
+            ],
+            "max": [
+              4.52,
+              2.65,
+              34
+            ],
+            "mesh_blockers": 0
+          }
+        },
+        "authored_props": {},
+        "art_direction": {},
+        "blenderkit_derivatives": {},
+        "polyhaven_duct": null,
+        "polyhaven_details": {},
+        "runtime_hearth": null,
+        "structural_material_audit": null,
+        "hiding": {}
+      },
+      "broadcast": {
+        "bounds": {
+          "min": [
+            -10,
+            37
+          ],
+          "max": [
+            -4,
+            49
+          ]
+        },
+        "portals": {
+          "Portal_Corridor": [
+            -4.45,
+            0.2,
+            43
+          ]
+        },
+        "doors": {},
+        "clearances": {
+          "portal.broadcast": {
+            "min": [
+              -4.52,
+              0.2,
+              37.9
+            ],
+            "max": [
+              -2.48,
+              2.65,
+              47.4
+            ],
+            "mesh_blockers": 0
+          }
+        },
+        "authored_props": {},
+        "art_direction": {},
+        "blenderkit_derivatives": {},
+        "polyhaven_duct": null,
+        "polyhaven_details": {},
+        "runtime_hearth": null,
+        "structural_material_audit": null,
+        "hiding": {}
+      },
+      "utility": {
+        "bounds": {
+          "min": [
+            -3,
+            61
+          ],
+          "max": [
+            3,
+            67
+          ]
+        },
+        "portals": {
+          "Portal_Stairwell": [
+            0,
+            0.2,
+            67
+          ]
+        },
+        "doors": {},
+        "clearances": {},
+        "authored_props": {},
+        "art_direction": {},
+        "blenderkit_derivatives": {},
+        "polyhaven_duct": null,
+        "polyhaven_details": {},
+        "runtime_hearth": null,
+        "structural_material_audit": null,
+        "hiding": {}
+      },
+      "stairwell": {
+        "bounds": {
+          "min": [
+            -3.65,
+            67
+          ],
+          "max": [
+            3.65,
+            82
+          ]
+        },
+        "portals": {
+          "Portal_Fire": [
+            0,
+            0.2,
+            67
+          ],
+          "Portal_Rooftop": [
+            0,
+            0.2,
+            82
+          ]
+        },
+        "doors": {
+          "door.fire": {
+            "pivot": [
+              -1.65,
+              1.5,
+              67
+            ],
+            "closed": [
+              0,
+              1.5,
+              67
+            ]
+          },
+          "door.rooftop": {
+            "pivot": [
+              -1.65,
+              1.5,
+              82
+            ],
+            "closed": [
+              0,
+              1.5,
+              82
+            ]
+          }
+        },
+        "clearances": {},
+        "authored_props": {},
+        "art_direction": {},
+        "blenderkit_derivatives": {},
+        "polyhaven_duct": null,
+        "polyhaven_details": {},
+        "runtime_hearth": null,
+        "structural_material_audit": null,
+        "hiding": {}
+      },
+      "rooftop": {
+        "bounds": {
+          "min": [
+            -10.001,
+            82
+          ],
+          "max": [
+            10.001,
+            108
+          ]
+        },
+        "portals": {
+          "Portal_RooftopDoor": [
+            0,
+            0.2,
+            82
+          ]
+        },
+        "doors": {},
+        "clearances": {},
+        "authored_props": {
+          "debris-cluster": {
+            "instances": 5,
+            "build_id": "last-bell-route-props-71a10d1704393e9a"
+          }
+        },
+        "art_direction": {
+          "authored_debris_meshes": 50,
+          "headhouse_group": 1
+        },
+        "blenderkit_derivatives": {
+          "scan-rubble-pile-a": {
+            "nodes": 2,
+            "raw_runtime_delivery": false,
+            "sha256": "cf9681a80565cfd9845b63b39a205758cf904807917da7f5e216368d5ab9a58e",
+            "authored_pbr_material_sources": [
+              "Poly Haven CC0 dirty-floor-tile"
+            ]
+          },
+          "scan-rubble-ruins": {
+            "nodes": 1,
+            "raw_runtime_delivery": false,
+            "sha256": "6a51c2a3f63f3acc2417494f673bb068d55152e27d64dd758c5e51e167c8ee33",
+            "authored_pbr_material_sources": [
+              "Poly Haven CC0 dirty-floor-tile"
+            ]
+          },
+          "scan-old-broken-floor": {
+            "nodes": 1,
+            "raw_runtime_delivery": false,
+            "sha256": "77e8919e10008374ad67a078be3bf2a697704297129ac61708856403ae46ac34",
+            "authored_pbr_material_sources": [
+              "Poly Haven CC0 dirty-floor-tile"
+            ]
+          },
+          "painted-concrete-blocks": {
+            "nodes": 6,
+            "raw_runtime_delivery": false,
+            "sha256": "efd2e80aa3f957da81e64d68d0bcd11526f5bb2b215f12d88206a6357793e29e",
+            "authored_pbr_material_sources": [
+              "Poly Haven CC0 dirty-floor-tile"
+            ]
+          },
+          "abandoned-house": {
+            "nodes": 1,
+            "raw_runtime_delivery": false,
+            "sha256": "618d5f5153470d9039c11d6dc82eb1625416d383d6e1efcc5b23005b71a94660",
+            "authored_pbr_material_sources": [
+              "Poly Haven CC0 exposed-brick"
+            ]
+          }
+        },
+        "polyhaven_duct": {
+          "asset": "modular_airduct_circular_01",
+          "license": "CC0-1.0",
+          "pieces": 4,
+          "api": "https://api.polyhaven.com/files/modular_airduct_circular_01"
+        },
+        "polyhaven_details": {
+          "exterior_aircon_unit": {
+            "instances": 1,
+            "pieces": 2,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/exterior_aircon_unit"
+          },
+          "modular_industrial_pipes_01": {
+            "instances": 1,
+            "pieces": 8,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/modular_industrial_pipes_01"
+          },
+          "portable_generator": {
+            "instances": 1,
+            "pieces": 4,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/portable_generator"
+          },
+          "SchoolDesk_01": {
+            "instances": 1,
+            "pieces": 1,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/SchoolDesk_01"
+          },
+          "SchoolChair_01": {
+            "instances": 3,
+            "pieces": 3,
+            "license": "CC0-1.0",
+            "api": "https://api.polyhaven.com/files/SchoolChair_01"
+          }
+        },
+        "runtime_hearth": {
+          "anchor": "Anchor_RooftopFire_RuntimeParticleLight",
+          "blocks": 6,
+          "logs": 3,
+          "static_flame_meshes": 0
+        },
+        "structural_material_audit": {
+          "slab": [
+            "PBR_Tarred_Gravel_Roof_Macro"
+          ],
+          "headhouse_nodes": {
+            "RooftopVisibleHeadHouseBrokenRoofEast": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseBrokenRoofWest": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseConcreteLintel": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseConcreteSpall_0": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseConcreteSpall_1": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseConcreteSpall_2": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseConcreteSpall_3": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseCopingFragment_0": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseCopingFragment_1": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseCopingFragment_2": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseCopingFragment_3": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseDoorHandle_+1": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseDoorHandle_-1": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseDoorHeader": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseDoorInset_+1": [
+              "PBR_Rooftop_HeadHouse_DoorRecess"
+            ],
+            "RooftopVisibleHeadHouseDoorInset_-1": [
+              "PBR_Rooftop_HeadHouse_DoorRecess"
+            ],
+            "RooftopVisibleHeadHouseDoorJamb_E": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseDoorJamb_W": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseDoorMullion": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseDoubleDoor_+1": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseDoubleDoor_-1": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseEastExposedAggregate": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseEastExposedBrick": [
+              "PBR_Rooftop_HeadHouse_ExposedBrick"
+            ],
+            "RooftopVisibleHeadHousePlasterWing_+1": [
+              "PBR_Rooftop_HeadHouse_CharredPlaster"
+            ],
+            "RooftopVisibleHeadHousePlasterWing_-1": [
+              "PBR_Rooftop_HeadHouse_CharredPlaster"
+            ],
+            "RooftopVisibleHeadHouseRearWall": [
+              "PBR_Rooftop_HeadHouse_CharredPlaster"
+            ],
+            "RooftopVisibleHeadHouseRebar_0": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseRebar_1": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseRebar_2": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseRebar_3": [
+              "PBR_Rooftop_HeadHouse_SmokedAluminiumGrey"
+            ],
+            "RooftopVisibleHeadHouseSideBlastEast": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseSideBlastWest": [
+              "PBR_Rooftop_HeadHouse_ExposedBrick"
+            ],
+            "RooftopVisibleHeadHouseSideReturn_+1": [
+              "PBR_Rooftop_HeadHouse_ExposedBrick"
+            ],
+            "RooftopVisibleHeadHouseSideReturn_-1": [
+              "PBR_Rooftop_HeadHouse_ExposedBrick"
+            ],
+            "RooftopVisibleHeadHouseWestExposedAggregate": [
+              "PBR_Rooftop_HeadHouse_Concrete"
+            ],
+            "RooftopVisibleHeadHouseWestExposedBrick": [
+              "PBR_Rooftop_HeadHouse_ExposedBrick"
+            ]
+          }
+        },
+        "hiding": {}
+      }
+    }
+  }
+}

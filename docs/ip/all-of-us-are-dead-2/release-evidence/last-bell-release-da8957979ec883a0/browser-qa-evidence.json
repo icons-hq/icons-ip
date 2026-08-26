@@ -1,0 +1,111 @@
+{
+  "schema": 1,
+  "status": "pass",
+  "reviewed_at": "2026-08-26T11:05:54+09:00",
+  "runner": "Codex in-app Browser against Next.js production build",
+  "route": "http://127.0.0.1:3130/games/prototype-last-bell",
+  "release_build_id": "last-bell-release-da8957979ec883a0",
+  "opening_build_id": "last-bell-3d-e3367030b580e17d",
+  "route_character_build_id": "last-bell-route-character-99f9d262441685b4",
+  "environment": {
+    "command": "ICONS_LAST_BELL_PROTOTYPE=1 npm start -- -H 127.0.0.1 -p 3130",
+    "next_version": "16.3.0",
+    "production_build": true
+  },
+  "acceptance": {
+    "p0_findings": 0,
+    "minimum_touch_target_css_px": 24,
+    "page_identity": "지금 우리 학교는: 마지막 종 — 2 Chapter QA",
+    "flow": [
+      "entry",
+      "cold-open",
+      "skip",
+      "first-door-ready",
+      "first-door-opened",
+      "next-objective"
+    ],
+    "next_objective": "문을 통과한 뒤 닫고 잠가라"
+  },
+  "viewports": [
+    {
+      "id": "desktop",
+      "width": 1280,
+      "height": 720,
+      "canvas_count": 1,
+      "scroll_width": 1280,
+      "scroll_height": 720,
+      "horizontal_overflow": false,
+      "console_errors": 0,
+      "first_door_interaction": "pass",
+      "touch_hud": "not-required"
+    },
+    {
+      "id": "mobile-landscape",
+      "width": 844,
+      "height": 390,
+      "canvas_count": 1,
+      "scroll_width": 844,
+      "scroll_height": 390,
+      "horizontal_overflow": false,
+      "console_errors": 0,
+      "first_door_interaction": "pass",
+      "touch_hud": "pass",
+      "minimum_measured_touch_target_css_px": 34
+    },
+    {
+      "id": "mobile-portrait",
+      "width": 390,
+      "height": 844,
+      "canvas_count": 1,
+      "scroll_width": 390,
+      "scroll_height": 844,
+      "horizontal_overflow": false,
+      "console_errors": 0,
+      "first_door_interaction": "pass",
+      "touch_hud": "pass",
+      "minimum_measured_touch_target_css_px": 34
+    }
+  ],
+  "screenshots": [
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/desktop-entry-1280x720.png",
+      "sha256": "53ba15212028baddda88734771765154166f3f862dcba054a9c78ccd9df62523"
+    },
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/desktop-cold-open-1280x720.png",
+      "sha256": "9da742a9bc811dd8810f2d7841bc42438022812eef796cb644190e268da8eaba"
+    },
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/desktop-first-door-1280x720.png",
+      "sha256": "c4fe9c2bbd81aaa615a4c1da584bc87887fd17d9a62d0e1329c831e0e2822c8e"
+    },
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/desktop-post-door-1280x720.png",
+      "sha256": "cd316416e0cd4e392c13d34a775db4026871438161b8c7fda1060da369e6d38e"
+    },
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/landscape-entry-844x390.png",
+      "sha256": "8758f2d1c4972c95890f580d02b6577f8ffcd86e590074133e5c8faf58ca7266"
+    },
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/landscape-first-door-844x390.png",
+      "sha256": "b662f10445e8d4fb8ebabdf0daaed72986415ef1fe4edca977f012a111a80b0e"
+    },
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/landscape-post-door-844x390.png",
+      "sha256": "fa6046e2d3423c04c33451a1df08f719b2c2ff3f6913719300ee65a78d0f24d4"
+    },
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/portrait-entry-390x844.png",
+      "sha256": "6b6a1f3775f0d0223957af40f6fead9a95e2ee5a8df2b501c71de16a5774dcf1"
+    },
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/portrait-first-door-390x844.png",
+      "sha256": "3505e8b807ed2a5dbf5cbe1081c275af7aade0f50d7403540f4c306a9dc72ff6"
+    },
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/portrait-post-door-390x844.png",
+      "sha256": "8b1c28322389ec01c196f63bb4e55f3955a83bc15d64eeb194beca23b15de117"
+    }
+  ]
+}

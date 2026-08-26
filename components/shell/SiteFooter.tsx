@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LEGAL_DOCUMENT_LABELS, LEGAL_DOCUMENT_SLUGS, legalDocumentHref } from '@/lib/legal/links';
-import { hrefFor, isAuthShellPath } from '@/lib/routes';
+import { hrefFor, isAuthShellPath, isImmersiveShellPath } from '@/lib/routes';
 import { BusinessInfo } from './BusinessInfo';
 import { useCardRewardsEnabled } from './CardRewardAvailability';
 
@@ -27,7 +27,7 @@ const ACCOUNT_LINKS: [label: string, route: string][] = [
 export function SiteFooter() {
   const pathname = usePathname();
   const cardRewardsEnabled = useCardRewardsEnabled();
-  if (pathname === '/' || isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
+  if (pathname === '/' || isAuthShellPath(pathname) || isImmersiveShellPath(pathname) || pathname.startsWith('/admin')) return null;
 
   return (
     <footer className="site-footer-editorial">

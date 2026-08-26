@@ -65,3 +65,10 @@ export function isAuthShellPath(pathname: string): boolean {
     || pathname === '/update-password'
     || pathname === '/account-suspended';
 }
+
+/** Full-screen experiences own their entire viewport and must not inherit product chrome. */
+export function isImmersiveShellPath(pathname: string): boolean {
+  return pathname.startsWith('/games')
+    || pathname === '/experiences/all-of-us-are-dead/last-bell'
+    || pathname.startsWith('/experiences/all-of-us-are-dead/last-bell/');
+}

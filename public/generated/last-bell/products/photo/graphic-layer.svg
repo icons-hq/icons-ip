@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="replaceable photo graphic layer" data-stable-key="photo">
+  <rect width="512" height="512" rx="32" fill="#887961"/>
+  <rect x="60" y="58" width="236" height="320" rx="16" fill="#16252a"/><path d="M178 130a42 42 0 1 0 0 84a42 42 0 1 0 0-84M108 306Q178 222 248 306" fill="none" stroke="#5aaeb1" stroke-width="18"/><path d="M342 140h118M342 206h92M342 272h124M342 338h74" stroke="#ded9ba" stroke-width="18" stroke-linecap="round"/>
+</svg>

@@ -63,7 +63,7 @@ describe('SiteFooter 법정 고지 링크', () => {
   });
 
   it('홈과 인증 셸에서는 푸터를 렌더하지 않는다', () => {
-    for (const pathname of ['/', '/login', '/update-password', '/account-suspended', '/admin', '/games/roulette']) {
+    for (const pathname of ['/', '/login', '/update-password', '/account-suspended', '/admin', '/games/roulette', '/experiences/all-of-us-are-dead/last-bell']) {
       mocks.pathname = pathname;
       expect(render(), pathname).toBe('');
     }

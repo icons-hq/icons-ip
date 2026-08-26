@@ -1,0 +1,135 @@
+{
+  "schema": 1,
+  "build_id_prefix": "last-bell-products",
+  "lookdev_generation": {
+    "tool": "codex-built-in-image_gen",
+    "generated_at": "2026-08-25",
+    "common_constraints": [
+      "No actors, faces, drama stills, source pixels, logos, readable text, numbers, or watermarks.",
+      "Product lookdev only; any Korean copy, names, or numbers must be composed later in a replaceable SVG or texture layer.",
+      "The generated lookdev image is not a shipping thumbnail and is never embedded in a delivery GLB."
+    ]
+  },
+  "products": [
+    {
+      "key": "idcard",
+      "display_name": "효산고 학생증 — 생존자 에디션",
+      "chapter": "chapter-01",
+      "placement": "첫 교실 교탁",
+      "path_kind": "main",
+      "model_kind": "idcard",
+      "anchor": "collectible.idcard.classroom-desk",
+      "collision_m": [0.72, 0.12, 0.98],
+      "lookdev": "outputs/last-bell-product-assets/lookdev/idcard/lookdev-v1.png",
+      "prompt": "Use case: product-mockup. Original Korean high-school survivor edition ID-card holder product: plain school-style plastic card case, woven neck strap, small metal swivel clip, no printed identity, no logo, no readable text. Neutral charcoal studio cyclorama; cool graphite, muted navy, brushed steel; premium photorealistic front, side, and rear turnaround; no actors, drama stills, lettering, numbers, watermark, or fake barcode."
+    },
+    {
+      "key": "badge",
+      "display_name": "2학년 5반 명찰 뱃지 세트",
+      "chapter": "chapter-01",
+      "placement": "교실 사물함",
+      "path_kind": "main",
+      "model_kind": "badge",
+      "anchor": "collectible.badge.classroom-locker",
+      "collision_m": [0.86, 0.08, 0.32],
+      "lookdev": "outputs/last-bell-product-assets/lookdev/badge/lookdev-v1.png",
+      "prompt": "Use case: product-mockup. Original school-uniform name-badge pin set: three small rectangular matte enamel-and-metal badge blanks with an empty interchangeable graphic insert area, no words or numbers. Neutral charcoal studio cyclorama; graphite enamel and brushed nickel; premium front, side thickness, and rear pin-back turnaround; no actors, drama stills, lettering, numbers, watermark, or fake inscriptions."
+    },
+    {
+      "key": "photo",
+      "display_name": "생존자 포토카드 팩",
+      "chapter": "chapter-01",
+      "placement": "뒤집힌 책상 아래",
+      "path_kind": "main",
+      "model_kind": "photo",
+      "anchor": "collectible.photo.overturned-desk",
+      "collision_m": [0.78, 0.12, 1.05],
+      "lookdev": "outputs/last-bell-product-assets/lookdev/photo/lookdev-v1.png",
+      "prompt": "Use case: product-mockup. Original survivor photo-card pack: an unbranded folded carton sleeve and blank matte cards with abstract color gradients only; no people and no text. Neutral charcoal studio cyclorama; gray paperboard and dark teal edge; premium front, side, and rear turnaround; no actors, drama stills, franchise marks, lettering, numbers, watermark, or labels."
+    },
+    {
+      "key": "radio",
+      "display_name": "무전기 키링 「다방」 페어",
+      "chapter": "chapter-01",
+      "placement": "방송실 책상",
+      "path_kind": "main",
+      "model_kind": "radio",
+      "anchor": "collectible.radio.broadcast-desk",
+      "collision_m": [0.56, 0.22, 0.74],
+      "lookdev": "outputs/last-bell-product-assets/lookdev/radio/lookdev-v1.png",
+      "prompt": "Use case: product-mockup. Original pair of compact vintage emergency radio keychain charms with graphite radio silhouette, non-letter speaker holes, knurled dial, teal keyring tabs, and no branding. Neutral charcoal studio cyclorama; premium front, side, and rear turnaround; no actors, drama stills, frequency markings, lettering, numbers, watermark, or labels."
+    },
+    {
+      "key": "kit",
+      "display_name": "생존 키트 파우치",
+      "chapter": "chapter-01",
+      "placement": "보건실 샛길",
+      "path_kind": "detour",
+      "model_kind": "kit",
+      "anchor": "collectible.kit.infirmary-detour",
+      "collision_m": [0.64, 0.18, 0.9],
+      "lookdev": "outputs/last-bell-product-assets/lookdev/kit/lookdev-v1.png",
+      "prompt": "Use case: product-mockup. Original compact survivor kit pouch: dark olive fabric utility pouch with curved zipper, reinforced webbing loop, blank woven patch panel, and no lettering. Neutral charcoal studio cyclorama; premium front, gusset, and rear turnaround; no actors, drama stills, medical symbols, lettering, numbers, watermark, or labels."
+    },
+    {
+      "key": "zipup",
+      "display_name": "효산고 체육복 집업",
+      "chapter": "chapter-01",
+      "placement": "체육부 사물함 샛길",
+      "path_kind": "detour",
+      "model_kind": "zipup",
+      "anchor": "collectible.zipup.athletics-locker-detour",
+      "collision_m": [1.05, 0.24, 1.32],
+      "lookdev": "outputs/last-bell-product-assets/lookdev/zipup/lookdev-v1.png",
+      "prompt": "Use case: product-mockup. Original unbranded Korean school athletic zip-up jacket on a black hanger: navy technical knit body, muted ivory shoulder panels, rib cuffs, no insignia or text. Neutral charcoal studio cyclorama; premium front, side, rear turnaround without model; no actors, drama stills, lettering, numbers, watermark, labels, or school crest."
+    },
+    {
+      "key": "archery",
+      "display_name": "양궁부 화살 북마크 + 연필 세트",
+      "chapter": "chapter-01",
+      "placement": "동아리 게시대 샛길",
+      "path_kind": "detour",
+      "model_kind": "archery",
+      "anchor": "collectible.archery.club-board-detour",
+      "collision_m": [0.38, 0.12, 1.18],
+      "lookdev": "outputs/last-bell-product-assets/lookdev/archery/lookdev-v1.png",
+      "prompt": "Use case: product-mockup. Original archery-club inspired arrow bookmark and pencil set in a minimal kraft sleeve with blank graphic panel: rounded safe arrow bookmark, graphite pencil, no branding. Neutral charcoal studio cyclorama; premium front, side, and rear turnaround; no actors, drama stills, lettering, numbers, watermark, labels, or real weapon presentation."
+    },
+    {
+      "key": "postcard",
+      "display_name": "무전 엽서 세트",
+      "chapter": "chapter-01",
+      "placement": "복도 게시판",
+      "path_kind": "main",
+      "model_kind": "postcard",
+      "anchor": "collectible.postcard.corridor-board",
+      "collision_m": [0.86, 0.08, 0.66],
+      "lookdev": "outputs/last-bell-product-assets/lookdev/postcard/lookdev-v1.png",
+      "prompt": "Use case: product-mockup. Original radio-message postcard set: rounded postcards, translucent vellum wrap, abstract signal-wave geometry and solid color fields only, blank writing zones, no lettering. Neutral charcoal studio cyclorama; premium front, side stack, and rear turnaround; no actors, drama stills, lettering, numbers, watermark, labels, or UI mimicry."
+    },
+    {
+      "key": "candle",
+      "display_name": "모닥불 캔들 — 옥상의 밤",
+      "chapter": "chapter-02",
+      "placement": "옥상 계단 정비 선반",
+      "path_kind": "main",
+      "model_kind": "candle",
+      "anchor": "collectible.candle.stairwell-shelf",
+      "collision_m": [0.42, 0.42, 0.22],
+      "lookdev": "outputs/last-bell-product-assets/lookdev/candle/lookdev-v1.png",
+      "prompt": "Use case: product-mockup. Original rooftop-night campfire candle: compact brushed tin, warm amber wax, cotton wick, unbranded removable lid and empty circular label recess. Neutral charcoal studio cyclorama; lit hero plus unlit side and rear views; no actors, drama stills, lettering, numbers, watermark, labels, or symbols."
+    },
+    {
+      "key": "blanket",
+      "display_name": "옥상 S.O.S 블랭킷",
+      "chapter": "chapter-02",
+      "placement": "옥상 출입구 비상함",
+      "path_kind": "main",
+      "model_kind": "blanket",
+      "anchor": "collectible.blanket.rooftop-emergency-box",
+      "collision_m": [0.92, 0.26, 0.72],
+      "lookdev": "outputs/last-bell-product-assets/lookdev/blanket/lookdev-v1.png",
+      "prompt": "Use case: product-mockup. Original rooftop emergency thermal blanket folded into a compact square: silver crinkled rescue fabric, charcoal cloth edging, unprinted elastic keeper strap, no text or symbols. Neutral charcoal studio cyclorama; premium folded hero, side profile, and unfolded rear corner turnaround; no actors, drama stills, lettering, numbers, watermark, labels, or emergency symbols."
+    }
+  ]
+}

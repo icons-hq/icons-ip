@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "build_id": "last-bell-campaign-3d-v1",
+  "status": "REPLACEABLE_CHARACTER_ART_REVIEW_REQUIRED",
+  "delivery_role": "dcc-source-archive-not-streamed-runtime",
+  "rights": {
+    "source": "original authored Blender geometry and PBR parameters",
+    "contains_actor_likeness": false,
+    "replaceable_character_seam": "character.namra.rooftop"
+  },
+  "assets": {
+    "route": "two-chapter-route.glb",
+    "zombie": "zombie-shared-rig.glb",
+    "character": "character-namra-rooftop.glb"
+  },
+  "budget": {
+    "total_transfer_hard_cap_bytes": 5500000,
+    "max_live_zombies": 2,
+    "route_lod": "Zone_* with LOD0_* foreground detail and LOD1_* silhouette",
+    "collision": "COL_* nodes; simulation owns authoritative walkability"
+  }
+}

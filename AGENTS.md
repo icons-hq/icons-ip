@@ -2,7 +2,9 @@
 
 # This is NOT the Next.js you know
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
 
@@ -20,6 +22,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - UI 문구, 도메인 용어, 사용자-facing 이름을 다룰 때는 `CONTEXT.md`를 먼저 읽는다.
 - 제품 범위, v1/v2 경계, P0~P3 우선순위가 걸린 작업은 `docs/PRD.md`를 먼저 읽는다.
 - DB, Auth, 결제, 권한, 라우팅 구조, mock→real 이전 작업은 `docs/ARCHITECTURE.md`를 먼저 읽는다.
+- 고품질 3D 게임의 신규 vertical slice, authored asset, 조명·상호작용·성능 polish는 `docs/agents/high-fidelity-3d-game-workflow.md`를 먼저 읽는다.
 - 카드 리워드, 뽑기권, RNG, 참여형 게임이 걸린 작업은 `docs/adr/0003-free-reward-pivot.md`·`docs/adr/0004-draw-ticket-card-packs.md`를 함께 읽는다. `docs/adr/0002-cross-platform-popup-game-miniapps.md`는 superseded 이력이며 Expo나 범용 게임 미니앱 구현의 근거로 쓰지 않는다. 유료 가챠 유물(`wallets`·`pulls` 등)을 다루면 `docs/adr/0001-paid-digital-gacha.md`(superseded)를 참조한다.
 - 19+ 유한 실물 쿠지는 기존 디지털 카드·뽑기권·참여형 게임과 분리된 `prize_sale` 도메인이다. 현재 구현 범위와 선행 증거는 GitHub #212·#213을 따른다.
 - issue tracker, triage label, agent skill 운영 작업은 `docs/agents/`를 먼저 읽는다.
@@ -37,7 +40,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## 구현 원칙
 
-- 공개 브라우징을 유지한다. IP·굿즈·카드·이벤트·커뮤니티 읽기는 기본 공개이고, 로그인은 구매·카드팩 개봉·게임 플레이·예매·작성·팔로우 같은 보호 액션 시점에 요구한다.
+- 공개 브라우징을 유지한다. IP·굿즈·카드·이벤트·커뮤니티 읽기는 기본 공개이고, 로그인은 구매·카드팩 개봉·일반 `/games/[gameId]` 카드 보상형 게임 플레이·예매·작성·팔로우 같은 보호 액션 시점에 요구한다.
+- Last Bell 스토리 구매권 캠페인이나 `/games/prototype-last-bell`을 다룰 때는 `docs/PRD.md` §4.3·`docs/ARCHITECTURE.md` §2.1·ADR-0011의 `local-prototype`/`verified-story-run` 권위 경계를 먼저 읽는다. 로컬 prototype은 구매권을 만들 수 없고, 검증 후보만 서버가 승인한 수집·출구 기록으로 구매권을 만든다. 일반 카드 보상형 게임의 로그인·서버 결과 계약과 범용 온라인 팝업 운영 레이어 비목표는 유지한다.
 - 돈, 재고, 카드 발급 RNG, 뽑기권 발급·개봉, 유한 실물 경품 배정, 티켓 검표는 클라이언트나 앱 레벨 상태에 맡기지 않는다. Supabase Postgres RPC, RLS, 행 잠금, 멱등 처리를 기준으로 구현한다.
 - 결제 callback body와 클라이언트 성공 신호는 확정의 진실원이 아니다. 굿즈·티켓 seam은 서버 전용 `PaymentGateway.confirm/reconcile` 결과와 DB 멱등 finalizer로만 신규 결제를 확정한다. 기존 Toss 거래만 웹훅 수신 뒤 provider 재조회 결과로 정합화한다.
 - 관리자 권한은 `profiles.role`과 RLS 양쪽에서 확인하고, 민감 작업은 감사 가능해야 한다.

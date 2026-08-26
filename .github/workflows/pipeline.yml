@@ -95,6 +95,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate committed Last Bell delivery assets
+        run: |
+          node scripts/last-bell-route-assets/validate.mjs public/generated/last-bell/3d /tmp/last-bell-route-character-validation.json
+          node scripts/last-bell-products/validate.mjs public/generated/last-bell/products scripts/last-bell-products/catalog.json /tmp/last-bell-product-validation.json
+          node scripts/last-bell-campaign-3d/validate.mjs public/generated/last-bell/3d/campaign
+          node scripts/last-bell-products/release-guard.mjs \
+            docs/ip/all-of-us-are-dead-2/last-bell-product-asset-manifest.json
+          node scripts/last-bell-route-assets/release-guard.mjs \
+            public/generated/last-bell/3d \
+            docs/ip/all-of-us-are-dead-2/last-bell-character-asset-seams.json \
+            docs/ip/all-of-us-are-dead-2/last-bell-product-asset-manifest.json \
+            docs/ip/all-of-us-are-dead-2/last-bell-release-manifest.json \
+            public/generated/last-bell/3d/metadata.json \
+            public/generated/last-bell/3d/campaign/campaign-asset-manifest.json \
+            lib/prototypes/last-bell/assets.ts
+
       - name: Run lint
         run: npm run lint
 
@@ -136,6 +152,7 @@ jobs:
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/home_curations.sql
           bash supabase/tests/home_curations_concurrency.sh
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/cart_items.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/last_bell_verified_runs.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/checkout_order.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_history.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/payment_provider_foundation.sql
@@ -366,7 +383,9 @@ jobs:
 
       - name: Verify Supabase preview catalog baseline
         if: steps.check.outputs.configured == 'true'
-        run: supabase db query --linked --file supabase/tests/catalog_baseline.sql
+        run: |
+          supabase db query --linked --file supabase/tests/catalog_baseline.sql
+          supabase db query --linked --file supabase/tests/last_bell_preview_catalog.sql
 
       # 리뷰어가 이 프리뷰를 어디까지 믿어도 되는지 PR에서 바로 알 수 있어야 한다.
       - name: Report preview database state
@@ -398,6 +417,10 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+        with:
+          # The default pull_request checkout is a detached synthetic merge SHA.
+          # Keep the real head branch so Vercel can apply branch-scoped Preview env.
+          ref: ${{ github.event.pull_request.head.ref }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v6

@@ -1,0 +1,399 @@
+{
+  "schema": 1,
+  "build_id": "last-bell-products-f12d1120f2426103",
+  "source_of_truth": "scripts/last-bell-products/catalog.json",
+  "material_provenance": {
+    "source": "outputs/last-bell-3d/raw/polyhaven-pbr/provenance.json",
+    "license": "CC0-1.0",
+    "delivery": "KTX2 base-color, normal, and ORM maps are embedded in each delivery GLB"
+  },
+  "review_status": {
+    "automated_asset_contract": "pass",
+    "visual_lookdev": "root-review-approved-for-in-game-delivery",
+    "ip_and_manufacturing": "p1-final-graphics-and-manufacturing-pending",
+    "sales_activation": "disabled-pending-ip-and-manufacturing-review",
+    "character_delivery": "replaceable non-likeness character seam; likeness approval is not asserted"
+  },
+  "release_status": {
+    "status": "public-in-game-delivery-approved-p1",
+    "scope": "in-game-collectibles-only; not a sales or manufacturing release",
+    "sales_activation": "disabled",
+    "guard": "scripts/last-bell-products/release-guard.mjs",
+    "automated_contract_build": "last-bell-products-f12d1120f2426103",
+    "review_evidence": {
+      "sha256": "0710bbaad8860b2d060f29a98fd95349e5efdb731cd05074f3a75207bc52f5de",
+      "delivery_build_id": "last-bell-products-f12d1120f2426103",
+      "visual_review": "approved-for-in-game-delivery",
+      "ip_and_manufacturing_review": "p1-pending",
+      "sales_activation": "disabled"
+    }
+  },
+  "constraints": [
+    "No actors, faces, drama stills, source pixels, logos, readable text, numbers, or watermarks.",
+    "Product lookdev only; any Korean copy, names, or numbers must be composed later in a replaceable SVG or texture layer.",
+    "The generated lookdev image is not a shipping thumbnail and is never embedded in a delivery GLB."
+  ],
+  "products": [
+    {
+      "key": "idcard",
+      "display_name": "효산고 학생증 — 생존자 에디션",
+      "chapter": "chapter-01",
+      "placement": "첫 교실 교탁",
+      "path_kind": "main",
+      "semantic_anchor": "collectible.idcard.classroom-desk",
+      "collision_m": [
+        0.72,
+        0.12,
+        0.98
+      ],
+      "delivery": {
+        "status": "public-in-game-delivery-p1-sales-disabled",
+        "model": "public/generated/last-bell/products/idcard/model.glb",
+        "thumbnail": "public/generated/last-bell/products/idcard/thumbnail.webp",
+        "graphic_layer": "public/generated/last-bell/products/idcard/graphic-layer.svg",
+        "model_sha256": "403190105e2d029fe22b01bd1708498b3c8b38cc60919d9fc9e9f1f6ad9da9d4",
+        "thumbnail_sha256": "aceafa82a6c4a566cfc04992714ff13aa06905e47c4f0bb8e9dbf77673d05be7",
+        "graphic_layer_sha256": "0e546e63d553b998d04726ec5d31c509030b81f2cd058d92a9734842dad8f3b7",
+        "model_bytes": 383592,
+        "texture_encoding": "KTX2-authored-PBR; UV0+UV1",
+        "thumbnail_bytes": 5520,
+        "thumbnail_render_source": "delivery-glb-chromium-ktx2-import"
+      },
+      "provenance": {
+        "authoring": "Blender 5.2 original geometry + CC0 KTX2 PBR texture maps, UV0, UV1, and semantic delivery nodes",
+        "source_lookdev": "outputs/last-bell-product-assets/lookdev/idcard/lookdev-v1.png",
+        "source_sha256": "7342dcfcb26b8dd4adaa69c8063f0e32ab4cc661e13307636836c56de259ebbd",
+        "source_generation": "codex-built-in-image_gen",
+        "prompt": "Use case: product-mockup. Original Korean high-school survivor edition ID-card holder product: plain school-style plastic card case, woven neck strap, small metal swivel clip, no printed identity, no logo, no readable text. Neutral charcoal studio cyclorama; cool graphite, muted navy, brushed steel; premium photorealistic front, side, and rear turnaround; no actors, drama stills, lettering, numbers, watermark, or fake barcode.",
+        "derivative_sha256": "403190105e2d029fe22b01bd1708498b3c8b38cc60919d9fc9e9f1f6ad9da9d4",
+        "source_pixels_embedded": false,
+        "text_baked": false
+      }
+    },
+    {
+      "key": "badge",
+      "display_name": "2학년 5반 명찰 뱃지 세트",
+      "chapter": "chapter-01",
+      "placement": "교실 사물함",
+      "path_kind": "main",
+      "semantic_anchor": "collectible.badge.classroom-locker",
+      "collision_m": [
+        0.86,
+        0.08,
+        0.32
+      ],
+      "delivery": {
+        "status": "public-in-game-delivery-p1-sales-disabled",
+        "model": "public/generated/last-bell/products/badge/model.glb",
+        "thumbnail": "public/generated/last-bell/products/badge/thumbnail.webp",
+        "graphic_layer": "public/generated/last-bell/products/badge/graphic-layer.svg",
+        "model_sha256": "c956f882568eb85b2a13ad4ea846cdab971c4499529c40d09075991db875a05d",
+        "thumbnail_sha256": "d0866234d9ded589167cc8d59a3f0be03fc935d04dfe1c7e847f61941136cf65",
+        "graphic_layer_sha256": "179551a35e80d645c04230368cbb3c5900b8acab0c6e5676e8ccf5fd6e997fb4",
+        "model_bytes": 255748,
+        "texture_encoding": "KTX2-authored-PBR; UV0+UV1",
+        "thumbnail_bytes": 7050,
+        "thumbnail_render_source": "delivery-glb-chromium-ktx2-import"
+      },
+      "provenance": {
+        "authoring": "Blender 5.2 original geometry + CC0 KTX2 PBR texture maps, UV0, UV1, and semantic delivery nodes",
+        "source_lookdev": "outputs/last-bell-product-assets/lookdev/badge/lookdev-v1.png",
+        "source_sha256": "7e015c1f27dbd19470ca2996d6efeb4a8c89d7a578635d8b3c98f11d54fdd201",
+        "source_generation": "codex-built-in-image_gen",
+        "prompt": "Use case: product-mockup. Original school-uniform name-badge pin set: three small rectangular matte enamel-and-metal badge blanks with an empty interchangeable graphic insert area, no words or numbers. Neutral charcoal studio cyclorama; graphite enamel and brushed nickel; premium front, side thickness, and rear pin-back turnaround; no actors, drama stills, lettering, numbers, watermark, or fake inscriptions.",
+        "derivative_sha256": "c956f882568eb85b2a13ad4ea846cdab971c4499529c40d09075991db875a05d",
+        "source_pixels_embedded": false,
+        "text_baked": false
+      }
+    },
+    {
+      "key": "photo",
+      "display_name": "생존자 포토카드 팩",
+      "chapter": "chapter-01",
+      "placement": "뒤집힌 책상 아래",
+      "path_kind": "main",
+      "semantic_anchor": "collectible.photo.overturned-desk",
+      "collision_m": [
+        0.78,
+        0.12,
+        1.05
+      ],
+      "delivery": {
+        "status": "public-in-game-delivery-p1-sales-disabled",
+        "model": "public/generated/last-bell/products/photo/model.glb",
+        "thumbnail": "public/generated/last-bell/products/photo/thumbnail.webp",
+        "graphic_layer": "public/generated/last-bell/products/photo/graphic-layer.svg",
+        "model_sha256": "d53ad0108c4cf9f8dd044a1a2d1cf4d3e2b3401147322833e74206d3b22f7c9e",
+        "thumbnail_sha256": "4f36038ac26c5f10af5e0066c4750bbd0ca694d144cb153aa417ad89392df866",
+        "graphic_layer_sha256": "9e686302666fe2303dd8cba8648456cc38894274a61a35476b7aad88256e0017",
+        "model_bytes": 254568,
+        "texture_encoding": "KTX2-authored-PBR; UV0+UV1",
+        "thumbnail_bytes": 15410,
+        "thumbnail_render_source": "delivery-glb-chromium-ktx2-import"
+      },
+      "provenance": {
+        "authoring": "Blender 5.2 original geometry + CC0 KTX2 PBR texture maps, UV0, UV1, and semantic delivery nodes",
+        "source_lookdev": "outputs/last-bell-product-assets/lookdev/photo/lookdev-v1.png",
+        "source_sha256": "a840fccec8f2cc0abb2090019aff1f8bf2a0d75dfbf76bdbb94bf91612f7a4d2",
+        "source_generation": "codex-built-in-image_gen",
+        "prompt": "Use case: product-mockup. Original survivor photo-card pack: an unbranded folded carton sleeve and blank matte cards with abstract color gradients only; no people and no text. Neutral charcoal studio cyclorama; gray paperboard and dark teal edge; premium front, side, and rear turnaround; no actors, drama stills, franchise marks, lettering, numbers, watermark, or labels.",
+        "derivative_sha256": "d53ad0108c4cf9f8dd044a1a2d1cf4d3e2b3401147322833e74206d3b22f7c9e",
+        "source_pixels_embedded": false,
+        "text_baked": false
+      }
+    },
+    {
+      "key": "radio",
+      "display_name": "무전기 키링 「다방」 페어",
+      "chapter": "chapter-01",
+      "placement": "방송실 책상",
+      "path_kind": "main",
+      "semantic_anchor": "collectible.radio.broadcast-desk",
+      "collision_m": [
+        0.56,
+        0.22,
+        0.74
+      ],
+      "delivery": {
+        "status": "public-in-game-delivery-p1-sales-disabled",
+        "model": "public/generated/last-bell/products/radio/model.glb",
+        "thumbnail": "public/generated/last-bell/products/radio/thumbnail.webp",
+        "graphic_layer": "public/generated/last-bell/products/radio/graphic-layer.svg",
+        "model_sha256": "766cd6adbd5cc2ad08f28f8646638fb10a5bc0227c1ca1721df1ac75297319c9",
+        "thumbnail_sha256": "41f3835f60607ed5d88192bde4a2026af672efc447bb67ad313033af2f054945",
+        "graphic_layer_sha256": "56e1b23c462dbe5d204df897ca7b78fb3bb6c220ac2bf39062c33110599a3ccb",
+        "model_bytes": 318008,
+        "texture_encoding": "KTX2-authored-PBR; UV0+UV1",
+        "thumbnail_bytes": 7194,
+        "thumbnail_render_source": "delivery-glb-chromium-ktx2-import"
+      },
+      "provenance": {
+        "authoring": "Blender 5.2 original geometry + CC0 KTX2 PBR texture maps, UV0, UV1, and semantic delivery nodes",
+        "source_lookdev": "outputs/last-bell-product-assets/lookdev/radio/lookdev-v1.png",
+        "source_sha256": "bb57b290cafda2bd744e81b845d34d7e4148d10a62b2534b4eafd46df5fc396a",
+        "source_generation": "codex-built-in-image_gen",
+        "prompt": "Use case: product-mockup. Original pair of compact vintage emergency radio keychain charms with graphite radio silhouette, non-letter speaker holes, knurled dial, teal keyring tabs, and no branding. Neutral charcoal studio cyclorama; premium front, side, and rear turnaround; no actors, drama stills, frequency markings, lettering, numbers, watermark, or labels.",
+        "derivative_sha256": "766cd6adbd5cc2ad08f28f8646638fb10a5bc0227c1ca1721df1ac75297319c9",
+        "source_pixels_embedded": false,
+        "text_baked": false
+      }
+    },
+    {
+      "key": "kit",
+      "display_name": "생존 키트 파우치",
+      "chapter": "chapter-01",
+      "placement": "보건실 샛길",
+      "path_kind": "detour",
+      "semantic_anchor": "collectible.kit.infirmary-detour",
+      "collision_m": [
+        0.64,
+        0.18,
+        0.9
+      ],
+      "delivery": {
+        "status": "public-in-game-delivery-p1-sales-disabled",
+        "model": "public/generated/last-bell/products/kit/model.glb",
+        "thumbnail": "public/generated/last-bell/products/kit/thumbnail.webp",
+        "graphic_layer": "public/generated/last-bell/products/kit/graphic-layer.svg",
+        "model_sha256": "3ee71af367186dca27abb79bdd160c85e75f72e781327ea143c48d3ed1c0d23a",
+        "thumbnail_sha256": "c1761651b630ae88d0495cb7bbec3e4e06c3c38743026d744f036c760d0ff815",
+        "graphic_layer_sha256": "af149ee8feeb2c1ec3e6eb7abfc4c4171084bf172cb12179d2927d271df0d181",
+        "model_bytes": 324460,
+        "texture_encoding": "KTX2-authored-PBR; UV0+UV1",
+        "thumbnail_bytes": 12910,
+        "thumbnail_render_source": "delivery-glb-chromium-ktx2-import"
+      },
+      "provenance": {
+        "authoring": "Blender 5.2 original geometry + CC0 KTX2 PBR texture maps, UV0, UV1, and semantic delivery nodes",
+        "source_lookdev": "outputs/last-bell-product-assets/lookdev/kit/lookdev-v1.png",
+        "source_sha256": "ecb3ccb01bdb3acdd314def0763f4f1cb8b5de79790e69694cc570d991a214a1",
+        "source_generation": "codex-built-in-image_gen",
+        "prompt": "Use case: product-mockup. Original compact survivor kit pouch: dark olive fabric utility pouch with curved zipper, reinforced webbing loop, blank woven patch panel, and no lettering. Neutral charcoal studio cyclorama; premium front, gusset, and rear turnaround; no actors, drama stills, medical symbols, lettering, numbers, watermark, or labels.",
+        "derivative_sha256": "3ee71af367186dca27abb79bdd160c85e75f72e781327ea143c48d3ed1c0d23a",
+        "source_pixels_embedded": false,
+        "text_baked": false
+      }
+    },
+    {
+      "key": "zipup",
+      "display_name": "효산고 체육복 집업",
+      "chapter": "chapter-01",
+      "placement": "체육부 사물함 샛길",
+      "path_kind": "detour",
+      "semantic_anchor": "collectible.zipup.athletics-locker-detour",
+      "collision_m": [
+        1.05,
+        0.24,
+        1.32
+      ],
+      "delivery": {
+        "status": "public-in-game-delivery-p1-sales-disabled",
+        "model": "public/generated/last-bell/products/zipup/model.glb",
+        "thumbnail": "public/generated/last-bell/products/zipup/thumbnail.webp",
+        "graphic_layer": "public/generated/last-bell/products/zipup/graphic-layer.svg",
+        "model_sha256": "514d35b76d49024769c7362b316d83088c3215ab0ff5aa1d2cae9ee751a00e02",
+        "thumbnail_sha256": "a5b0fb5093e70e873e144e40066264cde7ba2ae8aaae89cb5c548faf5cf3ffa2",
+        "graphic_layer_sha256": "c1b0609363ac6f6b9ce73d2e2c02cabedeff4d60b3518945ee81430c6e99f97f",
+        "model_bytes": 473044,
+        "texture_encoding": "KTX2-authored-PBR; UV0+UV1",
+        "thumbnail_bytes": 15106,
+        "thumbnail_render_source": "delivery-glb-chromium-ktx2-import"
+      },
+      "provenance": {
+        "authoring": "Blender 5.2 original geometry + CC0 KTX2 PBR texture maps, UV0, UV1, and semantic delivery nodes",
+        "source_lookdev": "outputs/last-bell-product-assets/lookdev/zipup/lookdev-v1.png",
+        "source_sha256": "6cc434024c7bce6d05f33a07212dd0d75d7a9f1bf1c056b9f8a4ded806b56645",
+        "source_generation": "codex-built-in-image_gen",
+        "prompt": "Use case: product-mockup. Original unbranded Korean school athletic zip-up jacket on a black hanger: navy technical knit body, muted ivory shoulder panels, rib cuffs, no insignia or text. Neutral charcoal studio cyclorama; premium front, side, rear turnaround without model; no actors, drama stills, lettering, numbers, watermark, labels, or school crest.",
+        "derivative_sha256": "514d35b76d49024769c7362b316d83088c3215ab0ff5aa1d2cae9ee751a00e02",
+        "source_pixels_embedded": false,
+        "text_baked": false
+      }
+    },
+    {
+      "key": "archery",
+      "display_name": "양궁부 화살 북마크 + 연필 세트",
+      "chapter": "chapter-01",
+      "placement": "동아리 게시대 샛길",
+      "path_kind": "detour",
+      "semantic_anchor": "collectible.archery.club-board-detour",
+      "collision_m": [
+        0.38,
+        0.12,
+        1.18
+      ],
+      "delivery": {
+        "status": "public-in-game-delivery-p1-sales-disabled",
+        "model": "public/generated/last-bell/products/archery/model.glb",
+        "thumbnail": "public/generated/last-bell/products/archery/thumbnail.webp",
+        "graphic_layer": "public/generated/last-bell/products/archery/graphic-layer.svg",
+        "model_sha256": "0d55396b3db58f9914e2e0322624651f756a7f6870351de346d0f27680c4d736",
+        "thumbnail_sha256": "91fb8795397e7c2bdcc15390d97968140a878eae290c76f90ac65772e665a6ac",
+        "graphic_layer_sha256": "e58dac65932d9a17b7225503aafa08c73508147d15cbb1ea3e10bc0165670442",
+        "model_bytes": 236972,
+        "texture_encoding": "KTX2-authored-PBR; UV0+UV1",
+        "thumbnail_bytes": 7922,
+        "thumbnail_render_source": "delivery-glb-chromium-ktx2-import"
+      },
+      "provenance": {
+        "authoring": "Blender 5.2 original geometry + CC0 KTX2 PBR texture maps, UV0, UV1, and semantic delivery nodes",
+        "source_lookdev": "outputs/last-bell-product-assets/lookdev/archery/lookdev-v1.png",
+        "source_sha256": "dc3f93b3ee897a3d396e5315f71df887fe3cea76f8fadadb17dc82a138fe4d8f",
+        "source_generation": "codex-built-in-image_gen",
+        "prompt": "Use case: product-mockup. Original archery-club inspired arrow bookmark and pencil set in a minimal kraft sleeve with blank graphic panel: rounded safe arrow bookmark, graphite pencil, no branding. Neutral charcoal studio cyclorama; premium front, side, and rear turnaround; no actors, drama stills, lettering, numbers, watermark, labels, or real weapon presentation.",
+        "derivative_sha256": "0d55396b3db58f9914e2e0322624651f756a7f6870351de346d0f27680c4d736",
+        "source_pixels_embedded": false,
+        "text_baked": false
+      }
+    },
+    {
+      "key": "postcard",
+      "display_name": "무전 엽서 세트",
+      "chapter": "chapter-01",
+      "placement": "복도 게시판",
+      "path_kind": "main",
+      "semantic_anchor": "collectible.postcard.corridor-board",
+      "collision_m": [
+        0.86,
+        0.08,
+        0.66
+      ],
+      "delivery": {
+        "status": "public-in-game-delivery-p1-sales-disabled",
+        "model": "public/generated/last-bell/products/postcard/model.glb",
+        "thumbnail": "public/generated/last-bell/products/postcard/thumbnail.webp",
+        "graphic_layer": "public/generated/last-bell/products/postcard/graphic-layer.svg",
+        "model_sha256": "1de99aa06adf488ab73895807e577274a87a12f50bc52e033863e3703aea9026",
+        "thumbnail_sha256": "b782176b91fc7945bc995e37bd294736108ea0ed8a6845e654226cffaaf611b4",
+        "graphic_layer_sha256": "280f6abc49a69d563382e336005474f9a0f8d71f3c5568348bb79d5d6966a780",
+        "model_bytes": 264428,
+        "texture_encoding": "KTX2-authored-PBR; UV0+UV1",
+        "thumbnail_bytes": 11852,
+        "thumbnail_render_source": "delivery-glb-chromium-ktx2-import"
+      },
+      "provenance": {
+        "authoring": "Blender 5.2 original geometry + CC0 KTX2 PBR texture maps, UV0, UV1, and semantic delivery nodes",
+        "source_lookdev": "outputs/last-bell-product-assets/lookdev/postcard/lookdev-v1.png",
+        "source_sha256": "162dd27f5f892546d53dcce7b87909f317c5d4272bad5c8a1fd5c076a22faf48",
+        "source_generation": "codex-built-in-image_gen",
+        "prompt": "Use case: product-mockup. Original radio-message postcard set: rounded postcards, translucent vellum wrap, abstract signal-wave geometry and solid color fields only, blank writing zones, no lettering. Neutral charcoal studio cyclorama; premium front, side stack, and rear turnaround; no actors, drama stills, lettering, numbers, watermark, labels, or UI mimicry.",
+        "derivative_sha256": "1de99aa06adf488ab73895807e577274a87a12f50bc52e033863e3703aea9026",
+        "source_pixels_embedded": false,
+        "text_baked": false
+      }
+    },
+    {
+      "key": "candle",
+      "display_name": "모닥불 캔들 — 옥상의 밤",
+      "chapter": "chapter-02",
+      "placement": "옥상 계단 정비 선반",
+      "path_kind": "main",
+      "semantic_anchor": "collectible.candle.stairwell-shelf",
+      "collision_m": [
+        0.42,
+        0.42,
+        0.22
+      ],
+      "delivery": {
+        "status": "public-in-game-delivery-p1-sales-disabled",
+        "model": "public/generated/last-bell/products/candle/model.glb",
+        "thumbnail": "public/generated/last-bell/products/candle/thumbnail.webp",
+        "graphic_layer": "public/generated/last-bell/products/candle/graphic-layer.svg",
+        "model_sha256": "04f5349e38597171cf324f2615a6c2165e27141cf8d6dce5de59ff64c2a1a523",
+        "thumbnail_sha256": "6af75536428b7c8aedfb39482a3e2ff602fe059bb9e6cd1fcd6de8300d1966ca",
+        "graphic_layer_sha256": "8cd27d4535420d1bbc0d565793cf309a02a1bf84d21a83d5b625a006e0783484",
+        "model_bytes": 250440,
+        "texture_encoding": "KTX2-authored-PBR; UV0+UV1",
+        "thumbnail_bytes": 6408,
+        "thumbnail_render_source": "delivery-glb-chromium-ktx2-import"
+      },
+      "provenance": {
+        "authoring": "Blender 5.2 original geometry + CC0 KTX2 PBR texture maps, UV0, UV1, and semantic delivery nodes",
+        "source_lookdev": "outputs/last-bell-product-assets/lookdev/candle/lookdev-v1.png",
+        "source_sha256": "bff07e2326a7c2da7f6cf3113f566e33a1a979e5c7c6ef1bdd4ca73d77b92805",
+        "source_generation": "codex-built-in-image_gen",
+        "prompt": "Use case: product-mockup. Original rooftop-night campfire candle: compact brushed tin, warm amber wax, cotton wick, unbranded removable lid and empty circular label recess. Neutral charcoal studio cyclorama; lit hero plus unlit side and rear views; no actors, drama stills, lettering, numbers, watermark, labels, or symbols.",
+        "derivative_sha256": "04f5349e38597171cf324f2615a6c2165e27141cf8d6dce5de59ff64c2a1a523",
+        "source_pixels_embedded": false,
+        "text_baked": false
+      }
+    },
+    {
+      "key": "blanket",
+      "display_name": "옥상 S.O.S 블랭킷",
+      "chapter": "chapter-02",
+      "placement": "옥상 출입구 비상함",
+      "path_kind": "main",
+      "semantic_anchor": "collectible.blanket.rooftop-emergency-box",
+      "collision_m": [
+        0.92,
+        0.26,
+        0.72
+      ],
+      "delivery": {
+        "status": "public-in-game-delivery-p1-sales-disabled",
+        "model": "public/generated/last-bell/products/blanket/model.glb",
+        "thumbnail": "public/generated/last-bell/products/blanket/thumbnail.webp",
+        "graphic_layer": "public/generated/last-bell/products/blanket/graphic-layer.svg",
+        "model_sha256": "a957b2ad9f5f2c906abd2260cda1e8881005a885948b1fad48ba91f6d75399e9",
+        "thumbnail_sha256": "68eb3839d676e49a3cd4b8308dc0c62eb05b53582e9c68af9baf154e0e855795",
+        "graphic_layer_sha256": "e83a9dd59baf9b21cec030b4fa20648d64774361d208bad1d2b69cb03be3eb8d",
+        "model_bytes": 293448,
+        "texture_encoding": "KTX2-authored-PBR; UV0+UV1",
+        "thumbnail_bytes": 8504,
+        "thumbnail_render_source": "delivery-glb-chromium-ktx2-import"
+      },
+      "provenance": {
+        "authoring": "Blender 5.2 original geometry + CC0 KTX2 PBR texture maps, UV0, UV1, and semantic delivery nodes",
+        "source_lookdev": "outputs/last-bell-product-assets/lookdev/blanket/lookdev-v1.png",
+        "source_sha256": "835cb3104fab50d494af8a0a1d7d136b4d70af232b0ce6d977f42efcb0d2d574",
+        "source_generation": "codex-built-in-image_gen",
+        "prompt": "Use case: product-mockup. Original rooftop emergency thermal blanket folded into a compact square: silver crinkled rescue fabric, charcoal cloth edging, unprinted elastic keeper strap, no text or symbols. Neutral charcoal studio cyclorama; premium folded hero, side profile, and unfolded rear corner turnaround; no actors, drama stills, lettering, numbers, watermark, labels, or emergency symbols.",
+        "derivative_sha256": "a957b2ad9f5f2c906abd2260cda1e8881005a885948b1fad48ba91f6d75399e9",
+        "source_pixels_embedded": false,
+        "text_baked": false
+      }
+    }
+  ],
+  "character_seams": "docs/ip/all-of-us-are-dead-2/last-bell-character-asset-seams.json"
+}

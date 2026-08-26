@@ -1,0 +1,129 @@
+{
+  "schema": 1,
+  "status": "pass",
+  "reviewed_at": "2026-08-26T13:23:11+09:00",
+  "runner": "Codex in-app Browser against Next.js production build",
+  "route": "http://127.0.0.1:3210/experiences/all-of-us-are-dead/last-bell/store",
+  "release_build_id": "last-bell-release-da8957979ec883a0",
+  "environment": {
+    "command": "ICONS_LAST_BELL_VERIFIED_EXPERIENCE=1 ICONS_LAST_BELL_VERIFIED_CATALOG=1 npm start -- --hostname 127.0.0.1 --port 3210",
+    "next_version": "16.3.0",
+    "production_build": true
+  },
+  "preview_readback": {
+    "status": "pass",
+    "reviewed_at": "2026-08-26T13:33:32+09:00",
+    "github_actions_run": 32930111721,
+    "validated_commit": "55b036c",
+    "base_url": "https://icons-58myxkklg-sangwopark19icons-1055s-projects.vercel.app",
+    "store": {
+      "route": "/experiences/all-of-us-are-dead/last-bell/store",
+      "viewports": [
+        { "id": "desktop", "width": 1280, "height": 720, "document_client_width": 1270, "document_scroll_width": 1270, "document_scroll_height": 2449, "product_grid_columns": 4 },
+        { "id": "mobile-landscape", "width": 844, "height": 390, "document_client_width": 834, "document_scroll_width": 834, "document_scroll_height": 3622, "product_grid_columns": 2 },
+        { "id": "mobile-portrait", "width": 390, "height": 844, "document_client_width": 380, "document_scroll_width": 380, "document_scroll_height": 2765, "product_grid_columns": 2 }
+      ],
+      "product_cards": 10,
+      "loaded_images": 11,
+      "broken_images": 0,
+      "horizontal_overflow": false,
+      "minimum_measured_interactive_target_css_px": 44,
+      "console_errors": 0
+    },
+    "game_shell": {
+      "route": "/experiences/all-of-us-are-dead/last-bell",
+      "viewport": { "width": 1280, "height": 720 },
+      "canvas_count": 1,
+      "horizontal_overflow": false,
+      "console_errors": 0
+    }
+  },
+  "acceptance": {
+    "p0_findings": 0,
+    "product_cards": 10,
+    "loaded_images": 11,
+    "broken_images": 0,
+    "minimum_measured_interactive_target_css_px": 44,
+    "console_errors": 0,
+    "generated_reference_environment_gate": {
+      "status": "passed-automated-environment-design-quality",
+      "checks_passed": 6,
+      "checks_total": 6,
+      "report": "outputs/last-bell-environment-recovery-autoqa-r18-20260826/visual-quality-report.json"
+    }
+  },
+  "viewports": [
+    {
+      "id": "desktop",
+      "width": 1280,
+      "height": 720,
+      "document_client_width": 1270,
+      "document_scroll_width": 1270,
+      "document_scroll_height": 2363,
+      "product_grid_columns": 4,
+      "product_cards": 10,
+      "loaded_images": 11,
+      "horizontal_overflow": false,
+      "broken_images": 0,
+      "console_errors": 0,
+      "minimum_measured_interactive_target_css_px": 44
+    },
+    {
+      "id": "mobile-landscape",
+      "width": 844,
+      "height": 390,
+      "document_client_width": 834,
+      "document_scroll_width": 834,
+      "document_scroll_height": 3536,
+      "product_grid_columns": 2,
+      "product_cards": 10,
+      "loaded_images": 11,
+      "horizontal_overflow": false,
+      "broken_images": 0,
+      "console_errors": 0,
+      "minimum_measured_interactive_target_css_px": 44
+    },
+    {
+      "id": "mobile-portrait",
+      "width": 390,
+      "height": 844,
+      "document_client_width": 380,
+      "document_scroll_width": 380,
+      "document_scroll_height": 2658,
+      "product_grid_columns": 2,
+      "product_cards": 10,
+      "loaded_images": 11,
+      "horizontal_overflow": false,
+      "broken_images": 0,
+      "console_errors": 0,
+      "minimum_measured_interactive_target_css_px": 44
+    }
+  ],
+  "capture_note": "Viewport screenshots are authoritative. Playwright fullPage capture was excluded because hiding the vertical scrollbar changes the responsive document height during capture.",
+  "screenshots": [
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/verified-store-desktop-top-1280x720.png",
+      "sha256": "a76ba107cb3b4920143ab7bb749934a44353e01160ac0f40dd321e54c016bb89"
+    },
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/verified-store-desktop-products-1280x720.png",
+      "sha256": "457fc6636f5eccef4a00e855f5927d6e5fd3e654e5bb1714d33c750533af919f"
+    },
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/verified-store-landscape-top-844x390.png",
+      "sha256": "61a529a9a1f1c664b9081731d19e2a6c113c1f458b17b3aa31322dace69f5a16"
+    },
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/verified-store-landscape-products-844x390.png",
+      "sha256": "0200747599741fa6c898687dc12354fbcef366b2035b5f2deefe6d151aa257a6"
+    },
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/verified-store-portrait-top-390x844.png",
+      "sha256": "8eb761ab7afefd9a1d384129ea30205e0daa43ad072c080610bb4b09ea92c821"
+    },
+    {
+      "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/verified-store-portrait-products-390x844.png",
+      "sha256": "e96e6c9ec2327f85bddd893d8ab8692a334ceb8004f428b7f6a3553ccf0a9022"
+    }
+  ]
+}
