@@ -24,7 +24,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: >-
+    ${{ github.event_name == 'pull_request'
+        && format('supabase-preview-pr-{0}', github.event.pull_request.number)
+        || format('{0}-{1}', github.workflow, github.ref) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -267,6 +270,9 @@ jobs:
     timeout-minutes: 20
     needs: validate
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      actions: read
+      contents: read
     outputs:
       configured: ${{ steps.check.outputs.configured }}
       database_mode: ${{ steps.mode.outputs.database_mode }}
@@ -328,7 +334,7 @@ jobs:
           set -euo pipefail
 
           database_mode="$(
-            git diff --name-only --diff-filter=ACMRT -z "$PR_BASE_SHA" "$PR_HEAD_SHA" \
+            git diff --name-only --diff-filter=ACDMRT -z "$PR_BASE_SHA" "$PR_HEAD_SHA" \
               | node scripts/preview-supabase-mode.mjs
           )"
           if [ "$database_mode" = "isolated" ]; then
@@ -339,6 +345,64 @@ jobs:
 
           echo "database_mode=$database_mode" >> "$GITHUB_OUTPUT"
           echo "branch_name=$branch_name" >> "$GITHUB_OUTPUT"
+
+      # shared main이 PR base보다 뒤처졌다면 앱 전용 변경도 새 base schema와 맞지 않는다.
+      # base workflow에 sync job이 도입된 뒤부터 exact SHA의 성공 증거를 필수로 한다.
+      - name: Verify shared preview base synchronization
+        if: steps.check.outputs.configured == 'true' && steps.mode.outputs.database_mode == 'shared'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          base_workflow="$(git show "$PR_BASE_SHA:.github/workflows/pipeline.yml")"
+          if ! grep -q '^  sync-supabase-preview-main:' <<<"$base_workflow"; then
+            {
+              echo "### Shared preview base 확인"
+              echo
+              echo "- bootstrap: base workflow가 아직 shared sync job 도입 전입니다."
+              echo "- 이 PR이 main에 반영된 다음 base SHA부터 성공한 sync 증거를 강제합니다."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          runs_json="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/pipeline.yml/runs?event=push&head_sha=${PR_BASE_SHA}&status=completed&per_page=20")"
+
+          synchronized_run_id=""
+          while IFS= read -r run_id; do
+            [ -n "$run_id" ] || continue
+            jobs_json="$(curl --fail --silent --show-error \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100")"
+            if jq -e '
+              any(.jobs[]; .name == "deploy-supabase" and .conclusion == "success")
+              and any(.jobs[]; .name == "sync-supabase-preview-main" and .conclusion == "success")
+            ' <<<"$jobs_json" >/dev/null; then
+              synchronized_run_id="$run_id"
+              break
+            fi
+          done < <(jq -r --arg sha "$PR_BASE_SHA" '
+            .workflow_runs[]
+            | select(
+                .event == "push"
+                and .head_branch == "main"
+                and .head_sha == $sha
+                and .path == ".github/workflows/pipeline.yml"
+              )
+            | .id
+          ' <<<"$runs_json")
+
+          if [ -z "$synchronized_run_id" ]; then
+            echo "::error title=Shared preview is behind or unverified::Wait for or rerun the push/main sync for base $PR_BASE_SHA"
+            exit 1
+          fi
+          echo "Shared preview sync evidence: run $synchronized_run_id" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Supabase CLI
         if: steps.check.outputs.configured == 'true'

@@ -10,11 +10,11 @@ Vercel Preview가 production Supabase 프로젝트를 보던 초기 문제를 �
 
 - Production 프로젝트 `icons-ip`는 production 배포만 사용한다. Preview workflow는 production ref와 일치하면 즉시 실패하며 production 데이터나 자격 증명을 복제하지 않는다.
 - `icons-ip-preview`의 default `main` branch는 repo `main`의 schema와 seed만 유지한다. `push` to `main`에서 production migration이 성공한 뒤 `sync-supabase-preview-main`이 동일 migration과 seed, preview Auth URL 설정을 적용한다.
-- PR 전체 diff에 Supabase 배포 상태를 바꾸는 파일이 없으면 Vercel Preview는 `icons-ip-preview/main`을 읽는다. PR workflow는 shared main에 migration, seed, Auth 설정을 쓰지 않는다.
+- PR 전체 diff에 Supabase 배포 상태를 바꾸는 파일이 없으면 Vercel Preview는 `icons-ip-preview/main`을 읽는다. 이때 PR base SHA의 push/main run에서 production migration과 shared preview sync가 모두 성공했다는 Actions 증거를 먼저 확인한다. PR workflow는 shared main에 migration, seed, Auth 설정을 쓰지 않는다.
 - `supabase/migrations/**`, `supabase/functions/**`, `supabase/templates/**`, `supabase/config.toml`, `supabase/roles.sql`, `supabase/seed.sql`, `scripts/sync-supabase-auth.mjs` 중 하나라도 바뀌면 무데이터 Supabase Preview Branch `pr-<number>`를 만든다.
 - PR migration은 review 중 수정·삭제될 수 있으므로 isolated branch는 각 workflow 실행에서 기존 `pr-<number>`를 지운 뒤 현재 PR head로 다시 만든다. 생성 시 production 데이터를 clone하지 않고, migration과 seed를 적용한 뒤 catalog baseline을 확인한다.
 - Vercel CLI는 배포 직전에 선택된 `main` 또는 `pr-<number>`의 URL·publishable key·service role key를 Supabase Management API에서 다시 읽어 build-time과 runtime에 동적으로 주입한다. secret 값은 job output으로 전달하지 않는다.
-- PR이 close 또는 merge되면 별도 cleanup workflow가 해당 non-default `pr-<number>`만 삭제한다. app-only로 바뀐 PR에 남은 동일 이름의 branch도 다음 preview 실행에서 삭제한다.
+- PR이 close 또는 merge되면 별도 cleanup workflow가 해당 non-default `pr-<number>`만 삭제한다. Preview pipeline과 cleanup은 같은 repo-wide per-PR concurrency key를 사용하므로 생성 중 close되어도 cleanup이 뒤에서 기다린다. app-only로 바뀐 PR에 남은 동일 이름의 branch도 다음 preview 실행에서 삭제한다.
 - `.vercelignore`는 로컬 `outputs/` 제작 산출물을 명시적으로 제외한다. Preview workflow는 Vercel dry-run manifest에서 이 경로가 포함되거나 source가 900MB·15,000개에 도달하면 실제 upload 전에 실패한다. Vercel에는 review 중인 repo 파일과 최종 runtime asset만 전송한다.
 
 ## Mode selection
@@ -36,6 +36,7 @@ Vercel Preview가 production Supabase 프로젝트를 보던 초기 문제를 �
 ## Consequences
 
 - 다른 PR의 unmerged migration은 shared main이나 서로의 branch에 들어가지 않는다. PR #321 같은 대형 기능 preview가 열려 있어도 앱 전용 PR과 다른 schema PR의 CI를 막지 않는다.
+- main migration 뒤 shared sync가 아직 실행 중이거나 실패하면 app-only PR도 shared Preview를 만들지 않는다. 이 sync job을 처음 도입하는 bootstrap PR만 base workflow에 job 정의가 없음을 확인하고 예외 처리하며, 이후 base SHA에는 성공 증거를 강제한다.
 - isolated preview는 branch 생성 대기만큼 느려지고 branch compute 비용이 든다. branch는 PR close 때 삭제하며, DB 변경이 없는 PR에는 만들지 않는다.
 - isolated branch는 무상태 review 환경이다. 새 commit마다 재생성되므로 어드민에서 만든 임시 데이터는 보존되지 않고, 이전 commit의 Vercel URL은 branch 교체·삭제 뒤 DB 기능이 깨질 수 있다.
 - shared main도 운영 데이터는 갖지 않는다. catalog baseline은 versioned migration과 멱등 seed로 만들며 production 콘텐츠를 dump/clone하지 않는다.

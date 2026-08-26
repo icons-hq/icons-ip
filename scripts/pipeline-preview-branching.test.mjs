@@ -26,7 +26,7 @@ describe('Supabase preview branch workflow contract', () => {
     const mode = findStep(job, 'Select preview database mode');
 
     expect(checkout.with).toEqual({ 'fetch-depth': 0 });
-    expect(mode.run).toContain('git diff --name-only --diff-filter=ACMRT -z');
+    expect(mode.run).toContain('git diff --name-only --diff-filter=ACDMRT -z');
     expect(mode.run).toContain('node scripts/preview-supabase-mode.mjs');
     expect(job.outputs).toEqual({
       configured: '${{ steps.check.outputs.configured }}',
@@ -35,6 +35,23 @@ describe('Supabase preview branch workflow contract', () => {
     });
     expect(job.outputs).not.toHaveProperty('SUPABASE_SERVICE_ROLE_KEY');
     expect(job.outputs).not.toHaveProperty('POSTGRES_URL');
+  });
+
+  it('requires exact base-main sync evidence before using shared preview', async () => {
+    const workflow = await loadWorkflow(pipelinePath);
+    const job = workflow.jobs['deploy-supabase-preview'];
+    const gate = findStep(job, 'Verify shared preview base synchronization');
+
+    expect(job.permissions).toEqual({ actions: 'read', contents: 'read' });
+    expect(gate.if).toContain("database_mode == 'shared'");
+    expect(gate.env).toEqual({ GH_TOKEN: '${{ github.token }}' });
+    expect(gate.run).toContain('git show "$PR_BASE_SHA:.github/workflows/pipeline.yml"');
+    expect(gate.run).toContain("grep -q '^  sync-supabase-preview-main:'");
+    expect(gate.run).toContain('head_sha=${PR_BASE_SHA}');
+    expect(gate.run).toContain('.name == "deploy-supabase" and .conclusion == "success"');
+    expect(gate.run).toContain(
+      '.name == "sync-supabase-preview-main" and .conclusion == "success"',
+    );
   });
 
   it('recreates an exact no-data branch only for deploy-affecting PRs', async () => {
@@ -109,10 +126,15 @@ describe('Supabase preview branch workflow contract', () => {
 
   it('deletes only the deterministic non-default branch when a same-repo PR closes', async () => {
     const workflow = await loadWorkflow(cleanupPath);
+    const pipeline = await loadWorkflow(pipelinePath);
     const job = workflow.jobs['delete-preview-branch'];
     const cleanup = findStep(job, 'Delete isolated preview branch');
 
     expect(workflow.on.pull_request.types).toEqual(['closed']);
+    expect(workflow.concurrency.group).toBe(
+      'supabase-preview-pr-${{ github.event.pull_request.number }}',
+    );
+    expect(pipeline.concurrency.group).toContain("format('supabase-preview-pr-{0}'");
     expect(job.if).toBe('github.event.pull_request.head.repo.full_name == github.repository');
     expect(cleanup.run).toContain('branch_name="pr-${PR_NUMBER}"');
     expect(cleanup.run).toContain('.is_default == false');

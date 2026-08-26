@@ -186,8 +186,8 @@ npm run hong-sil:download -- \
 
 GitHub Actions의 `CI/CD Pipeline`은 PR 검증(lint/typecheck/test/build/Supabase local lint), Vercel preview 배포, production 배포를 처리하고 `Supabase Preview Cleanup`은 PR close 시 isolated branch만 정리한다.
 
-- `pull_request`: `validate` 통과 후 같은 repo 브랜치 PR이면 전체 diff로 preview DB mode를 고른다. Supabase 배포 변경이 없으면 shared main을 변경 없이 사용하고, 있으면 무데이터 `pr-<number>` branch를 재생성해 migration·seed·baseline 검증을 마친 뒤 Vercel preview를 배포한다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
-- `pull_request: closed`: non-default `pr-<number>` branch가 있으면 삭제한다.
+- `pull_request`: `validate` 통과 후 같은 repo 브랜치 PR이면 삭제를 포함한 전체 diff로 preview DB mode를 고른다. Supabase 배포 변경이 없으면 base SHA의 main→shared sync 성공 증거를 확인한 뒤 shared main을 변경 없이 사용하고, 있으면 무데이터 `pr-<number>` branch를 재생성해 migration·seed·baseline 검증을 마친 뒤 Vercel preview를 배포한다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
+- `pull_request: closed`: Preview pipeline과 같은 per-PR concurrency key에서 대기한 뒤 non-default `pr-<number>` branch가 있으면 삭제한다.
 - `merge_group`: `validate` job만 실행한다.
 - `push` to `main`: `validate` 통과 후 `deploy-supabase`를 실행하고, 그 다음 `deploy-vercel`을 실행한다. Production migration이 성공한 동일 main을 `sync-supabase-preview-main`이 shared preview main에도 적용한다.
 - `workflow_dispatch`: 기본은 `validate`만 실행한다. `production_redeploy=true`와 현재 main의
@@ -225,7 +225,7 @@ CRON_SECRET
 
 Production `icons-ip`와 Preview `icons-ip-preview`는 계속 분리한다. **Preview를 production 프로젝트로 돌리는 구조가 아니다.** `icons-ip-preview`의 default `main`은 repo `main`만 따라가고, PR은 다음 두 모드 중 하나를 쓴다. 결정 배경과 trade-off는 [ADR-0006](docs/adr/0006-preview-supabase-project.md)에 있다.
 
-- `shared`: 앱·UI·문서·테스트만 바뀐 PR. `icons-ip-preview/main`을 읽기만 하며 PR workflow가 migration·seed·Auth 설정을 쓰지 않는다.
+- `shared`: 앱·UI·문서·테스트만 바뀐 PR. base SHA의 push/main run에서 production migration과 `sync-supabase-preview-main`이 성공했을 때만 `icons-ip-preview/main`을 읽으며, PR workflow가 migration·seed·Auth 설정을 쓰지 않는다.
 - `isolated`: `supabase/migrations/**`, config, seed, function, Auth sync처럼 Supabase 배포 상태를 바꾸는 PR. 무데이터 `pr-<number>` Supabase Preview Branch를 현재 PR head로 재생성하고 migration·seed를 적용한다.
 
 Vercel CLI는 배포 직전에 선택된 `main` 또는 `pr-<number>`의 URL·publishable key·service role key를 다시 읽어 build/runtime에 주입한다. PR close 때 isolated branch를 삭제한다. 따라서 #321 같은 미머지 migration이 shared main이나 다른 PR branch에 누적되지 않는다.
