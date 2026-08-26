@@ -1,0 +1,893 @@
+/* White Catalog v4 전역 셸 — 유틸바·헤더·GNB·오버레이·바텀바·푸터.
+   수치 정본은 재현 스펙 `docs/research/linefriends-square/01-global-chrome.md`(R-01)이고,
+   색은 wc-foundation의 `--wc-*` 토큰만 쓴다(레퍼런스 액센트는 옮기지 않는다 — 액센트는 green 하나).
+   wc-foundation과 같은 스코프 규율을 지킨다: 모든 규칙은 `.wc-` 클래스에서 시작하고
+   전역 element 스타일을 두지 않는다. 아직 이행되지 않은 editorial 표면과 어드민이 같은 문서에
+   공존해서, 크롬 하나 때문에 그쪽 지면이 통째로 흔들리면 안 되기 때문이다.
+   S9에서 이행이 끝나면 wc-foundation과 함께 전역으로 승격한다.
+   크롬 브레이크포인트는 990px 하나다(콘텐츠 브레이크 750px은 크롬에 쓰지 않는다):
+   모바일 크롬 `max-width: 989px`, 데스크톱 크롬 `min-width: 990px`. */
+
+/* ------------------------------------------------------------------
+   크롬 루트와 스킵 링크
+   ------------------------------------------------------------------ */
+
+/* 래퍼가 박스를 만들면 sticky 헤더가 body가 아니라 이 래퍼를 기준으로 붙어 버린다.
+   박스를 지워 헤더·바텀바·오버레이를 body 스택에 그대로 올린다 — 그래서 배경·여백도 주지 않는다. */
+.wc-chrome {
+  display: contents;
+}
+
+.wc-skip-link {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.wc-skip-link:focus-visible {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 9999;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 12px 16px;
+  overflow: visible;
+  clip: auto;
+  clip-path: none;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid var(--wc-hairline);
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+}
+
+/* ------------------------------------------------------------------
+   공지 스트립 (슬롯 예약)
+   ------------------------------------------------------------------ */
+
+/* 큐레이션 kind(notice_strip)는 S3에서 생긴다. 데이터가 붙기 전까지 마크업은 없고 자리만 잡아 둔다.
+   높이를 고정하지 않고 이미지 비율을 그대로 따르는 스트립이다(R-01 §1). */
+.wc-notice {
+  display: block;
+  overflow: hidden;
+}
+
+.wc-notice img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ------------------------------------------------------------------
+   유틸바 (데스크톱 전용)
+   ------------------------------------------------------------------ */
+
+.wc-utilbar {
+  display: none;
+}
+
+.wc-utilbar__inner {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+}
+
+.wc-utilbar__link,
+.wc-utilbar__action {
+  padding: 0;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 34px;
+  letter-spacing: -.2px;
+  text-decoration: none;
+  border: 0;
+  background: none;
+  color: var(--wc-ink-tertiary);
+  cursor: pointer;
+}
+
+.wc-utilbar__badge {
+  display: inline-block;
+  min-width: 16px;
+  margin-left: 4px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  border-radius: 8px;
+  background: var(--wc-accent);
+  color: #FFFFFF;
+}
+
+/* presence가 확정되기 전 자리를 비워 두면 로그인/로그아웃이 확정되는 순간 줄이 흔들린다. */
+.wc-utilbar__placeholder {
+  display: inline-block;
+  width: 45px;
+  height: 34px;
+}
+
+@media (min-width: 990px) {
+  .wc-utilbar {
+    display: block;
+    height: 34px;
+    background: var(--wc-surface);
+  }
+}
+
+/* ------------------------------------------------------------------
+   헤더 행 (로고 · 아이콘)
+   ------------------------------------------------------------------ */
+
+.wc-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--wc-surface);
+}
+
+/* 축약될 때 GNB가 이 행 "뒤로" 밀려 들어가야 해서 로고 행이 한 단계 위에 선다. */
+.wc-header__bar {
+  position: relative;
+  z-index: 2;
+  background: var(--wc-surface);
+}
+
+.wc-header__bar-inner {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  height: 81px;
+}
+
+.wc-logo {
+  padding-bottom: 12px;
+  font-family: inherit;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -.5px;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-header__icons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+}
+
+.wc-icon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-icon-btn svg {
+  transition: transform var(--wc-duration-default);
+}
+
+.wc-icon-btn:hover svg {
+  transform: scale(1.07);
+}
+
+/* 수량 뱃지가 44px 히트박스 오른쪽으로 조금 새 나간다 — 자르지 않는다. */
+.wc-icon-btn--cart {
+  overflow: visible;
+}
+
+.wc-icon-btn-placeholder {
+  display: inline-block;
+  width: 44px;
+  height: 44px;
+}
+
+.wc-cartcount {
+  position: absolute;
+  top: 2px;
+  left: 24px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  border-radius: 10px;
+  background: var(--wc-accent);
+  color: #FFFFFF;
+}
+
+@media (min-width: 990px) {
+  .wc-header__bar-inner {
+    height: 68px;
+  }
+
+  .wc-logo {
+    padding-bottom: 14px;
+    font-size: 28px;
+  }
+}
+
+/* 모바일에서 계정 진입은 하단 탭바의 MY 하나로 모은다(R-01 §7). */
+@media (max-width: 989px) {
+  .wc-header__icons .wc-icon-btn--account,
+  .wc-header__icons .wc-icon-btn-placeholder {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------
+   GNB (데스크톱) · 메가메뉴
+   ------------------------------------------------------------------ */
+
+/* 스크롤이 상단을 벗어나면 GNB만 로고 행 뒤로 밀어 넣어 로고 행만 남긴다(R-01 §3.1).
+   메가 패널의 기준 상자이기도 해서 positioned 상태를 유지한다. */
+.wc-gnb-wrap {
+  position: relative;
+  z-index: 1;
+  background: var(--wc-surface);
+  transition: margin-top var(--wc-duration-medium) ease, opacity var(--wc-duration-medium) ease;
+}
+
+.wc-header[data-condensed='true'] .wc-gnb-wrap {
+  margin-top: -51px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* 축약 상태에서도 키보드가 헤더로 들어오면 GNB를 되돌려 준다 — 포커스가 안 보이는 곳으로 사라지면 안 된다. */
+.wc-header[data-condensed='true']:focus-within .wc-gnb-wrap {
+  margin-top: 0;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.wc-gnb {
+  display: none;
+}
+
+/* ul 자체가 컨테이너 폭·거터를 진다 — 첫 항목 텍스트를 컨테이너 왼끝에 맞추기 위해서다. */
+.wc-gnb__list {
+  display: flex;
+  max-width: var(--wc-container-max);
+  margin: 0 auto;
+  padding: 0 var(--wc-gutter);
+  list-style: none;
+}
+
+.wc-gnb__item {
+  flex: none;
+}
+
+/* 메가 패널이 헤더 전폭을 덮어야 한다 — 기준 상자를 .wc-gnb-wrap에 남기려고 항목은 positioned로 만들지 않는다. */
+.wc-gnb__item--mega {
+  position: static;
+}
+
+.wc-gnb__link {
+  display: block;
+  padding: 0 16px 4px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 50px;
+  letter-spacing: -.2px;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-gnb__list > li:first-child .wc-gnb__link {
+  padding-left: 0;
+}
+
+.wc-gnb__link:hover,
+.wc-gnb__link.is-active {
+  color: var(--wc-accent);
+}
+
+.wc-gnb__label {
+  position: relative;
+}
+
+/* 활성/hover 표기는 색과 3px 바 한 세트다. 바는 중앙에서 양쪽으로 자란다. */
+.wc-gnb__label::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -4px;
+  width: 100%;
+  height: 3px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform var(--wc-duration-medium);
+}
+
+.wc-gnb__link:hover .wc-gnb__label::after,
+.wc-gnb__link.is-active .wc-gnb__label::after {
+  transform: scaleX(1);
+}
+
+/* 마크업은 항상 DOM에 있고 표시만 data-open이 가른다 — 열림이 마운트를 기다리지 않게 하려는 것. */
+.wc-mega {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: calc(100vh - 160px);
+  padding: 33px 0 53px;
+  overflow: auto;
+  border-top: 1px solid var(--wc-hairline-dark);
+  border-bottom: 1px solid var(--wc-hairline-dark);
+  background: var(--wc-surface);
+  box-shadow: var(--wc-shadow-popup);
+}
+
+.wc-mega[data-open='true'] {
+  display: block;
+  animation: wc-fade-in var(--wc-duration-default) ease;
+}
+
+@keyframes wc-fade-in {
+  0% {
+    opacity: 0;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+.wc-mega__list {
+  display: grid;
+  grid-template-columns: repeat(3, 180px);
+  column-gap: 50px;
+  list-style: none;
+}
+
+/* 트랙 폭이 고정이라 긴 라벨이 트랙을 밀어내지 않게 막는다. */
+.wc-mega__group {
+  min-width: 0;
+}
+
+.wc-mega__heading {
+  margin: 0 0 10px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-mega__links {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-mega__link {
+  display: block;
+  padding: 7px 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: -.5px;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-mega__link:hover {
+  text-decoration: underline;
+}
+
+/* 현재 페이지는 색으로만 알린다 — 밑줄까지 겹치면 hover와 구분되지 않는다. */
+.wc-mega__link[aria-current='page'] {
+  color: var(--wc-accent);
+}
+
+.wc-mega__link[aria-current='page']:hover {
+  text-decoration: none;
+}
+
+@media (min-width: 990px) {
+  .wc-header[data-condensed='true'] .wc-gnb-wrap {
+    margin-top: -54px;
+  }
+
+  .wc-gnb {
+    display: block;
+  }
+}
+
+/* ------------------------------------------------------------------
+   모바일 GNB 탭 (가로 스크롤)
+   ------------------------------------------------------------------ */
+
+.wc-mob-gnb {
+  position: relative;
+  height: 51px;
+  background: var(--wc-surface);
+}
+
+/* 양 끝 그라디언트가 "더 스크롤할 수 있다"는 유일한 신호다(스크롤바를 숨기므로). */
+.wc-mob-gnb::before,
+.wc-mob-gnb::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: 16px;
+  pointer-events: none;
+}
+
+.wc-mob-gnb::before {
+  left: 0;
+  background: linear-gradient(90deg, var(--wc-surface), transparent);
+}
+
+.wc-mob-gnb::after {
+  right: 0;
+  background: linear-gradient(90deg, transparent, var(--wc-surface));
+}
+
+.wc-mob-gnb__wrap {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.wc-mob-gnb__wrap::-webkit-scrollbar {
+  display: none;
+}
+
+.wc-mob-gnb__list {
+  display: flex;
+  margin: 0;
+  padding: 0 5px;
+  list-style: none;
+}
+
+/* 모바일 탭의 활성 표기는 색이 아니라 불투명도다(R-01 §7). */
+.wc-mob-gnb__link {
+  display: block;
+  padding: 0 11px;
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 51px;
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+  border: 0;
+  background: none;
+  color: var(--wc-ink);
+  opacity: .35;
+  cursor: pointer;
+}
+
+.wc-mob-gnb__link.is-active {
+  opacity: 1;
+}
+
+@media (min-width: 990px) {
+  .wc-mob-gnb {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------
+   검색 오버레이
+   ------------------------------------------------------------------ */
+
+/* 헤더 스태킹 컨텍스트 안이라 z 1이어도 본문(#root, z 1)보다 위에 깔린다.
+   로고·아이콘 행(z 2)은 딤 위에 남긴다 — 레퍼런스도 패널이 열릴 때 헤더 행은 밝게 유지한다. */
+.wc-search-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  background: var(--wc-dim);
+}
+
+.wc-search {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  height: 86px;
+  padding: 16px 16px 0;
+  background: var(--wc-surface);
+}
+
+.wc-search__form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* editorial 파운데이션의 `:where(input …)` 규칙이 최소 높이·보더·포커스 글로우를 얹으므로
+   이 지면 값으로 되돌린다. 포커스 링 자체는 wc-foundation의 `.wc-root :focus-visible`가 담당한다.
+   type=search는 WebKit 기본 장식을 끄지 않으면 회색 사각형이 둥글게 잘려 보인다. */
+.wc-search__input {
+  flex: 1;
+  min-height: 50px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 16px;
+  -webkit-appearance: none;
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--wc-surface-grey);
+  color: var(--wc-ink);
+  caret-color: var(--wc-accent);
+}
+
+.wc-search__input::placeholder {
+  color: var(--wc-ink-disabled);
+}
+
+@media (min-width: 990px) {
+  .wc-search {
+    position: absolute;
+    top: 100%;
+    height: 200px;
+    padding: 24px 0 0;
+  }
+
+  .wc-search__input {
+    min-height: 60px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   전체 메뉴 시트 (모바일)
+   ------------------------------------------------------------------ */
+
+.wc-sheet-dim {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: var(--wc-dim);
+}
+
+.wc-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  height: 75%;
+  padding-top: 20px;
+  border-radius: var(--wc-radius-sheet) var(--wc-radius-sheet) 0 0;
+  background: var(--wc-surface);
+}
+
+.wc-sheet__close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+.wc-sheet__inner {
+  height: 100%;
+  padding: 0 16px 40px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.wc-sheet__inner::-webkit-scrollbar {
+  display: none;
+}
+
+/* 섹션 경계는 얇은 선이 아니라 10px 회색 띠다 — 시트 안에서 스크롤 단락이 눈에 잡혀야 한다. */
+.wc-sheet__section + .wc-sheet__section {
+  margin-top: 24px;
+  margin-inline: -16px;
+  padding-top: 24px;
+  padding-inline: 16px;
+  border-top: 10px solid var(--wc-surface-grey);
+}
+
+.wc-sheet__title {
+  margin: 0 0 20px;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-sheet__links {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  column-gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-sheet__link {
+  display: block;
+  padding: 12px 0;
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-sheet__auth {
+  margin-top: 32px;
+}
+
+.wc-sheet__auth-placeholder {
+  display: block;
+  height: 50px;
+}
+
+/* ------------------------------------------------------------------
+   하단 탭바 (모바일)
+   ------------------------------------------------------------------ */
+
+.wc-tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  justify-content: space-between;
+  min-height: 62px;
+  padding: 5px 13px;
+  padding-bottom: max(5px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--wc-hairline);
+  background: var(--wc-surface);
+}
+
+.wc-tabbar__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 50px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  text-decoration: none;
+  border: 0;
+  background: none;
+  color: var(--wc-ink);
+  opacity: .3;
+  cursor: pointer;
+}
+
+/* 시트를 연 '메뉴' 탭도 활성으로 읽혀야 한다 — 열려 있는 동안 눌린 탭이 흐리면 길을 잃는다. */
+.wc-tabbar__item.is-active,
+.wc-tabbar__item[aria-expanded='true'] {
+  opacity: 1;
+}
+
+@media (min-width: 990px) {
+  .wc-tabbar {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------
+   푸터
+   ------------------------------------------------------------------ */
+
+.wc-footer {
+  padding: 40px 0 60px;
+  border-top: 1px solid var(--wc-hairline);
+  background: var(--wc-surface-grey);
+}
+
+.wc-footer__inner {
+  max-width: 1180px;
+  margin-inline: auto;
+  padding-inline: 20px;
+}
+
+.wc-footer__primary ul {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-footer__primary a {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 17px;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+/* 항목 사이 구분선은 32px 간격의 정중앙에 세운다. */
+.wc-footer__primary li:not(:first-child) {
+  position: relative;
+  padding-left: 32px;
+}
+
+.wc-footer__primary li:not(:first-child)::before {
+  content: '';
+  position: absolute;
+  left: 16px;
+  top: 2px;
+  width: 1px;
+  height: 12px;
+  background: var(--wc-line-divider);
+}
+
+.wc-footer__logo {
+  margin: 50px 0 0;
+}
+
+.wc-footer__logo a {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -.5px;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-footer__middle {
+  display: flex;
+  justify-content: space-between;
+  gap: 40px;
+  margin-top: 24px;
+}
+
+.wc-footer__cs {
+  min-width: 0;
+}
+
+.wc-footer__heading {
+  margin: 0;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-footer__cs-lines {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--wc-ink-sub);
+}
+
+.wc-footer__biz {
+  margin-top: 20px;
+}
+
+.wc-footer__biz summary {
+  font-size: 15px;
+  font-weight: 700;
+  list-style: none;
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-footer__biz summary::-webkit-details-marker {
+  display: none;
+}
+
+.wc-footer__biz summary::after {
+  content: '';
+  display: inline-block;
+  margin-left: 6px;
+  vertical-align: middle;
+  border-top: 5px solid currentColor;
+  border-right: 5px solid transparent;
+  border-left: 5px solid transparent;
+  transition: transform var(--wc-duration-default);
+}
+
+.wc-footer__biz[open] summary::after {
+  transform: rotate(180deg);
+}
+
+/* 같은 dl에 editorial의 전역 `.business-info` 규칙(역상 푸터용 flex·보더·색)이 함께 붙는다.
+   이 지면은 흰 계열이라 통째로 되돌리고 지면 값을 다시 얹는다. */
+.wc-footer__biz-rows {
+  display: block;
+  gap: 0;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+  font-family: inherit;
+  letter-spacing: -.2px;
+}
+
+/* 라벨과 값은 굵기가 아니라 간격으로 가른다 — 사업자 정보는 읽는 표가 아니라 고지 문단이다. */
+.wc-footer__biz-rows .business-info__row {
+  display: flex;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.7;
+  color: var(--wc-ink-sub);
+}
+
+.wc-footer__biz-rows .business-info__row dt,
+.wc-footer__biz-rows .business-info__row dd {
+  margin: 0;
+  font-weight: 400;
+  color: inherit;
+}
+
+.wc-footer__cols {
+  display: flex;
+  gap: 60px;
+}
+
+.wc-footer__links ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-footer__links a {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 34px;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-footer__line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--wc-ink-sub);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--wc-ink-sub);
+}
+
+.wc-utilbar__link:hover,
+.wc-utilbar__action:hover,
+.wc-footer__primary a:hover,
+.wc-footer__links a:hover {
+  text-decoration: underline;
+}
+
+/* 고정 탭바(62px)에 마지막 줄이 가리지 않도록 모바일에서만 바닥을 더 연다. */
+@media (max-width: 989px) {
+  .wc-footer {
+    padding-bottom: 122px;
+  }
+
+  .wc-footer__middle {
+    flex-direction: column;
+  }
+}

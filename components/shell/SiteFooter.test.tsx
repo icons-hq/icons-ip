@@ -1,21 +1,23 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { businessInfoRows } from '@/lib/legal/business-info';
+import { BUSINESS_INFO, businessInfoRows } from '@/lib/legal/business-info';
 import { SiteFooter } from './SiteFooter';
 
-const mocks = vi.hoisted(() => ({ pathname: '/shop' }));
+const mocks = vi.hoisted(() => ({ cardRewardsEnabled: true, pathname: '/shop' }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname }));
+vi.mock('./CardRewardAvailability', () => ({ useCardRewardsEnabled: () => mocks.cardRewardsEnabled }));
 
 function render() {
   return renderToStaticMarkup(<SiteFooter />);
 }
 
-describe('SiteFooter 법정 고지 링크', () => {
-  beforeEach(() => {
-    mocks.pathname = '/shop';
-  });
+beforeEach(() => {
+  mocks.cardRewardsEnabled = true;
+  mocks.pathname = '/shop';
+});
 
+describe('SiteFooter 법정 고지 링크', () => {
   it('이용약관·개인정보처리방침을 실제 링크로 건다', () => {
     const html = render();
 
@@ -45,9 +47,10 @@ describe('SiteFooter 법정 고지 링크', () => {
     expect(render()).toContain('href="/legal/terms"');
   });
 
-  it('사업자 정보를 푸터에 표기한다', () => {
+  it('사업자 정보를 접이식 블록으로 푸터에 표기한다', () => {
     const html = render();
 
+    expect(html).toContain(`${BUSINESS_INFO.companyName} 사업자 정보`);
     expect(html).toContain('aria-label="사업자 정보"');
     for (const row of businessInfoRows()) {
       expect(html).toContain(row.label);
@@ -71,10 +74,6 @@ describe('SiteFooter 법정 고지 링크', () => {
 });
 
 describe('SiteFooter 도메인 용어', () => {
-  beforeEach(() => {
-    mocks.pathname = '/shop';
-  });
-
   /* 굿즈 클레임 유형 "교환"(회수 후 재출고)이 생기면서 카드 C2C는 "트레이드"로 개명됐다.
    * 푸터에 옛 표기가 남으면 두 개념이 같은 이름으로 보인다. */
   it('카드 C2C 링크를 트레이드로 부른다', () => {
@@ -82,5 +81,28 @@ describe('SiteFooter 도메인 용어', () => {
 
     expect(html).toContain('카드 트레이드');
     expect(html).not.toContain('카드 교환');
+  });
+
+  /* 카드 리워드 게이트가 닫힌 상태에서 푸터만 카드팩을 계속 광고하면 죽은 링크가 남는다. */
+  it('카드 리워드 게이트가 닫히면 카드팩 링크를 지운다', () => {
+    mocks.cardRewardsEnabled = false;
+
+    expect(render()).not.toContain('href="/packs"');
+  });
+});
+
+describe('SiteFooter White Catalog 진입점', () => {
+  it('회사·정책 행과 발견·내 활동 열의 진입점을 모두 세운다', () => {
+    const html = render();
+
+    expect(html).toContain('wc-footer');
+    expect(html).toContain('href="/about"');
+    expect(html).toContain('오프라인 팝업');
+    expect(html).toContain('href="/events"');
+    /* 티켓 진입점은 푸터가 유일한 상시 표면이다 — TicketEntrypoints.test.tsx와 이중으로 잠근다. */
+    expect(html).toContain('href="/tickets"');
+    expect(html).toContain('내 티켓');
+    expect(html).toContain('href="/my/wishlist"');
+    expect(html).toContain('© ICONS');
   });
 });

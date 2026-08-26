@@ -9,6 +9,7 @@ import './styles/editorial-account-commerce.css';
 import './styles/editorial-admin.css';
 import './styles/admin-console.css';
 import './styles/wc-foundation.css';
+import './styles/wc-chrome.css';
 import { AuthPresenceProvider } from '@/components/shell/AuthPresenceProvider';
 import { CartProvider } from '@/components/shell/CartProvider';
 import { Nav } from '@/components/shell/Nav';
@@ -40,7 +41,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <CardRewardAvailabilityProvider>
             <AuthPresenceProvider>
               <Nav />
-              <div id="root">{children}</div>
+              {/* tabIndex: 셸 스킵 링크(#root)가 키보드 포커스를 본문으로 실제 이동시키기 위한 타깃. */}
+              <div id="root" tabIndex={-1}>{children}</div>
               <SiteFooter />
             </AuthPresenceProvider>
           </CardRewardAvailabilityProvider>

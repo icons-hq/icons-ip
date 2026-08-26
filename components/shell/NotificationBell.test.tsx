@@ -21,9 +21,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({
   usePathname: () => mocks.pathname,
+  useRouter: () => ({ push: vi.fn() }),
   useSearchParams: () => new URLSearchParams(mocks.search),
 }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: mocks.createClient }));
+vi.mock('@/app/login/actions', () => ({ signOutAction: vi.fn() }));
+vi.mock('@/lib/auth/onboarding', () => ({ nextPathWithSearch: () => '/' }));
 vi.mock('./AuthPresenceProvider', () => ({ useAuthPresence: () => mocks.presence }));
 vi.mock('./AuthButton', () => ({ AuthButton: () => <span>ACCOUNT</span> }));
 vi.mock('./CartProvider', () => ({ useCart: () => ({ count: 0 }) }));
@@ -144,17 +147,21 @@ describe('NotificationBell', () => {
     expect(html.match(/<path d="[^"]+"/g)).toHaveLength(2);
   });
 
-  it('sits between search and cart in the shared top navigation', () => {
+  /* 알림함은 White Catalog 셸에서 헤더 아이콘이 아니라 유틸바 항목이다.
+   * 주문조회 다음, 헤더 아이콘(검색·장바구니)보다 앞이라는 순서가 진입점의 위계를 담는다. */
+  it('keeps the notifications entry in the utility bar before the header icons', () => {
     mocks.presence = 'signed-in';
     mocks.pathname = '/ip';
 
     const html = renderToStaticMarkup(<Nav />);
+    const orders = html.indexOf('href="/orders"');
+    const notifications = html.indexOf('href="/notifications"');
     const search = html.indexOf('aria-label="검색"');
-    const bell = html.indexOf('href="/notifications"');
     const cart = html.indexOf('aria-label="장바구니"');
 
-    expect(search).toBeGreaterThan(-1);
-    expect(bell).toBeGreaterThan(search);
-    expect(cart).toBeGreaterThan(bell);
+    expect(orders).toBeGreaterThan(-1);
+    expect(notifications).toBeGreaterThan(orders);
+    expect(search).toBeGreaterThan(notifications);
+    expect(cart).toBeGreaterThan(search);
   });
 });
