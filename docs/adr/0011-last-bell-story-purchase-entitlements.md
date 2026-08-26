@@ -13,10 +13,10 @@ Last Bell은 무료 2챕터 스토리 안에서 사용자가 실물 굿즈 형�
 Last Bell에만 `verified-story-run` 권위 경계를 둔다.
 
 - `/games/prototype-last-bell`의 `LocalRunHost`는 QA 전용이며 구매권·계정 기록을 만들지 않는다.
-- gate된 `/experiences/all-of-us-are-dead/last-bell`와 그 run·event·complete·claim·inventory authority API만 `VerifiedRunHost`를 사용한다. `ICONS_LAST_BELL_VERIFIED_EXPERIENCE !== '1'`이면 페이지와 모든 API가 404로 fail closed한다. 로그인 사용자는 계정 run, 게스트는 opaque raw token cookie를 사용하며 DB에는 digest만 저장한다.
+- gate된 `/experiences/all-of-us-are-dead/last-bell`, 그 전용 `/store`, run·event·complete·claim·inventory authority API만 검증 권위에 연결한다. `ICONS_LAST_BELL_VERIFIED_EXPERIENCE !== '1'`이면 두 페이지와 모든 API가 404로 fail closed한다. 로그인 사용자는 계정 run, 게스트는 opaque raw token cookie를 사용하며 DB에는 digest만 저장한다. 로컬 QA 완료 CTA는 별도 prototype store에만 남긴다.
 - 계정 run 시작·계정 진행·guest claim은 기존 정지, 탈퇴 write fence, 온보딩 완료 조건을 API preflight와 service-only RPC의 DB trigger에서 모두 다시 검사한다.
 - 서버는 versioned collectible key, sequence, operation id, chapter/zone, checkpoint, 고정 milestone 순서와 전체·직전 milestone의 server-observed 물리적 최소 시간을 검증한다. 이 최소 시간은 event burst·순서 우회를 거절하는 anti-abuse 하한이지 10분 플레이를 만들기 위한 타이머가 아니다. 자연 cold-open은 선택적으로 skip할 수 있고, 준비 완료 뒤에는 문과 핵심 상호작용을 즉시 사용할 수 있다. 10분 목표는 실제 거리·탐색·조우·연출로 만들고 사람의 첫 성공 플레이 5회 중앙값으로 승인한다. 클라이언트는 `good_id`, 가격, 재고를 제출하지 않는다.
-- 첫 플레이는 검증된 엔딩, 재플레이는 해당 챕터의 검증된 출구에 도달해야 그 run에서 실제로 수집한 key만 vest한다. 로그인 run은 즉시 계정 구매권으로 materialize하고, 게스트 완주는 7일 안에 로그인 claim할 수 있다.
+- 첫 플레이는 검증된 엔딩, 재플레이는 해당 챕터의 검증된 출구에 도달해야 그 run에서 실제로 수집한 key만 vest한다. 로그인 run은 즉시 계정 구매권으로 materialize하고, 게스트 완주는 7일 안에 로그인 claim할 수 있다. 한 guest cookie로 여러 완료 replay가 생겼다면 claim RPC가 같은 digest의 당시 유효한 완료 run을 한 트랜잭션에서 모두 같은 계정에 귀속한 뒤에만 cookie를 만료한다.
 - `goods.purchase_access`는 `public | story_entitlement`다. 제한 상품은 cart 직접 DML, cart merge, order item 생성에서 구매권을 다시 검사하고 주문별 entitlement snapshot을 남긴다.
 - 구매권은 할인, 재고 예약, 수량 혜택, 카드·카드팩, 경품 당첨이 아니다. 기존 판매기간·재고·장바구니 제한·Korpay `PaymentGateway`와 주문 TTL을 그대로 따른다.
 - 대사·캐릭터·상품 그래픽은 교체 가능한 데이터/asset seam과 IP 검수 상태를 유지한다. production 상품 활성화는 가격·표시 의무·재고·IP 검수의 별도 승인이 필요하다.

@@ -57,6 +57,40 @@ describe('Last Bell run hosts', () => {
     });
   });
 
+  it('preserves server purchase availability when loading verified inventory', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => json({
+      items: [
+        {
+          collectibleKey: 'idcard',
+          goodId: 'last-bell-idcard',
+          validUntil: '2026-08-25T00:00:00.000Z',
+          isPurchasable: false,
+        },
+        {
+          collectibleKey: 'candle',
+          goodId: 'last-bell-candle',
+          validUntil: '2026-09-25T00:00:00.000Z',
+          isPurchasable: true,
+        },
+      ],
+    })));
+
+    await expect(new VerifiedRunHost().loadInventory()).resolves.toEqual([
+      {
+        collectibleKey: 'idcard',
+        goodId: 'last-bell-idcard',
+        validUntil: '2026-08-25T00:00:00.000Z',
+        isPurchasable: false,
+      },
+      {
+        collectibleKey: 'candle',
+        goodId: 'last-bell-candle',
+        validUntil: '2026-09-25T00:00:00.000Z',
+        isPurchasable: true,
+      },
+    ]);
+  });
+
   it('serializes accepted events before completion and never sends a good id', async () => {
     const fetchMock = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       void init;

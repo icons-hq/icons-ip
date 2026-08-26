@@ -1,5 +1,6 @@
 export const LAST_BELL_LOCAL_QA_PATH = '/games/prototype-last-bell';
 export const LAST_BELL_VERIFIED_EXPERIENCE_PATH = '/experiences/all-of-us-are-dead/last-bell';
+export const LAST_BELL_VERIFIED_STORE_PATH = '/experiences/all-of-us-are-dead/last-bell/store';
 export const LAST_BELL_POPUP_PATH = '/games/prototype-last-bell/popup';
 
 export type AouadGameEntryContext = {

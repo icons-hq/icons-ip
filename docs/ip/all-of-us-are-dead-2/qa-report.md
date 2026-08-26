@@ -4,11 +4,11 @@
 >
 > 조정 release build: `last-bell-release-da8957979ec883a0`
 >
-> 대상: `/games/prototype-last-bell`, `/experiences/all-of-us-are-dead/last-bell`, `/games/prototype-last-bell/popup/store`
+> 대상: `/games/prototype-last-bell`, `/experiences/all-of-us-are-dead/last-bell`, `/games/prototype-last-bell/popup/store`, `/experiences/all-of-us-are-dead/last-bell/store`
 
 ## 결론
 
-현재 로컬 worktree에는 정확히 두 챕터로 구성된 10분 목표의 Last Bell 게임, 처치 없는 잠입·도주 simulation, 10개 상품 수집, 옥상 남라 엔딩, 서버 검증 run과 story entitlement 구매권 경계가 연결되어 있다. QA 전용 경로는 구매권을 만들지 않고, verified 후보 경로만 Supabase run ledger를 사용한다.
+현재 로컬 worktree에는 정확히 두 챕터로 구성된 10분 목표의 Last Bell 게임, 처치 없는 잠입·도주 simulation, 10개 상품 수집, 옥상 남라 엔딩, 서버 검증 run과 story entitlement 구매권 경계가 연결되어 있다. QA 전용 경로는 구매권을 만들지 않고, verified 후보 경로만 Supabase run ledger와 전용 보급소를 사용한다.
 
 런타임·서버 계약과 public route validator는 승인된 `r18` 승격 뒤 통과한다. 사용자는 2026-08-26 Netflix 협의와 IP·human visual·캐릭터·환경·오프닝·대사 승인을 모두 완료했다고 명시했고, 이 확인을 human/external-IP 승인 근거로 기록했다. 6개 route와 4개 캐릭터의 동일 delivery build 렌더 12장, current `e336…` 오프닝 렌더 4장을 저장소에 고정했으며 release guard가 매 실행마다 실제 PNG SHA-256과 build ID를 다시 확인한다.
 
@@ -80,6 +80,8 @@
 
 최종 조정 release의 production build는 fresh in-app Browser에서 `1280×720`, `844×390`, `390×844`로 다시 열었다. 세 viewport 모두 정확한 route title, canvas 1개, 가로 overflow 0, console error 0을 확인했고 `입장 → 건너뛰기 → E 미닫이문 열기 → 다음 objective`를 실제 버튼과 mobile touch HUD로 완료했다. 모바일 최소 측정 target은 `34×34 CSS px`로 WCAG 2.2 AA의 24 CSS px 최소 계약을 통과한다. 10장 screenshot과 측정값·SHA-256은 `release-evidence/last-bell-release-da8957979ec883a0/browser-qa-evidence.json`에 고정했고 public release guard가 다시 검증한다.
 
+검증 완료 CTA가 prototype gate에 의존하지 않도록 같은 verified gate 아래 `/experiences/all-of-us-are-dead/last-bell/store`를 추가했다. production build의 전용 보급소를 같은 세 viewport에서 다시 캡처했고 10개 상품 카드·11개 이미지 로드, broken image 0, 가로 overflow 0, console error 0, 최소 interactive target `44 CSS px`를 확인했다. 생성 reference 기반 환경 자동 디자인 gate도 다시 6/6 통과했다. 6장 viewport screenshot과 측정값·SHA-256은 `release-evidence/last-bell-release-da8957979ec883a0/verified-store-qa-evidence.json`에 고정했고 public release guard가 viewport별 수치·PNG 실제 크기·SHA-256을 CI에서 재검증한다.
+
 GitHub Actions run `32926041500`에서 commit `fe350a7`의 asset validation, lint, typecheck, 전체 test, Next production build, Supabase Preview migration·seed·baseline이 모두 통과했고 Vercel Preview를 생성했다. Preview job은 synthetic merge SHA 대신 실제 `ps/feat/last-bell-vertical-slice` head branch를 checkout해 branch-scoped 환경값을 적용한다. Preview 전용 feature flag를 사용한 [`/experiences/all-of-us-are-dead/last-bell`](https://icons-jfi487yqv-sangwopark19icons-1055s-projects.vercel.app/experiences/all-of-us-are-dead/last-bell)을 fresh Browser로 다시 읽었다. `1280×720`에서는 입장부터 첫 미닫이문을 열어 objective가 `문을 통과한 뒤 닫고 잠가라`로 바뀌는 것을 확인했고, `844×390`·`390×844`에서는 이동·look pad와 `E/F/Q/C/Shift/Tab` touch HUD가 모두 보였다. 세 viewport 모두 canvas 1개, 정확한 `scrollWidth`, 가로 overflow 0, console error 0이었고 모바일 최소 target은 `34 CSS px`였다. Production feature flag와 production 배포는 변경하지 않았다.
 
 실패 이력으로 남긴 private v17/v4 후보는 예상치 못한 primitive·미압축 delivery·기술 계약 결함 때문에 승격하지 않았다. 승인 build는 strict validator를 통과한 r18 route와 기존 skinned character delivery이며, release guard는 저장소에 고정한 렌더를 다시 읽어 SHA-256을 검증한다.
@@ -88,11 +90,13 @@ GitHub Actions run `32926041500`에서 commit `fe350a7`의 asset validation, lin
 
 - 게스트 run raw token은 `__Host-icons-last-bell-run`의 `HttpOnly; Secure; SameSite=Lax; Path=/` 쿠키에만 있고 JavaScript와 DB에는 노출되지 않는다. DB에는 SHA-256 digest만 저장한다.
 - active run 24시간, 완주 뒤 로그인 claim 7일 계약을 적용했다.
+- 한 guest cookie로 여러 완료 replay가 생겨도 첫 로그인 claim이 동일 digest의 당시 유효한 완료 run을 모두 같은 계정에 원자적으로 귀속한 뒤 cookie를 만료한다. 다른 계정으로 digest 소유권을 나누는 claim은 거절한다.
 - 서버가 sequence, operation idempotency, 필수 objective 순서, checkpoint, zone, 물리적 최소 전이 시간, 중복 pickup, 완료 후 event를 검증한다.
 - 최소 전이 시간은 클라이언트 누적값이 아니라 서버가 관측한 milestone 전이 시각으로 검증한다. 현재 stage 절대 하한은 `0/1/4/15/18/20/20/20/23/128/138초`, 직전 stage 전이 하한은 `0/1/3/11/2/1/0/0/3/105/10초`다. 이는 불가능한 event burst를 거절하는 하한이며 10분 플레이를 만드는 장치가 아니다.
 - 자연 cold-open과 준비 완료 뒤 skip은 동일한 route evidence에 합류하며, `worldReady && doorReady` 뒤 첫 문 상호작용을 즉시 사용할 수 있다. 겹치는 authored zone은 가장 작은 collider 우선과 stable tie-break로 판정해 utility가 corridor로 오인되지 않는다.
 - verified experience gate가 꺼지면 run 시작·event·complete·claim·inventory 다섯 authority surface가 모두 `404 not_found`로 닫힌다. 계정 run과 guest claim에는 계정 정지·삭제 대기·온보딩 write fence를 API preflight와 DB trigger 양쪽에 적용한다.
 - 클라이언트는 `good_id`를 제출하지 않는다. versioned collectible→good mapping과 검증된 pickup ledger가 entitlement를 결정한다.
+- inventory 응답의 `isPurchasable`을 클라이언트 경계에서 보존해 판매기간이 끝난 구매권은 게임 인벤토리와 전용 보급소 모두 `판매 기간 종료`로 표시하고 구매 가능으로 오인하지 않는다.
 - `goods.purchase_access = story_entitlement` 상품은 직접 cart DML, cart merge, 주문 생성 모두에서 구매권을 다시 검증한다. 기존 재고 잠금, 주문 snapshot, Korpay `PaymentGateway` 경계는 변경하지 않았다.
 - `20260826023403_last_bell_public_cart_compatibility.sql`은 이 trigger를 `story_entitlement` 상품에만 적용해 기존 `public` 상품의 정상 cart 동작을 보존한다. fresh local DB와 Preview migration에서 함께 검증했다.
 - Chapter replay에서 새 pickup은 검증된 챕터 출구에 도달한 뒤만 귀속되고 중복 수집은 추가 혜택을 만들지 않는다.
@@ -146,16 +150,17 @@ GitHub Actions run `32926041500`에서 commit `fe350a7`의 asset validation, lin
 
 | 명령/검사 | 결과 |
 | --- | --- |
-| `npm test` | 최신 `origin/main` 병합 및 clean-runner provenance 회귀 추가 뒤 통과: 379 files passed, 1 skipped / 3,503 tests passed, 1 skipped |
+| `npm test` | 최신 검증 경로·inventory·guest 다회차 회귀 추가 뒤 통과: 382 files passed, 1 skipped / 3,509 tests passed, 1 skipped |
 | `npm run typecheck` | 통과 |
 | `npm run lint` | exit 0; 기존 `scripts/hong-sil-downloader.mjs:294` warning 1건만 존재 |
-| `npm run build` | 통과; Next.js 16.3.0 production build와 verified page·5개 API route 포함 |
+| `npm run build` | 통과; Next.js 16.3.0 production build와 verified game·전용 store page·5개 API route 포함 |
 | `supabase db reset --local --no-seed` 및 seed 포함 재실행 | migration clean apply와 Preview seed 초기화 모두 통과 |
-| `supabase/tests/last_bell_verified_runs.sql` | ACL/RLS, run 순서, replay, guest claim, multitab, 직접 cart/merge/order 우회, public 상품 cart 호환성, order snapshot 통과 |
+| `supabase/tests/last_bell_verified_runs.sql` | ACL/RLS, run 순서, replay, 동일 cookie의 완료 run 전체 guest claim, multitab, 직접 cart/merge/order 우회, public 상품 cart 호환성, order snapshot 통과 |
 | `supabase/tests/last_bell_preview_catalog.sql` | Preview 10상품 mapping·가안 seed canary 통과 |
 | `npx supabase db lint --local` | schema lint 오류 없음 |
 | 4개 Last Bell asset validator + 환경 자동 디자인 gate | opening, 상품 10종, source-archive campaign pack, public route·character `r18` strict validator가 모두 통과했다. clean CI runner에서는 커밋된 CC0 provenance pin과 5개 source-review render hash를 재검증하고, raw DCC source가 존재하는 로컬 빌드에서는 같은 source GLB hash까지 추가로 재검증한다. 생성 reference 기반 환경 자동 디자인 gate도 6/6 통과했다. human visual·external IP 승인은 build-matched 렌더와 별도 근거로 고정했다. |
-| public release guard | 통과: public GLB marker, route·character 및 opening build ID, human/external-IP 승인, 16개 DCC/delivery render와 10개 fresh browser screenshot의 실제 SHA-256, 3개 viewport의 P0·overflow·console·interaction 계약을 재검증 |
+| public release guard | 통과: public GLB marker, route·character 및 opening build ID, human/external-IP 승인, 16개 DCC/delivery render와 게임 10장·전용 보급소 6장 browser screenshot의 실제 SHA-256, 게임·보급소 각 3개 viewport의 P0·overflow·console·interaction·상품 계약을 재검증 |
+| verified store production browser QA | `1280×720`, `844×390`, `390×844`에서 10개 카드·11개 이미지, broken image 0, overflow 0, console error 0, 최소 target 44 CSS px 통과. 6장 screenshot hash를 별도 evidence JSON에 고정 |
 | GitHub Actions `32926041500` + Preview read-back | validate, Supabase Preview, Vercel Preview job 통과. PR head branch checkout과 branch-scoped env 적용 뒤 배포 URL에서 desktop·landscape·portrait의 canvas·overflow·console·첫 문·touch HUD 계약 통과 |
 | fixed-step matrix | 5/15/30/60/120Hz와 200ms stall 결정론 테스트 통과 |
 | evidence-driven route contract | idle 시간만으로 objective가 열리지 않고, 실제 locker cover → 보건실·방송실 수색 → HeavyObstacle → power/noise → fire-door 통과·잠금 → 계단실 2개 inspection → rooftop 접근 순서가 필요하다. 5/15/30/60/120Hz와 200ms stall에서 같은 semantic 결과를 확인했다. deterministic 경로 테스트는 사람의 첫 성공 10분 측정을 대체하지 않는다. |

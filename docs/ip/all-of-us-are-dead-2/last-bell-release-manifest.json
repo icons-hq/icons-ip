@@ -21,6 +21,7 @@
       "blanket"
     ],
     "verified_route": "/experiences/all-of-us-are-dead/last-bell",
+    "verified_store_route": "/experiences/all-of-us-are-dead/last-bell/store",
     "local_qa_route": "/games/prototype-last-bell"
   },
   "components": {
@@ -134,20 +135,22 @@
       "review_status": "approved-external-ip-dialogue-review"
     },
     "verified_run_schema": {
-      "build_id": "last-bell-verified-run-20260826000500",
+      "build_id": "last-bell-verified-run-20260826034850",
       "migrations": [
         "supabase/migrations/20260825023830_last_bell_verified_runs_and_entitlements.sql",
         "supabase/migrations/20260825043125_last_bell_verified_run_security_fences.sql",
         "supabase/migrations/20260825043126_last_bell_verified_run_intro_skip_timing.sql",
         "supabase/migrations/20260825044500_last_bell_first_door_physical_checkpoint.sql",
-        "supabase/migrations/20260826000500_last_bell_evidence_driven_progression.sql"
+        "supabase/migrations/20260826000500_last_bell_evidence_driven_progression.sql",
+        "supabase/migrations/20260826034850_last_bell_claim_all_completed_guest_runs.sql"
       ]
     }
   },
   "evidence": {
     "provenance": "docs/ip/all-of-us-are-dead-2/asset-provenance.md",
     "qa_report": "docs/ip/all-of-us-are-dead-2/qa-report.md",
-    "browser_qa": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser-qa-evidence.json"
+    "browser_qa": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser-qa-evidence.json",
+    "verified_store_browser_qa": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/verified-store-qa-evidence.json"
   },
   "deployment_validation": {
     "github_actions_run": 32926041500,
@@ -164,6 +167,7 @@
   "status": {
     "automated_contracts": "pass",
     "local_production_build_browser_qa": "pass-three-viewports-entry-skip-first-door-console-clean",
+    "verified_store_browser_qa": "pass-three-viewports-ten-products-images-console-and-overflow-clean",
     "preview_deployment": "pass-supabase-migrations-vercel-preview-three-viewports-first-door-console-clean",
     "production_release": "approved-release-candidate-pending-production-readback",
     "public_cart_compatibility": "pass-public-goods-unchanged-story-entitlement-guarded",

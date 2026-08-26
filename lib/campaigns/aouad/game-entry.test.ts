@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   LAST_BELL_LOCAL_QA_PATH,
   LAST_BELL_VERIFIED_EXPERIENCE_PATH,
+  LAST_BELL_VERIFIED_STORE_PATH,
   isLastBellVerifiedCatalogEligible,
   isLastBellVerifiedExperienceEnabled,
   lastBellGameHref,
@@ -23,5 +24,6 @@ describe('Last Bell popup game entry', () => {
     expect(isLastBellVerifiedCatalogEligible(environment)).toBe(true);
     expect(isLastBellVerifiedExperienceEnabled(environment)).toBe(true);
     expect(lastBellGameHref(environment)).toBe(LAST_BELL_VERIFIED_EXPERIENCE_PATH);
+    expect(LAST_BELL_VERIFIED_STORE_PATH).toBe(`${LAST_BELL_VERIFIED_EXPERIENCE_PATH}/store`);
   });
 });

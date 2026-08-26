@@ -2,7 +2,10 @@
 
 import Link from 'next/link';
 import { useEffect } from 'react';
-import { AOUAD_POPUP_PATH } from '@/lib/campaigns/aouad/content';
+import {
+  LAST_BELL_POPUP_PATH,
+  LAST_BELL_VERIFIED_STORE_PATH,
+} from '@/lib/campaigns/aouad/game-entry';
 import { LAST_BELL_ROOFTOP_ENDING_KO, rooftopEndingState } from '@/lib/prototypes/last-bell/narrative';
 import type { LastBellRooftopPhase } from '@/lib/prototypes/last-bell/runtime/types';
 import styles from './last-bell.module.css';
@@ -40,6 +43,9 @@ export function RooftopEndingOverlay({
 }: RooftopEndingOverlayProps) {
   const ending = rooftopEndingState(phase, phaseElapsedSeconds, suspended);
   const resultReady = phase === 'black' && gameComplete;
+  const storeHref = authority === 'verified-candidate'
+    ? LAST_BELL_VERIFIED_STORE_PATH
+    : `${LAST_BELL_POPUP_PATH}/store`;
 
   useEffect(() => {
     if (!ending.playHeartbeat) return undefined;
@@ -80,8 +86,8 @@ export function RooftopEndingOverlay({
               <div className={styles.endingActions}>
                 <button type="button" onClick={onOpenInventory}>수집 인벤토리 확인</button>
                 {authority === 'verified-candidate' && !isAuthenticated
-                  ? <Link href={claimHref ?? `/login?next=${encodeURIComponent(`${AOUAD_POPUP_PATH}/store`)}`}>로그인하고 구매권 저장</Link>
-                  : <Link href={`${AOUAD_POPUP_PATH}/store`}>보급소로 돌아가기</Link>}
+                  ? <Link href={claimHref ?? `/login?next=${encodeURIComponent(storeHref)}`}>로그인하고 구매권 저장</Link>
+                  : <Link href={storeHref}>보급소로 돌아가기</Link>}
                 <button type="button" onClick={() => onReplayChapter('chapter-01')}>Chapter 1 다시 수색</button>
                 <button type="button" onClick={() => onReplayChapter('chapter-02')}>Chapter 2 다시 수색</button>
               </div>

@@ -34,6 +34,7 @@ import {
   VerifiedRunHost,
   type LastBellRunAuthority,
   type LastBellRunHostStatus,
+  type LastBellRunInventoryItem,
 } from './LastBellRunHost';
 import { RooftopEndingOverlay } from './RooftopEndingOverlay';
 import styles from './last-bell.module.css';
@@ -164,6 +165,7 @@ export function LastBellCampaignClient({ authority, isAuthenticated, authConfigu
   const [runMode, setRunMode] = useState<RunMode>(() => qaStartsAtRooftop ? 'chapter-replay' : 'first-play');
   const [progressStage, setProgressStage] = useState(0);
   const [committed, setCommitted] = useState<CollectibleKey[]>([]);
+  const [unavailableCommitted, setUnavailableCommitted] = useState<CollectibleKey[]>([]);
   const [resumePending, setResumePending] = useState<CollectibleKey[]>([]);
   const [pickupToast, setPickupToast] = useState<CollectibleKey | null>(null);
   const [foreshadowingCue, setForeshadowingCue] = useState<LastBellInfectionForeshadowing | null>(null);
@@ -207,6 +209,13 @@ export function LastBellCampaignClient({ authority, isAuthenticated, authConfigu
   const host = useMemo(() => authority === 'verified-candidate'
     ? new VerifiedRunHost(setHostStatus)
     : new LocalRunHost(), [authority]);
+
+  const applyVerifiedInventory = useCallback((items: readonly LastBellRunInventoryItem[]) => {
+    setCommitted(uniqueKeys(items.map((item) => item.collectibleKey)));
+    setUnavailableCommitted(uniqueKeys(
+      items.filter((item) => !item.isPurchasable).map((item) => item.collectibleKey),
+    ));
+  }, []);
 
   const refreshMovement = useCallback(() => {
     const pressed = pressedRef.current;
@@ -292,8 +301,8 @@ export function LastBellCampaignClient({ authority, isAuthenticated, authConfigu
 
   useEffect(() => {
     if (authority !== 'verified-candidate' || !isAuthenticated) return;
-    void host.loadInventory().then((keys) => setCommitted(uniqueKeys(keys))).catch(() => undefined);
-  }, [authority, host, isAuthenticated]);
+    void host.loadInventory().then(applyVerifiedInventory).catch(() => undefined);
+  }, [applyVerifiedInventory, authority, host, isAuthenticated]);
 
   useEffect(() => {
     if (authority !== 'verified-candidate' || !isAuthenticated) return;
@@ -301,11 +310,11 @@ export function LastBellCampaignClient({ authority, isAuthenticated, authConfigu
     const claimRunId = url.searchParams.get('claimRunId');
     if (!claimRunId) return;
     void host.claim(claimRunId).then(async () => {
-      setCommitted(uniqueKeys(await host.loadInventory()));
+      applyVerifiedInventory(await host.loadInventory());
       url.searchParams.delete('claimRunId');
       window.history.replaceState(null, '', `${url.pathname}${url.search}`);
     }).catch(() => setHostStatus({ state: 'error', runId: claimRunId, message: 'claim_failed' }));
-  }, [authority, host, isAuthenticated]);
+  }, [applyVerifiedInventory, authority, host, isAuthenticated]);
 
   useEffect(() => {
     if (!pickupToast) return;
@@ -436,14 +445,13 @@ export function LastBellCampaignClient({ authority, isAuthenticated, authConfigu
       await host.complete();
       setHostStatus(host.status());
       if (authority === 'verified-candidate') {
-        setCommitted(isAuthenticated
-          ? uniqueKeys(await host.loadInventory())
-          : uniqueKeys(candidate.committedCollectibles));
+        if (isAuthenticated) applyVerifiedInventory(await host.loadInventory());
+        else setCommitted(uniqueKeys(candidate.committedCollectibles));
       }
     } catch {
       setHostStatus(host.status());
     }
-  }, [authority, host, isAuthenticated]);
+  }, [applyVerifiedInventory, authority, host, isAuthenticated]);
 
   const startRun = useCallback(async (chapterId: ChapterId, nextMode: RunMode) => {
     setStarting(true);
@@ -776,6 +784,7 @@ export function LastBellCampaignClient({ authority, isAuthenticated, authConfigu
         collected={snapshot.collectedThisRun}
         pending={snapshot.pendingCollectibles}
         committed={committed}
+        unavailable={unavailableCommitted}
         onClose={() => {
           setInventoryOpen(false);
           setPaused(false);

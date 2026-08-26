@@ -15,6 +15,7 @@ type LastBellInventoryPanelProps = {
   collected: readonly LastBellCollectibleKey[];
   pending: readonly LastBellCollectibleKey[];
   committed: readonly LastBellCollectibleKey[];
+  unavailable: readonly LastBellCollectibleKey[];
   onClose: () => void;
 };
 
@@ -25,6 +26,7 @@ export function LastBellInventoryPanel({
   collected,
   pending,
   committed,
+  unavailable,
   onClose,
 }: LastBellInventoryPanelProps) {
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -53,6 +55,7 @@ export function LastBellInventoryPanel({
   const collectedKeys = new Set(collected);
   const pendingKeys = new Set(pending);
   const committedKeys = new Set(committed);
+  const unavailableKeys = new Set(unavailable);
 
   return (
     <section className={styles.inventoryOverlay} role="dialog" aria-modal="true" aria-labelledby="last-bell-inventory-title">
@@ -73,7 +76,9 @@ export function LastBellInventoryPanel({
             const isCollected = collectedKeys.has(item.key) || isPending || isCommitted;
             const status = isCommitted
               ? authority === 'verified-candidate'
-                ? isAuthenticated ? '구매권 검증 완료' : '게스트 기록 완료 · 로그인 저장 필요'
+                ? isAuthenticated
+                  ? unavailableKeys.has(item.key) ? '판매 기간 종료' : '구매권 검증 완료'
+                  : '게스트 기록 완료 · 로그인 저장 필요'
                 : '로컬 수집 완료'
               : isPending ? '출구 도달 시 저장'
                 : isCollected ? '이번 플레이에서 발견'

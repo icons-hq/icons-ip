@@ -527,10 +527,23 @@ set local role service_role;
 select pg_temp.start_run(null, repeat('b', 64), 'chapter-01', 'chapter-replay') as guest_replay_run_id \gset
 reset role;
 select 1 / case when (select run_mode from private.last_bell_runs where id = :'guest_replay_run_id'::uuid) = 'chapter-replay' then 1 else 0 end as assert_completed_guest_can_start_chapter_replay;
-update private.last_bell_runs set status = 'expired' where id = :'guest_replay_run_id'::uuid;
-select public.last_bell_claim_run(:'guest_run_id'::uuid, '00000000-0000-4000-8000-000000000702', repeat('b', 64)) as first_claim \gset
-select public.last_bell_claim_run(:'guest_run_id'::uuid, '00000000-0000-4000-8000-000000000702', repeat('b', 64)) as retry_claim \gset
+update private.last_bell_runs
+set
+  status = 'completed',
+  progress_stage = 6,
+  completed_at = now(),
+  claim_until = now() + interval '7 days'
+where id = :'guest_replay_run_id'::uuid;
+select public.last_bell_claim_run(:'guest_replay_run_id'::uuid, '00000000-0000-4000-8000-000000000702', repeat('b', 64)) as first_claim \gset
+select public.last_bell_claim_run(:'guest_replay_run_id'::uuid, '00000000-0000-4000-8000-000000000702', repeat('b', 64)) as retry_claim \gset
 select 1 / case when (:'first_claim'::jsonb ->> 'status') = 'claimed' and (:'retry_claim'::jsonb ->> 'status') = 'idempotent' and exists (select 1 from public.goods_purchase_entitlements where user_id = '00000000-0000-4000-8000-000000000702' and good_id = 'last-bell-test-g9') then 1 else 0 end as assert_guest_claim_is_idempotent;
+select 1 / case when (
+  select count(*)
+  from private.last_bell_runs
+  where id in (:'guest_run_id'::uuid, :'guest_replay_run_id'::uuid)
+    and user_id = '00000000-0000-4000-8000-000000000702'
+    and claimed_at is not null
+) = 2 then 1 else 0 end as assert_guest_claim_binds_all_completed_cookie_runs;
 select set_config('last_bell.test.guest_run_id', :'guest_run_id', false);
 do $$
 begin

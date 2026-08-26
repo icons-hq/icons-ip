@@ -32,6 +32,13 @@ export type LastBellRunResumeResolution = Readonly<{
   terminal: 'game-complete' | 'chapter-exit' | null;
 }>;
 
+export type LastBellRunInventoryItem = Readonly<{
+  collectibleKey: CollectibleKey;
+  goodId: string;
+  validUntil: string;
+  isPurchasable: boolean;
+}>;
+
 export function resolveLastBellRunResume(result: LastBellRunStart): LastBellRunResumeResolution {
   const restoredChapter: ChapterId = result.runMode === 'chapter-replay'
     ? result.startChapterId
@@ -60,7 +67,7 @@ export interface LastBellRunHost {
   record(event: LastBellRuntimeEvent, snapshot: LastBellSimulationSnapshot): void;
   complete(): Promise<void>;
   claim(runId: string): Promise<void>;
-  loadInventory(): Promise<readonly CollectibleKey[]>;
+  loadInventory(): Promise<readonly LastBellRunInventoryItem[]>;
   status(): LastBellRunHostStatus;
 }
 
@@ -119,7 +126,7 @@ export class LocalRunHost implements LastBellRunHost {
 
   async claim(): Promise<void> {}
 
-  async loadInventory(): Promise<readonly CollectibleKey[]> { return []; }
+  async loadInventory(): Promise<readonly LastBellRunInventoryItem[]> { return []; }
 
   status(): LastBellRunHostStatus { return this.current; }
 }
@@ -261,12 +268,25 @@ export class VerifiedRunHost implements LastBellRunHost {
     }));
   }
 
-  async loadInventory(): Promise<readonly CollectibleKey[]> {
+  async loadInventory(): Promise<readonly LastBellRunInventoryItem[]> {
     const body = await assertOk(await fetch('/api/me/last-bell-inventory', { credentials: 'same-origin' }));
     if (!isRecord(body) || !Array.isArray(body.items)) return [];
-    return body.items.flatMap((item) => (
-      isRecord(item) && typeof item.collectibleKey === 'string' ? [item.collectibleKey as CollectibleKey] : []
-    ));
+    return body.items.flatMap((item) => {
+      if (
+        !isRecord(item)
+        || typeof item.collectibleKey !== 'string'
+        || !VERIFIED_COLLECTIBLE_KEYS.has(item.collectibleKey)
+        || typeof item.goodId !== 'string'
+        || typeof item.validUntil !== 'string'
+        || typeof item.isPurchasable !== 'boolean'
+      ) return [];
+      return [{
+        collectibleKey: item.collectibleKey as CollectibleKey,
+        goodId: item.goodId,
+        validUntil: item.validUntil,
+        isPurchasable: item.isPurchasable,
+      }];
+    });
   }
 
   status(): LastBellRunHostStatus { return this.current; }

@@ -518,7 +518,13 @@ function formatPreviewPrice(value: number): string {
   return `${new Intl.NumberFormat('ko-KR').format(value)}원`;
 }
 
-function StoreZone({ entry }: { entry: AouadGameEntryContext }) {
+export function AouadStoreZone({
+  entry,
+  storeHref = `${AOUAD_POPUP_PATH}/store`,
+}: {
+  entry: AouadGameEntryContext;
+  storeHref?: string;
+}) {
   const { state, toggleWishlist } = useAouadCampaign();
   const requestKey = `${entry.authority}:${entry.isAuthenticated}`;
   const canLoadEntitlements = entry.authority === 'verified-candidate' && entry.isAuthenticated;
@@ -584,7 +590,7 @@ function StoreZone({ entry }: { entry: AouadGameEntryContext }) {
           );
         })}
       </div>
-      {!entry.isAuthenticated && entry.authConfigured ? <p className={styles.storeAuthNote}><Link href={`/login?next=${encodeURIComponent(`${AOUAD_POPUP_PATH}/store`)}`}>로그인</Link>하면 완주 후 구매권을 계정에 저장할 수 있습니다. 게스트 수집 기록은 쿠키가 사라지면 복구할 수 없습니다.</p> : null}
+      {!entry.isAuthenticated && entry.authConfigured ? <p className={styles.storeAuthNote}><Link href={`/login?next=${encodeURIComponent(storeHref)}`}>로그인</Link>하면 완주 후 구매권을 계정에 저장할 수 있습니다. 게스트 수집 기록은 쿠키가 사라지면 복구할 수 없습니다.</p> : null}
       {inventoryStatus === 'error' ? <p className={styles.storeAuthNote} role="status">구매권을 불러오지 못했습니다. 상품 상세와 결제 단계에서도 구매권을 다시 검증합니다.</p> : null}
     </section>
   );
@@ -605,7 +611,7 @@ function ZoneView({ zone, preloadHero, entry }: { zone: AouadZoneId; preloadHero
       case 'cafeteria': return <CafeteriaZone />;
       case 'broadcast': return <BroadcastZone />;
       case 'theater': return <TheaterZone />;
-      case 'store': return <StoreZone entry={entry} />;
+      case 'store': return <AouadStoreZone entry={entry} />;
       case 'rooftop': return <RooftopZone />;
     }
   }, [entry, zone]);
