@@ -26,12 +26,17 @@ describe('Supabase preview branch workflow contract', () => {
     const mode = findStep(job, 'Select preview database mode');
 
     expect(checkout.with).toEqual({ 'fetch-depth': 0 });
-    expect(mode.run).toContain('git diff --name-only --diff-filter=ACDMRT -z');
+    expect(mode.run).toContain(
+      'git diff --name-only --no-renames --diff-filter=ACDMRT -z',
+    );
+    expect(mode.run).toContain('"$PR_BASE_SHA...$PR_HEAD_SHA"');
     expect(mode.run).toContain('node scripts/preview-supabase-mode.mjs');
+    expect(mode.run).toContain("grep -zq '^supabase/functions/'");
     expect(job.outputs).toEqual({
       configured: '${{ steps.check.outputs.configured }}',
       database_mode: '${{ steps.mode.outputs.database_mode }}',
       branch_name: '${{ steps.mode.outputs.branch_name }}',
+      functions_changed: '${{ steps.mode.outputs.functions_changed }}',
     });
     expect(job.outputs).not.toHaveProperty('SUPABASE_SERVICE_ROLE_KEY');
     expect(job.outputs).not.toHaveProperty('POSTGRES_URL');
@@ -62,6 +67,7 @@ describe('Supabase preview branch workflow contract', () => {
     const job = workflow.jobs['deploy-supabase-preview'];
     const prepare = findStep(job, 'Prepare exact Supabase preview branch');
     const push = findStep(job, 'Apply migrations and seed to isolated preview');
+    const functions = findStep(job, 'Deploy Edge Functions to isolated preview');
     const verify = findStep(job, 'Verify isolated preview catalog baseline');
 
     expect(prepare.run).toContain('branch_name="pr-${PR_NUMBER}"');
@@ -76,6 +82,12 @@ describe('Supabase preview branch workflow contract', () => {
     );
     expect(push.if).toContain("database_mode == 'isolated'");
     expect(push.run).toBe('supabase db push --db-url "$POSTGRES_URL" --include-seed --yes');
+    expect(functions.if).toContain("functions_changed == 'true'");
+    expect(functions.run).toContain('supabase functions deploy');
+    expect(functions.run).toContain('--project-ref "$PROJECT_REF"');
+    expect(functions.run).toContain('--use-api');
+    expect(functions.run).toContain('--prune');
+    expect(functions.run).toContain('supabase functions delete "$function_name"');
     expect(verify.if).toContain("database_mode == 'isolated'");
     expect(verify.run).toContain('postgres:17-alpine');
     expect(job.steps.some((step) => step.run?.includes('db push --linked'))).toBe(false);

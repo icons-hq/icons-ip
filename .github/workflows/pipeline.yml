@@ -277,6 +277,7 @@ jobs:
       configured: ${{ steps.check.outputs.configured }}
       database_mode: ${{ steps.mode.outputs.database_mode }}
       branch_name: ${{ steps.mode.outputs.branch_name }}
+      functions_changed: ${{ steps.mode.outputs.functions_changed }}
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PREVIEW_PROJECT_ID: ${{ secrets.SUPABASE_PREVIEW_PROJECT_ID }}
@@ -332,10 +333,17 @@ jobs:
         run: |
           set -euo pipefail
 
-          database_mode="$(
-            git diff --name-only --diff-filter=ACDMRT -z "$PR_BASE_SHA" "$PR_HEAD_SHA" \
-              | node scripts/preview-supabase-mode.mjs
-          )"
+          changed_paths_file="$(mktemp)"
+          trap 'rm -f "$changed_paths_file"' EXIT
+          git diff --name-only --no-renames --diff-filter=ACDMRT -z \
+            "$PR_BASE_SHA...$PR_HEAD_SHA" > "$changed_paths_file"
+
+          database_mode="$(node scripts/preview-supabase-mode.mjs < "$changed_paths_file")"
+          if grep -zq '^supabase/functions/' "$changed_paths_file"; then
+            functions_changed="true"
+          else
+            functions_changed="false"
+          fi
           if [ "$database_mode" = "isolated" ]; then
             branch_name="pr-${PR_NUMBER}"
           else
@@ -344,6 +352,7 @@ jobs:
 
           echo "database_mode=$database_mode" >> "$GITHUB_OUTPUT"
           echo "branch_name=$branch_name" >> "$GITHUB_OUTPUT"
+          echo "functions_changed=$functions_changed" >> "$GITHUB_OUTPUT"
 
       # shared main이 PR base보다 뒤처졌다면 앱 전용 변경도 새 base schema와 맞지 않는다.
       # base workflow에 sync job이 도입된 뒤부터 exact SHA의 성공 증거를 필수로 한다.
@@ -550,6 +559,48 @@ jobs:
       - name: Apply migrations and seed to isolated preview
         if: steps.check.outputs.configured == 'true' && steps.mode.outputs.database_mode == 'isolated'
         run: supabase db push --db-url "$POSTGRES_URL" --include-seed --yes
+
+      - name: Deploy Edge Functions to isolated preview
+        if: >-
+          steps.check.outputs.configured == 'true'
+          && steps.mode.outputs.database_mode == 'isolated'
+          && steps.mode.outputs.functions_changed == 'true'
+        run: |
+          set -euo pipefail
+
+          local_function_count=0
+          if [ -d supabase/functions ]; then
+            local_function_count="$(
+              find supabase/functions \
+                -mindepth 1 -maxdepth 1 -type d ! -name '_shared' \
+                | wc -l \
+                | tr -d ' '
+            )"
+          fi
+
+          if [ "$local_function_count" -gt 0 ]; then
+            supabase functions deploy \
+              --project-ref "$PROJECT_REF" \
+              --use-api \
+              --prune \
+              --yes
+            exit 0
+          fi
+
+          remote_functions="$(
+            supabase functions list \
+              --project-ref "$PROJECT_REF" \
+              --output json
+          )"
+          while IFS= read -r function_name; do
+            if [[ ! "$function_name" =~ ^[A-Za-z0-9_-]+$ ]]; then
+              echo "::error title=Unsafe Edge Function name::Refusing to delete $function_name"
+              exit 1
+            fi
+            supabase functions delete "$function_name" \
+              --project-ref "$PROJECT_REF" \
+              --yes
+          done < <(jq -r '.[].name // empty' <<<"$remote_functions")
 
       - name: Verify isolated preview catalog baseline
         if: steps.check.outputs.configured == 'true' && steps.mode.outputs.database_mode == 'isolated'
