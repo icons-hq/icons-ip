@@ -21,7 +21,6 @@ describe('Last Bell opening delivery validator', () => {
     const output = execFileSync(process.execPath, [
       resolve(root, 'scripts/last-bell-3d/validate.mjs'),
       delivery,
-      resolve(root, 'outputs/last-bell-3d/raw'),
     ], { encoding: 'utf8' });
 
     const report = JSON.parse(output);

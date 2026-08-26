@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /** Validate shipped GLBs without depending on an application runtime. */
 import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { join, resolve, relative } from 'node:path';
 import { createHash } from 'node:crypto';
 
 const [publicDirArg, rawDirArg] = process.argv.slice(2);
-if (!publicDirArg || !rawDirArg) throw new Error('usage: validate.mjs <public-dir> <raw-dir>');
+if (!publicDirArg) throw new Error('usage: validate.mjs <public-dir> [raw-dir]');
 const publicDir = resolve(publicDirArg);
-const rawDir = resolve(rawDirArg);
+const rawDir = rawDirArg ? resolve(rawDirArg) : null;
 const requiredNodes = {
   'entry.glb': ['Entry_Root', 'Entry_ExposedBrickDamage', 'Entry_BrokenGlassFacade'],
   'start-room.glb': ['StartRoom_Root', 'StartRoom_DirtyTileFloor', 'StartRoom_RearBlackboard', 'Hide_Desk_Classroom_Anchor', 'Hide_Desk_Classroom_Cover'],
@@ -41,6 +42,13 @@ const boundsGate = {
   'first-bay.glb': { min: [-3.2, -0.2, 13.1], max: [3.2, 4.2, 25.1] },
   'classroom-door.glb': { min: [-1.8, -1.6, -0.5], max: [1.8, 1.8, 0.5] },
 };
+const rawSourceFiles = Object.keys(requiredNodes).map((filename) => filename.replace('.glb', '.raw.glb'));
+const rawSourcesAvailable = rawDir !== null
+  && existsSync(join(rawDir, 'build-report.json'))
+  && rawSourceFiles.every((filename) => existsSync(join(rawDir, filename)));
+const committedMetadata = rawSourcesAvailable
+  ? null
+  : JSON.parse(await readFile(join(publicDir, 'metadata.json'), 'utf8'));
 
 function glbJson(buffer) {
   if (buffer.readUInt32LE(0) !== 0x46546c67) throw new Error('not a GLB');
@@ -214,13 +222,23 @@ async function walk(dir) {
 const models = [];
 for (const filename of Object.keys(requiredNodes)) {
   const rawFilename = filename.replace('.glb', '.raw.glb');
-  const rawDoc = glbJson(await readFile(join(rawDir, rawFilename)));
-  const rawBounds = sceneBounds(rawDoc);
+  const committedModel = committedMetadata?.models?.find((model) => model.file === filename);
+  const rawBounds = rawSourcesAvailable
+    ? sceneBounds(glbJson(await readFile(join(rawDir, rawFilename))))
+    : committedModel?.raw_bounds;
+  if (!rawBounds?.min || !rawBounds?.max) {
+    throw new Error(`${filename}: raw authored bounds attestation is missing`);
+  }
   const gate = boundsGate[filename];
   if (gate && (rawBounds.min.some((value, index) => value < gate.min[index]) || rawBounds.max.some((value, index) => value > gate.max[index]))) {
     throw new Error(`${filename}: raw authored bounds ${JSON.stringify(rawBounds)} breach game-space gate ${JSON.stringify(gate)}`);
   }
-  models.push(await modelReport(filename, rawBounds));
+  const model = await modelReport(filename, rawBounds);
+  if (!rawSourcesAvailable && (model.sha256 !== committedModel?.sha256
+    || JSON.stringify(model.optimized_bounds_approx) !== JSON.stringify(committedModel?.optimized_bounds_approx))) {
+    throw new Error(`${filename}: committed delivery no longer matches its clean-runner metadata attestation`);
+  }
+  models.push(model);
 }
 const deliveryFiles = await walk(publicDir);
 const ktx2 = [];
@@ -234,7 +252,9 @@ for (const path of deliveryFiles.filter((path) => path.endsWith('.ktx2'))) {
 }
 const totalCriticalBytes = models.reduce((sum, model) => sum + model.bytes, 0) + ktx2.reduce((sum, asset) => sum + asset.bytes, 0);
 if (totalCriticalBytes > 25 * 1024 * 1024) throw new Error(`critical transfer hard cap exceeded: ${totalCriticalBytes}`);
-const source = JSON.parse(await readFile(join(rawDir, 'build-report.json'), 'utf8'));
+const source = rawSourcesAvailable
+  ? JSON.parse(await readFile(join(rawDir, 'build-report.json'), 'utf8'))
+  : committedMetadata;
 const buildId = `last-bell-3d-${createHash('sha256')
   .update(JSON.stringify({
     models: models.map(({ file, bytes, sha256 }) => ({ file, bytes, sha256 })),
@@ -274,5 +294,8 @@ const report = {
   models,
   lightmaps: ktx2,
 };
-await writeFile(join(publicDir, 'metadata.json'), JSON.stringify(report, null, 2) + '\n');
+if (!rawSourcesAvailable && committedMetadata.build_id !== buildId) {
+  throw new Error(`committed opening metadata build ID does not match delivery: ${committedMetadata.build_id} !== ${buildId}`);
+}
+if (rawSourcesAvailable) await writeFile(join(publicDir, 'metadata.json'), JSON.stringify(report, null, 2) + '\n');
 console.log(JSON.stringify(report, null, 2));
