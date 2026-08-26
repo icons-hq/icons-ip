@@ -284,7 +284,6 @@ jobs:
       PR_NUMBER: ${{ github.event.pull_request.number }}
       PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-      PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
 
     steps:
       - name: Check out repository
@@ -466,7 +465,6 @@ jobs:
             --project-ref "$SUPABASE_PREVIEW_PROJECT_ID" \
             --region ap-northeast-2 \
             --size micro \
-            --git-branch "$PR_HEAD_REF" \
             --yes \
             --output json >/dev/null
 

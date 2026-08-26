@@ -70,6 +70,7 @@ describe('Supabase preview branch workflow contract', () => {
     expect(prepare.run).toContain('--region ap-northeast-2');
     expect(prepare.run).toContain('--size micro');
     expect(prepare.run).not.toContain('--with-data');
+    expect(prepare.run).not.toContain('--git-branch');
     expect(prepare.run).toContain(
       '.SUPABASE_PUBLISHABLE_KEY // .SUPABASE_ANON_KEY // empty',
     );
