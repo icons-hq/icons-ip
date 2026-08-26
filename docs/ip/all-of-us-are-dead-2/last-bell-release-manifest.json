@@ -149,11 +149,23 @@
     "qa_report": "docs/ip/all-of-us-are-dead-2/qa-report.md",
     "browser_qa": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser-qa-evidence.json"
   },
+  "deployment_validation": {
+    "github_actions_run": 32923471193,
+    "validated_commit": "3977884",
+    "supabase_preview": "pass-migrations-seed-baseline-and-db-contracts",
+    "public_cart_compatibility_migration": "supabase/migrations/20260826023403_last_bell_public_cart_compatibility.sql",
+    "vercel_preview_url": "https://icons-figslnzst-sangwopark19icons-1055s-projects.vercel.app",
+    "verified_route": "/experiences/all-of-us-are-dead/last-bell",
+    "feature_flag_scope": "preview-only-branch-ps-feat-last-bell-vertical-slice",
+    "browser_readback": "pass-three-viewports-first-door-console-clean",
+    "production": "not-deployed"
+  },
   "status": {
     "automated_contracts": "pass",
     "local_production_build_browser_qa": "pass-three-viewports-entry-skip-first-door-console-clean",
-    "preview_deployment": "approved-pending-execution",
-    "production_release": "approved-release-candidate-pending-preview-and-production-readback",
+    "preview_deployment": "pass-supabase-migrations-vercel-preview-three-viewports-first-door-console-clean",
+    "production_release": "approved-release-candidate-pending-production-readback",
+    "public_cart_compatibility": "pass-public-goods-unchanged-story-entitlement-guarded",
     "automated_asset_contracts": "pass",
     "opening_visual_asset_review": "approved-human-art-and-external-ip-review",
     "internal_visual_asset_review": "approved-human-art-review",
