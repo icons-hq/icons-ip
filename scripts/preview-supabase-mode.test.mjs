@@ -14,6 +14,7 @@ describe('preview Supabase database mode', () => {
     'supabase/functions/example/index.ts',
     'supabase/templates/recovery.html',
     'scripts/sync-supabase-auth.mjs',
+    '.github/workflows/pipeline.yml',
   ])('isolates deploy-affecting path %s', (filePath) => {
     expect(requiresIsolatedPreviewDatabase(filePath)).toBe(true);
   });
@@ -22,7 +23,7 @@ describe('preview Supabase database mode', () => {
     'supabase/tests/catalog_baseline.sql',
     'app/page.tsx',
     'README.md',
-    '.github/workflows/pipeline.yml',
+    '.github/workflows/supabase-preview-cleanup.yml',
   ])('keeps non-deploying path %s on the shared main preview', (filePath) => {
     expect(requiresIsolatedPreviewDatabase(filePath)).toBe(false);
   });

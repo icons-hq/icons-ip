@@ -6,6 +6,7 @@ const ISOLATED_PREVIEW_PATHS = [
   /^supabase\/templates\//,
   /^supabase\/(?:config\.toml|roles\.sql|seed\.sql)$/,
   /^scripts\/sync-supabase-auth\.mjs$/,
+  /^\.github\/workflows\/pipeline\.yml$/,
 ];
 
 function normalizePath(filePath) {

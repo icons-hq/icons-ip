@@ -184,10 +184,10 @@ npm run hong-sil:download -- \
 
 ## CI/CD
 
-GitHub Actions의 `CI/CD Pipeline`은 PR 검증(lint/typecheck/test/build/Supabase local lint), Vercel preview 배포, production 배포를 처리하고 `Supabase Preview Cleanup`은 PR close 시 isolated branch만 정리한다.
+GitHub Actions의 `CI/CD Pipeline`은 PR 검증(lint/typecheck/test/build/Supabase local lint), Vercel preview 배포, production 배포를 처리하고 `Supabase Preview Cleanup`은 PR close 시 최종 base와 무관하게 deterministic isolated branch만 정리한다.
 
 - `pull_request`: `validate` 통과 후 같은 repo 브랜치 PR이면 삭제를 포함한 전체 diff로 preview DB mode를 고른다. Supabase 배포 변경이 없으면 base SHA의 main→shared sync 성공 증거를 확인한 뒤 shared main을 변경 없이 사용하고, 있으면 무데이터 `pr-<number>` branch를 재생성해 migration·seed·baseline 검증을 마친 뒤 Vercel preview를 배포한다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
-- `pull_request: closed`: Preview pipeline과 같은 per-PR concurrency key에서 대기한 뒤 non-default `pr-<number>` branch가 있으면 삭제한다.
+- `pull_request: closed`: 최종 base와 무관하게 Preview pipeline과 같은 per-PR concurrency key에서 대기한 뒤 non-default `pr-<number>` branch가 있으면 삭제한다.
 - `merge_group`: `validate` job만 실행한다.
 - `push` to `main`: `validate` 통과 후 `deploy-supabase`를 실행하고, 그 다음 `deploy-vercel`을 실행한다. Production migration이 성공한 동일 main을 `sync-supabase-preview-main`이 shared preview main에도 적용한다.
 - `workflow_dispatch`: 기본은 `validate`만 실행한다. `production_redeploy=true`와 현재 main의

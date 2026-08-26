@@ -134,6 +134,7 @@ describe('Supabase preview branch workflow contract', () => {
     const cleanup = findStep(job, 'Delete isolated preview branch');
 
     expect(workflow.on.pull_request.types).toEqual(['closed']);
+    expect(workflow.on.pull_request).not.toHaveProperty('branches');
     expect(workflow.concurrency.group).toBe(
       'supabase-preview-pr-${{ github.event.pull_request.number }}',
     );

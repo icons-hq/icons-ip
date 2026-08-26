@@ -2,8 +2,6 @@ name: Supabase Preview Cleanup
 
 on:
   pull_request:
-    branches:
-      - main
     types:
       - closed
 

@@ -11,7 +11,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## 배포와 Preview
 
 - Vercel Git 자동 배포는 `vercel.json`의 `git.deploymentEnabled: false`로 비활성화되어 있다. Preview와 production 배포는 GitHub Actions의 Vercel CLI 경로만 사용한다.
-- PR preview는 전용 Supabase 프로젝트 계열만 본다. DB 배포 변경이 없는 PR은 repo `main`과 같은 shared preview main을 읽기만 하고, migration·config·seed·Auth sync 변경 PR은 무데이터 `pr-<number>` Supabase Preview Branch를 재생성해 앱과 DB 버전을 맞춘다. PR workflow가 shared main에 migration을 누적하거나 production 프로젝트를 가리키게 만들지 않고, preview DB에 운영 데이터를 넣지 않는다(ADR-0006).
+- PR preview는 전용 Supabase 프로젝트 계열만 본다. DB 배포 변경이 없는 PR은 repo `main`과 같은 shared preview main을 읽기만 하고, migration·config·seed·Auth sync·preview pipeline 변경 PR은 무데이터 `pr-<number>` Supabase Preview Branch를 재생성해 앱과 DB 버전을 맞춘다. PR workflow가 shared main에 migration을 누적하거나 production 프로젝트를 가리키게 만들지 않고, preview DB에 운영 데이터를 넣지 않는다(ADR-0006).
 
 ## 공통 참조 규칙
 
