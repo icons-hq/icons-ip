@@ -2,15 +2,15 @@
 
 **목적:** 김포 창고·한진택배·WMS의 실제 운영 절차를 확정해 출고, 운송장, 반품, 개인정보 처리위탁과 초기 할당 재고를 마감합니다.
 
-> **상태: 2026-08-11 작성 · 미회신.** [#177](https://github.com/icons-hq/icons-ip/issues/177)·[#179](https://github.com/icons-hq/icons-ip/issues/179)의 완료 근거가 된다.
+> **상태: 2026-08-11 작성 · 미회신 · 2026-08-26 대상 갱신.** 첫 판매 대상이 홍실 퀘스트에서 메이플스토리 공식 라이선스 굿즈로 전환됐다([#319](https://github.com/icons-hq/icons-ip/issues/319)). 물류 절차 질문은 IP와 무관하게 그대로 유효하며, [#177](https://github.com/icons-hq/icons-ip/issues/177)·[#317](https://github.com/icons-hq/icons-ip/issues/317)의 완료 근거가 된다.
 
 **보내는 사람:** ICONS 개발·운영팀  
 **답변 담당:** 카카오팀 김단비 과장님 및 WMS 물류 담당자  
-**답변 사용처:** 배송정책·개인정보처리방침·운송장 운영 절차와 홍실 굿즈 재고 활성화에 반영합니다.
+**답변 사용처:** 배송정책·개인정보처리방침·운송장 운영 절차와 메이플스토리 굿즈 재고 활성화에 반영합니다.
 
 ## 배경
 
-김포 창고, 한진택배, WMS 사용 사실까지 확인했습니다. ICONS에는 운송장 수기 입력 경로가 있어 API가 없어도 시작할 수 있습니다. 초기 판매는 WMS 재고 중 ICONS 전용 수량을 격리해 운영합니다. 관련 추적 이슈는 [#177](https://github.com/icons-hq/icons-ip/issues/177)과 [#179](https://github.com/icons-hq/icons-ip/issues/179)입니다.
+김포 창고, 한진택배, WMS 사용 사실까지 확인했습니다. ICONS에는 운송장 수기 입력 경로가 있어 API가 없어도 시작할 수 있습니다. 초기 판매는 WMS 재고 중 ICONS 전용 수량을 격리해 운영합니다. 관련 추적 이슈는 [#177](https://github.com/icons-hq/icons-ip/issues/177)과 [#317](https://github.com/icons-hq/icons-ip/issues/317)입니다.
 
 ## 답변 방법
 
@@ -111,11 +111,11 @@
 
 ## ICONS 할당 재고
 
-### 홍실 굿즈의 초기 ICONS 전용 할당 수량을 SKU별로 얼마로 확정합니까?
+### 첫 판매 굿즈의 초기 ICONS 전용 할당 수량을 SKU별로 얼마로 확정합니까?
 
-> `g13` 아크릴 블록:  
-> `g14` 오로라 아크릴 키링:  
-> `g15` 마그넷 인형 세트:
+첫 판매 상품은 메이플스토리 공식 라이선스 굿즈입니다. 상품 라인업이 확정되는 대로([#316](https://github.com/icons-hq/icons-ip/issues/316)) SKU 목록을 채워 회신을 요청합니다.
+
+> SKU 목록(확정 후 기입):
 
 ### ICONS 할당 수량은 WMS에서 어떻게 격리합니까?
 
