@@ -21,6 +21,7 @@ export default function ErrorBoundary({
       <div className="wc-fallback">
         <EmptyState
           title="문제가 발생했습니다"
+          titleAs="h1"
           description="일시적인 오류일 수 있어요. 다시 시도해 주세요."
           action={
             <div className="wc-btn-group">

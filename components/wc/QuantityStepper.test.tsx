@@ -28,15 +28,20 @@ describe('QuantityStepper', () => {
   });
 
   /* 경계에서 실제 disabled 를 걸면 초점이 사라져 키보드 사용자가 컨트롤 밖으로 튕긴다.
-     한계는 시각 클래스로만 알리고 클릭은 조용히 무시한다. */
-  it('marks the lower limit visually instead of disabling the button', () => {
+     대신 시각 클래스와 aria-disabled 를 함께 붙인다 — 한계 상태는 눈과 보조기기에
+     같은 얘기를 해야 한다. */
+  it('marks the lower limit visually and via aria without disabling the button', () => {
     const html = renderToStaticMarkup(<QuantityStepper onChange={noop} value={1} />);
 
     const minus = html.match(/<button\b[^>]*aria-label="수량 줄이기"[^>]*>/)?.[0] ?? '';
     const plus = html.match(/<button\b[^>]*aria-label="수량 늘리기"[^>]*>/)?.[0] ?? '';
     expect(minus).toContain('wc-stepper__btn is-limit');
-    expect(minus).not.toContain('disabled');
+    expect(minus).toContain('aria-disabled="true"');
+    /* 네이티브 disabled 속성만 금지한다 — aria-disabled 의 'disabled' 부분 문자열과 헷갈리지 않게
+       속성 경계로 매칭한다. */
+    expect(minus).not.toMatch(/<button\b[^>]*\sdisabled[\s>=]/);
     expect(plus).toContain('class="wc-stepper__btn"');
+    expect(plus).not.toContain('aria-disabled');
   });
 
   it('marks the upper limit the same way', () => {
@@ -45,8 +50,10 @@ describe('QuantityStepper', () => {
     const minus = html.match(/<button\b[^>]*aria-label="수량 줄이기"[^>]*>/)?.[0] ?? '';
     const plus = html.match(/<button\b[^>]*aria-label="수량 늘리기"[^>]*>/)?.[0] ?? '';
     expect(plus).toContain('wc-stepper__btn is-limit');
-    expect(plus).not.toContain('disabled');
+    expect(plus).toContain('aria-disabled="true"');
+    expect(plus).not.toMatch(/<button\b[^>]*\sdisabled[\s>=]/);
     expect(minus).toContain('class="wc-stepper__btn"');
+    expect(minus).not.toContain('aria-disabled');
   });
 
   it('uses a custom label on the group and the input', () => {

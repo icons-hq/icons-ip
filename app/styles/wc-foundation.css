@@ -373,7 +373,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 22px;
+  /* 화살표 히트박스(44px) 안쪽 여백을 감안한 값 — 글리프와 분수의 시각 간격은 여전히 약 22px다. */
+  gap: 4px;
   margin-top: 40px;
   font-size: 13px;
   font-weight: 400;
@@ -389,7 +390,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
+  /* 글리프는 8×13이지만 히트박스는 아이콘 컨트롤 최소 44px 규칙을 따른다. */
+  width: 44px;
+  height: 44px;
+  padding: 0;
   border: none;
   background: none;
   color: var(--wc-ink);
@@ -542,6 +546,8 @@
 
 .wc-empty__title {
   margin: 0 0 8px;
+  /* titleAs 로 헤딩이 되면 editorial 전역 h1~h3 서체 규칙이 끼어든다 — 지면 서체를 유지한다. */
+  font-family: inherit;
   font-size: 18px;
   font-weight: 700;
   color: var(--wc-ink);
@@ -595,7 +601,8 @@
    ------------------------------------------------------------------ */
 
 .wc-loading {
-  padding: 48px 0 96px;
+  /* 같은 요소에 .wc-container 가 함께 붙는다 — shorthand 는 컨테이너의 좌우 거터까지 지운다. */
+  padding-block: 48px 96px;
 }
 
 .wc-loading__heading {

@@ -8,6 +8,7 @@ export default function NotFound() {
       <div className="wc-fallback">
         <EmptyState
           title="페이지를 찾을 수 없습니다"
+          titleAs="h1"
           description="주소가 바뀌었거나 삭제된 페이지예요."
           action={
             <WcButton href="/" variant="primary">

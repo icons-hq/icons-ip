@@ -43,8 +43,9 @@ export function QuantityStepper({
     commit();
   };
 
-  /* 경계에서도 버튼을 실제 disabled 로 만들지 않는다. 초점을 잃고 사라지는 컨트롤이라
-     시각적으로만 한계를 알리고, 클릭은 조용히 무시한다. */
+  /* 경계에서도 버튼을 실제 disabled 로 만들지 않는다 — 초점을 잃고 사라지는 컨트롤이 된다.
+     대신 aria-disabled 로 보조기기에 같은 한계를 알린다. 시각(is-limit)과 aria 가 함께 가야
+     스크린리더 사용자가 무반응 클릭의 이유를 알 수 있다. */
   const atMin = value <= min;
   const atMax = max != null && value >= max;
 
@@ -55,6 +56,7 @@ export function QuantityStepper({
       role="group"
     >
       <button
+        aria-disabled={atMin || undefined}
         aria-label="수량 줄이기"
         className={`wc-stepper__btn${atMin ? ' is-limit' : ''}`}
         onClick={() => { if (!atMin) onChange(clamp(value - 1)); }}
@@ -73,6 +75,7 @@ export function QuantityStepper({
         value={shown}
       />
       <button
+        aria-disabled={atMax || undefined}
         aria-label="수량 늘리기"
         className={`wc-stepper__btn${atMax ? ' is-limit' : ''}`}
         onClick={() => { if (!atMax) onChange(clamp(value + 1)); }}

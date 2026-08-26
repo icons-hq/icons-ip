@@ -21,17 +21,31 @@ function strideOf(track: HTMLElement) {
   return second.offsetLeft - first.offsetLeft || 1;
 }
 
+/* 분수의 분모는 자식 수가 아니라 도달 가능한 스크롤 위치 수다. 한 화면에 여러 장이 보이면
+   (예: 14장 중 3장 노출) 마지막 위치는 총 12번째라, 자식 수로 세면 분수가 끝까지 차지 않고
+   다음 버튼도 영원히 활성으로 남는다. 최대 스크롤 거리를 한 칸 거리로 나눠 센다. */
+function positionsOf(track: HTMLElement) {
+  const maxScroll = track.scrollWidth - track.clientWidth;
+  if (maxScroll <= 0) return 1;
+  return Math.round(maxScroll / strideOf(track)) + 1;
+}
+
 export function Slider({ children, className, label, showControls = true }: SliderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const childCount = Children.count(children);
-  /* SSR 에서는 DOM 을 잴 수 없어 자식 수로 시작하고, 마운트 뒤 실제 track 자식으로 맞춘다. */
+  /* SSR 에서는 DOM 을 잴 수 없어 자식 수를 근사값으로 쓰고, 마운트 뒤 실측으로 바꾼다. */
   const [total, setTotal] = useState(childCount);
   const [current, setCurrent] = useState(0);
 
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return;
-    setTotal(track.children.length);
+    const measure = () => {
+      const positions = positionsOf(track);
+      setTotal(positions);
+      setCurrent(Math.min(positions - 1, Math.round(track.scrollLeft / strideOf(track))));
+    };
+    measure();
 
     /* 스크롤은 한 제스처에 수십 번 발화한다. rAF 로 프레임당 한 번만 위치를 다시 센다. */
     let frame = 0;
@@ -39,12 +53,16 @@ export function Slider({ children, className, label, showControls = true }: Slid
       if (frame) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
-        setCurrent(Math.round(track.scrollLeft / strideOf(track)));
+        measure();
       });
     };
 
+    /* 뷰포트가 변하면 보이는 장수가 달라져 위치 수 자체가 바뀐다. */
+    const observer = new ResizeObserver(onScroll);
+    observer.observe(track);
     track.addEventListener('scroll', onScroll, { passive: true });
     return () => {
+      observer.disconnect();
       track.removeEventListener('scroll', onScroll);
       if (frame) cancelAnimationFrame(frame);
     };
