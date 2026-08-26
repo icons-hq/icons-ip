@@ -93,7 +93,7 @@ URL과 public key 둘 중 하나라도 없으면 인증 미들웨어는 세션 �
 
 ## Supabase Auth URL 설정
 
-Auth URL·email link TTL·recovery template 설정은 손으로 관리하지 않는다. `scripts/sync-supabase-auth.mjs`, workflow, `supabase/templates/recovery.html`이 진실원이다. workflow는 URL과 TTL을 production·preview 프로젝트에 각각 적용·검증하고, recovery template는 Production handler 배포가 성공한 뒤 Production에만 활성화·readback한다. Shared preview main은 main sync에서, isolated preview branch는 branch 생성 workflow에서 URL 계약을 맞춘다. 관리 대상 값을 대시보드에서 직접 바꾸면 해당 동기화 단계가 있는 다음 배포에서 되돌아간다.
+Auth URL·email link TTL·recovery template 설정은 손으로 관리하지 않는다. `scripts/sync-supabase-auth.mjs`, workflow, `supabase/templates/recovery.html`이 진실원이다. workflow는 URL과 TTL을 production·preview 프로젝트에 각각 적용·검증하고, recovery template는 각 대상 앱 handler 배포가 성공한 뒤 production, shared preview main, isolated preview branch에 활성화·readback한다. 관리 대상 값을 대시보드에서 직접 바꾸면 해당 동기화 단계가 있는 다음 배포에서 되돌아간다.
 
 **Production** (`deploy-supabase`, `main` push):
 
@@ -106,7 +106,7 @@ Auth URL·email link TTL·recovery template 설정은 손으로 관리하지 않
 - Site URL: `https://icons-ip.vercel.app`
 - Redirect URLs: `https://icons-ip.vercel.app`, `https://icons-hongshil-vn.vercel.app`, `https://icons-*-sangwopark19icons-1055s-projects.vercel.app`, `https://icons-git-*-sangwopark19icons-1055s-projects.vercel.app` 각 origin과 local 두 origin의 `/auth/callback`·`/auth/recovery/callback`
 - preview 배포 호스트는 프로젝트 이름(`icons-ip`)이 아니라 **배포 접두 `icons-`**를 쓴다 — `icons-nb9vdpqs8-sangwopark19icons-1055s-projects.vercel.app` 형태다. 그래서 `icons-ip-*` 패턴은 어떤 preview URL과도 매칭되지 않았다. 팀 접미까지 붙여 좁힌다: `icons-*.vercel.app`은 남의 프로젝트까지 허용한다.
-- preview에는 custom SMTP가 없어 SMTP 강제와 confirmation/rate-limit 강제를 켜지 않는다. email link/OTP TTL 3,600초와 callback allow-list만 동기화한다. Shared main은 repo main 동기화 때, isolated branch는 생성 직후 적용한다. recovery template의 production 활성화는 preview에서 수행하지 않으며, 이메일 확인이 필요한 가입 플로우는 preview에서 끝까지 갈 수 없다.
+- preview에는 custom SMTP가 없어 SMTP 강제와 confirmation/rate-limit 강제를 켜지 않는다. email link/OTP TTL 3,600초와 callback allow-list를 동기화한다. Recovery template는 isolated Vercel preview 배포 뒤 해당 branch에 적용하고, shared main에는 production 앱·Supabase 배포가 모두 성공한 main sync에서 적용한다. 이메일 확인이 필요한 가입 플로우는 preview에서 끝까지 갈 수 없다.
 
 가입 확인·OAuth는 query 없는 `/auth/callback`을 사용한다. 비밀번호 재설정 메일은 Supabase의 `TokenHash`를 전용 `/auth/recovery/callback` query로 전달하고 서버에서 `verifyOtp(type=recovery)`한다. callback query에는 `next`나 계정 식별자를 넣지 않는다. 가입·OAuth의 안전한 `next`·목적·발급 시각은 `icons_auth_next`에 10분, recovery의 값은 경로가 분리된 `icons_auth_recovery_next`에 최대 3,600초 동안 서명된 httpOnly 쿠키로 보존한다. 신규 recovery 요청은 shared callback cookie를 만들지 않는다.
 
@@ -116,7 +116,7 @@ Server Action이 만드는 callback origin은 production·www·기본 Vercel·lo
 
 비밀번호 재설정 요청은 계정 존재 여부와 무관하게 같은 응답을 반환한다. 같은 브라우저의 정규화 이메일별 요청은 raw email 대신 HMAC digest를 담은 `icons_auth_password_reset` 쿠키로 총 3회/10분 제한하고, 활성 이메일 bucket은 12개로 제한해 브라우저 cookie 크기를 넘지 않게 한다. Supabase provider rate limit은 실제 상한으로 둔다. 전용 callback의 서명 state가 요청 브라우저에만 있으므로 최신 메일 링크는 재설정을 요청한 브라우저에서 열어야 한다.
 
-전용 Recovery callback은 `token_hash`와 `type=recovery`만 허용한다. token-hash `verifyOtp(type=recovery)`, 유효한 전용 서명 state, `getUser()` 재검증을 모두 통과한 뒤에만 온보딩 여부와 무관하게 `/update-password`로 보낸다. `code`만 있는 PKCE 링크는 session exchange 없이 제한된 reset 오류로 닫는다. 검증 과정의 성공 조건이 어긋나면 그 과정에서 만들어진 local session만 폐기한다. signed recovery state는 최신 유효 링크를 다시 쓸 수 있도록 성공하거나 자체 3,600초 TTL이 끝날 때까지 보존한다. 브라우저가 redirect 응답의 session cookie를 첫 SSR 요청보다 늦게 반영하면 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 한 번 다시 수행하며, 세션 확인 전에는 비밀번호 폼을 노출하지 않는다. 새 비밀번호 저장 뒤 global sign-out을 완료하면 `/login?password_reset=success`로 이동한다. 일반 가입 callback은 기존 온보딩 게이트를 유지하고, 회원가입 확인 메일 재전송은 서명된 httpOnly 쿠키로 3회/10분 window를 추적한 뒤 Supabase `auth.resend({ type: 'signup' })`를 사용한다. workflow는 Site URL, 두 callback의 Redirect URLs, email link/OTP TTL 3,600초와 기존 mailer 설정을 먼저 동기화한다. Production Vercel 배포가 성공한 뒤에만 recovery template 원문을 PATCH하고 read-back한다.
+전용 Recovery callback은 `token_hash`와 `type=recovery`만 허용한다. token-hash `verifyOtp(type=recovery)`, 유효한 전용 서명 state, `getUser()` 재검증을 모두 통과한 뒤에만 온보딩 여부와 무관하게 `/update-password`로 보낸다. `code`만 있는 PKCE 링크는 session exchange 없이 제한된 reset 오류로 닫는다. 검증 과정의 성공 조건이 어긋나면 그 과정에서 만들어진 local session만 폐기한다. signed recovery state는 최신 유효 링크를 다시 쓸 수 있도록 성공하거나 자체 3,600초 TTL이 끝날 때까지 보존한다. 브라우저가 redirect 응답의 session cookie를 첫 SSR 요청보다 늦게 반영하면 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 한 번 다시 수행하며, 세션 확인 전에는 비밀번호 폼을 노출하지 않는다. 새 비밀번호 저장 뒤 global sign-out을 완료하면 `/login?password_reset=success`로 이동한다. 일반 가입 callback은 기존 온보딩 게이트를 유지하고, 회원가입 확인 메일 재전송은 서명된 httpOnly 쿠키로 3회/10분 window를 추적한 뒤 Supabase `auth.resend({ type: 'signup' })`를 사용한다. workflow는 Site URL, 두 callback의 Redirect URLs, email link/OTP TTL 3,600초와 기존 mailer 설정을 먼저 동기화한다. 각 대상 앱 handler가 배포된 뒤에만 recovery template 원문을 PATCH하고 read-back한다.
 
 ### 소셜 OAuth 공급자 운영
 
@@ -186,10 +186,10 @@ npm run hong-sil:download -- \
 
 GitHub Actions의 `CI/CD Pipeline`은 PR 검증(lint/typecheck/test/build/Supabase local lint), Vercel preview 배포, production 배포를 처리하고 `Supabase Preview Cleanup`은 PR close 시 최종 base와 무관하게 deterministic isolated branch만 정리한다.
 
-- `pull_request`: `validate` 통과 후 같은 repo 브랜치 PR이면 merge-base 기준 전체 diff를 rename 비탐지로 읽어 preview DB mode를 고른다. Supabase 배포 변경이 없으면 base SHA의 main→shared sync 성공 증거를 확인한 뒤 shared main을 변경 없이 사용하고, 있으면 무데이터 `pr-<number>` branch를 재생성해 migration·custom roles·seed·변경된 Edge Functions·baseline 검증을 마친 뒤 Vercel preview를 배포한다. Hosted `config.toml` 전체 push는 이 경로가 소유하지 않는다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
+- `pull_request`: `validate` 통과 후 같은 repo 브랜치 PR이면 merge-base 기준 전체 diff를 rename 비탐지로 읽어 preview DB mode를 고른다. Supabase 배포 변경이 없으면 base SHA의 main→shared sync 성공 증거를 확인한 뒤 shared main을 변경 없이 사용하고, 있으면 무데이터 `pr-<number>` branch를 재생성해 migration·custom roles·seed·repo Edge Functions·baseline 검증을 마친 뒤 Vercel preview와 recovery template를 순서대로 배포한다. Hosted `config.toml` 전체 push는 이 경로가 소유하지 않는다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
 - `pull_request: closed`: 최종 base와 무관하게 Preview pipeline과 같은 per-PR concurrency key에서 대기한 뒤 non-default `pr-<number>` branch가 있으면 삭제한다.
 - `merge_group`: `validate` job만 실행한다.
-- `push` to `main`: `validate` 통과 후 `deploy-supabase`를 실행하고, 그 다음 `deploy-vercel`을 실행한다. Production migration이 성공한 동일 main을 `sync-supabase-preview-main`이 shared preview main에도 적용한다.
+- `push` to `main`: `validate` 통과 후 production migration·roles·Edge Functions, Vercel 앱·recovery template를 순서대로 배포한다. 두 경로가 모두 성공한 동일 main의 migration·roles·seed·Auth template·Edge Functions를 `sync-supabase-preview-main`이 shared preview main에도 적용한다.
 - `workflow_dispatch`: 기본은 `validate`만 실행한다. `production_redeploy=true`와 현재 main의
   exact SHA에서 `deploy-supabase`·`deploy-vercel`이 모두 성공한 push run ID를 함께 전달한 경우에만
   Supabase/Auth mutation 없이 Vercel Production을 설정 변경분으로 다시 배포한다.

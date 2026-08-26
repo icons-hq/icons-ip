@@ -31,12 +31,10 @@ describe('Supabase preview branch workflow contract', () => {
     );
     expect(mode.run).toContain('"$PR_BASE_SHA...$PR_HEAD_SHA"');
     expect(mode.run).toContain('node scripts/preview-supabase-mode.mjs');
-    expect(mode.run).toContain("grep -zq '^supabase/functions/'");
     expect(job.outputs).toEqual({
       configured: '${{ steps.check.outputs.configured }}',
       database_mode: '${{ steps.mode.outputs.database_mode }}',
       branch_name: '${{ steps.mode.outputs.branch_name }}',
-      functions_changed: '${{ steps.mode.outputs.functions_changed }}',
     });
     expect(job.outputs).not.toHaveProperty('SUPABASE_SERVICE_ROLE_KEY');
     expect(job.outputs).not.toHaveProperty('POSTGRES_URL');
@@ -67,7 +65,7 @@ describe('Supabase preview branch workflow contract', () => {
     const job = workflow.jobs['deploy-supabase-preview'];
     const prepare = findStep(job, 'Prepare exact Supabase preview branch');
     const push = findStep(job, 'Apply migrations and seed to isolated preview');
-    const functions = findStep(job, 'Deploy Edge Functions to isolated preview');
+    const functions = findStep(job, 'Reconcile Edge Functions in isolated preview');
     const verify = findStep(job, 'Verify isolated preview catalog baseline');
 
     expect(prepare.run).toContain('branch_name="pr-${PR_NUMBER}"');
@@ -84,12 +82,8 @@ describe('Supabase preview branch workflow contract', () => {
     expect(push.run).toBe(
       'supabase db push --db-url "$POSTGRES_URL" --include-roles --include-seed --yes',
     );
-    expect(functions.if).toContain("functions_changed == 'true'");
-    expect(functions.run).toContain('supabase functions deploy');
-    expect(functions.run).toContain('--project-ref "$PROJECT_REF"');
-    expect(functions.run).toContain('--use-api');
-    expect(functions.run).toContain('--prune');
-    expect(functions.run).toContain('supabase functions delete "$function_name"');
+    expect(functions.if).toContain("database_mode == 'isolated'");
+    expect(functions.run).toBe('node scripts/reconcile-supabase-functions.mjs');
     expect(verify.if).toContain("database_mode == 'isolated'");
     expect(verify.run).toContain('postgres:17-alpine');
     expect(job.steps.some((step) => step.run?.includes('db push --linked'))).toBe(false);
@@ -100,11 +94,13 @@ describe('Supabase preview branch workflow contract', () => {
     const job = workflow.jobs['deploy-vercel-preview'];
     const load = findStep(job, 'Load exact Supabase credentials for deployment');
     const deploy = findStep(job, 'Deploy Vercel preview');
+    const template = findStep(job, 'Activate recovery template in isolated preview');
 
     expect(load.run).toContain('supabase branches get "$expected_branch"');
     expect(load.run).toContain('SUPABASE_PREVIEW_PROJECT_ID');
     expect(load.run).toContain('SUPABASE_PRODUCTION_PROJECT_ID');
     expect(load.run).toContain('.SUPABASE_PUBLISHABLE_KEY // .SUPABASE_ANON_KEY // empty');
+    expect(load.run).toContain("printf 'PROJECT_REF=%s\\n' \"$branch_project_ref\"");
     for (const name of [
       'NEXT_PUBLIC_SUPABASE_URL',
       'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
@@ -114,6 +110,9 @@ describe('Supabase preview branch workflow contract', () => {
       expect(deploy.run).toContain(`--build-env "${name}=`);
       expect(deploy.run).toContain(`--env "${name}=`);
     }
+    expect(template.if).toBe("env.DATABASE_MODE == 'isolated'");
+    expect(template.env.RECOVERY_TEMPLATE_PATH).toBe('supabase/templates/recovery.html');
+    expect(template.run).toBe('node scripts/sync-supabase-auth.mjs');
   });
 
   it('fails before upload when local outputs or an oversized source manifest appears', async () => {
@@ -132,11 +131,15 @@ describe('Supabase preview branch workflow contract', () => {
     const workflow = await loadWorkflow(pipelinePath);
     const job = workflow.jobs['sync-supabase-preview-main'];
     const push = findStep(job, 'Apply main migrations and seed to shared preview');
+    const functions = findStep(job, 'Reconcile shared preview Supabase Edge Functions');
+    const auth = findStep(job, 'Sync shared preview Auth URLs');
     const check = findStep(job, 'Check shared preview sync secrets');
 
-    expect(job.needs).toBe('deploy-supabase');
+    expect(job.needs).toEqual(['deploy-supabase', 'deploy-vercel']);
     expect(job.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
     expect(push.run).toBe('supabase db push --linked --include-roles --include-seed --yes');
+    expect(functions.run).toBe('node scripts/reconcile-supabase-functions.mjs');
+    expect(auth.env.RECOVERY_TEMPLATE_PATH).toBe('supabase/templates/recovery.html');
     expect(check.run).toContain(
       '[ "$SUPABASE_PREVIEW_PROJECT_ID" = "$SUPABASE_PRODUCTION_PROJECT_ID" ]',
     );

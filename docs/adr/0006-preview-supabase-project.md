@@ -9,10 +9,10 @@ Vercel Preview가 production Supabase 프로젝트를 보던 초기 문제를 �
 ## Decision
 
 - Production 프로젝트 `icons-ip`는 production 배포만 사용한다. Preview workflow는 production ref와 일치하면 즉시 실패하며 production 데이터나 자격 증명을 복제하지 않는다.
-- `icons-ip-preview`의 default `main` branch는 repo `main`의 schema와 seed만 유지한다. `push` to `main`에서 production migration이 성공한 뒤 `sync-supabase-preview-main`이 동일 migration과 seed, preview Auth URL 설정을 적용한다.
+- `icons-ip-preview`의 default `main` branch는 repo `main`의 schema, roles, seed, Auth template와 Edge Functions를 유지한다. `push` to `main`에서 production Supabase와 앱 배포가 모두 성공한 뒤 `sync-supabase-preview-main`이 같은 선언 상태를 적용한다.
 - PR의 merge-base 기준 전체 diff에 Supabase 배포 상태를 바꾸는 파일이 없으면 Vercel Preview는 `icons-ip-preview/main`을 읽는다. rename은 원본과 대상 경로를 모두 판정하도록 Git rename detection을 끈다. 이때 PR base SHA의 push/main run에서 production migration과 shared preview sync가 모두 성공했다는 Actions 증거를 먼저 확인한다. PR workflow는 shared main에 migration, seed, Auth 설정을 쓰지 않는다. Preview Auth·배포 계약을 담는 `.github/workflows/pipeline.yml` 변경은 보수적으로 isolated로 분류한다.
-- `supabase/migrations/**`, `supabase/functions/**`, `supabase/templates/**`, `supabase/roles.sql`, `supabase/seed.sql`, `scripts/sync-supabase-auth.mjs`, `scripts/preview-supabase-mode.mjs`, `.github/workflows/pipeline.yml` 중 하나라도 바뀌면 무데이터 Supabase Preview Branch `pr-<number>`를 만든다. Hosted `supabase/config.toml` 전체 push는 production/local 환경 경계가 별도로 필요하므로 이 분류기의 배포 계약에서 제외한다.
-- PR migration과 Edge Function은 review 중 수정·삭제될 수 있으므로 isolated branch는 각 workflow 실행에서 기존 `pr-<number>`를 지운 뒤 현재 PR head로 다시 만든다. 생성 시 production 데이터를 clone하지 않고 migration, custom roles와 seed를 적용한다. Edge Function 경로가 바뀌면 branch ref에 현재 함수를 deploy+prune하고, 마지막 함수가 삭제된 경우 남은 remote 함수를 명시 삭제한 뒤 catalog baseline을 확인한다.
+- `supabase/migrations/**`, `supabase/functions/**`, `supabase/templates/**`, `supabase/roles.sql`, `supabase/seed.sql`, Auth/Function sync script, preview mode script, Preview 생성·cleanup workflow 중 하나라도 바뀌면 무데이터 Supabase Preview Branch `pr-<number>`를 만든다. Hosted `supabase/config.toml` 전체 push는 production/local 환경 경계가 별도로 필요하므로 이 분류기의 배포 계약에서 제외한다.
+- PR Supabase 상태는 review 중 수정·삭제될 수 있으므로 isolated branch는 각 workflow 실행에서 기존 `pr-<number>`를 지운 뒤 현재 PR head로 다시 만든다. 생성 시 production 데이터를 clone하지 않고 migration, custom roles, seed와 repo의 전체 Edge Function 집합을 적용한다. Vercel preview handler가 성공한 뒤 recovery template를 branch에 적용·readback한다. 함수 집합이 비면 안전한 원격 이름만 명시 삭제한 뒤 catalog baseline을 확인한다.
 - Vercel CLI는 배포 직전에 선택된 `main` 또는 `pr-<number>`의 URL·publishable key·service role key를 Supabase Management API에서 다시 읽어 build-time과 runtime에 동적으로 주입한다. secret 값은 job output으로 전달하지 않는다.
 - PR이 close 또는 merge되면 최종 base branch와 무관하게 별도 cleanup workflow가 해당 non-default `pr-<number>`만 삭제한다. Preview pipeline과 cleanup은 같은 repo-wide per-PR concurrency key를 사용하므로 생성 중 close되거나 `main`에서 다른 base로 retarget되어도 cleanup이 뒤에서 기다린다. app-only로 바뀐 PR에 남은 동일 이름의 branch도 다음 preview 실행에서 삭제한다.
 - `.vercelignore`는 로컬 `outputs/` 제작 산출물을 명시적으로 제외한다. Preview workflow는 Vercel dry-run manifest에서 이 경로가 포함되거나 source가 900MB·15,000개에 도달하면 실제 upload 전에 실패한다. Vercel에는 review 중인 repo 파일과 최종 runtime asset만 전송한다.
@@ -22,7 +22,7 @@ Vercel Preview가 production Supabase 프로젝트를 보던 초기 문제를 �
 | PR 변경 | Supabase target | PR의 remote mutation |
 | --- | --- | --- |
 | 앱·UI·문서·테스트만 | `icons-ip-preview/main` | 없음 |
-| migration/roles/seed/Auth sync/Edge Function/preview pipeline 등 | `icons-ip-preview/pr-<number>` | branch 재생성 후 현재 PR migration·roles·seed·함수 적용 |
+| migration/roles/seed/Auth/template/Edge Function/preview lifecycle 등 | `icons-ip-preview/pr-<number>` | branch 재생성 후 현재 PR schema·roles·seed·함수·template 적용 |
 | fork PR | 없음 | secret 경계 때문에 validate만 실행 |
 
 ## Considered Options

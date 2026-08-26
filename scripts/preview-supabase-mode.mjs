@@ -6,8 +6,9 @@ const ISOLATED_PREVIEW_PATHS = [
   /^supabase\/templates\//,
   /^supabase\/(?:roles\.sql|seed\.sql)$/,
   /^scripts\/sync-supabase-auth\.mjs$/,
+  /^scripts\/reconcile-supabase-functions\.mjs$/,
   /^scripts\/preview-supabase-mode\.mjs$/,
-  /^\.github\/workflows\/pipeline\.yml$/,
+  /^\.github\/workflows\/(?:pipeline|supabase-preview-cleanup)\.yml$/,
 ];
 
 function normalizePath(filePath) {
