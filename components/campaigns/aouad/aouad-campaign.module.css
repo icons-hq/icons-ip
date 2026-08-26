@@ -1175,6 +1175,13 @@
 }
 
 .storeAuthNote a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0 2px;
+  vertical-align: middle;
   color: #ff9a50;
   text-decoration: underline;
   text-underline-offset: 3px;

@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "status": "pass",
-  "reviewed_at": "2026-08-26T13:00:19+09:00",
+  "reviewed_at": "2026-08-26T13:23:11+09:00",
   "runner": "Codex in-app Browser against Next.js production build",
   "route": "http://127.0.0.1:3210/experiences/all-of-us-are-dead/last-bell/store",
   "release_build_id": "last-bell-release-da8957979ec883a0",
@@ -75,19 +75,19 @@
   "screenshots": [
     {
       "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/verified-store-desktop-top-1280x720.png",
-      "sha256": "d93d140dc967645388928b29944edd1de75d739f6c82e4451d04dccab49f512a"
+      "sha256": "a76ba107cb3b4920143ab7bb749934a44353e01160ac0f40dd321e54c016bb89"
     },
     {
       "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/verified-store-desktop-products-1280x720.png",
-      "sha256": "25f03a159e9ecfc077500accfe3b8ad18cdc8e25cc6c8bbd62e6e007dbf34a32"
+      "sha256": "457fc6636f5eccef4a00e855f5927d6e5fd3e654e5bb1714d33c750533af919f"
     },
     {
       "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/verified-store-landscape-top-844x390.png",
-      "sha256": "6c9688a52650090a5aae20670d0859ca18f9f2d8fce72ab01311983d801dcef3"
+      "sha256": "61a529a9a1f1c664b9081731d19e2a6c113c1f458b17b3aa31322dace69f5a16"
     },
     {
       "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/verified-store-landscape-products-844x390.png",
-      "sha256": "10c253ea3fafa73603e966ba6ed8c8c6a425eb30e97873eec5174efcefb0109c"
+      "sha256": "0200747599741fa6c898687dc12354fbcef366b2035b5f2deefe6d151aa257a6"
     },
     {
       "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/verified-store-portrait-top-390x844.png",
@@ -95,7 +95,7 @@
     },
     {
       "path": "docs/ip/all-of-us-are-dead-2/release-evidence/last-bell-release-da8957979ec883a0/browser/verified-store-portrait-products-390x844.png",
-      "sha256": "e2f36ca5f1a714c91115277bb0951ca397a08d8b9d32b01c7a1f5475cc300b89"
+      "sha256": "e96e6c9ec2327f85bddd893d8ab8692a334ceb8004f428b7f6a3553ccf0a9022"
     }
   ]
 }

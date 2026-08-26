@@ -35,6 +35,7 @@ describe('AOUAD popup shell contract', () => {
 
   it('keeps touch target and reduced-motion protections in the local CSS contract', () => {
     expect(css).toContain('min-height: 48px');
+    expect(css).toMatch(/\.storeAuthNote a \{[\s\S]*?min-width: 44px;[\s\S]*?min-height: 44px;/);
     expect(css).toContain('@media (prefers-reduced-motion: reduce)');
     expect(css).toContain('@media (max-width: 640px)');
   });
