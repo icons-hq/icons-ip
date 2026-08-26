@@ -46,8 +46,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## 프론트엔드 규칙
 
 - Next.js 16, React 19, Tailwind v4 기준으로 작성한다.
-- `app/globals.css`의 "Holographic Midnight" 디자인 시스템과 기존 컴포넌트 패턴을 우선한다.
-- 색·타이포·컴포넌트·표면별 디자인 규율은 루트 `DESIGN.md`(기계 판독용 디자인 스펙)를 따른다. 토큰 진실원은 `app/globals.css`다.
+- 공개 표면 디자인 시스템은 "White Catalog"(ADR-0011, 루트 `DESIGN.md` v4)다. 표면별 수치·anatomy는 재현 스펙 `docs/research/linefriends-square/`가 정본이며, 스토어프론트 개편 작업 전에 해당 표면의 R-스펙 문서를 먼저 읽는다.
+- 색·타이포·컴포넌트·표면별 디자인 규율은 루트 `DESIGN.md`(기계 판독용 디자인 스펙)를 따른다. 토큰 진실원은 `app/styles/wc-foundation.css`이고, 아직 이행되지 않은 표면과 어드민은 `app/styles/editorial-*.css` 계열을 유지한다. 레퍼런스 사이트의 이미지·카피·로고·액센트 색은 재사용하지 않는다.
 - 라우트는 `app/**/page.tsx`에서 screen 컴포넌트로 연결하는 현 구조를 존중한다.
 - 프로토타입 라우트 id와 실제 경로 매핑은 `lib/routes.ts`를 기준으로 한다.
 
