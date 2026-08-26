@@ -42,6 +42,7 @@ docs/online-popup/*
 docs/online-popup/experience/
 docs/research/*
 !docs/research/2026-08-12-interim-stakeholder-decisions.md
+!docs/research/linefriends-square/
 
 # 로컬 프로토타입 (각자 node_modules·dist·test-results를 갖는 별도 프로젝트)
 /prototypes/
