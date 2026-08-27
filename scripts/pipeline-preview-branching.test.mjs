@@ -19,6 +19,20 @@ function findStep(job, name) {
 }
 
 describe('Supabase preview branch workflow contract', () => {
+  it('reruns only meaningful pull request edits so base retargets redeploy preview', async () => {
+    const workflow = await loadWorkflow(pipelinePath);
+    const validate = workflow.jobs.validate;
+
+    expect(workflow.on.pull_request.types).toEqual([
+      'opened',
+      'synchronize',
+      'reopened',
+      'edited',
+    ]);
+    expect(validate.if).toContain("github.event.action != 'edited'");
+    expect(validate.if).toContain('github.event.changes.base != null');
+  });
+
   it('detects the whole PR diff and exposes only non-secret routing outputs', async () => {
     const workflow = await loadWorkflow(pipelinePath);
     const job = workflow.jobs['deploy-supabase-preview'];
@@ -85,6 +99,13 @@ describe('Supabase preview branch workflow contract', () => {
     expect(prepare.run).toContain('branch_name="pr-${PR_NUMBER}"');
     expect(prepare.run).toContain('supabase branches delete "$branch_name"');
     expect(prepare.run).toContain('supabase branches create "$branch_name"');
+    expect(prepare.run).toContain('git fetch --no-tags origin main');
+    expect(prepare.run).toContain(
+      'git merge-base --is-ancestor "$latest_main_sha" "$PR_HEAD_SHA"',
+    );
+    expect(prepare.run.indexOf('supabase branches create "$branch_name"')).toBeLessThan(
+      prepare.run.indexOf('latest_main_sha="$(git rev-parse origin/main)"'),
+    );
     expect(prepare.run).toContain('--region ap-northeast-2');
     expect(prepare.run).toContain('--size micro');
     expect(prepare.run).not.toContain('--with-data');
@@ -101,6 +122,7 @@ describe('Supabase preview branch workflow contract', () => {
     expect(verify.if).toContain("database_mode == 'isolated'");
     expect(verify.run).toContain('postgres:17-alpine');
     expect(job.steps.some((step) => step.run?.includes('db push --linked'))).toBe(false);
+    expect(job['timeout-minutes']).toBeGreaterThanOrEqual(30);
   });
 
   it('injects the selected branch credentials into Vercel build and runtime', async () => {
