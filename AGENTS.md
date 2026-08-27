@@ -43,6 +43,13 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 관리자 권한은 `profiles.role`과 RLS 양쪽에서 확인하고, 민감 작업은 감사 가능해야 한다.
 - `exchange`와 `market` 화면은 v2 전까지 프로토타입/플레이스홀더로 유지한다.
 
+## 이미지 생성 워크플로우
+
+- 이미지 생성·편집과 모델 기반 비전 QA는 현재 Codex 앱 작업에서 기본 내장 `imagegen`과 이미지 비전을 직접 사용한다.
+- 사용자가 명시적으로 변경하지 않는 한 생성 노드를 CLI/API, `codex exec`, 이미지 생성 스크립트, 중첩 Codex 작업으로 대체하지 않는다.
+- 저장소 코드는 모델 호출 없이 기술 QA, 포맷 정규화, trim, atlas, manifest처럼 결정론적인 패키징만 수행한다. 작업별 예외와 변환 계약은 해당 에셋 파이프라인 문서를 정본으로 삼는다.
+- 계약된 IP의 배우·의상·세트를 재현할 때는 공식 제공 자료를 최우선 레퍼런스로 붙이고, 허용된 시즌·초상·음성 범위를 해당 프로젝트 스펙에 명시한다.
+
 ## 프론트엔드 규칙
 
 - Next.js 16, React 19, Tailwind v4 기준으로 작성한다.

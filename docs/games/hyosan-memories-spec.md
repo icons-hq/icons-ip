@@ -4,7 +4,7 @@
 - **티켓**: [#337](https://github.com/icons-hq/icons-ip/issues/337) · 에픽 [#293](https://github.com/icons-hq/icons-ip/issues/293)의 "게임" 장치
 - **Supersedes**: [#296](https://github.com/icons-hq/icons-ip/issues/296) "지금 우리 서울은: 생존"(아오오니형 은신 탈출) — 설계·프로토타입은 유물로 보존하며, **어떤 메커닉도 재참고하지 않는다**(사용자 지시)
 - **게임명**: "효산의 기억" (가제 — 캠페인 타이틀과 함께 넷플릭스 감수 필수)
-- **관련 문서**: [ADR-0011](../adr/0011-goods-purchase-entitlement-game-reward.md) · `CONTEXT.md`(절비·구매권)
+- **관련 문서**: [시즌1 비주얼 레퍼런스](./hyosan-memories-visual-reference.md) · [ADR-0011](../adr/0011-goods-purchase-entitlement-game-reward.md) · `CONTEXT.md`(절비·구매권)
 
 ## 0. 한 줄 정의
 
@@ -19,7 +19,7 @@
 | 위치 | 캠페인 6장치 중 "게임" 장치. #296 확정안을 교체(supersede) |
 | 이 스펙의 범위 | 게임플레이·스토리·아트·에셋 파이프라인·보상 계약·기술 방향·마일스톤 |
 | 범위 밖 (소유 티켓) | 캠페인 표면·라우팅(#294) · 디자인 스킨 공존(#295) · 구매권 원장·상점 노출 정본(#303 그릴링과 통합) · 리더보드(#304) · 카드풀(#302 — 이 게임과 무관해짐) · 카드 게이트 재개(#309) |
-| 소재 권리 | 드라마 시즌1·2만. 웹툰 요소 전면 배제. 이 게임의 콘텐츠는 **시즌1 소재만** 사용(Phase A 안전). 배우 초상·음성 미사용 |
+| 소재 권리 | 사용자 제공 Netflix 계약을 전제로 드라마 시즌1 시각 에셋과 출연 배우 초상 재현 허용. 웹툰·시즌2 요소는 배제하고 **시즌1 소재만** 사용. 음성·OST는 별도 권리 확인 전 미사용 |
 | 로그인 | 플레이 시작 시 요구(공개 브라우징 원칙의 보호 액션. 구매권 귀속·진척 저장 전제) |
 
 ## 2. 스토리·세계관
@@ -160,7 +160,9 @@
 - 뷰: 2D Orthogonal Top-down + **3/4뷰 캐릭터 스프라이트** + 입체감 있는 벽·가구(페인팅으로 볼륨 표현) + 고해상도 2D 배경.
 - 조명: 하이브리드 — Phaser Light2D 포인트 라이트 **씬당 ≤4**(화재·달빛 창·비상등) + 베이크드 음영 + 블롭 섀도. 전 광원 실시간은 모바일 성능상 배제(확정).
 - 수위: **무혈 기본**(타격 플래시·먼지/재 소멸). 어두움은 팔레트·사운드로. 원작은 청불이지만 캠페인 페이지는 전연령 공개 브라우징이다.
-- **배우 초상·음성 미사용**(캠페인 확정): 캐릭터는 스타일라이즈드 — 실루엣·복장·소품(교복, 체육복, 라바콘, 훼손된 왼눈 등)으로 정체성을 표현하고 실존 배우와 유사하지 않게. 파이프라인 QA가 자동 검출한다(§7).
+- **시즌1 화면 충실도 우선**(사용자 제공 Netflix 계약 전제): 정식 캐릭터는 박지후(온조)·윤찬영(청산)·조이현(남라)·로몬(수혁) 등 시즌1 출연 배우의 얼굴, 헤어, 체형, 의상 연속성을 공식 스틸에 맞춘다. 오리지널 플레이어·엑스트라는 특정 정식 배역으로 오인시키지 않되 같은 캐스팅 질감과 효산고 의상을 정확히 따른다.
+- **세트 재해석 금지**: 급식실·교실·복도 등은 장르풍의 일반 학교로 대체하지 않고 시즌1 세트의 구조·색·재질·가구·소도구를 정본으로 삼는다. 탑다운 투영과 게임 가독성 확보에 필요한 최소 변환만 허용한다. 세부 정본과 출처는 [시즌1 비주얼 레퍼런스](./hyosan-memories-visual-reference.md)를 따른다.
+- 음성·배우 보이스 클론·드라마 OST는 현재 시각 에셋 허용 범위에 자동 포함된 것으로 보지 않으며 별도 권리 확인 전 사용하지 않는다.
 - 캐릭터 커스텀은 v1 비대상(교복 절비 단일 외형).
 
 ## 7. 에셋 파이프라인 (확정)
@@ -168,23 +170,27 @@
 사용자 확정 다이어그램을 그대로 구현한다. 코드 위치: **`scripts/asset-pipeline/`** (레포 커밋).
 
 ```
-asset-spec.yaml → CODEX PLANNER → imagegen(후보 생성)
+asset-spec.yaml → CODEX PLANNER(현재 작업 세션) → imagegen 스킬 직접 호출(후보 생성)
   → TECHNICAL QA (alpha/size/trim/frame/bbox/edges — sharp, 결정론)
-  → CODEX VISION QA (스타일 일치·캐릭터 동일성·탑뷰 각도·실게임 가독성·애니메이션 일관성
-                     + 실존 배우 유사도 검출 [초상 미사용 자동 가드])
+  → CODEX VISION QA(현재 작업 세션 직접 검토) (공식 소스 충실도·스타일 일치·캐릭터/배우 동일성·탑뷰 각도·실게임 가독성·애니메이션 일관성
+                     + 고어·웹툰·시즌2 요소 하드 가드)
   → score 부족 시 imagegen edit/regenerate (최대 N=3, 실패 시 BEST 채택+warning 기록)
   → Normalize/Trim → Sprite Atlas → Asset Manifest
-  → Phaser Game → Playwright 실행 → 인게임 Screenshot → CODEX VISION QA → 자동 수정 → DONE
+  → Phaser Game → Playwright 실행 → 인게임 Screenshot → CODEX VISION QA → 현재 작업 세션 직접 수정 → DONE
 ```
 
-- **생성·비전 QA 노드 = `codex exec` 호출**(로컬 Codex CLI 0.146.0, 사용자 계정으로 실행·과금. 이미지 생성 실사용 이력 확인됨).
+- **생성 노드 = 현재 Codex 앱 작업에서 이미지를 만들 때 쓰는 기본 내장 `imagegen` 스킬을 직접 호출**한다. 별도 CLI·API·하위 Codex 호출을 사용하지 않는다. 비전 QA도 같은 작업 세션이 이미지를 직접 검토한다. `imagegen` 결과는 기본 생성 위치에서 격리된 run 입력 디렉터리로 복사한 뒤, 스크립트가 기술 QA·정규화·atlas·manifest를 담당한다.
+- 기획 프롬프트 작성, 공식 레퍼런스 첨부, 점수 미달 후보의 edit/regenerate, 인게임 시각 수정도 모두 같은 Codex 앱 작업 세션이 직접 수행한다. 각 시도 결과와 비전 판정 JSON을 run 입력으로 남기고 최대 3회 안에서 반복한다. CLI/API fallback, 이미지 생성 스크립트, 중첩 Codex 호출로 자동 전환하지 않는다.
+- 저장소 스크립트의 역할은 모델 호출이 아닌 sharp 기반 기술 QA·normalize/trim·atlas·manifest로 한정한다.
+- 현재 앱 ImageGen이 투명 요청에도 RGB 체크무늬를 구워 반환한 경우, 시도 메타데이터에 명시된 `checkerboard-matte-to-alpha` 정규화만 허용한다. 가장자리와 연결된 밝은 무채색 매트를 alpha 0으로 바꾸고, 매트가 섞인 경계 6px 안에서 내부색 복원·2px 침식·3px alpha feather만 수행하는 결정론적 패키징이다. 새 시각 요소를 생성하지 않는다.
 - 기술 QA·정규화·아틀라스 = sharp 기반 스크립트(이미 레포 의존성). 인게임 검증 = playwright-core + **prod 빌드**(이 레포 dev 서버는 Playwright 하이드레이션 불가 — 알려진 함정).
 - `asset-spec.yaml`은 `scripts/asset-pipeline/asset-spec.yaml` 단일 정본. 스키마 초안:
 
 ```yaml
 meta:
-  style_ref: "지우학 실사 드라마 감성 · 심야 효산고"
-  forbidden: [actor-likeness, gore, webtoon-elements]
+  style_ref: "지우학 시즌1 배우·의상·효산고 세트에 충실한 페인티드 2D"
+  fidelity_targets: [season-1-production-design, canonical-actor-likeness, uniform-costume-continuity]
+  forbidden: [gore, webtoon-elements, wrong-season-elements]
 assets:
   - id: player_walk
     kind: sprite        # sprite | tileset | background | boss | cutin | ui
@@ -192,10 +198,10 @@ assets:
     size: 128x128
     frames: 6
     prompt_brief: "교복 절비, 3/4뷰 걷기 사이클"
-    qa: { min_score: 0.8 }
+    qa: { min_score: 0.8, min_source_fidelity: 0.85 }
 ```
 
-- **리스크(정직 고지)**: "실사 감성 고해상 + 캐릭터 동일성 + 탑뷰"는 이미지 생성 최난도 조합 — QA 루프가 많이 돌 것을 전제하고, M0 시안 게이트가 방향 리스크를 앞에서 흡수한다.
+- **리스크(정직 고지)**: "실사 감성 고해상 + 공식 배우/세트 동일성 + 탑뷰"는 이미지 생성 최난도 조합이다. 평균 QA와 별도로 공식 소스 충실도 0.85를 요구하고, M0 시안 게이트가 방향 리스크를 앞에서 흡수한다.
 
 ## 8. 기술
 
@@ -209,7 +215,7 @@ assets:
 
 | 단계 | 내용 | 게이트 |
 |---|---|---|
-| **M0** | 파이프라인 스켈레톤 + **스타일 시안 3종**(플레이어·학생 좀비·급식실 배경) | **사용자 컨펌**(아트 정본 확정 — 대변경은 시안 선컨펌 규율) |
+| **M0** | 파이프라인 스켈레톤 + **시즌1 화면 충실도 시안 3종**(플레이어·학생 좀비·급식실 배경) | **사용자 컨펌**(배우·교복·세트 정본 확정 — 대변경은 시안 선컨펌 규율) |
 | **M1** | **급식실 버티컬 슬라이스**: 방 3~4개+웨이브+김경미 보스+구매권 목업 UI+모바일 조작 | 사용자 실플레이 |
 | **M2+** | 잔여 7스테이지 양산 · 컷인 3장+기억 카드 8장 · 구매권 서버 파이프 실장(#303 통합 후) · QA·폴리시 | 티켓별 |
 
@@ -250,4 +256,4 @@ assets:
 | 25 | 게임명 | 효산의 기억(가제) |
 | 26 | 문서 | 커밋 docs/games/ · CONTEXT 2건 · ADR · GitHub 작업 승인 |
 | 27 | 마일스톤 | M0 시안 게이트→M1 급식실 |
-| 28 | 파이프라인 | scripts/asset-pipeline/, codex exec, N=3, 배우 유사도 QA |
+| 28 | 파이프라인 | scripts/asset-pipeline/, Codex 앱 기본 내장 imagegen 직접 호출, N=3, 공식 시즌1·배우·의상·세트 충실도 QA |

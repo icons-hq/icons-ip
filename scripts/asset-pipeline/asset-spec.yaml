@@ -1,0 +1,105 @@
+schemaVersion: 1
+meta:
+  project: hyosan-memories
+  milestone: M0
+  styleRef: "Netflix 《지금 우리 학교는》 시즌1의 배우·의상·효산고 프로덕션 디자인에 충실한 고해상도 페인티드 2D"
+  rightsScope: "사용자 제공 Netflix 계약 전제 · 시즌1 시각 에셋과 출연 배우 초상 재현 허용 · 음성은 별도 승인 전 제외"
+  fidelityTargets:
+    - season-1-production-design
+    - canonical-actor-likeness
+    - uniform-costume-continuity
+  forbidden:
+    - gore
+    - webtoon-elements
+    - wrong-season-elements
+  referenceSources:
+    - id: netflix-season-1-stills
+      authority: official
+      url: "https://about.netflix.com/ko/news/help-is-not-coming-all-of-us-are-dead-released-new-teaser-trailer-and-stills"
+    - id: netflix-cast-guide
+      authority: official
+      url: "https://www.netflix.com/tudum/articles/all-of-us-are-dead-cast-characters"
+    - id: netflix-season-1-featurette
+      authority: official
+      url: "https://www.youtube.com/watch?v=38h_mFMYc8Y"
+pipeline:
+  maxAttempts: 3
+  planner: codex-session
+  generator: direct-imagegen-skill
+  visionQa: codex-session-vision
+  workDirectory: outputs/hyosan-memories-m0
+  outputDirectory: docs/games/hyosan-memories-m0-concepts
+  atlas:
+    name: hyosan-memories-m0-sprites
+    padding: 2
+assets:
+  - id: player_halfbie_concept
+    label: "플레이어 — 교복 절비"
+    kind: sprite
+    view: topdown-3q
+    size: 512x512
+    frames: 1
+    alpha: required
+    referenceIds: [netflix-season-1-stills, netflix-cast-guide, netflix-season-1-featurette]
+    promptBrief: >-
+      심야 효산고를 탐색하는 오리지널 절비 플레이어. 시즌1 공식 스틸의 교복을 정확히
+      재현한다: 채도 높은 병녹색 V넥 니트 조끼, 흰 셔츠, 회녹색 타탄 바지, 녹색 바탕에
+      노랑·빨강 사선이 들어간 긴 넥타이, 착용자 왼쪽 가슴의 빨간 한글 이름표와 그 아래
+      빨강·금색 원형 교표. 오리지널 배역은 특정 정식 캐릭터로 오인되지 않게 하되 얼굴의
+      사실성·조명·헤어·피부 표현은 시즌1 공식 배우 스틸과 같은 제작 수준을 따른다.
+      전신 3/4 탑뷰, 한쪽 눈의 미세한 비인간적 광택만으로 절비를 표현하고 피와 열린
+      상처는 쓰지 않는다. 투명 배경, 게임에서 읽히는 선명한 실루엣.
+    qa:
+      minScore: 0.8
+      minSourceFidelity: 0.85
+      minSourceSize: 768x768
+      maxOpaqueEdgeRatio: 0.02
+      minBboxCoverage: 0.2
+      maxBboxCoverage: 0.9
+  - id: student_zombie_concept
+    label: "적 — 학생 좀비"
+    kind: sprite
+    view: topdown-3q
+    size: 512x512
+    frames: 1
+    alpha: required
+    referenceIds: [netflix-season-1-stills, netflix-season-1-featurette]
+    promptBrief: >-
+      시즌1 효산고의 학생 좀비 엑스트라. 공식 영상의 채도 높은 병녹색 니트 조끼,
+      흰 셔츠, 회녹색 타탄 하의, 녹색·노랑·빨강 사선 타이, 왼쪽 가슴의 빨간 한글
+      이름표와 빨강·금색 원형 교표를 정확히 유지한다. 실제 드라마의 배우 분장처럼
+      흐트러진 머리, 창백한 피부, 경직되고 비정상적으로 꺾인 달리기 자세를 쓰되 피와
+      열린 상처는 배제한다. 전신 3/4 탑뷰, 투명 배경, 선명한 실루엣.
+    qa:
+      minScore: 0.8
+      minSourceFidelity: 0.85
+      minSourceSize: 768x768
+      maxOpaqueEdgeRatio: 0.02
+      minBboxCoverage: 0.2
+      maxBboxCoverage: 0.9
+  - id: cafeteria_background_concept
+    label: "배경 — 급식실"
+    kind: background
+    view: orthogonal-topdown
+    size: 1536x1024
+    frames: 1
+    alpha: forbidden
+    referenceIds: [netflix-season-1-stills, netflix-season-1-featurette]
+    promptBrief: >-
+      시즌1 1화의 실제 효산고 급식실 세트를 구조·색·재질·가구 비례까지 보존해 직교
+      탑다운 전투 공간으로 변환한다. 첫 확산 당시 밝은 낮 장면의 꿀빛 주황 벽·천장 보, 상단을 길게
+      두른 대형 창, 흰 형광등, 넓은 유리 양문 출입구, 유리로 구획된 스테인리스 배식
+      주방과 금속 롤다운 셔터를 유지한다. 긴 밝은 원목 직사각형 식탁과 아이보리 금속
+      다리, 등받이가 낮은 버건디색 이동식 의자를 조밀한 평행 열로 배치하고,
+      광택 있는 녹색·번트오렌지 격자 바닥의 비율과 반복 리듬을 그대로 보존한다.
+      첫 혼란 직후라 스프링클러 물에 젖은 바닥, 스테인리스 식판과 일부 의자만
+      흐트러져 있고 인물·시신·피·과장된
+      붉은 비상등은 없다. 이동 가능한 바닥과 장애물이 즉시 구분되는 고해상도 페인티드
+      2D, 베이크드 음영과 입체적인 벽·가구.
+    qa:
+      minScore: 0.8
+      minSourceFidelity: 0.85
+      minSourceSize: 1024x768
+      maxOpaqueEdgeRatio: 1
+      minBboxCoverage: 1
+      maxBboxCoverage: 1
