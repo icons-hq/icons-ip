@@ -351,6 +351,21 @@ describe('admin curation form normalization', () => {
     });
   });
 
+  /* PC 비율 스트립은 모바일 폭에서 붕괴한다 — 히어로와 같은 모바일 아트웍 payload 를 받는다. */
+  it('notice_strip 도 모바일 아트웍 경로를 payload 로 싣는다', () => {
+    expect(normalizeAdminCurationForm(curationForm({
+      kind: 'notice_strip',
+      mobileImagePath: MOBILE_IMAGE_PATH,
+      subtitle: '스트립에서 버려질 부제',
+    }))).toEqual({
+      ok: true,
+      value: expect.objectContaining({
+        kind: 'notice_strip',
+        payload: { mobile_image_path: MOBILE_IMAGE_PATH },
+      }),
+    });
+  });
+
   /* payload 키가 없는 kind 에 남은 입력이 실려 RPC 화이트리스트에 걸리면 안 된다. */
   it('payload 를 쓰지 않는 kind 는 남은 입력을 버린다', () => {
     expect(normalizeAdminCurationForm(curationForm({

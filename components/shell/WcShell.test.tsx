@@ -55,7 +55,8 @@ describe('White Catalog 전역 셸', () => {
     expect(renderToStaticMarkup(<SiteFooter />)).toContain('wc-footer');
   });
 
-  /* 공지 스트립은 텍스트 바가 아니라 이미지 링크 배너다(R-01 §1). 데이터가 없으면 자리도 차지하지 않는다. */
+  /* 공지 스트립은 텍스트 바가 아니라 이미지 링크 배너다(R-01 §1). 데이터가 없으면 자리도 차지하지 않고,
+     PC 비율 아트웍이 모바일 폭에서 붕괴하지 않도록 모바일 소스는 picture 로 분기한다. */
   it('공지 스트립 데이터가 있으면 헤더 위 링크 스트립을 그린다', () => {
     const html = renderToStaticMarkup(
       <Nav
@@ -63,6 +64,7 @@ describe('White Catalog 전역 셸', () => {
           id: 'n1',
           title: '배송 공지',
           imageUrl: 'https://cdn.example/notice.webp',
+          mobileImageUrl: 'https://cdn.example/notice-mobile.webp',
           href: '/events',
         }}
       />,
@@ -71,8 +73,25 @@ describe('White Catalog 전역 셸', () => {
     expect(html).toContain('class="wc-notice"');
     expect(html).toContain('href="/events"');
     expect(html).toContain('alt="배송 공지"');
+    expect(html).toContain('<source media="(max-width: 749px)" srcSet="https://cdn.example/notice-mobile.webp"/>');
 
     expect(renderToStaticMarkup(<Nav />)).not.toContain('wc-notice');
+
+    /* 게이트가 꺼진 배포에서 /packs 스트립은 packs GNB 항목과 같은 규칙으로 숨는다. */
+    mocks.cardRewardsEnabled = false;
+    expect(
+      renderToStaticMarkup(
+        <Nav
+          noticeStrip={{
+            id: 'n2',
+            title: '카드팩 공지',
+            imageUrl: 'https://cdn.example/packs.webp',
+            mobileImageUrl: null,
+            href: '/packs',
+          }}
+        />,
+      ),
+    ).not.toContain('wc-notice');
   });
 
   it('공개 표면에서 유틸바·헤더 아이콘·GNB·메가메뉴·바텀바 진입점을 한 번에 세운다', () => {

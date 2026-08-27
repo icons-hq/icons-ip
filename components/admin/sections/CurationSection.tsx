@@ -371,16 +371,18 @@ function CurationForm({
       <ErrorText id={state.errors?.imagePath ? 'curation-image-error' : undefined}>
         {state.errors?.imagePath}
       </ErrorText>
-      {/* 히어로만 모바일 전용 아트워크를 payload 로 하나 더 싣는다 (5:6 세로 크롭).
-          경로만 payload 에 담기므로 목록 미리보기 URL 은 없다 — 업로드 직후 미리보기로 확인한다. */}
-      {kind === 'hero' && (
+      {/* 히어로(5:6 세로 크롭)와 공지 스트립(모바일 60px 비율)은 모바일 전용 아트워크를
+          payload 로 하나 더 싣는다 — PC 비율 이미지는 모바일 폭에서 붕괴한다(R-01·R-02). */}
+      {(kind === 'hero' || kind === 'notice_strip') && (
         <>
           <ArtworkUploadField
             allowRemove
             currentPath={payloadText(selected, 'mobile_image_path') || null}
-            currentUrl={null}
+            currentUrl={selected?.mobileImageUrl ?? null}
             fieldId="curation-mobile"
-            helpText="모바일 히어로 이미지는 선택입니다. 비우면 데스크톱 이미지를 그대로 씁니다."
+            helpText={kind === 'hero'
+              ? '모바일 히어로 이미지는 선택입니다. 비우면 데스크톱 이미지를 그대로 씁니다.'
+              : '모바일 스트립 이미지는 선택입니다. 비우면 데스크톱 이미지를 그대로 씁니다.'}
             kind="curation"
             label="모바일 아트워크 파일"
             name="mobileImagePath"

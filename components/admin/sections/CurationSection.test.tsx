@@ -54,6 +54,7 @@ const activeAnnouncement: AdminCurationRecord = {
   title: '서비스 점검 안내',
   imagePath: null,
   imageUrl: null,
+  mobileImageUrl: null,
   linkPath: '/notice/maintenance',
   displayOrder: 2,
   activeFrom: '2026-07-15T00:00:00.000Z',
@@ -243,7 +244,7 @@ describe('CurationSection', () => {
     expect(featuredHtml).toContain('>이미지 제거</button>');
     expect(primaryArtwork(heroHtml)).not.toContain('>이미지 제거</button>');
     expect(heroHtml).toContain('히어로 이미지는 필수입니다.');
-    expect(noticeStripHtml).not.toContain('>이미지 제거</button>');
+    expect(primaryArtwork(noticeStripHtml)).not.toContain('>이미지 제거</button>');
     expect(noticeStripHtml).toContain('공지 스트립 이미지는 필수입니다.');
   });
 

@@ -230,6 +230,46 @@ describe('Home bands', () => {
   it('drops the benefit band when the gate is on but no tile is curated', () => {
     expect(render({ ...fullCuration, benefitTiles: [] })).not.toContain('home-benefit-heading');
   });
+
+  /* 게이트 필터는 혜택 밴드만이 아니다 — 어드민이 어떤 밴드에든 /packs·/games 목적지를
+     걸 수 있으므로, 꺼진 배포에서는 그 큐레이션 자체를 걸러낸다(구 홈과 같은 규칙). */
+  it('filters card-reward destinations out of every band while the gate is off', () => {
+    const gatedCuration: HomeCurationSnapshot = {
+      ...fullCuration,
+      heroSlides: [
+        ...fullCuration.heroSlides,
+        {
+          id: 'hero-packs',
+          title: '카드팩 오픈 이벤트',
+          subtitle: null,
+          imageUrl: 'https://cdn.example/packs-hero.webp',
+          mobileImageUrl: null,
+          href: '/packs',
+        },
+      ],
+      editorPicks: [
+        ...fullCuration.editorPicks,
+        {
+          id: 'pick-games',
+          title: '리워드 게임 소식',
+          badge: null,
+          description: null,
+          imageBg: 'url("https://cdn.example/games.webp") center / cover no-repeat',
+          href: '/games/reward',
+        },
+      ],
+    };
+
+    const gatedOff = render(gatedCuration, false);
+    expect(gatedOff).not.toContain('href="/packs"');
+    expect(gatedOff).not.toContain('href="/games/reward"');
+    expect(gatedOff).not.toContain('카드팩 오픈 이벤트');
+    expect(gatedOff).not.toContain('리워드 게임 소식');
+
+    const gatedOn = render(gatedCuration, true);
+    expect(gatedOn).toContain('카드팩 오픈 이벤트');
+    expect(gatedOn).toContain('리워드 게임 소식');
+  });
 });
 
 describe('Home band order', () => {

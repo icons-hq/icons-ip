@@ -26,6 +26,7 @@ const record: AdminCurationRecord = {
   title: '서비스 점검 안내',
   imagePath: null,
   imageUrl: null,
+  mobileImageUrl: null,
   linkPath: '/notice/maintenance',
   displayOrder: 2,
   activeFrom: '2026-07-15T00:00:00.000Z',

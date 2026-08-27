@@ -16,16 +16,17 @@ export interface HeroPlaybackState {
   focusWithin: boolean;
   hidden: boolean;
   hovered: boolean;
-  interacted: boolean;
   paused: boolean;
   reducedMotion: boolean;
   slideCount: number;
 }
 
 /*
- * 자동재생을 막을 이유는 여섯 가지고 전부 서로 독립이다. 조건을 effect 안에 흩어두면
+ * 자동재생을 막을 이유는 다섯 가지고 전부 서로 독립이다. 조건을 effect 안에 흩어두면
  * 하나를 고칠 때 나머지가 조용히 빠지므로, "막을 이유가 하나도 없을 때만 돈다"를
  * 이 함수 한 곳에 모은다. DOM 없이도 검증 가능한 지점이기도 하다.
+ * 사용자 조작에 의한 정지는 별도 플래그가 아니라 paused 로 표현한다 — 정지 버튼의
+ * aria-pressed·라벨이 실제 재생 상태와 어긋나지 않고, 같은 버튼으로 재개할 수 있다.
  */
 export function isHeroPlaying(state: HeroPlaybackState) {
   return (
@@ -35,7 +36,6 @@ export function isHeroPlaying(state: HeroPlaybackState) {
     && !state.focusWithin
     && !state.hidden
     && !state.reducedMotion
-    && !state.interacted
   );
 }
 
@@ -64,7 +64,6 @@ export function HeroCarousel({ className, slides }: HeroCarouselProps) {
      마운트 직후 effect 가 실제 값으로 덮어써 하이드레이션 불일치를 피한다. */
   const [hidden, setHidden] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
-  const [interacted, setInteracted] = useState(false);
 
   const slideCount = slides.length;
   const hasControls = slideCount > 1;
@@ -88,7 +87,6 @@ export function HeroCarousel({ className, slides }: HeroCarouselProps) {
     focusWithin,
     hidden,
     hovered,
-    interacted,
     paused,
     reducedMotion,
     slideCount,
@@ -106,8 +104,10 @@ export function HeroCarousel({ className, slides }: HeroCarouselProps) {
   /* 인덱스가 목록 밖으로 나가면 어떤 슬라이드도 활성이 아닌 빈 히어로가 남는다. */
   const activeIndex = current < slideCount ? current : 0;
 
+  /* 장면을 직접 고르면 자동재생을 멈춘다(#325 모션 규율) — 정지 버튼 상태로 멈추므로
+     버튼 라벨이 "재생"으로 바뀌고, 원하면 같은 버튼으로 자동재생을 되살릴 수 있다. */
   const goTo = (index: number) => {
-    setInteracted(true);
+    setPaused(true);
     setCurrent(((index % slideCount) + slideCount) % slideCount);
   };
 
