@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "project": "hyosan-memories",
   "milestone": "M0",
-  "status": "pending-user-approval",
+  "status": "approved",
   "generatedAt": "2026-08-27T05:48:56.147Z",
   "spec": {
     "path": "scripts/asset-pipeline/asset-spec.yaml",
@@ -35,8 +35,11 @@
     "maxAttempts": 3
   },
   "approvalGate": {
-    "status": "pending",
-    "blocks": [
+    "status": "approved",
+    "approvedAt": "2026-08-27T06:00:56Z",
+    "approvedBy": "user",
+    "record": "approval-record.json",
+    "unblocks": [
       "M1",
       "mass-production",
       "phaser-integration"
