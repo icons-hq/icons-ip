@@ -2,6 +2,7 @@ name: CI/CD Pipeline
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
     branches:
       - main
       # White Catalog 스테이지 PR(#322, base=통합 브랜치)도 validate와 preview 배포를 받아
@@ -43,6 +44,10 @@ jobs:
   validate:
     name: validate
     runs-on: ubuntu-latest
+    if: >-
+      github.event_name != 'pull_request'
+      || github.event.action != 'edited'
+      || github.event.changes.base != null
     permissions:
       actions: read
       contents: read
@@ -277,7 +282,7 @@ jobs:
   deploy-supabase-preview:
     name: deploy-supabase-preview
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     needs: validate
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     permissions:
@@ -525,6 +530,20 @@ jobs:
           if [ "$branch_project_ref" = "$SUPABASE_PREVIEW_PROJECT_ID" ] \
             || [ "$branch_project_ref" = "$SUPABASE_PRODUCTION_PROJECT_ID" ]; then
             echo "::error title=Unsafe Supabase branch::Expected a new preview project ref"
+            exit 1
+          fi
+
+          # The parent snapshot is fixed once branch creation finishes. Fetch main again
+          # afterward so a concurrent push/main sync cannot move the parent between the
+          # earlier ancestry gate and this branch fork.
+          git fetch --no-tags origin main
+          latest_main_sha="$(git rev-parse origin/main)"
+          if ! git merge-base --is-ancestor "$latest_main_sha" "$PR_HEAD_SHA"; then
+            echo "::error title=Main advanced during isolated preview creation::Merge current main ($latest_main_sha) into this PR and rerun the workflow"
+            supabase branches delete "$branch_name" \
+              --project-ref "$SUPABASE_PREVIEW_PROJECT_ID" \
+              --yes
+            wait_until_deleted
             exit 1
           fi
 
