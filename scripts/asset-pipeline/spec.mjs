@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 import yaml from 'js-yaml';
 
-import { isSupportedAssetKind } from './asset-kinds.mjs';
+import { assetKindSupports, isSupportedAssetKind } from './asset-kinds.mjs';
+import { decodeUtf8Strict } from './strict-utf8.mjs';
 
 const ALPHA_POLICIES = new Set(['required', 'forbidden', 'optional']);
 const IDENTITY_MODES = new Set(['canonical', 'original', 'not-applicable']);
@@ -14,9 +15,32 @@ const REQUIRED_FIDELITY_TARGETS = [
   'canonical-actor-likeness',
   'uniform-costume-continuity',
 ];
+const REFERENCE_SOURCE_FIELDS = ['id', 'authority', 'url'];
+const OFFICIAL_REFERENCE_REGISTRY = Object.freeze({
+  'netflix-season-1-stills': 'https://about.netflix.com/ko/news/help-is-not-coming-all-of-us-are-dead-released-new-teaser-trailer-and-stills',
+  'netflix-cast-guide': 'https://www.netflix.com/tudum/articles/all-of-us-are-dead-cast-characters',
+  'netflix-season-1-featurette': 'https://www.youtube.com/watch?v=38h_mFMYc8Y',
+});
 
 function assert(condition, message) {
   if (!condition) throw new Error(`Invalid asset spec: ${message}`);
+}
+
+export function deepFreeze(value, seen = new WeakSet()) {
+  if (!value || typeof value !== 'object' || seen.has(value)) return value;
+  seen.add(value);
+  for (const child of Object.values(value)) deepFreeze(child, seen);
+  return Object.freeze(value);
+}
+
+function assertExactFields(value, expected, field) {
+  assert(value && typeof value === 'object' && !Array.isArray(value),
+    `${field} must be an object`);
+  const actual = Object.keys(value);
+  const unsupported = actual.filter((name) => !expected.includes(name));
+  const missing = expected.filter((name) => !Object.hasOwn(value, name));
+  assert(unsupported.length === 0, `${field} has unsupported fields: ${unsupported.join(', ')}`);
+  assert(missing.length === 0, `${field} is missing fields: ${missing.join(', ')}`);
 }
 
 function assertSafeRepositoryRelativePath(value, field) {
@@ -40,7 +64,13 @@ export function validateAssetSpec(input) {
   assert(input && typeof input === 'object', 'root must be an object');
   assert(input.schemaVersion === 1, 'schemaVersion must be 1');
   assert(input.meta && typeof input.meta === 'object', 'meta is required');
+  assert(typeof input.meta.project === 'string' && input.meta.project.trim(),
+    'meta.project is required');
+  assert(typeof input.meta.milestone === 'string' && input.meta.milestone.trim(),
+    'meta.milestone is required');
   assert(typeof input.meta.styleRef === 'string' && input.meta.styleRef.trim(), 'meta.styleRef is required');
+  assert(typeof input.meta.rightsScope === 'string' && input.meta.rightsScope.trim(),
+    'meta.rightsScope is required');
   assert(Array.isArray(input.meta.fidelityTargets), 'meta.fidelityTargets must be an array');
   for (const target of REQUIRED_FIDELITY_TARGETS) {
     assert(input.meta.fidelityTargets.includes(target), `meta.fidelityTargets must include ${target}`);
@@ -51,7 +81,36 @@ export function validateAssetSpec(input) {
   for (const guard of REQUIRED_FORBIDDEN) {
     assert(input.meta.forbidden.includes(guard), `meta.forbidden must include ${guard}`);
   }
+  assert(Array.isArray(input.meta.referenceSources) && input.meta.referenceSources.length > 0,
+    'meta.referenceSources must be a non-empty array');
+  const knownReferenceIds = new Set();
+  const knownReferenceUrls = new Set();
+  input.meta.referenceSources.forEach((source, index) => {
+    const field = `meta.referenceSources[${index}]`;
+    assertExactFields(source, REFERENCE_SOURCE_FIELDS, field);
+    assert(typeof source.id === 'string' && /^[a-z0-9][a-z0-9-]*$/.test(source.id),
+      `${field}.id must be a safe lowercase ASCII identifier`);
+    assert(!knownReferenceIds.has(source.id), `${field}.id duplicates ${source.id}`);
+    knownReferenceIds.add(source.id);
+    assert(source.authority === 'official', `${field}.authority must be official`);
+    let referenceUrl;
+    try {
+      referenceUrl = new URL(source.url);
+    } catch {
+      assert(false, `${field}.url must be an absolute HTTPS URL`);
+    }
+    assert(referenceUrl.protocol === 'https:', `${field}.url must be an absolute HTTPS URL`);
+    const canonicalUrl = referenceUrl.href;
+    assert(!knownReferenceUrls.has(canonicalUrl), `${field}.url duplicates ${canonicalUrl}`);
+    knownReferenceUrls.add(canonicalUrl);
+    assert(OFFICIAL_REFERENCE_REGISTRY[source.id] === source.url,
+      `${field} must match the registered official source id and URL`);
+  });
   assert(input.pipeline && typeof input.pipeline === 'object', 'pipeline is required');
+  for (const field of ['planner', 'generator', 'visionQa']) {
+    assert(typeof input.pipeline[field] === 'string' && input.pipeline[field].trim(),
+      `pipeline.${field} is required`);
+  }
   assert(Number.isInteger(input.pipeline.maxAttempts), 'pipeline.maxAttempts must be an integer');
   assert(input.pipeline.maxAttempts >= 1 && input.pipeline.maxAttempts <= 3,
     'pipeline.maxAttempts must be between 1 and 3');
@@ -74,6 +133,7 @@ export function validateAssetSpec(input) {
       `${prefix}.id must use snake_case ASCII`);
     assert(!ids.has(asset.id), `${prefix}.id duplicates ${asset.id}`);
     ids.add(asset.id);
+    assert(typeof asset.label === 'string' && asset.label.trim(), `${prefix}.label is required`);
     assert(isSupportedAssetKind(asset.kind), `${prefix}.kind is unsupported`);
     assert(typeof asset.view === 'string' && asset.view.trim(), `${prefix}.view is required`);
     const targetSize = parseSize(asset.size, `${prefix}.size`);
@@ -81,20 +141,36 @@ export function validateAssetSpec(input) {
     assert(ALPHA_POLICIES.has(asset.alpha), `${prefix}.alpha is unsupported`);
     assert(asset.identity && IDENTITY_MODES.has(asset.identity.mode),
       `${prefix}.identity.mode is unsupported`);
+    if (assetKindSupports(asset.kind, 'characterIdentity')) {
+      assert(asset.identity.mode !== 'not-applicable',
+        `${prefix}.identity.mode cannot be not-applicable for ${asset.kind}`);
+    }
     if (asset.identity.mode === 'canonical') {
       assert(typeof asset.identity.character === 'string' && asset.identity.character.trim(),
         `${prefix}.identity.character is required for canonical assets`);
       assert(typeof asset.identity.performer === 'string' && asset.identity.performer.trim(),
         `${prefix}.identity.performer is required for canonical assets`);
     }
+    assert(Array.isArray(asset.referenceIds) && asset.referenceIds.length > 0,
+      `${prefix}.referenceIds must be a non-empty array`);
+    const assetReferenceIds = new Set();
+    asset.referenceIds.forEach((referenceId, referenceIndex) => {
+      assert(typeof referenceId === 'string' && referenceId.trim(),
+        `${prefix}.referenceIds[${referenceIndex}] must be a non-empty string`);
+      assert(knownReferenceIds.has(referenceId),
+        `${prefix}.referenceIds[${referenceIndex}] references unknown official source ${referenceId}`);
+      assert(!assetReferenceIds.has(referenceId),
+        `${prefix}.referenceIds[${referenceIndex}] duplicates ${referenceId}`);
+      assetReferenceIds.add(referenceId);
+    });
     assert(typeof asset.promptBrief === 'string' && asset.promptBrief.trim(),
       `${prefix}.promptBrief is required`);
     assert(asset.qa && Number.isFinite(asset.qa.minScore)
       && asset.qa.minScore >= 0 && asset.qa.minScore <= 1,
     `${prefix}.qa.minScore must be between 0 and 1`);
     assert(Number.isFinite(asset.qa.minSourceFidelity)
-      && asset.qa.minSourceFidelity >= 0 && asset.qa.minSourceFidelity <= 1,
-    `${prefix}.qa.minSourceFidelity must be between 0 and 1`);
+      && asset.qa.minSourceFidelity >= 0.85 && asset.qa.minSourceFidelity <= 1,
+    `${prefix}.qa.minSourceFidelity must be at least 0.85 and at most 1`);
     if (asset.qa.minCharacterIdentity !== undefined) {
       assert(Number.isFinite(asset.qa.minCharacterIdentity)
         && asset.qa.minCharacterIdentity >= 0 && asset.qa.minCharacterIdentity <= 1,
@@ -117,8 +193,13 @@ export function validateAssetSpec(input) {
   return { ...input, assets };
 }
 
-export async function loadAssetSpec(path) {
+export async function loadAssetSpecDocument(path) {
   const filePath = path instanceof URL ? fileURLToPath(path) : path;
-  const source = await readFile(filePath, 'utf8');
-  return validateAssetSpec(yaml.load(source));
+  const source = await readFile(filePath);
+  const decoded = decodeUtf8Strict(source, 'asset spec');
+  return { source, spec: deepFreeze(validateAssetSpec(yaml.load(decoded))) };
+}
+
+export async function loadAssetSpec(path) {
+  return (await loadAssetSpecDocument(path)).spec;
 }

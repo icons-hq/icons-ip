@@ -47,5 +47,6 @@
 - 정식 캐릭터는 “닮지 않게” 만드는 대상이 아니다. 공식 스틸을 직접 레퍼런스로 붙이고 얼굴 랜드마크, 헤어, 체형, 시즌1 의상 변형을 함께 맞춘다.
 - 오리지널 플레이어와 이름 없는 좀비는 특정 정식 캐릭터로 오인되지 않게 하되 효산고 교복, 드라마의 캐스팅·분장 질감, 신체 비례를 따른다.
 - 맵은 `generic Korean school` 프롬프트로 만들지 않는다. 공식 화면에서 확인한 구조·색·재질·소도구를 자산별 `promptBrief`에 열거한다.
-- QA는 평균 점수 외에 `sourceFidelity >= 0.85`를 독립 게이트로 둔다. 정식 캐릭터는 자산 스펙에 캐릭터명·배우명·`minCharacterIdentity`를 기록하고, 배우 동일성을 포함한 `characterIdentity`도 독립 게이트로 통과해야 한다.
+- QA는 기술 변환 후 후보와 normalize/trim된 최종 PNG를 Codex 앱에서 각각 직접 보고 각 이미지의 정확한 SHA-256에 결속한다. 두 단계 모두 평균 점수 외에 `sourceFidelity >= 0.85`를 독립 게이트로 둔다. 정식 캐릭터는 자산 스펙에 캐릭터명·배우명·`minCharacterIdentity`를 기록하고, 배우 동일성을 포함한 `characterIdentity`도 독립 게이트로 통과해야 한다.
+- 두 단계 모두 `sourceFidelity`·`styleMatch`·`characterIdentity`·`topdownAngle`·`gameplayReadability`·`animationConsistency`와 `gore`·`webtoonElements`·`wrongSeasonElements`를 정확히 기록한다. 환경의 캐릭터 동일성과 단일 프레임의 애니메이션 일관성만 비적용할 수 있으며, 필수 차원을 비적용 처리하거나 필드를 누락·추가해 평균을 우회하지 않는다.
 - 고어·웹툰 요소·시즌2 요소는 하드 가드다. 무혈 표현은 현재 캠페인의 공개 브라우징 수위 결정을 유지하기 위한 변환이며, 그 외 드라마 시각 정체성은 임의 완화하지 않는다.

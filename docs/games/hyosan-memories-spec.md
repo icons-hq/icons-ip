@@ -173,10 +173,10 @@
 ```
 asset-spec.yaml → CODEX PLANNER(현재 작업 세션) → imagegen 스킬 직접 호출(후보 생성)
   → TECHNICAL QA (alpha/size/trim/frame/bbox/edges — sharp, 결정론)
-  → CODEX VISION QA(현재 작업 세션 직접 검토) (공식 소스 충실도·스타일 일치·캐릭터/배우 동일성·탑뷰 각도·실게임 가독성·애니메이션 일관성
-                     + 고어·웹툰·시즌2 요소 하드 가드)
-  → score 부족 시 imagegen edit/regenerate (최대 N=3, 실패 시 BEST 채택+warning 기록)
-  → Normalize/Trim → Sprite Atlas → Asset Manifest
+  → CANDIDATE VISION QA(현재 작업 세션 직접 검토·후보 SHA 결속)
+  → score 부족 시 imagegen edit/regenerate (최대 N=3, 실패 시 BEST 후보 결정)
+  → Normalize/Trim → OUTPUT VISION QA(현재 작업 세션 직접 검토·최종 PNG SHA 결속)
+  → Sprite Atlas → Asset Manifest
   → Phaser Game → Playwright 실행 → 인게임 Screenshot → CODEX VISION QA → 현재 작업 세션 직접 수정 → DONE
 ```
 
@@ -184,7 +184,8 @@ asset-spec.yaml → CODEX PLANNER(현재 작업 세션) → imagegen 스킬 직�
 - 기획 프롬프트 작성, 공식 레퍼런스 첨부, 점수 미달 후보의 edit/regenerate, 인게임 시각 수정도 모두 같은 Codex 앱 작업 세션이 직접 수행한다. 각 시도 결과와 비전 판정 JSON을 run 입력으로 남기고 최대 3회 안에서 반복한다. CLI/API fallback, 이미지 생성 스크립트, 중첩 Codex 호출로 자동 전환하지 않는다.
 - 저장소 스크립트의 역할은 모델 호출이 아닌 sharp 기반 기술 QA·normalize/trim·atlas·manifest로 한정한다.
 - 현재 앱 ImageGen이 투명 요청에도 RGB 체크무늬를 구워 반환하면, 같은 Codex 앱 작업의 내장 `imagegen` 편집으로 전경은 유지하고 배경만 단색 마젠타 크로마로 바꾼다. 코드가 밝은 체크무늬를 추정 제거하지 않는다. 시도 메타데이터에 명시된 `magenta-matte-to-alpha`는 가장자리 크로마 비율을 검증하고 연결된 마젠타만 alpha 0으로 바꾸며, 흰 셔츠 같은 비마젠타 전경과 내부색을 보존하는 결정론적 패키징이다. 새 시각 요소를 생성하지 않는다.
-- 각 ImageGen 원본과 실제 비전 검토본은 각각 `candidateSha256`·`reviewedSha256`으로 결속한다. 재실행은 기존 승인 가능 manifest를 먼저 무효화하고 모든 산출물을 기록한 뒤 manifest를 마지막에 게시한다.
+- 각 ImageGen 원본, 기술 변환 후 후보, normalize/trim된 최종 PNG는 `candidateSha256`·`visionQa.reviewedSha256`·`outputVisionQa.reviewedSha256`으로 각각 결속한다. 후보와 최종 출력은 동일한 6개 품질 차원과 3개 하드 가드를 누락·추가 없이 판정하며, 정규화 뒤 품질 저하도 fail closed한다.
+- 같은 output을 쓰는 실행은 소유 token·host·PID·OS 프로세스 시작 identity를 기록한 lock으로 직렬화한다. 같은 host에서 종료됐거나 PID가 재사용됐음이 OS identity로 확인된 output lock만 배타적 recovery marker 아래 자동 복구한다. Recovery marker 자체, 살아 있는 소유자·다른 host·malformed/구형 lock은 강제 만료시키지 않는다. 정상 실행은 30초 heartbeat로 소유권 상실을 감지한다. 소유 token 변경·heartbeat 실패는 진행 작업을 중단하고 drain하며, 모든 shared publish 전후 token fencing 및 in-flight heartbeat 종료를 강제한다. Atlas는 고유 run 디렉터리에서 먼저 완성한다. 각 실행은 direct-session 파싱보다 먼저 기존 승인 가능 manifest를 무효화하고 모든 산출물을 기록한 뒤 manifest를 마지막에 게시한다. direct-input 루트·session·작업·출력 경로는 실제 경로까지 확인하고, 저장소 루트 자체도 출력으로 허용하지 않는다. 배타적 run 디렉터리와 원자적 leaf 쓰기로 심볼릭 링크를 통한 저장소 밖 읽기·쓰기를 거부한다. 스펙과 direct-session은 UTF-8 원본 바이트를 한 번 읽어 fatal decode하며, 스펙은 그 동일 바이트로 실행과 manifest SHA를 만든다. 검증된 스펙과 plan·generation·technical QA·candidate/output QA를 deep-freeze하고 runner 호출 전 SHA를 primitive snapshot으로 결속한다. Direct-session 후보는 direct-input 기준 안전한 상대 POSIX 경로만 허용한다. 권리 범위·중복 없는 등록된 Netflix 공식 ID–URL 레퍼런스·자산별 reference 결속을 필수화해 manifest에 보존하고, `sprite`·`boss`·`cutin`은 `characterIdentity`를 비적용 처리할 수 없다. `minSourceFidelity`는 0.85 아래로 낮출 수 없으며, manifest는 atlas 이미지와 frame-data JSON을 각각 SHA-256에 결속한다.
 - 기술 QA·정규화·아틀라스 = sharp 기반 스크립트(이미 레포 의존성). 인게임 검증 = playwright-core + **prod 빌드**(이 레포 dev 서버는 Playwright 하이드레이션 불가 — 알려진 함정).
 - `asset-spec.yaml`은 `scripts/asset-pipeline/asset-spec.yaml` 단일 정본. 스키마 초안:
 

@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -23,6 +23,8 @@ describe('technical image QA', () => {
     const directory = await mkdtemp(join(tmpdir(), 'hyosan-magenta-alpha-'));
     cleanups.push(() => rm(directory, { recursive: true, force: true }));
     const path = join(directory, 'candidate.png');
+    const externalFile = join(directory, 'external-user-data.png');
+    const legacyTemporaryPath = `${path}.magenta-alpha.tmp.png`;
     await sharp({
       create: {
         width: 20,
@@ -68,6 +70,8 @@ describe('technical image QA', () => {
         top: 4,
       },
     ]).png().toFile(path);
+    await writeFile(externalFile, 'external-user-data', 'utf8');
+    await symlink(externalFile, legacyTemporaryPath);
 
     const transform = await restoreMagentaTransparency(path);
     const report = await inspectCandidate(path, {
@@ -106,6 +110,8 @@ describe('technical image QA', () => {
     const transparentPixel = await sharp(path).extract({ left: 0, top: 0, width: 1, height: 1 })
       .raw().toBuffer();
     expect([...transparentPixel]).toEqual([0, 0, 0, 0]);
+    expect(await readFile(externalFile, 'utf8')).toBe('external-user-data');
+    expect((await lstat(path)).isSymbolicLink()).toBe(false);
   });
 
   it('reports alpha, size, trim, frame, bbox, and edge checks for a sprite', async () => {
@@ -235,5 +241,65 @@ describe('technical image QA', () => {
     expect(atlas.data.frames.player.frame).toEqual({ x: 2, y: 2, w: 16, h: 16 });
     expect(atlas.data.frames.zombie.frame).toEqual({ x: 20, y: 2, w: 16, h: 16 });
     expect(atlas.data.meta.size).toEqual({ w: 64, h: 32 });
+  });
+
+  it('does not follow normalized or atlas output-file symlinks', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hyosan-image-output-link-'));
+    cleanups.push(() => rm(directory, { recursive: true, force: true }));
+    const source = join(directory, 'source.png');
+    const normalizedDirectory = join(directory, 'normalized');
+    const atlasDirectory = join(directory, 'atlas');
+    const normalizedPath = join(normalizedDirectory, 'player.png');
+    const atlasImagePath = join(atlasDirectory, 'fixture-atlas.png');
+    const atlasDataPath = join(atlasDirectory, 'fixture-atlas.json');
+    const normalizedVictim = join(directory, 'normalized-victim');
+    const atlasImageVictim = join(directory, 'atlas-image-victim');
+    const atlasDataVictim = join(directory, 'atlas-data-victim');
+    await sharp({
+      create: {
+        width: 20,
+        height: 20,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    }).composite([{
+      input: {
+        create: {
+          width: 8,
+          height: 12,
+          channels: 4,
+          background: { r: 60, g: 90, b: 120, alpha: 1 },
+        },
+      },
+      left: 6,
+      top: 4,
+    }]).png().toFile(source);
+    await Promise.all([
+      mkdir(normalizedDirectory, { recursive: true }),
+      mkdir(atlasDirectory, { recursive: true }),
+      writeFile(normalizedVictim, 'normalized-user-data', 'utf8'),
+      writeFile(atlasImageVictim, 'atlas-image-user-data', 'utf8'),
+      writeFile(atlasDataVictim, 'atlas-data-user-data', 'utf8'),
+    ]);
+    await Promise.all([
+      symlink(normalizedVictim, normalizedPath),
+      symlink(atlasImageVictim, atlasImagePath),
+      symlink(atlasDataVictim, atlasDataPath),
+    ]);
+
+    const normalized = await normalizeAsset(source, normalizedDirectory, {
+      id: 'player', kind: 'sprite', targetSize: { width: 16, height: 16 },
+    });
+    await buildSpriteAtlas([normalized], atlasDirectory, {
+      name: 'fixture-atlas',
+      padding: 2,
+    });
+
+    expect(await readFile(normalizedVictim, 'utf8')).toBe('normalized-user-data');
+    expect(await readFile(atlasImageVictim, 'utf8')).toBe('atlas-image-user-data');
+    expect(await readFile(atlasDataVictim, 'utf8')).toBe('atlas-data-user-data');
+    expect((await lstat(normalizedPath)).isSymbolicLink()).toBe(false);
+    expect((await lstat(atlasImagePath)).isSymbolicLink()).toBe(false);
+    expect((await lstat(atlasDataPath)).isSymbolicLink()).toBe(false);
   });
 });

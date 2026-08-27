@@ -1,18 +1,16 @@
 import { createHash } from 'node:crypto';
-import { copyFile, readFile, stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 
-const DIMENSIONS = [
-  'sourceFidelity',
-  'styleMatch',
-  'characterIdentity',
-  'topdownAngle',
-  'gameplayReadability',
-  'animationConsistency',
-];
-const GUARDS = ['gore', 'webtoonElements', 'wrongSeasonElements'];
+import {
+  assertContainedPath,
+  assertExistingPathContained,
+  copyFileAtomically,
+} from './safe-paths.mjs';
+import { decodeUtf8Strict } from './strict-utf8.mjs';
+import { SHA256_PATTERN, validateVisionQaShape } from './vision-qa.mjs';
+
 const TECHNICAL_TRANSFORMS = new Set(['magenta-matte-to-alpha']);
-const SHA256_PATTERN = /^[a-f0-9]{64}$/;
 
 function assert(condition, message) {
   if (!condition) throw new Error(`Invalid direct imagegen session: ${message}`);
@@ -23,41 +21,26 @@ function isInside(parent, child) {
   return path === '' || (!isAbsolute(path) && path !== '..' && !path.startsWith(`..${sep}`));
 }
 
+function isSafeInputRelativePath(value) {
+  return typeof value === 'string'
+    && value.length > 0
+    && !isAbsolute(value)
+    && !/^[a-zA-Z]:[\\/]/.test(value)
+    && !value.includes('\\')
+    && value.split('/').every((segment) => segment && segment !== '.' && segment !== '..');
+}
+
 async function sha256File(path) {
   return createHash('sha256').update(await readFile(path)).digest('hex');
 }
 
-function validateReview(review, assetId) {
-  assert(review?.assetId === assetId, `${assetId} visionQa.assetId does not match`);
-  assert(SHA256_PATTERN.test(review.reviewedSha256),
-    `${assetId} visionQa.reviewedSha256 must be a lowercase SHA-256 digest`);
-  assert(review.dimensions && typeof review.dimensions === 'object',
-    `${assetId} visionQa.dimensions is required`);
-  for (const name of DIMENSIONS) {
-    const dimension = review.dimensions[name];
-    assert(dimension && typeof dimension.applicable === 'boolean',
-      `${assetId} visionQa.dimensions.${name}.applicable must be boolean`);
-    assert(Number.isFinite(dimension.score) && dimension.score >= 0 && dimension.score <= 1,
-      `${assetId} visionQa.dimensions.${name}.score must be between 0 and 1`);
-    assert(typeof dimension.notes === 'string' && dimension.notes.trim(),
-      `${assetId} visionQa.dimensions.${name}.notes is required`);
-  }
-  assert(review.guards && typeof review.guards === 'object',
-    `${assetId} visionQa.guards is required`);
-  for (const name of GUARDS) {
-    const guard = review.guards[name];
-    assert(guard && typeof guard.detected === 'boolean',
-      `${assetId} visionQa.guards.${name}.detected must be boolean`);
-    assert(Number.isFinite(guard.confidence) && guard.confidence >= 0 && guard.confidence <= 1,
-      `${assetId} visionQa.guards.${name}.confidence must be between 0 and 1`);
-    assert(typeof guard.notes === 'string' && guard.notes.trim(),
-      `${assetId} visionQa.guards.${name}.notes is required`);
-  }
-  assert(Array.isArray(review.feedback), `${assetId} visionQa.feedback must be an array`);
-}
-
-export async function createDirectSessionRunner({ inputDirectory, sessionPath }) {
-  const source = JSON.parse(await readFile(sessionPath, 'utf8'));
+export async function createDirectSessionRunner({ repositoryRoot, inputDirectory, sessionPath }) {
+  assert(typeof repositoryRoot === 'string' && repositoryRoot,
+    'repositoryRoot is required');
+  await assertContainedPath(repositoryRoot, inputDirectory, 'pipeline.inputDirectory');
+  await assertContainedPath(repositoryRoot, sessionPath, 'pipeline.sessionPath');
+  const sessionBytes = await readFile(sessionPath);
+  const source = JSON.parse(decodeUtf8Strict(sessionBytes, 'direct imagegen session'));
   assert(source.schemaVersion === 1, 'schemaVersion must be 1');
   assert(source.generator === 'codex-app-built-in-imagegen',
     'generator must be codex-app-built-in-imagegen');
@@ -77,8 +60,8 @@ export async function createDirectSessionRunner({ inputDirectory, sessionPath })
         `${asset.assetId} attempt number must be positive`);
       assert(!attempts.has(attempt.attempt),
         `${asset.assetId} duplicates attempt ${attempt.attempt}`);
-      assert(typeof attempt.candidate === 'string' && attempt.candidate,
-        `${asset.assetId} attempt candidate is required`);
+      assert(isSafeInputRelativePath(attempt.candidate),
+        `${asset.assetId} attempt candidate must be a safe input-relative path`);
       assert(typeof attempt.prompt === 'string' && attempt.prompt.trim(),
         `${asset.assetId} attempt prompt is required`);
       assert(SHA256_PATTERN.test(attempt.candidateSha256),
@@ -87,10 +70,18 @@ export async function createDirectSessionRunner({ inputDirectory, sessionPath })
         assert(TECHNICAL_TRANSFORMS.has(attempt.technicalTransform),
           `${asset.assetId} attempt technicalTransform is unsupported`);
       }
-      const sourcePath = resolve(inputRoot, attempt.candidate);
-      assert(isInside(inputRoot, sourcePath),
+      const requestedSourcePath = resolve(inputRoot, attempt.candidate);
+      assert(isInside(inputRoot, requestedSourcePath),
         `${asset.assetId} attempt candidate escapes the input directory`);
-      validateReview(attempt.visionQa, asset.assetId);
+      const sourcePath = await assertExistingPathContained(
+        inputRoot,
+        requestedSourcePath,
+        `${asset.assetId} attempt candidate`,
+      );
+      validateVisionQaShape(attempt.visionQa, asset.assetId);
+      if (attempt.outputVisionQa !== undefined) {
+        validateVisionQaShape(attempt.outputVisionQa, asset.assetId);
+      }
       attempts.set(attempt.attempt, { ...attempt, sourcePath });
     }
     assets.set(asset.assetId, { ...asset, attempts });
@@ -122,7 +113,7 @@ export async function createDirectSessionRunner({ inputDirectory, sessionPath })
       const sourceSha256 = await sha256File(record.sourcePath);
       assert(sourceSha256 === record.candidateSha256,
         `${asset.id} attempt ${attempt} candidate SHA-256 does not match the direct session`);
-      await copyFile(record.sourcePath, candidatePath);
+      await copyFileAtomically(record.sourcePath, candidatePath);
       const copiedSha256 = await sha256File(candidatePath);
       assert(copiedSha256 === record.candidateSha256,
         `${asset.id} attempt ${attempt} copied candidate SHA-256 does not match the direct session`);
@@ -144,6 +135,16 @@ export async function createDirectSessionRunner({ inputDirectory, sessionPath })
       assert(reviewedSha256 === record.visionQa.reviewedSha256,
         `${asset.id} candidate does not match the reviewed SHA-256`);
       return structuredClone(record.visionQa);
+    },
+    async reviewOutput({ asset, candidatePath, outputPath }) {
+      const record = activeAttempts.get(resolve(candidatePath));
+      assert(record, `${asset.id} candidate was not generated by this direct session`);
+      assert(record.outputVisionQa,
+        `${asset.id} selected attempt has no normalized output vision review`);
+      const reviewedSha256 = await sha256File(outputPath);
+      assert(reviewedSha256 === record.outputVisionQa.reviewedSha256,
+        `${asset.id} normalized output does not match the reviewed SHA-256`);
+      return structuredClone(record.outputVisionQa);
     },
   };
 }

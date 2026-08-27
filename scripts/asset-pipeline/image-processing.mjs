@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 
 import sharp from 'sharp';
 
 import { assetKindSupports } from './asset-kinds.mjs';
+import { writeFileAtomically } from './safe-paths.mjs';
 
 const VISIBLE_ALPHA = 8;
 const MAGENTA_MIN_RED = 205;
@@ -189,11 +190,10 @@ export async function restoreMagentaTransparency(path) {
     rgba[targetOffset + 3] = transparent ? 0 : featherAlpha;
     if (transparent) transparentPixels += 1;
   }
-  const temporaryPath = `${path}.magenta-alpha.tmp.png`;
-  await sharp(rgba, {
+  const output = await sharp(rgba, {
     raw: { width: info.width, height: info.height, channels: 4 },
-  }).png({ compressionLevel: 9 }).toFile(temporaryPath);
-  await rename(temporaryPath, path);
+  }).png({ compressionLevel: 9 }).toBuffer();
+  await writeFileAtomically(path, output);
   return {
     applied: true,
     transform: 'magenta-matte-to-alpha',
@@ -342,8 +342,8 @@ export async function normalizeAsset(sourcePath, outputDirectory, asset) {
   const input = sharp(sourcePath, { failOn: 'error' }).rotate();
   const isAtlasSprite = assetKindSupports(asset.kind, 'atlas');
 
-  if (isAtlasSprite) {
-    await input
+  const output = isAtlasSprite
+    ? await input
       .ensureAlpha()
       .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .resize(asset.targetSize.width, asset.targetSize.height, {
@@ -352,17 +352,16 @@ export async function normalizeAsset(sourcePath, outputDirectory, asset) {
         withoutEnlargement: false,
       })
       .png({ compressionLevel: 9 })
-      .toFile(outputPath);
-  } else {
-    await input
+      .toBuffer()
+    : await input
       .flatten({ background: { r: 0, g: 0, b: 0 } })
       .resize(asset.targetSize.width, asset.targetSize.height, {
         fit: 'cover',
         position: 'centre',
       })
       .png({ compressionLevel: 9 })
-      .toFile(outputPath);
-  }
+      .toBuffer();
+  await writeFileAtomically(outputPath, output);
 
   const metadata = await sharp(outputPath, { failOn: 'error' }).metadata();
   return {
@@ -415,14 +414,15 @@ export async function buildSpriteAtlas(normalizedAssets, outputDirectory, option
   const dataFile = `${options.name}.json`;
   const imagePath = join(outputDirectory, imageFile);
   const dataPath = join(outputDirectory, dataFile);
-  await sharp({
+  const atlasImage = await sharp({
     create: {
       width: atlasWidth,
       height: atlasHeight,
       channels: 4,
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
-  }).composite(composites).png({ compressionLevel: 9 }).toFile(imagePath);
+  }).composite(composites).png({ compressionLevel: 9 }).toBuffer();
+  await writeFileAtomically(imagePath, atlasImage);
   const data = {
     frames,
     meta: {
@@ -434,12 +434,13 @@ export async function buildSpriteAtlas(normalizedAssets, outputDirectory, option
       scale: '1',
     },
   };
-  await writeFile(dataPath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  await writeFileAtomically(dataPath, `${JSON.stringify(data, null, 2)}\n`);
 
   return {
     imagePath,
     dataPath,
     imageSha256: await sha256File(imagePath),
+    dataSha256: await sha256File(dataPath),
     data,
   };
 }

@@ -1,9 +1,9 @@
 export const ASSET_KIND_CAPABILITIES = Object.freeze({
-  sprite: Object.freeze({ atlas: true, trim: true }),
+  sprite: Object.freeze({ atlas: true, trim: true, characterIdentity: true }),
   tileset: Object.freeze({ atlas: false, trim: false }),
   background: Object.freeze({ atlas: false, trim: false }),
-  boss: Object.freeze({ atlas: true, trim: true }),
-  cutin: Object.freeze({ atlas: false, trim: true }),
+  boss: Object.freeze({ atlas: true, trim: true, characterIdentity: true }),
+  cutin: Object.freeze({ atlas: false, trim: true, characterIdentity: true }),
   ui: Object.freeze({ atlas: true, trim: true }),
 });
 

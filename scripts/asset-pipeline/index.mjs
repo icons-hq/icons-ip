@@ -7,15 +7,21 @@ import { runAssetPipeline } from './pipeline.mjs';
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
 const defaultRepositoryRoot = resolve(scriptDirectory, '../..');
-
 export async function runDirectAssetPipeline({
   repositoryRoot = defaultRepositoryRoot,
   specPath = resolve(scriptDirectory, 'asset-spec.yaml'),
   inputDirectory = resolve(repositoryRoot, 'outputs/hyosan-memories-m0/direct-input'),
   sessionPath = resolve(repositoryRoot, 'outputs/hyosan-memories-m0/direct-session.json'),
 } = {}) {
-  const runner = await createDirectSessionRunner({ inputDirectory, sessionPath });
-  return runAssetPipeline({ specPath, repositoryRoot, runner });
+  return runAssetPipeline({
+    specPath,
+    repositoryRoot,
+    runnerFactory: () => createDirectSessionRunner({
+      repositoryRoot,
+      inputDirectory,
+      sessionPath,
+    }),
+  });
 }
 
 function usage() {
