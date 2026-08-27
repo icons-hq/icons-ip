@@ -1,10 +1,13 @@
 import { readFile } from 'node:fs/promises';
+import { isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import yaml from 'js-yaml';
 
-const KINDS = new Set(['sprite', 'tileset', 'background', 'boss', 'cutin', 'ui']);
+import { isSupportedAssetKind } from './asset-kinds.mjs';
+
 const ALPHA_POLICIES = new Set(['required', 'forbidden', 'optional']);
+const IDENTITY_MODES = new Set(['canonical', 'original', 'not-applicable']);
 const REQUIRED_FORBIDDEN = ['gore', 'webtoon-elements', 'wrong-season-elements'];
 const REQUIRED_FIDELITY_TARGETS = [
   'season-1-production-design',
@@ -14,6 +17,16 @@ const REQUIRED_FIDELITY_TARGETS = [
 
 function assert(condition, message) {
   if (!condition) throw new Error(`Invalid asset spec: ${message}`);
+}
+
+function assertSafeRepositoryRelativePath(value, field) {
+  assert(typeof value === 'string' && value.trim() === value && value.length > 0,
+    `${field} must be a non-empty repository-relative path`);
+  assert(!isAbsolute(value) && !/^[a-zA-Z]:[\\/]/.test(value),
+    `${field} must be repository-relative`);
+  assert(!value.includes('\\'), `${field} must use forward slashes`);
+  assert(value.split('/').every((segment) => segment && segment !== '.' && segment !== '..'),
+    `${field} must not contain empty, current-directory, or parent-directory segments`);
 }
 
 export function parseSize(value, field) {
@@ -42,8 +55,15 @@ export function validateAssetSpec(input) {
   assert(Number.isInteger(input.pipeline.maxAttempts), 'pipeline.maxAttempts must be an integer');
   assert(input.pipeline.maxAttempts >= 1 && input.pipeline.maxAttempts <= 3,
     'pipeline.maxAttempts must be between 1 and 3');
-  assert(input.pipeline.atlas && typeof input.pipeline.atlas.name === 'string',
-    'pipeline.atlas.name is required');
+  assertSafeRepositoryRelativePath(input.pipeline.workDirectory, 'pipeline.workDirectory');
+  assertSafeRepositoryRelativePath(input.pipeline.outputDirectory, 'pipeline.outputDirectory');
+  assert(input.pipeline.atlas && typeof input.pipeline.atlas === 'object',
+    'pipeline.atlas is required');
+  assert(typeof input.pipeline.atlas.name === 'string'
+    && /^[a-z0-9][a-z0-9_-]*$/.test(input.pipeline.atlas.name),
+  'pipeline.atlas.name must be a safe lowercase ASCII basename');
+  assert(Number.isInteger(input.pipeline.atlas.padding) && input.pipeline.atlas.padding >= 0,
+    'pipeline.atlas.padding must be a non-negative integer');
   assert(Array.isArray(input.assets) && input.assets.length > 0, 'assets must be a non-empty array');
 
   const ids = new Set();
@@ -54,11 +74,19 @@ export function validateAssetSpec(input) {
       `${prefix}.id must use snake_case ASCII`);
     assert(!ids.has(asset.id), `${prefix}.id duplicates ${asset.id}`);
     ids.add(asset.id);
-    assert(KINDS.has(asset.kind), `${prefix}.kind is unsupported`);
+    assert(isSupportedAssetKind(asset.kind), `${prefix}.kind is unsupported`);
     assert(typeof asset.view === 'string' && asset.view.trim(), `${prefix}.view is required`);
     const targetSize = parseSize(asset.size, `${prefix}.size`);
     assert(Number.isInteger(asset.frames) && asset.frames > 0, `${prefix}.frames must be positive`);
     assert(ALPHA_POLICIES.has(asset.alpha), `${prefix}.alpha is unsupported`);
+    assert(asset.identity && IDENTITY_MODES.has(asset.identity.mode),
+      `${prefix}.identity.mode is unsupported`);
+    if (asset.identity.mode === 'canonical') {
+      assert(typeof asset.identity.character === 'string' && asset.identity.character.trim(),
+        `${prefix}.identity.character is required for canonical assets`);
+      assert(typeof asset.identity.performer === 'string' && asset.identity.performer.trim(),
+        `${prefix}.identity.performer is required for canonical assets`);
+    }
     assert(typeof asset.promptBrief === 'string' && asset.promptBrief.trim(),
       `${prefix}.promptBrief is required`);
     assert(asset.qa && Number.isFinite(asset.qa.minScore)
@@ -67,6 +95,15 @@ export function validateAssetSpec(input) {
     assert(Number.isFinite(asset.qa.minSourceFidelity)
       && asset.qa.minSourceFidelity >= 0 && asset.qa.minSourceFidelity <= 1,
     `${prefix}.qa.minSourceFidelity must be between 0 and 1`);
+    if (asset.qa.minCharacterIdentity !== undefined) {
+      assert(Number.isFinite(asset.qa.minCharacterIdentity)
+        && asset.qa.minCharacterIdentity >= 0 && asset.qa.minCharacterIdentity <= 1,
+      `${prefix}.qa.minCharacterIdentity must be between 0 and 1`);
+    }
+    if (asset.identity.mode === 'canonical') {
+      assert(Number.isFinite(asset.qa.minCharacterIdentity),
+        `${prefix}.qa.minCharacterIdentity is required for canonical assets`);
+    }
     const minSourceSize = parseSize(asset.qa.minSourceSize, `${prefix}.qa.minSourceSize`);
     for (const field of ['maxOpaqueEdgeRatio', 'minBboxCoverage', 'maxBboxCoverage']) {
       assert(Number.isFinite(asset.qa[field]) && asset.qa[field] >= 0 && asset.qa[field] <= 1,

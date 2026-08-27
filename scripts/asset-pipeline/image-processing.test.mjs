@@ -9,7 +9,7 @@ import {
   buildSpriteAtlas,
   inspectCandidate,
   normalizeAsset,
-  restoreCheckerboardTransparency,
+  restoreMagentaTransparency,
 } from './image-processing.mjs';
 
 const cleanups = [];
@@ -19,32 +19,30 @@ afterEach(async () => {
 });
 
 describe('technical image QA', () => {
-  it('restores real alpha from a baked neutral checkerboard without changing the subject colors', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'hyosan-checkerboard-alpha-'));
+  it('restores real alpha from a magenta matte while preserving white uniform sleeves', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hyosan-magenta-alpha-'));
     cleanups.push(() => rm(directory, { recursive: true, force: true }));
     const path = join(directory, 'candidate.png');
-    const square = (left, top, value) => ({
-      input: {
-        create: {
-          width: 10,
-          height: 10,
-          channels: 3,
-          background: { r: value, g: value, b: value },
-        },
-      },
-      left,
-      top,
-    });
     await sharp({
       create: {
         width: 20,
         height: 20,
         channels: 3,
-        background: { r: 248, g: 248, b: 248 },
+        background: { r: 240, g: 20, b: 230 },
       },
     }).composite([
-      square(10, 0, 232),
-      square(0, 10, 232),
+      {
+        input: {
+          create: {
+            width: 1,
+            height: 16,
+            channels: 3,
+            background: { r: 100, g: 20, b: 110 },
+          },
+        },
+        left: 17,
+        top: 2,
+      },
       {
         input: {
           create: {
@@ -57,9 +55,21 @@ describe('technical image QA', () => {
         left: 3,
         top: 2,
       },
+      {
+        input: {
+          create: {
+            width: 4,
+            height: 8,
+            channels: 3,
+            background: { r: 248, g: 248, b: 244 },
+          },
+        },
+        left: 2,
+        top: 4,
+      },
     ]).png().toFile(path);
 
-    const transform = await restoreCheckerboardTransparency(path);
+    const transform = await restoreMagentaTransparency(path);
     const report = await inspectCandidate(path, {
       id: 'sprite_fixture',
       kind: 'sprite',
@@ -78,15 +88,24 @@ describe('technical image QA', () => {
       applied: true,
       width: 20,
       height: 20,
-      edgeErosionPixels: 2,
-      colorDecontaminationPixels: 6,
-      alphaFeatherPixels: 3,
+      colorDecontaminationPixels: 24,
+      colorDecontaminationSearchPixels: 48,
+      alphaFeatherPixels: 2,
     });
     expect(report.passed).toBe(true);
     expect(report.checks.alpha).toMatchObject({ hasAlpha: true, passed: true });
     const pixel = await sharp(path).extract({ left: 10, top: 10, width: 1, height: 1 })
       .raw().toBuffer();
     expect([...pixel]).toEqual([20, 96, 58, 255]);
+    const whiteSleevePixel = await sharp(path).extract({ left: 3, top: 7, width: 1, height: 1 })
+      .raw().toBuffer();
+    expect([...whiteSleevePixel]).toEqual([248, 248, 244, 255]);
+    const decontaminatedEdgePixel = await sharp(path)
+      .extract({ left: 17, top: 10, width: 1, height: 1 }).raw().toBuffer();
+    expect([...decontaminatedEdgePixel]).toEqual([20, 96, 58, 85]);
+    const transparentPixel = await sharp(path).extract({ left: 0, top: 0, width: 1, height: 1 })
+      .raw().toBuffer();
+    expect([...transparentPixel]).toEqual([0, 0, 0, 0]);
   });
 
   it('reports alpha, size, trim, frame, bbox, and edge checks for a sprite', async () => {

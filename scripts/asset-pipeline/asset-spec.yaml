@@ -40,6 +40,8 @@ assets:
     size: 512x512
     frames: 1
     alpha: required
+    identity:
+      mode: original
     referenceIds: [netflix-season-1-stills, netflix-cast-guide, netflix-season-1-featurette]
     promptBrief: >-
       심야 효산고를 탐색하는 오리지널 절비 플레이어. 시즌1 공식 스틸의 교복을 정확히
@@ -63,6 +65,8 @@ assets:
     size: 512x512
     frames: 1
     alpha: required
+    identity:
+      mode: original
     referenceIds: [netflix-season-1-stills, netflix-season-1-featurette]
     promptBrief: >-
       시즌1 효산고의 학생 좀비 엑스트라. 공식 영상의 채도 높은 병녹색 니트 조끼,
@@ -84,6 +88,8 @@ assets:
     size: 1536x1024
     frames: 1
     alpha: forbidden
+    identity:
+      mode: not-applicable
     referenceIds: [netflix-season-1-stills, netflix-season-1-featurette]
     promptBrief: >-
       시즌1 1화의 실제 효산고 급식실 세트를 구조·색·재질·가구 비례까지 보존해 직교

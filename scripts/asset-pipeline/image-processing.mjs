@@ -4,26 +4,49 @@ import { basename, join } from 'node:path';
 
 import sharp from 'sharp';
 
+import { assetKindSupports } from './asset-kinds.mjs';
+
 const VISIBLE_ALPHA = 8;
-const CHECKERBOARD_MIN_CHANNEL = 210;
-const CHECKERBOARD_MAX_SPREAD = 20;
-const CHECKERBOARD_EDGE_EROSION_PIXELS = 2;
-const CHECKERBOARD_DECONTAMINATION_PIXELS = 6;
-const CHECKERBOARD_ALPHA_FEATHER_PIXELS = 3;
+const MAGENTA_MIN_RED = 205;
+const MAGENTA_MIN_BLUE = 195;
+const MAGENTA_MAX_GREEN = 90;
+const MAGENTA_MIN_RED_GREEN_GAP = 130;
+const MAGENTA_MIN_BLUE_GREEN_GAP = 120;
+const MAGENTA_MAX_RED_BLUE_SPREAD = 60;
+const MAGENTA_MIN_EDGE_RATIO = 0.85;
+const MAGENTA_MIN_BACKGROUND_RATIO = 0.05;
+const MAGENTA_MAX_BACKGROUND_RATIO = 0.98;
+const MAGENTA_DECONTAMINATION_PIXELS = 24;
+const MAGENTA_DECONTAMINATION_SEARCH_PIXELS = 48;
+const MAGENTA_ALPHA_FEATHER_PIXELS = 2;
 
 function round(value, digits = 6) {
   return Number(value.toFixed(digits));
 }
 
-function isNeutralCheckerboardPixel(data, offset) {
+function isMagentaMattePixel(data, offset) {
   const red = data[offset];
   const green = data[offset + 1];
   const blue = data[offset + 2];
-  return Math.min(red, green, blue) >= CHECKERBOARD_MIN_CHANNEL
-    && Math.max(red, green, blue) - Math.min(red, green, blue) <= CHECKERBOARD_MAX_SPREAD;
+  return red >= MAGENTA_MIN_RED
+    && blue >= MAGENTA_MIN_BLUE
+    && green <= MAGENTA_MAX_GREEN
+    && red - green >= MAGENTA_MIN_RED_GREEN_GAP
+    && blue - green >= MAGENTA_MIN_BLUE_GREEN_GAP
+    && Math.abs(red - blue) <= MAGENTA_MAX_RED_BLUE_SPREAD;
 }
 
-export async function restoreCheckerboardTransparency(path) {
+function isMagentaContaminatedPixel(data, offset) {
+  const red = data[offset];
+  const green = data[offset + 1];
+  const blue = data[offset + 2];
+  return red >= 30
+    && blue >= 30
+    && ((red + blue) / 2) - green >= 20
+    && Math.abs(red - blue) <= 120;
+}
+
+export async function restoreMagentaTransparency(path) {
   const input = await readFile(path);
   const { data, info } = await sharp(input, { failOn: 'error' })
     .rotate()
@@ -37,18 +60,29 @@ export async function restoreCheckerboardTransparency(path) {
   let tail = 0;
   const enqueue = (index) => {
     if (background[index] === 1) return;
-    if (!isNeutralCheckerboardPixel(data, index * info.channels)) return;
+    if (!isMagentaMattePixel(data, index * info.channels)) return;
     background[index] = 1;
     queue[tail] = index;
     tail += 1;
   };
+  let edgeSamples = 0;
+  let edgeChromaSamples = 0;
+  const sampleEdge = (index) => {
+    edgeSamples += 1;
+    if (isMagentaMattePixel(data, index * info.channels)) edgeChromaSamples += 1;
+    enqueue(index);
+  };
   for (let x = 0; x < info.width; x += 1) {
-    enqueue(x);
-    enqueue(((info.height - 1) * info.width) + x);
+    sampleEdge(x);
+    if (info.height > 1) sampleEdge(((info.height - 1) * info.width) + x);
   }
   for (let y = 1; y < info.height - 1; y += 1) {
-    enqueue(y * info.width);
-    enqueue((y * info.width) + info.width - 1);
+    sampleEdge(y * info.width);
+    if (info.width > 1) sampleEdge((y * info.width) + info.width - 1);
+  }
+  const edgeChromaRatio = edgeSamples === 0 ? 0 : edgeChromaSamples / edgeSamples;
+  if (edgeChromaRatio < MAGENTA_MIN_EDGE_RATIO) {
+    throw new Error(`Magenta matte transform requires at least ${MAGENTA_MIN_EDGE_RATIO} chroma coverage on the image edge in ${path}`);
   }
   while (head < tail) {
     const index = queue[head];
@@ -61,23 +95,12 @@ export async function restoreCheckerboardTransparency(path) {
     if (y + 1 < info.height) enqueue(index + info.width);
   }
   if (tail === 0) {
-    throw new Error(`Checkerboard matte transform found no connected neutral background in ${path}`);
+    throw new Error(`Magenta matte transform found no connected chroma background in ${path}`);
   }
-
-  for (let pass = 0; pass < CHECKERBOARD_EDGE_EROSION_PIXELS; pass += 1) {
-    const expanded = background.slice();
-    for (let index = 0; index < totalPixels; index += 1) {
-      if (background[index] === 1) continue;
-      const x = index % info.width;
-      const y = Math.floor(index / info.width);
-      if ((x > 0 && background[index - 1] === 1)
-        || (x + 1 < info.width && background[index + 1] === 1)
-        || (y > 0 && background[index - info.width] === 1)
-        || (y + 1 < info.height && background[index + info.width] === 1)) {
-        expanded[index] = 1;
-      }
-    }
-    background.set(expanded);
+  const backgroundRatio = tail / totalPixels;
+  if (backgroundRatio < MAGENTA_MIN_BACKGROUND_RATIO
+    || backgroundRatio > MAGENTA_MAX_BACKGROUND_RATIO) {
+    throw new Error(`Magenta matte transform found an unsafe connected background ratio in ${path}`);
   }
 
   const distance = new Uint16Array(totalPixels);
@@ -110,32 +133,44 @@ export async function restoreCheckerboardTransparency(path) {
   }
 
   const cleaned = Buffer.from(data);
-  const neighbors = [-info.width, -1, 1, info.width];
-  for (let layer = CHECKERBOARD_DECONTAMINATION_PIXELS; layer >= 1; layer -= 1) {
-    for (let index = 0; index < totalPixels; index += 1) {
-      if (distance[index] !== layer) continue;
-      const x = index % info.width;
-      const y = Math.floor(index / info.width);
-      let sourceIndex = -1;
-      let sourceDistance = layer;
-      for (const offset of neighbors) {
-        const candidate = index + offset;
-        if ((offset === -1 && x === 0)
-          || (offset === 1 && x + 1 === info.width)
-          || (offset === -info.width && y === 0)
-          || (offset === info.width && y + 1 === info.height)) continue;
-        if (distance[candidate] > sourceDistance) {
-          sourceDistance = distance[candidate];
-          sourceIndex = candidate;
+  const discardedChroma = new Uint8Array(totalPixels);
+  for (let index = 0; index < totalPixels; index += 1) {
+    if (distance[index] < 1 || distance[index] > MAGENTA_DECONTAMINATION_PIXELS) continue;
+    const targetOffset = index * info.channels;
+    if (!isMagentaContaminatedPixel(data, targetOffset)) continue;
+    const x = index % info.width;
+    const y = Math.floor(index / info.width);
+    let sourceIndex = -1;
+    for (let radius = 1;
+      radius <= MAGENTA_DECONTAMINATION_SEARCH_PIXELS && sourceIndex < 0;
+      radius += 1) {
+      for (let deltaY = -radius; deltaY <= radius && sourceIndex < 0; deltaY += 1) {
+        const deltaX = radius - Math.abs(deltaY);
+        const candidates = deltaX === 0
+          ? [[x, y + deltaY]]
+          : [[x - deltaX, y + deltaY], [x + deltaX, y + deltaY]];
+        for (const [candidateX, candidateY] of candidates) {
+          if (candidateX < 0 || candidateX >= info.width
+            || candidateY < 0 || candidateY >= info.height) continue;
+          const candidate = (candidateY * info.width) + candidateX;
+          const candidateOffset = candidate * info.channels;
+          if (background[candidate] === 0
+            && distance[candidate] > distance[index]
+            && !isMagentaContaminatedPixel(data, candidateOffset)) {
+            sourceIndex = candidate;
+            break;
+          }
         }
       }
-      if (sourceIndex < 0) continue;
-      const sourceOffset = sourceIndex * info.channels;
-      const targetOffset = index * info.channels;
-      cleaned[targetOffset] = cleaned[sourceOffset];
-      cleaned[targetOffset + 1] = cleaned[sourceOffset + 1];
-      cleaned[targetOffset + 2] = cleaned[sourceOffset + 2];
     }
+    if (sourceIndex < 0) {
+      discardedChroma[index] = 1;
+      continue;
+    }
+    const sourceOffset = sourceIndex * info.channels;
+    cleaned[targetOffset] = data[sourceOffset];
+    cleaned[targetOffset + 1] = data[sourceOffset + 1];
+    cleaned[targetOffset + 2] = data[sourceOffset + 2];
   }
 
   const rgba = Buffer.alloc(totalPixels * 4);
@@ -143,31 +178,34 @@ export async function restoreCheckerboardTransparency(path) {
   for (let index = 0; index < totalPixels; index += 1) {
     const sourceOffset = index * info.channels;
     const targetOffset = index * 4;
-    rgba[targetOffset] = cleaned[sourceOffset];
-    rgba[targetOffset + 1] = cleaned[sourceOffset + 1];
-    rgba[targetOffset + 2] = cleaned[sourceOffset + 2];
-    const transparent = background[index] === 1;
-    const featherAlpha = distance[index] <= CHECKERBOARD_ALPHA_FEATHER_PIXELS
-      ? Math.round((255 * distance[index]) / (CHECKERBOARD_ALPHA_FEATHER_PIXELS + 1))
+    const transparent = background[index] === 1 || discardedChroma[index] === 1;
+    rgba[targetOffset] = transparent ? 0 : cleaned[sourceOffset];
+    rgba[targetOffset + 1] = transparent ? 0 : cleaned[sourceOffset + 1];
+    rgba[targetOffset + 2] = transparent ? 0 : cleaned[sourceOffset + 2];
+    const chromaContaminated = isMagentaContaminatedPixel(data, sourceOffset);
+    const featherAlpha = chromaContaminated && distance[index] <= MAGENTA_ALPHA_FEATHER_PIXELS
+      ? Math.round((255 * distance[index]) / (MAGENTA_ALPHA_FEATHER_PIXELS + 1))
       : 255;
     rgba[targetOffset + 3] = transparent ? 0 : featherAlpha;
     if (transparent) transparentPixels += 1;
   }
-  const temporaryPath = `${path}.checkerboard-alpha.tmp.png`;
+  const temporaryPath = `${path}.magenta-alpha.tmp.png`;
   await sharp(rgba, {
     raw: { width: info.width, height: info.height, channels: 4 },
   }).png({ compressionLevel: 9 }).toFile(temporaryPath);
   await rename(temporaryPath, path);
   return {
     applied: true,
-    transform: 'checkerboard-matte-to-alpha',
+    transform: 'magenta-matte-to-alpha',
     width: info.width,
     height: info.height,
     transparentPixels,
     transparentRatio: round(transparentPixels / totalPixels),
-    edgeErosionPixels: CHECKERBOARD_EDGE_EROSION_PIXELS,
-    colorDecontaminationPixels: CHECKERBOARD_DECONTAMINATION_PIXELS,
-    alphaFeatherPixels: CHECKERBOARD_ALPHA_FEATHER_PIXELS,
+    edgeChromaRatio: round(edgeChromaRatio),
+    colorDecontaminationPixels: MAGENTA_DECONTAMINATION_PIXELS,
+    colorDecontaminationSearchPixels: MAGENTA_DECONTAMINATION_SEARCH_PIXELS,
+    discardedChromaPixels: discardedChroma.reduce((total, value) => total + value, 0),
+    alphaFeatherPixels: MAGENTA_ALPHA_FEATHER_PIXELS,
   };
 }
 
@@ -237,8 +275,7 @@ export async function inspectCandidate(path, asset) {
       : pixels.visiblePixels > 0;
   const sizePassed = info.width >= asset.qa.minSourceSize.width
     && info.height >= asset.qa.minSourceSize.height;
-  const trimApplicable = asset.alpha !== 'forbidden'
-    && !['background', 'tileset'].includes(asset.kind);
+  const trimApplicable = asset.alpha !== 'forbidden' && assetKindSupports(asset.kind, 'trim');
   const trimPassed = !trimApplicable
     || (pixels.visiblePixels > 0 && bboxCoverage < 1 && pixels.opaqueEdgeRatio === 0);
   const frame = detectFrames(asset, info);
@@ -303,7 +340,7 @@ export async function normalizeAsset(sourcePath, outputDirectory, asset) {
   await mkdir(outputDirectory, { recursive: true });
   const outputPath = join(outputDirectory, `${asset.id}.png`);
   const input = sharp(sourcePath, { failOn: 'error' }).rotate();
-  const isAtlasSprite = ['sprite', 'boss', 'ui'].includes(asset.kind);
+  const isAtlasSprite = assetKindSupports(asset.kind, 'atlas');
 
   if (isAtlasSprite) {
     await input
@@ -347,7 +384,7 @@ function nextPowerOfTwo(value) {
 }
 
 export async function buildSpriteAtlas(normalizedAssets, outputDirectory, options) {
-  const sprites = normalizedAssets.filter(({ kind }) => ['sprite', 'boss', 'ui'].includes(kind));
+  const sprites = normalizedAssets.filter(({ kind }) => assetKindSupports(kind, 'atlas'));
   if (sprites.length === 0) throw new Error('Cannot build an empty sprite atlas');
   await mkdir(outputDirectory, { recursive: true });
   const padding = options.padding ?? 0;

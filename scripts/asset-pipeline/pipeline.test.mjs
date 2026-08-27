@@ -51,16 +51,19 @@ function fixtureSpec() {
       {
         id: 'player_halfbie_concept', label: 'player', kind: 'sprite',
         view: 'topdown-3q', size: '16x16', frames: 1, alpha: 'required',
+        identity: { mode: 'original' },
         promptBrief: 'player prompt', qa: commonQa,
       },
       {
         id: 'student_zombie_concept', label: 'zombie', kind: 'sprite',
         view: 'topdown-3q', size: '16x16', frames: 1, alpha: 'required',
+        identity: { mode: 'original' },
         promptBrief: 'zombie prompt', qa: commonQa,
       },
       {
         id: 'cafeteria_background_concept', label: 'cafeteria', kind: 'background',
         view: 'orthogonal-topdown', size: '32x20', frames: 1, alpha: 'forbidden',
+        identity: { mode: 'not-applicable' },
         promptBrief: 'background prompt',
         qa: {
           ...commonQa,
@@ -127,11 +130,13 @@ async function writeCandidate(path, asset) {
   }]).png().toFile(path);
 }
 
-async function createFixture() {
+async function createFixture(updateSpec) {
   const repositoryRoot = await mkdtemp(join(tmpdir(), 'hyosan-pipeline-'));
   cleanups.push(() => rm(repositoryRoot, { recursive: true, force: true }));
   const specPath = join(repositoryRoot, 'asset-spec.yaml');
-  await writeFile(specPath, yaml.dump(fixtureSpec()), 'utf8');
+  const spec = fixtureSpec();
+  updateSpec?.(spec);
+  await writeFile(specPath, yaml.dump(spec), 'utf8');
   return { repositoryRoot, specPath };
 }
 
@@ -282,6 +287,153 @@ describe('asset pipeline', () => {
       sourceFidelityScore: 0.4,
       minimumSourceFidelity: 0.85,
       passed: false,
+    });
+  });
+
+  it('requires performer identity independently for a canonical character', async () => {
+    const { repositoryRoot, specPath } = await createFixture((spec) => {
+      spec.assets[0].identity = {
+        mode: 'canonical',
+        character: '남라',
+        performer: '조이현',
+      };
+      spec.assets[0].qa.minCharacterIdentity = 0.88;
+    });
+    const attempts = new Map();
+    const runner = {
+      async plan(spec) {
+        return {
+          schemaVersion: 1,
+          assets: spec.assets.map((asset) => ({ assetId: asset.id, prompt: asset.promptBrief })),
+        };
+      },
+      async generate({ asset, attempt, candidatePath }) {
+        attempts.set(asset.id, attempt);
+        await writeCandidate(candidatePath, asset);
+        return { provider: 'fixture-generator', savedPath: candidatePath };
+      },
+      async review({ asset }) {
+        const result = passingVision(asset, 0.95);
+        if (asset.id === 'player_halfbie_concept' && attempts.get(asset.id) === 1) {
+          result.dimensions.characterIdentity = {
+            applicable: true,
+            score: 0.4,
+            notes: 'does not preserve the licensed performer identity',
+          };
+        }
+        return result;
+      },
+    };
+
+    const result = await runAssetPipeline({
+      specPath,
+      repositoryRoot,
+      runner,
+      now: () => new Date('2026-08-27T04:00:00.000Z'),
+    });
+
+    const player = result.manifest.assets.find(({ id }) => id === 'player_halfbie_concept');
+    expect(player.selectedAttempt).toBe(2);
+    expect(result.qaReport.assets[0].attempts[0].visionQa).toMatchObject({
+      characterIdentityScore: 0.4,
+      minimumCharacterIdentity: 0.88,
+      passed: false,
+    });
+  });
+
+  it('prefers season-one source fidelity over average score for a BEST fallback', async () => {
+    const { repositoryRoot, specPath } = await createFixture();
+    const attempts = new Map();
+    const runner = {
+      async plan(spec) {
+        return {
+          schemaVersion: 1,
+          assets: spec.assets.map((asset) => ({ assetId: asset.id, prompt: asset.promptBrief })),
+        };
+      },
+      async generate({ asset, attempt, candidatePath }) {
+        attempts.set(asset.id, attempt);
+        await writeCandidate(candidatePath, asset);
+        return { provider: 'fixture-generator', savedPath: candidatePath };
+      },
+      async review({ asset }) {
+        if (asset.id !== 'player_halfbie_concept') return passingVision(asset);
+        const attempt = attempts.get(asset.id);
+        if (attempt === 1) {
+          const blocked = passingVision(asset, 0.99);
+          blocked.guards.wrongSeasonElements = {
+            detected: true,
+            confidence: 0.99,
+            notes: 'wrong season',
+          };
+          return blocked;
+        }
+        const result = passingVision(asset, attempt === 2 ? 0.7 : 0.99);
+        result.dimensions.sourceFidelity = {
+          applicable: true,
+          score: attempt === 2 ? 0.84 : 0.2,
+          notes: attempt === 2 ? 'near the season-one threshold' : 'generic school design',
+        };
+        return result;
+      },
+    };
+
+    const result = await runAssetPipeline({
+      specPath,
+      repositoryRoot,
+      runner,
+      now: () => new Date('2026-08-27T05:00:00.000Z'),
+    });
+
+    const player = result.manifest.assets.find(({ id }) => id === 'player_halfbie_concept');
+    expect(player).toMatchObject({ selectedAttempt: 2, status: 'accepted-with-warning' });
+  });
+
+  it('invalidates a previous passing manifest before a regeneration can fail', async () => {
+    const { repositoryRoot, specPath } = await createFixture();
+    const passingRunner = {
+      async plan(spec) {
+        return {
+          schemaVersion: 1,
+          assets: spec.assets.map((asset) => ({ assetId: asset.id, prompt: asset.promptBrief })),
+        };
+      },
+      async generate({ asset, candidatePath }) {
+        await writeCandidate(candidatePath, asset);
+        return { provider: 'fixture-generator', savedPath: candidatePath };
+      },
+      async review({ asset }) {
+        return passingVision(asset);
+      },
+    };
+    await runAssetPipeline({
+      specPath,
+      repositoryRoot,
+      runner: passingRunner,
+      now: () => new Date('2026-08-27T06:00:00.000Z'),
+    });
+
+    await expect(runAssetPipeline({
+      specPath,
+      repositoryRoot,
+      runner: {
+        ...passingRunner,
+        async generate() {
+          throw new Error('fixture regeneration failed');
+        },
+      },
+      now: () => new Date('2026-08-27T07:00:00.000Z'),
+    })).rejects.toThrow('fixture regeneration failed');
+
+    const persisted = JSON.parse(
+      await readFile(join(repositoryRoot, 'docs/output/asset-manifest.json'), 'utf8'),
+    );
+    expect(persisted).toMatchObject({
+      status: 'regeneration-in-progress',
+      approvalGate: {
+        status: 'blocked',
+        blocks: ['M1', 'mass-production', 'phaser-integration'],
+      },
     });
   });
 });

@@ -1,16 +1,17 @@
 import { createHash } from 'node:crypto';
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 import {
   buildSpriteAtlas,
   inspectCandidate,
   normalizeAsset,
-  restoreCheckerboardTransparency,
+  restoreMagentaTransparency,
 } from './image-processing.mjs';
 import { loadAssetSpec } from './spec.mjs';
 
 const GUARD_CONFIDENCE_THRESHOLD = 0.65;
+const APPROVAL_BLOCKS = ['M1', 'mass-production', 'phaser-integration'];
 
 function portableRelative(from, to) {
   return relative(from, to).split(sep).join('/');
@@ -19,6 +20,20 @@ function portableRelative(from, to) {
 async function writeJson(path, value) {
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+}
+
+async function writeJsonAtomically(path, value) {
+  await mkdir(dirname(path), { recursive: true });
+  const temporaryPath = `${path}.${process.pid}.tmp`;
+  await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  await rename(temporaryPath, path);
+}
+
+function assertWritablePathInsideRepository(root, target, field) {
+  const path = relative(root, target);
+  if (path === '' || isAbsolute(path) || path === '..' || path.startsWith(`..${sep}`)) {
+    throw new Error(`${field} must resolve inside the repository root`);
+  }
 }
 
 function evaluateVision(review, asset) {
@@ -40,15 +55,30 @@ function evaluateVision(review, asset) {
   const hardFailures = Object.entries(review.guards ?? {})
     .filter(([, guard]) => guard.detected === true || guard.confidence >= GUARD_CONFIDENCE_THRESHOLD)
     .map(([guard]) => guard);
+  const isCanonicalCharacter = asset.identity.mode === 'canonical';
+  const characterIdentity = review.dimensions?.characterIdentity;
+  const characterIdentityScore = characterIdentity?.score;
+  if (isCanonicalCharacter
+    && (characterIdentity?.applicable === false || !Number.isFinite(characterIdentityScore))) {
+    throw new Error(`Vision QA returned no applicable characterIdentity score for canonical asset ${asset.id}`);
+  }
+  const minimumCharacterIdentity = isCanonicalCharacter
+    ? asset.qa.minCharacterIdentity
+    : null;
   return {
     ...review,
     score,
     minimumScore: asset.qa.minScore,
     sourceFidelityScore,
     minimumSourceFidelity: asset.qa.minSourceFidelity,
+    characterIdentityScore: Number.isFinite(characterIdentityScore)
+      ? characterIdentityScore
+      : null,
+    minimumCharacterIdentity,
     hardFailures,
     passed: score >= asset.qa.minScore
       && sourceFidelityScore >= asset.qa.minSourceFidelity
+      && (!isCanonicalCharacter || characterIdentityScore >= minimumCharacterIdentity)
       && hardFailures.length === 0,
   };
 }
@@ -84,11 +114,16 @@ function sanitizeAttempt(attempt, repositoryRoot) {
   };
 }
 
-function chooseBestEligible(attempts) {
+function chooseBestEligible(attempts, asset) {
   return attempts
     .filter(({ technicalQa, visionQa }) => technicalQa.passed && visionQa?.hardFailures.length === 0)
     .sort((left, right) => (
-      right.visionQa.score - left.visionQa.score || left.attempt - right.attempt
+      right.visionQa.sourceFidelityScore - left.visionQa.sourceFidelityScore
+      || (asset.identity.mode === 'canonical'
+        ? right.visionQa.characterIdentityScore - left.visionQa.characterIdentityScore
+        : 0)
+      || right.visionQa.score - left.visionQa.score
+      || left.attempt - right.attempt
     ))[0];
 }
 
@@ -105,8 +140,22 @@ export async function runAssetPipeline({ specPath, repositoryRoot, runner, now =
   const workDirectory = resolve(root, spec.pipeline.workDirectory);
   const runDirectory = join(workDirectory, 'runs', runId);
   const outputDirectory = resolve(root, spec.pipeline.outputDirectory);
+  assertWritablePathInsideRepository(root, workDirectory, 'pipeline.workDirectory');
+  assertWritablePathInsideRepository(root, outputDirectory, 'pipeline.outputDirectory');
   const selectedDirectory = join(outputDirectory, 'selected');
   const atlasDirectory = join(outputDirectory, 'atlas');
+  await mkdir(outputDirectory, { recursive: true });
+  await writeJsonAtomically(join(outputDirectory, 'asset-manifest.json'), {
+    schemaVersion: 1,
+    project: spec.meta.project,
+    milestone: spec.meta.milestone,
+    status: 'regeneration-in-progress',
+    generatedAt,
+    approvalGate: {
+      status: 'blocked',
+      blocks: APPROVAL_BLOCKS,
+    },
+  });
   await Promise.all([
     mkdir(runDirectory, { recursive: true }),
     mkdir(selectedDirectory, { recursive: true }),
@@ -118,10 +167,7 @@ export async function runAssetPipeline({ specPath, repositoryRoot, runner, now =
   for (const asset of spec.assets) {
     if (!planByAsset.has(asset.id)) throw new Error(`Planner omitted ${asset.id}`);
   }
-  await Promise.all([
-    writeJson(join(runDirectory, 'generation-plan.json'), plan),
-    writeJson(join(outputDirectory, 'generation-plan.json'), plan),
-  ]);
+  await writeJson(join(runDirectory, 'generation-plan.json'), plan);
 
   const selections = [];
   for (const asset of spec.assets) {
@@ -147,8 +193,8 @@ export async function runAssetPipeline({ specPath, repositoryRoot, runner, now =
       if (generation?.savedPath && resolve(generation.savedPath) !== resolve(candidatePath)) {
         await copyFile(generation.savedPath, candidatePath);
       }
-      if (generation?.technicalTransform === 'checkerboard-matte-to-alpha') {
-        generation.technicalTransformResult = await restoreCheckerboardTransparency(candidatePath);
+      if (generation?.technicalTransform === 'magenta-matte-to-alpha') {
+        generation.technicalTransformResult = await restoreMagentaTransparency(candidatePath);
       }
       const technicalQa = await inspectCandidate(candidatePath, asset);
       await writeJson(join(attemptDirectory, 'technical-qa.json'), technicalQa);
@@ -171,7 +217,7 @@ export async function runAssetPipeline({ specPath, repositoryRoot, runner, now =
     }
 
     const warning = selected ? null : `QA score stayed below ${asset.qa.minScore} or source fidelity stayed below ${asset.qa.minSourceFidelity} after ${spec.pipeline.maxAttempts} attempts; BEST eligible candidate accepted for M0 review.`;
-    selected ??= chooseBestEligible(attempts);
+    selected ??= chooseBestEligible(attempts, asset);
     if (!selected) {
       const error = new Error(`No technically valid, policy-safe candidate for ${asset.id}`);
       error.attempts = attempts;
@@ -230,7 +276,7 @@ export async function runAssetPipeline({ specPath, repositoryRoot, runner, now =
     },
     approvalGate: {
       status: 'pending',
-      blocks: ['M1', 'mass-production', 'phaser-integration'],
+      blocks: APPROVAL_BLOCKS,
     },
     atlas: {
       image: portableRelative(outputDirectory, atlas.imagePath),
@@ -257,9 +303,10 @@ export async function runAssetPipeline({ specPath, repositoryRoot, runner, now =
     })),
   };
   await Promise.all([
-    writeJson(join(outputDirectory, 'asset-manifest.json'), manifest),
+    writeJson(join(outputDirectory, 'generation-plan.json'), plan),
     writeJson(join(outputDirectory, 'qa-report.json'), qaReport),
   ]);
+  await writeJsonAtomically(join(outputDirectory, 'asset-manifest.json'), manifest);
 
   return { manifest, qaReport, atlas, outputDirectory, runDirectory };
 }
