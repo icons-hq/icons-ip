@@ -1,0 +1,1022 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-27T05:48:56.147Z",
+  "summary": {
+    "requested": 3,
+    "passed": 3,
+    "acceptedWithWarning": 0,
+    "failed": 0
+  },
+  "assets": [
+    {
+      "assetId": "player_halfbie_concept",
+      "selectedAttempt": 3,
+      "warning": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "candidatePath": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/player_halfbie_concept/attempt-01/candidate.png",
+          "generation": {
+            "provider": "codex-app-built-in-imagegen",
+            "mode": "direct-app-session",
+            "prompt": "Use case: stylized-concept. Asset type: M0 game character concept for a 2D orthogonal top-down action RPG. Create one original anonymous Korean high-school student halfbie player exploring a ruined school at night, isolated on a genuinely transparent background. Show the full body in an orthographic 3/4 top-down camera with both feet visible, a neutral diagonal combat-ready stance, clear padding, and a strong gameplay silhouette. Use high-resolution painted 2D stylized realism with a tense Korean live-action school-survival drama mood, cool moonlight, subtle red emergency rim light, a worn dark school uniform, restrained pale skin, and one faint amber-red iris. Create a completely original face that does not resemble any real actor, celebrity, or cast member. Bloodless. No text, logos, watermark, gore, open wounds, corpses, webtoon or manga linework, disaster-form graphics, extra people, cropped feet, ground plane, or external cast shadow.",
+            "sourceFile": "player_halfbie_concept-attempt-01.png",
+            "candidateSha256": "2d8a79db31a895862c22c813bb54c7e2f31a4120147d4bef5880124374084fd3",
+            "savedFile": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/player_halfbie_concept/attempt-01/candidate.png"
+          },
+          "technicalQa": {
+            "schemaVersion": 1,
+            "assetId": "player_halfbie_concept",
+            "path": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/player_halfbie_concept/attempt-01/candidate.png",
+            "sha256": "2d8a79db31a895862c22c813bb54c7e2f31a4120147d4bef5880124374084fd3",
+            "format": "png",
+            "passed": false,
+            "checks": {
+              "alpha": {
+                "passed": false,
+                "policy": "required",
+                "hasAlpha": false,
+                "transparentRatio": 0
+              },
+              "size": {
+                "passed": true,
+                "width": 1254,
+                "height": 1254,
+                "minimumWidth": 768,
+                "minimumHeight": 768
+              },
+              "trim": {
+                "passed": false,
+                "applicable": true,
+                "removablePixelRatio": 0
+              },
+              "frame": {
+                "passed": true,
+                "expected": 1,
+                "detected": 1
+              },
+              "bbox": {
+                "passed": false,
+                "left": 0,
+                "top": 0,
+                "width": 1254,
+                "height": 1254,
+                "coverage": 1,
+                "minimumCoverage": 0.2,
+                "maximumCoverage": 0.9
+              },
+              "edges": {
+                "passed": false,
+                "opaqueRatio": 1,
+                "maximumOpaqueRatio": 0.02
+              }
+            }
+          },
+          "visionQa": null,
+          "normalized": null,
+          "outputVisionQa": null
+        },
+        {
+          "attempt": 2,
+          "candidatePath": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/player_halfbie_concept/attempt-02/candidate.png",
+          "generation": {
+            "provider": "codex-app-built-in-imagegen",
+            "mode": "direct-app-session",
+            "prompt": "Create one M0 character concept for a 2D orthogonal top-down action RPG licensed from Netflix's All of Us Are Dead. The two attached official Season 1 Netflix stills are hard costume and production references. This must read as Hyosan High from the live-action drama, never as a generic navy/black prep uniform. Make one ORIGINAL unnamed Korean male high-school halfbie player (not Cheong-san/Yoon Chan-young and not Su-hyeok/Lomon, because this role is an original visitor), while matching the Season 1 live-action casting realism and exact uniform construction: saturated bottle/emerald-green V-neck knitted vest, crisp white shirt, grey-blue-green tartan trousers with thin pale grid lines, the same dark tie with bright green diagonal bands and small light motifs, and on the wearer's left chest a deep crimson rectangular Korean name tag directly above the small round red-and-gold Hyosan crest. Do not omit, recolor, or relocate the name tag and crest. Full body with both shoes visible, isolated on a genuinely transparent background, generous empty padding, no ground plane and no cast shadow. Strict orthographic 3/4 top-down gameplay camera around 55 degrees, neutral diagonal combat-ready stance, clear readable silhouette at sprite scale. High-resolution painted 2D realism derived from the live-action Season 1 cinematography, natural Korean teen proportions and face, slightly disheveled black hair, restrained pale skin, one subtly abnormal amber iris to indicate halfbie status. Bloodless: no blood, bites, wounds, corpse, or gore. No blazer, hoodie, navy uniform, black vest, white piping, weapons, flashlight, props, extra people, text outside the small uniform name tag, watermark, manga, webtoon, anime, cel-shading, chibi proportions, horizon, perspective floor, or Season 2 elements.",
+            "sourceFile": "player_halfbie_concept-attempt-02.png",
+            "candidateSha256": "3e3be8cb7b65bb6b9359827d1558e14bdc22eba20b31dde7e9bdd7fcc66e1520",
+            "savedFile": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/player_halfbie_concept/attempt-02/candidate.png"
+          },
+          "technicalQa": {
+            "schemaVersion": 1,
+            "assetId": "player_halfbie_concept",
+            "path": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/player_halfbie_concept/attempt-02/candidate.png",
+            "sha256": "3e3be8cb7b65bb6b9359827d1558e14bdc22eba20b31dde7e9bdd7fcc66e1520",
+            "format": "png",
+            "passed": false,
+            "checks": {
+              "alpha": {
+                "passed": false,
+                "policy": "required",
+                "hasAlpha": false,
+                "transparentRatio": 0
+              },
+              "size": {
+                "passed": true,
+                "width": 1254,
+                "height": 1254,
+                "minimumWidth": 768,
+                "minimumHeight": 768
+              },
+              "trim": {
+                "passed": false,
+                "applicable": true,
+                "removablePixelRatio": 0
+              },
+              "frame": {
+                "passed": true,
+                "expected": 1,
+                "detected": 1
+              },
+              "bbox": {
+                "passed": false,
+                "left": 0,
+                "top": 0,
+                "width": 1254,
+                "height": 1254,
+                "coverage": 1,
+                "minimumCoverage": 0.2,
+                "maximumCoverage": 0.9
+              },
+              "edges": {
+                "passed": false,
+                "opaqueRatio": 1,
+                "maximumOpaqueRatio": 0.02
+              }
+            }
+          },
+          "visionQa": null,
+          "normalized": null,
+          "outputVisionQa": null
+        },
+        {
+          "attempt": 3,
+          "candidatePath": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/player_halfbie_concept/attempt-03/candidate.png",
+          "generation": {
+            "provider": "codex-app-built-in-imagegen",
+            "mode": "direct-app-session",
+            "prompt": "Edit the supplied image only. Preserve the Korean high-school student character exactly: same face, hair, pose, anatomy, top-down three-quarter camera, bottle-green knit vest, white shirt and sleeves, grey-green tartan trousers, striped tie, red Hangul name tag, red-and-gold round crest, painted lighting, proportions, and every foreground edge. Do not redesign, redraw, crop, add, or remove any part of the character. Replace every pixel of the baked gray-and-white checkerboard background with one perfectly flat, uniform chroma-key magenta color #FF00FF. No checkerboard, no gradients, no shadows, no floor, no halo, no texture, no objects, no transparency preview. Keep the full subject with generous margin and output a square high-resolution PNG.",
+            "technicalTransform": "magenta-matte-to-alpha",
+            "sourceFile": "player_halfbie_concept-attempt-03.png",
+            "candidateSha256": "89dd479f54256e0df7b18a844c3dcdba3aaa212d7ee89e5bf2444761f55ceaba",
+            "technicalTransformResult": {
+              "applied": true,
+              "transform": "magenta-matte-to-alpha",
+              "width": 1254,
+              "height": 1254,
+              "transparentPixels": 1336094,
+              "transparentRatio": 0.849654,
+              "edgeChromaRatio": 1,
+              "colorDecontaminationPixels": 24,
+              "colorDecontaminationSearchPixels": 48,
+              "discardedChromaPixels": 0,
+              "alphaFeatherPixels": 2
+            },
+            "savedFile": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/player_halfbie_concept/attempt-03/candidate.png"
+          },
+          "technicalQa": {
+            "schemaVersion": 1,
+            "assetId": "player_halfbie_concept",
+            "path": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/player_halfbie_concept/attempt-03/candidate.png",
+            "sha256": "acd317d110a82254c8228319c74b8164a2d93ecc06c92caae7fe15bb7c66a784",
+            "format": "png",
+            "passed": true,
+            "checks": {
+              "alpha": {
+                "passed": true,
+                "policy": "required",
+                "hasAlpha": true,
+                "transparentRatio": 0.853204
+              },
+              "size": {
+                "passed": true,
+                "width": 1254,
+                "height": 1254,
+                "minimumWidth": 768,
+                "minimumHeight": 768
+              },
+              "trim": {
+                "passed": true,
+                "applicable": true,
+                "removablePixelRatio": 0.671629
+              },
+              "frame": {
+                "passed": true,
+                "expected": 1,
+                "detected": 1
+              },
+              "bbox": {
+                "passed": true,
+                "left": 389,
+                "top": 63,
+                "width": 472,
+                "height": 1094,
+                "coverage": 0.328371,
+                "minimumCoverage": 0.2,
+                "maximumCoverage": 0.9
+              },
+              "edges": {
+                "passed": true,
+                "opaqueRatio": 0,
+                "maximumOpaqueRatio": 0.02
+              }
+            }
+          },
+          "visionQa": {
+            "assetId": "player_halfbie_concept",
+            "reviewedSha256": "acd317d110a82254c8228319c74b8164a2d93ecc06c92caae7fe15bb7c66a784",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.92,
+                "notes": "병녹색 니트, 흰 셔츠, 회청록 타탄 바지, 사선 타이, 빨간 이름표와 원형 교표가 시즌1 공식 교복 레퍼런스를 유지한다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.89,
+                "notes": "한국 학생의 실사 비례와 의상 재질을 게임용 페인티드 2D로 일관되게 보존했다."
+              },
+              "characterIdentity": {
+                "applicable": true,
+                "score": 0.89,
+                "notes": "오리지널 효산고 절비의 역할과 미세한 한쪽 눈 이상이 읽히며 특정 정식 배역을 사칭하지 않는다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.91,
+                "notes": "머리·어깨·신발 상면이 보이는 일관된 3/4 탑뷰다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.94,
+                "notes": "마젠타 키 제거 뒤에도 흰 소매와 팔다리 경계가 손실 없이 선명하다."
+              },
+              "animationConsistency": {
+                "applicable": false,
+                "score": 1,
+                "notes": "M0 단일 프레임 시안이므로 평가하지 않는다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0,
+                "notes": "피·교상·열린 상처가 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.08,
+                "notes": "웹툰 선화·패널·말풍선이 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "시즌1 교복 외의 시즌2 요소가 없다."
+              }
+            },
+            "feedback": [],
+            "score": 0.91,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.92,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 0.89,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          },
+          "normalized": {
+            "assetId": "player_halfbie_concept",
+            "kind": "sprite",
+            "path": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/player_halfbie_concept/attempt-03/normalized/player_halfbie_concept.png",
+            "file": "player_halfbie_concept.png",
+            "width": 512,
+            "height": 512,
+            "format": "png",
+            "sha256": "eced3ac48eecf749aa9a457fd4980caeb00c78224df2a59ffaf3f3c99da9bca9"
+          },
+          "outputVisionQa": {
+            "assetId": "player_halfbie_concept",
+            "reviewedSha256": "eced3ac48eecf749aa9a457fd4980caeb00c78224df2a59ffaf3f3c99da9bca9",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.91,
+                "notes": "512px 최종 PNG에서도 병녹색 니트, 타탄 바지, 사선 타이, 빨간 이름표와 원형 교표가 시즌1 효산고 교복으로 식별된다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.9,
+                "notes": "정규화 뒤에도 실사 비례, 얼굴과 천 재질의 페인티드 표현이 유지된다."
+              },
+              "characterIdentity": {
+                "applicable": true,
+                "score": 0.89,
+                "notes": "오리지널 효산고 절비의 얼굴·자세·한쪽 눈 이상이 최종 스프라이트에서 유지된다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.91,
+                "notes": "512px 최종 출력에서도 머리·어깨·신발 상면이 보이는 3/4 탑뷰다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.93,
+                "notes": "최종 출력의 흰 소매, 팔다리 분리, 전신 실루엣과 알파 경계가 선명하다."
+              },
+              "animationConsistency": {
+                "applicable": false,
+                "score": 1,
+                "notes": "M0 단일 프레임 최종 시안이므로 평가하지 않는다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0,
+                "notes": "최종 출력에 피·교상·열린 상처가 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.08,
+                "notes": "최종 출력에 웹툰 선화·패널·말풍선이 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "최종 출력에 시즌2 요소가 없다."
+              }
+            },
+            "feedback": [],
+            "score": 0.908,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.91,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 0.89,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          }
+        }
+      ]
+    },
+    {
+      "assetId": "student_zombie_concept",
+      "selectedAttempt": 3,
+      "warning": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "candidatePath": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/student_zombie_concept/attempt-01/candidate.png",
+          "generation": {
+            "provider": "codex-app-built-in-imagegen",
+            "mode": "direct-app-session",
+            "prompt": "Use case: stylized-concept. Asset type: M0 enemy character concept for a 2D orthogonal top-down action RPG. Create one original anonymous Korean high-school student zombie runner, isolated on a genuinely transparent background. Show the full body in an orthographic 3/4 top-down camera with both feet visible and a dynamic diagonal running pose. Communicate infection through an asymmetrical posture, rigid fingers, cloudy eyes, and pale dusty skin rather than wounds. Use high-resolution painted 2D stylized realism with a tense Korean live-action school-survival drama mood, cold moonlight, restrained red emergency rim light, and a disheveled dark school uniform. Create a completely original face that does not resemble any real actor, celebrity, or cast member. Bloodless. No text, logos, watermark, gore, bites, open wounds, corpses, webtoon or manga linework, disaster-form graphics, extra people, cropped feet, ground plane, or external cast shadow.",
+            "sourceFile": "student_zombie_concept-attempt-01.png",
+            "candidateSha256": "b3d835bac34a3d650e36e8540959c3a73b356e1a838119a09d313ac8bd320fa7",
+            "savedFile": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/student_zombie_concept/attempt-01/candidate.png"
+          },
+          "technicalQa": {
+            "schemaVersion": 1,
+            "assetId": "student_zombie_concept",
+            "path": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/student_zombie_concept/attempt-01/candidate.png",
+            "sha256": "b3d835bac34a3d650e36e8540959c3a73b356e1a838119a09d313ac8bd320fa7",
+            "format": "png",
+            "passed": false,
+            "checks": {
+              "alpha": {
+                "passed": false,
+                "policy": "required",
+                "hasAlpha": false,
+                "transparentRatio": 0
+              },
+              "size": {
+                "passed": true,
+                "width": 1254,
+                "height": 1254,
+                "minimumWidth": 768,
+                "minimumHeight": 768
+              },
+              "trim": {
+                "passed": false,
+                "applicable": true,
+                "removablePixelRatio": 0
+              },
+              "frame": {
+                "passed": true,
+                "expected": 1,
+                "detected": 1
+              },
+              "bbox": {
+                "passed": false,
+                "left": 0,
+                "top": 0,
+                "width": 1254,
+                "height": 1254,
+                "coverage": 1,
+                "minimumCoverage": 0.2,
+                "maximumCoverage": 0.9
+              },
+              "edges": {
+                "passed": false,
+                "opaqueRatio": 1,
+                "maximumOpaqueRatio": 0.02
+              }
+            }
+          },
+          "visionQa": null,
+          "normalized": null,
+          "outputVisionQa": null
+        },
+        {
+          "attempt": 2,
+          "candidatePath": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/student_zombie_concept/attempt-02/candidate.png",
+          "generation": {
+            "provider": "codex-app-built-in-imagegen",
+            "mode": "direct-app-session",
+            "prompt": "Create one M0 enemy character concept for a 2D orthogonal top-down action RPG licensed from Netflix's All of Us Are Dead. The attached Season 1 stills are hard visual references for Hyosan High uniforms, student casting, and live-action production design. Make one unnamed Korean male student zombie extra, not a named cast character and not a generic navy/black-uniform zombie. Reproduce the exact Season 1 uniform: saturated bottle/emerald-green V-neck knitted vest, white shirt, grey-blue-green tartan trousers with thin pale grid lines, the same dark tie with bright green diagonal bands and small light motifs, and on the wearer's left chest a deep crimson Korean name tag directly above the small round red-and-gold Hyosan crest. Preserve the tag-and-crest placement and scale. Full body with both shoes visible, isolated on a genuinely transparent background with generous padding, no floor and no cast shadow. Strict orthographic 3/4 top-down gameplay camera around 55 degrees. Dynamic diagonal sprint toward the lower-left, torso pitched forward, one shoulder lower, elbows and wrists unnaturally rigid, fingers curled, neck slightly twisted: use the live-action show's frantic physical performance language and realistic Korean teen anatomy. High-resolution painted 2D realism derived from Season 1 cinematography, disheveled black hair, dusty pale-grey skin and cloudy unfocused eyes. Keep it campaign-safe and bloodless: no blood, bite, exposed flesh, open wound, severed body, or corpse. Infection must read through posture, eyes, skin tone, fabric dirt and facial tension only. No blazer, hoodie, navy vest, black uniform, white piping, props, extra people, text outside the small name tag, watermark, manga, webtoon, anime, cel-shading, chibi, ground plane, horizon, or Season 2 elements.",
+            "sourceFile": "student_zombie_concept-attempt-02.png",
+            "candidateSha256": "2251c94b6b3ceca7306de2de2cf9aa4a93b940f44240844bc2ec05ff12a095b4",
+            "savedFile": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/student_zombie_concept/attempt-02/candidate.png"
+          },
+          "technicalQa": {
+            "schemaVersion": 1,
+            "assetId": "student_zombie_concept",
+            "path": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/student_zombie_concept/attempt-02/candidate.png",
+            "sha256": "2251c94b6b3ceca7306de2de2cf9aa4a93b940f44240844bc2ec05ff12a095b4",
+            "format": "png",
+            "passed": false,
+            "checks": {
+              "alpha": {
+                "passed": false,
+                "policy": "required",
+                "hasAlpha": false,
+                "transparentRatio": 0
+              },
+              "size": {
+                "passed": true,
+                "width": 1254,
+                "height": 1254,
+                "minimumWidth": 768,
+                "minimumHeight": 768
+              },
+              "trim": {
+                "passed": false,
+                "applicable": true,
+                "removablePixelRatio": 0
+              },
+              "frame": {
+                "passed": true,
+                "expected": 1,
+                "detected": 1
+              },
+              "bbox": {
+                "passed": false,
+                "left": 0,
+                "top": 0,
+                "width": 1254,
+                "height": 1254,
+                "coverage": 1,
+                "minimumCoverage": 0.2,
+                "maximumCoverage": 0.9
+              },
+              "edges": {
+                "passed": false,
+                "opaqueRatio": 1,
+                "maximumOpaqueRatio": 0.02
+              }
+            }
+          },
+          "visionQa": null,
+          "normalized": null,
+          "outputVisionQa": null
+        },
+        {
+          "attempt": 3,
+          "candidatePath": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/student_zombie_concept/attempt-03/candidate.png",
+          "generation": {
+            "provider": "codex-app-built-in-imagegen",
+            "mode": "direct-app-session",
+            "prompt": "Background-only production edit. Preserve the entire supplied foreground character pixel-for-pixel in appearance, including pose, face, hair, Korean school uniform, painted rendering, silhouette, and all white clothing. Make no changes to the foreground subject and add nothing. Replace only the gray-and-white checkerboard backdrop with one perfectly flat, uniform #FF00FF magenta chroma-key field. No checker pattern, gradients, shadow, floor, texture, halo, objects, or transparency preview. Keep the full subject and original square composition in a high-resolution PNG.",
+            "technicalTransform": "magenta-matte-to-alpha",
+            "sourceFile": "student_zombie_concept-attempt-03.png",
+            "candidateSha256": "c1999c3bc1047dedbe310616c732f95d692b8a8f85f2f6d2290d9f49d094002a",
+            "technicalTransformResult": {
+              "applied": true,
+              "transform": "magenta-matte-to-alpha",
+              "width": 1254,
+              "height": 1254,
+              "transparentPixels": 1220725,
+              "transparentRatio": 0.776288,
+              "edgeChromaRatio": 1,
+              "colorDecontaminationPixels": 24,
+              "colorDecontaminationSearchPixels": 48,
+              "discardedChromaPixels": 0,
+              "alphaFeatherPixels": 2
+            },
+            "savedFile": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/student_zombie_concept/attempt-03/candidate.png"
+          },
+          "technicalQa": {
+            "schemaVersion": 1,
+            "assetId": "student_zombie_concept",
+            "path": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/student_zombie_concept/attempt-03/candidate.png",
+            "sha256": "dcf721480a19aa5c32d6052777811df65f8612a5bdf8a4d94c6088b129d77b7d",
+            "format": "png",
+            "passed": true,
+            "checks": {
+              "alpha": {
+                "passed": true,
+                "policy": "required",
+                "hasAlpha": true,
+                "transparentRatio": 0.780282
+              },
+              "size": {
+                "passed": true,
+                "width": 1254,
+                "height": 1254,
+                "minimumWidth": 768,
+                "minimumHeight": 768
+              },
+              "trim": {
+                "passed": true,
+                "applicable": true,
+                "removablePixelRatio": 0.369457
+              },
+              "frame": {
+                "passed": true,
+                "expected": 1,
+                "detected": 1
+              },
+              "bbox": {
+                "passed": true,
+                "left": 207,
+                "top": 33,
+                "width": 841,
+                "height": 1179,
+                "coverage": 0.630543,
+                "minimumCoverage": 0.2,
+                "maximumCoverage": 0.9
+              },
+              "edges": {
+                "passed": true,
+                "opaqueRatio": 0,
+                "maximumOpaqueRatio": 0.02
+              }
+            }
+          },
+          "visionQa": {
+            "assetId": "student_zombie_concept",
+            "reviewedSha256": "dcf721480a19aa5c32d6052777811df65f8612a5bdf8a4d94c6088b129d77b7d",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.93,
+                "notes": "병녹색 니트, 흰 셔츠, 타탄 바지, 타이, 빨간 이름표와 원형 교표가 시즌1 공식 효산고 교복을 유지한다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.92,
+                "notes": "사진적 피부·천 재질과 절제된 페인티드 마감이 시즌1 실사 분장 질감에 가깝다."
+              },
+              "characterIdentity": {
+                "applicable": true,
+                "score": 0.94,
+                "notes": "탁한 눈과 비정상적으로 굽은 몸통·손목·돌진 자세로 이름 없는 학생 좀비가 즉시 식별된다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.92,
+                "notes": "머리·어깨·발등 상면과 깊이 축이 일관된 3/4 탑뷰다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.92,
+                "notes": "마젠타 키 제거 뒤에도 흰 소매, 손가락, 머리카락과 달리기 실루엣이 선명하다."
+              },
+              "animationConsistency": {
+                "applicable": false,
+                "score": 1,
+                "notes": "M0 단일 프레임 시안이므로 평가하지 않는다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0,
+                "notes": "피·교상·노출 상처 없이 자세와 피부로만 감염을 표현한다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.04,
+                "notes": "웹툰 선화·패널·말풍선이 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "시즌1 효산고 의상만 확인된다."
+              }
+            },
+            "feedback": [],
+            "score": 0.926,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.93,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 0.94,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          },
+          "normalized": {
+            "assetId": "student_zombie_concept",
+            "kind": "sprite",
+            "path": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/student_zombie_concept/attempt-03/normalized/student_zombie_concept.png",
+            "file": "student_zombie_concept.png",
+            "width": 512,
+            "height": 512,
+            "format": "png",
+            "sha256": "81376b76595dff96b4ad3a56b5f76eefd4131d20731d033fd72105d17aecc2e8"
+          },
+          "outputVisionQa": {
+            "assetId": "student_zombie_concept",
+            "reviewedSha256": "81376b76595dff96b4ad3a56b5f76eefd4131d20731d033fd72105d17aecc2e8",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.92,
+                "notes": "512px 최종 PNG에서도 병녹색 니트, 흰 셔츠, 타탄 바지, 타이, 이름표와 교표가 시즌1 효산고 교복으로 읽힌다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.91,
+                "notes": "정규화 뒤에도 사진적 피부·천 재질과 시즌1 실사 분장 질감이 유지된다."
+              },
+              "characterIdentity": {
+                "applicable": true,
+                "score": 0.93,
+                "notes": "탁한 눈, 굽은 몸통·손목과 돌진 자세로 이름 없는 학생 좀비가 최종 스프라이트에서도 즉시 식별된다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.92,
+                "notes": "512px 최종 출력에서도 머리·어깨·발등 상면과 깊이 축이 일관된 3/4 탑뷰다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.93,
+                "notes": "최종 출력의 흰 소매, 손가락, 머리카락, 교차 보폭과 알파 경계가 선명하다."
+              },
+              "animationConsistency": {
+                "applicable": false,
+                "score": 1,
+                "notes": "M0 단일 프레임 최종 시안이므로 평가하지 않는다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0,
+                "notes": "최종 출력에 피·교상·노출 상처가 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.04,
+                "notes": "최종 출력에 웹툰 선화·패널·말풍선이 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "최종 출력에 시즌2 요소가 없다."
+              }
+            },
+            "feedback": [],
+            "score": 0.922,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.92,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 0.93,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          }
+        }
+      ]
+    },
+    {
+      "assetId": "cafeteria_background_concept",
+      "selectedAttempt": 2,
+      "warning": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "candidatePath": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/cafeteria_background_concept/attempt-01/candidate.png",
+          "generation": {
+            "provider": "codex-app-built-in-imagegen",
+            "mode": "direct-app-session",
+            "prompt": "Use case: stylized-concept. Asset type: M0 game environment concept for a 2D orthogonal top-down action RPG. Create a ruined Korean high-school cafeteria at night that reads immediately as a playable combat room. Include the serving counter and kitchen pass, rows of shifted tables and chairs, a few overturned meal trays, cracked windows, a cold tiled floor, clear walkable lanes, believable doors, walls, and obstacle silhouettes, with no people or bodies. Use a high-resolution painted 2D background with stylized live-action realism, dimensional furniture and baked shadows. Frame it as a wide 3:2 landscape with a strict orthogonal top-down gameplay camera and no horizon. Use deep midnight blue ambient light, moonlight through windows, and one restrained red emergency-light zone, with no more than four implied point-light sources. Season-one school-survival mood only. Bloodless. No readable text, logos, watermark, gore, bodies, actor likeness, webtoon or manga linework, disaster-form graphics, isometric or eye-level perspective, fisheye, excessive fog, or clutter hiding the walkable space.",
+            "sourceFile": "cafeteria_background_concept-attempt-01.png",
+            "candidateSha256": "d2149ea7f2ad6bcdcd3d49457fba6cc0d900863cc9a463de95e0b939aa32018f",
+            "savedFile": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/cafeteria_background_concept/attempt-01/candidate.png"
+          },
+          "technicalQa": {
+            "schemaVersion": 1,
+            "assetId": "cafeteria_background_concept",
+            "path": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/cafeteria_background_concept/attempt-01/candidate.png",
+            "sha256": "d2149ea7f2ad6bcdcd3d49457fba6cc0d900863cc9a463de95e0b939aa32018f",
+            "format": "png",
+            "passed": true,
+            "checks": {
+              "alpha": {
+                "passed": true,
+                "policy": "forbidden",
+                "hasAlpha": false,
+                "transparentRatio": 0
+              },
+              "size": {
+                "passed": true,
+                "width": 1536,
+                "height": 1024,
+                "minimumWidth": 1024,
+                "minimumHeight": 768
+              },
+              "trim": {
+                "passed": true,
+                "applicable": false,
+                "removablePixelRatio": 0
+              },
+              "frame": {
+                "passed": true,
+                "expected": 1,
+                "detected": 1
+              },
+              "bbox": {
+                "passed": true,
+                "left": 0,
+                "top": 0,
+                "width": 1536,
+                "height": 1024,
+                "coverage": 1,
+                "minimumCoverage": 1,
+                "maximumCoverage": 1
+              },
+              "edges": {
+                "passed": true,
+                "opaqueRatio": 1,
+                "maximumOpaqueRatio": 1
+              }
+            }
+          },
+          "visionQa": {
+            "assetId": "cafeteria_background_concept",
+            "reviewedSha256": "d2149ea7f2ad6bcdcd3d49457fba6cc0d900863cc9a463de95e0b939aa32018f",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.12,
+                "notes": "어두운 청회색 방과 붉은 비상등, 넓은 빈 중앙은 시즌1 급식실의 주황·노랑 세트, 낮빛, 조밀한 원목 테이블과 버건디 의자, 녹색 바닥과 다르다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.2,
+                "notes": "일반 호러 게임 급식실로 보이며 지우학 시즌1 프로덕션 디자인의 색채 정체성이 없다."
+              },
+              "characterIdentity": {
+                "applicable": false,
+                "score": 1,
+                "notes": "인물이 없는 환경 시안이라 평가하지 않는다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.96,
+                "notes": "수평선 없는 직교 탑다운 구도는 충족한다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.94,
+                "notes": "이동 바닥과 장애물은 즉시 구분된다."
+              },
+              "animationConsistency": {
+                "applicable": false,
+                "score": 1,
+                "notes": "정적 M0 환경 시안이라 평가하지 않는다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "피·시신·신체 훼손이 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.05,
+                "notes": "웹툰 선화·패널·말풍선이 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.06,
+                "notes": "시즌2 요소는 없지만 시즌1 세트 충실도가 매우 낮다."
+              }
+            },
+            "feedback": [
+              "실제 시즌1 급식실 프레임을 직접 첨부하고 주황·노랑 벽, 큰 창, 스테인리스 배식 주방, 원목 테이블, 버건디 의자, 녹색·주황 바닥을 하드 조건으로 재생성한다.",
+              "심야 청색광과 붉은 비상등을 제거하고 1화 낮 장면으로 복원한다."
+            ],
+            "score": 0.555,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.12,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 1,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": false
+          },
+          "normalized": null,
+          "outputVisionQa": null
+        },
+        {
+          "attempt": 2,
+          "candidatePath": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/cafeteria_background_concept/attempt-02/candidate.png",
+          "generation": {
+            "provider": "codex-app-built-in-imagegen",
+            "mode": "direct-app-session",
+            "prompt": "Create one M0 environment concept for a 2D orthogonal top-down action RPG licensed from Netflix's All of Us Are Dead. The three attached images are actual Season 1 cafeteria frames and are HARD SET REFERENCES. Reconstruct the Hyosan High cafeteria from Season 1 Episode 1 as faithfully as possible; do not reinterpret it as a generic ruined school, restaurant, American cafeteria, or dark horror room. Preserve the real set's large rectangular hall and visual identity: saturated honey-orange and yellow wall/column/upper-beam color fields with cream accents; high rectangular multi-pane window bands along the side walls pouring in strong daylight; repeated straight white fluorescent fixtures; one long glass-partitioned stainless-steel serving kitchen and pass-through along a wall, with stainless counters, trays, sinks and a partially lowered metal roll-down shutter; wide glazed double entrance doors; many long light-wood rectangular dining tables on ivory metal legs arranged in dense parallel rows; low-back burgundy movable school chairs; glossy green and burnt-orange large-block resilient flooring, wet in places from activated sprinklers and reflecting light; scattered Korean stainless compartment trays, chopsticks and utensils. Show the immediate aftermath of the first cafeteria panic: a limited number of chairs and trays displaced, but no people, bodies, blood, gore, fire, collapsed architecture, moonlight, red emergency light, or excessive destruction. Camera must be a strict orthographic top-down gameplay projection around 70 degrees, wide 3:2 landscape, no horizon and no eye-level perspective. Preserve the set's dense repeated table grid and believable one-take action routes between table rows, serving counter, glass doors and side windows; do not replace it with a huge empty central arena. Still make walkable floor and obstacle footprints readable. High-resolution painted 2D realism closely derived from the live-action Season 1 production design, dimensional furniture, restrained baked contact shadows, bright daytime fluorescent-plus-window lighting. No characters, readable brand logos, watermark, generic grey/blue palette, round cafe tables, fixed round stools, pendant lights, futuristic kitchen, manga, webtoon, anime, isometric view, fisheye, disaster-form graphics, or Season 2 elements.",
+            "sourceFile": "cafeteria_background_concept-attempt-02.png",
+            "candidateSha256": "e75314cd386dcbba445b71c71bb25221f2d3f5376dd71e12bccfd2eaf72d35b3",
+            "savedFile": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/cafeteria_background_concept/attempt-02/candidate.png"
+          },
+          "technicalQa": {
+            "schemaVersion": 1,
+            "assetId": "cafeteria_background_concept",
+            "path": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/cafeteria_background_concept/attempt-02/candidate.png",
+            "sha256": "e75314cd386dcbba445b71c71bb25221f2d3f5376dd71e12bccfd2eaf72d35b3",
+            "format": "png",
+            "passed": true,
+            "checks": {
+              "alpha": {
+                "passed": true,
+                "policy": "forbidden",
+                "hasAlpha": false,
+                "transparentRatio": 0
+              },
+              "size": {
+                "passed": true,
+                "width": 1536,
+                "height": 1024,
+                "minimumWidth": 1024,
+                "minimumHeight": 768
+              },
+              "trim": {
+                "passed": true,
+                "applicable": false,
+                "removablePixelRatio": 0
+              },
+              "frame": {
+                "passed": true,
+                "expected": 1,
+                "detected": 1
+              },
+              "bbox": {
+                "passed": true,
+                "left": 0,
+                "top": 0,
+                "width": 1536,
+                "height": 1024,
+                "coverage": 1,
+                "minimumCoverage": 1,
+                "maximumCoverage": 1
+              },
+              "edges": {
+                "passed": true,
+                "opaqueRatio": 1,
+                "maximumOpaqueRatio": 1
+              }
+            }
+          },
+          "visionQa": {
+            "assetId": "cafeteria_background_concept",
+            "reviewedSha256": "e75314cd386dcbba445b71c71bb25221f2d3f5376dd71e12bccfd2eaf72d35b3",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.9,
+                "notes": "실제 프레임의 주황 벽, 창, 스테인리스 배식 주방, 밝은 원목 장테이블, 버건디 이동식 의자, 녹색·번트오렌지 바닥과 낮 조명이 모두 보존됐다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.91,
+                "notes": "시즌1 급식실의 밝은 청춘 색채와 사건 직후 긴장이 탑다운 페인티드 2D로 자연스럽게 전환됐다."
+              },
+              "characterIdentity": {
+                "applicable": false,
+                "score": 1,
+                "notes": "인물이 없는 환경 시안이라 평가하지 않는다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.98,
+                "notes": "수평선이 없는 엄격한 직교 탑다운이며 벽·가구 상면과 바닥 좌표가 일관된다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.95,
+                "notes": "실제 세트의 조밀한 테이블 반복을 유지하면서 통로, 배식대, 출입문, 창 측 동선이 명확하다."
+              },
+              "animationConsistency": {
+                "applicable": false,
+                "score": 1,
+                "notes": "정적 M0 환경 시안이라 평가하지 않는다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0,
+                "notes": "피·시신·신체 훼손이 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.03,
+                "notes": "웹툰 선화·패널·말풍선이 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "시즌1 1화 급식실 외의 시즌2 요소가 없다."
+              }
+            },
+            "feedback": [],
+            "score": 0.935,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.9,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 1,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          },
+          "normalized": {
+            "assetId": "cafeteria_background_concept",
+            "kind": "background",
+            "path": "outputs/hyosan-memories-m0/runs/2026-08-27T05-48-56-147Z-1Yq1YC/cafeteria_background_concept/attempt-02/normalized/cafeteria_background_concept.png",
+            "file": "cafeteria_background_concept.png",
+            "width": 1536,
+            "height": 1024,
+            "format": "png",
+            "sha256": "27d8740801259c96ea71483ab7abe7ac0e28fef23d4d69fb815e20e31d62f78d"
+          },
+          "outputVisionQa": {
+            "assetId": "cafeteria_background_concept",
+            "reviewedSha256": "27d8740801259c96ea71483ab7abe7ac0e28fef23d4d69fb815e20e31d62f78d",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.9,
+                "notes": "1536×1024 최종 PNG가 실제 프레임의 주황 벽, 창, 스테인리스 배식 주방, 원목 장테이블, 버건디 의자와 녹색·주황 바닥을 유지한다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.91,
+                "notes": "최종 해상도에서도 시즌1 급식실의 밝은 낮 색채와 사건 직후 긴장이 페인티드 2D로 유지된다."
+              },
+              "characterIdentity": {
+                "applicable": false,
+                "score": 1,
+                "notes": "인물이 없는 최종 환경 시안이라 평가하지 않는다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.98,
+                "notes": "최종 출력은 수평선 없는 엄격한 직교 탑다운이며 벽·가구 상면과 바닥 좌표가 일관된다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.95,
+                "notes": "최종 출력에서 조밀한 테이블 반복, 통로, 배식대, 출입문과 창 측 동선이 명확하다."
+              },
+              "animationConsistency": {
+                "applicable": false,
+                "score": 1,
+                "notes": "정적 M0 최종 환경 시안이라 평가하지 않는다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0,
+                "notes": "최종 출력에 피·시신·신체 훼손이 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.03,
+                "notes": "최종 출력에 웹툰 선화·패널·말풍선이 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "최종 출력에 시즌2 요소가 없다."
+              }
+            },
+            "feedback": [],
+            "score": 0.935,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.9,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 1,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -10,8 +10,10 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --project tsconfig.test.json --noEmit --incremental false",
     "test": "vitest run",
+    "test:hyosan-g1-browser": "node scripts/hyosan-g1-browser-smoke.mjs",
     "test:goods-payment-local-integration": "bash supabase/tests/goods_payment_route_integration.sh",
     "hong-sil:download": "node scripts/hong-sil-downloader.mjs",
+    "hyosan:assets:m0": "node scripts/asset-pipeline/index.mjs",
     "postinstall": "mkdir -p public/box2d && cp node_modules/box2d-wasm/dist/es/Box2D.wasm node_modules/box2d-wasm/dist/es/Box2D.simd.wasm public/box2d/"
   },
   "dependencies": {
@@ -21,6 +23,7 @@
     "@tosspayments/tosspayments-sdk": "^2.7.1",
     "box2d-wasm": "^7.0.0",
     "next": "16.3.0",
+    "phaser": "4.2.1",
     "qr-scanner": "^1.4.2",
     "qrcode": "^1.5.4",
     "react": "19.2.4",

@@ -11,7 +11,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 ## 배포와 Preview
 
 - Vercel Git 자동 배포는 `vercel.json`의 `git.deploymentEnabled: false`로 비활성화되어 있다. Preview와 production 배포는 GitHub Actions의 Vercel CLI 경로만 사용한다.
-- PR preview는 전용 Supabase 프로젝트를 본다. preview 배포 전에 `deploy-supabase-preview`가 migration을 올리므로 스키마 변경 PR도 preview에서 앱과 DB 버전이 맞는다. preview가 production 프로젝트를 가리키게 만들지 않고, preview DB에 운영 데이터를 넣지 않는다(ADR-0006).
+- PR preview는 전용 Supabase 프로젝트 계열만 본다. DB 배포 변경이 없는 PR은 repo `main`과 같은 shared preview main을 읽기만 하고, migration·roles·seed·Auth 설정/템플릿·Edge Function·preview/cleanup pipeline 변경 PR은 무데이터 `pr-<number>` Supabase Preview Branch를 재생성해 앱과 Supabase 배포 버전을 맞춘다. Hosted `config.toml` 전체 push는 이 workflow가 소유하지 않는다. PR workflow가 shared main에 migration을 누적하거나 production 프로젝트를 가리키게 만들지 않고, preview DB에 운영 데이터를 넣지 않는다(ADR-0006).
 
 ## 공통 참조 규칙
 
@@ -42,6 +42,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 결제 callback body와 클라이언트 성공 신호는 확정의 진실원이 아니다. 굿즈·티켓 seam은 서버 전용 `PaymentGateway.confirm/reconcile` 결과와 DB 멱등 finalizer로만 신규 결제를 확정한다. 기존 Toss 거래만 웹훅 수신 뒤 provider 재조회 결과로 정합화한다.
 - 관리자 권한은 `profiles.role`과 RLS 양쪽에서 확인하고, 민감 작업은 감사 가능해야 한다.
 - `exchange`와 `market` 화면은 v2 전까지 프로토타입/플레이스홀더로 유지한다.
+
+## 이미지 생성 워크플로우
+
+- 이미지 생성·편집과 모델 기반 비전 QA는 현재 Codex 앱 작업에서 기본 내장 `imagegen`과 이미지 비전을 직접 사용한다.
+- 이 기본 방식은 신규 생성뿐 아니라 레퍼런스 기반 재생성, 배경 교체·제거 같은 편집, 변환 전후 검수, 인게임 스크린샷 피드백에도 동일하게 적용한다.
+- 사용자가 명시적으로 변경하지 않는 한 이미지 작업을 CLI/API, `codex exec`, 이미지 생성·편집 스크립트, 중첩 Codex 작업으로 대체하거나 fallback하지 않는다.
+- 저장소 코드는 모델 호출 없이 기술 QA, 포맷 정규화, trim, atlas, manifest처럼 결정론적인 패키징만 수행한다. 작업별 예외와 변환 계약은 해당 에셋 파이프라인 문서를 정본으로 삼는다.
+- 결정론적 변환이 있는 자산은 변환 전 후보와 최종 출력 모두를 현재 Codex 앱에서 직접 보고 각각 정확한 SHA-256에 비전 QA를 결속한다. 모델 검토가 빠졌거나 검토 대상 해시가 다르면 승인 가능한 산출물로 게시하지 않는다.
+- 계약된 IP의 배우·의상·세트를 재현할 때는 공식 제공 자료를 최우선 레퍼런스로 붙이고, 허용된 시즌·초상·음성 범위를 해당 프로젝트 스펙에 명시한다.
 
 ## 프론트엔드 규칙
 
