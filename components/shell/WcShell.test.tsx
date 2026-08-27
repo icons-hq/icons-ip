@@ -36,15 +36,43 @@ beforeEach(() => {
 });
 
 describe('White Catalog 전역 셸', () => {
-  /* 홈은 자체 헤더, 인증은 집중형 셸, 게임은 자기완결 번들, 어드민은 자체 작업대다.
+  /* 인증은 집중형 셸, 게임은 자기완결 번들, 어드민은 자체 작업대다.
    * 공용 크롬이 새어 들어가면 각 표면이 헤더를 두 개 갖는다. */
-  it('홈·인증·게임·어드민에서는 크롬과 푸터를 모두 비운다', () => {
-    for (const pathname of ['/', '/login', '/update-password', '/account-suspended', '/games/roulette', '/admin']) {
+  it('인증·게임·어드민에서는 크롬과 푸터를 모두 비운다', () => {
+    for (const pathname of ['/login', '/update-password', '/account-suspended', '/games/roulette', '/admin']) {
       mocks.pathname = pathname;
 
       expect(renderToStaticMarkup(<Nav />), pathname).toBe('');
       expect(renderToStaticMarkup(<SiteFooter />), pathname).toBe('');
     }
+  });
+
+  /* S3에서 홈이 자체 헤더를 버리고 공용 크롬 위로 올라왔다 — 홈만 예외로 비우면 헤더가 통째로 사라진다. */
+  it('홈에서도 전역 크롬과 푸터를 렌더한다', () => {
+    mocks.pathname = '/';
+
+    expect(renderToStaticMarkup(<Nav />)).toContain('wc-gnb');
+    expect(renderToStaticMarkup(<SiteFooter />)).toContain('wc-footer');
+  });
+
+  /* 공지 스트립은 텍스트 바가 아니라 이미지 링크 배너다(R-01 §1). 데이터가 없으면 자리도 차지하지 않는다. */
+  it('공지 스트립 데이터가 있으면 헤더 위 링크 스트립을 그린다', () => {
+    const html = renderToStaticMarkup(
+      <Nav
+        noticeStrip={{
+          id: 'n1',
+          title: '배송 공지',
+          imageUrl: 'https://cdn.example/notice.webp',
+          href: '/events',
+        }}
+      />,
+    );
+
+    expect(html).toContain('class="wc-notice"');
+    expect(html).toContain('href="/events"');
+    expect(html).toContain('alt="배송 공지"');
+
+    expect(renderToStaticMarkup(<Nav />)).not.toContain('wc-notice');
   });
 
   it('공개 표면에서 유틸바·헤더 아이콘·GNB·메가메뉴·바텀바 진입점을 한 번에 세운다', () => {
