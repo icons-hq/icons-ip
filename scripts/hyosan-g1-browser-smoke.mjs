@@ -368,6 +368,26 @@ async function main() {
     const game = page.locator('main[data-hyosan-ready="true"]');
     await game.waitFor({ timeout: 20_000 });
 
+    await page.setViewportSize({ width: 667, height: 320 });
+    const mobileControls = [
+      page.getByLabel('이동 조이스틱', { exact: true }),
+      page.getByRole('button', { name: '감각 (K)', exact: true }),
+      page.getByRole('button', { name: '대시 (L)', exact: true }),
+      page.getByRole('button', { name: '공격 (J)', exact: true }),
+    ];
+    for (const control of mobileControls) {
+      const label = await control.getAttribute('aria-label');
+      const box = await control.boundingBox();
+      if (!box
+        || box.x < -VIEWPORT_TOLERANCE_PX
+        || box.y < -VIEWPORT_TOLERANCE_PX
+        || box.x + box.width > 667 + VIEWPORT_TOLERANCE_PX
+        || box.y + box.height > 320 + VIEWPORT_TOLERANCE_PX) {
+        throw new Error(`Mobile control is clipped at 667x320 (${label}): ${JSON.stringify(box)}`);
+      }
+    }
+    await page.setViewportSize({ width: 1280, height: 720 });
+
     const total = numericAttribute(await game.getAttribute('data-total-zombies'), 'zombie total');
     const active = numericAttribute(await game.getAttribute('data-active-zombies'), 'active zombies');
     if (total < MINIMUM_ZOMBIES || active < MINIMUM_ZOMBIES) {
@@ -456,6 +476,7 @@ async function main() {
       averageFps: Math.round(average),
       reducedMotion: true,
       shortViewportGate: true,
+      shortViewportControls: true,
       localSupabaseRequests,
     })}\n`);
     completed = true;

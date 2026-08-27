@@ -434,7 +434,7 @@
 
 @media (pointer: coarse), (max-width: 820px) {
   .game {
-    min-height: 420px;
+    min-height: 0;
   }
 
   .mobileControls {
