@@ -12,9 +12,11 @@ export function MobNav() {
   const { count } = useCart();
   const presence = useAuthPresence();
   const cardRewardsEnabled = useCardRewardsEnabled();
-  const availableItems = cardRewardsEnabled
+  const availableItems = (cardRewardsEnabled
     ? MOB_ITEMS
-    : MOB_ITEMS.filter((item) => item.id !== 'packs');
+    : MOB_ITEMS.filter((item) => item.id !== 'packs'))
+    /* '메뉴'는 목적지가 없는 액션 탭이라 링크로 세우면 홈으로 폴백된다. 시트를 여는 바텀바만 이 항목을 다룬다. */
+    .filter((item) => item.id !== 'menu');
   const items = presence === 'signed-in'
     ? availableItems.map((item) => item.id === 'cart' ? { id: 'my', label: '마이' } : item)
     : presence === 'signed-out'

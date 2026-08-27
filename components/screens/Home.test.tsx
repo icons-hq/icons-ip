@@ -1,769 +1,267 @@
-import { readFileSync } from 'node:fs';
-import type { ComponentProps, ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
-import type { CatalogSnapshot } from '@/lib/catalog';
-import { DATA } from '../../lib/data';
-import type { Ip, Vertical } from '@/lib/data';
+import { describe, expect, it } from 'vitest';
+import type { HomeCurationSnapshot, HomeGoodsCard } from '@/lib/home-catalog';
 import { Home } from './Home';
 
-vi.mock('next/link', () => ({
-  default: ({ href, children, ...props }: { href: string; children: ReactNode } & Record<string, unknown>) => (
-    <a href={href} {...props}>{children}</a>
-  ),
-}));
+const emptyCuration: HomeCurationSnapshot = {
+  hero: null,
+  announcement: null,
+  featuredIpIds: [],
+  heroSlides: [],
+  editorPicks: [],
+  goodsBands: [],
+  categoryBestTabs: [],
+  popularTabs: [],
+  benefitTiles: [],
+};
 
-vi.mock('@/components/ui/Empty', () => ({
-  Empty: ({ text, sub }: { text: string; sub?: string }) => <div>{text}{sub}</div>,
-}));
+const good = (id: string, overrides: Partial<HomeGoodsCard> = {}): HomeGoodsCard => ({
+  id,
+  name: `굿즈 ${id}`,
+  brand: 'ICONS',
+  price: 29000,
+  badge: null,
+  imageBg: 'linear-gradient(#111, #222)',
+  href: `/shop/${id}`,
+  soldOut: false,
+  ...overrides,
+});
 
-vi.mock('@/components/shell/useHeaderScrollHide', () => ({
-  useHeaderScrollHide: () => ({ hidden: false, reveal: () => undefined }),
-}));
-
-const vertical: Vertical = { key: 'global', label: '글로벌 IP', color: '#2DE2FF' };
-
-function ip(id: string, title: string, featured = false): Ip {
-  return {
-    id,
-    title,
-    sub: '테스트 IP',
-    v: vertical,
-    glyph: title,
-    bg: `linear-gradient(#${id.length}11, #222)`,
-    fans: 1000,
-    goods: 0,
-    cards: 0,
-    featured,
-    tagline: `${title} 태그라인`,
-    synopsis: `${title} 시놉시스`,
-  };
-}
-
-function catalog(source: CatalogSnapshot['source'], ips: Ip[]): CatalogSnapshot {
-  return { source, verticals: [vertical], ips, goods: [], cards: [], events: [] };
-}
-
-function previewCatalog(source: CatalogSnapshot['source']): CatalogSnapshot {
-  return {
-    source,
-    verticals: Object.values(DATA.V),
-    ips: DATA.IPS,
-    goods: DATA.GOODS,
-    cards: DATA.CARDS,
-    events: DATA.EVENTS,
-  };
-}
-
-function renderHome(overrides: Partial<ComponentProps<typeof Home>> = {}) {
-  const baseCatalog = catalog('supabase', [
-    ip('legacy', '레거시 특집', true),
-    ip('lumen', '루멘'),
-    ip('hwasan', '화산강림'),
-    ip('maple', '메이플스토리'),
-    ip('kakao', '카카오프렌즈'),
-    ip('attack', '진격의 거인'),
-    ip('six', '여섯 번째 IP'),
-  ]);
-  const props: ComponentProps<typeof Home> = {
-    cardRewardsEnabled: true,
-    catalog: baseCatalog,
-    curation: {
-      hero: null,
-      announcement: null,
-      featuredIpIds: ['lumen', 'hwasan'],
+const fullCuration: HomeCurationSnapshot = {
+  ...emptyCuration,
+  heroSlides: [
+    {
+      id: 'hero-1',
+      title: '여름 드랍',
+      subtitle: 'SUMMER DROP',
+      imageUrl: 'https://cdn.example/hero-1.webp',
+      mobileImageUrl: null,
+      href: '/events/summer',
     },
-    followedIpIds: [],
-    postPreviewByIpId: {},
-    ...overrides,
-  };
+  ],
+  editorPicks: [
+    {
+      id: 'pick-1',
+      title: '주간 픽',
+      badge: 'NEW',
+      description: '이번 주 큐레이션',
+      imageBg: 'linear-gradient(#333, #444)',
+      href: '/events/pick',
+    },
+  ],
+  categoryBestTabs: [
+    { id: 'keyring', label: '키링', goods: [good('g1'), good('g2'), good('g3'), good('g4'), good('g5')] },
+    { id: 'living', label: '리빙', goods: [] },
+  ],
+  goodsBands: [
+    {
+      id: 'b1',
+      title: '주간 기획전',
+      subcopy: '쿠폰 중복 적용',
+      imageUrl: 'https://cdn.example/band-1.webp',
+      href: '/shop?collection=weekly',
+      goods: [good('g6', { badge: '한정' }), good('g7', { brand: null, soldOut: true })],
+    },
+  ],
+  popularTabs: [{ id: 'multi', label: 'MULTI', goods: [good('g8')] }],
+  benefitTiles: [
+    { id: 't1', title: '카드팩 열기', description: '무료로 받은 카드팩을 열어보세요', href: '/packs' },
+    { id: 't2', title: '게임 참여', description: null, href: '/games/reward' },
+  ],
+};
 
-  return renderToStaticMarkup(<Home {...props} />);
-}
+const render = (curation: HomeCurationSnapshot, cardRewardsEnabled = true) =>
+  renderToStaticMarkup(<Home cardRewardsEnabled={cardRewardsEnabled} curation={curation} />);
 
-describe('Home curation', () => {
-  it('hides every card-pack destination and reward CTA while the global gate is disabled', () => {
-    const html = renderHome({
-      cardRewardsEnabled: false,
-      curation: {
-        hero: { id: 'pack-hero', title: '카드팩', imageBg: '#111', href: '/packs' },
-        announcement: { id: 'game-notice', title: '게임', imageBg: null, href: '/games/reward' },
-        featuredIpIds: [],
-      },
-    });
+describe('Home empty curation', () => {
+  /* 큐레이션이 비면 가짜 콘텐츠로 채우지 않는다 — 원인과 다음 행동 하나만 남긴다(DESIGN §7·§9). */
+  it('falls back to one explicit empty state with a single next step', () => {
+    const html = render(emptyCuration);
 
-    expect(html).not.toContain('href="/packs"');
-    expect(html).not.toContain('href="/games/reward"');
-    expect(html).not.toContain('>카드팩</');
-    expect(html).not.toContain('COLLECT THE MOMENT');
-    expect(html).not.toContain('FREE REWARD');
+    expect(html).toContain('wc-home__empty');
+    expect(html).toContain('홈을 준비하고 있어요');
+    expect(html).toContain('곧 새로운 소식과 상품을 만나볼 수 있어요.');
+    expect(html).toContain('href="/shop"');
+    expect(html).toContain('굿즈샵 둘러보기');
   });
 
-  it('places an active curation first in the preview hero without changing its target', () => {
-    const html = renderHome({
-      curation: {
-        hero: {
-          id: 'hero-1',
-          title: '여름 한정 세계가 열렸어요',
-          imageBg: 'url("https://cdn.example/summer.webp") center / cover no-repeat',
-          href: '/events/summer',
-        },
-        announcement: null,
-        featuredIpIds: ['lumen', 'hwasan'],
-      },
-    });
+  it('draws no band at all when every slot is empty', () => {
+    const html = render(emptyCuration);
 
-    expect(html).toContain('여름 한정 세계가 열렸어요');
-    expect(html).toContain('https://cdn.example/summer.webp');
-    expect(html).toContain('href="/events/summer"');
-    expect(html).toContain('aria-label="여름 한정 세계가 열렸어요 자세히 보기"');
-    expect(html).toContain('<span>VIEW</span>');
-    expect(html).toContain('FEATURED STORY');
-    expect(html).toContain('href="/ip/lumen"');
+    expect(html).not.toContain('wc-home__band');
+    expect(html).not.toContain('wc-hero');
+    expect(html).not.toContain('wc-tab-band');
   });
 
-  it('uses the first curated IP as the lead story when no active hero exists', () => {
-    const html = renderHome();
-
-    expect(html).toContain('YOUR IP, YOUR WORLD');
-    expect(html).toContain('루멘 태그라인');
-    expect(html).toContain('루멘 시놉시스');
-    expect(html).toContain('aria-label="루멘 자세히 보기"');
+  /* 밴드 헤딩은 전부 h2 라, 페이지 이름을 대신 읽어줄 h1 이 문서에 하나는 있어야 한다. */
+  it('keeps a screen-reader page heading above the bands', () => {
+    expect(render(emptyCuration)).toContain('<h1 class="wc-sr-only">ICONS 홈</h1>');
+    expect(render(fullCuration)).toContain('<h1 class="wc-sr-only">ICONS 홈</h1>');
   });
 
-  it('renders the first announcement as a separate accessible link banner', () => {
-    const html = renderHome({
-      curation: {
-        hero: null,
-        announcement: {
-          id: 'announcement-1',
-          title: '배송 일정이 변경됐어요',
-          imageBg: null,
-          href: '/community?tag=notice',
-        },
-        featuredIpIds: ['lumen'],
-      },
-    });
-
-    expect(html).toMatch(/<aside[^>]+aria-label="공지"[^>]*>/);
-    expect(html).toContain('href="/community?tag=notice"');
-    expect(html).toContain('배송 일정이 변경됐어요');
-    expect(html).not.toContain('2026.07.12');
-  });
-
-  it('keeps the curated hero destination tappable on mobile without changing the source layout', () => {
-    const html = renderHome({
-      curation: {
-        hero: {
-          id: 'hero-mobile',
-          title: '모바일 큐레이션',
-          imageBg: null,
-          href: '/events/mobile-curation',
-        },
-        announcement: null,
-        featuredIpIds: ['lumen'],
-      },
-    });
-
-    expect(html).toContain('class="hero-mobile-hit"');
-    expect(html).toContain('aria-label="모바일에서 모바일 큐레이션 열기"');
-    expect(html.match(/href="\/events\/mobile-curation"/g)).toHaveLength(2);
-  });
-
-  it('keeps an IP-independent hero and announcement visible when the catalog has no IPs', () => {
-    const html = renderHome({
-      catalog: catalog('supabase', []),
-      curation: {
-        hero: {
-          id: 'hero-empty-catalog',
-          title: 'IP 공개 전 특별전을 먼저 만나보세요',
-          imageBg: 'url("https://cdn.example/prelaunch.webp") center / cover no-repeat',
-          href: '/events/prelaunch',
-        },
-        announcement: {
-          id: 'announcement-empty-catalog',
-          title: '첫 IP 공개 일정을 확인하세요',
-          imageBg: null,
-          href: '/community?tag=notice',
-        },
-        featuredIpIds: [],
-      },
-    });
-
-    expect(html).toContain('IP 공개 전 특별전을 먼저 만나보세요');
-    expect(html).toContain('https://cdn.example/prelaunch.webp');
-    expect(html).toContain('href="/events/prelaunch"');
-    expect(html).toContain('aria-label="IP 공개 전 특별전을 먼저 만나보세요 자세히 보기"');
-    expect(html).toContain('<span>VIEW</span>');
-    expect(html).toContain('href="/community?tag=notice"');
-    expect(html).toContain('첫 IP 공개 일정을 확인하세요');
-    expect(html).toContain('등록된 IP가 아직 없습니다');
-    expect(html).not.toContain('class="marquee-shell"');
-  });
-
-  it('keeps the IP empty surface alongside an announcement-only curation', () => {
-    const html = renderHome({
-      catalog: catalog('supabase', []),
-      curation: {
-        hero: null,
-        announcement: {
-          id: 'announcement-only-empty-catalog',
-          title: '서비스 준비 소식을 확인하세요',
-          imageBg: null,
-          href: '/community',
-        },
-        featuredIpIds: [],
-      },
-    });
-
-    expect(html).toContain('등록된 IP가 아직 없습니다');
-    expect(html).toContain('곧 새로운 IP가 공개될 예정이에요.');
-    expect(html).toMatch(/<aside[^>]+aria-label="공지"[^>]*>/);
-    expect(html).toContain('href="/community"');
-    expect(html).toContain('서비스 준비 소식을 확인하세요');
-    expect(html).toContain('<header class="site-header "');
-    expect(html).toContain('<footer class="site-footer"');
-  });
-
-  it('preserves the existing IP empty surface when no curation exists', () => {
-    const html = renderHome({
-      catalog: catalog('supabase', []),
-      curation: { hero: null, announcement: null, featuredIpIds: [] },
-    });
-
-    expect(html).toContain('class="icons-preview"');
-    expect(html).toContain('등록된 IP가 아직 없습니다');
-    expect(html).toContain('곧 새로운 IP가 공개될 예정이에요.');
-    expect(html).toContain('<header class="site-header "');
-    expect(html).not.toContain('<aside');
-  });
-
-  it('gives the announcement link explicit hover and focus-visible feedback', () => {
-    const html = renderHome({
-      curation: {
-        hero: null,
-        announcement: {
-          id: 'announcement-feedback',
-          title: '공지 링크 피드백',
-          imageBg: null,
-          href: '/community',
-        },
-        featuredIpIds: ['lumen'],
-      },
-    });
-    const css = readFileSync(new URL('../../app/styles/editorial-home.css', import.meta.url), 'utf8');
-
-    expect(html).toContain('class="announcement"');
-    expect(css).toMatch(/\.icons-preview \.announcement:hover\s*\{[^}]*padding:\s*0 12px/);
-    expect(css).toMatch(/\.icons-preview a:focus-visible/);
-  });
-
-  it('allows long unbroken hero and announcement titles to wrap without weakening Korean heading rules', () => {
-    const longTitle = 'A'.repeat(120);
-    const html = renderHome({
-      curation: {
-        hero: {
-          id: 'hero-long',
-          title: longTitle,
-          imageBg: 'url("https://cdn.example/long.webp") center / cover no-repeat',
-          href: '/events',
-        },
-        announcement: {
-          id: 'announcement-long',
-          title: longTitle,
-          imageBg: null,
-          href: '/community',
-        },
-        featuredIpIds: ['lumen'],
-      },
-    });
-
-    expect(html).toMatch(new RegExp(`<h1[^>]*>${longTitle}</h1>`));
-    expect(html).toMatch(new RegExp(`<strong[^>]*>${longTitle}</strong>`));
-    expect(cssForHome()).toMatch(/\.icons-preview \.hero h1:not\(:has\(> span\)\)\s*\{[^}]*overflow-wrap:\s*break-word/);
-    expect(cssForHome()).toMatch(/\.icons-preview \.announcement strong\s*\{[^}]*overflow-wrap:\s*break-word/);
-  });
-
-  it('keeps Korean words intact and balances editorial headings', () => {
-    expect(cssForHome()).toMatch(
-      /\.icons-preview :is\(h1, h2, h3\)\s*\{[^}]*word-break:\s*keep-all;[^}]*line-break:\s*strict;[^}]*overflow-wrap:\s*normal;[^}]*text-wrap:\s*balance;/s,
-    );
-  });
-
-  it('sizes hero and feature headlines from their actual copy containers', () => {
-    const css = cssForHome();
-
-    expect(css).toMatch(/\.icons-preview \.hero-copy\s*\{[^}]*container-type:\s*inline-size;/s);
-    expect(css).toMatch(/\.icons-preview \.hero h1\s*\{[^}]*font-size:\s*clamp\(54px,\s*11cqi,\s*104px\);/s);
-    expect(css).toMatch(/\.icons-preview \.feature-copy\s*\{[^}]*container-type:\s*inline-size;/s);
-    expect(css).toMatch(/\.icons-preview \.feature-copy h3\s*\{[^}]*font-size:\s*clamp\(40px,\s*11cqi,\s*76px\);/s);
-    expect(css).toMatch(
-      /font-size:\s*clamp\(40px,\s*12vw,\s*52px\);\s*font-size:\s*clamp\(40px,\s*12cqi,\s*52px\);/,
-    );
-    expect(css).toMatch(
-      /font-size:\s*clamp\(40px,\s*12vw,\s*44px\);\s*font-size:\s*clamp\(40px,\s*11cqi,\s*44px\);/,
-    );
-  });
-
-  it('renders a featured artwork override and keeps catalog key art when no override exists', () => {
-    const artworkIp = {
-      ...ip('artwork', '아트워크 특집'),
-      bg: 'url("https://cdn.example/featured.webp") center / cover no-repeat',
-    };
-    const fallbackIp = {
-      ...ip('fallback', '기본 키아트 특집'),
-      bg: 'linear-gradient(#123456, #654321)',
-    };
-
-    const artworkHtml = renderHome({
-      catalog: catalog('supabase', [artworkIp, fallbackIp]),
-      curation: { hero: null, announcement: null, featuredIpIds: ['artwork', 'fallback'] },
-    });
-    const fallbackHtml = renderHome({
-      catalog: catalog('supabase', [fallbackIp]),
-      curation: { hero: null, announcement: null, featuredIpIds: ['fallback'] },
-    });
-
-    expect(artworkHtml).toContain('https://cdn.example/featured.webp');
-    expect(fallbackHtml).toContain('linear-gradient(#123456, #654321)');
-  });
-
-  it('uses the selected IP post in the community feature', () => {
-    const html = renderHome({
-      catalog: catalog('supabase', [ip('10', '열 번째 IP'), ip('2', '두 번째 IP')]),
-      curation: { hero: null, announcement: null, featuredIpIds: ['10', '2'] },
-      postPreviewByIpId: {
-        '10': {
-          id: 'post-ten',
-          user: 'ten',
-          ipName: '열 번째 IP',
-          avatar: '#2DE2FF',
-          text: '열 번째 글',
-          likes: 10,
-          comments: 0,
-          time: '방금 전',
-          tag: '후기',
-        },
-        '2': {
-          id: 'post-two',
-          user: 'two',
-          ipName: '두 번째 IP',
-          avatar: '#8B5CFF',
-          text: '두 번째 글',
-          likes: 2,
-          comments: 0,
-          time: '방금 전',
-          tag: '후기',
-        },
-      },
-    });
-
-    expect(html).toContain('<b>ten</b>');
-    expect(html).toContain('열 번째 글');
-    expect(html.indexOf('<b>ten</b>')).toBeLessThan(html.indexOf('<b>two</b>'));
-  });
-
-  it('keeps followed IP community previews stable-first', () => {
-    const html = renderHome({
-      catalog: catalog('supabase', [ip('10', '열 번째 IP'), ip('2', '두 번째 IP')]),
-      curation: { hero: null, announcement: null, featuredIpIds: ['10', '2'] },
-      followedIpIds: ['2'],
-      postPreviewByIpId: {
-        '10': {
-          id: 'post-ten', user: 'ten', ipName: '열 번째 IP', avatar: '#2DE2FF',
-          text: '열 번째 글', likes: 10, comments: 0, time: '방금 전', tag: '후기',
-        },
-        '2': {
-          id: 'post-two', user: 'two', ipName: '두 번째 IP', avatar: '#8B5CFF',
-          text: '두 번째 글', likes: 2, comments: 0, time: '방금 전', tag: '후기',
-        },
-      },
-    });
-
-    expect(html.indexOf('<b>two</b>')).toBeLessThan(html.indexOf('<b>ten</b>'));
-  });
-
-  it('treats nullable production post previews as an absent preview', () => {
-    expect(() => renderHome({
-      postPreviewByIpId: { lumen: null } as unknown as ComponentProps<typeof Home>['postPreviewByIpId'],
-    })).not.toThrow();
-  });
-
-  it('renders curated IP worlds in order and caps the primary marquee group at five', () => {
-    const html = renderHome({
-      curation: {
-        hero: null,
-        announcement: null,
-        featuredIpIds: ['six', 'attack', 'kakao', 'maple', 'hwasan', 'lumen', 'legacy'],
-      },
-    });
-
-    const primaryGroup = html.match(/<div class="marquee-group" aria-hidden="false">([\s\S]*?)<\/div><div class="marquee-group"/)?.[1] ?? '';
-    const labels = ['여섯 번째 IP', '진격의 거인', '카카오프렌즈', '메이플스토리', '화산강림'];
-    let previousIndex = -1;
-    for (const label of labels) {
-      const index = primaryGroup.indexOf(`aria-label="${label} 세계 보기"`);
-      expect(index).toBeGreaterThan(previousIndex);
-      previousIndex = index;
-    }
-    expect(primaryGroup).not.toContain('aria-label="루멘 세계 보기"');
-    expect((primaryGroup.match(/class="ip-orbit /g) ?? [])).toHaveLength(5);
-  });
-
-  it('does not let the reference dataset override production curation order', () => {
-    const html = renderHome({
-      catalog: previewCatalog('supabase'),
-      curation: {
-        hero: null,
-        announcement: null,
-        featuredIpIds: ['kakao-friends', 'rilakkuma', 'attack-on-titan', 'maplestory', 'nongdamgom'],
-      },
-    });
-    const primaryGroup = html.match(/<div class="marquee-group" aria-hidden="false">([\s\S]*?)<\/div><div class="marquee-group"/)?.[1] ?? '';
-
-    expect(html).toContain('<span>좋아하는 친구들과</span><span>피크닉을 떠나요</span>');
-    expect(primaryGroup.indexOf('카카오프렌즈 세계 보기')).toBeLessThan(primaryGroup.indexOf('리락쿠마 세계 보기'));
-    expect(html).toMatch(/aria-label="1번 슬라이드: 카카오프렌즈"[^>]*><span style="background-color:#ffe888"/);
-  });
-
-  it('uses the exact lightweight WebP reference assets on the preview dataset', () => {
-    const html = renderHome({
-      catalog: previewCatalog('mock'),
-      curation: { hero: null, announcement: null, featuredIpIds: [] },
-    });
-
-    expect(html).toContain('/generated/ip/rilakkuma.webp');
-    expect(html).not.toContain('/generated/ip/rilakkuma.png');
-    expect(html).toContain('aria-label="굿즈 장면 자동 전환 일시 정지"');
-  });
-
-  it('renders the original accessible film line controls without visible text', () => {
-    const html = renderHome({
-      catalog: previewCatalog('mock'),
-      curation: { hero: null, announcement: null, featuredIpIds: [] },
-    });
-
-    expect(html).toMatch(/<section[^>]+aria-label="ICONS 경험 소개"[^>]+aria-roledescription="carousel"/);
-    expect(html).toContain('class="film-progress"');
-    expect(html).toMatch(/<div[^>]+aria-label="필름 장면 선택 및 자동 전환"[^>]+role="group"/);
-    expect(html).toContain('aria-label="굿즈 장면 자동 전환 일시 정지" aria-pressed="true"');
-    expect(html).toContain('aria-label="팝업 장면 보기 및 자동 전환 일시 정지" aria-pressed="false"');
-    expect(html).toContain('aria-label="카드 장면 보기 및 자동 전환 일시 정지" aria-pressed="false"');
-    expect(html).not.toContain('>굿즈</button>');
-    expect(html).not.toContain('>팝업</button>');
-    expect(html).not.toContain('>카드</button>');
-    expect(html).not.toContain('class="film-scene-dock"');
-    expect(html).not.toContain('class="film-scene-dock__playback"');
-    expect(html).toContain('aria-live="off"');
-  });
-
-  it('hides film controls for one scene and renders one line per scene for two scenes', () => {
-    const maple = DATA.IPS.find((item) => item.id === 'maplestory')!;
-    const good = DATA.GOODS.find((item) => item.id === 'g3')!;
-    const card = DATA.CARDS.find((item) => item.id === 'c3')!;
-    const singleSceneCatalog = {
-      ...catalog('supabase', [maple]),
-      goods: [good],
-    };
-    const curation = {
-      hero: null,
-      announcement: null,
-      featuredIpIds: [maple.id],
-    };
-
-    const singleSceneHtml = renderHome({ catalog: singleSceneCatalog, curation });
-    const twoSceneHtml = renderHome({
-      catalog: { ...singleSceneCatalog, cards: [card] },
-      curation,
-    });
-
-    expect(singleSceneHtml).not.toContain('class="film-progress"');
-    expect(twoSceneHtml).toContain('class="film-progress"');
-    expect(twoSceneHtml).toContain('aria-label="굿즈 장면 자동 전환 일시 정지"');
-    expect(twoSceneHtml).toContain('aria-label="카드 장면 보기 및 자동 전환 일시 정지"');
-    expect(twoSceneHtml).not.toContain('aria-label="팝업 장면');
-    expect(twoSceneHtml.match(/<button[^>]+aria-pressed=/g)).toHaveLength(2);
-  });
-
-  it('keeps the original film lines centered with the source carousel contracts', () => {
-    const source = readFileSync(new URL('./Home.tsx', import.meta.url), 'utf8');
-
-    const css = cssForHome();
-
-    expect(source).toContain('(card?.offsetWidth ?? 320) + 28');
-    expect(source).toContain('<div className="film-visual" key={active.id}>');
-    expect(source).not.toContain('<div className="film-window" key={active.id}>');
-    expect(source).toContain('scenes.length > 1 &&');
-    expect(source).toContain('onFocusCapture');
-    expect(source).toContain('if (!pointerInteractionRef.current && !event.currentTarget.contains(event.relatedTarget))');
-    expect(source).toContain('className="film-progress"');
-    expect(source).not.toContain('film-scene-dock');
-    expect(source).toContain('const featureArt = element.parentElement;');
-    expect(source).toContain('const rect = featureArt.getBoundingClientRect();');
-    expect(source).toContain("document.addEventListener('keydown', onKeyDown)");
-    expect(source).toContain('element.inert = true');
-    expect(css).toMatch(/\.icons-preview \.film-progress\s*\{[^}]*left:\s*50%;[^}]*bottom:\s*10%;[^}]*transform:\s*translateX\(-50%\);/s);
-    expect(css).toMatch(/\.icons-preview \.film-progress button\s*\{[^}]*width:\s*42px;[^}]*height:\s*27px/);
-    expect(css).toMatch(/\.icons-preview \.film-progress button::before\s*\{[^}]*height:\s*3px/);
-    expect(css).toMatch(/@media \(max-width:\s*720px\)\s*\{[\s\S]*?\.icons-preview \.film-progress\s*\{[^}]*right:\s*34px;[^}]*bottom:\s*55px;[^}]*left:\s*34px;[^}]*transform:\s*none;/);
-  });
-
-  it('keeps pointer-origin focus and active-line playback toggling separate', () => {
-    const source = readFileSync(new URL('./Home.tsx', import.meta.url), 'utf8');
-
-    expect(source).toContain('const pointerInteractionRef = useRef(false);');
-    expect(source).toContain('onPointerDownCapture={() => { pointerInteractionRef.current = true; }}');
-    expect(source).toContain('const clearPointerInteraction = () => { pointerInteractionRef.current = false; };');
-    expect(source).toContain("window.addEventListener('pointerup', clearPointerInteraction);");
-    expect(source).toContain("window.addEventListener('pointercancel', clearPointerInteraction);");
-    expect(source).toContain("window.removeEventListener('pointerup', clearPointerInteraction);");
-    expect(source).toContain("window.removeEventListener('pointercancel', clearPointerInteraction);");
-    expect(source).not.toContain('onPointerUpCapture');
-    expect(source).not.toContain('onPointerCancelCapture');
-    expect(source).toContain('if (!pointerInteractionRef.current && !event.currentTarget.contains(event.relatedTarget))');
-    expect(source).toContain("`${scene.controlLabel} 장면 자동 전환 ${userPaused ? '재개' : '일시 정지'}`");
-    expect(source).toContain('if (index === activeIndex)');
-    expect(source).toContain('setUserPaused((paused) => !paused);');
-    expect(source).not.toContain('film-scene-dock__playback');
-  });
-
-  it('keeps the visual film copy silent and announces scene changes from a stable live region', () => {
-    const html = renderHome({
-      catalog: previewCatalog('mock'),
-      curation: { hero: null, announcement: null, featuredIpIds: [] },
-    });
-    const source = readFileSync(new URL('./Home.tsx', import.meta.url), 'utf8');
-
-    expect(html).toContain('<div aria-hidden="true" class="film-copy">');
-    expect(html).toContain(
-      '<div aria-atomic="true" aria-live="off" class="sr-only"><p>OFFICIAL GOODS</p><h2>좋아하는 마음이 손에 잡히는 순간</h2><p>주황버섯 봉제인형 · 신상</p></div>',
-    );
-    expect(html).not.toContain('<span aria-atomic="true" aria-live="off" class="sr-only">');
-    expect(source).toMatch(
-      /<div className="film-visual" key=\{active\.id\}>[\s\S]*?<div aria-hidden="true" className="film-copy">[\s\S]*?<\/div>\s*<\/div>\s*<div\s+aria-atomic="true"\s+aria-live=\{userPaused \? 'polite' : 'off'\}\s+className="sr-only">\s*<p>\{active\.kicker\}<\/p>\s*<h2>\{active\.title\.replace\('\\n', ' '\)\}<\/h2>\s*<p>\{active\.detail\}<\/p>\s*<\/div>/,
-    );
-    expect(source).not.toMatch(/<div[^>]+className="sr-only"[^>]+key=/);
-    expect(source).not.toMatch(/className="film-copy"[^>]*aria-live/);
-  });
-
-  it('forces the film reveal and artwork into their final state for reduced motion', () => {
-    const css = cssForHome();
-
-    expect(css).toMatch(
-      /@media \(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?\.icons-preview \.film-visual\s*\{[^}]*animation:\s*none !important;[^}]*clip-path:\s*circle\(100%\);/s,
-    );
-    expect(css).toMatch(
-      /@media \(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?\.icons-preview \.film-visual > \.preview-artwork\s*\{[^}]*animation:\s*none !important;[^}]*transform:\s*scale\(1\);/s,
-    );
-  });
-
-  it('keeps the auto-hidden home header reachable by keyboard', () => {
-    const source = readFileSync(new URL('./Home.tsx', import.meta.url), 'utf8');
-    const css = cssForHome();
-
-    expect(source).not.toMatch(/<header[^>]*inert=\{hidden/);
-    expect(css).toMatch(/\.icons-preview \.site-header--hidden:focus-within\s*\{[^}]*opacity:\s*1;[^}]*transform:\s*translateX\(-50%\);/s);
-  });
-
-  it('uses legacy featured selection only for a mock catalog, regardless of curation IDs', () => {
-    const html = renderHome({
-      catalog: catalog('mock', [
-        ip('regular', '일반 IP'),
-        ip('legacy', '레거시 특집', true),
-        ip('curated', '운영 특집'),
-      ]),
-      curation: {
-        hero: null,
-        announcement: null,
-        featuredIpIds: ['curated'],
-      },
-    });
-
-    expect(html).toContain('레거시 특집 태그라인');
-    expect(html).toContain('aria-label="레거시 특집 자세히 보기"');
-    expect(html).not.toContain('aria-label="운영 특집 자세히 보기"');
-  });
-
-  it('uses catalog order for an explicit empty Supabase curation instead of legacy featured', () => {
-    const html = renderHome({
-      catalog: catalog('supabase', [
-        ip('regular', '일반 IP'),
-        ip('legacy', '레거시 특집', true),
-      ]),
-      curation: { hero: null, announcement: null, featuredIpIds: [] },
-    });
-
-    expect(html).toContain('aria-label="일반 IP 자세히 보기"');
-    expect(html.indexOf('aria-label="일반 IP 세계 보기"')).toBeLessThan(
-      html.indexOf('aria-label="레거시 특집 세계 보기"'),
-    );
+  it('drops the empty state as soon as one band has data', () => {
+    expect(render(fullCuration)).not.toContain('wc-home__empty');
   });
 });
 
-function cssForHome() {
-  return readFileSync(new URL('../../app/styles/editorial-home.css', import.meta.url), 'utf8');
-}
+describe('Home bands', () => {
+  it('renders the hero carousel from the curated slides', () => {
+    const html = render(fullCuration);
 
-describe('ICONS IP World Preview composition', () => {
-  it('renders the preview structure in the same order from the existing home props', () => {
-    const html = renderHome();
+    expect(html).toContain('aria-label="대표 큐레이션"');
+    expect(html).toContain('여름 드랍');
+    expect(render({ ...fullCuration, heroSlides: [] })).not.toContain('aria-label="대표 큐레이션"');
+  });
 
-    const sequence = [
-      'site-header',
-      'hero',
-      'announcement',
-      'ip-section',
-      'film-section',
-      'experience-section',
-      'world-section',
-      'trust-section',
-      'final-cta',
-      'site-footer',
-    ];
-    let previous = -1;
-    for (const className of sequence) {
-      const index = html.indexOf(className);
-      expect(index).toBeGreaterThan(previous);
-      previous = index;
-    }
+  it('renders the editor picks band as content cards', () => {
+    const html = render(fullCuration);
 
-    const header = html.match(/<header[\s\S]*?<\/header>/)?.[0] ?? '';
-    expect(header).toMatch(/class="brand"[^>]*>ICONS<\/a>/);
-    expect(header).not.toContain('ICONS<span>·</span>');
-    expect(html).toMatch(/class="footer-brand"[^>]*>ICONS<span>·<\/span><\/a>/);
-    expect(html).toContain('href="/ip"');
-    expect(html).toContain('href="/shop"');
+    expect(html).toContain('id="home-picks-heading"');
+    expect(html).toContain('에디터의 제안');
+    expect(html).toContain('aria-label="에디터의 제안 콘텐츠"');
+    expect(html).toContain('wc-slider wc-picks');
+    expect(html).toContain('wc-content-card');
+    expect(html).toContain('주간 픽');
+    expect(render({ ...fullCuration, editorPicks: [] })).not.toContain('home-picks-heading');
+  });
+
+  it('renders the category BEST band as a tabbed product slider', () => {
+    const html = render(fullCuration);
+
+    expect(html).toContain('id="home-best-heading"');
+    expect(html).toContain('카테고리 BEST');
+    expect(html).toContain('id="home-best-tab-keyring"');
+    expect(html).toContain('wc-tab-band__page');
+  });
+
+  /* 페이지 하나가 상품 4개다. 5개짜리 탭은 4+1 로 갈라져야 하고, 한 장에 몰리면 그리드가 깨진다. */
+  it('slices each tab into pages of four products', () => {
+    const html = render(fullCuration);
+
+    const panel = html.match(/<div\b[^>]*id="home-best-panel-keyring"[\s\S]*?<\/section>/)?.[0] ?? '';
+    expect((panel.match(/wc-tab-band__page/g) ?? []).length).toBe(2);
+    expect((panel.match(/wc-product-card__name-link/g) ?? []).length).toBe(5);
+  });
+
+  /* 탭 목록이 있어도 상품이 하나도 없으면 빈 패널만 남는다 — 그런 탭은 아예 만들지 않는다. */
+  it('drops tabs without products and the band when no tab has any', () => {
+    const html = render(fullCuration);
+
+    expect(html).toContain('id="home-best-tab-keyring"');
+    expect(html).not.toContain('id="home-best-tab-living"');
+
+    const bare = render({
+      ...fullCuration,
+      categoryBestTabs: [{ id: 'keyring', label: '키링', goods: [] }],
+    });
+    expect(bare).not.toContain('home-best-heading');
+  });
+
+  it('renders the popular band with its own tab id space', () => {
+    const html = render(fullCuration);
+
+    expect(html).toContain('id="home-popular-heading"');
+    expect(html).toContain('인기템');
+    expect(html).toContain('id="home-popular-tab-multi"');
+    expect(render({ ...fullCuration, popularTabs: [] })).not.toContain('home-popular-heading');
+  });
+
+  it('renders one banner-plus-list band per curated goods band', () => {
+    const html = render(fullCuration);
+
+    expect(html).toContain('id="home-band-b1-heading"');
+    expect(html).toContain('주간 기획전');
+    expect(html).toContain('쿠폰 중복 적용');
+    /* 배너 카피는 아트웍에 베이크돼 있어 alt 로 옮길 텍스트가 없다 — 이름은 링크가 갖는다. */
+    expect(html).toContain('aria-label="주간 기획전 기획전 보기"');
+    expect(html).toContain('src="https://cdn.example/band-1.webp"');
+    expect(html).toContain('기획전 전체보기');
+    expect(render({ ...fullCuration, goodsBands: [] })).not.toContain('wc-band__layout');
+  });
+
+  /* 리스트 행에는 품절 스크림 밴드를 겹칠 자리가 없다. 가격 옆 라벨이 시각·보조기술 양쪽에 그 상태를 전한다. */
+  it('shows the brand only when present and labels sold-out rows next to the price', () => {
+    const html = render(fullCuration);
+
+    const rows = [...html.matchAll(/<a\b[^>]*wc-band__row[^>]*>[\s\S]*?<\/a>/g)].map((match) => match[0]);
+    expect(rows).toHaveLength(2);
+
+    expect(rows[0]).toContain('<p class="wc-band__row-brand">ICONS</p>');
+    expect(rows[0]).toContain('₩29,000');
+    expect(rows[0]).not.toContain('wc-band__row-soldout');
+
+    expect(rows[1]).not.toContain('wc-band__row-brand');
+    expect(rows[1]).toContain('<span class="wc-band__row-soldout">품절</span>');
+  });
+
+  /* 상품이 하나도 없는 기획전은 배너와 전체보기만 남는다 — 빈 리스트 칼럼을 그리지 않는다. */
+  it('keeps only the banner when a goods band has no products', () => {
+    const html = render({
+      ...fullCuration,
+      goodsBands: [{ ...fullCuration.goodsBands[0], goods: [] }],
+    });
+
+    expect(html).toContain('wc-band__banner');
+    expect(html).toContain('기획전 전체보기');
+    expect(html).not.toContain('wc-band__list');
+  });
+
+  it('renders the card pack and game band on a grey surface', () => {
+    const html = render(fullCuration);
+
+    expect(html).toContain('wc-home__band wc-home__band--grey');
+    expect(html).toContain('id="home-benefit-heading"');
+    expect(html).toContain('카드팩·게임');
     expect(html).toContain('href="/packs"');
-    expect(html).toContain('href="/events"');
-    expect(html).toContain('href="/community"');
-    expect(html).toContain('모든 팬의 세계가<br/>하나로 이어지는 곳.');
-    expect(html).not.toContain('파트너사');
+    expect(html).toContain('카드팩 열기');
+    /* 설명은 선택이다 — 없는 타일에 빈 줄을 남기면 타일 높이가 어긋난다. */
+    expect((html.match(/wc-benefit__tile-desc/g) ?? []).length).toBe(1);
   });
 
-  it('홈 푸터에서도 법정 고지 3종에 닿는다', () => {
-    const html = renderHome();
+  /* 게이트가 꺼져 있으면 카드팩·게임은 존재하지 않는 기능이다. 데이터가 있어도 진입점을 열지 않는다. */
+  it('hides the benefit band while the card rewards gate is off', () => {
+    const html = render(fullCuration, false);
 
-    expect(html).toContain('<small>LEGAL</small>');
-    expect(html).toContain('href="/legal/terms"');
-    expect(html).toContain('href="/legal/privacy"');
-    expect(html).toContain('href="/legal/shipping"');
+    expect(html).not.toContain('home-benefit-heading');
+    expect(html).not.toContain('카드팩·게임');
+    expect(html).not.toContain('href="/packs"');
   });
 
-  it('홈 푸터에도 사업자 정보를 표기한다', () => {
-    const html = renderHome();
+  it('drops the benefit band when the gate is on but no tile is curated', () => {
+    expect(render({ ...fullCuration, benefitTiles: [] })).not.toContain('home-benefit-heading');
+  });
+});
 
-    expect(html).toContain('aria-label="사업자 정보"');
-    expect(html).toContain('호스팅 제공자');
+describe('Home band order', () => {
+  /* 밴드 순서는 R-스펙 02 §0 이 정본이다. 조건부 렌더를 옮기다 보면 조용히 뒤집힌다. */
+  it('keeps the reproduction-spec band order', () => {
+    const html = render(fullCuration);
+
+    const positions = [
+      'aria-label="대표 큐레이션"',
+      'home-picks-heading',
+      'home-best-heading',
+      'home-band-b1-heading',
+      'home-popular-heading',
+      'home-benefit-heading',
+    ].map((marker) => html.indexOf(marker));
+
+    for (const position of positions) expect(position).toBeGreaterThan(-1);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
   });
 
-  it('keeps the IP marquee centered, unclipped, and faster than the source preview', () => {
-    const html = renderHome();
-    const orbitClasses = [...html.matchAll(/class="(ip-orbit [^"]+)"/g)].map((match) => match[1]);
-    const css = cssForHome();
+  it('labels every band section by its own heading', () => {
+    const html = render(fullCuration);
 
-    expect(orbitClasses.length).toBeGreaterThan(0);
-    expect(orbitClasses.every((className) => !className.includes('ip-orbit--high') && !className.includes('ip-orbit--low'))).toBe(true);
-    expect(css).toMatch(/\.icons-preview \.marquee-track\s*\{[^}]*animation:\s*20s linear infinite preview-marquee/);
-    expect(css).not.toContain('.icons-preview .ip-orbit--low');
-  });
-
-  it('keeps world-card artwork full bleed while styling only its text label', () => {
-    const css = cssForHome();
-
-    expect(css).toContain('.icons-preview .world-card > span:not(.preview-artwork)');
-    expect(css).not.toMatch(/\.icons-preview \.world-card span\s*\{/);
-  });
-
-  it('provides the preview hero controls and exact accessible labels', () => {
-    const html = renderHome({
-      curation: {
-        hero: {
-          id: 'hero-editorial',
-          title: '여름 한정 세계가 열렸어요',
-          imageBg: 'url("https://cdn.example/editorial.webp") center / cover no-repeat',
-          href: '/events/summer',
-        },
-        announcement: null,
-        featuredIpIds: ['lumen', 'hwasan'],
-      },
-    });
-
-    expect(html).toContain('aria-roledescription="carousel"');
-    expect(html).toContain('aria-label="슬라이드 일시 정지"');
-    expect(html).toContain('aria-label="1번 슬라이드: 여름 한정 세계가 열렸어요"');
-    expect(html).toContain('여름 한정 세계가 열렸어요');
-    expect(html).toContain('href="/events/summer"');
-  });
-
-  it('includes the preview mobile menu and its circular-reveal state hook', () => {
-    const html = renderHome();
-
-    expect(html).toContain('aria-label="메뉴 열기"');
-    expect(html).toContain('aria-label="전체 메뉴"');
-    expect(html).toContain('class="mobile-menu "');
-    expect(html).toContain('ICONS MENU');
-    expect(html).toContain('SEOUL · 2026');
-    expect(cssForHome()).toContain('.icons-preview .mobile-menu--open');
-  });
-
-  it('labels mock metrics as sample data instead of presenting them as production truth', () => {
-    const html = renderHome({
-      catalog: catalog('mock', [ip('sample', '샘플 IP', true)]),
-      curation: { hero: null, announcement: null, featuredIpIds: [] },
-    });
-
-    expect(html).toContain('샘플 연결 팬');
-    expect(html).not.toContain('연결된 팬</span>');
-  });
-
-  it('keeps the editorial frame and explicit empty state when no catalog IP exists', () => {
-    const html = renderHome({
-      catalog: catalog('supabase', []),
-      curation: { hero: null, announcement: null, featuredIpIds: [] },
-    });
-
-    expect(html).toContain('class="icons-preview"');
-    expect(html).toContain('등록된 IP가 아직 없습니다');
-    expect(html).toContain('href="/ip"');
-    expect(html).not.toContain('aria-roledescription="carousel"');
-  });
-
-  it('derives downstream experiences from the curated selected IP rather than a legacy featured IP', () => {
-    const legacy = ip('legacy', '레거시 특집', true);
-    const lumen = ip('lumen', '루멘');
-    const base = catalog('supabase', [legacy, lumen]);
-    const html = renderHome({
-      catalog: {
-        ...base,
-        goods: [
-          {
-            id: 'legacy-good',
-            name: '레거시 굿즈',
-            ip: 'legacy',
-            type: '키링',
-            price: 10000,
-            badge: null,
-            stock: 'ok',
-            stockQty: 5,
-            img: 'linear-gradient(#111, #222)',
-          },
-          {
-            id: 'lumen-good',
-            name: '루멘 굿즈',
-            ip: 'lumen',
-            type: '피규어',
-            price: 28000,
-            badge: '신상',
-            stock: 'ok',
-            stockQty: 8,
-            img: 'linear-gradient(#abc, #def)',
-          },
-        ],
-      },
-      curation: { hero: null, announcement: null, featuredIpIds: ['lumen'] },
-    });
-
-    expect(html).toMatch(/experience-card[\s\S]*루멘 굿즈/);
-    expect(html).not.toMatch(/experience-card[\s\S]*레거시 굿즈/);
+    for (const id of [
+      'home-picks-heading',
+      'home-best-heading',
+      'home-band-b1-heading',
+      'home-popular-heading',
+      'home-benefit-heading',
+    ]) {
+      expect(html).toContain(`aria-labelledby="${id}"`);
+      expect(html).toContain(`id="${id}"`);
+    }
   });
 });

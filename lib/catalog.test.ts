@@ -795,6 +795,19 @@ describe('getHomeSnapshot', () => {
         href: '/community?tag=notice',
       },
       featuredIpIds: ['regular', 'hwasan'],
+      heroSlides: [{
+        id: '00000000-0000-0000-0000-000000000001',
+        title: '여름 홈 히어로',
+        subtitle: null,
+        imageUrl: 'https://cdn.example/catalog/curation/11111111-1111-4111-8111-111111111111.webp',
+        mobileImageUrl: null,
+        href: '/events/summer',
+      }],
+      editorPicks: [],
+      goodsBands: [],
+      categoryBestTabs: [],
+      popularTabs: [],
+      benefitTiles: [],
     });
     expect(snapshot.postPreviewByIpId).toEqual({
       regular: expect.objectContaining({ id: 'regular-latest' }),
@@ -862,7 +875,17 @@ describe('getHomeSnapshot', () => {
 
     const snapshot = await getHomeSnapshot();
 
-    expect(snapshot.curation).toEqual({ hero: null, announcement: null, featuredIpIds: [] });
+    expect(snapshot.curation).toEqual({
+      hero: null,
+      announcement: null,
+      featuredIpIds: [],
+      heroSlides: [],
+      editorPicks: [],
+      goodsBands: [],
+      categoryBestTabs: [],
+      popularTabs: [],
+      benefitTiles: [],
+    });
     expect(Object.keys(snapshot.postPreviewByIpId)).toEqual(['regular-first', 'legacy-featured']);
     expect(records.filter((record) => record.table === 'posts').map((record) => record.eq[0])).toEqual([
       ['ip_id', 'regular-first'],
@@ -1091,11 +1114,189 @@ describe('getHomeSnapshot', () => {
 
     const snapshot = await getHomeSnapshot();
 
-    expect(snapshot.curation).toEqual({
+    expect(snapshot.curation).toEqual(expect.objectContaining({
       hero: expect.objectContaining({ title: '안전한 히어로', href: '/events' }),
       announcement: null,
       featuredIpIds: ['hwasan'],
+      heroSlides: [expect.objectContaining({ title: '안전한 히어로', href: '/events' })],
+    }));
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
+  it('assembles the S3 band kinds into view models and keeps the notice strip out of the home snapshot', async () => {
+    const records: QueryRecord[] = [];
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records, {
+      ips: [{
+        ...defaultSupabaseRows().ips[0],
+        id: 'brand-ip',
+        title: '브랜드 IP',
+      }],
+      goods: [
+        {
+          id: 'g-first', ip_id: 'brand-ip', name: '첫 굿즈', type: '키링', price: 12000,
+          badge: 'NEW', stock: 'ok', stock_qty: 5, bg: null,
+          image_path: null, allow_bank_transfer: true,
+        },
+        {
+          id: 'g-soldout', ip_id: 'brand-ip', name: '품절 굿즈', type: '파우치', price: 18000,
+          badge: null, stock: 'ok', stock_qty: 0, bg: 'linear-gradient(#000, #111)',
+          image_path: null, allow_bank_transfer: true,
+        },
+      ],
+      home_curations: [
+        {
+          id: '00000000-0000-0000-0000-000000000021',
+          kind: 'hero',
+          ip_id: null,
+          title: '이중 아트웍 히어로',
+          image_path: 'public-media/catalog/curation/11111111-1111-4111-8111-111111111111.webp',
+          link_path: '/events/dual',
+          display_order: 0,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+          slot: null,
+          payload: {
+            subtitle: 'SUMMER DROP',
+            mobile_image_path: 'public-media/catalog/curation/22222222-2222-4222-8222-222222222222.webp',
+          },
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000022',
+          kind: 'notice_strip',
+          ip_id: null,
+          title: '셸 전용 공지 스트립',
+          image_path: 'public-media/catalog/curation/33333333-3333-4333-8333-333333333333.webp',
+          link_path: '/events/notice',
+          display_order: 0,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+          slot: null,
+          payload: null,
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000023',
+          kind: 'editor_pick',
+          ip_id: null,
+          title: '에디터 픽',
+          image_path: 'public-media/catalog/curation/44444444-4444-4444-8444-444444444444.webp',
+          link_path: '/events/pick',
+          display_order: 0,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+          slot: null,
+          payload: { badge: 'EVENT', description: '이번 주 이벤트' },
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000024',
+          kind: 'band_banner',
+          ip_id: null,
+          title: '주간 기획전',
+          image_path: 'public-media/catalog/curation/55555555-5555-4555-8555-555555555555.webp',
+          link_path: '/shop?promo=weekly',
+          display_order: 0,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+          slot: null,
+          payload: { subcopy: '쿠폰 자동 적용', good_ids: ['g-first', 'missing-good', 'g-first', 'g-soldout'] },
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000025',
+          kind: 'best_tab',
+          ip_id: null,
+          title: '키링',
+          image_path: null,
+          link_path: '/shop',
+          display_order: 0,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+          slot: 'category',
+          payload: { good_ids: ['g-first'] },
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000026',
+          kind: 'best_tab',
+          ip_id: null,
+          title: 'MULTI',
+          image_path: null,
+          link_path: '/shop',
+          display_order: 0,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+          slot: 'popular',
+          payload: { good_ids: ['g-soldout'] },
+        },
+        {
+          id: '00000000-0000-0000-0000-000000000027',
+          kind: 'benefit',
+          ip_id: null,
+          title: '카드팩 무료 개봉',
+          image_path: null,
+          link_path: '/packs',
+          display_order: 0,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+          slot: null,
+          payload: { description: '로그인하면 매일 카드팩을 열 수 있어요' },
+        },
+      ],
     });
+
+    const snapshot = await getHomeSnapshot();
+
+    expect(snapshot.curation.heroSlides).toEqual([{
+      id: '00000000-0000-0000-0000-000000000021',
+      title: '이중 아트웍 히어로',
+      subtitle: 'SUMMER DROP',
+      imageUrl: 'https://cdn.example/catalog/curation/11111111-1111-4111-8111-111111111111.webp',
+      mobileImageUrl: 'https://cdn.example/catalog/curation/22222222-2222-4222-8222-222222222222.webp',
+      href: '/events/dual',
+    }]);
+    expect(snapshot.curation.editorPicks).toEqual([{
+      id: '00000000-0000-0000-0000-000000000023',
+      title: '에디터 픽',
+      badge: 'EVENT',
+      description: '이번 주 이벤트',
+      imageBg: 'url("https://cdn.example/catalog/curation/44444444-4444-4444-8444-444444444444.webp") center / cover no-repeat',
+      href: '/events/pick',
+    }]);
+    /* 없는 굿즈 id·중복은 버리고 남은 카드가 큐레이션 순서를 지킨다. */
+    expect(snapshot.curation.goodsBands).toEqual([{
+      id: '00000000-0000-0000-0000-000000000024',
+      title: '주간 기획전',
+      subcopy: '쿠폰 자동 적용',
+      imageUrl: 'https://cdn.example/catalog/curation/55555555-5555-4555-8555-555555555555.webp',
+      href: '/shop?promo=weekly',
+      goods: [
+        expect.objectContaining({
+          id: 'g-first', brand: '브랜드 IP', badge: 'NEW', href: '/shop/g-first', soldOut: false,
+        }),
+        expect.objectContaining({ id: 'g-soldout', soldOut: true }),
+      ],
+    }]);
+    expect(snapshot.curation.categoryBestTabs).toEqual([
+      { id: '00000000-0000-0000-0000-000000000025', label: '키링', goods: [expect.objectContaining({ id: 'g-first' })] },
+    ]);
+    expect(snapshot.curation.popularTabs).toEqual([
+      { id: '00000000-0000-0000-0000-000000000026', label: 'MULTI', goods: [expect.objectContaining({ id: 'g-soldout' })] },
+    ]);
+    expect(snapshot.curation.benefitTiles).toEqual([{
+      id: '00000000-0000-0000-0000-000000000027',
+      title: '카드팩 무료 개봉',
+      description: '로그인하면 매일 카드팩을 열 수 있어요',
+      href: '/packs',
+    }]);
+    /* notice_strip 은 전역 셸 로더의 몫 — 홈 스냅샷 어디에도 나타나지 않는다. */
+    expect(JSON.stringify(snapshot.curation)).not.toContain('셸 전용 공지 스트립');
 
     mocks.isConfigured = false;
     mocks.client = null;
@@ -1119,7 +1320,17 @@ describe('getHomeSnapshot', () => {
     const snapshot = await getHomeSnapshot();
     const selectable = getHomeSelectableIps(snapshot.catalog, undefined);
 
-    expect(snapshot.curation).toEqual({ hero: null, announcement: null, featuredIpIds: [] });
+    expect(snapshot.curation).toEqual({
+      hero: null,
+      announcement: null,
+      featuredIpIds: [],
+      heroSlides: [],
+      editorPicks: [],
+      goodsBands: [],
+      categoryBestTabs: [],
+      popularTabs: [],
+      benefitTiles: [],
+    });
     expect(selectable.length).toBeGreaterThan(0);
     for (const ip of selectable) {
       expect(snapshot.postPreviewByIpId[ip.id], `${ip.title} 홈 팬덤 채널 포스트 누락`).not.toBeNull();

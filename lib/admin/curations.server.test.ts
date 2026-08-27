@@ -115,7 +115,7 @@ describe('admin curation loader', () => {
 
     expect(mocks.from).toHaveBeenCalledWith('home_curations');
     expect(mocks.select).toHaveBeenCalledWith(
-      'id,kind,ip_id,title,image_path,link_path,display_order,active_from,active_to,enabled,created_at,updated_at,ips(bg,image_path)',
+      'id,kind,ip_id,title,image_path,link_path,display_order,active_from,active_to,enabled,created_at,updated_at,slot,payload,ips(bg,image_path)',
     );
     expect(mocks.order.mock.calls).toEqual([
       ['kind', { ascending: true }],
@@ -185,6 +185,47 @@ describe('admin curation loader', () => {
       imagePath: null,
       imageUrl: 'https://storage.example/public-media/catalog/ip/66666666-6666-4666-8666-666666666666.webp',
     });
+  });
+
+  /* 폼 초기값이 이 두 칼럼에서 나온다 — 확장 kind 는 슬롯·payload 없이는 편집할 수 없다. */
+  it('확장 kind 의 슬롯과 payload 를 그대로 싣고 없는 행은 null 로 채운다', async () => {
+    configureRows([
+      {
+        id: '77777777-7777-4777-8777-777777777777',
+        kind: 'best_tab',
+        ip_id: null,
+        title: '인기템',
+        image_path: null,
+        link_path: '/shop',
+        display_order: 0,
+        active_from: '2026-07-20T00:00:00.000Z',
+        active_to: null,
+        enabled: true,
+        created_at: '2026-07-20T00:00:00.000Z',
+        updated_at: '2026-07-20T00:00:00.000Z',
+        slot: 'popular',
+        payload: { good_ids: ['g13', 'g14'] },
+      },
+      {
+        id: '88888888-8888-4888-8888-888888888888',
+        kind: 'announcement',
+        ip_id: null,
+        title: '공지',
+        image_path: null,
+        link_path: '/notice',
+        display_order: 1,
+        active_from: '2026-07-20T00:00:00.000Z',
+        active_to: null,
+        enabled: true,
+        created_at: '2026-07-20T00:00:00.000Z',
+        updated_at: '2026-07-20T00:00:00.000Z',
+      },
+    ]);
+
+    const [bestTab, announcement] = await getAdminCurations();
+
+    expect(bestTab).toMatchObject({ slot: 'popular', payload: { good_ids: ['g13', 'g14'] } });
+    expect(announcement).toMatchObject({ slot: null, payload: null });
   });
 
   it('calculates disabled, scheduled, active, and ended states at half-open boundaries', () => {

@@ -69,26 +69,35 @@ describe('account shell entrypoints', () => {
     expect(html).not.toContain('로그아웃');
   });
 
-  it('shows my instead of the cart in the signed-in mobile tabs', () => {
+  it('marks the signed-in account tab as current in the mobile tabs', () => {
     const html = renderToStaticMarkup(<MobNav />);
 
     expect(html).toContain('href="/my"');
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('>마이</a>');
+    expect(html).toContain('href="/my/wishlist"');
+    expect(html).toContain('href="/shop"');
     expect(html).not.toContain('href="/cart"');
     expect(html).not.toContain('mobnav-cart-count');
   });
 
-  it('keeps the counted cart tab and no my link for anonymous mobile users', () => {
-    mocks.presence = 'signed-out';
-    mocks.pathname = '/cart';
+  /* '메뉴' 탭은 목적지가 없어 링크로 세우면 전부 홈으로 떨어진다 — 시트를 여는 바텀바가 따로 맡는다. */
+  it('leaves the destination-less menu tab out of the linked mobile tabs', () => {
     const html = renderToStaticMarkup(<MobNav />);
 
-    expect(html).toContain('href="/cart"');
-    expect(html).toContain('aria-label="장바구니, 3개"');
+    expect(html).not.toContain('>메뉴</a>');
+  });
+
+  it('keeps the same account tab for anonymous mobile users instead of a cart tab', () => {
+    mocks.presence = 'signed-out';
+    mocks.pathname = '/shop';
+    const html = renderToStaticMarkup(<MobNav />);
+
+    expect(html).toContain('href="/shop"');
     expect(html).toContain('aria-current="page"');
-    expect(html).toContain('mobnav-cart-count');
-    expect(html).not.toContain('href="/my"');
+    expect(html).toContain('href="/my"');
+    expect(html).not.toContain('href="/cart"');
+    expect(html).not.toContain('mobnav-cart-count');
   });
 
   it('renders neutral shell placeholders while authentication is unresolved', () => {
@@ -102,7 +111,6 @@ describe('account shell entrypoints', () => {
     expect(desktop).not.toContain('로그아웃');
     expect(mobile).toContain('aria-busy="true"');
     expect(mobile).toContain('mobnav-presence-placeholder');
-    expect(mobile).not.toContain('href="/cart"');
     expect(mobile).not.toContain('href="/my"');
   });
 });
