@@ -2,8 +2,13 @@ name: CI/CD Pipeline
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
     branches:
       - main
+      # White Catalog 스테이지 PR(#322, base=통합 브랜치)도 validate와 preview 배포를 받아
+      # 스테이지마다 시각 검수가 가능해야 한다. 프로덕션 job은 push+main 조건이라 여기 영향이 없다.
+      # S9 일괄 전환 후 통합 브랜치와 함께 제거한다.
+      - ps/feat/lfs-storefront-redesign
   push:
     branches:
       - main
@@ -28,7 +33,9 @@ concurrency:
     ${{ github.event_name == 'pull_request'
         && format('supabase-preview-pr-{0}', github.event.pull_request.number)
         || format('{0}-{1}', github.workflow, github.ref) }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: >-
+    ${{ github.event_name == 'pull_request'
+        && (github.event.action != 'edited' || github.event.changes.base != null) }}
 
 env:
   NODE_VERSION: "26"
@@ -39,6 +46,10 @@ jobs:
   validate:
     name: validate
     runs-on: ubuntu-latest
+    if: >-
+      github.event_name != 'pull_request'
+      || github.event.action != 'edited'
+      || github.event.changes.base != null
     permissions:
       actions: read
       contents: read
@@ -265,14 +276,15 @@ jobs:
           PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: node scripts/reconcile-supabase-functions.mjs
 
-  # 앱 전용 PR은 main과 같은 shared preview DB를 읽기만 한다. Supabase 배포 상태를
-  # 바꾸는 PR은 무데이터 pr-N branch를 매 실행 새로 만들어 정확한 스키마를 적용한다.
+  # main 대상 앱 전용 PR만 main과 같은 shared preview DB를 읽기만 한다. Supabase 배포
+  # 상태를 바꾸거나 main 외 통합 브랜치를 대상으로 하는 PR은 무데이터 pr-N branch를
+  # 매 실행 새로 만들어 정확한 스키마를 적용한다.
   # 어떤 경로도 production 프로젝트를 가리키거나 shared preview에 PR migration을
   # 누적하지 않는다.
   deploy-supabase-preview:
     name: deploy-supabase-preview
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     needs: validate
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     permissions:
@@ -287,6 +299,7 @@ jobs:
       SUPABASE_PREVIEW_PROJECT_ID: ${{ secrets.SUPABASE_PREVIEW_PROJECT_ID }}
       SUPABASE_PRODUCTION_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
       PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
 
@@ -342,7 +355,9 @@ jobs:
           git diff --name-only --no-renames --diff-filter=ACDMRT -z \
             "$PR_BASE_SHA...$PR_HEAD_SHA" > "$changed_paths_file"
 
-          database_mode="$(node scripts/preview-supabase-mode.mjs < "$changed_paths_file")"
+          database_mode="$(
+            node scripts/preview-supabase-mode.mjs --base-ref "$PR_BASE_REF" < "$changed_paths_file"
+          )"
           if [ "$database_mode" = "isolated" ]; then
             branch_name="pr-${PR_NUMBER}"
           else
@@ -351,6 +366,22 @@ jobs:
 
           echo "database_mode=$database_mode" >> "$GITHUB_OUTPUT"
           echo "branch_name=$branch_name" >> "$GITHUB_OUTPUT"
+
+      # Supabase branch는 shared preview의 현재 main에서 파생된다. 오래된 PR head를
+      # 그대로 적용하면 최신 main migration이 섞인 superset이 되므로, isolated
+      # Preview는 현재 main을 포함하는 head에서만 만든다.
+      - name: Verify isolated preview contains current main
+        if: steps.check.outputs.configured == 'true' && steps.mode.outputs.database_mode == 'isolated'
+        run: |
+          set -euo pipefail
+
+          git fetch --no-tags origin main
+          current_main_sha="$(git rev-parse origin/main)"
+          if ! git merge-base --is-ancestor "$current_main_sha" "$PR_HEAD_SHA"; then
+            echo "::error title=Isolated preview head is behind main::Merge current main ($current_main_sha) into this PR before deploying its database branch"
+            exit 1
+          fi
+          echo "Isolated preview head contains current main: $current_main_sha" >> "$GITHUB_STEP_SUMMARY"
 
       # shared main이 PR base보다 뒤처졌다면 앱 전용 변경도 새 base schema와 맞지 않는다.
       # base workflow에 sync job이 도입된 뒤부터 exact SHA의 성공 증거를 필수로 한다.
@@ -504,6 +535,20 @@ jobs:
             exit 1
           fi
 
+          # The parent snapshot is fixed once branch creation finishes. Fetch main again
+          # afterward so a concurrent push/main sync cannot move the parent between the
+          # earlier ancestry gate and this branch fork.
+          git fetch --no-tags origin main
+          latest_main_sha="$(git rev-parse origin/main)"
+          if ! git merge-base --is-ancestor "$latest_main_sha" "$PR_HEAD_SHA"; then
+            echo "::error title=Main advanced during isolated preview creation::Merge current main ($latest_main_sha) into this PR and rerun the workflow"
+            supabase branches delete "$branch_name" \
+              --project-ref "$SUPABASE_PREVIEW_PROJECT_ID" \
+              --yes
+            wait_until_deleted
+            exit 1
+          fi
+
           credentials="$(
             supabase branches get "$branch_name" \
               --project-ref "$SUPABASE_PREVIEW_PROJECT_ID" \
@@ -599,6 +644,7 @@ jobs:
       SUPABASE_PRODUCTION_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
       DATABASE_MODE: ${{ needs.deploy-supabase-preview.outputs.database_mode }}
       BRANCH_NAME: ${{ needs.deploy-supabase-preview.outputs.branch_name }}
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
 
     steps:
       - name: Check out repository
@@ -737,6 +783,21 @@ jobs:
             exit 1
           fi
 
+      # shared main은 mutable하므로 evidence 확인 뒤 main이 전진했다면 오래된 앱을
+      # 더 최신 DB 상태에 배포하지 않는다. base가 갱신된 새 PR run에서 다시 배포한다.
+      - name: Revalidate shared preview main before deployment
+        if: env.DATABASE_MODE == 'shared'
+        run: |
+          set -euo pipefail
+
+          git fetch --no-tags origin main
+          current_main_sha="$(git rev-parse origin/main)"
+          if [ "$PR_BASE_SHA" != "$current_main_sha" ]; then
+            echo "::error title=Shared preview base advanced::PR base $PR_BASE_SHA is not current main $current_main_sha"
+            exit 1
+          fi
+          echo "Shared preview deployment still matches current main: $current_main_sha" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Deploy Vercel preview
         run: |
           deployment_url="$(
@@ -803,6 +864,19 @@ jobs:
             missing=1
           fi
           exit "$missing"
+
+      # 과거 main run을 재실행해 이미 더 최신 상태인 shared preview를 되돌리지 않는다.
+      # main push run은 같은 concurrency group에서 직렬화되므로, 이 시점 이후 main이
+      # 전진하면 현재 run이 먼저 끝난 뒤 최신 run이 최종 상태를 적용한다.
+      - name: Verify this run is still current main
+        run: |
+          git fetch --no-tags origin main
+          current_main_sha="$(git rev-parse origin/main)"
+          if [ "$GITHUB_SHA" != "$current_main_sha" ]; then
+            echo "::error title=Outdated shared preview sync::Run SHA $GITHUB_SHA is not current main $current_main_sha"
+            exit 1
+          fi
+          echo "Shared preview sync source is current main: $current_main_sha" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Sync shared preview Auth URLs
         env:

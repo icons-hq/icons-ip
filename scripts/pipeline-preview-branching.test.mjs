@@ -19,6 +19,26 @@ function findStep(job, name) {
 }
 
 describe('Supabase preview branch workflow contract', () => {
+  it('reruns only meaningful pull request edits so base retargets redeploy preview', async () => {
+    const workflow = await loadWorkflow(pipelinePath);
+    const validate = workflow.jobs.validate;
+
+    expect(workflow.on.pull_request.types).toEqual([
+      'opened',
+      'synchronize',
+      'reopened',
+      'edited',
+    ]);
+    expect(validate.if).toContain("github.event.action != 'edited'");
+    expect(validate.if).toContain('github.event.changes.base != null');
+    expect(workflow.concurrency['cancel-in-progress']).toContain(
+      "github.event.action != 'edited'",
+    );
+    expect(workflow.concurrency['cancel-in-progress']).toContain(
+      'github.event.changes.base != null',
+    );
+  });
+
   it('detects the whole PR diff and exposes only non-secret routing outputs', async () => {
     const workflow = await loadWorkflow(pipelinePath);
     const job = workflow.jobs['deploy-supabase-preview'];
@@ -30,7 +50,10 @@ describe('Supabase preview branch workflow contract', () => {
       'git diff --name-only --no-renames --diff-filter=ACDMRT -z',
     );
     expect(mode.run).toContain('"$PR_BASE_SHA...$PR_HEAD_SHA"');
-    expect(mode.run).toContain('node scripts/preview-supabase-mode.mjs');
+    expect(job.env.PR_BASE_REF).toBe('${{ github.event.pull_request.base.ref }}');
+    expect(mode.run).toContain(
+      'node scripts/preview-supabase-mode.mjs --base-ref "$PR_BASE_REF"',
+    );
     expect(job.outputs).toEqual({
       configured: '${{ steps.check.outputs.configured }}',
       database_mode: '${{ steps.mode.outputs.database_mode }}',
@@ -38,6 +61,17 @@ describe('Supabase preview branch workflow contract', () => {
     });
     expect(job.outputs).not.toHaveProperty('SUPABASE_SERVICE_ROLE_KEY');
     expect(job.outputs).not.toHaveProperty('POSTGRES_URL');
+  });
+
+  it('rejects an isolated preview whose head does not contain current main', async () => {
+    const workflow = await loadWorkflow(pipelinePath);
+    const job = workflow.jobs['deploy-supabase-preview'];
+    const gate = findStep(job, 'Verify isolated preview contains current main');
+
+    expect(gate.if).toContain("database_mode == 'isolated'");
+    expect(gate.run).toContain('git fetch --no-tags origin main');
+    expect(gate.run).toContain('git merge-base --is-ancestor "$current_main_sha" "$PR_HEAD_SHA"');
+    expect(gate.run).toContain('Isolated preview head is behind main');
   });
 
   it('requires exact base-main sync evidence before using shared preview', async () => {
@@ -71,6 +105,13 @@ describe('Supabase preview branch workflow contract', () => {
     expect(prepare.run).toContain('branch_name="pr-${PR_NUMBER}"');
     expect(prepare.run).toContain('supabase branches delete "$branch_name"');
     expect(prepare.run).toContain('supabase branches create "$branch_name"');
+    expect(prepare.run).toContain('git fetch --no-tags origin main');
+    expect(prepare.run).toContain(
+      'git merge-base --is-ancestor "$latest_main_sha" "$PR_HEAD_SHA"',
+    );
+    expect(prepare.run.indexOf('supabase branches create "$branch_name"')).toBeLessThan(
+      prepare.run.indexOf('latest_main_sha="$(git rev-parse origin/main)"'),
+    );
     expect(prepare.run).toContain('--region ap-northeast-2');
     expect(prepare.run).toContain('--size micro');
     expect(prepare.run).not.toContain('--with-data');
@@ -87,15 +128,18 @@ describe('Supabase preview branch workflow contract', () => {
     expect(verify.if).toContain("database_mode == 'isolated'");
     expect(verify.run).toContain('postgres:17-alpine');
     expect(job.steps.some((step) => step.run?.includes('db push --linked'))).toBe(false);
+    expect(job['timeout-minutes']).toBeGreaterThanOrEqual(30);
   });
 
   it('injects the selected branch credentials into Vercel build and runtime', async () => {
     const workflow = await loadWorkflow(pipelinePath);
     const job = workflow.jobs['deploy-vercel-preview'];
     const load = findStep(job, 'Load exact Supabase credentials for deployment');
+    const freshness = findStep(job, 'Revalidate shared preview main before deployment');
     const deploy = findStep(job, 'Deploy Vercel preview');
     const template = findStep(job, 'Activate recovery template in isolated preview');
 
+    expect(job.env.PR_BASE_SHA).toBe('${{ github.event.pull_request.base.sha }}');
     expect(load.run).toContain('supabase branches get "$expected_branch"');
     expect(load.run).toContain('SUPABASE_PREVIEW_PROJECT_ID');
     expect(load.run).toContain('SUPABASE_PRODUCTION_PROJECT_ID');
@@ -110,6 +154,11 @@ describe('Supabase preview branch workflow contract', () => {
       expect(deploy.run).toContain(`--build-env "${name}=`);
       expect(deploy.run).toContain(`--env "${name}=`);
     }
+    expect(freshness.if).toBe("env.DATABASE_MODE == 'shared'");
+    expect(freshness.run).toContain('git fetch --no-tags origin main');
+    expect(freshness.run).toContain('current_main_sha="$(git rev-parse origin/main)"');
+    expect(freshness.run).toContain('[ "$PR_BASE_SHA" != "$current_main_sha" ]');
+    expect(job.steps.indexOf(freshness)).toBe(job.steps.indexOf(deploy) - 1);
     expect(template.if).toBe("env.DATABASE_MODE == 'isolated'");
     expect(template.env.RECOVERY_TEMPLATE_PATH).toBe('supabase/templates/recovery.html');
     expect(template.run).toBe('node scripts/sync-supabase-auth.mjs');
@@ -130,6 +179,7 @@ describe('Supabase preview branch workflow contract', () => {
   it('syncs shared preview only from a successful production main migration', async () => {
     const workflow = await loadWorkflow(pipelinePath);
     const job = workflow.jobs['sync-supabase-preview-main'];
+    const freshness = findStep(job, 'Verify this run is still current main');
     const push = findStep(job, 'Apply main migrations and seed to shared preview');
     const functions = findStep(job, 'Reconcile shared preview Supabase Edge Functions');
     const auth = findStep(job, 'Sync shared preview Auth URLs');
@@ -137,6 +187,10 @@ describe('Supabase preview branch workflow contract', () => {
 
     expect(job.needs).toEqual(['deploy-supabase', 'deploy-vercel']);
     expect(job.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
+    expect(freshness.run).toContain('git fetch --no-tags origin main');
+    expect(freshness.run).toContain('current_main_sha="$(git rev-parse origin/main)"');
+    expect(freshness.run).toContain('[ "$GITHUB_SHA" != "$current_main_sha" ]');
+    expect(job.steps.indexOf(freshness)).toBeLessThan(job.steps.indexOf(auth));
     expect(push.run).toBe('supabase db push --linked --include-roles --include-seed --yes');
     expect(functions.run).toBe('node scripts/reconcile-supabase-functions.mjs');
     expect(auth.env.RECOVERY_TEMPLATE_PATH).toBe('supabase/templates/recovery.html');
