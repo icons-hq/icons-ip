@@ -152,12 +152,24 @@
    활성 표기는 검정 30%(scrim 토큰과 같은 값)에서 불투명 잉크로 넘어가는 것뿐이라
    실제로 움직이는 속성은 background-color 다 — opacity 는 같은 곡선으로 함께 열어 둔다. */
 .wc-hero__segment {
+  position: relative;
   flex: 1;
   padding: 0;
   border: 0;
   background: var(--wc-scrim);
   transition: background-color var(--wc-duration-medium), opacity var(--wc-duration-medium);
   cursor: pointer;
+}
+
+/* 시각 높이는 R-02 의 6px 그대로 두고, 터치 히트만 위로 44px 확장한다(DESIGN §10 아이콘 버튼 44px).
+   슬라이드 하단 44px 가 세그먼트 히트에 양보되지만, 진행바로 장면을 고르는 조작이 그 자리의 1차 의도다. */
+.wc-hero__segment::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 44px;
 }
 
 .wc-hero__segment.is-active {
@@ -482,6 +494,13 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--wc-ink);
+}
+
+.wc-band__row-soldout {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--wc-ink-disabled);
 }
 
 .wc-band__row-price {

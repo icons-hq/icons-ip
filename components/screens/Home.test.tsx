@@ -179,8 +179,8 @@ describe('Home bands', () => {
     expect(render({ ...fullCuration, goodsBands: [] })).not.toContain('wc-band__layout');
   });
 
-  /* 리스트 행에는 품절 밴드를 겹칠 자리가 없다. sr-only 가 그 상태를 전하는 유일한 지점이다. */
-  it('shows the brand only when present and labels sold-out rows for screen readers', () => {
+  /* 리스트 행에는 품절 스크림 밴드를 겹칠 자리가 없다. 가격 옆 라벨이 시각·보조기술 양쪽에 그 상태를 전한다. */
+  it('shows the brand only when present and labels sold-out rows next to the price', () => {
     const html = render(fullCuration);
 
     const rows = [...html.matchAll(/<a\b[^>]*wc-band__row[^>]*>[\s\S]*?<\/a>/g)].map((match) => match[0]);
@@ -188,10 +188,10 @@ describe('Home bands', () => {
 
     expect(rows[0]).toContain('<p class="wc-band__row-brand">ICONS</p>');
     expect(rows[0]).toContain('₩29,000');
-    expect(rows[0]).not.toContain('wc-sr-only');
+    expect(rows[0]).not.toContain('wc-band__row-soldout');
 
     expect(rows[1]).not.toContain('wc-band__row-brand');
-    expect(rows[1]).toContain('<span class="wc-sr-only"> (품절)</span>');
+    expect(rows[1]).toContain('<span class="wc-band__row-soldout">품절</span>');
   });
 
   /* 상품이 하나도 없는 기획전은 배너와 전체보기만 남는다 — 빈 리스트 칼럼을 그리지 않는다. */

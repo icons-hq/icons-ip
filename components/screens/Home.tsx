@@ -108,12 +108,12 @@ function GoodsBandSection({ band }: { band: HomeGoodsBand }) {
                   <span aria-hidden className="wc-band__thumb" style={{ background: good.imageBg }} />
                   <div className="wc-band__row-text">
                     {good.brand ? <p className="wc-band__row-brand">{good.brand}</p> : null}
-                    <p className="wc-band__row-name">
-                      {good.name}
-                      {/* 리스트 행에는 품절 밴드를 겹칠 자리가 없어, 상태는 이 sr-only 가 유일하게 전한다. */}
-                      {good.soldOut ? <span className="wc-sr-only"> (품절)</span> : null}
+                    <p className="wc-band__row-name">{good.name}</p>
+                    <p className="wc-band__row-price">
+                      {krw(good.price)}
+                      {/* 리스트 행에는 품절 스크림 밴드를 겹칠 자리가 없어 가격 옆 라벨로 전한다(DESIGN §12 품절 상태). */}
+                      {good.soldOut ? <span className="wc-band__row-soldout">품절</span> : null}
                     </p>
-                    <p className="wc-band__row-price">{krw(good.price)}</p>
                   </div>
                 </Link>
               ))}

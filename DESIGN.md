@@ -118,9 +118,10 @@ GNB hover/active 텍스트+3px 밑줄바, 메가메뉴 현재 링크, 카트 수
 ```yaml
 type:                       # size / weight / letter-spacing / line-height
   body: { desktop: "16/400/-0.2/1.8", mobile: "14/400/-0.2/1.8" }
-  section-title: "24/700/-0.8/1.33"       # 홈·목록 섹션 헤딩 (브레이크포인트 무관)
+  section-title: "28/700/-0.8"            # 홈·목록 섹션 헤딩 (브레이크포인트 무관) — R-02 §1-1 실측. R-07 h2 축의 24는 베이스 스케일로, 표면 수치는 표면 문서가 이긴다
   page-h1: "26/700/-0.8/1.3"
-  banner-title: "22/700/-0.55/1.09"        # 히어로·배너 이미지 위 (흰 글자)
+  banner-title: "22/700/-0.55/1.09"        # 배너 이미지 위 (흰 글자)
+  hero-copy: "24/700 캐치 + 15/400 부제"    # 홈 히어로 오버레이 (R-02 §2①, 흰 글자)
   pdp-title: { desktop: "18/700/-0.5/1.11", mobile: "16/700" }
   module-title: "18/700/-0.4"              # 모달·추천상품·시트 섹션
   card-title: "13/400/-0.2/1.35"           # 색 ink.sub
