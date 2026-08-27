@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "project": "hyosan-memories",
+  "milestone": "M0",
+  "status": "approved",
+  "approvedAt": "2026-08-27T06:00:56Z",
+  "approvedBy": "user",
+  "scope": "M0 visual direction: player halfbie, unnamed student zombie, and Hyosan High cafeteria",
+  "sourceManifestGeneratedAt": "2026-08-27T05:48:56.147Z",
+  "specSha256": "86298fdc22ea7abd20d0d10c0a9da8569b0e534103467ac8c838245e1c210ca6",
+  "assets": [
+    {
+      "id": "player_halfbie_concept",
+      "sha256": "eced3ac48eecf749aa9a457fd4980caeb00c78224df2a59ffaf3f3c99da9bca9"
+    },
+    {
+      "id": "student_zombie_concept",
+      "sha256": "81376b76595dff96b4ad3a56b5f76eefd4131d20731d033fd72105d17aecc2e8"
+    },
+    {
+      "id": "cafeteria_background_concept",
+      "sha256": "27d8740801259c96ea71483ab7abe7ac0e28fef23d4d69fb815e20e31d62f78d"
+    }
+  ],
+  "unblocks": [
+    "M1",
+    "mass-production",
+    "phaser-integration"
+  ],
+  "execution": "Approval unlocks the gate but does not itself start M1 or mass production.",
+  "invalidation": "Any regenerated asset or changed spec hash requires a new user approval."
+}
