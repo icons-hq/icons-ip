@@ -24,11 +24,15 @@
 
 .accessGate {
   display: grid;
-  place-content: center;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  place-content: safe center;
   justify-items: center;
   gap: 12px;
   padding: 28px;
   text-align: center;
+  touch-action: pan-y;
 }
 
 .accessGate h1,

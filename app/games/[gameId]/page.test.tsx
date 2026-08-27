@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import type { ProfileForOnboarding } from '@/lib/auth/onboarding';
 import GamePage, { generateMetadata } from './page';
 
 const mocks = vi.hoisted(() => ({
@@ -8,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   auth: {
     isConfigured: false,
     user: null as { id: string; email: string | null } | null,
-    profile: null as { suspended_at: string | null } | null,
+    profile: null as ProfileForOnboarding | null,
     isStaff: false,
   },
 }));
@@ -88,9 +89,28 @@ describe('public game route gate', () => {
     expect(mocks.getGameCatalogEntry).not.toHaveBeenCalled();
   });
 
-  it('mounts the Hyosan graybox for an authenticated visitor', async () => {
+  it('requires onboarding when an authenticated visitor has no trustworthy profile', async () => {
     mocks.auth.isConfigured = true;
     mocks.auth.user = { id: 'user-1', email: 'player@example.com' };
+
+    await expect(
+      GamePage({ params: Promise.resolve({ gameId: 'hyosan-memories' }) }),
+    ).rejects.toThrow(
+      'NEXT_REDIRECT:/onboarding?next=%2Fgames%2Fhyosan-memories',
+    );
+  });
+
+  it('mounts the Hyosan graybox for an onboarded visitor', async () => {
+    mocks.auth.isConfigured = true;
+    mocks.auth.user = { id: 'user-1', email: 'player@example.com' };
+    mocks.auth.profile = {
+      email: 'player@example.com',
+      nickname: '절비',
+      birth_date: '2000-01-01',
+      consents: { terms: true, privacy: true },
+      onboarded_at: '2026-08-27T00:00:00.000Z',
+      suspended_at: null,
+    };
 
     const page = await GamePage({ params: Promise.resolve({ gameId: 'hyosan-memories' }) });
     const html = renderToStaticMarkup(page);

@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { cache } from 'react';
 import { getCurrentAuthState } from '@/lib/auth/server';
-import { isAccountSuspended } from '@/lib/auth/onboarding';
+import { isAccountSuspended, isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getGameCatalogEntry } from '@/lib/games/catalog';
 import { GameScreen } from '@/components/games/GameScreen';
 import { HyosanMemoriesEntry } from '@/components/games/hyosan-memories/HyosanMemoriesEntry.client';
@@ -52,7 +52,10 @@ export default async function GamePage({ params }: { params: Promise<{ gameId: s
   if (gameId === HYOSAN_MEMORIES_GAME_ID) {
     const auth = await getCurrentAuthState();
     if (!auth.isConfigured || !auth.user) return <HyosanLoginGate />;
-    if (auth.user && isAccountSuspended(auth.profile)) redirect('/account-suspended');
+    if (isAccountSuspended(auth.profile)) redirect('/account-suspended');
+    if (!isOnboarded(auth.profile, auth.user.email)) {
+      redirect(onboardingPath(`/games/${HYOSAN_MEMORIES_GAME_ID}`));
+    }
     return <HyosanMemoriesEntry />;
   }
   if (!await getCardRewardsEnabled()) notFound();

@@ -1,7 +1,7 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
 import { createServer } from 'node:net';
+import { pathToFileURL } from 'node:url';
 
 import { chromium } from 'playwright-core';
 import { createClient } from '@supabase/supabase-js';
@@ -9,6 +9,27 @@ import { createClient } from '@supabase/supabase-js';
 const MINIMUM_ZOMBIES = 20;
 const MINIMUM_FPS = 30;
 const SAMPLE_COUNT = 20;
+const VIEWPORT_TOLERANCE_PX = 1;
+
+export async function runNextBuild(environment, spawnProcess = spawn) {
+  const buildProcess = spawnProcess(
+    process.execPath,
+    ['node_modules/next/dist/bin/next', 'build'],
+    { env: environment, stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  let buildLog = '';
+  buildProcess.stdout.on('data', (chunk) => { buildLog += chunk; });
+  buildProcess.stderr.on('data', (chunk) => { buildLog += chunk; });
+
+  const exitCode = await new Promise((resolve, reject) => {
+    buildProcess.once('error', reject);
+    buildProcess.once('close', resolve);
+  });
+  if (exitCode !== 0) {
+    const detail = buildLog.trim();
+    throw new Error(`Next build exited with ${exitCode}${detail ? `\n${detail}` : ''}`);
+  }
+}
 
 async function openPort() {
   const server = createServer();
@@ -90,6 +111,17 @@ async function createSmokeUser(supabaseEnvironment) {
   });
   if (error || !data.user) throw new Error(`Could not create the local smoke-test user: ${error?.message}`);
 
+  const { error: profileError } = await admin.from('profiles').update({
+    nickname: `hyosan_${suffix.replaceAll('-', '').slice(0, 20)}`,
+    birth_date: '2000-01-01',
+    consents: { terms: true, privacy: true, marketing: false },
+    onboarded_at: new Date().toISOString(),
+  }).eq('id', data.user.id).select('id').single();
+  if (profileError) {
+    await admin.auth.admin.deleteUser(data.user.id);
+    throw new Error(`Could not onboard the local smoke-test user: ${profileError.message}`);
+  }
+
   return {
     email,
     password,
@@ -101,20 +133,19 @@ async function createSmokeUser(supabaseEnvironment) {
 }
 
 async function main() {
-  if (!existsSync('.next/BUILD_ID')) {
-    throw new Error('Run `npm run build` before the Hyosan browser smoke test');
-  }
-
-  const port = await openPort();
-  const baseUrl = `http://127.0.0.1:${port}`;
   const supabaseEnvironment = readLocalSupabaseEnvironment();
-  const smokeUser = await createSmokeUser(supabaseEnvironment);
   const environment = {
     ...process.env,
     NEXT_PUBLIC_SUPABASE_URL: supabaseEnvironment.url,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: supabaseEnvironment.publishableKey,
     SUPABASE_SERVICE_ROLE_KEY: supabaseEnvironment.serviceRoleKey,
+    ICONS_CATALOG_SOURCE: 'supabase',
   };
+  await runNextBuild(environment);
+
+  const port = await openPort();
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const smokeUser = await createSmokeUser(supabaseEnvironment);
 
   const nextProcess = spawn(
     process.execPath,
@@ -130,19 +161,55 @@ async function main() {
   try {
     await waitForServer(`${baseUrl}/games/hyosan-memories`, nextProcess);
     browser = await chromium.launch({ channel: 'chrome', headless: true });
-    const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+    const page = await browser.newPage({
+      viewport: { width: 667, height: 320 },
+      hasTouch: true,
+      isMobile: true,
+    });
     const consoleErrors = [];
+    let localSupabaseRequests = 0;
+    const externalSupabaseHosts = new Set();
     page.on('console', (message) => {
       if (message.type() === 'error') consoleErrors.push(message.text());
     });
     page.on('pageerror', (error) => consoleErrors.push(error.message));
+    page.on('request', (request) => {
+      const requestUrl = new URL(request.url());
+      if (request.url().startsWith(supabaseEnvironment.url)) localSupabaseRequests += 1;
+      if (requestUrl.hostname.endsWith('.supabase.co')) externalSupabaseHosts.add(requestUrl.hostname);
+    });
 
     await page.goto(`${baseUrl}/games/hyosan-memories?smoke=${Date.now()}`, {
       waitUntil: 'networkidle',
     });
     const loginGate = page.locator('main[data-hyosan-access="login-required"]');
     await loginGate.waitFor({ timeout: 10_000 });
-    await loginGate.getByRole('link', { name: '로그인하고 플레이' }).click();
+    const loginButton = loginGate.getByRole('link', { name: '로그인하고 플레이' });
+    const shortViewportButton = await loginButton.boundingBox();
+    if (!shortViewportButton
+      || shortViewportButton.y < -VIEWPORT_TOLERANCE_PX
+      || shortViewportButton.y + shortViewportButton.height > 320 + VIEWPORT_TOLERANCE_PX) {
+      throw new Error(`Login CTA is clipped at 667x320: ${JSON.stringify(shortViewportButton)}`);
+    }
+
+    await page.setViewportSize({ width: 667, height: 240 });
+    const gateOverflow = await loginGate.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return { overflowY: style.overflowY, touchAction: style.touchAction };
+    });
+    if (gateOverflow.overflowY !== 'auto' || !gateOverflow.touchAction.includes('pan-y')) {
+      throw new Error(`Login gate cannot pan in an extreme short viewport: ${JSON.stringify(gateOverflow)}`);
+    }
+    await loginButton.scrollIntoViewIfNeeded();
+    const extremeViewportButton = await loginButton.boundingBox();
+    if (!extremeViewportButton
+      || extremeViewportButton.y < -VIEWPORT_TOLERANCE_PX
+      || extremeViewportButton.y + extremeViewportButton.height > 240 + VIEWPORT_TOLERANCE_PX) {
+      throw new Error(`Login CTA cannot be reached at 667x240: ${JSON.stringify(extremeViewportButton)}`);
+    }
+
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await loginButton.click();
     await page.getByLabel('이메일').fill(smokeUser.email);
     await page.getByLabel('비밀번호').fill(smokeUser.password);
     await page.getByRole('button', { name: '로그인', exact: true }).click();
@@ -229,6 +296,11 @@ async function main() {
     if (consoleErrors.length > 0) {
       throw new Error(`Browser errors: ${consoleErrors.join(' | ')}`);
     }
+    if (localSupabaseRequests === 0 || externalSupabaseHosts.size > 0) {
+      throw new Error(
+        `Browser Supabase boundary mismatch: local=${localSupabaseRequests}, external=${[...externalSupabaseHosts].join(',')}`,
+      );
+    }
 
     process.stdout.write(`${JSON.stringify({
       total,
@@ -236,6 +308,8 @@ async function main() {
       minimumFps: minimum,
       averageFps: Math.round(average),
       reducedMotion: true,
+      shortViewportGate: true,
+      localSupabaseRequests,
     })}\n`);
     completed = true;
   } finally {
@@ -252,4 +326,6 @@ async function main() {
   }
 }
 
-await main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
+}

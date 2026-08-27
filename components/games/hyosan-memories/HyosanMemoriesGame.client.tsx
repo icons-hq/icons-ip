@@ -18,6 +18,7 @@ import {
   type HyosanHudState,
   type HyosanRuntimeAction,
 } from './phaser-runtime';
+import { createHyosanBootWatchdog } from './boot-watchdog';
 import styles from './HyosanMemories.module.css';
 
 const INITIAL_HUD: HyosanHudState = {
@@ -145,11 +146,47 @@ export default function HyosanMemoriesGame() {
       destroy(removeCanvas: boolean, noReturn?: boolean): void;
       loop: { wake(): void };
     } | null = null;
+    let bootSettled = false;
+    let cancelBootWatchdog = () => {};
     setReady(false);
     setBootFailed(false);
     setHud(INITIAL_HUD);
     setActionCounts(INITIAL_ACTION_COUNTS);
     mobileInput.reset();
+
+    const destroyGame = () => {
+      const mountedGame = game;
+      game = null;
+      if (mountedGame) {
+        try {
+          mountedGame.destroy(true);
+        } catch (error: unknown) {
+          console.error('[hyosan-memories] Phaser teardown failed', error);
+        }
+        try {
+          mountedGame.loop.wake();
+        } catch (error: unknown) {
+          console.error('[hyosan-memories] Phaser loop release failed', error);
+        }
+      }
+      parent.replaceChildren();
+    };
+
+    const failBoot = (error: unknown) => {
+      if (disposed || bootSettled) return;
+      bootSettled = true;
+      cancelBootWatchdog();
+      console.error('[hyosan-memories] Phaser boot failed', error);
+      mobileInput.reset();
+      destroyGame();
+      setReady(false);
+      setBootFailed(true);
+      setAction('게임 부트 실패');
+    };
+
+    cancelBootWatchdog = createHyosanBootWatchdog(() => {
+      failBoot(new Error('Phaser did not signal readiness before the boot deadline'));
+    });
 
     void Promise.resolve().then(() => {
       if (disposed) return;
@@ -159,27 +196,22 @@ export default function HyosanMemoriesGame() {
         seed: `hyosan-g1-cafeteria-${run}`,
         reducedMotion: typeof window.matchMedia === 'function'
           && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-        onReady: () => setReady(true),
+        onReady: () => {
+          if (disposed || bootSettled) return;
+          bootSettled = true;
+          cancelBootWatchdog();
+          setReady(true);
+        },
         onHud: setHud,
         onAction: handleAction,
       });
-    }).catch((error: unknown) => {
-      if (disposed) return;
-      console.error('[hyosan-memories] Phaser boot failed', error);
-      mobileInput.reset();
-      parent.replaceChildren();
-      setReady(false);
-      setBootFailed(true);
-      setAction('게임 부트 실패');
-    });
+    }).catch(failBoot);
 
     return () => {
       disposed = true;
+      cancelBootWatchdog();
       mobileInput.reset();
-      if (game) {
-        game.destroy(true);
-        game.loop.wake();
-      }
+      destroyGame();
     };
   }, [handleAction, mobileInput, run]);
 
