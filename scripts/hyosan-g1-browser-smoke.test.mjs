@@ -3,9 +3,12 @@ import { PassThrough } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 import {
   cleanupSmokeResources,
+  createIdempotentCleanup,
+  installSmokeSignalCleanup,
   prepareSmokeTarget,
   runNextBuild,
   terminateNextProcess,
+  waitForServer,
 } from './hyosan-g1-browser-smoke.mjs';
 
 function completedProcess(exitCode) {
@@ -65,6 +68,19 @@ describe('Hyosan browser smoke build boundary', () => {
 });
 
 describe('Hyosan browser smoke cleanup', () => {
+  it('fails immediately when the Next server already exited from a signal', async () => {
+    const fetchPage = vi.fn();
+    const nextProcess = { exitCode: null, signalCode: 'SIGTERM' };
+
+    await expect(waitForServer(
+      'http://127.0.0.1:3000/games/hyosan-memories',
+      nextProcess,
+      fetchPage,
+    )).rejects.toThrow('Next server exited with SIGTERM');
+
+    expect(fetchPage).not.toHaveBeenCalled();
+  });
+
   it('continues cleanup when closing the browser fails', async () => {
     const browser = { close: vi.fn().mockRejectedValue(new Error('browser close failed')) };
     const nextProcess = { exitCode: 0, signalCode: null, kill: vi.fn() };
@@ -93,5 +109,46 @@ describe('Hyosan browser smoke cleanup', () => {
 
     expect(nextProcess.kill).toHaveBeenNthCalledWith(1, 'SIGTERM');
     expect(nextProcess.kill).toHaveBeenNthCalledWith(2, 'SIGKILL');
+  });
+
+  it('runs the same cleanup once when a termination signal interrupts the smoke', async () => {
+    const signals = new EventEmitter();
+    const cleanupTask = vi.fn().mockResolvedValue(undefined);
+    const cleanup = createIdempotentCleanup(cleanupTask);
+    const onSignal = vi.fn();
+    const signalCleanup = installSmokeSignalCleanup({
+      cleanup,
+      emitter: signals,
+      onSignal,
+    });
+
+    signals.emit('SIGTERM');
+    signals.emit('SIGINT');
+    await signalCleanup.wait();
+    await cleanup();
+    signalCleanup.dispose();
+
+    expect(onSignal).toHaveBeenCalledOnce();
+    expect(onSignal).toHaveBeenCalledWith('SIGTERM');
+    expect(cleanupTask).toHaveBeenCalledOnce();
+    expect(signals.listenerCount('SIGINT')).toBe(0);
+    expect(signals.listenerCount('SIGTERM')).toBe(0);
+  });
+
+  it('allows a later cleanup pass for a resource acquired after the signal', async () => {
+    const signals = new EventEmitter();
+    let cleanupLateResource = () => Promise.resolve();
+    const cleanup = () => cleanupLateResource();
+    const signalCleanup = installSmokeSignalCleanup({ cleanup, emitter: signals });
+
+    signals.emit('SIGINT');
+    await signalCleanup.wait();
+
+    const lateCleanupTask = vi.fn().mockResolvedValue(undefined);
+    cleanupLateResource = createIdempotentCleanup(lateCleanupTask);
+    await cleanup();
+    signalCleanup.dispose();
+
+    expect(lateCleanupTask).toHaveBeenCalledOnce();
   });
 });

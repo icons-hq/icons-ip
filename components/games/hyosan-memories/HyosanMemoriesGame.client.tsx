@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import {
   useCallback,
   useEffect,
@@ -20,6 +19,7 @@ import {
 } from './phaser-runtime';
 import {
   createHyosanBootWatchdog,
+  recoverFromHyosanBootFailure,
   scheduleHyosanPhaserDestroy,
 } from './boot-watchdog';
 import styles from './HyosanMemories.module.css';
@@ -147,6 +147,8 @@ export default function HyosanMemoriesGame() {
     let disposed = false;
     let game: {
       destroy(removeCanvas: boolean, noReturn?: boolean): void;
+      scene: { readonly isBooted: boolean };
+      step(time: number, delta: number): void;
       loop: { readonly started: boolean; wake(): void };
     } | null = null;
     let bootSettled = false;
@@ -214,6 +216,8 @@ export default function HyosanMemoriesGame() {
   }, [handleAction, mobileInput, run]);
 
   const restart = useCallback(() => setRun((current) => current + 1), []);
+  const retryBoot = useCallback(() => recoverFromHyosanBootFailure('retry'), []);
+  const exitBoot = useCallback(() => recoverFromHyosanBootFailure('exit'), []);
 
   return (
     <main
@@ -294,8 +298,8 @@ export default function HyosanMemoriesGame() {
           <strong>게임을 시작하지 못했습니다</strong>
           <p>다시 시도하거나 안전하게 나갈 수 있습니다.</p>
           <div className={styles.resultActions}>
-            <button type="button" onClick={restart}>다시 시도</button>
-            <Link href="/">나가기</Link>
+            <button type="button" onClick={retryBoot}>다시 시도</button>
+            <button type="button" onClick={exitBoot}>나가기</button>
           </div>
         </section>
       ) : null}

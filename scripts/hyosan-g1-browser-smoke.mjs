@@ -84,6 +84,45 @@ export async function cleanupSmokeResources({ browser, nextProcess, smokeUser })
   }
 }
 
+export function createIdempotentCleanup(cleanup) {
+  let cleanupPromise;
+  return () => {
+    cleanupPromise ??= Promise.resolve().then(cleanup);
+    return cleanupPromise;
+  };
+}
+
+export function installSmokeSignalCleanup({
+  cleanup,
+  emitter = process,
+  onSignal = () => {},
+}) {
+  let received = false;
+  let cleanupPromise;
+  const handlers = new Map();
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    const handler = () => {
+      if (received) return;
+      received = true;
+      onSignal(signal);
+      cleanupPromise = Promise.resolve().then(cleanup);
+      // The main path awaits this promise and reports errors.
+      void cleanupPromise.catch(() => {});
+    };
+    handlers.set(signal, handler);
+    emitter.on(signal, handler);
+  }
+
+  return {
+    dispose() {
+      for (const [signal, handler] of handlers) emitter.off(signal, handler);
+    },
+    wait() {
+      return cleanupPromise ?? Promise.resolve();
+    },
+  };
+}
+
 async function openPort() {
   const server = createServer();
   await new Promise((resolve, reject) => {
@@ -97,12 +136,14 @@ async function openPort() {
   return port;
 }
 
-async function waitForServer(url, process) {
+export async function waitForServer(url, process, fetchPage = fetch) {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
-    if (process.exitCode !== null) throw new Error(`Next server exited with ${process.exitCode}`);
+    if (processHasExited(process)) {
+      throw new Error(`Next server exited with ${process.exitCode ?? process.signalCode}`);
+    }
     try {
-      const response = await fetch(url);
+      const response = await fetchPage(url);
       if (response.ok) return;
     } catch {
       // The server is still starting.
@@ -191,11 +232,10 @@ async function createSmokeUser(supabaseEnvironment) {
   };
 }
 
-export async function prepareSmokeTarget({
+export async function prepareSmokeBuild({
   ambientEnvironment = process.env,
   readEnvironment = readLocalSupabaseEnvironment,
   build = runNextBuild,
-  createUser = createSmokeUser,
 } = {}) {
   const supabaseEnvironment = readEnvironment();
   const environment = {
@@ -206,19 +246,47 @@ export async function prepareSmokeTarget({
     ICONS_CATALOG_SOURCE: 'supabase',
   };
   await build(environment);
+  return { environment, supabaseEnvironment };
+}
+
+export async function prepareSmokeTarget({ createUser = createSmokeUser, ...buildOptions } = {}) {
+  const { environment, supabaseEnvironment } = await prepareSmokeBuild(buildOptions);
   const smokeUser = await createUser(supabaseEnvironment);
   return { environment, smokeUser, supabaseEnvironment };
 }
 
 async function main() {
-  const { environment, smokeUser, supabaseEnvironment } = await prepareSmokeTarget();
+  const { environment, supabaseEnvironment } = await prepareSmokeBuild();
+  let smokeUser;
   let nextProcess;
   let serverLog = '';
   let browser;
+  let cleanupSmokeUser = () => Promise.resolve();
+  let cleanupBrowser = () => Promise.resolve();
   let completed = false;
   let runError;
+  let receivedSignal;
+  const cleanup = () => cleanupSmokeResources({
+    browser: { close: cleanupBrowser },
+    nextProcess,
+    smokeUser: { cleanup: cleanupSmokeUser },
+  });
+  const signalCleanup = installSmokeSignalCleanup({
+    cleanup,
+    onSignal: (signal) => {
+      receivedSignal = signal;
+      process.exitCode = signal === 'SIGINT' ? 130 : 143;
+    },
+  });
+  const assertNotInterrupted = () => {
+    if (receivedSignal) throw new Error(`Smoke interrupted by ${receivedSignal}`);
+  };
   try {
+    smokeUser = await createSmokeUser(supabaseEnvironment);
+    cleanupSmokeUser = createIdempotentCleanup(() => smokeUser.cleanup());
+    assertNotInterrupted();
     const port = await openPort();
+    assertNotInterrupted();
     const baseUrl = `http://127.0.0.1:${port}`;
     nextProcess = spawn(
       process.execPath,
@@ -236,7 +304,10 @@ async function main() {
       waitForServer(`${baseUrl}/games/hyosan-memories`, nextProcess),
       processError,
     ]);
+    assertNotInterrupted();
     browser = await chromium.launch({ channel: 'chrome', headless: true });
+    cleanupBrowser = createIdempotentCleanup(() => browser.close());
+    assertNotInterrupted();
     const page = await browser.newPage({
       viewport: { width: 667, height: 320 },
       hasTouch: true,
@@ -392,13 +463,26 @@ async function main() {
     runError = error;
   }
 
-  let cleanupError;
+  const cleanupErrors = [];
   try {
-    await cleanupSmokeResources({ browser, nextProcess, smokeUser });
+    await signalCleanup.wait();
   } catch (error) {
-    cleanupError = error;
+    cleanupErrors.push(error);
   }
+  try {
+    await cleanup();
+  } catch (error) {
+    cleanupErrors.push(error);
+  }
+  signalCleanup.dispose();
+  const cleanupError = cleanupErrors.length > 0
+    ? new AggregateError(cleanupErrors, 'Smoke cleanup failed')
+    : undefined;
   if (!completed && serverLog) process.stderr.write(serverLog);
+  if (receivedSignal) {
+    if (cleanupError) console.error(cleanupError);
+    return;
+  }
   if (runError && cleanupError) {
     throw new AggregateError(
       [runError, cleanupError],
