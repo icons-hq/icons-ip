@@ -111,15 +111,17 @@ describe('Hyosan browser smoke cleanup', () => {
     expect(nextProcess.kill).toHaveBeenNthCalledWith(2, 'SIGKILL');
   });
 
-  it('runs the same cleanup once when a termination signal interrupts the smoke', async () => {
+  it('cleans up on the first signal and force-exits on a repeated signal', async () => {
     const signals = new EventEmitter();
     const cleanupTask = vi.fn().mockResolvedValue(undefined);
     const cleanup = createIdempotentCleanup(cleanupTask);
     const onSignal = vi.fn();
+    const onRepeatedSignal = vi.fn();
     const signalCleanup = installSmokeSignalCleanup({
       cleanup,
       emitter: signals,
       onSignal,
+      onRepeatedSignal,
     });
 
     signals.emit('SIGTERM');
@@ -130,6 +132,8 @@ describe('Hyosan browser smoke cleanup', () => {
 
     expect(onSignal).toHaveBeenCalledOnce();
     expect(onSignal).toHaveBeenCalledWith('SIGTERM');
+    expect(onRepeatedSignal).toHaveBeenCalledOnce();
+    expect(onRepeatedSignal).toHaveBeenCalledWith('SIGINT');
     expect(cleanupTask).toHaveBeenCalledOnce();
     expect(signals.listenerCount('SIGINT')).toBe(0);
     expect(signals.listenerCount('SIGTERM')).toBe(0);

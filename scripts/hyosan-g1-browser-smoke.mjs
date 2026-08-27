@@ -96,13 +96,17 @@ export function installSmokeSignalCleanup({
   cleanup,
   emitter = process,
   onSignal = () => {},
+  onRepeatedSignal = (signal) => process.exit(signal === 'SIGINT' ? 130 : 143),
 }) {
   let received = false;
   let cleanupPromise;
   const handlers = new Map();
   for (const signal of ['SIGINT', 'SIGTERM']) {
     const handler = () => {
-      if (received) return;
+      if (received) {
+        onRepeatedSignal(signal);
+        return;
+      }
       received = true;
       onSignal(signal);
       cleanupPromise = Promise.resolve().then(cleanup);
