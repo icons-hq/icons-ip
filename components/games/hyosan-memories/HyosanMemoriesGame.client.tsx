@@ -13,7 +13,11 @@ import {
   type HyosanAction,
   type HyosanMobileInputBridge,
 } from './input-bridge';
-import type { HyosanHudState, HyosanRuntimeAction } from './phaser-runtime';
+import {
+  mountHyosanPhaserGame,
+  type HyosanHudState,
+  type HyosanRuntimeAction,
+} from './phaser-runtime';
 import styles from './HyosanMemories.module.css';
 
 const INITIAL_HUD: HyosanHudState = {
@@ -147,7 +151,7 @@ export default function HyosanMemoriesGame() {
     setActionCounts(INITIAL_ACTION_COUNTS);
     mobileInput.reset();
 
-    void import('./phaser-runtime').then(({ mountHyosanPhaserGame }) => {
+    void Promise.resolve().then(() => {
       if (disposed) return;
       game = mountHyosanPhaserGame({
         parent,

@@ -63,7 +63,7 @@
 }
 
 .loginButton:focus-visible {
-  outline: 2px solid #ffffff;
+  outline: 2px solid var(--editorial-focus);
   outline-offset: 4px;
 }
 
@@ -324,7 +324,7 @@
 .actionButton:focus-visible,
 .result button:focus-visible,
 .result a:focus-visible {
-  outline: 2px solid #ffffff;
+  outline: 2px solid var(--editorial-focus);
   outline-offset: 3px;
 }
 
