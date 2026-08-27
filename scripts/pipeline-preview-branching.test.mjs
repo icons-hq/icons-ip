@@ -172,6 +172,7 @@ describe('Supabase preview branch workflow contract', () => {
   it('syncs shared preview only from a successful production main migration', async () => {
     const workflow = await loadWorkflow(pipelinePath);
     const job = workflow.jobs['sync-supabase-preview-main'];
+    const freshness = findStep(job, 'Verify this run is still current main');
     const push = findStep(job, 'Apply main migrations and seed to shared preview');
     const functions = findStep(job, 'Reconcile shared preview Supabase Edge Functions');
     const auth = findStep(job, 'Sync shared preview Auth URLs');
@@ -179,6 +180,10 @@ describe('Supabase preview branch workflow contract', () => {
 
     expect(job.needs).toEqual(['deploy-supabase', 'deploy-vercel']);
     expect(job.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
+    expect(freshness.run).toContain('git fetch --no-tags origin main');
+    expect(freshness.run).toContain('current_main_sha="$(git rev-parse origin/main)"');
+    expect(freshness.run).toContain('[ "$GITHUB_SHA" != "$current_main_sha" ]');
+    expect(job.steps.indexOf(freshness)).toBeLessThan(job.steps.indexOf(auth));
     expect(push.run).toBe('supabase db push --linked --include-roles --include-seed --yes');
     expect(functions.run).toBe('node scripts/reconcile-supabase-functions.mjs');
     expect(auth.env.RECOVERY_TEMPLATE_PATH).toBe('supabase/templates/recovery.html');
