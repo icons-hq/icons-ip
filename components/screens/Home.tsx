@@ -9,7 +9,12 @@ import { SectionHeading } from '@/components/wc/SectionHeading';
 import { Slider } from '@/components/wc/Slider';
 import { TabPanels, type TabPanelDef } from '@/components/wc/TabPanels';
 import { krw } from '@/lib/format';
-import type { HomeBestTab, HomeCurationSnapshot, HomeGoodsBand } from '@/lib/home-catalog';
+import {
+  withoutCardRewardCurations,
+  type HomeBestTab,
+  type HomeCurationSnapshot,
+  type HomeGoodsBand,
+} from '@/lib/home-catalog';
 
 export interface HomeProps {
   cardRewardsEnabled: boolean;
@@ -126,13 +131,17 @@ function GoodsBandSection({ band }: { band: HomeGoodsBand }) {
   );
 }
 
-export function Home({ cardRewardsEnabled, curation }: HomeProps) {
+export function Home({ cardRewardsEnabled, curation: rawCuration }: HomeProps) {
+  /* 게이트가 꺼진 배포에서는 혜택 밴드만이 아니라 카드팩·게임 목적지를 가진 큐레이션을
+     밴드 종류와 무관하게 걸러낸다 — GNB 의 packs 필터·구 홈과 같은 규칙이다. */
+  const curation = cardRewardsEnabled ? rawCuration : withoutCardRewardCurations(rawCuration);
   const hasHero = curation.heroSlides.length > 0;
   const hasPicks = curation.editorPicks.length > 0;
   const hasBest = hasTabGoods(curation.categoryBestTabs);
   const hasGoodsBands = curation.goodsBands.length > 0;
   const hasPopular = hasTabGoods(curation.popularTabs);
-  const hasBenefit = cardRewardsEnabled && curation.benefitTiles.length > 0;
+  /* 필터가 게이트 오프에서 benefitTiles 를 비우므로 존재 판정 하나로 충분하다. */
+  const hasBenefit = curation.benefitTiles.length > 0;
   const isEmpty = !hasHero && !hasPicks && !hasBest && !hasGoodsBands && !hasPopular && !hasBenefit;
 
   return (

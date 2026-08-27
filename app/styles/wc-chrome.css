@@ -63,6 +63,10 @@
   overflow: hidden;
 }
 
+.wc-notice picture {
+  display: block;
+}
+
 .wc-notice img {
   display: block;
   width: 100%;

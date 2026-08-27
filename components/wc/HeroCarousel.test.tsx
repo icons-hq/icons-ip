@@ -32,7 +32,6 @@ const playable: HeroPlaybackState = {
   focusWithin: false,
   hidden: false,
   hovered: false,
-  interacted: false,
   paused: false,
   reducedMotion: false,
   slideCount: 2,
@@ -151,16 +150,17 @@ describe('hero autoplay conditions', () => {
   });
 
   /*
-   * 자동재생을 막는 이유는 여섯 가지고 전부 독립이다. 하나라도 빠지면 사용자가 읽는 중에
+   * 자동재생을 막는 이유는 다섯 가지고 전부 독립이다. 하나라도 빠지면 사용자가 읽는 중에
    * 슬라이드가 넘어가거나, 탭이 백그라운드로 내려간 뒤에도 타이머가 계속 돈다.
+   * 사용자 조작(세그먼트·화살표)에 의한 정지는 paused 로 합쳐졌다 — goTo 가 setPaused(true)
+   * 를 호출하므로 정지 버튼 상태·라벨이 실제 재생 상태를 항상 정확히 말한다.
    */
   it.each([
-    ['정지 버튼', { paused: true }],
+    ['정지 버튼(사용자 조작 포함)', { paused: true }],
     ['포인터 호버', { hovered: true }],
     ['내부 포커스', { focusWithin: true }],
     ['문서 비활성', { hidden: true }],
     ['모션 최소화 설정', { reducedMotion: true }],
-    ['사용자 조작 이후', { interacted: true }],
   ] as const)('멈춘다: %s', (_label, blocker) => {
     expect(isHeroPlaying({ ...playable, ...blocker })).toBe(false);
   });

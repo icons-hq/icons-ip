@@ -13,6 +13,7 @@ interface NoticeStripRow {
   title: string;
   image_path: string | null;
   link_path: string;
+  payload: Record<string, unknown> | null;
 }
 
 export const NOTICE_STRIP_CACHE_TAG = 'home-curations';
@@ -42,7 +43,7 @@ async function loadActiveNoticeStrip(): Promise<NoticeStrip | null> {
     const now = new Date().toISOString();
     const { data, error } = await supabase
       .from('home_curations')
-      .select('id,title,image_path,link_path')
+      .select('id,title,image_path,link_path,payload')
       .eq('kind', 'notice_strip')
       .eq('enabled', true)
       .lte('active_from', now)
@@ -61,12 +62,19 @@ async function loadActiveNoticeStrip(): Promise<NoticeStrip | null> {
     if (!title || Array.from(title).length > 120 || !isSafeInternalLink(href)) return null;
     if (!row.image_path || !HOME_CURATION_IMAGE_PATTERN.test(row.image_path)) return null;
 
+    const publicUrlFor = (path: string) => supabase.storage
+      .from(PUBLIC_MEDIA_BUCKET)
+      .getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
+    const mobileImagePath = row.payload?.mobile_image_path;
+
     return {
       id: row.id,
       title,
-      imageUrl: supabase.storage
-        .from(PUBLIC_MEDIA_BUCKET)
-        .getPublicUrl(normalizePublicMediaPath(row.image_path)).data.publicUrl,
+      imageUrl: publicUrlFor(row.image_path),
+      mobileImageUrl:
+        typeof mobileImagePath === 'string' && HOME_CURATION_IMAGE_PATTERN.test(mobileImagePath)
+          ? publicUrlFor(mobileImagePath)
+          : null,
       href,
     };
   } catch {

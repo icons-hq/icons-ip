@@ -15,6 +15,9 @@ export interface AdminCurationRecord {
   title: string;
   imagePath: string | null;
   imageUrl: string | null;
+  /* payload 로 나르는 모바일 아트웍의 공개 URL — 없으면 null. 운영자가 저장된
+     모바일 스트립·히어로 아트웍을 폼에서 확인할 수 있어야 한다(로드리뷰 #358). */
+  mobileImageUrl: string | null;
   linkPath: string;
   displayOrder: number;
   activeFrom: string;
@@ -116,6 +119,9 @@ export async function getAdminCurations(now = Date.now()): Promise<AdminCuration
     title: row.title,
     imagePath: row.image_path,
     imageUrl: previewUrlFor(row),
+    mobileImageUrl: imageUrlForPath(
+      typeof row.payload?.mobile_image_path === 'string' ? row.payload.mobile_image_path : null,
+    ),
     linkPath: row.link_path,
     displayOrder: row.display_order,
     activeFrom: row.active_from,

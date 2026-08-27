@@ -702,19 +702,27 @@ values
     'catalog/curation/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee.webp',
     '00000000-0000-4000-8000-000000011401', 'curation', 'image/webp',
     1024, 1024, 'verified', now() + interval '10 minutes', now(), now()
+  ),
+  (
+    'catalog/curation/abababab-abab-4bab-8bab-abababababab.webp',
+    '00000000-0000-4000-8000-000000011401', 'curation', 'image/webp',
+    1024, 1024, 'verified', now() + interval '10 minutes', now(), now()
   );
 
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000011401', true);
 
+-- Notice strips carry the same payload-borne mobile artwork as the hero
+-- (Codex review follow-up on #325) — the claim contract covers it too.
 select public.admin_upsert_home_curation(
   '00000000-0000-4000-8000-000000011509',
   '00000000-0000-4000-8000-000000011510',
   'notice_strip', null, '배송 공지 스트립',
   'public-media/catalog/curation/cccccccc-cccc-4ccc-8ccc-cccccccccccc.webp',
   '/events', 0, now() - interval '1 hour', null, true,
-  null, null
+  null,
+  '{"mobile_image_path":"public-media/catalog/curation/abababab-abab-4bab-8bab-abababababab.webp"}'::jsonb
 );
 
 -- Hero mobile artwork inside payload consumes its own verified claim.
@@ -736,6 +744,13 @@ select 1 / case when exists (
   where path = 'catalog/curation/cccccccc-cccc-4ccc-8ccc-cccccccccccc.webp'
     and status = 'attached'
 ) then 1 else 0 end as assert_notice_strip_consumed_image_claim;
+
+select 1 / case when exists (
+  select 1
+  from public.admin_artwork_upload_claims
+  where path = 'catalog/curation/abababab-abab-4bab-8bab-abababababab.webp'
+    and status = 'attached'
+) then 1 else 0 end as assert_notice_strip_mobile_artwork_consumed_claim;
 
 select 1 / case when exists (
   select 1

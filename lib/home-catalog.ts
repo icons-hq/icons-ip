@@ -47,12 +47,41 @@ export interface HomeBanner {
 }
 
 /* 전역 셸이 그리는 공지 스트립 — 로더는 lib/notice-strip.server.ts 지만
-   타입은 클라이언트 컴포넌트(Nav)도 참조하므로 서버 전용 모듈 밖에 둔다. */
+   타입은 클라이언트 컴포넌트(Nav)도 참조하므로 서버 전용 모듈 밖에 둔다.
+   PC 비율(≈47:1) 아트웍은 모바일 폭에서 수 px 로 붕괴하므로 히어로처럼
+   payload 로 모바일 아트웍을 따로 나른다(R-01 §1 의 PC/MO 소스 분리). */
 export interface NoticeStrip {
   id: string;
   title: string;
   imageUrl: string;
+  mobileImageUrl: string | null;
   href: string;
+}
+
+/* 카드 리워드 게이트가 꺼진 배포에서 카드팩·게임으로 가는 공개 CTA 를 숨기는
+   판정 — GNB(packs 필터)·구 홈이 쓰던 규칙과 같은 목적지 집합이다. 파싱이
+   불가능한 href 는 안전하게 게이트 대상으로 취급한다. */
+export function isCardRewardDestination(href: string): boolean {
+  try {
+    const pathname = decodeURIComponent(new URL(href, 'https://icons.local').pathname);
+    return pathname === '/packs'
+      || pathname.startsWith('/packs/')
+      || pathname === '/games'
+      || pathname.startsWith('/games/');
+  } catch {
+    return true;
+  }
+}
+
+/** 게이트가 꺼진 화면이 카드 리워드 목적지 큐레이션을 통째로 걸러낼 때 쓴다. */
+export function withoutCardRewardCurations(curation: HomeCurationSnapshot): HomeCurationSnapshot {
+  return {
+    ...curation,
+    heroSlides: curation.heroSlides.filter((slide) => !isCardRewardDestination(slide.href)),
+    editorPicks: curation.editorPicks.filter((pick) => !isCardRewardDestination(pick.href)),
+    goodsBands: curation.goodsBands.filter((band) => !isCardRewardDestination(band.href)),
+    benefitTiles: [],
+  };
 }
 
 export interface HomeHeroSlide {

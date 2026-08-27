@@ -259,6 +259,9 @@ function readCurationPayload(
   if (kind === 'hero') {
     readPayloadText(formData, 'subtitle', errors, payload);
     readMobileImagePath(formData, errors, payload);
+  } else if (kind === 'notice_strip') {
+    /* PC 비율 스트립은 모바일 폭에서 붕괴한다 — 히어로와 같은 모바일 아트웍을 나른다. */
+    readMobileImagePath(formData, errors, payload);
   } else if (kind === 'editor_pick') {
     readPayloadText(formData, 'badge', errors, payload);
     readPayloadText(formData, 'description', errors, payload);
