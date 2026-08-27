@@ -644,6 +644,7 @@ jobs:
       SUPABASE_PRODUCTION_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
       DATABASE_MODE: ${{ needs.deploy-supabase-preview.outputs.database_mode }}
       BRANCH_NAME: ${{ needs.deploy-supabase-preview.outputs.branch_name }}
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
 
     steps:
       - name: Check out repository
@@ -781,6 +782,21 @@ jobs:
             echo "::error title=Preview resolved to production::Refusing Vercel deployment"
             exit 1
           fi
+
+      # shared main은 mutable하므로 evidence 확인 뒤 main이 전진했다면 오래된 앱을
+      # 더 최신 DB 상태에 배포하지 않는다. base가 갱신된 새 PR run에서 다시 배포한다.
+      - name: Revalidate shared preview main before deployment
+        if: env.DATABASE_MODE == 'shared'
+        run: |
+          set -euo pipefail
+
+          git fetch --no-tags origin main
+          current_main_sha="$(git rev-parse origin/main)"
+          if [ "$PR_BASE_SHA" != "$current_main_sha" ]; then
+            echo "::error title=Shared preview base advanced::PR base $PR_BASE_SHA is not current main $current_main_sha"
+            exit 1
+          fi
+          echo "Shared preview deployment still matches current main: $current_main_sha" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Deploy Vercel preview
         run: |
