@@ -137,7 +137,10 @@ export default function HyosanMemoriesGame() {
     if (!parent) return;
 
     let disposed = false;
-    let game: { destroy(removeCanvas: boolean, noReturn?: boolean): void } | null = null;
+    let game: {
+      destroy(removeCanvas: boolean, noReturn?: boolean): void;
+      loop: { wake(): void };
+    } | null = null;
     setReady(false);
     setBootFailed(false);
     setHud(INITIAL_HUD);
@@ -169,7 +172,10 @@ export default function HyosanMemoriesGame() {
     return () => {
       disposed = true;
       mobileInput.reset();
-      game?.destroy(true);
+      if (game) {
+        game.destroy(true);
+        game.loop.wake();
+      }
     };
   }, [handleAction, mobileInput, run]);
 
@@ -194,6 +200,7 @@ export default function HyosanMemoriesGame() {
       data-skill-count={actionCounts.skill}
       data-dash-count={actionCounts.dash}
       data-player-health={hud.health}
+      data-simulation-step={hud.step}
       onContextMenu={(event) => event.preventDefault()}
     >
       <div ref={parentRef} className={styles.canvasHost} />

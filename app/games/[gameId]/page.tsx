@@ -51,7 +51,7 @@ export default async function GamePage({ params }: { params: Promise<{ gameId: s
   const { gameId } = await params;
   if (gameId === HYOSAN_MEMORIES_GAME_ID) {
     const auth = await getCurrentAuthState();
-    if (auth.isConfigured && !auth.user) return <HyosanLoginGate />;
+    if (!auth.isConfigured || !auth.user) return <HyosanLoginGate />;
     if (auth.user && isAccountSuspended(auth.profile)) redirect('/account-suspended');
     return <HyosanMemoriesEntry />;
   }

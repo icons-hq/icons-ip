@@ -147,6 +147,7 @@ Production에서 이메일/PW 가입을 운영하려면 Supabase Auth custom SMT
 ```bash
 npm run dev    # 개발 서버
 npm run test   # Vitest 단위 테스트
+npm run test:hyosan-g1-browser # prod build 기반 효산의 기억 인증·게임플레이 스모크
 npm run test:goods-payment-local-integration # full local Supabase Auth/API + Fake 결제 통합
 npm run lint   # ESLint
 npm run typecheck # Next route type 생성 + test 전용 TypeScript 검사
@@ -155,7 +156,7 @@ npm run start  # build 결과 실행
 npm run hong-sil:download # 홍실퀘스트 신규·누락 이미지 다운로드
 ```
 
-굿즈 결제 local integration은 `npx supabase start`로 Auth·Data API까지 전체 로컬 스택이 실행 중일 때만 실행한다. DB만 띄우는 CI smoke는 동일한 public seam의 Vitest와 SQL·경합 테스트를 각각 실행하고, 이 full-stack 명령은 로컬 E2E 증거로 분리한다.
+효산의 기억 브라우저 스모크는 먼저 `npm run build`를 완료하고 `npx supabase start`로 로컬 Auth·Data API를 실행한 뒤 사용한다. 스크립트가 로컬 호스트를 확인하고 임시 인증 사용자를 생성하며, 로그인 게이트·게임 부트·종료 후 루프 정지·재진입·reduced-motion을 검증한 뒤 사용자를 삭제한다. 굿즈 결제 local integration도 전체 로컬 Supabase 스택이 실행 중일 때만 실행한다. DB만 띄우는 CI smoke는 동일한 public seam의 Vitest와 SQL·경합 테스트를 각각 실행하고, 이 full-stack 명령은 로컬 E2E 증거로 분리한다.
 
 ### 홍실퀘스트 이미지 다운로더
 

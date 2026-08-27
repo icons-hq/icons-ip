@@ -199,9 +199,11 @@ export function mountHyosanPhaserGame(options: HyosanRuntimeOptions): Phaser.Gam
       }
 
       const snapshot = this.simulation.getSnapshot();
+      const ended = snapshot.player.defeated || snapshot.room.exited;
       this.renderSnapshot(snapshot);
       this.renderNewEvents(snapshot);
-      if (snapshot.step - this.lastHudStep >= 6) this.publishHud(snapshot);
+      if (ended || snapshot.step - this.lastHudStep >= 6) this.publishHud(snapshot);
+      if (ended) this.game.loop.sleep();
     }
 
     private renderSnapshot(snapshot: HyosanSimulationSnapshot) {

@@ -20,7 +20,7 @@ vi.mock('@/lib/games/catalog', () => ({ getGameCatalogEntry: mocks.getGameCatalo
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: async () => mocks.auth }));
 vi.mock('@/components/games/GameScreen', () => ({ GameScreen: () => null }));
 vi.mock('@/components/games/hyosan-memories/HyosanMemoriesEntry.client', () => ({
-  HyosanMemoriesEntry: () => null,
+  HyosanMemoriesEntry: () => <main data-hyosan-entry="true" />,
 }));
 vi.mock('next/navigation', () => ({
   notFound: () => {
@@ -64,10 +64,13 @@ describe('public game route gate', () => {
     expect(page.props.game).toEqual({ id: 'game-1' });
   });
 
-  it('renders the Hyosan graybox without coupling it to the card rewards gate or catalog', async () => {
+  it('fails closed at the Hyosan login gate when Supabase is not configured', async () => {
     const page = await GamePage({ params: Promise.resolve({ gameId: 'hyosan-memories' }) });
+    const html = renderToStaticMarkup(page);
 
-    expect(page.type).toBeTypeOf('function');
+    expect(html).toContain('data-hyosan-access="login-required"');
+    expect(html).toContain('href="/login?next=%2Fgames%2Fhyosan-memories"');
+    expect(html).not.toContain('data-hyosan-entry="true"');
     expect(mocks.getGameCatalogEntry).not.toHaveBeenCalled();
   });
 
@@ -80,6 +83,7 @@ describe('public game route gate', () => {
     expect(html).toContain('data-hyosan-access="login-required"');
     expect(html).toContain('href="/login?next=%2Fgames%2Fhyosan-memories"');
     expect(html).toContain('보호된 참여 기능입니다');
+    expect(html).not.toContain('data-hyosan-entry="true"');
     expect(html).not.toContain('플레이 기록');
     expect(mocks.getGameCatalogEntry).not.toHaveBeenCalled();
   });
@@ -89,8 +93,10 @@ describe('public game route gate', () => {
     mocks.auth.user = { id: 'user-1', email: 'player@example.com' };
 
     const page = await GamePage({ params: Promise.resolve({ gameId: 'hyosan-memories' }) });
+    const html = renderToStaticMarkup(page);
 
-    expect(page.type).toBeTypeOf('function');
+    expect(html).toContain('data-hyosan-entry="true"');
+    expect(html).not.toContain('data-hyosan-access="login-required"');
   });
 
   it('blocks a suspended visitor before mounting the Hyosan graybox', async () => {
