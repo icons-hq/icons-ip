@@ -12,9 +12,10 @@ const SAMPLE_COUNT = 20;
 const VIEWPORT_TOLERANCE_PX = 1;
 
 export async function runNextBuild(environment, spawnProcess = spawn) {
+  const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
   const buildProcess = spawnProcess(
-    process.execPath,
-    ['node_modules/next/dist/bin/next', 'build'],
+    npmCommand,
+    ['run', 'build'],
     { env: environment, stdio: ['ignore', 'pipe', 'pipe'] },
   );
   let buildLog = '';
@@ -27,7 +28,59 @@ export async function runNextBuild(environment, spawnProcess = spawn) {
   });
   if (exitCode !== 0) {
     const detail = buildLog.trim();
-    throw new Error(`Next build exited with ${exitCode}${detail ? `\n${detail}` : ''}`);
+    throw new Error(`npm run build exited with ${exitCode}${detail ? `\n${detail}` : ''}`);
+  }
+}
+
+function processHasExited(process) {
+  return process.exitCode !== null || process.signalCode !== null;
+}
+
+function waitForProcessExit(process, timeoutMs) {
+  if (processHasExited(process)) return Promise.resolve(true);
+
+  return new Promise((resolve) => {
+    let timeout;
+    const onExit = () => {
+      clearTimeout(timeout);
+      resolve(true);
+    };
+    process.once('exit', onExit);
+    timeout = setTimeout(() => {
+      process.off('exit', onExit);
+      resolve(false);
+    }, timeoutMs);
+  });
+}
+
+export async function terminateNextProcess(
+  process,
+  gracefulTimeoutMs = 3_000,
+  forceTimeoutMs = 1_000,
+) {
+  if (!process || processHasExited(process)) return;
+
+  const gracefulExit = waitForProcessExit(process, gracefulTimeoutMs);
+  process.kill('SIGTERM');
+  if (await gracefulExit) return;
+  if (processHasExited(process)) return;
+
+  const forcedExit = waitForProcessExit(process, forceTimeoutMs);
+  process.kill('SIGKILL');
+  if (!await forcedExit) throw new Error('Next server did not exit after SIGKILL');
+}
+
+export async function cleanupSmokeResources({ browser, nextProcess, smokeUser }) {
+  const cleanupResults = await Promise.allSettled([
+    browser ? Promise.resolve().then(() => browser.close()) : Promise.resolve(),
+    terminateNextProcess(nextProcess),
+    smokeUser ? Promise.resolve().then(() => smokeUser.cleanup()) : Promise.resolve(),
+  ]);
+  const cleanupErrors = cleanupResults
+    .filter((result) => result.status === 'rejected')
+    .map((result) => result.reason);
+  if (cleanupErrors.length > 0) {
+    throw new AggregateError(cleanupErrors, 'Smoke cleanup failed');
   }
 }
 
@@ -118,7 +171,13 @@ async function createSmokeUser(supabaseEnvironment) {
     onboarded_at: new Date().toISOString(),
   }).eq('id', data.user.id).select('id').single();
   if (profileError) {
-    await admin.auth.admin.deleteUser(data.user.id);
+    const { error: cleanupError } = await admin.auth.admin.deleteUser(data.user.id);
+    if (cleanupError) {
+      throw new Error(
+        `Could not onboard the local smoke-test user: ${profileError.message}; `
+        + `cleanup also failed: ${cleanupError.message}`,
+      );
+    }
     throw new Error(`Could not onboard the local smoke-test user: ${profileError.message}`);
   }
 
@@ -132,34 +191,51 @@ async function createSmokeUser(supabaseEnvironment) {
   };
 }
 
-async function main() {
-  const supabaseEnvironment = readLocalSupabaseEnvironment();
+export async function prepareSmokeTarget({
+  ambientEnvironment = process.env,
+  readEnvironment = readLocalSupabaseEnvironment,
+  build = runNextBuild,
+  createUser = createSmokeUser,
+} = {}) {
+  const supabaseEnvironment = readEnvironment();
   const environment = {
-    ...process.env,
+    ...ambientEnvironment,
     NEXT_PUBLIC_SUPABASE_URL: supabaseEnvironment.url,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: supabaseEnvironment.publishableKey,
     SUPABASE_SERVICE_ROLE_KEY: supabaseEnvironment.serviceRoleKey,
     ICONS_CATALOG_SOURCE: 'supabase',
   };
-  await runNextBuild(environment);
+  await build(environment);
+  const smokeUser = await createUser(supabaseEnvironment);
+  return { environment, smokeUser, supabaseEnvironment };
+}
 
-  const port = await openPort();
-  const baseUrl = `http://127.0.0.1:${port}`;
-  const smokeUser = await createSmokeUser(supabaseEnvironment);
-
-  const nextProcess = spawn(
-    process.execPath,
-    ['node_modules/next/dist/bin/next', 'start', '-H', '127.0.0.1', '-p', String(port)],
-    { env: environment, stdio: ['ignore', 'pipe', 'pipe'] },
-  );
+async function main() {
+  const { environment, smokeUser, supabaseEnvironment } = await prepareSmokeTarget();
+  let nextProcess;
   let serverLog = '';
-  nextProcess.stdout.on('data', (chunk) => { serverLog += chunk; });
-  nextProcess.stderr.on('data', (chunk) => { serverLog += chunk; });
-
   let browser;
   let completed = false;
+  let runError;
   try {
-    await waitForServer(`${baseUrl}/games/hyosan-memories`, nextProcess);
+    const port = await openPort();
+    const baseUrl = `http://127.0.0.1:${port}`;
+    nextProcess = spawn(
+      process.execPath,
+      ['node_modules/next/dist/bin/next', 'start', '-H', '127.0.0.1', '-p', String(port)],
+      { env: environment, stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    nextProcess.stdout.on('data', (chunk) => { serverLog += chunk; });
+    nextProcess.stderr.on('data', (chunk) => { serverLog += chunk; });
+    const processError = new Promise((_, reject) => {
+      nextProcess.once('error', (error) => reject(
+        new Error(`Could not start the Next server: ${error.message}`, { cause: error }),
+      ));
+    });
+    await Promise.race([
+      waitForServer(`${baseUrl}/games/hyosan-memories`, nextProcess),
+      processError,
+    ]);
     browser = await chromium.launch({ channel: 'chrome', headless: true });
     const page = await browser.newPage({
       viewport: { width: 667, height: 320 },
@@ -312,18 +388,25 @@ async function main() {
       localSupabaseRequests,
     })}\n`);
     completed = true;
-  } finally {
-    await browser?.close();
-    if (nextProcess.exitCode === null) nextProcess.kill('SIGTERM');
-    await Promise.race([
-      new Promise((resolve) => nextProcess.once('exit', resolve)),
-      new Promise((resolve) => setTimeout(resolve, 3_000)),
-    ]);
-    await smokeUser.cleanup();
-    if (!completed && serverLog) {
-      process.stderr.write(serverLog);
-    }
+  } catch (error) {
+    runError = error;
   }
+
+  let cleanupError;
+  try {
+    await cleanupSmokeResources({ browser, nextProcess, smokeUser });
+  } catch (error) {
+    cleanupError = error;
+  }
+  if (!completed && serverLog) process.stderr.write(serverLog);
+  if (runError && cleanupError) {
+    throw new AggregateError(
+      [runError, cleanupError],
+      'Hyosan browser smoke failed and cleanup also failed',
+    );
+  }
+  if (runError) throw runError;
+  if (cleanupError) throw cleanupError;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

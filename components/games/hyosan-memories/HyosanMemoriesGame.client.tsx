@@ -18,7 +18,10 @@ import {
   type HyosanHudState,
   type HyosanRuntimeAction,
 } from './phaser-runtime';
-import { createHyosanBootWatchdog } from './boot-watchdog';
+import {
+  createHyosanBootWatchdog,
+  scheduleHyosanPhaserDestroy,
+} from './boot-watchdog';
 import styles from './HyosanMemories.module.css';
 
 const INITIAL_HUD: HyosanHudState = {
@@ -144,7 +147,7 @@ export default function HyosanMemoriesGame() {
     let disposed = false;
     let game: {
       destroy(removeCanvas: boolean, noReturn?: boolean): void;
-      loop: { wake(): void };
+      loop: { readonly started: boolean; wake(): void };
     } | null = null;
     let bootSettled = false;
     let cancelBootWatchdog = () => {};
@@ -159,14 +162,9 @@ export default function HyosanMemoriesGame() {
       game = null;
       if (mountedGame) {
         try {
-          mountedGame.destroy(true);
+          scheduleHyosanPhaserDestroy(mountedGame);
         } catch (error: unknown) {
           console.error('[hyosan-memories] Phaser teardown failed', error);
-        }
-        try {
-          mountedGame.loop.wake();
-        } catch (error: unknown) {
-          console.error('[hyosan-memories] Phaser loop release failed', error);
         }
       }
       parent.replaceChildren();
