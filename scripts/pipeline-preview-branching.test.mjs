@@ -30,7 +30,10 @@ describe('Supabase preview branch workflow contract', () => {
       'git diff --name-only --no-renames --diff-filter=ACDMRT -z',
     );
     expect(mode.run).toContain('"$PR_BASE_SHA...$PR_HEAD_SHA"');
-    expect(mode.run).toContain('node scripts/preview-supabase-mode.mjs');
+    expect(job.env.PR_BASE_REF).toBe('${{ github.event.pull_request.base.ref }}');
+    expect(mode.run).toContain(
+      'node scripts/preview-supabase-mode.mjs --base-ref "$PR_BASE_REF"',
+    );
     expect(job.outputs).toEqual({
       configured: '${{ steps.check.outputs.configured }}',
       database_mode: '${{ steps.mode.outputs.database_mode }}',
@@ -38,6 +41,17 @@ describe('Supabase preview branch workflow contract', () => {
     });
     expect(job.outputs).not.toHaveProperty('SUPABASE_SERVICE_ROLE_KEY');
     expect(job.outputs).not.toHaveProperty('POSTGRES_URL');
+  });
+
+  it('rejects an isolated preview whose head does not contain current main', async () => {
+    const workflow = await loadWorkflow(pipelinePath);
+    const job = workflow.jobs['deploy-supabase-preview'];
+    const gate = findStep(job, 'Verify isolated preview contains current main');
+
+    expect(gate.if).toContain("database_mode == 'isolated'");
+    expect(gate.run).toContain('git fetch --no-tags origin main');
+    expect(gate.run).toContain('git merge-base --is-ancestor "$current_main_sha" "$PR_HEAD_SHA"');
+    expect(gate.run).toContain('Isolated preview head is behind main');
   });
 
   it('requires exact base-main sync evidence before using shared preview', async () => {

@@ -21,7 +21,8 @@ export function requiresIsolatedPreviewDatabase(filePath) {
     && ISOLATED_PREVIEW_PATHS.some((pattern) => pattern.test(normalizedPath));
 }
 
-export function determinePreviewDatabaseMode(filePaths) {
+export function determinePreviewDatabaseMode(filePaths, baseRef = 'main') {
+  if (baseRef !== 'main') return 'isolated';
   return filePaths.some(requiresIsolatedPreviewDatabase) ? 'isolated' : 'shared';
 }
 
@@ -32,7 +33,10 @@ async function main() {
   const input = Buffer.concat(chunks).toString('utf8');
   const separator = input.includes('\0') ? '\0' : '\n';
   const filePaths = input.split(separator).filter(Boolean);
-  process.stdout.write(`${determinePreviewDatabaseMode(filePaths)}\n`);
+  const baseRefFlag = process.argv.indexOf('--base-ref');
+  const baseRef = baseRefFlag === -1 ? 'main' : process.argv[baseRefFlag + 1];
+  if (!baseRef) throw new Error('--base-ref requires a value');
+  process.stdout.write(`${determinePreviewDatabaseMode(filePaths, baseRef)}\n`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
