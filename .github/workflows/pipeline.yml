@@ -269,8 +269,9 @@ jobs:
           PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: node scripts/reconcile-supabase-functions.mjs
 
-  # 앱 전용 PR은 main과 같은 shared preview DB를 읽기만 한다. Supabase 배포 상태를
-  # 바꾸는 PR은 무데이터 pr-N branch를 매 실행 새로 만들어 정확한 스키마를 적용한다.
+  # main 대상 앱 전용 PR만 main과 같은 shared preview DB를 읽기만 한다. Supabase 배포
+  # 상태를 바꾸거나 main 외 통합 브랜치를 대상으로 하는 PR은 무데이터 pr-N branch를
+  # 매 실행 새로 만들어 정확한 스키마를 적용한다.
   # 어떤 경로도 production 프로젝트를 가리키거나 shared preview에 PR migration을
   # 누적하지 않는다.
   deploy-supabase-preview:
@@ -291,6 +292,7 @@ jobs:
       SUPABASE_PREVIEW_PROJECT_ID: ${{ secrets.SUPABASE_PREVIEW_PROJECT_ID }}
       SUPABASE_PRODUCTION_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
       PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
       PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
 
@@ -346,7 +348,9 @@ jobs:
           git diff --name-only --no-renames --diff-filter=ACDMRT -z \
             "$PR_BASE_SHA...$PR_HEAD_SHA" > "$changed_paths_file"
 
-          database_mode="$(node scripts/preview-supabase-mode.mjs < "$changed_paths_file")"
+          database_mode="$(
+            node scripts/preview-supabase-mode.mjs --base-ref "$PR_BASE_REF" < "$changed_paths_file"
+          )"
           if [ "$database_mode" = "isolated" ]; then
             branch_name="pr-${PR_NUMBER}"
           else
@@ -355,6 +359,22 @@ jobs:
 
           echo "database_mode=$database_mode" >> "$GITHUB_OUTPUT"
           echo "branch_name=$branch_name" >> "$GITHUB_OUTPUT"
+
+      # Supabase branch는 shared preview의 현재 main에서 파생된다. 오래된 PR head를
+      # 그대로 적용하면 최신 main migration이 섞인 superset이 되므로, isolated
+      # Preview는 현재 main을 포함하는 head에서만 만든다.
+      - name: Verify isolated preview contains current main
+        if: steps.check.outputs.configured == 'true' && steps.mode.outputs.database_mode == 'isolated'
+        run: |
+          set -euo pipefail
+
+          git fetch --no-tags origin main
+          current_main_sha="$(git rev-parse origin/main)"
+          if ! git merge-base --is-ancestor "$current_main_sha" "$PR_HEAD_SHA"; then
+            echo "::error title=Isolated preview head is behind main::Merge current main ($current_main_sha) into this PR before deploying its database branch"
+            exit 1
+          fi
+          echo "Isolated preview head contains current main: $current_main_sha" >> "$GITHUB_STEP_SUMMARY"
 
       # shared main이 PR base보다 뒤처졌다면 앱 전용 변경도 새 base schema와 맞지 않는다.
       # base workflow에 sync job이 도입된 뒤부터 exact SHA의 성공 증거를 필수로 한다.

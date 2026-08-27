@@ -40,4 +40,11 @@ describe('preview Supabase database mode', () => {
   it('uses the shared main preview for app-only changes', () => {
     expect(determinePreviewDatabaseMode(['app/page.tsx', 'README.md'])).toBe('shared');
   });
+
+  it('isolates app-only stages that target a non-main integration branch', () => {
+    expect(determinePreviewDatabaseMode(
+      ['app/page.tsx', 'README.md'],
+      'ps/feat/lfs-storefront-redesign',
+    )).toBe('isolated');
+  });
 });
