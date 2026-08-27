@@ -31,6 +31,12 @@ describe('Supabase preview branch workflow contract', () => {
     ]);
     expect(validate.if).toContain("github.event.action != 'edited'");
     expect(validate.if).toContain('github.event.changes.base != null');
+    expect(workflow.concurrency['cancel-in-progress']).toContain(
+      "github.event.action != 'edited'",
+    );
+    expect(workflow.concurrency['cancel-in-progress']).toContain(
+      'github.event.changes.base != null',
+    );
   });
 
   it('detects the whole PR diff and exposes only non-secret routing outputs', async () => {

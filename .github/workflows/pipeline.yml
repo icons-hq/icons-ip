@@ -33,7 +33,9 @@ concurrency:
     ${{ github.event_name == 'pull_request'
         && format('supabase-preview-pr-{0}', github.event.pull_request.number)
         || format('{0}-{1}', github.workflow, github.ref) }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: >-
+    ${{ github.event_name == 'pull_request'
+        && (github.event.action != 'edited' || github.event.changes.base != null) }}
 
 env:
   NODE_VERSION: "26"
