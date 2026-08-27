@@ -227,8 +227,9 @@ banner "프리뷰 Supabase 환경 구성 (icons-ip-preview)"
 
 # ── 1 ─────────────────────────────────────────────────────────────────────
 stage "프리뷰 DB 비밀번호 → GitHub secret"
-say "CI가 프리뷰 DB에 마이그레이션을 올릴 때 쓰는 비밀번호입니다."
+say "main 배포 뒤 shared preview main을 같은 migration·seed로 맞출 때 쓰는 비밀번호입니다."
 note "운영 DB 비밀번호가 아닙니다. 프리뷰 프로젝트($PREVIEW_REF) 것만 다룹니다."
+note "PR별 isolated branch는 이 비밀번호를 공유하지 않고 Branch API 연결 정보를 씁니다."
 open_url "${SUPABASE_DASHBOARD}/settings/database"
 step "Database password 섹션에서 'Reset database password'를 누릅니다."
 step "생성된 비밀번호를 복사합니다. 이 화면을 벗어나면 다시 볼 수 없습니다."
@@ -236,14 +237,15 @@ warn "안전한 곳(비밀번호 관리자)에도 함께 보관하세요."
 ask_secret PREVIEW_DB_PASSWORD "복사한 비밀번호를 붙여넣으세요:"
 if [[ -z "$PREVIEW_DB_PASSWORD" ]]; then
   SKIPPED+=("GitHub secret SUPABASE_PREVIEW_DB_PASSWORD")
-  warn "비어 있어 건너뜁니다 — 이 값 없이는 CI가 프리뷰 배포를 skip합니다."
+  warn "비어 있어 건너뜁니다 — PR preview는 가능하지만 main→shared preview 동기화가 실패합니다."
 else
   set_secret SUPABASE_PREVIEW_DB_PASSWORD "$PREVIEW_DB_PASSWORD"
 fi
 
 # ── 2 ─────────────────────────────────────────────────────────────────────
 stage "프리뷰 API 키 복사"
-say "프리뷰 앱이 프리뷰 DB를 보게 하려면 키 두 개가 필요합니다."
+say "Vercel Preview의 안전한 baseline을 parent preview로 맞출 키 두 개입니다."
+note "CI 배포는 shared main 또는 isolated branch의 키를 API로 다시 읽어 이 값을 동적으로 덮습니다."
 open_url "${SUPABASE_DASHBOARD}/settings/api-keys"
 step "publishable key(브라우저에 노출되는 공개 키)를 복사합니다."
 ask PREVIEW_PUBLISHABLE_KEY "publishable key:"
@@ -254,8 +256,8 @@ ask_secret PREVIEW_SERVICE_ROLE_KEY "secret key (sb_secret_… 또는 service_ro
 
 # ── 3 ─────────────────────────────────────────────────────────────────────
 stage "공유 service role key에서 Preview 스코프 떼어내기"
-say "지금 SUPABASE_SERVICE_ROLE_KEY 하나가 Preview와 Production을 함께 덮고 있습니다."
-say "그래서 프리뷰 배포가 운영 DB를 RLS 우회로 읽고 쓸 수 있었습니다."
+say "Production SUPABASE_SERVICE_ROLE_KEY는 Production 스코프에만 있어야 합니다."
+say "Preview baseline은 parent preview key를 별도 레코드로 사용합니다."
 warn "이 단계만 대시보드에서 해야 합니다. CLI로 지우면 레코드 전체가 사라져 운영 키까지 잃습니다."
 open_url "$VERCEL_ENV_URL"
 step "SUPABASE_SERVICE_ROLE_KEY 행을 Edit합니다."
@@ -264,12 +266,13 @@ if confirm "Preview 체크를 해제했습니까?"; then
   vercel_env SUPABASE_SERVICE_ROLE_KEY preview "$PREVIEW_SERVICE_ROLE_KEY"
 else
   SKIPPED+=("SUPABASE_SERVICE_ROLE_KEY Preview 분리 — 대시보드에서 Preview 해제 후 프리뷰 키를 새로 추가")
-  warn "건너뜁니다. 분리 전까지 프리뷰가 운영 DB에 붙은 상태입니다."
+  warn "건너뜁니다. 수동/예외 배포의 baseline이 production key일 수 있으므로 반드시 분리하세요."
 fi
 
 # ── 4 ─────────────────────────────────────────────────────────────────────
 stage "Vercel Preview 환경변수를 프리뷰 프로젝트로 돌리기"
-say "URL·publishable key를 프리뷰 프로젝트 값으로 덮고, 공개 화면도 프리뷰 DB를 읽게 합니다."
+say "URL·publishable key baseline을 parent preview로 두고, 공개 화면도 Supabase를 읽게 합니다."
+note "정상 GitHub Actions 배포는 PR mode에 따라 main 또는 pr-N 값을 build/runtime에 주입합니다."
 note "ICONS_PROTOTYPE은 건드리지 않습니다 — 홍실 프로토타입 공유 배포가 그 값만 읽습니다."
 vercel_env NEXT_PUBLIC_SUPABASE_URL preview "https://${PREVIEW_REF}.supabase.co"
 if [[ -n "$PREVIEW_PUBLISHABLE_KEY" ]]; then
@@ -283,13 +286,16 @@ vercel_env ICONS_CATALOG_SOURCE preview "supabase"
 # ── 5 ─────────────────────────────────────────────────────────────────────
 stage "구성 확인"
 say "CI가 볼 값들이 실제로 들어갔는지 확인합니다."
-for name in SUPABASE_PREVIEW_PROJECT_ID SUPABASE_PREVIEW_DB_PASSWORD; do
-  if gh secret list 2>/dev/null | grep -q "^${name}"; then
-    printf '  %s✓%s GitHub secret %s\n' "$GREEN" "$RESET" "$name"
-  else
-    warn "GitHub secret $name 없음 — CI가 프리뷰 배포를 skip합니다"
-  fi
-done
+if gh secret list 2>/dev/null | grep -q '^SUPABASE_PREVIEW_PROJECT_ID'; then
+  printf '  %s✓%s GitHub secret SUPABASE_PREVIEW_PROJECT_ID\n' "$GREEN" "$RESET"
+else
+  warn "GitHub secret SUPABASE_PREVIEW_PROJECT_ID 없음 — PR preview 배포를 skip합니다"
+fi
+if gh secret list 2>/dev/null | grep -q '^SUPABASE_PREVIEW_DB_PASSWORD'; then
+  printf '  %s✓%s GitHub secret SUPABASE_PREVIEW_DB_PASSWORD\n' "$GREEN" "$RESET"
+else
+  warn "GitHub secret SUPABASE_PREVIEW_DB_PASSWORD 없음 — main→shared preview 동기화가 실패합니다"
+fi
 say ""
 say "Vercel Preview 스코프:"
 npx --yes vercel env ls preview --scope "$VERCEL_SCOPE" 2>/dev/null \
@@ -299,9 +305,9 @@ note "Auth Site URL·redirect allow-list는 workflow가 맞춥니다(scripts/syn
 say ""
 say "남은 일 — 프리뷰 배포를 한 번 돌려서 실제로 프리뷰 DB를 보는지 확인합니다:"
 note "  1) PR의 CI를 rerun 하거나 새 커밋을 올립니다"
-note "  2) deploy-supabase-preview가 초록이고 job summary에 프리뷰 ref가 찍히는지 봅니다"
+note "  2) deploy-supabase-preview summary가 shared main 또는 isolated pr-N인지 봅니다"
 note "  3) 배포 URL로 번들을 grep해 운영 ref가 없는지 확인합니다:"
 note "     README '프리뷰 환경 → 구성 확인' 절의 명령"
-note "  4) https://icons-hongshil-vn.vercel.app/ 이 여전히 200인지 확인합니다"
+note "  4) DB 변경 PR이면 Supabase Branch 목록의 pr-N과 summary ref가 같은지 확인합니다"
 
 finish
