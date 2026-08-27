@@ -7,7 +7,7 @@ ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 �
 - Next.js 16, React 19, Tailwind v4 기반 App Router 프로젝트다.
 - Claude Design 핸드오프를 옮긴 시각적 프로토타입에서 출발했다.
 - 화면은 `app/**/page.tsx`가 `components/screens/*` 컴포넌트를 렌더링하는 구조다.
-- 공개 카탈로그(IP, 굿즈, 카드, 이벤트)는 Supabase 환경변수가 있으면 DB를 읽고, 로컬 개발에서 환경변수가 없으면 `lib/data.ts` mock으로 fallback한다. Vercel Preview는 새 static mock catalog 확인을 위해 기본적으로 mock을 사용한다.
+- 공개 카탈로그(IP, 굿즈, 카드, 이벤트)는 Supabase 환경변수가 있으면 DB를 읽고, 로컬 개발에서 환경변수가 없으면 `lib/data.ts` mock으로 fallback한다. 코드의 Vercel Preview 기본값은 mock이지만 GitHub Actions preview 배포는 선택된 preview DB와 `ICONS_CATALOG_SOURCE=supabase`를 명시적으로 주입한다.
 - Supabase Auth/SSR은 이메일/비밀번호 가입·로그인, 확인 메일 콜백·재전송, 비밀번호 재설정 요청·콜백·새 비밀번호 저장·전역 로그아웃, 온보딩 완료 게이트와 IP 팔로우 보호 액션에 연결되어 있다. 환경변수가 없으면 인증 폼은 비활성화되고 세션 갱신은 no-op으로 동작한다.
 - 커뮤니티 공개 피드는 Supabase `posts`/`public_profiles`와 최근 7일 visible 포스트의 트렌딩 태그를 읽는다. 포스트·댓글 Server Action과 RPC는 연결돼 있지만 생성·수정과 community 이미지 upload는 DB·Storage gate에서 기본 OFF다. 운영·법률 준비를 증명한 별도 migration 전까지 공개 읽기·좋아요·신고·차단·본인 삭제·운영자 숨김만 유지한다.
 - 디지털 카드 리워드는 DB 전역 gate에서 기본 OFF다. 법무·운영 승인을 반영한 별도 migration 전까지 카드팩·게임 공개 표면과 신규 발급·개봉·운영 활성화를 차단하고, 기존 보유 카드 바인더만 읽기 전용으로 유지한다.
@@ -66,7 +66,7 @@ KORPAY_TICKET_CANARY_USER_ID=
 - `NEXT_PUBLIC_SUPABASE_URL`: Supabase 프로젝트 URL.
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Supabase publishable public key. 새 프로젝트는 이 값을 우선 사용한다.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: legacy Supabase anon public key. `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`가 없을 때 fallback으로만 사용한다.
-- `ICONS_CATALOG_SOURCE`: 서버 전용 catalog/search source override. 값은 `mock` 또는 `supabase`만 허용한다. 비워두면 Vercel Preview는 `mock`, Supabase 환경변수가 있는 production/local은 `supabase`, Supabase 환경변수가 없으면 `mock`을 쓴다.
+- `ICONS_CATALOG_SOURCE`: 서버 전용 catalog/search source override. 값은 `mock` 또는 `supabase`만 허용한다. 비워두면 Vercel Preview는 `mock`, Supabase 환경변수가 있는 production/local은 `supabase`, Supabase 환경변수가 없으면 `mock`을 쓴다. GitHub Actions의 PR preview는 선택된 shared/isolated Supabase 자격 증명과 함께 `supabase`를 강제한다.
 - `AUTH_SIGNUP_RESEND_SECRET`: 회원가입 확인 메일 재전송 상태, 인증 `next`, 비밀번호 재설정 요청 제한 쿠키를 domain-separated HMAC으로 서명하는 서버 전용 secret. 긴 랜덤 값을 사용하고 `NEXT_PUBLIC_` prefix를 붙이지 않는다.
 - `SITE_URL`: secret이 아닌 서버 전용 canonical public origin이다. Production은 정확히 `https://iconsip.com`을 사용하며 Korpay 굿즈·티켓 `returnUrl` callback도 이 origin 아래에서 생성한다. Preview/CI는 필요하면 각 환경의 일반 서버 origin을 둘 수 있지만 Korpay 실자격 증명과 canary actor는 두지 않고 목적별 gate를 닫는다. `SITE_URL`만으로 live checkout이 열리지는 않는다.
 - `CRON_SECRET`: production Vercel Cron이 만료된 관리자 아트워크 staging 객체를 정리할 때 쓰는 서버 전용 bearer secret. 16~128자의 URL-safe 랜덤 값을 사용하고 preview에는 필요하지 않다.
@@ -93,7 +93,7 @@ URL과 public key 둘 중 하나라도 없으면 인증 미들웨어는 세션 �
 
 ## Supabase Auth URL 설정
 
-Auth URL·email link TTL·recovery template 설정은 손으로 관리하지 않는다. `scripts/sync-supabase-auth.mjs`, workflow, `supabase/templates/recovery.html`이 진실원이다. workflow는 URL과 TTL을 production·preview 프로젝트에 각각 적용·검증하고, recovery template는 Production handler 배포가 성공한 뒤 Production에만 활성화·readback한다. 공유 Preview의 전역 template는 PR workflow가 바꾸지 않는다. 관리 대상 값을 대시보드에서 직접 바꾸면 해당 동기화 단계가 있는 다음 배포에서 되돌아간다.
+Auth URL·email link TTL·recovery template 설정은 손으로 관리하지 않는다. `scripts/sync-supabase-auth.mjs`, workflow, `supabase/templates/recovery.html`이 진실원이다. workflow는 URL과 TTL을 production·preview 프로젝트에 각각 적용·검증하고, recovery template는 각 대상 앱 handler 배포가 성공한 뒤 production, shared preview main, isolated preview branch에 활성화·readback한다. 관리 대상 값을 대시보드에서 직접 바꾸면 해당 동기화 단계가 있는 다음 배포에서 되돌아간다.
 
 **Production** (`deploy-supabase`, `main` push):
 
@@ -101,12 +101,12 @@ Auth URL·email link TTL·recovery template 설정은 손으로 관리하지 않
 - Redirect URLs: `https://iconsip.com`, `https://www.iconsip.com`, `https://icons-ip.vercel.app`, `http://localhost:3000`, `http://127.0.0.1:3000` 각 origin의 `/auth/callback`과 `/auth/recovery/callback`
 - 제거 대상: `https://icons-ip-*.vercel.app/auth/callback`. preview가 전용 프로젝트를 보게 된 뒤로는 운영 allow-list에 있을 이유가 없고, 애초에 실제 preview 호스트와 맞지도 않았다(아래).
 
-**Preview** (`deploy-supabase-preview`, PR):
+**Preview** (`sync-supabase-preview-main` 또는 `deploy-supabase-preview`):
 
 - Site URL: `https://icons-ip.vercel.app`
 - Redirect URLs: `https://icons-ip.vercel.app`, `https://icons-hongshil-vn.vercel.app`, `https://icons-*-sangwopark19icons-1055s-projects.vercel.app`, `https://icons-git-*-sangwopark19icons-1055s-projects.vercel.app` 각 origin과 local 두 origin의 `/auth/callback`·`/auth/recovery/callback`
 - preview 배포 호스트는 프로젝트 이름(`icons-ip`)이 아니라 **배포 접두 `icons-`**를 쓴다 — `icons-nb9vdpqs8-sangwopark19icons-1055s-projects.vercel.app` 형태다. 그래서 `icons-ip-*` 패턴은 어떤 preview URL과도 매칭되지 않았다. 팀 접미까지 붙여 좁힌다: `icons-*.vercel.app`은 남의 프로젝트까지 허용한다.
-- preview에는 custom SMTP가 없어 SMTP 강제와 confirmation/rate-limit 강제를 켜지 않는다. email link/OTP TTL 3,600초와 callback allow-list만 동기화한다. recovery template는 여러 PR이 공유하는 preview Auth 프로젝트의 전역 설정이므로 PR workflow에서 바꾸지 않으며, 이메일 확인이 필요한 가입 플로우는 preview에서 끝까지 갈 수 없다.
+- preview에는 custom SMTP가 없어 SMTP 강제와 confirmation/rate-limit 강제를 켜지 않는다. email link/OTP TTL 3,600초와 callback allow-list를 동기화한다. Recovery template는 isolated Vercel preview 배포 뒤 해당 branch에 적용하고, shared main에는 production 앱·Supabase 배포가 모두 성공한 main sync에서 적용한다. 이메일 확인이 필요한 가입 플로우는 preview에서 끝까지 갈 수 없다.
 
 가입 확인·OAuth는 query 없는 `/auth/callback`을 사용한다. 비밀번호 재설정 메일은 Supabase의 `TokenHash`를 전용 `/auth/recovery/callback` query로 전달하고 서버에서 `verifyOtp(type=recovery)`한다. callback query에는 `next`나 계정 식별자를 넣지 않는다. 가입·OAuth의 안전한 `next`·목적·발급 시각은 `icons_auth_next`에 10분, recovery의 값은 경로가 분리된 `icons_auth_recovery_next`에 최대 3,600초 동안 서명된 httpOnly 쿠키로 보존한다. 신규 recovery 요청은 shared callback cookie를 만들지 않는다.
 
@@ -116,7 +116,7 @@ Server Action이 만드는 callback origin은 production·www·기본 Vercel·lo
 
 비밀번호 재설정 요청은 계정 존재 여부와 무관하게 같은 응답을 반환한다. 같은 브라우저의 정규화 이메일별 요청은 raw email 대신 HMAC digest를 담은 `icons_auth_password_reset` 쿠키로 총 3회/10분 제한하고, 활성 이메일 bucket은 12개로 제한해 브라우저 cookie 크기를 넘지 않게 한다. Supabase provider rate limit은 실제 상한으로 둔다. 전용 callback의 서명 state가 요청 브라우저에만 있으므로 최신 메일 링크는 재설정을 요청한 브라우저에서 열어야 한다.
 
-전용 Recovery callback은 `token_hash`와 `type=recovery`만 허용한다. token-hash `verifyOtp(type=recovery)`, 유효한 전용 서명 state, `getUser()` 재검증을 모두 통과한 뒤에만 온보딩 여부와 무관하게 `/update-password`로 보낸다. `code`만 있는 PKCE 링크는 session exchange 없이 제한된 reset 오류로 닫는다. 검증 과정의 성공 조건이 어긋나면 그 과정에서 만들어진 local session만 폐기한다. signed recovery state는 최신 유효 링크를 다시 쓸 수 있도록 성공하거나 자체 3,600초 TTL이 끝날 때까지 보존한다. 브라우저가 redirect 응답의 session cookie를 첫 SSR 요청보다 늦게 반영하면 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 한 번 다시 수행하며, 세션 확인 전에는 비밀번호 폼을 노출하지 않는다. 새 비밀번호 저장 뒤 global sign-out을 완료하면 `/login?password_reset=success`로 이동한다. 일반 가입 callback은 기존 온보딩 게이트를 유지하고, 회원가입 확인 메일 재전송은 서명된 httpOnly 쿠키로 3회/10분 window를 추적한 뒤 Supabase `auth.resend({ type: 'signup' })`를 사용한다. workflow는 Site URL, 두 callback의 Redirect URLs, email link/OTP TTL 3,600초와 기존 mailer 설정을 먼저 동기화한다. Production Vercel 배포가 성공한 뒤에만 recovery template 원문을 PATCH하고 read-back한다.
+전용 Recovery callback은 `token_hash`와 `type=recovery`만 허용한다. token-hash `verifyOtp(type=recovery)`, 유효한 전용 서명 state, `getUser()` 재검증을 모두 통과한 뒤에만 온보딩 여부와 무관하게 `/update-password`로 보낸다. `code`만 있는 PKCE 링크는 session exchange 없이 제한된 reset 오류로 닫는다. 검증 과정의 성공 조건이 어긋나면 그 과정에서 만들어진 local session만 폐기한다. signed recovery state는 최신 유효 링크를 다시 쓸 수 있도록 성공하거나 자체 3,600초 TTL이 끝날 때까지 보존한다. 브라우저가 redirect 응답의 session cookie를 첫 SSR 요청보다 늦게 반영하면 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 한 번 다시 수행하며, 세션 확인 전에는 비밀번호 폼을 노출하지 않는다. 새 비밀번호 저장 뒤 global sign-out을 완료하면 `/login?password_reset=success`로 이동한다. 일반 가입 callback은 기존 온보딩 게이트를 유지하고, 회원가입 확인 메일 재전송은 서명된 httpOnly 쿠키로 3회/10분 window를 추적한 뒤 Supabase `auth.resend({ type: 'signup' })`를 사용한다. workflow는 Site URL, 두 callback의 Redirect URLs, email link/OTP TTL 3,600초와 기존 mailer 설정을 먼저 동기화한다. 각 대상 앱 handler가 배포된 뒤에만 recovery template 원문을 PATCH하고 read-back한다.
 
 ### 소셜 OAuth 공급자 운영
 
@@ -147,6 +147,7 @@ Production에서 이메일/PW 가입을 운영하려면 Supabase Auth custom SMT
 ```bash
 npm run dev    # 개발 서버
 npm run test   # Vitest 단위 테스트
+npm run test:hyosan-g1-browser # 로컬 Supabase 값으로 자체 prod build 후 효산의 기억 인증·게임플레이 스모크
 npm run test:goods-payment-local-integration # full local Supabase Auth/API + Fake 결제 통합
 npm run lint   # ESLint
 npm run typecheck # Next route type 생성 + test 전용 TypeScript 검사
@@ -155,7 +156,7 @@ npm run start  # build 결과 실행
 npm run hong-sil:download # 홍실퀘스트 신규·누락 이미지 다운로드
 ```
 
-굿즈 결제 local integration은 `npx supabase start`로 Auth·Data API까지 전체 로컬 스택이 실행 중일 때만 실행한다. DB만 띄우는 CI smoke는 동일한 public seam의 Vitest와 SQL·경합 테스트를 각각 실행하고, 이 full-stack 명령은 로컬 E2E 증거로 분리한다.
+효산의 기억 브라우저 스모크는 `npx supabase start`로 로컬 Auth·Data API를 실행한 뒤 사용한다. 스크립트가 로컬 호스트를 확인하고 같은 공개 Supabase 값으로 production build를 새로 만든 다음 임시 인증 사용자를 생성한다. short-landscape 로그인 게이트·로컬 Supabase 브라우저 연결·게임 부트·종료 후 루프 정지·재진입·reduced-motion을 검증한 뒤 사용자를 삭제한다. 굿즈 결제 local integration도 전체 로컬 Supabase 스택이 실행 중일 때만 실행한다. DB만 띄우는 CI smoke는 동일한 public seam의 Vitest와 SQL·경합 테스트를 각각 실행하고, 이 full-stack 명령은 로컬 E2E 증거로 분리한다.
 
 ### 홍실퀘스트 이미지 다운로더
 
@@ -184,11 +185,12 @@ npm run hong-sil:download -- \
 
 ## CI/CD
 
-GitHub Actions는 `CI/CD Pipeline` workflow 하나로 PR 검증(lint/typecheck/test/build/Supabase local lint), Vercel preview 배포, production 배포를 처리한다.
+GitHub Actions의 `CI/CD Pipeline`은 PR 검증(lint/typecheck/test/build/Supabase local lint), Vercel preview 배포, production 배포를 처리하고 `Supabase Preview Cleanup`은 PR close 시 최종 base와 무관하게 deterministic isolated branch만 정리한다.
 
-- `pull_request`: `validate` 통과 후 같은 repo 브랜치 PR이면 `deploy-supabase-preview`를 실행하고, 그 다음 `deploy-vercel-preview`를 실행한다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
+- `pull_request`: open·commit 갱신·reopen과 base branch retarget에서 `validate`를 실행하고, 같은 repo 브랜치 PR이면 preview DB mode를 고른다. 제목·본문만 편집한 `edited` 이벤트는 다시 배포하거나 실행 중인 Preview run을 취소하지 않는다. `main` 대상은 merge-base 기준 전체 diff를 rename 비탐지로 읽고, Supabase 배포 변경이 없을 때만 base SHA의 main→shared sync 성공 증거를 확인한 뒤 shared main을 변경 없이 사용한다. shared Vercel 배포 직전에도 원격 `main`이 검증한 base SHA와 같은지 다시 확인하며, 달라졌으면 새 base run을 기다리도록 실패한다. 통합 브랜치 대상 PR은 선행 stage의 누적 DB 상태를 놓치지 않도록 앱 전용 diff여도 항상 isolated다. isolated head는 현재 `main`을 포함해야 하며, 무데이터 `pr-<number>` branch를 재생성한 직후에도 `main` ancestry를 다시 확인해 동시 main sync 경쟁을 차단한다. 그 뒤 migration·custom roles·seed·repo Edge Functions·baseline 검증을 마치고 Vercel preview와 recovery template를 순서대로 배포한다. Hosted `config.toml` 전체 push는 이 경로가 소유하지 않는다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
+- `pull_request: closed`: 최종 base와 무관하게 Preview pipeline과 같은 per-PR concurrency key에서 대기한 뒤 non-default `pr-<number>` branch가 있으면 삭제한다.
 - `merge_group`: `validate` job만 실행한다.
-- `push` to `main`: `validate` 통과 후 `deploy-supabase`를 실행하고, 그 다음 `deploy-vercel`을 실행한다.
+- `push` to `main`: `validate` 통과 후 production migration·roles·Edge Functions, Vercel 앱·recovery template를 순서대로 배포한다. 두 경로가 모두 성공한 동일 main의 migration·roles·seed·Auth template·Edge Functions를 `sync-supabase-preview-main`이 shared preview main에도 적용한다. sync 직전에 run SHA가 현재 원격 `main`과 정확히 같은지 확인하므로 과거 run 재실행은 shared preview를 되돌리지 못한다.
 - `workflow_dispatch`: 기본은 `validate`만 실행한다. `production_redeploy=true`와 현재 main의
   exact SHA에서 `deploy-supabase`·`deploy-vercel`이 모두 성공한 push run ID를 함께 전달한 경우에만
   Supabase/Auth mutation 없이 Vercel Production을 설정 변경분으로 다시 배포한다.
@@ -217,17 +219,23 @@ CRON_SECRET
 - GitHub Actions의 앱 빌드는 Node 26을 사용한다. Vercel project/runtime Node.js Version은 Vercel production Functions 공식 지원 범위인 24.x로 유지한다.
 - deployment secret 검사는 각 deploy job 안에서 수행한다. 누락 시 job이 즉시 실패하며, 필요한 GitHub Secret을 설정한 뒤 rerun해야 한다.
 - `.vercel/` 연결 파일은 commit하지 않고, workflow가 `VERCEL_ORG_ID`와 `VERCEL_PROJECT_ID`로 Vercel 원격 build/deploy를 요청한다.
+- `.vercelignore`가 로컬 제작 산출물 `outputs/`를 명시적으로 제외한다. Preview job은 Vercel dry-run manifest에서 `outputs/`, 900MB 이상, 15,000개 이상 source를 실제 업로드 전에 거부한다. 원본·실험·반복 렌더는 deploy context에 넣지 않고 최종 runtime asset만 repo의 공개 asset 경로로 배포한다.
 - Vercel 환경변수는 sensitive 상태로 각 환경에 둔다. production deploy job은 기존 관리자 아트워크용 GitHub `CRON_SECRET`만 Vercel production에 동기화한다. Korpay credential·optional canary actor는 Vercel Production에만 별도 등록하고 GitHub, Preview, CI에는 복제하지 않는다. public 목적별 gate의 기본값은 `false`이며 현재 Production은 굿즈만 `true`, 티켓은 `false`다. 결제 재조정 secret은 workflow가 provision/mutate하지 않으며, 값이 이미 있으면 원격 `prebuild` guard가 형식만 검증한다. Preview에는 현재 legacy Toss 환경변수 잔여가 있지만 신규 checkout을 열지 않고 알려지지 않은 거래를 provider 호출 전에 거부한다. 이 잔여 정리는 Korpay rollout과 분리한다. development 환경변수는 별도 요청 전까지 추가하지 않는다.
 
 ## 프리뷰 환경
 
-PR 프리뷰는 **전용 Supabase 프로젝트**를 본다. 결정 배경과 trade-off는 [ADR-0006](docs/adr/0006-preview-supabase-project.md)에 있다. `deploy-supabase-preview`가 프리뷰 배포 전에 마이그레이션을 올리고 카탈로그 seed를 다시 적용하므로, 스키마를 바꾸는 PR도 프리뷰에서 앱과 DB의 버전이 맞는다.
+Production `icons-ip`와 Preview `icons-ip-preview`는 계속 분리한다. **Preview를 production 프로젝트로 돌리는 구조가 아니다.** `icons-ip-preview`의 default `main`은 repo `main`만 따라가고, PR은 다음 두 모드 중 하나를 쓴다. 결정 배경과 trade-off는 [ADR-0006](docs/adr/0006-preview-supabase-project.md)에 있다.
+
+- `shared`: `main` 대상이며 앱·UI·문서·테스트만 바뀐 PR. base SHA의 push/main run에서 production migration과 `sync-supabase-preview-main`이 성공했을 때만 `icons-ip-preview/main`을 읽으며, PR workflow가 migration·seed·Auth 설정을 쓰지 않는다.
+- `isolated`: `main` 대상에서 `supabase/migrations/**`, custom roles, seed, repo Edge Function, Auth/template sync, preview lifecycle처럼 이 workflow가 소유하는 Supabase 배포 상태를 바꾸는 PR과, base가 `main`이 아닌 모든 통합 브랜치 PR. PR head가 현재 `main`을 포함하는지 먼저 확인하고 무데이터 `pr-<number>` Supabase Preview Branch를 재생성해 migration·seed를 적용한다. Hosted `supabase/config.toml` 전체 push는 이 분류와 배포 계약에서 제외한다.
+
+Vercel CLI는 배포 직전에 선택된 `main` 또는 `pr-<number>`의 URL·publishable key·service role key를 다시 읽어 build/runtime에 주입한다. PR close 때 isolated branch를 삭제한다. 따라서 #321 같은 미머지 migration이 shared main이나 다른 PR branch에 누적되지 않는다.
 
 프리뷰 Supabase secret이 없으면 `deploy-vercel-preview`는 **건너뛴다**. 프리뷰가 운영 DB에 붙는 상태로 배포하지 않기 위한 기본값이며, 이유는 workflow warning과 job summary에 남는다.
 
 ### 최초 구성
 
-프리뷰 프로젝트는 `icons-ip-preview`(ref `glwypjldklwpgdtymktm`, 조직 `icons`, region `ap-northeast-2`)다. 새로 만들어야 하면 같은 조직·region에 만들고, 프로젝트 하나에 월 $10이 든다.
+프리뷰 parent 프로젝트는 Supabase Pro 조직 `icons` 안의 `icons-ip-preview`(ref `glwypjldklwpgdtymktm`, region `ap-northeast-2`)다. Production `icons-ip`는 이 parent나 PR branch의 대상이 아니다. PR별 DB는 새 Supabase 프로젝트를 수동으로 추가하는 것이 아니라 이 parent 아래 Preview Branch 기능으로 생성한다.
 
 DB 비밀번호와 service_role 키를 다루는 단계는 사람만 할 수 있다. 위저드가 대시보드를 열어주고, 붙여넣은 값을 GitHub Secrets·Vercel에 넣고, 마지막에 확인까지 한다.
 
@@ -237,10 +245,10 @@ DB 비밀번호와 service_role 키를 다루는 단계는 사람만 할 수 있
 
 다섯 단계다.
 
-1. 프리뷰 DB 비밀번호 재설정 → `SUPABASE_PREVIEW_DB_PASSWORD` secret.
-2. 프리뷰 publishable key와 secret key 복사. `SUPABASE_SERVICE_ROLE_KEY` 자리에는 legacy `service_role` JWT와 새 형식 `sb_secret_…` 둘 다 넣을 수 있다 — 앱은 키를 디코드하지 않고 그대로 넘기며, 두 형식 모두 `service_role` 전용 `service_*` RPC를 실행할 수 있다(로컬 스택에서 네 형식 비교로 실측: anon·publishable은 `42501 permission denied`). **현재 프리뷰는 `sb_secret_…`, 프로덕션은 legacy JWT를 쓴다.** 새 프로젝트에는 새 형식을 쓴다.
-3. `SUPABASE_SERVICE_ROLE_KEY`에서 **Preview 스코프 떼어내기.** 지금은 Preview·Production이 같은 항목 하나를 공유하므로 이 단계 전까지 프리뷰가 운영 DB에 붙어 있다. CLI로 지우면 레코드 전체가 사라져 운영 키까지 잃으므로 Vercel 대시보드에서 해야 한다.
-4. Vercel **Preview 스코프**의 `NEXT_PUBLIC_SUPABASE_URL`·`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`를 프리뷰 값으로 덮고 `ICONS_CATALOG_SOURCE=supabase`를 추가한다. 프리뷰 공개 화면도 프리뷰 DB를 읽어 실제 스테이징이 된다. `ICONS_PROTOTYPE`은 건드리지 않는다 — 프로토타입 공유 배포가 이 값만 읽는다.
+1. Shared preview main 동기화용 DB 비밀번호 → `SUPABASE_PREVIEW_DB_PASSWORD` secret. PR별 branch는 이 비밀번호를 공유하지 않고 Branch API가 발급한 연결 정보를 쓴다.
+2. Parent preview의 publishable key와 secret key를 Vercel Preview의 안전한 baseline으로 둔다. Workflow 배포에서는 선택 branch 값이 이를 동적으로 덮어쓴다.
+3. Production `SUPABASE_SERVICE_ROLE_KEY`에서 **Preview 스코프를 제외**하고 Production만 남긴다. CLI로 레코드를 지우면 production 값까지 사라질 수 있으므로 scope 변경은 Vercel 대시보드에서 한다.
+4. Vercel **Preview 스코프** baseline의 `NEXT_PUBLIC_SUPABASE_URL`·`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`·`SUPABASE_SERVICE_ROLE_KEY`를 parent preview 값으로 맞추고 `ICONS_CATALOG_SOURCE=supabase`를 둔다. `ICONS_PROTOTYPE`은 건드리지 않는다.
 5. GitHub Secrets와 Vercel Preview 환경변수를 확인하고 남은 일을 안내한다.
 
 Auth Site URL, redirect allow-list, recovery template와 email link/OTP TTL은 위저드가 다루지 않는다 — workflow가 위 "Supabase Auth URL 설정" 절의 값으로 맞추고 검증한다.
@@ -251,17 +259,17 @@ Auth Site URL, redirect allow-list, recovery template와 email link/OTP TTL은 �
 printf '%s' glwypjldklwpgdtymktm | gh secret set SUPABASE_PREVIEW_PROJECT_ID
 ```
 
-`public-media`·`admin-artwork-staging` 버킷은 마이그레이션이 만들기 때문에 첫 `supabase db push`에서 함께 생성된다 — 프리뷰에서 어드민 아트워크 업로드까지 QA할 수 있다.
+`public-media`·`admin-artwork-staging` 버킷은 migration이 만들기 때문에 isolated branch의 첫 `supabase db push`에서 함께 생성된다. Branch는 무데이터이고 재실행 때 다시 만들어지므로 프리뷰에서 업로드한 임시 객체를 보존 대상으로 취급하지 않는다.
 
 ### 구성 확인
 
-프리뷰 배포가 실제로 프리뷰 DB를 보는지는 배포된 번들에서 직접 확인한다. Vercel의 sensitive 환경변수는 값을 다시 읽을 수 없으므로 이 확인이 유일하게 신뢰할 수 있는 방법이다.
+`deploy-supabase-preview` summary에서 `shared main` 또는 `isolated pr-<number>`를 먼저 확인한다. 프리뷰 배포가 실제로 선택된 DB를 보는지는 배포된 번들에서도 확인한다.
 
 ```bash
 curl -s "$PREVIEW_URL" | grep -o '/_next/static/chunks/[^"]*\.js' | sort -u | while read -r chunk; do curl -s "$PREVIEW_URL$chunk"; done | grep -o 'https://[a-z0-9]\{20\}\.supabase\.co' | sort -u
 ```
 
-프로덕션 ref가 나오면 Preview 환경변수가 아직 프로덕션을 가리키고 있다는 뜻이다.
+`shared`면 `glwypjldklwpgdtymktm`, `isolated`면 job summary에 적힌 별도 branch ref가 나와야 한다. Production ref가 나오면 안전 가드 실패이므로 해당 배포를 사용하지 않는다.
 
 ## 프로젝트 지도
 

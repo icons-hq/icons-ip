@@ -2,6 +2,7 @@ name: CI/CD Pipeline
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
     branches:
       - main
       # White Catalog 스테이지 PR(#322, base=통합 브랜치)도 validate와 preview 배포를 받아
@@ -28,18 +29,27 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: >-
+    ${{ github.event_name == 'pull_request'
+        && format('supabase-preview-pr-{0}', github.event.pull_request.number)
+        || format('{0}-{1}', github.workflow, github.ref) }}
+  cancel-in-progress: >-
+    ${{ github.event_name == 'pull_request'
+        && (github.event.action != 'edited' || github.event.changes.base != null) }}
 
 env:
   NODE_VERSION: "26"
   SUPABASE_CLI_VERSION: "2.101.0"
-  VERCEL_CLI_VERSION: "54.14.2"
+  VERCEL_CLI_VERSION: "54.17.2"
 
 jobs:
   validate:
     name: validate
     runs-on: ubuntu-latest
+    if: >-
+      github.event_name != 'pull_request'
+      || github.event.action != 'edited'
+      || github.event.changes.base != null
     permissions:
       actions: read
       contents: read
@@ -253,7 +263,7 @@ jobs:
         run: node scripts/payment-provider-backfill-preflight.mjs --linked
 
       - name: Push Supabase migrations
-        run: supabase db push --linked
+        run: supabase db push --linked --include-roles
 
       - name: Verify payment provider backfill readback
         run: supabase db query --linked --file supabase/tests/payment_provider_production_readback.sql
@@ -261,25 +271,43 @@ jobs:
       - name: Verify Supabase catalog baseline
         run: supabase db query --linked --file supabase/tests/catalog_baseline.sql
 
-  # PR 프리뷰는 전용 Supabase 프로젝트를 본다. 이 job이 먼저 마이그레이션을 올리므로
-  # 프리뷰 앱과 스키마의 버전이 어긋나지 않는다 — production의
-  # deploy-vercel → deploy-supabase 순서와 같은 모양이다.
+      - name: Reconcile production Supabase Edge Functions
+        env:
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: node scripts/reconcile-supabase-functions.mjs
+
+  # main 대상 앱 전용 PR만 main과 같은 shared preview DB를 읽기만 한다. Supabase 배포
+  # 상태를 바꾸거나 main 외 통합 브랜치를 대상으로 하는 PR은 무데이터 pr-N branch를
+  # 매 실행 새로 만들어 정확한 스키마를 적용한다.
+  # 어떤 경로도 production 프로젝트를 가리키거나 shared preview에 PR migration을
+  # 누적하지 않는다.
   deploy-supabase-preview:
     name: deploy-supabase-preview
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: validate
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      actions: read
+      contents: read
     outputs:
       configured: ${{ steps.check.outputs.configured }}
+      database_mode: ${{ steps.mode.outputs.database_mode }}
+      branch_name: ${{ steps.mode.outputs.branch_name }}
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_PREVIEW_DB_PASSWORD }}
       SUPABASE_PREVIEW_PROJECT_ID: ${{ secrets.SUPABASE_PREVIEW_PROJECT_ID }}
       SUPABASE_PRODUCTION_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Check Supabase preview secrets
         id: check
@@ -295,13 +323,10 @@ jobs:
             exit 1
           fi
 
-          # job env 이름이 아니라 **secret 이름**을 보고한다. `SUPABASE_DB_PASSWORD`는
-          # 프리뷰 secret을 담은 job 안의 이름이라, 그대로 안내하면 운영 secret을
-          # 덮어쓰게 만든다.
           missing=""
           [ -n "${SUPABASE_ACCESS_TOKEN}" ] || missing="${missing} SUPABASE_ACCESS_TOKEN"
-          [ -n "${SUPABASE_DB_PASSWORD}" ] || missing="${missing} SUPABASE_PREVIEW_DB_PASSWORD"
           [ -n "${SUPABASE_PREVIEW_PROJECT_ID}" ] || missing="${missing} SUPABASE_PREVIEW_PROJECT_ID"
+          [ -n "${SUPABASE_PRODUCTION_PROJECT_ID}" ] || missing="${missing} SUPABASE_PROJECT_ID"
 
           if [ -n "$missing" ]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
@@ -319,22 +344,242 @@ jobs:
 
           echo "configured=true" >> "$GITHUB_OUTPUT"
 
+      - name: Select preview database mode
+        id: mode
+        if: steps.check.outputs.configured == 'true'
+        run: |
+          set -euo pipefail
+
+          changed_paths_file="$(mktemp)"
+          trap 'rm -f "$changed_paths_file"' EXIT
+          git diff --name-only --no-renames --diff-filter=ACDMRT -z \
+            "$PR_BASE_SHA...$PR_HEAD_SHA" > "$changed_paths_file"
+
+          database_mode="$(
+            node scripts/preview-supabase-mode.mjs --base-ref "$PR_BASE_REF" < "$changed_paths_file"
+          )"
+          if [ "$database_mode" = "isolated" ]; then
+            branch_name="pr-${PR_NUMBER}"
+          else
+            branch_name="main"
+          fi
+
+          echo "database_mode=$database_mode" >> "$GITHUB_OUTPUT"
+          echo "branch_name=$branch_name" >> "$GITHUB_OUTPUT"
+
+      # Supabase branch는 shared preview의 현재 main에서 파생된다. 오래된 PR head를
+      # 그대로 적용하면 최신 main migration이 섞인 superset이 되므로, isolated
+      # Preview는 현재 main을 포함하는 head에서만 만든다.
+      - name: Verify isolated preview contains current main
+        if: steps.check.outputs.configured == 'true' && steps.mode.outputs.database_mode == 'isolated'
+        run: |
+          set -euo pipefail
+
+          git fetch --no-tags origin main
+          current_main_sha="$(git rev-parse origin/main)"
+          if ! git merge-base --is-ancestor "$current_main_sha" "$PR_HEAD_SHA"; then
+            echo "::error title=Isolated preview head is behind main::Merge current main ($current_main_sha) into this PR before deploying its database branch"
+            exit 1
+          fi
+          echo "Isolated preview head contains current main: $current_main_sha" >> "$GITHUB_STEP_SUMMARY"
+
+      # shared main이 PR base보다 뒤처졌다면 앱 전용 변경도 새 base schema와 맞지 않는다.
+      # base workflow에 sync job이 도입된 뒤부터 exact SHA의 성공 증거를 필수로 한다.
+      - name: Verify shared preview base synchronization
+        if: steps.check.outputs.configured == 'true' && steps.mode.outputs.database_mode == 'shared'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          base_workflow="$(git show "$PR_BASE_SHA:.github/workflows/pipeline.yml")"
+          if ! grep -q '^  sync-supabase-preview-main:' <<<"$base_workflow"; then
+            if ! grep -q '^  sync-supabase-preview-main:' .github/workflows/pipeline.yml; then
+              echo "::error title=Shared preview sync contract is missing::The base and PR head both lack sync-supabase-preview-main"
+              exit 1
+            fi
+            {
+              echo "### Shared preview base 확인"
+              echo
+              echo "- bootstrap: 이 PR이 base에 없던 shared sync job을 처음 도입합니다."
+              echo "- 이 PR이 main에 반영된 다음 base SHA부터 성공한 sync 증거를 강제합니다."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          runs_json="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $GH_TOKEN" \
+            --header "Accept: application/vnd.github+json" \
+            --header "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/pipeline.yml/runs?event=push&head_sha=${PR_BASE_SHA}&status=completed&per_page=20")"
+
+          synchronized_run_id=""
+          while IFS= read -r run_id; do
+            [ -n "$run_id" ] || continue
+            jobs_json="$(curl --fail --silent --show-error \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100")"
+            if jq -e '
+              any(.jobs[]; .name == "deploy-supabase" and .conclusion == "success")
+              and any(.jobs[]; .name == "sync-supabase-preview-main" and .conclusion == "success")
+            ' <<<"$jobs_json" >/dev/null; then
+              synchronized_run_id="$run_id"
+              break
+            fi
+          done < <(jq -r --arg sha "$PR_BASE_SHA" '
+            .workflow_runs[]
+            | select(
+                .event == "push"
+                and .head_branch == "main"
+                and .head_sha == $sha
+                and .path == ".github/workflows/pipeline.yml"
+              )
+            | .id
+          ' <<<"$runs_json")
+
+          if [ -z "$synchronized_run_id" ]; then
+            echo "::error title=Shared preview is behind or unverified::Wait for or rerun the push/main sync for base $PR_BASE_SHA"
+            exit 1
+          fi
+          echo "Shared preview sync evidence: run $synchronized_run_id" >> "$GITHUB_STEP_SUMMARY"
+
       - name: Set up Supabase CLI
         if: steps.check.outputs.configured == 'true'
         uses: supabase/setup-cli@v2
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
-      # 실제 preview 호스트는 프로젝트 이름(`icons-ip`)이 아니라 배포 접두(`icons-`)를
-      # 쓴다: `icons-<hash>-<team>.vercel.app`, `icons-git-<branch>-<team>.vercel.app`.
-      # 팀 접미까지 붙여 좁힌다 — `icons-*.vercel.app`은 남의 프로젝트까지 매칭한다.
-      #
-      # preview에는 custom SMTP가 없어 SMTP 강제와 mailer 설정 강제를 켜지 않는다.
-      # 그래서 이메일 확인이 필요한 가입 플로우는 preview에서 끝까지 갈 수 없다.
-      - name: Sync Supabase preview Auth URLs
+      # PR migration은 수정·삭제될 수 있어 기존 branch를 재사용하면 같은 version의
+      # 과거 SQL이 남는다. 무데이터 branch를 매 실행 재생성해 PR head와 정확히 맞춘다.
+      # app-only로 되돌아온 PR에 stale pr-N이 남아 있으면 여기서 함께 정리한다.
+      - name: Prepare exact Supabase preview branch
         if: steps.check.outputs.configured == 'true'
         env:
-          PROJECT_REF: ${{ secrets.SUPABASE_PREVIEW_PROJECT_ID }}
+          DATABASE_MODE: ${{ steps.mode.outputs.database_mode }}
+        run: |
+          set -euo pipefail
+
+          branch_name="pr-${PR_NUMBER}"
+          list_branches() {
+            supabase branches list \
+              --project-ref "$SUPABASE_PREVIEW_PROJECT_ID" \
+              --output json
+          }
+          branch_exists() {
+            list_branches | jq -e --arg name "$branch_name" \
+              'any(.[]; .name == $name and .is_default == false)' >/dev/null
+          }
+          wait_until_deleted() {
+            for _ in {1..60}; do
+              if ! branch_exists; then
+                return 0
+              fi
+              sleep 5
+            done
+            echo "::error title=Supabase branch cleanup timed out::$branch_name was not deleted"
+            return 1
+          }
+
+          if branch_exists; then
+            supabase branches delete "$branch_name" \
+              --project-ref "$SUPABASE_PREVIEW_PROJECT_ID" \
+              --yes
+            wait_until_deleted
+          fi
+
+          if [ "$DATABASE_MODE" = "shared" ]; then
+            {
+              echo "### 프리뷰 데이터베이스"
+              echo
+              echo "- 모드: shared main (읽기 전용 사용)"
+              echo "- Supabase 배포 변경이 없어 PR DB mutation을 수행하지 않았습니다."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          supabase branches create "$branch_name" \
+            --project-ref "$SUPABASE_PREVIEW_PROJECT_ID" \
+            --region ap-northeast-2 \
+            --size micro \
+            --yes \
+            --output json >/dev/null
+
+          branch_json=""
+          for _ in {1..60}; do
+            branch_json="$(
+              list_branches | jq -c --arg name "$branch_name" \
+                '.[] | select(.name == $name and .is_default == false)'
+            )"
+            status="$(jq -r '.preview_project_status // empty' <<<"$branch_json")"
+            if [ "$status" = "ACTIVE_HEALTHY" ]; then
+              break
+            fi
+            if [[ "$status" =~ (FAILED|ERROR) ]]; then
+              echo "::error title=Supabase branch creation failed::$branch_name status is $status"
+              exit 1
+            fi
+            sleep 10
+          done
+
+          status="$(jq -r '.preview_project_status // empty' <<<"$branch_json")"
+          branch_project_ref="$(jq -r '.project_ref // empty' <<<"$branch_json")"
+          if [ "$status" != "ACTIVE_HEALTHY" ] || [ -z "$branch_project_ref" ]; then
+            echo "::error title=Supabase branch creation timed out::$branch_name did not become healthy"
+            exit 1
+          fi
+          if [ "$branch_project_ref" = "$SUPABASE_PREVIEW_PROJECT_ID" ] \
+            || [ "$branch_project_ref" = "$SUPABASE_PRODUCTION_PROJECT_ID" ]; then
+            echo "::error title=Unsafe Supabase branch::Expected a new preview project ref"
+            exit 1
+          fi
+
+          # The parent snapshot is fixed once branch creation finishes. Fetch main again
+          # afterward so a concurrent push/main sync cannot move the parent between the
+          # earlier ancestry gate and this branch fork.
+          git fetch --no-tags origin main
+          latest_main_sha="$(git rev-parse origin/main)"
+          if ! git merge-base --is-ancestor "$latest_main_sha" "$PR_HEAD_SHA"; then
+            echo "::error title=Main advanced during isolated preview creation::Merge current main ($latest_main_sha) into this PR and rerun the workflow"
+            supabase branches delete "$branch_name" \
+              --project-ref "$SUPABASE_PREVIEW_PROJECT_ID" \
+              --yes
+            wait_until_deleted
+            exit 1
+          fi
+
+          credentials="$(
+            supabase branches get "$branch_name" \
+              --project-ref "$SUPABASE_PREVIEW_PROJECT_ID" \
+              --output json
+          )"
+          for name in POSTGRES_URL SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+            value="$(jq -r --arg name "$name" '.[$name] // empty' <<<"$credentials")"
+            if [ -z "$value" ]; then
+              echo "::error title=Missing Supabase branch credential::$name is unavailable"
+              exit 1
+            fi
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$name" "$value" >> "$GITHUB_ENV"
+          done
+          public_key="$(
+            jq -r '.SUPABASE_PUBLISHABLE_KEY // .SUPABASE_ANON_KEY // empty' \
+              <<<"$credentials"
+          )"
+          if [ -z "$public_key" ]; then
+            echo "::error title=Missing Supabase branch credential::No publishable or anon key is available"
+            exit 1
+          fi
+          echo "::add-mask::$public_key"
+          printf 'SUPABASE_PUBLISHABLE_KEY=%s\n' "$public_key" >> "$GITHUB_ENV"
+          printf 'PROJECT_REF=%s\n' "$branch_project_ref" >> "$GITHUB_ENV"
+
+      # 실제 preview 호스트는 프로젝트 이름(`icons-ip`)이 아니라 배포 접두(`icons-`)를
+      # 쓴다. preview branch에는 custom SMTP가 없으므로 URL과 TTL만 동기화한다.
+      - name: Sync isolated Supabase preview Auth URLs
+        if: steps.check.outputs.configured == 'true' && steps.mode.outputs.database_mode == 'isolated'
+        env:
           SITE_URL: https://icons-ip.vercel.app
           REQUIRE_SMTP: "false"
           ENFORCE_MAILER: "false"
@@ -354,36 +599,32 @@ jobs:
             http://127.0.0.1:3000/auth/recovery/callback
         run: node scripts/sync-supabase-auth.mjs
 
-      - name: Link Supabase preview project
-        if: steps.check.outputs.configured == 'true'
-        run: supabase link --project-ref "$SUPABASE_PREVIEW_PROJECT_ID"
+      - name: Apply migrations and seed to isolated preview
+        if: steps.check.outputs.configured == 'true' && steps.mode.outputs.database_mode == 'isolated'
+        run: supabase db push --db-url "$POSTGRES_URL" --include-roles --include-seed --yes
 
-      - name: Push Supabase migrations to preview
-        if: steps.check.outputs.configured == 'true'
-        run: supabase db push --linked
+      - name: Reconcile Edge Functions in isolated preview
+        if: steps.check.outputs.configured == 'true' && steps.mode.outputs.database_mode == 'isolated'
+        run: node scripts/reconcile-supabase-functions.mjs
 
-      # 프리뷰 DB에는 운영 데이터를 두지 않는다. 카탈로그 seed는 멱등이라
-      # 리뷰어가 매 PR에서 같은 기준선을 본다.
-      - name: Seed preview catalog
-        if: steps.check.outputs.configured == 'true'
-        run: supabase db query --linked --file supabase/seed.sql
-
-      - name: Verify Supabase preview catalog baseline
-        if: steps.check.outputs.configured == 'true'
-        run: supabase db query --linked --file supabase/tests/catalog_baseline.sql
+      - name: Verify isolated preview catalog baseline
+        if: steps.check.outputs.configured == 'true' && steps.mode.outputs.database_mode == 'isolated'
+        run: |
+          docker run --rm -i postgres:17-alpine \
+            psql "$POSTGRES_URL" -v ON_ERROR_STOP=1 \
+            < supabase/tests/catalog_baseline.sql
 
       # 리뷰어가 이 프리뷰를 어디까지 믿어도 되는지 PR에서 바로 알 수 있어야 한다.
       - name: Report preview database state
-        if: steps.check.outputs.configured == 'true'
+        if: steps.check.outputs.configured == 'true' && steps.mode.outputs.database_mode == 'isolated'
         run: |
           {
             echo "### 프리뷰 데이터베이스"
             echo
-            echo "- 프로젝트: \`${SUPABASE_PREVIEW_PROJECT_ID}\` (운영과 분리된 프리뷰 전용)"
-            echo "- 이 PR의 migration이 프리뷰 DB에 적용됐습니다 — 앱과 스키마 버전이 맞습니다."
-            echo "- 카탈로그 baseline은 migration에서 오고 \`supabase/seed.sql\`이 mock IP 값을 다시 덮습니다."
-            echo "- 어드민으로 새로 만든 레코드는 migration에 없어 프리뷰에 나타나지 않습니다."
-            echo "- 프리뷰 DB는 여러 열린 PR이 공유합니다. 실데이터가 없으므로 언제든 리셋할 수 있습니다."
+            echo "- 모드: isolated \`pr-${PR_NUMBER}\`"
+            echo "- 프로젝트: \`${PROJECT_REF}\` (운영·shared preview와 분리, 운영 데이터 복제 없음)"
+            echo "- 이 PR head의 migration, roles, seed와 repo Edge Functions를 새 branch에 적용했습니다."
+            echo "- 새 커밋에서는 branch를 재생성하고 PR close 때 삭제합니다."
           } >> "$GITHUB_STEP_SUMMARY"
 
   deploy-vercel-preview:
@@ -398,6 +639,12 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PREVIEW_PROJECT_ID: ${{ secrets.SUPABASE_PREVIEW_PROJECT_ID }}
+      SUPABASE_PRODUCTION_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      DATABASE_MODE: ${{ needs.deploy-supabase-preview.outputs.database_mode }}
+      BRANCH_NAME: ${{ needs.deploy-supabase-preview.outputs.branch_name }}
+      PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
 
     steps:
       - name: Check out repository
@@ -415,21 +662,264 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
 
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v2
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
       - name: Check Vercel deployment secrets
         run: |
           missing=0
-          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+          for name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID SUPABASE_ACCESS_TOKEN SUPABASE_PREVIEW_PROJECT_ID SUPABASE_PRODUCTION_PROJECT_ID; do
             if [ -z "${!name}" ]; then
               echo "::error title=Missing GitHub secret::$name is required for Vercel preview deployment"
               missing=1
             fi
           done
+          if [ -n "$SUPABASE_PREVIEW_PROJECT_ID" ] \
+            && [ "$SUPABASE_PREVIEW_PROJECT_ID" = "$SUPABASE_PRODUCTION_PROJECT_ID" ]; then
+            echo "::error title=Preview Supabase must not be production::Preview and production refs are equal"
+            missing=1
+          fi
           exit "$missing"
+
+      - name: Verify Vercel preview upload manifest
+        run: |
+          set -euo pipefail
+
+          manifest="$(vercel deploy --dry --format=json)"
+          total_size="$(jq -r '.totalSize // 0' <<<"$manifest")"
+          file_count="$(jq -r '.fileCount // 0' <<<"$manifest")"
+
+          if jq -e 'any(.files[]?; .path == "outputs" or (.path | startswith("outputs/")))' \
+            <<<"$manifest" >/dev/null; then
+            echo "::error title=Local outputs entered Vercel upload::Check .vercelignore before deploying"
+            exit 1
+          fi
+          if [ "$total_size" -ge 900000000 ]; then
+            echo "::error title=Vercel preview upload is too large::$total_size bytes exceeds the 900 MB safety cap"
+            exit 1
+          fi
+          if [ "$file_count" -ge 15000 ]; then
+            echo "::error title=Too many Vercel source files::$file_count files reaches the platform limit"
+            exit 1
+          fi
+
+          {
+            echo "### Vercel upload manifest"
+            echo
+            echo "- source bytes: $total_size"
+            echo "- source files: $file_count"
+            echo "- \`outputs/\`: excluded"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Load exact Supabase credentials for deployment
+        run: |
+          set -euo pipefail
+
+          if [ "$DATABASE_MODE" = "isolated" ]; then
+            expected_branch="pr-${{ github.event.pull_request.number }}"
+            if [ "$BRANCH_NAME" != "$expected_branch" ]; then
+              echo "::error title=Invalid Supabase preview branch::$BRANCH_NAME does not match $expected_branch"
+              exit 1
+            fi
+          elif [ "$DATABASE_MODE" = "shared" ] && [ "$BRANCH_NAME" = "main" ]; then
+            expected_branch="main"
+          else
+            echo "::error title=Invalid Supabase preview mode::$DATABASE_MODE / $BRANCH_NAME"
+            exit 1
+          fi
+
+          branch_json="$(
+            supabase branches list \
+              --project-ref "$SUPABASE_PREVIEW_PROJECT_ID" \
+              --output json \
+              | jq -c --arg name "$expected_branch" '.[] | select(.name == $name)'
+          )"
+          branch_project_ref="$(jq -r '.project_ref // empty' <<<"$branch_json")"
+          if [ -z "$branch_project_ref" ] \
+            || [ "$branch_project_ref" = "$SUPABASE_PRODUCTION_PROJECT_ID" ]; then
+            echo "::error title=Unsafe Supabase deployment target::Preview branch ref is missing or production"
+            exit 1
+          fi
+          if [ "$DATABASE_MODE" = "shared" ] \
+            && [ "$branch_project_ref" != "$SUPABASE_PREVIEW_PROJECT_ID" ]; then
+            echo "::error title=Unsafe shared preview target::main did not resolve to icons-ip-preview"
+            exit 1
+          fi
+
+          credentials="$(
+            supabase branches get "$expected_branch" \
+              --project-ref "$SUPABASE_PREVIEW_PROJECT_ID" \
+              --output json
+          )"
+          resolved_supabase_url=""
+          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+            value="$(jq -r --arg name "$name" '.[$name] // empty' <<<"$credentials")"
+            if [ -z "$value" ]; then
+              echo "::error title=Missing Supabase deployment credential::$name is unavailable"
+              exit 1
+            fi
+            if [ "$name" = "SUPABASE_URL" ]; then
+              resolved_supabase_url="$value"
+            fi
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$name" "$value" >> "$GITHUB_ENV"
+          done
+          public_key="$(
+            jq -r '.SUPABASE_PUBLISHABLE_KEY // .SUPABASE_ANON_KEY // empty' \
+              <<<"$credentials"
+          )"
+          if [ -z "$public_key" ]; then
+            echo "::error title=Missing Supabase deployment credential::No publishable or anon key is available"
+            exit 1
+          fi
+          echo "::add-mask::$public_key"
+          printf 'SUPABASE_PUBLISHABLE_KEY=%s\n' "$public_key" >> "$GITHUB_ENV"
+          printf 'PROJECT_REF=%s\n' "$branch_project_ref" >> "$GITHUB_ENV"
+
+          if [ "$resolved_supabase_url" = "https://${SUPABASE_PRODUCTION_PROJECT_ID}.supabase.co" ]; then
+            echo "::error title=Preview resolved to production::Refusing Vercel deployment"
+            exit 1
+          fi
+
+      # shared main은 mutable하므로 evidence 확인 뒤 main이 전진했다면 오래된 앱을
+      # 더 최신 DB 상태에 배포하지 않는다. base가 갱신된 새 PR run에서 다시 배포한다.
+      - name: Revalidate shared preview main before deployment
+        if: env.DATABASE_MODE == 'shared'
+        run: |
+          set -euo pipefail
+
+          git fetch --no-tags origin main
+          current_main_sha="$(git rev-parse origin/main)"
+          if [ "$PR_BASE_SHA" != "$current_main_sha" ]; then
+            echo "::error title=Shared preview base advanced::PR base $PR_BASE_SHA is not current main $current_main_sha"
+            exit 1
+          fi
+          echo "Shared preview deployment still matches current main: $current_main_sha" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Deploy Vercel preview
         run: |
-          deployment_url="$(vercel deploy --yes --archive=tgz)"
+          deployment_url="$(
+            vercel deploy --yes --archive=tgz \
+              --build-env "NEXT_PUBLIC_SUPABASE_URL=$SUPABASE_URL" \
+              --build-env "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY" \
+              --build-env "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY" \
+              --build-env "ICONS_CATALOG_SOURCE=supabase" \
+              --env "NEXT_PUBLIC_SUPABASE_URL=$SUPABASE_URL" \
+              --env "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$SUPABASE_PUBLISHABLE_KEY" \
+              --env "SUPABASE_SERVICE_ROLE_KEY=$SUPABASE_SERVICE_ROLE_KEY" \
+              --env "ICONS_CATALOG_SOURCE=supabase"
+          )"
           echo "Preview deployment: $deployment_url" >> "$GITHUB_STEP_SUMMARY"
+          echo "Database mode: $DATABASE_MODE ($BRANCH_NAME)" >> "$GITHUB_STEP_SUMMARY"
+
+      # Preview handler가 먼저 배포된 뒤에만 이 PR의 recovery link 형식을 활성화한다.
+      - name: Activate recovery template in isolated preview
+        if: env.DATABASE_MODE == 'isolated'
+        env:
+          SITE_URL: https://icons-ip.vercel.app
+          REQUIRE_SMTP: "false"
+          ENFORCE_MAILER: "false"
+          RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
+        run: node scripts/sync-supabase-auth.mjs
+
+  # shared preview의 main branch는 production Supabase와 앱 배포가 모두 성공한 정확한
+  # main만 따라간다. PR workflow는 이 프로젝트를 절대로 link/push/seed하지 않는다.
+  sync-supabase-preview-main:
+    name: sync-supabase-preview-main
+    runs-on: ubuntu-latest
+    needs:
+      - deploy-supabase
+      - deploy-vercel
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_PREVIEW_DB_PASSWORD }}
+      SUPABASE_PREVIEW_PROJECT_ID: ${{ secrets.SUPABASE_PREVIEW_PROJECT_ID }}
+      SUPABASE_PRODUCTION_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      PROJECT_REF: ${{ secrets.SUPABASE_PREVIEW_PROJECT_ID }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v2
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+
+      - name: Check shared preview sync secrets
+        run: |
+          missing=0
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PREVIEW_PROJECT_ID SUPABASE_PRODUCTION_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error title=Missing GitHub secret::$name is required for shared preview sync"
+              missing=1
+            fi
+          done
+          if [ -n "$SUPABASE_PREVIEW_PROJECT_ID" ] \
+            && [ "$SUPABASE_PREVIEW_PROJECT_ID" = "$SUPABASE_PRODUCTION_PROJECT_ID" ]; then
+            echo "::error title=Preview Supabase must not be production::Refusing shared preview sync"
+            missing=1
+          fi
+          exit "$missing"
+
+      # 과거 main run을 재실행해 이미 더 최신 상태인 shared preview를 되돌리지 않는다.
+      # main push run은 같은 concurrency group에서 직렬화되므로, 이 시점 이후 main이
+      # 전진하면 현재 run이 먼저 끝난 뒤 최신 run이 최종 상태를 적용한다.
+      - name: Verify this run is still current main
+        run: |
+          git fetch --no-tags origin main
+          current_main_sha="$(git rev-parse origin/main)"
+          if [ "$GITHUB_SHA" != "$current_main_sha" ]; then
+            echo "::error title=Outdated shared preview sync::Run SHA $GITHUB_SHA is not current main $current_main_sha"
+            exit 1
+          fi
+          echo "Shared preview sync source is current main: $current_main_sha" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Sync shared preview Auth URLs
+        env:
+          SITE_URL: https://icons-ip.vercel.app
+          REQUIRE_SMTP: "false"
+          ENFORCE_MAILER: "false"
+          EMAIL_OTP_EXPIRY_SECONDS: "3600"
+          RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
+          REDIRECT_URLS: |
+            https://icons-ip.vercel.app/auth/callback
+            https://icons-ip.vercel.app/auth/recovery/callback
+            https://icons-hongshil-vn.vercel.app/auth/callback
+            https://icons-hongshil-vn.vercel.app/auth/recovery/callback
+            https://icons-*-sangwopark19icons-1055s-projects.vercel.app/auth/callback
+            https://icons-*-sangwopark19icons-1055s-projects.vercel.app/auth/recovery/callback
+            https://icons-git-*-sangwopark19icons-1055s-projects.vercel.app/auth/callback
+            https://icons-git-*-sangwopark19icons-1055s-projects.vercel.app/auth/recovery/callback
+            http://localhost:3000/auth/callback
+            http://localhost:3000/auth/recovery/callback
+            http://127.0.0.1:3000/auth/callback
+            http://127.0.0.1:3000/auth/recovery/callback
+        run: node scripts/sync-supabase-auth.mjs
+
+      - name: Link shared preview main
+        run: supabase link --project-ref "$SUPABASE_PREVIEW_PROJECT_ID"
+
+      - name: Apply main migrations and seed to shared preview
+        run: supabase db push --linked --include-roles --include-seed --yes
+
+      - name: Reconcile shared preview Supabase Edge Functions
+        run: node scripts/reconcile-supabase-functions.mjs
+
+      - name: Verify shared preview catalog baseline
+        run: supabase db query --linked --file supabase/tests/catalog_baseline.sql
+
+      - name: Report shared preview sync
+        run: |
+          {
+            echo "### Shared preview main 동기화"
+            echo
+            echo "- production 앱·Supabase 배포 성공 후 동일한 main migration, roles, seed, Auth template과 Edge Functions를 적용했습니다."
+            echo "- PR migration은 이 프로젝트에 적용하지 않습니다."
+          } >> "$GITHUB_STEP_SUMMARY"
 
   deploy-vercel:
     name: deploy-vercel
