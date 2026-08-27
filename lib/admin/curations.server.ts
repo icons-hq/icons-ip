@@ -20,6 +20,9 @@ export interface AdminCurationRecord {
   activeFrom: string;
   activeTo: string | null;
   enabled: boolean;
+  /* best_tab 전용 슬롯과 kind별 payload — 폼 초기값이 여기서 나온다 (#325). */
+  slot: string | null;
+  payload: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
   status: AdminCurationStatus;
@@ -36,6 +39,8 @@ interface AdminCurationRow {
   active_from: string;
   active_to: string | null;
   enabled: boolean;
+  slot: string | null;
+  payload: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
   /*
@@ -75,7 +80,7 @@ export async function getAdminCurations(now = Date.now()): Promise<AdminCuration
   const { data, error } = await supabase
     .from('home_curations')
     .select(
-      'id,kind,ip_id,title,image_path,link_path,display_order,active_from,active_to,enabled,created_at,updated_at,ips(bg,image_path)',
+      'id,kind,ip_id,title,image_path,link_path,display_order,active_from,active_to,enabled,created_at,updated_at,slot,payload,ips(bg,image_path)',
     )
     .order('kind', { ascending: true })
     .order('display_order', { ascending: true })
@@ -116,6 +121,8 @@ export async function getAdminCurations(now = Date.now()): Promise<AdminCuration
     activeFrom: row.active_from,
     activeTo: row.active_to,
     enabled: row.enabled,
+    slot: row.slot ?? null,
+    payload: row.payload ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     status: getAdminCurationStatus(row.enabled, row.active_from, row.active_to, now),

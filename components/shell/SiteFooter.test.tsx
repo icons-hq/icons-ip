@@ -65,8 +65,9 @@ describe('SiteFooter 법정 고지 링크', () => {
     expect(html).not.toContain('토스페이먼츠 안전 결제');
   });
 
-  it('홈과 인증 셸에서는 푸터를 렌더하지 않는다', () => {
-    for (const pathname of ['/', '/login', '/update-password', '/account-suspended', '/admin', '/games/roulette']) {
+  /* S3에서 홈이 공용 셸 위로 올라오면서 '/'는 더 이상 예외가 아니다 — 푸터를 그린다. */
+  it('인증 셸·어드민·게임에서는 푸터를 렌더하지 않는다', () => {
+    for (const pathname of ['/login', '/update-password', '/account-suspended', '/admin', '/games/roulette']) {
       mocks.pathname = pathname;
       expect(render(), pathname).toBe('');
     }

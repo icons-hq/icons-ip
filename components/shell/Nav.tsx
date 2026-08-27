@@ -5,6 +5,7 @@ import { Suspense, useEffect, useRef, useState, type FocusEvent, type KeyboardEv
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { signOutAction } from '@/app/login/actions';
 import { nextPathWithSearch } from '@/lib/auth/onboarding';
+import type { NoticeStrip } from '@/lib/home-catalog';
 import {
   CATEGORY_MEGA_GROUPS,
   NAV_ITEMS,
@@ -76,15 +77,23 @@ function gatedGroups(groups: NavGroup[], cardRewardsEnabled: boolean): NavGroup[
     .filter((group) => group.items.length > 0);
 }
 
-export function Nav() {
+export function Nav({ noticeStrip = null }: { noticeStrip?: NoticeStrip | null }) {
   const pathname = usePathname();
   const cardRewardsEnabled = useCardRewardsEnabled();
-  // 게임은 자기완결 번들, 어드민은 자체 작업대, 인증은 집중형 셸, 홈은 자체 헤더를 사용한다.
-  if (pathname === '/' || isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
-  return <WcChrome cardRewardsEnabled={cardRewardsEnabled} pathname={pathname} />;
+  // 게임은 자기완결 번들, 어드민은 자체 작업대, 인증은 집중형 셸을 사용한다.
+  if (isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
+  return <WcChrome cardRewardsEnabled={cardRewardsEnabled} noticeStrip={noticeStrip} pathname={pathname} />;
 }
 
-function WcChrome({ cardRewardsEnabled, pathname }: { cardRewardsEnabled: boolean; pathname: string }) {
+function WcChrome({
+  cardRewardsEnabled,
+  noticeStrip,
+  pathname,
+}: {
+  cardRewardsEnabled: boolean;
+  noticeStrip: NoticeStrip | null;
+  pathname: string;
+}) {
   const { count } = useCart();
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const headerSentinelRef = useRef<HTMLDivElement>(null);
@@ -113,8 +122,13 @@ function WcChrome({ cardRewardsEnabled, pathname }: { cardRewardsEnabled: boolea
       <div ref={topSentinelRef} aria-hidden className="wc-header-sentinel" />
       <a className="wc-skip-link" href="#root">본문으로 건너뛰기</a>
 
-      {/* notice-strip: 큐레이션 kind(notice_strip)가 S3에서 생기기 전까지 데이터가 없어 렌더하지 않는다.
-          CSS 슬롯(.wc-notice)만 wc-chrome.css에 준비되어 있다. */}
+      {/* 공지 스트립은 이미지 비율만큼 높이를 차지하는 링크 배너다(R-01 §1). 두 센티널 사이에 두면
+          축약 기준이 스트립 높이만큼 자동 보정된다 — 스트립이 아직 보이는 동안에는 GNB가 접히지 않는다. */}
+      {noticeStrip ? (
+        <Link className="wc-notice" href={noticeStrip.href}>
+          <img alt={noticeStrip.title} src={noticeStrip.imageUrl} />
+        </Link>
+      ) : null}
 
       <nav aria-label="유틸리티 메뉴" className="wc-utilbar">
         <div className="wc-container wc-utilbar__inner">

@@ -13,9 +13,20 @@ select 1 / case when (
     and column_name in (
       'id', 'kind', 'ip_id', 'title', 'image_path', 'link_path',
       'display_order', 'active_from', 'active_to', 'enabled',
-      'created_at', 'updated_at'
+      'created_at', 'updated_at', 'slot', 'payload'
     )
-) = 12 then 1 else 0 end as assert_home_curations_schema;
+) = 14 then 1 else 0 end as assert_home_curations_schema;
+
+select 1 / case when (
+  select pg_catalog.pg_get_constraintdef(constraint_record.oid)
+  from pg_catalog.pg_constraint as constraint_record
+  where constraint_record.conrelid = 'public.home_curations'::regclass
+    and constraint_record.conname = 'home_curations_kind_check'
+) ilike all (array[
+  '%''hero''%', '%''featured_ip''%', '%''announcement''%',
+  '%''notice_strip''%', '%''editor_pick''%', '%''band_banner''%',
+  '%''best_tab''%', '%''benefit''%'
+]) then 1 else 0 end as assert_home_curations_kind_families;
 
 select 1 / case when not exists (
   select 1
@@ -70,7 +81,7 @@ select 1 / case when exists (
   where namespace.nspname = 'public'
     and proc.proname = 'admin_upsert_home_curation'
     and pg_catalog.pg_get_function_identity_arguments(proc.oid) =
-      'target_operation_id uuid, target_curation_id uuid, target_kind text, target_ip_id text, target_title text, target_image_path text, target_link_path text, target_display_order integer, target_active_from timestamp with time zone, target_active_to timestamp with time zone, target_enabled boolean'
+      'target_operation_id uuid, target_curation_id uuid, target_kind text, target_ip_id text, target_title text, target_image_path text, target_link_path text, target_display_order integer, target_active_from timestamp with time zone, target_active_to timestamp with time zone, target_enabled boolean, target_slot text, target_payload jsonb'
     and pg_catalog.pg_get_function_result(proc.oid) = 'uuid'
     and proc.prosecdef
     and proc.provolatile = 'v'
@@ -80,17 +91,17 @@ select 1 / case when exists (
 select 1 / case when
   has_function_privilege(
     'authenticated',
-    'public.admin_upsert_home_curation(uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,boolean)',
+    'public.admin_upsert_home_curation(uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,boolean,text,jsonb)',
     'execute'
   )
   and not has_function_privilege(
     'anon',
-    'public.admin_upsert_home_curation(uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,boolean)',
+    'public.admin_upsert_home_curation(uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,boolean,text,jsonb)',
     'execute'
   )
   and not has_function_privilege(
     'service_role',
-    'public.admin_upsert_home_curation(uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,boolean)',
+    'public.admin_upsert_home_curation(uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,boolean,text,jsonb)',
     'execute'
   )
   and not exists (
@@ -537,7 +548,7 @@ select 1 / case when
 then 1 else 0 end as assert_direct_ip_archive_curation_guard;
 
 select pg_catalog.pg_get_functiondef(
-  'public.admin_upsert_home_curation(uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,boolean)'::regprocedure
+  'public.admin_upsert_home_curation(uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,boolean,text,jsonb)'::regprocedure
 ) as curation_rpc_definition \gset
 
 select 1 / case when
@@ -545,5 +556,254 @@ select 1 / case when
   and strpos(:'curation_rpc_definition', 'for update of ip') > 0
   and strpos(:'curation_rpc_definition', 'ip.archived_at') > 0
 then 1 else 0 end as assert_curation_upsert_serializes_operation_entity_and_ip;
+
+-- ---------------------------------------------------------------------------
+-- S3 kind expansion (#325): slot/payload validation, new band kinds,
+-- payload-carried mobile artwork claims, and public reads of the new kinds.
+-- ---------------------------------------------------------------------------
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000011401', true);
+
+do $$
+declare
+  invalid_call record;
+begin
+  for invalid_call in
+    select *
+    from (values
+      ('best-tab-without-slot', 'best_tab', null::text, 'BEST 탭', null::text, '/shop', 0, null::text, null::jsonb),
+      ('best-tab-unknown-slot', 'best_tab', null, 'BEST 탭', null, '/shop', 0, 'weekly', null),
+      ('slot-on-plain-kind', 'announcement', null, '공지', null, '/events', 0, 'category', null),
+      ('payload-on-plain-kind', 'announcement', null, '공지', null, '/events', 0, null, '{"description":"안내"}'::jsonb),
+      ('unknown-payload-key', 'benefit', null, '혜택', null, '/packs', 0, null, '{"unknown":"x"}'::jsonb),
+      ('notice-strip-without-image', 'notice_strip', null, '공지 스트립', null, '/events', 0, null, null),
+      ('editor-pick-without-image', 'editor_pick', null, '에디터 픽', null, '/events', 0, null, null),
+      ('band-banner-without-image', 'band_banner', null, '기획전', null, '/shop', 0, null, null),
+      ('good-ids-not-array', 'best_tab', null, 'BEST 탭', null, '/shop', 0, 'category', '{"good_ids":"g1"}'::jsonb),
+      ('good-ids-empty', 'best_tab', null, 'BEST 탭', null, '/shop', 0, 'category', '{"good_ids":[]}'::jsonb),
+      ('good-ids-bad-entry', 'best_tab', null, 'BEST 탭', null, '/shop', 0, 'category', '{"good_ids":["bad id!"]}'::jsonb),
+      ('benefit-with-ip', 'benefit', 'curation-active-ip', '혜택', null, '/packs', 0, null, null),
+      ('badge-too-long', 'editor_pick', null, '에디터 픽', 'public-media/catalog/curation/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.webp', '/events', 0, null, '{"badge":"아주아주아주아주아주아주아주아주아주아주긴배지"}'::jsonb),
+      ('subtitle-on-benefit', 'benefit', null, '혜택', null, '/packs', 0, null, '{"subtitle":"부제"}'::jsonb)
+    ) as calls(name, kind, ip_id, title, image_path, link_path, display_order, slot, payload)
+  loop
+    begin
+      perform public.admin_upsert_home_curation(
+        extensions.gen_random_uuid(), extensions.gen_random_uuid(),
+        invalid_call.kind, invalid_call.ip_id, invalid_call.title,
+        invalid_call.image_path, invalid_call.link_path,
+        invalid_call.display_order, now(), null, true,
+        invalid_call.slot, invalid_call.payload
+      );
+    exception
+      when invalid_parameter_value or not_null_violation or check_violation or no_data_found then
+        continue;
+    end;
+    raise exception 'invalid expanded curation call should fail: %', invalid_call.name;
+  end loop;
+end;
+$$;
+
+-- band_banner caps good_ids at four entries.
+do $$
+begin
+  begin
+    perform public.admin_upsert_home_curation(
+      extensions.gen_random_uuid(), extensions.gen_random_uuid(),
+      'band_banner', null, '기획전',
+      'public-media/catalog/curation/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.webp',
+      '/shop', 0, now(), null, true,
+      null, '{"good_ids":["g1","g2","g3","g4","g5"]}'::jsonb
+    );
+  exception when invalid_parameter_value then return;
+  end;
+  raise exception 'band_banner with five good_ids should fail';
+end;
+$$;
+
+select public.admin_upsert_home_curation(
+  '00000000-0000-4000-8000-000000011501',
+  '00000000-0000-4000-8000-000000011502',
+  'benefit', null, '카드팩 무료 개봉', null, '/packs', 0,
+  now() - interval '1 hour', null, true,
+  null, '{"description":"  로그인하면 무료 카드팩을 열 수 있어요  "}'::jsonb
+);
+
+select 1 / case when exists (
+  select 1
+  from public.home_curations
+  where id = '00000000-0000-4000-8000-000000011502'
+    and kind = 'benefit'
+    and slot is null
+    and payload = '{"description":"로그인하면 무료 카드팩을 열 수 있어요"}'::jsonb
+) then 1 else 0 end as assert_benefit_payload_trimmed_and_stored;
+
+select public.admin_upsert_home_curation(
+  '00000000-0000-4000-8000-000000011503',
+  '00000000-0000-4000-8000-000000011504',
+  'best_tab', null, '키링', null, '/shop', 1,
+  now() - interval '1 hour', null, true,
+  'category', '{"good_ids":["g1","g2"]}'::jsonb
+);
+
+select public.admin_upsert_home_curation(
+  '00000000-0000-4000-8000-000000011505',
+  '00000000-0000-4000-8000-000000011506',
+  'best_tab', null, 'MULTI', null, '/shop', 0,
+  now() - interval '1 hour', null, true,
+  'popular', '{"good_ids":["g3"]}'::jsonb
+);
+
+select 1 / case when (
+  select count(*)
+  from public.home_curations
+  where kind = 'best_tab'
+    and (
+      (id = '00000000-0000-4000-8000-000000011504' and slot = 'category')
+      or (id = '00000000-0000-4000-8000-000000011506' and slot = 'popular')
+    )
+) = 2 then 1 else 0 end as assert_best_tab_slots_stored;
+
+-- Empty payload objects collapse to null instead of persisting husks.
+select public.admin_upsert_home_curation(
+  '00000000-0000-4000-8000-000000011507',
+  '00000000-0000-4000-8000-000000011508',
+  'benefit', null, '게임 참여 안내', null, '/events', 1,
+  now() - interval '1 hour', null, true,
+  null, '{}'::jsonb
+);
+
+select 1 / case when exists (
+  select 1
+  from public.home_curations
+  where id = '00000000-0000-4000-8000-000000011508'
+    and payload is null
+) then 1 else 0 end as assert_empty_payload_stored_as_null;
+
+-- Image-first kinds still run through the verified artwork claim contract.
+reset role;
+insert into public.admin_artwork_upload_claims (
+  path, actor_id, kind, mime_type, source_size, final_size,
+  status, expires_at, processing_started_at, verified_at
+)
+values
+  (
+    'catalog/curation/cccccccc-cccc-4ccc-8ccc-cccccccccccc.webp',
+    '00000000-0000-4000-8000-000000011401', 'curation', 'image/webp',
+    1024, 1024, 'verified', now() + interval '10 minutes', now(), now()
+  ),
+  (
+    'catalog/curation/dddddddd-dddd-4ddd-8ddd-dddddddddddd.webp',
+    '00000000-0000-4000-8000-000000011401', 'curation', 'image/webp',
+    1024, 1024, 'verified', now() + interval '10 minutes', now(), now()
+  ),
+  (
+    'catalog/curation/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee.webp',
+    '00000000-0000-4000-8000-000000011401', 'curation', 'image/webp',
+    1024, 1024, 'verified', now() + interval '10 minutes', now(), now()
+  );
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000011401', true);
+
+select public.admin_upsert_home_curation(
+  '00000000-0000-4000-8000-000000011509',
+  '00000000-0000-4000-8000-000000011510',
+  'notice_strip', null, '배송 공지 스트립',
+  'public-media/catalog/curation/cccccccc-cccc-4ccc-8ccc-cccccccccccc.webp',
+  '/events', 0, now() - interval '1 hour', null, true,
+  null, null
+);
+
+-- Hero mobile artwork inside payload consumes its own verified claim.
+select public.admin_upsert_home_curation(
+  '00000000-0000-4000-8000-000000011511',
+  '00000000-0000-4000-8000-000000011512',
+  'hero', null, '여름 히어로',
+  'public-media/catalog/curation/dddddddd-dddd-4ddd-8ddd-dddddddddddd.webp',
+  '/events', 0, now() - interval '1 hour', null, true,
+  null,
+  '{"subtitle":"SUMMER DROP","mobile_image_path":"public-media/catalog/curation/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee.webp"}'::jsonb
+);
+
+reset role;
+
+select 1 / case when exists (
+  select 1
+  from public.admin_artwork_upload_claims
+  where path = 'catalog/curation/cccccccc-cccc-4ccc-8ccc-cccccccccccc.webp'
+    and status = 'attached'
+) then 1 else 0 end as assert_notice_strip_consumed_image_claim;
+
+select 1 / case when exists (
+  select 1
+  from public.admin_artwork_upload_claims
+  where path = 'catalog/curation/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee.webp'
+    and status = 'attached'
+) then 1 else 0 end as assert_hero_mobile_artwork_consumed_claim;
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000011401', true);
+
+-- Replaying the identical hero request stays idempotent without a fresh claim.
+select public.admin_upsert_home_curation(
+  '00000000-0000-4000-8000-000000011511',
+  '00000000-0000-4000-8000-000000011512',
+  'hero', null, '여름 히어로',
+  'public-media/catalog/curation/dddddddd-dddd-4ddd-8ddd-dddddddddddd.webp',
+  '/events', 0, now() - interval '1 hour', null, true,
+  null,
+  '{"subtitle":"SUMMER DROP","mobile_image_path":"public-media/catalog/curation/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee.webp"}'::jsonb
+);
+
+do $$
+begin
+  begin
+    perform public.admin_upsert_home_curation(
+      extensions.gen_random_uuid(), extensions.gen_random_uuid(),
+      'hero', null, '미검증 모바일 히어로',
+      'public-media/catalog/curation/dddddddd-dddd-4ddd-8ddd-dddddddddddd.webp',
+      '/events', 1, now(), null, true,
+      null,
+      '{"mobile_image_path":"public-media/catalog/curation/ffffffff-ffff-4fff-8fff-ffffffffffff.webp"}'::jsonb
+    );
+  exception when check_violation then
+    if sqlerrm = 'unverified_artwork' then return; end if;
+    raise;
+  end;
+  raise exception 'hero with unverified mobile artwork should be blocked';
+end;
+$$;
+
+-- Anonymous readers see the new active kinds, slots, and payloads.
+reset role;
+set local role anon;
+select set_config('request.jwt.claim.role', 'anon', true);
+select set_config('request.jwt.claim.sub', '', true);
+
+select 1 / case when (
+  select count(*)
+  from public.home_curations
+  where id in (
+    '00000000-0000-4000-8000-000000011502',
+    '00000000-0000-4000-8000-000000011504',
+    '00000000-0000-4000-8000-000000011506',
+    '00000000-0000-4000-8000-000000011510',
+    '00000000-0000-4000-8000-000000011512'
+  )
+    and (kind <> 'best_tab' or slot in ('category', 'popular'))
+) = 5 then 1 else 0 end as assert_anon_reads_new_active_kinds;
+
+select 1 / case when (
+  select payload ->> 'mobile_image_path'
+  from public.home_curations
+  where id = '00000000-0000-4000-8000-000000011512'
+) = 'public-media/catalog/curation/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee.webp'
+then 1 else 0 end as assert_anon_reads_hero_mobile_payload;
+
+reset role;
 
 rollback;

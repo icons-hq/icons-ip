@@ -14,8 +14,18 @@ import { resolveCatalogSource, type CatalogSource } from './catalog-source';
 import {
   getHomeCuratedIpIds,
   getHomeSelectableIps,
+  HOME_BEST_TAB_GOODS_LIMIT,
+  HOME_CURATION_IMAGE_PATTERN,
+  HOME_GOODS_BAND_LIMIT,
+  isSafeInternalLink,
+  resolveHomeGoodsCards,
   type HomeBanner,
+  type HomeBenefitTile,
+  type HomeBestTab,
   type HomeCurationSnapshot,
+  type HomeEditorPick,
+  type HomeGoodsBand,
+  type HomeHeroSlide,
   type HomePostPreviewByIpId,
 } from './home-catalog';
 
@@ -155,7 +165,15 @@ interface PostRow {
 
 interface HomeCurationRow {
   id: string;
-  kind: 'hero' | 'featured_ip' | 'announcement';
+  kind:
+    | 'hero'
+    | 'featured_ip'
+    | 'announcement'
+    | 'notice_strip'
+    | 'editor_pick'
+    | 'band_banner'
+    | 'best_tab'
+    | 'benefit';
   ip_id: string | null;
   title: string;
   image_path: string | null;
@@ -163,6 +181,8 @@ interface HomeCurationRow {
   display_order: number;
   active_from: string;
   active_to: string | null;
+  slot: string | null;
+  payload: Record<string, unknown> | null;
 }
 
 interface LoadedFeaturedIpCuration {
@@ -170,9 +190,24 @@ interface LoadedFeaturedIpCuration {
   imageBg: string | null;
 }
 
+/* 굿즈를 참조하는 밴드는 카탈로그 스냅샷과 조인해야 카드가 되므로,
+   로더는 id 목록까지만 만들고 getHomeSnapshot 이 최종 조립한다. */
+interface LoadedGoodsBand {
+  band: Omit<HomeGoodsBand, 'goods'>;
+  goodIds: string[];
+}
+
+interface LoadedBestTab {
+  tab: Omit<HomeBestTab, 'goods'>;
+  slot: 'category' | 'popular';
+  goodIds: string[];
+}
+
 interface LoadedHomeCuration {
   curation: HomeCurationSnapshot;
   featuredIps: LoadedFeaturedIpCuration[];
+  goodsBands: LoadedGoodsBand[];
+  bestTabs: LoadedBestTab[];
 }
 
 interface PublicProfileRow {
@@ -180,10 +215,6 @@ interface PublicProfileRow {
   nickname: string | null;
 }
 
-const HOME_CURATION_IMAGE_PATTERN =
-  /^public-media\/catalog\/curation\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(jpg|png|webp)$/;
-const AMBIGUOUS_LINK_CHARACTER_PATTERN =
-  /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/;
 const naturalIdCollator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
 type CatalogSupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -233,56 +264,63 @@ function toStock(stock: string): Stock {
 }
 
 function emptyHomeCuration(): HomeCurationSnapshot {
-  return { hero: null, announcement: null, featuredIpIds: [] };
+  return {
+    hero: null,
+    announcement: null,
+    featuredIpIds: [],
+    heroSlides: [],
+    editorPicks: [],
+    goodsBands: [],
+    categoryBestTabs: [],
+    popularTabs: [],
+    benefitTiles: [],
+  };
 }
 
 function emptyLoadedHomeCuration(): LoadedHomeCuration {
-  return { curation: emptyHomeCuration(), featuredIps: [] };
+  return { curation: emptyHomeCuration(), featuredIps: [], goodsBands: [], bestTabs: [] };
 }
 
-function isSafeInternalLink(value: string) {
-  const characterLength = Array.from(value).length;
-  if (
-    characterLength < 1
-    || characterLength > 2048
-    || !value.startsWith('/')
-    || value.startsWith('//')
-    || value.includes('\\')
-    || AMBIGUOUS_LINK_CHARACTER_PATTERN.test(value)
-  ) {
-    return false;
-  }
+/* payload 는 어드민 RPC 가 kind 별 화이트리스트로 검증하지만, 읽기 경로도
+   런타임 형태를 다시 확인한다 — DB 를 직접 만진 값이 화면 계약을 깨지 않게. */
+function payloadString(payload: Record<string, unknown> | null, key: string): string | null {
+  const value = payload?.[key];
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
 
-  try {
-    const decoded = decodeURIComponent(value);
-    return (
-      decoded.startsWith('/')
-      && !decoded.startsWith('//')
-      && !decoded.includes('\\')
-      && !AMBIGUOUS_LINK_CHARACTER_PATTERN.test(decoded)
-    );
-  } catch {
-    return false;
-  }
+function payloadGoodIds(payload: Record<string, unknown> | null): string[] {
+  const value = payload?.good_ids;
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (id): id is string => typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id),
+  );
+}
+
+function validCurationBase(row: HomeCurationRow): { title: string; href: string } | null {
+  const title = row.title.trim();
+  const href = row.link_path.trim();
+  if (!title || Array.from(title).length > 120 || !isSafeInternalLink(href)) return null;
+  if (row.image_path && !HOME_CURATION_IMAGE_PATTERN.test(row.image_path)) return null;
+  return { title, href };
 }
 
 function toHomeBanner(
   row: HomeCurationRow,
   imageUrlForPath: (path: string) => string,
 ): HomeBanner | null {
-  const title = row.title.trim();
-  const href = row.link_path.trim();
-  if (!title || Array.from(title).length > 120 || !isSafeInternalLink(href)) return null;
+  const base = validCurationBase(row);
+  if (!base) return null;
   if (row.kind === 'hero' && (!row.image_path || row.ip_id !== null)) return null;
   if (row.kind === 'announcement' && row.ip_id !== null) return null;
   if (row.kind === 'featured_ip' && !row.ip_id) return null;
-  if (row.image_path && !HOME_CURATION_IMAGE_PATTERN.test(row.image_path)) return null;
 
   return {
     id: row.id,
-    title,
+    title: base.title,
     imageBg: row.image_path ? imageBg(imageUrlForPath(row.image_path)) : null,
-    href,
+    href: base.href,
   };
 }
 
@@ -291,7 +329,7 @@ async function getActiveHomeCurationSnapshot(): Promise<LoadedHomeCuration> {
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('home_curations')
-    .select('id,kind,ip_id,title,image_path,link_path,display_order,active_from,active_to')
+    .select('id,kind,ip_id,title,image_path,link_path,display_order,active_from,active_to,slot,payload')
     .eq('enabled', true)
     .lte('active_from', now)
     .or(`active_to.is.null,active_to.gt.${now}`)
@@ -307,22 +345,98 @@ async function getActiveHomeCurationSnapshot(): Promise<LoadedHomeCuration> {
     .getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
   const curation = emptyHomeCuration();
   const featuredIps: LoadedFeaturedIpCuration[] = [];
+  const goodsBands: LoadedGoodsBand[] = [];
+  const bestTabs: LoadedBestTab[] = [];
 
   for (const row of (data ?? []) as HomeCurationRow[]) {
-    const banner = toHomeBanner(row, imageUrlForPath);
-    if (!banner) continue;
-
-    if (row.kind === 'hero' && curation.hero === null) {
-      curation.hero = banner;
-    } else if (row.kind === 'announcement' && curation.announcement === null) {
-      curation.announcement = banner;
-    } else if (row.kind === 'featured_ip' && typeof row.ip_id === 'string' && row.ip_id) {
-      curation.featuredIpIds.push(row.ip_id);
-      featuredIps.push({ ipId: row.ip_id, imageBg: banner.imageBg });
+    switch (row.kind) {
+      case 'hero': {
+        const banner = toHomeBanner(row, imageUrlForPath);
+        if (!banner || !row.image_path) break;
+        const mobileImagePath = payloadString(row.payload, 'mobile_image_path');
+        curation.heroSlides.push({
+          id: row.id,
+          title: banner.title,
+          subtitle: payloadString(row.payload, 'subtitle'),
+          imageUrl: imageUrlForPath(row.image_path),
+          mobileImageUrl: mobileImagePath && HOME_CURATION_IMAGE_PATTERN.test(mobileImagePath)
+            ? imageUrlForPath(mobileImagePath)
+            : null,
+          href: banner.href,
+        } satisfies HomeHeroSlide);
+        if (curation.hero === null) curation.hero = banner;
+        break;
+      }
+      case 'announcement': {
+        const banner = toHomeBanner(row, imageUrlForPath);
+        if (banner && curation.announcement === null) curation.announcement = banner;
+        break;
+      }
+      case 'featured_ip': {
+        const banner = toHomeBanner(row, imageUrlForPath);
+        if (!banner || typeof row.ip_id !== 'string' || !row.ip_id) break;
+        curation.featuredIpIds.push(row.ip_id);
+        featuredIps.push({ ipId: row.ip_id, imageBg: banner.imageBg });
+        break;
+      }
+      case 'editor_pick': {
+        const base = validCurationBase(row);
+        if (!base || !row.image_path || row.ip_id !== null) break;
+        curation.editorPicks.push({
+          id: row.id,
+          title: base.title,
+          badge: payloadString(row.payload, 'badge'),
+          description: payloadString(row.payload, 'description'),
+          imageBg: imageBg(imageUrlForPath(row.image_path)),
+          href: base.href,
+        } satisfies HomeEditorPick);
+        break;
+      }
+      case 'band_banner': {
+        const base = validCurationBase(row);
+        if (!base || !row.image_path || row.ip_id !== null) break;
+        goodsBands.push({
+          band: {
+            id: row.id,
+            title: base.title,
+            subcopy: payloadString(row.payload, 'subcopy'),
+            imageUrl: imageUrlForPath(row.image_path),
+            href: base.href,
+          },
+          goodIds: payloadGoodIds(row.payload),
+        });
+        break;
+      }
+      case 'best_tab': {
+        const base = validCurationBase(row);
+        if (!base || row.ip_id !== null) break;
+        if (row.slot !== 'category' && row.slot !== 'popular') break;
+        bestTabs.push({
+          tab: { id: row.id, label: base.title },
+          slot: row.slot,
+          goodIds: payloadGoodIds(row.payload),
+        });
+        break;
+      }
+      case 'benefit': {
+        const base = validCurationBase(row);
+        if (!base || row.ip_id !== null) break;
+        curation.benefitTiles.push({
+          id: row.id,
+          title: base.title,
+          description: payloadString(row.payload, 'description'),
+          href: base.href,
+        } satisfies HomeBenefitTile);
+        break;
+      }
+      /* notice_strip 은 전역 셸 전용 데이터라 홈 스냅샷에서는 다루지 않는다
+         (lib/notice-strip.server.ts). 미래 kind 는 여기 닿기 전에 무시된다. */
+      default:
+        break;
     }
   }
 
-  return { curation, featuredIps };
+  return { curation, featuredIps, goodsBands, bestTabs };
 }
 
 function applyHomeFeaturedArtwork(
@@ -839,6 +953,22 @@ export async function getHomeSnapshot(options: CatalogIpDetailOptions = {}): Pro
     : {
         ...loadedCuration.curation,
         featuredIpIds: getHomeCuratedIpIds(catalog, loadedCuration.curation.featuredIpIds),
+        goodsBands: loadedCuration.goodsBands.map(({ band, goodIds }) => ({
+          ...band,
+          goods: resolveHomeGoodsCards(catalog, goodIds, HOME_GOODS_BAND_LIMIT),
+        })),
+        categoryBestTabs: loadedCuration.bestTabs
+          .filter((loaded) => loaded.slot === 'category')
+          .map(({ tab, goodIds }) => ({
+            ...tab,
+            goods: resolveHomeGoodsCards(catalog, goodIds, HOME_BEST_TAB_GOODS_LIMIT),
+          })),
+        popularTabs: loadedCuration.bestTabs
+          .filter((loaded) => loaded.slot === 'popular')
+          .map(({ tab, goodIds }) => ({
+            ...tab,
+            goods: resolveHomeGoodsCards(catalog, goodIds, HOME_BEST_TAB_GOODS_LIMIT),
+          })),
       };
   const homeCatalog = catalog.source === 'mock'
     ? catalog

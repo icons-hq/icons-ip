@@ -10,7 +10,6 @@ describe('Living IP Editorial global design wiring', () => {
     const imports = [
       './styles/editorial-foundation.css',
       './styles/editorial-shell.css',
-      './styles/editorial-home.css',
       './styles/editorial-public.css',
       './styles/editorial-account-commerce.css',
       './styles/editorial-admin.css',
@@ -21,6 +20,10 @@ describe('Living IP Editorial global design wiring', () => {
       expect(index).toBeGreaterThan(previous);
       previous = index;
     }
+
+    // 구 홈 스타일시트는 /about 전시본으로 이사했다 — 삭제된 파일을 다시 임포트하면 안 된다.
+    expect(layout).not.toContain('editorial-home.css');
+    expect(layout).toContain("'./styles/about-legacy.css'");
 
     expect(layout).not.toContain('<Atmos />');
     expect(layout).not.toContain('<MobNav />');
@@ -43,7 +46,7 @@ describe('Living IP Editorial global design wiring', () => {
 
   it('defines readable typography tokens and Korean-aware wrapping rules', () => {
     const foundation = read('./styles/editorial-foundation.css');
-    const home = read('./styles/editorial-home.css');
+    const aboutLegacy = read('./styles/about-legacy.css');
 
     expect(foundation).toContain('--editorial-leading-display: 1.08');
     expect(foundation).toContain('--editorial-leading-display-mobile: 1.12');
@@ -60,14 +63,14 @@ describe('Living IP Editorial global design wiring', () => {
     expect(foundation).toMatch(
       /:lang\(ko\):is\(p, li, dd, blockquote\)\s*\{[^}]*word-break:\s*keep-all;[^}]*overflow-wrap:\s*break-word;/s,
     );
-    expect(home).toMatch(/\.icons-preview\s*\{[^}]*font-family:\s*var\(--editorial-font-body\);[^}]*line-height:\s*var\(--editorial-leading-body\);/s);
+    expect(aboutLegacy).toMatch(/\.icons-preview\s*\{[^}]*font-family:\s*var\(--editorial-font-body\);[^}]*line-height:\s*var\(--editorial-leading-body\);/s);
   });
 
   it('does not use sub-single line heights in editorial styles', () => {
     const css = [
       read('./styles/editorial-foundation.css'),
       read('./styles/editorial-shell.css'),
-      read('./styles/editorial-home.css'),
+      read('./styles/about-legacy.css'),
       read('./styles/editorial-public.css'),
       read('./styles/editorial-account-commerce.css'),
       read('./styles/editorial-admin.css'),
@@ -81,7 +84,7 @@ describe('Living IP Editorial global design wiring', () => {
     const css = [
       read('./styles/editorial-foundation.css'),
       read('./styles/editorial-shell.css'),
-      read('./styles/editorial-home.css'),
+      read('./styles/about-legacy.css'),
     ].join('\n');
 
     expect(css).toContain('@media (prefers-reduced-motion: reduce)');
@@ -89,21 +92,23 @@ describe('Living IP Editorial global design wiring', () => {
     expect(css).toMatch(/animation-duration:\s*\.01ms/);
   });
 
-  it('keeps non-home navigation keyboard-visible and preserves the preview controls', () => {
+  it('keeps navigation keyboard-visible and preserves the preserved preview controls', () => {
     const shell = read('./styles/editorial-shell.css');
-    const home = read('./styles/editorial-home.css');
+    const aboutLegacy = read('./styles/about-legacy.css');
 
     expect(shell).toMatch(/\.editorial-header\[data-hidden='true'\]:focus-within/);
-    expect(home).toContain('.icons-preview .site-header');
-    expect(home).toContain('.icons-preview .pause-button');
-    expect(home).toContain('.icons-preview .hero-bullets button');
-    expect(home).toContain('.icons-preview .mobile-menu--open');
+    expect(aboutLegacy).toContain('.icons-preview .pause-button');
+    expect(aboutLegacy).toContain('.icons-preview .hero-bullets button');
+    // 자체 헤더·푸터는 전역 셸로 넘어갔다 — 이사한 파일에 크롬 잔재가 남으면 안 된다.
+    expect(aboutLegacy).not.toContain('.site-header');
+    expect(aboutLegacy).not.toContain('.site-footer');
+    expect(aboutLegacy).not.toContain('.mobile-menu');
   });
 
   it('keeps the final CTA artwork at the source image ratio', () => {
-    const home = read('./styles/editorial-home.css');
+    const aboutLegacy = read('./styles/about-legacy.css');
 
-    expect(home).toMatch(/\.icons-preview \.final-orbit \.preview-artwork\s*\{[^}]*aspect-ratio:\s*4\s*\/\s*3/s);
+    expect(aboutLegacy).toMatch(/\.icons-preview \.final-orbit \.preview-artwork\s*\{[^}]*aspect-ratio:\s*4\s*\/\s*3/s);
   });
 
   it('does not suppress onboarding focus outlines with inline styles', () => {

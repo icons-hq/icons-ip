@@ -20,7 +20,8 @@ import { useCardRewardsEnabled } from './CardRewardAvailability';
 export function SiteFooter() {
   const pathname = usePathname();
   const cardRewardsEnabled = useCardRewardsEnabled();
-  if (pathname === '/' || isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
+  // 숨김 범위는 Nav와 같다 — 게임은 자기완결 번들, 어드민은 자체 작업대, 인증은 집중형 셸을 사용한다.
+  if (isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
 
   /* 카드 리워드가 꺼진 배포에서는 카드팩 진입점을 노출하지 않는다. */
   const discoverItems = FOOTER_DISCOVER_ITEMS.filter((item) => cardRewardsEnabled || item.id !== 'packs');

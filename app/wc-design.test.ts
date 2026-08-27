@@ -135,3 +135,38 @@ describe('White Catalog global chrome wiring', () => {
     }
   });
 });
+
+describe('White Catalog home wiring', () => {
+  it('loads the home band layer after the chrome', () => {
+    /* 홈 밴드는 크롬 위에 얹히고, 보존 전시용 about-legacy는 그 뒤에서 자기 지면만 덮는다.
+     * 순서가 뒤집히면 홈이 조용히 프리미티브 기본값으로 돌아가거나 about 스타일이 홈까지 끌고 간다. */
+    const layout = read('./layout.tsx');
+
+    expect(layout).toContain("'./styles/wc-home.css'");
+    expect(layout.indexOf("'./styles/wc-home.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-chrome.css'"),
+    );
+    expect(layout.indexOf("'./styles/about-legacy.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-home.css'"),
+    );
+  });
+
+  it('keeps the home stylesheet scoped, rootless, and free of the reference accent', () => {
+    /* 홈은 공개 표면 중 밴드가 가장 많다 — 전역 element 규칙 하나가 이행 전 표면과 어드민까지 끌고 간다. */
+    const css = read('./styles/wc-home.css');
+
+    expect(css).not.toMatch(/^\s*(?:html|body|:root|h[1-6]|a|p|ul|ol|button|input|\*)\s*[,{:]/m);
+    expect(css).not.toMatch(/:root\s*\{[^}]*--wc-/s);
+    expect(css).not.toMatch(/#F83BAA/i);
+    expect(css).not.toMatch(/#FD4BBB/i);
+    expect(css).not.toMatch(/line-height:\s*(?:0?\.)\d+/);
+  });
+
+  it('crossfades hero slides in CSS instead of moving them in script', () => {
+    /* 전환을 JS 타이밍으로 옮기면 wc-foundation의 prefers-reduced-motion 규칙이 닿지 않는다.
+     * 모션은 opacity 트랜지션 하나로 남겨 두고 스크립트는 활성 인덱스만 바꾼다. */
+    const css = read('./styles/wc-home.css');
+
+    expect(css).toMatch(/\.wc-hero__slide\s*\{[^}]*transition:[^}]*opacity/s);
+  });
+});
