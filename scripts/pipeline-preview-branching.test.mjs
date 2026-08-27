@@ -135,9 +135,11 @@ describe('Supabase preview branch workflow contract', () => {
     const workflow = await loadWorkflow(pipelinePath);
     const job = workflow.jobs['deploy-vercel-preview'];
     const load = findStep(job, 'Load exact Supabase credentials for deployment');
+    const freshness = findStep(job, 'Revalidate shared preview main before deployment');
     const deploy = findStep(job, 'Deploy Vercel preview');
     const template = findStep(job, 'Activate recovery template in isolated preview');
 
+    expect(job.env.PR_BASE_SHA).toBe('${{ github.event.pull_request.base.sha }}');
     expect(load.run).toContain('supabase branches get "$expected_branch"');
     expect(load.run).toContain('SUPABASE_PREVIEW_PROJECT_ID');
     expect(load.run).toContain('SUPABASE_PRODUCTION_PROJECT_ID');
@@ -152,6 +154,11 @@ describe('Supabase preview branch workflow contract', () => {
       expect(deploy.run).toContain(`--build-env "${name}=`);
       expect(deploy.run).toContain(`--env "${name}=`);
     }
+    expect(freshness.if).toBe("env.DATABASE_MODE == 'shared'");
+    expect(freshness.run).toContain('git fetch --no-tags origin main');
+    expect(freshness.run).toContain('current_main_sha="$(git rev-parse origin/main)"');
+    expect(freshness.run).toContain('[ "$PR_BASE_SHA" != "$current_main_sha" ]');
+    expect(job.steps.indexOf(freshness)).toBe(job.steps.indexOf(deploy) - 1);
     expect(template.if).toBe("env.DATABASE_MODE == 'isolated'");
     expect(template.env.RECOVERY_TEMPLATE_PATH).toBe('supabase/templates/recovery.html');
     expect(template.run).toBe('node scripts/sync-supabase-auth.mjs');
