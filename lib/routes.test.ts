@@ -73,11 +73,15 @@ describe('White Catalog 내비게이션 경로', () => {
     expect(hrefFor('about')).toBe('/about');
   });
 
-  it('위시 링크는 실제 페이지 파일에 묶인다', () => {
-    /* S2 셸이 이 링크를 세 곳(바텀 탭·푸터·전체 메뉴)에 노출하고도 라우트가 없어
-       전 표면 프리페치 404를 만든 이력이 있다. 등록 경로와 페이지 파일이 어긋나면 여기서 잡는다. */
-    const wishPage = join(process.cwd(), 'app', ...hrefFor('wish').split('/').filter(Boolean), 'page.tsx');
-    expect(existsSync(wishPage)).toBe(true);
+  it.each(['wish', 'new', 'best'])('%s 링크는 실제 페이지 파일에 묶인다', (id) => {
+    /* S2 셸이 이 링크들을 노출하고도 라우트가 없어 위시는 전 표면 프리페치 404를,
+       NEW·BEST는 /shop/[goodId]에 잡힌 soft 404 화면을 만든 이력이 있다.
+       동적 세그먼트 없는 경로만 넣는다 — 미등록 id는 hrefFor가 '/'로 폴백해
+       app/page.tsx에 헛매칭되므로 폴백 여부부터 가른다. */
+    const href = hrefFor(id);
+    expect(href).not.toBe('/');
+    const page = join(process.cwd(), 'app', ...href.split('/').filter(Boolean), 'page.tsx');
+    expect(existsSync(page)).toBe(true);
   });
 });
 
