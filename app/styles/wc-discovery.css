@@ -17,26 +17,23 @@
   padding-block: 24px 96px;
 }
 
-/* 피처드 타일: 모바일은 native scroll-snap 캐러셀(슬라이드 332×332, gap 8),
-   데스크톱은 5열 그리드(1180 콘텐츠에서 열당 212, gap 30) — R-03 §3.1·§3.2. */
+/* 피처드 타일: 모바일은 Slider 프리미티브 캐러셀(슬라이드 332×332, gap 8 — 위치 표시·
+   이동 컨트롤은 프리미티브 몫), 데스크톱은 트랙을 5열 그리드로 전환 — R-03 §3.1·§3.2. */
 .wc-ipdir__featured {
-  display: flex;
-  gap: 8px;
   margin: 0 0 32px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
 }
 
-.wc-ipdir__featured::-webkit-scrollbar {
-  display: none;
+.wc-ipdir__featured .wc-slider__track {
+  gap: 8px;
 }
 
-.wc-ipdir__featured > * {
-  flex: none;
+.wc-ipdir__featured .wc-slider__track > * {
   width: 332px;
   max-width: calc(100vw - 32px);
-  scroll-snap-align: start;
+}
+
+.wc-ipdir__featured .wc-slider__controls {
+  margin-top: 16px;
 }
 
 /* 정사각 타일 — 키아트 bg 위 하단 스크림, 좌하단 IP명. 모바일 슬라이드는 700 28px,
@@ -178,16 +175,21 @@
 }
 
 @media (min-width: 750px) {
-  .wc-ipdir__featured {
+  .wc-ipdir__featured .wc-slider__track {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 30px;
     overflow-x: visible;
   }
 
-  .wc-ipdir__featured > * {
+  .wc-ipdir__featured .wc-slider__track > * {
     width: auto;
     max-width: none;
+  }
+
+  /* 그리드 한 줄이라 스크롤 위치가 없다 — SSR 근사값(자식 수)으로 그려진 컨트롤도 숨긴다. */
+  .wc-ipdir__featured .wc-slider__controls {
+    display: none;
   }
 
   .wc-ipdir__tile {
@@ -515,6 +517,18 @@
   border-radius: var(--wc-radius-badge);
   background: var(--wc-accent-tint);
   color: var(--wc-success);
+}
+
+/* 개봉 카드 등장 — 결과 '피드백' 모션(DESIGN §5 patterns 범위). HM globals.css 의 popIn 에
+   기대면 S9 레거시 제거 때 조용히 죽으므로 keyframe 을 이 지면이 소유한다. easing 도 §5 목록 값. */
+@keyframes wc-pop-in {
+  from {
+    transform: translateY(14px) scale(.92);
+  }
+
+  to {
+    transform: none;
+  }
 }
 
 /* 개봉 결과 패널 — HM 라디얼 글로우 없는 흰 지면 헤어라인 박스. 카드 타일은 rarity 물성 유지. */

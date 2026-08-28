@@ -3,6 +3,7 @@
 import { useCardRewardsEnabled } from '@/components/shell/CardRewardAvailability';
 import { Badge } from '@/components/wc/Badge';
 import { WcButton } from '@/components/wc/WcButton';
+import { hrefFor } from '@/lib/routes';
 
 /* 카드 트레이드 v2 플레이스홀더 — DESIGN.md §8 "마켓·트레이드" 행, S5 계약 §2 .wc-placeholder·§3 확정 카피.
    트레이드는 카드 C2C(v2 범위)다. 구 명칭은 굿즈 클레임 유형과 겹치므로 쓰지 않는다(CONTEXT.md).
@@ -20,9 +21,9 @@ export function Exchange() {
         </p>
         <div className="wc-placeholder__cta">
           {cardRewardsEnabled ? (
-            <WcButton href="/packs" variant="primary">카드팩 열기</WcButton>
+            <WcButton href={hrefFor('packs')} variant="primary">카드팩 열기</WcButton>
           ) : null}
-          <WcButton href="/binder" variant={cardRewardsEnabled ? 'outline' : 'primary'}>내 바인더</WcButton>
+          <WcButton href={hrefFor('binder')} variant={cardRewardsEnabled ? 'outline' : 'primary'}>내 바인더</WcButton>
         </div>
       </section>
     </div>

@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { SectionHeading } from '@/components/wc/SectionHeading';
+import { Slider } from '@/components/wc/Slider';
 import { WcButton } from '@/components/wc/WcButton';
 import type { Ip } from '@/lib/data';
 import { DIRECTORY_LETTERS, filterIpsByLetter, sortIpsForDirectory } from '@/lib/ip-directory';
@@ -22,7 +23,7 @@ export function IpDirectory({
   initialLetter = 'ALL',
 }: {
   ips: Ip[];
-  /** 시작 레터(테스트·딥링크용). 기본은 전체(ALL)다. */
+  /** 시작 레터 — 정적 렌더 테스트가 필터 상태를 단언하기 위한 주입점(Events.initialIpId 선례). 기본은 ALL. */
   initialLetter?: string;
 }) {
   const [letter, setLetter] = useState(initialLetter);
@@ -44,8 +45,10 @@ export function IpDirectory({
           <EmptyState description="곧 새로운 IP가 공개될 예정이에요." title="등록된 IP가 아직 없습니다" />
         ) : (
           <>
+            {/* 모바일 캐러셀의 위치 표시·키보드 이동은 Slider 프리미티브 몫이다(스토리 14).
+                데스크톱은 CSS 가 트랙을 5열 그리드로 바꿔 컨트롤 없는 한 줄이 된다. */}
             {featured.length > 0 ? (
-              <section aria-label="피처드 IP" className="wc-ipdir__featured">
+              <Slider className="wc-ipdir__featured" label="피처드 IP">
                 {featured.map((ip) => (
                   <Link
                     key={ip.id}
@@ -56,7 +59,7 @@ export function IpDirectory({
                     <span>{ipEn(ip)}</span>
                   </Link>
                 ))}
-              </section>
+              </Slider>
             ) : null}
 
             {/* 카운트는 바 밖 형제다 — 모바일은 바 아래 우측(R-03 §3.2, 스크롤 영역에 가두면

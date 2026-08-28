@@ -144,7 +144,7 @@ export function CardPacks({
               {phase.cards.map(({ opened, card }, i) => {
                 const tag = rarityTag(opened.rarity);
                 return (
-                  <div key={`${opened.cardId}-${i}`} style={{ animation: `popIn .55s cubic-bezier(.2,.6,.2,1) ${i * 0.07}s both` }}>
+                  <div key={`${opened.cardId}-${i}`} style={{ animation: `wc-pop-in .55s cubic-bezier(0, 0, .3, 1) ${i * 0.07}s both` }}>
                     <div style={{ aspectRatio: '5 / 7', borderRadius: 10, position: 'relative', overflow: 'hidden', background: card?.bg ?? 'rgba(8,6,15,.9)', backgroundSize: 'cover', backgroundPosition: 'center', boxShadow: `0 0 0 1px ${tag.ring}` }}>
                       <span style={{ position: 'absolute', top: 8, left: 8, fontSize: 9.5, letterSpacing: '.06em', padding: '3px 7px', borderRadius: 5, fontWeight: 700, color: tag.color, background: tag.bg, zIndex: 2 }}>{opened.rarity}</span>
                       {opened.isNew && (
