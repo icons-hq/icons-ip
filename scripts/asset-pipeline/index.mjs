@@ -10,8 +10,8 @@ const defaultRepositoryRoot = resolve(scriptDirectory, '../..');
 export async function runDirectAssetPipeline({
   repositoryRoot = defaultRepositoryRoot,
   specPath = resolve(scriptDirectory, 'asset-spec.yaml'),
-  inputDirectory = resolve(repositoryRoot, 'outputs/hyosan-memories-m0/direct-input'),
-  sessionPath = resolve(repositoryRoot, 'outputs/hyosan-memories-m0/direct-session.json'),
+  inputDirectory = resolve(repositoryRoot, 'outputs/hyosan-memories-g2/direct-input'),
+  sessionPath = resolve(repositoryRoot, 'outputs/hyosan-memories-g2/direct-session.json'),
 } = {}) {
   return runAssetPipeline({
     specPath,
@@ -57,8 +57,8 @@ async function main(argv) {
   const result = await runDirectAssetPipeline({
     repositoryRoot,
     specPath: resolve(values.spec ?? resolve(scriptDirectory, 'asset-spec.yaml')),
-    inputDirectory: resolve(values.input ?? resolve(repositoryRoot, 'outputs/hyosan-memories-m0/direct-input')),
-    sessionPath: resolve(values.session ?? resolve(repositoryRoot, 'outputs/hyosan-memories-m0/direct-session.json')),
+    inputDirectory: resolve(values.input ?? resolve(repositoryRoot, 'outputs/hyosan-memories-g2/direct-input')),
+    sessionPath: resolve(values.session ?? resolve(repositoryRoot, 'outputs/hyosan-memories-g2/direct-session.json')),
   });
   console.log(JSON.stringify({
     status: result.manifest.status,

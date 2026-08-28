@@ -20,18 +20,19 @@ import {
   buildSpriteAtlas,
   inspectCandidate,
   normalizeAsset,
-  restoreMagentaTransparency,
 } from './image-processing.mjs';
+import { createModuleGridCatalog, repackModuleGrid } from './module-grid.mjs';
 import {
   assertContainedPath,
   copyFileAtomically,
   writeFileAtomically,
 } from './safe-paths.mjs';
 import { deepFreeze, loadAssetSpecDocument } from './spec.mjs';
+import { applyTechnicalTransform } from './technical-transforms.mjs';
 import { validateVisionQaForAsset } from './vision-qa.mjs';
 
 const GUARD_CONFIDENCE_THRESHOLD = 0.65;
-const APPROVAL_BLOCKS = ['M1', 'mass-production', 'phaser-integration'];
+const DEFAULT_APPROVAL_BLOCKS = ['M1', 'mass-production', 'phaser-integration'];
 const OUTPUT_LOCK_RETRY_MS = 20;
 const OUTPUT_LOCK_TIMEOUT_MS = 30_000;
 const OUTPUT_LOCK_HEARTBEAT_MS = 30_000;
@@ -431,6 +432,7 @@ export async function invalidateAssetManifest({
   outputDirectory,
   project = 'hyosan-memories',
   milestone = 'M0',
+  approvalBlocks = DEFAULT_APPROVAL_BLOCKS,
   generatedAt = new Date().toISOString(),
 }) {
   const root = resolve(repositoryRoot);
@@ -446,7 +448,7 @@ export async function invalidateAssetManifest({
     generatedAt,
     approvalGate: {
       status: 'blocked',
-      blocks: APPROVAL_BLOCKS,
+      blocks: approvalBlocks,
     },
   };
   await writeJson(join(output, 'asset-manifest.json'), manifest);
@@ -473,11 +475,13 @@ export async function runAssetPipeline({
   return withOutputLock(root, outputDirectory, async (lockGuard) => {
     const selectedDirectory = join(outputDirectory, 'selected');
     const atlasDirectory = join(outputDirectory, 'atlas');
+    const modulesDirectory = join(outputDirectory, 'modules');
     await lockGuard.run(() => invalidateAssetManifest({
       repositoryRoot: root,
       outputDirectory,
       project: spec.meta.project,
       milestone: spec.meta.milestone,
+      approvalBlocks: spec.pipeline.approvalBlocks,
       generatedAt,
     }));
     const activeRunner = runnerFactory
@@ -489,6 +493,7 @@ export async function runAssetPipeline({
     await lockGuard.run(async () => {
       await ensureContainedDirectory(root, selectedDirectory, 'pipeline.outputDirectory');
       await ensureContainedDirectory(root, atlasDirectory, 'pipeline.outputDirectory');
+      await ensureContainedDirectory(root, modulesDirectory, 'pipeline.outputDirectory');
     });
     if (!activeRunner?.plan || !activeRunner?.generate
       || !activeRunner?.review || !activeRunner?.reviewOutput) {
@@ -530,10 +535,19 @@ export async function runAssetPipeline({
         await copyFileAtomically(generated.savedPath, candidatePath);
       }
       let generation = generated;
-      if (generated?.technicalTransform === 'magenta-matte-to-alpha') {
+      if (generated?.technicalTransform) {
         generation = {
           ...generated,
-          technicalTransformResult: await restoreMagentaTransparency(candidatePath),
+          technicalTransformResult: await applyTechnicalTransform(
+            generated.technicalTransform,
+            { candidatePath, asset },
+          ),
+        };
+      }
+      if (asset.moduleGrid) {
+        generation = {
+          ...generation,
+          moduleGridTransformResult: await repackModuleGrid(candidatePath, asset),
         };
       }
       generation = deepFreeze(generation);
@@ -680,6 +694,34 @@ export async function runAssetPipeline({
     imagePath: publishedAtlasImagePath,
     dataPath: publishedAtlasDataPath,
   };
+  const moduleCatalogs = new Map();
+  for (const [index, selection] of selections.entries()) {
+    if (!selection.asset.moduleGrid) continue;
+    const source = normalizedAssets[index];
+    const { catalog, canonicalJson, catalogSha256 } = createModuleGridCatalog({
+      sheetSha256: source.sha256,
+      requiredIds: selection.asset.moduleGrid.requiredIds,
+      modules: selection.asset.moduleGrid.modules.map(({ id, kind, cellRect, anchor }) => ({
+        id,
+        kind,
+        cellRect,
+        anchor,
+      })),
+    });
+    const catalogPath = join(modulesDirectory, `${selection.asset.id}-modules.json`);
+    await lockGuard.run(() => writeFileAtomically(catalogPath, canonicalJson));
+    const publishedSha256 = createHash('sha256')
+      .update(await readFile(catalogPath))
+      .digest('hex');
+    if (publishedSha256 !== catalogSha256) {
+      throw new Error(`Published module catalog SHA-256 changed for ${selection.asset.id}`);
+    }
+    moduleCatalogs.set(selection.asset.id, {
+      path: portableRelative(outputDirectory, catalogPath),
+      sha256: catalogSha256,
+      ...catalog,
+    });
+  }
   const manifestAssets = selections.map((selection, index) => ({
     id: selection.asset.id,
     label: selection.asset.label,
@@ -689,6 +731,11 @@ export async function runAssetPipeline({
     selectedAttempt: selection.selected.attempt,
     status: selection.warning ? 'accepted-with-warning' : 'passed',
     warning: selection.warning,
+    frameSpec: {
+      count: selection.asset.frames,
+      size: selection.asset.targetSize,
+      layout: selection.asset.frameLayout,
+    },
     output: {
       path: portableRelative(outputDirectory, normalizedAssets[index].path),
       width: normalizedAssets[index].width,
@@ -697,9 +744,13 @@ export async function runAssetPipeline({
       sha256: normalizedAssets[index].sha256,
     },
     technicalQa: sanitizeTechnical(selection.selected.technicalQa, root),
+    outputTechnicalQa: normalizedAssets[index].technicalQa,
     candidateVisionQa: selection.selected.visionQa,
     visionQa: selection.selected.outputVisionQa,
     generation: sanitizeGeneration(selection.selected.generation, root),
+    ...(moduleCatalogs.has(selection.asset.id)
+      ? { moduleCatalog: moduleCatalogs.get(selection.asset.id) }
+      : {}),
   }));
   const manifest = {
     schemaVersion: 1,
@@ -723,13 +774,16 @@ export async function runAssetPipeline({
     },
     approvalGate: {
       status: 'pending',
-      blocks: APPROVAL_BLOCKS,
+      blocks: spec.pipeline.approvalBlocks,
     },
     atlas: {
       image: portableRelative(outputDirectory, atlas.imagePath),
       data: portableRelative(outputDirectory, atlas.dataPath),
       sha256: atlas.imageSha256,
       dataSha256: atlas.dataSha256,
+      padding: spec.pipeline.atlas.padding,
+      extrusion: spec.pipeline.atlas.extrusion,
+      maxSize: spec.pipeline.atlas.maxSize,
       frames: Object.keys(atlas.data.frames),
     },
     assets: manifestAssets,
@@ -756,6 +810,13 @@ export async function runAssetPipeline({
   });
   await lockGuard.run(() => writeJson(join(outputDirectory, 'asset-manifest.json'), manifest));
 
-    return { manifest, qaReport, atlas, outputDirectory, runDirectory };
+    return {
+      manifest,
+      qaReport,
+      atlas,
+      moduleCatalogs,
+      outputDirectory,
+      runDirectory,
+    };
   });
 }

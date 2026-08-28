@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 
 import { assetKindSupports, isSupportedAssetKind } from './asset-kinds.mjs';
+import { validateModuleGridSpec } from './module-grid.mjs';
 import { decodeUtf8Strict } from './strict-utf8.mjs';
 
 const ALPHA_POLICIES = new Set(['required', 'forbidden', 'optional']);
@@ -16,10 +17,20 @@ const REQUIRED_FIDELITY_TARGETS = [
   'uniform-costume-continuity',
 ];
 const REFERENCE_SOURCE_FIELDS = ['id', 'authority', 'url'];
+const FRAME_LAYOUT_FIELDS = ['columns', 'rows', 'order', 'anchor', 'trim'];
+const FRAME_LAYOUT_ORDER = 'row-major';
+const FRAME_LAYOUT_ANCHOR = 'bottom-center';
+const FRAME_LAYOUT_TRIM = 'shared-scale';
+const DEFAULT_APPROVAL_BLOCKS = Object.freeze([
+  'M1',
+  'mass-production',
+  'phaser-integration',
+]);
 const OFFICIAL_REFERENCE_REGISTRY = Object.freeze({
   'netflix-season-1-stills': 'https://about.netflix.com/ko/news/help-is-not-coming-all-of-us-are-dead-released-new-teaser-trailer-and-stills',
   'netflix-cast-guide': 'https://www.netflix.com/tudum/articles/all-of-us-are-dead-cast-characters',
   'netflix-season-1-featurette': 'https://www.youtube.com/watch?v=38h_mFMYc8Y',
+  'netflix-korea-cafeteria-clip': 'https://www.youtube.com/watch?v=mh3a3Bj-IPY',
 });
 
 function assert(condition, message) {
@@ -123,6 +134,28 @@ export function validateAssetSpec(input) {
   'pipeline.atlas.name must be a safe lowercase ASCII basename');
   assert(Number.isInteger(input.pipeline.atlas.padding) && input.pipeline.atlas.padding >= 0,
     'pipeline.atlas.padding must be a non-negative integer');
+  const atlasExtrusion = input.pipeline.atlas.extrusion ?? 0;
+  assert(Number.isInteger(atlasExtrusion) && atlasExtrusion >= 0,
+    'pipeline.atlas.extrusion must be a non-negative integer');
+  assert(atlasExtrusion * 2 <= input.pipeline.atlas.padding,
+    'pipeline.atlas.extrusion on both frame edges must not exceed padding');
+  const atlasMaxSize = input.pipeline.atlas.maxSize ?? 4096;
+  assert(Number.isInteger(atlasMaxSize)
+    && atlasMaxSize >= 64
+    && atlasMaxSize <= 8192
+    && (atlasMaxSize & (atlasMaxSize - 1)) === 0,
+  'pipeline.atlas.maxSize must be a power-of-two integer between 64 and 8192');
+  const approvalBlocks = input.pipeline.approvalBlocks ?? DEFAULT_APPROVAL_BLOCKS;
+  assert(Array.isArray(approvalBlocks) && approvalBlocks.length > 0,
+    'pipeline.approvalBlocks must be a non-empty array');
+  const uniqueApprovalBlocks = new Set();
+  for (const [index, block] of approvalBlocks.entries()) {
+    assert(typeof block === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(block),
+      `pipeline.approvalBlocks[${index}] must be a safe identifier`);
+    assert(!uniqueApprovalBlocks.has(block),
+      `pipeline.approvalBlocks[${index}] duplicates ${block}`);
+    uniqueApprovalBlocks.add(block);
+  }
   assert(Array.isArray(input.assets) && input.assets.length > 0, 'assets must be a non-empty array');
 
   const ids = new Set();
@@ -138,6 +171,26 @@ export function validateAssetSpec(input) {
     assert(typeof asset.view === 'string' && asset.view.trim(), `${prefix}.view is required`);
     const targetSize = parseSize(asset.size, `${prefix}.size`);
     assert(Number.isInteger(asset.frames) && asset.frames > 0, `${prefix}.frames must be positive`);
+    const frameLayout = asset.frameLayout ?? {
+      columns: asset.frames,
+      rows: 1,
+      order: FRAME_LAYOUT_ORDER,
+      anchor: FRAME_LAYOUT_ANCHOR,
+      trim: FRAME_LAYOUT_TRIM,
+    };
+    assertExactFields(frameLayout, FRAME_LAYOUT_FIELDS, `${prefix}.frameLayout`);
+    assert(Number.isInteger(frameLayout.columns) && frameLayout.columns > 0,
+      `${prefix}.frameLayout.columns must be a positive integer`);
+    assert(Number.isInteger(frameLayout.rows) && frameLayout.rows > 0,
+      `${prefix}.frameLayout.rows must be a positive integer`);
+    assert(frameLayout.columns * frameLayout.rows === asset.frames,
+      `${prefix}.frameLayout must contain exactly ${asset.frames} cells`);
+    assert(frameLayout.order === FRAME_LAYOUT_ORDER,
+      `${prefix}.frameLayout.order must be ${FRAME_LAYOUT_ORDER}`);
+    assert(frameLayout.anchor === FRAME_LAYOUT_ANCHOR,
+      `${prefix}.frameLayout.anchor must be ${FRAME_LAYOUT_ANCHOR}`);
+    assert(frameLayout.trim === FRAME_LAYOUT_TRIM,
+      `${prefix}.frameLayout.trim must be ${FRAME_LAYOUT_TRIM}`);
     assert(ALPHA_POLICIES.has(asset.alpha), `${prefix}.alpha is unsupported`);
     assert(asset.identity && IDENTITY_MODES.has(asset.identity.mode),
       `${prefix}.identity.mode is unsupported`);
@@ -187,10 +240,33 @@ export function validateAssetSpec(input) {
     }
     assert(asset.qa.minBboxCoverage <= asset.qa.maxBboxCoverage,
       `${prefix}.qa bbox coverage range is inverted`);
-    return { ...asset, targetSize, qa: { ...asset.qa, minSourceSize } };
+    const moduleGrid = asset.kind === 'tileset'
+      ? validateModuleGridSpec(asset.moduleGrid, targetSize)
+      : undefined;
+    assert(asset.kind === 'tileset' || asset.moduleGrid === undefined,
+      `${prefix}.moduleGrid is only supported for tileset assets`);
+    return {
+      ...asset,
+      targetSize,
+      frameLayout,
+      qa: { ...asset.qa, minSourceSize },
+      ...(moduleGrid ? { moduleGrid } : {}),
+    };
   });
 
-  return { ...input, assets };
+  return {
+    ...input,
+    pipeline: {
+      ...input.pipeline,
+      approvalBlocks: [...approvalBlocks],
+      atlas: {
+        ...input.pipeline.atlas,
+        extrusion: atlasExtrusion,
+        maxSize: atlasMaxSize,
+      },
+    },
+    assets,
+  };
 }
 
 export async function loadAssetSpecDocument(path) {

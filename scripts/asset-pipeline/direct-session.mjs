@@ -8,9 +8,8 @@ import {
   copyFileAtomically,
 } from './safe-paths.mjs';
 import { decodeUtf8Strict } from './strict-utf8.mjs';
+import { isSupportedTechnicalTransform } from './technical-transforms.mjs';
 import { SHA256_PATTERN, validateVisionQaShape } from './vision-qa.mjs';
-
-const TECHNICAL_TRANSFORMS = new Set(['magenta-matte-to-alpha']);
 
 function assert(condition, message) {
   if (!condition) throw new Error(`Invalid direct imagegen session: ${message}`);
@@ -67,7 +66,7 @@ export async function createDirectSessionRunner({ repositoryRoot, inputDirectory
       assert(SHA256_PATTERN.test(attempt.candidateSha256),
         `${asset.assetId} attempt candidateSha256 must be a lowercase SHA-256 digest`);
       if (attempt.technicalTransform !== undefined) {
-        assert(TECHNICAL_TRANSFORMS.has(attempt.technicalTransform),
+        assert(isSupportedTechnicalTransform(attempt.technicalTransform),
           `${asset.assetId} attempt technicalTransform is unsupported`);
       }
       const requestedSourcePath = resolve(inputRoot, attempt.candidate);

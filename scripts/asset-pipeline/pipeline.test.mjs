@@ -224,10 +224,25 @@ describe('asset pipeline', () => {
       ['alpha', 'size', 'trim', 'frame', 'bbox', 'edges']
         .every((check) => check in technicalQa.checks)
     ))).toBe(true);
+    expect(result.manifest.assets[0].frameSpec).toEqual({
+      count: 1,
+      size: { width: 16, height: 16 },
+      layout: {
+        columns: 1,
+        rows: 1,
+        order: 'row-major',
+        anchor: 'bottom-center',
+        trim: 'shared-scale',
+      },
+    });
+    expect(result.manifest.assets.every(({ output, outputTechnicalQa }) => (
+      outputTechnicalQa.passed && outputTechnicalQa.sha256 === output.sha256
+    ))).toBe(true);
     expect(Object.keys(result.atlas.data.frames)).toEqual([
       'player_halfbie_concept',
       'student_zombie_concept',
     ]);
+    expect(result.manifest.atlas).toMatchObject({ padding: 2, extrusion: 0, maxSize: 4096 });
     const atlasData = await readFile(join(repositoryRoot, 'docs/output/atlas/fixture-atlas.json'));
     expect(result.manifest.atlas.dataSha256).toBe(
       createHash('sha256').update(atlasData).digest('hex'),
@@ -244,6 +259,115 @@ describe('asset pipeline', () => {
       blocks: ['M1', 'mass-production', 'phaser-integration'],
     });
     expect(JSON.stringify(persisted)).not.toContain(repositoryRoot);
+  });
+
+  it('publishes a hash-bound named module catalog for a packed 64px tileset', async () => {
+    const { repositoryRoot, specPath } = await createFixture((spec) => {
+      spec.assets.push({
+        id: 'cafeteria_tileset',
+        label: 'tileset',
+        kind: 'tileset',
+        view: 'orthogonal-topdown',
+        size: '1024x1024',
+        frames: 1,
+        alpha: 'required',
+        identity: { mode: 'not-applicable' },
+        referenceIds: ['netflix-season-1-stills'],
+        promptBrief: 'named tile modules',
+        moduleGrid: {
+          tileSize: 64,
+          columns: 16,
+          rows: 16,
+          requiredIds: ['floor_green_dry'],
+          modules: [{
+            id: 'floor_green_dry',
+            kind: 'tile',
+            sourceRect: { x: 10, y: 10, width: 32, height: 32 },
+            cellRect: { column: 1, row: 1, columns: 1, rows: 1 },
+            anchor: 'top-left',
+          }],
+        },
+        qa: {
+          minScore: 0.8,
+          minSourceFidelity: 0.85,
+          minSourceSize: '1024x1024',
+          maxOpaqueEdgeRatio: 0,
+          minBboxCoverage: 0.001,
+          maxBboxCoverage: 0.8,
+        },
+      });
+    });
+    const runner = {
+      async plan(spec) {
+        return {
+          schemaVersion: 1,
+          assets: spec.assets.map((asset) => ({ assetId: asset.id, prompt: asset.promptBrief })),
+        };
+      },
+      async generate({ asset, candidatePath }) {
+        if (asset.kind !== 'tileset') {
+          await writeCandidate(candidatePath, asset);
+          return { provider: 'fixture-generator', savedPath: candidatePath };
+        }
+        await sharp({
+          create: {
+            width: 1024,
+            height: 1024,
+            channels: 4,
+            background: { r: 0, g: 0, b: 0, alpha: 0 },
+          },
+        }).composite([{
+          input: {
+            create: {
+              width: 32,
+              height: 32,
+              channels: 4,
+              background: { r: 40, g: 110, b: 60, alpha: 1 },
+            },
+          },
+          left: 10,
+          top: 10,
+        }]).png().toFile(candidatePath);
+        return { provider: 'fixture-generator', savedPath: candidatePath };
+      },
+      async review({ asset, candidateSha256 }) {
+        return passingVision(asset, 0.9, candidateSha256);
+      },
+      reviewOutput: passingOutputReview,
+    };
+
+    const result = await runAssetPipeline({ specPath, repositoryRoot, runner });
+    const tileset = result.manifest.assets.find(({ id }) => id === 'cafeteria_tileset');
+    const catalogPath = join(repositoryRoot, 'docs/output', tileset.moduleCatalog.path);
+    const catalogBytes = await readFile(catalogPath);
+    const catalog = JSON.parse(catalogBytes);
+
+    expect(tileset.generation.moduleGridTransformResult).toMatchObject({
+      applied: true,
+      tileSize: 64,
+      columns: 16,
+      rows: 16,
+    });
+    expect(tileset.moduleCatalog).toMatchObject({
+      path: 'modules/cafeteria_tileset-modules.json',
+      tileSize: 64,
+      sheet: {
+        width: 1024,
+        height: 1024,
+        columns: 16,
+        rows: 16,
+        sha256: tileset.output.sha256,
+      },
+      requiredIds: ['floor_green_dry'],
+    });
+    expect(tileset.moduleCatalog.sha256).toBe(
+      createHash('sha256').update(catalogBytes).digest('hex'),
+    );
+    expect(catalog.modules[0]).toMatchObject({
+      id: 'floor_green_dry',
+      pixelRect: { x: 64, y: 64, width: 64, height: 64 },
+    });
+    expect(catalogBytes.toString('utf8')).not.toContain('sourceRect');
   });
 
   it('does not let a runner mutate validated thresholds or provenance', async () => {
