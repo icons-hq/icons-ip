@@ -59,20 +59,22 @@ export function IpDirectory({
               </section>
             ) : null}
 
-            {/* 레터 버튼과 카운트는 바의 직계 자식이어야 한다 — 데스크톱 균등 배분(flex)과
-                우측 끝 카운트(margin-left auto)가 그 구조를 전제한다. */}
-            <div aria-label="IP 이니셜 필터" className="wc-alpha-index" role="group">
-              {DIRECTORY_LETTERS.map((item) => (
-                <button
-                  key={item}
-                  aria-pressed={letter === item}
-                  className={`wc-alpha-index__letter${letter === item ? ' is-active' : ''}`}
-                  onClick={() => setLetter(item)}
-                  type="button"
-                >
-                  {item}
-                </button>
-              ))}
+            {/* 카운트는 바 밖 형제다 — 모바일은 바 아래 우측(R-03 §3.2, 스크롤 영역에 가두면
+                화면에서 사라진다), 데스크톱은 밴드 flex 로 같은 보더 행 우측 끝에 선다. */}
+            <div className="wc-alpha-index-band">
+              <div aria-label="IP 이니셜 필터" className="wc-alpha-index" role="group">
+                {DIRECTORY_LETTERS.map((item) => (
+                  <button
+                    key={item}
+                    aria-pressed={letter === item}
+                    className={`wc-alpha-index__letter${letter === item ? ' is-active' : ''}`}
+                    onClick={() => setLetter(item)}
+                    type="button"
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
               <p aria-live="polite" className="wc-alpha-index__count">
                 총 <strong>{filtered.length}</strong> 개
               </p>

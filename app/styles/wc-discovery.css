@@ -76,12 +76,18 @@
 
 /* 상하 헤어라인의 얇은 바. 모바일은 한 줄 가로 스크롤(스크롤바 숨김),
    데스크톱은 줄바꿈 없이 28항목을 배분한다. 레터 버튼과 카운트는 바의 직계 자식이다. */
+/* 보더 행은 밴드가 소유한다 — 바(가로 스크롤)와 카운트가 한 행/두 줄로 재배치돼도
+   상하 헤어라인은 항상 둘을 함께 감싼다(R-03 §3.1 데스크톱 / §3.2 모바일). */
+.wc-alpha-index-band {
+  padding: 4px 0;
+  border-top: 1px solid var(--wc-hairline);
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
 .wc-alpha-index {
   display: flex;
   align-items: center;
   min-height: 40px;
-  border-top: 1px solid var(--wc-hairline);
-  border-bottom: 1px solid var(--wc-hairline);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -115,11 +121,10 @@
   color: var(--wc-ink);
 }
 
-/* `총 N 개` — N 만 700 잉크(마크업의 strong). 바 우측 끝으로 밀린다. */
+/* `총 N 개` — N 만 700 잉크(마크업의 strong). 모바일은 바 아래 우측 정렬(R-03 §3.2),
+   데스크톱은 밴드 flex 의 우측 끝 아이템이 된다. */
 .wc-alpha-index__count {
-  flex: none;
-  margin: 0 0 0 auto;
-  padding-left: 16px;
+  margin: 2px 0 0;
   font-size: 14px;
   font-weight: 400;
   text-align: right;
@@ -190,7 +195,16 @@
     font-size: 14px;
   }
 
+  .wc-alpha-index-band {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0;
+  }
+
   .wc-alpha-index {
+    flex: 1;
+    min-width: 0;
     overflow-x: visible;
   }
 
@@ -198,6 +212,11 @@
   .wc-alpha-index__letter {
     flex: 1 1 0;
     min-width: 0;
+  }
+
+  .wc-alpha-index__count {
+    flex: none;
+    margin: 0;
   }
 
   .wc-ipdir__list {
