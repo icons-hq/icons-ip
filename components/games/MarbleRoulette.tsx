@@ -24,7 +24,10 @@ import { seededRng, seededShuffle } from '@/lib/games/seed';
  * (c1) 사전 시뮬로 우승 구슬을 알아내 서버 보상 라벨을 그 구슬에 배치하고,
  * 같은 시드로 화면 재생한다. 물리는 조작 없음, 결과는 100% 서버(mock).
  * 카메라: 출발 팩 전체 fit → 선두(최하단) 구슬 줌인 추적, 선두 교체 시 부드럽게 이동.
- * variant: 'card'=등급 구슬→무상 카드, 'goods'=굿즈 라벨을 쓰는 retired mock. */
+ * variant: 'card'=등급 구슬→무상 카드, 'goods'=굿즈 라벨을 쓰는 retired mock.
+ * 크롬(지면·헤딩·버튼·안내)은 White Catalog(.wc-game — app/styles/wc-discovery.css)이다.
+ * 게임 라우트는 Nav가 null이라 래퍼가 "wc-root wc-game"으로 --wc-* 토큰을 직접 공급한다
+ * (DESIGN §6 standalone-game). canvas 코스 연출과 카드 reveal의 foil·rarity 물성은 국소 예외. */
 
 type Phase = 'ready' | 'loading' | 'racing' | 'reveal';
 
@@ -564,209 +567,182 @@ export function MarbleRoulette({
   }, [host, game.title, granted]);
 
   return (
-    <div
-      style={{
-        minHeight: '100svh',
-        display: 'flex',
-        flexDirection: 'column',
-        maxWidth: 620,
-        margin: '0 auto',
-        padding: '18px 18px calc(16px + env(safe-area-inset-bottom))',
-        position: 'relative',
-        zIndex: 2,
-      }}
-    >
-      <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-        <div>
-          <div className="eyebrow" style={{ color: 'var(--mint)' }}>웹 참여형 게임</div>
-          <h1 className="h-lg" style={{ margin: '10px 0 0', fontFamily: 'var(--ff-display)' }}>{game.title}</h1>
-          <span className="mono" style={{ display: 'inline-block', marginTop: 8, fontSize: 10.5, letterSpacing: '.14em', color: live ? 'var(--mint)' : 'var(--faint)', border: '1px solid var(--line-2)', borderRadius: 999, padding: '3px 10px' }}>
-            {live ? 'LIVE · SERVER RESULT' : 'PoC · MOCK RESULT'}
-          </span>
-        </div>
-        <button type="button" className="icon-btn" aria-label="게임 닫기" onClick={() => host.close()}>✕</button>
-      </header>
-
-      <div style={{ flex: 1, minHeight: 340, position: 'relative', marginTop: 14 }}>
-        <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
-      </div>
-
-      <div style={{ marginTop: 14 }}>
-        {phase === 'racing' ? (
-          <div className="mono" style={{ textAlign: 'center', fontSize: 12, color: 'var(--dim)', padding: '14px 0' }}>
-            가장 먼저 골인하는 구슬이 {variant.kind === 'goods' ? '굿즈를' : '보상을'} 공개합니다
+    <div className="wc-root wc-game">
+      <div className="wc-game__frame">
+        <header className="wc-game__header">
+          <div>
+            <div className="wc-game__eyebrow">웹 참여형 게임</div>
+            <h1 className="wc-game__title">{game.title}</h1>
+            <span className={`wc-game__badge${live ? ' is-live' : ''}`}>
+              {live ? 'LIVE · SERVER RESULT' : 'PoC · MOCK RESULT'}
+            </span>
           </div>
-        ) : (
-          <>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, justifyContent: 'center' }}>
-              {legend.map((item) => (
-                <span key={item.key} className="mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 28, padding: '0 11px', borderRadius: 999, fontSize: 11, border: `1px solid ${item.color}55`, color: item.color, background: 'rgba(255,255,255,.02)' }}>
-                  {item.text}
-                </span>
-              ))}
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14 }}>
-              <button
-                type="button"
-                className="btn btn-holo"
-                onClick={play}
-                disabled={phase === 'loading'}
-                style={{ height: 52, padding: '0 34px', fontSize: 15, opacity: phase === 'loading' ? 0.6 : 1 }}
-              >
-                {phase === 'loading' ? '결과 준비 중…' : phase === 'reveal' ? '다시 플레이' : '플레이'}
-              </button>
-            </div>
-            {notice && (
-              <div style={{ textAlign: 'center', marginTop: 12 }}>
-                <div className="mono" style={{ fontSize: 12, color: 'var(--pink)' }}>{notice.text}</div>
-                {notice.href && notice.cta && (
-                  <Link
-                    href={notice.href}
-                    className="btn"
-                    style={{ display: 'inline-flex', marginTop: 10, height: 40, padding: '0 20px', fontSize: 13 }}
-                  >
-                    {notice.cta}
-                  </Link>
-                )}
-              </div>
-            )}
-            <div className="money-caption" style={{ textAlign: 'center', marginTop: 12 }}>
-              {variant.kind === 'goods'
-                ? 'legacy 굿즈 연출 데모 · 실제 경품이나 구매권이 생기지 않는 mock입니다'
-                : '무상 리워드 · 결과는 서버가 결정하며 물리 연출은 장식입니다'}
-            </div>
-          </>
-        )}
-      </div>
+          <button aria-label="게임 닫기" className="wc-game__close" type="button" onClick={() => host.close()}>✕</button>
+        </header>
 
-      {phase === 'reveal' && granted && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 60,
-            display: 'grid',
-            placeItems: 'center',
-            padding: 24,
-            background: 'rgba(8,6,15,.8)',
-            backdropFilter: 'blur(10px)',
-          }}
-        >
-          <div style={{ textAlign: 'center', animation: 'popIn .55s cubic-bezier(.2,.6,.2,1) both' }}>
-            {granted.kind === 'card' ? (
-              <>
-                <div className="eyebrow">우승 구슬 · 카드 획득</div>
-                <div
-                  style={{
-                    width: 'clamp(210px, 56vw, 264px)',
-                    aspectRatio: '5 / 7',
-                    margin: '18px auto 0',
-                    borderRadius: 18,
-                    position: 'relative',
-                    overflow: 'hidden',
-                    background: granted.card.bg,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    boxShadow: `0 0 0 1px ${RARITY_META[granted.rarity].color}80, 0 34px 80px -26px rgba(0,0,0,.9), 0 0 60px -16px ${RARITY_META[granted.rarity].color}66`,
-                  }}
-                >
-                  {RARITY_META[granted.rarity].foil && (
-                    <div
-                      aria-hidden
-                      style={{
-                        position: 'absolute',
-                        inset: 0,
-                        mixBlendMode: 'color-dodge',
-                        opacity: 0.5,
-                        background:
-                          'linear-gradient(115deg, transparent 18%, rgba(45,226,255,.5), rgba(139,92,255,.4), rgba(255,77,157,.5), transparent 82%)',
-                      }}
-                    />
+        <div className="wc-game__stage">
+          <canvas ref={canvasRef} className="wc-game__canvas" />
+        </div>
+
+        <div className="wc-game__panel">
+          {phase === 'racing' ? (
+            <div className="wc-game__status">
+              가장 먼저 골인하는 구슬이 {variant.kind === 'goods' ? '굿즈를' : '보상을'} 공개합니다
+            </div>
+          ) : (
+            <>
+              {/* rarity 색은 텍스트가 아니라 스와치 점(비텍스트)으로 남긴다 — 흰 지면 AA(계약 §0). */}
+              <div className="wc-game__legend">
+                {legend.map((item) => (
+                  <span key={item.key} className="wc-game__legend-chip">
+                    <i aria-hidden className="wc-game__legend-swatch" style={{ background: item.color }} />
+                    {item.text}
+                  </span>
+                ))}
+              </div>
+              <div className="wc-game__cta-row">
+                <button className="wc-btn primary" type="button" onClick={play} disabled={phase === 'loading'}>
+                  {phase === 'loading' ? '결과 준비 중…' : phase === 'reveal' ? '다시 플레이' : '플레이'}
+                </button>
+              </div>
+              {notice && (
+                <div className="wc-game__notice">
+                  <div>{notice.text}</div>
+                  {notice.href && notice.cta && (
+                    <Link className="wc-btn" href={notice.href}>
+                      {notice.cta}
+                    </Link>
                   )}
-                  <span
-                    className="mono"
+                </div>
+              )}
+              <div className="wc-game__caption">
+                {variant.kind === 'goods'
+                  ? 'legacy 굿즈 연출 데모 · 실제 경품이나 구매권이 생기지 않는 mock입니다'
+                  : '무상 리워드 · 결과는 서버가 결정하며 물리 연출은 장식입니다'}
+              </div>
+            </>
+          )}
+        </div>
+
+        {phase === 'reveal' && granted && (
+          <div className="wc-game__reveal">
+            <div className="wc-game__reveal-panel">
+              {granted.kind === 'card' ? (
+                <>
+                  <div className="wc-game__reveal-eyebrow">우승 구슬 · 카드 획득</div>
+                  {/* 카드 타일 — foil·rarity 색·링·어두운 스크림은 카드 식별 물성으로 유지(DESIGN §1-4). */}
+                  <div
                     style={{
-                      position: 'absolute',
-                      top: 10,
-                      left: 10,
-                      fontSize: 11,
-                      letterSpacing: '.08em',
-                      padding: '4px 9px',
-                      borderRadius: 6,
-                      fontWeight: 700,
-                      color: '#0A0813',
-                      background: RARITY_META[granted.rarity].foil ? 'var(--holo)' : RARITY_META[granted.rarity].color,
+                      width: 'clamp(210px, 56vw, 264px)',
+                      aspectRatio: '5 / 7',
+                      margin: '18px auto 0',
+                      borderRadius: 18,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      background: granted.card.bg,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      color: '#FFFFFF',
+                      boxShadow: `0 0 0 1px ${RARITY_META[granted.rarity].color}80, 0 0 60px -16px ${RARITY_META[granted.rarity].color}66`,
                     }}
                   >
-                    {granted.rarity}
-                  </span>
-                  {granted.isNew && (
+                    {RARITY_META[granted.rarity].foil && (
+                      <div
+                        aria-hidden
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          mixBlendMode: 'color-dodge',
+                          opacity: 0.5,
+                          background:
+                            'linear-gradient(115deg, transparent 18%, rgba(45,226,255,.5), rgba(139,92,255,.4), rgba(255,77,157,.5), transparent 82%)',
+                        }}
+                      />
+                    )}
                     <span
-                      className="mono"
-                      style={{ position: 'absolute', top: 10, right: 10, fontSize: 10, letterSpacing: '.12em', padding: '4px 8px', borderRadius: 6, fontWeight: 700, color: 'var(--text)', background: 'rgba(8,6,15,.72)', border: '1px solid rgba(255,255,255,.25)' }}
+                      style={{
+                        position: 'absolute',
+                        top: 10,
+                        left: 10,
+                        fontSize: 11,
+                        letterSpacing: '.08em',
+                        padding: '4px 9px',
+                        borderRadius: 6,
+                        fontWeight: 700,
+                        color: '#0A0813',
+                        background: RARITY_META[granted.rarity].foil ? 'var(--holo)' : RARITY_META[granted.rarity].color,
+                      }}
                     >
-                      NEW
+                      {granted.rarity}
                     </span>
-                  )}
-                  <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 58%, rgba(8,6,15,.9) 100%)' }} />
-                  <span style={{ position: 'absolute', left: 14, right: 14, bottom: 12, fontWeight: 700, fontSize: 15, textAlign: 'left' }}>
-                    {granted.card.name}
-                  </span>
-                </div>
-                <div className="mono" style={{ marginTop: 12, fontSize: 11.5, color: 'var(--dim)' }}>No. {granted.card.no}</div>
-              </>
-            ) : (
-              <>
-                <div className="eyebrow">우승 구슬 · 굿즈 mock 연출</div>
-                <div
-                  style={{
-                    width: 'clamp(210px, 56vw, 264px)',
-                    aspectRatio: '4 / 5',
-                    margin: '18px auto 0',
-                    borderRadius: 18,
-                    position: 'relative',
-                    overflow: 'hidden',
-                    background: granted.good.img,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    boxShadow: `0 0 0 1px ${goodAccent(granted.good)}80, 0 34px 80px -26px rgba(0,0,0,.9), 0 0 60px -16px ${goodAccent(granted.good)}66`,
-                  }}
-                >
-                  {granted.good.badge && (
-                    <span
-                      className="mono"
-                      style={{ position: 'absolute', top: 10, left: 10, fontSize: 10.5, letterSpacing: '.08em', padding: '4px 9px', borderRadius: 6, fontWeight: 700, color: '#0A0813', background: goodAccent(granted.good) }}
-                    >
-                      {granted.good.badge}
+                    {granted.isNew && (
+                      <span
+                        style={{ position: 'absolute', top: 10, right: 10, fontSize: 10, letterSpacing: '.12em', padding: '4px 8px', borderRadius: 6, fontWeight: 700, color: '#FFFFFF', background: 'rgba(8,6,15,.72)', border: '1px solid rgba(255,255,255,.25)' }}
+                      >
+                        NEW
+                      </span>
+                    )}
+                    <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 58%, rgba(8,6,15,.9) 100%)' }} />
+                    <span style={{ position: 'absolute', left: 14, right: 14, bottom: 12, fontWeight: 700, fontSize: 15, textAlign: 'left' }}>
+                      {granted.card.name}
                     </span>
-                  )}
-                  <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 55%, rgba(8,6,15,.92) 100%)' }} />
-                  <span style={{ position: 'absolute', left: 14, right: 14, bottom: 34, fontWeight: 700, fontSize: 15, textAlign: 'left' }}>
-                    {granted.good.name}
-                  </span>
-                  <span className="mono" style={{ position: 'absolute', left: 14, bottom: 12, fontSize: 12.5, color: 'var(--dim)' }}>
-                    {krw(granted.good.price)}
-                  </span>
-                </div>
-              </>
-            )}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginTop: 20 }}>
-              <button type="button" className="btn btn-holo" onClick={play} style={{ height: 46, padding: '0 24px' }}>다시 플레이</button>
-              {granted.kind === 'card' && (
-                <button type="button" className="btn btn-ghost" onClick={share} style={{ height: 46, padding: '0 20px' }}>공유</button>
+                  </div>
+                  <div className="wc-game__reveal-meta">No. {granted.card.no}</div>
+                </>
+              ) : (
+                <>
+                  <div className="wc-game__reveal-eyebrow">우승 구슬 · 굿즈 mock 연출</div>
+                  {/* 굿즈 타일 — IP 액센트 링·어두운 스크림은 식별 물성으로 유지. */}
+                  <div
+                    style={{
+                      width: 'clamp(210px, 56vw, 264px)',
+                      aspectRatio: '4 / 5',
+                      margin: '18px auto 0',
+                      borderRadius: 18,
+                      position: 'relative',
+                      overflow: 'hidden',
+                      background: granted.good.img,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      color: '#FFFFFF',
+                      boxShadow: `0 0 0 1px ${goodAccent(granted.good)}80, 0 0 60px -16px ${goodAccent(granted.good)}66`,
+                    }}
+                  >
+                    {granted.good.badge && (
+                      <span
+                        style={{ position: 'absolute', top: 10, left: 10, fontSize: 10.5, letterSpacing: '.08em', padding: '4px 9px', borderRadius: 6, fontWeight: 700, color: '#0A0813', background: goodAccent(granted.good) }}
+                      >
+                        {granted.good.badge}
+                      </span>
+                    )}
+                    <span style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 55%, rgba(8,6,15,.92) 100%)' }} />
+                    <span style={{ position: 'absolute', left: 14, right: 14, bottom: 34, fontWeight: 700, fontSize: 15, textAlign: 'left' }}>
+                      {granted.good.name}
+                    </span>
+                    <span style={{ position: 'absolute', left: 14, bottom: 12, fontSize: 12.5, color: 'rgba(255,255,255,.72)' }}>
+                      {krw(granted.good.price)}
+                    </span>
+                  </div>
+                </>
               )}
-              <button type="button" className="btn btn-ghost" onClick={() => host.close()} style={{ height: 46, padding: '0 20px' }}>닫기</button>
-            </div>
-            <div className="money-caption" style={{ marginTop: 14 }}>
-              {granted.kind === 'goods'
-                ? 'legacy 굿즈 연출 데모 · 실제 경품이나 구매권이 생기지 않습니다 · PoC mock'
-                : live
-                  ? '게임 보상 카드는 무상으로 발급되어 바인더에 저장됩니다'
-                  : '게임 보상 카드는 무상으로 발급됩니다 · PoC mock 결과'}
+              <div className="wc-game__reveal-actions">
+                <button className="wc-btn primary" type="button" onClick={play}>다시 플레이</button>
+                {granted.kind === 'card' && (
+                  <button className="wc-btn" type="button" onClick={share}>공유</button>
+                )}
+                <button className="wc-btn" type="button" onClick={() => host.close()}>닫기</button>
+              </div>
+              <div className="wc-game__caption">
+                {granted.kind === 'goods'
+                  ? 'legacy 굿즈 연출 데모 · 실제 경품이나 구매권이 생기지 않습니다 · PoC mock'
+                  : live
+                    ? '게임 보상 카드는 무상으로 발급되어 바인더에 저장됩니다'
+                    : '게임 보상 카드는 무상으로 발급됩니다 · PoC mock 결과'}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
