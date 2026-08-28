@@ -4,6 +4,7 @@ import type { Good } from '@/lib/data';
 import { activeGalleryIndex } from './PdpGallery';
 import {
   GoodPurchasePanel,
+  buyNowNavigation,
   isGoodSoldOut,
   isMiniBuybarVisible,
   mergedCartQuantity,
@@ -111,6 +112,26 @@ describe('purchaseBlockReason', () => {
     expect(purchaseBlockReason({ ...base, ready: false, pending: true })).toBe('not_ready');
     expect(purchaseBlockReason({ ...base, pending: true, nextQuantity: 99 })).toBe('pending');
     expect(purchaseBlockReason({ ...base, nextQuantity: 9 })).toBe('stock');
+  });
+});
+
+describe('buyNowNavigation', () => {
+  it('요청이 없으면 이동하지 않는다', () => {
+    expect(buyNowNavigation({ requested: false, cartPending: false, cartError: null })).toBe('abort');
+  });
+
+  it('카트 반영이 끝나기 전에는 기다린다 — 클라이언트 성공 신호는 진실원이 아니다', () => {
+    expect(buyNowNavigation({ requested: true, cartPending: true, cartError: null })).toBe('wait');
+  });
+
+  it('반영이 정착하고 오류가 없을 때만 체크아웃으로 간다', () => {
+    expect(buyNowNavigation({ requested: true, cartPending: false, cartError: null })).toBe('navigate');
+  });
+
+  it('카트가 오류를 냈으면 이동을 접는다 — 담기지 않은 채 결제 화면에 서지 않는다', () => {
+    expect(
+      buyNowNavigation({ requested: true, cartPending: false, cartError: '재고 초과' }),
+    ).toBe('abort');
   });
 });
 

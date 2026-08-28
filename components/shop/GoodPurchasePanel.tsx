@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useCart } from '@/components/shell/CartProvider';
 import { RestockCta } from '@/components/shop/RestockCta';
 import { QuantityStepper } from '@/components/wc/QuantityStepper';
@@ -78,6 +78,21 @@ export function isMiniBuybarVisible(state: { panelsInView: boolean; embedded: bo
   return state.panelsInView && !state.embedded;
 }
 
+/**
+ * 바로구매의 이동 판정. 클라이언트 성공 신호는 확정의 진실원이 아니다 —
+ * 카트 반영이 서버에서 정착(pending 해제)된 뒤, 오류가 없을 때만 체크아웃으로 간다.
+ * 실패했는데 이동하면 방금 담은 수량이 빠진 카트로 결제 화면에 서는 셈이다.
+ */
+export function buyNowNavigation(state: {
+  requested: boolean;
+  cartPending: boolean;
+  cartError: string | null;
+}): 'navigate' | 'wait' | 'abort' {
+  if (!state.requested) return 'abort';
+  if (state.cartPending) return 'wait';
+  return state.cartError ? 'abort' : 'navigate';
+}
+
 export interface GoodPurchaseController {
   good: Good;
   quantity: number;
@@ -105,6 +120,23 @@ export function useGoodPurchase({
   const cart = useCart();
   const [quantity, setQuantityState] = useState(1);
   const [status, setStatus] = useState<string | null>(null);
+  /* 바로구매 요청은 세대 번호로 든다 — 소비 표시는 ref 에 적어 effect 가 상태를 되쓰지
+     않는다(리셋 setState 는 캐스케이딩 렌더 lint 에 걸리고, 실제로도 파생이 아니라 소비다). */
+  const [checkoutGen, setCheckoutGen] = useState(0);
+  const handledCheckoutGenRef = useRef(0);
+
+  const cartPending = cart.pending;
+  const cartError = cart.error;
+  useEffect(() => {
+    const navigation = buyNowNavigation({
+      requested: checkoutGen !== handledCheckoutGenRef.current,
+      cartPending,
+      cartError,
+    });
+    if (navigation === 'wait' || checkoutGen === handledCheckoutGenRef.current) return;
+    handledCheckoutGenRef.current = checkoutGen;
+    if (navigation === 'navigate') router.push('/checkout');
+  }, [checkoutGen, cartPending, cartError, router]);
 
   const soldOut = isGoodSoldOut(good);
   const nextQuantity = mergedCartQuantity(cart.getQuantity(good.id), quantity);
@@ -143,11 +175,13 @@ export function useGoodPurchase({
       void commit().then((ok) => { if (ok) setStatus(CART_ADDED_STATUS); });
     },
     /* 바로구매는 장바구니 화면을 건너뛸 뿐이다. 담기와 같은 카트 계약을 거쳐
-       기존 주문 경로(체크아웃 → placeOrderAction → place_order)로 들어간다. */
+       기존 주문 경로(체크아웃 → placeOrderAction → place_order)로 들어간다.
+       이동은 즉시 하지 않는다 — buyNowNavigation 이 카트 정착·오류를 본 뒤 결정한다. */
     buyNow: () => {
       if (inert) return;
       setStatus(null);
-      void commit().then((ok) => { if (ok) router.push('/checkout'); });
+      setCheckoutGen((gen) => gen + 1);
+      void commit();
     },
   };
 }

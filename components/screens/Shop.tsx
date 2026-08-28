@@ -116,7 +116,7 @@ const VIEW_HEADINGS: Record<ShopView, { title: string; subcopy?: string }> = {
 
 const SHEET_TABS = [
   { id: 'ips', label: 'IP' },
-  { id: 'types', label: '상품 타입' },
+  { id: 'types', label: '타입' },
   { id: 'price', label: '가격' },
 ] as const;
 
@@ -245,7 +245,7 @@ export function Shop({ query, result, view }: ShopProps) {
     /* 같은 URL 로의 재진입은 서버 왕복만 만들고 목록은 그대로다 — 슬라이더를 만졌다 제자리에
        놓는 흔한 조작에서 특히 잘 발생한다. */
     if (qs === queryKey) return;
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
   const applyFilters = (next: ShopFilterDraft) => navigate({ ...query, ...next });
   const currentDraft = shopFilterDraftFromQuery(query);
@@ -293,7 +293,7 @@ export function Shop({ query, result, view }: ShopProps) {
               />
             </details>
             <details className="wc-filter-group" open>
-              <summary className="wc-filter-group__summary">{`상품 타입 (${query.types.length})`}</summary>
+              <summary className="wc-filter-group__summary">{`타입 (${query.types.length})`}</summary>
               <FilterCheckList
                 name="wc-shop-type"
                 onToggle={(value) => applyFilters(toggleDraftValue(currentDraft, 'types', value))}

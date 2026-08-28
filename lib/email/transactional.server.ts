@@ -348,6 +348,13 @@ function rowRecipient(value: RestockAlertRow['profiles']): string | null {
  *
  * 한 굿즈에 신청자가 여럿이라 결과도 여러 개다. 한 명에게 실패해도 나머지는 보낸다 —
  * 배열 하나로 묶어 실패를 삼키면 누가 못 받았는지 알 수 없다.
+ *
+ * 알려진 한계: 현재 호출부는 어드민의 재고 접점(굿즈 저장·실재고 조정)뿐이다.
+ * 주문 취소·반품의 재고 복원으로 전이가 일어나면 인앱 알림은 트리거가 즉시 보내지만,
+ * 메일은 어드민이 그 굿즈를 다음에 만질 때까지 미룬다 — 취소 정합화 경로 서너 곳에
+ * orderId→goods 팬아웃 훅을 심는 산탄보다, notified 행이 claim 게이트에 남아 있다가
+ * 다음 접점에서 발송되는 쪽을 택했다. 발송 주기가 필요해지면 호출부를 늘리지 말고
+ * 미발송 notified 행을 쓸어 담는 단일 청소 경로를 만들 것.
  */
 export async function sendRestockAlertEmails(
   goodId: string,

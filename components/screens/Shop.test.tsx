@@ -183,7 +183,7 @@ describe('굿즈샵 목록', () => {
     expect(text(html)).toContain('메이플 (2)');
     expect(text(html)).toContain('키링 (2)');
     expect(html).toContain('IP (1)');
-    expect(html).toContain('상품 타입 (0)');
+    expect(html).toContain('타입 (0)');
     expect(html).toMatch(/<input[^>]*checked=""[^>]*value="ip2"/);
   });
 
