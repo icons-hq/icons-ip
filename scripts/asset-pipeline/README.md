@@ -1,6 +1,6 @@
 # 효산의 기억 에셋 파이프라인
 
-G2 급식실 버티컬 슬라이스의 플레이어·학생 좀비·김경미 보스 애니메이션과 급식실 세트를 검토 가능한 산출물로 만드는 파이프라인이다. `asset-spec.yaml`이 현재 생성 사양의 단일 정본이다. G2 산출물은 `docs/games/hyosan-memories-g2-assets/`에 게시되며 정확한 스펙·PNG·atlas·module catalog 해시에 대한 사용자 승인 전에는 G3 Phaser 통합에 사용할 수 없다. 2026-08-28 최초 승인본은 최종 리뷰에서 프레임 여백·타일 모듈 계약·상단 출구 결함이 확인되어 `approval-history/2026-08-28T020737Z.json`에 이전했다. 수정 배치는 현재 `pending-user-approval`이며 새 `approval-record.json`이 생기기 전까지 G3는 차단된다. 파이프라인을 다시 실행하거나 승인된 해시가 달라지면 같은 방식으로 재승인이 필요하다.
+G2 급식실 버티컬 슬라이스의 플레이어·학생 좀비·김경미 보스 애니메이션과 급식실 세트를 검토 가능한 산출물로 만드는 파이프라인이다. `asset-spec.yaml`이 현재 생성 사양의 단일 정본이다. G2 산출물은 `docs/games/hyosan-memories-g2-assets/`에 게시되며 정확한 스펙·PNG·atlas·module catalog 해시에 대한 사용자 승인 전에는 G3 Phaser 통합에 사용할 수 없다. 2026-08-28 최초 승인본은 최종 리뷰에서 프레임 여백·타일 모듈 계약·상단 출구 결함이 확인되어 `approval-history/2026-08-28T020737Z.json`에 이전했다. 결함을 보완한 수정 배치는 같은 날 사용자 재승인을 통과했으며 현재 정본은 `approval-record.json`이다. 이 승인은 G3 게이트만 해제하며 Phaser 통합을 자동 시작하지 않는다. 파이프라인을 다시 실행하거나 승인된 해시가 달라지면 다시 승인이 필요하다.
 
 M0 시안 3종은 2026-08-27 사용자 승인을 통과했고 정본은 `docs/games/hyosan-memories-m0-concepts/approval-record.json`에 남아 있다. 그 승인은 G2의 방향 레퍼런스일 뿐 G2 양산 PNG를 승인하지 않는다. 어느 단계든 이미지 또는 스펙 해시가 달라지면 해당 배치를 다시 승인받아야 한다.
 

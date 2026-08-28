@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "project": "hyosan-memories",
   "milestone": "G2",
-  "status": "pending-user-approval",
+  "status": "approved",
   "generatedAt": "2026-08-28T03:01:13.799Z",
   "spec": {
     "path": "scripts/asset-pipeline/asset-spec.yaml",
@@ -40,8 +40,11 @@
     "maxAttempts": 3
   },
   "approvalGate": {
-    "status": "pending",
-    "blocks": [
+    "status": "approved",
+    "approvedAt": "2026-08-28T03:28:07Z",
+    "approvedBy": "user",
+    "record": "approval-record.json",
+    "unblocks": [
       "G3"
     ]
   },
