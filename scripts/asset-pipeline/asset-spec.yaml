@@ -1,8 +1,8 @@
 schemaVersion: 1
 meta:
   project: hyosan-memories
-  milestone: M0
-  styleRef: "Netflix 《지금 우리 학교는》 시즌1의 배우·의상·효산고 프로덕션 디자인에 충실한 고해상도 페인티드 2D"
+  milestone: G2
+  styleRef: "Netflix 《지금 우리 학교는》 시즌1의 배우·의상·효산고 프로덕션 디자인에 충실한 고해상도 페인티드 2D 게임 에셋"
   rightsScope: "사용자 제공 Netflix 계약 전제 · 시즌1 시각 에셋과 출연 배우 초상 재현 허용 · 음성은 별도 승인 전 제외"
   fidelityTargets:
     - season-1-production-design
@@ -22,90 +22,273 @@ meta:
     - id: netflix-season-1-featurette
       authority: official
       url: "https://www.youtube.com/watch?v=38h_mFMYc8Y"
+    - id: netflix-korea-cafeteria-clip
+      authority: official
+      url: "https://www.youtube.com/watch?v=mh3a3Bj-IPY"
 pipeline:
   maxAttempts: 3
   planner: codex-session
   generator: direct-imagegen-skill
   visionQa: codex-session-vision
-  workDirectory: outputs/hyosan-memories-m0
-  outputDirectory: docs/games/hyosan-memories-m0-concepts
+  approvalBlocks: [G3]
+  workDirectory: outputs/hyosan-memories-g2
+  outputDirectory: docs/games/hyosan-memories-g2-assets
   atlas:
-    name: hyosan-memories-m0-sprites
-    padding: 2
+    name: hyosan-memories-g2-sprites
+    padding: 4
+    extrusion: 1
+    maxSize: 4096
 assets:
-  - id: player_halfbie_concept
-    label: "플레이어 — 교복 절비"
+  - id: player_halfbie_walk
+    label: "플레이어 — 교복 절비 4방향 이동"
     kind: sprite
-    view: topdown-3q
-    size: 512x512
-    frames: 1
+    view: topdown-3q-four-direction
+    size: 128x128
+    frames: 24
+    frameLayout: { columns: 6, rows: 4, order: row-major, anchor: bottom-center, trim: shared-scale }
     alpha: required
-    identity:
-      mode: original
+    identity: { mode: original }
     referenceIds: [netflix-season-1-stills, netflix-cast-guide, netflix-season-1-featurette]
     promptBrief: >-
-      심야 효산고를 탐색하는 오리지널 절비 플레이어. 시즌1 공식 스틸의 교복을 정확히
-      재현한다: 채도 높은 병녹색 V넥 니트 조끼, 흰 셔츠, 회녹색 타탄 바지, 녹색 바탕에
-      노랑·빨강 사선이 들어간 긴 넥타이, 착용자 왼쪽 가슴의 빨간 한글 이름표와 그 아래
-      빨강·금색 원형 교표. 오리지널 배역은 특정 정식 캐릭터로 오인되지 않게 하되 얼굴의
-      사실성·조명·헤어·피부 표현은 시즌1 공식 배우 스틸과 같은 제작 수준을 따른다.
-      전신 3/4 탑뷰, 한쪽 눈의 미세한 비인간적 광택만으로 절비를 표현하고 피와 열린
-      상처는 쓰지 않는다. 투명 배경, 게임에서 읽히는 선명한 실루엣.
-    qa:
+      승인된 M0 교복 절비와 동일한 오리지널 남학생을 4방향 걷기 시트로 확장한다. 각 행은
+      남쪽·서쪽·북쪽·동쪽 순서이고 행마다 자연스러운 6프레임 걷기 사이클이다. 병녹색
+      V넥 니트 조끼, 흰 셔츠, 회녹색 타탄 바지, 녹색·노랑·빨강 사선 타이, 착용자 왼쪽
+      가슴의 빨간 한글 이름표와 빨강·금색 원형 교표를 모든 방향에서 유지하며 좌우
+      미러링하지 않는다. 한쪽 눈의 미세한 비인간적 광택만 쓰고 피·상처는 없다. 정확히
+      6열×4행, 투명 배경, 셀마다 한 인물, 공통 비율과 발 피벗, 텍스트·풍경 없음.
+    qa: &characterQa
       minScore: 0.8
       minSourceFidelity: 0.85
-      minSourceSize: 768x768
+      minSourceSize: 1536x1024
       maxOpaqueEdgeRatio: 0.02
-      minBboxCoverage: 0.2
+      minBboxCoverage: 0.12
       maxBboxCoverage: 0.9
-  - id: student_zombie_concept
-    label: "적 — 학생 좀비"
+  - id: player_halfbie_attack_combo
+    label: "플레이어 — 교복 절비 4방향 3타 공격"
     kind: sprite
-    view: topdown-3q
-    size: 512x512
-    frames: 1
+    view: topdown-3q-four-direction
+    size: 128x128
+    frames: 24
+    frameLayout: { columns: 6, rows: 4, order: row-major, anchor: bottom-center, trim: shared-scale }
     alpha: required
-    identity:
-      mode: original
-    referenceIds: [netflix-season-1-stills, netflix-season-1-featurette]
+    identity: { mode: original }
+    referenceIds: [netflix-season-1-stills, netflix-cast-guide, netflix-season-1-featurette]
     promptBrief: >-
-      시즌1 효산고의 학생 좀비 엑스트라. 공식 영상의 채도 높은 병녹색 니트 조끼,
-      흰 셔츠, 회녹색 타탄 하의, 녹색·노랑·빨강 사선 타이, 왼쪽 가슴의 빨간 한글
-      이름표와 빨강·금색 원형 교표를 정확히 유지한다. 실제 드라마의 배우 분장처럼
-      흐트러진 머리, 창백한 피부, 경직되고 비정상적으로 꺾인 달리기 자세를 쓰되 피와
-      열린 상처는 배제한다. 전신 3/4 탑뷰, 투명 배경, 선명한 실루엣.
+      승인된 M0 교복 절비와 동일한 오리지널 남학생의 맨손 3타 콤보. 각 행은
+      남쪽·서쪽·북쪽·동쪽 순서이고 6개 열이 준비→1타→전환→2타→강타 준비→3타 마무리를
+      이룬다. 승인된 얼굴·머리·체형과 효산고 교복 색·타탄·타이·왼쪽 이름표·교표를
+      바꾸지 않고 좌우 미러링하지 않는다. 무혈 타격이며 무기·이펙트·상처는 없다.
+      정확히 6열×4행, 투명 배경, 셀마다 한 인물, 공통 비율과 발 피벗, 텍스트·풍경 없음.
+    qa: *characterQa
+  - id: student_zombie_run
+    label: "학생 좀비 — 4방향 달리기"
+    kind: sprite
+    view: topdown-3q-four-direction
+    size: 128x128
+    frames: 24
+    frameLayout: { columns: 6, rows: 4, order: row-major, anchor: bottom-center, trim: shared-scale }
+    alpha: required
+    identity: { mode: original }
+    referenceIds: [netflix-season-1-stills, netflix-season-1-featurette, netflix-korea-cafeteria-clip]
+    promptBrief: >-
+      승인된 M0 이름 없는 남학생 좀비와 동일한 엑스트라의 빠르고 경직된 4방향 달리기.
+      각 행은 남쪽·서쪽·북쪽·동쪽 순서이고 행마다 6프레임이다. 병녹색 니트 조끼,
+      흰 셔츠, 회녹색 타탄 바지, 사선 타이, 착용자 왼쪽 이름표와 교표를 유지하고
+      좌우 미러링하지 않는다. 창백한 피부와 비정상적인 관절 리듬만 사용하며 피·교상·
+      열린 상처는 없다. 정확히 6열×4행, 투명 배경, 공통 비율과 발 피벗, 텍스트·풍경 없음.
+    qa: *characterQa
+  - id: student_zombie_attack
+    label: "학생 좀비 — 4방향 공격"
+    kind: sprite
+    view: topdown-3q-four-direction
+    size: 128x128
+    frames: 16
+    frameLayout: { columns: 4, rows: 4, order: row-major, anchor: bottom-center, trim: shared-scale }
+    alpha: required
+    identity: { mode: original }
+    referenceIds: [netflix-season-1-stills, netflix-season-1-featurette, netflix-korea-cafeteria-clip]
+    promptBrief: >-
+      승인된 M0 이름 없는 남학생 좀비와 동일한 엑스트라의 무혈 할퀴기 공격. 각 행은
+      남쪽·서쪽·북쪽·동쪽 순서이고 4개 열이 웅크림→팔 뻗기→최대 도달→회수를 이룬다.
+      효산고 교복과 왼쪽 이름표·교표, 얼굴·머리·체형을 유지하며 좌우 미러링하지 않는다.
+      피·교상·열린 상처는 없다. 정확히 4열×4행, 투명 배경, 공통 비율과 발 피벗,
+      텍스트·풍경 없음.
+    qa:
+      <<: *characterQa
+      minSourceSize: 1024x1024
+  - id: nurse_kim_kyungmi_run
+    label: "보스 — 보건교사 김경미 4방향 이동"
+    kind: boss
+    view: topdown-3q-four-direction
+    size: 192x192
+    frames: 24
+    frameLayout: { columns: 6, rows: 4, order: row-major, anchor: bottom-center, trim: shared-scale }
+    alpha: required
+    identity: &nurseIdentity
+      mode: canonical
+      character: 김경미
+      performer: 안시하
+      creditEvidence: "캐릭터명은 GitHub #342 표기, 배우는 공개 보도 크레딧, 시각 동일성은 Netflix Korea 공식 시즌1 영상 기준"
+    referenceIds: [netflix-season-1-featurette, netflix-korea-cafeteria-clip]
+    promptBrief: >-
+      시즌1 1화의 보건교사 김경미 역 안시하를 공식 영상의 얼굴 랜드마크·중간 길이의
+      헝클어진 갈색 머리·체형·흰 보건교사 가운과 베이지색 상의까지 충실히 재현한 보스
+      이동 시트. 각 행은 남쪽·서쪽·북쪽·동쪽 순서이고 행마다 경련 뒤 급가속하는
+      6프레임이다. 감염은 창백한 피부·흐린 눈·경직된 자세로만 표현하며 피·교상·열린
+      상처는 제거한다. 정확히 6열×4행, 투명 배경, 셀마다 한 인물, 공통 비율과 발 피벗,
+      텍스트·풍경 없음.
+    qa: &bossQa
+      minScore: 0.8
+      minSourceFidelity: 0.85
+      minCharacterIdentity: 0.85
+      minSourceSize: 1536x1024
+      maxOpaqueEdgeRatio: 0.02
+      minBboxCoverage: 0.1
+      maxBboxCoverage: 0.9
+  - id: nurse_kim_kyungmi_attack
+    label: "보스 — 보건교사 김경미 4방향 공격"
+    kind: boss
+    view: topdown-3q-four-direction
+    size: 192x192
+    frames: 24
+    frameLayout: { columns: 6, rows: 4, order: row-major, anchor: bottom-center, trim: shared-scale }
+    alpha: required
+    identity: *nurseIdentity
+    referenceIds: [netflix-season-1-featurette, netflix-korea-cafeteria-clip]
+    promptBrief: >-
+      시즌1 1화의 보건교사 김경미 역 안시하를 공식 영상의 얼굴·머리·체형·흰 가운과
+      베이지색 상의까지 충실히 유지한 보스 공격 시트. 각 행은 남쪽·서쪽·북쪽·동쪽
+      순서이고 6개 열이 경련 준비→낮은 돌진→양팔 뻗기→최대 도달→비틀림→회수를
+      이룬다. 창백한 피부·흐린 눈 외에 피·교상·열린 상처는 없다. 정확히 6열×4행,
+      투명 배경, 셀마다 한 인물, 공통 비율과 발 피벗, 텍스트·풍경 없음.
+    qa: *bossQa
+  - id: cafeteria_tileset
+    label: "급식실 — 64px 모듈형 세트"
+    kind: tileset
+    view: orthogonal-topdown
+    size: 1024x1024
+    frames: 1
+    frameLayout: { columns: 1, rows: 1, order: row-major, anchor: bottom-center, trim: shared-scale }
+    alpha: required
+    identity: { mode: not-applicable }
+    referenceIds: [netflix-season-1-stills, netflix-season-1-featurette, netflix-korea-cafeteria-clip]
+    promptBrief: >-
+      시즌1 1화 효산고 급식실을 64px 논리 타일용 모듈 세트로 분해한다. 녹색·번트오렌지
+      바닥의 건조/젖은 변형, 꿀빛 주황 벽·보·기둥, 상단 다중창과 흰 형광등, 유리로
+      구획된 스테인리스 배식구·주방·롤다운 셔터, 넓은 유리 양문, 밝은 원목 장테이블과
+      아이보리 다리, 버건디 이동식 의자와 흐트러진 변형, 식판·식기·물 반사 오버레이를
+      각각 분리된 직교 탑다운 모듈로 배치한다. 투명 배경, 모듈 사이 충분한 여백,
+      인물·시신·피·텍스트·일반 학교 재해석 없음.
+    moduleGrid:
+      tileSize: 64
+      columns: 16
+      rows: 16
+      requiredIds:
+        - floor_green_dry
+        - floor_green_scuffed
+        - floor_green_wet
+        - floor_orange_dry
+        - floor_orange_scuffed
+        - floor_orange_wet
+        - light_fluorescent
+        - tray_clean
+        - tray_stack
+        - tray_tilted
+        - cutlery_scatter
+        - food_spill
+        - water_reflection
+        - window_wide
+        - window_with_ac
+        - wall_beam_corner
+        - wall_vertical
+        - door_double_open
+        - door_double_closed
+        - serving_counter_wide
+        - serving_counter_corner
+        - roll_down_shutter
+        - sink_station
+        - serving_counter_left
+        - serving_counter_shutter
+        - bucket_station
+        - table_long
+        - table_medium
+        - table_short
+        - chair_straight
+        - chair_tilted
+        - chair_sideways
+        - chair_fallen
+        - wall_beam_horizontal
+        - equipment_station
+        - table_round_end
+        - table_endcap
+        - serving_sink_bank
+      modules:
+        - { id: floor_green_dry, kind: tile, sourceRect: { x: 24, y: 26, width: 93, height: 94 }, cellRect: { column: 1, row: 1, columns: 1, rows: 1 }, anchor: top-left }
+        - { id: floor_green_scuffed, kind: tile, sourceRect: { x: 134, y: 25, width: 94, height: 95 }, cellRect: { column: 2, row: 1, columns: 1, rows: 1 }, anchor: top-left }
+        - { id: floor_green_wet, kind: tile, sourceRect: { x: 247, y: 25, width: 93, height: 95 }, cellRect: { column: 3, row: 1, columns: 1, rows: 1 }, anchor: top-left }
+        - { id: floor_orange_dry, kind: tile, sourceRect: { x: 366, y: 25, width: 94, height: 95 }, cellRect: { column: 4, row: 1, columns: 1, rows: 1 }, anchor: top-left }
+        - { id: floor_orange_scuffed, kind: tile, sourceRect: { x: 479, y: 25, width: 93, height: 95 }, cellRect: { column: 5, row: 1, columns: 1, rows: 1 }, anchor: top-left }
+        - { id: floor_orange_wet, kind: tile, sourceRect: { x: 590, y: 25, width: 94, height: 95 }, cellRect: { column: 6, row: 1, columns: 1, rows: 1 }, anchor: top-left }
+        - { id: light_fluorescent, kind: fixture, sourceRect: { x: 35, y: 363, width: 98, height: 30 }, cellRect: { column: 7, row: 1, columns: 2, rows: 1 }, anchor: bottom-center }
+        - { id: tray_clean, kind: overlay, sourceRect: { x: 26, y: 902, width: 68, height: 54 }, cellRect: { column: 9, row: 1, columns: 1, rows: 1 }, anchor: bottom-center }
+        - { id: tray_stack, kind: overlay, sourceRect: { x: 127, y: 896, width: 51, height: 65 }, cellRect: { column: 10, row: 1, columns: 1, rows: 1 }, anchor: bottom-center }
+        - { id: tray_tilted, kind: overlay, sourceRect: { x: 213, y: 902, width: 55, height: 55 }, cellRect: { column: 11, row: 1, columns: 1, rows: 1 }, anchor: bottom-center }
+        - { id: cutlery_scatter, kind: overlay, sourceRect: { x: 292, y: 892, width: 60, height: 70 }, cellRect: { column: 12, row: 1, columns: 1, rows: 1 }, anchor: bottom-center }
+        - { id: food_spill, kind: overlay, sourceRect: { x: 365, y: 895, width: 245, height: 70 }, cellRect: { column: 13, row: 1, columns: 1, rows: 1 }, anchor: bottom-center }
+        - { id: water_reflection, kind: overlay, sourceRect: { x: 704, y: 894, width: 179, height: 80 }, cellRect: { column: 14, row: 1, columns: 1, rows: 1 }, anchor: bottom-center }
+        - { id: window_wide, kind: structure, sourceRect: { x: 22, y: 144, width: 265, height: 163 }, cellRect: { column: 1, row: 2, columns: 5, rows: 3 }, anchor: bottom-center }
+        - { id: window_with_ac, kind: structure, sourceRect: { x: 498, y: 145, width: 165, height: 162 }, cellRect: { column: 6, row: 2, columns: 3, rows: 3 }, anchor: bottom-center }
+        - { id: wall_beam_corner, kind: structure, sourceRect: { x: 714, y: 86, width: 225, height: 145 }, cellRect: { column: 9, row: 2, columns: 4, rows: 3 }, anchor: bottom-center }
+        - { id: wall_vertical, kind: structure, sourceRect: { x: 949, y: 24, width: 55, height: 140 }, cellRect: { column: 13, row: 2, columns: 2, rows: 3 }, anchor: bottom-center }
+        - { id: door_double_open, kind: structure, sourceRect: { x: 371, y: 329, width: 185, height: 146 }, cellRect: { column: 1, row: 5, columns: 3, rows: 3 }, anchor: bottom-center }
+        - { id: door_double_closed, kind: structure, sourceRect: { x: 164, y: 335, width: 176, height: 113 }, cellRect: { column: 4, row: 5, columns: 3, rows: 2 }, anchor: bottom-center }
+        - { id: serving_counter_wide, kind: fixture, sourceRect: { x: 229, y: 483, width: 216, height: 131 }, cellRect: { column: 7, row: 5, columns: 4, rows: 3 }, anchor: bottom-center }
+        - { id: serving_counter_corner, kind: fixture, sourceRect: { x: 475, y: 484, width: 149, height: 145 }, cellRect: { column: 11, row: 5, columns: 3, rows: 3 }, anchor: bottom-center }
+        - { id: roll_down_shutter, kind: fixture, sourceRect: { x: 634, y: 627, width: 208, height: 99 }, cellRect: { column: 1, row: 8, columns: 4, rows: 2 }, anchor: bottom-center }
+        - { id: sink_station, kind: fixture, sourceRect: { x: 856, y: 486, width: 127, height: 128 }, cellRect: { column: 5, row: 8, columns: 2, rows: 2 }, anchor: bottom-center }
+        - { id: serving_counter_left, kind: fixture, sourceRect: { x: 25, y: 476, width: 188, height: 135 }, cellRect: { column: 7, row: 8, columns: 3, rows: 3 }, anchor: bottom-center }
+        - { id: serving_counter_shutter, kind: fixture, sourceRect: { x: 648, y: 486, width: 195, height: 110 }, cellRect: { column: 10, row: 8, columns: 3, rows: 2 }, anchor: bottom-center }
+        - { id: bucket_station, kind: fixture, sourceRect: { x: 870, y: 642, width: 115, height: 89 }, cellRect: { column: 13, row: 8, columns: 2, rows: 2 }, anchor: bottom-center }
+        - { id: table_long, kind: object, sourceRect: { x: 24, y: 762, width: 195, height: 101 }, cellRect: { column: 1, row: 11, columns: 4, rows: 2 }, anchor: bottom-center }
+        - { id: table_medium, kind: object, sourceRect: { x: 239, y: 762, width: 144, height: 101 }, cellRect: { column: 5, row: 11, columns: 3, rows: 2 }, anchor: bottom-center }
+        - { id: table_short, kind: object, sourceRect: { x: 399, y: 762, width: 72, height: 101 }, cellRect: { column: 8, row: 11, columns: 2, rows: 2 }, anchor: bottom-center }
+        - { id: chair_straight, kind: object, sourceRect: { x: 690, y: 749, width: 47, height: 85 }, cellRect: { column: 10, row: 11, columns: 1, rows: 2 }, anchor: bottom-center }
+        - { id: chair_tilted, kind: object, sourceRect: { x: 763, y: 756, width: 52, height: 90 }, cellRect: { column: 11, row: 11, columns: 1, rows: 2 }, anchor: bottom-center }
+        - { id: chair_sideways, kind: object, sourceRect: { x: 842, y: 756, width: 47, height: 80 }, cellRect: { column: 12, row: 11, columns: 1, rows: 2 }, anchor: bottom-center }
+        - { id: chair_fallen, kind: object, sourceRect: { x: 914, y: 751, width: 65, height: 93 }, cellRect: { column: 13, row: 11, columns: 1, rows: 2 }, anchor: bottom-center }
+        - { id: wall_beam_horizontal, kind: structure, sourceRect: { x: 714, y: 24, width: 225, height: 51 }, cellRect: { column: 1, row: 13, columns: 4, rows: 1 }, anchor: bottom-center }
+        - { id: equipment_station, kind: fixture, sourceRect: { x: 27, y: 639, width: 176, height: 91 }, cellRect: { column: 5, row: 13, columns: 3, rows: 2 }, anchor: bottom-center }
+        - { id: table_round_end, kind: object, sourceRect: { x: 497, y: 762, width: 45, height: 103 }, cellRect: { column: 8, row: 13, columns: 1, rows: 2 }, anchor: bottom-center }
+        - { id: table_endcap, kind: object, sourceRect: { x: 574, y: 763, width: 66, height: 83 }, cellRect: { column: 9, row: 13, columns: 2, rows: 2 }, anchor: bottom-center }
+        - { id: serving_sink_bank, kind: fixture, sourceRect: { x: 432, y: 641, width: 165, height: 99 }, cellRect: { column: 11, row: 13, columns: 3, rows: 2 }, anchor: bottom-center }
     qa:
       minScore: 0.8
       minSourceFidelity: 0.85
-      minSourceSize: 768x768
+      minSourceSize: 1024x1024
       maxOpaqueEdgeRatio: 0.02
-      minBboxCoverage: 0.2
-      maxBboxCoverage: 0.9
-  - id: cafeteria_background_concept
-    label: "배경 — 급식실"
+      minBboxCoverage: 0.35
+      maxBboxCoverage: 0.95
+  - id: cafeteria_room_reference
+    label: "급식실 — 1280×720 조립 검수본"
     kind: background
     view: orthogonal-topdown
-    size: 1536x1024
+    size: 1280x720
     frames: 1
+    frameLayout: { columns: 1, rows: 1, order: row-major, anchor: bottom-center, trim: shared-scale }
     alpha: forbidden
-    identity:
-      mode: not-applicable
-    referenceIds: [netflix-season-1-stills, netflix-season-1-featurette]
+    identity: { mode: not-applicable }
+    referenceIds: [netflix-season-1-stills, netflix-season-1-featurette, netflix-korea-cafeteria-clip]
     promptBrief: >-
-      시즌1 1화의 실제 효산고 급식실 세트를 구조·색·재질·가구 비례까지 보존해 직교
-      탑다운 전투 공간으로 변환한다. 첫 확산 당시 밝은 낮 장면의 꿀빛 주황 벽·천장 보, 상단을 길게
-      두른 대형 창, 흰 형광등, 넓은 유리 양문 출입구, 유리로 구획된 스테인리스 배식
-      주방과 금속 롤다운 셔터를 유지한다. 긴 밝은 원목 직사각형 식탁과 아이보리 금속
-      다리, 등받이가 낮은 버건디색 이동식 의자를 조밀한 평행 열로 배치하고,
-      광택 있는 녹색·번트오렌지 격자 바닥의 비율과 반복 리듬을 그대로 보존한다.
-      첫 혼란 직후라 스프링클러 물에 젖은 바닥, 스테인리스 식판과 일부 의자만
-      흐트러져 있고 인물·시신·피·과장된
-      붉은 비상등은 없다. 이동 가능한 바닥과 장애물이 즉시 구분되는 고해상도 페인티드
-      2D, 베이크드 음영과 입체적인 벽·가구.
+      승인된 M0 급식실을 G1의 1280×720 직교 탑다운 전투 카메라에 맞춘 조립 검수본.
+      꿀빛 주황 벽·보, 상단의 긴 창, 흰 형광등, 유리 양문, 유리 구획 스테인리스
+      배식구·주방과 롤다운 셔터, 긴 밝은 원목 식탁·아이보리 다리·버건디 이동식 의자,
+      광택 있는 녹색·번트오렌지 바닥 리듬을 보존한다. 젖은 바닥과 일부 흐트러진 의자·
+      식판만 허용하고, 중앙 전투 통로와 상단 출구를 명확히 비운다. 밝은 낮 장면,
+      인물·시신·피·과장된 붉은 비상등·텍스트 없음.
     qa:
       minScore: 0.8
       minSourceFidelity: 0.85
-      minSourceSize: 1024x768
+      minSourceSize: 1536x1024
       maxOpaqueEdgeRatio: 1
       minBboxCoverage: 1
       maxBboxCoverage: 1

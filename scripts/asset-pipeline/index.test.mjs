@@ -12,7 +12,7 @@ afterEach(async () => {
   await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
 });
 
-describe('direct M0 asset pipeline entrypoint', () => {
+describe('direct asset pipeline entrypoint', () => {
   it('invalidates the spec-declared manifest before parsing a direct session', async () => {
     const repositoryRoot = await mkdtemp(join(tmpdir(), 'hyosan-index-'));
     cleanups.push(() => rm(repositoryRoot, { recursive: true, force: true }));

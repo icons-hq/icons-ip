@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "project": "hyosan-memories",
+  "milestone": "G2",
+  "status": "approved",
+  "approvedAt": "2026-08-28T03:28:07Z",
+  "approvedBy": "user",
+  "approvalStatement": "수정본 g2 전부 승인",
+  "scope": "G2 corrected production assets: player halfbie, unnamed student zombie, nurse Kim Kyung-mi boss, named cafeteria module sheet and room reference",
+  "sourceManifestGeneratedAt": "2026-08-28T03:01:13.799Z",
+  "specSha256": "c60f4fa56a4ea8ccc2b3222235b03fd19ff58f596b4c068d696bbbae976cdbd4",
+  "assets": [
+    {
+      "id": "player_halfbie_walk",
+      "sha256": "ba65090ece46cf3876cd679adf839652b80b5edf3f8b64747eb8305e9fc6592d"
+    },
+    {
+      "id": "player_halfbie_attack_combo",
+      "sha256": "af077e7d0907745a224161a2e5a3cc7cb4db0451a5d1e9009079f751106bed0c"
+    },
+    {
+      "id": "student_zombie_run",
+      "sha256": "1a86b57a7e638d289d7a1dc8dafc754ae2b64e43246267c259bb433195286fa4"
+    },
+    {
+      "id": "student_zombie_attack",
+      "sha256": "51459397f455993c4859ca10fe19051c2fff26d22d7e1470075c951c0e196a9e"
+    },
+    {
+      "id": "nurse_kim_kyungmi_run",
+      "sha256": "dd12c3bfdef6819f6393cb49f5e2bebd42f643384d217cd7858ecd8f5a38ec4f"
+    },
+    {
+      "id": "nurse_kim_kyungmi_attack",
+      "sha256": "3ed6c7a88081577282ad21675be3e1e3357c94bd8878dab5b16b0dd29fa618dc"
+    },
+    {
+      "id": "cafeteria_tileset",
+      "sha256": "820026e0967730e28c93e1c2687d8cab18e53d7781bf226b86e2fb49f45ef183"
+    },
+    {
+      "id": "cafeteria_room_reference",
+      "sha256": "76126b84d3224f7a545fba5e29bad254053efd8020de4c1d7d929070979cfbef"
+    }
+  ],
+  "atlas": {
+    "image": "atlas/hyosan-memories-g2-sprites.png",
+    "sha256": "cf1a674e93923e4bd57554698eb44b70346e4b44ba7d80bd6979f9e7605f608d",
+    "data": "atlas/hyosan-memories-g2-sprites.json",
+    "dataSha256": "ca8e97ad4a39506f31b2397694cfa1f63e75df04ecb2da1a6aaba7a1149960c1",
+    "frameCount": 136,
+    "padding": 4,
+    "extrusion": 1,
+    "maxSize": 4096
+  },
+  "moduleCatalog": {
+    "path": "modules/cafeteria_tileset-modules.json",
+    "sha256": "7433d472d1e0b9a29c2c93413b52d2cea40cd8af0b22b81334edd96c89889ce7",
+    "sheetSha256": "820026e0967730e28c93e1c2687d8cab18e53d7781bf226b86e2fb49f45ef183",
+    "moduleCount": 38,
+    "tileSize": 64
+  },
+  "supersedes": "approval-history/2026-08-28T020737Z.json",
+  "unblocks": [
+    "G3"
+  ],
+  "execution": "Approval unlocks the G3 gate but does not itself start Phaser integration or user playtesting.",
+  "invalidation": "Any regenerated asset, changed spec hash, changed atlas image/data hash, or changed module catalog/sheet hash requires a new user approval."
+}
