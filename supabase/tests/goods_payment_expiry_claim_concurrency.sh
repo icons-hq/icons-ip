@@ -120,7 +120,7 @@ values (
   'goods-payment-expiry-claim-good',
   'goods-payment-expiry-claim-ip',
   '결제 만료 claim 경합 상품',
-  '테스트', 28000, 'ok', 10
+  '문구', 28000, 'ok', 10
 );
 
 insert into public.orders (
@@ -138,7 +138,7 @@ insert into public.order_items (
 )
 values (
   '${order_id}', 'goods-payment-expiry-claim-good', 1, 28000,
-  '결제 만료 claim 경합 상품', '테스트',
+  '결제 만료 claim 경합 상품', '문구',
   'goods-payment-expiry-claim-ip'
 );
 

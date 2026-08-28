@@ -140,13 +140,13 @@ values ('admin-order-ip', '어드민 주문 IP', 'character');
 
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
 values
-  ('admin-order-auto', 'admin-order-ip', '자동 취소 굿즈', '테스트', 10000, 'ok', 9),
-  ('admin-order-reject', 'admin-order-ip', '거절 굿즈', '테스트', 10000, 'ok', 9),
-  ('admin-order-review', 'admin-order-ip', '검토 굿즈', '테스트', 20000, 'ok', 9),
-  ('admin-order-shipping', 'admin-order-ip', '배송 굿즈', '테스트', 10000, 'ok', 9),
-  ('admin-order-pending-paid', 'admin-order-ip', '결제행 보유 pending 굿즈', '테스트', 10000, 'ok', 9),
-  ('admin-order-post-shipping', 'admin-order-ip', '반품 굿즈', '테스트', 10000, 'ok', 9),
-  ('admin-order-defect', 'admin-order-ip', '하자 굿즈', '테스트', 10000, 'ok', 9);
+  ('admin-order-auto', 'admin-order-ip', '자동 취소 굿즈', '문구', 10000, 'ok', 9),
+  ('admin-order-reject', 'admin-order-ip', '거절 굿즈', '문구', 10000, 'ok', 9),
+  ('admin-order-review', 'admin-order-ip', '검토 굿즈', '문구', 20000, 'ok', 9),
+  ('admin-order-shipping', 'admin-order-ip', '배송 굿즈', '문구', 10000, 'ok', 9),
+  ('admin-order-pending-paid', 'admin-order-ip', '결제행 보유 pending 굿즈', '문구', 10000, 'ok', 9),
+  ('admin-order-post-shipping', 'admin-order-ip', '반품 굿즈', '문구', 10000, 'ok', 9),
+  ('admin-order-defect', 'admin-order-ip', '하자 굿즈', '문구', 10000, 'ok', 9);
 
 insert into public.orders (id, user_id, status, total, address, expires_at)
 values
@@ -163,13 +163,13 @@ insert into public.order_items (
   good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
 )
 values
-  ('40000000-0000-4000-8000-000000000801', 'admin-order-auto', 1, 10000, '자동 취소 굿즈', '테스트', 'admin-order-ip'),
-  ('40000000-0000-4000-8000-000000000802', 'admin-order-reject', 1, 10000, '거절 굿즈', '테스트', 'admin-order-ip'),
-  ('40000000-0000-4000-8000-000000000803', 'admin-order-review', 1, 20000, '검토 굿즈', '테스트', 'admin-order-ip'),
-  ('40000000-0000-4000-8000-000000000804', 'admin-order-shipping', 1, 10000, '배송 굿즈', '테스트', 'admin-order-ip'),
-  ('40000000-0000-4000-8000-000000000805', 'admin-order-pending-paid', 1, 10000, '결제행 보유 pending 굿즈', '테스트', 'admin-order-ip'),
-  ('40000000-0000-4000-8000-000000000806', 'admin-order-post-shipping', 1, 10000, '반품 굿즈', '테스트', 'admin-order-ip'),
-  ('40000000-0000-4000-8000-000000000807', 'admin-order-defect', 1, 10000, '하자 굿즈', '테스트', 'admin-order-ip');
+  ('40000000-0000-4000-8000-000000000801', 'admin-order-auto', 1, 10000, '자동 취소 굿즈', '문구', 'admin-order-ip'),
+  ('40000000-0000-4000-8000-000000000802', 'admin-order-reject', 1, 10000, '거절 굿즈', '문구', 'admin-order-ip'),
+  ('40000000-0000-4000-8000-000000000803', 'admin-order-review', 1, 20000, '검토 굿즈', '문구', 'admin-order-ip'),
+  ('40000000-0000-4000-8000-000000000804', 'admin-order-shipping', 1, 10000, '배송 굿즈', '문구', 'admin-order-ip'),
+  ('40000000-0000-4000-8000-000000000805', 'admin-order-pending-paid', 1, 10000, '결제행 보유 pending 굿즈', '문구', 'admin-order-ip'),
+  ('40000000-0000-4000-8000-000000000806', 'admin-order-post-shipping', 1, 10000, '반품 굿즈', '문구', 'admin-order-ip'),
+  ('40000000-0000-4000-8000-000000000807', 'admin-order-defect', 1, 10000, '하자 굿즈', '문구', 'admin-order-ip');
 
 insert into public.payments (
   id, user_id, purpose, ref_id, amount, status,

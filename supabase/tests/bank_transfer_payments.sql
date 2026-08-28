@@ -165,8 +165,8 @@ values ('bank-ip', '무통장 IP', 'character');
 
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, allow_bank_transfer)
 values
-  ('bank-goods', 'bank-ip', '무통장 굿즈', '테스트', 20000, 'ok', 10, true),
-  ('bank-blocked-goods', 'bank-ip', '한정 드롭 굿즈', '테스트', 20000, 'ok', 5, false);
+  ('bank-goods', 'bank-ip', '무통장 굿즈', '문구', 20000, 'ok', 10, true),
+  ('bank-blocked-goods', 'bank-ip', '한정 드롭 굿즈', '문구', 20000, 'ok', 5, false);
 
 -- 새 컬럼의 기본값은 허용이다. 기존 굿즈가 조용히 무통장 불가로 바뀌면
 -- 오픈 직후 결제수단이 사라진다.

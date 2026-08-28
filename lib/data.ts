@@ -1,5 +1,6 @@
 /* ICONS — mock data (ported from the design prototype's data.js) */
 
+import { GOOD_TYPES } from './goods-taxonomy';
 import { RARITY_META } from './rarity';
 
 export type { Rarity, RarityKey } from './rarity';
@@ -33,10 +34,18 @@ export interface Good {
   ip: string;
   type: string;
   price: number;
+  /**
+   * 취소선으로 표기할 정가 (#326). 할인 중일 때만 값이 있고(price 초과 보장 —
+   * DB CHECK), 할인이 아니면 null/부재. SALE 표기는 저장 배지가 아니라 이 값에서
+   * 파생된다.
+   */
+  compareAtPrice?: number | null;
   badge: string | null;
   stock: Stock;
   stockQty: number;
   img: string;
+  /** 등록 시각 (#326 최신순 정렬용). mock 데이터는 생략할 수 있다. */
+  createdAt?: string;
   /**
    * 무통장 입금 허용 여부 (#256). 없으면 허용 — DB 기본값과 같다.
    * 한정 드롭처럼 재고가 24시간 묶이면 곤란한 굿즈만 운영자가 끈다.
@@ -148,22 +157,23 @@ const IPS: Ip[] = [
 
 const ipById = (id: string | null | undefined) => IPS.find((i) => i.id === id);
 
-const GOODS_TYPES = ['봉제인형', '쿠션', '키링', '아크릴 키링', '아크릴 블록', '아크릴 스탠드', '문구', '파우치', '인형', '한정 세트'];
+/* 분류 표준 값은 lib/goods-taxonomy.ts 가 진실원이다 (#326). */
+const GOODS_TYPES = [...GOOD_TYPES];
 
 const GOODS: Good[] = [
-  { id: 'g1', name: '리락쿠마 낮잠 쿠션', ip: 'rilakkuma', type: '쿠션', price: 42000, badge: '한정', stock: 'low', stockQty: 7, img: imageBg('/generated/goods/g1.png', grad('#5a3517', '#D68A2D', '#FFD84D')) },
-  { id: 'g2', name: '코리락쿠마 미니 키링', ip: 'rilakkuma', type: '키링', price: 15000, badge: '신상', stock: 'ok', stockQty: 120, img: imageBg('/generated/goods/g2.png', grad('#7d4a2a', '#F3B6C8', '#FFF3D6')) },
-  { id: 'g3', name: '주황버섯 봉제인형', ip: 'maplestory', type: '봉제인형', price: 28000, badge: '신상', stock: 'ok', stockQty: 90, img: imageBg('/generated/goods/g3.png', grad('#98440f', '#FF8C32', '#FFD84D')) },
-  { id: 'g4', name: '메이플 몬스터 키링 4종', ip: 'maplestory', type: '키링', price: 18000, badge: '한정', stock: 'low', stockQty: 12, img: imageBg('/generated/goods/g4.png', grad('#0d5e66', '#38F0C0', '#8B5CFF')) },
-  { id: 'g5', name: '핑크빈 아크릴 디오라마', ip: 'maplestory', type: '아크릴 스탠드', price: 33000, badge: '예약', stock: 'ok', stockQty: 80, img: imageBg('/generated/goods/g5.png', grad('#6b2a5b', '#F7A8C7', '#A981FF')) },
-  { id: 'g6', name: '담곰이 오리친구 데스크 매트', ip: 'nongdamgom', type: '문구', price: 22000, badge: '신상', stock: 'ok', stockQty: 110, img: imageBg('/generated/goods/g6.png', grad('#70485a', '#F7A8C7', '#FFF3D6')) },
+  { id: 'g1', name: '리락쿠마 낮잠 쿠션', ip: 'rilakkuma', type: '쿠션', price: 42000, compareAtPrice: 48000, badge: 'EXCLUSIVE', stock: 'low', stockQty: 7, img: imageBg('/generated/goods/g1.png', grad('#5a3517', '#D68A2D', '#FFD84D')) },
+  { id: 'g2', name: '코리락쿠마 미니 키링', ip: 'rilakkuma', type: '키링', price: 15000, badge: 'NEW', stock: 'ok', stockQty: 120, img: imageBg('/generated/goods/g2.png', grad('#7d4a2a', '#F3B6C8', '#FFF3D6')) },
+  { id: 'g3', name: '주황버섯 봉제인형', ip: 'maplestory', type: '인형', price: 28000, badge: 'NEW', stock: 'ok', stockQty: 90, img: imageBg('/generated/goods/g3.png', grad('#98440f', '#FF8C32', '#FFD84D')) },
+  { id: 'g4', name: '메이플 몬스터 키링 4종', ip: 'maplestory', type: '키링', price: 18000, badge: 'EXCLUSIVE', stock: 'low', stockQty: 12, img: imageBg('/generated/goods/g4.png', grad('#0d5e66', '#38F0C0', '#8B5CFF')) },
+  { id: 'g5', name: '핑크빈 아크릴 디오라마', ip: 'maplestory', type: '아크릴', price: 33000, badge: null, stock: 'ok', stockQty: 80, img: imageBg('/generated/goods/g5.png', grad('#6b2a5b', '#F7A8C7', '#A981FF')) },
+  { id: 'g6', name: '담곰이 오리친구 데스크 매트', ip: 'nongdamgom', type: '문구', price: 22000, badge: 'NEW', stock: 'ok', stockQty: 110, img: imageBg('/generated/goods/g6.png', grad('#70485a', '#F7A8C7', '#FFF3D6')) },
   { id: 'g7', name: '담곰이 말랑 쿠션', ip: 'nongdamgom', type: '쿠션', price: 36000, badge: null, stock: 'ok', stockQty: 60, img: imageBg('/generated/goods/g7.png', grad('#51343f', '#F7A8C7', '#FFD84D')) },
-  { id: 'g8', name: '춘식이 수면 파우치', ip: 'kakao-friends', type: '파우치', price: 24000, badge: '신상', stock: 'ok', stockQty: 100, img: imageBg('/generated/goods/g8.png', grad('#66421d', '#FFD84D', '#FFF3D6')) },
-  { id: 'g9', name: '라이언&어피치 피크닉 세트', ip: 'kakao-friends', type: '한정 세트', price: 59000, badge: '한정', stock: 'low', stockQty: 8, img: imageBg('/generated/goods/g9.png', grad('#724a1f', '#FFD84D', '#FF9AAF')) },
-  { id: 'g11', name: '리바이 아크릴 스탠드', ip: 'attack-on-titan', type: '아크릴 스탠드', price: 26000, badge: '예약', stock: 'ok', stockQty: 70, img: imageBg('/generated/goods/g11.png', grad('#2b251f', '#6B705C', '#A981FF')) },
-  { id: 'g13', name: '아크릴 블록', ip: 'hong-sil-quest', type: '아크릴 블록', price: 12000, badge: '신상', stock: 'soldout', stockQty: 0, img: imageBg('/generated/goods/g13.webp', grad('#300008', '#9C001D', '#FF2E63')) },
-  { id: 'g14', name: '오로라 아크릴 키링', ip: 'hong-sil-quest', type: '아크릴 키링', price: 9000, badge: '신상', stock: 'soldout', stockQty: 0, img: imageBg('/generated/goods/g14.webp', grad('#300008', '#9C001D', '#FF2E63')) },
-  { id: 'g15', name: '마그넷 인형 세트', ip: 'hong-sil-quest', type: '인형', price: 27000, badge: '신상', stock: 'soldout', stockQty: 0, img: imageBg('/generated/goods/g15.webp', grad('#300008', '#9C001D', '#FF2E63')) },
+  { id: 'g8', name: '춘식이 수면 파우치', ip: 'kakao-friends', type: '파우치', price: 24000, badge: 'NEW', stock: 'ok', stockQty: 100, img: imageBg('/generated/goods/g8.png', grad('#66421d', '#FFD84D', '#FFF3D6')) },
+  { id: 'g9', name: '라이언&어피치 피크닉 세트', ip: 'kakao-friends', type: '세트', price: 59000, badge: 'EXCLUSIVE', stock: 'low', stockQty: 8, img: imageBg('/generated/goods/g9.png', grad('#724a1f', '#FFD84D', '#FF9AAF')) },
+  { id: 'g11', name: '리바이 아크릴 스탠드', ip: 'attack-on-titan', type: '아크릴', price: 26000, badge: null, stock: 'ok', stockQty: 70, img: imageBg('/generated/goods/g11.png', grad('#2b251f', '#6B705C', '#A981FF')) },
+  { id: 'g13', name: '아크릴 블록', ip: 'hong-sil-quest', type: '아크릴', price: 12000, badge: 'NEW', stock: 'soldout', stockQty: 0, img: imageBg('/generated/goods/g13.webp', grad('#300008', '#9C001D', '#FF2E63')) },
+  { id: 'g14', name: '오로라 아크릴 키링', ip: 'hong-sil-quest', type: '키링', price: 9000, badge: 'NEW', stock: 'soldout', stockQty: 0, img: imageBg('/generated/goods/g14.webp', grad('#300008', '#9C001D', '#FF2E63')) },
+  { id: 'g15', name: '마그넷 인형 세트', ip: 'hong-sil-quest', type: '인형', price: 27000, badge: 'NEW', stock: 'soldout', stockQty: 0, img: imageBg('/generated/goods/g15.webp', grad('#300008', '#9C001D', '#FF2E63')) },
 ];
 
 const RARITY = RARITY_META;

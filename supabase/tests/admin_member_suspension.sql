@@ -251,7 +251,7 @@ insert into public.goods (
 )
 values (
   'member-suspension-good', 'member-suspension-ip', '회원 정지 굿즈',
-  '테스트', 1000, 'ok', 10
+  '문구', 1000, 'ok', 10
 )
 on conflict (id) do update set stock_qty = excluded.stock_qty, stock = excluded.stock;
 

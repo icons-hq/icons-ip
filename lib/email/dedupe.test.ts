@@ -6,6 +6,7 @@ import {
   isOrderEmailTemplateName,
   orderEmailDedupeKey,
   parseOrderEmailDedupeKey,
+  restockAlertEmailDedupeKey,
 } from './dedupe';
 
 const ORDER_ID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
@@ -73,5 +74,34 @@ describe('문의 답변 메일 키 (#253)', () => {
       template: 'order_confirmation',
       orderId: MESSAGE_ID,
     });
+  });
+});
+
+describe('재입고 알림 메일 키 (#326)', () => {
+  const ALERT_ID = '11111111-1111-4111-8111-111111111111';
+  const NOTIFIED_AT = '2026-08-28T02:00:00.000Z';
+
+  it('템플릿 이름 목록에 restock_alert가 있다 — DB CHECK와 같은 집합이다', () => {
+    expect(EMAIL_TEMPLATE_NAMES).toContain('restock_alert');
+    expect(isEmailTemplateName('restock_alert')).toBe(true);
+  });
+
+  /* 같은 신청 행이 재신청→재품절→재입고 사이클마다 되살아난다. 전이 시각이 키에
+     없으면 두 번째 재입고 메일이 첫 사이클의 sent 행에 막혀 조용히 사라진다. */
+  it('사이클마다 다른 키를 만든다', () => {
+    expect(restockAlertEmailDedupeKey(ALERT_ID, NOTIFIED_AT))
+      .toBe(`restock_alert:${ALERT_ID}:${NOTIFIED_AT}`);
+    expect(restockAlertEmailDedupeKey(ALERT_ID, NOTIFIED_AT))
+      .not.toBe(restockAlertEmailDedupeKey(ALERT_ID, '2026-09-01T02:00:00.000Z'));
+  });
+
+  /* claim_email_delivery 는 200자를 넘는 키를 거부한다. */
+  it('키 길이가 DB 한도 안에 있다', () => {
+    expect(restockAlertEmailDedupeKey(ALERT_ID, NOTIFIED_AT).length).toBeLessThanOrEqual(200);
+  });
+
+  it('주문 메일 파서가 재입고 키를 주문으로 오인하지 않는다', () => {
+    expect(isOrderEmailTemplateName('restock_alert')).toBe(false);
+    expect(parseOrderEmailDedupeKey(restockAlertEmailDedupeKey(ALERT_ID, NOTIFIED_AT))).toBeNull();
   });
 });

@@ -105,8 +105,8 @@ values ('review-ip', '리뷰 IP', 'character');
 
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
 values
-  ('review-goods', 'review-ip', '리뷰 굿즈', '테스트', 12000, 'ok', 20),
-  ('review-other-goods', 'review-ip', '다른 굿즈', '테스트', 9000, 'ok', 20);
+  ('review-goods', 'review-ip', '리뷰 굿즈', '문구', 12000, 'ok', 20),
+  ('review-other-goods', 'review-ip', '다른 굿즈', '문구', 9000, 'ok', 20);
 
 insert into public.orders (id, user_id, status, total, address, delivered_at)
 values
@@ -141,10 +141,10 @@ insert into public.order_items (
   good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
 )
 values
-  ('50000000-0000-4000-8000-000000000951', 'review-goods', 1, 12000, '리뷰 굿즈', '테스트', 'review-ip'),
-  ('50000000-0000-4000-8000-000000000952', 'review-goods', 1, 12000, '리뷰 굿즈', '테스트', 'review-ip'),
-  ('50000000-0000-4000-8000-000000000953', 'review-goods', 1, 12000, '리뷰 굿즈', '테스트', 'review-ip'),
-  ('50000000-0000-4000-8000-000000000954', 'review-goods', 1, 12000, '리뷰 굿즈', '테스트', 'review-ip');
+  ('50000000-0000-4000-8000-000000000951', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip'),
+  ('50000000-0000-4000-8000-000000000952', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip'),
+  ('50000000-0000-4000-8000-000000000953', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip'),
+  ('50000000-0000-4000-8000-000000000954', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip');
 
 -- ---------------------------------------------------------------------------
 -- 구매자 세션

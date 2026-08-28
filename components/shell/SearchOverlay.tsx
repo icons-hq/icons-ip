@@ -1,8 +1,10 @@
 'use client';
 
 import { useRef, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/components/ui/Icon';
+import { SUGGESTED_SEARCH_TERMS } from '@/lib/search-terms';
 import { useOverlayA11y } from './useOverlayA11y';
 
 /* 헤더 검색 패널. 데스크톱에서는 헤더 아래로 펼쳐지고 모바일에서는 상단을 덮는다(수치는 wc-chrome.css).
@@ -46,6 +48,21 @@ export function SearchOverlay({ open, onClose }: { open: boolean; onClose: () =>
             <Icon name="search" size={24} />
           </button>
         </form>
+        {/* 최근 검색어도 자동완성도 없는 패널이라, 빈 인풋 앞에서 다음 행동을 주는 건 이 칩 행뿐이다.
+            링크라서 JS 없이도 동작한다 — onClose 는 라우팅이 시작된 뒤 패널을 걷는 정리일 뿐이다. */}
+        <div className="wc-container wc-search__chips">
+          <p className="wc-search__chips-label">추천 검색어</p>
+          {SUGGESTED_SEARCH_TERMS.map((term) => (
+            <Link
+              key={term}
+              className="wc-search__chip"
+              href={`/search?q=${encodeURIComponent(term)}`}
+              onClick={onClose}
+            >
+              {term}
+            </Link>
+          ))}
+        </div>
       </div>
     </>
   );

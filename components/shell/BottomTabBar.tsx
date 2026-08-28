@@ -19,6 +19,10 @@ export function BottomTabBar({ menuOpen, onMenuOpen }: { menuOpen: boolean; onMe
   const pathname = usePathname();
   /* 결제 흐름에서는 하단 고정 CTA를 가리지 않도록 스스로 빠진다(구 MobNav 동작 승계). */
   if (pathname.startsWith('/checkout') || pathname.startsWith('/ticket-checkout')) return null;
+  /* 굿즈 상세도 같다 — 모바일 PDP 는 72px 구매바가 최하단을 차지한다(R-04 §7.2).
+     탭바를 그대로 두면 z-index 로 가려진 채 포커스 순서에만 남는 유령 내비가 된다.
+     /shop/new·/shop/best 는 컬렉션 표면이라 탭바를 유지한다. */
+  if (/^\/shop\/(?!new$|best$)[^/]+$/.test(pathname)) return null;
 
   /* 항목별 isActive가 아니라 activeNavId — '/shop/new'에서 '굿즈샵'과 홈이 함께 켜지지 않게 최장 경로가 이긴다. */
   const activeId = activeNavId(pathname, MOB_ITEMS);

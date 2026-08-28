@@ -3,11 +3,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogGoodDetail } from '@/lib/catalog';
 import Page, { generateMetadata } from './page';
 
+const summary = { average: 4.5, count: 3, distribution: [0, 0, 0, 1, 2], photoCount: 1 };
+
 const mocks = vi.hoisted(() => ({
   details: [] as CatalogGoodDetail[],
+  engagement: vi.fn(async () => ({ restockRequested: false, wished: true })),
   goodDetail: vi.fn<(props: Record<string, unknown>) => null>(() => null),
   goodReviews: vi.fn<(props: Record<string, unknown>) => null>(() => null),
-  reviewSection: vi.fn(async () => ({ reviews: [] })),
+  reviewSection: vi.fn(async () => ({
+    reviews: [],
+    summary: { average: 4.5, count: 3, distribution: [0, 0, 0, 1, 2], photoCount: 1 },
+  })),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -16,6 +22,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/components/screens/GoodDetail', () => ({ GoodDetail: mocks.goodDetail }));
 vi.mock('@/components/shop/GoodReviews', () => ({ GoodReviews: mocks.goodReviews }));
 vi.mock('@/lib/reviews.server', () => ({ loadGoodReviewSection: mocks.reviewSection }));
+vi.mock('@/lib/wishlist.server', () => ({ getGoodEngagement: mocks.engagement }));
 vi.mock('@/lib/catalog', () => ({
   getCatalogGoodDetail: async (id: string) => mocks.details.find((item) => item.good.id === id) ?? null,
 }));
@@ -54,6 +61,7 @@ beforeEach(() => {
   mocks.goodDetail.mockClear();
   mocks.goodReviews.mockClear();
   mocks.reviewSection.mockClear();
+  mocks.engagement.mockClear();
   mocks.details = [
     detailFor('g13', '아크릴 블록', 12000),
     detailFor('g14', '오로라 아크릴 키링', 9000),
@@ -92,6 +100,16 @@ describe('/shop/[goodId] page', () => {
       photoOnly: true,
       sort: 'recent',
     });
+  });
+
+  /* 찜·재입고 신청 여부는 카탈로그·리뷰와 함께 읽어 화면이 하트를 켠 채로 시작한다.
+     비로그인·mock 모드에서도 던지지 않으므로 공개 열람을 막지 않는다(#326). */
+  it('찜 상태와 리뷰 요약을 화면에 함께 넘긴다', async () => {
+    renderToStaticMarkup(await Page({ params: Promise.resolve({ goodId: 'g13' }), searchParams: Promise.resolve({}) }));
+
+    expect(mocks.engagement).toHaveBeenCalledWith('g13');
+    expect(mocks.goodDetail.mock.calls[0]?.[0]?.engagement).toEqual({ restockRequested: false, wished: true });
+    expect(mocks.goodDetail.mock.calls[0]?.[0]?.reviewSummary).toEqual(summary);
   });
 
   it('404s for an unknown good id', async () => {

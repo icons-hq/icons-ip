@@ -102,7 +102,11 @@ colors:
 
 ### 액센트 사용처 (전수 — 이 밖에 쓰지 않는다)
 
-GNB hover/active 텍스트+3px 밑줄바, 메가메뉴 현재 링크, 카트 수량 뱃지 bg, 카드 뱃지(NEW/SALE — tint bg+green 텍스트), 세일 할인율 텍스트, 위시 하트 선택됨, 인풋 caret, 추천 검색어 칩, 폼 검증(invalid 보더·피드백), `.wc-btn.accent` 변형, 온라인 팝업 팔로우 카운트. **파괴 행동은 `state.danger`**를 쓰고 액센트로 위장하지 않는다.
+**비텍스트·장식**(brand-green 유지): GNB 3px 밑줄바, 카트 수량 뱃지 bg, 카드 뱃지 tint bg, 위시 하트 선택됨, 인풋 caret, 추천 검색어 칩 bg, `.wc-btn.accent` 변형, 온라인 팝업 팔로우 카운트.
+
+**소형 액센트 텍스트**(S4에서 확정 — brand-green 2.3:1은 AA 미달이라 `state.success` #3F7D38 사용, 토큰 `--wc-success`): GNB hover/active 텍스트, 메가메뉴 현재 링크 텍스트, 카드 뱃지 텍스트, 세일 할인율 텍스트, 추천 검색어 칩 텍스트, 폼 검증 피드백 텍스트.
+
+**파괴 행동은 `state.danger`**를 쓰고 액센트로 위장하지 않는다.
 
 ### 규칙
 
@@ -272,7 +276,7 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 ## 10. 반응형·접근성 (승계 + 갱신)
 
 - 반응형: §frontmatter 브레이크포인트. 모바일에서 콘텐츠는 2열(상품)·1열(정보), 유틸바 숨김, GNB는 가로 탭, PDP는 1열 스택+`mobile-buybar`. 360px에서 금액·주문번호·CTA overflow 별도 검증.
-- 접근성: WCAG AA 대비(green 액센트 텍스트는 흰 바탕 대비 검증 필수 — 소형 텍스트에는 `state.success` 대체 검토), 키보드 전 조작, focus-visible 2px `state.focus`, 아이콘 버튼 44px+접근 이름, 캐러셀 정지 수단·현재 위치, 모달·시트 focus trap·Escape·복귀 포커스, 색·위치 단독 의미 전달 금지.
+- 접근성: WCAG AA 대비(**확정 — 소형 액센트 텍스트는 brand-green 대신 `state.success`를 쓴다. §2 사용처 분류 참조**), 키보드 전 조작, focus-visible 2px `state.focus`, 아이콘 버튼 44px+접근 이름, 캐러셀 정지 수단·현재 위치, 모달·시트 focus trap·Escape·복귀 포커스, 색·위치 단독 의미 전달 금지.
 
 ## 11. 백엔드·API 불변 계약
 

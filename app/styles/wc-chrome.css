@@ -313,16 +313,20 @@
   padding-left: 0;
 }
 
+/* GNB 라벨은 16px/700 이라 AA 4.5:1 이 필요하다 — brand-green 은 2.3:1 이라 미달이다.
+   텍스트만 state.success 로 내리고 3px 밑줄바는 아래에서 brand-green 을 계속 쓴다. */
 .wc-gnb__link:hover,
 .wc-gnb__link.is-active {
-  color: var(--wc-accent);
+  color: var(--wc-success);
 }
 
 .wc-gnb__label {
   position: relative;
 }
 
-/* 활성/hover 표기는 색과 3px 바 한 세트다. 바는 중앙에서 양쪽으로 자란다. */
+/* 활성/hover 표기는 색과 3px 바 한 세트다. 바는 중앙에서 양쪽으로 자란다.
+   바는 비텍스트 장식이라 대비 규칙에서 자유롭다 — 액센트 정체성은 여기서 유지한다.
+   그래서 currentColor 가 아니라 brand-green 을 명시한다(텍스트는 state.success 로 갈라졌다). */
 .wc-gnb__label::after {
   content: '';
   position: absolute;
@@ -330,7 +334,7 @@
   bottom: -4px;
   width: 100%;
   height: 3px;
-  background: currentColor;
+  background: var(--wc-accent);
   transform: scaleX(0);
   transform-origin: center;
   transition: transform var(--wc-duration-medium);
@@ -413,9 +417,10 @@
   text-decoration: underline;
 }
 
-/* 현재 페이지는 색으로만 알린다 — 밑줄까지 겹치면 hover와 구분되지 않는다. */
+/* 현재 페이지는 색으로만 알린다 — 밑줄까지 겹치면 hover와 구분되지 않는다.
+   색이 유일한 신호라서 대비가 더 중요하다 — GNB 라벨과 같은 state.success 를 쓴다. */
 .wc-mega__link[aria-current='page'] {
-  color: var(--wc-accent);
+  color: var(--wc-success);
 }
 
 .wc-mega__link[aria-current='page']:hover {
@@ -521,14 +526,15 @@
   background: var(--wc-dim);
 }
 
+/* 인풋 아래 추천 칩 행이 함께 들어가므로 높이를 고정하지 않는다 — 칩이 두 줄로 접히면
+   86px 고정 높이가 칩을 잘라 먹는다. 패널은 내용만큼만 열린다. */
 .wc-search {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 3;
-  height: 86px;
-  padding: 16px 16px 0;
+  padding: 16px 16px 20px;
   background: var(--wc-surface);
 }
 
@@ -561,12 +567,44 @@
   color: var(--wc-ink-disabled);
 }
 
+/* 추천 검색어 칩 — 오버레이와 `/search` 빈 결과가 같은 마크업을 공유한다(R-03 §2.1·§4-7).
+   레퍼런스는 빈 결과에서 칩을 걷어 회복 동선을 없애는데, 그 결함은 옮기지 않는다. */
+.wc-search__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.wc-search__chips-label {
+  margin: 0 8px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+/* 칩 텍스트는 14px 소형 액센트라 brand-green(2.3:1) 대신 state.success 를 쓴다.
+   tint 배경은 비텍스트라 brand-green 계열을 그대로 유지한다(DESIGN §2). */
+.wc-search__chip {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 400;
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: 17px;
+  background: var(--wc-accent-tint);
+  color: var(--wc-success);
+}
+
 @media (min-width: 990px) {
   .wc-search {
     position: absolute;
     top: 100%;
-    height: 200px;
-    padding: 24px 0 0;
+    padding: 24px 0 32px;
   }
 
   .wc-search__input {

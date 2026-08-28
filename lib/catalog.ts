@@ -117,6 +117,10 @@ interface GoodRow {
   name: string;
   type: string;
   price: number;
+  /* #326 컬럼 2종은 옵셔널이다 — 기존 테스트 픽스처(리터럴 GoodRow)를 전부
+     깨지 않으면서, select 에 포함된 실 쿼리에서는 값이 흐른다. */
+  compare_at_price?: number | null;
+  created_at?: string | null;
   badge: string | null;
   stock: string;
   stock_qty: number;
@@ -489,10 +493,12 @@ function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
     name: row.name,
     type: row.type,
     price: row.price,
+    compareAtPrice: row.compare_at_price ?? null,
     badge: row.badge,
     stock: stockQty <= 0 ? 'soldout' : toStock(row.stock),
     stockQty,
     img: backgroundFor(row.bg, row.image_path, imageUrlForPath, DATA.GOODS[0]?.img ?? ''),
+    createdAt: row.created_at ?? undefined,
     allowBankTransfer: row.allow_bank_transfer ?? true,
   };
 }
@@ -630,7 +636,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
-      .select('id,ip_id,name,type,price,badge,stock,stock_qty,bg,image_path,allow_bank_transfer')
+      .select('id,ip_id,name,type,price,compare_at_price,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer')
       .is('archived_at', null)
       .order('id'),
     supabase

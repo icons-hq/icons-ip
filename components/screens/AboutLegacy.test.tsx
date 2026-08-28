@@ -554,7 +554,7 @@ describe('AboutLegacy curation', () => {
 
     expect(html).toContain('<div aria-hidden="true" class="film-copy">');
     expect(html).toContain(
-      '<div aria-atomic="true" aria-live="off" class="sr-only"><p>OFFICIAL GOODS</p><h2>좋아하는 마음이 손에 잡히는 순간</h2><p>주황버섯 봉제인형 · 신상</p></div>',
+      '<div aria-atomic="true" aria-live="off" class="sr-only"><p>OFFICIAL GOODS</p><h2>좋아하는 마음이 손에 잡히는 순간</h2><p>주황버섯 봉제인형 · NEW</p></div>',
     );
     expect(html).not.toContain('<span aria-atomic="true" aria-live="off" class="sr-only">');
     expect(source).toMatch(
@@ -738,7 +738,7 @@ describe('ICONS IP World Preview composition', () => {
             ip: 'lumen',
             type: '피규어',
             price: 28000,
-            badge: '신상',
+            badge: 'NEW',
             stock: 'ok',
             stockQty: 8,
             img: 'linear-gradient(#abc, #def)',

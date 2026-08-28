@@ -157,7 +157,7 @@ values (
   'goods-manual-recovery-race-good',
   'goods-manual-recovery-race-ip',
   '굿즈 수동 복구 경합 상품',
-  '테스트', 28000, 'ok', 10
+  '문구', 28000, 'ok', 10
 );
 
 insert into public.orders (
@@ -175,7 +175,7 @@ insert into public.order_items (
 )
 values (
   '${order_id}', 'goods-manual-recovery-race-good', 1, 28000,
-  '굿즈 수동 복구 경합 상품', '테스트',
+  '굿즈 수동 복구 경합 상품', '문구',
   'goods-manual-recovery-race-ip'
 );
 

@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { SUGGESTED_SEARCH_TERMS } from '@/lib/search-terms';
 import { Nav } from './Nav';
 import { MenuSheet } from './MenuSheet';
 import { SearchOverlay } from './SearchOverlay';
@@ -161,6 +162,22 @@ describe('White Catalog 전역 셸', () => {
     expect(html).toContain('wc-header');
   });
 
+  /* 모바일 PDP 는 72px 구매바가 최하단을 차지한다(R-04 §7.2). 탭바를 남기면
+     z-index 로 가려진 채 포커스 순서에만 존재하는 유령 내비가 된다. */
+  it('굿즈 상세에서는 탭바를 접고, NEW·BEST 컬렉션에서는 유지한다', () => {
+    mocks.pathname = '/shop/g1';
+    expect(renderToStaticMarkup(<Nav />)).not.toContain('wc-tabbar');
+
+    mocks.pathname = '/shop/new';
+    expect(renderToStaticMarkup(<Nav />)).toContain('wc-tabbar');
+
+    mocks.pathname = '/shop/best';
+    expect(renderToStaticMarkup(<Nav />)).toContain('wc-tabbar');
+
+    mocks.pathname = '/shop';
+    expect(renderToStaticMarkup(<Nav />)).toContain('wc-tabbar');
+  });
+
   /* 축약 판정은 스크롤 절대값이 아니라 헤더 직전 센티널의 뷰포트 이탈로 한다(IntersectionObserver).
    * 유틸바·공지 스트립이 아직 보이는데 GNB부터 접히는 조기 축약을 막는 구조 계약이다. */
   it('헤더 앞에 축약 판정용 센티널을 두고 SSR에서는 항상 펼친 상태로 시작한다', () => {
@@ -199,6 +216,23 @@ describe('White Catalog 전역 셸', () => {
     expect(html).toContain('name="q"');
 
     expect(renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open={false} />)).toBe('');
+  });
+
+  /* 최근 검색어도 자동완성도 없는 패널이라, 빈 인풋 앞에서 다음 행동을 주는 건 추천 칩뿐이다.
+   * 칩은 링크여야 JS 없이도 결과로 갈 수 있고, 질의어는 인코딩돼야 한글·공백이 살아 남는다. */
+  it('검색 오버레이가 추천 검색어 칩을 결과 링크로 세운다', () => {
+    const html = renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open />);
+
+    expect(html).toContain('추천 검색어');
+    expect(html).toContain('class="wc-search__chip"');
+    for (const term of SUGGESTED_SEARCH_TERMS) {
+      expect(html).toContain(`href="/search?q=${encodeURIComponent(term)}"`);
+    }
+
+    /* 닫힌 패널이 칩만 남겨 두면 헤더 아래에 죽은 링크 행이 붙는다. */
+    expect(renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open={false} />)).not.toContain(
+      'wc-search__chip',
+    );
   });
 
   /* 로그인 상태가 확정되기 전에 로그인/로그아웃 중 하나를 먼저 그리면 절반이 틀린 채로 깜빡인다. */

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import {
   catalogContextFromSnapshot,
   gameContextFromRecords,
@@ -27,6 +28,7 @@ import {
 import { normalizeAdminUserRoleForm } from '@/lib/admin/roles';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { getCatalogSnapshot } from '@/lib/catalog';
+import { sendRestockAlertEmails } from '@/lib/email/transactional.server';
 import { createClient } from '@/lib/supabase/server';
 
 export interface AdminCatalogActionState {
@@ -150,6 +152,29 @@ function goodsNoticeFailure(message: string): AdminCatalogActionState | null {
   return message.includes('goods_notice_required')
     ? rpcFailure('고시정보를 모두 입력한 뒤 저장해주세요.')
     : null;
+}
+
+/* 폼 검증을 우회해 RPC 까지 닿은 정가 오류를 운영자 언어로 옮긴다 (#326). */
+function compareAtPriceFailure(message: string): AdminCatalogActionState | null {
+  return message.includes('goods_compare_at_price_invalid')
+    ? rpcFailure('정가는 판매가보다 커야 해요')
+    : null;
+}
+
+/*
+ * 재입고 알림 발송 (#326).
+ *
+ * 재고를 건드릴 수 있는 두 액션(굿즈 저장·실재고 조정) 뒤에서 조건 없이 부른다.
+ * "품절→판매 가능 전이가 일어났는가"는 DB 트리거가 이미 판정했고, 이미 보낸
+ * 사이클은 발송 클레임이 거른다 — 여기서 다시 판정하면 판정이 두 곳으로 갈라진다.
+ *
+ * 기다리지 않는다. 메일 왕복이 저장 응답을 붙잡으면 운영자 화면이 그만큼 늦고,
+ * 메일 실패가 저장 성공을 뒤집어서도 안 된다. 다만 서버리스 런타임은 응답을 돌려준
+ * 순간 실행을 얼릴 수 있어, 떠 있는 promise 는 발송 보장이 아니다 — after() 로
+ * 응답 이후 수명에 등록해야 클레임·발송까지 살아서 간다. 훅은 절대 throw 하지 않는다.
+ */
+function notifyRestockSubscribers(goodId: string) {
+  after(() => sendRestockAlertEmails(goodId));
 }
 
 function archivedParentFailure(message: string): AdminCatalogActionState | null {
@@ -306,6 +331,7 @@ export async function upsertAdminGoodAction(
     target_gallery_paths: value.galleryPaths,
     target_detail_image_path: value.detailImagePath,
     target_previous_id: value.previousId,
+    target_compare_at_price: value.compareAtPrice,
   });
 
   if (error) {
@@ -313,9 +339,11 @@ export async function upsertAdminGoodAction(
       ?? artworkClaimFailure(error.message)
       ?? archivedParentFailure(error.message)
       ?? goodsNoticeFailure(error.message)
+      ?? compareAtPriceFailure(error.message)
       ?? rpcFailure('굿즈를 저장하지 못했습니다. 다시 시도해주세요.');
   }
 
+  notifyRestockSubscribers(value.id);
   revalidateCatalog(relatedIpPaths(value.ipId, previousIpPath));
   return { message: '굿즈를 저장했습니다.' };
 }
@@ -361,6 +389,7 @@ export async function adjustAdminStockAction(
     return rpcFailure('실재고를 조정하지 못했습니다. 다시 시도해주세요.');
   }
 
+  notifyRestockSubscribers(value.goodId);
   revalidateStock(ipPath);
   return { message: '실재고를 조정했습니다.' };
 }

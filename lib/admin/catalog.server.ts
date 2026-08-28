@@ -29,6 +29,8 @@ export interface AdminGoodRecord {
   name: string;
   type: string;
   price: number;
+  /** 취소선으로 표기할 정가 (#326). 할인 중일 때만 값이 있다. */
+  compareAtPrice: number | null;
   badge: string | null;
   stock: Stock;
   stockQty: number;
@@ -300,6 +302,7 @@ interface GoodRow {
   name: string;
   type: string;
   price: number;
+  compare_at_price: number | null;
   badge: string | null;
   stock: Stock;
   stock_qty: number | null;
@@ -490,7 +493,7 @@ export async function getAdminCatalogRecords(
       ? supabase
         .from('goods')
         /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-        .select('id,archived_at,ip_id,name,type,price,badge,stock,stock_qty,allow_bank_transfer,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path')
+        .select('id,archived_at,ip_id,name,type,price,compare_at_price,badge,stock,stock_qty,allow_bank_transfer,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path')
         .order('id')
       : skippedResult,
     queried.has('cards')
@@ -613,6 +616,7 @@ export async function getAdminCatalogRecords(
       name: row.name,
       type: row.type,
       price: row.price,
+      compareAtPrice: row.compare_at_price,
       badge: row.badge,
       stock: row.stock,
       stockQty: row.stock_qty ?? 0,

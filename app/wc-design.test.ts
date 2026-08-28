@@ -34,6 +34,9 @@ describe('White Catalog design wiring', () => {
     expect(css).toContain('--wc-line-control: #C8CACC');
     expect(css).toContain('--wc-accent: #78BB53');
     expect(css).toContain('--wc-accent-tint: rgba(120,187,83,.12)');
+    /* 소형 액센트 텍스트(배지·할인율·GNB 활성·추천 칩)는 brand-green 2.3:1로 AA에 미달한다 —
+     * S4에서 확정된 대체 잉크다. 값이 바뀌면 그 텍스트들이 조용히 대비 미달로 돌아간다. */
+    expect(css).toContain('--wc-success: #3F7D38');
     expect(css).toContain('--wc-danger: #B8324A');
     expect(css).toContain('--wc-focus: #5B74FF');
     expect(css).toContain('--wc-scrim: rgba(0,0,0,.3)');
@@ -168,5 +171,50 @@ describe('White Catalog home wiring', () => {
     const css = read('./styles/wc-home.css');
 
     expect(css).toMatch(/\.wc-hero__slide\s*\{[^}]*transition:[^}]*opacity/s);
+  });
+});
+
+describe('White Catalog catalog wiring', () => {
+  it('loads the catalog layer after the home bands', () => {
+    /* 컬렉션·PDP·카트는 홈 밴드가 쓰는 프리미티브를 지면별로 다시 조율한다 —
+     * 홈보다 먼저 로드되면 같은 특정성에서 그 조율이 통째로 밀린다.
+     * 보존 전시용 about-legacy는 여전히 맨 뒤에서 자기 지면만 덮는다. */
+    const layout = read('./layout.tsx');
+
+    expect(layout).toContain("'./styles/wc-catalog.css'");
+    expect(layout.indexOf("'./styles/wc-catalog.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-home.css'"),
+    );
+    expect(layout.indexOf("'./styles/about-legacy.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-catalog.css'"),
+    );
+  });
+
+  it('keeps the catalog stylesheet scoped, rootless, and free of the reference accent', () => {
+    /* 카탈로그는 폼 컨트롤(체크박스·레인지·셀렉트)을 가장 많이 손대는 지면이다 —
+     * 전역 element 규칙 하나가 이행 전 표면과 어드민 폼까지 통째로 끌고 간다. */
+    const css = read('./styles/wc-catalog.css');
+
+    expect(css).not.toMatch(/^\s*(?:html|body|:root|h[1-6]|a|p|ul|ol|button|input|\*)\s*[,{:]/m);
+    expect(css).not.toMatch(/:root\s*\{[^}]*--wc-/s);
+    expect(css).not.toMatch(/#F83BAA/i);
+    expect(css).not.toMatch(/#FD4BBB/i);
+    expect(css).not.toMatch(/line-height:\s*(?:0?\.)\d+/);
+  });
+
+  it('moves small accent text to the success ink while decoration keeps brand green', () => {
+    /* S4 확정: brand-green은 흰 지면에서 2.3:1이라 소형 텍스트에 쓰면 AA를 못 넘는다.
+     * 텍스트(배지·할인율·GNB 활성·추천 칩)만 --wc-success로 내리고,
+     * 비텍스트(3px 밑줄바·카트 수량 뱃지 bg·칩 배경)는 액센트 정체성을 유지한다. */
+    const foundation = read('./styles/wc-foundation.css');
+    const chrome = read('./styles/wc-chrome.css');
+
+    expect(foundation).toMatch(/\.wc-badge\s*\{[^}]*color:\s*var\(--wc-success\)/s);
+    expect(foundation).toMatch(/\.wc-badge\s*\{[^}]*background:\s*var\(--wc-accent-tint\)/s);
+    expect(foundation).toMatch(/\.wc-price__rate\s*\{[^}]*color:\s*var\(--wc-success\)/s);
+    expect(chrome).toMatch(/\.wc-gnb__link\.is-active\s*\{[^}]*color:\s*var\(--wc-success\)/s);
+    expect(chrome).toMatch(/\.wc-search__chip\s*\{[^}]*color:\s*var\(--wc-success\)/s);
+    expect(chrome).toMatch(/\.wc-gnb__label::after\s*\{[^}]*background:\s*var\(--wc-accent\)/s);
+    expect(chrome).toMatch(/\.wc-cartcount\s*\{[^}]*background:\s*var\(--wc-accent\)/s);
   });
 });

@@ -185,7 +185,9 @@
   border: 1px solid transparent;
   border-radius: var(--wc-radius-badge);
   background: var(--wc-accent-tint);
-  color: var(--wc-accent);
+  /* 11px 배지 글자는 brand-green(2.3:1)으로는 AA 미달이다 — 텍스트만 state.success 로 내린다.
+     tint 배경은 비텍스트라 brand-green 을 그대로 둔다(DESIGN §2 액센트 사용처). */
+  color: var(--wc-success);
 }
 
 .wc-badge.outline {
@@ -215,10 +217,11 @@
   gap: 4px;
 }
 
+/* 할인율은 소형 액센트 텍스트다 — 배지와 같은 이유로 state.success 를 쓴다. */
 .wc-price__rate {
   font-size: 14px;
   font-weight: 600;
-  color: var(--wc-accent);
+  color: var(--wc-success);
 }
 
 .wc-price__amount {

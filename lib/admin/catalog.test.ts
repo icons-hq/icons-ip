@@ -278,6 +278,7 @@ describe('admin catalog form normalization', () => {
         name: '화산강림 아크릴 스탠드',
         type: '아크릴 스탠드',
         price: 22000,
+        compareAtPrice: null,
         badge: '신상',
         stock: 'ok',
         bg: null,
@@ -312,6 +313,37 @@ describe('admin catalog form normalization', () => {
         price: '가격은 0 이상의 정수여야 합니다.',
         stock: '재고 상태를 선택해주세요.',
       },
+    });
+  });
+
+  /* #326 — 정가는 취소선 표기 전용이다. 판매가 이하면 0%·음수 할인율이 나온다. */
+  it('reads the compare-at price and refuses one that is not above the sale price', () => {
+    function goodForm(compareAtPrice: string) {
+      const formData = setGoodsNotice(new FormData());
+      formData.set('id', 'g103');
+      formData.set('ipId', 'hwasan');
+      formData.set('name', '화산강림 아크릴 스탠드');
+      formData.set('type', '아크릴');
+      formData.set('price', '22000');
+      formData.set('stock', 'ok');
+      formData.set('compareAtPrice', compareAtPrice);
+      return formData;
+    }
+
+    const onSale = normalizeAdminGoodForm(goodForm('26000'), context);
+    expect(onSale).toMatchObject({ ok: true, value: { compareAtPrice: 26000 } });
+
+    /* 빈 칸은 0 이 아니라 "할인 아님"이다. */
+    expect(normalizeAdminGoodForm(goodForm('   '), context))
+      .toMatchObject({ ok: true, value: { compareAtPrice: null } });
+
+    expect(normalizeAdminGoodForm(goodForm('22000'), context)).toEqual({
+      ok: false,
+      errors: { compareAtPrice: '정가는 판매가보다 커야 해요' },
+    });
+    expect(normalizeAdminGoodForm(goodForm('26000.5'), context)).toEqual({
+      ok: false,
+      errors: { compareAtPrice: '정가는 0 이상의 정수여야 합니다.' },
     });
   });
 
