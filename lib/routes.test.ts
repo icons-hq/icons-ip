@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   CATEGORY_MEGA_GROUPS,
@@ -69,6 +71,13 @@ describe('White Catalog 내비게이션 경로', () => {
   it('위시와 소개 표면을 건다', () => {
     expect(hrefFor('wish')).toBe('/my/wishlist');
     expect(hrefFor('about')).toBe('/about');
+  });
+
+  it('위시 링크는 실제 페이지 파일에 묶인다', () => {
+    /* S2 셸이 이 링크를 세 곳(바텀 탭·푸터·전체 메뉴)에 노출하고도 라우트가 없어
+       전 표면 프리페치 404를 만든 이력이 있다. 등록 경로와 페이지 파일이 어긋나면 여기서 잡는다. */
+    const wishPage = join(process.cwd(), 'app', ...hrefFor('wish').split('/').filter(Boolean), 'page.tsx');
+    expect(existsSync(wishPage)).toBe(true);
   });
 });
 
