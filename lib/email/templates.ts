@@ -265,6 +265,45 @@ export interface InquiryAnsweredEmailInput {
   inquiryUrl: string;
 }
 
+export interface RestockAlertEmailInput {
+  goodName: string;
+  /**
+   * 굿즈 상세로 가는 **절대** URL. 메일에는 우리 사이트의 상대 경로를 이어 붙일
+   * 기준 문서가 없어 http(s) 여야 하고, `safeLinkUrl` 이 그 조건을 강제한다.
+   */
+  goodPath: string;
+}
+
+/**
+ * 재입고 알림 메일 (#326).
+ *
+ * 인앱 알림은 goods 트리거가 같은 트랜잭션에서 남긴다. 메일만 밖에서 보낸다 —
+ * HTTP 는 트랜잭션에 넣을 수 없고, 메일 실패가 재고 전이를 되돌리면 안 된다.
+ *
+ * 사실성 게이트가 없다. "다시 판매를 시작했다"는 그 뒤에 또 품절이 나도 그 시점에는
+ * 참이었고, 재품절은 재신청이라는 자기 경로를 갖는다.
+ */
+export function renderRestockAlertEmail(input: RestockAlertEmailInput): RenderedEmail {
+  const subject = `[ICONS] 재입고 알림 — ${input.goodName}`;
+  const goodUrl = safeLinkUrl(input.goodPath);
+
+  const text = textBlock([
+    `${input.goodName} 굿즈가 다시 판매를 시작했어요.`,
+    '',
+    '수량이 한정적이라 다시 품절될 수 있어요.',
+    ...(goodUrl ? ['', `굿즈 보러 가기: ${goodUrl}`] : []),
+  ]);
+
+  const html = htmlDocument(input.goodName, [
+    htmlHeading('재입고 알림'),
+    htmlParagraph(`${input.goodName} 굿즈가 다시 판매를 시작했어요.`, INK),
+    htmlParagraph('수량이 한정적이라 다시 품절될 수 있어요.'),
+    ...(goodUrl ? [htmlButton(goodUrl, '굿즈 보러 가기')] : []),
+  ].join(''), '굿즈');
+
+  return { subject, text, html };
+}
+
 /* 답변 본문의 줄바꿈만 살린다. 문단 태그로 감싸지 않는 이유는 운영자가 목록·인사말을
    자유롭게 쓰기 때문이다 — 빈 줄을 문단으로 해석하면 의도한 간격이 사라진다. */
 function htmlAnswerBody(body: string) {

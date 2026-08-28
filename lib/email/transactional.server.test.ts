@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { sendOrderConfirmationEmail, sendOrderShippedEmail } from './transactional.server';
+import {
+  sendOrderConfirmationEmail,
+  sendOrderShippedEmail,
+  sendRestockAlertEmails,
+} from './transactional.server';
 
 const ORDER_ID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
 
@@ -13,6 +17,10 @@ const mocks = vi.hoisted(() => ({
   items: [] as Record<string, unknown>[],
   itemsError: null as { message: string } | null,
   profile: null as Record<string, unknown> | null,
+  good: null as Record<string, unknown> | null,
+  goodError: null as { message: string } | null,
+  restockRows: [] as Record<string, unknown>[],
+  restockError: null as { message: string } | null,
 }));
 
 vi.mock('../supabase/service', () => ({
@@ -23,13 +31,18 @@ vi.mock('../supabase/service', () => ({
       const query = {
         select: () => query,
         eq: () => query,
-        order: async () => ({
-          data: mocks.itemsError ? null : mocks.items,
-          error: mocks.itemsError,
-        }),
-        maybeSingle: async () => (table === 'orders'
-          ? { data: mocks.orderError ? null : mocks.order, error: mocks.orderError }
-          : { data: mocks.profile, error: null }),
+        order: async () => (table === 'restock_alerts'
+          ? { data: mocks.restockError ? null : mocks.restockRows, error: mocks.restockError }
+          : { data: mocks.itemsError ? null : mocks.items, error: mocks.itemsError }),
+        maybeSingle: async () => {
+          if (table === 'orders') {
+            return { data: mocks.orderError ? null : mocks.order, error: mocks.orderError };
+          }
+          if (table === 'goods') {
+            return { data: mocks.goodError ? null : mocks.good, error: mocks.goodError };
+          }
+          return { data: mocks.profile, error: null };
+        },
       };
       return query;
     },
@@ -92,6 +105,16 @@ beforeEach(() => {
     { good_name_snapshot: '홍실 아크릴 블록', qty: 2, unit_price: 12_000 },
   ];
   mocks.profile = { email: 'buyer@example.com' };
+  mocks.goodError = null;
+  mocks.good = { name: '홍실 아크릴 블록' };
+  mocks.restockError = null;
+  mocks.restockRows = [
+    {
+      id: '11111111-1111-4111-8111-111111111111',
+      notified_at: '2026-08-28T02:00:00.000Z',
+      profiles: { email: 'fan@example.com' },
+    },
+  ];
   vi.spyOn(console, 'info').mockImplementation(() => {});
   // vi.spyOn은 이미 spy인 메서드에 같은 mock을 돌려준다. 비우지 않으면 이전 테스트의
   // 로그가 남아 "로그를 남기지 않는다"를 검증할 수 없다.
@@ -318,5 +341,100 @@ describe('sendOrderShippedEmail', () => {
 
     expect(result).toEqual({ status: 'skipped', reason: 'order_status_mismatch:paid' });
     expect(mocks.send).not.toHaveBeenCalled();
+  });
+});
+
+describe('sendRestockAlertEmails (#326)', () => {
+  const ALERT_ID = '11111111-1111-4111-8111-111111111111';
+
+  it('notified 로 넘어간 신청자마다 클레임 → 발송한다', async () => {
+    const results = await sendRestockAlertEmails('g13');
+
+    expect(results).toEqual([{ status: 'sent' }]);
+    expect(rpcCalls('claim_email_delivery')[0][1]).toMatchObject({
+      target_dedupe_key: `restock_alert:${ALERT_ID}:2026-08-28T02:00:00.000Z`,
+      target_template: 'restock_alert',
+      target_recipient: 'fan@example.com',
+      target_subject: '[ICONS] 재입고 알림 — 홍실 아크릴 블록',
+    });
+    expect(mocks.send).toHaveBeenCalledTimes(1);
+    expect(mocks.send.mock.calls[0][0].text).toContain('홍실 아크릴 블록');
+    expect(mocks.send.mock.calls[0][0].text).toContain('/shop/g13');
+  });
+
+  /* 재신청→재품절→재입고 사이클마다 새 메일이어야 한다. 키에 전이 시각이 없으면
+     두 번째 재입고 메일이 첫 사이클의 sent 행에 막혀 조용히 사라진다. */
+  it('사이클마다 다른 dedupe_key 를 쓴다', async () => {
+    await sendRestockAlertEmails('g13');
+    mocks.restockRows = [{
+      ...mocks.restockRows[0],
+      notified_at: '2026-09-01T02:00:00.000Z',
+    }];
+    await sendRestockAlertEmails('g13');
+
+    const keys = rpcCalls('claim_email_delivery').map((call) => call[1].target_dedupe_key);
+    expect(new Set(keys).size).toBe(2);
+  });
+
+  /* 재고를 건드릴 때마다 조건 없이 불린다 — 신청자 없는 굿즈가 절대다수다. */
+  it('보낼 신청이 없으면 조용히 넘어간다', async () => {
+    mocks.restockRows = [];
+
+    const results = await sendRestockAlertEmails('g13');
+
+    expect(results).toEqual([{ status: 'skipped', reason: 'no_notified_alerts' }]);
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(loggedLines()).toEqual([]);
+  });
+
+  it('이미 보낸 사이클은 클레임이 걸러 다시 보내지 않는다', async () => {
+    mocks.rpc.mockImplementation(async (name: string) => (
+      name === 'claim_email_delivery' ? { data: false, error: null } : { data: null, error: null }
+    ));
+
+    const results = await sendRestockAlertEmails('g13');
+
+    expect(results).toEqual([{ status: 'skipped', reason: 'already_delivered' }]);
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(loggedLines()).toEqual([]);
+  });
+
+  it('한 수신자의 실패가 다른 수신자의 발송을 막지 않는다', async () => {
+    mocks.restockRows = [
+      { id: ALERT_ID, notified_at: '2026-08-28T02:00:00.000Z', profiles: { email: null } },
+      {
+        id: '22222222-2222-4222-8222-222222222222',
+        notified_at: '2026-08-28T02:00:00.000Z',
+        profiles: { email: 'fan2@example.com' },
+      },
+    ];
+
+    const results = await sendRestockAlertEmails('g13');
+
+    expect(results).toEqual([
+      { status: 'skipped', reason: 'recipient_missing' },
+      { status: 'sent' },
+    ]);
+    expect(mocks.send).toHaveBeenCalledTimes(1);
+    expect(mocks.send.mock.calls[0][0].to).toBe('fan2@example.com');
+    expect(loggedLines().some((line) => line.includes('recipient_missing'))).toBe(true);
+  });
+
+  it('service role 이 없으면 아무것도 읽지 않고 결과 하나로 접는다', async () => {
+    mocks.serviceConfigured = false;
+
+    const results = await sendRestockAlertEmails('g13');
+
+    expect(results).toEqual([{ status: 'skipped', reason: 'service_role_not_configured' }]);
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it('조회가 실패해도 던지지 않고 실패를 기록한다', async () => {
+    mocks.restockError = { message: 'boom' };
+
+    const results = await sendRestockAlertEmails('g13');
+
+    expect(results).toEqual([{ status: 'failed', error: 'unexpected_email_failure' }]);
+    expect(loggedLines().some((line) => line.includes('restock alert failed'))).toBe(true);
   });
 });

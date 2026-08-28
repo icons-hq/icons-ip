@@ -4,6 +4,7 @@ import {
   renderInquiryAnsweredEmail,
   renderOrderConfirmationEmail,
   renderOrderShippedEmail,
+  renderRestockAlertEmail,
 } from './templates';
 
 const ORDER_ID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
@@ -210,6 +211,39 @@ describe('renderInquiryAnsweredEmail (#253)', () => {
 
   it('본문을 이스케이프해 메일에 마크업을 주입하지 못하게 한다', () => {
     const email = renderInquiryAnsweredEmail({ ...input, answerBody: '<script>x</script>' });
+
+    expect(email.html).not.toContain('<script>');
+    expect(email.html).toContain('&lt;script&gt;');
+  });
+});
+
+describe('renderRestockAlertEmail (#326)', () => {
+  const input = {
+    goodName: '홍실 아크릴 블록',
+    goodPath: 'https://iconsip.com/shop/g13',
+  };
+
+  it('제목과 본문이 어떤 굿즈인지 말한다', () => {
+    const email = renderRestockAlertEmail(input);
+
+    expect(email.subject).toBe('[ICONS] 재입고 알림 — 홍실 아크릴 블록');
+    expect(email.text).toContain('홍실 아크릴 블록');
+    expect(email.text).toContain('https://iconsip.com/shop/g13');
+    expect(email.html).toContain('href="https://iconsip.com/shop/g13"');
+  });
+
+  /* 메일 본문 링크는 http(s)만 허용한다 — 스킴을 검사하지 않으면 저장된 값 하나로
+     javascript: 링크가 수신자 메일함까지 간다. */
+  it('http(s)가 아닌 링크는 버튼으로 만들지 않는다', () => {
+    const email = renderRestockAlertEmail({ ...input, goodPath: 'javascript:alert(1)' });
+
+    expect(email.html).not.toContain('javascript:');
+    expect(email.text).not.toContain('javascript:');
+    expect(email.text).toContain('홍실 아크릴 블록');
+  });
+
+  it('굿즈명의 HTML을 이스케이프한다', () => {
+    const email = renderRestockAlertEmail({ ...input, goodName: '<script>x</script>' });
 
     expect(email.html).not.toContain('<script>');
     expect(email.html).toContain('&lt;script&gt;');

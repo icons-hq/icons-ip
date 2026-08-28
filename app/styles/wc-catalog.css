@@ -1,0 +1,2049 @@
+/* White Catalog v4 카탈로그 커머스 — 컬렉션(굿즈샵·NEW·BEST)·PDP·검색 결과·카트·위시리스트.
+   수치와 anatomy 의 정본은 재현 스펙 `docs/research/linefriends-square/`의 03(컬렉션·검색)·
+   04(상품 상세)·05(카트) 이고, 색은 wc-foundation 의 `--wc-*` 토큰만 쓴다.
+   wc-foundation·wc-chrome·wc-home 과 같은 스코프 규율을 지킨다: 모든 규칙은 `.wc-` 클래스에서
+   시작하고 전역 element 스타일을 두지 않는다. 아직 이행되지 않은 editorial 표면과 어드민이
+   같은 문서에 공존해서, 목록 하나 때문에 그쪽 지면이 통째로 흔들리면 안 되기 때문이다.
+   브레이크포인트는 두 개다: 콘텐츠 750px(그리드 열 수), 크롬 990px(사이드바↔바텀시트·PDP 2칼럼).
+   모바일 퍼스트로 쓰고 위로 얹는다. */
+
+/* ------------------------------------------------------------------
+   상품 그리드 (컬렉션·검색 공용)
+   ------------------------------------------------------------------ */
+
+/* 모바일 2열 gap 40/7, 데스크톱 4열 gap 50/16 — wc-foundation 의 로딩 스켈레톤 그리드와
+   같은 값이라야 스켈레톤이 실제 목록과 같은 자리에서 교체된다(R-03 §1.5). */
+.wc-product-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 40px 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-product-grid > * {
+  min-width: 0;
+}
+
+@media (min-width: 750px) {
+  .wc-product-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 50px 16px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   컬렉션 — 페이지 골격
+   ------------------------------------------------------------------ */
+
+.wc-collection {
+  padding-block: 24px 96px;
+}
+
+/* 모바일은 그리드 한 칼럼뿐이다 — 사이드바는 바텀시트로 빠진다(R-03 §1.8). */
+.wc-collection__layout {
+  display: block;
+}
+
+.wc-collection__sidebar {
+  display: none;
+}
+
+.wc-collection__main {
+  min-width: 0;
+}
+
+/* 카운트·정렬·필터 트리거가 모두 이 행에 모인다. 모바일은 두 줄(트리거 / 카운트+정렬),
+   데스크톱은 한 줄(카운트 좌 / 정렬 우)로 접힌다. */
+.wc-collection__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+/* 필터 트리거는 모바일에서 첫 줄 전체를 우측 정렬로 차지한다. */
+.wc-collection__toolbar > .wc-filter-trigger {
+  order: -1;
+  margin-left: auto;
+}
+
+.wc-collection__count {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--wc-ink);
+}
+
+/* 카운트 숫자만 굵기로 세운다 — 레퍼런스의 핑크 강조 대신 잉크 농도로 위계를 만든다. */
+.wc-collection__count strong {
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+/* editorial 파운데이션의 `:where(select)` 규칙이 48px 높이·12px 라운드를 얹는다 — 지면 값으로 되돌린다.
+   커스텀 패널 없이 네이티브 옵션 리스트를 그대로 쓰고 caret 만 그린다(R-03 §1.4). */
+.wc-collection__sort {
+  min-height: 0;
+  height: 30px;
+  padding: 0 22px 0 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 30px;
+  text-align: right;
+  -webkit-appearance: none;
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23111111' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 4px center;
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+/* 목록이 비어도 그리드 자리가 무너지지 않게 자체 높이를 준다. */
+.wc-collection__empty {
+  padding: 64px 0 80px;
+}
+
+/* VIEW MORE 는 그리드 폭을 그대로 채우는 48px 바다(R-03 §1.6) —
+   프리미티브의 데스크톱 `min-width: 300px` 축소를 이 지면에서만 되돌린다. */
+.wc-collection__main .wc-view-more {
+  width: 100%;
+  min-width: 0;
+  height: 48px;
+  margin-top: 56px;
+}
+
+@media (min-width: 990px) {
+  /* 200 + 84 + 896 = 콘텐츠 1180(R-03 §0). 그리드 트랙을 비율이 아니라 실측값으로 고정한다. */
+  .wc-collection__layout {
+    display: grid;
+    grid-template-columns: 200px minmax(0, 1fr);
+    column-gap: 84px;
+  }
+
+  .wc-collection__sidebar {
+    display: block;
+  }
+
+  .wc-collection__toolbar {
+    flex-wrap: nowrap;
+  }
+}
+
+/* ------------------------------------------------------------------
+   컬렉션 — 필터 그룹 (details 디스클로저)
+   ------------------------------------------------------------------ */
+
+.wc-filter-group {
+  padding-bottom: 24px;
+}
+
+.wc-filter-group + .wc-filter-group {
+  padding-top: 24px;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+/* 네이티브 마커를 지우고 직접 그린다 — 열림 방향은 아래(닫힘)↔위(열림)로만 회전한다. */
+.wc-filter-group__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.4;
+  list-style: none;
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-filter-group__summary::-webkit-details-marker {
+  display: none;
+}
+
+.wc-filter-group__summary::after {
+  content: '';
+  flex: none;
+  width: 0;
+  height: 0;
+  margin-left: 8px;
+  border-top: 5px solid currentColor;
+  border-right: 5px solid transparent;
+  border-left: 5px solid transparent;
+  transition: transform var(--wc-duration-default);
+}
+
+.wc-filter-group[open] > .wc-filter-group__summary::after {
+  transform: rotate(180deg);
+}
+
+/* 항목이 많은 그룹(IP)은 사이드바를 무한정 늘리지 않고 자체 스크롤로 접는다. */
+.wc-filter-group__options {
+  max-height: 400px;
+  margin: 12px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+/* 체크박스는 20×20 커스텀 마크가 서고 텍스트는 32px 들여쓴다(R-03 §1.3). */
+.wc-filter-group__option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 34px;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+/* 네이티브 input 은 커스텀 마크 위에 투명하게 겹쳐 둔다 —
+   시각적으로 감추되 focus-visible 링이 마크 자리에 그대로 뜨게 하려는 것. */
+.wc-filter-group__option input[type='checkbox'] {
+  position: absolute;
+  left: 0;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.wc-filter-group__checkbox {
+  position: relative;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 1.5px;
+  background: var(--wc-surface);
+}
+
+.wc-filter-group__option input[type='checkbox']:checked ~ .wc-filter-group__checkbox {
+  border-color: var(--wc-ink);
+  background: var(--wc-ink);
+}
+
+/* 체크마크는 두 변만 남긴 사각형을 45도 돌려 만든다 — 아이콘 에셋을 늘리지 않기 위해서다. */
+.wc-filter-group__option input[type='checkbox']:checked ~ .wc-filter-group__checkbox::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 6px;
+  width: 5px;
+  height: 9px;
+  transform: rotate(45deg);
+  border-right: 2px solid #FFFFFF;
+  border-bottom: 2px solid #FFFFFF;
+}
+
+.wc-filter-group__option-count {
+  color: var(--wc-ink-tertiary);
+}
+
+/* 사이드바 최하단 초기화 — 200×40 아웃라인 버튼(R-03 §1.3). */
+.wc-filter-group__reset {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  border: 1px solid var(--wc-line-control);
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------
+   컬렉션 — 가격 듀얼 슬라이더
+   ------------------------------------------------------------------ */
+
+.wc-price-slider {
+  padding-top: 12px;
+}
+
+/* 두 range 를 같은 자리에 겹쳐 놓는다. 트랙 자체는 이 상자가 그리고,
+   input 은 배경 없이 썸만 남겨 위에 뜬다(R-03 §1.3 트랙 6px). */
+.wc-price-slider__track {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--wc-hairline);
+}
+
+.wc-price-slider__range {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 6px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: none;
+  /* 트랙 위 아무 데나 눌러 값이 튀지 않게 한다 — 잡을 수 있는 건 썸 뿐이다. */
+  pointer-events: none;
+}
+
+.wc-price-slider__range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 50%;
+  background: var(--wc-surface);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.wc-price-slider__range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 50%;
+  background: var(--wc-surface);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* 슬라이더만으로는 지금 값이 얼마인지 읽히지 않는다 — 보더 박스가 유일한 수치 표기다. */
+.wc-price-slider__label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  margin-top: 16px;
+  padding: 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  border: 1px solid var(--wc-line-control);
+  border-radius: var(--wc-radius-form);
+  color: var(--wc-ink);
+}
+
+/* ------------------------------------------------------------------
+   컬렉션 — 모바일 필터 바텀시트
+   ------------------------------------------------------------------ */
+
+/* 101×30 트리거(R-03 §1.8). 990px 이상에서는 위 toolbar 규칙이 통째로 감춘다. */
+.wc-filter-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 400;
+  border: 1px solid var(--wc-line-control);
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+/* 전역 시트(`.wc-sheet-dim`)와 같은 값이다 — 필터 시트가 셸 시트와 다른 밝기로 뜨지 않게 맞춘다. */
+.wc-filter-sheet__dim {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: var(--wc-dim);
+}
+
+.wc-filter-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  height: 500px;
+  max-height: 90vh;
+  border-radius: var(--wc-radius-sheet) var(--wc-radius-sheet) 0 0;
+  background: var(--wc-surface);
+  animation: wc-filter-sheet-in var(--wc-duration-medium) var(--wc-ease-out-slow);
+}
+
+@keyframes wc-filter-sheet-in {
+  0% {
+    transform: translateY(100%);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/* 아코디언이 아니라 가로 탭 전환이다 — 세 그룹이 같은 높이의 본문을 번갈아 쓴다(R-03 §1.8). */
+.wc-filter-sheet__tabs {
+  display: flex;
+  flex: none;
+  gap: 24px;
+  padding: 20px 16px 0;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-filter-sheet__tab {
+  height: 44px;
+  padding: 0;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 400;
+  border: 0;
+  background: none;
+  color: var(--wc-line-divider);
+  cursor: pointer;
+}
+
+.wc-filter-sheet__tab.is-active {
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-filter-sheet__body {
+  flex: 1;
+  min-height: 0;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+/* 시트 안에서는 그룹 제목과 접기가 필요 없다 — 탭이 이미 그 역할을 한다. */
+.wc-filter-sheet__body .wc-filter-group {
+  padding: 0;
+  border-top: 0;
+}
+
+.wc-filter-sheet__body .wc-filter-group__options {
+  margin-top: 0;
+  max-height: none;
+  overflow: visible;
+}
+
+.wc-filter-sheet__body .wc-filter-group__option {
+  min-height: 52px;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+/* 지연 적용 모델이라 푸터가 유일한 확정 지점이다 — 스크롤과 무관하게 바닥에 붙는다(h79). */
+.wc-filter-sheet__footer {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 79px;
+  padding: 0 16px;
+  border-top: 1px solid var(--wc-hairline);
+  background: var(--wc-surface);
+}
+
+.wc-filter-sheet__footer .wc-filter-group__reset {
+  width: auto;
+  height: 44px;
+  font-weight: 700;
+  text-decoration: underline;
+  border: 0;
+}
+
+.wc-filter-sheet__apply {
+  flex: none;
+  width: 200px;
+  max-width: 60%;
+  height: 50px;
+  padding: 0 15px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  border: 1px solid var(--wc-ink);
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-ink);
+  color: #FFFFFF;
+  cursor: pointer;
+}
+
+@media (min-width: 990px) {
+  .wc-filter-trigger,
+  .wc-filter-sheet,
+  .wc-filter-sheet__dim {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------
+   PDP — 페이지 골격
+   ------------------------------------------------------------------ */
+
+/* 모바일은 고정 구매바(72px)가 문서 바닥을 덮는다 — 마지막 블록이 가리지 않게 바닥을 더 연다. */
+.wc-pdp {
+  padding-bottom: 96px;
+}
+
+.wc-pdp__layout {
+  display: block;
+}
+
+.wc-pdp__info {
+  padding-top: 24px;
+}
+
+.wc-pdp__badges {
+  display: flex;
+  gap: 4px;
+  min-height: 20px;
+}
+
+/* editorial 파운데이션이 h1~h3 에 display 서체와 잉크색을 강제하므로 지면 서체를 되돌린다. */
+.wc-pdp__title {
+  margin: 8px 0 0;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -.2px;
+  color: var(--wc-ink);
+}
+
+/* 가격은 정보 칼럼에서 가장 큰 수다(R-04 §3.3) — 카드용 14px 기본값을 이 지면에서만 키운다. */
+.wc-pdp__price {
+  margin-top: 16px;
+}
+
+.wc-pdp__price .wc-price__amount,
+.wc-pdp__price .wc-price__rate {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* 별점(좌)과 하트(우) 한 행. 아래 헤어라인이 정보 블록과 폼 블록을 가른다(R-04 §3.4). */
+.wc-pdp-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 62px;
+  margin-top: 16px;
+  padding-bottom: 25px;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-pdp-tools__rating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--wc-ink);
+}
+
+.wc-pdp-tools__average {
+  font-weight: 700;
+}
+
+.wc-pdp-tools__count {
+  color: var(--wc-ink-tertiary);
+}
+
+/* 별은 잉크 한 색이다 — 금색을 들이면 액센트 규칙(단일 색)이 깨진다. */
+.wc-rating__stars {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--wc-ink);
+}
+
+/* 브랜드(IP) 칩 — 정보 칼럼 맨 아래, 상단 헤어라인 위 한 행(R-04 §3.9). */
+.wc-pdp__brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-pdp__brand-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-pdp__brand-link {
+  font-size: 13px;
+  font-weight: 400;
+  text-decoration: underline;
+  color: var(--wc-ink-sub);
+}
+
+/* 어드민 미리보기는 문서 안의 한 조각이라 고정 구매바를 띄우지 않는다. */
+.wc-pdp.is-embedded .wc-buybar,
+.wc-pdp.is-embedded .wc-buybar-mini {
+  display: none;
+}
+
+@media (min-width: 990px) {
+  .wc-pdp {
+    padding-bottom: 120px;
+  }
+
+  /* 649 + 531 = 콘텐츠 1180(R-04 §1). 정보 칼럼 안쪽 85px 이 실 콘텐츠 446px 을 만든다. */
+  .wc-pdp__layout {
+    display: grid;
+    grid-template-columns: 649fr 531fr;
+    align-items: start;
+  }
+
+  .wc-pdp__info {
+    padding-top: 0;
+    padding-left: 85px;
+  }
+
+  .wc-pdp__title {
+    font-size: 18px;
+    line-height: 1.11;
+    letter-spacing: -.5px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   PDP — 갤러리
+   ------------------------------------------------------------------ */
+
+.wc-pdp-gallery {
+  position: relative;
+}
+
+/* Swiper 없이 네이티브 scroll-snap 으로 넘긴다 — 자동재생도 화살표도 없다(R-04 §2). */
+.wc-pdp-gallery__stage {
+  display: flex;
+  aspect-ratio: 3 / 4;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  background: var(--wc-surface-grey-2);
+}
+
+.wc-pdp-gallery__stage::-webkit-scrollbar {
+  display: none;
+}
+
+.wc-pdp-gallery__slide {
+  flex: none;
+  width: 100%;
+  height: 100%;
+  scroll-snap-align: start;
+}
+
+.wc-pdp-gallery__slide img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 도트는 이미지 바깥이 아니라 안쪽 하단에 앉는다(피치 16px = 8px 도트 + 8px 간격). */
+.wc-pdp-gallery__dots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 24px;
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* 시각 지름은 8px 이지만 히트박스는 아이콘 컨트롤 최소 44px 규칙을 따른다. */
+.wc-pdp-gallery__dot {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--wc-ink);
+  opacity: .3;
+  cursor: pointer;
+}
+
+.wc-pdp-gallery__dot::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 44px;
+  height: 44px;
+  transform: translate(-50%, -50%);
+}
+
+.wc-pdp-gallery__dot[aria-current='true'] {
+  opacity: 1;
+}
+
+/* 썸네일 스트립은 모바일에서 숨긴다 — 도트와 스와이프가 이동 수단이다(R-04 §2). */
+.wc-pdp-gallery__thumbs {
+  display: none;
+}
+
+@media (min-width: 990px) {
+  .wc-pdp-gallery__stage {
+    aspect-ratio: 1 / 1;
+  }
+
+  /* 84×7 + 10×6 = 648 — 갤러리 폭(649)에 그대로 맞는다. 넘치면 가로 스크롤로 흘린다. */
+  .wc-pdp-gallery__thumbs {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .wc-pdp-gallery__thumbs::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 레퍼런스에는 활성 마커가 아예 없다(R-04 §10-2) — 보더 한 겹으로 결함을 메운다. */
+  .wc-pdp-gallery__thumb {
+    flex: none;
+    width: 84px;
+    height: 84px;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid transparent;
+    background: var(--wc-surface-grey-2);
+    cursor: pointer;
+  }
+
+  .wc-pdp-gallery__thumb[aria-current='true'] {
+    border-color: var(--wc-ink);
+  }
+
+  .wc-pdp-gallery__thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+/* ------------------------------------------------------------------
+   PDP — 구매 패널
+   ------------------------------------------------------------------ */
+
+.wc-buy-panel {
+  padding-top: 20px;
+}
+
+/* 재고 상태는 CTA 가 바뀌기 전에 글로 먼저 알린다 — 색·버튼 모양만으로 전하지 않는다. */
+.wc-buy-panel__state {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-buy-panel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--wc-ink);
+}
+
+.wc-buy-panel__label {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+/* 수량이 바뀔 때마다 실시간으로 갱신되는 유일한 금액 행이다(R-04 §3.7). */
+.wc-buy-panel__total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 20px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-buy-panel__total-label {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.wc-buy-panel__total-amount {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+/* 27 : 73 — 장바구니는 면으로만 구분되는 아웃라인, 구매하기가 잉크다(R-04 §3.8). */
+.wc-buy-panel__ctas {
+  display: flex;
+  gap: 5px;
+  margin-top: 16px;
+}
+
+.wc-buy-panel__ctas > .wc-btn {
+  margin-top: 0;
+  font-size: 15px;
+}
+
+.wc-buy-panel__cart {
+  flex: 27;
+}
+
+.wc-buy-panel__buy {
+  flex: 73;
+}
+
+/* 품절이면 CTA 두 개가 통째로 이 풀폭 버튼 하나로 교체된다(R-04 §3.8). */
+.wc-restock-cta {
+  display: block;
+  margin-top: 16px;
+}
+
+.wc-restock-cta .wc-btn {
+  gap: 6px;
+  font-size: 15px;
+}
+
+/* 서버 확인 전에는 채우지 않는 live region 이다 — 비어 있을 때 자리를 남기면 CTA 아래가 흔들린다. */
+.wc-buy-panel__status {
+  margin: 12px 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: -.38px;
+  color: var(--wc-success);
+}
+
+.wc-buy-panel__status:empty {
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------
+   PDP — 하부 탭과 패널
+   ------------------------------------------------------------------ */
+
+.wc-pdp-tabs {
+  margin-top: 48px;
+}
+
+/* 탭바는 sticky 헤더 바로 아래에 붙는다 — 축약 상태의 로고 행 높이(모바일 81 / 데스크톱 68)가
+   그대로 오프셋이다(wc-chrome `.wc-header__bar-inner`). */
+.wc-pdp-tabs .wc-tabs__list {
+  position: sticky;
+  top: 81px;
+  z-index: 2;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--wc-surface);
+}
+
+.wc-pdp-tabs .wc-tabs__list::-webkit-scrollbar {
+  display: none;
+}
+
+.wc-pdp-tabs .wc-tabs__tab {
+  padding: 0 20px;
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+/* 초장축 상세 이미지가 그대로 오는 자리라 폭 상한만 잡고 좌측 정렬로 둔다(R-04 §1). */
+.wc-pdp-panel {
+  max-width: 840px;
+}
+
+/* editorial 파운데이션이 h1~h3 에 display 서체를 강제하므로 지면 서체로 되돌린다. */
+.wc-pdp-panel__title {
+  margin: 32px 0 12px;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -.4px;
+  color: var(--wc-ink);
+}
+
+.wc-pdp-panel__title:first-child {
+  margin-top: 0;
+}
+
+.wc-pdp-panel__desc {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.8;
+  color: var(--wc-ink-sub);
+}
+
+.wc-pdp-panel__note {
+  margin: 12px 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.7;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-pdp-panel__image,
+.wc-pdp-panel img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-top: 16px;
+}
+
+/* 상품 정보 고시 — 표를 감싸는 섹션. 넓은 표가 지면을 밀지 않게 자체 가로 스크롤을 준다. */
+.wc-pdp-notice {
+  display: block;
+}
+
+.wc-pdp-notice__scroll {
+  overflow-x: auto;
+}
+
+.wc-pdp-notice__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.wc-pdp-notice__caption {
+  margin-bottom: 8px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-pdp-notice__table th,
+.wc-pdp-notice__table td {
+  padding: 12px 0;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-pdp-notice__table th {
+  width: 180px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-pdp-notice__table td {
+  color: var(--wc-ink);
+}
+
+.wc-pdp-guide {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.7;
+  color: var(--wc-ink-sub);
+}
+
+.wc-pdp-guide__list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+/* 정책 원문으로 나가는 링크다 — 안내 문단과 구분되게 밑줄을 남긴다. */
+.wc-pdp-guide__link {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: underline;
+  color: var(--wc-ink);
+}
+
+@media (min-width: 990px) {
+  .wc-pdp-tabs {
+    margin-top: 80px;
+  }
+
+  .wc-pdp-tabs .wc-tabs__list {
+    top: 68px;
+    overflow-x: visible;
+  }
+
+  .wc-pdp-tabs .wc-tabs__tab {
+    min-width: 220px;
+    padding: 0 32px;
+    font-size: 20px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   PDP — 리뷰
+   ------------------------------------------------------------------ */
+
+.wc-reviews {
+  display: block;
+}
+
+.wc-reviews__policy {
+  margin: 24px 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.7;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 평균 점수(37/700)가 요약부의 주인공이다. 레퍼런스는 분포 바를 DOM 에만 두고 감추지만
+   (R-04 §6.1 결함), 여기서는 실제로 보여 리뷰 신뢰 UI 를 켠 채로 둔다. */
+.wc-review-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-review-summary__average {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wc-review-summary__score {
+  font-size: 37px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--wc-ink);
+}
+
+.wc-review-summary__stars {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--wc-ink);
+}
+
+.wc-review-summary__count {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-review-summary__dist {
+  display: grid;
+  gap: 4px;
+  min-width: 200px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-review-summary__dist-row {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-review-summary__dist-label {
+  white-space: nowrap;
+}
+
+.wc-review-summary__dist-track {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  background: var(--wc-hairline);
+}
+
+/* 막대는 잉크다 — 액센트로 칠하면 "주목할 것" 신호가 분포 다섯 줄에 흩어진다. */
+.wc-review-summary__dist-bar {
+  display: block;
+  height: 100%;
+  background: var(--wc-ink);
+}
+
+.wc-review-summary__dist-count {
+  text-align: right;
+}
+
+/* 포토 리뷰는 캐러셀이 아니라 2×4 고정 그리드다(R-04 §6.1). */
+.wc-review-summary__photos {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  width: 100%;
+  max-width: 300px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-review-summary__photos img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 70 / 55;
+  object-fit: cover;
+  background: var(--wc-surface-grey-2);
+}
+
+/* 정렬·필터는 링크다(풀 페이지 이동) — 현재 조건만 잉크 굵기로 세운다. */
+.wc-review-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 16px 0;
+}
+
+.wc-review-controls__link {
+  font-size: 13px;
+  font-weight: 400;
+  text-decoration: none;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-review-controls__link[aria-current] {
+  font-weight: 700;
+  text-decoration: underline;
+  color: var(--wc-ink);
+}
+
+.wc-review-list {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--wc-hairline);
+  list-style: none;
+}
+
+.wc-review-list__count {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-review-item {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-review-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--wc-ink);
+}
+
+.wc-review-item__author {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+/* 날짜는 행 오른쪽 끝에 붙는다 — 작성자 이름 길이에 따라 자리가 흔들리지 않게. */
+.wc-review-item__date {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-review-item__flag {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--wc-ink-disabled);
+}
+
+.wc-review-item__body {
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.7;
+  color: var(--wc-ink-sub);
+}
+
+.wc-review-item__photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-review-item__photos img {
+  display: block;
+  width: 98px;
+  height: 130px;
+  object-fit: cover;
+  background: var(--wc-surface-grey-2);
+}
+
+/* 운영자 답글은 회색 띠로 들여 리뷰 본문과 화자를 가른다. */
+.wc-review-item__reply {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: var(--wc-surface-grey);
+}
+
+.wc-review-item__reply-author {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-review-item__reply .wc-review-item__body {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.wc-review-item__action,
+.wc-review-item__report {
+  display: inline-block;
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 400;
+  text-decoration: underline;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-review-item__report button {
+  padding: 0;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  text-decoration: underline;
+  border: 0;
+  background: none;
+  color: var(--wc-ink-tertiary);
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------------
+   PDP — 구매바 (모바일 고정 · 데스크톱 플로팅)
+   ------------------------------------------------------------------ */
+
+/* 72px 잉크 풀폭, 좌 카트 존 + 우 구매 존(R-04 §7.2). 셸 탭바(z 3) 위에 선다. */
+.wc-buybar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  height: 72px;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--wc-ink);
+}
+
+.wc-buybar__cart {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 82px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #FFFFFF;
+  cursor: pointer;
+}
+
+.wc-buybar__cart::after {
+  content: '';
+  position: absolute;
+  top: 24px;
+  right: 0;
+  width: 1px;
+  height: 24px;
+  background: rgba(255,255,255,.3);
+}
+
+/* 레퍼런스는 이 자리를 핑크로 칠하지만, 흰 글자 하나로 대비를 만든다(액센트 남용 금지). */
+.wc-buybar__buy {
+  flex: 1;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  border: 0;
+  background: none;
+  color: #FFFFFF;
+  cursor: pointer;
+}
+
+.wc-buybar__buy:disabled {
+  color: var(--wc-ink-disabled);
+  cursor: not-allowed;
+}
+
+/* 품절이면 바 전체가 재입고 버튼 하나로 바뀐다 — 바 안에서는 자기 마진을 지우고 폭을 채운다. */
+.wc-buybar__restock {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  margin: 0;
+  padding: 0 12px;
+}
+
+.wc-buybar__restock .wc-btn {
+  height: 48px;
+  font-size: 16px;
+}
+
+/* 데스크톱 하부 상세로 내려갔을 때만 뜨는 우하단 미니 바(R-04 §5.5). */
+.wc-buybar-mini {
+  display: none;
+}
+
+@media (min-width: 990px) {
+  .wc-buybar {
+    display: none;
+  }
+
+  .wc-buybar-mini {
+    position: fixed;
+    right: 24px;
+    bottom: 24px;
+    z-index: 90;
+    display: flex;
+    gap: 5px;
+  }
+
+  /* 노출 조건은 화면 스크립트가 판단한다. 지면 규칙이 display 를 켜 버리므로
+     브라우저 기본 `[hidden]` 이 더는 이기지 못한다 — 여기서 다시 끈다. */
+  .wc-buybar-mini[hidden] {
+    display: none;
+  }
+
+  .wc-buybar-mini__cart {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 50px;
+    height: 50px;
+    padding: 0;
+    border: 1px solid var(--wc-line-control);
+    border-radius: var(--wc-radius-cta);
+    background: var(--wc-surface);
+    color: var(--wc-ink);
+    cursor: pointer;
+  }
+
+  .wc-buybar-mini__buy {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 226px;
+    height: 50px;
+    padding: 0 15px;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 700;
+    border: 1px solid var(--wc-ink);
+    border-radius: var(--wc-radius-cta);
+    background: var(--wc-ink);
+    color: #FFFFFF;
+    cursor: pointer;
+  }
+
+  /* 카트 50 + 갭 5 + 구매 226 = 281 — 재입고로 바뀌어도 바 폭이 흔들리지 않는다. */
+  .wc-buybar-mini__restock {
+    margin: 0;
+  }
+
+  .wc-buybar-mini__restock .wc-btn {
+    width: 281px;
+    font-size: 15px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   검색 결과
+   ------------------------------------------------------------------ */
+
+.wc-search-results {
+  padding-block: 24px 96px;
+}
+
+/* 헤딩(좌)과 재검색 인풋(우)이 같은 밴드에 산다. 모바일은 세로로 접힌다(R-03 §2.2·§2.6). */
+.wc-search-results__head {
+  margin-bottom: 32px;
+}
+
+/* 질의어·건수 강조는 색이 아니라 잉크 굵기다 — 레퍼런스의 핑크 강조를 옮기지 않는다. */
+.wc-search-results__heading {
+  margin: 0 0 24px;
+  font-family: inherit;
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1.33;
+  letter-spacing: -.8px;
+  color: var(--wc-ink);
+}
+
+.wc-search-results__heading strong {
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-search-results__form {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* 오버레이 인풋과 같은 문법이다 — 보더 없는 grey 필드(DESIGN §6 버튼·인풋 기본형).
+   editorial 파운데이션의 `:where(input)` 규칙이 48px·12px 라운드를 얹으므로 되돌린다. */
+.wc-search-results__input {
+  flex: 1;
+  min-width: 0;
+  min-height: 50px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 16px;
+  -webkit-appearance: none;
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--wc-surface-grey);
+  color: var(--wc-ink);
+  caret-color: var(--wc-accent);
+}
+
+.wc-search-results__submit {
+  flex: none;
+  height: 50px;
+  padding: 0 20px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  border: 1px solid var(--wc-ink);
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-ink);
+  color: #FFFFFF;
+  cursor: pointer;
+}
+
+.wc-search-results__grid {
+  margin-top: 24px;
+}
+
+/* 굿즈가 주 결과이고 IP·카드·포스트는 그 아래 보조 섹션이다. */
+.wc-search-results__aside-groups {
+  margin-top: 80px;
+  padding-top: 40px;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-search-results__group + .wc-search-results__group {
+  margin-top: 40px;
+}
+
+.wc-search-results__group-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 보조 결과는 카드가 아니라 얇은 리스트 행이다 — 굿즈 그리드와 위계를 분명히 가른다. */
+.wc-search-results__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  text-decoration: none;
+  border-bottom: 1px solid var(--wc-hairline);
+  color: inherit;
+}
+
+.wc-search-results__row-thumb {
+  display: block;
+  flex: none;
+  width: 56px;
+  height: 56px;
+  background-color: var(--wc-surface-grey-2);
+}
+
+.wc-search-results__row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.wc-search-results__row-label {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--wc-ink);
+}
+
+.wc-search-results__row-sub {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-search-results__empty {
+  padding: 64px 0 40px;
+}
+
+/* 빈 결과의 회복 동선이라 안내문과 같은 축에 세운다 — 좌측으로 흘러 있으면 짝이 안 맞는다. */
+.wc-search-results__empty .wc-search__chips {
+  justify-content: center;
+  margin-top: 24px;
+}
+
+@media (min-width: 990px) {
+  .wc-search-results__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 40px;
+  }
+
+  .wc-search-results__heading {
+    margin-bottom: 0;
+  }
+
+  /* 433.5px 인라인 인풋(R-03 §2.2) — 헤딩과 같은 줄에서 폭을 고정한다. */
+  .wc-search-results__form {
+    flex: none;
+    width: 434px;
+    margin-top: 0;
+  }
+}
+
+.wc-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 56px;
+}
+
+.wc-pagination__cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 4px;
+  font-size: 16px;
+  font-weight: 400;
+  text-decoration: none;
+  color: var(--wc-ink-sub);
+}
+
+.wc-pagination__cell[aria-current='page'] {
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-pagination__arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 글리프는 작지만 히트박스는 아이콘 컨트롤 최소 44px 규칙을 따른다. */
+  width: 44px;
+  height: 44px;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-pagination__ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  color: var(--wc-ink-disabled);
+}
+
+/* ------------------------------------------------------------------
+   카트
+   ------------------------------------------------------------------ */
+
+.wc-cart {
+  padding-block: 24px 96px;
+}
+
+.wc-cart__title {
+  margin: 0 0 24px;
+  font-family: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -.55px;
+  color: var(--wc-ink);
+}
+
+/* 어디에 담겨 있는 카트인지(계정/이 기기)는 로그인 유도의 근거라 제목 옆에 남긴다. */
+.wc-cart__mode {
+  margin: 0 0 16px;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: .7px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-cart__error,
+.wc-cart__warning {
+  margin: 0 0 16px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: -.38px;
+  color: var(--wc-danger);
+}
+
+.wc-cart__warning {
+  margin: 12px 0 0;
+}
+
+.wc-cart__loading {
+  padding: 40px 0;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-cart__layout {
+  display: block;
+}
+
+.wc-cart__list {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--wc-hairline);
+  list-style: none;
+}
+
+/* 썸네일 + 정보 + 스테퍼가 한 행이고, 삭제는 행 우상단에 앉는다. */
+.wc-cart__line {
+  position: relative;
+  display: grid;
+  grid-template-columns: 80px minmax(0, 1fr);
+  column-gap: 16px;
+  padding: 20px 32px 20px 0;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-cart__line-media {
+  display: block;
+  width: 80px;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background-color: var(--wc-surface-grey-2);
+}
+
+.wc-cart__line-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 결제로 넘어갈 수 없는 라인은 흐리게 낮춘다 — 상태 문구(`__line-state`)가 이유를 말한다. */
+.wc-cart__line--unavailable .wc-cart__line-media,
+.wc-cart__line--unavailable .wc-cart__line-name {
+  opacity: .55;
+}
+
+.wc-cart__line-info {
+  min-width: 0;
+}
+
+.wc-cart__line-brand {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wc-ink);
+}
+
+.wc-cart__line-total {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 17px;
+  color: var(--wc-ink);
+}
+
+.wc-cart__line-name {
+  display: block;
+  margin: 0;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+/* 품절·판매 종료처럼 결제를 막는 사정은 색만으로 알리지 않고 문구로 남긴다. */
+.wc-cart__line-state {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--wc-danger);
+}
+
+.wc-cart__line-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.wc-cart__remove {
+  position: absolute;
+  top: 12px;
+  right: -10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wc-ink-tertiary);
+  cursor: pointer;
+}
+
+.wc-cart__aside {
+  margin-top: 40px;
+}
+
+.wc-cart__summary {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.wc-cart__summary th {
+  padding: 8px 0;
+  text-align: left;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-cart__summary td {
+  padding: 8px 0;
+  text-align: right;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--wc-ink);
+}
+
+.wc-cart__summary tfoot th,
+.wc-cart__summary tfoot td {
+  padding-top: 16px;
+  font-weight: 700;
+  border-top: 1px solid var(--wc-hairline);
+  color: var(--wc-ink);
+}
+
+.wc-cart__summary-note {
+  margin: 8px 0 0;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+/* S7 전까지는 자리만 지킨다 — 동작 없는 컨트롤을 그리지 않는다. */
+.wc-cart__coupon-slot {
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px solid var(--wc-hairline);
+}
+
+.wc-cart__coupon-title {
+  margin: 0;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-cart__coupon-desc {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-cart__checkout {
+  margin-top: 24px;
+}
+
+.wc-cart__empty {
+  padding: 64px 0 40px;
+}
+
+@media (min-width: 990px) {
+  /* 아이템 780 + 갭 40 + 요약 360 = 1180(R-05 §1.2). 요약만 고정폭이다. */
+  .wc-cart__layout {
+    display: flex;
+    gap: 40px;
+  }
+
+  /* 목록 칼럼이 래퍼 div 든 ul 이든 같은 자리에 선다 — 카트 마크업이 한 겹 더 감싸도 폭이 안 흔들린다. */
+  .wc-cart__list-col,
+  .wc-cart__list {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .wc-cart__aside {
+    flex: none;
+    width: 360px;
+    margin-top: 0;
+  }
+
+  .wc-cart__line {
+    grid-template-columns: 100px minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 20px;
+  }
+
+  .wc-cart__line-media {
+    width: 100px;
+  }
+
+  .wc-cart__line-controls {
+    margin-top: 0;
+  }
+}
+
+/* ------------------------------------------------------------------
+   위시리스트
+   ------------------------------------------------------------------ */
+
+.wc-wishlist {
+  padding-block: 24px 96px;
+}
+
+.wc-wishlist__list {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--wc-hairline);
+  list-style: none;
+}
+
+/* 그리드가 아니라 리스트 행이다 — 하트와 담기가 행마다 같은 자리에 선다. */
+.wc-wishlist__row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  column-gap: 16px;
+  row-gap: 12px;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-wishlist__media {
+  display: block;
+  width: 72px;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  background-color: var(--wc-surface-grey-2);
+}
+
+.wc-wishlist__media img,
+.wc-wishlist__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wc-wishlist__info {
+  min-width: 0;
+}
+
+.wc-wishlist__brand {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wc-ink);
+}
+
+.wc-wishlist__name {
+  display: block;
+  margin: 0 0 6px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-wishlist__name-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.wc-wishlist__name-link:hover {
+  text-decoration: underline;
+}
+
+/* 판매 종료처럼 담을 수 없는 사정은 문구로 남긴다 — 행을 지우면 왜 사라졌는지 알 수 없다. */
+.wc-wishlist__state {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-wishlist__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  grid-column: 2;
+}
+
+.wc-wishlist__actions .wc-btn {
+  width: auto;
+  height: 40px;
+  margin-top: 0;
+  padding: 0 16px;
+  font-size: 14px;
+}
+
+.wc-wishlist__empty {
+  padding: 64px 0 40px;
+}
+
+/* 36×36 원형. 채움 색은 비텍스트라 brand-green 을 그대로 쓴다(DESIGN §2 액센트 사용처). */
+.wc-wish-heart {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 50%;
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-wish-heart:disabled {
+  color: var(--wc-ink-disabled);
+  cursor: not-allowed;
+}
+
+.wc-wish-heart.is-active {
+  color: var(--wc-accent);
+}
+
+.wc-wish-heart svg {
+  transition: transform var(--wc-duration-short);
+}
+
+.wc-wish-heart.is-active svg {
+  transform: scale(1.08);
+}
+
+@media (min-width: 990px) {
+  .wc-wishlist__row {
+    grid-template-columns: 72px minmax(0, 1fr) auto;
+    row-gap: 0;
+  }
+
+  .wc-wishlist__actions {
+    grid-column: auto;
+  }
+}
+
+/* ------------------------------------------------------------------
+   모션 축소
+   ------------------------------------------------------------------ */
+
+/* wc-foundation 의 전역 축소 규칙이 `.wc-root` 안을 이미 덮지만, 시트 진입 애니메이션과
+   스냅 스크롤은 이 지면이 새로 들인 모션이라 여기서도 명시적으로 끈다. */
+@media (prefers-reduced-motion: reduce) {
+  .wc-filter-sheet {
+    animation: none;
+  }
+
+  .wc-pdp-gallery__stage,
+  .wc-filter-sheet__body,
+  .wc-filter-group__options {
+    scroll-behavior: auto;
+  }
+
+  .wc-wish-heart svg {
+    transition-duration: .01ms;
+  }
+}

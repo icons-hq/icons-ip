@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   getAdminCatalogRecords: vi.fn(),
   rpc: vi.fn(),
   revalidatePath: vi.fn(),
+  sendRestockAlertEmails: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/admin', () => ({
@@ -50,6 +51,9 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({
     rpc: mocks.rpc,
   }),
+}));
+vi.mock('@/lib/email/transactional.server', () => ({
+  sendRestockAlertEmails: mocks.sendRestockAlertEmails,
 }));
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
@@ -165,6 +169,7 @@ function goodForm() {
   formData.set('name', '화산강림 아크릴 스탠드');
   formData.set('type', '아크릴 스탠드');
   formData.set('price', '22000');
+  formData.set('compareAtPrice', '26000');
   formData.set('badge', '신상');
   formData.set('stock', 'ok');
   formData.set('stockQty', '12');
@@ -332,6 +337,8 @@ describe('admin catalog actions', () => {
     mocks.getAdminCatalogRecords.mockResolvedValue(adminRecords);
     mocks.rpc.mockReset();
     mocks.revalidatePath.mockReset();
+    mocks.sendRestockAlertEmails.mockReset();
+    mocks.sendRestockAlertEmails.mockResolvedValue([]);
     mocks.rpc.mockResolvedValue({ data: null, error: null });
   });
 
@@ -415,6 +422,7 @@ describe('admin catalog actions', () => {
       target_gallery_paths: [],
       target_detail_image_path: null,
       target_previous_id: null,
+      target_compare_at_price: 26000,
     });
     expect(mocks.getCatalogSnapshot).toHaveBeenCalledWith({ previewDefaultSource: 'supabase' });
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/');
@@ -423,6 +431,61 @@ describe('admin catalog actions', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip/lumen');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin');
+  });
+
+  /* 정가가 판매가 이하면 0%·음수 할인율이 나온다. RPC 도 막지만, 운영자에게는
+     저장 실패가 아니라 그 칸의 에러로 보여야 고칠 수 있다. */
+  it('rejects a compare-at price that is not above the sale price', async () => {
+    const formData = goodForm();
+    formData.set('compareAtPrice', '22000');
+
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+      errors: { compareAtPrice: '정가는 판매가보다 커야 해요' },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('treats an empty compare-at price as "not on sale"', async () => {
+    const formData = goodForm();
+    formData.set('compareAtPrice', '');
+
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+      message: '굿즈를 저장했습니다.',
+    });
+    expect(mocks.rpc.mock.calls[0][1]).toMatchObject({ target_compare_at_price: null });
+  });
+
+  /* 전이 판정은 DB 트리거 몫이라 저장 뒤에는 조건 없이 부른다. 여기서 다시 판정하면
+     판정이 두 곳으로 갈라지고, 재고 복원 경로가 늘 때마다 한쪽이 빠진다. */
+  it('hands the good to the restock mailer after a successful save', async () => {
+    await upsertAdminGoodAction({}, goodForm());
+
+    expect(mocks.sendRestockAlertEmails).toHaveBeenCalledWith('g100');
+  });
+
+  it('does not mail restock subscribers when the save fails', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_id_taken' } });
+
+    await upsertAdminGoodAction({}, goodForm());
+
+    expect(mocks.sendRestockAlertEmails).not.toHaveBeenCalled();
+  });
+
+  it('surfaces the RPC compare-at guard in the operator language', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'goods_compare_at_price_invalid' },
+    });
+
+    await expect(upsertAdminGoodAction({}, goodForm())).resolves.toEqual({
+      errors: { form: '정가는 판매가보다 커야 해요' },
+    });
+  });
+
+  it('hands the good to the restock mailer after a stock adjustment', async () => {
+    await adjustAdminStockAction({}, stockAdjustmentForm());
+
+    expect(mocks.sendRestockAlertEmails).toHaveBeenCalledWith('g100');
   });
 
   it('adjusts stock through the audited RPC and refreshes every stock consumer', async () => {

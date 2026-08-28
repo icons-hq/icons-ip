@@ -1,18 +1,25 @@
 import type { Metadata } from 'next';
-import { CollectionPlaceholder } from '@/components/shop/CollectionPlaceholder';
+import { Shop } from '@/components/screens/Shop';
+import { getCatalogSnapshot } from '@/lib/catalog';
+import { parseShopSearchParams, selectShopGoods } from '@/lib/shop-catalog';
 
 export const metadata: Metadata = {
   title: 'NEW — ICONS',
-  description: '새로 나온 굿즈를 모아 보는 NEW를 준비하고 있어요.',
-  robots: { index: false, follow: false },
+  description: '새로 나온 굿즈를 모아 봤어요.',
 };
 
-/* S4 실장 전까지의 soft 404 방지 껍데기 — 배경과 한시성은 CollectionPlaceholder 주석 참고. */
-export default function Page() {
-  return (
-    <CollectionPlaceholder
-      title="NEW를 준비하고 있어요"
-      description="새로 나온 굿즈를 한곳에 모아 보는 공간이 곧 열려요. 지금은 굿즈샵에서 신상 굿즈를 먼저 만나 보세요."
-    />
-  );
+interface PageProps {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+/* NEW 는 별도 큐레이션이 아니라 굿즈의 NEW 배지가 정의한다 — 컬렉션 스코프만 다르고
+   필터·정렬·VIEW MORE 는 굿즈샵과 같은 화면이다. */
+export default async function Page({ searchParams }: PageProps) {
+  const [catalog, params] = await Promise.all([getCatalogSnapshot(), searchParams ?? {}]);
+  const query = parseShopSearchParams(params, {
+    view: 'new',
+    validIpIds: new Set(catalog.ips.map((ip) => ip.id)),
+  });
+
+  return <Shop query={query} result={selectShopGoods(catalog, query)} view="new" />;
 }

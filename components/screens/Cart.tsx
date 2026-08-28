@@ -4,6 +4,10 @@ import Link from 'next/link';
 import { useMemo } from 'react';
 import { useCart } from '@/components/shell/CartProvider';
 import { Icon } from '@/components/ui/Icon';
+import { EmptyState } from '@/components/wc/EmptyState';
+import { PriceBlock } from '@/components/wc/PriceBlock';
+import { QuantityStepper } from '@/components/wc/QuantityStepper';
+import { WcButton } from '@/components/wc/WcButton';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Good, Ip } from '@/lib/data';
 import { krw, krwAmountWords } from '@/lib/format';
@@ -16,129 +20,90 @@ interface CartLine {
   ip?: Ip;
 }
 
-function CartQuantity({
-  line,
-  pending,
-  onSetQuantity,
-}: {
-  line: CartLine;
-  pending: boolean;
-  onSetQuantity: (qty: number) => void;
-}) {
-  const { good, qty } = line;
-  if (!good) return null;
-
-  const soldout = good.stock === 'soldout' || good.stockQty <= 0;
-  const insufficient = !soldout && qty > good.stockQty;
-  const canAdd = !soldout && qty < good.stockQty;
-  const nextLowerQty = insufficient ? good.stockQty : qty - 1;
-
-  return (
-    <div className="cart-quantity" aria-label={`${good.name} 수량`}>
-      <button
-        type="button"
-        aria-label={`${good.name} 수량 줄이기`}
-        disabled={pending || soldout}
-        onClick={() => onSetQuantity(nextLowerQty)}
-      >
-        −
-      </button>
-      <span className="mono" aria-live="polite">{qty}</span>
-      <button
-        type="button"
-        aria-label={`${good.name} 수량 늘리기`}
-        disabled={pending || !canAdd}
-        onClick={() => onSetQuantity(qty + 1)}
-      >
-        +
-      </button>
-    </div>
-  );
+function isSoldOut(good: Good) {
+  return good.stock === 'soldout' || good.stockQty <= 0;
 }
 
-function CartLineItem({ line }: { line: CartLine }) {
+/** 주문을 막는 라인인지. 카탈로그에서 사라진 굿즈·품절·재고 초과가 여기 걸린다. */
+function isUnavailable(line: CartLine) {
+  if (!line.good) return true;
+  return isSoldOut(line.good) || line.qty > line.good.stockQty;
+}
+
+function lineStateLabel(good: Good, qty: number) {
+  if (isSoldOut(good)) return '품절';
+  if (qty > good.stockQty) return `재고 ${good.stockQty}개만 남음`;
+  if (good.stock === 'low') return `재고 ${good.stockQty}개 남음`;
+  return null;
+}
+
+function CartLineRow({ line }: { line: CartLine }) {
   const { pending, remove, setQuantity } = useCart();
-  const { good, ip, qty, goodId } = line;
+  const { good, goodId, ip, qty } = line;
 
   if (!good) {
     return (
-      <article className="cart-line cart-line--invalid">
-        <div className="cart-line-art cart-line-art--invalid" aria-hidden>
-          <Icon name="bag" size={28} />
-        </div>
-        <div className="cart-line-copy">
-          <span className="cart-line-state cart-line-state--danger">판매 종료</span>
-          <h2>판매 종료된 굿즈 ({goodId})</h2>
-          <p>현재 카탈로그에서 판매 정보를 확인할 수 없어요.</p>
+      <li className="wc-cart__line wc-cart__line--unavailable">
+        <span aria-hidden className="wc-cart__line-media" />
+        <div className="wc-cart__line-info">
+          <p className="wc-cart__line-name">판매 종료된 굿즈 ({goodId})</p>
+          <p className="wc-cart__line-state">판매 종료</p>
         </div>
         <button
-          type="button"
-          className="cart-remove"
           aria-label={`판매 종료된 굿즈 ${goodId} 삭제`}
+          className="wc-cart__remove"
           disabled={pending}
           onClick={() => void remove(goodId)}
+          type="button"
         >
           <Icon name="close" size={18} />
-          <span>삭제</span>
         </button>
-      </article>
+      </li>
     );
   }
 
-  const soldout = good.stock === 'soldout' || good.stockQty <= 0;
-  const insufficient = !soldout && qty > good.stockQty;
-  const unavailable = soldout || insufficient;
-  const statusLabel = soldout
-    ? '품절'
-    : insufficient
-      ? `재고 ${good.stockQty}개만 남음`
-      : good.stock === 'low'
-        ? `재고 ${good.stockQty}개 남음`
-        : `재고 ${good.stockQty}개`;
-  const statusClass = unavailable
-    ? ' cart-line-state--danger'
-    : good.stock === 'low'
-      ? ' cart-line-state--low'
-      : '';
+  const soldOut = isSoldOut(good);
+  const stateLabel = lineStateLabel(good, qty);
+  const href = `/shop/${goodId}`;
 
   return (
-    <article className={`cart-line${unavailable ? ' cart-line--unavailable' : ''}`}>
-      <div
-        className="cart-line-art"
-        aria-label={`${good.name} 이미지`}
-        role="img"
-        style={{ background: good.img, backgroundPosition: 'center', backgroundSize: 'cover' }}
-      >
-        <span aria-hidden className="sheen" />
+    <li className={`wc-cart__line${isUnavailable(line) ? ' wc-cart__line--unavailable' : ''}`}>
+      {/* 바로 옆 이름 링크와 목적지가 같다 — 접근성 트리에서는 숨긴다(ProductCard 와 같은 규칙). */}
+      <Link
+        aria-hidden
+        className="wc-cart__line-media"
+        href={href}
+        style={{ background: good.img }}
+        tabIndex={-1}
+      />
+      <div className="wc-cart__line-info">
+        <p className="wc-cart__line-brand">{ip?.title ?? 'ICONS'}</p>
+        <Link className="wc-cart__line-name" href={href}>{good.name}</Link>
+        <PriceBlock compareAtPrice={good.compareAtPrice} price={good.price} />
+        {stateLabel ? <p className="wc-cart__line-state">{stateLabel}</p> : null}
       </div>
-      <div className="cart-line-copy">
-        <div className="cart-line-meta">
-          <span className="mono">{ip?.title ?? 'ICONS'}</span>
-          <span aria-hidden>·</span>
-          <span>{good.type}</span>
-        </div>
-        <h2>{good.name}</h2>
-        <p className={`cart-line-state${statusClass}`}>{statusLabel}</p>
-        <div className="cart-line-actions">
-          <CartQuantity
-            line={line}
-            pending={pending}
-            onSetQuantity={(nextQty) => void setQuantity(goodId, nextQty, good.stockQty)}
+      <div className="wc-cart__line-controls">
+        {/* 품절 라인은 늘릴 수도 줄일 수도 없다 — 스테퍼 대신 삭제만 남긴다. */}
+        {soldOut ? null : (
+          <QuantityStepper
+            label={`${good.name} 수량`}
+            max={good.stockQty}
+            onChange={(next) => void setQuantity(goodId, next, good.stockQty)}
+            value={qty}
           />
-          <span className="cart-line-total mono">{krw(good.price * qty)}</span>
-        </div>
+        )}
+        <p className="wc-cart__line-total">{krw(good.price * qty)}</p>
       </div>
       <button
-        type="button"
-        className="cart-remove"
         aria-label={`${good.name} 장바구니에서 삭제`}
+        className="wc-cart__remove"
         disabled={pending}
         onClick={() => void remove(goodId)}
+        type="button"
       >
         <Icon name="close" size={18} />
-        <span>삭제</span>
       </button>
-    </article>
+    </li>
   );
 }
 
@@ -147,7 +112,7 @@ export function Cart({
 }: {
   catalog: Pick<CatalogSnapshot, 'goods' | 'ips'>;
 }) {
-  const { items, count, ready, mode, pending, error } = useCart();
+  const { count, error, items, mode, pending, ready } = useCart();
 
   const lines = useMemo<CartLine[]>(() => {
     const goodsById = new Map(catalog.goods.map((good) => [good.id, good]));
@@ -166,90 +131,96 @@ export function Cart({
   const subtotal = lines.reduce((total, line) => (
     total + (line.good ? line.good.price * line.qty : 0)
   ), 0);
-  const unavailableCount = lines.filter(({ good, qty }) => (
-    !good || good.stock === 'soldout' || good.stockQty <= 0 || qty > good.stockQty
-  )).length;
+  const unavailableCount = lines.filter(isUnavailable).length;
   /* 표시용 예상치다. 실제 청구액은 place_order가 같은 정책으로 다시 계산한다. */
   const shippingFee = shippingFeeFor(subtotal);
   const remainingForFreeShipping = freeShippingRemainder(subtotal);
+  const canCheckout = unavailableCount === 0 && !pending;
 
   return (
-    <main className="cart-page">
-      <header className="cart-header">
-        <div className="wrap">
-          <div className="eyebrow rise" style={{ color: 'var(--amber)' }}>사요 · 장바구니</div>
-          <div className="cart-header-row rise">
-            <h1 className="h-xl">담아둔 굿즈</h1>
-            <span className="cart-mode mono">
-              {!ready ? '장바구니 확인 중' : mode === 'server' ? '계정에 저장됨' : '이 기기에 저장됨'}
-            </span>
-          </div>
-          <p className="cart-header-copy">수량과 재고를 확인하고 다음 단계를 준비해요.</p>
-        </div>
-      </header>
+    <div className="wc-root wc-cart">
+      <div className="wc-container">
+        <h1 className="wc-cart__title">장바구니</h1>
+        {ready ? (
+          <p className="wc-cart__mode">{mode === 'server' ? '계정에 저장됨' : '이 기기에 저장됨'}</p>
+        ) : null}
 
-      <section className="cart-section">
-        <div className="wrap">
-          {error && <div className="cart-alert" role="alert">{error}</div>}
+        {error ? <p className="wc-cart__error" role="alert">{error}</p> : null}
 
-          {!ready ? (
-            <div className="cart-loading" role="status" aria-live="polite">
-              <span className="cart-loading-dot" aria-hidden />
-              장바구니를 불러오는 중이에요.
+        {!ready ? (
+          <p aria-live="polite" className="wc-cart__loading" role="status">
+            장바구니를 불러오는 중이에요.
+          </p>
+        ) : lines.length === 0 ? (
+          <EmptyState
+            action={<WcButton href="/shop" variant="primary">굿즈샵 둘러보기</WcButton>}
+            className="wc-cart__empty"
+            title="장바구니가 비어 있어요"
+            titleAs="h2"
+          />
+        ) : (
+          <div className="wc-cart__layout">
+            <div aria-busy={pending} className="wc-cart__list-col">
+              <ul className="wc-cart__list">
+                {lines.map((line) => <CartLineRow key={line.goodId} line={line} />)}
+              </ul>
             </div>
-          ) : lines.length === 0 ? (
-            <div className="cart-empty card">
-              <div className="cart-empty-icon"><Icon name="bag" size={30} /></div>
-              <h2>아직 담은 굿즈가 없어요</h2>
-              <p>굿즈샵에서 최애의 물건을 찾아보세요.</p>
-              <Link className="btn btn-holo" href="/shop">굿즈 보러 가기</Link>
-            </div>
-          ) : (
-            <div className="cart-layout">
-              <div className="cart-list" aria-busy={pending}>
-                <div className="cart-list-head">
-                  <h2>장바구니</h2>
-                  <span className="mono">{count}개</span>
-                </div>
-                {lines.map((line) => <CartLineItem key={line.goodId} line={line} />)}
+
+            <aside aria-label="주문 요약" className="wc-cart__aside">
+              <table className="wc-cart__summary">
+                <tbody>
+                  <tr>
+                    <th scope="row">총 굿즈 금액</th>
+                    <td>{krw(subtotal)}</td>
+                  </tr>
+                  <tr>
+                    {/* 쿠폰·프로모션이 아직 없어 항상 0이다. 자리를 비워두면 S7에서 표가 흔들린다. */}
+                    <th scope="row">총 할인 금액</th>
+                    <td>−{krw(0)}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">배송비</th>
+                    <td>{shippingFeeLabel(shippingFee)}</td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th scope="row">예상 총액</th>
+                    <td>{krw(subtotal + shippingFee)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+              <p className="wc-cart__summary-note">배송비는 결제 화면에서 확인할 수 있어요.</p>
+              {/* 판매 종료 라인만 남은 카트는 소계가 0이다 — 담을 것도 없는데 무료배송을 권하지 않는다. */}
+              {subtotal > 0 && remainingForFreeShipping > 0 ? (
+                <p className="wc-cart__summary-note">
+                  {krwAmountWords(remainingForFreeShipping)} 더 담으면 무료배송이에요.
+                </p>
+              ) : null}
+
+              <div className="wc-cart__coupon-slot">
+                <p className="wc-cart__coupon-title">쿠폰</p>
+                <p className="wc-cart__coupon-desc">쿠폰 적용은 곧 열려요.</p>
               </div>
 
-              <aside className="cart-summary card" aria-label="주문 요약">
-                <h2>주문 요약</h2>
-                <div className="cart-summary-row">
-                  <span>굿즈 금액</span>
-                  <strong className="mono">{krw(subtotal)}</strong>
-                </div>
-                <div className={`cart-summary-row${shippingFee === 0 ? ' cart-summary-row--dim' : ''}`}>
-                  <span>배송비</span>
-                  <span className={shippingFee === 0 ? undefined : 'mono'}>{shippingFeeLabel(shippingFee)}</span>
-                </div>
-                {subtotal > 0 && remainingForFreeShipping > 0 && (
-                  <p className="cart-summary-note">
-                    {krwAmountWords(remainingForFreeShipping)} 더 담으면 무료배송이에요.
-                  </p>
-                )}
-                <div className="cart-summary-total">
-                  <span>예상 결제 금액</span>
-                  <strong className="mono">{krw(subtotal + shippingFee)}</strong>
-                </div>
-                {unavailableCount > 0 && (
-                  <p className="cart-summary-warning" role="alert">
-                    주문할 수 없는 굿즈 {unavailableCount}개를 삭제하거나 수량을 조정해주세요.
-                  </p>
-                )}
-                {unavailableCount === 0 && !pending ? (
-                  <Link className="btn cart-checkout" href="/checkout">체크아웃</Link>
-                ) : (
-                  <button className="btn cart-checkout" type="button" disabled>체크아웃</button>
-                )}
-                <p className="money-caption">로그인 후 배송지를 확인하고 안전하게 결제합니다.</p>
-                <Link className="btn btn-ghost" href="/shop">굿즈 더 보기</Link>
-              </aside>
-            </div>
-          )}
-        </div>
-      </section>
-    </main>
+              {unavailableCount > 0 ? (
+                <p className="wc-cart__warning" role="alert">
+                  주문할 수 없는 굿즈 {unavailableCount}개를 삭제하거나 수량을 조정해주세요.
+                </p>
+              ) : null}
+
+              <WcButton
+                className="wc-cart__checkout"
+                disabled={!canCheckout}
+                href="/checkout"
+                variant="primary"
+              >
+                {`${count}개 굿즈 주문하기`}
+              </WcButton>
+            </aside>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

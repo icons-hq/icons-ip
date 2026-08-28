@@ -116,7 +116,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 - RLS의 공개 SELECT와 FK는 그대로 유지해 기존 주문·바인더·발급·팔로우·커뮤니티 이력을 읽을 수 있다. IP의 굿즈·카드 수는 보관되지 않은 하위 항목만 집계한다.
 - `verticals` (key, label, color) — 캐릭터 IP·게임·애니메이션
 - `ips` (id, title, sub, vertical_key, glyph, bg, tagline, synopsis, featured, archived_at, fans/goods/cards 집계)
-- `goods` (id, ip_id, name, type, price, badge, stock, image_path, archived_at)
+- `goods` (id, ip_id, name, type, price, compare_at_price, badge, stock, image_path, archived_at) — `type`은 표준 8종(`lib/goods-taxonomy.ts`와 같은 CHECK), `badge`는 `NEW|EXCLUSIVE|null`. SALE 표기는 저장하지 않고 `compare_at_price > price`에서 파생한다(#326)
 - `events` (id, ip_id?, title, mode, status, starts_at, ends_at, location, accent, image_path, archived_at)
 - `home_curations` (id, kind `hero|featured_ip|announcement`, ip_id?, title, image_path?, link_path, display_order, active_from/to, enabled) — `[active_from, active_to)` 노출 창을 가진 홈 운영 원장이다. 공개 RLS는 enabled·현재 창·연결 IP 미보관을 모두 검사하고, staff는 예약·종료·비활성 행까지 읽는다.
 - 공개 홈은 `display_order, active_from, id` 순서의 첫 hero와 첫 announcement, 중복·누락 IP를 제외한 최대 5개 featured IP를 소비한다. 특집 전용 이미지가 있으면 해당 선택기의 아트워크를 덮어쓴다. Supabase source는 큐레이션이 비어도 legacy `ips.featured`로 돌아가지 않고 첫 5개 IP를 사용하며, mock source만 기존 featured fallback을 유지한다.
@@ -135,6 +135,8 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 
 ### 5.4 커머스 (P1)
 - `carts` / `cart_items` (user_id, good_id, qty)
+- `wishlists` (user_id, good_id, created_at, PK user×good) — 찜 목록. 장바구니와 별개 도메인, 본인 RLS에서 직접 insert/delete로 멱등 토글(#326)
+- `restock_alerts` (id, user_id, good_id, status `pending|notified`, created_at, notified_at, unique user×good) — 재입고 알림 신청. goods의 "판매 가능"(`archived_at is null and stock <> 'soldout' and stock_qty > 0`) 거짓→참 전이 트리거가 pending을 notified로 넘기며 알림함에 팬아웃하고, 이메일은 앱 producer가 `claim_email_delivery` 멱등 게이트로 발송한다. 재신청은 새 행이 아니라 같은 행을 pending으로 되돌린다(#326)
 - `orders` (id, user_id, status `pending|paid|shipping|done|canceled`, total, address jsonb, created_at)
 - `order_items` (order_id, good_id, qty, unit_price, good_name/type/ip_id_snapshot) — 주문 시점 굿즈 정체성·가격 장부
 - `payments` (id, provider `toss|korpay`, user_id, purpose, ref_id, amount, status, payment_key, **idempotency_key**, raw jsonb) — 기존 Toss raw 감사 원장은 서버 전용으로 보존한다.
@@ -188,6 +190,8 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 | draw_tickets/card_grants | **본인만** | 신뢰 RPC/service role만 |
 | profiles/ip_follows/carts/orders/wallets/user_cards/ticket_orders | **본인만**. profiles의 교차 회원 읽기와 내부 정지 사유 직접 읽기 불가 | 본인 읽기, staff 회원 목록·상세·가입 집계는 목적별 RPC, 쓰기는 신뢰 RPC/service role만 |
 | notifications | **본인만** | 직접 쓰기 없음. 읽음 처리는 `open_notification`, 발급은 신뢰 trigger 또는 staff를 재검사하는 audited RPC만 |
+| wishlists | **본인만** | 본인 직접 insert/delete(수량 없는 토글이라 RPC 불요). update 권한 없음 |
+| restock_alerts | **본인만** | 본인 insert/update(재신청 upsert). delete 권한 없음 — 신청·발송 이력 보존. notified 전이는 goods 트리거만 수행 |
 | inquiries/inquiry_messages | **본인 + staff** | 직접 쓰기 없음. 접수·추가 질문은 `create_inquiry`/`append_inquiry_message`, 답변·종결은 staff를 재검사하는 audited RPC. 상태 전이(사용자 → open, 운영자 → answered)는 전부 RPC 안에 있다 |
 | tickets/ticket_cancellation_requests | **본인만 안전 컬럼** | QR 원문·provider/attempt/error 정보는 서버 경계 전용, 쓰기는 신뢰 RPC/service role만 |
 | posts/comments/likes | 공개 읽기(visible). hidden 댓글 원문은 댓글/포스트 작성자와 staff만 | post/comment 생성·수정은 private control 기반 단일 trigger에서 기본 OFF이며 앱 역할은 control을 바꾸지 못한다. 삭제·반응·신고·숨김은 각 최소 권한 RPC로 유지 |

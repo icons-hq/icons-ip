@@ -36,6 +36,8 @@ export interface AdminGoodFormValue {
   name: string;
   type: string;
   price: number;
+  /** 취소선으로 표기할 정가 (#326). 할인 중일 때만 값이 있고, 아니면 null 이다. */
+  compareAtPrice: number | null;
   badge: string | null;
   stock: Stock;
   bg: string | null;
@@ -215,6 +217,27 @@ function nonNegativeInteger(
   if (!Number.isInteger(value) || value < 0 || value > INT32_MAX) {
     errors[key] = message;
     return 0;
+  }
+  return value;
+}
+
+/*
+ * 값이 없는 것과 0은 다르다 (#326 정가).
+ * 빈 칸은 "할인 아님"이라는 뜻이라 null 로 남겨야 하고, 0 은 잘못 입력한 정가다.
+ */
+function nullableNonNegativeInteger(
+  formData: FormData,
+  key: string,
+  errors: AdminFieldErrors,
+  message: string,
+) {
+  const raw = readString(formData, key);
+  if (!raw) return null;
+
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0 || value > INT32_MAX) {
+    errors[key] = message;
+    return null;
   }
   return value;
 }
@@ -407,6 +430,12 @@ export function normalizeAdminGoodForm(
   const type = readString(formData, 'type');
   const stock = readString(formData, 'stock') as Stock;
   const price = nonNegativeInteger(formData, 'price', errors, '가격은 0 이상의 정수여야 합니다.');
+  const compareAtPrice = nullableNonNegativeInteger(
+    formData,
+    'compareAtPrice',
+    errors,
+    '정가는 0 이상의 정수여야 합니다.',
+  );
   const notice = readGoodsNotice(formData, errors);
   const description = nullableString(formData, 'description');
   const galleryPaths = readGoodsGalleryPaths(formData, errors);
@@ -414,6 +443,11 @@ export function normalizeAdminGoodForm(
   if (!name) errors.name = '굿즈 이름을 입력해주세요.';
   if (!type) errors.type = '굿즈 유형을 입력해주세요.';
   if (!STOCK_VALUES.has(stock)) errors.stock = '재고 상태를 선택해주세요.';
+  /* 정가가 판매가 이하면 0%·음수 할인율이 나온다. RPC 도 goods_compare_at_price_invalid
+     로 막지만, 운영자에게는 저장 실패가 아니라 그 칸의 에러로 보여야 고칠 수 있다. */
+  if (compareAtPrice !== null && !errors.compareAtPrice && compareAtPrice <= price) {
+    errors.compareAtPrice = '정가는 판매가보다 커야 해요';
+  }
   if (description && description.length > GOODS_DESCRIPTION_MAX_LENGTH) {
     errors.description = '설명은 2,000자 이하로 입력해주세요.';
   }
@@ -429,6 +463,7 @@ export function normalizeAdminGoodForm(
       name,
       type,
       price,
+      compareAtPrice,
       badge: nullableString(formData, 'badge'),
       stock,
       bg: nullableString(formData, 'bg'),

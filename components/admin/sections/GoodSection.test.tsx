@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import type { Ip } from '@/lib/data';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
+import { GOOD_BADGES, GOOD_TYPES } from '@/lib/goods-taxonomy';
 import { GoodSection } from './GoodSection';
 
 vi.mock('@/app/admin/actions', () => ({
@@ -19,6 +20,30 @@ vi.mock('../../../app/admin/good-bank-transfer-actions', () => ({
   setGoodBankTransferAction: vi.fn(),
 }));
 vi.mock('../../../lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: vi.fn() }));
+/* 미리보기는 공개 상세 화면(구매 패널·위시 하트)을 그대로 그린다 — 그 클라이언트 훅들은
+   앱 라우터와 카트 컨텍스트를 요구한다. 여기서 확인하려는 것은 어드민 폼과 미리보기의
+   배선이지 그 훅들의 동작이 아니다. */
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/admin',
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+}));
+vi.mock('@/components/shell/CartProvider', () => ({
+  useCart: () => ({
+    items: [],
+    count: 0,
+    ready: true,
+    mode: 'server' as const,
+    pending: false,
+    error: null,
+    getQuantity: () => 0,
+    add: vi.fn(),
+    setQuantity: vi.fn(),
+    remove: vi.fn(),
+    refresh: vi.fn(),
+    resetForSignOut: vi.fn(),
+  }),
+}));
 
 const hwasan: Ip = {
   id: 'hwasan',
@@ -40,9 +65,10 @@ const good: AdminGoodRecord = {
   archivedAt: null,
   ipId: 'hwasan',
   name: '화산강림 아크릴 스탠드',
-  type: '아크릴 스탠드',
+  type: '아크릴',
   price: 22000,
-  badge: '신상',
+  compareAtPrice: 26000,
+  badge: 'NEW',
   stock: 'low',
   stockQty: 12,
   allowBankTransfer: true,
@@ -197,20 +223,36 @@ describe('GoodSection', () => {
     expect(html).toContain('공개 화면 미리보기');
     expect(html).toContain('굿즈샵 목록 카드');
     expect(html).toContain('굿즈 상세페이지');
-    /* 어드민 캔버스를 밝게 바꾸지 않도록 페이지 랜드마크 대신 미리보기 스코프를 쓴다. */
-    expect(html).toContain('goods-detail-scope');
-    expect(html).not.toContain('goods-detail-page');
-    expect(html).toContain('상품정보제공고시');
-    expect(html).toContain('교환 · 반품 안내');
+    /* wc 토큰은 .wc-root 스코프 안에서만 산다 — 어드민 캔버스를 밝게 바꾸지 않는다. */
+    expect(html).toContain('wc-root');
+    expect(html).toContain('wc-product-card');
+  });
+
+  /* #326 — 정가는 카드 미리보기에서 취소선과 SALE 배지로 파생된다. */
+  it('previews the sale price the way the shop card will render it', () => {
+    const html = renderGoodSection(good);
+
+    expect(html).toContain('₩26,000');
+    expect(html).toContain('SALE');
+    expect(html).toContain('NEW');
   });
 
   it('keeps the preview inert — no cart button and no extra form', () => {
     const html = renderGoodSection(good);
 
-    expect(html).toContain('담기 (미리보기)');
     expect(html).not.toContain('shop-cart-button');
     /* 저장 · 재고 조정 · 무통장 토글 · 보관 네 개 그대로다. 미리보기는 폼을 늘리지 않는다. */
     expect(html.match(/<form/g)).toHaveLength(4);
+  });
+
+  /* #326 — 유형·배지는 자유 입력이 아니라 표준 값 select 다(DB CHECK 와 같은 목록). */
+  it('offers the standard type and badge options plus a compare-at price field', () => {
+    const html = renderGoodSection(null);
+
+    expect(html).toContain('name="compareAtPrice"');
+    for (const type of GOOD_TYPES) expect(html).toContain(`<option value="${type}">`);
+    for (const badge of GOOD_BADGES) expect(html).toContain(`<option value="${badge}">`);
+    expect(html).toContain('없음');
   });
 
   it('previews the selected record values before any edit', () => {

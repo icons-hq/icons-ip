@@ -61,6 +61,7 @@ const TEMPLATE_LABELS: Record<EmailTemplateName, string> = {
   order_confirmation: '주문 확인',
   order_shipped: '배송 시작',
   inquiry_answered: '문의 답변',
+  restock_alert: '재입고 알림',
 };
 
 export function emailTemplateLabel(template: EmailTemplateName): string {
