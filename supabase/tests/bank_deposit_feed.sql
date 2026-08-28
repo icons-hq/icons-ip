@@ -102,7 +102,7 @@ insert into public.ips (id, title, vertical_key)
 values ('deposit-ip', '입금 IP', 'character');
 
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
-values ('deposit-goods', 'deposit-ip', '입금 굿즈', '테스트', 20000, 'ok', 30);
+values ('deposit-goods', 'deposit-ip', '입금 굿즈', '문구', 20000, 'ok', 30);
 
 reset role;
 

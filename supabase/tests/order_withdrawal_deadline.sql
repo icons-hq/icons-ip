@@ -46,7 +46,7 @@ insert into public.ips (id, title, vertical_key)
 values ('withdrawal-deadline-ip', '청약철회 기한 IP', 'character');
 
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
-values ('withdrawal-deadline-goods', 'withdrawal-deadline-ip', '기한 판정 굿즈', '테스트', 10000, 'ok', 9);
+values ('withdrawal-deadline-goods', 'withdrawal-deadline-ip', '기한 판정 굿즈', '문구', 10000, 'ok', 9);
 
 insert into public.orders (id, user_id, status, total, address, expires_at)
 values (
@@ -60,7 +60,7 @@ insert into public.order_items (
 )
 values (
   '40000000-0000-4000-8000-000000000801', 'withdrawal-deadline-goods', 1, 10000,
-  '기한 판정 굿즈', '테스트', 'withdrawal-deadline-ip'
+  '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip'
 );
 
 -- 발송 전에는 두 시점 모두 비어 있다.
@@ -152,10 +152,10 @@ insert into public.order_items (
   good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
 )
 values
-  ('40000000-0000-4000-8000-000000000802', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '테스트', 'withdrawal-deadline-ip'),
-  ('40000000-0000-4000-8000-000000000803', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '테스트', 'withdrawal-deadline-ip'),
-  ('40000000-0000-4000-8000-000000000804', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '테스트', 'withdrawal-deadline-ip'),
-  ('40000000-0000-4000-8000-000000000805', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '테스트', 'withdrawal-deadline-ip');
+  ('40000000-0000-4000-8000-000000000802', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip'),
+  ('40000000-0000-4000-8000-000000000803', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip'),
+  ('40000000-0000-4000-8000-000000000804', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip'),
+  ('40000000-0000-4000-8000-000000000805', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip');
 
 set local role service_role;
 
@@ -226,8 +226,8 @@ insert into public.order_items (
   good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
 )
 values
-  ('40000000-0000-4000-8000-000000000806', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '테스트', 'withdrawal-deadline-ip'),
-  ('40000000-0000-4000-8000-000000000807', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '테스트', 'withdrawal-deadline-ip');
+  ('40000000-0000-4000-8000-000000000806', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip'),
+  ('40000000-0000-4000-8000-000000000807', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip');
 
 -- 요청 RPC를 거치지 않고 직접 접수된 기한 초과 요청(폼 우회 시뮬레이션).
 insert into public.order_cancellation_requests (

@@ -100,7 +100,7 @@ on conflict (id) do update set title = excluded.title;
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
 values (
   'card-reward-gate-good', 'card-reward-gate-ip',
-  '카드 보상 게이트 굿즈', '테스트', 1000, 'ok', 10
+  '카드 보상 게이트 굿즈', '문구', 1000, 'ok', 10
 )
 on conflict (id) do update set ip_id = excluded.ip_id;
 
@@ -290,7 +290,7 @@ insert into public.order_items (
 values (
   '60000000-0000-4000-8000-000000001901',
   'card-reward-gate-good', 1, 1000,
-  '카드 보상 게이트 굿즈', '테스트', 'card-reward-gate-ip'
+  '카드 보상 게이트 굿즈', '문구', 'card-reward-gate-ip'
 );
 
 set local role service_role;

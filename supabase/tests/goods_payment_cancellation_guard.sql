@@ -113,7 +113,7 @@ values (
   'goods-payment-cancel-guard-good',
   'goods-payment-cancel-guard-ip',
   '결제 취소 guard 상품',
-  '테스트', 28000, 'ok', 10
+  '문구', 28000, 'ok', 10
 )
 on conflict (id) do update set
   ip_id = excluded.ip_id,
@@ -158,7 +158,7 @@ select
   order_record.id,
   'goods-payment-cancel-guard-good',
   1, 28000,
-  '결제 취소 guard 상품', '테스트',
+  '결제 취소 guard 상품', '문구',
   'goods-payment-cancel-guard-ip'
 from public.orders as order_record
 where order_record.id between
@@ -620,7 +620,7 @@ values (
   'goods-prepared-reconcile-good',
   'goods-payment-cancel-guard-ip',
   'prepared 만료 취소 정합화 상품',
-  '테스트', 28000, 'ok', 20
+  '문구', 28000, 'ok', 20
 );
 
 insert into public.orders (
@@ -662,7 +662,7 @@ select
   1,
   28000,
   'prepared 만료 취소 정합화 상품',
-  '테스트',
+  '문구',
   'goods-payment-cancel-guard-ip'
 from public.orders as order_record
 where order_record.id between

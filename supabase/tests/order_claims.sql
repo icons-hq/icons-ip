@@ -123,7 +123,7 @@ insert into public.ips (id, title, vertical_key)
 values ('order-claim-ip', '클레임 IP', 'character');
 
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
-values ('order-claim-goods', 'order-claim-ip', '클레임 굿즈', '테스트', 10000, 'ok', 20);
+values ('order-claim-goods', 'order-claim-ip', '클레임 굿즈', '문구', 10000, 'ok', 20);
 
 insert into public.orders (id, user_id, status, total, address, expires_at, shipped_at, delivered_at)
 values
@@ -224,7 +224,7 @@ insert into public.order_items (
   order_id, good_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
 )
 select
-  order_record.id, 'order-claim-goods', 1, 10000, '클레임 굿즈', '테스트', 'order-claim-ip'
+  order_record.id, 'order-claim-goods', 1, 10000, '클레임 굿즈', '문구', 'order-claim-ip'
 from public.orders as order_record
 where order_record.id in (
   '41000000-0000-4000-8000-000000000c01',

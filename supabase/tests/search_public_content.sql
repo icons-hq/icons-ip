@@ -92,7 +92,7 @@ values (
   'search-smoke-good',
   'search-smoke-ip',
   '검색스모크굿즈',
-  '검색타입',
+  '문구',
   1000,
   'ok',
   'linear-gradient(#111, #333)'

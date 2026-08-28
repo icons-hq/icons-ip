@@ -136,16 +136,16 @@ values ('order-cancel-ip', '주문 취소 IP', 'character');
 
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
 values
-  ('order-cancel-no-payment', 'order-cancel-ip', '무결제 취소 굿즈', '테스트', 10000, 'ok', 9),
-  ('order-cancel-active', 'order-cancel-ip', '활성 결제 취소 굿즈', '테스트', 10000, 'ok', 9),
-  ('order-cancel-no-evidence', 'order-cancel-ip', '결제 증거 누락 굿즈', '테스트', 10000, 'ok', 9),
-  ('order-cancel-shipping', 'order-cancel-ip', '배송 중 굿즈', '테스트', 10000, 'ok', 9),
-  ('order-cancel-done', 'order-cancel-ip', '배송 완료 굿즈', '테스트', 10000, 'ok', 9),
-  ('order-cancel-terminal', 'order-cancel-ip', '종결 결제 취소 굿즈', '테스트', 10000, 'ok', 9),
-  ('order-cancel-reward', 'order-cancel-ip', '리워드 취소 굿즈', '테스트', 10000, 'ok', 9),
-  ('order-cancel-failed-evidence', 'order-cancel-ip', '실패 장부 취소 굿즈', '테스트', 10000, 'ok', 9),
-  ('order-cancel-claim', 'order-cancel-ip', '취소 claim 굿즈', '테스트', 10000, 'ok', 9),
-  ('order-cancel-post-shipping', 'order-cancel-ip', '배송 후 취소 굿즈', '테스트', 10000, 'ok', 9);
+  ('order-cancel-no-payment', 'order-cancel-ip', '무결제 취소 굿즈', '문구', 10000, 'ok', 9),
+  ('order-cancel-active', 'order-cancel-ip', '활성 결제 취소 굿즈', '문구', 10000, 'ok', 9),
+  ('order-cancel-no-evidence', 'order-cancel-ip', '결제 증거 누락 굿즈', '문구', 10000, 'ok', 9),
+  ('order-cancel-shipping', 'order-cancel-ip', '배송 중 굿즈', '문구', 10000, 'ok', 9),
+  ('order-cancel-done', 'order-cancel-ip', '배송 완료 굿즈', '문구', 10000, 'ok', 9),
+  ('order-cancel-terminal', 'order-cancel-ip', '종결 결제 취소 굿즈', '문구', 10000, 'ok', 9),
+  ('order-cancel-reward', 'order-cancel-ip', '리워드 취소 굿즈', '문구', 10000, 'ok', 9),
+  ('order-cancel-failed-evidence', 'order-cancel-ip', '실패 장부 취소 굿즈', '문구', 10000, 'ok', 9),
+  ('order-cancel-claim', 'order-cancel-ip', '취소 claim 굿즈', '문구', 10000, 'ok', 9),
+  ('order-cancel-post-shipping', 'order-cancel-ip', '배송 후 취소 굿즈', '문구', 10000, 'ok', 9);
 
 insert into public.orders (id, user_id, status, total, address, expires_at)
 values
@@ -202,16 +202,16 @@ insert into public.order_items (
   good_ip_id_snapshot
 )
 values
-  ('40000000-0000-4000-8000-000000000701', 'order-cancel-no-payment', 1, 10000, '무결제 취소 굿즈', '테스트', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000702', 'order-cancel-active', 1, 10000, '활성 결제 취소 굿즈', '테스트', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000703', 'order-cancel-no-evidence', 1, 10000, '결제 증거 누락 굿즈', '테스트', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000704', 'order-cancel-shipping', 1, 10000, '배송 중 굿즈', '테스트', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000705', 'order-cancel-done', 1, 10000, '배송 완료 굿즈', '테스트', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000706', 'order-cancel-terminal', 1, 10000, '종결 결제 취소 굿즈', '테스트', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000707', 'order-cancel-reward', 1, 10000, '리워드 취소 굿즈', '테스트', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000708', 'order-cancel-failed-evidence', 1, 10000, '실패 장부 취소 굿즈', '테스트', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000709', 'order-cancel-claim', 1, 10000, '취소 claim 굿즈', '테스트', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000710', 'order-cancel-post-shipping', 1, 10000, '배송 후 취소 굿즈', '테스트', 'order-cancel-ip');
+  ('40000000-0000-4000-8000-000000000701', 'order-cancel-no-payment', 1, 10000, '무결제 취소 굿즈', '문구', 'order-cancel-ip'),
+  ('40000000-0000-4000-8000-000000000702', 'order-cancel-active', 1, 10000, '활성 결제 취소 굿즈', '문구', 'order-cancel-ip'),
+  ('40000000-0000-4000-8000-000000000703', 'order-cancel-no-evidence', 1, 10000, '결제 증거 누락 굿즈', '문구', 'order-cancel-ip'),
+  ('40000000-0000-4000-8000-000000000704', 'order-cancel-shipping', 1, 10000, '배송 중 굿즈', '문구', 'order-cancel-ip'),
+  ('40000000-0000-4000-8000-000000000705', 'order-cancel-done', 1, 10000, '배송 완료 굿즈', '문구', 'order-cancel-ip'),
+  ('40000000-0000-4000-8000-000000000706', 'order-cancel-terminal', 1, 10000, '종결 결제 취소 굿즈', '문구', 'order-cancel-ip'),
+  ('40000000-0000-4000-8000-000000000707', 'order-cancel-reward', 1, 10000, '리워드 취소 굿즈', '문구', 'order-cancel-ip'),
+  ('40000000-0000-4000-8000-000000000708', 'order-cancel-failed-evidence', 1, 10000, '실패 장부 취소 굿즈', '문구', 'order-cancel-ip'),
+  ('40000000-0000-4000-8000-000000000709', 'order-cancel-claim', 1, 10000, '취소 claim 굿즈', '문구', 'order-cancel-ip'),
+  ('40000000-0000-4000-8000-000000000710', 'order-cancel-post-shipping', 1, 10000, '배송 후 취소 굿즈', '문구', 'order-cancel-ip');
 
 insert into public.payments (
   id, user_id, purpose, ref_id, amount, status,
