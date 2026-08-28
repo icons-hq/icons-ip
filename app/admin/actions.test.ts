@@ -63,6 +63,13 @@ vi.mock('next/navigation', () => ({
     throw new Error(`NEXT_REDIRECT:${path}`);
   },
 }));
+/* after 는 request scope 밖(vitest)에서 던진다. 여기서는 "등록된 콜백이 실행된다"만
+   흉내 내면 된다 — 재입고 메일러 호출 단언이 그 콜백 안에서 일어난다. */
+vi.mock('next/server', () => ({
+  after: (task: (() => unknown) | Promise<unknown>) => {
+    if (typeof task === 'function') void task();
+  },
+}));
 
 const catalog: CatalogSnapshot = {
   source: 'supabase',

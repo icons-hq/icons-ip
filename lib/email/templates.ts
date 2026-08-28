@@ -284,7 +284,13 @@ export interface RestockAlertEmailInput {
  * 참이었고, 재품절은 재신청이라는 자기 경로를 갖는다.
  */
 export function renderRestockAlertEmail(input: RestockAlertEmailInput): RenderedEmail {
-  const subject = `[ICONS] 재입고 알림 — ${input.goodName}`;
+  /* 굿즈명은 길이 무제한 text 다. claim_email_delivery 가 제목 200자를 넘기면 거부하는데,
+     트리거는 이미 notified 로 넘긴 뒤라 그 메일은 영영 못 나간다 — 제목만 자르고
+     전체 이름은 본문이 말한다. */
+  const subjectName = input.goodName.length > 60
+    ? `${input.goodName.slice(0, 59)}…`
+    : input.goodName;
+  const subject = `[ICONS] 재입고 알림 — ${subjectName}`;
   const goodUrl = safeLinkUrl(input.goodPath);
 
   const text = textBlock([

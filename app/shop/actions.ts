@@ -27,11 +27,6 @@ export type RestockAlertResult =
   | { ok: true; status: 'pending' }
   | { ok: false; error: ShopEngagementError };
 
-interface GoodStockRow {
-  stock: string;
-  stock_qty: number;
-}
-
 function normalizeGoodId(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -97,30 +92,17 @@ export async function requestRestockAlertAction(goodIdValue: unknown): Promise<R
 
   const supabase = await createClient();
 
-  /* 품절 판정은 서버가 한다. 판매 중인 굿즈에 신청이 붙으면 재입고 트리거의 전이
-     조건(거짓→참)이 영영 성립하지 않아 신청자가 기다리다 끝난다. 술어는 카트·주문
-     게이트와 같다 — stock='soldout' 이거나 수량 0. */
-  const { data, error: loadError } = await supabase
-    .from('goods')
-    .select('stock,stock_qty')
-    .eq('id', goodId)
-    .is('archived_at', null)
-    .maybeSingle<GoodStockRow>();
-  if (loadError) return { ok: false, error: 'unavailable' };
-  if (!data) return { ok: false, error: 'invalid_request' };
-  if (data.stock !== 'soldout' && data.stock_qty > 0) {
-    return { ok: false, error: 'invalid_request' };
+  /* 품절 판정·재신청 upsert 는 request_restock_alert RPC 한 트랜잭션이 goods 행
+     잠금과 함께 수행한다 — 판정과 신청 사이에 재입고 전이가 끼어드는 경합, 그리고
+     클라이언트가 트리거 소유 상태(status·notified_at)를 직접 쓰는 경로를 함께 막는다.
+     good_missing(P0002)·good_available(22023)은 신청이 성립하지 않는 요청이다. */
+  const { error } = await supabase.rpc('request_restock_alert', { target_good_id: goodId });
+  if (error) {
+    if (error.code === 'P0002' || error.code === '22023') {
+      return { ok: false, error: 'invalid_request' };
+    }
+    return { ok: false, error: 'unavailable' };
   }
-
-  /* 재신청은 새 행이 아니라 기존 행을 pending 으로 되돌린다(unique user×good).
-     notified_at 을 함께 비워야 status 와 시각이 어긋나지 않는다 — DB CHECK 와 같은 규칙. */
-  const { error } = await supabase
-    .from('restock_alerts')
-    .upsert(
-      { user_id: gate.user.id, good_id: goodId, status: 'pending', notified_at: null },
-      { onConflict: 'user_id,good_id' },
-    );
-  if (error) return { ok: false, error: 'unavailable' };
 
   return { ok: true, status: 'pending' };
 }

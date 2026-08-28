@@ -28,13 +28,27 @@ export function WishlistHeart({ className, disabled, goodId, initialWished }: Wi
   const pathname = usePathname();
   const router = useRouter();
 
+  /* refresh 가 내려준 서버 사실이 낙관 상태를 이긴다 — prop 변화를 렌더 중에 받아
+     적는다(이전 prop 비교, React 공식 derived-state 리셋 패턴). effect 로 미루면
+     한 프레임 동안 두 인스턴스가 서로 다른 하트를 그린다. */
+  const [syncedWished, setSyncedWished] = useState(initialWished);
+  if (syncedWished !== initialWished) {
+    setSyncedWished(initialWished);
+    setWished(initialWished);
+  }
+
   function toggle() {
     const nextWished = !wished;
     setWished(nextWished);
 
     startTransition(async () => {
       const result = await toggleWishlistAction(goodId, nextWished);
-      if (result.ok) return;
+      if (result.ok) {
+        /* 서버 렌더를 다시 받아 이 하트 밖의 표면(위시 목록의 행, 다른 인스턴스)도
+           같은 사실을 보게 한다 — 낙관 상태는 이 버튼 하나만 즉시 바꾼다. */
+        router.refresh();
+        return;
+      }
 
       setWished(!nextWished);
       if (result.error === 'auth_required') {

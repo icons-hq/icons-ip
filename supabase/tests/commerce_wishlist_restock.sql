@@ -228,13 +228,33 @@ select 1 / case when (
 
 -- ── 4. restock_alerts — 신청·재신청과 전이 트리거 ─────────────────
 
+-- 클라이언트는 읽기뿐이다 — status·notified_at 은 트리거 소유 상태라, 자기 행이라도
+-- 직접 update 로 notified 를 조작(알림 자기 억제·가짜 발송 사이클)할 수 없어야 한다.
+-- 이메일 producer 는 service role 로 notified 행을 읽는다(BYPASSRLS 는 privilege 면제가 아니다).
 select 1 / case when (
   not has_table_privilege('anon', 'public.restock_alerts', 'select')
   and has_table_privilege('authenticated', 'public.restock_alerts', 'select')
-  and has_table_privilege('authenticated', 'public.restock_alerts', 'insert')
-  and has_table_privilege('authenticated', 'public.restock_alerts', 'update')
+  and not has_table_privilege('authenticated', 'public.restock_alerts', 'insert')
+  and not has_table_privilege('authenticated', 'public.restock_alerts', 'update')
   and not has_table_privilege('authenticated', 'public.restock_alerts', 'delete')
+  and has_table_privilege('service_role', 'public.restock_alerts', 'select')
 ) then 1 else 0 end as assert_restock_alerts_table_acl;
+
+select 1 / case when exists (
+  select 1
+  from pg_catalog.pg_proc proc
+  join pg_catalog.pg_namespace ns on ns.oid = proc.pronamespace
+  where ns.nspname = 'public'
+    and proc.proname = 'request_restock_alert'
+    and pg_catalog.pg_get_function_identity_arguments(proc.oid) = 'target_good_id text'
+    and proc.prosecdef
+) then 1 else 0 end as assert_request_restock_alert_signature;
+
+select 1 / case when (
+  not has_function_privilege('anon', 'public.request_restock_alert(text)', 'execute')
+  and has_function_privilege('authenticated', 'public.request_restock_alert(text)', 'execute')
+  and not has_function_privilege('service_role', 'public.request_restock_alert(text)', 'execute')
+) then 1 else 0 end as assert_request_restock_alert_acl;
 
 select 1 / case when (
   not has_function_privilege('anon', 'private.notify_goods_restock()', 'execute')
@@ -246,12 +266,28 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000002601', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 
-insert into public.restock_alerts (user_id, good_id)
-values ('00000000-0000-4000-8000-000000002601', 'commerce-smoke-good')
-on conflict (user_id, good_id)
-do update set status = 'pending', notified_at = null, created_at = now();
+-- 판매 중인 굿즈에는 신청이 성립하지 않는다 — 전이 조건이 영영 참이 안 된다.
+do $$
+begin
+  begin
+    perform public.request_restock_alert('commerce-smoke-good-b');
+    raise exception 'restock request on a sellable good was accepted' using errcode = 'P7804';
+  exception
+    when sqlstate '22023' then null;
+  end;
+end;
+$$;
+
+select public.request_restock_alert('commerce-smoke-good');
 
 reset role;
+
+select 1 / case when (
+  select count(*) = 1 from public.restock_alerts
+  where user_id = '00000000-0000-4000-8000-000000002601'
+    and good_id = 'commerce-smoke-good'
+    and status = 'pending'
+) then 1 else 0 end as assert_rpc_created_pending_alert;
 
 -- 판매 불가 상태 안에서의 변화(품절 유지)는 발화하지 않는다.
 update public.goods set stock_qty = 0, stock = 'soldout'
@@ -295,10 +331,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000002601', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 
-insert into public.restock_alerts (user_id, good_id)
-values ('00000000-0000-4000-8000-000000002601', 'commerce-smoke-good')
-on conflict (user_id, good_id)
-do update set status = 'pending', notified_at = null, created_at = now();
+select public.request_restock_alert('commerce-smoke-good');
 
 reset role;
 

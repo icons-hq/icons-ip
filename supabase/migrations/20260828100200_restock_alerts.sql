@@ -35,15 +35,67 @@ create index restock_alerts_good_status_idx on public.restock_alerts (good_id, s
 
 alter table public.restock_alerts enable row level security;
 
-create policy restock_alerts_self on public.restock_alerts
-  for all to authenticated
-  using ((select auth.uid()) = user_id)
-  with check ((select auth.uid()) = user_id);
+create policy restock_alerts_self_read on public.restock_alerts
+  for select to authenticated
+  using ((select auth.uid()) = user_id);
 
--- 재신청 upsert(insert ... on conflict do update)에 update 까지 필요하다.
--- delete 는 주지 않는다 — 신청·발송 이력은 남긴다.
+-- 클라이언트에는 읽기만 연다. status·notified_at 은 전이 트리거가 소유하는 상태라,
+-- 테이블 update 를 열면 자기 행이라도 notified 를 조작해 알림을 스스로 끄거나 가짜
+-- 발송 사이클(새 notified_at = 새 dedupe 키)을 만들 수 있다. 신청·재신청은 아래
+-- request_restock_alert RPC 만이 쓴다. delete 는 없다 — 신청·발송 이력은 남긴다.
+-- 이메일 producer 는 service role 로 notified 행을 읽는다(BYPASSRLS 는 테이블
+-- privilege 를 면제하지 않는다).
 revoke all on table public.restock_alerts from public, anon, authenticated, service_role;
-grant select, insert, update on table public.restock_alerts to authenticated;
+grant select on table public.restock_alerts to authenticated;
+grant select on table public.restock_alerts to service_role;
+
+-- 신청·재신청. 품절 판정과 upsert 를 한 트랜잭션에서 goods 행 잠금(for share)과 함께
+-- 수행한다 — 판정과 신청 사이에 재입고 전이(goods UPDATE, for update)가 끼어들면
+-- 트리거는 신청자를 못 보고 신청은 pending 으로 남아 다음 사이클까지 침묵하는
+-- 경합이 있었다. 잠금으로 전이 트랜잭션과 직렬화한다.
+create function public.request_restock_alert(target_good_id text)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  actor_id uuid := (select auth.uid());
+  good_stock text;
+  good_stock_qty integer;
+  good_archived_at timestamptz;
+begin
+  if actor_id is null then
+    raise exception 'auth_required' using errcode = '28000';
+  end if;
+
+  select stock, stock_qty, archived_at
+  into good_stock, good_stock_qty, good_archived_at
+  from public.goods
+  where id = target_good_id
+  for share;
+
+  if not found or good_archived_at is not null then
+    raise exception 'good_missing' using errcode = 'P0002';
+  end if;
+
+  -- 판매 가능 술어는 앱 표시·카트·주문 게이트와 같다. 판매 중인 굿즈에 신청이
+  -- 붙으면 전이 조건(거짓→참)이 영영 성립하지 않아 신청자가 기다리다 끝난다.
+  if good_stock <> 'soldout' and good_stock_qty > 0 then
+    raise exception 'good_available' using errcode = '22023';
+  end if;
+
+  insert into public.restock_alerts (user_id, good_id)
+  values (actor_id, target_good_id)
+  on conflict (user_id, good_id)
+  do update set status = 'pending', notified_at = null, created_at = now();
+end;
+$$;
+
+revoke all on function public.request_restock_alert(text)
+  from public, anon, authenticated, service_role;
+grant execute on function public.request_restock_alert(text) to authenticated;
 
 -- 알림함 type 에 restock_available 을 덧붙인다. 목록을 통째로 다시 쓰면 브랜치가
 -- 갈라졌을 때 다른 타입을 조용히 지우므로, 기존 정의를 읽어 덧붙인다

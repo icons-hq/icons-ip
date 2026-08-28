@@ -5,28 +5,20 @@ import { requestRestockAlertAction, toggleWishlistAction } from './actions';
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
   from: vi.fn(),
-  goodRow: { data: { stock: 'soldout', stock_qty: 0 }, error: null } as {
-    data: { stock: string; stock_qty: number } | null;
-    error: { message: string } | null;
-  },
   wishUpsertResult: { error: null } as { error: { message: string } | null },
   wishDeleteResult: { error: null } as { error: { message: string } | null },
-  restockUpsertResult: { error: null } as { error: { message: string } | null },
+  rpcResult: { error: null } as { error: { code?: string; message: string } | null },
   wishUpsert: vi.fn(),
   wishDelete: vi.fn(),
   wishDeleteEq: vi.fn(),
-  restockUpsert: vi.fn(),
-  goodsSelect: vi.fn(),
-  goodsEq: vi.fn(),
-  goodsIs: vi.fn(),
-  goodsMaybeSingle: vi.fn(),
+  rpc: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/server', () => ({
   getCurrentAuthState: () => mocks.auth,
 }));
 vi.mock('@/lib/supabase/server', () => ({
-  createClient: () => ({ from: mocks.from }),
+  createClient: () => ({ from: mocks.from, rpc: mocks.rpc }),
 }));
 
 function signedInAuth(): CurrentAuthState {
@@ -62,34 +54,23 @@ function thenableDeleteBuilder() {
 describe('shop engagement Server Actions', () => {
   beforeEach(() => {
     mocks.auth = signedInAuth();
-    mocks.goodRow = { data: { stock: 'soldout', stock_qty: 0 }, error: null };
     mocks.wishUpsertResult = { error: null };
     mocks.wishDeleteResult = { error: null };
-    mocks.restockUpsertResult = { error: null };
+    mocks.rpcResult = { error: null };
 
     for (const mock of [
       mocks.from,
       mocks.wishUpsert,
       mocks.wishDelete,
       mocks.wishDeleteEq,
-      mocks.restockUpsert,
-      mocks.goodsSelect,
-      mocks.goodsEq,
-      mocks.goodsIs,
-      mocks.goodsMaybeSingle,
+      mocks.rpc,
     ]) mock.mockReset();
 
     mocks.wishUpsert.mockImplementation(async () => mocks.wishUpsertResult);
     mocks.wishDelete.mockImplementation(() => thenableDeleteBuilder());
-    mocks.restockUpsert.mockImplementation(async () => mocks.restockUpsertResult);
-    mocks.goodsMaybeSingle.mockImplementation(async () => mocks.goodRow);
-    mocks.goodsIs.mockReturnValue({ maybeSingle: mocks.goodsMaybeSingle });
-    mocks.goodsEq.mockReturnValue({ is: mocks.goodsIs });
-    mocks.goodsSelect.mockReturnValue({ eq: mocks.goodsEq });
+    mocks.rpc.mockImplementation(async () => mocks.rpcResult);
     mocks.from.mockImplementation((table: string) => {
       if (table === 'wishlists') return { upsert: mocks.wishUpsert, delete: mocks.wishDelete };
-      if (table === 'restock_alerts') return { upsert: mocks.restockUpsert };
-      if (table === 'goods') return { select: mocks.goodsSelect };
       throw new Error(`Unexpected table ${table}`);
     });
   });
@@ -199,35 +180,18 @@ describe('shop engagement Server Actions', () => {
         ok: false,
         error: 'unavailable',
       });
-      expect(mocks.from).not.toHaveBeenCalled();
+      expect(mocks.rpc).not.toHaveBeenCalled();
     });
 
-    /* 판매 중인 굿즈에 재입고 알림을 걸면 트리거가 영영 발화하지 않는다 —
-       신청자는 기다리다 끝난다. 품절 여부는 클라이언트가 아니라 서버가 판정한다. */
-    it('refuses a good that is still on sale', async () => {
-      mocks.goodRow = { data: { stock: 'ok', stock_qty: 5 }, error: null };
-
-      await expect(requestRestockAlertAction('g100')).resolves.toEqual({
-        ok: false,
-        error: 'invalid_request',
-      });
-      expect(mocks.restockUpsert).not.toHaveBeenCalled();
-    });
-
-    it('treats a zero-quantity good as sold out and restores the pending row', async () => {
-      mocks.goodRow = { data: { stock: 'low', stock_qty: 0 }, error: null };
-
+    /* 품절 판정·재신청은 request_restock_alert RPC 한 트랜잭션이 잠금과 함께 한다 —
+       판정과 신청 사이에 재입고 전이가 끼는 경합, 트리거 소유 상태의 직접 쓰기를
+       함께 막는 계약이다. 액션의 몫은 호출과 에러 번역뿐이다. */
+    it('delegates the sold-out check and upsert to the locking RPC', async () => {
       await expect(requestRestockAlertAction('  g100  ')).resolves.toEqual({
         ok: true,
         status: 'pending',
       });
-      expect(mocks.goodsSelect).toHaveBeenCalledWith('stock,stock_qty');
-      expect(mocks.goodsEq).toHaveBeenCalledWith('id', 'g100');
-      expect(mocks.goodsIs).toHaveBeenCalledWith('archived_at', null);
-      expect(mocks.restockUpsert).toHaveBeenCalledWith(
-        { user_id: 'user-1', good_id: 'g100', status: 'pending', notified_at: null },
-        { onConflict: 'user_id,good_id' },
-      );
+      expect(mocks.rpc).toHaveBeenCalledWith('request_restock_alert', { target_good_id: 'g100' });
     });
 
     it('re-requesting the same alert stays pending', async () => {
@@ -236,20 +200,29 @@ describe('shop engagement Server Actions', () => {
 
       expect(first).toEqual({ ok: true, status: 'pending' });
       expect(second).toEqual(first);
+      expect(mocks.rpc).toHaveBeenCalledTimes(2);
+    });
+
+    it('refuses a good that is still on sale', async () => {
+      mocks.rpcResult = { error: { code: '22023', message: 'good_available' } };
+
+      await expect(requestRestockAlertAction('g100')).resolves.toEqual({
+        ok: false,
+        error: 'invalid_request',
+      });
     });
 
     it('reports an unknown good as an invalid request', async () => {
-      mocks.goodRow = { data: null, error: null };
+      mocks.rpcResult = { error: { code: 'P0002', message: 'good_missing' } };
 
       await expect(requestRestockAlertAction('ghost')).resolves.toEqual({
         ok: false,
         error: 'invalid_request',
       });
-      expect(mocks.restockUpsert).not.toHaveBeenCalled();
     });
 
     it('does not expose database details when the write fails', async () => {
-      mocks.restockUpsertResult = { error: { message: 'sensitive database detail' } };
+      mocks.rpcResult = { error: { code: 'XX000', message: 'sensitive database detail' } };
 
       await expect(requestRestockAlertAction('g100')).resolves.toEqual({
         ok: false,
