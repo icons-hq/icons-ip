@@ -1,0 +1,699 @@
+{
+  "schemaVersion": 1,
+  "tileSize": 64,
+  "sheet": {
+    "width": 1024,
+    "height": 1024,
+    "columns": 16,
+    "rows": 16,
+    "sha256": "820026e0967730e28c93e1c2687d8cab18e53d7781bf226b86e2fb49f45ef183"
+  },
+  "requiredIds": [
+    "bucket_station",
+    "chair_fallen",
+    "chair_sideways",
+    "chair_straight",
+    "chair_tilted",
+    "cutlery_scatter",
+    "door_double_closed",
+    "door_double_open",
+    "equipment_station",
+    "floor_green_dry",
+    "floor_green_scuffed",
+    "floor_green_wet",
+    "floor_orange_dry",
+    "floor_orange_scuffed",
+    "floor_orange_wet",
+    "food_spill",
+    "light_fluorescent",
+    "roll_down_shutter",
+    "serving_counter_corner",
+    "serving_counter_left",
+    "serving_counter_shutter",
+    "serving_counter_wide",
+    "serving_sink_bank",
+    "sink_station",
+    "table_endcap",
+    "table_long",
+    "table_medium",
+    "table_round_end",
+    "table_short",
+    "tray_clean",
+    "tray_stack",
+    "tray_tilted",
+    "wall_beam_corner",
+    "wall_beam_horizontal",
+    "wall_vertical",
+    "water_reflection",
+    "window_wide",
+    "window_with_ac"
+  ],
+  "modules": [
+    {
+      "id": "bucket_station",
+      "kind": "fixture",
+      "cellRect": {
+        "column": 13,
+        "row": 8,
+        "columns": 2,
+        "rows": 2
+      },
+      "pixelRect": {
+        "x": 832,
+        "y": 512,
+        "width": 128,
+        "height": 128
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "chair_fallen",
+      "kind": "object",
+      "cellRect": {
+        "column": 13,
+        "row": 11,
+        "columns": 1,
+        "rows": 2
+      },
+      "pixelRect": {
+        "x": 832,
+        "y": 704,
+        "width": 64,
+        "height": 128
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "chair_sideways",
+      "kind": "object",
+      "cellRect": {
+        "column": 12,
+        "row": 11,
+        "columns": 1,
+        "rows": 2
+      },
+      "pixelRect": {
+        "x": 768,
+        "y": 704,
+        "width": 64,
+        "height": 128
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "chair_straight",
+      "kind": "object",
+      "cellRect": {
+        "column": 10,
+        "row": 11,
+        "columns": 1,
+        "rows": 2
+      },
+      "pixelRect": {
+        "x": 640,
+        "y": 704,
+        "width": 64,
+        "height": 128
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "chair_tilted",
+      "kind": "object",
+      "cellRect": {
+        "column": 11,
+        "row": 11,
+        "columns": 1,
+        "rows": 2
+      },
+      "pixelRect": {
+        "x": 704,
+        "y": 704,
+        "width": 64,
+        "height": 128
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "cutlery_scatter",
+      "kind": "overlay",
+      "cellRect": {
+        "column": 12,
+        "row": 1,
+        "columns": 1,
+        "rows": 1
+      },
+      "pixelRect": {
+        "x": 768,
+        "y": 64,
+        "width": 64,
+        "height": 64
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "door_double_closed",
+      "kind": "structure",
+      "cellRect": {
+        "column": 4,
+        "row": 5,
+        "columns": 3,
+        "rows": 2
+      },
+      "pixelRect": {
+        "x": 256,
+        "y": 320,
+        "width": 192,
+        "height": 128
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "door_double_open",
+      "kind": "structure",
+      "cellRect": {
+        "column": 1,
+        "row": 5,
+        "columns": 3,
+        "rows": 3
+      },
+      "pixelRect": {
+        "x": 64,
+        "y": 320,
+        "width": 192,
+        "height": 192
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "equipment_station",
+      "kind": "fixture",
+      "cellRect": {
+        "column": 5,
+        "row": 13,
+        "columns": 3,
+        "rows": 2
+      },
+      "pixelRect": {
+        "x": 320,
+        "y": 832,
+        "width": 192,
+        "height": 128
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "floor_green_dry",
+      "kind": "tile",
+      "cellRect": {
+        "column": 1,
+        "row": 1,
+        "columns": 1,
+        "rows": 1
+      },
+      "pixelRect": {
+        "x": 64,
+        "y": 64,
+        "width": 64,
+        "height": 64
+      },
+      "anchor": "top-left"
+    },
+    {
+      "id": "floor_green_scuffed",
+      "kind": "tile",
+      "cellRect": {
+        "column": 2,
+        "row": 1,
+        "columns": 1,
+        "rows": 1
+      },
+      "pixelRect": {
+        "x": 128,
+        "y": 64,
+        "width": 64,
+        "height": 64
+      },
+      "anchor": "top-left"
+    },
+    {
+      "id": "floor_green_wet",
+      "kind": "tile",
+      "cellRect": {
+        "column": 3,
+        "row": 1,
+        "columns": 1,
+        "rows": 1
+      },
+      "pixelRect": {
+        "x": 192,
+        "y": 64,
+        "width": 64,
+        "height": 64
+      },
+      "anchor": "top-left"
+    },
+    {
+      "id": "floor_orange_dry",
+      "kind": "tile",
+      "cellRect": {
+        "column": 4,
+        "row": 1,
+        "columns": 1,
+        "rows": 1
+      },
+      "pixelRect": {
+        "x": 256,
+        "y": 64,
+        "width": 64,
+        "height": 64
+      },
+      "anchor": "top-left"
+    },
+    {
+      "id": "floor_orange_scuffed",
+      "kind": "tile",
+      "cellRect": {
+        "column": 5,
+        "row": 1,
+        "columns": 1,
+        "rows": 1
+      },
+      "pixelRect": {
+        "x": 320,
+        "y": 64,
+        "width": 64,
+        "height": 64
+      },
+      "anchor": "top-left"
+    },
+    {
+      "id": "floor_orange_wet",
+      "kind": "tile",
+      "cellRect": {
+        "column": 6,
+        "row": 1,
+        "columns": 1,
+        "rows": 1
+      },
+      "pixelRect": {
+        "x": 384,
+        "y": 64,
+        "width": 64,
+        "height": 64
+      },
+      "anchor": "top-left"
+    },
+    {
+      "id": "food_spill",
+      "kind": "overlay",
+      "cellRect": {
+        "column": 13,
+        "row": 1,
+        "columns": 1,
+        "rows": 1
+      },
+      "pixelRect": {
+        "x": 832,
+        "y": 64,
+        "width": 64,
+        "height": 64
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "light_fluorescent",
+      "kind": "fixture",
+      "cellRect": {
+        "column": 7,
+        "row": 1,
+        "columns": 2,
+        "rows": 1
+      },
+      "pixelRect": {
+        "x": 448,
+        "y": 64,
+        "width": 128,
+        "height": 64
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "roll_down_shutter",
+      "kind": "fixture",
+      "cellRect": {
+        "column": 1,
+        "row": 8,
+        "columns": 4,
+        "rows": 2
+      },
+      "pixelRect": {
+        "x": 64,
+        "y": 512,
+        "width": 256,
+        "height": 128
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "serving_counter_corner",
+      "kind": "fixture",
+      "cellRect": {
+        "column": 11,
+        "row": 5,
+        "columns": 3,
+        "rows": 3
+      },
+      "pixelRect": {
+        "x": 704,
+        "y": 320,
+        "width": 192,
+        "height": 192
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "serving_counter_left",
+      "kind": "fixture",
+      "cellRect": {
+        "column": 7,
+        "row": 8,
+        "columns": 3,
+        "rows": 3
+      },
+      "pixelRect": {
+        "x": 448,
+        "y": 512,
+        "width": 192,
+        "height": 192
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "serving_counter_shutter",
+      "kind": "fixture",
+      "cellRect": {
+        "column": 10,
+        "row": 8,
+        "columns": 3,
+        "rows": 2
+      },
+      "pixelRect": {
+        "x": 640,
+        "y": 512,
+        "width": 192,
+        "height": 128
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "serving_counter_wide",
+      "kind": "fixture",
+      "cellRect": {
+        "column": 7,
+        "row": 5,
+        "columns": 4,
+        "rows": 3
+      },
+      "pixelRect": {
+        "x": 448,
+        "y": 320,
+        "width": 256,
+        "height": 192
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "serving_sink_bank",
+      "kind": "fixture",
+      "cellRect": {
+        "column": 11,
+        "row": 13,
+        "columns": 3,
+        "rows": 2
+      },
+      "pixelRect": {
+        "x": 704,
+        "y": 832,
+        "width": 192,
+        "height": 128
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "sink_station",
+      "kind": "fixture",
+      "cellRect": {
+        "column": 5,
+        "row": 8,
+        "columns": 2,
+        "rows": 2
+      },
+      "pixelRect": {
+        "x": 320,
+        "y": 512,
+        "width": 128,
+        "height": 128
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "table_endcap",
+      "kind": "object",
+      "cellRect": {
+        "column": 9,
+        "row": 13,
+        "columns": 2,
+        "rows": 2
+      },
+      "pixelRect": {
+        "x": 576,
+        "y": 832,
+        "width": 128,
+        "height": 128
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "table_long",
+      "kind": "object",
+      "cellRect": {
+        "column": 1,
+        "row": 11,
+        "columns": 4,
+        "rows": 2
+      },
+      "pixelRect": {
+        "x": 64,
+        "y": 704,
+        "width": 256,
+        "height": 128
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "table_medium",
+      "kind": "object",
+      "cellRect": {
+        "column": 5,
+        "row": 11,
+        "columns": 3,
+        "rows": 2
+      },
+      "pixelRect": {
+        "x": 320,
+        "y": 704,
+        "width": 192,
+        "height": 128
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "table_round_end",
+      "kind": "object",
+      "cellRect": {
+        "column": 8,
+        "row": 13,
+        "columns": 1,
+        "rows": 2
+      },
+      "pixelRect": {
+        "x": 512,
+        "y": 832,
+        "width": 64,
+        "height": 128
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "table_short",
+      "kind": "object",
+      "cellRect": {
+        "column": 8,
+        "row": 11,
+        "columns": 2,
+        "rows": 2
+      },
+      "pixelRect": {
+        "x": 512,
+        "y": 704,
+        "width": 128,
+        "height": 128
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "tray_clean",
+      "kind": "overlay",
+      "cellRect": {
+        "column": 9,
+        "row": 1,
+        "columns": 1,
+        "rows": 1
+      },
+      "pixelRect": {
+        "x": 576,
+        "y": 64,
+        "width": 64,
+        "height": 64
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "tray_stack",
+      "kind": "overlay",
+      "cellRect": {
+        "column": 10,
+        "row": 1,
+        "columns": 1,
+        "rows": 1
+      },
+      "pixelRect": {
+        "x": 640,
+        "y": 64,
+        "width": 64,
+        "height": 64
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "tray_tilted",
+      "kind": "overlay",
+      "cellRect": {
+        "column": 11,
+        "row": 1,
+        "columns": 1,
+        "rows": 1
+      },
+      "pixelRect": {
+        "x": 704,
+        "y": 64,
+        "width": 64,
+        "height": 64
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "wall_beam_corner",
+      "kind": "structure",
+      "cellRect": {
+        "column": 9,
+        "row": 2,
+        "columns": 4,
+        "rows": 3
+      },
+      "pixelRect": {
+        "x": 576,
+        "y": 128,
+        "width": 256,
+        "height": 192
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "wall_beam_horizontal",
+      "kind": "structure",
+      "cellRect": {
+        "column": 1,
+        "row": 13,
+        "columns": 4,
+        "rows": 1
+      },
+      "pixelRect": {
+        "x": 64,
+        "y": 832,
+        "width": 256,
+        "height": 64
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "wall_vertical",
+      "kind": "structure",
+      "cellRect": {
+        "column": 13,
+        "row": 2,
+        "columns": 2,
+        "rows": 3
+      },
+      "pixelRect": {
+        "x": 832,
+        "y": 128,
+        "width": 128,
+        "height": 192
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "water_reflection",
+      "kind": "overlay",
+      "cellRect": {
+        "column": 14,
+        "row": 1,
+        "columns": 1,
+        "rows": 1
+      },
+      "pixelRect": {
+        "x": 896,
+        "y": 64,
+        "width": 64,
+        "height": 64
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "window_wide",
+      "kind": "structure",
+      "cellRect": {
+        "column": 1,
+        "row": 2,
+        "columns": 5,
+        "rows": 3
+      },
+      "pixelRect": {
+        "x": 64,
+        "y": 128,
+        "width": 320,
+        "height": 192
+      },
+      "anchor": "bottom-center"
+    },
+    {
+      "id": "window_with_ac",
+      "kind": "structure",
+      "cellRect": {
+        "column": 6,
+        "row": 2,
+        "columns": 3,
+        "rows": 3
+      },
+      "pixelRect": {
+        "x": 384,
+        "y": 128,
+        "width": 192,
+        "height": 192
+      },
+      "anchor": "bottom-center"
+    }
+  ]
+}
