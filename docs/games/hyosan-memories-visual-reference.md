@@ -1,6 +1,6 @@
 # 효산의 기억 — 시즌1 비주얼 레퍼런스 정본
 
-- **상태**: M0 정본 + G2 프로덕션 자산 승인 완료 (2026-08-28, `hyosan-memories-g2-assets/approval-record.json`)
+- **상태**: M0 정본 + G2 수정 배치 재승인 대기 (`pending-user-approval`, G3 차단). 2026-08-28 최초 승인본은 `hyosan-memories-g2-assets/approval-history/2026-08-28T020737Z.json`에 이력으로 보존한다.
 - **범위**: Netflix 드라마 《지금 우리 학교는》 시즌1의 배우·교복·효산고 세트
 - **권리 전제**: 사용자가 제공한 Netflix 계약에 따라 시즌1 시각 에셋과 출연 배우 초상 재현이 허용된 것으로 작업한다. 음성·보이스 클론·OST는 별도 권리 확인 전 포함하지 않는다.
 
