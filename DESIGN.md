@@ -18,6 +18,7 @@ authority:
     chrome: app/styles/wc-chrome.css
     home: app/styles/wc-home.css
     catalog: app/styles/wc-catalog.css
+    discovery: app/styles/wc-discovery.css
     account-commerce: app/styles/wc-account-commerce.css
     campaign: app/styles/wc-campaign.css
     about-legacy: app/styles/about-legacy.css

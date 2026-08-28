@@ -1,4 +1,3 @@
-import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CommunityFeedPost, CommunitySnapshot, CommunityViewerState } from '@/lib/community';
@@ -20,9 +19,6 @@ vi.mock('@/app/community/actions', () => ({
   setCommunityPostLikeAction: vi.fn(),
 }));
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => <span aria-hidden /> }));
-vi.mock('@/components/ui/Empty', () => ({
-  Empty: ({ text, sub }: { text: string; sub?: string }) => <div>{text}{sub}</div>,
-}));
 
 const snapshot: CommunitySnapshot = {
   source: 'supabase',
@@ -65,10 +61,6 @@ function renderFandom({
   );
 }
 
-function communityCss() {
-  return readFileSync(new URL('../../app/styles/editorial-public.css', import.meta.url), 'utf8');
-}
-
 describe('Community composer', () => {
   it('hides the card-pack rail while card rewards are disabled', () => {
     cardRewardGate.enabled = false;
@@ -78,23 +70,18 @@ describe('Community composer', () => {
     expect(html).not.toContain('지금 열린 카드풀');
   });
 
-  it('uses a responsive composer shell and an accessible custom image picker', () => {
+  it('uses a wc composer shell and an accessible custom image picker', () => {
     const html = render([]);
-    const css = communityCss();
 
-    expect(html).toContain('class="community-composer"');
-    expect(html).toContain('class="community-composer__main"');
-    expect(html).toContain('class="community-composer__controls"');
+    expect(html).toContain('class="wc-community__composer"');
     expect(html).toContain('id="community-composer-image"');
-    expect(html).toContain('class="community-composer__file"');
     expect(html).toContain('for="community-composer-image"');
-    expect(html).toContain('class="community-composer__upload"');
     expect(html).toContain('이미지 추가');
+    expect(html).toContain('aria-live="polite"');
     expect(html).toContain('name="image"');
     expect(html).toContain('accept="image/jpeg,image/png,image/webp,image/gif"');
-    expect(css).toContain('.community-composer__file');
-    expect(css).toContain('.community-composer__upload');
-    expect(css).toContain('.community-composer__text');
+    /* 파일 인풋은 시각적으로만 숨긴다(wc-sr-only) — 라벨 클릭·키보드 포커스는 그대로 살아 있어야 한다. */
+    expect(html).toMatch(/<input[^>]*class="wc-sr-only"[^>]*type="file"/);
   });
 });
 
@@ -124,7 +111,6 @@ describe('Community trending tags', () => {
 
     expect(html).toContain('box-sizing:border-box');
     expect(html).toContain('max-width:100%');
-    expect(html).toContain('height:44px');
     expect(html).toContain('min-width:0');
     expect(html).toContain('overflow:hidden');
     expect(html).toContain('text-overflow:ellipsis');
@@ -140,13 +126,13 @@ describe('Community trending tags', () => {
 });
 
 describe('Community fandom feed', () => {
-  it('renders URL-backed all and fandom tabs with 44px targets', () => {
+  it('renders URL-backed all and fandom tabs in the wc underline-tab grammar', () => {
     const html = render([]);
 
     expect(html).toContain('href="/community"');
     expect(html).toContain('href="/community?feed=fandom"');
     expect(html).toContain('aria-current="page"');
-    expect(html).toContain('height:44px');
+    expect(html).toContain('class="wc-community__tabs"');
   });
 
   it('guides guests to login while preserving the fandom URL', () => {
@@ -319,7 +305,9 @@ describe('Community post editing', () => {
     expect(html).toContain('for="community-post-edit-11111111-1111-4111-8111-111111111111-text"');
     expect(html).toContain('for="community-post-edit-11111111-1111-4111-8111-111111111111-ip"');
     expect(html).toContain('for="community-post-edit-11111111-1111-4111-8111-111111111111-tag"');
-    expect(html.match(/class="community-post-edit-control"/g)).toHaveLength(3);
+    expect(html).toContain('id="community-post-edit-11111111-1111-4111-8111-111111111111-text"');
+    expect(html).toContain('id="community-post-edit-11111111-1111-4111-8111-111111111111-ip"');
+    expect(html).toContain('id="community-post-edit-11111111-1111-4111-8111-111111111111-tag"');
     expect(html).toContain('name="postId" value="11111111-1111-4111-8111-111111111111"');
     expect(html).toContain('name="next" value="/community?feed=fandom"');
     expect(html).toContain('<textarea');

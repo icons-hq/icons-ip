@@ -1,0 +1,1329 @@
+/* White Catalog v4 발견·수집 — 온라인 팝업 디렉토리(/ip)·개별 관(/ip/[id])·카드팩(/packs)·
+   바인더(/binder)·커뮤니티(/community)·V2 플레이스홀더(/market·/exchange)·참여형 게임 크롬(.wc-game).
+   수치와 anatomy 의 정본은 R-03 §3(브랜드 디렉토리)·§1.9(브랜드관)와 DESIGN.md §6(standalone-game 등
+   컴포넌트 패턴)·§8(표면군별 플레이북)이고, 색은 wc-foundation 의 `--wc-*` 토큰만 쓴다
+   (카드 rarity·IP 액센트 물성은 화면 코드의 국소 인라인 예외 — DESIGN §1-4).
+   wc-foundation·wc-catalog 과 같은 스코프 규율을 지킨다: 모든 규칙은 `.wc-` 클래스에서 시작하고
+   전역 element 스타일을 두지 않는다. 아직 이행되지 않은 editorial 표면과 어드민이 같은 문서에
+   공존하기 때문이다. 브레이크포인트는 콘텐츠 750px·크롬 990px, 모바일 퍼스트로 위에 얹는다.
+   커뮤니티·카드팩처럼 하위 요소를 화면 인라인 스타일이 정본으로 잡은 지면에서는
+   컨테이너 골격·보더만 여기 두고 인라인과 싸우는 자식 규칙을 두지 않는다. */
+
+/* ------------------------------------------------------------------
+   디렉토리 /ip — 페이지 골격 (R-03 §3)
+   ------------------------------------------------------------------ */
+
+.wc-ipdir {
+  padding-block: 24px 96px;
+}
+
+/* 피처드 타일: 모바일은 native scroll-snap 캐러셀(슬라이드 332×332, gap 8),
+   데스크톱은 5열 그리드(1180 콘텐츠에서 열당 212, gap 30) — R-03 §3.1·§3.2. */
+.wc-ipdir__featured {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 32px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+
+.wc-ipdir__featured::-webkit-scrollbar {
+  display: none;
+}
+
+.wc-ipdir__featured > * {
+  flex: none;
+  width: 332px;
+  max-width: calc(100vw - 32px);
+  scroll-snap-align: start;
+}
+
+/* 정사각 타일 — 키아트 bg 위 하단 스크림, 좌하단 IP명. 모바일 슬라이드는 700 28px,
+   데스크톱 그리드 타일은 700 14px(아래 750px 블록에서 축소). */
+.wc-ipdir__tile {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  aspect-ratio: 1 / 1;
+  padding: 14px;
+  overflow: hidden;
+  background-color: var(--wc-surface-grey-2);
+  background-size: cover;
+  background-position: center;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.3;
+  text-decoration: none;
+  color: #FFFFFF;
+}
+
+/* 스크림은 ::before 로 깐다 — ::after 였다면 positioned 자식(IP명)보다 나중에 그려져 글자를 덮는다. */
+.wc-ipdir__tile::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, .55) 100%);
+}
+
+.wc-ipdir__tile > * {
+  position: relative;
+}
+
+/* ------------------------------------------------------------------
+   디렉토리 — A–Z 인덱스 바 (R-03 §3.1-2)
+   ------------------------------------------------------------------ */
+
+/* 상하 헤어라인의 얇은 바. 모바일은 한 줄 가로 스크롤(스크롤바 숨김),
+   데스크톱은 줄바꿈 없이 28항목을 배분한다. 레터 버튼과 카운트는 바의 직계 자식이다. */
+.wc-alpha-index {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  border-top: 1px solid var(--wc-hairline);
+  border-bottom: 1px solid var(--wc-hairline);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.wc-alpha-index::-webkit-scrollbar {
+  display: none;
+}
+
+/* 글리프는 15px 이지만 히트박스는 터치 타깃 최소 44px 규칙을 패딩으로 채운다. */
+.wc-alpha-index__letter {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  min-height: 44px;
+  padding: 0 5px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 400;
+  border: 0;
+  background: none;
+  color: var(--wc-line-control);
+  cursor: pointer;
+}
+
+.wc-alpha-index__letter.is-active {
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  color: var(--wc-ink);
+}
+
+/* `총 N 개` — N 만 700 잉크(마크업의 strong). 바 우측 끝으로 밀린다. */
+.wc-alpha-index__count {
+  flex: none;
+  margin: 0 0 0 auto;
+  padding-left: 16px;
+  font-size: 14px;
+  font-weight: 400;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-alpha-index__count strong {
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+/* ------------------------------------------------------------------
+   디렉토리 — IP 리스트 (R-03 §3.1-3)
+   ------------------------------------------------------------------ */
+
+.wc-ipdir__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px 9px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 모바일: 카드형(전폭 정사각 썸네일 + 아래 이름 700 16px).
+   데스크톱: 89px 가로 행 + 하단 헤어라인, 썸네일 56 + 20px 간격 + 이름 700 14px. */
+.wc-ipdir__row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-ipdir__thumb {
+  display: block;
+  flex: none;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background-color: var(--wc-surface-grey-2);
+  background-size: cover;
+  background-position: center;
+}
+
+.wc-ipdir__empty {
+  padding: 24px 0 40px;
+}
+
+@media (min-width: 750px) {
+  .wc-ipdir__featured {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 30px;
+    overflow-x: visible;
+  }
+
+  .wc-ipdir__featured > * {
+    width: auto;
+    max-width: none;
+  }
+
+  .wc-ipdir__tile {
+    padding: 12px;
+    font-size: 14px;
+  }
+
+  .wc-alpha-index {
+    overflow-x: visible;
+  }
+
+  /* 줄바꿈 없는 배분 — 항목이 남는 폭을 균등하게 나눠 가진다. */
+  .wc-alpha-index__letter {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .wc-ipdir__list {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0 52px;
+  }
+
+  .wc-ipdir__row {
+    flex-direction: row;
+    align-items: center;
+    gap: 20px;
+    min-height: 89px;
+    border-bottom: 1px solid var(--wc-hairline);
+    font-size: 14px;
+  }
+
+  .wc-ipdir__thumb {
+    width: 56px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   개별 관 /ip/[id] — 풀블리드 배너 (R-03 §1.9)
+   ------------------------------------------------------------------ */
+
+.wc-iphall {
+  padding-bottom: 120px;
+}
+
+/* 뷰포트 전폭 배너 540px(모바일 ~420px). 키아트 bg 위 스크림으로 흰 글자 대비를 확보하고,
+   콘텐츠는 .wc-container 좌측 세로 스택을 수직 중앙에 세운다. */
+.wc-iphall__banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 420px;
+  background-color: var(--wc-ink);
+  background-size: cover;
+  background-position: center;
+  color: #FFFFFF;
+}
+
+/* 계약 하한 rgba(0,0,0,.45) 이상 — 밝은 키아트에서도 흰 글자가 AA 를 지키게 한다. */
+.wc-iphall__banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, .45) 0%, rgba(0, 0, 0, .62) 100%);
+}
+
+.wc-iphall__banner > * {
+  position: relative;
+}
+
+.wc-iphall__banner .wc-container {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+/* editorial 파운데이션이 h1~h3 에 display 서체를 강제하므로 지면 서체로 되돌린다. */
+.wc-iphall__name {
+  margin: 0;
+  font-family: inherit;
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -.8px;
+  color: #FFFFFF;
+}
+
+.wc-iphall__follow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 하트 원형 40×40 — 반투명 흰 면 위 흰 아웃라인, 팔로우됨은 액센트 채움(비텍스트 사용처). */
+.wc-iphall__follow-heart {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .2);
+  color: #FFFFFF;
+  cursor: pointer;
+}
+
+.wc-iphall__follow-heart:disabled {
+  cursor: progress;
+}
+
+.wc-iphall__follow-heart.is-followed {
+  color: var(--wc-accent);
+}
+
+/* 팬 수 숫자 — DESIGN §2 "온라인 팝업 팔로우 카운트"는 액센트 유지 사용처다. */
+.wc-iphall__follow-count {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wc-accent);
+}
+
+.wc-iphall__desc {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin: 0;
+  max-width: 560px;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: #FFFFFF;
+}
+
+.wc-iphall__hashtags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-iphall__hashtags > * {
+  display: inline-flex;
+  align-items: center;
+  height: 31px;
+  padding: 0 10px;
+  font-size: 16px;
+  font-weight: 400;
+  border: 1px solid rgba(255, 255, 255, .5);
+  border-radius: var(--wc-radius-form);
+  background: none;
+  color: #FFFFFF;
+}
+
+/* ------------------------------------------------------------------
+   개별 관 — 굿즈 섹션·연결 밴드·인라인 상태
+   ------------------------------------------------------------------ */
+
+.wc-iphall__goods {
+  padding-top: 48px;
+}
+
+/* 카운트 행 우측의 "굿즈샵에서 전체 보기" — PDP 브랜드 링크와 같은 얇은 밑줄 링크 문법. */
+.wc-iphall__goods .wc-collection__toolbar a {
+  font-size: 13px;
+  font-weight: 400;
+  text-decoration: underline;
+  color: var(--wc-ink-sub);
+}
+
+/* 타입 축약 필터 칩 — 아웃라인, 활성은 잉크 채움(aria-pressed 가 상태원). */
+.wc-iphall__filter-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  border: 1px solid var(--wc-line-control);
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-iphall__filter-chip[aria-pressed='true'],
+.wc-iphall__filter-chip.is-active {
+  font-weight: 700;
+  border-color: var(--wc-ink);
+  background: var(--wc-ink);
+  color: #FFFFFF;
+}
+
+.wc-iphall__links {
+  display: grid;
+  gap: 8px;
+  margin-top: 56px;
+}
+
+.wc-iphall__links > * {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 64px;
+  padding: 16px 20px;
+  border: 1px solid var(--wc-hairline);
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+/* 팔로우·알림 저장 결과 인라인 상태 — 색만으로 전하지 않도록 문구가 본체이고 색은 보조다. */
+.wc-iphall__notice {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: -.38px;
+}
+
+.wc-iphall__notice[role='alert'],
+.wc-iphall__notice.is-error {
+  color: var(--wc-danger);
+}
+
+.wc-iphall__notice[role='status'],
+.wc-iphall__notice.is-success {
+  color: var(--wc-success);
+}
+
+@media (min-width: 750px) {
+  .wc-iphall__banner {
+    min-height: 540px;
+  }
+
+  .wc-iphall__links {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   카드팩 /packs (campaign-landing 차용)
+   ------------------------------------------------------------------ */
+
+.wc-packs {
+  padding-block: 24px 120px;
+}
+
+/* 상단 2열: 좌 텍스트(h1 26/700 + 본문) + 우 대표 카드(카드 물성은 화면 코드 국소 유지). */
+.wc-packs__hero {
+  display: grid;
+  gap: 32px;
+  align-items: center;
+  margin-bottom: 48px;
+}
+
+.wc-packs__hero h1 {
+  margin: 0 0 12px;
+  font-family: inherit;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -.8px;
+  color: var(--wc-ink);
+}
+
+.wc-packs__hero-body {
+  min-width: 0;
+}
+
+.wc-packs__hero-visual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.wc-packs__hero-note {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-packs__hero-caption {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 보유 카드팩 수 — tint 배경은 비텍스트라 액센트를 유지하고, 텍스트는 AA 확보용 success 잉크. */
+.wc-packs__count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 16px;
+  padding: 4px 10px;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: var(--wc-radius-badge);
+  background: var(--wc-accent-tint);
+  color: var(--wc-success);
+}
+
+/* 개봉 결과 패널 — HM 라디얼 글로우 없는 흰 지면 헤어라인 박스. 카드 타일은 rarity 물성 유지. */
+.wc-packs__reveal {
+  margin-top: 40px;
+  padding: 32px 20px;
+  border: 1px solid var(--wc-hairline);
+  background: var(--wc-surface);
+}
+
+.wc-packs__inventory {
+  margin-top: 56px;
+}
+
+.wc-packs__error {
+  margin: 0 0 16px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--wc-danger);
+}
+
+.wc-packs__groups {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-packs__group {
+  padding: 24px;
+  border: 1px solid var(--wc-hairline);
+  background: var(--wc-surface);
+}
+
+.wc-packs__gate {
+  border: 1px solid var(--wc-hairline);
+}
+
+@media (min-width: 750px) {
+  .wc-packs__hero {
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 60px;
+  }
+
+  .wc-packs__groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   바인더 /binder
+   ------------------------------------------------------------------ */
+
+.wc-binder {
+  padding-block: 24px 120px;
+}
+
+/* 헤더 — 제목·스탯·진행률 세로 스택. */
+.wc-binder__header {
+  margin-bottom: 32px;
+}
+
+/* 스탯 — 라벨은 텍스트 노드, 숫자만 strong 으로 28/700 잉크(HM holo-text 금지 — 계약 §2). */
+.wc-binder__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 40px;
+  margin-top: 20px;
+}
+
+.wc-binder__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-binder__stat strong {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--wc-ink);
+}
+
+/* 도감 달성률 — 라벨·트랙·퍼센트가 한 줄, 보유 수 노트가 그 아래 줄이다.
+   트랙은 회색 면, 채움은 액센트(비텍스트), 퍼센트 텍스트는 success 잉크. */
+.wc-binder__progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  max-width: 560px;
+  margin-top: 20px;
+}
+
+.wc-binder__progress-label {
+  flex: none;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-binder__progress-track {
+  display: block;
+  flex: 1 1 160px;
+  min-width: 120px;
+  height: 6px;
+  overflow: hidden;
+  background: var(--wc-surface-grey);
+}
+
+.wc-binder__progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--wc-accent);
+}
+
+.wc-binder__progress-pct {
+  flex: none;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--wc-success);
+}
+
+.wc-binder__progress-note {
+  flex-basis: 100%;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-binder__signin-note {
+  margin: 16px 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 칩 행 — role=group 래퍼는 화면 코드가 display:contents 로 접는다. 등급 칩 활성의
+   등급색 채움은 카드 물성 예외로 화면 인라인이 이 기본값을 이긴다. */
+.wc-binder__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 24px;
+}
+
+.wc-binder__filter-group {
+  display: contents;
+}
+
+.wc-binder__chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  border: 1px solid var(--wc-line-control);
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-binder__chip[aria-pressed='true'],
+.wc-binder__chip.is-active {
+  font-weight: 700;
+  border-color: var(--wc-ink);
+  background: var(--wc-ink);
+  color: #FFFFFF;
+}
+
+.wc-binder__list {
+  display: block;
+}
+
+/* 카드 그리드 — 카탈로그 상품 그리드의 gap 리듬을 준용한다(모바일 40/7, 데스크톱 50/16). */
+.wc-binder__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 40px 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 카드 버튼 — 흰 지면 헤어라인 셀. 내부 카드 타일(5:7·링·미보유 grayscale)은 rarity 물성으로
+   화면 인라인이 그리고, 이름·메타 간격도 화면 인라인 마진이 정한다. */
+.wc-binder__card {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  font-family: inherit;
+  text-align: left;
+  border: 1px solid var(--wc-hairline);
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-binder__card-name {
+  display: block;
+  overflow: hidden;
+  line-height: 1.35;
+  letter-spacing: -.2px;
+}
+
+.wc-binder__card-meta {
+  min-width: 0;
+}
+
+/* ------------------------------------------------------------------
+   바인더 — 카드 상세 다이얼로그
+   ------------------------------------------------------------------ */
+
+/* 래퍼 자체가 딤이다(바깥 클릭 닫기 — 화면 코드 계약). 패널이 흰 지면이고,
+   포커스 트랩·Escape·복귀 포커스는 화면 코드 몫이다(DESIGN §10). */
+.wc-binder__detail {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow-y: auto;
+  background: var(--wc-dim);
+}
+
+.wc-binder__detail-panel {
+  position: relative;
+  width: 100%;
+  max-width: 660px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 16px 20px 28px;
+  background: var(--wc-surface);
+  box-shadow: var(--wc-shadow-popup);
+}
+
+/* 시각은 화면 인라인이 정본 — 터치 타깃과 밑줄 어포던스만 지면이 보탠다. */
+.wc-binder__detail-close {
+  min-height: 44px;
+  text-decoration: underline;
+}
+
+.wc-binder__detail-body {
+  display: grid;
+  gap: 20px;
+}
+
+.wc-binder__detail-info {
+  min-width: 0;
+}
+
+/* editorial 파운데이션의 h2 display 서체 강제만 지면 서체로 되돌린다 — 크기는 화면 인라인. */
+.wc-binder__detail-name {
+  font-family: inherit;
+  letter-spacing: -.5px;
+}
+
+.wc-binder__detail-actions {
+  margin-top: 22px;
+}
+
+/* ------------------------------------------------------------------
+   바인더 — 하부 CTA 밴드 (박스 전체가 링크)
+   ------------------------------------------------------------------ */
+
+.wc-binder__cta-row {
+  display: grid;
+  gap: 8px;
+  margin-top: 56px;
+}
+
+.wc-binder__cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 76px;
+  padding: 16px 20px;
+  border: 1px solid var(--wc-hairline);
+  font-size: 15px;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-binder__cta-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.wc-binder__cta-action {
+  flex: none;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: underline;
+  color: var(--wc-ink);
+}
+
+@media (min-width: 750px) {
+  .wc-binder__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 50px 16px;
+  }
+
+  .wc-binder__detail-body {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .wc-binder__cta-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+}
+
+@media (min-width: 990px) {
+  .wc-binder__grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+/* ------------------------------------------------------------------
+   커뮤니티 /community (content-card 문법)
+   ------------------------------------------------------------------
+   데이터 의존 값(아바타 그라디언트·이미지 bg)만 화면 인라인이고,
+   박스 패딩·칩 스킨·폼 컨트롤 문법은 이 지면이 소유한다.
+   ------------------------------------------------------------------ */
+
+.wc-community {
+  display: block;
+}
+
+/* 폼 컨트롤 — editorial 파운데이션의 `:where(input)` 규칙(48px·12px 라운드)에 기대지 않도록
+   각진 자체 문법으로 되돌린다(S4 .wc-search-results__input 선례). 값은 화면 인라인 select 와 동치다. */
+.wc-community__composer input:not([type='hidden']):not([type='file']),
+.wc-community__post input:not([type='hidden']),
+.wc-community__post textarea {
+  min-height: 44px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 14px;
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  caret-color: var(--wc-accent);
+}
+
+.wc-community__post textarea {
+  min-height: 96px;
+  padding: 10px 12px;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+/* 모바일 1열, 데스크톱은 피드(주) + 우 레일 320px. */
+.wc-community__layout {
+  display: block;
+}
+
+/* 전체/내 팬덤 링크 탭 — 밑줄 탭 문법. 활성 700 잉크는 화면 인라인이,
+   2px 밑줄과 하단 헤어라인은 이 규칙이 맡는다(aria-current 가 상태원). */
+.wc-community__tabs {
+  display: flex;
+  gap: 12px;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-community__tabs > * {
+  position: relative;
+  text-decoration: none;
+}
+
+.wc-community__tabs > *[aria-current='page']::after,
+.wc-community__tabs > *[aria-current='true']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--wc-ink);
+}
+
+/* 채널 칩 가로 스크롤 — 칩 스킨은 바인더 필터 칩과 같은 문법(아웃라인·활성 잉크 채움)이다. */
+.wc-community__channels {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.wc-community__channels::-webkit-scrollbar {
+  display: none;
+}
+
+.wc-community__channels > button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  min-height: 32px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  white-space: nowrap;
+  border: 1px solid var(--wc-line-control);
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-community__channels > button[aria-pressed='true'] {
+  font-weight: 700;
+  border-color: var(--wc-ink);
+  background: var(--wc-ink);
+  color: #FFFFFF;
+}
+
+.wc-community__composer {
+  padding: 16px 20px;
+  border: 1px solid var(--wc-hairline);
+  background: var(--wc-surface);
+}
+
+.wc-community__post {
+  padding: 18px 20px;
+  border: 1px solid var(--wc-hairline);
+  background: var(--wc-surface);
+}
+
+.wc-community__meta {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-community__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.wc-community__comments {
+  border-top: 1px solid var(--wc-hairline);
+  padding-top: 12px;
+}
+
+.wc-community__trending {
+  padding: 16px 20px;
+  border: 1px solid var(--wc-hairline);
+  background: var(--wc-surface);
+}
+
+/* 태그 리스트 래퍼(h2 다음 div)와 칩 — 추천 검색어 칩과 동일 문법(tint bg·success 텍스트). */
+.wc-community__trending > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wc-community__trending a {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 14px;
+  font-size: 14px;
+  font-weight: 400;
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: 17px;
+  background: var(--wc-accent-tint);
+  color: var(--wc-success);
+}
+
+/* 우 레일 — 모바일에서는 피드 아래로 내려오며 이 마진이 유일한 세로 간격이다. */
+.wc-community__rail {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.wc-community__rail > * {
+  padding: 16px 20px;
+  border: 1px solid var(--wc-hairline);
+  background: var(--wc-surface);
+}
+
+.wc-community__gate {
+  padding: 32px 20px;
+  border: 1px solid var(--wc-hairline);
+}
+
+@media (min-width: 990px) {
+  .wc-community__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    column-gap: 40px;
+    align-items: start;
+  }
+
+  .wc-community__rail {
+    margin-top: 0;
+  }
+}
+
+/* ------------------------------------------------------------------
+   V2 플레이스홀더 /market·/exchange
+   ------------------------------------------------------------------ */
+
+/* 좁은 칼럼 안내 페이지 — 원인(아직 준비 중)과 지금 가능한 행동 1~2개만 남긴다. */
+.wc-placeholder {
+  max-width: 620px;
+  margin-inline: auto;
+  padding: 64px 0 120px;
+}
+
+.wc-placeholder h1 {
+  margin: 12px 0 0;
+  font-family: inherit;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -.8px;
+  color: var(--wc-ink);
+}
+
+.wc-placeholder__badge {
+  display: inline-flex;
+}
+
+.wc-placeholder__body {
+  margin: 16px 0 0;
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.8;
+  color: var(--wc-ink-sub);
+}
+
+.wc-placeholder__cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 32px;
+}
+
+/* ------------------------------------------------------------------
+   참여형 게임 크롬 (.wc-game) — DESIGN §6 standalone-game
+   ------------------------------------------------------------------ */
+
+/* 게임 라우트는 Nav 가 렌더되지 않아 `.wc-root` 토큰 공급 지점이 없다 —
+   풀스크린 래퍼가 "wc-root wc-game" 을 함께 얹어 토큰을 직접 공급한다(계약 §2).
+   크롬(지면·헤딩·버튼·안내)만 White Catalog 이고 canvas 코스 연출·카드 물성은 화면 코드 국소다. */
+.wc-game {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+  background: var(--wc-surface);
+}
+
+.wc-game__frame {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  max-width: 652px;
+  margin-inline: auto;
+  padding: 16px var(--wc-gutter) calc(16px + env(safe-area-inset-bottom));
+}
+
+.wc-game__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* 소형 액센트 텍스트 — brand-green 은 흰 지면에서 AA 미달이라 success 잉크를 쓴다. */
+.wc-game__eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  color: var(--wc-success);
+}
+
+.wc-game__title {
+  margin: 6px 0 0;
+  font-family: inherit;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -.8px;
+  color: var(--wc-ink);
+}
+
+/* 결과 판정원 표기(LIVE/PoC) — LIVE 만 "지금 주목" 신호로 tint+success 를 받는다. */
+.wc-game__badge {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 10px;
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .5px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: var(--wc-radius-badge);
+  background: var(--wc-surface);
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-game__badge.is-live {
+  border-color: transparent;
+  background: var(--wc-accent-tint);
+  color: var(--wc-success);
+}
+
+.wc-game__close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  font-size: 18px;
+  border: 0;
+  background: none;
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+/* 코스 무대 — canvas 연출(밝은 스트로크·rarity 색 구슬)은 어두운 보드 전제라
+   흰 지면 위에 잉크 보드로 담는다. 잉크 면은 White Catalog 의 허용 다크(잉크 버튼과 동류)다. */
+.wc-game__stage {
+  position: relative;
+  flex: 1;
+  min-height: 340px;
+  margin-top: 16px;
+  overflow: hidden;
+  background: var(--wc-ink);
+}
+
+.wc-game__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.wc-game__panel {
+  margin-top: 16px;
+}
+
+.wc-game__status {
+  padding: 14px 0;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 레전드 — rarity 색은 텍스트가 아니라 스와치 점(비텍스트)으로 남겨 AA 를 지킨다. */
+.wc-game__legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.wc-game__legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--wc-hairline-dark);
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-surface);
+  color: var(--wc-ink-sub);
+}
+
+.wc-game__legend-swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.wc-game__cta-row {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.wc-game__cta-row .wc-btn {
+  width: auto;
+  min-width: 220px;
+  margin-top: 0;
+}
+
+/* 플레이 불가 안내 — 로그인·온보딩 유도 포함, 진입을 막는 상태라 danger 잉크로 알린다. */
+.wc-game__notice {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: -.38px;
+  color: var(--wc-danger);
+}
+
+.wc-game__notice .wc-btn {
+  width: auto;
+  height: 40px;
+  margin-top: 10px;
+  padding: 0 20px;
+  font-size: 13px;
+}
+
+.wc-game__caption {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+/* ------------------------------------------------------------------
+   게임 — 리빌 오버레이
+   ------------------------------------------------------------------ */
+
+.wc-game__reveal {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow-y: auto;
+  background: var(--wc-dim);
+}
+
+/* 피드백 모션 한 번만 — 등장 후 정지. reduced-motion 은 wc-foundation 전역 규칙이 덮고
+   아래에서 한 번 더 명시적으로 끈다. */
+.wc-game__reveal-panel {
+  width: 100%;
+  max-width: 420px;
+  padding: 32px 24px;
+  text-align: center;
+  background: var(--wc-surface);
+  box-shadow: var(--wc-shadow-popup);
+  animation: wc-game-pop var(--wc-duration-medium) var(--wc-ease-out-slow) both;
+}
+
+@keyframes wc-game-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.wc-game__reveal-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  color: var(--wc-success);
+}
+
+.wc-game__reveal-meta {
+  margin-top: 12px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-game__reveal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.wc-game__reveal-actions .wc-btn {
+  width: auto;
+  min-width: 0;
+  margin-top: 0;
+  padding: 0 24px;
+  font-size: 15px;
+}
+
+/* ------------------------------------------------------------------
+   모션 축소
+   ------------------------------------------------------------------ */
+
+/* wc-foundation 의 전역 축소 규칙이 `.wc-root` 안을 이미 덮지만, 이 지면이 새로 들인
+   리빌 팝 모션과 캐러셀 스냅은 여기서도 명시적으로 끈다. */
+@media (prefers-reduced-motion: reduce) {
+  .wc-game__reveal-panel {
+    animation: none;
+  }
+
+  .wc-ipdir__featured,
+  .wc-community__channels {
+    scroll-behavior: auto;
+  }
+}
