@@ -1,7 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
+import { OverlayPortal } from '@/components/shell/OverlayPortal';
+import { useOverlayA11y } from '@/components/shell/useOverlayA11y';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Card, Ip } from '@/lib/data';
 import { ipAccentInk } from '@/lib/ip-display';
@@ -15,11 +17,11 @@ import { WcButton } from '@/components/wc/WcButton';
  * 화면 크롬은 흰 지면·잉크·헤어라인이고 카드 타일 내부만 rarity 물성을 유지한다.
  * 시세는 실데이터 원칙(DESIGN §0)에 따라 표기하지 않는다 — 스탯은 발행량·도감뿐. */
 
-const FOCUSABLE_SELECTOR =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-/* 카드 상세 다이얼로그 — 포커스 트랩·Escape·복귀 포커스·배경 스크롤 잠금(DESIGN §10).
- * HM Modal 대신 흰 지면 다이얼로그로 재구성했다. 테스트에서 직접 렌더할 수 있게 export 한다. */
+/* 카드 상세 다이얼로그 — 포커스 트랩·Escape·복귀 포커스·배경 스크롤 잠금·배경 inert는
+ * useOverlayA11y 공유 훅 몫이다(원래 자체 구현이었으나, 훅의 #root inert가 #root 안 오버레이를
+ * 얼리던 결함이 OverlayPortal 도입으로 해소되며 통합했다). HM Modal 대신 흰 지면 다이얼로그로
+ * 재구성했다. 테스트에서 renderToStaticMarkup으로 직접 렌더할 수 있게 export 한다 —
+ * 그래서 포털은 이 컴포넌트가 아니라 Binder 호출부에 있다. */
 export function CardDetail({
   card,
   cardRewardsEnabled,
@@ -36,48 +38,8 @@ export function CardDetail({
   onClose: () => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
-  /* onClose는 부모가 렌더마다 새로 만든다 — effect 재실행으로 포커스를 뺏지 않게 ref로 든다. */
-  const onCloseRef = useRef(onClose);
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  });
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    document.body.style.overflow = 'hidden';
-
-    const getFocusable = () =>
-      Array.from(panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? []);
-    getFocusable()[0]?.focus();
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onCloseRef.current();
-        return;
-      }
-      if (event.key !== 'Tab') return;
-      const items = getFocusable();
-      if (items.length === 0) return;
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = previousOverflow;
-      previousFocus?.focus();
-    };
-  }, []);
+  /* 조건부 마운트라 열림 = 마운트다 — open은 상수 true로 두고 마운트/언마운트가 수명을 정한다. */
+  useOverlayA11y({ open: true, onClose, panelRef });
 
   const tag = rarityTag(card.rarity);
   const owned = hasOwnership && card.owned;
@@ -385,15 +347,19 @@ export function Binder({
         </section>
       </div>
 
+      {/* #root 밖으로 포털한다 — 훅의 #root inert가 다이얼로그를 얼리지 않게,
+          그리고 #root 스태킹 컨텍스트(z2)가 딤을 셸 헤더·탭바(z3) 아래로 깔지 않게. */}
       {detail && (
-        <CardDetail
-          card={detail}
-          cardRewardsEnabled={cardRewardsEnabled}
-          ip={ipsById.get(detail.ip)}
-          hasOwnership={hasOwnership}
-          collection={collectionOf(detail)}
-          onClose={() => setDetail(null)}
-        />
+        <OverlayPortal>
+          <CardDetail
+            card={detail}
+            cardRewardsEnabled={cardRewardsEnabled}
+            ip={ipsById.get(detail.ip)}
+            hasOwnership={hasOwnership}
+            collection={collectionOf(detail)}
+            onClose={() => setDetail(null)}
+          />
+        </OverlayPortal>
       )}
     </div>
   );

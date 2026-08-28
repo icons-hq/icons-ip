@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
+import { OverlayPortal } from '@/components/shell/OverlayPortal';
 import { useOverlayA11y } from '@/components/shell/useOverlayA11y';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { ProductCard } from '@/components/wc/ProductCard';
@@ -407,8 +408,10 @@ export function Shop({ query, result, view }: ShopProps) {
         </div>
       </div>
 
+      {/* 시트·딤은 #root 밖으로 포털한다 — 안에 두면 useOverlayA11y의 #root inert가 시트
+          자신까지 얼리고, #root 스태킹 컨텍스트(z2)가 셸 헤더·탭바(z3) 아래로 딤을 깔아버린다. */}
       {sheetOpen ? (
-        <>
+        <OverlayPortal>
           <div aria-hidden className="wc-filter-sheet__dim" onClick={closeSheet} />
           <div
             ref={panelRef}
@@ -492,7 +495,7 @@ export function Shop({ query, result, view }: ShopProps) {
               </button>
             </div>
           </div>
-        </>
+        </OverlayPortal>
       ) : null}
     </div>
   );
