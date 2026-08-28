@@ -20,6 +20,7 @@ import {
   buildSpriteAtlas,
   inspectCandidate,
   normalizeAsset,
+  regridFrameSheet,
   restoreMagentaTransparency,
 } from './image-processing.mjs';
 import {
@@ -31,7 +32,7 @@ import { deepFreeze, loadAssetSpecDocument } from './spec.mjs';
 import { validateVisionQaForAsset } from './vision-qa.mjs';
 
 const GUARD_CONFIDENCE_THRESHOLD = 0.65;
-const APPROVAL_BLOCKS = ['M1', 'mass-production', 'phaser-integration'];
+const DEFAULT_APPROVAL_BLOCKS = ['M1', 'mass-production', 'phaser-integration'];
 const OUTPUT_LOCK_RETRY_MS = 20;
 const OUTPUT_LOCK_TIMEOUT_MS = 30_000;
 const OUTPUT_LOCK_HEARTBEAT_MS = 30_000;
@@ -431,6 +432,7 @@ export async function invalidateAssetManifest({
   outputDirectory,
   project = 'hyosan-memories',
   milestone = 'M0',
+  approvalBlocks = DEFAULT_APPROVAL_BLOCKS,
   generatedAt = new Date().toISOString(),
 }) {
   const root = resolve(repositoryRoot);
@@ -446,7 +448,7 @@ export async function invalidateAssetManifest({
     generatedAt,
     approvalGate: {
       status: 'blocked',
-      blocks: APPROVAL_BLOCKS,
+      blocks: approvalBlocks,
     },
   };
   await writeJson(join(output, 'asset-manifest.json'), manifest);
@@ -478,6 +480,7 @@ export async function runAssetPipeline({
       outputDirectory,
       project: spec.meta.project,
       milestone: spec.meta.milestone,
+      approvalBlocks: spec.pipeline.approvalBlocks,
       generatedAt,
     }));
     const activeRunner = runnerFactory
@@ -534,6 +537,14 @@ export async function runAssetPipeline({
         generation = {
           ...generated,
           technicalTransformResult: await restoreMagentaTransparency(candidatePath),
+        };
+      } else if (generated?.technicalTransform === 'magenta-matte-to-alpha-and-regrid') {
+        generation = {
+          ...generated,
+          technicalTransformResult: {
+            matte: await restoreMagentaTransparency(candidatePath),
+            regrid: await regridFrameSheet(candidatePath, asset),
+          },
         };
       }
       generation = deepFreeze(generation);
@@ -689,6 +700,11 @@ export async function runAssetPipeline({
     selectedAttempt: selection.selected.attempt,
     status: selection.warning ? 'accepted-with-warning' : 'passed',
     warning: selection.warning,
+    frameSpec: {
+      count: selection.asset.frames,
+      size: selection.asset.targetSize,
+      layout: selection.asset.frameLayout,
+    },
     output: {
       path: portableRelative(outputDirectory, normalizedAssets[index].path),
       width: normalizedAssets[index].width,
@@ -697,6 +713,7 @@ export async function runAssetPipeline({
       sha256: normalizedAssets[index].sha256,
     },
     technicalQa: sanitizeTechnical(selection.selected.technicalQa, root),
+    outputTechnicalQa: normalizedAssets[index].technicalQa,
     candidateVisionQa: selection.selected.visionQa,
     visionQa: selection.selected.outputVisionQa,
     generation: sanitizeGeneration(selection.selected.generation, root),
@@ -723,13 +740,16 @@ export async function runAssetPipeline({
     },
     approvalGate: {
       status: 'pending',
-      blocks: APPROVAL_BLOCKS,
+      blocks: spec.pipeline.approvalBlocks,
     },
     atlas: {
       image: portableRelative(outputDirectory, atlas.imagePath),
       data: portableRelative(outputDirectory, atlas.dataPath),
       sha256: atlas.imageSha256,
       dataSha256: atlas.dataSha256,
+      padding: spec.pipeline.atlas.padding,
+      extrusion: spec.pipeline.atlas.extrusion,
+      maxSize: spec.pipeline.atlas.maxSize,
       frames: Object.keys(atlas.data.frames),
     },
     assets: manifestAssets,

@@ -87,7 +87,7 @@ describe('direct Codex app session runner', () => {
         attempts: [{
           attempt: 1,
           prompt: 'exact direct app attempt prompt',
-          technicalTransform: 'magenta-matte-to-alpha',
+          technicalTransform: 'magenta-matte-to-alpha-and-regrid',
           candidate: 'player.png',
           candidateSha256,
           visionQa: review('player', candidateSha256),
@@ -117,7 +117,7 @@ describe('direct Codex app session runner', () => {
       provider: 'codex-app-built-in-imagegen',
       mode: 'direct-app-session',
       prompt: 'exact direct app attempt prompt',
-      technicalTransform: 'magenta-matte-to-alpha',
+      technicalTransform: 'magenta-matte-to-alpha-and-regrid',
       candidateSha256,
       sourceFile: 'player.png',
       savedPath: outputPath,

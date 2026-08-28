@@ -166,6 +166,26 @@
 - 음성·배우 보이스 클론·드라마 OST는 현재 시각 에셋 허용 범위에 자동 포함된 것으로 보지 않으며 별도 권리 확인 전 사용하지 않는다.
 - 캐릭터 커스텀은 v1 비대상(교복 절비 단일 외형).
 
+### 6.1 G2 급식실 프로덕션 에셋 계약 (#342)
+
+G1 그레이박스의 진실원은 1280×720 논리 월드와 `Phaser.Scale.FIT` 카메라다. 전투실 경계는 `(72, 72)`–`(1208, 648)`, 유효 크기는 1136×576이며 바닥·가구 배치는 64px 논리 그리드에 맞춘다. G2는 이 카메라에서 읽히는 아래 생산 규격을 확정한다.
+
+| 자산 | 셀 | 배치 | 프레임 의미 |
+|---|---:|---:|---|
+| 플레이어 이동 | 128×128 | 6열×4행, 24프레임 | 남·서·북·동 행마다 6프레임 걷기 |
+| 플레이어 3타 콤보 | 128×128 | 6열×4행, 24프레임 | 방향마다 준비→1타→전환→2타→강타 준비→3타 |
+| 학생 좀비 달리기 | 128×128 | 6열×4행, 24프레임 | 남·서·북·동 행마다 6프레임 달리기 |
+| 학생 좀비 공격 | 128×128 | 4열×4행, 16프레임 | 방향마다 웅크림→팔 뻗기→최대 도달→회수 |
+| 김경미 보스 이동 | 192×192 | 6열×4행, 24프레임 | 남·서·북·동 행마다 경련 뒤 급가속 6프레임 |
+| 김경미 보스 공격 | 192×192 | 6열×4행, 24프레임 | 방향마다 준비→돌진→팔 뻗기→최대 도달→비틀림→회수 |
+| 급식실 모듈 세트 | 1024×1024 | 단일 투명 PNG | 64px 바닥·벽·배식구·문·테이블·의자·소도구 모듈 |
+| 급식실 조립 검수본 | 1280×720 | 단일 불투명 PNG | G1 카메라·동선과 시즌1 세트 충실도 검수 |
+
+- 모든 다중 프레임 시트는 row-major이며 방향 행은 **남·서·북·동** 순서다. 이름표·교표와 얼굴 비대칭이 뒤집히므로 동·서는 별도 authored frame이고 미러링하지 않는다.
+- 정규화는 각 셀을 독립 검출하되 전체 시트에서 가장 큰 visible bbox를 기준으로 공통 scale을 사용하고, 각 셀의 발을 `bottom-center` anchor에 맞춘다. 빈 셀·잘린 셀·과도한 가장자리 접촉은 실패한다.
+- atlas key는 `<asset_id>_00`부터 row-major로 증가한다. padding 4px, extrusion 1px, 최대 변 4096px이며 상한 전 결정적으로 다음 행으로 줄바꿈한다. 단일 프레임은 기존 자산 id와 M0 byte 계약을 보존한다.
+- G2는 에셋·atlas·manifest·승인 기록까지만 소유한다. 정확한 스펙·PNG·atlas SHA-256에 대한 사용자 승인 전에는 G3(#343) Phaser 통합을 시작하지 않는다.
+
 ## 7. 에셋 파이프라인 (확정)
 
 사용자 확정 다이어그램을 그대로 구현한다. 코드 위치: **`scripts/asset-pipeline/`** (레포 커밋).
@@ -191,18 +211,22 @@ asset-spec.yaml → CODEX PLANNER(현재 작업 세션) → imagegen 스킬 직�
 
 ```yaml
 meta:
-  style_ref: "지우학 시즌1 배우·의상·효산고 세트에 충실한 페인티드 2D"
-  fidelity_targets: [season-1-production-design, canonical-actor-likeness, uniform-costume-continuity]
+  styleRef: "지우학 시즌1 배우·의상·효산고 세트에 충실한 페인티드 2D"
+  fidelityTargets: [season-1-production-design, canonical-actor-likeness, uniform-costume-continuity]
   forbidden: [gore, webtoon-elements, wrong-season-elements]
+pipeline:
+  approvalBlocks: [G3]
+  atlas: { name: hyosan-memories-g2-sprites, padding: 4, extrusion: 1, maxSize: 4096 }
 assets:
-  - id: player_walk
+  - id: player_halfbie_walk
     kind: sprite        # sprite | tileset | background | boss | cutin | ui
     identity: { mode: original } # canonical이면 character·performer와 qa.minCharacterIdentity 필수
     view: topdown-3q    # 3/4뷰
     size: 128x128
-    frames: 6
-    prompt_brief: "교복 절비, 3/4뷰 걷기 사이클"
-    qa: { min_score: 0.8, min_source_fidelity: 0.85 }
+    frames: 24
+    frameLayout: { columns: 6, rows: 4, order: row-major, anchor: bottom-center, trim: shared-scale }
+    promptBrief: "교복 절비, 남·서·북·동 3/4뷰 걷기 사이클"
+    qa: { minScore: 0.8, minSourceFidelity: 0.85 }
 ```
 
 - **리스크(정직 고지)**: "실사 감성 고해상 + 공식 배우/세트 동일성 + 탑뷰"는 이미지 생성 최난도 조합이다. 평균 QA와 별도로 공식 소스 충실도 0.85를 요구하고, 정식 배역은 배우 동일성 최저점도 별도로 요구한다. M0 시안 게이트가 방향 리스크를 앞에서 흡수한다.
@@ -222,6 +246,8 @@ assets:
 | **M0** | 파이프라인 스켈레톤 + **시즌1 화면 충실도 시안 3종**(플레이어·학생 좀비·급식실 배경) | **승인 완료(2026-08-27)** — 승인한 PNG 해시는 `hyosan-memories-m0-concepts/approval-record.json` 정본 |
 | **M1** | **급식실 버티컬 슬라이스**: 방 3~4개+웨이브+김경미 보스+구매권 목업 UI+모바일 조작 | 사용자 실플레이 |
 | **M2+** | 잔여 7스테이지 양산 · 컷인 3장+기억 카드 8장 · 구매권 서버 파이프 실장(#303 통합 후) · QA·폴리시 | 티켓별 |
+
+M1 내부 구현 게이트는 G1 그레이박스(#341) → G2 프로덕션 에셋·사용자 승인(#342) → G3 실제 에셋 Phaser 통합·사용자 실플레이(#343) 순서다. G2 배치는 2026-08-28 사용자 승인을 통과했으며 정확한 승인 해시는 `hyosan-memories-g2-assets/approval-record.json`이 정본이다. 이 승인은 G3 착수 허가이며 자동 통합을 뜻하지 않는다.
 
 ## 10. 그릴링을 거치지 않은 기본값 (리뷰에서 뒤집기 가능)
 

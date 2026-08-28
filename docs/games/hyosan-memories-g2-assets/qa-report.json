@@ -1,0 +1,4319 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-28T01:50:32.264Z",
+  "summary": {
+    "requested": 8,
+    "passed": 8,
+    "acceptedWithWarning": 0,
+    "failed": 0
+  },
+  "assets": [
+    {
+      "assetId": "player_halfbie_walk",
+      "selectedAttempt": 1,
+      "warning": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/player_halfbie_walk/attempt-01/candidate.png",
+          "generation": {
+            "provider": "codex-app-built-in-imagegen",
+            "mode": "direct-app-session",
+            "prompt": "Keep the exact approved halfbie student, uniform, proportions, 6 by 4 row-major animation and solid magenta matte. Surgically move the complete first and third direction rows so every figure sits wholly inside its visual row, preserving all 24 poses, the S W N E order, shared scale, bottom-center feet, identity, lighting, and bloodless painted style. No text, scenery, weapons, effects, wounds, checkerboard, or added figures.",
+            "technicalTransform": "magenta-matte-to-alpha-and-regrid",
+            "sourceFile": "player_halfbie_walk-attempt-01.png",
+            "candidateSha256": "02fe8ba4289a3ddd709391a5a31179986dad54ca265d595ac9865d0e37e910fc",
+            "technicalTransformResult": {
+              "matte": {
+                "applied": true,
+                "transform": "magenta-matte-to-alpha",
+                "width": 1536,
+                "height": 1024,
+                "transparentPixels": 1414358,
+                "transparentRatio": 0.899225,
+                "edgeChromaRatio": 1,
+                "colorDecontaminationPixels": 24,
+                "colorDecontaminationSearchPixels": 48,
+                "discardedChromaPixels": 0,
+                "interiorChromaReplacedPixels": 0,
+                "alphaFeatherPixels": 2
+              },
+              "regrid": {
+                "applied": true,
+                "transform": "frame-component-regrid",
+                "detectedComponents": 24,
+                "selectedComponents": 24,
+                "discardedComponents": 0,
+                "selectedPixelRange": {
+                  "smallest": 5711,
+                  "largest": 7670
+                },
+                "largestDiscardedPixels": 0,
+                "padding": 11,
+                "sharedScale": 1,
+                "layout": {
+                  "columns": 6,
+                  "rows": 4,
+                  "order": "row-major"
+                }
+              }
+            },
+            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/player_halfbie_walk/attempt-01/candidate.png"
+          },
+          "technicalQa": {
+            "schemaVersion": 1,
+            "assetId": "player_halfbie_walk",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/player_halfbie_walk/attempt-01/candidate.png",
+            "sha256": "cdaf888833fe960fe614c4aee07fa6ea22aa248529c005308bfdf73d56e98ba4",
+            "format": "png",
+            "passed": true,
+            "checks": {
+              "alpha": {
+                "passed": true,
+                "policy": "required",
+                "hasAlpha": true,
+                "transparentRatio": 0.909356
+              },
+              "size": {
+                "passed": true,
+                "width": 1536,
+                "height": 1024,
+                "minimumWidth": 1536,
+                "minimumHeight": 1024
+              },
+              "trim": {
+                "passed": true,
+                "applicable": true,
+                "removablePixelRatio": 0.786208,
+                "frames": [
+                  {
+                    "index": 0,
+                    "removablePixelRatio": 0.795654
+                  },
+                  {
+                    "index": 1,
+                    "removablePixelRatio": 0.795654
+                  },
+                  {
+                    "index": 2,
+                    "removablePixelRatio": 0.794556
+                  },
+                  {
+                    "index": 3,
+                    "removablePixelRatio": 0.785995
+                  },
+                  {
+                    "index": 4,
+                    "removablePixelRatio": 0.785995
+                  },
+                  {
+                    "index": 5,
+                    "removablePixelRatio": 0.788849
+                  },
+                  {
+                    "index": 6,
+                    "removablePixelRatio": 0.754501
+                  },
+                  {
+                    "index": 7,
+                    "removablePixelRatio": 0.743942
+                  },
+                  {
+                    "index": 8,
+                    "removablePixelRatio": 0.750427
+                  },
+                  {
+                    "index": 9,
+                    "removablePixelRatio": 0.762421
+                  },
+                  {
+                    "index": 10,
+                    "removablePixelRatio": 0.761169
+                  },
+                  {
+                    "index": 11,
+                    "removablePixelRatio": 0.763794
+                  },
+                  {
+                    "index": 12,
+                    "removablePixelRatio": 0.811539
+                  },
+                  {
+                    "index": 13,
+                    "removablePixelRatio": 0.819733
+                  },
+                  {
+                    "index": 14,
+                    "removablePixelRatio": 0.823456
+                  },
+                  {
+                    "index": 15,
+                    "removablePixelRatio": 0.819733
+                  },
+                  {
+                    "index": 16,
+                    "removablePixelRatio": 0.822464
+                  },
+                  {
+                    "index": 17,
+                    "removablePixelRatio": 0.815979
+                  },
+                  {
+                    "index": 18,
+                    "removablePixelRatio": 0.782166
+                  },
+                  {
+                    "index": 19,
+                    "removablePixelRatio": 0.770355
+                  },
+                  {
+                    "index": 20,
+                    "removablePixelRatio": 0.770355
+                  },
+                  {
+                    "index": 21,
+                    "removablePixelRatio": 0.770355
+                  },
+                  {
+                    "index": 22,
+                    "removablePixelRatio": 0.788651
+                  },
+                  {
+                    "index": 23,
+                    "removablePixelRatio": 0.79126
+                  }
+                ]
+              },
+              "frame": {
+                "passed": true,
+                "expected": 24,
+                "detected": 24,
+                "empty": []
+              },
+              "bbox": {
+                "passed": true,
+                "left": 81,
+                "top": 58,
+                "width": 1372,
+                "height": 955,
+                "coverage": 0.833041,
+                "minimumCoverage": 0.12,
+                "maximumCoverage": 0.9,
+                "frames": [
+                  {
+                    "index": 0,
+                    "left": 92,
+                    "top": 59,
+                    "width": 72,
+                    "height": 186,
+                    "coverage": 0.204346
+                  },
+                  {
+                    "index": 1,
+                    "left": 92,
+                    "top": 59,
+                    "width": 72,
+                    "height": 186,
+                    "coverage": 0.204346
+                  },
+                  {
+                    "index": 2,
+                    "left": 92,
+                    "top": 58,
+                    "width": 72,
+                    "height": 187,
+                    "coverage": 0.205444
+                  },
+                  {
+                    "index": 3,
+                    "left": 90,
+                    "top": 58,
+                    "width": 75,
+                    "height": 187,
+                    "coverage": 0.214005
+                  },
+                  {
+                    "index": 4,
+                    "left": 90,
+                    "top": 58,
+                    "width": 75,
+                    "height": 187,
+                    "coverage": 0.214005
+                  },
+                  {
+                    "index": 5,
+                    "left": 91,
+                    "top": 58,
+                    "width": 74,
+                    "height": 187,
+                    "coverage": 0.211151
+                  },
+                  {
+                    "index": 6,
+                    "left": 81,
+                    "top": 72,
+                    "width": 93,
+                    "height": 173,
+                    "coverage": 0.245499
+                  },
+                  {
+                    "index": 7,
+                    "left": 79,
+                    "top": 72,
+                    "width": 97,
+                    "height": 173,
+                    "coverage": 0.256058
+                  },
+                  {
+                    "index": 8,
+                    "left": 81,
+                    "top": 71,
+                    "width": 94,
+                    "height": 174,
+                    "coverage": 0.249573
+                  },
+                  {
+                    "index": 9,
+                    "left": 83,
+                    "top": 72,
+                    "width": 90,
+                    "height": 173,
+                    "coverage": 0.237579
+                  },
+                  {
+                    "index": 10,
+                    "left": 82,
+                    "top": 73,
+                    "width": 91,
+                    "height": 172,
+                    "coverage": 0.238831
+                  },
+                  {
+                    "index": 11,
+                    "left": 83,
+                    "top": 73,
+                    "width": 90,
+                    "height": 172,
+                    "coverage": 0.236206
+                  },
+                  {
+                    "index": 12,
+                    "left": 93,
+                    "top": 66,
+                    "width": 69,
+                    "height": 179,
+                    "coverage": 0.188461
+                  },
+                  {
+                    "index": 13,
+                    "left": 95,
+                    "top": 66,
+                    "width": 66,
+                    "height": 179,
+                    "coverage": 0.180267
+                  },
+                  {
+                    "index": 14,
+                    "left": 95,
+                    "top": 67,
+                    "width": 65,
+                    "height": 178,
+                    "coverage": 0.176544
+                  },
+                  {
+                    "index": 15,
+                    "left": 95,
+                    "top": 66,
+                    "width": 66,
+                    "height": 179,
+                    "coverage": 0.180267
+                  },
+                  {
+                    "index": 16,
+                    "left": 95,
+                    "top": 66,
+                    "width": 65,
+                    "height": 179,
+                    "coverage": 0.177536
+                  },
+                  {
+                    "index": 17,
+                    "left": 94,
+                    "top": 65,
+                    "width": 67,
+                    "height": 180,
+                    "coverage": 0.184021
+                  },
+                  {
+                    "index": 18,
+                    "left": 86,
+                    "top": 73,
+                    "width": 83,
+                    "height": 172,
+                    "coverage": 0.217834
+                  },
+                  {
+                    "index": 19,
+                    "left": 85,
+                    "top": 70,
+                    "width": 86,
+                    "height": 175,
+                    "coverage": 0.229645
+                  },
+                  {
+                    "index": 20,
+                    "left": 85,
+                    "top": 70,
+                    "width": 86,
+                    "height": 175,
+                    "coverage": 0.229645
+                  },
+                  {
+                    "index": 21,
+                    "left": 85,
+                    "top": 70,
+                    "width": 86,
+                    "height": 175,
+                    "coverage": 0.229645
+                  },
+                  {
+                    "index": 22,
+                    "left": 87,
+                    "top": 74,
+                    "width": 81,
+                    "height": 171,
+                    "coverage": 0.211349
+                  },
+                  {
+                    "index": 23,
+                    "left": 88,
+                    "top": 74,
+                    "width": 80,
+                    "height": 171,
+                    "coverage": 0.20874
+                  }
+                ]
+              },
+              "edges": {
+                "passed": true,
+                "opaqueRatio": 0,
+                "maximumOpaqueRatio": 0.02,
+                "frames": [
+                  {
+                    "index": 0,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 1,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 2,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 3,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 4,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 5,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 6,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 7,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 8,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 9,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 10,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 11,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 12,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 13,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 14,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 15,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 16,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 17,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 18,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 19,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 20,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 21,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 22,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 23,
+                    "opaqueRatio": 0
+                  }
+                ]
+              }
+            }
+          },
+          "visionQa": {
+            "assetId": "player_halfbie_walk",
+            "reviewedSha256": "cdaf888833fe960fe614c4aee07fa6ea22aa248529c005308bfdf73d56e98ba4",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.9,
+                "notes": "승인 M0의 병녹색 조끼·타탄 바지·사선 타이·교표와 이름표 방향을 유지한다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.89,
+                "notes": "현실적 페인티드 2D 톤과 시즌1 교복 팔레트가 일관된다."
+              },
+              "characterIdentity": {
+                "applicable": true,
+                "score": 0.9,
+                "notes": "24프레임에서 같은 오리지널 남학생의 얼굴·머리·체형이 유지된다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.88,
+                "notes": "남·서·북·동 행이 읽히는 탑다운 3/4 각도다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.9,
+                "notes": "각 방향 실루엣과 발 위치가 작은 게임 크기에서도 분리된다."
+              },
+              "animationConsistency": {
+                "applicable": true,
+                "score": 0.86,
+                "notes": "각 행 6프레임의 보행 위상과 공통 체형·의상이 안정적이다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "피·교상·열린 상처가 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "웹툰 말풍선·선화·문자 요소가 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "시즌2 또는 비효산고 복식 요소가 없다."
+              }
+            },
+            "feedback": [],
+            "score": 0.8883,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.9,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 0.9,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          },
+          "normalized": {
+            "assetId": "player_halfbie_walk",
+            "kind": "sprite",
+            "frames": 24,
+            "frameLayout": {
+              "columns": 6,
+              "rows": 4,
+              "order": "row-major",
+              "anchor": "bottom-center",
+              "trim": "shared-scale"
+            },
+            "frameSize": {
+              "width": 128,
+              "height": 128
+            },
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/player_halfbie_walk/attempt-01/normalized/player_halfbie_walk.png",
+            "file": "player_halfbie_walk.png",
+            "width": 768,
+            "height": 512,
+            "format": "png",
+            "sha256": "085d10294fdd2f51cbebf80531d29eeaabb837297f842a94739dbe16c3871314",
+            "technicalQa": {
+              "schemaVersion": 1,
+              "assetId": "player_halfbie_walk",
+              "sha256": "085d10294fdd2f51cbebf80531d29eeaabb837297f842a94739dbe16c3871314",
+              "passed": true,
+              "alpha": {
+                "passed": true,
+                "policy": "required",
+                "hasAlpha": true,
+                "transparentRatio": 0.862879
+              },
+              "dimensions": {
+                "passed": true,
+                "width": 768,
+                "height": 512,
+                "expectedWidth": 768,
+                "expectedHeight": 512
+              }
+            }
+          },
+          "outputVisionQa": {
+            "assetId": "player_halfbie_walk",
+            "reviewedSha256": "085d10294fdd2f51cbebf80531d29eeaabb837297f842a94739dbe16c3871314",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.9,
+                "notes": "정규화 뒤에도 승인 M0 교복과 표식이 보존된다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.89,
+                "notes": "축소 뒤 페인티드 질감과 색조가 유지된다."
+              },
+              "characterIdentity": {
+                "applicable": true,
+                "score": 0.9,
+                "notes": "최종 24셀 모두 같은 오리지널 학생으로 읽힌다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.88,
+                "notes": "4방향 탑다운 3/4 판독성이 보존된다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.91,
+                "notes": "128px 셀과 투명 여백에서 실루엣이 선명하다."
+              },
+              "animationConsistency": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "공통 scale과 bottom-center 발 anchor가 24셀에서 일치한다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "최종 PNG에 고어가 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "최종 PNG에 웹툰 요소가 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "최종 PNG에 잘못된 시즌 요소가 없다."
+              }
+            },
+            "feedback": [],
+            "score": 0.8917,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.9,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 0.9,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          }
+        }
+      ]
+    },
+    {
+      "assetId": "player_halfbie_attack_combo",
+      "selectedAttempt": 1,
+      "warning": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/player_halfbie_attack_combo/attempt-01/candidate.png",
+          "generation": {
+            "provider": "codex-app-built-in-imagegen",
+            "mode": "direct-app-session",
+            "prompt": "Keep the exact approved halfbie attack sheet, all 24 poses, 6 by 4 S W N E row-major order, solid magenta matte, uniform identity and bloodless unarmed combo. Make only the final surgical layout correction: move the entire second direction row upward so each figure stays wholly inside its visual row with shared scale and bottom-center feet. Do not redraw, mirror, add, remove, or reorder any pose. No text, scenery, effects, wounds, or checkerboard.",
+            "technicalTransform": "magenta-matte-to-alpha-and-regrid",
+            "sourceFile": "player_halfbie_attack_combo-attempt-01.png",
+            "candidateSha256": "23ec6e4d0b8c93b3f26d8eeb447b0ccd1d5a270f1a567d071b84764eeb71cd72",
+            "technicalTransformResult": {
+              "matte": {
+                "applied": true,
+                "transform": "magenta-matte-to-alpha",
+                "width": 1536,
+                "height": 1024,
+                "transparentPixels": 1397149,
+                "transparentRatio": 0.888283,
+                "edgeChromaRatio": 0.922009,
+                "colorDecontaminationPixels": 24,
+                "colorDecontaminationSearchPixels": 48,
+                "discardedChromaPixels": 399,
+                "interiorChromaReplacedPixels": 0,
+                "alphaFeatherPixels": 2
+              },
+              "regrid": {
+                "applied": true,
+                "transform": "frame-component-regrid",
+                "detectedComponents": 25,
+                "selectedComponents": 24,
+                "discardedComponents": 1,
+                "selectedPixelRange": {
+                  "smallest": 6432,
+                  "largest": 8476
+                },
+                "largestDiscardedPixels": 21,
+                "padding": 11,
+                "sharedScale": 1,
+                "layout": {
+                  "columns": 6,
+                  "rows": 4,
+                  "order": "row-major"
+                }
+              }
+            },
+            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/player_halfbie_attack_combo/attempt-01/candidate.png"
+          },
+          "technicalQa": {
+            "schemaVersion": 1,
+            "assetId": "player_halfbie_attack_combo",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/player_halfbie_attack_combo/attempt-01/candidate.png",
+            "sha256": "391011bfcfa424623c8083814136082a6c44ddc35eb006540175fa415217741a",
+            "format": "png",
+            "passed": true,
+            "checks": {
+              "alpha": {
+                "passed": true,
+                "policy": "required",
+                "hasAlpha": true,
+                "transparentRatio": 0.900829
+              },
+              "size": {
+                "passed": true,
+                "width": 1536,
+                "height": 1024,
+                "minimumWidth": 1536,
+                "minimumHeight": 1024
+              },
+              "trim": {
+                "passed": true,
+                "applicable": true,
+                "removablePixelRatio": 0.690895,
+                "frames": [
+                  {
+                    "index": 0,
+                    "removablePixelRatio": 0.717102
+                  },
+                  {
+                    "index": 1,
+                    "removablePixelRatio": 0.714813
+                  },
+                  {
+                    "index": 2,
+                    "removablePixelRatio": 0.714355
+                  },
+                  {
+                    "index": 3,
+                    "removablePixelRatio": 0.714813
+                  },
+                  {
+                    "index": 4,
+                    "removablePixelRatio": 0.673157
+                  },
+                  {
+                    "index": 5,
+                    "removablePixelRatio": 0.684937
+                  },
+                  {
+                    "index": 6,
+                    "removablePixelRatio": 0.70343
+                  },
+                  {
+                    "index": 7,
+                    "removablePixelRatio": 0.627792
+                  },
+                  {
+                    "index": 8,
+                    "removablePixelRatio": 0.698257
+                  },
+                  {
+                    "index": 9,
+                    "removablePixelRatio": 0.638916
+                  },
+                  {
+                    "index": 10,
+                    "removablePixelRatio": 0.684906
+                  },
+                  {
+                    "index": 11,
+                    "removablePixelRatio": 0.641571
+                  },
+                  {
+                    "index": 12,
+                    "removablePixelRatio": 0.735321
+                  },
+                  {
+                    "index": 13,
+                    "removablePixelRatio": 0.662399
+                  },
+                  {
+                    "index": 14,
+                    "removablePixelRatio": 0.736816
+                  },
+                  {
+                    "index": 15,
+                    "removablePixelRatio": 0.662399
+                  },
+                  {
+                    "index": 16,
+                    "removablePixelRatio": 0.709961
+                  },
+                  {
+                    "index": 17,
+                    "removablePixelRatio": 0.643494
+                  },
+                  {
+                    "index": 18,
+                    "removablePixelRatio": 0.708939
+                  },
+                  {
+                    "index": 19,
+                    "removablePixelRatio": 0.723389
+                  },
+                  {
+                    "index": 20,
+                    "removablePixelRatio": 0.711609
+                  },
+                  {
+                    "index": 21,
+                    "removablePixelRatio": 0.72496
+                  },
+                  {
+                    "index": 22,
+                    "removablePixelRatio": 0.693085
+                  },
+                  {
+                    "index": 23,
+                    "removablePixelRatio": 0.65506
+                  }
+                ]
+              },
+              "frame": {
+                "passed": true,
+                "expected": 24,
+                "detected": 24,
+                "empty": []
+              },
+              "bbox": {
+                "passed": true,
+                "left": 71,
+                "top": 65,
+                "width": 1404,
+                "height": 948,
+                "coverage": 0.846222,
+                "minimumCoverage": 0.12,
+                "maximumCoverage": 0.9,
+                "frames": [
+                  {
+                    "index": 0,
+                    "left": 76,
+                    "top": 65,
+                    "width": 103,
+                    "height": 180,
+                    "coverage": 0.282898
+                  },
+                  {
+                    "index": 1,
+                    "left": 75,
+                    "top": 67,
+                    "width": 105,
+                    "height": 178,
+                    "coverage": 0.285187
+                  },
+                  {
+                    "index": 2,
+                    "left": 76,
+                    "top": 65,
+                    "width": 104,
+                    "height": 180,
+                    "coverage": 0.285645
+                  },
+                  {
+                    "index": 3,
+                    "left": 75,
+                    "top": 67,
+                    "width": 105,
+                    "height": 178,
+                    "coverage": 0.285187
+                  },
+                  {
+                    "index": 4,
+                    "left": 68,
+                    "top": 65,
+                    "width": 119,
+                    "height": 180,
+                    "coverage": 0.326843
+                  },
+                  {
+                    "index": 5,
+                    "left": 70,
+                    "top": 67,
+                    "width": 116,
+                    "height": 178,
+                    "coverage": 0.315063
+                  },
+                  {
+                    "index": 6,
+                    "left": 71,
+                    "top": 73,
+                    "width": 113,
+                    "height": 172,
+                    "coverage": 0.29657
+                  },
+                  {
+                    "index": 7,
+                    "left": 57,
+                    "top": 72,
+                    "width": 141,
+                    "height": 173,
+                    "coverage": 0.372208
+                  },
+                  {
+                    "index": 8,
+                    "left": 71,
+                    "top": 70,
+                    "width": 113,
+                    "height": 175,
+                    "coverage": 0.301743
+                  },
+                  {
+                    "index": 9,
+                    "left": 60,
+                    "top": 71,
+                    "width": 136,
+                    "height": 174,
+                    "coverage": 0.361084
+                  },
+                  {
+                    "index": 10,
+                    "left": 69,
+                    "top": 70,
+                    "width": 118,
+                    "height": 175,
+                    "coverage": 0.315094
+                  },
+                  {
+                    "index": 11,
+                    "left": 60,
+                    "top": 71,
+                    "width": 135,
+                    "height": 174,
+                    "coverage": 0.358429
+                  },
+                  {
+                    "index": 12,
+                    "left": 79,
+                    "top": 68,
+                    "width": 98,
+                    "height": 177,
+                    "coverage": 0.264679
+                  },
+                  {
+                    "index": 13,
+                    "left": 65,
+                    "top": 68,
+                    "width": 125,
+                    "height": 177,
+                    "coverage": 0.337601
+                  },
+                  {
+                    "index": 14,
+                    "left": 79,
+                    "top": 69,
+                    "width": 98,
+                    "height": 176,
+                    "coverage": 0.263184
+                  },
+                  {
+                    "index": 15,
+                    "left": 65,
+                    "top": 68,
+                    "width": 125,
+                    "height": 177,
+                    "coverage": 0.337601
+                  },
+                  {
+                    "index": 16,
+                    "left": 74,
+                    "top": 69,
+                    "width": 108,
+                    "height": 176,
+                    "coverage": 0.290039
+                  },
+                  {
+                    "index": 17,
+                    "left": 62,
+                    "top": 68,
+                    "width": 132,
+                    "height": 177,
+                    "coverage": 0.356506
+                  },
+                  {
+                    "index": 18,
+                    "left": 73,
+                    "top": 70,
+                    "width": 109,
+                    "height": 175,
+                    "coverage": 0.291061
+                  },
+                  {
+                    "index": 19,
+                    "left": 76,
+                    "top": 69,
+                    "width": 103,
+                    "height": 176,
+                    "coverage": 0.276611
+                  },
+                  {
+                    "index": 20,
+                    "left": 74,
+                    "top": 70,
+                    "width": 108,
+                    "height": 175,
+                    "coverage": 0.288391
+                  },
+                  {
+                    "index": 21,
+                    "left": 76,
+                    "top": 70,
+                    "width": 103,
+                    "height": 175,
+                    "coverage": 0.27504
+                  },
+                  {
+                    "index": 22,
+                    "left": 71,
+                    "top": 67,
+                    "width": 113,
+                    "height": 178,
+                    "coverage": 0.306915
+                  },
+                  {
+                    "index": 23,
+                    "left": 64,
+                    "top": 67,
+                    "width": 127,
+                    "height": 178,
+                    "coverage": 0.34494
+                  }
+                ]
+              },
+              "edges": {
+                "passed": true,
+                "opaqueRatio": 0,
+                "maximumOpaqueRatio": 0.02,
+                "frames": [
+                  {
+                    "index": 0,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 1,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 2,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 3,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 4,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 5,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 6,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 7,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 8,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 9,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 10,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 11,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 12,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 13,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 14,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 15,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 16,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 17,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 18,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 19,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 20,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 21,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 22,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 23,
+                    "opaqueRatio": 0
+                  }
+                ]
+              }
+            }
+          },
+          "visionQa": {
+            "assetId": "player_halfbie_attack_combo",
+            "reviewedSha256": "391011bfcfa424623c8083814136082a6c44ddc35eb006540175fa415217741a",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.88,
+                "notes": "승인 M0의 교복·표식·절비 인상이 공격 동작에서도 유지된다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "실사 기반 페인티드 게임 스프라이트 톤이 일관된다."
+              },
+              "characterIdentity": {
+                "applicable": true,
+                "score": 0.89,
+                "notes": "4방향 24포즈가 같은 오리지널 남학생으로 읽힌다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "방향별 몸통과 주먹 진행 방향이 구분된다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.9,
+                "notes": "준비·타격·회수 실루엣이 셀별로 명확하다."
+              },
+              "animationConsistency": {
+                "applicable": true,
+                "score": 0.85,
+                "notes": "행별 6포즈가 무혈 맨손 콤보 범위에서 연속성을 갖는다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "피·상처·교상이 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "웹툰식 문자·효과선이 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "시즌1 효산고 교복 범위를 벗어나지 않는다."
+              }
+            },
+            "feedback": [],
+            "score": 0.8767,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.88,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 0.89,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          },
+          "normalized": {
+            "assetId": "player_halfbie_attack_combo",
+            "kind": "sprite",
+            "frames": 24,
+            "frameLayout": {
+              "columns": 6,
+              "rows": 4,
+              "order": "row-major",
+              "anchor": "bottom-center",
+              "trim": "shared-scale"
+            },
+            "frameSize": {
+              "width": 128,
+              "height": 128
+            },
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/player_halfbie_attack_combo/attempt-01/normalized/player_halfbie_attack_combo.png",
+            "file": "player_halfbie_attack_combo.png",
+            "width": 768,
+            "height": 512,
+            "format": "png",
+            "sha256": "4eb3b2bbdb10671ddbf6dc3d5e6a520b1cfb7a7917c4cfcb6931c5ba205eb160",
+            "technicalQa": {
+              "schemaVersion": 1,
+              "assetId": "player_halfbie_attack_combo",
+              "sha256": "4eb3b2bbdb10671ddbf6dc3d5e6a520b1cfb7a7917c4cfcb6931c5ba205eb160",
+              "passed": true,
+              "alpha": {
+                "passed": true,
+                "policy": "required",
+                "hasAlpha": true,
+                "transparentRatio": 0.840164
+              },
+              "dimensions": {
+                "passed": true,
+                "width": 768,
+                "height": 512,
+                "expectedWidth": 768,
+                "expectedHeight": 512
+              }
+            }
+          },
+          "outputVisionQa": {
+            "assetId": "player_halfbie_attack_combo",
+            "reviewedSha256": "4eb3b2bbdb10671ddbf6dc3d5e6a520b1cfb7a7917c4cfcb6931c5ba205eb160",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.88,
+                "notes": "정규화 뒤에도 승인 교복과 표식이 유지된다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "최종 PNG의 질감과 팔레트가 다른 캐릭터 시트와 맞는다."
+              },
+              "characterIdentity": {
+                "applicable": true,
+                "score": 0.89,
+                "notes": "최종 24셀의 얼굴·머리·체형이 동일하다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "4방향 공격 축이 최종 셀에서도 읽힌다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.91,
+                "notes": "128px 셀에서 준비와 타격 실루엣이 분명하다."
+              },
+              "animationConsistency": {
+                "applicable": true,
+                "score": 0.86,
+                "notes": "공통 scale·발 anchor와 방향별 6포즈가 유지된다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "최종 PNG에 고어가 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "최종 PNG에 웹툰 요소가 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "최종 PNG에 잘못된 시즌 요소가 없다."
+              }
+            },
+            "feedback": [],
+            "score": 0.88,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.88,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 0.89,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          }
+        }
+      ]
+    },
+    {
+      "assetId": "student_zombie_run",
+      "selectedAttempt": 1,
+      "warning": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/student_zombie_run/attempt-01/candidate.png",
+          "generation": {
+            "provider": "codex-app-built-in-imagegen",
+            "mode": "direct-app-session",
+            "prompt": "Preserve the exact approved bloodless male student zombie, all 24 run poses, 6 by 4 S W N E row-major direction order, Hyosan uniform and solid magenta matte. Move the complete third direction row upward by the final required amount so no silhouette crosses a visual row boundary, keeping shared scale, bottom-center feet, face, hair, clothing and rigid run motion unchanged. No gore, bites, text, scenery, checkerboard, mirroring, added or removed poses.",
+            "technicalTransform": "magenta-matte-to-alpha-and-regrid",
+            "sourceFile": "student_zombie_run-attempt-01.png",
+            "candidateSha256": "f4f9aa919b8ad5b9bae134adef0d306aa4998d49a7c2e08607235da19d9cbc7e",
+            "technicalTransformResult": {
+              "matte": {
+                "applied": true,
+                "transform": "magenta-matte-to-alpha",
+                "width": 1536,
+                "height": 1024,
+                "transparentPixels": 1404227,
+                "transparentRatio": 0.892783,
+                "edgeChromaRatio": 0.999609,
+                "colorDecontaminationPixels": 24,
+                "colorDecontaminationSearchPixels": 48,
+                "discardedChromaPixels": 21,
+                "interiorChromaReplacedPixels": 18,
+                "alphaFeatherPixels": 2
+              },
+              "regrid": {
+                "applied": true,
+                "transform": "frame-component-regrid",
+                "detectedComponents": 24,
+                "selectedComponents": 24,
+                "discardedComponents": 0,
+                "selectedPixelRange": {
+                  "smallest": 5723,
+                  "largest": 7666
+                },
+                "largestDiscardedPixels": 0,
+                "padding": 11,
+                "sharedScale": 1,
+                "layout": {
+                  "columns": 6,
+                  "rows": 4,
+                  "order": "row-major"
+                }
+              }
+            },
+            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/student_zombie_run/attempt-01/candidate.png"
+          },
+          "technicalQa": {
+            "schemaVersion": 1,
+            "assetId": "student_zombie_run",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/student_zombie_run/attempt-01/candidate.png",
+            "sha256": "c6f2fc8d6ca3eebb9d58951ee534991b63446e2534b78a9dd2ae2c1ccd2e379b",
+            "format": "png",
+            "passed": true,
+            "checks": {
+              "alpha": {
+                "passed": true,
+                "policy": "required",
+                "hasAlpha": true,
+                "transparentRatio": 0.904661
+              },
+              "size": {
+                "passed": true,
+                "width": 1536,
+                "height": 1024,
+                "minimumWidth": 1536,
+                "minimumHeight": 1024
+              },
+              "trim": {
+                "passed": true,
+                "applicable": true,
+                "removablePixelRatio": 0.717334,
+                "frames": [
+                  {
+                    "index": 0,
+                    "removablePixelRatio": 0.686127
+                  },
+                  {
+                    "index": 1,
+                    "removablePixelRatio": 0.716339
+                  },
+                  {
+                    "index": 2,
+                    "removablePixelRatio": 0.688446
+                  },
+                  {
+                    "index": 3,
+                    "removablePixelRatio": 0.687469
+                  },
+                  {
+                    "index": 4,
+                    "removablePixelRatio": 0.675781
+                  },
+                  {
+                    "index": 5,
+                    "removablePixelRatio": 0.7155
+                  },
+                  {
+                    "index": 6,
+                    "removablePixelRatio": 0.687027
+                  },
+                  {
+                    "index": 7,
+                    "removablePixelRatio": 0.719849
+                  },
+                  {
+                    "index": 8,
+                    "removablePixelRatio": 0.747681
+                  },
+                  {
+                    "index": 9,
+                    "removablePixelRatio": 0.754868
+                  },
+                  {
+                    "index": 10,
+                    "removablePixelRatio": 0.691528
+                  },
+                  {
+                    "index": 11,
+                    "removablePixelRatio": 0.699219
+                  },
+                  {
+                    "index": 12,
+                    "removablePixelRatio": 0.752441
+                  },
+                  {
+                    "index": 13,
+                    "removablePixelRatio": 0.703445
+                  },
+                  {
+                    "index": 14,
+                    "removablePixelRatio": 0.748795
+                  },
+                  {
+                    "index": 15,
+                    "removablePixelRatio": 0.722244
+                  },
+                  {
+                    "index": 16,
+                    "removablePixelRatio": 0.697327
+                  },
+                  {
+                    "index": 17,
+                    "removablePixelRatio": 0.736328
+                  },
+                  {
+                    "index": 18,
+                    "removablePixelRatio": 0.717148
+                  },
+                  {
+                    "index": 19,
+                    "removablePixelRatio": 0.754761
+                  },
+                  {
+                    "index": 20,
+                    "removablePixelRatio": 0.731384
+                  },
+                  {
+                    "index": 21,
+                    "removablePixelRatio": 0.713776
+                  },
+                  {
+                    "index": 22,
+                    "removablePixelRatio": 0.73056
+                  },
+                  {
+                    "index": 23,
+                    "removablePixelRatio": 0.737976
+                  }
+                ]
+              },
+              "frame": {
+                "passed": true,
+                "expected": 24,
+                "detected": 24,
+                "empty": []
+              },
+              "bbox": {
+                "passed": true,
+                "left": 63,
+                "top": 75,
+                "width": 1409,
+                "height": 938,
+                "coverage": 0.840277,
+                "minimumCoverage": 0.12,
+                "maximumCoverage": 0.9,
+                "frames": [
+                  {
+                    "index": 0,
+                    "left": 67,
+                    "top": 75,
+                    "width": 121,
+                    "height": 170,
+                    "coverage": 0.313873
+                  },
+                  {
+                    "index": 1,
+                    "left": 73,
+                    "top": 76,
+                    "width": 110,
+                    "height": 169,
+                    "coverage": 0.283661
+                  },
+                  {
+                    "index": 2,
+                    "left": 66,
+                    "top": 79,
+                    "width": 123,
+                    "height": 166,
+                    "coverage": 0.311554
+                  },
+                  {
+                    "index": 3,
+                    "left": 61,
+                    "top": 91,
+                    "width": 133,
+                    "height": 154,
+                    "coverage": 0.312531
+                  },
+                  {
+                    "index": 4,
+                    "left": 64,
+                    "top": 79,
+                    "width": 128,
+                    "height": 166,
+                    "coverage": 0.324219
+                  },
+                  {
+                    "index": 5,
+                    "left": 71,
+                    "top": 80,
+                    "width": 113,
+                    "height": 165,
+                    "coverage": 0.2845
+                  },
+                  {
+                    "index": 6,
+                    "left": 63,
+                    "top": 86,
+                    "width": 129,
+                    "height": 159,
+                    "coverage": 0.312973
+                  },
+                  {
+                    "index": 7,
+                    "left": 68,
+                    "top": 92,
+                    "width": 120,
+                    "height": 153,
+                    "coverage": 0.280151
+                  },
+                  {
+                    "index": 8,
+                    "left": 75,
+                    "top": 89,
+                    "width": 106,
+                    "height": 156,
+                    "coverage": 0.252319
+                  },
+                  {
+                    "index": 9,
+                    "left": 75,
+                    "top": 92,
+                    "width": 105,
+                    "height": 153,
+                    "coverage": 0.245132
+                  },
+                  {
+                    "index": 10,
+                    "left": 61,
+                    "top": 93,
+                    "width": 133,
+                    "height": 152,
+                    "coverage": 0.308472
+                  },
+                  {
+                    "index": 11,
+                    "left": 64,
+                    "top": 91,
+                    "width": 128,
+                    "height": 154,
+                    "coverage": 0.300781
+                  },
+                  {
+                    "index": 12,
+                    "left": 80,
+                    "top": 76,
+                    "width": 96,
+                    "height": 169,
+                    "coverage": 0.247559
+                  },
+                  {
+                    "index": 13,
+                    "left": 70,
+                    "top": 76,
+                    "width": 115,
+                    "height": 169,
+                    "coverage": 0.296555
+                  },
+                  {
+                    "index": 14,
+                    "left": 77,
+                    "top": 82,
+                    "width": 101,
+                    "height": 163,
+                    "coverage": 0.251205
+                  },
+                  {
+                    "index": 15,
+                    "left": 73,
+                    "top": 78,
+                    "width": 109,
+                    "height": 167,
+                    "coverage": 0.277756
+                  },
+                  {
+                    "index": 16,
+                    "left": 70,
+                    "top": 74,
+                    "width": 116,
+                    "height": 171,
+                    "coverage": 0.302673
+                  },
+                  {
+                    "index": 17,
+                    "left": 74,
+                    "top": 85,
+                    "width": 108,
+                    "height": 160,
+                    "coverage": 0.263672
+                  },
+                  {
+                    "index": 18,
+                    "left": 72,
+                    "top": 78,
+                    "width": 111,
+                    "height": 167,
+                    "coverage": 0.282852
+                  },
+                  {
+                    "index": 19,
+                    "left": 79,
+                    "top": 81,
+                    "width": 98,
+                    "height": 164,
+                    "coverage": 0.245239
+                  },
+                  {
+                    "index": 20,
+                    "left": 74,
+                    "top": 82,
+                    "width": 108,
+                    "height": 163,
+                    "coverage": 0.268616
+                  },
+                  {
+                    "index": 21,
+                    "left": 71,
+                    "top": 79,
+                    "width": 113,
+                    "height": 166,
+                    "coverage": 0.286224
+                  },
+                  {
+                    "index": 22,
+                    "left": 73,
+                    "top": 83,
+                    "width": 109,
+                    "height": 162,
+                    "coverage": 0.26944
+                  },
+                  {
+                    "index": 23,
+                    "left": 75,
+                    "top": 83,
+                    "width": 106,
+                    "height": 162,
+                    "coverage": 0.262024
+                  }
+                ]
+              },
+              "edges": {
+                "passed": true,
+                "opaqueRatio": 0,
+                "maximumOpaqueRatio": 0.02,
+                "frames": [
+                  {
+                    "index": 0,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 1,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 2,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 3,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 4,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 5,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 6,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 7,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 8,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 9,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 10,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 11,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 12,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 13,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 14,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 15,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 16,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 17,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 18,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 19,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 20,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 21,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 22,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 23,
+                    "opaqueRatio": 0
+                  }
+                ]
+              }
+            }
+          },
+          "visionQa": {
+            "assetId": "student_zombie_run",
+            "reviewedSha256": "c6f2fc8d6ca3eebb9d58951ee534991b63446e2534b78a9dd2ae2c1ccd2e379b",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.89,
+                "notes": "승인 M0 좀비의 효산고 교복·창백한 얼굴·무혈 표현을 유지한다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.88,
+                "notes": "시즌1 실사 기반 페인티드 스프라이트 톤이다."
+              },
+              "characterIdentity": {
+                "applicable": true,
+                "score": 0.89,
+                "notes": "24셀에서 같은 이름 없는 학생 엑스트라로 읽힌다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.88,
+                "notes": "4방향 달리기 각도와 진행 축이 구분된다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.9,
+                "notes": "낮은 자세와 빠른 달리기 실루엣이 명확하다."
+              },
+              "animationConsistency": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "방향마다 6개 달리기 위상과 교복 형태가 일관된다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "감염은 자세·안색으로만 표현되고 고어가 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "웹툰식 요소가 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "시즌1 효산고 교복과 세부를 유지한다."
+              }
+            },
+            "feedback": [],
+            "score": 0.885,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.89,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 0.89,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          },
+          "normalized": {
+            "assetId": "student_zombie_run",
+            "kind": "sprite",
+            "frames": 24,
+            "frameLayout": {
+              "columns": 6,
+              "rows": 4,
+              "order": "row-major",
+              "anchor": "bottom-center",
+              "trim": "shared-scale"
+            },
+            "frameSize": {
+              "width": 128,
+              "height": 128
+            },
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/student_zombie_run/attempt-01/normalized/student_zombie_run.png",
+            "file": "student_zombie_run.png",
+            "width": 768,
+            "height": 512,
+            "format": "png",
+            "sha256": "135b573d5900e78944ba10c8d7efa60860290be3207e47645443ed578da55594",
+            "technicalQa": {
+              "schemaVersion": 1,
+              "assetId": "student_zombie_run",
+              "sha256": "135b573d5900e78944ba10c8d7efa60860290be3207e47645443ed578da55594",
+              "passed": true,
+              "alpha": {
+                "passed": true,
+                "policy": "required",
+                "hasAlpha": true,
+                "transparentRatio": 0.825747
+              },
+              "dimensions": {
+                "passed": true,
+                "width": 768,
+                "height": 512,
+                "expectedWidth": 768,
+                "expectedHeight": 512
+              }
+            }
+          },
+          "outputVisionQa": {
+            "assetId": "student_zombie_run",
+            "reviewedSha256": "135b573d5900e78944ba10c8d7efa60860290be3207e47645443ed578da55594",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.89,
+                "notes": "최종 PNG도 M0 학생 좀비와 시즌1 교복에 충실하다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.88,
+                "notes": "크로마 잔여 제거 뒤 페인티드 질감이 자연스럽다."
+              },
+              "characterIdentity": {
+                "applicable": true,
+                "score": 0.89,
+                "notes": "최종 24셀에서 동일한 학생 정체성이 유지된다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.88,
+                "notes": "남·서·북·동 진행 방향이 보존된다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.91,
+                "notes": "128px 셀에서 실루엣과 팔다리 위상이 잘 분리된다."
+              },
+              "animationConsistency": {
+                "applicable": true,
+                "score": 0.88,
+                "notes": "공통 scale·발 anchor와 6프레임 주기가 안정적이다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "최종 PNG에 고어가 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "최종 PNG에 웹툰 요소가 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "최종 PNG에 잘못된 시즌 요소가 없다."
+              }
+            },
+            "feedback": [],
+            "score": 0.8883,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.89,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 0.89,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          }
+        }
+      ]
+    },
+    {
+      "assetId": "student_zombie_attack",
+      "selectedAttempt": 1,
+      "warning": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/student_zombie_attack/attempt-01/candidate.png",
+          "generation": {
+            "provider": "codex-app-built-in-imagegen",
+            "mode": "direct-app-session",
+            "prompt": "Preserve the exact approved bloodless student zombie attack sheet, all 16 poses, 4 by 4 S W N E row-major order, Hyosan uniform and solid magenta matte. Apply only the final vertical spacing correction so every direction row remains completely inside its visual band, retaining crouch, reach, maximum extension and recovery, shared scale and bottom-center feet. Do not mirror, redraw, add or remove poses. No gore, bites, text, scenery, effects or checkerboard.",
+            "technicalTransform": "magenta-matte-to-alpha-and-regrid",
+            "sourceFile": "student_zombie_attack-attempt-01.png",
+            "candidateSha256": "1c78a0ff72d0c422046301f8f2b68e52c0a6c8f43afe5af8b210e3604f5a3371",
+            "technicalTransformResult": {
+              "matte": {
+                "applied": true,
+                "transform": "magenta-matte-to-alpha",
+                "width": 1536,
+                "height": 1024,
+                "transparentPixels": 1345537,
+                "transparentRatio": 0.855469,
+                "edgeChromaRatio": 0.999023,
+                "colorDecontaminationPixels": 24,
+                "colorDecontaminationSearchPixels": 48,
+                "discardedChromaPixels": 5,
+                "interiorChromaReplacedPixels": 433,
+                "alphaFeatherPixels": 2
+              },
+              "regrid": {
+                "applied": true,
+                "transform": "frame-component-regrid",
+                "detectedComponents": 16,
+                "selectedComponents": 16,
+                "discardedComponents": 0,
+                "selectedPixelRange": {
+                  "smallest": 12698,
+                  "largest": 16334
+                },
+                "largestDiscardedPixels": 0,
+                "padding": 11,
+                "sharedScale": 1,
+                "layout": {
+                  "columns": 4,
+                  "rows": 4,
+                  "order": "row-major"
+                }
+              }
+            },
+            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/student_zombie_attack/attempt-01/candidate.png"
+          },
+          "technicalQa": {
+            "schemaVersion": 1,
+            "assetId": "student_zombie_attack",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/student_zombie_attack/attempt-01/candidate.png",
+            "sha256": "26ff562eb017a7b9ab59428935ea89951ace830ad6197962930d622a0e85c5b4",
+            "format": "png",
+            "passed": true,
+            "checks": {
+              "alpha": {
+                "passed": true,
+                "policy": "required",
+                "hasAlpha": true,
+                "transparentRatio": 0.866433
+              },
+              "size": {
+                "passed": true,
+                "width": 1536,
+                "height": 1024,
+                "minimumWidth": 1024,
+                "minimumHeight": 1024
+              },
+              "trim": {
+                "passed": true,
+                "applicable": true,
+                "removablePixelRatio": 0.625266,
+                "frames": [
+                  {
+                    "index": 0,
+                    "removablePixelRatio": 0.745585
+                  },
+                  {
+                    "index": 1,
+                    "removablePixelRatio": 0.597982
+                  },
+                  {
+                    "index": 2,
+                    "removablePixelRatio": 0.538645
+                  },
+                  {
+                    "index": 3,
+                    "removablePixelRatio": 0.729991
+                  },
+                  {
+                    "index": 4,
+                    "removablePixelRatio": 0.70693
+                  },
+                  {
+                    "index": 5,
+                    "removablePixelRatio": 0.549459
+                  },
+                  {
+                    "index": 6,
+                    "removablePixelRatio": 0.469788
+                  },
+                  {
+                    "index": 7,
+                    "removablePixelRatio": 0.69458
+                  },
+                  {
+                    "index": 8,
+                    "removablePixelRatio": 0.723755
+                  },
+                  {
+                    "index": 9,
+                    "removablePixelRatio": 0.611918
+                  },
+                  {
+                    "index": 10,
+                    "removablePixelRatio": 0.543172
+                  },
+                  {
+                    "index": 11,
+                    "removablePixelRatio": 0.710388
+                  },
+                  {
+                    "index": 12,
+                    "removablePixelRatio": 0.677063
+                  },
+                  {
+                    "index": 13,
+                    "removablePixelRatio": 0.554871
+                  },
+                  {
+                    "index": 14,
+                    "removablePixelRatio": 0.482849
+                  },
+                  {
+                    "index": 15,
+                    "removablePixelRatio": 0.667277
+                  }
+                ]
+              },
+              "frame": {
+                "passed": true,
+                "expected": 16,
+                "detected": 16,
+                "empty": []
+              },
+              "bbox": {
+                "passed": true,
+                "left": 120,
+                "top": 36,
+                "width": 1298,
+                "height": 977,
+                "coverage": 0.806266,
+                "minimumCoverage": 0.12,
+                "maximumCoverage": 0.9,
+                "frames": [
+                  {
+                    "index": 0,
+                    "left": 131,
+                    "top": 40,
+                    "width": 122,
+                    "height": 205,
+                    "coverage": 0.254415
+                  },
+                  {
+                    "index": 1,
+                    "left": 97,
+                    "top": 37,
+                    "width": 190,
+                    "height": 208,
+                    "coverage": 0.402018
+                  },
+                  {
+                    "index": 2,
+                    "left": 83,
+                    "top": 36,
+                    "width": 217,
+                    "height": 209,
+                    "coverage": 0.461355
+                  },
+                  {
+                    "index": 3,
+                    "left": 128,
+                    "top": 36,
+                    "width": 127,
+                    "height": 209,
+                    "coverage": 0.270009
+                  },
+                  {
+                    "index": 4,
+                    "left": 125,
+                    "top": 30,
+                    "width": 134,
+                    "height": 215,
+                    "coverage": 0.29307
+                  },
+                  {
+                    "index": 5,
+                    "left": 89,
+                    "top": 30,
+                    "width": 206,
+                    "height": 215,
+                    "coverage": 0.450541
+                  },
+                  {
+                    "index": 6,
+                    "left": 73,
+                    "top": 26,
+                    "width": 238,
+                    "height": 219,
+                    "coverage": 0.530212
+                  },
+                  {
+                    "index": 7,
+                    "left": 122,
+                    "top": 29,
+                    "width": 139,
+                    "height": 216,
+                    "coverage": 0.30542
+                  },
+                  {
+                    "index": 8,
+                    "left": 130,
+                    "top": 26,
+                    "width": 124,
+                    "height": 219,
+                    "coverage": 0.276245
+                  },
+                  {
+                    "index": 9,
+                    "left": 104,
+                    "top": 27,
+                    "width": 175,
+                    "height": 218,
+                    "coverage": 0.388082
+                  },
+                  {
+                    "index": 10,
+                    "left": 89,
+                    "top": 27,
+                    "width": 206,
+                    "height": 218,
+                    "coverage": 0.456828
+                  },
+                  {
+                    "index": 11,
+                    "left": 127,
+                    "top": 26,
+                    "width": 130,
+                    "height": 219,
+                    "coverage": 0.289612
+                  },
+                  {
+                    "index": 12,
+                    "left": 120,
+                    "top": 23,
+                    "width": 143,
+                    "height": 222,
+                    "coverage": 0.322937
+                  },
+                  {
+                    "index": 13,
+                    "left": 93,
+                    "top": 24,
+                    "width": 198,
+                    "height": 221,
+                    "coverage": 0.445129
+                  },
+                  {
+                    "index": 14,
+                    "left": 77,
+                    "top": 23,
+                    "width": 229,
+                    "height": 222,
+                    "coverage": 0.517151
+                  },
+                  {
+                    "index": 15,
+                    "left": 118,
+                    "top": 24,
+                    "width": 148,
+                    "height": 221,
+                    "coverage": 0.332723
+                  }
+                ]
+              },
+              "edges": {
+                "passed": true,
+                "opaqueRatio": 0,
+                "maximumOpaqueRatio": 0.02,
+                "frames": [
+                  {
+                    "index": 0,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 1,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 2,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 3,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 4,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 5,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 6,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 7,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 8,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 9,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 10,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 11,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 12,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 13,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 14,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 15,
+                    "opaqueRatio": 0
+                  }
+                ]
+              }
+            }
+          },
+          "visionQa": {
+            "assetId": "student_zombie_attack",
+            "reviewedSha256": "26ff562eb017a7b9ab59428935ea89951ace830ad6197962930d622a0e85c5b4",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.88,
+                "notes": "M0 학생 좀비의 교복·안색·무혈 감염 표현이 유지된다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "다른 G2 캐릭터와 같은 실사 기반 페인티드 톤이다."
+              },
+              "characterIdentity": {
+                "applicable": true,
+                "score": 0.89,
+                "notes": "16포즈에서 같은 남학생 얼굴·머리·체형이 유지된다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "4방향 웅크림과 팔 뻗기 축이 구분된다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.9,
+                "notes": "웅크림·도달·회수의 실루엣 차이가 명확하다."
+              },
+              "animationConsistency": {
+                "applicable": true,
+                "score": 0.86,
+                "notes": "방향마다 4단계 공격 포즈와 의상 연속성이 있다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "피·교상·열린 상처가 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "웹툰 요소와 효과문자가 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "시즌1 교복 연속성을 유지한다."
+              }
+            },
+            "feedback": [],
+            "score": 0.8783,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.88,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 0.89,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          },
+          "normalized": {
+            "assetId": "student_zombie_attack",
+            "kind": "sprite",
+            "frames": 16,
+            "frameLayout": {
+              "columns": 4,
+              "rows": 4,
+              "order": "row-major",
+              "anchor": "bottom-center",
+              "trim": "shared-scale"
+            },
+            "frameSize": {
+              "width": 128,
+              "height": 128
+            },
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/student_zombie_attack/attempt-01/normalized/student_zombie_attack.png",
+            "file": "student_zombie_attack.png",
+            "width": 512,
+            "height": 512,
+            "format": "png",
+            "sha256": "356a06a445a17c35e45770002f9c6627dcafc77cbdb0313acec5388a5d83a372",
+            "technicalQa": {
+              "schemaVersion": 1,
+              "assetId": "student_zombie_attack",
+              "sha256": "356a06a445a17c35e45770002f9c6627dcafc77cbdb0313acec5388a5d83a372",
+              "passed": true,
+              "alpha": {
+                "passed": true,
+                "policy": "required",
+                "hasAlpha": true,
+                "transparentRatio": 0.809662
+              },
+              "dimensions": {
+                "passed": true,
+                "width": 512,
+                "height": 512,
+                "expectedWidth": 512,
+                "expectedHeight": 512
+              }
+            }
+          },
+          "outputVisionQa": {
+            "assetId": "student_zombie_attack",
+            "reviewedSha256": "356a06a445a17c35e45770002f9c6627dcafc77cbdb0313acec5388a5d83a372",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.88,
+                "notes": "최종 PNG가 M0 좀비와 시즌1 교복을 보존한다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.88,
+                "notes": "내부 matte 잔여 복원 뒤 색과 질감이 자연스럽다."
+              },
+              "characterIdentity": {
+                "applicable": true,
+                "score": 0.89,
+                "notes": "최종 16셀에서 같은 학생으로 읽힌다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "4방향 공격 축이 최종 셀에 보존된다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.91,
+                "notes": "128px 셀에서 공격 단계가 선명하다."
+              },
+              "animationConsistency": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "공통 scale·발 anchor와 4프레임 단계가 안정적이다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "최종 PNG에 고어가 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "최종 PNG에 웹툰 요소가 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "최종 PNG에 잘못된 시즌 요소가 없다."
+              }
+            },
+            "feedback": [],
+            "score": 0.8833,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.88,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 0.89,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          }
+        }
+      ]
+    },
+    {
+      "assetId": "nurse_kim_kyungmi_run",
+      "selectedAttempt": 1,
+      "warning": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/nurse_kim_kyungmi_run/attempt-01/candidate.png",
+          "generation": {
+            "provider": "codex-app-built-in-imagegen",
+            "mode": "direct-app-session",
+            "prompt": "Preserve the exact season-one nurse Kim Kyung-mi / Ahn Si-ha bloodless run sheet, all 24 figures, white medical coat, beige layers, face and hair, 6 by 4 S W N E row-major order and solid magenta matte. Move the required direction row upward by the final correction so all silhouettes remain within their visual bands with shared scale and bottom-center feet. Do not redraw, mirror, reorder, add or remove poses. No gore, bites, text, scenery, effects or checkerboard.",
+            "technicalTransform": "magenta-matte-to-alpha-and-regrid",
+            "sourceFile": "nurse_kim_kyungmi_run-attempt-01.png",
+            "candidateSha256": "febee8b0f16385b599a752fb833b10c1fcc869d481e2c73512660f78b93c9586",
+            "technicalTransformResult": {
+              "matte": {
+                "applied": true,
+                "transform": "magenta-matte-to-alpha",
+                "width": 1536,
+                "height": 1024,
+                "transparentPixels": 1415162,
+                "transparentRatio": 0.899736,
+                "edgeChromaRatio": 0.999609,
+                "colorDecontaminationPixels": 24,
+                "colorDecontaminationSearchPixels": 48,
+                "discardedChromaPixels": 2,
+                "interiorChromaReplacedPixels": 0,
+                "alphaFeatherPixels": 2
+              },
+              "regrid": {
+                "applied": true,
+                "transform": "frame-component-regrid",
+                "detectedComponents": 24,
+                "selectedComponents": 24,
+                "discardedComponents": 0,
+                "selectedPixelRange": {
+                  "smallest": 5838,
+                  "largest": 7373
+                },
+                "largestDiscardedPixels": 0,
+                "padding": 11,
+                "sharedScale": 1,
+                "layout": {
+                  "columns": 6,
+                  "rows": 4,
+                  "order": "row-major"
+                }
+              }
+            },
+            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/nurse_kim_kyungmi_run/attempt-01/candidate.png"
+          },
+          "technicalQa": {
+            "schemaVersion": 1,
+            "assetId": "nurse_kim_kyungmi_run",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/nurse_kim_kyungmi_run/attempt-01/candidate.png",
+            "sha256": "e824a0a40c77dba3dea74b4537a1d144bb3e578523f90886c5958fa711b24590",
+            "format": "png",
+            "passed": true,
+            "checks": {
+              "alpha": {
+                "passed": true,
+                "policy": "required",
+                "hasAlpha": true,
+                "transparentRatio": 0.910892
+              },
+              "size": {
+                "passed": true,
+                "width": 1536,
+                "height": 1024,
+                "minimumWidth": 1536,
+                "minimumHeight": 1024
+              },
+              "trim": {
+                "passed": true,
+                "applicable": true,
+                "removablePixelRatio": 0.801818,
+                "frames": [
+                  {
+                    "index": 0,
+                    "removablePixelRatio": 0.776443
+                  },
+                  {
+                    "index": 1,
+                    "removablePixelRatio": 0.765167
+                  },
+                  {
+                    "index": 2,
+                    "removablePixelRatio": 0.778641
+                  },
+                  {
+                    "index": 3,
+                    "removablePixelRatio": 0.782288
+                  },
+                  {
+                    "index": 4,
+                    "removablePixelRatio": 0.814362
+                  },
+                  {
+                    "index": 5,
+                    "removablePixelRatio": 0.851685
+                  },
+                  {
+                    "index": 6,
+                    "removablePixelRatio": 0.811951
+                  },
+                  {
+                    "index": 7,
+                    "removablePixelRatio": 0.781006
+                  },
+                  {
+                    "index": 8,
+                    "removablePixelRatio": 0.778625
+                  },
+                  {
+                    "index": 9,
+                    "removablePixelRatio": 0.754822
+                  },
+                  {
+                    "index": 10,
+                    "removablePixelRatio": 0.801163
+                  },
+                  {
+                    "index": 11,
+                    "removablePixelRatio": 0.861053
+                  },
+                  {
+                    "index": 12,
+                    "removablePixelRatio": 0.801559
+                  },
+                  {
+                    "index": 13,
+                    "removablePixelRatio": 0.794235
+                  },
+                  {
+                    "index": 14,
+                    "removablePixelRatio": 0.796204
+                  },
+                  {
+                    "index": 15,
+                    "removablePixelRatio": 0.800873
+                  },
+                  {
+                    "index": 16,
+                    "removablePixelRatio": 0.797653
+                  },
+                  {
+                    "index": 17,
+                    "removablePixelRatio": 0.863708
+                  },
+                  {
+                    "index": 18,
+                    "removablePixelRatio": 0.814606
+                  },
+                  {
+                    "index": 19,
+                    "removablePixelRatio": 0.786102
+                  },
+                  {
+                    "index": 20,
+                    "removablePixelRatio": 0.787415
+                  },
+                  {
+                    "index": 21,
+                    "removablePixelRatio": 0.787415
+                  },
+                  {
+                    "index": 22,
+                    "removablePixelRatio": 0.795074
+                  },
+                  {
+                    "index": 23,
+                    "removablePixelRatio": 0.861572
+                  }
+                ]
+              },
+              "frame": {
+                "passed": true,
+                "expected": 24,
+                "detected": 24,
+                "empty": []
+              },
+              "bbox": {
+                "passed": true,
+                "left": 82,
+                "top": 81,
+                "width": 1356,
+                "height": 932,
+                "coverage": 0.803497,
+                "minimumCoverage": 0.1,
+                "maximumCoverage": 0.9,
+                "frames": [
+                  {
+                    "index": 0,
+                    "left": 82,
+                    "top": 84,
+                    "width": 91,
+                    "height": 161,
+                    "coverage": 0.223557
+                  },
+                  {
+                    "index": 1,
+                    "left": 80,
+                    "top": 83,
+                    "width": 95,
+                    "height": 162,
+                    "coverage": 0.234833
+                  },
+                  {
+                    "index": 2,
+                    "left": 83,
+                    "top": 82,
+                    "width": 89,
+                    "height": 163,
+                    "coverage": 0.221359
+                  },
+                  {
+                    "index": 3,
+                    "left": 84,
+                    "top": 81,
+                    "width": 87,
+                    "height": 164,
+                    "coverage": 0.217712
+                  },
+                  {
+                    "index": 4,
+                    "left": 89,
+                    "top": 87,
+                    "width": 77,
+                    "height": 158,
+                    "coverage": 0.185638
+                  },
+                  {
+                    "index": 5,
+                    "left": 98,
+                    "top": 83,
+                    "width": 60,
+                    "height": 162,
+                    "coverage": 0.148315
+                  },
+                  {
+                    "index": 6,
+                    "left": 88,
+                    "top": 89,
+                    "width": 79,
+                    "height": 156,
+                    "coverage": 0.188049
+                  },
+                  {
+                    "index": 7,
+                    "left": 82,
+                    "top": 89,
+                    "width": 92,
+                    "height": 156,
+                    "coverage": 0.218994
+                  },
+                  {
+                    "index": 8,
+                    "left": 81,
+                    "top": 89,
+                    "width": 93,
+                    "height": 156,
+                    "coverage": 0.221375
+                  },
+                  {
+                    "index": 9,
+                    "left": 76,
+                    "top": 89,
+                    "width": 103,
+                    "height": 156,
+                    "coverage": 0.245178
+                  },
+                  {
+                    "index": 10,
+                    "left": 86,
+                    "top": 88,
+                    "width": 83,
+                    "height": 157,
+                    "coverage": 0.198837
+                  },
+                  {
+                    "index": 11,
+                    "left": 99,
+                    "top": 88,
+                    "width": 58,
+                    "height": 157,
+                    "coverage": 0.138947
+                  },
+                  {
+                    "index": 12,
+                    "left": 85,
+                    "top": 92,
+                    "width": 85,
+                    "height": 153,
+                    "coverage": 0.198441
+                  },
+                  {
+                    "index": 13,
+                    "left": 84,
+                    "top": 90,
+                    "width": 87,
+                    "height": 155,
+                    "coverage": 0.205765
+                  },
+                  {
+                    "index": 14,
+                    "left": 86,
+                    "top": 86,
+                    "width": 84,
+                    "height": 159,
+                    "coverage": 0.203796
+                  },
+                  {
+                    "index": 15,
+                    "left": 83,
+                    "top": 100,
+                    "width": 90,
+                    "height": 145,
+                    "coverage": 0.199127
+                  },
+                  {
+                    "index": 16,
+                    "left": 83,
+                    "top": 96,
+                    "width": 89,
+                    "height": 149,
+                    "coverage": 0.202347
+                  },
+                  {
+                    "index": 17,
+                    "left": 99,
+                    "top": 91,
+                    "width": 58,
+                    "height": 154,
+                    "coverage": 0.136292
+                  },
+                  {
+                    "index": 18,
+                    "left": 90,
+                    "top": 83,
+                    "width": 75,
+                    "height": 162,
+                    "coverage": 0.185394
+                  },
+                  {
+                    "index": 19,
+                    "left": 85,
+                    "top": 82,
+                    "width": 86,
+                    "height": 163,
+                    "coverage": 0.213898
+                  },
+                  {
+                    "index": 20,
+                    "left": 85,
+                    "top": 83,
+                    "width": 86,
+                    "height": 162,
+                    "coverage": 0.212585
+                  },
+                  {
+                    "index": 21,
+                    "left": 85,
+                    "top": 83,
+                    "width": 86,
+                    "height": 162,
+                    "coverage": 0.212585
+                  },
+                  {
+                    "index": 22,
+                    "left": 85,
+                    "top": 87,
+                    "width": 85,
+                    "height": 158,
+                    "coverage": 0.204926
+                  },
+                  {
+                    "index": 23,
+                    "left": 100,
+                    "top": 83,
+                    "width": 56,
+                    "height": 162,
+                    "coverage": 0.138428
+                  }
+                ]
+              },
+              "edges": {
+                "passed": true,
+                "opaqueRatio": 0,
+                "maximumOpaqueRatio": 0.02,
+                "frames": [
+                  {
+                    "index": 0,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 1,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 2,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 3,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 4,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 5,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 6,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 7,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 8,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 9,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 10,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 11,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 12,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 13,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 14,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 15,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 16,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 17,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 18,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 19,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 20,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 21,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 22,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 23,
+                    "opaqueRatio": 0
+                  }
+                ]
+              }
+            }
+          },
+          "visionQa": {
+            "assetId": "nurse_kim_kyungmi_run",
+            "reviewedSha256": "e824a0a40c77dba3dea74b4537a1d144bb3e578523f90886c5958fa711b24590",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "공식 시즌1 영상의 흰 가운·베이지 내의·헝클어진 중간 머리와 보건교사 인상을 재현한다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.88,
+                "notes": "실사 배우 기반 페인티드 보스 스프라이트 톤이다."
+              },
+              "characterIdentity": {
+                "applicable": true,
+                "score": 0.85,
+                "notes": "안시하의 얼굴 비율과 김경미의 헤어·의상 표지가 24셀에서 식별된다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "4방향 보스 이동 축이 탑다운 3/4로 구분된다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.9,
+                "notes": "흰 가운 실루엣이 학생 캐릭터와 즉시 구분된다."
+              },
+              "animationConsistency": {
+                "applicable": true,
+                "score": 0.86,
+                "notes": "방향별 6포즈에서 얼굴·가운·체형이 안정적이다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "창백함과 경직 외 피·교상·상처가 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "웹툰식 요소가 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.03,
+                "notes": "시즌1 김경미의 의상 범위를 유지한다."
+              }
+            },
+            "feedback": [],
+            "score": 0.8717,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.87,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 0.85,
+            "minimumCharacterIdentity": 0.85,
+            "hardFailures": [],
+            "passed": true
+          },
+          "normalized": {
+            "assetId": "nurse_kim_kyungmi_run",
+            "kind": "boss",
+            "frames": 24,
+            "frameLayout": {
+              "columns": 6,
+              "rows": 4,
+              "order": "row-major",
+              "anchor": "bottom-center",
+              "trim": "shared-scale"
+            },
+            "frameSize": {
+              "width": 192,
+              "height": 192
+            },
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/nurse_kim_kyungmi_run/attempt-01/normalized/nurse_kim_kyungmi_run.png",
+            "file": "nurse_kim_kyungmi_run.png",
+            "width": 1152,
+            "height": 768,
+            "format": "png",
+            "sha256": "47d46f3b610dc4fdcc445b7cfbd735affd4133b5e35d28e3f38d2991eb25409d",
+            "technicalQa": {
+              "schemaVersion": 1,
+              "assetId": "nurse_kim_kyungmi_run",
+              "sha256": "47d46f3b610dc4fdcc445b7cfbd735affd4133b5e35d28e3f38d2991eb25409d",
+              "passed": true,
+              "alpha": {
+                "passed": true,
+                "policy": "required",
+                "hasAlpha": true,
+                "transparentRatio": 0.792991
+              },
+              "dimensions": {
+                "passed": true,
+                "width": 1152,
+                "height": 768,
+                "expectedWidth": 1152,
+                "expectedHeight": 768
+              }
+            }
+          },
+          "outputVisionQa": {
+            "assetId": "nurse_kim_kyungmi_run",
+            "reviewedSha256": "47d46f3b610dc4fdcc445b7cfbd735affd4133b5e35d28e3f38d2991eb25409d",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "최종 PNG에서도 시즌1 보건교사 의상과 인상이 유지된다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.88,
+                "notes": "축소 뒤에도 실사 기반 페인티드 톤이 보존된다."
+              },
+              "characterIdentity": {
+                "applicable": true,
+                "score": 0.85,
+                "notes": "최종 24셀에서 김경미·안시하의 얼굴과 복식 표지가 유지된다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "남·서·북·동 방향 판독성이 유지된다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.91,
+                "notes": "192px 셀에서 흰 가운 보스 실루엣이 선명하다."
+              },
+              "animationConsistency": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "공통 scale·발 anchor와 6프레임 이동이 안정적이다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "최종 PNG에 고어가 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "최종 PNG에 웹툰 요소가 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.03,
+                "notes": "최종 PNG에 시즌 오류 요소가 없다."
+              }
+            },
+            "feedback": [],
+            "score": 0.875,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.87,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 0.85,
+            "minimumCharacterIdentity": 0.85,
+            "hardFailures": [],
+            "passed": true
+          }
+        }
+      ]
+    },
+    {
+      "assetId": "nurse_kim_kyungmi_attack",
+      "selectedAttempt": 1,
+      "warning": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/nurse_kim_kyungmi_attack/attempt-01/candidate.png",
+          "generation": {
+            "provider": "codex-app-built-in-imagegen",
+            "mode": "direct-app-session",
+            "prompt": "Create the final safe-layout version of the exact season-one nurse Kim Kyung-mi / Ahn Si-ha bloodless attack sheet. Preserve the same face, medium tousled brown hair, white medical coat, beige layers, 24 poses and 6 by 4 S W N E row-major action sequence, but uniformly scale every complete figure to 68 percent around bottom-center so no silhouette crosses any visual cell boundary. Keep a solid magenta matte and generous gaps. No gore, wounds, bites, text, scenery, checkerboard, mirroring, added or removed poses.",
+            "technicalTransform": "magenta-matte-to-alpha-and-regrid",
+            "sourceFile": "nurse_kim_kyungmi_attack-attempt-01.png",
+            "candidateSha256": "10d95a65f8956a77aa6ed18b5e4c4e1866818a48beadc3b48a8fbeb6a6386958",
+            "technicalTransformResult": {
+              "matte": {
+                "applied": true,
+                "transform": "magenta-matte-to-alpha",
+                "width": 1536,
+                "height": 1024,
+                "transparentPixels": 1389191,
+                "transparentRatio": 0.883224,
+                "edgeChromaRatio": 1,
+                "colorDecontaminationPixels": 24,
+                "colorDecontaminationSearchPixels": 48,
+                "discardedChromaPixels": 0,
+                "interiorChromaReplacedPixels": 0,
+                "alphaFeatherPixels": 2
+              },
+              "regrid": {
+                "applied": true,
+                "transform": "frame-component-regrid",
+                "detectedComponents": 24,
+                "selectedComponents": 24,
+                "discardedComponents": 0,
+                "selectedPixelRange": {
+                  "smallest": 5520,
+                  "largest": 9355
+                },
+                "largestDiscardedPixels": 0,
+                "padding": 11,
+                "sharedScale": 1,
+                "layout": {
+                  "columns": 6,
+                  "rows": 4,
+                  "order": "row-major"
+                }
+              }
+            },
+            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/nurse_kim_kyungmi_attack/attempt-01/candidate.png"
+          },
+          "technicalQa": {
+            "schemaVersion": 1,
+            "assetId": "nurse_kim_kyungmi_attack",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/nurse_kim_kyungmi_attack/attempt-01/candidate.png",
+            "sha256": "08c772443d37c77acb029138c6067744c89cd399e6ab07259ab11c6131f09e0f",
+            "format": "png",
+            "passed": true,
+            "checks": {
+              "alpha": {
+                "passed": true,
+                "policy": "required",
+                "hasAlpha": true,
+                "transparentRatio": 0.895416
+              },
+              "size": {
+                "passed": true,
+                "width": 1536,
+                "height": 1024,
+                "minimumWidth": 1536,
+                "minimumHeight": 1024
+              },
+              "trim": {
+                "passed": true,
+                "applicable": true,
+                "removablePixelRatio": 0.743479,
+                "frames": [
+                  {
+                    "index": 0,
+                    "removablePixelRatio": 0.78627
+                  },
+                  {
+                    "index": 1,
+                    "removablePixelRatio": 0.770966
+                  },
+                  {
+                    "index": 2,
+                    "removablePixelRatio": 0.713715
+                  },
+                  {
+                    "index": 3,
+                    "removablePixelRatio": 0.676178
+                  },
+                  {
+                    "index": 4,
+                    "removablePixelRatio": 0.67572
+                  },
+                  {
+                    "index": 5,
+                    "removablePixelRatio": 0.820923
+                  },
+                  {
+                    "index": 6,
+                    "removablePixelRatio": 0.817078
+                  },
+                  {
+                    "index": 7,
+                    "removablePixelRatio": 0.737213
+                  },
+                  {
+                    "index": 8,
+                    "removablePixelRatio": 0.64801
+                  },
+                  {
+                    "index": 9,
+                    "removablePixelRatio": 0.628677
+                  },
+                  {
+                    "index": 10,
+                    "removablePixelRatio": 0.673615
+                  },
+                  {
+                    "index": 11,
+                    "removablePixelRatio": 0.878128
+                  },
+                  {
+                    "index": 12,
+                    "removablePixelRatio": 0.814453
+                  },
+                  {
+                    "index": 13,
+                    "removablePixelRatio": 0.748856
+                  },
+                  {
+                    "index": 14,
+                    "removablePixelRatio": 0.760315
+                  },
+                  {
+                    "index": 15,
+                    "removablePixelRatio": 0.751663
+                  },
+                  {
+                    "index": 16,
+                    "removablePixelRatio": 0.746536
+                  },
+                  {
+                    "index": 17,
+                    "removablePixelRatio": 0.841019
+                  },
+                  {
+                    "index": 18,
+                    "removablePixelRatio": 0.821014
+                  },
+                  {
+                    "index": 19,
+                    "removablePixelRatio": 0.700394
+                  },
+                  {
+                    "index": 20,
+                    "removablePixelRatio": 0.661087
+                  },
+                  {
+                    "index": 21,
+                    "removablePixelRatio": 0.626465
+                  },
+                  {
+                    "index": 22,
+                    "removablePixelRatio": 0.663818
+                  },
+                  {
+                    "index": 23,
+                    "removablePixelRatio": 0.881378
+                  }
+                ]
+              },
+              "frame": {
+                "passed": true,
+                "expected": 24,
+                "detected": 24,
+                "empty": []
+              },
+              "bbox": {
+                "passed": true,
+                "left": 84,
+                "top": 82,
+                "width": 1360,
+                "height": 931,
+                "coverage": 0.805003,
+                "minimumCoverage": 0.1,
+                "maximumCoverage": 0.9,
+                "frames": [
+                  {
+                    "index": 0,
+                    "left": 84,
+                    "top": 84,
+                    "width": 87,
+                    "height": 161,
+                    "coverage": 0.21373
+                  },
+                  {
+                    "index": 1,
+                    "left": 80,
+                    "top": 87,
+                    "width": 95,
+                    "height": 158,
+                    "coverage": 0.229034
+                  },
+                  {
+                    "index": 2,
+                    "left": 69,
+                    "top": 86,
+                    "width": 118,
+                    "height": 159,
+                    "coverage": 0.286285
+                  },
+                  {
+                    "index": 3,
+                    "left": 62,
+                    "top": 83,
+                    "width": 131,
+                    "height": 162,
+                    "coverage": 0.323822
+                  },
+                  {
+                    "index": 4,
+                    "left": 62,
+                    "top": 84,
+                    "width": 132,
+                    "height": 161,
+                    "coverage": 0.32428
+                  },
+                  {
+                    "index": 5,
+                    "left": 92,
+                    "top": 82,
+                    "width": 72,
+                    "height": 163,
+                    "coverage": 0.179077
+                  },
+                  {
+                    "index": 6,
+                    "left": 91,
+                    "top": 83,
+                    "width": 74,
+                    "height": 162,
+                    "coverage": 0.182922
+                  },
+                  {
+                    "index": 7,
+                    "left": 73,
+                    "top": 87,
+                    "width": 109,
+                    "height": 158,
+                    "coverage": 0.262787
+                  },
+                  {
+                    "index": 8,
+                    "left": 55,
+                    "top": 87,
+                    "width": 146,
+                    "height": 158,
+                    "coverage": 0.35199
+                  },
+                  {
+                    "index": 9,
+                    "left": 50,
+                    "top": 88,
+                    "width": 155,
+                    "height": 157,
+                    "coverage": 0.371323
+                  },
+                  {
+                    "index": 10,
+                    "left": 59,
+                    "top": 90,
+                    "width": 138,
+                    "height": 155,
+                    "coverage": 0.326385
+                  },
+                  {
+                    "index": 11,
+                    "left": 103,
+                    "top": 82,
+                    "width": 49,
+                    "height": 163,
+                    "coverage": 0.121872
+                  },
+                  {
+                    "index": 12,
+                    "left": 88,
+                    "top": 93,
+                    "width": 80,
+                    "height": 152,
+                    "coverage": 0.185547
+                  },
+                  {
+                    "index": 13,
+                    "left": 73,
+                    "top": 94,
+                    "width": 109,
+                    "height": 151,
+                    "coverage": 0.251144
+                  },
+                  {
+                    "index": 14,
+                    "left": 77,
+                    "top": 91,
+                    "width": 102,
+                    "height": 154,
+                    "coverage": 0.239685
+                  },
+                  {
+                    "index": 15,
+                    "left": 75,
+                    "top": 90,
+                    "width": 105,
+                    "height": 155,
+                    "coverage": 0.248337
+                  },
+                  {
+                    "index": 16,
+                    "left": 71,
+                    "top": 98,
+                    "width": 113,
+                    "height": 147,
+                    "coverage": 0.253464
+                  },
+                  {
+                    "index": 17,
+                    "left": 93,
+                    "top": 94,
+                    "width": 69,
+                    "height": 151,
+                    "coverage": 0.158981
+                  },
+                  {
+                    "index": 18,
+                    "left": 93,
+                    "top": 75,
+                    "width": 69,
+                    "height": 170,
+                    "coverage": 0.178986
+                  },
+                  {
+                    "index": 19,
+                    "left": 68,
+                    "top": 80,
+                    "width": 119,
+                    "height": 165,
+                    "coverage": 0.299606
+                  },
+                  {
+                    "index": 20,
+                    "left": 61,
+                    "top": 78,
+                    "width": 133,
+                    "height": 167,
+                    "coverage": 0.338913
+                  },
+                  {
+                    "index": 21,
+                    "left": 56,
+                    "top": 75,
+                    "width": 144,
+                    "height": 170,
+                    "coverage": 0.373535
+                  },
+                  {
+                    "index": 22,
+                    "left": 60,
+                    "top": 83,
+                    "width": 136,
+                    "height": 162,
+                    "coverage": 0.336182
+                  },
+                  {
+                    "index": 23,
+                    "left": 105,
+                    "top": 76,
+                    "width": 46,
+                    "height": 169,
+                    "coverage": 0.118622
+                  }
+                ]
+              },
+              "edges": {
+                "passed": true,
+                "opaqueRatio": 0,
+                "maximumOpaqueRatio": 0.02,
+                "frames": [
+                  {
+                    "index": 0,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 1,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 2,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 3,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 4,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 5,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 6,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 7,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 8,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 9,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 10,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 11,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 12,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 13,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 14,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 15,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 16,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 17,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 18,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 19,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 20,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 21,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 22,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 23,
+                    "opaqueRatio": 0
+                  }
+                ]
+              }
+            }
+          },
+          "visionQa": {
+            "assetId": "nurse_kim_kyungmi_attack",
+            "reviewedSha256": "08c772443d37c77acb029138c6067744c89cd399e6ab07259ab11c6131f09e0f",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "시즌1 김경미의 흰 가운·베이지 내의·머리와 감염 인상을 보존한다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.88,
+                "notes": "실사 배우 기반 페인티드 보스 스타일이 이동 시트와 맞는다."
+              },
+              "characterIdentity": {
+                "applicable": true,
+                "score": 0.85,
+                "notes": "안시하 얼굴 비율과 김경미의 복식 표지가 공격 포즈에서도 식별된다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "남·서·북·동 공격 방향과 팔 진행 축이 읽힌다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.9,
+                "notes": "준비·돌진·양팔 도달·회수 실루엣이 분리된다."
+              },
+              "animationConsistency": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "방향별 6단계에서 얼굴·가운·체형이 일관된다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "피·교상·열린 상처 없이 자세로만 감염을 표현한다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "웹툰식 효과와 문자가 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.03,
+                "notes": "시즌1 김경미 복식 범위를 유지한다."
+              }
+            },
+            "feedback": [],
+            "score": 0.8733,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.87,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 0.85,
+            "minimumCharacterIdentity": 0.85,
+            "hardFailures": [],
+            "passed": true
+          },
+          "normalized": {
+            "assetId": "nurse_kim_kyungmi_attack",
+            "kind": "boss",
+            "frames": 24,
+            "frameLayout": {
+              "columns": 6,
+              "rows": 4,
+              "order": "row-major",
+              "anchor": "bottom-center",
+              "trim": "shared-scale"
+            },
+            "frameSize": {
+              "width": 192,
+              "height": 192
+            },
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/nurse_kim_kyungmi_attack/attempt-01/normalized/nurse_kim_kyungmi_attack.png",
+            "file": "nurse_kim_kyungmi_attack.png",
+            "width": 1152,
+            "height": 768,
+            "format": "png",
+            "sha256": "e8123a268a5b5edb0c4b0f2212c116ddaaffbdd244d1eb84b9ef6368b954198d",
+            "technicalQa": {
+              "schemaVersion": 1,
+              "assetId": "nurse_kim_kyungmi_attack",
+              "sha256": "e8123a268a5b5edb0c4b0f2212c116ddaaffbdd244d1eb84b9ef6368b954198d",
+              "passed": true,
+              "alpha": {
+                "passed": true,
+                "policy": "required",
+                "hasAlpha": true,
+                "transparentRatio": 0.773813
+              },
+              "dimensions": {
+                "passed": true,
+                "width": 1152,
+                "height": 768,
+                "expectedWidth": 1152,
+                "expectedHeight": 768
+              }
+            }
+          },
+          "outputVisionQa": {
+            "assetId": "nurse_kim_kyungmi_attack",
+            "reviewedSha256": "e8123a268a5b5edb0c4b0f2212c116ddaaffbdd244d1eb84b9ef6368b954198d",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "최종 PNG에서도 시즌1 김경미 의상과 인상이 유지된다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.88,
+                "notes": "최종 공격 시트가 이동 시트의 톤과 일치한다."
+              },
+              "characterIdentity": {
+                "applicable": true,
+                "score": 0.85,
+                "notes": "최종 24셀에서 김경미·안시하의 얼굴과 복식 표지가 유지된다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.87,
+                "notes": "4방향 공격 판독성이 정규화 뒤에도 유지된다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.91,
+                "notes": "192px 셀에서 공격 단계와 흰 가운 실루엣이 선명하다."
+              },
+              "animationConsistency": {
+                "applicable": true,
+                "score": 0.88,
+                "notes": "공통 scale·발 anchor와 방향별 6포즈가 안정적이다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "최종 PNG에 고어가 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "최종 PNG에 웹툰 요소가 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.03,
+                "notes": "최종 PNG에 시즌 오류 요소가 없다."
+              }
+            },
+            "feedback": [],
+            "score": 0.8767,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.87,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 0.85,
+            "minimumCharacterIdentity": 0.85,
+            "hardFailures": [],
+            "passed": true
+          }
+        }
+      ]
+    },
+    {
+      "assetId": "cafeteria_tileset",
+      "selectedAttempt": 1,
+      "warning": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/cafeteria_tileset/attempt-01/candidate.png",
+          "generation": {
+            "provider": "codex-app-built-in-imagegen",
+            "mode": "direct-app-session",
+            "prompt": "A production-ready orthogonal top-down modular environment kit for the season-one Hyosan High cafeteria, painted realistic 2D game art on a single solid magenta matte. Isolated modules with generous gaps: dry and wet green and burnt-orange floor tiles, honey-orange walls beams columns and windows, fluorescent lights, glass double doors, stainless serving counters and kitchen modules, roll-down shutter, light wood long tables with ivory legs, burgundy movable chairs and displaced variants, trays cutlery and water-reflection overlays. Match the approved cafeteria concept and official Netflix Korea cafeteria visual reference. No people, bodies, blood, text, logos, generic school redesign, perspective scene, checkerboard or shadows connecting separate modules.",
+            "technicalTransform": "magenta-matte-to-alpha",
+            "sourceFile": "cafeteria_tileset-attempt-01.png",
+            "candidateSha256": "f31def3be9c22346f8c9129d5127252b2f46c258593c125884346c8086708ac7",
+            "technicalTransformResult": {
+              "applied": true,
+              "transform": "magenta-matte-to-alpha",
+              "width": 1254,
+              "height": 1254,
+              "transparentPixels": 844521,
+              "transparentRatio": 0.537051,
+              "edgeChromaRatio": 1,
+              "colorDecontaminationPixels": 24,
+              "colorDecontaminationSearchPixels": 48,
+              "discardedChromaPixels": 2357,
+              "interiorChromaReplacedPixels": 301,
+              "alphaFeatherPixels": 2
+            },
+            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/cafeteria_tileset/attempt-01/candidate.png"
+          },
+          "technicalQa": {
+            "schemaVersion": 1,
+            "assetId": "cafeteria_tileset",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/cafeteria_tileset/attempt-01/candidate.png",
+            "sha256": "c78ebc9cc97305e148970c2b7dddaa5fbfd0918d3735ce910ea2a35b2f8c4a5c",
+            "format": "png",
+            "passed": true,
+            "checks": {
+              "alpha": {
+                "passed": true,
+                "policy": "required",
+                "hasAlpha": true,
+                "transparentRatio": 0.556462
+              },
+              "size": {
+                "passed": true,
+                "width": 1254,
+                "height": 1254,
+                "minimumWidth": 1024,
+                "minimumHeight": 1024
+              },
+              "trim": {
+                "passed": true,
+                "applicable": false,
+                "removablePixelRatio": 0.111026
+              },
+              "frame": {
+                "passed": true,
+                "expected": 1,
+                "detected": 1,
+                "empty": []
+              },
+              "bbox": {
+                "passed": true,
+                "left": 27,
+                "top": 29,
+                "width": 1202,
+                "height": 1163,
+                "coverage": 0.888974,
+                "minimumCoverage": 0.35,
+                "maximumCoverage": 0.95
+              },
+              "edges": {
+                "passed": true,
+                "opaqueRatio": 0,
+                "maximumOpaqueRatio": 0.02
+              }
+            }
+          },
+          "visionQa": {
+            "assetId": "cafeteria_tileset",
+            "reviewedSha256": "c78ebc9cc97305e148970c2b7dddaa5fbfd0918d3735ce910ea2a35b2f8c4a5c",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.93,
+                "notes": "공식 급식실의 주황 벽·녹색 바닥·스테인리스 배식구·원목 식탁·버건디 의자를 반영한다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.91,
+                "notes": "승인 M0 급식실과 같은 현실적 페인티드 재질·팔레트다."
+              },
+              "characterIdentity": {
+                "applicable": false,
+                "score": 1,
+                "notes": "환경 모듈이라 캐릭터 동일성은 적용하지 않는다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.92,
+                "notes": "바닥·가구·벽 모듈이 직교 탑다운 조립에 맞게 분리된다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.93,
+                "notes": "모듈 간 여백과 기능별 실루엣이 명확하다."
+              },
+              "animationConsistency": {
+                "applicable": false,
+                "score": 1,
+                "notes": "단일 프레임 환경 자산이라 애니메이션 일관성은 적용하지 않는다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "인물·시신·피가 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "웹툰식 문자·선화가 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "시즌1 급식실 재질과 색 범위를 유지한다."
+              }
+            },
+            "feedback": [],
+            "score": 0.9225,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.93,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 1,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          },
+          "normalized": {
+            "assetId": "cafeteria_tileset",
+            "kind": "tileset",
+            "frames": 1,
+            "frameLayout": {
+              "columns": 1,
+              "rows": 1,
+              "order": "row-major",
+              "anchor": "bottom-center",
+              "trim": "shared-scale"
+            },
+            "frameSize": {
+              "width": 1024,
+              "height": 1024
+            },
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/cafeteria_tileset/attempt-01/normalized/cafeteria_tileset.png",
+            "file": "cafeteria_tileset.png",
+            "width": 1024,
+            "height": 1024,
+            "format": "png",
+            "sha256": "04299ce5ce3d14768e0db2749a28596954219bee1e90e25929030fc3d1e52a2b",
+            "technicalQa": {
+              "schemaVersion": 1,
+              "assetId": "cafeteria_tileset",
+              "sha256": "04299ce5ce3d14768e0db2749a28596954219bee1e90e25929030fc3d1e52a2b",
+              "passed": true,
+              "alpha": {
+                "passed": true,
+                "policy": "required",
+                "hasAlpha": true,
+                "transparentRatio": 0.583928
+              },
+              "dimensions": {
+                "passed": true,
+                "width": 1024,
+                "height": 1024,
+                "expectedWidth": 1024,
+                "expectedHeight": 1024
+              }
+            }
+          },
+          "outputVisionQa": {
+            "assetId": "cafeteria_tileset",
+            "reviewedSha256": "04299ce5ce3d14768e0db2749a28596954219bee1e90e25929030fc3d1e52a2b",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.93,
+                "notes": "최종 PNG에서도 시즌1 급식실의 핵심 색·재질·가구가 유지된다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.92,
+                "notes": "내부 matte 잔여 복원 뒤 승인 M0와 맞는 자연스러운 색조다."
+              },
+              "characterIdentity": {
+                "applicable": false,
+                "score": 1,
+                "notes": "환경 모듈이라 캐릭터 동일성은 적용하지 않는다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.92,
+                "notes": "1024px 정규화 뒤에도 직교 조립 방향이 명확하다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.94,
+                "notes": "투명 배경에서 각 모듈과 변형이 선명하게 분리된다."
+              },
+              "animationConsistency": {
+                "applicable": false,
+                "score": 1,
+                "notes": "단일 프레임 환경 자산이라 애니메이션 일관성은 적용하지 않는다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "최종 PNG에 고어가 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "최종 PNG에 웹툰 요소가 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "최종 PNG에 시즌 오류 요소가 없다."
+              }
+            },
+            "feedback": [],
+            "score": 0.9275,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.93,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 1,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          }
+        }
+      ]
+    },
+    {
+      "assetId": "cafeteria_room_reference",
+      "selectedAttempt": 1,
+      "warning": null,
+      "attempts": [
+        {
+          "attempt": 1,
+          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/cafeteria_room_reference/attempt-01/candidate.png",
+          "generation": {
+            "provider": "codex-app-built-in-imagegen",
+            "mode": "direct-app-session",
+            "prompt": "A finished 1280 by 720 orthogonal top-down combat-room reference for the season-one Hyosan High cafeteria, based on the approved concept and official Netflix Korea cafeteria visual reference. Bright daytime: honey-orange walls and beams, long upper windows, white fluorescent lights, glass double doors, stainless serving counter and kitchen with roll-down shutter, long light-wood tables with ivory legs, burgundy movable chairs, glossy green and burnt-orange tile rhythm, subtle wet patches and a few displaced chairs and trays. Keep a broad central combat lane and upper exit clear. Realistic high-resolution painted 2D game art. No people, bodies, blood, red emergency lighting, text, logos, webtoon styling or UI.",
+            "sourceFile": "cafeteria_room_reference-attempt-01.png",
+            "candidateSha256": "bbd06c7fc097b90519a123085c6650b3ad81741287d63730f2ec4fcf56e7067d",
+            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/cafeteria_room_reference/attempt-01/candidate.png"
+          },
+          "technicalQa": {
+            "schemaVersion": 1,
+            "assetId": "cafeteria_room_reference",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/cafeteria_room_reference/attempt-01/candidate.png",
+            "sha256": "bbd06c7fc097b90519a123085c6650b3ad81741287d63730f2ec4fcf56e7067d",
+            "format": "png",
+            "passed": true,
+            "checks": {
+              "alpha": {
+                "passed": true,
+                "policy": "forbidden",
+                "hasAlpha": false,
+                "transparentRatio": 0
+              },
+              "size": {
+                "passed": true,
+                "width": 1536,
+                "height": 1024,
+                "minimumWidth": 1536,
+                "minimumHeight": 1024
+              },
+              "trim": {
+                "passed": true,
+                "applicable": false,
+                "removablePixelRatio": 0
+              },
+              "frame": {
+                "passed": true,
+                "expected": 1,
+                "detected": 1,
+                "empty": []
+              },
+              "bbox": {
+                "passed": true,
+                "left": 0,
+                "top": 0,
+                "width": 1536,
+                "height": 1024,
+                "coverage": 1,
+                "minimumCoverage": 1,
+                "maximumCoverage": 1
+              },
+              "edges": {
+                "passed": true,
+                "opaqueRatio": 1,
+                "maximumOpaqueRatio": 1
+              }
+            }
+          },
+          "visionQa": {
+            "assetId": "cafeteria_room_reference",
+            "reviewedSha256": "bbd06c7fc097b90519a123085c6650b3ad81741287d63730f2ec4fcf56e7067d",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.94,
+                "notes": "공식 급식실의 주황 구조·녹색 타일·스테인리스 배식구·장테이블·버건디 의자를 충실히 조립했다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.92,
+                "notes": "승인 M0의 밝은 현실적 페인티드 프로덕션 디자인과 일치한다."
+              },
+              "characterIdentity": {
+                "applicable": false,
+                "score": 1,
+                "notes": "환경 조립본이라 캐릭터 동일성은 적용하지 않는다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.94,
+                "notes": "1280×720 직교 탑다운 전투 카메라와 방 경계가 명확하다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.95,
+                "notes": "넓은 중앙 통로·상단 출구·테이블 군집·배식구 충돌선이 즉시 읽힌다."
+              },
+              "animationConsistency": {
+                "applicable": false,
+                "score": 1,
+                "notes": "단일 프레임 환경 자산이라 애니메이션 일관성은 적용하지 않는다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "인물·시신·피가 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "웹툰식 선화·문자·UI가 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "시즌1 급식실 프로덕션 디자인 범위를 유지한다."
+              }
+            },
+            "feedback": [],
+            "score": 0.9375,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.94,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 1,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          },
+          "normalized": {
+            "assetId": "cafeteria_room_reference",
+            "kind": "background",
+            "frames": 1,
+            "frameLayout": {
+              "columns": 1,
+              "rows": 1,
+              "order": "row-major",
+              "anchor": "bottom-center",
+              "trim": "shared-scale"
+            },
+            "frameSize": {
+              "width": 1280,
+              "height": 720
+            },
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/cafeteria_room_reference/attempt-01/normalized/cafeteria_room_reference.png",
+            "file": "cafeteria_room_reference.png",
+            "width": 1280,
+            "height": 720,
+            "format": "png",
+            "sha256": "801bfaf3af9ea641a3d0b25cfa50c837a0b653ef147502ea2427ee85333d3761",
+            "technicalQa": {
+              "schemaVersion": 1,
+              "assetId": "cafeteria_room_reference",
+              "sha256": "801bfaf3af9ea641a3d0b25cfa50c837a0b653ef147502ea2427ee85333d3761",
+              "passed": true,
+              "alpha": {
+                "passed": true,
+                "policy": "forbidden",
+                "hasAlpha": false,
+                "transparentRatio": 0
+              },
+              "dimensions": {
+                "passed": true,
+                "width": 1280,
+                "height": 720,
+                "expectedWidth": 1280,
+                "expectedHeight": 720
+              }
+            }
+          },
+          "outputVisionQa": {
+            "assetId": "cafeteria_room_reference",
+            "reviewedSha256": "801bfaf3af9ea641a3d0b25cfa50c837a0b653ef147502ea2427ee85333d3761",
+            "dimensions": {
+              "sourceFidelity": {
+                "applicable": true,
+                "score": 0.94,
+                "notes": "최종 1280×720 PNG가 시즌1 급식실의 핵심 구조와 재질을 보존한다."
+              },
+              "styleMatch": {
+                "applicable": true,
+                "score": 0.92,
+                "notes": "축소 뒤에도 승인 M0의 밝은 페인티드 톤이 유지된다."
+              },
+              "characterIdentity": {
+                "applicable": false,
+                "score": 1,
+                "notes": "환경 조립본이라 캐릭터 동일성은 적용하지 않는다."
+              },
+              "topdownAngle": {
+                "applicable": true,
+                "score": 0.94,
+                "notes": "최종 크기에서 직교 탑다운 방 구조가 유지된다."
+              },
+              "gameplayReadability": {
+                "applicable": true,
+                "score": 0.95,
+                "notes": "중앙 통로·출구·가구·배식구 영역이 선명하다."
+              },
+              "animationConsistency": {
+                "applicable": false,
+                "score": 1,
+                "notes": "단일 프레임 환경 자산이라 애니메이션 일관성은 적용하지 않는다."
+              }
+            },
+            "guards": {
+              "gore": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "최종 PNG에 고어가 없다."
+              },
+              "webtoonElements": {
+                "detected": false,
+                "confidence": 0.01,
+                "notes": "최종 PNG에 웹툰 요소가 없다."
+              },
+              "wrongSeasonElements": {
+                "detected": false,
+                "confidence": 0.02,
+                "notes": "최종 PNG에 시즌 오류 요소가 없다."
+              }
+            },
+            "feedback": [],
+            "score": 0.9375,
+            "minimumScore": 0.8,
+            "sourceFidelityScore": 0.94,
+            "minimumSourceFidelity": 0.85,
+            "characterIdentityScore": 1,
+            "minimumCharacterIdentity": null,
+            "hardFailures": [],
+            "passed": true
+          }
+        }
+      ]
+    }
+  ]
+}

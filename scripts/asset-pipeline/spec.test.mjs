@@ -8,13 +8,19 @@ import { describe, expect, it } from 'vitest';
 import { loadAssetSpec, loadAssetSpecDocument, validateAssetSpec } from './spec.mjs';
 
 describe('asset pipeline spec', () => {
-  it('defines only the three M0 concepts and enforces official season-one fidelity', async () => {
+  it('defines the G2 cafeteria production batch and enforces official season-one fidelity', async () => {
     const spec = await loadAssetSpec(new URL('./asset-spec.yaml', import.meta.url));
 
+    expect(spec.meta.milestone).toBe('G2');
     expect(spec.assets.map(({ id }) => id)).toEqual([
-      'player_halfbie_concept',
-      'student_zombie_concept',
-      'cafeteria_background_concept',
+      'player_halfbie_walk',
+      'player_halfbie_attack_combo',
+      'student_zombie_run',
+      'student_zombie_attack',
+      'nurse_kim_kyungmi_run',
+      'nurse_kim_kyungmi_attack',
+      'cafeteria_tileset',
+      'cafeteria_room_reference',
     ]);
     expect(spec.meta.forbidden).toEqual(expect.arrayContaining([
       'gore',
@@ -29,11 +35,30 @@ describe('asset pipeline spec', () => {
     ]));
     expect(spec.assets.every(({ qa }) => qa.minSourceFidelity >= 0.85)).toBe(true);
     expect(spec.assets.map(({ identity }) => identity.mode)).toEqual([
-      'original',
-      'original',
-      'not-applicable',
+      'original', 'original', 'original', 'original',
+      'canonical', 'canonical', 'not-applicable', 'not-applicable',
     ]);
+    expect(spec.assets.slice(0, 4).map(({ targetSize }) => targetSize))
+      .toEqual(Array.from({ length: 4 }, () => ({ width: 128, height: 128 })));
+    expect(spec.assets.slice(4, 6).map(({ targetSize }) => targetSize))
+      .toEqual(Array.from({ length: 2 }, () => ({ width: 192, height: 192 })));
+    expect(spec.assets.slice(0, 6).map(({ frameLayout }) => frameLayout.rows))
+      .toEqual([4, 4, 4, 4, 4, 4]);
+    expect(spec.assets.slice(0, 6).map(({ frameLayout }) => frameLayout.columns))
+      .toEqual([6, 6, 6, 4, 6, 6]);
+    expect(spec.assets.slice(4, 6).every(({ identity, qa }) => (
+      identity.character === '김경미'
+      && identity.performer === '안시하'
+      && qa.minCharacterIdentity === 0.85
+    ))).toBe(true);
     expect(spec.pipeline.maxAttempts).toBe(3);
+    expect(spec.pipeline.approvalBlocks).toEqual(['G3']);
+    expect(spec.pipeline.atlas).toMatchObject({ padding: 4, extrusion: 1, maxSize: 4096 });
+    expect(spec.meta.referenceSources).toContainEqual({
+      id: 'netflix-korea-cafeteria-clip',
+      authority: 'official',
+      url: 'https://www.youtube.com/watch?v=mh3a3Bj-IPY',
+    });
   });
 
   it('rejects output paths and atlas names that can escape the repository', async () => {
@@ -155,6 +180,94 @@ describe('asset pipeline spec', () => {
       invalid.assets[0].identity = { mode: 'not-applicable' };
       expect(() => validateAssetSpec(invalid))
         .toThrow(`identity.mode cannot be not-applicable for ${kind}`);
+    }
+  });
+
+  it('defaults multi-frame assets to a horizontal row-major shared-anchor layout', async () => {
+    const source = yaml.load(
+      await readFile(new URL('./asset-spec.yaml', import.meta.url), 'utf8'),
+    );
+    source.assets[0].frames = 4;
+    delete source.assets[0].frameLayout;
+    delete source.pipeline.atlas.extrusion;
+    delete source.pipeline.atlas.maxSize;
+    delete source.pipeline.approvalBlocks;
+
+    const validated = validateAssetSpec(source);
+
+    expect(validated.assets[0].frameLayout).toEqual({
+      columns: 4,
+      rows: 1,
+      order: 'row-major',
+      anchor: 'bottom-center',
+      trim: 'shared-scale',
+    });
+    expect(validated.pipeline.atlas.extrusion).toBe(0);
+    expect(validated.pipeline.atlas.maxSize).toBe(4096);
+    expect(validated.pipeline.approvalBlocks).toEqual([
+      'M1',
+      'mass-production',
+      'phaser-integration',
+    ]);
+  });
+
+  it('validates an explicit frame grid and atlas extrusion without silent fallback', async () => {
+    const source = yaml.load(
+      await readFile(new URL('./asset-spec.yaml', import.meta.url), 'utf8'),
+    );
+    source.assets[0].frames = 4;
+    source.assets[0].frameLayout = {
+      columns: 2,
+      rows: 2,
+      order: 'row-major',
+      anchor: 'bottom-center',
+      trim: 'shared-scale',
+    };
+    source.pipeline.atlas.extrusion = 1;
+    source.pipeline.atlas.maxSize = 2048;
+
+    expect(validateAssetSpec(source).assets[0].frameLayout).toEqual(source.assets[0].frameLayout);
+
+    const wrongCellCount = structuredClone(source);
+    wrongCellCount.assets[0].frameLayout.columns = 3;
+    expect(() => validateAssetSpec(wrongCellCount)).toThrow('frameLayout must contain exactly 4 cells');
+
+    const unsupportedOrder = structuredClone(source);
+    unsupportedOrder.assets[0].frameLayout.order = 'column-major';
+    expect(() => validateAssetSpec(unsupportedOrder)).toThrow('frameLayout.order');
+
+    const unsupportedField = structuredClone(source);
+    unsupportedField.assets[0].frameLayout.gap = 2;
+    expect(() => validateAssetSpec(unsupportedField)).toThrow('unsupported fields');
+
+    const invalidLayouts = [
+      ['columns', 0, 'positive integer'],
+      ['rows', 1.5, 'positive integer'],
+      ['anchor', 'center', 'bottom-center'],
+      ['trim', 'per-frame-scale', 'shared-scale'],
+    ];
+    for (const [field, value, message] of invalidLayouts) {
+      const invalid = structuredClone(source);
+      invalid.assets[0].frameLayout[field] = value;
+      expect(() => validateAssetSpec(invalid), field).toThrow(message);
+    }
+
+    for (const value of [-1, 1.5, 3]) {
+      const unsafeExtrusion = structuredClone(source);
+      unsafeExtrusion.pipeline.atlas.extrusion = value;
+      expect(() => validateAssetSpec(unsafeExtrusion), `extrusion=${value}`).toThrow();
+    }
+
+    for (const value of [63, 1000, 16384]) {
+      const unsafeMaxSize = structuredClone(source);
+      unsafeMaxSize.pipeline.atlas.maxSize = value;
+      expect(() => validateAssetSpec(unsafeMaxSize), `maxSize=${value}`).toThrow('maxSize');
+    }
+
+    for (const value of [[], ['G3', 'G3'], ['../G3'], 'G3']) {
+      const unsafeApprovalBlocks = structuredClone(source);
+      unsafeApprovalBlocks.pipeline.approvalBlocks = value;
+      expect(() => validateAssetSpec(unsafeApprovalBlocks)).toThrow('approvalBlocks');
     }
   });
 });

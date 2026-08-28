@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "project": "hyosan-memories",
+  "milestone": "G2",
+  "status": "approved",
+  "approvedAt": "2026-08-28T02:07:37Z",
+  "approvedBy": "user",
+  "scope": "G2 production assets: player halfbie, unnamed student zombie, nurse Kim Kyung-mi boss, cafeteria tileset and room reference",
+  "sourceManifestGeneratedAt": "2026-08-28T01:50:32.264Z",
+  "specSha256": "f742fc817f629648dcad8c71edfdbc6b9a58d97e20667ea9e6983c8c4ad87b9b",
+  "assets": [
+    {
+      "id": "player_halfbie_walk",
+      "sha256": "085d10294fdd2f51cbebf80531d29eeaabb837297f842a94739dbe16c3871314"
+    },
+    {
+      "id": "player_halfbie_attack_combo",
+      "sha256": "4eb3b2bbdb10671ddbf6dc3d5e6a520b1cfb7a7917c4cfcb6931c5ba205eb160"
+    },
+    {
+      "id": "student_zombie_run",
+      "sha256": "135b573d5900e78944ba10c8d7efa60860290be3207e47645443ed578da55594"
+    },
+    {
+      "id": "student_zombie_attack",
+      "sha256": "356a06a445a17c35e45770002f9c6627dcafc77cbdb0313acec5388a5d83a372"
+    },
+    {
+      "id": "nurse_kim_kyungmi_run",
+      "sha256": "47d46f3b610dc4fdcc445b7cfbd735affd4133b5e35d28e3f38d2991eb25409d"
+    },
+    {
+      "id": "nurse_kim_kyungmi_attack",
+      "sha256": "e8123a268a5b5edb0c4b0f2212c116ddaaffbdd244d1eb84b9ef6368b954198d"
+    },
+    {
+      "id": "cafeteria_tileset",
+      "sha256": "04299ce5ce3d14768e0db2749a28596954219bee1e90e25929030fc3d1e52a2b"
+    },
+    {
+      "id": "cafeteria_room_reference",
+      "sha256": "801bfaf3af9ea641a3d0b25cfa50c837a0b653ef147502ea2427ee85333d3761"
+    }
+  ],
+  "atlas": {
+    "image": "atlas/hyosan-memories-g2-sprites.png",
+    "sha256": "1098899f5a291a198baf69f74d9813cc088b8c000c498ddb8dbfc497872207f2",
+    "data": "atlas/hyosan-memories-g2-sprites.json",
+    "dataSha256": "ca8e97ad4a39506f31b2397694cfa1f63e75df04ecb2da1a6aaba7a1149960c1",
+    "frameCount": 136,
+    "padding": 4,
+    "extrusion": 1,
+    "maxSize": 4096
+  },
+  "unblocks": [
+    "G3"
+  ],
+  "execution": "Approval unlocks the G3 gate but does not itself start Phaser integration or user playtesting.",
+  "invalidation": "Any regenerated asset, changed spec hash, or changed atlas image/data hash requires a new user approval."
+}

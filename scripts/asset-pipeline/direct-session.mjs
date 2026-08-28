@@ -10,7 +10,10 @@ import {
 import { decodeUtf8Strict } from './strict-utf8.mjs';
 import { SHA256_PATTERN, validateVisionQaShape } from './vision-qa.mjs';
 
-const TECHNICAL_TRANSFORMS = new Set(['magenta-matte-to-alpha']);
+const TECHNICAL_TRANSFORMS = new Set([
+  'magenta-matte-to-alpha',
+  'magenta-matte-to-alpha-and-regrid',
+]);
 
 function assert(condition, message) {
   if (!condition) throw new Error(`Invalid direct imagegen session: ${message}`);

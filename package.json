@@ -13,7 +13,7 @@
     "test:hyosan-g1-browser": "node scripts/hyosan-g1-browser-smoke.mjs",
     "test:goods-payment-local-integration": "bash supabase/tests/goods_payment_route_integration.sh",
     "hong-sil:download": "node scripts/hong-sil-downloader.mjs",
-    "hyosan:assets:m0": "node scripts/asset-pipeline/index.mjs",
+    "hyosan:assets:g2": "node scripts/asset-pipeline/index.mjs",
     "postinstall": "mkdir -p public/box2d && cp node_modules/box2d-wasm/dist/es/Box2D.wasm node_modules/box2d-wasm/dist/es/Box2D.simd.wasm public/box2d/"
   },
   "dependencies": {

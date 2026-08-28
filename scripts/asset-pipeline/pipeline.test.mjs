@@ -224,10 +224,25 @@ describe('asset pipeline', () => {
       ['alpha', 'size', 'trim', 'frame', 'bbox', 'edges']
         .every((check) => check in technicalQa.checks)
     ))).toBe(true);
+    expect(result.manifest.assets[0].frameSpec).toEqual({
+      count: 1,
+      size: { width: 16, height: 16 },
+      layout: {
+        columns: 1,
+        rows: 1,
+        order: 'row-major',
+        anchor: 'bottom-center',
+        trim: 'shared-scale',
+      },
+    });
+    expect(result.manifest.assets.every(({ output, outputTechnicalQa }) => (
+      outputTechnicalQa.passed && outputTechnicalQa.sha256 === output.sha256
+    ))).toBe(true);
     expect(Object.keys(result.atlas.data.frames)).toEqual([
       'player_halfbie_concept',
       'student_zombie_concept',
     ]);
+    expect(result.manifest.atlas).toMatchObject({ padding: 2, extrusion: 0, maxSize: 4096 });
     const atlasData = await readFile(join(repositoryRoot, 'docs/output/atlas/fixture-atlas.json'));
     expect(result.manifest.atlas.dataSha256).toBe(
       createHash('sha256').update(atlasData).digest('hex'),
