@@ -31,6 +31,11 @@ Supabase 환경변수를 입력하지 않아도 로컬 개발 앱은 mock 데이
 
 `supabase/seed.sql`은 로컬 reset용 개발 데이터다. Production 공개 카탈로그 baseline은 immutable migration으로 관리하며, production 배포는 seed를 실행하지 않는다.
 
+로컬 Supabase를 연결할 때는 `npm run dev:local`을 사용한다. production build 방식은 `npm run build:local` 후 `npm run start:local -- -H 127.0.0.1 -p 3000`으로 실행한다. 두 경로 모두 Supabase CLI가 반환한 loopback URL과 키를 앱에 주입하고, 실행 전에 온보딩이 끝난 일반 사용자 계정을 생성하거나 원래 상태로 복구한다. service-role은 서버 프로세스에만 전달되며 Preview·Production에는 계정을 생성하지 않는다.
+
+- 이메일: `test@test.com`
+- 비밀번호: `testtest`
+
 ## 환경변수
 
 `.env.local.example`을 `.env.local`로 복사한 뒤 필요한 값만 채운다.
@@ -146,6 +151,9 @@ Production에서 이메일/PW 가입을 운영하려면 Supabase Auth custom SMT
 
 ```bash
 npm run dev    # 개발 서버
+npm run dev:local # 로컬 Supabase와 고정 테스트 계정을 연결한 개발 서버
+npm run build:local # 로컬 Supabase 값을 주입한 production build
+npm run start:local -- -H 127.0.0.1 -p 3000 # 위 build를 로컬 Supabase에 연결해 실행
 npm run test   # Vitest 단위 테스트
 npm run test:hyosan-g1-browser # 로컬 Supabase 값으로 자체 prod build 후 효산의 기억 인증·게임플레이 스모크
 npm run test:goods-payment-local-integration # full local Supabase Auth/API + Fake 결제 통합
