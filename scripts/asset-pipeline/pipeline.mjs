@@ -20,15 +20,15 @@ import {
   buildSpriteAtlas,
   inspectCandidate,
   normalizeAsset,
-  regridFrameSheet,
-  restoreMagentaTransparency,
 } from './image-processing.mjs';
+import { createModuleGridCatalog, repackModuleGrid } from './module-grid.mjs';
 import {
   assertContainedPath,
   copyFileAtomically,
   writeFileAtomically,
 } from './safe-paths.mjs';
 import { deepFreeze, loadAssetSpecDocument } from './spec.mjs';
+import { applyTechnicalTransform } from './technical-transforms.mjs';
 import { validateVisionQaForAsset } from './vision-qa.mjs';
 
 const GUARD_CONFIDENCE_THRESHOLD = 0.65;
@@ -475,6 +475,7 @@ export async function runAssetPipeline({
   return withOutputLock(root, outputDirectory, async (lockGuard) => {
     const selectedDirectory = join(outputDirectory, 'selected');
     const atlasDirectory = join(outputDirectory, 'atlas');
+    const modulesDirectory = join(outputDirectory, 'modules');
     await lockGuard.run(() => invalidateAssetManifest({
       repositoryRoot: root,
       outputDirectory,
@@ -492,6 +493,7 @@ export async function runAssetPipeline({
     await lockGuard.run(async () => {
       await ensureContainedDirectory(root, selectedDirectory, 'pipeline.outputDirectory');
       await ensureContainedDirectory(root, atlasDirectory, 'pipeline.outputDirectory');
+      await ensureContainedDirectory(root, modulesDirectory, 'pipeline.outputDirectory');
     });
     if (!activeRunner?.plan || !activeRunner?.generate
       || !activeRunner?.review || !activeRunner?.reviewOutput) {
@@ -533,18 +535,19 @@ export async function runAssetPipeline({
         await copyFileAtomically(generated.savedPath, candidatePath);
       }
       let generation = generated;
-      if (generated?.technicalTransform === 'magenta-matte-to-alpha') {
+      if (generated?.technicalTransform) {
         generation = {
           ...generated,
-          technicalTransformResult: await restoreMagentaTransparency(candidatePath),
+          technicalTransformResult: await applyTechnicalTransform(
+            generated.technicalTransform,
+            { candidatePath, asset },
+          ),
         };
-      } else if (generated?.technicalTransform === 'magenta-matte-to-alpha-and-regrid') {
+      }
+      if (asset.moduleGrid) {
         generation = {
-          ...generated,
-          technicalTransformResult: {
-            matte: await restoreMagentaTransparency(candidatePath),
-            regrid: await regridFrameSheet(candidatePath, asset),
-          },
+          ...generation,
+          moduleGridTransformResult: await repackModuleGrid(candidatePath, asset),
         };
       }
       generation = deepFreeze(generation);
@@ -691,6 +694,34 @@ export async function runAssetPipeline({
     imagePath: publishedAtlasImagePath,
     dataPath: publishedAtlasDataPath,
   };
+  const moduleCatalogs = new Map();
+  for (const [index, selection] of selections.entries()) {
+    if (!selection.asset.moduleGrid) continue;
+    const source = normalizedAssets[index];
+    const { catalog, canonicalJson, catalogSha256 } = createModuleGridCatalog({
+      sheetSha256: source.sha256,
+      requiredIds: selection.asset.moduleGrid.requiredIds,
+      modules: selection.asset.moduleGrid.modules.map(({ id, kind, cellRect, anchor }) => ({
+        id,
+        kind,
+        cellRect,
+        anchor,
+      })),
+    });
+    const catalogPath = join(modulesDirectory, `${selection.asset.id}-modules.json`);
+    await lockGuard.run(() => writeFileAtomically(catalogPath, canonicalJson));
+    const publishedSha256 = createHash('sha256')
+      .update(await readFile(catalogPath))
+      .digest('hex');
+    if (publishedSha256 !== catalogSha256) {
+      throw new Error(`Published module catalog SHA-256 changed for ${selection.asset.id}`);
+    }
+    moduleCatalogs.set(selection.asset.id, {
+      path: portableRelative(outputDirectory, catalogPath),
+      sha256: catalogSha256,
+      ...catalog,
+    });
+  }
   const manifestAssets = selections.map((selection, index) => ({
     id: selection.asset.id,
     label: selection.asset.label,
@@ -717,6 +748,9 @@ export async function runAssetPipeline({
     candidateVisionQa: selection.selected.visionQa,
     visionQa: selection.selected.outputVisionQa,
     generation: sanitizeGeneration(selection.selected.generation, root),
+    ...(moduleCatalogs.has(selection.asset.id)
+      ? { moduleCatalog: moduleCatalogs.get(selection.asset.id) }
+      : {}),
   }));
   const manifest = {
     schemaVersion: 1,
@@ -776,6 +810,13 @@ export async function runAssetPipeline({
   });
   await lockGuard.run(() => writeJson(join(outputDirectory, 'asset-manifest.json'), manifest));
 
-    return { manifest, qaReport, atlas, outputDirectory, runDirectory };
+    return {
+      manifest,
+      qaReport,
+      atlas,
+      moduleCatalogs,
+      outputDirectory,
+      runDirectory,
+    };
   });
 }

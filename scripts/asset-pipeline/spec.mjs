@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
 
 import { assetKindSupports, isSupportedAssetKind } from './asset-kinds.mjs';
+import { validateModuleGridSpec } from './module-grid.mjs';
 import { decodeUtf8Strict } from './strict-utf8.mjs';
 
 const ALPHA_POLICIES = new Set(['required', 'forbidden', 'optional']);
@@ -239,11 +240,17 @@ export function validateAssetSpec(input) {
     }
     assert(asset.qa.minBboxCoverage <= asset.qa.maxBboxCoverage,
       `${prefix}.qa bbox coverage range is inverted`);
+    const moduleGrid = asset.kind === 'tileset'
+      ? validateModuleGridSpec(asset.moduleGrid, targetSize)
+      : undefined;
+    assert(asset.kind === 'tileset' || asset.moduleGrid === undefined,
+      `${prefix}.moduleGrid is only supported for tileset assets`);
     return {
       ...asset,
       targetSize,
       frameLayout,
       qa: { ...asset.qa, minSourceSize },
+      ...(moduleGrid ? { moduleGrid } : {}),
     };
   });
 

@@ -179,6 +179,88 @@ assets:
       아이보리 다리, 버건디 이동식 의자와 흐트러진 변형, 식판·식기·물 반사 오버레이를
       각각 분리된 직교 탑다운 모듈로 배치한다. 투명 배경, 모듈 사이 충분한 여백,
       인물·시신·피·텍스트·일반 학교 재해석 없음.
+    moduleGrid:
+      tileSize: 64
+      columns: 16
+      rows: 16
+      requiredIds:
+        - floor_green_dry
+        - floor_green_scuffed
+        - floor_green_wet
+        - floor_orange_dry
+        - floor_orange_scuffed
+        - floor_orange_wet
+        - light_fluorescent
+        - tray_clean
+        - tray_stack
+        - tray_tilted
+        - cutlery_scatter
+        - food_spill
+        - water_reflection
+        - window_wide
+        - window_with_ac
+        - wall_beam_corner
+        - wall_vertical
+        - door_double_open
+        - door_double_closed
+        - serving_counter_wide
+        - serving_counter_corner
+        - roll_down_shutter
+        - sink_station
+        - serving_counter_left
+        - serving_counter_shutter
+        - bucket_station
+        - table_long
+        - table_medium
+        - table_short
+        - chair_straight
+        - chair_tilted
+        - chair_sideways
+        - chair_fallen
+        - wall_beam_horizontal
+        - equipment_station
+        - table_round_end
+        - table_endcap
+        - serving_sink_bank
+      modules:
+        - { id: floor_green_dry, kind: tile, sourceRect: { x: 24, y: 26, width: 93, height: 94 }, cellRect: { column: 1, row: 1, columns: 1, rows: 1 }, anchor: top-left }
+        - { id: floor_green_scuffed, kind: tile, sourceRect: { x: 134, y: 25, width: 94, height: 95 }, cellRect: { column: 2, row: 1, columns: 1, rows: 1 }, anchor: top-left }
+        - { id: floor_green_wet, kind: tile, sourceRect: { x: 247, y: 25, width: 93, height: 95 }, cellRect: { column: 3, row: 1, columns: 1, rows: 1 }, anchor: top-left }
+        - { id: floor_orange_dry, kind: tile, sourceRect: { x: 366, y: 25, width: 94, height: 95 }, cellRect: { column: 4, row: 1, columns: 1, rows: 1 }, anchor: top-left }
+        - { id: floor_orange_scuffed, kind: tile, sourceRect: { x: 479, y: 25, width: 93, height: 95 }, cellRect: { column: 5, row: 1, columns: 1, rows: 1 }, anchor: top-left }
+        - { id: floor_orange_wet, kind: tile, sourceRect: { x: 590, y: 25, width: 94, height: 95 }, cellRect: { column: 6, row: 1, columns: 1, rows: 1 }, anchor: top-left }
+        - { id: light_fluorescent, kind: fixture, sourceRect: { x: 35, y: 363, width: 98, height: 30 }, cellRect: { column: 7, row: 1, columns: 2, rows: 1 }, anchor: bottom-center }
+        - { id: tray_clean, kind: overlay, sourceRect: { x: 26, y: 902, width: 68, height: 54 }, cellRect: { column: 9, row: 1, columns: 1, rows: 1 }, anchor: bottom-center }
+        - { id: tray_stack, kind: overlay, sourceRect: { x: 127, y: 896, width: 51, height: 65 }, cellRect: { column: 10, row: 1, columns: 1, rows: 1 }, anchor: bottom-center }
+        - { id: tray_tilted, kind: overlay, sourceRect: { x: 213, y: 902, width: 55, height: 55 }, cellRect: { column: 11, row: 1, columns: 1, rows: 1 }, anchor: bottom-center }
+        - { id: cutlery_scatter, kind: overlay, sourceRect: { x: 292, y: 892, width: 60, height: 70 }, cellRect: { column: 12, row: 1, columns: 1, rows: 1 }, anchor: bottom-center }
+        - { id: food_spill, kind: overlay, sourceRect: { x: 365, y: 895, width: 245, height: 70 }, cellRect: { column: 13, row: 1, columns: 1, rows: 1 }, anchor: bottom-center }
+        - { id: water_reflection, kind: overlay, sourceRect: { x: 704, y: 894, width: 179, height: 80 }, cellRect: { column: 14, row: 1, columns: 1, rows: 1 }, anchor: bottom-center }
+        - { id: window_wide, kind: structure, sourceRect: { x: 22, y: 144, width: 265, height: 163 }, cellRect: { column: 1, row: 2, columns: 5, rows: 3 }, anchor: bottom-center }
+        - { id: window_with_ac, kind: structure, sourceRect: { x: 498, y: 145, width: 165, height: 162 }, cellRect: { column: 6, row: 2, columns: 3, rows: 3 }, anchor: bottom-center }
+        - { id: wall_beam_corner, kind: structure, sourceRect: { x: 714, y: 86, width: 225, height: 145 }, cellRect: { column: 9, row: 2, columns: 4, rows: 3 }, anchor: bottom-center }
+        - { id: wall_vertical, kind: structure, sourceRect: { x: 949, y: 24, width: 55, height: 140 }, cellRect: { column: 13, row: 2, columns: 2, rows: 3 }, anchor: bottom-center }
+        - { id: door_double_open, kind: structure, sourceRect: { x: 371, y: 329, width: 185, height: 146 }, cellRect: { column: 1, row: 5, columns: 3, rows: 3 }, anchor: bottom-center }
+        - { id: door_double_closed, kind: structure, sourceRect: { x: 164, y: 335, width: 176, height: 113 }, cellRect: { column: 4, row: 5, columns: 3, rows: 2 }, anchor: bottom-center }
+        - { id: serving_counter_wide, kind: fixture, sourceRect: { x: 229, y: 483, width: 216, height: 131 }, cellRect: { column: 7, row: 5, columns: 4, rows: 3 }, anchor: bottom-center }
+        - { id: serving_counter_corner, kind: fixture, sourceRect: { x: 475, y: 484, width: 149, height: 145 }, cellRect: { column: 11, row: 5, columns: 3, rows: 3 }, anchor: bottom-center }
+        - { id: roll_down_shutter, kind: fixture, sourceRect: { x: 634, y: 627, width: 208, height: 99 }, cellRect: { column: 1, row: 8, columns: 4, rows: 2 }, anchor: bottom-center }
+        - { id: sink_station, kind: fixture, sourceRect: { x: 856, y: 486, width: 127, height: 128 }, cellRect: { column: 5, row: 8, columns: 2, rows: 2 }, anchor: bottom-center }
+        - { id: serving_counter_left, kind: fixture, sourceRect: { x: 25, y: 476, width: 188, height: 135 }, cellRect: { column: 7, row: 8, columns: 3, rows: 3 }, anchor: bottom-center }
+        - { id: serving_counter_shutter, kind: fixture, sourceRect: { x: 648, y: 486, width: 195, height: 110 }, cellRect: { column: 10, row: 8, columns: 3, rows: 2 }, anchor: bottom-center }
+        - { id: bucket_station, kind: fixture, sourceRect: { x: 870, y: 642, width: 115, height: 89 }, cellRect: { column: 13, row: 8, columns: 2, rows: 2 }, anchor: bottom-center }
+        - { id: table_long, kind: object, sourceRect: { x: 24, y: 762, width: 195, height: 101 }, cellRect: { column: 1, row: 11, columns: 4, rows: 2 }, anchor: bottom-center }
+        - { id: table_medium, kind: object, sourceRect: { x: 239, y: 762, width: 144, height: 101 }, cellRect: { column: 5, row: 11, columns: 3, rows: 2 }, anchor: bottom-center }
+        - { id: table_short, kind: object, sourceRect: { x: 399, y: 762, width: 72, height: 101 }, cellRect: { column: 8, row: 11, columns: 2, rows: 2 }, anchor: bottom-center }
+        - { id: chair_straight, kind: object, sourceRect: { x: 690, y: 749, width: 47, height: 85 }, cellRect: { column: 10, row: 11, columns: 1, rows: 2 }, anchor: bottom-center }
+        - { id: chair_tilted, kind: object, sourceRect: { x: 763, y: 756, width: 52, height: 90 }, cellRect: { column: 11, row: 11, columns: 1, rows: 2 }, anchor: bottom-center }
+        - { id: chair_sideways, kind: object, sourceRect: { x: 842, y: 756, width: 47, height: 80 }, cellRect: { column: 12, row: 11, columns: 1, rows: 2 }, anchor: bottom-center }
+        - { id: chair_fallen, kind: object, sourceRect: { x: 914, y: 751, width: 65, height: 93 }, cellRect: { column: 13, row: 11, columns: 1, rows: 2 }, anchor: bottom-center }
+        - { id: wall_beam_horizontal, kind: structure, sourceRect: { x: 714, y: 24, width: 225, height: 51 }, cellRect: { column: 1, row: 13, columns: 4, rows: 1 }, anchor: bottom-center }
+        - { id: equipment_station, kind: fixture, sourceRect: { x: 27, y: 639, width: 176, height: 91 }, cellRect: { column: 5, row: 13, columns: 3, rows: 2 }, anchor: bottom-center }
+        - { id: table_round_end, kind: object, sourceRect: { x: 497, y: 762, width: 45, height: 103 }, cellRect: { column: 8, row: 13, columns: 1, rows: 2 }, anchor: bottom-center }
+        - { id: table_endcap, kind: object, sourceRect: { x: 574, y: 763, width: 66, height: 83 }, cellRect: { column: 9, row: 13, columns: 2, rows: 2 }, anchor: bottom-center }
+        - { id: serving_sink_bank, kind: fixture, sourceRect: { x: 432, y: 641, width: 165, height: 99 }, cellRect: { column: 11, row: 13, columns: 3, rows: 2 }, anchor: bottom-center }
     qa:
       minScore: 0.8
       minSourceFidelity: 0.85

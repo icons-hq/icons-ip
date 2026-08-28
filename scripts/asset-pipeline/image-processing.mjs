@@ -438,7 +438,13 @@ export async function regridFrameSheet(path, asset, options = {}) {
   };
 }
 
-function locateVisiblePixels(data, width, height, channels) {
+function measureVisibleRectangle(data, imageWidth, channels, rectangle) {
+  const {
+    left: rectangleLeft,
+    top: rectangleTop,
+    width,
+    height,
+  } = rectangle;
   let left = width;
   let top = height;
   let right = -1;
@@ -450,17 +456,20 @@ function locateVisiblePixels(data, width, height, channels) {
     ? width * height
     : (width * 2) + ((height - 2) * 2);
 
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const alpha = data[((y * width) + x) * channels + 3];
+  for (let localY = 0; localY < height; localY += 1) {
+    for (let localX = 0; localX < width; localX += 1) {
+      const x = rectangleLeft + localX;
+      const y = rectangleTop + localY;
+      const alpha = data[((y * imageWidth) + x) * channels + 3];
       if (alpha < 255) transparentPixels += 1;
       if (alpha <= VISIBLE_ALPHA) continue;
       visiblePixels += 1;
-      left = Math.min(left, x);
-      top = Math.min(top, y);
-      right = Math.max(right, x);
-      bottom = Math.max(bottom, y);
-      if (x === 0 || x === width - 1 || y === 0 || y === height - 1) {
+      left = Math.min(left, localX);
+      top = Math.min(top, localY);
+      right = Math.max(right, localX);
+      bottom = Math.max(bottom, localY);
+      if (localX === 0 || localX === width - 1
+        || localY === 0 || localY === height - 1) {
         opaqueEdgePixels += 1;
       }
     }
@@ -474,7 +483,17 @@ function locateVisiblePixels(data, width, height, channels) {
     visiblePixels,
     transparentPixels,
     opaqueEdgeRatio: edgePixels === 0 ? 0 : opaqueEdgePixels / edgePixels,
+    totalPixels: width * height,
   };
+}
+
+function locateVisiblePixels(data, width, height, channels) {
+  return measureVisibleRectangle(data, width, channels, {
+    left: 0,
+    top: 0,
+    width,
+    height,
+  });
 }
 
 function detectFrames(asset, image, data) {
@@ -492,45 +511,14 @@ function detectFrames(asset, image, data) {
   for (let index = 0; index < expected; index += 1) {
     const frameLeft = (index % columns) * frameWidth;
     const frameTop = Math.floor(index / columns) * frameHeight;
-    let left = frameWidth;
-    let top = frameHeight;
-    let right = -1;
-    let bottom = -1;
-    let visiblePixels = 0;
-    let transparentPixels = 0;
-    let opaqueEdgePixels = 0;
-    const edgePixels = frameWidth === 1 || frameHeight === 1
-      ? frameWidth * frameHeight
-      : (frameWidth * 2) + ((frameHeight - 2) * 2);
-    for (let y = frameTop; y < frameTop + frameHeight; y += 1) {
-      for (let x = frameLeft; x < frameLeft + frameWidth; x += 1) {
-        const alpha = data[((y * image.width) + x) * image.channels + 3];
-        if (alpha < 255) transparentPixels += 1;
-        if (alpha <= VISIBLE_ALPHA) continue;
-        visiblePixels += 1;
-        const localX = x - frameLeft;
-        const localY = y - frameTop;
-        left = Math.min(left, localX);
-        top = Math.min(top, localY);
-        right = Math.max(right, localX);
-        bottom = Math.max(bottom, localY);
-        if (localX === 0 || localX === frameWidth - 1
-          || localY === 0 || localY === frameHeight - 1) {
-          opaqueEdgePixels += 1;
-        }
-      }
-    }
-    if (visiblePixels === 0) empty.push(index);
-    const bbox = visiblePixels === 0
-      ? { left: 0, top: 0, width: 0, height: 0 }
-      : { left, top, width: right - left + 1, height: bottom - top + 1 };
-    framePixels.push({
-      bbox,
-      visiblePixels,
-      transparentPixels,
-      opaqueEdgeRatio: edgePixels === 0 ? 0 : opaqueEdgePixels / edgePixels,
-      totalPixels: frameWidth * frameHeight,
+    const pixels = measureVisibleRectangle(data, image.width, image.channels, {
+      left: frameLeft,
+      top: frameTop,
+      width: frameWidth,
+      height: frameHeight,
     });
+    if (pixels.visiblePixels === 0) empty.push(index);
+    framePixels.push(pixels);
   }
   return {
     detected: expected - empty.length,
@@ -712,9 +700,26 @@ async function normalizeFrameGrid(sourcePath, asset, frameLayout) {
 
   const maximumWidth = Math.max(...frames.map(({ bbox }) => bbox.width));
   const maximumHeight = Math.max(...frames.map(({ bbox }) => bbox.height));
+  const targetWidth = asset.targetSize.width;
+  const targetHeight = asset.targetSize.height;
+  const desiredPadding = Math.max(2, Math.ceil(Math.min(targetWidth, targetHeight) * 0.04));
+  const padding = Math.min(
+    desiredPadding,
+    Math.floor((Math.min(targetWidth, targetHeight) - 1) / 2),
+  );
+  const maximumSourceFrameArea = Math.max(
+    ...frames.map(({ bbox }) => bbox.width * bbox.height),
+  );
+  const fitScale = Math.min(
+    (targetWidth - (padding * 2)) / maximumWidth,
+    (targetHeight - (padding * 2)) / maximumHeight,
+  );
+  const coverageScale = Math.sqrt(
+    (asset.qa.maxBboxCoverage * targetWidth * targetHeight) / maximumSourceFrameArea,
+  );
   const sharedScale = Math.min(
-    asset.targetSize.width / maximumWidth,
-    asset.targetSize.height / maximumHeight,
+    fitScale,
+    coverageScale,
   );
   const normalizedFrames = [];
   for (const frame of frames) {
@@ -735,8 +740,8 @@ async function normalizeFrameGrid(sourcePath, asset, frameLayout) {
       },
     }).composite([{
       input: content,
-      left: Math.floor((asset.targetSize.width - width) / 2),
-      top: asset.targetSize.height - height,
+      left: Math.floor((targetWidth - width) / 2),
+      top: targetHeight - padding - height,
     }]).png({ compressionLevel: 9 }).toBuffer());
   }
 
@@ -777,11 +782,35 @@ async function inspectNormalizedOutput(path, asset, frameLayout) {
       ? !hasTransparency
       : pixels.visiblePixels > 0;
   const dimensionsPassed = raw.info.width === expectedWidth && raw.info.height === expectedHeight;
+  const frames = asset.frames ?? 1;
+  const frame = frames > 1
+    ? detectFrames({ ...asset, frames }, raw.info, raw.data)
+    : { detected: 1, passed: pixels.visiblePixels > 0, empty: [], pixels: [] };
+  const frameBboxes = frame.pixels.map((framePixel, index) => ({
+    index,
+    ...framePixel.bbox,
+    coverage: round(
+      (framePixel.bbox.width * framePixel.bbox.height) / framePixel.totalPixels,
+    ),
+  }));
+  const frameEdges = frame.pixels.map((framePixel, index) => ({
+    index,
+    opaqueRatio: round(framePixel.opaqueEdgeRatio),
+  }));
+  const framePassed = frames <= 1 || frame.passed;
+  const bboxPassed = frames <= 1 || frameBboxes.every(({ coverage }, index) => (
+    frame.pixels[index].visiblePixels > 0
+    && coverage >= asset.qa.minBboxCoverage
+    && coverage <= asset.qa.maxBboxCoverage
+  ));
+  const edgesPassed = frames <= 1 || frameEdges.every(
+    ({ opaqueRatio }) => opaqueRatio <= asset.qa.maxOpaqueEdgeRatio,
+  );
   return {
     schemaVersion: 1,
     assetId: asset.id,
     sha256: createHash('sha256').update(input).digest('hex'),
-    passed: alphaPassed && dimensionsPassed,
+    passed: alphaPassed && dimensionsPassed && framePassed && bboxPassed && edgesPassed,
     alpha: {
       passed: alphaPassed,
       policy: asset.alpha ?? 'inferred',
@@ -795,6 +824,25 @@ async function inspectNormalizedOutput(path, asset, frameLayout) {
       expectedWidth,
       expectedHeight,
     },
+    ...(frames > 1 ? {
+      frame: {
+        passed: framePassed,
+        expected: frames,
+        detected: frame.detected,
+        empty: frame.empty,
+      },
+      bbox: {
+        passed: bboxPassed,
+        minimumCoverage: asset.qa.minBboxCoverage,
+        maximumCoverage: asset.qa.maxBboxCoverage,
+        frames: frameBboxes,
+      },
+      edges: {
+        passed: edgesPassed,
+        maximumOpaqueRatio: asset.qa.maxOpaqueEdgeRatio,
+        frames: frameEdges,
+      },
+    } : {}),
   };
 }
 
@@ -835,9 +883,16 @@ export async function normalizeAsset(sourcePath, outputDirectory, asset) {
   const metadata = await sharp(outputPath, { failOn: 'error' }).metadata();
   const technicalQa = await inspectNormalizedOutput(outputPath, asset, frameLayout);
   if (!technicalQa.passed) {
-    const reason = asset.alpha === 'required' && !technicalQa.alpha.passed
-      ? 'required alpha policy'
-      : 'normalized dimensions';
+    let reason = 'normalized dimensions';
+    if (asset.alpha === 'required' && !technicalQa.alpha.passed) {
+      reason = 'required alpha policy';
+    } else if (technicalQa.frame && !technicalQa.frame.passed) {
+      reason = 'normalized frame policy';
+    } else if (technicalQa.bbox && !technicalQa.bbox.passed) {
+      reason = 'normalized frame bbox policy';
+    } else if (technicalQa.edges && !technicalQa.edges.passed) {
+      reason = 'normalized frame edge policy';
+    }
     throw new Error(`Normalized output for ${asset.id} failed ${reason}`);
   }
   return {

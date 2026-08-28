@@ -178,13 +178,14 @@ G1 그레이박스의 진실원은 1280×720 논리 월드와 `Phaser.Scale.FIT`
 | 학생 좀비 공격 | 128×128 | 4열×4행, 16프레임 | 방향마다 웅크림→팔 뻗기→최대 도달→회수 |
 | 김경미 보스 이동 | 192×192 | 6열×4행, 24프레임 | 남·서·북·동 행마다 경련 뒤 급가속 6프레임 |
 | 김경미 보스 공격 | 192×192 | 6열×4행, 24프레임 | 방향마다 준비→돌진→팔 뻗기→최대 도달→비틀림→회수 |
-| 급식실 모듈 세트 | 1024×1024 | 단일 투명 PNG | 64px 바닥·벽·배식구·문·테이블·의자·소도구 모듈 |
+| 급식실 모듈 세트 | 1024×1024 | 16열×16행 named module sheet | 64px 바닥·벽·배식구·문·테이블·의자·소도구 모듈 |
 | 급식실 조립 검수본 | 1280×720 | 단일 불투명 PNG | G1 카메라·동선과 시즌1 세트 충실도 검수 |
 
 - 모든 다중 프레임 시트는 row-major이며 방향 행은 **남·서·북·동** 순서다. 이름표·교표와 얼굴 비대칭이 뒤집히므로 동·서는 별도 authored frame이고 미러링하지 않는다.
-- 정규화는 각 셀을 독립 검출하되 전체 시트에서 가장 큰 visible bbox를 기준으로 공통 scale을 사용하고, 각 셀의 발을 `bottom-center` anchor에 맞춘다. 빈 셀·잘린 셀·과도한 가장자리 접촉은 실패한다.
+- 정규화는 각 셀을 독립 검출하되 전체 시트에서 가장 큰 visible bbox를 기준으로 공통 scale과 최소 4% safe padding을 사용하고, 각 셀의 발을 `bottom-center` anchor에 맞춘다. 정규화 출력도 다시 프레임·bbox·edge 기준으로 검사하며 빈 셀·잘린 셀·과도한 가장자리 접촉은 실패한다.
 - atlas key는 `<asset_id>_00`부터 row-major로 증가한다. padding 4px, extrusion 1px, 최대 변 4096px이며 상한 전 결정적으로 다음 행으로 줄바꿈한다. 단일 프레임은 기존 자산 id와 M0 byte 계약을 보존한다.
-- G2는 에셋·atlas·manifest·승인 기록까지만 소유한다. 정확한 스펙·PNG·atlas SHA-256에 대한 사용자 승인 전에는 G3(#343) Phaser 통합을 시작하지 않는다.
+- 급식실 tileset은 겹치지 않는 64px cell rect와 필수 named module을 검증해 재패킹한다. G3에는 내부 source crop을 숨기고 `modules/cafeteria_tileset-modules.json`의 이름·종류·cell/pixel rect·anchor만 공개한다. 바닥 반복 edge, 객체 gutter, 빈 모듈, catalog/PNG SHA 결속을 fail closed한다.
+- G2는 에셋·atlas·module catalog·manifest·승인 기록까지만 소유한다. 정확한 스펙·PNG·atlas·catalog SHA-256에 대한 사용자 승인 전에는 G3(#343) Phaser 통합을 시작하지 않는다.
 
 ## 7. 에셋 파이프라인 (확정)
 
@@ -195,8 +196,8 @@ asset-spec.yaml → CODEX PLANNER(현재 작업 세션) → imagegen 스킬 직�
   → TECHNICAL QA (alpha/size/trim/frame/bbox/edges — sharp, 결정론)
   → CANDIDATE VISION QA(현재 작업 세션 직접 검토·후보 SHA 결속)
   → score 부족 시 imagegen edit/regenerate (최대 N=3, 실패 시 BEST 후보 결정)
-  → Normalize/Trim → OUTPUT VISION QA(현재 작업 세션 직접 검토·최종 PNG SHA 결속)
-  → Sprite Atlas → Asset Manifest
+  → Safe-padding Normalize/Trim → OUTPUT VISION QA(현재 작업 세션 직접 검토·최종 PNG SHA 결속)
+  → Sprite Atlas + Named Module Catalog → Asset Manifest
   → Phaser Game → Playwright 실행 → 인게임 Screenshot → CODEX VISION QA → 현재 작업 세션 직접 수정 → DONE
 ```
 
@@ -247,7 +248,7 @@ assets:
 | **M1** | **급식실 버티컬 슬라이스**: 방 3~4개+웨이브+김경미 보스+구매권 목업 UI+모바일 조작 | 사용자 실플레이 |
 | **M2+** | 잔여 7스테이지 양산 · 컷인 3장+기억 카드 8장 · 구매권 서버 파이프 실장(#303 통합 후) · QA·폴리시 | 티켓별 |
 
-M1 내부 구현 게이트는 G1 그레이박스(#341) → G2 프로덕션 에셋·사용자 승인(#342) → G3 실제 에셋 Phaser 통합·사용자 실플레이(#343) 순서다. G2 배치는 2026-08-28 사용자 승인을 통과했으며 정확한 승인 해시는 `hyosan-memories-g2-assets/approval-record.json`이 정본이다. 이 승인은 G3 착수 허가이며 자동 통합을 뜻하지 않는다.
+M1 내부 구현 게이트는 G1 그레이박스(#341) → G2 프로덕션 에셋·사용자 승인(#342) → G3 실제 에셋 Phaser 통합·사용자 실플레이(#343) 순서다. 2026-08-28 최초 G2 승인본은 최종 리뷰에서 결함이 확인되어 `hyosan-memories-g2-assets/approval-history/2026-08-28T020737Z.json`에 이력으로 보존했다. 수정 배치는 새 해시 승인을 기다리는 `pending-user-approval` 상태이며, 새 `approval-record.json` 전에는 G3 착수 허가로 보지 않는다.
 
 ## 10. 그릴링을 거치지 않은 기본값 (리뷰에서 뒤집기 가능)
 

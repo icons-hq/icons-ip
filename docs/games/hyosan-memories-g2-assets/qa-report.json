@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-28T01:50:32.264Z",
+  "generatedAt": "2026-08-28T03:01:13.799Z",
   "summary": {
     "requested": 8,
     "passed": 8,
@@ -15,7 +15,7 @@
       "attempts": [
         {
           "attempt": 1,
-          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/player_halfbie_walk/attempt-01/candidate.png",
+          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/player_halfbie_walk/attempt-01/candidate.png",
           "generation": {
             "provider": "codex-app-built-in-imagegen",
             "mode": "direct-app-session",
@@ -58,12 +58,12 @@
                 }
               }
             },
-            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/player_halfbie_walk/attempt-01/candidate.png"
+            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/player_halfbie_walk/attempt-01/candidate.png"
           },
           "technicalQa": {
             "schemaVersion": 1,
             "assetId": "player_halfbie_walk",
-            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/player_halfbie_walk/attempt-01/candidate.png",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/player_halfbie_walk/attempt-01/candidate.png",
             "sha256": "cdaf888833fe960fe614c4aee07fa6ea22aa248529c005308bfdf73d56e98ba4",
             "format": "png",
             "passed": true,
@@ -576,22 +576,22 @@
               "width": 128,
               "height": 128
             },
-            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/player_halfbie_walk/attempt-01/normalized/player_halfbie_walk.png",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/player_halfbie_walk/attempt-01/normalized/player_halfbie_walk.png",
             "file": "player_halfbie_walk.png",
             "width": 768,
             "height": 512,
             "format": "png",
-            "sha256": "085d10294fdd2f51cbebf80531d29eeaabb837297f842a94739dbe16c3871314",
+            "sha256": "ba65090ece46cf3876cd679adf839652b80b5edf3f8b64747eb8305e9fc6592d",
             "technicalQa": {
               "schemaVersion": 1,
               "assetId": "player_halfbie_walk",
-              "sha256": "085d10294fdd2f51cbebf80531d29eeaabb837297f842a94739dbe16c3871314",
+              "sha256": "ba65090ece46cf3876cd679adf839652b80b5edf3f8b64747eb8305e9fc6592d",
               "passed": true,
               "alpha": {
                 "passed": true,
                 "policy": "required",
                 "hasAlpha": true,
-                "transparentRatio": 0.862879
+                "transparentRatio": 0.890124
               },
               "dimensions": {
                 "passed": true,
@@ -599,12 +599,319 @@
                 "height": 512,
                 "expectedWidth": 768,
                 "expectedHeight": 512
+              },
+              "frame": {
+                "passed": true,
+                "expected": 24,
+                "detected": 24,
+                "empty": []
+              },
+              "bbox": {
+                "passed": true,
+                "minimumCoverage": 0.12,
+                "maximumCoverage": 0.9,
+                "frames": [
+                  {
+                    "index": 0,
+                    "left": 41,
+                    "top": 7,
+                    "width": 45,
+                    "height": 115,
+                    "coverage": 0.315857
+                  },
+                  {
+                    "index": 1,
+                    "left": 41,
+                    "top": 7,
+                    "width": 45,
+                    "height": 115,
+                    "coverage": 0.315857
+                  },
+                  {
+                    "index": 2,
+                    "left": 41,
+                    "top": 6,
+                    "width": 45,
+                    "height": 116,
+                    "coverage": 0.318604
+                  },
+                  {
+                    "index": 3,
+                    "left": 40,
+                    "top": 6,
+                    "width": 47,
+                    "height": 116,
+                    "coverage": 0.332764
+                  },
+                  {
+                    "index": 4,
+                    "left": 40,
+                    "top": 6,
+                    "width": 47,
+                    "height": 116,
+                    "coverage": 0.332764
+                  },
+                  {
+                    "index": 5,
+                    "left": 41,
+                    "top": 6,
+                    "width": 46,
+                    "height": 116,
+                    "coverage": 0.325684
+                  },
+                  {
+                    "index": 6,
+                    "left": 35,
+                    "top": 15,
+                    "width": 58,
+                    "height": 107,
+                    "coverage": 0.378784
+                  },
+                  {
+                    "index": 7,
+                    "left": 34,
+                    "top": 15,
+                    "width": 60,
+                    "height": 107,
+                    "coverage": 0.391846
+                  },
+                  {
+                    "index": 8,
+                    "left": 35,
+                    "top": 14,
+                    "width": 58,
+                    "height": 108,
+                    "coverage": 0.382324
+                  },
+                  {
+                    "index": 9,
+                    "left": 36,
+                    "top": 15,
+                    "width": 56,
+                    "height": 107,
+                    "coverage": 0.365723
+                  },
+                  {
+                    "index": 10,
+                    "left": 36,
+                    "top": 15,
+                    "width": 56,
+                    "height": 107,
+                    "coverage": 0.365723
+                  },
+                  {
+                    "index": 11,
+                    "left": 36,
+                    "top": 15,
+                    "width": 56,
+                    "height": 107,
+                    "coverage": 0.365723
+                  },
+                  {
+                    "index": 12,
+                    "left": 42,
+                    "top": 11,
+                    "width": 43,
+                    "height": 111,
+                    "coverage": 0.291321
+                  },
+                  {
+                    "index": 13,
+                    "left": 43,
+                    "top": 11,
+                    "width": 41,
+                    "height": 111,
+                    "coverage": 0.277771
+                  },
+                  {
+                    "index": 14,
+                    "left": 44,
+                    "top": 12,
+                    "width": 40,
+                    "height": 110,
+                    "coverage": 0.268555
+                  },
+                  {
+                    "index": 15,
+                    "left": 43,
+                    "top": 11,
+                    "width": 41,
+                    "height": 111,
+                    "coverage": 0.277771
+                  },
+                  {
+                    "index": 16,
+                    "left": 44,
+                    "top": 11,
+                    "width": 40,
+                    "height": 111,
+                    "coverage": 0.270996
+                  },
+                  {
+                    "index": 17,
+                    "left": 43,
+                    "top": 10,
+                    "width": 42,
+                    "height": 112,
+                    "coverage": 0.287109
+                  },
+                  {
+                    "index": 18,
+                    "left": 38,
+                    "top": 15,
+                    "width": 51,
+                    "height": 107,
+                    "coverage": 0.333069
+                  },
+                  {
+                    "index": 19,
+                    "left": 37,
+                    "top": 13,
+                    "width": 53,
+                    "height": 109,
+                    "coverage": 0.3526
+                  },
+                  {
+                    "index": 20,
+                    "left": 37,
+                    "top": 13,
+                    "width": 53,
+                    "height": 109,
+                    "coverage": 0.3526
+                  },
+                  {
+                    "index": 21,
+                    "left": 37,
+                    "top": 13,
+                    "width": 53,
+                    "height": 109,
+                    "coverage": 0.3526
+                  },
+                  {
+                    "index": 22,
+                    "left": 39,
+                    "top": 16,
+                    "width": 50,
+                    "height": 106,
+                    "coverage": 0.323486
+                  },
+                  {
+                    "index": 23,
+                    "left": 39,
+                    "top": 16,
+                    "width": 50,
+                    "height": 106,
+                    "coverage": 0.323486
+                  }
+                ]
+              },
+              "edges": {
+                "passed": true,
+                "maximumOpaqueRatio": 0.02,
+                "frames": [
+                  {
+                    "index": 0,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 1,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 2,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 3,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 4,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 5,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 6,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 7,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 8,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 9,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 10,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 11,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 12,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 13,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 14,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 15,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 16,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 17,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 18,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 19,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 20,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 21,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 22,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 23,
+                    "opaqueRatio": 0
+                  }
+                ]
               }
             }
           },
           "outputVisionQa": {
             "assetId": "player_halfbie_walk",
-            "reviewedSha256": "085d10294fdd2f51cbebf80531d29eeaabb837297f842a94739dbe16c3871314",
+            "reviewedSha256": "ba65090ece46cf3876cd679adf839652b80b5edf3f8b64747eb8305e9fc6592d",
             "dimensions": {
               "sourceFidelity": {
                 "applicable": true,
@@ -674,7 +981,7 @@
       "attempts": [
         {
           "attempt": 1,
-          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/player_halfbie_attack_combo/attempt-01/candidate.png",
+          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/player_halfbie_attack_combo/attempt-01/candidate.png",
           "generation": {
             "provider": "codex-app-built-in-imagegen",
             "mode": "direct-app-session",
@@ -717,12 +1024,12 @@
                 }
               }
             },
-            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/player_halfbie_attack_combo/attempt-01/candidate.png"
+            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/player_halfbie_attack_combo/attempt-01/candidate.png"
           },
           "technicalQa": {
             "schemaVersion": 1,
             "assetId": "player_halfbie_attack_combo",
-            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/player_halfbie_attack_combo/attempt-01/candidate.png",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/player_halfbie_attack_combo/attempt-01/candidate.png",
             "sha256": "391011bfcfa424623c8083814136082a6c44ddc35eb006540175fa415217741a",
             "format": "png",
             "passed": true,
@@ -1235,22 +1542,22 @@
               "width": 128,
               "height": 128
             },
-            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/player_halfbie_attack_combo/attempt-01/normalized/player_halfbie_attack_combo.png",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/player_halfbie_attack_combo/attempt-01/normalized/player_halfbie_attack_combo.png",
             "file": "player_halfbie_attack_combo.png",
             "width": 768,
             "height": 512,
             "format": "png",
-            "sha256": "4eb3b2bbdb10671ddbf6dc3d5e6a520b1cfb7a7917c4cfcb6931c5ba205eb160",
+            "sha256": "af077e7d0907745a224161a2e5a3cc7cb4db0451a5d1e9009079f751106bed0c",
             "technicalQa": {
               "schemaVersion": 1,
               "assetId": "player_halfbie_attack_combo",
-              "sha256": "4eb3b2bbdb10671ddbf6dc3d5e6a520b1cfb7a7917c4cfcb6931c5ba205eb160",
+              "sha256": "af077e7d0907745a224161a2e5a3cc7cb4db0451a5d1e9009079f751106bed0c",
               "passed": true,
               "alpha": {
                 "passed": true,
                 "policy": "required",
                 "hasAlpha": true,
-                "transparentRatio": 0.840164
+                "transparentRatio": 0.871788
               },
               "dimensions": {
                 "passed": true,
@@ -1258,12 +1565,319 @@
                 "height": 512,
                 "expectedWidth": 768,
                 "expectedHeight": 512
+              },
+              "frame": {
+                "passed": true,
+                "expected": 24,
+                "detected": 24,
+                "empty": []
+              },
+              "bbox": {
+                "passed": true,
+                "minimumCoverage": 0.12,
+                "maximumCoverage": 0.9,
+                "frames": [
+                  {
+                    "index": 0,
+                    "left": 31,
+                    "top": 6,
+                    "width": 66,
+                    "height": 116,
+                    "coverage": 0.467285
+                  },
+                  {
+                    "index": 1,
+                    "left": 30,
+                    "top": 7,
+                    "width": 68,
+                    "height": 115,
+                    "coverage": 0.477295
+                  },
+                  {
+                    "index": 2,
+                    "left": 30,
+                    "top": 6,
+                    "width": 67,
+                    "height": 116,
+                    "coverage": 0.474365
+                  },
+                  {
+                    "index": 3,
+                    "left": 30,
+                    "top": 7,
+                    "width": 68,
+                    "height": 115,
+                    "coverage": 0.477295
+                  },
+                  {
+                    "index": 4,
+                    "left": 25,
+                    "top": 6,
+                    "width": 77,
+                    "height": 116,
+                    "coverage": 0.545166
+                  },
+                  {
+                    "index": 5,
+                    "left": 26,
+                    "top": 7,
+                    "width": 75,
+                    "height": 115,
+                    "coverage": 0.526428
+                  },
+                  {
+                    "index": 6,
+                    "left": 27,
+                    "top": 11,
+                    "width": 73,
+                    "height": 111,
+                    "coverage": 0.494568
+                  },
+                  {
+                    "index": 7,
+                    "left": 18,
+                    "top": 11,
+                    "width": 91,
+                    "height": 111,
+                    "coverage": 0.616516
+                  },
+                  {
+                    "index": 8,
+                    "left": 27,
+                    "top": 9,
+                    "width": 73,
+                    "height": 113,
+                    "coverage": 0.503479
+                  },
+                  {
+                    "index": 9,
+                    "left": 20,
+                    "top": 10,
+                    "width": 88,
+                    "height": 112,
+                    "coverage": 0.601563
+                  },
+                  {
+                    "index": 10,
+                    "left": 26,
+                    "top": 9,
+                    "width": 76,
+                    "height": 113,
+                    "coverage": 0.52417
+                  },
+                  {
+                    "index": 11,
+                    "left": 20,
+                    "top": 10,
+                    "width": 87,
+                    "height": 112,
+                    "coverage": 0.594727
+                  },
+                  {
+                    "index": 12,
+                    "left": 32,
+                    "top": 8,
+                    "width": 63,
+                    "height": 114,
+                    "coverage": 0.438354
+                  },
+                  {
+                    "index": 13,
+                    "left": 23,
+                    "top": 8,
+                    "width": 81,
+                    "height": 114,
+                    "coverage": 0.563599
+                  },
+                  {
+                    "index": 14,
+                    "left": 32,
+                    "top": 9,
+                    "width": 63,
+                    "height": 113,
+                    "coverage": 0.434509
+                  },
+                  {
+                    "index": 15,
+                    "left": 23,
+                    "top": 8,
+                    "width": 81,
+                    "height": 114,
+                    "coverage": 0.563599
+                  },
+                  {
+                    "index": 16,
+                    "left": 29,
+                    "top": 9,
+                    "width": 70,
+                    "height": 113,
+                    "coverage": 0.482788
+                  },
+                  {
+                    "index": 17,
+                    "left": 21,
+                    "top": 8,
+                    "width": 85,
+                    "height": 114,
+                    "coverage": 0.591431
+                  },
+                  {
+                    "index": 18,
+                    "left": 29,
+                    "top": 9,
+                    "width": 70,
+                    "height": 113,
+                    "coverage": 0.482788
+                  },
+                  {
+                    "index": 19,
+                    "left": 31,
+                    "top": 9,
+                    "width": 66,
+                    "height": 113,
+                    "coverage": 0.4552
+                  },
+                  {
+                    "index": 20,
+                    "left": 29,
+                    "top": 9,
+                    "width": 70,
+                    "height": 113,
+                    "coverage": 0.482788
+                  },
+                  {
+                    "index": 21,
+                    "left": 31,
+                    "top": 9,
+                    "width": 66,
+                    "height": 113,
+                    "coverage": 0.4552
+                  },
+                  {
+                    "index": 22,
+                    "left": 27,
+                    "top": 7,
+                    "width": 73,
+                    "height": 115,
+                    "coverage": 0.51239
+                  },
+                  {
+                    "index": 23,
+                    "left": 23,
+                    "top": 7,
+                    "width": 82,
+                    "height": 115,
+                    "coverage": 0.575562
+                  }
+                ]
+              },
+              "edges": {
+                "passed": true,
+                "maximumOpaqueRatio": 0.02,
+                "frames": [
+                  {
+                    "index": 0,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 1,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 2,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 3,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 4,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 5,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 6,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 7,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 8,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 9,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 10,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 11,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 12,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 13,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 14,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 15,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 16,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 17,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 18,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 19,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 20,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 21,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 22,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 23,
+                    "opaqueRatio": 0
+                  }
+                ]
               }
             }
           },
           "outputVisionQa": {
             "assetId": "player_halfbie_attack_combo",
-            "reviewedSha256": "4eb3b2bbdb10671ddbf6dc3d5e6a520b1cfb7a7917c4cfcb6931c5ba205eb160",
+            "reviewedSha256": "af077e7d0907745a224161a2e5a3cc7cb4db0451a5d1e9009079f751106bed0c",
             "dimensions": {
               "sourceFidelity": {
                 "applicable": true,
@@ -1333,7 +1947,7 @@
       "attempts": [
         {
           "attempt": 1,
-          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/student_zombie_run/attempt-01/candidate.png",
+          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/student_zombie_run/attempt-01/candidate.png",
           "generation": {
             "provider": "codex-app-built-in-imagegen",
             "mode": "direct-app-session",
@@ -1376,12 +1990,12 @@
                 }
               }
             },
-            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/student_zombie_run/attempt-01/candidate.png"
+            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/student_zombie_run/attempt-01/candidate.png"
           },
           "technicalQa": {
             "schemaVersion": 1,
             "assetId": "student_zombie_run",
-            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/student_zombie_run/attempt-01/candidate.png",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/student_zombie_run/attempt-01/candidate.png",
             "sha256": "c6f2fc8d6ca3eebb9d58951ee534991b63446e2534b78a9dd2ae2c1ccd2e379b",
             "format": "png",
             "passed": true,
@@ -1894,22 +2508,22 @@
               "width": 128,
               "height": 128
             },
-            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/student_zombie_run/attempt-01/normalized/student_zombie_run.png",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/student_zombie_run/attempt-01/normalized/student_zombie_run.png",
             "file": "student_zombie_run.png",
             "width": 768,
             "height": 512,
             "format": "png",
-            "sha256": "135b573d5900e78944ba10c8d7efa60860290be3207e47645443ed578da55594",
+            "sha256": "1a86b57a7e638d289d7a1dc8dafc754ae2b64e43246267c259bb433195286fa4",
             "technicalQa": {
               "schemaVersion": 1,
               "assetId": "student_zombie_run",
-              "sha256": "135b573d5900e78944ba10c8d7efa60860290be3207e47645443ed578da55594",
+              "sha256": "1a86b57a7e638d289d7a1dc8dafc754ae2b64e43246267c259bb433195286fa4",
               "passed": true,
               "alpha": {
                 "passed": true,
                 "policy": "required",
                 "hasAlpha": true,
-                "transparentRatio": 0.825747
+                "transparentRatio": 0.86144
               },
               "dimensions": {
                 "passed": true,
@@ -1917,12 +2531,319 @@
                 "height": 512,
                 "expectedWidth": 768,
                 "expectedHeight": 512
+              },
+              "frame": {
+                "passed": true,
+                "expected": 24,
+                "detected": 24,
+                "empty": []
+              },
+              "bbox": {
+                "passed": true,
+                "minimumCoverage": 0.12,
+                "maximumCoverage": 0.9,
+                "frames": [
+                  {
+                    "index": 0,
+                    "left": 23,
+                    "top": 7,
+                    "width": 82,
+                    "height": 115,
+                    "coverage": 0.575562
+                  },
+                  {
+                    "index": 1,
+                    "left": 26,
+                    "top": 7,
+                    "width": 75,
+                    "height": 115,
+                    "coverage": 0.526428
+                  },
+                  {
+                    "index": 2,
+                    "left": 22,
+                    "top": 9,
+                    "width": 83,
+                    "height": 113,
+                    "coverage": 0.572449
+                  },
+                  {
+                    "index": 3,
+                    "left": 19,
+                    "top": 18,
+                    "width": 90,
+                    "height": 104,
+                    "coverage": 0.571289
+                  },
+                  {
+                    "index": 4,
+                    "left": 20,
+                    "top": 9,
+                    "width": 87,
+                    "height": 113,
+                    "coverage": 0.600037
+                  },
+                  {
+                    "index": 5,
+                    "left": 25,
+                    "top": 10,
+                    "width": 77,
+                    "height": 112,
+                    "coverage": 0.526367
+                  },
+                  {
+                    "index": 6,
+                    "left": 20,
+                    "top": 14,
+                    "width": 88,
+                    "height": 108,
+                    "coverage": 0.580078
+                  },
+                  {
+                    "index": 7,
+                    "left": 23,
+                    "top": 18,
+                    "width": 81,
+                    "height": 104,
+                    "coverage": 0.51416
+                  },
+                  {
+                    "index": 8,
+                    "left": 28,
+                    "top": 16,
+                    "width": 72,
+                    "height": 106,
+                    "coverage": 0.46582
+                  },
+                  {
+                    "index": 9,
+                    "left": 28,
+                    "top": 18,
+                    "width": 71,
+                    "height": 104,
+                    "coverage": 0.450684
+                  },
+                  {
+                    "index": 10,
+                    "left": 19,
+                    "top": 19,
+                    "width": 90,
+                    "height": 103,
+                    "coverage": 0.565796
+                  },
+                  {
+                    "index": 11,
+                    "left": 20,
+                    "top": 18,
+                    "width": 87,
+                    "height": 104,
+                    "coverage": 0.552246
+                  },
+                  {
+                    "index": 12,
+                    "left": 31,
+                    "top": 7,
+                    "width": 65,
+                    "height": 115,
+                    "coverage": 0.456238
+                  },
+                  {
+                    "index": 13,
+                    "left": 25,
+                    "top": 7,
+                    "width": 78,
+                    "height": 115,
+                    "coverage": 0.547485
+                  },
+                  {
+                    "index": 14,
+                    "left": 29,
+                    "top": 11,
+                    "width": 69,
+                    "height": 111,
+                    "coverage": 0.467468
+                  },
+                  {
+                    "index": 15,
+                    "left": 27,
+                    "top": 9,
+                    "width": 74,
+                    "height": 113,
+                    "coverage": 0.510376
+                  },
+                  {
+                    "index": 16,
+                    "left": 24,
+                    "top": 6,
+                    "width": 79,
+                    "height": 116,
+                    "coverage": 0.559326
+                  },
+                  {
+                    "index": 17,
+                    "left": 27,
+                    "top": 13,
+                    "width": 73,
+                    "height": 109,
+                    "coverage": 0.485657
+                  },
+                  {
+                    "index": 18,
+                    "left": 26,
+                    "top": 9,
+                    "width": 75,
+                    "height": 113,
+                    "coverage": 0.517273
+                  },
+                  {
+                    "index": 19,
+                    "left": 31,
+                    "top": 11,
+                    "width": 66,
+                    "height": 111,
+                    "coverage": 0.447144
+                  },
+                  {
+                    "index": 20,
+                    "left": 27,
+                    "top": 11,
+                    "width": 73,
+                    "height": 111,
+                    "coverage": 0.494568
+                  },
+                  {
+                    "index": 21,
+                    "left": 25,
+                    "top": 9,
+                    "width": 77,
+                    "height": 113,
+                    "coverage": 0.531067
+                  },
+                  {
+                    "index": 22,
+                    "left": 27,
+                    "top": 12,
+                    "width": 74,
+                    "height": 110,
+                    "coverage": 0.496826
+                  },
+                  {
+                    "index": 23,
+                    "left": 28,
+                    "top": 12,
+                    "width": 72,
+                    "height": 110,
+                    "coverage": 0.483398
+                  }
+                ]
+              },
+              "edges": {
+                "passed": true,
+                "maximumOpaqueRatio": 0.02,
+                "frames": [
+                  {
+                    "index": 0,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 1,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 2,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 3,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 4,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 5,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 6,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 7,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 8,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 9,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 10,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 11,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 12,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 13,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 14,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 15,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 16,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 17,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 18,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 19,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 20,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 21,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 22,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 23,
+                    "opaqueRatio": 0
+                  }
+                ]
               }
             }
           },
           "outputVisionQa": {
             "assetId": "student_zombie_run",
-            "reviewedSha256": "135b573d5900e78944ba10c8d7efa60860290be3207e47645443ed578da55594",
+            "reviewedSha256": "1a86b57a7e638d289d7a1dc8dafc754ae2b64e43246267c259bb433195286fa4",
             "dimensions": {
               "sourceFidelity": {
                 "applicable": true,
@@ -1992,7 +2913,7 @@
       "attempts": [
         {
           "attempt": 1,
-          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/student_zombie_attack/attempt-01/candidate.png",
+          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/student_zombie_attack/attempt-01/candidate.png",
           "generation": {
             "provider": "codex-app-built-in-imagegen",
             "mode": "direct-app-session",
@@ -2035,12 +2956,12 @@
                 }
               }
             },
-            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/student_zombie_attack/attempt-01/candidate.png"
+            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/student_zombie_attack/attempt-01/candidate.png"
           },
           "technicalQa": {
             "schemaVersion": 1,
             "assetId": "student_zombie_attack",
-            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/student_zombie_attack/attempt-01/candidate.png",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/student_zombie_attack/attempt-01/candidate.png",
             "sha256": "26ff562eb017a7b9ab59428935ea89951ace830ad6197962930d622a0e85c5b4",
             "format": "png",
             "passed": true,
@@ -2425,22 +3346,22 @@
               "width": 128,
               "height": 128
             },
-            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/student_zombie_attack/attempt-01/normalized/student_zombie_attack.png",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/student_zombie_attack/attempt-01/normalized/student_zombie_attack.png",
             "file": "student_zombie_attack.png",
             "width": 512,
             "height": 512,
             "format": "png",
-            "sha256": "356a06a445a17c35e45770002f9c6627dcafc77cbdb0313acec5388a5d83a372",
+            "sha256": "51459397f455993c4859ca10fe19051c2fff26d22d7e1470075c951c0e196a9e",
             "technicalQa": {
               "schemaVersion": 1,
               "assetId": "student_zombie_attack",
-              "sha256": "356a06a445a17c35e45770002f9c6627dcafc77cbdb0313acec5388a5d83a372",
+              "sha256": "51459397f455993c4859ca10fe19051c2fff26d22d7e1470075c951c0e196a9e",
               "passed": true,
               "alpha": {
                 "passed": true,
                 "policy": "required",
                 "hasAlpha": true,
-                "transparentRatio": 0.809662
+                "transparentRatio": 0.84687
               },
               "dimensions": {
                 "passed": true,
@@ -2448,12 +3369,223 @@
                 "height": 512,
                 "expectedWidth": 512,
                 "expectedHeight": 512
+              },
+              "frame": {
+                "passed": true,
+                "expected": 16,
+                "detected": 16,
+                "empty": []
+              },
+              "bbox": {
+                "passed": true,
+                "minimumCoverage": 0.12,
+                "maximumCoverage": 0.9,
+                "frames": [
+                  {
+                    "index": 0,
+                    "left": 34,
+                    "top": 22,
+                    "width": 59,
+                    "height": 100,
+                    "coverage": 0.360107
+                  },
+                  {
+                    "index": 1,
+                    "left": 17,
+                    "top": 21,
+                    "width": 93,
+                    "height": 101,
+                    "coverage": 0.573303
+                  },
+                  {
+                    "index": 2,
+                    "left": 11,
+                    "top": 20,
+                    "width": 106,
+                    "height": 102,
+                    "coverage": 0.659912
+                  },
+                  {
+                    "index": 3,
+                    "left": 33,
+                    "top": 20,
+                    "width": 62,
+                    "height": 102,
+                    "coverage": 0.385986
+                  },
+                  {
+                    "index": 4,
+                    "left": 31,
+                    "top": 17,
+                    "width": 65,
+                    "height": 105,
+                    "coverage": 0.416565
+                  },
+                  {
+                    "index": 5,
+                    "left": 14,
+                    "top": 17,
+                    "width": 100,
+                    "height": 105,
+                    "coverage": 0.640869
+                  },
+                  {
+                    "index": 6,
+                    "left": 6,
+                    "top": 15,
+                    "width": 116,
+                    "height": 107,
+                    "coverage": 0.757568
+                  },
+                  {
+                    "index": 7,
+                    "left": 30,
+                    "top": 17,
+                    "width": 68,
+                    "height": 105,
+                    "coverage": 0.435791
+                  },
+                  {
+                    "index": 8,
+                    "left": 34,
+                    "top": 15,
+                    "width": 60,
+                    "height": 107,
+                    "coverage": 0.391846
+                  },
+                  {
+                    "index": 9,
+                    "left": 21,
+                    "top": 16,
+                    "width": 85,
+                    "height": 106,
+                    "coverage": 0.549927
+                  },
+                  {
+                    "index": 10,
+                    "left": 14,
+                    "top": 16,
+                    "width": 100,
+                    "height": 106,
+                    "coverage": 0.646973
+                  },
+                  {
+                    "index": 11,
+                    "left": 32,
+                    "top": 15,
+                    "width": 63,
+                    "height": 107,
+                    "coverage": 0.411438
+                  },
+                  {
+                    "index": 12,
+                    "left": 29,
+                    "top": 14,
+                    "width": 70,
+                    "height": 108,
+                    "coverage": 0.461426
+                  },
+                  {
+                    "index": 13,
+                    "left": 15,
+                    "top": 14,
+                    "width": 97,
+                    "height": 108,
+                    "coverage": 0.639404
+                  },
+                  {
+                    "index": 14,
+                    "left": 8,
+                    "top": 14,
+                    "width": 112,
+                    "height": 108,
+                    "coverage": 0.738281
+                  },
+                  {
+                    "index": 15,
+                    "left": 28,
+                    "top": 14,
+                    "width": 72,
+                    "height": 108,
+                    "coverage": 0.474609
+                  }
+                ]
+              },
+              "edges": {
+                "passed": true,
+                "maximumOpaqueRatio": 0.02,
+                "frames": [
+                  {
+                    "index": 0,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 1,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 2,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 3,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 4,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 5,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 6,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 7,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 8,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 9,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 10,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 11,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 12,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 13,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 14,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 15,
+                    "opaqueRatio": 0
+                  }
+                ]
               }
             }
           },
           "outputVisionQa": {
             "assetId": "student_zombie_attack",
-            "reviewedSha256": "356a06a445a17c35e45770002f9c6627dcafc77cbdb0313acec5388a5d83a372",
+            "reviewedSha256": "51459397f455993c4859ca10fe19051c2fff26d22d7e1470075c951c0e196a9e",
             "dimensions": {
               "sourceFidelity": {
                 "applicable": true,
@@ -2523,7 +3655,7 @@
       "attempts": [
         {
           "attempt": 1,
-          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/nurse_kim_kyungmi_run/attempt-01/candidate.png",
+          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/nurse_kim_kyungmi_run/attempt-01/candidate.png",
           "generation": {
             "provider": "codex-app-built-in-imagegen",
             "mode": "direct-app-session",
@@ -2566,12 +3698,12 @@
                 }
               }
             },
-            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/nurse_kim_kyungmi_run/attempt-01/candidate.png"
+            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/nurse_kim_kyungmi_run/attempt-01/candidate.png"
           },
           "technicalQa": {
             "schemaVersion": 1,
             "assetId": "nurse_kim_kyungmi_run",
-            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/nurse_kim_kyungmi_run/attempt-01/candidate.png",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/nurse_kim_kyungmi_run/attempt-01/candidate.png",
             "sha256": "e824a0a40c77dba3dea74b4537a1d144bb3e578523f90886c5958fa711b24590",
             "format": "png",
             "passed": true,
@@ -3084,22 +4216,22 @@
               "width": 192,
               "height": 192
             },
-            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/nurse_kim_kyungmi_run/attempt-01/normalized/nurse_kim_kyungmi_run.png",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/nurse_kim_kyungmi_run/attempt-01/normalized/nurse_kim_kyungmi_run.png",
             "file": "nurse_kim_kyungmi_run.png",
             "width": 1152,
             "height": 768,
             "format": "png",
-            "sha256": "47d46f3b610dc4fdcc445b7cfbd735affd4133b5e35d28e3f38d2991eb25409d",
+            "sha256": "dd12c3bfdef6819f6393cb49f5e2bebd42f643384d217cd7858ecd8f5a38ec4f",
             "technicalQa": {
               "schemaVersion": 1,
               "assetId": "nurse_kim_kyungmi_run",
-              "sha256": "47d46f3b610dc4fdcc445b7cfbd735affd4133b5e35d28e3f38d2991eb25409d",
+              "sha256": "dd12c3bfdef6819f6393cb49f5e2bebd42f643384d217cd7858ecd8f5a38ec4f",
               "passed": true,
               "alpha": {
                 "passed": true,
                 "policy": "required",
                 "hasAlpha": true,
-                "transparentRatio": 0.792991
+                "transparentRatio": 0.825912
               },
               "dimensions": {
                 "passed": true,
@@ -3107,12 +4239,319 @@
                 "height": 768,
                 "expectedWidth": 1152,
                 "expectedHeight": 768
+              },
+              "frame": {
+                "passed": true,
+                "expected": 24,
+                "detected": 24,
+                "empty": []
+              },
+              "bbox": {
+                "passed": true,
+                "minimumCoverage": 0.1,
+                "maximumCoverage": 0.9,
+                "frames": [
+                  {
+                    "index": 0,
+                    "left": 47,
+                    "top": 11,
+                    "width": 98,
+                    "height": 173,
+                    "coverage": 0.459907
+                  },
+                  {
+                    "index": 1,
+                    "left": 45,
+                    "top": 10,
+                    "width": 102,
+                    "height": 174,
+                    "coverage": 0.481445
+                  },
+                  {
+                    "index": 2,
+                    "left": 48,
+                    "top": 9,
+                    "width": 96,
+                    "height": 175,
+                    "coverage": 0.455729
+                  },
+                  {
+                    "index": 3,
+                    "left": 49,
+                    "top": 8,
+                    "width": 93,
+                    "height": 176,
+                    "coverage": 0.44401
+                  },
+                  {
+                    "index": 4,
+                    "left": 54,
+                    "top": 14,
+                    "width": 83,
+                    "height": 170,
+                    "coverage": 0.382758
+                  },
+                  {
+                    "index": 5,
+                    "left": 64,
+                    "top": 10,
+                    "width": 64,
+                    "height": 174,
+                    "coverage": 0.302083
+                  },
+                  {
+                    "index": 6,
+                    "left": 53,
+                    "top": 17,
+                    "width": 85,
+                    "height": 167,
+                    "coverage": 0.385064
+                  },
+                  {
+                    "index": 7,
+                    "left": 46,
+                    "top": 17,
+                    "width": 99,
+                    "height": 167,
+                    "coverage": 0.448486
+                  },
+                  {
+                    "index": 8,
+                    "left": 46,
+                    "top": 17,
+                    "width": 100,
+                    "height": 167,
+                    "coverage": 0.453016
+                  },
+                  {
+                    "index": 9,
+                    "left": 40,
+                    "top": 17,
+                    "width": 111,
+                    "height": 167,
+                    "coverage": 0.502848
+                  },
+                  {
+                    "index": 10,
+                    "left": 51,
+                    "top": 16,
+                    "width": 89,
+                    "height": 168,
+                    "coverage": 0.405599
+                  },
+                  {
+                    "index": 11,
+                    "left": 65,
+                    "top": 16,
+                    "width": 62,
+                    "height": 168,
+                    "coverage": 0.282552
+                  },
+                  {
+                    "index": 12,
+                    "left": 50,
+                    "top": 20,
+                    "width": 91,
+                    "height": 164,
+                    "coverage": 0.404839
+                  },
+                  {
+                    "index": 13,
+                    "left": 49,
+                    "top": 18,
+                    "width": 93,
+                    "height": 166,
+                    "coverage": 0.418783
+                  },
+                  {
+                    "index": 14,
+                    "left": 51,
+                    "top": 13,
+                    "width": 90,
+                    "height": 171,
+                    "coverage": 0.41748
+                  },
+                  {
+                    "index": 15,
+                    "left": 47,
+                    "top": 28,
+                    "width": 97,
+                    "height": 156,
+                    "coverage": 0.410482
+                  },
+                  {
+                    "index": 16,
+                    "left": 48,
+                    "top": 24,
+                    "width": 96,
+                    "height": 160,
+                    "coverage": 0.416667
+                  },
+                  {
+                    "index": 17,
+                    "left": 65,
+                    "top": 19,
+                    "width": 62,
+                    "height": 165,
+                    "coverage": 0.277507
+                  },
+                  {
+                    "index": 18,
+                    "left": 56,
+                    "top": 10,
+                    "width": 80,
+                    "height": 174,
+                    "coverage": 0.377604
+                  },
+                  {
+                    "index": 19,
+                    "left": 50,
+                    "top": 9,
+                    "width": 92,
+                    "height": 175,
+                    "coverage": 0.43674
+                  },
+                  {
+                    "index": 20,
+                    "left": 50,
+                    "top": 10,
+                    "width": 92,
+                    "height": 174,
+                    "coverage": 0.434245
+                  },
+                  {
+                    "index": 21,
+                    "left": 50,
+                    "top": 10,
+                    "width": 92,
+                    "height": 174,
+                    "coverage": 0.434245
+                  },
+                  {
+                    "index": 22,
+                    "left": 50,
+                    "top": 14,
+                    "width": 91,
+                    "height": 170,
+                    "coverage": 0.419651
+                  },
+                  {
+                    "index": 23,
+                    "left": 66,
+                    "top": 10,
+                    "width": 60,
+                    "height": 174,
+                    "coverage": 0.283203
+                  }
+                ]
+              },
+              "edges": {
+                "passed": true,
+                "maximumOpaqueRatio": 0.02,
+                "frames": [
+                  {
+                    "index": 0,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 1,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 2,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 3,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 4,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 5,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 6,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 7,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 8,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 9,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 10,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 11,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 12,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 13,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 14,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 15,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 16,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 17,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 18,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 19,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 20,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 21,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 22,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 23,
+                    "opaqueRatio": 0
+                  }
+                ]
               }
             }
           },
           "outputVisionQa": {
             "assetId": "nurse_kim_kyungmi_run",
-            "reviewedSha256": "47d46f3b610dc4fdcc445b7cfbd735affd4133b5e35d28e3f38d2991eb25409d",
+            "reviewedSha256": "dd12c3bfdef6819f6393cb49f5e2bebd42f643384d217cd7858ecd8f5a38ec4f",
             "dimensions": {
               "sourceFidelity": {
                 "applicable": true,
@@ -3182,7 +4621,7 @@
       "attempts": [
         {
           "attempt": 1,
-          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/nurse_kim_kyungmi_attack/attempt-01/candidate.png",
+          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/nurse_kim_kyungmi_attack/attempt-01/candidate.png",
           "generation": {
             "provider": "codex-app-built-in-imagegen",
             "mode": "direct-app-session",
@@ -3225,12 +4664,12 @@
                 }
               }
             },
-            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/nurse_kim_kyungmi_attack/attempt-01/candidate.png"
+            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/nurse_kim_kyungmi_attack/attempt-01/candidate.png"
           },
           "technicalQa": {
             "schemaVersion": 1,
             "assetId": "nurse_kim_kyungmi_attack",
-            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/nurse_kim_kyungmi_attack/attempt-01/candidate.png",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/nurse_kim_kyungmi_attack/attempt-01/candidate.png",
             "sha256": "08c772443d37c77acb029138c6067744c89cd399e6ab07259ab11c6131f09e0f",
             "format": "png",
             "passed": true,
@@ -3743,22 +5182,22 @@
               "width": 192,
               "height": 192
             },
-            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/nurse_kim_kyungmi_attack/attempt-01/normalized/nurse_kim_kyungmi_attack.png",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/nurse_kim_kyungmi_attack/attempt-01/normalized/nurse_kim_kyungmi_attack.png",
             "file": "nurse_kim_kyungmi_attack.png",
             "width": 1152,
             "height": 768,
             "format": "png",
-            "sha256": "e8123a268a5b5edb0c4b0f2212c116ddaaffbdd244d1eb84b9ef6368b954198d",
+            "sha256": "3ed6c7a88081577282ad21675be3e1e3357c94bd8878dab5b16b0dd29fa618dc",
             "technicalQa": {
               "schemaVersion": 1,
               "assetId": "nurse_kim_kyungmi_attack",
-              "sha256": "e8123a268a5b5edb0c4b0f2212c116ddaaffbdd244d1eb84b9ef6368b954198d",
+              "sha256": "3ed6c7a88081577282ad21675be3e1e3357c94bd8878dab5b16b0dd29fa618dc",
               "passed": true,
               "alpha": {
                 "passed": true,
                 "policy": "required",
                 "hasAlpha": true,
-                "transparentRatio": 0.773813
+                "transparentRatio": 0.80988
               },
               "dimensions": {
                 "passed": true,
@@ -3766,12 +5205,319 @@
                 "height": 768,
                 "expectedWidth": 1152,
                 "expectedHeight": 768
+              },
+              "frame": {
+                "passed": true,
+                "expected": 24,
+                "detected": 24,
+                "empty": []
+              },
+              "bbox": {
+                "passed": true,
+                "minimumCoverage": 0.1,
+                "maximumCoverage": 0.9,
+                "frames": [
+                  {
+                    "index": 0,
+                    "left": 51,
+                    "top": 17,
+                    "width": 90,
+                    "height": 167,
+                    "coverage": 0.407715
+                  },
+                  {
+                    "index": 1,
+                    "left": 47,
+                    "top": 20,
+                    "width": 98,
+                    "height": 164,
+                    "coverage": 0.435981
+                  },
+                  {
+                    "index": 2,
+                    "left": 35,
+                    "top": 19,
+                    "width": 122,
+                    "height": 165,
+                    "coverage": 0.546061
+                  },
+                  {
+                    "index": 3,
+                    "left": 28,
+                    "top": 16,
+                    "width": 136,
+                    "height": 168,
+                    "coverage": 0.619792
+                  },
+                  {
+                    "index": 4,
+                    "left": 27,
+                    "top": 17,
+                    "width": 137,
+                    "height": 167,
+                    "coverage": 0.620633
+                  },
+                  {
+                    "index": 5,
+                    "left": 58,
+                    "top": 15,
+                    "width": 75,
+                    "height": 169,
+                    "coverage": 0.343831
+                  },
+                  {
+                    "index": 6,
+                    "left": 57,
+                    "top": 16,
+                    "width": 77,
+                    "height": 168,
+                    "coverage": 0.350911
+                  },
+                  {
+                    "index": 7,
+                    "left": 39,
+                    "top": 20,
+                    "width": 113,
+                    "height": 164,
+                    "coverage": 0.502713
+                  },
+                  {
+                    "index": 8,
+                    "left": 20,
+                    "top": 20,
+                    "width": 151,
+                    "height": 164,
+                    "coverage": 0.671766
+                  },
+                  {
+                    "index": 9,
+                    "left": 16,
+                    "top": 21,
+                    "width": 160,
+                    "height": 163,
+                    "coverage": 0.707465
+                  },
+                  {
+                    "index": 10,
+                    "left": 24,
+                    "top": 24,
+                    "width": 143,
+                    "height": 160,
+                    "coverage": 0.62066
+                  },
+                  {
+                    "index": 11,
+                    "left": 70,
+                    "top": 15,
+                    "width": 51,
+                    "height": 169,
+                    "coverage": 0.233805
+                  },
+                  {
+                    "index": 12,
+                    "left": 54,
+                    "top": 27,
+                    "width": 83,
+                    "height": 157,
+                    "coverage": 0.353488
+                  },
+                  {
+                    "index": 13,
+                    "left": 39,
+                    "top": 28,
+                    "width": 113,
+                    "height": 156,
+                    "coverage": 0.47819
+                  },
+                  {
+                    "index": 14,
+                    "left": 43,
+                    "top": 25,
+                    "width": 106,
+                    "height": 159,
+                    "coverage": 0.457194
+                  },
+                  {
+                    "index": 15,
+                    "left": 41,
+                    "top": 24,
+                    "width": 109,
+                    "height": 160,
+                    "coverage": 0.47309
+                  },
+                  {
+                    "index": 16,
+                    "left": 37,
+                    "top": 32,
+                    "width": 117,
+                    "height": 152,
+                    "coverage": 0.482422
+                  },
+                  {
+                    "index": 17,
+                    "left": 60,
+                    "top": 28,
+                    "width": 71,
+                    "height": 156,
+                    "coverage": 0.300456
+                  },
+                  {
+                    "index": 18,
+                    "left": 60,
+                    "top": 8,
+                    "width": 71,
+                    "height": 176,
+                    "coverage": 0.338976
+                  },
+                  {
+                    "index": 19,
+                    "left": 34,
+                    "top": 13,
+                    "width": 123,
+                    "height": 171,
+                    "coverage": 0.570557
+                  },
+                  {
+                    "index": 20,
+                    "left": 27,
+                    "top": 11,
+                    "width": 138,
+                    "height": 173,
+                    "coverage": 0.647624
+                  },
+                  {
+                    "index": 21,
+                    "left": 21,
+                    "top": 8,
+                    "width": 149,
+                    "height": 176,
+                    "coverage": 0.711372
+                  },
+                  {
+                    "index": 22,
+                    "left": 25,
+                    "top": 16,
+                    "width": 141,
+                    "height": 168,
+                    "coverage": 0.642578
+                  },
+                  {
+                    "index": 23,
+                    "left": 72,
+                    "top": 9,
+                    "width": 48,
+                    "height": 175,
+                    "coverage": 0.227865
+                  }
+                ]
+              },
+              "edges": {
+                "passed": true,
+                "maximumOpaqueRatio": 0.02,
+                "frames": [
+                  {
+                    "index": 0,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 1,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 2,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 3,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 4,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 5,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 6,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 7,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 8,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 9,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 10,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 11,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 12,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 13,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 14,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 15,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 16,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 17,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 18,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 19,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 20,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 21,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 22,
+                    "opaqueRatio": 0
+                  },
+                  {
+                    "index": 23,
+                    "opaqueRatio": 0
+                  }
+                ]
               }
             }
           },
           "outputVisionQa": {
             "assetId": "nurse_kim_kyungmi_attack",
-            "reviewedSha256": "e8123a268a5b5edb0c4b0f2212c116ddaaffbdd244d1eb84b9ef6368b954198d",
+            "reviewedSha256": "3ed6c7a88081577282ad21675be3e1e3357c94bd8878dab5b16b0dd29fa618dc",
             "dimensions": {
               "sourceFidelity": {
                 "applicable": true,
@@ -3841,7 +5587,7 @@
       "attempts": [
         {
           "attempt": 1,
-          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/cafeteria_tileset/attempt-01/candidate.png",
+          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/cafeteria_tileset/attempt-01/candidate.png",
           "generation": {
             "provider": "codex-app-built-in-imagegen",
             "mode": "direct-app-session",
@@ -3863,13 +5609,476 @@
               "interiorChromaReplacedPixels": 301,
               "alphaFeatherPixels": 2
             },
-            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/cafeteria_tileset/attempt-01/candidate.png"
+            "moduleGridTransformResult": {
+              "applied": true,
+              "transform": "module-grid-repack",
+              "tileSize": 64,
+              "columns": 16,
+              "rows": 16,
+              "modules": [
+                {
+                  "id": "bucket_station",
+                  "visiblePixels": 7844,
+                  "transparentPixels": 9519,
+                  "bbox": {
+                    "left": 6,
+                    "top": 37,
+                    "width": 115,
+                    "height": 89
+                  }
+                },
+                {
+                  "id": "chair_fallen",
+                  "visiblePixels": 2337,
+                  "transparentPixels": 6789,
+                  "bbox": {
+                    "left": 2,
+                    "top": 40,
+                    "width": 60,
+                    "height": 86
+                  }
+                },
+                {
+                  "id": "chair_sideways",
+                  "visiblePixels": 1725,
+                  "transparentPixels": 7298,
+                  "bbox": {
+                    "left": 8,
+                    "top": 46,
+                    "width": 47,
+                    "height": 80
+                  }
+                },
+                {
+                  "id": "chair_straight",
+                  "visiblePixels": 2734,
+                  "transparentPixels": 6165,
+                  "bbox": {
+                    "left": 8,
+                    "top": 41,
+                    "width": 47,
+                    "height": 85
+                  }
+                },
+                {
+                  "id": "chair_tilted",
+                  "visiblePixels": 2558,
+                  "transparentPixels": 6447,
+                  "bbox": {
+                    "left": 6,
+                    "top": 36,
+                    "width": 52,
+                    "height": 90
+                  }
+                },
+                {
+                  "id": "cutlery_scatter",
+                  "visiblePixels": 686,
+                  "transparentPixels": 3959,
+                  "bbox": {
+                    "left": 10,
+                    "top": 6,
+                    "width": 42,
+                    "height": 46
+                  }
+                },
+                {
+                  "id": "door_double_closed",
+                  "visiblePixels": 19671,
+                  "transparentPixels": 6278,
+                  "bbox": {
+                    "left": 8,
+                    "top": 13,
+                    "width": 176,
+                    "height": 113
+                  }
+                },
+                {
+                  "id": "door_double_open",
+                  "visiblePixels": 7947,
+                  "transparentPixels": 31278,
+                  "bbox": {
+                    "left": 3,
+                    "top": 44,
+                    "width": 185,
+                    "height": 146
+                  }
+                },
+                {
+                  "id": "equipment_station",
+                  "visiblePixels": 14986,
+                  "transparentPixels": 11072,
+                  "bbox": {
+                    "left": 8,
+                    "top": 35,
+                    "width": 176,
+                    "height": 91
+                  }
+                },
+                {
+                  "id": "floor_green_dry",
+                  "visiblePixels": 4096,
+                  "transparentPixels": 0,
+                  "bbox": {
+                    "left": 0,
+                    "top": 0,
+                    "width": 64,
+                    "height": 64
+                  },
+                  "edgeContinuity": {
+                    "passed": true,
+                    "maximumMeanDifference": 64,
+                    "horizontalMean": 14.516,
+                    "verticalMean": 7.641
+                  }
+                },
+                {
+                  "id": "floor_green_scuffed",
+                  "visiblePixels": 4096,
+                  "transparentPixels": 0,
+                  "bbox": {
+                    "left": 0,
+                    "top": 0,
+                    "width": 64,
+                    "height": 64
+                  },
+                  "edgeContinuity": {
+                    "passed": true,
+                    "maximumMeanDifference": 64,
+                    "horizontalMean": 29.724,
+                    "verticalMean": 16.031
+                  }
+                },
+                {
+                  "id": "floor_green_wet",
+                  "visiblePixels": 4096,
+                  "transparentPixels": 0,
+                  "bbox": {
+                    "left": 0,
+                    "top": 0,
+                    "width": 64,
+                    "height": 64
+                  },
+                  "edgeContinuity": {
+                    "passed": true,
+                    "maximumMeanDifference": 64,
+                    "horizontalMean": 7.693,
+                    "verticalMean": 19.656
+                  }
+                },
+                {
+                  "id": "floor_orange_dry",
+                  "visiblePixels": 4096,
+                  "transparentPixels": 0,
+                  "bbox": {
+                    "left": 0,
+                    "top": 0,
+                    "width": 64,
+                    "height": 64
+                  },
+                  "edgeContinuity": {
+                    "passed": true,
+                    "maximumMeanDifference": 64,
+                    "horizontalMean": 11.656,
+                    "verticalMean": 17.38
+                  }
+                },
+                {
+                  "id": "floor_orange_scuffed",
+                  "visiblePixels": 4096,
+                  "transparentPixels": 0,
+                  "bbox": {
+                    "left": 0,
+                    "top": 0,
+                    "width": 64,
+                    "height": 64
+                  },
+                  "edgeContinuity": {
+                    "passed": true,
+                    "maximumMeanDifference": 64,
+                    "horizontalMean": 27.604,
+                    "verticalMean": 22.938
+                  }
+                },
+                {
+                  "id": "floor_orange_wet",
+                  "visiblePixels": 4096,
+                  "transparentPixels": 0,
+                  "bbox": {
+                    "left": 0,
+                    "top": 0,
+                    "width": 64,
+                    "height": 64
+                  },
+                  "edgeContinuity": {
+                    "passed": true,
+                    "maximumMeanDifference": 64,
+                    "horizontalMean": 12,
+                    "verticalMean": 11.526
+                  }
+                },
+                {
+                  "id": "food_spill",
+                  "visiblePixels": 260,
+                  "transparentPixels": 4086,
+                  "bbox": {
+                    "left": 3,
+                    "top": 47,
+                    "width": 59,
+                    "height": 12
+                  }
+                },
+                {
+                  "id": "light_fluorescent",
+                  "visiblePixels": 2898,
+                  "transparentPixels": 5949,
+                  "bbox": {
+                    "left": 15,
+                    "top": 32,
+                    "width": 98,
+                    "height": 30
+                  }
+                },
+                {
+                  "id": "roll_down_shutter",
+                  "visiblePixels": 15486,
+                  "transparentPixels": 18496,
+                  "bbox": {
+                    "left": 24,
+                    "top": 27,
+                    "width": 208,
+                    "height": 99
+                  }
+                },
+                {
+                  "id": "serving_counter_corner",
+                  "visiblePixels": 18509,
+                  "transparentPixels": 19691,
+                  "bbox": {
+                    "left": 21,
+                    "top": 45,
+                    "width": 149,
+                    "height": 145
+                  }
+                },
+                {
+                  "id": "serving_counter_left",
+                  "visiblePixels": 24043,
+                  "transparentPixels": 14392,
+                  "bbox": {
+                    "left": 2,
+                    "top": 55,
+                    "width": 188,
+                    "height": 135
+                  }
+                },
+                {
+                  "id": "serving_counter_shutter",
+                  "visiblePixels": 18973,
+                  "transparentPixels": 7110,
+                  "bbox": {
+                    "left": 2,
+                    "top": 20,
+                    "width": 188,
+                    "height": 106
+                  }
+                },
+                {
+                  "id": "serving_counter_wide",
+                  "visiblePixels": 26751,
+                  "transparentPixels": 24249,
+                  "bbox": {
+                    "left": 20,
+                    "top": 59,
+                    "width": 216,
+                    "height": 131
+                  }
+                },
+                {
+                  "id": "serving_sink_bank",
+                  "visiblePixels": 15317,
+                  "transparentPixels": 10330,
+                  "bbox": {
+                    "left": 13,
+                    "top": 27,
+                    "width": 165,
+                    "height": 99
+                  }
+                },
+                {
+                  "id": "sink_station",
+                  "visiblePixels": 14428,
+                  "transparentPixels": 3393,
+                  "bbox": {
+                    "left": 2,
+                    "top": 2,
+                    "width": 123,
+                    "height": 124
+                  }
+                },
+                {
+                  "id": "table_endcap",
+                  "visiblePixels": 3586,
+                  "transparentPixels": 13714,
+                  "bbox": {
+                    "left": 31,
+                    "top": 43,
+                    "width": 66,
+                    "height": 83
+                  }
+                },
+                {
+                  "id": "table_long",
+                  "visiblePixels": 14055,
+                  "transparentPixels": 20037,
+                  "bbox": {
+                    "left": 30,
+                    "top": 25,
+                    "width": 195,
+                    "height": 101
+                  }
+                },
+                {
+                  "id": "table_medium",
+                  "visiblePixels": 10478,
+                  "transparentPixels": 15283,
+                  "bbox": {
+                    "left": 24,
+                    "top": 25,
+                    "width": 144,
+                    "height": 101
+                  }
+                },
+                {
+                  "id": "table_round_end",
+                  "visiblePixels": 2992,
+                  "transparentPixels": 5851,
+                  "bbox": {
+                    "left": 9,
+                    "top": 23,
+                    "width": 45,
+                    "height": 103
+                  }
+                },
+                {
+                  "id": "table_short",
+                  "visiblePixels": 5278,
+                  "transparentPixels": 11905,
+                  "bbox": {
+                    "left": 28,
+                    "top": 25,
+                    "width": 72,
+                    "height": 101
+                  }
+                },
+                {
+                  "id": "tray_clean",
+                  "visiblePixels": 2839,
+                  "transparentPixels": 1778,
+                  "bbox": {
+                    "left": 2,
+                    "top": 14,
+                    "width": 60,
+                    "height": 48
+                  }
+                },
+                {
+                  "id": "tray_stack",
+                  "visiblePixels": 2733,
+                  "transparentPixels": 1931,
+                  "bbox": {
+                    "left": 8,
+                    "top": 2,
+                    "width": 47,
+                    "height": 60
+                  }
+                },
+                {
+                  "id": "tray_tilted",
+                  "visiblePixels": 2331,
+                  "transparentPixels": 2258,
+                  "bbox": {
+                    "left": 4,
+                    "top": 7,
+                    "width": 55,
+                    "height": 55
+                  }
+                },
+                {
+                  "id": "wall_beam_corner",
+                  "visiblePixels": 22085,
+                  "transparentPixels": 29692,
+                  "bbox": {
+                    "left": 15,
+                    "top": 45,
+                    "width": 225,
+                    "height": 145
+                  }
+                },
+                {
+                  "id": "wall_beam_horizontal",
+                  "visiblePixels": 10840,
+                  "transparentPixels": 6671,
+                  "bbox": {
+                    "left": 15,
+                    "top": 11,
+                    "width": 225,
+                    "height": 51
+                  }
+                },
+                {
+                  "id": "wall_vertical",
+                  "visiblePixels": 5294,
+                  "transparentPixels": 20221,
+                  "bbox": {
+                    "left": 36,
+                    "top": 50,
+                    "width": 55,
+                    "height": 140
+                  }
+                },
+                {
+                  "id": "water_reflection",
+                  "visiblePixels": 551,
+                  "transparentPixels": 4081,
+                  "bbox": {
+                    "left": 2,
+                    "top": 35,
+                    "width": 60,
+                    "height": 27
+                  }
+                },
+                {
+                  "id": "window_wide",
+                  "visiblePixels": 41425,
+                  "transparentPixels": 22224,
+                  "bbox": {
+                    "left": 27,
+                    "top": 27,
+                    "width": 265,
+                    "height": 163
+                  }
+                },
+                {
+                  "id": "window_with_ac",
+                  "visiblePixels": 26138,
+                  "transparentPixels": 12277,
+                  "bbox": {
+                    "left": 13,
+                    "top": 28,
+                    "width": 165,
+                    "height": 162
+                  }
+                }
+              ]
+            },
+            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/cafeteria_tileset/attempt-01/candidate.png"
           },
           "technicalQa": {
             "schemaVersion": 1,
             "assetId": "cafeteria_tileset",
-            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/cafeteria_tileset/attempt-01/candidate.png",
-            "sha256": "c78ebc9cc97305e148970c2b7dddaa5fbfd0918d3735ce910ea2a35b2f8c4a5c",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/cafeteria_tileset/attempt-01/candidate.png",
+            "sha256": "820026e0967730e28c93e1c2687d8cab18e53d7781bf226b86e2fb49f45ef183",
             "format": "png",
             "passed": true,
             "checks": {
@@ -3877,19 +6086,19 @@
                 "passed": true,
                 "policy": "required",
                 "hasAlpha": true,
-                "transparentRatio": 0.556462
+                "transparentRatio": 0.679573
               },
               "size": {
                 "passed": true,
-                "width": 1254,
-                "height": 1254,
+                "width": 1024,
+                "height": 1024,
                 "minimumWidth": 1024,
                 "minimumHeight": 1024
               },
               "trim": {
                 "passed": true,
                 "applicable": false,
-                "removablePixelRatio": 0.111026
+                "removablePixelRatio": 0.237789
               },
               "frame": {
                 "passed": true,
@@ -3899,11 +6108,11 @@
               },
               "bbox": {
                 "passed": true,
-                "left": 27,
-                "top": 29,
-                "width": 1202,
-                "height": 1163,
-                "coverage": 0.888974,
+                "left": 64,
+                "top": 64,
+                "width": 894,
+                "height": 894,
+                "coverage": 0.762211,
                 "minimumCoverage": 0.35,
                 "maximumCoverage": 0.95
               },
@@ -3916,7 +6125,7 @@
           },
           "visionQa": {
             "assetId": "cafeteria_tileset",
-            "reviewedSha256": "c78ebc9cc97305e148970c2b7dddaa5fbfd0918d3735ce910ea2a35b2f8c4a5c",
+            "reviewedSha256": "820026e0967730e28c93e1c2687d8cab18e53d7781bf226b86e2fb49f45ef183",
             "dimensions": {
               "sourceFidelity": {
                 "applicable": true,
@@ -3935,13 +6144,13 @@
               },
               "topdownAngle": {
                 "applicable": true,
-                "score": 0.92,
-                "notes": "바닥·가구·벽 모듈이 직교 탑다운 조립에 맞게 분리된다."
+                "score": 0.94,
+                "notes": "바닥·가구·벽 모듈이 64px 셀 경계에 맞춘 직교 탑다운 조립 단위로 분리된다."
               },
               "gameplayReadability": {
                 "applicable": true,
-                "score": 0.93,
-                "notes": "모듈 간 여백과 기능별 실루엣이 명확하다."
+                "score": 0.96,
+                "notes": "명명형 모듈이 겹치지 않고 열린·닫힌 양문과 배식대·가구 실루엣이 명확하다."
               },
               "animationConsistency": {
                 "applicable": false,
@@ -3967,7 +6176,7 @@
               }
             },
             "feedback": [],
-            "score": 0.9225,
+            "score": 0.935,
             "minimumScore": 0.8,
             "sourceFidelityScore": 0.93,
             "minimumSourceFidelity": 0.85,
@@ -3991,22 +6200,22 @@
               "width": 1024,
               "height": 1024
             },
-            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/cafeteria_tileset/attempt-01/normalized/cafeteria_tileset.png",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/cafeteria_tileset/attempt-01/normalized/cafeteria_tileset.png",
             "file": "cafeteria_tileset.png",
             "width": 1024,
             "height": 1024,
             "format": "png",
-            "sha256": "04299ce5ce3d14768e0db2749a28596954219bee1e90e25929030fc3d1e52a2b",
+            "sha256": "820026e0967730e28c93e1c2687d8cab18e53d7781bf226b86e2fb49f45ef183",
             "technicalQa": {
               "schemaVersion": 1,
               "assetId": "cafeteria_tileset",
-              "sha256": "04299ce5ce3d14768e0db2749a28596954219bee1e90e25929030fc3d1e52a2b",
+              "sha256": "820026e0967730e28c93e1c2687d8cab18e53d7781bf226b86e2fb49f45ef183",
               "passed": true,
               "alpha": {
                 "passed": true,
                 "policy": "required",
                 "hasAlpha": true,
-                "transparentRatio": 0.583928
+                "transparentRatio": 0.679573
               },
               "dimensions": {
                 "passed": true,
@@ -4019,7 +6228,7 @@
           },
           "outputVisionQa": {
             "assetId": "cafeteria_tileset",
-            "reviewedSha256": "04299ce5ce3d14768e0db2749a28596954219bee1e90e25929030fc3d1e52a2b",
+            "reviewedSha256": "820026e0967730e28c93e1c2687d8cab18e53d7781bf226b86e2fb49f45ef183",
             "dimensions": {
               "sourceFidelity": {
                 "applicable": true,
@@ -4038,13 +6247,13 @@
               },
               "topdownAngle": {
                 "applicable": true,
-                "score": 0.92,
-                "notes": "1024px 정규화 뒤에도 직교 조립 방향이 명확하다."
+                "score": 0.94,
+                "notes": "1024px 16×16 시트에서 64px 셀 기반 직교 조립 방향이 명확하다."
               },
               "gameplayReadability": {
                 "applicable": true,
-                "score": 0.94,
-                "notes": "투명 배경에서 각 모듈과 변형이 선명하게 분리된다."
+                "score": 0.96,
+                "notes": "투명 배경에서 38개 명명형 모듈과 변형이 셀 단위로 선명하게 분리된다."
               },
               "animationConsistency": {
                 "applicable": false,
@@ -4070,7 +6279,7 @@
               }
             },
             "feedback": [],
-            "score": 0.9275,
+            "score": 0.9375,
             "minimumScore": 0.8,
             "sourceFidelityScore": 0.93,
             "minimumSourceFidelity": 0.85,
@@ -4089,20 +6298,20 @@
       "attempts": [
         {
           "attempt": 1,
-          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/cafeteria_room_reference/attempt-01/candidate.png",
+          "candidatePath": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/cafeteria_room_reference/attempt-01/candidate.png",
           "generation": {
             "provider": "codex-app-built-in-imagegen",
             "mode": "direct-app-session",
-            "prompt": "A finished 1280 by 720 orthogonal top-down combat-room reference for the season-one Hyosan High cafeteria, based on the approved concept and official Netflix Korea cafeteria visual reference. Bright daytime: honey-orange walls and beams, long upper windows, white fluorescent lights, glass double doors, stainless serving counter and kitchen with roll-down shutter, long light-wood tables with ivory legs, burgundy movable chairs, glossy green and burnt-orange tile rhythm, subtle wet patches and a few displaced chairs and trays. Keep a broad central combat lane and upper exit clear. Realistic high-resolution painted 2D game art. No people, bodies, blood, red emergency lighting, text, logos, webtoon styling or UI.",
-            "sourceFile": "cafeteria_room_reference-attempt-01.png",
-            "candidateSha256": "bbd06c7fc097b90519a123085c6650b3ad81741287d63730f2ec4fcf56e7067d",
-            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/cafeteria_room_reference/attempt-01/candidate.png"
+            "prompt": "Widen only the already-open glass double-door passage at the exact top center of the supplied Hyosan High cafeteria. Move the two existing open door leaves farther outward and widen the matching honey-orange doorway frame so the unobstructed inner passage is at least 170px wide in the 1536×1024 source and at least 140px after the final 1280×720 center crop. Keep the opening centered, with the visible threshold, corridor, two framed glass leaves, handles, perspective, materials and lighting. Change only the doorway bay; preserve all tables, burgundy chairs, trays, green and burnt-orange floor tiles, side windows, walls and beams outside the bay, wall appliances, reflections, and the entire stainless serving-counter and roll-down-shutter geometry. No people, bodies, blood, signage, text, UI, extra doors, emergency lighting, crop, camera shift, perspective change, or global restyling.",
+            "sourceFile": "cafeteria_room_reference-attempt-03.png",
+            "candidateSha256": "fb9f4a95e71adf9a7b8543d59b9c7535d3ec103367fbeff71d9859144795a94b",
+            "savedFile": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/cafeteria_room_reference/attempt-01/candidate.png"
           },
           "technicalQa": {
             "schemaVersion": 1,
             "assetId": "cafeteria_room_reference",
-            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/cafeteria_room_reference/attempt-01/candidate.png",
-            "sha256": "bbd06c7fc097b90519a123085c6650b3ad81741287d63730f2ec4fcf56e7067d",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/cafeteria_room_reference/attempt-01/candidate.png",
+            "sha256": "fb9f4a95e71adf9a7b8543d59b9c7535d3ec103367fbeff71d9859144795a94b",
             "format": "png",
             "passed": true,
             "checks": {
@@ -4149,7 +6358,7 @@
           },
           "visionQa": {
             "assetId": "cafeteria_room_reference",
-            "reviewedSha256": "bbd06c7fc097b90519a123085c6650b3ad81741287d63730f2ec4fcf56e7067d",
+            "reviewedSha256": "fb9f4a95e71adf9a7b8543d59b9c7535d3ec103367fbeff71d9859144795a94b",
             "dimensions": {
               "sourceFidelity": {
                 "applicable": true,
@@ -4173,8 +6382,8 @@
               },
               "gameplayReadability": {
                 "applicable": true,
-                "score": 0.95,
-                "notes": "넓은 중앙 통로·상단 출구·테이블 군집·배식구 충돌선이 즉시 읽힌다."
+                "score": 0.97,
+                "notes": "상단 중앙의 열린 유리 양문·문턱·복도와 최종 140px 이상 통과 폭, 넓은 중앙 통로가 즉시 읽힌다."
               },
               "animationConsistency": {
                 "applicable": false,
@@ -4200,7 +6409,7 @@
               }
             },
             "feedback": [],
-            "score": 0.9375,
+            "score": 0.9425,
             "minimumScore": 0.8,
             "sourceFidelityScore": 0.94,
             "minimumSourceFidelity": 0.85,
@@ -4224,16 +6433,16 @@
               "width": 1280,
               "height": 720
             },
-            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T01-50-32-264Z-XA1Fj3/cafeteria_room_reference/attempt-01/normalized/cafeteria_room_reference.png",
+            "path": "outputs/hyosan-memories-g2/runs/2026-08-28T03-01-13-799Z-Yb0RoY/cafeteria_room_reference/attempt-01/normalized/cafeteria_room_reference.png",
             "file": "cafeteria_room_reference.png",
             "width": 1280,
             "height": 720,
             "format": "png",
-            "sha256": "801bfaf3af9ea641a3d0b25cfa50c837a0b653ef147502ea2427ee85333d3761",
+            "sha256": "76126b84d3224f7a545fba5e29bad254053efd8020de4c1d7d929070979cfbef",
             "technicalQa": {
               "schemaVersion": 1,
               "assetId": "cafeteria_room_reference",
-              "sha256": "801bfaf3af9ea641a3d0b25cfa50c837a0b653ef147502ea2427ee85333d3761",
+              "sha256": "76126b84d3224f7a545fba5e29bad254053efd8020de4c1d7d929070979cfbef",
               "passed": true,
               "alpha": {
                 "passed": true,
@@ -4252,7 +6461,7 @@
           },
           "outputVisionQa": {
             "assetId": "cafeteria_room_reference",
-            "reviewedSha256": "801bfaf3af9ea641a3d0b25cfa50c837a0b653ef147502ea2427ee85333d3761",
+            "reviewedSha256": "76126b84d3224f7a545fba5e29bad254053efd8020de4c1d7d929070979cfbef",
             "dimensions": {
               "sourceFidelity": {
                 "applicable": true,
@@ -4276,8 +6485,8 @@
               },
               "gameplayReadability": {
                 "applicable": true,
-                "score": 0.95,
-                "notes": "중앙 통로·출구·가구·배식구 영역이 선명하다."
+                "score": 0.97,
+                "notes": "최종 1280×720에서 140px 이상 열린 양문·문턱·복도와 중앙 통로·가구·배식구 영역이 선명하다."
               },
               "animationConsistency": {
                 "applicable": false,
@@ -4303,7 +6512,7 @@
               }
             },
             "feedback": [],
-            "score": 0.9375,
+            "score": 0.9425,
             "minimumScore": 0.8,
             "sourceFidelityScore": 0.94,
             "minimumSourceFidelity": 0.85,

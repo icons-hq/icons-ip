@@ -526,7 +526,7 @@ describe('technical image QA', () => {
       .toBe('14921e6044735e41ba01cec4d781ae591f24aeae2be210fb29d1331ce277ebb1');
   });
 
-  it('normalizes a 2x2 color fixture with shared scale and emits row-major extruded frames', async () => {
+  it('normalizes a 2x2 color fixture with shared scale, safe padding, and row-major frames', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'hyosan-frame-grid-'));
     cleanups.push(() => rm(directory, { recursive: true, force: true }));
     const source = join(directory, 'walk.png');
@@ -571,6 +571,11 @@ describe('technical image QA', () => {
         anchor: 'bottom-center',
         trim: 'shared-scale',
       },
+      qa: {
+        maxOpaqueEdgeRatio: 0,
+        minBboxCoverage: 0.05,
+        maxBboxCoverage: 0.2,
+      },
     });
     const atlas = await buildSpriteAtlas([normalized], atlasDirectory, {
       name: 'fixture-atlas',
@@ -596,6 +601,26 @@ describe('technical image QA', () => {
       { x: 20, y: 2, w: 4, h: 4 },
     ]);
     expect(atlas.data.meta.size).toEqual({ w: 32, h: 8 });
+    expect(normalized.technicalQa.frame).toEqual({
+      passed: true,
+      expected: 4,
+      detected: 4,
+      empty: [],
+    });
+    expect(normalized.technicalQa.bbox.frames.map(({ width, height, coverage }) => ({
+      width,
+      height,
+      coverage,
+    }))).toEqual([
+      { width: 2, height: 1, coverage: 0.125 },
+      { width: 1, height: 1, coverage: 0.0625 },
+      { width: 2, height: 1, coverage: 0.125 },
+      { width: 2, height: 1, coverage: 0.125 },
+    ]);
+    expect(normalized.technicalQa.bbox.frames.map(({ top, height }) => top + height))
+      .toEqual([3, 3, 3, 3]);
+    expect(normalized.technicalQa.edges.frames.map(({ opaqueRatio }) => opaqueRatio))
+      .toEqual([0, 0, 0, 0]);
 
     for (const [index, color] of colors.entries()) {
       const frame = atlas.data.frames[`player_walk_0${index}`].frame;
@@ -603,16 +628,92 @@ describe('technical image QA', () => {
         .extract({ left: frame.x + 1, top: frame.y + 2, width: 1, height: 1 })
         .raw().toBuffer();
       expect([...center]).toEqual([color.r, color.g, color.b, 255]);
-      const bottomExtrusion = await sharp(atlas.imagePath)
-        .extract({ left: frame.x + 1, top: frame.y + frame.h, width: 1, height: 1 })
-        .raw().toBuffer();
-      expect([...bottomExtrusion]).toEqual([color.r, color.g, color.b, 255]);
     }
     const smallerFrame = atlas.data.frames.player_walk_01.frame;
     const smallerFrameTop = await sharp(atlas.imagePath)
       .extract({ left: smallerFrame.x + 1, top: smallerFrame.y, width: 1, height: 1 })
       .raw().toBuffer();
     expect(smallerFrameTop[3]).toBe(0);
+  });
+
+  it('extrudes atlas border pixels independently of normalized-frame padding', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hyosan-atlas-extrusion-'));
+    cleanups.push(() => rm(directory, { recursive: true, force: true }));
+    const spritePath = join(directory, 'sprite.png');
+    const atlasDirectory = join(directory, 'atlas');
+    await sharp(Buffer.from([
+      255, 0, 0, 255, 0, 255, 0, 255,
+      0, 0, 255, 255, 255, 255, 0, 255,
+    ]), { raw: { width: 2, height: 2, channels: 4 } }).png().toFile(spritePath);
+
+    const atlas = await buildSpriteAtlas([{
+      assetId: 'border',
+      kind: 'sprite',
+      path: spritePath,
+      width: 2,
+      height: 2,
+      frames: 1,
+    }], atlasDirectory, {
+      name: 'extruded-atlas',
+      padding: 2,
+      extrusion: 1,
+    });
+    const sample = async (left, top) => [...await sharp(atlas.imagePath)
+      .extract({ left, top, width: 1, height: 1 })
+      .ensureAlpha().raw().toBuffer()];
+
+    expect(atlas.data.frames.border.frame).toEqual({ x: 2, y: 2, w: 2, h: 2 });
+    await expect(sample(1, 1)).resolves.toEqual([255, 0, 0, 255]);
+    await expect(sample(3, 1)).resolves.toEqual([0, 255, 0, 255]);
+    await expect(sample(1, 3)).resolves.toEqual([0, 0, 255, 255]);
+    await expect(sample(4, 3)).resolves.toEqual([255, 255, 0, 255]);
+    await expect(sample(3, 4)).resolves.toEqual([255, 255, 0, 255]);
+  });
+
+  it('fails normalized frame QA when shared scale leaves a frame below minimum coverage', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'hyosan-frame-grid-min-coverage-'));
+    cleanups.push(() => rm(directory, { recursive: true, force: true }));
+    const source = join(directory, 'walk.png');
+    const outputDirectory = join(directory, 'selected');
+    await sharp({
+      create: {
+        width: 8,
+        height: 8,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    }).composite([0, 1, 2, 3].map((index) => ({
+      input: {
+        create: {
+          width: index === 1 ? 1 : 2,
+          height: 1,
+          channels: 4,
+          background: { r: 80 + index * 30, g: 100, b: 140, alpha: 1 },
+        },
+      },
+      left: (index % 2) * 4 + 1,
+      top: Math.floor(index / 2) * 4 + 3,
+    }))).png().toFile(source);
+
+    await expect(normalizeAsset(source, outputDirectory, {
+      id: 'player_walk_min_coverage',
+      kind: 'sprite',
+      frames: 4,
+      alpha: 'required',
+      targetSize: { width: 4, height: 4 },
+      frameLayout: {
+        columns: 2,
+        rows: 2,
+        order: 'row-major',
+        anchor: 'bottom-center',
+        trim: 'shared-scale',
+      },
+      qa: {
+        maxOpaqueEdgeRatio: 0,
+        minBboxCoverage: 0.1,
+        maxBboxCoverage: 0.2,
+      },
+    })).rejects.toThrow('normalized frame bbox policy');
   });
 
   it('preserves required alpha for non-atlas assets and rejects opaque normalized output', async () => {

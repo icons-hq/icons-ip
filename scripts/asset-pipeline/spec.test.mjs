@@ -54,6 +54,15 @@ describe('asset pipeline spec', () => {
     expect(spec.pipeline.maxAttempts).toBe(3);
     expect(spec.pipeline.approvalBlocks).toEqual(['G3']);
     expect(spec.pipeline.atlas).toMatchObject({ padding: 4, extrusion: 1, maxSize: 4096 });
+    const tileset = spec.assets.find(({ id }) => id === 'cafeteria_tileset');
+    expect(tileset.moduleGrid).toMatchObject({ tileSize: 64, columns: 16, rows: 16 });
+    expect(tileset.moduleGrid.modules).toHaveLength(38);
+    expect(tileset.moduleGrid.requiredIds).toHaveLength(38);
+    expect(tileset.moduleGrid.modules.find(({ id }) => id === 'door_double_open'))
+      .toMatchObject({
+        cellRect: { column: 1, row: 5, columns: 3, rows: 3 },
+        pixelRect: { x: 64, y: 320, width: 192, height: 192 },
+      });
     expect(spec.meta.referenceSources).toContainEqual({
       id: 'netflix-korea-cafeteria-clip',
       authority: 'official',
@@ -269,5 +278,22 @@ describe('asset pipeline spec', () => {
       unsafeApprovalBlocks.pipeline.approvalBlocks = value;
       expect(() => validateAssetSpec(unsafeApprovalBlocks)).toThrow('approvalBlocks');
     }
+  });
+
+  it('requires a valid module grid only for tileset assets', async () => {
+    const source = yaml.load(
+      await readFile(new URL('./asset-spec.yaml', import.meta.url), 'utf8'),
+    );
+    const tilesetIndex = source.assets.findIndex(({ id }) => id === 'cafeteria_tileset');
+    const missing = structuredClone(source);
+    delete missing.assets[tilesetIndex].moduleGrid;
+    const wrongTarget = structuredClone(source);
+    wrongTarget.assets[tilesetIndex].size = '512x1024';
+    const leaked = structuredClone(source);
+    leaked.assets[0].moduleGrid = structuredClone(source.assets[tilesetIndex].moduleGrid);
+
+    expect(() => validateAssetSpec(missing)).toThrow('moduleGrid');
+    expect(() => validateAssetSpec(wrongTarget)).toThrow('requires a 1024x1024 target');
+    expect(() => validateAssetSpec(leaked)).toThrow('moduleGrid is only supported for tileset');
   });
 });
