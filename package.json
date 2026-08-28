@@ -4,9 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:local": "node scripts/local-supabase-runtime.mjs dev",
     "prebuild": "node scripts/check-vercel-build-env.mjs",
     "build": "next build",
+    "build:local": "node scripts/local-supabase-runtime.mjs build",
     "start": "next start",
+    "start:local": "node scripts/local-supabase-runtime.mjs start",
     "lint": "eslint",
     "typecheck": "next typegen && tsc --project tsconfig.test.json --noEmit --incremental false",
     "test": "vitest run",
