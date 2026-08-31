@@ -7,7 +7,8 @@ import { WcButton } from '@/components/wc/WcButton';
 import {
   campaignKindLabel,
   campaignPeriodLabel,
-  campaignStateLabel,
+  campaignStateBadgeLabel,
+  campaignStateBadgeVariant,
   type CampaignSummary,
 } from '@/lib/campaigns';
 import { imageBg } from '@/lib/media';
@@ -26,10 +27,13 @@ function campaignHref(id: string) {
   return `/events/${encodeURIComponent(id)}`;
 }
 
+/* draft 는 RLS 상 운영자만 받는다 — 화면은 role 을 판정하지 않고 받은 데이터를
+   그대로 그린다. 준비 중 편성이 '진행중'과 같은 뱃지를 달면 운영자가 공개 여부를
+   목록에서 구분할 수 없다. */
 function StateBadge({ campaign }: { campaign: CampaignSummary }) {
   return (
-    <span className={`wc-campaign-state wc-campaign-state--${campaign.displayState}`}>
-      {campaignStateLabel(campaign.displayState)}
+    <span className={`wc-campaign-state wc-campaign-state--${campaignStateBadgeVariant(campaign)}`}>
+      {campaignStateBadgeLabel(campaign)}
     </span>
   );
 }

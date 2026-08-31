@@ -55,6 +55,13 @@ values (
 )
 on conflict (id) do nothing;
 
+-- coupon 블록이 가리킬 실재 쿠폰. coupon_redemption.sql의 정액 쿠폰 픽스처와
+-- 같은 모양이고, 여기서는 admin_upsert_coupon 계약을 다시 시험하지 않으려고
+-- superuser로 직접 넣는다.
+insert into public.coupons (code, name, discount_type, discount_value, min_subtotal)
+values ('CMPWELCOME', '캠페인 첫 구매 할인', 'fixed', 5000, 20000)
+on conflict (code) do nothing;
+
 -- ── 스키마·ACL 계약 ─────────────────────────────────────────────────────────
 
 select 1 / case when (
@@ -496,6 +503,62 @@ select 1 / case when (
   select jsonb_array_length(sections) = 8 from public.campaigns where id = 'cmp-allblocks'
 ) then 1 else 0 end as assert_all_block_types_accepted;
 
+-- ── coupon 블록의 코드는 실재해야 한다 ─────────────────────────────────────
+-- jsonb 안이라 FK를 걸 수 없다. 오타 코드가 통과하면 랜딩에는 멀쩡한 경품으로
+-- 걸리고 사용자는 장바구니에서야 없는 쿠폰이라는 걸 안다.
+
+do $$
+begin
+  begin
+    perform public.admin_upsert_campaign(
+      target_id => 'cmp-badcoupon',
+      target_kind => 'event',
+      target_title => '없는 쿠폰 코드',
+      target_subtitle => null,
+      target_status => 'draft',
+      target_starts_at => now(),
+      target_ends_at => now() + interval '1 day',
+      target_hero_image_path => null,
+      target_card_image_path => null,
+      target_banner_image_path => null,
+      target_featured_order => null,
+      target_sections => '[{"type":"coupon","coupon_code":"CMPGHOST"}]'::jsonb,
+      target_previous_id => null
+    );
+    raise exception 'unknown coupon code should be rejected';
+  exception
+    when foreign_key_violation then
+      if sqlerrm <> 'unknown_coupon_code' then raise; end if;
+  end;
+end;
+$$;
+
+select 1 / case when not exists (
+  select 1 from public.campaigns where id = 'cmp-badcoupon'
+) then 1 else 0 end as assert_unknown_coupon_code_left_no_row;
+
+-- 쿠폰 관리에 등록된 코드는 그대로 통과한다.
+select public.admin_upsert_campaign(
+  target_id => 'cmp-coupon',
+  target_kind => 'event',
+  target_title => '등록된 쿠폰 코드',
+  target_subtitle => null,
+  target_status => 'published',
+  target_starts_at => now() - interval '1 hour',
+  target_ends_at => now() + interval '1 day',
+  target_hero_image_path => null,
+  target_card_image_path => null,
+  target_banner_image_path => null,
+  target_featured_order => null,
+  target_sections => '[{"type":"coupon","coupon_code":"CMPWELCOME","description":"첫 구매 할인"}]'::jsonb,
+  target_previous_id => null
+);
+
+select 1 / case when (
+  select sections -> 0 ->> 'coupon_code' = 'CMPWELCOME'
+  from public.campaigns where id = 'cmp-coupon'
+) then 1 else 0 end as assert_known_coupon_code_accepted;
+
 -- ── 비스태프 차단 ───────────────────────────────────────────────────────────
 
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000802', true);
@@ -541,7 +604,7 @@ $$;
 
 select 1 / case when (
   select count(*) from public.campaigns
-) = 3 then 1 else 0 end as assert_regular_user_sees_only_non_draft;
+) = 4 then 1 else 0 end as assert_regular_user_sees_only_non_draft;
 
 select 1 / case when not exists (
   select 1 from public.campaigns where id = 'cmp-draft'
@@ -557,7 +620,7 @@ set local role anon;
 
 select 1 / case when (
   select count(*) from public.campaigns
-) = 3 then 1 else 0 end as assert_anon_sees_only_non_draft;
+) = 4 then 1 else 0 end as assert_anon_sees_only_non_draft;
 
 select 1 / case when exists (
   select 1 from public.campaigns where id = 'cmp-published'
@@ -569,7 +632,7 @@ set local role authenticated;
 
 select 1 / case when (
   select count(*) from public.campaigns
-) = 4 then 1 else 0 end as assert_staff_sees_draft;
+) = 5 then 1 else 0 end as assert_staff_sees_draft;
 
 reset role;
 

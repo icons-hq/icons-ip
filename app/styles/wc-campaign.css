@@ -19,7 +19,11 @@
    1. 상태 뱃지 — 허브 카드·배너·상세 헤더가 공유
    ------------------------------------------------------------------
    진행중은 잉크 솔리드, 예정은 아웃라인, 종료는 뮤트. 색만으로 구분하지 않고
-   텍스트('진행중'/'예정'/'종료')를 항상 함께 싣는다.
+   텍스트('진행중'/'예정'/'종료'/'비공개')를 항상 함께 싣는다.
+
+   '비공개'(draft)는 RLS 상 운영자만 받는 상태다. 점선 보더 + 뮤트로 실선 뱃지
+   셋과 형태부터 갈라 둔다 — 운영자가 목록을 훑을 때 아직 공개되지 않은 편성이
+   진행중 카드 사이에 섞이면 안 된다.
    ------------------------------------------------------------------ */
 
 .wc-campaign-state {
@@ -50,6 +54,13 @@
 
 .wc-campaign-state--ended {
   background: var(--wc-surface-grey-2);
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-campaign-state--draft {
+  border-style: dashed;
+  border-color: var(--wc-line-control);
+  background: var(--wc-surface);
   color: var(--wc-ink-tertiary);
 }
 
@@ -150,6 +161,14 @@
 
 .wc-campaign-banner .wc-campaign-state--ended {
   background: rgba(255,255,255,.22);
+  color: #FFFFFF;
+}
+
+/* 흰 면 뱃지를 그대로 두면 스크림 위에서 '진행중'과 같은 모양이 된다 — 점선만
+   남기고 면을 비운다. */
+.wc-campaign-banner .wc-campaign-state--draft {
+  border-color: rgba(255,255,255,.7);
+  background: transparent;
   color: #FFFFFF;
 }
 

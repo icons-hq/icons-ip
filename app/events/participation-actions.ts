@@ -1,15 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import {
-  ACCOUNT_SUSPENDED_PATH,
-  isAccountSuspended,
-  isOnboarded,
-  onboardingPath,
-  safeNextPath,
-} from '@/lib/auth/onboarding';
-import { getCurrentAuthState } from '@/lib/auth/server';
+import { safeNextPath } from '@/lib/auth/onboarding';
+import { requireActiveUser } from '@/lib/participation-gate.server';
 import { createClient } from '@/lib/supabase/server';
 
 /* 캠페인 참여 액션 — 출석 체크 · 카드팩 교환 (S8 #330).
@@ -40,23 +33,6 @@ interface ParticipationRpcResult {
   status?: string;
   balance?: number;
   issued_count?: number;
-}
-
-function loginPath(next: string) {
-  return `/login?next=${encodeURIComponent(safeNextPath(next))}`;
-}
-
-/* app/my/reviews/actions.ts 의 3단 게이트와 같은 순서·같은 목적지다. 그 함수는
-   /my 전용 모듈의 비공개 헬퍼라 임포트할 수 없어 여기서 같은 규칙을 다시 쓴다 —
-   순서가 갈리면 정지된 계정이 온보딩 화면으로 새는 식으로 어긋난다. */
-async function requireActiveUser(next: string) {
-  const auth = await getCurrentAuthState();
-
-  if (!auth.isConfigured || !auth.user) redirect(loginPath(next));
-  if (isAccountSuspended(auth.profile)) redirect(ACCOUNT_SUSPENDED_PATH);
-  if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath(next));
-
-  return auth.user;
 }
 
 function readUuid(value: FormDataEntryValue | null): string | null {

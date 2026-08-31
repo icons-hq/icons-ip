@@ -70,6 +70,13 @@ function campaignFor(id: string): CampaignLandingSnapshot {
   };
 }
 
+function pageProps(
+  eventId: string,
+  searchParams: Record<string, string | string[] | undefined> = {},
+) {
+  return { params: Promise.resolve({ eventId }), searchParams: Promise.resolve(searchParams) };
+}
+
 function signedInAuth(): CurrentAuthState {
   return {
     isConfigured: true,
@@ -95,7 +102,7 @@ describe('/events/[eventId] 캠페인 상세', () => {
   it('캠페인을 찾으면 상세 화면에 넘긴다', async () => {
     mocks.campaign = campaignFor('summer');
 
-    renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: 'summer' }) }));
+    renderToStaticMarkup(await Page(pageProps('summer')));
 
     expect(mocks.screen.mock.calls[0]?.[0]?.campaign).toEqual(mocks.campaign);
     expect(mocks.permanentRedirect).not.toHaveBeenCalled();
@@ -108,7 +115,7 @@ describe('/events/[eventId] 캠페인 상세', () => {
     mocks.campaign = campaignFor('summer');
     mocks.coin = { balance: 9, attendedToday: true };
 
-    renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: 'summer' }) }));
+    renderToStaticMarkup(await Page(pageProps('summer')));
 
     expect(mocks.screen.mock.calls[0]?.[0]?.signedIn).toBe(false);
     expect(mocks.screen.mock.calls[0]?.[0]?.coin).toBeNull();
@@ -119,7 +126,7 @@ describe('/events/[eventId] 캠페인 상세', () => {
     mocks.auth = signedInAuth();
     mocks.coin = { balance: 9, attendedToday: true };
 
-    renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: 'summer' }) }));
+    renderToStaticMarkup(await Page(pageProps('summer')));
 
     expect(mocks.screen.mock.calls[0]?.[0]?.signedIn).toBe(true);
     expect(mocks.screen.mock.calls[0]?.[0]?.coin).toEqual({ balance: 9, attendedToday: true });
@@ -130,7 +137,7 @@ describe('/events/[eventId] 캠페인 상세', () => {
   it('교환 폼용 멱등 키를 서버에서 만들어 넘긴다', async () => {
     mocks.campaign = campaignFor('summer');
 
-    renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: 'summer' }) }));
+    renderToStaticMarkup(await Page(pageProps('summer')));
 
     expect(String(mocks.screen.mock.calls[0]?.[0]?.operationId)).toMatch(UUID_PATTERN);
   });
@@ -139,7 +146,7 @@ describe('/events/[eventId] 캠페인 상세', () => {
   it('같은 id가 캠페인과 오프라인 팝업 양쪽에 있으면 캠페인이 이긴다', async () => {
     mocks.campaign = campaignFor(event.id);
 
-    renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: event.id }) }));
+    renderToStaticMarkup(await Page(pageProps(event.id)));
 
     expect(mocks.screen).toHaveBeenCalled();
     expect(mocks.permanentRedirect).not.toHaveBeenCalled();
@@ -163,7 +170,7 @@ describe('/events/[eventId] 캠페인 상세', () => {
 
 describe('/events/[eventId] 레거시 브리지', () => {
   it('저장된 오프라인 팝업 딥링크를 새 경로로 영구 이전한다', async () => {
-    await expect(Page({ params: Promise.resolve({ eventId: event.id }) }))
+    await expect(Page(pageProps(event.id)))
       .rejects.toThrow(`NEXT_REDIRECT:/offline-popups/${event.id}`);
 
     expect(mocks.permanentRedirect).toHaveBeenCalledWith(`/offline-popups/${event.id}`);
@@ -173,12 +180,31 @@ describe('/events/[eventId] 레거시 브리지', () => {
   it('경로 세그먼트를 인코딩해 넘긴다', async () => {
     mocks.catalog = snapshot([{ ...event, id: 'e 100/x' }]);
 
-    await expect(Page({ params: Promise.resolve({ eventId: 'e 100/x' }) }))
+    await expect(Page(pageProps('e 100/x')))
       .rejects.toThrow('NEXT_REDIRECT:/offline-popups/e%20100%2Fx');
   });
 
+  /* 옛 링크에 붙은 회차·유입 추적 파라미터를 떨어뜨리면 리다이렉트가 링크의 절반만
+     옮기는 셈이 된다. */
+  it('원 쿼리를 새 경로에 그대로 실어 보낸다', async () => {
+    await expect(Page(pageProps(event.id, { round: '2', utm_source: 'kakao' })))
+      .rejects.toThrow(`NEXT_REDIRECT:/offline-popups/${event.id}?round=2&utm_source=kakao`);
+  });
+
+  it('같은 키가 여러 번 온 쿼리는 접지 않고 모두 싣는다', async () => {
+    await expect(Page(pageProps(event.id, { tag: ['a', 'b'], empty: undefined })))
+      .rejects.toThrow(`NEXT_REDIRECT:/offline-popups/${event.id}?tag=a&tag=b`);
+  });
+
+  it('쿼리가 없으면 물음표도 붙이지 않는다', async () => {
+    await expect(Page(pageProps(event.id)))
+      .rejects.toThrow(`NEXT_REDIRECT:/offline-popups/${event.id}`);
+
+    expect(mocks.permanentRedirect).toHaveBeenCalledWith(`/offline-popups/${event.id}`);
+  });
+
   it('카탈로그에 없는 id는 리다이렉트하지 않고 404로 끝낸다', async () => {
-    await expect(Page({ params: Promise.resolve({ eventId: 'missing' }) }))
+    await expect(Page(pageProps('missing')))
       .rejects.toThrow('NEXT_NOT_FOUND');
 
     expect(mocks.notFound).toHaveBeenCalled();

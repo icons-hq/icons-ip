@@ -9,7 +9,8 @@ import {
   campaignKindLabel,
   campaignPeriodLabel,
   campaignSectionDomId,
-  campaignStateLabel,
+  campaignStateBadgeLabel,
+  campaignStateBadgeVariant,
 } from '@/lib/campaigns';
 import type { CampaignLandingSnapshot, ResolvedCampaignSection } from '@/lib/campaigns.server';
 import type { CoinOverview } from '@/lib/coins.server';
@@ -187,8 +188,10 @@ export function CampaignLanding({ campaign, coin, operationId, signedIn }: Campa
           {campaign.subtitle ? <p className="wc-campaign__subtitle">{campaign.subtitle}</p> : null}
           <p className="wc-campaign__period">
             <strong>{campaignPeriodLabel(campaign.startsAt, campaign.endsAt)}</strong>
-            <span className={`wc-campaign-state wc-campaign-state--${campaign.displayState}`}>
-              {campaignStateLabel(campaign.displayState)}
+            {/* draft 는 운영자만 열 수 있는 미리보기다(RLS) — 같은 헬퍼로 '비공개'를
+                달아 공개된 캠페인과 구분한다. */}
+            <span className={`wc-campaign-state wc-campaign-state--${campaignStateBadgeVariant(campaign)}`}>
+              {campaignStateBadgeLabel(campaign)}
             </span>
           </p>
         </header>

@@ -81,6 +81,15 @@ describe('CampaignLanding', () => {
     expect(html).toContain('wc-campaign-state--ongoing');
   });
 
+  /* draft 상세는 RLS 상 운영자만 연다 — 미리보기라는 사실이 헤더에서 읽혀야 한다. */
+  it('draft 캠페인 헤더는 비공개 뱃지를 단다', () => {
+    const html = render({ campaign: snapshot({ status: 'draft' }) });
+
+    expect(html).toContain('비공개');
+    expect(html).toContain('wc-campaign-state--draft');
+    expect(html).not.toContain('wc-campaign-state--ongoing');
+  });
+
   it('본문 블록을 종류별로 그린다', () => {
     const html = render();
 

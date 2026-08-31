@@ -9,8 +9,14 @@
 
 export type CampaignKind = 'event' | 'drop';
 
-/** DB `campaigns.status`. draft는 RLS가 비운영자에게 감추므로 표시 계약에는 없다. */
-export type CampaignStatus = 'published' | 'ended';
+/**
+ * DB `campaigns.status`.
+ *
+ * draft 도 그대로 싣는다. RLS(campaigns_public_read)가 draft 를 비운영자에게 감추므로
+ * 이 값을 받는 화면은 곧 운영자 화면이다 — 로더에서 published 로 접으면 운영자에게
+ * 준비 중 캠페인이 "진행중"으로 보이고, 어드민 목록과 공개 지면이 갈린다.
+ */
+export type CampaignStatus = 'draft' | 'published' | 'ended';
 
 /** 화면이 뱃지·참여 가능 여부를 정하는 파생 상태. DB 컬럼이 아니다. */
 export type CampaignDisplayState = 'upcoming' | 'ongoing' | 'ended';
@@ -117,8 +123,41 @@ export function isCampaignKind(value: unknown): value is CampaignKind {
   return value === 'event' || value === 'drop';
 }
 
+export function isCampaignStatus(value: unknown): value is CampaignStatus {
+  return value === 'draft' || value === 'published' || value === 'ended';
+}
+
 export function campaignStateLabel(state: CampaignDisplayState): string {
   return STATE_LABELS[state];
+}
+
+/* ------------------------------------------------------------------
+   상태 뱃지 — draft 는 시간이 아니라 편성 상태다
+   ------------------------------------------------------------------
+   draft 캠페인은 아직 공개되지 않았을 뿐, 기간은 이미 시작해 있을 수 있다.
+   시간 기반 displayState 만 그리면 운영자 눈에 '진행중'으로 보여 공개된 것과
+   구분되지 않는다 — 뱃지 라벨·변형을 여기 한 곳에서 정하고 허브 카드·배너·랜딩이
+   같은 헬퍼를 부른다. */
+
+export const CAMPAIGN_DRAFT_BADGE_LABEL = '비공개';
+
+type CampaignBadgeInput = Pick<CampaignSummary, 'status' | 'displayState'>;
+
+function isDraftCampaign(campaign: CampaignBadgeInput): boolean {
+  return campaign.status === 'draft';
+}
+
+export function campaignStateBadgeLabel(campaign: CampaignBadgeInput): string {
+  return isDraftCampaign(campaign)
+    ? CAMPAIGN_DRAFT_BADGE_LABEL
+    : campaignStateLabel(campaign.displayState);
+}
+
+/** 뱃지 변형 클래스 접미사(`wc-campaign-state--<variant>`). */
+export function campaignStateBadgeVariant(
+  campaign: CampaignBadgeInput,
+): CampaignDisplayState | 'draft' {
+  return isDraftCampaign(campaign) ? 'draft' : campaign.displayState;
 }
 
 export function campaignKindLabel(kind: CampaignKind): string {

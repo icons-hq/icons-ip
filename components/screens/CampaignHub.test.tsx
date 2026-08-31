@@ -37,6 +37,9 @@ const drop = campaign({
 
 const archived = campaign({ id: 'spring', title: '봄 이벤트', displayState: 'ended' });
 
+/* RLS 상 운영자만 받는 행이다 — 화면은 role 을 보지 않고 받은 데이터를 그대로 그린다. */
+const draft = campaign({ id: 'winter', title: '겨울 캠페인', status: 'draft' });
+
 describe('CampaignHub', () => {
   it('카드가 상세로 가는 통짜 링크이고 제목·부제를 싣는다', () => {
     const html = renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[summer]} />);
@@ -60,6 +63,29 @@ describe('CampaignHub', () => {
     expect(html).toContain('wc-campaign-state--ongoing');
     expect(html).toContain('wc-campaign-state--upcoming');
     expect(html).toContain('wc-campaign-state--ended');
+  });
+
+  /* draft 는 기간이 이미 시작해 있어도 아직 공개된 편성이 아니다 — '진행중'과 같은
+     뱃지를 달면 운영자가 목록에서 공개 여부를 구분할 수 없다. */
+  it('draft 캠페인은 진행중 대신 비공개 뱃지를 단다', () => {
+    const html = renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[draft]} />);
+
+    expect(html).toContain('비공개');
+    expect(html).toContain('wc-campaign-state--draft');
+    expect(html).not.toContain('wc-campaign-state--ongoing');
+    expect(html).not.toContain('>진행중<');
+  });
+
+  /* 배너는 운영자가 직접 매긴 편성이라 draft 도 실릴 수 있다. 카드를 비워 배너
+     자리만 남기고 센다 — 탭은 ALL·EVENT 두 패널을 모두 그려 카드가 중복된다. */
+  it('배너에 실린 draft도 같은 비공개 뱃지를 쓴다', () => {
+    const html = renderToStaticMarkup(
+      <CampaignHub banners={[{ ...draft, featuredOrder: 1 }]} campaigns={[]} />,
+    );
+
+    expect(html).toContain('wc-campaign-banner');
+    expect(html.match(/wc-campaign-state--draft/g)?.length).toBe(1);
+    expect(html).toContain('비공개');
   });
 
   /* 유형은 색이 아니라 텍스트로 구분한다(R-06 §1.4 — EVENT·DROP 모두 검정 면). */

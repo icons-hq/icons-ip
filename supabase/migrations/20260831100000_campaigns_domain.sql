@@ -304,6 +304,7 @@ declare
   normalized_subtitle text := nullif(btrim(coalesce(target_subtitle, ''), E' \t\n\r\f\v'), '');
   normalized_status text := coalesce(nullif(btrim(coalesce(target_status, '')), ''), 'draft');
   normalized_sections jsonb := coalesce(target_sections, '[]'::jsonb);
+  v_coupon_code text;
 begin
   if actor_id is null then
     raise exception 'auth_required' using errcode = '28000';
@@ -338,6 +339,21 @@ begin
   end if;
 
   perform private.validate_campaign_sections(normalized_sections);
+
+  -- coupon 블록의 코드는 실재하는 쿠폰이어야 한다. jsonb 안이라 FK를 걸 수 없는
+  -- 자리인데, 오타 하나가 그대로 통과하면 랜딩에는 멀쩡한 경품처럼 걸리고 사용자는
+  -- 장바구니에 넣는 순간에야 없는 쿠폰이라는 걸 안다 — 저장 시점에 막는다.
+  -- (구조 검증을 통과한 뒤라 sections는 배열이고 coupon_code는 문자열이다.)
+  for v_coupon_code in
+    select distinct section.entry ->> 'coupon_code'
+    from jsonb_array_elements(normalized_sections) as section(entry)
+    where section.entry ->> 'type' = 'coupon'
+  loop
+    if not exists (select 1 from public.coupons where code = v_coupon_code) then
+      raise exception 'unknown_coupon_code'
+        using errcode = '23503', detail = v_coupon_code;
+    end if;
+  end loop;
 
   if normalized_previous_id is not null then
     if normalized_previous_id is distinct from normalized_id then

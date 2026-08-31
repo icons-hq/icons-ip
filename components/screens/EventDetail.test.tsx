@@ -112,7 +112,7 @@ describe('EventDetail', () => {
     expect(soldOut).toContain('정원 마감');
     expect(soldOut).toContain('disabled=""');
     expect(free).toContain('0원 회차는 현재 예매할 수 없어요');
-    expect(scheduled).toContain('현재 예매 가능한 이벤트가 아니에요');
+    expect(scheduled).toContain('현재 예매 가능한 오프라인 팝업이 아니에요');
   });
 
   it('단가가 1,000원 미만이어도 총액을 맞출 수 있으면 최소 수량으로 예매한다', () => {

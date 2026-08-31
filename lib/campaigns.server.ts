@@ -4,6 +4,7 @@ import { cache } from 'react';
 import {
   campaignDisplayState,
   isCampaignKind,
+  isCampaignStatus,
   orderCampaignsForHub,
   parseCampaignSections,
   type CampaignDetailData,
@@ -120,7 +121,12 @@ function toSummary(
   /* kind 를 모르면 어느 탭에도 넣을 수 없고 뱃지 텍스트도 정할 수 없다 — 조용히 뺀다. */
   if (!isCampaignKind(row.kind)) return null;
 
-  const status = row.status === 'ended' ? 'ended' as const : 'published' as const;
+  /* status 도 접지 않고 그대로 싣는다. draft 를 published 로 접으면 RLS 가 draft 를
+     보여 주는 유일한 상대 — 운영자 — 에게 준비 중 캠페인이 '진행중'으로 보인다.
+     모르는 값은 kind 와 같은 관대 원칙으로 행째 건너뛴다. */
+  if (!isCampaignStatus(row.status)) return null;
+
+  const status = row.status;
   return {
     id: row.id,
     kind: row.kind,

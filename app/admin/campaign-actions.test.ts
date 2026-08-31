@@ -163,6 +163,19 @@ describe('upsertAdminCampaignAction', () => {
     expect(state.errors?.sections).toContain('sections[2].offer_id');
   });
 
+  /* 오타 코드가 통과하면 랜딩에는 멀쩡한 경품처럼 걸린다 — 저장 단계에서 막고,
+     운영자에게는 "쿠폰을 먼저 등록하라"는 다음 행동을 준다. */
+  it('없는 쿠폰 코드는 쿠폰 관리 등록 안내로 옮긴다', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'unknown_coupon_code', details: 'CMPGHOST' },
+    });
+
+    const state = await upsertAdminCampaignAction({}, campaignForm());
+
+    expect(state.errors?.sections).toBe('쿠폰 섹션의 코드가 쿠폰 관리에 등록되어 있지 않아요.');
+  });
+
   it('저장 성공은 이벤트 허브와 상세를 다시 그리게 한다', async () => {
     await upsertAdminCampaignAction({}, campaignForm());
 

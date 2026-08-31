@@ -4,16 +4,23 @@ import {
   campaignDisplayState,
   campaignPeriodLabel,
   campaignSectionDomId,
+  campaignStateBadgeLabel,
+  campaignStateBadgeVariant,
   campaignStateLabel,
   orderCampaignsForHub,
   parseCampaignSections,
   type CampaignDisplayState,
+  type CampaignStatus,
   type CampaignSummary,
 } from './campaigns';
 
 const NOW = Date.parse('2026-08-15T03:00:00.000Z');
 
-function period(startsAt: string, endsAt: string, status: 'published' | 'ended' = 'published') {
+function period(
+  startsAt: string,
+  endsAt: string,
+  status: CampaignStatus = 'published',
+) {
   return { startsAt, endsAt, status };
 }
 
@@ -56,6 +63,36 @@ describe('campaignDisplayState', () => {
     for (const [state, label] of Object.entries(labels)) {
       expect(campaignStateLabel(state as CampaignDisplayState)).toBe(label);
     }
+  });
+});
+
+describe('campaignStateBadgeLabel', () => {
+  /* draft 는 RLS 상 운영자만 받는다. 시간 기반 파생만 그리면 준비 중 편성이
+     공개된 캠페인과 같은 '진행중' 뱃지를 단다. */
+  it('draft면 기간과 무관하게 비공개로 그린다', () => {
+    expect(campaignStateBadgeLabel({ status: 'draft', displayState: 'ongoing' })).toBe('비공개');
+    expect(campaignStateBadgeLabel({ status: 'draft', displayState: 'upcoming' })).toBe('비공개');
+    expect(campaignStateBadgeLabel({ status: 'draft', displayState: 'ended' })).toBe('비공개');
+  });
+
+  it('draft가 아니면 기존 상태 라벨 그대로다', () => {
+    expect(campaignStateBadgeLabel({ status: 'published', displayState: 'ongoing' })).toBe('진행중');
+    expect(campaignStateBadgeLabel({ status: 'published', displayState: 'upcoming' })).toBe('예정');
+    expect(campaignStateBadgeLabel({ status: 'ended', displayState: 'ended' })).toBe('종료');
+  });
+
+  it('뱃지 변형도 같은 판정에서 갈린다', () => {
+    expect(campaignStateBadgeVariant({ status: 'draft', displayState: 'ongoing' })).toBe('draft');
+    expect(campaignStateBadgeVariant({ status: 'published', displayState: 'ongoing' })).toBe('ongoing');
+    expect(campaignStateBadgeVariant({ status: 'ended', displayState: 'ended' })).toBe('ended');
+  });
+
+  /* displayState 파생은 건드리지 않는다 — draft 도 기간으로 판정한다. */
+  it('draft의 displayState는 여전히 시간 기반이다', () => {
+    expect(campaignDisplayState(
+      period('2026-08-01T00:00:00.000Z', '2026-08-31T00:00:00.000Z', 'draft'),
+      NOW,
+    )).toBe('ongoing');
   });
 });
 

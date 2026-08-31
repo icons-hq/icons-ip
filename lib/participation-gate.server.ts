@@ -1,0 +1,45 @@
+import 'server-only';
+
+import { redirect } from 'next/navigation';
+import {
+  ACCOUNT_SUSPENDED_PATH,
+  isAccountSuspended,
+  isOnboarded,
+  onboardingPath,
+  safeNextPath,
+} from '@/lib/auth/onboarding';
+import { getCurrentAuthState } from '@/lib/auth/server';
+
+/* 보호 액션 3단 게이트 (S8 #330).
+ *
+ * 공개 브라우징은 유지하되 쓰기·참여 시점에 자격을 요구하는 서버 액션들이 같은
+ * 판정을 쓰게 하는 자리다. 순서가 계약이다:
+ *   1) 미인증 → /login?next=
+ *   2) 정지    → ACCOUNT_SUSPENDED_PATH
+ *   3) 미온보딩 → onboardingPath(next)
+ * 순서가 갈리면 정지된 계정이 온보딩 화면으로 새는 식으로 어긋난다 — 두 액션이
+ * 같은 규칙을 각자 베껴 두면 한쪽만 고쳐지는 날이 온다.
+ *
+ * 'use server' 모듈은 액션이 아닌 함수를 export 할 수 없어 액션 파일에서 서로
+ * 끌어다 쓸 수 없다. 그래서 게이트는 액션이 아닌 이 모듈이 소유한다.
+ *
+ * app/my/reviews/actions.ts 의 동일 게이트는 S9 정리 후보다(DESIGN §11 동결 경계라
+ * 이번 배치에서는 건드리지 않는다).
+ */
+
+/* next 는 호출부에서 이미 safeNextPath 를 지난 값이지만 여기서 한 번 더 정규화한다 —
+   로그인 리다이렉트의 목적지라, 게이트를 새로 부르는 사람이 원문을 그대로 넘겨도
+   열린 리다이렉트가 되지 않아야 한다. */
+function loginPath(next: string) {
+  return `/login?next=${encodeURIComponent(safeNextPath(next))}`;
+}
+
+export async function requireActiveUser(next: string) {
+  const auth = await getCurrentAuthState();
+
+  if (!auth.isConfigured || !auth.user) redirect(loginPath(next));
+  if (isAccountSuspended(auth.profile)) redirect(ACCOUNT_SUSPENDED_PATH);
+  if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath(next));
+
+  return auth.user;
+}

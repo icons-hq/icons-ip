@@ -10,7 +10,7 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   order_delivered: '배송',
   draw_ticket_issued: '카드팩',
   drop_published: '드롭',
-  event_published: '이벤트',
+  event_published: '오프라인 팝업',
   announcement: '공지',
   inquiry_answered: '문의',
   claim_updated: '클레임',

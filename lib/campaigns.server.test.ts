@@ -137,6 +137,39 @@ describe('loadCampaignHub', () => {
 
     expect(hub.campaigns.map((entry) => entry.id)).toEqual(['good']);
   });
+
+  /* RLS 가 draft 를 넘겨주는 상대는 운영자뿐이다 — 로더가 published 로 접으면
+     그 운영자에게 준비 중 캠페인이 공개된 것과 똑같이 보인다. */
+  it('draft 상태를 접지 않고 그대로 싣는다', async () => {
+    mocks.tables.campaigns = {
+      data: [
+        hubRow('draft-one', { status: 'draft' }),
+        hubRow('live-one', { status: 'published' }),
+        hubRow('done-one', { ...PAST, status: 'ended' }),
+      ],
+      error: null,
+    };
+
+    const hub = await loadCampaignHub();
+    const byId = new Map(hub.campaigns.map((entry) => [entry.id, entry]));
+
+    expect(byId.get('draft-one')?.status).toBe('draft');
+    expect(byId.get('live-one')?.status).toBe('published');
+    expect(byId.get('done-one')?.status).toBe('ended');
+    /* displayState 파생은 그대로 시간 기반이다. */
+    expect(byId.get('draft-one')?.displayState).toBe('ongoing');
+  });
+
+  it('모르는 status 행은 kind 와 같은 관대 원칙으로 뺀다', async () => {
+    mocks.tables.campaigns = {
+      data: [hubRow('good'), hubRow('weird', { status: 'archived' })],
+      error: null,
+    };
+
+    const hub = await loadCampaignHub();
+
+    expect(hub.campaigns.map((entry) => entry.id)).toEqual(['good']);
+  });
 });
 
 describe('loadCampaignDetail', () => {

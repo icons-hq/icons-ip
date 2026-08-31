@@ -209,7 +209,7 @@ export function Events({
           {list.length === 0 && (
             <div style={{ textAlign: 'center', padding: '70px 20px', border: '1px dashed var(--line-2)', borderRadius: 20 }}>
               <div style={{ fontSize: 17, fontWeight: 700 }}>
-                {catalog.events.length ? '조건에 맞는 이벤트가 없어요' : '등록된 이벤트가 아직 없습니다'}
+                {catalog.events.length ? '조건에 맞는 오프라인 팝업이 없어요' : '등록된 오프라인 팝업이 아직 없습니다'}
               </div>
               <div className="mono" style={{ fontSize: 12, color: 'var(--faint)', marginTop: 8 }}>
                 {catalog.events.length ? '필터를 바꿔보세요' : 'Supabase 카탈로그 seed 또는 admin 등록 후 오프라인 팝업 목록에 공개됩니다.'}

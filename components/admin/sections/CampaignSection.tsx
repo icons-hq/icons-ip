@@ -81,6 +81,10 @@ function SectionSchemaHelp() {
           복사해 넣습니다. <code>goods</code>의 <code>good_ids</code>는 굿즈 ID 1~8개,
           {' '}<code>notice</code>의 <code>items</code>는 문구 1~20줄입니다.
         </p>
+        <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
+          <code>coupon</code>의 <code>coupon_code</code>는 쿠폰 관리에 먼저 등록되어 있어야 해요 —
+          등록되지 않은 코드는 저장 단계에서 거절됩니다.
+        </p>
         <pre className="admin-campaign-help-sample">
 {`[
   { "type": "intro", "copy": "출석하고 카드팩을 받아 가세요" },

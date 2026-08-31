@@ -4,6 +4,10 @@
 --
 -- 20260716090001의 private.notify_event_insert() 본문에서 link_path 리터럴 한
 -- 줄만 바꾼 재정의다. 팬아웃 조건·dedupe 키·staff 게이트는 그대로다.
+--
+-- 알림 문구도 함께 옮긴다: 이 표면의 사용자-facing 이름은 '오프라인 팝업'이고
+-- '이벤트'는 온라인 캠페인 허브의 이름이다(CONTEXT.md). 알림만 옛 이름을 들고
+-- 있으면 알림함과 도착 화면이 서로 다른 것을 가리키는 것처럼 읽힌다.
 
 create or replace function private.notify_event_insert()
 returns trigger
@@ -33,8 +37,8 @@ begin
   select
     follow.user_id,
     'event_published',
-    '새 이벤트가 공개됐어요',
-    left(new.title || ' 이벤트가 공개됐습니다.', 500),
+    '새 오프라인 팝업이 공개됐어요',
+    left(new.title || ' 오프라인 팝업이 공개됐습니다.', 500),
     '/offline-popups',
     'event',
     new.id,

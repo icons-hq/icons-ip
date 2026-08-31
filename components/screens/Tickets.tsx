@@ -85,7 +85,7 @@ export function Tickets({
           <div className="tickets-empty card">
             <div className="tickets-empty-icon" aria-hidden><Icon name="event" size={30} /></div>
             <h2>아직 예매한 티켓이 없어요</h2>
-            <p>다가오는 팝업 이벤트와 예매 가능한 회차를 확인해보세요.</p>
+            <p>다가오는 오프라인 팝업과 예매 가능한 회차를 확인해보세요.</p>
             <Link className="btn btn-holo" href="/offline-popups">오프라인 팝업 둘러보기</Link>
           </div>
         ) : (

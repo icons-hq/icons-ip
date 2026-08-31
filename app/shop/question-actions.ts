@@ -1,15 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import {
-  ACCOUNT_SUSPENDED_PATH,
-  isAccountSuspended,
-  isOnboarded,
-  onboardingPath,
-  safeNextPath,
-} from '@/lib/auth/onboarding';
-import { getCurrentAuthState } from '@/lib/auth/server';
+import { safeNextPath } from '@/lib/auth/onboarding';
+import { requireActiveUser } from '@/lib/participation-gate.server';
 import {
   goodQuestionsHref,
   normalizeProductQuestionForm,
@@ -36,23 +29,6 @@ export interface ProductQuestionActionState {
 
 const CREATE_FAILED = '질문을 등록하지 못했습니다. 잠시 후 다시 시도해주세요.';
 const CREATED = '질문을 등록했어요. 답변이 달리면 알림으로 알려드려요.';
-
-function loginPath(next: string) {
-  return `/login?next=${encodeURIComponent(next)}`;
-}
-
-/* 리뷰·1:1 표면의 3단 게이트와 같은 순서다. 두 곳 다 자기 라우트 폴더 안에서만
-   쓰이는 비공개 헬퍼라 여기서 한 번 더 세운다 — 'use server' 모듈은 액션이 아닌
-   함수를 export 할 수 없어 그대로 끌어다 쓸 수도 없다. */
-async function requireActiveUser(next: string) {
-  const auth = await getCurrentAuthState();
-
-  if (!auth.isConfigured || !auth.user) redirect(loginPath(next));
-  if (isAccountSuspended(auth.profile)) redirect(ACCOUNT_SUSPENDED_PATH);
-  if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath(next));
-
-  return auth.user;
-}
 
 /**
  * 돌아갈 굿즈 상세 경로.

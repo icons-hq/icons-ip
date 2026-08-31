@@ -71,6 +71,11 @@ function campaignWriteFailure(
       },
     };
   }
+  /* 쿠폰 코드는 jsonb 안이라 FK 로 묶이지 않는다 — RPC 가 저장 시점에 실재를
+     확인하고, 여기서는 "코드를 먼저 등록하라"는 다음 행동으로 옮긴다. */
+  if (message.includes('unknown_coupon_code')) {
+    return { errors: { sections: '쿠폰 섹션의 코드가 쿠폰 관리에 등록되어 있지 않아요.' } };
+  }
   if (message.includes('invalid_campaign_id')) {
     return { errors: { id: 'ID는 소문자·숫자·하이픈 2~64자로 입력해주세요.' } };
   }
