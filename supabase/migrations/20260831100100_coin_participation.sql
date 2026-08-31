@@ -31,6 +31,11 @@ create table public.coin_ledger (
     check (reason in ('attendance', 'exchange')),
   -- 교환 멱등 키. 출석 적립에는 없다(날짜가 곧 키다).
   operation_id uuid,
+  -- 그 멱등 키가 어느 교환 상품에 대한 것이었는지. 재생 요청이 "같은 키인데 다른
+  -- 상품"인지 판정하는 근거다 — 키만 보고 already_exchanged 를 돌려주면 두 번째
+  -- 상품의 교환이 성립하지 않았는데도 성공으로 읽힌다.
+  -- FK 는 coin_exchange_offers 를 만든 뒤에 붙인다(아래).
+  offer_id uuid,
   -- 출석 적립분이 어느 날짜에 대한 것인지.
   attended_on date,
   created_at timestamptz not null default now()
@@ -82,6 +87,17 @@ create index coin_exchange_offers_pool_id_idx
 create trigger coin_exchange_offers_set_updated_at
 before update on public.coin_exchange_offers
 for each row execute function public.set_updated_at();
+
+-- 원장의 교환 상품 참조. 상품 행을 지우려면 원장을 먼저 정리해야 한다(기본
+-- no action) — 지출 기록이 어느 상품이었는지 모르게 되는 삭제를 막는다.
+alter table public.coin_ledger
+  add constraint coin_ledger_offer_id_fkey
+    foreign key (offer_id) references public.coin_exchange_offers (id);
+
+-- FK 참조 인덱스. 상품 삭제·변경이 원장을 순차 스캔하지 않게 한다.
+create index coin_ledger_offer_idx
+  on public.coin_ledger (offer_id)
+  where offer_id is not null;
 
 -- ── 원장 불변성 ─────────────────────────────────────────────────────────────
 
@@ -256,6 +272,14 @@ begin
     raise exception 'account_suspended' using errcode = '55000';
   end if;
 
+  -- 탈퇴 신청으로 쓰기가 봉인된 계정. 적립은 삭제 대상 계정에 새 잔액을 만드는
+  -- 일이고, 그 잔액은 교환으로만 빠져나간다 — 봉인 뒤에 새로 생기면 안 된다
+  -- (20260813193000 의 계정 fence 관례를 그대로 미러한다).
+  if private.is_account_write_fenced(v_user) then
+    raise object_not_in_prerequisite_state
+      using message = 'account_deletion_write_fenced';
+  end if;
+
   v_today := (now() at time zone 'Asia/Seoul')::date;
 
   -- 같은 날 두 번째 호출은 아무것도 바꾸지 않는다. 경합하는 두 탭도 PK가
@@ -321,6 +345,7 @@ declare
   v_user uuid := (select auth.uid());
   v_offer public.coin_exchange_offers%rowtype;
   v_ledger_owner uuid;
+  v_ledger_offer uuid;
   v_balance integer;
   v_issued integer;
   v_existing_count integer;
@@ -338,6 +363,12 @@ begin
     raise exception 'account_suspended' using errcode = '55000';
   end if;
 
+  -- 탈퇴 신청으로 쓰기가 봉인된 계정(20260813193000 의 계정 fence 관례).
+  if private.is_account_write_fenced(v_user) then
+    raise object_not_in_prerequisite_state
+      using message = 'account_deletion_write_fenced';
+  end if;
+
   if p_operation_id is null then
     raise exception 'invalid_operation' using errcode = '22004';
   end if;
@@ -349,8 +380,8 @@ begin
     pg_catalog.hashtextextended('coin_exchange:' || p_operation_id::text, 0)
   );
 
-  select ledger.user_id
-    into v_ledger_owner
+  select ledger.user_id, ledger.offer_id
+    into v_ledger_owner, v_ledger_offer
   from public.coin_ledger as ledger
   where ledger.operation_id = p_operation_id;
 
@@ -358,6 +389,14 @@ begin
     -- 남의 멱등 키를 재생해 잔액·발급 수를 읽어 가는 경로를 막는다.
     if v_ledger_owner is distinct from v_user then
       raise exception 'exchange_operation_conflict' using errcode = '23505';
+    end if;
+
+    -- 같은 키인데 다른 상품이면 재시도가 아니라 다른 요청이다. 캠페인 한 장에
+    -- 교환 블록이 여러 개일 때 화면이 키를 공유하면 여기로 온다 — already_exchanged
+    -- 로 답하면 두 번째 상품은 교환되지 않았는데 성공으로 읽힌다.
+    if v_ledger_offer is distinct from p_offer_id then
+      raise exception 'exchange_operation_conflict' using errcode = '23505',
+        detail = 'operation_id is bound to a different offer';
     end if;
 
     select coalesce(balance, 0) into v_balance
@@ -401,8 +440,8 @@ begin
     raise exception 'insufficient_coins';
   end if;
 
-  insert into public.coin_ledger (user_id, amount, reason, operation_id)
-  values (v_user, -v_offer.coin_cost, 'exchange', p_operation_id);
+  insert into public.coin_ledger (user_id, amount, reason, operation_id, offer_id)
+  values (v_user, -v_offer.coin_cost, 'exchange', p_operation_id, v_offer.id);
 
   -- source_id = operation_id 라서 unique (source, source_id, ordinal)이 재시도
   -- 이중 발급을 DB 레벨에서 한 번 더 막는다.

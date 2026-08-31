@@ -12,6 +12,7 @@ import Page, { generateMetadata } from './page';
 const mocks = vi.hoisted(() => ({
   auth: null as unknown as CurrentAuthState,
   campaign: null as CampaignLandingSnapshot | null,
+  cardRewardsEnabled: true,
   catalog: null as CatalogSnapshot | null,
   coin: null as CoinOverview | null,
   screen: vi.fn<(props: Record<string, unknown>) => null>(() => null),
@@ -31,6 +32,9 @@ vi.mock('@/components/screens/CampaignLanding', () => ({ CampaignLanding: mocks.
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: async () => mocks.auth }));
 vi.mock('@/lib/campaigns.server', () => ({
   loadCampaignDetail: async (id: string) => (mocks.campaign?.id === id ? mocks.campaign : null),
+}));
+vi.mock('@/lib/card-rewards/gate.server', () => ({
+  readCardRewardsEnabled: async () => mocks.cardRewardsEnabled,
 }));
 vi.mock('@/lib/catalog', () => ({ getCatalogSnapshot: () => mocks.catalog }));
 vi.mock('@/lib/coins.server', () => ({ loadCoinOverview: async () => mocks.coin }));
@@ -70,6 +74,23 @@ function campaignFor(id: string): CampaignLandingSnapshot {
   };
 }
 
+const OFFER_A = '11111111-1111-4111-8111-111111111111';
+const OFFER_B = '33333333-3333-4333-8333-333333333333';
+
+/* 교환 블록이 둘인 캠페인. 한 페이지에 여러 교환처를 두는 편성이 실제로 있고,
+   멱등 키를 공유하면 두 번째 교환이 가짜 성공으로 끝난다. */
+function campaignWithTwoExchanges(id: string): CampaignLandingSnapshot {
+  return {
+    ...campaignFor(id),
+    resolvedSections: [
+      { type: 'attendance' },
+      { type: 'exchange', offer_id: OFFER_A, offer: null },
+      { type: 'intro', copy: '안내' },
+      { type: 'exchange', offer_id: OFFER_B, offer: null },
+    ],
+  };
+}
+
 function pageProps(
   eventId: string,
   searchParams: Record<string, string | string[] | undefined> = {},
@@ -91,6 +112,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 beforeEach(() => {
   mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
   mocks.campaign = null;
+  mocks.cardRewardsEnabled = true;
   mocks.catalog = snapshot([event]);
   mocks.coin = null;
   mocks.screen.mockClear();
@@ -134,12 +156,45 @@ describe('/events/[eventId] 캠페인 상세', () => {
 
   /* 교환 폼의 멱등 키는 서버가 심는다 — 클라이언트가 만들면 재제출마다 새 키가 생겨
      같은 교환이 두 번 성립할 창이 열린다. */
-  it('교환 폼용 멱등 키를 서버에서 만들어 넘긴다', async () => {
+  it('교환 블록마다 서로 다른 멱등 키를 만들어 넘긴다', async () => {
+    mocks.campaign = campaignWithTwoExchanges('summer');
+
+    renderToStaticMarkup(await Page(pageProps('summer')));
+
+    const ids = mocks.screen.mock.calls[0]?.[0]?.exchangeOperationIds as Record<number, string>;
+
+    /* 키는 교환 블록의 섹션 인덱스에만 붙는다 — 출석·소개 블록은 멱등 키를 쓰지 않는다. */
+    expect(Object.keys(ids)).toEqual(['1', '3']);
+    expect(ids[1]).toMatch(UUID_PATTERN);
+    expect(ids[3]).toMatch(UUID_PATTERN);
+    /* 공유하면 첫 교환 뒤 다른 상품 제출이 already_exchanged 로 가짜 성공한다. */
+    expect(ids[1]).not.toBe(ids[3]);
+  });
+
+  it('교환 블록이 없으면 멱등 키도 만들지 않는다', async () => {
     mocks.campaign = campaignFor('summer');
 
     renderToStaticMarkup(await Page(pageProps('summer')));
 
-    expect(String(mocks.screen.mock.calls[0]?.[0]?.operationId)).toMatch(UUID_PATTERN);
+    expect(mocks.screen.mock.calls[0]?.[0]?.exchangeOperationIds).toEqual({});
+  });
+
+  /* 전역 카드 리워드 게이트는 화면이 교환 표면을 감추는 데 쓴다(/packs 와 같은 규율). */
+  it('카드 리워드 게이트 상태를 화면에 그대로 넘긴다', async () => {
+    mocks.campaign = campaignWithTwoExchanges('summer');
+    mocks.cardRewardsEnabled = false;
+
+    renderToStaticMarkup(await Page(pageProps('summer')));
+
+    expect(mocks.screen.mock.calls[0]?.[0]?.cardRewardsEnabled).toBe(false);
+  });
+
+  it('게이트가 켜져 있으면 그대로 true 를 넘긴다', async () => {
+    mocks.campaign = campaignFor('summer');
+
+    renderToStaticMarkup(await Page(pageProps('summer')));
+
+    expect(mocks.screen.mock.calls[0]?.[0]?.cardRewardsEnabled).toBe(true);
   });
 
   /* 조회 순서가 계약이다. 반대로 두면 슬러그가 겹친 캠페인이 영영 열리지 않는다. */

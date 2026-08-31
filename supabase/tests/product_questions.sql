@@ -30,6 +30,11 @@ values
     '00000000-0000-4000-8000-000000000824',
     'authenticated', 'authenticated', 'question-suspended@example.test', now(),
     '{}', '{}', now(), now()
+  ),
+  (
+    '00000000-0000-4000-8000-000000000825',
+    'authenticated', 'authenticated', 'question-fenced@example.test', now(),
+    '{}', '{}', now(), now()
   )
 on conflict (id) do nothing;
 
@@ -54,6 +59,11 @@ values
     '00000000-0000-4000-8000-000000000824',
     'question-suspended@example.test', 'question_suspended', '2000-01-01',
     '{"terms":true,"privacy":true}'::jsonb, now(), 'user'
+  ),
+  (
+    '00000000-0000-4000-8000-000000000825',
+    'question-fenced@example.test', 'question_fenced', '2000-01-01',
+    '{"terms":true,"privacy":true}'::jsonb, now(), 'user'
   )
 on conflict (id) do update set
   email = excluded.email,
@@ -66,6 +76,24 @@ on conflict (id) do update set
 update public.profiles
 set suspended_at = now(), suspension_reason = 'Q&A 스모크용 정지'
 where id = '00000000-0000-4000-8000-000000000824';
+
+-- 탈퇴 신청으로 쓰기가 봉인된 계정. fence 행이 요청 행을 FK 로 물고 있어서
+-- 두 테이블을 함께 시드한다(20260813193000).
+insert into private.account_deletion_requests (
+  deletion_event_id, subject_user_id, idempotency_key, status
+)
+values (
+  '00000000-0000-4000-8000-0000000008f3',
+  '00000000-0000-4000-8000-000000000825',
+  '00000000-0000-4000-8000-0000000008f4',
+  'blocked_active_obligation'
+);
+
+insert into private.account_action_fences (subject_user_id, deletion_event_id)
+values (
+  '00000000-0000-4000-8000-000000000825',
+  '00000000-0000-4000-8000-0000000008f3'
+);
 
 insert into public.ips (id, title, vertical_key)
 values ('pq-ip', 'Q&A 스모크 IP', 'character')
@@ -89,8 +117,38 @@ select 1 / case when has_table_privilege('anon', 'public.product_questions', 'se
   and not has_column_privilege('authenticated', 'public.product_questions', 'answer_body', 'insert')
   and not has_column_privilege('authenticated', 'public.product_questions', 'status', 'insert')
   and not has_table_privilege('authenticated', 'public.product_questions', 'update')
-  and not has_table_privilege('authenticated', 'public.product_questions', 'delete')
+  -- 작성자 회수권. 어느 행을 지울 수 있는지는 delete 정책이 좁힌다.
+  and has_table_privilege('authenticated', 'public.product_questions', 'delete')
+  and not has_table_privilege('anon', 'public.product_questions', 'delete')
 then 1 else 0 end as assert_product_question_privileges;
+
+-- 정책 표현식이 부르는 fence 래퍼는 authenticated 에게만 열려 있다.
+select 1 / case when has_function_privilege(
+    'authenticated', 'private.can_write_own_product_question()', 'execute'
+  )
+  and not has_function_privilege('anon', 'private.can_write_own_product_question()', 'execute')
+  and not has_function_privilege('service_role', 'private.can_write_own_product_question()', 'execute')
+  -- 원본 판정 함수는 계속 봉인돼 있어야 한다(계정 삭제 내부 상태).
+  and not has_function_privilege('authenticated', 'private.is_account_write_fenced(uuid)', 'execute')
+then 1 else 0 end as assert_question_fence_helper_acl;
+
+-- 작성 정책 자체가 fence 를 본다. 테이블 트리거가 같은 것을 한 번 더 막지만,
+-- 그 트리거를 지우면 이 술어만 남아야 한다 — 정책 본문을 직접 확인한다.
+select 1 / case when (
+  select with_check like '%can_write_own_product_question%'
+  from pg_policies
+  where schemaname = 'public'
+    and tablename = 'product_questions'
+    and policyname = 'product_questions_insert_own'
+) then 1 else 0 end as assert_insert_policy_checks_account_fence;
+
+select 1 / case when exists (
+  select 1 from pg_policies
+  where schemaname = 'public'
+    and tablename = 'product_questions'
+    and policyname = 'product_questions_delete_own'
+    and cmd = 'DELETE'
+) then 1 else 0 end as assert_author_delete_policy_exists;
 
 select 1 / case when not has_function_privilege('anon', 'public.admin_answer_product_question(uuid, text)', 'execute')
   and has_function_privilege('authenticated', 'public.admin_answer_product_question(uuid, text)', 'execute')
@@ -175,6 +233,32 @@ begin
   end;
 end;
 $$;
+
+-- 탈퇴 신청으로 쓰기가 봉인된 계정도 새 글을 남길 수 없다(정지와 다른 상태다).
+--
+-- 방어가 두 겹이라 잡히는 예외가 둘이다: 테이블 fence 트리거(insufficient... 가 아닌
+-- object_not_in_prerequisite_state)가 RLS with check 보다 먼저 돈다. 어느 겹이 먼저
+-- 잡든 결과는 같아야 하므로 둘 다 통과로 본다 — 정책 술어 자체는 아래 pg_policies
+-- 단언이 따로 지킨다.
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000825', true);
+do $$
+begin
+  begin
+    insert into public.product_questions (good_id, user_id, body)
+    values ('pq-g1', '00000000-0000-4000-8000-000000000825', '탈퇴 중 질문');
+    raise exception 'fenced author should be rejected';
+  exception
+    when insufficient_privilege then null;
+    when object_not_in_prerequisite_state then
+      if sqlerrm <> 'account_deletion_write_fenced' then raise; end if;
+  end;
+end;
+$$;
+
+select 1 / case when not exists (
+  select 1 from public.product_questions
+  where user_id = '00000000-0000-4000-8000-000000000825'
+) then 1 else 0 end as assert_fenced_author_writes_nothing;
 
 -- ── 공개 조회 ───────────────────────────────────────────────────────────────
 
@@ -352,7 +436,8 @@ begin
 end;
 $$;
 
--- 작성자도 자기 글을 직접 고치거나 지울 수 없다(update/delete 정책 없음).
+-- 작성자도 자기 글을 직접 고칠 수는 없다(update 정책 없음). 삭제는 아래에서 따로 본다 —
+-- 고치기와 지우기는 다른 권리다: 고친 글은 답변이 대상을 잃고, 지운 글은 답변도 함께 간다.
 do $$
 begin
   begin
@@ -360,14 +445,6 @@ begin
     set body = '수정 시도'
     where id = current_setting('test.question_id')::uuid;
     raise exception 'direct question update should be rejected';
-  exception
-    when insufficient_privilege then null;
-  end;
-
-  begin
-    delete from public.product_questions
-    where id = current_setting('test.question_id')::uuid;
-    raise exception 'direct question delete should be rejected';
   exception
     when insufficient_privilege then null;
   end;
@@ -391,6 +468,40 @@ begin
 end;
 $$;
 
+-- ── 작성자 삭제 ─────────────────────────────────────────────────────────────
+--
+-- 운영자 블라인드와 다른 경로다: 저쪽은 원문을 남기고 상태만 바꾸고, 이쪽은 행이
+-- 사라진다. 이 시점의 질문에는 이미 운영 답변이 달려 있다 — 답변이 달렸다고 자기
+-- 글을 못 거두게 하면 작성자는 남긴 글을 영영 되돌릴 수 없다.
+
+-- 남의 글은 조건에서 걸러진다. 오류가 아니라 0행이라, 행이 남았는지로 확인한다.
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000822', true);
+set local role authenticated;
+delete from public.product_questions where id = :'question_id'::uuid;
+
 reset role;
+select 1 / case when exists (
+  select 1 from public.product_questions where id = :'question_id'::uuid
+) then 1 else 0 end as assert_other_user_delete_removes_nothing;
+
+-- 운영자에게도 삭제 정책은 없다. 내리는 경로는 블라인드다(원문이 남아야 검증된다).
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000823', true);
+set local role authenticated;
+delete from public.product_questions where id = :'question_id'::uuid;
+
+reset role;
+select 1 / case when exists (
+  select 1 from public.product_questions where id = :'question_id'::uuid
+) then 1 else 0 end as assert_staff_delete_removes_nothing;
+
+-- 작성자 본인은 지운다. 답변 컬럼이 같은 행이라 답변도 함께 사라진다.
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000821', true);
+set local role authenticated;
+delete from public.product_questions where id = :'question_id'::uuid;
+
+reset role;
+select 1 / case when not exists (
+  select 1 from public.product_questions where id = :'question_id'::uuid
+) then 1 else 0 end as assert_author_deletes_own_question;
 
 rollback;

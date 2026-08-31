@@ -49,6 +49,7 @@ cleanup_fixtures() {
   psql_exec -q <<SQL >/dev/null 2>&1 || true
 delete from public.profiles where id = '${user_id}'::uuid;
 delete from auth.users where id = '${user_id}'::uuid;
+delete from public.campaigns where id = 'coin-race-campaign';
 delete from public.coin_exchange_offers where id = '${offer_id}'::uuid;
 delete from public.cards where id = 'coin-race-card';
 -- pool_odds는 card_pools의 on delete cascade로 정리한다. 행 단위로 지우면
@@ -158,6 +159,18 @@ values ('coin-race-card', 'coin-race-ip', '코인 경합 카드', '001', 'N', '$
 
 insert into public.coin_exchange_offers (id, pool_id, label, coin_cost, ticket_count, status)
 values ('${offer_id}'::uuid, '${pool_id}'::uuid, '경합 카드팩', ${coin_cost}, ${ticket_count}, 'active');
+
+-- 교환은 진행 중 공개 캠페인이 이 상품을 걸고 있을 때만 성립한다(20260901090000).
+-- 여기서는 어드민 RPC 계약이 아니라 잔액 경합을 시험하므로 superuser 로 직접 넣는다.
+insert into public.campaigns (id, kind, title, status, starts_at, ends_at, sections)
+values (
+  'coin-race-campaign', 'event', '코인 경합 캠페인', 'published',
+  pg_catalog.now() - interval '1 hour',
+  pg_catalog.now() + interval '1 day',
+  pg_catalog.jsonb_build_array(
+    pg_catalog.jsonb_build_object('type', 'exchange', 'offer_id', '${offer_id}')
+  )
+);
 
 -- 원장과 캐시를 함께 시드해 두 값이 어긋난 상태에서 시작하지 않게 한다.
 insert into public.coin_ledger (user_id, amount, reason, attended_on)

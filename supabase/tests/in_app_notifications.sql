@@ -459,11 +459,13 @@ select public.admin_upsert_good(
   'notification-runtime-good'
 );
 
+-- 오프라인 팝업 알림은 mode='오프라인'에만 나간다(20260901090000). 온라인 편성의
+-- 정본 표면은 캠페인 허브·IP 관이라 이 트리거가 알리지 않는다.
 select public.admin_upsert_event(
   'notification-runtime-event',
   'notification-ip',
   '런타임 이벤트',
-  '온라인',
+  '오프라인',
   '예정',
   null,
   null,
@@ -477,7 +479,7 @@ select public.admin_upsert_event(
   'notification-runtime-event',
   'notification-ip',
   '수정된 런타임 이벤트',
-  '온라인',
+  '오프라인',
   '예정',
   null,
   null,
@@ -492,7 +494,7 @@ select public.admin_upsert_event(
   'notification-joint-event',
   null,
   '합동 이벤트',
-  '온라인',
+  '오프라인',
   '예정',
   null,
   null,
@@ -506,7 +508,7 @@ select public.admin_upsert_event(
   current_setting('test.long_event_id_one'),
   'notification-ip',
   '장문 식별자 이벤트 A',
-  '온라인',
+  '오프라인',
   '예정',
   null,
   null,
@@ -520,7 +522,7 @@ select public.admin_upsert_event(
   current_setting('test.long_event_id_two'),
   'notification-ip',
   '장문 식별자 이벤트 B',
-  '온라인',
+  '오프라인',
   '예정',
   null,
   null,

@@ -29,10 +29,16 @@ import { imageBg } from '@/lib/media';
 
 export interface CampaignLandingProps {
   campaign: CampaignLandingSnapshot;
+  /**
+   * 전역 카드 리워드 게이트. false 면 교환 블록을 앵커 항목까지 통째로 뺀다 —
+   * 다른 카드 표면(/packs·게임·마이 메뉴)과 같은 fail-closed 규율이다.
+   * 출석·코인 박스는 게이트와 무관하다(코인은 카드가 아니라 참여 재화다).
+   */
+  cardRewardsEnabled: boolean;
   /** 비로그인이면 null — 잔액 0 과 구분해야 로그인 CTA 를 그릴 수 있다. */
   coin: CoinOverview | null;
-  /** 교환 폼의 멱등 키. 서버 렌더가 요청마다 새로 심는다. */
-  operationId: string;
+  /** 교환 블록의 멱등 키. 섹션 인덱스별로 다르다(키 공유는 가짜 성공을 만든다). */
+  exchangeOperationIds: Record<number, string>;
   signedIn: boolean;
 }
 
@@ -55,11 +61,19 @@ interface SectionContext {
   ended: boolean;
   loginHref: string;
   next: string;
-  operationId: string;
   signedIn: boolean;
 }
 
-function SectionBody({ context, section }: { context: SectionContext; section: ResolvedCampaignSection }) {
+function SectionBody({
+  context,
+  operationId,
+  section,
+}: {
+  context: SectionContext;
+  /** 이 블록 전용 멱등 키. exchange 가 아닌 블록에는 없다. */
+  operationId: string | undefined;
+  section: ResolvedCampaignSection;
+}) {
   switch (section.type) {
     case 'intro':
       return <p className="wc-campaign-intro">{section.copy}</p>;
@@ -67,13 +81,14 @@ function SectionBody({ context, section }: { context: SectionContext; section: R
     case 'image':
       /* 배경 이미지 + role="img" 다. 이 지면의 모든 아트는 CSS 배경으로 그리는데
          (crop 기준을 한 곳에 두려고), 배경에는 대체 텍스트가 붙지 않는다 —
-         운영자가 넣은 alt 를 접근성 트리에 올리는 자리가 여기다. */
+         운영자가 넣은 alt 를 접근성 트리에 올리는 자리가 여기다.
+         경로 해석은 로더가 이미 했다(imageUrl). */
       return (
         <div
           aria-label={section.alt}
           className="wc-campaign-figure"
           role="img"
-          style={{ background: imageBg(section.image_path) }}
+          style={section.imageUrl ? { background: imageBg(section.imageUrl) } : undefined}
         />
       );
 
@@ -141,8 +156,10 @@ function SectionBody({ context, section }: { context: SectionContext; section: R
           balance={context.balance}
           loginHref={context.loginHref}
           next={context.next}
-          offer={section.offer}
-          operationId={context.operationId}
+          /* 멱등 키가 없는 교환 블록은 제출할 수 없는 폼이다 — 서버가 거절할 버튼을
+             그리는 대신 상품을 못 찾았을 때와 같은 안내로 접는다. */
+          offer={operationId ? section.offer : null}
+          operationId={operationId ?? ''}
           signedIn={context.signedIn}
         />
       );
@@ -152,17 +169,32 @@ function SectionBody({ context, section }: { context: SectionContext; section: R
   }
 }
 
-export function CampaignLanding({ campaign, coin, operationId, signedIn }: CampaignLandingProps) {
+export function CampaignLanding({
+  campaign,
+  cardRewardsEnabled,
+  coin,
+  exchangeOperationIds,
+  signedIn,
+}: CampaignLandingProps) {
   const next = `/events/${encodeURIComponent(campaign.id)}`;
   const loginHref = `/login?next=${encodeURIComponent(next)}`;
-  const anchors = campaignAnchors(campaign.resolvedSections);
+
+  /* 게이트가 내려가면 교환 블록은 화면에서 사라진다 — 자리만 남겨 "지금은 못 해요"를
+     적는 방식(offer 결측)과 다르다. 저쪽은 이 캠페인의 상품 하나가 내려간 것이고,
+     이쪽은 카드 리워드라는 표면 자체가 없는 상태다.
+
+     원래 인덱스를 함께 들고 다닌다 — 멱등 키는 걸러내기 전의 섹션 인덱스로 매겨져
+     있고, DOM id·목차는 걸러낸 뒤의 자리로 매긴다. */
+  const visibleSections = campaign.resolvedSections
+    .map((section, sourceIndex) => ({ section, sourceIndex }))
+    .filter(({ section }) => cardRewardsEnabled || section.type !== 'exchange');
+  const anchors = campaignAnchors(visibleSections.map(({ section }) => section));
   const context: SectionContext = {
     attendedToday: coin?.attendedToday ?? false,
     balance: coin?.balance ?? 0,
     ended: campaign.displayState === 'ended',
     loginHref,
     next,
-    operationId,
     signedIn,
   };
 
@@ -196,8 +228,8 @@ export function CampaignLanding({ campaign, coin, operationId, signedIn }: Campa
           </p>
         </header>
 
-        {campaign.resolvedSections.length ? (
-          campaign.resolvedSections.map((section, index) => (
+        {visibleSections.length ? (
+          visibleSections.map(({ section, sourceIndex }, index) => (
             <section
               className={`wc-campaign-section wc-campaign-section--${section.type}`}
               id={campaignSectionDomId(index)}
@@ -206,7 +238,11 @@ export function CampaignLanding({ campaign, coin, operationId, signedIn }: Campa
               {section.anchor ? (
                 <h2 className="wc-campaign-section__heading">{section.anchor}</h2>
               ) : null}
-              <SectionBody context={context} section={section} />
+              <SectionBody
+                context={context}
+                operationId={exchangeOperationIds[sourceIndex]}
+                section={section}
+              />
             </section>
           ))
         ) : (

@@ -51,6 +51,12 @@ function questionNextPath(rawNext: FormDataEntryValue | null, goodId: string) {
 function insertErrorMessage(message: string | null | undefined): ProductQuestionFormErrors {
   const value = (message ?? '').toLowerCase();
 
+  /* 탈퇴 신청으로 쓰기가 봉인된 계정. RLS insert 정책의 fence 술어보다 테이블
+     트리거가 먼저 돌아서(BEFORE INSERT), 정책 위반이 아니라 이 메시지로 온다.
+     기다린다고 풀리는 상태가 아니므로 "잠시 후 다시"로 접지 않는다. */
+  if (value.includes('account_deletion_write_fenced')) {
+    return { form: '탈퇴 처리 중인 계정에서는 질문을 등록할 수 없습니다.' };
+  }
   /* 정지 계정은 위 게이트가 먼저 걸러내지만, 게이트를 지난 뒤 정지되면 RLS 가 막는다.
      그때 "잠시 후 다시" 라고 하면 사용자는 될 때까지 다시 누른다. */
   if (value.includes('row-level security') || value.includes('account_suspended')) {

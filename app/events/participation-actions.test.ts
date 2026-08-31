@@ -123,6 +123,22 @@ describe('attendanceCheckInAction', () => {
     expect(state).toEqual({ status: 'error', message: '정지된 계정은 이벤트에 참여할 수 없어요.' });
     expect(mocks.revalidate).not.toHaveBeenCalled();
   });
+
+  /* 탈퇴 신청으로 쓰기가 봉인된 계정. "잠시 후 다시"로 접으면 될 때까지 다시 누른다. */
+  it('탈퇴 봉인은 되풀이하지 말라고 말한다', async () => {
+    mocks.rpc.mockResolvedValue({
+      data: null,
+      error: { message: 'account_deletion_write_fenced' },
+    });
+
+    const state = await attendanceCheckInAction({}, attendanceForm());
+
+    expect(state).toEqual({
+      status: 'error',
+      message: '탈퇴 처리 중인 계정에서는 이용할 수 없어요.',
+    });
+    expect(mocks.revalidate).not.toHaveBeenCalled();
+  });
 });
 
 describe('exchangeCoinsAction', () => {
@@ -178,6 +194,7 @@ describe('exchangeCoinsAction', () => {
     ['reward_pool_not_ready', '지금은 교환할 수 없는 상품이에요.'],
     ['card_rewards_disabled', '카드팩 교환을 준비하고 있어요. 잠시 후 다시 시도해 주세요.'],
     ['exchange_operation_conflict', '카드팩 교환을 완료하지 못했어요. 잠시 후 다시 시도해 주세요.'],
+    ['account_deletion_write_fenced', '탈퇴 처리 중인 계정에서는 이용할 수 없어요.'],
   ])('%s 를 참여자 문구로 옮긴다', async (raised, message) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: raised } });
 

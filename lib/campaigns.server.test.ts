@@ -247,6 +247,35 @@ describe('loadCampaignDetail', () => {
     });
   });
 
+  /* 히어로·카드·배너와 같은 Storage 경로다. 여기서 해석하지 않으면 이 블록만 원문
+     경로가 화면까지 흘러 배경이 비고, 같은 캠페인에서 히어로만 뜬다. */
+  it('image 블록의 Storage 경로도 공개 URL로 해석한다', async () => {
+    mocks.tables.campaigns = {
+      data: {
+        ...hubRow('with-figure'),
+        hero_image_path: null,
+        sections: [
+          { type: 'image', image_path: 'campaigns/mid.png', alt: '캠페인 안내 이미지' },
+          { type: 'image', image_path: 'public-media/campaigns/tail.png', alt: '하단 이미지' },
+        ],
+      },
+      error: null,
+    };
+
+    const detail = await loadCampaignDetail('with-figure');
+
+    expect(detail?.resolvedSections[0]).toEqual({
+      type: 'image',
+      image_path: 'campaigns/mid.png',
+      imageUrl: 'https://cdn.test/public-media/campaigns/mid.png',
+      alt: '캠페인 안내 이미지',
+    });
+    /* 버킷 접두가 붙은 경로도 한 번만 붙는다(normalizePublicMediaPath). */
+    expect(detail?.resolvedSections[1]).toMatchObject({
+      imageUrl: 'https://cdn.test/public-media/campaigns/tail.png',
+    });
+  });
+
   it('참조가 없으면 교환·굿즈 조회를 아예 하지 않는다', async () => {
     mocks.tables.campaigns = {
       data: {

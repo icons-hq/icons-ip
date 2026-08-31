@@ -144,7 +144,10 @@ export function Events({
           <div className="eyebrow rise" style={{ color: 'var(--mint)' }}>만나요 · POP-UP &amp; TICKETING</div>
           <h1 className="h-xl rise" style={{ marginTop: 14, animationDelay: '.08s' }}>오프라인 팝업</h1>
           <p className="rise" style={{ margin: '14px 0 0', fontSize: 15, color: '#C9C3E4', maxWidth: 480, textWrap: 'pretty', animationDelay: '.16s' }}>
-            공식 온·오프라인 팝업스토어를 발견하고, 예매부터 QR 입장까지 한 번에.
+            {/* 이 표면은 오프라인만 싣는다(selectOfflinePopupEvents) — 리드도 그렇게 읽혀야
+                한다. "온·오프라인"이라고 적어 두면 목록에 없는 온라인 팝업을 찾는 사람이
+                여기서 필터만 만지다 돌아간다. */}
+            공식 오프라인 팝업스토어를 발견하고, 예매부터 QR 입장까지 한 번에.
           </p>
 
           <div className="rise" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 26, animationDelay: '.24s' }}>

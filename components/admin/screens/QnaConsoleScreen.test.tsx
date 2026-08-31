@@ -78,7 +78,9 @@ describe('QnaConsoleScreen', () => {
   it('행에 굿즈·작성자·본문 미리보기를 싣는다', () => {
     const markup = render();
 
-    expect(markup).toContain('/shop/g13#qna');
+    /* `#qna` 앵커만 붙이면 굿즈 상세가 다른 탭으로 열려 링크가 아무 일도 하지 않는다 —
+       공개 지면과 같은 헬퍼로 탭 파라미터까지 싣는다. */
+    expect(markup).toContain('/shop/g13?qnaPage=1#qna');
     expect(markup).toContain('아크릴 블록');
     expect(markup).toContain('@fan_777777');
     expect(markup).toContain('사이즈가 궁금해요');

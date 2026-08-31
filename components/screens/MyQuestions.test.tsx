@@ -6,6 +6,7 @@ import { MyQuestions } from './MyQuestions';
 vi.mock('@/components/shell/CardRewardAvailability', () => ({
   useCardRewardsEnabled: () => true,
 }));
+vi.mock('@/app/my/questions/actions', () => ({ deleteMyProductQuestionAction: vi.fn() }));
 
 function myQuestion(overrides: Partial<MyProductQuestion> = {}): MyProductQuestion {
   return {
@@ -70,6 +71,33 @@ describe('MyQuestions', () => {
     expect(html).toContain('wc-qna-badge--hidden');
     expect(html).toContain('굿즈 상세에는 보이지 않습니다');
     expect(html).toContain('재입고 예정이 있나요?');
+  });
+
+  /* 작성자 회수권이다 — 운영자 블라인드(원문을 남긴다)와 다른 경로다. */
+  it('질문마다 삭제 버튼과 파급 안내를 함께 낸다', () => {
+    const html = render([myQuestion()]);
+
+    expect(html).toContain('name="questionId"');
+    expect(html).toContain('value="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"');
+    expect(html).toContain('aria-label="아크릴 블록에 남긴 질문 삭제"');
+    expect(html).toContain('삭제하면 굿즈 상세에서도 사라져요.');
+  });
+
+  /* 답변이 달렸다고 자기 글을 못 거두게 하면, 작성자는 남긴 글을 영영 되돌릴 수 없다.
+     답변은 같은 행의 컬럼이라 함께 사라진다. */
+  it('운영 답변이 달린 질문도 삭제할 수 있다', () => {
+    const html = render([myQuestion({
+      answerBody: '다음 주 화요일 재입고 예정입니다.',
+      answeredAt: '2026-08-31T02:00:00.000Z',
+    })]);
+
+    expect(html).toContain('aria-label="아크릴 블록에 남긴 질문 삭제"');
+  });
+
+  it('블라인드된 질문도 작성자가 지울 수 있다', () => {
+    const html = render([myQuestion({ status: 'hidden' })]);
+
+    expect(html).toContain('aria-label="아크릴 블록에 남긴 질문 삭제"');
   });
 
   it('남긴 질문이 없으면 굿즈로 가는 길을 준다', () => {

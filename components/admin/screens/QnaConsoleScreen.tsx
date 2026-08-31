@@ -16,6 +16,7 @@ import {
   productQuestionBodyPreview,
   type AdminProductQuestionConsoleData,
 } from '@/lib/admin/product-questions';
+import { goodQuestionsHref } from '@/lib/product-questions';
 import { QnaActionPanel } from './QnaActionPanel';
 
 /* 어드민 상품 Q&A 콘솔 (S8 #330).
@@ -45,7 +46,9 @@ export function QnaConsoleScreen({ data }: { data: AdminProductQuestionConsoleDa
       <time dateTime={row.createdAt} key="createdAt">
         {formatAdminProductQuestionDateTime(row.createdAt)}
       </time>,
-      <Link href={`/shop/${row.goodId}#qna`} key="good">{row.goodName}</Link>,
+      /* `#qna` 앵커만으로는 굿즈 상세가 Q&A 탭을 열지 않는다 — 공개 지면과 같은
+         헬퍼를 써서 탭 파라미터까지 실어 보낸다(lib/product-questions.ts). */
+      <Link href={goodQuestionsHref(row.goodId)} key="good">{row.goodName}</Link>,
       <span key="body">{productQuestionBodyPreview(row.body, 70)}</span>,
       <span key="author">@{row.authorName}</span>,
       <span data-question-status={row.hidden ? 'hidden' : 'visible'} key="status">

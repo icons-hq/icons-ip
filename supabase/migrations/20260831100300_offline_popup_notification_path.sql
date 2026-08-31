@@ -59,3 +59,17 @@ $$;
 -- 수 있어야 한다(20260707090001 규율).
 revoke all on function private.notify_event_insert()
   from public, anon, authenticated, service_role;
+
+-- 이사 전에 이미 발송된 알림 백필.
+--
+-- 트리거 재정의는 앞으로 생길 알림만 고친다. 이미 알림함에 쌓인 event_published는
+-- 여전히 '/events'를 들고 있는데, 그 경로는 이제 오프라인 팝업이 아니라 캠페인
+-- 허브다 — 팔로워가 옛 알림을 누르면 알림이 말한 팝업 대신 캠페인 목록에 도착한다.
+--
+-- 대상이 사라지므로 재실행해도 아무 행을 건드리지 않는다(멱등). 이사 이후에 발송된
+-- 알림은 이미 '/offline-popups'라 조건에 걸리지 않고, 다른 type의 '/events' 링크도
+-- 건드리지 않는다.
+update public.notifications
+set link_path = '/offline-popups'
+where type = 'event_published'
+  and link_path = '/events';

@@ -61,6 +61,10 @@ function mapParticipationError(message: string | null | undefined, fallback: str
     return '지금은 교환할 수 없는 상품이에요.';
   }
   if (value.includes('account_suspended')) return '정지된 계정은 이벤트에 참여할 수 없어요.';
+  /* 탈퇴 신청으로 쓰기가 봉인된 계정. "잠시 후 다시"라고 하면 될 때까지 다시 누른다. */
+  if (value.includes('account_deletion_write_fenced')) {
+    return '탈퇴 처리 중인 계정에서는 이용할 수 없어요.';
+  }
   if (value.includes('exchange_operation_conflict') || value.includes('invalid_operation')) {
     return fallback;
   }

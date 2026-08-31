@@ -7,6 +7,7 @@ import {
   questionStateLabel,
   type MyProductQuestion,
 } from '@/lib/product-questions';
+import { QuestionDeleteButton } from './QuestionDeleteButton';
 
 /*
  * 내 상품 Q&A(#330).
@@ -59,6 +60,10 @@ function QuestionCard({ question }: { question: MyProductQuestion }) {
           운영자가 답변을 남기면 알림으로 알려드립니다.
         </p>
       ) : null}
+
+      {/* 답변이 달린 뒤에도 열어 둔다 — 자기가 남긴 글을 거두는 것은 답변 여부와
+          무관한 작성자의 권리다. 답변은 같은 행이라 함께 사라진다. */}
+      <QuestionDeleteButton goodName={question.goodName} questionId={question.id} />
     </li>
   );
 }

@@ -89,13 +89,14 @@ export interface GoodCardView {
   imageBackground: string;
 }
 
-/* 참조를 해석한 본문. exchange 는 offer 를, goods 는 상품 카드를 함께 들고 온다.
-   화면이 로더를 한 번 더 부르지 않게 하는 것이 목적이다 — 블록마다 클라이언트에서
-   조회하면 상세 한 장에 요청이 블록 수만큼 늘어난다. */
+/* 참조를 해석한 본문. exchange 는 offer 를, goods 는 상품 카드를, image 는 공개
+   URL 을 함께 들고 온다. 화면이 로더를 한 번 더 부르지 않게 하는 것이 목적이다 —
+   블록마다 클라이언트에서 조회하면 상세 한 장에 요청이 블록 수만큼 늘어난다. */
 export type ResolvedCampaignSection =
-  | Exclude<CampaignSection, { type: 'exchange' } | { type: 'goods' }>
+  | Exclude<CampaignSection, { type: 'exchange' } | { type: 'goods' } | { type: 'image' }>
   | (Extract<CampaignSection, { type: 'exchange' }> & { offer: ExchangeOfferView | null })
-  | (Extract<CampaignSection, { type: 'goods' }> & { goods: GoodCardView[] });
+  | (Extract<CampaignSection, { type: 'goods' }> & { goods: GoodCardView[] })
+  | (Extract<CampaignSection, { type: 'image' }> & { imageUrl: string | null });
 
 export interface CampaignLandingSnapshot extends CampaignDetailData {
   resolvedSections: ResolvedCampaignSection[];
@@ -256,6 +257,12 @@ async function resolveCampaignDetail(id: string): Promise<CampaignLandingSnapsho
        화면이 "지금은 교환할 수 없어요"를 그리게 offer: null 로 표시한다. */
     if (section.type === 'exchange') {
       return { ...section, offer: offers.get(section.offer_id) ?? null };
+    }
+    /* 본문 이미지도 히어로·카드·배너와 같은 Storage 경로다. 여기서 해석하지 않으면
+       이 블록만 원문 경로가 화면까지 흘러 배경이 비고, 같은 캠페인 안에서 히어로는
+       뜨는데 중간 이미지만 깨진다. */
+    if (section.type === 'image') {
+      return { ...section, imageUrl: toPublicUrl(section.image_path) };
     }
     /* 굿즈는 반대다. 개별 id 가 사라진 것은 그 상품이 내려간 것이고, 남은 상품으로
        블록이 여전히 성립한다 — 결측 id 만 뺀다. */

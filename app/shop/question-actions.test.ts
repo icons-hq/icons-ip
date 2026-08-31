@@ -148,6 +148,17 @@ describe('askProductQuestionAction', () => {
     expect(state.message).toBeUndefined();
   });
 
+  /* 탈퇴 신청 계정은 BEFORE INSERT 트리거가 먼저 막는다 — 기다려도 풀리지 않는
+     상태라 "잠시 후 다시"로 접으면 사용자는 될 때까지 다시 누른다. */
+  it('탈퇴 봉인은 되풀이하지 말라고 말한다', async () => {
+    mocks.insertResult = { error: { message: 'account_deletion_write_fenced' } };
+
+    const state = await askProductQuestionAction({}, questionForm());
+
+    expect(state.errors?.form).toBe('탈퇴 처리 중인 계정에서는 질문을 등록할 수 없습니다.');
+    expect(state.message).toBeUndefined();
+  });
+
   it('모르는 저장 오류는 일반 실패로 접는다', async () => {
     mocks.insertResult = { error: { message: 'connection reset' } };
 

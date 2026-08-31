@@ -101,6 +101,28 @@ create policy product_questions_read on public.product_questions
     or (select public.is_staff())
   );
 
+-- 탈퇴 신청으로 쓰기가 봉인된 계정을 정책 표현식에서 판정하기 위한 래퍼.
+--
+-- private.is_account_write_fenced(uuid)는 authenticated에게 EXECUTE가 없다 — 계정
+-- 삭제 내부 상태를 정책 표현식에서 직접 읽히지 않게 봉인해 뒀다. 그래서 storage
+-- 정책이 private.can_write_account_storage_object()를 지나는 것과 같은 이유로
+-- (20260813204000: 945~), 여기서도 security definer 래퍼를 한 겹 둔다.
+create function private.can_write_own_product_question()
+returns boolean
+language sql
+volatile
+security definer
+set search_path = ''
+as $$
+  select (select auth.uid()) is not null
+    and not private.is_account_write_fenced((select auth.uid()));
+$$;
+
+revoke all on function private.can_write_own_product_question()
+  from public, anon, authenticated, service_role;
+grant execute on function private.can_write_own_product_question()
+  to authenticated;
+
 -- 작성 경로. posts_insert(20260624093001)와 같은 구조다: 본인 명의 + 정지 계정 차단.
 -- 답변 컬럼은 여기서 절대 채워질 수 없다 — 운영 답변을 사용자가 스스로 심는 것을
 -- 스키마가 아니라 정책이 막는다.
@@ -119,13 +141,29 @@ create policy product_questions_insert_own on public.product_questions
       where profile.id = (select auth.uid())
         and profile.suspended_at is null
     )
+    -- 탈퇴 신청 뒤에는 새 공개 글이 생기지 않는다. 삭제 대상 계정이 남긴 글은
+    -- 지울 대상만 늘린다.
+    and private.can_write_own_product_question()
   );
 
--- update/delete 정책은 없다. 답변·블라인드는 어드민 RPC만 지난다.
+-- 작성자 삭제. 본인 콘텐츠 회수권이라 답변이 달린 뒤에도 열려 있고, 운영 답변까지
+-- 같은 행에 있으므로 함께 사라진다. posts_delete·comments_delete(20260617090001)의
+-- 형식을 따르되 staff는 빼는데, 이 표면의 운영 경로는 삭제가 아니라 블라인드이기
+-- 때문이다 — 왜 내렸는지 검증하려면 원문이 남아야 한다.
+--
+-- fence 술어도 선례대로 붙이지 않는다. 커뮤니티 글 삭제(posts_delete)가 탈퇴 신청
+-- 중에도 열려 있고, 자기 글을 거두는 일은 삭제 신청과 같은 방향이다.
+create policy product_questions_delete_own on public.product_questions
+  for delete
+  to authenticated
+  using (user_id = (select auth.uid()));
+
+-- update 정책은 없다. 답변·블라인드는 어드민 RPC만 지난다.
 revoke all on table public.product_questions
   from public, anon, authenticated, service_role;
 grant select on table public.product_questions to anon, authenticated;
 grant insert (good_id, user_id, body) on table public.product_questions to authenticated;
+grant delete on table public.product_questions to authenticated;
 
 -- ── 어드민 RPC ──────────────────────────────────────────────────────────────
 
