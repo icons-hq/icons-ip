@@ -135,7 +135,7 @@ export function Onboarding({
 
   return (
     <main className="wc-root wc-auth">
-      <div className="wc-auth__panel wc-auth__panel--wide">
+      <div className="wc-auth__panel">
         <h1 className="wc-auth__title">프로필을 완성해요</h1>
         <p className="wc-auth__lede">커뮤니티에서 쓸 닉네임과 생년월일, 그리고 최애가 필요해요.</p>
 

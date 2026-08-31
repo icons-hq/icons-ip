@@ -28,7 +28,7 @@ export interface MypageMenuGroup {
   placeholders?: { label: string; note: string }[];
 }
 
-export const MYPAGE_MENU_GROUPS: MypageMenuGroup[] = [
+const MYPAGE_MENU_GROUPS: MypageMenuGroup[] = [
   {
     title: '쇼핑 정보',
     items: [
@@ -71,6 +71,16 @@ export interface MypageProfileSummary {
   nickname: string;
 }
 
+/* S7에서 열리는 자리 — aside 와 /my 허브가 같은 모양을 그린다. */
+export function MenuPlaceholder({ label, note }: { label: string; note: string }) {
+  return (
+    <span className="wc-mypage__soon">
+      {label}
+      <small>{note}</small>
+    </span>
+  );
+}
+
 function ProfileStrip({ profile }: { profile: MypageProfileSummary }) {
   return (
     <section aria-label="프로필 요약" className="wc-mypage__profile">
@@ -89,10 +99,11 @@ function ProfileStrip({ profile }: { profile: MypageProfileSummary }) {
         </div>
       </div>
       <div className="wc-mypage__profile-cell wc-mypage__profile-cell--meta">
-        {/* 등급 뱃지 슬롯 — 데이터는 S7(회원 등급)에서 연결한다. 메뉴와 같은 목적지를
-            여기 또 두지 않는다(한 화면 한 링크 규율). */}
+        {/* 등급 뱃지 슬롯 — 데이터는 S7(회원 등급)에서 연결한다. 유료 '멤버십'과
+            섞지 않는 용어 규율(CONTEXT.md). 메뉴와 같은 목적지를 여기 또 두지
+            않는다(한 화면 한 링크 규율). */}
         <span className="wc-mypage__tier">
-          멤버십 등급
+          회원 등급
           <span className="wc-mypage__tier-badge">곧 열려요</span>
         </span>
       </div>
@@ -134,10 +145,7 @@ export function MypageShell({
                     ))}
                     {group.placeholders?.map((placeholder) => (
                       <li key={placeholder.label}>
-                        <span className="wc-mypage__aside-soon">
-                          {placeholder.label}
-                          <small>{placeholder.note}</small>
-                        </span>
+                        <MenuPlaceholder label={placeholder.label} note={placeholder.note} />
                       </li>
                     ))}
                   </ul>

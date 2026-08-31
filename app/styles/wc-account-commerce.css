@@ -340,11 +340,6 @@
   color: var(--wc-ink-tertiary);
 }
 
-/* 온보딩 — 넓은 변형(추천 IP 타일 2열이 숨쉴 폭). */
-.wc-auth__panel--wide {
-  width: min(560px, 100%);
-}
-
 .wc-auth input:disabled {
   background: var(--wc-surface-grey);
   color: var(--wc-ink-tertiary);
@@ -438,7 +433,7 @@
   outline-offset: 2px;
 }
 
-/* 흰 글자는 이미지 스크림 위에만 — 타일 하단 밴드가 그 스크림이다. */
+/* 흰 글자는 이미지 스크림 위에만 — 타일 하단 밴드가 그 스크림이다(딤 토큰 재사용). */
 .wc-auth .onboarding-ip-meta {
   position: absolute;
   left: 0;
@@ -449,7 +444,7 @@
   justify-content: space-between;
   gap: 8px;
   padding: 18px 12px 10px;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, .6));
+  background: linear-gradient(180deg, transparent, var(--wc-dim));
 }
 
 .wc-auth .onboarding-ip-title {
@@ -487,11 +482,6 @@
   .wc-auth__panel {
     max-width: 280px;
     padding: 27px 0;
-  }
-
-  .wc-auth__panel--wide {
-    max-width: 100%;
-    width: 100%;
   }
 
   .wc-auth__title {
@@ -586,16 +576,18 @@
   color: var(--wc-ink-sub);
 }
 
+/* 등급 뱃지 슬롯은 데이터가 붙기 전까지 무채색이다 — 등급 구분색은 B2(S7)에서
+   DESIGN.md 에 정의하며(§2 예외 규정), 그 전에 액센트 목록을 선점하지 않는다. */
 .wc-mypage__tier-badge {
   display: inline-flex;
   align-items: center;
   padding: 2px 8px;
   border-radius: 1px;
-  background: var(--wc-accent-tint);
+  background: var(--wc-surface-grey);
   font-size: 11px;
   font-weight: 600;
   line-height: 18px;
-  color: var(--wc-success);
+  color: var(--wc-ink-tertiary);
 }
 
 .wc-mypage__profile-link {
@@ -660,14 +652,15 @@
   color: var(--wc-ink);
 }
 
-/* 자리만 있는 메뉴(쿠폰함 — S7). 링크가 아니므로 시각·의미 모두 비활성. */
-.wc-mypage__aside-soon {
+/* 자리만 있는 메뉴(쿠폰함 — S7). aside 와 허브 목록이 공유하며, 링크가
+   아니므로 시각·의미 모두 비활성. */
+.wc-mypage__soon {
   font-size: 15px;
   letter-spacing: -0.2px;
   color: var(--wc-ink-disabled);
 }
 
-.wc-mypage__aside-soon small {
+.wc-mypage__soon small {
   margin-left: 4px;
   font-size: 11px;
   letter-spacing: 0;

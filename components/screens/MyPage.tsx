@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Icon } from '@/components/ui/Icon';
-import { MypageShell, useMypageMenuGroups } from '@/components/wc/MypageShell';
+import { MenuPlaceholder, MypageShell, useMypageMenuGroups } from '@/components/wc/MypageShell';
 
 interface MyPageProps {
   avatarInitial: string;
@@ -40,10 +40,7 @@ export function MyPage({ avatarInitial, avatarUrl, nickname }: MyPageProps) {
               ))}
               {group.placeholders?.map((placeholder) => (
                 <li key={placeholder.label}>
-                  <span className="wc-mypage__aside-soon">
-                    {placeholder.label}
-                    <small>{placeholder.note}</small>
-                  </span>
+                  <MenuPlaceholder label={placeholder.label} note={placeholder.note} />
                 </li>
               ))}
             </ul>

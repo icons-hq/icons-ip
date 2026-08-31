@@ -56,7 +56,9 @@ describe('Notifications', () => {
     expect(html).toContain('wc-notif__row is-unread');
     expect(html).toContain('안 읽은 알림');
     expect(html).toContain('읽은 알림');
-    expect(html).toContain('wc-notif__dot');
+    /* 점은 안 읽은 행에만 붙는다 — 읽은 행까지 점이 번지면 색·장식 없이 구분하던
+       sr-only 텍스트와 시각 상태가 어긋난다. */
+    expect(html.match(/wc-notif__dot/g)).toHaveLength(1);
     expect(html).toContain(`dateTime="${unread.createdAt}"`);
   });
 
