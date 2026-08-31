@@ -22,6 +22,8 @@ export interface AdminMemberDetail {
   };
   suspendedAt: string | null;
   suspensionReason: string | null;
+  /** 회원 등급(무료 Loyalty). 상세 로드가 profiles 에서 병합한다. */
+  loyaltyGrade: string;
   goodsOrderCount: number;
   ticketOrderCount: number;
   submittedReportCount: number;
@@ -76,6 +78,32 @@ export function normalizeAdminMemberSuspensionForm(
     value: {
       profileId: target.ok ? target.value.profileId : '',
       reason,
+    },
+  };
+}
+
+export function normalizeAdminMemberLoyaltyForm(
+  formData: FormData,
+): AdminMemberFormResult<{ profileId: string; grade: string; note: string }> {
+  const target = normalizeAdminMemberDetailForm(formData);
+  const grade = readString(formData, 'grade');
+  const note = readString(formData, 'note');
+  const errors = target.ok ? {} : { ...target.errors };
+
+  if (!['welcome', 'silver', 'gold', 'platinum'].includes(grade)) {
+    errors.grade = '보정할 등급을 선택해주세요.';
+  }
+  if (note.length < 1 || note.length > 200) {
+    errors.note = '보정 사유는 1자 이상 200자 이하로 입력해주세요.';
+  }
+  if (Object.keys(errors).length) return { ok: false, errors };
+
+  return {
+    ok: true,
+    value: {
+      profileId: target.ok ? target.value.profileId : '',
+      grade,
+      note,
     },
   };
 }
@@ -168,6 +196,8 @@ export function parseAdminMemberDetail(value: unknown): AdminMemberDetail | null
     email,
     role: role as AdminMemberRole,
     createdAt,
+    /* RPC 결과에는 없다 — getAdminMemberDetail 이 profiles 에서 병합해 덮어쓴다. */
+    loyaltyGrade: 'welcome',
     consents: {
       terms: consents.terms === true,
       privacy: consents.privacy === true,

@@ -90,8 +90,8 @@ select 1 / case when not has_function_privilege('anon', 'public.apply_cart_coupo
   and has_function_privilege('authenticated', 'public.apply_cart_coupon(uuid)', 'execute')
   and not has_function_privilege('anon', 'public.clear_cart_coupon()', 'execute')
   and has_function_privilege('authenticated', 'public.clear_cart_coupon()', 'execute')
-  and not has_function_privilege('anon', 'public.admin_upsert_coupon(text, text, text, integer, integer, integer, timestamptz, timestamptz, integer, text, text)', 'execute')
-  and has_function_privilege('authenticated', 'public.admin_upsert_coupon(text, text, text, integer, integer, integer, timestamptz, timestamptz, integer, text, text)', 'execute')
+  and not has_function_privilege('anon', 'public.admin_upsert_coupon(text, text, text, integer, integer, integer, timestamptz, timestamptz, integer, text, public.loyalty_grade, text)', 'execute')
+  and has_function_privilege('authenticated', 'public.admin_upsert_coupon(text, text, text, integer, integer, integer, timestamptz, timestamptz, integer, text, public.loyalty_grade, text)', 'execute')
 then 1 else 0 end as assert_coupon_rpc_acl;
 
 -- 주문당 applied redemption은 1장 — 스키마가 강제한다.
@@ -121,6 +121,7 @@ select public.admin_upsert_coupon(
   target_ends_at => now() + interval '30 days',
   target_issue_limit => null,
   target_status => 'active',
+  target_grade_benefit => null,
   target_previous_code => null
 );
 
@@ -135,6 +136,7 @@ select public.admin_upsert_coupon(
   target_ends_at => now() + interval '30 days',
   target_issue_limit => null,
   target_status => 'active',
+  target_grade_benefit => null,
   target_previous_code => null
 );
 
@@ -149,6 +151,7 @@ select public.admin_upsert_coupon(
   target_ends_at => null,
   target_issue_limit => null,
   target_status => 'active',
+  target_grade_benefit => null,
   target_previous_code => null
 );
 
@@ -163,6 +166,7 @@ select public.admin_upsert_coupon(
   target_ends_at => null,
   target_issue_limit => 1,
   target_status => 'active',
+  target_grade_benefit => null,
   target_previous_code => null
 );
 
@@ -177,6 +181,7 @@ select public.admin_upsert_coupon(
   target_ends_at => null,
   target_issue_limit => null,
   target_status => 'active',
+  target_grade_benefit => null,
   target_previous_code => null
 );
 
@@ -191,6 +196,7 @@ select public.admin_upsert_coupon(
   target_ends_at => now() - interval '1 day',
   target_issue_limit => null,
   target_status => 'active',
+  target_grade_benefit => null,
   target_previous_code => null
 );
 
@@ -205,6 +211,7 @@ select public.admin_upsert_coupon(
   target_ends_at => null,
   target_issue_limit => null,
   target_status => 'active',
+  target_grade_benefit => null,
   target_previous_code => null
 );
 
@@ -219,6 +226,7 @@ select public.admin_upsert_coupon(
   target_ends_at => null,
   target_issue_limit => null,
   target_status => 'archived',
+  target_grade_benefit => null,
   target_previous_code => null
 );
 
@@ -249,6 +257,7 @@ begin
       target_ends_at => null,
       target_issue_limit => null,
       target_status => 'active',
+      target_grade_benefit => null,
       target_previous_code => null
     );
     raise exception 'duplicate coupon code should be rejected';
@@ -274,6 +283,7 @@ begin
       target_ends_at => null,
       target_issue_limit => null,
       target_status => 'active',
+      target_grade_benefit => null,
       target_previous_code => 'CPNFIX5K'
     );
     raise exception 'coupon code change should be rejected';
@@ -299,6 +309,7 @@ begin
       target_ends_at => null,
       target_issue_limit => null,
       target_status => 'active',
+      target_grade_benefit => null,
       target_previous_code => 'CPNMISSING'
     );
     raise exception 'missing coupon update should be rejected';
@@ -324,6 +335,7 @@ begin
       target_ends_at => null,
       target_issue_limit => null,
       target_status => 'active',
+      target_grade_benefit => null,
       target_previous_code => null
     );
     raise exception 'percent over 100 should be rejected';
@@ -349,6 +361,7 @@ begin
       target_ends_at => null,
       target_issue_limit => null,
       target_status => 'active',
+      target_grade_benefit => null,
       target_previous_code => null
     );
     raise exception 'non-staff upsert should be rejected';

@@ -350,3 +350,130 @@ revoke all on function public.admin_recalculate_loyalty_grade(uuid)
   from public, anon, authenticated, service_role;
 grant execute on function public.admin_recalculate_loyalty_grade(uuid)
   to authenticated;
+
+-- ── 어드민 upsert 에 등급 혜택 연결 ─────────────────────────────────────────
+
+-- 등급 혜택 쿠폰(승급 시 자동 발급)을 코드 배포 없이 운영하려면 upsert 가
+-- grade_benefit 을 받아야 한다. 인자 목록이 달라지므로 옛 시그니처를 지우고
+-- 다시 만든다 — create or replace 는 오버로드를 하나 더 만들 뿐이다.
+drop function public.admin_upsert_coupon(
+  text, text, text, integer, integer, integer, timestamptz, timestamptz, integer, text, text
+);
+
+create function public.admin_upsert_coupon(
+  target_code text,
+  target_name text,
+  target_discount_type text,
+  target_discount_value integer,
+  target_max_discount_amount integer,
+  target_min_subtotal integer,
+  target_starts_at timestamptz,
+  target_ends_at timestamptz,
+  target_issue_limit integer,
+  target_status text,
+  target_grade_benefit public.loyalty_grade,
+  target_previous_code text
+)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  actor_id uuid := (select auth.uid());
+  normalized_code text := upper(btrim(coalesce(target_code, '')));
+  normalized_previous_code text := nullif(upper(btrim(coalesce(target_previous_code, ''))), '');
+begin
+  if actor_id is null then
+    raise exception 'auth_required' using errcode = '28000';
+  end if;
+
+  if not public.is_staff() then
+    raise exception 'forbidden' using errcode = '42501';
+  end if;
+
+  if normalized_previous_code is not null
+     and normalized_previous_code is distinct from normalized_code then
+    raise exception 'catalog_id_immutable' using errcode = '22023';
+  end if;
+
+  if normalized_previous_code is not null then
+    perform coupon.code
+    from public.coupons as coupon
+    where coupon.code = normalized_previous_code
+    for update;
+
+    if not found then
+      raise exception 'catalog_record_missing' using errcode = 'P0002';
+    end if;
+  end if;
+
+  -- 발급 한도를 이미 발급된 수 아래로 줄이면 issued_count 검사가 영구 소진
+  -- 상태가 될 뿐 원장은 깨지지 않는다 — 운영 실수로 두고 스키마는 막지 않는다.
+  insert into public.coupons (
+    code, name, discount_type, discount_value, max_discount_amount,
+    min_subtotal, starts_at, ends_at, issue_limit, status, grade_benefit
+  )
+  values (
+    normalized_code,
+    btrim(coalesce(target_name, '')),
+    target_discount_type,
+    target_discount_value,
+    target_max_discount_amount,
+    coalesce(target_min_subtotal, 0),
+    coalesce(target_starts_at, now()),
+    target_ends_at,
+    target_issue_limit,
+    coalesce(target_status, 'active'),
+    target_grade_benefit
+  )
+  on conflict (code) do update set
+    name = excluded.name,
+    discount_type = excluded.discount_type,
+    discount_value = excluded.discount_value,
+    max_discount_amount = excluded.max_discount_amount,
+    min_subtotal = excluded.min_subtotal,
+    starts_at = excluded.starts_at,
+    ends_at = excluded.ends_at,
+    issue_limit = excluded.issue_limit,
+    status = excluded.status,
+    grade_benefit = excluded.grade_benefit
+  where normalized_previous_code is not null;
+
+  if not found then
+    raise exception 'catalog_id_taken' using errcode = '23505';
+  end if;
+
+  insert into public.audit_log (actor_id, action, target, diff)
+  values (
+    actor_id,
+    'commerce.coupon.upsert',
+    'coupons:' || normalized_code,
+    jsonb_build_object(
+      'mode', case when normalized_previous_code is null then 'create' else 'update' end,
+      'after', jsonb_build_object(
+        'name', btrim(coalesce(target_name, '')),
+        'discountType', target_discount_type,
+        'discountValue', target_discount_value,
+        'maxDiscountAmount', target_max_discount_amount,
+        'minSubtotal', coalesce(target_min_subtotal, 0),
+        'startsAt', coalesce(target_starts_at, now()),
+        'endsAt', target_ends_at,
+        'issueLimit', target_issue_limit,
+        'status', coalesce(target_status, 'active'),
+        'gradeBenefit', target_grade_benefit
+      )
+    )
+  );
+end;
+$$;
+
+revoke all on function public.admin_upsert_coupon(
+  text, text, text, integer, integer, integer, timestamptz, timestamptz, integer, text,
+  public.loyalty_grade, text
+) from public, anon, authenticated, service_role;
+grant execute on function public.admin_upsert_coupon(
+  text, text, text, integer, integer, integer, timestamptz, timestamptz, integer, text,
+  public.loyalty_grade, text
+) to authenticated;

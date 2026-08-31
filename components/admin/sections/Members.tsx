@@ -2,7 +2,9 @@
 
 import { useActionState, useState, type FormEvent } from 'react';
 import {
+  adjustMemberLoyaltyAction,
   loadAdminMemberDetailAction,
+  recalculateMemberLoyaltyAction,
   searchAdminMembersAction,
   suspendAdminMemberAction,
   unsuspendAdminMemberAction,
@@ -15,7 +17,14 @@ import {
   type AdminMemberSummary,
 } from '@/lib/admin/members';
 import { Icon } from '@/components/ui/Icon';
-import { ErrorText, InlineNotice, TextArea } from '../fields';
+import {
+  LOYALTY_GRADES,
+  LOYALTY_THRESHOLDS,
+  LOYALTY_WINDOW_DAYS,
+  loyaltyGradeLabel,
+  isLoyaltyGrade,
+} from '@/lib/loyalty';
+import { ErrorText, InlineNotice, SelectField, TextArea } from '../fields';
 
 const emptyMutationState: AdminMemberMutationActionState = {};
 const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
@@ -137,6 +146,77 @@ function ConsentValue({ value }: { value: boolean }) {
   return <strong style={{ color: value ? 'var(--mint)' : 'var(--dim)' }}>{value ? '동의' : '미동의'}</strong>;
 }
 
+/*
+ * 회원 등급 패널 (S7 #329). 산정의 진실원은 DB 재산정이고, 여기서는 수동
+ * 보정(감사 이력 필수)과 트리거 실패 복구용 재산정만 연다. 등급명은 무료
+ * Loyalty 어휘를 쓴다 — 멤버십·VIP·티어 금지(CONTEXT.md).
+ */
+function MemberLoyaltyPanel({ member }: { member: AdminMemberDetail }) {
+  const [adjustState, adjustAction, adjustPending] = useActionState(
+    adjustMemberLoyaltyAction,
+    emptyMutationState,
+  );
+  const [recalcState, recalcAction, recalcPending] = useActionState(
+    recalculateMemberLoyaltyAction,
+    emptyMutationState,
+  );
+
+  const gradeLabel = isLoyaltyGrade(member.loyaltyGrade)
+    ? loyaltyGradeLabel(member.loyaltyGrade)
+    : member.loyaltyGrade.toUpperCase();
+
+  return (
+    <section className="col" style={{ gap: 10 }}>
+      <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
+        <strong style={{ fontSize: 14 }}>회원 등급</strong>
+        <span className="tag">{gradeLabel}</span>
+      </div>
+      <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
+        산정 기준: 최근 {LOYALTY_WINDOW_DAYS}일 결제 확정(취소 제외) 주문 총액 —
+        SILVER {LOYALTY_THRESHOLDS.silver.toLocaleString('ko-KR')}원 ·
+        GOLD {LOYALTY_THRESHOLDS.gold.toLocaleString('ko-KR')}원 ·
+        PLATINUM {LOYALTY_THRESHOLDS.platinum.toLocaleString('ko-KR')}원 이상.
+        보정 이력은 등급 이력·감사 로그에 남습니다.
+      </p>
+      <form action={adjustAction} className="col" style={{ gap: 8 }}>
+        <input name="profileId" type="hidden" value={member.id} />
+        <div className="row" style={{ alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
+          <SelectField
+            defaultValue={isLoyaltyGrade(member.loyaltyGrade) ? member.loyaltyGrade : 'welcome'}
+            error={adjustState.errors?.grade}
+            label="보정 등급"
+            name="grade"
+          >
+            {LOYALTY_GRADES.map((grade) => (
+              <option key={grade} value={grade}>{loyaltyGradeLabel(grade)}</option>
+            ))}
+          </SelectField>
+        </div>
+        <TextArea
+          error={adjustState.errors?.note}
+          label="보정 사유 (오프라인 실적·분쟁 대응 등)"
+          name="note"
+          placeholder="예: 오프라인 팝업 구매 실적 반영"
+          required
+        />
+        <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
+          <button className="btn btn-sm admin-field-control" disabled={adjustPending} style={{ minHeight: 40 }}>
+            <Icon name="check" size={14} /> {adjustPending ? '보정 중' : '등급 보정'}
+          </button>
+        </div>
+        <InlineNotice state={adjustState} />
+      </form>
+      <form action={recalcAction} className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
+        <input name="profileId" type="hidden" value={member.id} />
+        <button className="btn btn-sm admin-field-control" disabled={recalcPending} style={{ minHeight: 40 }}>
+          <Icon name="swap" size={14} /> {recalcPending ? '재산정 중' : '실적으로 재산정'}
+        </button>
+        <InlineNotice state={recalcState} />
+      </form>
+    </section>
+  );
+}
+
 function MemberDetail({
   actor,
   member,
@@ -187,6 +267,8 @@ function MemberDetail({
           ))}
         </div>
       </section>
+
+      <MemberLoyaltyPanel key={`loyalty-${member.id}:${member.loyaltyGrade}`} member={member} />
 
       <MemberSuspensionControl
         actor={actor}

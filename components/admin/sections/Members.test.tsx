@@ -30,7 +30,9 @@ vi.mock('react', async () => {
   };
 });
 vi.mock('@/app/admin/member-actions', () => ({
+  adjustMemberLoyaltyAction: vi.fn(),
   loadAdminMemberDetailAction: hooks.detailAction,
+  recalculateMemberLoyaltyAction: vi.fn(),
   searchAdminMembersAction: hooks.searchAction,
   suspendAdminMemberAction: hooks.suspendAction,
   unsuspendAdminMemberAction: hooks.unsuspendAction,
@@ -65,6 +67,7 @@ const detail: AdminMemberDetail = {
   consents: { terms: true, privacy: true, marketing: false },
   suspendedAt: null,
   suspensionReason: null,
+  loyaltyGrade: 'welcome',
   goodsOrderCount: 2,
   ticketOrderCount: 3,
   submittedReportCount: 4,

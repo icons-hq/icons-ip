@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
   normalizeAdminMemberDetailForm,
+  normalizeAdminMemberLoyaltyForm,
   normalizeAdminMemberSearchForm,
   normalizeAdminMemberSuspensionForm,
   type AdminMemberDetail,
@@ -131,4 +132,56 @@ export async function unsuspendAdminMemberAction(
 
   revalidatePath('/admin');
   return { message: '회원 정지를 해제했습니다.' };
+}
+
+
+/* 회원 등급 수동 보정 (S7 #329). 감사 이력(loyalty_grade_events·audit_log)은
+   admin_adjust_loyalty_grade RPC 가 남기고, 승급이면 등급 혜택 쿠폰까지 같은
+   경로로 발급된다. */
+export async function adjustMemberLoyaltyAction(
+  _state: AdminMemberMutationActionState,
+  formData: FormData,
+): Promise<AdminMemberMutationActionState> {
+  const authError = await requireStaffAction();
+  if (authError) return authError;
+
+  const result = normalizeAdminMemberLoyaltyForm(formData);
+  if (!result.ok) return { errors: result.errors };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_adjust_loyalty_grade', {
+    p_user_id: result.value.profileId,
+    p_grade: result.value.grade,
+    p_note: result.value.note,
+  });
+  if (error) {
+    return { errors: { form: '등급을 보정하지 못했습니다. 다시 시도해주세요.' } };
+  }
+
+  revalidatePath('/admin');
+  return { message: `등급을 ${result.value.grade.toUpperCase()} 로 보정했습니다. 상세 보기를 다시 열면 반영된 값이 보입니다.` };
+}
+
+/* 결제 트리거가 삼킨 재산정 실패를 사람 손으로 따라잡는 복구 경로. */
+export async function recalculateMemberLoyaltyAction(
+  _state: AdminMemberMutationActionState,
+  formData: FormData,
+): Promise<AdminMemberMutationActionState> {
+  const authError = await requireStaffAction();
+  if (authError) return authError;
+
+  const result = normalizeAdminMemberDetailForm(formData);
+  if (!result.ok) return { errors: result.errors };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_recalculate_loyalty_grade', {
+    p_user_id: result.value.profileId,
+  });
+  if (error) {
+    return { errors: { form: '등급을 재산정하지 못했습니다. 다시 시도해주세요.' } };
+  }
+
+  revalidatePath('/admin');
+  const grade = typeof data === 'string' ? data.toUpperCase() : null;
+  return { message: grade ? `재산정 결과 ${grade} 등급입니다.` : '재산정을 실행했습니다.' };
 }

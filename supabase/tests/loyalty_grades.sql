@@ -112,11 +112,11 @@ select public.admin_upsert_coupon(
   target_ends_at => null,
   target_issue_limit => null,
   target_status => 'active',
+  target_grade_benefit => 'silver',
   target_previous_code => null
 );
 
 reset role;
-update public.coupons set grade_benefit = 'silver' where code = 'GRADE-SILVER';
 
 -- ── 신규 회원은 WELCOME에서 시작한다 ────────────────────────────────────────
 
