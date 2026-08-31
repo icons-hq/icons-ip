@@ -17,6 +17,7 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // 로컬 전용 디렉터리 — git worktree 사본과 별도 vite 프로토타입이라 이 저장소의 lint 대상이 아니다.
     ".worktrees/**",
+    ".claude/worktrees/**",
     "prototypes/**",
   ]),
 ]);
