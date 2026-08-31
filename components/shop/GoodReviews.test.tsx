@@ -121,6 +121,15 @@ describe('GoodReviews', () => {
     expect(render({ total: 3 })).not.toContain('wc-pagination');
   });
 
+  /* 회귀: 기본 조건으로 돌아가는 링크가 쿼리를 비우면 굿즈 상세가 상세정보 탭으로
+     열려 #reviews 앵커가 숨은 패널을 가리킨다 — "이전"·"최신순"이 무동작이 된다. */
+  it('기본 조건으로 돌아가는 링크에도 reviewPage를 싣는다', () => {
+    const html = render({ options: { page: 2, photoOnly: false, sort: 'recent' }, total: 24 });
+
+    expect(html).toContain('href="/shop/g13?reviewPage=1#reviews"');
+    expect(html).not.toContain('"/shop/g13#reviews"');
+  });
+
   /* 요약부 포토 그리드는 지금 페이지에 실린 사진만 쓴다 — 없는 사진을 채우지 않는다. */
   it('사진이 있으면 요약부에 썸네일을 모은다', () => {
     const withPhoto = render({

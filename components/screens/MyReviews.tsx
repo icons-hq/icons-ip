@@ -4,6 +4,7 @@ import type { MyReviewTarget } from '@/lib/reviews.server';
 import {
   editReviewHref,
   formatReviewDate,
+  goodReviewsHref,
   newReviewHref,
   REVIEW_WINDOW_DAYS,
   reviewDaysRemaining,
@@ -83,7 +84,7 @@ function WrittenCard({ target, now }: { target: MyReviewTarget; now: Date }) {
     <li className="wc-mypage__card">
       <div className="wc-mypage__card-row">
         <div className="wc-mypage__card-main">
-          <Link className="wc-mypage__card-title" href={`/shop/${target.goodId}#reviews`}>
+          <Link className="wc-mypage__card-title" href={goodReviewsHref(target.goodId)}>
             {target.goodName}
           </Link>
           <span className="wc-mypage__card-meta">

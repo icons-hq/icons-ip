@@ -79,6 +79,12 @@ export interface GoodReviewListOptions {
   page: number;
 }
 
+export const DEFAULT_GOOD_REVIEW_OPTIONS: GoodReviewListOptions = {
+  sort: 'recent',
+  photoOnly: false,
+  page: 1,
+};
+
 type SearchParamValue = string | string[] | undefined;
 
 function singleParam(value: SearchParamValue) {
@@ -104,19 +110,24 @@ export function normalizeGoodReviewOptions(
   };
 }
 
-/** 굿즈 상세로 돌아가는 링크. 리뷰 조건만 바꾸고 나머지 경로는 유지한다. */
+/**
+ * 굿즈 상세의 리뷰 목록으로 가는 링크. 리뷰 조건만 바꾸고 나머지 경로는 유지한다.
+ *
+ * 기본 조건이라고 `reviewPage`까지 뺀 "깨끗한" URL을 만들지 않는다 — 굿즈 상세는
+ * 리뷰 파라미터를 보고 리뷰 탭에서 시작하고(GoodDetail의 pdpDefaultPanelId), 하나도
+ * 없으면 `#reviews` 앵커가 숨겨진 패널 안을 가리켜 클릭이 아무 일도 하지 않는다.
+ */
 export function goodReviewsHref(
   goodId: string,
-  options: GoodReviewListOptions,
+  options: GoodReviewListOptions = DEFAULT_GOOD_REVIEW_OPTIONS,
   overrides: Partial<GoodReviewListOptions> = {},
 ) {
   const next = { ...options, ...overrides };
   const params = new URLSearchParams();
   if (next.sort !== 'recent') params.set('reviewSort', next.sort);
   if (next.photoOnly) params.set('reviewPhoto', '1');
-  if (next.page > 1) params.set('reviewPage', String(next.page));
-  const query = params.toString();
-  return query ? `/shop/${goodId}?${query}#reviews` : `/shop/${goodId}#reviews`;
+  params.set('reviewPage', String(Math.max(1, next.page)));
+  return `/shop/${goodId}?${params.toString()}#reviews`;
 }
 
 /* ---------------------------------------------------------------------------
