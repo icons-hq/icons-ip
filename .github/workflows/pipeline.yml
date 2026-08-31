@@ -198,6 +198,10 @@ jobs:
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/coupon_redemption.sql
           bash supabase/tests/coupon_issue_concurrency.sh
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/loyalty_grades.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/campaigns.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/coin_participation.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/product_questions.sql
+          bash supabase/tests/coin_exchange_concurrency.sh
 
       - name: Lint local database
         run: supabase db lint --local --fail-on error

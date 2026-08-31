@@ -573,7 +573,7 @@ select 1 / case when (
     and count(distinct dedupe_key) = 2
     and bool_and(user_id = '00000000-0000-4000-8000-000000001502')
     and bool_and(char_length(source_id) > 128)
-    and bool_and(link_path = '/events')
+    and bool_and(link_path = '/offline-popups')
     and bool_and(
       dedupe_key = 'event:' || pg_catalog.encode(
         extensions.digest(source_id, 'sha256'),
