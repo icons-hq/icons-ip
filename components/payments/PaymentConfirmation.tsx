@@ -79,10 +79,9 @@ export function PaymentConfirmation(props: PaymentConfirmationProps) {
   };
 
   return (
-    <main className="checkout-page checkout-result-page">
+    <main className="wc-root wc-receipt checkout-page checkout-result-page">
       <div className="wrap checkout-result card" role="status">
         <span className="checkout-result-mark" aria-hidden>{error ? '!' : '···'}</span>
-        <div className="eyebrow">VERIFYING PAYMENT</div>
         <h1>{error ? '결제 확인을 이어가야 해요' : '결제를 확인하고 있어요'}</h1>
         <p>{error ?? '승인 결과를 서버에서 검증하고 있습니다. 잠시만 기다려주세요.'}</p>
         {error && authRequired && (

@@ -30,10 +30,9 @@ export default async function Page({
   const refId = normalizeTicketReference(one(query.ref)) ?? normalizeTicketReference(providerRef);
 
   return (
-    <main className="checkout-page checkout-result-page">
+    <main className="wc-root wc-receipt checkout-page checkout-result-page">
       <div className="wrap checkout-result card" role="alert">
         <span className="checkout-result-mark checkout-result-mark--fail" aria-hidden>×</span>
-        <div className="eyebrow">PAYMENT NOT COMPLETED</div>
         <h1>결제가 중단됐어요</h1>
         <p>{safeFailureCopy(one(query.code))}</p>
         {refId ? (

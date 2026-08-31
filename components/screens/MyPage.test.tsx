@@ -30,7 +30,7 @@ describe('MyPage', () => {
 
     expect(html).not.toContain('href="/packs"');
     expect(html).not.toContain('>카드팩</');
-    expect(html.match(/class="my-destination card"/g)).toHaveLength(7);
+    expect(html.match(/wc-mypage__dest-list/g)).toHaveLength(3);
   });
 
   it('renders the private profile summary without account identifiers', () => {
@@ -57,11 +57,15 @@ describe('MyPage', () => {
 
     expect(html).toContain('aria-label="마이페이지 메뉴"');
     expect(html).toContain('<ul');
-    expect(html).toMatch(/<span[^>]*aria-hidden="true"[^>]*>SHOP<\/span>/);
+    /* 마이페이지 셸 문법 — 그룹 3개는 레퍼런스 차용, 항목은 우리 도메인. */
+    expect(html).toContain('쇼핑 정보');
+    expect(html).toContain('계정 설정');
+    expect(html).toContain('고객센터');
 
     for (const [href, label] of [
       ['/orders', '주문 내역'],
       ['/tickets', '내 티켓'],
+      ['/my/wishlist', '위시리스트'],
       ['/binder', '바인더'],
       ['/packs', '카드팩'],
       ['/notifications', '알림함'],
@@ -73,8 +77,10 @@ describe('MyPage', () => {
       expect(html).toContain(label);
     }
 
+    /* 쿠폰함은 S7 자리만 — 링크도 버튼도 아니어야 한다. */
+    expect(html).toContain('쿠폰함');
     expect(html).not.toContain('준비중');
     expect(html).not.toContain('<button');
-    expect(html.match(/class="my-destination card"/g)).toHaveLength(8);
+    expect(html.match(/wc-mypage__dest-list/g)).toHaveLength(3);
   });
 });

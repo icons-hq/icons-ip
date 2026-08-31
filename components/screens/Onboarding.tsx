@@ -1,8 +1,8 @@
 'use client';
 
-import { startTransition, useActionState, useState, type FormEvent } from 'react';
+import { startTransition, useActionState, type FormEvent } from 'react';
 import { completeOnboardingAction, type OnboardingActionState } from '@/app/onboarding/actions';
-import { ipAccent } from '@/lib/ip-display';
+import { WcButton } from '@/components/wc/WcButton';
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref, type LegalDocumentSlug } from '@/lib/legal/links';
 
 interface OnboardingProps {
@@ -26,16 +26,10 @@ interface OnboardingProps {
 
 const emptyState: OnboardingActionState = {};
 
-const inputStyle: React.CSSProperties = {
-  height: 50, padding: '0 18px', borderRadius: 14,
-  border: '1px solid var(--line-2)', background: 'rgba(21,17,42,.7)',
-  color: 'var(--text)', fontSize: 14.5, fontFamily: 'inherit',
-};
-
 function ErrorText({ children, id }: { children?: string; id: string }) {
   if (!children) return null;
   return (
-    <span id={id} style={{ color: 'var(--pink)', fontSize: 12.5, fontWeight: 600 }}>
+    <span className="wc-auth__error" id={id}>
       {children}
     </span>
   );
@@ -59,24 +53,18 @@ function TermRow({
   /** 동의 대상 문서. 링크는 label 바깥에 두어야 클릭이 체크박스를 토글하지 않는다. */
   slug?: LegalDocumentSlug;
 }) {
-  const [checked, setChecked] = useState(Boolean(defaultChecked));
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 11, flex: '1 1 auto', padding: '10px 12px', borderRadius: 12, cursor: 'pointer' }}>
+    <div className="wc-auth__agree-row">
+      <label>
         <input
           aria-describedby={hasError ? errorId : undefined}
           aria-invalid={hasError}
-          checked={checked}
+          defaultChecked={Boolean(defaultChecked)}
           name={name}
-          onChange={(e) => setChecked(e.target.checked)}
           type="checkbox"
-          style={{ position: 'absolute', opacity: 0, width: 1, height: 1 }}
         />
-        <span aria-hidden className="onboarding-checkmark" style={{ flex: '0 0 auto', width: 22, height: 22, borderRadius: 7, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800, color: checked ? '#fff' : 'var(--account-ink, #11110f)', border: `1px solid ${checked ? 'var(--account-ink, #11110f)' : 'var(--account-line, rgba(17,17,15,.18))'}`, background: checked ? 'var(--account-ink, #11110f)' : 'transparent', transition: 'all .2s ease' }}>
-          {checked ? '✓' : ''}
-        </span>
-        <span style={{ fontSize: 13.5, color: '#C9C3E4' }}>
-          {label} <span className="mono" style={{ fontSize: 10, color: required ? 'var(--pink)' : 'var(--faint)' }}>{required ? '필수' : '선택'}</span>
+        <span>
+          {label} <em className={required ? 'wc-auth__req' : 'wc-auth__opt'}>{required ? '필수' : '선택'}</em>
         </span>
       </label>
       {slug && (
@@ -84,10 +72,8 @@ function TermRow({
            보이는 문구는 그대로 두고 접근 이름에 문서 이름을 붙여 서로 구분한다(WCAG 2.4.4). */
         <a
           aria-label={`${LEGAL_DOCUMENT_LABELS[slug]} 전문 보기`}
-          className="mono"
           href={legalDocumentHref(slug)}
           rel="noreferrer"
-          style={{ flex: '0 0 auto', padding: '0 8px', fontSize: 11, color: 'var(--dim)', textDecoration: 'underline' }}
           target="_blank"
         >
           전문 보기
@@ -100,41 +86,26 @@ function TermRow({
 function IpPickTile({
   bg,
   defaultChecked,
-  accent,
   id,
   title,
 }: {
   bg: string;
   defaultChecked: boolean;
-  accent: string;
   id: string;
   title: string;
 }) {
-  const [checked, setChecked] = useState(defaultChecked);
   return (
-    <label
-      className="onboarding-ip-tile"
-      style={{
-        display: 'block', position: 'relative', borderRadius: 16, overflow: 'hidden', aspectRatio: '16 / 10',
-        background: bg, backgroundSize: 'cover', backgroundPosition: 'center', cursor: 'pointer',
-        boxShadow: checked ? `0 0 0 2px ${accent}, 0 16px 40px -16px ${accent}` : '0 0 0 1px rgba(255,255,255,.12)',
-        transition: 'box-shadow .25s ease, transform .25s ease',
-      }}
-    >
+    <label className="onboarding-ip-tile" style={{ background: bg, backgroundSize: 'cover', backgroundPosition: 'center' }}>
       <input
-        checked={checked}
+        defaultChecked={defaultChecked}
         name="followIpIds"
-        onChange={(e) => setChecked(e.target.checked)}
         type="checkbox"
         value={id}
-        style={{ position: 'absolute', opacity: 0, width: 1, height: 1 }}
       />
       <input name="recommendedIpIds" type="hidden" value={id} />
-      <span className="onboarding-ip-meta" style={{ position: 'absolute', left: 12, bottom: 10, right: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <span className="onboarding-ip-title" style={{ fontWeight: 700, fontSize: 14 }}>{title}</span>
-        <span aria-hidden className="onboarding-ip-checkmark" style={{ flex: '0 0 auto', width: 22, height: 22, borderRadius: 99, display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 800, color: checked ? '#fff' : 'var(--account-ink, #11110f)', background: checked ? 'var(--account-ink, #11110f)' : 'rgba(255,255,255,.92)', border: '1px solid rgba(17,17,15,.32)', transition: 'all .2s ease' }}>
-          {checked ? '✓' : ''}
-        </span>
+      <span className="onboarding-ip-meta">
+        <span className="onboarding-ip-title">{title}</span>
+        <span aria-hidden className="onboarding-ip-checkmark" />
       </span>
     </label>
   );
@@ -163,16 +134,16 @@ export function Onboarding({
   }
 
   return (
-    <div className="onboarding-page" style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', padding: '110px 0 80px' }}>
-      <div className="rise" style={{ width: 'min(520px, 92vw)' }}>
-        <h2 style={{ margin: 0, fontFamily: 'var(--ff-display)', fontWeight: 700, fontSize: 28, letterSpacing: '-0.03em' }}>프로필을 완성해요</h2>
-        <p style={{ margin: '8px 0 0', fontSize: 14, color: 'var(--dim)' }}>커뮤니티에서 쓸 닉네임과 생년월일, 그리고 최애가 필요해요.</p>
+    <main className="wc-root wc-auth">
+      <div className="wc-auth__panel">
+        <h1 className="wc-auth__title">프로필을 완성해요</h1>
+        <p className="wc-auth__lede">커뮤니티에서 쓸 닉네임과 생년월일, 그리고 최애가 필요해요.</p>
 
-        <form action={action} className="col" data-onboarding-form onSubmit={handleSubmit} style={{ gap: 16, marginTop: 24 }}>
+        <form action={action} className="wc-auth__form" data-onboarding-form onSubmit={handleSubmit}>
           <input type="hidden" name="next" value={next} />
 
-          <input disabled value={email} aria-label="이메일" style={{ ...inputStyle, color: 'var(--dim)' }} />
-          <div className="col" style={{ gap: 6 }}>
+          <input disabled value={email} aria-label="이메일" />
+          <div className="wc-auth__field">
             <input
               aria-describedby={state.errors?.nickname ? 'nickname-error' : undefined}
               aria-invalid={Boolean(state.errors?.nickname)}
@@ -180,7 +151,6 @@ export function Onboarding({
               defaultValue={nickname}
               name="nickname"
               placeholder="닉네임 (1–30자)"
-              style={inputStyle}
             />
             <ErrorText id="nickname-error">{state.errors?.nickname}</ErrorText>
           </div>
@@ -203,7 +173,6 @@ export function Onboarding({
                   name="birthYear"
                   pattern="[0-9]*"
                   placeholder="YYYY"
-                  style={{ ...inputStyle, width: '100%' }}
                   type="text"
                 />
               </label>
@@ -219,7 +188,6 @@ export function Onboarding({
                   name="birthMonth"
                   pattern="[0-9]*"
                   placeholder="MM"
-                  style={{ ...inputStyle, width: '100%' }}
                   type="text"
                 />
               </label>
@@ -235,7 +203,6 @@ export function Onboarding({
                   name="birthDay"
                   pattern="[0-9]*"
                   placeholder="DD"
-                  style={{ ...inputStyle, width: '100%' }}
                   type="text"
                 />
               </label>
@@ -243,27 +210,32 @@ export function Onboarding({
             <ErrorText id="birth-date-error">{state.errors?.birthDate}</ErrorText>
           </fieldset>
 
-          <div className="col" style={{ gap: 4 }}>
-            <TermRow errorId="terms-error" hasError={Boolean(state.errors?.terms)} label="이용약관 동의" name="terms" required slug="terms" />
-            <ErrorText id="terms-error">{state.errors?.terms}</ErrorText>
-            <TermRow errorId="privacy-error" hasError={Boolean(state.errors?.privacy)} label="개인정보 처리방침 동의" name="privacy" required slug="privacy" />
-            <ErrorText id="privacy-error">{state.errors?.privacy}</ErrorText>
-            <TermRow defaultChecked={initialMarketing} label="마케팅 정보 수신 동의" name="marketing" required={false} />
-          </div>
+          <ul className="wc-auth__agree">
+            <li>
+              <TermRow errorId="terms-error" hasError={Boolean(state.errors?.terms)} label="이용약관 동의" name="terms" required slug="terms" />
+              <ErrorText id="terms-error">{state.errors?.terms}</ErrorText>
+            </li>
+            <li>
+              <TermRow errorId="privacy-error" hasError={Boolean(state.errors?.privacy)} label="개인정보 처리방침 동의" name="privacy" required slug="privacy" />
+              <ErrorText id="privacy-error">{state.errors?.privacy}</ErrorText>
+            </li>
+            <li>
+              <TermRow defaultChecked={initialMarketing} label="마케팅 정보 수신 동의" name="marketing" required={false} />
+            </li>
+          </ul>
 
           {recommendedIps.length > 0 && (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
-                <span style={{ fontWeight: 700, fontSize: 15 }}>최애를 골라보세요</span>
-                <span className="mono" style={{ fontSize: 10.5, color: 'var(--faint)' }}>팔로우한 IP 기준으로 홈과 알림이 맞춰져요</span>
+            <div className="wc-auth__picks">
+              <div className="wc-auth__picks-head">
+                <span className="wc-auth__picks-title">최애를 골라보세요</span>
+                <span className="wc-auth__picks-sub">팔로우한 IP 기준으로 홈과 알림이 맞춰져요</span>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginTop: 14 }}>
+              <div className="wc-auth__choice-grid">
                 {recommendedIps.map((ip) => (
                   <IpPickTile
                     key={ip.id}
                     bg={ip.bg}
                     defaultChecked={initiallyFollowed.has(ip.id)}
-                    accent={ipAccent({ id: ip.id, v: { key: '', label: '', color: ip.color } })}
                     id={ip.id}
                     title={ip.title}
                   />
@@ -273,19 +245,19 @@ export function Onboarding({
           )}
 
           {state.errors?.form && (
-            <div role="alert" style={{ padding: 12, borderRadius: 12, border: '1px solid rgba(255,77,157,.3)', color: 'var(--pink)', fontSize: 13.5, fontWeight: 700 }}>
+            <div className="wc-auth__alert" role="alert">
               {state.errors.form}
             </div>
           )}
 
-          <button className="btn btn-holo" disabled={!isConfigured || pending} style={{ width: '100%', height: 52, marginTop: 4, fontSize: 15 }}>
+          <WcButton disabled={!isConfigured || pending} type="submit" variant="primary">
             {pending ? '저장 중' : 'ICONS 시작하기'}
-          </button>
-          <p className="mono" style={{ margin: 0, textAlign: 'center', fontSize: 10, color: 'var(--faint)', letterSpacing: '.03em' }}>
+          </WcButton>
+          <p className="wc-auth__legal">
             본인확인은 자가신고와 결제 시 결제사 확인으로 진행돼요
           </p>
         </form>
       </div>
-    </div>
+    </main>
   );
 }

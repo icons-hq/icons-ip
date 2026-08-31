@@ -103,7 +103,7 @@ colors:
 
 ### 액센트 사용처 (전수 — 이 밖에 쓰지 않는다)
 
-**비텍스트·장식**(brand-green 유지): GNB 3px 밑줄바, 카트 수량 뱃지 bg, 카드 뱃지 tint bg, 위시 하트 선택됨, 인풋 caret, 추천 검색어 칩 bg, `.wc-btn.accent` 변형, 온라인 팝업 팔로우 카운트.
+**비텍스트·장식**(brand-green 유지): GNB 3px 밑줄바, 카트 수량 뱃지 bg, 카드 뱃지 tint bg, 위시 하트 선택됨, 인풋 caret, 추천 검색어 칩 bg, `.wc-btn.accent` 변형, 온라인 팝업 팔로우 카운트, 알림함 안읽음 점(S6 — sr-only 텍스트 병행으로 색 단독 전달 금지 준수).
 
 **소형 액센트 텍스트**(S4에서 확정 — brand-green 2.3:1은 AA 미달이라 `state.success` #3F7D38 사용, 토큰 `--wc-success`): GNB hover/active 텍스트, 메가메뉴 현재 링크 텍스트, 카드 뱃지 텍스트, 세일 할인율 텍스트, 추천 검색어 칩 텍스트, 폼 검증 피드백 텍스트.
 

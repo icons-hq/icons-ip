@@ -182,8 +182,8 @@ export function OrderDetail({
   );
 
   return (
-    <main className="screen order-detail-page">
-      <header className="order-detail-header">
+    <main className="wc-root wc-receipt order-detail-page">
+      <header className="wc-receipt__head order-detail-header">
         <div className="wrap">
           <Link className="order-detail-back" href="/orders">
             <Icon name="chevronLeft" size={17} /> 주문 내역
@@ -191,8 +191,8 @@ export function OrderDetail({
           <div className="order-detail-status-row">
             <span className={`order-status order-status--${status.tone}`}>{status.label}</span>
           </div>
-          <h1 className="h-xl">{status.title}</h1>
-          <p>{status.body}</p>
+          <h1 className="wc-receipt__title">{status.title}</h1>
+          <p className="wc-receipt__subcopy">{status.body}</p>
           <OrderLadder status={order.status} />
           <div className="order-detail-meta mono">
             <span>ORDER · {orderReferenceLabel(order.id)}</span>

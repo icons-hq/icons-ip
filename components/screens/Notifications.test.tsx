@@ -47,17 +47,18 @@ describe('Notifications', () => {
 
     expect(html).toContain('아직 받은 알림이 없어요');
     expect(html).toContain('주문, 카드팩, 팔로우한 IP의 새 소식');
-    expect(html).not.toContain('notification-row');
+    expect(html).not.toContain('wc-notif__row');
   });
 
   it('distinguishes unread and read ledger rows beyond color', () => {
     const html = render([unread, read]);
 
-    expect(html).toContain('notification-row is-unread');
-    expect(html).toContain('notification-row is-read');
+    expect(html).toContain('wc-notif__row is-unread');
     expect(html).toContain('안 읽은 알림');
     expect(html).toContain('읽은 알림');
-    expect(html).toContain('notification-unread-dot');
+    /* 점은 안 읽은 행에만 붙는다 — 읽은 행까지 점이 번지면 색·장식 없이 구분하던
+       sr-only 텍스트와 시각 상태가 어긋난다. */
+    expect(html.match(/wc-notif__dot/g)).toHaveLength(1);
     expect(html).toContain(`dateTime="${unread.createdAt}"`);
   });
 
@@ -65,7 +66,7 @@ describe('Notifications', () => {
     const html = render([unread, read]);
 
     expect(html.match(/<form/g)).toHaveLength(2);
-    expect(html.match(/class="notification-open"/g)).toHaveLength(2);
+    expect(html.match(/class="wc-notif__open"/g)).toHaveLength(2);
     expect(html).toContain('결제를 확인했어요');
     expect(html).toContain('배송을 시작했어요');
     expect(html).not.toContain(`href="${unread.linkPath}"`);

@@ -37,7 +37,6 @@ function render(overrides: Partial<React.ComponentProps<typeof Login>> = {}) {
     initialMode="signin"
     isConfigured
     next="/community?sort=hot"
-    panelCards={[]}
     {...overrides}
   />);
 }

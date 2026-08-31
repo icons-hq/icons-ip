@@ -9,20 +9,12 @@ export function RecoverySessionBridge({ next }: { next: string }) {
   }, [next]);
 
   return (
-    <main
-      aria-busy="true"
-      style={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        padding: '40px 24px',
-        position: 'relative',
-        zIndex: 2,
-      }}
-    >
-      <p role="status" style={{ color: 'var(--dim)', fontSize: 14, fontWeight: 700 }}>
-        재설정 세션을 확인하고 있습니다…
-      </p>
+    <main aria-busy="true" className="wc-root wc-auth">
+      <div className="wc-auth__panel">
+        <p className="wc-auth__lede" role="status">
+          재설정 세션을 확인하고 있습니다…
+        </p>
+      </div>
     </main>
   );
 }
