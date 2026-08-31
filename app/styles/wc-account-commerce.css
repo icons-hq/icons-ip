@@ -83,9 +83,10 @@
 }
 
 .wc-auth input:not([type='hidden']):not([type='checkbox']):not([type='radio']):focus {
+  /* outline 은 건드리지 않는다 — 텍스트 인풋의 :focus 는 :focus-visible 과 동시
+     매치라, 여기서 지우면 wc-foundation 의 2px 포커스 링(§10)이 함께 죽는다. */
   border-color: var(--wc-ink);
   box-shadow: none;
-  outline: none;
 }
 
 .wc-auth input::placeholder {
@@ -957,9 +958,10 @@
 .wc-mypage input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='file']):focus,
 .wc-mypage select:focus,
 .wc-mypage textarea:focus {
+  /* outline 은 건드리지 않는다 — 텍스트 인풋의 :focus 는 :focus-visible 과 동시
+     매치라, 여기서 지우면 wc-foundation 의 2px 포커스 링(§10)이 함께 죽는다. */
   border-color: var(--wc-ink);
   box-shadow: none;
-  outline: none;
 }
 
 .wc-mypage input::placeholder,
@@ -2324,9 +2326,10 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
 .wc-receipt input:not([type='hidden']):not([type='checkbox']):not([type='radio']):focus,
 .wc-receipt select:focus,
 .wc-receipt textarea:focus {
+  /* outline 은 건드리지 않는다 — 텍스트 인풋의 :focus 는 :focus-visible 과 동시
+     매치라, 여기서 지우면 wc-foundation 의 2px 포커스 링(§10)이 함께 죽는다. */
   border-color: var(--wc-ink);
   box-shadow: none;
-  outline: none;
 }
 
 .wc-receipt input::placeholder,
