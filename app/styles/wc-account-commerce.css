@@ -1,0 +1,877 @@
+/* ==================================================================
+   ICONS — White Catalog: account-commerce 지면 (S6)
+   ==================================================================
+   소유 범위: 인증 4표면(flat-auth-form), 마이페이지 셸(mypage-shell),
+   주문·체크아웃·티켓의 흰 종이형 영수증(receipt) 크롬.
+   수치 정본: docs/research/linefriends-square/05-cart-auth-mypage.md,
+   DESIGN.md §6(버튼·인풋)·§8(플레이북)·§11(동결 경계).
+
+   규율:
+   - 전 규칙을 .wc-* 클래스 아래 스코프한다. 전역 element 셀렉터 금지.
+   - 이 파일은 keyframe 애니메이션을 소유하지 않는다 — 결제·예매·QR 표시 중
+     주변 자동 모션 금지(DESIGN §5·§9). 움직임은 상태 전환 transition 뿐이다.
+   - editorial 파운데이션의 전역 `:where(input)` 규칙(48px·r12·focus 링)이
+     폼 컨트롤에 흘러든다 — 지면마다 명시적으로 되돌린다(S4 검색·S5 커뮤니티 선례).
+   ================================================================== */
+
+/* ------------------------------------------------------------------
+   1. flat-auth-form — /login·/update-password·/onboarding·/account-suspended
+   ------------------------------------------------------------------
+   R-05 §2: 카드·그림자·보더 없는 플랫 중앙 1칼럼. 래퍼 478px(콘텐츠 448px),
+   모바일 280px. 잉크 60px CTA, 복구는 같은 칼럼 안 in-place 스왑.
+   ------------------------------------------------------------------ */
+
+.wc-auth {
+  display: block;
+  padding: 40px 16px 96px;
+}
+
+.wc-auth__panel {
+  width: min(478px, 100%);
+  margin-inline: auto;
+  padding: 36px 15px;
+}
+
+.wc-auth__title {
+  margin: 0 0 20px;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+  line-height: 1.3;
+  text-align: center;
+  color: var(--wc-ink);
+}
+
+/* 복구·보조 과업의 축소 타이틀 (R-05 §2.4 "비밀번호 재설정" 20/700) */
+.wc-auth__title--sub {
+  font-size: 20px;
+}
+
+.wc-auth__lede {
+  margin: 0 0 20px;
+  font-size: 15px;
+  line-height: 1.6;
+  letter-spacing: -0.2px;
+  text-align: center;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-auth__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* editorial `:where(input)` 전역 규칙(48px·r12) 되돌림 — 각진 40px 플랫 필드.
+   보더 색은 팔레트의 컨트롤 보더 토큰을 쓴다(레퍼런스 고유 회색은 들이지 않는다). */
+.wc-auth input:not([type='hidden']):not([type='checkbox']):not([type='radio']) {
+  width: 100%;
+  min-height: 40px;
+  height: 40px;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 15px;
+  letter-spacing: -0.2px;
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 2px;
+  box-shadow: none;
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  caret-color: var(--wc-accent);
+}
+
+.wc-auth input:not([type='hidden']):not([type='checkbox']):not([type='radio']):focus {
+  border-color: var(--wc-ink);
+  box-shadow: none;
+  outline: none;
+}
+
+.wc-auth input::placeholder {
+  color: var(--wc-ink-disabled);
+  opacity: 1;
+}
+
+.wc-auth__label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-auth__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* 폼 검증 피드백 — 13px, 상태색만 쓴다(액센트로 위장 금지). */
+.wc-auth__error {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: -0.38px;
+  color: var(--wc-danger);
+}
+
+.wc-auth__alert {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--wc-danger);
+  border-radius: 2px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--wc-danger);
+}
+
+.wc-auth__status {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--wc-success);
+  border-radius: 2px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--wc-success);
+}
+
+/* 잉크 60px CTA (R-05: 448×60·18/700·r2). wc-btn(h50·r4) 위에 지면이 재조율한다. */
+.wc-auth .wc-btn {
+  height: 60px;
+  border-radius: 2px;
+}
+
+/* 보조 링크 행 — "비밀번호를 잊으셨나요?" 우측 정렬 (R-05 §2.2 #4) */
+.wc-auth__aside-link {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.wc-auth__aside-link a,
+.wc-auth__link {
+  font-size: 15px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 과업 전환 행 — 로그인/회원가입/복구 사이 이동. 밑줄 링크 나열. */
+.wc-auth__switch {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 20px;
+  font-size: 15px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-auth__switch a {
+  color: var(--wc-ink-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-auth__switch a[aria-current='true'] {
+  font-weight: 700;
+  color: var(--wc-ink);
+  text-decoration: none;
+}
+
+/* 소셜 로그인 — 수평 디바이더 위 원형 55px 버튼 열 (R-05 §2.3).
+   provider 브랜드 색은 각 사 아이덴티티 값이라 화면 인라인이 아닌 여기서 소유한다. */
+.wc-auth__social {
+  margin-top: 40px;
+  padding-top: 40px;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-auth__social-title {
+  margin: 0 0 6px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  text-align: center;
+  color: var(--wc-ink);
+}
+
+.wc-auth__social-sub {
+  margin: 0 0 20px;
+  font-size: 14px;
+  text-align: center;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-auth__social-row {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+}
+
+.wc-auth__social-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 55px;
+  height: 55px;
+  padding: 0;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 50%;
+  background: var(--wc-surface);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-auth__social-btn:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.wc-auth__social-btn--kakao {
+  border-color: transparent;
+  background: #FEE500;
+  color: #191919;
+}
+
+.wc-auth__social-btn--apple {
+  border-color: transparent;
+  background: #000000;
+  color: #FFFFFF;
+}
+
+/* 약관·안내 잔글 */
+.wc-auth__legal {
+  margin: 20px 0 0;
+  font-size: 12px;
+  line-height: 1.7;
+  letter-spacing: 0;
+  text-align: center;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-auth__legal a {
+  color: var(--wc-ink-sub);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 온보딩 — 동일 칼럼 위 단계 화면. 선택 카드·약관 행은 각진 리스트 문법. */
+.wc-auth__step-note {
+  margin: 0 0 16px;
+  font-size: 12px;
+  letter-spacing: .7px;
+  text-align: center;
+  color: var(--wc-ink-tertiary);
+  text-transform: uppercase;
+}
+
+.wc-auth__choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-auth__choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 12px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 2px;
+  background: var(--wc-surface);
+  font-family: inherit;
+  font-size: 14px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-sub);
+  cursor: pointer;
+  text-align: left;
+}
+
+.wc-auth__choice[aria-pressed='true'] {
+  border-color: var(--wc-ink);
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-auth__choice-mark {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--wc-surface-grey);
+  background-size: cover;
+  background-position: center;
+}
+
+.wc-auth__agree {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--wc-hairline);
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-auth__agree-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 2px;
+  font-size: 15px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-auth__agree-row + .wc-auth__agree-row {
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-auth__agree-row a {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--wc-ink-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-auth__agree-row input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--wc-ink);
+}
+
+@media (max-width: 749px) {
+  .wc-auth__panel {
+    max-width: 280px;
+    padding: 27px 0;
+  }
+
+  .wc-auth__title {
+    font-size: 24px;
+  }
+
+  .wc-auth__choice-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ------------------------------------------------------------------
+   2. mypage-shell — /my와 계정 하위(알림·문의·리뷰·설정·위시리스트)
+   ------------------------------------------------------------------
+   R-05 §4: 프로필 스트립(회색 지면, 데스크톱 전용) + 좌 200px 메뉴 3그룹
+   (나의 쇼핑정보 / 나의 계정설정 / 고객센터) + 우 콘텐츠. 모바일은 메뉴 숨김.
+   ------------------------------------------------------------------ */
+
+.wc-mypage {
+  display: block;
+  padding: 32px 0 96px;
+}
+
+/* 프로필 스트립 — 셀1(회색 지면: 아바타+인사) + 셀2(등급 슬롯+위시). 높이 120, 아래 32. */
+.wc-mypage__profile {
+  display: grid;
+  grid-template-columns: 620fr 560fr;
+  margin-bottom: 32px;
+}
+
+.wc-mypage__profile-cell {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 120px;
+  padding: 25px 28px;
+}
+
+.wc-mypage__profile-cell--greeting {
+  background: var(--wc-surface-grey);
+}
+
+.wc-mypage__profile-cell--meta {
+  justify-content: space-between;
+  border: 1px solid var(--wc-hairline);
+  border-left: 0;
+}
+
+.wc-mypage__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  flex: none;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--wc-surface);
+  border: 1px solid var(--wc-hairline);
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-mypage__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wc-mypage__greeting {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--wc-ink);
+}
+
+.wc-mypage__greeting-sub {
+  margin: 4px 0 0;
+  font-size: 14px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 등급 뱃지 슬롯 — 데이터는 S7(쿠폰·회원 등급)에서 연결한다. 슬롯만 마련. */
+.wc-mypage__tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-mypage__tier-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 1px;
+  background: var(--wc-accent-tint);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--wc-success);
+}
+
+.wc-mypage__profile-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 2px;
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+  background: var(--wc-surface);
+}
+
+/* 본체 — 좌 200px 메뉴 + 콘텐츠, 거터 40. */
+.wc-mypage__body {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 40px;
+  align-items: start;
+}
+
+.wc-mypage__aside {
+  border: 1px solid var(--wc-hairline);
+  padding: 8px 20px;
+}
+
+.wc-mypage__aside-group {
+  padding: 16px 0;
+}
+
+.wc-mypage__aside-group + .wc-mypage__aside-group {
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-mypage__aside-title {
+  margin: 0 0 10px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+}
+
+.wc-mypage__aside-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-mypage__aside-list a {
+  font-size: 15px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-mypage__aside-list a[aria-current='page'] {
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+/* 자리만 있는 메뉴(쿠폰함 — S7). 링크가 아니므로 시각·의미 모두 비활성. */
+.wc-mypage__aside-soon {
+  font-size: 15px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-disabled);
+}
+
+.wc-mypage__aside-soon small {
+  margin-left: 4px;
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.wc-mypage__content {
+  min-width: 0;
+}
+
+/* 콘텐츠 헤딩 — 17/700 + 하단 보더 (R-05 §4.4 쿠폰 헤더 문법 일반화) */
+.wc-mypage__heading {
+  margin: 0 0 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--wc-ink);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--wc-ink);
+}
+
+/* /my 허브 콘텐츠 — 그룹별 목적지 행 목록(모바일에서는 유일한 내비). */
+.wc-mypage__dest-group {
+  margin: 0 0 28px;
+}
+
+.wc-mypage__dest-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+}
+
+.wc-mypage__dest-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-mypage__dest-list li {
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-mypage__dest-list a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 2px;
+  font-size: 15px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-mypage__dest-desc {
+  display: block;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-mypage__dest-arrow {
+  flex: none;
+  color: var(--wc-ink-disabled);
+}
+
+@media (max-width: 989px) {
+  .wc-mypage__profile {
+    display: none;
+  }
+
+  .wc-mypage__body {
+    display: block;
+  }
+
+  /* 모바일은 메뉴 숨김형 — 콘텐츠가 우선한다(R-05 §4.3). */
+  .wc-mypage__aside {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------
+   3. receipt — 주문·체크아웃·티켓의 흰 종이형 영수증 크롬
+   ------------------------------------------------------------------
+   DESIGN §8: 금액·수량·상태 계층이 명확한 흰 종이 + 헤어라인. 데이터 조회·
+   action·결제 mount·confirm 경로는 동결이고 이 문법은 표현 래퍼만 소유한다.
+   ------------------------------------------------------------------ */
+
+.wc-receipt {
+  display: block;
+  padding: 32px 0 96px;
+}
+
+.wc-receipt__head {
+  margin: 0 0 24px;
+}
+
+.wc-receipt__title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.8px;
+  line-height: 1.3;
+  color: var(--wc-ink);
+}
+
+.wc-receipt__subcopy {
+  margin: 6px 0 0;
+  font-size: 14px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 종이 한 장 — 헤어라인 보더 박스. 섹션은 내부 디바이더로 나눈다. */
+.wc-receipt__paper {
+  border: 1px solid var(--wc-hairline);
+  background: var(--wc-surface);
+}
+
+.wc-receipt__section {
+  padding: 24px;
+}
+
+.wc-receipt__section + .wc-receipt__section {
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-receipt__section-title {
+  margin: 0 0 14px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+}
+
+/* 라벨:값 행 — th 회색 / td 잉크, 합계 행은 굵게. */
+.wc-receipt__rows {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+  letter-spacing: -0.2px;
+}
+
+.wc-receipt__rows th {
+  padding: 5px 0;
+  font-weight: 400;
+  text-align: left;
+  color: var(--wc-ink-tertiary);
+  white-space: nowrap;
+}
+
+.wc-receipt__rows td {
+  padding: 5px 0;
+  text-align: right;
+  color: var(--wc-ink);
+  overflow-wrap: anywhere;
+}
+
+.wc-receipt__rows tfoot th,
+.wc-receipt__rows tfoot td {
+  padding-top: 12px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-receipt__rows tfoot th {
+  color: var(--wc-ink);
+}
+
+/* 굿즈·회차 라인 — 카트 라인 문법의 축약(썸네일 56 + 이름 + 수량×금액). */
+.wc-receipt__lines {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-receipt__line {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+}
+
+.wc-receipt__line + .wc-receipt__line {
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-receipt__line-media {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--wc-surface-grey);
+}
+
+.wc-receipt__line-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.wc-receipt__line-name {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+  overflow-wrap: anywhere;
+}
+
+.wc-receipt__line-meta {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt__line-amount {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wc-ink);
+  white-space: nowrap;
+}
+
+/* 상태 칩 — 텍스트 상태는 잉크 축, 강조는 success/danger 상태색만. */
+.wc-receipt__state {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 1px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt__state--positive {
+  border-color: var(--wc-success);
+  color: var(--wc-success);
+}
+
+.wc-receipt__state--negative {
+  border-color: var(--wc-danger);
+  color: var(--wc-danger);
+}
+
+/* 주문 상태 타임라인 — 결제완료 → 배송 준비중 → 배송중 → 배송 완료 (R-05 §4.4). */
+.wc-receipt__timeline {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: wc-step;
+}
+
+.wc-receipt__timeline li {
+  padding: 12px;
+  border: 1px solid var(--wc-hairline);
+  font-size: 13px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt__timeline strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt__timeline li[aria-current='step'] {
+  border-color: var(--wc-ink);
+}
+
+.wc-receipt__timeline li[aria-current='step'] strong {
+  color: var(--wc-ink);
+}
+
+/* 안내·주의 문구 — 회색 박스, 경고는 상태색 텍스트. */
+.wc-receipt__notes {
+  margin: 16px 0 0;
+  padding: 14px 16px;
+  background: var(--wc-surface-grey);
+  font-size: 13px;
+  line-height: 1.7;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt__notes p {
+  margin: 0;
+}
+
+.wc-receipt__warning {
+  color: var(--wc-danger);
+}
+
+/* 행동 열 — 영수증 아래 CTA 묶음. */
+.wc-receipt__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 20px;
+}
+
+/* 체크아웃 2열(정보 + 요약 360) — 카트 문법(780+360) 승계. */
+.wc-receipt__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 40px;
+  align-items: start;
+}
+
+.wc-receipt__aside {
+  position: sticky;
+  top: 96px;
+  border: 1px solid var(--wc-hairline);
+  padding: 24px;
+}
+
+@media (max-width: 989px) {
+  .wc-receipt__layout {
+    display: block;
+  }
+
+  .wc-receipt__aside {
+    position: static;
+    margin-top: 24px;
+  }
+
+  .wc-receipt__timeline {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .wc-receipt__section {
+    padding: 18px 16px;
+  }
+}

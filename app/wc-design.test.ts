@@ -277,3 +277,51 @@ describe('White Catalog discovery wiring', () => {
   });
 });
 
+describe('White Catalog account-commerce wiring', () => {
+  it('loads the account-commerce layer after the discovery bands', () => {
+    /* 인증·마이·주문·티켓 지면은 카탈로그·디스커버리가 조율한 프리미티브 위에 얹힌다 —
+     * 디스커버리보다 먼저 로드되면 같은 특정성에서 그 조율이 통째로 밀린다.
+     * 보존 전시용 about-legacy는 여전히 맨 뒤에서 자기 지면만 덮는다. */
+    const layout = read('./layout.tsx');
+
+    expect(layout).toContain("'./styles/wc-account-commerce.css'");
+    expect(layout.indexOf("'./styles/wc-account-commerce.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-discovery.css'"),
+    );
+    expect(layout.indexOf("'./styles/about-legacy.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-account-commerce.css'"),
+    );
+  });
+
+  it('keeps the account-commerce stylesheet scoped, rootless, and free of the reference accent', () => {
+    /* 인증 폼·결제·티켓 지면은 보호 계약(§11) 경계에 가장 가깝다 —
+     * 전역 element 규칙 하나가 이행 전 표면과 어드민 폼까지 통째로 끌고 간다. */
+    const css = read('./styles/wc-account-commerce.css');
+
+    expect(css).not.toMatch(/^\s*(?:html|body|:root|h[1-6]|a|p|ul|ol|button|input|\*)\s*[,{:]/m);
+    expect(css).not.toMatch(/:root\s*\{[^}]*--wc-/s);
+    expect(css).not.toMatch(/#F83BAA/i);
+    expect(css).not.toMatch(/#FD4BBB/i);
+    expect(css).not.toMatch(/line-height:\s*(?:0?\.)\d+/);
+  });
+
+  it('returns auth form controls to the flat White Catalog grammar', () => {
+    /* editorial 파운데이션의 전역 `:where(input)` 규칙(48px·12px 라운드)이 새 인증 폼에
+     * 흘러든다(S4 검색·S5 커뮤니티 선례). 되돌림이 빠지면 448px 플랫 폼이 조용히 캡슐형으로 돌아간다. */
+    const css = read('./styles/wc-account-commerce.css');
+
+    expect(css).toMatch(/\.wc-auth\s+input[^{]*\{[^}]*min-height:\s*40px/s);
+    expect(css).toMatch(/\.wc-auth\s+input[^{]*\{[^}]*border-radius:\s*2px/s);
+    expect(css).toMatch(/\.wc-auth\s+input[^{]*\{[^}]*border:\s*1px\s+solid\s+var\(--wc-line-control\)/s);
+  });
+
+  it('keeps the receipt and QR surfaces free of ambient motion', () => {
+    /* 결제·예매·QR 표시 중 주변 자동 모션 금지(DESIGN §5·§9). 영수증 지면의 유일한 움직임은
+     * 피드백 전환뿐이며, keyframe 애니메이션을 이 파일이 소유하기 시작하면 그 선이 무너진다. */
+    const css = read('./styles/wc-account-commerce.css');
+
+    expect(css).not.toMatch(/@keyframes/);
+    expect(css).not.toMatch(/animation:/);
+  });
+});
+
