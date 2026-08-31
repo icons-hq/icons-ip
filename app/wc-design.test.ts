@@ -332,3 +332,43 @@ describe('White Catalog account-commerce wiring', () => {
   });
 });
 
+describe('White Catalog campaign wiring', () => {
+  it('loads the campaign layer after the account-commerce bands', () => {
+    /* 캠페인 지면은 파운데이션의 탭·슬라이더·상품 카드 프리미티브를 자기 수치로 재조율한다 —
+     * account-commerce 보다 먼저 로드되면 같은 특정성에서 그 조율이 통째로 밀린다.
+     * 보존 전시용 about-legacy는 여전히 맨 뒤에서 자기 지면만 덮는다. */
+    const layout = read('./layout.tsx');
+
+    expect(layout).toContain("'./styles/wc-campaign.css'");
+    expect(layout.indexOf("'./styles/wc-campaign.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-account-commerce.css'"),
+    );
+    expect(layout.indexOf("'./styles/about-legacy.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-campaign.css'"),
+    );
+  });
+
+  it('keeps the campaign stylesheet scoped, rootless, and free of the reference accent', () => {
+    /* 캠페인 상세는 운영자가 짠 본문 블록을 그대로 그리는 지면이다 —
+     * 전역 element 규칙 하나가 이행 전 표면과 어드민까지 통째로 끌고 간다. */
+    const css = read('./styles/wc-campaign.css');
+
+    expect(css).not.toMatch(/^\s*(?:html|body|:root|h[1-6]|a|p|ul|ol|button|input|\*)\s*[,{:]/m);
+    expect(css).not.toMatch(/:root\s*\{[^}]*--wc-/s);
+    expect(css).not.toMatch(/#F83BAA/i);
+    expect(css).not.toMatch(/#FD4BBB/i);
+    expect(css).not.toMatch(/line-height:\s*(?:0?\.)\d+/);
+  });
+
+  it('pins the campaign anchor nav under the shell header instead of over it', () => {
+    /* 앵커 내브가 셸 헤더보다 위 z-index 를 가져가면 GNB·검색 오버레이를 덮는다.
+     * 헤더 축약 높이(모바일 81 / 데스크톱 68)를 오프셋으로 두고 그 아래에 선다
+     * — wc-catalog 의 PDP 탭바와 같은 계약값이다. */
+    const css = read('./styles/wc-campaign.css');
+
+    expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*position:\s*sticky/s);
+    expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*top:\s*81px/s);
+    expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*z-index:\s*2/s);
+  });
+});
+

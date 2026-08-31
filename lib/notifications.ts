@@ -25,7 +25,10 @@ export type NotificationType =
   | 'restock_available'
   /* 회원 등급 승급(#329). 재산정·수동 보정이 승급을 확정한 트랜잭션에서 남긴다 —
      강등은 알리지 않고, 재승급은 같은 dedupe 키를 재부상시킨다. */
-  | 'loyalty_grade_upgraded';
+  | 'loyalty_grade_upgraded'
+  /* 상품 Q&A 답변(#330). admin_answer_product_question RPC 가 답변을 저장한
+     트랜잭션에서 남긴다 — 재답변도 같은 dedupe 키를 다시 띄운다. */
+  | 'product_question_answered';
 
 export interface NotificationRow {
   id: string;

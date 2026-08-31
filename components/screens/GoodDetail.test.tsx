@@ -131,6 +131,8 @@ function render(overrides: Partial<GoodDetailContent> = {}) {
   return renderToStaticMarkup(
     <GoodDetail
       detail={{ ...detail, ...overrides }}
+      qna={<p>Q&A 본문 슬롯</p>}
+      qnaSummary={{ count: 2 }}
       reviewSummary={summary}
       reviews={<p>리뷰 본문 슬롯</p>}
     />,
@@ -239,12 +241,33 @@ describe('GoodDetail', () => {
     expect(html).toContain('리뷰 본문 슬롯');
   });
 
+  /* 상품 Q&A(#330)는 리뷰와 배송 안내 사이다 — 구매 전 질문은 후기 다음, 정책 앞에서
+     읽힌다. 본문은 리뷰와 같은 이유로 서버가 그린 slot 이다. */
+  it('리뷰와 배송 안내 사이에 Q&A 탭을 둔다', () => {
+    const html = render();
+
+    expect(html).toContain('id="pdp-panel-qna"');
+    expect(html).toContain('>Q&amp;A (2)<');
+    expect(html).toContain('Q&amp;A 본문 슬롯');
+    expect(html.indexOf('id="pdp-tab-qna"')).toBeGreaterThan(html.indexOf('id="pdp-tab-reviews"'));
+    expect(html.indexOf('id="pdp-tab-shipping"')).toBeGreaterThan(html.indexOf('id="pdp-tab-qna"'));
+  });
+
   it('리뷰 조건이 URL에 있으면 리뷰 탭에서 연다', () => {
     expect(pdpDefaultPanelId(new URLSearchParams(''))).toBe('detail');
     expect(pdpDefaultPanelId(null)).toBe('detail');
     expect(pdpDefaultPanelId(new URLSearchParams('reviewPage=2'))).toBe('reviews');
     expect(pdpDefaultPanelId(new URLSearchParams('reviewSort=rating_desc'))).toBe('reviews');
     expect(pdpDefaultPanelId(new URLSearchParams('reviewPhoto=1'))).toBe('reviews');
+  });
+
+  /* 내 Q&A 목록·알림에서 오는 링크가 전부 이 파라미터를 달고 온다. 도착한 화면이
+     상세정보 탭이면 방금 찾아온 질문을 볼 수 없다. */
+  it('Q&A 조건이 URL에 있으면 Q&A 탭에서 연다', () => {
+    expect(pdpDefaultPanelId(new URLSearchParams('qnaPage=1'))).toBe('qna');
+    expect(pdpDefaultPanelId(new URLSearchParams('qnaPage=2'))).toBe('qna');
+    /* 두 조건이 함께 오면 리뷰가 먼저다 — 기존 링크의 도착지를 바꾸지 않는다. */
+    expect(pdpDefaultPanelId(new URLSearchParams('reviewPage=2&qnaPage=2'))).toBe('reviews');
   });
 
   it('고시정보 표와 배송·교환 안내를 패널에 싣는다', () => {
@@ -343,5 +366,12 @@ describe('GoodDetail', () => {
 
     expect(html).toContain('아직 등록된 리뷰가 없습니다.');
     expect(html).toContain('>리뷰<');
+  });
+
+  it('Q&A 슬롯이 없으면 Q&A 탭이 빈 이유를 적는다', () => {
+    const html = renderToStaticMarkup(<GoodDetailView detail={detail} embedded />);
+
+    expect(html).toContain('아직 등록된 질문이 없습니다.');
+    expect(html).toContain('>Q&amp;A<');
   });
 });

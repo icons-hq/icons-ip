@@ -72,6 +72,18 @@ describe('Notifications', () => {
     expect(html).not.toContain(`href="${unread.linkPath}"`);
   });
 
+  /* 공개 상품 Q&A 와 비공개 1:1 문의는 다른 표면이다(CONTEXT.md) — 알림함에서 같은
+     말로 적히면 어느 쪽에 답이 달렸는지 알 수 없다. */
+  it('상품 Q&A 답변 알림을 1:1 문의와 다른 이름으로 적는다', () => {
+    const html = render([
+      { ...unread, id: '33333333-3333-4333-8333-333333333333', type: 'product_question_answered' },
+      { ...read, id: '44444444-4444-4444-8444-444444444444', type: 'inquiry_answered' },
+    ]);
+
+    expect(html).toContain('>상품 Q&amp;A</span>');
+    expect(html).toContain('>문의</span>');
+  });
+
   it('shows a generic open failure without provider details', () => {
     expect(render([unread], true)).toContain(
       '알림을 열지 못했습니다. 잠시 후 다시 시도해주세요.',

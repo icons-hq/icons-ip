@@ -30,15 +30,21 @@ import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '@/lib/shipping';
  * 마크업을 그리되 인터랙티브 컨트롤만 비활성으로 둔다.
  */
 
-export type PdpPanelId = 'detail' | 'reviews' | 'shipping';
+export type PdpPanelId = 'detail' | 'reviews' | 'qna' | 'shipping';
 
 /* 리뷰 정렬·필터·페이지는 URL 로 움직이고(lib/reviews.ts) 링크는 전부 풀 페이지 이동이다.
    그 링크를 밟고 돌아온 화면이 상세정보 탭이면 사용자는 방금 누른 "다음 페이지"의
    결과를 볼 수 없다. 리뷰 조건이 URL 에 있으면 리뷰 탭에서 시작한다. */
 const REVIEW_PARAM_NAMES = ['reviewSort', 'reviewPhoto', 'reviewPage'] as const;
 
+/* 상품 Q&A 도 같은 문법을 쓴다(lib/product-questions.ts). 알림·내 Q&A 목록에서
+   들어오는 링크도 이 파라미터를 달고 오므로, 도착한 화면이 Q&A 탭이어야 한다. */
+const QNA_PARAM_NAMES = ['qnaPage'] as const;
+
 export function pdpDefaultPanelId(search: { has: (name: string) => boolean } | null): PdpPanelId {
-  if (search && REVIEW_PARAM_NAMES.some((name) => search.has(name))) return 'reviews';
+  if (!search) return 'detail';
+  if (REVIEW_PARAM_NAMES.some((name) => search.has(name))) return 'reviews';
+  if (QNA_PARAM_NAMES.some((name) => search.has(name))) return 'qna';
   return 'detail';
 }
 
@@ -151,18 +157,24 @@ export interface GoodDetailViewProps {
   /** 어드민 미리보기처럼 다른 화면 안에 놓일 때. 구매 패널·하트를 비활성으로 그린다. */
   embedded?: boolean;
   reviews?: ReactNode;
+  /** 상품 Q&A 본문. 리뷰와 같은 이유로 서버에서 읽어 서버에서 그린 블록을 받는다. */
+  qna?: ReactNode;
   engagement?: { wished: boolean; restockRequested: boolean };
   /**
    * 정보 칼럼의 별점 요약과 리뷰 탭 카운트. 리뷰 본문은 slot 이 그리므로 개수·평균만
    * 따로 받는다 — 어드민 미리보기처럼 리뷰가 없는 호출은 생략한다.
    */
   reviewSummary?: ReviewRatingSummary;
+  /** Q&A 탭 카운트. 본문과 같은 이유로 개수만 따로 받는다. */
+  qnaSummary?: { count: number };
 }
 
 export function GoodDetailView({
   detail,
   embedded = false,
   engagement,
+  qna,
+  qnaSummary,
   reviewSummary,
   reviews,
 }: GoodDetailViewProps) {
@@ -224,6 +236,18 @@ export function GoodDetailView({
         <div className="wc-pdp-panel">
           {reviews ?? (
             <p className="wc-pdp-panel__note">아직 등록된 리뷰가 없습니다.</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: 'qna',
+      label: 'Q&A',
+      count: qnaSummary?.count,
+      content: (
+        <div className="wc-pdp-panel">
+          {qna ?? (
+            <p className="wc-pdp-panel__note">아직 등록된 질문이 없습니다.</p>
           )}
         </div>
       ),
@@ -306,11 +330,15 @@ export function GoodDetailView({
 export function GoodDetail({
   detail,
   engagement,
+  qna,
+  qnaSummary,
   reviewSummary,
   reviews,
 }: {
   detail: GoodDetailContent;
   engagement?: { wished: boolean; restockRequested: boolean };
+  qna?: ReactNode;
+  qnaSummary?: { count: number };
   reviewSummary?: ReviewRatingSummary;
   reviews?: ReactNode;
 }) {
@@ -318,6 +346,8 @@ export function GoodDetail({
     <GoodDetailView
       detail={detail}
       engagement={engagement}
+      qna={qna}
+      qnaSummary={qnaSummary}
       reviewSummary={reviewSummary}
       reviews={reviews}
     />
