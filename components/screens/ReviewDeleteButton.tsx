@@ -27,7 +27,7 @@ export function ReviewDeleteButton({
     >
       <input name="reviewId" type="hidden" value={reviewId} />
       <input name="goodId" type="hidden" value={goodId} />
-      <button className="btn btn-sm btn-ghost" type="submit">삭제</button>
+      <button className="wc-mypage__headbar-link wc-mypage__link-danger" type="submit">삭제</button>
     </form>
   );
 }

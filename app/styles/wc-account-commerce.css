@@ -737,18 +737,827 @@
 }
 
 @media (max-width: 989px) {
+  /* R-05는 스트립을 데스크톱 전용으로 두지만, /my 허브가 모바일 계정 내비의 전부라
+     인사·등급 슬롯은 컴팩트하게 남긴다(기계적 복사가 아니라 문법 이식 — 티켓 Further Notes). */
   .wc-mypage__profile {
-    display: none;
+    grid-template-columns: 1fr;
+  }
+
+  .wc-mypage__profile-cell {
+    min-height: 0;
+    padding: 16px;
+  }
+
+  .wc-mypage__profile-cell--meta {
+    border-left: 1px solid var(--wc-hairline);
+    border-top: 0;
+  }
+
+  .wc-mypage__avatar {
+    width: 48px;
+    height: 48px;
+    font-size: 18px;
   }
 
   .wc-mypage__body {
     display: block;
   }
 
-  /* 모바일은 메뉴 숨김형 — 콘텐츠가 우선한다(R-05 §4.3). */
+  /* 모바일은 메뉴 숨김형 — 콘텐츠가 우선한다(R-05 §4.3). 내비는 /my 허브와 하단 탭바. */
   .wc-mypage__aside {
     display: none;
   }
+}
+
+/* --- 계정 하위 표면 공통 문법 ------------------------------------- */
+
+/* 헤딩 바 — 17/700 + 잉크 하단 보더, 우측에 보조 링크 하나. */
+.wc-mypage__headbar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--wc-ink);
+}
+
+.wc-mypage__headbar-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--wc-ink);
+  overflow-wrap: anywhere;
+}
+
+.wc-mypage__headbar-link {
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.wc-mypage__link-danger {
+  color: var(--wc-danger);
+}
+
+.wc-mypage__heading {
+  margin: 0 0 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--wc-ink);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--wc-ink);
+}
+
+.wc-mypage__subhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 28px 0 12px;
+}
+
+.wc-mypage__subhead h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+}
+
+.wc-mypage__subhead span {
+  font-size: 13px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-mypage__subtitle {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+}
+
+.wc-mypage__lede {
+  margin: 0 0 20px;
+  font-size: 14px;
+  line-height: 1.7;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-mypage__error {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--wc-danger);
+}
+
+.wc-mypage__success {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--wc-success);
+}
+
+.wc-mypage__hint {
+  display: block;
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-mypage__hint a {
+  color: var(--wc-ink-sub);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-mypage__note {
+  margin: 16px 0 0;
+  padding: 14px 16px;
+  background: var(--wc-surface-grey);
+  font-size: 12.5px;
+  line-height: 1.7;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-mypage__notice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+  padding: 20px;
+  border: 1px solid var(--wc-hairline);
+}
+
+.wc-mypage__notice strong {
+  font-size: 15px;
+  color: var(--wc-ink);
+}
+
+.wc-mypage__notice span {
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-mypage__notice .wc-btn {
+  margin-top: 6px;
+}
+
+/* 폼 문법 — editorial `:where(input)` 전역 규칙 되돌림(마이페이지 스코프). */
+.wc-mypage__form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.wc-mypage__form + .wc-mypage__form {
+  margin-top: 36px;
+}
+
+.wc-mypage input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='file']),
+.wc-mypage select,
+.wc-mypage textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 14px;
+  letter-spacing: -0.2px;
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  caret-color: var(--wc-accent);
+}
+
+.wc-mypage select {
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23111111' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
+.wc-mypage textarea {
+  min-height: 96px;
+  padding: 10px 12px;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.wc-mypage input:not([type='hidden']):not([type='checkbox']):not([type='radio']):not([type='file']):focus,
+.wc-mypage select:focus,
+.wc-mypage textarea:focus {
+  border-color: var(--wc-ink);
+  box-shadow: none;
+  outline: none;
+}
+
+.wc-mypage input::placeholder,
+.wc-mypage textarea::placeholder {
+  color: var(--wc-ink-disabled);
+  opacity: 1;
+}
+
+.wc-mypage input:disabled {
+  background: var(--wc-surface-grey);
+  color: var(--wc-ink-tertiary);
+  border-color: var(--wc-hairline);
+}
+
+.wc-mypage input[type='file'] {
+  min-height: 0;
+  border: 0;
+  padding: 0;
+  box-shadow: none;
+  background: none;
+  font-size: 13px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-mypage input[type='checkbox'],
+.wc-mypage input[type='radio'] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  flex: none;
+  accent-color: var(--wc-ink);
+}
+
+.wc-mypage__field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-mypage__field small {
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-mypage__field-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--wc-ink-sub);
+}
+
+.wc-mypage__check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--wc-ink-sub);
+  cursor: pointer;
+}
+
+.wc-mypage__check strong {
+  font-weight: 700;
+}
+
+.wc-mypage__form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.wc-mypage__form-actions .wc-btn {
+  flex: 1 1 auto;
+}
+
+/* 카드 목록 — 헤어라인 박스 행. */
+.wc-mypage__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-mypage__cards > li {
+  display: block;
+}
+
+.wc-mypage__card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px;
+  border: 1px solid var(--wc-hairline);
+  background: var(--wc-surface);
+  color: inherit;
+  text-decoration: none;
+}
+
+li.wc-mypage__card {
+  display: flex;
+}
+
+a.wc-mypage__card:hover .wc-mypage__card-title {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-mypage__card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-mypage__card-state {
+  margin-left: auto;
+}
+
+.wc-mypage__card-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+  overflow-wrap: anywhere;
+}
+
+.wc-mypage__card-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wc-mypage__card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.wc-mypage__card-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+}
+
+.wc-mypage__card-body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-sub);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.wc-mypage__rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-mypage__rows li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13.5px;
+}
+
+.wc-mypage__rows a {
+  color: var(--wc-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-mypage__rows .wc-mypage__hint {
+  margin: 0;
+}
+
+/* 별점 라디오 */
+.wc-mypage__rating {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wc-mypage__rating legend {
+  padding: 0;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--wc-ink-sub);
+}
+
+.wc-mypage__rating-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.wc-mypage__rating-option {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-mypage__photo-keep {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* --- 알림함 -------------------------------------------------------- */
+
+.wc-notif__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-notif__row {
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-notif__open {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 4px;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: var(--wc-ink-sub);
+}
+
+.wc-notif__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  background: var(--wc-surface-grey);
+  color: var(--wc-ink-sub);
+}
+
+.wc-notif__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.wc-notif__copy strong {
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+}
+
+.wc-notif__row:not(.is-unread) .wc-notif__copy strong {
+  font-weight: 400;
+  color: var(--wc-ink-sub);
+}
+
+.wc-notif__copy > span:not(.wc-notif__meta) {
+  font-size: 13px;
+  line-height: 1.6;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+  overflow-wrap: anywhere;
+}
+
+.wc-notif__meta {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 읽지 않음 점 — 비텍스트 장식이라 brand-green 유지. */
+.wc-notif__dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--wc-accent);
+}
+
+.wc-notif__arrow {
+  flex: none;
+  color: var(--wc-ink-disabled);
+}
+
+/* --- IP 알림 설정 --------------------------------------------------- */
+
+.wc-notif__prefs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wc-notif__pref {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--wc-hairline);
+}
+
+.wc-notif__pref-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+}
+
+.wc-notif__pref-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wc-notif__switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.wc-notif__switch span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wc-notif__switch strong {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+}
+
+.wc-notif__switch small {
+  font-size: 12.5px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-notif__save {
+  align-self: flex-end;
+  width: auto;
+  min-width: 120px;
+  height: 40px;
+  font-size: 14px;
+}
+
+/* --- 문의 스레드 ---------------------------------------------------- */
+
+.wc-thread__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-thread__bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-self: flex-end;
+  max-width: min(560px, 100%);
+  padding: 14px 16px;
+  border: 1px solid var(--wc-line-control);
+  background: var(--wc-surface);
+}
+
+.wc-thread__bubble--staff {
+  align-self: flex-start;
+  border-color: var(--wc-hairline);
+  background: var(--wc-surface-grey);
+}
+
+.wc-thread__meta {
+  font-size: 11.5px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-thread__body {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.75;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.wc-thread__images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wc-thread__images img {
+  max-height: 220px;
+  max-width: 100%;
+}
+
+/* --- 설정 ----------------------------------------------------------- */
+
+.wc-settings__avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.wc-settings__avatar-row .wc-mypage__field {
+  flex: 1;
+}
+
+.wc-settings__consent-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--wc-surface);
+  background: var(--wc-ink);
+}
+
+.wc-settings__consent-state {
+  margin-left: auto;
+  flex: none;
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-settings__danger {
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+/* 회원 탈퇴 패널 — editorial 소유 클래스를 wc 문법으로 재소유(스코프 한정). */
+.wc-mypage .account-deletion-panel,
+.wc-auth .account-deletion-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wc-mypage .account-deletion-title,
+.wc-auth .account-deletion-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-danger);
+}
+
+.wc-mypage .account-deletion-description,
+.wc-auth .account-deletion-description {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.7;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-mypage .account-deletion-description a,
+.wc-auth .account-deletion-description a {
+  color: var(--wc-ink-sub);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-mypage .account-deletion-feedback,
+.wc-auth .account-deletion-feedback {
+  padding: 12px 14px;
+  border: 1px solid var(--wc-hairline);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+}
+
+.wc-mypage .account-deletion-feedback--error,
+.wc-auth .account-deletion-feedback--error {
+  border-color: var(--wc-danger);
+  color: var(--wc-danger);
+}
+
+.wc-mypage .account-deletion-feedback--success,
+.wc-auth .account-deletion-feedback--success,
+.wc-mypage .account-deletion-feedback--processing,
+.wc-auth .account-deletion-feedback--processing {
+  border-color: var(--wc-success);
+  color: var(--wc-success);
+}
+
+.wc-mypage .account-deletion-blockers,
+.wc-auth .account-deletion-blockers {
+  padding: 12px 14px;
+  background: var(--wc-surface-grey);
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--wc-ink-sub);
+}
+
+.wc-mypage .account-deletion-blockers p,
+.wc-auth .account-deletion-blockers p {
+  margin: 0 0 6px;
+}
+
+.wc-mypage .account-deletion-blockers ul,
+.wc-auth .account-deletion-blockers ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.wc-mypage .account-deletion-blockers a,
+.wc-auth .account-deletion-blockers a {
+  color: var(--wc-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-mypage .account-deletion-form,
+.wc-auth .account-deletion-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wc-mypage .account-deletion-label,
+.wc-auth .account-deletion-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+}
+
+.wc-mypage .account-deletion-label span,
+.wc-auth .account-deletion-label span {
+  font-size: 12.5px;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 파괴 행동 CTA — 액센트로 위장하지 않는다(state.danger). */
+.wc-mypage .account-deletion-submit,
+.wc-auth .account-deletion-submit {
+  background: var(--wc-danger);
+  border-color: var(--wc-danger);
+  color: #FFFFFF;
+}
+
+.wc-receipt__state--muted {
+  border-color: var(--wc-hairline);
+  color: var(--wc-ink-disabled);
 }
 
 /* ------------------------------------------------------------------

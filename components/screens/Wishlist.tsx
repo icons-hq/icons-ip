@@ -2,8 +2,8 @@ import Link from 'next/link';
 import { AddToCartButton } from '@/components/shop/AddToCartButton';
 import { WishlistHeart } from '@/components/shop/WishlistHeart';
 import { EmptyState } from '@/components/wc/EmptyState';
+import { MypageShell } from '@/components/wc/MypageShell';
 import { PriceBlock } from '@/components/wc/PriceBlock';
-import { SectionHeading } from '@/components/wc/SectionHeading';
 import { WcButton } from '@/components/wc/WcButton';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Good, Ip } from '@/lib/data';
@@ -90,23 +90,23 @@ export function Wishlist({ catalog, entries }: WishlistProps) {
   });
 
   return (
-    <div className="wc-root">
-      <div className="wc-container">
-        <section aria-labelledby="wishlist-heading" className="wc-wishlist">
-          <SectionHeading as="h1" id="wishlist-heading" title="위시리스트" />
-          {lines.length ? (
-            <ul className="wc-wishlist__list">
-              {lines.map((line) => <WishlistRow key={line.goodId} line={line} />)}
-            </ul>
-          ) : (
-            <EmptyState
-              action={shopCta()}
-              description="마음에 드는 굿즈를 하트로 담아 두면 여기에 모여요."
-              title="아직 찜한 굿즈가 없어요"
-            />
-          )}
-        </section>
-      </div>
-    </div>
+    <MypageShell active="/my/wishlist">
+      <section aria-labelledby="wishlist-heading" className="wc-wishlist">
+        <div className="wc-mypage__headbar">
+          <h1 className="wc-mypage__headbar-title" id="wishlist-heading">위시리스트</h1>
+        </div>
+        {lines.length ? (
+          <ul className="wc-wishlist__list">
+            {lines.map((line) => <WishlistRow key={line.goodId} line={line} />)}
+          </ul>
+        ) : (
+          <EmptyState
+            action={shopCta()}
+            description="마음에 드는 굿즈를 하트로 담아 두면 여기에 모여요."
+            title="아직 찜한 굿즈가 없어요"
+          />
+        )}
+      </section>
+    </MypageShell>
   );
 }

@@ -23,17 +23,14 @@ export default async function Page() {
     : UNAVAILABLE_ACCOUNT_DELETION_PRESENTATION;
 
   return (
-    <main style={{ display: 'grid', placeItems: 'center', minHeight: '100vh', padding: '110px 0 80px' }}>
-      <div className="rise" style={{ width: 'min(520px, 92vw)' }}>
-        <h1 style={{ margin: 0, fontFamily: 'var(--ff-display)', fontWeight: 700, fontSize: 28, letterSpacing: '-0.03em' }}>
-          회원 탈퇴
-        </h1>
-        <div style={{ marginTop: 24 }}>
-          <AccountDeletionPanel
-            presentation={presentation}
-            requestKey={crypto.randomUUID()}
-          />
-        </div>
+    /* 파괴적 확인 흐름 — aside 없는 단일 과업 지면으로 집중시킨다(flat-auth-form 문법). */
+    <main className="wc-root wc-auth">
+      <div className="wc-auth__panel wc-auth__panel--wide">
+        <h1 className="wc-auth__title wc-auth__title--sub">회원 탈퇴</h1>
+        <AccountDeletionPanel
+          presentation={presentation}
+          requestKey={crypto.randomUUID()}
+        />
       </div>
     </main>
   );

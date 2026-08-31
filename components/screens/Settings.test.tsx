@@ -195,8 +195,9 @@ describe('Settings', () => {
     expect(html).toContain('settings-nickname-control');
     expect(html).toContain('settings-avatar-input');
     expect(html).toContain('settings-profile-submit');
+    /* 마케팅 체크박스는 S6에서 네이티브 컨트롤로 돌아왔다 — 프록시 스팬 없이
+       wc-foundation 의 .wc-root :focus-visible 링이 직접 받는다. */
     expect(html).toContain('settings-marketing-input');
-    expect(html).toContain('settings-marketing-proxy');
     expect(html).toContain('settings-marketing-submit');
     expect(html).not.toContain('outline:none');
   });
