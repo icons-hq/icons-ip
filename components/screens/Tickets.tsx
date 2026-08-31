@@ -57,12 +57,11 @@ export function Tickets({
   const groups = groupTicketOrders(orders, now);
 
   return (
-    <main className="screen tickets-page">
-      <header className="tickets-header">
+    <main className="wc-root wc-receipt tickets-page">
+      <header className="wc-receipt__head">
         <div className="wrap">
-          <div className="eyebrow rise" style={{ color: 'var(--mint)' }}>MY TICKETS</div>
-          <h1 className="h-xl rise">내 티켓</h1>
-          <p>예매 상태를 확인하고, 사용 가능한 전자티켓 QR을 열어보세요.</p>
+          <h1 className="wc-receipt__title">내 티켓</h1>
+          <p className="wc-receipt__subcopy">예매 상태를 확인하고, 사용 가능한 전자티켓 QR을 열어보세요.</p>
         </div>
       </header>
 

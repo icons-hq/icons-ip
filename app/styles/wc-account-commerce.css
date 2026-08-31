@@ -1561,6 +1561,1495 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
 }
 
 /* ------------------------------------------------------------------
+   3.1 거래 화면 어휘 재소유 (.wc-receipt 스코프)
+   ------------------------------------------------------------------
+   주문·체크아웃·티켓 화면의 데이터 조회·action·결제 mount·confirm 경로는
+   바이트 수준 동결이라(티켓 #328), 마크업의 기존 클래스 어휘(checkout-*,
+   order-*, ticket-*, postcode-*)를 그대로 두고 이 스코프가 시각만 재소유한다.
+   globals.css(HM)·editorial-account-commerce.css 의 같은 클래스 규칙은
+   로드 순서상 여기에 진다. S9 레거시 제거 후에도 자립하도록 레이아웃
+   크리티컬 규칙(2열 그리드·필드 그리드·우편번호 레이어)까지 소유한다.
+   ------------------------------------------------------------------ */
+
+.wc-receipt .wrap {
+  width: 100%;
+  max-width: 1212px;
+  margin-inline: auto;
+  padding-inline: 16px;
+}
+
+.wc-receipt__head .wrap {
+  padding-block: 0 24px;
+}
+
+/* HM 잔재 무력화 — 이 지면의 흰 종이는 .card 가 아니라 헤어라인 보더다. */
+.wc-receipt .card {
+  border: 1px solid var(--wc-hairline);
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--wc-surface);
+  color: var(--wc-ink-sub);
+  padding: 24px;
+}
+
+.wc-receipt .eyebrow {
+  display: none;
+}
+
+.wc-receipt .mono {
+  font-family: inherit;
+  letter-spacing: 0;
+}
+
+.wc-receipt .faint,
+.wc-receipt .muted {
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+}
+
+.wc-receipt h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+}
+
+/* 버튼 재매핑 — btn-holo=잉크 primary, btn-ghost=아웃라인, 그라디언트·라운드 금지. */
+.wc-receipt .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 50px;
+  padding: 0 20px;
+  border: 1px solid var(--wc-ink);
+  border-radius: 4px;
+  background: var(--wc-ink);
+  color: #FFFFFF;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.11;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity .2s ease;
+}
+
+.wc-receipt .btn:hover {
+  opacity: .9;
+  transform: none;
+  box-shadow: none;
+}
+
+.wc-receipt .btn:disabled {
+  border-color: var(--wc-ink-disabled);
+  background: var(--wc-ink-disabled);
+  color: #FFFFFF;
+  cursor: not-allowed;
+}
+
+.wc-receipt .btn-ghost {
+  border-color: var(--wc-line-control);
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+}
+
+.wc-receipt .btn-sm {
+  min-height: 36px;
+  padding: 0 14px;
+  font-size: 13px;
+}
+
+/* 섹션 헤딩 — 번호 스텝 대신 잉크 헤딩 한 줄. */
+.wc-receipt .checkout-section-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--wc-ink);
+}
+
+.wc-receipt .checkout-section-heading p {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-step {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .7px;
+  color: var(--wc-ink-tertiary);
+}
+
+/* --- 주문 목록 /orders ------------------------------------------- */
+
+.wc-receipt .orders-section-heading,
+.wc-receipt .tickets-group-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 28px 0 12px;
+}
+
+.wc-receipt .tickets-group-heading p {
+  margin: 2px 0 0;
+  font-size: 13px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .orders-section-heading span,
+.wc-receipt .tickets-group-heading > span {
+  font-size: 13px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .orders-payment-banner,
+.wc-receipt .tickets-payment-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 20px;
+  padding: 16px 18px;
+  border: 1px solid var(--wc-line-control);
+  background: var(--wc-surface);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .orders-payment-banner strong,
+.wc-receipt .tickets-payment-banner strong {
+  font-size: 15px;
+  color: var(--wc-ink);
+}
+
+.wc-receipt .orders-payment-banner p,
+.wc-receipt .tickets-payment-banner p {
+  margin: 0;
+}
+
+.wc-receipt .orders-payment-banner a,
+.wc-receipt .tickets-payment-banner a {
+  color: var(--wc-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-receipt .orders-payment-banner--approved,
+.wc-receipt .tickets-payment-banner--approved {
+  border-color: var(--wc-success);
+}
+
+.wc-receipt .orders-payment-banner--approved strong,
+.wc-receipt .tickets-payment-banner--approved strong {
+  color: var(--wc-success);
+}
+
+.wc-receipt .orders-payment-banner--failed,
+.wc-receipt .tickets-payment-banner--failed {
+  border-color: var(--wc-danger);
+}
+
+.wc-receipt .orders-payment-banner--failed strong,
+.wc-receipt .tickets-payment-banner--failed strong {
+  color: var(--wc-danger);
+}
+
+.wc-receipt .orders-list,
+.wc-receipt .tickets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-receipt .order-list-link,
+.wc-receipt .ticket-list-link {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr) auto auto 18px;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  text-decoration: none;
+}
+
+.wc-receipt .order-list-reference,
+.wc-receipt .ticket-list-event {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.wc-receipt .order-list-reference span,
+.wc-receipt .ticket-list-event > span {
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .order-list-reference time {
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .ticket-list-event strong {
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+  overflow-wrap: anywhere;
+}
+
+.wc-receipt .ticket-list-event small {
+  font-size: 12.5px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .order-list-item-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.wc-receipt .order-list-item-copy strong {
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+  overflow-wrap: anywhere;
+}
+
+.wc-receipt .order-list-item-copy span {
+  font-size: 12.5px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .order-list-badge {
+  align-self: flex-start;
+  padding: 1px 6px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 1px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .order-list-total {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wc-ink);
+  white-space: nowrap;
+}
+
+.wc-receipt .order-list-arrow,
+.wc-receipt .ticket-list-arrow {
+  color: var(--wc-ink-disabled);
+}
+
+.wc-receipt .ticket-list-location {
+  font-size: 12.5px;
+  color: var(--wc-ink-tertiary);
+  text-align: right;
+}
+
+/* 상태 칩 — 톤을 잉크 축으로 접는다: 완료 계열만 success, 취소·실패만 danger. */
+.wc-receipt .order-status,
+.wc-receipt .ticket-status,
+.wc-receipt .ticket-unit-status {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  padding: 2px 8px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 1px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+  color: var(--wc-ink-sub);
+  background: var(--wc-surface);
+}
+
+.wc-receipt .order-status--delivered,
+.wc-receipt .order-status--done,
+.wc-receipt .ticket-status--mint,
+.wc-receipt .ticket-unit-status--valid {
+  border-color: var(--wc-success);
+  color: var(--wc-success);
+}
+
+.wc-receipt .order-status--canceled,
+.wc-receipt .ticket-status--pink {
+  border-color: var(--wc-danger);
+  color: var(--wc-danger);
+}
+
+.wc-receipt .ticket-status--muted,
+.wc-receipt .ticket-unit-status--used,
+.wc-receipt .ticket-unit-status--refunded {
+  border-color: var(--wc-hairline);
+  color: var(--wc-ink-disabled);
+}
+
+.wc-receipt .orders-empty,
+.wc-receipt .tickets-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 56px 24px;
+  text-align: center;
+}
+
+.wc-receipt .orders-empty p,
+.wc-receipt .tickets-empty p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .orders-empty-icon,
+.wc-receipt .tickets-empty-icon {
+  color: var(--wc-ink-disabled);
+}
+
+/* --- 주문 상세 /orders/[id] --------------------------------------- */
+
+.wc-receipt .order-detail-back,
+.wc-receipt .ticket-detail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--wc-ink-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-receipt .order-detail-status-row {
+  margin-bottom: 10px;
+}
+
+.wc-receipt .order-detail-meta,
+.wc-receipt .ticket-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 진행 사다리 — 흰 종이 위 각진 스텝. 현재만 잉크 보더. */
+.wc-receipt .order-detail-ladder {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  max-width: 640px;
+}
+
+.wc-receipt .order-detail-ladder-step {
+  padding: 8px 6px;
+  border: 1px solid var(--wc-hairline);
+  font-size: 12px;
+  letter-spacing: -0.2px;
+  text-align: center;
+  color: var(--wc-ink-tertiary);
+  background: var(--wc-surface);
+}
+
+.wc-receipt .order-detail-ladder-step[data-state='done'] {
+  background: var(--wc-surface-grey);
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .order-detail-ladder-step[data-state='current'] {
+  border-color: var(--wc-ink);
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-receipt .order-detail-layout,
+.wc-receipt .ticket-detail-layout,
+.wc-receipt .checkout-order-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 24px;
+  align-items: start;
+}
+
+.wc-receipt .order-detail-deposit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 16px 18px;
+  border-color: var(--wc-line-control);
+}
+
+.wc-receipt .order-detail-deposit p {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .order-detail-items {
+  display: flex;
+  flex-direction: column;
+}
+
+.wc-receipt .order-detail-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-receipt .order-detail-item-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.wc-receipt .order-detail-item-copy span {
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .order-detail-item-copy h3 {
+  font-weight: 400;
+  font-size: 14px;
+  color: var(--wc-ink);
+  overflow-wrap: anywhere;
+}
+
+.wc-receipt .order-detail-item-numbers {
+  display: flex;
+  gap: 14px;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .order-detail-item-numbers div {
+  display: flex;
+  gap: 4px;
+}
+
+.wc-receipt .order-detail-item-numbers dt {
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .order-detail-item-numbers dd {
+  margin: 0;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .order-detail-item > strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wc-ink);
+  white-space: nowrap;
+}
+
+.wc-receipt .order-detail-inquiry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-receipt .order-detail-withdrawal {
+  margin: 16px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.wc-receipt .checkout-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 16px 0 0;
+  font-size: 14px;
+}
+
+.wc-receipt .checkout-totals > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wc-receipt .checkout-totals dt {
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-totals dd {
+  margin: 0;
+  color: var(--wc-ink);
+}
+
+.wc-receipt .checkout-totals .checkout-total {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--wc-ink);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.wc-receipt .checkout-totals .checkout-total dt {
+  color: var(--wc-ink);
+}
+
+.wc-receipt .order-receipt-section {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--wc-hairline);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wc-receipt .order-receipt-section address {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-style: normal;
+  font-size: 13.5px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .order-receipt-section address strong {
+  color: var(--wc-ink);
+}
+
+.wc-receipt .order-receipt-section address small {
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .order-receipt-section p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .order-payment-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  font-size: 13.5px;
+}
+
+.wc-receipt .order-payment-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wc-receipt .order-payment-summary dt {
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .order-payment-summary dd {
+  margin: 0;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .order-tracking-link {
+  align-self: flex-start;
+}
+
+.wc-receipt .order-card-pack-callout {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 14px 16px;
+  border: 1px solid var(--wc-hairline);
+  background: var(--wc-surface-grey);
+}
+
+.wc-receipt .order-card-pack-callout p {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .order-card-pack-icon {
+  color: var(--wc-ink-sub);
+}
+
+/* --- 체크아웃 /checkout ------------------------------------------- */
+
+.wc-receipt .checkout-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 24px;
+  align-items: start;
+}
+
+.wc-receipt .checkout-loading {
+  padding: 56px 16px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 32px;
+  padding: 56px 24px;
+  text-align: center;
+}
+
+.wc-receipt .checkout-empty h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--wc-ink);
+}
+
+.wc-receipt .checkout-empty p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.wc-receipt .checkout-fields label,
+.wc-receipt .postcode-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .checkout-fields label em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-field--wide {
+  grid-column: 1 / -1;
+}
+
+/* editorial·HM 인풋 규칙 되돌림 — 각진 44px 플랫 필드. */
+.wc-receipt input:not([type='hidden']):not([type='checkbox']):not([type='radio']),
+.wc-receipt select,
+.wc-receipt textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 14px;
+  letter-spacing: -0.2px;
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  caret-color: var(--wc-accent);
+}
+
+.wc-receipt textarea {
+  min-height: 96px;
+  padding: 10px 12px;
+  line-height: 1.7;
+  resize: vertical;
+}
+
+.wc-receipt input:not([type='hidden']):not([type='checkbox']):not([type='radio']):focus,
+.wc-receipt select:focus,
+.wc-receipt textarea:focus {
+  border-color: var(--wc-ink);
+  box-shadow: none;
+  outline: none;
+}
+
+.wc-receipt input::placeholder,
+.wc-receipt textarea::placeholder {
+  color: var(--wc-ink-disabled);
+  opacity: 1;
+}
+
+.wc-receipt input[aria-invalid='true'] {
+  border-color: var(--wc-danger);
+}
+
+.wc-receipt input[type='checkbox'],
+.wc-receipt input[type='radio'] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  flex: none;
+  accent-color: var(--wc-ink);
+}
+
+.wc-receipt .checkout-field-error {
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: -0.2px;
+  color: var(--wc-danger);
+}
+
+.wc-receipt .checkout-error {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-danger);
+}
+
+.wc-receipt .postcode-field-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .postcode-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.wc-receipt .postcode-field-row input {
+  max-width: 180px;
+}
+
+.wc-receipt .postcode-field-open {
+  min-height: 44px;
+  padding: 0 16px;
+  font-size: 13px;
+}
+
+.wc-receipt .postcode-field-hint {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .postcode-layer {
+  position: relative;
+  overflow: hidden;
+  margin-top: 4px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 0;
+  background: var(--wc-surface);
+}
+
+.wc-receipt .postcode-layer-frame {
+  width: 100%;
+  height: 420px;
+}
+
+.wc-receipt .postcode-layer-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 20px;
+  background: var(--wc-surface);
+  color: var(--wc-ink-sub);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.wc-receipt .checkout-items {
+  display: flex;
+  flex-direction: column;
+  margin-top: 16px;
+}
+
+.wc-receipt .checkout-item {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-receipt .checkout-item > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.wc-receipt .checkout-item > div span {
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-item > div strong {
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--wc-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-receipt .checkout-item > span {
+  flex: none;
+  font-size: 12.5px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .checkout-method {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 20px 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.wc-receipt .checkout-method legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .checkout-method-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--wc-hairline);
+  cursor: pointer;
+}
+
+.wc-receipt .checkout-method-option:has(input:checked) {
+  border-color: var(--wc-ink);
+}
+
+.wc-receipt .checkout-method-option:has(input:disabled) {
+  color: var(--wc-ink-disabled);
+  cursor: not-allowed;
+}
+
+.wc-receipt .checkout-method-option input {
+  margin-top: 2px;
+}
+
+.wc-receipt .checkout-method-option span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wc-receipt .checkout-method-option strong {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+}
+
+.wc-receipt .checkout-method-option:has(input:disabled) strong {
+  color: var(--wc-ink-disabled);
+}
+
+.wc-receipt .checkout-method-option small {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .money-caption {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-submit {
+  width: 100%;
+  margin-top: 14px;
+  min-height: 60px;
+  border-radius: 2px;
+  font-size: 16px;
+}
+
+.wc-receipt .checkout-back {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--wc-ink-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-receipt .checkout-summary,
+.wc-receipt .checkout-receipt,
+.wc-receipt .order-detail-receipt,
+.wc-receipt .ticket-detail-receipt {
+  position: sticky;
+  top: 96px;
+}
+
+/* --- 결제 진행 /checkout/[id]·/ticket-checkout/[id] ---------------- */
+
+.wc-receipt .checkout-order-ref {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+  overflow-wrap: anywhere;
+}
+
+.wc-receipt .checkout-deadline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--wc-line-control);
+  font-size: 13px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .checkout-deadline strong {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--wc-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.wc-receipt .checkout-state-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 14px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .checkout-state-panel p {
+  margin: 0;
+  line-height: 1.7;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-state-panel .btn {
+  align-self: flex-start;
+}
+
+.wc-receipt .checkout-state-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 50%;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .checkout-state-panel--complete .checkout-state-mark {
+  border-color: var(--wc-success);
+  color: var(--wc-success);
+}
+
+.wc-receipt .checkout-state-panel--closed .checkout-state-mark {
+  border-color: var(--wc-danger);
+  color: var(--wc-danger);
+}
+
+.wc-receipt .checkout-cancel-link {
+  margin: 16px 0 0;
+  font-size: 12.5px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-cancel-link a {
+  color: var(--wc-ink-sub);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-receipt .checkout-deposit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wc-receipt .checkout-deposit-account {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--wc-line-control);
+  font-size: 14px;
+}
+
+.wc-receipt .checkout-deposit-account > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wc-receipt .checkout-deposit-account dt {
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-deposit-account dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--wc-ink);
+  overflow-wrap: anywhere;
+}
+
+.wc-receipt .checkout-deposit-deadline {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .checkout-address-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--wc-hairline);
+  font-size: 13.5px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .checkout-address-preview > span {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-address-preview p {
+  margin: 0;
+}
+
+.wc-receipt .checkout-address-preview small {
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .ticket-receipt-event {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 16px;
+  font-size: 13.5px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .ticket-receipt-event span {
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .ticket-receipt-event strong {
+  color: var(--wc-ink);
+}
+
+/* --- 결제 콜백 결과 표면 ------------------------------------------- */
+
+.wc-receipt .checkout-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  max-width: 560px;
+  margin: 48px auto 0;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.wc-receipt .checkout-result h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--wc-ink);
+}
+
+.wc-receipt .checkout-result p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-result-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 50%;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .checkout-result-mark--fail {
+  border-color: var(--wc-danger);
+  color: var(--wc-danger);
+}
+
+/* --- 청약철회·클레임·티켓 취소 패널 -------------------------------- */
+
+.wc-receipt .order-cancellation,
+.wc-receipt .ticket-cancellation {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-receipt .order-cancellation-heading,
+.wc-receipt .ticket-cancellation-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.wc-receipt .order-cancellation-body,
+.wc-receipt .ticket-cancellation-body {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .order-cancellation-actions,
+.wc-receipt .ticket-cancellation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wc-receipt .order-cancellation-confirm,
+.wc-receipt .ticket-cancellation-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--wc-line-control);
+}
+
+.wc-receipt .order-cancellation-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .order-cancellation-feedback,
+.wc-receipt .ticket-cancellation-feedback {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--wc-hairline);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .order-cancellation-feedback--error,
+.wc-receipt .ticket-cancellation-feedback--error {
+  border-color: var(--wc-danger);
+  color: var(--wc-danger);
+}
+
+.wc-receipt .order-cancellation-feedback--success,
+.wc-receipt .ticket-cancellation-feedback--success {
+  border-color: var(--wc-success);
+  color: var(--wc-success);
+}
+
+/* 취소 신청 CTA — 파괴 행동은 danger, 액센트·잉크로 위장하지 않는다. */
+.wc-receipt .order-cancellation-submit,
+.wc-receipt .ticket-cancellation-submit {
+  border-color: var(--wc-danger);
+  background: var(--wc-danger);
+  color: #FFFFFF;
+}
+
+.wc-receipt .order-refund-summary,
+.wc-receipt .ticket-refund-summary dl {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  font-size: 13.5px;
+}
+
+.wc-receipt .order-refund-summary > div,
+.wc-receipt .ticket-refund-summary dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wc-receipt .order-refund-summary dt,
+.wc-receipt .ticket-refund-summary dt {
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .order-refund-summary dd,
+.wc-receipt .ticket-refund-summary dd {
+  margin: 0;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .ticket-refund-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-receipt .ticket-refund-policy {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+/* --- 전자티켓 QR --------------------------------------------------- */
+
+.wc-receipt .ticket-qr-pager {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.wc-receipt .ticket-qr-heading {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+/* QR 프레임 — 검표 대비가 생명이라 순백 지면 + 잉크 보더만 쓴다.
+   결제·예매·QR 표시 중 주변 자동 모션 금지(DESIGN §9)는 이 파일 전체가
+   keyframe 을 소유하지 않는 것으로 지킨다. */
+.wc-receipt .ticket-qr-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  border: 1px solid var(--wc-ink);
+  background: #FFFFFF;
+}
+
+.wc-receipt .ticket-qr-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .ticket-qr-notice,
+.wc-receipt .ticket-qr-empty {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .ticket-state-list {
+  margin-top: 20px;
+}
+
+.wc-receipt .ticket-state-list ol {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-receipt .ticket-state-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13.5px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .ticket-booking-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 16px 0 0;
+  font-size: 13.5px;
+}
+
+.wc-receipt .ticket-booking-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wc-receipt .ticket-booking-summary dt {
+  flex: none;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .ticket-booking-summary dd {
+  margin: 0;
+  text-align: right;
+  color: var(--wc-ink-sub);
+  overflow-wrap: anywhere;
+}
+
+.wc-receipt .ticket-booking-summary .ticket-booking-total {
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--wc-ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.wc-receipt .ticket-booking-summary .ticket-booking-total dt,
+.wc-receipt .ticket-booking-summary .ticket-booking-total dd {
+  color: var(--wc-ink);
+}
+
+/* --- 반응형 -------------------------------------------------------- */
+
+@media (max-width: 989px) {
+  .wc-receipt .checkout-layout,
+  .wc-receipt .order-detail-layout,
+  .wc-receipt .ticket-detail-layout,
+  .wc-receipt .checkout-order-layout {
+    display: block;
+  }
+
+  .wc-receipt .checkout-summary,
+  .wc-receipt .checkout-receipt,
+  .wc-receipt .order-detail-receipt,
+  .wc-receipt .ticket-detail-receipt {
+    position: static;
+    margin-top: 20px;
+  }
+
+  .wc-receipt .checkout-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .wc-receipt .order-list-link,
+  .wc-receipt .ticket-list-link {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 8px;
+  }
+
+  .wc-receipt .order-list-total {
+    grid-column: 1;
+    justify-self: start;
+  }
+
+  .wc-receipt .order-list-arrow,
+  .wc-receipt .ticket-list-arrow {
+    display: none;
+  }
+
+  .wc-receipt .ticket-list-location {
+    grid-column: 1;
+    text-align: left;
+  }
+
+  .wc-receipt .order-detail-ladder {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .wc-receipt .order-detail-deposit {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .wc-receipt .order-detail-item {
+    flex-wrap: wrap;
+  }
+
+  .wc-receipt .card {
+    padding: 18px 16px;
+  }
+
+  .wc-receipt .postcode-layer-frame {
+    height: 380px;
+  }
+}
+
+/* ------------------------------------------------------------------
    3. receipt — 주문·체크아웃·티켓의 흰 종이형 영수증 크롬
    ------------------------------------------------------------------
    DESIGN §8: 금액·수량·상태 계층이 명확한 흰 종이 + 헤어라인. 데이터 조회·

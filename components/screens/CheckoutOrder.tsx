@@ -99,26 +99,23 @@ export function CheckoutOrder({ order, bankTransferAccount = null }: CheckoutOrd
   const isBankTransfer = order.paymentMethod === 'bank_transfer';
 
   const statusCopy = useMemo(() => {
-    if (state === 'complete') return { eyebrow: 'PAYMENT CONFIRMED', title: '결제가 확인됐어요', body: '주문이 안전하게 접수됐습니다. 배송 진행은 주문 내역에서 이어서 확인할 수 있어요.' };
-    if (state === 'checking') return { eyebrow: 'VERIFYING PAYMENT', title: '결제를 확인하고 있어요', body: '결제사 확인 결과와 서버 원장을 대조하고 있습니다. 이 화면을 닫아도 확인은 계속됩니다.' };
+    if (state === 'complete') return { title: '결제가 확인됐어요', body: '주문이 안전하게 접수됐습니다. 배송 진행은 주문 내역에서 이어서 확인할 수 있어요.' };
+    if (state === 'checking') return { title: '결제를 확인하고 있어요', body: '결제사 확인 결과와 서버 원장을 대조하고 있습니다. 이 화면을 닫아도 확인은 계속됩니다.' };
     if (state === 'closed') {
       if (isBankTransfer) {
-        return { eyebrow: 'DEPOSIT CLOSED', title: '입금 기한이 지났어요', body: '선점된 재고는 자동으로 복원됩니다. 기한이 지난 뒤 입금하셨다면 고객센터 문의로 알려주세요 — 주문은 되살아나지 않고 입금액을 반환해 드립니다.' };
+        return { title: '입금 기한이 지났어요', body: '선점된 재고는 자동으로 복원됩니다. 기한이 지난 뒤 입금하셨다면 고객센터 문의로 알려주세요 — 주문은 되살아나지 않고 입금액을 반환해 드립니다.' };
       }
-      return { eyebrow: 'CHECKOUT CLOSED', title: '결제 가능한 시간이 지났어요', body: '선점된 재고는 자동으로 복원됩니다. 새 장바구니에서 주문을 다시 만들어주세요.' };
+      return { title: '결제 가능한 시간이 지났어요', body: '선점된 재고는 자동으로 복원됩니다. 새 장바구니에서 주문을 다시 만들어주세요.' };
     }
     return null;
   }, [isBankTransfer, state]);
 
   return (
-    <main className="checkout-page checkout-order-page">
-      <header className="checkout-header checkout-order-header">
+    <main className="wc-root wc-receipt checkout-page checkout-order-page">
+      <header className="wc-receipt__head">
         <div className="wrap">
-          <div className="eyebrow" style={{ color: state === 'complete' ? 'var(--mint)' : 'var(--cyan)' }}>
-            {statusCopy?.eyebrow ?? 'SECURE PAYMENT'}
-          </div>
-          <h1 className="h-xl">{statusCopy?.title ?? '결제수단을 선택하세요'}</h1>
-          <p>{statusCopy?.body ?? '주문 금액은 서버에서 다시 확인했습니다. 결제수단과 필수 약관을 선택해주세요.'}</p>
+          <h1 className="wc-receipt__title">{statusCopy?.title ?? '결제수단을 선택하세요'}</h1>
+          <p className="wc-receipt__subcopy">{statusCopy?.body ?? '주문 금액은 서버에서 다시 확인했습니다. 결제수단과 필수 약관을 선택해주세요.'}</p>
           <span className="checkout-order-ref mono">ORDER · {order.id}</span>
         </div>
       </header>

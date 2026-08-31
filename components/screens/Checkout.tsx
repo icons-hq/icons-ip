@@ -181,7 +181,7 @@ export function Checkout({
 
   if (!ready || cartPending) {
     return (
-      <main className="checkout-page">
+      <main className="wc-root wc-receipt checkout-page">
         <div className="wrap checkout-loading" role="status">계정 장바구니를 확인하고 있어요.</div>
       </main>
     );
@@ -189,9 +189,8 @@ export function Checkout({
 
   if (mode !== 'server') {
     return (
-      <main className="checkout-page">
+      <main className="wc-root wc-receipt checkout-page">
         <div className="wrap checkout-empty card">
-          <span className="eyebrow">계정 연결 필요</span>
           <h1>장바구니를 계정에 연결하지 못했어요</h1>
           <p>{cartError ?? '로그인 상태와 네트워크를 확인한 뒤 다시 시도해주세요.'}</p>
           <button className="btn btn-holo" type="button" onClick={() => void refresh()}>다시 연결</button>
@@ -203,9 +202,8 @@ export function Checkout({
 
   if (lines.length === 0) {
     return (
-      <main className="checkout-page">
+      <main className="wc-root wc-receipt checkout-page">
         <div className="wrap checkout-empty card">
-          <span className="eyebrow">{resumeOrderId ? 'ORDER IN PROGRESS' : 'CHECKOUT'}</span>
           <h1>{resumeOrderId ? '진행 중인 주문이 있어요' : '주문할 굿즈가 없어요'}</h1>
           <p>{resumeOrderId
             ? '주문 생성 응답을 놓쳤거나 결제 확인을 이어가는 중일 수 있어요.'
@@ -220,12 +218,11 @@ export function Checkout({
   }
 
   return (
-    <main className="checkout-page">
-      <header className="checkout-header">
+    <main className="wc-root wc-receipt checkout-page">
+      <header className="wc-receipt__head">
         <div className="wrap">
-          <div className="eyebrow" style={{ color: 'var(--cyan)' }}>사요 · 체크아웃</div>
-          <h1 className="h-xl">배송지를 확인하고<br />결제를 준비해요</h1>
-          <p>재고는 주문 생성 후 15분 동안 선점됩니다. 최종 완료는 결제 확인 후 안내해요.</p>
+          <h1 className="wc-receipt__title">배송지를 확인하고 결제를 준비해요</h1>
+          <p className="wc-receipt__subcopy">재고는 주문 생성 후 15분 동안 선점됩니다. 최종 완료는 결제 확인 후 안내해요.</p>
         </div>
       </header>
 

@@ -45,12 +45,11 @@ export function Orders({
   const banner = paymentResult === 'approved' && !hasPaidPhaseOrder ? undefined : paymentResult;
 
   return (
-    <main className="screen orders-page">
-      <header className="orders-header">
+    <main className="wc-root wc-receipt orders-page">
+      <header className="wc-receipt__head">
         <div className="wrap">
-          <div className="eyebrow rise" style={{ color: 'var(--amber)' }}>MY ORDERS</div>
-          <h1 className="h-xl rise">주문 내역</h1>
-          <p>굿즈 주문의 결제와 배송 상태를 한눈에 확인하세요.</p>
+          <h1 className="wc-receipt__title">주문 내역</h1>
+          <p className="wc-receipt__subcopy">굿즈 주문의 결제와 배송 상태를 한눈에 확인하세요.</p>
         </div>
       </header>
 
