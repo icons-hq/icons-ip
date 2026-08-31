@@ -40,6 +40,17 @@ describe('어드민 IA 정의', () => {
       expect(readyHrefs.has(href)).toBe(true);
     }
   });
+
+  /* S8 화면 두 개(#330). 메뉴에 자리가 없으면 라우트만 있고 아무도 못 찾는다. */
+  it('캠페인과 상품 Q&A가 각자의 대분류에 붙어 있다', () => {
+    const campaigns = ADMIN_SCREENS.find((screen) => screen.id === 'campaigns');
+    const qna = ADMIN_SCREENS.find((screen) => screen.id === 'qna');
+
+    expect(campaigns).toMatchObject({ href: '/admin/display/campaigns', status: 'ready' });
+    expect(qna).toMatchObject({ href: '/admin/cs/qna', status: 'ready' });
+    expect(adminGroupForPath('/admin/display/campaigns')?.id).toBe('display');
+    expect(adminGroupForPath('/admin/cs/qna')?.id).toBe('cs');
+  });
 });
 
 describe('adminScreenForPath', () => {
