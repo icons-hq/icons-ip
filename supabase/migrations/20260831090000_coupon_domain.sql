@@ -433,6 +433,9 @@ declare
   -- lib/shipping.ts의 SHIPPING_FEE · FREE_SHIPPING_THRESHOLD와 같은 값이어야 한다.
   c_shipping_fee constant bigint := 3000;
   c_free_shipping_threshold constant bigint := 50000;
+  -- 결제사 최소 결제액(20260813242000 가드·lib/coupons.ts MIN_PAYABLE_TOTAL와 동치).
+  -- 할인이 총액을 이 밑으로 내리면 가드가 주문 전체를 롤백하므로, 여기서 캡한다.
+  c_min_payable_total constant bigint := 1000;
   v_user uuid := (select auth.uid());
   v_order uuid;
   v_existing_address jsonb;
@@ -649,7 +652,12 @@ begin
     if v_coupon_eval.o_reason is not null then
       raise check_violation using message = v_coupon_eval.o_reason;
     end if;
-    v_discount := v_coupon_eval.o_discount;
+    -- 결제사 최소 결제액을 지키도록 할인을 캡한다 — 전액 쿠폰이 주문을
+    -- 결제 불가(총액 < 1,000원)로 만들면 혜택이 주문 실패로 둔갑한다.
+    v_discount := least(
+      v_coupon_eval.o_discount,
+      greatest(0, v_subtotal + v_shipping_fee - c_min_payable_total)
+    );
 
     update public.user_coupons
     set status = 'used',

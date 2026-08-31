@@ -276,7 +276,7 @@ export function Cart({
   const appliedCoupon = couponState.coupons.find(
     (held) => held.id === couponState.selectedUserCouponId,
   ) ?? null;
-  const couponDiscount = couponPreviewDiscount(appliedCoupon, subtotal);
+  const couponDiscount = couponPreviewDiscount(appliedCoupon, subtotal, shippingFee);
 
   return (
     <div className="wc-root wc-cart">

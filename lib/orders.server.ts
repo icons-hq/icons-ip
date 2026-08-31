@@ -29,6 +29,7 @@ interface OrderListRow {
 
 interface OrderDetailRow extends OrderListRow {
   shipping_fee: number | null;
+  discount_total: number | null;
   address: unknown;
   shipping_carrier: string | null;
   tracking_number: string | null;
@@ -181,7 +182,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     .from('orders')
     // delivered_at은 청약철회 기한의 기산점이다(#189). 이 값이 없으면 주문
     // 상세가 남은 기간을 말할 근거가 없다.
-    .select('id,user_id,status,total,shipping_fee,address,created_at,shipping_carrier,tracking_number,delivered_at,payment_method,expires_at')
+    .select('id,user_id,status,total,shipping_fee,discount_total,address,created_at,shipping_carrier,tracking_number,delivered_at,payment_method,expires_at')
     .eq('id', orderId)
     .eq('user_id', userId)
     .in('status', [...ORDER_DETAIL_STATUSES])
@@ -271,6 +272,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     status,
     total: orderData.total,
     shippingFee: orderData.shipping_fee ?? 0,
+    discountTotal: orderData.discount_total ?? 0,
     address: normalizeCheckoutAddress(orderData.address),
     createdAt: orderData.created_at,
     deliveredAt: orderData.delivered_at,

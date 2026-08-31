@@ -122,6 +122,22 @@ select public.admin_upsert_coupon(
   target_previous_code => null
 );
 
+-- 이미 끝난 정의는 승급 혜택으로 발급되면 안 된다(쓸 수 없는 쿠폰 + 한도 소모).
+select public.admin_upsert_coupon(
+  target_code => 'GRADE-OLD',
+  target_name => '종료된 SILVER 혜택',
+  target_discount_type => 'fixed',
+  target_discount_value => 1000,
+  target_max_discount_amount => null,
+  target_min_subtotal => 0,
+  target_starts_at => now() - interval '2 days',
+  target_ends_at => now() - interval '1 day',
+  target_issue_limit => null,
+  target_status => 'active',
+  target_grade_benefit => 'silver',
+  target_previous_code => null
+);
+
 reset role;
 
 -- ── 신규 회원은 WELCOME에서 시작한다 ────────────────────────────────────────
@@ -181,6 +197,12 @@ select 1 / case when (
 select 1 / case when (
   select issued_count from public.coupons where code = 'GRADE-SILVER'
 ) = 1 then 1 else 0 end as assert_grade_benefit_counts_issuance;
+
+select 1 / case when not exists (
+  select 1 from public.user_coupons
+  where user_id = '00000000-0000-4000-8000-000000000721'
+    and coupon_code = 'GRADE-OLD'
+) then 1 else 0 end as assert_ended_benefit_definition_not_issued;
 
 select 1 / case when exists (
   select 1 from public.notifications
@@ -306,6 +328,29 @@ select 1 / case when exists (
     and type = 'loyalty_grade_upgraded'
     and dedupe_key = 'loyalty:upgrade:00000000-0000-4000-8000-000000000723:gold'
 ) then 1 else 0 end as assert_manual_upgrade_notifies;
+
+-- 창 안의 수동 보정은 재산정의 하한이다 — 다음 온라인 주문 한 건이 오프라인
+-- 실적 보정을 지우면 안 된다.
+set local role service_role;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000723', true);
+insert into public.cart_items (user_id, good_id, qty)
+values ('00000000-0000-4000-8000-000000000723', 'loy-g2', 1);
+select public.place_order(
+  '00000000-0000-4000-8000-000000000723',
+  '{"recipientName":"보정후주문","phone":"01012345678","postalCode":"12345","address1":"서울시"}'::jsonb,
+  '10000000-0000-4000-8000-000000000724',
+  'card'::public.order_payment_method
+) as post_adjust_order_id \gset
+
+reset role;
+update public.orders set status = 'paid', expires_at = null
+where id = :'post_adjust_order_id'::uuid;
+
+select 1 / case when (
+  select loyalty_grade = 'gold'
+  from public.profiles
+  where id = '00000000-0000-4000-8000-000000000723'
+) then 1 else 0 end as assert_manual_floor_survives_recalculation;
 
 -- 비스태프는 수동 보정을 부를 수 없다.
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000721', true);

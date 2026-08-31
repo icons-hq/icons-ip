@@ -44,7 +44,8 @@ export function loyaltyBasisSummary(): string {
   return `산정 기준: 최근 ${LOYALTY_WINDOW_DAYS}일 결제 확정(취소 제외) 주문 총액이 `
     + `SILVER ${won(LOYALTY_THRESHOLDS.silver)}원 · GOLD ${won(LOYALTY_THRESHOLDS.gold)}원 · `
     + `PLATINUM ${won(LOYALTY_THRESHOLDS.platinum)}원 이상이면 승급됩니다. `
-    + '재산정은 결제 확정·취소 시점과 수동 재산정에서 일어납니다.';
+    + '재산정은 결제 확정·취소 시점과 수동 재산정에서 일어나며, '
+    + '창 안의 수동 보정 등급은 재산정의 하한으로 유지됩니다.';
 }
 
 export interface NextLoyaltyGrade {

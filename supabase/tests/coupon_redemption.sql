@@ -171,6 +171,21 @@ select public.admin_upsert_coupon(
 );
 
 select public.admin_upsert_coupon(
+  target_code => 'CPNFULL',
+  target_name => '전액 쿠폰',
+  target_discount_type => 'fixed',
+  target_discount_value => 70000,
+  target_max_discount_amount => null,
+  target_min_subtotal => 0,
+  target_starts_at => now() - interval '1 hour',
+  target_ends_at => null,
+  target_issue_limit => null,
+  target_status => 'active',
+  target_grade_benefit => null,
+  target_previous_code => null
+);
+
+select public.admin_upsert_coupon(
   target_code => 'CPNMIN50',
   target_name => '5만 이상 3천원',
   target_discount_type => 'fixed',
@@ -232,8 +247,8 @@ select public.admin_upsert_coupon(
 
 select 1 / case when (
   select count(*) from public.coupons
-  where code in ('CPNFIX5K', 'CPNPCT10', 'CPNBIG', 'CPNONE', 'CPNMIN50', 'CPNEXP', 'CPNSOON', 'CPNARCH')
-) = 8 then 1 else 0 end as assert_admin_created_coupons;
+  where code in ('CPNFIX5K', 'CPNPCT10', 'CPNBIG', 'CPNONE', 'CPNFULL', 'CPNMIN50', 'CPNEXP', 'CPNSOON', 'CPNARCH')
+) = 9 then 1 else 0 end as assert_admin_created_coupons;
 
 select 1 / case when exists (
   select 1 from public.audit_log
@@ -770,6 +785,36 @@ select 1 / case when (
   from public.orders
   where id = :'clamped_order_id'::uuid
 ) then 1 else 0 end as assert_fixed_discount_clamped_to_subtotal;
+
+-- 전액 쿠폰도 결제사 최소 결제액(1,000원)을 지킨다 — 무료배송 70,000 카트에
+-- 70,000 쿠폰이면 69,000만 깎여 총액 1,000원으로 확정된다(korpay 가드 통과).
+reset role;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000702', true);
+set local role authenticated;
+insert into public.cart_items (user_id, good_id, qty)
+values
+  ('00000000-0000-4000-8000-000000000702', 'cpn-g1', 1),
+  ('00000000-0000-4000-8000-000000000702', 'cpn-g2', 1);
+select public.apply_cart_coupon_code('CPNFULL');
+
+reset role;
+set local role service_role;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000702', true);
+
+select public.place_order(
+  '00000000-0000-4000-8000-000000000702',
+  '{"recipientName":"전액쿠폰","phone":"01012345678","postalCode":"12345","address1":"서울시"}'::jsonb,
+  '10000000-0000-4000-8000-000000000716',
+  'card'::public.order_payment_method
+) as floor_order_id \gset
+
+reset role;
+
+select 1 / case when (
+  select total = 1000 and shipping_fee = 0 and discount_total = 69000
+  from public.orders
+  where id = :'floor_order_id'::uuid
+) then 1 else 0 end as assert_discount_capped_to_provider_minimum;
 
 -- ── 카트가 줄어 조건 미달이 된 selection은 주문 생성에서 거부된다 ────────────
 

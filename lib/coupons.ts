@@ -34,26 +34,52 @@ export interface UserCouponSummary {
 /** 쿠폰함 티켓 카드가 구분하는 표시 상태. 만료는 DB 상태가 아니라 파생이다. */
 export type CouponDisplayState = 'usable' | 'used' | 'expired';
 
+/** 결제사 최소 결제액(원). 진실원은 20260813242000 가드와 place_order 의
+ * c_min_payable_total — 값이 어긋나면 미리보기가 결제 불가 주문을 약속한다. */
+export const MIN_PAYABLE_TOTAL = 1000;
+
+/** 실효 만료 시각 — 발급 스냅과 현재 정의 마감 중 이른 쪽. 어드민이 정의를
+ * 단축하면 RPC 는 정의 마감도 보므로, 표시가 발급 스냅만 보면 "사용 가능"이
+ * 주문 거부로 끝난다. */
+export function couponEffectiveExpiresAt(
+  userCoupon: Pick<UserCouponSummary, 'expiresAt'> & { coupon: Pick<CouponSummary, 'endsAt'> },
+): string | null {
+  const candidates = [userCoupon.expiresAt, userCoupon.coupon.endsAt]
+    .filter((value): value is string => Boolean(value));
+  if (!candidates.length) return null;
+  return candidates.reduce((earliest, value) => (
+    Date.parse(value) < Date.parse(earliest) ? value : earliest
+  ));
+}
+
 export function couponDisplayState(
-  userCoupon: Pick<UserCouponSummary, 'status' | 'expiresAt'>,
+  userCoupon: Pick<UserCouponSummary, 'status' | 'expiresAt'> & {
+    coupon: Pick<CouponSummary, 'endsAt'>;
+  },
   now: number = Date.now(),
 ): CouponDisplayState {
   if (userCoupon.status === 'used') return 'used';
-  if (userCoupon.expiresAt && Date.parse(userCoupon.expiresAt) < now) return 'expired';
+  const effectiveExpiry = couponEffectiveExpiresAt(userCoupon);
+  if (effectiveExpiry && Date.parse(effectiveExpiry) < now) return 'expired';
   return 'usable';
 }
 
-/** 카트·주문서가 공유하는 미리보기 할인. 조건 미달·만료 선택은 0원으로 접는다 —
- * 주문 제출 시 place_order 가 명시적으로 거부하고, 낙관적으로 깎아 보여주지 않는다. */
+/** 카트·주문서가 공유하는 미리보기 할인. 조건 미달·만료 선택은 0원으로 접고,
+ * 결제사 최소 결제액을 지키도록 place_order 와 같은 캡을 건다 — 주문 제출 시
+ * RPC 가 같은 규칙으로 확정하므로 미리보기와 청구액이 어긋나지 않는다. */
 export function couponPreviewDiscount(
   applied: Pick<UserCouponSummary, 'status' | 'expiresAt' | 'coupon'> | null,
   subtotal: number,
+  shippingFee: number,
   now: number = Date.now(),
 ): number {
   if (!applied) return 0;
   if (couponDisplayState(applied, now) !== 'usable') return 0;
   if (subtotal < applied.coupon.minSubtotal) return 0;
-  return couponDiscountFor(applied.coupon, subtotal);
+  return Math.min(
+    couponDiscountFor(applied.coupon, subtotal),
+    Math.max(0, subtotal + shippingFee - MIN_PAYABLE_TOTAL),
+  );
 }
 
 /** place_order·apply RPC 와 같은 할인 규칙. 소계를 넘는 할인은 없다. */
@@ -92,10 +118,13 @@ export function couponConditionLabel(coupon: Pick<CouponSummary, 'minSubtotal'>)
     : '금액 제한 없음';
 }
 
-/** 유효기간 한 줄 표기. */
-export function couponExpiryLabel(userCoupon: Pick<UserCouponSummary, 'expiresAt'>): string {
-  if (!userCoupon.expiresAt) return '기한 없음';
-  const date = new Date(userCoupon.expiresAt);
+/** 유효기간 한 줄 표기 — 실효 만료(정의 단축 반영) 기준. */
+export function couponExpiryLabel(
+  userCoupon: Pick<UserCouponSummary, 'expiresAt'> & { coupon: Pick<CouponSummary, 'endsAt'> },
+): string {
+  const effectiveExpiry = couponEffectiveExpiresAt(userCoupon);
+  if (!effectiveExpiry) return '기한 없음';
+  const date = new Date(effectiveExpiry);
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, '0');
   const dd = String(date.getDate()).padStart(2, '0');

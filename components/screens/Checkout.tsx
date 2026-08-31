@@ -105,7 +105,7 @@ export function Checkout({
   const subtotal = lines.reduce((sum, line) => sum + (line.good?.price ?? 0) * line.qty, 0);
   /* 표시용 예상치다. 결제 금액은 place_order가 확정한 orders.total을 따른다. */
   const shippingFee = shippingFeeFor(subtotal);
-  const couponDiscount = couponPreviewDiscount(appliedCoupon, subtotal);
+  const couponDiscount = couponPreviewDiscount(appliedCoupon, subtotal, shippingFee);
   const unavailable = lines.some(({ good, qty }) => (
     !good || good.stock === 'soldout' || good.stockQty < qty
   ));

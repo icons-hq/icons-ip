@@ -115,6 +115,9 @@ begin
     select coupon.code, coupon.ends_at, coupon.issue_limit, coupon.issued_count
     from public.coupons as coupon
     where coupon.status = 'active'
+      -- 이미 끝난 정의는 발급하지 않는다 — 쓸 수 없는 쿠폰을 혜택이라 말하며
+      -- 유한 발급 한도만 소모하게 된다.
+      and (coupon.ends_at is null or coupon.ends_at > now())
       and coupon.grade_benefit is not null
       and coupon.grade_benefit > p_from_grade
       and coupon.grade_benefit <= p_to_grade
@@ -155,6 +158,7 @@ declare
   c_window constant interval := interval '90 days';
   v_current public.loyalty_grade;
   v_spend bigint;
+  v_manual_floor public.loyalty_grade;
   v_next public.loyalty_grade;
 begin
   -- 같은 유저의 동시 재산정(두 주문이 동시에 paid)을 직렬화한다.
@@ -177,7 +181,22 @@ begin
     and order_row.status in ('paid', 'confirmed', 'shipping', 'delivered', 'done')
     and order_row.created_at >= now() - c_window;
 
-  v_next := private.loyalty_grade_for_spend(v_spend);
+  -- 창 안의 수동 보정은 재산정의 바닥이다 — 오프라인 실적 보정이 다음 온라인
+  -- 주문 한 건에 지워지면 안 된다(감사 이벤트가 그 근거다). 창을 벗어난 보정은
+  -- 온라인 실적과 같은 규칙으로 소멸한다.
+  select event.next_grade
+  into v_manual_floor
+  from public.loyalty_grade_events as event
+  where event.user_id = p_user_id
+    and event.reason = 'manual_adjustment'
+    and event.created_at >= now() - c_window
+  order by event.created_at desc
+  limit 1;
+
+  v_next := greatest(
+    private.loyalty_grade_for_spend(v_spend),
+    coalesce(v_manual_floor, 'welcome'::public.loyalty_grade)
+  );
 
   if v_next = v_current then
     return v_current;
@@ -499,3 +518,24 @@ grant execute on function public.admin_upsert_coupon(
   text, text, text, integer, integer, integer, timestamptz, timestamptz, integer, text,
   public.loyalty_grade, text
 ) to authenticated;
+
+
+-- ── 기존 결제 이력 백필 ─────────────────────────────────────────────────────
+
+-- 적용 시점에 이미 창 안 실적이 있는 회원이 welcome 으로 남으면, 다음 주문
+-- 이벤트까지 잘못된 등급을 본다. 같은 산정 경로를 그대로 태운다 — 승급 알림은
+-- 등급 도입 안내로 유효하고, 등급 혜택 쿠폰은 아직 정의가 없어 발급되지 않는다.
+do $$
+declare
+  r record;
+begin
+  for r in
+    select distinct order_row.user_id
+    from public.orders as order_row
+    where order_row.status in ('paid', 'confirmed', 'shipping', 'delivered', 'done')
+      and order_row.created_at >= now() - interval '90 days'
+  loop
+    perform private.recalculate_loyalty_grade(r.user_id);
+  end loop;
+end;
+$$;
