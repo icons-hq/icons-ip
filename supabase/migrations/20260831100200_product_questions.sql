@@ -73,7 +73,7 @@ for each row execute function public.set_updated_at();
 create index product_questions_good_recent_idx
   on public.product_questions (good_id, status, created_at desc);
 
--- 내 문의 목록(/my/questions).
+-- 내 질문 목록(/my/questions).
 create index product_questions_user_recent_idx
   on public.product_questions (user_id, created_at desc);
 
@@ -201,8 +201,9 @@ begin
   values (
     v_user_id,
     'product_question_answered',
-    '상품 문의에 답변이 등록됐어요',
-    left(coalesce(v_good_name, '굿즈'), 100) || ' 문의에 ICONS 운영자가 답변을 남겼습니다.',
+    -- 용어 규율(CONTEXT.md): 공개 상품 Q&A를 1:1 '문의'와 섞어 부르지 않는다.
+    '상품 Q&A에 답변이 등록됐어요',
+    left(coalesce(v_good_name, '굿즈'), 100) || ' 질문에 ICONS 운영자가 답변을 남겼습니다.',
     '/my/questions',
     'product_question',
     target_question_id::text,
