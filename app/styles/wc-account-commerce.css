@@ -1686,11 +1686,24 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
   color: var(--wc-ink-tertiary);
 }
 
+/* 스텝 표기는 원형 배지가 아니라 평문 라벨 — 초록 면·라운드를 걷어낸다. */
 .wc-receipt .checkout-step {
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: .7px;
   color: var(--wc-ink-tertiary);
+}
+
+/* HM aside 의 holo 상단 장식 제거. */
+.wc-receipt .checkout-summary::before,
+.wc-receipt .checkout-receipt::before {
+  content: none;
 }
 
 /* --- 주문 목록 /orders ------------------------------------------- */
@@ -1925,9 +1938,17 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
   color: var(--wc-ink-tertiary);
 }
 
+/* 파스텔 면 금지 — editorial 의 amber·mint 타일 배경을 회색 타일로 되돌린다. */
 .wc-receipt .orders-empty-icon,
 .wc-receipt .tickets-empty-icon {
-  color: var(--wc-ink-disabled);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 0;
+  background: var(--wc-surface-grey);
+  color: var(--wc-ink-tertiary);
 }
 
 /* --- 주문 상세 /orders/[id] --------------------------------------- */
@@ -2283,6 +2304,7 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
 .wc-receipt select,
 .wc-receipt textarea {
   width: 100%;
+  height: 44px;
   min-height: 44px;
   padding: 0 12px;
   font-family: inherit;
@@ -2299,6 +2321,7 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
 }
 
 .wc-receipt textarea {
+  height: auto;
   min-height: 96px;
   padding: 10px 12px;
   line-height: 1.7;
@@ -2597,6 +2620,7 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
   height: 40px;
   border: 1px solid var(--wc-line-control);
   border-radius: 50%;
+  background: var(--wc-surface);
   font-size: 16px;
   font-weight: 700;
   color: var(--wc-ink-sub);
@@ -2742,6 +2766,7 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
   height: 48px;
   border: 1px solid var(--wc-line-control);
   border-radius: 50%;
+  background: var(--wc-surface);
   font-size: 18px;
   font-weight: 700;
   color: var(--wc-ink-sub);
@@ -2749,6 +2774,7 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
 
 .wc-receipt .checkout-result-mark--fail {
   border-color: var(--wc-danger);
+  background: var(--wc-surface);
   color: var(--wc-danger);
 }
 
