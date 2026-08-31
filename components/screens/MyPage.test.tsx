@@ -18,6 +18,7 @@ function render(overrides: Partial<React.ComponentProps<typeof MyPage>> = {}) {
       avatarInitial="아"
       avatarUrl="https://signed.example/avatar.png"
       nickname="아이콘즈 팬"
+      loyalty={null}
       {...overrides}
     />,
   );

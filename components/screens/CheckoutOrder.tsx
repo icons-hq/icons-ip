@@ -221,7 +221,11 @@ export function CheckoutOrder({ order, bankTransferAccount = null }: CheckoutOrd
             ))}
           </div>
           <dl className="checkout-totals">
-            <div><dt>굿즈 금액</dt><dd>{krw(order.total - order.shippingFee)}</dd></div>
+            {/* total 은 할인·배송비가 이미 반영된 청구액이다 — 굿즈 금액은 둘을 되돌려 복원한다. */}
+            <div><dt>굿즈 금액</dt><dd>{krw(order.total - order.shippingFee + order.discountTotal)}</dd></div>
+            {order.discountTotal > 0 && (
+              <div><dt>쿠폰 할인</dt><dd>−{krw(order.discountTotal)}</dd></div>
+            )}
             <div><dt>배송비</dt><dd>{shippingFeeLabel(order.shippingFee)}</dd></div>
             <div className="checkout-total"><dt>결제 금액</dt><dd>{krw(order.total)}</dd></div>
           </dl>

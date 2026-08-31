@@ -17,6 +17,7 @@ const order: CheckoutOrderSnapshot = {
   status: 'pending',
   total: 15000,
   shippingFee: 3000,
+  discountTotal: 0,
   address: null,
   expiresAt: '2099-08-07T06:15:00.000Z',
   createdAt: '2026-08-07T06:00:00.000Z',

@@ -568,17 +568,17 @@
   color: var(--wc-ink-tertiary);
 }
 
-/* 등급 뱃지 슬롯 — 데이터는 S7(쿠폰·회원 등급)에서 연결한다. 슬롯만 마련. */
 .wc-mypage__tier {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   font-size: 14px;
   color: var(--wc-ink-sub);
 }
 
-/* 등급 뱃지 슬롯은 데이터가 붙기 전까지 무채색이다 — 등급 구분색은 B2(S7)에서
-   DESIGN.md 에 정의하며(§2 예외 규정), 그 전에 액센트 목록을 선점하지 않는다. */
+/* 등급 뱃지 — 구분색은 DESIGN.md §2의 --wc-loyalty-* 쌍만 쓴다(액센트 단일
+   규칙의 명시적 예외). 데이터가 없으면 뱃지 자체를 그리지 않는다. */
 .wc-mypage__tier-badge {
   display: inline-flex;
   align-items: center;
@@ -588,6 +588,32 @@
   font-size: 11px;
   font-weight: 600;
   line-height: 18px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-mypage__tier-badge--welcome {
+  background: var(--wc-loyalty-welcome-bg);
+  color: var(--wc-loyalty-welcome-ink);
+}
+
+.wc-mypage__tier-badge--silver {
+  background: var(--wc-loyalty-silver-bg);
+  color: var(--wc-loyalty-silver-ink);
+}
+
+.wc-mypage__tier-badge--gold {
+  background: var(--wc-loyalty-gold-bg);
+  color: var(--wc-loyalty-gold-ink);
+}
+
+.wc-mypage__tier-badge--platinum {
+  background: var(--wc-loyalty-platinum-bg);
+  color: var(--wc-loyalty-platinum-ink);
+}
+
+.wc-mypage__tier-note {
+  flex-basis: 100%;
+  font-size: 12px;
   color: var(--wc-ink-tertiary);
 }
 
@@ -3332,5 +3358,197 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
 
   .wc-receipt__section {
     padding: 18px 16px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   쿠폰함 — coupon-ticket-card (R-05 §4.4, S7 #329)
+   2열 티켓형 카드. 우변 노치 펀칭은 지면색 원 두 개가 카드 보더를 끊어
+   만든다 — 이미지·마스크 없이 티켓 문법만 남긴다.
+   ------------------------------------------------------------------ */
+
+.wc-coupon-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-coupon-card {
+  position: relative;
+  padding: 18px 72px 18px 20px;
+  border: 1px solid var(--wc-hairline);
+  background: var(--wc-surface);
+}
+
+.wc-coupon-card::before,
+.wc-coupon-card::after {
+  content: '';
+  position: absolute;
+  right: 46px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--wc-surface);
+}
+
+.wc-coupon-card::before {
+  top: -8px;
+  box-shadow: inset 0 -1px 0 var(--wc-hairline);
+}
+
+.wc-coupon-card::after {
+  bottom: -8px;
+  box-shadow: inset 0 1px 0 var(--wc-hairline);
+}
+
+.wc-coupon-card--used,
+.wc-coupon-card--expired {
+  background: var(--wc-surface-grey);
+}
+
+.wc-coupon-card--used::before,
+.wc-coupon-card--used::after,
+.wc-coupon-card--expired::before,
+.wc-coupon-card--expired::after {
+  background: var(--wc-surface-grey);
+}
+
+.wc-coupon-card--used .wc-coupon-card__code,
+.wc-coupon-card--used .wc-coupon-card__name,
+.wc-coupon-card--used .wc-coupon-card__benefit,
+.wc-coupon-card--expired .wc-coupon-card__code,
+.wc-coupon-card--expired .wc-coupon-card__name,
+.wc-coupon-card--expired .wc-coupon-card__benefit {
+  color: var(--wc-ink-disabled);
+}
+
+.wc-coupon-card__badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wc-coupon-card__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--wc-radius-badge);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  background: var(--wc-surface-grey);
+  color: var(--wc-ink-tertiary);
+}
+
+/* 등급 혜택 뱃지 — DESIGN.md §2 예외 토큰 쌍만 쓴다. */
+.wc-coupon-card__badge--welcome {
+  background: var(--wc-loyalty-welcome-bg);
+  color: var(--wc-loyalty-welcome-ink);
+}
+
+.wc-coupon-card__badge--silver {
+  background: var(--wc-loyalty-silver-bg);
+  color: var(--wc-loyalty-silver-ink);
+}
+
+.wc-coupon-card__badge--gold {
+  background: var(--wc-loyalty-gold-bg);
+  color: var(--wc-loyalty-gold-ink);
+}
+
+.wc-coupon-card__badge--platinum {
+  background: var(--wc-loyalty-platinum-bg);
+  color: var(--wc-loyalty-platinum-ink);
+}
+
+.wc-coupon-card__state {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-coupon-card__code {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .4px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-coupon-card__name {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-coupon-card__benefit {
+  margin: 2px 0 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wc-success);
+}
+
+.wc-coupon-card__meta {
+  margin: 12px 0 0;
+}
+
+.wc-coupon-card__meta div {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.wc-coupon-card__meta dt {
+  flex: 0 0 52px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-coupon-card__meta dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--wc-ink-sub);
+}
+
+.wc-coupon-empty__link {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wc-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 하단 회색 안내 박스 (R-05 §4.4). */
+.wc-coupon-guide {
+  margin-top: 28px;
+  padding: 16px 20px;
+  background: var(--wc-surface-grey);
+}
+
+.wc-coupon-guide p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--wc-ink-sub);
+}
+
+.wc-coupon-guide ul {
+  margin: 8px 0 0;
+  padding-left: 16px;
+}
+
+.wc-coupon-guide li {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--wc-ink-tertiary);
+}
+
+@media (max-width: 989px) {
+  .wc-coupon-list {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

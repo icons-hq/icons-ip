@@ -113,7 +113,22 @@ colors:
 
 - 다크모드 없음 — 단일 라이트 테마. `color-scheme: light`.
 - 흰 글자는 잉크 면(primary 버튼·구매바)과 이미지 스크림 위에만 쓴다.
-- 회원 등급 뱃지 색상은 B2 단계에서 이 문서에 추가 정의한다(등급별 구분색 허용 — 액센트 단일 규칙의 명시적 예외).
+
+### 회원 등급 뱃지 색 (B2에서 확정 — 액센트 단일 규칙의 명시적 예외)
+
+등급 4단(WELCOME/SILVER/GOLD/PLATINUM — VIP·티어 어휘 금지, CONTEXT.md)의 뱃지에만
+쓰는 틴트 배경 + AA 잉크 쌍. 레퍼런스의 배지 색 체계에서 핑크·퍼플 원색을 치환했다.
+사용처는 프로필 스트립 등급 뱃지와 쿠폰함의 등급 혜택 뱃지 두 곳으로 폐쇄한다.
+
+```yaml
+loyalty:
+  welcome: { bg: "rgba(120,187,83,.12)", ink: "#3F7D38" }   # 액센트 틴트 + success 잉크
+  silver:  { bg: "#F3F3F3", ink: "#5A5A5A" }
+  gold:    { bg: "#FBF3D9", ink: "#8A6D1B" }
+  platinum: { bg: "#EFE9F7", ink: "#5B4791" }
+```
+
+토큰은 `--wc-loyalty-{grade}-bg` / `--wc-loyalty-{grade}-ink`.
 
 ## 3. 타이포그래피
 
