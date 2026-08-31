@@ -53,7 +53,7 @@ describe('notification DTO', () => {
     expect(toNotificationItem({ ...row, link_path: linkPath }).linkPath).toBe('/notifications');
   });
 
-  it.each(['/notifications', '/orders/123', '/events/event-1?source=notification']) (
+  it.each(['/notifications', '/orders/123', '/offline-popups/event-1?source=notification']) (
     'accepts the internal link %s',
     (linkPath) => {
       expect(isSafeNotificationLink(linkPath)).toBe(true);

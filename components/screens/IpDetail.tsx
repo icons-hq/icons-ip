@@ -255,7 +255,7 @@ export function IpDetail({
       <div className="wc-container">
         <nav aria-label="이 IP의 다른 공간" className="wc-iphall__links">
           <Link href={hrefFor('binder')}>{`카드 도감 ${cards.length}종`}</Link>
-          <Link href={hrefFor('events')}>오프라인 팝업·이벤트</Link>
+          <Link href={hrefFor('offlinePopups')}>오프라인 팝업</Link>
           <Link href={`${hrefFor('community')}?ip=${ip.id}`}>팬덤 채널</Link>
         </nav>
       </div>

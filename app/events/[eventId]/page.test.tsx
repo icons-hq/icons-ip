@@ -1,49 +1,29 @@
-import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { FandomEvent } from '@/lib/data';
 import Page from './page';
 
+/* 실제 notFound·permanentRedirect는 throw로 렌더를 끊는다. 대역이 그냥 반환하면
+   미존재 id에서도 아래 리다이렉트까지 실행돼 계약이 거꾸로 통과한다 — 대역도 throw한다. */
 const mocks = vi.hoisted(() => ({
   catalog: null as CatalogSnapshot | null,
-  eventDetail: vi.fn(),
-  followState: { isFollowed: false, notifyDrops: false, notifyEvents: false },
-  getIpFollowState: vi.fn(),
-  loadSessions: vi.fn(),
+  notFound: vi.fn(() => {
+    throw new Error('NEXT_NOT_FOUND');
+  }),
+  permanentRedirect: vi.fn((path: string) => {
+    throw new Error(`NEXT_REDIRECT:${path}`);
+  }),
 }));
 
-vi.mock('next/navigation', () => ({ notFound: () => { throw new Error('not found'); } }));
-vi.mock('@/lib/catalog', () => ({
-  getCatalogSnapshot: () => mocks.catalog,
-  getCatalogSource: () => mocks.catalog?.source ?? 'mock',
+vi.mock('next/navigation', () => ({
+  notFound: mocks.notFound,
+  permanentRedirect: mocks.permanentRedirect,
 }));
-vi.mock('@/lib/auth/server', () => ({
-  getCurrentAuthState: () => ({ isConfigured: false, user: null, profile: null, isStaff: false }),
-}));
-vi.mock('@/lib/auth/onboarding', () => ({
-  isOnboarded: () => false,
-  onboardingPath: (next: string) => `/onboarding?next=${encodeURIComponent(next)}`,
-}));
-vi.mock('@/lib/payments/ticket-checkout-availability', () => ({
-  ticketCheckoutPaymentsEnabled: () => false,
-}));
-vi.mock('@/lib/ticketing.server', () => ({ loadPublicTicketTypes: mocks.loadSessions }));
-vi.mock('@/lib/ip-follow.server', () => ({ getIpFollowState: mocks.getIpFollowState }));
-vi.mock('@/components/screens/EventDetail', () => ({
-  EventDetail: (props: {
-    notificationError: boolean;
-    notificationSaved: boolean;
-    notificationState: unknown;
-    sessions: unknown[];
-  }) => {
-    mocks.eventDetail(props);
-    return <div data-session-count={props.sessions.length} />;
-  },
-}));
+vi.mock('@/lib/catalog', () => ({ getCatalogSnapshot: () => mocks.catalog }));
 
 const event: FandomEvent = {
   id: 'e100',
-  title: '테스트 이벤트',
+  title: '테스트 팝업',
   ip: 'ip100',
   mode: '오프라인',
   status: '예매중',
@@ -53,82 +33,37 @@ const event: FandomEvent = {
   img: 'linear-gradient(#111, #222)',
 };
 
-const ip = {
-  id: 'ip100',
-  title: '화산강림',
-  sub: 'ORIGINAL IP',
-  v: { key: 'webtoon', label: '웹툰', color: '#38F0C0' },
-  glyph: '火',
-  tagline: '불꽃처럼 피어나는 이야기',
-  synopsis: '화산강림 세계관',
-  bg: 'linear-gradient(#111, #222)',
-  fans: 100,
-  goods: 0,
-  cards: 0,
-  featured: true,
-};
-
-function snapshot(source: CatalogSnapshot['source']): CatalogSnapshot {
-  return { source, verticals: [], ips: [], goods: [], cards: [], events: [event] };
+function snapshot(events: FandomEvent[]): CatalogSnapshot {
+  return { source: 'mock', verticals: [], ips: [], goods: [], cards: [], events };
 }
 
-describe('/events/[eventId]', () => {
+describe('/events/[eventId] 레거시 브리지', () => {
   beforeEach(() => {
-    mocks.eventDetail.mockReset();
-    mocks.getIpFollowState.mockReset();
-    mocks.getIpFollowState.mockResolvedValue(mocks.followState);
-    mocks.loadSessions.mockReset();
-    mocks.loadSessions.mockResolvedValue([{ id: 'session-1' }]);
+    mocks.notFound.mockClear();
+    mocks.permanentRedirect.mockClear();
+    mocks.catalog = snapshot([event]);
   });
 
-  it('keeps explicit mock catalog mode independent from Supabase ticket queries', async () => {
-    mocks.catalog = snapshot('mock');
+  it('저장된 오프라인 팝업 딥링크를 새 경로로 영구 이전한다', async () => {
+    await expect(Page({ params: Promise.resolve({ eventId: event.id }) }))
+      .rejects.toThrow(`NEXT_REDIRECT:/offline-popups/${event.id}`);
 
-    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: event.id }) }));
-
-    expect(html).toContain('data-session-count="0"');
-    expect(mocks.loadSessions).not.toHaveBeenCalled();
+    expect(mocks.permanentRedirect).toHaveBeenCalledWith(`/offline-popups/${event.id}`);
+    expect(mocks.notFound).not.toHaveBeenCalled();
   });
 
-  it('loads public ticket sessions for the Supabase catalog source', async () => {
-    mocks.catalog = snapshot('supabase');
+  it('경로 세그먼트를 인코딩해 넘긴다', async () => {
+    mocks.catalog = snapshot([{ ...event, id: 'e 100/x' }]);
 
-    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: event.id }) }));
-
-    expect(html).toContain('data-session-count="1"');
-    expect(mocks.loadSessions).toHaveBeenCalledWith(event.id, undefined);
+    await expect(Page({ params: Promise.resolve({ eventId: 'e 100/x' }) }))
+      .rejects.toThrow('NEXT_REDIRECT:/offline-popups/e%20100%2Fx');
   });
 
-  it('loads IP preferences only for a scheduled event with an IP', async () => {
-    mocks.catalog = {
-      ...snapshot('mock'),
-      ips: [ip],
-      events: [{ ...event, status: '예정' }],
-    };
+  it('카탈로그에 없는 id는 리다이렉트하지 않고 404로 끝낸다', async () => {
+    await expect(Page({ params: Promise.resolve({ eventId: 'missing' }) }))
+      .rejects.toThrow('NEXT_NOT_FOUND');
 
-    renderToStaticMarkup(await Page({
-      params: Promise.resolve({ eventId: event.id }),
-      searchParams: Promise.resolve({ notification_error: '1', notification_saved: '1' }),
-    }));
-
-    expect(mocks.getIpFollowState).toHaveBeenCalledWith(ip.id);
-    expect(mocks.eventDetail.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
-      notificationError: true,
-      notificationSaved: true,
-      notificationState: mocks.followState,
-    }));
-  });
-
-  it('does not load IP preferences for booking or joint scheduled events', async () => {
-    mocks.catalog = { ...snapshot('mock'), ips: [ip] };
-    renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: event.id }) }));
-
-    mocks.catalog = {
-      ...snapshot('mock'),
-      events: [{ ...event, ip: null, status: '예정' }],
-    };
-    renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: event.id }) }));
-
-    expect(mocks.getIpFollowState).not.toHaveBeenCalled();
+    expect(mocks.notFound).toHaveBeenCalled();
+    expect(mocks.permanentRedirect).not.toHaveBeenCalled();
   });
 });

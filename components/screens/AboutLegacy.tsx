@@ -241,7 +241,7 @@ function heroSlidesFor({
         title: '포근한 방이\n성수에 열렸어요',
         description: '리락쿠마 팝업의 한정 굿즈와 현장 경험을 확인하세요.',
         background: previewEvent.img,
-        href: `/events/${previewEvent.id}`,
+        href: `/offline-popups/${previewEvent.id}`,
         label: '리락쿠마 팝업',
       });
     }
@@ -272,7 +272,7 @@ function heroSlidesFor({
       title: event.title,
       description: `${event.date} · ${event.loc}`,
       background: event.img,
-      href: `/events/${event.id}`,
+      href: `/offline-popups/${event.id}`,
       label: event.title,
     });
   }
@@ -789,7 +789,7 @@ export function AboutLegacy({
       id: `event-${event.id}`,
       title: '메이플스토리 몬스터즈 온라인 팝업 예매가 열렸어요.',
       imageBg: null,
-      href: `/events/${event.id}`,
+      href: `/offline-popups/${event.id}`,
     };
     return selectedIp ? {
       id: `ip-${selectedIp.id}`,
@@ -821,7 +821,7 @@ export function AboutLegacy({
     const items: ExperienceItem[] = [];
     const addEvent = (id: string, tag?: string) => {
       const event = catalog.events.find((item) => item.id === id);
-      if (event) items.push({ id: `event-${event.id}`, tag: tag ?? event.mode, title: event.title, meta: `${event.loc} · ${event.status}`, background: event.img, href: `/events/${event.id}` });
+      if (event) items.push({ id: `event-${event.id}`, tag: tag ?? event.mode, title: event.title, meta: `${event.loc} · ${event.status}`, background: event.img, href: `/offline-popups/${event.id}` });
     };
     const addGood = (id: string, meta?: string) => {
       const good = catalog.goods.find((item) => item.id === id);
@@ -847,7 +847,7 @@ export function AboutLegacy({
     const event = catalog.events.find((item) => item.ip === selectedIp.id);
     const card = catalog.cards.find((item) => item.ip === selectedIp.id);
     if (good) items.push({ id: `good-${good.id}`, tag: good.badge ?? 'GOODS', title: good.name, meta: `${krw(good.price)} · ${good.type}`, background: good.img, href: '/shop' });
-    if (event) items.push({ id: `event-${event.id}`, tag: `${event.mode} · ${event.status}`, title: event.title, meta: `${event.date} · ${event.loc}`, background: event.img, href: `/events/${event.id}` });
+    if (event) items.push({ id: `event-${event.id}`, tag: `${event.mode} · ${event.status}`, title: event.title, meta: `${event.date} · ${event.loc}`, background: event.img, href: `/offline-popups/${event.id}` });
     if (cardRewardsEnabled && card) items.push({ id: `card-${card.id}`, tag: `${card.rarity} · CARD`, title: card.name, meta: `${RARITY_META[card.rarity].label} · ${card.no}`, background: card.bg, href: '/packs' });
     return items;
   }, [cardRewardsEnabled, catalog.cards, catalog.events, catalog.goods, hasPreviewDataset, selectedIp]);

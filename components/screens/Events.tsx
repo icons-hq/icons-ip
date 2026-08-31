@@ -12,7 +12,7 @@ import { hrefFor } from '@/lib/routes';
 const statusColor = (s: string) => (s === '진행중' ? 'var(--mint)' : s === '예매중' ? 'var(--cyan)' : 'var(--dim)');
 const ctaFor = (s: string) => (s === '진행중' ? '현장 정보' : s === '예매중' ? '티켓 예매' : '상세 보기');
 const footNoteFor = (s: string) => (s === '예매중' ? '잔여 회차 있음' : s === '진행중' ? '현장 발권 가능' : '오픈 예정');
-const eventHref = (id: string) => `/events/${encodeURIComponent(id)}`;
+const eventHref = (id: string) => `/offline-popups/${encodeURIComponent(id)}`;
 
 const GUIDE = [
   { n: '01', t: '예매', d: '회차와 인원을 고르고 결제해요. 결제사 승인 확인 후 티켓이 발급돼요.' },
@@ -142,7 +142,7 @@ export function Events({
       <header style={{ padding: 'clamp(108px, 12vw, 140px) 0 0' }}>
         <div className="wrap">
           <div className="eyebrow rise" style={{ color: 'var(--mint)' }}>만나요 · POP-UP &amp; TICKETING</div>
-          <h1 className="h-xl rise" style={{ marginTop: 14, animationDelay: '.08s' }}>팝업 · 이벤트</h1>
+          <h1 className="h-xl rise" style={{ marginTop: 14, animationDelay: '.08s' }}>오프라인 팝업</h1>
           <p className="rise" style={{ margin: '14px 0 0', fontSize: 15, color: '#C9C3E4', maxWidth: 480, textWrap: 'pretty', animationDelay: '.16s' }}>
             공식 온·오프라인 팝업스토어를 발견하고, 예매부터 QR 입장까지 한 번에.
           </p>
@@ -212,7 +212,7 @@ export function Events({
                 {catalog.events.length ? '조건에 맞는 이벤트가 없어요' : '등록된 이벤트가 아직 없습니다'}
               </div>
               <div className="mono" style={{ fontSize: 12, color: 'var(--faint)', marginTop: 8 }}>
-                {catalog.events.length ? '필터를 바꿔보세요' : 'Supabase 카탈로그 seed 또는 admin 등록 후 이벤트 목록에 공개됩니다.'}
+                {catalog.events.length ? '필터를 바꿔보세요' : 'Supabase 카탈로그 seed 또는 admin 등록 후 오프라인 팝업 목록에 공개됩니다.'}
               </div>
             </div>
           )}

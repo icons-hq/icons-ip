@@ -38,7 +38,7 @@ export default async function Page({
         {refId ? (
           <Link className="btn btn-holo" href={`/ticket-checkout/${refId}`}>예매 상태 확인</Link>
         ) : (
-          <Link className="btn btn-holo" href="/events">이벤트 목록으로</Link>
+          <Link className="btn btn-holo" href="/offline-popups">오프라인 팝업 목록으로</Link>
         )}
         <Link className="btn btn-ghost" href="/">홈으로</Link>
       </div>

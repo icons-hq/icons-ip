@@ -43,7 +43,9 @@ const PATHS: Record<string, string> = {
   shop: '/shop',
   packs: '/packs',
   binder: '/binder',
+  /* 'events'는 캠페인 허브, 'offlinePopups'는 팝업스토어 예매 도메인이다 — CONTEXT.md의 별개 도메인. */
   events: '/events',
+  offlinePopups: '/offline-popups',
   community: '/community',
   exchange: '/exchange',
   market: '/market',
@@ -113,11 +115,10 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-/* 푸터 상단 행 — 회사·정책. 법정 고지 3종은 lib/legal/links.ts가 컴포넌트에서 이어 붙인다.
-   '오프라인 팝업'은 전용 경로(S8)가 생기기 전까지 현행 예매 표면(/events)으로 진입한다. */
+/* 푸터 상단 행 — 회사·정책. 법정 고지 3종은 lib/legal/links.ts가 컴포넌트에서 이어 붙인다. */
 export const FOOTER_PRIMARY_ITEMS: NavItem[] = [
   { id: 'about', label: '회사 소개' },
-  { id: 'events', label: '오프라인 팝업' },
+  { id: 'offlinePopups', label: '오프라인 팝업' },
 ];
 
 export const FOOTER_DISCOVER_ITEMS: NavItem[] = [

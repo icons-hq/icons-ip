@@ -1,64 +1,12 @@
-import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
-import { EventDetail } from '@/components/screens/EventDetail';
-import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
-import { getCurrentAuthState } from '@/lib/auth/server';
-import { getCatalogSnapshot, getCatalogSource } from '@/lib/catalog';
-import { getIpFollowState } from '@/lib/ip-follow.server';
-import { ticketCheckoutPaymentsEnabled } from '@/lib/payments/ticket-checkout-availability';
-import { loadPublicTicketTypes } from '@/lib/ticketing.server';
+/* 레거시 딥링크 브리지 — /events/<id>로 저장·공유된 오프라인 팝업 링크를 새 경로로 넘긴다.
+   캠페인 우선 조회가 다음 단계에서 이 앞에 삽입된다(S8 W2). */
 
-export const metadata: Metadata = {
-  title: '이벤트 상세 — ICONS',
-  description: 'ICONS 이벤트 일정과 예매 가능한 회차를 확인하세요.',
-};
+import { notFound, permanentRedirect } from 'next/navigation';
+import { getCatalogSnapshot } from '@/lib/catalog';
 
-function firstParam(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
-}
-
-export default async function Page({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ eventId: string }>;
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
-}) {
+export default async function Page({ params }: { params: Promise<{ eventId: string }> }) {
   const { eventId } = await params;
-  const catalogSource = getCatalogSource();
-  const [catalog, auth] = await Promise.all([
-    getCatalogSnapshot(),
-    getCurrentAuthState(),
-  ]);
-  const sessions = catalogSource === 'supabase'
-    ? await loadPublicTicketTypes(eventId, auth.user?.id)
-    : [];
-  const event = catalog.events.find((item) => item.id === eventId);
-  if (!event) notFound();
-  const ip = catalog.ips.find((item) => item.id === event.ip) ?? null;
-  const [notificationState, query] = await Promise.all([
-    event.status === '예정' && ip ? getIpFollowState(ip.id) : Promise.resolve(null),
-    searchParams ?? Promise.resolve<Record<string, string | string[] | undefined>>({}),
-  ]);
-
-  const next = `/events/${encodeURIComponent(event.id)}`;
-  const onboarded = Boolean(auth.user && isOnboarded(auth.profile, auth.user.email));
-  const authState = !auth.user ? 'signed-out' : onboarded ? 'ready' : 'onboarding';
-  const authHref = authState === 'signed-out'
-    ? `/login?next=${encodeURIComponent(next)}`
-    : onboardingPath(next);
-
-  return (
-    <EventDetail
-      authHref={authHref}
-      authState={authState}
-      event={event}
-      ip={ip}
-      notificationError={firstParam(query.notification_error) === '1'}
-      notificationSaved={firstParam(query.notification_saved) === '1'}
-      notificationState={notificationState}
-      paymentAvailable={ticketCheckoutPaymentsEnabled(auth.user?.id)}
-      sessions={sessions}
-    />
-  );
+  const catalog = await getCatalogSnapshot();
+  if (!catalog.events.some((event) => event.id === eventId)) notFound();
+  permanentRedirect(`/offline-popups/${encodeURIComponent(eventId)}`);
 }

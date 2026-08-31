@@ -7,7 +7,7 @@ import { EventDetail } from './EventDetail';
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
-vi.mock('@/app/events/actions', () => ({
+vi.mock('@/app/offline-popups/actions', () => ({
   reserveTicketsAction: vi.fn(),
 }));
 vi.mock('@/app/ip/actions', () => ({
@@ -67,7 +67,7 @@ const sessions: PublicTicketType[] = [
 function render(overrides: Partial<Parameters<typeof EventDetail>[0]> = {}) {
   return renderToStaticMarkup(
     <EventDetail
-      authHref="/login?next=%2Fevents%2Fe100"
+      authHref="/login?next=%2Foffline-popups%2Fe100"
       authState="ready"
       event={event}
       ip={ip}
@@ -100,7 +100,7 @@ describe('EventDetail', () => {
   it('preserves the event detail as the login return path', () => {
     const html = render({ authState: 'signed-out' });
 
-    expect(html).toContain('href="/login?next=%2Fevents%2Fe100"');
+    expect(html).toContain('href="/login?next=%2Foffline-popups%2Fe100"');
     expect(html).toContain('로그인하고 예매');
   });
 

@@ -99,6 +99,8 @@ describe('SiteFooter White Catalog 진입점', () => {
     expect(html).toContain('wc-footer');
     expect(html).toContain('href="/about"');
     expect(html).toContain('오프라인 팝업');
+    expect(html).toContain('href="/offline-popups"');
+    /* 캠페인 허브는 별개 도메인이라 발견 열에 자기 링크를 따로 유지한다. */
     expect(html).toContain('href="/events"');
     /* 티켓 진입점은 푸터가 유일한 상시 표면이다 — TicketEntrypoints.test.tsx와 이중으로 잠근다. */
     expect(html).toContain('href="/tickets"');

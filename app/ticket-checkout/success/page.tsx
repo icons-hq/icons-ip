@@ -22,5 +22,5 @@ export default async function Page({
   const parsedProviderRef = parseTossOrderId(one(query.orderId));
   const providerRef = parsedProviderRef?.purpose === 'ticket' ? parsedProviderRef.refId : null;
   const refId = normalizeTicketReference(rawRef) ?? normalizeTicketReference(providerRef);
-  redirect(refId ? `/ticket-checkout/${refId}` : '/events');
+  redirect(refId ? `/ticket-checkout/${refId}` : '/offline-popups');
 }
