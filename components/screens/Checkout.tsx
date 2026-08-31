@@ -15,7 +15,7 @@ import {
   type CheckoutPaymentMethod,
 } from '@/lib/checkout';
 import { krw } from '@/lib/format';
-import { couponDiscountFor, couponDisplayState, type UserCouponSummary } from '@/lib/coupons';
+import { couponPreviewDiscount, type UserCouponSummary } from '@/lib/coupons';
 import type { ComposedPostcodeAddress } from '@/lib/postcode';
 import { shippingFeeFor, shippingFeeLabel } from '@/lib/shipping';
 
@@ -105,13 +105,7 @@ export function Checkout({
   const subtotal = lines.reduce((sum, line) => sum + (line.good?.price ?? 0) * line.qty, 0);
   /* 표시용 예상치다. 결제 금액은 place_order가 확정한 orders.total을 따른다. */
   const shippingFee = shippingFeeFor(subtotal);
-  /* 조건 미달·만료 선택은 0원으로 접는다 — 주문 제출 시 place_order 가 명시적으로
-     거부하고(coupon_rejected), 사용자는 카트에서 사유를 확인한다. */
-  const couponDiscount = appliedCoupon
-    && couponDisplayState(appliedCoupon) === 'usable'
-    && subtotal >= appliedCoupon.coupon.minSubtotal
-    ? couponDiscountFor(appliedCoupon.coupon, subtotal)
-    : 0;
+  const couponDiscount = couponPreviewDiscount(appliedCoupon, subtotal);
   const unavailable = lines.some(({ good, qty }) => (
     !good || good.stock === 'soldout' || good.stockQty < qty
   ));

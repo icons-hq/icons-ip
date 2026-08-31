@@ -19,10 +19,9 @@ import {
 import { Icon } from '@/components/ui/Icon';
 import {
   LOYALTY_GRADES,
-  LOYALTY_THRESHOLDS,
-  LOYALTY_WINDOW_DAYS,
-  loyaltyGradeLabel,
   isLoyaltyGrade,
+  loyaltyBasisSummary,
+  loyaltyGradeLabel,
 } from '@/lib/loyalty';
 import { ErrorText, InlineNotice, SelectField, TextArea } from '../fields';
 
@@ -172,11 +171,7 @@ function MemberLoyaltyPanel({ member }: { member: AdminMemberDetail }) {
         <span className="tag">{gradeLabel}</span>
       </div>
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
-        산정 기준: 최근 {LOYALTY_WINDOW_DAYS}일 결제 확정(취소 제외) 주문 총액 —
-        SILVER {LOYALTY_THRESHOLDS.silver.toLocaleString('ko-KR')}원 ·
-        GOLD {LOYALTY_THRESHOLDS.gold.toLocaleString('ko-KR')}원 ·
-        PLATINUM {LOYALTY_THRESHOLDS.platinum.toLocaleString('ko-KR')}원 이상.
-        보정 이력은 등급 이력·감사 로그에 남습니다.
+        {loyaltyBasisSummary()} 보정 이력은 등급 이력·감사 로그에 남습니다.
       </p>
       <form action={adjustAction} className="col" style={{ gap: 8 }}>
         <input name="profileId" type="hidden" value={member.id} />

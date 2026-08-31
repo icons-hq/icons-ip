@@ -37,6 +37,16 @@ export function loyaltyGradeLabel(grade: LoyaltyGrade): string {
   return grade.toUpperCase();
 }
 
+/** 어드민 화면들이 공유하는 산정 기준 안내 한 문단 — 임계값·창·재산정 시점을
+ * 한 곳에서 말해야 등급 분쟁 때 안내가 갈라지지 않는다. */
+export function loyaltyBasisSummary(): string {
+  const won = (value: number) => value.toLocaleString('ko-KR');
+  return `산정 기준: 최근 ${LOYALTY_WINDOW_DAYS}일 결제 확정(취소 제외) 주문 총액이 `
+    + `SILVER ${won(LOYALTY_THRESHOLDS.silver)}원 · GOLD ${won(LOYALTY_THRESHOLDS.gold)}원 · `
+    + `PLATINUM ${won(LOYALTY_THRESHOLDS.platinum)}원 이상이면 승급됩니다. `
+    + '재산정은 결제 확정·취소 시점과 수동 재산정에서 일어납니다.';
+}
+
 export interface NextLoyaltyGrade {
   grade: LoyaltyGrade;
   threshold: number;

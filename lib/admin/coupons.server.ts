@@ -41,7 +41,8 @@ export async function getAdminCouponRecords(): Promise<AdminCouponRecord[]> {
       .order('created_at', { ascending: false }),
     supabase
       .from('coupon_redemptions')
-      .select('coupon_code,status'),
+      .select('coupon_code')
+      .eq('status', 'applied'),
   ]);
 
   if (couponsResult.error) throw new Error('Failed to load admin coupons');
@@ -50,8 +51,7 @@ export async function getAdminCouponRecords(): Promise<AdminCouponRecord[]> {
      원장 조회가 실패해도 목록은 떠야 하므로 0으로 접는다. */
   const usedCounts = new Map<string, number>();
   if (!usageResult.error) {
-    for (const row of (usageResult.data ?? []) as { coupon_code: string; status: string }[]) {
-      if (row.status !== 'applied') continue;
+    for (const row of (usageResult.data ?? []) as { coupon_code: string }[]) {
       usedCounts.set(row.coupon_code, (usedCounts.get(row.coupon_code) ?? 0) + 1);
     }
   }

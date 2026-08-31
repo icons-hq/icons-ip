@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { useCardRewardsEnabled } from '@/components/shell/CardRewardAvailability';
+import type { LoyaltyGrade } from '@/lib/loyalty';
 
 /*
  * 마이페이지 셸 (R-05 §4, S6 #328).
@@ -66,8 +67,8 @@ export function useMypageMenuGroups(): MypageMenuGroup[] {
 }
 
 export interface MypageLoyaltySummary {
-  /** 뱃지 색 변종 클래스에 쓰는 소문자 등급 키(welcome/silver/gold/platinum). */
-  grade: string;
+  /** 뱃지 색 변종 클래스에 쓰는 소문자 등급 키. */
+  grade: LoyaltyGrade;
   /** 뱃지 표기(WELCOME 등 대문자 일반명사 — 멤버십·VIP·티어 어휘 금지). */
   label: string;
   /** "다음 등급까지" 안내 한 줄. 최상위 등급이면 null. */

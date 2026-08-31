@@ -81,6 +81,12 @@ select 1 / case when exists (
     and column_name = 'loyalty_grade'
 ) then 1 else 0 end as assert_profiles_have_loyalty_grade;
 
+-- profiles select 는 컬럼 화이트리스트(20260717100001)다 — grant 가 빠지면
+-- 본인 등급 조회가 조용히 깨진다.
+select 1 / case when has_column_privilege(
+  'authenticated', 'public.profiles', 'loyalty_grade', 'select'
+) then 1 else 0 end as assert_loyalty_grade_column_readable;
+
 select 1 / case when (
   select rowsecurity from pg_tables
   where schemaname = 'public' and tablename = 'loyalty_grade_events'
@@ -292,6 +298,14 @@ select 1 / case when (
   where user_id = '00000000-0000-4000-8000-000000000723'
     and coupon_code = 'GRADE-SILVER'
 ) then 1 else 0 end as assert_manual_upgrade_grants_passed_benefits;
+
+-- 수동 승급도 자동 산정과 같은 대우다 — 승급 알림을 받는다(US7).
+select 1 / case when exists (
+  select 1 from public.notifications
+  where user_id = '00000000-0000-4000-8000-000000000723'
+    and type = 'loyalty_grade_upgraded'
+    and dedupe_key = 'loyalty:upgrade:00000000-0000-4000-8000-000000000723:gold'
+) then 1 else 0 end as assert_manual_upgrade_notifies;
 
 -- 비스태프는 수동 보정을 부를 수 없다.
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000721', true);

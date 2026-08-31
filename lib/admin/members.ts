@@ -1,3 +1,4 @@
+import { isLoyaltyGrade } from '@/lib/loyalty';
 export type AdminMemberRole = 'user' | 'staff' | 'admin';
 
 export interface AdminMemberSummary {
@@ -90,7 +91,7 @@ export function normalizeAdminMemberLoyaltyForm(
   const note = readString(formData, 'note');
   const errors = target.ok ? {} : { ...target.errors };
 
-  if (!['welcome', 'silver', 'gold', 'platinum'].includes(grade)) {
+  if (!isLoyaltyGrade(grade)) {
     errors.grade = '보정할 등급을 선택해주세요.';
   }
   if (note.length < 1 || note.length > 200) {

@@ -18,9 +18,9 @@ import type { CatalogSnapshot } from '@/lib/catalog';
 import {
   couponBenefitLabel,
   couponConditionLabel,
-  couponDiscountFor,
   couponDisplayState,
   couponExpiryLabel,
+  couponPreviewDiscount,
   type UserCouponSummary,
 } from '@/lib/coupons';
 import type { CartCouponState } from '@/lib/coupons.server';
@@ -276,13 +276,7 @@ export function Cart({
   const appliedCoupon = couponState.coupons.find(
     (held) => held.id === couponState.selectedUserCouponId,
   ) ?? null;
-  /* 조건 미달·만료 선택은 0원으로 보여준다 — 주문 확정 시 place_order 가
-     거부하므로, 여기서 낙관적으로 깎아 보여주면 안 된다. */
-  const couponDiscount = appliedCoupon
-    && couponDisplayState(appliedCoupon) === 'usable'
-    && subtotal >= appliedCoupon.coupon.minSubtotal
-    ? couponDiscountFor(appliedCoupon.coupon, subtotal)
-    : 0;
+  const couponDiscount = couponPreviewDiscount(appliedCoupon, subtotal);
 
   return (
     <div className="wc-root wc-cart">

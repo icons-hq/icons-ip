@@ -43,6 +43,19 @@ export function couponDisplayState(
   return 'usable';
 }
 
+/** 카트·주문서가 공유하는 미리보기 할인. 조건 미달·만료 선택은 0원으로 접는다 —
+ * 주문 제출 시 place_order 가 명시적으로 거부하고, 낙관적으로 깎아 보여주지 않는다. */
+export function couponPreviewDiscount(
+  applied: Pick<UserCouponSummary, 'status' | 'expiresAt' | 'coupon'> | null,
+  subtotal: number,
+  now: number = Date.now(),
+): number {
+  if (!applied) return 0;
+  if (couponDisplayState(applied, now) !== 'usable') return 0;
+  if (subtotal < applied.coupon.minSubtotal) return 0;
+  return couponDiscountFor(applied.coupon, subtotal);
+}
+
 /** place_order·apply RPC 와 같은 할인 규칙. 소계를 넘는 할인은 없다. */
 export function couponDiscountFor(
   coupon: Pick<CouponSummary, 'discountType' | 'discountValue' | 'maxDiscountAmount'>,

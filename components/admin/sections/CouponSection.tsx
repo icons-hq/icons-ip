@@ -2,7 +2,7 @@
 
 import type { AdminCouponActionState } from '@/app/admin/coupon-actions';
 import type { AdminCouponRecord } from '@/lib/admin/coupons';
-import { LOYALTY_GRADES, LOYALTY_THRESHOLDS, LOYALTY_WINDOW_DAYS, loyaltyGradeLabel } from '@/lib/loyalty';
+import { LOYALTY_GRADES, loyaltyBasisSummary, loyaltyGradeLabel } from '@/lib/loyalty';
 import { Field, FormShell, RecordList, SelectField } from '../fields';
 
 /*
@@ -181,11 +181,7 @@ export function CouponSection({
   return (
     <div className="col" style={{ gap: 14 }}>
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
-        회원 등급 산정 기준: 최근 {LOYALTY_WINDOW_DAYS}일 결제 확정(취소 제외) 주문 총액이
-        SILVER {LOYALTY_THRESHOLDS.silver.toLocaleString('ko-KR')}원 ·
-        GOLD {LOYALTY_THRESHOLDS.gold.toLocaleString('ko-KR')}원 ·
-        PLATINUM {LOYALTY_THRESHOLDS.platinum.toLocaleString('ko-KR')}원 이상이면 승급됩니다.
-        등급 혜택으로 지정한 쿠폰은 승급 시 자동 발급됩니다.
+        {loyaltyBasisSummary()} 등급 혜택으로 지정한 쿠폰은 승급 시 자동 발급됩니다.
       </p>
       <div className="admin-master-detail">
         <RecordList

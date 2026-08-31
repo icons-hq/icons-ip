@@ -14,6 +14,10 @@ create type public.loyalty_grade as enum ('welcome', 'silver', 'gold', 'platinum
 alter table public.profiles
   add column loyalty_grade public.loyalty_grade not null default 'welcome';
 
+-- profiles 의 select 는 20260717100001 이 컬럼 화이트리스트로 재구성했다 —
+-- 새 컬럼은 명시 grant 가 없으면 본인 프로필 조회까지 조용히 깨진다.
+grant select (loyalty_grade) on table public.profiles to authenticated;
+
 -- 등급 혜택: 이 등급에 도달하면 자동 발급되는 쿠폰 표시.
 alter table public.coupons
   add column grade_benefit public.loyalty_grade;
@@ -304,8 +308,26 @@ begin
     )
     values (p_user_id, v_current, p_grade, 'manual_adjustment', actor_id, v_note);
 
+    -- 수동 승급도 자동 산정과 같은 대우다(US7) — 혜택 쿠폰과 승급 알림을 함께 준다.
     if p_grade > v_current then
       perform private.grant_grade_benefit_coupons(p_user_id, v_current, p_grade);
+
+      insert into public.notifications (
+        user_id, type, title, body, link_path, source_type, source_id, dedupe_key
+      )
+      values (
+        p_user_id,
+        'loyalty_grade_upgraded',
+        '회원 등급이 올랐어요',
+        format('%s 등급이 되었어요. 등급 혜택 쿠폰은 쿠폰함에서 확인할 수 있어요.', upper(p_grade::text)),
+        '/my/coupons',
+        'profile',
+        p_user_id::text,
+        'loyalty:upgrade:' || p_user_id::text || ':' || p_grade::text
+      )
+      on conflict (user_id, dedupe_key) do update set
+        read_at = null,
+        created_at = now();
     end if;
   end if;
 

@@ -327,9 +327,12 @@ begin
     returning id into v_user_coupon_id;
   end if;
 
+  -- 최소 주문 금액 미달은 발급·선택을 막지 않는다 — 더 담으면 살아나는 선택이고,
+  -- 확정 거부는 place_order 가 한다(카트가 미달 경고를 그린다). 그 밖의 사유
+  -- (만료·사용됨 등)는 쓸 수 없는 선택이므로 여기서 거부한다.
   v_subtotal := private.cart_subtotal(v_user);
   select * into v_eval from private.evaluate_user_coupon(v_user_coupon_id, v_user, v_subtotal);
-  if v_eval.o_reason is not null then
+  if v_eval.o_reason is not null and v_eval.o_reason <> 'coupon_min_subtotal' then
     raise check_violation using message = v_eval.o_reason;
   end if;
 
@@ -366,9 +369,10 @@ begin
 
   perform pg_advisory_xact_lock(hashtextextended(v_user::text, 0));
 
+  -- 코드 입력과 같은 계약: 최소 금액 미달만은 선택으로 받아들인다.
   v_subtotal := private.cart_subtotal(v_user);
   select * into v_eval from private.evaluate_user_coupon(p_user_coupon_id, v_user, v_subtotal);
-  if v_eval.o_reason is not null then
+  if v_eval.o_reason is not null and v_eval.o_reason <> 'coupon_min_subtotal' then
     raise check_violation using message = v_eval.o_reason;
   end if;
 

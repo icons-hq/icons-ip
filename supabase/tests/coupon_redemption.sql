@@ -439,18 +439,26 @@ begin
 end;
 $$;
 
--- 최소 주문 금액 미달은 적용 단계에서 거부된다(카트 소계 30,000 < 50,000).
-do $$
-begin
-  begin
-    perform public.apply_cart_coupon_code('CPNPCT10');
-    raise exception 'min subtotal violation should be rejected';
-  exception
-    when check_violation then
-      if sqlerrm <> 'coupon_min_subtotal' then raise; end if;
-  end;
-end;
-$$;
+-- 최소 주문 금액 미달은 발급·선택을 막지 않는다(카트 소계 30,000 < 50,000) —
+-- 더 담으면 살아나는 선택이고, 확정 거부는 place_order 몫이다.
+select public.apply_cart_coupon_code('CPNPCT10') as pct10_early_id \gset
+
+select 1 / case when (
+  select status = 'active' from public.user_coupons where id = :'pct10_early_id'::uuid
+) then 1 else 0 end as assert_below_minimum_still_issues;
+select 1 / case when (
+  select user_coupon_id = :'pct10_early_id'::uuid
+  from public.cart_coupon_selections
+  where user_id = '00000000-0000-4000-8000-000000000701'
+) then 1 else 0 end as assert_below_minimum_still_selects;
+
+-- 보유 쿠폰 직접 적용도 같은 계약이다.
+select public.apply_cart_coupon(:'fix5k_user_coupon_id'::uuid);
+select 1 / case when (
+  select user_coupon_id = :'fix5k_user_coupon_id'::uuid
+  from public.cart_coupon_selections
+  where user_id = '00000000-0000-4000-8000-000000000701'
+) then 1 else 0 end as assert_reapply_replaces_selection;
 
 -- 남의 보유 쿠폰은 적용할 수 없다.
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000702', true);
@@ -668,13 +676,16 @@ $$;
 
 -- ── 정률·상한·클램프·무료배송 상호작용 ──────────────────────────────────────
 
--- 소계 70,000(무료배송 유지): 10% = 7,000 ≤ 상한 8,000.
+-- 소계 70,000(무료배송 유지): 10% = 7,000 ≤ 상한 8,000. 미달 시절 발급해 둔
+-- 보유분이 그대로 쓰인다(재발급 아님 — 멱등 적용).
 delete from public.cart_items where user_id = '00000000-0000-4000-8000-000000000701';
 insert into public.cart_items (user_id, good_id, qty)
 values
   ('00000000-0000-4000-8000-000000000701', 'cpn-g1', 1),
   ('00000000-0000-4000-8000-000000000701', 'cpn-g2', 1);
 select public.apply_cart_coupon_code('CPNPCT10') as pct10_user_coupon_id \gset
+select 1 / case when :'pct10_user_coupon_id'::uuid = :'pct10_early_id'::uuid then 1 else 0 end
+  as assert_below_minimum_issue_was_kept;
 
 reset role;
 set local role service_role;
