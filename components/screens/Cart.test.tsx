@@ -1,17 +1,22 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { CartItem } from '@/lib/cart';
+import type { UserCouponSummary } from '@/lib/coupons';
+import type { CartCouponState } from '@/lib/coupons.server';
 import type { Good } from '@/lib/data';
 import { Cart } from './Cart';
 
-const mocks = vi.hoisted(() => ({ items: [] as CartItem[] }));
+const mocks = vi.hoisted(() => ({
+  items: [] as CartItem[],
+  mode: 'server' as 'server' | 'local',
+}));
 
 vi.mock('@/components/shell/CartProvider', () => ({
   useCart: () => ({
     items: mocks.items,
     count: mocks.items.reduce((total, item) => total + item.qty, 0),
     ready: true,
-    mode: 'server' as const,
+    mode: mocks.mode,
     pending: false,
     error: null,
     getQuantity: () => 0,
@@ -21,6 +26,12 @@ vi.mock('@/components/shell/CartProvider', () => ({
     refresh: vi.fn(),
     resetForSignOut: vi.fn(),
   }),
+}));
+
+vi.mock('@/app/cart/coupon-actions', () => ({
+  applyCouponAction: vi.fn(),
+  applyCouponCodeAction: vi.fn(),
+  clearCouponAction: vi.fn(),
 }));
 
 const goods: Good[] = [
@@ -48,9 +59,29 @@ const goods: Good[] = [
   },
 ];
 
-function render(items: CartItem[]) {
+const fix5k: UserCouponSummary = {
+  id: '11111111-1111-4111-8111-111111111111',
+  status: 'active',
+  issuedAt: '2026-08-30T00:00:00Z',
+  expiresAt: null,
+  usedAt: null,
+  coupon: {
+    code: 'CPNFIX5K',
+    name: '5천원 할인',
+    discountType: 'fixed',
+    discountValue: 5000,
+    maxDiscountAmount: null,
+    minSubtotal: 20000,
+    endsAt: null,
+    gradeBenefit: null,
+  },
+};
+
+const emptyCouponState: CartCouponState = { selectedUserCouponId: null, coupons: [] };
+
+function render(items: CartItem[], couponState: CartCouponState = emptyCouponState) {
   mocks.items = items;
-  return renderToStaticMarkup(<Cart catalog={{ goods, ips: [] }} />);
+  return renderToStaticMarkup(<Cart catalog={{ goods, ips: [] }} couponState={couponState} />);
 }
 
 describe('Cart 배송비 요약', () => {
@@ -84,16 +115,54 @@ describe('Cart 주문 요약 테이블', () => {
     expect(html).toContain('배송비는 결제 화면에서 확인할 수 있어요.');
   });
 
-  it('쿠폰 자리를 남겨두되 동작은 걸지 않는다', () => {
-    expect(html).toContain('wc-cart__coupon-slot');
-    expect(html).toContain('쿠폰 적용은 곧 열려요.');
-    expect(html).not.toContain('<select');
-    expect(html).not.toContain('쿠폰 적용</button>');
-  });
-
   it('주문 CTA에 담긴 수량을 싣는다', () => {
     expect(html).toContain('1개 굿즈 주문하기');
     expect(html).toContain('href="/checkout"');
+  });
+});
+
+describe('Cart 쿠폰 슬롯 (S7)', () => {
+  it('보유 쿠폰 select와 코드 입력을 연다', () => {
+    const html = render(
+      [{ goodId: 'g13', qty: 5 }],
+      { selectedUserCouponId: null, coupons: [fix5k] },
+    );
+
+    expect(html).toContain('<select');
+    expect(html).toContain('쿠폰 선택 안 함');
+    expect(html).toContain('5천원 할인');
+    expect(html).toContain('쿠폰 적용</button>');
+  });
+
+  it('적용된 쿠폰은 할인 행과 예상 총액에 반영된다', () => {
+    const html = render(
+      [{ goodId: 'g13', qty: 5 }],
+      { selectedUserCouponId: fix5k.id, coupons: [fix5k] },
+    );
+
+    expect(html).toContain('−₩5,000');
+    expect(html).toContain('₩55,000');
+    expect(html).toContain('적용 해제');
+  });
+
+  it('조건 미달이 되면 할인을 접고 사유를 알린다', () => {
+    const html = render(
+      [{ goodId: 'g13', qty: 1 }],
+      { selectedUserCouponId: fix5k.id, coupons: [fix5k] },
+    );
+
+    expect(html).toContain('−₩0');
+    expect(html).toContain('최소 주문 금액');
+    expect(html).toContain('₩15,000');
+  });
+
+  it('로그인 전에는 컨트롤 대신 안내만 둔다', () => {
+    mocks.mode = 'local';
+    const html = render([{ goodId: 'g13', qty: 1 }], emptyCouponState);
+    mocks.mode = 'server';
+
+    expect(html).toContain('로그인하면 보유 쿠폰을 적용할 수 있어요.');
+    expect(html).not.toContain('<select');
   });
 });
 

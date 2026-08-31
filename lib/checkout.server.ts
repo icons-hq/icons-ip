@@ -15,6 +15,7 @@ interface OrderRow {
   status: string;
   total: number;
   shipping_fee: number | null;
+  discount_total: number | null;
   address: unknown;
   expires_at: string | null;
   created_at: string;
@@ -43,6 +44,8 @@ export interface CheckoutOrderSnapshot {
   total: number;
   /** 주문 시점 배송비 스냅샷. total에 이미 포함되어 있다. */
   shippingFee: number;
+  /** 주문 시점 쿠폰 할인 스냅샷. total에서 이미 빠져 있다(S7). */
+  discountTotal: number;
   address: CheckoutAddress | null;
   expiresAt: string | null;
   createdAt: string;
@@ -88,7 +91,7 @@ export async function loadCheckoutOrder(
   const supabase = await createClient();
   const { data: orderData, error: orderError } = await supabase
     .from('orders')
-    .select('id,user_id,status,total,shipping_fee,address,expires_at,created_at,payment_method')
+    .select('id,user_id,status,total,shipping_fee,discount_total,address,expires_at,created_at,payment_method')
     .eq('id', orderId)
     .eq('user_id', userId)
     .maybeSingle<OrderRow>();
@@ -132,6 +135,7 @@ export async function loadCheckoutOrder(
     status: orderData.status,
     total: orderData.total,
     shippingFee: orderData.shipping_fee ?? 0,
+    discountTotal: orderData.discount_total ?? 0,
     address: normalizeCheckoutAddress(orderData.address),
     expiresAt: orderData.expires_at,
     createdAt: orderData.created_at,

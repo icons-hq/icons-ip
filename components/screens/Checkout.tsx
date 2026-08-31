@@ -15,6 +15,7 @@ import {
   type CheckoutPaymentMethod,
 } from '@/lib/checkout';
 import { krw } from '@/lib/format';
+import { couponPreviewDiscount, type UserCouponSummary } from '@/lib/coupons';
 import type { ComposedPostcodeAddress } from '@/lib/postcode';
 import { shippingFeeFor, shippingFeeLabel } from '@/lib/shipping';
 
@@ -28,6 +29,7 @@ const actionErrors = {
   bank_transfer_blocked: '무통장 입금을 쓸 수 없는 굿즈가 담겨 있어요. 카드로 결제해주세요.',
   empty_cart: '장바구니가 비어 있어요.',
   out_of_stock: '결제 직전 재고가 변경됐어요. 장바구니에서 수량을 다시 확인해주세요.',
+  coupon_rejected: '적용한 쿠폰을 쓸 수 없게 됐어요. 장바구니에서 쿠폰을 확인해주세요.',
   unavailable: '주문을 만들지 못했어요. 잠시 후 다시 시도해주세요.',
 } as const;
 
@@ -38,6 +40,8 @@ interface CheckoutProps {
   /** 법인계좌가 설정돼 있는지. 없으면 무통장 자체가 뜨지 않는다(#255). */
   bankTransferAvailable: boolean;
   resumeOrderId: string | null;
+  /** 카트에 적용해 둔 쿠폰. 할인 확정은 place_order 가 한다 — 여기서는 미리보기다. */
+  appliedCoupon: UserCouponSummary | null;
 }
 
 const addressFieldOrder: CheckoutAddressField[] = [
@@ -68,6 +72,7 @@ export function Checkout({
   paymentAvailable,
   bankTransferAvailable,
   resumeOrderId,
+  appliedCoupon,
 }: CheckoutProps) {
   const router = useRouter();
   const { items, ready, mode, pending: cartPending, error: cartError, refresh } = useCart();
@@ -100,6 +105,7 @@ export function Checkout({
   const subtotal = lines.reduce((sum, line) => sum + (line.good?.price ?? 0) * line.qty, 0);
   /* 표시용 예상치다. 결제 금액은 place_order가 확정한 orders.total을 따른다. */
   const shippingFee = shippingFeeFor(subtotal);
+  const couponDiscount = couponPreviewDiscount(appliedCoupon, subtotal, shippingFee);
   const unavailable = lines.some(({ good, qty }) => (
     !good || good.stock === 'soldout' || good.stockQty < qty
   ));
@@ -289,8 +295,11 @@ export function Checkout({
           </div>
           <dl className="checkout-totals">
             <div><dt>굿즈 금액</dt><dd>{krw(subtotal)}</dd></div>
+            {couponDiscount > 0 && appliedCoupon && (
+              <div><dt>쿠폰 할인 ({appliedCoupon.coupon.name})</dt><dd>−{krw(couponDiscount)}</dd></div>
+            )}
             <div><dt>배송비</dt><dd>{shippingFeeLabel(shippingFee)}</dd></div>
-            <div className="checkout-total"><dt>결제 금액</dt><dd>{krw(subtotal + shippingFee)}</dd></div>
+            <div className="checkout-total"><dt>결제 금액</dt><dd>{krw(subtotal + shippingFee - couponDiscount)}</dd></div>
           </dl>
 
           <fieldset className="checkout-method" aria-describedby="checkout-method-note">

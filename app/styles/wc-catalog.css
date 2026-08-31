@@ -1815,7 +1815,7 @@
   color: var(--wc-ink-tertiary);
 }
 
-/* S7 전까지는 자리만 지킨다 — 동작 없는 컨트롤을 그리지 않는다. */
+/* 쿠폰 슬롯 (R-05 §1.5, S7 #329) — select 프리셋 + 코드 직접 입력. */
 .wc-cart__coupon-slot {
   margin-top: 24px;
   padding: 16px;
@@ -1836,6 +1836,134 @@
   font-weight: 400;
   line-height: 1.6;
   color: var(--wc-ink-tertiary);
+}
+
+.wc-cart__coupon-label {
+  display: block;
+  margin: 12px 0 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wc-ink-sub);
+}
+
+/* editorial 파운데이션의 `:where(select)` 48px·12px 라운드를 지면 값으로 되돌린다
+   (.wc-collection__sort 와 같은 함정 — DESIGN.md §5 "셀렉트 12px+caret svg"). */
+.wc-cart__coupon-select {
+  width: 100%;
+  min-height: 0;
+  height: 40px;
+  padding: 0 28px 0 10px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 38px;
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid var(--wc-line-control);
+  border-radius: var(--wc-radius-form);
+  box-shadow: none;
+  background-color: var(--wc-surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23111111' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  color: var(--wc-ink);
+}
+
+.wc-cart__coupon-select:disabled {
+  color: var(--wc-ink-disabled);
+}
+
+.wc-cart__coupon-detail {
+  margin: 10px 0 0;
+}
+
+.wc-cart__coupon-detail div {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.wc-cart__coupon-detail dt {
+  flex: 0 0 52px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-cart__coupon-detail dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--wc-ink-sub);
+}
+
+.wc-cart__coupon-warning {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--wc-danger);
+}
+
+.wc-cart__coupon-clear {
+  margin: 8px 0 0;
+  padding: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wc-ink-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.wc-cart__coupon-code {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* editorial 전역 인풋 되돌림(.wc-auth input 과 같은 규칙 — 40px·radius 2px). */
+.wc-cart__coupon-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  height: 40px;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 12px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: var(--wc-radius-form);
+  box-shadow: none;
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+}
+
+.wc-cart__coupon-input::placeholder {
+  color: var(--wc-ink-disabled);
+}
+
+.wc-cart__coupon-apply {
+  flex: 0 0 auto;
+  min-height: 0;
+  height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--wc-ink);
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-surface);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-cart__coupon-apply:disabled,
+.wc-cart__coupon-clear:disabled {
+  color: var(--wc-ink-disabled);
+  border-color: var(--wc-line-control);
+  cursor: default;
 }
 
 .wc-cart__checkout {

@@ -31,6 +31,16 @@
   --wc-focus: #5B74FF;
   --wc-dim: rgba(0,0,0,.7);
   --wc-scrim: rgba(0,0,0,.3);
+  /* 회원 등급 뱃지 구분색 — 액센트 단일 규칙의 명시적 예외(DESIGN.md §2 B2).
+     틴트 배경 + AA 잉크 쌍. 등급 뱃지·쿠폰함 등급 혜택 뱃지 밖에서 쓰지 않는다. */
+  --wc-loyalty-welcome-bg: rgba(120,187,83,.12);
+  --wc-loyalty-welcome-ink: #3F7D38;
+  --wc-loyalty-silver-bg: #F3F3F3;
+  --wc-loyalty-silver-ink: #5A5A5A;
+  --wc-loyalty-gold-bg: #FBF3D9;
+  --wc-loyalty-gold-ink: #8A6D1B;
+  --wc-loyalty-platinum-bg: #EFE9F7;
+  --wc-loyalty-platinum-ink: #5B4791;
   --wc-shadow-popup: 0 4px 5px rgba(18,18,18,.05);
   --wc-duration-short: .1s;
   --wc-duration-default: .2s;

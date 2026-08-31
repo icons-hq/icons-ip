@@ -153,6 +153,8 @@ export interface OrderDetail {
   total: number;
   /** 주문 시점 배송비 스냅샷. total에 이미 포함되어 있다. */
   shippingFee: number;
+  /** 주문 시점 쿠폰 할인 스냅샷. total에서 이미 빠져 있다(S7). */
+  discountTotal: number;
   address: CheckoutAddress | null;
   createdAt: string;
   /**

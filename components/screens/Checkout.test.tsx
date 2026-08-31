@@ -67,6 +67,7 @@ function render({
       paymentAvailable={paymentAvailable}
       bankTransferAvailable={bankTransferAvailable}
       resumeOrderId={null}
+      appliedCoupon={null}
     />,
   );
 }

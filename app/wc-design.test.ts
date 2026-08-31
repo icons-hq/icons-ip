@@ -40,6 +40,13 @@ describe('White Catalog design wiring', () => {
     expect(css).toContain('--wc-danger: #B8324A');
     expect(css).toContain('--wc-focus: #5B74FF');
     expect(css).toContain('--wc-scrim: rgba(0,0,0,.3)');
+    /* 회원 등급 뱃지 구분색(DESIGN.md §2 B2 예외) — 틴트 bg + AA 잉크 쌍.
+     * 값이 바뀌면 등급 뱃지·쿠폰함 등급 혜택 뱃지가 함께 갈라진다. */
+    expect(css).toContain('--wc-loyalty-welcome-bg: rgba(120,187,83,.12)');
+    expect(css).toContain('--wc-loyalty-welcome-ink: #3F7D38');
+    expect(css).toContain('--wc-loyalty-silver-bg: #F3F3F3');
+    expect(css).toContain('--wc-loyalty-gold-ink: #8A6D1B');
+    expect(css).toContain('--wc-loyalty-platinum-ink: #5B4791');
     expect(css).toMatch(/\.wc-root\s*\{[^}]*background:\s*var\(--wc-surface\)/s);
   });
 

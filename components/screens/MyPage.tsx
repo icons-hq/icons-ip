@@ -2,23 +2,29 @@
 
 import Link from 'next/link';
 import { Icon } from '@/components/ui/Icon';
-import { MenuPlaceholder, MypageShell, useMypageMenuGroups } from '@/components/wc/MypageShell';
+import {
+  MenuPlaceholder,
+  MypageShell,
+  useMypageMenuGroups,
+  type MypageLoyaltySummary,
+} from '@/components/wc/MypageShell';
 
 interface MyPageProps {
   avatarInitial: string;
   avatarUrl: string | null;
   nickname: string;
+  loyalty: MypageLoyaltySummary | null;
 }
 
 /*
  * /my 허브 — 마이페이지 셸의 메뉴 그 자체를 콘텐츠로 펼친다(aside 없음).
  * 데스크톱 하위 표면은 aside 로 오가고, 모바일은 이 허브가 유일한 계정 내비다.
  */
-export function MyPage({ avatarInitial, avatarUrl, nickname }: MyPageProps) {
+export function MyPage({ avatarInitial, avatarUrl, nickname, loyalty }: MyPageProps) {
   const groups = useMypageMenuGroups();
 
   return (
-    <MypageShell profile={{ avatarInitial, avatarUrl, nickname }} withAside={false}>
+    <MypageShell profile={{ avatarInitial, avatarUrl, nickname, loyalty }} withAside={false}>
       <h1 className="wc-mypage__heading">마이</h1>
       <nav aria-label="마이페이지 메뉴">
         {groups.map((group) => (

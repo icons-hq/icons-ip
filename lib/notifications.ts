@@ -22,7 +22,10 @@ export type NotificationType =
   | 'review_replied'
   /* 재입고 알림(#326). goods 의 판매 가능 전이 트리거가 restock_alerts 의
      pending 신청을 notified 로 넘기면서 같은 트랜잭션에서 남긴다. */
-  | 'restock_available';
+  | 'restock_available'
+  /* 회원 등급 승급(#329). 재산정·수동 보정이 승급을 확정한 트랜잭션에서 남긴다 —
+     강등은 알리지 않고, 재승급은 같은 dedupe 키를 재부상시킨다. */
+  | 'loyalty_grade_upgraded';
 
 export interface NotificationRow {
   id: string;

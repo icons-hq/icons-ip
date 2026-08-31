@@ -16,6 +16,7 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   claim_updated: '클레임',
   review_replied: '리뷰',
   restock_available: '재입고',
+  loyalty_grade_upgraded: '등급',
 };
 
 const TYPE_ICONS: Record<NotificationType, string> = {
@@ -31,6 +32,7 @@ const TYPE_ICONS: Record<NotificationType, string> = {
   claim_updated: 'bag',
   review_replied: 'star',
   restock_available: 'bell',
+  loyalty_grade_upgraded: 'star',
 };
 
 const notificationDate = new Intl.DateTimeFormat('ko-KR', {

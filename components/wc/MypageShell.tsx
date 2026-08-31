@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { useCardRewardsEnabled } from '@/components/shell/CardRewardAvailability';
+import type { LoyaltyGrade } from '@/lib/loyalty';
 
 /*
  * 마이페이지 셸 (R-05 §4, S6 #328).
@@ -24,7 +25,7 @@ export interface MypageMenuItem {
 export interface MypageMenuGroup {
   title: string;
   items: MypageMenuItem[];
-  /** S7(쿠폰·회원 등급)에서 열리는 자리 — 링크가 아니라 자리만 둔다. */
+  /** 아직 열리지 않은 표면의 자리 — 링크가 아니라 자리만 둔다. */
   placeholders?: { label: string; note: string }[];
 }
 
@@ -43,10 +44,10 @@ const MYPAGE_MENU_GROUPS: MypageMenuGroup[] = [
   {
     title: '계정 설정',
     items: [
+      { href: '/my/coupons', label: '쿠폰함', description: '보유한 쿠폰과 사용·만료 내역을 확인하세요.' },
       { href: '/notifications', label: '알림함', description: '주문, 카드팩, 팔로우한 IP의 새 소식을 확인하세요.' },
       { href: '/settings', label: '설정', description: '프로필과 정보 수신 동의를 관리하세요.' },
     ],
-    placeholders: [{ label: '쿠폰함', note: '곧 열려요' }],
   },
   {
     title: '고객센터',
@@ -65,10 +66,21 @@ export function useMypageMenuGroups(): MypageMenuGroup[] {
   }));
 }
 
+export interface MypageLoyaltySummary {
+  /** 뱃지 색 변종 클래스에 쓰는 소문자 등급 키. */
+  grade: LoyaltyGrade;
+  /** 뱃지 표기(WELCOME 등 대문자 일반명사 — 멤버십·VIP·티어 어휘 금지). */
+  label: string;
+  /** "다음 등급까지" 안내 한 줄. 최상위 등급이면 null. */
+  nextNote: string | null;
+}
+
 export interface MypageProfileSummary {
   avatarInitial: string;
   avatarUrl: string | null;
   nickname: string;
+  /** 회원 등급 — 로드에 실패하면 뱃지를 그리지 않는다(잘못된 등급을 보여주지 않는다). */
+  loyalty?: MypageLoyaltySummary | null;
 }
 
 /* S7에서 열리는 자리 — aside 와 /my 허브가 같은 모양을 그린다. */
@@ -99,13 +111,19 @@ function ProfileStrip({ profile }: { profile: MypageProfileSummary }) {
         </div>
       </div>
       <div className="wc-mypage__profile-cell wc-mypage__profile-cell--meta">
-        {/* 등급 뱃지 슬롯 — 데이터는 S7(회원 등급)에서 연결한다. 유료 '멤버십'과
-            섞지 않는 용어 규율(CONTEXT.md). 메뉴와 같은 목적지를 여기 또 두지
-            않는다(한 화면 한 링크 규율). */}
-        <span className="wc-mypage__tier">
-          회원 등급
-          <span className="wc-mypage__tier-badge">곧 열려요</span>
-        </span>
+        {/* 등급 뱃지 — 유료 '멤버십'과 섞지 않는 용어 규율(CONTEXT.md). 메뉴와 같은
+            목적지를 여기 또 두지 않는다(한 화면 한 링크 규율). */}
+        {profile.loyalty ? (
+          <span className="wc-mypage__tier">
+            회원 등급
+            <span className={`wc-mypage__tier-badge wc-mypage__tier-badge--${profile.loyalty.grade}`}>
+              {profile.loyalty.label}
+            </span>
+            {profile.loyalty.nextNote ? (
+              <small className="wc-mypage__tier-note">{profile.loyalty.nextNote}</small>
+            ) : null}
+          </span>
+        ) : null}
       </div>
     </section>
   );
