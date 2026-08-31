@@ -275,41 +275,6 @@
   list-style: none;
 }
 
-.wc-auth__choice {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 52px;
-  padding: 8px 12px;
-  border: 1px solid var(--wc-line-control);
-  border-radius: 2px;
-  background: var(--wc-surface);
-  font-family: inherit;
-  font-size: 14px;
-  letter-spacing: -0.2px;
-  color: var(--wc-ink-sub);
-  cursor: pointer;
-  text-align: left;
-}
-
-.wc-auth__choice[aria-pressed='true'] {
-  border-color: var(--wc-ink);
-  font-weight: 700;
-  color: var(--wc-ink);
-}
-
-.wc-auth__choice-mark {
-  display: inline-flex;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  flex: none;
-  background: var(--wc-surface-grey);
-  background-size: cover;
-  background-position: center;
-}
-
 .wc-auth__agree {
   display: flex;
   flex-direction: column;
@@ -318,6 +283,10 @@
   list-style: none;
   border-top: 1px solid var(--wc-hairline);
   border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-auth__agree li + li {
+  border-top: 1px solid var(--wc-hairline);
 }
 
 .wc-auth__agree-row {
@@ -331,12 +300,17 @@
   color: var(--wc-ink-sub);
 }
 
-.wc-auth__agree-row + .wc-auth__agree-row {
-  border-top: 1px solid var(--wc-hairline);
+.wc-auth__agree-row label {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
 }
 
 .wc-auth__agree-row a {
   margin-left: auto;
+  flex: none;
   font-size: 13px;
   color: var(--wc-ink-tertiary);
   text-decoration: underline;
@@ -346,13 +320,178 @@
 .wc-auth__agree-row input[type='checkbox'] {
   width: 18px;
   height: 18px;
+  flex: none;
   accent-color: var(--wc-ink);
+}
+
+.wc-auth__req,
+.wc-auth__opt {
+  margin-left: 2px;
+  font-size: 11px;
+  font-style: normal;
+  letter-spacing: 0;
+}
+
+.wc-auth__req {
+  color: var(--wc-danger);
+}
+
+.wc-auth__opt {
+  color: var(--wc-ink-tertiary);
+}
+
+/* 온보딩 — 넓은 변형(추천 IP 타일 2열이 숨쉴 폭). */
+.wc-auth__panel--wide {
+  width: min(560px, 100%);
+}
+
+.wc-auth input:disabled {
+  background: var(--wc-surface-grey);
+  color: var(--wc-ink-tertiary);
+  border-color: var(--wc-hairline);
+}
+
+/* 생년월일 fieldset — editorial 소유 규칙을 wc 문법으로 재소유한다. */
+.wc-auth .onboarding-birth-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wc-auth .onboarding-birth-fieldset legend {
+  padding: 0;
+  margin-bottom: 2px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-auth .onboarding-birth-hint {
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-auth .onboarding-birth-inputs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.wc-auth .onboarding-birth-inputs label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 추천 IP 선택 */
+.wc-auth__picks-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.wc-auth__picks-title {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+}
+
+.wc-auth__picks-sub {
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+/* IP 타일 — 각진 이미지 체크박스. 선택 상태는 잉크 링 하나로만 말한다. */
+.wc-auth .onboarding-ip-tile {
+  display: block;
+  position: relative;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 0;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px var(--wc-hairline-dark);
+}
+
+.wc-auth .onboarding-ip-tile input[type='checkbox'] {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  min-height: 0;
+}
+
+.wc-auth .onboarding-ip-tile:has(> input[name='followIpIds']:checked) {
+  box-shadow: inset 0 0 0 2px var(--wc-ink);
+}
+
+.wc-auth .onboarding-ip-tile:has(> input[name='followIpIds']:focus-visible) {
+  outline: 2px solid var(--wc-focus);
+  outline-offset: 2px;
+}
+
+/* 흰 글자는 이미지 스크림 위에만 — 타일 하단 밴드가 그 스크림이다. */
+.wc-auth .onboarding-ip-meta {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 18px 12px 10px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, .6));
+}
+
+.wc-auth .onboarding-ip-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: #FFFFFF;
+}
+
+.wc-auth .onboarding-ip-checkmark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, .7);
+  background: transparent;
+}
+
+.wc-auth .onboarding-ip-tile:has(> input[name='followIpIds']:checked) .onboarding-ip-checkmark {
+  border-color: #FFFFFF;
+  background: #FFFFFF;
+}
+
+.wc-auth .onboarding-ip-tile:has(> input[name='followIpIds']:checked) .onboarding-ip-checkmark::after {
+  content: '✓';
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--wc-ink);
 }
 
 @media (max-width: 749px) {
   .wc-auth__panel {
     max-width: 280px;
     padding: 27px 0;
+  }
+
+  .wc-auth__panel--wide {
+    max-width: 100%;
+    width: 100%;
   }
 
   .wc-auth__title {
