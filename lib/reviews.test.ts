@@ -49,17 +49,24 @@ describe('리뷰 목록 조건', () => {
     expect(normalizeGoodReviewOptions({ reviewPage: '1.5' }).page).toBe(1);
   });
 
-  /* 기본값은 URL에 남기지 않는다 — 링크가 조건으로 가득 차면 공유했을 때 읽히지 않는다. */
-  it('기본 조건은 쿼리에서 빼고 앵커만 남긴다', () => {
+  /* 기본 정렬·필터는 URL에서 빼되 reviewPage는 항상 싣는다 — 리뷰 파라미터가 하나도
+     없으면 굿즈 상세가 상세정보 탭으로 열려 #reviews 앵커가 숨은 패널을 가리킨다. */
+  it('기본 조건에서도 reviewPage를 실어 리뷰 탭에서 열리게 한다', () => {
     expect(goodReviewsHref('g13', { page: 1, photoOnly: false, sort: 'recent' }))
-      .toBe('/shop/g13#reviews');
+      .toBe('/shop/g13?reviewPage=1#reviews');
+    expect(goodReviewsHref('g13')).toBe('/shop/g13?reviewPage=1#reviews');
   });
 
-  it('바뀐 조건만 쿼리에 싣는다', () => {
+  it('기본이 아닌 정렬·필터는 쿼리에 함께 싣는다', () => {
     expect(goodReviewsHref('g13', { page: 1, photoOnly: false, sort: 'recent' }, {
       page: 2,
       photoOnly: true,
     })).toBe('/shop/g13?reviewPhoto=1&reviewPage=2#reviews');
+  });
+
+  it('0 이하 페이지는 1페이지 링크로 접는다', () => {
+    expect(goodReviewsHref('g13', { page: 0, photoOnly: false, sort: 'recent' }))
+      .toBe('/shop/g13?reviewPage=1#reviews');
   });
 
   it('작성 화면 링크는 주문과 굿즈를 함께 싣는다', () => {

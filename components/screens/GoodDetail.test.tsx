@@ -256,6 +256,9 @@ describe('GoodDetail', () => {
   it('리뷰 조건이 URL에 있으면 리뷰 탭에서 연다', () => {
     expect(pdpDefaultPanelId(new URLSearchParams(''))).toBe('detail');
     expect(pdpDefaultPanelId(null)).toBe('detail');
+    /* goodReviewsHref는 1페이지 링크에도 reviewPage=1을 싣는다 — 이 계약이 무너지면
+       리뷰 페이지네이션 "이전"이 상세정보 탭에 떨어져 무동작이 된다. */
+    expect(pdpDefaultPanelId(new URLSearchParams('reviewPage=1'))).toBe('reviews');
     expect(pdpDefaultPanelId(new URLSearchParams('reviewPage=2'))).toBe('reviews');
     expect(pdpDefaultPanelId(new URLSearchParams('reviewSort=rating_desc'))).toBe('reviews');
     expect(pdpDefaultPanelId(new URLSearchParams('reviewPhoto=1'))).toBe('reviews');

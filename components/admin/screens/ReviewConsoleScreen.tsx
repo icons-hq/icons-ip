@@ -23,6 +23,7 @@ import {
 import {
   ADMIN_REVIEW_STATUS_LABELS,
   formatReviewDateTime,
+  goodReviewsHref,
   LOW_REVIEW_RATING_MAX,
   reviewBodyPreview,
   reviewRatingLabel,
@@ -79,7 +80,7 @@ export function ReviewConsoleScreen({
         <time dateTime={row.createdAt}>{formatReviewDateTime(row.createdAt)}</time>
         {row.editedAt ? <><br /><span className="muted">수정됨</span></> : null}
       </span>,
-      <Link href={`/shop/${row.goodId}#reviews`} key="good">{row.goodName}</Link>,
+      <Link href={goodReviewsHref(row.goodId)} key="good">{row.goodName}</Link>,
       ratingCell(row),
       <span key="body">{reviewBodyPreview(row.body, 70)}</span>,
       row.imageCount > 0
