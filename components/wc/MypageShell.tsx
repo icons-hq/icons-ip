@@ -45,6 +45,9 @@ const MYPAGE_MENU_GROUPS: MypageMenuGroup[] = [
     title: '계정 설정',
     items: [
       { href: '/my/coupons', label: '쿠폰함', description: '보유한 쿠폰과 사용·만료 내역을 확인하세요.' },
+      /* 코인은 쿠폰 옆에 서지만 돈에 개입하지 않는다 — 설명에서 '할인'을 말하지 않아야
+         두 재화가 여기서부터 갈라진다(CONTEXT.md 코인 vs 쿠폰 vs 뽑기권). */
+      { href: '/my/coins', label: '코인', description: '출석·이벤트 참여로 모은 코인을 확인하세요.' },
       { href: '/notifications', label: '알림함', description: '주문, 카드팩, 팔로우한 IP의 새 소식을 확인하세요.' },
       { href: '/settings', label: '설정', description: '프로필과 정보 수신 동의를 관리하세요.' },
     ],
@@ -53,6 +56,9 @@ const MYPAGE_MENU_GROUPS: MypageMenuGroup[] = [
     title: '고객센터',
     items: [
       { href: '/my/inquiries', label: '1:1 문의', description: '주문·배송, 취소/반품/교환, 상품에 대해 운영자에게 문의하세요.' },
+      /* 공개 Q&A 와 비공개 1:1 은 같은 그룹에 나란히 서지만 이름이 겹치면 안 된다 —
+         사용자가 자기 글이 공개인지 비공개인지 여기서 이미 갈라 읽어야 한다. */
+      { href: '/my/questions', label: '상품 Q&A', description: '굿즈 상세에 공개로 남긴 질문과 답변을 확인하세요.' },
     ],
   },
 ];

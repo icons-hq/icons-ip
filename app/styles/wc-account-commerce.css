@@ -3552,3 +3552,159 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ------------------------------------------------------------------
+   내 상품 Q&A (#330)
+   ------------------------------------------------------------------ */
+
+/* 카드 오른쪽의 상태 뱃지. 답변 블록 자체는 카탈로그 레이어의 .wc-qna-item__answer
+   를 그대로 쓴다 — 같은 문답을 두 지면에서 다른 모양으로 그리지 않는다. */
+.wc-qna-badge {
+  flex: none;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--wc-line-control);
+  color: var(--wc-ink-tertiary);
+  white-space: nowrap;
+}
+
+.wc-qna-badge--answered {
+  border-color: var(--wc-ink);
+  color: var(--wc-ink);
+}
+
+/* 블라인드는 삭제가 아니다 — 경고색으로 세워 두고 이유는 카드 아래 문장이 말한다. */
+.wc-qna-badge--hidden {
+  border-color: var(--wc-danger);
+  color: var(--wc-danger);
+}
+
+/* ------------------------------------------------------------------
+   코인 내역 — /my/coins (S8 #330)
+   쿠폰함과 같은 마이페이지 문법이지만 코인은 원장이라 카드가 아니라 한 줄
+   목록이다. 잔액 스트립 → 목록 → 하단 회색 안내 박스 순서를 공유한다.
+   ------------------------------------------------------------------ */
+
+/* 잔액은 목록 위에 늘 서 있다 — 내역이 비어도 자리를 지킨다. */
+.wc-coin-strip {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 20px 0 0;
+  padding: 16px 20px;
+  border: 1px solid var(--wc-hairline);
+  background: var(--wc-surface);
+}
+
+.wc-coin-strip__balance {
+  margin: 0;
+  font-size: 14px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-coin-strip__balance strong {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--wc-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.wc-coin-strip__attendance {
+  margin: 0;
+  font-size: 13px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-coin-list {
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-coin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-coin-row__reason {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wc-ink);
+}
+
+.wc-coin-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 금액은 부호가 이미 뜻을 말한다 — 색은 보조일 뿐이라 사용분에도 경고색을 쓰지
+   않는다. 코인을 쓰는 것은 실패가 아니다. */
+.wc-coin-row__amount {
+  flex: none;
+  margin: 0;
+  font-size: 15px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-coin-row__amount strong {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--wc-ink-sub);
+}
+
+.wc-coin-row--earn .wc-coin-row__amount strong {
+  color: var(--wc-success);
+}
+
+.wc-coin-empty__link {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--wc-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* 하단 회색 안내 박스 — 쿠폰함과 같은 지면 문법(R-05 §4.4). */
+.wc-coin-guide {
+  margin-top: 28px;
+  padding: 16px 20px;
+  background: var(--wc-surface-grey);
+}
+
+.wc-coin-guide p {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--wc-ink-sub);
+}
+
+.wc-coin-guide ul {
+  margin: 8px 0 0;
+  padding-left: 16px;
+}
+
+.wc-coin-guide li {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--wc-ink-tertiary);
+}
+
+@media (max-width: 989px) {
+  .wc-coin-strip {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}

@@ -888,6 +888,7 @@ describe('admin catalog actions', () => {
       ['/games/old-marble'],
       ['/games/new-marble'],
       ['/events'],
+      ['/offline-popups'],
     ]);
   });
 
@@ -912,6 +913,7 @@ describe('admin catalog actions', () => {
       ['/admin'],
       ['/games/marble-maple'],
       ['/events'],
+      ['/offline-popups'],
     ]);
   });
 
@@ -1101,6 +1103,7 @@ describe('admin catalog actions', () => {
     });
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/events');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/offline-popups');
   });
 
   it('validates ticket sessions and blocks non-staff calls before the RPC', async () => {
@@ -1142,6 +1145,7 @@ describe('admin catalog actions', () => {
     });
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/events');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/offline-popups');
   });
 
   it('blocks non-staff moderation status updates without writing', async () => {

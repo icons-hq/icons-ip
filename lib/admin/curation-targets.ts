@@ -35,7 +35,7 @@ const FIXED_TARGETS: AdminCurationTargetOption[] = [
   { label: 'IP 허브', path: '/ip' },
   { label: '굿즈샵', path: '/shop' },
   { label: '카드팩', path: '/packs' },
-  { label: '팝업', path: '/events' },
+  { label: '오프라인 팝업', path: '/offline-popups' },
   { label: '커뮤니티', path: '/community' },
 ];
 
@@ -57,7 +57,7 @@ export function adminCurationTargetGroups(
     { label: 'IP 상세', options: detailOptions(source.ips, (id) => `/ip/${id}`) },
     /* 굿즈 상세가 빠지면 첫 판매 굿즈를 홈에서 상세로 바로 보낼 수 없다. */
     { label: '굿즈 상세', options: detailOptions(source.goods, goodDetailHref) },
-    { label: '팝업 상세', options: detailOptions(source.events, (id) => `/events/${id}`) },
+    { label: '오프라인 팝업 상세', options: detailOptions(source.events, (id) => `/offline-popups/${id}`) },
   ].filter((group) => group.options.length > 0);
 }
 

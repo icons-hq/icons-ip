@@ -73,7 +73,16 @@ describe('White Catalog 내비게이션 경로', () => {
     expect(hrefFor('about')).toBe('/about');
   });
 
-  it.each(['wish', 'new', 'best'])('%s 링크는 실제 페이지 파일에 묶인다', (id) => {
+  it('오프라인 팝업 예매와 캠페인 허브를 서로 다른 경로로 가른다', () => {
+    /* CONTEXT.md에서 '오프라인 팝업'(예매)과 '이벤트'(캠페인 허브)는 별개 도메인이다.
+       한쪽이 다른 쪽 경로로 폴백하면 두 표면이 다시 한 화면으로 합쳐진다. */
+    expect(hrefFor('offlinePopups')).toBe('/offline-popups');
+    expect(hrefFor('events')).toBe('/events');
+    expect(isActive('offlinePopups', '/offline-popups/e100')).toBe(true);
+    expect(isActive('events', '/offline-popups/e100')).toBe(false);
+  });
+
+  it.each(['wish', 'new', 'best', 'offlinePopups'])('%s 링크는 실제 페이지 파일에 묶인다', (id) => {
     /* S2 셸이 이 링크들을 노출하고도 라우트가 없어 위시는 전 표면 프리페치 404를,
        NEW·BEST는 /shop/[goodId]에 잡힌 soft 404 화면을 만든 이력이 있다.
        동적 세그먼트 없는 경로만 넣는다 — 미등록 id는 hrefFor가 '/'로 폴백해

@@ -47,8 +47,8 @@ describe('Tickets', () => {
   it('shows a distinct empty state without inventing booking data', () => {
     const html = renderToStaticMarkup(<Tickets orders={[]} />);
     expect(html).toContain('아직 예매한 티켓이 없어요');
-    expect(html).toContain('이벤트 둘러보기');
-    expect(html).toContain('href="/events"');
+    expect(html).toContain('오프라인 팝업 둘러보기');
+    expect(html).toContain('href="/offline-popups"');
   });
 
   it('payment 결과가 없으면 결제 배너를 렌더하지 않는다', () => {

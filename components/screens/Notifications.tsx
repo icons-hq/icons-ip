@@ -10,13 +10,16 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   order_delivered: '배송',
   draw_ticket_issued: '카드팩',
   drop_published: '드롭',
-  event_published: '이벤트',
+  event_published: '오프라인 팝업',
   announcement: '공지',
   inquiry_answered: '문의',
   claim_updated: '클레임',
   review_replied: '리뷰',
   restock_available: '재입고',
   loyalty_grade_upgraded: '등급',
+  /* 비공개 1:1('문의')과 다른 표면이라 라벨도 갈라 둔다 — 같은 말이면 알림함에서
+     어느 쪽에 답이 달렸는지 알 수 없다. */
+  product_question_answered: '상품 Q&A',
 };
 
 const TYPE_ICONS: Record<NotificationType, string> = {
@@ -33,6 +36,7 @@ const TYPE_ICONS: Record<NotificationType, string> = {
   review_replied: 'star',
   restock_available: 'bell',
   loyalty_grade_upgraded: 'star',
+  product_question_answered: 'chat',
 };
 
 const notificationDate = new Intl.DateTimeFormat('ko-KR', {

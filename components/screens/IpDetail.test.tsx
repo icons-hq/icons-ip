@@ -208,7 +208,7 @@ describe('IpDetail link band', () => {
 
     expect(html).toContain('카드 도감 2종');
     expect(html).toContain('href="/binder"');
-    expect(html).toContain('href="/events"');
+    expect(html).toContain('href="/offline-popups"');
     expect(html).toContain('href="/community?ip=maplestory"');
   });
 });

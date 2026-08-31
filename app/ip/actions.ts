@@ -32,7 +32,7 @@ function notificationSuccessPath(next: string) {
   const url = new URL(safeNextPath(next), 'https://icons.local');
   if (
     url.pathname === '/notifications/settings'
-    || /^\/(?:ip|events)(?:\/[^/]+)?$/.test(url.pathname)
+    || /^\/(?:ip|events|offline-popups)(?:\/[^/]+)?$/.test(url.pathname)
   ) {
     url.searchParams.set('notification_saved', '1');
   }
@@ -47,7 +47,7 @@ function readOptionalCheckbox(formData: FormData, key: string, setBoth: boolean)
 
 function detailRevalidationPath(next: string) {
   const pathname = new URL(safeNextPath(next), 'https://icons.local').pathname;
-  return /^\/(?:events|ip)\/[^/]+$/.test(pathname) ? pathname : null;
+  return /^\/(?:events|offline-popups|ip)\/[^/]+$/.test(pathname) ? pathname : null;
 }
 
 export async function toggleIpFollowAction(formData: FormData) {
@@ -111,7 +111,7 @@ export async function setIpNotificationPreferencesAction(formData: FormData) {
   });
   if (error) redirect(notificationErrorPath(next));
 
-  const paths = ['/', '/ip', `/ip/${ipId}`, '/events', '/notifications/settings'];
+  const paths = ['/', '/ip', `/ip/${ipId}`, '/events', '/offline-popups', '/notifications/settings'];
   const nextDetailPath = detailRevalidationPath(next);
   if (nextDetailPath && !paths.includes(nextDetailPath)) paths.push(nextDetailPath);
   for (const path of paths) revalidatePath(path);

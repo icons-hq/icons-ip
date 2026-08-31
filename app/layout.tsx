@@ -13,6 +13,7 @@ import './styles/wc-home.css';
 import './styles/wc-catalog.css';
 import './styles/wc-discovery.css';
 import './styles/wc-account-commerce.css';
+import './styles/wc-campaign.css';
 import './styles/about-legacy.css';
 import { AuthPresenceProvider } from '@/components/shell/AuthPresenceProvider';
 import { CartProvider } from '@/components/shell/CartProvider';

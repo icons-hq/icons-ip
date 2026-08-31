@@ -70,7 +70,7 @@ async function requireAdminAction(): Promise<AdminCatalogActionState | null> {
 }
 
 function revalidateCatalog(paths: string[]) {
-  const defaults = ['/', '/ip', '/shop', '/binder', '/events', '/admin'];
+  const defaults = ['/', '/ip', '/shop', '/binder', '/events', '/offline-popups', '/admin'];
   for (const path of [...defaults, ...paths]) {
     revalidatePath(path);
   }
@@ -85,6 +85,7 @@ function revalidateStock(ipPath: string | null) {
 function revalidateTicketing() {
   revalidatePath('/admin');
   revalidatePath('/events');
+  revalidatePath('/offline-popups');
 }
 
 function revalidateRewards() {
@@ -97,6 +98,7 @@ function revalidateGames(gameIds: Array<string | null>) {
     if (gameId && !paths.includes(`/games/${gameId}`)) paths.push(`/games/${gameId}`);
   }
   paths.push('/events');
+  paths.push('/offline-popups');
   for (const path of paths) revalidatePath(path);
 }
 

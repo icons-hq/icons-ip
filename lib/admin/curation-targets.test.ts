@@ -28,9 +28,9 @@ describe('admin curation targets', () => {
     expect(available).toContain('/');
     expect(available).toContain('/shop');
     expect(available).toContain('/ip/rilakkuma');
-    expect(available).toContain('/events/e100');
+    expect(available).toContain('/offline-popups/e100');
     expect(available).not.toContain('/ip/retired');
-    expect(available).not.toContain('/events/e200');
+    expect(available).not.toContain('/offline-popups/e200');
   });
 
   /*

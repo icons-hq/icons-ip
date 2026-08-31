@@ -1267,6 +1267,174 @@
 }
 
 /* ------------------------------------------------------------------
+   PDP — 상품 Q&A (#330)
+   ------------------------------------------------------------------ */
+
+/* 리뷰 탭과 같은 지면 문법을 쓰되 별점·사진이 없다. 입력 폼이 목록 위에 선다 —
+   구매 전 질문은 "읽으러" 온 사람보다 "물으러" 온 사람이 먼저 찾는다. */
+.wc-qna-form {
+  display: block;
+  margin: 0 0 24px;
+  padding: 16px;
+  background: var(--wc-surface-grey);
+}
+
+.wc-qna-form__field {
+  display: block;
+}
+
+.wc-qna-form__input {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  padding: 12px;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 2px;
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  resize: vertical;
+}
+
+.wc-qna-form__count {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  text-align: right;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-qna-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: 8px;
+}
+
+.wc-qna-form__note {
+  flex: 1 1 240px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 결과 줄은 비어 있어도 자리를 지킨다 — 문구가 뜰 때 폼 아래가 밀리면 방금 누른
+   버튼이 손가락 밑에서 움직인다. */
+.wc-qna-form__result {
+  min-height: 20px;
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.wc-qna-form__error {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--wc-danger);
+}
+
+.wc-qna-form__success {
+  display: block;
+  color: var(--wc-success);
+}
+
+.wc-qna-list {
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--wc-hairline);
+  list-style: none;
+}
+
+.wc-qna-list__count {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-qna-item {
+  padding: 24px 0;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-qna-item__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--wc-ink);
+}
+
+/* 답변 여부는 목록에서 가장 먼저 읽히는 정보다 — 색만으로 나누지 않고 글자로 적는다. */
+.wc-qna-item__state {
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--wc-line-control);
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-qna-item__state.is-answered {
+  border-color: var(--wc-ink);
+  color: var(--wc-ink);
+}
+
+.wc-qna-item__author {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-qna-item__date {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-qna-item__body {
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.7;
+  color: var(--wc-ink-sub);
+}
+
+/* 운영 답변은 회색 띠로 들여 질문과 화자를 가른다(리뷰 답글과 같은 문법). */
+.wc-qna-item__answer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px 16px;
+  background: var(--wc-surface-grey);
+}
+
+.wc-qna-item__answer-author {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-qna-item__answer .wc-qna-item__body {
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* ------------------------------------------------------------------
    PDP — 구매바 (모바일 고정 · 데스크톱 플로팅)
    ------------------------------------------------------------------ */
 

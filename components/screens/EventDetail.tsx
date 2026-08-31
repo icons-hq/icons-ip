@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { useFormStatus } from 'react-dom';
-import { reserveTicketsAction } from '@/app/events/actions';
+import { reserveTicketsAction } from '@/app/offline-popups/actions';
 import { setIpNotificationPreferencesAction } from '@/app/ip/actions';
 import type { FandomEvent, Ip } from '@/lib/data';
 import { krw } from '@/lib/format';
@@ -34,7 +34,7 @@ function minimumPayableQuantity(session: PublicTicketType) {
 }
 
 function disabledReason(event: FandomEvent, session: PublicTicketType, paymentAvailable: boolean) {
-  if (event.status !== '예매중') return '현재 예매 가능한 이벤트가 아니에요.';
+  if (event.status !== '예매중') return '현재 예매 가능한 오프라인 팝업이 아니에요.';
   if (session.remaining <= 0) return '정원 마감';
   if (session.price <= 0) return '0원 회차는 현재 예매할 수 없어요.';
   if (minimumPayableQuantity(session) > session.maxQuantity) {
@@ -94,7 +94,7 @@ function EventNotificationAction({
       </div>
       <form action={setIpNotificationPreferencesAction}>
         <input type="hidden" name="ipId" value={ip.id} />
-        <input type="hidden" name="next" value={`/events/${event.id}`} />
+        <input type="hidden" name="next" value={`/offline-popups/${event.id}`} />
         {!followState.isFollowed && <input type="hidden" name="autoFollow" value="1" />}
         <input type="hidden" name="notifyEvents" value={followState.notifyEvents ? '0' : '1'} />
         <EventNotificationSubmitButton followState={followState} />
@@ -193,7 +193,7 @@ export function EventDetail({
       <header className="event-detail-hero">
         <div className="wrap event-detail-hero-grid">
           <div className="event-detail-copy">
-            <Link className="event-detail-back mono" href="/events">← 팝업 · 이벤트</Link>
+            <Link className="event-detail-back mono" href="/offline-popups">← 오프라인 팝업</Link>
             <div className="event-detail-badges">
               {ip && <span style={{ color: ip ? ipAccentInk(ip) : accent }}>{ip.title}</span>}
               <span style={{ background: event.accent, color: '#0A0813' }}>{event.mode}</span>
@@ -298,7 +298,7 @@ export function EventDetail({
           )}
 
           {(selectedReason || (!selected && event.status !== '예매중')) && (
-            <p className="checkout-error" role="status">{selectedReason ?? '현재 예매 가능한 이벤트가 아니에요.'}</p>
+            <p className="checkout-error" role="status">{selectedReason ?? '현재 예매 가능한 오프라인 팝업이 아니에요.'}</p>
           )}
           {error && <p aria-live="polite" className="checkout-error" role="alert">{error}</p>}
           {!error && <span aria-live="polite" className="sr-only">{pending ? '예매를 만들고 있습니다.' : ''}</span>}

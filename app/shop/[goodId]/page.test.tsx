@@ -9,7 +9,14 @@ const mocks = vi.hoisted(() => ({
   details: [] as CatalogGoodDetail[],
   engagement: vi.fn(async () => ({ restockRequested: false, wished: true })),
   goodDetail: vi.fn<(props: Record<string, unknown>) => null>(() => null),
+  goodQna: vi.fn<(props: Record<string, unknown>) => null>(() => null),
   goodReviews: vi.fn<(props: Record<string, unknown>) => null>(() => null),
+  questionSection: vi.fn(async () => ({
+    questions: [],
+    count: 4,
+    page: 1,
+    pageCount: 1,
+  })),
   reviewSection: vi.fn(async () => ({
     reviews: [],
     summary: { average: 4.5, count: 3, distribution: [0, 0, 0, 1, 2], photoCount: 1 },
@@ -20,7 +27,9 @@ vi.mock('next/navigation', () => ({
   notFound: () => { throw new Error('NEXT_NOT_FOUND'); },
 }));
 vi.mock('@/components/screens/GoodDetail', () => ({ GoodDetail: mocks.goodDetail }));
+vi.mock('@/components/shop/GoodQna', () => ({ GoodQna: mocks.goodQna }));
 vi.mock('@/components/shop/GoodReviews', () => ({ GoodReviews: mocks.goodReviews }));
+vi.mock('@/lib/product-questions.server', () => ({ loadGoodQuestions: mocks.questionSection }));
 vi.mock('@/lib/reviews.server', () => ({ loadGoodReviewSection: mocks.reviewSection }));
 vi.mock('@/lib/wishlist.server', () => ({ getGoodEngagement: mocks.engagement }));
 vi.mock('@/lib/catalog', () => ({
@@ -59,7 +68,9 @@ function detailFor(id: string, name: string, price: number): CatalogGoodDetail {
 
 beforeEach(() => {
   mocks.goodDetail.mockClear();
+  mocks.goodQna.mockClear();
   mocks.goodReviews.mockClear();
+  mocks.questionSection.mockClear();
   mocks.reviewSection.mockClear();
   mocks.engagement.mockClear();
   mocks.details = [
@@ -110,6 +121,30 @@ describe('/shop/[goodId] page', () => {
     expect(mocks.engagement).toHaveBeenCalledWith('g13');
     expect(mocks.goodDetail.mock.calls[0]?.[0]?.engagement).toEqual({ restockRequested: false, wished: true });
     expect(mocks.goodDetail.mock.calls[0]?.[0]?.reviewSummary).toEqual(summary);
+  });
+
+  /* 상품 Q&A 도 비로그인에게 열린다(#330) — 사기 전에 묻는 글이라 로그인 뒤로 미루면
+     물어볼 사람이 아무도 남지 않는다. */
+  it('Q&A 블록과 탭 카운트를 로그인 없이 함께 넘긴다', async () => {
+    renderToStaticMarkup(await Page({ params: Promise.resolve({ goodId: 'g13' }), searchParams: Promise.resolve({}) }));
+
+    expect(mocks.questionSection).toHaveBeenCalledWith('g13', { page: 1 });
+    expect(mocks.goodDetail.mock.calls[0]?.[0]?.qna).toBeTruthy();
+    expect(mocks.goodDetail.mock.calls[0]?.[0]?.qnaSummary).toEqual({ count: 4 });
+  });
+
+  it('URL의 Q&A 페이지를 정규화해 로더에 넘긴다', async () => {
+    renderToStaticMarkup(await Page({
+      params: Promise.resolve({ goodId: 'g13' }),
+      searchParams: Promise.resolve({ qnaPage: '2' }),
+    }));
+    expect(mocks.questionSection).toHaveBeenCalledWith('g13', { page: 2 });
+
+    renderToStaticMarkup(await Page({
+      params: Promise.resolve({ goodId: 'g13' }),
+      searchParams: Promise.resolve({ qnaPage: 'last' }),
+    }));
+    expect(mocks.questionSection).toHaveBeenLastCalledWith('g13', { page: 1 });
   });
 
   it('404s for an unknown good id', async () => {
