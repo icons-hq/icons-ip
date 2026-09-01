@@ -59,6 +59,50 @@ select 1 / case when (
 ) then 1 else 0 end as assert_goods_payment_helpers_are_private;
 
 select 1 / case when (
+  has_function_privilege(
+    'service_role',
+    'public.claim_goods_payment_reconciliation(uuid,uuid,text)',
+    'execute'
+  )
+  and has_function_privilege(
+    'service_role',
+    'public.finalize_goods_payment_reconciliation(uuid,uuid,public.payment_attempt_state,text,text,text,text,text,text,timestamptz)',
+    'execute'
+  )
+  and not has_function_privilege(
+    'anon',
+    'public.claim_goods_payment_reconciliation(uuid,uuid,text)',
+    'execute'
+  )
+  and not has_function_privilege(
+    'authenticated',
+    'public.claim_goods_payment_reconciliation(uuid,uuid,text)',
+    'execute'
+  )
+  and not has_function_privilege(
+    'anon',
+    'public.finalize_goods_payment_reconciliation(uuid,uuid,public.payment_attempt_state,text,text,text,text,text,text,timestamptz)',
+    'execute'
+  )
+  and not has_function_privilege(
+    'authenticated',
+    'public.finalize_goods_payment_reconciliation(uuid,uuid,public.payment_attempt_state,text,text,text,text,text,text,timestamptz)',
+    'execute'
+  )
+) then 1 else 0 end as assert_goods_reconciliation_rpcs_are_service_only;
+
+select 1 / case when (
+  not has_table_privilege(
+    'service_role', 'private.goods_payment_reconciliation_audits', 'select'
+  )
+  and not has_function_privilege(
+    'service_role',
+    'private.record_goods_reconciliation_audit(uuid,text,uuid,text,text,text,public.payment_attempt_state)',
+    'execute'
+  )
+) then 1 else 0 end as assert_goods_reconciliation_audit_is_not_an_application_surface;
+
+select 1 / case when (
   select data_type = 'text'
   from information_schema.columns
   where table_schema = 'public'
@@ -188,6 +232,12 @@ values
     '00000000-0000-4000-8000-000000002051',
     'pending', 31000, 3000, now() + interval '15 minutes',
     '10000000-0000-4000-8000-000000002057'
+  ),
+  (
+    '20000000-0000-4000-8000-000000002071',
+    '00000000-0000-4000-8000-000000002051',
+    'pending', 31000, 3000, now() + interval '15 minutes',
+    '10000000-0000-4000-8000-000000002071'
   );
 
 insert into public.order_items (
@@ -215,7 +265,8 @@ from (
     ('20000000-0000-4000-8000-000000002054'::uuid),
     ('20000000-0000-4000-8000-000000002055'::uuid),
     ('20000000-0000-4000-8000-000000002056'::uuid),
-    ('20000000-0000-4000-8000-000000002057'::uuid)
+    ('20000000-0000-4000-8000-000000002057'::uuid),
+    ('20000000-0000-4000-8000-000000002071'::uuid)
 ) as source(order_id);
 
 do $goods_payment_prepare_contract$
@@ -550,6 +601,138 @@ select 1 / case when (
   from public.payments as payment
   where payment.ref_id = '20000000-0000-4000-8000-000000002057'
 ) then 1 else 0 end as assert_toss_payment_lands_on_the_shared_ledger;
+
+-- 콜백이 provider 응답을 읽지 못하면 굿즈 attempt는 unknown에 갇힌다. 콜백
+-- nonce 보유자만 확정할 수 있는 seam에는 되살릴 경로가 없었고, 웹훅은 nonce를
+-- 가지고 있지 않다. 명시적 대사만 그 모호 attempt를 지목해 정확히 한 번
+-- 수렴시키고, 이미 종결된 attempt에는 기존 결과를 그대로 재생한다.
+do $goods_payment_unknown_reconciliation$
+declare
+  prepared jsonb;
+  claimed jsonb;
+  reconciliation_claim jsonb;
+  terminal_claim jsonb;
+  attempt_id uuid;
+begin
+  prepared := public.prepare_goods_payment_attempt(
+    '00000000-0000-4000-8000-000000002051',
+    '20000000-0000-4000-8000-000000002071',
+    'toss'
+  );
+  attempt_id := (prepared ->> 'id')::uuid;
+
+  perform public.bind_goods_payment_callback_nonce(
+    attempt_id,
+    repeat('9', 64)
+  );
+
+  claimed := public.claim_goods_payment_attempt(
+    'toss',
+    prepared ->> 'provider_order_id',
+    repeat('9', 64),
+    '40000000-0000-4000-8000-000000002071'
+  );
+  if claimed ->> 'claim_status' is distinct from 'claimed' then
+    raise exception 'toss callback did not claim the reconciliation fixture';
+  end if;
+
+  -- 콜백이 provider 결과를 확인하지 못한 채 종결된 상태.
+  if public.finalize_goods_payment_attempt(
+    attempt_id,
+    '40000000-0000-4000-8000-000000002071',
+    'unknown'
+  ) is distinct from 'unknown' then
+    raise exception 'ambiguous toss goods attempt did not settle as unknown';
+  end if;
+
+  reconciliation_claim := public.claim_goods_payment_reconciliation(
+    attempt_id,
+    '41000000-0000-4000-8000-000000002071',
+    'case_goods_unknown_2071'
+  );
+  if reconciliation_claim ->> 'claim_status' is distinct from 'claimed' then
+    raise exception 'unknown goods attempt was not reclaimed for reconciliation';
+  end if;
+
+  if public.finalize_goods_payment_reconciliation(
+    attempt_id,
+    '41000000-0000-4000-8000-000000002071',
+    'approved',
+    null,
+    'toss-transaction-2071',
+    'toss-approval-2071',
+    '0000',
+    'CARD',
+    '1234-****-****-2071',
+    now()
+  ) is distinct from 'approved' then
+    raise exception 'goods payment reconciliation did not approve';
+  end if;
+
+  terminal_claim := public.claim_goods_payment_reconciliation(
+    attempt_id,
+    '41000000-0000-4000-8000-000000002072',
+    'case_goods_unknown_replay_2071'
+  );
+  if terminal_claim ->> 'claim_status' is distinct from 'terminal'
+    or terminal_claim ->> 'outcome' is distinct from 'approved'
+  then
+    raise exception 'goods payment reconciliation terminal replay failed';
+  end if;
+end;
+$goods_payment_unknown_reconciliation$;
+
+select 1 / case when (
+  select attempt.state = 'approved'
+    and attempt.provider = 'toss'
+    and attempt.payment_id is not null
+    and attempt.claim_token is null
+    and attempt.claim_expires_at is null
+    and order_record.status = 'paid'
+    and order_record.expires_at is null
+  from public.payment_attempts as attempt
+  join public.orders as order_record on order_record.id = attempt.ref_id
+  where attempt.ref_id = '20000000-0000-4000-8000-000000002071'
+) and (
+  select count(*) = 1
+    and bool_and(payment.provider = 'toss')
+    and bool_and(payment.status = 'paid')
+    and bool_and(payment.amount = 31000)
+    and bool_and(payment.raw is null)
+    and bool_and(payment.payment_key = 'toss-transaction-2071')
+  from public.payments as payment
+  where payment.purpose = 'order'
+    and payment.ref_id = '20000000-0000-4000-8000-000000002071'
+) and exists (
+  select 1
+  from private.goods_payment_reconciliation_audits as audit
+  where audit.claim_token = '41000000-0000-4000-8000-000000002071'::uuid
+    and audit.operation = 'payment'
+    and audit.target_id = (
+      select attempt.id
+      from public.payment_attempts as attempt
+      where attempt.ref_id = '20000000-0000-4000-8000-000000002071'
+    )
+    and audit.actor_ref = 'goods_payment_reconciliation_service_v1'
+    and audit.case_ref = 'case_goods_unknown_2071'
+    and audit.claim_status = 'terminal'
+    and audit.outcome = 'approved'
+    and audit.finalized_at is not null
+) then 1 else 0 end as assert_unknown_goods_attempt_reconciles_once;
+
+select 1 / case when (
+  select audit.claim_status = 'terminal'
+    and audit.outcome = 'approved'
+    and audit.case_ref = 'case_goods_unknown_replay_2071'
+    and audit.finalized_at is not null
+  from private.goods_payment_reconciliation_audits as audit
+  where audit.claim_token = '41000000-0000-4000-8000-000000002072'::uuid
+) and (
+  select count(*) = 1
+  from public.payments as payment
+  where payment.purpose = 'order'
+    and payment.ref_id = '20000000-0000-4000-8000-000000002071'
+) then 1 else 0 end as assert_terminal_goods_reconciliation_replays_without_change;
 
 do $goods_payment_finalization_guard$
 declare
