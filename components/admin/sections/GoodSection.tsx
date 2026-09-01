@@ -24,6 +24,7 @@ import { Icon } from '@/components/ui/Icon';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { GoodBankTransferControl } from '../GoodBankTransferControl';
+import { GoodSaleRestrictionControl } from '../GoodSaleRestrictionControl';
 import { ErrorText, Field, FormShell, InlineNotice, RecordList, SelectField, TextArea } from '../fields';
 
 const emptyStockState: AdminCatalogActionState = {};
@@ -468,6 +469,13 @@ export function GoodSection({
             allowBankTransfer={selected.allowBankTransfer}
             id={selected.id}
             key={`bank-${selected.id}:${selected.allowBankTransfer}`}
+          />
+        )}
+        {selected && !selected.archivedAt && (
+          <GoodSaleRestrictionControl
+            id={selected.id}
+            key={`sale-restriction-${selected.id}:${selected.saleRestriction}`}
+            saleRestriction={selected.saleRestriction}
           />
         )}
         {selected && (

@@ -27,6 +27,7 @@ const actionErrors = {
   onboarding_required: '프로필 설정을 먼저 완료해주세요.',
   payment_unavailable: '현재 결제 환경을 확인 중이에요. 잠시 후 다시 시도해주세요.',
   bank_transfer_blocked: '무통장 입금을 쓸 수 없는 굿즈가 담겨 있어요. 카드로 결제해주세요.',
+  restricted_good_blocked: '지금은 구매할 수 없는 굿즈가 담겨 있어요. 장바구니에서 빼고 다시 시도해주세요.',
   empty_cart: '장바구니가 비어 있어요.',
   out_of_stock: '결제 직전 재고가 변경됐어요. 장바구니에서 수량을 다시 확인해주세요.',
   coupon_rejected: '적용한 쿠폰을 쓸 수 없게 됐어요. 장바구니에서 쿠폰을 확인해주세요.',

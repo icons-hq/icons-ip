@@ -717,7 +717,7 @@ select public.place_order(
 select (public.prepare_goods_payment_attempt(
   '00000000-0000-4000-8000-000000000701'::uuid,
   :'pct10_order_id'::uuid,
-  'korpay'::public.payment_provider
+  'toss'::public.payment_provider
 ) ->> 'amount')::bigint as pct10_attempt_amount \gset
 
 reset role;
