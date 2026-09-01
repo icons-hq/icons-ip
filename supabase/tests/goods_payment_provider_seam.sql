@@ -182,6 +182,12 @@ values
     '00000000-0000-4000-8000-000000002051',
     'pending', 31000, 3000, now() + interval '15 minutes',
     '10000000-0000-4000-8000-000000002056'
+  ),
+  (
+    '20000000-0000-4000-8000-000000002057',
+    '00000000-0000-4000-8000-000000002051',
+    'pending', 31000, 3000, now() + interval '15 minutes',
+    '10000000-0000-4000-8000-000000002057'
   );
 
 insert into public.order_items (
@@ -208,7 +214,8 @@ from (
     ('20000000-0000-4000-8000-000000002053'::uuid),
     ('20000000-0000-4000-8000-000000002054'::uuid),
     ('20000000-0000-4000-8000-000000002055'::uuid),
-    ('20000000-0000-4000-8000-000000002056'::uuid)
+    ('20000000-0000-4000-8000-000000002056'::uuid),
+    ('20000000-0000-4000-8000-000000002057'::uuid)
 ) as source(order_id);
 
 do $goods_payment_prepare_contract$
@@ -216,7 +223,6 @@ declare
   first_prepare jsonb;
   replay_prepare jsonb;
   owner_rejected boolean := false;
-  toss_rejected boolean := false;
   snapshot_rejected boolean := false;
 begin
   first_prepare := public.prepare_goods_payment_attempt(
@@ -254,16 +260,6 @@ begin
   begin
     perform public.prepare_goods_payment_attempt(
       '00000000-0000-4000-8000-000000002051',
-      '20000000-0000-4000-8000-000000002052',
-      'toss'
-    );
-  exception when object_not_in_prerequisite_state then
-    toss_rejected := true;
-  end;
-
-  begin
-    perform public.prepare_goods_payment_attempt(
-      '00000000-0000-4000-8000-000000002051',
       '20000000-0000-4000-8000-000000002054',
       'korpay'
     );
@@ -271,7 +267,7 @@ begin
     snapshot_rejected := true;
   end;
 
-  if not owner_rejected or not toss_rejected or not snapshot_rejected then
+  if not owner_rejected or not snapshot_rejected then
     raise exception 'goods payment server revalidation did not fail closed';
   end if;
 end;
@@ -457,6 +453,103 @@ select 1 / case when (
     on attempt.id = evidence.payment_attempt_id
   where attempt.ref_id = '20000000-0000-4000-8000-000000002051'
 ) then 1 else 0 end as assert_provider_evidence_is_allowlisted_once;
+
+-- 토스는 코페이와 같은 콜백형 카드 provider다(#387). prepare → bind → claim →
+-- finalize 네 단계가 provider만 바뀐 채 그대로 성립해야 허용목록이 실제로
+-- 열린 것이고, 상태 기계는 provider를 구별하지 않는다는 계약도 함께 선다.
+do $goods_payment_toss_roundtrip$
+declare
+  prepared jsonb;
+  claimed jsonb;
+  finalized public.payment_attempt_state;
+  bank_transfer_callback_rejected boolean := false;
+begin
+  prepared := public.prepare_goods_payment_attempt(
+    '00000000-0000-4000-8000-000000002051',
+    '20000000-0000-4000-8000-000000002057',
+    'toss'
+  );
+
+  if prepared ->> 'provider' is distinct from 'toss'
+    or prepared ->> 'purpose' is distinct from 'order'
+    or prepared ->> 'currency' is distinct from 'KRW'
+    or (prepared ->> 'amount')::bigint <> 31000
+    or prepared ->> 'provider_order_id' !~ '^O[0-9a-f]{32}$'
+    or prepared ->> 'provider_product_code' !~ '^P[0-9a-f]{32}$'
+  then
+    raise exception 'prepared toss goods payment contract mismatch';
+  end if;
+
+  perform public.bind_goods_payment_callback_nonce(
+    (prepared ->> 'id')::uuid,
+    repeat('7', 64)
+  );
+
+  claimed := public.claim_goods_payment_attempt(
+    'toss',
+    prepared ->> 'provider_order_id',
+    repeat('7', 64),
+    '40000000-0000-4000-8000-000000002057'
+  );
+  if claimed ->> 'claim_status' is distinct from 'claimed' then
+    raise exception 'toss callback did not claim the attempt';
+  end if;
+
+  -- 콜백이 없는 provider는 콜백 seam을 계속 통과하지 못한다. 허용목록이
+  -- 넓어져도 무통장 attempt를 콜백 경로가 집어갈 수 있으면 안 된다.
+  begin
+    perform public.claim_goods_payment_attempt(
+      'bank_transfer',
+      prepared ->> 'provider_order_id',
+      repeat('7', 64),
+      '40000000-0000-4000-8000-000000002050'
+    );
+  exception when invalid_parameter_value then
+    bank_transfer_callback_rejected := true;
+  end;
+  if not bank_transfer_callback_rejected then
+    raise exception 'bank transfer must not enter the goods callback seam';
+  end if;
+
+  finalized := public.finalize_goods_payment_attempt(
+    (prepared ->> 'id')::uuid,
+    '40000000-0000-4000-8000-000000002057',
+    'approved',
+    null,
+    'toss-transaction-2057',
+    'toss-approval-2057',
+    '0000',
+    'CARD',
+    '1234-****-****-5678',
+    now()
+  );
+  if finalized <> 'approved' then
+    raise exception 'toss approval must finalize through the shared finalizer';
+  end if;
+end;
+$goods_payment_toss_roundtrip$;
+
+select 1 / case when (
+  select attempt.state = 'approved'
+    and attempt.provider = 'toss'
+    and attempt.payment_id is not null
+    and attempt.claim_token is null
+    and order_record.status = 'paid'
+    and order_record.expires_at is null
+  from public.payment_attempts as attempt
+  join public.orders as order_record on order_record.id = attempt.ref_id
+  where attempt.ref_id = '20000000-0000-4000-8000-000000002057'
+) then 1 else 0 end as assert_toss_attempt_completes_the_goods_seam;
+
+select 1 / case when (
+  select payment.provider = 'toss'
+    and payment.status = 'paid'
+    and payment.amount = 31000
+    and payment.raw is null
+    and payment.payment_key = 'toss-transaction-2057'
+  from public.payments as payment
+  where payment.ref_id = '20000000-0000-4000-8000-000000002057'
+) then 1 else 0 end as assert_toss_payment_lands_on_the_shared_ledger;
 
 do $goods_payment_finalization_guard$
 declare
