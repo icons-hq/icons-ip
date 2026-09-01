@@ -1,7 +1,7 @@
 import 'server-only';
 
 import type { PaymentAttempt, RefundOutcome } from '../payments/gateway';
-import { getPaymentGateway } from '../payments/runtime-gateway';
+import { getPaymentGateway, type PaymentCheckoutProvider } from '../payments/runtime-gateway';
 import { createServiceClient } from '../supabase/service';
 import { normalizeTicketReference } from '../ticketing';
 
@@ -33,7 +33,7 @@ export interface TicketCancellationContext {
   }>;
 }
 
-export type TicketCancellationPaymentProvider = 'toss' | 'korpay';
+export type TicketCancellationPaymentProvider = PaymentCheckoutProvider;
 
 /* provider_* 코드 일부는 더 이상 새로 기록되지 않지만, 과거 요청 행이 이미
  * 이 코드들을 담고 있어 DB 계약과 읽기 표면을 위해 유지한다. */
