@@ -425,7 +425,8 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       const successPath = attempt.purpose === 'order'
         ? `/api/payments/goods/confirm/toss/${nonce}`
         : `/api/payments/tickets/confirm/toss/${nonce}`;
-      const failPath = attempt.purpose === 'order' ? '/checkout' : '/ticket-checkout';
+      // 티켓 checkout에는 인덱스 라우트가 없다 — 실패 복귀는 예매 목록으로.
+      const failPath = attempt.purpose === 'order' ? '/checkout' : '/tickets';
       return {
         attemptId: attempt.id,
         provider: 'toss',

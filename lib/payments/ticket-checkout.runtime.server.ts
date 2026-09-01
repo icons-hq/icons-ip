@@ -17,11 +17,13 @@ function lazyRuntimeGateway(provider: PaymentCheckoutProvider): PaymentGateway {
 
 /**
  * Composition root kept outside the deep module so tests can inject Fake.
- * 티켓 seam의 기본 provider는 아직 korpay다 — 토스 전환(#393)에서 기본값이
- * 바뀌고, 그 전에는 웹훅 재정합(#390)만 'toss'를 명시해 조립한다.
+ * 티켓 seam의 기본 provider는 toss다(#393). 티켓에는 판매 제한 플래그가 없어
+ * 파생 분기도 없다 — korpay는 진행 중 콜백 drain(korpay confirm 라우트)만
+ * 명시 인자로 조립한다. gate(TOSS_TICKET_CHECKOUT_ENABLED)는 닫힌 채 두고
+ * 공연/티켓 판매 일정이 확정되면 env로 연다.
  */
 export function createRuntimeTicketPaymentCheckout(
-  provider: PaymentCheckoutProvider = 'korpay',
+  provider: PaymentCheckoutProvider = 'toss',
 ) {
   return createTicketPaymentCheckout({
     provider,
