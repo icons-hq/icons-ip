@@ -181,8 +181,9 @@ export async function POST(
     }
   }
 
-  // Existing Toss rows remain known-only. The provider-neutral repository
-  // explicitly returns `legacy_payment`; only then may the old reconciler run.
+  // The provider-neutral repository explicitly returns `legacy_payment` for
+  // rows of the terminated legacy contract; only then may the old reconciler
+  // run, and it resolves them without provider calls (manual review).
   const attemptToken = crypto.randomUUID();
 
   let beginResult: unknown;

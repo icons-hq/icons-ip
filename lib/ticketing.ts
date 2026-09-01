@@ -119,7 +119,7 @@ export type TicketCheckoutState = 'payable' | 'checking' | 'complete' | 'closed'
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RESERVATION_KEYS = new Set(['ticketTypeId', 'qty', 'reservationKey']);
 const POSTGRES_INTEGER_MAX = 2_147_483_647;
-const TOSS_ORDER_NAME_MAX_LENGTH = 100;
+const ORDER_NAME_MAX_LENGTH = 100;
 const ACTIVE_TICKET_CANCELLATION_STATUSES = new Set<TicketCancellationStatus>([
   'requested',
   'processing',
@@ -197,16 +197,16 @@ export function ticketOrderName(eventTitle: string, ticketTypeName: string, qty?
   const qtyLabel = Number.isInteger(qty) && (qty ?? 0) > 0 ? `${qty}매` : '';
   const ticketDetails = [ticketType, qtyLabel].filter(Boolean).join(' · ');
   if (!event && !ticketDetails) return 'ICONS 티켓';
-  if (!event) return ticketDetails.slice(0, TOSS_ORDER_NAME_MAX_LENGTH);
-  if (!ticketDetails) return event.slice(0, TOSS_ORDER_NAME_MAX_LENGTH);
+  if (!event) return ticketDetails.slice(0, ORDER_NAME_MAX_LENGTH);
+  if (!ticketDetails) return event.slice(0, ORDER_NAME_MAX_LENGTH);
 
   const suffix = ` · ${ticketDetails}`;
-  if (suffix.length >= TOSS_ORDER_NAME_MAX_LENGTH) {
-    if (!qtyLabel) return ticketDetails.slice(0, TOSS_ORDER_NAME_MAX_LENGTH);
+  if (suffix.length >= ORDER_NAME_MAX_LENGTH) {
+    if (!qtyLabel) return ticketDetails.slice(0, ORDER_NAME_MAX_LENGTH);
     const qtySuffix = ` · ${qtyLabel}`;
-    return `${ticketType.slice(0, TOSS_ORDER_NAME_MAX_LENGTH - qtySuffix.length)}${qtySuffix}`;
+    return `${ticketType.slice(0, ORDER_NAME_MAX_LENGTH - qtySuffix.length)}${qtySuffix}`;
   }
-  return `${event.slice(0, TOSS_ORDER_NAME_MAX_LENGTH - suffix.length)}${suffix}`;
+  return `${event.slice(0, ORDER_NAME_MAX_LENGTH - suffix.length)}${suffix}`;
 }
 
 export function isActiveTicketCancellation(status: TicketCancellationStatus | null): boolean {

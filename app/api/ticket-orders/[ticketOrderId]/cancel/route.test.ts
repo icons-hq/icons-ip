@@ -13,7 +13,6 @@ const USER_ID = '33333333-3333-4333-8333-333333333333';
 const mocks = vi.hoisted(() => ({
   supabaseConfigured: true,
   serviceConfigured: true,
-  tossConfigured: true,
   auth: null as CurrentAuthState | null,
   order: {
     id: '22222222-2222-4222-8222-222222222222',
@@ -28,9 +27,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
-vi.mock('@/lib/payments/toss-api', () => ({
-  getTossConfig: () => ({ isConfigured: mocks.tossConfigured }),
-}));
 vi.mock('@/lib/supabase/config', () => ({
   getSupabaseConfig: () => ({ isConfigured: mocks.supabaseConfigured }),
 }));
@@ -95,7 +91,6 @@ describe('POST /api/ticket-orders/[ticketOrderId]/cancel', () => {
   beforeEach(() => {
     mocks.supabaseConfigured = true;
     mocks.serviceConfigured = true;
-    mocks.tossConfigured = true;
     mocks.auth = onboardedAuth();
     mocks.order = { id: TICKET_ORDER_ID, user_id: USER_ID, status: 'paid' };
     mocks.orderError = null;
@@ -144,7 +139,7 @@ describe('POST /api/ticket-orders/[ticketOrderId]/cancel', () => {
     expect(JSON.stringify(mocks.rpc.mock.calls)).not.toMatch(/payment.?key|amount/i);
   });
 
-  it('Korpay 환급은 provider-neutral seam에서 완료하고 legacy Toss를 호출하지 않는다', async () => {
+  it('Korpay 환급은 provider-neutral seam에서 완료하고 legacy 오케스트레이터를 호출하지 않는다', async () => {
     mocks.refund.mockResolvedValue({
       attemptId: '44444444-4444-4444-8444-444444444444',
       provider: 'korpay',
@@ -209,8 +204,7 @@ describe('POST /api/ticket-orders/[ticketOrderId]/cancel', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it('Toss 설정이 없어도 provider 호출이 필요 없는 무결제 완료 요청은 닫는다', async () => {
-    mocks.tossConfigured = false;
+  it('provider 호출이 필요 없는 무결제 완료 요청은 재조정 없이 닫는다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: requestResult('completed'), error: null });
 
     const response = await POST(request(), context());
