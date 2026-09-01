@@ -2,9 +2,9 @@ import type { AdminGuideTopic } from '../types';
 
 export const DISPLAY_MESSAGING_TOPIC: AdminGuideTopic = {
   slug: 'display-messaging',
-  title: '홈 큐레이션과 알림·메일',
+  title: '홈 큐레이션·캠페인과 알림·메일',
   navLabel: '전시·알림',
-  summary: '홈 화면 노출(히어로·특집 IP·공지 배너), 인앱 공지 발송, 메일 발송 이력을 다룹니다.',
+  summary: '홈 화면 노출(히어로·특집 IP·공지 배너), 캠페인 편성, 인앱 공지 발송, 메일 발송 이력을 다룹니다.',
   sections: [
     {
       id: 'curations',
@@ -36,6 +36,39 @@ export const DISPLAY_MESSAGING_TOPIC: AdminGuideTopic = {
         },
       ],
       screens: [{ href: '/admin/display/curations' }],
+    },
+    {
+      id: 'campaigns',
+      heading: '캠페인 편성',
+      paragraphs: [
+        '캠페인은 이벤트 허브에 실리는 기간 한정 페이지입니다. 소개·이미지·본문·유의사항·쿠폰·굿즈 진열·출석·카드팩 교환 블록을 원하는 순서로 편성하면 그 순서 그대로 랜딩에 그려집니다.',
+      ],
+      steps: [
+        {
+          text: '캠페인 화면에서 새 캠페인을 만들고 블록을 편성합니다.',
+          screenHref: '/admin/display/campaigns',
+          detail: [
+            '주소 슬러그는 저장 후 바꿀 수 없습니다 — 공유된 링크가 깨지지 않게 하기 위한 규칙이니 등록 전에 확정해주세요.',
+            '쿠폰 블록의 코드는 등록된 쿠폰이어야 저장됩니다. 오타는 저장 시점에 걸러집니다.',
+          ],
+        },
+        {
+          text: '초안(비공개) 상태로 저장하면 운영자에게만 미리보기가 열립니다. 검수 후 공개로 전환해주세요.',
+        },
+        {
+          text: '허브 배너로 밀고 싶은 캠페인은 배너 순서를 지정합니다. 순서가 비어 있으면 배너에 실리지 않습니다.',
+        },
+      ],
+      callouts: [
+        {
+          tone: 'info',
+          title: '종료하면 참여도 함께 닫힙니다',
+          body: [
+            '기간이 끝나거나 종료 상태로 바꾸면 랜딩의 출석·교환 블록은 종료 안내로 바뀌고, 카드팩 교환은 진행 중인 공개 캠페인에 실려 있는 항목만 서버에서 허용됩니다 — 편성에서 내려간 교환 항목은 화면 밖 경로로도 교환되지 않습니다.',
+          ],
+        },
+      ],
+      screens: [{ href: '/admin/display/campaigns' }],
     },
     {
       id: 'notifications',

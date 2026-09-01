@@ -4,9 +4,9 @@ import type { AdminGuideTopic } from '../types';
 
 export const INQUIRIES_REVIEWS_TOPIC: AdminGuideTopic = {
   slug: 'inquiries-reviews',
-  title: '1:1 문의와 리뷰 관리',
+  title: '1:1 문의와 리뷰·상품 Q&A 관리',
   navLabel: '문의·리뷰',
-  summary: '문의 답변과 답변 템플릿, 리뷰 답글·블라인드 처리 방법입니다.',
+  summary: '문의 답변과 답변 템플릿, 리뷰 답글·블라인드, 상품 Q&A 답변 처리 방법입니다.',
   sections: [
     {
       id: 'inquiries',
@@ -73,6 +73,39 @@ export const INQUIRIES_REVIEWS_TOPIC: AdminGuideTopic = {
         },
       ],
       screens: [{ href: '/admin/cs/reviews' }, { href: '/admin/community/moderation' }],
+    },
+    {
+      id: 'product-qna',
+      heading: '상품 Q&A 답변',
+      paragraphs: [
+        '상품 Q&A는 굿즈 상세에 공개로 붙는 구매 전 질문입니다. 비공개 스레드인 1:1 문의와 다르게 답변도 상세 화면에 공개로 표시되며, 이 화면의 용어는 "질문"과 "답변"입니다.',
+      ],
+      steps: [
+        {
+          text: '상품 Q&A 화면에서 미답변 질문을 찾습니다. 답변 미등록 필터가 기본 큐입니다.',
+          screenHref: '/admin/cs/qna',
+        },
+        {
+          text: '답변을 등록합니다. 등록·수정 때마다 작성자에게 알림이 갑니다.',
+          detail: [
+            '답변을 고치면 알림이 다시 발송됩니다 — 내용이 바뀌었는데 조용하면 작성자는 이전 답변을 그대로 믿기 때문입니다.',
+          ],
+        },
+        {
+          text: '규정을 어긴 질문은 비노출 처리합니다. 원문은 남고 작성자에게는 계속 보입니다.',
+          detail: ['굿즈 이름을 누르면 해당 상세의 Q&A 탭으로 바로 이동해 공개 화면에서의 표시를 확인할 수 있습니다.'],
+        },
+      ],
+      callouts: [
+        {
+          tone: 'info',
+          title: '삭제는 작성자의 몫입니다',
+          body: [
+            '질문 삭제는 작성자만 할 수 있습니다. 운영자가 내릴 수 있는 조치는 비노출까지이고, 개인정보가 섞인 질문은 비노출 처리 후 작성자에게 삭제를 안내해주세요.',
+          ],
+        },
+      ],
+      screens: [{ href: '/admin/cs/qna' }],
     },
   ],
 };

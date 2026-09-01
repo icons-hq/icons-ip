@@ -4,6 +4,7 @@ import {
 } from '@/lib/admin/artwork';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import { BANK_TRANSFER_HOLD_HOURS } from '@/lib/payments/bank-transfer';
+import { MIN_PAYABLE_TOTAL } from '@/lib/coupons';
 import type { AdminGuideTopic } from '../types';
 
 /* 규격 수치는 검증 코드의 상수에서 파생한다 — 제한이 바뀌면 가이드가 따라온다. */
@@ -206,6 +207,33 @@ export const GOODS_SALES_TOPIC: AdminGuideTopic = {
         '무통장 주문의 입금 확인 절차는 "무통장 입금" 주제에서 다룹니다.',
       ],
       screens: [{ href: '/admin/catalog/goods' }, { href: '/admin/sales/unpaid' }],
+    },
+    {
+      id: 'coupons',
+      heading: '쿠폰과 회원 등급',
+      paragraphs: [
+        '쿠폰은 장바구니에서 고객이 직접 선택하거나 코드를 입력해 적용하는 할인입니다. 정률/정액, 사용 기간, 최소 주문금액을 정해 등록하면 조건을 만족하는 주문에서 바로 쓸 수 있습니다.',
+        '같은 화면 아래의 회원 등급 패널에서는 최근 90일 결제 확정 실적으로 산정되는 등급 현황을 보고, 실적이 어긋난 회원의 등급 재산정을 수동으로 복구할 수 있습니다. 등급 혜택 쿠폰은 승급 시 자동 발급됩니다.',
+      ],
+      steps: [
+        {
+          text: '쿠폰 관리에서 새 쿠폰을 등록합니다.',
+          screenHref: '/admin/sales/coupons',
+          detail: [
+            '코드는 고객이 입력하는 값이므로 안내에 쓸 표기 그대로 등록해주세요. 발급 후에는 사용 이력이 남으므로 삭제 대신 종료일로 내립니다.',
+          ],
+        },
+        {
+          text: '최소 주문금액과 할인폭을 정합니다.',
+          detail: [
+            `할인으로 결제 금액이 ${MIN_PAYABLE_TOTAL.toLocaleString('ko-KR')}원 아래로 내려가면 주문 확정 시 그 아래로는 깎이지 않게 자동으로 잘립니다 — 결제사가 받는 최소 금액입니다.`,
+          ],
+        },
+        {
+          text: '캠페인 경품으로 쓸 쿠폰은 캠페인 편성에서 코드로 연결합니다. 등록되지 않은 코드는 캠페인 저장이 거부됩니다.',
+        },
+      ],
+      screens: [{ href: '/admin/sales/coupons' }],
     },
     {
       id: 'archive',
