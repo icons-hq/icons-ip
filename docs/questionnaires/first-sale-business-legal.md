@@ -1,8 +1,8 @@
 # ICONS 첫 실판매 사업자·법무 확인서
 
-**목적:** 홍실 퀘스트 굿즈 첫 실판매에 필요한 법정 표기와 계약내용 전자문서 교부 방식을 확정합니다.
+**목적:** 첫 실판매(2026-08-26부터 대상은 메이플스토리 공식 라이선스 굿즈, [#319](https://github.com/icons-hq/icons-ip/issues/319))에 필요한 법정 표기와 계약내용 전자문서 교부 방식을 확정합니다.
 
-> **상태: 2026-08-11 작성 · 미회신.** 사업자·통신판매업·공개 정보·계약내용 전자문서 교부 항목은 [#239](https://github.com/icons-hq/icons-ip/issues/239)로 유효하다. 결제는 이후 Korpay 실연동으로 전환됐으므로(#244·#245·#247) 아래 `토스페이먼츠` 섹션은 historical이라 **답변하지 않아도 됩니다.** 현행 결제 gate는 [#207](https://github.com/icons-hq/icons-ip/issues/207)·[#208](https://github.com/icons-hq/icons-ip/issues/208)이 추적한다.
+> **상태: 2026-08-11 작성 · 부분 회신.** 사업자·통신판매업·공개 정보 7종은 2026-08-20 회신·배포됐고(#276), 계약내용 전자문서 교부의 법적 충분성 판단만 [#239](https://github.com/icons-hq/icons-ip/issues/239)로 유효하다. 질문의 법정 표기 항목은 판매 IP와 무관하게 그대로 적용된다. 결제는 이후 Korpay 실연동으로 전환됐으므로(#244·#245·#247) 아래 `토스페이먼츠` 섹션은 historical이라 **답변하지 않아도 됩니다.** 현행 결제 gate는 [#207](https://github.com/icons-hq/icons-ip/issues/207)·[#208](https://github.com/icons-hq/icons-ip/issues/208)이 추적한다.
 
 **보내는 사람:** ICONS 개발·운영팀  
 **답변 담당:** 사업자·법무 담당자  
