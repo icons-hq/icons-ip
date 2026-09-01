@@ -15,11 +15,13 @@
  *   - `.legal-doc*` 는 이 화면 전용 어휘라 원본 셀렉터 그대로 둔다.
  *   - globals.css 의 `@layer` 규칙은 레이어를 유지한 채 옮긴다(레이어 규칙은 명시도와
  *     무관하게 비레이어 규칙에 진다).
- *   - 토큰은 아래에서 `.legal-doc` 에 자체 정의한다. W2가 토큰 원천을 지워도 자립한다.
+ *   - 토큰은 아래에서 `.legal-doc` 에 자체 정의한다. 구 토큰 원천(editorial 3파일)은
+ *     S9 에서 삭제됐고, 남은 파일들이 나중에 더 줄어도 자립한다.
  *
  * 전제
- *   - Tailwind preflight(`@import "tailwindcss"`)는 계속 존재한다고 본다. 지금은
- *     globals.css 가 그 import를 갖고 있으므로 W2에서 다른 파일로 옮겨야 한다.
+ *   - Tailwind preflight(`@import "tailwindcss"`)는 계속 존재한다고 본다. 그 import 는
+ *     globals.css 가 갖고 있다(S9 판정: Tailwind v4 는 스택 규칙이라 유지) — globals 를
+ *     정리하는 쪽은 import 의 새 거처를 먼저 정해야 한다.
  *   - layout.tsx 임포트 순서는 editorial-foundation.css 뒤여야 한다.
  *
  * 삭제 조건

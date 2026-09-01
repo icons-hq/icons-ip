@@ -83,9 +83,13 @@ describe('Living IP Editorial global design wiring', () => {
     }
   });
 
-  it('keeps the shrunken globals.css on the admin surface only', () => {
-    /* globals.css는 S9 이후 "Tailwind·폰트 같은 진짜 전역 하부 + HM 다크 어드민"만 담는다.
-     * 공개 표면 어휘가 다시 들어오면 전역 규칙 하나가 wc 지면을 통째로 흔든다. */
+  it('keeps the shrunken globals.css scoped to global plumbing and admin vocabulary', () => {
+    /* globals.css는 S9 이후 "Tailwind·폰트 같은 진짜 전역 하부 + 어드민 잔존 어휘"만 담는다.
+     * 공개 표면 어휘가 다시 들어오면 전역 규칙 하나가 wc 지면을 통째로 흔든다.
+     * 정밀 한계: 결제 실패 화면·결제 위젯 마크업이 아직 `.btn` 계열 클래스를 달고 있어
+     * globals의 광역 유틸이 공개 표면에도 "닿기는" 한다(`.wc-receipt .btn` 스코프 규칙이
+     * 덮어 시각은 WC가 결정). 그 마크업의 wc 클래스 이행이 끝나기 전까지 이 단언은
+     * "공개 전용 어휘의 부재"까지만 잰다. */
     const css = read('./globals.css');
 
     expect(css).toContain('@import "tailwindcss"');

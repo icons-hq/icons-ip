@@ -133,6 +133,8 @@ describe('postcode field contrast', () => {
 
   const color = (value: string) => parseColor(resolveToken(value, tokens));
 
+  /* 레이어 배경이 지금은 불투명이라 composite 두 번은 무연산이지만, 계산을 남겨
+     둔다 — 배경이 반투명으로 돌아오는 순간 실제 합성색으로 재는 단언이 된다. */
   it('keeps the search-layer fallback notice readable on its own scrim', () => {
     const paper = color(declaredValue(commerce, CHECKOUT_PAPER_RULE, 'background'));
     const layer = composite(
@@ -155,7 +157,7 @@ describe('postcode field contrast', () => {
     const paper = color(declaredValue(commerce, CHECKOUT_PAPER_RULE, 'background'));
     const ink = color(declaredValue(commerce, '.wc-receipt .postcode-field-label', 'color'));
 
-    /* 종이가 실제로 밝은 면이 맞는지 먼저 붙잡는다. 스크림 쪽 단언과 대칭이다. */
+    /* 종이가 실제로 밝은 면이 맞는지 먼저 붙잡는다 — 라이트 스킴 전환의 전제 단언. */
     expect(relativeLuminance(paper)).toBeGreaterThan(0.5);
     expect(contrastRatio(ink, paper)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
   });

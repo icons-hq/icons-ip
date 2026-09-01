@@ -21,11 +21,13 @@
  *     레이어 규칙은 명시도와 무관하게 비레이어 규칙에 지므로(예: `.chip.on.accent` 가
  *     editorial-foundation 의 `.chip.on` 에 지는 현재 동작), 레이어를 벗기면 색이 바뀐다.
  *   - `.event-*` 는 이 두 화면 전용 어휘라 원본 셀렉터 그대로 둔다.
- *   - 토큰·keyframes 는 아래에 자체 정의한다. W2가 토큰 원천을 지워도 자립한다.
+ *   - 토큰·keyframes 는 아래에 자체 정의한다. 구 토큰 원천(editorial 3파일)은 S9 에서
+ *     삭제됐고, 남은 globals.css·editorial-foundation.css 가 나중에 더 줄어도 자립한다.
  *
  * 전제
  *   - Tailwind preflight(`@import "tailwindcss"`)와 `.sr-only` 유틸리티는 계속 존재한다고
- *     본다. 지금은 globals.css 가 그 import를 갖고 있으므로 W2에서 다른 파일로 옮겨야 한다.
+ *     본다. 그 import 는 globals.css 가 갖고 있다(S9 판정: Tailwind v4 는 스택 규칙이라
+ *     유지) — globals 를 정리하는 쪽은 import 의 새 거처를 먼저 정해야 한다.
  *   - layout.tsx 임포트 순서는 editorial-foundation.css 뒤여야 한다(about-legacy.css 처럼
  *     맨 뒤가 가장 안전하다). 이 파일 규칙은 명시도가 원본과 같아서, 동률일 때 나중에
  *     선언된 쪽이 이기는 현재 순서를 그대로 재현해야 한다.
