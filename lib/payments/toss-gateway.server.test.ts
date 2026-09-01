@@ -133,7 +133,7 @@ describe('TossPayments v2 gateway', () => {
       expect(prepared.action.payload.successUrl).toBe(
         `${SITE_URL}/api/payments/tickets/confirm/toss/${prepared.callbackNonce}`,
       );
-      expect(prepared.action.payload.failUrl).toBe(`${SITE_URL}/ticket-checkout`);
+      expect(prepared.action.payload.failUrl).toBe(`${SITE_URL}/tickets`);
     });
 
     it('재-prepare는 바이트 안정적이다', async () => {
