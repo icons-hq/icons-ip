@@ -19,6 +19,7 @@ export type AdminGuideTopicSlug =
   | 'cards-games'
   | 'events-tickets'
   | 'display-messaging'
+  | 'promotions'
   | 'members-roles'
   | 'stats'
   | 'troubleshooting'

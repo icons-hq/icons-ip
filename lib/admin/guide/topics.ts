@@ -9,6 +9,7 @@ import { GOODS_SALES_TOPIC } from './topics/goods-sales';
 import { INQUIRIES_REVIEWS_TOPIC } from './topics/inquiries-reviews';
 import { MEMBERS_ROLES_TOPIC } from './topics/members-roles';
 import { ORDERS_SHIPPING_TOPIC } from './topics/orders-shipping';
+import { PROMOTIONS_TOPIC } from './topics/promotions';
 import { STATS_TOPIC } from './topics/stats';
 import { TROUBLESHOOTING_TOPIC } from './topics/troubleshooting';
 import type { AdminGuideTopic, AdminGuideTopicSlug } from './types';
@@ -26,6 +27,7 @@ export const ADMIN_GUIDE_TOPIC_SLUGS: readonly AdminGuideTopicSlug[] = [
   'cards-games',
   'events-tickets',
   'display-messaging',
+  'promotions',
   'members-roles',
   'stats',
   'troubleshooting',
@@ -42,6 +44,7 @@ export const ADMIN_GUIDE_TOPICS: Record<AdminGuideTopicSlug, AdminGuideTopic> = 
   'cards-games': CARDS_GAMES_TOPIC,
   'events-tickets': EVENTS_TICKETS_TOPIC,
   'display-messaging': DISPLAY_MESSAGING_TOPIC,
+  promotions: PROMOTIONS_TOPIC,
   'members-roles': MEMBERS_ROLES_TOPIC,
   stats: STATS_TOPIC,
   troubleshooting: TROUBLESHOOTING_TOPIC,

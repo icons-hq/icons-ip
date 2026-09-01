@@ -4,9 +4,9 @@ import type { AdminGuideTopic } from '../types';
 
 export const INQUIRIES_REVIEWS_TOPIC: AdminGuideTopic = {
   slug: 'inquiries-reviews',
-  title: '1:1 문의와 리뷰 관리',
+  title: '문의·Q&A·리뷰 관리',
   navLabel: '문의·리뷰',
-  summary: '문의 답변과 답변 템플릿, 리뷰 답글·블라인드 처리 방법입니다.',
+  summary: '비공개 1:1 문의 답변, 굿즈 상세에 공개되는 상품 Q&A, 리뷰 답글·블라인드 처리 방법입니다.',
   sections: [
     {
       id: 'inquiries',
@@ -40,6 +40,30 @@ export const INQUIRIES_REVIEWS_TOPIC: AdminGuideTopic = {
         },
       ],
       screens: [{ href: '/admin/cs/inquiries' }],
+    },
+    {
+      id: 'qna',
+      heading: '상품 Q&A 답변',
+      paragraphs: [
+        '상품 Q&A는 굿즈 상세에 공개로 남는 구매 전 질문입니다. 비공개 스레드인 1:1 문의와 별개 채널이므로, 개인정보·주문 관련 상담이 Q&A로 들어오면 답변에서 1:1 문의로 안내해주세요.',
+      ],
+      steps: [
+        { text: '상품 Q&A 화면에서 답변 대기 질문을 확인합니다.', screenHref: '/admin/cs/qna' },
+        {
+          text: '답변(1~2,000자)을 등록합니다.',
+          detail: [
+            '답변은 굿즈 상세에 바로 공개되고 작성자에게 알림이 갑니다.',
+            '같은 질문에 답변을 다시 저장하면 내용이 갱신됩니다 — 갱신할 때마다 작성자에게 알림이 다시 가므로 저장 전에 문구를 확정해주세요.',
+          ],
+        },
+        {
+          text: '규정을 어긴 질문은 비노출 처리합니다.',
+          detail: [
+            '비노출은 삭제가 아닙니다 — 굿즈 상세에서는 즉시 빠지지만 원문은 남고, 작성자는 자기 질문을 계속 볼 수 있습니다. 판단이 바뀌면 다시 공개할 수 있습니다.',
+          ],
+        },
+      ],
+      screens: [{ href: '/admin/cs/qna' }],
     },
     {
       id: 'reviews',

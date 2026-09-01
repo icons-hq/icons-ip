@@ -46,8 +46,8 @@ function referencedHrefs(topic: AdminGuideTopic): string[] {
 }
 
 describe('어드민 가이드 레지스트리', () => {
-  it('순서 배열과 레코드가 같은 13개 주제를 가리킨다', () => {
-    expect(ADMIN_GUIDE_TOPIC_SLUGS).toHaveLength(13);
+  it('순서 배열과 레코드가 같은 14개 주제를 가리킨다', () => {
+    expect(ADMIN_GUIDE_TOPIC_SLUGS).toHaveLength(14);
     expect(new Set(ADMIN_GUIDE_TOPIC_SLUGS).size).toBe(ADMIN_GUIDE_TOPIC_SLUGS.length);
     expect([...ADMIN_GUIDE_TOPIC_SLUGS].sort()).toEqual(Object.keys(ADMIN_GUIDE_TOPICS).sort());
 
@@ -119,10 +119,11 @@ describe('어드민 가이드 콘텐츠 무결성', () => {
 
   /* 어드민은 staff 내부 화면이지만 용어는 CONTEXT.md를 따른다 — 실물은 "굿즈"고,
      폐기된 유료 모델의 어휘는 안내문에 되살리지 않는다. '뽑기'는 화면 라벨
-     "뽑기권 발급 정책"에 살아 있는 도메인 용어라 금지 목록에 넣지 않는다. */
+     "뽑기권 발급 정책"에 살아 있는 도메인 용어라 금지 목록에 넣지 않는다.
+     "상품 Q&A"는 CONTEXT.md의 캐노니컬 명칭이라 이 복합어만 '상품' 금지에서 뺀다. */
   it('CONTEXT.md가 피하라고 한 어휘를 쓰지 않는다', () => {
     for (const topic of topics) {
-      const text = plainText(topic);
+      const text = plainText(topic).replaceAll('상품 Q&A', '');
       for (const word of ['상품', '가챠', '천장', '충전']) {
         expect(text, `${topic.slug} · ${word}`).not.toMatch(new RegExp(word));
       }
