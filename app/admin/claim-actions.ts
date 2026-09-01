@@ -20,7 +20,7 @@ import { createClient } from '@/lib/supabase/server';
  *
  * 이 파일은 돈을 직접 움직이지 않는다. 재고 복원과 카드팩 회수는
  * finalize_order_cancellation_with_provider_evidence 한 곳에만 있고, 여기서는
- * 이미 있는 정합화 경로 — legacy Toss는 오케스트레이터, Korpay는 수동 복구 seam —
+ * 이미 있는 정합화 경로 — 취소 요청 오케스트레이터와 Korpay 수동 복구 seam —
  * 를 그대로 호출한 뒤 그 결과를 환불 원장에 적을 뿐이다. 두 번째 원장을 만들면
  * "환불은 완료인데 재고는 그대로"인 주문이 생긴다. */
 
@@ -161,7 +161,8 @@ interface ManualRecoveryAttemptRow {
  * 클레임을 종결 가능한 상태로 만든다.
  *
  * Korpay는 `refund()`가 API를 부르지 않고 전건 needs_review로 떨어지므로 수동
- * 확인 seam이 정상 경로다(#208). legacy Toss만 provider 재조회로 자동 정합화한다.
+ * 확인 seam이 정상 경로다(#208). 오케스트레이터도 provider를 부르지 않는다 —
+ * 해지된 legacy 계약의 유상 캡처는 수동 검토로만 승격된다(#384).
  * 어느 쪽이든 마지막에 finalize_order_cancellation_with_provider_evidence를 지나며,
  * 그 함수만이 재고를 복원하고 미개봉 카드팩을 회수한다.
  */

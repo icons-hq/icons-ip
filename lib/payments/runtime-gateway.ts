@@ -69,7 +69,7 @@ export function newPaymentCheckoutEnabled(
 
 /**
  * Resolves the server-only Korpay adapter lazily so missing or partial runtime
- * configuration stays fail closed without breaking legacy Toss drains.
+ * configuration stays fail closed.
  */
 export function getPaymentGateway(): PaymentGateway {
   const configuration = runtimeConfiguration();

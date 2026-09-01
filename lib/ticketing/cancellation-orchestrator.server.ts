@@ -1,20 +1,7 @@
 import 'server-only';
 
-import {
-  cancelTossPayment,
-  fetchTossPayment,
-  type TossApiResult,
-} from '../payments/toss-api';
-import {
-  buildTossOrderId,
-  normalizeTossPayment,
-  verifyTossCancellationState,
-} from '../payments/toss';
-import { createLegacyTossPaymentRepository } from '../payments/legacy-toss-ledger.server';
 import { createServiceClient } from '../supabase/service';
 import { normalizeTicketReference } from '../ticketing';
-
-const PROVIDER_CANCEL_REASON = '사용자 티켓 예매 취소';
 
 export type TicketCancellationRequestStatus =
   | 'requested'
@@ -43,6 +30,8 @@ export interface TicketCancellationContext {
   }>;
 }
 
+/* provider_* 코드 일부는 더 이상 새로 기록되지 않지만, 과거 요청 행이 이미
+ * 이 코드들을 담고 있어 DB 계약과 읽기 표면을 위해 유지한다. */
 export type TicketCancellationCode =
   | 'request_not_found'
   | 'request_not_ready'
@@ -63,19 +52,6 @@ export type TicketCancellationResult =
 
 export interface TicketCancellationDependencies {
   loadContext(requestId: string, userId: string): Promise<TicketCancellationContext | null>;
-  fetchPayment(paymentKey: string): Promise<TossApiResult>;
-  cancelPayment(input: {
-    paymentKey: string;
-    cancelReason: string;
-    idempotencyKey: string;
-  }): Promise<TossApiResult>;
-  recordEvidence(input: {
-    ticketOrderId: string;
-    reason: string;
-    paymentKey: string;
-    providerRaw: unknown;
-    refundConfirmed: boolean;
-  }): Promise<void>;
   completeRequest(input: {
     requestId: string;
     attemptToken: string;
@@ -109,7 +85,6 @@ const PAYMENT_STATUSES = new Set<TicketCancellationPaymentStatus>([
 
 function createDefaultDependencies(): TicketCancellationDependencies {
   const service = createServiceClient();
-  const tossPayments = createLegacyTossPaymentRepository(service);
 
   return {
     async loadContext(requestId, userId) {
@@ -134,8 +109,12 @@ function createDefaultDependencies(): TicketCancellationDependencies {
       if (orderError || !orderData) throw new Error('ticket order lookup failed');
       const order = orderData as Record<string, unknown>;
 
-      const { data: paymentData, error: paymentError } = await tossPayments
+      // 이 조회는 해지된 legacy Toss 계약의 원장 행만 본다. 신규 provider의
+      // 티켓 환불은 PaymentGateway.refund seam이 정합화 경로다.
+      const { data: paymentData, error: paymentError } = await service
+        .from('payments')
         .select('id,status,amount,payment_key')
+        .eq('provider', 'toss')
         .eq('purpose', 'ticket')
         .eq('ref_id', request.ticket_order_id)
         .order('id', { ascending: true });
@@ -159,20 +138,6 @@ function createDefaultDependencies(): TicketCancellationDependencies {
         }),
       };
     },
-    fetchPayment: fetchTossPayment,
-    cancelPayment: ({ paymentKey, cancelReason, idempotencyKey }) => (
-      cancelTossPayment(paymentKey, cancelReason, idempotencyKey)
-    ),
-    async recordEvidence({ ticketOrderId, reason, paymentKey, providerRaw, refundConfirmed }) {
-      const { error } = await service.rpc('record_ticket_provider_cancellation_evidence', {
-        p_ticket_order_id: ticketOrderId,
-        p_reason: reason,
-        p_provider_payment_key: paymentKey,
-        p_provider_raw: providerRaw,
-        p_refund_confirmed: refundConfirmed,
-      });
-      if (error) throw new Error('ticket cancellation evidence recording failed');
-    },
     async completeRequest({ requestId, attemptToken, verifiedPaymentKeys }) {
       const { error } = await service.rpc('complete_ticket_cancellation_request', {
         p_request_id: requestId,
@@ -194,14 +159,6 @@ function createDefaultDependencies(): TicketCancellationDependencies {
 
 function isCanonicalReference(value: unknown): value is string {
   return typeof value === 'string' && normalizeTicketReference(value) === value;
-}
-
-function verificationFailureCode(
-  reason: 'provider_response_mismatch' | 'unsupported_payment_contract' | 'incomplete_cancellation',
-): TicketCancellationCode {
-  return reason === 'incomplete_cancellation'
-    ? 'provider_cancellation_incomplete'
-    : 'provider_mismatch';
 }
 
 async function markNeedsReview(
@@ -236,8 +193,12 @@ function isValidContext(
 }
 
 /**
- * 처리권을 획득한 티켓 취소 요청을 fresh provider 증거와 원자 RPC로 정합화한다.
+ * 처리권을 획득한 티켓 취소 요청을 로컬 원자 RPC로 정합화한다.
  * 결제 키·금액은 service DB에서만 읽고 반환값에는 provider 식별자를 포함하지 않는다.
+ *
+ * provider 원격 왕복은 없다. 유상 캡처가 남아 있다면 그것은 해지된 legacy
+ * Toss 계약의 결제뿐이라 원격 취소·재검증이 불가능하므로(#384), 자동 완료
+ * 대신 수동 검토로 승격한다.
  */
 export async function reconcileTicketCancellation(
   input: { requestId: string; userId: string; attemptToken: string },
@@ -300,99 +261,15 @@ export async function reconcileTicketCancellation(
     return markNeedsReview(dependencies, input, 'payment_evidence_invalid');
   }
 
-  const verifiedPaymentKeys: string[] = [];
-  const payments = [...activePayments].sort((left, right) => left.id.localeCompare(right.id));
-  for (const payment of payments) {
-    const paymentKey = payment.paymentKey as string;
-    const expected = {
-      paymentKey,
-      orderId: buildTossOrderId('ticket', context.ticketOrderId),
-      amount: payment.amount,
-    };
-
-    let beforeCancel: TossApiResult;
-    try {
-      beforeCancel = await dependencies.fetchPayment(paymentKey);
-    } catch {
-      return markNeedsReview(dependencies, input, 'provider_unavailable');
-    }
-    if (!beforeCancel.ok) {
-      return markNeedsReview(dependencies, input, 'provider_unavailable');
-    }
-
-    const beforeVerification = verifyTossCancellationState(beforeCancel.body, expected);
-    if (!beforeVerification.ok) {
-      return markNeedsReview(
-        dependencies,
-        input,
-        verificationFailureCode(beforeVerification.reason),
-      );
-    }
-    const beforePayment = normalizeTossPayment(beforeCancel.body);
-    if (!beforePayment?.method || beforePayment.method === '가상계좌') {
-      return markNeedsReview(dependencies, input, 'unsupported_payment_method');
-    }
-
-    let providerRaw = beforeCancel.body;
-
-    if (beforeVerification.state === 'uncanceled') {
-      try {
-        await dependencies.cancelPayment({
-          paymentKey,
-          cancelReason: PROVIDER_CANCEL_REASON,
-          idempotencyKey: `ticket-cancel-${input.requestId}-${payment.id}`,
-        });
-      } catch {
-        // POST 성공 여부와 무관하게 바로 이어지는 fresh GET만 최종 증거로 사용한다.
-      }
-
-      let afterCancel: TossApiResult;
-      try {
-        afterCancel = await dependencies.fetchPayment(paymentKey);
-      } catch {
-        return markNeedsReview(dependencies, input, 'provider_unavailable');
-      }
-      if (!afterCancel.ok) {
-        return markNeedsReview(dependencies, input, 'provider_unavailable');
-      }
-
-      const afterVerification = verifyTossCancellationState(afterCancel.body, expected);
-      if (!afterVerification.ok) {
-        return markNeedsReview(
-          dependencies,
-          input,
-          verificationFailureCode(afterVerification.reason),
-        );
-      }
-      if (afterVerification.state !== 'fully_canceled') {
-        return markNeedsReview(dependencies, input, 'provider_cancel_failed');
-      }
-      const afterPayment = normalizeTossPayment(afterCancel.body);
-      if (!afterPayment?.method || afterPayment.method === '가상계좌') {
-        return markNeedsReview(dependencies, input, 'unsupported_payment_method');
-      }
-      providerRaw = afterCancel.body;
-    }
-
-    try {
-      await dependencies.recordEvidence({
-        ticketOrderId: context.ticketOrderId,
-        reason: PROVIDER_CANCEL_REASON,
-        paymentKey,
-        providerRaw,
-        refundConfirmed: true,
-      });
-    } catch {
-      return markNeedsReview(dependencies, input, 'local_evidence_failed');
-    }
-    verifiedPaymentKeys.push(paymentKey);
+  if (activePayments.length > 0) {
+    return markNeedsReview(dependencies, input, 'provider_unavailable');
   }
 
   try {
     await dependencies.completeRequest({
       requestId: input.requestId,
       attemptToken: input.attemptToken,
-      verifiedPaymentKeys,
+      verifiedPaymentKeys: [],
     });
   } catch {
     return markNeedsReview(dependencies, input, 'local_finalize_failed');
