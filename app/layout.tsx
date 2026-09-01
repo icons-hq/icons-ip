@@ -2,9 +2,6 @@ import type { Metadata } from 'next';
 import { Space_Grotesk, Space_Mono } from 'next/font/google';
 import './globals.css';
 import './styles/editorial-foundation.css';
-import './styles/editorial-shell.css';
-import './styles/editorial-public.css';
-import './styles/editorial-account-commerce.css';
 import './styles/editorial-admin.css';
 import './styles/admin-console.css';
 import './styles/wc-foundation.css';
@@ -14,7 +11,12 @@ import './styles/wc-catalog.css';
 import './styles/wc-discovery.css';
 import './styles/wc-account-commerce.css';
 import './styles/wc-campaign.css';
+/* 이행이 끝나지 않은 잔존 표면 3종의 legacy 스타일. editorial-* 원본과 같은 규칙을
+   화면별 앵커 안에 가둔 사본이라, 원본과 동률인 캐스케이드를 재현하려면 반드시
+   editorial-foundation 뒤 — 목록 맨 뒤 — 에 와야 한다(about-legacy와 같은 이유). */
 import './styles/about-legacy.css';
+import './styles/offline-popups-legacy.css';
+import './styles/legal-doc.css';
 import { AuthPresenceProvider } from '@/components/shell/AuthPresenceProvider';
 import { CartProvider } from '@/components/shell/CartProvider';
 import { Nav } from '@/components/shell/Nav';

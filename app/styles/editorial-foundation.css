@@ -1,5 +1,18 @@
 /* ICONS — Living IP Editorial: semantic foundation
-   Imported after the legacy stylesheet while surfaces migrate. */
+
+   S9(#331)에서 공개 스토어프론트가 White Catalog(`app/styles/wc-*.css`)로 넘어가고
+   editorial-shell / -public / -account-commerce 세 파일이 폐기된 뒤, 이 파일에 남은
+   규칙은 아래 표면만 위한 것이다.
+
+   - HM 다크 어드민(`editorial-admin.css`가 이 어휘 위에 흰 값을 얹는다)
+   - 보존 전시 `/about`(`about-legacy.css`)
+   - 잔존 legacy 3화면(`offline-popups-legacy.css`·`legal-doc.css`) — 이 두 파일은
+     토큰을 자기 스코프에 복제해 두었지만, `:where(input)`·`:lang(ko)` 같은
+     전역 element 규칙은 여전히 여기서 받는다.
+
+   그래서 규칙이 여전히 전역(element·:root)이다. wc 표면은 지면마다 이 값들을 명시적으로
+   되돌리는 것을 전제로 작성돼 있으므로(각 wc 파일 헤더 참고), 여기에 새 전역 규칙을
+   추가하지 않는다. 위 세 표면이 모두 이행되면 이 파일도 함께 사라진다. */
 
 :root {
   color-scheme: light;
@@ -116,11 +129,6 @@
   --ff-mono: var(--editorial-font-utility);
 }
 
-/* 헤더가 스크롤로 숨으면 sticky 서브바도 그 자리를 따라 올라간다. */
-:root[data-header-hidden='true'] {
-  --header-offset: var(--editorial-header-gap);
-}
-
 html {
   background: var(--editorial-canvas);
   scroll-padding-top: 112px;
@@ -167,11 +175,6 @@ body {
   opacity: 1;
 }
 
-.bg-atmos,
-.mobnav {
-  display: none !important;
-}
-
 .wrap {
   width: min(calc(100% - (var(--editorial-page-gutter) * 2)), var(--maxw));
   max-width: none;
@@ -184,9 +187,9 @@ body {
   padding-bottom: clamp(80px, 9vw, 132px);
 }
 
-.h-xxl,
+/* `.h-xxl`·`.h-lg`는 S9에서 컨슈머가 사라져 셀렉터 목록에서 뺐다.
+   `:is()` 명시도는 최대 인자 기준이라 `.h-xl`이 남는 한 값이 바뀌지 않는다. */
 .h-xl,
-.h-lg,
 h1,
 h2,
 h3 {
@@ -195,7 +198,7 @@ h3 {
   text-wrap: balance;
 }
 
-:lang(ko):is(h1, h2, h3, .h-xxl, .h-xl, .h-lg) {
+:lang(ko):is(h1, h2, h3, .h-xl) {
   word-break: keep-all;
   line-break: strict;
   overflow-wrap: normal;
@@ -212,13 +215,6 @@ h3 {
   font-weight: 840;
   line-height: var(--editorial-leading-display);
   letter-spacing: var(--editorial-tracking-display);
-}
-
-.h-lg {
-  font-size: clamp(28px, 3vw, 48px);
-  font-weight: 800;
-  line-height: var(--editorial-leading-title);
-  letter-spacing: var(--editorial-tracking-title);
 }
 
 .eyebrow {
@@ -239,10 +235,6 @@ h3 {
   font-family: var(--ff-mono);
 }
 
-.dim {
-  color: var(--editorial-ink-muted) !important;
-}
-
 .faint {
   color: var(--editorial-ink-faint) !important;
 }
@@ -252,12 +244,6 @@ h3 {
   background: var(--editorial-surface);
   box-shadow: none;
   color: var(--editorial-ink);
-}
-
-.card.lift:hover {
-  border-color: var(--editorial-line);
-  box-shadow: 0 22px 54px -38px rgba(17, 17, 15, .42);
-  transform: translateY(-3px);
 }
 
 .btn {
@@ -354,18 +340,10 @@ h3 {
   -webkit-text-fill-color: currentColor;
 }
 
-.foil,
+/* 키아트 시트는 밝은 지면에서 꺼 둔다. 남은 컨슈머는 /offline-popups 두 화면뿐이고,
+   그쪽은 offline-popups-legacy.css가 같은 규칙의 스코프 사본을 갖고 있다. */
 .sheen {
   opacity: 0;
-}
-
-.collectible-card .foil,
-.collectible-card .sheen,
-.binder-card .foil,
-.binder-card .sheen,
-.gacha-card .foil,
-.gacha-card .sheen {
-  opacity: 1;
 }
 
 :where(input:not([type='checkbox']):not([type='radio']), select, textarea) {
@@ -385,7 +363,8 @@ h3 {
 @media (max-width: 1199px) {
   :root {
     --nav-h: 82px;
-    /* editorial-shell.css의 캡슐 축소와 같은 값을 유지한다. */
+    /* 옛 플로팅 캡슐 헤더의 축소 기하. 헤더 자체는 S9에서 사라졌고, 값은 이 기하에서
+       `--header-offset`을 파생시키는 legacy 화면들과의 계약으로만 남는다. */
     --editorial-header-top: 14px;
     --editorial-header-capsule-h: 58px;
   }

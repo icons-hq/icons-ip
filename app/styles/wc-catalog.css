@@ -2291,6 +2291,20 @@
   font-size: 14px;
 }
 
+/* 담기 버튼(AddToCartButton)은 아직 `.wc-` 어휘로 재작성되지 않았고 색·크기를 인라인
+   style로 들고 있다. CSS가 잡는 건 폭 거동뿐이라 그 두 줄만 S9에서 globals.css
+   `@layer components`로부터 넘겨받았다. 브레이크포인트도 원본(620px) 그대로다. */
+.wc-root .shop-cart-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  .wc-root .shop-cart-button {
+    width: 100%;
+  }
+}
+
 .wc-wishlist__empty {
   padding: 64px 0 40px;
 }
