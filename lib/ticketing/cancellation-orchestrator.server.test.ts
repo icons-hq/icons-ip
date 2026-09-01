@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { RefundOutcome } from '../payments/gateway';
 import {
   reconcileTicketCancellation,
   type TicketCancellationContext,
@@ -20,6 +21,10 @@ vi.mock('../supabase/service', () => ({
       const query = {
         select: vi.fn(() => query),
         eq: vi.fn((column: string, value: unknown) => {
+          defaultMocks.filters.push({ table, column, value });
+          return query;
+        }),
+        in: vi.fn((column: string, value: unknown) => {
           defaultMocks.filters.push({ table, column, value });
           return query;
         }),
@@ -54,6 +59,7 @@ function context(
     orderStatus: 'paid',
     payments: [{
       id: PAYMENT_ID,
+      provider: 'toss',
       status: 'paid',
       amount: 42000,
       paymentKey: PAYMENT_KEY,
@@ -62,11 +68,23 @@ function context(
   };
 }
 
+function approvedRefund(overrides: Partial<RefundOutcome> = {}): RefundOutcome {
+  return {
+    attemptId: '66666666-6666-4666-8666-666666666666',
+    provider: 'toss',
+    outcome: 'approved',
+    reasonCode: 'provider_cancel_confirmed',
+    refundedAmount: 42000,
+    ...overrides,
+  };
+}
+
 function dependencies(
   override: Partial<TicketCancellationDependencies> = {},
 ): TicketCancellationDependencies {
   return {
     loadContext: vi.fn(async () => context()),
+    refundTossPayment: vi.fn(async () => approvedRefund()),
     completeRequest: vi.fn(async () => undefined),
     markNeedsReview: vi.fn(async () => undefined),
     ...override,
@@ -104,14 +122,14 @@ describe('reconcileTicketCancellation', () => {
     defaultMocks.rpc.mockResolvedValue({ error: null });
   });
 
-  it('default 조회는 legacy Toss 행만 읽고, 잔존 유상 캡처는 수동 검토로 승격한다', async () => {
+  it('default 조회는 카드 provider 원장을 읽고, 게이트웨이가 닫혀 있으면 수동 검토로 승격한다', async () => {
     const result = await reconcileTicketCancellation(input);
 
     expect(result).toEqual({ ok: false, code: 'provider_unavailable' });
     expect(defaultMocks.filters).toContainEqual({
       table: 'payments',
       column: 'provider',
-      value: 'toss',
+      value: ['toss', 'korpay'],
     });
     expect(defaultMocks.rpc).toHaveBeenCalledWith(
       'mark_ticket_cancellation_needs_review',
@@ -120,7 +138,7 @@ describe('reconcileTicketCancellation', () => {
     expect(JSON.stringify(result)).not.toContain(PAYMENT_KEY);
   });
 
-  it('legacy 원장 행이 없는 pending 예매는 빈 증거로 로컬 완료한다', async () => {
+  it('카드 원장 행이 없는 pending 예매는 빈 증거로 로컬 완료한다', async () => {
     defaultMocks.order = { id: TICKET_ORDER_ID, user_id: USER_ID, status: 'pending' };
     defaultMocks.payments = [];
 
@@ -134,27 +152,36 @@ describe('reconcileTicketCancellation', () => {
     );
   });
 
-  it('유상 캡처가 남아 있으면 완료하지 않고 수동 검토로 승격하며 결제 식별자를 반환하지 않는다', async () => {
+  it('toss 유상 캡처는 자동 취소가 검증되면 검증 키로 완료하며 결제 식별자를 반환하지 않는다', async () => {
     const deps = dependencies();
 
     const result = await reconcileTicketCancellation(input, deps);
 
-    expect(result).toEqual({ ok: false, code: 'provider_unavailable' });
+    expect(result).toEqual({ ok: true, status: 'completed' });
     expect(JSON.stringify(result)).not.toContain(PAYMENT_KEY);
-    expect(deps.completeRequest).not.toHaveBeenCalled();
-    expect(deps.markNeedsReview).toHaveBeenCalledWith({
+    expect(deps.refundTossPayment).toHaveBeenCalledWith({
+      paymentId: PAYMENT_ID,
+      amount: 42000,
+      reason: 'ICONS 티켓 취소',
+    });
+    expect(deps.completeRequest).toHaveBeenCalledWith({
       requestId: REQUEST_ID,
       attemptToken: ATTEMPT_TOKEN,
-      code: 'provider_unavailable',
+      verifiedPaymentKeys: [PAYMENT_KEY],
     });
+    expect(deps.markNeedsReview).not.toHaveBeenCalled();
   });
 
-  it('로컬 terminal(refunded·canceled) 결제도 원격 재검증이 불가능하므로 수동 검토로 승격한다', async () => {
+  it('korpay 유상 캡처는 자동 취소 없이 수동 검토로 승격한다', async () => {
     const deps = dependencies({
       loadContext: vi.fn(async () => context({
-        payments: [
-          { id: PAYMENT_ID, status: 'refunded', amount: 30000, paymentKey: PAYMENT_KEY },
-        ],
+        payments: [{
+          id: PAYMENT_ID,
+          provider: 'korpay',
+          status: 'paid',
+          amount: 42000,
+          paymentKey: PAYMENT_KEY,
+        }],
       })),
     });
 
@@ -162,12 +189,54 @@ describe('reconcileTicketCancellation', () => {
       ok: false,
       code: 'provider_unavailable',
     });
+    expect(deps.refundTossPayment).not.toHaveBeenCalled();
     expect(deps.completeRequest).not.toHaveBeenCalled();
+  });
+
+  it('취소 거절은 provider_cancel_failed로, 모호·throw는 provider_unavailable로 격리한다', async () => {
+    const rejected = dependencies({
+      refundTossPayment: vi.fn(async () => approvedRefund({
+        outcome: 'needs_review',
+        reasonCode: 'provider_cancel_rejected',
+        refundedAmount: undefined,
+      })),
+    });
+    await expect(reconcileTicketCancellation(input, rejected)).resolves.toEqual({
+      ok: false,
+      code: 'provider_cancel_failed',
+    });
+    expect(rejected.completeRequest).not.toHaveBeenCalled();
+
+    const thrown = dependencies({
+      refundTossPayment: vi.fn(async () => { throw new Error(PAYMENT_KEY); }),
+    });
+    const result = await reconcileTicketCancellation(input, thrown);
+    expect(result).toEqual({ ok: false, code: 'provider_unavailable' });
+    expect(JSON.stringify(result)).not.toContain(PAYMENT_KEY);
+  });
+
+  it('로컬 terminal(refunded) 결제도 fresh 조회 수렴(이미 전액 취소)으로 완료한다', async () => {
+    const deps = dependencies({
+      loadContext: vi.fn(async () => context({
+        payments: [
+          { id: PAYMENT_ID, provider: 'toss', status: 'refunded', amount: 30000, paymentKey: PAYMENT_KEY },
+        ],
+      })),
+      refundTossPayment: vi.fn(async () => approvedRefund({
+        reasonCode: 'provider_already_fully_canceled',
+        refundedAmount: 30000,
+      })),
+    });
+
+    await expect(reconcileTicketCancellation(input, deps)).resolves.toEqual({
+      ok: true,
+      status: 'completed',
+    });
   });
 
   it.each([
     ['결제 0건', []],
-    ['failed 결제만 존재', [{ id: PAYMENT_ID, status: 'failed' as const, amount: 42000, paymentKey: null }]],
+    ['failed 결제만 존재', [{ id: PAYMENT_ID, provider: 'toss' as const, status: 'failed' as const, amount: 42000, paymentKey: null }]],
   ])('pending 예매의 %s 상태는 빈 증거로 로컬 완료한다', async (_label, payments) => {
     const deps = dependencies({
       loadContext: vi.fn(async () => context({ orderStatus: 'pending', payments })),
@@ -189,7 +258,7 @@ describe('reconcileTicketCancellation', () => {
     const deps = dependencies({
       loadContext: vi.fn(async () => context({
         orderStatus: 'paid',
-        payments: [{ id: PAYMENT_ID, status: 'failed', amount: 42000, paymentKey: null }],
+        payments: [{ id: PAYMENT_ID, provider: 'toss', status: 'failed', amount: 42000, paymentKey: null }],
       })),
     });
 
@@ -207,9 +276,9 @@ describe('reconcileTicketCancellation', () => {
 
   it('결제 id·금액·키 이상은 수동 검토 승격 전에 증거 불량으로 차단한다', async () => {
     for (const payments of [
-      [{ id: 'not-a-uuid', status: 'paid' as const, amount: 42000, paymentKey: PAYMENT_KEY }],
-      [{ id: PAYMENT_ID, status: 'paid' as const, amount: 0, paymentKey: PAYMENT_KEY }],
-      [{ id: PAYMENT_ID, status: 'paid' as const, amount: 42000, paymentKey: '  ' }],
+      [{ id: 'not-a-uuid', provider: 'toss' as const, status: 'paid' as const, amount: 42000, paymentKey: PAYMENT_KEY }],
+      [{ id: PAYMENT_ID, provider: 'toss' as const, status: 'paid' as const, amount: 0, paymentKey: PAYMENT_KEY }],
+      [{ id: PAYMENT_ID, provider: 'toss' as const, status: 'paid' as const, amount: 42000, paymentKey: '  ' }],
     ]) {
       const deps = dependencies({
         loadContext: vi.fn(async () => context({ payments })),
@@ -273,6 +342,15 @@ describe('reconcileTicketCancellation', () => {
 
   it('needs_review 전이 자체가 실패하면 local_finalize_failed로 수렴한다', async () => {
     const deps = dependencies({
+      loadContext: vi.fn(async () => context({
+        payments: [{
+          id: PAYMENT_ID,
+          provider: 'korpay',
+          status: 'paid',
+          amount: 42000,
+          paymentKey: PAYMENT_KEY,
+        }],
+      })),
       markNeedsReview: vi.fn(async () => { throw new Error(PAYMENT_KEY); }),
     });
 
