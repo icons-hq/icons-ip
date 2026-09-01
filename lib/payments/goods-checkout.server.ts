@@ -180,5 +180,34 @@ export function createGoodsPaymentAttemptRepository(client: RpcClient): GoodsPay
         reasonCode: 'database_finalization_guard',
       };
     },
+
+    async claimOrderReconciliation({ attemptId, claimToken, caseRef }) {
+      const claim = parseClaim(await rpc(client, 'claim_goods_payment_reconciliation', {
+        p_attempt_id: attemptId,
+        p_claim_token: claimToken,
+        p_case_ref: caseRef,
+      }));
+      return claim.status === 'claimed'
+        ? { ...claim, claimToken }
+        : claim;
+    },
+
+    async finalizeOrderReconciliation(input: GoodsPaymentFinalization): Promise<ConfirmOutcome> {
+      const finalized = await rpc(client, 'finalize_goods_payment_reconciliation', {
+        p_attempt_id: input.attemptId,
+        p_claim_token: input.claimToken,
+        p_outcome: input.outcome.outcome,
+        ...evidenceArgs(input.outcome.evidence),
+      });
+      if (typeof finalized !== 'string' || !paymentOutcomeSet.has(finalized as PaymentOutcome)) {
+        throw new GoodsPaymentRepositoryError();
+      }
+      if (finalized === input.outcome.outcome) return input.outcome;
+      return {
+        ...input.outcome,
+        outcome: finalized as PaymentOutcome,
+        reasonCode: 'database_finalization_guard',
+      };
+    },
   };
 }

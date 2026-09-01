@@ -22,6 +22,13 @@ export class GoodsPaymentConfirmationInProgressError extends Error {
   }
 }
 
+export class GoodsPaymentReconciliationInProgressError extends Error {
+  constructor() {
+    super('Goods payment reconciliation is already in progress');
+    this.name = 'GoodsPaymentReconciliationInProgressError';
+  }
+}
+
 export type GoodsPaymentAttemptClaim =
   | {
       readonly status: 'claimed';
@@ -61,6 +68,13 @@ export interface GoodsPaymentAttemptRepository {
     readonly claimToken: string;
   }): Promise<GoodsPaymentAttemptClaim>;
   finalizeOrderAttempt(input: GoodsPaymentFinalization): Promise<ConfirmOutcome>;
+  /** 콜백 nonce 없이 모호 attempt를 재정합화하는 service 전용 seam(#390). */
+  claimOrderReconciliation(input: {
+    readonly attemptId: string;
+    readonly claimToken: string;
+    readonly caseRef: string;
+  }): Promise<GoodsPaymentAttemptClaim>;
+  finalizeOrderReconciliation(input: GoodsPaymentFinalization): Promise<ConfirmOutcome>;
 }
 
 export interface GoodsPaymentCheckout {
@@ -69,6 +83,10 @@ export interface GoodsPaymentCheckout {
     readonly providerOrderId: string;
     readonly callbackNonce: string;
     readonly providerPayload: unknown;
+  }): Promise<ConfirmOutcome>;
+  reconcilePayment(input: {
+    readonly attemptId: string;
+    readonly caseRef: string;
   }): Promise<ConfirmOutcome>;
 }
 
@@ -223,6 +241,60 @@ export function createGoodsPaymentCheckout({
       // gateway가 아니라 DB finalizer의 판정을 알림 기준으로 삼는다 — finalization
       // guard가 approved를 needs_review로 뒤집으면 확정되지 않은 주문에 알리면 안 된다.
       const finalized = await repository.finalizeOrderAttempt({
+        attemptId: claim.attempt.id,
+        claimToken: claim.claimToken,
+        outcome,
+      });
+      if (finalized.outcome === 'approved') await notifyApproved(claim.attempt);
+      return finalized;
+    },
+
+    async reconcilePayment({ attemptId, caseRef }) {
+      if (
+        typeof attemptId !== 'string'
+        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(attemptId)
+        || typeof caseRef !== 'string'
+        || !/^[A-Za-z0-9_-]{16,128}$/.test(caseRef)
+      ) {
+        throw new GoodsPaymentContractError('invalid_reconciliation');
+      }
+
+      const claim = await repository.claimOrderReconciliation({
+        attemptId,
+        claimToken: createClaimToken(),
+        caseRef,
+      });
+      assertAttempt(claim.attempt, provider);
+
+      if (claim.status === 'terminal') {
+        // 재정합이 approved 종결을 재생할 때도 알림 훅을 태운다 — 최초 확정이
+        // 알림 전에 죽었을 수 있고 훅은 멱등 계약이다(confirm replay와 동일).
+        if (claim.outcome.outcome === 'approved') await notifyApproved(claim.attempt);
+        return claim.outcome;
+      }
+      if (claim.status === 'in_progress') {
+        throw new GoodsPaymentReconciliationInProgressError();
+      }
+
+      let providerOutcome: ConfirmOutcome;
+      try {
+        providerOutcome = await gateway.reconcile(claim.attempt);
+      } catch {
+        providerOutcome = {
+          attemptId: claim.attempt.id,
+          provider: claim.attempt.provider,
+          outcome: 'unknown',
+          reasonCode: 'provider_unavailable',
+        };
+      }
+      const outcome = (
+        providerOutcome.attemptId === claim.attempt.id
+        && providerOutcome.provider === claim.attempt.provider
+      )
+        ? providerOutcome
+        : providerIdentityMismatchOutcome(claim.attempt, providerOutcome.evidence);
+
+      const finalized = await repository.finalizeOrderReconciliation({
         attemptId: claim.attempt.id,
         claimToken: claim.claimToken,
         outcome,

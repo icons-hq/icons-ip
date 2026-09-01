@@ -396,10 +396,15 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         resultCode: 'EXPIRED',
       }) as ConfirmOutcome;
     }
-    if (payment.status === 'CANCELED' || payment.status === 'PARTIAL_CANCELED') {
+    if (paymentFullyCanceled(payment, attempt)) {
       return baseOutcome(attempt, 'canceled', 'provider_payment_canceled', {
-        resultCode: typeof payment.status === 'string' ? payment.status : undefined,
+        resultCode: 'CANCELED',
       }) as ConfirmOutcome;
+    }
+    if (payment.status === 'CANCELED' || payment.status === 'PARTIAL_CANCELED') {
+      // 우리는 부분취소를 발행하지 않는다 — 전액 취소 검증(금액·잔액 대조)을
+      // 통과하지 못한 취소 상태는 자동 종결하지 않는다.
+      return baseOutcome(attempt, 'needs_review', 'provider_cancellation_mismatch') as ConfirmOutcome;
     }
     // READY·IN_PROGRESS 등 비종결 상태는 추측 종결하지 않는다.
     return baseOutcome(attempt, 'unknown', 'provider_payment_in_progress') as ConfirmOutcome;
@@ -557,11 +562,70 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       return recheckByInquiry(input.attempt);
     },
 
+    /**
+     * 조회 API 기반 자동 정합화(#390). 이 outcome 어휘는 결제 재정합(미종결
+     * attempt)과 환불 재정합(reconcileRefund) 두 문맥이 공유한다 — 환불 재정합은
+     * 'canceled'를 "원거래 전액 취소 확인"으로 읽어 환불 승인으로 승격하므로,
+     * canceled는 전액 취소 검증(paymentFullyCanceled)을 통과했을 때만 돌려주고
+     * EXPIRED·미승인 실패 확정은 declined로 돌려준다.
+     */
     async reconcile(attempt) {
       assertAttempt(attempt);
-      // 조회 API 기반 자동 정합화는 웹훅·정합화 슬라이스(#390)에서 구현한다.
-      // 그 전까지는 코페이와 같은 수동 검토 격리로 fail closed.
-      return baseOutcome(attempt, 'needs_review', 'provider_reconciliation_unavailable');
+      let inquiry: { status: number; payload: unknown };
+      try {
+        inquiry = await providerRequest(
+          `/v1/payments/orders/${encodeURIComponent(attempt.providerOrderId)}`,
+          { method: 'GET' },
+        );
+      } catch {
+        return baseOutcome(attempt, 'unknown', 'provider_unavailable');
+      }
+      if (inquiry.status === 404) {
+        // orderId 조회는 승인된 결제만 돌려준다. 승인 가능 시한(attempt TTL
+        // 안 결제창 오픈 + 결제창 유효 30분 + 인증 후 승인 10분 + 버퍼)이
+        // 지난 404는 이 주문으로 승인이 성립할 수 없다는 확정 사실이다 —
+        // 콜백 유실이 사람 손 없이 닫히는 지점.
+        const absentAfter = Date.parse(attempt.expiresAt) + 45 * 60_000;
+        if (Number.isFinite(absentAfter) && now().getTime() > absentAfter) {
+          return baseOutcome(attempt, 'declined', 'provider_payment_absent');
+        }
+        return baseOutcome(attempt, 'unknown', 'provider_inquiry_not_found');
+      }
+      if (inquiry.status !== 200 || !plainRecord(inquiry.payload)) {
+        return baseOutcome(attempt, 'unknown', 'provider_http_error');
+      }
+      const payment = inquiry.payload;
+      if (payment.status === 'DONE') {
+        if (!paymentMatchesAttempt(payment, attempt)) {
+          return baseOutcome(attempt, 'needs_review', 'provider_identity_mismatch');
+        }
+        return baseOutcome(
+          attempt,
+          'approved',
+          'provider_reconciled_approved',
+          approvedEvidence(payment),
+        );
+      }
+      if (paymentFullyCanceled(payment, attempt)) {
+        return baseOutcome(
+          attempt,
+          'canceled',
+          'provider_payment_canceled',
+          canceledEvidence(payment),
+        );
+      }
+      if (payment.status === 'CANCELED' || payment.status === 'PARTIAL_CANCELED') {
+        return baseOutcome(attempt, 'needs_review', 'provider_cancellation_mismatch');
+      }
+      if (payment.status === 'ABORTED') {
+        return baseOutcome(attempt, 'declined', 'provider_declined', { resultCode: 'ABORTED' });
+      }
+      if (payment.status === 'EXPIRED') {
+        return baseOutcome(attempt, 'declined', 'provider_payment_expired', {
+          resultCode: 'EXPIRED',
+        });
+      }
+      return baseOutcome(attempt, 'unknown', 'provider_payment_in_progress');
     },
 
     async refund(request): Promise<RefundOutcome> {
