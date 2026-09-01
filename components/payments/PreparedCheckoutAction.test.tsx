@@ -8,19 +8,42 @@ import {
 } from './KorpayClientCheckout';
 
 const payment = vi.hoisted(() => vi.fn());
+const loadTossPayments = vi.hoisted(() => vi.fn());
 
 vi.mock('@korpay/sdk', () => ({
   default: { payment },
 }));
 
-function checkout(action: PreparedCheckout['action']): PreparedCheckout {
+vi.mock('@tosspayments/tosspayments-sdk', () => ({
+  ANONYMOUS: '@@ANONYMOUS',
+  loadTossPayments,
+}));
+
+function checkout(
+  action: PreparedCheckout['action'],
+  provider: PreparedCheckout['provider'] = 'korpay',
+): PreparedCheckout {
   return {
     attemptId: '30000000-0000-4000-8000-000000000205',
-    provider: 'korpay',
+    provider,
     action,
     callbackNonce: 'opaque-callback-nonce-205',
     expiresAt: '2099-08-13T10:10:00.000Z',
   };
+}
+
+function tossPayload() {
+  return {
+    provider: 'toss',
+    clientKey: 'test_gck_iconsdocs00000000000001',
+    customerKey: 'ANONYMOUS',
+    orderId: 'O0123456789abcdef0123456789abcdef',
+    orderName: 'ICONS 굿즈 주문',
+    amount: 31000,
+    currency: 'KRW',
+    successUrl: 'https://iconsip.com/api/payments/goods/confirm/toss/opaque-callback-nonce-205',
+    failUrl: 'https://iconsip.com/checkout',
+  } as const;
 }
 
 function korpayPayload() {
@@ -41,6 +64,7 @@ function korpayPayload() {
 describe('PreparedCheckoutAction', () => {
   beforeEach(() => {
     payment.mockReset();
+    loadTossPayments.mockReset();
   });
 
   it('form_post action을 provider URL과 숨은 필드로 제출한다', () => {
@@ -78,6 +102,48 @@ describe('PreparedCheckoutAction', () => {
     expect(html).toContain('결제하기');
     expect(html).not.toContain('test12345m');
     expect(html).not.toContain('hashKey');
+    expect(payment).not.toHaveBeenCalled();
+  });
+
+  it('provider가 toss인 client_sdk action은 주문서형 위젯 컨테이너를 렌더링한다', () => {
+    const html = renderToStaticMarkup(<PreparedCheckoutAction prepared={checkout({
+      kind: 'client_sdk',
+      payload: tossPayload(),
+    }, 'toss')} />);
+
+    expect(html).toContain('id="toss-payment-methods"');
+    expect(html).toContain('id="toss-agreement"');
+    expect(html).toContain('type="button"');
+    expect(html).toContain('결제하기');
+    // 클라이언트 키는 SDK 인자로만 쓰이고 마크업으로 새지 않는다.
+    expect(html).not.toContain('test_gck_');
+    expect(loadTossPayments).not.toHaveBeenCalled();
+    expect(payment).not.toHaveBeenCalled();
+  });
+
+  it('provider가 korpay인 client_sdk action은 토스 위젯을 렌더링하지 않는다', () => {
+    const html = renderToStaticMarkup(<PreparedCheckoutAction prepared={checkout({
+      kind: 'client_sdk',
+      payload: korpayPayload(),
+    })} />);
+
+    expect(html).not.toContain('toss-payment-methods');
+    expect(html).not.toContain('toss-agreement');
+    expect(html).toContain('결제하기');
+    expect(loadTossPayments).not.toHaveBeenCalled();
+  });
+
+  it('client_sdk를 지원하지 않는 provider는 SDK를 고르지 않고 오류 문구만 렌더링한다', () => {
+    const html = renderToStaticMarkup(<PreparedCheckoutAction prepared={checkout({
+      kind: 'client_sdk',
+      payload: tossPayload(),
+    }, 'bank_transfer')} />);
+
+    expect(html).toContain('role="alert"');
+    expect(html).toContain('지원하지 않는 결제 준비 방식입니다.');
+    expect(html).not.toContain('toss-payment-methods');
+    expect(html).not.toContain('test_gck_');
+    expect(loadTossPayments).not.toHaveBeenCalled();
     expect(payment).not.toHaveBeenCalled();
   });
 

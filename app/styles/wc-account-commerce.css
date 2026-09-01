@@ -3794,6 +3794,13 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
   min-height: 420px;
 }
 
+/* 토스 주문서형 위젯 컨테이너 — 위젯 자체는 iframe이 스타일을 소유하므로
+   결제 표면과의 간격만 잡는다(#388). */
+.wc-receipt #toss-payment-methods,
+.wc-receipt #toss-agreement {
+  margin-block-end: 12px;
+}
+
 /* --- 주문 상세 ----------------------------------------------------- */
 /* 원본: globals `.order-detail-items·.order-detail-item(:first/:last-child)·
    .order-detail-deposit·.order-tracking-link`. */
