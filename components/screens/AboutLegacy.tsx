@@ -11,6 +11,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import type { CatalogSnapshot } from '@/lib/catalog';
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import type { Ip } from '@/lib/data';
 import { compactNumber, krw } from '@/lib/format';
 import {
@@ -670,7 +671,7 @@ function WorldFeatures({
           <span className="feature-number">02</span><p className="eyebrow dark">SINCERE CONNECTION</p>
           <h3>좋아하는 사람들과<br />더 가까이</h3>
           <p>무료로 팬덤에 가입하고, 드롭과 팝업 소식을 가장 먼저 만나고, 같은 취향의 팬들과 이야기하세요.</p>
-          <Link href="/community">팬덤 발견하기 <span aria-hidden>↗</span></Link>
+          {COMMUNITY_ENABLED && <Link href="/community">팬덤 발견하기 <span aria-hidden>↗</span></Link>}
         </div>
         <div className="feature-art feature-art--community">
           <div className="chat-card chat-card--one feature-float" data-end="-20" data-parallax="true" data-start="5">

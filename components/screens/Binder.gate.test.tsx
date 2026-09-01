@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import type { Card, Ip } from '@/lib/data';
 import { Binder, CardDetail } from './Binder';
 
@@ -130,6 +131,7 @@ describe('CardDetail', () => {
     const owned = renderDetail({ owned: true });
     expect(owned).toContain('보유 중');
     expect(owned).toContain('트레이드 등록');
-    expect(owned).toContain('전시하기');
+    /* '전시하기'는 커뮤니티 임시 비공개 스위치를 따른다. */
+    expect(owned.includes('전시하기')).toBe(COMMUNITY_ENABLED);
   });
 });

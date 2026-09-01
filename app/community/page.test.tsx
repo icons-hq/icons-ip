@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CurrentAuthState } from '@/lib/auth/server';
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import Page from './page';
 
 const mocks = vi.hoisted(() => ({
@@ -27,7 +28,9 @@ vi.mock('@/components/screens/Community', () => ({
   Community: () => null,
 }));
 
-describe('community page feed scope', () => {
+/* 커뮤니티 임시 비공개 — 스위치가 꺼진 동안 라우트는 404라 피드 스코프 계약을 검증할 수 없다.
+   테스트를 지우지 않고 스위치에 매달아 둔다: 복원하면 이 describe가 그대로 되살아난다. */
+describe.skipIf(!COMMUNITY_ENABLED)('community page feed scope', () => {
   beforeEach(() => {
     mocks.getCommunitySnapshot.mockReset();
     mocks.getCommunitySnapshot.mockResolvedValue(mocks.snapshot);
@@ -88,5 +91,14 @@ describe('community page feed scope', () => {
     const element = await Page({ searchParams: Promise.resolve({ feed: 'fandom' }) });
 
     expect(element.props.viewerState).toBe('onboarded');
+  });
+});
+
+describe.runIf(!COMMUNITY_ENABLED)('커뮤니티 임시 비공개', () => {
+  it('라우트를 404로 닫고 스냅샷을 읽지 않는다', async () => {
+    mocks.getCommunitySnapshot.mockReset();
+
+    await expect(Page({ searchParams: Promise.resolve({}) })).rejects.toThrow(/NEXT_HTTP_ERROR_FALLBACK;404/);
+    expect(mocks.getCommunitySnapshot).not.toHaveBeenCalled();
   });
 });

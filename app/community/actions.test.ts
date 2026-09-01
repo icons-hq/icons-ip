@@ -11,6 +11,7 @@ import {
 } from './actions';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { CurrentAuthState } from '@/lib/auth/server';
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
@@ -59,6 +60,9 @@ vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
 }));
 vi.mock('next/navigation', () => ({
+  notFound: () => {
+    throw new Error('NEXT_HTTP_ERROR_FALLBACK;404');
+  },
   redirect: (path: string) => {
     throw new Error(`NEXT_REDIRECT:${path}`);
   },
@@ -172,7 +176,9 @@ function blockForm(next = '/community') {
   return formData;
 }
 
-describe('createCommunityPostAction', () => {
+/* 커뮤니티 임시 비공개 — 스위치가 꺼진 동안 액션은 첫 줄에서 404를 던져 아래 계약을 실행조차
+   하지 않는다. 테스트를 지우지 않고 스위치에 매달아 두면 복원과 함께 그대로 되살아난다. */
+describe.skipIf(!COMMUNITY_ENABLED)('createCommunityPostAction', () => {
   beforeEach(() => {
     mocks.auth = {
       isConfigured: true,
@@ -317,7 +323,7 @@ describe('createCommunityPostAction', () => {
   });
 });
 
-describe('editCommunityPostAction', () => {
+describe.skipIf(!COMMUNITY_ENABLED)('editCommunityPostAction', () => {
   beforeEach(() => {
     mocks.auth = {
       isConfigured: true,
@@ -512,7 +518,7 @@ describe('editCommunityPostAction', () => {
   });
 });
 
-describe('community reaction actions', () => {
+describe.skipIf(!COMMUNITY_ENABLED)('community reaction actions', () => {
   beforeEach(() => {
     mocks.auth = {
       isConfigured: true,
@@ -754,5 +760,26 @@ describe('community reaction actions', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('block_community_user', {
       target_user_id: '33333333-3333-4333-8333-333333333333',
     });
+  });
+});
+
+describe.runIf(!COMMUNITY_ENABLED)('커뮤니티 임시 비공개', () => {
+  /* 라우트가 404여도 서버 액션은 폼 없이 직접 호출될 수 있다 — 여덟 개 전부 막혔는지 본다. */
+  const actions: Array<[string, () => Promise<unknown>]> = [
+    ['createCommunityPostAction', () => createCommunityPostAction({}, new FormData())],
+    ['editCommunityPostAction', () => editCommunityPostAction({}, new FormData())],
+    ['createCommunityCommentAction', () => createCommunityCommentAction({}, new FormData())],
+    ['setCommunityPostLikeAction', () => setCommunityPostLikeAction(new FormData())],
+    ['deleteCommunityPostAction', () => deleteCommunityPostAction(new FormData())],
+    ['deleteCommunityCommentAction', () => deleteCommunityCommentAction(new FormData())],
+    ['reportCommunityTargetAction', () => reportCommunityTargetAction(new FormData())],
+    ['blockCommunityUserAction', () => blockCommunityUserAction(new FormData())],
+  ];
+
+  it.each(actions)('%s는 404를 던지고 DB에 닿지 않는다', async (_name, run) => {
+    mocks.rpc.mockClear();
+
+    await expect(run()).rejects.toThrow(/NEXT_HTTP_ERROR_FALLBACK;404/);
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });

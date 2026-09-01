@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { SUGGESTED_SEARCH_TERMS } from '@/lib/search-terms';
 import { Nav } from './Nav';
 import { MenuSheet } from './MenuSheet';
@@ -110,7 +111,8 @@ describe('White Catalog 전역 셸', () => {
     expect(html).toContain('href="/ip"');
     expect(html).toContain('href="/packs"');
     expect(html).toContain('href="/events"');
-    expect(html).toContain('href="/community"');
+    /* 커뮤니티는 임시 비공개 스위치 대상이라 노출 기대를 분기한다. */
+    expect(html.includes('href="/community"')).toBe(COMMUNITY_ENABLED);
     expect(html).toContain('id="wc-mega-category"');
     expect(html).toContain('href="/binder"');
     expect(html).toContain('href="/market"');

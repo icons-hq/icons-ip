@@ -5,6 +5,7 @@ import { useRef, useState } from 'react';
 import { OverlayPortal } from '@/components/shell/OverlayPortal';
 import { useOverlayA11y } from '@/components/shell/useOverlayA11y';
 import type { CatalogSnapshot } from '@/lib/catalog';
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import type { Card, Ip } from '@/lib/data';
 import { ipAccentInk } from '@/lib/ip-display';
 import { rarityTag, RARITY_META, type RarityKey } from '@/lib/rarity';
@@ -118,7 +119,7 @@ export function CardDetail({
               {owned ? (
                 <>
                   <WcButton href={hrefFor('exchange')} variant="primary">트레이드 등록</WcButton>
-                  <WcButton href={hrefFor('community')}>전시하기</WcButton>
+                  {COMMUNITY_ENABLED && <WcButton href={hrefFor('community')}>전시하기</WcButton>}
                 </>
               ) : (
                 <>

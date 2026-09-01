@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getCatalogSnapshot } from '@/lib/catalog';
 import {
   ACCOUNT_SUSPENDED_PATH,
@@ -21,6 +21,7 @@ import {
   normalizeCommunityReportForm,
   normalizeCommunityUuid,
 } from '@/lib/community';
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { createClient } from '@/lib/supabase/server';
 
 export interface CommunityPostActionState {
@@ -62,6 +63,12 @@ async function isCommunityWriteEnabled(
   const { data, error } = await supabase.rpc('community_write_capabilities');
   if (error || !data || typeof data !== 'object' || Array.isArray(data)) return false;
   return (data as Record<string, unknown>)[capability] === true;
+}
+
+/* 커뮤니티 임시 비공개 — 라우트가 404여도 서버 액션은 폼 없이 직접 호출될 수 있어 여기서도 막는다.
+   DB의 community_write_capabilities 게이트보다 앞단이고, 읽기 액션까지 함께 닫는다. */
+function assertCommunityEnabled() {
+  if (!COMMUNITY_ENABLED) notFound();
 }
 
 function readNext(formData: FormData) {
@@ -181,6 +188,7 @@ export async function createCommunityPostAction(
   _state: CommunityPostActionState,
   formData: FormData,
 ): Promise<CommunityPostActionState> {
+  assertCommunityEnabled();
   const next = readNext(formData);
   const user = await requireActiveCommunityUser(next);
 
@@ -249,6 +257,7 @@ export async function editCommunityPostAction(
   _state: CommunityPostEditActionState,
   formData: FormData,
 ): Promise<CommunityPostEditActionState> {
+  assertCommunityEnabled();
   const next = readNext(formData);
   const user = await requireActiveCommunityUser(next);
 
@@ -306,6 +315,7 @@ export async function createCommunityCommentAction(
   _state: CommunityCommentActionState,
   formData: FormData,
 ): Promise<CommunityCommentActionState> {
+  assertCommunityEnabled();
   const next = readNext(formData);
   await requireActiveCommunityUser(next);
 
@@ -337,6 +347,7 @@ export async function createCommunityCommentAction(
 }
 
 export async function setCommunityPostLikeAction(formData: FormData) {
+  assertCommunityEnabled();
   const next = readNext(formData);
   await requireCommunityUser(next);
 
@@ -356,6 +367,7 @@ export async function setCommunityPostLikeAction(formData: FormData) {
 }
 
 export async function deleteCommunityPostAction(formData: FormData) {
+  assertCommunityEnabled();
   const next = readNext(formData);
   await requireCommunityUser(next);
 
@@ -374,6 +386,7 @@ export async function deleteCommunityPostAction(formData: FormData) {
 }
 
 export async function deleteCommunityCommentAction(formData: FormData) {
+  assertCommunityEnabled();
   const next = readNext(formData);
   await requireCommunityUser(next);
 
@@ -392,6 +405,7 @@ export async function deleteCommunityCommentAction(formData: FormData) {
 }
 
 export async function reportCommunityTargetAction(formData: FormData) {
+  assertCommunityEnabled();
   const next = readNext(formData);
   await requireAuthenticatedCommunityUser(next);
 
@@ -412,6 +426,7 @@ export async function reportCommunityTargetAction(formData: FormData) {
 }
 
 export async function blockCommunityUserAction(formData: FormData) {
+  assertCommunityEnabled();
   const next = readNext(formData);
   await requireAuthenticatedCommunityUser(next);
 

@@ -15,6 +15,7 @@ import {
   isActive,
   isAuthShellPath,
 } from './routes';
+import { COMMUNITY_ENABLED } from './community-visibility';
 
 describe('ticket routes', () => {
   it('maps and activates the protected my-tickets surface', () => {
@@ -95,16 +96,24 @@ describe('White Catalog 내비게이션 경로', () => {
 });
 
 describe('내비게이션 항목 구성', () => {
-  it('GNB는 계약된 7개 항목을 순서대로 유지한다', () => {
-    expect(NAV_ITEMS.map((item) => item.id)).toEqual([
-      'new',
-      'best',
-      'shop',
-      'iphub',
-      'packs',
-      'events',
-      'community',
-    ]);
+  it('GNB는 계약된 항목을 순서대로 유지한다', () => {
+    /* 커뮤니티만 임시 비공개 스위치 대상이라 기대를 분기한다 — 스위치를 되돌리면 이 테스트도
+       손대지 않고 7개 계약으로 돌아온다(lib/community-visibility.ts). */
+    expect(NAV_ITEMS.map((item) => item.id)).toEqual(
+      COMMUNITY_ENABLED
+        ? ['new', 'best', 'shop', 'iphub', 'packs', 'events', 'community']
+        : ['new', 'best', 'shop', 'iphub', 'packs', 'events'],
+    );
+  });
+
+  it('커뮤니티 스위치가 GNB·푸터·메뉴시트 진입점을 한꺼번에 좌우한다', () => {
+    const inMenuSheet = MENU_SHEET_GROUPS.some((group) => group.items.some((item) => item.id === 'community'));
+
+    expect(NAV_ITEMS.some((item) => item.id === 'community')).toBe(COMMUNITY_ENABLED);
+    expect(FOOTER_DISCOVER_ITEMS.some((item) => item.id === 'community')).toBe(COMMUNITY_ENABLED);
+    expect(inMenuSheet).toBe(COMMUNITY_ENABLED);
+    /* 경로 등록은 스위치와 무관하게 유지한다 — 지우면 hrefFor가 '/'로 폴백한다. */
+    expect(hrefFor('community')).toBe('/community');
   });
 
   it('모바일 탭은 홈을 가운데 둔 5개 항목이다', () => {

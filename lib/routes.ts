@@ -2,14 +2,24 @@
    components/shell/SiteFooter.tsx의 자체 링크 튜플은 S2 재작성에서 FOOTER_* 상수로 흡수했다.
    아직 여기로 모이지 않은 잔여물은 하나다: components/screens/Home.tsx의 하드코딩 내비게이션(S3에서 제거). */
 
+import { COMMUNITY_ENABLED } from './community-visibility';
+
 export interface NavItem {
   id: string;
   label: string;
   icon?: string;
 }
 
+/* 커뮤니티 임시 비공개 — 스위치가 꺼진 동안 목록에서 항목을 걷어낸다. 소비처(Nav·SiteFooter·
+   MenuSheet)마다 필터를 흩뿌리지 않고 진실원 한 곳에서 거르는 이유는, 새 소비처가 생겼을 때
+   노출이 조용히 되살아나는 걸 막기 위해서다. 복원은 lib/community-visibility.ts 한 줄이다.
+   PATHS의 'community'는 남겨 둔다 — 지우면 hrefFor가 '/'로 폴백하는 아래 함정에 걸린다. */
+function visibleItems(items: NavItem[]): NavItem[] {
+  return COMMUNITY_ENABLED ? items : items.filter((item) => item.id !== 'community');
+}
+
 /* 데스크톱 GNB — 카탈로그 진입(NEW·BEST·카테고리)을 앞에 두고 그 뒤에 세계관 표면을 잇는다. */
-export const NAV_ITEMS: NavItem[] = [
+export const NAV_ITEMS: NavItem[] = visibleItems([
   { id: 'new', label: 'NEW' },
   { id: 'best', label: 'BEST' },
   { id: 'shop', label: '카테고리' },
@@ -17,7 +27,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'packs', label: '카드팩' },
   { id: 'events', label: '이벤트' },
   { id: 'community', label: '커뮤니티' },
-];
+]);
 
 /* 모바일 바텀 탭 5개 — 가운데가 홈이다.
    'menu'만 라우트가 없는 액션 탭이라 링크가 아니라 전체 메뉴 시트를 연다. */
@@ -115,19 +125,27 @@ export interface NavGroup {
   items: NavItem[];
 }
 
+/* 그룹판 visibleItems. 항목이 모두 빠진 그룹은 제목만 남지 않도록 통째로 걷어낸다. */
+function visibleGroups(groups: NavGroup[]): NavGroup[] {
+  if (COMMUNITY_ENABLED) return groups;
+  return groups
+    .map((group) => ({ ...group, items: visibleItems(group.items) }))
+    .filter((group) => group.items.length > 0);
+}
+
 /* 푸터 상단 행 — 회사·정책. 법정 고지 3종은 lib/legal/links.ts가 컴포넌트에서 이어 붙인다. */
 export const FOOTER_PRIMARY_ITEMS: NavItem[] = [
   { id: 'about', label: '회사 소개' },
   { id: 'offlinePopups', label: '오프라인 팝업' },
 ];
 
-export const FOOTER_DISCOVER_ITEMS: NavItem[] = [
+export const FOOTER_DISCOVER_ITEMS: NavItem[] = visibleItems([
   { id: 'iphub', label: '온라인 팝업' },
   { id: 'shop', label: '굿즈샵' },
   { id: 'packs', label: '카드팩' },
   { id: 'events', label: '이벤트' },
   { id: 'community', label: '커뮤니티' },
-];
+]);
 
 export const FOOTER_ACCOUNT_ITEMS: NavItem[] = [
   { id: 'orders', label: '주문조회' },
@@ -157,7 +175,7 @@ export const CATEGORY_MEGA_GROUPS: NavGroup[] = [
 ];
 
 /* 모바일 전체 메뉴 시트 — 바텀바 '메뉴' 탭과 모바일 GNB '카테고리' 탭이 함께 연다. */
-export const MENU_SHEET_GROUPS: NavGroup[] = [
+export const MENU_SHEET_GROUPS: NavGroup[] = visibleGroups([
   { heading: '쇼핑', items: [
     { id: 'shop', label: '전체 굿즈' },
     { id: 'new', label: 'NEW' },
@@ -181,4 +199,4 @@ export const MENU_SHEET_GROUPS: NavGroup[] = [
     { id: 'market', label: '굿즈 마켓' },
     { id: 'exchange', label: '카드 트레이드' },
   ] },
-];
+]);

@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/wc/EmptyState';
 import { ProductCard } from '@/components/wc/ProductCard';
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import type { CatalogIpDetail } from '@/lib/catalog';
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { compactNumber } from '@/lib/format';
 import { goodDetailHref } from '@/lib/goods-display';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
@@ -256,7 +257,7 @@ export function IpDetail({
         <nav aria-label="이 IP의 다른 공간" className="wc-iphall__links">
           <Link href={hrefFor('binder')}>{`카드 도감 ${cards.length}종`}</Link>
           <Link href={hrefFor('offlinePopups')}>오프라인 팝업</Link>
-          <Link href={`${hrefFor('community')}?ip=${ip.id}`}>팬덤 채널</Link>
+          {COMMUNITY_ENABLED && <Link href={`${hrefFor('community')}?ip=${ip.id}`}>팬덤 채널</Link>}
         </nav>
       </div>
     </div>
