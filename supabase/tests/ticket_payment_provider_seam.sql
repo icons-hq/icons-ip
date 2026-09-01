@@ -121,7 +121,8 @@ values
   ('10000000-0000-4000-8000-000000002067', 'ticket-payment-seam-event', 'stale claim 회차', 18000, 10, 0, 4, null),
   ('10000000-0000-4000-8000-000000002068', 'ticket-payment-seam-event', 'payment ledger guard 회차', 19000, 10, 0, 4, null),
   ('10000000-0000-4000-8000-000000002069', 'ticket-payment-seam-event', '승인 후 환급 회차', 20000, 10, 0, 4, null),
-  ('10000000-0000-4000-8000-000000002072', 'ticket-payment-seam-event', '만료 상태행렬 회차', 21000, 20, 0, 20, null)
+  ('10000000-0000-4000-8000-000000002072', 'ticket-payment-seam-event', '만료 상태행렬 회차', 21000, 20, 0, 20, null),
+  ('10000000-0000-4000-8000-000000002074', 'ticket-payment-seam-event', '토스 왕복 회차', 22000, 10, 0, 4, null)
 on conflict (id) do update set
   event_id = excluded.event_id,
   name = excluded.name,
@@ -186,7 +187,7 @@ declare
   replay_prepare jsonb;
   v_order_id uuid;
   owner_rejected boolean := false;
-  toss_rejected boolean := false;
+  bank_transfer_rejected boolean := false;
 begin
   select id into strict v_order_id
   from public.ticket_orders
@@ -223,17 +224,20 @@ begin
     owner_rejected := true;
   end;
 
+  -- 티켓은 무통장을 지원하지 않는다 — 선점 창이 공연 회차에 묶여 있어 24시간
+  -- 입금 기한을 줄 수 없다. provider 허용목록이 토스로 넓어져도(#387) 이
+  -- 계약은 그대로다.
   begin
     perform public.prepare_ticket_payment_attempt(
       '00000000-0000-4000-8000-000000002061',
       v_order_id,
-      'toss'
+      'bank_transfer'
     );
   exception when object_not_in_prerequisite_state then
-    toss_rejected := true;
+    bank_transfer_rejected := true;
   end;
 
-  if not owner_rejected or not toss_rejected then
+  if not owner_rejected or not bank_transfer_rejected then
     raise exception 'ticket prepare validation did not fail closed';
   end if;
 end;
@@ -324,6 +328,60 @@ select 1 / case when (
   from public.tickets
   where ticket_order_id = :'approved_order_id'::uuid
 ) then 1 else 0 end as assert_approved_finalization_issues_exact_qr_tickets;
+
+-- 토스도 콜백형 카드 provider다(#387). prepare → bind → claim → finalize가
+-- provider만 바뀐 채 그대로 성립하고, QR 발권까지 코페이와 같은 경로를 탄다.
+select public.reserve_tickets(
+  '00000000-0000-4000-8000-000000002061',
+  '10000000-0000-4000-8000-000000002074',
+  2,
+  '20000000-0000-4000-8000-000000002074'
+) as toss_order_id \gset
+select public.prepare_ticket_payment_attempt(
+  '00000000-0000-4000-8000-000000002061', :'toss_order_id', 'toss'
+);
+select id as toss_attempt_id, provider_order_id as toss_provider_order_id
+from public.payment_attempts where ref_id = :'toss_order_id'::uuid \gset
+select public.bind_ticket_payment_callback_nonce(:'toss_attempt_id', repeat('6', 64));
+select public.claim_ticket_payment_attempt(
+  'toss', :'toss_provider_order_id', repeat('6', 64),
+  '40000000-0000-4000-8000-000000002074'
+);
+select public.finalize_ticket_payment_attempt(
+  :'toss_attempt_id',
+  '40000000-0000-4000-8000-000000002074',
+  'approved',
+  null,
+  'toss-transaction-2074',
+  'toss-approval-2074',
+  '0000',
+  'CARD',
+  '1234-****-****-5678',
+  now()
+);
+
+select 1 / case when (
+  select ticket_order.status = 'paid'
+    and ticket_order.expires_at is null
+    and attempt.state = 'approved'
+    and attempt.provider = 'toss'
+    and attempt.claim_token is null
+    and payment.provider = 'toss'
+    and payment.status = 'paid'
+    and payment.amount = 44000
+    and payment.raw is null
+    and payment.payment_key = 'toss-transaction-2074'
+  from public.ticket_orders as ticket_order
+  join public.payment_attempts as attempt on attempt.ref_id = ticket_order.id
+  join public.payments as payment on payment.id = attempt.payment_id
+  where ticket_order.id = :'toss_order_id'::uuid
+) and (
+  select count(*) = 2
+    and count(distinct qr_token) = 2
+    and bool_and(status = 'valid')
+  from public.tickets
+  where ticket_order_id = :'toss_order_id'::uuid
+) then 1 else 0 end as assert_toss_attempt_completes_the_ticket_seam;
 
 -- A provider may approve after the callback claim but before the database
 -- finalizer commits. The callback lease must block an eager retry, then an
