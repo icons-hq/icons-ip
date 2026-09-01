@@ -1,5 +1,6 @@
 import type { PreparedCheckout } from '@/lib/payments/gateway';
 import { KorpayClientCheckout } from './KorpayClientCheckout';
+import { TossWidgetCheckout } from './TossWidgetCheckout';
 
 interface PreparedCheckoutActionProps {
   readonly prepared: PreparedCheckout;
@@ -40,7 +41,14 @@ export function PreparedCheckoutAction({ prepared }: PreparedCheckoutActionProps
   }
 
   if (prepared.action.kind === 'client_sdk') {
-    return <KorpayClientCheckout payload={prepared.action.payload} />;
+    // 분기 기준은 payload 내용이 아니라 원장과 같은 축인 prepared.provider다 —
+    // provider가 준 값으로 어떤 SDK를 띄울지 고르지 않는다.
+    if (prepared.provider === 'toss') {
+      return <TossWidgetCheckout payload={prepared.action.payload} />;
+    }
+    if (prepared.provider === 'korpay') {
+      return <KorpayClientCheckout payload={prepared.action.payload} />;
+    }
   }
 
   return (

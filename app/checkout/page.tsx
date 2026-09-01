@@ -14,10 +14,22 @@ export const metadata: Metadata = {
   description: '배송지와 주문 내용을 확인하고 결제를 준비하세요.',
 };
 
-export default async function Page() {
+interface PageProps {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function Page({ searchParams }: PageProps) {
   const auth = await getCurrentAuthState();
   if (!auth.user) redirect(`/login?next=${encodeURIComponent('/checkout')}`);
   if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath('/checkout'));
+
+  /* 토스 failUrl은 이 화면으로 돌아온다(?code=…&message=…). code는 외부
+     문자열이라 형식만 통과시키고, message는 아예 읽지 않는다. */
+  const params = (await searchParams) ?? {};
+  const rawFailCode = typeof params.code === 'string' ? params.code : null;
+  const paymentFailCode = rawFailCode && /^[A-Z_]{2,64}$/.test(rawFailCode)
+    ? rawFailCode
+    : null;
 
   const [catalog, latestAddress, resumeOrderId, couponState] = await Promise.all([
     getCatalogSnapshot(),
@@ -39,6 +51,7 @@ export default async function Page() {
       paymentAvailable={goodsCheckoutPaymentsEnabled(auth.user.id)}
       bankTransferAvailable={bankTransferCheckoutEnabled()}
       appliedCoupon={appliedCoupon}
+      paymentFailCode={paymentFailCode}
     />
   );
 }

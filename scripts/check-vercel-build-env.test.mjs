@@ -40,6 +40,11 @@ describe('validateVercelBuildEnvironment', () => {
       korpayTicketCheckoutEnabled: false,
       korpayOrderCanaryConfigured: false,
       korpayTicketCanaryConfigured: false,
+      tossConfigured: false,
+      tossOrderCheckoutEnabled: false,
+      tossTicketCheckoutEnabled: false,
+      tossOrderCanaryConfigured: false,
+      tossTicketCanaryConfigured: false,
     });
   });
 
@@ -106,7 +111,92 @@ describe('validateVercelBuildEnvironment', () => {
       korpayTicketCheckoutEnabled: false,
       korpayOrderCanaryConfigured: false,
       korpayTicketCanaryConfigured: false,
+      tossConfigured: false,
+      tossOrderCheckoutEnabled: false,
+      tossTicketCheckoutEnabled: false,
+      tossOrderCanaryConfigured: false,
+      tossTicketCanaryConfigured: false,
     });
+  });
+
+  it('keeps the Toss widget key pair optional and silently unconfigured when malformed', () => {
+    // 심사(#394) 전 미등록 — 통과.
+    expect(validateVercelBuildEnvironment(productionEnvironment())).toMatchObject({
+      tossConfigured: false,
+    });
+    // 구 v1 API 키 잔존·반쪽 페어 — 결제를 여는 신호가 없으면 침묵 unconfigured.
+    expect(validateVercelBuildEnvironment(productionEnvironment({
+      TOSS_SECRET_KEY: 'test_sk_legacyapikey000000000001',
+    }))).toMatchObject({ tossConfigured: false });
+    expect(validateVercelBuildEnvironment(productionEnvironment({
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_iconsdocs00000000000001',
+    }))).toMatchObject({ tossConfigured: false });
+    // 유효 페어(모드 일치) — configured.
+    expect(validateVercelBuildEnvironment(productionEnvironment({
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_iconsdocs00000000000001',
+      TOSS_SECRET_KEY: 'test_gsk_iconsdocs00000000000001',
+    }))).toMatchObject({ tossConfigured: true, newCheckoutEnabled: false });
+  });
+
+  it('refuses to open a Toss gate or canary over a missing or misaligned key pair', () => {
+    expect(() => validateVercelBuildEnvironment(productionEnvironment({
+      TOSS_ORDER_CHECKOUT_ENABLED: 'true',
+    }))).toThrow('Invalid Vercel production Toss configuration');
+
+    expect(() => validateVercelBuildEnvironment(productionEnvironment({
+      TOSS_ORDER_CHECKOUT_ENABLED: 'true',
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_iconsdocs00000000000001',
+      TOSS_SECRET_KEY: 'live_gsk_iconsdocs00000000000001',
+    }))).toThrow('Invalid Vercel production Toss configuration');
+
+    expect(() => validateVercelBuildEnvironment(productionEnvironment({
+      TOSS_ORDER_CANARY_USER_ID: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+    }))).toThrow('Invalid Vercel production Toss configuration');
+
+    expect(validateVercelBuildEnvironment(productionEnvironment({
+      TOSS_ORDER_CHECKOUT_ENABLED: 'true',
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_iconsdocs00000000000001',
+      TOSS_SECRET_KEY: 'test_gsk_iconsdocs00000000000001',
+    }))).toMatchObject({
+      tossConfigured: true,
+      tossOrderCheckoutEnabled: true,
+      newCheckoutEnabled: true,
+    });
+  });
+
+  it('rejects enabled Toss gates and canaries in preview while tolerating stale keys', () => {
+    expect(() => validateVercelBuildEnvironment({
+      ...baseEnvironment,
+      TOSS_ORDER_CHECKOUT_ENABLED: 'true',
+    })).toThrow('Invalid Vercel preview TOSS_ORDER_CHECKOUT_ENABLED: checkout must remain disabled');
+
+    expect(() => validateVercelBuildEnvironment({
+      ...baseEnvironment,
+      TOSS_TICKET_CANARY_USER_ID: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+    })).toThrow('Invalid Vercel preview TOSS_TICKET_CANARY_USER_ID: canary users are production-only');
+
+    expect(validateVercelBuildEnvironment({
+      ...baseEnvironment,
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_iconsdocs00000000000001',
+      TOSS_SECRET_KEY: 'test_gsk_iconsdocs00000000000001',
+      TOSS_ORDER_CHECKOUT_ENABLED: 'false',
+    })).toMatchObject({ tossConfigured: false, tossOrderCheckoutEnabled: false });
+  });
+
+  it('validates Toss canary UUIDs in production like the Korpay ones', () => {
+    const tossEnvironment = {
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_iconsdocs00000000000001',
+      TOSS_SECRET_KEY: 'test_gsk_iconsdocs00000000000001',
+    };
+    expect(validateVercelBuildEnvironment(productionEnvironment({
+      ...tossEnvironment,
+      TOSS_ORDER_CANARY_USER_ID: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+    }))).toMatchObject({ tossOrderCanaryConfigured: true, newCheckoutEnabled: true });
+
+    expect(() => validateVercelBuildEnvironment(productionEnvironment({
+      ...tossEnvironment,
+      TOSS_ORDER_CANARY_USER_ID: 'not-a-uuid',
+    }))).toThrow('Invalid Vercel production TOSS_ORDER_CANARY_USER_ID');
   });
 
   it('requires valid Korpay credentials and an HTTPS site URL in production', () => {
@@ -150,6 +240,15 @@ describe('validateVercelBuildEnvironment', () => {
     expect(() => validateVercelBuildEnvironment(environment)).toThrow(
       'Missing Vercel production environment: KORPAY_MID, KORPAY_KEY, SITE_URL',
     );
+  });
+
+  it('accepts only true, false, or unset for Toss checkout gates', () => {
+    expect(validateVercelBuildEnvironment(productionEnvironment({
+      TOSS_TICKET_CHECKOUT_ENABLED: 'false',
+    })).checked).toBe(true);
+    expect(() => validateVercelBuildEnvironment(productionEnvironment({
+      TOSS_TICKET_CHECKOUT_ENABLED: 'TRUE',
+    }))).toThrow('Invalid Vercel production TOSS_TICKET_CHECKOUT_ENABLED');
   });
 
   it.each([

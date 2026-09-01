@@ -33,6 +33,15 @@ const actionErrors = {
   unavailable: '주문을 만들지 못했어요. 잠시 후 다시 시도해주세요.',
 } as const;
 
+/* 토스 failUrl 복귀 안내. 쿼리의 message는 위조 가능한 외부 문자열이라 표시하지
+   않고, 검증된 code를 우리 문구로만 바꾼다. 미지 코드는 공통 문구로 덮는다. */
+const paymentFailCopy: Record<string, string> = {
+  PAY_PROCESS_CANCELED: '결제를 직접 취소하셨어요. 준비되면 같은 주문에서 다시 시도할 수 있어요.',
+  PAY_PROCESS_ABORTED: '결제가 진행되지 않았어요. 잠시 후 같은 주문에서 다시 시도해주세요.',
+  REJECT_CARD_COMPANY: '카드사가 결제를 거절했어요. 다른 카드나 결제수단으로 다시 시도해주세요.',
+};
+const paymentFailFallback = '결제가 완료되지 않았어요. 같은 주문에서 다시 시도해주세요.';
+
 interface CheckoutProps {
   catalog: Pick<CatalogSnapshot, 'goods' | 'ips'>;
   latestAddress: CheckoutAddress | null;
@@ -42,6 +51,8 @@ interface CheckoutProps {
   resumeOrderId: string | null;
   /** 카트에 적용해 둔 쿠폰. 할인 확정은 place_order 가 한다 — 여기서는 미리보기다. */
   appliedCoupon: UserCouponSummary | null;
+  /** 토스 failUrl 쿼리에서 서버가 형식 검증까지 마친 실패 코드. */
+  paymentFailCode?: string | null;
 }
 
 const addressFieldOrder: CheckoutAddressField[] = [
@@ -73,6 +84,7 @@ export function Checkout({
   bankTransferAvailable,
   resumeOrderId,
   appliedCoupon,
+  paymentFailCode = null,
 }: CheckoutProps) {
   const router = useRouter();
   const { items, ready, mode, pending: cartPending, error: cartError, refresh } = useCart();
@@ -206,11 +218,20 @@ export function Checkout({
     );
   }
 
+  const paymentFailNotice = paymentFailCode ? (
+    <p className="checkout-error" role="alert">
+      {paymentFailCopy[paymentFailCode] ?? paymentFailFallback}
+    </p>
+  ) : null;
+
   if (lines.length === 0) {
+    // failUrl 복귀 시 카트는 이미 주문으로 옮겨져 비어 있다 — 이 분기의
+    // "결제 이어가기"가 같은 주문 재시도 경로라서 실패 안내도 여기 함께 선다.
     return (
       <main className="wc-root wc-receipt checkout-page">
         <div className="wrap checkout-empty card">
           <h1>{resumeOrderId ? '진행 중인 주문이 있어요' : '주문할 굿즈가 없어요'}</h1>
+          {paymentFailNotice}
           <p>{resumeOrderId
             ? '주문 생성 응답을 놓쳤거나 결제 확인을 이어가는 중일 수 있어요.'
             : '장바구니에 굿즈를 담은 뒤 다시 와주세요.'}</p>
@@ -229,6 +250,7 @@ export function Checkout({
         <div className="wrap">
           <h1 className="wc-receipt__title">배송지를 확인하고 결제를 준비해요</h1>
           <p className="wc-receipt__subcopy">재고는 주문 생성 후 15분 동안 선점됩니다. 최종 완료는 결제 확인 후 안내해요.</p>
+          {paymentFailNotice}
         </div>
       </header>
 
