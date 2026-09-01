@@ -30,6 +30,13 @@ export interface CancellationReconciliationContext {
     status: CancellationPaymentStatus;
     amount: number;
     paymentKey: string | null;
+    /**
+     * durable 환불 원장이 이 결제를 계좌 송금으로 접수했는가
+     * (refunds.method='bank_transfer'). 환불계좌는 카드 주문에도 fallback 안전망으로
+     * 수집되므로 provider와 무관하게 참일 수 있다 — 참이면 운영자가 이미 송금했을
+     * 수 있어 카드 취소 API를 추가로 발행하면 이중 환불이 된다.
+     */
+    bankTransferRefundFiled: boolean;
   }>;
 }
 
@@ -44,6 +51,7 @@ export type CancellationReconciliationCode =
   | 'provider_mismatch'
   | 'provider_cancel_failed'
   | 'provider_cancellation_incomplete'
+  | 'bank_transfer_refund_filed'
   | 'local_finalize_failed';
 
 export type CancellationReconciliationResult =
@@ -132,7 +140,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
 
       if (paymentError) throw new Error('cancellation payment lookup failed');
 
-      const payments = (paymentData ?? []).map((paymentDataRow) => {
+      const paymentRows = (paymentData ?? []).map((paymentDataRow) => {
         const payment = paymentDataRow as Record<string, unknown>;
         if (
           typeof payment.id !== 'string'
@@ -153,6 +161,41 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
           paymentKey: payment.payment_key as string | null,
         };
       });
+
+      /*
+       * durable 환불 원장의 수단을 함께 읽는다.
+       *
+       * admin_record_order_claim_refund의 filed 단계가 refunds.method를
+       * first-write-wins로 적는다. 'bank_transfer'가 적혀 있으면 운영자가 환불계좌로
+       * 송금하는 흐름을 이미 시작한 것이고, 여기서 카드 취소까지 발행하면 구매자가
+       * 두 번 환불받는다. refunds에는 unique(payment_id)가 있어 결제당 최대 한 줄이다.
+       */
+      const bankTransferPaymentIds = new Set<string>();
+      if (paymentRows.length > 0) {
+        const { data: refundData, error: refundError } = await service
+          .from('refunds')
+          .select('payment_id,method')
+          .in('payment_id', paymentRows.map((payment) => payment.id))
+          .order('payment_id', { ascending: true });
+
+        if (refundError) throw new Error('cancellation refund ledger lookup failed');
+
+        for (const refundDataRow of refundData ?? []) {
+          const refund = refundDataRow as Record<string, unknown>;
+          if (
+            typeof refund.payment_id !== 'string'
+            || (refund.method !== null && typeof refund.method !== 'string')
+          ) {
+            throw new Error('invalid cancellation refund ledger state');
+          }
+          if (refund.method === 'bank_transfer') bankTransferPaymentIds.add(refund.payment_id);
+        }
+      }
+
+      const payments = paymentRows.map((payment) => ({
+        ...payment,
+        bankTransferRefundFiled: bankTransferPaymentIds.has(payment.id),
+      }));
 
       return {
         requestId: request.id,
@@ -319,6 +362,18 @@ export async function reconcileOrderCancellation(
       // korpay는 취소 API가 없다 — 수동 복구 seam(운영자 확인)이 정상 경로다.
       return markNeedsReview(dependencies, input, 'provider_unavailable');
     }
+    /*
+     * 계좌 송금으로 접수된 건에는 카드 취소를 발행하지 않는다.
+     *
+     * 환불계좌는 카드 주문에도 fallback 안전망으로 수집되므로 toss 결제에도
+     * refunds.method='bank_transfer'가 붙을 수 있다. 운영자가 이미 송금했는데
+     * 취소 API까지 나가면 구매자가 두 번 환불받는다 — 되돌리기 어려운 쪽이라
+     * 발행 전에 격리한다. 이 건을 어떻게 종결할지(운영자 확인 vs 접수 취소)는
+     * 여기서 추측하지 않는다.
+     */
+    if (payment.bankTransferRefundFiled) {
+      return markNeedsReview(dependencies, input, 'bank_transfer_refund_filed');
+    }
 
     let refund: RefundOutcome;
     try {
@@ -331,6 +386,18 @@ export async function reconcileOrderCancellation(
       return markNeedsReview(dependencies, input, 'provider_unavailable');
     }
     if (refund.outcome === 'approved' && refund.refundedAmount === payment.amount) {
+      /*
+       * provider가 취소를 검증해 준 결제와 로컬 원장의 결제가 같은 건인지 대조한다.
+       *
+       * 게이트웨이의 취소 검증은 orderId·통화·금액·잔액만 본다. 이 대조가 없으면
+       * 완료 근거가 순환한다 — 로컬 키를 verified 배열에 넣고 완료 RPC가 그 배열을
+       * 다시 로컬 키와 맞춰보는 꼴이라, provider가 같은 orderId에 다른 paymentKey를
+       * 돌려주는 이상 상황이 검증 없이 통과한다. 증거 키가 없어도 마찬가지로
+       * 격리한다 — 없는 증거는 일치의 근거가 아니다.
+       */
+      if (refund.evidence?.providerPaymentKey !== payment.paymentKey) {
+        return markNeedsReview(dependencies, input, 'provider_mismatch');
+      }
       verifiedPaymentKeys.push(payment.paymentKey);
       continue;
     }

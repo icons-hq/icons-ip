@@ -75,6 +75,9 @@ function approvedRefund(overrides: Partial<RefundOutcome> = {}): RefundOutcome {
     outcome: 'approved',
     reasonCode: 'provider_cancel_confirmed',
     refundedAmount: 42000,
+    // 게이트웨이는 취소를 검증한 fresh 조회의 paymentKey를 증거로 싣는다 —
+    // 오케스트레이터가 로컬 원장 키와 대조하는 값이다.
+    evidence: { providerPaymentKey: PAYMENT_KEY },
     ...overrides,
   };
 }
@@ -213,6 +216,39 @@ describe('reconcileTicketCancellation', () => {
     const result = await reconcileTicketCancellation(input, thrown);
     expect(result).toEqual({ ok: false, code: 'provider_unavailable' });
     expect(JSON.stringify(result)).not.toContain(PAYMENT_KEY);
+  });
+
+  it('approved여도 provider 증거 키가 로컬 원장 키와 다르면 완료 RPC를 부르지 않는다', async () => {
+    const deps = dependencies({
+      refundTossPayment: vi.fn(async () => approvedRefund({
+        evidence: { providerPaymentKey: 'other-provider-payment-key' },
+      })),
+    });
+
+    await expect(reconcileTicketCancellation(input, deps)).resolves.toEqual({
+      ok: false,
+      code: 'provider_mismatch',
+    });
+    expect(deps.completeRequest).not.toHaveBeenCalled();
+    expect(deps.markNeedsReview).toHaveBeenCalledWith({
+      requestId: REQUEST_ID,
+      attemptToken: ATTEMPT_TOKEN,
+      code: 'provider_mismatch',
+    });
+  });
+
+  it('approved에 provider 증거 키가 아예 없으면 일치의 근거가 없으므로 격리한다', async () => {
+    for (const evidence of [undefined, { resultCode: 'CANCELED' }]) {
+      const deps = dependencies({
+        refundTossPayment: vi.fn(async () => approvedRefund({ evidence })),
+      });
+
+      await expect(reconcileTicketCancellation(input, deps)).resolves.toEqual({
+        ok: false,
+        code: 'provider_mismatch',
+      });
+      expect(deps.completeRequest).not.toHaveBeenCalled();
+    }
   });
 
   it('로컬 terminal(refunded) 결제도 fresh 조회 수렴(이미 전액 취소)으로 완료한다', async () => {

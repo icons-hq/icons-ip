@@ -221,6 +221,15 @@ function paymentFullyCanceled(payment: Record<string, unknown>, attempt: Payment
     && integerAmount(payment.balanceAmount) === 0;
 }
 
+/**
+ * 취소를 검증한 fresh 조회 응답에서 증거를 뽑는다.
+ *
+ * `providerPaymentKey`는 provider가 "이 건을 취소했다"고 말한 결제의 식별자다.
+ * paymentFullyCanceled는 orderId·금액·잔액만 대조하므로, 이 키가 로컬 원장의
+ * payments.payment_key와 같은지는 호출자(취소 오케스트레이터)가 다시 대조해야
+ * 완료 근거가 순환하지 않는다. 형식이 계약 밖이면 아예 싣지 않는다 — 없는 키는
+ * 호출자에서 격리로 읽히고, 그게 추측 종결보다 안전하다.
+ */
 function canceledEvidence(payment: Record<string, unknown>): PaymentProviderEvidence {
   const cancels = Array.isArray(payment.cancels) ? payment.cancels : [];
   const lastCancel = cancels.length > 0 && plainRecord(cancels[cancels.length - 1])
@@ -232,7 +241,10 @@ function canceledEvidence(payment: Record<string, unknown>): PaymentProviderEvid
       ? payment.lastTransactionKey
       : null;
   const canceledAt = lastCancel ? isoTimestamp(lastCancel.canceledAt) : null;
-  const paymentKey = safeString(payment.paymentKey, 200) ? payment.paymentKey : undefined;
+  const paymentKey = safeString(payment.paymentKey, 200)
+    && PROVIDER_PAYMENT_KEY.test(payment.paymentKey)
+    ? payment.paymentKey
+    : undefined;
   return {
     ...(paymentKey ? { providerPaymentKey: paymentKey } : {}),
     ...(transactionKey ? { providerTransactionId: transactionKey } : {}),

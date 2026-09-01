@@ -504,6 +504,35 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.outcome).toBe('approved');
       expect(outcome.reasonCode).toBe('provider_already_fully_canceled');
       expect(outcome.refundedAmount).toBe(ATTEMPT.amount);
+      expect(outcome.evidence?.providerPaymentKey).toBe(PAYMENT_KEY);
+    });
+
+    it('취소를 검증한 조회의 paymentKey를 증거로 싣는다 — 호출자가 로컬 원장과 대조할 값이다', async () => {
+      // paymentFullyCanceled는 orderId·금액·잔액만 본다. provider가 같은 orderId에
+      // 다른 paymentKey를 돌려줘도 approved가 나오므로, 증거에는 우리가 보낸 키가
+      // 아니라 조회 응답이 말한 키가 그대로 실려야 오케스트레이터가 대조할 수 있다.
+      const OTHER_KEY = 'tviva20260901000000zzzZZZ987654321';
+      const fetchImpl = vi.fn()
+        .mockResolvedValue(jsonResponse(200, canceledPayment({ paymentKey: OTHER_KEY })));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.refund(refundRequest());
+
+      expect(outcome.outcome).toBe('approved');
+      expect(outcome.evidence?.providerPaymentKey).toBe(OTHER_KEY);
+    });
+
+    it('조회 응답에 paymentKey가 없거나 계약 밖 형식이면 증거에 싣지 않는다', async () => {
+      for (const paymentKey of [undefined, '', 'has space', 'x'.repeat(201)]) {
+        const fetchImpl = vi.fn()
+          .mockResolvedValue(jsonResponse(200, canceledPayment({ paymentKey })));
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.refund(refundRequest());
+
+        expect(outcome.outcome).toBe('approved');
+        expect(outcome.evidence?.providerPaymentKey).toBeUndefined();
+      }
     });
 
     it('전액이 아닌 환불 요청은 네트워크에 닿지 않고 격리된다', async () => {

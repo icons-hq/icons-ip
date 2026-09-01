@@ -10,6 +10,7 @@ const defaultMocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   request: null as Record<string, unknown> | null,
   payments: [] as Array<Record<string, unknown>>,
+  refunds: [] as Array<Record<string, unknown>>,
   attempt: null as Record<string, unknown> | null,
   filters: [] as Array<{ table: string; column: string; value: unknown }>,
 }));
@@ -32,7 +33,10 @@ vi.mock('../supabase/service', () => ({
           data: table === 'payment_attempts' ? defaultMocks.attempt : defaultMocks.request,
           error: null,
         })),
-        order: vi.fn(async () => ({ data: defaultMocks.payments, error: null })),
+        order: vi.fn(async () => ({
+          data: table === 'refunds' ? defaultMocks.refunds : defaultMocks.payments,
+          error: null,
+        })),
       };
       return query;
     },
@@ -51,6 +55,9 @@ function approvedRefund(overrides: Partial<RefundOutcome> = {}): RefundOutcome {
     outcome: 'approved',
     reasonCode: 'provider_cancel_confirmed',
     refundedAmount: 42000,
+    // 게이트웨이는 취소를 검증한 fresh 조회의 paymentKey를 증거로 싣는다 —
+    // 오케스트레이터가 로컬 원장 키와 대조하는 값이다.
+    evidence: { providerPaymentKey: PAYMENT_KEY },
     ...overrides,
   };
 }
@@ -68,6 +75,7 @@ function context(
       status: 'paid',
       amount: 42000,
       paymentKey: PAYMENT_KEY,
+      bankTransferRefundFiled: false,
     }],
     ...override,
   };
@@ -102,6 +110,7 @@ describe('reconcileOrderCancellation', () => {
       amount: 42000,
       payment_key: PAYMENT_KEY,
     }];
+    defaultMocks.refunds = [];
     defaultMocks.attempt = null;
     defaultMocks.rpc.mockImplementation(async (name: string) => ({
       data: name === 'reconcile_expired_prepared_goods_cancellation'
@@ -246,6 +255,7 @@ describe('reconcileOrderCancellation', () => {
           status: 'refunded',
           amount: 42000,
           paymentKey: PAYMENT_KEY,
+          bankTransferRefundFiled: false,
         }],
       })),
       refundTossPayment: vi.fn(async () => approvedRefund({
@@ -268,6 +278,7 @@ describe('reconcileOrderCancellation', () => {
           status: 'paid',
           amount: 42000,
           paymentKey: PAYMENT_KEY,
+          bankTransferRefundFiled: false,
         }],
       })),
     });
@@ -309,6 +320,118 @@ describe('reconcileOrderCancellation', () => {
     expect(ambiguous.completeRequest).not.toHaveBeenCalled();
   });
 
+  it('approved여도 provider 증거 키가 로컬 원장 키와 다르면 완료 RPC를 부르지 않는다', async () => {
+    const deps = dependencies({
+      refundTossPayment: vi.fn(async () => approvedRefund({
+        evidence: { providerPaymentKey: 'other-provider-payment-key' },
+      })),
+    });
+
+    await expect(reconcileOrderCancellation(
+      { requestId: REQUEST_ID, actorId: ACTOR_ID },
+      deps,
+    )).resolves.toEqual({ ok: false, code: 'provider_mismatch' });
+
+    expect(deps.completeRequest).not.toHaveBeenCalled();
+    expect(deps.markNeedsReview).toHaveBeenCalledWith({
+      requestId: REQUEST_ID,
+      actorId: ACTOR_ID,
+      code: 'provider_mismatch',
+    });
+  });
+
+  it('approved에 provider 증거 키가 아예 없으면 일치의 근거가 없으므로 격리한다', async () => {
+    for (const evidence of [undefined, { resultCode: 'CANCELED' }]) {
+      const deps = dependencies({
+        refundTossPayment: vi.fn(async () => approvedRefund({ evidence })),
+      });
+
+      await expect(reconcileOrderCancellation(
+        { requestId: REQUEST_ID, actorId: ACTOR_ID },
+        deps,
+      )).resolves.toEqual({ ok: false, code: 'provider_mismatch' });
+
+      expect(deps.completeRequest).not.toHaveBeenCalled();
+    }
+  });
+
+  it('계좌 송금으로 접수된 toss 결제는 취소 API를 발행하지 않고 격리한다', async () => {
+    const deps = dependencies({
+      loadContext: vi.fn(async () => context({
+        payments: [{
+          id: 'payment-1',
+          provider: 'toss',
+          status: 'paid',
+          amount: 42000,
+          paymentKey: PAYMENT_KEY,
+          bankTransferRefundFiled: true,
+        }],
+      })),
+    });
+
+    await expect(reconcileOrderCancellation(
+      { requestId: REQUEST_ID, actorId: ACTOR_ID },
+      deps,
+    )).resolves.toEqual({ ok: false, code: 'bank_transfer_refund_filed' });
+
+    expect(deps.refundTossPayment).not.toHaveBeenCalled();
+    expect(deps.completeRequest).not.toHaveBeenCalled();
+    expect(deps.markNeedsReview).toHaveBeenCalledWith({
+      requestId: REQUEST_ID,
+      actorId: ACTOR_ID,
+      code: 'bank_transfer_refund_filed',
+    });
+  });
+
+  it('default 조회는 환불 원장 수단을 함께 읽어 계좌 송금 접수를 컨텍스트에 싣는다', async () => {
+    defaultMocks.refunds = [{ payment_id: 'payment-1', method: 'bank_transfer' }];
+
+    await expect(reconcileOrderCancellation({
+      requestId: REQUEST_ID,
+      actorId: ACTOR_ID,
+    })).resolves.toEqual({ ok: false, code: 'bank_transfer_refund_filed' });
+
+    expect(defaultMocks.filters).toContainEqual({
+      table: 'refunds',
+      column: 'payment_id',
+      value: ['payment-1'],
+    });
+    expect(defaultMocks.rpc).toHaveBeenCalledWith(
+      'mark_order_cancellation_needs_review',
+      expect.objectContaining({ p_error_code: 'bank_transfer_refund_filed' }),
+    );
+    expect(defaultMocks.rpc).not.toHaveBeenCalledWith(
+      'complete_order_cancellation_request',
+      expect.anything(),
+    );
+  });
+
+  it('환불 원장이 pg_cancel이거나 수단 미기록이면 자동 취소 경로를 막지 않는다', async () => {
+    for (const refunds of [
+      [],
+      [{ payment_id: 'payment-1', method: null }],
+      [{ payment_id: 'payment-1', method: 'pg_cancel' }],
+      // 다른 결제의 계좌 송금 기록은 이 결제를 막지 않는다.
+      [{ payment_id: 'payment-2', method: 'bank_transfer' }],
+    ]) {
+      vi.clearAllMocks();
+      defaultMocks.rpc.mockImplementation(async (name: string) => ({
+        data: name === 'reconcile_expired_prepared_goods_cancellation'
+          ? 'not_applicable'
+          : null,
+        error: null,
+      }));
+      defaultMocks.refunds = refunds;
+
+      // TOSS env가 없어 default refundTossPayment는 throw한다 — 게이트를 통과해
+      // 취소 발행까지 갔다는 뜻이다(bank_transfer_refund_filed가 아니다).
+      await expect(reconcileOrderCancellation({
+        requestId: REQUEST_ID,
+        actorId: ACTOR_ID,
+      })).resolves.toEqual({ ok: false, code: 'provider_unavailable' });
+    }
+  });
+
   it('approved여도 환불 금액이 캡처 금액과 다르면 완료하지 않는다', async () => {
     const deps = dependencies({
       refundTossPayment: vi.fn(async () => approvedRefund({ refundedAmount: 41000 })),
@@ -347,6 +470,7 @@ describe('reconcileOrderCancellation', () => {
           status: 'canceled',
           amount: 42000,
           paymentKey: null,
+          bankTransferRefundFiled: false,
         }],
       })),
     });
@@ -364,7 +488,7 @@ describe('reconcileOrderCancellation', () => {
     const deps = dependencies({
       loadContext: vi.fn(async () => context({
         payments: [
-          { id: 'payment-1', provider: 'toss', status: 'failed', amount: 39000, paymentKey: null },
+          { id: 'payment-1', provider: 'toss', status: 'failed', amount: 39000, paymentKey: null, bankTransferRefundFiled: false },
         ],
       })),
     });
@@ -386,8 +510,8 @@ describe('reconcileOrderCancellation', () => {
     const deps = dependencies({
       loadContext: vi.fn(async () => context({
         payments: [
-          { id: 'payment-1', provider: 'toss', status: 'failed', amount: 39000, paymentKey: null },
-          { id: 'payment-2', provider: 'toss', status: 'paid', amount: 42000, paymentKey: PAYMENT_KEY },
+          { id: 'payment-1', provider: 'toss', status: 'failed', amount: 39000, paymentKey: null, bankTransferRefundFiled: false },
+          { id: 'payment-2', provider: 'toss', status: 'paid', amount: 42000, paymentKey: PAYMENT_KEY, bankTransferRefundFiled: false },
         ],
       })),
     });

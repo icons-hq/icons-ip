@@ -339,6 +339,18 @@ export async function reconcileTicketCancellation(
       return markNeedsReview(dependencies, input, 'provider_unavailable');
     }
     if (refund.outcome === 'approved' && refund.refundedAmount === payment.amount) {
+      /*
+       * provider가 취소를 검증해 준 결제와 로컬 원장의 결제가 같은 건인지 대조한다.
+       *
+       * 게이트웨이의 취소 검증은 orderId·통화·금액·잔액만 본다. 이 대조가 없으면
+       * 완료 근거가 순환한다 — 로컬 키를 verified 배열에 넣고 완료 RPC가 그 배열을
+       * 다시 로컬 키와 맞춰보는 꼴이라, provider가 같은 orderId에 다른 paymentKey를
+       * 돌려주는 이상 상황이 검증 없이 통과한다. 증거 키가 없어도 마찬가지로
+       * 격리한다 — 없는 증거는 일치의 근거가 아니다.
+       */
+      if (refund.evidence?.providerPaymentKey !== payment.paymentKey) {
+        return markNeedsReview(dependencies, input, 'provider_mismatch');
+      }
       verifiedPaymentKeys.push(payment.paymentKey as string);
       continue;
     }
