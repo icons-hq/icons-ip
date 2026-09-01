@@ -442,7 +442,7 @@ a.admin-console-chip:hover {
   display: grid;
   gap: 8px;
   padding-top: 12px;
-  border-top: 1px solid var(--editorial-rule);
+  border-top: 1px solid var(--editorial-line);
 }
 
 .admin-claim-actions > form:first-of-type {
