@@ -228,6 +228,9 @@ export async function resolveInquiryLinkTargets(
       .from('goods')
       .select('id,name')
       .eq('id', input.goodId)
+      // 판매 제한(19금) 상품은 비노출 표면과 같은 취급 — 문의 컨텍스트가
+      // 상품명을 되돌려주는 우회 노출을 막는다(#392).
+      .eq('sale_restriction', 'none')
       .maybeSingle<{ id: string; name: string }>();
     if (data) {
       targets.goodId = data.id;
