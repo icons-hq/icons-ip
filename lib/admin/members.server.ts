@@ -41,5 +41,19 @@ export async function getAdminMemberDetail(profileId: string): Promise<AdminMemb
   if (data.length !== 1) throw new Error('Failed to load admin member detail');
   const record = parseAdminMemberDetail(data[0]);
   if (!record) throw new Error('Failed to load admin member detail');
-  return record;
+
+  /* 등급은 상세 RPC 계약(admin_get_member_detail)을 재정의하지 않고 profiles 의
+     staff select 로 병합한다 — 못 읽으면 기본 등급으로 두고 상세는 그대로 연다. */
+  const { data: gradeRow } = await supabase
+    .from('profiles')
+    .select('loyalty_grade')
+    .eq('id', profileId)
+    .maybeSingle<{ loyalty_grade: string }>();
+
+  return {
+    ...record,
+    loyaltyGrade: typeof gradeRow?.loyalty_grade === 'string'
+      ? gradeRow.loyalty_grade
+      : record.loyaltyGrade,
+  };
 }

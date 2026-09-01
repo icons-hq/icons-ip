@@ -1,8 +1,12 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { MyPage } from '@/components/screens/MyPage';
+import type { MypageLoyaltySummary } from '@/components/wc/MypageShell';
 import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
+import { loadLoyaltyStatus } from '@/lib/coupons.server';
+import { krwAmountWords } from '@/lib/format';
+import { loyaltyGradeLabel } from '@/lib/loyalty';
 import { getProfileAvatarPresentation } from '@/lib/profile-avatar.server';
 
 export const metadata: Metadata = {
@@ -17,16 +21,30 @@ export default async function Page() {
   if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath('/my'));
 
   const nickname = auth.profile?.nickname ?? '';
-  const avatar = await getProfileAvatarPresentation({
-    avatarPath: auth.profile?.avatar_path ?? null,
-    nickname,
-  });
+  const [avatar, loyaltyStatus] = await Promise.all([
+    getProfileAvatarPresentation({
+      avatarPath: auth.profile?.avatar_path ?? null,
+      nickname,
+    }),
+    loadLoyaltyStatus(),
+  ]);
+
+  const loyalty: MypageLoyaltySummary | null = loyaltyStatus
+    ? {
+      grade: loyaltyStatus.grade,
+      label: loyaltyGradeLabel(loyaltyStatus.grade),
+      nextNote: loyaltyStatus.next
+        ? `${loyaltyGradeLabel(loyaltyStatus.next.grade)}까지 ${krwAmountWords(loyaltyStatus.next.remaining)} 남았어요.`
+        : '최고 등급이에요.',
+    }
+    : null;
 
   return (
     <MyPage
       avatarInitial={avatar.avatarInitial}
       avatarUrl={avatar.avatarUrl}
       nickname={nickname}
+      loyalty={loyalty}
     />
   );
 }

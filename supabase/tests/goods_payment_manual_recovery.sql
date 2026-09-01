@@ -144,7 +144,7 @@ values (
   'goods-manual-recovery-good',
   'goods-manual-recovery-ip',
   '굿즈 수동 복구 상품',
-  '테스트',
+  '문구',
   107000,
   'ok',
   10
@@ -181,7 +181,7 @@ select
   1,
   107000,
   '굿즈 수동 복구 상품',
-  '테스트',
+  '문구',
   'goods-manual-recovery-ip'
 from public.orders as order_record
 where order_record.id between

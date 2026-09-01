@@ -10,6 +10,7 @@ import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import { buildGoodPreview, goodFormValues } from '@/lib/admin/good-preview';
 import type { Ip } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
+import { GOOD_BADGES, GOOD_TYPES, goodDisplayBadges } from '@/lib/goods-taxonomy';
 import { GOODS_NOTICE_FIELDS, type GoodsNoticeInfo } from '@/lib/goods-notice';
 import {
   adminCatalogArchiveCounts,
@@ -18,7 +19,7 @@ import {
   type AdminCatalogArchiveFilter,
 } from '../../../lib/admin/catalog-archive';
 import { GoodDetailView } from '@/components/screens/GoodDetail';
-import { GoodsCard } from '@/components/shop/GoodsCard';
+import { ProductCard } from '@/components/wc/ProductCard';
 import { Icon } from '@/components/ui/Icon';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
@@ -190,6 +191,7 @@ function initialGoodFormValues(selected: AdminGoodRecord | null): Record<string,
     name: selected?.name ?? '',
     type: selected?.type ?? '',
     price: String(selected?.price ?? 0),
+    compareAtPrice: selected?.compareAtPrice == null ? '' : String(selected.compareAtPrice),
     badge: selected?.badge ?? '',
     stock: selected?.stock ?? 'ok',
     description: selected?.description ?? '',
@@ -214,13 +216,13 @@ function initialGoodImageUrls(selected: AdminGoodRecord | null): Record<string, 
  * 저장 전 입력값 미리보기 (#184).
  *
  * 공개 화면 컴포넌트를 그대로 쓴다 — 따로 그리면 "실제 상세페이지와 동일하게"라는
- * 조건이 첫 수정에서 깨진다. 담기 자리에는 동작하지 않는 표시를 꽂아 미리보기가
- * 장바구니나 카탈로그를 건드리지 않게 한다.
+ * 조건이 첫 수정에서 깨진다. `embedded` 가 구매 패널·위시 하트를 비활성으로 그려
+ * 미리보기가 장바구니나 카탈로그를 건드리지 않게 한다.
  */
 function GoodPreviewPanel({ detail, ip }: { detail: GoodDetailContent; ip: Ip | null }) {
-  const inertAction = (
-    <span className="mono" style={{ color: 'var(--dim)', fontSize: 12 }}>담기 (미리보기)</span>
-  );
+  const good = detail.good;
+  /* 아직 저장하지 않은 신규 굿즈는 갈 곳이 없다 — 없는 상세로 보내는 대신 목록으로 둔다. */
+  const href = good.id ? `/shop/${good.id}` : '/shop';
 
   return (
     /* details 에 display 를 덮어쓰면 접힘이 깨지는 브라우저가 있어 기본 display 를 유지한다. */
@@ -232,13 +234,25 @@ function GoodPreviewPanel({ detail, ip }: { detail: GoodDetailContent; ip: Ip | 
         </p>
         <div className="col" style={{ gap: 8 }}>
           <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>굿즈샵 목록 카드</span>
-          <div className="goods-detail-scope" style={{ maxWidth: 280 }}>
-            <GoodsCard action={inertAction} good={detail.good} ip={ip} />
+          {/* wc 토큰은 .wc-root 스코프 안에서만 산다 — 어드민 표면에서도 같은 래퍼가 필요하다. */}
+          <div className="wc-root" style={{ maxWidth: 280 }}>
+            <ProductCard
+              badges={goodDisplayBadges(good)}
+              brand={ip?.title ?? null}
+              compareAtPrice={good.compareAtPrice}
+              href={href}
+              imageBackground={good.img}
+              name={good.name}
+              price={good.price}
+              soldOut={good.stock === 'soldout' || good.stockQty <= 0}
+            />
           </div>
         </div>
         <div className="col" style={{ gap: 8 }}>
           <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>굿즈 상세페이지</span>
-          <GoodDetailView cartAction={inertAction} detail={detail} embedded showBackLink={false} />
+          <div className="wc-root">
+            <GoodDetailView detail={detail} embedded />
+          </div>
         </div>
       </div>
     </details>
@@ -281,6 +295,19 @@ function GoodEditor({
     stockQty: selected?.stockQty ?? 0,
     values,
   });
+  /* 할인 표기는 판매가보다 큰 정가에서만 파생된다(PriceBlock·DB CHECK 와 같은 규칙).
+     그 조건을 만족하지 않는 입력은 미리보기에서도 할인으로 그리지 않는다. */
+  const compareAtPriceInput = Number((values.compareAtPrice ?? '').trim());
+  const previewDetail: GoodDetailContent = {
+    ...preview,
+    good: {
+      ...preview.good,
+      compareAtPrice: Number.isInteger(compareAtPriceInput)
+        && compareAtPriceInput > preview.good.price
+        ? compareAtPriceInput
+        : null,
+    },
+  };
 
   return (
     <>
@@ -302,9 +329,26 @@ function GoodEditor({
             ))}
           </SelectField>
           <Field defaultValue={selected?.name} error={state.errors?.name} label="굿즈 이름" name="name" />
-          <Field defaultValue={selected?.type} error={state.errors?.type} label="유형" name="type" />
+          {/* 유형·배지는 자유 입력에서 표준 값 select 로 좁혔다 (#326). 자유 문자열은
+              굿즈샵 필터 축으로 쓸 수 없고, DB CHECK 도 같은 목록을 강제한다. */}
+          <SelectField defaultValue={selected?.type ?? ''} error={state.errors?.type} label="유형" name="type">
+            <option value="">선택</option>
+            {GOOD_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+          </SelectField>
           <Field defaultValue={selected?.price ?? 0} error={state.errors?.price} label="가격" name="price" type="number" />
-          <Field defaultValue={selected?.badge} label="배지" name="badge" />
+          {/* 정가는 할인 표기 전용이다 — 비우면 할인 아님, 채우면 판매가보다 커야 한다. */}
+          <Field
+            defaultValue={selected?.compareAtPrice ?? ''}
+            error={state.errors?.compareAtPrice}
+            label="정가 (할인 표기용, 비우면 할인 없음)"
+            name="compareAtPrice"
+            placeholder="26000"
+            type="number"
+          />
+          <SelectField defaultValue={selected?.badge ?? ''} error={state.errors?.badge} label="배지" name="badge">
+            <option value="">없음</option>
+            {GOOD_BADGES.map((badge) => <option key={badge} value={badge}>{badge}</option>)}
+          </SelectField>
           <SelectField defaultValue={selected?.stock ?? 'ok'} error={state.errors?.stock} label="운영 상태" name="stock">
             <option value="ok">ok</option>
             <option value="low">low</option>
@@ -351,7 +395,7 @@ function GoodEditor({
         />
         <FormShell pending={pending} state={state} />
       </form>
-      <GoodPreviewPanel detail={preview} ip={previewIp} />
+      <GoodPreviewPanel detail={previewDetail} ip={previewIp} />
     </>
   );
 }

@@ -2,13 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import {
-  ACCOUNT_SUSPENDED_PATH,
-  isAccountSuspended,
-  isOnboarded,
-  onboardingPath,
-} from '@/lib/auth/onboarding';
-import { getCurrentAuthState } from '@/lib/auth/server';
+import { requireActiveUser } from '@/lib/participation-gate.server';
 import {
   buildReviewUploadPath,
   normalizeReviewCreateForm,
@@ -38,20 +32,6 @@ export interface ReviewActionState {
 const CREATE_FAILED = '리뷰를 등록하지 못했습니다. 잠시 후 다시 시도해주세요.';
 const UPDATE_FAILED = '리뷰를 수정하지 못했습니다. 잠시 후 다시 시도해주세요.';
 const UPLOAD_FAILED = '리뷰 사진을 업로드하지 못했습니다. 다시 시도해주세요.';
-
-function loginPath(next: string) {
-  return `/login?next=${encodeURIComponent(next)}`;
-}
-
-async function requireActiveUser(next: string) {
-  const auth = await getCurrentAuthState();
-
-  if (!auth.isConfigured || !auth.user) redirect(loginPath(next));
-  if (isAccountSuspended(auth.profile)) redirect(ACCOUNT_SUSPENDED_PATH);
-  if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath(next));
-
-  return auth.user;
-}
 
 /** RPC가 던진 도메인 오류를 사용자 문구로. 모르는 오류는 일반 실패로 접는다. */
 function rpcErrorMessage(message: string | null | undefined, fallback: string): ReviewFormErrors {

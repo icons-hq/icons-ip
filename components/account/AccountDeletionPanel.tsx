@@ -156,7 +156,7 @@ export function AccountDeletionPanel({ presentation, requestKey }: AccountDeleti
             </div>
           )}
           <button
-            className="btn account-deletion-submit"
+            className="wc-btn account-deletion-submit"
             disabled={pending}
           >
             {pending ? '신청 중' : '회원 탈퇴 신청'}

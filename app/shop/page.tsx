@@ -1,10 +1,17 @@
 import { Shop } from '@/components/screens/Shop';
 import { getCatalogSnapshot } from '@/lib/catalog';
+import { parseShopSearchParams, selectShopGoods } from '@/lib/shop-catalog';
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ ip?: string | string[] }> }) {
-  const catalog = await getCatalogSnapshot();
-  const ipParam = (await searchParams).ip;
-  const requestedIp = Array.isArray(ipParam) ? ipParam[0] : ipParam;
-  const initialIpId = catalog.ips.some((ip) => ip.id === requestedIp) ? requestedIp : undefined;
-  return <Shop catalog={catalog} initialIpId={initialIpId} />;
+interface PageProps {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function Page({ searchParams }: PageProps) {
+  const [catalog, params] = await Promise.all([getCatalogSnapshot(), searchParams ?? {}]);
+  const query = parseShopSearchParams(params, {
+    view: 'all',
+    validIpIds: new Set(catalog.ips.map((ip) => ip.id)),
+  });
+
+  return <Shop query={query} result={selectShopGoods(catalog, query)} view="all" />;
 }

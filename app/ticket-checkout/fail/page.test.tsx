@@ -22,7 +22,7 @@ describe('ticket checkout fail page', () => {
       searchParams: Promise.resolve({ orderId: `order_${referenceId}` }),
     }));
 
-    expect(html).toContain('href="/events"');
+    expect(html).toContain('href="/offline-popups"');
     expect(html).not.toContain(`/ticket-checkout/${referenceId}`);
   });
 

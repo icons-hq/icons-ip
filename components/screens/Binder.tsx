@@ -1,19 +1,28 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { OverlayPortal } from '@/components/shell/OverlayPortal';
+import { useOverlayA11y } from '@/components/shell/useOverlayA11y';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Card, Ip } from '@/lib/data';
 import { ipAccentInk } from '@/lib/ip-display';
 import { rarityTag, RARITY_META, type RarityKey } from '@/lib/rarity';
 import { hrefFor } from '@/lib/routes';
-import { Empty } from '@/components/ui/Empty';
-import { Modal } from '@/components/ui/Modal';
+import { EmptyState } from '@/components/wc/EmptyState';
+import { SectionHeading } from '@/components/wc/SectionHeading';
+import { WcButton } from '@/components/wc/WcButton';
 
-/* mock 시세 — 실제 시세는 v2 트레이드/마켓 데이터가 진실원 (현행 바인더도 mock 표기) */
-const MOCK_PRICE: Partial<Record<RarityKey, string>> = { HOLO: '₩48,000', SSR: '₩30,000', SR: '₩18,000', R: '₩12,000', N: '₩8,000' };
+/* 바인더(도감) 화면(#71) — White Catalog 카탈로그 문법 재조판(#327 · DESIGN §8).
+ * 화면 크롬은 흰 지면·잉크·헤어라인이고 카드 타일 내부만 rarity 물성을 유지한다.
+ * 시세는 실데이터 원칙(DESIGN §0)에 따라 표기하지 않는다 — 스탯은 발행량·도감뿐. */
 
-function CardDetail({
+/* 카드 상세 다이얼로그 — 포커스 트랩·Escape·복귀 포커스·배경 스크롤 잠금·배경 inert는
+ * useOverlayA11y 공유 훅 몫이다(원래 자체 구현이었으나, 훅의 #root inert가 #root 안 오버레이를
+ * 얼리던 결함이 OverlayPortal 도입으로 해소되며 통합했다). HM Modal 대신 흰 지면 다이얼로그로
+ * 재구성했다. 테스트에서 renderToStaticMarkup으로 직접 렌더할 수 있게 export 한다 —
+ * 그래서 포털은 이 컴포넌트가 아니라 Binder 호출부에 있다. */
+export function CardDetail({
   card,
   cardRewardsEnabled,
   ip,
@@ -28,64 +37,102 @@ function CardDetail({
   collection: string;
   onClose: () => void;
 }) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  /* 조건부 마운트라 열림 = 마운트다 — open은 상수 true로 두고 마운트/언마운트가 수명을 정한다. */
+  useOverlayA11y({ open: true, onClose, panelRef });
+
   const tag = rarityTag(card.rarity);
   const owned = hasOwnership && card.owned;
   const denom = /^\d+\/(\d+)$/.exec(card.no)?.[1] ?? '—';
 
   return (
-    <Modal onClose={onClose}>
-      <div className="binder-detail" style={{ display: 'grid', gap: 'clamp(20px, 3vw, 32px)', alignItems: 'center' }}>
-        <div style={{ width: 'min(230px, 60vw)', justifySelf: 'center', aspectRatio: '5 / 7', borderRadius: 16, position: 'relative', overflow: 'hidden', background: card.bg, backgroundSize: 'cover', backgroundPosition: 'center', boxShadow: `0 30px 70px -24px rgba(0,0,0,.9), 0 0 0 1px ${tag.ring}`, filter: hasOwnership && !card.owned ? 'grayscale(.6) brightness(.85)' : 'none' }}>
-          <span className="mono" style={{ position: 'absolute', top: 10, left: 10, fontSize: 10, letterSpacing: '.06em', padding: '4px 8px', borderRadius: 5, fontWeight: 700, color: tag.color, background: tag.bg }}>{card.rarity}</span>
+    /* 래퍼 자체가 딤이다(wc-discovery.css) — 바깥 클릭은 닫기, 패널 클릭은 전파를 끊는다. */
+    <div className="wc-binder__detail" onClick={onClose}>
+      <div
+        ref={panelRef}
+        aria-label={`${card.name} 카드 상세`}
+        aria-modal="true"
+        className="wc-binder__detail-panel"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            className="wc-binder__detail-close"
+            onClick={onClose}
+            style={{ padding: '4px 8px', font: 'inherit', fontSize: 13, fontWeight: 700, border: 'none', background: 'none', color: 'var(--wc-ink-tertiary)', cursor: 'pointer' }}
+            type="button"
+          >
+            닫기
+          </button>
         </div>
-        <div>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {ip && (
-              <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 11px', borderRadius: 999, fontSize: 11, color: ipAccentInk(ip), border: '1px solid rgba(255,255,255,.16)' }}>{ip.title}</span>
-            )}
-            {hasOwnership && (
-              <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 11px', borderRadius: 999, fontSize: 11, color: owned ? 'var(--mint)' : 'var(--dim)', border: '1px solid rgba(255,255,255,.16)' }}>
-                {owned ? '보유 중' : '미보유'}
-              </span>
-            )}
+        <div className="wc-binder__detail-body" style={{ display: 'grid', gap: 20 }}>
+          <div
+            className="wc-binder__detail-tile"
+            style={{
+              width: 'min(230px, 60vw)',
+              justifySelf: 'center',
+              aspectRatio: '5 / 7',
+              borderRadius: 12,
+              position: 'relative',
+              overflow: 'hidden',
+              background: card.bg,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              boxShadow: `0 0 0 1px ${tag.ring}`,
+              filter: hasOwnership && !card.owned ? 'grayscale(.6) brightness(.85)' : 'none',
+            }}
+          >
+            <span style={{ position: 'absolute', top: 10, left: 10, fontSize: 10, letterSpacing: '.06em', padding: '4px 8px', borderRadius: 5, fontWeight: 700, color: tag.color, background: tag.bg }}>{card.rarity}</span>
           </div>
-          <h2 style={{ margin: '14px 0 0', fontFamily: 'var(--ff-display)', fontWeight: 700, fontSize: 'clamp(22px, 3vw, 30px)', letterSpacing: '-0.02em' }}>{card.name}</h2>
-          <div className="mono" style={{ fontSize: 12, color: 'var(--faint)', marginTop: 6 }}>No. {card.no}</div>
-          <p style={{ margin: '14px 0 0', fontSize: 14, color: 'var(--dim)', textWrap: 'pretty' }}>
-            {owned
-              ? '보유 중인 카드입니다. 트레이드에 등록하거나 프로필에 전시할 수 있어요.'
-              : '아직 보유하지 않은 카드입니다. 카드팩 · 트레이드로 획득할 수 있어요.'}
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 20 }}>
-            {([
-              ['시세', MOCK_PRICE[card.rarity] ?? '—'],
-              ['발행량', denom],
-              ['도감', collection],
-            ] as const).map(([l, v]) => (
-              <div key={l} style={{ padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(255,255,255,.08)', background: 'rgba(255,255,255,.02)' }}>
-                <div className="mono" style={{ fontSize: 10, color: 'var(--faint)' }}>{l}</div>
-                <div style={{ fontFamily: 'var(--ff-display)', fontWeight: 700, fontSize: 16, marginTop: 4 }}>{v}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 22 }}>
-            {owned ? (
-              <>
-                <Link className="btn btn-holo" href={hrefFor('exchange')} style={{ height: 46, fontSize: 14 }}>트레이드 등록 ⇄</Link>
-                <Link className="btn btn-ghost" href={hrefFor('community')} style={{ height: 46, fontSize: 14 }}>전시하기</Link>
-              </>
-            ) : (
-              <>
-                {cardRewardsEnabled && (
-                  <Link className="btn btn-holo" href={hrefFor('packs')} style={{ height: 46, fontSize: 14 }}>카드팩으로 획득 ✦</Link>
-                )}
-                <Link className="btn btn-ghost" href={hrefFor('exchange')} style={{ height: 46, fontSize: 14 }}>트레이드로 획득</Link>
-              </>
-            )}
+          <div className="wc-binder__detail-info">
+            <div className="wc-binder__detail-chips" style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {ip && (
+                <span className="wc-binder__detail-chip" style={{ padding: '3px 10px', fontSize: 12, border: '1px solid var(--wc-line-control)', color: ipAccentInk(ip) }}>{ip.title}</span>
+              )}
+              {hasOwnership && (
+                <span className={`wc-binder__detail-chip${owned ? ' is-owned' : ''}`} style={{ padding: '3px 10px', fontSize: 12, border: '1px solid var(--wc-line-control)', color: owned ? 'var(--wc-success)' : 'var(--wc-ink-tertiary)' }}>
+                  {owned ? '보유 중' : '미보유'}
+                </span>
+              )}
+            </div>
+            <h2 className="wc-binder__detail-name" style={{ margin: '14px 0 0', fontFamily: 'inherit', fontSize: 22, fontWeight: 700, lineHeight: 1.3, color: 'var(--wc-ink)' }}>{card.name}</h2>
+            <p className="wc-binder__detail-no" style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--wc-ink-tertiary)' }}>No. {card.no}</p>
+            <p className="wc-binder__detail-desc" style={{ margin: '14px 0 0', fontSize: 14, color: 'var(--wc-ink-sub)' }}>
+              {owned
+                ? '보유 중인 카드입니다. 트레이드에 등록하거나 프로필에 전시할 수 있어요.'
+                : '아직 보유하지 않은 카드입니다. 카드팩 · 트레이드로 획득할 수 있어요.'}
+            </p>
+            <div className="wc-binder__detail-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8, marginTop: 20 }}>
+              {([
+                ['발행량', denom],
+                ['도감', collection],
+              ] as const).map(([l, v]) => (
+                <div key={l} className="wc-binder__detail-stat" style={{ padding: '10px 14px', border: '1px solid var(--wc-hairline)' }}>
+                  <span style={{ display: 'block', fontSize: 11, color: 'var(--wc-ink-tertiary)' }}>{l}</span>
+                  <strong style={{ display: 'block', marginTop: 2, fontSize: 16, fontWeight: 700, color: 'var(--wc-ink)' }}>{v}</strong>
+                </div>
+              ))}
+            </div>
+            <div className="wc-btn-group wc-binder__detail-actions" style={{ marginTop: 22 }}>
+              {owned ? (
+                <>
+                  <WcButton href={hrefFor('exchange')} variant="primary">트레이드 등록</WcButton>
+                  <WcButton href={hrefFor('community')}>전시하기</WcButton>
+                </>
+              ) : (
+                <>
+                  {cardRewardsEnabled && (
+                    <WcButton href={hrefFor('packs')} variant="primary">카드팩으로 획득</WcButton>
+                  )}
+                  <WcButton href={hrefFor('exchange')}>트레이드로 획득</WcButton>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </Modal>
+    </div>
   );
 }
 
@@ -144,145 +191,175 @@ export function Binder({
   };
 
   return (
-    <div style={{ minHeight: '100vh' }}>
-      {/* header */}
-      <header style={{ padding: 'clamp(108px, 12vw, 140px) 0 0' }}>
-        <div className="wrap" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 24 }}>
-          <div>
-            <div className="eyebrow rise">모아요 · 내 컬렉션</div>
-            <h1 className="rise" style={{ margin: '14px 0 0', fontFamily: 'var(--ff-display)', fontWeight: 700, fontSize: 'clamp(36px, 5vw, 64px)', lineHeight: 1.04, letterSpacing: '-0.04em', animationDelay: '.08s' }}>내 바인더</h1>
-            <p className="rise" style={{ margin: '14px 0 0', fontSize: 15, color: '#C9C3E4', maxWidth: 480, textWrap: 'pretty', animationDelay: '.16s' }}>
-              카드팩으로 모은 수집 카드를 등급·IP별로 정리하고, 도감을 채워가세요.
-            </p>
-            <div className="rise" style={{ display: 'flex', flexWrap: 'wrap', gap: 'clamp(20px, 4vw, 40px)', marginTop: 24, animationDelay: '.22s' }}>
-              {stats.map(([n, l]) => (
-                <div key={l} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                  <span className="holo-text" style={{ fontFamily: 'var(--ff-display)', fontWeight: 700, fontSize: 30, letterSpacing: '-0.02em', backgroundSize: '200% 200%' }}>{n}</span>
-                  <span className="mono" style={{ fontSize: 11, color: 'var(--faint)' }}>{l}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          {hasOwnership ? (
-            <div className="rise" style={{ minWidth: 240, maxWidth: 300, flex: 1, animationDelay: '.28s' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-                <span className="mono" style={{ fontSize: 11, letterSpacing: '.16em', textTransform: 'uppercase', color: 'var(--dim)' }}>도감 달성률</span>
-                <span className="mono" style={{ fontSize: 17, fontWeight: 700, color: 'var(--violet-2)' }}>{pct}%</span>
+    <div className="wc-root wc-binder">
+      <div className="wc-container">
+        {/* header — h1 + 스탯 행 + 진행률 */}
+        <header className="wc-binder__header">
+          <SectionHeading
+            as="h1"
+            subcopy="카드팩으로 모은 수집 카드를 등급·IP별로 정리하고, 도감을 채워가세요."
+            title="내 바인더"
+          />
+          <div className="wc-binder__stats">
+            {stats.map(([n, l]) => (
+              <div key={l} className="wc-binder__stat">
+                <strong>{n}</strong>
+                {l}
               </div>
-              <div style={{ height: 10, borderRadius: 99, background: 'rgba(255,255,255,.07)', marginTop: 10, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${pct}%`, borderRadius: 99, background: 'linear-gradient(90deg, #2DE2FF, #8B5CFF, #FF4D9D)', transition: 'width .5s ease' }} />
-              </div>
-              <div className="money-caption" style={{ marginTop: 8 }}>{ownedCards.length} / {total}장 보유</div>
-            </div>
-          ) : (
-            <div className="rise money-caption" style={{ minWidth: 240, maxWidth: 300, flex: 1, animationDelay: '.28s' }}>
-              로그인하면 보유 현황이 표시됩니다 · 지금은 공개 도감으로 열람할 수 있어요
-            </div>
-          )}
-        </div>
-      </header>
-
-      {/* filters */}
-      <div className="wrap" style={{ paddingTop: 30, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-        {hasOwnership ? (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }} role="group" aria-label="보유 필터">
-            {([['all', '전체'], ['owned', '보유'], ['wish', '미보유']] as const).map(([k, l]) => (
-              <button key={k} className={'chip' + (own === k ? ' on' : '')} aria-pressed={own === k} onClick={() => setOwn(k)}>{l}</button>
             ))}
           </div>
-        ) : (
-          <span />
-        )}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }} role="group" aria-label="등급 필터">
-          <button className={'chip chip-sm' + (rar === 'all' ? ' on' : '')} aria-pressed={rar === 'all'} onClick={() => setRar('all')}>전체 등급</button>
-          {(Object.keys(RARITY_META) as RarityKey[]).map((k) => {
-            const active = rar === k;
-            const c = RARITY_META[k].color;
-            return (
-              <button
-                key={k}
-                className={'chip chip-sm' + (active ? ' on accent' : '')}
-                aria-pressed={active}
-                onClick={() => setRar(k)}
-                style={active ? { background: c, borderColor: c, color: '#0A0813' } : {}}
-              >
-                {k}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+          {hasOwnership ? (
+            <div className="wc-binder__progress">
+              <span className="wc-binder__progress-label">도감 달성률</span>
+              <span aria-hidden className="wc-binder__progress-track">
+                <span className="wc-binder__progress-fill" style={{ width: `${pct}%` }} />
+              </span>
+              <strong className="wc-binder__progress-pct">{pct}%</strong>
+              <span className="wc-binder__progress-note">{ownedCards.length} / {total}장 보유</span>
+            </div>
+          ) : (
+            <p className="wc-binder__signin-note" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--wc-ink-tertiary)' }}>
+              로그인하면 보유 현황이 표시됩니다 · 지금은 공개 도감으로 열람할 수 있어요
+            </p>
+          )}
+        </header>
 
-      {/* grid */}
-      <section style={{ padding: '24px 0 clamp(40px, 6vw, 60px)' }}>
-        <div className="wrap">
+        {/* filters — 칩 행. role=group 래퍼는 보유/등급 두 축의 접근성 그룹 라벨을 유지한다. */}
+        <div className="wc-binder__filters">
+          {hasOwnership && (
+            <div aria-label="보유 필터" className="wc-binder__filter-group" role="group" style={{ display: 'contents' }}>
+              {([['all', '전체'], ['owned', '보유'], ['wish', '미보유']] as const).map(([k, l]) => (
+                <button
+                  key={k}
+                  aria-pressed={own === k}
+                  className={`wc-binder__chip${own === k ? ' is-active' : ''}`}
+                  onClick={() => setOwn(k)}
+                  type="button"
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+          )}
+          <div aria-label="등급 필터" className="wc-binder__filter-group" role="group" style={{ display: 'contents' }}>
+            <button
+              aria-pressed={rar === 'all'}
+              className={`wc-binder__chip${rar === 'all' ? ' is-active' : ''}`}
+              onClick={() => setRar('all')}
+              type="button"
+            >
+              전체 등급
+            </button>
+            {(Object.keys(RARITY_META) as RarityKey[]).map((k) => {
+              const active = rar === k;
+              const c = RARITY_META[k].color;
+              return (
+                <button
+                  key={k}
+                  aria-pressed={active}
+                  className={`wc-binder__chip${active ? ' is-active' : ''}`}
+                  onClick={() => setRar(k)}
+                  /* 활성 등급 칩의 등급색 채움은 카드 물성 예외(계약 §2) — 어두운 잉크는 기존 값 승계 */
+                  style={active ? { background: c, borderColor: c, color: '#0A0813' } : undefined}
+                  type="button"
+                >
+                  {k}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* grid */}
+        <section className="wc-binder__list">
           {list.length > 0 ? (
-            <div className="binder-grid">
+            <div className="wc-binder__grid">
               {list.map((c) => {
                 const tag = rarityTag(c.rarity);
                 const ip = ipsById.get(c.ip);
                 const locked = hasOwnership && !c.owned;
                 return (
-                  <button key={c.id} type="button" className="binder-card" onClick={() => setDetail(c)} style={{ padding: 0, textAlign: 'left', borderRadius: 18, border: '1px solid var(--line)', background: 'linear-gradient(180deg, var(--surface), var(--bg-2))', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ margin: '12px 12px 0', aspectRatio: '5 / 7', borderRadius: 12, position: 'relative', overflow: 'hidden', background: c.bg, backgroundSize: 'cover', backgroundPosition: 'center', boxShadow: `0 0 0 1px ${tag.ring}`, filter: locked ? 'grayscale(.85) brightness(.75)' : 'none' }}>
-                      <span className="mono" style={{ position: 'absolute', top: 8, left: 8, fontSize: 9.5, letterSpacing: '.06em', padding: '3px 7px', borderRadius: 5, fontWeight: 700, color: tag.color, background: tag.bg, zIndex: 2 }}>{c.rarity}</span>
+                  <button
+                    key={c.id}
+                    className={`wc-binder__card${locked ? ' is-locked' : ''}`}
+                    onClick={() => setDetail(c)}
+                    type="button"
+                  >
+                    <span
+                      className="wc-binder__card-tile"
+                      style={{
+                        display: 'block',
+                        aspectRatio: '5 / 7',
+                        borderRadius: 10,
+                        position: 'relative',
+                        overflow: 'hidden',
+                        background: c.bg,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        boxShadow: `0 0 0 1px ${tag.ring}`,
+                        filter: locked ? 'grayscale(.85) brightness(.75)' : 'none',
+                      }}
+                    >
+                      <span style={{ position: 'absolute', top: 8, left: 8, fontSize: 9.5, letterSpacing: '.06em', padding: '3px 7px', borderRadius: 5, fontWeight: 700, color: tag.color, background: tag.bg, zIndex: 2 }}>{c.rarity}</span>
                       {locked && (
                         <span style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', background: 'rgba(8,6,15,.45)' }}>
-                          <span className="mono" style={{ fontSize: 10, letterSpacing: '.14em', padding: '5px 11px', borderRadius: 999, border: '1px dashed rgba(255,255,255,.4)', color: '#C9C3E4', background: 'rgba(8,6,15,.6)' }}>미보유</span>
+                          <span style={{ fontSize: 10, letterSpacing: '.14em', padding: '5px 11px', borderRadius: 999, border: '1px dashed rgba(255,255,255,.4)', color: '#FFFFFF', background: 'rgba(8,6,15,.6)' }}>미보유</span>
                         </span>
                       )}
-                    </div>
-                    <div style={{ padding: '11px 14px 13px', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                      <span style={{ fontWeight: 700, fontSize: 13.5, color: locked ? 'var(--dim)' : 'var(--text)' }}>{c.name}</span>
-                      <span className="mono" style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 10.5, color: 'var(--faint)' }}>
-                        <span style={{ color: ip ? ipAccentInk(ip) : undefined }}>{ip?.title ?? ''}</span>
-                        <span>{c.no}</span>
-                      </span>
-                    </div>
+                    </span>
+                    <span className="wc-binder__card-name" style={{ display: 'block', marginTop: 10, fontSize: 13, fontWeight: 700, color: locked ? 'var(--wc-ink-tertiary)' : 'var(--wc-ink)' }}>{c.name}</span>
+                    <span className="wc-binder__card-meta" style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 2, fontSize: 11, color: 'var(--wc-ink-tertiary)' }}>
+                      <span style={{ color: ip ? ipAccentInk(ip) : undefined }}>{ip?.title ?? ''}</span>
+                      <span>{c.no}</span>
+                    </span>
                   </button>
                 );
               })}
             </div>
           ) : cards.length > 0 ? (
-            <div style={{ textAlign: 'center', padding: '70px 20px', border: '1px dashed var(--line-2)', borderRadius: 20 }}>
-              <div style={{ fontSize: 17, fontWeight: 700 }}>조건에 맞는 카드가 없어요</div>
-              <div className="mono" style={{ fontSize: 12, color: 'var(--faint)', marginTop: 8 }}>필터를 바꿔보세요</div>
-            </div>
+            <EmptyState description="필터를 바꿔보세요" title="조건에 맞는 카드가 없어요" />
           ) : (
-            <Empty icon="card" text="등록된 카드가 아직 없습니다" sub="Supabase 카탈로그 seed 또는 admin 등록 후 도감에 공개됩니다." />
+            <EmptyState
+              description="Supabase 카탈로그 seed 또는 admin 등록 후 도감에 공개됩니다."
+              title="등록된 카드가 아직 없습니다"
+            />
           )}
 
-          {/* CTA row */}
-          <div className="binder-cta-row" style={{ marginTop: 34 }}>
+          {/* CTA row — 헤어라인 박스 링크 밴드(박스 전체가 링크) */}
+          <div className="wc-binder__cta-row">
             {cardRewardsEnabled && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, padding: '22px 26px', borderRadius: 20, border: '1px solid var(--line)', background: 'linear-gradient(150deg, rgba(139,92,255,.14), rgba(255,77,157,.08) 60%, transparent), var(--bg-2)' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 16 }}>빈 칸을 채우고 싶다면</div>
-                  <div style={{ fontSize: 13.5, color: 'var(--dim)', marginTop: 4 }}>보유한 카드팩을 개봉하고 새 카드를 만나보세요.</div>
-                </div>
-                <Link className="btn btn-holo" href={hrefFor('packs')} style={{ height: 44, fontSize: 14 }}>카드팩 열기 →</Link>
-              </div>
+              <Link className="wc-binder__cta" href={hrefFor('packs')}>
+                <span className="wc-binder__cta-copy" style={{ minWidth: 0 }}>
+                  <strong style={{ display: 'block' }}>빈 칸을 채우고 싶다면</strong>
+                  <span style={{ display: 'block', marginTop: 2, fontSize: 13, fontWeight: 400, color: 'var(--wc-ink-tertiary)' }}>보유한 카드팩을 개봉하고 새 카드를 만나보세요.</span>
+                </span>
+                <span className="wc-binder__cta-action">카드팩 열기</span>
+              </Link>
             )}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, padding: '22px 26px', borderRadius: 20, border: '1px solid var(--line)', background: 'linear-gradient(180deg, var(--surface), var(--bg-2))' }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 16 }}>중복 카드가 있나요?</div>
-                <div style={{ fontSize: 13.5, color: 'var(--dim)', marginTop: 4 }}>트레이드에서 직거래하거나 경매에 올려보세요.</div>
-              </div>
-              <Link className="btn btn-ghost" href={hrefFor('exchange')} style={{ height: 44, fontSize: 14 }}>트레이드로 ⇄</Link>
-            </div>
+            <Link className="wc-binder__cta" href={hrefFor('exchange')}>
+              <span className="wc-binder__cta-copy" style={{ minWidth: 0 }}>
+                <strong style={{ display: 'block' }}>중복 카드가 있나요?</strong>
+                <span style={{ display: 'block', marginTop: 2, fontSize: 13, fontWeight: 400, color: 'var(--wc-ink-tertiary)' }}>트레이드에서 직거래하거나 경매에 올려보세요.</span>
+              </span>
+              <span className="wc-binder__cta-action">트레이드로</span>
+            </Link>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
 
+      {/* #root 밖으로 포털한다 — 훅의 #root inert가 다이얼로그를 얼리지 않게,
+          그리고 #root 스태킹 컨텍스트(z2)가 딤을 셸 헤더·탭바(z3) 아래로 깔지 않게. */}
       {detail && (
-        <CardDetail
-          card={detail}
-          cardRewardsEnabled={cardRewardsEnabled}
-          ip={ipsById.get(detail.ip)}
-          hasOwnership={hasOwnership}
-          collection={collectionOf(detail)}
-          onClose={() => setDetail(null)}
-        />
+        <OverlayPortal>
+          <CardDetail
+            card={detail}
+            cardRewardsEnabled={cardRewardsEnabled}
+            ip={ipsById.get(detail.ip)}
+            hasOwnership={hasOwnership}
+            collection={collectionOf(detail)}
+            onClose={() => setDetail(null)}
+          />
+        </OverlayPortal>
       )}
     </div>
   );

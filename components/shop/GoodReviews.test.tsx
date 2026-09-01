@@ -51,7 +51,7 @@ describe('GoodReviews', () => {
 
     expect(html).toContain('4.0');
     expect(html).toContain('리뷰 3건');
-    expect(html).toContain('goods-review-distribution');
+    expect(html).toContain('wc-review-summary__dist');
   });
 
   /* 별을 색으로만 구분하면 저대비 환경에서 평점이 통째로 사라진다. */
@@ -67,7 +67,7 @@ describe('GoodReviews', () => {
     });
 
     expect(html).toContain('아직 등록된 리뷰가 없습니다');
-    expect(html).not.toContain('goods-review-distribution');
+    expect(html).not.toContain('wc-review-summary__dist');
   });
 
   it('정렬과 사진 필터를 링크로 건다', () => {
@@ -111,9 +111,33 @@ describe('GoodReviews', () => {
     expect(render()).toContain('적립금이나 혜택이 주어지지는 않습니다');
   });
 
-  it('한 페이지를 넘으면 페이지 이동을 그린다', () => {
+  it('한 페이지를 넘으면 숫자 페이지네이션을 그린다', () => {
     const html = render({ total: 24 });
+
     expect(html).toContain('다음');
-    expect(render({ total: 3 })).not.toContain('goods-review-pagination');
+    expect(html).toContain('wc-pagination__cell');
+    expect(html).toContain('aria-current="page"');
+    expect(html).toContain('reviewPage=2');
+    expect(render({ total: 3 })).not.toContain('wc-pagination');
+  });
+
+  /* 회귀: 기본 조건으로 돌아가는 링크가 쿼리를 비우면 굿즈 상세가 상세정보 탭으로
+     열려 #reviews 앵커가 숨은 패널을 가리킨다 — "이전"·"최신순"이 무동작이 된다. */
+  it('기본 조건으로 돌아가는 링크에도 reviewPage를 싣는다', () => {
+    const html = render({ options: { page: 2, photoOnly: false, sort: 'recent' }, total: 24 });
+
+    expect(html).toContain('href="/shop/g13?reviewPage=1#reviews"');
+    expect(html).not.toContain('"/shop/g13#reviews"');
+  });
+
+  /* 요약부 포토 그리드는 지금 페이지에 실린 사진만 쓴다 — 없는 사진을 채우지 않는다. */
+  it('사진이 있으면 요약부에 썸네일을 모은다', () => {
+    const withPhoto = render({
+      reviews: [review({ imageUrls: ['https://cdn.example/r1.webp'] })],
+    });
+
+    expect(withPhoto).toContain('wc-review-summary__photos');
+    expect(withPhoto).toContain('https://cdn.example/r1.webp');
+    expect(render()).not.toContain('wc-review-summary__photos');
   });
 });

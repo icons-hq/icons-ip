@@ -4,7 +4,7 @@
 - **티켓**: [#337](https://github.com/icons-hq/icons-ip/issues/337) · 에픽 [#293](https://github.com/icons-hq/icons-ip/issues/293)의 "게임" 장치
 - **Supersedes**: [#296](https://github.com/icons-hq/icons-ip/issues/296) "지금 우리 서울은: 생존"(아오오니형 은신 탈출) — 설계·프로토타입은 유물로 보존하며, **어떤 메커닉도 재참고하지 않는다**(사용자 지시)
 - **게임명**: "효산의 기억" (가제 — 캠페인 타이틀과 함께 넷플릭스 감수 필수)
-- **관련 문서**: [시즌1 비주얼 레퍼런스](./hyosan-memories-visual-reference.md) · [ADR-0011](../adr/0011-goods-purchase-entitlement-game-reward.md) · `CONTEXT.md`(절비·구매권)
+- **관련 문서**: [시즌1 비주얼 레퍼런스](./hyosan-memories-visual-reference.md) · [ADR-0012](../adr/0012-goods-purchase-entitlement-game-reward.md) · `CONTEXT.md`(절비·구매권)
 
 ## 0. 한 줄 정의
 
@@ -133,7 +133,7 @@
 
 ## 5. 보상 — 구매권 (카드 0장)
 
-> 정의·트레이드오프의 정본은 [ADR-0011](../adr/0011-goods-purchase-entitlement-game-reward.md). 용어는 `CONTEXT.md`.
+> 정의·트레이드오프의 정본은 [ADR-0012](../adr/0012-goods-purchase-entitlement-game-reward.md). 용어는 `CONTEXT.md`.
 
 ### 5.1 확정 규칙
 
@@ -147,7 +147,7 @@
 - 스테이지 클리어 확정 RPC(가칭 `complete_game_stage`): 입력 = 게임 슬러그·스테이지 번호·습득 아이템 슬롯 목록. 서버가 검증하는 것 — 인증·정지·스테이지 **순서**(N-1 클리어 없이 N 불가)·최소 플레이 시간(휴리스틱)·멱등.
 - 멱등 키 스킴(기존 관례 계승): `game_stage:<game>:<user>:<stage>` · `game_item:<game>:<user>:<slot>`.
 - 원장·RLS·상점 노출(구매 플로우에서 구매권 검사)의 **정본은 #303 그릴링과 통합**한다. 이 스펙이 확정하는 것은 "게임이 무엇을 언제 발급 요청하는가"까지다.
-- **정직한 한계**: 실시간 액션은 (구 생존 게임의 결정론 Sim과 달리) 서버 재현 검증이 불가능하다. 클리어 신뢰는 순서 강제+시간 휴리스틱+이상 로깅+운영 회수 권한으로 다루며, 구매권이 재고 비예약·구매는 정상 결제라는 점이 악용 폭발 반경을 제한한다. 상세는 ADR-0011.
+- **정직한 한계**: 실시간 액션은 (구 생존 게임의 결정론 Sim과 달리) 서버 재현 검증이 불가능하다. 클리어 신뢰는 순서 강제+시간 휴리스틱+이상 로깅+운영 회수 권한으로 다루며, 구매권이 재고 비예약·구매는 정상 결제라는 점이 악용 폭발 반경을 제한한다. 상세는 ADR-0012.
 
 ### 5.3 시스템 함의
 

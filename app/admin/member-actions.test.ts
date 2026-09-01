@@ -137,6 +137,7 @@ describe('admin member actions', () => {
         consents: { terms: true, privacy: true, marketing: false },
         suspendedAt: null,
         suspensionReason: null,
+        loyaltyGrade: 'welcome',
         goodsOrderCount: 0,
         ticketOrderCount: 0,
         submittedReportCount: 0,

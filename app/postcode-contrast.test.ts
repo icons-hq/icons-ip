@@ -7,30 +7,21 @@ import { describe, expect, it } from 'vitest';
  * 이 두 문장은 장식이 아니다. "스크립트 로드 실패 시에도 주문을 만들 수 있다"는
  * 완료 조건이 바로 이 폴백 안내를 읽을 수 있다는 데 기대고 있다.
  *
- * 토큰 이름만 확인하면 --dim 처럼 다른 표면용으로 재매핑된 값이 다시 들어와도
- * 통과한다. 그래서 여기서는 토큰을 끝까지 풀고, 반투명 배경을 아래에서 위로
- * 합성한 다음 명암비를 직접 계산한다.
+ * 토큰 이름만 확인하면 --wc-ink-tertiary 처럼 다른 표면용으로 재조정된 값이 다시
+ * 들어와도 통과한다. 그래서 여기서는 토큰을 끝까지 풀고, 반투명 배경을 아래에서
+ * 위로 합성한 다음 명암비를 직접 계산한다.
  *
- * 토큰을 어느 파일에서 읽느냐가 곧 "무엇을 재는가"다. /checkout 에 실제로
- * 적용되는 :root 캐스케이드는 다음과 같다.
+ * 토큰을 어느 파일에서 읽느냐가 곧 "무엇을 재는가"다. S9(#331) 이후 /checkout 의
+ * 캐스케이드는 다음과 같다.
  *
- *   1. app/layout.tsx 의 import 순서가 소스 순서다 — globals.css 가 먼저,
- *      editorial-foundation.css·editorial-account-commerce.css 가 뒤다.
- *      같은 :root 선언은 뒤가 이긴다. 프로젝트 전체에서 :root 를 여는 파일은
- *      이 셋뿐이다.
- *   2. globals.css 의 @theme 은 Tailwind v4 가 `@layer theme` 로 내보내므로
- *      layer 밖 :root 어느 것에도 이기지 못한다. 소스에서도 맨 앞이라
- *      순서대로 덮어쓰면 결과가 같다.
- *   3. 공개 화면 토큰 브리지(editorial-public.css 의
- *      `#root:is(:has(.shop-toolbar), …)`)는 checkout 을 재색칠하지 않는다 —
- *      그 :has() 목록의 랜드마크가 체크아웃 트리(components/screens/Checkout.tsx
- *      + components/checkout/*)에 없다. 반면 editorial-foundation.css 의 :root
- *      는 스코프가 없어 checkout 에도 그대로 걸린다.
- *
- * 즉 이 페이지의 --dim 은 globals.css 의 #A9A2CC 가 아니라 editorial-foundation
- * 이 덮어쓴 --editorial-ink-muted 다. 예전 토큰 맵은 globals.css 를 통째로
- * 빼서 결과값은 우연히 맞았지만 근거가 없었고, globals.css :root 에서만
- * 정의되는 토큰이 들어오면 unresolved custom property 로 던졌다.
+ *   1. 지면 루트가 `<main class="wc-root wc-receipt checkout-page">` 다.
+ *      색 토큰은 `wc-foundation.css` 의 `.wc-root` 블록에만 있다 — 문서 :root 가
+ *      아니라 이 스코프다(wc-design.test 가 그 경계를 지킨다).
+ *   2. `.postcode-*` 어휘 자체는 남아 있지만 시각은 `wc-account-commerce.css` 의
+ *      `.wc-receipt .postcode-*` 가 전부 소유한다. globals.css 의 HM 사본과
+ *      editorial-account-commerce.css 는 S9에서 제거됐다.
+ *   3. 그래서 이 파일은 "wc 토큰이 풀린 값"으로 잰다. 검색 레이어 스크림이 다시
+ *      반투명해지면 아래 합성 경로가 그 사실을 반영한다.
  */
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -39,16 +30,15 @@ const AA_NORMAL_TEXT = 4.5;
 
 type Rgba = [number, number, number, number];
 
-/* 체크아웃 폼 카드는 editorial-account-commerce.css 에서 --account-surface 를
-   칠한다(:is(.checkout-page, ...) :is(.card, .checkout-form, ...)). */
-const CHECKOUT_PAPER = 'var(--account-surface)';
+/* 우편번호 칸이 앉는 종이. `.wc-receipt .card` 가 체크아웃 폼 카드를 칠한다. */
+const CHECKOUT_PAPER_RULE = '.wc-receipt .card';
 
-/* 소스 순서대로 덮어써 캐스케이드 승자를 남긴다. `:root[data-header-hidden]`
-   같은 조건부 블록은 여는 중괄호 앞에 선택자가 더 붙으므로 걸리지 않는다. */
-function rootTokens(...sources: string[]): Map<string, string> {
+/* 소스 순서대로 덮어써 캐스케이드 승자를 남긴다. 문서 :root(globals·editorial)와
+   White Catalog 스코프 루트(.wc-root)를 함께 읽는다 — 후자가 지면의 실값이다. */
+function scopeTokens(...sources: string[]): Map<string, string> {
   const tokens = new Map<string, string>();
   for (const css of sources) {
-    for (const block of css.matchAll(/(?::root|@theme)\s*\{([^}]*)\}/g)) {
+    for (const block of css.matchAll(/(?::root|@theme|\.wc-root)\s*\{([^}]*)\}/g)) {
       for (const declaration of block[1].matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
         tokens.set(declaration[1], declaration[2].trim());
       }
@@ -133,57 +123,58 @@ function declaredValue(css: string, selector: string, property: string): string 
 }
 
 describe('postcode field contrast', () => {
-  const globals = read('./globals.css');
+  const commerce = read('./styles/wc-account-commerce.css');
   /* app/layout.tsx 의 import 순서 그대로. 뒤가 앞을 덮는다. */
-  const tokens = rootTokens(
-    globals,
+  const tokens = scopeTokens(
+    read('./globals.css'),
     read('./styles/editorial-foundation.css'),
-    read('./styles/editorial-account-commerce.css'),
+    read('./styles/wc-foundation.css'),
   );
 
   const color = (value: string) => parseColor(resolveToken(value, tokens));
 
+  /* 레이어 배경이 지금은 불투명이라 composite 두 번은 무연산이지만, 계산을 남겨
+     둔다 — 배경이 반투명으로 돌아오는 순간 실제 합성색으로 재는 단언이 된다. */
   it('keeps the search-layer fallback notice readable on its own scrim', () => {
-    const paper = color(CHECKOUT_PAPER);
-    const layer = composite(color(declaredValue(globals, '.postcode-layer', 'background')), paper);
+    const paper = color(declaredValue(commerce, CHECKOUT_PAPER_RULE, 'background'));
+    const layer = composite(
+      color(declaredValue(commerce, '.wc-receipt .postcode-layer', 'background')),
+      paper,
+    );
     const scrim = composite(
-      color(declaredValue(globals, '.postcode-layer-state', 'background')),
+      color(declaredValue(commerce, '.wc-receipt .postcode-layer-state', 'background')),
       layer,
     );
-    const ink = color(declaredValue(globals, '.postcode-layer-state', 'color'));
+    const ink = color(declaredValue(commerce, '.wc-receipt .postcode-layer-state', 'color'));
 
-    /* 스크림이 실제로 어두운 면이 맞는지 먼저 붙잡는다 — 배경이 밝아지면
-       반전 잉크 선택 자체가 틀린 전제가 된다. */
-    expect(relativeLuminance(scrim)).toBeLessThan(0.05);
     expect(contrastRatio(ink, scrim)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
   });
 
-  /* 우편번호 라벨은 --dim 을 쓴다. 이 단언이 재는 것은 라벨 하나가 아니라
-     "checkout 이 어느 :root 를 받는가"다 — editorial 덮어쓰기가 사라져
-     globals.css 의 어두운 화면용 --dim(#A9A2CC)이 그대로 오면 흰 종이 위
-     2.2:1 로 떨어진다. */
-  it('resolves --dim through the editorial override that checkout actually gets', () => {
-    const paper = color(CHECKOUT_PAPER);
-    const ink = color(declaredValue(globals, '.postcode-field-label', 'color'));
+  /* 우편번호 라벨이 종이 위에서 읽히는지. 이 단언이 재는 것은 라벨 하나가 아니라
+     "checkout 이 어느 스코프의 토큰을 받는가"다 — wc 스코프가 사라져 문서 :root 의
+     어두운 화면용 토큰이 그대로 오면 흰 종이 위에서 대비가 무너진다. */
+  it('resolves the label ink through the White Catalog scope the receipt actually gets', () => {
+    const paper = color(declaredValue(commerce, CHECKOUT_PAPER_RULE, 'background'));
+    const ink = color(declaredValue(commerce, '.wc-receipt .postcode-field-label', 'color'));
 
-    /* 종이가 실제로 밝은 면이 맞는지 먼저 붙잡는다. 스크림 쪽 단언과 대칭이다. */
+    /* 종이가 실제로 밝은 면이 맞는지 먼저 붙잡는다 — 라이트 스킴 전환의 전제 단언. */
     expect(relativeLuminance(paper)).toBeGreaterThan(0.5);
     expect(contrastRatio(ink, paper)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
   });
 
   it('keeps the manual-entry hint readable on the checkout paper', () => {
-    const paper = color(CHECKOUT_PAPER);
-    const ink = color(declaredValue(globals, '.postcode-field-hint', 'color'));
+    const paper = color(declaredValue(commerce, CHECKOUT_PAPER_RULE, 'background'));
+    const ink = color(declaredValue(commerce, '.wc-receipt .postcode-field-hint', 'color'));
 
     expect(contrastRatio(ink, paper)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
   });
 
   /* 같은 폼 안의 보조 문구가 이미 통과하고 있다는 기준선. 이 단언이 깨지면
-     힌트만 고친 게 아니라 --account-muted 자체가 바뀐 것이다. */
-  it('matches the sibling label hint that already meets AA', () => {
-    const paper = color(CHECKOUT_PAPER);
+     힌트만 고친 게 아니라 --wc-ink-tertiary 자체가 바뀐 것이다. */
+  it('matches the sibling field error ink that already meets AA', () => {
+    const paper = color(declaredValue(commerce, CHECKOUT_PAPER_RULE, 'background'));
 
-    expect(contrastRatio(color('var(--account-muted)'), paper))
+    expect(contrastRatio(color('var(--wc-ink-tertiary)'), paper))
       .toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
   });
 });

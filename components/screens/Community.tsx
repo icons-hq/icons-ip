@@ -1,7 +1,11 @@
 'use client';
 
+/* 커뮤니티 피드 — White Catalog 재조판 (DESIGN.md §6 content-card 행·§8 커뮤니티 행, S5 계약 §2 .wc-community).
+   8개 커뮤니티 액션의 FormData 필드·hidden 필드·aria 연결·UUID 가드·editSession 세대 리셋은
+   동결 계약이다(S5 §4) — 이 파일은 마크업과 스타일만 바꾼다. 블록 스킨은 wc-discovery.css 가 담당한다. */
+
 import Link from 'next/link';
-import { useActionState, useMemo, useState, type ReactNode } from 'react';
+import { useActionState, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 import { useFormStatus } from 'react-dom';
 import {
   blockCommunityUserAction,
@@ -26,7 +30,8 @@ import type {
 } from '@/lib/community';
 import { hrefFor } from '@/lib/routes';
 import { Icon } from '@/components/ui/Icon';
-import { Empty } from '@/components/ui/Empty';
+import { EmptyState } from '@/components/wc/EmptyState';
+import { WcButton } from '@/components/wc/WcButton';
 import { useCardRewardsEnabled } from '@/components/shell/CardRewardAvailability';
 
 const emptyState: CommunityPostActionState = {};
@@ -34,10 +39,37 @@ const emptyCommentState: CommunityCommentActionState = {};
 const emptyEditState: CommunityPostEditActionState = {};
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/* select 는 wc-discovery 의 인풋 규칙 범위 밖이라 여기서 같은 각진 문법으로 맞춘다. */
+const selectStyle: CSSProperties = {
+  background: 'var(--wc-surface)',
+  border: '1px solid var(--wc-line-control)',
+  borderRadius: 0,
+  color: 'var(--wc-ink)',
+  fontFamily: 'inherit',
+  fontSize: 15,
+  height: 50,
+  minWidth: 0,
+  padding: '0 12px',
+};
+
+/* 신고·차단·수정·삭제류 텍스트 버튼(S5 §2 .wc-community__actions): 12.5px ink-tertiary, 44px 타깃.
+   폼 안에 중첩돼 wc-discovery 의 `.wc-community__actions > *` 가 닿지 않는 버튼용. */
+const textActionStyle: CSSProperties = {
+  background: 'none',
+  border: 'none',
+  color: 'var(--wc-ink-tertiary)',
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  fontSize: 12.5,
+  fontWeight: 700,
+  minHeight: 44,
+  padding: '0 6px',
+};
+
 function ErrorText({ children, id }: { children?: string; id: string }) {
   if (!children) return null;
   return (
-    <span id={id} style={{ color: 'var(--pink)', fontSize: 12.5, fontWeight: 600 }}>
+    <span id={id} style={{ color: 'var(--wc-danger)', fontSize: 13, letterSpacing: '-0.38px' }}>
       {children}
     </span>
   );
@@ -53,7 +85,7 @@ function SmallActionButton({ children, label }: { children: ReactNode; label: st
     <button
       aria-label={label}
       disabled={pending}
-      style={{ minHeight: 44, padding: '0 6px', fontSize: 12.5, fontWeight: 700, color: 'var(--faint)', opacity: pending ? 0.6 : undefined }}
+      style={{ ...textActionStyle, opacity: pending ? 0.6 : undefined }}
       type="submit"
     >
       {children}
@@ -100,20 +132,27 @@ function LikeButton({ active, likes }: { active?: boolean; likes: number }) {
     <button
       aria-label={active ? '좋아요 취소' : '좋아요'}
       aria-pressed={active}
-      className="mono"
       disabled={pending}
       type="submit"
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 7, height: 44, padding: '0 14px', borderRadius: 999,
-        fontSize: 12, fontWeight: active ? 700 : 400,
-        color: active ? 'var(--pink)' : 'var(--dim)',
-        border: `1px solid ${active ? 'rgba(255,77,157,.5)' : 'rgba(255,255,255,.1)'}`,
-        background: active ? 'rgba(255,77,157,.1)' : 'transparent',
+        alignItems: 'center',
+        background: 'none',
+        border: 'none',
+        /* 좋아요 카운트 텍스트는 잉크, 활성 하트만 액센트(S5 §2 .wc-community__actions). */
+        color: 'var(--wc-ink)',
+        cursor: 'pointer',
+        display: 'inline-flex',
+        fontFamily: 'inherit',
+        fontSize: 12.5,
+        fontWeight: active ? 700 : 500,
+        gap: 6,
+        minHeight: 44,
         opacity: pending ? 0.6 : undefined,
-        transition: 'all .2s ease',
+        padding: '0 8px',
       }}
     >
-      ♥ {likes}
+      <span aria-hidden style={{ color: active ? 'var(--wc-accent)' : 'var(--wc-ink-tertiary)' }}>♥</span>
+      {likes}
     </button>
   );
 }
@@ -121,7 +160,13 @@ function LikeButton({ active, likes }: { active?: boolean; likes: number }) {
 function CommentSubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button aria-label="댓글 게시" className="btn btn-sm" disabled={pending} style={{ height: 44, padding: '0 12px' }} type="submit">
+    <button
+      aria-label="댓글 게시"
+      className="wc-btn primary"
+      disabled={pending}
+      style={{ flex: '0 0 auto', padding: '0 14px', width: 'auto' }}
+      type="submit"
+    >
       {pending ? <Icon name="clock" size={15} /> : <Icon name="arrowUp" size={15} />}
     </button>
   );
@@ -132,16 +177,15 @@ function CommentForm({ nextPath, postId }: { nextPath: string; postId: string })
   const errorId = `comment-${postId}-error`;
 
   return (
-    <form action={action} className="row" style={{ gap: 8, marginTop: 12, alignItems: 'start' }}>
+    <form action={action} style={{ alignItems: 'flex-start', display: 'flex', gap: 8, marginTop: 12 }}>
       <input type="hidden" name="next" value={nextPath} />
       <input type="hidden" name="postId" value={postId} />
-      <div className="col" style={{ flex: 1, gap: 6 }}>
+      <div style={{ display: 'flex', flex: 1, flexDirection: 'column', gap: 6, minWidth: 0 }}>
         <input
           aria-describedby={state.errors?.text || state.errors?.form ? errorId : undefined}
           aria-invalid={Boolean(state.errors?.text || state.errors?.form)}
           name="text"
           placeholder="댓글을 남겨보세요"
-          style={{ width: '100%', height: 44, border: '1px solid var(--line-2)', background: 'var(--bg-2)', borderRadius: 10, padding: '0 11px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
         />
         <ErrorText id={errorId}>{state.errors?.text ?? state.errors?.form ?? state.errors?.postId}</ErrorText>
       </div>
@@ -153,7 +197,12 @@ function CommentForm({ nextPath, postId }: { nextPath: string; postId: string })
 function DeleteButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
-    <button aria-label={label} disabled={pending} style={{ minHeight: 44, padding: '0 6px', fontSize: 12.5, fontWeight: 700, color: 'var(--faint)', opacity: pending ? 0.6 : undefined }} type="submit">
+    <button
+      aria-label={label}
+      disabled={pending}
+      style={{ ...textActionStyle, opacity: pending ? 0.6 : undefined }}
+      type="submit"
+    >
       삭제
     </button>
   );
@@ -162,7 +211,12 @@ function DeleteButton({ label }: { label: string }) {
 function EditSubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button className="btn btn-holo btn-sm" disabled={pending} style={{ minHeight: 44 }} type="submit">
+    <button
+      className="wc-btn primary"
+      disabled={pending}
+      style={{ fontSize: 15, padding: '0 18px', width: 'auto' }}
+      type="submit"
+    >
       {pending ? '저장 중' : '저장'}
     </button>
   );
@@ -198,32 +252,29 @@ function PostEditForm({
     <div hidden={!open} id={formId}>
       <form
         action={action}
-        style={{ border: '1px solid var(--line-2)', borderRadius: 14, display: 'flex', flexDirection: 'column', gap: 10, padding: 14 }}
+        style={{ border: '1px solid var(--wc-hairline)', display: 'flex', flexDirection: 'column', gap: 10, padding: 14 }}
       >
         <input name="next" type="hidden" value={nextPath} />
         <input name="postId" type="hidden" value={post.id} />
-        <label className="sr-only" htmlFor={textInputId}>포스트 내용</label>
+        <label className="wc-sr-only" htmlFor={textInputId}>포스트 내용</label>
         <textarea
           aria-describedby={state.errors?.text ? textErrorId : undefined}
           aria-invalid={Boolean(state.errors?.text)}
-          className="community-post-edit-control"
           defaultValue={post.text}
           id={textInputId}
           name="text"
           rows={4}
-          style={{ width: '100%', minHeight: 96, resize: 'vertical', border: '1px solid var(--line-2)', background: 'var(--bg-2)', borderRadius: 10, padding: 11, color: 'var(--text)', fontSize: 14, fontFamily: 'inherit', lineHeight: 1.55, outline: 'none' }}
         />
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          <label className="sr-only" htmlFor={ipInputId}>IP 채널</label>
+          <label className="wc-sr-only" htmlFor={ipInputId}>IP 채널</label>
           <select
             aria-describedby={state.errors?.ipId ? ipErrorId : undefined}
             aria-invalid={Boolean(state.errors?.ipId)}
-            className="community-post-edit-control"
             defaultValue={defaultIpId}
             disabled={!defaultIpId}
             id={ipInputId}
             name="ipId"
-            style={{ height: 44, minWidth: 140, border: '1px solid var(--line-2)', background: 'var(--bg-2)', borderRadius: 10, padding: '0 11px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+            style={{ ...selectStyle, flex: '0 1 auto', minWidth: 140 }}
           >
             {post.ipId && !currentIpIsActive && (
               <option value={post.ipId}>[보관] {post.ipName}</option>
@@ -232,26 +283,30 @@ function PostEditForm({
               <option key={channel.id} value={channel.id}>{channel.title}</option>
             ))}
           </select>
-          <label className="sr-only" htmlFor={tagInputId}>태그</label>
+          <label className="wc-sr-only" htmlFor={tagInputId}>태그</label>
           <input
-            className="community-post-edit-control"
             defaultValue={post.tag ?? ''}
             id={tagInputId}
             name="tag"
             placeholder="#태그"
-            style={{ height: 44, minWidth: 140, flex: 1, border: '1px solid var(--line-2)', background: 'var(--bg-2)', borderRadius: 10, padding: '0 11px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+            style={{ flex: 1, minWidth: 140, width: 'auto' }}
           />
         </div>
         {post.img && (
-          <p style={{ margin: 0, color: 'var(--faint)', fontSize: 12.5 }}>기존 이미지는 그대로 유지돼요.</p>
+          <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12.5, margin: 0 }}>기존 이미지는 그대로 유지돼요.</p>
         )}
         <ErrorText id={textErrorId}>{state.errors?.text}</ErrorText>
         <ErrorText id={ipErrorId}>{state.errors?.ipId}</ErrorText>
-        <div id={formErrorId} role="alert" style={{ color: 'var(--pink)', fontSize: 12.5, fontWeight: 600 }}>
+        <div id={formErrorId} role="alert" style={{ color: 'var(--wc-danger)', fontSize: 13, letterSpacing: '-0.38px' }}>
           {state.errors?.form ?? state.errors?.postId}
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 }}>
-          <button className="btn btn-ghost btn-sm" onClick={onCancel} style={{ minHeight: 44 }} type="button">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
+          <button
+            className="wc-btn"
+            onClick={onCancel}
+            style={{ fontSize: 15, padding: '0 18px', width: 'auto' }}
+            type="button"
+          >
             취소
           </button>
           <EditSubmitButton />
@@ -280,16 +335,35 @@ function PostCard({ channels, nextPath, p }: { channels: CommunityChannel[]; nex
     : p.img;
 
   return (
-    <article className="community-post" style={{ borderRadius: 20, border: '1px solid var(--line)', background: 'linear-gradient(180deg, var(--surface), var(--bg-2))', padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 11 }}>
-        <span style={{ width: 40, height: 40, borderRadius: 99, background: p.avatar, flex: '0 0 auto', boxShadow: '0 0 0 1px rgba(255,255,255,.12)', display: 'grid', placeItems: 'center', fontWeight: 700, color: '#0A0813' }}>
+    <article className="wc-community__post" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        <span
+          style={{
+            alignItems: 'center',
+            /* 아바타 색은 데이터가 낸다 — wc 크롬 색이 아니라 사용자 식별값. */
+            background: p.avatar,
+            borderRadius: '50%',
+            color: 'var(--wc-ink)',
+            display: 'inline-flex',
+            flex: '0 0 auto',
+            fontWeight: 700,
+            height: 40,
+            justifyContent: 'center',
+            width: 40,
+          }}
+        >
           {p.user[0]?.toUpperCase()}
         </span>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
-          <span style={{ fontWeight: 700, fontSize: 14 }}>@{p.user}</span>
-          <span className="mono" style={{ fontSize: 10.5, color: 'var(--faint)' }}>{p.ipName} · {p.time}{p.isEdited ? ' · 수정됨' : ''}</span>
+          <span style={{ fontSize: 14, fontWeight: 700 }}>@{p.user}</span>
+          <span className="wc-community__meta">
+            {p.ipName} · {p.time}{p.isEdited ? ' · 수정됨' : ''}
+          </span>
         </div>
-        <div style={{ display: 'flex', marginLeft: 'auto', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <div
+          className="wc-community__actions"
+          style={{ justifyContent: 'flex-end', marginLeft: 'auto', marginTop: 0 }}
+        >
           <ReportForm label="포스트 신고" nextPath={nextPath} targetId={p.id} targetType="post" />
           {!p.canDelete && (
             <>
@@ -309,9 +383,8 @@ function PostCard({ channels, nextPath, p }: { channels: CommunityChannel[]; nex
               aria-controls={`community-post-edit-${p.id}`}
               aria-expanded={editing}
               aria-label="포스트 수정"
-              className="community-post-edit-toggle"
               onClick={toggleEditor}
-              style={{ minHeight: 44, minWidth: 44, padding: '0 6px', fontSize: 12.5, fontWeight: 700, color: 'var(--faint)' }}
+              style={{ ...textActionStyle, minWidth: 44 }}
               type="button"
             >
               수정
@@ -331,42 +404,60 @@ function PostCard({ channels, nextPath, p }: { channels: CommunityChannel[]; nex
         />
       )}
 
-      <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.65, color: '#DDD8F2', textWrap: 'pretty', whiteSpace: 'pre-line' }}>{p.text}</p>
+      <p style={{ lineHeight: 1.65, margin: 0, textWrap: 'pretty', whiteSpace: 'pre-line' }}>{p.text}</p>
 
       {imageBackground && (
         <div style={{ display: 'flex', gap: 10 }}>
-          <div style={{ width: 132, aspectRatio: '5 / 7', borderRadius: 12, background: imageBackground, boxShadow: '0 0 0 1px rgba(255,255,255,.12)', position: 'relative', overflow: 'hidden' }}>
-            <span aria-hidden className="sheen" style={{ opacity: 0.35 }} />
-          </div>
+          <div
+            style={{
+              aspectRatio: '5 / 7',
+              background: imageBackground,
+              border: '1px solid var(--wc-hairline)',
+              overflow: 'hidden',
+              width: 132,
+            }}
+          />
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="wc-community__actions">
         <form action={setCommunityPostLikeAction}>
           <input type="hidden" name="next" value={nextPath} />
           <input type="hidden" name="postId" value={p.id} />
           <input type="hidden" name="shouldLike" value={p.likedByViewer ? '0' : '1'} />
           <LikeButton active={p.likedByViewer} likes={p.likes} />
         </form>
-        <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 34, padding: '0 14px', borderRadius: 999, fontSize: 12, color: 'var(--dim)', border: '1px solid rgba(255,255,255,.1)' }}>
-          💬 {p.comments}
-        </span>
-        <span className="mono" style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--faint)' }}>#{p.tag ?? '커뮤니티'}</span>
+        <span style={{ cursor: 'default' }}>💬 {p.comments}</span>
+        <span style={{ cursor: 'default', marginLeft: 'auto' }}>#{p.tag ?? '커뮤니티'}</span>
       </div>
 
       {p.commentItems.length > 0 && (
-        <div className="col" style={{ gap: 10, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+        <div className="wc-community__comments" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {p.commentItems.map((comment) => (
-            <div key={comment.id} className="row" style={{ alignItems: 'start', flexWrap: 'wrap', gap: 10 }}>
-              <span style={{ width: 28, height: 28, borderRadius: 99, background: 'var(--surface-2)', flex: '0 0 auto', display: 'grid', placeItems: 'center', fontWeight: 800, color: 'var(--violet-2)', fontSize: 11 }}>
+            <div key={comment.id} style={{ alignItems: 'flex-start', display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+              <span
+                style={{
+                  alignItems: 'center',
+                  background: 'var(--wc-surface-grey)',
+                  borderRadius: '50%',
+                  color: 'var(--wc-ink-tertiary)',
+                  display: 'inline-flex',
+                  flex: '0 0 auto',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  height: 28,
+                  justifyContent: 'center',
+                  width: 28,
+                }}
+              >
                 {comment.user[0]?.toUpperCase()}
               </span>
-              <div className="col" style={{ minWidth: 0, gap: 3, flex: 1 }}>
-                <div className="row" style={{ gap: 7, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flex: 1, flexDirection: 'column', gap: 3, minWidth: 0 }}>
+                <div style={{ alignItems: 'baseline', display: 'flex', flexWrap: 'wrap', gap: 7 }}>
                   <span style={{ fontSize: 12.5, fontWeight: 700 }}>@{comment.user}</span>
-                  <span className="mono" style={{ fontSize: 10.5, color: 'var(--faint)' }}>{comment.time}</span>
+                  <span className="wc-community__meta" style={{ fontSize: 11 }}>{comment.time}</span>
                 </div>
-                <p style={{ fontSize: 13.5, lineHeight: 1.45, margin: 0 }}>{comment.text}</p>
+                <p style={{ fontSize: 13.5, lineHeight: 1.5, margin: 0 }}>{comment.text}</p>
               </div>
               {comment.canDelete && (
                 <form action={deleteCommunityCommentAction}>
@@ -394,7 +485,12 @@ function PostCard({ channels, nextPath, p }: { channels: CommunityChannel[]; nex
 function PostSubmitButton({ disabled }: { disabled: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <button className="btn btn-holo btn-sm community-composer__submit" disabled={disabled || pending} type="submit">
+    <button
+      className="wc-btn primary"
+      disabled={disabled || pending}
+      style={{ flex: '0 0 auto', fontSize: 15, padding: '0 18px', width: 'auto' }}
+      type="submit"
+    >
       {pending ? '게시 중' : '올리기'}
     </button>
   );
@@ -408,40 +504,22 @@ function TrendingTags({ tags }: { tags: string[] }) {
   return (
     <section
       aria-labelledby="community-trending-title"
-      style={{
-        gridColumn: '1 / -1',
-        boxSizing: 'border-box',
-        maxWidth: '100%',
-        minWidth: 0,
-        width: '100%',
-        borderRadius: 18,
-        border: '1px solid rgba(45,226,255,.2)',
-        background: 'linear-gradient(120deg, rgba(45,226,255,.06), rgba(139,92,255,.08))',
-        padding: '16px 18px',
-      }}
+      className="wc-community__trending"
+      style={{ boxSizing: 'border-box', marginBottom: 20, maxWidth: '100%', minWidth: 0, width: '100%' }}
     >
-      <div
-        className="mono"
+      <h2
         id="community-trending-title"
-        style={{ fontSize: 11, letterSpacing: '.16em', color: 'var(--cyan)' }}
+        style={{ color: 'var(--wc-ink)', fontFamily: 'inherit', fontSize: 15, fontWeight: 700, letterSpacing: '-0.4px', margin: 0 }}
       >
         최근 7일 트렌딩
-      </div>
+      </h2>
       {normalizedTags.length > 0 ? (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12, maxWidth: '100%', minWidth: 0, width: '100%' }}>
+        <div style={{ marginTop: 12, maxWidth: '100%', minWidth: 0, width: '100%' }}>
           {normalizedTags.map((tag) => (
             <Link
-              className="chip"
-              href={`/search?q=${encodeURIComponent(tag)}`}
               key={tag}
-              style={{
-                height: 44,
-                maxWidth: '100%',
-                minWidth: 0,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                fontFamily: 'var(--ff-body)',
-              }}
+              href={`/search?q=${encodeURIComponent(tag)}`}
+              style={{ maxWidth: '100%', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
               title={`#${tag}`}
             >
               #{tag}
@@ -449,7 +527,7 @@ function TrendingTags({ tags }: { tags: string[] }) {
           ))}
         </div>
       ) : (
-        <p style={{ margin: '10px 0 0', color: 'var(--dim)', fontSize: 13 }}>
+        <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 13, margin: '10px 0 0' }}>
           최근 7일 동안 집계된 태그가 없어요
         </p>
       )}
@@ -468,55 +546,93 @@ function Composer({
 }) {
   const [state, action] = useActionState(createCommunityPostAction, emptyState);
   const [imageName, setImageName] = useState('');
+  /* 파일 인풋은 wc-sr-only 로 숨겨 클립되므로, 키보드 포커스 링은 라벨에 상태로 그려 준다. */
+  const [fileFocusRing, setFileFocusRing] = useState(false);
   const defaultIpId = channels.some((c) => c.id === selectedChannelId) ? selectedChannelId : channels[0]?.id ?? '';
   const disabled = !defaultIpId;
 
   return (
-    <form action={action} className="community-composer">
+    <form
+      action={action}
+      className="wc-community__composer"
+      style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}
+    >
       <input type="hidden" name="next" value={nextPath} />
-      <div className="community-composer__main">
-        <span aria-hidden className="community-composer__avatar" />
+      <div style={{ alignItems: 'center', display: 'grid', gap: 10, gridTemplateColumns: '40px minmax(0, 1fr) auto', minWidth: 0 }}>
+        <span
+          aria-hidden
+          style={{ background: 'var(--wc-surface-grey)', border: '1px solid var(--wc-hairline)', borderRadius: '50%', height: 40, width: 40 }}
+        />
         <input
           aria-describedby={state.errors?.text ? 'community-text-error' : undefined}
           aria-invalid={Boolean(state.errors?.text)}
-          className="community-composer__text"
           name="text"
           placeholder="오늘의 최애 소식을 들려주세요…"
         />
         <PostSubmitButton disabled={disabled} />
       </div>
-      <div className="community-composer__controls">
+      <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8, minWidth: 0 }}>
         <select
           key={defaultIpId}
           aria-describedby={state.errors?.ipId ? 'community-ip-error' : undefined}
           aria-invalid={Boolean(state.errors?.ipId)}
-          className="community-composer__channel"
           defaultValue={defaultIpId}
           disabled={disabled}
           name="ipId"
+          style={{ ...selectStyle, flex: '1 1 150px' }}
         >
           {channels.map((channel) => (
             <option key={channel.id} value={channel.id}>{channel.title}</option>
           ))}
         </select>
         <input
-          className="community-composer__tag"
           name="tag"
           placeholder="#태그"
+          style={{ flex: '1 1 110px', width: 'auto' }}
         />
-        <label className="community-composer__upload" htmlFor="community-composer-image">
-          <span className="community-composer__upload-action">이미지 추가</span>
-          <span aria-live="polite" className="community-composer__file-name">
+        <label
+          htmlFor="community-composer-image"
+          style={{
+            alignItems: 'center',
+            background: 'var(--wc-surface)',
+            border: '1px solid var(--wc-line-control)',
+            cursor: 'pointer',
+            display: 'flex',
+            flex: '2 1 190px',
+            gap: 8,
+            minHeight: 50,
+            minWidth: 0,
+            outline: fileFocusRing ? '2px solid var(--wc-focus)' : undefined,
+            outlineOffset: fileFocusRing ? 2 : undefined,
+            overflow: 'hidden',
+            padding: '0 12px',
+          }}
+        >
+          <span style={{ flex: '0 0 auto', fontSize: 12.5, fontWeight: 700 }}>이미지 추가</span>
+          <span
+            aria-live="polite"
+            style={{ color: 'var(--wc-ink-tertiary)', fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+          >
             {imageName || 'JPG · PNG · WEBP · GIF'}
           </span>
           <input
-            accept="image/jpeg,image/png,image/webp,image/gif"
             aria-describedby={state.errors?.image ? 'community-image-error' : undefined}
             aria-invalid={Boolean(state.errors?.image)}
-            className="community-composer__file"
+            className="wc-sr-only"
+            accept="image/jpeg,image/png,image/webp,image/gif"
             id="community-composer-image"
             name="image"
+            onBlur={() => setFileFocusRing(false)}
             onChange={(event) => setImageName(event.currentTarget.files?.[0]?.name ?? '')}
+            onFocus={(event) => {
+              let visible = true;
+              try {
+                visible = event.currentTarget.matches(':focus-visible');
+              } catch {
+                /* 지원하지 않는 브라우저에서는 포커스마다 링을 그린다. */
+              }
+              setFileFocusRing(visible);
+            }}
             type="file"
           />
         </label>
@@ -525,7 +641,7 @@ function Composer({
       <ErrorText id="community-text-error">{state.errors?.text}</ErrorText>
       <ErrorText id="community-image-error">{state.errors?.image}</ErrorText>
       {state.errors?.form && (
-        <div role="alert" style={{ color: 'var(--pink)', fontSize: 13, fontWeight: 700 }}>
+        <div role="alert" style={{ color: 'var(--wc-danger)', fontSize: 13, fontWeight: 700 }}>
           {state.errors.form}
         </div>
       )}
@@ -540,27 +656,14 @@ function FeedScopeTabs({ feedScope }: { feedScope: CommunityFeedScope }) {
   ];
 
   return (
-    <nav aria-label="커뮤니티 피드" style={{ gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', gap: 8, minWidth: 0 }}>
+    <nav aria-label="커뮤니티 피드" className="wc-community__tabs">
       {tabs.map((tab) => {
         const active = feedScope === tab.scope;
         return (
           <Link
+            key={tab.scope}
             aria-current={active ? 'page' : undefined}
             href={tab.href}
-            key={tab.scope}
-            style={{
-              alignItems: 'center',
-              background: active ? 'rgba(255,77,157,.12)' : 'rgba(255,255,255,.03)',
-              border: `1px solid ${active ? 'rgba(255,77,157,.5)' : 'var(--line)'}`,
-              borderRadius: 999,
-              color: active ? 'var(--text)' : 'var(--dim)',
-              display: 'inline-flex',
-              fontSize: 14,
-              fontWeight: active ? 700 : 500,
-              height: 44,
-              justifyContent: 'center',
-              padding: '0 18px',
-            }}
           >
             {tab.label}
           </Link>
@@ -588,17 +691,18 @@ function FandomGate({ viewerState }: { viewerState: CommunityViewerState }) {
         }
       : {
           text: '팔로우한 IP가 아직 없어요',
-          sub: 'IP 허브에서 최애를 팔로우하면 이곳에 이야기가 모여요.',
+          sub: '온라인 팝업에서 최애를 팔로우하면 이곳에 이야기가 모여요.',
           href: '/ip',
           label: 'IP 둘러보기',
         };
 
   return (
-    <div className="col" style={{ alignItems: 'center', border: '1px solid var(--line)', borderRadius: 20, gap: 14, padding: '28px 20px', textAlign: 'center' }}>
-      <Empty icon="chat" text={state.text} sub={state.sub} />
-      <Link className="btn btn-holo" href={state.href} style={{ minHeight: 44, padding: '0 20px' }}>
-        {state.label}
-      </Link>
+    <div className="wc-community__gate">
+      <EmptyState
+        action={<WcButton href={state.href} variant="primary">{state.label}</WcButton>}
+        description={state.sub}
+        title={state.text}
+      />
     </div>
   );
 }
@@ -636,64 +740,51 @@ export function Community({
     return [...byUser.values()].sort((a, b) => b.score - a.score).slice(0, 5);
   }, [snapshot.posts]);
 
-  const rankColor = (i: number) => (i === 0 ? 'var(--amber)' : i === 1 ? 'var(--dim)' : i === 2 ? '#B87A4B' : 'var(--faint)');
-
-  const channelButton = (id: string, title: string, dot: string, members?: string) => {
+  const channelButton = (id: string, title: string) => {
     const active = channelId === id;
     return (
       <button
         key={id}
-        type="button"
         aria-pressed={active}
         onClick={() => setSelectedChannelId(id)}
-        style={{
-          flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: 10, height: 46, padding: '0 14px',
-          borderRadius: 14, fontSize: 14, fontWeight: active ? 700 : 500, textAlign: 'left',
-          color: active ? 'var(--text)' : 'var(--dim)',
-          border: `1px solid ${active ? 'rgba(139,92,255,.55)' : 'rgba(255,255,255,.09)'}`,
-          background: active ? 'rgba(139,92,255,.12)' : 'rgba(255,255,255,.02)',
-          transition: 'all .25s ease',
-        }}
+        type="button"
       >
-        <span style={{ width: 9, height: 9, borderRadius: 99, background: dot, flex: '0 0 auto' }} />
         {title}
-        {members && <span className="mono" style={{ fontSize: 10.5, color: 'var(--faint)', marginLeft: 'auto', paddingLeft: 8 }}>{members}</span>}
       </button>
     );
   };
 
   return (
-    <div style={{ minHeight: '100vh' }}>
-      {/* header */}
-      <header style={{ padding: '128px 0 0' }}>
-        <div className="wrap" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+    <div className="wc-root wc-community">
+      <div className="wc-container">
+        <header
+          style={{ alignItems: 'flex-end', display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: 'space-between', margin: '0 0 20px' }}
+        >
           <div>
-            <div className="eyebrow rise" style={{ color: 'var(--pink)' }}>떠들어요 · 팬덤 채널</div>
-            <h1 className="rise" style={{ margin: '14px 0 0', fontFamily: 'var(--ff-display)', fontWeight: 700, fontSize: 'clamp(38px, 5.6vw, 72px)', lineHeight: 1.02, letterSpacing: '-0.04em', animationDelay: '.08s' }}>
-              같은 최애,<br />같은 온도
+            <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, fontWeight: 700, margin: 0 }}>떠들어요 · 팬덤 채널</p>
+            <h1
+              style={{ color: 'var(--wc-ink)', fontFamily: 'inherit', fontSize: 26, fontWeight: 700, letterSpacing: '-0.8px', lineHeight: 1.3, margin: '6px 0 0' }}
+            >
+              같은 최애, 같은 온도
             </h1>
           </div>
-          <span className="mono rise" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--mint)', animationDelay: '.14s' }}>
-            <span style={{ width: 7, height: 7, borderRadius: 99, background: 'var(--mint)', boxShadow: '0 0 10px var(--mint)' }} />
-            지금 이야기 {snapshot.posts.length}개
-          </span>
+          <span style={{ color: 'var(--wc-ink-tertiary)', fontSize: 13 }}>지금 이야기 {snapshot.posts.length}개</span>
+        </header>
+
+        <TrendingTags tags={snapshot.trending} />
+        <FeedScopeTabs feedScope={feedScope} />
+
+        <div
+          aria-label="팬덤 채널"
+          className="wc-community__channels"
+          role="group"
+        >
+          {channelButton('all', feedScope === 'fandom' ? '내 팬덤 전체' : '전체 피드')}
+          {channels.map((c) => channelButton(c.id, c.title))}
         </div>
-      </header>
 
-      {/* main */}
-      <section style={{ padding: '34px 0 clamp(70px, 9vw, 110px)' }}>
-        <div className="wrap community-main">
-          <TrendingTags tags={snapshot.trending} />
-          <FeedScopeTabs feedScope={feedScope} />
-
-          {/* channels */}
-          <div className="community-channels" role="group" aria-label="팬덤 채널">
-            {channelButton('all', feedScope === 'fandom' ? '내 팬덤 전체' : '전체 피드', 'var(--holo)')}
-            {channels.map((c) => channelButton(c.id, c.title, c.color))}
-          </div>
-
-          {/* feed */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+        <div className="wc-community__layout">
+          <div style={{ minWidth: 0 }}>
             {fandomReady ? (
               <>
                 {channels.length > 0 && (
@@ -703,23 +794,19 @@ export function Community({
                   <PostCard channels={channels} key={post.id} nextPath={nextPath} p={post} />
                 ))}
                 {!posts.length && feedScope === 'fandom' && channelId === 'all' ? (
-                  <div className="col" style={{ alignItems: 'center', gap: 12, padding: '18px 0' }}>
-                    <Empty
-                      icon="chat"
-                      text={channels.length > 0 ? '내 팬덤의 첫 이야기를 남겨보세요' : '보관된 팬덤의 지난 이야기가 아직 없어요'}
-                      sub={channels.length > 0
-                        ? '위 컴포저에서 포스트를 쓰거나 전체 피드의 이야기를 둘러보세요.'
-                        : '새 글은 운영 중인 IP를 팔로우한 뒤 작성할 수 있어요.'}
-                    />
-                    <Link className="btn btn-ghost" href="/community" style={{ minHeight: 44 }}>
-                      전체 피드 보기
-                    </Link>
-                  </div>
+                  <EmptyState
+                    action={<WcButton href="/community">전체 피드 보기</WcButton>}
+                    description={channels.length > 0
+                      ? '위 컴포저에서 포스트를 쓰거나 전체 피드의 이야기를 둘러보세요.'
+                      : '새 글은 운영 중인 IP를 팔로우한 뒤 작성할 수 있어요.'}
+                    title={channels.length > 0 ? '내 팬덤의 첫 이야기를 남겨보세요' : '보관된 팬덤의 지난 이야기가 아직 없어요'}
+                  />
                 ) : !posts.length ? (
-                  <Empty
-                    icon="chat"
-                    text={channelId !== 'all' ? `${channels.find((c) => c.id === channelId)?.title ?? ''} 채널의 첫 이야기를 남겨보세요` : '아직 포스트가 없어요'}
-                    sub={channelId !== 'all' ? undefined : '첫 번째 포스트를 작성해보세요'}
+                  <EmptyState
+                    description={channelId !== 'all' ? undefined : '첫 번째 포스트를 작성해보세요'}
+                    title={channelId !== 'all'
+                      ? `${channels.find((c) => c.id === channelId)?.title ?? ''} 채널의 첫 이야기를 남겨보세요`
+                      : '아직 포스트가 없어요'}
                   />
                 ) : null}
               </>
@@ -728,36 +815,48 @@ export function Community({
             )}
           </div>
 
-          {/* side rail */}
-          <div className="community-rail hide-mob" style={{ display: 'flex', flexDirection: 'column', gap: 14, position: 'sticky', top: 'var(--header-offset)' }}>
+          <aside className="wc-community__rail">
             {feedScope === 'all' && ranking.length > 0 && (
-              <div style={{ borderRadius: 20, border: '1px solid rgba(255,255,255,.09)', background: 'linear-gradient(180deg, var(--surface), var(--bg-2))', padding: 18 }}>
-                <div className="mono" style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--amber)' }}>팬덤 랭킹</div>
+              <div>
+                <h2 style={{ color: 'var(--wc-ink-tertiary)', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, letterSpacing: '.08em', margin: 0 }}>
+                  팬덤 랭킹
+                </h2>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 14 }}>
                   {ranking.map((r, i) => (
-                    <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                      <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: rankColor(i), width: 18, flex: '0 0 auto' }}>{i + 1}</span>
-                      <span style={{ width: 30, height: 30, borderRadius: 99, background: r.avatar, flex: '0 0 auto', boxShadow: '0 0 0 1px rgba(255,255,255,.12)' }} />
-                      <span style={{ fontSize: 13, fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>@{r.name}</span>
-                      <span className="mono" style={{ fontSize: 10.5, color: 'var(--faint)', marginLeft: 'auto', flex: '0 0 auto' }}>♥ {r.score}</span>
+                    <div key={r.name} style={{ alignItems: 'center', display: 'flex', gap: 10 }}>
+                      <span style={{ color: i === 0 ? 'var(--wc-ink)' : 'var(--wc-ink-tertiary)', flex: '0 0 auto', fontSize: 13, fontWeight: 700, width: 18 }}>
+                        {i + 1}
+                      </span>
+                      <span aria-hidden style={{ background: r.avatar, borderRadius: '50%', flex: '0 0 auto', height: 30, width: 30 }} />
+                      <span style={{ fontSize: 13, fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        @{r.name}
+                      </span>
+                      <span style={{ color: 'var(--wc-ink-tertiary)', flex: '0 0 auto', fontSize: 11, marginLeft: 'auto' }}>♥ {r.score}</span>
                     </div>
                   ))}
                 </div>
               </div>
             )}
-            {cardRewardsEnabled && <div style={{ borderRadius: 20, border: '1px solid rgba(139,92,255,.35)', background: 'linear-gradient(180deg, var(--surface-2), var(--bg-2))', padding: 18, position: 'relative', overflow: 'hidden' }}>
-              <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: 'radial-gradient(300px 160px at 80% 0%, rgba(139,92,255,.2), transparent 70%)' }} />
-              <div className="mono" style={{ fontSize: 11, letterSpacing: '.18em', textTransform: 'uppercase', color: 'var(--violet-2)', position: 'relative' }}>지금 열린 카드풀</div>
-              <div style={{ fontWeight: 700, fontSize: 15.5, marginTop: 10, lineHeight: 1.4, position: 'relative' }}>
-                새 카드풀이 열려 있어요<br />오늘의 운을 시험해 보세요
+            {cardRewardsEnabled && (
+              <div>
+                <h2 style={{ color: 'var(--wc-ink-tertiary)', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, letterSpacing: '.08em', margin: 0 }}>
+                  지금 열린 카드풀
+                </h2>
+                <p style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.5, margin: '10px 0 0' }}>
+                  새 카드풀이 열려 있어요<br />오늘의 운을 시험해 보세요
+                </p>
+                <Link
+                  className="wc-btn primary"
+                  href={hrefFor('packs')}
+                  style={{ fontSize: 14, marginTop: 14, padding: '0 16px', width: 'auto' }}
+                >
+                  카드팩 열기 →
+                </Link>
               </div>
-              <Link className="btn btn-holo btn-sm" href={hrefFor('packs')} style={{ marginTop: 14, position: 'relative', fontSize: 12.5 }}>
-                카드팩 열기 →
-              </Link>
-            </div>}
-          </div>
+            )}
+          </aside>
         </div>
-      </section>
+      </div>
     </div>
   );
 }

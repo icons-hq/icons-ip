@@ -91,21 +91,18 @@ export function TicketCheckout({
   const statusCopy = useMemo(() => {
     if (state === 'complete') {
       return {
-        eyebrow: 'BOOKING CONFIRMED',
         title: '예매가 완료됐어요',
         body: `전자티켓 ${order.qty}장이 발급됐어요. 이 화면을 닫아도 예매 상태는 안전하게 보관됩니다.`,
       };
     }
     if (state === 'checking') {
       return {
-        eyebrow: 'VERIFYING PAYMENT',
         title: '결제를 확인하고 있어요',
         body: '결제사 결과를 서버에서 다시 확인 중입니다. 이 화면을 닫아도 예약은 자동 해제되지 않습니다.',
       };
     }
     if (state === 'closed') {
       return {
-        eyebrow: 'BOOKING CLOSED',
         title: '예매가 종료됐어요',
         body: '결제 가능한 시간이 지났거나 예매가 취소됐습니다. 선점 수량은 자동으로 복원됩니다.',
       };
@@ -114,14 +111,11 @@ export function TicketCheckout({
   }, [order.qty, state]);
 
   return (
-    <main className="checkout-page ticket-checkout-page">
-      <header className="checkout-header checkout-order-header">
+    <main className="wc-root wc-receipt checkout-page ticket-checkout-page">
+      <header className="wc-receipt__head">
         <div className="wrap">
-          <div className="eyebrow" style={{ color: state === 'complete' ? 'var(--mint)' : 'var(--cyan)' }}>
-            {statusCopy?.eyebrow ?? 'SECURE TICKET PAYMENT'}
-          </div>
-          <h1 className="h-xl">{statusCopy?.title ?? '결제수단을 선택하세요'}</h1>
-          <p>{statusCopy?.body ?? '예매 금액은 서버에서 다시 확인했습니다. 결제수단과 필수 약관을 선택해주세요.'}</p>
+          <h1 className="wc-receipt__title">{statusCopy?.title ?? '결제수단을 선택하세요'}</h1>
+          <p className="wc-receipt__subcopy">{statusCopy?.body ?? '예매 금액은 서버에서 다시 확인했습니다. 결제수단과 필수 약관을 선택해주세요.'}</p>
           <span className="checkout-order-ref mono">BOOKING · {order.id}</span>
         </div>
       </header>
@@ -165,7 +159,7 @@ export function TicketCheckout({
               {state === 'checking' && pollAttempts >= 15 && (
                 <button className="btn btn-ghost" onClick={() => router.refresh()} type="button">상태 다시 확인</button>
               )}
-              {state === 'closed' && <Link className="btn btn-holo" href={`/events/${encodeURIComponent(order.eventId)}`}>회차 다시 보기</Link>}
+              {state === 'closed' && <Link className="btn btn-holo" href={`/offline-popups/${encodeURIComponent(order.eventId)}`}>회차 다시 보기</Link>}
               {state === 'complete' && <Link className="btn btn-holo" href={`/tickets/${order.id}`}>전자티켓 보기</Link>}
             </div>
           )}

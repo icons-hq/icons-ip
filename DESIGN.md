@@ -1,455 +1,313 @@
 ---
-name: ICONS — Living IP Editorial v3
+name: ICONS — White Catalog v4
 status: implemented
 description: >
-  IP를 주인공으로 두는 밝은 에디토리얼 팬덤·커머스 디자인 시스템.
-  넓은 여백, 과감한 타이포그래피, 실제 IP 이미지, 절제된 파스텔 면,
-  시네마틱 모션으로 세계를 소개하되 거래·인증·운영 표면은 평온하고 명료하게 유지한다.
+  화이트 캔버스, 무채색 잉크, 단일 brand-green 액센트, radius 0의 각진 플랫,
+  스크롤 연출 없는 정적 카탈로그 커머스 디자인 시스템.
+  linefriendssquare.com의 레이아웃·IA·컴포넌트 문법을 재현 스펙(docs/research/linefriends-square/)
+  기준으로 이식하되, 레퍼런스의 자산·문구·핑크 액센트는 재사용하지 않는다.
 authority:
+  decision: docs/adr/0011-lfs-storefront-redesign.md
+  reproduction-spec: docs/research/linefriends-square/
   product-language: CONTEXT.md
   product-scope: docs/PRD.md
   architecture: docs/ARCHITECTURE.md
   target-design: DESIGN.md
-  current-code:
-    foundation: app/styles/editorial-foundation.css
-    shell: app/styles/editorial-shell.css
-    home: app/styles/editorial-home.css
-    public: app/styles/editorial-public.css
-    account-commerce: app/styles/editorial-account-commerce.css
-    admin: app/styles/editorial-admin.css
-    admin-console: app/styles/admin-console.css
-    legacy-compatibility: app/globals.css
+  target-code:
+    foundation: app/styles/wc-foundation.css
+    chrome: app/styles/wc-chrome.css
+    home: app/styles/wc-home.css
+    catalog: app/styles/wc-catalog.css
+    discovery: app/styles/wc-discovery.css
+    account-commerce: app/styles/wc-account-commerce.css
+    campaign: app/styles/wc-campaign.css
+  retained-for-admin:               # 어드민 콘솔 어휘 — 이번 개편 대상이 아니다
+    - app/globals.css               # S9 이후 전역 하부(Tailwind·Pretendard·리셋)+어드민 HM 유산 밑층
+    - app/styles/editorial-foundation.css
+    - app/styles/editorial-admin.css  # 실제 라이트 콘솔 룩 — 나중에 로드돼 밑층을 덮는다
+    - app/styles/admin-console.css
+  retained-legacy-surfaces:         # WC 재조판이 남은 공개 표면 — 표면별 격리 CSS로 자립
+    - app/styles/about-legacy.css           # /about
+    - app/styles/offline-popups-legacy.css  # /offline-popups·/offline-popups/[eventId]
+    - app/styles/legal-doc.css              # /legal/*
   route-map: lib/routes.ts
   note: >
-    이 문서는 구현된 디자인 정본이다. 실제 토큰과 화면군 규칙은 app/styles/editorial-*.css가 진실이며,
-    app/globals.css는 기존 클래스와 도메인 재질을 보존하는 호환 계층이다. 이후 변경은 문서와 코드를 함께 동기화한다.
-reference-prototype:
-  url: https://icons-ip-world-preview.sangwopakr19.chatgpt.site
-  role: approved visual and interaction reference
+    status=implemented: 공개 스토어프론트 전 표면이 이 시스템으로 이행됐다(S1~S9, 통합 브랜치
+    ps/feat/lfs-storefront-redesign). 직전 시스템(Living IP Editorial)의 공개 표면 CSS 3파일은
+    S9에서 삭제됐고, globals.css는 전역 하부와 어드민 잔존 어휘만 남겼다.
+    retained-legacy-surfaces의 세 표면은 이행 대상이지만 아직 재조판되지 않았고, 원본 제거에
+    맞춰 격리 CSS로 자립시켰다 — 재조판은 후속 작업이며 그때 해당 파일을 지운다.
+reference:
+  source: https://linefriendssquare.com (2026-08-26 실측)
   restrictions:
-    - 외부 사이트의 코드, 이미지, 로고, 문구를 복제하지 않는다.
-    - 현재 프로젝트 데이터, 라우트, 액션, 자산으로 같은 방향성과 리듬을 재구성한다.
-canvas: light-editorial
+    - 레퍼런스의 코드·이미지·캐릭터·로고·마케팅 카피·액센트 색을 복제하지 않는다.
+    - 구조·수치·동작만 재현하며, 콘텐츠는 전부 현재 ICONS 카탈로그·큐레이션 데이터로 렌더한다.
+    - 재현하지 않는 결함 목록은 docs/research/linefriends-square/00-overview.md를 따른다.
+canvas: white-catalog
 breakpoints:
-  compact: 720px
-  wide: 1200px
-  edge: [420px, 360px]
+  mobile: "<750px"
+  tablet: "750–989px"
+  desktop: ">=990px"
+  container: 1212px
 ---
 
-# ICONS — Living IP Editorial v3
+# ICONS — White Catalog v4
 
-> IP가 전면에 나오고, 팬은 그 세계를 발견하고 모으고 만나는 사람이다.
-> 이 문서는 디자인 취향 모음이 아니라 실제 구현과 검수에 쓰는 기계 판독 가능한 정본이다.
+> 색은 상품과 IP 이미지가 낸다. 크롬은 흰 종이, 검정 잉크, 초록 한 점.
+> 이 문서는 기계 판독 가능한 구현·검수 정본이다. 표면별 상세 수치는 재현 스펙(docs/research/linefriends-square/, 이하 "R-스펙")의 해당 문서를 인용한다.
 
 ## 0. 상태와 적용 원칙
 
-- 이 문서는 사용자가 승인한 Sites 프로토타입을 실제 제품에 이식한 **구현 디자인 정본**이다.
-- `Living IP Editorial`은 전역 기본값이며, 기존 `Holographic Midnight` 재질은 수집형 카드와 필요한 역상 표면에만 제한적으로 남는다. 실제 클래스와 동작은 `app/styles/editorial-*.css`, `app/globals.css`, 해당 컴포넌트가 함께 진실이다.
-- 시각 시스템은 전면 교체하지만, 공개 브라우징, 인증, 장바구니, 주문, 결제, 카드팩, 예매, QR, 관리자 권한을 포함한 기능 계약은 바꾸지 않는다.
-- 페이지를 새로 보이게 만들기 위해 실제 데이터 대신 정적 배열, 가짜 수치, 가짜 후기, 존재하지 않는 링크를 넣지 않는다.
-- 용어는 `CONTEXT.md`를 따른다. 수집형 디지털 **카드**와 실물 **굿즈**, 카드 C2C **트레이드**와 굿즈 C2C **마켓**을 혼용하지 않는다. **교환**은 굿즈 클레임 유형(회수 후 재출고)으로만 쓴다.
+- 근거 결정은 [ADR-0011](docs/adr/0011-lfs-storefront-redesign.md)이다. 공개 스토어프론트 전 표면이 이 시스템으로 이행됐고, 직전 시스템(Living IP Editorial)의 공개 표면 CSS 3파일과 1세대 잔재(Holographic Midnight)의 공개 표면 규칙은 S9에서 제거됐다.
+- 예외: **어드민**(`/admin/**`)은 이번 개편 대상이 아니며 현재 어휘를 그대로 유지한다. 실제 룩은 editorial 토큰의 라이트 콘솔(editorial-foundation·editorial-admin·admin-console)이고, `globals.css`의 어드민부는 그 아래 깔린 Holographic Midnight 유산 밑층이다 — 라이트 콘솔이 덮지 않는 배치·간격·모션이 거기 있어 "안 보이니 지워도 된다"가 성립하지 않는다. **`/about`**은 구 홈의 콘텐츠 섹션을 보존 전시하는 표면으로, 자체 스타일(about-legacy)을 갖되 전역 셸은 White Catalog을 쓴다.
+- 재조판 잔여: **오프라인 팝업**(`/offline-popups`·`/offline-popups/[eventId]`)과 **법적 문서**(`/legal/*`)는 §8 플레이북의 대상이지만 아직 구 조판이다. S9의 원본 CSS 제거에 맞춰 표면별 격리 CSS(offline-popups-legacy·legal-doc)로 자립시켰고, 재조판은 후속 작업이다.
+- 시각·IA는 전면 교체하지만 기능 계약(인증, 카트, 주문, 결제, 카드팩, 예매, QR, 권한)은 §11의 동결 경계를 따른다.
+- 용어는 `CONTEXT.md`를 따른다: **온라인 팝업**(구 IP 허브), **오프라인 팝업**(예매 도메인), **이벤트**(캠페인 허브), **카테고리**(굿즈 분류), 수집형 **카드** ≠ 실물 **굿즈**.
+- 실데이터 원칙: 새로 보이게 하려고 정적 배열, 가짜 수치, 가짜 후기, 존재하지 않는 링크를 넣지 않는다.
 
 ## 1. 정체성
 
-### 한 문장
+**White Catalog**은 상품이 주인공인 백화점 진열대다. 크롬은 존재감을 지우고(흰 지면·각진 플랫·그림자 1종·연출 없음), 정보는 밀도 있게 정렬되며, 액센트는 "지금 주목할 것" 하나만 가리킨다.
 
-**Living IP Editorial**은 각 IP를 하나의 살아 있는 세계처럼 편집하고, 상품·카드·이벤트·커뮤니티를 그 세계로 들어가는 서로 다른 입구로 보여주는 시스템이다.
-
-### 세 가지 원칙
-
-1. **IP가 주인공이다.** 장식보다 실제 키아트와 캐릭터를 크게 보여주고, 여백과 타이포그래피는 이미지를 돋보이게 한다.
-2. **파스텔은 의미가 있는 공간이다.** 초록·분홍·파랑·노랑은 무작위 장식이 아니라 섹션, 경험, 상태를 구분하는 넓은 면으로 사용한다.
-3. **팬덤의 설렘과 거래의 신뢰를 분리한다.** 발견 화면은 시네마틱하고 대담하게, 결제·예매·인증·관리 화면은 흰 종이처럼 차분하고 예측 가능하게 만든다.
-
-### 유지하는 유산
-
-- 홀로·foil은 전역 브랜드 효과가 아니라 **수집형 카드라는 물성** 안에서만 유지한다.
-- IP별 액센트와 영문 표기는 `lib/ip-display.ts`, 희귀도 표현은 `lib/rarity.ts`를 진실원으로 유지한다.
-- Space Mono는 가격, 수량, 주문번호, 확률, 시간, 규제·정책 메타처럼 정확성이 중요한 짧은 정보에만 사용한다.
-- 어두운 표면은 영상 오버레이, 전면 메뉴, 푸터, 카드 리빌처럼 명확한 역상 문맥에서만 사용한다.
+1. **지면은 항상 희다.** 섹션 구분은 색면이 아니라 여백과 헤어라인이 한다.
+2. **액센트는 한 색, 한 역할.** brand-green은 활성·주목·행동 유도에만 쓴다. 화면을 초록으로 칠하지 않는다.
+3. **연출보다 목록.** 스크롤 트리거 애니메이션, 패럴랙스, 대형 타이포 연출을 쓰지 않는다. 움직임은 캐러셀·전환·피드백뿐이다.
+4. **유산 예외**: 수집형 카드의 foil·rarity 물성(`lib/rarity.ts`), IP 액센트 메타(`lib/ip-display.ts`)는 카드·IP 식별 국소 요소로 유지한다. `/about`은 직전 시스템의 파스텔 연출을 보존 전시한다.
 
 ## 2. 색상 토큰
 
-새 코드에서는 아래 **의미 기반 이름**을 사용한다. 기존 `--bg`, `--line`, `--pink`처럼 새 의미와 충돌하는 토큰을 새 화면에 재사용하지 않는다.
+R-스펙 07 §1의 무채색 축을 그대로 채택하고, 액센트만 핑크→green으로 치환한다(치환 사용처 16곳: R-스펙 07 §1.2 표).
 
 ```yaml
 colors:
-  canvas:
-    default: "#F4F4F1"
-    soft: "#EFEFEB"
   surface:
-    default: "#FFFFFF"
-    muted: "#E7E7E2"
-    placeholder: "#DDDDDD"
+    default: "#FFFFFF"        # body·헤더·시트·탭바
+    grey: "#F6F8FA"           # 푸터·검색 인풋·시트 디바이더
+    grey-2: "#F3F3F3"         # 회색 대비 섹션
+    icon-tile: "#F8F8F8"
   ink:
-    default: "#11110F"
-    muted: "#686862"
-    inverse-muted: "#858580"
+    default: "#111111"        # 본문·헤딩·가격 (#121212와 통합 취급)
+    sub: "#3F3F3F"            # 카드 타이틀·푸터 본문
+    tertiary: "#616161"       # 유틸바·옵션 라벨
+    disabled: "#BBBBBB"       # placeholder·취소선 정가·비활성
   line:
-    strong: "rgba(17,17,15,.40)"
-    default: "rgba(17,17,15,.18)"
-    soft: "rgba(17,17,15,.08)"
-  pastel:
-    green: "#C4E5AE"
-    pink: "#FFDAFF"
-    blue: "#A6C5E6"
-    yellow: "#FFE888"
-  brand:
-    green: "#78BB53"
-  state:
+    hairline: "#EBEDEE"       # 푸터/탭바/패널 상단
+    hairline-dark: "rgba(17,17,17,.1)"
+    control: "#C8CACC"        # 아웃라인 버튼 보더
+    divider: "#A0A0A0"        # 푸터 링크 세로 구분선
+  accent:
+    default: "#78BB53"        # brand-green — 유일 액센트
+    tint: "rgba(120,187,83,.12)"  # 뱃지 bg·칩 bg
+  state:                      # 폼·상태 피드백 (Living IP Editorial 승계)
     success: "#3F7D38"
     warning: "#9A5B00"
     danger: "#B8324A"
     info: "#365CA8"
     focus: "#5B74FF"
-  inverse:
-    default: "#11110F"
-    media: "#222222"
-    text: "#FFFFFF"
+  dim: "rgba(0,0,0,.7)"       # 시트·오버레이 딤
+  scrim: "rgba(0,0,0,.3)"     # SOLD OUT 밴드
 ```
 
-### 사용 규칙
+### 액센트 사용처 (전수 — 이 밖에 쓰지 않는다)
 
-- 기본 본문은 `ink.default`, 보조 정보는 `ink.muted`를 사용한다.
-- 흰 글자는 `inverse.default`, 충분히 어두운 미디어 스크림, 상태색처럼 대비가 검증된 면에만 쓴다.
-- 밝은 파스텔 위에는 항상 `ink.default`를 쓴다. 파스텔 위 흰 글자는 금지한다.
-- `brand.green`은 주 행동 또는 현재 활성 상태 하나에만 쓴다. 한 화면의 모든 버튼을 초록으로 만들지 않는다.
-- 오류·성공·경고는 색만으로 구분하지 않고 아이콘, 제목, 설명을 함께 제공한다.
-- IP 액센트는 배지, 작은 라인, 필터 선택처럼 IP를 식별하는 국소 요소에만 쓰며 전체 페이지 배경을 덮지 않는다.
+**비텍스트·장식**(brand-green 유지): GNB 3px 밑줄바, 카트 수량 뱃지 bg, 카드 뱃지 tint bg, 위시 하트 선택됨, 인풋 caret, 추천 검색어 칩 bg, `.wc-btn.accent` 변형, 온라인 팝업 팔로우 카운트, 알림함 안읽음 점(S6 — sr-only 텍스트 병행으로 색 단독 전달 금지 준수).
 
-### 기존 토큰 이행 규칙
+**소형 액센트 텍스트**(S4에서 확정 — brand-green 2.3:1은 AA 미달이라 `state.success` #3F7D38 사용, 토큰 `--wc-success`): GNB hover/active 텍스트, 메가메뉴 현재 링크 텍스트, 카드 뱃지 텍스트, 세일 할인율 텍스트, 추천 검색어 칩 텍스트, 폼 검증 피드백 텍스트.
 
-- 기존 다크 토큰은 한 번에 의미를 뒤집지 않는다. 새 토큰을 먼저 추가하고 소비자를 화면 단위로 이동한다.
-- `--holo`, rarity 색, IP 색은 카드 물성·메타데이터에 한해 유지한다.
-- 기존 `.bg-atmos--*`, 전역 글로우, 다크 글래스 카드, 홀로 기본 CTA는 새 화면에서 사용하지 않는다.
-- 모든 소비자가 옮겨진 뒤에만 사용되지 않는 기존 별칭을 제거한다.
+**파괴 행동은 `state.danger`**를 쓰고 액센트로 위장하지 않는다.
+
+### 규칙
+
+- 다크모드 없음 — 단일 라이트 테마. `color-scheme: light`.
+- 흰 글자는 잉크 면(primary 버튼·구매바)과 이미지 스크림 위에만 쓴다.
+
+### 회원 등급 뱃지 색 (B2에서 확정 — 액센트 단일 규칙의 명시적 예외)
+
+등급 4단(WELCOME/SILVER/GOLD/PLATINUM — VIP·티어 어휘 금지, CONTEXT.md)의 뱃지에만
+쓰는 틴트 배경 + AA 잉크 쌍. 레퍼런스의 배지 색 체계에서 핑크·퍼플 원색을 치환했다.
+사용처는 프로필 스트립 등급 뱃지와 쿠폰함의 등급 혜택 뱃지 두 곳으로 폐쇄한다.
+
+```yaml
+loyalty:
+  welcome: { bg: "rgba(120,187,83,.12)", ink: "#3F7D38" }   # 액센트 틴트 + success 잉크
+  silver:  { bg: "#F3F3F3", ink: "#5A5A5A" }
+  gold:    { bg: "#FBF3D9", ink: "#8A6D1B" }
+  platinum: { bg: "#EFE9F7", ink: "#5B4791" }
+```
+
+토큰은 `--wc-loyalty-{grade}-bg` / `--wc-loyalty-{grade}-ink`.
 
 ## 3. 타이포그래피
 
+- **Pretendard 단일 서체**(영문 포함). `html` 루트 10px 기법은 **채택하지 않는다**(Tailwind rem 스케일 충돌) — 수치는 px 직접 지정.
+- 국문 letter-spacing은 음수가 기본(-0.2~-0.8px). 본문·폼 라벨은 -0.2px까지만.
+
 ```yaml
-fonts:
-  display: "Pretendard Variable, Pretendard, sans-serif"
-  body: "Pretendard Variable, Pretendard, sans-serif"
-  utility: "Space Mono, Pretendard, monospace"
-type:
-  hero-desktop: { size: "clamp(54px,11cqi,104px)", weight: 850, line-height: 1.08, letter-spacing: "-.03em" }
-  hero-mobile: { size: "clamp(40px,12cqi,52px)", weight: 850, line-height: 1.12, letter-spacing: "-.03em" }
-  section-macro: { size: "clamp(48px,6.2vw,116px)", weight: 840, line-height: 1.08, letter-spacing: "-.03em" }
-  film: { size: "clamp(46px,5.4vw,102px)", weight: 840, line-height: 1.08, letter-spacing: "-.03em" }
-  feature: { size: "clamp(40px,11cqi,76px)", weight: 840, line-height: 1.08, letter-spacing: "-.03em" }
-  final-cta: { size: "clamp(58px,8.8vw,168px)", weight: 850, line-height: 1.08, letter-spacing: "-.03em" }
-  card-title: { size: "clamp(22px,1.8vw,34px)", weight: 800, line-height: 1.2, letter-spacing: "-.025em" }
-  eyebrow: { size: 11px, weight: 900, line-height: 1.5, letter-spacing: ".17em", transform: uppercase }
-  body: { size: "15px–18px", weight: 450, line-height: 1.65 }
-  utility: { size: "10px–13px", weight: 500, line-height: 1.5 }
-  control: { line-height: 1.4 }
-  wordmark: { line-height: 1 }
+type:                       # size / weight / letter-spacing / line-height
+  body: { desktop: "16/400/-0.2/1.8", mobile: "14/400/-0.2/1.8" }
+  section-title: "28/700/-0.8"            # 홈·목록 섹션 헤딩 (브레이크포인트 무관) — R-02 §1-1 실측. R-07 h2 축의 24는 베이스 스케일로, 표면 수치는 표면 문서가 이긴다
+  page-h1: "26/700/-0.8/1.3"
+  banner-title: "22/700/-0.55/1.09"        # 배너 이미지 위 (흰 글자)
+  hero-copy: "24/700 캐치 + 15/400 부제"    # 홈 히어로 오버레이 (R-02 §2①, 흰 글자)
+  pdp-title: { desktop: "18/700/-0.5/1.11", mobile: "16/700" }
+  module-title: "18/700/-0.4"              # 모달·추천상품·시트 섹션
+  card-title: "13/400/-0.2/1.35"           # 색 ink.sub
+  card-price: "14/600/0/17px"              # 모바일 15/600
+  price-strike: "14/400 line-through"      # 색 ink.disabled
+  badge: "11/600/0/18px"
+  gnb: { desktop: "16/700/-0.2/50px", mobile-tab: "17/700/0/51px uppercase" }
+  utility-bar: "12/400/-0.2"
+  button: "18/700/0/1.11"                  # .wc-btn
+  button-form: "15/400/+1"                 # 폼 잔여 버튼
+  footer-link: "15/700/0/17px"
+  footer-body: "13/400"
+  tabbar-label: "10/700/0/1"
+  caption: "12/400/+0.7"
+  form-feedback: "13/400/-0.38"            # 색 accent 또는 state.danger
 ```
 
-- 한국어 제목은 `word-break: keep-all`, `line-break: strict`, `overflow-wrap: normal`, `text-wrap: balance`를 기본으로 하며 기존 `<br>` 기반 편집 줄바꿈 안에서도 어절을 분할하지 않는다.
-- 본문·목록·설명은 `word-break: keep-all`과 `overflow-wrap: break-word`를 사용한다. URL·이메일·주문/결제/티켓 ID·해시·관리자 원문처럼 기술 문자열에만 `overflow-wrap: anywhere`를 허용한다.
-- 홈의 히어로와 피처 제목은 실제 카피 컨테이너 폭을 기준으로 `cqi` 단위를 사용하고, 미지원 환경을 위한 viewport 기반 fallback을 먼저 선언한다.
-- 영문 대문자와 한글을 함께 쓸 때 시각 높이를 맞추고, 무조건적인 uppercase 변환으로 한글을 훼손하지 않는다.
-- 본문과 폼 라벨에는 음수 자간을 적용하지 않는다.
-- `font-weight: 840/850`을 지원하지 않는 환경에서는 가장 가까운 variable weight 또는 800을 사용한다.
-- 모바일의 대형 제목은 1.12 행간을 사용하고 히어로·피처는 40px 아래로 축소하지 않으며, 줄 수 증가를 허용한다.
+- 한국어 제목·본문은 `word-break: keep-all`, 기술 문자열(ID·URL)만 `overflow-wrap: anywhere`.
 
 ## 4. 레이아웃과 공간
 
 ```yaml
 layout:
-  header-container: "min(94vw,1500px)"
-  editorial-container: "min(88vw,1680px)"
-  feature-container: "min(91vw,1740px)"
-  film-window: "min(89.38vw,1700px) × min(50.26vw,956px)"
-  desktop-gutter: "6vw"
-  mobile-gutter: "21px"
-  carousel-gap-desktop: "28px"
-  carousel-gap-mobile: "16px"
-  section-space-large: "clamp(130px,11vw,215px)"
-  section-space-medium: "clamp(120px,10vw,195px)"
+  container: "max-width 1212px, padding 0 16px"   # 콘텐츠 1180px
+  mobile-gutter: 16px
+  section-gap: { desktop: "120–140px", mobile: "64–100px" }
+  heading-to-content: 24px
+  product-grid: { desktop: "4열 gap 16/50(col/row)", mobile: "2열 gap 7–8/40" }
+  content-card-grid: { desktop: "3열 380px gap 20", mobile: "1열 스와이프" }
+  collection: "사이드바 200px + 거터 84px + 그리드 896px"
+  pdp-columns: "갤러리 649 : 정보 531 (정보 콘텐츠 446px)"
+  cart-columns: "아이템 780 + 요약 aside 360"
+  auth-column: "플랫 448px 1칼럼"
+  mypage: "프로필 스트립(surface.grey) + 좌 메뉴 200px + 콘텐츠"
+  header: { notice: "이미지 스트립 ≈36px/60px(mo)", tiers: "유틸바+로고단+GNB", sticky-condensed: "69px 로고+아이콘 단일 바" }
+  buybar-mobile: "높이 72px 고정 풀폭"
+  touch-target: "아이콘 44px, 버튼 h50"
 ```
 
-- 홈은 넓은 에디토리얼 컨테이너를 쓰고, 검색·커머스·계정·관리처럼 읽기 밀도가 높은 화면은 `max-width: 1240–1440px` 안에서 유지한다.
-- 한 섹션 안의 큰 제목, 설명, 행동은 같은 왼쪽 축을 공유한다.
-- 가로 캐러셀은 마지막 카드 뒤에도 바깥 여백과 같은 종료 여백을 둔다.
-- 정보 그리드는 CSS grid, 콘텐츠 순서는 DOM 순서로 결정한다. 시각 위치를 위해 의미 순서를 뒤집지 않는다.
+- 상품 카드 이미지 비율은 **3:4 세로형으로 통일**(의도적 편차 — R-스펙 00 §재현 원칙).
+- 섹션 공통 마진 없음 — 각 섹션이 자체 상하 패딩을 가진다(표면별 수치는 R-스펙 02~06).
 
-## 5. 형태, 선, 깊이
+## 5. 형태·선·깊이·모션
 
 ```yaml
-radii:
-  image-hairline: 3px
-  feature: 10px
-  feature-mobile: 5px
-  compact-card: 14px
-  orbit-square: 20%
-  chat: 22px
-  collectible: 24px
-  poster: 28px
-  pill: 999px
-  circle: 50%
+radius: { base: 0, badge: 1, button-form: 2, button-cta: 4, sheet-top: 8, pill: "17–40", circle: "하트·아이콘 원형" }
+shadow: "0 4px 5px rgba(18,18,18,.05)"   # 메가메뉴·팝업 유일 — 카드·버튼·헤더 그림자 금지
+hairline: "line.hairline 1px (두꺼운 디바이더는 surface.grey 10px)"
+motion:
+  duration: { short: .1s, default: .2s, medium: .3s, long: .5-.6s }
+  easing: ["ease", "cubic-bezier(0,0,.3,1)"]
+  patterns:
+    gnb-underline: "scaleX 0→1, origin center, .3s"
+    sticky-condense: "margin/opacity .3s"
+    hero-fade: "1s crossfade, autoplay 5s, hover/조작/문서 비활성 시 정지"
+    input-focus: "box-shadow .1s"
+  forbidden: "스크롤 트리거 등장 연출·패럴랙스·hover lift 남용. prefers-reduced-motion에서 transition/autoplay 전부 중지"
+z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "9999+" }
 ```
 
-- 표면은 기본적으로 평평하다. 흰 카드와 캔버스는 `line.soft` 또는 여백으로 구분한다.
-- 큰 그림자는 떠 있는 헤더, 전면 메뉴, 모달에만 사용한다. 리스트 카드마다 깊은 그림자를 반복하지 않는다.
-- 일반 버튼과 필터는 pill, 키아트·포스터는 낮은 radius, 수집형 카드는 24px radius를 쓴다.
-- hover 깊이는 이동 2–4px 또는 이미지 확대 중 하나로만 표현한다. 둘을 과도하게 합치지 않는다.
+## 6. 핵심 컴포넌트 패턴
 
-## 6. 이미지와 아트 디렉션
+상세 anatomy·수치는 괄호의 R-스펙 문서가 정본이다.
 
-### 자산 우선순위
-
-1. `public/generated/ip`, `public/generated/goods`, `public/generated/cards`, `public/generated/events`의 현재 프로젝트 자산
-2. 데이터가 가리키는 프로젝트 내부 public/storage 이미지
-3. 동일 IP의 기존 자산을 활용한 크롭·레이아웃 변형
-4. 위 세 단계로도 필수 장면이 비는 경우에만 새 이미지 생성
-
-### 생성 이미지 규칙
-
-- 생성물은 외부 사이트의 캐릭터, 구도, 사진을 복제하지 않고 현재 프로젝트의 IP 설정과 자산 방향을 기준으로 만든다.
-- 생성 전에 어느 화면의 어떤 빈 슬롯을 해결하는지 명확히 한다. 단순 장식용 이미지를 대량 생성하지 않는다.
-- 생성된 파일은 역할에 맞는 로컬 프로젝트 자산 폴더와 명확한 이름으로 저장하고, 기존 이미지 필드가 소비할 수 있는 로컬 경로로 연결한다.
-- 생성물 때문에 스키마, 원격 Storage, Supabase 데이터, production 큐레이션을 변경하지 않는다. 그런 연결이 필요하면 디자인 구현과 분리해 별도 승인을 받는다.
-- 16:9 히어로, 4:5 포스터, 1:1 IP 아바타, 카드 비율 등 소비처 비율을 먼저 정하고 생성한다.
-- 중요한 얼굴·캐릭터·상품은 모바일 안전 영역을 포함한 crop에서 잘리지 않아야 한다.
-
-### 표현 규칙
-
-- 히어로는 실제 IP 이미지가 화면의 중심이다. 텍스트 가독성이 필요하면 단색 박스보다 부드러운 이미지 스크림을 우선한다.
-- 상품과 티켓은 실제 형태·가격·상태를 명확히 보여주며 과도한 색 필터를 씌우지 않는다.
-- `object-fit: cover`를 기본으로 쓰되 굿즈 누끼·카드 원본처럼 전체 형태가 중요한 경우 `contain`을 사용한다.
-- 이미지가 없을 때는 깨진 링크 대신 `surface.placeholder` 면, 종류 아이콘, 명확한 대체 텍스트를 제공한다.
-
-## 7. 모션과 상호작용
-
-```yaml
-duration:
-  fast: 300ms
-  control: 400ms
-  header: 500ms
-  overlay: 600ms
-  media-hover: 650ms
-  image: 750ms
-  menu: 850ms
-  hero-fade: 1000ms
-  film-reveal: 1750ms
-  copy-reveal: 2000ms
-easing:
-  header: "cubic-bezier(.22,.8,.28,1)"
-  menu: "cubic-bezier(.7,0,.15,1)"
-  media: "cubic-bezier(.2,.76,.25,1)"
-  film: "cubic-bezier(.48,0,.14,1)"
-  soft: "cubic-bezier(.2,.8,.2,1)"
-  copy: "cubic-bezier(.18,.85,.2,1)"
-```
-
-### 공통 동작
-
-- **떠 있는 헤더:** 문서 상단 80px까지는 보인다. 이후 스크롤 방향이 12px 이상 누적되면 아래로 갈 때 숨고 위로 갈 때 나타난다. 전환은 500ms다.
-- **전면 메뉴:** 캡슐 메뉴 버튼에서 전체 화면 방사형 메뉴로 확장한다. 열림 동안 배경 스크롤을 잠그고 Escape·바깥 클릭·닫기 버튼을 지원하며 닫힌 뒤 트리거에 포커스를 돌려준다.
-- **히어로:** 최대 5개 장면, 장면당 3초, 1초 crossfade. 이미지가 6초 동안 `scale(1.045)`에서 `1`로 이동하고 카피는 2초 clip reveal을 쓴다. 사용자가 조작하거나 탭이 비활성화되면 자동 재생을 멈춘다.
-- **IP 궤도 마퀴:** 30초 선형 순환, hover/focus-within에서 일시 정지. 항목 hover는 이미지 1.25배/650ms, 오버레이 600ms다.
-- **필름 윈도:** 장면당 4.2초. 원형 마스크는 250ms 지연 뒤 1.75초 동안 열리고, 이미지는 2초 동안 `scale(2)`에서 `1`로 안정된다. 장면 선택은 하단 중앙의 42×27px 무문자 컨트롤과 3px 헤어라인으로 제공하며 활성 장면의 선만 흰색으로 강조한다. 각 컨트롤은 명확한 접근 가능한 이름을 가지며, 다른 장면을 직접 선택하거나 외부에서 키보드 포커스가 진입하면 자동 전환을 일시 정지한다. 활성 장면 컨트롤을 다시 누르면 재생·일시 정지를 전환한다.
-- **가로 경험 카드:** native scroll과 `scroll-snap`을 사용한다. 카드 폭만큼 이동하며 데스크톱 28px, 모바일 16px 간격이다.
-- **패럴랙스:** `requestAnimationFrame`으로 묶고 화면 밖에서는 중지한다. 포인터 위치보다 스크롤 진행률을 우선하며 레이아웃을 유발하는 속성은 움직이지 않는다.
-
-### 모션 금지 구간
-
-- 결제 입력, 주문 확정, 예매 확정, QR 표시, 관리자 저장 중에는 주변 자동 모션을 멈춘다.
-- 로딩·성공·오류를 지연시키기 위한 장식 애니메이션을 넣지 않는다.
-- `prefers-reduced-motion: reduce`에서는 CSS transition/animation과 JS autoplay/parallax를 모두 중지하고, 캐러셀은 즉시 이동한다.
-
-## 8. 핵심 컴포넌트 패턴
-
-| 패턴 | 목적 | 필수 규칙 |
+| 패턴 | 목적 | 필수 규칙 (R-스펙) |
 |---|---|---|
-| `floating-capsule-header` | 전역 탐색 | 좌측 워드마크, 중심/전면 탐색, 우측 검색·알림·장바구니·계정. 인증 라우트 숨김 규칙 유지 |
-| `fullscreen-radial-menu` | 전체 메뉴 | focus trap, Escape, 스크롤 잠금, 현재 경로, 실제 라우트만 표시 |
-| `cinematic-hero-carousel` | 홈 첫 장면 | 실제 카탈로그 파생, 최대 5개, 수동 컨트롤·상태 레이블·감속 모션 |
-| `announcement-rail` | 운영 공지 | 활성 큐레이션만, 안전한 내부 링크, 공지가 없으면 영역 자체 제거 |
-| `macro-section-heading` | 섹션 전환 | 대형 제목+짧은 설명+한 개의 명확한 진입 행동 |
-| `ip-orbit-marquee` | IP 발견 | 실제 IP 목록, hover/focus 일시 정지, 각 항목은 `/ip/[id]` 링크 |
-| `capsule-film-window` | 세계관 몰입 | 실제 이미지 1–3장, 하단 중앙 3px 헤어라인 장면 컨트롤과 접근 가능한 이름, 활성 컨트롤 재생 전환, reduced motion 정지 화면 |
-| `experience-snap-carousel` | 굿즈·이벤트·게시물 발견 | 실제 데이터, native scroll-snap, 키보드 조작, 빈 상태 |
-| `pastel-story-panel` | 설명·캠페인 | 한 개 파스텔 면, 한 개 메시지, 한 개 행동 |
-| `editorial-stat-grid` | 실제 현황 | 카탈로그 또는 집계에서 계산된 값만, 출처 없는 파트너·팬 수 금지 |
-| `orbit-final-cta` | 최종 진입 | 큰 타이포와 실제 경로, 가입 강요보다 공개 탐색 우선 |
-| `oversized-inverse-footer` | 역상 푸터 | 실제 약관·정책·보조 링크, 큰 워드마크, 작은 법적 정보 |
-| `arrow-circle-action` | 보조 이동 | 명확한 접근성 이름, 화살표만 있을 때도 최소 44×44px |
-| `flat-form-surface` | 인증·계정·관리 입력 | 흰 배경, hairline, label 상시 노출, 오류를 필드 근처에 표시 |
-| `transaction-receipt` | 주문·예매·환불 | 금액·수량·상태의 명확한 계층, Space Mono 보조, 장식보다 신뢰 우선 |
+| `notice-strip` | 운영 공지 | 어드민 큐레이션 이미지 스트립 1장, 스케줄 노출, 닫기 없음 (01) |
+| `triple-header` | 전역 탐색 | 유틸바+로고단+GNB 3단, 스크롤 시 69px 단일 바로 축약, 그림자 없음 (01) |
+| `underline-gnb` | 1차 탐색 | NEW·BEST·카테고리·온라인 팝업·카드팩·이벤트·커뮤니티. 활성=green 텍스트+3px 밑줄 (01) |
+| `mega-menu` | 카테고리 확장 | 헤더 컨텍스트 내 z0, 헤어라인 상하, 그룹 헤딩 14/700 (01) |
+| `search-overlay` | 검색 진입 | 페이지 이동 없는 오버레이, 인풋 60px(grey)+추천 칩(green), 결과는 `/search` (01·03) |
+| `mobile-tab-gnb` | 모바일 1차 탐색 | 햄버거 없는 가로 스크롤 탭, 활성 opacity 1/비활성 .35, 좌우 16px fade (01) |
+| `bottom-tab-bar` | 모바일 전역 바 | 5탭(메뉴·굿즈샵·홈·위시·마이) 62px, 상단 헤어라인 (01) |
+| `category-sheet` | 모바일 카테고리 | 75% 높이 바텀시트, 상단 radius 8, 딤 70% (01) |
+| `product-card` | 상품 단위 | 3:4 이미지 무보더 플랫 → 뱃지(정보영역 인라인) → 브랜드 12/600 → 이름 13/400 → 가격 14/600. 품절=하단 1/3 scrim 밴드+italic SOLD OUT (02·03) |
+| `content-card` | 콘텐츠 단위 | 썸네일+뱃지+타이틀, 홈 ②·이벤트 허브·커뮤니티 공용 (02·06) |
+| `tab-product-slider` | 카테고리 BEST | 좌탭(모바일 가로 탭)+탭별 독립 슬라이더, 4열/2×2 페이지 (02) |
+| `banner-list-band` | 큐레이션 밴드 | 좌 배너 780 + 우 리스트 380, 모바일 재배치, 3연속 동일 템플릿 (02) |
+| `benefit-tiles` | 혜택 안내 | 280px 4타일 — 홈 ⑧은 카드팩·게임 진입 밴드로 대체 (02) |
+| `filter-sidebar` | 목록 필터 | 200px: IP·타입·가격 듀얼 슬라이더, 적용 칩 없이 카운트 피드백, 모바일 바텀시트 지연 적용 (03) |
+| `view-more` | 목록 더보기 | 300×50 아웃라인 버튼, 20개 append URL 불변. 검색은 36px 숫자 페이지네이션 (03) |
+| `pdp-gallery` | 상품 갤러리 | 1:1 크롭+도트+84px 썸네일 7열, 모바일 세로형+도트, 줌 없음 (04) |
+| `pdp-buybox` | 구매 정보 | 뱃지→제목→가격(할인 2행)→별점+하트/공유→옵션→수량 스테퍼→실시간 합계→CTA (04) |
+| `cta-pair` | 구매 행동 | [장바구니 아웃라인 : 구매하기 잉크] ≈27:73, `.wc-btn` h50 r4 (04) |
+| `restock-cta` | 재입고 알림 | 품절 옵션 선택 시 CTA를 벨 아이콘+풀폭 잉크 버튼으로 교체, 비로그인 클릭=로그인 벽 (04) |
+| `panel-tabs` | PDP 하부 | 앵커 아님·패널 전환 탭, sticky, 리뷰 카운트 표기 (04) |
+| `floating-buybar` | 데스크톱 스크롤 | 우하단 [카트 50²][구매 226×50] 미니 바 (04) |
+| `mobile-buybar` | 모바일 구매 | 72px 잉크 풀폭 고정(카트 존+구매 존), 옵션은 본문 인라인 (04) |
+| `mini-checkout-cart` | 카트 | 780+360 2열, 쿠폰 select·배송 메모가 카트 단계에, 빈 상태=일러스트+CTA (05) |
+| `flat-auth-form` | 인증 | 448px 1칼럼, 잉크 60px CTA, 소셜 55px 원형(도입 시), in-place 복구 스왑 (05) |
+| `mypage-shell` | 계정 허브 | 프로필 스트립(등급 뱃지)+좌 200px 메뉴 3그룹, 모바일은 메뉴 숨김 (05) |
+| `coupon-ticket-card` | 쿠폰함 | 2열 티켓형 카드+등급별 뱃지 (05) |
+| `campaign-hub` | 이벤트 허브 | 배너 스와이퍼 1180×260 + ALL/EVENT/DROP 탭 + 2열 580px 카드(3:2) — **기간·상태 뱃지는 추가한다**(레퍼런스 미표기 결함 보완) (06) |
+| `campaign-landing` | 캠페인 상세 | sticky 앵커 내브+코인 잔액 노출+게스트 로그인 CTA 치환. 코인 소진처는 뽑기권 교환 UI(가챠 어휘 금지) (06) |
+| `document-page` | 정책·법적 | 620px 문서 서식. 공지 상세는 1180px (06) |
+| `standalone-game` | 참여형 게임 | 크롬 없는 풀스크린 유지, 팔레트만 White Catalog 정합 (06) |
+| `about-legacy-showcase` | 회사 소개 | 구 홈 콘텐츠 섹션(파스텔 에디토리얼) 보존, 자체 헤더/푸터 제거, 전역 셸 아래 |
 
-### 전역 셸
+### 버튼·인풋 기본형
 
-- 데스크톱·모바일 모두 상단 캡슐 헤더를 기본으로 한다. 기존 고정 모바일 바텀탭은 제거한다.
-- 모바일 핵심 진입점은 캡슐 헤더와 전면 메뉴에서 제공하며 장바구니 수량·안읽은 알림 상태를 유지한다.
-- 검색, 알림, 장바구니, 계정은 로그인 상태와 현재 라우트에 따라 기존과 같은 노출 계약을 유지한다.
-- `app/layout.tsx`의 `CartProvider`와 `AuthPresenceProvider`는 셸의 시각 구조가 바뀌어도 유지한다.
-- 푸터는 `binder`, `exchange`, `market`, 약관 등 고아가 되기 쉬운 실제 링크를 계속 제공한다.
+- `.wc-btn`: w100% h50 r4 18/700, 변형 = 아웃라인(#FFF/`line.control`/잉크) · `primary`(잉크/잉크/흰) · `disabled`(#BBB) · `accent`(green/green/흰). 연속 배치 7px, 2열 그룹 gap 8.
+- 폼 버튼(잔여): min-h 50, r2, 15/+1ls, hover=box-shadow 0 0 0 1px 잉크 링.
+- 인풋: r0, 보더 box-shadow 1px(rgba ink .55), focus 2px 잉크 + caret green, 플로팅 라벨 16→10px. 검색 인풋만 보더 없는 grey 필드. invalid=green 아님 — `state.danger` 보더+13px 피드백.
+- 수량 스테퍼 92×32, 셀렉트 12px+caret svg.
 
-### 버튼, 칩, 입력
+## 7. 홈 정본
 
-- primary는 `ink.default` 바탕/흰 글자 또는 `brand.green` 바탕/잉크 글자 중 한 화면에서 하나만 선택한다.
-- secondary는 흰 면+`line.default`, tertiary는 텍스트+화살표다.
-- 파괴 행동은 `state.danger`; primary 브랜드 색으로 위장하지 않는다.
-- 버튼·입력·select의 최소 높이는 44px, 모바일 주요 CTA는 48–52px다.
-- 입력은 placeholder만으로 라벨을 대체하지 않고, focus는 2px `state.focus` 외곽선을 쓴다.
-- 필터 칩은 선택 상태를 채움, 체크 또는 굵기로 함께 표시한다.
+밴드 구성과 수치는 R-스펙 02가 정본이다. 데이터는 전부 어드민 큐레이션·카탈로그에서 온다.
 
-### 카드
+1. `notice-strip` + `triple-header`
+2. 히어로 캐러셀 — 1425×770(1440+), fade 1s·5s·루프, 전폭 9등분 세그먼트 진행바, PC/MO 별도 아트웍(5:6), `home_curations.hero`
+3. "에디터의 제안" `content-card` 3열 — 이벤트·커뮤니티·드랍 소재 큐레이션
+4. 카테고리 BEST `tab-product-slider` — 카테고리 탭+판매량/큐레이션 정렬
+5.–7. `banner-list-band` ×3 — 주간 온라인 팝업(IP)·기획전·테마 큐레이션 슬롯
+8. 인기템 `tab-product-slider`
+9. 카드팩·게임 진입 밴드(`benefit-tiles` 변형 — 유일한 창작 밴드)
+10. 푸터 — 링크 그룹+사업자 정보+**오프라인 팝업 진입**+`/about` 링크
 
-- 일반 콘텐츠 카드는 흰 평면+얇은 선+이미지로 구성하며 홀로 효과를 쓰지 않는다.
-- 수집형 카드만 foil, rarity 광택, 3D tilt를 사용할 수 있다. reduced motion에서는 tilt를 제거한다.
-- 카드 전체가 링크라면 내부 보조 버튼과 중첩 인터랙션을 만들지 않는다.
+빈 카탈로그·큐레이션 상태에서도 각 밴드는 명시적 빈 상태 또는 영역 제거로 처리하고 가짜 콘텐츠를 만들지 않는다.
 
-## 9. 홈 화면 정본
+## 8. 표면군별 플레이북
 
-홈은 승인된 프로토타입의 리듬을 가장 충실히 이식하는 화면이다. 데이터 계약은 `app/page.tsx`의 네 prop을 그대로 유지한다.
-
-```yaml
-home-contract:
-  props:
-    - catalog
-    - curation
-    - followedIpIds
-    - postPreviewByIpId
-  server-source: getHomeSnapshot
-  featured-limit: 5
-  no-static-content-arrays: true
-```
-
-### 구성 순서
-
-1. `floating-capsule-header`
-2. `cinematic-hero-carousel`
-3. `announcement-rail`
-4. `macro-section-heading` + `ip-orbit-marquee`
-5. `capsule-film-window`
-6. `macro-section-heading` + `experience-snap-carousel`
-7. `pastel-story-panel`
-8. `editorial-stat-grid`
-9. `orbit-final-cta`
-10. `oversized-inverse-footer`
-
-### 실제 데이터 매핑
-
-- 히어로 첫 장면은 활성 `curation.hero`를 사용한다. 나머지는 실제 `catalog.events`, `catalog.goods`, featured IP를 중복 없이 채워 최대 5개로 만든다.
-- 큐레이션이 없으면 공개 featured IP 또는 가장 가까운 활성 이벤트를 첫 장면으로 사용한다. 이미지가 하나도 없으면 가짜 배너 대신 명시적 카탈로그 빈 상태를 표시한다.
-- 공지 레일은 활성 공지만 렌더링한다. 링크는 현재 앱의 안전한 내부 링크 검증을 통과해야 한다.
-- IP 마퀴는 실제 카탈로그 IP를 사용한다. 항목이 데스크톱 5개, 모바일 3개보다 적으면 복제하지 않고 정적으로 가운데 정렬한다.
-- 온보딩 사용자는 `followedIpIds`가 포함된 항목을 발견 레일 앞쪽에 배치할 수 있지만 전체 공개 카탈로그는 숨기지 않는다.
-- 필름 장면은 실제 대표 IP·굿즈·이벤트·카드 이미지 중 최대 3개를 사용한다.
-- 경험 캐러셀은 활성 이벤트, 구매 가능한 굿즈, 공개 게시물 프리뷰, 카드 컬렉션을 실제 경로로 연결한다.
-- 통계는 카탈로그 수, 활성 이벤트 수, 실제 집계 팬 수처럼 현재 데이터로 계산 가능한 값만 쓴다. 고정 파트너 수나 과장된 숫자를 만들지 않는다.
-- 모든 링크는 `lib/routes.ts`의 실제 경로 또는 기존 안전한 내부 href를 사용한다.
-
-### 상태 처리
-
-- 빈 카탈로그에서도 브랜드 소개, 공개 탐색 안내, 명시적 빈 상태는 남는다.
-- 실패 의미는 현재 `getHomeSnapshot` 호출 단위와 기존 route error boundary를 유지한다. 부분 성공·섹션별 재시도는 서버 계약 변경이므로 이번 디자인 이행에 포함하지 않는다.
-- 이미지 로딩 중에는 최종 비율과 같은 placeholder를 사용해 layout shift를 막는다.
-- 자동 재생 컨트롤은 현재 장면, 전체 장면 수, 일시 정지 상태를 스크린리더에 전달한다.
-
-## 10. 화면군별 플레이북
-
-### 공개 발견
-
-| 화면 | 라우트 | 목표 표현 | 기능 불변 조건 |
+| 표면 | 라우트 | 적용 패턴 | 기능 불변 조건 |
 |---|---|---|---|
-| 홈 | `/` | §9의 시네마틱 에디토리얼 구성 | `getHomeSnapshot`과 네 prop 유지 |
-| IP 허브·상세 | `/ip`, `/ip/[id]` | 대형 키아트, IP별 파스텔 챕터, 굿즈·카드·이벤트·커뮤니티 레일 | 공개 읽기, 팔로우·알림 액션, 실제 IP accent 유지 |
-| 굿즈샵 | `/shop` | 큰 카테고리 제목, 평평한 상품 그리드, 스티키 필터 | 재고·판매 상태·장바구니 수량 한도 유지 |
-| 이벤트 | `/events`, `/events/[eventId]` | 포스터 중심 에디토리얼 목록과 상세 | 회차·잔여·알림·예매 진입 계약 유지 |
-| 검색 | `/search` | 큰 검색 입력과 종류별 결과 챕터 | 실제 `getSearchSnapshot`, URL 검색 상태 유지 |
-| 카드팩·바인더 | `/packs`, `/binder` | 밝은 전시장 안에서 카드 자체만 홀로 물성 | 카드풀·확률·소유·개봉 액션 계약 유지 |
-| 마켓·트레이드 | `/market`, `/exchange` | 밝은 미래 기능 안내, 실제 범위와 준비 상태 명시 | v2 플레이스홀더와 보호 액션 유지 |
+| 홈 | `/` | §7 | `getHomeSnapshot` 계약 유지(큐레이션 kind 확장은 서버 작업으로 분리) |
+| 굿즈샵 | `/shop` | 컬렉션+`filter-sidebar`+정렬+`view-more` | 재고·판매 상태 계약 유지 |
+| 상품 상세 | `/shop/[goodId]` | `pdp-*`·`cta-pair`·`restock-cta`·`panel-tabs`·리뷰/Q&A | 카트·주문 생성 경로 유지, 바로구매=기존 주문 RPC |
+| 온라인 팝업 | `/ip`, `/ip/[id]` | A–Z 디렉토리 / 풀블리드 배너 540px+팔로우+facet 축약 컬렉션 | 공개 읽기·팔로우(`fans_count`) 유지 |
+| 카드팩·바인더 | `/packs`, `/binder` | `campaign-landing`·카탈로그 문법 재조판, 카드 foil 물성 유지 | 카드풀·확률·개봉 계약 동결 |
+| 이벤트 | `/events` | `campaign-hub`+`campaign-landing` | 신규 campaigns 도메인(B5) |
+| 오프라인 팝업 | `/offline-popups`, `/offline-popups/[eventId]` | **재조판 대기** — 구 조판을 offline-popups-legacy로 격리 유지. 푸터 진입, 레거시 `/events/[id]` 딥링크는 리다이렉트 | 회차·잔여·예매·검표 계약 동결 |
+| 커뮤니티 | `/community` | `content-card` 문법 재조판 | 작성·좋아요·신고 계약 유지 |
+| 검색 | `/search` + 오버레이 | `search-overlay`+결과 그리드+숫자 페이지네이션 | `getSearchSnapshot`·URL 상태 유지 |
+| 카트 | `/cart` | `mini-checkout-cart`(쿠폰 select는 B1에서 활성) | local/DB 병합·수량 계약 유지 |
+| 체크아웃·주문·티켓 | `/checkout*`, `/orders*`, `/tickets*`, `/ticket-checkout*` | 흰 종이형 영수증·상태 타임라인, 크롬만 교체 | **결제 플로우·금액 확정·콜백 처리 동결** |
+| 인증 | `/login` 등 | `flat-auth-form` | OAuth·recovery·필드 계약 유지 |
+| 마이 | `/my` 이하 전부 | `mypage-shell`+위시리스트·쿠폰함(B1)·Q&A 내역(B3) | 기존 조회·설정 계약 유지 |
+| 법적·문서 | `/legal/*` | `document-page` — **재조판 대기**, 구 조판을 legal-doc으로 격리 유지 | 정적 파라미터 유지 |
+| 회사 소개 | `/about`(신규) | `about-legacy-showcase` | 구 홈 콘텐츠 보존, CTA 링크는 신 사이트로 |
+| 마켓·트레이드 | `/market`, `/exchange` | v2 플레이스홀더 재조판 | 플레이스홀더 유지 |
+| 게임 | `/games/[gameId]` | `standalone-game` | 서버 판정·한도·보상 동결 |
+| 404·에러·로딩 | `not-found`·`error`·`loading` | White Catalog 기본 표면 신설 | — |
 
-### 참여와 팬덤
+## 9. 상태·피드백 (승계)
 
-| 화면 | 라우트 | 목표 표현 | 기능 불변 조건 |
-|---|---|---|---|
-| 커뮤니티 | `/community` | 에디토리얼 피드, 흰 게시물, 파스텔 채널 레일 | 작성·수정·좋아요·댓글·신고·차단 FormData 계약 유지 |
-| 알림 | `/notifications`, `/notifications/settings` | 읽기 쉬운 inbox와 IP별 스위치 | 최신 50건, unread, 안전 링크, 설정 action 유지 |
-| 게임 | `/games/[gameId]` | IP 세계 안의 독립 풀블리드 장면 | 서버 판정, 일일 한도, 결과·보상 계약 유지 |
+로딩=최종 비율 보존 skeleton / 빈 상태=원인+다음 행동 1개 / 오류=재시도와 안전 이탈 / 성공=서버 확인 전 "완료" 금지 / disabled=시각+`aria` 일관. 결제·예매·검표 진행 중 주변 자동 모션 금지.
 
-### 인증과 계정
+## 10. 반응형·접근성 (승계 + 갱신)
 
-| 화면 | 라우트 | 목표 표현 | 기능 불변 조건 |
-|---|---|---|---|
-| 로그인·복구 | `/login`, `/update-password` | 파스텔/키아트 분할+흰 폼, 방해 없는 단일 과업 | OAuth, recovery, 필드 이름, redirect 유지 |
-| 온보딩 | `/onboarding` | 단계별 IP 선택과 약관을 큰 카드로 분리 | 공개 범위·필수 동의·프로필 action 유지 |
-| 이용 제한 | `/account-suspended` | 평온한 안내와 명확한 로그아웃 | 내부 사유·기간 비노출 유지 |
-| 마이·설정 | `/my`, `/settings` | 프로필 에디토리얼 헤더+평면 기능 목록 | signed avatar, 업로드 claim, 독립 form 유지 |
+- 반응형: §frontmatter 브레이크포인트. 모바일에서 콘텐츠는 2열(상품)·1열(정보), 유틸바 숨김, GNB는 가로 탭, PDP는 1열 스택+`mobile-buybar`. 360px에서 금액·주문번호·CTA overflow 별도 검증.
+- 접근성: WCAG AA 대비(**확정 — 소형 액센트 텍스트는 brand-green 대신 `state.success`를 쓴다. §2 사용처 분류 참조**), 키보드 전 조작, focus-visible 2px `state.focus`, 아이콘 버튼 44px+접근 이름, 캐러셀 정지 수단·현재 위치, 모달·시트 focus trap·Escape·복귀 포커스, 색·위치 단독 의미 전달 금지.
 
-### 거래와 신뢰
+## 11. 백엔드·API 불변 계약
 
-| 화면 | 라우트 | 목표 표현 | 기능 불변 조건 |
-|---|---|---|---|
-| 장바구니 | `/cart` | 제품 이미지가 큰 행+조용한 주문 요약 | local/DB 병합, 재고·품절·수량 계약 유지 |
-| 체크아웃 | `/checkout`, `/checkout/[orderId]`, success/fail | 흰 종이형 2열, 모바일 1열, 명확한 타이머 | Toss mount ID, purpose, order ID, callback, payload 유지 |
-| 주문 | `/orders`, `/orders/[orderId]` | `transaction-receipt`와 상태 타임라인 | DB snapshot, 취소·환불·카드팩 내역 유지 |
-| 티켓 결제 | `/ticket-checkout/[ticketOrderId]`, success/fail | 포스터+회차+10분 선점 영수증 | 예약 RPC, Toss 계약, 웹훅 확정 유지 |
-| 내 티켓 | `/tickets`, `/tickets/[ticketOrderId]` | 티켓 카드와 보호 QR, 상태·영수증 분리 | no-store QR, 본인 권한, 취소 가능 조건 유지 |
-
-거래 화면에서는 장식 모션보다 금액, 수량, 남은 시간, 현재 상태, 다음 행동을 우선한다. 브라우저 성공 화면은 결제 완료의 진실원으로 표현하지 않고 서버 확인 중 상태를 정확히 보여준다.
-
-### 관리자와 현장 운영
-
-관리 화면은 같은 브랜드에 속하되 홈의 초대형 타이포와 자동 모션을 반복하지 않는다. `canvas.default` 위 흰 작업대, 조밀한 표, hairline, 고정된 action bar를 쓴다.
-
-현재 15개 섹션인 **개요, 주문, IP, 굿즈, 카드, 카드풀, 발급 정책, 게임, 이벤트, 티켓 회차, 홈 큐레이션, 공지 발송, 모더레이션, 회원, 역할**을 모두 같은 작업대 규율로 이행한다. 역할 섹션의 기존 권한별 노출 조건을 유지한다.
-
-| 화면군 | 현재 범위 | 목표 표현 | 기능 불변 조건 |
-|---|---|---|---|
-| 관리자 셸 | `/admin/**` 화면별 라우트 | 2단 사이드바(대분류>소분류)+master-detail, 1240–1440px 작업대 | staff 권한과 `?section=` 하위 호환 리다이렉트 유지 |
-| 주문·회원·신고 | 검색, 상태 전이, 제재, moderation | 읽기 밀도 높은 표·상세·확인 dialog | 마스킹, 권한 계층, 감사, 멱등 operation ID 유지 |
-| 굿즈·티켓·카드풀·정책·게임 | 카탈로그와 운영 설정 | field group과 상태 요약을 파스텔이 아닌 중립 면으로 분리 | 기존 action, hidden input, 잠금 규칙 유지 |
-| 홈 큐레이션·아트워크 | 히어로/공지/특집과 업로드 claim | 실제 홈 비율 preview와 저장 상태 분리 | 검증·promote·remove opt-in·업로드 제한 유지 |
-| 현장 검표 | `/admin/check-in` | 모바일 우선, 큰 카메라/결과/재시도 면 | same-origin API, 재검표·환불 상태, idempotence 유지 |
-
-- 표와 폼의 select/button/input은 최소 44px를 유지한다.
-- 저장·삭제·정지·환불처럼 영향이 큰 행동은 현재 대상과 결과를 dialog에서 다시 명시한다.
-- 성공 토스트만으로 끝내지 않고 저장된 값이나 갱신된 상태를 화면에서 확인할 수 있게 한다.
-- 개인정보, provider 식별자, raw 결제 payload, service-role 정보는 시각 개편 과정에서도 노출하지 않는다.
-
-## 11. 상태, 피드백, 보조 화면
-
-- **로딩:** 콘텐츠 최종 비율을 보존하는 skeleton. 전체 화면 spinner는 인증 callback처럼 정말 전체가 대기할 때만 사용한다.
-- **빈 상태:** 무엇이 비었는지, 왜 비었을 수 있는지, 가능한 다음 행동 하나를 알려준다. 가짜 콘텐츠로 채우지 않는다.
-- **오류:** 사용자 행동으로 해결 가능한지 구분하고, 재시도와 안전한 이탈 경로를 제공한다. 내부 오류 문자열과 민감 정보를 노출하지 않는다.
-- **성공:** 완료된 대상, 다음 상태, 후속 링크를 명확히 한다. 결제는 서버 확인 전 “완료”로 표현하지 않는다.
-- **404:** 큰 에디토리얼 숫자/문구, 홈·검색의 실제 링크. 존재하지 않는 추천 콘텐츠를 만들지 않는다.
-- **disabled:** 단순 opacity만 낮추지 않고 cursor, `aria-disabled`/native disabled, 이유 설명을 일관되게 제공한다.
-
-## 12. 반응형과 접근성
-
-### 반응형
-
-- `>=1200px`: 전체 에디토리얼 컴포지션, 다중 열, 넓은 여백.
-- `721–1199px`: 타이포와 이미지 비율은 유지하되 보조 열을 접고 카드 수를 줄인다.
-- `<=720px`: 21px gutter, 한 열 우선, 43–59px의 압축된 대형 타이포, 16px 캐러셀 간격.
-- `<=420px`와 `<=360px`: 긴 금액·주문번호·관리 action, 소셜 로그인, 체크아웃 필드의 overflow를 별도로 검증한다.
-- viewport 높이가 짧아도 메뉴 닫기, 결제 CTA, 검표 재시도에 접근할 수 있어야 한다.
-
-### 접근성
-
-- 일반 텍스트는 WCAG AA 대비를 충족하고, 큰 텍스트 기준을 핑계로 본문 대비를 낮추지 않는다.
-- 모든 상호작용은 키보드로 가능하며, focus-visible은 2px `state.focus`와 충분한 offset을 쓴다.
-- 아이콘 단독 버튼은 접근 가능한 이름을 갖고 최소 44×44px다.
-- 캐러셀·마퀴는 정지 수단과 현재 위치 정보를 제공한다. 자동 재생은 포커스·hover·문서 비활성에서 멈춘다.
-- 이미지 alt는 화면의 목적을 설명한다. 주변 텍스트와 완전히 중복되는 장식 이미지는 빈 alt를 쓴다.
-- 오류는 해당 필드와 `aria-describedby`로 연결하고 첫 오류로 포커스를 이동한다.
-- 모달·전면 메뉴는 포커스 trap, Escape, 복귀 포커스를 보장한다.
-- 색, 움직임, 위치만으로 상태나 의미를 전달하지 않는다.
-
-## 13. 백엔드·API 불변 계약
-
-디자인 이행은 표현 계층 변경이다. 아래는 명시적 별도 기능 요청 없이는 수정하지 않는다.
+디자인 이행은 표현 계층 변경이다. 아래는 별도 기능 승인 없이 수정하지 않는다.
 
 ```yaml
 protected-boundaries:
-  - supabase/migrations/**
+  - supabase/migrations/**        # 신규 migration 추가는 T-A/T-B 기능 작업으로만
   - supabase/tests/**
   - lib/supabase/**
   - lib/auth/**
@@ -458,86 +316,30 @@ protected-boundaries:
   - proxy.ts
   - app/auth/callback/**
   - app/api/**
-  - app/**/actions.ts
+  - app/**/actions.ts             # 신규 기능의 신규 action 추가는 허용, 기존 계약 변경 금지
   - components/shell/CartProvider.tsx
   - components/shell/AuthPresenceProvider.tsx
   - components/payments/**
-preferred-unchanged:
-  - app/page.tsx
-  - lib/catalog.ts
-  - lib/catalog-source.ts
 ```
 
-위 경로는 최소 보호 목록이지 전부가 아니다. 저장소 전체의 데이터 조회·검증·권한·mutation·redirect·provider·결제·주문·티켓·게임 판정 로직은 의미적으로 동결한다. 해당 컴포넌트에 시각용 wrapper나 class가 꼭 필요하면 동작 코드를 바꾸지 않는 최소 변경만 하고 집중 회귀 테스트로 계약을 증명한다.
-
-- Server Component의 데이터 조회, page prop shape, redirect, `revalidatePath`/`revalidateTag`를 바꾸지 않는다.
-- `<form action>`, Server Action import, field `name`, hidden input의 이름·값, operation ID를 보존한다.
-- 장바구니의 비로그인 localStorage↔로그인 DB 동기화와 실패 rollback을 보존한다.
-- 공개 IP·굿즈·카드·이벤트·커뮤니티 읽기를 로그인 뒤로 옮기지 않는다. 로그인은 구매, 카드팩 개봉, 게임, 예매, 작성, 팔로우 같은 보호 행동 시점에 요구한다.
-- 가격, 재고, 카드 발급 RNG, 카드팩 발급·개봉, 티켓 수용량, 래플, QR 유효성을 클라이언트 상태로 이전하지 않는다.
-- 토스페이먼츠의 결제 진실원은 웹훅이다. `#toss-payment-methods`, `#toss-agreement`, purpose, order ID, callback URL, confirm payload를 그대로 유지한다.
-- service role, raw provider payload, secret은 서버 경계 밖으로 내보내지 않는다.
-- 관리자 권한은 `profiles.role`과 RLS 양쪽의 기존 검증을 유지하고 모든 민감 작업의 감사 가능성을 보존한다.
-- 게임은 렌더링을 바꿔도 서버 결과, WASM/physics, 일일 한도, 보상 확정을 변경하지 않는다.
+- 결제: 굿즈·티켓 신규 결제 provider는 **Korpay**(provider-neutral seam 뒤 gate 제어)이고, 확정은 서버 전용 `PaymentGateway.confirm/reconcile`+DB 멱등 finalizer뿐이다. Toss는 `provider=toss` 기존 거래의 조회·취소·웹훅에만 남긴다. 콜백 body·클라이언트 성공 신호는 진실원이 아니다.
+- **쿠폰(B1)이 유일한 금액 개입 지점**이며 할인은 서버 주문 생성 RPC에서 확정한다. 코인·등급·리워드는 결제와 무관하다.
+- 가격·재고·카드 RNG·뽑기권 발급/개봉·티켓 수용량·QR 검표를 클라이언트 상태로 옮기지 않는다.
+- 공개 브라우징 유지 — 로그인은 보호 액션 시점에만.
+- 신규 함수는 생성 후 `revoke all ... from public, anon, authenticated, service_role`로 봉인 후 필요한 롤에만 grant.
+- 관리자 권한은 `profiles.role`+RLS 양쪽, 민감 작업은 감사 가능.
 
 ### 회귀 기준선
 
-- 디자인 이행 시작 전 기준선은 `764`개 test file, `7,523`개 test 통과다.
-- 기존 행동 assertion을 삭제하거나 느슨하게 만들어 통과시키지 않는다. 시각 마크업 때문에 snapshot/문구 기대값을 바꿀 때도 기능 assertion은 유지한다.
-- 홈·카탈로그: `app/page.test.tsx`, `components/screens/Home.test.tsx`, `lib/home-catalog.test.ts`, `lib/catalog.test.ts`, `lib/catalog-source.test.ts`
-- 인증·보호 액션: `lib/auth/server.test.ts`, `lib/auth/onboarding.test.ts`, `app/auth/callback/route.test.ts`, 각 `app/**/actions.test.ts`
-- 결제·API: `lib/payments/*.test.ts`, `components/payments/*.test.tsx`, `app/api/**/*.test.ts`
-- 화면군 이행마다 관련 묶음을 먼저 통과시키고, 최종적으로 전체 `npm run test`를 실행한다.
+- 이행 각 단계 시작 시 `npm run test` 전체 통과 수를 기준선으로 기록하고, 기능 assertion을 느슨하게 만들어 통과시키지 않는다. 시각 마크업 변경으로 클래스명·스냅샷 기대값을 바꿀 때도 행동 단언은 유지한다.
+- CSS 계약은 두 파일이 나눠 지킨다. `app/wc-design.test.ts`가 White Catalog 계약(임포트 순서·토큰 hex·reduced-motion·focus ring)이고, S9에서 잔존 범위 기준으로 재작성한 `app/editorial-design.test.ts`가 경계 계약(삭제된 CSS 재임포트 금지, wc CSS의 HM hex·`--editorial-*` 참조 금지, globals의 어드민 한정)을 기계 검증한다.
 
-## 14. Do / Don't
+## 12. Do / Don't
 
-### Do
+**Do** — 흰 지면·잉크·헤어라인 기본 / 액센트는 한 역할 / 상품 카드 anatomy 통일(3:4) / 모든 목록에 빈·오류·품절 상태 / 실데이터·실경로만 / R-스펙 수치 우선, 어긋나면 R-스펙 갱신과 함께.
 
-- 실제 IP 이미지와 콘텐츠를 크게 보여준다.
-- 밝은 캔버스, 검정 잉크, 넓은 여백을 기본으로 한다.
-- 파스텔은 섹션 의미를 만드는 넓은 한 면에 쓴다.
-- 화면당 한 개의 지배적인 타이포그래피 순간과 한 개의 primary action을 만든다.
-- 상호작용이 많은 표면일수록 모션과 장식을 줄인다.
-- 모든 섹션에 실제 데이터, 오류, 빈 상태, 이미지 부재 상태를 설계한다.
-- 카드만의 홀로 물성과 IP/rarity 메타데이터를 보존한다.
+**Don't** — 레퍼런스의 이미지·카피·로고·핑크 재사용 금지 / 스크롤 연출·패럴랙스·카드 그림자 금지 / 파스텔 면 사용 금지(`/about` 제외) / 다크 표면 금지(이미지 스크림·잉크 버튼 제외) / 레퍼런스 결함(강제 리다이렉트·숨김 위젯·영문 노출·기간 미표기) 재현 금지 / 새 디자인을 이유로 form field·action·권한 검사 교체 금지 / '가챠·뽑기·충전' 어휘 사용자-facing 금지.
 
-### Don't
+## 13. 구현 순서
 
-- 다크 배경, 유리 카드, 네온 글로우를 전역 기본값으로 되돌리지 않는다.
-- 외부 사이트의 코드·이미지·로고·문구를 가져오지 않는다.
-- 프로토타입의 해시 링크, 정적 카드 배열, 고정 통계, 가짜 파트너 로고를 제품에 넣지 않는다.
-- 모든 섹션을 서로 다른 파스텔로 칠해 장난감처럼 만들지 않는다.
-- 일반 굿즈·이벤트·관리 카드에 foil, glow, 3D tilt를 사용하지 않는다.
-- 새 디자인을 이유로 form field, action, API 경로, 서버 권한 검사를 교체하지 않는다.
-- 미확정 취소·환불·양도 정책이나 존재하지 않는 화폐를 카피로 발명하지 않는다.
-- 데스크톱을 단순 축소해 모바일로 만들거나, 핵심 행동을 hover에만 숨기지 않는다.
-
-## 15. 구현 순서와 완료 조건
-
-### 이행 순서
-
-1. 현재 page prop, action, API, 결제·인증 contract test를 동결한다.
-2. 새 의미 토큰, 폰트, 캔버스, 셸을 추가한다.
-3. 홈을 승인 프로토타입과 같은 구조·리듬으로 구현한다.
-4. IP, 굿즈샵, 이벤트, 검색, 카드팩·바인더, 플레이스홀더를 이행한다.
-5. 커뮤니티, 팔로우, 알림을 이행한다.
-6. 로그인, 온보딩, 마이, 설정을 이행한다.
-7. 장바구니, 결제, 주문, 예매, 티켓을 이행한다.
-8. 관리자 15개 섹션과 현장 검표를 이행한다.
-9. 게임 표면을 같은 팔레트에 연결하되 게임 로직을 보존한다.
-10. 사용되지 않는 구 시스템 CSS를 확인 후 제거하고 문서 상태를 실제 코드와 동기화한다.
-
-### 화면별 완료 체크
-
-- 기본, hover, focus, active, disabled, loading, empty, error, success 상태가 있다.
-- 360px, 720px, 1199px, 1440px 이상에서 주요 콘텐츠와 행동이 잘리지 않는다.
-- 키보드 탐색, 접근 가능한 이름, 포커스 복귀, reduced motion이 동작한다.
-- 실제 데이터가 길거나 없거나 이미지가 없을 때도 레이아웃이 유지된다.
-- 기존 Server Action, API, redirect, 결제·인증·권한 contract test가 그대로 통과한다.
-- `npm run test`, `npm run lint`, `npm run build`가 통과한다.
-- 실제 브라우저에서 홈, 공개 탐색, 인증, 장바구니, 체크아웃, 티켓, 관리자 핵심 경로를 smoke test한다.
-- `git diff`와 `git status`에서 의도한 시각 변경 외의 파일이 섞이지 않았음을 확인한다.
-
-### 정본 승격 규칙
-
-전체 이행과 검증이 완료되어 frontmatter의 `status`는 `implemented`다. 토큰과 화면군 규칙의 코드 진실원은 `app/styles/editorial-*.css`, 기존 클래스·수집형 재질의 호환 진실원은 `app/globals.css`다. 이후 시각 계약을 바꾸면 이 문서와 해당 스타일·컴포넌트를 같은 변경에서 동기화한다.
+구현 단계·PR 구조·티켓 분해는 [docs/research/linefriends-square/09-implementation-plan.md](docs/research/linefriends-square/09-implementation-plan.md)가 정본이다. 완료 조건: 각 표면이 §8 플레이북과 R-스펙 수치를 만족하고, §11 계약 테스트가 통과하며, `npm run lint`·`npm run build`·`npm run test` 통과 + preview 검수 후 일괄 전환한다. S1~S9 구현은 통합 브랜치에서 끝났고, 남은 단계는 main 일괄 전환이다.

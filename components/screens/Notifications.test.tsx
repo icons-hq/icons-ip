@@ -47,17 +47,18 @@ describe('Notifications', () => {
 
     expect(html).toContain('아직 받은 알림이 없어요');
     expect(html).toContain('주문, 카드팩, 팔로우한 IP의 새 소식');
-    expect(html).not.toContain('notification-row');
+    expect(html).not.toContain('wc-notif__row');
   });
 
   it('distinguishes unread and read ledger rows beyond color', () => {
     const html = render([unread, read]);
 
-    expect(html).toContain('notification-row is-unread');
-    expect(html).toContain('notification-row is-read');
+    expect(html).toContain('wc-notif__row is-unread');
     expect(html).toContain('안 읽은 알림');
     expect(html).toContain('읽은 알림');
-    expect(html).toContain('notification-unread-dot');
+    /* 점은 안 읽은 행에만 붙는다 — 읽은 행까지 점이 번지면 색·장식 없이 구분하던
+       sr-only 텍스트와 시각 상태가 어긋난다. */
+    expect(html.match(/wc-notif__dot/g)).toHaveLength(1);
     expect(html).toContain(`dateTime="${unread.createdAt}"`);
   });
 
@@ -65,10 +66,22 @@ describe('Notifications', () => {
     const html = render([unread, read]);
 
     expect(html.match(/<form/g)).toHaveLength(2);
-    expect(html.match(/class="notification-open"/g)).toHaveLength(2);
+    expect(html.match(/class="wc-notif__open"/g)).toHaveLength(2);
     expect(html).toContain('결제를 확인했어요');
     expect(html).toContain('배송을 시작했어요');
     expect(html).not.toContain(`href="${unread.linkPath}"`);
+  });
+
+  /* 공개 상품 Q&A 와 비공개 1:1 문의는 다른 표면이다(CONTEXT.md) — 알림함에서 같은
+     말로 적히면 어느 쪽에 답이 달렸는지 알 수 없다. */
+  it('상품 Q&A 답변 알림을 1:1 문의와 다른 이름으로 적는다', () => {
+    const html = render([
+      { ...unread, id: '33333333-3333-4333-8333-333333333333', type: 'product_question_answered' },
+      { ...read, id: '44444444-4444-4444-8444-444444444444', type: 'inquiry_answered' },
+    ]);
+
+    expect(html).toContain('>상품 Q&amp;A</span>');
+    expect(html).toContain('>문의</span>');
   });
 
   it('shows a generic open failure without provider details', () => {

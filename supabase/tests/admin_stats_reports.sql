@@ -93,8 +93,8 @@ values ('stats-ip', '통계 IP', 'character'), ('stats-ip-b', '통계 IP B', 'ch
 
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
 values
-  ('stats-goods-a', 'stats-ip', '통계 굿즈 A', '테스트', 10000, 'ok', 100),
-  ('stats-goods-b', 'stats-ip-b', '통계 굿즈 B', '테스트', 30000, 'ok', 100);
+  ('stats-goods-a', 'stats-ip', '통계 굿즈 A', '문구', 10000, 'ok', 100),
+  ('stats-goods-b', 'stats-ip-b', '통계 굿즈 B', '문구', 30000, 'ok', 100);
 
 -- 기간 안 주문 셋(카드 2 · 무통장 1)과 기간 밖 주문 하나.
 insert into public.orders (
@@ -136,19 +136,19 @@ insert into public.order_items (
 values
   (
     '42000000-0000-4000-8000-000000000f01', 'stats-goods-a', 1, 10000,
-    '통계 굿즈 A', '테스트', 'stats-ip'
+    '통계 굿즈 A', '문구', 'stats-ip'
   ),
   (
     '42000000-0000-4000-8000-000000000f02', 'stats-goods-b', 1, 30000,
-    '통계 굿즈 B', '테스트', 'stats-ip-b'
+    '통계 굿즈 B', '문구', 'stats-ip-b'
   ),
   (
     '42000000-0000-4000-8000-000000000f03', 'stats-goods-a', 2, 10000,
-    '통계 굿즈 A', '테스트', 'stats-ip'
+    '통계 굿즈 A', '문구', 'stats-ip'
   ),
   (
     '42000000-0000-4000-8000-000000000f04', 'stats-goods-a', 9, 11000,
-    '통계 굿즈 A', '테스트', 'stats-ip'
+    '통계 굿즈 A', '문구', 'stats-ip'
   );
 
 -- 클레임 둘(취소 완료 · 반품 접수)과 환불 하나.

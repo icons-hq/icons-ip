@@ -103,6 +103,7 @@ function revalidateCatalogArchiveSurfaces(kind: AdminCatalogArchiveKind, id: str
     '/shop',
     '/binder',
     '/events',
+    '/offline-popups',
     '/search',
     '/cart',
     '/checkout',
@@ -113,6 +114,7 @@ function revalidateCatalogArchiveSurfaces(kind: AdminCatalogArchiveKind, id: str
   }
   revalidatePath('/ip/[id]', 'page');
   revalidatePath('/events/[eventId]', 'page');
+  revalidatePath('/offline-popups/[eventId]', 'page');
   revalidatePath('/games/[gameId]', 'page');
   if (kind === 'ip') revalidatePath(`/ip/${id}`);
 }

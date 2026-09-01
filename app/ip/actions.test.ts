@@ -97,24 +97,26 @@ describe('setIpNotificationPreferencesAction', () => {
       '/ip',
       '/ip/ip-1',
       '/events',
+      '/offline-popups',
       '/notifications/settings',
     ]);
   });
 
-  it('refreshes a safe event detail pathname before returning to its CTA', async () => {
+  it('refreshes a safe offline pop-up detail pathname before returning to its CTA', async () => {
     const formData = preferenceForm({ notifyEvents: '1' });
-    formData.set('next', '/events/event-1?from=notification#settings');
+    formData.set('next', '/offline-popups/event-1?from=notification#settings');
 
     await expect(setIpNotificationPreferencesAction(formData)).rejects.toThrow(
-      'NEXT_REDIRECT:/events/event-1?from=notification&notification_saved=1#settings',
+      'NEXT_REDIRECT:/offline-popups/event-1?from=notification&notification_saved=1#settings',
     );
     expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toEqual([
       '/',
       '/ip',
       '/ip/ip-1',
       '/events',
+      '/offline-popups',
       '/notifications/settings',
-      '/events/event-1',
+      '/offline-popups/event-1',
     ]);
   });
 
@@ -127,15 +129,21 @@ describe('setIpNotificationPreferencesAction', () => {
     );
   });
 
-  it('returns IP and event saves with visible success feedback', async () => {
+  it('returns IP and offline pop-up saves with visible success feedback', async () => {
     const ipForm = preferenceForm({ notifyDrops: '1' });
-    const eventForm = preferenceForm({ notifyEvents: '1' });
-    eventForm.set('next', '/events/event-1');
+    const popupForm = preferenceForm({ notifyEvents: '1' });
+    popupForm.set('next', '/offline-popups/event-1');
+    /* 이사 전 저장·공유된 /events/<id> 딥링크도 계속 성공 피드백을 받아야 한다. */
+    const legacyForm = preferenceForm({ notifyEvents: '1' });
+    legacyForm.set('next', '/events/event-1');
 
     await expect(setIpNotificationPreferencesAction(ipForm)).rejects.toThrow(
       'NEXT_REDIRECT:/ip/ip-1?notification_saved=1',
     );
-    await expect(setIpNotificationPreferencesAction(eventForm)).rejects.toThrow(
+    await expect(setIpNotificationPreferencesAction(popupForm)).rejects.toThrow(
+      'NEXT_REDIRECT:/offline-popups/event-1?notification_saved=1',
+    );
+    await expect(setIpNotificationPreferencesAction(legacyForm)).rejects.toThrow(
       'NEXT_REDIRECT:/events/event-1?notification_saved=1',
     );
   });

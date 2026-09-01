@@ -1190,7 +1190,10 @@ textarea.admin-notification-control {
   background: var(--editorial-surface);
 }
 
+/* width는 S9에서 editorial-account-commerce.css가 폐기되며 이 파일로 넘어온 값이다.
+   globals의 HM 기본값이 3px이라 여기서 다시 4px로 잡지 않으면 좌측 강조 바가 1px 얇아진다. */
 .admin-notification-preview-card.notification-row::before {
+  width: 4px;
   background: var(--editorial-info);
 }
 
@@ -1247,11 +1250,14 @@ textarea.admin-notification-control {
   line-height: var(--editorial-leading-body);
 }
 
+/* box-shadow도 S9 이관분이다. globals의 HM 기본값이 분홍 글로우라, 끄지 않으면
+   흰 어드민 미리보기 카드 위에 네온 점이 남는다. */
 .admin-notification-preview-card .notification-unread-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: var(--editorial-info);
+  box-shadow: none;
 }
 
 .admin-notification-preview-note {

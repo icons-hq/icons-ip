@@ -26,6 +26,6 @@ describe('ticket checkout success page', () => {
       searchParams: Promise.resolve({ orderId: `order_${referenceId}` }),
     });
 
-    expect(mocks.redirect).toHaveBeenLastCalledWith('/events');
+    expect(mocks.redirect).toHaveBeenLastCalledWith('/offline-popups');
   });
 });

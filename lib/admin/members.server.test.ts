@@ -16,11 +16,21 @@ const mocks = vi.hoisted(() => ({
     isStaff: boolean;
   },
   rpc: vi.fn(),
+  gradeSelect: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: () => mocks.auth }));
 vi.mock('@/lib/admin/members', async () => await import('./members'));
-vi.mock('@/lib/supabase/server', () => ({ createClient: () => ({ rpc: mocks.rpc }) }));
+vi.mock('@/lib/supabase/server', () => ({
+  createClient: () => ({
+    rpc: mocks.rpc,
+    from: () => ({
+      select: () => ({
+        eq: () => ({ maybeSingle: mocks.gradeSelect }),
+      }),
+    }),
+  }),
+}));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => { throw new Error(`NEXT_REDIRECT:${path}`); },
   notFound: () => { throw new Error('NEXT_NOT_FOUND'); },
@@ -35,6 +45,8 @@ describe('admin member loaders', () => {
       isStaff: true,
     };
     mocks.rpc.mockReset();
+    mocks.gradeSelect.mockReset();
+    mocks.gradeSelect.mockResolvedValue({ data: { loyalty_grade: 'silver' }, error: null });
   });
 
   it('목록에는 DB가 마스킹한 이메일과 최소 필드만 반환한다', async () => {
@@ -91,6 +103,7 @@ describe('admin member loaders', () => {
       ticketOrderCount: 3,
       submittedReportCount: 4,
       receivedReportCount: 5,
+      loyaltyGrade: 'silver',
     });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_get_member_detail', { target_profile_id: profileId });
   });

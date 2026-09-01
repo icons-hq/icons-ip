@@ -15,6 +15,7 @@ import {
   type CheckoutPaymentMethod,
 } from '@/lib/checkout';
 import { krw } from '@/lib/format';
+import { couponPreviewDiscount, type UserCouponSummary } from '@/lib/coupons';
 import type { ComposedPostcodeAddress } from '@/lib/postcode';
 import { shippingFeeFor, shippingFeeLabel } from '@/lib/shipping';
 
@@ -28,6 +29,7 @@ const actionErrors = {
   bank_transfer_blocked: '무통장 입금을 쓸 수 없는 굿즈가 담겨 있어요. 카드로 결제해주세요.',
   empty_cart: '장바구니가 비어 있어요.',
   out_of_stock: '결제 직전 재고가 변경됐어요. 장바구니에서 수량을 다시 확인해주세요.',
+  coupon_rejected: '적용한 쿠폰을 쓸 수 없게 됐어요. 장바구니에서 쿠폰을 확인해주세요.',
   unavailable: '주문을 만들지 못했어요. 잠시 후 다시 시도해주세요.',
 } as const;
 
@@ -38,6 +40,8 @@ interface CheckoutProps {
   /** 법인계좌가 설정돼 있는지. 없으면 무통장 자체가 뜨지 않는다(#255). */
   bankTransferAvailable: boolean;
   resumeOrderId: string | null;
+  /** 카트에 적용해 둔 쿠폰. 할인 확정은 place_order 가 한다 — 여기서는 미리보기다. */
+  appliedCoupon: UserCouponSummary | null;
 }
 
 const addressFieldOrder: CheckoutAddressField[] = [
@@ -68,6 +72,7 @@ export function Checkout({
   paymentAvailable,
   bankTransferAvailable,
   resumeOrderId,
+  appliedCoupon,
 }: CheckoutProps) {
   const router = useRouter();
   const { items, ready, mode, pending: cartPending, error: cartError, refresh } = useCart();
@@ -100,6 +105,7 @@ export function Checkout({
   const subtotal = lines.reduce((sum, line) => sum + (line.good?.price ?? 0) * line.qty, 0);
   /* 표시용 예상치다. 결제 금액은 place_order가 확정한 orders.total을 따른다. */
   const shippingFee = shippingFeeFor(subtotal);
+  const couponDiscount = couponPreviewDiscount(appliedCoupon, subtotal, shippingFee);
   const unavailable = lines.some(({ good, qty }) => (
     !good || good.stock === 'soldout' || good.stockQty < qty
   ));
@@ -181,7 +187,7 @@ export function Checkout({
 
   if (!ready || cartPending) {
     return (
-      <main className="checkout-page">
+      <main className="wc-root wc-receipt checkout-page">
         <div className="wrap checkout-loading" role="status">계정 장바구니를 확인하고 있어요.</div>
       </main>
     );
@@ -189,9 +195,8 @@ export function Checkout({
 
   if (mode !== 'server') {
     return (
-      <main className="checkout-page">
+      <main className="wc-root wc-receipt checkout-page">
         <div className="wrap checkout-empty card">
-          <span className="eyebrow">계정 연결 필요</span>
           <h1>장바구니를 계정에 연결하지 못했어요</h1>
           <p>{cartError ?? '로그인 상태와 네트워크를 확인한 뒤 다시 시도해주세요.'}</p>
           <button className="btn btn-holo" type="button" onClick={() => void refresh()}>다시 연결</button>
@@ -203,9 +208,8 @@ export function Checkout({
 
   if (lines.length === 0) {
     return (
-      <main className="checkout-page">
+      <main className="wc-root wc-receipt checkout-page">
         <div className="wrap checkout-empty card">
-          <span className="eyebrow">{resumeOrderId ? 'ORDER IN PROGRESS' : 'CHECKOUT'}</span>
           <h1>{resumeOrderId ? '진행 중인 주문이 있어요' : '주문할 굿즈가 없어요'}</h1>
           <p>{resumeOrderId
             ? '주문 생성 응답을 놓쳤거나 결제 확인을 이어가는 중일 수 있어요.'
@@ -220,12 +224,11 @@ export function Checkout({
   }
 
   return (
-    <main className="checkout-page">
-      <header className="checkout-header">
+    <main className="wc-root wc-receipt checkout-page">
+      <header className="wc-receipt__head">
         <div className="wrap">
-          <div className="eyebrow" style={{ color: 'var(--cyan)' }}>사요 · 체크아웃</div>
-          <h1 className="h-xl">배송지를 확인하고<br />결제를 준비해요</h1>
-          <p>재고는 주문 생성 후 15분 동안 선점됩니다. 최종 완료는 결제 확인 후 안내해요.</p>
+          <h1 className="wc-receipt__title">배송지를 확인하고 결제를 준비해요</h1>
+          <p className="wc-receipt__subcopy">재고는 주문 생성 후 15분 동안 선점됩니다. 최종 완료는 결제 확인 후 안내해요.</p>
         </div>
       </header>
 
@@ -292,8 +295,11 @@ export function Checkout({
           </div>
           <dl className="checkout-totals">
             <div><dt>굿즈 금액</dt><dd>{krw(subtotal)}</dd></div>
+            {couponDiscount > 0 && appliedCoupon && (
+              <div><dt>쿠폰 할인 ({appliedCoupon.coupon.name})</dt><dd>−{krw(couponDiscount)}</dd></div>
+            )}
             <div><dt>배송비</dt><dd>{shippingFeeLabel(shippingFee)}</dd></div>
-            <div className="checkout-total"><dt>결제 금액</dt><dd>{krw(subtotal + shippingFee)}</dd></div>
+            <div className="checkout-total"><dt>결제 금액</dt><dd>{krw(subtotal + shippingFee - couponDiscount)}</dd></div>
           </dl>
 
           <fieldset className="checkout-method" aria-describedby="checkout-method-note">

@@ -21,11 +21,17 @@ const mocks = vi.hoisted(() => ({
   getCurrentAdminAuthState: vi.fn(),
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
+  updateTag: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.getCurrentAdminAuthState }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.createClient }));
-vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
+/* 공지 스트립 로더가 모듈 로드 시점에 unstable_cache 를 부른다 — 캐시 모듈 전체를 대체한다. */
+vi.mock('next/cache', () => ({
+  revalidatePath: mocks.revalidatePath,
+  unstable_cache: (loader: unknown) => loader,
+  updateTag: mocks.updateTag,
+}));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => { throw new Error(`NEXT_REDIRECT:${path}`); },
 }));
@@ -58,6 +64,7 @@ describe('admin curation action', () => {
     mocks.createClient.mockReset();
     mocks.getCurrentAdminAuthState.mockReset();
     mocks.revalidatePath.mockReset();
+    mocks.updateTag.mockReset();
     mocks.rpc.mockReset();
     mocks.getCurrentAdminAuthState.mockImplementation(async () => mocks.auth);
     mocks.createClient.mockReturnValue({ rpc: mocks.rpc });
@@ -82,9 +89,37 @@ describe('admin curation action', () => {
       target_active_from: '2026-07-21T01:30:00.000Z',
       target_active_to: null,
       target_enabled: true,
+      target_slot: null,
+      target_payload: null,
     });
     expect(mocks.revalidatePath.mock.calls).toEqual([['/'], ['/admin']]);
     expect(JSON.stringify(mocks.rpc.mock.calls)).not.toContain('notification');
+  });
+
+  /*
+   * 공지 스트립은 전역 셸이 태그 캐시로 읽는다 — 경로 재검증만으로는 갱신되지 않고,
+   * 서버 액션에서는 updateTag 만 stale 없이 즉시 만료시킨다 (Next 16).
+   */
+  it('저장에 성공하면 공지 스트립 캐시 태그를 즉시 만료시킨다', async () => {
+    await upsertAdminCurationAction({}, curationForm({ kind: 'notice_strip' }));
+
+    expect(mocks.updateTag.mock.calls).toEqual([['home-curations']]);
+  });
+
+  it('확장 kind 의 슬롯과 payload 를 RPC 인자로 함께 넘긴다', async () => {
+    await expect(upsertAdminCurationAction({}, curationForm({
+      kind: 'best_tab',
+      imagePath: '',
+      slot: 'category',
+      goodIds: 'g13, g14',
+    }))).resolves.toEqual({ message: '홈 큐레이션을 저장했습니다.' });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_home_curation', expect.objectContaining({
+      target_kind: 'best_tab',
+      target_image_path: null,
+      target_slot: 'category',
+      target_payload: { good_ids: ['g13', 'g14'] },
+    }));
   });
 
   it('rejects invalid forms before auth, client, or RPC access', async () => {
@@ -101,6 +136,7 @@ describe('admin curation action', () => {
     expect(mocks.createClient).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(mocks.updateTag).not.toHaveBeenCalled();
   });
 
   it('redirects signed-out users and rejects non-staff users before RPC access', async () => {
@@ -122,6 +158,7 @@ describe('admin curation action', () => {
     expect(mocks.createClient).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(mocks.updateTag).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -139,5 +176,6 @@ describe('admin curation action', () => {
     });
     expect(JSON.stringify(result)).not.toContain('private');
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(mocks.updateTag).not.toHaveBeenCalled();
   });
 });

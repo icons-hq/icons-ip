@@ -1,0 +1,172 @@
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import {
+  COUPON_ACTION_FALLBACK_MESSAGE,
+  MIN_PAYABLE_TOTAL,
+  couponBenefitLabel,
+  couponConditionLabel,
+  couponDiscountFor,
+  couponDisplayState,
+  couponExpiryLabel,
+  couponPreviewDiscount,
+  mapCouponActionError,
+} from './coupons';
+
+function noEnd(expiresAt: string | null) {
+  return { coupon: { endsAt: null }, expiresAt };
+}
+
+/* 대표 케이스의 기대값은 coupon_redemption.sql 스모크와 같은 숫자다.
+   여기 계산이 SQL 과 어긋나면 카트 미리보기와 청구액이 달라진다. */
+describe('couponDiscountFor', () => {
+  it('caps a fixed discount at the subtotal (CPNBIG: 50,000 off a 30,000 cart)', () => {
+    expect(couponDiscountFor(
+      { discountType: 'fixed', discountValue: 50000, maxDiscountAmount: null },
+      30000,
+    )).toBe(30000);
+  });
+
+  it('applies a fixed discount below the subtotal (CPNFIX5K on 30,000)', () => {
+    expect(couponDiscountFor(
+      { discountType: 'fixed', discountValue: 5000, maxDiscountAmount: null },
+      30000,
+    )).toBe(5000);
+  });
+
+  it('computes a percent discount under the cap (CPNPCT10 on 70,000)', () => {
+    expect(couponDiscountFor(
+      { discountType: 'percent', discountValue: 10, maxDiscountAmount: 8000 },
+      70000,
+    )).toBe(7000);
+  });
+
+  it('clamps a percent discount to its cap (CPNPCT10 on 90,000)', () => {
+    expect(couponDiscountFor(
+      { discountType: 'percent', discountValue: 10, maxDiscountAmount: 8000 },
+      90000,
+    )).toBe(8000);
+  });
+
+  it('floors percent math like the SQL integer division', () => {
+    expect(couponDiscountFor(
+      { discountType: 'percent', discountValue: 10, maxDiscountAmount: null },
+      10005,
+    )).toBe(1000);
+  });
+
+  it('never discounts an empty subtotal', () => {
+    expect(couponDiscountFor(
+      { discountType: 'fixed', discountValue: 5000, maxDiscountAmount: null },
+      0,
+    )).toBe(0);
+  });
+});
+
+describe('couponDisplayState', () => {
+  const base = Date.parse('2026-08-31T00:00:00Z');
+
+  it('marks used coupons regardless of expiry', () => {
+    expect(couponDisplayState({ status: 'used', ...noEnd(null) }, base)).toBe('used');
+  });
+
+  it('derives expiry from the issued snapshot without a batch job', () => {
+    expect(couponDisplayState({ status: 'active', ...noEnd('2026-08-30T00:00:00Z') }, base)).toBe('expired');
+    expect(couponDisplayState({ status: 'active', ...noEnd('2026-09-01T00:00:00Z') }, base)).toBe('usable');
+    expect(couponDisplayState({ status: 'active', ...noEnd(null) }, base)).toBe('usable');
+  });
+
+  it('honours a definition deadline the admin shortened after issuance', () => {
+    /* RPC(evaluate)는 정의 마감도 본다 — 표시가 발급 스냅만 보면 "사용 가능"이 주문 거부로 끝난다. */
+    expect(couponDisplayState({
+      status: 'active',
+      expiresAt: '2026-12-31T00:00:00Z',
+      coupon: { endsAt: '2026-08-30T00:00:00Z' },
+    }, base)).toBe('expired');
+  });
+});
+
+describe('couponPreviewDiscount payment floor', () => {
+  const fullCoupon = {
+    status: 'active' as const,
+    expiresAt: null,
+    coupon: {
+      code: 'CPNFULL',
+      name: '전액 쿠폰',
+      discountType: 'fixed' as const,
+      discountValue: 70000,
+      maxDiscountAmount: null,
+      minSubtotal: 0,
+      endsAt: null,
+      gradeBenefit: null,
+    },
+  };
+
+  it('caps the preview so the total never drops below the provider minimum', () => {
+    /* 무료배송 70,000 카트 + 70,000 전액 쿠폰 → 총액 1,000원이 되도록 69,000만 깎는다. */
+    expect(couponPreviewDiscount(fullCoupon, 70000, 0)).toBe(70000 - MIN_PAYABLE_TOTAL);
+  });
+
+  it('keeps the pin between app constant and the SQL guard/cap', () => {
+    const dir = join(process.cwd(), 'supabase/migrations');
+    const files = readdirSync(dir).filter((name) => name.endsWith('.sql')).sort();
+
+    let cap: number | null = null;
+    let guard: number | null = null;
+    for (const name of files) {
+      const sql = readFileSync(join(dir, name), 'utf8');
+      const capMatch = sql.match(/c_min_payable_total\s+constant\s+bigint\s*:=\s*(\d+)/);
+      const guardMatch = sql.match(/new\.total < (\d+) then\s*\n\s*raise check_violation using message = 'payment amount below provider minimum'/);
+      if (capMatch) cap = Number(capMatch[1]);
+      if (guardMatch) guard = Number(guardMatch[1]);
+    }
+
+    expect(cap, 'place_order 의 c_min_payable_total 을 찾지 못했다').not.toBeNull();
+    expect(guard, 'korpay 최소 금액 가드를 찾지 못했다').not.toBeNull();
+    expect(cap).toBe(MIN_PAYABLE_TOTAL);
+    expect(guard).toBe(MIN_PAYABLE_TOTAL);
+  });
+});
+
+describe('coupon labels', () => {
+  it('describes benefits for both discount types', () => {
+    expect(couponBenefitLabel({ discountType: 'fixed', discountValue: 5000, maxDiscountAmount: null }))
+      .toBe('₩5,000 할인');
+    expect(couponBenefitLabel({ discountType: 'percent', discountValue: 10, maxDiscountAmount: 8000 }))
+      .toBe('10% 할인 (최대 ₩8,000)');
+    expect(couponBenefitLabel({ discountType: 'percent', discountValue: 10, maxDiscountAmount: null }))
+      .toBe('10% 할인');
+  });
+
+  it('describes the minimum subtotal condition', () => {
+    expect(couponConditionLabel({ minSubtotal: 20000 })).toBe('₩20,000 이상 구매 시');
+    expect(couponConditionLabel({ minSubtotal: 0 })).toBe('금액 제한 없음');
+  });
+
+  it('formats the expiry line from the effective deadline', () => {
+    expect(couponExpiryLabel(noEnd(null))).toBe('기한 없음');
+    expect(couponExpiryLabel(noEnd('2026-09-30T14:59:59Z'))).toMatch(/^2026\.\d{2}\.\d{2}까지$/);
+    /* 정의 마감이 발급 스냅보다 이르면 그쪽이 실효 기한이다. */
+    expect(couponExpiryLabel({
+      expiresAt: '2026-12-31T00:00:00Z',
+      coupon: { endsAt: '2026-01-15T00:00:00Z' },
+    })).toBe('2026.01.15까지');
+  });
+});
+
+describe('mapCouponActionError', () => {
+  it('translates every domain rejection the RPCs raise', () => {
+    expect(mapCouponActionError('coupon_not_found')).toContain('찾을 수 없');
+    expect(mapCouponActionError('coupon_not_started')).toContain('시작되지 않은');
+    expect(mapCouponActionError('coupon_expired')).toContain('기간이 지난');
+    expect(mapCouponActionError('coupon_exhausted')).toContain('소진');
+    expect(mapCouponActionError('coupon_min_subtotal')).toContain('최소 주문 금액');
+    expect(mapCouponActionError('coupon_not_owned')).toContain('보유하지 않은');
+    expect(mapCouponActionError('coupon_already_used')).toContain('이미 사용한');
+  });
+
+  it('folds unknown failures into the generic message', () => {
+    expect(mapCouponActionError('boom')).toBe(COUPON_ACTION_FALLBACK_MESSAGE);
+    expect(mapCouponActionError(undefined)).toBe(COUPON_ACTION_FALLBACK_MESSAGE);
+  });
+});

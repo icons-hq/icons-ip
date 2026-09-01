@@ -1,17 +1,22 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { CartItem } from '@/lib/cart';
+import type { UserCouponSummary } from '@/lib/coupons';
+import type { CartCouponState } from '@/lib/coupons.server';
 import type { Good } from '@/lib/data';
 import { Cart } from './Cart';
 
-const mocks = vi.hoisted(() => ({ items: [] as CartItem[] }));
+const mocks = vi.hoisted(() => ({
+  items: [] as CartItem[],
+  mode: 'server' as 'server' | 'local',
+}));
 
 vi.mock('@/components/shell/CartProvider', () => ({
   useCart: () => ({
     items: mocks.items,
     count: mocks.items.reduce((total, item) => total + item.qty, 0),
     ready: true,
-    mode: 'server' as const,
+    mode: mocks.mode,
     pending: false,
     error: null,
     getQuantity: () => 0,
@@ -21,6 +26,12 @@ vi.mock('@/components/shell/CartProvider', () => ({
     refresh: vi.fn(),
     resetForSignOut: vi.fn(),
   }),
+}));
+
+vi.mock('@/app/cart/coupon-actions', () => ({
+  applyCouponAction: vi.fn(),
+  applyCouponCodeAction: vi.fn(),
+  clearCouponAction: vi.fn(),
 }));
 
 const goods: Good[] = [
@@ -35,11 +46,42 @@ const goods: Good[] = [
     stockQty: 20,
     img: 'none',
   },
+  {
+    id: 'g14',
+    name: '품절된 키링',
+    ip: 'hong-sil-quest',
+    type: '키링',
+    price: 9000,
+    badge: null,
+    stock: 'soldout',
+    stockQty: 0,
+    img: 'none',
+  },
 ];
 
-function render(items: CartItem[]) {
+const fix5k: UserCouponSummary = {
+  id: '11111111-1111-4111-8111-111111111111',
+  status: 'active',
+  issuedAt: '2026-08-30T00:00:00Z',
+  expiresAt: null,
+  usedAt: null,
+  coupon: {
+    code: 'CPNFIX5K',
+    name: '5천원 할인',
+    discountType: 'fixed',
+    discountValue: 5000,
+    maxDiscountAmount: null,
+    minSubtotal: 20000,
+    endsAt: null,
+    gradeBenefit: null,
+  },
+};
+
+const emptyCouponState: CartCouponState = { selectedUserCouponId: null, coupons: [] };
+
+function render(items: CartItem[], couponState: CartCouponState = emptyCouponState) {
   mocks.items = items;
-  return renderToStaticMarkup(<Cart catalog={{ goods, ips: [] }} />);
+  return renderToStaticMarkup(<Cart catalog={{ goods, ips: [] }} couponState={couponState} />);
 }
 
 describe('Cart 배송비 요약', () => {
@@ -58,5 +100,106 @@ describe('Cart 배송비 요약', () => {
     expect(html).toContain('₩60,000');
     expect(html).toContain('무료');
     expect(html).not.toContain('더 담으면');
+  });
+});
+
+describe('Cart 주문 요약 테이블', () => {
+  const html = render([{ goodId: 'g13', qty: 1 }]);
+
+  it('금액 행을 표로 세운다', () => {
+    expect(html).toContain('총 굿즈 금액');
+    expect(html).toContain('총 할인 금액');
+    expect(html).toContain('−₩0');
+    expect(html).toContain('배송비');
+    expect(html).toContain('예상 총액');
+    expect(html).toContain('배송비는 결제 화면에서 확인할 수 있어요.');
+  });
+
+  it('주문 CTA에 담긴 수량을 싣는다', () => {
+    expect(html).toContain('1개 굿즈 주문하기');
+    expect(html).toContain('href="/checkout"');
+  });
+});
+
+describe('Cart 쿠폰 슬롯 (S7)', () => {
+  it('보유 쿠폰 select와 코드 입력을 연다', () => {
+    const html = render(
+      [{ goodId: 'g13', qty: 5 }],
+      { selectedUserCouponId: null, coupons: [fix5k] },
+    );
+
+    expect(html).toContain('<select');
+    expect(html).toContain('쿠폰 선택 안 함');
+    expect(html).toContain('5천원 할인');
+    expect(html).toContain('쿠폰 적용</button>');
+  });
+
+  it('적용된 쿠폰은 할인 행과 예상 총액에 반영된다', () => {
+    const html = render(
+      [{ goodId: 'g13', qty: 5 }],
+      { selectedUserCouponId: fix5k.id, coupons: [fix5k] },
+    );
+
+    expect(html).toContain('−₩5,000');
+    expect(html).toContain('₩55,000');
+    expect(html).toContain('적용 해제');
+  });
+
+  it('조건 미달이 되면 할인을 접고 사유를 알린다', () => {
+    const html = render(
+      [{ goodId: 'g13', qty: 1 }],
+      { selectedUserCouponId: fix5k.id, coupons: [fix5k] },
+    );
+
+    expect(html).toContain('−₩0');
+    expect(html).toContain('최소 주문 금액');
+    expect(html).toContain('₩15,000');
+  });
+
+  it('로그인 전에는 컨트롤 대신 안내만 둔다', () => {
+    mocks.mode = 'local';
+    const html = render([{ goodId: 'g13', qty: 1 }], emptyCouponState);
+    mocks.mode = 'server';
+
+    expect(html).toContain('로그인하면 보유 쿠폰을 적용할 수 있어요.');
+    expect(html).not.toContain('<select');
+  });
+});
+
+describe('Cart 라인 상태', () => {
+  it('카탈로그에서 사라진 굿즈는 판매 종료로 두고 주문을 막는다', () => {
+    const html = render([{ goodId: 'gone', qty: 1 }]);
+
+    expect(html).toContain('판매 종료');
+    expect(html).toContain('주문할 수 없는 굿즈 1개');
+    expect(html).toContain('aria-disabled="true"');
+    expect(html).not.toContain('href="/checkout"');
+  });
+
+  it('품절 라인은 수량 스테퍼 없이 상태만 알린다', () => {
+    const html = render([{ goodId: 'g14', qty: 1 }]);
+
+    expect(html).toContain('품절');
+    expect(html).not.toContain('wc-stepper');
+    expect(html).toContain('품절된 키링 장바구니에서 삭제');
+  });
+
+  it('구매 가능한 라인은 수량 스테퍼와 재고 상한을 준다', () => {
+    const html = render([{ goodId: 'g13', qty: 2 }]);
+
+    expect(html).toContain('wc-stepper');
+    expect(html).toContain('홍실 아크릴 블록 수량');
+    expect(html).toContain('href="/shop/g13"');
+  });
+});
+
+describe('Cart 빈 상태', () => {
+  it('굿즈샵으로 돌려보낸다', () => {
+    const html = render([]);
+
+    expect(html).toContain('장바구니가 비어 있어요');
+    expect(html).toContain('굿즈샵 둘러보기');
+    expect(html).toContain('href="/shop"');
+    expect(html).not.toContain('wc-cart__summary');
   });
 });

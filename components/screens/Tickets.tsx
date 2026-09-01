@@ -57,12 +57,11 @@ export function Tickets({
   const groups = groupTicketOrders(orders, now);
 
   return (
-    <main className="screen tickets-page">
-      <header className="tickets-header">
+    <main className="wc-root wc-receipt tickets-page">
+      <header className="wc-receipt__head">
         <div className="wrap">
-          <div className="eyebrow rise" style={{ color: 'var(--mint)' }}>MY TICKETS</div>
-          <h1 className="h-xl rise">내 티켓</h1>
-          <p>예매 상태를 확인하고, 사용 가능한 전자티켓 QR을 열어보세요.</p>
+          <h1 className="wc-receipt__title">내 티켓</h1>
+          <p className="wc-receipt__subcopy">예매 상태를 확인하고, 사용 가능한 전자티켓 QR을 열어보세요.</p>
         </div>
       </header>
 
@@ -86,8 +85,8 @@ export function Tickets({
           <div className="tickets-empty card">
             <div className="tickets-empty-icon" aria-hidden><Icon name="event" size={30} /></div>
             <h2>아직 예매한 티켓이 없어요</h2>
-            <p>다가오는 팝업 이벤트와 예매 가능한 회차를 확인해보세요.</p>
-            <Link className="btn btn-holo" href="/events">이벤트 둘러보기</Link>
+            <p>다가오는 오프라인 팝업과 예매 가능한 회차를 확인해보세요.</p>
+            <Link className="btn btn-holo" href="/offline-popups">오프라인 팝업 둘러보기</Link>
           </div>
         ) : (
           (Object.keys(groupCopy) as TicketOrderGroup[]).map((group) => {

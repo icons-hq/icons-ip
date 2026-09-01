@@ -7,6 +7,7 @@ import { createServiceClient, getServiceRoleConfig } from '../supabase/service';
 import {
   inquiryEmailDedupeKey,
   orderEmailDedupeKey,
+  restockAlertEmailDedupeKey,
   type EmailTemplateName,
   type OrderEmailTemplateName,
 } from './dedupe';
@@ -15,6 +16,7 @@ import {
   renderInquiryAnsweredEmail,
   renderOrderConfirmationEmail,
   renderOrderShippedEmail,
+  renderRestockAlertEmail,
   type OrderEmailItem,
   type RenderedEmail,
 } from './templates';
@@ -51,8 +53,12 @@ const ACCURATE_ORDER_STATUSES: Record<OrderEmailTemplateName, readonly string[]>
   order_shipped: ['shipping', 'delivered', 'done'],
 };
 
-/** 멱등이 정상 동작한 결과다. 매 웹훅 재전송마다 로그를 남길 이유가 없다. */
-const EXPECTED_SKIP_REASONS: readonly string[] = ['already_delivered'];
+/* 멱등이 정상 동작한 결과다. 매 웹훅 재전송마다 로그를 남길 이유가 없다.
+ *
+ * 재입고 훅은 재고를 건드릴 때마다 조건 없이 불린다(전이 판정은 DB 트리거 몫). 신청자가
+ * 없는 굿즈가 절대다수라 no_notified_alerts 를 이상으로 찍으면 정상 운영이 에러 로그로
+ * 뒤덮여 진짜 미발송이 묻힌다. */
+const EXPECTED_SKIP_REASONS: readonly string[] = ['already_delivered', 'no_notified_alerts'];
 
 export type TransactionalEmailResult =
   | { status: 'sent' }
@@ -316,6 +322,103 @@ export function sendOrderShippedEmail(input: {
       }),
     });
   });
+}
+
+interface RestockAlertRow {
+  id: string;
+  notified_at: string | null;
+  profiles: { email: string | null } | { email: string | null }[] | null;
+}
+
+function rowRecipient(value: RestockAlertRow['profiles']): string | null {
+  const profile = Array.isArray(value) ? value[0] : value;
+  const email = profile?.email?.trim();
+  return email && email.includes('@') ? email : null;
+}
+
+/**
+ * 재입고 알림 메일 (#326).
+ *
+ * 신청 행을 notified 로 넘기는 것은 DB 트리거다. 여기는 그 결과를 읽어 메일만 보낸다 —
+ * "전이가 일어났는가"를 앱이 다시 판정하지 않는다. 판정을 두 곳에 두면 재고 복원 경로
+ * (주문 취소·반품의 service role 쓰기)가 늘 때마다 한쪽이 빠진다.
+ *
+ * 그래서 호출부는 재고를 건드린 뒤 조건 없이 부르면 된다. 이미 보낸 사이클은
+ * claim_email_delivery 가 거른다(dedupe_key 에 notified_at 이 들어가 사이클마다 유일).
+ *
+ * 한 굿즈에 신청자가 여럿이라 결과도 여러 개다. 한 명에게 실패해도 나머지는 보낸다 —
+ * 배열 하나로 묶어 실패를 삼키면 누가 못 받았는지 알 수 없다.
+ *
+ * 알려진 한계: 현재 호출부는 어드민의 재고 접점(굿즈 저장·실재고 조정)뿐이다.
+ * 주문 취소·반품의 재고 복원으로 전이가 일어나면 인앱 알림은 트리거가 즉시 보내지만,
+ * 메일은 어드민이 그 굿즈를 다음에 만질 때까지 미룬다 — 취소 정합화 경로 서너 곳에
+ * orderId→goods 팬아웃 훅을 심는 산탄보다, notified 행이 claim 게이트에 남아 있다가
+ * 다음 접점에서 발송되는 쪽을 택했다. 발송 주기가 필요해지면 호출부를 늘리지 말고
+ * 미발송 notified 행을 쓸어 담는 단일 청소 경로를 만들 것.
+ */
+export async function sendRestockAlertEmails(
+  goodId: string,
+): Promise<TransactionalEmailResult[]> {
+  /* 수신자별 결과는 팬아웃 안에서 쌓인다. 바깥 껍질의 결과는 팬아웃 자체가 서지
+     못했을 때(service role 없음·조회 실패·보낼 신청 없음)만 쓰인다. */
+  const results: TransactionalEmailResult[] = [];
+
+  const outcome = await safely('restock alert', `good:${goodId}`, async () => {
+    const blocked = guardedEnvironment();
+    if (blocked) return blocked;
+
+    const service = createServiceClient();
+
+    const { data: goodData, error: goodError } = await service
+      .from('goods')
+      .select('name')
+      .eq('id', goodId)
+      .maybeSingle();
+    if (goodError) throw new Error('restock_email_good_load_failed');
+    const goodName = (goodData as { name?: unknown } | null)?.name;
+    if (typeof goodName !== 'string' || !goodName.trim()) {
+      return { status: 'skipped', reason: 'good_missing' };
+    }
+
+    const { data, error } = await service
+      .from('restock_alerts')
+      .select('id,notified_at,profiles(email)')
+      .eq('good_id', goodId)
+      .eq('status', 'notified')
+      .order('notified_at', { ascending: true });
+    if (error) throw new Error('restock_email_alerts_load_failed');
+
+    const rows = (data ?? []) as RestockAlertRow[];
+    if (!rows.length) return { status: 'skipped', reason: 'no_notified_alerts' };
+
+    /* 본문은 수신자와 무관하다 — 한 번 그려 재사용한다. */
+    const rendered = renderRestockAlertEmail({
+      goodName,
+      goodPath: `${siteUrl()}/shop/${goodId}`,
+    });
+
+    for (const row of rows) {
+      const recipient = rowRecipient(row.profiles);
+      const notifiedAt = row.notified_at;
+      if (!recipient || !notifiedAt) {
+        results.push({ status: 'skipped', reason: 'recipient_missing' });
+        console.error(`[email] restock alert not sent (alert:${row.id}): recipient_missing`);
+        continue;
+      }
+
+      /* 한 명이 실패해도 나머지는 보낸다 — 행마다 껍질을 씌워 실패를 격리한다. */
+      results.push(await safely('restock alert', `alert:${row.id}`, () => deliver(service, {
+        dedupeKey: restockAlertEmailDedupeKey(row.id, notifiedAt),
+        template: 'restock_alert',
+        recipient,
+        rendered,
+      })));
+    }
+
+    return { status: 'sent' };
+  });
+
+  return results.length ? results : [outcome];
 }
 
 export interface InquiryAnsweredEmailRequest {

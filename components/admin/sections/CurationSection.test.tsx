@@ -2,13 +2,25 @@ import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AdminCurationKind } from '@/lib/admin/curations';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
 import { CurationSection } from './CurationSection';
 
 const mocks = vi.hoisted(() => ({
   action: vi.fn(),
+  /* kind 리터럴만 골라 가로채야 아트워크 칸의 useState 까지 덮어쓰지 않는다. */
+  kinds: [
+    'hero',
+    'featured_ip',
+    'announcement',
+    'notice_strip',
+    'editor_pick',
+    'band_banner',
+    'best_tab',
+    'benefit',
+  ] as string[],
   kindSetter: vi.fn(),
-  kindState: null as null | 'hero' | 'featured_ip' | 'announcement',
+  kindState: null as null | AdminCurationKind,
   notificationAction: vi.fn(),
   reducer: null as unknown,
 }));
@@ -23,10 +35,7 @@ vi.mock('react', async () => {
     },
     useState: (initial: unknown) => {
       const value = typeof initial === 'function' ? (initial as () => unknown)() : initial;
-      if (
-        mocks.kindState
-        && (value === 'hero' || value === 'featured_ip' || value === 'announcement')
-      ) {
+      if (mocks.kindState && typeof value === 'string' && mocks.kinds.includes(value)) {
         return [mocks.kindState, mocks.kindSetter];
       }
       return actual.useState(initial);
@@ -45,11 +54,14 @@ const activeAnnouncement: AdminCurationRecord = {
   title: '서비스 점검 안내',
   imagePath: null,
   imageUrl: null,
+  mobileImageUrl: null,
   linkPath: '/notice/maintenance',
   displayOrder: 2,
   activeFrom: '2026-07-15T00:00:00.000Z',
   activeTo: null,
   enabled: true,
+  slot: null,
+  payload: null,
   createdAt: '2026-07-14T00:00:00.000Z',
   updatedAt: '2026-07-15T01:00:00.000Z',
   status: 'active',
@@ -83,6 +95,14 @@ function renderSection(selected: AdminCurationRecord | null, records = selected 
       selected={selected}
     />,
   );
+}
+
+/*
+ * 히어로는 대표 아트워크 칸 뒤에 모바일 칸을 하나 더 그린다. 제거 버튼 단언은
+ * 대표 칸에만 걸어야 의미가 유지되므로 첫 업로드 섹션만 잘라 본다.
+ */
+function primaryArtwork(html: string) {
+  return html.split('data-artwork-kind="curation"')[1] ?? '';
 }
 
 function findElement(node: ReactNode, predicate: (element: ReactElement) => boolean): ReactElement | null {
@@ -196,7 +216,7 @@ describe('CurationSection', () => {
     expect(mocks.notificationAction).not.toHaveBeenCalled();
   });
 
-  it('선택 이미지가 있는 특집 IP와 공지는 제거할 수 있지만 히어로는 제거할 수 없다', () => {
+  it('선택 이미지가 있는 특집 IP와 공지는 제거할 수 있지만 이미지 필수 편성은 제거할 수 없다', () => {
     const imagePath = 'public-media/catalog/curation/77777777-7777-4777-8777-777777777777.webp';
     const withArtwork = {
       ...activeAnnouncement,
@@ -214,11 +234,18 @@ describe('CurationSection', () => {
       kind: 'hero',
       ipId: null,
     });
+    const noticeStripHtml = renderSection({
+      ...withArtwork,
+      kind: 'notice_strip',
+      ipId: null,
+    });
 
     expect(announcementHtml).toContain('>이미지 제거</button>');
     expect(featuredHtml).toContain('>이미지 제거</button>');
-    expect(heroHtml).not.toContain('>이미지 제거</button>');
+    expect(primaryArtwork(heroHtml)).not.toContain('>이미지 제거</button>');
     expect(heroHtml).toContain('히어로 이미지는 필수입니다.');
+    expect(primaryArtwork(noticeStripHtml)).not.toContain('>이미지 제거</button>');
+    expect(noticeStripHtml).toContain('공지 스트립 이미지는 필수입니다.');
   });
 
   it('390px에서도 120자 제목과 상태·순서·기간을 별도 구조로 모두 노출한다', () => {
@@ -238,6 +265,75 @@ describe('CurationSection', () => {
       /\.admin-curation-record-title\s*\{[^}]*word-break:\s*keep-all;[^}]*overflow-wrap:\s*break-word/s,
     );
     expect(css).toMatch(/\.admin-curation-record-meta\s*\{[^}]*color:\s*var\(--dim\)[^}]*font-size:\s*11px/);
+  });
+
+  /* S3 홈 편성 확장 (#325) — 아래는 kind 5종이 늘면서 붙은 폼 계약이다. */
+
+  it('BEST 탭은 슬롯 선택과 연결 상품 칸을 열고 이미지를 쓰지 않는다고 안내한다', () => {
+    mocks.kindState = 'best_tab';
+
+    const html = renderSection(null);
+
+    expect(html).toContain('BEST 탭은 이미지를 쓰지 않습니다.');
+    expect(html).toMatch(/<select[^>]*name="slot"[^>]*required/);
+    expect(html).toContain('<option value="category">카테고리 BEST</option>');
+    expect(html).toContain('<option value="popular">인기템</option>');
+    expect(html).toContain('연결 상품 ID (쉼표 구분, 최대 12개)');
+    expect(html).toContain('name="goodIds"');
+  });
+
+  it('선택한 BEST 탭 레코드의 슬롯과 연결 상품을 폼 초기값으로 되살린다', () => {
+    const bestTab: AdminCurationRecord = {
+      ...activeAnnouncement,
+      kind: 'best_tab',
+      title: '인기템',
+      slot: 'popular',
+      payload: { good_ids: ['g13', 'g14'] },
+    };
+
+    const html = renderSection(bestTab);
+
+    expect(html).toContain('<option value="popular" selected="">인기템</option>');
+    expect(html).toContain('value="g13, g14"');
+  });
+
+  it.each([
+    ['editor_pick', '에디터의 제안 카드 이미지는 필수입니다.', ['배지 문구 (선택)', '카드 설명 (선택)']],
+    ['band_banner', '기획전 배너 이미지는 필수입니다.', ['서브카피 (선택)', '연결 상품 ID (쉼표 구분, 최대 4개)']],
+    ['benefit', '혜택 타일은 이미지를 쓰지 않습니다.', ['타일 설명 (선택)']],
+  ] as const)('%s 편성은 자기 payload 칸과 아트워크 안내를 보여준다', (kind, guidance, labels) => {
+    mocks.kindState = kind;
+
+    const html = renderSection(null);
+
+    expect(html).toContain(guidance);
+    for (const label of labels) expect(html).toContain(label);
+    expect(html).not.toContain('name="slot"');
+  });
+
+  /* 모바일 히어로는 5:6 세로 크롭이라 데스크톱 아트워크를 그대로 쓸 수 없다. */
+  it('히어로만 부제와 모바일 아트워크 칸을 하나 더 놓는다', () => {
+    const hero: AdminCurationRecord = {
+      ...activeAnnouncement,
+      kind: 'hero',
+      title: '여름 신작',
+      imagePath: 'public-media/catalog/curation/77777777-7777-4777-8777-777777777777.webp',
+      imageUrl: 'https://cdn.example/catalog/curation/current.webp',
+      payload: {
+        subtitle: '여름 한정 컬렉션',
+        mobile_image_path: 'public-media/catalog/curation/99999999-9999-4999-8999-999999999999.webp',
+      },
+    };
+
+    const heroHtml = renderSection(hero);
+
+    expect(heroHtml).toContain('히어로 부제 (선택)');
+    expect(heroHtml).toContain('value="여름 한정 컬렉션"');
+    expect(heroHtml).toContain('name="mobileImagePath"');
+    expect(heroHtml).toContain('모바일 아트워크 파일');
+    expect(heroHtml).toContain('public-media/catalog/curation/99999999-9999-4999-8999-999999999999.webp');
+    expect(heroHtml.match(/data-artwork-kind="curation"/g)).toHaveLength(2);
+    expect(renderSection(activeAnnouncement).match(/data-artwork-kind="curation"/g)).toHaveLength(1);
   });
 
   it('실제 CurationForm key가 새 operation ID와 최신 레코드를 반영한다', () => {

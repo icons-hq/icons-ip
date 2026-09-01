@@ -130,7 +130,7 @@ values (
   'goods-payment-seam-good',
   'goods-payment-seam-ip',
   '굿즈 결제 seam 상품',
-  '테스트',
+  '문구',
   28000,
   'ok',
   100
@@ -199,7 +199,7 @@ select
   1,
   28000,
   '굿즈 결제 seam 상품',
-  '테스트',
+  '문구',
   'goods-payment-seam-ip'
 from (
   values

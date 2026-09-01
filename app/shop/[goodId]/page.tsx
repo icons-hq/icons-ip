@@ -2,10 +2,14 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import { GoodDetail } from '@/components/screens/GoodDetail';
+import { GoodQna } from '@/components/shop/GoodQna';
 import { GoodReviews } from '@/components/shop/GoodReviews';
 import { getCatalogGoodDetail } from '@/lib/catalog';
+import { normalizeGoodQuestionOptions } from '@/lib/product-questions';
+import { loadGoodQuestions } from '@/lib/product-questions.server';
 import { normalizeGoodReviewOptions } from '@/lib/reviews';
 import { loadGoodReviewSection } from '@/lib/reviews.server';
+import { getGoodEngagement } from '@/lib/wishlist.server';
 
 type PageProps = {
   params: Promise<{ goodId: string }>;
@@ -34,21 +38,33 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
  * 리뷰도 마찬가지다(#254). 살지 말지를 정하는 사람은 아직 로그인하지 않은 사람이라,
  * 리뷰를 로그인 뒤로 미루면 리뷰를 두는 이유 자체가 사라진다.
  *
- * 리뷰 로더는 굿즈 로더와 병렬로 돌린다. 리뷰가 카탈로그 조회를 기다릴 이유가 없다.
+ * 상품 Q&A(#330)도 같은 이유로 공개다 — 사기 전에 묻는 글이라 로그인 뒤로 미루면
+ * 물어볼 사람이 아무도 남지 않는다. 작성만 보호 액션이다.
+ *
+ * 네 로더는 서로를 기다릴 이유가 없어 함께 돈다. 찜·재입고 신청 여부(#326)는
+ * 게스트·mock 모드에서도 던지지 않고 false 로 떨어지므로 공개 열람을 막지 않는다.
  */
 export default async function Page({ params, searchParams }: PageProps) {
   const { goodId } = await params;
-  const reviewOptions = normalizeGoodReviewOptions(await searchParams);
+  const resolvedSearchParams = await searchParams;
+  const reviewOptions = normalizeGoodReviewOptions(resolvedSearchParams);
+  const questionOptions = normalizeGoodQuestionOptions(resolvedSearchParams);
 
-  const [detail, reviewSection] = await Promise.all([
+  const [detail, reviewSection, questionSection, engagement] = await Promise.all([
     loadGoodDetail(goodId),
     loadGoodReviewSection(goodId, reviewOptions),
+    loadGoodQuestions(goodId, questionOptions),
+    getGoodEngagement(goodId),
   ]);
   if (!detail) notFound();
 
   return (
     <GoodDetail
       detail={detail}
+      engagement={engagement}
+      qna={<GoodQna goodId={goodId} section={questionSection} />}
+      qnaSummary={{ count: questionSection.count }}
+      reviewSummary={reviewSection.summary}
       reviews={<GoodReviews goodId={goodId} section={reviewSection} />}
     />
   );

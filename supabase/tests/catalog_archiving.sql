@@ -241,13 +241,13 @@ insert into public.goods (
   id, ip_id, name, type, price, stock, stock_qty, archived_at
 )
 values
-  ('archive-life-good', 'archive-life-ip', '수명주기 굿즈', '테스트', 1000, 'soldout', 0, null),
-  ('archive-child-good', 'archive-child-ip', '활성 자식 굿즈', '테스트', 1000, 'soldout', 0, null),
-  ('archive-stock-good', 'archive-good-guard-ip', '재고 가드 굿즈', '테스트', 1000, 'ok', 1, null),
-  ('archive-policy-good', 'archive-good-guard-ip', '정책 가드 굿즈', '테스트', 1000, 'soldout', 0, null),
-  ('archive-parent-good', 'archive-parent-ip', '부모 가드 굿즈', '테스트', 1000, 'soldout', 0, now()),
-  ('archive-history-good', 'archive-history-ip', '카탈로그보관검색 굿즈', '테스트', 1000, 'soldout', 0, null),
-  ('archive-transaction-good', 'archive-transaction-ip', '보관 거래 굿즈', '테스트', 1000, 'soldout', 0, null);
+  ('archive-life-good', 'archive-life-ip', '수명주기 굿즈', '문구', 1000, 'soldout', 0, null),
+  ('archive-child-good', 'archive-child-ip', '활성 자식 굿즈', '문구', 1000, 'soldout', 0, null),
+  ('archive-stock-good', 'archive-good-guard-ip', '재고 가드 굿즈', '문구', 1000, 'ok', 1, null),
+  ('archive-policy-good', 'archive-good-guard-ip', '정책 가드 굿즈', '문구', 1000, 'soldout', 0, null),
+  ('archive-parent-good', 'archive-parent-ip', '부모 가드 굿즈', '문구', 1000, 'soldout', 0, now()),
+  ('archive-history-good', 'archive-history-ip', '카탈로그보관검색 굿즈', '문구', 1000, 'soldout', 0, null),
+  ('archive-transaction-good', 'archive-transaction-ip', '보관 거래 굿즈', '문구', 1000, 'soldout', 0, null);
 
 insert into public.cards (
   id, ip_id, name, no, rarity, pool_id, archived_at
@@ -375,7 +375,7 @@ values (
   '00000000-0000-4000-8000-000000011361',
   'archive-history-good',
   1, 1000,
-  '카탈로그보관검색 굿즈', '테스트', 'archive-history-ip'
+  '카탈로그보관검색 굿즈', '문구', 'archive-history-ip'
 );
 
 insert into public.user_cards (user_id, card_id, qty)
@@ -641,7 +641,7 @@ begin
       id, ip_id, name, type, price, stock, stock_qty
     ) values (
       'archive-parent-active-insert', 'archive-parent-ip',
-      '부모 가드 신규 굿즈', '테스트', 1000, 'soldout', 0
+      '부모 가드 신규 굿즈', '문구', 1000, 'soldout', 0
     );
   exception
     when check_violation then
@@ -679,7 +679,7 @@ select 1 / case when (
 
 select public.admin_upsert_good(
   'archive-life-good', 'archive-life-ip', '수명주기 굿즈 수정',
-  '테스트', 1000, null, 'soldout', null, null,
+  '문구', 1000, null, 'soldout', null, null,
   '(주)아이콘즈', '대한민국', 'PVC', '80x80x30mm / 120g', '2026-07', '아이콘즈 CS', '02-000-0000',
   null, null, null,
   'archive-life-good'

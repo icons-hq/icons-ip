@@ -1,26 +1,19 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CatalogIpDetail, CatalogSnapshot } from '@/lib/catalog';
-import type { CurrentAuthState } from '@/lib/auth/server';
-import type { IpFollowState } from '@/lib/ip-follow';
+import type { CatalogSnapshot } from '@/lib/catalog';
 import Page from './page';
 
 const mocks = vi.hoisted(() => ({
-  auth: null as unknown as CurrentAuthState,
   catalog: null as unknown as CatalogSnapshot,
-  detail: null as unknown as CatalogIpDetail,
-  followState: null as unknown as IpFollowState,
-  ipHub: vi.fn<(props: Record<string, unknown>) => null>(() => null),
+  directory: vi.fn<(props: Record<string, unknown>) => null>(() => null),
+  redirect: vi.fn<(path: string) => never>((path) => {
+    throw new Error(`redirect:${path}`);
+  }),
 }));
 
-vi.mock('@/components/screens/IpHub', () => ({ IpHub: mocks.ipHub }));
-vi.mock('@/components/ui/Empty', () => ({ Empty: () => <div>empty</div> }));
-vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
-vi.mock('@/lib/catalog', () => ({
-  getCatalogIpDetail: () => mocks.detail,
-  getCatalogSnapshot: () => mocks.catalog,
-}));
-vi.mock('@/lib/ip-follow.server', () => ({ getIpFollowState: () => mocks.followState }));
+vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
+vi.mock('@/components/screens/IpDirectory', () => ({ IpDirectory: mocks.directory }));
+vi.mock('@/lib/catalog', () => ({ getCatalogSnapshot: () => mocks.catalog }));
 
 const ip = {
   id: 'ip-1',
@@ -39,27 +32,38 @@ const ip = {
 
 beforeEach(() => {
   mocks.catalog = { source: 'mock', verticals: [], ips: [ip], goods: [], cards: [], events: [] };
-  mocks.detail = { source: 'mock', ip, goods: [], cards: [], events: [], posts: [] };
-  mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
-  mocks.followState = { isFollowed: true, notifyDrops: false, notifyEvents: true };
-  mocks.ipHub.mockClear();
+  mocks.directory.mockClear();
+  mocks.redirect.mockClear();
 });
 
 describe('/ip page', () => {
-  it('passes both notification preferences and a notification error flag to the hub', async () => {
-    renderToStaticMarkup(await Page({
-      searchParams: Promise.resolve({
-        ip: 'ip-1',
-        notification_error: '1',
-        notification_saved: '1',
-      }),
-    }));
+  it('renders the directory with the full catalog ip list', async () => {
+    renderToStaticMarkup(await Page({ searchParams: Promise.resolve({}) }));
 
-    expect(mocks.ipHub.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
-      followState: mocks.followState,
-      followError: false,
-      notificationError: true,
-      notificationSaved: true,
-    }));
+    expect(mocks.redirect).not.toHaveBeenCalled();
+    expect(mocks.directory.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ ips: [ip] }));
+  });
+
+  it('redirects the legacy ?ip= query to the hall route for a valid id', async () => {
+    await expect(Page({ searchParams: Promise.resolve({ ip: 'ip-1' }) }))
+      .rejects.toThrow('redirect:/ip/ip-1');
+
+    expect(mocks.redirect).toHaveBeenCalledWith('/ip/ip-1');
+    expect(mocks.directory).not.toHaveBeenCalled();
+  });
+
+  it('renders the directory instead of redirecting for an unknown ?ip=', async () => {
+    renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ ip: 'no-such-ip' }) }));
+
+    expect(mocks.redirect).not.toHaveBeenCalled();
+    expect(mocks.directory).toHaveBeenCalledTimes(1);
+  });
+
+  it('still renders the directory for an empty catalog — the empty state lives in the screen', async () => {
+    mocks.catalog = { ...mocks.catalog, ips: [] };
+
+    renderToStaticMarkup(await Page({ searchParams: Promise.resolve({}) }));
+
+    expect(mocks.directory.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ ips: [] }));
   });
 });

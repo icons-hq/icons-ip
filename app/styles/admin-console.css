@@ -860,3 +860,113 @@ a.admin-console-chip:hover {
   margin-inline-end: 4px;
   font-size: 12.5px;
 }
+
+/* --------------------------------------------------------------------------
+   상품 Q&A 콘솔 (S8 #330) — 행 처리 패널은 리뷰 콘솔과 같은 규율을 쓴다
+   -------------------------------------------------------------------------- */
+
+.admin-qna-actions > summary {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+
+.admin-qna-actions > summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-qna-actions textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--editorial-line);
+  border-radius: 8px;
+  background: var(--editorial-surface);
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+}
+
+[data-question-status='hidden'] {
+  color: var(--editorial-ink-faint);
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------------------
+   캠페인 콘솔 (S8 #330) — 랜딩 구성 JSON 직접 편집과 카드팩 교환처 패널
+   -------------------------------------------------------------------------- */
+
+/* 블록 JSON 직접 편집이 v1 계약이다(랜딩 빌더는 범위 밖). 계약이 그렇다면 입력
+   칸은 실제로 읽을 수 있는 크기여야 한다 — 44px 상자에서 20블록을 고칠 수는 없다.
+   !important 는 취향이 아니라 필수다: 셸의 폼 리셋(editorial-admin.css)이 모든
+   admin textarea 의 min-height·font-family 를 !important 로 못 박아 둔다. */
+.admin-shell .admin-campaign-sections textarea {
+  min-height: 260px !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
+  font-size: 12.5px !important;
+  line-height: 1.6;
+}
+
+.admin-campaign-help {
+  padding: 12px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+}
+
+.admin-campaign-help > summary {
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.admin-campaign-help code,
+.admin-campaign-offer-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+}
+
+.admin-campaign-help-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-inline-start: 18px;
+  color: var(--dim);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.admin-campaign-help-sample {
+  overflow-x: auto;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.admin-campaign-offers {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-campaign-offer {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* 교환처 id 는 캠페인 sections 의 exchange 블록에 손으로 옮겨 적는 값이다.
+   선택하지 않아도 눈에 보여야 복사할 수 있다. */
+.admin-campaign-offer-id {
+  overflow-x: auto;
+  padding-inline-start: 2px;
+  color: var(--faint);
+  user-select: all;
+}

@@ -1,49 +1,47 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { CurrentAuthState } from '@/lib/auth/server';
+import type { CampaignLandingSnapshot } from '@/lib/campaigns.server';
 import type { CatalogSnapshot } from '@/lib/catalog';
+import type { CoinOverview } from '@/lib/coins.server';
 import type { FandomEvent } from '@/lib/data';
-import Page from './page';
+import Page, { generateMetadata } from './page';
 
+/* 실제 notFound·permanentRedirect는 throw로 렌더를 끊는다. 대역이 그냥 반환하면
+   미존재 id에서도 아래 리다이렉트까지 실행돼 계약이 거꾸로 통과한다 — 대역도 throw한다. */
 const mocks = vi.hoisted(() => ({
+  auth: null as unknown as CurrentAuthState,
+  campaign: null as CampaignLandingSnapshot | null,
+  cardRewardsEnabled: true,
   catalog: null as CatalogSnapshot | null,
-  eventDetail: vi.fn(),
-  followState: { isFollowed: false, notifyDrops: false, notifyEvents: false },
-  getIpFollowState: vi.fn(),
-  loadSessions: vi.fn(),
+  coin: null as CoinOverview | null,
+  screen: vi.fn<(props: Record<string, unknown>) => null>(() => null),
+  notFound: vi.fn(() => {
+    throw new Error('NEXT_NOT_FOUND');
+  }),
+  permanentRedirect: vi.fn((path: string) => {
+    throw new Error(`NEXT_REDIRECT:${path}`);
+  }),
 }));
 
-vi.mock('next/navigation', () => ({ notFound: () => { throw new Error('not found'); } }));
-vi.mock('@/lib/catalog', () => ({
-  getCatalogSnapshot: () => mocks.catalog,
-  getCatalogSource: () => mocks.catalog?.source ?? 'mock',
+vi.mock('next/navigation', () => ({
+  notFound: mocks.notFound,
+  permanentRedirect: mocks.permanentRedirect,
 }));
-vi.mock('@/lib/auth/server', () => ({
-  getCurrentAuthState: () => ({ isConfigured: false, user: null, profile: null, isStaff: false }),
+vi.mock('@/components/screens/CampaignLanding', () => ({ CampaignLanding: mocks.screen }));
+vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: async () => mocks.auth }));
+vi.mock('@/lib/campaigns.server', () => ({
+  loadCampaignDetail: async (id: string) => (mocks.campaign?.id === id ? mocks.campaign : null),
 }));
-vi.mock('@/lib/auth/onboarding', () => ({
-  isOnboarded: () => false,
-  onboardingPath: (next: string) => `/onboarding?next=${encodeURIComponent(next)}`,
+vi.mock('@/lib/card-rewards/gate.server', () => ({
+  readCardRewardsEnabled: async () => mocks.cardRewardsEnabled,
 }));
-vi.mock('@/lib/payments/ticket-checkout-availability', () => ({
-  ticketCheckoutPaymentsEnabled: () => false,
-}));
-vi.mock('@/lib/ticketing.server', () => ({ loadPublicTicketTypes: mocks.loadSessions }));
-vi.mock('@/lib/ip-follow.server', () => ({ getIpFollowState: mocks.getIpFollowState }));
-vi.mock('@/components/screens/EventDetail', () => ({
-  EventDetail: (props: {
-    notificationError: boolean;
-    notificationSaved: boolean;
-    notificationState: unknown;
-    sessions: unknown[];
-  }) => {
-    mocks.eventDetail(props);
-    return <div data-session-count={props.sessions.length} />;
-  },
-}));
+vi.mock('@/lib/catalog', () => ({ getCatalogSnapshot: () => mocks.catalog }));
+vi.mock('@/lib/coins.server', () => ({ loadCoinOverview: async () => mocks.coin }));
 
 const event: FandomEvent = {
   id: 'e100',
-  title: '테스트 이벤트',
+  title: '테스트 팝업',
   ip: 'ip100',
   mode: '오프라인',
   status: '예매중',
@@ -53,82 +51,218 @@ const event: FandomEvent = {
   img: 'linear-gradient(#111, #222)',
 };
 
-const ip = {
-  id: 'ip100',
-  title: '화산강림',
-  sub: 'ORIGINAL IP',
-  v: { key: 'webtoon', label: '웹툰', color: '#38F0C0' },
-  glyph: '火',
-  tagline: '불꽃처럼 피어나는 이야기',
-  synopsis: '화산강림 세계관',
-  bg: 'linear-gradient(#111, #222)',
-  fans: 100,
-  goods: 0,
-  cards: 0,
-  featured: true,
-};
-
-function snapshot(source: CatalogSnapshot['source']): CatalogSnapshot {
-  return { source, verticals: [], ips: [], goods: [], cards: [], events: [event] };
+function snapshot(events: FandomEvent[]): CatalogSnapshot {
+  return { source: 'mock', verticals: [], ips: [], goods: [], cards: [], events };
 }
 
-describe('/events/[eventId]', () => {
-  beforeEach(() => {
-    mocks.eventDetail.mockReset();
-    mocks.getIpFollowState.mockReset();
-    mocks.getIpFollowState.mockResolvedValue(mocks.followState);
-    mocks.loadSessions.mockReset();
-    mocks.loadSessions.mockResolvedValue([{ id: 'session-1' }]);
+function campaignFor(id: string): CampaignLandingSnapshot {
+  return {
+    id,
+    kind: 'event',
+    title: '여름 코인 이벤트',
+    subtitle: '출석하고 카드팩 받기',
+    cardImagePath: null,
+    bannerImagePath: null,
+    heroImagePath: null,
+    featuredOrder: null,
+    startsAt: '2026-08-06T15:00:00.000Z',
+    endsAt: '2026-08-31T14:59:00.000Z',
+    status: 'published',
+    displayState: 'ongoing',
+    sections: [],
+    resolvedSections: [{ type: 'attendance' }],
+  };
+}
+
+const OFFER_A = '11111111-1111-4111-8111-111111111111';
+const OFFER_B = '33333333-3333-4333-8333-333333333333';
+
+/* 교환 블록이 둘인 캠페인. 한 페이지에 여러 교환처를 두는 편성이 실제로 있고,
+   멱등 키를 공유하면 두 번째 교환이 가짜 성공으로 끝난다. */
+function campaignWithTwoExchanges(id: string): CampaignLandingSnapshot {
+  return {
+    ...campaignFor(id),
+    resolvedSections: [
+      { type: 'attendance' },
+      { type: 'exchange', offer_id: OFFER_A, offer: null },
+      { type: 'intro', copy: '안내' },
+      { type: 'exchange', offer_id: OFFER_B, offer: null },
+    ],
+  };
+}
+
+function pageProps(
+  eventId: string,
+  searchParams: Record<string, string | string[] | undefined> = {},
+) {
+  return { params: Promise.resolve({ eventId }), searchParams: Promise.resolve(searchParams) };
+}
+
+function signedInAuth(): CurrentAuthState {
+  return {
+    isConfigured: true,
+    user: { id: 'user-1', email: 'fan@icons.gg' },
+    profile: null,
+    isStaff: false,
+  };
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+beforeEach(() => {
+  mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
+  mocks.campaign = null;
+  mocks.cardRewardsEnabled = true;
+  mocks.catalog = snapshot([event]);
+  mocks.coin = null;
+  mocks.screen.mockClear();
+  mocks.notFound.mockClear();
+  mocks.permanentRedirect.mockClear();
+});
+
+describe('/events/[eventId] 캠페인 상세', () => {
+  it('캠페인을 찾으면 상세 화면에 넘긴다', async () => {
+    mocks.campaign = campaignFor('summer');
+
+    renderToStaticMarkup(await Page(pageProps('summer')));
+
+    expect(mocks.screen.mock.calls[0]?.[0]?.campaign).toEqual(mocks.campaign);
+    expect(mocks.permanentRedirect).not.toHaveBeenCalled();
+    expect(mocks.notFound).not.toHaveBeenCalled();
   });
 
-  it('keeps explicit mock catalog mode independent from Supabase ticket queries', async () => {
-    mocks.catalog = snapshot('mock');
+  /* 공개 브라우징 — 비로그인도 본문을 그대로 읽는다. 로그인 여부는 참여 패널을
+     로그인 CTA 로 바꾸는 데만 쓴다. */
+  it('비로그인에게는 코인 상태 없이 signedIn=false로 넘긴다', async () => {
+    mocks.campaign = campaignFor('summer');
+    mocks.coin = { balance: 9, attendedToday: true };
 
-    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: event.id }) }));
+    renderToStaticMarkup(await Page(pageProps('summer')));
 
-    expect(html).toContain('data-session-count="0"');
-    expect(mocks.loadSessions).not.toHaveBeenCalled();
+    expect(mocks.screen.mock.calls[0]?.[0]?.signedIn).toBe(false);
+    expect(mocks.screen.mock.calls[0]?.[0]?.coin).toBeNull();
   });
 
-  it('loads public ticket sessions for the Supabase catalog source', async () => {
-    mocks.catalog = snapshot('supabase');
+  it('로그인 상태면 잔액·출석 여부를 함께 넘긴다', async () => {
+    mocks.campaign = campaignFor('summer');
+    mocks.auth = signedInAuth();
+    mocks.coin = { balance: 9, attendedToday: true };
 
-    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: event.id }) }));
+    renderToStaticMarkup(await Page(pageProps('summer')));
 
-    expect(html).toContain('data-session-count="1"');
-    expect(mocks.loadSessions).toHaveBeenCalledWith(event.id, undefined);
+    expect(mocks.screen.mock.calls[0]?.[0]?.signedIn).toBe(true);
+    expect(mocks.screen.mock.calls[0]?.[0]?.coin).toEqual({ balance: 9, attendedToday: true });
   });
 
-  it('loads IP preferences only for a scheduled event with an IP', async () => {
-    mocks.catalog = {
-      ...snapshot('mock'),
-      ips: [ip],
-      events: [{ ...event, status: '예정' }],
-    };
+  /* 교환 폼의 멱등 키는 서버가 심는다 — 클라이언트가 만들면 재제출마다 새 키가 생겨
+     같은 교환이 두 번 성립할 창이 열린다. */
+  it('교환 블록마다 서로 다른 멱등 키를 만들어 넘긴다', async () => {
+    mocks.campaign = campaignWithTwoExchanges('summer');
 
-    renderToStaticMarkup(await Page({
-      params: Promise.resolve({ eventId: event.id }),
-      searchParams: Promise.resolve({ notification_error: '1', notification_saved: '1' }),
-    }));
+    renderToStaticMarkup(await Page(pageProps('summer')));
 
-    expect(mocks.getIpFollowState).toHaveBeenCalledWith(ip.id);
-    expect(mocks.eventDetail.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
-      notificationError: true,
-      notificationSaved: true,
-      notificationState: mocks.followState,
-    }));
+    const ids = mocks.screen.mock.calls[0]?.[0]?.exchangeOperationIds as Record<number, string>;
+
+    /* 키는 교환 블록의 섹션 인덱스에만 붙는다 — 출석·소개 블록은 멱등 키를 쓰지 않는다. */
+    expect(Object.keys(ids)).toEqual(['1', '3']);
+    expect(ids[1]).toMatch(UUID_PATTERN);
+    expect(ids[3]).toMatch(UUID_PATTERN);
+    /* 공유하면 첫 교환 뒤 다른 상품 제출이 already_exchanged 로 가짜 성공한다. */
+    expect(ids[1]).not.toBe(ids[3]);
   });
 
-  it('does not load IP preferences for booking or joint scheduled events', async () => {
-    mocks.catalog = { ...snapshot('mock'), ips: [ip] };
-    renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: event.id }) }));
+  it('교환 블록이 없으면 멱등 키도 만들지 않는다', async () => {
+    mocks.campaign = campaignFor('summer');
 
-    mocks.catalog = {
-      ...snapshot('mock'),
-      events: [{ ...event, ip: null, status: '예정' }],
-    };
-    renderToStaticMarkup(await Page({ params: Promise.resolve({ eventId: event.id }) }));
+    renderToStaticMarkup(await Page(pageProps('summer')));
 
-    expect(mocks.getIpFollowState).not.toHaveBeenCalled();
+    expect(mocks.screen.mock.calls[0]?.[0]?.exchangeOperationIds).toEqual({});
+  });
+
+  /* 전역 카드 리워드 게이트는 화면이 교환 표면을 감추는 데 쓴다(/packs 와 같은 규율). */
+  it('카드 리워드 게이트 상태를 화면에 그대로 넘긴다', async () => {
+    mocks.campaign = campaignWithTwoExchanges('summer');
+    mocks.cardRewardsEnabled = false;
+
+    renderToStaticMarkup(await Page(pageProps('summer')));
+
+    expect(mocks.screen.mock.calls[0]?.[0]?.cardRewardsEnabled).toBe(false);
+  });
+
+  it('게이트가 켜져 있으면 그대로 true 를 넘긴다', async () => {
+    mocks.campaign = campaignFor('summer');
+
+    renderToStaticMarkup(await Page(pageProps('summer')));
+
+    expect(mocks.screen.mock.calls[0]?.[0]?.cardRewardsEnabled).toBe(true);
+  });
+
+  /* 조회 순서가 계약이다. 반대로 두면 슬러그가 겹친 캠페인이 영영 열리지 않는다. */
+  it('같은 id가 캠페인과 오프라인 팝업 양쪽에 있으면 캠페인이 이긴다', async () => {
+    mocks.campaign = campaignFor(event.id);
+
+    renderToStaticMarkup(await Page(pageProps(event.id)));
+
+    expect(mocks.screen).toHaveBeenCalled();
+    expect(mocks.permanentRedirect).not.toHaveBeenCalled();
+  });
+
+  it('캠페인마다 다른 페이지 제목을 낸다', async () => {
+    mocks.campaign = campaignFor('summer');
+
+    const meta = await generateMetadata({ params: Promise.resolve({ eventId: 'summer' }) });
+
+    expect(meta.title).toBe('여름 코인 이벤트 — ICONS');
+    expect(meta.description).toBe('출석하고 카드팩 받기');
+  });
+
+  it('캠페인이 아니면 허브 제목으로 답한다', async () => {
+    const meta = await generateMetadata({ params: Promise.resolve({ eventId: event.id }) });
+
+    expect(meta.title).toBe('이벤트 — ICONS');
+  });
+});
+
+describe('/events/[eventId] 레거시 브리지', () => {
+  it('저장된 오프라인 팝업 딥링크를 새 경로로 영구 이전한다', async () => {
+    await expect(Page(pageProps(event.id)))
+      .rejects.toThrow(`NEXT_REDIRECT:/offline-popups/${event.id}`);
+
+    expect(mocks.permanentRedirect).toHaveBeenCalledWith(`/offline-popups/${event.id}`);
+    expect(mocks.notFound).not.toHaveBeenCalled();
+  });
+
+  it('경로 세그먼트를 인코딩해 넘긴다', async () => {
+    mocks.catalog = snapshot([{ ...event, id: 'e 100/x' }]);
+
+    await expect(Page(pageProps('e 100/x')))
+      .rejects.toThrow('NEXT_REDIRECT:/offline-popups/e%20100%2Fx');
+  });
+
+  /* 옛 링크에 붙은 회차·유입 추적 파라미터를 떨어뜨리면 리다이렉트가 링크의 절반만
+     옮기는 셈이 된다. */
+  it('원 쿼리를 새 경로에 그대로 실어 보낸다', async () => {
+    await expect(Page(pageProps(event.id, { round: '2', utm_source: 'kakao' })))
+      .rejects.toThrow(`NEXT_REDIRECT:/offline-popups/${event.id}?round=2&utm_source=kakao`);
+  });
+
+  it('같은 키가 여러 번 온 쿼리는 접지 않고 모두 싣는다', async () => {
+    await expect(Page(pageProps(event.id, { tag: ['a', 'b'], empty: undefined })))
+      .rejects.toThrow(`NEXT_REDIRECT:/offline-popups/${event.id}?tag=a&tag=b`);
+  });
+
+  it('쿼리가 없으면 물음표도 붙이지 않는다', async () => {
+    await expect(Page(pageProps(event.id)))
+      .rejects.toThrow(`NEXT_REDIRECT:/offline-popups/${event.id}`);
+
+    expect(mocks.permanentRedirect).toHaveBeenCalledWith(`/offline-popups/${event.id}`);
+  });
+
+  it('카탈로그에 없는 id는 리다이렉트하지 않고 404로 끝낸다', async () => {
+    await expect(Page(pageProps('missing')))
+      .rejects.toThrow('NEXT_NOT_FOUND');
+
+    expect(mocks.notFound).toHaveBeenCalled();
+    expect(mocks.permanentRedirect).not.toHaveBeenCalled();
   });
 });

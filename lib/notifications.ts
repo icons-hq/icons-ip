@@ -19,7 +19,16 @@ export type NotificationType =
   | 'claim_updated'
   /* 리뷰 운영자 답글(#254). 첫 답글에서만 나간다 — 답글을 다듬을 때마다 알리면
      "운영자가 또 뭐라고 했다"로 읽혀 알림 자체의 신뢰가 깎인다. */
-  | 'review_replied';
+  | 'review_replied'
+  /* 재입고 알림(#326). goods 의 판매 가능 전이 트리거가 restock_alerts 의
+     pending 신청을 notified 로 넘기면서 같은 트랜잭션에서 남긴다. */
+  | 'restock_available'
+  /* 회원 등급 승급(#329). 재산정·수동 보정이 승급을 확정한 트랜잭션에서 남긴다 —
+     강등은 알리지 않고, 재승급은 같은 dedupe 키를 재부상시킨다. */
+  | 'loyalty_grade_upgraded'
+  /* 상품 Q&A 답변(#330). admin_answer_product_question RPC 가 답변을 저장한
+     트랜잭션에서 남긴다 — 재답변도 같은 dedupe 키를 다시 띄운다. */
+  | 'product_question_answered';
 
 export interface NotificationRow {
   id: string;

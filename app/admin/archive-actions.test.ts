@@ -50,6 +50,7 @@ const broadRevalidationCalls = [
   ['/shop'],
   ['/binder'],
   ['/events'],
+  ['/offline-popups'],
   ['/search'],
   ['/cart'],
   ['/checkout'],
@@ -57,6 +58,7 @@ const broadRevalidationCalls = [
   ['/admin'],
   ['/ip/[id]', 'page'],
   ['/events/[eventId]', 'page'],
+  ['/offline-popups/[eventId]', 'page'],
   ['/games/[gameId]', 'page'],
 ];
 

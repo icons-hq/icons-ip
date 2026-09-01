@@ -112,7 +112,7 @@ values ('goods-payment-claim-ip', '굿즈 결제 claim IP', 'goods-payment-claim
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
 values (
   'goods-payment-claim-good', 'goods-payment-claim-ip',
-  '굿즈 결제 claim 상품', '테스트', 28000, 'ok', 10
+  '굿즈 결제 claim 상품', '문구', 28000, 'ok', 10
 );
 
 insert into public.orders (
@@ -130,7 +130,7 @@ insert into public.order_items (
 )
 values (
   '${order_id}', 'goods-payment-claim-good', 1, 28000,
-  '굿즈 결제 claim 상품', '테스트', 'goods-payment-claim-ip'
+  '굿즈 결제 claim 상품', '문구', 'goods-payment-claim-ip'
 );
 
 select public.prepare_goods_payment_attempt(

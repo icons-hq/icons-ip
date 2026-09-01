@@ -58,15 +58,15 @@ export function TicketDetail({
   const meta = ticketOrderDisplayMeta(asListItem(order), now);
 
   return (
-    <main className="screen ticket-detail-page">
-      <header className="ticket-detail-header">
+    <main className="wc-root wc-receipt ticket-detail-page">
+      <header className="wc-receipt__head ticket-detail-header">
         <div className="wrap">
           <Link className="ticket-detail-back" href="/tickets">
             <Icon name="chevronLeft" size={17} /> 내 티켓
           </Link>
           <span className={`ticket-status ticket-status--${meta.tone}`}>{meta.label}</span>
-          <h1 className="h-xl">{order.eventTitle}</h1>
-          <p>{meta.title} {meta.body}</p>
+          <h1 className="wc-receipt__title">{order.eventTitle}</h1>
+          <p className="wc-receipt__subcopy">{meta.title} {meta.body}</p>
           <div className="ticket-detail-meta mono">
             <span>{order.ticketTypeName}</span>
             <span aria-hidden>·</span>

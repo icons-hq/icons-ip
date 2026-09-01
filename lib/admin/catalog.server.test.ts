@@ -323,6 +323,30 @@ describe('getAdminCatalogRecords', () => {
     }
   });
 
+  /* 정가는 어드민 폼의 기본값이자 미리보기의 할인 표기 근거다 — 목록 select 에서
+     빠지면 운영자가 저장한 할인이 다음 편집에서 조용히 지워진다(#326). */
+  it('굿즈 목록에 정가를 싣는다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({
+      records,
+      rows: {
+        goods: [
+          { id: 'on-sale', compare_at_price: 26000 },
+          { id: 'not-on-sale', compare_at_price: null },
+        ],
+      },
+    });
+
+    const result = await getAdminCatalogRecords();
+
+    expect(records.find((record) => record.table === 'goods')?.select)
+      .toContain('compare_at_price');
+    expect(result.goods.map(({ id, compareAtPrice }) => ({ id, compareAtPrice }))).toEqual([
+      { id: 'on-sale', compareAtPrice: 26000 },
+      { id: 'not-on-sale', compareAtPrice: null },
+    ]);
+  });
+
   it('classifies reward-policy status in the required priority order', () => {
     const now = Date.parse('2026-07-15T00:00:00.000Z');
     const activePolicy = {

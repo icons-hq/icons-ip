@@ -47,6 +47,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'claims-cancels', label: '취소 관리', href: '/admin/sales/claims/cancels', status: 'ready' },
       { id: 'claims-returns', label: '반품 관리', href: '/admin/sales/claims/returns', status: 'ready' },
       { id: 'claims-exchanges', label: '교환 관리', href: '/admin/sales/claims/exchanges', status: 'ready' },
+      { id: 'coupons', label: '쿠폰 관리', href: '/admin/sales/coupons', status: 'ready' },
     ],
   },
   {
@@ -55,6 +56,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     icon: 'chat',
     screens: [
       { id: 'inquiries', label: '1:1 문의', href: '/admin/cs/inquiries', status: 'ready' },
+      { id: 'qna', label: '상품 Q&A', href: '/admin/cs/qna', status: 'ready' },
       { id: 'reviews', label: '리뷰 관리', href: '/admin/cs/reviews', status: 'ready' },
     ],
   },
@@ -80,6 +82,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     icon: 'star',
     screens: [
       { id: 'curations', label: '홈 큐레이션', href: '/admin/display/curations', status: 'ready' },
+      { id: 'campaigns', label: '캠페인', href: '/admin/display/campaigns', status: 'ready' },
     ],
   },
   {

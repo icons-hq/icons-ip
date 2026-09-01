@@ -51,8 +51,8 @@ describe('PaymentConfirmation', () => {
   it('uses the ticket subject and destination link', () => {
     const html = renderConfirmation({
       destinationPath: `/ticket-checkout/${referenceId}`,
-      fallbackHref: '/events',
-      fallbackLabel: '이벤트로 돌아가기',
+      fallbackHref: '/offline-popups',
+      fallbackLabel: '오프라인 팝업으로 돌아가기',
       subject: '예매',
     });
 
@@ -64,12 +64,12 @@ describe('PaymentConfirmation', () => {
   it('uses the caller-provided fallback when no destination is known', () => {
     const html = renderConfirmation({
       destinationPath: null,
-      fallbackHref: '/events',
-      fallbackLabel: '이벤트로 돌아가기',
+      fallbackHref: '/offline-popups',
+      fallbackLabel: '오프라인 팝업으로 돌아가기',
       subject: '예매',
     });
 
-    expect(html).toContain('href="/events"');
-    expect(html).toContain('이벤트로 돌아가기');
+    expect(html).toContain('href="/offline-popups"');
+    expect(html).toContain('오프라인 팝업으로 돌아가기');
   });
 });

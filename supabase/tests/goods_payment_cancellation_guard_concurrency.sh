@@ -146,7 +146,7 @@ values (
   'goods-payment-cancel-race-good',
   'goods-payment-cancel-race-ip',
   '결제 claim 취소 경합 상품',
-  '테스트', 28000, 'ok', 10
+  '문구', 28000, 'ok', 10
 );
 
 insert into public.orders (
@@ -164,7 +164,7 @@ insert into public.order_items (
 )
 values (
   '${order_id}', 'goods-payment-cancel-race-good', 1, 28000,
-  '결제 claim 취소 경합 상품', '테스트',
+  '결제 claim 취소 경합 상품', '문구',
   'goods-payment-cancel-race-ip'
 );
 

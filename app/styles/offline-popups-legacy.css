@@ -1,0 +1,1494 @@
+/* 오프라인 팝업(잔존 표면) 전용 legacy 스타일 — /offline-popups 목록과
+ * /offline-popups/[eventId] 상세.
+ *
+ * 왜 이 파일이 있나
+ *   S9는 Holographic Midnight(app/globals.css)와 Living IP Editorial 표면 CSS
+ *   (editorial-shell/public/account-commerce)를 걷어낸다. 그런데 이 두 화면은
+ *   아직 White Catalog로 재조판되지 않았고, 재조판은 S9 범위 밖이다. 그래서
+ *   두 화면이 실제로 쓰던 규칙만 여기로 자립 복사해서, 원본이 사라져도 지금과
+ *   같은 픽셀로 그려지게 고정한다. /about 이 같은 방식으로 구 홈을
+ *   app/styles/about-legacy.css 에 격리한 선례를 따른다.
+ *
+ * 규율
+ *   - 모든 규칙은 이 두 화면의 앵커 밖으로 새지 않는다. 목록 화면은 루트 클래스가
+ *     없어서(Events.tsx 최상위가 무클래스 div) editorial-public.css 가 이미 쓰던
+ *     `#root:has(.event-guide-grid)` 앵커를 그대로 승계한다. 상세는
+ *     `#root:has(.event-detail-page)`.
+ *   - 전역 어휘(.btn·.wrap·.chip·.mono·.eyebrow·.h-xl·.card·.checkout-* 등)를 옮길 때는
+ *     `:where(앵커)` 로 감싼다. `:where()` 는 명시도가 0이라 원본과 명시도가 완전히
+ *     같고, 파일 안 규칙들 사이의 우열이 지금과 한 치도 달라지지 않는다.
+ *   - globals.css 의 `@layer base`/`@layer components` 규칙은 레이어를 유지한 채 옮긴다.
+ *     레이어 규칙은 명시도와 무관하게 비레이어 규칙에 지므로(예: `.chip.on.accent` 가
+ *     editorial-foundation 의 `.chip.on` 에 지는 현재 동작), 레이어를 벗기면 색이 바뀐다.
+ *   - `.event-*` 는 이 두 화면 전용 어휘라 원본 셀렉터 그대로 둔다.
+ *   - 토큰·keyframes 는 아래에 자체 정의한다. 구 토큰 원천(editorial 3파일)은 S9 에서
+ *     삭제됐고, 남은 globals.css·editorial-foundation.css 가 나중에 더 줄어도 자립한다.
+ *
+ * 전제
+ *   - Tailwind preflight(`@import "tailwindcss"`)와 `.sr-only` 유틸리티는 계속 존재한다고
+ *     본다. 그 import 는 globals.css 가 갖고 있다(S9 판정: Tailwind v4 는 스택 규칙이라
+ *     유지) — globals 를 정리하는 쪽은 import 의 새 거처를 먼저 정해야 한다.
+ *   - layout.tsx 임포트 순서는 editorial-foundation.css 뒤여야 한다(about-legacy.css 처럼
+ *     맨 뒤가 가장 안전하다). 이 파일 규칙은 명시도가 원본과 같아서, 동률일 때 나중에
+ *     선언된 쪽이 이기는 현재 순서를 그대로 재현해야 한다.
+ *
+ * 삭제 조건
+ *   두 화면이 White Catalog로 재조판되면 이 파일도 같이 지운다.
+ */
+
+/* ============================================================
+   토큰·베이스 자립 블록
+   ============================================================ */
+
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) {
+  /* --- editorial 토큰 자립 사본 (원본: app/styles/editorial-foundation.css :root) --- */
+  --editorial-canvas: #f4f4f1;
+  --editorial-canvas-soft: #efefeb;
+  --editorial-surface: #ffffff;
+  --editorial-surface-muted: #e7e7e2;
+  --editorial-placeholder: #dddddd;
+  --editorial-ink: #11110f;
+  --editorial-ink-muted: #686862;
+  --editorial-ink-faint: #858580;
+  --editorial-inverse-muted: #858580;
+  --editorial-line-strong: rgba(17, 17, 15, 0.4);
+  --editorial-line: rgba(17, 17, 15, 0.18);
+  --editorial-line-soft: rgba(17, 17, 15, 0.08);
+  --editorial-pastel-green: #c4e5ae;
+  --editorial-pastel-pink: #ffdaff;
+  --editorial-pastel-blue: #a6c5e6;
+  --editorial-pastel-yellow: #ffe888;
+  --editorial-brand-green: #78bb53;
+  --editorial-success: #3f7d38;
+  --editorial-warning: #9a5b00;
+  --editorial-danger: #b8324a;
+  --editorial-info: #365ca8;
+  --editorial-focus: #5b74ff;
+  --editorial-inverse: #11110f;
+  --editorial-media: #222222;
+  --editorial-on-inverse: #ffffff;
+  --editorial-font-display: 'Pretendard Variable', 'Pretendard', var(--font-space-grotesk), sans-serif;
+  --editorial-font-body: 'Pretendard Variable', 'Pretendard', var(--font-space-grotesk), sans-serif;
+  --editorial-font-utility: var(--font-space-mono), 'Pretendard', monospace;
+  --editorial-leading-display: 1.08;
+  --editorial-leading-display-mobile: 1.12;
+  --editorial-leading-title: 1.2;
+  --editorial-leading-body: 1.65;
+  --editorial-leading-utility: 1.5;
+  --editorial-leading-control: 1.4;
+  --editorial-tracking-display: -.03em;
+  --editorial-tracking-title: -.025em;
+  --editorial-page-gutter: 6vw;
+  --editorial-mobile-gutter: 21px;
+  --editorial-motion-fast: 300ms;
+  --editorial-ease-soft: cubic-bezier(.2, .8, .2, 1);
+  --editorial-header-top: 22px;
+  --editorial-header-capsule-h: 72px;
+  --editorial-header-gap: 12px;
+  --header-offset: calc(var(--editorial-header-top) + var(--editorial-header-capsule-h) + var(--editorial-header-gap));
+
+  /* --- Holographic Midnight 짧은 별칭. 값은 editorial-foundation.css :root 가
+         globals.css :root 를 덮은 뒤의 실측값(= 라이트 팔레트)이다. --- */
+  --maxw: 1440px;
+  --nav-h: 96px;
+  --r-xs: 8px;
+  --r-sm: 12px;
+  --r: 18px;
+  --r-lg: 26px;
+  --r-xl: 36px;
+  --ff-display: var(--editorial-font-display);
+  --ff-body: var(--editorial-font-body);
+  --ff-mono: var(--editorial-font-utility);
+  --holo: linear-gradient(115deg, #2DE2FF 0%, #8B5CFF 34%, #FF4D9D 66%, #FFB23D 100%);
+
+  /* --- account 토큰 자립 사본 (원본: app/styles/editorial-account-commerce.css :root) --- */
+  --account-canvas: var(--editorial-canvas, #f4f4f1);
+  --account-canvas-soft: var(--editorial-canvas-soft, #efefeb);
+  --account-surface: var(--editorial-surface, #fff);
+  --account-surface-muted: var(--editorial-surface-muted, #e7e7e2);
+  --account-placeholder: var(--editorial-placeholder, #ddd);
+  --account-ink: var(--editorial-ink, #11110f);
+  --account-muted: var(--editorial-ink-muted, #686862);
+  --account-faint: var(--editorial-ink-faint, #858580);
+  --account-line: var(--editorial-line, rgba(17, 17, 15, .18));
+  --account-line-soft: var(--editorial-line-soft, rgba(17, 17, 15, .08));
+  --account-line-strong: var(--editorial-line-strong, rgba(17, 17, 15, .4));
+  --account-green: var(--editorial-pastel-green, #c4e5ae);
+  --account-pink: var(--editorial-pastel-pink, #ffdaff);
+  --account-blue: var(--editorial-pastel-blue, #a6c5e6);
+  --account-yellow: var(--editorial-pastel-yellow, #ffe888);
+  --account-brand: var(--editorial-brand-green, #78bb53);
+  --account-focus: var(--editorial-focus, #5b74ff);
+  --account-success: var(--editorial-success, #3f7d38);
+  --account-warning: var(--editorial-warning, #9a5b00);
+  --account-danger: var(--editorial-danger, #b8324a);
+  --account-info: var(--editorial-info, #365ca8);
+  --account-shadow: 0 24px 64px -52px rgba(17, 17, 15, .48);
+
+  /* editorial-foundation.css 의 `#root` 규칙과 body 상속분. 스코프 루트가 곧 #root 라
+     여기서 함께 고정한다(min-height 는 아래 editorial-public 사본이 100vh 로 덮는다). */
+  position: relative;
+  z-index: 1;
+  min-height: 100svh;
+  font-weight: 450;
+  line-height: var(--editorial-leading-body);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* globals.css `@layer base` 사본. 레이어를 유지해야 비레이어 규칙과의 우열이 같다. */
+@layer base {
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) a { color: inherit; text-decoration: none; }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+}
+
+/* 원본: app/globals.css */
+@layer components {
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .wrap {
+    max-width: var(--maxw); margin: 0 auto; padding: 0 24px; width: 100%;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .eyebrow {
+    font-family: var(--ff-mono); font-size: 12px; letter-spacing: .22em;
+    text-transform: uppercase; color: var(--violet-2);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .eyebrow::before {
+    content: ''; width: 22px; height: 1px; background: currentColor; opacity: .6;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .h-xl {
+    font-size: clamp(36px, 5vw, 64px); font-family: var(--ff-display); font-weight: 700; line-height: var(--editorial-leading-display); letter-spacing: var(--editorial-tracking-display);
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .mono {
+    font-family: var(--ff-mono);
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+    height: 48px; padding: 0 24px; border-radius: 999px;
+    font-weight: 600; font-size: 14.5px; white-space: nowrap;
+    transition: transform .18s ease, box-shadow .25s ease, background .2s, border-color .2s;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .btn:active {
+    transform: translateY(1px) scale(.99);
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .btn-holo {
+    position: relative; color: #fff; font-weight: 700; background: var(--holo); background-size: 180% 180%;
+    animation: holoShift 7s ease infinite;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .btn-holo:hover {
+    box-shadow: var(--glow-v); transform: translateY(-2px);
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .btn-ghost {
+    border: 1px solid var(--line-2); color: var(--text); background: rgba(255,255,255,.02);
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .btn-ghost:hover {
+    border-color: var(--line-3); background: rgba(255,255,255,.06);
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .chip {
+    display: inline-flex; align-items: center; gap: 7px;
+    height: 36px; padding: 0 15px; border-radius: 999px;
+    font-size: 13px; font-weight: 500; color: var(--dim);
+    border: 1px solid var(--line-2); background: rgba(255,255,255,.02);
+    transition: all .2s ease; cursor: pointer; white-space: nowrap;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .chip:hover {
+    border-color: rgba(255,255,255,.35);
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .chip.on {
+    color: var(--text); background: rgba(255,255,255,.08);
+    border-color: rgba(255,255,255,.35); font-weight: 700;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .chip.on.accent {
+    color: #0A0813; background: var(--violet); border-color: var(--violet);
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .chip-sm {
+    height: 30px; padding: 0 13px; gap: 7px;
+    font-family: var(--ff-mono); font-size: 11.5px;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .money-caption {
+    font-family: var(--ff-mono); font-size: 10.5px; letter-spacing: .04em;
+    line-height: var(--editorial-leading-utility); color: var(--faint);
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .card {
+    background: linear-gradient(180deg, var(--surface), var(--bg-2));
+    border: 1px solid var(--line); border-radius: var(--r-lg);
+    transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .card:hover {
+    border-color: var(--line-2);
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .sheen {
+    position:absolute; inset:0; z-index:1; mix-blend-mode: overlay; opacity:.5;
+    background: linear-gradient(125deg, transparent 30%, rgba(255,255,255,.5) 48%, transparent 62%);
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .col {
+    display: flex; flex-direction: column;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .rise {
+    opacity: 1;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-section-heading {
+    display: flex; align-items: flex-start; gap: 14px;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-section-heading--compact {
+    align-items: center;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-section-heading h2 {
+    margin: 0; font-size: 19px;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-section-heading p {
+    margin: 5px 0 0; color: var(--dim); font-size: 13px;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-step {
+    flex: 0 0 auto; min-width: 34px; min-height: 26px; display: inline-grid; place-items: center;
+    padding: 0 8px; border: 1px solid var(--line-2); border-radius: 999px;
+    color: var(--cyan); background: rgba(45,226,255,.05); font-size: 9px; letter-spacing: .08em;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-totals {
+    margin: 18px 0 0;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-totals > div {
+    display: flex; justify-content: space-between; gap: 16px; margin-top: 10px;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-totals dt {
+    color: var(--dim); font-size: 12px;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-totals dd {
+    margin: 0; font-family: var(--ff-mono); font-size: 12px; font-weight: 700;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-totals .checkout-total {
+    align-items: flex-end; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line-2);
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-totals .checkout-total dd {
+    font-size: 20px;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-error {
+    margin: 14px 0 0; padding: 11px 12px; border: 1px solid rgba(255,77,157,.28);
+    border-radius: 10px; background: rgba(255,77,157,.07); color: var(--pink); font-size: 12px;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-submit {
+    width: 100%; min-height: 50px; margin-top: 18px;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-submit:disabled {
+    cursor: not-allowed; filter: grayscale(.7); opacity: .52;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-state-panel {
+    min-height: 350px; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 12px; padding: 30px; text-align: center;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-state-panel h2 {
+    margin: 0; font-size: 24px;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-state-panel p {
+    max-width: 500px; margin: 0 0 8px; color: var(--dim);
+  }
+  .event-ticket-guide {
+    display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: 18px; padding: 22px 24px;
+  }
+  .event-ticket-guide h2 {
+    margin: 8px 0 0; font-size: 17px;
+  }
+  .event-ticket-guide p {
+    margin: 8px 0 0; color: var(--dim); font-size: 11px; line-height: var(--editorial-leading-body);
+  }
+  .event-ticket-guide .btn {
+    flex: 0 0 auto; min-height: 44px;
+  }
+  .event-notification-action {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 20px;
+    margin-top: 18px; padding: 22px 24px;
+  }
+  .event-notification-action > div {
+    min-width: 0; flex: 1 1 420px;
+  }
+  .event-notification-action h2 {
+    margin: 8px 0 0; font-size: 18px;
+  }
+  .event-notification-action > div > p:not(.checkout-error):not(.notification-settings-success) {
+    margin: 8px 0 0; color: var(--dim); font-size: 12px; line-height: var(--editorial-leading-body);
+  }
+  .event-notification-action form {
+    flex: 0 0 auto;
+  }
+  .event-featured {
+    grid-template-columns: 1.05fr .95fr;
+  }
+  .event-card {
+    transition: transform .25s ease, border-color .25s ease;
+  }
+  .event-card:hover {
+    transform: translateY(-4px); border-color: var(--line-3);
+  }
+  .event-card-cta:hover {
+    color: var(--mint);
+  }
+  .event-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px;
+  }
+  .event-guide-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  }
+  .event-detail-page {
+    min-height: 100vh; padding-bottom: clamp(76px, 9vw, 112px);
+  }
+  .event-detail-hero {
+    padding: clamp(112px, 12vw, 148px) 0 38px;
+  }
+  .event-detail-hero-grid {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, .72fr);
+    gap: clamp(28px, 5vw, 72px); align-items: center;
+  }
+  .event-detail-copy {
+    min-width: 0;
+  }
+  .event-detail-back {
+    min-height: 44px; display: inline-flex; align-items: center;
+    color: var(--dim); font-size: 11px; font-weight: 700;
+  }
+  .event-detail-back:hover {
+    color: var(--text);
+  }
+  .event-detail-badges {
+    display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px;
+  }
+  .event-detail-badges span {
+    min-height: 28px; display: inline-flex; align-items: center; padding: 0 10px;
+    border: 1px solid var(--line-2); border-radius: 999px; font-size: 10px; font-weight: 800;
+  }
+  .event-detail-copy h1 {
+    margin: 18px 0 0; word-break: keep-all; line-break: strict; overflow-wrap: break-word;
+  }
+  .event-detail-meta {
+    display: flex; flex-wrap: wrap; gap: 9px 18px; margin-top: 18px; color: var(--dim); font-size: 11px;
+  }
+  .event-detail-copy > p {
+    max-width: 650px; margin: 18px 0 0; color: var(--dim); font-size: 14px; line-height: 1.75;
+  }
+  .event-detail-art {
+    position: relative; min-height: clamp(280px, 35vw, 420px); overflow: hidden;
+    border: 1px solid var(--line-2); border-radius: clamp(20px, 3vw, 34px);
+    box-shadow: 0 28px 80px rgba(0,0,0,.25);
+  }
+  .event-detail-art .sheen {
+    position: absolute; inset: 0; background: linear-gradient(135deg, rgba(255,255,255,.15), transparent 36%, rgba(169,129,255,.12));
+  }
+  .event-booking-layout {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(330px, 390px);
+    gap: 20px; align-items: start;
+  }
+  .event-session-panel {
+    min-width: 0; padding: clamp(22px, 3vw, 32px);
+  }
+  .event-session-list {
+    display: flex; flex-direction: column; gap: 10px; margin: 24px 0 0; padding: 0; border: 0;
+  }
+  .event-session-card {
+    min-height: 82px; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto;
+    align-items: center; gap: 14px; padding: 16px; border: 1px solid var(--line-2);
+    border-radius: 14px; background: rgba(255,255,255,.018); cursor: pointer;
+    transition: border-color .2s ease, background .2s ease, transform .2s ease;
+  }
+  .event-session-card:hover:not(.is-disabled) {
+    transform: translateY(-1px); border-color: var(--line-3);
+  }
+  .event-session-card.is-selected {
+    border-color: rgba(45,226,255,.55); background: rgba(45,226,255,.055);
+  }
+  .event-session-card.is-disabled {
+    cursor: not-allowed; opacity: .52;
+  }
+  .event-session-card input {
+    width: 17px; height: 17px; accent-color: var(--cyan);
+  }
+  .event-session-card:focus-within {
+    outline: 2px solid var(--cyan); outline-offset: 3px;
+  }
+  .event-session-main {
+    min-width: 0; display: flex; flex-direction: column; gap: 6px;
+  }
+  .event-session-price {
+    min-width: 0; display: flex; flex-direction: column; gap: 6px;
+  }
+  .event-session-main strong {
+    word-break: keep-all; overflow-wrap: break-word; font-size: 14px;
+  }
+  .event-session-main small {
+    color: var(--faint); font-size: 10px;
+  }
+  .event-session-price small {
+    color: var(--faint); font-size: 10px;
+  }
+  .event-session-price {
+    align-items: flex-end; text-align: right;
+  }
+  .event-session-price strong {
+    font-size: 13px;
+  }
+  .event-booking-summary {
+    position: sticky; top: var(--header-offset); padding: 22px; overflow: hidden;
+  }
+  .event-booking-summary::before {
+    content: ''; position: absolute; top: 0; left: 22px; right: 22px;
+    height: 2px; border-radius: 0 0 999px 999px; background: var(--holo);
+  }
+  .event-booking-selection {
+    display: flex; flex-direction: column; gap: 6px; margin-top: 24px;
+  }
+  .event-booking-selection span {
+    color: var(--faint); font-size: 10px;
+  }
+  .event-booking-selection small {
+    color: var(--faint); font-size: 10px;
+  }
+  .event-booking-selection strong {
+    word-break: keep-all; overflow-wrap: break-word; font-size: 14px;
+  }
+  .event-qty-field {
+    display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-top: 20px;
+  }
+  .event-qty-field > label {
+    color: var(--dim); font-size: 12px; font-weight: 700;
+  }
+  .event-qty-control {
+    display: grid; grid-template-columns: 38px 50px 38px; border: 1px solid var(--line-2); border-radius: 12px; overflow: hidden;
+  }
+  .event-qty-control button {
+    min-height: 38px; border: 0; outline: 0; color: var(--text); background: transparent;
+    font: inherit; text-align: center;
+  }
+  .event-qty-control input {
+    min-height: 38px; border: 0; outline: 0; color: var(--text); background: transparent;
+    font: inherit; text-align: center;
+  }
+  .event-qty-control button {
+    cursor: pointer; color: var(--cyan); font-size: 18px;
+  }
+  .event-qty-control button:disabled {
+    cursor: not-allowed; color: var(--faint);
+  }
+  .event-qty-control input {
+    width: 50px; border-inline: 1px solid var(--line-2); font-family: var(--ff-mono); font-size: 11px;
+  }
+  .event-qty-control input::-webkit-inner-spin-button {
+    appearance: none;
+  }
+  .event-qty-control:focus-within {
+    outline: 2px solid var(--cyan); outline-offset: 3px;
+  }
+  .event-booking-empty {
+    margin: 24px 0 0; color: var(--dim); font-size: 13px;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .notification-settings-success {
+    margin: 0 0 16px; padding: 12px 14px; border: 1px solid; border-radius: 12px;
+    font-size: 13px; font-weight: 700;
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .notification-settings-success {
+    border-color: rgba(56,240,192,.3); color: var(--mint); background: rgba(56,240,192,.06);
+  }
+}
+
+/* 원본: app/globals.css */
+@media (prefers-reduced-motion: no-preference) {
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .rise {
+    animation: rise .6s cubic-bezier(.2,.7,.2,1) both;
+  }
+}
+
+/* 원본: app/globals.css */
+@media (prefers-reduced-motion: reduce) {
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .btn-holo {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* 원본: app/globals.css */
+@media (max-width: 919px) {
+  .event-featured {
+    grid-template-columns: 1fr;
+  }
+  .event-grid {
+    grid-template-columns: 1fr;
+  }
+  .event-guide-grid {
+    grid-template-columns: 1fr;
+  }
+  .event-detail-hero-grid {
+    grid-template-columns: 1fr;
+  }
+  .event-booking-layout {
+    grid-template-columns: 1fr;
+  }
+  .event-detail-art {
+    min-height: 360px;
+  }
+  .event-booking-summary {
+    position: static;
+  }
+  .event-ticket-guide {
+    align-items: flex-start; flex-direction: column;
+  }
+}
+
+/* 원본: app/globals.css */
+@media (max-width: 620px) {
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .wrap {
+    padding-left: 24px; padding-right: 24px;
+  }
+  .event-detail-hero {
+    padding-top: 96px;
+  }
+  .event-detail-art {
+    min-height: 270px;
+  }
+  .event-session-panel {
+    padding: 18px;
+  }
+  .event-booking-summary {
+    padding: 18px;
+  }
+  .event-booking-layout {
+    padding-left: 8px; padding-right: 8px;
+  }
+  .event-session-card {
+    grid-template-columns: 18px minmax(0, 1fr);
+  }
+  .event-session-price {
+    grid-column: 2; align-items: flex-start; text-align: left;
+  }
+  .event-ticket-guide {
+    margin-left: 8px; margin-right: 8px; padding: 18px;
+  }
+  .event-ticket-guide .btn {
+    width: 100%;
+  }
+  .event-notification-action {
+    align-items: flex-start; flex-direction: column; margin-left: 8px; margin-right: 8px; padding: 18px;
+  }
+  .event-notification-action > div {
+    flex: 0 1 auto;
+  }
+  .event-notification-action form {
+    width: 100%;
+  }
+  .event-notification-action .btn {
+    width: 100%;
+  }
+}
+
+/* 원본: app/globals.css */
+@media (max-width: 360px) {
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .wrap {
+    padding-left: 20px; padding-right: 20px;
+  }
+}
+
+/* ============================================================
+   editorial-foundation.css 사본
+   ============================================================ */
+
+/* 전역 element 규칙 사본 */
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) :where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--editorial-focus);
+  outline-offset: 3px;
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) :where(button, input, select, textarea) {
+  font: inherit;
+  line-height: var(--editorial-leading-control);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) :where(input, select, textarea) {
+  color: var(--editorial-ink);
+  caret-color: var(--editorial-focus);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) :where(input, textarea)::placeholder {
+  color: var(--editorial-ink-faint);
+  opacity: 1;
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .wrap {
+  width: min(calc(100% - (var(--editorial-page-gutter) * 2)), var(--maxw));
+  max-width: none;
+  padding-inline: 0;
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .h-xl {
+  color: var(--editorial-ink);
+  font-family: var(--ff-display);
+  text-wrap: balance;
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) :lang(ko):is(h1, h2, h3, .h-xxl, .h-xl, .h-lg) {
+  word-break: keep-all;
+  line-break: strict;
+  overflow-wrap: normal;
+  text-wrap: balance;
+}
+
+/* editorial-foundation.css — 제목 element 사본.
+   `.h-xl` 부분은 아래 생성분에 이미 있고, 여기서는 h1~h3 부분만 원본 명시도(0,0,1)로 옮긴다. */
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) h1,
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) h2,
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) h3 {
+  color: var(--editorial-ink);
+  font-family: var(--ff-display);
+  text-wrap: balance;
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) :lang(ko):is(p, li, dd, blockquote) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .h-xl {
+  font-size: clamp(44px, 5.4vw, 86px);
+  font-weight: 840;
+  line-height: var(--editorial-leading-display);
+  letter-spacing: var(--editorial-tracking-display);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .eyebrow {
+  color: var(--editorial-ink-muted);
+  font-family: var(--ff-body);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: var(--editorial-leading-utility);
+  letter-spacing: .17em;
+  text-transform: uppercase;
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .eyebrow::before {
+  background: currentColor;
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .mono {
+  font-family: var(--ff-mono);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .card {
+  border: 1px solid var(--editorial-line-soft);
+  background: var(--editorial-surface);
+  box-shadow: none;
+  color: var(--editorial-ink);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .btn {
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--editorial-inverse);
+  color: var(--editorial-on-inverse);
+  font-weight: 750;
+  box-shadow: none;
+  transition:
+  transform var(--editorial-motion-fast) var(--editorial-ease-soft),
+  background var(--editorial-motion-fast) ease,
+  border-color var(--editorial-motion-fast) ease,
+  color var(--editorial-motion-fast) ease;
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .btn:hover {
+  box-shadow: none;
+  transform: translateY(-2px);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .btn-holo {
+  border-color: transparent;
+  background: var(--editorial-brand-green);
+  color: var(--editorial-ink);
+  box-shadow: none;
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .btn-holo::before {
+  display: none;
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .btn-holo::after {
+  display: none;
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .btn-ghost {
+  border-color: var(--editorial-line);
+  background: var(--editorial-surface);
+  color: var(--editorial-ink);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .btn-ghost:hover {
+  border-color: var(--editorial-ink);
+  background: var(--editorial-ink);
+  color: var(--editorial-on-inverse);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .chip {
+  border-color: var(--editorial-line);
+  background: var(--editorial-surface);
+  color: var(--editorial-ink-muted);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .chip:hover {
+  border-color: var(--editorial-ink);
+  background: var(--editorial-ink);
+  color: var(--editorial-on-inverse);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .chip.on {
+  border-color: var(--editorial-ink);
+  background: var(--editorial-ink);
+  color: var(--editorial-on-inverse);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .money-caption {
+  color: var(--editorial-ink-muted);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .sheen {
+  opacity: 0;
+}
+
+/* 원본: app/styles/editorial-foundation.css */
+@media (max-width: 1199px) {
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .wrap {
+    width: calc(100% - 48px);
+  }
+}
+
+/* 원본: app/styles/editorial-foundation.css */
+@media (max-width: 720px) {
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .wrap {
+    width: calc(100% - (var(--editorial-mobile-gutter) * 2));
+  }
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .h-xl {
+    font-size: clamp(43px, 13vw, 58px);
+    line-height: var(--editorial-leading-display-mobile);
+  }
+}
+
+/* editorial-foundation.css — 폼 컨트롤 사본.
+   명시도 0 의 `:where()` 지만 비레이어라, 레이어에 있는 globals 의
+   `.event-qty-control input { border: 0 }` 을 이긴다. 수량 입력의 테두리·라운드가
+   여기서 나온다 — 옮길 때 이 순서를 지켜야 한다. */
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) :where(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+  min-height: 48px;
+  border: 1px solid var(--editorial-line);
+  border-radius: 12px;
+  background: var(--editorial-surface);
+  box-shadow: none;
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) :where(input:not([type='checkbox']):not([type='radio']), select, textarea):focus {
+  border-color: var(--editorial-focus);
+  box-shadow: 0 0 0 3px rgba(91, 116, 255, .12);
+  outline: none;
+}
+
+/* 원본: app/styles/editorial-public.css */
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) {
+  --bg: var(--editorial-canvas, #f4f4f1);
+  --bg-2: var(--editorial-canvas-soft, #efefeb);
+  --surface: var(--editorial-surface, #fff);
+  --surface-2: var(--editorial-surface-muted, #e7e7e2);
+  --surface-3: var(--editorial-placeholder, #ddd);
+  --text: var(--editorial-ink, #11110f);
+  --dim: var(--editorial-ink-muted, #686862);
+  --faint: color-mix(in srgb, var(--editorial-ink-muted, #686862) 72%, transparent);
+  --line: var(--editorial-line-soft, rgba(17, 17, 15, .08));
+  --line-2: var(--editorial-line, rgba(17, 17, 15, .18));
+  --line-3: var(--editorial-line-strong, rgba(17, 17, 15, .4));
+  --violet: var(--editorial-focus, #5b74ff);
+  --violet-2: #4f4797;
+  --pink: var(--editorial-danger, #b8324a);
+  --cyan: var(--editorial-info, #365ca8);
+  --mint: var(--editorial-success, #3f7d38);
+  --amber: var(--editorial-warning, #9a5b00);
+  --lime: var(--editorial-brand-green, #78bb53);
+  --shadow: 0 24px 70px -38px rgba(17, 17, 15, .34);
+  --glow-v: none;
+  min-height: 100vh;
+  background: var(--editorial-canvas, #f4f4f1);
+  color: var(--editorial-ink, #11110f);
+  font-family: var(--editorial-font-body, "Pretendard Variable", Pretendard, sans-serif);
+}
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) .wrap {
+  max-width: min(92vw, 1440px);
+  padding-inline: clamp(24px, 3vw, 48px);
+}
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where(.eyebrow) {
+  color: var(--editorial-ink, #11110f) !important;
+  font-family: var(--editorial-font-body, "Pretendard Variable", Pretendard, sans-serif);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: var(--editorial-leading-utility);
+  letter-spacing: .17em;
+}
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where(.eyebrow)::before {
+  width: 32px;
+  background: currentColor;
+  opacity: 1;
+}
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where(.mono, .money-caption) {
+  font-family: var(--editorial-font-utility, var(--ff-mono));
+}
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where(.money-caption, .muted) {
+  color: var(--editorial-ink-muted, #686862) !important;
+}
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where(.btn-holo, .btn-primary) {
+  color: #fff !important;
+  border: 1px solid var(--editorial-ink, #11110f) !important;
+  background: var(--editorial-ink, #11110f) !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where(.btn-ghost) {
+  color: var(--editorial-ink, #11110f) !important;
+  border-color: var(--editorial-line, rgba(17, 17, 15, .18)) !important;
+  background: var(--editorial-surface, #fff) !important;
+  box-shadow: none !important;
+}
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where(.btn:not(.btn-holo, .btn-primary, .btn-ghost)) {
+  color: #fff;
+  background: var(--editorial-ink, #11110f);
+}
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where(.btn, .chip, button, a, input, textarea, select):focus-visible {
+  outline: 2px solid var(--editorial-focus, #5b74ff) !important;
+  outline-offset: 3px !important;
+}
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where(button, .btn, input, textarea, select):disabled {
+  cursor: not-allowed !important;
+  filter: grayscale(.18);
+  opacity: .48 !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where(.chip) {
+  min-height: 40px;
+  color: var(--editorial-ink-muted, #686862);
+  border-color: var(--editorial-line, rgba(17, 17, 15, .18));
+  background: var(--editorial-surface, #fff);
+  transition:
+  color 300ms ease,
+  border-color 300ms ease,
+  background-color 300ms ease;
+}
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where(.chip.on:not(.accent)) {
+  color: #fff;
+  border-color: var(--editorial-ink, #11110f);
+  background: var(--editorial-ink, #11110f);
+}
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where(.chip.on.accent) {
+  color: var(--editorial-ink, #11110f) !important;
+  font-weight: 800;
+}
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where(.card) {
+  color: var(--editorial-ink, #11110f);
+  border-color: var(--editorial-line-soft, rgba(17, 17, 15, .08));
+  background: var(--editorial-surface, #fff);
+  background-image: none;
+  box-shadow: none;
+}
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where([role="alert"].card, .checkout-error) {
+  color: var(--editorial-danger, #b8324a) !important;
+  border-color: color-mix(in srgb, var(--editorial-danger, #b8324a) 35%, transparent) !important;
+  background: color-mix(in srgb, var(--editorial-danger, #b8324a) 8%, #fff) !important;
+}
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where(.notification-inline-status--success, .notification-settings-success) {
+  color: var(--editorial-success, #3f7d38) !important;
+  border-color: color-mix(in srgb, var(--editorial-success, #3f7d38) 30%, transparent) !important;
+  background: color-mix(in srgb, var(--editorial-pastel-green, #c4e5ae) 55%, #fff) !important;
+}
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where([aria-invalid="true"]) {
+  border-color: var(--editorial-danger, #b8324a) !important;
+  box-shadow: 0 0 0 1px var(--editorial-danger, #b8324a) !important;
+}
+#root:has(.event-guide-grid) > div > header {
+  padding: clamp(142px, 12vw, 196px) 0 clamp(52px, 6vw, 92px) !important;
+  border-bottom: 1px solid var(--editorial-line-soft, rgba(17, 17, 15, .08));
+}
+#root:has(.event-guide-grid):has(.h-xl) > div > header {
+  background: linear-gradient(145deg, var(--editorial-pastel-green, #c4e5ae), #e1ecd8 58%, var(--editorial-canvas, #f4f4f1));
+}
+#root:has(.event-guide-grid):not(:has(.h-xl)) > div > header {
+  background: linear-gradient(145deg, var(--editorial-pastel-yellow, #ffe888), #f2e9c1 58%, var(--editorial-canvas, #f4f4f1));
+}
+#root:has(.event-guide-grid) > div > header h1 {
+  max-width: 1020px;
+  font-family: var(--editorial-font-display, "Pretendard Variable", Pretendard, sans-serif) !important;
+  font-size: clamp(48px, 6.2vw, 104px) !important;
+  font-weight: 850 !important;
+  line-height: var(--editorial-leading-display) !important;
+  letter-spacing: var(--editorial-tracking-display) !important;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  text-wrap: balance;
+}
+#root:has(.event-guide-grid) > div > header p.rise {
+  max-width: 620px !important;
+  color: var(--editorial-ink-muted, #686862) !important;
+  font-size: clamp(15px, 1.1vw, 18px) !important;
+  line-height: var(--editorial-leading-body);
+}
+#root:has(.event-guide-grid):has(.h-xl) .event-featured {
+  overflow: hidden;
+  border-color: var(--editorial-line-soft, rgba(17, 17, 15, .08)) !important;
+  border-radius: 10px !important;
+  background: var(--editorial-surface, #fff) !important;
+  background-image: none !important;
+  box-shadow: none;
+}
+#root:has(.event-guide-grid):has(.h-xl) .event-featured > div:last-child {
+  --text: #fff;
+  --dim: #dddcd6;
+  --faint: #b9b7b0;
+}
+#root:has(.event-guide-grid):has(.h-xl) .event-featured > div:last-child > div:first-child {
+  background: linear-gradient(90deg, #fff 0%, rgba(255, 255, 255, .18) 42%, transparent 74%) !important;
+}
+#root:has(.event-guide-grid):has(.h-xl) .event-featured .sheen {
+  opacity: 0 !important;
+}
+#root:has(.event-guide-grid):has(.h-xl) .event-card .sheen {
+  opacity: 0 !important;
+}
+#root:has(.event-guide-grid):has(.h-xl) .event-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px;
+}
+#root:has(.event-guide-grid):has(.h-xl) .event-card {
+  overflow: hidden;
+  border-color: var(--editorial-line-soft, rgba(17, 17, 15, .08)) !important;
+  border-radius: 10px !important;
+  background: var(--editorial-surface, #fff) !important;
+  background-image: none !important;
+  box-shadow: none;
+  transition:
+  transform 650ms cubic-bezier(.2, .76, .25, 1),
+  border-color 300ms ease;
+}
+#root:has(.event-guide-grid):has(.h-xl) .event-card > div:first-child {
+  --text: #fff;
+  --dim: #dddcd6;
+  --faint: #b9b7b0;
+}
+#root:has(.event-guide-grid):has(.h-xl) .event-card > div:last-child > div:last-child {
+  border-color: var(--editorial-line-soft, rgba(17, 17, 15, .08)) !important;
+}
+#root:has(.event-guide-grid):has(.h-xl) .event-card-cta {
+  color: var(--editorial-ink, #11110f) !important;
+}
+#root:has(.event-guide-grid):has(.h-xl) > div > section:last-child {
+  border-color: var(--editorial-line-soft, rgba(17, 17, 15, .08)) !important;
+  background: color-mix(in srgb, var(--editorial-pastel-blue, #a6c5e6) 42%, var(--editorial-canvas, #f4f4f1)) !important;
+}
+#root:has(.event-guide-grid):not(:has(.h-xl)) > div > section:last-child {
+  border-color: var(--editorial-line-soft, rgba(17, 17, 15, .08)) !important;
+  background: color-mix(in srgb, var(--editorial-pastel-blue, #a6c5e6) 42%, var(--editorial-canvas, #f4f4f1)) !important;
+}
+#root:has(.event-guide-grid):not(:has(.h-xl)) > div > section:last-child {
+  background: color-mix(in srgb, var(--editorial-pastel-yellow, #ffe888) 42%, var(--editorial-canvas, #f4f4f1)) !important;
+}
+#root:has(.event-guide-grid) .event-guide-grid {
+  gap: 24px;
+}
+#root:has(.event-guide-grid) .event-guide-grid > div {
+  min-height: 180px;
+  border-color: var(--editorial-line-soft, rgba(17, 17, 15, .08)) !important;
+  border-radius: 10px !important;
+  background: color-mix(in srgb, var(--editorial-surface, #fff) 82%, transparent) !important;
+  background-image: none !important;
+}
+#root:has(.event-detail-page) .event-detail-hero {
+  padding: clamp(142px, 12vw, 190px) 0 clamp(64px, 7vw, 100px) !important;
+  background: linear-gradient(145deg, var(--editorial-pastel-green, #c4e5ae), #e2ecd9 58%, var(--editorial-canvas, #f4f4f1));
+}
+#root:has(.event-detail-page) .event-detail-hero-grid {
+  max-width: min(92vw, 1380px);
+}
+#root:has(.event-detail-page) .event-booking-layout {
+  max-width: min(92vw, 1380px);
+}
+#root:has(.event-detail-page) .event-detail-copy h1 {
+  font-family: var(--editorial-font-display, "Pretendard Variable", Pretendard, sans-serif);
+  font-size: clamp(48px, 5.4vw, 92px);
+  font-weight: 850;
+  line-height: var(--editorial-leading-display);
+  letter-spacing: var(--editorial-tracking-display);
+  text-wrap: balance;
+}
+#root:has(.event-detail-page) .event-detail-back {
+  color: var(--editorial-ink, #11110f);
+}
+#root:has(.event-detail-page) .event-detail-art {
+  border-color: var(--editorial-line, rgba(17, 17, 15, .18));
+  border-radius: 10px;
+  box-shadow: 0 30px 80px -52px rgba(17, 17, 15, .55);
+}
+#root:has(.event-detail-page) .event-detail-art .sheen {
+  opacity: 0;
+}
+#root:has(.event-detail-page) .event-booking-layout {
+  gap: 28px;
+  margin-top: 32px;
+}
+#root:has(.event-detail-page) :where(.event-session-panel, .event-booking-summary, .event-ticket-guide, .event-notification-action) {
+  border-color: var(--editorial-line-soft, rgba(17, 17, 15, .08));
+  border-radius: 14px;
+  background: var(--editorial-surface, #fff);
+  box-shadow: none;
+}
+#root:has(.event-detail-page) .event-booking-summary::before {
+  height: 5px;
+  background: var(--editorial-brand-green, #78bb53);
+}
+#root:has(.event-detail-page) .event-session-card {
+  min-height: 88px;
+  border-color: var(--editorial-line, rgba(17, 17, 15, .18));
+  background: var(--editorial-surface, #fff);
+}
+#root:has(.event-detail-page) .event-session-card.is-selected {
+  border-color: var(--editorial-brand-green, #78bb53);
+  background: color-mix(in srgb, var(--editorial-pastel-green, #c4e5ae) 40%, #fff);
+  box-shadow: inset 4px 0 0 var(--editorial-brand-green, #78bb53);
+}
+#root:has(.event-detail-page) .event-session-card.is-disabled {
+  color: var(--editorial-ink-muted, #686862);
+  background: var(--editorial-surface-muted, #e7e7e2);
+  opacity: .64;
+}
+#root:has(.event-detail-page) .event-session-card input {
+  accent-color: var(--editorial-brand-green, #78bb53);
+}
+#root:has(.event-detail-page) .event-qty-control {
+  grid-template-columns: 44px 54px 44px;
+  border-color: var(--editorial-line, rgba(17, 17, 15, .18));
+  background: var(--editorial-surface, #fff);
+}
+#root:has(.event-detail-page) .event-qty-control :where(button, input) {
+  min-height: 44px;
+  color: var(--editorial-ink, #11110f);
+}
+#root:has(.event-detail-page) .event-qty-control input {
+  border-color: var(--editorial-line, rgba(17, 17, 15, .18));
+}
+#root:has(.event-detail-page) .event-ticket-guide {
+  background: color-mix(in srgb, var(--editorial-pastel-blue, #a6c5e6) 34%, #fff);
+}
+#root:has(.event-detail-page) .event-notification-action {
+  background: color-mix(in srgb, var(--editorial-pastel-green, #c4e5ae) 28%, #fff);
+}
+
+/* 원본: app/styles/editorial-public.css */
+@media (hover: hover) and (pointer: fine) {
+  #root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where(.btn-holo, .btn-primary):hover {
+    color: var(--editorial-ink, #11110f) !important;
+    border-color: var(--editorial-brand-green, #78bb53) !important;
+    background: var(--editorial-brand-green, #78bb53) !important;
+    transform: translateY(-2px);
+  }
+  #root:is(:has(.event-guide-grid), :has(.event-detail-page)) .btn-ghost:hover {
+    border-color: var(--editorial-line-strong, rgba(17, 17, 15, .4)) !important;
+    background: var(--editorial-canvas, #f4f4f1) !important;
+    transform: translateY(-2px);
+  }
+  #root:is(:has(.event-guide-grid), :has(.event-detail-page)) .chip:hover {
+    color: var(--editorial-ink, #11110f);
+    border-color: var(--editorial-line-strong, rgba(17, 17, 15, .4));
+  }
+  #root:has(.event-guide-grid):has(.h-xl) .event-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--editorial-line-strong, rgba(17, 17, 15, .4)) !important;
+    box-shadow: 0 26px 62px -42px rgba(17, 17, 15, .48);
+  }
+}
+
+/* 원본: app/styles/editorial-public.css */
+@media (max-width: 1199px) {
+  #root:is(:has(.event-guide-grid), :has(.event-detail-page)) .wrap {
+    max-width: min(96vw, 1180px);
+    padding-inline: 28px;
+  }
+  #root:has(.event-guide-grid):has(.h-xl) .event-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* 원본: app/styles/editorial-public.css */
+@media (max-width: 720px) {
+  #root:is(:has(.event-guide-grid), :has(.event-detail-page)) .wrap {
+    max-width: none;
+    padding-inline: 21px;
+  }
+  #root:has(.event-guide-grid) > div > header {
+    padding: 122px 0 56px !important;
+  }
+  #root:has(.event-guide-grid) > div > header h1 {
+    font-size: clamp(43px, 13.5vw, 58px) !important;
+    line-height: var(--editorial-leading-display-mobile) !important;
+    letter-spacing: var(--editorial-tracking-display) !important;
+  }
+  #root:has(.event-detail-page) .event-detail-copy h1 {
+    font-size: clamp(43px, 13.5vw, 58px) !important;
+    line-height: var(--editorial-leading-display-mobile) !important;
+    letter-spacing: var(--editorial-tracking-display) !important;
+  }
+  #root:has(.event-detail-page) :where(.event-detail-hero-grid, .event-booking-layout) {
+    grid-template-columns: 1fr;
+  }
+  #root:has(.event-guide-grid):has(.h-xl) .event-grid {
+    grid-template-columns: 1fr;
+  }
+  #root:has(.event-guide-grid) .event-guide-grid {
+    grid-template-columns: 1fr;
+  }
+  #root:has(.event-guide-grid) .event-guide-grid > div {
+    min-height: 0;
+  }
+  #root:has(.event-detail-page) .event-detail-hero {
+    padding: 122px 0 56px !important;
+  }
+  #root:has(.event-detail-page) .event-detail-art {
+    min-height: 62vw;
+    border-radius: 5px;
+  }
+  #root:has(.event-detail-page) .event-booking-summary {
+    position: static;
+  }
+}
+
+/* 원본: app/styles/editorial-public.css */
+@media (max-width: 420px) {
+  #root:has(.event-detail-page) .event-session-card {
+    grid-template-columns: 18px minmax(0, 1fr);
+  }
+  #root:has(.event-detail-page) .event-session-price {
+    grid-column: 2;
+    align-items: flex-start;
+    text-align: left;
+  }
+  #root:has(.event-detail-page) .event-qty-field {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  #root:has(.event-detail-page) .checkout-submit {
+    width: 100%;
+  }
+  #root:has(.event-detail-page) .event-ticket-guide .btn {
+    width: 100%;
+  }
+}
+
+/* 원본: app/styles/editorial-public.css */
+@media (max-width: 360px) {
+  #root:is(:has(.event-guide-grid), :has(.event-detail-page)) .wrap {
+    padding-inline: 16px;
+  }
+  #root:has(.event-detail-page) .event-qty-control {
+    grid-template-columns: 42px 50px 42px;
+  }
+  #root:is(:has(.event-guide-grid), :has(.event-detail-page)) :where(h1, h2, p, strong) {
+    word-break: keep-all;
+    line-break: strict;
+    overflow-wrap: break-word;
+  }
+}
+
+/* 원본: app/styles/editorial-public.css */
+@media (prefers-reduced-motion: reduce) {
+  #root:is(:has(.event-guide-grid), :has(.event-detail-page)) {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    transition-delay: 0ms !important;
+  }
+  #root:is(:has(.event-guide-grid), :has(.event-detail-page)) * {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    transition-delay: 0ms !important;
+  }
+  #root:is(:has(.event-guide-grid), :has(.event-detail-page)) *::before {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    transition-delay: 0ms !important;
+  }
+  #root:is(:has(.event-guide-grid), :has(.event-detail-page)) *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    transition-delay: 0ms !important;
+  }
+}
+
+/* 원본: app/styles/editorial-account-commerce.css */
+.event-detail-page {
+  min-height: 100vh;
+  background: var(--account-canvas);
+  color: var(--account-ink);
+}
+.event-detail-page :is(.card, .checkout-form, .checkout-summary, .checkout-order-main, .checkout-receipt) {
+  border: 1px solid var(--account-line-soft);
+  background: var(--account-surface);
+  color: var(--account-ink);
+  box-shadow: none;
+}
+.event-detail-page :is(.h-xl, .h-lg, h1, h2, h3, strong) {
+  color: var(--account-ink);
+}
+.event-detail-page .eyebrow {
+  color: var(--account-ink) !important;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .17em;
+}
+.event-detail-page .btn-ghost {
+  border-color: var(--account-line);
+  background: var(--account-surface);
+  color: var(--account-ink);
+}
+.event-detail-page :is(.btn, button, a, input):focus-visible {
+  outline: 2px solid var(--account-focus);
+  outline-offset: 3px;
+}
+.event-detail-page :is(.btn, button):disabled {
+  cursor: not-allowed;
+  filter: none;
+  opacity: .48;
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .notification-settings-success {
+  border-color: color-mix(in srgb, var(--account-success) 30%, transparent);
+  background: color-mix(in srgb, var(--account-success) 7%, var(--account-surface));
+  color: var(--account-success);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-totals > div {
+  color: var(--account-ink);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-section-heading p {
+  color: var(--account-muted);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-totals dt {
+  color: var(--account-muted);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-state-panel p {
+  color: var(--account-muted);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .money-caption {
+  color: var(--account-muted);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-step {
+  min-height: 28px;
+  border-color: var(--account-line);
+  background: var(--account-green);
+  color: var(--account-ink);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-section-heading--compact {
+  align-items: center;
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-totals .checkout-total {
+  border-color: var(--account-line);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-error {
+  border-color: color-mix(in srgb, var(--account-danger) 34%, transparent);
+  background: color-mix(in srgb, var(--account-danger) 7%, var(--account-surface));
+  color: var(--account-danger);
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-state-panel {
+  color: var(--account-ink);
+}
+.event-booking-layout {
+  margin-top: clamp(36px, 5vw, 72px);
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 410px);
+  gap: 24px;
+}
+.event-detail-back {
+  color: var(--account-muted);
+}
+.event-detail-meta {
+  color: var(--account-muted);
+}
+.event-detail-back:hover {
+  color: var(--account-ink);
+}
+.event-detail-back:focus-visible {
+  outline: 2px solid var(--account-focus);
+  outline-offset: 3px;
+}
+.event-session-panel {
+  border: 1px solid var(--account-line-soft);
+  border-radius: 14px;
+  background: var(--account-surface);
+  color: var(--account-ink);
+  box-shadow: none;
+}
+.event-booking-summary {
+  border: 1px solid var(--account-line-soft);
+  border-radius: 14px;
+  background: var(--account-surface);
+  color: var(--account-ink);
+  box-shadow: none;
+}
+.event-ticket-guide {
+  border: 1px solid var(--account-line-soft);
+  border-radius: 14px;
+  background: var(--account-surface);
+  color: var(--account-ink);
+  box-shadow: none;
+}
+.event-notification-action {
+  border: 1px solid var(--account-line-soft);
+  border-radius: 14px;
+  background: var(--account-surface);
+  color: var(--account-ink);
+  box-shadow: none;
+}
+.event-booking-summary {
+  top: 112px;
+}
+.event-session-list {
+  border-color: var(--account-line-soft);
+}
+.event-session-card {
+  border-color: var(--account-line-soft);
+  border-radius: 14px;
+  background: var(--account-canvas);
+  color: var(--account-ink);
+}
+.event-session-card:hover:not(.is-disabled) {
+  border-color: var(--account-line-strong);
+  background: var(--account-surface);
+}
+.event-session-card.is-selected {
+  border-color: var(--account-ink);
+  background: var(--account-green);
+  box-shadow: 0 0 0 1px var(--account-ink);
+}
+.event-session-card.is-disabled {
+  cursor: not-allowed;
+  filter: none;
+  opacity: .5;
+}
+.event-session-card input:focus-visible + span {
+  outline: 2px solid var(--account-focus);
+  outline-offset: 3px;
+}
+.event-session-card:has(input:focus-visible) {
+  outline: 2px solid var(--account-focus);
+  outline-offset: 3px;
+}
+.event-session-main span {
+  color: var(--account-muted);
+}
+.event-session-price small {
+  color: var(--account-muted);
+}
+.event-booking-empty {
+  color: var(--account-muted);
+}
+.event-booking-selection span {
+  color: var(--account-muted);
+}
+.event-qty-field > span {
+  color: var(--account-muted);
+}
+.event-qty-control {
+  min-height: 44px;
+  border-color: var(--account-line);
+  background: var(--account-canvas);
+}
+.event-qty-control button {
+  min-width: 44px;
+  color: var(--account-ink);
+}
+.event-qty-control button:hover:not(:disabled) {
+  background: var(--account-surface-muted);
+}
+.event-booking-summary .checkout-submit {
+  border-color: var(--account-ink);
+  background: var(--account-ink);
+  color: #fff;
+}
+.event-ticket-guide {
+  margin-top: 24px;
+}
+.event-notification-action {
+  margin-top: 24px;
+}
+.event-ticket-guide {
+  background: var(--account-green);
+}
+.event-notification-action {
+  background: var(--account-pink);
+}
+.event-notification-action .notification-settings-success {
+  background: rgba(255, 255, 255, .55);
+}
+
+/* 원본: app/styles/editorial-account-commerce.css */
+@media (max-width: 1199px) {
+  .event-booking-layout {
+    grid-template-columns: 1fr;
+  }
+  .event-booking-summary {
+    position: static;
+    top: auto;
+  }
+}
+
+/* 원본: app/styles/editorial-account-commerce.css */
+@media (max-width: 720px) {
+  .event-booking-layout {
+    margin-top: 24px;
+  }
+  .event-session-panel {
+    padding: 18px;
+  }
+  .event-booking-summary {
+    padding: 18px;
+  }
+  .event-session-card {
+    grid-template-columns: 18px minmax(0, 1fr);
+  }
+  .event-session-price {
+    grid-column: 2;
+    align-items: flex-start;
+    text-align: left;
+  }
+  .event-ticket-guide {
+    align-items: flex-start;
+    flex-direction: column;
+    margin-inline: 21px;
+  }
+  .event-notification-action {
+    align-items: flex-start;
+    flex-direction: column;
+    margin-inline: 21px;
+  }
+  .event-ticket-guide .btn {
+    width: 100%;
+  }
+  .event-notification-action form {
+    width: 100%;
+  }
+  .event-notification-action .btn {
+    width: 100%;
+  }
+}
+
+/* 원본: app/styles/editorial-account-commerce.css */
+@media (max-width: 360px) {
+  :where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) .checkout-section-heading {
+    flex-direction: column;
+  }
+}
+
+/* editorial-account-commerce.css — prefers-reduced-motion 사본.
+   원본 셀렉터가 묶고 있던 다른 계정 화면 몫은 제외했다(명시도 동일). */
+@media (prefers-reduced-motion: reduce) {
+  .event-detail-page * {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/* ============================================================
+   keyframes 자립 사본 (원본: app/globals.css)
+   ============================================================ */
+
+/* 목록 헤더의 등장 애니메이션(.rise). */
+@keyframes rise { from { transform: translateY(18px); } to { transform: none; } }
+
+/* 목록 카드의 LIVE 점 펄스 — Events.tsx 가 인라인 style 로 직접 참조한다. */
+@keyframes pulseDot {
+  0% { box-shadow: 0 0 0 0 rgba(56,240,192,.5); }
+  70% { box-shadow: 0 0 0 8px rgba(56,240,192,0); }
+  100% { box-shadow: 0 0 0 0 rgba(56,240,192,0); }
+}
+
+/* .btn-holo 의 원본 애니메이션. 아래 editorial-public 사본이 `animation: none !important`
+   로 덮고 있어 실제로는 돌지 않지만, 참조가 남아 있어 함께 옮긴다. */
+@keyframes holoShift { 0%,100%{ background-position: 0% 50%; } 50%{ background-position: 100% 50%; } }

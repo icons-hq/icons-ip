@@ -9,6 +9,7 @@ export const EMAIL_TEMPLATE_NAMES = [
   'order_confirmation',
   'order_shipped',
   'inquiry_answered',
+  'restock_alert',
 ] as const;
 
 export type EmailTemplateName = (typeof EMAIL_TEMPLATE_NAMES)[number];
@@ -54,6 +55,18 @@ export function orderEmailDedupeKey(template: OrderEmailTemplateName, orderId: s
  */
 export function inquiryEmailDedupeKey(messageId: string): string {
   return `inquiry_answered:${messageId}`;
+}
+
+/**
+ * 재입고 알림 메일의 dedupe_key (#326).
+ *
+ * 신청 id 하나로는 부족하다. 같은 신청 행은 재신청→재품절→재입고 사이클마다
+ * pending 으로 되돌아오는데, 키가 그대로면 두 번째 재입고 메일이 첫 사이클의 sent
+ * 행에 막혀 조용히 사라진다. 전이 시각(restock_alerts.notified_at)을 함께 담아
+ * 사이클마다 유일한 키가 되게 한다 — DB 트리거의 알림함 dedupe_key 와 같은 규율이다.
+ */
+export function restockAlertEmailDedupeKey(alertId: string, notifiedAtIso: string): string {
+  return `restock_alert:${alertId}:${notifiedAtIso}`;
 }
 
 /**

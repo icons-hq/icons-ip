@@ -84,7 +84,7 @@ insert into public.ips (id, title, vertical_key)
 values ('order-ladder-ip', '주문 사다리 IP', 'character');
 
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
-values ('order-ladder-goods', 'order-ladder-ip', '사다리 굿즈', '테스트', 10000, 'ok', 20);
+values ('order-ladder-goods', 'order-ladder-ip', '사다리 굿즈', '문구', 10000, 'ok', 20);
 
 insert into public.orders (
   id, user_id, status, total, address, expires_at, shipped_at, delivered_at

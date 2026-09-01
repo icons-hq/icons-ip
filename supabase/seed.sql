@@ -141,16 +141,16 @@ on conflict (id) do update set
   enabled = excluded.enabled;
 
 insert into public.goods (id, ip_id, name, type, price, badge, stock, stock_qty, bg) values
-  ('g1', 'rilakkuma', '리락쿠마 낮잠 쿠션', '쿠션', 42000, '한정', 'low', 7, 'url("/generated/goods/g1.png") center / cover no-repeat, linear-gradient(150deg, #5a3517, #D68A2D 55%, #FFD84D)'),
-  ('g2', 'rilakkuma', '코리락쿠마 미니 키링', '키링', 15000, '신상', 'ok', 120, 'url("/generated/goods/g2.png") center / cover no-repeat, linear-gradient(150deg, #7d4a2a, #F3B6C8 55%, #FFF3D6)'),
-  ('g3', 'maplestory', '주황버섯 봉제인형', '봉제인형', 28000, '신상', 'ok', 90, 'url("/generated/goods/g3.png") center / cover no-repeat, linear-gradient(150deg, #98440f, #FF8C32 55%, #FFD84D)'),
-  ('g4', 'maplestory', '메이플 몬스터 키링 4종', '키링', 18000, '한정', 'low', 12, 'url("/generated/goods/g4.png") center / cover no-repeat, linear-gradient(150deg, #0d5e66, #38F0C0 55%, #8B5CFF)'),
-  ('g5', 'maplestory', '핑크빈 아크릴 디오라마', '아크릴 스탠드', 33000, '예약', 'ok', 80, 'url("/generated/goods/g5.png") center / cover no-repeat, linear-gradient(150deg, #6b2a5b, #F7A8C7 55%, #A981FF)'),
-  ('g6', 'nongdamgom', '담곰이 오리친구 데스크 매트', '문구', 22000, '신상', 'ok', 110, 'url("/generated/goods/g6.png") center / cover no-repeat, linear-gradient(150deg, #70485a, #F7A8C7 55%, #FFF3D6)'),
+  ('g1', 'rilakkuma', '리락쿠마 낮잠 쿠션', '쿠션', 42000, 'EXCLUSIVE', 'low', 7, 'url("/generated/goods/g1.png") center / cover no-repeat, linear-gradient(150deg, #5a3517, #D68A2D 55%, #FFD84D)'),
+  ('g2', 'rilakkuma', '코리락쿠마 미니 키링', '키링', 15000, 'NEW', 'ok', 120, 'url("/generated/goods/g2.png") center / cover no-repeat, linear-gradient(150deg, #7d4a2a, #F3B6C8 55%, #FFF3D6)'),
+  ('g3', 'maplestory', '주황버섯 봉제인형', '인형', 28000, 'NEW', 'ok', 90, 'url("/generated/goods/g3.png") center / cover no-repeat, linear-gradient(150deg, #98440f, #FF8C32 55%, #FFD84D)'),
+  ('g4', 'maplestory', '메이플 몬스터 키링 4종', '키링', 18000, 'EXCLUSIVE', 'low', 12, 'url("/generated/goods/g4.png") center / cover no-repeat, linear-gradient(150deg, #0d5e66, #38F0C0 55%, #8B5CFF)'),
+  ('g5', 'maplestory', '핑크빈 아크릴 디오라마', '아크릴', 33000, null, 'ok', 80, 'url("/generated/goods/g5.png") center / cover no-repeat, linear-gradient(150deg, #6b2a5b, #F7A8C7 55%, #A981FF)'),
+  ('g6', 'nongdamgom', '담곰이 오리친구 데스크 매트', '문구', 22000, 'NEW', 'ok', 110, 'url("/generated/goods/g6.png") center / cover no-repeat, linear-gradient(150deg, #70485a, #F7A8C7 55%, #FFF3D6)'),
   ('g7', 'nongdamgom', '담곰이 말랑 쿠션', '쿠션', 36000, null, 'ok', 60, 'url("/generated/goods/g7.png") center / cover no-repeat, linear-gradient(150deg, #51343f, #F7A8C7 55%, #FFD84D)'),
-  ('g8', 'kakao-friends', '춘식이 수면 파우치', '파우치', 24000, '신상', 'ok', 100, 'url("/generated/goods/g8.png") center / cover no-repeat, linear-gradient(150deg, #66421d, #FFD84D 55%, #FFF3D6)'),
-  ('g9', 'kakao-friends', '라이언&어피치 피크닉 세트', '한정 세트', 59000, '한정', 'low', 8, 'url("/generated/goods/g9.png") center / cover no-repeat, linear-gradient(150deg, #724a1f, #FFD84D 55%, #FF9AAF)'),
-  ('g11', 'attack-on-titan', '리바이 아크릴 스탠드', '아크릴 스탠드', 26000, '예약', 'ok', 70, 'url("/generated/goods/g11.png") center / cover no-repeat, linear-gradient(150deg, #2b251f, #6B705C 55%, #A981FF)')
+  ('g8', 'kakao-friends', '춘식이 수면 파우치', '파우치', 24000, 'NEW', 'ok', 100, 'url("/generated/goods/g8.png") center / cover no-repeat, linear-gradient(150deg, #66421d, #FFD84D 55%, #FFF3D6)'),
+  ('g9', 'kakao-friends', '라이언&어피치 피크닉 세트', '세트', 59000, 'EXCLUSIVE', 'low', 8, 'url("/generated/goods/g9.png") center / cover no-repeat, linear-gradient(150deg, #724a1f, #FFD84D 55%, #FF9AAF)'),
+  ('g11', 'attack-on-titan', '리바이 아크릴 스탠드', '아크릴', 26000, null, 'ok', 70, 'url("/generated/goods/g11.png") center / cover no-repeat, linear-gradient(150deg, #2b251f, #6B705C 55%, #A981FF)')
 on conflict (id) do update set
   ip_id = excluded.ip_id,
   name = excluded.name,
