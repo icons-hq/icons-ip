@@ -6,6 +6,7 @@ import {
   isKorpayUuid,
   normalizeKorpaySiteUrl,
 } from '../lib/payments/korpay-config.mjs';
+import { isTossKeyPairAligned } from '../lib/payments/toss-config.mjs';
 
 const VERCEL_TARGETS = new Set(['preview', 'production']);
 const KORPAY_GATE_NAMES = [
@@ -15,6 +16,14 @@ const KORPAY_GATE_NAMES = [
 const KORPAY_CANARY_NAMES = [
   'KORPAY_ORDER_CANARY_USER_ID',
   'KORPAY_TICKET_CANARY_USER_ID',
+];
+const TOSS_GATE_NAMES = [
+  'TOSS_ORDER_CHECKOUT_ENABLED',
+  'TOSS_TICKET_CHECKOUT_ENABLED',
+];
+const TOSS_CANARY_NAMES = [
+  'TOSS_ORDER_CANARY_USER_ID',
+  'TOSS_TICKET_CANARY_USER_ID',
 ];
 
 function isPresent(value) {
@@ -67,6 +76,16 @@ export function validateVercelBuildEnvironment(environment) {
     target,
     'KORPAY_TICKET_CHECKOUT_ENABLED',
   );
+  const tossOrderCheckoutEnabled = parseBooleanGate(
+    environment,
+    target,
+    'TOSS_ORDER_CHECKOUT_ENABLED',
+  );
+  const tossTicketCheckoutEnabled = parseBooleanGate(
+    environment,
+    target,
+    'TOSS_TICKET_CHECKOUT_ENABLED',
+  );
 
   if (target === 'preview') {
     for (const name of ['KORPAY_MID', 'KORPAY_KEY']) {
@@ -80,6 +99,19 @@ export function validateVercelBuildEnvironment(environment) {
       }
     }
     for (const name of KORPAY_CANARY_NAMES) {
+      if (isPresent(environment[name])) {
+        throw new Error(`Invalid Vercel preview ${name}: canary users are production-only`);
+      }
+    }
+    // 토스 위젯 키 자체는 preview 존재를 막지 않는다 — 구 v1 키가 Preview
+    // 스코프에 남은 이력(#199)이 있고, 런타임은 VERCEL_ENV로 이미 fail closed다.
+    // 결제를 여는 신호(gate·canary)만 preview에서 차단한다.
+    for (const name of TOSS_GATE_NAMES) {
+      if (environment[name] === 'true') {
+        throw new Error(`Invalid Vercel preview ${name}: checkout must remain disabled`);
+      }
+    }
+    for (const name of TOSS_CANARY_NAMES) {
       if (isPresent(environment[name])) {
         throw new Error(`Invalid Vercel preview ${name}: canary users are production-only`);
       }
@@ -101,6 +133,39 @@ export function validateVercelBuildEnvironment(environment) {
         throw new Error(`Invalid Vercel production ${name}: use a UUID v1-5`);
       }
     }
+    for (const name of TOSS_CANARY_NAMES) {
+      if (isPresent(environment[name]) && !isKorpayUuid(environment[name])) {
+        throw new Error(`Invalid Vercel production ${name}: use a UUID v1-5`);
+      }
+    }
+  }
+
+  // 토스 위젯 키 페어는 required가 아니다 — 전자결제 심사(#394) 전 미등록
+  // 상태에서 production 빌드가 깨지면 안 되고, 구 v1 키(test_sk_)가 잔존해도
+  // 형식 무효는 런타임과 같은 규칙으로 unconfigured 침묵이다. 단 결제를 여는
+  // 신호가 있는데 페어가 무효하면 오타가 조용히 결제 불가로 새는 것이므로
+  // 빌드에서 멈춘다.
+  const tossConfigured = target === 'production'
+    && isTossKeyPairAligned(
+      environment.NEXT_PUBLIC_TOSS_CLIENT_KEY?.trim(),
+      environment.TOSS_SECRET_KEY?.trim(),
+    );
+  const tossOrderCanaryConfigured = isPresent(environment.TOSS_ORDER_CANARY_USER_ID);
+  const tossTicketCanaryConfigured = isPresent(environment.TOSS_TICKET_CANARY_USER_ID);
+  if (
+    target === 'production'
+    && !tossConfigured
+    && (
+      tossOrderCheckoutEnabled
+      || tossTicketCheckoutEnabled
+      || tossOrderCanaryConfigured
+      || tossTicketCanaryConfigured
+    )
+  ) {
+    throw new Error(
+      'Invalid Vercel production Toss configuration: checkout gates or canaries are set '
+      + 'but NEXT_PUBLIC_TOSS_CLIENT_KEY/TOSS_SECRET_KEY are not a matching widget key pair',
+    );
   }
 
   if (target === 'production'
@@ -120,13 +185,22 @@ export function validateVercelBuildEnvironment(environment) {
     newCheckoutEnabled: korpayOrderCheckoutEnabled
       || korpayTicketCheckoutEnabled
       || korpayOrderCanaryConfigured
-      || korpayTicketCanaryConfigured,
+      || korpayTicketCanaryConfigured
+      || tossOrderCheckoutEnabled
+      || tossTicketCheckoutEnabled
+      || tossOrderCanaryConfigured
+      || tossTicketCanaryConfigured,
     paymentReconciliationConfigured: isPresent(environment.PAYMENT_RECONCILIATION_SECRET),
     korpayConfigured: target === 'production',
     korpayOrderCheckoutEnabled,
     korpayTicketCheckoutEnabled,
     korpayOrderCanaryConfigured,
     korpayTicketCanaryConfigured,
+    tossConfigured,
+    tossOrderCheckoutEnabled,
+    tossTicketCheckoutEnabled,
+    tossOrderCanaryConfigured,
+    tossTicketCanaryConfigured,
   };
 }
 
@@ -144,7 +218,12 @@ function main() {
       + `order checkout enabled=${result.korpayOrderCheckoutEnabled}, `
       + `ticket checkout enabled=${result.korpayTicketCheckoutEnabled}, `
       + `order canary configured=${result.korpayOrderCanaryConfigured}, `
-      + `ticket canary configured=${result.korpayTicketCanaryConfigured}`,
+      + `ticket canary configured=${result.korpayTicketCanaryConfigured}; `
+      + `Toss configured=${result.tossConfigured}, `
+      + `order checkout enabled=${result.tossOrderCheckoutEnabled}, `
+      + `ticket checkout enabled=${result.tossTicketCheckoutEnabled}, `
+      + `order canary configured=${result.tossOrderCanaryConfigured}, `
+      + `ticket canary configured=${result.tossTicketCanaryConfigured}`,
     );
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'Invalid Vercel build environment');

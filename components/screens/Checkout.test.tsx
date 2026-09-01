@@ -54,10 +54,14 @@ function render({
   paymentAvailable,
   bankTransferAvailable,
   items = [{ goodId: 'g13', qty: 1 }],
+  resumeOrderId = null,
+  paymentFailCode = null,
 }: {
   paymentAvailable: boolean;
   bankTransferAvailable: boolean;
   items?: CartItem[];
+  resumeOrderId?: string | null;
+  paymentFailCode?: string | null;
 }) {
   mocks.items = items;
   return renderToStaticMarkup(
@@ -66,8 +70,9 @@ function render({
       latestAddress={null}
       paymentAvailable={paymentAvailable}
       bankTransferAvailable={bankTransferAvailable}
-      resumeOrderId={null}
+      resumeOrderId={resumeOrderId}
       appliedCoupon={null}
+      paymentFailCode={paymentFailCode}
     />,
   );
 }
@@ -146,5 +151,42 @@ describe('Checkout 결제수단 게이트', () => {
     expect(methodRadio(html, 'bank_transfer')).toContain('disabled');
     expect(html).toContain('선택한 결제수단을 지금은 쓸 수 없어요');
     expect(submitButton(html)).toContain('disabled');
+  });
+});
+
+describe('Checkout 결제 실패 복귀 안내', () => {
+  it('failUrl 복귀 시 검증된 코드는 우리 문구로 안내한다', () => {
+    const html = render({
+      paymentAvailable: true,
+      bankTransferAvailable: true,
+      paymentFailCode: 'PAY_PROCESS_CANCELED',
+    });
+
+    expect(html).toContain('결제를 직접 취소하셨어요');
+  });
+
+  it('미지 코드는 provider 문자열 노출 없이 공통 문구로 덮는다', () => {
+    const html = render({
+      paymentAvailable: true,
+      bankTransferAvailable: true,
+      paymentFailCode: 'SOME_UNKNOWN_CODE',
+    });
+
+    expect(html).toContain('결제가 완료되지 않았어요');
+    expect(html).not.toContain('SOME_UNKNOWN_CODE');
+  });
+
+  it('카트가 비어도(주문 이관 후) 재개 화면에서 같은 안내가 선다', () => {
+    const html = render({
+      paymentAvailable: true,
+      bankTransferAvailable: true,
+      items: [],
+      resumeOrderId: '20000000-0000-4000-8000-000000000388',
+      paymentFailCode: 'REJECT_CARD_COMPANY',
+    });
+
+    expect(html).toContain('진행 중인 주문이 있어요');
+    expect(html).toContain('카드사가 결제를 거절했어요');
+    expect(html).toContain('/checkout/20000000-0000-4000-8000-000000000388');
   });
 });

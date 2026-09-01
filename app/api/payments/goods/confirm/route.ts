@@ -58,6 +58,8 @@ export function createGoodsPaymentConfirmHandler({
 }
 
 export const POST = createGoodsPaymentConfirmHandler({
-  confirmationAvailable: goodsPaymentConfirmationAvailable,
-  createCheckout: createRuntimeGoodsPaymentCheckout,
+  // korpay 콜백 drain은 korpay 자격 증명 기준이다 — 기본 provider가 toss로
+  // 재전환(#384)돼도 진행 중이던 korpay 결제의 종결 경로는 닫히지 않는다.
+  confirmationAvailable: () => goodsPaymentConfirmationAvailable('korpay'),
+  createCheckout: () => createRuntimeGoodsPaymentCheckout('korpay'),
 });
