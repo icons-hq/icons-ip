@@ -16,6 +16,7 @@ export type PlaceOrderErrorCode =
   | 'out_of_stock'
   | 'invalid_address'
   | 'bank_transfer_blocked'
+  | 'restricted_good_blocked'
   | 'coupon_rejected'
   | 'unavailable';
 
@@ -144,6 +145,8 @@ export function mapPlaceOrderError(message: unknown): PlaceOrderErrorCode {
   if (normalized.includes('out of stock')) return 'out_of_stock';
   if (normalized.includes('invalid checkout address')) return 'invalid_address';
   if (normalized.includes('bank transfer blocked')) return 'bank_transfer_blocked';
+  /* 판매 제한(19금) 상품은 성인인증 도입 전까지 서버가 주문을 차단한다(#392). */
+  if (normalized.includes('restricted good blocked')) return 'restricted_good_blocked';
   /* 적용해 둔 쿠폰이 주문 확정 시점 재검증에서 거부된 경우(만료·조건 미달 등).
      세부 사유는 카트가 안내한다 — 주문서는 카트로 돌아가라고만 말한다. */
   if (normalized.includes('coupon_')) return 'coupon_rejected';

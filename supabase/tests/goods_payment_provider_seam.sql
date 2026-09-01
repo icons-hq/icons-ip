@@ -279,16 +279,16 @@ begin
   first_prepare := public.prepare_goods_payment_attempt(
     '00000000-0000-4000-8000-000000002051',
     '20000000-0000-4000-8000-000000002051',
-    'korpay'
+    'toss'
   );
   replay_prepare := public.prepare_goods_payment_attempt(
     '00000000-0000-4000-8000-000000002051',
     '20000000-0000-4000-8000-000000002051',
-    'korpay'
+    'toss'
   );
 
   if first_prepare ->> 'id' is distinct from replay_prepare ->> 'id'
-    or first_prepare ->> 'provider' is distinct from 'korpay'
+    or first_prepare ->> 'provider' is distinct from 'toss'
     or first_prepare ->> 'purpose' is distinct from 'order'
     or first_prepare ->> 'currency' is distinct from 'KRW'
     or (first_prepare ->> 'amount')::bigint <> 31000
@@ -302,7 +302,7 @@ begin
     perform public.prepare_goods_payment_attempt(
       '00000000-0000-4000-8000-000000002052',
       '20000000-0000-4000-8000-000000002051',
-      'korpay'
+      'toss'
     );
   exception when no_data_found then
     owner_rejected := true;
@@ -312,7 +312,7 @@ begin
     perform public.prepare_goods_payment_attempt(
       '00000000-0000-4000-8000-000000002051',
       '20000000-0000-4000-8000-000000002054',
-      'korpay'
+      'toss'
     );
   exception when check_violation then
     snapshot_rejected := true;
@@ -370,7 +370,7 @@ begin
 
   begin
     perform public.claim_goods_payment_attempt(
-      'korpay',
+      'toss',
       selected_attempt.provider_order_id,
       repeat('b', 64),
       '40000000-0000-4000-8000-000000002051'
@@ -398,13 +398,13 @@ begin
   where ref_id = '20000000-0000-4000-8000-000000002051';
 
   first_claim := public.claim_goods_payment_attempt(
-    'korpay',
+    'toss',
     selected_attempt.provider_order_id,
     repeat('a', 64),
     '40000000-0000-4000-8000-000000002051'
   );
   duplicate_claim := public.claim_goods_payment_attempt(
-    'korpay',
+    'toss',
     selected_attempt.provider_order_id,
     repeat('a', 64),
     '40000000-0000-4000-8000-000000002059'
@@ -442,7 +442,7 @@ begin
   end if;
 
   terminal_claim := public.claim_goods_payment_attempt(
-    'korpay',
+    'toss',
     selected_attempt.provider_order_id,
     repeat('a', 64),
     '40000000-0000-4000-8000-000000002058'
@@ -471,7 +471,7 @@ select 1 / case when (
 ) then 1 else 0 end as assert_approved_attempt_marks_order_paid;
 
 select 1 / case when (
-  select payment.provider = 'korpay'
+  select payment.provider = 'toss'
     and payment.status = 'paid'
     and payment.amount = 31000
     and payment.raw is null
@@ -742,14 +742,14 @@ begin
   prepared := public.prepare_goods_payment_attempt(
     '00000000-0000-4000-8000-000000002051',
     '20000000-0000-4000-8000-000000002055',
-    'korpay'
+    'toss'
   );
   perform public.bind_goods_payment_callback_nonce(
     (prepared ->> 'id')::uuid,
     repeat('f', 64)
   );
   perform public.claim_goods_payment_attempt(
-    'korpay',
+    'toss',
     prepared ->> 'provider_order_id',
     repeat('f', 64),
     '40000000-0000-4000-8000-000000002055'
@@ -796,14 +796,14 @@ begin
   prepared := public.prepare_goods_payment_attempt(
     '00000000-0000-4000-8000-000000002051',
     '20000000-0000-4000-8000-000000002056',
-    'korpay'
+    'toss'
   );
   perform public.bind_goods_payment_callback_nonce(
     (prepared ->> 'id')::uuid,
     repeat('e', 64)
   );
   perform public.claim_goods_payment_attempt(
-    'korpay',
+    'toss',
     prepared ->> 'provider_order_id',
     repeat('e', 64),
     '40000000-0000-4000-8000-000000002056'
@@ -863,14 +863,14 @@ begin
     prepared := public.prepare_goods_payment_attempt(
       '00000000-0000-4000-8000-000000002051',
       selected_order_id,
-      'korpay'
+      'toss'
     );
     perform public.bind_goods_payment_callback_nonce(
       (prepared ->> 'id')::uuid,
       selected_digest
     );
     claimed := public.claim_goods_payment_attempt(
-      'korpay',
+      'toss',
       prepared ->> 'provider_order_id',
       selected_digest,
       selected_claim_token

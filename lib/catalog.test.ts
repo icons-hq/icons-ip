@@ -353,8 +353,8 @@ describe('getCatalogSnapshot', () => {
         },
       ],
       goods: [
-        { id: 'g-active', ip_id: 'hwasan', name: '운영 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, archived_at: null },
-        { id: 'g-archived', ip_id: 'hwasan', name: '보관 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'soldout', stock_qty: 0, bg: null, image_path: null, archived_at: '2026-07-17T00:00:00.000Z' },
+        { id: 'g-active', ip_id: 'hwasan', name: '운영 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
+        { id: 'g-archived', ip_id: 'hwasan', name: '보관 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'soldout', stock_qty: 0, bg: null, image_path: null, sale_restriction: 'none', archived_at: '2026-07-17T00:00:00.000Z' },
       ],
       cards: [
         { id: 'c-active', ip_id: 'hwasan', name: '운영 카드', no: '001', rarity: 'N', bg: null, image_path: null, archived_at: null },
@@ -394,6 +394,7 @@ describe('getCatalogSnapshot', () => {
           badge: null,
           stock: 'low',
           stock_qty: 0,
+          sale_restriction: 'none',
           bg: 'good-bg',
           image_path: null,
         },
@@ -406,6 +407,7 @@ describe('getCatalogSnapshot', () => {
           badge: null,
           stock: 'soldout',
           stock_qty: 7,
+          sale_restriction: 'none',
           bg: 'good-bg',
           image_path: null,
         },
@@ -1138,11 +1140,13 @@ describe('getHomeSnapshot', () => {
         {
           id: 'g-first', ip_id: 'brand-ip', name: '첫 굿즈', type: '키링', price: 12000,
           badge: 'NEW', stock: 'ok', stock_qty: 5, bg: null,
+          sale_restriction: 'none',
           image_path: null, allow_bank_transfer: true,
         },
         {
           id: 'g-soldout', ip_id: 'brand-ip', name: '품절 굿즈', type: '파우치', price: 18000,
           badge: null, stock: 'ok', stock_qty: 0, bg: 'linear-gradient(#000, #111)',
+          sale_restriction: 'none',
           image_path: null, allow_bank_transfer: true,
         },
       ],
