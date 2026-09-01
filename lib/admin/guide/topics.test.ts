@@ -119,11 +119,13 @@ describe('어드민 가이드 콘텐츠 무결성', () => {
 
   /* 어드민은 staff 내부 화면이지만 용어는 CONTEXT.md를 따른다 — 실물은 "굿즈"고,
      폐기된 유료 모델의 어휘는 안내문에 되살리지 않는다. '뽑기'는 화면 라벨
-     "뽑기권 발급 정책"에 살아 있는 도메인 용어라 금지 목록에 넣지 않는다. */
+     "뽑기권 발급 정책"에 살아 있는 도메인 용어라 금지 목록에 넣지 않는다.
+     '상품'도 단독으로는 회피 어휘지만 "상품 Q&A"는 CONTEXT.md가 표제어로 등재한
+     정식 화면명이라(내비 라벨·알림 카피 동일) 그 조합만 허용한다. */
   it('CONTEXT.md가 피하라고 한 어휘를 쓰지 않는다', () => {
     for (const topic of topics) {
       const text = plainText(topic);
-      for (const word of ['상품', '가챠', '천장', '충전']) {
+      for (const word of ['상품(?! Q&A)', '가챠', '천장', '충전']) {
         expect(text, `${topic.slug} · ${word}`).not.toMatch(new RegExp(word));
       }
     }
