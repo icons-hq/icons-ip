@@ -1,0 +1,1035 @@
+/*
+ * THROWAWAY PROTOTYPE: 2026-08-12 실측 홈 구조를 ICONS 현재 카탈로그에 대입한 비교용 스타일.
+ * 외부 사이트의 코드·이미지·로고·문구를 포함하지 않는다.
+ */
+
+.lfp-home {
+  --lfp-section-gap: 118px;
+  min-width: 0;
+  background: #fff;
+}
+
+.lfp-section {
+  padding: var(--lfp-section-gap) 24px 0;
+}
+
+.lfp-section-inner {
+  width: min(100%, 1212px);
+  margin: 0 auto;
+}
+
+.lfp-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 30px;
+  margin-bottom: 35px;
+}
+
+.lfp-section-heading > div > span {
+  display: block;
+  margin-bottom: 12px;
+  color: #777a7e;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .13em;
+}
+
+.lfp-section-heading h2 {
+  margin: 0;
+  font-size: clamp(25px, 2.35vw, 32px);
+  font-weight: 800;
+  letter-spacing: -.045em;
+  line-height: 1.18;
+}
+
+.lfp-section-heading p {
+  max-width: 600px;
+  margin: 10px 0 0;
+  color: #74777b;
+  font-size: 13px;
+}
+
+.lfp-section-heading > a {
+  flex: none;
+  padding-bottom: 2px;
+  border-bottom: 1px solid currentColor;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.lfp-hero {
+  position: relative;
+  display: flex;
+  height: 770px;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0 80px 98px;
+  background-position: center !important;
+  background-size: cover !important;
+  color: #fff;
+  isolation: isolate;
+}
+
+.lfp-hero__shade {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: linear-gradient(180deg, rgb(0 0 0 / 3%) 34%, rgb(0 0 0 / 67%) 100%);
+}
+
+.lfp-hero__content {
+  max-width: 650px;
+  text-align: center;
+}
+
+.lfp-hero__content > span {
+  display: block;
+  margin-bottom: 15px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .16em;
+}
+
+.lfp-hero__content h1 {
+  margin: 0;
+  text-wrap: balance;
+  font-size: clamp(40px, 5vw, 66px);
+  font-weight: 800;
+  letter-spacing: -.06em;
+  line-height: 1.05;
+}
+
+.lfp-hero__content p {
+  margin: 20px 0 28px;
+  font-size: 15px;
+}
+
+.lfp-hero__content a {
+  display: inline-flex;
+  min-width: 142px;
+  min-height: 43px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px solid rgb(255 255 255 / 72%);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.lfp-hero__prev,
+.lfp-hero__next {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  width: 45px;
+  height: 45px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 65%);
+  border-radius: 50%;
+  background: rgb(0 0 0 / 12%);
+  color: #fff;
+  transform: translateY(-50%);
+}
+
+.lfp-hero__prev { left: 34px; }
+.lfp-hero__next { right: 34px; }
+
+.lfp-hero__progress {
+  position: absolute;
+  right: 50%;
+  bottom: 35px;
+  display: flex;
+  width: min(460px, 60vw);
+  transform: translateX(50%);
+}
+
+.lfp-hero__progress button {
+  position: relative;
+  flex: 1;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.lfp-hero__progress button::before {
+  position: absolute;
+  top: 6px;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: rgb(255 255 255 / 42%);
+  content: "";
+}
+
+.lfp-hero__progress button span {
+  position: absolute;
+  top: 5px;
+  right: 0;
+  left: 0;
+  height: 2px;
+  background: #fff;
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+.lfp-hero__progress button[aria-pressed="true"] span {
+  opacity: 1;
+  transform: scaleX(1);
+  transition: transform 6.5s linear;
+}
+
+.lfp-hero__pause {
+  position: absolute;
+  right: 34px;
+  bottom: 30px;
+  padding: 4px 7px;
+  border: 1px solid rgb(255 255 255 / 60%);
+  background: rgb(0 0 0 / 16%);
+  color: #fff;
+  font-size: 10px;
+}
+
+.lfp-editorial-rail {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.lfp-editorial-card__image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  margin-bottom: 21px;
+  background-position: center !important;
+  background-size: cover !important;
+}
+
+.lfp-editorial-card > span {
+  display: block;
+  margin-bottom: 10px;
+  color: #777a7e;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+}
+
+.lfp-editorial-card h3 {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.35;
+}
+
+.lfp-editorial-card p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 10px 0 0;
+  color: #74777b;
+  font-size: 12px;
+  line-height: 1.65;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.lfp-collection {
+  display: grid;
+  grid-template-columns: minmax(0, 2.25fr) minmax(280px, .9fr);
+  gap: 32px;
+}
+
+.lfp-collection--reverse {
+  grid-template-columns: minmax(280px, .9fr) minmax(0, 2.25fr);
+}
+
+.lfp-collection--reverse .lfp-collection__campaign { order: 2; }
+.lfp-collection--reverse .lfp-product-rows { order: 1; }
+
+.lfp-collection__campaign {
+  position: relative;
+  display: flex;
+  min-height: 648px;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  padding: 32px;
+  background-position: center !important;
+  background-size: cover !important;
+  color: #fff !important;
+  isolation: isolate;
+}
+
+.lfp-collection__campaign::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: linear-gradient(180deg, rgb(0 0 0 / 15%), transparent 45%, rgb(0 0 0 / 68%));
+  content: "";
+}
+
+.lfp-collection__campaign > span {
+  align-self: flex-start;
+  padding: 7px 10px;
+  border: 1px solid rgb(255 255 255 / 60%);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.lfp-collection__campaign h3 {
+  margin: 0;
+  font-size: clamp(38px, 4vw, 58px);
+  letter-spacing: -.055em;
+}
+
+.lfp-collection__campaign p {
+  margin: 7px 0 24px;
+}
+
+.lfp-collection__campaign small {
+  padding-bottom: 4px;
+  border-bottom: 1px solid currentColor;
+  font-weight: 700;
+}
+
+.lfp-product-rows {
+  display: grid;
+  align-content: stretch;
+  grid-template-rows: repeat(4, minmax(0, 1fr));
+}
+
+.lfp-product-row {
+  display: grid;
+  min-height: 140px;
+  align-items: center;
+  border-bottom: 1px solid #e5e6e8;
+  grid-template-columns: 105px minmax(0, 1fr) 28px;
+  gap: 17px;
+}
+
+.lfp-product-row:first-child {
+  border-top: 1px solid #e5e6e8;
+}
+
+.lfp-product-row__image {
+  display: block;
+  width: 105px;
+  aspect-ratio: 1;
+  background-position: center !important;
+  background-size: cover !important;
+}
+
+.lfp-product-row > div {
+  min-width: 0;
+}
+
+.lfp-product-row > div span,
+.lfp-product-row > div a,
+.lfp-product-row > div strong {
+  display: block;
+}
+
+.lfp-product-row > div span {
+  margin-bottom: 4px;
+  color: #85878b;
+  font-size: 9px;
+}
+
+.lfp-product-row > div a {
+  overflow: hidden;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lfp-product-row > div strong {
+  font-size: 13px;
+}
+
+.lfp-product-row > button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 18px;
+}
+
+.lfp-product-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 36px 18px;
+}
+
+.lfp-product-empty {
+  min-height: 180px;
+  margin: 0;
+  padding: 72px 24px;
+  border: 1px solid var(--lfp-line);
+  color: var(--lfp-muted);
+  text-align: center;
+}
+
+.lfp-product__visual {
+  position: relative;
+  margin-bottom: 15px;
+  background: #f2f3f4;
+}
+
+.lfp-product__image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  background-position: center !important;
+  background-size: cover !important;
+  transition: opacity .2s ease;
+}
+
+.lfp-product__image:hover {
+  opacity: .88;
+}
+
+.lfp-product__badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  padding: 5px 7px;
+  background: #fff;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.lfp-product__wish {
+  position: absolute;
+  right: 9px;
+  bottom: 9px;
+  display: grid;
+  width: 35px;
+  height: 35px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 90%);
+  font-size: 18px;
+}
+
+.lfp-product__wish.is-active {
+  color: var(--lfp-pink);
+}
+
+.lfp-product__copy > span,
+.lfp-product__copy > a,
+.lfp-product__copy > strong,
+.lfp-product__copy > small {
+  display: block;
+}
+
+.lfp-product__ip {
+  margin-bottom: 6px;
+  color: #85878b;
+  font-size: 10px;
+}
+
+.lfp-product__copy > a {
+  min-height: 42px;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.lfp-product__copy > strong {
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+.lfp-product__copy > small {
+  margin-top: 4px;
+  color: var(--lfp-pink);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.lfp-product[data-stock="soldout"] .lfp-product__image {
+  filter: grayscale(.4);
+  opacity: .62;
+}
+
+.lfp-category-layout {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 50px;
+}
+
+.lfp-category-layout .lfp-section-heading {
+  display: block;
+}
+
+.lfp-category-tabs {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.lfp-category-tabs button {
+  position: relative;
+  padding: 7px 0;
+  border: 0;
+  background: transparent;
+  color: #96989b;
+  font-size: 13px;
+  text-align: left;
+}
+
+.lfp-category-tabs button.is-active {
+  color: var(--lfp-ink);
+  font-weight: 800;
+}
+
+.lfp-category-tabs button.is-active::after {
+  display: inline-block;
+  width: 18px;
+  height: 1px;
+  margin: 0 0 4px 10px;
+  background: var(--lfp-pink);
+  content: "";
+}
+
+.lfp-announcement {
+  width: min(calc(100% - 48px), 1212px);
+  margin: 0 auto;
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.lfp-announcement > a {
+  display: flex;
+  min-height: 330px;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  padding: 40px;
+  background-position: center !important;
+  background-size: cover !important;
+  color: #fff;
+  text-align: center;
+  text-shadow: 0 1px 16px rgb(0 0 0 / 34%);
+}
+
+.lfp-announcement span,
+.lfp-announcement small {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.lfp-announcement h2 {
+  max-width: 700px;
+  margin: 18px 0 24px;
+  font-size: clamp(32px, 4vw, 56px);
+  line-height: 1.08;
+}
+
+.lfp-benefits {
+  margin-top: var(--lfp-section-gap);
+  padding: 82px 24px 90px;
+  background: #f2f3f4;
+}
+
+.lfp-benefit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.lfp-benefit-grid article {
+  min-height: 230px;
+  padding: 28px;
+  background: #fff;
+}
+
+.lfp-benefit-grid article > span {
+  color: var(--lfp-pink);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.lfp-benefit-grid h3 {
+  margin: 57px 0 12px;
+  font-size: 18px;
+}
+
+.lfp-benefit-grid p {
+  margin: 0;
+  color: #74777b;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+/* B — 굿즈 우선: 캠페인과 2x2 제품판을 첫 화면에 병렬 배치하고 목록 밀도를 높인다. */
+.lfp-commerce-hero {
+  display: grid;
+  width: min(calc(100% - 48px), 1212px);
+  margin: 46px auto 0;
+  grid-template-columns: 1.08fr .92fr;
+  gap: 34px;
+}
+
+.lfp-commerce-hero__campaign {
+  display: flex;
+  min-height: 646px;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 42px;
+  background-position: center !important;
+  background-size: cover !important;
+  color: #fff !important;
+  text-shadow: 0 1px 20px rgb(0 0 0 / 50%);
+}
+
+.lfp-commerce-hero__campaign > span {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.lfp-commerce-hero__campaign h1 {
+  max-width: 500px;
+  margin: 14px 0;
+  font-size: clamp(38px, 4vw, 58px);
+  line-height: 1.05;
+}
+
+.lfp-commerce-hero__campaign p {
+  max-width: 500px;
+  margin: 0 0 30px;
+}
+
+.lfp-commerce-hero__campaign small {
+  font-weight: 800;
+}
+
+.lfp-commerce-hero__goods {
+  display: flex;
+  flex-direction: column;
+}
+
+.lfp-commerce-hero__goods .lfp-section-heading {
+  margin-bottom: 24px;
+}
+
+.lfp-product-grid--dense {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 26px 14px;
+}
+
+.lfp-product--compact .lfp-product__copy > a {
+  min-height: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lfp-product--compact .lfp-product__copy > strong {
+  font-size: 13px;
+}
+
+.lfp-commerce-category .lfp-category-tabs {
+  overflow-x: auto;
+  flex-direction: row;
+  gap: 20px;
+  margin: -5px 0 28px;
+  scrollbar-width: none;
+}
+
+.lfp-commerce-category .lfp-category-tabs button {
+  flex: none;
+}
+
+.lfp-commerce-category .lfp-category-tabs button.is-active::after {
+  position: absolute;
+  right: 0;
+  bottom: 1px;
+  left: 0;
+  width: auto;
+  margin: 0;
+}
+
+.lfp-commerce-category .lfp-product-grid {
+  grid-template-columns: repeat(4, 1fr);
+  gap: 48px 18px;
+}
+
+.lfp-commerce-strip {
+  padding-top: 94px;
+  padding-bottom: 94px;
+  background: #f4f5f6;
+}
+
+/* C — 에디토리얼 우선: 서문과 이야기 rail 이후에 캠페인·굿즈가 교차한다. */
+.lfp-story-intro {
+  width: min(calc(100% - 48px), 1180px);
+  margin: 0 auto;
+  padding: 105px 0 56px;
+}
+
+.lfp-story-intro > span {
+  color: var(--lfp-pink);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.lfp-story-intro h1 {
+  max-width: 940px;
+  margin: 20px 0 30px;
+  font-size: clamp(48px, 7vw, 94px);
+  letter-spacing: -.075em;
+  line-height: .98;
+}
+
+.lfp-story-intro p {
+  margin: 0;
+  color: #6e7175;
+  font-size: 16px;
+}
+
+.lfp-story-editorial {
+  padding-top: 30px;
+}
+
+.lfp-story-editorial .lfp-editorial-rail {
+  grid-template-columns: 1.45fr 1fr 1fr;
+}
+
+.lfp-story-editorial .lfp-editorial-card:first-child .lfp-editorial-card__image {
+  aspect-ratio: .92;
+}
+
+.lfp-story-hero {
+  width: min(calc(100% - 48px), 1180px);
+  margin: var(--lfp-section-gap) auto 0;
+}
+
+.lfp-story-hero .lfp-hero {
+  height: 620px;
+}
+
+.lfp-story-goods .lfp-product-grid {
+  gap: 44px 28px;
+}
+
+.lfp-story-collection {
+  background: #f2f3f4;
+  padding-bottom: var(--lfp-section-gap);
+}
+
+.lfp-story-collection--second {
+  padding-top: 0;
+  background: #fff;
+}
+
+@media (max-width: 900px) {
+  .lfp-collection,
+  .lfp-collection--reverse {
+    grid-template-columns: minmax(0, 1.65fr) minmax(240px, 1fr);
+    gap: 22px;
+  }
+
+  .lfp-collection__campaign {
+    min-height: 560px;
+  }
+
+  .lfp-product-row {
+    grid-template-columns: 80px minmax(0, 1fr) 24px;
+  }
+
+  .lfp-product-row__image {
+    width: 80px;
+  }
+
+  .lfp-commerce-hero {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .lfp-home {
+    --lfp-section-gap: 76px;
+  }
+
+  .lfp-section {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .lfp-section-heading {
+    align-items: flex-start;
+    margin-bottom: 26px;
+  }
+
+  .lfp-section-heading h2 {
+    font-size: 25px;
+  }
+
+  .lfp-section-heading p {
+    font-size: 12px;
+  }
+
+  .lfp-section-heading > a {
+    margin-top: 8px;
+    font-size: 10px;
+  }
+
+  .lfp-hero {
+    height: 450px;
+    padding: 0 28px 68px;
+  }
+
+  .lfp-hero__content > span {
+    margin-bottom: 11px;
+    font-size: 9px;
+  }
+
+  .lfp-hero__content h1 {
+    font-size: clamp(35px, 11vw, 47px);
+  }
+
+  .lfp-hero__content p {
+    margin: 13px 0 20px;
+    font-size: 12px;
+  }
+
+  .lfp-hero__content a {
+    min-width: 125px;
+    min-height: 38px;
+    font-size: 10px;
+  }
+
+  .lfp-hero__prev,
+  .lfp-hero__next {
+    display: none;
+  }
+
+  .lfp-hero__progress {
+    bottom: 22px;
+    width: calc(100% - 132px);
+  }
+
+  .lfp-hero__pause {
+    right: 18px;
+    bottom: 16px;
+  }
+
+  .lfp-editorial-rail,
+  .lfp-story-editorial .lfp-editorial-rail {
+    display: flex;
+    width: calc(100% + 18px);
+    gap: 14px;
+    overflow-x: auto;
+    padding-right: 18px;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .lfp-editorial-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .lfp-editorial-card {
+    width: 78vw;
+    max-width: 310px;
+    flex: none;
+    scroll-snap-align: start;
+  }
+
+  .lfp-editorial-card__image,
+  .lfp-story-editorial .lfp-editorial-card:first-child .lfp-editorial-card__image {
+    aspect-ratio: 1;
+  }
+
+  .lfp-collection,
+  .lfp-collection--reverse {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .lfp-collection--reverse .lfp-collection__campaign,
+  .lfp-collection--reverse .lfp-product-rows {
+    order: initial;
+  }
+
+  .lfp-collection__campaign {
+    min-height: 440px;
+    padding: 24px;
+  }
+
+  .lfp-collection__campaign h3 {
+    font-size: 37px;
+  }
+
+  .lfp-product-row {
+    min-height: 108px;
+    grid-template-columns: 82px minmax(0, 1fr) 24px;
+  }
+
+  .lfp-product-row__image {
+    width: 82px;
+  }
+
+  .lfp-product-grid,
+  .lfp-commerce-category .lfp-product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 36px 12px;
+  }
+
+  .lfp-product__visual {
+    margin-bottom: 11px;
+  }
+
+  .lfp-product__copy > a {
+    min-height: 39px;
+    font-size: 12px;
+  }
+
+  .lfp-product__copy > strong {
+    font-size: 13px;
+  }
+
+  .lfp-product__wish {
+    right: 7px;
+    bottom: 7px;
+    width: 32px;
+    height: 32px;
+  }
+
+  .lfp-category-layout {
+    display: block;
+  }
+
+  .lfp-category-tabs {
+    width: calc(100% + 18px);
+    overflow-x: auto;
+    flex-direction: row;
+    gap: 20px;
+    margin: -5px 0 25px;
+    padding-right: 18px;
+    scrollbar-width: none;
+  }
+
+  .lfp-category-tabs button {
+    flex: none;
+  }
+
+  .lfp-category-tabs button.is-active::after {
+    position: absolute;
+    right: 0;
+    bottom: 1px;
+    left: 0;
+    width: auto;
+    margin: 0;
+  }
+
+  .lfp-announcement {
+    width: calc(100% - 36px);
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .lfp-announcement > a {
+    min-height: 280px;
+    padding: 25px;
+  }
+
+  .lfp-announcement h2 {
+    font-size: 31px;
+  }
+
+  .lfp-benefits {
+    padding: 60px 18px 68px;
+  }
+
+  .lfp-benefit-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .lfp-benefit-grid article {
+    min-height: 190px;
+    padding: 20px;
+  }
+
+  .lfp-benefit-grid h3 {
+    margin-top: 38px;
+    font-size: 15px;
+  }
+
+  .lfp-benefit-grid p {
+    font-size: 11px;
+  }
+
+  .lfp-commerce-hero {
+    display: flex;
+    width: 100%;
+    margin-top: 0;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .lfp-commerce-hero__campaign {
+    min-height: 450px;
+    padding: 28px 22px;
+  }
+
+  .lfp-commerce-hero__campaign h1 {
+    font-size: 40px;
+  }
+
+  .lfp-commerce-hero__goods {
+    padding: 64px 18px 0;
+  }
+
+  .lfp-product-grid--dense {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .lfp-commerce-strip {
+    padding-top: 68px;
+    padding-bottom: 68px;
+  }
+
+  .lfp-story-intro {
+    width: auto;
+    margin: 0 18px;
+    padding: 72px 0 20px;
+  }
+
+  .lfp-story-intro h1 {
+    margin: 17px 0 22px;
+    font-size: 49px;
+  }
+
+  .lfp-story-intro p {
+    font-size: 13px;
+  }
+
+  .lfp-story-editorial {
+    padding-top: 44px;
+  }
+
+  .lfp-story-hero {
+    width: 100%;
+  }
+
+  .lfp-story-hero .lfp-hero {
+    height: 450px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lfp-hero__progress button[aria-pressed="true"] span {
+    transition: none;
+  }
+}

@@ -38,13 +38,34 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
  */
 export default async function Page({ params, searchParams }: PageProps) {
   const { goodId } = await params;
-  const reviewOptions = normalizeGoodReviewOptions(await searchParams);
+  const query = await searchParams;
+  const reviewOptions = normalizeGoodReviewOptions(query);
 
   const [detail, reviewSection] = await Promise.all([
     loadGoodDetail(goodId),
     loadGoodReviewSection(goodId, reviewOptions),
   ]);
   if (!detail) notFound();
+
+  /* 홈과 같은 환경 경계 안에서 상세 표현만 바꾼다. */
+  const prototypeEnabled = process.env.ICONS_PROTOTYPE === '1'
+    && process.env.VERCEL_ENV !== 'production';
+  if (prototypeEnabled) {
+    const [{ LineFriendsGoodDetailPrototype }, { normalizePrototypeVariant }] = await Promise.all([
+      import('@/components/prototype/line-friends/LineFriendsGoodDetailPrototype'),
+      import('@/components/prototype/line-friends/variants'),
+    ]);
+    return (
+      <>
+        <style data-prototype-styles="line-friends-detail">{`@import url("/prototype/line-friends/chrome.css");
+@import url("/prototype/line-friends/detail.css");`}</style>
+        <LineFriendsGoodDetailPrototype
+          detail={detail}
+          variant={normalizePrototypeVariant(query.variant)}
+        />
+      </>
+    );
+  }
 
   return (
     <GoodDetail

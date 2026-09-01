@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CurrentAuthState } from '@/lib/auth/server';
 import Page from './page';
 
@@ -7,9 +8,14 @@ const mocks = vi.hoisted(() => ({
   cardRewardsEnabled: false,
   getFollowedIpIdsForUser: vi.fn(),
   getHomeSnapshot: vi.fn(),
+  home: vi.fn<(props: Record<string, unknown>) => null>(() => null),
+  homePrototype: vi.fn<(props: Record<string, unknown>) => null>(() => null),
 }));
 
-vi.mock('@/components/screens/Home', () => ({ Home: () => null }));
+vi.mock('@/components/screens/Home', () => ({ Home: mocks.home }));
+vi.mock('@/components/prototype/line-friends/LineFriendsHomePrototype', () => ({
+  LineFriendsHomePrototype: mocks.homePrototype,
+}));
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
 vi.mock('@/lib/auth/onboarding', () => ({
   isOnboarded: (profile: CurrentAuthState['profile']) => Boolean(profile?.onboarded_at),
@@ -34,11 +40,20 @@ const home = {
 
 describe('home community personalization', () => {
   beforeEach(() => {
+    delete process.env.ICONS_PROTOTYPE;
+    delete process.env.VERCEL_ENV;
     mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
     mocks.getHomeSnapshot.mockReset();
     mocks.getHomeSnapshot.mockResolvedValue(home);
     mocks.getFollowedIpIdsForUser.mockReset();
     mocks.getFollowedIpIdsForUser.mockResolvedValue(new Set(['hwasan']));
+    mocks.home.mockClear();
+    mocks.homePrototype.mockClear();
+  });
+
+  afterEach(() => {
+    delete process.env.ICONS_PROTOTYPE;
+    delete process.env.VERCEL_ENV;
   });
 
   it('keeps the public home order for guests without reading private follows', async () => {
@@ -84,5 +99,83 @@ describe('home community personalization', () => {
 
     expect(mocks.getFollowedIpIdsForUser).not.toHaveBeenCalled();
     expect(element.props.followedIpIds).toEqual([]);
+  });
+});
+
+describe('LINE FRIENDS storefront prototype routing', () => {
+  beforeEach(() => {
+    delete process.env.ICONS_PROTOTYPE;
+    delete process.env.VERCEL_ENV;
+    mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
+    mocks.getHomeSnapshot.mockReset();
+    mocks.getHomeSnapshot.mockResolvedValue(home);
+    mocks.getFollowedIpIdsForUser.mockReset();
+    mocks.home.mockClear();
+    mocks.homePrototype.mockClear();
+  });
+
+  afterEach(() => {
+    delete process.env.ICONS_PROTOTYPE;
+    delete process.env.VERCEL_ENV;
+  });
+
+  it('keeps the current home when the prototype flag is not configured', async () => {
+    const html = renderToStaticMarkup(
+      await Page({ searchParams: Promise.resolve({ variant: 'B' }) }),
+    );
+
+    expect(mocks.home).toHaveBeenCalledOnce();
+    expect(mocks.homePrototype).not.toHaveBeenCalled();
+    expect(html).not.toContain('/prototype/line-friends/');
+  });
+
+  it.each(['A', 'B', 'C'] as const)(
+    'renders storefront prototype variant %s when enabled',
+    async (variant) => {
+      process.env.ICONS_PROTOTYPE = '1';
+
+      const html = renderToStaticMarkup(
+        await Page({ searchParams: Promise.resolve({ variant }) }),
+      );
+
+      expect(mocks.home).not.toHaveBeenCalled();
+      expect(mocks.homePrototype.mock.calls[0]?.[0]).toEqual({
+        catalog: home.catalog,
+        curation: home.curation,
+        followedIpIds: [],
+        postPreviewByIpId: home.postPreviewByIpId,
+        variant,
+      });
+      expect(html).toContain('/prototype/line-friends/chrome.css');
+      expect(html).toContain('/prototype/line-friends/home.css');
+    },
+  );
+
+  it.each([
+    ['an invalid variant', { variant: 'unexpected' }],
+    ['a missing variant', {}],
+  ])('falls back to variant A for %s', async (_case, searchParams) => {
+    process.env.ICONS_PROTOTYPE = '1';
+
+    renderToStaticMarkup(
+      await Page({ searchParams: Promise.resolve(searchParams) }),
+    );
+
+    expect(mocks.homePrototype.mock.calls[0]?.[0]).toEqual(
+      expect.objectContaining({ variant: 'A' }),
+    );
+  });
+
+  it('keeps the current home in Vercel production even when the prototype flag is set', async () => {
+    process.env.ICONS_PROTOTYPE = '1';
+    process.env.VERCEL_ENV = 'production';
+
+    const html = renderToStaticMarkup(
+      await Page({ searchParams: Promise.resolve({ variant: 'C' }) }),
+    );
+
+    expect(mocks.home).toHaveBeenCalledOnce();
+    expect(mocks.homePrototype).not.toHaveBeenCalled();
+    expect(html).not.toContain('/prototype/line-friends/');
   });
 });
