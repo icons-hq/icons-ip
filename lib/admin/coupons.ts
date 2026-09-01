@@ -1,4 +1,5 @@
 import type { AdminFieldErrors } from '@/lib/admin/catalog';
+import { kstDateTimeToIso } from '@/lib/admin/kst';
 import { LOYALTY_GRADES } from '@/lib/loyalty';
 
 /* 어드민 쿠폰 콘솔의 폼 계약 (S7 #329).
@@ -43,7 +44,6 @@ export type AdminCouponFormResult =
   | { ok: false; errors: AdminFieldErrors };
 
 const CODE_PATTERN = /^[A-Z0-9][A-Z0-9-]{2,23}$/;
-const DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
 const GRADE_SET = new Set<string>(LOYALTY_GRADES);
 
 function readString(formData: FormData, key: string) {
@@ -65,30 +65,6 @@ function optionalPositiveInteger(
     return null;
   }
   return value;
-}
-
-/* datetime-local 입력을 KST 로 해석해 ISO 로 옮긴다(카탈로그 콘솔과 같은 해석). */
-function kstDateTimeToIso(
-  formData: FormData,
-  key: string,
-  errors: AdminFieldErrors,
-) {
-  const raw = readString(formData, key);
-  if (!raw) return null;
-
-  const match = DATE_TIME_PATTERN.exec(raw);
-  if (!match) {
-    errors[key] = '날짜와 시각을 선택해주세요.';
-    return null;
-  }
-
-  const [, year, month, day, hour, minute] = match;
-  const iso = new Date(`${year}-${month}-${day}T${hour}:${minute}:00+09:00`);
-  if (Number.isNaN(iso.getTime())) {
-    errors[key] = '날짜와 시각을 선택해주세요.';
-    return null;
-  }
-  return iso.toISOString();
 }
 
 export function normalizeAdminCouponForm(formData: FormData): AdminCouponFormResult {

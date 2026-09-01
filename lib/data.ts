@@ -101,30 +101,6 @@ export interface Post {
   tag: string;
   img: string | null;
 }
-export interface Exchange {
-  id: string;
-  kind: '직거래' | '경매';
-  card: string;
-  rarity: RarityKey;
-  want?: string;
-  bid?: number;
-  bids?: number;
-  endsIn?: string;
-  user: string;
-  bg: string;
-  fee: number;
-}
-export interface MarketItem {
-  id: string;
-  name: string;
-  ip: string;
-  type: string;
-  price: number;
-  cond: string;
-  seller: string;
-  verified: boolean;
-  bg: string;
-}
 
 /* vertical accent map */
 const V: Record<string, Vertical> = {
@@ -243,24 +219,6 @@ const POSTS: Post[] = [
   { id: 'p6', user: 'pinkbean_stage', ipName: '메이플스토리', avatar: '#38F0C0', text: '핑크빈 스테이지 HOLO 아직 못 얻었습니다. 주황버섯 점프 카드랑 트레이드 가능하신 분 찾습니다', likes: 287, comments: 39, time: '1시간 전', tag: '카드트레이드', img: null },
 ];
 
-const EXCHANGES: Exchange[] = [
-  { id: 'x1', kind: '직거래', card: '핑크빈 · 스테이지', rarity: 'HOLO', want: '주황버섯 SSR 또는 제안', user: 'pinkbean_stage', bg: imageBg('/generated/cards/c5.png', grad('#6b2a5b', '#F7A8C7', '#A981FF')), fee: 50 },
-  { id: 'x2', kind: '경매', card: '리바이 · 조사병단', rarity: 'SSR', bid: 1200, bids: 14, endsIn: '03:21:40', user: 'survey_buyer', bg: imageBg('/generated/cards/c12.png', grad('#201c18', '#4C5A3F', '#A981FF')), fee: 50 },
-  { id: 'x3', kind: '직거래', card: '리락쿠마 · 낮잠 시간', rarity: 'HOLO', want: '코리락쿠마 SR', user: 'relax_trade', bg: imageBg('/generated/cards/c1.png', grad('#5a3517', '#D68A2D', '#FFD84D')), fee: 50 },
-  { id: 'x4', kind: '경매', card: '라이언 · 피크닉', rarity: 'SSR', bid: 430, bids: 6, endsIn: '11:48:02', user: 'picnic_pull', bg: imageBg('/generated/cards/c8.png', grad('#66421d', '#FFD84D', '#FFF3D6')), fee: 50 },
-  { id: 'x5', kind: '직거래', card: '담곰이 · 산책', rarity: 'R', want: '담곰이 오리친구 또는 제안', user: 'gom_walk', bg: imageBg('/generated/cards/c7.png', grad('#51343f', '#F7A8C7', '#FFD84D')), fee: 50 },
-  { id: 'x6', kind: '경매', card: '슬라임 · 말랑 에너지', rarity: 'R', bid: 260, bids: 9, endsIn: '06:02:55', user: 'slime_energy', bg: imageBg('/generated/cards/c4.png', grad('#0d5e66', '#38F0C0', '#2DE2FF')), fee: 50 },
-];
-
-const MARKET: MarketItem[] = [
-  { id: 'm1', name: '리락쿠마 낮잠 쿠션 (미개봉)', ip: 'rilakkuma', type: '쿠션', price: 39000, cond: '미개봉', seller: 'relax_seller', verified: true, bg: imageBg('/generated/goods/g1.png', grad('#5a3517', '#D68A2D', '#FFD84D')) },
-  { id: 'm2', name: '메이플 몬스터 키링 4종 풀세트', ip: 'maplestory', type: '키링', price: 24000, cond: 'A급', seller: 'maple_shop', verified: true, bg: imageBg('/generated/goods/g4.png', grad('#0d5e66', '#38F0C0', '#8B5CFF')) },
-  { id: 'm3', name: '담곰이 말랑 쿠션', ip: 'nongdamgom', type: '쿠션', price: 30000, cond: '개봉/전시', seller: 'gom_store', verified: true, bg: imageBg('/generated/goods/g7.png', grad('#51343f', '#F7A8C7', '#FFD84D')) },
-  { id: 'm4', name: '춘식이 수면 파우치', ip: 'kakao-friends', type: '파우치', price: 18000, cond: '미사용', seller: 'choonsik_fan', verified: false, bg: imageBg('/generated/goods/g8.png', grad('#66421d', '#FFD84D', '#FFF3D6')) },
-  { id: 'm5', name: '리바이 아크릴 스탠드 예약권', ip: 'attack-on-titan', type: '아크릴 스탠드', price: 31000, cond: '예약권', seller: 'levi_case', verified: true, bg: imageBg('/generated/goods/g11.png', grad('#2b251f', '#6B705C', '#A981FF')) },
-  { id: 'm6', name: '카카오프렌즈 피크닉 세트 일부 구성', ip: 'kakao-friends', type: '한정 세트', price: 48000, cond: 'B급', seller: 'picnic_box', verified: true, bg: imageBg('/generated/goods/g9.png', grad('#66421d', '#FFD84D', '#FF9AAF')) },
-];
-
 const TRENDING = ['#리락쿠마', '#메이플스토리', '#담곰이', '#카카오프렌즈', '#리바이', '#팝업인증', '#한정굿즈', '#카드트레이드', '#피크닉세트', '#낮잠쿠션'];
 
 const STATS = { fans: '76.5만', ips: 6, goods: '13', events: 5 };
@@ -276,8 +234,6 @@ export const DATA = {
   GAMES,
   EVENTS,
   POSTS,
-  EXCHANGES,
-  MARKET,
   TRENDING,
   STATS,
 };

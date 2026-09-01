@@ -17,7 +17,7 @@ const ICONS_BY_ID: Record<string, string> = {
 /* 모바일 하단 고정 탭바. 'menu'만 목적지가 없는 액션 탭이라 링크 대신 전체 메뉴 시트를 연다. */
 export function BottomTabBar({ menuOpen, onMenuOpen }: { menuOpen: boolean; onMenuOpen: () => void }) {
   const pathname = usePathname();
-  /* 결제 흐름에서는 하단 고정 CTA를 가리지 않도록 스스로 빠진다(구 MobNav 동작 승계). */
+  /* 결제 흐름에서는 하단 고정 CTA를 가리지 않도록 스스로 빠진다. */
   if (pathname.startsWith('/checkout') || pathname.startsWith('/ticket-checkout')) return null;
   /* 굿즈 상세도 같다 — 모바일 PDP 는 72px 구매바가 최하단을 차지한다(R-04 §7.2).
      탭바를 그대로 두면 z-index 로 가려진 채 포커스 순서에만 남는 유령 내비가 된다.

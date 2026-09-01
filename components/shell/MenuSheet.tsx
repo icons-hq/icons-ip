@@ -31,7 +31,8 @@ export function MenuSheet({
 
   if (!open) return null;
 
-  /* AuthButton과 같은 클릭 시점 계산 — 렌더 시점 pathname을 굳혀 두면 돌아올 곳이 어긋난다. */
+  /* 복귀 경로는 렌더 시점이 아니라 클릭 시점에 window에서 읽는다 — 시트는 라우트 전환에도 살아남으므로
+     렌더 시점 pathname을 굳혀 두면 경로가 바뀐 뒤 돌아올 곳이 어긋난다. */
   const loginHref = () =>
     `/login?next=${encodeURIComponent(
       nextPathWithSearch(window.location.pathname, new URLSearchParams(window.location.search)),

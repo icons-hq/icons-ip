@@ -1,4 +1,5 @@
 import type { AdminFieldErrors } from '@/lib/admin/catalog';
+import { kstDateTimeToIso } from '@/lib/admin/kst';
 
 /*
  * 어드민 캠페인 콘솔의 폼 계약 (S8 #330).
@@ -100,11 +101,6 @@ export type AdminCoinExchangeOfferFormResult =
 
 /* ── 본문 블록 스키마 ─────────────────────────────────────────────────────── */
 
-export const ADMIN_CAMPAIGN_SECTION_TYPES = [
-  'intro', 'image', 'text', 'attendance', 'exchange', 'coupon', 'goods', 'notice',
-] as const;
-export type AdminCampaignSectionType = (typeof ADMIN_CAMPAIGN_SECTION_TYPES)[number];
-
 export const ADMIN_CAMPAIGN_MAX_SECTIONS = 20;
 
 type SectionFieldKind = 'text' | 'uuid' | 'stringArray';
@@ -122,7 +118,7 @@ export interface AdminCampaignSectionField {
 export interface AdminCampaignSectionSpec {
   type: AdminCampaignSectionType;
   label: string;
-  fields: AdminCampaignSectionField[];
+  fields: readonly AdminCampaignSectionField[];
 }
 
 /*
@@ -130,8 +126,12 @@ export interface AdminCampaignSectionSpec {
  * 생기는 비용을 감수하는 이유는, 운영자가 20블록짜리 JSON을 저장 버튼 왕복 없이
  * 고칠 수 있어야 하기 때문이다 — DB는 어느 블록의 어느 키인지 DETAIL로만 말한다.
  * 판정의 진실원은 여전히 DB다. 여기서 통과해도 DB가 거절할 수 있다.
+ *
+ * 이 표가 어드민이 아는 블록 종류의 단일 원천이다. 종류 목록도 타입도 여기서
+ * 파생시킨다(S9 #331) — 이름을 따로 나열해 두면 블록을 하나 늘릴 때 같은 이름을
+ * 두 곳에 적어야 하고, 한쪽만 고쳐진 상태가 컴파일을 통과한다.
  */
-export const ADMIN_CAMPAIGN_SECTION_SPECS: AdminCampaignSectionSpec[] = [
+const SECTION_SPECS = [
   {
     type: 'intro',
     label: '인트로 문구',
@@ -191,7 +191,15 @@ export const ADMIN_CAMPAIGN_SECTION_SPECS: AdminCampaignSectionSpec[] = [
       maxItems: 20,
     }],
   },
-];
+] as const;
+
+export type AdminCampaignSectionType = (typeof SECTION_SPECS)[number]['type'];
+
+export const ADMIN_CAMPAIGN_SECTION_SPECS: readonly AdminCampaignSectionSpec[] = SECTION_SPECS;
+
+/** 운영자 오류 문구가 나열하는 종류 목록. 순서는 스펙 표(=폼 안내 순서)를 따른다. */
+export const ADMIN_CAMPAIGN_SECTION_TYPES: readonly AdminCampaignSectionType[] =
+  SECTION_SPECS.map((spec) => spec.type);
 
 const SECTION_SPEC_BY_TYPE = new Map<string, AdminCampaignSectionSpec>(
   ADMIN_CAMPAIGN_SECTION_SPECS.map((spec) => [spec.type, spec]),
@@ -202,7 +210,6 @@ const ANCHOR_MAX_LENGTH = 20;
 
 const ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,63}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const DATE_TIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
 const KIND_SET = new Set<string>(ADMIN_CAMPAIGN_KINDS);
 const STATUS_SET = new Set<string>(ADMIN_CAMPAIGN_STATUSES);
 const OFFER_STATUS_SET = new Set<string>(ADMIN_COIN_OFFER_STATUSES);
@@ -226,27 +233,6 @@ function optionalText(
     return null;
   }
   return raw;
-}
-
-/* datetime-local 입력을 KST로 해석해 ISO로 옮긴다(쿠폰·카탈로그 콘솔과 같은 해석).
-   브라우저 로컬 타임존으로 읽으면 해외에서 접속한 운영자가 9시간 어긋난 기간을 만든다. */
-function kstDateTimeToIso(formData: FormData, key: string, errors: AdminFieldErrors) {
-  const raw = readString(formData, key);
-  if (!raw) return null;
-
-  const match = DATE_TIME_PATTERN.exec(raw);
-  if (!match) {
-    errors[key] = '날짜와 시각을 선택해주세요.';
-    return null;
-  }
-
-  const [, year, month, day, hour, minute] = match;
-  const parsed = new Date(`${year}-${month}-${day}T${hour}:${minute}:00+09:00`);
-  if (Number.isNaN(parsed.getTime())) {
-    errors[key] = '날짜와 시각을 선택해주세요.';
-    return null;
-  }
-  return parsed.toISOString();
 }
 
 export type AdminCampaignSectionsResult =
