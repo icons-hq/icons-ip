@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { COMMUNITY_ENABLED } from './community-visibility';
 import { getSearchSnapshot, normalizeSearchQuery } from './search';
 
 const mocks = vi.hoisted(() => ({
@@ -47,16 +48,21 @@ describe('getSearchSnapshot', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(snapshot.source).toBe('mock');
     expect(snapshot.query).toBe('리락쿠마');
-    expect(snapshot.groups.map((group) => group.kind)).toEqual(['ip', 'good', 'card', 'post']);
+    /* 커뮤니티 임시 비공개 스위치가 포스트·태그 그룹을 함께 걷어낸다(lib/community-visibility.ts). */
+    expect(snapshot.groups.map((group) => group.kind)).toEqual(
+      COMMUNITY_ENABLED ? ['ip', 'good', 'card', 'post'] : ['ip', 'good', 'card'],
+    );
     expect(snapshot.displayedTotal).toBe(
       snapshot.groups.reduce((total, group) => total + group.results.length, 0),
     );
     expect(snapshot.groups.find((group) => group.kind === 'ip')?.results).toEqual([
       expect.objectContaining({ id: 'rilakkuma', label: '리락쿠마', ipId: 'rilakkuma' }),
     ]);
-    expect(snapshot.groups.find((group) => group.kind === 'post')?.results).toEqual([
-      expect.objectContaining({ id: 'p1', label: expect.stringContaining('낮잠 쿠션') }),
-    ]);
+    expect(snapshot.groups.find((group) => group.kind === 'post')?.results).toEqual(
+      COMMUNITY_ENABLED
+        ? [expect.objectContaining({ id: 'p1', label: expect.stringContaining('낮잠 쿠션') })]
+        : undefined,
+    );
   });
 
   it('uses mock catalog data on Vercel Preview even when Supabase is configured', async () => {
@@ -158,17 +164,22 @@ describe('getSearchSnapshot', () => {
       search_query: '리락',
       per_group_limit: 6,
     });
+    const publicGroups = [
+      expect.objectContaining({ kind: 'ip', label: 'IP', results: [expect.objectContaining({ id: 'rilakkuma' })] }),
+      expect.objectContaining({ kind: 'good', label: '굿즈', results: [expect.objectContaining({ id: 'g2' })] }),
+      expect.objectContaining({ kind: 'card', label: '카드', results: [expect.objectContaining({ id: 'c2' })] }),
+    ];
+    const communityGroups = [
+      expect.objectContaining({ kind: 'post', label: '포스트', results: [expect.objectContaining({ id: '00000000-0000-4000-8000-000000000015' })] }),
+      expect.objectContaining({ kind: 'tag', label: '태그', results: [expect.objectContaining({ id: '후기' })] }),
+    ];
+
+    /* displayedTotal 은 걷어낸 뒤의 수를 센다 — 표시 개수와 어긋나면 안 된다. */
     expect(snapshot).toEqual({
       source: 'supabase',
       query: '리락',
-      displayedTotal: 5,
-      groups: [
-        expect.objectContaining({ kind: 'ip', label: 'IP', results: [expect.objectContaining({ id: 'rilakkuma' })] }),
-        expect.objectContaining({ kind: 'good', label: '굿즈', results: [expect.objectContaining({ id: 'g2' })] }),
-        expect.objectContaining({ kind: 'card', label: '카드', results: [expect.objectContaining({ id: 'c2' })] }),
-        expect.objectContaining({ kind: 'post', label: '포스트', results: [expect.objectContaining({ id: '00000000-0000-4000-8000-000000000015' })] }),
-        expect.objectContaining({ kind: 'tag', label: '태그', results: [expect.objectContaining({ id: '후기' })] }),
-      ],
+      displayedTotal: COMMUNITY_ENABLED ? 5 : 3,
+      groups: COMMUNITY_ENABLED ? [...publicGroups, ...communityGroups] : publicGroups,
     });
   });
 });

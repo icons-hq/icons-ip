@@ -3,6 +3,7 @@ import { Icon } from '@/components/ui/Icon';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { ProductCard } from '@/components/wc/ProductCard';
 import { SectionHeading } from '@/components/wc/SectionHeading';
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import type { Ip } from '@/lib/data';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import type { GoodsSearchResult } from '@/lib/search-goods';
@@ -149,7 +150,7 @@ export function Search({ goodsResult, ips, query, snapshot }: SearchProps) {
             className="wc-search__input"
             defaultValue={query}
             name="q"
-            placeholder="IP · 굿즈 · 카드 · 포스트 통합 검색"
+            placeholder={COMMUNITY_ENABLED ? 'IP · 굿즈 · 카드 · 포스트 통합 검색' : 'IP · 굿즈 · 카드 통합 검색'}
             type="search"
           />
           <button aria-label="검색" className="wc-icon-btn" type="submit">
@@ -180,7 +181,10 @@ export function Search({ goodsResult, ips, query, snapshot }: SearchProps) {
           /* 레퍼런스는 빈 결과에서 회복 동선을 전부 걷어냈다(R-03 §4-7). 추천 칩을 다시 붙인다. */
           <div className="wc-search-results__empty">
             <EmptyState
-              description={hasQuery ? '다른 검색어로 시도해 보세요.' : '굿즈·IP·카드·포스트를 한 번에 찾아드려요.'}
+              description={hasQuery
+                ? '다른 검색어로 시도해 보세요.'
+                /* 포스트는 커뮤니티 임시 비공개 동안 결과에서 빠지므로 안내에서도 뺀다. */
+                : COMMUNITY_ENABLED ? '굿즈·IP·카드·포스트를 한 번에 찾아드려요.' : '굿즈·IP·카드를 한 번에 찾아드려요.'}
               title={hasQuery ? `'${query}'에 맞는 결과가 없어요` : '검색어를 입력해 주세요'}
               titleAs="h2"
             />

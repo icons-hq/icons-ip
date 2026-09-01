@@ -5,6 +5,7 @@
  * 실재하는 화면과 카탈로그 레코드에서 목록을 만들어 고르게 한다.
  */
 
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { goodDetailHref } from '@/lib/goods-display';
 
 export interface AdminCurationTargetOption {
@@ -36,7 +37,9 @@ const FIXED_TARGETS: AdminCurationTargetOption[] = [
   { label: '굿즈샵', path: '/shop' },
   { label: '카드팩', path: '/packs' },
   { label: '오프라인 팝업', path: '/offline-popups' },
-  { label: '커뮤니티', path: '/community' },
+  /* 커뮤니티는 임시 비공개라 새 큐레이션 타깃으로 제안하지 않는다. 공개 지면 쪽에서도
+     withoutCommunityCurations 가 기존 배너를 걸러낸다. 복원은 lib/community-visibility.ts. */
+  ...(COMMUNITY_ENABLED ? [{ label: '커뮤니티', path: '/community' }] : []),
 ];
 
 /* 경로 조립은 호출부가 넘긴다 — 굿즈처럼 이미 헬퍼가 있는 대상은 그것을 쓴다. */

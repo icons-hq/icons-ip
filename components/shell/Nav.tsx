@@ -5,7 +5,8 @@ import { Suspense, useEffect, useRef, useState, type FocusEvent, type KeyboardEv
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { signOutAction } from '@/app/login/actions';
 import { nextPathWithSearch } from '@/lib/auth/onboarding';
-import { isCardRewardDestination, type NoticeStrip } from '@/lib/home-catalog';
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
+import { isCardRewardDestination, isCommunityDestination, type NoticeStrip } from '@/lib/home-catalog';
 import {
   CATEGORY_MEGA_GROUPS,
   NAV_ITEMS,
@@ -127,7 +128,9 @@ function WcChrome({
           축약 기준이 스트립 높이만큼 자동 보정된다 — 스트립이 아직 보이는 동안에는 GNB가 접히지 않는다.
           PC 비율 아트웍은 모바일 폭에서 수 px 로 붕괴하므로 히어로처럼 모바일 소스를 분기하고,
           카드 리워드 목적지 스트립은 게이트가 꺼진 배포에서 packs GNB 항목과 같은 규칙으로 숨긴다. */}
-      {noticeStrip && (cardRewardsEnabled || !isCardRewardDestination(noticeStrip.href)) ? (
+      {noticeStrip
+        && (cardRewardsEnabled || !isCardRewardDestination(noticeStrip.href))
+        && (COMMUNITY_ENABLED || !isCommunityDestination(noticeStrip.href)) ? (
         <Link className="wc-notice" href={noticeStrip.href}>
           <picture>
             {noticeStrip.mobileImageUrl ? (

@@ -11,6 +11,7 @@ import {
   useSyncExternalStore,
 } from 'react';
 import type { CatalogSnapshot } from '@/lib/catalog';
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import type { Ip } from '@/lib/data';
 import { compactNumber, krw } from '@/lib/format';
 import {
@@ -20,6 +21,7 @@ import {
   type HomeCurationSnapshot,
   type HomePostPreviewByIpId,
 } from '@/lib/home-catalog';
+import { isCommunityDestination } from '@/lib/home-catalog';
 import { RARITY_META } from '@/lib/rarity';
 import { hrefFor } from '@/lib/routes';
 import { Empty } from '@/components/ui/Empty';
@@ -628,8 +630,11 @@ function WorldFeatures({
     ?? catalog.cards.find((card) => card.ip === worldIp.id);
   const communityEvent = catalog.events.find((event) => event.id === 'e1')
     ?? catalog.events.find((event) => event.ip === selectedIp.id);
-  const posts = prioritizeHomePostPreviews(postPreviewByIpId, followedIpIdSet, orderedIpIds)
-    .map(([, post]) => post);
+  /* 커뮤니티가 임시 비공개인 동안 실제 포스트 발췌(작성자·본문·좋아요)를 공개 지면에 남기지
+     않는다. 아래 카드는 값이 없으면 예시 문구로 떨어져 전시 자체는 그대로 선다. */
+  const posts = COMMUNITY_ENABLED
+    ? prioritizeHomePostPreviews(postPreviewByIpId, followedIpIdSet, orderedIpIds).map(([, post]) => post)
+    : [];
   const primaryPost = posts[0];
   const secondaryPost = posts.find((post) => post.id !== primaryPost?.id);
   const featureCards = ['c1', 'c6', 'c11']
@@ -670,7 +675,7 @@ function WorldFeatures({
           <span className="feature-number">02</span><p className="eyebrow dark">SINCERE CONNECTION</p>
           <h3>좋아하는 사람들과<br />더 가까이</h3>
           <p>무료로 팬덤에 가입하고, 드롭과 팝업 소식을 가장 먼저 만나고, 같은 취향의 팬들과 이야기하세요.</p>
-          <Link href="/community">팬덤 발견하기 <span aria-hidden>↗</span></Link>
+          {COMMUNITY_ENABLED && <Link href="/community">팬덤 발견하기 <span aria-hidden>↗</span></Link>}
         </div>
         <div className="feature-art feature-art--community">
           <div className="chat-card chat-card--one feature-float" data-end="-20" data-parallax="true" data-start="5">
@@ -773,12 +778,12 @@ export function AboutLegacy({
   const selectedIp = selectableIps[0] ?? null;
   const hasPreviewDataset = REFERENCE_FEATURED_IP_IDS
     .every((id) => catalog.ips.some((ip) => ip.id === id));
-  const curatedHero = !cardRewardsEnabled && curation.hero && isCardRewardDestination(curation.hero.href)
-    ? null
-    : curation.hero;
-  const curatedAnnouncement = !cardRewardsEnabled
-    && curation.announcement
-    && isCardRewardDestination(curation.announcement.href)
+  /* 게이트가 걸린 목적지의 큐레이션은 배너만 살아 죽은 링크가 되므로 함께 걸러낸다. */
+  const isGatedDestination = (href: string) =>
+    (!cardRewardsEnabled && isCardRewardDestination(href))
+    || (!COMMUNITY_ENABLED && isCommunityDestination(href));
+  const curatedHero = curation.hero && isGatedDestination(curation.hero.href) ? null : curation.hero;
+  const curatedAnnouncement = curation.announcement && isGatedDestination(curation.announcement.href)
     ? null
     : curation.announcement;
 

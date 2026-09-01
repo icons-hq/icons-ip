@@ -84,6 +84,28 @@ export function withoutCardRewardCurations(curation: HomeCurationSnapshot): Home
   };
 }
 
+/* 커뮤니티가 임시 비공개인 동안 커뮤니티로 가는 큐레이션 배너를 걸러낸다. 어드민 타깃 목록에서
+   이미 걸어 둔 히어로·공지·노티스가 살아 있으면 공개 지면에 404로 떨어지는 링크가 남는다.
+   파싱 불가 href 는 카드 리워드 판정과 같은 이유로 안전하게 게이트 대상으로 본다. */
+export function isCommunityDestination(href: string): boolean {
+  try {
+    const pathname = decodeURIComponent(new URL(href, 'https://icons.local').pathname);
+    return pathname === '/community' || pathname.startsWith('/community/');
+  } catch {
+    return true;
+  }
+}
+
+/** 커뮤니티가 닫힌 화면이 커뮤니티 목적지 큐레이션을 통째로 걸러낼 때 쓴다. */
+export function withoutCommunityCurations(curation: HomeCurationSnapshot): HomeCurationSnapshot {
+  return {
+    ...curation,
+    heroSlides: curation.heroSlides.filter((slide) => !isCommunityDestination(slide.href)),
+    editorPicks: curation.editorPicks.filter((pick) => !isCommunityDestination(pick.href)),
+    goodsBands: curation.goodsBands.filter((band) => !isCommunityDestination(band.href)),
+  };
+}
+
 export interface HomeHeroSlide {
   id: string;
   title: string;

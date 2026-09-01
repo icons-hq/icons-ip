@@ -144,10 +144,12 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* min-height 는 두지 않는다. `#root` 에 배경이 없어 늘어난 만큼 body 밑색(--editorial-canvas)이
+   그대로 드러나고, nav 높이를 빼지 않아 짧은 페이지마다 푸터 위에 회색 띠가 남았다.
+   position/z-index 는 오버레이 포털의 스태킹 계약이라 유지한다(components/shell/OverlayPortal.tsx). */
 #root {
   position: relative;
   z-index: 1;
-  min-height: 100svh;
 }
 
 ::selection {

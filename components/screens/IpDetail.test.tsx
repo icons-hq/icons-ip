@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import type { CatalogIpDetail } from '@/lib/catalog';
 import type { IpFollowState } from '@/lib/ip-follow';
 import { IpDetail } from './IpDetail';
@@ -209,6 +210,7 @@ describe('IpDetail link band', () => {
     expect(html).toContain('카드 도감 2종');
     expect(html).toContain('href="/binder"');
     expect(html).toContain('href="/offline-popups"');
-    expect(html).toContain('href="/community?ip=maplestory"');
+    /* 팬덤 채널은 커뮤니티 임시 비공개 스위치를 따른다. */
+    expect(html.includes('href="/community?ip=maplestory"')).toBe(COMMUNITY_ENABLED);
   });
 });

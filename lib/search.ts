@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { DATA } from '@/lib/data';
 import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
 import { getSupabaseConfig } from '@/lib/supabase/config';
@@ -84,6 +85,17 @@ function toSearchResult(row: SearchRpcRow, imageUrlForPath?: (path: string) => s
     accent: row.accent,
     score: Number(row.score ?? 0),
   };
+}
+
+/* 커뮤니티 임시 비공개 — 포스트와 태그는 커뮤니티 산물이라 함께 걷어낸다. 태그만 남기면
+   눌렀을 때 포스트가 하나도 없는 빈 결과로 떨어진다. displayedTotal 도 이 뒤에서 센다. */
+const HIDDEN_SEARCH_KINDS: ReadonlySet<SearchResultKind> = new Set(
+  COMMUNITY_ENABLED ? [] : (['post', 'tag'] as SearchResultKind[]),
+);
+
+function visibleSearchResults(results: SearchResult[]): SearchResult[] {
+  if (HIDDEN_SEARCH_KINDS.size === 0) return results;
+  return results.filter((result) => !HIDDEN_SEARCH_KINDS.has(result.kind));
 }
 
 function groupSearchResults(results: SearchResult[]) {
@@ -201,11 +213,13 @@ function getMockSearchSnapshot(query: string): SearchSnapshot {
       })),
   ].sort((left, right) => right.score - left.score);
 
+  const visible = visibleSearchResults(results);
+
   return {
     source: 'mock',
     query,
-    displayedTotal: results.length,
-    groups: groupSearchResults(results),
+    displayedTotal: visible.length,
+    groups: groupSearchResults(visible),
   };
 }
 
@@ -236,10 +250,12 @@ export async function getSearchSnapshot(rawQuery: string | string[] | null | und
     .map((row) => toSearchResult(row, imageUrlForPath))
     .filter((result): result is SearchResult => result !== null);
 
+  const visible = visibleSearchResults(results);
+
   return {
     source,
     query,
-    displayedTotal: results.length,
-    groups: groupSearchResults(results),
+    displayedTotal: visible.length,
+    groups: groupSearchResults(visible),
   };
 }
