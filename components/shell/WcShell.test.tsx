@@ -94,6 +94,22 @@ describe('White Catalog 전역 셸', () => {
         />,
       ),
     ).not.toContain('wc-notice');
+
+    /* 커뮤니티 임시 비공개도 같은 규칙이다 — 배너만 살아 404 로 떨어지지 않게 한다. */
+    mocks.cardRewardsEnabled = true;
+    expect(
+      renderToStaticMarkup(
+        <Nav
+          noticeStrip={{
+            id: 'n3',
+            title: '커뮤니티 공지',
+            imageUrl: 'https://cdn.example/community.webp',
+            mobileImageUrl: null,
+            href: '/community',
+          }}
+        />,
+      ).includes('wc-notice'),
+    ).toBe(COMMUNITY_ENABLED);
   });
 
   it('공개 표면에서 유틸바·헤더 아이콘·GNB·메가메뉴·바텀바 진입점을 한 번에 세운다', () => {

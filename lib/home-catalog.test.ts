@@ -4,8 +4,11 @@ import type { Card, FandomEvent, Good, Ip, Vertical } from './data';
 import {
   buildHomeIpWorld,
   getHomeSelectableIps,
+  isCommunityDestination,
   MAX_HOME_PICKER_IPS,
   prioritizeHomePostPreviews,
+  withoutCommunityCurations,
+  type HomeCurationSnapshot,
 } from './home-catalog';
 
 const vertical: Vertical = { key: 'global', label: '글로벌 IP', color: '#2DE2FF' };
@@ -268,5 +271,42 @@ describe('prioritizeHomePostPreviews', () => {
     expect(
       prioritizeHomePostPreviews(previews, new Set(), ['10', '2']).map(([ipId]) => ipId),
     ).toEqual(['10', '2']);
+  });
+});
+
+describe('커뮤니티 목적지 큐레이션 필터', () => {
+  it('커뮤니티 경로만 목적지로 판정하고 파싱 불가 href는 안전하게 게이트한다', () => {
+    expect(isCommunityDestination('/community')).toBe(true);
+    expect(isCommunityDestination('/community?ip=rilakkuma')).toBe(true);
+    expect(isCommunityDestination('/community/post/1')).toBe(true);
+    expect(isCommunityDestination('/communityhub')).toBe(false);
+    expect(isCommunityDestination('/shop')).toBe(false);
+    expect(isCommunityDestination('%')).toBe(true);
+  });
+
+  it('히어로·에디터픽·굿즈밴드에서 커뮤니티 목적지만 걷어낸다', () => {
+    const curation = {
+      heroSlides: [
+        { id: 'h1', title: '커뮤니티', subtitle: null, imageUrl: 'a', mobileImageUrl: null, href: '/community' },
+        { id: 'h2', title: '굿즈샵', subtitle: null, imageUrl: 'b', mobileImageUrl: null, href: '/shop' },
+      ],
+      editorPicks: [
+        { id: 'p1', title: '팬덤', imageUrl: 'c', href: '/community?tag=notice' },
+        { id: 'p2', title: '이벤트', imageUrl: 'd', href: '/events' },
+      ],
+      goodsBands: [
+        { id: 'b1', title: '커뮤니티 밴드', href: '/community', goods: [] },
+        { id: 'b2', title: '신상', href: '/shop/new', goods: [] },
+      ],
+      categoryBestTabs: [],
+      popularTabs: [],
+      benefitTiles: [],
+    } as unknown as HomeCurationSnapshot;
+
+    const filtered = withoutCommunityCurations(curation);
+
+    expect(filtered.heroSlides.map((slide) => slide.href)).toEqual(['/shop']);
+    expect(filtered.editorPicks.map((pick) => pick.href)).toEqual(['/events']);
+    expect(filtered.goodsBands.map((band) => band.href)).toEqual(['/shop/new']);
   });
 });

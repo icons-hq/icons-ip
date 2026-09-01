@@ -405,12 +405,15 @@ export async function deleteCommunityCommentAction(formData: FormData) {
 }
 
 export async function reportCommunityTargetAction(formData: FormData) {
-  assertCommunityEnabled();
   const next = readNext(formData);
   await requireAuthenticatedCommunityUser(next);
 
   const normalized = normalizeCommunityReportForm(formData);
   if (!normalized.ok) redirect(communityErrorPath(next));
+
+  /* 게이트를 대상별로 건다. 굿즈 리뷰 신고(#254)는 커머스 표면(components/shop/GoodReviews.tsx)이
+     이 액션을 공유하므로, 커뮤니티가 닫혔다고 상품 리뷰 신고까지 404가 되면 안 된다. */
+  if (normalized.value.targetType !== 'review') assertCommunityEnabled();
 
   const supabase = await createClient();
   const { error, data } = await supabase.rpc('submit_community_report', {

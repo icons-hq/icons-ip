@@ -772,7 +772,6 @@ describe.runIf(!COMMUNITY_ENABLED)('커뮤니티 임시 비공개', () => {
     ['setCommunityPostLikeAction', () => setCommunityPostLikeAction(new FormData())],
     ['deleteCommunityPostAction', () => deleteCommunityPostAction(new FormData())],
     ['deleteCommunityCommentAction', () => deleteCommunityCommentAction(new FormData())],
-    ['reportCommunityTargetAction', () => reportCommunityTargetAction(new FormData())],
     ['blockCommunityUserAction', () => blockCommunityUserAction(new FormData())],
   ];
 
@@ -781,5 +780,40 @@ describe.runIf(!COMMUNITY_ENABLED)('커뮤니티 임시 비공개', () => {
 
     await expect(run()).rejects.toThrow(/NEXT_HTTP_ERROR_FALLBACK;404/);
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  /* 신고 액션만 커머스 표면과 공유한다 — 대상별로 갈라지는지 본다. */
+  describe('reportCommunityTargetAction', () => {
+    beforeEach(() => {
+      mocks.rpc.mockReset();
+      mocks.auth = {
+        isConfigured: true,
+        user: { id: 'viewer-1', email: 'fan@icons.gg' },
+        profile: null,
+        isStaff: false,
+      };
+    });
+
+    it('커뮤니티 대상 신고는 404를 던지고 DB에 닿지 않는다', async () => {
+      await expect(reportCommunityTargetAction(reportForm())).rejects.toThrow(/NEXT_HTTP_ERROR_FALLBACK;404/);
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it('굿즈 리뷰 신고는 스위치와 무관하게 그대로 접수된다', async () => {
+      mocks.rpc.mockResolvedValue({ data: null, error: null });
+
+      const formData = new FormData();
+      formData.set('targetType', 'review');
+      formData.set('targetId', postId);
+      formData.set('reason', '광고성 리뷰입니다');
+      formData.set('next', '/shop/g1');
+
+      await expect(reportCommunityTargetAction(formData)).rejects.toThrow('NEXT_REDIRECT:/shop/g1');
+      expect(mocks.rpc).toHaveBeenCalledWith('submit_community_report', {
+        target_type: 'review',
+        target_id: postId,
+        reason: '광고성 리뷰입니다',
+      });
+    });
   });
 });

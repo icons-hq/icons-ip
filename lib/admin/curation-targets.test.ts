@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { goodDetailHref } from '@/lib/goods-display';
 import { adminCurationTargetGroups, adminCurationTargetGroupsFor } from './curation-targets';
 
@@ -22,6 +23,10 @@ function paths(groups: ReturnType<typeof adminCurationTargetGroups>) {
 }
 
 describe('admin curation targets', () => {
+  it('커뮤니티 임시 비공개 동안 커뮤니티를 고정 타깃으로 제안하지 않는다', () => {
+    expect(paths(adminCurationTargetGroups(source)).includes('/community')).toBe(COMMUNITY_ENABLED);
+  });
+
   it('offers real screens and active catalog detail pages only', () => {
     const available = paths(adminCurationTargetGroups(source));
 

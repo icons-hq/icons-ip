@@ -8,9 +8,11 @@ import { ProductCard } from '@/components/wc/ProductCard';
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import { Slider } from '@/components/wc/Slider';
 import { TabPanels, type TabPanelDef } from '@/components/wc/TabPanels';
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { krw } from '@/lib/format';
 import {
   withoutCardRewardCurations,
+  withoutCommunityCurations,
   type HomeBestTab,
   type HomeCurationSnapshot,
   type HomeGoodsBand,
@@ -134,7 +136,9 @@ function GoodsBandSection({ band }: { band: HomeGoodsBand }) {
 export function Home({ cardRewardsEnabled, curation: rawCuration }: HomeProps) {
   /* 게이트가 꺼진 배포에서는 혜택 밴드만이 아니라 카드팩·게임 목적지를 가진 큐레이션을
      밴드 종류와 무관하게 걸러낸다 — GNB 의 packs 필터·구 홈과 같은 규칙이다. */
-  const curation = cardRewardsEnabled ? rawCuration : withoutCardRewardCurations(rawCuration);
+  const gatedCuration = cardRewardsEnabled ? rawCuration : withoutCardRewardCurations(rawCuration);
+  /* 커뮤니티 임시 비공개도 같은 규칙으로 목적지를 건다 — 배너만 살아 404 로 떨어지지 않게. */
+  const curation = COMMUNITY_ENABLED ? gatedCuration : withoutCommunityCurations(gatedCuration);
   const hasHero = curation.heroSlides.length > 0;
   const hasPicks = curation.editorPicks.length > 0;
   const hasBest = hasTabGoods(curation.categoryBestTabs);

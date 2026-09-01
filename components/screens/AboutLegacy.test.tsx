@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import type { ComponentProps, ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { HomeCurationSnapshot } from '@/lib/home-catalog';
 import { DATA } from '../../lib/data';
@@ -154,14 +155,14 @@ describe('AboutLegacy curation', () => {
           id: 'announcement-1',
           title: '배송 일정이 변경됐어요',
           imageBg: null,
-          href: '/community?tag=notice',
+          href: '/shop?tag=notice',
         },
         featuredIpIds: ['lumen'],
       },
     });
 
     expect(html).toMatch(/<aside[^>]+aria-label="공지"[^>]*>/);
-    expect(html).toContain('href="/community?tag=notice"');
+    expect(html).toContain('href="/shop?tag=notice"');
     expect(html).toContain('배송 일정이 변경됐어요');
     expect(html).not.toContain('2026.07.12');
   });
@@ -201,7 +202,7 @@ describe('AboutLegacy curation', () => {
           id: 'announcement-empty-catalog',
           title: '첫 IP 공개 일정을 확인하세요',
           imageBg: null,
-          href: '/community?tag=notice',
+          href: '/shop?tag=notice',
         },
         featuredIpIds: [],
       },
@@ -212,7 +213,7 @@ describe('AboutLegacy curation', () => {
     expect(html).toContain('href="/events/prelaunch"');
     expect(html).toContain('aria-label="IP 공개 전 특별전을 먼저 만나보세요 자세히 보기"');
     expect(html).toContain('<span>VIEW</span>');
-    expect(html).toContain('href="/community?tag=notice"');
+    expect(html).toContain('href="/shop?tag=notice"');
     expect(html).toContain('첫 IP 공개 일정을 확인하세요');
     expect(html).toContain('등록된 IP가 아직 없습니다');
     expect(html).not.toContain('class="marquee-shell"');
@@ -228,7 +229,7 @@ describe('AboutLegacy curation', () => {
           id: 'announcement-only-empty-catalog',
           title: '서비스 준비 소식을 확인하세요',
           imageBg: null,
-          href: '/community',
+          href: '/shop',
         },
         featuredIpIds: [],
       },
@@ -237,7 +238,7 @@ describe('AboutLegacy curation', () => {
     expect(html).toContain('등록된 IP가 아직 없습니다');
     expect(html).toContain('곧 새로운 IP가 공개될 예정이에요.');
     expect(html).toMatch(/<aside[^>]+aria-label="공지"[^>]*>/);
-    expect(html).toContain('href="/community"');
+    expect(html).toContain('href="/shop"');
     expect(html).toContain('서비스 준비 소식을 확인하세요');
   });
 
@@ -262,7 +263,7 @@ describe('AboutLegacy curation', () => {
           id: 'announcement-feedback',
           title: '공지 링크 피드백',
           imageBg: null,
-          href: '/community',
+          href: '/shop',
         },
         featuredIpIds: ['lumen'],
       },
@@ -289,7 +290,7 @@ describe('AboutLegacy curation', () => {
           id: 'announcement-long',
           title: longTitle,
           imageBg: null,
-          href: '/community',
+          href: '/shop',
         },
         featuredIpIds: ['lumen'],
       },
@@ -345,7 +346,7 @@ describe('AboutLegacy curation', () => {
     expect(fallbackHtml).toContain('linear-gradient(#123456, #654321)');
   });
 
-  it('uses the selected IP post in the community feature', () => {
+  it.skipIf(!COMMUNITY_ENABLED)('uses the selected IP post in the community feature', () => {
     const html = renderAboutLegacy({
       catalog: catalog('supabase', [ip('10', '열 번째 IP'), ip('2', '두 번째 IP')]),
       curation: { ...EMPTY_EXPANDED_CURATION, hero: null, announcement: null, featuredIpIds: ['10', '2'] },
@@ -380,7 +381,39 @@ describe('AboutLegacy curation', () => {
     expect(html.indexOf('<b>ten</b>')).toBeLessThan(html.indexOf('<b>two</b>'));
   });
 
-  it('keeps followed IP community previews stable-first', () => {
+  it.runIf(!COMMUNITY_ENABLED)('커뮤니티 목적지 큐레이션과 실제 포스트 발췌를 함께 걷어낸다', () => {
+    const html = renderAboutLegacy({
+      curation: {
+        ...EMPTY_EXPANDED_CURATION,
+        hero: { id: 'community-hero', title: '팬덤 이야기', imageBg: null, href: '/community' },
+        announcement: { id: 'community-notice', title: '커뮤니티 공지', imageBg: null, href: '/community?tag=notice' },
+        featuredIpIds: ['lumen'],
+      },
+      postPreviewByIpId: {
+        lumen: {
+          id: 'post-lumen',
+          user: 'lumen_fan',
+          ipName: '루멘',
+          avatar: '#2DE2FF',
+          text: '실제 커뮤니티 글',
+          likes: 7,
+          comments: 0,
+          time: '방금 전',
+          tag: '후기',
+        },
+      },
+    });
+
+    expect(html).not.toContain('/community');
+    expect(html).not.toContain('팬덤 이야기');
+    expect(html).not.toContain('커뮤니티 공지');
+    expect(html).not.toContain('lumen_fan');
+    expect(html).not.toContain('실제 커뮤니티 글');
+    /* 전시 자체는 예시 문구로 그대로 선다 — 보존 전시라 레이아웃을 비우지 않는다. */
+    expect(html).toContain('relax_room');
+  });
+
+  it.skipIf(!COMMUNITY_ENABLED)('keeps followed IP community previews stable-first', () => {
     const html = renderAboutLegacy({
       catalog: catalog('supabase', [ip('10', '열 번째 IP'), ip('2', '두 번째 IP')]),
       curation: { ...EMPTY_EXPANDED_CURATION, hero: null, announcement: null, featuredIpIds: ['10', '2'] },
