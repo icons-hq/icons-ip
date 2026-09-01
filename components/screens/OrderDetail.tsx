@@ -76,7 +76,9 @@ function OrderReviewEntry({
 
   return (
     <section aria-labelledby="order-review-heading" className="order-detail-inquiry">
-      <h3 className="mono" id="order-review-heading" style={{ color: 'var(--dim)', fontSize: 11, letterSpacing: '.14em', margin: 0 }}>
+      {/* WC 이행 표면은 HM/editorial 토큰(--dim 등)을 참조하지 않는다 — 그 토큰은
+          이제 어드민 잔존 파일 소유라, 어드민 정리 때 이 글자색이 조용히 사라진다. */}
+      <h3 className="mono" id="order-review-heading" style={{ color: 'var(--wc-ink-tertiary)', fontSize: 11, letterSpacing: '.14em', margin: 0 }}>
         리뷰
       </h3>
       <ul className="col" style={{ gap: 8, listStyle: 'none', margin: 0, padding: 0, width: '100%' }}>

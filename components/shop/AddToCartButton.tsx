@@ -45,9 +45,12 @@ export function AddToCartButton({ good, variant = 'card' }: { good: Good; varian
         borderRadius: 999,
         fontWeight: 700,
         fontSize: detail ? 15 : 12.5,
-        background: quantity > 0 ? 'rgba(255,255,255,.05)' : 'var(--text)',
-        color: sold || atStockLimit ? 'var(--faint)' : quantity > 0 ? 'var(--text)' : '#110D22',
-        border: quantity > 0 ? '1px solid rgba(255,255,255,.25)' : 'none',
+        /* HM 다크 전제 인라인(--text·#110D22·흰 오버레이)의 WC 번역. 담김(quantity>0)
+           상태가 흰 지면에서 흰 글자로 사라지던 결함을 잉크 아웃라인 문법으로 바로잡는다
+           — .wc-btn / .wc-btn.primary(wc-foundation.css)와 같은 쌍. */
+        background: quantity > 0 ? 'var(--wc-surface)' : 'var(--wc-ink)',
+        color: sold || atStockLimit ? 'var(--wc-ink-disabled)' : quantity > 0 ? 'var(--wc-ink)' : 'var(--wc-surface)',
+        border: quantity > 0 ? '1px solid var(--wc-line-control)' : 'none',
         opacity: sold || !ready ? 0.5 : 1,
         transition: 'transform .18s ease, background .25s ease',
       }}

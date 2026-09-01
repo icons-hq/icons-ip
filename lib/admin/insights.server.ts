@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { kstDay } from '@/lib/admin/kst';
 import { createClient } from '@/lib/supabase/server';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -103,13 +104,6 @@ interface OrderItemRow {
   order: { id: string } | null;
 }
 
-const kstDay = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'Asia/Seoul',
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-});
-
 function buyerName(nickname: string | null | undefined, userId: string) {
   return nickname?.trim() || `fan_${userId.slice(0, 6)}`;
 }
@@ -138,7 +132,7 @@ export async function getAdminInsights(): Promise<AdminInsights> {
   // 윈도우 경계를 일별 버킷과 같은 KST 자정 기준으로 정렬 — 차트 30일 합계 = 매출 카드
   const dayKeys: string[] = [];
   for (let i = WINDOW_DAYS - 1; i >= 0; i -= 1) {
-    dayKeys.push(kstDay.format(new Date(now - i * DAY_MS)));
+    dayKeys.push(kstDay(new Date(now - i * DAY_MS)));
   }
   const windowStartMs = Date.parse(`${dayKeys[0]}T00:00:00+09:00`);
   const prevWindowStartMs = windowStartMs - WINDOW_DAYS * DAY_MS;
@@ -209,7 +203,7 @@ export async function getAdminInsights(): Promise<AdminInsights> {
     paymentCount[windowKey] += 1;
 
     if (inCurrentWindow) {
-      const bucket = dailyBuckets.get(kstDay.format(new Date(createdMs)));
+      const bucket = dailyBuckets.get(kstDay(new Date(createdMs)));
       if (bucket) {
         if (payment.purpose === 'ticket') bucket.tickets += payment.amount;
         else bucket.goods += payment.amount;

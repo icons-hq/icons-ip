@@ -3557,28 +3557,11 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
    내 상품 Q&A (#330)
    ------------------------------------------------------------------ */
 
-/* 카드 오른쪽의 상태 뱃지. 답변 블록 자체는 카탈로그 레이어의 .wc-qna-item__answer
-   를 그대로 쓴다 — 같은 문답을 두 지면에서 다른 모양으로 그리지 않는다. */
-.wc-qna-badge {
-  flex: none;
-  padding: 2px 8px;
-  font-size: 12px;
-  font-weight: 700;
-  border: 1px solid var(--wc-line-control);
-  color: var(--wc-ink-tertiary);
-  white-space: nowrap;
-}
-
-.wc-qna-badge--answered {
-  border-color: var(--wc-ink);
-  color: var(--wc-ink);
-}
-
-/* 블라인드는 삭제가 아니다 — 경고색으로 세워 두고 이유는 카드 아래 문장이 말한다. */
-.wc-qna-badge--hidden {
-  border-color: var(--wc-danger);
-  color: var(--wc-danger);
-}
+/* Q&A 어휘의 소유는 카탈로그 레이어(wc-catalog.css)다 — MyQuestions 는 PDP 와
+   같은 문답을 그리므로 뱃지(.wc-qna-badge*)와 답변 블록(.wc-qna-item__answer,
+   .wc-qna-item__answer-author, .wc-qna-item__date, .wc-qna-item__body)을 모두
+   그쪽 정의로 쓴다. 여기서 다시 정의하지 않는다 — 같은 문답을 두 지면에서
+   다른 모양으로 그리지 않기 위해서다(S9 #331 에서 중복 정의 제거). */
 
 /* ------------------------------------------------------------------
    코인 내역 — /my/coins (S8 #330)
@@ -3706,5 +3689,377 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
     flex-direction: column;
     align-items: flex-start;
     gap: 4px;
+  }
+}
+
+/* ==================================================================
+   9. editorial·HM 자립 (S9 #331 · W1-B)
+   ==================================================================
+   S6 는 거래·마이 화면의 기존 클래스 어휘를 스코프 CSS 로 "재소유"했지만,
+   재정의하지 않은 속성은 아직 두 원본에서 새어 들어와 화면을 완성하고 있었다.
+
+     · app/globals.css (HM) — 대부분 `@layer components` 라 언레이어 규칙에는
+       지지만, wc 가 침묵한 속성에는 그대로 적용된다. 미디어 블록 일부는
+       아예 언레이어다.
+     · app/styles/editorial-account-commerce.css — 언레이어. 같은 특이도면
+       나중에 로드되는 wc 가 이기지만, wc 가 선언하지 않은 속성은 살아남는다.
+
+   W2 가 두 원본의 커머스 규칙을 걷어내도 지면이 그대로 서 있도록, 원본에만
+   있던 유효 속성을 여기로 옮긴다. 값은 wc 토큰으로 번역했다(--account-*·HM
+   토큰을 이 파일에 들이면 제거 때 다시 깨진다).
+
+   옮기지 않은 것: editorial 파스텔 면(--account-yellow/green/blue), HM 네온
+   (--holo·--cyan·--line-2/3)과 그 장식은 DESIGN §2 와 이 파일의 기존 규율이
+   금지한다. 사라지는 것이 S9 의 의도된 결과다. 상세는 작업 보고서 참조.
+   ================================================================== */
+
+/* --- 지면 루트 ----------------------------------------------------- */
+
+/* 짧은 지면(빈 장바구니·결제 결과)에서도 푸터가 아래로 내려가 있게 한다.
+   원본: editorial `.checkout-page/.orders-page/.order-detail-page/
+   .tickets-page/.ticket-detail-page { min-height: 100vh }`. */
+.wc-receipt {
+  min-height: 100vh;
+}
+
+/* --- 지면 섹션 여백 ------------------------------------------------- */
+
+/* 원본: editorial `.orders-section·.order-detail-layout·.ticket-detail-layout·
+   .tickets-content { padding-block: clamp(...) }`. */
+.wc-receipt .orders-section,
+.wc-receipt .order-detail-layout,
+.wc-receipt .ticket-detail-layout,
+.wc-receipt .tickets-content {
+  padding-top: clamp(40px, 5vw, 72px);
+  padding-bottom: clamp(92px, 10vw, 144px);
+}
+
+/* 원본: globals `.tickets-content { display:flex; gap:34px }` — 회차 그룹
+   사이 간격이 여기서만 나온다. */
+.wc-receipt .tickets-content {
+  display: flex;
+  flex-direction: column;
+  gap: 34px;
+}
+
+/* 원본: editorial `.checkout-layout·.checkout-order-layout { margin-top }`. */
+.wc-receipt .checkout-layout,
+.wc-receipt .checkout-order-layout {
+  margin-top: clamp(32px, 4vw, 56px);
+}
+
+/* --- 상태 지면의 최소 높이·정렬 ------------------------------------- */
+/* 원본: globals. 로딩·빈 상태·결제 결과는 화면이 접히지 않게 바닥을 깔고
+   가운데 정렬한다. */
+
+.wc-receipt .checkout-loading {
+  display: grid;
+  place-items: center;
+  min-height: 70vh;
+}
+
+.wc-receipt .checkout-empty,
+.wc-receipt .orders-empty,
+.wc-receipt .tickets-empty {
+  min-height: 360px;
+  justify-content: center;
+}
+
+.wc-receipt .checkout-result {
+  min-height: 430px;
+  justify-content: center;
+}
+
+.wc-receipt .checkout-result-mark {
+  margin-bottom: 4px;
+}
+
+.wc-receipt .checkout-state-panel {
+  min-height: 350px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* --- 2열 그리드 자식의 오버플로 가드 -------------------------------- */
+/* `minmax(0, 1fr)` 트랙만으로는 아이템의 자동 최소 크기가 남아 긴 주문번호·
+   상품명이 트랙을 밀어낸다. 원본: globals `min-width: 0`. */
+.wc-receipt .order-detail-main,
+.wc-receipt .ticket-detail-main,
+.wc-receipt .checkout-order-main {
+  min-width: 0;
+}
+
+.wc-receipt .checkout-order-main {
+  min-height: 420px;
+}
+
+/* --- 주문 상세 ----------------------------------------------------- */
+/* 원본: globals `.order-detail-items·.order-detail-item(:first/:last-child)·
+   .order-detail-deposit·.order-tracking-link`. */
+
+.wc-receipt .order-detail-items {
+  margin-top: 24px;
+}
+
+.wc-receipt .order-detail-item {
+  min-height: 96px;
+}
+
+.wc-receipt .order-detail-item:first-child {
+  padding-top: 8px;
+}
+
+/* 마지막 품목 아래 헤어라인은 카드 안쪽 여백과 겹쳐 두 줄로 보인다. */
+.wc-receipt .order-detail-item:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.wc-receipt .order-detail-deposit {
+  flex-wrap: wrap;
+}
+
+.wc-receipt .order-tracking-link {
+  margin-top: 12px;
+}
+
+/* 카드팩 안내 아이콘 타일 — 원본(globals)의 38px 정사각 자리만 옮긴다.
+   파스텔 면(editorial --account-blue)과 보라 보더·12px 라운드는 두고 온다. */
+.wc-receipt .order-card-pack-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+}
+
+/* --- 주문·티켓 목록 행 --------------------------------------------- */
+
+/* 원본: globals `.order-list-link { min-height: 96px }` / `.ticket-list-link
+   { min-height: 108px }`. */
+.wc-receipt .order-list-link {
+  min-height: 96px;
+}
+
+.wc-receipt .ticket-list-link {
+  min-height: 108px;
+}
+
+/* 원본: editorial `:hover { transform: translateY(-2px); border-color:
+   --account-line; background: --account-surface }`.
+   들림(transform)은 두고 온다 — 이 지면은 `.btn:hover` 에서도 `transform: none`
+   으로 정지 규율을 세워 뒀다. 배경은 이미 카드가 흰 면이라 무변화였다.
+   남는 것은 보더 대비 한 단계뿐이고, 그것이 이 행의 유일한 hover 신호다. */
+.wc-receipt .order-list-link,
+.wc-receipt .ticket-list-link {
+  transition: border-color var(--wc-duration-default);
+}
+
+.wc-receipt .order-list-link:hover,
+.wc-receipt .ticket-list-link:hover {
+  border-color: var(--wc-line-control);
+}
+
+/* 원본: globals. 긴 장소명이 열을 밀어내지 않게. */
+.wc-receipt .ticket-list-location {
+  overflow-wrap: break-word;
+}
+
+/* --- 체크아웃 폼 --------------------------------------------------- */
+
+/* 원본: globals `.checkout-fields { margin-top: 28px }`. */
+.wc-receipt .checkout-fields {
+  margin-top: 28px;
+}
+
+/* 원본: globals `.checkout-cancel-link { text-align: center }` — 결제 취소
+   링크는 본문이 아니라 지면 바닥의 중앙 한 줄이다. */
+.wc-receipt .checkout-cancel-link {
+  text-align: center;
+}
+
+/* 원본: editorial 의 유틸리티 행간 토큰(--editorial-leading-utility: 1.5).
+   지면 기본 1.8 을 그대로 두면 12px 캡션이 두 줄 사이로 벌어진다. */
+.wc-receipt .checkout-field-error,
+.wc-receipt .postcode-field-hint {
+  line-height: 1.5;
+}
+
+/* 원본: editorial `:hover { color: --account-ink }` — 밑줄 링크의
+   유일한 hover 신호다. */
+.wc-receipt .checkout-back:hover,
+.wc-receipt .order-detail-back:hover,
+.wc-receipt .ticket-detail-back:hover {
+  color: var(--wc-ink);
+}
+
+/* --- 티켓 상세·전자티켓 -------------------------------------------- */
+
+/* 원본: globals 의 `padding-top: 26px` + 구분선. 선 색은 globals 의 `--line-2`
+   (흰색 13% — 흰 지면에서 비가시)가 아니라 editorial 이 덮어쓰던 실제 렌더
+   값(`--account-line`)을 지면 헤어라인으로 번역했다. */
+.wc-receipt .ticket-state-list {
+  padding-top: 26px;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+/* 원본: globals `.ticket-qr-frame { width: min(320px,100%); aspect-ratio: 1;
+   margin: 24px auto 0 }`. QR 은 288px 이미지 + 16px 여백이라 320px 정사각이
+   정확히 맞는다. 이 셋이 없으면 프레임이 카드 폭 전체로 늘어난다.
+   box-shadow 는 editorial 이 이미 none 으로 눌러 두던 값을 명시한다. */
+.wc-receipt .ticket-qr-frame {
+  width: min(320px, 100%);
+  aspect-ratio: 1;
+  margin: 24px auto 0;
+  box-shadow: none;
+}
+
+.wc-receipt .ticket-qr-controls {
+  margin-top: 16px;
+}
+
+/* 원본: globals `.ticket-receipt-event { padding-bottom: 18px }`. 같이 있던
+   구분선은 `--line-2` 라 흰 지면에서 보이지 않았으므로 옮기지 않는다. */
+.wc-receipt .ticket-receipt-event {
+  padding-bottom: 18px;
+}
+
+/* --- 청약철회·취소 패널 -------------------------------------------- */
+
+/* 원본: globals(구조) + editorial(면·글자색). 회색 안내 박스는 이 지면의
+   기존 문법(.wc-coin-guide 등)과 같은 문법으로 번역했다. */
+.wc-receipt .order-cancellation-notice {
+  margin-top: 18px;
+  padding: 14px 15px;
+  border: 1px solid var(--wc-hairline);
+  background: var(--wc-surface-grey);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 원본: globals. 취소 안내 본문은 읽기 폭을 제한한다. */
+.wc-receipt .order-cancellation-body,
+.wc-receipt .ticket-cancellation-body {
+  max-width: 660px;
+}
+
+.wc-receipt .order-cancellation-actions,
+.wc-receipt .ticket-cancellation-actions {
+  margin-top: 16px;
+}
+
+.wc-receipt .order-cancellation-feedback--error,
+.wc-receipt .ticket-cancellation-feedback--error {
+  margin-bottom: 10px;
+}
+
+/* --- 토스 위젯 마운트 슬롯 ------------------------------------------ */
+/* 이 어휘는 wc 스코프가 아직 소유한 적이 없다 — 원본(globals+editorial)이
+   전부였다. SDK 가 붙기 전 높이를 잡아 결제 화면이 튀지 않게 한다. */
+.wc-receipt .toss-widget-slot {
+  min-height: 72px;
+  overflow: hidden;
+  background: var(--wc-surface);
+}
+
+/* --- 회원 탈퇴 패널 (마이·인증 공통) -------------------------------- */
+/* 원본: editorial `.account-deletion-*`. */
+
+.wc-mypage .account-deletion-title,
+.wc-auth .account-deletion-title {
+  line-height: 1.4;
+}
+
+.wc-mypage .account-deletion-blockers,
+.wc-auth .account-deletion-blockers {
+  display: grid;
+  gap: 8px;
+}
+
+.wc-mypage .account-deletion-blockers ul,
+.wc-auth .account-deletion-blockers ul {
+  display: grid;
+  gap: 6px;
+}
+
+.wc-mypage .account-deletion-feedback,
+.wc-auth .account-deletion-feedback {
+  font-weight: 700;
+}
+
+/* 중립 상태만 면을 가진다 — 나머지 상태는 이 파일의 규율대로 보더+글자색이다.
+   원본 값 `--account-canvas-soft`(#efefeb)를 지면 회색으로 번역. */
+.wc-mypage .account-deletion-feedback--neutral,
+.wc-auth .account-deletion-feedback--neutral {
+  background: var(--wc-surface-grey);
+}
+
+/* 확인 문구 입력의 검증 실패 표시 — receipt 지면의 `input[aria-invalid]` 와
+   같은 규율이다. */
+.wc-mypage .account-deletion-confirmation[aria-invalid='true'],
+.wc-auth .account-deletion-confirmation[aria-invalid='true'] {
+  border-color: var(--wc-danger);
+}
+
+/* --- 온보딩 ------------------------------------------------------- */
+
+/* fieldset 은 기본 `min-inline-size: min-content` 라 3열 생년월일 그리드가
+   좁은 화면에서 줄어들지 않는다. 원본: editorial. */
+.wc-auth .onboarding-birth-fieldset {
+  min-inline-size: 0;
+}
+
+/* 원본: editorial 의 본문 행간 토큰(--editorial-leading-body: 1.65). */
+.wc-auth .onboarding-birth-hint {
+  line-height: 1.65;
+}
+
+/* 타일 하단 밴드는 라벨의 클릭 영역을 가로채지 않는다. 원본: editorial. */
+.wc-auth .onboarding-ip-meta {
+  pointer-events: none;
+}
+
+/* --- 반응형 (원본 브레이크포인트 보존) ------------------------------ */
+
+@media (max-width: 720px) {
+  .wc-receipt .orders-section,
+  .wc-receipt .order-detail-layout,
+  .wc-receipt .ticket-detail-layout,
+  .wc-receipt .tickets-content {
+    padding-top: 32px;
+    padding-bottom: 80px;
+  }
+
+  .wc-receipt .checkout-layout,
+  .wc-receipt .checkout-order-layout {
+    margin-top: 24px;
+  }
+
+  .wc-receipt .checkout-result {
+    min-height: 390px;
+  }
+
+  /* 취소 신청 헤딩·CTA 는 좁은 폭에서 한 줄에 다 서지 못한다. */
+  .wc-receipt .order-cancellation-heading,
+  .wc-receipt .ticket-cancellation-heading {
+    flex-direction: column;
+  }
+
+  .wc-receipt .order-cancellation-open,
+  .wc-receipt .ticket-cancellation-open {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .wc-receipt .checkout-deadline {
+    flex-direction: column;
+  }
+
+  .wc-receipt .order-detail-item-numbers {
+    flex-wrap: wrap;
   }
 }

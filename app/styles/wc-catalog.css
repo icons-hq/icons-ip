@@ -1377,8 +1377,12 @@
   color: var(--wc-ink);
 }
 
-/* 답변 여부는 목록에서 가장 먼저 읽히는 정보다 — 색만으로 나누지 않고 글자로 적는다. */
-.wc-qna-item__state {
+/* 답변 여부는 목록에서 가장 먼저 읽히는 정보다 — 색만으로 나누지 않고 글자로 적는다.
+   Q&A 상태 뱃지는 PDP 목록(.wc-qna-item__state)과 마이 Q&A(.wc-qna-badge)가 같은
+   물건이라 정의를 여기 한 곳에 둔다. S9(#331) 이전에는 wc-account-commerce.css 가
+   .wc-qna-badge 를 따로 들고 있어 같은 뱃지가 두 파일에서 갈라질 수 있었다. */
+.wc-qna-item__state,
+.wc-qna-badge {
   padding: 2px 8px;
   font-size: 12px;
   font-weight: 700;
@@ -1386,9 +1390,22 @@
   color: var(--wc-ink-tertiary);
 }
 
-.wc-qna-item__state.is-answered {
+/* 마이 Q&A 카드는 뱃지가 제목과 한 줄에 서므로 수축·줄바꿈을 막는다. */
+.wc-qna-badge {
+  flex: none;
+  white-space: nowrap;
+}
+
+.wc-qna-item__state.is-answered,
+.wc-qna-badge--answered {
   border-color: var(--wc-ink);
   color: var(--wc-ink);
+}
+
+/* 블라인드는 삭제가 아니다 — 경고색으로 세워 두고 이유는 카드 아래 문장이 말한다. */
+.wc-qna-badge--hidden {
+  border-color: var(--wc-danger);
+  color: var(--wc-danger);
 }
 
 .wc-qna-item__author {
@@ -2272,6 +2289,20 @@
   margin-top: 0;
   padding: 0 16px;
   font-size: 14px;
+}
+
+/* 담기 버튼(AddToCartButton)은 아직 `.wc-` 어휘로 재작성되지 않았고 색·크기를 인라인
+   style로 들고 있다. CSS가 잡는 건 폭 거동뿐이라 그 두 줄만 S9에서 globals.css
+   `@layer components`로부터 넘겨받았다. 브레이크포인트도 원본(620px) 그대로다. */
+.wc-root .shop-cart-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  .wc-root .shop-cart-button {
+    width: 100%;
+  }
 }
 
 .wc-wishlist__empty {

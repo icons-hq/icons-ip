@@ -1,0 +1,449 @@
+/* 법정 고지(잔존 표면) 전용 legacy 스타일 — /legal/[document].
+ *
+ * 왜 이 파일이 있나
+ *   S9는 Holographic Midnight(app/globals.css)와 Living IP Editorial 표면 CSS
+ *   (editorial-shell/public/account-commerce)를 걷어낸다. 약관 화면은 아직 White
+ *   Catalog로 재조판되지 않았고 재조판은 S9 범위 밖이며, SSG로 고정된 회귀 금지
+ *   대상이다. 그래서 이 화면이 실제로 쓰던 규칙만 여기로 자립 복사한다.
+ *   /about 이 구 홈을 app/styles/about-legacy.css 로 격리한 선례를 따른다.
+ *
+ * 규율
+ *   - 루트는 `.legal-doc`(LegalDocument.tsx 최상위 `div.screen.legal-doc`)이다.
+ *   - 전역 어휘(.wrap·.screen·.eyebrow·.h-xl·.mono·h1~h3·a)는 `:where(.legal-doc)` 로
+ *     감싼다. `:where()` 는 명시도가 0이라 원본과 명시도가 같고, 예를 들어
+ *     `.legal-doc__title` 이 `.h-xl` 을 이기는 현재 우열이 그대로 유지된다.
+ *   - `.legal-doc*` 는 이 화면 전용 어휘라 원본 셀렉터 그대로 둔다.
+ *   - globals.css 의 `@layer` 규칙은 레이어를 유지한 채 옮긴다(레이어 규칙은 명시도와
+ *     무관하게 비레이어 규칙에 진다).
+ *   - 토큰은 아래에서 `.legal-doc` 에 자체 정의한다. 구 토큰 원천(editorial 3파일)은
+ *     S9 에서 삭제됐고, 남은 파일들이 나중에 더 줄어도 자립한다.
+ *
+ * 전제
+ *   - Tailwind preflight(`@import "tailwindcss"`)는 계속 존재한다고 본다. 그 import 는
+ *     globals.css 가 갖고 있다(S9 판정: Tailwind v4 는 스택 규칙이라 유지) — globals 를
+ *     정리하는 쪽은 import 의 새 거처를 먼저 정해야 한다.
+ *   - layout.tsx 임포트 순서는 editorial-foundation.css 뒤여야 한다.
+ *
+ * 삭제 조건
+ *   이 화면이 White Catalog로 재조판되면 이 파일도 같이 지운다.
+ */
+
+/* ============================================================
+   토큰·베이스 자립 블록
+   ============================================================ */
+
+.legal-doc {
+  /* --- editorial 토큰 자립 사본 (원본: app/styles/editorial-foundation.css :root) --- */
+  --editorial-canvas: #f4f4f1;
+  --editorial-canvas-soft: #efefeb;
+  --editorial-surface: #ffffff;
+  --editorial-surface-muted: #e7e7e2;
+  --editorial-placeholder: #dddddd;
+  --editorial-ink: #11110f;
+  --editorial-ink-muted: #686862;
+  --editorial-ink-faint: #858580;
+  --editorial-inverse-muted: #858580;
+  --editorial-line-strong: rgba(17, 17, 15, 0.4);
+  --editorial-line: rgba(17, 17, 15, 0.18);
+  --editorial-line-soft: rgba(17, 17, 15, 0.08);
+  --editorial-pastel-green: #c4e5ae;
+  --editorial-pastel-pink: #ffdaff;
+  --editorial-pastel-blue: #a6c5e6;
+  --editorial-pastel-yellow: #ffe888;
+  --editorial-brand-green: #78bb53;
+  --editorial-success: #3f7d38;
+  --editorial-warning: #9a5b00;
+  --editorial-danger: #b8324a;
+  --editorial-info: #365ca8;
+  --editorial-focus: #5b74ff;
+  --editorial-inverse: #11110f;
+  --editorial-media: #222222;
+  --editorial-on-inverse: #ffffff;
+  --editorial-font-display: 'Pretendard Variable', 'Pretendard', var(--font-space-grotesk), sans-serif;
+  --editorial-font-body: 'Pretendard Variable', 'Pretendard', var(--font-space-grotesk), sans-serif;
+  --editorial-font-utility: var(--font-space-mono), 'Pretendard', monospace;
+  --editorial-leading-display: 1.08;
+  --editorial-leading-display-mobile: 1.12;
+  --editorial-leading-title: 1.2;
+  --editorial-leading-body: 1.65;
+  --editorial-leading-utility: 1.5;
+  --editorial-leading-control: 1.4;
+  --editorial-tracking-display: -.03em;
+  --editorial-tracking-title: -.025em;
+  --editorial-page-gutter: 6vw;
+  --editorial-mobile-gutter: 21px;
+  --editorial-motion-fast: 300ms;
+  --editorial-ease-soft: cubic-bezier(.2, .8, .2, 1);
+  --editorial-header-top: 22px;
+  --editorial-header-capsule-h: 72px;
+  --editorial-header-gap: 12px;
+  --header-offset: calc(var(--editorial-header-top) + var(--editorial-header-capsule-h) + var(--editorial-header-gap));
+
+  /* --- Holographic Midnight 짧은 별칭. 값은 editorial-foundation.css :root 가
+         globals.css :root 를 덮은 뒤의 실측값(= 라이트 팔레트)이다. --- */
+  --maxw: 1440px;
+  --nav-h: 96px;
+  --r-xs: 8px;
+  --r-sm: 12px;
+  --r: 18px;
+  --r-lg: 26px;
+  --r-xl: 36px;
+  --ff-display: var(--editorial-font-display);
+  --ff-body: var(--editorial-font-body);
+  --ff-mono: var(--editorial-font-utility);
+  /* 아래 globals 사본의 `.eyebrow { color: var(--violet-2) }` 가 참조한다. 그 선언은
+     레이어에 있어 editorial-foundation 의 `.eyebrow` 에 지므로 실제로 그려지지는 않지만,
+     미정의 var 를 남기지 않으려고 실측값(editorial-foundation :root)까지 옮긴다. */
+  --violet-2: #765db4;
+
+  /* body 에서 상속받던 몫. 원본이 사라져도 본문 조판이 흔들리지 않게 루트에 고정한다. */
+  font-family: var(--ff-body);
+  font-weight: 450;
+  line-height: var(--editorial-leading-body);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* globals.css `@layer base` 사본. 레이어를 유지해야 비레이어 규칙과의 우열이 같다. */
+@layer base {
+  :where(.legal-doc) a { color: inherit; text-decoration: none; }
+}
+
+/* 원본: app/globals.css */
+@layer components {
+  :where(.legal-doc) .wrap {
+    max-width: var(--maxw); margin: 0 auto; padding: 0 24px; width: 100%;
+  }
+  :where(.legal-doc).screen {
+    min-height: 100vh; padding-top: var(--nav-h);
+  }
+  :where(.legal-doc) .eyebrow {
+    font-family: var(--ff-mono); font-size: 12px; letter-spacing: .22em;
+    text-transform: uppercase; color: var(--violet-2);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  :where(.legal-doc) .eyebrow::before {
+    content: ''; width: 22px; height: 1px; background: currentColor; opacity: .6;
+  }
+  :where(.legal-doc) .h-xl {
+    font-size: clamp(36px, 5vw, 64px); font-family: var(--ff-display); font-weight: 700; line-height: var(--editorial-leading-display); letter-spacing: var(--editorial-tracking-display);
+  }
+  :where(.legal-doc) .mono {
+    font-family: var(--ff-mono);
+  }
+}
+
+/* 원본: app/globals.css */
+@media (max-width: 919px) {
+  :where(.legal-doc).screen {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  }
+}
+
+/* 원본: app/globals.css */
+@media (max-width: 620px) {
+  :where(.legal-doc) .wrap {
+    padding-left: 24px; padding-right: 24px;
+  }
+}
+
+/* 원본: app/globals.css */
+@media (max-width: 360px) {
+  :where(.legal-doc) .wrap {
+    padding-left: 20px; padding-right: 20px;
+  }
+}
+
+/* 원본: app/styles/editorial-foundation.css */
+:where(.legal-doc) .wrap {
+  width: min(calc(100% - (var(--editorial-page-gutter) * 2)), var(--maxw));
+  max-width: none;
+  padding-inline: 0;
+}
+:where(.legal-doc).screen {
+  min-height: 100svh;
+  padding-top: clamp(128px, 13vw, 174px);
+  padding-bottom: clamp(80px, 9vw, 132px);
+}
+:where(.legal-doc) .h-xl {
+  color: var(--editorial-ink);
+  font-family: var(--ff-display);
+  text-wrap: balance;
+}
+:where(.legal-doc) :lang(ko):is(h1, h2, h3, .h-xxl, .h-xl, .h-lg) {
+  word-break: keep-all;
+  line-break: strict;
+  overflow-wrap: normal;
+  text-wrap: balance;
+}
+
+/* editorial-foundation.css — 제목·본문 element 사본.
+   `.legal-doc__heading`·`.legal-doc__revision-heading` 은 h2 라서 display 서체를
+   여기서 받는다. `.h-xl` 부분은 위 생성분에 이미 있고 h1~h3 만 원본 명시도(0,0,1)로 옮긴다. */
+:where(.legal-doc) h1,
+:where(.legal-doc) h2,
+:where(.legal-doc) h3 {
+  color: var(--editorial-ink);
+  font-family: var(--ff-display);
+  text-wrap: balance;
+}
+:where(.legal-doc) :lang(ko):is(p, li, dd, blockquote) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+:where(.legal-doc) :where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--editorial-focus);
+  outline-offset: 3px;
+}
+:where(.legal-doc) .h-xl {
+  font-size: clamp(44px, 5.4vw, 86px);
+  font-weight: 840;
+  line-height: var(--editorial-leading-display);
+  letter-spacing: var(--editorial-tracking-display);
+}
+:where(.legal-doc) .eyebrow {
+  color: var(--editorial-ink-muted);
+  font-family: var(--ff-body);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: var(--editorial-leading-utility);
+  letter-spacing: .17em;
+  text-transform: uppercase;
+}
+:where(.legal-doc) .eyebrow::before {
+  background: currentColor;
+}
+:where(.legal-doc) .mono {
+  font-family: var(--ff-mono);
+}
+
+/* 원본: app/styles/editorial-foundation.css */
+@media (max-width: 1199px) {
+  :where(.legal-doc) .wrap {
+    width: calc(100% - 48px);
+  }
+}
+
+/* 원본: app/styles/editorial-foundation.css */
+@media (max-width: 720px) {
+  :where(.legal-doc) .wrap {
+    width: calc(100% - (var(--editorial-mobile-gutter) * 2));
+  }
+  :where(.legal-doc).screen {
+    padding-top: 108px;
+    padding-bottom: 78px;
+  }
+  :where(.legal-doc) .h-xl {
+    font-size: clamp(43px, 13vw, 58px);
+    line-height: var(--editorial-leading-display-mobile);
+  }
+}
+
+/* 원본: app/styles/editorial-public.css */
+.legal-doc {
+  background: var(--editorial-canvas);
+}
+.legal-doc__inner {
+  margin-inline: auto;
+  max-width: 860px;
+}
+.legal-doc__head {
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--editorial-line);
+}
+.legal-doc__title {
+  margin: 14px 0 0;
+  font-size: clamp(34px, 4.4vw, 60px);
+}
+.legal-doc__summary {
+  margin: 18px 0 0;
+  max-width: 54ch;
+  color: var(--editorial-ink-muted);
+  font-size: 16px;
+  line-height: var(--editorial-leading-body);
+}
+.legal-doc__effective {
+  margin: 16px 0 0;
+  color: var(--editorial-ink-faint);
+  font-size: 12px;
+  letter-spacing: .06em;
+}
+.legal-doc__switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+.legal-doc__switch a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--editorial-line);
+  border-radius: 999px;
+  background: var(--editorial-surface);
+  color: var(--editorial-ink);
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: var(--editorial-leading-control);
+}
+.legal-doc__revision {
+  margin-top: 28px;
+  padding: 22px 24px;
+  border: 1px solid color-mix(in srgb, var(--editorial-warning) 30%, var(--editorial-line));
+  border-left: 4px solid var(--editorial-warning);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--editorial-pastel-yellow) 20%, var(--editorial-surface));
+}
+.legal-doc__revision-kicker {
+  color: var(--editorial-warning);
+}
+.legal-doc__revision-heading {
+  margin: 10px 0 0;
+  color: var(--editorial-ink);
+  font-size: clamp(18px, 1.7vw, 22px);
+  font-weight: 800;
+  line-height: var(--editorial-leading-title);
+  letter-spacing: var(--editorial-tracking-title);
+}
+.legal-doc__revision-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0 0;
+  color: var(--editorial-ink-muted);
+  font-size: 12px;
+  letter-spacing: .04em;
+}
+.legal-doc__revision-changes {
+  margin: 16px 0 0;
+  padding-left: 1.2em;
+}
+.legal-doc__revision-changes li {
+  color: var(--editorial-ink);
+  font-size: 14.5px;
+  line-height: var(--editorial-leading-body);
+}
+.legal-doc__revision-changes li + li {
+  margin-top: 8px;
+}
+.legal-doc__body {
+  margin-top: clamp(40px, 5vw, 64px);
+  padding: clamp(28px, 4vw, 48px) clamp(22px, 3.4vw, 44px);
+  border: 1px solid var(--editorial-line-soft);
+  border-radius: 14px;
+  background: var(--editorial-surface);
+}
+.legal-doc__article + .legal-doc__article {
+  margin-top: clamp(30px, 3.4vw, 44px);
+  padding-top: clamp(30px, 3.4vw, 44px);
+  border-top: 1px solid var(--editorial-line-soft);
+}
+.legal-doc__heading {
+  margin: 0;
+  color: var(--editorial-ink);
+  font-size: clamp(18px, 1.7vw, 22px);
+  font-weight: 800;
+  line-height: var(--editorial-leading-title);
+  letter-spacing: var(--editorial-tracking-title);
+}
+.legal-doc__paragraph {
+  margin: 14px 0 0;
+  color: var(--editorial-ink);
+  font-size: 15.5px;
+  line-height: var(--editorial-leading-body);
+}
+.legal-doc__list {
+  margin: 14px 0 0;
+  padding-left: 1.4em;
+  list-style: decimal;
+}
+.legal-doc__list li {
+  color: var(--editorial-ink);
+  font-size: 15.5px;
+  line-height: var(--editorial-leading-body);
+}
+.legal-doc__list li + li {
+  margin-top: 8px;
+}
+.legal-doc__table-scroll {
+  overflow-x: auto;
+  margin-top: 18px;
+  border: 1px solid var(--editorial-line-soft);
+  border-radius: 10px;
+}
+.legal-doc__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  line-height: var(--editorial-leading-body);
+}
+.legal-doc__table th {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--editorial-line-soft);
+  color: var(--editorial-ink);
+  /* 셀은 p·li와 달리 전역 keep-all 대상이 아니라 좁은 폭에서 어절이 음절 단위로 쪼개진다. */
+  word-break: keep-all;
+  text-align: left;
+  vertical-align: top;
+}
+.legal-doc__table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--editorial-line-soft);
+  color: var(--editorial-ink);
+  /* 셀은 p·li와 달리 전역 keep-all 대상이 아니라 좁은 폭에서 어절이 음절 단위로 쪼개진다. */
+  word-break: keep-all;
+  text-align: left;
+  vertical-align: top;
+}
+.legal-doc__table thead th {
+  background: var(--editorial-canvas-soft);
+  color: var(--editorial-ink-muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  white-space: nowrap;
+}
+.legal-doc__table tbody th {
+  font-weight: 700;
+}
+.legal-doc__table tbody tr:last-child :where(th, td) {
+  border-bottom: 0;
+}
+
+/* 원본: app/styles/editorial-public.css */
+@media (hover: hover) and (pointer: fine) {
+  .legal-doc__switch a:hover {
+    border-color: var(--editorial-line-strong);
+  }
+}
+
+/* 원본: app/styles/editorial-public.css */
+@media (max-width: 720px) {
+  .legal-doc__revision {
+    padding: 20px 18px;
+  }
+  .legal-doc__body {
+    padding: 24px 18px;
+  }
+  .legal-doc__table {
+    font-size: 13px;
+  }
+  .legal-doc__table th {
+    padding: 10px 12px;
+  }
+  .legal-doc__table td {
+    padding: 10px 12px;
+  }
+  .legal-doc__table tbody th {
+    min-width: 6em;
+  }
+}
+
+/* Tailwind preflight 의 `ol, ul, menu { list-style: none }` 에 기대던 현재 렌더를
+   명시적으로 고정한다. preflight 가 이 파일보다 먼저/나중 어디에 놓이든 개정 공지
+   목록은 지금처럼 마커 없이 들여쓰기만으로 읽힌다. */
+.legal-doc__revision-changes {
+  list-style: none;
+}

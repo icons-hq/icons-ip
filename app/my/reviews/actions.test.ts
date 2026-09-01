@@ -16,11 +16,13 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: async () => mocks.authState }));
-vi.mock('@/lib/auth/onboarding', () => ({
-  ACCOUNT_SUSPENDED_PATH: '/account-suspended',
+/* 프로필 판정 두 개만 갈아끼운다 — 경로 헬퍼(safeNextPath·onboardingPath)까지 흉내내면
+   공유 게이트(lib/participation-gate.server.ts)가 실제로 만드는 리다이렉트를 검증하지
+   못한다. */
+vi.mock('@/lib/auth/onboarding', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/lib/auth/onboarding')>(),
   isAccountSuspended: () => mocks.suspended,
   isOnboarded: () => mocks.onboarded,
-  onboardingPath: (next: string) => `/onboarding?next=${encodeURIComponent(next)}`,
 }));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({

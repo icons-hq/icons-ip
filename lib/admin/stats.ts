@@ -1,3 +1,5 @@
+import { kstDay } from '@/lib/admin/kst';
+
 /**
  * 통계 리포트 (#258) — 조회 전용.
  *
@@ -50,15 +52,9 @@ export function adminStatsRange(
   days: AdminStatsRangeDays,
   now: Date = new Date(),
 ): AdminStatsRange {
-  const kstDay = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Seoul',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
   const dayMs = 24 * 60 * 60 * 1000;
-  const todayKst = kstDay.format(now);
-  const startKst = kstDay.format(new Date(now.getTime() - (days - 1) * dayMs));
+  const todayKst = kstDay(now);
+  const startKst = kstDay(new Date(now.getTime() - (days - 1) * dayMs));
   return {
     from: new Date(`${startKst}T00:00:00+09:00`).toISOString(),
     to: new Date(Date.parse(`${todayKst}T00:00:00+09:00`) + dayMs).toISOString(),

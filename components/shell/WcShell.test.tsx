@@ -152,7 +152,7 @@ describe('White Catalog 전역 셸', () => {
     expect(megaTrigger).not.toContain('aria-current');
   });
 
-  /* 결제 화면에서 고정 바텀바가 결제 CTA를 덮는 사고를 구 MobNav에서 이미 겪었다. */
+  /* 화면 하단에 고정된 바가 결제 CTA를 덮으면 결제가 그대로 막힌다 — 이 저장소가 한 번 겪은 사고다. */
   it('결제 흐름에서는 헤더를 남기고 바텀 탭바만 접는다', () => {
     mocks.pathname = '/checkout';
 

@@ -51,6 +51,21 @@
   color: var(--wc-ink);
 }
 
+/* 장바구니 수량 라이브 리전 — CartProvider가 셸 최상단(`.wc-root` 바깥)에 한 번만 그린다.
+   그래서 이 규칙만은 `.wc-` 스코프를 걸 수 없다. 시각 요소가 없는 순수 스크린리더 표면이라
+   전역이어도 다른 지면을 건드리지 않는다. 원본: globals.css `@layer components`(S9 이관). */
+.cart-live-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* ------------------------------------------------------------------
    공지 스트립
    ------------------------------------------------------------------ */
@@ -862,8 +877,9 @@
   transform: rotate(180deg);
 }
 
-/* 같은 dl에 editorial의 전역 `.business-info` 규칙(역상 푸터용 flex·보더·색)이 함께 붙는다.
-   이 지면은 흰 계열이라 통째로 되돌리고 지면 값을 다시 얹는다. */
+/* S9에서 editorial-shell.css가 폐기되며 이 dl의 유일한 소유자가 됐다. 예전에는
+   editorial의 전역 `.business-info`(역상 푸터용 flex·보더·색)가 함께 붙어 있었고,
+   이 지면은 흰 계열이라 통째로 되돌린 뒤 지면 값을 다시 얹는 형태였다. */
 .wc-footer__biz-rows {
   display: block;
   gap: 0;
@@ -889,6 +905,17 @@
   margin: 0;
   font-weight: 400;
   color: inherit;
+}
+
+/* 아래 두 줄은 editorial-shell.css에서 넘어온 폭 거동이다. 라벨이 줄어들지 않아야
+   "사업자등록번호" 같은 긴 라벨이 좁은 화면에서 두 줄로 쪼개지지 않고, 값 쪽이
+   대신 접힌다. 값에는 사업자번호·주소처럼 공백 없는 긴 문자열이 들어온다. */
+.wc-footer__biz-rows .business-info__row dt {
+  flex: 0 0 auto;
+}
+
+.wc-footer__biz-rows .business-info__row dd {
+  overflow-wrap: anywhere;
 }
 
 .wc-footer__cols {

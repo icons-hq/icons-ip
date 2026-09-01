@@ -23,14 +23,15 @@ import { BottomTabBar } from './BottomTabBar';
 import { useCardRewardsEnabled } from './CardRewardAvailability';
 import { useCart } from './CartProvider';
 import { MenuSheet } from './MenuSheet';
-import { loadUnreadNotificationCount, notificationNavigationKey } from './NotificationBell';
+import { loadUnreadNotificationCount, notificationNavigationKey } from './notification-count';
 import { SearchOverlay } from './SearchOverlay';
 
 /** 검색 오버레이와 전체 메뉴 시트는 동시에 열리지 않는다 — 하나의 상태로 다룬다. */
 type OverlayKind = 'none' | 'search' | 'sheet';
 
-/* 로그인 복귀 경로는 렌더 시점이 아니라 클릭 시점의 주소로 계산한다(AuthButton.tsx와 동일 규칙).
-   SSR 렌더 시점에는 window가 없고, 미리 굳혀 두면 라우트가 바뀐 뒤 엉뚱한 곳으로 돌아간다. */
+/* 로그인 복귀 경로는 렌더 시점이 아니라 클릭 시점의 주소로 계산한다 — 그래서 값이 아니라 함수다.
+   SSR 렌더 시점에는 window가 없고, 셸은 라우트 전환에도 살아남으므로 한 번 굳혀 두면
+   경로가 바뀐 뒤에도 옛 주소가 남아 로그인 후 엉뚱한 곳으로 돌아간다. */
 function loginHref() {
   return `/login?next=${encodeURIComponent(
     nextPathWithSearch(window.location.pathname, new URLSearchParams(window.location.search)),
@@ -99,7 +100,7 @@ function WcChrome({
   const headerSentinelRef = useRef<HTMLDivElement>(null);
   const condensed = useHeaderCondensed(topSentinelRef, headerSentinelRef);
   const [overlay, setOverlay] = useState<{ kind: OverlayKind; pathname: string }>({ kind: 'none', pathname });
-  /* 라우트가 바뀌면 렌더 중에 상태를 실제로 리셋한다(useHeaderScrollHide의 resetKey 패턴).
+  /* 상태와 그 상태가 속한 경로를 함께 들고 있다가, 경로가 달라지면 effect가 아니라 렌더 중에 실제로 리셋한다.
      파생 불리언으로 가리기만 하면 뒤로/앞으로 가기로 같은 경로에 돌아왔을 때 옛 상태가 되살아나 오버레이가 멋대로 다시 열린다. */
   if (overlay.pathname !== pathname) {
     setOverlay({ kind: 'none', pathname });

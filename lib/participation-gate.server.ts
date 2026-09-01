@@ -23,8 +23,11 @@ import { getCurrentAuthState } from '@/lib/auth/server';
  * 'use server' 모듈은 액션이 아닌 함수를 export 할 수 없어 액션 파일에서 서로
  * 끌어다 쓸 수 없다. 그래서 게이트는 액션이 아닌 이 모듈이 소유한다.
  *
- * app/my/reviews/actions.ts 의 동일 게이트는 S9 정리 후보다(DESIGN §11 동결 경계라
- * 이번 배치에서는 건드리지 않는다).
+ * 리뷰 액션(app/my/reviews/actions.ts)이 들고 있던 같은 게이트 사본도 S9 정리(#331)
+ * 에서 이 모듈로 합쳤다. 사본 쪽 loginPath 만 safeNextPath 를 지나지 않았는데, 리뷰
+ * 액션이 넘기는 next 는 '/my/reviews'와 '/my/reviews/<검증된 UUID>' 둘뿐이라
+ * safeNextPath 가 무연산이다 — 도달 가능한 모든 입력에서 두 구현의 출력이 같음을
+ * 확인하고 합쳤다(동작 변경 아님).
  */
 
 /* next 는 호출부에서 이미 safeNextPath 를 지난 값이지만 여기서 한 번 더 정규화한다 —
