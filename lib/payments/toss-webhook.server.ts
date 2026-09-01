@@ -1,12 +1,13 @@
 import 'server-only';
 
+import { isTossProviderOrderId } from './toss-config.mjs';
+
 // 토스 웹훅(PAYMENT_STATUS_CHANGED) 수신 계약(2026-09-01 공식문서 MCP 실조회):
 // POST JSON { eventType, createdAt, data: Payment }. 일반 결제 웹훅에는 서명
 // 헤더가 없으므로 본문은 어떤 상태 반영의 근거도 되지 않는다 — 여기서는 어느
 // attempt를 재정합화할지(orderId)만 읽고 전부 버린다. raw payload는 저장하지
 // 않는다.
 const MAX_WEBHOOK_BYTES = 64 * 1024;
-const PROVIDER_ORDER_ID = /^[OT][0-9a-f]{32}$/i;
 const EVENT_TYPE = /^[A-Z_]{2,64}$/;
 const CASE_REF = /^[A-Za-z0-9_-]{16,128}$/;
 
@@ -79,7 +80,9 @@ export async function parseTossWebhook(request: Request): Promise<ParsedTossWebh
   const orderId = typeof data === 'object' && data !== null && !Array.isArray(data)
     ? (data as Record<string, unknown>).orderId
     : undefined;
-  if (typeof orderId !== 'string' || !PROVIDER_ORDER_ID.test(orderId)) {
+  // 주문번호 wire 계약은 toss-config.mjs 하나만 본다 — 사본이 갈라지면 유효한
+  // 주문번호가 여기서만 조용히 미지 식별자로 떨어진다.
+  if (typeof orderId !== 'string' || !isTossProviderOrderId(orderId)) {
     return { kind: 'unknown_reference' };
   }
   return { kind: 'payment_status_changed', providerOrderId: orderId };

@@ -41,8 +41,8 @@ function handler(overrides: Partial<Parameters<typeof createTossWebhookHandler>[
       purpose: 'order' as const,
       state: 'unknown',
     })),
-    reconcileGoods: vi.fn(async () => ({ outcome: 'approved' })),
-    reconcileTicket: vi.fn(async () => ({ outcome: 'approved' })),
+    reconcileGoods: vi.fn(async () => ({ outcome: 'approved' as const })),
+    reconcileTicket: vi.fn(async () => ({ outcome: 'approved' as const })),
     createCaseRefFallback: () => '11111111-2222-4333-8444-555555555555',
     ...overrides,
   };
@@ -131,6 +131,21 @@ describe('POST /api/webhooks/tosspayments', () => {
     expect(deps.reconcileTicket).not.toHaveBeenCalled();
   });
 
+  it('attempt 조회 실패는 미지 orderId와 다르다 — 500으로 재전송을 유지한다', async () => {
+    const { deps, post } = handler({
+      loadAttempt: vi.fn(async () => {
+        throw new Error(`db unavailable ${PAYMENT_KEY}`);
+      }),
+    });
+
+    const result = await post(webhookRequest(statusChangedBody()));
+
+    expect(result.status).toBe(500);
+    expect(await result.text()).not.toContain(PAYMENT_KEY);
+    expect(deps.reconcileGoods).not.toHaveBeenCalled();
+    expect(deps.reconcileTicket).not.toHaveBeenCalled();
+  });
+
   it('형식이 유효해도 우리 주문번호 체계 밖의 orderId는 200 ack다', async () => {
     const { deps, post } = handler();
 
@@ -200,6 +215,43 @@ describe('POST /api/webhooks/tosspayments', () => {
     expect(result.status).toBe(500);
     expect(await result.text()).not.toContain(PAYMENT_KEY);
   });
+
+  it('unknown으로 끝난 재정합은 500으로 남긴다 — 재전송이 유일한 재시도 경로다', async () => {
+    const { deps, post } = handler({
+      reconcileGoods: vi.fn(async () => ({ outcome: 'unknown' as const })),
+    });
+
+    const result = await post(webhookRequest(statusChangedBody()));
+
+    expect(result.status).toBe(500);
+    expect(deps.reconcileGoods).toHaveBeenCalledTimes(1);
+  });
+
+  it('needs_review는 재시도해도 같은 결과라 200 ack다', async () => {
+    const { post } = handler({
+      reconcileTicket: vi.fn(async () => ({ outcome: 'needs_review' as const })),
+      loadAttempt: vi.fn(async () => ({
+        id: ATTEMPT_ID,
+        purpose: 'ticket' as const,
+        state: 'needs_review',
+      })),
+    });
+
+    const result = await post(webhookRequest(statusChangedBody({ orderId: TICKET_PROVIDER_ORDER_ID })));
+
+    expect(result.status).toBe(200);
+  });
+
+  it.each(['approved', 'declined', 'canceled'] as const)(
+    '터미널 판정(%s)은 200 ack로 닫는다',
+    async (outcome) => {
+      const { post } = handler({ reconcileGoods: vi.fn(async () => ({ outcome })) });
+
+      const result = await post(webhookRequest(statusChangedBody()));
+
+      expect(result.status).toBe(200);
+    },
+  );
 
   it('전송 id 헤더가 없으면 무작위 case ref로 감사를 남긴다', async () => {
     const { deps, post } = handler();

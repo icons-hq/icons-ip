@@ -7,6 +7,7 @@ import { createRuntimeGoodsPaymentCheckout } from '@/lib/payments/goods-checkout
 import { createServiceClient } from '@/lib/supabase/service';
 import { TicketPaymentReconciliationInProgressError } from '@/lib/payments/ticket-checkout';
 import { createRuntimeTicketPaymentCheckout } from '@/lib/payments/ticket-checkout.runtime.server';
+import type { ConfirmOutcome } from '@/lib/payments/gateway';
 import {
   TossWebhookInvalidError,
   parseTossWebhook,
@@ -19,11 +20,22 @@ interface WebhookAttemptRow {
   readonly state: string;
 }
 
+/**
+ * reconcile seam(goods·ticket checkout의 `reconcilePayment`)이 돌려주는 판정 중
+ * 라우트가 읽는 축만 남긴 구조 타입. attemptId·provider·evidence는 원장의 몫이고
+ * 웹훅 응답 본문으로는 나가지 않는다 — 여기서는 재전송을 더 받을지만 정한다.
+ */
+type WebhookReconcileResult = Pick<ConfirmOutcome, 'outcome'>;
+
 interface TossWebhookHandlerDependencies {
   readonly available: () => boolean;
   readonly loadAttempt: (providerOrderId: string) => Promise<WebhookAttemptRow | null>;
-  readonly reconcileGoods: (input: { attemptId: string; caseRef: string }) => Promise<unknown>;
-  readonly reconcileTicket: (input: { attemptId: string; caseRef: string }) => Promise<unknown>;
+  readonly reconcileGoods: (
+    input: { attemptId: string; caseRef: string },
+  ) => Promise<WebhookReconcileResult>;
+  readonly reconcileTicket: (
+    input: { attemptId: string; caseRef: string },
+  ) => Promise<WebhookReconcileResult>;
   readonly createCaseRefFallback?: () => string;
 }
 
@@ -64,7 +76,14 @@ export function createTossWebhookHandler({
     }
     if (parsed.kind !== 'payment_status_changed') return acknowledged();
 
-    const attempt = await loadAttempt(parsed.providerOrderId).catch(() => null);
+    let attempt: WebhookAttemptRow | null;
+    try {
+      attempt = await loadAttempt(parsed.providerOrderId);
+    } catch {
+      // 조회 실패는 부재가 아니다. 일시 DB 장애를 200으로 닫으면 굿즈의 유일한
+      // 자동 복구 경로(재전송)가 그대로 끊긴다 — 5xx로 남겨 다시 받는다.
+      return Response.json({ error: 'attempt_lookup_failed' }, { status: 500 });
+    }
     // 미지 식별자는 재전송해도 처리할 것이 없다 — 우리 원장의 결제가 아니다.
     if (!attempt) return acknowledged();
     // prepared는 TTL 스윕 소관이고, 종결 상태는 웹훅이 건드릴 수 없다(멱등).
@@ -73,12 +92,11 @@ export function createTossWebhookHandler({
     const caseRef = tossWebhookCaseRef(request, createCaseRefFallback);
     if (!caseRef) return acknowledged();
 
+    let result: WebhookReconcileResult;
     try {
-      if (attempt.purpose === 'order') {
-        await reconcileGoods({ attemptId: attempt.id, caseRef });
-      } else {
-        await reconcileTicket({ attemptId: attempt.id, caseRef });
-      }
+      result = attempt.purpose === 'order'
+        ? await reconcileGoods({ attemptId: attempt.id, caseRef })
+        : await reconcileTicket({ attemptId: attempt.id, caseRef });
     } catch (error) {
       if (
         error instanceof GoodsPaymentReconciliationInProgressError
@@ -89,6 +107,16 @@ export function createTossWebhookHandler({
       // 재정합 실패 — 재전송이 다시 시도하도록 5xx로 남긴다.
       return Response.json({ error: 'reconciliation_failed' }, { status: 500 });
     }
+
+    if (result.outcome === 'unknown') {
+      // 조회 API의 일시 실패(타임아웃·5xx·시한 내 404)는 throw가 아니라 unknown으로
+      // resolve된다. 여기서 200을 주면 이 스택의 유일한 자동 재시도 경로를 스스로
+      // 끊는 것이다. 어댑터가 만료+45분 이후의 부재는 declined로 종결하므로, 재전송을
+      // 계속 태우면 unknown은 시간이 지나 반드시 터미널로 수렴한다.
+      return Response.json({ error: 'reconciliation_unsettled' }, { status: 500 });
+    }
+    // needs_review(신원 불일치·설정 오류)는 재시도해도 같은 결과라 사람이 볼 몫이고,
+    // 터미널(approved·declined·canceled)은 이미 확정이다 — 둘 다 200 ack로 닫는다.
     return acknowledged();
   };
 }
@@ -101,14 +129,20 @@ async function loadTossAttempt(providerOrderId: string): Promise<WebhookAttemptR
     .eq('provider', 'toss')
     .eq('provider_order_id', providerOrderId)
     .maybeSingle();
-  if (error || !data) return null;
+  // 조회 오류와 행 부재를 합치지 않는다 — 합치면 일시 장애가 "미지 orderId"와 같은
+  // 200 ack로 끝나 재전송이 멈춘다. null은 오직 "우리 원장에 없다"만 뜻한다.
+  if (error) throw new Error(`toss_webhook_attempt_lookup_failed:${error.code ?? 'unknown'}`);
+  if (!data) return null;
   const row = data as Record<string, unknown>;
   if (
     typeof row.id !== 'string'
     || (row.purpose !== 'order' && row.purpose !== 'ticket')
     || typeof row.state !== 'string'
   ) {
-    return null;
+    // 행은 있는데 형태가 계약과 다르면 "우리 결제가 아니다"가 아니라 원장 데이터
+    // 이상이다. 200으로 삼키면 관측도 복구도 없이 사라지므로 조회 실패와 같은
+    // 축으로 올려 5xx·재전송에 맡긴다.
+    throw new Error('toss_webhook_attempt_row_invalid');
   }
   return { id: row.id, purpose: row.purpose, state: row.state };
 }
