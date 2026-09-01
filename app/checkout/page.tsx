@@ -48,6 +48,9 @@ export default async function Page({ searchParams }: PageProps) {
       catalog={{ goods: catalog.goods, ips: catalog.ips }}
       latestAddress={latestAddress}
       resumeOrderId={resumeOrderId}
+      /* 카트 단계라 파생할 주문이 아직 없다 — 기본(toss) gate로 그린다. 제한
+         상품은 현재 담기 자체가 차단되고, 19금 오픈 트랙에서 카트 파생과 함께
+         korpay gate 분기가 이 자리에 온다(#392). 서버 prepare가 최종 gate다. */
       paymentAvailable={goodsCheckoutPaymentsEnabled(auth.user.id)}
       bankTransferAvailable={bankTransferCheckoutEnabled()}
       appliedCoupon={appliedCoupon}

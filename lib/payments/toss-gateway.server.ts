@@ -65,7 +65,6 @@ const CANCEL_REJECTED_CODES = new Set([
   'NOT_SUPPORTED_REFUND',
   'REFUND_REJECTED',
   'INVALID_REFUND_AMOUNT',
-  'FORBIDDEN_REQUEST',
   'NOT_FOUND_PAYMENT',
 ]);
 // 키·상점 설정이 틀렸다는 신호. 자동 종결하면 오류가 침묵하므로 needs_review로
