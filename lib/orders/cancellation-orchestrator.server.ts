@@ -1,5 +1,7 @@
 import 'server-only';
 
+import type { PaymentAttempt, RefundOutcome } from '../payments/gateway';
+import { getPaymentGateway } from '../payments/runtime-gateway';
 import { createServiceClient } from '../supabase/service';
 
 export type CancellationRequestStatus =
@@ -16,12 +18,15 @@ export type CancellationPaymentStatus =
   | 'failed'
   | 'refunded';
 
+export type CancellationPaymentProvider = 'toss' | 'korpay';
+
 export interface CancellationReconciliationContext {
   requestId: string;
   orderId: string;
   status: CancellationRequestStatus;
   payments: Array<{
     id: string;
+    provider: CancellationPaymentProvider;
     status: CancellationPaymentStatus;
     amount: number;
     paymentKey: string | null;
@@ -56,6 +61,15 @@ export interface CancellationReconciliationDependencies {
     requestId: string;
     actorId: string;
   }): Promise<ExpiredPreparedGoodsReconciliation>;
+  /**
+   * toss 유상 캡처의 전액 취소. 게이트웨이가 취소 API 발행 후 fresh 조회로
+   * 전액 취소를 검증한 결과(5-outcome)를 그대로 돌려준다(#389).
+   */
+  refundTossPayment(input: {
+    paymentId: string;
+    amount: number;
+    reason: string;
+  }): Promise<RefundOutcome>;
   completeRequest(input: {
     requestId: string;
     actorId: string;
@@ -106,12 +120,12 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         throw new Error('invalid cancellation request state');
       }
 
-      // 이 조회는 해지된 legacy Toss 계약의 원장 행만 본다. Korpay 결제는 여기가
-      // 아니라 수동 복구 seam(goods-manual-recovery)이 정합화 경로다.
+      // 카드 provider 원장만 본다(무통장 환불은 별도 계좌 환불 경로 — ADR-0010).
+      // toss는 취소 API 자동화 경로(#389), korpay는 수동 복구 seam이 정합화 경로다.
       const { data: paymentData, error: paymentError } = await service
         .from('payments')
-        .select('id,status,amount,payment_key')
-        .eq('provider', 'toss')
+        .select('id,provider,status,amount,payment_key')
+        .in('provider', ['toss', 'korpay'])
         .eq('purpose', 'order')
         .eq('ref_id', request.order_id)
         .order('id', { ascending: true });
@@ -122,6 +136,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         const payment = paymentDataRow as Record<string, unknown>;
         if (
           typeof payment.id !== 'string'
+          || (payment.provider !== 'toss' && payment.provider !== 'korpay')
           || typeof payment.status !== 'string'
           || !PAYMENT_STATUSES.has(payment.status as CancellationPaymentStatus)
           || typeof payment.amount !== 'number'
@@ -132,6 +147,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         }
         return {
           id: payment.id,
+          provider: payment.provider as CancellationPaymentProvider,
           status: payment.status as CancellationPaymentStatus,
           amount: payment.amount,
           paymentKey: payment.payment_key as string | null,
@@ -144,6 +160,51 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         status: request.status as CancellationRequestStatus,
         payments,
       };
+    },
+    async refundTossPayment({ paymentId, amount, reason }) {
+      const { data, error } = await service
+        .from('payment_attempts')
+        .select('id,provider,purpose,ref_id,amount,currency,idempotency_key,provider_order_id,provider_product_code,expires_at')
+        .eq('payment_id', paymentId)
+        .maybeSingle();
+      if (error) throw new Error('payment attempt lookup failed');
+      // provider-neutral 원장 이전(라이브 첫날) 결제는 attempt 행이 없을 수 있다
+      // — 자동 취소 근거가 없으므로 수동 검토로 승격시킨다.
+      if (!data) throw new Error('payment attempt missing');
+      const row = data as Record<string, unknown>;
+      if (
+        row.provider !== 'toss'
+        || row.purpose !== 'order'
+        || typeof row.id !== 'string'
+        || typeof row.ref_id !== 'string'
+        || typeof row.amount !== 'number'
+        || row.amount !== amount
+        || typeof row.currency !== 'string'
+        || typeof row.idempotency_key !== 'string'
+        || typeof row.provider_order_id !== 'string'
+        || typeof row.provider_product_code !== 'string'
+        || typeof row.expires_at !== 'string'
+      ) {
+        throw new Error('invalid payment attempt state');
+      }
+      const attempt: PaymentAttempt = {
+        id: row.id,
+        provider: 'toss',
+        purpose: 'order',
+        refId: row.ref_id,
+        amount: row.amount,
+        currency: row.currency,
+        idempotencyKey: row.idempotency_key,
+        providerOrderId: row.provider_order_id,
+        providerProductCode: row.provider_product_code,
+        expiresAt: row.expires_at,
+      };
+      return getPaymentGateway('toss').refund({
+        attempt,
+        idempotencyKey: `refund:${attempt.id}`,
+        amount,
+        reason,
+      });
     },
     async reconcileExpiredPreparedGoods({ requestId, actorId }) {
       const { data, error } = await service.rpc(
@@ -195,12 +256,13 @@ async function markNeedsReview(
 }
 
 /**
- * 승인된 주문 취소 요청을 로컬 원자 RPC로 정합화한다. 호출자는 인증된
- * actor/request id만 전달하며 결제 키·금액은 service DB에서만 읽는다.
+ * 승인된 주문 취소 요청을 정합화한다. 호출자는 인증된 actor/request id만
+ * 전달하며 결제 키·금액은 service DB에서만 읽는다.
  *
- * provider 원격 왕복은 없다. 유상 캡처가 남아 있다면 그것은 해지된 legacy
- * Toss 계약의 결제뿐이라 원격 취소·재검증이 불가능하므로(#384), 자동 완료
- * 대신 수동 검토로 승격하는 것이 이 함수가 내릴 수 있는 가장 강한 판정이다.
+ * toss 유상 캡처는 게이트웨이 refund(취소 API 발행 + fresh 조회 검증)로 자동
+ * 취소하고, 검증된 키만 완료 RPC에 넘긴다(#389). korpay 유상 캡처는 취소 API가
+ * 없어 수동 복구 seam(goods-manual-recovery)이 정상 경로이므로 여기서는 수동
+ * 검토로 승격한다. 실패·모호는 자동 종결하지 않는다.
  */
 export async function reconcileOrderCancellation(
   input: { requestId: string; actorId: string },
@@ -242,6 +304,7 @@ export async function reconcileOrderCancellation(
   // to processing before completion.
   if (context.status !== 'processing') return { ok: false, code: 'request_not_ready' };
 
+  const verifiedPaymentKeys: string[] = [];
   for (const payment of context.payments) {
     if (payment.status === 'failed') continue;
     if (
@@ -252,14 +315,39 @@ export async function reconcileOrderCancellation(
     ) {
       return markNeedsReview(dependencies, input, 'payment_evidence_invalid');
     }
-    return markNeedsReview(dependencies, input, 'provider_unavailable');
+    if (payment.provider !== 'toss') {
+      // korpay는 취소 API가 없다 — 수동 복구 seam(운영자 확인)이 정상 경로다.
+      return markNeedsReview(dependencies, input, 'provider_unavailable');
+    }
+
+    let refund: RefundOutcome;
+    try {
+      refund = await dependencies.refundTossPayment({
+        paymentId: payment.id,
+        amount: payment.amount,
+        reason: 'ICONS 주문 취소',
+      });
+    } catch {
+      return markNeedsReview(dependencies, input, 'provider_unavailable');
+    }
+    if (refund.outcome === 'approved' && refund.refundedAmount === payment.amount) {
+      verifiedPaymentKeys.push(payment.paymentKey);
+      continue;
+    }
+    // 명시 거절(needs_review·declined)은 취소 실패로, 모호(unknown)는 provider
+    // 불가로 남긴다 — 어느 쪽도 돈이 걸린 판단을 추측으로 종결하지 않는다.
+    return markNeedsReview(
+      dependencies,
+      input,
+      refund.outcome === 'unknown' ? 'provider_unavailable' : 'provider_cancel_failed',
+    );
   }
 
   try {
     await dependencies.completeRequest({
       requestId: input.requestId,
       actorId: input.actorId,
-      verifiedPaymentKeys: [],
+      verifiedPaymentKeys,
     });
   } catch {
     return markNeedsReview(dependencies, input, 'local_finalize_failed');

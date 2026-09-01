@@ -53,6 +53,21 @@ const DECLINED_CODES = new Set([
   'MAINTAINED_METHOD',
   'PAY_PROCESS_ABORTED',
 ]);
+// 취소 API가 결제 상태·상점 정책상 취소 불가를 명시한 코드 — 재시도해도 결과가
+// 같으므로 needs_review로 격리해 운영 판단에 태운다.
+const CANCEL_REJECTED_CODES = new Set([
+  'NOT_CANCELABLE_PAYMENT',
+  'NOT_CANCELABLE_AMOUNT',
+  'NOT_MATCHES_REFUNDABLE_AMOUNT',
+  'EXCEED_MAX_REFUND_AMOUNT',
+  'EXCEED_MAX_REFUND_DUE',
+  'NOT_ALLOWED_PARTIAL_REFUND',
+  'NOT_SUPPORTED_REFUND',
+  'REFUND_REJECTED',
+  'INVALID_REFUND_AMOUNT',
+  'FORBIDDEN_REQUEST',
+  'NOT_FOUND_PAYMENT',
+]);
 // 키·상점 설정이 틀렸다는 신호. 자동 종결하면 오류가 침묵하므로 needs_review로
 // 격리해 운영 관측에 태운다.
 const CONFIGURATION_CODES = new Set([
@@ -185,6 +200,38 @@ function paymentMatchesAttempt(payment: Record<string, unknown>, attempt: Paymen
     && integerAmount(payment.totalAmount) === attempt.amount
     && safeString(payment.paymentKey, 200)
     && PROVIDER_PAYMENT_KEY.test(payment.paymentKey as string);
+}
+
+/**
+ * 조회한 Payment가 이 attempt의 전액 취소 상태인지. 부분취소는 발행하지 않는
+ * 계약이므로 PARTIAL_CANCELED·잔여 balance는 전액 취소로 인정하지 않는다.
+ */
+function paymentFullyCanceled(payment: Record<string, unknown>, attempt: PaymentAttempt) {
+  return payment.status === 'CANCELED'
+    && payment.orderId === attempt.providerOrderId
+    && payment.currency === 'KRW'
+    && integerAmount(payment.totalAmount) === attempt.amount
+    && integerAmount(payment.balanceAmount) === 0;
+}
+
+function canceledEvidence(payment: Record<string, unknown>): PaymentProviderEvidence {
+  const cancels = Array.isArray(payment.cancels) ? payment.cancels : [];
+  const lastCancel = cancels.length > 0 && plainRecord(cancels[cancels.length - 1])
+    ? cancels[cancels.length - 1] as Record<string, unknown>
+    : null;
+  const transactionKey = lastCancel && safeString(lastCancel.transactionKey, 64)
+    ? lastCancel.transactionKey
+    : safeString(payment.lastTransactionKey, 64)
+      ? payment.lastTransactionKey
+      : null;
+  const canceledAt = lastCancel ? isoTimestamp(lastCancel.canceledAt) : null;
+  const paymentKey = safeString(payment.paymentKey, 200) ? payment.paymentKey : undefined;
+  return {
+    ...(paymentKey ? { providerPaymentKey: paymentKey } : {}),
+    ...(transactionKey ? { providerTransactionId: transactionKey } : {}),
+    resultCode: 'CANCELED',
+    ...(canceledAt ? { approvedAt: canceledAt } : {}),
+  };
 }
 
 function approvedEvidence(payment: Record<string, unknown>): PaymentProviderEvidence {
@@ -519,13 +566,142 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
 
     async refund(request): Promise<RefundOutcome> {
       assertAttempt(request.attempt);
-      // 취소 API 연동은 취소·환불 슬라이스(#389)에서 구현한다. 그 전까지 환불
-      // 요청은 수동 검토로 격리한다.
-      return baseOutcome(
-        request.attempt,
-        'needs_review',
-        'provider_refund_unavailable',
-      ) as RefundOutcome;
+      const attempt = request.attempt;
+      // 부분취소는 발행하지 않는다 — 법적 고지 문구(전액 환불)와 일치.
+      if (request.amount !== attempt.amount) {
+        return baseOutcome(
+          attempt,
+          'needs_review',
+          'provider_refund_amount_mismatch',
+        ) as RefundOutcome;
+      }
+      if (
+        !safeString(request.reason, 200)
+        || !IDEMPOTENCY_KEY.test(request.idempotencyKey)
+      ) {
+        return baseOutcome(attempt, 'needs_review', 'provider_refund_request_invalid') as RefundOutcome;
+      }
+
+      // 취소 결과 판정은 취소 API 응답 body가 아니라 fresh 조회만 진실원으로
+      // 삼는다(웹훅 본문 불신과 같은 규율). 이미 전액 취소된 건은 성공으로
+      // 수렴하고, 부분취소·잔여 balance는 우리가 만든 상태가 아니므로 격리한다.
+      async function inquireForRefund(): Promise<
+        | { readonly kind: 'canceled'; readonly payment: Record<string, unknown> }
+        | { readonly kind: 'done'; readonly payment: Record<string, unknown> }
+        | { readonly kind: 'not_found' }
+        | { readonly kind: 'not_refundable' }
+        | { readonly kind: 'ambiguous' }
+      > {
+        let inquiry: { status: number; payload: unknown };
+        try {
+          inquiry = await providerRequest(
+            `/v1/payments/orders/${encodeURIComponent(attempt.providerOrderId)}`,
+            { method: 'GET' },
+          );
+        } catch {
+          return { kind: 'ambiguous' };
+        }
+        if (inquiry.status === 404) return { kind: 'not_found' };
+        if (inquiry.status !== 200 || !plainRecord(inquiry.payload)) {
+          return { kind: 'ambiguous' };
+        }
+        const payment = inquiry.payload;
+        if (paymentFullyCanceled(payment, attempt)) return { kind: 'canceled', payment };
+        if (
+          payment.status === 'DONE'
+          && payment.orderId === attempt.providerOrderId
+          && integerAmount(payment.totalAmount) === attempt.amount
+          && safeString(payment.paymentKey, 200)
+          && PROVIDER_PAYMENT_KEY.test(payment.paymentKey as string)
+        ) {
+          return { kind: 'done', payment };
+        }
+        return { kind: 'not_refundable' };
+      }
+
+      const before = await inquireForRefund();
+      if (before.kind === 'canceled') {
+        return {
+          ...baseOutcome(
+            attempt,
+            'approved',
+            'provider_already_fully_canceled',
+            canceledEvidence(before.payment),
+          ),
+          refundedAmount: attempt.amount,
+        } as RefundOutcome;
+      }
+      if (before.kind === 'not_found') {
+        return baseOutcome(attempt, 'needs_review', 'provider_payment_not_found') as RefundOutcome;
+      }
+      if (before.kind === 'not_refundable') {
+        return baseOutcome(attempt, 'needs_review', 'provider_payment_not_refundable') as RefundOutcome;
+      }
+      if (before.kind === 'ambiguous') {
+        return baseOutcome(attempt, 'unknown', 'provider_unavailable') as RefundOutcome;
+      }
+
+      const paymentKey = before.payment.paymentKey as string;
+      let cancelSucceeded = false;
+      try {
+        const cancelResult = await providerRequest(
+          `/v1/payments/${encodeURIComponent(paymentKey)}/cancel`,
+          {
+            method: 'POST',
+            idempotencyKey: request.idempotencyKey,
+            // cancelAmount를 싣지 않는다 — 값이 없으면 전액 취소가 취소 API 계약이다.
+            body: { cancelReason: request.reason },
+          },
+        );
+        const code = errorCode(cancelResult.payload);
+        if (cancelResult.status === 200) {
+          cancelSucceeded = true;
+        } else if (code !== null && CANCEL_REJECTED_CODES.has(code)) {
+          return baseOutcome(attempt, 'needs_review', 'provider_cancel_rejected', {
+            providerPaymentKey: paymentKey,
+            resultCode: code,
+          }) as RefundOutcome;
+        } else if (code !== null && CONFIGURATION_CODES.has(code)) {
+          return baseOutcome(attempt, 'needs_review', 'provider_configuration_error', {
+            providerPaymentKey: paymentKey,
+            resultCode: code,
+          }) as RefundOutcome;
+        }
+        // ALREADY_CANCELED_PAYMENT·409·5xx·미지 코드는 fresh 조회가 판정한다.
+      } catch {
+        // 타임아웃·네트워크 실패 — 취소가 성립했을 수 있으므로 조회로 확인한다.
+      }
+
+      const after = await inquireForRefund();
+      if (after.kind === 'canceled') {
+        return {
+          ...baseOutcome(
+            attempt,
+            'approved',
+            'provider_cancel_confirmed',
+            canceledEvidence(after.payment),
+          ),
+          refundedAmount: attempt.amount,
+        } as RefundOutcome;
+      }
+      if (after.kind === 'done') {
+        // 취소 API가 200을 줬는데 조회가 여전히 DONE이면 provider 상태가
+        // 어긋난 것이다 — 자동 종결하지 않는다.
+        return baseOutcome(
+          attempt,
+          cancelSucceeded ? 'needs_review' : 'unknown',
+          cancelSucceeded ? 'provider_cancellation_incomplete' : 'provider_cancel_ambiguous',
+          { providerPaymentKey: paymentKey },
+        ) as RefundOutcome;
+      }
+      if (after.kind === 'not_refundable') {
+        return baseOutcome(attempt, 'needs_review', 'provider_payment_not_refundable', {
+          providerPaymentKey: paymentKey,
+        }) as RefundOutcome;
+      }
+      return baseOutcome(attempt, 'unknown', 'provider_unavailable', {
+        providerPaymentKey: paymentKey,
+      }) as RefundOutcome;
     },
   };
 }
