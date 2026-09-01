@@ -416,12 +416,123 @@ describe('TossPayments v2 gateway', () => {
     });
   });
 
-  it('reconcile은 #390 전까지 수동 검토로 격리된다', async () => {
-    const { gateway: tossGateway, fetchImpl } = gateway();
-    const outcome = await tossGateway.reconcile(ATTEMPT);
-    expect(fetchImpl).not.toHaveBeenCalled();
-    expect(outcome.outcome).toBe('needs_review');
-    expect(outcome.reasonCode).toBe('provider_reconciliation_unavailable');
+  describe('reconcile', () => {
+    it('조회가 DONE이고 identity가 일치하면 approved로 종결한다', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, donePayment()));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      const [url, init] = fetchImpl.mock.calls[0]!;
+      expect(url).toBe(
+        `https://api.tosspayments.com/v1/payments/orders/${ATTEMPT.providerOrderId}`,
+      );
+      expect(init.method).toBe('GET');
+      expect(outcome.outcome).toBe('approved');
+      expect(outcome.reasonCode).toBe('provider_reconciled_approved');
+      expect(outcome.evidence?.providerPaymentKey).toBe(PAYMENT_KEY);
+    });
+
+    it('전액 취소가 검증된 결제만 canceled를 돌려준다(환불 재정합 계약)', async () => {
+      const fullyCanceled = donePayment({
+        status: 'CANCELED',
+        balanceAmount: 0,
+        cancels: [{
+          cancelAmount: ATTEMPT.amount,
+          canceledAt: '2026-09-01T10:00:00+09:00',
+          transactionKey: 'CANCELTX',
+          cancelStatus: 'DONE',
+        }],
+      });
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, fullyCanceled));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(outcome.outcome).toBe('canceled');
+      expect(outcome.reasonCode).toBe('provider_payment_canceled');
+      expect(outcome.evidence?.resultCode).toBe('CANCELED');
+    });
+
+    it('부분취소·잔액 있는 취소 상태는 canceled로 종결하지 않는다', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, donePayment({
+        status: 'PARTIAL_CANCELED',
+        balanceAmount: 1_000,
+      })));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(outcome.outcome).toBe('needs_review');
+      expect(outcome.reasonCode).toBe('provider_cancellation_mismatch');
+    });
+
+    it.each([
+      ['ABORTED', 'provider_declined'],
+      ['EXPIRED', 'provider_payment_expired'],
+    ])('%s는 declined로 확정한다(환불 재정합이 취소 성공으로 오인하지 않도록)', async (status, reason) => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, donePayment({ status })));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(outcome.outcome).toBe('declined');
+      expect(outcome.reasonCode).toBe(reason);
+    });
+
+    it('진행 중 상태는 unknown으로 보존한다', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, donePayment({ status: 'IN_PROGRESS' })));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(outcome.outcome).toBe('unknown');
+      expect(outcome.reasonCode).toBe('provider_payment_in_progress');
+    });
+
+    it('승인 가능 시한이 지난 404는 승인 불성립 확정으로 닫는다(콜백 유실 자동 종결)', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(404, {
+        code: 'NOT_FOUND_PAYMENT',
+        message: '존재하지 않는 결제 정보 입니다.',
+      }));
+      const { gateway: tossGateway } = gateway({
+        fetch: fetchImpl as unknown as typeof fetch,
+        // expiresAt(00:10) + 45분 이후.
+        now: () => new Date('2026-09-01T01:00:00Z'),
+      });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(outcome.outcome).toBe('declined');
+      expect(outcome.reasonCode).toBe('provider_payment_absent');
+    });
+
+    it('승인 가능 시한 전의 404는 unknown으로 남겨 다음 재정합에 맡긴다', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(404, {
+        code: 'NOT_FOUND_PAYMENT',
+        message: '존재하지 않는 결제 정보 입니다.',
+      }));
+      const { gateway: tossGateway } = gateway({
+        fetch: fetchImpl as unknown as typeof fetch,
+        now: () => new Date('2026-09-01T00:20:00Z'),
+      });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(outcome.outcome).toBe('unknown');
+      expect(outcome.reasonCode).toBe('provider_inquiry_not_found');
+    });
+
+    it('조회 실패는 unknown으로 보존한다', async () => {
+      const fetchImpl = vi.fn().mockRejectedValue(new Error('network down'));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(outcome.outcome).toBe('unknown');
+      expect(outcome.reasonCode).toBe('provider_unavailable');
+    });
   });
 
   describe('refund', () => {
