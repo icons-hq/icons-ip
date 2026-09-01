@@ -27,6 +27,8 @@
 
 의존성: S1→S2→S3, S4~S6은 S2 이후 병렬 가능(파일 소유권 분리), S7은 S4 이후, S8은 S3(큐레이션)·S4 이후, S9는 전체 후.
 
+**S9 수행 결과(2026-09-01)**: 구 시스템의 공개 표면 CSS 3파일(`editorial-shell`·`editorial-public`·`editorial-account-commerce`, 5,310줄)을 삭제하고 `globals.css`를 2,255→791줄로 줄여 **전역 하부(Tailwind·Pretendard·element 리셋)+어드민 잔존 어휘 전용**으로 계약을 좁혔다. 계획의 "HM 토큰 제거"는 전량 제거가 아니라 이 범위 축소로 착지했다 — 어드민이 아직 그 어휘를 쓴다(`editorial-foundation`도 컨슈머 0 규칙만 제거해 437→416줄로 잔존). dead 셸 5종(`MobNav`·`Atmos`·`AuthButton`·`NotificationBell`·`useHeaderScrollHide`)과 `lib/data.ts`의 mock 매물을 제거했다. **WC 재조판이 남은 공개 표면 3곳은 전용 격리 CSS로 자립**시켰다 — `/offline-popups`·`/offline-popups/[eventId]` → `offline-popups-legacy.css`, `/legal/*` → `legal-doc.css`, `/about` → 기존 `about-legacy.css`(재조판은 후속 작업). **`wc-foundation`의 전역 승격은 실측 후 보류** — body 밑색 `#f4f4f1`을 offline-popups가 그대로 쓰고 있어 승격이 시각을 바꾼다. 계약 테스트는 `wc-design.test.ts`(WC 계약)와 잔존 범위 기준으로 재작성한 `editorial-design.test.ts`(삭제 파일 재임포트 금지·wc CSS의 HM hex와 `--editorial-*` 참조 금지·globals 어드민 한정)로 나눴다. 문서는 `DESIGN.md`(status=implemented)·`AGENTS.md`·`docs/ARCHITECTURE.md`·`docs/PRD.md`에 반영했고, 남은 단계는 main 일괄 전환뿐이다.
+
 ## 2. DB 마이그레이션 목록 (9건)
 
 | # | 대상 | 요지 | 원칙 |

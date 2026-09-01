@@ -1,6 +1,6 @@
 ---
 name: ICONS — White Catalog v4
-status: in-migration
+status: implemented
 description: >
   화이트 캔버스, 무채색 잉크, 단일 brand-green 액센트, radius 0의 각진 플랫,
   스크롤 연출 없는 정적 카탈로그 커머스 디자인 시스템.
@@ -21,16 +21,22 @@ authority:
     discovery: app/styles/wc-discovery.css
     account-commerce: app/styles/wc-account-commerce.css
     campaign: app/styles/wc-campaign.css
-    about-legacy: app/styles/about-legacy.css
-  retained-for-admin:
+  retained-for-admin:               # 어드민 콘솔 어휘 — 이번 개편 대상이 아니다
+    - app/globals.css               # S9 이후 전역 하부(Tailwind·Pretendard·리셋)+어드민 HM 유산 밑층
     - app/styles/editorial-foundation.css
-    - app/styles/editorial-admin.css
+    - app/styles/editorial-admin.css  # 실제 라이트 콘솔 룩 — 나중에 로드돼 밑층을 덮는다
     - app/styles/admin-console.css
+  retained-legacy-surfaces:         # WC 재조판이 남은 공개 표면 — 표면별 격리 CSS로 자립
+    - app/styles/about-legacy.css           # /about
+    - app/styles/offline-popups-legacy.css  # /offline-popups·/offline-popups/[eventId]
+    - app/styles/legal-doc.css              # /legal/*
   route-map: lib/routes.ts
   note: >
-    status=in-migration: 이 문서는 통합 브랜치(ps/feat/lfs-storefront-redesign)에서 구현 중인 목표 정본이다.
-    아직 이행되지 않은 표면의 코드 진실은 직전 시스템(Living IP Editorial, git 이력의 DESIGN.md v3)이다.
-    전체 이행 완료 시 status를 implemented로 승격하고 retained 파일의 범위를 재확인한다.
+    status=implemented: 공개 스토어프론트 전 표면이 이 시스템으로 이행됐다(S1~S9, 통합 브랜치
+    ps/feat/lfs-storefront-redesign). 직전 시스템(Living IP Editorial)의 공개 표면 CSS 3파일은
+    S9에서 삭제됐고, globals.css는 전역 하부와 어드민 잔존 어휘만 남겼다.
+    retained-legacy-surfaces의 세 표면은 이행 대상이지만 아직 재조판되지 않았고, 원본 제거에
+    맞춰 격리 CSS로 자립시켰다 — 재조판은 후속 작업이며 그때 해당 파일을 지운다.
 reference:
   source: https://linefriendssquare.com (2026-08-26 실측)
   restrictions:
@@ -52,8 +58,9 @@ breakpoints:
 
 ## 0. 상태와 적용 원칙
 
-- 근거 결정은 [ADR-0011](docs/adr/0011-lfs-storefront-redesign.md)이다. 공개 스토어프론트 전 표면을 이 시스템으로 이행하고, 직전 시스템(Living IP Editorial)과 1세대 잔재(Holographic Midnight)는 이행 완료 표면에서 제거한다.
-- 예외 두 곳: **어드민**(`/admin/**`)은 이번 개편 대상이 아니며 editorial-admin 계열 CSS와 함께 유지한다. **`/about`**은 구 홈의 콘텐츠 섹션을 보존 전시하는 표면으로, 자체 스타일(about-legacy)을 갖되 전역 셸은 White Catalog을 쓴다.
+- 근거 결정은 [ADR-0011](docs/adr/0011-lfs-storefront-redesign.md)이다. 공개 스토어프론트 전 표면이 이 시스템으로 이행됐고, 직전 시스템(Living IP Editorial)의 공개 표면 CSS 3파일과 1세대 잔재(Holographic Midnight)의 공개 표면 규칙은 S9에서 제거됐다.
+- 예외: **어드민**(`/admin/**`)은 이번 개편 대상이 아니며 현재 어휘를 그대로 유지한다. 실제 룩은 editorial 토큰의 라이트 콘솔(editorial-foundation·editorial-admin·admin-console)이고, `globals.css`의 어드민부는 그 아래 깔린 Holographic Midnight 유산 밑층이다 — 라이트 콘솔이 덮지 않는 배치·간격·모션이 거기 있어 "안 보이니 지워도 된다"가 성립하지 않는다. **`/about`**은 구 홈의 콘텐츠 섹션을 보존 전시하는 표면으로, 자체 스타일(about-legacy)을 갖되 전역 셸은 White Catalog을 쓴다.
+- 재조판 잔여: **오프라인 팝업**(`/offline-popups`·`/offline-popups/[eventId]`)과 **법적 문서**(`/legal/*`)는 §8 플레이북의 대상이지만 아직 구 조판이다. S9의 원본 CSS 제거에 맞춰 표면별 격리 CSS(offline-popups-legacy·legal-doc)로 자립시켰고, 재조판은 후속 작업이다.
 - 시각·IA는 전면 교체하지만 기능 계약(인증, 카트, 주문, 결제, 카드팩, 예매, QR, 권한)은 §11의 동결 경계를 따른다.
 - 용어는 `CONTEXT.md`를 따른다: **온라인 팝업**(구 IP 허브), **오프라인 팝업**(예매 도메인), **이벤트**(캠페인 허브), **카테고리**(굿즈 분류), 수집형 **카드** ≠ 실물 **굿즈**.
 - 실데이터 원칙: 새로 보이게 하려고 정적 배열, 가짜 수치, 가짜 후기, 존재하지 않는 링크를 넣지 않는다.
@@ -271,15 +278,15 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 | 상품 상세 | `/shop/[goodId]` | `pdp-*`·`cta-pair`·`restock-cta`·`panel-tabs`·리뷰/Q&A | 카트·주문 생성 경로 유지, 바로구매=기존 주문 RPC |
 | 온라인 팝업 | `/ip`, `/ip/[id]` | A–Z 디렉토리 / 풀블리드 배너 540px+팔로우+facet 축약 컬렉션 | 공개 읽기·팔로우(`fans_count`) 유지 |
 | 카드팩·바인더 | `/packs`, `/binder` | `campaign-landing`·카탈로그 문법 재조판, 카드 foil 물성 유지 | 카드풀·확률·개봉 계약 동결 |
-| 이벤트 | `/events`(재정의) | `campaign-hub`+`campaign-landing` | 신규 campaigns 도메인(B5) |
-| 오프라인 팝업 | 신규 경로(이사) | 기존 예매·상세를 White Catalog으로 재조판, 푸터 진입 | 회차·잔여·예매·검표 계약 동결 |
+| 이벤트 | `/events` | `campaign-hub`+`campaign-landing` | 신규 campaigns 도메인(B5) |
+| 오프라인 팝업 | `/offline-popups`, `/offline-popups/[eventId]` | **재조판 대기** — 구 조판을 offline-popups-legacy로 격리 유지. 푸터 진입, 레거시 `/events/[id]` 딥링크는 리다이렉트 | 회차·잔여·예매·검표 계약 동결 |
 | 커뮤니티 | `/community` | `content-card` 문법 재조판 | 작성·좋아요·신고 계약 유지 |
 | 검색 | `/search` + 오버레이 | `search-overlay`+결과 그리드+숫자 페이지네이션 | `getSearchSnapshot`·URL 상태 유지 |
 | 카트 | `/cart` | `mini-checkout-cart`(쿠폰 select는 B1에서 활성) | local/DB 병합·수량 계약 유지 |
 | 체크아웃·주문·티켓 | `/checkout*`, `/orders*`, `/tickets*`, `/ticket-checkout*` | 흰 종이형 영수증·상태 타임라인, 크롬만 교체 | **결제 플로우·금액 확정·콜백 처리 동결** |
 | 인증 | `/login` 등 | `flat-auth-form` | OAuth·recovery·필드 계약 유지 |
 | 마이 | `/my` 이하 전부 | `mypage-shell`+위시리스트·쿠폰함(B1)·Q&A 내역(B3) | 기존 조회·설정 계약 유지 |
-| 법적·문서 | `/legal/*` | `document-page` | 정적 파라미터 유지 |
+| 법적·문서 | `/legal/*` | `document-page` — **재조판 대기**, 구 조판을 legal-doc으로 격리 유지 | 정적 파라미터 유지 |
 | 회사 소개 | `/about`(신규) | `about-legacy-showcase` | 구 홈 콘텐츠 보존, CTA 링크는 신 사이트로 |
 | 마켓·트레이드 | `/market`, `/exchange` | v2 플레이스홀더 재조판 | 플레이스홀더 유지 |
 | 게임 | `/games/[gameId]` | `standalone-game` | 서버 판정·한도·보상 동결 |
@@ -325,7 +332,7 @@ protected-boundaries:
 ### 회귀 기준선
 
 - 이행 각 단계 시작 시 `npm run test` 전체 통과 수를 기준선으로 기록하고, 기능 assertion을 느슨하게 만들어 통과시키지 않는다. 시각 마크업 변경으로 클래스명·스냅샷 기대값을 바꿀 때도 행동 단언은 유지한다.
-- CSS 계약 테스트는 `app/editorial-design.test.ts`를 대체하는 `app/wc-design.test.ts`(임포트 순서·토큰 hex·reduced-motion·focus ring)로 승계한다.
+- CSS 계약은 두 파일이 나눠 지킨다. `app/wc-design.test.ts`가 White Catalog 계약(임포트 순서·토큰 hex·reduced-motion·focus ring)이고, S9에서 잔존 범위 기준으로 재작성한 `app/editorial-design.test.ts`가 경계 계약(삭제된 CSS 재임포트 금지, wc CSS의 HM hex·`--editorial-*` 참조 금지, globals의 어드민 한정)을 기계 검증한다.
 
 ## 12. Do / Don't
 
@@ -335,4 +342,4 @@ protected-boundaries:
 
 ## 13. 구현 순서
 
-구현 단계·PR 구조·티켓 분해는 [docs/research/linefriends-square/09-implementation-plan.md](docs/research/linefriends-square/09-implementation-plan.md)가 정본이다. 완료 조건: 각 표면이 §8 플레이북과 R-스펙 수치를 만족하고, §11 계약 테스트가 통과하며, `npm run lint`·`npm run build`·`npm run test` 통과 + preview 검수 후 일괄 전환한다.
+구현 단계·PR 구조·티켓 분해는 [docs/research/linefriends-square/09-implementation-plan.md](docs/research/linefriends-square/09-implementation-plan.md)가 정본이다. 완료 조건: 각 표면이 §8 플레이북과 R-스펙 수치를 만족하고, §11 계약 테스트가 통과하며, `npm run lint`·`npm run build`·`npm run test` 통과 + preview 검수 후 일괄 전환한다. S1~S9 구현은 통합 브랜치에서 끝났고, 남은 단계는 main 일괄 전환이다.
