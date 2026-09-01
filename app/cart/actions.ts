@@ -116,6 +116,9 @@ export async function setCartItemQuantityAction(
     .select('stock,stock_qty')
     .eq('id', goodId)
     .is('archived_at', null)
+    // 판매 제한(19금) 상품은 비노출 상품과 같은 취급이다 — 존재를 드러내지
+    // 않고 담기를 거절한다(#392). 최종 차단은 place_order가 한다.
+    .eq('sale_restriction', 'none')
     .maybeSingle<GoodStockRow>();
   if (stockLoadError || !data) return { ok: false, mode: 'server', error: SAVE_ERROR };
   if (data.stock === 'soldout' || qty > data.stock_qty) {

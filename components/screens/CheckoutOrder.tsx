@@ -167,6 +167,13 @@ export function CheckoutOrder({ order, bankTransferAccount = null }: CheckoutOrd
                 <span>재고 선점 남은 시간</span>
                 <strong className="mono">{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}</strong>
               </div>
+              {/* 판매 제한(19금) 상품 포함 주문은 전용 PG로 파생된다(#392).
+                  서버 prepare의 파생 결과가 진실원이라 provider로 판별한다. */}
+              {prepareState.prepared.provider === 'korpay' && (
+                <p className="money-caption" role="status">
+                  성인(19금) 상품이 포함된 주문은 결제수단이 신용카드로 제한됩니다.
+                </p>
+              )}
               <PreparedCheckoutAction prepared={prepareState.prepared} />
             </>
           ) : state === 'payable' && preparedExpired ? (

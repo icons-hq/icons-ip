@@ -15,6 +15,7 @@ import type { PreparedCheckout } from '@/lib/payments/gateway';
 import { bankTransferCheckoutEnabled } from '@/lib/payments/bank-transfer.server';
 import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
 import { createRuntimeGoodsPaymentCheckout } from '@/lib/payments/goods-checkout.runtime.server';
+import { deriveGoodsOrderProvider } from '@/lib/payments/goods-sale-restriction.server';
 import { createServiceClient } from '@/lib/supabase/service';
 
 type PlaceOrderActionError =
@@ -46,7 +47,6 @@ export async function prepareGoodsPaymentAction(
     isAccountSuspended(auth.profile)
     || !isOnboarded(auth.profile, auth.user.email)
   ) return { error: 'auth_required' };
-  if (!goodsCheckoutPaymentsEnabled(auth.user.id)) return { error: 'payment_unavailable' };
 
   const order = await loadCheckoutOrder(auth.user.id, orderId);
   if (!order) return { error: 'not_found' };
@@ -58,7 +58,14 @@ export async function prepareGoodsPaymentAction(
   ) return { error: 'not_payable' };
 
   try {
-    const prepared = await createRuntimeGoodsPaymentCheckout().prepare({
+    /* 카드 provider는 주문의 판매 제한 여부에서 파생된다(#392). gate도 파생된
+       provider의 것을 본다 — 제한 주문은 korpay gate가 열릴 때(19금 오픈 트랙)
+       까지 payment_unavailable로 남는다. DB prepare가 같은 파생을 최종 강제한다. */
+    const provider = await deriveGoodsOrderProvider(order.id);
+    if (!goodsCheckoutPaymentsEnabled(auth.user.id, provider)) {
+      return { error: 'payment_unavailable' };
+    }
+    const prepared = await createRuntimeGoodsPaymentCheckout(provider).prepare({
       userId: auth.user.id,
       orderId: order.id,
     });

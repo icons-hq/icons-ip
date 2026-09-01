@@ -22,6 +22,12 @@ export interface AdminIpRecord {
   fansCount: number;
 }
 
+/**
+ * 굿즈 판매 제한 유형 (#392). DB enum `public.goods_sale_restriction` 과 같은 목록이다.
+ * 'adult' 는 성인인증 도입 전까지 스토어에서 숨기고 결제를 전용 PG로 분기한다.
+ */
+export type AdminGoodSaleRestriction = 'none' | 'adult';
+
 export interface AdminGoodRecord {
   id: string;
   archivedAt: string | null;
@@ -36,6 +42,8 @@ export interface AdminGoodRecord {
   stockQty: number;
   /** 무통장 입금 허용 여부 (#256). 한정 드롭은 꺼서 24시간 재고 잠김을 막는다. */
   allowBankTransfer: boolean;
+  /** 판매 제한 유형 (#392). 'adult' 는 노출·구매를 막고 결제 PG를 코페이로 분기한다. */
+  saleRestriction: AdminGoodSaleRestriction;
   bg: string | null;
   imagePath: string | null;
   imageUrl?: string | null;
@@ -307,6 +315,7 @@ interface GoodRow {
   stock: Stock;
   stock_qty: number | null;
   allow_bank_transfer: boolean | null;
+  sale_restriction: AdminGoodSaleRestriction | null;
   bg: string | null;
   image_path: string | null;
   notice_maker: string | null;
@@ -493,7 +502,7 @@ export async function getAdminCatalogRecords(
       ? supabase
         .from('goods')
         /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-        .select('id,archived_at,ip_id,name,type,price,compare_at_price,badge,stock,stock_qty,allow_bank_transfer,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path')
+        .select('id,archived_at,ip_id,name,type,price,compare_at_price,badge,stock,stock_qty,allow_bank_transfer,sale_restriction,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path')
         .order('id')
       : skippedResult,
     queried.has('cards')
@@ -621,6 +630,7 @@ export async function getAdminCatalogRecords(
       stock: row.stock,
       stockQty: row.stock_qty ?? 0,
       allowBankTransfer: row.allow_bank_transfer ?? true,
+      saleRestriction: row.sale_restriction ?? 'none',
       bg: row.bg,
       imagePath: row.image_path,
       imageUrl: previewUrlFor(row),
