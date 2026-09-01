@@ -3,6 +3,7 @@ import {
   ADMIN_ARTWORK_MAX_DIMENSION,
 } from '@/lib/admin/artwork';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
+import { GOOD_TYPES } from '@/lib/goods-taxonomy';
 import { BANK_TRANSFER_HOLD_HOURS } from '@/lib/payments/bank-transfer';
 import { MIN_PAYABLE_TOTAL } from '@/lib/coupons';
 import type { AdminGuideTopic } from '../types';
@@ -52,7 +53,7 @@ export const GOODS_SALES_TOPIC: AdminGuideTopic = {
           text: '필수 항목을 채웁니다 — ID(영문 소문자·숫자·하이픈), IP 이름, 버티컬.',
           detail: [
             'ID는 저장 후 변경할 수 없습니다. 외부에 노출되는 주소(/ip/아이디)에 쓰이므로 짧고 읽기 좋은 값으로 정합니다.',
-            '태그라인·시놉시스·글리프는 선택 항목이며 IP 허브 화면의 소개에 쓰입니다.',
+            '태그라인·시놉시스·글리프는 선택 항목이며 공개 온라인 팝업(IP관) 화면의 소개에 쓰입니다.',
           ],
         },
         {
@@ -83,8 +84,8 @@ export const GOODS_SALES_TOPIC: AdminGuideTopic = {
           text: '필수 항목을 채웁니다 — ID, 연결 IP, 굿즈 이름, 유형, 가격, 운영 상태.',
           detail: [
             'ID는 영문 소문자·숫자·하이픈만 쓸 수 있고(예: g100) 저장 후에는 변경할 수 없습니다.',
-            '유형은 자유 입력입니다(예: 키링, 쿠션). 굿즈샵 필터에 그대로 쓰입니다.',
-            '가격은 0 이상의 정수(원)입니다.',
+            `유형은 정해진 분류(${GOOD_TYPES.join('·')}) 중에서 고릅니다. 굿즈샵 카테고리 필터가 이 값을 그대로 씁니다.`,
+            '가격은 0 이상의 정수(원)입니다. 별도의 "정가(할인 표기용)"를 가격보다 크게 채우면 SALE 표기가 자동으로 붙고, 비우면 할인 표기가 없습니다.',
             '운영 상태는 ok(판매)·low(재고 적음 표시)·soldout(판매 중지) 중 하나입니다.',
           ],
         },
