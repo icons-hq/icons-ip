@@ -120,6 +120,16 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'check-in', label: '티켓 검표', href: '/admin/check-in', status: 'ready' },
     ],
   },
+  {
+    id: 'help',
+    label: '도움말',
+    icon: 'spark',
+    screens: [
+      /* 주제 상세(/admin/guide/<topic>)는 여기 올리지 않는다 — 최장 접두 일치로
+         헤더 제목·사이드바 active가 이 항목을 따라오고, 목차는 화면 안에서 푼다. */
+      { id: 'guide', label: '사용 가이드', href: '/admin/guide', status: 'ready' },
+    ],
+  },
 ];
 
 export const ADMIN_SCREENS: AdminScreen[] = ADMIN_NAV_GROUPS.flatMap((group) => group.screens);
