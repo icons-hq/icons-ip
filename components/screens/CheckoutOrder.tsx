@@ -16,6 +16,7 @@ import {
   bankTransferDepositName,
   type BankTransferAccount,
 } from '@/lib/payments/bank-transfer';
+import { paymentFailNoticeCopy } from '@/lib/payments/checkout-fail-copy';
 import type { PreparedCheckout } from '@/lib/payments/gateway';
 import { shippingFeeLabel } from '@/lib/shipping';
 
@@ -23,6 +24,8 @@ interface CheckoutOrderProps {
   order: CheckoutOrderSnapshot;
   /** 무통장 주문에만 실린다. 서버 설정에 계좌가 없으면 null(#255). */
   bankTransferAccount?: BankTransferAccount | null;
+  /** 토스 failUrl 쿼리에서 서버가 형식 검증까지 마친 실패 코드. */
+  paymentFailCode?: string | null;
 }
 
 const emptyPrepareState: PrepareGoodsPaymentActionState = {};
@@ -55,7 +58,11 @@ export function preparedGoodsCheckoutUsable(
   );
 }
 
-export function CheckoutOrder({ order, bankTransferAccount = null }: CheckoutOrderProps) {
+export function CheckoutOrder({
+  order,
+  bankTransferAccount = null,
+  paymentFailCode = null,
+}: CheckoutOrderProps) {
   const router = useRouter();
   const [prepareState, prepareAction, preparePending] = useActionState(
     prepareGoodsPaymentAction,
@@ -116,6 +123,11 @@ export function CheckoutOrder({ order, bankTransferAccount = null }: CheckoutOrd
         <div className="wrap">
           <h1 className="wc-receipt__title">{statusCopy?.title ?? '결제수단을 선택하세요'}</h1>
           <p className="wc-receipt__subcopy">{statusCopy?.body ?? '주문 금액은 서버에서 다시 확인했습니다. 결제수단과 필수 약관을 선택해주세요.'}</p>
+          {/* 토스 failUrl은 이 주문 화면으로 돌아온다 — 안내가 가리키는 "같은
+              주문"이 지금 보고 있는 주문이라 재시도 경로가 어긋나지 않는다. */}
+          {paymentFailCode && (
+            <p className="checkout-error" role="alert">{paymentFailNoticeCopy(paymentFailCode)}</p>
+          )}
           <span className="checkout-order-ref mono">ORDER · {order.id}</span>
         </div>
       </header>

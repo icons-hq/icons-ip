@@ -64,6 +64,17 @@ describe('payment runtime gateway', () => {
     expect(paymentProviderConfigured()).toBe(false);
   });
 
+  /* 공식 계약은 접두사(test/live + gck/gsk)만 규정한다. 문서가 게시한 키
+     test_gsk_docs_…조차 밑줄을 쓰므로 suffix 문자집합을 좁히면 유효한 발급 키가
+     침묵 차단된다. */
+  it('밑줄이 섞인 공식문서 게시 키도 test 모드 페어로 인정한다', () => {
+    configureToss();
+    vi.stubEnv('TOSS_SECRET_KEY', 'test_gsk_docs_OaPz8L5KdmQXkzRz3y47BMw6');
+
+    expect(paymentProviderConfigured()).toBe(true);
+    expect(paymentProviderConfigured('toss')).toBe(true);
+  });
+
   it('구 API 개별연동 키 형식(sk_)은 위젯 키로 인정하지 않는다', () => {
     configureToss();
     vi.stubEnv('TOSS_SECRET_KEY', 'test_sk_legacyapikey000000000001');

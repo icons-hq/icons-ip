@@ -73,6 +73,35 @@ describe('CheckoutOrder 영수증', () => {
   });
 });
 
+/*
+ * 토스 failUrl은 실패한 주문의 이 화면으로 돌아온다. 안내가 가리키는 "같은
+ * 주문"이 지금 보고 있는 주문이라 재시도 경로가 어긋나지 않는다.
+ */
+describe('CheckoutOrder 결제 실패 복귀 안내', () => {
+  it('failUrl 복귀 시 검증된 코드는 우리 문구로 안내한다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder order={order} paymentFailCode="PAY_PROCESS_CANCELED" />,
+    );
+
+    expect(html).toContain('결제를 직접 취소하셨어요');
+  });
+
+  it('미지 코드는 provider 문자열 노출 없이 공통 문구로 덮는다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder order={order} paymentFailCode="SOME_UNKNOWN_CODE" />,
+    );
+
+    expect(html).toContain('결제가 완료되지 않았어요');
+    expect(html).not.toContain('SOME_UNKNOWN_CODE');
+  });
+
+  it('실패 코드가 없으면 안내를 세우지 않는다', () => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={order} />);
+
+    expect(html).not.toContain('결제가 완료되지 않았어요');
+  });
+});
+
 describe('CheckoutOrder 무통장 입금 안내', () => {
   const bankOrder: CheckoutOrderSnapshot = {
     ...order,

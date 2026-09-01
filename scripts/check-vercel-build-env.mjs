@@ -6,7 +6,7 @@ import {
   isKorpayUuid,
   normalizeKorpaySiteUrl,
 } from '../lib/payments/korpay-config.mjs';
-import { isTossKeyPairAligned } from '../lib/payments/toss-config.mjs';
+import { isTossKeyPairAligned, tossKeyMode } from '../lib/payments/toss-config.mjs';
 
 const VERCEL_TARGETS = new Set(['preview', 'production']);
 const KORPAY_GATE_NAMES = [
@@ -180,8 +180,26 @@ export function validateVercelBuildEnvironment(environment) {
   const korpayOrderCanaryConfigured = isPresent(environment.KORPAY_ORDER_CANARY_USER_ID);
   const korpayTicketCanaryConfigured = isPresent(environment.KORPAY_TICKET_CANARY_USER_ID);
 
+  // 심사 창(#398 시퀀스 ③)에는 production에서 공개 gate + 테스트 키가 계획된
+  // 정상 상태다 — 외부 심사자가 비회원으로 결제창을 봐야 해서 canary로 대체할 수
+  // 없다. 그래서 막지 않고, 대신 빌드 로그에 눈에 띄게 남긴다. 이 상태가 심사
+  // 뒤까지 남으면 무과금 결제가 paid 주문을 만든다.
+  const warnings = [];
+  if (
+    tossConfigured
+    && (tossOrderCheckoutEnabled || tossTicketCheckoutEnabled)
+    && tossKeyMode(environment.TOSS_SECRET_KEY?.trim()) === 'test'
+  ) {
+    warnings.push(
+      'Toss public checkout gate is open on test-mode keys. This is the review-window '
+      + 'state only: paid orders can be created without a real charge. Live switchover '
+      + 'steps: docs/runbooks/toss-production-rollout.md',
+    );
+  }
+
   return {
     checked: true,
+    warnings,
     newCheckoutEnabled: korpayOrderCheckoutEnabled
       || korpayTicketCheckoutEnabled
       || korpayOrderCanaryConfigured
@@ -210,6 +228,10 @@ function main() {
     if (!result.checked) {
       console.log('Vercel build environment check skipped outside preview/production');
       return;
+    }
+
+    for (const warning of result.warnings) {
+      console.warn(`Warning: Vercel ${process.env.VERCEL_ENV} ${warning}`);
     }
 
     console.log(

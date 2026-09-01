@@ -1,12 +1,13 @@
 import 'server-only';
 
+import { isTossProviderOrderId } from './toss-config.mjs';
+
 // 토스 주문서형 v2 successUrl 리다이렉트 계약(공식문서 MCP 실조회):
 // {successUrl}?paymentType={..}&amount={..}&orderId={..}&paymentKey={..}
 // 단회용 callback nonce는 쿼리 보존이 문서로 보장되지 않아 successUrl 경로
 // 세그먼트에 싣는다 — 라우트가 경로에서 꺼내 이 파서에 넘긴다.
 const CALLBACK_QUERY_FIELDS = ['paymentType', 'amount', 'orderId', 'paymentKey'] as const;
 const NONCE_PATTERN = /^[A-Za-z0-9_-]{16,255}$/;
-const PROVIDER_ORDER_ID = /^[OT][0-9a-f]{32}$/i;
 const PAYMENT_KEY = /^[\x21-\x7e]{1,200}$/;
 const AMOUNT = /^[1-9][0-9]{0,11}$/;
 const PAYMENT_TYPE = /^[A-Z]{1,20}$/;
@@ -33,7 +34,7 @@ export function parseTossSuccessCallback(requestUrl: URL, nonce: string) {
     typeof paymentKey !== 'string'
     || !PAYMENT_KEY.test(paymentKey)
     || typeof orderId !== 'string'
-    || !PROVIDER_ORDER_ID.test(orderId)
+    || !isTossProviderOrderId(orderId)
     || typeof amount !== 'string'
     || !AMOUNT.test(amount)
     || (paymentType !== null && !PAYMENT_TYPE.test(paymentType))

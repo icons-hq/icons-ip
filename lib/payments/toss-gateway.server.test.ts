@@ -121,7 +121,9 @@ describe('TossPayments v2 gateway', () => {
         amount: ATTEMPT.amount,
         currency: 'KRW',
         successUrl: `${SITE_URL}/api/payments/goods/confirm/toss/${prepared.callbackNonce}`,
-        failUrl: `${SITE_URL}/checkout`,
+        // 실패 복귀는 실패한 그 주문 화면이다 — 평평한 '/checkout'은 pending
+        // 주문이 둘 이상일 때 다른 주문으로 재시도를 유도한다.
+        failUrl: `${SITE_URL}/checkout/${ATTEMPT.refId}`,
       });
     });
 
@@ -147,11 +149,16 @@ describe('TossPayments v2 gateway', () => {
       const { gateway: tossGateway } = gateway();
       const prepared = await tossGateway.prepare(ATTEMPT);
       expect(JSON.stringify(prepared)).not.toContain(SECRET_KEY);
+      if (prepared.action.kind !== 'client_sdk') throw new Error('unreachable');
       // provider로 나가는 payload에는 내부 식별자가 없어야 한다 — attemptId는
       // PreparedCheckout 최상위 계약 필드라 검사 대상이 아니다.
-      const providerFacing = JSON.stringify(prepared.action);
-      expect(providerFacing).not.toContain(ATTEMPT.refId);
-      expect(providerFacing).not.toContain(ATTEMPT.id);
+      const { failUrl, ...providerFields } = prepared.action.payload;
+      expect(JSON.stringify(providerFields)).not.toContain(ATTEMPT.refId);
+      expect(JSON.stringify(providerFields)).not.toContain(ATTEMPT.id);
+      // 굿즈 주문 refId만 예외다 — 실패를 그 주문 화면으로 돌려보내려면 복귀
+      // 경로에 실을 수밖에 없다. 그 대신 다른 필드로는 새지 않는다.
+      expect(failUrl).toBe(`${SITE_URL}/checkout/${ATTEMPT.refId}`);
+      expect(failUrl).not.toContain(ATTEMPT.id);
     });
 
     it.each([
@@ -159,6 +166,8 @@ describe('TossPayments v2 gateway', () => {
       ['100원 미만 금액', { ...ATTEMPT, amount: 99 }],
       ['원시 주문번호', { ...ATTEMPT, providerOrderId: ATTEMPT.refId }],
       ['purpose와 접두사 불일치', { ...ATTEMPT, providerOrderId: TICKET_ATTEMPT.providerOrderId }],
+      /* refId는 failUrl 경로 세그먼트로 나간다 — 형식 밖 값이 URL에 실리면 안 된다. */
+      ['UUID 밖 굿즈 refId', { ...ATTEMPT, refId: '../../evil' }],
       ['깨진 만료 시각', { ...ATTEMPT, expiresAt: 'not-a-date' }],
     ])('범위 밖 attempt를 거부한다: %s', async (_label, attempt) => {
       const { gateway: tossGateway } = gateway();

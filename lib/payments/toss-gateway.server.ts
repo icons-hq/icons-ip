@@ -10,7 +10,12 @@ import type {
   PreparedCheckout,
   RefundOutcome,
 } from './gateway';
-import { isTossClientKey, isTossKeyPairAligned, isTossSecretKey } from './toss-config.mjs';
+import {
+  isTossClientKey,
+  isTossKeyPairAligned,
+  isTossProviderOrderId,
+  isTossSecretKey,
+} from './toss-config.mjs';
 
 // 토스페이먼츠 v2 코어 API(https://docs.tosspayments.com/reference). 주문서형(구
 // 결제위젯) v2가 공용하는 결제 API로, 승인은 POST /v1/payments/confirm, 조회는
@@ -19,7 +24,6 @@ const TOSS_API_ORIGIN = 'https://api.tosspayments.com';
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const DEFAULT_TIMEOUT_MS = 8_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const PROVIDER_ORDER_ID = /^[OT][0-9a-f]{32}$/i;
 const PROVIDER_PRODUCT_CODE = /^P[0-9a-f]{32}$/i;
 // 토스 paymentKey는 최대 200자 고유 문자열이라는 계약 외 형식 명세가 없다 — DB
 // finalizer의 200자 상한과 제어문자 금지만 강제한다.
@@ -109,9 +113,12 @@ function assertAttempt(attempt: PaymentAttempt) {
     // 금액은 DB place_order가 따로 지킨다.
     || attempt.amount < 100
     || attempt.amount > 999_999_999_999
-    || !PROVIDER_ORDER_ID.test(attempt.providerOrderId)
+    || !isTossProviderOrderId(attempt.providerOrderId)
     || !attempt.providerOrderId.startsWith(prefix)
     || !PROVIDER_PRODUCT_CODE.test(attempt.providerProductCode)
+    // 굿즈 주문의 refId(=orders.id)는 failUrl 경로 세그먼트로 나간다 — 형식 밖
+    // 값이 URL에 실리지 않게 여기서 막는다.
+    || (attempt.purpose === 'order' && !UUID.test(attempt.refId))
     || !Number.isFinite(Date.parse(attempt.expiresAt))
   ) {
     throw new Error('invalid_payment_attempt');
@@ -373,7 +380,14 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       const successPath = attempt.purpose === 'order'
         ? `/api/payments/goods/confirm/toss/${nonce}`
         : `/api/payments/tickets/confirm/toss/${nonce}`;
-      const failPath = attempt.purpose === 'order' ? '/checkout' : '/ticket-checkout';
+      // failUrl 쿼리로 보장되는 것은 code·message뿐이라(공식문서 실패 리다이렉트
+      // 계약) 어느 주문에서 실패했는지는 successUrl의 nonce와 같은 규율로 경로에
+      // 싣는다. 평평한 '/checkout'으로 돌리면 복귀 화면이 "같은 주문에서 다시
+      // 시도"를 최신 pending 주문으로 링크해, pending이 둘 이상이면 다른 주문으로
+      // 유도한다.
+      const failPath = attempt.purpose === 'order'
+        ? `/checkout/${attempt.refId}`
+        : '/ticket-checkout';
       return {
         attemptId: attempt.id,
         provider: 'toss',

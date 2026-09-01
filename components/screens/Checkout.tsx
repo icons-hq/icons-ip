@@ -16,6 +16,7 @@ import {
 } from '@/lib/checkout';
 import { krw } from '@/lib/format';
 import { couponPreviewDiscount, type UserCouponSummary } from '@/lib/coupons';
+import { paymentFailNoticeCopy } from '@/lib/payments/checkout-fail-copy';
 import type { ComposedPostcodeAddress } from '@/lib/postcode';
 import { shippingFeeFor, shippingFeeLabel } from '@/lib/shipping';
 
@@ -32,15 +33,6 @@ const actionErrors = {
   coupon_rejected: '적용한 쿠폰을 쓸 수 없게 됐어요. 장바구니에서 쿠폰을 확인해주세요.',
   unavailable: '주문을 만들지 못했어요. 잠시 후 다시 시도해주세요.',
 } as const;
-
-/* 토스 failUrl 복귀 안내. 쿼리의 message는 위조 가능한 외부 문자열이라 표시하지
-   않고, 검증된 code를 우리 문구로만 바꾼다. 미지 코드는 공통 문구로 덮는다. */
-const paymentFailCopy: Record<string, string> = {
-  PAY_PROCESS_CANCELED: '결제를 직접 취소하셨어요. 준비되면 같은 주문에서 다시 시도할 수 있어요.',
-  PAY_PROCESS_ABORTED: '결제가 진행되지 않았어요. 잠시 후 같은 주문에서 다시 시도해주세요.',
-  REJECT_CARD_COMPANY: '카드사가 결제를 거절했어요. 다른 카드나 결제수단으로 다시 시도해주세요.',
-};
-const paymentFailFallback = '결제가 완료되지 않았어요. 같은 주문에서 다시 시도해주세요.';
 
 interface CheckoutProps {
   catalog: Pick<CatalogSnapshot, 'goods' | 'ips'>;
@@ -220,7 +212,7 @@ export function Checkout({
 
   const paymentFailNotice = paymentFailCode ? (
     <p className="checkout-error" role="alert">
-      {paymentFailCopy[paymentFailCode] ?? paymentFailFallback}
+      {paymentFailNoticeCopy(paymentFailCode)}
     </p>
   ) : null;
 

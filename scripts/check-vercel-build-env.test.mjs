@@ -33,6 +33,7 @@ describe('validateVercelBuildEnvironment', () => {
   it('accepts a Fake-only preview and keeps checkout closed', () => {
     expect(validateVercelBuildEnvironment({ ...baseEnvironment })).toEqual({
       checked: true,
+      warnings: [],
       newCheckoutEnabled: false,
       paymentReconciliationConfigured: false,
       korpayConfigured: false,
@@ -104,6 +105,7 @@ describe('validateVercelBuildEnvironment', () => {
       TOSS_PAYMENT_KEY_PAIR_SHA256: '0'.repeat(64),
     })).toEqual({
       checked: true,
+      warnings: [],
       newCheckoutEnabled: false,
       paymentReconciliationConfigured: false,
       korpayConfigured: false,
@@ -136,6 +138,12 @@ describe('validateVercelBuildEnvironment', () => {
       NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_iconsdocs00000000000001',
       TOSS_SECRET_KEY: 'test_gsk_iconsdocs00000000000001',
     }))).toMatchObject({ tossConfigured: true, newCheckoutEnabled: false });
+    // 공식문서가 게시한 키처럼 suffix에 밑줄이 섞여도 유효 페어다 — 접두사만
+    // 계약이라 문자집합을 좁히면 유효한 발급 키가 침묵 차단된다.
+    expect(validateVercelBuildEnvironment(productionEnvironment({
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_docs_OaPz8L5KdmQXkzRz3y47BMw6',
+      TOSS_SECRET_KEY: 'test_gsk_docs_OaPz8L5KdmQXkzRz3y47BMw6',
+    }))).toMatchObject({ tossConfigured: true });
   });
 
   it('refuses to open a Toss gate or canary over a missing or misaligned key pair', () => {
@@ -162,6 +170,40 @@ describe('validateVercelBuildEnvironment', () => {
       tossOrderCheckoutEnabled: true,
       newCheckoutEnabled: true,
     });
+  });
+
+  /*
+   * 심사 창(#398 시퀀스 ③)에는 공개 gate + 테스트 키가 계획된 정상 상태다 —
+   * 외부 심사자가 비회원으로 결제창을 봐야 해서 canary로 대체할 수 없다. 막으면
+   * 심사가 멈추고, 조용히 통과시키면 무과금 paid 주문이 눈에 안 띈다.
+   */
+  it('warns without failing when a public Toss gate is open on test-mode keys', () => {
+    const result = validateVercelBuildEnvironment(productionEnvironment({
+      TOSS_ORDER_CHECKOUT_ENABLED: 'true',
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_iconsdocs00000000000001',
+      TOSS_SECRET_KEY: 'test_gsk_iconsdocs00000000000001',
+    }));
+
+    expect(result).toMatchObject({ checked: true, tossOrderCheckoutEnabled: true });
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain('test-mode keys');
+    expect(result.warnings[0]).toContain('docs/runbooks/toss-production-rollout.md');
+  });
+
+  it('keeps the build log quiet once the public Toss gate runs on live keys', () => {
+    expect(validateVercelBuildEnvironment(productionEnvironment({
+      TOSS_ORDER_CHECKOUT_ENABLED: 'true',
+      TOSS_TICKET_CHECKOUT_ENABLED: 'true',
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'live_gck_iconsdocs00000000000001',
+      TOSS_SECRET_KEY: 'live_gsk_iconsdocs00000000000001',
+    }))).toMatchObject({ tossConfigured: true, warnings: [] });
+
+    // 테스트 키라도 공개 gate가 닫혀 있으면(canary만) 경고 대상이 아니다.
+    expect(validateVercelBuildEnvironment(productionEnvironment({
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_iconsdocs00000000000001',
+      TOSS_SECRET_KEY: 'test_gsk_iconsdocs00000000000001',
+      TOSS_ORDER_CANARY_USER_ID: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+    }))).toMatchObject({ warnings: [] });
   });
 
   it('rejects enabled Toss gates and canaries in preview while tolerating stale keys', () => {

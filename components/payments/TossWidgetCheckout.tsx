@@ -6,6 +6,10 @@ import {
   type TossPaymentsSDK,
 } from '@tosspayments/tosspayments-sdk';
 import { useEffect, useMemo, useRef, useState } from 'react';
+// 키·주문번호 형식은 toss-config.mjs 하나만 본다 — 사본이 갈라지면 유효한 발급
+// 키나 주문번호가 브라우저에서 조용히 거절된다. gsk(시크릿) 키는 gck 판정에
+// 걸려 자동으로 거절된다 — 브라우저에 시크릿 키가 실리는 경로를 막는다.
+import { isTossClientKey, isTossProviderOrderId } from '@/lib/payments/toss-config.mjs';
 
 export const TOSS_PAYMENT_METHODS_ID = 'toss-payment-methods';
 export const TOSS_AGREEMENT_ID = 'toss-agreement';
@@ -25,11 +29,6 @@ const TOSS_PAYLOAD_KEYS = new Set([
   'failUrl',
 ]);
 
-// toss-config.mjs의 클라이언트 키 정규식과 같은 축이다. gsk(시크릿) 키는 형식이
-// 달라 여기서 자동으로 걸러진다 — 브라우저에 시크릿 키가 실리는 경로를 막는다.
-const TOSS_CLIENT_KEY = /^(test|live)_gck_[A-Za-z0-9]{8,128}$/;
-// toss-gateway.server.ts의 PROVIDER_ORDER_ID와 같은 형식(굿즈 O·티켓 T 접두).
-const TOSS_ORDER_ID = /^[OT][0-9a-f]{32}$/i;
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]/;
 
 export interface TossCheckoutPayload {
@@ -96,9 +95,9 @@ export function parseTossCheckoutPayload(payload: unknown): TossCheckoutPayload 
     } = candidate;
 
     if (provider !== 'toss') return null;
-    if (typeof clientKey !== 'string' || !TOSS_CLIENT_KEY.test(clientKey)) return null;
+    if (typeof clientKey !== 'string' || !isTossClientKey(clientKey)) return null;
     if (customerKey !== 'ANONYMOUS') return null;
-    if (typeof orderId !== 'string' || !TOSS_ORDER_ID.test(orderId)) return null;
+    if (typeof orderId !== 'string' || !isTossProviderOrderId(orderId)) return null;
     if (
       typeof orderName !== 'string'
       || orderName.length < 1
