@@ -533,10 +533,10 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       // 그래서 어느 주문에서 실패했는지는 successUrl의 nonce와 같은 규율로 경로에
       // 싣는다. 평평한 '/checkout'으로 돌리면 복귀 화면이 "같은 주문에서 다시
       // 시도"를 최신 pending 주문으로 링크해, pending이 둘 이상이면 다른 주문으로
-      // 유도한다.
+      // 유도한다. 티켓 checkout에는 인덱스 라우트가 없다 — 실패 복귀는 예매 목록으로.
       const failPath = attempt.purpose === 'order'
         ? `/checkout/${attempt.refId}`
-        : '/ticket-checkout';
+        : '/tickets';
       return {
         attemptId: attempt.id,
         provider: 'toss',
