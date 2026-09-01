@@ -33,6 +33,10 @@ vi.mock('@/lib/supabase/server', () => ({
           mocks.filters.push([table, column, value]);
           return query;
         },
+        is: (column: string, value: unknown) => {
+          mocks.filters.push([table, column, value]);
+          return query;
+        },
         order: () => query,
         limit: () => Promise.resolve(result()),
         maybeSingle: () => Promise.resolve(result()),
@@ -322,5 +326,23 @@ describe('loadCampaignDetail', () => {
 
     expect(section?.type).toBe('goods');
     expect(section && 'goods' in section ? section.goods[0]?.soldOut : null).toBe(true);
+  });
+
+  /* 캠페인 섹션은 카탈로그 스냅샷(lib/catalog.ts)을 우회하는 직접 조회다 — 여기서
+     따로 걸지 않으면 보관된 굿즈가 랜딩 블록에 계속 노출된다. */
+  it('굿즈 조회는 보관 굿즈를 제외한다', async () => {
+    mocks.tables.campaigns = {
+      data: {
+        ...hubRow('archive-leak'),
+        hero_image_path: null,
+        sections: [{ type: 'goods', good_ids: ['g13'] }],
+      },
+      error: null,
+    };
+    mocks.tables.goods = { data: [], error: null };
+
+    await loadCampaignDetail('archive-leak');
+
+    expect(mocks.filters).toContainEqual(['goods', 'archived_at', null]);
   });
 });

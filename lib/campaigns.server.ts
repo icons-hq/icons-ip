@@ -205,7 +205,9 @@ async function loadSectionGoods(
   const { data, error } = await supabase
     .from('goods')
     .select('id,name,price,compare_at_price,badge,stock,stock_qty,bg,image_path')
-    .in('id', goodIds);
+    .in('id', goodIds)
+    // 캠페인 섹션은 카탈로그 스냅샷을 우회하는 직접 조회라 보관 제외도 여기서 건다.
+    .is('archived_at', null);
 
   if (error) return new Map();
 
