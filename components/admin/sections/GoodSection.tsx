@@ -34,9 +34,11 @@ const emptyStockState: AdminCatalogActionState = {};
  */
 function GoodsNoticeFields({
   notice,
+  seed,
   state,
 }: {
   notice: GoodsNoticeInfo | null;
+  seed: Record<string, string>;
   state: AdminCatalogActionState;
 }) {
   return (
@@ -50,7 +52,7 @@ function GoodsNoticeFields({
       <div className="admin-form-grid">
         {GOODS_NOTICE_FIELDS.map((field) => (
           <Field
-            defaultValue={notice?.[field.key] ?? ''}
+            defaultValue={seed[field.formName] ?? notice?.[field.key] ?? ''}
             error={state.errors?.[field.formName]}
             key={field.key}
             label={field.label}
@@ -276,6 +278,8 @@ function GoodEditor({
 }) {
   const [values, setValues] = useState(() => initialGoodFormValues(selected));
   const [imageUrls, setImageUrls] = useState(() => initialGoodImageUrls(selected));
+  /* 저장이 실패하면 액션이 제출값을 돌려준다 — 그 값이 레코드보다 우선한다. */
+  const seed: Record<string, string> = state.values ?? {};
 
   /* 폼 전체에서 올라오는 change 를 한 번에 읽는다 — 필드마다 상태를 두면
      입력 하나 추가할 때마다 미리보기 배선을 잊게 된다. */
@@ -315,8 +319,9 @@ function GoodEditor({
         <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
         <div className="admin-form-grid">
-          <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="g100" readOnly={Boolean(selected)} />
-          <SelectField defaultValue={selected?.ipId} error={state.errors?.ipId} label="연결 IP" name="ipId">
+          <Field defaultValue={seed.id ?? selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="g100" readOnly={Boolean(selected)} />
+          {/* select 는 defaultValue 갱신을 무시하므로 시드값을 key 로 삼아 다시 마운트한다. */}
+          <SelectField defaultValue={seed.ipId ?? selected?.ipId} error={state.errors?.ipId} key={`ipId:${seed.ipId ?? ''}`} label="연결 IP" name="ipId">
             <option value="">선택</option>
             {ipOptions.map((ip) => (
               <option
@@ -328,28 +333,28 @@ function GoodEditor({
               </option>
             ))}
           </SelectField>
-          <Field defaultValue={selected?.name} error={state.errors?.name} label="굿즈 이름" name="name" />
+          <Field defaultValue={seed.name ?? selected?.name} error={state.errors?.name} label="굿즈 이름" name="name" />
           {/* 유형·배지는 자유 입력에서 표준 값 select 로 좁혔다 (#326). 자유 문자열은
               굿즈샵 필터 축으로 쓸 수 없고, DB CHECK 도 같은 목록을 강제한다. */}
-          <SelectField defaultValue={selected?.type ?? ''} error={state.errors?.type} label="유형" name="type">
+          <SelectField defaultValue={seed.type ?? selected?.type ?? ''} error={state.errors?.type} key={`type:${seed.type ?? ''}`} label="유형" name="type">
             <option value="">선택</option>
             {GOOD_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
           </SelectField>
-          <Field defaultValue={selected?.price ?? 0} error={state.errors?.price} label="가격" name="price" type="number" />
+          <Field defaultValue={seed.price ?? selected?.price ?? 0} error={state.errors?.price} label="가격" name="price" type="number" />
           {/* 정가는 할인 표기 전용이다 — 비우면 할인 아님, 채우면 판매가보다 커야 한다. */}
           <Field
-            defaultValue={selected?.compareAtPrice ?? ''}
+            defaultValue={seed.compareAtPrice ?? selected?.compareAtPrice ?? ''}
             error={state.errors?.compareAtPrice}
             label="정가 (할인 표기용, 비우면 할인 없음)"
             name="compareAtPrice"
             placeholder="26000"
             type="number"
           />
-          <SelectField defaultValue={selected?.badge ?? ''} error={state.errors?.badge} label="배지" name="badge">
+          <SelectField defaultValue={seed.badge ?? selected?.badge ?? ''} error={state.errors?.badge} key={`badge:${seed.badge ?? ''}`} label="배지" name="badge">
             <option value="">없음</option>
             {GOOD_BADGES.map((badge) => <option key={badge} value={badge}>{badge}</option>)}
           </SelectField>
-          <SelectField defaultValue={selected?.stock ?? 'ok'} error={state.errors?.stock} label="운영 상태" name="stock">
+          <SelectField defaultValue={seed.stock ?? selected?.stock ?? 'ok'} error={state.errors?.stock} key={`stock:${seed.stock ?? ''}`} label="운영 상태" name="stock">
             <option value="ok">ok</option>
             <option value="low">low</option>
             <option value="soldout">soldout</option>
@@ -358,7 +363,7 @@ function GoodEditor({
         {/* 배경 CSS 자유입력을 운영자 폼에서 뺐다 (#183). 아트워크가 없는 레거시
             레코드는 이 값으로 렌더되므로 그대로 실어 보내 보존한다. */}
         <input name="bg" type="hidden" value={selected?.bg ?? ''} />
-        <GoodsNoticeFields notice={selected?.notice ?? null} state={state} />
+        <GoodsNoticeFields notice={selected?.notice ?? null} seed={seed} state={state} />
         <ArtworkUploadField
           currentPath={selected?.imagePath ?? null}
           currentUrl={selected?.imageUrl ?? null}
@@ -369,7 +374,7 @@ function GoodEditor({
           onPreviewChange={(url) => setImageUrl('imagePath', url)}
         />
         <TextArea
-          defaultValue={selected?.description}
+          defaultValue={seed.description ?? selected?.description}
           error={state.errors?.description}
           label="상세 설명 (최대 2,000자)"
           maxLength={GOODS_DESCRIPTION_MAX_LENGTH}

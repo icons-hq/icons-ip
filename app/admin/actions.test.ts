@@ -382,6 +382,7 @@ describe('admin catalog actions', () => {
         ipId: '등록된 IP를 선택해주세요.',
         price: '가격은 0 이상의 정수여야 합니다.',
       },
+      values: expect.any(Object),
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -448,6 +449,7 @@ describe('admin catalog actions', () => {
 
     await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
       errors: { compareAtPrice: '정가는 판매가보다 커야 해요' },
+      values: expect.any(Object),
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -486,6 +488,7 @@ describe('admin catalog actions', () => {
 
     await expect(upsertAdminGoodAction({}, goodForm())).resolves.toEqual({
       errors: { form: '정가는 판매가보다 커야 해요' },
+      values: expect.any(Object),
     });
   });
 
@@ -694,9 +697,33 @@ describe('admin catalog actions', () => {
   ])('refuses to overwrite an existing %s record from the new-record form', async (_label, action, makeForm) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_id_taken' } });
 
-    await expect(action({}, makeForm())).resolves.toEqual({
+    await expect(action({}, makeForm())).resolves.toEqual(expect.objectContaining({
       errors: { id: '이미 사용 중인 ID입니다. 수정하려면 목록에서 선택해주세요.' },
-    });
+    }));
+  });
+
+  /* 저장이 실패해도 운영자가 채운 값은 남아야 한다 — React 19 는 액션이 끝나면 폼을
+     초기화하므로, 제출값을 상태로 돌려보내 폼이 다시 시드한다. 성공하면 돌려보내지 않는다. */
+  it.each([
+    ['IP', upsertAdminIpAction, ipForm, { title: '화산강림', verticalKey: 'rofan' }],
+    ['굿즈', upsertAdminGoodAction, goodForm, { name: '화산강림 아크릴 스탠드', type: '아크릴 스탠드', price: '22000' }],
+  ])('echoes the submitted %s values when the save fails so the form can re-seed', async (_label, action, makeForm, expected) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_id_taken' } });
+
+    const state = await action({}, makeForm());
+
+    expect(state.errors?.id).toBeDefined();
+    expect(state.values).toMatchObject(expected);
+  });
+
+  it.each([
+    ['IP', upsertAdminIpAction, ipForm],
+    ['굿즈', upsertAdminGoodAction, goodForm],
+  ])('does not echo %s values after a successful save', async (_label, action, makeForm) => {
+    const state = await action({}, makeForm());
+
+    expect(state.message).toBeDefined();
+    expect(state.values).toBeUndefined();
   });
 
   it.each([
@@ -707,9 +734,9 @@ describe('admin catalog actions', () => {
   ])('explains a vanished %s edit target', async (_label, action, makeForm) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_record_missing' } });
 
-    await expect(action({}, makeForm())).resolves.toEqual({
+    await expect(action({}, makeForm())).resolves.toEqual(expect.objectContaining({
       errors: { form: '수정할 항목을 찾을 수 없습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' },
-    });
+    }));
   });
 
   it('passes the edit target to the good RPC so an update is not mistaken for a create', async () => {
@@ -733,9 +760,9 @@ describe('admin catalog actions', () => {
   ])('maps an archived-parent race while saving %s', async (_label, action, makeForm) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'parent_archived private detail' } });
 
-    await expect(action({}, makeForm())).resolves.toEqual({
+    await expect(action({}, makeForm())).resolves.toEqual(expect.objectContaining({
       errors: { form: '상위 IP를 먼저 복원해주세요.' },
-    });
+    }));
   });
 
   /* #172 — 갤러리 슬롯은 순서를 지킨 배열 하나로 RPC 에 넘어간다. */
@@ -767,6 +794,7 @@ describe('admin catalog actions', () => {
 
     await expect(upsertAdminGoodAction({}, goodForm())).resolves.toEqual({
       errors: { form: '고시정보를 모두 입력한 뒤 저장해주세요.' },
+      values: expect.any(Object),
     });
   });
 
@@ -780,6 +808,7 @@ describe('admin catalog actions', () => {
         noticeOrigin: '고시정보 필수 항목입니다.',
         noticeAsContact: '고시정보 필수 항목입니다.',
       },
+      values: expect.any(Object),
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });

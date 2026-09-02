@@ -34,6 +34,25 @@ import { createClient } from '@/lib/supabase/server';
 export interface AdminCatalogActionState {
   errors?: AdminFieldErrors & { form?: string };
   message?: string;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. 폼이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
+}
+
+/*
+ * React 19는 액션이 끝나면 비제어 폼을 초기화한다 — 실패해도 마찬가지라서
+ * 운영자가 채운 값이 전부 사라진다. 제출된 문자열 필드를 상태에 실어 보내면
+ * 폼이 defaultValue 로 되살릴 수 있다. 파일은 되돌릴 수 없으므로 뺀다.
+ */
+function submittedValues(formData: FormData): Record<string, string> {
+  return Object.fromEntries(
+    [...formData.entries()].filter(
+      (entry): entry is [string, string] => typeof entry[1] === 'string',
+    ),
+  );
+}
+
+function keepSubmittedValues(state: AdminCatalogActionState, formData: FormData): AdminCatalogActionState {
+  return { ...state, values: submittedValues(formData) };
 }
 
 function loginPath() {
@@ -270,7 +289,7 @@ export async function upsertAdminIpAction(
 
   const catalog = await getAdminValidationCatalog();
   const result = normalizeAdminIpForm(formData, catalogContextFromSnapshot(catalog));
-  if (!result.ok) return { errors: result.errors };
+  if (!result.ok) return keepSubmittedValues({ errors: result.errors }, formData);
 
   const value = result.value;
   const supabase = await createClient();
@@ -289,9 +308,12 @@ export async function upsertAdminIpAction(
   });
 
   if (error) {
-    return catalogWriteIntentFailure(error.message)
-      ?? artworkClaimFailure(error.message)
-      ?? rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.');
+    return keepSubmittedValues(
+      catalogWriteIntentFailure(error.message)
+        ?? artworkClaimFailure(error.message)
+        ?? rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.'),
+      formData,
+    );
   }
 
   revalidateCatalog([`/ip/${value.id}`]);
@@ -307,7 +329,7 @@ export async function upsertAdminGoodAction(
 
   const context = await getAdminValidationContext(formData, 'good');
   const result = normalizeAdminGoodForm(formData, context);
-  if (!result.ok) return { errors: result.errors };
+  if (!result.ok) return keepSubmittedValues({ errors: result.errors }, formData);
 
   const value = result.value;
   const previousIpPath = readPreviousIpPath(formData);
@@ -337,12 +359,15 @@ export async function upsertAdminGoodAction(
   });
 
   if (error) {
-    return catalogWriteIntentFailure(error.message)
-      ?? artworkClaimFailure(error.message)
-      ?? archivedParentFailure(error.message)
-      ?? goodsNoticeFailure(error.message)
-      ?? compareAtPriceFailure(error.message)
-      ?? rpcFailure('굿즈를 저장하지 못했습니다. 다시 시도해주세요.');
+    return keepSubmittedValues(
+      catalogWriteIntentFailure(error.message)
+        ?? artworkClaimFailure(error.message)
+        ?? archivedParentFailure(error.message)
+        ?? goodsNoticeFailure(error.message)
+        ?? compareAtPriceFailure(error.message)
+        ?? rpcFailure('굿즈를 저장하지 못했습니다. 다시 시도해주세요.'),
+      formData,
+    );
   }
 
   notifyRestockSubscribers(value.id);
