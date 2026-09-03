@@ -1,6 +1,7 @@
 'use client';
 
-import { useActionState, useEffect, useRef, useState, type FormEvent } from 'react';
+import Link from 'next/link';
+import { useActionState, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   adjustAdminStockAction,
   type AdminCatalogActionState,
@@ -8,6 +9,14 @@ import {
 import { GOODS_DESCRIPTION_MAX_LENGTH, GOODS_GALLERY_MAX } from '@/lib/admin/catalog';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import { buildGoodPreview, goodFormValues } from '@/lib/admin/good-preview';
+import {
+  GOODS_DRAFT_STORAGE_KEY,
+  formatGoodsDraftSavedAt,
+  goodsDraftValues,
+  isGoodsDraftBlank,
+  parseGoodsDraft,
+  serializeGoodsDraft,
+} from '@/lib/admin/goods-draft';
 import type { Ip } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { GOOD_BADGES, GOOD_TYPES, goodDisplayBadges } from '@/lib/goods-taxonomy';
@@ -18,7 +27,9 @@ import { ProductCard } from '@/components/wc/ProductCard';
 import { Icon } from '@/components/ui/Icon';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl } from '../CatalogArchiveControls';
+import { useBrowserStoredValue, writeBrowserStoredValue } from '../catalog/browser-store';
 import { CatalogEditorHeader } from '../catalog/CatalogEditorHeader';
+import { GoodsDraftBanner } from '../catalog/GoodsDraftBanner';
 import { GoodsNoticePresetBar } from '../catalog/GoodsNoticePresetBar';
 import { GoodBankTransferControl } from '../GoodBankTransferControl';
 import { ErrorText, Field, FormShell, InlineNotice, SelectField, TextArea } from '../fields';
@@ -287,6 +298,8 @@ function GoodPreviewPanel({ detail, ip }: { detail: GoodDetailContent; ip: Ip | 
   );
 }
 
+const DRAFT_SAVE_DELAY_MS = 400;
+
 function GoodEditor({
   action,
   adjustmentId,
@@ -295,6 +308,7 @@ function GoodEditor({
   pending,
   selected,
   state,
+  template,
 }: {
   action: (payload: FormData) => void;
   /** 초기 재고 반영의 멱등 키. 서버 컴포넌트가 요청당 하나 만든다(신규 등록에서만 쓴다). */
@@ -304,16 +318,72 @@ function GoodEditor({
   pending: boolean;
   selected: AdminGoodRecord | null;
   state: AdminCatalogActionState;
+  /** 「복사해서 등록」 원본. 새 등록에서만 쓰고 ID·이미지·재고는 옮기지 않는다. */
+  template: AdminGoodRecord | null;
 }) {
-  const [values, setValues] = useState(() => initialGoodFormValues(selected));
+  const creating = selected === null;
+  /* 값의 출처: 수정이면 그 레코드, 복사면 원본, 둘 다 아니면 빈 폼. */
+  const base = selected ?? template;
+  const [values, setValues] = useState<Record<string, string>>(() => ({
+    ...initialGoodFormValues(base),
+    ...(template ? { id: '' } : {}),
+  }));
   const [imageUrls, setImageUrls] = useState(() => initialGoodImageUrls(selected));
-  /* 저장이 실패하면 액션이 제출값을 돌려준다 — 그 값이 레코드보다 우선한다. */
+  /* 임시본을 되살리면 폼 전체를 다시 마운트해 defaultValue 를 갈아 끼운다. */
+  const [formVersion, setFormVersion] = useState(0);
+  const [restored, setRestored] = useState<{
+    seedRef: Record<string, string> | null;
+    values: Record<string, string>;
+  } | null>(null);
+  const [draftDecision, setDraftDecision] = useState<'own' | 'restored' | 'discarded' | null>(null);
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
+  const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftRaw = useBrowserStoredValue(GOODS_DRAFT_STORAGE_KEY);
+  const draft = useMemo(() => (creating ? parseGoodsDraft(draftRaw) : null), [creating, draftRaw]);
+  /* 되살릴지 버릴지 정하기 전에는 자동 저장을 멈춘다 — 옛 임시본을 새 입력으로 덮지 않는다. */
+  const draftPending = Boolean(draft) && draftDecision === null;
+  const canAutosave = creating && !draftPending;
+
+  /* 저장이 실패하면 액션이 제출값을 돌려준다 — 그 값이 레코드보다 우선한다.
+     되살린 임시본은 그 시점의 실패 시드와 같은 세대일 때만 시드 위에 선다. */
   const seed: Record<string, string> = state.values ?? {};
+  const seedRef = state.values ?? null;
+  const restoredActive = restored && restored.seedRef === seedRef ? restored.values : null;
+  const defaults: Record<string, string> = {
+    ...initialGoodFormValues(base),
+    ...(template ? { id: '' } : {}),
+    ...seed,
+    ...(restoredActive ?? {}),
+  };
+
+  /* 신규 등록이 성공하면 임시본은 할 일을 다 했다. */
+  useEffect(() => {
+    if (creating && state.message) writeBrowserStoredValue(GOODS_DRAFT_STORAGE_KEY, '');
+  }, [creating, state.message]);
+
+  useEffect(() => () => {
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+  }, []);
+
+  function scheduleDraftSave(next: Record<string, string>) {
+    if (draftTimer.current) clearTimeout(draftTimer.current);
+    draftTimer.current = setTimeout(() => {
+      if (!canAutosave) return;
+      const picked = goodsDraftValues(next);
+      if (isGoodsDraftBlank(picked)) return;
+      const now = new Date();
+      writeBrowserStoredValue(GOODS_DRAFT_STORAGE_KEY, serializeGoodsDraft(picked, now));
+      setDraftSavedAt(now.toISOString());
+      setDraftDecision((current) => current ?? 'own');
+    }, DRAFT_SAVE_DELAY_MS);
+  }
 
   /* 폼 전체에서 올라오는 change 를 한 번에 읽는다 — 필드마다 상태를 두면
      입력 하나 추가할 때마다 미리보기 배선을 잊게 된다. */
   function syncValues(event: FormEvent<HTMLFormElement>) {
-    setValues(goodFormValues(new FormData(event.currentTarget)));
+    const next = goodFormValues(new FormData(event.currentTarget));
+    setValues(next);
+    if (creating) scheduleDraftSave(next);
   }
 
   function setImageUrl(name: string, url: string | null) {
@@ -323,6 +393,19 @@ function GoodEditor({
   /* 프리셋은 DOM 재마운트로 들어가므로 change 가 오르지 않는다 — 미리보기 값을 직접 맞춘다. */
   function applyNoticePreset(preset: Record<string, string>) {
     setValues((current) => ({ ...current, ...preset }));
+  }
+
+  function restoreDraft() {
+    if (!draft) return;
+    setRestored({ seedRef, values: draft.values });
+    setValues((current) => ({ ...current, ...draft.values }));
+    setDraftDecision('restored');
+    setFormVersion((version) => version + 1);
+  }
+
+  function discardDraft() {
+    writeBrowserStoredValue(GOODS_DRAFT_STORAGE_KEY, '');
+    setDraftDecision('discarded');
   }
 
   const previewIp = catalogIps.find((ip) => ip.id === values.ipId) ?? null;
@@ -349,17 +432,25 @@ function GoodEditor({
 
   return (
     <>
-      <form action={action} className="card col" onChange={syncValues} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+      {template ? (
+        <p className="muted" role="status" style={{ fontSize: 12.5, margin: 0 }}>
+          <span className="mono">{template.id}</span> · {template.name} 을(를) 복사한 새 등록입니다. ID를 새로 입력하세요 — 이미지·실재고·무통장 설정은 복사되지 않습니다.
+        </p>
+      ) : null}
+      {draftPending && draft ? (
+        <GoodsDraftBanner draft={draft} onDiscard={discardDraft} onRestore={restoreDraft} />
+      ) : null}
+      <form action={action} className="card col" key={`good-form:${formVersion}`} onChange={syncValues} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
         <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
         <div className="admin-form-grid">
-          <Field defaultValue={seed.id ?? selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="g100" readOnly={Boolean(selected)} />
+          <Field defaultValue={defaults.id} error={state.errors?.id} label="ID" name="id" placeholder="g100" readOnly={Boolean(selected)} />
           {/* select 는 defaultValue 갱신을 무시하므로 시드값을 key 로 삼아 다시 마운트한다. */}
-          <SelectField defaultValue={seed.ipId ?? selected?.ipId} error={state.errors?.ipId} key={`ipId:${seed.ipId ?? ''}`} label="연결 IP" name="ipId">
+          <SelectField defaultValue={defaults.ipId} error={state.errors?.ipId} key={`ipId:${defaults.ipId}`} label="연결 IP" name="ipId">
             <option value="">선택</option>
             {ipOptions.map((ip) => (
               <option
-                disabled={Boolean(ip.archivedAt && ip.id !== selected?.ipId)}
+                disabled={Boolean(ip.archivedAt && ip.id !== base?.ipId)}
                 key={ip.id}
                 value={ip.id}
               >
@@ -367,28 +458,28 @@ function GoodEditor({
               </option>
             ))}
           </SelectField>
-          <Field defaultValue={seed.name ?? selected?.name} error={state.errors?.name} label="굿즈 이름" name="name" />
+          <Field defaultValue={defaults.name} error={state.errors?.name} label="굿즈 이름" name="name" />
           {/* 유형·배지는 자유 입력에서 표준 값 select 로 좁혔다 (#326). 자유 문자열은
               굿즈샵 필터 축으로 쓸 수 없고, DB CHECK 도 같은 목록을 강제한다. */}
-          <SelectField defaultValue={seed.type ?? selected?.type ?? ''} error={state.errors?.type} key={`type:${seed.type ?? ''}`} label="유형" name="type">
+          <SelectField defaultValue={defaults.type} error={state.errors?.type} key={`type:${defaults.type}`} label="유형" name="type">
             <option value="">선택</option>
             {GOOD_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
           </SelectField>
-          <Field defaultValue={seed.price ?? selected?.price ?? 0} error={state.errors?.price} label="가격" name="price" type="number" />
+          <Field defaultValue={defaults.price} error={state.errors?.price} label="가격" name="price" type="number" />
           {/* 정가는 할인 표기 전용이다 — 비우면 할인 아님, 채우면 판매가보다 커야 한다. */}
           <Field
-            defaultValue={seed.compareAtPrice ?? selected?.compareAtPrice ?? ''}
+            defaultValue={defaults.compareAtPrice}
             error={state.errors?.compareAtPrice}
             label="정가 (할인 표기용, 비우면 할인 없음)"
             name="compareAtPrice"
             placeholder="26000"
             type="number"
           />
-          <SelectField defaultValue={seed.badge ?? selected?.badge ?? ''} error={state.errors?.badge} key={`badge:${seed.badge ?? ''}`} label="배지" name="badge">
+          <SelectField defaultValue={defaults.badge} error={state.errors?.badge} key={`badge:${defaults.badge}`} label="배지" name="badge">
             <option value="">없음</option>
             {GOOD_BADGES.map((badge) => <option key={badge} value={badge}>{badge}</option>)}
           </SelectField>
-          <SelectField defaultValue={seed.stock ?? selected?.stock ?? 'ok'} error={state.errors?.stock} key={`stock:${seed.stock ?? ''}`} label="운영 상태" name="stock">
+          <SelectField defaultValue={defaults.stock} error={state.errors?.stock} key={`stock:${defaults.stock}`} label="운영 상태" name="stock">
             <option value="ok">ok</option>
             <option value="low">low</option>
             <option value="soldout">soldout</option>
@@ -396,7 +487,7 @@ function GoodEditor({
           {/* 초기 재고는 신규 등록에서만. 기존 굿즈의 재고는 아래 실재고 조정이 감사 기록과 함께 맡는다. */}
           {!selected ? (
             <Field
-              defaultValue={seed.initialStockQty ?? ''}
+              defaultValue={defaults.initialStockQty}
               error={state.errors?.initialStockQty}
               label="초기 재고 수량 (선택)"
               min={0}
@@ -419,10 +510,10 @@ function GoodEditor({
             레코드는 이 값으로 렌더되므로 그대로 실어 보내 보존한다. */}
         <input name="bg" type="hidden" value={selected?.bg ?? ''} />
         <GoodsNoticeFields
-          notice={selected?.notice ?? null}
+          notice={base?.notice ?? null}
           onApplyPreset={applyNoticePreset}
-          seed={seed}
-          seedRef={state.values ?? null}
+          seed={defaults}
+          seedRef={seedRef}
           state={state}
         />
         <ArtworkUploadField
@@ -435,7 +526,7 @@ function GoodEditor({
           onPreviewChange={(url) => setImageUrl('imagePath', url)}
         />
         <TextArea
-          defaultValue={seed.description ?? selected?.description}
+          defaultValue={defaults.description}
           error={state.errors?.description}
           label="상세 설명 (최대 2,000자)"
           maxLength={GOODS_DESCRIPTION_MAX_LENGTH}
@@ -460,6 +551,11 @@ function GoodEditor({
           onPreviewChange={(url) => setImageUrl('detailImagePath', url)}
         />
         <FormShell pending={pending} state={state} />
+        {creating && draftSavedAt ? (
+          <span className="muted admin-draft-status" role="status">
+            브라우저에 임시 저장됨 · {formatGoodsDraftSavedAt(draftSavedAt)} — 이미지는 저장되지 않습니다.
+          </span>
+        ) : null}
       </form>
       <GoodPreviewPanel detail={previewDetail} ip={previewIp} />
     </>
@@ -475,39 +571,49 @@ export function GoodSection({
   action,
   adjustmentId,
   catalogIps,
+  copyHref = null,
   ipOptions,
   listHref,
   pending,
   selected,
   state,
+  template = null,
 }: {
   action: (payload: FormData) => void;
   adjustmentId: string;
   catalogIps: Ip[];
+  /** 기존 굿즈를 원본으로 새 등록을 여는 링크(`?selected=new&copyFrom=`). 수정 화면에서만 뜬다. */
+  copyHref?: string | null;
   ipOptions: { id: string; title: string; archivedAt: string | null }[];
   listHref: string;
   pending: boolean;
   selected: AdminGoodRecord | null;
   state: AdminCatalogActionState;
+  /** 「복사해서 등록」 원본. 새 등록일 때만 뜻이 있다. */
+  template?: AdminGoodRecord | null;
 }) {
   return (
     <div className="col" style={{ gap: 16, minWidth: 0 }}>
       <CatalogEditorHeader
+        actions={selected && copyHref ? (
+          <Link className="btn btn-sm btn-ghost" href={copyHref}>복사해서 등록</Link>
+        ) : null}
         eyebrow="GOODS"
         listHref={listHref}
         title={selected
           ? formatAdminCatalogRecordLabel(`${selected.id} · ${selected.name} · ${selected.stockQty}개`, selected.archivedAt)
-          : '새 굿즈 등록'}
+          : template ? `새 굿즈 등록 · ${template.id} 복사` : '새 굿즈 등록'}
       />
       <GoodEditor
         action={action}
         adjustmentId={adjustmentId}
         catalogIps={catalogIps}
         ipOptions={ipOptions}
-        key={selected ? JSON.stringify(selected) : 'new-good'}
+        key={selected ? JSON.stringify(selected) : template ? `copy:${template.id}` : 'new-good'}
         pending={pending}
         selected={selected}
         state={state}
+        template={selected ? null : template}
       />
       {selected && !selected.archivedAt && (
         <StockAdjustmentForm adjustmentId={adjustmentId} good={selected} key={`stock-${selected.id}`} />

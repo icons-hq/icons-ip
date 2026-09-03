@@ -89,7 +89,19 @@ describe('normalizeAdminGoodListFilters', () => {
       page: 1,
       size: 20,
       selected: null,
+      copyFrom: null,
     });
+  });
+
+  it('복사해서 등록은 selected=new 와 copyFrom 원본 id 로 온다', () => {
+    expect(normalizeAdminGoodListFilters({ selected: 'new', copyFrom: 'g100' }))
+      .toMatchObject({ selected: 'new', copyFrom: 'g100' });
+    expect(normalizeAdminGoodListFilters({ copyFrom: 'g100; drop' })).toMatchObject({ copyFrom: null });
+    const base = normalizeAdminGoodListFilters({ tab: 'low' });
+    expect(adminGoodListHref(base, { selected: 'new', copyFrom: 'g100' }))
+      .toBe('/admin/catalog/goods?tab=low&selected=new&copyFrom=g100');
+    expect(adminGoodListHref({ ...base, selected: 'new', copyFrom: 'g100' }, { selected: null, copyFrom: null }))
+      .toBe('/admin/catalog/goods?tab=low');
   });
 
   it('허용 목록 밖의 값·배열·이상한 숫자는 기본값으로 돌린다', () => {

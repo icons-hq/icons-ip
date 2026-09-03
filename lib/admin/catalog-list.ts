@@ -167,6 +167,8 @@ export interface AdminGoodListFilters {
   size: number;
   /** 편집 중인 레코드 id 또는 `new`. 없으면 목록 화면. */
   selected: string | null;
+  /** `selected=new`일 때 복제할 원본 굿즈 id(「복사해서 등록」). 새 ID만 비우고 나머지를 옮긴다. */
+  copyFrom: string | null;
 }
 
 export interface AdminGoodListRow {
@@ -201,6 +203,7 @@ export function normalizeAdminGoodListFilters(query: AdminCatalogSearchQuery): A
     page: normalizePage(singleParam(query.page)),
     size: normalizeSize(singleParam(query.size)),
     selected: normalizeSelected(singleParam(query.selected)),
+    copyFrom: normalizeSelected(singleParam(query.copyFrom)),
   };
 }
 
@@ -221,6 +224,7 @@ export function adminGoodListHref(
     page: next.page > 1 ? next.page : null,
     size: next.size === ADMIN_CATALOG_DEFAULT_PAGE_SIZE ? null : next.size,
     selected: next.selected,
+    copyFrom: next.copyFrom,
   });
 }
 

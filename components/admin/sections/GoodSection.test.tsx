@@ -93,22 +93,61 @@ const good: AdminGoodRecord = {
 function renderGoodSection(
   selected: AdminGoodRecord | null,
   state: Parameters<typeof GoodSection>[0]['state'] = {},
+  options: { copyHref?: string | null; template?: AdminGoodRecord | null } = {},
 ) {
   return renderToStaticMarkup(
     <GoodSection
       action={vi.fn()}
       adjustmentId="11111111-1111-4111-8111-111111111111"
       catalogIps={[hwasan]}
+      copyHref={options.copyHref ?? null}
       ipOptions={[{ id: 'hwasan', title: '화산강림', archivedAt: null }]}
       listHref="/admin/catalog/goods?tab=low&page=2"
       pending={false}
       selected={selected}
       state={state}
+      template={options.template ?? null}
     />,
   );
 }
 
 describe('GoodSection', () => {
+  /* 복사해서 등록 — 새 ID만 비우고 나머지를 옮긴다. 이미지·재고·무통장은 옮기지 않는다. */
+  it('opens a copy as a new registration with everything but the id, images, and stock', () => {
+    const html = renderGoodSection(null, {}, { template: good });
+
+    expect(html).toContain('새 굿즈 등록 · g100 복사');
+    expect(html).toContain('복사한 새 등록입니다');
+    expect(html).toMatch(/<input[^>]*name="id"[^>]*value=""/);
+    expect(html).not.toMatch(/<input[^>]*name="id"[^>]*readOnly/);
+    expect(html).toContain('value="화산강림 아크릴 스탠드"');
+    expect(html).toContain('value="22000"');
+    expect(html).toContain('value="주식회사 아이콘스"');
+    expect(html).toContain('붉은 실을 따라 놓인 아크릴 블록입니다.');
+    expect(html).toContain('name="initialStockQty"');
+    expect(html).not.toContain('src="https://cdn.example/catalog/good/gallery-1.webp"');
+    expect(html).not.toContain('현재 실재고');
+    expect(html).toContain('<input type="hidden" name="previousId" value=""/>');
+    expect(html.match(/<form/g)).toHaveLength(1);
+  });
+
+  it('offers "copy as new" only from an existing good, through the given link', () => {
+    const existing = renderGoodSection(good, {}, { copyHref: '/admin/catalog/goods?tab=low&selected=new&copyFrom=g100' });
+    const creating = renderGoodSection(null, {}, { copyHref: '/admin/catalog/goods?selected=new&copyFrom=g100' });
+
+    expect(existing).toContain('href="/admin/catalog/goods?tab=low&amp;selected=new&amp;copyFrom=g100"');
+    expect(existing).toContain('복사해서 등록');
+    expect(creating).not.toContain('복사해서 등록');
+  });
+
+  /* 임시 저장은 브라우저에서만 산다 — 서버 렌더에는 배너도 상태 표시도 없다. */
+  it('renders no draft banner or draft status on the server', () => {
+    const html = renderGoodSection(null);
+
+    expect(html).not.toContain('임시 저장본');
+    expect(html).not.toContain('브라우저에 임시 저장됨');
+  });
+
   /* 목록은 GoodConsole 이 맡는다 — 편집 화면은 머리에 목록 링크와 대상만 쓴다. */
   it('heads the editor with a back-to-list link that keeps the list conditions', () => {
     const existing = renderGoodSection(good);
