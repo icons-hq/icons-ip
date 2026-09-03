@@ -6,7 +6,7 @@ import {
   adjustAdminStockAction,
   type AdminCatalogActionState,
 } from '@/app/admin/actions';
-import { GOODS_DESCRIPTION_MAX_LENGTH, GOODS_GALLERY_MAX } from '@/lib/admin/catalog';
+import { GOODS_DESCRIPTION_MAX_LENGTH, GOODS_GALLERY_MAX, type AdminFieldErrors } from '@/lib/admin/catalog';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import { buildGoodPreview, goodFormValues } from '@/lib/admin/good-preview';
 import {
@@ -29,6 +29,21 @@ import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl } from '../CatalogArchiveControls';
 import { useBrowserStoredValue, writeBrowserStoredValue } from '../catalog/browser-store';
 import { CatalogEditorHeader } from '../catalog/CatalogEditorHeader';
+import {
+  GoodBasicPlaceholders,
+  GoodExposurePlaceholders,
+  GoodSalesPlaceholders,
+  GoodShippingPlaceholders,
+  GoodStockTablePlaceholder,
+} from '../catalog/GoodFormPlaceholders';
+import {
+  firstGoodFormErrorTab,
+  GoodFormTabList,
+  GoodFormTabPanel,
+  goodFormErrorCounts,
+  goodFormTabForField,
+  type GoodFormTabId,
+} from '../catalog/GoodFormTabs';
 import { GoodsDraftBanner } from '../catalog/GoodsDraftBanner';
 import { GoodsNoticePresetBar } from '../catalog/GoodsNoticePresetBar';
 import { GoodBankTransferControl } from '../GoodBankTransferControl';
@@ -337,6 +352,8 @@ function GoodEditor({
   } | null>(null);
   const [draftDecision, setDraftDecision] = useState<'own' | 'restored' | 'discarded' | null>(null);
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
+  /* 탭 선택은 그때의 오류 묶음에 묶인다 — 새 실패가 오면 첫 오류 탭이 사용자 선택을 이긴다. */
+  const [tabChoice, setTabChoice] = useState<{ tab: GoodFormTabId; errorsRef: AdminFieldErrors | undefined } | null>(null);
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftRaw = useBrowserStoredValue(GOODS_DRAFT_STORAGE_KEY);
   const draft = useMemo(() => (creating ? parseGoodsDraft(draftRaw) : null), [creating, draftRaw]);
@@ -408,6 +425,27 @@ function GoodEditor({
     setDraftDecision('discarded');
   }
 
+  const errorCounts = goodFormErrorCounts(state.errors);
+  const errorTab = firstGoodFormErrorTab(state.errors);
+  const activeTab: GoodFormTabId = tabChoice && tabChoice.errorsRef === state.errors
+    ? tabChoice.tab
+    : errorTab ?? tabChoice?.tab ?? 'basic';
+  const tabPrefix = `good-form-${selected?.id ?? 'new'}`;
+
+  /* 브라우저 기본 검증은 숨은 탭의 required 칸을 포커스하지 못해 제출을 조용히 막는다.
+     그래서 폼은 noValidate 로 두고 여기서 직접 검사한다 — 첫 오류 칸의 탭을 연 뒤
+     같은 말풍선(reportValidity)을 띄우면 운영자가 보던 검증 경험은 그대로다. */
+  function guardSubmit(event: FormEvent<HTMLFormElement>) {
+    const form = event.currentTarget;
+    if (form.checkValidity()) return;
+    event.preventDefault();
+    /* fieldset 도 :invalid 에 걸린다(안에 오류 칸이 있으면) — 입력 요소만 고른다. */
+    const invalid = form.querySelector<HTMLInputElement>('input:invalid, select:invalid, textarea:invalid');
+    const tab = invalid?.name ? goodFormTabForField(invalid.name) : null;
+    if (tab && tab !== activeTab) setTabChoice({ tab, errorsRef: state.errors });
+    window.setTimeout(() => form.reportValidity(), 0);
+  }
+
   const previewIp = catalogIps.find((ip) => ip.id === values.ipId) ?? null;
   const preview = buildGoodPreview({
     fallbackBg: selected?.bg ?? null,
@@ -440,116 +478,170 @@ function GoodEditor({
       {draftPending && draft ? (
         <GoodsDraftBanner draft={draft} onDiscard={discardDraft} onRestore={restoreDraft} />
       ) : null}
-      <form action={action} className="card col" key={`good-form:${formVersion}`} onChange={syncValues} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+      <form action={action} className="card col" key={`good-form:${formVersion}`} noValidate onChange={syncValues} onSubmit={guardSubmit} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
         <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
-        <div className="admin-form-grid">
-          <Field defaultValue={defaults.id} error={state.errors?.id} label="ID" name="id" placeholder="g100" readOnly={Boolean(selected)} />
-          {/* select 는 defaultValue 갱신을 무시하므로 시드값을 key 로 삼아 다시 마운트한다. */}
-          <SelectField defaultValue={defaults.ipId} error={state.errors?.ipId} key={`ipId:${defaults.ipId}`} label="연결 IP" name="ipId">
-            <option value="">선택</option>
-            {ipOptions.map((ip) => (
-              <option
-                disabled={Boolean(ip.archivedAt && ip.id !== base?.ipId)}
-                key={ip.id}
-                value={ip.id}
-              >
-                {ip.archivedAt ? `[보관] ${ip.title}` : ip.title}
-              </option>
-            ))}
-          </SelectField>
-          <Field defaultValue={defaults.name} error={state.errors?.name} label="굿즈 이름" name="name" />
-          {/* 유형·배지는 자유 입력에서 표준 값 select 로 좁혔다 (#326). 자유 문자열은
-              굿즈샵 필터 축으로 쓸 수 없고, DB CHECK 도 같은 목록을 강제한다. */}
-          <SelectField defaultValue={defaults.type} error={state.errors?.type} key={`type:${defaults.type}`} label="유형" name="type">
-            <option value="">선택</option>
-            {GOOD_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-          </SelectField>
-          <Field defaultValue={defaults.price} error={state.errors?.price} label="가격" name="price" type="number" />
-          {/* 정가는 할인 표기 전용이다 — 비우면 할인 아님, 채우면 판매가보다 커야 한다. */}
-          <Field
-            defaultValue={defaults.compareAtPrice}
-            error={state.errors?.compareAtPrice}
-            label="정가 (할인 표기용, 비우면 할인 없음)"
-            name="compareAtPrice"
-            placeholder="26000"
-            type="number"
-          />
-          <SelectField defaultValue={defaults.badge} error={state.errors?.badge} key={`badge:${defaults.badge}`} label="배지" name="badge">
-            <option value="">없음</option>
-            {GOOD_BADGES.map((badge) => <option key={badge} value={badge}>{badge}</option>)}
-          </SelectField>
-          <SelectField defaultValue={defaults.stock} error={state.errors?.stock} key={`stock:${defaults.stock}`} label="운영 상태" name="stock">
-            <option value="ok">ok</option>
-            <option value="low">low</option>
-            <option value="soldout">soldout</option>
-          </SelectField>
-          {/* 초기 재고는 신규 등록에서만. 기존 굿즈의 재고는 아래 실재고 조정이 감사 기록과 함께 맡는다. */}
-          {!selected ? (
-            <Field
-              defaultValue={defaults.initialStockQty}
-              error={state.errors?.initialStockQty}
-              label="초기 재고 수량 (선택)"
-              min={0}
-              name="initialStockQty"
-              placeholder="0"
-              step={1}
-              type="number"
-            />
-          ) : null}
-        </div>
-        {!selected ? (
-          <>
-            <input name="initialStockAdjustmentId" type="hidden" value={adjustmentId} />
-            <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
-              초기 재고는 저장 직후 실재고 이력에 「등록 시 초기 재고」 사유로 남습니다. 비우면 0개(품절 표시)로 등록됩니다.
-            </p>
-          </>
-        ) : null}
         {/* 배경 CSS 자유입력을 운영자 폼에서 뺐다 (#183). 아트워크가 없는 레거시
             레코드는 이 값으로 렌더되므로 그대로 실어 보내 보존한다. */}
         <input name="bg" type="hidden" value={selected?.bg ?? ''} />
-        <GoodsNoticeFields
-          notice={base?.notice ?? null}
-          onApplyPreset={applyNoticePreset}
-          seed={defaults}
-          seedRef={seedRef}
-          state={state}
+        {!selected ? <input name="initialStockAdjustmentId" type="hidden" value={adjustmentId} /> : null}
+
+        {/* 탭 7 (설계서 4-3). 패널은 전부 이 <form> 안에 있고 안 보이는 패널도 값을 제출한다. */}
+        <GoodFormTabList
+          active={activeTab}
+          errorCounts={errorCounts}
+          idPrefix={tabPrefix}
+          onSelect={(tab) => setTabChoice({ tab, errorsRef: state.errors })}
         />
-        <ArtworkUploadField
-          currentPath={selected?.imagePath ?? null}
-          currentUrl={selected?.imageUrl ?? null}
-          fieldId="good-main"
-          helpText="굿즈샵 목록 카드와 상세페이지 대표 이미지로 쓰입니다."
-          kind="good"
-          label="대표 이미지"
-          onPreviewChange={(url) => setImageUrl('imagePath', url)}
-        />
-        <TextArea
-          defaultValue={defaults.description}
-          error={state.errors?.description}
-          label="상세 설명 (최대 2,000자)"
-          maxLength={GOODS_DESCRIPTION_MAX_LENGTH}
-          name="description"
-          placeholder="굿즈 구성과 특징을 짧게 설명해주세요."
-        />
-        <GoodsGalleryFields
-          galleryPaths={selected?.galleryPaths ?? []}
-          galleryUrls={selected?.galleryUrls ?? []}
-          onPreviewChange={setImageUrl}
-          state={state}
-        />
-        <ArtworkUploadField
-          allowRemove
-          currentPath={selected?.detailImagePath ?? null}
-          currentUrl={selected?.detailImageUrl ?? null}
-          fieldId="good-detail"
-          helpText="상세페이지 아래에 원래 비율로 길게 표시되는 이미지 1장입니다."
-          kind="good"
-          label="상세 이미지"
-          name="detailImagePath"
-          onPreviewChange={(url) => setImageUrl('detailImagePath', url)}
-        />
+
+        <GoodFormTabPanel active={activeTab} id="basic" idPrefix={tabPrefix}>
+          <div className="admin-form-grid">
+            <Field defaultValue={defaults.id} error={state.errors?.id} label="ID (자체 코드)" name="id" placeholder="g100" readOnly={Boolean(selected)} />
+            {/* select 는 defaultValue 갱신을 무시하므로 시드값을 key 로 삼아 다시 마운트한다. */}
+            <SelectField defaultValue={defaults.ipId} error={state.errors?.ipId} key={`ipId:${defaults.ipId}`} label="연결 IP" name="ipId">
+              <option value="">선택</option>
+              {ipOptions.map((ip) => (
+                <option
+                  disabled={Boolean(ip.archivedAt && ip.id !== base?.ipId)}
+                  key={ip.id}
+                  value={ip.id}
+                >
+                  {ip.archivedAt ? `[보관] ${ip.title}` : ip.title}
+                </option>
+              ))}
+            </SelectField>
+            <Field defaultValue={defaults.name} error={state.errors?.name} label="굿즈 이름" name="name" />
+            {/* 유형·배지는 자유 입력에서 표준 값 select 로 좁혔다 (#326). 자유 문자열은
+                굿즈샵 필터 축으로 쓸 수 없고, DB CHECK 도 같은 목록을 강제한다. */}
+            <SelectField defaultValue={defaults.type} error={state.errors?.type} key={`type:${defaults.type}`} label="유형" name="type">
+              <option value="">선택</option>
+              {GOOD_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
+            </SelectField>
+          </div>
+          <TextArea
+            defaultValue={defaults.description}
+            error={state.errors?.description}
+            label="상세 설명 (최대 2,000자)"
+            maxLength={GOODS_DESCRIPTION_MAX_LENGTH}
+            name="description"
+            placeholder="굿즈 구성과 특징을 짧게 설명해주세요."
+          />
+          <GoodBasicPlaceholders />
+        </GoodFormTabPanel>
+
+        <GoodFormTabPanel active={activeTab} id="sales" idPrefix={tabPrefix}>
+          <div className="admin-form-grid">
+            <Field defaultValue={defaults.price} error={state.errors?.price} label="판매가" name="price" type="number" />
+            {/* 정가는 할인 표기 전용이다 — 비우면 할인 아님, 채우면 판매가보다 커야 한다. */}
+            <Field
+              defaultValue={defaults.compareAtPrice}
+              error={state.errors?.compareAtPrice}
+              label="정가 (할인 표기용, 비우면 할인 없음)"
+              name="compareAtPrice"
+              placeholder="26000"
+              type="number"
+            />
+            <SelectField defaultValue={defaults.badge} error={state.errors?.badge} key={`badge:${defaults.badge}`} label="배지" name="badge">
+              <option value="">없음</option>
+              {GOOD_BADGES.map((badge) => <option key={badge} value={badge}>{badge}</option>)}
+            </SelectField>
+            <SelectField defaultValue={defaults.stock} error={state.errors?.stock} key={`stock:${defaults.stock}`} label="운영 상태 (판매 상태 덮어쓰기)" name="stock">
+              <option value="ok">ok</option>
+              <option value="low">low</option>
+              <option value="soldout">soldout</option>
+            </SelectField>
+          </div>
+          <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+            판매 상태는 실재고에서 파생된다(수량 0 = 품절). 운영 상태 soldout 은 수량과 무관한 판매 중지다.
+            {selected ? ' 무통장 입금 허용은 아래 카드에서 바로 바꿀 수 있다.' : ''}
+          </p>
+          <GoodSalesPlaceholders />
+        </GoodFormTabPanel>
+
+        <GoodFormTabPanel active={activeTab} id="stock" idPrefix={tabPrefix}>
+          {!selected ? (
+            <>
+              <div className="admin-form-grid">
+                {/* 초기 재고는 신규 등록에서만. 기존 굿즈의 재고는 실재고 조정이 감사 기록과 함께 맡는다. */}
+                <Field
+                  defaultValue={defaults.initialStockQty}
+                  error={state.errors?.initialStockQty}
+                  label="초기 재고 수량 (선택)"
+                  min={0}
+                  name="initialStockQty"
+                  placeholder="0"
+                  step={1}
+                  type="number"
+                />
+              </div>
+              <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+                초기 재고는 저장 직후 실재고 이력에 「등록 시 초기 재고」 사유로 남습니다. 비우면 0개(품절 표시)로 등록됩니다.
+              </p>
+            </>
+          ) : (
+            <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+              실재고 <strong className="mono">{selected.stockQty.toLocaleString('ko-KR')}개</strong>
+              {selected.archivedAt
+                ? ' — 보관된 굿즈는 복원한 뒤에 재고를 조정할 수 있다.'
+                : ' — 변경은 아래 실재고 조정 카드에서 사유와 함께 남긴다.'}
+            </p>
+          )}
+          <GoodStockTablePlaceholder
+            creating={!selected}
+            id={values.id ?? ''}
+            initialStockQty={values.initialStockQty ?? ''}
+            name={values.name ?? ''}
+            stockQty={selected?.stockQty ?? null}
+          />
+        </GoodFormTabPanel>
+
+        <GoodFormTabPanel active={activeTab} id="images" idPrefix={tabPrefix}>
+          <ArtworkUploadField
+            currentPath={selected?.imagePath ?? null}
+            currentUrl={selected?.imageUrl ?? null}
+            fieldId="good-main"
+            helpText="굿즈샵 목록 카드와 상세페이지 대표 이미지로 쓰입니다."
+            kind="good"
+            label="대표 이미지"
+            onPreviewChange={(url) => setImageUrl('imagePath', url)}
+          />
+          <GoodsGalleryFields
+            galleryPaths={selected?.galleryPaths ?? []}
+            galleryUrls={selected?.galleryUrls ?? []}
+            onPreviewChange={setImageUrl}
+            state={state}
+          />
+          <ArtworkUploadField
+            allowRemove
+            currentPath={selected?.detailImagePath ?? null}
+            currentUrl={selected?.detailImageUrl ?? null}
+            fieldId="good-detail"
+            helpText="상세페이지 아래에 원래 비율로 길게 표시되는 이미지 1장입니다."
+            kind="good"
+            label="상세 이미지"
+            name="detailImagePath"
+            onPreviewChange={(url) => setImageUrl('detailImagePath', url)}
+          />
+        </GoodFormTabPanel>
+
+        <GoodFormTabPanel active={activeTab} id="notice" idPrefix={tabPrefix}>
+          <GoodsNoticeFields
+            notice={base?.notice ?? null}
+            onApplyPreset={applyNoticePreset}
+            seed={defaults}
+            seedRef={seedRef}
+            state={state}
+          />
+        </GoodFormTabPanel>
+
+        <GoodFormTabPanel active={activeTab} id="shipping" idPrefix={tabPrefix}>
+          <GoodShippingPlaceholders />
+        </GoodFormTabPanel>
+
+        <GoodFormTabPanel active={activeTab} id="exposure" idPrefix={tabPrefix}>
+          <GoodExposurePlaceholders archived={Boolean(selected?.archivedAt)} />
+        </GoodFormTabPanel>
+
         <FormShell pending={pending} state={state} />
         {creating && draftSavedAt ? (
           <span className="muted admin-draft-status" role="status">

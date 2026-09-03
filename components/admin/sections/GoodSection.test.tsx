@@ -195,6 +195,48 @@ describe('GoodSection', () => {
     expect(html.match(/<form/g)).toHaveLength(1);
   });
 
+  /* 탭 7 (설계서 4-3) — 화면 정리일 뿐 폼은 하나다. 안 보이는 패널도 값을 제출한다. */
+  it('lays the form out in seven tabs while keeping every field inside the single form', () => {
+    const html = renderGoodSection(null);
+
+    /* 공개 상세 미리보기에도 탭이 있다 — 어드민 탭만 센다. */
+    expect(html.match(/class="admin-form-tab"/g)).toHaveLength(7);
+    expect(html.match(/class="admin-form-tabpanel col"/g)).toHaveLength(7);
+    expect(html).toMatch(/aria-selected="true"[^>]*>① 기본/);
+    expect(html.match(/class="admin-form-tabpanel col" hidden=""/g)).toHaveLength(6);
+    /* 숨은 탭의 required 칸이 브라우저 검증에 막히지 않게 폼은 noValidate 다(검사는 제출 핸들러가 한다). */
+    expect(html).toMatch(/<form[^>]*noValidate=""/);
+    for (const name of ['id', 'ipId', 'name', 'price', 'compareAtPrice', 'initialStockQty', 'imagePath', 'noticeMaker', 'description']) {
+      expect(html).toContain(`name="${name}"`);
+    }
+    expect(html.match(/<form/g)).toHaveLength(1);
+  });
+
+  it('opens the tab that holds the first field error and counts errors per tab', () => {
+    const html = renderGoodSection(null, {
+      errors: { price: '가격을 확인해주세요.', noticeMaker: '고시정보 필수 항목입니다.', noticeOrigin: '고시정보 필수 항목입니다.' },
+    });
+
+    expect(html).toMatch(/aria-selected="true"[^>]*>② 판매/);
+    expect(html).not.toMatch(/aria-selected="true"[^>]*>① 기본/);
+    expect(html).toContain('aria-label="오류 1건"');
+    expect(html).toContain('aria-label="오류 2건"');
+  });
+
+  /* 자리표시는 name 없이 disabled — 제출값에 섞이지 않고 필요한 데이터 층을 말한다. */
+  it('renders shipping, stock-table, and exposure placeholders disabled and unnamed', () => {
+    const html = renderGoodSection(good);
+
+    expect(html).toContain('D-2 배송 정책 · D-1 출고지');
+    expect(html).toContain('₩50,000');
+    expect(html).toContain('김포 (기본)');
+    expect(html).toContain('품목 표 · 자리표시');
+    expect(html).toContain('노출 상태');
+    expect(html).toContain('메인 큐레이션 연결');
+    expect(html).not.toMatch(/<(input|select)[^>]*disabled=""[^>]*name=/);
+    expect(html).not.toMatch(/<(input|select)[^>]*name=[^>]*disabled=""/);
+  });
+
   it('shows current inventory and a separate delta form for an existing good', () => {
     const html = renderGoodSection(good);
 
