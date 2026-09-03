@@ -77,6 +77,18 @@ describe('IpSection', () => {
     expect(creating).not.toContain('aria-label="보관 상태"');
   });
 
+  /* 숨김(노출 중지) 자리표시 — 스키마가 없어 동작하지 않음을 화면이 직접 말한다. */
+  it('shows a disabled visibility placeholder for an existing IP only', () => {
+    const existing = renderIpSection(ip);
+    const creating = renderIpSection(null);
+
+    expect(existing).toContain('노출 상태');
+    expect(existing).toContain('aria-label="노출 상태 (준비 중)"');
+    expect(existing).toContain('D-1');
+    expect(existing).toMatch(/<button[^>]*disabled=""[^>]*>숨김<\/button>/);
+    expect(creating).not.toContain('노출 상태');
+  });
+
   it('labels an archived IP and offers restoration', () => {
     const html = renderIpSection({ ...ip, archivedAt: '2026-07-17T12:00:00.000Z' });
 

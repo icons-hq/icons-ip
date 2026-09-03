@@ -10,6 +10,7 @@ import {
   normalizeAdminCardPoolForm,
   normalizeAdminEventForm,
   normalizeAdminGoodForm,
+  normalizeAdminInitialStockForm,
   normalizeAdminGameEndForm,
   normalizeAdminGameForm,
   normalizeAdminIpForm,
@@ -18,6 +19,7 @@ import {
   normalizeAdminStockAdjustmentForm,
   normalizeAdminTicketTypeForm,
   type AdminFieldErrors,
+  type AdminInitialStockFormValue,
 } from '@/lib/admin/catalog';
 import { getAdminCatalogRecords } from '@/lib/admin/catalog.server';
 import {
@@ -332,6 +334,12 @@ export async function upsertAdminGoodAction(
   if (!result.ok) return keepSubmittedValues({ errors: result.errors }, formData);
 
   const value = result.value;
+  /* 초기 재고는 신규 등록에서만 읽는다 — 수정 폼에는 칸이 없고, 있어도 무시한다. */
+  const initialStock = value.previousId === null ? normalizeAdminInitialStockForm(formData) : null;
+  if (initialStock && !initialStock.ok) {
+    return keepSubmittedValues({ errors: initialStock.errors }, formData);
+  }
+
   const previousIpPath = readPreviousIpPath(formData);
   const supabase = await createClient();
   const { error } = await supabase.rpc('admin_upsert_good', {
@@ -372,7 +380,46 @@ export async function upsertAdminGoodAction(
 
   notifyRestockSubscribers(value.id);
   revalidateCatalog(relatedIpPaths(value.ipId, previousIpPath));
+  if (initialStock?.ok && initialStock.value) {
+    return applyInitialStock(supabase, value.id, value.ipId, initialStock.value);
+  }
   return { message: '굿즈를 저장했습니다.' };
+}
+
+const INITIAL_STOCK_REASON = '등록 시 초기 재고';
+
+/*
+ * 등록 직후 초기 재고 반영.
+ *
+ * 저장 RPC는 수량을 받지 않으므로 실재고 조정 RPC(0 → n)를 같은 요청에서 잇는다 —
+ * 감사 기록(사유·요청 id)이 다른 조정과 같은 자리에 남는다. 굿즈는 이미 저장됐으므로
+ * 여기서 실패해도 제출값을 되돌리지 않는다: 되돌리면 같은 ID로 다시 저장을 시도하게
+ * 된다. 실패는 폼 오류로 알리고 실재고 조정으로 안내한다.
+ */
+async function applyInitialStock(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  goodId: string,
+  ipId: string,
+  initial: AdminInitialStockFormValue,
+): Promise<AdminCatalogActionState> {
+  const { error } = await supabase.rpc('admin_adjust_stock', {
+    target_adjustment_id: initial.adjustmentId,
+    target_good_id: goodId,
+    target_expected_stock_qty: 0,
+    target_delta: initial.qty,
+    target_reason: INITIAL_STOCK_REASON,
+  });
+  const qty = initial.qty.toLocaleString('ko-KR');
+  revalidateStock(`/ip/${ipId}`);
+
+  if (error) {
+    return rpcFailure(
+      `굿즈는 저장됐지만 초기 재고 ${qty}개를 반영하지 못했습니다. 목록에서 굿즈를 열어 실재고 조정으로 입력해주세요.`,
+    );
+  }
+
+  notifyRestockSubscribers(goodId);
+  return { message: `굿즈를 저장하고 초기 재고 ${qty}개를 반영했습니다.` };
 }
 
 export async function adjustAdminStockAction(

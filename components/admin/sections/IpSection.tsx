@@ -7,6 +7,7 @@ import type { CatalogSnapshot } from '@/lib/catalog';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl } from '../CatalogArchiveControls';
 import { CatalogEditorHeader } from '../catalog/CatalogEditorHeader';
+import { CatalogVisibilityPlaceholder } from '../catalog/CatalogVisibilityPlaceholder';
 import { Field, FormShell, SelectField, TextArea } from '../fields';
 
 export function IpSection({
@@ -71,6 +72,9 @@ export function IpSection({
         />
         <FormShell pending={pending} state={state} />
       </form>
+      {selected && (
+        <CatalogVisibilityPlaceholder archived={Boolean(selected.archivedAt)} kind="ip" />
+      )}
       {selected && (
         <CatalogArchiveControl
           archivedAt={selected.archivedAt}

@@ -121,6 +121,41 @@ describe('GoodSection', () => {
     expect(creating).not.toContain('aria-label="보관 상태"');
   });
 
+  /* 등록 시 초기 재고는 신규 폼에만 있고, 실재고 조정 폼과는 다른 칸이다. */
+  it('offers an initial stock quantity only while creating, wired to the server-made idempotency key', () => {
+    const creating = renderGoodSection(null);
+    const existing = renderGoodSection(good);
+
+    expect(creating).toContain('name="initialStockQty"');
+    expect(creating).toContain('name="initialStockAdjustmentId"');
+    expect(creating).toContain('value="11111111-1111-4111-8111-111111111111"');
+    expect(creating).toContain('초기 재고 수량');
+    expect(existing).not.toContain('name="initialStockQty"');
+    expect(existing).not.toContain('name="initialStockAdjustmentId"');
+  });
+
+  it('re-seeds the initial stock quantity and shows its error after a failed save', () => {
+    const html = renderGoodSection(null, {
+      errors: { initialStockQty: '초기 재고는 0 이상의 정수여야 합니다.' },
+      values: { initialStockQty: '-3' },
+    });
+
+    expect(html).toContain('id="initialStockQty-error"');
+    expect(html).toContain('value="-3"');
+  });
+
+  /* 고시정보 프리셋 바 — 저장은 브라우저에만 하고 폼 필드 수는 늘리지 않는다. */
+  it('renders the goods notice preset bar without adding form fields', () => {
+    const html = renderGoodSection(null);
+
+    expect(html).toContain('aria-label="고시정보 프리셋"');
+    expect(html).toContain('저장된 프리셋 없음');
+    expect(html).toContain('현재 값 저장');
+    expect(html).toContain('이 브라우저에만 저장됩니다.');
+    expect(html).not.toMatch(/<input[^>]*name="presetName"/);
+    expect(html.match(/<form/g)).toHaveLength(1);
+  });
+
   it('shows current inventory and a separate delta form for an existing good', () => {
     const html = renderGoodSection(good);
 

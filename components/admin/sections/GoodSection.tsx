@@ -19,6 +19,7 @@ import { Icon } from '@/components/ui/Icon';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl } from '../CatalogArchiveControls';
 import { CatalogEditorHeader } from '../catalog/CatalogEditorHeader';
+import { GoodsNoticePresetBar } from '../catalog/GoodsNoticePresetBar';
 import { GoodBankTransferControl } from '../GoodBankTransferControl';
 import { ErrorText, Field, FormShell, InlineNotice, SelectField, TextArea } from '../fields';
 
@@ -30,13 +31,32 @@ const emptyStockState: AdminCatalogActionState = {};
  */
 function GoodsNoticeFields({
   notice,
+  onApplyPreset,
   seed,
+  seedRef,
   state,
 }: {
   notice: GoodsNoticeInfo | null;
+  /** 프리셋을 채웠을 때 미리보기 값을 같이 갱신하라는 신호. */
+  onApplyPreset: (values: Record<string, string>) => void;
   seed: Record<string, string>;
+  /** 실패 시드의 정체성. 새 실패가 오면 그 전에 채운 프리셋보다 제출값이 우선한다. */
+  seedRef: Record<string, string> | null;
   state: AdminCatalogActionState;
 }) {
+  const [applied, setApplied] = useState<{
+    seedRef: Record<string, string> | null;
+    values: Record<string, string>;
+    version: number;
+  } | null>(null);
+  /* 프리셋 뒤에 실패 시드가 새로 왔으면 시드(운영자가 마지막에 제출한 값)가 이긴다. */
+  const active = applied && applied.seedRef === seedRef ? applied.values : null;
+
+  function applyPreset(values: Record<string, string>) {
+    setApplied((current) => ({ seedRef, values, version: (current?.version ?? 0) + 1 }));
+    onApplyPreset(values);
+  }
+
   return (
     <fieldset style={{ border: '1px solid var(--line)', borderRadius: 10, margin: 0, padding: 14 }}>
       <legend className="mono" style={{ color: 'var(--dim)', fontSize: 11, padding: '0 6px' }}>
@@ -45,12 +65,15 @@ function GoodsNoticeFields({
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: '0 0 12px' }}>
         전 항목이 필수입니다. 하나라도 비면 저장되지 않고, 입력한 값은 굿즈 상세페이지에 그대로 표시됩니다.
       </p>
+      <GoodsNoticePresetBar onApply={applyPreset} />
       <div className="admin-form-grid">
         {GOODS_NOTICE_FIELDS.map((field) => (
+          /* 비제어 입력이라 프리셋 값은 key 를 바꿔 다시 마운트해야 defaultValue 로 들어간다
+             (select 시드와 같은 규칙). */
           <Field
-            defaultValue={seed[field.formName] ?? notice?.[field.key] ?? ''}
+            defaultValue={active?.[field.formName] ?? seed[field.formName] ?? notice?.[field.key] ?? ''}
             error={state.errors?.[field.formName]}
-            key={field.key}
+            key={`${field.key}:${active ? applied?.version ?? 0 : 0}`}
             label={field.label}
             name={field.formName}
             placeholder={field.placeholder}
@@ -193,10 +216,17 @@ function initialGoodFormValues(selected: AdminGoodRecord | null): Record<string,
     badge: selected?.badge ?? '',
     stock: selected?.stock ?? 'ok',
     description: selected?.description ?? '',
+    initialStockQty: '',
     ...Object.fromEntries(
       GOODS_NOTICE_FIELDS.map((field) => [field.formName, selected?.notice[field.key] ?? '']),
     ),
   };
+}
+
+/* 신규 굿즈의 미리보기 재고는 아직 저장되지 않은 초기 재고 칸을 따른다 — 0이면 품절로 그려진다. */
+function previewInitialStockQty(values: Record<string, string>) {
+  const raw = (values.initialStockQty ?? '').trim();
+  return /^\d+$/.test(raw) ? Number(raw) : 0;
 }
 
 function initialGoodImageUrls(selected: AdminGoodRecord | null): Record<string, string | null> {
@@ -259,6 +289,7 @@ function GoodPreviewPanel({ detail, ip }: { detail: GoodDetailContent; ip: Ip | 
 
 function GoodEditor({
   action,
+  adjustmentId,
   catalogIps,
   ipOptions,
   pending,
@@ -266,6 +297,8 @@ function GoodEditor({
   state,
 }: {
   action: (payload: FormData) => void;
+  /** 초기 재고 반영의 멱등 키. 서버 컴포넌트가 요청당 하나 만든다(신규 등록에서만 쓴다). */
+  adjustmentId: string;
   catalogIps: Ip[];
   ipOptions: { id: string; title: string; archivedAt: string | null }[];
   pending: boolean;
@@ -287,12 +320,17 @@ function GoodEditor({
     setImageUrls((current) => ({ ...current, [name]: url }));
   }
 
+  /* 프리셋은 DOM 재마운트로 들어가므로 change 가 오르지 않는다 — 미리보기 값을 직접 맞춘다. */
+  function applyNoticePreset(preset: Record<string, string>) {
+    setValues((current) => ({ ...current, ...preset }));
+  }
+
   const previewIp = catalogIps.find((ip) => ip.id === values.ipId) ?? null;
   const preview = buildGoodPreview({
     fallbackBg: selected?.bg ?? null,
     imageUrls,
     ip: previewIp,
-    stockQty: selected?.stockQty ?? 0,
+    stockQty: selected ? selected.stockQty : previewInitialStockQty(values),
     values,
   });
   /* 할인 표기는 판매가보다 큰 정가에서만 파생된다(PriceBlock·DB CHECK 와 같은 규칙).
@@ -355,11 +393,38 @@ function GoodEditor({
             <option value="low">low</option>
             <option value="soldout">soldout</option>
           </SelectField>
+          {/* 초기 재고는 신규 등록에서만. 기존 굿즈의 재고는 아래 실재고 조정이 감사 기록과 함께 맡는다. */}
+          {!selected ? (
+            <Field
+              defaultValue={seed.initialStockQty ?? ''}
+              error={state.errors?.initialStockQty}
+              label="초기 재고 수량 (선택)"
+              min={0}
+              name="initialStockQty"
+              placeholder="0"
+              step={1}
+              type="number"
+            />
+          ) : null}
         </div>
+        {!selected ? (
+          <>
+            <input name="initialStockAdjustmentId" type="hidden" value={adjustmentId} />
+            <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+              초기 재고는 저장 직후 실재고 이력에 「등록 시 초기 재고」 사유로 남습니다. 비우면 0개(품절 표시)로 등록됩니다.
+            </p>
+          </>
+        ) : null}
         {/* 배경 CSS 자유입력을 운영자 폼에서 뺐다 (#183). 아트워크가 없는 레거시
             레코드는 이 값으로 렌더되므로 그대로 실어 보내 보존한다. */}
         <input name="bg" type="hidden" value={selected?.bg ?? ''} />
-        <GoodsNoticeFields notice={selected?.notice ?? null} seed={seed} state={state} />
+        <GoodsNoticeFields
+          notice={selected?.notice ?? null}
+          onApplyPreset={applyNoticePreset}
+          seed={seed}
+          seedRef={state.values ?? null}
+          state={state}
+        />
         <ArtworkUploadField
           currentPath={selected?.imagePath ?? null}
           currentUrl={selected?.imageUrl ?? null}
@@ -436,6 +501,7 @@ export function GoodSection({
       />
       <GoodEditor
         action={action}
+        adjustmentId={adjustmentId}
         catalogIps={catalogIps}
         ipOptions={ipOptions}
         key={selected ? JSON.stringify(selected) : 'new-good'}

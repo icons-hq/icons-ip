@@ -10,6 +10,7 @@ import {
   normalizeAdminIpForm,
   normalizeAdminPoolOddsForm,
   normalizeAdminRewardPolicyForm,
+  normalizeAdminInitialStockForm,
   normalizeAdminStockAdjustmentForm,
   normalizeAdminTicketTypeForm,
 } from './catalog';
@@ -470,6 +471,39 @@ describe('admin catalog form normalization', () => {
         adjustmentId: '유효한 재고 조정 요청이 아닙니다.',
         expectedStockQty: '현재 실재고를 확인해주세요.',
       },
+    });
+  });
+
+  /* 등록 시 초기 재고 — 양수일 때만 값이고, 그때는 멱등 키가 따라와야 한다. */
+  it('reads an initial stock quantity only when it is positive and carries its idempotency key', () => {
+    const formData = new FormData();
+    formData.set('initialStockQty', ' 25 ');
+    formData.set('initialStockAdjustmentId', '99999999-9999-4999-8999-999999999999');
+    const empty = new FormData();
+    const zero = new FormData();
+    zero.set('initialStockQty', '0');
+
+    expect(normalizeAdminInitialStockForm(formData)).toEqual({
+      ok: true,
+      value: { adjustmentId: '99999999-9999-4999-8999-999999999999', qty: 25 },
+    });
+    expect(normalizeAdminInitialStockForm(empty)).toEqual({ ok: true, value: null });
+    expect(normalizeAdminInitialStockForm(zero)).toEqual({ ok: true, value: null });
+  });
+
+  it.each([
+    ['-1', '99999999-9999-4999-8999-999999999999', '초기 재고는 0 이상의 정수여야 합니다.'],
+    ['1.5', '99999999-9999-4999-8999-999999999999', '초기 재고는 0 이상의 정수여야 합니다.'],
+    ['2147483648', '99999999-9999-4999-8999-999999999999', '초기 재고는 0 이상의 정수여야 합니다.'],
+    ['3', 'not-a-uuid', '유효한 초기 재고 요청이 아닙니다. 화면을 새로고침한 뒤 다시 시도해주세요.'],
+  ])('rejects an invalid initial stock (%s · %s)', (qty, adjustmentId, message) => {
+    const formData = new FormData();
+    formData.set('initialStockQty', qty);
+    formData.set('initialStockAdjustmentId', adjustmentId);
+
+    expect(normalizeAdminInitialStockForm(formData)).toEqual({
+      ok: false,
+      errors: { initialStockQty: message },
     });
   });
 

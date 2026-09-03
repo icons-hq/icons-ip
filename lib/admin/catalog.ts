@@ -526,6 +526,41 @@ export function normalizeAdminStockAdjustmentForm(
   };
 }
 
+export interface AdminInitialStockFormValue {
+  adjustmentId: string;
+  qty: number;
+}
+
+/*
+ * 등록 시 초기 재고.
+ *
+ * 굿즈 저장 RPC는 수량을 받지 않는다 — 초기 수량은 저장 직후 같은 요청 안에서, 감사
+ * 기록이 남는 실재고 조정 RPC(0 → n)로 넣는다. 비우거나 0이면 아무것도 하지 않는다.
+ * 기존 레코드 수정에서는 읽지 않는다(수정 재고는 실재고 조정 폼이 맡는다).
+ */
+export function normalizeAdminInitialStockForm(
+  formData: FormData,
+): AdminFormResult<AdminInitialStockFormValue | null> {
+  const raw = readString(formData, 'initialStockQty');
+  if (!raw) return { ok: true, value: null };
+
+  const qty = Number(raw);
+  if (!/^\d+$/.test(raw) || !Number.isInteger(qty) || qty > INT32_MAX) {
+    return { ok: false, errors: { initialStockQty: '초기 재고는 0 이상의 정수여야 합니다.' } };
+  }
+  if (qty === 0) return { ok: true, value: null };
+
+  const adjustmentId = readString(formData, 'initialStockAdjustmentId').toLowerCase();
+  if (!UUID_PATTERN.test(adjustmentId)) {
+    return {
+      ok: false,
+      errors: { initialStockQty: '유효한 초기 재고 요청이 아닙니다. 화면을 새로고침한 뒤 다시 시도해주세요.' },
+    };
+  }
+
+  return { ok: true, value: { adjustmentId, qty } };
+}
+
 export function normalizeAdminCardForm(
   formData: FormData,
   context: AdminCatalogContext,

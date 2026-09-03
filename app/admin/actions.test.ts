@@ -492,6 +492,82 @@ describe('admin catalog actions', () => {
     });
   });
 
+  /* 등록 시 초기 재고. 저장 RPC는 수량을 받지 않으므로 같은 요청에서 감사 기록이 남는
+     실재고 조정 RPC(0 → n)를 잇는다. */
+  it('applies an initial stock quantity through the audited stock RPC right after creating a good', async () => {
+    const formData = goodForm();
+    formData.set('initialStockQty', '25');
+    formData.set('initialStockAdjustmentId', '99999999-9999-4999-8999-999999999999');
+
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+      message: '굿즈를 저장하고 초기 재고 25개를 반영했습니다.',
+    });
+
+    expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual(['admin_upsert_good', 'admin_adjust_stock']);
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_adjust_stock', {
+      target_adjustment_id: '99999999-9999-4999-8999-999999999999',
+      target_good_id: 'g100',
+      target_expected_stock_qty: 0,
+      target_delta: 25,
+      target_reason: '등록 시 초기 재고',
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/cart');
+    expect(mocks.sendRestockAlertEmails).toHaveBeenCalledWith('g100');
+  });
+
+  it.each([
+    ['', ''],
+    ['0', '99999999-9999-4999-8999-999999999999'],
+  ])('skips the stock RPC when the initial quantity is empty or zero ("%s")', async (qty, adjustmentId) => {
+    const formData = goodForm();
+    formData.set('initialStockQty', qty);
+    formData.set('initialStockAdjustmentId', adjustmentId);
+
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+      message: '굿즈를 저장했습니다.',
+    });
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores an initial quantity on an edit — existing stock only moves through the adjustment form', async () => {
+    const formData = goodForm();
+    formData.set('previousId', 'g100');
+    formData.set('initialStockQty', '25');
+    formData.set('initialStockAdjustmentId', '99999999-9999-4999-8999-999999999999');
+
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+      message: '굿즈를 저장했습니다.',
+    });
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an invalid initial quantity before writing and keeps the submitted values', async () => {
+    const formData = goodForm();
+    formData.set('initialStockQty', '-3');
+
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+      errors: { initialStockQty: '초기 재고는 0 이상의 정수여야 합니다.' },
+      values: expect.objectContaining({ initialStockQty: '-3' }),
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('reports a failed initial stock write as a form error without re-seeding — the good already exists', async () => {
+    mocks.rpc
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: 'stock_changed' } });
+    const formData = goodForm();
+    formData.set('initialStockQty', '25');
+    formData.set('initialStockAdjustmentId', '99999999-9999-4999-8999-999999999999');
+
+    const state = await upsertAdminGoodAction({}, formData);
+
+    expect(state.errors?.form).toContain('초기 재고 25개를 반영하지 못했습니다');
+    expect(state.values).toBeUndefined();
+    expect(mocks.rpc).toHaveBeenCalledTimes(2);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/cart');
+  });
+
   it('hands the good to the restock mailer after a stock adjustment', async () => {
     await adjustAdminStockAction({}, stockAdjustmentForm());
 
