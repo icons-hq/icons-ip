@@ -100,9 +100,8 @@ function renderGoodSection(
       adjustmentId="11111111-1111-4111-8111-111111111111"
       catalogIps={[hwasan]}
       ipOptions={[{ id: 'hwasan', title: '화산강림', archivedAt: null }]}
-      onSelect={vi.fn()}
+      listHref="/admin/catalog/goods?tab=low&page=2"
       pending={false}
-      records={selected ? [selected] : [good]}
       selected={selected}
       state={state}
     />,
@@ -110,6 +109,18 @@ function renderGoodSection(
 }
 
 describe('GoodSection', () => {
+  /* 목록은 GoodConsole 이 맡는다 — 편집 화면은 머리에 목록 링크와 대상만 쓴다. */
+  it('heads the editor with a back-to-list link that keeps the list conditions', () => {
+    const existing = renderGoodSection(good);
+    const creating = renderGoodSection(null);
+
+    expect(existing).toContain('href="/admin/catalog/goods?tab=low&amp;page=2"');
+    expect(existing).toContain('← 목록으로');
+    expect(existing).toContain('g100 · 화산강림 아크릴 스탠드 · 12개');
+    expect(creating).toContain('새 굿즈 등록');
+    expect(creating).not.toContain('aria-label="보관 상태"');
+  });
+
   it('shows current inventory and a separate delta form for an existing good', () => {
     const html = renderGoodSection(good);
 
@@ -158,7 +169,6 @@ describe('GoodSection', () => {
     const archived = { ...good, archivedAt: '2026-07-17T12:00:00.000Z' };
     const html = renderGoodSection(archived);
 
-    expect(html).toContain('aria-label="보관 상태"');
     expect(html).toContain('[보관] g100 · 화산강림 아크릴 스탠드 · 12개');
     expect(html).toContain('보관 복원');
     expect(html).toContain('value="good"');

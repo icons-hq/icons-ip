@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   drawTicketGrants: vi.fn(),
   screens: {
     good: vi.fn(() => null),
+    ip: vi.fn(() => null),
     card: vi.fn(() => null),
     cardPool: vi.fn(() => null),
     rewardPolicy: vi.fn(() => null),
@@ -41,6 +42,7 @@ vi.mock('@/lib/admin/draw-ticket-grants.server', () => ({
   getAdminDrawTicketGrants: mocks.drawTicketGrants,
 }));
 vi.mock('@/components/admin/screens/GoodScreen', () => ({ GoodScreen: mocks.screens.good }));
+vi.mock('@/components/admin/screens/IpScreen', () => ({ IpScreen: mocks.screens.ip }));
 vi.mock('@/components/admin/screens/CardScreen', () => ({ CardScreen: mocks.screens.card }));
 vi.mock('@/components/admin/screens/CardPoolScreen', () => ({ CardPoolScreen: mocks.screens.cardPool }));
 vi.mock('@/components/admin/screens/RewardPolicyScreen', () => ({ RewardPolicyScreen: mocks.screens.rewardPolicy }));
@@ -54,6 +56,7 @@ vi.mock('@/components/admin/screens/EventScreen', () => ({ EventScreen: mocks.sc
 vi.mock('@/components/admin/screens/TicketTypeScreen', () => ({ TicketTypeScreen: mocks.screens.ticketType }));
 
 const { default: AdminCatalogGoodsPage } = await import('./goods/page');
+const { default: AdminCatalogIpsPage } = await import('./ips/page');
 const { default: AdminCatalogCardsPage } = await import('./cards/page');
 const { default: AdminCatalogPoolsPage } = await import('./pools/page');
 const { default: AdminCatalogPoliciesPage } = await import('./policies/page');
@@ -107,7 +110,8 @@ describe('어드민 카탈로그 라우트', () => {
   });
 
   it.each([
-    ['/admin/catalog/goods', () => AdminCatalogGoodsPage(), ['goods', 'ips']],
+    ['/admin/catalog/goods', () => AdminCatalogGoodsPage({ searchParams: searchParams() }), ['goods', 'ips']],
+    ['/admin/catalog/ips', () => AdminCatalogIpsPage({ searchParams: searchParams() }), ['ips', 'goods']],
     ['/admin/catalog/cards', () => AdminCatalogCardsPage({ searchParams: searchParams() }), ['cards', 'ips', 'cardPools']],
     ['/admin/catalog/pools', () => AdminCatalogPoolsPage(), ['cardPools', 'cards', 'ips']],
     ['/admin/catalog/policies', () => AdminCatalogPoliciesPage(), ['rewardPolicies', 'goods', 'cardPools', 'ips']],
@@ -125,12 +129,29 @@ describe('어드민 카탈로그 라우트', () => {
   });
 
   it('굿즈 화면은 공개 카탈로그 스냅샷과 재고 조정 멱등 키를 함께 내려준다', async () => {
-    const screen = await AdminCatalogGoodsPage();
+    const screen = await AdminCatalogGoodsPage({ searchParams: searchParams() });
 
     expect(screen.type).toBe(mocks.screens.good);
     expect(mocks.catalogSnapshot).toHaveBeenCalledWith({ previewDefaultSource: 'supabase' });
     expect(screen.props.catalogIps).toEqual([]);
     expect(screen.props.adjustmentId).toMatch(/^[0-9a-f-]{36}$/);
+    /* 목록 조건이 없으면 전체 목록 1페이지다. */
+    expect(screen.props.filters).toMatchObject({ tab: 'all', page: 1, selected: null });
+    expect(screen.props.list).toMatchObject({ rows: [], total: 0, page: 1 });
+  });
+
+  /* 목록 조건과 편집 대상은 URL이 정한다 — 화면 로컬 상태가 아니다. */
+  it('굿즈·IP 화면은 URL의 목록 조건과 편집 대상을 좁혀서 내려준다', async () => {
+    const editing = await AdminCatalogGoodsPage({
+      searchParams: searchParams({ selected: 'g100', tab: 'soldout', sort: 'price', dir: 'desc', page: '2' }),
+    });
+    const creating = await AdminCatalogIpsPage({ searchParams: searchParams({ selected: 'new', tab: 'nope' }) });
+
+    expect(editing.props.filters).toMatchObject({ selected: 'g100', tab: 'soldout', sort: 'price', dir: 'desc', page: 2 });
+    expect(editing.key).toBe('g100');
+    expect(creating.type).toBe(mocks.screens.ip);
+    expect(creating.props.filters).toMatchObject({ selected: 'new', tab: 'all' });
+    expect(creating.props.list).toMatchObject({ counts: { all: 0, active: 0, archived: 0 } });
   });
 
   /* 카드풀 화면의 "카드 편집" 링크(`?cardId=`)가 도착하는 지점이다. */

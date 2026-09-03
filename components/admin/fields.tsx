@@ -283,7 +283,7 @@ export function FormShell({
  * alt 를 비우고 스크린리더에서 제외한다. 아트워크가 없는 레코드는 이미지를
  * 렌더하지 않고 기존처럼 텍스트만 보여준다.
  */
-function RecordThumbnail({ kind, url }: { kind: AdminArtworkKind; url: string }) {
+export function RecordThumbnail({ kind, url }: { kind: AdminArtworkKind; url: string }) {
   return (
     <span
       aria-hidden="true"

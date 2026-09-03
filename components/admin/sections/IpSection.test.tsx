@@ -25,19 +25,25 @@ const ip: AdminIpRecord = {
   fansCount: 0,
 };
 
+function renderIpSection(
+  selected: AdminIpRecord | null,
+  verticals: Parameters<typeof IpSection>[0]['verticals'] = [],
+) {
+  return renderToStaticMarkup(
+    <IpSection
+      action={vi.fn()}
+      listHref="/admin/catalog/ips?tab=archived"
+      pending={false}
+      selected={selected}
+      state={{}}
+      verticals={verticals}
+    />,
+  );
+}
+
 describe('IpSection', () => {
   it('uses the shared artwork field and states the horizontal key-art rule', () => {
-    const html = renderToStaticMarkup(
-      <IpSection
-        action={vi.fn()}
-        onSelect={vi.fn()}
-        pending={false}
-        records={[]}
-        selected={null}
-        state={{}}
-        verticals={[{ key: 'global', label: '글로벌 IP', color: '#2DE2FF' }]}
-      />,
-    );
+    const html = renderIpSection(null, [{ key: 'global', label: '글로벌 IP', color: '#2DE2FF' }]);
 
     expect(html).toContain('data-artwork-kind="ip"');
     expect(html).toContain('name="imagePath"');
@@ -49,66 +55,30 @@ describe('IpSection', () => {
   });
 
   it('기존 IP의 featured 값을 보이지 않는 입력으로 보존한다', () => {
-    const html = renderToStaticMarkup(
-      <IpSection
-        action={vi.fn()}
-        onSelect={vi.fn()}
-        pending={false}
-        records={[{ ...ip, featured: true }]}
-        selected={{ ...ip, featured: true }}
-        state={{}}
-        verticals={[]}
-      />,
-    );
+    const html = renderIpSection({ ...ip, featured: true });
 
     expect(html).toContain('type="hidden" name="featured" value="on"');
     expect(html).not.toContain('type="checkbox" name="featured"');
   });
 
-  it('shows the archive filter and archive control only for an existing IP', () => {
-    const existing = renderToStaticMarkup(
-      <IpSection
-        action={vi.fn()}
-        onSelect={vi.fn()}
-        pending={false}
-        records={[ip]}
-        selected={ip}
-        state={{}}
-        verticals={[]}
-      />,
-    );
-    const creating = renderToStaticMarkup(
-      <IpSection
-        action={vi.fn()}
-        onSelect={vi.fn()}
-        pending={false}
-        records={[ip]}
-        selected={null}
-        state={{}}
-        verticals={[]}
-      />,
-    );
+  /* 목록은 IpConsole 이 맡는다 — 편집 화면은 머리에 목록 링크와 대상만 쓴다. */
+  it('heads the editor with a back-to-list link and shows the archive control only for an existing IP', () => {
+    const existing = renderIpSection(ip);
+    const creating = renderIpSection(null);
 
-    expect(existing).toContain('aria-label="보관 상태"');
+    expect(existing).toContain('href="/admin/catalog/ips?tab=archived"');
+    expect(existing).toContain('← 목록으로');
+    expect(existing).toContain('hwasan · 화산강림');
     expect(existing).toContain('카탈로그 보관');
     expect(existing).toContain('name="kind"');
     expect(existing).toContain('value="ip"');
+    expect(creating).toContain('새 IP 등록');
     expect(creating).not.toContain('카탈로그 보관');
+    expect(creating).not.toContain('aria-label="보관 상태"');
   });
 
   it('labels an archived IP and offers restoration', () => {
-    const archived = { ...ip, archivedAt: '2026-07-17T12:00:00.000Z' };
-    const html = renderToStaticMarkup(
-      <IpSection
-        action={vi.fn()}
-        onSelect={vi.fn()}
-        pending={false}
-        records={[archived]}
-        selected={archived}
-        state={{}}
-        verticals={[]}
-      />,
-    );
+    const html = renderIpSection({ ...ip, archivedAt: '2026-07-17T12:00:00.000Z' });
 
     expect(html).toContain('[보관] hwasan · 화산강림');
     expect(html).toContain('보관 복원');
@@ -120,18 +90,7 @@ describe('IpSection', () => {
    * 그대로 보존해야 아트워크 없는 레거시 화면이 깨지지 않는다.
    */
   it('hides the background CSS input while preserving the stored value', () => {
-    const legacy = { ...ip, bg: 'url("/generated/ip/hwasan.png") center / cover no-repeat' };
-    const html = renderToStaticMarkup(
-      <IpSection
-        action={vi.fn()}
-        onSelect={vi.fn()}
-        pending={false}
-        records={[legacy]}
-        selected={legacy}
-        state={{}}
-        verticals={[]}
-      />,
-    );
+    const html = renderIpSection({ ...ip, bg: 'url("/generated/ip/hwasan.png") center / cover no-repeat' });
 
     expect(html).not.toContain('배경 CSS');
     expect(html).toContain('name="bg"');
@@ -139,17 +98,7 @@ describe('IpSection', () => {
   });
 
   it('takes the glyph as multi-line text instead of a typed escape sequence', () => {
-    const html = renderToStaticMarkup(
-      <IpSection
-        action={vi.fn()}
-        onSelect={vi.fn()}
-        pending={false}
-        records={[]}
-        selected={null}
-        state={{}}
-        verticals={[]}
-      />,
-    );
+    const html = renderIpSection(null);
 
     expect(html).toMatch(/<textarea[^>]*name="glyph"/);
     expect(html).toContain('글리프 (줄바꿈 가능)');

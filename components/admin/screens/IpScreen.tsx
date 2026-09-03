@@ -2,7 +2,14 @@
 
 import { useActionState } from 'react';
 import { upsertAdminIpAction, type AdminCatalogActionState } from '@/app/admin/actions';
+import { IpConsole } from '@/components/admin/catalog/IpConsole';
 import { IpSection } from '@/components/admin/sections/IpSection';
+import {
+  ADMIN_CATALOG_NEW_RECORD,
+  adminIpListHref,
+  type AdminIpList,
+  type AdminIpListFilters,
+} from '@/lib/admin/catalog-list';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import { useSelectedRecord } from './record-selection';
@@ -10,28 +17,40 @@ import { useSelectedRecord } from './record-selection';
 const emptyState: AdminCatalogActionState = {};
 
 /*
- * 화면별 클라이언트 래퍼.
- *
- * 서버 컴포넌트 라우트가 데이터를 로드하고, 선택 레코드와 useActionState 같은
- * 화면 로컬 상태는 여기가 갖는다. 예전에는 Admin.tsx 하나가 17개 섹션의 상태를
- * 전부 들고 있어서 어느 화면을 열든 모든 상태가 살아 있었다.
+ * IP 화면 래퍼. 굿즈 화면과 같은 규칙 — `?selected=`가 없으면 목록, `new`면 빈 등록 폼,
+ * id면 편집 폼. 서버 컴포넌트 라우트가 데이터와 목록을 만들고, 폼 액션 상태만 여기가 갖는다.
  */
 export function IpScreen({
+  filters,
+  list,
   records,
   verticals,
 }: {
+  filters: AdminIpListFilters;
+  list: AdminIpList;
   records: AdminCatalogRecords['ips'];
   verticals: CatalogSnapshot['verticals'];
 }) {
   const [state, action, pending] = useActionState(upsertAdminIpAction, emptyState);
-  const { selected, select } = useSelectedRecord(records);
+  const creating = filters.selected === ADMIN_CATALOG_NEW_RECORD;
+  const { selected } = useSelectedRecord(records, creating ? null : filters.selected);
+
+  if (!creating && !selected) {
+    return (
+      <IpConsole
+        filters={filters}
+        list={list}
+        missingSelection={filters.selected}
+        verticals={verticals}
+      />
+    );
+  }
 
   return (
     <IpSection
       action={action}
-      onSelect={select}
+      listHref={adminIpListHref(filters, { selected: null })}
       pending={pending}
-      records={records}
       selected={selected}
       state={state}
       verticals={verticals}

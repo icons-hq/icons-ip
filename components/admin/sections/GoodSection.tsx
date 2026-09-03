@@ -12,19 +12,15 @@ import type { Ip } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { GOOD_BADGES, GOOD_TYPES, goodDisplayBadges } from '@/lib/goods-taxonomy';
 import { GOODS_NOTICE_FIELDS, type GoodsNoticeInfo } from '@/lib/goods-notice';
-import {
-  adminCatalogArchiveCounts,
-  filterAdminCatalogRecords,
-  formatAdminCatalogRecordLabel,
-  type AdminCatalogArchiveFilter,
-} from '../../../lib/admin/catalog-archive';
+import { formatAdminCatalogRecordLabel } from '../../../lib/admin/catalog-archive';
 import { GoodDetailView } from '@/components/screens/GoodDetail';
 import { ProductCard } from '@/components/wc/ProductCard';
 import { Icon } from '@/components/ui/Icon';
 import { ArtworkUploadField } from '../ArtworkUploadField';
-import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
+import { CatalogArchiveControl } from '../CatalogArchiveControls';
+import { CatalogEditorHeader } from '../catalog/CatalogEditorHeader';
 import { GoodBankTransferControl } from '../GoodBankTransferControl';
-import { ErrorText, Field, FormShell, InlineNotice, RecordList, SelectField, TextArea } from '../fields';
+import { ErrorText, Field, FormShell, InlineNotice, SelectField, TextArea } from '../fields';
 
 const emptyStockState: AdminCatalogActionState = {};
 
@@ -405,14 +401,18 @@ function GoodEditor({
   );
 }
 
+/*
+ * 굿즈 편집 화면. 목록은 GoodConsole 이 맡고(`?selected=` 없음), 여기는 한 굿즈의
+ * 저장·재고 조정·무통장·보관을 한 기둥으로 쌓는다. 목록으로 돌아가는 링크는
+ * 검색·필터·페이지를 그대로 품는다.
+ */
 export function GoodSection({
   action,
   adjustmentId,
   catalogIps,
   ipOptions,
-  onSelect,
+  listHref,
   pending,
-  records,
   selected,
   state,
 }: {
@@ -420,70 +420,47 @@ export function GoodSection({
   adjustmentId: string;
   catalogIps: Ip[];
   ipOptions: { id: string; title: string; archivedAt: string | null }[];
-  onSelect: (good: AdminGoodRecord | null) => void;
+  listHref: string;
   pending: boolean;
-  records: AdminGoodRecord[];
   selected: AdminGoodRecord | null;
   state: AdminCatalogActionState;
 }) {
-  const [archiveFilter, setArchiveFilter] = useState<AdminCatalogArchiveFilter>(
-    selected?.archivedAt ? 'archived' : 'active',
-  );
-  const visibleRecords = filterAdminCatalogRecords(records, archiveFilter);
-
   return (
-    <div className="admin-master-detail">
-      <div className="col" style={{ gap: 12, minWidth: 0 }}>
-        <CatalogArchiveFilter
-          counts={adminCatalogArchiveCounts(records)}
-          filter={archiveFilter}
-          onChange={(filter) => {
-            setArchiveFilter(filter);
-            if (selected && !filterAdminCatalogRecords([selected], filter).length) onSelect(null);
-          }}
+    <div className="col" style={{ gap: 16, minWidth: 0 }}>
+      <CatalogEditorHeader
+        eyebrow="GOODS"
+        listHref={listHref}
+        title={selected
+          ? formatAdminCatalogRecordLabel(`${selected.id} · ${selected.name} · ${selected.stockQty}개`, selected.archivedAt)
+          : '새 굿즈 등록'}
+      />
+      <GoodEditor
+        action={action}
+        catalogIps={catalogIps}
+        ipOptions={ipOptions}
+        key={selected ? JSON.stringify(selected) : 'new-good'}
+        pending={pending}
+        selected={selected}
+        state={state}
+      />
+      {selected && !selected.archivedAt && (
+        <StockAdjustmentForm adjustmentId={adjustmentId} good={selected} key={`stock-${selected.id}`} />
+      )}
+      {selected && !selected.archivedAt && (
+        <GoodBankTransferControl
+          allowBankTransfer={selected.allowBankTransfer}
+          id={selected.id}
+          key={`bank-${selected.id}:${selected.allowBankTransfer}`}
         />
-        <RecordList
-          activeId={selected?.id ?? null}
-          items={visibleRecords}
-          labelFor={(good) => formatAdminCatalogRecordLabel(
-            `${good.id} · ${good.name} · ${good.stockQty}개`,
-            good.archivedAt,
-          )}
-          onNew={() => onSelect(null)}
-          onSelect={onSelect}
-          thumbnailKind="good"
-          thumbnailUrlFor={(good) => good.imageUrl}
+      )}
+      {selected && (
+        <CatalogArchiveControl
+          archivedAt={selected.archivedAt}
+          id={selected.id}
+          key={`${selected.id}:${selected.archivedAt ?? 'active'}`}
+          kind="good"
         />
-      </div>
-      <div className="col" style={{ gap: 16, minWidth: 0 }}>
-        <GoodEditor
-          action={action}
-          catalogIps={catalogIps}
-          ipOptions={ipOptions}
-          key={selected ? JSON.stringify(selected) : 'new-good'}
-          pending={pending}
-          selected={selected}
-          state={state}
-        />
-        {selected && !selected.archivedAt && (
-          <StockAdjustmentForm adjustmentId={adjustmentId} good={selected} key={`stock-${selected.id}`} />
-        )}
-        {selected && !selected.archivedAt && (
-          <GoodBankTransferControl
-            allowBankTransfer={selected.allowBankTransfer}
-            id={selected.id}
-            key={`bank-${selected.id}:${selected.allowBankTransfer}`}
-          />
-        )}
-        {selected && (
-          <CatalogArchiveControl
-            archivedAt={selected.archivedAt}
-            id={selected.id}
-            key={`${selected.id}:${selected.archivedAt ?? 'active'}`}
-            kind="good"
-          />
-        )}
-      </div>
+      )}
     </div>
   );
 }
