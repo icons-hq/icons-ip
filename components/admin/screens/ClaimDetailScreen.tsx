@@ -16,6 +16,7 @@ import {
 } from '@/lib/orders/claims';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { ClaimActionPanel } from './ClaimActionPanel';
+import { ClaimApprovalPanel } from './ClaimApprovalPanel';
 
 /* 어드민 클레임 상세(#252).
  *
@@ -254,6 +255,16 @@ export function ClaimDetailScreen({
         </div>
 
         <div className="card">
+          <ClaimApprovalPanel
+            approvedAt={claim.approvedAt}
+            approvedByName={claim.approvedByName}
+            assessment={detail.assessment}
+            claimId={claim.id}
+            claimType={claim.claimType}
+            inspection={claim.inspection}
+            restorations={detail.restorations}
+            stage={claim.stage}
+          />
           <ClaimActionPanel
             cancellationForm={cancellationForm}
             carriers={carriers}

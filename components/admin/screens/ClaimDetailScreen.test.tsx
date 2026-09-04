@@ -42,7 +42,12 @@ function detail(overrides: Partial<AdminClaimDetail> = {}): AdminClaimDetail {
       reshippedAt: null,
       lastErrorCode: null,
       handlerName: 'cs_lead',
+      inspection: null,
+      approvedByName: null,
+      approvedAt: null,
     },
+    assessment: null,
+    restorations: [],
     order: {
       id: ORDER_ID,
       orderNo: ORDER_NO,

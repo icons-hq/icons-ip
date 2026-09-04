@@ -63,6 +63,7 @@ function emptyCounts(): Record<OrderClaimStage, number> {
     collecting: 0,
     collected: 0,
     on_hold: 0,
+    approval_pending: 0,
     processing: 0,
     needs_review: 0,
     completed: 0,
@@ -155,6 +156,28 @@ export interface AdminClaimDetailOrder {
   items: { name: string; qty: number; unitPrice: number }[];
 }
 
+/** 환불 한도 판정. 「얼마를, 어떤 기준으로 봤는가」를 화면이 그대로 보여준다. */
+export interface AdminClaimRefundAssessment {
+  reasonCode: string;
+  amount: number;
+  orderTotal: number;
+  maxAmountNoApproval: number | null;
+  maxRatio: number | null;
+  requiresApproval: boolean;
+  alwaysRequiresApproval: boolean;
+}
+
+export interface AdminClaimRestoration {
+  id: string;
+  itemNo: string | null;
+  goodName: string | null;
+  qty: number;
+  outcome: string;
+  locationId: string | null;
+  actorName: string;
+  occurredAt: string;
+}
+
 export interface AdminClaimDetailPayment {
   id: string;
   provider: string | null;
@@ -198,7 +221,14 @@ export interface AdminClaimDetail {
     reshippedAt: string | null;
     lastErrorCode: string | null;
     handlerName: string | null;
+    /** 검수 판정(restock|discard). 반품·교환에서만 채워진다. */
+    inspection: string | null;
+    approvedByName: string | null;
+    approvedAt: string | null;
   };
+  /** 환불 한도 판정. 승인이 필요한지, 왜 필요한지가 여기 있다. */
+  assessment: AdminClaimRefundAssessment | null;
+  restorations: AdminClaimRestoration[];
   order: AdminClaimDetailOrder | null;
   payment: AdminClaimDetailPayment | null;
   refund: AdminClaimDetailRefund | null;
@@ -229,11 +259,19 @@ export async function loadAdminClaimDetail(
   claimId: string,
 ): Promise<AdminClaimDetail | null> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc('admin_order_claim_detail', {
-    p_claim_id: claimId,
-  });
+  const [{ data, error }, assessmentResult, restorationsResult] = await Promise.all([
+    supabase.rpc('admin_order_claim_detail', { p_claim_id: claimId }),
+    supabase.rpc('admin_claim_refund_assessment', { p_claim_id: claimId }),
+    supabase.rpc('admin_claim_restorations', { p_claim_id: claimId }),
+  ]);
 
   if (error) throw new Error(`Failed to load claim: ${error.message}`);
+  if (assessmentResult.error) {
+    throw new Error(`Failed to load claim assessment: ${assessmentResult.error.message}`);
+  }
+  if (restorationsResult.error) {
+    throw new Error(`Failed to load claim restorations: ${restorationsResult.error.message}`);
+  }
   if (!isRecord(data)) return null;
 
   const claim = isRecord(data.claim) ? data.claim : null;
@@ -272,7 +310,38 @@ export async function loadAdminClaimDetail(
       reshippedAt: text(claim.reshippedAt),
       lastErrorCode: text(claim.lastErrorCode),
       handlerName: text(claim.handlerName),
+      inspection: text(claim.inspection),
+      approvedByName: text(claim.approvedByName),
+      approvedAt: text(claim.approvedAt),
     },
+    assessment: isRecord(assessmentResult.data)
+      ? {
+        reasonCode: String(assessmentResult.data.reason_code ?? ''),
+        amount: toNumber(assessmentResult.data.amount as number | string),
+        orderTotal: toNumber(assessmentResult.data.order_total as number | string),
+        maxAmountNoApproval: assessmentResult.data.max_amount_no_approval === null
+          ? null
+          : toNumber(assessmentResult.data.max_amount_no_approval as number | string),
+        maxRatio: assessmentResult.data.max_ratio === null
+          ? null
+          : Number(assessmentResult.data.max_ratio),
+        requiresApproval: assessmentResult.data.requires_approval === true,
+        alwaysRequiresApproval: assessmentResult.data.always_requires_approval === true,
+      }
+      : null,
+    restorations: ((restorationsResult.data ?? []) as {
+      id: string; item_no: string | null; good_name: string | null; qty: number;
+      outcome: string; location_id: string | null; actor_name: string; occurred_at: string;
+    }[]).map((row): AdminClaimRestoration => ({
+      id: row.id,
+      itemNo: row.item_no,
+      goodName: row.good_name,
+      qty: row.qty,
+      outcome: row.outcome,
+      locationId: row.location_id,
+      actorName: row.actor_name,
+      occurredAt: row.occurred_at,
+    })),
     order: order
       ? {
         id: String(order.id ?? ''),

@@ -106,6 +106,9 @@ export function claimStageNotice(claim: OrderCancellationRequestSummary): string
          decisionNote는 승인 시 비워지므로 여기서 읽으면 언제나 fallback만 나갔다.
          사유는 보류 시점의 알림 본문으로 이미 전달된다. */
       return '처리가 보류됐습니다. 보류 사유는 알림으로 안내해드렸습니다. 추가로 궁금한 점은 1:1 문의로 알려주세요.';
+    case 'approval_pending':
+      /* 구매자에게 우리 내부 결재 사정을 설명하지 않는다 — 알아야 할 것은 「확인 중」이라는 사실뿐이다. */
+      return '요청을 확인하고 있습니다. 확인이 끝나면 환급 절차를 시작합니다.';
     case 'processing':
       return '환급 절차를 진행하고 있습니다. 결제수단에 따라 반영 시점이 다를 수 있습니다.';
     case 'needs_review':

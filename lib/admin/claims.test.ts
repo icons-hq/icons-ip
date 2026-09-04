@@ -107,6 +107,7 @@ describe('구매자 표기와 집계', () => {
       collecting: 3,
       collected: 4,
       on_hold: 5,
+      approval_pending: 0,
       processing: 6,
       needs_review: 7,
       completed: 100,

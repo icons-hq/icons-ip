@@ -17,6 +17,7 @@ function data(overrides: Partial<AdminClaimConsoleData> = {}): AdminClaimConsole
       collecting: 1,
       collected: 0,
       on_hold: 1,
+      approval_pending: 0,
       processing: 0,
       needs_review: 0,
       completed: 0,

@@ -309,3 +309,77 @@ export async function recordOrderClaimReshipmentAction(
   revalidateClaimSurfaces(normalized.value.claimId, 'exchange');
   return { message: '교환 재출고 운송장을 등록하고 클레임을 종결했습니다.' };
 }
+
+/* ------------------------------------------------------------------------- */
+/* 환불 승인 · 검수 (D-3)                                                      */
+/* ------------------------------------------------------------------------- */
+
+function approvalErrorMessage(raw: string) {
+  if (raw.includes('approver_role_required')) return '환불 승인은 관리자만 할 수 있습니다.';
+  if (raw.includes('self_approval_forbidden')) return '처리한 사람이 스스로 승인할 수 없습니다. 다른 관리자에게 요청해주세요.';
+  if (raw.includes('claim_not_awaiting_approval')) return '승인 대기 중인 건이 아닙니다.';
+  if (raw.includes('claim_not_found')) return '클레임을 찾을 수 없습니다.';
+  return '승인하지 못했습니다. 최신 상태를 확인해주세요.';
+}
+
+function inspectionErrorMessage(raw: string) {
+  if (raw.includes('claim_not_collected')) return '입고완료 상태에서만 검수할 수 있습니다.';
+  if (raw.includes('inspection_already_recorded')) return '이미 검수를 기록했습니다. 검수는 한 번만 남깁니다.';
+  if (raw.includes('qty_exceeds_delivered')) return '배송된 수량보다 많이 반품할 수 없습니다.';
+  if (raw.includes('claim_item_required')) return '어떤 품목인지 지정해야 합니다.';
+  if (raw.includes('claim_type_has_no_collection')) return '취소 건은 검수 대상이 아닙니다.';
+  return '검수를 기록하지 못했습니다.';
+}
+
+export async function approveClaimRefundAction(
+  _state: AdminClaimActionState,
+  formData: FormData,
+): Promise<AdminClaimActionState> {
+  const access = await requireStaffAction();
+  if (access.error) return access.error;
+
+  const claimId = String(formData.get('claimId') ?? '').trim();
+  if (!claimId) return { error: '클레임을 찾을 수 없습니다.' };
+  const note = String(formData.get('note') ?? '').trim() || null;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_approve_claim_refund', {
+    p_claim_id: claimId,
+    p_note: note,
+  });
+  if (error) return { error: approvalErrorMessage(error.message) };
+
+  revalidateClaimSurfaces(claimId, readClaimType(formData));
+  return { message: '환불을 승인했습니다. 결제 취소 처리를 시작합니다.' };
+}
+
+export async function recordClaimInspectionAction(
+  _state: AdminClaimActionState,
+  formData: FormData,
+): Promise<AdminClaimActionState> {
+  const access = await requireStaffAction();
+  if (access.error) return access.error;
+
+  const claimId = String(formData.get('claimId') ?? '').trim();
+  const outcome = String(formData.get('outcome') ?? '').trim();
+  if (!claimId) return { error: '클레임을 찾을 수 없습니다.' };
+  if (outcome !== 'restock' && outcome !== 'discard') return { error: '검수 결과를 골라주세요.' };
+  const rawQty = String(formData.get('qty') ?? '').trim();
+  const qty = rawQty ? Number(rawQty) : null;
+  if (qty !== null && (!Number.isInteger(qty) || qty <= 0)) return { error: '수량을 확인해주세요.' };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_record_claim_inspection', {
+    p_claim_id: claimId,
+    p_outcome: outcome,
+    p_qty: qty,
+  });
+  if (error) return { error: inspectionErrorMessage(error.message) };
+
+  revalidateClaimSurfaces(claimId, readClaimType(formData));
+  return {
+    message: outcome === 'restock'
+      ? '다시 팔 수 있음으로 기록했습니다. 재고가 돌아왔습니다.'
+      : '폐기로 기록했습니다. 재고는 늘지 않습니다.',
+  };
+}

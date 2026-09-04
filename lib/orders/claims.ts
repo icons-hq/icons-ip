@@ -17,6 +17,8 @@ export const ORDER_CLAIM_STAGES = [
   'collecting',
   'collected',
   'on_hold',
+  /* D-3: 한도를 넘는 환불은 여기서 승인자를 기다린다. 처리 전이라 아직 열린 단계다. */
+  'approval_pending',
   'processing',
   'needs_review',
   'completed',
@@ -53,6 +55,7 @@ export const ORDER_CLAIM_STAGE_LABELS: Record<OrderClaimStage, string> = {
   collected: '입고완료',
   /* 운영 보류다. provider 정합화 실패(needs_review)와 다른 개념이라 문구도 섞지 않는다. */
   on_hold: '보류',
+  approval_pending: '승인대기',
   processing: '처리중',
   needs_review: '결제확인필요',
   completed: '처리완료',
@@ -71,6 +74,7 @@ const OPEN_STAGES = new Set<OrderClaimStage>([
   'collecting',
   'collected',
   'on_hold',
+  'approval_pending',
   'processing',
   'needs_review',
 ]);

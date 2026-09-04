@@ -45,6 +45,7 @@ const CHIP_STAGES: OrderClaimStage[] = [
   'collecting',
   'collected',
   'on_hold',
+  'approval_pending',
   'processing',
   'needs_review',
   'completed',
@@ -57,6 +58,8 @@ const CHIP_TONES: Record<OrderClaimStage, 'default' | 'info' | 'success' | 'warn
   collecting: 'info',
   collected: 'warning',
   on_hold: 'danger',
+  /* 사람이 눌러 줘야 움직이는 단계라 눈에 걸려야 한다. */
+  approval_pending: 'warning',
   processing: 'info',
   needs_review: 'danger',
   completed: 'success',
