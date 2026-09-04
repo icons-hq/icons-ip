@@ -2,6 +2,7 @@ import { ExportConsole } from '@/components/admin/settings/ExportConsole';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { normalizeAdminExportsFilters } from '@/lib/admin/exports';
 import { currentUserCanSecureExport, getAdminExportJobs, getAdminExportTemplates } from '@/lib/admin/exports.server';
+import { getAdminIpOptions } from '@/lib/admin/catalog-list.server';
 import { getAdminStockLocations } from '@/lib/admin/variants.server';
 
 /* 엑셀 양식 · 내보내기 — 요청은 원장에 남고 워커가 파일을 만든다. */
@@ -12,10 +13,11 @@ export default async function AdminExportsPage({
 }) {
   await requireAdminScreenAccess('/admin/settings/exports');
   const filters = normalizeAdminExportsFilters(await searchParams);
-  const [templates, jobs, locations, canSecureExport] = await Promise.all([
+  const [templates, jobs, locations, ipOptions, canSecureExport] = await Promise.all([
     getAdminExportTemplates(),
     getAdminExportJobs({ status: filters.status, page: filters.page }),
     getAdminStockLocations({ activeOnly: true }),
+    getAdminIpOptions(),
     currentUserCanSecureExport(),
   ]);
 
@@ -23,6 +25,7 @@ export default async function AdminExportsPage({
     <ExportConsole
       canSecureExport={canSecureExport}
       filters={filters}
+      ipOptions={ipOptions}
       jobs={jobs}
       locations={locations}
       now={new Date().toISOString()}

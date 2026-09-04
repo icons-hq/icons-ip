@@ -139,6 +139,8 @@ export interface AdminExportFilters {
   status: string | null;
   locationId: string | null;
   unshippedOnly: boolean;
+  ipId: string | null;
+  includeArchived: boolean;
 }
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -170,6 +172,8 @@ export function normalizeExportFilters(formData: FormData): AdminFormResult<Admi
       status: status || null,
       locationId: locationId || null,
       unshippedOnly: formData.get('unshippedOnly') === 'on',
+      ipId: read('ipId') || null,
+      includeArchived: formData.get('includeArchived') === 'on',
     },
   };
 }
@@ -186,6 +190,8 @@ export function toExportRpcFilters(filters: AdminExportFilters): Record<string, 
   if (filters.status) payload.status = filters.status;
   if (filters.locationId) payload.location_id = filters.locationId;
   if (filters.unshippedOnly) payload.unshipped_only = true;
+  if (filters.ipId) payload.ip_id = filters.ipId;
+  if (filters.includeArchived) payload.include_archived = true;
   return payload;
 }
 
@@ -198,6 +204,8 @@ export function describeExportFilters(filters: Record<string, unknown>): string 
   if (typeof filters.status === 'string') parts.push(`상태 ${filters.status}`);
   if (typeof filters.location_id === 'string') parts.push(`출고지 ${filters.location_id}`);
   if (filters.unshipped_only === true) parts.push('미출고만');
+  if (typeof filters.ip_id === 'string') parts.push(`IP ${filters.ip_id}`);
+  if (filters.include_archived === true) parts.push('보관 포함');
   return parts.length > 0 ? parts.join(' · ') : '전체';
 }
 

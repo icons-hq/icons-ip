@@ -12,7 +12,7 @@ import {
   toExportRpcFilters,
   type ExportColumn,
 } from '@/lib/admin/exports';
-import { IMPORT_REPORT_LABELS, parseImportTable, type ImportIssue } from '@/lib/admin/imports';
+import { IMPORT_KINDS, IMPORT_REPORT_LABELS, parseImportTable, type ImportIssue, type ImportKind } from '@/lib/admin/imports';
 import { readUploadedTable } from '@/lib/admin/imports.server';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
@@ -225,8 +225,8 @@ export async function registerImportAction(
   const authError = await requireStaff();
   if (authError) return authError;
 
-  const kind = String(formData.get('kind') ?? '');
-  if (kind !== 'tracking' && kind !== 'stock_set') return { errors: { kind: '업로드 종류를 골라주세요.' } };
+  const kind = String(formData.get('kind') ?? '') as ImportKind;
+  if (!IMPORT_KINDS.some((entry) => entry.value === kind)) return { errors: { kind: '업로드 종류를 골라주세요.' } };
   const file = formData.get('file');
   if (!(file instanceof File) || file.size === 0) return { errors: { file: '파일을 골라주세요.' } };
   if (file.size > 5 * 1024 * 1024) return { errors: { file: '파일은 5MB 까지 올릴 수 있습니다.' } };

@@ -92,3 +92,86 @@ describe('재고 절대값', () => {
     expect(result.issues[0].code).toBe('row_limit');
   });
 });
+
+describe('굿즈 일괄 등록·수정 업로드', () => {
+  const HEADER = ['상품코드', 'IP코드', '상품명', '분류', '판매가', '정가', '과세구분', '요약', '검색어', '판매시작', '무통장입금'];
+
+  it('헤더에 있는 열만 싣는다 — 없는 열은 손대지 않는다는 뜻이다', () => {
+    const result = parseImportTable([
+      ['상품코드', '판매가'],
+      ['="g1"', '39,000'],
+    ], 'goods_upsert');
+    /* 이름·분류·IP 를 담지 않는 것이 요점이다. 담으면 서버가 그 열까지 덮어쓴다. */
+    expect(result.rows).toEqual([{ good_id: 'g1', price: 39000, line: 2 }]);
+    expect(result.issues).toEqual([]);
+  });
+
+  it('내보내기가 쓴 문자열 셀과 자릿점을 되읽는다', () => {
+    const result = parseImportTable([HEADER, [
+      '="g1"', '="rilakkuma"', '리락쿠마 쿠션', '쿠션', '39,000', '48000', '과세', '낮잠용', '리락쿠마, 쿠션', '2026-09-10 09:00', 'Y',
+    ]], 'goods_upsert');
+    expect(result.rows[0]).toEqual({
+      good_id: 'g1',
+      ip_id: 'rilakkuma',
+      name: '리락쿠마 쿠션',
+      type: '쿠션',
+      price: 39000,
+      compare_at_price: 48000,
+      tax_type: 'taxable',
+      summary: '낮잠용',
+      search_keywords: ['리락쿠마', '쿠션'],
+      sale_starts_at: '2026-09-10T09:00:00+09:00',
+      allow_bank_transfer: true,
+      line: 2,
+    });
+  });
+
+  it('표에 적힌 시각은 서울 시각으로 읽는다', () => {
+    const result = parseImportTable([
+      ['상품코드', '판매시작', '판매종료'],
+      ['g1', '2026-09-10', '2026-09-30 23:59'],
+    ], 'goods_upsert');
+    expect(result.rows[0].sale_starts_at).toBe('2026-09-10T00:00:00+09:00');
+    expect(result.rows[0].sale_ends_at).toBe('2026-09-30T23:59:00+09:00');
+  });
+
+  it('비울 수 있는 칸은 비우고, 비울 수 없는 칸은 오류다', () => {
+    const result = parseImportTable([
+      ['상품코드', '정가', '요약', '검색어', '상품명'],
+      ['g1', '', '', '', ''],
+    ], 'goods_upsert');
+    expect(result.rows).toEqual([]);
+    expect(result.issues.map((issue) => issue.code)).toEqual(['missing_cell']);
+
+    const cleared = parseImportTable([
+      ['상품코드', '정가', '요약', '검색어'],
+      ['g1', '', '', ''],
+    ], 'goods_upsert');
+    expect(cleared.rows).toEqual([
+      { good_id: 'g1', compare_at_price: null, summary: null, search_keywords: [], line: 2 },
+    ]);
+  });
+
+  it('목록에 없는 값은 줄 단위로 거른다', () => {
+    const result = parseImportTable([
+      ['상품코드', '분류', '과세구분', '판매유형', '무통장입금', '판매시작'],
+      ['g1', '없는분류', '과세', '일반', 'Y', ''],
+      ['g2', '키링', '반값', '일반', 'Y', ''],
+      ['g3', '키링', '과세', '가끔', 'Y', ''],
+      ['g4', '키링', '과세', '일반', '아마도', ''],
+      ['g5', '키링', '과세', '일반', 'Y', '어제'],
+      ['g6', '키링', '면세', '예약', 'N', '2026-09-10'],
+    ], 'goods_upsert');
+    expect(result.issues.map((issue) => issue.code)).toEqual([
+      'invalid_type', 'invalid_tax_type', 'invalid_sale_mode', 'invalid_flag', 'invalid_date',
+    ]);
+    expect(result.rows).toHaveLength(1);
+    expect(result.rows[0]).toMatchObject({ good_id: 'g6', tax_type: 'exempt', sale_mode: 'preorder', allow_bank_transfer: false });
+  });
+
+  it('상품코드가 없는 줄은 실을 수 없다', () => {
+    const result = parseImportTable([['상품코드', '판매가'], ['', '1000']], 'goods_upsert');
+    expect(result.rows).toEqual([]);
+    expect(result.issues[0].code).toBe('missing_cell');
+  });
+});

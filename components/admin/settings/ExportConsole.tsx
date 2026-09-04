@@ -61,10 +61,12 @@ function stampClientKey(event: FormEvent<HTMLFormElement>) {
 
 function RequestPanel({
   canSecureExport,
+  ipOptions,
   locations,
   templates,
 }: {
   canSecureExport: boolean;
+  ipOptions: readonly { id: string; title: string }[];
   locations: readonly AdminStockLocation[];
   templates: readonly AdminExportTemplate[];
 }) {
@@ -72,6 +74,8 @@ function RequestPanel({
   const [templateId, setTemplateId] = useState(templates[0]?.id ?? '');
   const template = templates.find((entry) => entry.id === templateId) ?? null;
   const needsReason = template?.securityLevel === 'pii';
+  /* 양식이 무엇을 뽑는지에 따라 물어볼 것이 다르다 — 상품 양식에 「주문 상태」를 묻지 않는다. */
+  const isGoodsTarget = template?.target === 'goods';
 
   return (
     <form action={action} className="card col" onSubmit={stampClientKey} style={{ borderRadius: 10, gap: 12, padding: 18 }}>
@@ -94,23 +98,36 @@ function RequestPanel({
             </option>
           ))}
         </SelectField>
-        <Field error={state.errors?.from} label="주문일 시작" name="from" type="date" />
-        <Field error={state.errors?.to} label="주문일 종료" name="to" type="date" />
-        <SelectField error={state.errors?.status} label="주문 상태" name="status">
-          <option value="">전체</option>
-          <option value="paid">결제 완료</option>
-          <option value="confirmed">발주 확인</option>
-          <option value="shipping">배송중</option>
-          <option value="delivered">배송 완료</option>
-          <option value="done">구매 확정</option>
-        </SelectField>
-        <SelectField label="출고지" name="locationId">
-          <option value="">전체</option>
-          {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
-        </SelectField>
+        {isGoodsTarget ? (
+          <SelectField label="IP" name="ipId">
+            <option value="">전체</option>
+            {ipOptions.map((ip) => <option key={ip.id} value={ip.id}>{ip.title}</option>)}
+          </SelectField>
+        ) : (
+          <>
+            <Field error={state.errors?.from} label="주문일 시작" name="from" type="date" />
+            <Field error={state.errors?.to} label="주문일 종료" name="to" type="date" />
+            <SelectField error={state.errors?.status} label="주문 상태" name="status">
+              <option value="">전체</option>
+              <option value="paid">결제 완료</option>
+              <option value="confirmed">발주 확인</option>
+              <option value="shipping">배송중</option>
+              <option value="delivered">배송 완료</option>
+              <option value="done">구매 확정</option>
+            </SelectField>
+            <SelectField label="출고지" name="locationId">
+              <option value="">전체</option>
+              {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+            </SelectField>
+          </>
+        )}
       </div>
       <label className="admin-variant-value">
-        <input name="unshippedOnly" type="checkbox" /> 아직 안 보낸 주문만 (발주서용)
+        {isGoodsTarget ? (
+          <><input name="includeArchived" type="checkbox" /> 보관한 상품도 포함</>
+        ) : (
+          <><input name="unshippedOnly" type="checkbox" /> 아직 안 보낸 주문만 (발주서용)</>
+        )}
       </label>
       {template?.description ? (
         <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>{template.description}</p>
@@ -320,12 +337,14 @@ export function ExportConsole({
   canSecureExport,
   filters,
   jobs,
+  ipOptions,
   locations,
   now,
   templates,
 }: {
   canSecureExport: boolean;
   filters: AdminExportsFilters;
+  ipOptions: { id: string; title: string }[];
   jobs: AdminExportJobList;
   locations: AdminStockLocation[];
   /** 만료 판정 기준 시각(서버가 만든 ISO 문자열). 렌더 중에 시계를 읽지 않는다. */
@@ -344,7 +363,7 @@ export function ExportConsole({
         </span>
       </div>
 
-      <RequestPanel canSecureExport={canSecureExport} locations={locations} templates={templates} />
+      <RequestPanel canSecureExport={canSecureExport} ipOptions={ipOptions} locations={locations} templates={templates} />
 
       <section className="card col" style={{ borderRadius: 10, gap: 12, padding: 18 }}>
         <div className="row" style={{ alignItems: 'center', justifyContent: 'space-between' }}>

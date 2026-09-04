@@ -38,10 +38,12 @@ select id as sabang_id from public.export_templates where key = 'sabangnet_order
 select set_config('exp.picking', :'picking_id', true), set_config('exp.sabang', :'sabang_id', true);
 
 -- ---------------------------------------------------------------------------
--- A. 시스템 양식 2종 — ERP 실화면에서 확인한 열 이름
+-- A. 시스템 양식 3종 — ERP 실화면에서 확인한 열 이름 + 상품 목록
 -- ---------------------------------------------------------------------------
 select 1 / case when (
-  (select count(*) from public.export_templates where is_system) = 2
+  (select count(*) from public.export_templates where is_system) = 3
+  and (select security_level from public.export_templates where key = 'goods_catalog') = 'normal'
+  and (select target from public.export_templates where key = 'goods_catalog')::text = 'goods'
   and (select security_level from public.export_templates where key = 'picking_list') = 'pii'
   and (select jsonb_array_length(columns) from public.export_templates where key = 'picking_list') = 17
   and (select jsonb_array_length(columns) from public.export_templates where key = 'sabangnet_orders') = 22
@@ -450,6 +452,105 @@ end $$;
 reset role;
 select 1 / case when (select stock_qty from public.goods where id = 'export-g1') = 5
   then 1 else 0 end as assert_atomic_import_changes_nothing;
+
+-- ---------------------------------------------------------------------------
+-- L. 굿즈 일괄 업로드 — 파일에 있는 열만 바꾼다
+-- ---------------------------------------------------------------------------
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000009a1', true);
+
+-- 판매가만 실린 줄은 판매가만 바꾼다 — 이름·분류는 파일에 없으니 그대로여야 한다.
+-- 재고는 앞 절(J)에서 이미 한 번 바뀌었다. 여기서는 「이 업로드가 건드리지 않는다」만 본다.
+select set_config('exp.qty_before', (select stock_qty::text from public.goods where id = 'export-g1'), true);
+select public.admin_register_import(
+  'goods_upsert', 'goods.csv', repeat('c', 64),
+  jsonb_build_array(jsonb_build_object('good_id', 'export-g1', 'price', 4500, 'line', 2)),
+  false
+) as goods_job \gset
+select set_config('exp.goods', :'goods_job', true);
+select public.admin_apply_import(
+  current_setting('exp.goods')::uuid,
+  jsonb_build_array(jsonb_build_object('good_id', 'export-g1', 'price', 4500, 'line', 2))
+) as goods_applied \gset
+select 1 / case when (
+  (select price from public.goods where id = 'export-g1') = 4500
+  and (select name from public.goods where id = 'export-g1') = '내보내기 테스트 굿즈'
+  and (select type from public.goods where id = 'export-g1') = '문구'
+  and (select stock_qty from public.goods where id = 'export-g1')::text = current_setting('exp.qty_before')
+) then 1 else 0 end as assert_goods_import_touches_only_present_columns;
+
+-- 없는 IP·잘못된 분류·파일 안 중복은 줄 단위로 거른다. 신규는 최소치를 요구한다.
+select public.admin_register_import(
+  'goods_upsert', 'goods-bad.csv', repeat('d', 64),
+  jsonb_build_array(
+    jsonb_build_object('good_id', 'export-g1', 'ip_id', 'no-such-ip', 'line', 2),
+    jsonb_build_object('good_id', 'export-g1', 'type', '없는분류', 'line', 3),
+    jsonb_build_object('good_id', 'export-new', 'name', '이름만 있는 신상', 'line', 4),
+    jsonb_build_object('good_id', 'export-g1', 'price', 5000, 'line', 5),
+    jsonb_build_object('good_id', 'export-g1', 'price', 6000, 'line', 6)
+  ),
+  false
+) as bad_job \gset
+select set_config('exp.goods_bad', :'bad_job', true);
+select 1 / case when (
+  select report from public.import_jobs where id = current_setting('exp.goods_bad')::uuid
+) = '[{"code": "ip_not_found", "line": 2}, {"code": "invalid_type", "line": 3}, {"code": "good_incomplete", "line": 4}, {"code": "duplicate_good", "line": 6}]'::jsonb
+  then 1 else 0 end as assert_goods_import_reports_each_bad_line;
+
+-- 신규 등록은 최소치가 모두 있으면 만들어지고, IP 굿즈 수가 따라 올라간다.
+select public.admin_register_import(
+  'goods_upsert', 'goods-new.csv', repeat('e', 64),
+  jsonb_build_array(jsonb_build_object(
+    'good_id', 'export-new', 'ip_id', 'export-ip', 'name', '일괄 신상', 'type', '키링', 'price', 9000,
+    'tax_type', 'exempt', 'search_keywords', jsonb_build_array('키링', '신상'), 'line', 2
+  )),
+  false
+) as new_job \gset
+select set_config('exp.goods_new', :'new_job', true);
+select public.admin_apply_import(
+  current_setting('exp.goods_new')::uuid,
+  jsonb_build_array(jsonb_build_object(
+    'good_id', 'export-new', 'ip_id', 'export-ip', 'name', '일괄 신상', 'type', '키링', 'price', 9000,
+    'tax_type', 'exempt', 'search_keywords', jsonb_build_array('키링', '신상'), 'line', 2
+  ))
+) as new_applied \gset
+select 1 / case when (
+  (select count(*) from public.goods where id = 'export-new') = 1
+  and (select tax_type from public.goods where id = 'export-new') = 'exempt'
+  -- 검색어는 저장 시 트리거가 소문자·중복 제거·정렬한다.
+  and (select search_keywords from public.goods where id = 'export-new') = '{신상,키링}'::text[]
+  and (select goods_count from public.ips where id = 'export-ip') = 2
+) then 1 else 0 end as assert_goods_import_creates_new_good;
+
+-- 판매 기간은 한쪽만 실려도 나머지 쪽과 맞춰 본다.
+reset role;
+update public.goods set sale_starts_at = now() + interval '10 days' where id = 'export-g1';
+set local role authenticated;
+select public.admin_register_import(
+  'goods_upsert', 'goods-window.csv', repeat('f', 64),
+  jsonb_build_array(jsonb_build_object('good_id', 'export-g1', 'sale_ends_at', (now() + interval '1 day')::text, 'line', 2)),
+  false
+) as window_job \gset
+select 1 / case when (
+  select report from public.import_jobs where id = :'window_job'::uuid
+) = '[{"code": "invalid_sale_window", "line": 2}]'::jsonb then 1 else 0 end as assert_goods_import_checks_sale_window_against_stored;
+reset role;
+update public.goods set sale_starts_at = null where id = 'export-g1';
+set local role authenticated;
+
+-- 굿즈 양식은 개인정보가 아니므로 마스킹 대상이 아니고, 커서는 상품코드로 넘어간다.
+select id as goods_template from public.export_templates where key = 'goods_catalog' \gset
+select count(*) as goods_rows from public.admin_export_rows(:'goods_template'::uuid, '{"ip_id": "export-ip"}'::jsonb, null, 100) \gset
+select 1 / case when :'goods_rows'::integer = 2 then 1 else 0 end as assert_goods_export_filters_by_ip;
+select count(*) as after_cursor from public.admin_export_rows(
+  :'goods_template'::uuid,
+  '{"ip_id": "export-ip"}'::jsonb,
+  (select row_key from public.admin_export_rows(:'goods_template'::uuid, '{"ip_id": "export-ip"}'::jsonb, null, 1)),
+  100
+) \gset
+select 1 / case when :'after_cursor'::integer = 1 then 1 else 0 end as assert_goods_export_cursor_walks_by_code;
+reset role;
 
 -- ---------------------------------------------------------------------------
 -- K. 만료 — 지난 파일은 표시되고 다운로드가 막힌다

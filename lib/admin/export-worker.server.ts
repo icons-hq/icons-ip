@@ -13,7 +13,16 @@ import { buildCsvFile, buildXlsxFile } from './exports-file.server';
  */
 
 const PAGE_SIZE = 1000;
-const ROW_LIMIT = 100000;
+
+/*
+ * 한 파일에 담을 수 있는 줄 수 — 형식마다 다르다.
+ *
+ * CSV 는 문자열을 이어 붙이는 것이라 10만 줄에 0.2초·400MB 로 끝난다.
+ * 엑셀(ExcelJS)은 통합 문서를 통째로 메모리에 세우기 때문에 10만 줄이면 1.3GB 를 쓴다 —
+ * 기본 함수 메모리(1GB)를 넘겨 만들다 죽는다. 실측(20k 530MB · 50k 859MB · 100k 1,305MB)에서
+ * 여유가 남는 선이 2만 줄이다. 더 큰 엑셀이 필요해지면 스트리밍 writer 로 바꿔야 한다.
+ */
+const ROW_LIMITS: Record<string, number> = { csv: 100000, xlsx: 20000 };
 
 interface ExportJobRow {
   id: string;
@@ -52,6 +61,7 @@ export async function runExportJob(workerId: string): Promise<ExportWorkResult> 
       .maybeSingle<TemplateRow>();
     if (template.error || !template.data) throw new Error(template.error?.message ?? 'template_not_found');
 
+    const rowLimit = ROW_LIMITS[template.data.file_format] ?? ROW_LIMITS.csv;
     const rows: Record<string, unknown>[] = [];
     let after: unknown = null;
     for (;;) {
@@ -60,7 +70,12 @@ export async function runExportJob(workerId: string): Promise<ExportWorkResult> 
       const batch = (page.data ?? []) as { row_key: unknown; row_data: Record<string, unknown> }[];
       if (batch.length === 0) break;
       for (const entry of batch) rows.push(entry.row_data);
-      if (rows.length >= ROW_LIMIT) throw new Error('rows_over_limit');
+      if (rows.length >= rowLimit) {
+        throw new Error(
+          `줄이 너무 많습니다. ${template.data.file_format === 'xlsx' ? '엑셀은' : 'CSV 는'} 한 번에 `
+          + `${rowLimit.toLocaleString('ko-KR')}줄까지 만들 수 있습니다 — 기간이나 출고지로 나눠 요청해 주세요.`,
+        );
+      }
       after = batch[batch.length - 1].row_key;
       if (batch.length < PAGE_SIZE) break;
     }
