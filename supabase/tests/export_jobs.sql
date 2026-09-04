@@ -56,9 +56,9 @@ select 1 / case when (
 -- B. ACL — 인증 경로는 authenticated, 워커 경로는 service_role
 -- ---------------------------------------------------------------------------
 select 1 / case when (
-  has_function_privilege('authenticated', 'public.admin_request_export(uuid,uuid,jsonb,text)', 'execute')
-  and not has_function_privilege('anon', 'public.admin_request_export(uuid,uuid,jsonb,text)', 'execute')
-  and not has_function_privilege('service_role', 'public.admin_request_export(uuid,uuid,jsonb,text)', 'execute')
+  has_function_privilege('authenticated', 'public.admin_request_export(uuid,uuid,jsonb,text,text)', 'execute')
+  and not has_function_privilege('anon', 'public.admin_request_export(uuid,uuid,jsonb,text,text)', 'execute')
+  and not has_function_privilege('service_role', 'public.admin_request_export(uuid,uuid,jsonb,text,text)', 'execute')
   and not has_function_privilege('service_role', 'public.admin_export_rows(uuid,jsonb,jsonb,integer)', 'execute')
   and has_function_privilege('service_role', 'public.claim_export_job(text)', 'execute')
   and not has_function_privilege('authenticated', 'public.claim_export_job(text)', 'execute')
@@ -191,13 +191,17 @@ reset role;
 -- ---------------------------------------------------------------------------
 -- F. 큐 — 하나만 집고, 중복으로 집지 않고, 멈추면 되돌린다
 -- ---------------------------------------------------------------------------
-select (public.claim_export_job('worker-1')).id as claimed_id \gset
+select id as claimed_id from public.claim_export_job('worker-1') \gset
 select 1 / case when (
   :'claimed_id'::uuid = current_setting('exp.job')::uuid
   and (select status from public.export_jobs where id = current_setting('exp.job')::uuid) = 'running'
   and (select attempts from public.export_jobs where id = current_setting('exp.job')::uuid) = 1
-  and (public.claim_export_job('worker-2')) is null
 ) then 1 else 0 end as assert_queue_claims_once;
+
+-- 빈 큐는 "행 없음"이어야 한다. 합성 타입이면 전부 null 인 행 하나가 나오고,
+-- 워커는 그걸 잡으로 착각한다(HTTP 로는 JSON null 이 아니라 객체로 보인다).
+select count(*) as empty_claim_rows from public.claim_export_job('worker-2') \gset
+select 1 / case when :'empty_claim_rows'::integer = 0 then 1 else 0 end as assert_empty_queue_claims_nothing;
 
 -- 아직 안 끝난 파일은 받을 수 없다.
 set local role authenticated;
@@ -311,5 +315,150 @@ select 1 / case when public.admin_upsert_export_template(
 ) is not null then 1 else 0 end as assert_user_template_can_be_created;
 
 reset role;
+
+-- ---------------------------------------------------------------------------
+-- I. 보안 엑셀 — 개인정보 양식을 엑셀로 뽑으면 파일 열기 암호가 필수다
+-- ---------------------------------------------------------------------------
+insert into public.export_templates (key, name, target, columns, security_level, file_format, is_system)
+select null, '사방넷 주문(엑셀)', 'order_items', columns, 'pii', 'xlsx', false
+from public.export_templates where key = 'sabangnet_orders'
+returning id as xlsx_template \gset
+select set_config('exp.xlsx', :'xlsx_template', true);
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000009a2', true);
+do $$
+begin
+  perform public.admin_request_export('00000000-0000-4000-8000-0000000009d1', current_setting('exp.xlsx')::uuid, '{}'::jsonb, '보안엑셀', null);
+  raise exception 'pii xlsx without a password must fail';
+exception when invalid_parameter_value then
+  if sqlerrm <> 'password_required' then raise; end if;
+end $$;
+do $$
+begin
+  perform public.admin_request_export('00000000-0000-4000-8000-0000000009d2', current_setting('exp.xlsx')::uuid, '{}'::jsonb, '보안엑셀', 'short');
+  raise exception 'a short password must fail';
+exception when invalid_parameter_value then
+  if sqlerrm <> 'password_required' then raise; end if;
+end $$;
+
+select public.admin_request_export('00000000-0000-4000-8000-0000000009d3', current_setting('exp.xlsx')::uuid, '{}'::jsonb, '보안엑셀', 'icons-2026-secret') as xlsx_job \gset
+select set_config('exp.xlsx_job', :'xlsx_job', true);
+reset role;
+select 1 / case when (
+  -- 원문은 잡 원장에 없다. 해시만 남는다.
+  (select password_hash from public.export_jobs where id = :'xlsx_job') = encode(extensions.digest('icons-2026-secret', 'sha256'), 'hex')
+  and (select count(*) from private.export_job_secrets where job_id = :'xlsx_job') = 1
+) then 1 else 0 end as assert_password_is_hashed_and_held_apart;
+
+-- 워커가 한 번 읽으면 임시 보관함에서 사라진다.
+select 1 / case when public.consume_export_job_secret(:'xlsx_job'::uuid) = 'icons-2026-secret'
+  then 1 else 0 end as assert_worker_consumes_the_secret;
+select 1 / case when (
+  (select count(*) from private.export_job_secrets where job_id = :'xlsx_job') = 0
+  and public.consume_export_job_secret(:'xlsx_job'::uuid) is null
+) then 1 else 0 end as assert_secret_is_gone_after_use;
+
+-- ---------------------------------------------------------------------------
+-- J. 업로드 — 검증만 하고, 리포트를 남기고, 통과한 줄만 적용한다
+-- ---------------------------------------------------------------------------
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000009a2', true);
+
+select public.admin_register_import(
+  'stock_set', '재고.csv', repeat('a', 64),
+  jsonb_build_array(
+    jsonb_build_object('ref', 'export-g1', 'on_hand_qty', 7, 'line', 2),
+    jsonb_build_object('ref', '없는코드', 'on_hand_qty', 3, 'line', 3),
+    jsonb_build_object('ref', 'export-g1-01', 'on_hand_qty', -1, 'line', 4)
+  ),
+  false
+) as import_job \gset
+select set_config('exp.import', :'import_job', true);
+
+reset role;
+select 1 / case when (
+  select total_rows = 3 and ok_rows = 1 and failed_rows = 2 and status = 'validated'
+     and report @> '[{"line":3,"code":"variant_not_found"}]'::jsonb
+     and report @> '[{"line":4,"code":"invalid_qty"}]'::jsonb
+  from public.import_jobs where id = current_setting('exp.import')::uuid
+) then 1 else 0 end as assert_import_validates_without_writing;
+
+-- 같은 파일을 다시 올리면 새로 만들지 않는다.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000009a2', true);
+select 1 / case when public.admin_register_import(
+  'stock_set', '재고.csv', repeat('a', 64),
+  jsonb_build_array(jsonb_build_object('ref', 'export-g1', 'on_hand_qty', 7, 'line', 2)), false
+) = current_setting('exp.import')::uuid then 1 else 0 end as assert_same_file_returns_the_same_job;
+
+-- 통과한 줄만 적용된다(2번 줄만).
+select public.admin_apply_import(
+  current_setting('exp.import')::uuid,
+  -- 화면은 검증에 쓴 행을 그대로 다시 보낸다(줄 번호가 기준이다).
+  jsonb_build_array(
+    jsonb_build_object('ref', 'export-g1', 'on_hand_qty', 7, 'line', 2),
+    jsonb_build_object('ref', '없는코드', 'on_hand_qty', 3, 'line', 3),
+    jsonb_build_object('ref', 'export-g1-01', 'on_hand_qty', -1, 'line', 4)
+  )
+) as applied \gset
+reset role;
+select 1 / case when (
+  (:'applied'::jsonb ->> 'applied')::integer = 1
+  and (select status from public.import_jobs where id = current_setting('exp.import')::uuid) = 'applied'
+  -- 보유를 7로 맞췄고 이 주문이 2개를 예약 중이라 판매 가능 수량은 5다(D-1b 규칙).
+  and (select stock_qty from public.goods where id = 'export-g1') = 5
+) then 1 else 0 end as assert_import_applies_only_valid_rows;
+
+-- 이미 적용한 파일은 다시 적용하지 않는다.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000009a2', true);
+do $$
+begin
+  perform public.admin_apply_import(current_setting('exp.import')::uuid, '[]'::jsonb);
+  raise exception 'applying twice must fail';
+exception when raise_exception then
+  if sqlerrm <> 'not_validated' then raise; end if;
+end $$;
+
+-- 「전부 아니면 전무」는 오류가 하나라도 있으면 아무것도 적용하지 않는다.
+select public.admin_register_import(
+  'stock_set', '원자.csv', repeat('b', 64),
+  jsonb_build_array(
+    jsonb_build_object('ref', 'export-g1', 'on_hand_qty', 9, 'line', 2),
+    jsonb_build_object('ref', '없는코드', 'on_hand_qty', 3, 'line', 3)
+  ),
+  true
+) as atomic_job \gset
+do $$
+begin
+  perform public.admin_apply_import(current_setting('exp.atomic')::uuid, '[]'::jsonb);
+exception when others then null;
+end $$;
+select set_config('exp.atomic', :'atomic_job', true);
+do $$
+begin
+  perform public.admin_apply_import(current_setting('exp.atomic')::uuid, jsonb_build_array(jsonb_build_object('ref', 'export-g1', 'on_hand_qty', 9, 'line', 2)));
+  raise exception 'atomic import with errors must fail';
+exception when raise_exception then
+  if sqlerrm <> 'atomic_has_errors' then raise; end if;
+end $$;
+reset role;
+select 1 / case when (select stock_qty from public.goods where id = 'export-g1') = 5
+  then 1 else 0 end as assert_atomic_import_changes_nothing;
+
+-- ---------------------------------------------------------------------------
+-- K. 만료 — 지난 파일은 표시되고 다운로드가 막힌다
+-- ---------------------------------------------------------------------------
+update public.export_jobs set status = 'done', expires_at = now() - interval '1 hour'
+where id = current_setting('exp.job')::uuid;
+select public.expire_stale_export_jobs() as expired_count \gset
+select 1 / case when :'expired_count'::integer >= 1
+  and (select status from public.export_jobs where id = current_setting('exp.job')::uuid) = 'expired'
+  then 1 else 0 end as assert_expired_jobs_are_marked;
 
 rollback;

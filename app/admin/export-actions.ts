@@ -1,5 +1,6 @@
 'use server';
 
+import { createHash } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
@@ -11,6 +12,8 @@ import {
   toExportRpcFilters,
   type ExportColumn,
 } from '@/lib/admin/exports';
+import { IMPORT_REPORT_LABELS, parseImportTable, type ImportIssue } from '@/lib/admin/imports';
+import { readUploadedTable } from '@/lib/admin/imports.server';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -20,6 +23,13 @@ import { createClient } from '@/lib/supabase/server';
  * 파일을 여기서 만들지 않는다 — 요청만 원장에 남기고 워커가 만든다. 그래야 10만 행을 요청한
  * 운영자의 브라우저가 기다리지 않고, 실패해도 다시 세울 자리가 남는다.
  */
+
+/** 업로드 액션의 상태 — 검증 리포트를 화면이 그대로 그린다. */
+export interface AdminImportActionState extends AdminCatalogActionState {
+  jobId?: string;
+  rows?: Record<string, unknown>[];
+  issues?: ImportIssue[];
+}
 
 const RPC_MESSAGES: [string, string][] = [
   ['secure_export_required', '개인정보가 포함된 양식입니다. 내보내기 권한을 받은 뒤 다시 시도해주세요.'],
@@ -36,6 +46,11 @@ const RPC_MESSAGES: [string, string][] = [
   ['admin_required', '권한을 주고 거두는 일은 관리자만 할 수 있습니다.'],
   ['forbidden', '권한이 없습니다.'],
   ['auth_required', '로그인이 필요합니다.'],
+  ['import_not_found', '업로드를 찾을 수 없습니다.'],
+  ['not_validated', '이미 적용된 파일입니다.'],
+  ['atomic_has_errors', '오류가 있어 「전부 아니면 전무」로는 적용할 수 없습니다.'],
+  ['invalid_rows', '올릴 수 있는 줄 수를 넘었습니다(1,000줄).'],
+  ['invalid_file', '파일을 읽지 못했습니다.'],
 ];
 
 function rpcMessage(message: string, fallback: string) {
@@ -193,4 +208,104 @@ export async function setAdminPermissionAction(
 
   revalidatePath(ADMIN_EXPORTS_PATH);
   return { message: granted ? '개인정보 내보내기 권한을 주었습니다.' : '권한을 거뒀습니다.' };
+}
+
+/* ------------------------------------------------------------------------- */
+/* 업로드 (D-4b)                                                              */
+/* ------------------------------------------------------------------------- */
+
+/**
+ * 파일을 읽어 검증만 한다 — 여기서는 아무것도 바뀌지 않는다.
+ * 같은 사람이 같은 종류의 같은 파일을 다시 올리면 새 잡을 만들지 않고 이전 리포트를 돌려준다.
+ */
+export async function registerImportAction(
+  _state: AdminImportActionState,
+  formData: FormData,
+): Promise<AdminImportActionState> {
+  const authError = await requireStaff();
+  if (authError) return authError;
+
+  const kind = String(formData.get('kind') ?? '');
+  if (kind !== 'tracking' && kind !== 'stock_set') return { errors: { kind: '업로드 종류를 골라주세요.' } };
+  const file = formData.get('file');
+  if (!(file instanceof File) || file.size === 0) return { errors: { file: '파일을 골라주세요.' } };
+  if (file.size > 5 * 1024 * 1024) return { errors: { file: '파일은 5MB 까지 올릴 수 있습니다.' } };
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const table = await readUploadedTable(buffer, file.name);
+  if (!table) return { errors: { file: '파일을 읽지 못했습니다. CSV 또는 엑셀 파일인지 확인해주세요.' } };
+
+  const parsed = parseImportTable(table, kind);
+  if (parsed.rows.length === 0) {
+    return {
+      errors: { file: parsed.issues[0]?.message ?? '적용할 줄이 없습니다.' },
+      issues: parsed.issues,
+    };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_register_import', {
+    p_kind: kind,
+    p_file_name: file.name,
+    p_file_sha256: createHash('sha256').update(buffer).digest('hex'),
+    p_rows: parsed.rows,
+    p_atomic: formData.get('atomic') === 'on',
+  });
+  if (error) return { errors: { form: rpcMessage(error.message, '파일을 확인하지 못했습니다.') } };
+
+  /* 서버가 붙인 행별 코드(품목 없음·주문 없음 등)를 화면에 그대로 보여준다. */
+  const jobId = String(data ?? '');
+  const job = await supabase
+    .from('import_jobs')
+    .select('status,total_rows,ok_rows,failed_rows,report')
+    .eq('id', jobId)
+    .maybeSingle<{ status: string; total_rows: number; ok_rows: number; failed_rows: number; report: { line: number; code: string }[] }>();
+  const serverIssues: ImportIssue[] = (job.data?.report ?? []).map((entry) => ({
+    line: entry.line,
+    code: entry.code,
+    message: IMPORT_REPORT_LABELS[entry.code] ?? entry.code,
+  }));
+
+  revalidatePath(ADMIN_EXPORTS_PATH);
+  if (job.data?.status === 'applied') {
+    return { message: '이미 적용한 파일입니다. 같은 파일은 두 번 적용하지 않습니다.', issues: serverIssues };
+  }
+  return {
+    message: `${job.data?.ok_rows ?? parsed.rows.length}줄이 적용 가능합니다.`
+      + (parsed.skipped > 0 ? ` 송장이 빈 ${parsed.skipped}줄은 건너뜁니다.` : '')
+      + ((job.data?.failed_rows ?? 0) > 0 ? ` ${job.data?.failed_rows}줄은 오류입니다.` : ''),
+    jobId,
+    rows: parsed.rows,
+    issues: [...parsed.issues, ...serverIssues],
+  };
+}
+
+/** 검증에서 통과한 줄만 적용한다. 화면이 들고 있던 행을 그대로 다시 보낸다(줄 번호가 기준이다). */
+export async function applyImportAction(
+  _state: AdminImportActionState,
+  formData: FormData,
+): Promise<AdminImportActionState> {
+  const authError = await requireStaff();
+  if (authError) return authError;
+
+  const jobId = String(formData.get('jobId') ?? '').trim();
+  if (!isUuid(jobId)) return { errors: { form: '업로드를 찾을 수 없습니다.' } };
+  let rows: Record<string, unknown>[] = [];
+  try {
+    const parsed: unknown = JSON.parse(String(formData.get('rows') ?? '[]'));
+    rows = Array.isArray(parsed) ? (parsed as Record<string, unknown>[]) : [];
+  } catch {
+    return { errors: { form: '올린 내용을 읽지 못했습니다. 파일을 다시 올려주세요.' } };
+  }
+  if (rows.length === 0) return { errors: { form: '적용할 줄이 없습니다.' } };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_apply_import', { p_job_id: jobId, p_rows: rows });
+  if (error) return { errors: { form: rpcMessage(error.message, '적용하지 못했습니다.') } };
+
+  const result = (data ?? {}) as { applied?: number; skipped?: number };
+  revalidatePath(ADMIN_EXPORTS_PATH);
+  return {
+    message: `${(result.applied ?? 0).toLocaleString('ko-KR')}줄을 적용했습니다.${result.skipped ? ` ${result.skipped}줄은 오류라 건너뛰었습니다.` : ''}`,
+  };
 }

@@ -3,10 +3,13 @@
 import Link from 'next/link';
 import { useActionState, useState, type FormEvent } from 'react';
 import {
+  applyImportAction,
   cancelExportAction,
   issueExportDownloadAction,
+  registerImportAction,
   requestExportAction,
   upsertExportTemplateAction,
+  type AdminImportActionState,
 } from '@/app/admin/export-actions';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import { ConsolePagination } from '@/components/admin/console';
@@ -21,6 +24,7 @@ import {
   type AdminExportsFilters,
 } from '@/lib/admin/exports';
 import type { AdminExportJobList } from '@/lib/admin/exports.server';
+import { IMPORT_KINDS } from '@/lib/admin/imports';
 import type { AdminStockLocation } from '@/lib/admin/variants';
 import { Icon } from '@/components/ui/Icon';
 import { Field, FormShell, InlineNotice, SelectField, TextArea } from '../fields';
@@ -34,6 +38,7 @@ import { Field, FormShell, InlineNotice, SelectField, TextArea } from '../fields
 
 const emptyState: AdminCatalogActionState = {};
 const emptyDownloadState: AdminCatalogActionState & { url?: string } = {};
+const emptyImportState: AdminImportActionState = {};
 
 function formatBytes(bytes: number | null) {
   if (!bytes) return '-';
@@ -237,6 +242,80 @@ function TemplatePanel({ templates }: { templates: readonly AdminExportTemplate[
   );
 }
 
+/**
+ * 업로드 — 검증하고, 리포트를 보고, 적용한다.
+ *
+ * 발주서를 그대로 되돌려 올릴 수 있다. 송장 칸이 빈 줄은 아직 안 보낸 줄이라 건너뛰고,
+ * 오류가 있는 줄만 빼고 나머지를 적용한다(「전부 아니면 전무」를 고르면 하나라도 틀리면 아무것도 적용하지 않는다).
+ */
+function ImportPanel() {
+  const [state, action, pending] = useActionState(registerImportAction, emptyImportState);
+  const [applyState, applyAction, applyPending] = useActionState(applyImportAction, emptyImportState);
+  const applied = Boolean(applyState.message);
+
+  return (
+    <section className="card col" style={{ borderRadius: 10, gap: 12, padding: 18 }}>
+      <div>
+        <span className="eyebrow">IMPORT</span>
+        <h2 style={{ fontSize: 16, margin: '6px 0 0' }}>파일 올리기</h2>
+      </div>
+      <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+        내려받은 발주서에 송장번호만 채워 그대로 올리면 됩니다. 열 위치가 아니라 열 이름으로 읽으므로 다른 열이 섞여 있어도 괜찮습니다.
+        올리면 먼저 확인만 하고, 리포트를 본 뒤 적용을 누릅니다.
+      </p>
+      <form action={action} className="col" style={{ gap: 10 }}>
+        <div className="admin-form-grid">
+          <SelectField error={state.errors?.kind} label="종류" name="kind">
+            {IMPORT_KINDS.map((kind) => <option key={kind.value} value={kind.value}>{kind.label}</option>)}
+          </SelectField>
+          <label className="admin-field">
+            <span className="admin-field-label">파일 (CSV · 엑셀)</span>
+            <input accept=".csv,.tsv,.xlsx,.xls" className="admin-field-control" name="file" required type="file" />
+          </label>
+        </div>
+        <label className="admin-variant-value">
+          <input name="atomic" type="checkbox" /> 전부 아니면 전무 (오류가 하나라도 있으면 적용하지 않음)
+        </label>
+        {state.errors?.file ? <span role="alert" style={{ color: 'var(--pink)', fontSize: 12 }}>{state.errors.file}</span> : null}
+        <InlineNotice state={state} />
+        <button className="btn btn-holo" disabled={pending} style={{ justifySelf: 'start', minWidth: 150 }}>
+          <Icon name="check" size={15} /> {pending ? '확인 중' : '파일 확인'}
+        </button>
+      </form>
+
+      {state.issues && state.issues.length > 0 ? (
+        <div className="admin-console-grid-scroll">
+          <table className="admin-console-grid-table">
+            <thead>
+              <tr><th scope="col">줄</th><th scope="col">문제</th></tr>
+            </thead>
+            <tbody>
+              {state.issues.slice(0, 50).map((issue) => (
+                <tr key={`${issue.line}:${issue.code}`}>
+                  <td className="mono">{issue.line}</td>
+                  <td>{issue.message}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      {state.jobId && state.rows && !applied ? (
+        <form action={applyAction} className="col" style={{ gap: 10 }}>
+          <input name="jobId" type="hidden" value={state.jobId} />
+          <input name="rows" type="hidden" value={JSON.stringify(state.rows)} />
+          <InlineNotice state={applyState} />
+          <button className="btn btn-holo" disabled={applyPending} style={{ justifySelf: 'start', minWidth: 150 }}>
+            <Icon name="check" size={15} /> {applyPending ? '적용 중' : '적용하기'}
+          </button>
+        </form>
+      ) : null}
+      {applied ? <InlineNotice state={applyState} /> : null}
+    </section>
+  );
+}
+
 export function ExportConsole({
   canSecureExport,
   filters,
@@ -312,6 +391,7 @@ export function ExportConsole({
         </p>
       </section>
 
+      <ImportPanel />
       <TemplatePanel templates={templates} />
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
         지금은 CSV 로 내보냅니다(엑셀에서 바로 열립니다). 파일 열기 암호가 붙는 보안 엑셀과 상품·재고 일괄 업로드는 다음 단계입니다.
