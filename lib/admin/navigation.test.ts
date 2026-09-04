@@ -53,6 +53,31 @@ describe('어드민 IA 정의', () => {
   });
 });
 
+describe('편성 / 원장 / 거래 재편', () => {
+  it('대분류 10개를 편성 → 원장 → 거래 → 공통 순으로 세운다', () => {
+    expect(ADMIN_NAV_GROUPS.map((group) => group.id)).toEqual([
+      'home', 'popups', 'display', 'catalog', 'fandom', 'events', 'sales', 'cs', 'stats', 'settings',
+    ]);
+  });
+
+  it('커머스 원장과 팬덤 원장이 다른 대분류에 있다', () => {
+    expect(adminGroupForPath('/admin/catalog/goods')?.id).toBe('catalog');
+    expect(adminGroupForPath('/admin/catalog/cards')?.id).toBe('fandom');
+    expect(adminGroupForPath('/admin/catalog/events')?.id).toBe('events');
+    expect(adminGroupForPath('/admin/sales/coupons')?.id).toBe('display');
+    expect(adminGroupForPath('/admin/community/members')?.id).toBe('cs');
+  });
+
+  /* planned 는 설계서 v2 모듈의 자리다. 여기 없는 planned 가 생기면 라우트 없는 메뉴다. */
+  it('준비 중 자리 표시는 설계서 v2 모듈 11개뿐이다', () => {
+    expect(ADMIN_SCREENS.filter((screen) => screen.status === 'planned').map((screen) => screen.id)).toEqual([
+      'popups', 'popup-schedule', 'promotions', 'auto-notifications',
+      'categories', 'option-masters', 'inventory', 'customer-history',
+      'stats-ips', 'shipping-settings', 'export-templates',
+    ]);
+  });
+});
+
 describe('adminScreenForPath', () => {
   /* /admin 이 모든 경로의 접두라서 접두 일치만 쓰면 전부 개요로 떨어진다. */
   it('개요는 정확히 /admin 일 때만 고른다', () => {
@@ -75,8 +100,8 @@ describe('adminScreenForPath', () => {
   });
 
   it('화면이 속한 대분류를 찾는다', () => {
-    expect(adminGroupForPath('/admin/catalog/pools')?.label).toBe('카탈로그 관리');
-    expect(adminGroupForPath('/admin/community/roles')?.label).toBe('커뮤니티·회원');
+    expect(adminGroupForPath('/admin/catalog/pools')?.label).toBe('팬덤 콘텐츠');
+    expect(adminGroupForPath('/admin/community/roles')?.label).toBe('고객·CS');
   });
 });
 

@@ -38,7 +38,7 @@ describe('AdminGuideTopicScreen', () => {
     );
 
     /* "그룹 › 화면" 형태. 화면 이름이 바뀌면 가이드 chip도 따라 바뀌어야 한다. */
-    expect(html).toContain('커뮤니티·회원 › 역할');
+    expect(html).toContain('고객·CS › 역할');
     expect(html).toContain('admin 전용');
   });
 

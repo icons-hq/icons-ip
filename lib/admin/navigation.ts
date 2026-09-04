@@ -1,6 +1,11 @@
 /*
  * 어드민 정보구조(IA) — 대분류 > 소분류 2단 메뉴와 화면별 라우트.
  *
+ * 대분류는 편성(팝업·전시·마케팅) / 원장(상품·팬덤 콘텐츠·이벤트·티켓) / 거래(주문·고객·CS)
+ * 세 층으로 나눈다 — 커머스 원장과 팬덤 원장의 운영자가 다르고, 팝업은 두 원장을
+ * 참조하는 편성 층이라 어느 원장 밑에도 넣을 수 없다(설계서 v2 1-8). `planned` 화면은
+ * 데이터 층이 착지하면 라우트가 생기는 자리다.
+ *
  * 서버 컴포넌트(layout·page)와 클라이언트 사이드바가 같은 정의를 봐야 해서
  * 'use client' 없는 순수 모듈로 둔다. 화면을 추가할 때 여기 한 곳만 고치면
  * 사이드바·헤더 제목·레거시 리다이렉트가 함께 따라온다.
@@ -34,9 +39,71 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'overview', label: '개요', href: '/admin', status: 'ready' },
     ],
   },
+  /* ── 편성 층: 무엇을 언제 어디에 내보이나 ───────────────────────────────── */
+  {
+    id: 'popups',
+    label: '온라인 팝업',
+    icon: 'spark',
+    screens: [
+      /* 설계서 v2 1-8 — 팝업 1급 객체(페이즈·존·연결). 라우트는 데이터 층 뒤에. */
+      { id: 'popups', label: '팝업 목록', href: '/admin/popups', status: 'planned' },
+      { id: 'popup-schedule', label: '팝업 편성', href: '/admin/popups/schedule', status: 'planned' },
+    ],
+  },
+  {
+    id: 'display',
+    label: '전시·마케팅',
+    icon: 'star',
+    screens: [
+      { id: 'curations', label: '홈 큐레이션', href: '/admin/display/curations', status: 'ready' },
+      { id: 'campaigns', label: '캠페인', href: '/admin/display/campaigns', status: 'ready' },
+      { id: 'coupons', label: '쿠폰 관리', href: '/admin/sales/coupons', status: 'ready' },
+      { id: 'promotions', label: '프로모션', href: '/admin/display/promotions', status: 'planned' },
+      { id: 'notifications', label: '공지 발송', href: '/admin/messaging/notifications', status: 'ready' },
+      { id: 'emails', label: '메일 발송 이력', href: '/admin/messaging/emails', status: 'ready' },
+      { id: 'auto-notifications', label: '자동 알림', href: '/admin/messaging/auto', status: 'planned' },
+    ],
+  },
+  /* ── 원장 층: 커머스 원장(상품·재고)과 팬덤 원장(카드·게임)을 나눈다 ───── */
+  {
+    id: 'catalog',
+    label: '상품',
+    icon: 'shop',
+    screens: [
+      { id: 'ips', label: 'IP', href: '/admin/catalog/ips', status: 'ready' },
+      { id: 'goods', label: '굿즈', href: '/admin/catalog/goods', status: 'ready' },
+      { id: 'categories', label: '분류', href: '/admin/catalog/categories', status: 'planned' },
+      { id: 'option-masters', label: '옵션 마스터', href: '/admin/catalog/options', status: 'planned' },
+      { id: 'inventory', label: '재고', href: '/admin/catalog/inventory', status: 'planned' },
+    ],
+  },
+  {
+    id: 'fandom',
+    label: '팬덤 콘텐츠',
+    icon: 'card',
+    screens: [
+      { id: 'cards', label: '카드', href: '/admin/catalog/cards', status: 'ready' },
+      { id: 'pools', label: '카드풀', href: '/admin/catalog/pools', status: 'ready' },
+      { id: 'policies', label: '뽑기권 발급 정책', href: '/admin/catalog/policies', status: 'ready' },
+      { id: 'grants', label: '카드팩 수동 발급', href: '/admin/catalog/grants', status: 'ready' },
+      { id: 'games', label: '게임', href: '/admin/catalog/games', status: 'ready' },
+    ],
+  },
+  {
+    id: 'events',
+    label: '이벤트·티켓',
+    icon: 'event',
+    screens: [
+      { id: 'events', label: '이벤트', href: '/admin/catalog/events', status: 'ready' },
+      { id: 'ticket-types', label: '티켓 회차', href: '/admin/catalog/ticket-types', status: 'ready' },
+      /* 검표는 `(shell)` route group 밖이라 사이드바 없이 전체화면으로 뜬다. */
+      { id: 'check-in', label: '티켓 검표', href: '/admin/check-in', status: 'ready' },
+    ],
+  },
+  /* ── 거래 층 ───────────────────────────────────────────────────────────── */
   {
     id: 'sales',
-    label: '판매 관리',
+    label: '주문',
     icon: 'bag',
     screens: [
       { id: 'orders', label: '주문 통합검색', href: '/admin/sales/orders', status: 'ready' },
@@ -47,63 +114,23 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'claims-cancels', label: '취소 관리', href: '/admin/sales/claims/cancels', status: 'ready' },
       { id: 'claims-returns', label: '반품 관리', href: '/admin/sales/claims/returns', status: 'ready' },
       { id: 'claims-exchanges', label: '교환 관리', href: '/admin/sales/claims/exchanges', status: 'ready' },
-      { id: 'coupons', label: '쿠폰 관리', href: '/admin/sales/coupons', status: 'ready' },
     ],
   },
   {
     id: 'cs',
-    label: '문의·리뷰 관리',
-    icon: 'chat',
+    label: '고객·CS',
+    icon: 'user',
     screens: [
+      { id: 'members', label: '회원', href: '/admin/community/members', status: 'ready' },
+      { id: 'customer-history', label: '고객 이력 허브', href: '/admin/community/history', status: 'planned' },
       { id: 'inquiries', label: '1:1 문의', href: '/admin/cs/inquiries', status: 'ready' },
       { id: 'qna', label: '상품 Q&A', href: '/admin/cs/qna', status: 'ready' },
       { id: 'reviews', label: '리뷰 관리', href: '/admin/cs/reviews', status: 'ready' },
-    ],
-  },
-  {
-    id: 'catalog',
-    label: '카탈로그 관리',
-    icon: 'shop',
-    screens: [
-      { id: 'ips', label: 'IP', href: '/admin/catalog/ips', status: 'ready' },
-      { id: 'goods', label: '굿즈', href: '/admin/catalog/goods', status: 'ready' },
-      { id: 'cards', label: '카드', href: '/admin/catalog/cards', status: 'ready' },
-      { id: 'pools', label: '카드풀', href: '/admin/catalog/pools', status: 'ready' },
-      { id: 'policies', label: '뽑기권 발급 정책', href: '/admin/catalog/policies', status: 'ready' },
-      { id: 'grants', label: '카드팩 수동 발급', href: '/admin/catalog/grants', status: 'ready' },
-      { id: 'games', label: '게임', href: '/admin/catalog/games', status: 'ready' },
-      { id: 'events', label: '이벤트', href: '/admin/catalog/events', status: 'ready' },
-      { id: 'ticket-types', label: '티켓 회차', href: '/admin/catalog/ticket-types', status: 'ready' },
-    ],
-  },
-  {
-    id: 'display',
-    label: '전시 관리',
-    icon: 'star',
-    screens: [
-      { id: 'curations', label: '홈 큐레이션', href: '/admin/display/curations', status: 'ready' },
-      { id: 'campaigns', label: '캠페인', href: '/admin/display/campaigns', status: 'ready' },
-    ],
-  },
-  {
-    id: 'community',
-    label: '커뮤니티·회원',
-    icon: 'shield',
-    screens: [
       { id: 'moderation', label: '모더레이션', href: '/admin/community/moderation', status: 'ready' },
-      { id: 'members', label: '회원', href: '/admin/community/members', status: 'ready' },
       { id: 'roles', label: '역할', href: '/admin/community/roles', status: 'ready', adminOnly: true },
     ],
   },
-  {
-    id: 'messaging',
-    label: '알림·메시지',
-    icon: 'bell',
-    screens: [
-      { id: 'notifications', label: '공지 발송', href: '/admin/messaging/notifications', status: 'ready' },
-      { id: 'emails', label: '메일 발송 이력', href: '/admin/messaging/emails', status: 'ready' },
-    ],
-  },
+  /* ── 공통 ─────────────────────────────────────────────────────────────── */
   {
     id: 'stats',
     label: '통계',
@@ -112,24 +139,16 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'stats-sales', label: '판매분석', href: '/admin/stats/sales', status: 'ready' },
       { id: 'stats-claims', label: '클레임', href: '/admin/stats/claims', status: 'ready' },
       { id: 'stats-customers', label: '고객현황', href: '/admin/stats/customers', status: 'ready' },
+      { id: 'stats-ips', label: 'IP별 매출', href: '/admin/stats/ips', status: 'planned' },
     ],
   },
   {
-    id: 'field',
-    label: '현장 운영',
-    icon: 'event',
+    id: 'settings',
+    label: '설정·도움말',
+    icon: 'settings',
     screens: [
-      /* 검표는 `(shell)` route group 밖이라 사이드바 없이 전체화면으로 뜬다. */
-      { id: 'check-in', label: '티켓 검표', href: '/admin/check-in', status: 'ready' },
-    ],
-  },
-  {
-    id: 'help',
-    label: '도움말',
-    icon: 'spark',
-    screens: [
-      /* 주제 상세(/admin/guide/<topic>)는 여기 올리지 않는다 — 최장 접두 일치로
-         헤더 제목·사이드바 active가 이 항목을 따라오고, 목차는 화면 안에서 푼다. */
+      { id: 'shipping-settings', label: '출고지·배송 정책', href: '/admin/settings/shipping', status: 'planned' },
+      { id: 'export-templates', label: '엑셀 양식', href: '/admin/settings/exports', status: 'planned' },
       { id: 'guide', label: '사용 가이드', href: '/admin/guide', status: 'ready' },
     ],
   },

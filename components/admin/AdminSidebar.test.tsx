@@ -20,8 +20,8 @@ describe('AdminSidebar 2단 메뉴', () => {
   it('대분류 헤딩과 소분류 항목을 함께 보여준다', () => {
     const html = render();
 
-    expect(html).toContain('판매 관리');
-    expect(html).toContain('카탈로그 관리');
+    expect(html).toContain('주문');
+    expect(html).toContain('팬덤 콘텐츠');
     expect(html).toContain('주문 통합검색');
     expect(html).toContain('href="/admin/catalog/goods"');
   });
@@ -30,8 +30,10 @@ describe('AdminSidebar 2단 메뉴', () => {
   it('대분류를 정해진 순서로 세운다', () => {
     const html = render();
 
-    expect(html.indexOf('판매 관리')).toBeLessThan(html.indexOf('카탈로그 관리'));
-    expect(html.indexOf('카탈로그 관리')).toBeLessThan(html.indexOf('통계'));
+    /* 편성(온라인 팝업) → 원장(팬덤 콘텐츠) → 거래(주문 통합검색) → 통계 */
+    expect(html.indexOf('온라인 팝업')).toBeLessThan(html.indexOf('팬덤 콘텐츠'));
+    expect(html.indexOf('팬덤 콘텐츠')).toBeLessThan(html.indexOf('주문 통합검색'));
+    expect(html.indexOf('주문 통합검색')).toBeLessThan(html.indexOf('통계'));
   });
 
   it('현재 화면만 aria-current를 단다', () => {
@@ -57,15 +59,16 @@ describe('AdminSidebar 2단 메뉴', () => {
   });
 
   /*
-   * 에픽 #248이 끝나면서 셸의 `planned` 자리 표시가 전부 소진됐다. 새 화면을
-   * `planned`로 추가하면 이 단언이 먼저 깨져 "메뉴에는 있는데 라우트가 없는"
-   * 상태를 알려 준다.
+   * 준비 중 자리 표시는 설계서 v2 모듈(분류·옵션·재고·팝업·프로모션·자동 알림·이력
+   * 허브·IP별 매출·출고지/배송·엑셀 양식) 11개뿐이다. 라우트 없는 메뉴가 늘면 여기서 깨진다.
    */
-  it('메뉴에 준비 중 자리 표시가 남아 있지 않다', () => {
+  it('준비 중 자리 표시는 설계서 v2 모듈 11개이고 링크가 아니다', () => {
     const html = render();
 
-    expect(html).not.toContain('준비 중');
-    expect(html).not.toContain('aria-disabled="true"');
+    /* 라벨과 title 속성에 한 번씩 — 항목당 2회. */
+    expect(html.match(/ · 준비 중/g)).toHaveLength(11);
+    expect(html.match(/aria-disabled="true"/g)).toHaveLength(11);
+    expect(html).not.toContain('href="/admin/catalog/categories"');
   });
 
   it('에픽 #248이 연 화면들이 모두 링크로 붙어 있다', () => {
