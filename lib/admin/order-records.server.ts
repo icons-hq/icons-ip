@@ -5,6 +5,8 @@ import type {
   AdminOrderExternalRef,
   AdminOrderNote,
   AdminOrderRecordPanel,
+  AdminOrderShipment,
+  AdminOrderShipmentItem,
   AdminOrderStatusEvent,
 } from './order-records';
 
@@ -47,17 +49,34 @@ interface ExternalRefRow {
   recorded_at: string;
 }
 
+interface ShipmentRow {
+  id: string;
+  shipment_no: string;
+  kind: string;
+  status: string;
+  carrier: string | null;
+  carrier_label: string | null;
+  tracking_number: string | null;
+  location_id: string | null;
+  shipped_at: string | null;
+  delivered_at: string | null;
+  created_at: string;
+  items: AdminOrderShipmentItem[] | null;
+}
+
 export async function getAdminOrderRecordPanel(orderId: string): Promise<AdminOrderRecordPanel> {
   const supabase = await createClient();
-  const [notes, events, refs] = await Promise.all([
+  const [notes, events, refs, shipments] = await Promise.all([
     supabase.rpc('admin_order_notes', { p_order_id: orderId }),
     supabase.rpc('admin_order_status_events', { p_order_id: orderId }),
     supabase.rpc('admin_order_external_refs', { p_order_id: orderId }),
+    supabase.rpc('admin_order_shipments', { p_order_id: orderId }),
   ]);
 
   if (notes.error) throw new Error(`Failed to load order notes: ${notes.error.message}`);
   if (events.error) throw new Error(`Failed to load order status events: ${events.error.message}`);
   if (refs.error) throw new Error(`Failed to load order external refs: ${refs.error.message}`);
+  if (shipments.error) throw new Error(`Failed to load order shipments: ${shipments.error.message}`);
 
   return {
     orderId,
@@ -89,6 +108,20 @@ export async function getAdminOrderRecordPanel(orderId: string): Promise<AdminOr
       recordedBy: row.recorded_by,
       recordedByName: row.recorded_by_name,
       recordedAt: row.recorded_at,
+    })),
+    shipments: ((shipments.data ?? []) as ShipmentRow[]).map((row): AdminOrderShipment => ({
+      id: row.id,
+      shipmentNo: row.shipment_no,
+      kind: row.kind,
+      status: row.status,
+      carrier: row.carrier,
+      carrierLabel: row.carrier_label,
+      trackingNumber: row.tracking_number,
+      locationId: row.location_id,
+      shippedAt: row.shipped_at,
+      deliveredAt: row.delivered_at,
+      createdAt: row.created_at,
+      items: row.items ?? [],
     })),
   };
 }

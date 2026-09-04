@@ -16,7 +16,10 @@ import {
 import type { AdminOrderItemRecord } from './orders';
 
 function item(overrides: Partial<AdminOrderItemRecord> = {}): AdminOrderItemRecord {
-  return { id: 'i1', itemNo: '20260714-000012-01', name: '홍실 아크릴 블록', type: '아크릴 블록', qty: 1, unitPrice: 27000, ...overrides };
+  return {
+    id: 'i1', itemNo: '20260714-000012-01', name: '홍실 아크릴 블록', type: '아크릴 블록',
+    qty: 1, unitPrice: 27000, qtyShipped: 0, qtyDelivered: 0, qtyCanceled: 0, ...overrides,
+  };
 }
 
 describe('발주·발송 콘솔 필터', () => {

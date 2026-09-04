@@ -61,6 +61,9 @@ interface ItemRow {
   item_no: string;
   order_id: string;
   qty: number;
+  qty_shipped: number;
+  qty_delivered: number;
+  qty_canceled: number;
   unit_price: number;
   good_name_snapshot: string;
   good_type_snapshot: string;
@@ -203,10 +206,10 @@ export async function getAdminOrderRecords(
         || row.cancellation_request_status === 'needs_review'))
       .map((row) => row.id)
     : [];
-  const [itemsResult, paymentsResult, recoveryAttemptsResult] = await Promise.all([
+  const [itemsResult, paymentsResult, fulfillmentResult, recoveryAttemptsResult] = await Promise.all([
     supabase
       .from('order_items')
-      .select('id,item_no,order_id,qty,unit_price,good_name_snapshot,good_type_snapshot')
+      .select('id,item_no,order_id,qty,qty_shipped,qty_delivered,qty_canceled,unit_price,good_name_snapshot,good_type_snapshot')
       .in('order_id', orderIds)
       .order('id', { ascending: true }),
     supabase
@@ -216,6 +219,11 @@ export async function getAdminOrderRecords(
       .in('ref_id', orderIds)
       .order('created_at', { ascending: true })
       .order('id', { ascending: true }),
+    /* 이행 상태는 저장하지 않고 뷰가 파생한다. 목록 한 페이지분만 읽는다. */
+    supabase
+      .from('order_fulfillment_view')
+      .select('order_id,fulfillment_state')
+      .in('order_id', orderIds),
     recoveryOrderIds.length
       ? supabase.rpc('admin_goods_manual_recovery_attempts', {
           p_order_ids: recoveryOrderIds,
@@ -229,12 +237,19 @@ export async function getAdminOrderRecords(
   if (paymentsResult.error) {
     throw new Error(`Failed to load admin order payments: ${paymentsResult.error.message}`);
   }
+  if (fulfillmentResult.error) {
+    throw new Error(`Failed to load admin order fulfillment: ${fulfillmentResult.error.message}`);
+  }
   if (recoveryAttemptsResult.error) {
     throw new Error(`Failed to load admin payment attempts: ${recoveryAttemptsResult.error.message}`);
   }
 
   const itemRows = (itemsResult.data ?? []) as ItemRow[];
   const paymentRows = (paymentsResult.data ?? []) as PaymentRow[];
+  const fulfillmentByOrder = new Map(
+    ((fulfillmentResult.data ?? []) as { order_id: string; fulfillment_state: string | null }[])
+      .map((row) => [row.order_id, row.fulfillment_state]),
+  );
   const recoveryAttemptRows = (recoveryAttemptsResult.data ?? []) as ManualRecoveryAttemptRow[];
   let refundRows: RefundRow[] = [];
   if (paymentRows.length) {
@@ -332,6 +347,9 @@ export async function getAdminOrderRecords(
         type: item.good_type_snapshot,
         qty: item.qty,
         unitPrice: item.unit_price,
+        qtyShipped: item.qty_shipped,
+        qtyDelivered: item.qty_delivered,
+        qtyCanceled: item.qty_canceled,
       })),
       payments: (paymentsByOrder.get(row.id) ?? []).map((payment) => ({
         id: payment.id,
@@ -358,6 +376,7 @@ export async function getAdminOrderRecords(
       shipment: orderShipment(carriers, row.shipping_carrier, row.tracking_number),
       noteCount: row.note_count ?? 0,
       pinnedNote: row.pinned_note,
+      fulfillmentState: fulfillmentByOrder.get(row.id) ?? null,
     };
   });
 

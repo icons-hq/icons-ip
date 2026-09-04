@@ -71,12 +71,57 @@ export interface AdminOrderExternalRef {
   recordedAt: string;
 }
 
+export interface AdminOrderShipmentItem {
+  orderItemId: string;
+  itemNo: string;
+  name: string;
+  qty: number;
+}
+
+export interface AdminOrderShipment {
+  id: string;
+  shipmentNo: string;
+  kind: string;
+  status: string;
+  carrier: string | null;
+  carrierLabel: string | null;
+  trackingNumber: string | null;
+  locationId: string | null;
+  shippedAt: string | null;
+  deliveredAt: string | null;
+  createdAt: string;
+  items: AdminOrderShipmentItem[];
+}
+
 export interface AdminOrderRecordPanel {
   orderId: string;
   notes: AdminOrderNote[];
   statusEvents: AdminOrderStatusEvent[];
   externalRefs: AdminOrderExternalRef[];
+  shipments: AdminOrderShipment[];
 }
+
+export const SHIPMENT_STATUS_LABELS: Record<string, string> = {
+  ready: '배송대기 (송장 등록·미발송)',
+  shipped: '배송중',
+  delivered: '배송완료',
+  canceled: '취소',
+};
+
+/*
+ * 이행 상태는 저장하지 않고 조회 시 파생한다(`order_fulfillment_view`).
+ * 카페24의 배송준비·부분배송·부분취소가 여기 있고, 헤더 enum 은 7값 그대로다.
+ */
+export const FULFILLMENT_STATE_LABELS: Record<string, string> = {
+  unfulfilled: '출고 전',
+  ready: '배송대기',
+  partially_shipped: '부분 배송',
+  shipped: '배송중',
+  partially_delivered: '부분 배송완료',
+  delivered: '배송완료',
+  partially_canceled: '부분 취소',
+  canceled: '취소',
+};
 
 export interface AdminOrderNoteInput {
   orderId: string;

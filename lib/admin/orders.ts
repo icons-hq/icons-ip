@@ -95,6 +95,10 @@ export interface AdminOrderItemRecord {
   type: string;
   qty: number;
   unitPrice: number;
+  /** 수량 카운터 — 부분 배송·부분 취소는 헤더 상태가 아니라 이 숫자들이 말한다. */
+  qtyShipped: number;
+  qtyDelivered: number;
+  qtyCanceled: number;
 }
 
 export interface AdminOrderPaymentRecord {
@@ -178,6 +182,8 @@ export interface AdminOrderRecord {
   /** 관리자 메모 개수와 고정 메모 한 줄. 목록에서 「손댄 주문」을 알아보게 한다. */
   noteCount: number;
   pinnedNote: string | null;
+  /** `order_fulfillment_view` 가 파생한 이행 상태. 저장하지 않는다. */
+  fulfillmentState: string | null;
 }
 
 export interface AdminOrderConsoleData {

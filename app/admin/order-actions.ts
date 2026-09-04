@@ -708,3 +708,101 @@ export async function removeOrderExternalRefAction(
   revalidateOrderSurfaces(orderId);
   return { message: '번호를 지웠습니다.' };
 }
+
+/* ------------------------------------------------------------------------- */
+/* 출고 — 부분 배송 (D-3)                                                      */
+/* ------------------------------------------------------------------------- */
+
+function shipmentErrorMessage(raw: string, fallback: string) {
+  if (raw.includes('qty_exceeds_available')) return '남은 수량보다 많이 담을 수 없습니다. 수량을 확인해주세요.';
+  if (raw.includes('shipment_needs_items')) return '보낼 품목을 하나 이상 담아주세요.';
+  if (raw.includes('shipment_not_ready')) return '이미 보낸 출고입니다.';
+  if (raw.includes('shipment_not_shipped')) return '아직 보내지 않은 출고입니다.';
+  if (raw.includes('tracking_required')) return '송장번호를 입력해주세요.';
+  if (raw.includes('shipments_tracking_number_check')) return '송장번호는 영문 대문자와 숫자 8~30자입니다.';
+  if (raw.includes('order_not_found')) return '주문을 찾을 수 없습니다.';
+  if (raw.includes('staff required') || raw.includes('forbidden')) return '권한이 없습니다.';
+  return fallback;
+}
+
+/** 폼은 `qty:<주문품목 id>` 칸을 품목 수만큼 보낸다. 0 은 「이번에 안 보냄」이다. */
+function readShipmentItems(formData: FormData) {
+  const items: { order_item_id: string; qty: number }[] = [];
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith('qty:') || typeof value !== 'string') continue;
+    const qty = Number(value.trim());
+    if (!Number.isInteger(qty) || qty <= 0) continue;
+    items.push({ order_item_id: key.slice(4), qty });
+  }
+  return items;
+}
+
+export async function createOrderShipmentAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  const access = await requireStaffAction();
+  if (access.error) return access.error;
+
+  const orderId = String(formData.get('orderId') ?? '').trim();
+  if (!orderId) return { errors: { form: '주문을 찾을 수 없습니다.' } };
+  const items = readShipmentItems(formData);
+  if (items.length === 0) return { errors: { form: '보낼 수량을 하나 이상 적어주세요.' } };
+
+  const carrier = String(formData.get('carrier') ?? '').trim() || null;
+  const tracking = String(formData.get('tracking') ?? '').trim().toUpperCase() || null;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_create_shipment', {
+    p_carrier: carrier,
+    p_items: items,
+    p_order_id: orderId,
+    p_tracking: tracking,
+  });
+  if (error) return { errors: { form: shipmentErrorMessage(error.message, '출고를 만들지 못했습니다.') } };
+
+  revalidateOrderSurfaces(orderId);
+  return { message: '출고를 만들었습니다. 송장을 확인하고 「보냄」을 누르면 재고가 빠집니다.' };
+}
+
+export async function shipOrderShipmentAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  const access = await requireStaffAction();
+  if (access.error) return access.error;
+
+  const shipmentId = String(formData.get('shipmentId') ?? '').trim();
+  const orderId = String(formData.get('orderId') ?? '').trim();
+  if (!shipmentId || !orderId) return { errors: { form: '출고를 찾을 수 없습니다.' } };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_ship_shipment', {
+    p_carrier: String(formData.get('carrier') ?? '').trim() || null,
+    p_shipment_id: shipmentId,
+    p_tracking: String(formData.get('tracking') ?? '').trim().toUpperCase() || null,
+  });
+  if (error) return { errors: { form: shipmentErrorMessage(error.message, '출고를 보내지 못했습니다.') } };
+
+  revalidateOrderSurfaces(orderId);
+  return { message: '출고를 보냈습니다.' };
+}
+
+export async function deliverOrderShipmentAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  const access = await requireStaffAction();
+  if (access.error) return access.error;
+
+  const shipmentId = String(formData.get('shipmentId') ?? '').trim();
+  const orderId = String(formData.get('orderId') ?? '').trim();
+  if (!shipmentId || !orderId) return { errors: { form: '출고를 찾을 수 없습니다.' } };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_deliver_shipment', { p_shipment_id: shipmentId });
+  if (error) return { errors: { form: shipmentErrorMessage(error.message, '배송완료로 바꾸지 못했습니다.') } };
+
+  revalidateOrderSurfaces(orderId);
+  return { message: '배송완료로 바꿨습니다.' };
+}

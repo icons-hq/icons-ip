@@ -725,7 +725,20 @@ function OrderDetail({
       </div>
 
       {record ? (
-        <OrderRecordPanel itemNos={order.items.map((item) => item.itemNo)} record={record} />
+        <OrderRecordPanel
+          fulfillmentState={order.fulfillmentState}
+          itemNos={order.items.map((item) => item.itemNo)}
+          /* 아직 안 나갔고 취소되지 않은 수량만 다음 출고에 담을 수 있다. */
+          pendingLines={order.items
+            .map((item) => ({
+              orderItemId: item.id,
+              itemNo: item.itemNo,
+              name: item.name,
+              remaining: item.qty - item.qtyCanceled - item.qtyShipped,
+            }))
+            .filter((line) => line.remaining > 0)}
+          record={record}
+        />
       ) : null}
     </article>
   );

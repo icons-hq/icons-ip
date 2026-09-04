@@ -68,6 +68,7 @@ function orderData(overrides: Partial<AdminOrderRecord> = {}): AdminOrderConsole
       orderNo: ORDER_NO,
       noteCount: 0,
       pinnedNote: null,
+      fulfillmentState: 'unfulfilled',
       userId: '22222222-2222-4222-8222-222222222222',
       buyerName: 'maple_fan',
       buyerEmail: 'fan@example.test',
@@ -90,6 +91,9 @@ function orderData(overrides: Partial<AdminOrderRecord> = {}): AdminOrderConsole
         type: '아크릴 스탠드',
         qty: 1,
         unitPrice: 32000,
+        qtyShipped: 0,
+        qtyDelivered: 0,
+        qtyCanceled: 0,
       }],
       payments: [{
         id: 'payment-1',

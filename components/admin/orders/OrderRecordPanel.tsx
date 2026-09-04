@@ -3,20 +3,26 @@
 import { useActionState } from 'react';
 import {
   addOrderNoteAction,
+  createOrderShipmentAction,
+  deliverOrderShipmentAction,
   recordOrderExternalRefAction,
   removeOrderExternalRefAction,
   setOrderNotePinnedAction,
+  shipOrderShipmentAction,
   type AdminOrderActionState,
 } from '@/app/admin/order-actions';
 import { Field, SelectField, TextArea } from '@/components/admin/fields';
 import {
   describeStatusEvent,
+  FULFILLMENT_STATE_LABELS,
   ORDER_EXTERNAL_REF_KINDS,
   ORDER_EXTERNAL_REF_LABELS,
   ORDER_NOTE_KINDS,
   ORDER_NOTE_MAX_LENGTH,
   ORDER_NOTE_SYSTEM_LABELS,
+  SHIPMENT_STATUS_LABELS,
   type AdminOrderRecordPanel as RecordPanelData,
+  type AdminOrderShipment,
 } from '@/lib/admin/order-records';
 import { ADMIN_ORDER_STATUS_LABELS } from '@/lib/admin/orders';
 import { formatOrderDateTime } from '@/lib/orders';
@@ -111,9 +117,125 @@ function RemoveRefButton({ orderId, refId }: { orderId: string; refId: string })
   );
 }
 
-export function OrderRecordPanel({ itemNos, record }: { itemNos: string[]; record: RecordPanelData }) {
+
+function ShipmentActions({ orderId, shipment }: { orderId: string; shipment: AdminOrderShipment }) {
+  const [shipState, shipAction, shipPending] = useActionState(shipOrderShipmentAction, emptyState);
+  const [deliverState, deliverAction, deliverPending] = useActionState(deliverOrderShipmentAction, emptyState);
+
+  if (shipment.status === 'ready') {
+    return (
+      <form action={shipAction} className="row" style={{ alignItems: 'center', gap: 6 }}>
+        <input name="orderId" type="hidden" value={orderId} />
+        <input name="shipmentId" type="hidden" value={shipment.id} />
+        {shipment.trackingNumber ? null : (
+          <>
+            <input aria-label="택배사 코드" name="carrier" placeholder="택배사" style={{ width: 90 }} />
+            <input aria-label="송장번호" name="tracking" placeholder="송장번호" style={{ width: 140 }} />
+          </>
+        )}
+        <button className="btn btn-xs btn-holo" disabled={shipPending} type="submit" title={shipState.errors?.form}>보냄</button>
+        {shipState.errors?.form ? <span className="admin-form-error">{shipState.errors.form}</span> : null}
+      </form>
+    );
+  }
+  if (shipment.status === 'shipped') {
+    return (
+      <form action={deliverAction}>
+        <input name="orderId" type="hidden" value={orderId} />
+        <input name="shipmentId" type="hidden" value={shipment.id} />
+        <button className="btn btn-xs btn-ghost" disabled={deliverPending} type="submit" title={deliverState.errors?.form}>도착</button>
+      </form>
+    );
+  }
+  return null;
+}
+
+function NewShipmentForm({
+  orderId,
+  pending,
+}: {
+  orderId: string;
+  /** 아직 안 나갔고 취소되지 않은 수량. 여기 없는 품목은 담을 것이 없다는 뜻이다. */
+  pending: { orderItemId: string; itemNo: string; name: string; remaining: number }[];
+}) {
+  const [state, action, formPending] = useActionState(createOrderShipmentAction, emptyState);
+  if (pending.length === 0) {
+    return <p className="muted" style={{ fontSize: 12, margin: 0 }}>남은 수량이 없습니다.</p>;
+  }
+  return (
+    <form action={action} className="col" style={{ gap: 8 }}>
+      <input name="orderId" type="hidden" value={orderId} />
+      {pending.map((line) => (
+        <label className="row" key={line.orderItemId} style={{ alignItems: 'center', gap: 8, fontSize: 12 }}>
+          <span className="mono faint" style={{ minWidth: 130 }}>{line.itemNo}</span>
+          <span style={{ flex: 1, minWidth: 0 }}>{line.name}</span>
+          <input
+            aria-label={`${line.name} 보낼 수량`}
+            defaultValue={line.remaining}
+            max={line.remaining}
+            min={0}
+            name={`qty:${line.orderItemId}`}
+            style={{ width: 70 }}
+            type="number"
+          />
+          <span className="faint">/ {line.remaining}</span>
+        </label>
+      ))}
+      <div className="admin-form-grid">
+        <Field label="택배사 코드" name="carrier" placeholder="hanjin" />
+        <Field label="송장번호" name="tracking" placeholder="영문 대문자·숫자 8~30자" />
+      </div>
+      <div className="row" style={{ alignItems: 'center', gap: 10 }}>
+        <button className="btn btn-sm btn-ghost" disabled={formPending} type="submit">출고 만들기</button>
+        <ActionMessage state={state} />
+      </div>
+    </form>
+  );
+}
+
+export function OrderRecordPanel({
+  fulfillmentState,
+  itemNos,
+  pendingLines,
+  record,
+}: {
+  /** `order_fulfillment_view` 가 파생한 이행 상태. 헤더 enum 은 7값 그대로다. */
+  fulfillmentState: string | null;
+  itemNos: string[];
+  pendingLines: { orderItemId: string; itemNo: string; name: string; remaining: number }[];
+  record: RecordPanelData;
+}) {
   return (
     <>
+      <section className="admin-order-detail-section" aria-labelledby="admin-order-shipments-title">
+        <h3 id="admin-order-shipments-title">
+          출고{fulfillmentState ? ` · ${FULFILLMENT_STATE_LABELS[fulfillmentState] ?? fulfillmentState}` : ''}
+        </h3>
+        {record.shipments.length > 0 ? (
+          <ul className="admin-order-refs">
+            {record.shipments.map((shipment) => (
+              <li className="row" key={shipment.id} style={{ alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
+                <span>
+                  <strong className="mono">{shipment.shipmentNo}</strong>{' '}
+                  <span>{SHIPMENT_STATUS_LABELS[shipment.status] ?? shipment.status}</span>
+                  {shipment.trackingNumber ? (
+                    <span className="faint"> · {shipment.carrierLabel ?? shipment.carrier} {shipment.trackingNumber}</span>
+                  ) : null}
+                  <span className="faint">
+                    {' · '}
+                    {shipment.items.map((item) => `${item.name} ${item.qty}개`).join(' · ')}
+                  </span>
+                </span>
+                <ShipmentActions orderId={record.orderId} shipment={shipment} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted" style={{ fontSize: 12, margin: '0 0 8px' }}>아직 만든 출고가 없습니다.</p>
+        )}
+        <NewShipmentForm orderId={record.orderId} pending={pendingLines} />
+      </section>
+
       <section className="admin-order-detail-section" aria-labelledby="admin-order-refs-title">
         <h3 id="admin-order-refs-title">번호</h3>
         {itemNos.length > 0 ? (
