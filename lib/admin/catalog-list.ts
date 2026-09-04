@@ -5,9 +5,9 @@ import { GOOD_TYPES } from '../goods-taxonomy';
  * 카탈로그(IP·굿즈) 목록 — 상태 탭·검색·필터·정렬·페이지.
  *
  * 판매·CS 콘솔과 같은 규칙이다: 조건은 전부 URL에 남고, 이 모듈은 URL 값을 믿을 수
- * 있는 값으로 좁힌 뒤 메모리의 레코드 배열에 적용한다. 카탈로그는 한 번에 전부
- * 불러오므로(수백 건) 서버 RPC 없이 여기서 자른다 — 1만 건 규모가 되면 같은 필터
- * 계약을 그대로 RPC 페이지네이션으로 옮긴다.
+ * 있는 값으로 좁힌다. 실제 목록은 같은 계약을 인자로 받는 RPC 가 서버에서 자른다
+ * (`catalog-list.server.ts`). 여기의 메모리 구현(`buildAdminGoodList` 등)은 그 규칙의
+ * 참조 구현이자 테스트 픽스처다 — 상태 판정·탭 건수·정렬 규칙은 두 구현이 1:1 이어야 한다.
  *
  * `selected`는 목록에서 편집으로 들어가는 딥링크(`?selected=g100`)다. 카드 화면의
  * `?cardId=`와 같은 자리이며, `new`는 빈 등록 폼을 뜻한다.
@@ -295,6 +295,17 @@ export function buildAdminGoodList(
   return { rows: paged.rows, total: paged.total, counts, page: paged.page, size: filters.size };
 }
 
+/** 편집 화면처럼 목록을 그리지 않는 경로가 같은 모양을 넘길 때 쓴다. */
+export function emptyAdminGoodList(filters: Pick<AdminGoodListFilters, 'size'>): AdminGoodList {
+  return {
+    rows: [],
+    total: 0,
+    counts: { all: 0, selling: 0, low: 0, soldout: 0, archived: 0 },
+    page: 1,
+    size: filters.size,
+  };
+}
+
 /* ------------------------------------------------------------------------- */
 /* IP                                                                         */
 /* ------------------------------------------------------------------------- */
@@ -424,4 +435,14 @@ export function buildAdminIpList(
   const paged = paginate(sorted, filters.page, filters.size);
 
   return { rows: paged.rows, total: paged.total, counts, page: paged.page, size: filters.size };
+}
+
+export function emptyAdminIpList(filters: Pick<AdminIpListFilters, 'size'>): AdminIpList {
+  return {
+    rows: [],
+    total: 0,
+    counts: { all: 0, active: 0, archived: 0 },
+    page: 1,
+    size: filters.size,
+  };
 }

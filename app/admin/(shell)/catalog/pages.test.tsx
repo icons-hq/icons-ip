@@ -16,6 +16,12 @@ const mocks = vi.hoisted(() => ({
   catalogRecords: vi.fn(),
   catalogSnapshot: vi.fn(),
   drawTicketGrants: vi.fn(),
+  goodList: vi.fn(),
+  goodRecord: vi.fn(),
+  ipOptions: vi.fn(),
+  ipList: vi.fn(),
+  ipRecord: vi.fn(),
+  verticals: vi.fn(),
   screens: {
     good: vi.fn(() => null),
     ip: vi.fn(() => null),
@@ -37,6 +43,15 @@ vi.mock('@/lib/admin/catalog.server', () => ({
 }));
 vi.mock('@/lib/catalog', () => ({
   getCatalogSnapshot: mocks.catalogSnapshot,
+}));
+/* 굿즈·IP 목록은 전량 로더가 아니라 RPC 페이지 로더를 쓴다(1,000행 절단 회피). */
+vi.mock('@/lib/admin/catalog-list.server', () => ({
+  getAdminGoodList: mocks.goodList,
+  getAdminGoodRecord: mocks.goodRecord,
+  getAdminIpOptions: mocks.ipOptions,
+  getAdminIpList: mocks.ipList,
+  getAdminIpRecord: mocks.ipRecord,
+  getAdminVerticals: mocks.verticals,
 }));
 vi.mock('@/lib/admin/draw-ticket-grants.server', () => ({
   getAdminDrawTicketGrants: mocks.drawTicketGrants,
@@ -80,6 +95,10 @@ function searchParams(query: Record<string, string | string[] | undefined> = {})
   return Promise.resolve(query);
 }
 
+const emptyGoodList = { rows: [], total: 0, counts: { all: 0, selling: 0, low: 0, soldout: 0, archived: 0 }, page: 1, size: 20 };
+const emptyIpList = { rows: [], total: 0, counts: { all: 0, active: 0, archived: 0 }, page: 1, size: 20 };
+const goodRecord = { id: 'g100', ipId: 'hwasan', name: '아크릴 스탠드', archivedAt: null };
+
 describe('어드민 카탈로그 라우트', () => {
   beforeEach(() => {
     mocks.order = [];
@@ -107,11 +126,30 @@ describe('어드민 카탈로그 라우트', () => {
       mocks.order.push('grants');
       return [];
     });
+    mocks.goodList.mockReset();
+    mocks.goodList.mockImplementation(async () => {
+      mocks.order.push('goodList');
+      return emptyGoodList;
+    });
+    mocks.goodRecord.mockReset();
+    mocks.goodRecord.mockImplementation(async () => {
+      mocks.order.push('goodRecord');
+      return null;
+    });
+    mocks.ipOptions.mockReset();
+    mocks.ipOptions.mockResolvedValue([]);
+    mocks.ipList.mockReset();
+    mocks.ipList.mockImplementation(async () => {
+      mocks.order.push('ipList');
+      return emptyIpList;
+    });
+    mocks.ipRecord.mockReset();
+    mocks.ipRecord.mockResolvedValue(null);
+    mocks.verticals.mockReset();
+    mocks.verticals.mockResolvedValue([]);
   });
 
   it.each([
-    ['/admin/catalog/goods', () => AdminCatalogGoodsPage({ searchParams: searchParams() }), ['goods', 'ips']],
-    ['/admin/catalog/ips', () => AdminCatalogIpsPage({ searchParams: searchParams() }), ['ips', 'goods']],
     ['/admin/catalog/cards', () => AdminCatalogCardsPage({ searchParams: searchParams() }), ['cards', 'ips', 'cardPools']],
     ['/admin/catalog/pools', () => AdminCatalogPoolsPage(), ['cardPools', 'cards', 'ips']],
     ['/admin/catalog/policies', () => AdminCatalogPoliciesPage(), ['rewardPolicies', 'goods', 'cardPools', 'ips']],
@@ -128,20 +166,64 @@ describe('어드민 카탈로그 라우트', () => {
     expect(mocks.includes).toEqual([include]);
   });
 
-  it('굿즈 화면은 공개 카탈로그 스냅샷과 재고 조정 멱등 키를 함께 내려준다', async () => {
-    const screen = await AdminCatalogGoodsPage({ searchParams: searchParams() });
+  /* 목록은 전량 로더가 아니라 페이지 로더를 부른다 — 전량 select 는 1,000행에서 잘린다. */
+  it.each([
+    ['/admin/catalog/goods', () => AdminCatalogGoodsPage({ searchParams: searchParams() }), 'goodList'],
+    ['/admin/catalog/ips', () => AdminCatalogIpsPage({ searchParams: searchParams() }), 'ipList'],
+  ])('%s 목록은 권한 게이트 뒤에 페이지 로더만 부른다', async (pathname, render, loader) => {
+    await render();
+
+    expect(mocks.order[0]).toBe(`guard:${pathname}`);
+    expect(mocks.order).toContain(loader);
+    expect(mocks.catalogRecords).not.toHaveBeenCalled();
+    expect(mocks.catalogSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('굿즈 목록 화면은 페이지 로더 결과와 재고 조정 멱등 키를 내려준다', async () => {
+    const screen = await AdminCatalogGoodsPage({ searchParams: searchParams({ ip: 'hwasan' }) });
 
     expect(screen.type).toBe(mocks.screens.good);
-    expect(mocks.catalogSnapshot).toHaveBeenCalledWith({ previewDefaultSource: 'supabase' });
+    expect(mocks.goodList).toHaveBeenCalledWith(expect.objectContaining({ ip: 'hwasan', tab: 'all', page: 1 }));
+    /* IP 선택지는 필터 중인 IP 를 항상 포함해서 받는다. */
+    expect(mocks.ipOptions).toHaveBeenCalledWith({ selectedId: 'hwasan' });
     expect(screen.props.catalogIps).toEqual([]);
     expect(screen.props.adjustmentId).toMatch(/^[0-9a-f-]{36}$/);
-    /* 목록 조건이 없으면 전체 목록 1페이지다. */
     expect(screen.props.filters).toMatchObject({ tab: 'all', page: 1, selected: null });
-    expect(screen.props.list).toMatchObject({ rows: [], total: 0, page: 1 });
+    expect(screen.props.list).toBe(emptyGoodList);
+    expect(screen.props.records).toEqual([]);
+  });
+
+  it('굿즈 편집 화면은 그 레코드 하나와 미리보기 스냅샷만 읽는다', async () => {
+    mocks.goodRecord.mockResolvedValue(goodRecord);
+
+    const screen = await AdminCatalogGoodsPage({ searchParams: searchParams({ selected: 'g100' }) });
+
+    expect(mocks.goodRecord).toHaveBeenCalledWith('g100');
+    expect(mocks.goodList).not.toHaveBeenCalled();
+    expect(mocks.catalogSnapshot).toHaveBeenCalledWith({ previewDefaultSource: 'supabase' });
+    expect(mocks.ipOptions).toHaveBeenCalledWith({ selectedId: 'hwasan' });
+    expect(screen.props.records).toEqual([goodRecord]);
+    expect(screen.props.list).toMatchObject({ rows: [], total: 0 });
+  });
+
+  it('낡은 selected 링크는 목록으로 돌아가고, 복사해서 등록은 원본만 읽는다', async () => {
+    const stale = await AdminCatalogGoodsPage({ searchParams: searchParams({ selected: 'g999' }) });
+    expect(mocks.goodRecord).toHaveBeenCalledWith('g999');
+    expect(mocks.goodList).toHaveBeenCalledTimes(1);
+    expect(stale.props.records).toEqual([]);
+    expect(stale.props.filters.selected).toBe('g999');
+
+    mocks.goodRecord.mockResolvedValue(goodRecord);
+    const copying = await AdminCatalogGoodsPage({ searchParams: searchParams({ selected: 'new', copyFrom: 'g100' }) });
+    expect(mocks.goodRecord).toHaveBeenLastCalledWith('g100');
+    expect(mocks.goodList).toHaveBeenCalledTimes(1);
+    expect(copying.props.records).toEqual([goodRecord]);
+    expect(mocks.ipOptions).toHaveBeenLastCalledWith({ selectedId: 'hwasan' });
   });
 
   /* 목록 조건과 편집 대상은 URL이 정한다 — 화면 로컬 상태가 아니다. */
   it('굿즈·IP 화면은 URL의 목록 조건과 편집 대상을 좁혀서 내려준다', async () => {
+    mocks.goodRecord.mockResolvedValue(goodRecord);
     const editing = await AdminCatalogGoodsPage({
       searchParams: searchParams({ selected: 'g100', tab: 'soldout', sort: 'price', dir: 'desc', page: '2' }),
     });
@@ -152,6 +234,9 @@ describe('어드민 카탈로그 라우트', () => {
     expect(creating.type).toBe(mocks.screens.ip);
     expect(creating.props.filters).toMatchObject({ selected: 'new', tab: 'all' });
     expect(creating.props.list).toMatchObject({ counts: { all: 0, active: 0, archived: 0 } });
+    expect(mocks.ipRecord).not.toHaveBeenCalled();
+    expect(mocks.ipList).not.toHaveBeenCalled();
+    expect(mocks.verticals).toHaveBeenCalledTimes(1);
   });
 
   /* 카드풀 화면의 "카드 편집" 링크(`?cardId=`)가 도착하는 지점이다. */

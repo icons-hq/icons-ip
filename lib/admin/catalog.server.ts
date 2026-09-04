@@ -321,6 +321,97 @@ interface GoodRow {
   detail_image_path: string | null;
 }
 
+/** 굿즈·IP 목록 RPC 로더(`catalog-list.server.ts`)가 같은 행 모양을 받는다. */
+export type AdminIpRow = IpRow;
+export type AdminGoodRow = GoodRow;
+
+/* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
+export const ADMIN_IP_SELECT = 'id,archived_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count';
+export const ADMIN_GOOD_SELECT = 'id,archived_at,ip_id,name,type,price,compare_at_price,badge,stock,stock_qty,allow_bank_transfer,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path';
+
+interface AdminMediaClient {
+  storage: {
+    from(bucket: string): { getPublicUrl(path: string): { data: { publicUrl: string } } };
+  };
+}
+
+/*
+ * 카탈로그 이미지는 두 갈래로 저장돼 있다 — 업로드된 아트워크는 `image_path`,
+ * 그 이전 레코드는 `bg` 안의 CSS `url()`. 공개 화면이 쓰는 우선순위와 같게 맞춘다
+ * (`lib/catalog.ts`의 `backgroundFor`). 어드민만 다른 순서를 보면 운영자가
+ * 화면에 나가고 있는 이미지를 확인할 수 없다.
+ *
+ * `imagePath`는 일부러 그대로 null로 남긴다. 그 덕에 업로드 칸의 "이미지 제거"가
+ * 잠긴 상태를 유지하고, hidden `imagePath`가 빈 값으로 왕복해 저장이 `bg`를 건드리지 않는다.
+ */
+export function createAdminMediaResolver(supabase: AdminMediaClient) {
+  const imageUrlForPath = (path: string | null) => {
+    if (!path) return null;
+    return supabase.storage
+      .from('public-media')
+      .getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
+  };
+  const previewUrlFor = (row: { bg: string | null; image_path: string | null }) => (
+    imageUrlForPath(row.image_path) ?? imageUrlFromBg(row.bg)
+  );
+  return { imageUrlForPath, previewUrlFor };
+}
+
+export type AdminMediaResolver = ReturnType<typeof createAdminMediaResolver>;
+
+export function toAdminIpRecord(row: IpRow, media: AdminMediaResolver): AdminIpRecord {
+  return {
+    id: row.id,
+    archivedAt: row.archived_at,
+    title: row.title,
+    sub: row.sub,
+    verticalKey: row.vertical_key,
+    tagline: row.tagline,
+    synopsis: row.synopsis,
+    glyph: row.glyph,
+    bg: row.bg,
+    imagePath: row.image_path,
+    imageUrl: media.previewUrlFor(row),
+    featured: row.featured,
+    fansCount: row.fans_count ?? 0,
+  };
+}
+
+export function toAdminGoodRecord(row: GoodRow, media: AdminMediaResolver): AdminGoodRecord {
+  return {
+    id: row.id,
+    archivedAt: row.archived_at,
+    ipId: row.ip_id,
+    name: row.name,
+    type: row.type,
+    price: row.price,
+    compareAtPrice: row.compare_at_price,
+    badge: row.badge,
+    stock: row.stock,
+    stockQty: row.stock_qty ?? 0,
+    allowBankTransfer: row.allow_bank_transfer ?? true,
+    bg: row.bg,
+    imagePath: row.image_path,
+    imageUrl: media.previewUrlFor(row),
+    notice: {
+      maker: row.notice_maker,
+      origin: row.notice_origin,
+      material: row.notice_material,
+      size: row.notice_size,
+      madeOn: row.notice_made_on,
+      asManager: row.notice_as_manager,
+      asContact: row.notice_as_contact,
+    },
+    description: row.description,
+    galleryPaths: row.gallery_paths ?? [],
+    galleryUrls: (row.gallery_paths ?? [])
+      .map((path) => media.imageUrlForPath(path))
+      .filter((url): url is string => Boolean(url)),
+    detailImagePath: row.detail_image_path,
+    detailImageUrl: media.imageUrlForPath(row.detail_image_path),
+  };
+}
+
 interface CardRow {
   id: string;
   archived_at: string | null;
@@ -455,24 +546,8 @@ export async function getAdminCatalogRecords(
     ? new Set<AdminCatalogRecordKind>(options.include)
     : new Set(ADMIN_CATALOG_RECORD_KINDS);
   const supabase = await createClient();
-  const imageUrlForPath = (path: string | null) => {
-    if (!path) return null;
-    return supabase.storage
-      .from('public-media')
-      .getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
-  };
-  /*
-   * 카탈로그 이미지는 두 갈래로 저장돼 있다 — 업로드된 아트워크는 `image_path`,
-   * 그 이전 레코드는 `bg` 안의 CSS `url()`. 공개 화면이 쓰는 우선순위와 같게 맞춘다
-   * (`lib/catalog.ts`의 `backgroundFor`). 어드민만 다른 순서를 보면 운영자가
-   * 화면에 나가고 있는 이미지를 확인할 수 없다.
-   *
-   * `imagePath`는 일부러 그대로 null로 남긴다. 그 덕에 업로드 칸의 "이미지 제거"가
-   * 잠긴 상태를 유지하고, hidden `imagePath`가 빈 값으로 왕복해 저장이 `bg`를 건드리지 않는다.
-   */
-  const previewUrlFor = (row: { bg: string | null; image_path: string | null }) => (
-    imageUrlForPath(row.image_path) ?? imageUrlFromBg(row.bg)
-  );
+  const media = createAdminMediaResolver(supabase);
+  const { previewUrlFor } = media;
   const [
     ipsResult,
     goodsResult,
@@ -486,14 +561,13 @@ export async function getAdminCatalogRecords(
     queried.has('ips')
       ? supabase
         .from('ips')
-        .select('id,archived_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count')
+        .select(ADMIN_IP_SELECT)
         .order('id')
       : skippedResult,
     queried.has('goods')
       ? supabase
         .from('goods')
-        /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-        .select('id,archived_at,ip_id,name,type,price,compare_at_price,badge,stock,stock_qty,allow_bank_transfer,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path')
+        .select(ADMIN_GOOD_SELECT)
         .order('id')
       : skippedResult,
     queried.has('cards')
@@ -594,53 +668,8 @@ export async function getAdminCatalogRecords(
   }]));
 
   const loaded: AdminCatalogRecords = {
-    ips: ((ipsResult.data ?? []) as IpRow[]).map((row) => ({
-      id: row.id,
-      archivedAt: row.archived_at,
-      title: row.title,
-      sub: row.sub,
-      verticalKey: row.vertical_key,
-      tagline: row.tagline,
-      synopsis: row.synopsis,
-      glyph: row.glyph,
-      bg: row.bg,
-      imagePath: row.image_path,
-      imageUrl: previewUrlFor(row),
-      featured: row.featured,
-      fansCount: row.fans_count ?? 0,
-    })),
-    goods: ((goodsResult.data ?? []) as GoodRow[]).map((row) => ({
-      id: row.id,
-      archivedAt: row.archived_at,
-      ipId: row.ip_id,
-      name: row.name,
-      type: row.type,
-      price: row.price,
-      compareAtPrice: row.compare_at_price,
-      badge: row.badge,
-      stock: row.stock,
-      stockQty: row.stock_qty ?? 0,
-      allowBankTransfer: row.allow_bank_transfer ?? true,
-      bg: row.bg,
-      imagePath: row.image_path,
-      imageUrl: previewUrlFor(row),
-      notice: {
-        maker: row.notice_maker,
-        origin: row.notice_origin,
-        material: row.notice_material,
-        size: row.notice_size,
-        madeOn: row.notice_made_on,
-        asManager: row.notice_as_manager,
-        asContact: row.notice_as_contact,
-      },
-      description: row.description,
-      galleryPaths: row.gallery_paths ?? [],
-      galleryUrls: (row.gallery_paths ?? [])
-        .map((path) => imageUrlForPath(path))
-        .filter((url): url is string => Boolean(url)),
-      detailImagePath: row.detail_image_path,
-      detailImageUrl: imageUrlForPath(row.detail_image_path),
-    })),
+    ips: ((ipsResult.data ?? []) as IpRow[]).map((row) => toAdminIpRecord(row, media)),
+    goods: ((goodsResult.data ?? []) as GoodRow[]).map((row) => toAdminGoodRecord(row, media)),
     cards,
     cardPools,
     rewardPolicies: ((rewardPoliciesResult.data ?? []) as RewardPolicyRow[]).map((row) => {

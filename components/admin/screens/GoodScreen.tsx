@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useMemo } from 'react';
+import { useActionState } from 'react';
 import { upsertAdminGoodAction, type AdminCatalogActionState } from '@/app/admin/actions';
 import { GoodConsole } from '@/components/admin/catalog/GoodConsole';
 import { GoodSection } from '@/components/admin/sections/GoodSection';
@@ -11,8 +11,9 @@ import {
   type AdminGoodListFilters,
 } from '@/lib/admin/catalog-list';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
+import type { AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
 import type { CatalogSnapshot } from '@/lib/catalog';
-import { toRecordOptions, useSelectedRecord } from './record-selection';
+import { useSelectedRecord } from './record-selection';
 
 const emptyState: AdminCatalogActionState = {};
 
@@ -26,24 +27,27 @@ const emptyState: AdminCatalogActionState = {};
  *
  * `adjustmentId`는 실재고 조정의 멱등 키다. 여기서 만들면 리렌더마다 값이 바뀌어
  * 같은 조정이 두 번 먹힐 수 있어서, 서버 컴포넌트인 page가 만들어 내려준다.
+ *
+ * `records`는 전량이 아니라 이 요청이 읽은 레코드(편집 대상·복사 원본)뿐이다 —
+ * 목록은 서버가 한 페이지만 자르고, 편집은 그 레코드 하나만 읽는다.
  */
 export function GoodScreen({
   adjustmentId,
   catalogIps,
   filters,
-  ips,
+  ipOptions,
   list,
   records,
 }: {
   adjustmentId: string;
   catalogIps: CatalogSnapshot['ips'];
   filters: AdminGoodListFilters;
-  ips: AdminCatalogRecords['ips'];
+  /** IP 선택지 — 팬 많은 순 상위 + 현재 선택된 IP(보관이어도). 나머지는 검색으로 찾는다. */
+  ipOptions: AdminCurationTargetRecord[];
   list: AdminGoodList;
   records: AdminCatalogRecords['goods'];
 }) {
   const [state, action, pending] = useActionState(upsertAdminGoodAction, emptyState);
-  const ipOptions = useMemo(() => toRecordOptions(ips), [ips]);
   const creating = filters.selected === ADMIN_CATALOG_NEW_RECORD;
   const { selected } = useSelectedRecord(records, creating ? null : filters.selected);
   const template = creating && filters.copyFrom
