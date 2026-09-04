@@ -106,3 +106,55 @@ export function cancelTossPayment(
     timeoutMs: 5_000,
   });
 }
+
+/*
+ * 현금영수증 (D-3).
+ *
+ * 토스를 거치지 않은 현금 거래(무통장 입금)도 이 API 로 발급할 수 있다 — 그래서
+ * 「결제는 어디로 받았나」와 무관하게 발급 경로가 하나로 유지된다.
+ * 실패는 예외가 아니라 값이다: 호출자는 원장에 실패를 적고 다음 주기에 다시 본다.
+ */
+
+/** 발급. `orderId`·`amount`는 국세청에 그대로 올라가므로 원장의 값과 같아야 한다. */
+export function requestTossCashReceipt(input: {
+  amount: number;
+  orderId: string;
+  orderName: string;
+  /** 소득공제는 휴대폰·현금영수증카드, 지출증빙은 사업자번호. 숫자만 보낸다. */
+  registrationNumber: string;
+  type: '소득공제' | '지출증빙';
+  idempotencyKey: string;
+}) {
+  return tossRequest({
+    method: 'POST',
+    path: '/cash-receipts',
+    body: {
+      amount: input.amount,
+      orderId: input.orderId,
+      orderName: input.orderName,
+      registrationNumber: input.registrationNumber,
+      type: input.type,
+    },
+    idempotencyKey: input.idempotencyKey,
+    timeoutMs: 20_000,
+  });
+}
+
+/** 취소. 발급 번호(receiptKey)가 있어야 한다. */
+export function cancelTossCashReceipt(input: { receiptKey: string; amount: number }) {
+  return tossRequest({
+    method: 'POST',
+    path: `/cash-receipts/${encodeURIComponent(input.receiptKey)}/cancel`,
+    body: { amount: input.amount },
+    timeoutMs: 20_000,
+  });
+}
+
+/** 하루치 조회 — 우리 원장과 국세청에 실제로 올라간 것을 맞춰 보는 대사 경로. */
+export function listTossCashReceipts(requestDate: string) {
+  return tossRequest({
+    method: 'GET',
+    path: `/cash-receipts?requestDate=${encodeURIComponent(requestDate)}`,
+    timeoutMs: 20_000,
+  });
+}
