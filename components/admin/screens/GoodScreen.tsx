@@ -13,6 +13,7 @@ import {
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
 import type { AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
 import type { AdminGoodVariantEditorData } from '@/lib/admin/variants';
+import type { AdminCategory } from '@/lib/admin/categories';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import { useSelectedRecord } from './record-selection';
 
@@ -41,6 +42,8 @@ export function GoodScreen({
   records,
   variantBatchId = null,
   variantEditor = null,
+  categories = [],
+  categoryMemberships = [],
 }: {
   adjustmentId: string;
   catalogIps: CatalogSnapshot['ips'];
@@ -52,6 +55,9 @@ export function GoodScreen({
   /** 품목 일괄 저장 배치 키 + 옵션·품목·재고 데이터(편집 화면). */
   variantBatchId?: string | null;
   variantEditor?: AdminGoodVariantEditorData | null;
+  /** 분류 선택지와 이 굿즈의 소속(D-9). */
+  categories?: readonly AdminCategory[];
+  categoryMemberships?: readonly { categoryId: string; isPrimary: boolean }[];
 }) {
   const [state, action, pending] = useActionState(upsertAdminGoodAction, emptyState);
   const creating = filters.selected === ADMIN_CATALOG_NEW_RECORD;
@@ -87,6 +93,8 @@ export function GoodScreen({
       template={template}
       variantBatchId={variantBatchId}
       variantEditor={variantEditor}
+      categories={categories}
+      categoryMemberships={categoryMemberships}
     />
   );
 }

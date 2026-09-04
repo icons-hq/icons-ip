@@ -46,7 +46,9 @@ import {
 } from '../catalog/GoodFormTabs';
 import { GoodsDraftBanner } from '../catalog/GoodsDraftBanner';
 import { GoodVariantsPanel } from '../catalog/GoodVariantsPanel';
+import { GoodCategoriesPanel, GoodSalePanel, GoodSearchSeoPanel } from '../catalog/GoodSalePanels';
 import type { AdminGoodVariantEditorData } from '@/lib/admin/variants';
+import { GOOD_SALE_STATE_LABELS, type AdminCategory } from '@/lib/admin/categories';
 import { GoodsNoticePresetBar } from '../catalog/GoodsNoticePresetBar';
 import { GoodBankTransferControl } from '../GoodBankTransferControl';
 import { ErrorText, Field, FormShell, InlineNotice, SelectField, TextArea } from '../fields';
@@ -557,7 +559,18 @@ function GoodEditor({
             판매 상태는 실재고에서 파생된다(수량 0 = 품절). 운영 상태 soldout 은 수량과 무관한 판매 중지다.
             {selected ? ' 무통장 입금 허용은 아래 카드에서 바로 바꿀 수 있다.' : ''}
           </p>
-          <GoodSalesPlaceholders />
+          {selected ? (
+            <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+              지금 판매 상태는 <strong>{GOOD_SALE_STATE_LABELS[selected.saleState] ?? selected.saleState}</strong>입니다
+              {selected.saleStartsAt || selected.saleEndsAt
+                ? ` · 판매 기간 ${selected.saleStartsAt?.slice(0, 16).replace('T', ' ') ?? '즉시'} ~ ${selected.saleEndsAt?.slice(0, 16).replace('T', ' ') ?? '무기한'}`
+                : ' · 판매 기간 제한 없음'}
+              {selected.supplyPrice !== null ? ` · 공급가 ₩${selected.supplyPrice.toLocaleString('ko-KR')}` : ''}
+              . 판매 기간·중지·공급가는 아래 「판매 기간 · 상태」 카드에서 바꿉니다.
+            </p>
+          ) : (
+            <GoodSalesPlaceholders />
+          )}
         </GoodFormTabPanel>
 
         <GoodFormTabPanel active={activeTab} id="stock" idPrefix={tabPrefix}>
@@ -643,6 +656,12 @@ function GoodEditor({
         </GoodFormTabPanel>
 
         <GoodFormTabPanel active={activeTab} id="exposure" idPrefix={tabPrefix}>
+          {selected ? (
+            <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+              요약·검색어·SEO는 아래 「요약 · 검색어 · SEO」 카드에서, 분류는 「분류」 카드에서 바꿉니다.
+              {selected.searchKeywords.length > 0 ? ` 지금 검색어 ${selected.searchKeywords.length}개.` : ' 검색어가 아직 없습니다.'}
+            </p>
+          ) : null}
           <GoodExposurePlaceholders archived={Boolean(selected?.archivedAt)} />
         </GoodFormTabPanel>
 
@@ -676,10 +695,15 @@ export function GoodSection({
   template = null,
   variantBatchId = null,
   variantEditor = null,
+  categories = [],
+  categoryMemberships = [],
 }: {
   action: (payload: FormData) => void;
   adjustmentId: string;
   catalogIps: Ip[];
+  /** 분류 선택지(D-9). 편집 화면에서만 채워진다. */
+  categories?: readonly AdminCategory[];
+  categoryMemberships?: readonly { categoryId: string; isPrimary: boolean }[];
   /** 기존 굿즈를 원본으로 새 등록을 여는 링크(`?selected=new&copyFrom=`). 수정 화면에서만 뜬다. */
   copyHref?: string | null;
   ipOptions: { id: string; title: string; archivedAt: string | null }[];
@@ -717,6 +741,20 @@ export function GoodSection({
         state={state}
         template={selected ? null : template}
       />
+      {selected && !selected.archivedAt && (
+        <GoodSalePanel good={selected} key={`sale-${selected.id}:${selected.saleState}`} />
+      )}
+      {selected && !selected.archivedAt && (
+        <GoodCategoriesPanel
+          categories={categories}
+          good={selected}
+          key={`categories-${selected.id}:${categoryMemberships.map((entry) => entry.categoryId).join(',')}`}
+          memberships={categoryMemberships}
+        />
+      )}
+      {selected && !selected.archivedAt && (
+        <GoodSearchSeoPanel good={selected} key={`seo-${selected.id}:${selected.searchKeywords.join(',')}`} />
+      )}
       {selected && !selected.archivedAt && variantEditor && variantBatchId ? (
         <GoodVariantsPanel batchId={variantBatchId} editor={variantEditor} goodName={selected.name} key={`variants-${selected.id}:${JSON.stringify(variantEditor.variants)}`} />
       ) : null}

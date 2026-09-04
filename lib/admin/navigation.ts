@@ -72,7 +72,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     screens: [
       { id: 'ips', label: 'IP', href: '/admin/catalog/ips', status: 'ready' },
       { id: 'goods', label: '굿즈', href: '/admin/catalog/goods', status: 'ready' },
-      { id: 'categories', label: '분류', href: '/admin/catalog/categories', status: 'planned' },
+      { id: 'categories', label: '분류', href: '/admin/catalog/categories', status: 'ready' },
       { id: 'option-masters', label: '옵션 마스터', href: '/admin/catalog/options', status: 'ready' },
       { id: 'inventory', label: '재고', href: '/admin/catalog/inventory', status: 'ready' },
     ],

@@ -1,5 +1,6 @@
 import { BANK_TRANSFER_TOPIC } from './topics/bank-transfer';
 import { CARDS_GAMES_TOPIC } from './topics/cards-games';
+import { CATEGORIES_SALE_TOPIC } from './topics/categories-sale';
 import { CLAIMS_TOPIC } from './topics/claims';
 import { DEV_REQUESTS_TOPIC } from './topics/dev-requests';
 import { DISPLAY_MESSAGING_TOPIC } from './topics/display-messaging';
@@ -21,6 +22,7 @@ export const ADMIN_GUIDE_TOPIC_SLUGS: readonly AdminGuideTopicSlug[] = [
   'getting-started',
   'goods-sales',
   'variants-inventory',
+  'categories-sale',
   'orders-shipping',
   'bank-transfer',
   'claims',
@@ -38,6 +40,7 @@ export const ADMIN_GUIDE_TOPICS: Record<AdminGuideTopicSlug, AdminGuideTopic> = 
   'getting-started': GETTING_STARTED_TOPIC,
   'goods-sales': GOODS_SALES_TOPIC,
   'variants-inventory': VARIANTS_INVENTORY_TOPIC,
+  'categories-sale': CATEGORIES_SALE_TOPIC,
   'orders-shipping': ORDERS_SHIPPING_TOPIC,
   'bank-transfer': BANK_TRANSFER_TOPIC,
   claims: CLAIMS_TOPIC,

@@ -88,6 +88,21 @@ const good: AdminGoodRecord = {
   galleryUrls: ['https://cdn.example/catalog/good/gallery-1.webp'],
   detailImagePath: 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp',
   detailImageUrl: 'https://cdn.example/catalog/good/detail.webp',
+  saleState: 'on_sale',
+  hiddenAt: null,
+  stoppedAt: null,
+  saleStartsAt: null,
+  saleEndsAt: null,
+  saleMode: 'regular',
+  preorderShipsAt: null,
+  summary: null,
+  searchKeywords: [],
+  seoTitle: null,
+  seoDescription: null,
+  imageAlt: null,
+  galleryAlts: null,
+  supplyPrice: null,
+  taxType: 'taxable',
 };
 
 function renderGoodSection(
@@ -255,8 +270,8 @@ describe('GoodSection', () => {
     expect(html).toContain('name="adjustmentId"');
     expect(html).toContain('name="expectedStockQty"');
     expect(html).toContain('재고 조정');
-    /* 저장 · 재고 조정 · 무통장 토글(#256) · 보관 네 개다. */
-    expect(html.match(/<form/g)).toHaveLength(4);
+    /* 저장 · 판매기간 · 스위치 · 공급가 · 분류 · 검색SEO · 재고 조정 · 무통장 · 보관 아홉 개다. */
+    expect(html.match(/<form/g)).toHaveLength(9);
   });
 
   it('renders the variant table and per-slot stock forms when the variant editor data is present', () => {
@@ -308,8 +323,8 @@ describe('GoodSection', () => {
     expect(html).toContain('name="toLocationId"');
     expect(html).toContain('name="safetyQty"');
     expect(html).toContain('12 / 0 / 0');
-    /* 저장 · 품목 저장 · 재고 조정 · 재고 이동 · 안전재고 · 무통장 · 보관 = 7 */
-    expect(html.match(/<form/g)).toHaveLength(7);
+    /* 저장 · 판매기간 · 스위치 · 공급가 · 분류 · 검색SEO · 품목 저장 · 재고 조정 · 이동 · 안전재고 · 무통장 · 보관 = 12 */
+    expect(html.match(/<form/g)).toHaveLength(12);
   });
 
   it('derives soldout for zero quantity without changing the raw stock label', () => {
@@ -346,6 +361,7 @@ describe('GoodSection', () => {
     expect(html).toContain('value="good"');
     expect(html).not.toContain('현재 실재고');
     expect(html).not.toContain('name="delta"');
+    /* 보관된 굿즈는 판매·분류·검색 카드도 감춘다 — 복원이 먼저다. */
     expect(html.match(/<form/g)).toHaveLength(2);
   });
 
@@ -423,8 +439,8 @@ describe('GoodSection', () => {
     const html = renderGoodSection(good);
 
     expect(html).not.toContain('shop-cart-button');
-    /* 저장 · 재고 조정 · 무통장 토글 · 보관 네 개 그대로다. 미리보기는 폼을 늘리지 않는다. */
-    expect(html.match(/<form/g)).toHaveLength(4);
+    /* 편집 화면의 폼 아홉 개 그대로다. 미리보기는 폼을 늘리지 않는다. */
+    expect(html.match(/<form/g)).toHaveLength(9);
   });
 
   /* #326 — 유형·배지는 자유 입력이 아니라 표준 값 select 다(DB CHECK 와 같은 목록). */

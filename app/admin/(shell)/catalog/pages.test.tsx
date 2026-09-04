@@ -23,6 +23,8 @@ const mocks = vi.hoisted(() => ({
   ipRecord: vi.fn(),
   verticals: vi.fn(),
   variantEditor: vi.fn(),
+  categories: vi.fn(),
+  goodCategories: vi.fn(),
   screens: {
     good: vi.fn(() => null),
     ip: vi.fn(() => null),
@@ -56,6 +58,11 @@ vi.mock('@/lib/admin/catalog-list.server', () => ({
 }));
 vi.mock('@/lib/admin/variants.server', () => ({
   getAdminGoodVariantEditorData: mocks.variantEditor,
+}));
+vi.mock('@/lib/admin/categories.server', () => ({
+  getAdminCategories: mocks.categories,
+  getAdminCategoryGoods: vi.fn(),
+  getAdminGoodCategories: mocks.goodCategories,
 }));
 vi.mock('@/lib/admin/draw-ticket-grants.server', () => ({
   getAdminDrawTicketGrants: mocks.drawTicketGrants,
@@ -153,6 +160,10 @@ describe('어드민 카탈로그 라우트', () => {
     mocks.verticals.mockResolvedValue([]);
     mocks.variantEditor.mockReset();
     mocks.variantEditor.mockResolvedValue(null);
+    mocks.categories.mockReset();
+    mocks.categories.mockResolvedValue([]);
+    mocks.goodCategories.mockReset();
+    mocks.goodCategories.mockResolvedValue([]);
   });
 
   it.each([
@@ -213,6 +224,9 @@ describe('어드민 카탈로그 라우트', () => {
     /* 옵션·품목·재고 표는 저장된 굿즈에만 있다. */
     expect(mocks.variantEditor).toHaveBeenCalledWith('g100');
     expect(screen.props.variantBatchId).toMatch(/^[0-9a-f-]{36}$/);
+    /* 분류 선택지와 소속도 편집 화면에서만 읽는다. */
+    expect(mocks.goodCategories).toHaveBeenCalledWith('g100');
+    expect(mocks.categories).toHaveBeenCalledTimes(1);
   });
 
   it('낡은 selected 링크는 목록으로 돌아가고, 복사해서 등록은 원본만 읽는다', async () => {

@@ -139,6 +139,12 @@ export const ADMIN_GOOD_STOCK_OPTIONS: { value: AdminGoodStockFilter; label: str
   { value: 'zero', label: '수량 0' },
 ];
 
+/** 판매 상태 필터. 'all' 이면 거르지 않는다 — 값은 DB `good_sale_state` 와 같은 집합이다. */
+export const ADMIN_GOOD_SALE_STATE_FILTERS = [
+  'all', 'on_sale', 'preorder', 'soldout', 'scheduled', 'ended', 'stopped', 'hidden', 'archived',
+] as const;
+export type AdminGoodSaleStateFilter = (typeof ADMIN_GOOD_SALE_STATE_FILTERS)[number];
+
 export const ADMIN_GOOD_SEARCH_FIELDS_LIST = ['all', 'name', 'id', 'ip'] as const;
 export type AdminGoodSearchField = (typeof ADMIN_GOOD_SEARCH_FIELDS_LIST)[number];
 
@@ -159,6 +165,8 @@ export interface AdminGoodListFilters {
   /** 굿즈 유형(GOOD_TYPES). 비면 전체. */
   type: string;
   stock: AdminGoodStockFilter;
+  /** 판매 상태(시간으로 갈린다). 재고 탭과 독립적으로 걸린다. */
+  saleState: AdminGoodSaleStateFilter;
   field: AdminGoodSearchField;
   query: string;
   sort: AdminGoodSortKey | null;
@@ -196,6 +204,7 @@ export function normalizeAdminGoodListFilters(query: AdminCatalogSearchQuery): A
     ip: normalizeSelected(singleParam(query.ip)) ?? '',
     type: (GOOD_TYPES as readonly string[]).includes(type) ? type : '',
     stock: pickOption(singleParam(query.stock), ADMIN_GOOD_STOCK_FILTERS, 'all'),
+    saleState: pickOption(singleParam(query.saleState), ADMIN_GOOD_SALE_STATE_FILTERS, 'all'),
     field: pickOption(singleParam(query.field), ADMIN_GOOD_SEARCH_FIELDS_LIST, 'all'),
     query: singleParam(query.query).slice(0, QUERY_MAX_LENGTH),
     sort: (ADMIN_GOOD_SORT_KEYS as readonly string[]).includes(sort) ? (sort as AdminGoodSortKey) : null,
@@ -217,6 +226,7 @@ export function adminGoodListHref(
     ip: next.ip,
     type: next.type,
     stock: next.stock === 'all' ? null : next.stock,
+    saleState: next.saleState === 'all' ? null : next.saleState,
     field: next.field === 'all' ? null : next.field,
     query: next.query,
     sort: next.sort,
@@ -280,6 +290,8 @@ export function buildAdminGoodList(
     if (filters.ip && good.ipId !== filters.ip) continue;
     if (filters.type && good.type !== filters.type) continue;
     if (!matchesStockFilter(good, filters.stock)) continue;
+    /* 판매 상태는 서버가 파생해 레코드에 실어 준다 — 여기서 시각으로 다시 판정하지 않는다. */
+    if (filters.saleState !== 'all' && good.saleState !== filters.saleState) continue;
     const ipTitle = ipTitles.get(good.ipId) ?? good.ipId;
     if (!matchesGoodSearch(good, ipTitle, filters.field, needle)) continue;
     searched.push({ good, ipTitle, tab: adminGoodStatus(good) });

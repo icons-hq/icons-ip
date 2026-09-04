@@ -9,6 +9,7 @@ import { getAdminGoodList, getAdminGoodRecord, getAdminIpOptions } from '@/lib/a
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { getAdminGoodVariantEditorData } from '@/lib/admin/variants.server';
+import { getAdminCategories, getAdminGoodCategories } from '@/lib/admin/categories.server';
 import { getCatalogSnapshot } from '@/lib/catalog';
 
 /*
@@ -32,13 +33,15 @@ export default async function AdminCatalogGoodsPage({
   /* 편집 대상이 없으면(낡은 링크) 목록을 그리되 화면 래퍼가 그 id 를 알린다. */
   const editing = creating || selected !== null;
 
-  const [list, ipOptions, catalog, variantEditor] = await Promise.all([
+  const [list, ipOptions, catalog, variantEditor, categories, categoryMemberships] = await Promise.all([
     editing ? null : getAdminGoodList(filters),
     getAdminIpOptions({ selectedId: editing ? (selected?.ipId ?? template?.ipId ?? null) : (filters.ip || null) }),
     /* 미리보기용 공개 스냅샷은 편집 화면만 쓴다. */
     editing ? getCatalogSnapshot({ previewDefaultSource: 'supabase' }) : null,
     /* 옵션·품목·출고지별 재고는 저장된 굿즈에만 있다. */
     selected ? getAdminGoodVariantEditorData(selected.id) : null,
+    selected ? getAdminCategories() : [],
+    selected ? getAdminGoodCategories(selected.id) : [],
   ]);
 
   return (
@@ -52,6 +55,8 @@ export default async function AdminCatalogGoodsPage({
       records={[selected, template].filter((record): record is AdminGoodRecord => record !== null)}
       variantBatchId={randomUUID()}
       variantEditor={variantEditor}
+      categories={categories}
+      categoryMemberships={categoryMemberships}
     />
   );
 }

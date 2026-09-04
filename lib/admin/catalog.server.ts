@@ -45,6 +45,22 @@ export interface AdminGoodRecord {
   galleryUrls: string[];
   detailImagePath: string | null;
   detailImageUrl: string | null;
+  /* D-9/D-10 — 판매 기간·노출 스위치·검색/SEO·공급가. 상태(saleState)는 DB 가 파생해 내려준다. */
+  saleState: string;
+  hiddenAt: string | null;
+  stoppedAt: string | null;
+  saleStartsAt: string | null;
+  saleEndsAt: string | null;
+  saleMode: string;
+  preorderShipsAt: string | null;
+  summary: string | null;
+  searchKeywords: string[];
+  seoTitle: string | null;
+  seoDescription: string | null;
+  imageAlt: string | null;
+  galleryAlts: string[] | null;
+  supplyPrice: number | null;
+  taxType: string;
 }
 
 export interface AdminCardRecord {
@@ -319,6 +335,21 @@ interface GoodRow {
   description: string | null;
   gallery_paths: string[] | null;
   detail_image_path: string | null;
+  sale_state?: string;
+  hidden_at?: string | null;
+  stopped_at?: string | null;
+  sale_starts_at?: string | null;
+  sale_ends_at?: string | null;
+  sale_mode?: string;
+  preorder_ships_at?: string | null;
+  summary?: string | null;
+  search_keywords?: string[] | null;
+  seo_title?: string | null;
+  seo_description?: string | null;
+  image_alt?: string | null;
+  gallery_alts?: string[] | null;
+  supply_price?: number | null;
+  tax_type?: string;
 }
 
 /** 굿즈·IP 목록 RPC 로더(`catalog-list.server.ts`)가 같은 행 모양을 받는다. */
@@ -327,7 +358,7 @@ export type AdminGoodRow = GoodRow;
 
 /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
 export const ADMIN_IP_SELECT = 'id,archived_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count';
-export const ADMIN_GOOD_SELECT = 'id,archived_at,ip_id,name,type,price,compare_at_price,badge,stock,stock_qty,allow_bank_transfer,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path';
+export const ADMIN_GOOD_SELECT = 'id,archived_at,ip_id,name,type,price,compare_at_price,badge,stock,stock_qty,allow_bank_transfer,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path,hidden_at,stopped_at,sale_starts_at,sale_ends_at,sale_mode,preorder_ships_at,summary,search_keywords,seo_title,seo_description,image_alt,gallery_alts,supply_price,tax_type,sale_state:good_sale_state';
 
 interface AdminMediaClient {
   storage: {
@@ -409,6 +440,22 @@ export function toAdminGoodRecord(row: GoodRow, media: AdminMediaResolver): Admi
       .filter((url): url is string => Boolean(url)),
     detailImagePath: row.detail_image_path,
     detailImageUrl: media.imageUrlForPath(row.detail_image_path),
+    /* 상태 규칙은 DB `good_sale_state` 하나뿐이다 — 열이 없으면(전량 로더) 판매중으로 두지 않고 빈 값을 남긴다. */
+    saleState: row.sale_state ?? '',
+    hiddenAt: row.hidden_at ?? null,
+    stoppedAt: row.stopped_at ?? null,
+    saleStartsAt: row.sale_starts_at ?? null,
+    saleEndsAt: row.sale_ends_at ?? null,
+    saleMode: row.sale_mode ?? 'regular',
+    preorderShipsAt: row.preorder_ships_at ?? null,
+    summary: row.summary ?? null,
+    searchKeywords: row.search_keywords ?? [],
+    seoTitle: row.seo_title ?? null,
+    seoDescription: row.seo_description ?? null,
+    imageAlt: row.image_alt ?? null,
+    galleryAlts: row.gallery_alts ?? null,
+    supplyPrice: row.supply_price ?? null,
+    taxType: row.tax_type ?? 'taxable',
   };
 }
 

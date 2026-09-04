@@ -91,9 +91,9 @@ select 1 / case when (
 -- ACL: authenticated 만 execute, anon·service_role 거부
 -- ---------------------------------------------------------------------------
 select 1 / case when (
-  not has_function_privilege('anon', 'public.admin_search_goods(text,text,text,text,text,text,text,text,integer,integer)', 'execute')
-  and has_function_privilege('authenticated', 'public.admin_search_goods(text,text,text,text,text,text,text,text,integer,integer)', 'execute')
-  and not has_function_privilege('service_role', 'public.admin_search_goods(text,text,text,text,text,text,text,text,integer,integer)', 'execute')
+  not has_function_privilege('anon', 'public.admin_search_goods(text,text,text,text,text,text,text,text,integer,integer,text)', 'execute')
+  and has_function_privilege('authenticated', 'public.admin_search_goods(text,text,text,text,text,text,text,text,integer,integer,text)', 'execute')
+  and not has_function_privilege('service_role', 'public.admin_search_goods(text,text,text,text,text,text,text,text,integer,integer,text)', 'execute')
   and not has_function_privilege('anon', 'public.admin_goods_tab_counts(text,text,text,text,text)', 'execute')
   and has_function_privilege('authenticated', 'public.admin_goods_tab_counts(text,text,text,text,text)', 'execute')
   and not has_function_privilege('service_role', 'public.admin_goods_tab_counts(text,text,text,text,text)', 'execute')

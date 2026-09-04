@@ -11,8 +11,10 @@ import {
   type ConsoleGridColumn,
   type ConsoleGridRow,
 } from '@/components/admin/console';
+import { GOOD_SALE_STATE_LABELS } from '@/lib/admin/categories';
 import {
   ADMIN_CATALOG_NEW_RECORD,
+  ADMIN_GOOD_SALE_STATE_FILTERS,
   ADMIN_CATALOG_PAGE_SIZES,
   ADMIN_GOOD_LIST_PATH,
   ADMIN_GOOD_LIST_TAB_LABELS,
@@ -48,7 +50,8 @@ const COLUMNS: (ConsoleGridColumn & CatalogColumnOption)[] = [
   { key: 'stockQty', label: '재고', align: 'end', sortable: true, width: '120px' },
   { key: 'badge', label: '배지', width: '96px' },
   { key: 'bankTransfer', label: '무통장', width: '80px' },
-  { key: 'status', label: '상태', width: '100px' },
+  { key: 'saleState', label: '판매', width: '110px' },
+  { key: 'status', label: '재고', width: '100px' },
 ];
 
 const COLUMN_STORAGE_KEY = 'icons-admin.catalog.goods.columns';
@@ -104,6 +107,9 @@ function goodCells(row: AdminGoodListRow, editHref: string): Record<string, Reac
     stockQty: stockCell(row),
     badge: good.badge ? <span className="admin-badge">{good.badge}</span> : <span className="muted">-</span>,
     bankTransfer: good.allowBankTransfer ? <span>허용</span> : <span className="muted">차단</span>,
+    saleState: good.saleState
+      ? <span className="admin-badge" data-sale-state={good.saleState}>{GOOD_SALE_STATE_LABELS[good.saleState] ?? good.saleState}</span>
+      : <span className="muted">-</span>,
     status: statusBadge(row.tab),
   };
 }
@@ -184,6 +190,14 @@ export function GoodConsole({
             <option value="">전체</option>
             {ipOptions.map((ip) => (
               <option key={ip.id} value={ip.id}>{ip.archivedAt ? `[보관] ${ip.title}` : ip.title}</option>
+            ))}
+          </select>
+        </div>
+        <div className="admin-console-filter-field">
+          <label className="admin-console-filter-label" htmlFor="admin-good-filter-sale-state">판매 상태</label>
+          <select defaultValue={filters.saleState} id="admin-good-filter-sale-state" name="saleState">
+            {ADMIN_GOOD_SALE_STATE_FILTERS.map((state) => (
+              <option key={state} value={state}>{state === 'all' ? '전체' : GOOD_SALE_STATE_LABELS[state] ?? state}</option>
             ))}
           </select>
         </div>

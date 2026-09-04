@@ -13,6 +13,7 @@ export type AdminGuideTopicSlug =
   | 'getting-started'
   | 'goods-sales'
   | 'variants-inventory'
+  | 'categories-sale'
   | 'orders-shipping'
   | 'bank-transfer'
   | 'claims'

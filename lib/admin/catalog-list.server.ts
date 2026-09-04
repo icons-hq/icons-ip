@@ -39,6 +39,7 @@ export const ADMIN_IP_PICK_LIMIT = 50;
 type GoodSearchRow = AdminGoodRow & {
   ip_title: string;
   list_status: AdminGoodStatus;
+  sale_state: string;
   updated_at: string;
   total_count: number;
 };
@@ -87,6 +88,7 @@ export function adminGoodSearchArgs(filters: AdminGoodListFilters) {
     p_ip_id: filters.ip || null,
     p_type: filters.type || null,
     p_stock: filters.stock,
+    p_sale_state: filters.saleState,
     p_sort: filters.sort === 'stockQty' ? 'stock_qty' : (filters.sort ?? 'id'),
     p_dir: filters.sort ? filters.dir : 'asc',
     p_limit: filters.size,
@@ -97,6 +99,7 @@ export function adminGoodSearchArgs(filters: AdminGoodListFilters) {
 /** 탭 건수는 검색·필터만 적용하고 탭은 빼서 센다 — 칩이 "이 검색 안에서" 몇 건인지 보여준다. */
 export function adminGoodCountArgs(filters: AdminGoodListFilters) {
   const { p_field, p_query, p_ip_id, p_type, p_stock } = adminGoodSearchArgs(filters);
+  /* 탭 건수는 판매 상태 필터도 함께 반영한다 — 칩이 「이 조건 안에서」 몇 건인지 보여야 한다. */
   return { p_field, p_query, p_ip_id, p_type, p_stock };
 }
 
