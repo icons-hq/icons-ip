@@ -98,6 +98,8 @@ const STATUS_PRESENTATION: Record<OrderDetailStatus, OrderStatusPresentation> = 
 
 export interface OrderListItem {
   id: string;
+  /** 주문번호(`YYYYMMDD-NNNNNN`). CS 가 부르는 번호와 같아야 한다. */
+  orderNo: string;
   status: OrderDetailStatus;
   total: number;
   createdAt: string;
@@ -149,6 +151,8 @@ export interface OrderCancellationRequestSummary {
 
 export interface OrderDetail {
   id: string;
+  /** 주문번호(`YYYYMMDD-NNNNNN`). CS 가 부르는 번호와 같아야 한다. */
+  orderNo: string;
   status: OrderDetailStatus;
   total: number;
   /** 주문 시점 배송비 스냅샷. total에 이미 포함되어 있다. */
@@ -218,7 +222,15 @@ export function refundStatusLabel(status: string): string {
   }
 }
 
-export function orderReferenceLabel(orderId: string): string {
+/**
+ * 사람이 부르는 주문번호.
+ *
+ * `orderNo`(`YYYYMMDD-NNNNNN`)가 정본이다. 그게 없는 자리(아직 orderNo 를 싣지 않은 로더,
+ * 옛 기록)에서만 uuid 뒤 여덟 자로 물러선다 — 그 코드로는 언제 들어온 주문인지 알 수 없다.
+ */
+export function orderReferenceLabel(orderId: string, orderNo?: string | null): string {
+  const trimmed = orderNo?.trim();
+  if (trimmed) return trimmed;
   return orderId.replaceAll('-', '').slice(-8).toUpperCase();
 }
 

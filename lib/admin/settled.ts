@@ -24,6 +24,8 @@ export interface AdminSettledFilters {
 
 export interface AdminSettledOrderRow {
   id: string;
+  /** 사람이 부르는 주문번호(`YYYYMMDD-NNNNNN`). */
+  orderNo: string;
   buyerName: string;
   createdAt: string;
   deliveredAt: string | null;

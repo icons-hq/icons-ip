@@ -8,7 +8,8 @@ vi.mock('@/app/admin/order-actions', () => ({
 }));
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
-const REFERENCE = ORDER_ID.replaceAll('-', '').slice(-8).toUpperCase();
+const ORDER_NO = '20260714-000012';
+const REFERENCE = ORDER_NO;
 const NOW = new Date('2026-08-18T06:00:00.000Z');
 
 function filters(overrides: Partial<AdminShippingFilters> = {}): AdminShippingFilters {
@@ -23,6 +24,7 @@ function data(overrides: Partial<AdminShippingConsoleData> = {}): AdminShippingC
     total: 1,
     rows: [{
       id: ORDER_ID,
+      orderNo: ORDER_NO,
       buyerName: 'maple_fan',
       createdAt: '2026-08-10T06:00:00.000Z',
       shippedAt: '2026-08-14T06:00:00.000Z',

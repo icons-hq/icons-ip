@@ -120,7 +120,7 @@ export function ClaimDetailScreen({
             <>
               <Row
                 label="주문번호"
-                value={`${orderReferenceLabel(order.id)} · ${ORDER_STATUS_LABELS[order.status] ?? order.status}`}
+                value={`${orderReferenceLabel(order.id, order.orderNo)} · ${ORDER_STATUS_LABELS[order.status] ?? order.status}`}
               />
               <Row label="구매자" value={`${order.buyerName ?? '-'} (${order.buyerEmail ?? '이메일 없음'})`} />
               <Row label="결제금액" value={`${krw(order.total)} (배송비 ${krw(order.shippingFee)} 포함)`} />

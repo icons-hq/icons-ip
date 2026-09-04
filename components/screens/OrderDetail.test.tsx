@@ -8,10 +8,12 @@ vi.mock('next/navigation', () => ({
 }));
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
+const ORDER_NO = '20260714-000012';
 
 function order(overrides: Partial<OrderDetailData> = {}): OrderDetailData {
   return {
     id: ORDER_ID,
+    orderNo: ORDER_NO,
     status: 'shipping',
     total: 30000,
     shippingFee: 3000,

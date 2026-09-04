@@ -556,6 +556,21 @@
   .admin-order-detail-section { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
   .admin-order-detail-section h3 { margin: 0 0 11px; color: var(--faint); font-size: 10px; }
   .admin-order-items, .admin-order-ledger { display: flex; flex-direction: column; gap: 8px; }
+  /* 고정 메모는 행 폭을 다 쓰고 한 줄로 자른다 — 목록 정렬을 흔들지 않으면서 「손댄 주문」이 보인다. */
+  .admin-order-row > .admin-order-row-note {
+    grid-column: 1 / -1; justify-self: start; max-width: 100%;
+    overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .admin-order-refs, .admin-order-notes, .admin-order-timeline {
+    display: flex; flex-direction: column; gap: 10px; margin: 0 0 12px; padding: 0; list-style: none;
+  }
+  .admin-order-refs > li, .admin-order-notes > li {
+    padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--r-sm); font-size: 12px;
+  }
+  .admin-order-notes > li > p { line-height: 1.6; }
+  .admin-order-timeline > li {
+    padding-left: 12px; border-left: 2px solid var(--line-2); font-size: 12px; line-height: 1.7;
+  }
   .admin-order-item {
     display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(85px, auto);
     align-items: center; gap: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 10px;

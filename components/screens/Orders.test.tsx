@@ -6,6 +6,7 @@ import { Orders } from './Orders';
 function orderItem(overrides: Partial<OrderListItem> = {}): OrderListItem {
   return {
     id: '11111111-1111-4111-8111-111111111111',
+    orderNo: '20260714-000012',
     status: 'paid',
     total: 30000,
     createdAt: '2026-08-01T06:00:00.000Z',

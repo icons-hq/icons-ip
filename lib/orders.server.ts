@@ -20,6 +20,7 @@ import { createClient } from '@/lib/supabase/server';
 
 interface OrderListRow {
   id: string;
+  order_no: string;
   user_id: string;
   status: string;
   total: number;
@@ -96,7 +97,7 @@ export async function loadOrders(userId: string): Promise<OrderListItem[]> {
   const [orderResult, requestResult] = await Promise.all([
     supabase
       .from('orders')
-      .select('id,user_id,status,total,created_at,payment_method')
+      .select('id,order_no,user_id,status,total,created_at,payment_method')
       .eq('user_id', userId)
       .in('status', [...VISIBLE_ORDER_STATUSES])
       .order('created_at', { ascending: false })
@@ -121,7 +122,7 @@ export async function loadOrders(userId: string): Promise<OrderListItem[]> {
   if (requestedOrderIds.length) {
     const { data: pendingData, error: pendingError } = await supabase
       .from('orders')
-      .select('id,user_id,status,total,created_at,payment_method')
+      .select('id,order_no,user_id,status,total,created_at,payment_method')
       .eq('user_id', userId)
       .eq('status', 'pending')
       .in('id', requestedOrderIds)
@@ -166,6 +167,7 @@ export async function loadOrders(userId: string): Promise<OrderListItem[]> {
 
     return {
       id: order.id,
+      orderNo: order.order_no,
       status,
       total: order.total,
       createdAt: order.created_at,
@@ -182,7 +184,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     .from('orders')
     // delivered_at은 청약철회 기한의 기산점이다(#189). 이 값이 없으면 주문
     // 상세가 남은 기간을 말할 근거가 없다.
-    .select('id,user_id,status,total,shipping_fee,discount_total,address,created_at,shipping_carrier,tracking_number,delivered_at,payment_method,expires_at')
+    .select('id,order_no,user_id,status,total,shipping_fee,discount_total,address,created_at,shipping_carrier,tracking_number,delivered_at,payment_method,expires_at')
     .eq('id', orderId)
     .eq('user_id', userId)
     .in('status', [...ORDER_DETAIL_STATUSES])
@@ -269,6 +271,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
 
   return {
     id: orderData.id,
+    orderNo: orderData.order_no,
     status,
     total: orderData.total,
     shippingFee: orderData.shipping_fee ?? 0,

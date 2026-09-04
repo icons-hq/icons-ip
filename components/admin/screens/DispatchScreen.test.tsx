@@ -11,9 +11,11 @@ vi.mock('@/app/admin/order-actions', () => ({
 }));
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
+const ORDER_NO = '20260714-000012';
+const OTHER_ORDER_NO = '20260714-000013';
 const OTHER_ORDER_ID = '22222222-2222-4222-8222-222222222222';
 const NOW = new Date('2026-08-18T06:00:00.000Z');
-const REFERENCE = ORDER_ID.replaceAll('-', '').slice(-8).toUpperCase();
+const REFERENCE = ORDER_NO;
 
 const CARRIERS = [
   {
@@ -38,6 +40,7 @@ function data(overrides: Partial<AdminDispatchConsoleData> = {}): AdminDispatchC
     rows: [
       {
         id: ORDER_ID,
+        orderNo: ORDER_NO,
         buyerName: 'maple_fan',
         createdAt: '2026-08-18T03:00:00.000Z',
         confirmedAt: '2026-08-14T03:00:00.000Z',
@@ -48,6 +51,7 @@ function data(overrides: Partial<AdminDispatchConsoleData> = {}): AdminDispatchC
       },
       {
         id: OTHER_ORDER_ID,
+        orderNo: OTHER_ORDER_NO,
         buyerName: 'second_fan',
         createdAt: '2026-08-15T06:00:00.000Z',
         confirmedAt: null,
@@ -215,6 +219,7 @@ describe('DispatchScreen · 발송지연', () => {
     filters: filters({ tab: 'delayed' }),
     rows: [{
       id: ORDER_ID,
+      orderNo: ORDER_NO,
       buyerName: 'maple_fan',
       createdAt: '2026-08-10T03:00:00.000Z',
       confirmedAt: '2026-08-14T03:00:00.000Z',

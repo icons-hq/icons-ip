@@ -17,6 +17,7 @@ vi.mock('@/app/admin/order-actions', () => ({
 }));
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
+const ORDER_NO = '20260714-000012';
 
 /* 택배사 드롭다운은 DB 레지스트리에서 온다(#251). 상수 목록이 없으므로 콘솔이
    목록 응답에 실려 온 값을 그대로 쓰는지 함께 고정한다. */
@@ -64,6 +65,9 @@ function orderData(overrides: Partial<AdminOrderRecord> = {}): AdminOrderConsole
     },
     items: [{
       id: ORDER_ID,
+      orderNo: ORDER_NO,
+      noteCount: 0,
+      pinnedNote: null,
       userId: '22222222-2222-4222-8222-222222222222',
       buyerName: 'maple_fan',
       buyerEmail: 'fan@example.test',
@@ -81,6 +85,7 @@ function orderData(overrides: Partial<AdminOrderRecord> = {}): AdminOrderConsole
       updatedAt: '2026-07-14T06:01:00.000Z',
       items: [{
         id: 'item-1',
+        itemNo: `${ORDER_NO}-01`,
         name: '화산강림 아크릴 스탠드',
         type: '아크릴 스탠드',
         qty: 1,
@@ -125,7 +130,7 @@ describe('OrdersSection', () => {
      안 되는 운송장이 생긴다. 비활성 택배사는 고를 수 없어야 한다(#251). */
   it('택배사 드롭다운을 레지스트리의 활성 택배사로만 채운다', () => {
     const html = renderToStaticMarkup(
-      <OrdersSection data={orderData({ status: 'confirmed' })} />,
+      <OrdersSection record={null} data={orderData({ status: 'confirmed' })} />,
     );
 
     expect(html).toContain('<option value="hanjin">한진택배</option>');
@@ -133,7 +138,7 @@ describe('OrdersSection', () => {
   });
 
   it('renders staff-safe order detail and the paid-to-confirmed action without provider secrets', () => {
-    const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
+    const html = renderToStaticMarkup(<OrdersSection record={null} data={orderData()} />);
 
     expect(html).toContain('주문 검색');
     expect(html).toContain('maple_fan');
@@ -147,7 +152,7 @@ describe('OrdersSection', () => {
   it('shows the related safe Korpay reference and exact provider-ledger attestation action', () => {
     const request = cancellationRequest({ status: 'needs_review' });
     const attemptId = '44444444-4444-4444-8444-444444444444';
-    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+    const html = renderToStaticMarkup(<OrdersSection record={null} data={orderData({
       cancellationRequest: request,
       manualRecoveryAttempt: {
         attemptId,
@@ -180,7 +185,7 @@ describe('OrdersSection', () => {
 
   it('shows a related active Korpay attempt without exposing the manual action before takeover is safe', () => {
     const request = cancellationRequest({ status: 'processing' });
-    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+    const html = renderToStaticMarkup(<OrdersSection record={null} data={orderData({
       cancellationRequest: request,
       manualRecoveryAttempt: {
         attemptId: '44444444-4444-4444-8444-444444444444',
@@ -203,7 +208,7 @@ describe('OrdersSection', () => {
     'keeps legacy cancellation reconciliation for a terminal Korpay %s attempt with no provider capture',
     (state) => {
       const request = cancellationRequest({ status: 'processing' });
-      const html = renderToStaticMarkup(<OrdersSection data={orderData({
+      const html = renderToStaticMarkup(<OrdersSection record={null} data={orderData({
         cancellationRequest: request,
         manualRecoveryAttempt: {
           attemptId: '44444444-4444-4444-8444-444444444444',
@@ -224,7 +229,7 @@ describe('OrdersSection', () => {
 
   it('routes a prepared Korpay attempt through the expiry-aware no-capture action', () => {
     const request = cancellationRequest({ status: 'processing' });
-    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+    const html = renderToStaticMarkup(<OrdersSection record={null} data={orderData({
       cancellationRequest: request,
       manualRecoveryAttempt: {
         attemptId: '44444444-4444-4444-8444-444444444444',
@@ -364,7 +369,7 @@ describe('OrdersSection', () => {
       hidden: ['발주확인', '발송처리', '배송완료', '청약철회 승인', '요청 거절'],
     },
   ])('exposes only the allowed action for $name', ({ overrides, visible, hidden }) => {
-    const html = renderToStaticMarkup(<OrdersSection data={orderData(overrides)} />);
+    const html = renderToStaticMarkup(<OrdersSection record={null} data={orderData(overrides)} />);
 
     for (const label of visible) expect(html).toContain(actionMarker(label));
     for (const label of hidden) expect(html).not.toContain(actionMarker(label));
@@ -388,7 +393,7 @@ describe('OrdersSection', () => {
     };
     data.total = 41;
 
-    const html = renderToStaticMarkup(<OrdersSection data={data} />);
+    const html = renderToStaticMarkup(<OrdersSection record={null} data={data} />);
 
     expect(html).toContain('action="/admin/sales/orders"');
     expect(html).not.toContain('name="section"');
@@ -405,7 +410,7 @@ describe('OrdersSection', () => {
   });
 
   it.each(['shipping', 'done'] as const)('exposes the cancellation decision on a %s order', (status) => {
-    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+    const html = renderToStaticMarkup(<OrdersSection record={null} data={orderData({
       status,
       cancellationRequest: cancellationRequest(),
     })} />);
@@ -418,13 +423,13 @@ describe('OrdersSection', () => {
   /* 사유는 기한(7일 vs 3개월)과 반송비 부담 주체를 가른다. 운영자가 승인·거절을
      누르는 화면에서 보여야 판단 근거가 된다(#196). */
   it('하자·오배송 요청의 사유를 목록과 상세에 함께 노출한다', () => {
-    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+    const html = renderToStaticMarkup(<OrdersSection record={null} data={orderData({
       status: 'shipping',
       cancellationRequest: cancellationRequest({ reasonType: 'defect' }),
     })} />);
 
     expect(html).toContain('admin-order-row-reason');
-    expect(html).toContain(`aria-label="주문 ${ORDER_ID.slice(0, 8)} 선택 · 청약철회 상품 하자·오배송"`);
+    expect(html).toContain(`aria-label="주문 ${ORDER_NO} 선택 · 청약철회 상품 하자·오배송"`);
     expect(html).toContain('상품 하자·오배송');
     expect(html).toContain('admin-order-reason--defect');
     expect(html).toContain('공급받은 날부터 3개월');
@@ -432,7 +437,7 @@ describe('OrdersSection', () => {
   });
 
   it('단순 변심 요청은 하자와 다른 사유 표시를 쓴다', () => {
-    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+    const html = renderToStaticMarkup(<OrdersSection record={null} data={orderData({
       status: 'shipping',
       cancellationRequest: cancellationRequest(),
     })} />);
@@ -445,7 +450,7 @@ describe('OrdersSection', () => {
   });
 
   it('청약철회 요청이 없는 주문은 사유 표시를 만들지 않는다', () => {
-    const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
+    const html = renderToStaticMarkup(<OrdersSection record={null} data={orderData()} />);
 
     expect(html).not.toContain('admin-order-reason');
     expect(html).not.toContain('admin-order-row-reason');
@@ -454,7 +459,7 @@ describe('OrdersSection', () => {
   /* 반송은 배송이 시작된 주문에서만 일어난다. 미출고 주문에 부담 주체를 띄우면
      존재하지 않는 사건을 판단 근거로 제시하는 셈이다. */
   it('미출고 주문에는 반송비 부담 주체를 표시하지 않는다', () => {
-    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+    const html = renderToStaticMarkup(<OrdersSection record={null} data={orderData({
       status: 'paid',
       cancellationRequest: cancellationRequest({ reasonType: 'defect' }),
     })} />);
@@ -467,7 +472,7 @@ describe('OrdersSection', () => {
   /* 목록 배지는 승인 대기 건을 찾기 위한 것이다. 종료된 요청까지 남기면 처리
      완료 주문이 미처리처럼 보인다. */
   it.each(['completed', 'rejected'] as const)('처리가 끝난 %s 요청은 목록 배지를 만들지 않는다', (status) => {
-    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+    const html = renderToStaticMarkup(<OrdersSection record={null} data={orderData({
       cancellationRequest: cancellationRequest({
         status,
         stage: status,
@@ -477,13 +482,13 @@ describe('OrdersSection', () => {
     })} />);
 
     expect(html).not.toContain('admin-order-row-reason');
-    expect(html).toContain(`aria-label="주문 ${ORDER_ID.slice(0, 8)} 선택"`);
+    expect(html).toContain(`aria-label="주문 ${ORDER_NO} 선택"`);
     // 상세에는 남는다 — 어떤 사유로 종결됐는지는 사후에도 필요하다.
     expect(html).toContain('admin-order-reason--defect');
   });
 
   it('발송처리 폼에서 택배사와 운송장번호를 필수로 받는다', () => {
-    const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'confirmed' })} />);
+    const html = renderToStaticMarkup(<OrdersSection record={null} data={orderData({ status: 'confirmed' })} />);
 
     expect(html).toContain('name="carrier"');
     expect(html).toContain('value="hanjin"');
@@ -494,7 +499,7 @@ describe('OrdersSection', () => {
   });
 
   it('운송장이 등록된 주문은 값과 수정 폼을 함께 보여준다', () => {
-    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+    const html = renderToStaticMarkup(<OrdersSection record={null} data={orderData({
       status: 'shipping',
       shipment: {
         carrier: 'hanjin',
@@ -510,14 +515,14 @@ describe('OrdersSection', () => {
   });
 
   it('배송 전 주문에는 운송장 수정 폼을 노출하지 않는다', () => {
-    const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
+    const html = renderToStaticMarkup(<OrdersSection record={null} data={orderData()} />);
 
     expect(html).not.toContain('운송장 수정');
   });
 
   it('renders explicit confirmations and an accessible rejection reason field', () => {
     const requestId = '33333333-3333-4333-8333-333333333333';
-    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+    const html = renderToStaticMarkup(<OrdersSection record={null} data={orderData({
       cancellationRequest: cancellationRequest({
         id: requestId,
       }),
@@ -549,7 +554,7 @@ describe('OrdersSection', () => {
     try {
       const { OrdersSection: ErroredOrdersSection } = await import('./Orders');
       const html = renderToStaticMarkup(
-        <ErroredOrdersSection data={orderData({ status: 'confirmed' })} />,
+        <ErroredOrdersSection record={null} data={orderData({ status: 'confirmed' })} />,
       );
 
       expect(html).toContain('운송장번호를 입력해주세요.');
@@ -584,7 +589,7 @@ describe('OrdersSection', () => {
       const { OrdersSection: ErroredOrdersSection } = await import('./Orders');
       const request = cancellationRequest({ status: 'needs_review' });
       const attemptId = '44444444-4444-4444-8444-444444444444';
-      const html = renderToStaticMarkup(<ErroredOrdersSection data={orderData({
+      const html = renderToStaticMarkup(<ErroredOrdersSection record={null} data={orderData({
         cancellationRequest: request,
         manualRecoveryAttempt: {
           attemptId,

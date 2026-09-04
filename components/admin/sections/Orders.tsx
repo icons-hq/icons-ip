@@ -11,6 +11,8 @@ import {
   updateAdminOrderTrackingAction,
   type AdminOrderActionState,
 } from '@/app/admin/order-actions';
+import { OrderRecordPanel } from '@/components/admin/orders/OrderRecordPanel';
+import type { AdminOrderRecordPanel as AdminOrderRecordPanelData } from '@/lib/admin/order-records';
 import {
   ADMIN_ORDER_STATUSES,
   ADMIN_ORDER_STATUS_LABELS,
@@ -496,9 +498,11 @@ function OrderFilters({ filters }: { filters: AdminOrderFilters }) {
 function OrderDetail({
   carriers,
   order,
+  record,
 }: {
   carriers: ShippingCarrierRegistry;
   order: AdminOrderRecord;
+  record: AdminOrderRecordPanelData | null;
 }) {
   const status = orderStatusMeta(order.status);
   const cancellationRequest = order.cancellationRequest;
@@ -523,7 +527,7 @@ function OrderDetail({
       <header className="admin-order-detail-header">
         <div>
           <span className={`order-status order-status--${order.status}`}>{status.label}</span>
-          <h2 id="admin-order-detail-title">주문 {orderReferenceLabel(order.id)}</h2>
+          <h2 id="admin-order-detail-title">주문 {orderReferenceLabel(order.id, order.orderNo)}</h2>
           <p className="faint mono">{order.id}</p>
         </div>
         <strong>{formatKrw(order.total)}</strong>
@@ -719,11 +723,19 @@ function OrderDetail({
           />
         ) : null}
       </div>
+
+      {record ? (
+        <OrderRecordPanel itemNos={order.items.map((item) => item.itemNo)} record={record} />
+      ) : null}
     </article>
   );
 }
 
-export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
+export function OrdersSection({ data, record }: {
+  data: AdminOrderConsoleData;
+  /** 펼친 주문 하나의 기록(메모·상태 이력·외부 참조). 목록에는 싣지 않는다. */
+  record: AdminOrderRecordPanelData | null;
+}) {
   const selected = data.items.find((order) => order.id === data.filters.orderId) ?? data.items[0] ?? null;
   const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize));
 
@@ -743,7 +755,7 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
               aria-current={selected?.id === order.id ? 'true' : undefined}
               /* aria-label이 행 내용을 덮어쓰므로 사유 배지를 이름에도 넣는다. 넣지
                  않으면 스크린리더 사용자에게만 사유가 사라진다. */
-              aria-label={`주문 ${orderReferenceLabel(order.id)} 선택${
+              aria-label={`주문 ${orderReferenceLabel(order.id, order.orderNo)} 선택${
                 openRequest ? ` · 청약철회 ${ORDER_WITHDRAWAL_REASON_LABELS[openRequest.reasonType]}` : ''
               }`}
               className={selected?.id === order.id ? 'admin-order-row on' : 'admin-order-row'}
@@ -752,13 +764,16 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
             >
               <span className={`order-status order-status--${order.status}`}>{orderStatusMeta(order.status).label}</span>
               <strong>@{order.buyerName}</strong>
-              <span className="faint mono">{orderReferenceLabel(order.id)}</span>
+              <span className="faint mono">{orderReferenceLabel(order.id, order.orderNo)}</span>
               <span className="admin-order-row-total">{formatKrw(order.total)}</span>
               {openRequest ? (
                 <CancellationReasonBadge
                   className="admin-order-row-reason"
                   reasonType={openRequest.reasonType}
                 />
+              ) : null}
+              {order.pinnedNote ? (
+                <span className="admin-order-row-note faint" title={order.pinnedNote}>📌 {order.pinnedNote}</span>
               ) : null}
             </Link>
             );
@@ -788,7 +803,13 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
             </nav>
           ) : null}
         </aside>
-        {selected ? <OrderDetail carriers={data.carriers} order={selected} /> : null}
+        {selected ? (
+          <OrderDetail
+            carriers={data.carriers}
+            order={selected}
+            record={record?.orderId === selected.id ? record : null}
+          />
+        ) : null}
       </div>
     </section>
   );

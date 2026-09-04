@@ -5,6 +5,7 @@ import { ClaimQueueScreen } from './ClaimQueueScreen';
 
 const NOW = new Date('2026-08-20T06:00:00.000Z');
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
+const ORDER_NO = '20260714-000012';
 const CLAIM_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 function data(overrides: Partial<AdminClaimConsoleData> = {}): AdminClaimConsoleData {
@@ -36,6 +37,7 @@ function data(overrides: Partial<AdminClaimConsoleData> = {}): AdminClaimConsole
         id: CLAIM_ID,
         reference: 12,
         orderId: ORDER_ID,
+        orderNo: ORDER_NO,
         claimType: 'return',
         stage: 'processing',
         reasonType: 'change_of_mind',
@@ -54,6 +56,7 @@ function data(overrides: Partial<AdminClaimConsoleData> = {}): AdminClaimConsole
         id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
         reference: 11,
         orderId: '22222222-2222-4222-8222-222222222222',
+        orderNo: '20260714-000013',
         claimType: 'return',
         stage: 'collecting',
         reasonType: 'defect',

@@ -32,6 +32,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 
 interface SearchRow {
   id: string;
+  order_no: string;
   user_id: string;
   buyer_name: string | null;
   buyer_email: string | null;
@@ -50,11 +51,14 @@ interface SearchRow {
   cancellation_stage: string | null;
   shipping_carrier: string | null;
   tracking_number: string | null;
+  note_count: number | null;
+  pinned_note: string | null;
   total_count: number;
 }
 
 interface ItemRow {
   id: string;
+  item_no: string;
   order_id: string;
   qty: number;
   unit_price: number;
@@ -202,7 +206,7 @@ export async function getAdminOrderRecords(
   const [itemsResult, paymentsResult, recoveryAttemptsResult] = await Promise.all([
     supabase
       .from('order_items')
-      .select('id,order_id,qty,unit_price,good_name_snapshot,good_type_snapshot')
+      .select('id,item_no,order_id,qty,unit_price,good_name_snapshot,good_type_snapshot')
       .in('order_id', orderIds)
       .order('id', { ascending: true }),
     supabase
@@ -312,6 +316,7 @@ export async function getAdminOrderRecords(
 
     return {
       id: row.id,
+      orderNo: row.order_no,
       userId: row.user_id,
       buyerName: buyerName(row.buyer_name, row.user_id),
       buyerEmail: row.buyer_email,
@@ -322,6 +327,7 @@ export async function getAdminOrderRecords(
       updatedAt: row.updated_at,
       items: (itemsByOrder.get(row.id) ?? []).map((item) => ({
         id: item.id,
+        itemNo: item.item_no,
         name: item.good_name_snapshot,
         type: item.good_type_snapshot,
         qty: item.qty,
@@ -350,6 +356,8 @@ export async function getAdminOrderRecords(
         manualRecoveryAvailable: relatedAttempt.manualRecoveryAvailable,
       },
       shipment: orderShipment(carriers, row.shipping_carrier, row.tracking_number),
+      noteCount: row.note_count ?? 0,
+      pinnedNote: row.pinned_note,
     };
   });
 

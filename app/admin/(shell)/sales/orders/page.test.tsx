@@ -90,7 +90,8 @@ describe('AdminSalesOrdersPage', () => {
       false,
     );
     expect(screen.type).toBe(mocks.ordersSection);
-    expect(screen.props).toEqual({ data: { items: [], filters: {}, pageSize: 20, total: 0 } });
+    /* 목록이 비면 펼칠 주문이 없으니 기록도 읽지 않는다. */
+    expect(screen.props).toEqual({ data: { items: [], filters: {}, pageSize: 20, total: 0 }, record: null });
   });
 
   it('Korpay 수동 복구 요약은 admin 세션에서만 주문 로더에 요청한다', async () => {

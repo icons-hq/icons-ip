@@ -89,7 +89,7 @@ export function ShippingScreen({
   const detailStatus = adminShippingTab(tab).status;
 
   const rowsForGrid: ConsoleGridRow[] = rows.map((row) => {
-    const reference = orderReferenceLabel(row.id);
+    const reference = orderReferenceLabel(row.id, row.orderNo);
     const shippedAtCell = row.shippedAt
       ? <time dateTime={row.shippedAt} key="shippedAt">{formatOrderDateTime(row.shippedAt)}</time>
       : <span className="faint" key="shippedAt">미기록</span>;

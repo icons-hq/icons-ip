@@ -98,7 +98,7 @@ export function Orders({
                   <li key={order.id}>
                     <Link className="order-list-link card" href={`/orders/${order.id}`}>
                       <div className="order-list-reference">
-                        <span className="mono">ORDER · {orderReferenceLabel(order.id)}</span>
+                        <span className="mono">ORDER · {orderReferenceLabel(order.id, order.orderNo)}</span>
                         <time dateTime={order.createdAt}>{date}</time>
                       </div>
                       <div className="order-list-item-copy">

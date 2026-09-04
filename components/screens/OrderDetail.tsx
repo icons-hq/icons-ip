@@ -197,7 +197,7 @@ export function OrderDetail({
           <p className="wc-receipt__subcopy">{status.body}</p>
           <OrderLadder status={order.status} />
           <div className="order-detail-meta mono">
-            <span>ORDER · {orderReferenceLabel(order.id)}</span>
+            <span>ORDER · {orderReferenceLabel(order.id, order.orderNo)}</span>
             <span aria-hidden>·</span>
             <time dateTime={order.createdAt}>{date}</time>
           </div>

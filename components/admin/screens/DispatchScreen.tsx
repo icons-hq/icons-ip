@@ -145,7 +145,7 @@ export function DispatchScreen({
   const detailStatus = adminDispatchTab(tab).status;
 
   const rowsForGrid: ConsoleGridRow[] = rows.map((row) => {
-    const reference = orderReferenceLabel(row.id);
+    const reference = orderReferenceLabel(row.id, row.orderNo);
     const base = {
       id: row.id,
       href: `/admin/sales/orders?status=${detailStatus}&page=1&order=${row.id}`,

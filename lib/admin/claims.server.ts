@@ -29,6 +29,7 @@ interface ClaimQueueRow {
   id: string;
   reference: number | string;
   order_id: string;
+  order_no: string;
   claim_type: string;
   stage: string;
   reason_type: string;
@@ -74,6 +75,7 @@ function toRow(row: ClaimQueueRow): AdminClaimRow {
     id: row.id,
     reference: toNumber(row.reference),
     orderId: row.order_id,
+    orderNo: row.order_no,
     claimType: (isOrderClaimType(row.claim_type) ? row.claim_type : 'cancel') as OrderClaimType,
     stage: (isOrderClaimStage(row.stage) ? row.stage : 'requested') as OrderClaimStage,
     reasonType: (isOrderWithdrawalReasonType(row.reason_type)
@@ -139,6 +141,8 @@ export async function getAdminClaimConsoleData(
 
 export interface AdminClaimDetailOrder {
   id: string;
+  /** 사람이 부르는 주문번호(`YYYYMMDD-NNNNNN`). */
+  orderNo: string;
   status: string;
   total: number;
   shippingFee: number;
@@ -272,6 +276,7 @@ export async function loadAdminClaimDetail(
     order: order
       ? {
         id: String(order.id ?? ''),
+        orderNo: String(order.orderNo ?? ''),
         status: String(order.status ?? ''),
         total: toNumber(order.total as number | string),
         shippingFee: toNumber(order.shippingFee as number | string),

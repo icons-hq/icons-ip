@@ -67,6 +67,8 @@ export interface AdminDispatchDelayNote {
 
 export interface AdminDispatchOrderRow {
   id: string;
+  /** 사람이 부르는 주문번호(`YYYYMMDD-NNNNNN`). */
+  orderNo: string;
   buyerName: string;
   createdAt: string;
   /** 발주확인 시각. 사다리 도입 전 주문은 비어 있다. */
@@ -164,8 +166,9 @@ export function adminDispatchHref(
  * 수량 합은 따로 낸다 — 운영자가 발주확인 전에 확인하는 것은 "몇 개를 보내야
  * 하는가"이지 품목 가짓수가 아니다.
  */
+/* 읽는 칸만 요구한다 — 요약에 필요 없는 품목주문번호까지 부르면 호출자가 안 쓰는 값을 채워야 한다. */
 export function adminDispatchItemSummary(
-  items: readonly AdminOrderItemRecord[],
+  items: readonly Pick<AdminOrderItemRecord, 'name' | 'qty'>[],
 ): AdminDispatchOrderItemSummary {
   const totalQty = items.reduce((sum, item) => sum + item.qty, 0);
   return {

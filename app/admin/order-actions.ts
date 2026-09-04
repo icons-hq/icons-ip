@@ -14,6 +14,10 @@ import {
   type AdminOrderStatus,
 } from '@/lib/admin/orders';
 import {
+  normalizeOrderExternalRefInput,
+  normalizeOrderNoteInput,
+} from '@/lib/admin/order-records';
+import {
   parseTrackingImport,
   TRACKING_IMPORT_ROW_LIMIT,
   type TrackingImportRow,
@@ -191,7 +195,7 @@ export async function bulkConfirmAdminOrdersAction(
     return {
       errors: {
         form: `선택한 ${orderIds.length}건을 발주확인하지 못했습니다. 취소 요청이 열려 있거나 이미 상태가 바뀐 주문일 수 있습니다: ${
-          failed.map(orderReferenceLabel).join(', ')
+          failed.map((orderId) => orderReferenceLabel(orderId)).join(', ')
         }`,
       },
     };
@@ -202,7 +206,7 @@ export async function bulkConfirmAdminOrdersAction(
        (취소 요청·이미 바뀐 상태·일시적 오류) 한 가지로 단정하지 않는다. */
     return {
       message: `${confirmed}건을 발주확인했습니다. 처리하지 못한 ${failed.length}건: ${
-        failed.map(orderReferenceLabel).join(', ')
+        failed.map((orderId) => orderReferenceLabel(orderId)).join(', ')
       } — 주문 상세에서 취소 요청 여부와 현재 상태를 확인해주세요.`,
     };
   }
@@ -600,4 +604,107 @@ export async function saveAdminOrderDispatchDelayAction(
   return {
     message: normalized.value.reason ? '지연 메모를 저장했습니다.' : '지연 메모를 지웠습니다.',
   };
+}
+
+/* ------------------------------------------------------------------------- */
+/* 주문 기록 — 메모 · 외부 참조 (D-3)                                          */
+/* ------------------------------------------------------------------------- */
+
+function recordErrorMessage(raw: string, fallback: string) {
+  if (raw.includes('order_not_found')) return '주문을 찾을 수 없습니다.';
+  if (raw.includes('note_body_invalid')) return '메모 내용을 확인해주세요.';
+  if (raw.includes('note_kind_invalid')) return '메모 종류를 확인해주세요.';
+  if (raw.includes('external_ref_taken')) return '그 번호는 이미 다른 주문에 붙어 있습니다. 번호를 다시 확인해주세요.';
+  if (raw.includes('external_ref_invalid')) return '번호를 확인해주세요.';
+  if (raw.includes('staff required') || raw.includes('forbidden')) return '권한이 없습니다.';
+  return fallback;
+}
+
+export async function addOrderNoteAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  const access = await requireStaffAction();
+  if (access.error) return access.error;
+
+  const normalized = normalizeOrderNoteInput(formData);
+  if (!normalized.ok) return { errors: normalized.errors };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_add_order_note', {
+    p_body: normalized.value.body,
+    p_kind: normalized.value.kind,
+    p_order_id: normalized.value.orderId,
+    p_pinned: normalized.value.pinned,
+  });
+  if (error) return { errors: { form: recordErrorMessage(error.message, '메모를 남기지 못했습니다.') } };
+
+  revalidateOrderSurfaces(normalized.value.orderId);
+  return { message: '메모를 남겼습니다.' };
+}
+
+export async function setOrderNotePinnedAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  const access = await requireStaffAction();
+  if (access.error) return access.error;
+
+  const noteId = String(formData.get('noteId') ?? '').trim();
+  const orderId = String(formData.get('orderId') ?? '').trim();
+  if (!noteId || !orderId) return { errors: { form: '메모를 찾을 수 없습니다.' } };
+  const pinned = formData.get('pinned') === 'on';
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_set_order_note_pinned', {
+    p_note_id: noteId,
+    p_pinned: pinned,
+  });
+  if (error) return { errors: { form: recordErrorMessage(error.message, '고정을 바꾸지 못했습니다.') } };
+
+  revalidateOrderSurfaces(orderId);
+  return { message: pinned ? '메모를 고정했습니다.' : '고정을 풀었습니다.' };
+}
+
+export async function recordOrderExternalRefAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  const access = await requireStaffAction();
+  if (access.error) return access.error;
+
+  const normalized = normalizeOrderExternalRefInput(formData);
+  if (!normalized.ok) return { errors: normalized.errors };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_record_order_external_ref', {
+    p_kind: normalized.value.kind,
+    p_note: normalized.value.note,
+    p_order_id: normalized.value.orderId,
+    p_source: 'manual',
+    p_value: normalized.value.value,
+  });
+  if (error) return { errors: { form: recordErrorMessage(error.message, '번호를 기록하지 못했습니다.') } };
+
+  revalidateOrderSurfaces(normalized.value.orderId);
+  return { message: '번호를 기록했습니다.' };
+}
+
+export async function removeOrderExternalRefAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  const access = await requireStaffAction();
+  if (access.error) return access.error;
+
+  const refId = String(formData.get('refId') ?? '').trim();
+  const orderId = String(formData.get('orderId') ?? '').trim();
+  if (!refId || !orderId) return { errors: { form: '번호를 찾을 수 없습니다.' } };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_remove_order_external_ref', { p_ref_id: refId });
+  if (error) return { errors: { form: recordErrorMessage(error.message, '번호를 지우지 못했습니다.') } };
+
+  revalidateOrderSurfaces(orderId);
+  return { message: '번호를 지웠습니다.' };
 }

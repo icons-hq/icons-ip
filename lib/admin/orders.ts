@@ -89,6 +89,8 @@ export interface AdminOrderAddress {
 
 export interface AdminOrderItemRecord {
   id: string;
+  /** 품목주문번호(`주문번호-NN`). 부분 취소·부분 출고가 가리키는 단위다. */
+  itemNo: string;
   name: string;
   type: string;
   qty: number;
@@ -157,6 +159,8 @@ export const ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS: Record<OrderWithdrawalReas
 
 export interface AdminOrderRecord {
   id: string;
+  /** 사람이 부르는 주문번호(`YYYYMMDD-NNNNNN`, KST). uuid 는 시스템 안에서만 쓴다. */
+  orderNo: string;
   userId: string;
   buyerName: string;
   buyerEmail: string | null;
@@ -171,6 +175,9 @@ export interface AdminOrderRecord {
   cancellationRequest: AdminOrderCancellationRequestRecord | null;
   manualRecoveryAttempt: AdminGoodsManualRecoveryAttemptRecord | null;
   shipment: OrderShipment | null;
+  /** 관리자 메모 개수와 고정 메모 한 줄. 목록에서 「손댄 주문」을 알아보게 한다. */
+  noteCount: number;
+  pinnedNote: string | null;
 }
 
 export interface AdminOrderConsoleData {

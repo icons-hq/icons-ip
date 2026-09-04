@@ -56,6 +56,8 @@ export interface AdminShippingFilters {
 
 export interface AdminShippingOrderRow {
   id: string;
+  /** 사람이 부르는 주문번호(`YYYYMMDD-NNNNNN`). */
+  orderNo: string;
   buyerName: string;
   createdAt: string;
   /** 발송 시각. 사다리 도입 전 주문은 비어 있다. */

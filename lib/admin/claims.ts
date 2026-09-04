@@ -65,6 +65,8 @@ export interface AdminClaimRow {
   id: string;
   reference: number;
   orderId: string;
+  /** 사람이 부르는 주문번호(`YYYYMMDD-NNNNNN`). */
+  orderNo: string;
   claimType: OrderClaimType;
   stage: OrderClaimStage;
   reasonType: OrderWithdrawalReasonType;

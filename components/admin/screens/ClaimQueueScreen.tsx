@@ -103,7 +103,7 @@ export function ClaimQueueScreen({
       href: adminClaimDetailHref(claimType, row.id, filters),
       cells: [
         <span className="mono" key="reference">{orderClaimReferenceLabel(row.reference)}</span>,
-        <span className="mono" key="order">{orderReferenceLabel(row.orderId)}</span>,
+        <span className="mono" key="order">{orderReferenceLabel(row.orderId, row.orderNo)}</span>,
         <span key="type">{ORDER_CLAIM_TYPE_LABELS[row.claimType]}</span>,
         <span key="reason">{ORDER_WITHDRAWAL_REASON_LABELS[row.reasonType]}</span>,
         <span key="stage">{ORDER_CLAIM_STAGE_LABELS[row.stage]}</span>,

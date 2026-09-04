@@ -4,6 +4,7 @@ import type { AdminSettledConsoleData } from '@/lib/admin/settled';
 import { SettledScreen } from './SettledScreen';
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
+const ORDER_NO = '20260714-000012';
 const NOW = new Date('2026-08-18T06:00:00.000Z');
 
 function data(overrides: Partial<AdminSettledConsoleData> = {}): AdminSettledConsoleData {
@@ -13,6 +14,7 @@ function data(overrides: Partial<AdminSettledConsoleData> = {}): AdminSettledCon
     total: 1,
     rows: [{
       id: ORDER_ID,
+      orderNo: ORDER_NO,
       buyerName: 'maple_fan',
       createdAt: '2026-06-01T06:00:00.000Z',
       deliveredAt: '2026-06-10T06:00:00.000Z',

@@ -5,6 +5,7 @@ import { ClaimDetailScreen } from './ClaimDetailScreen';
 
 const NOW = new Date('2026-08-20T06:00:00.000Z');
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
+const ORDER_NO = '20260714-000012';
 const CLAIM_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 const CARRIERS = [
@@ -44,6 +45,7 @@ function detail(overrides: Partial<AdminClaimDetail> = {}): AdminClaimDetail {
     },
     order: {
       id: ORDER_ID,
+      orderNo: ORDER_NO,
       status: 'delivered',
       total: 43000,
       shippingFee: 3000,

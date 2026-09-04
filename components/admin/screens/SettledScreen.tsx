@@ -50,7 +50,7 @@ export function SettledScreen({
       id: row.id,
       href: `/admin/sales/orders?status=done&page=1&order=${row.id}`,
       cells: [
-        <span className="mono" key="reference">{orderReferenceLabel(row.id)}</span>,
+        <span className="mono" key="reference">{orderReferenceLabel(row.id, row.orderNo)}</span>,
         <span key="buyer">@{row.buyerName}</span>,
         row.deliveredAt
           ? (
