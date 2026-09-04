@@ -45,6 +45,8 @@ import {
   type GoodFormTabId,
 } from '../catalog/GoodFormTabs';
 import { GoodsDraftBanner } from '../catalog/GoodsDraftBanner';
+import { GoodVariantsPanel } from '../catalog/GoodVariantsPanel';
+import type { AdminGoodVariantEditorData } from '@/lib/admin/variants';
 import { GoodsNoticePresetBar } from '../catalog/GoodsNoticePresetBar';
 import { GoodBankTransferControl } from '../GoodBankTransferControl';
 import { ErrorText, Field, FormShell, InlineNotice, SelectField, TextArea } from '../fields';
@@ -580,19 +582,21 @@ function GoodEditor({
             </>
           ) : (
             <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
-              실재고 <strong className="mono">{selected.stockQty.toLocaleString('ko-KR')}개</strong>
+              판매 가능 <strong className="mono">{selected.stockQty.toLocaleString('ko-KR')}개</strong>
               {selected.archivedAt
                 ? ' — 보관된 굿즈는 복원한 뒤에 재고를 조정할 수 있다.'
-                : ' — 변경은 아래 실재고 조정 카드에서 사유와 함께 남긴다.'}
+                : ' — 옵션·품목·출고지별 재고와 조정은 아래 「품목 · 재고」 카드에서 다룬다. 저장 직후 품목 표를 고칠 수 있다.'}
             </p>
           )}
-          <GoodStockTablePlaceholder
-            creating={!selected}
-            id={values.id ?? ''}
-            initialStockQty={values.initialStockQty ?? ''}
-            name={values.name ?? ''}
-            stockQty={selected?.stockQty ?? null}
-          />
+          {!selected ? (
+            <GoodStockTablePlaceholder
+              creating
+              id={values.id ?? ''}
+              initialStockQty={values.initialStockQty ?? ''}
+              name={values.name ?? ''}
+              stockQty={null}
+            />
+          ) : null}
         </GoodFormTabPanel>
 
         <GoodFormTabPanel active={activeTab} id="images" idPrefix={tabPrefix}>
@@ -670,6 +674,8 @@ export function GoodSection({
   selected,
   state,
   template = null,
+  variantBatchId = null,
+  variantEditor = null,
 }: {
   action: (payload: FormData) => void;
   adjustmentId: string;
@@ -683,6 +689,10 @@ export function GoodSection({
   state: AdminCatalogActionState;
   /** 「복사해서 등록」 원본. 새 등록일 때만 뜻이 있다. */
   template?: AdminGoodRecord | null;
+  /** 품목 일괄 저장의 배치 멱등 키(요청당 하나). 품목 표가 있을 때만 쓴다. */
+  variantBatchId?: string | null;
+  /** 옵션·품목·출고지별 재고(D-1). 없으면 상품 단위 실재고 조정 카드로 대신한다. */
+  variantEditor?: AdminGoodVariantEditorData | null;
 }) {
   return (
     <div className="col" style={{ gap: 16, minWidth: 0 }}>
@@ -707,7 +717,10 @@ export function GoodSection({
         state={state}
         template={selected ? null : template}
       />
-      {selected && !selected.archivedAt && (
+      {selected && !selected.archivedAt && variantEditor && variantBatchId ? (
+        <GoodVariantsPanel batchId={variantBatchId} editor={variantEditor} goodName={selected.name} key={`variants-${selected.id}:${JSON.stringify(variantEditor.variants)}`} />
+      ) : null}
+      {selected && !selected.archivedAt && !(variantEditor && variantBatchId) && (
         <StockAdjustmentForm adjustmentId={adjustmentId} good={selected} key={`stock-${selected.id}`} />
       )}
       {selected && !selected.archivedAt && (

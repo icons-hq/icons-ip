@@ -11,6 +11,7 @@ import { MEMBERS_ROLES_TOPIC } from './topics/members-roles';
 import { ORDERS_SHIPPING_TOPIC } from './topics/orders-shipping';
 import { STATS_TOPIC } from './topics/stats';
 import { TROUBLESHOOTING_TOPIC } from './topics/troubleshooting';
+import { VARIANTS_INVENTORY_TOPIC } from './topics/variants-inventory';
 import type { AdminGuideTopic, AdminGuideTopicSlug } from './types';
 
 export type { AdminGuideTopic, AdminGuideTopicSlug };
@@ -19,6 +20,7 @@ export type { AdminGuideTopic, AdminGuideTopicSlug };
 export const ADMIN_GUIDE_TOPIC_SLUGS: readonly AdminGuideTopicSlug[] = [
   'getting-started',
   'goods-sales',
+  'variants-inventory',
   'orders-shipping',
   'bank-transfer',
   'claims',
@@ -35,6 +37,7 @@ export const ADMIN_GUIDE_TOPIC_SLUGS: readonly AdminGuideTopicSlug[] = [
 export const ADMIN_GUIDE_TOPICS: Record<AdminGuideTopicSlug, AdminGuideTopic> = {
   'getting-started': GETTING_STARTED_TOPIC,
   'goods-sales': GOODS_SALES_TOPIC,
+  'variants-inventory': VARIANTS_INVENTORY_TOPIC,
   'orders-shipping': ORDERS_SHIPPING_TOPIC,
   'bank-transfer': BANK_TRANSFER_TOPIC,
   claims: CLAIMS_TOPIC,

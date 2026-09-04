@@ -69,11 +69,10 @@ describe('편성 / 원장 / 거래 재편', () => {
   });
 
   /* planned 는 설계서 v2 모듈의 자리다. 여기 없는 planned 가 생기면 라우트 없는 메뉴다. */
-  it('준비 중 자리 표시는 설계서 v2 모듈 11개뿐이다', () => {
+  it('준비 중 자리 표시는 설계서 v2 모듈 8개뿐이다 (옵션 마스터·재고·출고지는 D-1 로 열림)', () => {
     expect(ADMIN_SCREENS.filter((screen) => screen.status === 'planned').map((screen) => screen.id)).toEqual([
       'popups', 'popup-schedule', 'promotions', 'auto-notifications',
-      'categories', 'option-masters', 'inventory', 'customer-history',
-      'stats-ips', 'shipping-settings', 'export-templates',
+      'categories', 'customer-history', 'stats-ips', 'export-templates',
     ]);
   });
 });

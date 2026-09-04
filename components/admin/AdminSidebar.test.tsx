@@ -59,15 +59,16 @@ describe('AdminSidebar 2단 메뉴', () => {
   });
 
   /*
-   * 준비 중 자리 표시는 설계서 v2 모듈(분류·옵션·재고·팝업·프로모션·자동 알림·이력
-   * 허브·IP별 매출·출고지/배송·엑셀 양식) 11개뿐이다. 라우트 없는 메뉴가 늘면 여기서 깨진다.
+   * 준비 중 자리 표시는 설계서 v2 모듈(분류·팝업·프로모션·자동 알림·이력 허브·IP별 매출·엑셀 양식)
+   * 8개뿐이다(옵션 마스터·재고·출고지는 D-1 로 열렸다). 라우트 없는 메뉴가 늘면 여기서 깨진다.
    */
-  it('준비 중 자리 표시는 설계서 v2 모듈 11개이고 링크가 아니다', () => {
+  it('준비 중 자리 표시는 설계서 v2 모듈 8개이고 링크가 아니다', () => {
     const html = render();
 
     /* 라벨과 title 속성에 한 번씩 — 항목당 2회. */
-    expect(html.match(/ · 준비 중/g)).toHaveLength(11);
-    expect(html.match(/aria-disabled="true"/g)).toHaveLength(11);
+    expect(html.match(/ · 준비 중/g)).toHaveLength(8);
+    expect(html.match(/aria-disabled="true"/g)).toHaveLength(8);
+    expect(html).toContain('href="/admin/catalog/inventory"');
     expect(html).not.toContain('href="/admin/catalog/categories"');
   });
 

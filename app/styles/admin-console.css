@@ -1194,3 +1194,18 @@ a.admin-console-chip:hover {
 .admin-placeholder-table th {
   color: var(--dim);
 }
+
+/* ── D-1 품목 표 · 재고 조정 · 재고 관리 ─────────────────────────────── */
+.admin-variant-options { border: 1px solid var(--line, #2a2a2a); border-radius: 8px; padding: 10px 12px 12px; margin: 0; }
+.admin-variant-option-row { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-start; }
+.admin-variant-option-row > select { min-width: 200px; max-width: 260px; }
+.admin-variant-values { display: flex; flex-wrap: wrap; gap: 6px 12px; padding-top: 6px; }
+.admin-variant-value { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; white-space: nowrap; }
+.admin-variants-table td { vertical-align: middle; }
+.admin-variants-table input.admin-field-control,
+.admin-variants-table select.admin-field-control { min-width: 0; padding: 5px 8px; font-size: 12.5px; }
+.admin-variants-table input.admin-field-control { width: 140px; }
+.admin-variant-stock-forms { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+.admin-variant-stock-form { min-width: 0; }
+.admin-inventory-low { color: var(--pink); font-weight: 700; }
+.admin-inventory-bulk textarea { font-family: var(--mono, ui-monospace, monospace); font-size: 12.5px; min-height: 120px; }

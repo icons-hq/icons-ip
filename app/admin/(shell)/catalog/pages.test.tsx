@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   ipList: vi.fn(),
   ipRecord: vi.fn(),
   verticals: vi.fn(),
+  variantEditor: vi.fn(),
   screens: {
     good: vi.fn(() => null),
     ip: vi.fn(() => null),
@@ -52,6 +53,9 @@ vi.mock('@/lib/admin/catalog-list.server', () => ({
   getAdminIpList: mocks.ipList,
   getAdminIpRecord: mocks.ipRecord,
   getAdminVerticals: mocks.verticals,
+}));
+vi.mock('@/lib/admin/variants.server', () => ({
+  getAdminGoodVariantEditorData: mocks.variantEditor,
 }));
 vi.mock('@/lib/admin/draw-ticket-grants.server', () => ({
   getAdminDrawTicketGrants: mocks.drawTicketGrants,
@@ -147,6 +151,8 @@ describe('어드민 카탈로그 라우트', () => {
     mocks.ipRecord.mockResolvedValue(null);
     mocks.verticals.mockReset();
     mocks.verticals.mockResolvedValue([]);
+    mocks.variantEditor.mockReset();
+    mocks.variantEditor.mockResolvedValue(null);
   });
 
   it.each([
@@ -204,6 +210,9 @@ describe('어드민 카탈로그 라우트', () => {
     expect(mocks.ipOptions).toHaveBeenCalledWith({ selectedId: 'hwasan' });
     expect(screen.props.records).toEqual([goodRecord]);
     expect(screen.props.list).toMatchObject({ rows: [], total: 0 });
+    /* 옵션·품목·재고 표는 저장된 굿즈에만 있다. */
+    expect(mocks.variantEditor).toHaveBeenCalledWith('g100');
+    expect(screen.props.variantBatchId).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   it('낡은 selected 링크는 목록으로 돌아가고, 복사해서 등록은 원본만 읽는다', async () => {

@@ -12,6 +12,7 @@ import {
 } from '@/lib/admin/catalog-list';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
 import type { AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
+import type { AdminGoodVariantEditorData } from '@/lib/admin/variants';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import { useSelectedRecord } from './record-selection';
 
@@ -38,6 +39,8 @@ export function GoodScreen({
   ipOptions,
   list,
   records,
+  variantBatchId = null,
+  variantEditor = null,
 }: {
   adjustmentId: string;
   catalogIps: CatalogSnapshot['ips'];
@@ -46,6 +49,9 @@ export function GoodScreen({
   ipOptions: AdminCurationTargetRecord[];
   list: AdminGoodList;
   records: AdminCatalogRecords['goods'];
+  /** 품목 일괄 저장 배치 키 + 옵션·품목·재고 데이터(편집 화면). */
+  variantBatchId?: string | null;
+  variantEditor?: AdminGoodVariantEditorData | null;
 }) {
   const [state, action, pending] = useActionState(upsertAdminGoodAction, emptyState);
   const creating = filters.selected === ADMIN_CATALOG_NEW_RECORD;
@@ -79,6 +85,8 @@ export function GoodScreen({
       selected={selected}
       state={state}
       template={template}
+      variantBatchId={variantBatchId}
+      variantEditor={variantEditor}
     />
   );
 }

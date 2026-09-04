@@ -73,8 +73,8 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'ips', label: 'IP', href: '/admin/catalog/ips', status: 'ready' },
       { id: 'goods', label: '굿즈', href: '/admin/catalog/goods', status: 'ready' },
       { id: 'categories', label: '분류', href: '/admin/catalog/categories', status: 'planned' },
-      { id: 'option-masters', label: '옵션 마스터', href: '/admin/catalog/options', status: 'planned' },
-      { id: 'inventory', label: '재고', href: '/admin/catalog/inventory', status: 'planned' },
+      { id: 'option-masters', label: '옵션 마스터', href: '/admin/catalog/options', status: 'ready' },
+      { id: 'inventory', label: '재고', href: '/admin/catalog/inventory', status: 'ready' },
     ],
   },
   {
@@ -147,7 +147,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: '설정·도움말',
     icon: 'settings',
     screens: [
-      { id: 'shipping-settings', label: '출고지·배송 정책', href: '/admin/settings/shipping', status: 'planned' },
+      { id: 'shipping-settings', label: '출고지·배송 정책', href: '/admin/settings/shipping', status: 'ready' },
       { id: 'export-templates', label: '엑셀 양식', href: '/admin/settings/exports', status: 'planned' },
       { id: 'guide', label: '사용 가이드', href: '/admin/guide', status: 'ready' },
     ],

@@ -230,7 +230,10 @@ describe('GoodSection', () => {
     expect(html).toContain('D-2 배송 정책 · D-1 출고지');
     expect(html).toContain('₩50,000');
     expect(html).toContain('김포 (기본)');
-    expect(html).toContain('품목 표 · 자리표시');
+    /* 기존 굿즈의 품목 표는 저장 폼 밖 「품목 · 재고」 카드가 맡는다 — 자리표시는 새 등록에서만 뜬다. */
+    expect(html).not.toContain('품목 표 · 자리표시');
+    expect(html).toContain('품목 · 재고');
+    expect(renderGoodSection(null)).toContain('품목 표 · 자리표시');
     expect(html).toContain('노출 상태');
     expect(html).toContain('메인 큐레이션 연결');
     expect(html).not.toMatch(/<(input|select)[^>]*disabled=""[^>]*name=/);
@@ -254,6 +257,59 @@ describe('GoodSection', () => {
     expect(html).toContain('재고 조정');
     /* 저장 · 재고 조정 · 무통장 토글(#256) · 보관 네 개다. */
     expect(html.match(/<form/g)).toHaveLength(4);
+  });
+
+  it('renders the variant table and per-slot stock forms when the variant editor data is present', () => {
+    const editor = {
+      goodId: good.id,
+      defaultLocationId: 'gimpo',
+      stockOverride: 'auto',
+      options: [],
+      masters: [{
+        id: '11111111-1111-4111-8111-111111111111', code: 'O0001', name: '색상', displayStyle: 'select', sortOrder: 1, archivedAt: null,
+        values: [{ id: '11111111-1111-4111-8111-aaaaaaaaaaaa', value: '빨강', sortOrder: 1, archivedAt: null }],
+      }],
+      variants: [{
+        id: '22222222-2222-4222-8222-222222222222', code: 'g100-01', customCode: null, signature: '', isDefault: true, additionalPrice: 0,
+        display: true, sellable: true, locationId: null, imagePath: null, sortOrder: 0, archivedAt: null, values: {},
+        stocks: [
+          { locationId: 'gimpo', onHand: 12, reserved: 0, safety: 0, lastSource: 'migration', lastMovementAt: null, countedAt: null },
+          { locationId: 'namyangju', onHand: 0, reserved: 0, safety: 0, lastSource: 'migration', lastMovementAt: null, countedAt: null },
+        ],
+      }],
+      locations: [
+        { id: 'gimpo', name: '김포', contact: null, erpWarehouseCode: null, defaultCarrierCode: null, isDefault: true, active: true, sortOrder: 1 },
+        { id: 'namyangju', name: '남양주', contact: null, erpWarehouseCode: null, defaultCarrierCode: null, isDefault: false, active: true, sortOrder: 2 },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      <GoodSection
+        action={() => undefined}
+        adjustmentId="00000000-0000-4000-8000-000000000001"
+        catalogIps={[hwasan]}
+        ipOptions={[{ id: 'hwasan', title: '화산강림', archivedAt: null }]}
+        listHref="/admin/catalog/goods"
+        pending={false}
+        selected={good}
+        state={{}}
+        variantBatchId="00000000-0000-4000-8000-000000000002"
+        variantEditor={editor}
+      />,
+    );
+
+    expect(html).toContain('품목 · 재고');
+    expect(html).toContain('기본 품목 (옵션 없음)');
+    expect(html).toContain('name="payload"');
+    expect(html).toContain('name="batchId"');
+    /* 상품 단위 조정 칸(expectedStockQty)은 사라지고 품목 × 출고지 조정 칸이 선다. */
+    expect(html).not.toContain('name="expectedStockQty"');
+    expect(html).toContain('name="expectedOnHand"');
+    expect(html).toContain('name="reasonCode"');
+    expect(html).toContain('name="toLocationId"');
+    expect(html).toContain('name="safetyQty"');
+    expect(html).toContain('12 / 0 / 0');
+    /* 저장 · 품목 저장 · 재고 조정 · 재고 이동 · 안전재고 · 무통장 · 보관 = 7 */
+    expect(html.match(/<form/g)).toHaveLength(7);
   });
 
   it('derives soldout for zero quantity without changing the raw stock label', () => {
