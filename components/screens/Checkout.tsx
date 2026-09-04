@@ -29,6 +29,7 @@ const actionErrors = {
   bank_transfer_blocked: '무통장 입금을 쓸 수 없는 굿즈가 담겨 있어요. 카드로 결제해주세요.',
   empty_cart: '장바구니가 비어 있어요.',
   out_of_stock: '결제 직전 재고가 변경됐어요. 장바구니에서 수량을 다시 확인해주세요.',
+  variant_required: '옵션을 고르지 않은 상품이 있어요. 장바구니에서 옵션을 선택한 뒤 다시 시도해주세요.',
   coupon_rejected: '적용한 쿠폰을 쓸 수 없게 됐어요. 장바구니에서 쿠폰을 확인해주세요.',
   unavailable: '주문을 만들지 못했어요. 잠시 후 다시 시도해주세요.',
 } as const;

@@ -347,6 +347,19 @@ begin
   raise exception 'movement update must fail';
 exception when object_not_in_prerequisite_state then null;
 end $$;
+-- 삭제는 명시적 의사표시가 있을 때만 열린다(픽스처 정리·보존기간 파기).
+do $$
+begin
+  delete from public.stock_movements where id = '00000000-0000-4000-8000-00000000a001';
+  raise exception 'movement delete must fail without the purge flag';
+exception when object_not_in_prerequisite_state then null;
+end $$;
+set local icons.stock_ledger_purge = '1';
+with purged as (
+  delete from public.stock_movements where id = '00000000-0000-4000-8000-00000000a001' returning 1
+)
+select 1 / case when (select count(*) from purged) = 1 then 1 else 0 end as assert_ledger_purge_needs_explicit_flag;
+set local icons.stock_ledger_purge = '0';
 select 1 / case when (
   select count(*) = 0
   from public.goods as good

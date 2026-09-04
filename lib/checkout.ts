@@ -14,6 +14,7 @@ export type PlaceOrderErrorCode =
   | 'account_suspended'
   | 'empty_cart'
   | 'out_of_stock'
+  | 'variant_required'
   | 'invalid_address'
   | 'bank_transfer_blocked'
   | 'coupon_rejected'
@@ -142,6 +143,9 @@ export function mapPlaceOrderError(message: unknown): PlaceOrderErrorCode {
   if (normalized.includes('account_suspended')) return 'account_suspended';
   if (normalized.includes('cart empty')) return 'empty_cart';
   if (normalized.includes('out of stock')) return 'out_of_stock';
+  /* 옵션이 붙은 상품은 어느 품목을 사는지 골라야 주문된다(D-1). 스토어프론트에 옵션
+     선택이 붙기 전까지는 장바구니에 담을 수는 있어도 결제에서 여기로 떨어진다. */
+  if (normalized.includes('variant required')) return 'variant_required';
   if (normalized.includes('invalid checkout address')) return 'invalid_address';
   if (normalized.includes('bank transfer blocked')) return 'bank_transfer_blocked';
   /* 적용해 둔 쿠폰이 주문 확정 시점 재검증에서 거부된 경우(만료·조건 미달 등).

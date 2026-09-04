@@ -84,9 +84,10 @@ create table public.good_options (
 -- ---------------------------------------------------------------------------
 -- 4. 품목(옵션값 조합) · 품목의 옵션값
 -- ---------------------------------------------------------------------------
+-- 상품 하드 삭제(운영은 보관을 쓰지만 정리·픽스처 경로가 있다)를 새 자식 표가 막지 않게 한다.
 create table public.good_variants (
   id uuid primary key default gen_random_uuid(),
-  good_id text not null references public.goods (id),
+  good_id text not null references public.goods (id) on delete cascade,
   code text not null unique,
   custom_code text,
   option_signature text not null default '',
@@ -121,7 +122,7 @@ create index variant_option_values_value_idx on public.variant_option_values (va
 -- 5. 재고(품목 × 출고지) · 이동 기록(추가 전용) · 업로드 배치
 -- ---------------------------------------------------------------------------
 create table public.variant_stocks (
-  variant_id uuid not null references public.good_variants (id),
+  variant_id uuid not null references public.good_variants (id) on delete cascade,
   location_id text not null references public.stock_locations (id),
   on_hand_qty integer not null default 0 check (on_hand_qty >= 0),
   reserved_qty integer not null default 0 check (reserved_qty >= 0),
@@ -142,7 +143,7 @@ create trigger trg_variant_stocks_updated before update on public.variant_stocks
 
 create table public.stock_movements (
   id uuid primary key,
-  variant_id uuid not null references public.good_variants (id),
+  variant_id uuid not null references public.good_variants (id) on delete cascade,
   location_id text not null references public.stock_locations (id),
   delta_on_hand integer not null default 0,
   delta_reserved integer not null default 0,
