@@ -26,7 +26,7 @@ create table public.stock_locations (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-comment on table public.stock_locations is '출고지(창고) 마스터. 기본 출고지 1행. 상품은 기본값을, 품목은 덮어쓰기를 가진다(ADR-0035 출고지 고정).';
+comment on table public.stock_locations is '출고지(창고) 마스터. 기본 출고지 1행. 상품은 기본값을, 품목은 덮어쓰기를 가진다(ADR-0036 출고지 고정).';
 create unique index stock_locations_single_default on public.stock_locations ((true)) where is_default;
 create trigger trg_stock_locations_updated before update on public.stock_locations
   for each row execute function public.set_updated_at();

@@ -10,7 +10,7 @@ import { CatalogEditorHeader } from './CatalogEditorHeader';
 import { Field, FormShell, SelectField } from '../fields';
 
 /*
- * 출고지(창고) 설정(설계서 v2 §1-9). 기본 출고지 1행이 상품의 기본값이고 품목이 덮어쓴다(ADR-0035).
+ * 출고지(창고) 설정(설계서 v2 §1-9). 기본 출고지 1행이 상품의 기본값이고 품목이 덮어쓴다(ADR-0036).
  * 배송 정책 객체(무료 기준·구간·도서산간)는 D-2 에서 이 화면에 합류한다 — 지금은 코드 상수다.
  */
 
