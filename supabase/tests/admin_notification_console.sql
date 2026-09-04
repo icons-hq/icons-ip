@@ -238,6 +238,8 @@ select 1 / case when not exists (
 
 -- Exact staff estimates: all profiles include staff and incomplete accounts;
 -- IP announcements ignore drop/event preference switches.
+/* 전체 프로필 수는 역할 밖에서 잰다 — 스태프 세션에서는 RLS 때문에 본인 행만 보인다. */
+select set_config('notif.profiles', (select count(*)::text from public.profiles), true);
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000001051', true);
@@ -248,7 +250,9 @@ select 1 / case when exists (
   where scope = 'all'
     and ip_id is null
     and ip_title is null
-    and recipient_count = 5
+    /* 「전체」는 말 그대로 이 DB 의 모든 프로필이다. 고정 숫자로 적으면 개발자가
+       로컬에서 계정 하나만 더 만들어도 깨진다 — 실제로 그랬다. */
+    and recipient_count = current_setting('notif.profiles')::bigint
     and can_send
 ) then 1 else 0 end as assert_all_estimate_includes_every_profile;
 
@@ -553,7 +557,7 @@ select 1 / case when exists (
     '전체 공지',
     '온보딩 상태와 역할에 관계없이 모든 프로필에 발송됩니다.'
   )
-  where recipient_count = 5
+  where recipient_count = current_setting('notif.profiles')::bigint
 ) then 1 else 0 end as assert_all_send_includes_every_profile;
 
 reset role;
@@ -562,7 +566,7 @@ select 1 / case when (
   select count(*)
   from public.notifications
   where source_id = '22222222-2222-4222-8222-222222221052'
-) = 5 then 1 else 0 end as assert_all_send_actual_rows_match_result;
+) = current_setting('notif.profiles')::bigint then 1 else 0 end as assert_all_send_actual_rows_match_result;
 
 -- `all` means the whole current profile set. Large audiences are not silently
 -- truncated or rejected by an arbitrary application limit.
@@ -585,6 +589,8 @@ select
   now()
 from pg_catalog.generate_series(1, 9996) as series(value);
 
+/* 대량 발송 기대치도 이 DB 의 프로필 수를 기준으로 잡는다. */
+select set_config('notif.profiles_large', (select count(*)::text from public.profiles), true);
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000001051', true);
@@ -592,7 +598,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000001051
 select 1 / case when exists (
   select 1
   from public.admin_estimate_notification_recipients('all', null)
-  where recipient_count = 10001
+  where recipient_count = current_setting('notif.profiles_large')::bigint
     and can_send
 ) then 1 else 0 end as assert_large_whole_audience_is_sendable;
 
@@ -605,7 +611,7 @@ select 1 / case when exists (
     '전체 대상 테스트',
     '현재 전체 프로필에 한 transaction으로 발송합니다.'
   )
-  where recipient_count = 10001
+  where recipient_count = current_setting('notif.profiles_large')::bigint
 ) then 1 else 0 end as assert_large_whole_audience_fans_out;
 
 reset role;
@@ -615,7 +621,7 @@ select 1 / case when (
   from public.notifications
   where source_id = '22222222-2222-4222-8222-222222221053'
   group by source_id
-  having count(*) = 10001
+  having count(*) = current_setting('notif.profiles_large')::bigint
 ) = 1 then 1 else 0 end as assert_large_whole_audience_rows_are_complete;
 
 select 1 / case when exists (

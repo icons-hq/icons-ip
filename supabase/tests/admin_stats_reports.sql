@@ -35,6 +35,62 @@ select 1 / case when (
 ) then 1 else 0 end as assert_reports_are_staff_session_only;
 
 -- ---------------------------------------------------------------------------
+-- 기준선 전용 스태프 — 400일 전 가입이라 이 테스트가 보는 기간의 숫자에 섞이지 않는다.
+-- ---------------------------------------------------------------------------
+insert into auth.users (id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+values ('00000000-0000-4000-8000-000000000f0b', 'authenticated', 'authenticated', 'stats-baseline@example.test', now(), '{}', '{}', now() - interval '400 days', now())
+on conflict (id) do nothing;
+insert into public.profiles (id, email, nickname, birth_date, consents, onboarded_at, role, created_at)
+values ('00000000-0000-4000-8000-000000000f0b', 'stats-baseline@example.test', 'stats_baseline', '2000-01-01',
+        '{"terms":true,"privacy":true}'::jsonb, now(), 'staff'::public.user_role, now() - interval '400 days')
+on conflict (id) do update set role = excluded.role, created_at = excluded.created_at;
+
+-- ---------------------------------------------------------------------------
+-- 기준선 — 이 DB 에 이미 있는 주문을 빼고 「이 테스트가 넣은 것」만 본다.
+--
+-- 절대값으로 단언하면 개발자가 로컬에서 주문 하나만 만들어도 테스트가 깨진다.
+-- 실제로 그랬다: 화면 확인용으로 만든 주문 하나가 이 파일 전체를 실패로 만들었다.
+-- ---------------------------------------------------------------------------
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000f0b', true);
+select public.admin_sales_report(now() - interval '7 days', now() + interval '1 day') as sales_before \gset
+reset role;
+select set_config('stats.orders_before', coalesce((
+  select sum((entry ->> 'orderCount')::bigint)::text
+  from jsonb_array_elements(:'sales_before'::jsonb -> 'daily') as entry
+), '0'), true);
+select set_config('stats.revenue_before', coalesce((
+  select sum((entry ->> 'revenue')::bigint)::text
+  from jsonb_array_elements(:'sales_before'::jsonb -> 'daily') as entry
+), '0'), true);
+select set_config('stats.card_before', coalesce((
+  select sum((entry ->> 'revenue')::bigint)::text
+  from jsonb_array_elements(:'sales_before'::jsonb -> 'paymentMethods') as entry
+  where entry ->> 'method' = 'card'
+), '0'), true);
+select set_config('stats.bank_before', coalesce((
+  select sum((entry ->> 'revenue')::bigint)::text
+  from jsonb_array_elements(:'sales_before'::jsonb -> 'paymentMethods') as entry
+  where entry ->> 'method' = 'bank_transfer'
+), '0'), true);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000f0b', true);
+select public.admin_claims_report(now() - interval '7 days', now() + interval '1 day') as claims_before \gset
+reset role;
+select set_config('stats.claim_orders_before', coalesce((:'claims_before'::jsonb ->> 'orderCount'), '0'), true);
+select set_config('stats.claims_before', coalesce((:'claims_before'::jsonb ->> 'claimCount'), '0'), true);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000f0b', true);
+select public.admin_customer_report(now() - interval '7 days', now() + interval '1 day') as customers_before \gset
+reset role;
+select set_config('stats.signups_before', coalesce((:'customers_before'::jsonb ->> 'signupTotal'), '0'), true);
+select set_config('stats.buyers_before', coalesce((:'customers_before'::jsonb ->> 'buyerCount'), '0'), true);
+select set_config('stats.repeat_before', coalesce((:'customers_before'::jsonb ->> 'repeatBuyerCount'), '0'), true);
+select set_config('stats.inquiries_before', coalesce((:'customers_before'::jsonb -> 'inquiries' ->> 'total'), '0'), true);
+select set_config('stats.unanswered_before', coalesce((:'customers_before'::jsonb -> 'inquiries' ->> 'unanswered'), '0'), true);
+
+-- ---------------------------------------------------------------------------
 -- Fixtures
 -- ---------------------------------------------------------------------------
 insert into auth.users (
@@ -245,8 +301,8 @@ select public.admin_sales_report(
 
 -- 기간 안 매출 주문 셋만 센다. pending과 90일 전 주문은 빠진다.
 select 1 / case when (
-  select sum((entry ->> 'orderCount')::bigint) = 3
-    and sum((entry ->> 'revenue')::bigint) = 69000
+  select sum((entry ->> 'orderCount')::bigint) - current_setting('stats.orders_before')::bigint = 3
+    and sum((entry ->> 'revenue')::bigint) - current_setting('stats.revenue_before')::bigint = 69000
   from jsonb_array_elements(:'sales'::jsonb -> 'daily') as entry
 ) then 1 else 0 end as assert_sales_daily_counts_only_revenue_orders_in_range;
 
@@ -262,18 +318,19 @@ select 1 / case when (
 -- 결제수단별 비중이 실제로 갈린다. #250 발주 그리드가 "결제사"로 물러섰던
 -- 이유가 여기서 해소된다(#256).
 select 1 / case when (
-  select count(*) = 2
-    and sum((entry ->> 'revenue')::bigint) filter (where entry ->> 'method' = 'card') = 46000
-    and sum((entry ->> 'revenue')::bigint) filter (where entry ->> 'method' = 'bank_transfer') = 23000
+  select count(*) >= 2
+    and coalesce(sum((entry ->> 'revenue')::bigint) filter (where entry ->> 'method' = 'card'), 0)
+      - current_setting('stats.card_before')::bigint = 46000
+    and coalesce(sum((entry ->> 'revenue')::bigint) filter (where entry ->> 'method' = 'bank_transfer'), 0)
+      - current_setting('stats.bank_before')::bigint = 23000
   from jsonb_array_elements(:'sales'::jsonb -> 'paymentMethods') as entry
 ) then 1 else 0 end as assert_payment_method_split_separates_card_and_bank_transfer;
 
 select 1 / case when (
-  select count(*) = 2
-    and (
-      select (entry ->> 'qty')::bigint = 3 and (entry ->> 'revenue')::bigint = 30000
-      from jsonb_array_elements(:'sales'::jsonb -> 'goods') as entry
-      where entry ->> 'goodId' = 'stats-goods-a'
+  select count(*) filter (where entry ->> 'goodId' in ('stats-goods-a', 'stats-goods-b')) = 2
+    and bool_or(
+      entry ->> 'goodId' = 'stats-goods-a'
+      and (entry ->> 'qty')::bigint = 3 and (entry ->> 'revenue')::bigint = 30000
     )
   from jsonb_array_elements(:'sales'::jsonb -> 'goods') as entry
 ) then 1 else 0 end as assert_goods_ranking_sums_quantity_and_revenue;
@@ -310,12 +367,12 @@ select public.admin_claims_report(
 ) as claims \gset
 
 select 1 / case when (
-  (:'claims'::jsonb ->> 'orderCount')::bigint = 3
-  and (:'claims'::jsonb ->> 'claimCount')::bigint = 2
+  (:'claims'::jsonb ->> 'orderCount')::bigint - current_setting('stats.claim_orders_before')::bigint = 3
+  and (:'claims'::jsonb ->> 'claimCount')::bigint - current_setting('stats.claims_before')::bigint = 2
 ) then 1 else 0 end as assert_claim_report_counts_range_only;
 
 select 1 / case when (
-  select count(*) = 2
+  select count(*) >= 2
     and bool_or(entry ->> 'claimType' = 'cancel' and (entry ->> 'completed')::bigint = 1)
     and bool_or(entry ->> 'claimType' = 'return' and (entry ->> 'open')::bigint = 1)
   from jsonb_array_elements(:'claims'::jsonb -> 'byType') as entry
@@ -355,17 +412,17 @@ select public.admin_customer_report(
 
 -- 400일 전 가입자는 이 기간 신규가 아니다.
 select 1 / case when (
-  (:'customers'::jsonb ->> 'signupTotal')::bigint = 2
+  (:'customers'::jsonb ->> 'signupTotal')::bigint - current_setting('stats.signups_before')::bigint = 2
 ) then 1 else 0 end as assert_signups_count_only_the_range;
 
 select 1 / case when (
-  (:'customers'::jsonb ->> 'buyerCount')::bigint = 2
-  and (:'customers'::jsonb ->> 'repeatBuyerCount')::bigint = 1
+  (:'customers'::jsonb ->> 'buyerCount')::bigint - current_setting('stats.buyers_before')::bigint = 2
+  and (:'customers'::jsonb ->> 'repeatBuyerCount')::bigint - current_setting('stats.repeat_before')::bigint = 1
 ) then 1 else 0 end as assert_repeat_buyers_need_more_than_one_order;
 
 select 1 / case when (
-  (:'customers'::jsonb -> 'inquiries' ->> 'total')::bigint = 2
-  and (:'customers'::jsonb -> 'inquiries' ->> 'unanswered')::bigint = 1
+  (:'customers'::jsonb -> 'inquiries' ->> 'total')::bigint - current_setting('stats.inquiries_before')::bigint = 2
+  and (:'customers'::jsonb -> 'inquiries' ->> 'unanswered')::bigint - current_setting('stats.unanswered_before')::bigint = 1
   and (:'customers'::jsonb -> 'inquiries' ->> 'averageFirstResponseHours')::numeric = 4.0
 ) then 1 else 0 end as assert_inquiry_metrics_measure_first_response;
 
