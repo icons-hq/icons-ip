@@ -561,6 +561,12 @@
     grid-column: 1 / -1; justify-self: start; max-width: 100%;
     overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap;
   }
+  .admin-stats-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .admin-stats-table th, .admin-stats-table td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: left; }
+  .admin-stats-table th { color: var(--faint); font-size: 10px; font-weight: 600; }
+  .admin-stats-table td:not(:first-child) { font-family: var(--ff-mono); }
+  .admin-stats-bar { display: block; height: 6px; border-radius: 3px; background: rgba(255,255,255,.06); }
+  .admin-stats-bar > span { display: block; height: 100%; border-radius: 3px; background: var(--holo); }
   .admin-order-refs, .admin-order-notes, .admin-order-timeline {
     display: flex; flex-direction: column; gap: 10px; margin: 0 0 12px; padding: 0; list-style: none;
   }
