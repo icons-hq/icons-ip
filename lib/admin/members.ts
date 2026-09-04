@@ -8,6 +8,61 @@ export interface AdminMemberSummary {
   role: AdminMemberRole;
   createdAt: string;
   suspendedAt: string | null;
+  /** 휴면 — 법정 의무가 아니라 우리 정책의 상태다(2023-09-15 개정으로 법정 휴면 폐지). */
+  dormantAt: string | null;
+  lastLoginAt: string | null;
+  loyaltyGrade: string;
+  /** 구매 실적 롤업(`member_purchase_stats`). 주문이 없으면 0이다. */
+  orderCount: number;
+  grossTotal: number;
+  lastOrderAt: string | null;
+}
+
+export const MEMBER_STATUS_FILTERS = [
+  { value: '', label: '전체' },
+  { value: 'active', label: '활동중' },
+  { value: 'dormant', label: '휴면' },
+  { value: 'suspended', label: '정지' },
+] as const;
+
+export interface AdminMemberFilters {
+  query: string;
+  status: string;
+  grade: string;
+  minSpend: number | null;
+}
+
+function readParam(params: Record<string, string | string[] | undefined>, key: string) {
+  const value = params[key];
+  return Array.isArray(value) ? value[0] ?? '' : value ?? '';
+}
+
+export function normalizeAdminMemberFilters(
+  params: Record<string, string | string[] | undefined>,
+): AdminMemberFilters {
+  const status = readParam(params, 'status');
+  const grade = readParam(params, 'grade');
+  const minSpend = Number.parseInt(readParam(params, 'minSpend'), 10);
+  return {
+    query: readParam(params, 'q').trim().slice(0, 100),
+    status: MEMBER_STATUS_FILTERS.some((entry) => entry.value === status) ? status : '',
+    grade: isLoyaltyGrade(grade) ? grade : '',
+    minSpend: Number.isInteger(minSpend) && minSpend > 0 ? minSpend : null,
+  };
+}
+
+export function adminMembersHref(
+  filters: AdminMemberFilters,
+  patch: Partial<AdminMemberFilters> = {},
+): string {
+  const next = { ...filters, ...patch };
+  const params = new URLSearchParams();
+  if (next.query) params.set('q', next.query);
+  if (next.status) params.set('status', next.status);
+  if (next.grade) params.set('grade', next.grade);
+  if (next.minSpend) params.set('minSpend', String(next.minSpend));
+  const query = params.toString();
+  return query ? `/admin/community/members?${query}` : '/admin/community/members';
 }
 
 export interface AdminMemberDetail {
@@ -156,6 +211,12 @@ export function parseAdminMemberSummary(value: unknown): AdminMemberSummary | nu
     role: role as AdminMemberRole,
     createdAt,
     suspendedAt,
+    dormantAt: optionalString(value.dormant_at),
+    lastLoginAt: optionalString(value.last_login_at),
+    loyaltyGrade: typeof value.loyalty_grade === 'string' ? value.loyalty_grade : 'welcome',
+    orderCount: typeof value.order_count === 'number' ? value.order_count : 0,
+    grossTotal: typeof value.gross_total === 'number' ? value.gross_total : 0,
+    lastOrderAt: optionalString(value.last_order_at),
   };
 }
 

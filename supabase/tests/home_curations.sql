@@ -512,11 +512,11 @@ begin
 end;
 $$;
 
--- Exercise the persistent trigger through a role that really owns direct table
--- UPDATE privilege; authenticated staff reaches the same invariant via the RPC.
+-- Exercise the persistent trigger through a direct table UPDATE, not the RPC.
+-- The role must actually hold UPDATE on public.ips: this schema grants service_role
+-- no DML on public tables (14 other tests assert exactly that), so use the session
+-- owner instead. What is under test is the trigger, not the caller's identity.
 reset role;
-set local role service_role;
-select set_config('request.jwt.claim.role', 'service_role', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000011401', true);
 
 do $$

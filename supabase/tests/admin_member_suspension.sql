@@ -163,9 +163,9 @@ select 1 / case when (
 ) then 1 else 0 end as assert_staff_and_private_guard_acls;
 
 select 1 / case when (
-  not has_function_privilege('anon', 'public.admin_search_members(text,integer,integer)', 'execute')
-  and has_function_privilege('authenticated', 'public.admin_search_members(text,integer,integer)', 'execute')
-  and not has_function_privilege('service_role', 'public.admin_search_members(text,integer,integer)', 'execute')
+  not has_function_privilege('anon', 'public.admin_search_members(text,integer,integer,text,loyalty_grade,bigint,bigint)', 'execute')
+  and has_function_privilege('authenticated', 'public.admin_search_members(text,integer,integer,text,loyalty_grade,bigint,bigint)', 'execute')
+  and not has_function_privilege('service_role', 'public.admin_search_members(text,integer,integer,text,loyalty_grade,bigint,bigint)', 'execute')
   and not has_function_privilege('anon', 'public.admin_get_member_detail(uuid)', 'execute')
   and has_function_privilege('authenticated', 'public.admin_get_member_detail(uuid)', 'execute')
   and not has_function_privilege('service_role', 'public.admin_get_member_detail(uuid)', 'execute')

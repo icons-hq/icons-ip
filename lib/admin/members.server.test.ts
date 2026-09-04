@@ -58,11 +58,19 @@ describe('admin member loaders', () => {
         role: 'user',
         created_at: '2026-07-01T00:00:00.000Z',
         suspended_at: null,
+        dormant_at: null,
+        last_login_at: '2026-08-30T00:00:00.000Z',
+        loyalty_grade: 'silver',
+        order_count: 3,
+        gross_total: 120000,
+        last_order_at: '2026-08-20T00:00:00.000Z',
       }],
       error: null,
     });
 
     const result = await getAdminMemberSummaries('fan');
+    /* 목록은 여전히 **가린 이메일**만 준다. 구매 실적·휴면·최근 접속은 운영이 목록에서
+       판단해야 하는 값이라 함께 싣되, 개인정보 원문은 상세(열람 기록이 남는 자리)에만 있다. */
     expect(result).toEqual([{
       id: profileId,
       nickname: '팬일호',
@@ -70,8 +78,17 @@ describe('admin member loaders', () => {
       role: 'user',
       createdAt: '2026-07-01T00:00:00.000Z',
       suspendedAt: null,
+      dormantAt: null,
+      lastLoginAt: '2026-08-30T00:00:00.000Z',
+      loyaltyGrade: 'silver',
+      orderCount: 3,
+      grossTotal: 120000,
+      lastOrderAt: '2026-08-20T00:00:00.000Z',
     }]);
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_search_members', { target_query: 'fan' });
+    expect(result[0]).not.toHaveProperty('email');
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_search_members', {
+      p_grade: null, p_min_spend: null, p_status: null, target_query: 'fan',
+    });
     expect(result[0]).not.toHaveProperty('suspensionReason');
   });
 

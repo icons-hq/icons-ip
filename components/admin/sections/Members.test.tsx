@@ -47,6 +47,12 @@ const summaries: AdminMemberSummary[] = [
     role: 'user',
     createdAt: '2026-07-01T00:00:00.000Z',
     suspendedAt: null,
+    dormantAt: null,
+    lastLoginAt: null,
+    loyaltyGrade: 'welcome',
+    orderCount: 0,
+    grossTotal: 0,
+    lastOrderAt: null,
   },
   {
     id: '22222222-2222-4222-8222-222222222222',
@@ -55,6 +61,12 @@ const summaries: AdminMemberSummary[] = [
     role: 'staff',
     createdAt: '2026-07-02T00:00:00.000Z',
     suspendedAt: '2026-07-17T00:00:00.000Z',
+    dormantAt: null,
+    lastLoginAt: null,
+    loyaltyGrade: 'welcome',
+    orderCount: 0,
+    grossTotal: 0,
+    lastOrderAt: null,
   },
 ];
 
@@ -90,7 +102,7 @@ describe('MembersSection', () => {
 
   it('목록에는 POST 검색과 마스킹 이메일·정지 상태만 노출한다', () => {
     const html = renderToStaticMarkup(
-      <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
+      <MembersSection filters={{ query: '', status: '', grade: '', minSpend: null }} actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
     );
 
     expect(html).toContain('회원 검색');
@@ -105,7 +117,7 @@ describe('MembersSection', () => {
   it('명시적으로 연 상세에서만 전체 이메일·현재 동의·운영 집계를 보여준다', () => {
     hooks.detailState = { member: detail };
     const html = renderToStaticMarkup(
-      <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
+      <MembersSection filters={{ query: '', status: '', grade: '', minSpend: null }} actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
     );
 
     expect(html).toContain('fan@example.test');
@@ -121,13 +133,13 @@ describe('MembersSection', () => {
     hooks.detailState = { member: { ...detail, role: 'staff', suspendedAt: '2026-07-17T00:00:00.000Z', suspensionReason: '내부 사유' } };
 
     const staffHtml = renderToStaticMarkup(
-      <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
+      <MembersSection filters={{ query: '', status: '', grade: '', minSpend: null }} actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
     );
     expect(staffHtml).toContain('이 계정은 현재 권한으로 제재할 수 없습니다.');
     expect(staffHtml).not.toContain('정지 해제');
 
     const adminHtml = renderToStaticMarkup(
-      <MembersSection actor={{ id: 'admin-a', role: 'admin' }} initialMembers={summaries} />,
+      <MembersSection filters={{ query: '', status: '', grade: '', minSpend: null }} actor={{ id: 'admin-a', role: 'admin' }} initialMembers={summaries} />,
     );
     expect(adminHtml).toContain('정지 해제');
     expect(adminHtml).toContain('내부 사유');
@@ -136,7 +148,7 @@ describe('MembersSection', () => {
   it('정지 사유 입력과 action control을 접근 가능한 크기로 렌더링한다', () => {
     hooks.detailState = { member: detail };
     const html = renderToStaticMarkup(
-      <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
+      <MembersSection filters={{ query: '', status: '', grade: '', minSpend: null }} actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
     );
 
     expect(html).toContain('name="reason"');
@@ -150,7 +162,7 @@ describe('MembersSection', () => {
     hooks.detailState = { member: detail };
 
     const html = renderToStaticMarkup(
-      <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
+      <MembersSection filters={{ query: '', status: '', grade: '', minSpend: null }} actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
     );
 
     expect(html).not.toContain('fan@example.test');
@@ -162,7 +174,7 @@ describe('MembersSection', () => {
     hooks.detailPending = true;
 
     const detailPendingHtml = renderToStaticMarkup(
-      <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
+      <MembersSection filters={{ query: '', status: '', grade: '', minSpend: null }} actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
     );
     expect(detailPendingHtml).not.toContain('fan@example.test');
     expect(detailPendingHtml).not.toContain('name="reason"');
@@ -170,7 +182,7 @@ describe('MembersSection', () => {
     hooks.detailPending = false;
     hooks.searchPending = true;
     const searchPendingHtml = renderToStaticMarkup(
-      <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
+      <MembersSection filters={{ query: '', status: '', grade: '', minSpend: null }} actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
     );
     expect(searchPendingHtml).not.toContain('fan@example.test');
     expect(searchPendingHtml).not.toContain('name="reason"');
@@ -194,7 +206,7 @@ describe('MembersSection', () => {
     hooks.suspendState = { message: '회원을 정지했습니다.' };
 
     const html = renderToStaticMarkup(
-      <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
+      <MembersSection filters={{ query: '', status: '', grade: '', minSpend: null }} actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
     );
 
     expect(html).toContain('회원을 정지했습니다.');

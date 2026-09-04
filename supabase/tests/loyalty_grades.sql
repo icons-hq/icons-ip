@@ -151,11 +151,11 @@ select 1 / case when (
 -- ── 결제 확정(paid 전이)이 재산정을 부른다 ──────────────────────────────────
 
 -- 12만원 주문을 만들고 결제 확정 상태로 전이시킨다(SILVER 임계 10만 초과).
-set local role service_role;
-select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000721', true);
-
+-- 담기는 역할 밖에서 한다: service_role 은 이 스키마에서 public 표에 DML 권한이 없다.
 insert into public.cart_items (user_id, good_id, qty)
 values ('00000000-0000-4000-8000-000000000721', 'loy-g1', 1);
+set local role service_role;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000721', true);
 
 select public.place_order(
   '00000000-0000-4000-8000-000000000721',
@@ -252,11 +252,11 @@ select 1 / case when (
 
 -- ── 임계 미달 실적은 등급을 올리지 않는다 ───────────────────────────────────
 
-set local role service_role;
-select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000723', true);
-
+-- 담기는 역할 밖에서 한다: service_role 은 이 스키마에서 public 표에 DML 권한이 없다.
 insert into public.cart_items (user_id, good_id, qty)
 values ('00000000-0000-4000-8000-000000000723', 'loy-g2', 1);
+set local role service_role;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000723', true);
 
 select public.place_order(
   '00000000-0000-4000-8000-000000000723',
@@ -331,10 +331,11 @@ select 1 / case when exists (
 
 -- 창 안의 수동 보정은 재산정의 하한이다 — 다음 온라인 주문 한 건이 오프라인
 -- 실적 보정을 지우면 안 된다.
-set local role service_role;
-select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000723', true);
+-- 담기는 역할 밖에서 한다: service_role 은 이 스키마에서 public 표에 DML 권한이 없다.
 insert into public.cart_items (user_id, good_id, qty)
 values ('00000000-0000-4000-8000-000000000723', 'loy-g2', 1);
+set local role service_role;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000723', true);
 select public.place_order(
   '00000000-0000-4000-8000-000000000723',
   '{"recipientName":"보정후주문","phone":"01012345678","postalCode":"12345","address1":"서울시"}'::jsonb,
@@ -379,11 +380,11 @@ reset role;
 alter table public.loyalty_grade_events
   add constraint loyalty_grade_events_poison check (reason <> 'recalculation') not valid;
 
-set local role service_role;
-select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000721', true);
-
+-- 담기는 역할 밖에서 한다: service_role 은 이 스키마에서 public 표에 DML 권한이 없다.
 insert into public.cart_items (user_id, good_id, qty)
 values ('00000000-0000-4000-8000-000000000721', 'loy-g1', 1);
+set local role service_role;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000721', true);
 
 select public.place_order(
   '00000000-0000-4000-8000-000000000721',

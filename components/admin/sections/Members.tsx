@@ -10,9 +10,13 @@ import {
   unsuspendAdminMemberAction,
   type AdminMemberMutationActionState,
 } from '@/app/admin/member-actions';
+import Link from 'next/link';
 import {
+  adminMembersHref,
   canModerateAdminMember,
+  MEMBER_STATUS_FILTERS,
   type AdminMemberDetail,
+  type AdminMemberFilters,
   type AdminMemberRole,
   type AdminMemberSummary,
 } from '@/lib/admin/members';
@@ -276,9 +280,11 @@ function MemberDetail({
 
 export function MembersSection({
   actor,
+  filters,
   initialMembers,
 }: {
   actor: { id: string; role: AdminMemberRole };
+  filters: AdminMemberFilters;
   initialMembers: AdminMemberSummary[];
 }) {
   const [searchState, searchAction, searchPending] = useActionState(searchAdminMembersAction, {
@@ -342,6 +348,35 @@ export function MembersSection({
         <InlineNotice state={searchState} />
       </form>
 
+      {/* 상태·등급 좁히기는 주소에 남는다 — 같은 화면을 다시 열거나 남에게 보낼 수 있어야 한다. */}
+      <div className="row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+        {MEMBER_STATUS_FILTERS.map((entry) => (
+          <Link
+            className={filters.status === entry.value ? 'btn btn-sm btn-holo' : 'btn btn-sm btn-ghost'}
+            href={adminMembersHref(filters, { status: entry.value })}
+            key={entry.value || 'all'}
+          >
+            {entry.label}
+          </Link>
+        ))}
+        <span className="faint" style={{ fontSize: 11, marginLeft: 10 }}>등급</span>
+        <Link
+          className={filters.grade ? 'btn btn-sm btn-ghost' : 'btn btn-sm btn-holo'}
+          href={adminMembersHref(filters, { grade: '' })}
+        >
+          전체
+        </Link>
+        {LOYALTY_GRADES.map((grade) => (
+          <Link
+            className={filters.grade === grade ? 'btn btn-sm btn-holo' : 'btn btn-sm btn-ghost'}
+            href={adminMembersHref(filters, { grade })}
+            key={grade}
+          >
+            {loyaltyGradeLabel(grade)}
+          </Link>
+        ))}
+      </div>
+
       <div className="col" style={{ gap: 8 }}>
         {searchState.members.map((member) => (
           <article key={member.id} className="card between" style={{ borderRadius: 10, flexWrap: 'wrap', gap: 12, padding: 14 }}>
@@ -349,10 +384,19 @@ export function MembersSection({
               <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
                 <strong style={{ fontSize: 15 }}>@{member.nickname}</strong>
                 <span className="tag">{member.role}</span>
+                <span className="tag">{isLoyaltyGrade(member.loyaltyGrade) ? loyaltyGradeLabel(member.loyaltyGrade) : member.loyaltyGrade}</span>
                 {member.suspendedAt && <span className="tag" style={{ color: 'var(--pink)' }}>정지</span>}
+                {/* 휴면은 법정 상태가 아니라 우리 정책의 상태다. 목록에서 바로 구분되어야 한다. */}
+                {member.dormantAt && <span className="tag" style={{ color: 'var(--faint)' }}>휴면</span>}
               </div>
               <span className="mono" style={{ fontSize: 12 }}>{member.maskedEmail}</span>
-              <span className="faint mono" style={{ fontSize: 11 }}>가입 {formatDate(member.createdAt)}</span>
+              <span className="faint mono" style={{ fontSize: 11 }}>
+                가입 {formatDate(member.createdAt)}
+                {member.orderCount > 0
+                  ? ` · 주문 ${member.orderCount}건 ${member.grossTotal.toLocaleString('ko-KR')}원`
+                  : ' · 구매 없음'}
+                {member.lastLoginAt ? ` · 최근 접속 ${formatDate(member.lastLoginAt)}` : ' · 접속 기록 없음'}
+              </span>
             </div>
             <form action={detailAction} onSubmit={() => setSelectedProfileId(member.id)}>
               <input name="profileId" type="hidden" value={member.id} />

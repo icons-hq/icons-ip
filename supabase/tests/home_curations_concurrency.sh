@@ -187,12 +187,11 @@ SQL
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '${actor_id}', true);"
   if [[ "$archive_mode" == "direct" ]]; then
-    # authenticated has no direct table UPDATE grant. service_role exercises the
-    # trigger-level invariant that protects every privileged/internal writer.
+    # authenticated has no direct table UPDATE grant, and this schema grants
+    # service_role no DML on public tables either (14 other tests assert that).
+    # Run as the session owner: what is under test is the trigger, not the caller.
     archive_statement="update public.ips set archived_at = pg_catalog.clock_timestamp() where id = '${ip_id}';"
-    archive_role_setup="set local role service_role;
-select set_config('request.jwt.claim.role', 'service_role', true);
-select set_config('request.jwt.claim.sub', '${actor_id}', true);"
+    archive_role_setup="select set_config('request.jwt.claim.sub', '${actor_id}', true);"
   fi
 
   docker exec -e PGAPPNAME="$archive_application" -i "$db_container" \

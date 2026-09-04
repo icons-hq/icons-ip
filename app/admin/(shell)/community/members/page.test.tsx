@@ -67,14 +67,15 @@ describe('AdminCommunityMembersPage', () => {
       isStaff: false,
     };
 
-    await expect(AdminCommunityMembersPage()).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(AdminCommunityMembersPage({ searchParams: Promise.resolve({}) })).rejects.toThrow('NEXT_NOT_FOUND');
     expect(mocks.members).not.toHaveBeenCalled();
   });
 
   it('빈 질의로 목록을 불러 세션 주체와 마스킹 목록을 전달한다', async () => {
-    const screen = await AdminCommunityMembersPage();
+    const screen = await AdminCommunityMembersPage({ searchParams: Promise.resolve({}) });
 
-    expect(mocks.members).toHaveBeenCalledWith('');
+    /* 필터도 함께 넘긴다 — 좁히기는 DB 가 하고 화면은 결과만 그린다. */
+    expect(mocks.members).toHaveBeenCalledWith('', { query: '', status: '', grade: '', minSpend: null });
     expect(screen.type).toBe(mocks.membersSection);
     expect(screen.props).toMatchObject({
       actor: { id: '11111111-1111-4111-8111-111111111111', role: 'staff' },
@@ -84,19 +85,20 @@ describe('AdminCommunityMembersPage', () => {
 
   /* key가 그대로면 정지 처리 후 revalidate가 와도 화면은 옛 목록을 계속 쓴다. */
   it('정지 상태가 바뀌면 화면 key가 바뀐다', async () => {
-    const before = await AdminCommunityMembersPage();
+    const before = await AdminCommunityMembersPage({ searchParams: Promise.resolve({}) });
 
     mocks.members.mockImplementation(async () => [
       { ...suspended, suspendedAt: '2026-07-16T00:00:00.000Z' },
     ]);
-    const after = await AdminCommunityMembersPage();
+    const after = await AdminCommunityMembersPage({ searchParams: Promise.resolve({}) });
 
-    expect(before.key).toBe(JSON.stringify([[suspended.id, 'user', null]]));
-    expect(after.key).toBe(JSON.stringify([[suspended.id, 'user', '2026-07-16T00:00:00.000Z']]));
+    const emptyFilters = { query: '', status: '', grade: '', minSpend: null };
+    expect(before.key).toBe(JSON.stringify([emptyFilters, [[suspended.id, 'user', null]]]));
+    expect(after.key).toBe(JSON.stringify([emptyFilters, [[suspended.id, 'user', '2026-07-16T00:00:00.000Z']]]));
   });
 
   it('다른 화면의 로더는 부르지 않는다', async () => {
-    await AdminCommunityMembersPage();
+    await AdminCommunityMembersPage({ searchParams: Promise.resolve({}) });
 
     expect(mocks.moderation).not.toHaveBeenCalled();
     expect(mocks.profiles).not.toHaveBeenCalled();

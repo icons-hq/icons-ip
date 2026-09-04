@@ -6,6 +6,7 @@ import {
   parseAdminMemberDetail,
   parseAdminMemberSummary,
   type AdminMemberDetail,
+  type AdminMemberFilters,
   type AdminMemberSummary,
 } from '@/lib/admin/members';
 import { createClient } from '@/lib/supabase/server';
@@ -16,10 +17,16 @@ async function requireStaffMemberAccess() {
   if (!auth.isStaff) notFound();
 }
 
-export async function getAdminMemberSummaries(query = ''): Promise<AdminMemberSummary[]> {
+export async function getAdminMemberSummaries(
+  query = '',
+  filters: Partial<AdminMemberFilters> = {},
+): Promise<AdminMemberSummary[]> {
   await requireStaffMemberAccess();
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('admin_search_members', {
+    p_grade: filters.grade || null,
+    p_min_spend: filters.minSpend ?? null,
+    p_status: filters.status || null,
     target_query: query || null,
   });
 

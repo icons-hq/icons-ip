@@ -54,6 +54,12 @@ const member: AdminMemberSummary = {
   role: 'user',
   createdAt: '2026-07-01T00:00:00.000Z',
   suspendedAt: null,
+  dormantAt: null,
+  lastLoginAt: null,
+  loyaltyGrade: 'welcome',
+  orderCount: 0,
+  grossTotal: 0,
+  lastOrderAt: null,
 };
 
 const grant: AdminDrawTicketGrantRecord = {
