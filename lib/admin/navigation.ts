@@ -148,7 +148,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     icon: 'settings',
     screens: [
       { id: 'shipping-settings', label: '출고지·배송 정책', href: '/admin/settings/shipping', status: 'ready' },
-      { id: 'export-templates', label: '엑셀 양식', href: '/admin/settings/exports', status: 'planned' },
+      { id: 'export-templates', label: '엑셀 양식', href: '/admin/settings/exports', status: 'ready' },
       { id: 'guide', label: '사용 가이드', href: '/admin/guide', status: 'ready' },
     ],
   },

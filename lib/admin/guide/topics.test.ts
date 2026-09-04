@@ -46,8 +46,8 @@ function referencedHrefs(topic: AdminGuideTopic): string[] {
 }
 
 describe('어드민 가이드 레지스트리', () => {
-  it('순서 배열과 레코드가 같은 15개 주제를 가리킨다', () => {
-    expect(ADMIN_GUIDE_TOPIC_SLUGS).toHaveLength(15);
+  it('순서 배열과 레코드가 같은 16개 주제를 가리킨다', () => {
+    expect(ADMIN_GUIDE_TOPIC_SLUGS).toHaveLength(16);
     expect(new Set(ADMIN_GUIDE_TOPIC_SLUGS).size).toBe(ADMIN_GUIDE_TOPIC_SLUGS.length);
     expect([...ADMIN_GUIDE_TOPIC_SLUGS].sort()).toEqual(Object.keys(ADMIN_GUIDE_TOPICS).sort());
 

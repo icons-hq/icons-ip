@@ -14,6 +14,7 @@ export type AdminGuideTopicSlug =
   | 'goods-sales'
   | 'variants-inventory'
   | 'categories-sale'
+  | 'exports'
   | 'orders-shipping'
   | 'bank-transfer'
   | 'claims'
