@@ -244,7 +244,7 @@
 - **성능**: 공개 카탈로그는 캐시 가능(SSR/정적). LCP 목표 양호 수준, 이미지 최적화.
 - **가용성/관측성**: 결제·카드 발급·티켓 트랜잭션 로깅, 실패 알림.
 - **접근성/반응형**: 모바일 우선(가로 탭 GNB·하단 탭 바·바텀시트), 데스크톱 3단 헤더. 한국어 기본.
-- **디자인 일관성**: 공개 표면은 "White Catalog"(ADR-0011, 루트 `DESIGN.md`·`app/styles/wc-*.css`). 어드민은 기존 콘솔 어휘(`app/styles/editorial-*`의 라이트 콘솔 + `app/globals.css`의 Holographic Midnight 유산 밑층)를 유지한다.
+- **디자인 일관성**: 공개 표면은 "White Catalog"(ADR-0011, 루트 `DESIGN.md`·`app/styles/wc-*.css`). 어드민은 2026-09 운영 콘솔 재설계([ADR-0014](./adr/0014-admin-console-redesign.md))로 White Catalog에 편입하며, 미전환 화면만 기존 콘솔 어휘(`app/styles/editorial-*`의 라이트 콘솔 + `app/globals.css`의 Holographic Midnight 유산 밑층)를 유지한다.
 
 ---
 
