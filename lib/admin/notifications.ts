@@ -59,6 +59,8 @@ export interface AdminNotificationActionState {
   message?: string;
   recipientCount?: number;
   nextOperationId?: string;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. `SeededForm` 이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
 }
 
 export interface AdminNotificationAudienceRow {

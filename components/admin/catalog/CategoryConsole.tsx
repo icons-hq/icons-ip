@@ -30,6 +30,7 @@ import type { AdminCategoryGoodRow } from '@/lib/admin/categories.server';
 import { Icon } from '@/components/ui/Icon';
 import { CatalogEditorHeader } from './CatalogEditorHeader';
 import { Field, FormShell, InlineNotice, SelectField, TextArea } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 /*
  * 분류 관리 (설계서 v2 §1-2).
@@ -52,7 +53,7 @@ function CategoryTree({
   const flat = flattenCategoryTree(tree);
 
   return (
-    <form action={action} className="col" style={{ gap: 8, minWidth: 0 }}>
+    <SeededForm values={state.values} action={action} className="col" style={{ gap: 8, minWidth: 0 }}>
       <InlineNotice state={state} />
       <ul className="admin-category-tree">
         {flat.map((node) => {
@@ -97,7 +98,7 @@ function CategoryTree({
         })}
         {flat.length === 0 ? <li className="muted" style={{ padding: 12 }}>분류가 없습니다. 「새 분류」로 첫 분류를 만드세요.</li> : null}
       </ul>
-    </form>
+    </SeededForm>
   );
 }
 
@@ -116,7 +117,7 @@ function CategoryForm({
   const parents = categoryParentOptions(categories, selected?.id ?? null);
 
   return (
-    <form action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+    <SeededForm values={state.values} action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
       <input name="previousId" type="hidden" value={selected?.id ?? ''} />
       <div className="admin-form-grid">
         <Field
@@ -185,7 +186,7 @@ function CategoryForm({
         </label>
       </div>
       <FormShell pending={pending} state={state} />
-    </form>
+    </SeededForm>
   );
 }
 
@@ -195,7 +196,7 @@ function CategoryMoveForm({ categories, selected }: { categories: readonly Admin
   if (selected.kind !== 'catalog') return null;
 
   return (
-    <form action={action} className="card col" style={{ borderRadius: 10, gap: 10, padding: 16 }}>
+    <SeededForm values={state.values} action={action} className="card col" style={{ borderRadius: 10, gap: 10, padding: 16 }}>
       <h3 style={{ fontSize: 15, margin: 0 }}>상위 분류 옮기기</h3>
       <input name="id" type="hidden" value={selected.id} />
       <div className="admin-form-grid">
@@ -214,7 +215,7 @@ function CategoryMoveForm({ categories, selected }: { categories: readonly Admin
       <button className="btn btn-holo" disabled={pending} style={{ justifySelf: 'start', minWidth: 140 }}>
         <Icon name="check" size={15} /> {pending ? '옮기는 중' : '옮기기'}
       </button>
-    </form>
+    </SeededForm>
   );
 }
 
@@ -222,7 +223,7 @@ function CategoryArchiveForm({ selected }: { selected: AdminCategory }) {
   const [state, action, pending] = useActionState(archiveCategoryAction, emptyState);
   const archived = selected.archivedAt !== null;
   return (
-    <form action={action} className="card row" style={{ alignItems: 'center', borderRadius: 10, gap: 12, padding: 16 }}>
+    <SeededForm values={state.values} action={action} className="card row" style={{ alignItems: 'center', borderRadius: 10, gap: 12, padding: 16 }}>
       <input name="id" type="hidden" value={selected.id} />
       <input name="archived" type="hidden" value={archived ? 'false' : 'true'} />
       <span className="muted" style={{ fontSize: 12 }}>
@@ -232,7 +233,7 @@ function CategoryArchiveForm({ selected }: { selected: AdminCategory }) {
       <button className="btn btn-sm btn-ghost" disabled={pending} style={{ marginLeft: 'auto' }}>
         {archived ? '보관 복원' : '분류 보관'}
       </button>
-    </form>
+    </SeededForm>
   );
 }
 
@@ -251,7 +252,7 @@ function CategoryGoodsPanel({ categoryId, goods, manual }: { categoryId: string;
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
         고정 핀이 가장 앞이고, 그다음 이 분류에 직접 속한 상품, 그다음 하위 분류에서 올라온 상품입니다. 품절은 설정에 따라 맨 뒤로 갑니다.
       </p>
-      <form action={action}>
+      <SeededForm values={state.values} action={action}>
         <input name="categoryId" type="hidden" value={categoryId} />
         <input name="orderedGoodIds" type="hidden" value={direct.join(',')} />
         <input name="pinnedGoodIds" type="hidden" value={pinned.join(',')} />
@@ -302,9 +303,9 @@ function CategoryGoodsPanel({ categoryId, goods, manual }: { categoryId: string;
           </table>
         </div>
         <InlineNotice state={state} />
-      </form>
+      </SeededForm>
 
-      <form action={windowAction} className="col" style={{ gap: 10 }}>
+      <SeededForm values={windowState.values} action={windowAction} className="col" style={{ gap: 10 }}>
         <h3 style={{ fontSize: 14, margin: 0 }}>진열 기간 지정</h3>
         <input name="categoryId" type="hidden" value={categoryId} />
         <div className="admin-form-grid">
@@ -320,7 +321,7 @@ function CategoryGoodsPanel({ categoryId, goods, manual }: { categoryId: string;
         <button className="btn btn-holo" disabled={windowPending || direct.length === 0} style={{ justifySelf: 'start', minWidth: 140 }}>
           <Icon name="check" size={15} /> {windowPending ? '저장 중' : '진열 기간 저장'}
         </button>
-      </form>
+      </SeededForm>
     </section>
   );
 }

@@ -7,6 +7,7 @@ import {
   type AdminReviewActionState,
 } from '@/app/admin/review-actions';
 import type { AdminReviewRow } from '@/lib/admin/reviews';
+import { SeededForm } from '@/components/admin/form-seed';
 
 /* 리뷰 한 건의 처리 패널(#254).
  *
@@ -55,7 +56,7 @@ export function ReviewActionPanel({ review }: { review: AdminReviewRow }) {
       </summary>
 
       <div className="col" style={{ gap: 12, marginTop: 10 }}>
-        <form action={replyAction} className="col" style={{ gap: 6 }}>
+        <SeededForm values={replyState.values} action={replyAction} className="col" style={{ gap: 6 }}>
           <input name="reviewId" type="hidden" value={review.id} />
           <label className="admin-console-filter-label" htmlFor={`review-reply-${review.id}`}>
             운영자 답글 (공개 표시)
@@ -74,10 +75,10 @@ export function ReviewActionPanel({ review }: { review: AdminReviewRow }) {
             </button>
           </div>
           <Feedback state={replyState} />
-        </form>
+        </SeededForm>
 
         {hidden ? (
-          <form
+          <SeededForm values={statusState.values}
             action={statusAction}
             className="col"
             onSubmit={(event) => {
@@ -94,9 +95,9 @@ export function ReviewActionPanel({ review }: { review: AdminReviewRow }) {
               {statusPending ? '처리 중' : '블라인드 해제'}
             </button>
             <Feedback state={statusState} />
-          </form>
+          </SeededForm>
         ) : (
-          <form
+          <SeededForm values={statusState.values}
             action={statusAction}
             className="col"
             onSubmit={(event) => {
@@ -121,7 +122,7 @@ export function ReviewActionPanel({ review }: { review: AdminReviewRow }) {
               {statusPending ? '처리 중' : '블라인드'}
             </button>
             <Feedback state={statusState} />
-          </form>
+          </SeededForm>
         )}
       </div>
     </details>

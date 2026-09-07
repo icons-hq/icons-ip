@@ -7,6 +7,7 @@ import {
   type AdminQnaActionState,
 } from '@/app/admin/qna-actions';
 import type { AdminProductQuestionRow } from '@/lib/admin/product-questions';
+import { SeededForm } from '@/components/admin/form-seed';
 
 /* 상품 Q&A 한 건의 처리 패널 (S8 #330).
  *
@@ -62,7 +63,7 @@ export function QnaActionPanel({ question }: { question: AdminProductQuestionRow
       </summary>
 
       <div className="col" style={{ gap: 12, marginTop: 10 }}>
-        <form action={answerAction} className="col" style={{ gap: 6 }}>
+        <SeededForm values={answerState.values} action={answerAction} className="col" style={{ gap: 6 }}>
           <input name="questionId" type="hidden" value={question.id} />
           <label className="admin-console-filter-label" htmlFor={`qna-answer-${question.id}`}>
             운영자 답변 (굿즈 상세에 공개)
@@ -81,9 +82,9 @@ export function QnaActionPanel({ question }: { question: AdminProductQuestionRow
             </button>
           </div>
           <Feedback state={answerState} />
-        </form>
+        </SeededForm>
 
-        <form
+        <SeededForm values={visibilityState.values}
           action={visibilityAction}
           className="col"
           onSubmit={(event) => {
@@ -98,7 +99,7 @@ export function QnaActionPanel({ question }: { question: AdminProductQuestionRow
             {visibilityPending ? '처리 중' : question.hidden ? '비노출 해제' : '비노출'}
           </button>
           <Feedback state={visibilityState} />
-        </form>
+        </SeededForm>
       </div>
     </details>
   );

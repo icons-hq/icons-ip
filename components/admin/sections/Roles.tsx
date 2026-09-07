@@ -6,6 +6,7 @@ import { ADMIN_ASSIGNABLE_ROLES } from '@/lib/admin/roles';
 import type { AdminProfileRecord } from '@/lib/admin/roles.server';
 import { Icon } from '@/components/ui/Icon';
 import { InlineNotice } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 const emptyState: AdminCatalogActionState = {};
 
@@ -17,7 +18,7 @@ function UserRoleForm({ profile, isSelf }: { profile: AdminProfileRecord; isSelf
   }
 
   return (
-    <form action={action} className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+    <SeededForm values={state.values} action={action} className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
       <input name="profileId" type="hidden" value={profile.id} />
       <select
         defaultValue={profile.role}
@@ -42,7 +43,7 @@ function UserRoleForm({ profile, isSelf }: { profile: AdminProfileRecord; isSelf
         <Icon name="check" size={14} /> {pending ? '저장 중' : '역할 저장'}
       </button>
       <InlineNotice state={state} />
-    </form>
+    </SeededForm>
   );
 }
 

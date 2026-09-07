@@ -11,6 +11,7 @@ import {
 import { estimateAdminNotificationAudience } from '@/lib/admin/notifications.server';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 interface SendNotificationRow {
   recipient_count: number | string;
@@ -40,10 +41,13 @@ function actualRecipientCount(data: unknown) {
   return Number.isSafeInteger(count) && count > 0 ? count : null;
 }
 
-export async function sendAdminNotificationAction(
-  _state: AdminNotificationActionState,
-  formData: FormData,
-): Promise<AdminNotificationActionState> {
+export async function sendAdminNotificationAction(_state: AdminNotificationActionState,
+  formData: FormData,): Promise<AdminNotificationActionState> {
+  return preserveValues(formData, () => run_sendAdminNotificationAction(_state, formData));
+}
+
+async function run_sendAdminNotificationAction(_state: AdminNotificationActionState,
+  formData: FormData,): Promise<AdminNotificationActionState> {
   const authError = await requireStaffAction();
   if (authError) return authError;
 

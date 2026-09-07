@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { normalizeAdminCouponForm } from '@/lib/admin/coupons';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 /* 쿠폰 콘솔 저장 액션 (S7 #329).
  * 검증·감사·코드 불변 계약은 admin_upsert_coupon(security definer)이 진실원이고,
@@ -13,6 +14,8 @@ import { createClient } from '@/lib/supabase/server';
 export interface AdminCouponActionState {
   errors?: Record<string, string> & { form?: string };
   message?: string;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. `SeededForm` 이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
 }
 
 async function requireStaffAction(): Promise<AdminCouponActionState | null> {
@@ -36,10 +39,13 @@ function couponWriteIntentFailure(message: string): AdminCouponActionState | nul
   return null;
 }
 
-export async function upsertAdminCouponAction(
-  _state: AdminCouponActionState,
-  formData: FormData,
-): Promise<AdminCouponActionState> {
+export async function upsertAdminCouponAction(_state: AdminCouponActionState,
+  formData: FormData,): Promise<AdminCouponActionState> {
+  return preserveValues(formData, () => run_upsertAdminCouponAction(_state, formData));
+}
+
+async function run_upsertAdminCouponAction(_state: AdminCouponActionState,
+  formData: FormData,): Promise<AdminCouponActionState> {
   const authError = await requireStaffAction();
   if (authError) return authError;
 

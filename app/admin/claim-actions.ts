@@ -15,6 +15,7 @@ import { isOrderClaimType, type OrderClaimType } from '@/lib/orders/claims';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
 import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recovery.server';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 /* 어드민 클레임 콘솔 액션(#252).
  *
@@ -27,6 +28,8 @@ import { createClient } from '@/lib/supabase/server';
 export interface AdminClaimActionState {
   error?: string;
   message?: string;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. `SeededForm` 이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
 }
 
 const DECIDE_FAILED = '클레임을 처리하지 못했습니다. 최신 상태를 확인해주세요.';
@@ -103,10 +106,13 @@ function readClaimType(formData: FormData): OrderClaimType | undefined {
   return isOrderClaimType(value) ? value : undefined;
 }
 
-export async function decideOrderClaimAction(
-  _state: AdminClaimActionState,
-  formData: FormData,
-): Promise<AdminClaimActionState> {
+export async function decideOrderClaimAction(_state: AdminClaimActionState,
+  formData: FormData,): Promise<AdminClaimActionState> {
+  return preserveValues(formData, () => run_decideOrderClaimAction(_state, formData));
+}
+
+async function run_decideOrderClaimAction(_state: AdminClaimActionState,
+  formData: FormData,): Promise<AdminClaimActionState> {
   const access = await requireStaffAction();
   if (access.error) return access.error;
 
@@ -125,10 +131,13 @@ export async function decideOrderClaimAction(
   return { message: DECISION_MESSAGES[normalized.value.decision] ?? '클레임을 처리했습니다.' };
 }
 
-export async function recordOrderClaimCollectionAction(
-  _state: AdminClaimActionState,
-  formData: FormData,
-): Promise<AdminClaimActionState> {
+export async function recordOrderClaimCollectionAction(_state: AdminClaimActionState,
+  formData: FormData,): Promise<AdminClaimActionState> {
+  return preserveValues(formData, () => run_recordOrderClaimCollectionAction(_state, formData));
+}
+
+async function run_recordOrderClaimCollectionAction(_state: AdminClaimActionState,
+  formData: FormData,): Promise<AdminClaimActionState> {
   const access = await requireStaffAction();
   if (access.error) return access.error;
 
@@ -223,10 +232,13 @@ async function finalizeClaimPayment(
   }
 }
 
-export async function recordOrderClaimRefundAction(
-  _state: AdminClaimActionState,
-  formData: FormData,
-): Promise<AdminClaimActionState> {
+export async function recordOrderClaimRefundAction(_state: AdminClaimActionState,
+  formData: FormData,): Promise<AdminClaimActionState> {
+  return preserveValues(formData, () => run_recordOrderClaimRefundAction(_state, formData));
+}
+
+async function run_recordOrderClaimRefundAction(_state: AdminClaimActionState,
+  formData: FormData,): Promise<AdminClaimActionState> {
   const access = await requireStaffAction();
   if (access.error || !access.userId) return access.error ?? { error: REFUND_FAILED };
 
@@ -288,10 +300,13 @@ export async function recordOrderClaimRefundAction(
   };
 }
 
-export async function recordOrderClaimReshipmentAction(
-  _state: AdminClaimActionState,
-  formData: FormData,
-): Promise<AdminClaimActionState> {
+export async function recordOrderClaimReshipmentAction(_state: AdminClaimActionState,
+  formData: FormData,): Promise<AdminClaimActionState> {
+  return preserveValues(formData, () => run_recordOrderClaimReshipmentAction(_state, formData));
+}
+
+async function run_recordOrderClaimReshipmentAction(_state: AdminClaimActionState,
+  formData: FormData,): Promise<AdminClaimActionState> {
   const access = await requireStaffAction();
   if (access.error) return access.error;
 
@@ -331,10 +346,13 @@ function inspectionErrorMessage(raw: string) {
   return '검수를 기록하지 못했습니다.';
 }
 
-export async function approveClaimRefundAction(
-  _state: AdminClaimActionState,
-  formData: FormData,
-): Promise<AdminClaimActionState> {
+export async function approveClaimRefundAction(_state: AdminClaimActionState,
+  formData: FormData,): Promise<AdminClaimActionState> {
+  return preserveValues(formData, () => run_approveClaimRefundAction(_state, formData));
+}
+
+async function run_approveClaimRefundAction(_state: AdminClaimActionState,
+  formData: FormData,): Promise<AdminClaimActionState> {
   const access = await requireStaffAction();
   if (access.error) return access.error;
 
@@ -353,10 +371,13 @@ export async function approveClaimRefundAction(
   return { message: '환불을 승인했습니다. 결제 취소 처리를 시작합니다.' };
 }
 
-export async function recordClaimInspectionAction(
-  _state: AdminClaimActionState,
-  formData: FormData,
-): Promise<AdminClaimActionState> {
+export async function recordClaimInspectionAction(_state: AdminClaimActionState,
+  formData: FormData,): Promise<AdminClaimActionState> {
+  return preserveValues(formData, () => run_recordClaimInspectionAction(_state, formData));
+}
+
+async function run_recordClaimInspectionAction(_state: AdminClaimActionState,
+  formData: FormData,): Promise<AdminClaimActionState> {
   const access = await requireStaffAction();
   if (access.error) return access.error;
 

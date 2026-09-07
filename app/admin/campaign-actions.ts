@@ -8,6 +8,7 @@ import {
 } from '@/lib/admin/campaigns';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 /* 캠페인·카드팩 교환처 저장 액션 (S8 #330).
  *
@@ -19,6 +20,8 @@ import { createClient } from '@/lib/supabase/server';
 export interface AdminCampaignActionState {
   errors?: Record<string, string> & { form?: string };
   message?: string;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. `SeededForm` 이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
 }
 
 const CAMPAIGNS_PATH = '/admin/display/campaigns';
@@ -100,10 +103,13 @@ function campaignWriteFailure(
   return null;
 }
 
-export async function upsertAdminCampaignAction(
-  _state: AdminCampaignActionState,
-  formData: FormData,
-): Promise<AdminCampaignActionState> {
+export async function upsertAdminCampaignAction(_state: AdminCampaignActionState,
+  formData: FormData,): Promise<AdminCampaignActionState> {
+  return preserveValues(formData, () => run_upsertAdminCampaignAction(_state, formData));
+}
+
+async function run_upsertAdminCampaignAction(_state: AdminCampaignActionState,
+  formData: FormData,): Promise<AdminCampaignActionState> {
   const denied = await requireStaffAction();
   if (denied) return denied;
 
@@ -161,10 +167,13 @@ function offerWriteFailure(message: string): AdminCampaignActionState | null {
   return null;
 }
 
-export async function upsertAdminCoinExchangeOfferAction(
-  _state: AdminCampaignActionState,
-  formData: FormData,
-): Promise<AdminCampaignActionState> {
+export async function upsertAdminCoinExchangeOfferAction(_state: AdminCampaignActionState,
+  formData: FormData,): Promise<AdminCampaignActionState> {
+  return preserveValues(formData, () => run_upsertAdminCoinExchangeOfferAction(_state, formData));
+}
+
+async function run_upsertAdminCoinExchangeOfferAction(_state: AdminCampaignActionState,
+  formData: FormData,): Promise<AdminCampaignActionState> {
   const denied = await requireStaffAction();
   if (denied) return denied;
 

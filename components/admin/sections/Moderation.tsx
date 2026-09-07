@@ -12,6 +12,7 @@ import type { AdminReportRecord } from '@/lib/admin/moderation.server';
 import type { CommunityReportStatus } from '@/lib/community';
 import { Icon } from '@/components/ui/Icon';
 import { InlineNotice } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 const emptyState: AdminCatalogActionState = {};
 const reportStatuses: CommunityReportStatus[] = ['open', 'reviewing', 'resolved', 'dismissed'];
@@ -34,7 +35,7 @@ function ReportStatusForm({ report }: { report: AdminReportRecord }) {
   const [state, action, pending] = useActionState(updateCommunityReportStatusAction, emptyState);
 
   return (
-    <form action={action} className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+    <SeededForm values={state.values} action={action} className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
       <input name="reportId" type="hidden" value={report.id} />
       <select
         aria-label={`${reportTargetLabels[report.targetType]} 신고 상태`}
@@ -62,7 +63,7 @@ function ReportStatusForm({ report }: { report: AdminReportRecord }) {
         <Icon name="check" size={14} /> {pending ? '저장 중' : '상태 저장'}
       </button>
       <InlineNotice state={state} />
-    </form>
+    </SeededForm>
   );
 }
 
@@ -71,14 +72,14 @@ function HidePostForm({ report }: { report: AdminReportRecord }) {
   if (!report.targetPostId) return null;
 
   return (
-    <form action={action} className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+    <SeededForm values={state.values} action={action} className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
       <input name="reportId" type="hidden" value={report.id} />
       <input name="postId" type="hidden" value={report.targetPostId} />
       <button className="btn btn-sm admin-field-control" disabled={pending} style={{ minHeight: 44 }}>
         <Icon name="shield" size={14} /> {pending ? '처리 중' : '포스트 숨김'}
       </button>
       <InlineNotice state={state} />
-    </form>
+    </SeededForm>
   );
 }
 
@@ -89,7 +90,7 @@ function HideCommentForm({ report }: { report: AdminReportRecord }) {
   const hidden = report.targetCommentStatus === 'hidden';
 
   return (
-    <form
+    <SeededForm values={state.values}
       action={action}
       className="row"
       onSubmit={confirmCommunityCommentHide}
@@ -101,7 +102,7 @@ function HideCommentForm({ report }: { report: AdminReportRecord }) {
         <Icon name="shield" size={14} /> {hidden ? '숨김 처리됨' : pending ? '처리 중' : '댓글 숨김'}
       </button>
       <InlineNotice state={state} />
-    </form>
+    </SeededForm>
   );
 }
 

@@ -9,6 +9,7 @@ import {
   ADMIN_DISPATCH_DELAY_REASON_MAX,
   type AdminDispatchDelayNote,
 } from '@/lib/admin/dispatch';
+import { SeededForm } from '@/components/admin/form-seed';
 
 const EMPTY_ACTION_STATE: AdminOrderActionState = {};
 
@@ -40,7 +41,7 @@ export function DispatchDelayNoteForm({
   const fieldError = state.errors?.reason ?? state.errors?.expectedShipDate ?? state.errors?.form;
 
   return (
-    <form action={action} className="admin-console-row-form">
+    <SeededForm values={state.values} action={action} className="admin-console-row-form">
       <input name="orderId" type="hidden" value={orderId} />
       <input
         aria-label={`주문 ${reference} 지연 사유`}
@@ -65,6 +66,6 @@ export function DispatchDelayNoteForm({
         {fieldError ? <span role="alert">{fieldError}</span> : null}
         {state.message ? <span role="status">{state.message}</span> : null}
       </div>
-    </form>
+    </SeededForm>
   );
 }

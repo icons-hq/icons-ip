@@ -15,6 +15,7 @@ import {
   type AdminCampaignRecord,
 } from '@/lib/admin/campaigns';
 import { ErrorText, Field, FormShell, RecordList, SelectField, TextArea } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 /*
  * 캠페인 콘솔 (S8 #330).
@@ -116,7 +117,7 @@ function CampaignEditor({
   const sectionsMessage = sectionsError ?? state.errors?.sections;
 
   return (
-    <form
+    <SeededForm values={state.values}
       action={action}
       className="card col"
       onSubmit={(event) => {
@@ -244,7 +245,7 @@ function CampaignEditor({
         </p>
       )}
       <FormShell pending={pending} state={state} />
-    </form>
+    </SeededForm>
   );
 }
 

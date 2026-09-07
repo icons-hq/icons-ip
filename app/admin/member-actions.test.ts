@@ -102,9 +102,13 @@ describe('admin member actions', () => {
       members: [],
       query: '',
       errors: { form: '관리자 권한이 필요합니다.' },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
     await expect(suspendAdminMemberAction({}, form())).resolves.toEqual({
       errors: { form: '관리자 권한이 필요합니다.' },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
     expect(mocks.getSummaries).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
@@ -126,6 +130,8 @@ describe('admin member actions', () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'cannot_suspend_admin: private detail' } });
     await expect(suspendAdminMemberAction({}, form())).resolves.toEqual({
       errors: { form: '본인 또는 admin 계정은 정지할 수 없습니다.' },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
@@ -152,6 +158,8 @@ describe('admin member actions', () => {
     }, form())).resolves.toEqual({
       member: null,
       errors: { form: '회원 상세를 불러오지 못했습니다. 다시 시도해주세요.' },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
   });
 
@@ -162,6 +170,8 @@ describe('admin member actions', () => {
       members: [],
       query: 'fan',
       errors: { form: '회원을 검색하지 못했습니다. 다시 시도해주세요.' },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
   });
 });

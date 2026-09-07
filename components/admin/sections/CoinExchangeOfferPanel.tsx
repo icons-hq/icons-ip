@@ -13,6 +13,7 @@ import {
 import type { AdminCardPoolRecord } from '@/lib/admin/catalog.server';
 import { Icon } from '@/components/ui/Icon';
 import { Field, InlineNotice, SelectField } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 /*
  * 카드팩 교환처 패널 (S8 #330).
@@ -109,7 +110,7 @@ export function CoinExchangeOfferPanel({
         ))}
       </ul>
 
-      <form action={action} className="col" key={selected ? `${selected.id}:${selected.updatedAt}` : 'new-offer'} style={{ gap: 12 }}>
+      <SeededForm values={state.values} action={action} className="col" key={selected ? `${selected.id}:${selected.updatedAt}` : 'new-offer'} style={{ gap: 12 }}>
         <input name="offerId" type="hidden" value={selected?.id ?? ''} />
         <div className="admin-form-grid">
           <SelectField
@@ -181,7 +182,7 @@ export function CoinExchangeOfferPanel({
           )}
           <InlineNotice state={state} />
         </div>
-      </form>
+      </SeededForm>
     </section>
   );
 }

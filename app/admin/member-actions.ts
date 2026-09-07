@@ -13,21 +13,28 @@ import {
 import { getAdminMemberDetail, getAdminMemberSummaries } from '@/lib/admin/members.server';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 export interface AdminMemberSearchActionState {
   members: AdminMemberSummary[];
   query: string;
   errors?: Record<string, string>;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. `SeededForm` 이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
 }
 
 export interface AdminMemberDetailActionState {
   member: AdminMemberDetail | null;
   errors?: Record<string, string>;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. `SeededForm` 이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
 }
 
 export interface AdminMemberMutationActionState {
   errors?: Record<string, string>;
   message?: string;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. `SeededForm` 이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
 }
 
 async function requireStaffAction(): Promise<AdminMemberMutationActionState | null> {
@@ -37,10 +44,13 @@ async function requireStaffAction(): Promise<AdminMemberMutationActionState | nu
   return null;
 }
 
-export async function searchAdminMembersAction(
-  state: AdminMemberSearchActionState,
-  formData: FormData,
-): Promise<AdminMemberSearchActionState> {
+export async function searchAdminMembersAction(state: AdminMemberSearchActionState,
+  formData: FormData,): Promise<AdminMemberSearchActionState> {
+  return preserveValues(formData, () => run_searchAdminMembersAction(state, formData));
+}
+
+async function run_searchAdminMembersAction(state: AdminMemberSearchActionState,
+  formData: FormData,): Promise<AdminMemberSearchActionState> {
   const authError = await requireStaffAction();
   if (authError) return { members: [], query: state.query, errors: authError.errors };
 
@@ -60,6 +70,13 @@ export async function searchAdminMembersAction(
 }
 
 export async function loadAdminMemberDetailAction(
+  state: AdminMemberDetailActionState,
+  formData: FormData,
+): Promise<AdminMemberDetailActionState> {
+  return preserveValues(formData, () => run_loadAdminMemberDetailAction(state, formData));
+}
+
+async function run_loadAdminMemberDetailAction(
   state: AdminMemberDetailActionState,
   formData: FormData,
 ): Promise<AdminMemberDetailActionState> {
@@ -93,10 +110,13 @@ function suspensionRpcError(message: string): string {
   return '회원 제재 상태를 변경하지 못했습니다. 최신 상태를 확인한 뒤 다시 시도해주세요.';
 }
 
-export async function suspendAdminMemberAction(
-  _state: AdminMemberMutationActionState,
-  formData: FormData,
-): Promise<AdminMemberMutationActionState> {
+export async function suspendAdminMemberAction(_state: AdminMemberMutationActionState,
+  formData: FormData,): Promise<AdminMemberMutationActionState> {
+  return preserveValues(formData, () => run_suspendAdminMemberAction(_state, formData));
+}
+
+async function run_suspendAdminMemberAction(_state: AdminMemberMutationActionState,
+  formData: FormData,): Promise<AdminMemberMutationActionState> {
   const authError = await requireStaffAction();
   if (authError) return authError;
 
@@ -114,10 +134,13 @@ export async function suspendAdminMemberAction(
   return { message: '회원을 정지했습니다.' };
 }
 
-export async function unsuspendAdminMemberAction(
-  _state: AdminMemberMutationActionState,
-  formData: FormData,
-): Promise<AdminMemberMutationActionState> {
+export async function unsuspendAdminMemberAction(_state: AdminMemberMutationActionState,
+  formData: FormData,): Promise<AdminMemberMutationActionState> {
+  return preserveValues(formData, () => run_unsuspendAdminMemberAction(_state, formData));
+}
+
+async function run_unsuspendAdminMemberAction(_state: AdminMemberMutationActionState,
+  formData: FormData,): Promise<AdminMemberMutationActionState> {
   const authError = await requireStaffAction();
   if (authError) return authError;
 
@@ -138,10 +161,13 @@ export async function unsuspendAdminMemberAction(
 /* 회원 등급 수동 보정 (S7 #329). 감사 이력(loyalty_grade_events·audit_log)은
    admin_adjust_loyalty_grade RPC 가 남기고, 승급이면 등급 혜택 쿠폰까지 같은
    경로로 발급된다. */
-export async function adjustMemberLoyaltyAction(
-  _state: AdminMemberMutationActionState,
-  formData: FormData,
-): Promise<AdminMemberMutationActionState> {
+export async function adjustMemberLoyaltyAction(_state: AdminMemberMutationActionState,
+  formData: FormData,): Promise<AdminMemberMutationActionState> {
+  return preserveValues(formData, () => run_adjustMemberLoyaltyAction(_state, formData));
+}
+
+async function run_adjustMemberLoyaltyAction(_state: AdminMemberMutationActionState,
+  formData: FormData,): Promise<AdminMemberMutationActionState> {
   const authError = await requireStaffAction();
   if (authError) return authError;
 
@@ -164,6 +190,13 @@ export async function adjustMemberLoyaltyAction(
 
 /* 결제 트리거가 삼킨 재산정 실패를 사람 손으로 따라잡는 복구 경로. */
 export async function recalculateMemberLoyaltyAction(
+  _state: AdminMemberMutationActionState,
+  formData: FormData,
+): Promise<AdminMemberMutationActionState> {
+  return preserveValues(formData, () => run_recalculateMemberLoyaltyAction(_state, formData));
+}
+
+async function run_recalculateMemberLoyaltyAction(
   _state: AdminMemberMutationActionState,
   formData: FormData,
 ): Promise<AdminMemberMutationActionState> {

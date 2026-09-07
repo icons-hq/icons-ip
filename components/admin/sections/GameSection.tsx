@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { SeededForm } from '@/components/admin/form-seed';
 import {
   endAdminGameAction,
   upsertAdminGameAction,
@@ -171,7 +172,7 @@ function GameForm({
   const lockReasonId = selected ? `game-lock-reason-${selected.id}` : undefined;
 
   return (
-    <form
+    <SeededForm values={state.values}
       action={action}
       className="card col"
       onReset={(event) => event.preventDefault()}
@@ -301,7 +302,7 @@ function GameForm({
         </p>
       ) : null}
       <FormShell disabled={noEligiblePool} pending={pending} state={state} />
-    </form>
+    </SeededForm>
   );
 }
 
@@ -389,7 +390,7 @@ function EndGameForm({ gameId, operationId }: { gameId: string; operationId: str
   const descriptionId = `end-game-description-${gameId}`;
 
   return (
-    <form
+    <SeededForm values={state.values}
       action={action}
       aria-labelledby={`end-game-title-${gameId}`}
       className="card col"
@@ -412,6 +413,6 @@ function EndGameForm({ gameId, operationId }: { gameId: string; operationId: str
       >
         {pending ? '종료 중' : '지금 종료'}
       </button>
-    </form>
+    </SeededForm>
   );
 }

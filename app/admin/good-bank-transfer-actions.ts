@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 /*
  * 굿즈 무통장 토글(#256).
@@ -17,12 +18,17 @@ import { createClient } from '@/lib/supabase/server';
 export interface AdminGoodBankTransferActionState {
   error?: string;
   message?: string;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. `SeededForm` 이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
 }
 
-export async function setGoodBankTransferAction(
-  _state: AdminGoodBankTransferActionState,
-  formData: FormData,
-): Promise<AdminGoodBankTransferActionState> {
+export async function setGoodBankTransferAction(_state: AdminGoodBankTransferActionState,
+  formData: FormData,): Promise<AdminGoodBankTransferActionState> {
+  return preserveValues(formData, () => run_setGoodBankTransferAction(_state, formData));
+}
+
+async function run_setGoodBankTransferAction(_state: AdminGoodBankTransferActionState,
+  formData: FormData,): Promise<AdminGoodBankTransferActionState> {
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user) redirect('/login?next=%2Fadmin');
   if (!auth.isStaff) return { error: '관리자 권한이 필요합니다.' };

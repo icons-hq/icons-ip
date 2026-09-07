@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 /* 증빙 액션 — 현금영수증 · 세금계산서 (D-3). */
 
@@ -11,6 +12,8 @@ const RECEIPTS_PATH = '/admin/sales/receipts';
 export interface AdminReceiptActionState {
   error?: string;
   message?: string;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. `SeededForm` 이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
 }
 
 async function requireStaff(): Promise<AdminReceiptActionState | null> {
@@ -33,10 +36,13 @@ function receiptErrorMessage(raw: string) {
   return '처리하지 못했습니다. 최신 상태를 확인해주세요.';
 }
 
-export async function requestCashReceiptAction(
-  _state: AdminReceiptActionState,
-  formData: FormData,
-): Promise<AdminReceiptActionState> {
+export async function requestCashReceiptAction(_state: AdminReceiptActionState,
+  formData: FormData,): Promise<AdminReceiptActionState> {
+  return preserveValues(formData, () => run_requestCashReceiptAction(_state, formData));
+}
+
+async function run_requestCashReceiptAction(_state: AdminReceiptActionState,
+  formData: FormData,): Promise<AdminReceiptActionState> {
   const denied = await requireStaff();
   if (denied) return denied;
 
@@ -59,10 +65,13 @@ export async function requestCashReceiptAction(
   return { message: '발급을 신청했습니다. 잠시 뒤 발급 결과가 표시됩니다.' };
 }
 
-export async function cancelCashReceiptAction(
-  _state: AdminReceiptActionState,
-  formData: FormData,
-): Promise<AdminReceiptActionState> {
+export async function cancelCashReceiptAction(_state: AdminReceiptActionState,
+  formData: FormData,): Promise<AdminReceiptActionState> {
+  return preserveValues(formData, () => run_cancelCashReceiptAction(_state, formData));
+}
+
+async function run_cancelCashReceiptAction(_state: AdminReceiptActionState,
+  formData: FormData,): Promise<AdminReceiptActionState> {
   const denied = await requireStaff();
   if (denied) return denied;
 
@@ -80,10 +89,13 @@ export async function cancelCashReceiptAction(
   return { message: '현금영수증을 취소했습니다.' };
 }
 
-export async function recordTaxInvoiceRequestAction(
-  _state: AdminReceiptActionState,
-  formData: FormData,
-): Promise<AdminReceiptActionState> {
+export async function recordTaxInvoiceRequestAction(_state: AdminReceiptActionState,
+  formData: FormData,): Promise<AdminReceiptActionState> {
+  return preserveValues(formData, () => run_recordTaxInvoiceRequestAction(_state, formData));
+}
+
+async function run_recordTaxInvoiceRequestAction(_state: AdminReceiptActionState,
+  formData: FormData,): Promise<AdminReceiptActionState> {
   const denied = await requireStaff();
   if (denied) return denied;
 
@@ -106,10 +118,13 @@ export async function recordTaxInvoiceRequestAction(
   return { message: '세금계산서 신청을 접수했습니다.' };
 }
 
-export async function decideTaxInvoiceAction(
-  _state: AdminReceiptActionState,
-  formData: FormData,
-): Promise<AdminReceiptActionState> {
+export async function decideTaxInvoiceAction(_state: AdminReceiptActionState,
+  formData: FormData,): Promise<AdminReceiptActionState> {
+  return preserveValues(formData, () => run_decideTaxInvoiceAction(_state, formData));
+}
+
+async function run_decideTaxInvoiceAction(_state: AdminReceiptActionState,
+  formData: FormData,): Promise<AdminReceiptActionState> {
   const denied = await requireStaff();
   if (denied) return denied;
 
@@ -130,10 +145,13 @@ export async function decideTaxInvoiceAction(
   return { message: decision === 'approve' ? '승인했습니다. 스마트빌에서 발행한 뒤 승인번호를 적어주세요.' : '거절했습니다.' };
 }
 
-export async function recordTaxInvoiceIssuedAction(
-  _state: AdminReceiptActionState,
-  formData: FormData,
-): Promise<AdminReceiptActionState> {
+export async function recordTaxInvoiceIssuedAction(_state: AdminReceiptActionState,
+  formData: FormData,): Promise<AdminReceiptActionState> {
+  return preserveValues(formData, () => run_recordTaxInvoiceIssuedAction(_state, formData));
+}
+
+async function run_recordTaxInvoiceIssuedAction(_state: AdminReceiptActionState,
+  formData: FormData,): Promise<AdminReceiptActionState> {
   const denied = await requireStaff();
   if (denied) return denied;
 

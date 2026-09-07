@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useMemo, useState } from 'react';
+import { SeededForm } from '@/components/admin/form-seed';
 import {
   grantAdminDrawTicketsAction,
   type AdminDrawTicketGrantActionState,
@@ -119,7 +120,8 @@ function MemberPicker({
 
   return (
     <div className="col" style={{ gap: 8 }}>
-      <form
+      <SeededForm
+        values={state.values}
         action={action}
         className="card col"
         onSubmit={() => onSelect(null)}
@@ -156,7 +158,7 @@ function MemberPicker({
         </label>
         <ErrorText id="grant-query-error">{queryError}</ErrorText>
         <InlineNotice state={state} />
-      </form>
+      </SeededForm>
 
       {state.members.map((member) => (
         <article key={member.id} className="card between" style={{ borderRadius: 10, flexWrap: 'wrap', gap: 12, padding: 14 }}>
@@ -209,7 +211,8 @@ function GrantForm({
   }
 
   return (
-    <form action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+    <SeededForm values={state.values}
+        action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
       <input name="operationId" type="hidden" value={operationId} />
       <input name="profileId" type="hidden" value={selected.id} />
       <div className="col" style={{ gap: 4 }}>
@@ -255,7 +258,7 @@ function GrantForm({
         {/* 발급 성공·실패를 알린다. 이게 없으면 RPC 실패가 아무 표시 없이 삼켜진다. */}
         <InlineNotice state={state} />
       </div>
-    </form>
+    </SeededForm>
   );
 }
 

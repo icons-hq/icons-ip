@@ -85,6 +85,8 @@ describe('sendAdminNotificationAction', () => {
 
     await expect(sendAdminNotificationAction({}, notificationForm())).resolves.toEqual({
       errors: { form: '관리자 권한이 필요합니다.' },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -98,6 +100,8 @@ describe('sendAdminNotificationAction', () => {
         operationId: '올바른 발송 요청 ID가 필요합니다.',
         title: '제목은 1자 이상 120자 이하로 입력해주세요.',
       },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -133,6 +137,8 @@ describe('sendAdminNotificationAction', () => {
 
     expect(result).toEqual({
       errors: { form: '공지를 발송하지 못했습니다. 대상과 최신 수신자 수를 확인해주세요.' },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
     expect(JSON.stringify(result)).not.toContain('private');
     expect(result).not.toHaveProperty('nextOperationId');
@@ -145,6 +151,8 @@ describe('sendAdminNotificationAction', () => {
 
     await expect(sendAdminNotificationAction({}, notificationForm())).resolves.toEqual({
       errors: { form: '공지를 발송하지 못했습니다. 최신 발송 이력을 확인해주세요.' },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
     expect(mocks.randomUUID).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();

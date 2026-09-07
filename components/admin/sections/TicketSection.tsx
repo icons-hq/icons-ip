@@ -8,6 +8,7 @@ import {
 } from '@/app/admin/actions';
 import type { AdminTicketTypeRecord } from '@/lib/admin/catalog.server';
 import { Field, FormShell, RecordList, SelectField } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 const emptyTicketState: AdminCatalogActionState = {};
 
@@ -87,7 +88,7 @@ function TicketForm({
   const eventLabelId = `ticket-event-${id}`;
 
   return (
-    <form
+    <SeededForm values={state.values}
       action={action}
       className="card col"
       style={{ borderRadius: 10, gap: 14, padding: 18 }}
@@ -182,6 +183,6 @@ function TicketForm({
         </p>
       )}
       <FormShell disabled={noEvents && !selected} pending={pending} state={state} />
-    </form>
+    </SeededForm>
   );
 }

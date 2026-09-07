@@ -27,6 +27,7 @@ import {
   normalizeAdminHidePostForm,
   normalizeAdminReportStatusForm,
 } from '@/lib/admin/moderation';
+import { keepSubmittedValues } from '@/lib/admin/form-values';
 import { normalizeAdminUserRoleForm } from '@/lib/admin/roles';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { getCatalogSnapshot } from '@/lib/catalog';
@@ -42,21 +43,11 @@ export interface AdminCatalogActionState {
 }
 
 /*
- * React 19는 액션이 끝나면 비제어 폼을 초기화한다 — 실패해도 마찬가지라서
- * 운영자가 채운 값이 전부 사라진다. 제출된 문자열 필드를 상태에 실어 보내면
- * 폼이 defaultValue 로 되살릴 수 있다. 파일은 되돌릴 수 없으므로 뺀다.
+ * IP·굿즈 폼은 실패 지점마다 **직접** 판단해 값을 되돌린다 — 전부 되돌리면 안 되기 때문이다.
+ * 예를 들어 굿즈가 이미 만들어진 뒤 초기 재고 쓰기가 실패하면, 그 폼은 「저장 안 됨」이
+ * 아니라 「저장됐고 재고만 실패」라 제출값으로 다시 시드하면 거짓이 된다.
+ * (일반 규칙은 `lib/admin/form-values.ts` 의 `preserveValues`.)
  */
-function submittedValues(formData: FormData): Record<string, string> {
-  return Object.fromEntries(
-    [...formData.entries()].filter(
-      (entry): entry is [string, string] => typeof entry[1] === 'string',
-    ),
-  );
-}
-
-function keepSubmittedValues(state: AdminCatalogActionState, formData: FormData): AdminCatalogActionState {
-  return { ...state, values: submittedValues(formData) };
-}
 
 function loginPath() {
   return `/login?next=${encodeURIComponent('/admin')}`;

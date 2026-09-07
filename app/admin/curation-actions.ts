@@ -9,6 +9,7 @@ import {
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { NOTICE_STRIP_CACHE_TAG } from '@/lib/notice-strip.server';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 const SAVE_ERROR = '홈 큐레이션을 저장하지 못했습니다. 다시 시도해주세요.';
 
@@ -16,10 +17,13 @@ function loginPath() {
   return `/login?next=${encodeURIComponent('/admin')}`;
 }
 
-export async function upsertAdminCurationAction(
-  _state: AdminCurationActionState,
-  formData: FormData,
-): Promise<AdminCurationActionState> {
+export async function upsertAdminCurationAction(_state: AdminCurationActionState,
+  formData: FormData,): Promise<AdminCurationActionState> {
+  return preserveValues(formData, () => run_upsertAdminCurationAction(_state, formData));
+}
+
+async function run_upsertAdminCurationAction(_state: AdminCurationActionState,
+  formData: FormData,): Promise<AdminCurationActionState> {
   const normalized = normalizeAdminCurationForm(formData);
   if (!normalized.ok) return { errors: normalized.errors };
 

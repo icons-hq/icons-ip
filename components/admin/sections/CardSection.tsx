@@ -13,6 +13,7 @@ import { RARITY_META } from '@/lib/rarity';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { Field, FormShell, RecordList, SelectField } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 export function CardSection({
   action,
@@ -70,7 +71,7 @@ export function CardSection({
         />
       </div>
       <div className="col" style={{ gap: 16, minWidth: 0 }}>
-        <form action={action} className="card col" key={selected ? JSON.stringify(selected) : 'new-card'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+        <SeededForm values={state.values} action={action} className="card col" key={selected ? JSON.stringify(selected) : 'new-card'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
         <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
         <div className="admin-form-grid">
@@ -133,7 +134,7 @@ export function CardSection({
           kind="card"
         />
         <FormShell pending={pending} state={state} />
-        </form>
+        </SeededForm>
         {selected && (
           <CatalogArchiveControl
             archivedAt={selected.archivedAt}

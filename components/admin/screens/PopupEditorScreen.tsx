@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useActionState } from 'react';
+import { SeededForm } from '@/components/admin/form-seed';
 import {
   linkPopupTargetAction,
   savePopupPhasesAction,
@@ -59,7 +60,7 @@ function PopupForm({ detail, ipOptions }: {
   const [state, action, pending] = useActionState(upsertPopupAction, EMPTY);
   const popup = detail.popup as Record<string, string>;
   return (
-    <form action={action} className="col" style={{ gap: 10 }}>
+    <SeededForm values={state.values} action={action} className="col" style={{ gap: 10 }}>
       <input name="id" type="hidden" value={popup.id} />
       <input name="previousId" type="hidden" value={popup.id} />
       <div className="admin-form-grid">
@@ -83,7 +84,7 @@ function PopupForm({ detail, ipOptions }: {
       <p className="muted" style={{ fontSize: 11.5, margin: 0 }}>
         게시하려면 페이즈가 하나 이상 있어야 합니다. 주소(<span className="mono">{popup.id}</span>)는 바꿀 수 없습니다.
       </p>
-    </form>
+    </SeededForm>
   );
 }
 
@@ -92,7 +93,7 @@ function PhasesForm({ detail }: { detail: AdminPopupDetail }) {
   /* 빈 줄 하나를 늘 남겨 둔다 — 「추가」 버튼 없이 바로 적을 수 있게. */
   const rows = [...detail.phases, null];
   return (
-    <form action={action} className="col" style={{ gap: 8 }}>
+    <SeededForm values={state.values} action={action} className="col" style={{ gap: 8 }}>
       <input name="popupId" type="hidden" value={(detail.popup as Record<string, string>).id} />
       <input name="expectedUpdatedAt" type="hidden" value={detail.updatedAt} />
       <table className="admin-stats-table">
@@ -125,14 +126,14 @@ function PhasesForm({ detail }: { detail: AdminPopupDetail }) {
         시간은 <strong>시작 포함·종료 제외</strong>입니다. 「23:59까지」는 다음 날 00:00으로 적습니다.
         같은 시각에 두 페이즈를 둘 수 없고, 키를 지우면 그 페이즈가 삭제됩니다.
       </p>
-    </form>
+    </SeededForm>
   );
 }
 
 function LinkForm({ detail }: { detail: AdminPopupDetail }) {
   const [state, action, pending] = useActionState(linkPopupTargetAction, EMPTY);
   return (
-    <form action={action} className="row" style={{ alignItems: 'flex-end', flexWrap: 'wrap', gap: 8 }}>
+    <SeededForm values={state.values} action={action} className="row" style={{ alignItems: 'flex-end', flexWrap: 'wrap', gap: 8 }}>
       <input name="popupId" type="hidden" value={(detail.popup as Record<string, string>).id} />
       <SelectField label="종류" name="targetType">
         {POPUP_TARGET_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
@@ -150,7 +151,7 @@ function LinkForm({ detail }: { detail: AdminPopupDetail }) {
       </SelectField>
       <button className="btn btn-sm btn-ghost" disabled={pending} type="submit">연결</button>
       <Message state={state} />
-    </form>
+    </SeededForm>
   );
 }
 
@@ -159,7 +160,7 @@ function LinkRuleRow({ detail, link }: { detail: AdminPopupDetail; link: AdminPo
   const ruleFor = (phaseKey: string) =>
     link.phaseRules.find((rule) => rule.phaseKey === phaseKey)?.saleMode ?? '';
   return (
-    <form action={action} className="col" style={{ gap: 6 }}>
+    <SeededForm values={state.values} action={action} className="col" style={{ gap: 6 }}>
       <input name="popupId" type="hidden" value={(detail.popup as Record<string, string>).id} />
       <input name="targetType" type="hidden" value={link.targetType} />
       <input name="targetId" type="hidden" value={link.targetId} />
@@ -188,7 +189,7 @@ function LinkRuleRow({ detail, link }: { detail: AdminPopupDetail; link: AdminPo
         <button className="btn btn-xs btn-ghost" disabled={pending} type="submit">규칙 저장</button>
         <Message state={state} />
       </div>
-    </form>
+    </SeededForm>
   );
 }
 
@@ -198,7 +199,7 @@ function ZonesForm({ detail }: { detail: AdminPopupDetail }) {
   /* 빈 줄 하나를 늘 남겨 둔다 — 「추가」 버튼 없이 바로 적을 수 있게. */
   const rows = [...detail.zones, null];
   return (
-    <form action={action} className="col" style={{ gap: 8 }}>
+    <SeededForm values={state.values} action={action} className="col" style={{ gap: 8 }}>
       <input name="popupId" type="hidden" value={(detail.popup as Record<string, string>).id} />
       <input name="expectedUpdatedAt" type="hidden" value={detail.updatedAt} />
       <table className="admin-stats-table">
@@ -230,7 +231,7 @@ function ZonesForm({ detail }: { detail: AdminPopupDetail }) {
         한 존은 <strong>한 유형만</strong> 갖습니다. 코드를 지우면 그 존이 삭제되지만,
         거기 걸려 있던 연결은 남고 존만 떨어집니다 — 존을 정리하다 편성이 사라지지 않게.
       </p>
-    </form>
+    </SeededForm>
   );
 }
 

@@ -115,6 +115,8 @@ describe('setGoodBankTransferAction', () => {
 
     await expect(setGoodBankTransferAction({}, bankTransferForm())).resolves.toEqual({
       error: '관리자 권한이 필요합니다.',
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
     expect(mocks.createClient).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
@@ -128,6 +130,8 @@ describe('setGoodBankTransferAction', () => {
   ] as const)('굿즈 id가 %s이면 RPC에 닿기 전에 막는다', async (_label, id) => {
     await expect(setGoodBankTransferAction({}, bankTransferForm(id))).resolves.toEqual({
       error: '굿즈를 찾을 수 없습니다.',
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
@@ -141,7 +145,10 @@ describe('setGoodBankTransferAction', () => {
 
     const result = await setGoodBankTransferAction({}, bankTransferForm());
 
-    expect(result).toEqual({ error: message });
+    expect(result).toEqual({ error: message,
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
+    });
     expect(JSON.stringify(result)).not.toContain('private');
     /* 실패한 토글로 화면을 갱신하면 운영자가 바뀐 줄 안다. */
     expect(mocks.revalidatePath).not.toHaveBeenCalled();

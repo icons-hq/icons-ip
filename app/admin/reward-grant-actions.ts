@@ -9,6 +9,7 @@ import {
 } from '@/lib/admin/draw-ticket-grants';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 /* 수동 뽑기권 발급 서버 액션(#185).
  * 카탈로그 액션(app/admin/actions.ts)과 분리해 둔다 — 리워드 발급은 카탈로그 upsert와
@@ -18,6 +19,8 @@ export interface AdminDrawTicketGrantActionState {
   errors?: Record<string, string>;
   message?: string;
   nextOperationId?: string;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. `SeededForm` 이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
 }
 
 function loginPath() {
@@ -31,10 +34,13 @@ async function requireStaffAction(): Promise<AdminDrawTicketGrantActionState | n
   return null;
 }
 
-export async function grantAdminDrawTicketsAction(
-  _state: AdminDrawTicketGrantActionState,
-  formData: FormData,
-): Promise<AdminDrawTicketGrantActionState> {
+export async function grantAdminDrawTicketsAction(_state: AdminDrawTicketGrantActionState,
+  formData: FormData,): Promise<AdminDrawTicketGrantActionState> {
+  return preserveValues(formData, () => run_grantAdminDrawTicketsAction(_state, formData));
+}
+
+async function run_grantAdminDrawTicketsAction(_state: AdminDrawTicketGrantActionState,
+  formData: FormData,): Promise<AdminDrawTicketGrantActionState> {
   const authError = await requireStaffAction();
   if (authError) return authError;
 

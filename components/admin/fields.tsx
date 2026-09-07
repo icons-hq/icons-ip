@@ -1,4 +1,7 @@
+'use client';
+
 import type { AdminCatalogActionState } from '@/app/admin/actions';
+import { useFieldSeed } from '@/components/admin/form-seed';
 import { Icon } from '@/components/ui/Icon';
 import { adminArtworkAspectRatio, type AdminArtworkKind } from '@/lib/admin/artwork';
 
@@ -33,6 +36,8 @@ export function Field({
   type?: string;
 }) {
   const errorId = error ? `${name}-error` : undefined;
+  /* 저장이 실패했으면 그때 제출된 값이 레코드값보다 우선한다(`SeededForm`). */
+  const seeded = useFieldSeed(name);
 
   return (
     <label className="col" style={{ gap: 7 }}>
@@ -43,7 +48,7 @@ export function Field({
         aria-describedby={errorId}
         aria-invalid={Boolean(error)}
         className="admin-field-control"
-        defaultValue={defaultValue ?? ''}
+        defaultValue={seeded ?? defaultValue ?? ''}
         max={max}
         min={min}
         name={name}
@@ -88,6 +93,7 @@ export function TextArea({
   required?: boolean;
 }) {
   const errorId = error ? `${name}-error` : undefined;
+  const seeded = useFieldSeed(name);
 
   return (
     <label className="col" style={{ gap: 7 }}>
@@ -98,7 +104,7 @@ export function TextArea({
         aria-describedby={errorId}
         aria-invalid={Boolean(error)}
         className="admin-field-control"
-        defaultValue={defaultValue ?? ''}
+        defaultValue={seeded ?? defaultValue ?? ''}
         maxLength={maxLength}
         name={name}
         placeholder={placeholder}
@@ -143,7 +149,9 @@ export function ColorField({
   name: string;
 }) {
   const errorId = error ? `${name}-error` : undefined;
-  const value = defaultValue && COLOR_PATTERN.test(defaultValue) ? defaultValue : fallback;
+  const seeded = useFieldSeed(name);
+  const candidate = seeded && COLOR_PATTERN.test(seeded) ? seeded : defaultValue;
+  const value = candidate && COLOR_PATTERN.test(candidate) ? candidate : fallback;
 
   return (
     <label className="col" style={{ gap: 7 }}>
@@ -195,6 +203,7 @@ export function SelectField({
   value?: string;
 }) {
   const errorId = error ? `${name}-error` : undefined;
+  const seeded = useFieldSeed(name);
 
   return (
     <label className="col" style={{ gap: 7 }}>
@@ -202,10 +211,12 @@ export function SelectField({
         {label}
       </span>
       <select
+        /* React 는 마운트 뒤의 select `defaultValue` 변경을 무시한다 — 시드가 오면 다시 마운트해야 붙는다. */
+        key={seeded === undefined ? undefined : `seed:${seeded}`}
         aria-describedby={errorId}
         aria-invalid={Boolean(error)}
         className="admin-field-control"
-        defaultValue={value === undefined ? (defaultValue ?? '') : undefined}
+        defaultValue={value === undefined ? (seeded ?? defaultValue ?? '') : undefined}
         disabled={disabled}
         name={name}
         onChange={onChange}

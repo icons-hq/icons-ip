@@ -28,6 +28,7 @@ import { IMPORT_KINDS } from '@/lib/admin/imports';
 import type { AdminStockLocation } from '@/lib/admin/variants';
 import { Icon } from '@/components/ui/Icon';
 import { Field, FormShell, InlineNotice, SelectField, TextArea } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 /*
  * 엑셀 양식 · 내보내기 (설계서 v2 §1-7).
@@ -78,7 +79,7 @@ function RequestPanel({
   const isGoodsTarget = template?.target === 'goods';
 
   return (
-    <form action={action} className="card col" onSubmit={stampClientKey} style={{ borderRadius: 10, gap: 12, padding: 18 }}>
+    <SeededForm values={state.values} action={action} className="card col" onSubmit={stampClientKey} style={{ borderRadius: 10, gap: 12, padding: 18 }}>
       <div>
         <span className="eyebrow">EXPORT</span>
         <h2 style={{ fontSize: 16, margin: '6px 0 0' }}>내보내기 요청</h2>
@@ -151,7 +152,7 @@ function RequestPanel({
       <button className="btn btn-holo" disabled={pending || templates.length === 0} style={{ justifySelf: 'start', minWidth: 150 }}>
         <Icon name="check" size={15} /> {pending ? '요청 중' : '내보내기 요청'}
       </button>
-    </form>
+    </SeededForm>
   );
 }
 
@@ -184,7 +185,7 @@ function JobRow({ canSecureExport, job, now }: { canSecureExport: boolean; job: 
       </td>
       <td>
         {job.status === 'done' && !expired ? (
-          <form action={downloadAction} className="col" style={{ gap: 6 }}>
+          <SeededForm values={downloadState.values} action={downloadAction} className="col" style={{ gap: 6 }}>
             <input name="jobId" type="hidden" value={job.id} />
             {pii ? (
               <input aria-label="다운로드 사유" className="admin-field-control" name="reason" placeholder="다운로드 사유" required style={{ minWidth: 160 }} />
@@ -196,13 +197,13 @@ function JobRow({ canSecureExport, job, now }: { canSecureExport: boolean; job: 
               <a className="btn btn-sm btn-ghost" href={downloadState.url} rel="noreferrer" target="_blank">파일 열기</a>
             ) : null}
             <InlineNotice state={downloadState} />
-          </form>
+          </SeededForm>
         ) : job.status === 'queued' || job.status === 'running' ? (
-          <form action={cancelAction}>
+          <SeededForm values={cancelState.values} action={cancelAction}>
             <input name="jobId" type="hidden" value={job.id} />
             <button className="btn btn-sm btn-ghost" disabled={cancelPending}>취소</button>
             <InlineNotice state={cancelState} />
-          </form>
+          </SeededForm>
         ) : (
           <span className="muted">{expired ? '보관 기간 지남' : '-'}</span>
         )}
@@ -217,7 +218,7 @@ function TemplatePanel({ templates }: { templates: readonly AdminExportTemplate[
   const source = templates.find((entry) => entry.id === sourceId) ?? null;
 
   return (
-    <form action={action} className="card col" style={{ borderRadius: 10, gap: 12, padding: 18 }}>
+    <SeededForm values={state.values} action={action} className="card col" style={{ borderRadius: 10, gap: 12, padding: 18 }}>
       <div>
         <span className="eyebrow">TEMPLATE</span>
         <h2 style={{ fontSize: 16, margin: '6px 0 0' }}>양식 복제해서 만들기</h2>
@@ -255,7 +256,7 @@ function TemplatePanel({ templates }: { templates: readonly AdminExportTemplate[
       </fieldset>
       {state.errors?.columnKeys ? <span role="alert" style={{ color: 'var(--pink)', fontSize: 12 }}>{state.errors.columnKeys}</span> : null}
       <FormShell pending={pending} state={state} />
-    </form>
+    </SeededForm>
   );
 }
 
@@ -280,7 +281,7 @@ function ImportPanel() {
         내려받은 발주서에 송장번호만 채워 그대로 올리면 됩니다. 열 위치가 아니라 열 이름으로 읽으므로 다른 열이 섞여 있어도 괜찮습니다.
         올리면 먼저 확인만 하고, 리포트를 본 뒤 적용을 누릅니다.
       </p>
-      <form action={action} className="col" style={{ gap: 10 }}>
+      <SeededForm values={state.values} action={action} className="col" style={{ gap: 10 }}>
         <div className="admin-form-grid">
           <SelectField error={state.errors?.kind} label="종류" name="kind">
             {IMPORT_KINDS.map((kind) => <option key={kind.value} value={kind.value}>{kind.label}</option>)}
@@ -298,7 +299,7 @@ function ImportPanel() {
         <button className="btn btn-holo" disabled={pending} style={{ justifySelf: 'start', minWidth: 150 }}>
           <Icon name="check" size={15} /> {pending ? '확인 중' : '파일 확인'}
         </button>
-      </form>
+      </SeededForm>
 
       {state.issues && state.issues.length > 0 ? (
         <div className="admin-console-grid-scroll">
@@ -319,14 +320,14 @@ function ImportPanel() {
       ) : null}
 
       {state.jobId && state.rows && !applied ? (
-        <form action={applyAction} className="col" style={{ gap: 10 }}>
+        <SeededForm values={applyState.values} action={applyAction} className="col" style={{ gap: 10 }}>
           <input name="jobId" type="hidden" value={state.jobId} />
           <input name="rows" type="hidden" value={JSON.stringify(state.rows)} />
           <InlineNotice state={applyState} />
           <button className="btn btn-holo" disabled={applyPending} style={{ justifySelf: 'start', minWidth: 150 }}>
             <Icon name="check" size={15} /> {applyPending ? '적용 중' : '적용하기'}
           </button>
-        </form>
+        </SeededForm>
       ) : null}
       {applied ? <InlineNotice state={applyState} /> : null}
     </section>

@@ -16,6 +16,7 @@ import {
 } from '@/lib/admin/variants';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 /*
  * D-1 옵션 · 품목 · 출고지별 재고 액션.
@@ -78,10 +79,13 @@ function revalidateStockPaths(goodId: string | null) {
   if (goodId) revalidatePath(`/shop/${goodId}`);
 }
 
-export async function saveGoodVariantsAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
+export async function saveGoodVariantsAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_saveGoodVariantsAction(_state, formData));
+}
+
+async function run_saveGoodVariantsAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -108,10 +112,13 @@ export async function saveGoodVariantsAction(
   };
 }
 
-export async function adjustVariantStockAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
+export async function adjustVariantStockAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_adjustVariantStockAction(_state, formData));
+}
+
+async function run_adjustVariantStockAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -140,10 +147,13 @@ export async function adjustVariantStockAction(
   };
 }
 
-export async function transferVariantStockAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
+export async function transferVariantStockAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_transferVariantStockAction(_state, formData));
+}
+
+async function run_transferVariantStockAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -172,10 +182,13 @@ export async function transferVariantStockAction(
   };
 }
 
-export async function setVariantSafetyAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
+export async function setVariantSafetyAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_setVariantSafetyAction(_state, formData));
+}
+
+async function run_setVariantSafetyAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -195,10 +208,13 @@ export async function setVariantSafetyAction(
   return { message: `안전재고를 ${value.safetyQty.toLocaleString('ko-KR')}개로 저장했습니다.` };
 }
 
-export async function setVariantStockBulkAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
+export async function setVariantStockBulkAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_setVariantStockBulkAction(_state, formData));
+}
+
+async function run_setVariantStockBulkAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -250,10 +266,13 @@ const BULK_ERROR_LABELS: Record<string, string> = {
   duplicate_row: '중복 행',
 };
 
-export async function upsertStockLocationAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
+export async function upsertStockLocationAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_upsertStockLocationAction(_state, formData));
+}
+
+async function run_upsertStockLocationAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -281,10 +300,13 @@ export async function upsertStockLocationAction(
   return { message: `출고지 ${value.name}을(를) 저장했습니다.` };
 }
 
-export async function upsertOptionMasterAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
+export async function upsertOptionMasterAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_upsertOptionMasterAction(_state, formData));
+}
+
+async function run_upsertOptionMasterAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 

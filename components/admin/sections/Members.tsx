@@ -28,6 +28,7 @@ import {
   loyaltyGradeLabel,
 } from '@/lib/loyalty';
 import { ErrorText, InlineNotice, SelectField, TextArea } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 const emptyMutationState: AdminMemberMutationActionState = {};
 const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
@@ -100,7 +101,7 @@ function MemberSuspensionControl({
           </span>
           <span style={{ fontSize: 13 }}>내부 사유: {member.suspensionReason ?? '기록 없음'}</span>
         </div>
-        <form action={unsuspendAction} className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
+        <SeededForm values={unsuspendState.values} action={unsuspendAction} className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
           <input name="profileId" type="hidden" value={member.id} />
           <button
             className="btn btn-sm admin-field-control"
@@ -110,13 +111,13 @@ function MemberSuspensionControl({
             <Icon name="check" size={14} /> {unsuspendPending ? '처리 중' : '정지 해제'}
           </button>
           <InlineNotice state={unsuspendState} />
-        </form>
+        </SeededForm>
       </div>
     );
   }
 
   return (
-    <form
+    <SeededForm values={suspendState.values}
       action={suspendAction}
       className="card col"
       onSubmit={confirmMemberSuspension}
@@ -141,7 +142,7 @@ function MemberSuspensionControl({
         </button>
         <InlineNotice state={suspendState} />
       </div>
-    </form>
+    </SeededForm>
   );
 }
 
@@ -177,7 +178,7 @@ function MemberLoyaltyPanel({ member }: { member: AdminMemberDetail }) {
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
         {loyaltyBasisSummary()} 보정 이력은 등급 이력·감사 로그에 남습니다.
       </p>
-      <form action={adjustAction} className="col" style={{ gap: 8 }}>
+      <SeededForm values={adjustState.values} action={adjustAction} className="col" style={{ gap: 8 }}>
         <input name="profileId" type="hidden" value={member.id} />
         <div className="row" style={{ alignItems: 'flex-start', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
           <SelectField
@@ -204,14 +205,14 @@ function MemberLoyaltyPanel({ member }: { member: AdminMemberDetail }) {
           </button>
         </div>
         <InlineNotice state={adjustState} />
-      </form>
-      <form action={recalcAction} className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
+      </SeededForm>
+      <SeededForm values={recalcState.values} action={recalcAction} className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
         <input name="profileId" type="hidden" value={member.id} />
         <button className="btn btn-sm admin-field-control" disabled={recalcPending} style={{ minHeight: 40 }}>
           <Icon name="swap" size={14} /> {recalcPending ? '재산정 중' : '실적으로 재산정'}
         </button>
         <InlineNotice state={recalcState} />
-      </form>
+      </SeededForm>
     </section>
   );
 }
@@ -309,7 +310,7 @@ export function MembersSection({
       <p className="muted" style={{ fontSize: 13, margin: 0 }}>
         목록의 이메일은 마스킹됩니다. 전체 이메일과 운영 정보는 상세 조회 시에만 표시됩니다.
       </p>
-      <form
+      <SeededForm values={searchState.values}
         action={searchAction}
         className="card col"
         onSubmit={() => setSelectedProfileId(null)}
@@ -346,7 +347,7 @@ export function MembersSection({
         </label>
         <ErrorText id="member-query-error">{searchState.errors?.query}</ErrorText>
         <InlineNotice state={searchState} />
-      </form>
+      </SeededForm>
 
       {/* 상태·등급 좁히기는 주소에 남는다 — 같은 화면을 다시 열거나 남에게 보낼 수 있어야 한다. */}
       <div className="row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
@@ -398,12 +399,12 @@ export function MembersSection({
                 {member.lastLoginAt ? ` · 최근 접속 ${formatDate(member.lastLoginAt)}` : ' · 접속 기록 없음'}
               </span>
             </div>
-            <form action={detailAction} onSubmit={() => setSelectedProfileId(member.id)}>
+            <SeededForm values={detailState.values} action={detailAction} onSubmit={() => setSelectedProfileId(member.id)}>
               <input name="profileId" type="hidden" value={member.id} />
               <button className="btn btn-sm admin-field-control" disabled={detailPending} style={{ minHeight: 44 }}>
                 <Icon name="user" size={14} /> {detailPending ? '불러오는 중' : '상세 보기'}
               </button>
-            </form>
+            </SeededForm>
           </article>
         ))}
         {!searchState.members.length && (

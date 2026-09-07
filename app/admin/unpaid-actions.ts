@@ -9,6 +9,7 @@ import {
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { sendOrderConfirmationEmail } from '@/lib/email/transactional.server';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 /*
  * 미입금 확인 콘솔 액션(#256).
@@ -23,6 +24,8 @@ import { createClient } from '@/lib/supabase/server';
 export interface AdminUnpaidActionState {
   error?: string;
   message?: string;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. `SeededForm` 이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
 }
 
 const CONFIRM_FAILED = '입금을 확정하지 못했습니다. 최신 상태를 확인해주세요.';
@@ -115,10 +118,13 @@ function revalidateUnpaidSurfaces(orderId: string) {
   revalidatePath('/orders');
 }
 
-export async function confirmBankTransferDepositAction(
-  _state: AdminUnpaidActionState,
-  formData: FormData,
-): Promise<AdminUnpaidActionState> {
+export async function confirmBankTransferDepositAction(_state: AdminUnpaidActionState,
+  formData: FormData,): Promise<AdminUnpaidActionState> {
+  return preserveValues(formData, () => run_confirmBankTransferDepositAction(_state, formData));
+}
+
+async function run_confirmBankTransferDepositAction(_state: AdminUnpaidActionState,
+  formData: FormData,): Promise<AdminUnpaidActionState> {
   const denied = await requireStaffAction();
   if (denied) return denied;
 
@@ -147,10 +153,13 @@ export async function confirmBankTransferDepositAction(
   );
 }
 
-export async function extendBankTransferDeadlineAction(
-  _state: AdminUnpaidActionState,
-  formData: FormData,
-): Promise<AdminUnpaidActionState> {
+export async function extendBankTransferDeadlineAction(_state: AdminUnpaidActionState,
+  formData: FormData,): Promise<AdminUnpaidActionState> {
+  return preserveValues(formData, () => run_extendBankTransferDeadlineAction(_state, formData));
+}
+
+async function run_extendBankTransferDeadlineAction(_state: AdminUnpaidActionState,
+  formData: FormData,): Promise<AdminUnpaidActionState> {
   const denied = await requireStaffAction();
   if (denied) return denied;
 
@@ -172,10 +181,13 @@ export async function extendBankTransferDeadlineAction(
   return { message: '입금 기한을 24시간 연장했습니다.' };
 }
 
-export async function cancelUnpaidBankTransferOrderAction(
-  _state: AdminUnpaidActionState,
-  formData: FormData,
-): Promise<AdminUnpaidActionState> {
+export async function cancelUnpaidBankTransferOrderAction(_state: AdminUnpaidActionState,
+  formData: FormData,): Promise<AdminUnpaidActionState> {
+  return preserveValues(formData, () => run_cancelUnpaidBankTransferOrderAction(_state, formData));
+}
+
+async function run_cancelUnpaidBankTransferOrderAction(_state: AdminUnpaidActionState,
+  formData: FormData,): Promise<AdminUnpaidActionState> {
   const denied = await requireStaffAction();
   if (denied) return denied;
 
@@ -219,10 +231,13 @@ function depositErrorMessage(message: string | null | undefined, fallback: strin
   return rpcErrorMessage(message, fallback);
 }
 
-export async function confirmBankDepositAction(
-  _state: AdminUnpaidActionState,
-  formData: FormData,
-): Promise<AdminUnpaidActionState> {
+export async function confirmBankDepositAction(_state: AdminUnpaidActionState,
+  formData: FormData,): Promise<AdminUnpaidActionState> {
+  return preserveValues(formData, () => run_confirmBankDepositAction(_state, formData));
+}
+
+async function run_confirmBankDepositAction(_state: AdminUnpaidActionState,
+  formData: FormData,): Promise<AdminUnpaidActionState> {
   const denied = await requireStaffAction();
   if (denied) return denied;
 
@@ -251,10 +266,13 @@ export async function confirmBankDepositAction(
   return finalizationResult(data, orderId, '입금 내역을 주문에 연결하고 결제완료로 확정했습니다.');
 }
 
-export async function ignoreBankDepositAction(
-  _state: AdminUnpaidActionState,
-  formData: FormData,
-): Promise<AdminUnpaidActionState> {
+export async function ignoreBankDepositAction(_state: AdminUnpaidActionState,
+  formData: FormData,): Promise<AdminUnpaidActionState> {
+  return preserveValues(formData, () => run_ignoreBankDepositAction(_state, formData));
+}
+
+async function run_ignoreBankDepositAction(_state: AdminUnpaidActionState,
+  formData: FormData,): Promise<AdminUnpaidActionState> {
   const denied = await requireStaffAction();
   if (denied) return denied;
 

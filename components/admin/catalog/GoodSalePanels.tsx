@@ -17,6 +17,7 @@ import {
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import { Icon } from '@/components/ui/Icon';
 import { Field, FormShell, InlineNotice, SelectField, TextArea } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 /*
  * 굿즈 편집 화면의 D-9/D-10 카드들.
@@ -59,7 +60,7 @@ export function GoodSalePanel({ good }: { good: AdminGoodRecord }) {
         상태는 저장되지 않고 그때그때 계산됩니다 — 보관 › 진열 안 함 › 판매 중지 › 기간 만료 › 판매 예정 › 품절 › 선주문 › 판매중 순으로 앞선 것이 이깁니다.
       </p>
 
-      <form action={windowAction} className="col" style={{ gap: 10 }}>
+      <SeededForm values={windowState.values} action={windowAction} className="col" style={{ gap: 10 }}>
         <input name="goodId" type="hidden" value={good.id} />
         <div className="admin-form-grid">
           <Field defaultValue={toLocalInput(good.saleStartsAt)} error={windowState.errors?.startsAt} label="판매 시작 (비우면 즉시)" name="startsAt" type="datetime-local" />
@@ -89,9 +90,9 @@ export function GoodSalePanel({ good }: { good: AdminGoodRecord }) {
         <button className="btn btn-holo" disabled={windowPending} style={{ justifySelf: 'start', minWidth: 150 }}>
           <Icon name="check" size={15} /> {windowPending ? '저장 중' : '판매 기간 저장'}
         </button>
-      </form>
+      </SeededForm>
 
-      <form action={switchAction} className="col" style={{ gap: 10 }}>
+      <SeededForm values={switchState.values} action={switchAction} className="col" style={{ gap: 10 }}>
         <h3 style={{ fontSize: 14, margin: 0 }}>판매 · 진열 스위치</h3>
         <input name="goodId" type="hidden" value={good.id} />
         <div className="admin-form-grid">
@@ -112,9 +113,9 @@ export function GoodSalePanel({ good }: { good: AdminGoodRecord }) {
         <button className="btn btn-holo" disabled={switchPending} style={{ justifySelf: 'start', minWidth: 150 }}>
           <Icon name="check" size={15} /> {switchPending ? '적용 중' : '상태 적용'}
         </button>
-      </form>
+      </SeededForm>
 
-      <form action={pricingAction} className="col" style={{ gap: 10 }}>
+      <SeededForm values={pricingState.values} action={pricingAction} className="col" style={{ gap: 10 }}>
         <h3 style={{ fontSize: 14, margin: 0 }}>공급가 · 과세 구분</h3>
         <input name="goodId" type="hidden" value={good.id} />
         <div className="admin-form-grid">
@@ -127,7 +128,7 @@ export function GoodSalePanel({ good }: { good: AdminGoodRecord }) {
         <button className="btn btn-holo" disabled={pricingPending} style={{ justifySelf: 'start', minWidth: 150 }}>
           <Icon name="check" size={15} /> {pricingPending ? '저장 중' : '공급가 저장'}
         </button>
-      </form>
+      </SeededForm>
     </section>
   );
 }
@@ -140,7 +141,7 @@ export function GoodSearchSeoPanel({ good }: { good: AdminGoodRecord }) {
         <span className="eyebrow">SEARCH · SEO</span>
         <h2 id={`seo-${good.id}`} style={{ fontSize: 18, margin: '6px 0 0' }}>요약 · 검색어 · SEO</h2>
       </div>
-      <form action={action} className="col" style={{ gap: 10 }}>
+      <SeededForm values={state.values} action={action} className="col" style={{ gap: 10 }}>
         <input name="goodId" type="hidden" value={good.id} />
         <Field defaultValue={good.summary ?? ''} error={state.errors?.summary} label="한 줄 요약 (120자 · 목록 카드와 상세 상단)" name="summary" />
         <TextArea
@@ -159,7 +160,7 @@ export function GoodSearchSeoPanel({ good }: { good: AdminGoodRecord }) {
           검색어는 저장할 때 공백을 정리하고 소문자로 바꿔 중복을 지웁니다. 상품명·요약과 함께 검색 원문이 됩니다.
         </p>
         <FormShell pending={pending} state={state} />
-      </form>
+      </SeededForm>
     </section>
   );
 }
@@ -184,7 +185,7 @@ export function GoodCategoriesPanel({
         <span className="eyebrow">CATEGORIES</span>
         <h2 id={`categories-${good.id}`} style={{ fontSize: 18, margin: '6px 0 0' }}>분류</h2>
       </div>
-      <form action={action} className="col" style={{ gap: 10 }}>
+      <SeededForm values={state.values} action={action} className="col" style={{ gap: 10 }}>
         <input name="goodId" type="hidden" value={good.id} />
         <SelectField defaultValue={primary} error={state.errors?.primaryCategoryId} label="대표 분류" name="primaryCategoryId">
           <option value="">지정 안 함</option>
@@ -208,7 +209,7 @@ export function GoodCategoriesPanel({
           대표 분류는 하나뿐입니다. 체크하지 않아도 대표로 고른 분류는 자동으로 포함됩니다.
         </p>
         <FormShell pending={pending} state={state} />
-      </form>
+      </SeededForm>
     </section>
   );
 }

@@ -9,6 +9,7 @@ import {
   selectableShippingCarriers,
   type ShippingCarrierRegistry,
 } from '@/lib/orders/shipment';
+import { SeededForm } from '@/components/admin/form-seed';
 
 const EMPTY_ACTION_STATE: AdminOrderActionState = {};
 
@@ -45,7 +46,7 @@ export function DispatchShipForm({
   const fieldError = state.errors?.carrier ?? state.errors?.trackingNumber ?? state.errors?.form;
 
   return (
-    <form
+    <SeededForm values={state.values}
       action={action}
       className="admin-console-row-form"
       data-confirm={SHIP_CONFIRMATION}
@@ -85,6 +86,6 @@ export function DispatchShipForm({
         {fieldError ? <span role="alert">{fieldError}</span> : null}
         {state.message ? <span role="status">{state.message}</span> : null}
       </div>
-    </form>
+    </SeededForm>
   );
 }

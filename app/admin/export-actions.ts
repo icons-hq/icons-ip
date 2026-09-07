@@ -16,6 +16,7 @@ import { IMPORT_KINDS, IMPORT_REPORT_LABELS, parseImportTable, type ImportIssue,
 import { readUploadedTable } from '@/lib/admin/imports.server';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 /*
  * D-4 내보내기 액션.
@@ -65,10 +66,13 @@ async function requireStaff(): Promise<AdminCatalogActionState | null> {
   return null;
 }
 
-export async function requestExportAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
+export async function requestExportAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_requestExportAction(_state, formData));
+}
+
+async function run_requestExportAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -98,6 +102,13 @@ export async function cancelExportAction(
   _state: AdminCatalogActionState,
   formData: FormData,
 ): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_cancelExportAction(_state, formData));
+}
+
+async function run_cancelExportAction(
+  _state: AdminCatalogActionState,
+  formData: FormData,
+): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -116,10 +127,13 @@ export async function cancelExportAction(
  * 다운로드 발급. 서명 URL 은 10분만 살고, 발급 자체가 기록으로 남는다(고시 §8).
  * 브라우저 다운로드는 액션이 돌려준 URL 로 화면이 연다.
  */
-export async function issueExportDownloadAction(
-  _state: AdminCatalogActionState & { url?: string },
-  formData: FormData,
-): Promise<AdminCatalogActionState & { url?: string }> {
+export async function issueExportDownloadAction(_state: AdminCatalogActionState & { url?: string },
+  formData: FormData,): Promise<AdminCatalogActionState & { url?: string }> {
+  return preserveValues(formData, () => run_issueExportDownloadAction(_state, formData));
+}
+
+async function run_issueExportDownloadAction(_state: AdminCatalogActionState & { url?: string },
+  formData: FormData,): Promise<AdminCatalogActionState & { url?: string }> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -149,10 +163,13 @@ export async function issueExportDownloadAction(
   return { message: `${issued.file_name} 링크를 만들었습니다. 10분 안에 받아주세요.`, url: signed.data.signedUrl };
 }
 
-export async function upsertExportTemplateAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
+export async function upsertExportTemplateAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_upsertExportTemplateAction(_state, formData));
+}
+
+async function run_upsertExportTemplateAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -191,6 +208,13 @@ export async function setAdminPermissionAction(
   _state: AdminCatalogActionState,
   formData: FormData,
 ): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_setAdminPermissionAction(_state, formData));
+}
+
+async function run_setAdminPermissionAction(
+  _state: AdminCatalogActionState,
+  formData: FormData,
+): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -218,10 +242,13 @@ export async function setAdminPermissionAction(
  * 파일을 읽어 검증만 한다 — 여기서는 아무것도 바뀌지 않는다.
  * 같은 사람이 같은 종류의 같은 파일을 다시 올리면 새 잡을 만들지 않고 이전 리포트를 돌려준다.
  */
-export async function registerImportAction(
-  _state: AdminImportActionState,
-  formData: FormData,
-): Promise<AdminImportActionState> {
+export async function registerImportAction(_state: AdminImportActionState,
+  formData: FormData,): Promise<AdminImportActionState> {
+  return preserveValues(formData, () => run_registerImportAction(_state, formData));
+}
+
+async function run_registerImportAction(_state: AdminImportActionState,
+  formData: FormData,): Promise<AdminImportActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -282,6 +309,13 @@ export async function registerImportAction(
 
 /** 검증에서 통과한 줄만 적용한다. 화면이 들고 있던 행을 그대로 다시 보낸다(줄 번호가 기준이다). */
 export async function applyImportAction(
+  _state: AdminImportActionState,
+  formData: FormData,
+): Promise<AdminImportActionState> {
+  return preserveValues(formData, () => run_applyImportAction(_state, formData));
+}
+
+async function run_applyImportAction(
   _state: AdminImportActionState,
   formData: FormData,
 ): Promise<AdminImportActionState> {

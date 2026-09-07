@@ -10,6 +10,7 @@ import {
   TRACKING_IMPORT_SAMPLE,
 } from '@/lib/admin/tracking-import';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
+import { SeededForm } from '@/components/admin/form-seed';
 
 const EMPTY_STATE: AdminTrackingImportState = {};
 
@@ -61,7 +62,7 @@ export function DispatchTrackingImportPanel({ carriers }: { carriers: ShippingCa
       </p>
       <pre className="admin-console-import-sample">{TRACKING_IMPORT_SAMPLE}</pre>
 
-      <form
+      <SeededForm values={state.values}
         action={action}
         onSubmit={(event) => {
           if (!window.confirm(IMPORT_CONFIRMATION)) event.preventDefault();
@@ -87,7 +88,7 @@ export function DispatchTrackingImportPanel({ carriers }: { carriers: ShippingCa
         <button className="btn btn-sm" disabled={pending} type="submit">
           {pending ? '등록 중' : '일괄 등록'}
         </button>
-      </form>
+      </SeededForm>
 
       <div aria-live="polite" className="admin-order-action-feedback">
         {state.errors?.form ? <span role="alert">{state.errors.form}</span> : null}

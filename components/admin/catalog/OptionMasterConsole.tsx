@@ -8,6 +8,7 @@ import { OPTION_DISPLAY_STYLES, type AdminOptionMaster } from '@/lib/admin/varia
 import { Icon } from '@/components/ui/Icon';
 import { CatalogEditorHeader } from './CatalogEditorHeader';
 import { Field, FormShell, SelectField, TextArea } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 /*
  * 옵션 마스터(설계서 v2 §1-1). 옵션(색상·사이즈…)과 값은 상품이 아니라 마스터가 소유한다 — 품목 표는
@@ -20,7 +21,7 @@ export const ADMIN_OPTION_MASTERS_PATH = '/admin/catalog/options';
 function OptionMasterForm({ selected }: { selected: AdminOptionMaster | null }) {
   const [state, action, pending] = useActionState(upsertOptionMasterAction, emptyState);
   return (
-    <form action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+    <SeededForm values={state.values} action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
       {selected ? <input name="id" type="hidden" value={selected.id} /> : null}
       <div className="admin-form-grid">
         <Field defaultValue={selected?.name ?? ''} error={state.errors?.name} label="옵션 이름" name="name" placeholder="색상" required />
@@ -53,7 +54,7 @@ function OptionMasterForm({ selected }: { selected: AdminOptionMaster | null }) 
         </label>
       ) : null}
       <FormShell pending={pending} state={state} />
-    </form>
+    </SeededForm>
   );
 }
 

@@ -11,6 +11,7 @@ import {
 } from '@/lib/admin/categories';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 /*
  * D-9 분류 · D-10 판매 기간 액션.
@@ -66,10 +67,13 @@ function revalidateCatalogPaths(goodId?: string | null) {
   if (goodId) revalidatePath(`/shop/${goodId}`);
 }
 
-export async function upsertCategoryAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
+export async function upsertCategoryAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_upsertCategoryAction(_state, formData));
+}
+
+async function run_upsertCategoryAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -105,6 +109,13 @@ export async function moveCategoryAction(
   _state: AdminCatalogActionState,
   formData: FormData,
 ): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_moveCategoryAction(_state, formData));
+}
+
+async function run_moveCategoryAction(
+  _state: AdminCatalogActionState,
+  formData: FormData,
+): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -127,6 +138,13 @@ export async function moveCategoryAction(
 }
 
 export async function reorderCategoriesAction(
+  _state: AdminCatalogActionState,
+  formData: FormData,
+): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_reorderCategoriesAction(_state, formData));
+}
+
+async function run_reorderCategoriesAction(
   _state: AdminCatalogActionState,
   formData: FormData,
 ): Promise<AdminCatalogActionState> {
@@ -161,6 +179,13 @@ export async function archiveCategoryAction(
   _state: AdminCatalogActionState,
   formData: FormData,
 ): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_archiveCategoryAction(_state, formData));
+}
+
+async function run_archiveCategoryAction(
+  _state: AdminCatalogActionState,
+  formData: FormData,
+): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -177,6 +202,13 @@ export async function archiveCategoryAction(
 }
 
 export async function setGoodCategoriesAction(
+  _state: AdminCatalogActionState,
+  formData: FormData,
+): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_setGoodCategoriesAction(_state, formData));
+}
+
+async function run_setGoodCategoriesAction(
   _state: AdminCatalogActionState,
   formData: FormData,
 ): Promise<AdminCatalogActionState> {
@@ -203,6 +235,13 @@ export async function setGoodCategoriesAction(
 }
 
 export async function reorderCategoryGoodsAction(
+  _state: AdminCatalogActionState,
+  formData: FormData,
+): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_reorderCategoryGoodsAction(_state, formData));
+}
+
+async function run_reorderCategoryGoodsAction(
   _state: AdminCatalogActionState,
   formData: FormData,
 ): Promise<AdminCatalogActionState> {
@@ -237,10 +276,13 @@ export async function reorderCategoryGoodsAction(
   return { message: commandKind === 'pin' ? '고정 여부를 저장했습니다.' : '진열 순서를 저장했습니다.' };
 }
 
-export async function setCategoryGoodDisplayWindowAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
+export async function setCategoryGoodDisplayWindowAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_setCategoryGoodDisplayWindowAction(_state, formData));
+}
+
+async function run_setCategoryGoodDisplayWindowAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -263,10 +305,13 @@ export async function setCategoryGoodDisplayWindowAction(
   return { message: from || until ? '진열 기간을 저장했습니다.' : '진열 기간을 해제했습니다.' };
 }
 
-export async function setGoodSaleWindowAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
+export async function setGoodSaleWindowAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_setGoodSaleWindowAction(_state, formData));
+}
+
+async function run_setGoodSaleWindowAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -288,10 +333,13 @@ export async function setGoodSaleWindowAction(
   return { message: `판매 기간을 저장했습니다. 지금 상태는 「${saleStateLabel(String(data ?? ''))}」입니다.` };
 }
 
-export async function setGoodSwitchAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
+export async function setGoodSwitchAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_setGoodSwitchAction(_state, formData));
+}
+
+async function run_setGoodSwitchAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -316,10 +364,13 @@ export async function setGoodSwitchAction(
   return { message: `상태를 바꿨습니다. 지금 상태는 「${saleStateLabel(String(data ?? ''))}」입니다.` };
 }
 
-export async function setGoodSearchSeoAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
+export async function setGoodSearchSeoAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_setGoodSearchSeoAction(_state, formData));
+}
+
+async function run_setGoodSearchSeoAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 
@@ -343,10 +394,13 @@ export async function setGoodSearchSeoAction(
   return { message: '검색·SEO 정보를 저장했습니다.' };
 }
 
-export async function setGoodPricingAction(
-  _state: AdminCatalogActionState,
-  formData: FormData,
-): Promise<AdminCatalogActionState> {
+export async function setGoodPricingAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_setGoodPricingAction(_state, formData));
+}
+
+async function run_setGoodPricingAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
   const authError = await requireStaff();
   if (authError) return authError;
 

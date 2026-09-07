@@ -4,6 +4,7 @@ import { revalidatePath, updateTag } from 'next/cache';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { POPUPS_CACHE_TAG, popupCacheTag } from '@/lib/popups';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 /* 팝업 편성 액션 (설계서 v2 §1-8). */
 
@@ -12,6 +13,8 @@ const POPUPS_PATH = '/admin/popups';
 export interface AdminPopupActionState {
   error?: string;
   message?: string;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. `SeededForm` 이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
 }
 
 async function requireStaff(): Promise<AdminPopupActionState | null> {
@@ -57,10 +60,13 @@ function kstInstant(value: string): string | null {
   return `${trimmed}:00+09:00`;
 }
 
-export async function upsertPopupAction(
-  _state: AdminPopupActionState,
-  formData: FormData,
-): Promise<AdminPopupActionState> {
+export async function upsertPopupAction(_state: AdminPopupActionState,
+  formData: FormData,): Promise<AdminPopupActionState> {
+  return preserveValues(formData, () => run_upsertPopupAction(_state, formData));
+}
+
+async function run_upsertPopupAction(_state: AdminPopupActionState,
+  formData: FormData,): Promise<AdminPopupActionState> {
   const denied = await requireStaff();
   if (denied) return denied;
 
@@ -90,10 +96,13 @@ export async function upsertPopupAction(
 }
 
 /** 페이즈 표를 통째로 저장한다. 폼은 `phase:<n>:<칸>` 으로 줄을 보낸다. */
-export async function savePopupPhasesAction(
-  _state: AdminPopupActionState,
-  formData: FormData,
-): Promise<AdminPopupActionState> {
+export async function savePopupPhasesAction(_state: AdminPopupActionState,
+  formData: FormData,): Promise<AdminPopupActionState> {
+  return preserveValues(formData, () => run_savePopupPhasesAction(_state, formData));
+}
+
+async function run_savePopupPhasesAction(_state: AdminPopupActionState,
+  formData: FormData,): Promise<AdminPopupActionState> {
   const denied = await requireStaff();
   if (denied) return denied;
 
@@ -137,10 +146,13 @@ export async function savePopupPhasesAction(
   return { message: `페이즈 ${phases.length}개를 저장했습니다.` };
 }
 
-export async function linkPopupTargetAction(
-  _state: AdminPopupActionState,
-  formData: FormData,
-): Promise<AdminPopupActionState> {
+export async function linkPopupTargetAction(_state: AdminPopupActionState,
+  formData: FormData,): Promise<AdminPopupActionState> {
+  return preserveValues(formData, () => run_linkPopupTargetAction(_state, formData));
+}
+
+async function run_linkPopupTargetAction(_state: AdminPopupActionState,
+  formData: FormData,): Promise<AdminPopupActionState> {
   const denied = await requireStaff();
   if (denied) return denied;
 
@@ -167,10 +179,13 @@ export async function linkPopupTargetAction(
   return { message: '연결했습니다.' };
 }
 
-export async function setPopupLinkRuleAction(
-  _state: AdminPopupActionState,
-  formData: FormData,
-): Promise<AdminPopupActionState> {
+export async function setPopupLinkRuleAction(_state: AdminPopupActionState,
+  formData: FormData,): Promise<AdminPopupActionState> {
+  return preserveValues(formData, () => run_setPopupLinkRuleAction(_state, formData));
+}
+
+async function run_setPopupLinkRuleAction(_state: AdminPopupActionState,
+  formData: FormData,): Promise<AdminPopupActionState> {
   const denied = await requireStaff();
   if (denied) return denied;
 
@@ -207,10 +222,13 @@ export async function setPopupLinkRuleAction(
 }
 
 /** 존 표를 통째로 저장한다. 폼은 `zone:<n>:<칸>` 으로 줄을 보낸다. */
-export async function savePopupZonesAction(
-  _state: AdminPopupActionState,
-  formData: FormData,
-): Promise<AdminPopupActionState> {
+export async function savePopupZonesAction(_state: AdminPopupActionState,
+  formData: FormData,): Promise<AdminPopupActionState> {
+  return preserveValues(formData, () => run_savePopupZonesAction(_state, formData));
+}
+
+async function run_savePopupZonesAction(_state: AdminPopupActionState,
+  formData: FormData,): Promise<AdminPopupActionState> {
   const denied = await requireStaff();
   if (denied) return denied;
 

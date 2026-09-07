@@ -8,6 +8,7 @@ import type { AdminStockLocation } from '@/lib/admin/variants';
 import { Icon } from '@/components/ui/Icon';
 import { CatalogEditorHeader } from './CatalogEditorHeader';
 import { Field, FormShell, SelectField } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 /*
  * 출고지(창고) 설정(설계서 v2 §1-9). 기본 출고지 1행이 상품의 기본값이고 품목이 덮어쓴다(ADR-0036).
@@ -26,7 +27,7 @@ function StockLocationForm({
 }) {
   const [state, action, pending] = useActionState(upsertStockLocationAction, emptyState);
   return (
-    <form action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+    <SeededForm values={state.values} action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
       <div className="admin-form-grid">
         <Field defaultValue={selected?.id ?? ''} error={state.errors?.id} label="코드 (영문 소문자·숫자·하이픈)" name="id" placeholder="busan" readOnly={Boolean(selected)} required />
         <Field defaultValue={selected?.name ?? ''} error={state.errors?.name} label="이름" name="name" placeholder="부산" required />
@@ -51,7 +52,7 @@ function StockLocationForm({
         기본 출고지는 하나뿐이다. 재고가 남은 출고지는 비활성화할 수 없고, 새 출고지를 켜면 모든 품목에 0개 재고 행이 생긴다.
       </p>
       <FormShell pending={pending} state={state} />
-    </form>
+    </SeededForm>
   );
 }
 

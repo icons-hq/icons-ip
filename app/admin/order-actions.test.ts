@@ -190,6 +190,8 @@ describe('admin order actions', () => {
 
     await expect(updateAdminOrderStatusAction({}, statusForm())).resolves.toEqual({
       errors: { form: '관리자 권한이 필요합니다.' },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -212,6 +214,8 @@ describe('admin order actions', () => {
     mocks.rpc.mockClear();
     await expect(updateAdminOrderStatusAction({}, statusForm('canceled'))).resolves.toEqual({
       errors: { status: '허용된 주문 상태를 선택해주세요.' },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -226,6 +230,8 @@ describe('admin order actions', () => {
         carrier: '택배사를 선택해주세요.',
         trackingNumber: '운송장번호를 입력해주세요.',
       },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -258,6 +264,8 @@ describe('admin order actions', () => {
 
       await expect(updateAdminOrderStatusAction({}, formData)).resolves.toEqual({
         errors: { status: '허용된 주문 상태를 선택해주세요.' },
+        /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+        values: expect.any(Object),
       });
       expect(mocks.rpc).not.toHaveBeenCalled();
     },
@@ -281,6 +289,8 @@ describe('admin order actions', () => {
 
     await expect(updateAdminOrderTrackingAction({}, trackingForm())).resolves.toEqual({
       errors: { form: '운송장 정보를 저장하지 못했습니다. 최신 상태를 확인해주세요.' },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
   });
 
@@ -339,6 +349,8 @@ describe('admin order actions', () => {
       for (const key of ['', 'order_confirmation:not-a-uuid', `unknown_template:${ORDER_ID}`]) {
         await expect(resendOrderEmailAction({}, resendForm(key))).resolves.toEqual({
           errors: { form: '다시 보낼 수 있는 메일이 아닙니다.' },
+          /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+          values: expect.any(Object),
         });
       }
       expect(mocks.rpc).not.toHaveBeenCalled();
@@ -354,7 +366,10 @@ describe('admin order actions', () => {
 
       await expect(
         resendOrderEmailAction({}, resendForm(`order_confirmation:${ORDER_ID}`)),
-      ).resolves.toEqual({ errors: { form: '관리자 권한이 필요합니다.' } });
+      ).resolves.toEqual({ errors: { form: '관리자 권한이 필요합니다.' },
+        /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+        values: expect.any(Object),
+      });
       expect(mocks.rpc).not.toHaveBeenCalled();
       expect(mocks.sendConfirmationEmail).not.toHaveBeenCalled();
     });
@@ -385,7 +400,10 @@ describe('admin order actions', () => {
 
     const result = await approveAdminOrderCancellationAction({}, requestForm());
 
-    expect(result).toEqual({ errors: { form: '청약철회 요청을 승인하지 못했습니다. 최신 상태를 확인해주세요.' } });
+    expect(result).toEqual({ errors: { form: '청약철회 요청을 승인하지 못했습니다. 최신 상태를 확인해주세요.' },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
+    });
     expect(JSON.stringify(result)).not.toContain('private');
     expect(mocks.reconcile).not.toHaveBeenCalled();
   });
@@ -395,6 +413,8 @@ describe('admin order actions', () => {
 
     await expect(approveAdminOrderCancellationAction({}, requestForm())).resolves.toEqual({
       errors: { form: '결제 취소 상태를 확정하지 못했습니다. 운영 화면의 최신 상태에서 다시 확인해주세요.' },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
   });
 
@@ -490,6 +510,8 @@ describe('admin order actions', () => {
       };
       await expect(recoverAdminGoodsPaymentAction({}, cancellationForm())).resolves.toEqual({
         errors: { form: 'Korpay 수동 복구는 관리자 계정만 수행할 수 있습니다.' },
+        /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+        values: expect.any(Object),
       });
       expect(mocks.recoverGoodsPayment).not.toHaveBeenCalled();
     });
@@ -500,6 +522,8 @@ describe('admin order actions', () => {
       mocks.recoverGoodsPayment.mockResolvedValueOnce({ outcome: 'in_progress' });
       await expect(recoverAdminGoodsPaymentAction({}, cancellationForm())).resolves.toEqual({
         errors: { form: '다른 운영 확인이 진행 중입니다. 잠시 뒤 최신 상태를 확인해주세요.' },
+        /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+        values: expect.any(Object),
       });
 
       mocks.recoverGoodsPayment.mockRejectedValueOnce(new Error('private db detail'));
@@ -563,7 +587,10 @@ describe('admin order actions', () => {
     /* 브라우저가 보낸 값은 그대로 RPC 인자가 된다. UUID가 아닌 값은 닿기 전에 버린다. */
     it('UUID가 아닌 선택값은 RPC에 닿기 전에 버린다', async () => {
       await expect(bulkConfirmAdminOrdersAction({}, bulkForm('not-a-uuid', '  ')))
-        .resolves.toEqual({ errors: { form: '발주확인할 주문을 선택해주세요.' } });
+        .resolves.toEqual({ errors: { form: '발주확인할 주문을 선택해주세요.' },
+          /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+          values: expect.any(Object),
+        });
       expect(mocks.rpc).not.toHaveBeenCalled();
     });
 
@@ -594,7 +621,10 @@ describe('admin order actions', () => {
       };
 
       await expect(bulkConfirmAdminOrdersAction({}, bulkForm(ORDER_ID)))
-        .resolves.toEqual({ errors: { form: '관리자 권한이 필요합니다.' } });
+        .resolves.toEqual({ errors: { form: '관리자 권한이 필요합니다.' },
+          /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+          values: expect.any(Object),
+        });
       expect(mocks.rpc).not.toHaveBeenCalled();
     });
   });

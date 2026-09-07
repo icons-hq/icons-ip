@@ -131,6 +131,8 @@ describe('admin curation action', () => {
         operationId: '유효한 저장 요청이 아닙니다.',
         linkPath: '1~2048자의 안전한 내부 경로를 입력해주세요.',
       },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
     expect(mocks.getCurrentAdminAuthState).not.toHaveBeenCalled();
     expect(mocks.createClient).not.toHaveBeenCalled();
@@ -153,6 +155,8 @@ describe('admin curation action', () => {
     };
     await expect(upsertAdminCurationAction({}, curationForm())).resolves.toEqual({
       errors: { form: '관리자 권한이 필요합니다.' },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
 
     expect(mocks.createClient).not.toHaveBeenCalled();
@@ -173,6 +177,8 @@ describe('admin curation action', () => {
 
     expect(result).toEqual({
       errors: { form: '홈 큐레이션을 저장하지 못했습니다. 다시 시도해주세요.' },
+      /* 실패하면 제출값을 함께 돌려준다 — 폼이 이 값으로 다시 시드한다. */
+      values: expect.any(Object),
     });
     expect(JSON.stringify(result)).not.toContain('private');
     expect(mocks.revalidatePath).not.toHaveBeenCalled();

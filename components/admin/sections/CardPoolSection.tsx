@@ -11,6 +11,7 @@ import { IpPicker } from '@/components/admin/catalog/IpPicker';
 import type { AdminCardPoolRecord, AdminCardRecord } from '@/lib/admin/catalog.server';
 import type { RarityKey } from '@/lib/rarity';
 import { ErrorText, Field, FormShell, RecordList } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 const emptyState: AdminCatalogActionState = {};
 const RARITIES: RarityKey[] = ['N', 'R', 'SR', 'SSR', 'HOLO'];
@@ -121,7 +122,7 @@ function PoolForm({
   const initialIpId = selected?.ipId ?? ipOptions.find((ip) => !ip.archivedAt)?.id ?? '';
 
   return (
-    <form action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+    <SeededForm values={state.values} action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
       <input name="operationId" type="hidden" value={operationId} />
       <input name="id" type="hidden" value={selected?.id ?? draftId} />
       <div className="admin-form-grid">
@@ -159,7 +160,7 @@ function PoolForm({
       </div>
       {noIps && <p role="status" style={{ margin: 0 }}>먼저 IP를 등록해주세요.</p>}
       <FormShell disabled={noIps} pending={pending} state={state} />
-    </form>
+    </SeededForm>
   );
 }
 
@@ -181,7 +182,7 @@ function OddsForm({
     : `합계 ${Number((total / 1_000).toFixed(3))}% · ${validTotal ? '저장 가능' : '100% 필요'}`;
 
   return (
-    <form action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+    <SeededForm values={state.values} action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
       <input name="operationId" type="hidden" value={operationId} />
       <input name="poolId" type="hidden" value={selected?.id ?? ''} />
       <div>
@@ -244,7 +245,7 @@ function OddsForm({
         변경한 구성과 확률은 저장 즉시 적용되며, 이미 발급된 미사용 카드팩도 개봉 시점의 최신 구성과 확률을 사용합니다.
       </div>
       <FormShell disabled={!selected || !validTotal} pending={pending} state={state} />
-    </form>
+    </SeededForm>
   );
 }
 

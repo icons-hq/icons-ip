@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { ADMIN_PRODUCT_QUESTIONS_PATH } from '@/lib/admin/product-questions';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 /* 어드민 상품 Q&A 답변·비노출 (S8 #330).
  *
@@ -22,6 +23,8 @@ export interface AdminQnaActionState {
    * 문구만 보고 판단하면 두 번째 저장의 문구가 첫 번째와 같아 창이 갱신되지 않는다.
    */
   resultKey?: string;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. `SeededForm` 이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
 }
 
 const ANSWER_FAILED = '답변을 저장하지 못했습니다. 최신 상태를 확인해주세요.';
@@ -76,10 +79,13 @@ function revalidateQuestionSurfaces() {
   revalidatePath('/shop/[goodId]', 'page');
 }
 
-export async function answerProductQuestionAction(
-  _state: AdminQnaActionState,
-  formData: FormData,
-): Promise<AdminQnaActionState> {
+export async function answerProductQuestionAction(_state: AdminQnaActionState,
+  formData: FormData,): Promise<AdminQnaActionState> {
+  return preserveValues(formData, () => run_answerProductQuestionAction(_state, formData));
+}
+
+async function run_answerProductQuestionAction(_state: AdminQnaActionState,
+  formData: FormData,): Promise<AdminQnaActionState> {
   const denied = await requireStaffAction();
   if (denied) return denied;
 
@@ -114,6 +120,13 @@ export async function answerProductQuestionAction(
  * 작성자는 내려간 자기 질문을 계속 볼 수 있다(그래야 이유를 물어볼 수 있다).
  */
 export async function setProductQuestionVisibilityAction(
+  _state: AdminQnaActionState,
+  formData: FormData,
+): Promise<AdminQnaActionState> {
+  return preserveValues(formData, () => run_setProductQuestionVisibilityAction(_state, formData));
+}
+
+async function run_setProductQuestionVisibilityAction(
   _state: AdminQnaActionState,
   formData: FormData,
 ): Promise<AdminQnaActionState> {

@@ -4,6 +4,7 @@ import type { AdminCouponActionState } from '@/app/admin/coupon-actions';
 import type { AdminCouponRecord } from '@/lib/admin/coupons';
 import { LOYALTY_GRADES, loyaltyBasisSummary, loyaltyGradeLabel } from '@/lib/loyalty';
 import { Field, FormShell, RecordList, SelectField } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 /*
  * 쿠폰 콘솔 (S7 #329).
@@ -52,7 +53,7 @@ function CouponEditor({
   state: AdminCouponActionState;
 }) {
   return (
-    <form action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 16 }}>
+    <SeededForm values={state.values} action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 16 }}>
       <input name="previousCode" type="hidden" value={selected?.code ?? ''} />
       <div className="admin-form-grid">
         <Field
@@ -159,7 +160,7 @@ function CouponEditor({
         </p>
       )}
       <FormShell pending={pending} state={state} />
-    </form>
+    </SeededForm>
   );
 }
 

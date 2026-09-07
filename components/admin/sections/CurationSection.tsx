@@ -10,6 +10,7 @@ import type { AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
 import { adminCurationTargetGroupsFor } from '@/lib/admin/curation-targets';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { ErrorText, Field, FormShell, RecordList, SelectField } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 const emptyState: AdminCurationActionState = {};
 
@@ -190,7 +191,7 @@ function CurationForm({
   );
 
   return (
-    <form action={action} className="card col admin-curation-form">
+    <SeededForm values={state.values} action={action} className="card col admin-curation-form">
       <input name="operationId" type="hidden" value={operationId} />
       <input name="id" type="hidden" value={selected?.id ?? draftId} />
 
@@ -394,6 +395,6 @@ function CurationForm({
         </p>
       )}
       <FormShell pending={pending} state={state} />
-    </form>
+    </SeededForm>
   );
 }

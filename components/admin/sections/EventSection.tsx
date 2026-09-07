@@ -13,6 +13,7 @@ import {
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { ColorField, Field, FormShell, RecordList, SelectField } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 function dateTimeInput(value: string | null | undefined) {
   if (!value) return '';
@@ -77,7 +78,7 @@ export function EventSection({
         />
       </div>
       <div className="col" style={{ gap: 16, minWidth: 0 }}>
-        <form action={action} className="card col" key={selected ? JSON.stringify(selected) : 'new-event'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+        <SeededForm values={state.values} action={action} className="card col" key={selected ? JSON.stringify(selected) : 'new-event'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
         <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
         <div className="admin-form-grid">
@@ -116,7 +117,7 @@ export function EventSection({
           kind="event"
         />
         <FormShell pending={pending} state={state} />
-        </form>
+        </SeededForm>
         {selected && (
           <CatalogArchiveControl
             archivedAt={selected.archivedAt}

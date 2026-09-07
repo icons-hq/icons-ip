@@ -11,6 +11,7 @@ import {
   normalizeInquiryReplyForm,
 } from '@/lib/inquiries';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 /* 어드민 문의 답변·종결·템플릿(#253).
  *
@@ -34,6 +35,8 @@ export interface AdminInquiryActionState {
    * 운영자가 한 번 더 보낸다.
    */
   resultKey?: string;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. `SeededForm` 이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
 }
 
 const ANSWER_FAILED = '답변을 등록하지 못했습니다. 최신 상태를 확인해주세요.';
@@ -72,10 +75,13 @@ function readString(formData: FormData, name: string) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-export async function answerInquiryAction(
-  _state: AdminInquiryActionState,
-  formData: FormData,
-): Promise<AdminInquiryActionState> {
+export async function answerInquiryAction(_state: AdminInquiryActionState,
+  formData: FormData,): Promise<AdminInquiryActionState> {
+  return preserveValues(formData, () => run_answerInquiryAction(_state, formData));
+}
+
+async function run_answerInquiryAction(_state: AdminInquiryActionState,
+  formData: FormData,): Promise<AdminInquiryActionState> {
   const access = await requireStaffAction();
   if (access.error || !access.userId) return access.error ?? { errors: { form: ANSWER_FAILED } };
 
@@ -146,6 +152,13 @@ export async function closeInquiryAction(
   _state: AdminInquiryActionState,
   formData: FormData,
 ): Promise<AdminInquiryActionState> {
+  return preserveValues(formData, () => run_closeInquiryAction(_state, formData));
+}
+
+async function run_closeInquiryAction(
+  _state: AdminInquiryActionState,
+  formData: FormData,
+): Promise<AdminInquiryActionState> {
   const access = await requireStaffAction();
   if (access.error) return access.error;
 
@@ -163,10 +176,13 @@ export async function closeInquiryAction(
   return { message: '문의를 종결했습니다.' };
 }
 
-export async function saveInquiryReplyTemplateAction(
-  _state: AdminInquiryActionState,
-  formData: FormData,
-): Promise<AdminInquiryActionState> {
+export async function saveInquiryReplyTemplateAction(_state: AdminInquiryActionState,
+  formData: FormData,): Promise<AdminInquiryActionState> {
+  return preserveValues(formData, () => run_saveInquiryReplyTemplateAction(_state, formData));
+}
+
+async function run_saveInquiryReplyTemplateAction(_state: AdminInquiryActionState,
+  formData: FormData,): Promise<AdminInquiryActionState> {
   const access = await requireStaffAction();
   if (access.error) return access.error;
 
@@ -194,6 +210,13 @@ export async function saveInquiryReplyTemplateAction(
 }
 
 export async function deleteInquiryReplyTemplateAction(
+  _state: AdminInquiryActionState,
+  formData: FormData,
+): Promise<AdminInquiryActionState> {
+  return preserveValues(formData, () => run_deleteInquiryReplyTemplateAction(_state, formData));
+}
+
+async function run_deleteInquiryReplyTemplateAction(
   _state: AdminInquiryActionState,
   formData: FormData,
 ): Promise<AdminInquiryActionState> {

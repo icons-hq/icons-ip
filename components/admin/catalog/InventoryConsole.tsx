@@ -16,6 +16,7 @@ import {
 import type { AdminInventoryList, AdminInventoryRow } from '@/lib/admin/variants.server';
 import { Icon } from '@/components/ui/Icon';
 import { InlineNotice, TextArea } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 /*
  * 재고 관리(설계서 v2 §1-1 화면 4-4). 품목 × 출고지 한 행 — 보유·예약·가용·안전재고와 마지막 반영 출처.
@@ -82,7 +83,7 @@ function stampBatchId(event: FormEvent<HTMLFormElement>) {
 function BulkStockForm() {
   const [state, action, pending] = useActionState(setVariantStockBulkAction, emptyState);
   return (
-    <form action={action} className="card col admin-inventory-bulk" onSubmit={stampBatchId} style={{ borderRadius: 10, gap: 10, padding: 16 }}>
+    <SeededForm values={state.values} action={action} className="card col admin-inventory-bulk" onSubmit={stampBatchId} style={{ borderRadius: 10, gap: 10, padding: 16 }}>
       <div>
         <span className="eyebrow">BULK</span>
         <h2 style={{ fontSize: 16, margin: '6px 0 0' }}>수량 일괄 맞추기 (절대값)</h2>
@@ -106,7 +107,7 @@ function BulkStockForm() {
       <button className="btn btn-holo" disabled={pending} style={{ justifySelf: 'start', minWidth: 150 }}>
         <Icon name="check" size={15} /> {pending ? '반영 중' : '수량 반영'}
       </button>
-    </form>
+    </SeededForm>
   );
 }
 

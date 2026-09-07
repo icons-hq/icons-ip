@@ -48,6 +48,7 @@ import {
   type ShippingCarrierRegistry,
 } from '@/lib/orders/shipment';
 import { formatKrw } from '../format';
+import { SeededForm } from '@/components/admin/form-seed';
 
 /* 사다리 순서 그대로 둔다 — 드롭다운 순서가 운영자에게는 단계 순서다(#250).
    문구는 ADMIN_ORDER_STATUS_LABELS에서 가져온다. 여기에 다시 적으면 일괄 등록
@@ -222,7 +223,7 @@ function OrderStatusAction({
   const confirmation = STATUS_ACTION_CONFIRMATIONS[status];
 
   return (
-    <form
+    <SeededForm values={state.values}
       action={action}
       className={status === 'shipping'
         ? 'admin-order-action-form admin-order-shipment-form'
@@ -247,7 +248,7 @@ function OrderStatusAction({
         {pending ? '처리 중' : label}
       </button>
       <ActionFeedback state={state} />
-    </form>
+    </SeededForm>
   );
 }
 
@@ -264,7 +265,7 @@ function UpdateTrackingForm({
   const confirmation = '운송장번호를 수정할까요? 변경 이력이 감사 로그에 남습니다.';
 
   return (
-    <form
+    <SeededForm values={state.values}
       action={action}
       className="admin-order-action-form admin-order-shipment-form"
       data-confirm={confirmation}
@@ -283,7 +284,7 @@ function UpdateTrackingForm({
         {pending ? '저장 중' : '운송장 수정'}
       </button>
       <ActionFeedback state={state} />
-    </form>
+    </SeededForm>
   );
 }
 
@@ -302,7 +303,7 @@ function ApproveCancellationForm({
     : '청약철회를 승인하고 결제 취소를 시작할까요?';
 
   return (
-    <form
+    <SeededForm values={state.values}
       action={action}
       className="admin-order-action-form"
       data-confirm={confirmation}
@@ -313,7 +314,7 @@ function ApproveCancellationForm({
         {pending ? '승인 중' : '청약철회 승인'}
       </button>
       <ActionFeedback state={state} />
-    </form>
+    </SeededForm>
   );
 }
 
@@ -322,7 +323,7 @@ function RejectCancellationForm({ requestId }: { requestId: string }) {
   const confirmation = '청약철회 요청을 거절할까요? 입력한 사유가 기록됩니다.';
 
   return (
-    <form
+    <SeededForm values={state.values}
       action={action}
       className="admin-order-reject-form"
       data-confirm={confirmation}
@@ -348,7 +349,7 @@ function RejectCancellationForm({ requestId }: { requestId: string }) {
         {pending ? '거절 중' : '요청 거절'}
       </button>
       <ActionFeedback state={state} />
-    </form>
+    </SeededForm>
   );
 }
 
@@ -372,7 +373,7 @@ function ReconcileCancellationForm({
     : request.status === 'processing' ? '처리 상태 확인' : '상태 다시 확인';
 
   return (
-    <form
+    <SeededForm values={state.values}
       action={action}
       className="admin-order-action-form"
       data-confirm={confirmation}
@@ -383,7 +384,7 @@ function ReconcileCancellationForm({
         {pending ? '확인 중' : label}
       </button>
       <ActionFeedback state={state} />
-    </form>
+    </SeededForm>
   );
 }
 
@@ -415,7 +416,7 @@ function ManualKorpayCancellationForm({
   }, [attestationError]);
 
   return (
-    <form
+    <SeededForm values={state.values}
       action={action}
       className="admin-order-korpay-recovery-form"
       data-confirm={confirmation}
@@ -454,7 +455,7 @@ function ManualKorpayCancellationForm({
         </span>
       ) : null}
       <ActionFeedback state={state} />
-    </form>
+    </SeededForm>
   );
 }
 

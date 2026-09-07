@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 /* 어드민 리뷰 답글·블라인드(#254).
  *
@@ -24,6 +25,8 @@ export interface AdminReviewActionState {
    * 문구만 보고 판단하면 두 번째 저장의 문구가 첫 번째와 같아 창이 비지 않는다.
    */
   resultKey?: string;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. `SeededForm` 이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
 }
 
 const REPLY_FAILED = '답글을 저장하지 못했습니다. 최신 상태를 확인해주세요.';
@@ -64,10 +67,13 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   return fallback;
 }
 
-export async function replyToReviewAction(
-  _state: AdminReviewActionState,
-  formData: FormData,
-): Promise<AdminReviewActionState> {
+export async function replyToReviewAction(_state: AdminReviewActionState,
+  formData: FormData,): Promise<AdminReviewActionState> {
+  return preserveValues(formData, () => run_replyToReviewAction(_state, formData));
+}
+
+async function run_replyToReviewAction(_state: AdminReviewActionState,
+  formData: FormData,): Promise<AdminReviewActionState> {
   const denied = await requireStaffAction();
   if (denied) return denied;
 
@@ -103,6 +109,13 @@ export async function replyToReviewAction(
  * 확인한 뒤에만 종결한다.
  */
 export async function setReviewStatusAction(
+  _state: AdminReviewActionState,
+  formData: FormData,
+): Promise<AdminReviewActionState> {
+  return preserveValues(formData, () => run_setReviewStatusAction(_state, formData));
+}
+
+async function run_setReviewStatusAction(
   _state: AdminReviewActionState,
   formData: FormData,
 ): Promise<AdminReviewActionState> {

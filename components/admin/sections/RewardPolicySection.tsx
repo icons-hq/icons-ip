@@ -11,6 +11,7 @@ import type {
   AdminRewardPolicyRecord,
 } from '@/lib/admin/catalog.server';
 import { ErrorText, Field, FormShell, RecordList, SelectField } from '../fields';
+import { SeededForm } from '@/components/admin/form-seed';
 
 const emptyState: AdminCatalogActionState = {};
 
@@ -182,7 +183,7 @@ function RewardPolicyForm({
         : null;
 
   return (
-    <form
+    <SeededForm values={state.values}
       action={action}
       className="card col"
       onReset={(event) => event.preventDefault()}
@@ -312,7 +313,7 @@ function RewardPolicyForm({
         </p>
       )}
       <FormShell disabled={Boolean(disabledReason)} pending={pending} state={state} />
-    </form>
+    </SeededForm>
   );
 }
 

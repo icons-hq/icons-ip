@@ -18,6 +18,7 @@ import {
   type OrderClaimType,
 } from '@/lib/orders/claims';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
+import { SeededForm } from '@/components/admin/form-seed';
 
 /* 클레임 액션 패널(#252).
  *
@@ -136,7 +137,7 @@ export function ClaimActionPanel({
       </p>
 
       {canReview || canApprove ? (
-        <form action={decisionAction}>
+        <SeededForm values={decisionState.values} action={decisionAction}>
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <div className="row" style={{ gap: 8 }}>
@@ -164,11 +165,11 @@ export function ClaimActionPanel({
             ) : null}
           </div>
           <Feedback state={decisionState} />
-        </form>
+        </SeededForm>
       ) : null}
 
       {canResume ? (
-        <form action={decisionAction}>
+        <SeededForm values={decisionState.values} action={decisionAction}>
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="decision" type="hidden" value="resume" />
@@ -176,11 +177,11 @@ export function ClaimActionPanel({
             보류 해제
           </button>
           <Feedback state={decisionState} />
-        </form>
+        </SeededForm>
       ) : null}
 
       {canCollect ? (
-        <form action={collectionAction}>
+        <SeededForm values={collectionState.values} action={collectionAction}>
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="stage" type="hidden" value="collected" />
@@ -191,7 +192,7 @@ export function ClaimActionPanel({
             입고 확인 시점부터 환급 SLA(영업일 3일)가 시작됩니다.
           </p>
           <Feedback state={collectionState} />
-        </form>
+        </SeededForm>
       ) : null}
 
       {cancellationForm ? (
@@ -226,7 +227,7 @@ export function ClaimActionPanel({
       ) : null}
 
       {canFileRefund ? (
-        <form action={refundAction}>
+        <SeededForm values={refundState.values} action={refundAction}>
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="orderId" type="hidden" value={orderId} />
@@ -255,11 +256,11 @@ export function ClaimActionPanel({
             {refundFiled ? '환불 접수 정보 갱신' : '환불 접수 완료로 기록'}
           </button>
           <Feedback state={refundState} />
-        </form>
+        </SeededForm>
       ) : null}
 
       {canCompleteRefund ? (
-        <form action={refundAction}>
+        <SeededForm values={refundState.values} action={refundAction}>
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="orderId" type="hidden" value={orderId} />
@@ -289,7 +290,7 @@ export function ClaimActionPanel({
               : '이 클레임은 이미 종결됐습니다. 주문 취소·재고 복원·카드팩 회수는 끝났고, 여기서는 환불 원장에 완료 기록만 남깁니다.'}
           </p>
           <Feedback state={refundState} />
-        </form>
+        </SeededForm>
       ) : null}
 
       {refundLedgerMissing ? (
@@ -300,7 +301,7 @@ export function ClaimActionPanel({
       ) : null}
 
       {canReship ? (
-        <form action={reshipAction}>
+        <SeededForm values={reshipState.values} action={reshipAction}>
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value="exchange" />
           <label htmlFor="claim-reship-carrier">
@@ -328,11 +329,11 @@ export function ClaimActionPanel({
             교환은 환불이 아닙니다. 재고를 복원하지 않고 카드팩도 회수하지 않습니다.
           </p>
           <Feedback state={reshipState} />
-        </form>
+        </SeededForm>
       ) : null}
 
       {canHold ? (
-        <form action={decisionAction}>
+        <SeededForm values={decisionState.values} action={decisionAction}>
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="decision" type="hidden" value="hold" />
@@ -343,11 +344,11 @@ export function ClaimActionPanel({
           <button className="btn btn-sm btn-ghost" disabled={decisionPending} type="submit">
             보류
           </button>
-        </form>
+        </SeededForm>
       ) : null}
 
       {canReject ? (
-        <form action={decisionAction}>
+        <SeededForm values={decisionState.values} action={decisionAction}>
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="decision" type="hidden" value="reject" />
@@ -358,7 +359,7 @@ export function ClaimActionPanel({
           <button className="btn btn-sm btn-ghost" disabled={decisionPending} type="submit">
             거부
           </button>
-        </form>
+        </SeededForm>
       ) : null}
     </div>
   );

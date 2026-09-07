@@ -34,10 +34,13 @@ import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recover
 import { orderShipment } from '@/lib/orders/shipment';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
+import { preserveValues } from '@/lib/admin/form-values';
 
 export interface AdminOrderActionState {
   errors?: AdminOrderFieldErrors & { form?: string };
   message?: string;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. `SeededForm` 이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
 }
 
 function loginPath() {
@@ -85,6 +88,13 @@ const STATUS_TRANSITION_MESSAGES: Record<AdminOrderFormStatus, string> = {
 };
 
 export async function updateAdminOrderStatusAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  return preserveValues(formData, () => run_updateAdminOrderStatusAction(_state, formData));
+}
+
+async function run_updateAdminOrderStatusAction(
   _state: AdminOrderActionState,
   formData: FormData,
 ): Promise<AdminOrderActionState> {
@@ -152,6 +162,13 @@ export async function bulkConfirmAdminOrdersAction(
   _state: AdminOrderActionState,
   formData: FormData,
 ): Promise<AdminOrderActionState> {
+  return preserveValues(formData, () => run_bulkConfirmAdminOrdersAction(_state, formData));
+}
+
+async function run_bulkConfirmAdminOrdersAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
   const access = await requireStaffAction();
   if (access.error) return access.error;
 
@@ -213,10 +230,13 @@ export async function bulkConfirmAdminOrdersAction(
   return { message: `${confirmed}건을 발주확인했습니다.` };
 }
 
-export async function updateAdminOrderTrackingAction(
-  _state: AdminOrderActionState,
-  formData: FormData,
-): Promise<AdminOrderActionState> {
+export async function updateAdminOrderTrackingAction(_state: AdminOrderActionState,
+  formData: FormData,): Promise<AdminOrderActionState> {
+  return preserveValues(formData, () => run_updateAdminOrderTrackingAction(_state, formData));
+}
+
+async function run_updateAdminOrderTrackingAction(_state: AdminOrderActionState,
+  formData: FormData,): Promise<AdminOrderActionState> {
   const access = await requireStaffAction();
   if (access.error) return access.error;
 
@@ -245,6 +265,13 @@ export async function updateAdminOrderTrackingAction(
  * 메일이 두 번 가지 않는다.
  */
 export async function resendOrderEmailAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  return preserveValues(formData, () => run_resendOrderEmailAction(_state, formData));
+}
+
+async function run_resendOrderEmailAction(
   _state: AdminOrderActionState,
   formData: FormData,
 ): Promise<AdminOrderActionState> {
@@ -280,6 +307,13 @@ export async function approveAdminOrderCancellationAction(
   _state: AdminOrderActionState,
   formData: FormData,
 ): Promise<AdminOrderActionState> {
+  return preserveValues(formData, () => run_approveAdminOrderCancellationAction(_state, formData));
+}
+
+async function run_approveAdminOrderCancellationAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
   const access = await requireStaffAction();
   if (access.error || !access.auth?.user) return access.error ?? { errors: { form: '관리자 권한이 필요합니다.' } };
 
@@ -307,6 +341,13 @@ export async function rejectAdminOrderCancellationAction(
   _state: AdminOrderActionState,
   formData: FormData,
 ): Promise<AdminOrderActionState> {
+  return preserveValues(formData, () => run_rejectAdminOrderCancellationAction(_state, formData));
+}
+
+async function run_rejectAdminOrderCancellationAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
   const access = await requireStaffAction();
   if (access.error) return access.error;
 
@@ -328,6 +369,13 @@ export async function rejectAdminOrderCancellationAction(
 }
 
 export async function reconcileAdminOrderCancellationAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  return preserveValues(formData, () => run_reconcileAdminOrderCancellationAction(_state, formData));
+}
+
+async function run_reconcileAdminOrderCancellationAction(
   _state: AdminOrderActionState,
   formData: FormData,
 ): Promise<AdminOrderActionState> {
@@ -353,6 +401,13 @@ export async function reconcileAdminOrderCancellationAction(
 }
 
 export async function recoverAdminGoodsPaymentAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  return preserveValues(formData, () => run_recoverAdminGoodsPaymentAction(_state, formData));
+}
+
+async function run_recoverAdminGoodsPaymentAction(
   _state: AdminOrderActionState,
   formData: FormData,
 ): Promise<AdminOrderActionState> {
@@ -402,6 +457,8 @@ export interface AdminTrackingImportFailure {
 export interface AdminTrackingImportState {
   errors?: { form?: string };
   message?: string;
+  /** 저장이 실패했을 때 제출됐던 문자열 필드. `SeededForm` 이 이 값으로 다시 시드한다. */
+  values?: Record<string, string>;
   report?: {
     succeeded: string[];
     failed: AdminTrackingImportFailure[];
@@ -484,6 +541,13 @@ async function resolveTrackingImportOrder(
  * WMS와의 접점이다.
  */
 export async function bulkRegisterAdminOrderTrackingAction(
+  _state: AdminTrackingImportState,
+  formData: FormData,
+): Promise<AdminTrackingImportState> {
+  return preserveValues(formData, () => run_bulkRegisterAdminOrderTrackingAction(_state, formData));
+}
+
+async function run_bulkRegisterAdminOrderTrackingAction(
   _state: AdminTrackingImportState,
   formData: FormData,
 ): Promise<AdminTrackingImportState> {
@@ -580,10 +644,13 @@ export async function bulkRegisterAdminOrderTrackingAction(
  * 칸을 만들면 발송처리 때 되돌려야 하는 전이가 생긴다. 사유를 비워 저장하면
  * 메모가 지워진다.
  */
-export async function saveAdminOrderDispatchDelayAction(
-  _state: AdminOrderActionState,
-  formData: FormData,
-): Promise<AdminOrderActionState> {
+export async function saveAdminOrderDispatchDelayAction(_state: AdminOrderActionState,
+  formData: FormData,): Promise<AdminOrderActionState> {
+  return preserveValues(formData, () => run_saveAdminOrderDispatchDelayAction(_state, formData));
+}
+
+async function run_saveAdminOrderDispatchDelayAction(_state: AdminOrderActionState,
+  formData: FormData,): Promise<AdminOrderActionState> {
   const access = await requireStaffAction();
   if (access.error) return access.error;
 
@@ -620,10 +687,13 @@ function recordErrorMessage(raw: string, fallback: string) {
   return fallback;
 }
 
-export async function addOrderNoteAction(
-  _state: AdminOrderActionState,
-  formData: FormData,
-): Promise<AdminOrderActionState> {
+export async function addOrderNoteAction(_state: AdminOrderActionState,
+  formData: FormData,): Promise<AdminOrderActionState> {
+  return preserveValues(formData, () => run_addOrderNoteAction(_state, formData));
+}
+
+async function run_addOrderNoteAction(_state: AdminOrderActionState,
+  formData: FormData,): Promise<AdminOrderActionState> {
   const access = await requireStaffAction();
   if (access.error) return access.error;
 
@@ -647,6 +717,13 @@ export async function setOrderNotePinnedAction(
   _state: AdminOrderActionState,
   formData: FormData,
 ): Promise<AdminOrderActionState> {
+  return preserveValues(formData, () => run_setOrderNotePinnedAction(_state, formData));
+}
+
+async function run_setOrderNotePinnedAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
   const access = await requireStaffAction();
   if (access.error) return access.error;
 
@@ -666,10 +743,13 @@ export async function setOrderNotePinnedAction(
   return { message: pinned ? '메모를 고정했습니다.' : '고정을 풀었습니다.' };
 }
 
-export async function recordOrderExternalRefAction(
-  _state: AdminOrderActionState,
-  formData: FormData,
-): Promise<AdminOrderActionState> {
+export async function recordOrderExternalRefAction(_state: AdminOrderActionState,
+  formData: FormData,): Promise<AdminOrderActionState> {
+  return preserveValues(formData, () => run_recordOrderExternalRefAction(_state, formData));
+}
+
+async function run_recordOrderExternalRefAction(_state: AdminOrderActionState,
+  formData: FormData,): Promise<AdminOrderActionState> {
   const access = await requireStaffAction();
   if (access.error) return access.error;
 
@@ -691,6 +771,13 @@ export async function recordOrderExternalRefAction(
 }
 
 export async function removeOrderExternalRefAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  return preserveValues(formData, () => run_removeOrderExternalRefAction(_state, formData));
+}
+
+async function run_removeOrderExternalRefAction(
   _state: AdminOrderActionState,
   formData: FormData,
 ): Promise<AdminOrderActionState> {
@@ -737,10 +824,13 @@ function readShipmentItems(formData: FormData) {
   return items;
 }
 
-export async function createOrderShipmentAction(
-  _state: AdminOrderActionState,
-  formData: FormData,
-): Promise<AdminOrderActionState> {
+export async function createOrderShipmentAction(_state: AdminOrderActionState,
+  formData: FormData,): Promise<AdminOrderActionState> {
+  return preserveValues(formData, () => run_createOrderShipmentAction(_state, formData));
+}
+
+async function run_createOrderShipmentAction(_state: AdminOrderActionState,
+  formData: FormData,): Promise<AdminOrderActionState> {
   const access = await requireStaffAction();
   if (access.error) return access.error;
 
@@ -765,10 +855,13 @@ export async function createOrderShipmentAction(
   return { message: '출고를 만들었습니다. 송장을 확인하고 「보냄」을 누르면 재고가 빠집니다.' };
 }
 
-export async function shipOrderShipmentAction(
-  _state: AdminOrderActionState,
-  formData: FormData,
-): Promise<AdminOrderActionState> {
+export async function shipOrderShipmentAction(_state: AdminOrderActionState,
+  formData: FormData,): Promise<AdminOrderActionState> {
+  return preserveValues(formData, () => run_shipOrderShipmentAction(_state, formData));
+}
+
+async function run_shipOrderShipmentAction(_state: AdminOrderActionState,
+  formData: FormData,): Promise<AdminOrderActionState> {
   const access = await requireStaffAction();
   if (access.error) return access.error;
 
@@ -789,6 +882,13 @@ export async function shipOrderShipmentAction(
 }
 
 export async function deliverOrderShipmentAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  return preserveValues(formData, () => run_deliverOrderShipmentAction(_state, formData));
+}
+
+async function run_deliverOrderShipmentAction(
   _state: AdminOrderActionState,
   formData: FormData,
 ): Promise<AdminOrderActionState> {

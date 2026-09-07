@@ -26,6 +26,7 @@ import {
 } from '@/lib/admin/order-records';
 import { ADMIN_ORDER_STATUS_LABELS } from '@/lib/admin/orders';
 import { formatOrderDateTime } from '@/lib/orders';
+import { SeededForm } from '@/components/admin/form-seed';
 
 /*
  * 주문 기록 패널 (D-3).
@@ -46,7 +47,7 @@ function ActionMessage({ state }: { state: AdminOrderActionState }) {
 function NoteForm({ orderId }: { orderId: string }) {
   const [state, action, pending] = useActionState(addOrderNoteAction, emptyState);
   return (
-    <form action={action} className="col" style={{ gap: 8 }}>
+    <SeededForm values={state.values} action={action} className="col" style={{ gap: 8 }}>
       <input name="orderId" type="hidden" value={orderId} />
       <TextArea
         error={state.errors?.body}
@@ -68,28 +69,28 @@ function NoteForm({ orderId }: { orderId: string }) {
         <button className="btn btn-sm btn-holo" disabled={pending} type="submit">메모 남기기</button>
         <ActionMessage state={state} />
       </div>
-    </form>
+    </SeededForm>
   );
 }
 
 function PinToggle({ noteId, orderId, pinned }: { noteId: string; orderId: string; pinned: boolean }) {
   const [state, action, pending] = useActionState(setOrderNotePinnedAction, emptyState);
   return (
-    <form action={action}>
+    <SeededForm values={state.values} action={action}>
       <input name="noteId" type="hidden" value={noteId} />
       <input name="orderId" type="hidden" value={orderId} />
       {pinned ? null : <input name="pinned" type="hidden" value="on" />}
       <button className="btn btn-xs btn-ghost" disabled={pending} type="submit" title={state.errors?.form}>
         {pinned ? '고정 풀기' : '고정'}
       </button>
-    </form>
+    </SeededForm>
   );
 }
 
 function ExternalRefForm({ orderId }: { orderId: string }) {
   const [state, action, pending] = useActionState(recordOrderExternalRefAction, emptyState);
   return (
-    <form action={action} className="col" style={{ gap: 8 }}>
+    <SeededForm values={state.values} action={action} className="col" style={{ gap: 8 }}>
       <input name="orderId" type="hidden" value={orderId} />
       <div className="admin-form-grid">
         <SelectField error={state.errors?.kind} label="번호 종류" name="kind">
@@ -102,18 +103,18 @@ function ExternalRefForm({ orderId }: { orderId: string }) {
         <button className="btn btn-sm btn-ghost" disabled={pending} type="submit">번호 기록</button>
         <ActionMessage state={state} />
       </div>
-    </form>
+    </SeededForm>
   );
 }
 
 function RemoveRefButton({ orderId, refId }: { orderId: string; refId: string }) {
   const [state, action, pending] = useActionState(removeOrderExternalRefAction, emptyState);
   return (
-    <form action={action}>
+    <SeededForm values={state.values} action={action}>
       <input name="orderId" type="hidden" value={orderId} />
       <input name="refId" type="hidden" value={refId} />
       <button className="btn btn-xs btn-ghost" disabled={pending} type="submit" title={state.errors?.form}>지우기</button>
-    </form>
+    </SeededForm>
   );
 }
 
@@ -124,7 +125,7 @@ function ShipmentActions({ orderId, shipment }: { orderId: string; shipment: Adm
 
   if (shipment.status === 'ready') {
     return (
-      <form action={shipAction} className="row" style={{ alignItems: 'center', gap: 6 }}>
+      <SeededForm values={shipState.values} action={shipAction} className="row" style={{ alignItems: 'center', gap: 6 }}>
         <input name="orderId" type="hidden" value={orderId} />
         <input name="shipmentId" type="hidden" value={shipment.id} />
         {shipment.trackingNumber ? null : (
@@ -135,16 +136,16 @@ function ShipmentActions({ orderId, shipment }: { orderId: string; shipment: Adm
         )}
         <button className="btn btn-xs btn-holo" disabled={shipPending} type="submit" title={shipState.errors?.form}>보냄</button>
         {shipState.errors?.form ? <span className="admin-form-error">{shipState.errors.form}</span> : null}
-      </form>
+      </SeededForm>
     );
   }
   if (shipment.status === 'shipped') {
     return (
-      <form action={deliverAction}>
+      <SeededForm values={deliverState.values} action={deliverAction}>
         <input name="orderId" type="hidden" value={orderId} />
         <input name="shipmentId" type="hidden" value={shipment.id} />
         <button className="btn btn-xs btn-ghost" disabled={deliverPending} type="submit" title={deliverState.errors?.form}>도착</button>
-      </form>
+      </SeededForm>
     );
   }
   return null;
@@ -163,7 +164,7 @@ function NewShipmentForm({
     return <p className="muted" style={{ fontSize: 12, margin: 0 }}>남은 수량이 없습니다.</p>;
   }
   return (
-    <form action={action} className="col" style={{ gap: 8 }}>
+    <SeededForm values={state.values} action={action} className="col" style={{ gap: 8 }}>
       <input name="orderId" type="hidden" value={orderId} />
       {pending.map((line) => (
         <label className="row" key={line.orderItemId} style={{ alignItems: 'center', gap: 8, fontSize: 12 }}>
@@ -189,7 +190,7 @@ function NewShipmentForm({
         <button className="btn btn-sm btn-ghost" disabled={formPending} type="submit">출고 만들기</button>
         <ActionMessage state={state} />
       </div>
-    </form>
+    </SeededForm>
   );
 }
 
