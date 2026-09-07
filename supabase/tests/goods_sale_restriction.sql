@@ -16,6 +16,8 @@ begin;
 --   5. 무통장은 PG가 아니라 업종 제한과 무관하다 — 제한 주문에서도 열린다
 --   6. 파생은 캡처 직전에 한 번 더 확인된다 — prepare 뒤에 상품이 내려가면
 --      토스 선점이 거절되고, 그 거절은 attempt를 prepared로 남긴다
+--   7. 판매 제한 상품은 /search RPC에서도 감춰진다 — 목록·상세·캠페인·카트와
+--      같은 쿼리 레이어 비노출이고, 보안 경계는 여전히 3번이다
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -129,6 +131,24 @@ select 1 / case when (
 ) then 1 else 0 end as assert_sale_restriction_defaults_to_none;
 
 -- ---------------------------------------------------------------------------
+-- 검색 대조 — 전환 전에는 두 굿즈가 모두 /search에 잡힌다
+-- ---------------------------------------------------------------------------
+-- /search는 방문자 세션이 search_public_content를 바로 부른다(lib/search.ts).
+-- 아래 전환 뒤 "제한 굿즈가 안 잡힌다"를 필터의 증거로 쓰려면 같은 검색어·같은
+-- 한도에서 전환 전에는 둘 다 잡혔어야 한다 — 그래야 필터가 이름 매칭을 깨뜨린
+-- 경우나 한도에 밀려난 경우와 구분된다.
+set local role anon;
+
+select 1 / case when (
+  select count(*) = 2
+  from public.search_public_content('굿즈', 6)
+  where kind = 'good'
+    and id in ('restrict-plain-goods', 'restrict-adult-goods')
+) then 1 else 0 end as assert_unrestricted_goods_are_both_searchable;
+
+reset role;
+
+-- ---------------------------------------------------------------------------
 -- setter — staff만 뒤집고, 감사 기록이 남는다
 -- ---------------------------------------------------------------------------
 set local role authenticated;
@@ -180,6 +200,31 @@ begin
   end if;
 end;
 $$;
+
+reset role;
+
+-- ---------------------------------------------------------------------------
+-- 검색 비노출 — /search RPC도 같은 축으로 거른다
+-- ---------------------------------------------------------------------------
+-- 목록·상세·캠페인·카트는 앱 쿼리가 sale_restriction = 'none'으로 거르지만
+-- /search는 그 쿼리를 지나지 않고 search_public_content 본문이 곧 노출 규칙이다.
+-- 본문에 같은 필터가 없으면 목록에서 감춘 상품이 검색 한 번에 다시 나온다.
+-- 여전히 쿼리 레이어다 — 보안 경계는 아래 주문 생성 차단이다.
+set local role anon;
+
+select 1 / case when exists (
+  select 1
+  from public.search_public_content('굿즈', 6)
+  where kind = 'good'
+    and id = 'restrict-plain-goods'
+) then 1 else 0 end as assert_unrestricted_good_stays_searchable;
+
+select 1 / case when not exists (
+  select 1
+  from public.search_public_content('굿즈', 6)
+  where kind = 'good'
+    and id = 'restrict-adult-goods'
+) then 1 else 0 end as assert_restricted_good_is_hidden_from_search;
 
 reset role;
 

@@ -15,6 +15,9 @@
 --   3. 카드 provider는 주문 구성에서 파생된다 — 클라이언트가 고르지 않고,
 --      결제 준비뿐 아니라 캡처 직전 선점에서도 같은 파생을 다시 확인한다.
 --      prepare에서만 보면 attempt가 사는 10분이 그대로 우회 창이 된다
+--   4. 비노출은 /search까지 같은 축이다 — 목록·상세·캠페인·카트가 앱 쿼리에서
+--      거르는 sale_restriction = 'none'을 검색 RPC 본문에도 둔다. 여전히 쿼리
+--      레이어이고 보안 경계는 2번이다
 -- ==========================================================================
 
 -- ---------------------------------------------------------------------------
@@ -826,3 +829,276 @@ revoke all on function public.claim_goods_payment_attempt(
 grant execute on function public.claim_goods_payment_attempt(
   public.payment_provider, text, text, uuid
 ) to service_role;
+
+-- ---------------------------------------------------------------------------
+-- 7. 검색 비노출 — /search RPC도 같은 축으로 거른다
+-- ---------------------------------------------------------------------------
+-- 20260717120001(카탈로그 보관) 사본에 goods 분기의 `sale_restriction = 'none'`
+-- 한 줄만 더한 재정의다. 시그니처·반환 컬럼·security definer·search_path·점수
+-- 계산·정렬과 IP·카드·포스트·태그 분기는 바이트 단위로 같다 — 제한 상품이 없으면
+-- 이 함수는 한 행도 다르게 내지 않는다.
+--
+-- 이 재정의가 여기 있는 이유: 스토어 목록(카탈로그 스냅샷)·상세·캠페인 섹션·
+-- 카트 담기는 앱 쿼리가 `sale_restriction = 'none'`으로 거르지만(#392), /search는
+-- 그 쿼리를 지나지 않는다. lib/search.ts가 이 RPC를 방문자 세션으로 바로 부르고
+-- 결과를 그대로 그리므로 함수 본문이 곧 노출 규칙인데, 최신 정의는 archived_at만
+-- 걸러서 목록에서 감춘 19금 굿즈가 검색 한 번에 다시 나온다. 축을 도입한 이
+-- 마이그레이션이 그 축의 마지막 공개 읽기 표면도 함께 닫는다.
+--
+-- 여전히 쿼리 레이어 비노출이다. 보안 경계는 4번(주문 생성 차단)과 5·6번
+-- (provider 파생)이고, 여기서 거른다고 그 관문이 느슨해질 이유는 없다.
+-- 성인인증(#209·#210)이 붙어 19금 오픈 트랙이 열리면 이 필터도 목록·상세와
+-- 같은 시점에 인증된 성인 조건으로 바뀐다.
+create or replace function public.search_public_content(
+  search_query text,
+  per_group_limit integer default 6
+)
+returns table (
+  kind text,
+  id text,
+  label text,
+  subtitle text,
+  ip_id text,
+  ip_title text,
+  image_path text,
+  bg text,
+  accent text,
+  score real
+)
+language sql
+stable
+security definer
+set search_path = public, extensions, pg_temp
+as $$
+  with raw_params as (
+    select
+      nullif(left(btrim(search_query), 80), '') as q,
+      greatest(1, least(coalesce(per_group_limit, 6), 20)) as result_limit,
+      auth.uid() as actor_id
+  ),
+  params as (
+    select
+      raw_params.q,
+      case
+        when raw_params.q is null then null
+        else '%' || replace(replace(replace(raw_params.q, E'\\', E'\\\\'), '%', E'\\%'), '_', E'\\_') || '%'
+      end as q_like,
+      raw_params.result_limit,
+      raw_params.actor_id
+    from raw_params
+  ),
+  visible_posts as (
+    select
+      posts.id,
+      posts.user_id,
+      posts.ip_id,
+      posts.text,
+      posts.tag,
+      posts.image_path,
+      ips.title as ip_title,
+      verticals.color as accent
+    from public.posts
+    left join public.ips on ips.id = posts.ip_id
+    left join public.verticals on verticals.key = ips.vertical_key
+    cross join params
+    where params.q is not null
+      and posts.status = 'visible'
+      and not exists (
+        select 1
+        from public.blocks
+        where blocks.user_id = params.actor_id
+          and blocks.blocked_user_id = posts.user_id
+      )
+  ),
+  all_matches as (
+    select
+      'ip'::text as kind,
+      ips.id::text as id,
+      ips.title as label,
+      concat_ws(' · ', verticals.label, ips.sub) as subtitle,
+      ips.id::text as ip_id,
+      ips.title as ip_title,
+      ips.image_path,
+      ips.bg,
+      verticals.color as accent,
+      greatest(
+        extensions.similarity(ips.title, params.q),
+        case when ips.title ilike params.q_like escape E'\\' then 1 else 0 end,
+        case when coalesce(ips.sub, '') ilike params.q_like escape E'\\' then 0.7 else 0 end,
+        case when coalesce(ips.tagline, '') ilike params.q_like escape E'\\' then 0.6 else 0 end,
+        case when coalesce(ips.synopsis, '') ilike params.q_like escape E'\\' then 0.4 else 0 end
+      )::real as score,
+      params.result_limit
+    from params
+    join public.ips on params.q is not null
+    join public.verticals on verticals.key = ips.vertical_key
+    where ips.archived_at is null
+      and (
+        ips.title ilike params.q_like escape E'\\'
+        or coalesce(ips.sub, '') ilike params.q_like escape E'\\'
+        or coalesce(ips.tagline, '') ilike params.q_like escape E'\\'
+        or coalesce(ips.synopsis, '') ilike params.q_like escape E'\\'
+        or extensions.similarity(ips.title, params.q) > 0.15
+      )
+
+    union all
+
+    select
+      'good'::text as kind,
+      goods.id::text as id,
+      goods.name as label,
+      concat_ws(' · ', ips.title, goods.type) as subtitle,
+      goods.ip_id::text,
+      ips.title as ip_title,
+      goods.image_path,
+      goods.bg,
+      verticals.color as accent,
+      greatest(
+        extensions.similarity(goods.name, params.q),
+        case when goods.name ilike params.q_like escape E'\\' then 1 else 0 end,
+        case when goods.type ilike params.q_like escape E'\\' then 0.7 else 0 end,
+        case when coalesce(goods.badge, '') ilike params.q_like escape E'\\' then 0.4 else 0 end,
+        case when ips.title ilike params.q_like escape E'\\' then 0.35 else 0 end
+      )::real as score,
+      params.result_limit
+    from params
+    join public.goods on params.q is not null
+    join public.ips on ips.id = goods.ip_id
+    join public.verticals on verticals.key = ips.vertical_key
+    where goods.archived_at is null
+      and ips.archived_at is null
+      and goods.sale_restriction = 'none'
+      and (
+        goods.name ilike params.q_like escape E'\\'
+        or goods.type ilike params.q_like escape E'\\'
+        or coalesce(goods.badge, '') ilike params.q_like escape E'\\'
+        or ips.title ilike params.q_like escape E'\\'
+        or extensions.similarity(goods.name, params.q) > 0.15
+      )
+
+    union all
+
+    select
+      'card'::text as kind,
+      cards.id::text as id,
+      cards.name as label,
+      concat_ws(' · ', ips.title, cards.rarity::text, cards.no) as subtitle,
+      cards.ip_id::text,
+      ips.title as ip_title,
+      cards.image_path,
+      cards.bg,
+      verticals.color as accent,
+      greatest(
+        extensions.similarity(cards.name, params.q),
+        case when cards.name ilike params.q_like escape E'\\' then 1 else 0 end,
+        case when coalesce(cards.no, '') ilike params.q_like escape E'\\' then 0.5 else 0 end,
+        case when cards.rarity::text ilike params.q_like escape E'\\' then 0.5 else 0 end,
+        case when ips.title ilike params.q_like escape E'\\' then 0.35 else 0 end
+      )::real as score,
+      params.result_limit
+    from params
+    join public.cards on params.q is not null
+    join public.ips on ips.id = cards.ip_id
+    join public.verticals on verticals.key = ips.vertical_key
+    where cards.archived_at is null
+      and ips.archived_at is null
+      and (
+        cards.name ilike params.q_like escape E'\\'
+        or coalesce(cards.no, '') ilike params.q_like escape E'\\'
+        or cards.rarity::text ilike params.q_like escape E'\\'
+        or ips.title ilike params.q_like escape E'\\'
+        or extensions.similarity(cards.name, params.q) > 0.15
+      )
+
+    union all
+
+    select
+      'post'::text as kind,
+      visible_posts.id::text as id,
+      visible_posts.text as label,
+      concat_ws(' · ', visible_posts.ip_title, case when visible_posts.tag is null then null else '#' || visible_posts.tag end) as subtitle,
+      visible_posts.ip_id::text,
+      visible_posts.ip_title,
+      null::text as image_path,
+      null::text as bg,
+      visible_posts.accent,
+      greatest(
+        extensions.similarity(visible_posts.text, params.q),
+        case when visible_posts.text ilike params.q_like escape E'\\' then 1 else 0 end,
+        case when coalesce(visible_posts.tag, '') ilike params.q_like escape E'\\' then 0.8 else 0 end,
+        case when coalesce(visible_posts.ip_title, '') ilike params.q_like escape E'\\' then 0.35 else 0 end
+      )::real as score,
+      params.result_limit
+    from params
+    join visible_posts on true
+    where visible_posts.text ilike params.q_like escape E'\\'
+      or coalesce(visible_posts.tag, '') ilike params.q_like escape E'\\'
+      or coalesce(visible_posts.ip_title, '') ilike params.q_like escape E'\\'
+      or extensions.similarity(visible_posts.text, params.q) > 0.15
+
+    union all
+
+    select
+      'tag'::text as kind,
+      visible_posts.tag as id,
+      '#' || visible_posts.tag as label,
+      '커뮤니티 태그'::text as subtitle,
+      null::text as ip_id,
+      null::text as ip_title,
+      null::text as image_path,
+      null::text as bg,
+      max(visible_posts.accent) as accent,
+      max(greatest(
+        extensions.similarity(visible_posts.tag, params.q),
+        case when visible_posts.tag ilike params.q_like escape E'\\' then 1 else 0 end
+      ))::real as score,
+      params.result_limit
+    from params
+    join visible_posts on visible_posts.tag is not null
+    where visible_posts.tag ilike params.q_like escape E'\\'
+      or extensions.similarity(visible_posts.tag, params.q) > 0.15
+    group by visible_posts.tag, params.result_limit
+  ),
+  ranked as (
+    select
+      all_matches.*,
+      row_number() over (
+        partition by all_matches.kind
+        order by all_matches.score desc, all_matches.label asc, all_matches.id asc
+      ) as group_rank
+    from all_matches
+  )
+  select
+    ranked.kind,
+    ranked.id,
+    ranked.label,
+    ranked.subtitle,
+    ranked.ip_id,
+    ranked.ip_title,
+    ranked.image_path,
+    ranked.bg,
+    ranked.accent,
+    ranked.score
+  from ranked
+  where ranked.group_rank <= ranked.result_limit
+  order by
+    case ranked.kind
+      when 'ip' then 1
+      when 'good' then 2
+      when 'card' then 3
+      when 'post' then 4
+      when 'tag' then 5
+      else 6
+    end,
+    ranked.score desc,
+    ranked.label asc,
+    ranked.id asc;
+$$;
+
+-- create or replace는 기존 ACL을 보존하지만, 봉인 상태를 파일 안에서 읽을 수
+-- 있도록 명시한다(20260707090001 규율). 검색은 공개 브라우징이라 anon과
+-- authenticated에 열리고, service role은 부르지 않는다.
+revoke all on function public.search_public_content(text, integer)
+  from public, anon, authenticated, service_role;
+grant execute on function public.search_public_content(text, integer)
+  to anon, authenticated;
