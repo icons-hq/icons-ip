@@ -1,7 +1,10 @@
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AdminNotificationConsoleData } from '@/lib/admin/notifications';
+import type {
+  AdminNotificationAudience,
+  AdminNotificationConsoleData,
+} from '@/lib/admin/notifications';
 import { NotificationSection } from './NotificationSection';
 
 const hooks = vi.hoisted(() => ({
@@ -21,6 +24,8 @@ vi.mock('react', async () => {
       hooks.actionReducer = actionReducer;
       return [hooks.actionState, vi.fn(), hooks.pending];
     },
+    /* 화면을 함수로 직접 부르는 테스트가 있어 렌더 디스패처가 없다 — transition 은 즉시 실행으로 둔다. */
+    useTransition: () => [false, (fn: () => void) => { fn(); }],
     useState: (initial: unknown) => {
       const value = hooks.stateValues.length
         ? hooks.stateValues.shift()
@@ -35,27 +40,20 @@ vi.mock('react', async () => {
 });
 
 vi.mock('@/app/admin/notification-actions', () => ({
+  estimateNotificationAudienceAction: vi.fn(async () => ({ audience: null })),
   sendAdminNotificationAction: hooks.action,
 }));
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => null }));
 
 const data: AdminNotificationConsoleData = {
-  audiences: [
-    {
-      scope: 'all',
-      ipId: null,
-      ipTitle: null,
-      recipientCount: 18,
-      canSend: true,
-    },
-    {
-      scope: 'ip_followers',
-      ipId: 'rilakkuma',
-      ipTitle: '리락쿠마',
-      recipientCount: 7,
-      canSend: true,
-    },
-  ],
+  allAudience: {
+    scope: 'all',
+    ipId: null,
+    ipTitle: null,
+    recipientCount: 18,
+    canSend: true,
+  },
+  ipOptions: [{ id: 'rilakkuma', title: '리락쿠마', archivedAt: null }],
   history: [
     {
       operationId: '22222222-2222-4222-8222-222222222222',
@@ -74,6 +72,7 @@ const data: AdminNotificationConsoleData = {
 function setComposerState({
   body = '',
   confirmed = false,
+  ipAudience = null,
   ipId = '',
   operationId = '11111111-1111-4111-8111-111111111111',
   scope = 'all',
@@ -81,12 +80,13 @@ function setComposerState({
 }: {
   body?: string;
   confirmed?: boolean;
+  ipAudience?: AdminNotificationAudience | null;
   ipId?: string;
   operationId?: string;
   scope?: 'all' | 'ip_followers';
   title?: string;
 } = {}) {
-  hooks.stateValues = [scope, ipId, title, body, confirmed, operationId];
+  hooks.stateValues = [scope, ipId, title, body, confirmed, operationId, ipAudience];
 }
 
 function findElement(node: ReactNode, predicate: (element: ReactElement) => boolean): ReactElement | null {
@@ -186,7 +186,8 @@ describe('NotificationSection', () => {
 
   it('0명 대상과 pending 상태에서 중복 발송을 막는다', () => {
     const blockedData: AdminNotificationConsoleData = {
-      audiences: [{ ...data.audiences[0], recipientCount: 0, canSend: false }],
+      allAudience: { ...data.allAudience, recipientCount: 0, canSend: false },
+      ipOptions: [],
       history: [],
     };
     setComposerState({ body: '본문', title: '제목' });

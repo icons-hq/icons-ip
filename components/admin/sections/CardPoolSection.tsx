@@ -7,9 +7,10 @@ import {
   upsertAdminCardPoolAction,
   type AdminCatalogActionState,
 } from '@/app/admin/actions';
+import { IpPicker } from '@/components/admin/catalog/IpPicker';
 import type { AdminCardPoolRecord, AdminCardRecord } from '@/lib/admin/catalog.server';
 import type { RarityKey } from '@/lib/rarity';
-import { ErrorText, Field, FormShell, RecordList, SelectField } from '../fields';
+import { ErrorText, Field, FormShell, RecordList } from '../fields';
 
 const emptyState: AdminCatalogActionState = {};
 const RARITIES: RarityKey[] = ['N', 'R', 'SR', 'SSR', 'HOLO'];
@@ -124,24 +125,15 @@ function PoolForm({
       <input name="operationId" type="hidden" value={operationId} />
       <input name="id" type="hidden" value={selected?.id ?? draftId} />
       <div className="admin-form-grid">
-        <SelectField
-          defaultValue={initialIpId}
+        <IpPicker
+          defaultOptions={ipOptions}
           error={state.errors?.ipId}
+          key={`ipId:${initialIpId}`}
           label="연결 IP"
           name="ipId"
           required
-        >
-          <option value="">선택</option>
-          {ipOptions.map((ip) => (
-            <option
-              disabled={Boolean(ip.archivedAt && ip.id !== selected?.ipId)}
-              key={ip.id}
-              value={ip.id}
-            >
-              {ip.archivedAt ? `[보관] ${ip.title}` : ip.title}
-            </option>
-          ))}
-        </SelectField>
+          selected={ipOptions.find((ip) => ip.id === initialIpId) ?? null}
+        />
         <Field
           defaultValue={selected?.name}
           error={state.errors?.name}

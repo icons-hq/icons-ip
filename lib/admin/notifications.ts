@@ -42,8 +42,16 @@ export interface AdminNotificationHistoryRecord {
 }
 
 export interface AdminNotificationConsoleData {
-  audiences: AdminNotificationAudience[];
+  allAudience: AdminNotificationAudience;
+  /** 첫 화면에 그릴 IP 후보(상위 N). 나머지는 선택기의 검색으로 닿는다. */
+  ipOptions: AdminNotificationIpOption[];
   history: AdminNotificationHistoryRecord[];
+}
+
+export interface AdminNotificationIpOption {
+  id: string;
+  title: string;
+  archivedAt: string | null;
 }
 
 export interface AdminNotificationActionState {

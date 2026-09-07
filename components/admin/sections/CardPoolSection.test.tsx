@@ -129,10 +129,12 @@ describe('CardPoolSection', () => {
     const existing = renderPool(pool, [card], [pool], archivedIps);
     const creating = renderPool(null, [], [], archivedIps);
 
-    expect(existing).toContain('value="hwasan" selected="">[보관] 화산강림');
-    expect(existing).not.toContain('disabled="" value="hwasan" selected=""');
-    expect(creating).toContain('<option value="" selected="">선택</option>');
-    expect(creating).toContain('disabled="" value="hwasan">[보관] 화산강림');
+    /* 선택기는 라디오다 — 지금 값이면 보관이어도 잠그지 않는다(잠그면 저장이 막힌다). */
+    expect(existing).toContain('type="radio" name="ipId" checked="" value="hwasan"');
+    expect(existing).not.toContain('disabled="" required="" type="radio" name="ipId" checked="" value="hwasan"');
+    expect(existing).toContain('[보관] 화산강림');
+    expect(creating).toContain('disabled="" required="" type="radio" name="ipId" value="hwasan"');
+    expect(creating).not.toContain('checked=""');
     expect(creating).toContain('먼저 IP를 등록해주세요.');
   });
 
@@ -142,8 +144,8 @@ describe('CardPoolSection', () => {
       { id: 'active', title: '운영 IP', archivedAt: null },
     ]);
 
-    expect(html).toContain('disabled="" value="archived">[보관] 보관 IP');
-    expect(html).toContain('value="active" selected="">운영 IP');
+    expect(html).toContain('disabled="" required="" type="radio" name="ipId" value="archived"');
+    expect(html).toContain('type="radio" name="ipId" checked="" value="active"');
   });
 
   it('calculates exact milli-percent totals and rejects transient invalid input', () => {

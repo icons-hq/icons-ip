@@ -1209,3 +1209,24 @@ a.admin-console-chip:hover {
 .admin-variant-stock-form { min-width: 0; }
 .admin-inventory-low { color: var(--pink); font-weight: 700; }
 .admin-inventory-bulk textarea { font-family: var(--mono, ui-monospace, monospace); font-size: 12.5px; min-height: 120px; }
+
+/* ── 규모 ④ IP 검색형 선택기 ──────────────────────────────────────────── */
+.admin-ip-picker { display: flex; flex-direction: column; gap: 7px; border: 0; margin: 0; padding: 0; min-width: 0; }
+.admin-ip-picker-legend { color: var(--dim); font-size: 11px; padding: 0; }
+.admin-ip-picker[data-pending] .admin-ip-picker-list { opacity: .6; }
+.admin-ip-picker-list {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 208px; overflow-y: auto;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: rgba(255, 255, 255, .045); padding: 6px;
+}
+.admin-ip-picker-option {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 8px; font-size: 13px; cursor: pointer; min-width: 0;
+}
+.admin-ip-picker-option:hover { background: rgba(255, 255, 255, .06); }
+.admin-ip-picker-option > span:nth-of-type(1) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-ip-picker-option[data-archived] { color: var(--dim); }
+.admin-ip-picker-option:has(input:disabled) { cursor: not-allowed; opacity: .55; }
+.admin-ip-picker-id { color: var(--dim); font-size: 11px; }
+.admin-ip-picker-hint { color: var(--dim); font-size: 11.5px; margin: 0; }

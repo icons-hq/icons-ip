@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
+import { IpPicker } from '@/components/admin/catalog/IpPicker';
 import type { AdminEventRecord } from '@/lib/admin/catalog.server';
 import {
   adminCatalogArchiveCounts,
@@ -12,10 +13,6 @@ import {
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { ColorField, Field, FormShell, RecordList, SelectField } from '../fields';
-
-function optional(value: string | null | undefined) {
-  return value ?? '';
-}
 
 function dateTimeInput(value: string | null | undefined) {
   if (!value) return '';
@@ -85,18 +82,15 @@ export function EventSection({
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
         <div className="admin-form-grid">
           <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="e100" readOnly={Boolean(selected)} />
-          <SelectField defaultValue={optional(selected?.ipId)} error={state.errors?.ipId} label="연결 IP" name="ipId">
-            <option value="">플랫폼/합동 이벤트</option>
-            {ipOptions.map((ip) => (
-              <option
-                disabled={Boolean(ip.archivedAt && ip.id !== selected?.ipId)}
-                key={ip.id}
-                value={ip.id}
-              >
-                {ip.archivedAt ? `[보관] ${ip.title}` : ip.title}
-              </option>
-            ))}
-          </SelectField>
+          <IpPicker
+            defaultOptions={ipOptions}
+            emptyLabel="플랫폼/합동 이벤트"
+            error={state.errors?.ipId}
+            key={`ipId:${selected?.ipId ?? ''}`}
+            label="연결 IP"
+            name="ipId"
+            selected={ipOptions.find((ip) => ip.id === selected?.ipId) ?? null}
+          />
           <Field defaultValue={selected?.title} error={state.errors?.title} label="이벤트 이름" name="title" />
           <SelectField defaultValue={selected?.mode ?? '오프라인'} error={state.errors?.mode} label="모드" name="mode">
             <option value="오프라인">오프라인</option>

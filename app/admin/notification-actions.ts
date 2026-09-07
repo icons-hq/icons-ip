@@ -6,7 +6,9 @@ import { redirect } from 'next/navigation';
 import {
   normalizeAdminNotificationForm,
   type AdminNotificationActionState,
+  type AdminNotificationAudience,
 } from '@/lib/admin/notifications';
+import { estimateAdminNotificationAudience } from '@/lib/admin/notifications.server';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -71,4 +73,22 @@ export async function sendAdminNotificationAction(
     recipientCount,
     nextOperationId: randomUUID(),
   };
+}
+
+/*
+ * 고른 IP 하나의 수신자 수. 화면이 IP 를 고를 때마다 부른다 — 세는 일은 고른 뒤에 한 번이면
+ * 충분하고, 미리 전부 세면 IP 수만큼 왕복한다. 실패는 던지지 않는다: 숫자를 못 세는 것이
+ * 폼을 통째로 날릴 이유는 아니고, 발송은 어차피 RPC 가 발송 시점에 다시 판정한다.
+ */
+export async function estimateNotificationAudienceAction(
+  ipId: string,
+): Promise<{ audience: AdminNotificationAudience | null }> {
+  const auth = await getCurrentAdminAuthState();
+  if (!auth.isConfigured || !auth.user || !auth.isStaff) return { audience: null };
+
+  try {
+    return { audience: await estimateAdminNotificationAudience(ipId) };
+  } catch {
+    return { audience: null };
+  }
 }

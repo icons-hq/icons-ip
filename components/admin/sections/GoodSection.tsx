@@ -6,6 +6,7 @@ import {
   adjustAdminStockAction,
   type AdminCatalogActionState,
 } from '@/app/admin/actions';
+import { IpPicker } from '@/components/admin/catalog/IpPicker';
 import { GOODS_DESCRIPTION_MAX_LENGTH, GOODS_GALLERY_MAX, type AdminFieldErrors } from '@/lib/admin/catalog';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import { buildGoodPreview, goodFormValues } from '@/lib/admin/good-preview';
@@ -501,19 +502,15 @@ function GoodEditor({
         <GoodFormTabPanel active={activeTab} id="basic" idPrefix={tabPrefix}>
           <div className="admin-form-grid">
             <Field defaultValue={defaults.id} error={state.errors?.id} label="ID (자체 코드)" name="id" placeholder="g100" readOnly={Boolean(selected)} />
-            {/* select 는 defaultValue 갱신을 무시하므로 시드값을 key 로 삼아 다시 마운트한다. */}
-            <SelectField defaultValue={defaults.ipId} error={state.errors?.ipId} key={`ipId:${defaults.ipId}`} label="연결 IP" name="ipId">
-              <option value="">선택</option>
-              {ipOptions.map((ip) => (
-                <option
-                  disabled={Boolean(ip.archivedAt && ip.id !== base?.ipId)}
-                  key={ip.id}
-                  value={ip.id}
-                >
-                  {ip.archivedAt ? `[보관] ${ip.title}` : ip.title}
-                </option>
-              ))}
-            </SelectField>
+            {/* 선택기는 시드값이 바뀌면 다시 마운트한다 — 라디오도 defaultChecked 갱신을 무시한다. */}
+            <IpPicker
+              defaultOptions={ipOptions}
+              error={state.errors?.ipId}
+              key={`ipId:${defaults.ipId}`}
+              label="연결 IP"
+              name="ipId"
+              selected={ipOptions.find((ip) => ip.id === defaults.ipId) ?? null}
+            />
             <Field defaultValue={defaults.name} error={state.errors?.name} label="굿즈 이름" name="name" />
             {/* 유형·배지는 자유 입력에서 표준 값 select 로 좁혔다 (#326). 자유 문자열은
                 굿즈샵 필터 축으로 쓸 수 없고, DB CHECK 도 같은 목록을 강제한다. */}

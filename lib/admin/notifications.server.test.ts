@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getAdminNotificationConsoleData } from './notifications.server';
+import {
+  estimateAdminNotificationAudience,
+  getAdminNotificationConsoleData,
+} from './notifications.server';
 
 const OPERATION_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
@@ -86,6 +89,19 @@ describe('getAdminNotificationConsoleData', () => {
           error: null,
         });
       }
+      if (name === 'admin_pick_ips') {
+        return Promise.resolve({
+          data: mocks.ipRows.map((ip, index) => ({
+            id: ip.id,
+            title: ip.title,
+            vertical_key: 'blgl',
+            archived_at: null,
+            fans_count: 0,
+            rank: index + 1,
+          })),
+          error: null,
+        });
+      }
       if (name === 'admin_list_notification_history') {
         return Promise.resolve({
           data: [{
@@ -106,30 +122,18 @@ describe('getAdminNotificationConsoleData', () => {
     });
   });
 
-  it('전체와 각 IP 추정치 및 최근 20건 이력을 staff 전용 RPC로 불러온다', async () => {
+  it('전체 추정치·IP 후보·최근 20건 이력만 부르고, IP 별 추정은 하지 않는다', async () => {
     await expect(getAdminNotificationConsoleData()).resolves.toEqual({
-      audiences: [
-        {
-          scope: 'all',
-          ipId: null,
-          ipTitle: null,
-          recipientCount: 12,
-          canSend: true,
-        },
-        {
-          scope: 'ip_followers',
-          ipId: 'hwasan',
-          ipTitle: '화산강림',
-          recipientCount: 3,
-          canSend: true,
-        },
-        {
-          scope: 'ip_followers',
-          ipId: 'rilakkuma',
-          ipTitle: '리락쿠마',
-          recipientCount: 5,
-          canSend: true,
-        },
+      allAudience: {
+        scope: 'all',
+        ipId: null,
+        ipTitle: null,
+        recipientCount: 12,
+        canSend: true,
+      },
+      ipOptions: [
+        { id: 'hwasan', title: '화산강림', archivedAt: null },
+        { id: 'rilakkuma', title: '리락쿠마', archivedAt: null },
       ],
       history: [{
         operationId: OPERATION_ID,
@@ -148,19 +152,44 @@ describe('getAdminNotificationConsoleData', () => {
       target_ip_id: null,
       target_scope: 'all',
     });
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_estimate_notification_recipients', {
-      target_ip_id: 'hwasan',
-      target_scope: 'ip_followers',
-    });
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_estimate_notification_recipients', {
-      target_ip_id: 'rilakkuma',
-      target_scope: 'ip_followers',
-    });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_list_notification_history', {
       target_limit: 20,
       target_offset: 0,
     });
-    expect(mocks.ipArchivedFilter).toHaveBeenCalledWith('archived_at', null);
+
+    /* 화면을 여는 것만으로 IP 수만큼 왕복하면 IP 가 늘수록 화면이 못 열린다 —
+       IP 별 추정은 **고른 뒤에** 한 번만 한다. */
+    const perIpCalls = mocks.rpc.mock.calls.filter(
+      ([name, args]) => name === 'admin_estimate_notification_recipients'
+        && (args as { target_ip_id: string | null }).target_ip_id !== null,
+    );
+    expect(perIpCalls).toHaveLength(0);
+  });
+
+  it('IP 후보는 검색형 선택기 RPC 로 상한을 두고 받는다', async () => {
+    await getAdminNotificationConsoleData();
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_pick_ips', {
+      p_query: null,
+      p_selected_id: null,
+      p_limit: 50,
+    });
+  });
+
+  it('고른 IP 하나만 그때 센다', async () => {
+    await expect(estimateAdminNotificationAudience('hwasan')).resolves.toEqual({
+      scope: 'ip_followers',
+      ipId: 'hwasan',
+      ipTitle: '화산강림',
+      recipientCount: 3,
+      canSend: true,
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_estimate_notification_recipients', {
+      target_ip_id: 'hwasan',
+      target_scope: 'ip_followers',
+    });
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
   });
 
   it('비로그인은 로그인으로 보내고 어떤 DB 조회도 하지 않는다', async () => {

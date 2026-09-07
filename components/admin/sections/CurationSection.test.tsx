@@ -184,8 +184,11 @@ describe('CurationSection', () => {
     const html = renderSection(featured);
 
     expect(html).toContain('특집 IP 이미지는 선택입니다. 비우면 IP 키아트를 사용합니다.');
-    expect(html).toMatch(/<select[^>]*name="ipId"[^>]*required/);
-    expect(html).toMatch(/<option disabled="" value="archived-ip">\[보관\] 보관 IP<\/option>/);
+    /* 1만 IP 를 select 로 그릴 수 없어 검색형 선택기로 바꿨다 — 필수·보관 잠금은 그대로다. */
+    expect(html).toContain('aria-label="특집할 IP 검색"');
+    expect(html).toMatch(/<input[^>]*required=""[^>]*type="radio" name="ipId"/);
+    expect(html).toContain('disabled="" required="" type="radio" name="ipId" value="archived-ip"');
+    expect(html).toContain('[보관] 보관 IP');
   });
 
   it('특집 IP 레코드에서 다른 영역으로 전환하면 IP 선택기와 현재 IP 안내를 숨긴다', () => {

@@ -1,7 +1,11 @@
 'use client';
 
-import { useActionState, useState } from 'react';
-import { sendAdminNotificationAction } from '@/app/admin/notification-actions';
+import { useActionState, useState, useTransition } from 'react';
+import {
+  estimateNotificationAudienceAction,
+  sendAdminNotificationAction,
+} from '@/app/admin/notification-actions';
+import { IpPicker } from '@/components/admin/catalog/IpPicker';
 import { Icon } from '@/components/ui/Icon';
 import type {
   AdminNotificationActionState,
@@ -47,6 +51,9 @@ export function NotificationSection({
   const [body, setBody] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [operationId, setOperationId] = useState(initialOperationId);
+  /* 고른 IP 의 수신자 수는 고른 뒤에 센다 — 전체 IP 를 미리 세면 IP 수만큼 왕복한다. */
+  const [ipAudience, setIpAudience] = useState<AdminNotificationAudience | null>(null);
+  const [audiencePending, startAudience] = useTransition();
   const [state, action, pending] = useActionState(async (
     previousState: AdminNotificationActionState,
     formData: FormData,
@@ -62,14 +69,7 @@ export function NotificationSection({
     }
     return result;
   }, emptyActionState);
-  const allAudience = data.audiences.find((audience) => audience.scope === 'all') ?? null;
-  const ipAudiences = data.audiences.filter(
-    (audience): audience is AdminNotificationAudience & { ipId: string } =>
-      audience.scope === 'ip_followers' && Boolean(audience.ipId),
-  );
-  const audience = scope === 'all'
-    ? allAudience
-    : ipAudiences.find((candidate) => candidate.ipId === ipId) ?? null;
+  const audience = scope === 'all' ? data.allAudience : ipAudience;
   const titleLength = characterCount(title);
   const bodyLength = characterCount(body);
   const contentValid = title.trim().length > 0
@@ -79,6 +79,18 @@ export function NotificationSection({
   const canSend = Boolean(audience?.canSend && contentValid && !pending);
 
   const resetConfirmation = () => setConfirmed(false);
+
+  const onIpChange = (next: string) => {
+    setIpId(next);
+    resetConfirmation();
+    setIpAudience(null);
+    if (!next) return;
+    startAudience(async () => {
+      const result = await estimateNotificationAudienceAction(next);
+      /* 실패해도 폼은 살려 둔다 — 수신자 수를 못 세면 발송 버튼이 잠기는 것으로 충분하다. */
+      setIpAudience(result.audience);
+    });
+  };
 
   return (
     <section aria-labelledby="admin-notification-heading" className="admin-notification-console col">
@@ -141,30 +153,28 @@ export function NotificationSection({
               <FieldError id="notification-scope-error">{state.errors?.scope}</FieldError>
             </label>
 
-            <label>
-              <span className="mono">대상 IP</span>
-              <select
-                aria-describedby={state.errors?.ipId ? 'notification-ip-error' : undefined}
-                aria-invalid={Boolean(state.errors?.ipId)}
-                className="admin-notification-control"
+            <div>
+              <IpPicker
+                defaultOptions={data.ipOptions}
                 disabled={scope === 'all' || pending}
+                error={state.errors?.ipId}
+                label="대상 IP"
                 name="ipId"
-                onChange={(event) => {
-                  setIpId(event.target.value);
-                  resetConfirmation();
-                }}
+                onValueChange={onIpChange}
                 required={scope === 'ip_followers'}
+                selected={data.ipOptions.find((option) => option.id === ipId) ?? null}
                 value={ipId}
-              >
-                <option value="">IP 선택</option>
-                {ipAudiences.map((candidate) => (
-                  <option key={candidate.ipId} value={candidate.ipId}>
-                    {candidate.ipTitle ?? candidate.ipId} · {recipientNumber.format(candidate.recipientCount)}명
-                  </option>
-                ))}
-              </select>
-              <FieldError id="notification-ip-error">{state.errors?.ipId}</FieldError>
-            </label>
+              />
+              <p className="admin-ip-picker-hint" role="status">
+                {scope === 'all'
+                  ? '전체 발송에서는 IP를 고르지 않습니다.'
+                  : !ipId
+                    ? 'IP를 고르면 수신자 수를 셉니다.'
+                    : audiencePending
+                      ? '수신자 수를 세는 중…'
+                      : `수신자 ${recipientNumber.format(ipAudience?.recipientCount ?? 0)}명`}
+              </p>
+            </div>
           </div>
 
           <label>

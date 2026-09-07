@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useActionState, useMemo, useState } from 'react';
 import { upsertAdminCurationAction } from '@/app/admin/curation-actions';
+import { IpPicker } from '@/components/admin/catalog/IpPicker';
 import type { AdminCurationActionState, AdminCurationKind } from '@/lib/admin/curations';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
 import type { AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
@@ -220,20 +221,15 @@ function CurationForm({
           <option value="benefit">혜택 타일</option>
         </SelectField>
         {kind === 'featured_ip' && (
-          <SelectField
-            defaultValue={selected?.ipId ?? ''}
+          <IpPicker
+            defaultOptions={ipOptions}
             error={state.errors?.ipId}
+            key={`ipId:${selected?.ipId ?? ''}`}
             label="특집할 IP"
             name="ipId"
             required
-          >
-            <option value="">IP 선택</option>
-            {ipOptions.map((ip) => (
-              <option disabled={Boolean(ip.archivedAt)} key={ip.id} value={ip.id}>
-                {ip.archivedAt ? `[보관] ${ip.title}` : ip.title}
-              </option>
-            ))}
-          </SelectField>
+            selected={ipOptions.find((ip) => ip.id === selected?.ipId) ?? null}
+          />
         )}
         {kind === 'best_tab' && (
           <SelectField
