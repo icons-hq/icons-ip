@@ -79,9 +79,17 @@ const fix5k: UserCouponSummary = {
 
 const emptyCouponState: CartCouponState = { selectedUserCouponId: null, coupons: [] };
 
-function render(items: CartItem[], couponState: CartCouponState = emptyCouponState) {
+/* `answeredIds` = 서버가 **물어본** id. 물어봤는데 안 나온 상품은 「모르는 것」이 아니라
+   없는 것이라 바로 판매 종료로 그린다(규모 후속). 안 물어본 id 는 「불러오는 중」이다. */
+function render(
+  items: CartItem[],
+  couponState: CartCouponState = emptyCouponState,
+  answeredIds: string[] = items.map((item) => item.goodId),
+) {
   mocks.items = items;
-  return renderToStaticMarkup(<Cart catalog={{ goods, ips: [] }} couponState={couponState} />);
+  return renderToStaticMarkup(
+    <Cart catalog={{ goods, ips: [], answeredIds }} couponState={couponState} />,
+  );
 }
 
 describe('Cart 배송비 요약', () => {
@@ -173,6 +181,16 @@ describe('Cart 라인 상태', () => {
     expect(html).toContain('판매 종료');
     expect(html).toContain('주문할 수 없는 굿즈 1개');
     expect(html).toContain('aria-disabled="true"');
+    expect(html).not.toContain('href="/checkout"');
+  });
+
+  it('아직 조회하지 않은 굿즈는 판매 종료가 아니라 불러오는 중이다', () => {
+    /* 비회원 장바구니는 브라우저에만 있어 서버가 미리 물어보지 못한다. 이걸 품절로 그리면
+       멀쩡한 장바구니가 조회가 끝날 때까지 잠긴 것처럼 보인다. */
+    const html = render([{ goodId: 'g-not-prefetched', qty: 1 }], emptyCouponState, []);
+
+    expect(html).toContain('장바구니를 불러오는 중이에요.');
+    expect(html).not.toContain('판매 종료');
     expect(html).not.toContain('href="/checkout"');
   });
 

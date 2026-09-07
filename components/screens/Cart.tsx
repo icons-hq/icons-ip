@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState, useTransition, type FormEvent } from 'react';
+import { useState, useTransition, type FormEvent } from 'react';
 import {
   applyCouponAction,
   applyCouponCodeAction,
@@ -14,7 +14,7 @@ import { EmptyState } from '@/components/wc/EmptyState';
 import { PriceBlock } from '@/components/wc/PriceBlock';
 import { QuantityStepper } from '@/components/wc/QuantityStepper';
 import { WcButton } from '@/components/wc/WcButton';
-import type { CatalogSnapshot } from '@/lib/catalog';
+import type { CartCatalog } from '@/lib/cart-catalog';
 import {
   couponBenefitLabel,
   couponConditionLabel,
@@ -24,6 +24,7 @@ import {
   type UserCouponSummary,
 } from '@/lib/coupons';
 import type { CartCouponState } from '@/lib/coupons.server';
+import { useCartCatalog } from '@/components/shell/useCartCatalog';
 import type { Good, Ip } from '@/lib/data';
 import { krw, krwAmountWords } from '@/lib/format';
 import { freeShippingRemainder, shippingFeeFor, shippingFeeLabel } from '@/lib/shipping';
@@ -245,24 +246,13 @@ export function Cart({
   catalog,
   couponState,
 }: {
-  catalog: Pick<CatalogSnapshot, 'goods' | 'ips'>;
+  /** 서버가 미리 담아 준 상품 — 로그인 사용자의 저장된 장바구니까지다(규모 후속). */
+  catalog: CartCatalog;
   couponState: CartCouponState;
 }) {
   const { count, error, items, mode, pending, ready } = useCart();
-
-  const lines = useMemo<CartLine[]>(() => {
-    const goodsById = new Map(catalog.goods.map((good) => [good.id, good]));
-    const ipsById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
-
-    return items.map((item) => {
-      const good = goodsById.get(item.goodId);
-      return {
-        ...item,
-        good,
-        ip: good ? ipsById.get(good.ip) : undefined,
-      };
-    });
-  }, [catalog.goods, catalog.ips, items]);
+  /* 담긴 id 만 조회한다. 아직 못 받은 줄은 「품절」이 아니라 「불러오는 중」이다. */
+  const { lines, resolving } = useCartCatalog(catalog, items);
 
   const subtotal = lines.reduce((total, line) => (
     total + (line.good ? line.good.price * line.qty : 0)
@@ -271,7 +261,9 @@ export function Cart({
   /* 표시용 예상치다. 실제 청구액은 place_order가 같은 정책으로 다시 계산한다. */
   const shippingFee = shippingFeeFor(subtotal);
   const remainingForFreeShipping = freeShippingRemainder(subtotal);
-  const canCheckout = unavailableCount === 0 && !pending;
+  /* 조회가 끝나기 전에는 결제로 못 넘어간다 — 아직 못 받은 줄을 「없는 상품」으로 세면
+     멀쩡한 장바구니가 잠긴다. */
+  const canCheckout = unavailableCount === 0 && !pending && !resolving;
 
   const appliedCoupon = couponState.coupons.find(
     (held) => held.id === couponState.selectedUserCouponId,
@@ -288,7 +280,7 @@ export function Cart({
 
         {error ? <p className="wc-cart__error" role="alert">{error}</p> : null}
 
-        {!ready ? (
+        {!ready || resolving ? (
           <p aria-live="polite" className="wc-cart__loading" role="status">
             장바구니를 불러오는 중이에요.
           </p>

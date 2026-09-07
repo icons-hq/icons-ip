@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { placeOrderAction } from '@/app/checkout/actions';
 import { PostcodeField } from '@/components/checkout/PostcodeField';
 import { useCart } from '@/components/shell/CartProvider';
-import type { CatalogSnapshot } from '@/lib/catalog';
+import { useCartCatalog } from '@/components/shell/useCartCatalog';
+import type { CartCatalog } from '@/lib/cart-catalog';
 import {
   checkoutAddressErrors,
   type CheckoutAddress,
@@ -35,7 +36,8 @@ const actionErrors = {
 } as const;
 
 interface CheckoutProps {
-  catalog: Pick<CatalogSnapshot, 'goods' | 'ips'>;
+  /** 서버가 미리 담아 준 상품 — 저장된 장바구니까지다(규모 후속). */
+  catalog: CartCatalog;
   latestAddress: CheckoutAddress | null;
   paymentAvailable: boolean;
   /** 법인계좌가 설정돼 있는지. 없으면 무통장 자체가 뜨지 않는다(#255). */
@@ -95,14 +97,8 @@ export function Checkout({
     deliveryNote: latestAddress?.deliveryNote ?? '',
   });
 
-  const lines = useMemo(() => {
-    const goodsById = new Map(catalog.goods.map((good) => [good.id, good]));
-    const ipsById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
-    return items.map((item) => {
-      const good = goodsById.get(item.goodId);
-      return { ...item, good, ip: good ? ipsById.get(good.ip) : undefined };
-    });
-  }, [catalog.goods, catalog.ips, items]);
+  /* 주문서도 담긴 id 만 조회한다(규모 후속) — 아직 못 받은 줄은 「품절」이 아니다. */
+  const { lines, resolving } = useCartCatalog(catalog, items);
   const subtotal = lines.reduce((sum, line) => sum + (line.good?.price ?? 0) * line.qty, 0);
   /* 표시용 예상치다. 결제 금액은 place_order가 확정한 orders.total을 따른다. */
   const shippingFee = shippingFeeFor(subtotal);
@@ -186,7 +182,9 @@ export function Checkout({
     router.push(`/checkout/${result.orderId}`);
   };
 
-  if (!ready || cartPending) {
+  /* 조회가 끝나기 전에 주문서를 그리면 아직 못 받은 줄이 「재고 변경」으로 읽히고
+     결제 버튼이 잠긴다 — 장바구니 로딩과 같은 화면으로 묶는다. */
+  if (!ready || cartPending || resolving) {
     return (
       <main className="wc-root wc-receipt checkout-page">
         <div className="wrap checkout-loading" role="status">계정 장바구니를 확인하고 있어요.</div>
