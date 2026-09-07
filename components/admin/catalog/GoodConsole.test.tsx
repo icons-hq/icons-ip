@@ -20,6 +20,20 @@ const notice = {
 
 function good(overrides: Partial<AdminGoodRecord> & Pick<AdminGoodRecord, 'id' | 'name'>): AdminGoodRecord {
   return {
+    discountKind: 'none',
+    discountValue: 0,
+    discountStartsAt: null,
+    discountEndsAt: null,
+    discountShowsRate: true,
+    kcStatus: 'unknown',
+    kcType: null,
+    kcNumber: null,
+    kcCompany: null,
+    minOrderQty: 1,
+    maxOrderQty: null,
+    maxQtyPerAccount: null,
+    adultOnly: false,
+    barcode: null,
     archivedAt: null,
     ipId: 'hwasan',
     type: '아크릴',

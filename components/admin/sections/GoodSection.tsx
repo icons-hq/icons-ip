@@ -47,7 +47,14 @@ import {
 } from '../catalog/GoodFormTabs';
 import { GoodsDraftBanner } from '../catalog/GoodsDraftBanner';
 import { GoodVariantsPanel } from '../catalog/GoodVariantsPanel';
-import { GoodCategoriesPanel, GoodSalePanel, GoodSearchSeoPanel } from '../catalog/GoodSalePanels';
+import {
+  GoodCategoriesPanel,
+  GoodCompliancePanel,
+  GoodDiscountPanel,
+  GoodPurchaseLimitPanel,
+  GoodSalePanel,
+  GoodSearchSeoPanel,
+} from '../catalog/GoodSalePanels';
 import type { AdminGoodVariantEditorData } from '@/lib/admin/variants';
 import { GOOD_SALE_STATE_LABELS, type AdminCategory } from '@/lib/admin/categories';
 import { GoodsNoticePresetBar } from '../catalog/GoodsNoticePresetBar';
@@ -740,6 +747,15 @@ export function GoodSection({
       />
       {selected && !selected.archivedAt && (
         <GoodSalePanel good={selected} key={`sale-${selected.id}:${selected.saleState}`} />
+      )}
+      {selected && !selected.archivedAt && (
+        <GoodDiscountPanel good={selected} key={`discount-${selected.id}:${selected.discountKind}`} />
+      )}
+      {selected && !selected.archivedAt && (
+        <GoodPurchaseLimitPanel good={selected} key={`limits-${selected.id}:${selected.minOrderQty}`} />
+      )}
+      {selected && !selected.archivedAt && (
+        <GoodCompliancePanel good={selected} key={`compliance-${selected.id}:${selected.kcStatus}`} />
       )}
       {selected && !selected.archivedAt && (
         <GoodCategoriesPanel

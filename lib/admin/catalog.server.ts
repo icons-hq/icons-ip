@@ -61,6 +61,21 @@ export interface AdminGoodRecord {
   galleryAlts: string[] | null;
   supplyPrice: number | null;
   taxType: string;
+  /* 현업 요청 슬라이스 1 — 할인·KC·구매 수량 상한. 할인가는 저장하지 않는다(조회 시 파생). */
+  discountKind: string;
+  discountValue: number;
+  discountStartsAt: string | null;
+  discountEndsAt: string | null;
+  discountShowsRate: boolean;
+  kcStatus: string;
+  kcType: string | null;
+  kcNumber: string | null;
+  kcCompany: string | null;
+  minOrderQty: number;
+  maxOrderQty: number | null;
+  maxQtyPerAccount: number | null;
+  adultOnly: boolean;
+  barcode: string | null;
 }
 
 export interface AdminCardRecord {
@@ -350,6 +365,20 @@ interface GoodRow {
   gallery_alts?: string[] | null;
   supply_price?: number | null;
   tax_type?: string;
+  discount_kind?: string;
+  discount_value?: number;
+  discount_starts_at?: string | null;
+  discount_ends_at?: string | null;
+  discount_shows_rate?: boolean;
+  kc_status?: string;
+  kc_type?: string | null;
+  kc_number?: string | null;
+  kc_company?: string | null;
+  min_order_qty?: number;
+  max_order_qty?: number | null;
+  max_qty_per_account?: number | null;
+  adult_only?: boolean;
+  barcode?: string | null;
 }
 
 /** 굿즈·IP 목록 RPC 로더(`catalog-list.server.ts`)가 같은 행 모양을 받는다. */
@@ -358,7 +387,7 @@ export type AdminGoodRow = GoodRow;
 
 /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
 export const ADMIN_IP_SELECT = 'id,archived_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count';
-export const ADMIN_GOOD_SELECT = 'id,archived_at,ip_id,name,type,price,compare_at_price,badge,stock,stock_qty,allow_bank_transfer,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path,hidden_at,stopped_at,sale_starts_at,sale_ends_at,sale_mode,preorder_ships_at,summary,search_keywords,seo_title,seo_description,image_alt,gallery_alts,supply_price,tax_type,sale_state:good_sale_state';
+export const ADMIN_GOOD_SELECT = 'id,archived_at,ip_id,name,type,price,compare_at_price,badge,stock,stock_qty,allow_bank_transfer,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path,hidden_at,stopped_at,sale_starts_at,sale_ends_at,sale_mode,preorder_ships_at,summary,search_keywords,seo_title,seo_description,image_alt,gallery_alts,supply_price,tax_type,discount_kind,discount_value,discount_starts_at,discount_ends_at,discount_shows_rate,kc_status,kc_type,kc_number,kc_company,min_order_qty,max_order_qty,max_qty_per_account,adult_only,barcode,sale_state:good_sale_state';
 
 interface AdminMediaClient {
   storage: {
@@ -456,6 +485,20 @@ export function toAdminGoodRecord(row: GoodRow, media: AdminMediaResolver): Admi
     galleryAlts: row.gallery_alts ?? null,
     supplyPrice: row.supply_price ?? null,
     taxType: row.tax_type ?? 'taxable',
+    discountKind: row.discount_kind ?? 'none',
+    discountValue: row.discount_value ?? 0,
+    discountStartsAt: row.discount_starts_at ?? null,
+    discountEndsAt: row.discount_ends_at ?? null,
+    discountShowsRate: row.discount_shows_rate ?? true,
+    kcStatus: row.kc_status ?? 'unknown',
+    kcType: row.kc_type ?? null,
+    kcNumber: row.kc_number ?? null,
+    kcCompany: row.kc_company ?? null,
+    minOrderQty: row.min_order_qty ?? 1,
+    maxOrderQty: row.max_order_qty ?? null,
+    maxQtyPerAccount: row.max_qty_per_account ?? null,
+    adultOnly: row.adult_only ?? false,
+    barcode: row.barcode ?? null,
   };
 }
 

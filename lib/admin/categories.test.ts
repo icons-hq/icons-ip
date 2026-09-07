@@ -7,7 +7,10 @@ import {
   isPurchasableSaleState,
   normalizeAdminCategoryFilters,
   normalizeAdminCategoryForm,
+  normalizeGoodComplianceForm,
+  normalizeGoodDiscountForm,
   normalizeGoodPricingForm,
+  normalizeGoodPurchaseLimitForm,
   normalizeGoodSaleWindowForm,
   normalizeGoodSearchSeoForm,
   type AdminCategory,
@@ -138,5 +141,68 @@ describe('판매 상태', () => {
     for (const state of ['soldout', 'scheduled', 'ended', 'stopped', 'hidden', 'archived']) {
       expect(isPurchasableSaleState(state)).toBe(false);
     }
+  });
+});
+
+describe('현업 요청 슬라이스 1 — 할인·KC·구매 조건', () => {
+  it('할인 없음이면 값·기간을 비운다 — 값만 남으면 나중에 종류를 켤 때 의도치 않은 할인이 걸린다', () => {
+    const result = normalizeGoodDiscountForm(form({
+      goodId: 'g9', discountKind: 'none', discountValue: '30', discountStartsAt: '2026-09-01T00:00',
+    }));
+
+    expect(result).toEqual({
+      ok: true,
+      value: { goodId: 'g9', kind: 'none', value: 0, startsAt: null, endsAt: null, showsRate: false },
+    });
+  });
+
+  it('정률은 1~100%만 받는다', () => {
+    expect(normalizeGoodDiscountForm(form({ goodId: 'g9', discountKind: 'percent', discountValue: '150' })).ok)
+      .toBe(false);
+    expect(normalizeGoodDiscountForm(form({ goodId: 'g9', discountKind: 'percent', discountValue: '0' })).ok)
+      .toBe(false);
+    expect(normalizeGoodDiscountForm(form({ goodId: 'g9', discountKind: 'percent', discountValue: '20' })).ok)
+      .toBe(true);
+  });
+
+  it('시작이 종료보다 늦으면 막는다 — 저장은 되고 효과만 없는 할인이 생긴다', () => {
+    const result = normalizeGoodDiscountForm(form({
+      goodId: 'g9',
+      discountKind: 'amount',
+      discountValue: '1000',
+      discountStartsAt: '2026-09-10T00:00',
+      discountEndsAt: '2026-09-01T00:00',
+    }));
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.discountEndsAt).toBeTruthy();
+  });
+
+  it('인증 받았다고 적으면 인증번호가 있어야 한다', () => {
+    expect(normalizeGoodComplianceForm(form({ goodId: 'g9', kcStatus: 'certified' })).ok).toBe(false);
+    expect(normalizeGoodComplianceForm(form({ goodId: 'g9', kcStatus: 'certified', kcNumber: 'XU1' })).ok)
+      .toBe(true);
+    /* 「해당 없음」은 번호를 요구하지 않는다 — 미확인과 구분되는 값이다. */
+    expect(normalizeGoodComplianceForm(form({ goodId: 'g9', kcStatus: 'none' })).ok).toBe(true);
+  });
+
+  it('구매 수량 상한은 최소보다 작을 수 없다', () => {
+    expect(normalizeGoodPurchaseLimitForm(form({ goodId: 'g9', minOrderQty: '3', maxOrderQty: '2' })).ok)
+      .toBe(false);
+    expect(normalizeGoodPurchaseLimitForm(form({ goodId: 'g9', minOrderQty: '3', maxQtyPerAccount: '2' })).ok)
+      .toBe(false);
+    expect(normalizeGoodPurchaseLimitForm(form({ goodId: 'g9', minOrderQty: '2', maxOrderQty: '5' })))
+      .toEqual({
+        ok: true,
+        value: { goodId: 'g9', minOrderQty: 2, maxOrderQty: 5, maxQtyPerAccount: null },
+      });
+  });
+
+  it('상한을 비우면 제한 없음이다', () => {
+    expect(normalizeGoodPurchaseLimitForm(form({ goodId: 'g9' })))
+      .toEqual({
+        ok: true,
+        value: { goodId: 'g9', minOrderQty: 1, maxOrderQty: null, maxQtyPerAccount: null },
+      });
   });
 });

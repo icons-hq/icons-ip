@@ -3,13 +3,18 @@
 import { useActionState, useState } from 'react';
 import {
   setGoodCategoriesAction,
+  setGoodComplianceAction,
+  setGoodDiscountAction,
   setGoodPricingAction,
+  setGoodPurchaseLimitsAction,
   setGoodSaleWindowAction,
   setGoodSearchSeoAction,
   setGoodSwitchAction,
 } from '@/app/admin/category-actions';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import {
+  GOOD_DISCOUNT_KINDS,
+  GOOD_KC_STATUSES,
   GOOD_SALE_STATE_LABELS,
   TAX_TYPES,
   type AdminCategory,
@@ -127,6 +132,191 @@ export function GoodSalePanel({ good }: { good: AdminGoodRecord }) {
         <InlineNotice state={pricingState} />
         <button className="btn btn-holo" disabled={pricingPending} style={{ justifySelf: 'start', minWidth: 150 }}>
           <Icon name="check" size={15} /> {pricingPending ? '저장 중' : '공급가 저장'}
+        </button>
+      </SeededForm>
+    </section>
+  );
+}
+
+/*
+ * 할인.
+ *
+ * **할인가는 저장하지 않는다** — 판매가와 할인 조건만 두고 지금 팔리는 값은 조회 시 계산한다
+ * (`good_effective_price`). 정각에 값을 갈아치우는 배치를 두면 그 배치가 늦은 만큼 가격이
+ * 틀리고, 늦었는지조차 알기 어렵다. 그리고 **주문이 같은 함수를 다시 부른다** — 표시가와
+ * 청구가가 다른 경로로 계산되면 언젠가 갈리고, 그건 돈 사고다.
+ */
+export function GoodDiscountPanel({ good }: { good: AdminGoodRecord }) {
+  const [state, action, pending] = useActionState(setGoodDiscountAction, emptyState);
+  const [kind, setKind] = useState(good.discountKind);
+  const discounted = kind !== 'none';
+
+  return (
+    <section aria-labelledby={`discount-${good.id}`} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+      <div>
+        <span className="eyebrow">DISCOUNT</span>
+        <h2 id={`discount-${good.id}`} style={{ fontSize: 18, margin: '6px 0 0' }}>할인</h2>
+      </div>
+      <SeededForm values={state.values} action={action} className="col" style={{ gap: 10 }}>
+        <input name="goodId" type="hidden" value={good.id} />
+        <div className="admin-form-grid">
+          <SelectField
+            defaultValue={good.discountKind}
+            error={state.errors?.discountKind}
+            label="할인 종류"
+            name="discountKind"
+            onChange={(event) => setKind(event.target.value)}
+          >
+            {GOOD_DISCOUNT_KINDS.map((entry) => (
+              <option key={entry.value} value={entry.value}>{entry.label}</option>
+            ))}
+          </SelectField>
+          {discounted ? (
+            <Field
+              defaultValue={good.discountValue || ''}
+              error={state.errors?.discountValue}
+              label={kind === 'percent' ? '할인율 (%)' : '할인액 (원)'}
+              min={1}
+              name="discountValue"
+              step={1}
+              type="number"
+            />
+          ) : null}
+        </div>
+        {discounted ? (
+          <>
+            <div className="admin-form-grid">
+              <Field
+                defaultValue={toLocalInput(good.discountStartsAt)}
+                error={state.errors?.discountStartsAt}
+                label="할인 시작 (비우면 즉시)"
+                name="discountStartsAt"
+                type="datetime-local"
+              />
+              <Field
+                defaultValue={toLocalInput(good.discountEndsAt)}
+                error={state.errors?.discountEndsAt}
+                label="할인 종료 (비우면 무기한)"
+                name="discountEndsAt"
+                type="datetime-local"
+              />
+            </div>
+            <label className="row" style={{ gap: 8 }}>
+              <input defaultChecked={good.discountShowsRate} name="discountShowsRate" type="checkbox" />
+              <span style={{ fontSize: 13 }}>상품 화면에 할인율(%)을 표시한다</span>
+            </label>
+          </>
+        ) : null}
+        <InlineNotice state={state} />
+        <button className="btn btn-holo" disabled={pending} style={{ justifySelf: 'start', minWidth: 150 }}>
+          <Icon name="check" size={15} /> {pending ? '저장 중' : '할인 저장'}
+        </button>
+      </SeededForm>
+    </section>
+  );
+}
+
+/*
+ * 고시·표기 — KC 인증 · 성인 전용 · 바코드.
+ *
+ * KC 는 **「없음」과 「미확인」을 나눈다**. 빈 값이 곧 「인증 없음」이 되면 표기 누락이
+ * 조용히 생기고, 그건 표시 의무 위반이다.
+ */
+export function GoodCompliancePanel({ good }: { good: AdminGoodRecord }) {
+  const [state, action, pending] = useActionState(setGoodComplianceAction, emptyState);
+
+  return (
+    <section aria-labelledby={`compliance-${good.id}`} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+      <div>
+        <span className="eyebrow">COMPLIANCE</span>
+        <h2 id={`compliance-${good.id}`} style={{ fontSize: 18, margin: '6px 0 0' }}>KC 인증 · 표기</h2>
+      </div>
+      <SeededForm values={state.values} action={action} className="col" style={{ gap: 10 }}>
+        <input name="goodId" type="hidden" value={good.id} />
+        <div className="admin-form-grid">
+          <SelectField
+            defaultValue={good.kcStatus}
+            error={state.errors?.kcStatus}
+            label="KC 인증 상태"
+            name="kcStatus"
+          >
+            {GOOD_KC_STATUSES.map((entry) => (
+              <option key={entry.value} value={entry.value}>{entry.label}</option>
+            ))}
+          </SelectField>
+          <Field defaultValue={good.kcType ?? ''} label="인증 구분" name="kcType" placeholder="안전확인 · 공급자적합성확인 등" />
+          <Field
+            defaultValue={good.kcNumber ?? ''}
+            error={state.errors?.kcNumber}
+            label="인증번호"
+            name="kcNumber"
+            placeholder="XU12345-67890"
+          />
+          <Field defaultValue={good.kcCompany ?? ''} label="인증 상호" name="kcCompany" />
+          <Field defaultValue={good.barcode ?? ''} label="바코드 (조회용)" name="barcode" placeholder="8801234567890" />
+        </div>
+        <label className="row" style={{ gap: 8 }}>
+          <input defaultChecked={good.adultOnly} name="adultOnly" type="checkbox" />
+          <span style={{ fontSize: 13 }}>성인 전용 — 생년월일이 없거나 19세 미만이면 주문을 막는다</span>
+        </label>
+        <InlineNotice state={state} />
+        <button className="btn btn-holo" disabled={pending} style={{ justifySelf: 'start', minWidth: 150 }}>
+          <Icon name="check" size={15} /> {pending ? '저장 중' : '고시·표기 저장'}
+        </button>
+      </SeededForm>
+    </section>
+  );
+}
+
+/*
+ * 구매 조건 — 최소·최대 수량과 계정당 상한.
+ *
+ * 계정당 상한은 **취소·반품분을 빼고** 센다 — 취소한 만큼 다시 못 사면 그게 더 이상하다.
+ * 판정은 장바구니·결제 준비·주문 생성이 같은 함수를 본다(`good_purchase_block_reason`).
+ */
+export function GoodPurchaseLimitPanel({ good }: { good: AdminGoodRecord }) {
+  const [state, action, pending] = useActionState(setGoodPurchaseLimitsAction, emptyState);
+
+  return (
+    <section aria-labelledby={`limits-${good.id}`} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+      <div>
+        <span className="eyebrow">PURCHASE</span>
+        <h2 id={`limits-${good.id}`} style={{ fontSize: 18, margin: '6px 0 0' }}>구매 조건</h2>
+      </div>
+      <SeededForm values={state.values} action={action} className="col" style={{ gap: 10 }}>
+        <input name="goodId" type="hidden" value={good.id} />
+        <div className="admin-form-grid">
+          <Field
+            defaultValue={good.minOrderQty}
+            error={state.errors?.minOrderQty}
+            label="최소 구매 수량"
+            min={1}
+            name="minOrderQty"
+            step={1}
+            type="number"
+          />
+          <Field
+            defaultValue={good.maxOrderQty ?? ''}
+            error={state.errors?.maxOrderQty}
+            label="1회 최대 수량 (비우면 제한 없음)"
+            min={1}
+            name="maxOrderQty"
+            step={1}
+            type="number"
+          />
+          <Field
+            defaultValue={good.maxQtyPerAccount ?? ''}
+            error={state.errors?.maxQtyPerAccount}
+            label="계정당 상한 (비우면 제한 없음)"
+            min={1}
+            name="maxQtyPerAccount"
+            step={1}
+            type="number"
+          />
+        </div>
+        <InlineNotice state={state} />
+        <button className="btn btn-holo" disabled={pending} style={{ justifySelf: 'start', minWidth: 150 }}>
+          <Icon name="check" size={15} /> {pending ? '저장 중' : '구매 조건 저장'}
         </button>
       </SeededForm>
     </section>

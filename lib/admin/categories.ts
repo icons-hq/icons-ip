@@ -373,3 +373,166 @@ export function normalizeGoodPricingForm(formData: FormData): AdminFormResult<Ad
     value: { goodId, supplyPrice: supplyPriceRaw ? Number(supplyPriceRaw) : null, taxType },
   };
 }
+
+/* ---------------------------------------------------------------------------
+ * 현업 요청 슬라이스 1 — 할인 · KC 인증 · 구매 수량 상한
+ * ------------------------------------------------------------------------- */
+
+export const GOOD_DISCOUNT_KINDS = [
+  { value: 'none', label: '할인 없음' },
+  { value: 'percent', label: '정률 (%)' },
+  { value: 'amount', label: '정액 (원)' },
+] as const;
+
+export const GOOD_KC_STATUSES = [
+  { value: 'unknown', label: '미확인' },
+  { value: 'none', label: '해당 없음' },
+  { value: 'certified', label: '인증 받음' },
+  { value: 'exempt', label: '면제' },
+] as const;
+
+export interface AdminGoodDiscountValue {
+  goodId: string;
+  kind: string;
+  value: number;
+  startsAt: string | null;
+  endsAt: string | null;
+  showsRate: boolean;
+}
+
+export function normalizeGoodDiscountForm(formData: FormData): AdminFormResult<AdminGoodDiscountValue> {
+  const errors: AdminFieldErrors = {};
+  const goodId = readString(formData, 'goodId');
+  const kind = readString(formData, 'discountKind') || 'none';
+  const rawValue = readString(formData, 'discountValue');
+  const startsAt = readDateTime(formData, 'discountStartsAt');
+  const endsAt = readDateTime(formData, 'discountEndsAt');
+
+  if (!goodId) errors.form = '굿즈를 찾을 수 없습니다.';
+  if (!GOOD_DISCOUNT_KINDS.some((entry) => entry.value === kind)) {
+    errors.discountKind = '할인 종류를 선택해주세요.';
+  }
+
+  let value = 0;
+  if (kind !== 'none') {
+    if (!/^\d+$/.test(rawValue)) {
+      errors.discountValue = '할인 값은 1 이상의 정수여야 합니다.';
+    } else {
+      value = Number(rawValue);
+      /* 정률 상한을 여기서도 본다 — DB CHECK 가 막아도 화면이 이유를 말해 줘야 한다. */
+      if (kind === 'percent' && (value < 1 || value > 100)) {
+        errors.discountValue = '정률 할인은 1~100% 사이여야 합니다.';
+      }
+      if (kind === 'amount' && value < 1) {
+        errors.discountValue = '정액 할인은 1원 이상이어야 합니다.';
+      }
+    }
+  }
+
+  /* 시작이 종료보다 늦으면 「한 번도 안 열리는 할인」이 된다 — 저장은 되고 효과만 없다. */
+  if (startsAt === '') errors.discountStartsAt = '할인 시작 시각 형식이 올바르지 않습니다.';
+  if (endsAt === '') errors.discountEndsAt = '할인 종료 시각 형식이 올바르지 않습니다.';
+  if (kind !== 'none' && startsAt && endsAt && startsAt >= endsAt) {
+    errors.discountEndsAt = '할인 종료는 시작보다 뒤여야 합니다.';
+  }
+
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+  return {
+    ok: true,
+    value: {
+      goodId,
+      kind,
+      value,
+      startsAt: kind === 'none' ? null : (startsAt || null),
+      endsAt: kind === 'none' ? null : (endsAt || null),
+      showsRate: formData.get('discountShowsRate') !== null,
+    },
+  };
+}
+
+export interface AdminGoodComplianceValue {
+  goodId: string;
+  kcStatus: string;
+  kcType: string | null;
+  kcNumber: string | null;
+  kcCompany: string | null;
+  adultOnly: boolean;
+  barcode: string | null;
+}
+
+export function normalizeGoodComplianceForm(
+  formData: FormData,
+): AdminFormResult<AdminGoodComplianceValue> {
+  const errors: AdminFieldErrors = {};
+  const goodId = readString(formData, 'goodId');
+  const kcStatus = readString(formData, 'kcStatus') || 'unknown';
+  const kcNumber = readString(formData, 'kcNumber');
+
+  if (!goodId) errors.form = '굿즈를 찾을 수 없습니다.';
+  if (!GOOD_KC_STATUSES.some((entry) => entry.value === kcStatus)) {
+    errors.kcStatus = 'KC 인증 상태를 선택해주세요.';
+  }
+  /* 번호 없는 「인증 받음」은 표기로 쓸 수 없다 — 고시 화면에 빈칸이 나간다. */
+  if (kcStatus === 'certified' && !kcNumber) {
+    errors.kcNumber = '인증을 받았다면 인증번호가 있어야 합니다.';
+  }
+
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+  return {
+    ok: true,
+    value: {
+      goodId,
+      kcStatus,
+      kcType: readString(formData, 'kcType') || null,
+      kcNumber: kcNumber || null,
+      kcCompany: readString(formData, 'kcCompany') || null,
+      adultOnly: formData.get('adultOnly') !== null,
+      barcode: readString(formData, 'barcode') || null,
+    },
+  };
+}
+
+export interface AdminGoodPurchaseLimitValue {
+  goodId: string;
+  minOrderQty: number;
+  maxOrderQty: number | null;
+  maxQtyPerAccount: number | null;
+}
+
+export function normalizeGoodPurchaseLimitForm(
+  formData: FormData,
+): AdminFormResult<AdminGoodPurchaseLimitValue> {
+  const errors: AdminFieldErrors = {};
+  const goodId = readString(formData, 'goodId');
+  const min = readString(formData, 'minOrderQty') || '1';
+  const max = readString(formData, 'maxOrderQty');
+  const perAccount = readString(formData, 'maxQtyPerAccount');
+
+  if (!goodId) errors.form = '굿즈를 찾을 수 없습니다.';
+  if (!/^\d+$/.test(min) || Number(min) < 1) {
+    errors.minOrderQty = '최소 구매 수량은 1 이상의 정수여야 합니다.';
+  }
+  if (max && (!/^\d+$/.test(max) || Number(max) < 1)) {
+    errors.maxOrderQty = '최대 구매 수량은 1 이상의 정수여야 합니다.';
+  }
+  if (perAccount && (!/^\d+$/.test(perAccount) || Number(perAccount) < 1)) {
+    errors.maxQtyPerAccount = '계정당 상한은 1 이상의 정수여야 합니다.';
+  }
+  if (!errors.minOrderQty && !errors.maxOrderQty && max && Number(max) < Number(min)) {
+    errors.maxOrderQty = '최대 구매 수량은 최소 수량보다 작을 수 없습니다.';
+  }
+  if (!errors.minOrderQty && !errors.maxQtyPerAccount && perAccount && Number(perAccount) < Number(min)) {
+    errors.maxQtyPerAccount = '계정당 상한은 최소 수량보다 작을 수 없습니다.';
+  }
+
+  if (Object.keys(errors).length > 0) return { ok: false, errors };
+  return {
+    ok: true,
+    value: {
+      goodId,
+      minOrderQty: Number(min),
+      maxOrderQty: max ? Number(max) : null,
+      maxQtyPerAccount: perAccount ? Number(perAccount) : null,
+    },
+  };
+}

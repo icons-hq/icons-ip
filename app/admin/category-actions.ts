@@ -1,11 +1,15 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import {
   normalizeAdminCategoryForm,
+  normalizeGoodComplianceForm,
+  normalizeGoodDiscountForm,
   normalizeGoodPricingForm,
+  normalizeGoodPurchaseLimitForm,
   normalizeGoodSaleWindowForm,
   normalizeGoodSearchSeoForm,
 } from '@/lib/admin/categories';
@@ -443,4 +447,97 @@ function saleStateLabel(state: string) {
     ended: '기간 만료', stopped: '판매 중지', hidden: '진열 안 함', archived: '보관',
   };
   return labels[state] ?? state;
+}
+
+/* ---------------------------------------------------------------------------
+ * 현업 요청 슬라이스 1 — 할인 · KC 인증 · 구매 수량 상한
+ * ------------------------------------------------------------------------- */
+
+export async function setGoodDiscountAction(state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_setGoodDiscountAction(state, formData));
+}
+
+async function run_setGoodDiscountAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  const authError = await requireStaff();
+  if (authError) return authError;
+
+  const result = normalizeGoodDiscountForm(formData);
+  if (!result.ok) return { errors: result.errors };
+  const value = result.value;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_set_good_discount', {
+    p_good_id: value.goodId,
+    p_kind: value.kind,
+    p_value: value.value,
+    p_starts_at: value.startsAt,
+    p_ends_at: value.endsAt,
+    p_shows_rate: value.showsRate,
+    p_request_id: randomUUID(),
+  });
+  if (error) return { errors: { form: rpcMessage(error.message, '할인을 저장하지 못했습니다.') } };
+
+  revalidateCatalogPaths(value.goodId);
+  return { message: value.kind === 'none' ? '할인을 껐습니다.' : '할인을 저장했습니다.' };
+}
+
+export async function setGoodComplianceAction(state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_setGoodComplianceAction(state, formData));
+}
+
+async function run_setGoodComplianceAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  const authError = await requireStaff();
+  if (authError) return authError;
+
+  const result = normalizeGoodComplianceForm(formData);
+  if (!result.ok) return { errors: result.errors };
+  const value = result.value;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_set_good_compliance', {
+    p_good_id: value.goodId,
+    p_kc_status: value.kcStatus,
+    p_kc_type: value.kcType,
+    p_kc_number: value.kcNumber,
+    p_kc_company: value.kcCompany,
+    p_adult_only: value.adultOnly,
+    p_barcode: value.barcode,
+    p_request_id: randomUUID(),
+  });
+  if (error) return { errors: { form: rpcMessage(error.message, '고시·표기 정보를 저장하지 못했습니다.') } };
+
+  revalidateCatalogPaths(value.goodId);
+  return { message: '고시·표기 정보를 저장했습니다.' };
+}
+
+export async function setGoodPurchaseLimitsAction(state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_setGoodPurchaseLimitsAction(state, formData));
+}
+
+async function run_setGoodPurchaseLimitsAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  const authError = await requireStaff();
+  if (authError) return authError;
+
+  const result = normalizeGoodPurchaseLimitForm(formData);
+  if (!result.ok) return { errors: result.errors };
+  const value = result.value;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_set_good_purchase_limits', {
+    p_good_id: value.goodId,
+    p_min_order_qty: value.minOrderQty,
+    p_max_order_qty: value.maxOrderQty,
+    p_max_qty_per_account: value.maxQtyPerAccount,
+    p_request_id: randomUUID(),
+  });
+  if (error) return { errors: { form: rpcMessage(error.message, '구매 조건을 저장하지 못했습니다.') } };
+
+  revalidateCatalogPaths(value.goodId);
+  return { message: '구매 조건을 저장했습니다.' };
 }
