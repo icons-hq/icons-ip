@@ -102,7 +102,17 @@ export function createTossWebhookHandler({
         error instanceof GoodsPaymentReconciliationInProgressError
         || error instanceof TicketPaymentReconciliationInProgressError
       ) {
-        return acknowledged();
+        // 다른 처리자(confirm 핸들러·내부 reconcile)가 claim 리스를 쥐고 있다. 여기서
+        // 200을 주면 토스는 다시 보내지 않는다 — 문서 41(웹훅 재전송 정책): "200 응답을
+        // 보내지 않고 최초의 웹훅 전송이 실패하면 최대 7회(최초 전송으로부터 3일
+        // 19시간 후)까지 웹훅을 재전송합니다", 재전송 간격은 1·4·16·64·256·1024·4096분
+        // (누적 +1·+5·+21·+85분…). 원 처리자가 승인 뒤 finalize 전에 죽으면 attempt는
+        // confirming으로 남고 크론도 없다. claim 리스는 10분(supabase/migrations/
+        // 20260901110000_goods_payment_reconciliation.sql — in_progress 판정 :192-208,
+        // claim_expires_at :278)이라 503으로 남기면 3회차(+21분)부터의 재전송이 리스
+        // 만료 뒤 회수한다. 정상 결제에서 confirm 처리 중 도착한 DONE 웹훅이 1~2회 더
+        // 오는 비용은 감수한다 — 종결된 attempt에는 멱등 no-op 200이다.
+        return Response.json({ error: 'reconciliation_in_progress' }, { status: 503 });
       }
       // 재정합 실패 — 재전송이 다시 시도하도록 5xx로 남긴다.
       return Response.json({ error: 'reconciliation_failed' }, { status: 500 });

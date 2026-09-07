@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GoodsPaymentReconciliationInProgressError } from '@/lib/payments/goods-checkout';
+import { TicketPaymentReconciliationInProgressError } from '@/lib/payments/ticket-checkout';
 import { createTossWebhookHandler } from './route';
 
 const PROVIDER_ORDER_ID = 'O30000000000040008000000000000390';
@@ -192,7 +193,7 @@ describe('POST /api/webhooks/tosspayments', () => {
     expect(deps.loadAttempt).not.toHaveBeenCalled();
   });
 
-  it('다른 재정합이 진행 중이면 재전송 소음 없이 200으로 닫는다', async () => {
+  it('다른 재정합이 진행 중이면 503으로 남겨 리스 만료 뒤 재전송이 회수하게 한다', async () => {
     const { post } = handler({
       reconcileGoods: vi.fn(async () => {
         throw new GoodsPaymentReconciliationInProgressError();
@@ -202,7 +203,34 @@ describe('POST /api/webhooks/tosspayments', () => {
       statusChangedBody(),
       { 'tosspayments-webhook-transmission-id': TRANSMISSION_ID },
     ));
-    expect(result.status).toBe(200);
+    // 200이면 토스는 재전송하지 않는다 — 원 처리자가 승인 뒤 finalize 전에 죽으면
+    // confirming이 영구 남는다. 503은 리스(10분) 만료 뒤 재전송이 회수하게 한다.
+    expect(result.status).toBe(503);
+    const body = await result.text();
+    expect(JSON.parse(body)).toEqual({ error: 'reconciliation_in_progress' });
+    expect(body).not.toContain(PAYMENT_KEY);
+  });
+
+  it('티켓 재정합 진행 중도 같은 503 계약이다', async () => {
+    const { deps, post } = handler({
+      loadAttempt: vi.fn(async () => ({
+        id: ATTEMPT_ID,
+        purpose: 'ticket' as const,
+        state: 'confirming',
+      })),
+      reconcileTicket: vi.fn(async () => {
+        throw new TicketPaymentReconciliationInProgressError();
+      }),
+    });
+    const result = await post(webhookRequest(
+      statusChangedBody({ orderId: TICKET_PROVIDER_ORDER_ID }),
+      { 'tosspayments-webhook-transmission-id': TRANSMISSION_ID },
+    ));
+    expect(result.status).toBe(503);
+    const body = await result.text();
+    expect(JSON.parse(body)).toEqual({ error: 'reconciliation_in_progress' });
+    expect(body).not.toContain(PAYMENT_KEY);
+    expect(deps.reconcileGoods).not.toHaveBeenCalled();
   });
 
   it('재정합 실패는 500으로 남겨 재전송이 다시 시도하게 한다', async () => {
