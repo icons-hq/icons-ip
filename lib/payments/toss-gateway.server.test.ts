@@ -415,6 +415,27 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.reasonCode).toBe('provider_unavailable');
     });
 
+    it('서버 오류 후 조회가 403(FORBIDDEN_REQUEST)이면 설정 오류로 격리한다 — 일시 장애로 위장하지 않는다', async () => {
+      const fetchImpl = vi.fn()
+        .mockResolvedValueOnce(jsonResponse(500, {
+          code: 'FAILED_INTERNAL_SYSTEM_PROCESSING',
+          message: '내부 시스템 처리 작업이 실패했습니다.',
+        }))
+        .mockResolvedValueOnce(jsonResponse(403, {
+          code: 'FORBIDDEN_REQUEST',
+          message: '허용되지 않은 요청입니다.',
+        }));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.confirm(await confirmInput());
+
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      expect(outcome.outcome).toBe('needs_review');
+      expect(outcome.reasonCode).toBe('provider_configuration_error');
+      expect(outcome.evidence).toEqual({ resultCode: 'FORBIDDEN_REQUEST' });
+      expect(JSON.stringify(outcome)).not.toContain(SECRET_KEY);
+    });
+
     it('결과 어디에도 시크릿 키가 새지 않는다', async () => {
       const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, donePayment()));
       const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
@@ -541,6 +562,47 @@ describe('TossPayments v2 gateway', () => {
 
       expect(outcome.outcome).toBe('unknown');
       expect(outcome.reasonCode).toBe('provider_unavailable');
+    });
+
+    it.each([
+      [401, 'UNAUTHORIZED_KEY', '인증되지 않은 시크릿 키 혹은 클라이언트 키 입니다.'],
+      [403, 'API_KEY_ACCESS_DENIED', 'API 키 접근 정책에 의해 허용되지 않은 IP입니다.'],
+      // 상태는 400이지만 본문 코드가 키 설정 축이다(문서 59·121).
+      [400, 'INVALID_API_KEY', '잘못된 시크릿키 연동 정보 입니다.'],
+    ])('조회 %s %s는 needs_review로 격리한다 — 키·설정 오류를 일시 장애로 위장하지 않는다', async (status, code, message) => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(status, { code, message }));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(outcome.outcome).toBe('needs_review');
+      expect(outcome.reasonCode).toBe('provider_configuration_error');
+      expect(outcome.evidence).toEqual({ resultCode: code });
+      expect(JSON.stringify(outcome)).not.toContain(SECRET_KEY);
+    });
+
+    it('조회 403에 본문이 없어도 상태 코드만으로 설정 오류로 격리한다', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 403 }));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(outcome.outcome).toBe('needs_review');
+      expect(outcome.reasonCode).toBe('provider_configuration_error');
+      expect(outcome.evidence).toEqual({ resultCode: 'HTTP_403' });
+    });
+
+    it.each([
+      [500, 'FAILED_INTERNAL_SYSTEM_PROCESSING'],
+      [400, 'UNKNOWN_PAYMENT_ERROR'],
+    ])('조회 %s %s(설정 축 밖)는 여전히 unknown으로 보존한다(회귀)', async (status, code) => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(status, { code, message: '일시적인 오류' }));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(outcome.outcome).toBe('unknown');
+      expect(outcome.reasonCode).toBe('provider_http_error');
     });
   });
 
@@ -754,6 +816,45 @@ describe('TossPayments v2 gateway', () => {
 
       expect(outcome.outcome).toBe('unknown');
       expect(outcome.reasonCode).toBe('provider_unavailable');
+    });
+
+    it('사전 조회가 403이면 취소 API를 호출하지 않고 설정 오류로 격리한다', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(403, {
+        code: 'API_KEY_ACCESS_DENIED',
+        message: 'API 키 접근 정책에 의해 허용되지 않은 IP입니다.',
+      }));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.refund(refundRequest());
+
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(outcome.outcome).toBe('needs_review');
+      expect(outcome.reasonCode).toBe('provider_configuration_error');
+      expect(outcome.evidence).toEqual({ resultCode: 'API_KEY_ACCESS_DENIED' });
+      expect(outcome.refundedAmount).toBeUndefined();
+      expect(JSON.stringify(outcome)).not.toContain(SECRET_KEY);
+    });
+
+    it('취소 200 뒤 사후 조회가 403이면 자동 종결하지 않는다 — 조회만 진실원이다', async () => {
+      const fetchImpl = vi.fn()
+        .mockResolvedValueOnce(jsonResponse(200, donePayment()))
+        .mockResolvedValueOnce(jsonResponse(200, canceledPayment()))
+        .mockResolvedValueOnce(jsonResponse(403, {
+          code: 'FORBIDDEN_REQUEST',
+          message: '허용되지 않은 요청입니다.',
+        }));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.refund(refundRequest());
+
+      expect(fetchImpl).toHaveBeenCalledTimes(3);
+      expect(outcome.outcome).toBe('needs_review');
+      expect(outcome.reasonCode).toBe('provider_configuration_error');
+      expect(outcome.evidence).toEqual({
+        providerPaymentKey: PAYMENT_KEY,
+        resultCode: 'FORBIDDEN_REQUEST',
+      });
+      expect(outcome.refundedAmount).toBeUndefined();
     });
 
     it('환불 결과 어디에도 시크릿 키가 새지 않는다', async () => {
