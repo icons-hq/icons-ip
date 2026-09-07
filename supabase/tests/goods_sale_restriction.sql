@@ -14,6 +14,8 @@ begin;
 --   4. 카드 provider는 주문 구성에서 파생된다 — 일반 주문은 toss, 제한
 --      주문은 korpay뿐이고 클라이언트가 고를 수 없다
 --   5. 무통장은 PG가 아니라 업종 제한과 무관하다 — 제한 주문에서도 열린다
+--   6. 파생은 캡처 직전에 한 번 더 확인된다 — prepare 뒤에 상품이 내려가면
+--      토스 선점이 거절되고, 그 거절은 attempt를 prepared로 남긴다
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -408,5 +410,206 @@ select 1 / case when (
   where attempt.purpose = 'order'
     and attempt.ref_id = '2c000000-0000-4000-8000-000000000002'::uuid
 ) then 1 else 0 end as assert_restriction_does_not_close_bank_transfer;
+
+-- ---------------------------------------------------------------------------
+-- claim 재검증 — prepare 뒤 제한 전환은 캡처 직전에 막힌다
+-- ---------------------------------------------------------------------------
+-- prepare의 파생은 결제 준비 시점의 판정이고 attempt는 그 뒤 최대 10분을 더
+-- 산다. 그 창 안에서 상품을 내리면 이미 열린 토스 attempt가 캡처까지 완주할 수
+-- 있는지 여기서 확인한다 — claim은 provider 승인 API 직전의 마지막 DB 관문이다.
+insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
+values ('restrict-flip-goods', 'restrict-ip', '판매 중 내려간 굿즈', '문구', 20000, 'ok', 10);
+
+insert into public.orders (
+  id, user_id, status, total, shipping_fee, discount_total,
+  address, expires_at, checkout_key, payment_method
+)
+values (
+  '2c000000-0000-4000-8000-000000000003',
+  '00000000-0000-4000-8000-000000000f01',
+  'pending', 23000, 3000, 0,
+  jsonb_build_object(
+    'recipientName', '전환카드',
+    'phone', '01012345678',
+    'postalCode', '06236',
+    'address1', '서울시 강남구'
+  ),
+  now() + interval '15 minutes',
+  '9c000000-0000-4000-8000-000000000005',
+  'card'
+);
+
+insert into public.order_items (
+  order_id, good_id, qty, unit_price,
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+)
+values (
+  '2c000000-0000-4000-8000-000000000003', 'restrict-flip-goods', 1, 20000,
+  '판매 중 내려간 굿즈', '문구', 'restrict-ip'
+);
+
+-- 준비 시점에는 제한이 없다. 그래서 파생 결과는 toss다.
+select public.prepare_goods_payment_attempt(
+  '00000000-0000-4000-8000-000000000f01',
+  '2c000000-0000-4000-8000-000000000003'::uuid,
+  'toss'::public.payment_provider
+);
+
+select public.bind_goods_payment_callback_nonce(
+  (
+    select attempt.id
+    from public.payment_attempts as attempt
+    where attempt.purpose = 'order'
+      and attempt.ref_id = '2c000000-0000-4000-8000-000000000003'::uuid
+  ),
+  repeat('c', 64)
+);
+
+-- attempt가 살아 있는 동안 운영자가 상품을 내린다. 실제 경로(staff setter)로
+-- 뒤집는다 — 컬럼을 직접 update하면 운영 경로가 고장나도 이 절이 통과한다.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000f02', true);
+
+select public.admin_set_good_sale_restriction(
+  'restrict-flip-goods',
+  'adult'::public.goods_sale_restriction
+);
+
+reset role;
+
+do $$
+declare
+  accepted boolean := false;
+  rejection text := '';
+begin
+  begin
+    perform public.claim_goods_payment_attempt(
+      'toss'::public.payment_provider,
+      (
+        select attempt.provider_order_id
+        from public.payment_attempts as attempt
+        where attempt.purpose = 'order'
+          and attempt.ref_id = '2c000000-0000-4000-8000-000000000003'::uuid
+      ),
+      repeat('c', 64),
+      '4c000000-0000-4000-8000-000000000001'
+    );
+    accepted := true;
+  exception
+    when object_not_in_prerequisite_state then rejection := sqlerrm;
+  end;
+
+  if accepted then
+    raise exception 'a toss capture must not proceed after a sale restriction lands';
+  end if;
+  if rejection <> 'goods_payment_provider_mismatch' then
+    raise exception 'a restricted toss claim failed for the wrong reason: %', rejection;
+  end if;
+end;
+$$;
+
+-- 거절은 attempt를 종결시키지 않는다. prepared로 남아야 TTL 뒤 만료 경로가
+-- attempt와 재고를 함께 정리한다 — 여기서 닫아 버리면 그 경로가 대상을 잃는다.
+select 1 / case when (
+  select count(*) = 1
+    and bool_and(attempt.state = 'prepared')
+    and bool_and(attempt.claim_token is null)
+    and bool_and(attempt.claim_expires_at is null)
+  from public.payment_attempts as attempt
+  where attempt.purpose = 'order'
+    and attempt.ref_id = '2c000000-0000-4000-8000-000000000003'::uuid
+) then 1 else 0 end as assert_rejected_claim_leaves_the_attempt_prepared;
+
+-- ---------------------------------------------------------------------------
+-- claim 재검증은 한 방향이다 — korpay attempt는 전환에 걸리지 않는다
+-- ---------------------------------------------------------------------------
+-- 전용 PG가 일반 상품을 결제하는 것은 업종 위반이 아니다. adult → none 전환이
+-- 이미 열린 korpay 결제를 깨뜨리면, 제한을 푸는 결정이 진행 중인 결제를
+-- 실패시키는 부작용을 갖게 된다.
+insert into public.orders (
+  id, user_id, status, total, shipping_fee, discount_total,
+  address, expires_at, checkout_key, payment_method
+)
+values (
+  '2c000000-0000-4000-8000-000000000004',
+  '00000000-0000-4000-8000-000000000f01',
+  'pending', 23000, 3000, 0,
+  jsonb_build_object(
+    'recipientName', '해제카드',
+    'phone', '01012345678',
+    'postalCode', '06236',
+    'address1', '서울시 강남구'
+  ),
+  now() + interval '15 minutes',
+  '9c000000-0000-4000-8000-000000000006',
+  'card'
+);
+
+insert into public.order_items (
+  order_id, good_id, qty, unit_price,
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+)
+values (
+  '2c000000-0000-4000-8000-000000000004', 'restrict-adult-goods', 1, 20000,
+  '판매 제한 굿즈', '문구', 'restrict-ip'
+);
+
+select public.prepare_goods_payment_attempt(
+  '00000000-0000-4000-8000-000000000f01',
+  '2c000000-0000-4000-8000-000000000004'::uuid,
+  'korpay'::public.payment_provider
+);
+
+select public.bind_goods_payment_callback_nonce(
+  (
+    select attempt.id
+    from public.payment_attempts as attempt
+    where attempt.purpose = 'order'
+      and attempt.ref_id = '2c000000-0000-4000-8000-000000000004'::uuid
+  ),
+  repeat('d', 64)
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000f02', true);
+
+select public.admin_set_good_sale_restriction(
+  'restrict-adult-goods',
+  'none'::public.goods_sale_restriction
+);
+
+reset role;
+
+do $$
+declare
+  claimed jsonb;
+begin
+  claimed := public.claim_goods_payment_attempt(
+    'korpay'::public.payment_provider,
+    (
+      select attempt.provider_order_id
+      from public.payment_attempts as attempt
+      where attempt.purpose = 'order'
+        and attempt.ref_id = '2c000000-0000-4000-8000-000000000004'::uuid
+    ),
+    repeat('d', 64),
+    '4c000000-0000-4000-8000-000000000002'
+  );
+
+  if claimed ->> 'claim_status' is distinct from 'claimed' then
+    raise exception 'a korpay capture must not be blocked by a lifted restriction: %', claimed;
+  end if;
+end;
+$$;
+
+select 1 / case when (
+  select count(*) = 1
+    and bool_and(attempt.provider = 'korpay')
+    and bool_and(attempt.state = 'confirming')
+    and bool_and(attempt.claim_token = '4c000000-0000-4000-8000-000000000002')
+  from public.payment_attempts as attempt
+  where attempt.purpose = 'order'
+    and attempt.ref_id = '2c000000-0000-4000-8000-000000000004'::uuid
+) then 1 else 0 end as assert_korpay_claim_is_untouched_by_the_restriction_axis;
 
 rollback;

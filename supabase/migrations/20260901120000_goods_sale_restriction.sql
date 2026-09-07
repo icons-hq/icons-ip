@@ -12,7 +12,9 @@
 --      고시정보 폼과 분리된 setter로만 바뀐다
 --   2. 제한 상품 구매는 성인인증(#209·#210)이 붙기 전까지 주문 생성에서
 --      서버가 막는다 — 스토어 비노출은 쿼리 레이어라 보안 경계가 아니다
---   3. 카드 provider는 주문 구성에서 파생된다 — 클라이언트가 고르지 않는다
+--   3. 카드 provider는 주문 구성에서 파생된다 — 클라이언트가 고르지 않고,
+--      결제 준비뿐 아니라 캡처 직전 선점에서도 같은 파생을 다시 확인한다.
+--      prepare에서만 보면 attempt가 사는 10분이 그대로 우회 창이 된다
 -- ==========================================================================
 
 -- ---------------------------------------------------------------------------
@@ -614,4 +616,213 @@ revoke all on function public.prepare_goods_payment_attempt(
 ) from public, anon, authenticated, service_role;
 grant execute on function public.prepare_goods_payment_attempt(
   uuid, uuid, public.payment_provider
+) to service_role;
+
+-- ---------------------------------------------------------------------------
+-- 6. 결제 선점 — 캡처 직전 provider 파생 재검증
+-- ---------------------------------------------------------------------------
+-- 20260901100000(토스 허용목록) 사본에 파생 재검증만 더한 재정의다. 시그니처,
+-- 잠금 순서(order → attempt), 재조회·멱등·재생 계약, 상태 전이는 그대로다.
+--
+-- 5번의 파생은 prepare 시점의 판정이고, attempt는 그 뒤로 최대 10분을 더 산다.
+-- prepare에만 검사가 있으면 그 창 안에서 staff가 굿즈를 none → adult로 내려도
+-- 이미 열린 토스 attempt는 그대로 캡처까지 완주한다 — 이 파일 머리말이 막겠다고
+-- 적은 "업종 제한을 위반한 결제가 그대로 승인되는" 일이 마지막 관문에서
+-- 벌어진다. claim은 provider 승인 API를 부르기 직전의 마지막 DB 관문이므로,
+-- 여기서 다시 판정해 그 창을 10분에서 0으로 줄인다.
+--
+-- 재검증은 한 방향이다. toss attempt에 제한 상품이 섞이면 거절하고, korpay
+-- attempt는 검사하지 않는다 — 전용 PG가 일반 상품을 결제하는 것은 업종 위반이
+-- 아니라서, adult → none 전환이 이미 열린 korpay 결제를 깨뜨릴 이유가 없다.
+--
+-- 같은 검사를 finalize에 두지 않는 이유는 시점이다. finalize가 도는 시점에는
+-- provider 승인 API가 이미 돈을 잡은 뒤라, 거기서 거절하면 캡처된 결제를 원장
+-- 없이 버리게 된다. 제한을 지키는 관문은 캡처 앞이어야 한다.
+--
+-- setter에서 pending 주문을 원자 취소하는 안은 택하지 않았다. 3번 setter가
+-- 존재하는 이유가 "급하게 내려야 할 때 못 내리는" 상황을 없애는 것인데, 스위치
+-- 하나에 진행 중 주문 취소까지 묶으면 운영자가 그 스위치를 무서워하게 된다.
+create or replace function public.claim_goods_payment_attempt(
+  p_provider public.payment_provider,
+  p_provider_order_id text,
+  p_callback_nonce_digest text,
+  p_claim_token uuid
+)
+returns jsonb
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $function$
+declare
+  v_attempt public.payment_attempts%rowtype;
+  v_order public.orders%rowtype;
+begin
+  if p_provider not in ('toss', 'korpay')
+    or p_provider_order_id is null
+    or pg_catalog.length(p_provider_order_id) not between 1 and 200
+    or p_callback_nonce_digest is null
+    or p_callback_nonce_digest !~ '^[0-9a-f]{64}$'
+    or p_claim_token is null
+  then
+    raise invalid_parameter_value using message = 'goods_payment_callback_invalid';
+  end if;
+
+  select attempt.*
+  into v_attempt
+  from public.payment_attempts as attempt
+  where attempt.provider = p_provider
+    and attempt.provider_order_id = p_provider_order_id
+    and attempt.purpose = 'order';
+
+  if not found
+    or v_attempt.callback_nonce_digest is null
+    or v_attempt.callback_nonce_digest is distinct from p_callback_nonce_digest
+  then
+    raise no_data_found using message = 'goods_payment_callback_invalid';
+  end if;
+
+  if v_attempt.state in ('approved', 'declined', 'canceled', 'unknown', 'needs_review') then
+    return pg_catalog.jsonb_build_object(
+      'claim_status', 'terminal',
+      'attempt', private.goods_payment_attempt_json(v_attempt),
+      'outcome', v_attempt.state
+    );
+  end if;
+
+  if v_attempt.state = 'confirming' then
+    return pg_catalog.jsonb_build_object(
+      'claim_status', 'in_progress',
+      'attempt', private.goods_payment_attempt_json(v_attempt)
+    );
+  end if;
+
+  if v_attempt.state is distinct from 'prepared'
+    or v_attempt.expires_at <= pg_catalog.clock_timestamp()
+  then
+    raise object_not_in_prerequisite_state using message = 'goods_payment_attempt_expired';
+  end if;
+
+  -- All goods transitions lock order before attempt. This matches prepare,
+  -- cancellation, and expiry ordering and avoids an order/attempt deadlock.
+  select order_record.*
+  into v_order
+  from public.orders as order_record
+  where order_record.id = v_attempt.ref_id
+  for update;
+
+  if not found then
+    raise no_data_found using message = 'goods_order_not_found';
+  end if;
+
+  select attempt.*
+  into v_attempt
+  from public.payment_attempts as attempt
+  where attempt.provider = p_provider
+    and attempt.provider_order_id = p_provider_order_id
+    and attempt.purpose = 'order'
+  for update;
+
+  if not found
+    or v_attempt.callback_nonce_digest is null
+    or v_attempt.callback_nonce_digest is distinct from p_callback_nonce_digest
+  then
+    raise no_data_found using message = 'goods_payment_callback_invalid';
+  end if;
+
+  if v_attempt.state in ('approved', 'declined', 'canceled', 'unknown', 'needs_review') then
+    return pg_catalog.jsonb_build_object(
+      'claim_status', 'terminal',
+      'attempt', private.goods_payment_attempt_json(v_attempt),
+      'outcome', v_attempt.state
+    );
+  end if;
+
+  if v_attempt.state = 'confirming' then
+    return pg_catalog.jsonb_build_object(
+      'claim_status', 'in_progress',
+      'attempt', private.goods_payment_attempt_json(v_attempt)
+    );
+  end if;
+
+  if v_attempt.state is distinct from 'prepared'
+    or v_attempt.expires_at <= pg_catalog.clock_timestamp()
+  then
+    raise object_not_in_prerequisite_state using message = 'goods_payment_attempt_expired';
+  end if;
+
+  if v_order.user_id is distinct from v_attempt.user_id
+    or v_order.status is distinct from 'pending'
+    or v_order.expires_at is null
+    or v_order.expires_at <= pg_catalog.clock_timestamp()
+    or v_order.total is distinct from v_attempt.amount
+    or v_attempt.currency is distinct from 'KRW'
+    or private.is_account_write_fenced(v_attempt.user_id)
+    or exists (
+      select 1
+      from public.profiles as profile
+      where profile.id = v_attempt.user_id
+        and profile.suspended_at is not null
+    )
+    or not private.goods_order_snapshot_matches(
+      v_order.id,
+      v_order.total,
+      v_order.shipping_fee
+    )
+    or exists (
+      select 1
+      from public.order_cancellation_requests as request
+      where request.order_id = v_order.id
+        and request.status in ('requested', 'processing', 'needs_review')
+    )
+    or exists (
+      select 1
+      from public.payments as payment
+      where payment.purpose = 'order'
+        and payment.ref_id = v_order.id
+        and payment.status in ('pending', 'paid')
+    )
+  then
+    raise object_not_in_prerequisite_state using message = 'goods_order_not_payable';
+  end if;
+
+  -- 판매 제한 재검증(#392). prepare가 파생한 provider가 지금도 유효한지 캡처
+  -- 직전에 한 번 더 본다. 5번과 같은 파생 위반이므로 에러 어휘도 같다.
+  --
+  -- 거절해도 attempt 상태는 손대지 않는다 — prepared로 남아야 TTL이 지난 뒤
+  -- 만료 경로(reconcile_expired_prepared_goods_cancellation · 주문
+  -- expire_stale_checkouts)가 attempt를 canceled로 닫으면서 재고까지 함께
+  -- 되돌린다. 여기서 attempt를 종결시키면 그 정리 경로가 대상을 잃는다.
+  if v_attempt.provider = 'toss'
+    and exists (
+      select 1
+      from public.order_items as item
+      join public.goods as good on good.id = item.good_id
+      where item.order_id = v_order.id
+        and good.sale_restriction <> 'none'
+    )
+  then
+    raise exception 'goods_payment_provider_mismatch' using errcode = '55000';
+  end if;
+
+  update public.payment_attempts
+  set
+    state = 'confirming',
+    claim_token = p_claim_token,
+    claim_expires_at = pg_catalog.clock_timestamp() + interval '10 minutes'
+  where id = v_attempt.id
+  returning * into v_attempt;
+
+  return pg_catalog.jsonb_build_object(
+    'claim_status', 'claimed',
+    'attempt', private.goods_payment_attempt_json(v_attempt)
+  );
+end;
+$function$;
+
+revoke all on function public.claim_goods_payment_attempt(
+  public.payment_provider, text, text, uuid
+) from public, anon, authenticated, service_role;
+grant execute on function public.claim_goods_payment_attempt(
+  public.payment_provider, text, text, uuid
 ) to service_role;
