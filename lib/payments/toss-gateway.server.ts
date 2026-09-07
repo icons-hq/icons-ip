@@ -44,9 +44,12 @@ const PROVIDER_PRODUCT_CODE = /^P[0-9a-f]{32}$/i;
 const PROVIDER_PAYMENT_KEY = /^[\x21-\x7e]{1,200}$/;
 const IDEMPOTENCY_KEY = /^[\x21-\x7e]{1,300}$/;
 // 에러 코드 표(문서 ID 59, 142종)에서 뽑은 결정적 거절 코드. 카드사/수단 거절과
-// 한도·지원 범위 위반은 재조회해도 결과가 바뀌지 않는다.
+// 한도·지원 범위 위반은 재조회해도 결과가 바뀌지 않는다. 표는 불완전하다 —
+// REJECT_CARD_PAYMENT("한도초과 혹은 잔액부족으로 결제에 실패했습니다")는 문서 11의
+// 승인 API 에러 재현 예시인데 표에 없다. 표 밖 4xx는 confirm이 조회로 재확인한다.
 const DECLINED_CODES = new Set([
   'REJECT_CARD_COMPANY',
+  'REJECT_CARD_PAYMENT',
   'REJECT_ACCOUNT_PAYMENT',
   'INVALID_REJECT_CARD',
   'INVALID_STOPPED_CARD',
@@ -481,10 +484,19 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
    * confirm이 모호하게 끝났을 때 orderId 조회로 실상태를 확인해 분기한다(스펙:
    * confirm 실패를 즉시 실패로 단정하지 않는다). 조회까지 모호하면 unknown으로
    * 보존해 reconcile(#390)에 넘기고, 키·설정 오류는 needs_review로 격리한다.
+   *
+   * outcome 어휘는 reconcile과 같은 계약이다 — canceled는 전액 취소 검증
+   * (paymentFullyCanceled)을 통과했을 때만 돌려준다. 환불 재정합(reconcileRefund)이
+   * canceled를 "원거래 전액 취소 확인"으로 읽어 환불 승인으로 승격하므로, EXPIRED·
+   * ABORTED 같은 승인 불성립은 declined다.
    */
   async function recheckByInquiry(
     attempt: PaymentAttempt,
-    options: { readonly notFoundOutcome?: 'declined'; readonly notFoundReason?: string } = {},
+    options: {
+      readonly notFoundOutcome?: 'declined';
+      readonly notFoundReason?: string;
+      readonly notFoundEvidence?: PaymentProviderEvidence;
+    } = {},
   ): Promise<ConfirmOutcome> {
     const inquiry = await inquireByOrderId(attempt);
     if (inquiry.kind === 'unavailable') {
@@ -496,6 +508,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
           attempt,
           'declined',
           options.notFoundReason ?? 'provider_payment_not_found',
+          options.notFoundEvidence,
         ) as ConfirmOutcome;
       }
       return baseOutcome(attempt, 'unknown', 'provider_inquiry_not_found') as ConfirmOutcome;
@@ -527,7 +540,8 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       }) as ConfirmOutcome;
     }
     if (payment.status === 'EXPIRED') {
-      return baseOutcome(attempt, 'canceled', 'provider_payment_expired', {
+      // 결제 유효시간 30분 경과(문서 127) — 승인 불성립 확정이지 취소 성공이 아니다.
+      return baseOutcome(attempt, 'declined', 'provider_payment_expired', {
         resultCode: 'EXPIRED',
       }) as ConfirmOutcome;
     }
@@ -714,9 +728,22 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         return recheckByInquiry(input.attempt);
       }
       if (confirmResult.status >= 500) {
+        // 5xx는 승인이 provider 쪽에서 뒤늦게 성립할 수 있다 — 조회 404도 unknown.
         return recheckByInquiry(input.attempt);
       }
-      // 그 밖의 4xx 미지 코드도 추측하지 않고 조회로 확인한다.
+      if (code !== null) {
+        // 표 밖 4xx 코드. 승인 실패는 4xx/5xx로 온다는 계약(문서 28)과 orderId 조회는
+        // "승인된 결제"만 돌려준다는 계약(문서 127)을 결합하면, 4xx 뒤 조회 404는
+        // 이 주문으로 승인이 성립하지 않았다는 확정 사실이다 — 본문 코드를 그대로
+        // 믿지는 않되(조회 DONE이면 승인), 404를 unknown으로 남겨 웹훅 재전송 7회를
+        // 태울 이유도 없다. 원 코드는 resultCode로 보존해 운영이 표를 보강할 수 있게 한다.
+        return recheckByInquiry(input.attempt, {
+          notFoundOutcome: 'declined',
+          notFoundReason: 'provider_declined',
+          notFoundEvidence: { providerPaymentKey: paymentKey, resultCode: code },
+        });
+      }
+      // 4xx인데 본문에 코드가 없다 — 어떤 실패인지 모르니 추측하지 않고 조회로 확인한다.
       return recheckByInquiry(input.attempt);
     },
 
@@ -725,7 +752,8 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
      * attempt)과 환불 재정합(reconcileRefund) 두 문맥이 공유한다 — 환불 재정합은
      * 'canceled'를 "원거래 전액 취소 확인"으로 읽어 환불 승인으로 승격하므로,
      * canceled는 전액 취소 검증(paymentFullyCanceled)을 통과했을 때만 돌려주고
-     * EXPIRED·미승인 실패 확정은 declined로 돌려준다.
+     * EXPIRED·미승인 실패 확정은 declined로 돌려준다. confirm 재확인
+     * (recheckByInquiry)도 같은 어휘를 쓴다.
      */
     async reconcile(attempt) {
       assertAttempt(attempt);

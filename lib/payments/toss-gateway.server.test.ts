@@ -352,6 +352,105 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.evidence?.resultCode).toBe('REJECT_CARD_COMPANY');
     });
 
+    it('한도초과·잔액부족(REJECT_CARD_PAYMENT)은 조회 없이 declined로 종결한다', async () => {
+      // 문서 11의 승인 API 에러 재현 예시 코드 — 문서 59 표에는 빠져 있다.
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(400, {
+        code: 'REJECT_CARD_PAYMENT',
+        message: '한도초과 혹은 잔액부족으로 결제에 실패했습니다.',
+      }));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.confirm(await confirmInput());
+
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(outcome.outcome).toBe('declined');
+      expect(outcome.reasonCode).toBe('provider_declined');
+      expect(outcome.evidence).toEqual({
+        providerPaymentKey: PAYMENT_KEY,
+        resultCode: 'REJECT_CARD_PAYMENT',
+      });
+    });
+
+    describe('미지 4xx 코드', () => {
+      const unknownFailure = () => jsonResponse(400, {
+        code: 'SOME_NEW_CODE',
+        message: '표에 없는 새 실패 코드',
+      });
+      const notFound = () => jsonResponse(404, {
+        code: 'NOT_FOUND_PAYMENT',
+        message: '존재하지 않는 결제 입니다.',
+      });
+
+      it('조회 404는 승인 불성립 확정이다 — 원 코드를 resultCode로 보존한 declined', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(unknownFailure())
+          .mockResolvedValueOnce(notFound());
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        expect(fetchImpl.mock.calls[1]![1].method).toBe('GET');
+        expect(outcome.outcome).toBe('declined');
+        expect(outcome.reasonCode).toBe('provider_declined');
+        expect(outcome.evidence).toEqual({
+          providerPaymentKey: PAYMENT_KEY,
+          resultCode: 'SOME_NEW_CODE',
+        });
+      });
+
+      it('조회가 DONE이면 승인으로 읽는다 — 4xx 본문을 믿지 않는다', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(unknownFailure())
+          .mockResolvedValueOnce(jsonResponse(200, donePayment()));
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(outcome.outcome).toBe('approved');
+        expect(outcome.reasonCode).toBe('provider_approved_after_recheck');
+      });
+
+      it('5xx 뒤 조회 404는 여전히 unknown이다(회귀) — 승인이 뒤늦게 성립할 수 있다', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(jsonResponse(500, {
+            code: 'FAILED_INTERNAL_SYSTEM_PROCESSING',
+            message: '내부 시스템 처리 작업이 실패했습니다.',
+          }))
+          .mockResolvedValueOnce(notFound());
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(outcome.outcome).toBe('unknown');
+        expect(outcome.reasonCode).toBe('provider_inquiry_not_found');
+      });
+
+      it('4xx인데 본문에 code가 없으면 조회 404를 unknown으로 남긴다(회귀)', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(jsonResponse(400, { message: 'code 없는 본문' }))
+          .mockResolvedValueOnce(notFound());
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(outcome.outcome).toBe('unknown');
+        expect(outcome.reasonCode).toBe('provider_inquiry_not_found');
+      });
+
+      it('4xx 본문이 JSON이 아니면 조회 404를 unknown으로 남긴다(회귀)', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(new Response('<html>bad gateway</html>', { status: 400 }))
+          .mockResolvedValueOnce(notFound());
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(outcome.outcome).toBe('unknown');
+        expect(outcome.reasonCode).toBe('provider_inquiry_not_found');
+      });
+    });
+
     it('구매자 결제창 이탈 코드는 canceled로 종결한다', async () => {
       const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(400, {
         code: 'PAY_PROCESS_CANCELED',
@@ -556,7 +655,10 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.reasonCode).toBe('provider_payment_in_progress');
     });
 
-    it('조회가 만료를 돌려주면 canceled로 종결한다', async () => {
+    it('조회가 만료를 돌려주면 declined로 종결한다 — reconcile과 같은 라벨', async () => {
+      // canceled는 전액 취소 검증(paymentFullyCanceled)을 통과했을 때만 쓴다. 환불
+      // 재정합이 canceled를 "원거래 전액 취소 확인"으로 읽으므로, 미승인 만료를
+      // canceled로 라벨링하면 원장이 취소 성공과 승인 불성립을 구분하지 못한다.
       const fetchImpl = vi.fn()
         .mockResolvedValueOnce(jsonResponse(500, { code: 'COMMON_ERROR', message: '일시적인 오류' }))
         .mockResolvedValueOnce(jsonResponse(200, donePayment({ status: 'EXPIRED' })));
@@ -564,8 +666,9 @@ describe('TossPayments v2 gateway', () => {
 
       const outcome = await tossGateway.confirm(await confirmInput());
 
-      expect(outcome.outcome).toBe('canceled');
+      expect(outcome.outcome).toBe('declined');
       expect(outcome.reasonCode).toBe('provider_payment_expired');
+      expect(outcome.evidence).toEqual({ resultCode: 'EXPIRED' });
     });
 
     it('네트워크 실패 후 조회까지 실패하면 unknown으로 보존한다', async () => {
