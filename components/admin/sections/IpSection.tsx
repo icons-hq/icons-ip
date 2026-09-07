@@ -4,17 +4,19 @@ import { useState } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminIpRecord } from '@/lib/admin/catalog.server';
 import { resolveArtworkDefault, resolveFieldDefault } from '@/lib/admin/form-state';
+import { adminIpPublishState, formatAdminIpRecordLabel } from '@/lib/admin/ip-publish';
 import { publicMediaUrl } from '@/lib/media';
 import {
   adminCatalogArchiveCounts,
   filterAdminCatalogRecords,
-  formatAdminCatalogRecordLabel,
   type AdminCatalogArchiveFilter,
 } from '../../../lib/admin/catalog-archive';
 import type { CatalogSnapshot } from '@/lib/catalog';
+import { Icon } from '@/components/ui/Icon';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
-import { Field, FormShell, RecordList, SelectField, TextArea } from '../fields';
+import { IpPublishControl, IpPublishStateBadge } from '../IpPublishControls';
+import { ActionNotice, Field, RecordList, SelectField, TextArea } from '../fields';
 
 export function IpSection({
   action,
@@ -47,6 +49,14 @@ export function IpSection({
   const artwork = resolveArtworkDefault(state, selected, publicMediaUrl);
   const formKey = `${selected ? JSON.stringify(selected) : 'new-ip'}:${state.attempt ?? 0}`;
 
+  /*
+   * 게시 상태 (20260907130000). 새 IP 와 초안은 "초안으로 저장"·"저장 후 공개" 두 동선을,
+   * 공개·보관된 IP 는 상태를 건드리지 않는 "저장" 하나를 갖는다 — 폼 저장이 조용히
+   * 비공개로 바꾸는 일이 없게, 초안으로 되돌리기는 옆의 전환 컨트롤에만 둔다.
+   */
+  const publishState = selected ? adminIpPublishState(selected) : 'draft';
+  const offersPublish = publishState === 'draft';
+
   return (
     <div className="admin-master-detail">
       <div className="col" style={{ gap: 12, minWidth: 0 }}>
@@ -61,7 +71,7 @@ export function IpSection({
         <RecordList
           activeId={selected?.id ?? null}
           items={visibleRecords}
-          labelFor={(ip) => formatAdminCatalogRecordLabel(`${ip.id} · ${ip.title}`, ip.archivedAt)}
+          labelFor={(ip) => formatAdminIpRecordLabel(`${ip.id} · ${ip.title}`, ip)}
           onNew={() => onSelect(null)}
           onSelect={onSelect}
           thumbnailKind="ip"
@@ -70,6 +80,13 @@ export function IpSection({
       </div>
       <div className="col" style={{ gap: 16, minWidth: 0 }}>
         <form action={action} className="card col" key={formKey} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+          <div className="row" style={{ gap: 10 }}>
+            <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>게시 상태</span>
+            <IpPublishStateBadge state={publishState} />
+            {!selected && (
+              <span className="muted" style={{ fontSize: 12 }}>새 IP는 초안으로 시작합니다. 공개 전까지는 어디에도 노출되지 않습니다.</span>
+            )}
+          </div>
           <input name="previousId" type="hidden" value={selected?.id ?? ''} />
           <div className="admin-form-grid">
             <Field defaultValue={field('id')} error={state.errors?.id} label="ID" name="id" placeholder="rilakkuma" readOnly={Boolean(selected)} />
@@ -100,8 +117,31 @@ export function IpSection({
             helpText="IP 키아트는 가로형 이미지를 사용해주세요."
             kind="ip"
           />
-          <FormShell pending={pending} state={state} />
+          <ActionNotice state={state} />
+          <div className="row" style={{ flexWrap: 'wrap', gap: 10, justifyContent: 'flex-start' }}>
+            {offersPublish ? (
+              <>
+                <button className="btn btn-ghost" disabled={pending} name="intent" style={{ minWidth: 150 }} value="draft">
+                  <Icon name="check" size={15} /> {pending ? '저장 중' : '초안으로 저장'}
+                </button>
+                <button className="btn btn-holo" disabled={pending} name="intent" style={{ minWidth: 150 }} value="publish">
+                  <Icon name="check" size={15} /> {pending ? '저장 중' : '저장 후 공개'}
+                </button>
+              </>
+            ) : (
+              <button className="btn btn-holo" disabled={pending} name="intent" style={{ minWidth: 150 }} value="save">
+                <Icon name="check" size={15} /> {pending ? '저장 중' : '저장'}
+              </button>
+            )}
+          </div>
         </form>
+        {selected && (
+          <IpPublishControl
+            id={selected.id}
+            key={`${selected.id}:${publishState}`}
+            record={selected}
+          />
+        )}
         {selected && (
           <CatalogArchiveControl
             archivedAt={selected.archivedAt}

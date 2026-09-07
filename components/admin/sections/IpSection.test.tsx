@@ -9,10 +9,15 @@ vi.mock('../../../app/admin/archive-actions', () => ({
   unarchiveAdminCatalogRecordAction: vi.fn(),
 }));
 vi.mock('../../../lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: vi.fn() }));
+vi.mock('../../../app/admin/ip-publish-actions', () => ({
+  publishAdminIpAction: vi.fn(),
+  unpublishAdminIpAction: vi.fn(),
+}));
 
 const ip: AdminIpRecord = {
   id: 'hwasan',
   archivedAt: null,
+  publishedAt: '2026-07-15T00:00:00.000Z',
   title: '화산강림',
   sub: null,
   verticalKey: 'webtoon',
@@ -153,6 +158,86 @@ describe('IpSection', () => {
 
     expect(html).toMatch(/<textarea[^>]*name="glyph"/);
     expect(html).toContain('글리프 (줄바꿈 가능)');
+  });
+
+  /* 게시 상태(20260907130000) — 초안·공개·보관을 폼 머리와 목록에서 읽을 수 있어야 한다. */
+  describe('publish state', () => {
+    function render(selected: AdminIpRecord | null, records = selected ? [selected] : []) {
+      return renderToStaticMarkup(
+        <IpSection
+          action={vi.fn()}
+          onSelect={vi.fn()}
+          pending={false}
+          records={records}
+          selected={selected}
+          state={{}}
+          verticals={[]}
+        />,
+      );
+    }
+
+    it('starts a new IP as a draft with both save flows', () => {
+      const html = render(null);
+
+      expect(html).toContain('data-publish-state="draft"');
+      expect(html).toContain('새 IP는 초안으로 시작합니다.');
+      expect(html).toMatch(/<button[^>]*value="draft"[^>]*name="intent"[^>]*>[^<]*초안으로 저장<\/button>/);
+      expect(html).toMatch(/<button[^>]*value="publish"[^>]*name="intent"[^>]*>[^<]*저장 후 공개<\/button>/);
+      expect(html).not.toContain('PUBLISH STATE');
+    });
+
+    it('keeps both flows for an existing draft and offers the publish toggle beside archive', () => {
+      const draft = { ...ip, publishedAt: null };
+      const html = render(draft);
+
+      expect(html).toContain('[초안] hwasan · 화산강림');
+      expect(html).toContain('data-publish-state="draft"');
+      expect(html).toContain('value="publish"');
+      expect(html).toContain('data-ip-publish-control="draft"');
+      expect(html).toContain('공개로 전환');
+      expect(html).toContain('카탈로그 보관');
+    });
+
+    it('offers a single state-preserving save for a published IP and the revert toggle', () => {
+      const html = render(ip);
+
+      expect(html).toContain('hwasan · 화산강림');
+      expect(html).not.toContain('[초안]');
+      expect(html).toContain('data-publish-state="published"');
+      expect(html).toMatch(/<button[^>]*value="save"[^>]*name="intent"[^>]*>[^<]*저장<\/button>/);
+      expect(html).not.toContain('value="publish"');
+      expect(html).not.toContain('초안으로 저장');
+      expect(html).toContain('data-ip-publish-control="published"');
+      expect(html).toContain('초안으로 되돌리기');
+    });
+
+    it('shows the archived badge and blocks publish changes until restored', () => {
+      const archived = { ...ip, archivedAt: '2026-07-17T12:00:00.000Z' };
+      const html = render(archived);
+
+      expect(html).toContain('[보관] hwasan · 화산강림');
+      expect(html).toContain('data-publish-state="archived"');
+      expect(html).toContain('data-ip-publish-control="archived"');
+      expect(html).toContain('보관된 IP는 게시 상태를 바꿀 수 없습니다.');
+      expect(html).not.toContain('value="publish"');
+    });
+
+    it('disables both submit buttons while the action is pending', () => {
+      const html = renderToStaticMarkup(
+        <IpSection
+          action={vi.fn()}
+          onSelect={vi.fn()}
+          pending
+          records={[]}
+          selected={null}
+          state={{}}
+          verticals={[]}
+        />,
+      );
+
+      expect(html.match(/name="intent"[^>]*disabled=""|disabled=""[^>]*name="intent"/g)).toHaveLength(2);
+      expect(html).toContain('저장 중');
+    });
   });
 
   /*

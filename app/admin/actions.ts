@@ -294,18 +294,22 @@ export async function upsertAdminIpAction(
     target_image_path: value.imagePath,
     target_featured: value.featured,
     target_previous_id: value.previousId,
+    /* null 이면 게시 상태를 건드리지 않는다(신규는 초안). "저장 후 공개"만 true 를 보낸다. */
+    target_publish: value.publish,
   });
 
   if (error) {
     return fail(
       catalogWriteIntentFailure(error.message)
         ?? artworkClaimFailure(error.message)
+        ?? archivedCatalogFailure(error.message)
         ?? rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.'),
     );
   }
 
-  revalidateCatalog([`/ip/${value.id}`]);
-  return { message: 'IP를 저장했습니다.' };
+  /* 게시 전환은 검색 결과도 바꾼다 — 보관 액션이 비우는 표면과 맞춘다. */
+  revalidateCatalog([`/ip/${value.id}`, '/search']);
+  return { message: value.publish ? 'IP를 저장하고 공개했습니다.' : 'IP를 저장했습니다.' };
 }
 
 export async function upsertAdminGoodAction(

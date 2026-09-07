@@ -178,8 +178,27 @@ describe('admin catalog form normalization', () => {
         bg: 'linear-gradient(red, blue)',
         imagePath: 'public-media/ip/hwasan.png',
         featured: true,
+        publish: null,
       },
     });
+  });
+
+  /* 게시 의도는 제출 버튼이 정한다 — "저장 후 공개"만 true 고 나머지는 상태를 건드리지 않는다. */
+  it.each([
+    ['publish', true],
+    ['draft', null],
+    ['save', null],
+    ['', null],
+  ])('maps the IP form intent %j to publish %j', (intent, publish) => {
+    const formData = new FormData();
+    formData.set('id', 'hwasan');
+    formData.set('title', '화산강림');
+    formData.set('verticalKey', 'rofan');
+    if (intent) formData.set('intent', intent);
+
+    const result = normalizeAdminIpForm(formData, context);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.publish).toBe(publish);
   });
 
   /*

@@ -323,6 +323,28 @@ describe('getAdminCatalogRecords', () => {
     }
   });
 
+  /* 게시 상태(20260907130000) — 어드민은 초안까지 전부 보되, 상태를 가릴 수 있어야 한다. */
+  it('loads the IP publish timestamp so the console can tell drafts from published IPs', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({
+      records,
+      rows: {
+        ips: [
+          { id: 'draft-ip', title: '초안 IP', vertical_key: 'webtoon', featured: false, fans_count: 0, archived_at: null, published_at: null },
+          { id: 'live-ip', title: '공개 IP', vertical_key: 'webtoon', featured: false, fans_count: 0, archived_at: null, published_at: '2026-09-07T04:00:00.000Z' },
+        ],
+      },
+    });
+
+    const result = await getAdminCatalogRecords({ include: ['ips'] });
+
+    expect(records.find((record) => record.table === 'ips')?.select).toContain('published_at');
+    expect(result.ips.map(({ id, publishedAt }) => ({ id, publishedAt }))).toEqual([
+      { id: 'draft-ip', publishedAt: null },
+      { id: 'live-ip', publishedAt: '2026-09-07T04:00:00.000Z' },
+    ]);
+  });
+
   /* 정가는 어드민 폼의 기본값이자 미리보기의 할인 표기 근거다 — 목록 select 에서
      빠지면 운영자가 저장한 할인이 다음 편집에서 조용히 지워진다(#326). */
   it('굿즈 목록에 정가를 싣는다', async () => {
