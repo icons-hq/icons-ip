@@ -3,14 +3,16 @@
 import type { CartItem } from '@/lib/cart';
 import { createClient } from '@/lib/supabase/server';
 
+/*
+ * `'use server'` 파일은 **async 함수만** export 할 수 있다 — 상수를 하나 내보내면
+ * 「A "use server" file can only export async functions」로 라우트가 통째로 죽는다.
+ * 타입은 괜찮다(빌드에서 지워진다).
+ */
 export interface ShippingQuote {
   fee: number;
   /** 무료배송까지 남은 금액. **정책이 섞인 장바구니에서는 null** — 답이 하나가 아니다. */
   freeRemaining: number | null;
 }
-
-/** 견적을 못 받았을 때. 화면은 이 상태를 「계산 중」으로 그리고 금액을 단정하지 않는다. */
-export const UNKNOWN_SHIPPING_QUOTE: ShippingQuote = { fee: 0, freeRemaining: null };
 
 const MAX_LINES = 200;
 
