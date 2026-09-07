@@ -88,6 +88,8 @@ const CANCEL_REJECTED_CODES = new Set([
   'INVALID_REFUND_AMOUNT',
   'NOT_FOUND_PAYMENT',
 ]);
+// 가상계좌 결제를 발견 즉시 취소할 때의 cancelReason(문서 127: 필수, ≤200자).
+const UNSUPPORTED_METHOD_CANCEL_REASON = '지원하지 않는 결제수단(가상계좌)';
 // 키·상점 설정이 틀렸다는 신호. 자동 종결하면 오류가 침묵하므로 needs_review로
 // 격리해 운영 관측에 태운다.
 const CONFIGURATION_CODES = new Set([
@@ -481,6 +483,59 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
   }
 
   /**
+   * 가상계좌(WAITING_FOR_DEPOSIT) 가드. Phase 1 결제수단은 카드·간편결제뿐이고 가상계좌는
+   * 에스크로(구매안전서비스) 계약이 없다. 그런데 PAYMENT_STATUS_CHANGED는 가상계좌를
+   * 포함한 모든 결제수단에 발송되므로(문서 41·125), 결제 어드민 설정 실수로 위젯에
+   * 가상계좌가 노출되면 구매자가 입금하는 순간 DONE 웹훅→reconcile→approved로 미계약
+   * 가상계좌 판매가 성립한다. 그 뒤의 환불은 취소 API가 refundReceiveAccount를 요구해
+   * 어댑터가 자동으로 되돌릴 수 없다. 입금 전에는 "환불해야 되는 금액이 없기 때문에 이
+   * 파라미터를 추가할 필요가 없"고 "부분 취소를 할 수 없고 전체 금액 취소만" 가능하므로
+   * (문서 127), 발견 즉시 cancelReason만 실어 전액 취소해 입금 경로를 닫고 declined
+   * (reasonCode provider_method_not_allowed)로 종결한다. 취소가 성립하지 않으면(비200·
+   * 본문 상태 미취소·전송 실패) 돈은 아직 움직이지 않았으니 needs_review로 격리해
+   * 운영자가 결제 어드민에서 취소한다. 어휘가 canceled가 아니라 declined인 이유:
+   * reconcile 계약에서 canceled는 승인 결제의 전액 취소 검증을 통과했을 때만 쓴다.
+   *
+   * 호출자는 paymentMatchesAttempt를 먼저 통과시킨다 — 이 attempt의 결제가 아닌 것을
+   * 취소하지 않는다.
+   */
+  async function declineUnsupportedMethod(
+    attempt: PaymentAttempt,
+    payment: Record<string, unknown>,
+  ): Promise<PaymentOperationOutcome> {
+    const paymentKey = payment.paymentKey as string;
+    const evidence: PaymentProviderEvidence = {
+      providerPaymentKey: paymentKey,
+      resultCode: 'WAITING_FOR_DEPOSIT',
+      ...(safeString(payment.method, 32) ? { paymentMethod: payment.method } : {}),
+    };
+    try {
+      const cancelResult = await providerRequest(
+        `/v1/payments/${encodeURIComponent(paymentKey)}/cancel`,
+        {
+          method: 'POST',
+          timeoutMs: requestTimeoutMs,
+          // 같은 attempt를 confirm·재확인 조회·reconcile 어디서 다시 만나도 같은 키다 —
+          // 토스가 첫 응답을 재생하므로(문서 122) 취소가 두 번 나가지 않는다.
+          idempotencyKey: `cancel-unsupported:${attempt.id}`,
+          // cancelAmount 없음 = 전액 취소, refundReceiveAccount 없음 = 입금 전.
+          body: { cancelReason: UNSUPPORTED_METHOD_CANCEL_REASON },
+        },
+      );
+      if (
+        cancelResult.status === 200
+        && plainRecord(cancelResult.payload)
+        && cancelResult.payload.status === 'CANCELED'
+      ) {
+        return baseOutcome(attempt, 'declined', 'provider_method_not_allowed', evidence);
+      }
+    } catch {
+      // 타임아웃·과대 응답·네트워크 실패 — 취소 성립 여부가 미상이다. 아래 격리.
+    }
+    return baseOutcome(attempt, 'needs_review', 'provider_method_not_allowed', evidence);
+  }
+
+  /**
    * confirm이 모호하게 끝났을 때 orderId 조회로 실상태를 확인해 분기한다(스펙:
    * confirm 실패를 즉시 실패로 단정하지 않는다). 조회까지 모호하면 unknown으로
    * 보존해 reconcile(#390)에 넘기고, 키·설정 오류는 needs_review로 격리한다.
@@ -533,6 +588,12 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         'provider_approved_after_recheck',
         approvedEvidence(payment),
       ) as ConfirmOutcome;
+    }
+    if (payment.status === 'WAITING_FOR_DEPOSIT') {
+      if (!paymentMatchesAttempt(payment, attempt)) {
+        return baseOutcome(attempt, 'needs_review', 'provider_identity_mismatch') as ConfirmOutcome;
+      }
+      return declineUnsupportedMethod(attempt, payment);
     }
     if (payment.status === 'ABORTED') {
       return baseOutcome(attempt, 'declined', 'provider_declined', {
@@ -673,6 +734,22 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       }
 
       if (confirmResult.status === 200) {
+        if (
+          plainRecord(confirmResult.payload)
+          && confirmResult.payload.status === 'WAITING_FOR_DEPOSIT'
+        ) {
+          // 가상계좌 — 승인 200이지만 돈은 아직 움직이지 않았다. 입금 경로를 닫는다.
+          if (
+            !paymentMatchesAttempt(confirmResult.payload, input.attempt)
+            || confirmResult.payload.paymentKey !== paymentKey
+          ) {
+            return baseOutcome(input.attempt, 'needs_review', 'provider_identity_mismatch', {
+              providerPaymentKey: paymentKey,
+              resultCode: 'WAITING_FOR_DEPOSIT_identity_mismatch',
+            }) as ConfirmOutcome;
+          }
+          return declineUnsupportedMethod(input.attempt, confirmResult.payload);
+        }
         if (!plainRecord(confirmResult.payload) || confirmResult.payload.status !== 'DONE') {
           return baseOutcome(input.attempt, 'unknown', 'provider_invalid_response', {
             providerPaymentKey: paymentKey,
@@ -791,6 +868,13 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
           'provider_reconciled_approved',
           approvedEvidence(payment),
         );
+      }
+      if (payment.status === 'WAITING_FOR_DEPOSIT') {
+        // 가상계좌 입금 대기 — unknown으로 두면 입금 뒤 DONE 웹훅이 approved를 만든다.
+        if (!paymentMatchesAttempt(payment, attempt)) {
+          return baseOutcome(attempt, 'needs_review', 'provider_identity_mismatch');
+        }
+        return declineUnsupportedMethod(attempt, payment);
       }
       if (paymentFullyCanceled(payment, attempt)) {
         return baseOutcome(
