@@ -16,6 +16,7 @@ import {
   upsertAdminRewardPolicyAction,
   upsertAdminTicketTypeAction,
 } from './actions';
+import { collectFormValues } from '@/lib/admin/form-state';
 import type { CatalogSnapshot } from '@/lib/catalog';
 
 const mocks = vi.hoisted(() => ({
@@ -207,6 +208,11 @@ function ipForm() {
   formData.set('featured', 'on');
   formData.set('fansCount', '42');
   return formData;
+}
+
+/* IP 액션만 실패 시 제출값을 되돌린다(폼 상태 보존). 다른 폼은 아직 예전 응답 그대로다. */
+function preservedIfIp(label: string, formData: FormData) {
+  return label === 'IP' ? { values: collectFormValues(formData), attempt: 1 } : {};
 }
 
 function eventForm() {
@@ -691,11 +697,13 @@ describe('admin catalog actions', () => {
     ['굿즈', upsertAdminGoodAction, goodForm],
     ['카드', upsertAdminCardAction, cardForm],
     ['이벤트', upsertAdminEventAction, eventForm],
-  ])('refuses to overwrite an existing %s record from the new-record form', async (_label, action, makeForm) => {
+  ])('refuses to overwrite an existing %s record from the new-record form', async (label, action, makeForm) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_id_taken' } });
+    const formData = makeForm();
 
-    await expect(action({}, makeForm())).resolves.toEqual({
+    await expect(action({}, formData)).resolves.toEqual({
       errors: { id: '이미 사용 중인 ID입니다. 수정하려면 목록에서 선택해주세요.' },
+      ...preservedIfIp(label, formData),
     });
   });
 
@@ -704,11 +712,76 @@ describe('admin catalog actions', () => {
     ['굿즈', upsertAdminGoodAction, goodForm],
     ['카드', upsertAdminCardAction, cardForm],
     ['이벤트', upsertAdminEventAction, eventForm],
-  ])('explains a vanished %s edit target', async (_label, action, makeForm) => {
+  ])('explains a vanished %s edit target', async (label, action, makeForm) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_record_missing' } });
+    const formData = makeForm();
 
-    await expect(action({}, makeForm())).resolves.toEqual({
+    await expect(action({}, formData)).resolves.toEqual({
       errors: { form: '수정할 항목을 찾을 수 없습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' },
+      ...preservedIfIp(label, formData),
+    });
+  });
+
+  /*
+   * 저장 실패가 폼을 리셋하지 않게, IP 액션은 어느 단계에서 실패하든 제출값을 되돌린다.
+   * 성공 응답은 바뀌지 않는다 — 성공 뒤 폼은 저장된 레코드를 보여야 한다.
+   */
+  describe('IP form state preservation', () => {
+    it('returns the submitted values with a bumped attempt when validation fails', async () => {
+      const formData = ipForm();
+      formData.set('title', '');
+      formData.set('imagePath', 'public-media/catalog/ip/uploaded.png');
+
+      await expect(upsertAdminIpAction({ attempt: 2 }, formData)).resolves.toEqual({
+        errors: { title: 'IP 이름을 입력해주세요.' },
+        values: {
+          id: 'hwasan',
+          title: '',
+          sub: '리디 · 로판',
+          verticalKey: 'rofan',
+          tagline: '매화는 다시 핀다',
+          synopsis: '화산파의 부활',
+          glyph: '화산',
+          featured: 'on',
+          fansCount: '42',
+          imagePath: 'public-media/catalog/ip/uploaded.png',
+        },
+        attempt: 3,
+      });
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it('returns the submitted values when the RPC rejects the save', async () => {
+      mocks.rpc.mockResolvedValue({ data: null, error: { message: 'unverified_artwork' } });
+      const formData = ipForm();
+
+      await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({
+        errors: { form: '검증된 이미지를 다시 업로드한 뒤 저장해주세요.' },
+        values: collectFormValues(formData),
+        attempt: 1,
+      });
+    });
+
+    it('returns the submitted values when the caller is not staff', async () => {
+      mocks.adminState = {
+        isConfigured: true,
+        user: { id: 'user-1', email: 'fan@icons.gg' },
+        role: 'user',
+        isStaff: false,
+      };
+      const formData = ipForm();
+
+      await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({
+        errors: { form: '관리자 권한이 필요합니다.' },
+        values: collectFormValues(formData),
+        attempt: 1,
+      });
+    });
+
+    it('does not carry values or an attempt on success', async () => {
+      await expect(upsertAdminIpAction({ values: { id: 'stale' }, attempt: 3 }, ipForm())).resolves.toEqual({
+        message: 'IP를 저장했습니다.',
+      });
     });
   });
 

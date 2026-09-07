@@ -20,6 +20,7 @@ import {
   type AdminFieldErrors,
 } from '@/lib/admin/catalog';
 import { getAdminCatalogRecords } from '@/lib/admin/catalog.server';
+import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import {
   normalizeAdminHideCommentForm,
   normalizeAdminHidePostForm,
@@ -31,7 +32,11 @@ import { getCatalogSnapshot } from '@/lib/catalog';
 import { sendRestockAlertEmails } from '@/lib/email/transactional.server';
 import { createClient } from '@/lib/supabase/server';
 
-export interface AdminCatalogActionState {
+/*
+ * `values`·`attempt` 는 실패한 제출을 폼이 되살리기 위한 값이다(lib/admin/form-state.ts).
+ * 성공 응답은 지금처럼 `message` 만 싣는다 — 성공 뒤 폼은 저장된 레코드를 보여야 한다.
+ */
+export interface AdminCatalogActionState extends AdminFormValuesState {
   errors?: AdminFieldErrors & { form?: string };
   message?: string;
 }
@@ -262,15 +267,18 @@ async function getAdminValidationContext(
 }
 
 export async function upsertAdminIpAction(
-  _state: AdminCatalogActionState,
+  state: AdminCatalogActionState,
   formData: FormData,
 ): Promise<AdminCatalogActionState> {
+  /* 실패는 어느 단계에서 나든 제출값을 되돌려 폼이 리셋되지 않게 한다. */
+  const fail = (failure: AdminCatalogActionState) => withPreservedFormValues(failure, state, formData);
+
   const authError = await requireStaffAction();
-  if (authError) return authError;
+  if (authError) return fail(authError);
 
   const catalog = await getAdminValidationCatalog();
   const result = normalizeAdminIpForm(formData, catalogContextFromSnapshot(catalog));
-  if (!result.ok) return { errors: result.errors };
+  if (!result.ok) return fail({ errors: result.errors });
 
   const value = result.value;
   const supabase = await createClient();
@@ -289,9 +297,11 @@ export async function upsertAdminIpAction(
   });
 
   if (error) {
-    return catalogWriteIntentFailure(error.message)
-      ?? artworkClaimFailure(error.message)
-      ?? rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.');
+    return fail(
+      catalogWriteIntentFailure(error.message)
+        ?? artworkClaimFailure(error.message)
+        ?? rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.'),
+    );
   }
 
   revalidateCatalog([`/ip/${value.id}`]);
