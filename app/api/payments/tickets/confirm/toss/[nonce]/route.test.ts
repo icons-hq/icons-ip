@@ -4,7 +4,7 @@ import {
   TicketPaymentConfirmationInProgressError,
   TicketPaymentContractError,
 } from '@/lib/payments/ticket-checkout';
-import { GET } from './route';
+import { GET, maxDuration } from './route';
 
 const mocks = vi.hoisted(() => ({
   confirmationAvailable: true,
@@ -63,6 +63,10 @@ describe('GET /api/payments/tickets/confirm/toss/[nonce]', () => {
     mocks.checkoutProvider = undefined;
     mocks.confirm.mockReset();
     mocks.confirm.mockResolvedValue(outcome('approved'));
+  });
+
+  it('라우트 실행 예산을 maxDuration 60초로 명시한다(승인 25s + 409 재요청 25s + 조회 8s + DB)', () => {
+    expect(maxDuration).toBe(60);
   });
 
   it('successUrl 쿼리를 allowlist payload로 줄이고 toss 조립으로 confirm한다', async () => {

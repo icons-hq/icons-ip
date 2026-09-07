@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PaymentAttempt } from './gateway';
 import { createTossPaymentGateway } from './toss-gateway.server';
 
@@ -58,6 +58,8 @@ function gateway(overrides: {
   now?: () => Date;
   clientKey?: string;
   secretKey?: string;
+  confirmTimeoutMs?: number;
+  requestTimeoutMs?: number;
 } = {}) {
   const fetchImpl = overrides.fetch ?? (vi.fn() as unknown as typeof fetch);
   return {
@@ -67,9 +69,38 @@ function gateway(overrides: {
       siteUrl: SITE_URL,
       fetch: fetchImpl,
       now: overrides.now ?? (() => NOW),
+      ...(overrides.confirmTimeoutMs !== undefined
+        ? { confirmTimeoutMs: overrides.confirmTimeoutMs }
+        : {}),
+      ...(overrides.requestTimeoutMs !== undefined
+        ? { requestTimeoutMs: overrides.requestTimeoutMs }
+        : {}),
     }),
     fetchImpl: fetchImpl as ReturnType<typeof vi.fn>,
   };
+}
+
+/**
+ * 응답을 주지 않고 매달려 있다가 abort 신호에만 reject하는 fetch. `respond`가
+ * Response를 돌려주는 호출 순번은 즉시 그 응답으로 끝난다 — 시한 판정을 fake
+ * timers로 결정적으로 검증하기 위한 도구다.
+ */
+function hangingFetch(respond: (call: number) => Response | undefined = () => undefined) {
+  const signals: AbortSignal[] = [];
+  const fetchImpl = vi.fn((_url: string, init?: RequestInit) => {
+    const signal = init?.signal as AbortSignal;
+    signals.push(signal);
+    const response = respond(signals.length);
+    if (response) return Promise.resolve(response);
+    return new Promise<Response>((_resolve, reject) => {
+      signal.addEventListener(
+        'abort',
+        () => reject(new DOMException('aborted', 'AbortError')),
+        { once: true },
+      );
+    });
+  });
+  return { fetchImpl: fetchImpl as unknown as typeof fetch, signals };
 }
 
 async function confirmInput(payloadOverrides: Record<string, unknown> = {}, attempt = ATTEMPT) {
@@ -443,6 +474,84 @@ describe('TossPayments v2 gateway', () => {
       const outcome = await tossGateway.confirm(await confirmInput());
 
       expect(JSON.stringify(outcome)).not.toContain(SECRET_KEY);
+    });
+  });
+
+  describe('시한', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('승인 POST는 8초를 넘겨도 abort되지 않고 25초에 abort된 뒤 조회로 수렴한다', async () => {
+      vi.useFakeTimers();
+      // 승인은 매달리고, 이어지는 조회(2번째 호출)는 즉시 404를 돌려준다.
+      const { fetchImpl, signals } = hangingFetch((call) => (call === 2
+        ? jsonResponse(404, { code: 'NOT_FOUND_PAYMENT', message: '존재하지 않는 결제 입니다.' })
+        : undefined));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl });
+      const input = await confirmInput();
+
+      const pending = tossGateway.confirm(input);
+      await vi.advanceTimersByTimeAsync(24_999);
+      expect(signals).toHaveLength(1);
+      expect(signals[0]!.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(signals[0]!.aborted).toBe(true);
+
+      const outcome = await pending;
+      expect(signals).toHaveLength(2);
+      expect(outcome.outcome).toBe('unknown');
+      expect(outcome.reasonCode).toBe('provider_inquiry_not_found');
+    });
+
+    it('조회 GET은 8초에 abort된다', async () => {
+      vi.useFakeTimers();
+      const { fetchImpl, signals } = hangingFetch();
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl });
+
+      const pending = tossGateway.reconcile(ATTEMPT);
+      await vi.advanceTimersByTimeAsync(7_999);
+      expect(signals[0]!.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(signals[0]!.aborted).toBe(true);
+
+      const outcome = await pending;
+      expect(outcome.outcome).toBe('unknown');
+      expect(outcome.reasonCode).toBe('provider_unavailable');
+    });
+
+    it('취소 POST도 8초에 abort되고 fresh 조회가 판정한다', async () => {
+      vi.useFakeTimers();
+      // 사전 조회(1)·사후 조회(3)는 DONE, 취소(2)는 매달린다.
+      const { fetchImpl, signals } = hangingFetch((call) => (call === 2
+        ? undefined
+        : jsonResponse(200, donePayment())));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl });
+
+      const pending = tossGateway.refund({
+        attempt: ATTEMPT,
+        idempotencyKey: `refund:${ATTEMPT.id}`,
+        amount: ATTEMPT.amount,
+        reason: 'ICONS 주문 취소',
+      });
+      await vi.advanceTimersByTimeAsync(7_999);
+      expect(signals).toHaveLength(2);
+      expect(signals[1]!.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(signals[1]!.aborted).toBe(true);
+
+      const outcome = await pending;
+      expect(signals).toHaveLength(3);
+      expect(outcome.outcome).toBe('unknown');
+      expect(outcome.reasonCode).toBe('provider_cancel_ambiguous');
+    });
+
+    it('시한 옵션은 100ms~60초 밖이면 게이트웨이를 만들지 않는다', () => {
+      expect(() => gateway({ confirmTimeoutMs: 60_001 })).toThrow('invalid_toss_configuration');
+      expect(() => gateway({ confirmTimeoutMs: 99 })).toThrow('invalid_toss_configuration');
+      expect(() => gateway({ requestTimeoutMs: 60_001 })).toThrow('invalid_toss_configuration');
+      expect(() => gateway({ requestTimeoutMs: 99 })).toThrow('invalid_toss_configuration');
+      expect(() => gateway({ confirmTimeoutMs: 25_000, requestTimeoutMs: 8_000 })).not.toThrow();
     });
   });
 

@@ -22,7 +22,17 @@ import {
 // GET /v1/payments/orders/{orderId}다. 2026-09-01 공식문서 MCP 실조회 기준.
 const TOSS_API_ORIGIN = 'https://api.tosspayments.com';
 const MAX_RESPONSE_BYTES = 64 * 1024;
-const DEFAULT_TIMEOUT_MS = 8_000;
+// 승인 POST /v1/payments/confirm의 시한. 카드사·간편결제사 승인 지연이 8초를 넘기면
+// 여기서 abort한 뒤 조회로 가는데, 그 시점의 조회는 아직 승인 전이라 404→unknown이고
+// 실제 승인은 provider 쪽에서 뒤늦게 성립한다 — 결과적으로 정상 결제가 웹훅 재전송에
+// 의존하게 된다. 문서 127은 승인 응답 시간 상한을 규정하지 않으므로, confirm 라우트
+// 예산(maxDuration 60초 = 승인 25 + 409 재요청 25 + 조회 8 + DB) 안에서 승인에 가장
+// 긴 시한을 준다.
+const CONFIRM_TIMEOUT_MS = 25_000;
+// 조회 GET·취소 POST의 시한. 조회는 멱등이라 짧게 끊고 다음 트리거(웹훅 재전송·내부
+// reconcile)에 맡기는 편이 낫고, 취소는 응답 본문이 아니라 fresh 조회가 판정하므로
+// 오래 기다릴 이유가 없다.
+const REQUEST_TIMEOUT_MS = 8_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PROVIDER_PRODUCT_CODE = /^P[0-9a-f]{32}$/i;
 // 토스 paymentKey는 최대 200자 고유 문자열이라는 계약 외 형식 명세가 없다 — DB
@@ -92,7 +102,10 @@ interface TossGatewayOptions {
   readonly siteUrl: string;
   readonly fetch?: typeof fetch;
   readonly now?: () => Date;
+  /** 승인 POST 시한(ms). 기본 25초, 100ms~60초. */
   readonly confirmTimeoutMs?: number;
+  /** 조회 GET·취소 POST 시한(ms). 기본 8초, 100ms~60초. */
+  readonly requestTimeoutMs?: number;
 }
 
 class TossResponseTooLargeError extends Error {}
@@ -100,6 +113,8 @@ class TossResponseBodyInvalidError extends Error {}
 
 interface ProviderRequestInit {
   readonly method: 'GET' | 'POST';
+  /** 호출별 시한 — 승인은 confirmTimeoutMs, 조회·취소는 requestTimeoutMs. */
+  readonly timeoutMs: number;
   readonly idempotencyKey?: string;
   readonly body?: Record<string, unknown>;
 }
@@ -121,6 +136,14 @@ type OrderInquiry =
 
 function configurationError(): never {
   throw new Error('invalid_toss_configuration');
+}
+
+function timeoutOption(value: number | undefined, fallback: number) {
+  const timeoutMs = value ?? fallback;
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 60_000) {
+    return configurationError();
+  }
+  return timeoutMs;
 }
 
 function normalizeSiteUrl(value: string) {
@@ -344,10 +367,8 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
   }
   const fetchImpl = options.fetch ?? fetch;
   const now = options.now ?? (() => new Date());
-  const confirmTimeoutMs = options.confirmTimeoutMs ?? DEFAULT_TIMEOUT_MS;
-  if (!Number.isSafeInteger(confirmTimeoutMs) || confirmTimeoutMs < 100 || confirmTimeoutMs > 60_000) {
-    return configurationError();
-  }
+  const confirmTimeoutMs = timeoutOption(options.confirmTimeoutMs, CONFIRM_TIMEOUT_MS);
+  const requestTimeoutMs = timeoutOption(options.requestTimeoutMs, REQUEST_TIMEOUT_MS);
   const authorizationHeader = `Basic ${Buffer.from(`${secretKey}:`, 'utf8').toString('base64')}`;
 
   function callbackNonce(attempt: PaymentAttempt) {
@@ -363,7 +384,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
    */
   async function providerFetch(path: string, init: ProviderRequestInit): Promise<ProviderResponse> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), confirmTimeoutMs);
+    const timeout = setTimeout(() => controller.abort(), init.timeoutMs);
     try {
       const response = await fetchImpl(new URL(path, TOSS_API_ORIGIN).toString(), {
         method: init.method,
@@ -422,7 +443,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
     try {
       inquiry = await providerFetch(
         `/v1/payments/orders/${encodeURIComponent(attempt.providerOrderId)}`,
-        { method: 'GET' },
+        { method: 'GET', timeoutMs: requestTimeoutMs },
       );
     } catch {
       return { kind: 'unavailable' };
@@ -598,6 +619,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       try {
         confirmResult = await providerRequest('/v1/payments/confirm', {
           method: 'POST',
+          timeoutMs: confirmTimeoutMs,
           idempotencyKey: input.idempotencyKey,
           body: {
             paymentKey,
@@ -824,6 +846,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
           `/v1/payments/${encodeURIComponent(paymentKey)}/cancel`,
           {
             method: 'POST',
+            timeoutMs: requestTimeoutMs,
             idempotencyKey: request.idempotencyKey,
             // cancelAmount를 싣지 않는다 — 값이 없으면 전액 취소가 취소 API 계약이다.
             body: { cancelReason: request.reason },
