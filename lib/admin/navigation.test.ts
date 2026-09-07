@@ -69,9 +69,9 @@ describe('편성 / 원장 / 거래 재편', () => {
   });
 
   /* planned 는 설계서 v2 모듈의 자리다. 여기 없는 planned 가 생기면 라우트 없는 메뉴다. */
-  it('준비 중 자리 표시는 설계서 v2 모듈 6개뿐이다 (옵션·재고·출고지 D-1 · 분류 D-9 · 엑셀 양식 D-4 로 열림)', () => {
+  it('준비 중 자리 표시는 설계서 v2 모듈 5개뿐이다 (팝업 목록은 팝업 객체 슬라이스로 열림)', () => {
     expect(ADMIN_SCREENS.filter((screen) => screen.status === 'planned').map((screen) => screen.id)).toEqual([
-      'popups', 'popup-schedule', 'promotions', 'auto-notifications',
+      'popup-schedule', 'promotions', 'auto-notifications',
       'customer-history', 'stats-ips',
     ]);
   });

@@ -46,7 +46,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     icon: 'spark',
     screens: [
       /* 설계서 v2 1-8 — 팝업 1급 객체(페이즈·존·연결). 라우트는 데이터 층 뒤에. */
-      { id: 'popups', label: '팝업 목록', href: '/admin/popups', status: 'planned' },
+      { id: 'popups', label: '팝업 목록', href: '/admin/popups', status: 'ready' },
       { id: 'popup-schedule', label: '팝업 편성', href: '/admin/popups/schedule', status: 'planned' },
     ],
   },

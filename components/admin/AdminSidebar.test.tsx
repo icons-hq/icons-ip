@@ -59,18 +59,20 @@ describe('AdminSidebar 2단 메뉴', () => {
   });
 
   /*
-   * 준비 중 자리 표시는 설계서 v2 모듈(팝업·프로모션·자동 알림·이력 허브·IP별 매출)
-   * 6개뿐이다(옵션·재고·출고지 D-1 · 분류 D-9 · 엑셀 양식 D-4 로 열렸다). 라우트 없는 메뉴가 늘면 여기서 깨진다.
+   * 준비 중 자리 표시는 설계서 v2 모듈(팝업 편성·프로모션·자동 알림·이력 허브·IP별 매출)
+   * 5개뿐이다(옵션·재고·출고지 D-1 · 분류 D-9 · 엑셀 양식 D-4 · 팝업 목록 팝업 객체로 열렸다).
+   * 라우트 없는 메뉴가 늘면 여기서 깨진다.
    */
-  it('준비 중 자리 표시는 설계서 v2 모듈 6개이고 링크가 아니다', () => {
+  it('준비 중 자리 표시는 설계서 v2 모듈 5개이고 링크가 아니다', () => {
     const html = render();
 
     /* 라벨과 title 속성에 한 번씩 — 항목당 2회. */
-    expect(html.match(/ · 준비 중/g)).toHaveLength(6);
-    expect(html.match(/aria-disabled="true"/g)).toHaveLength(6);
+    expect(html.match(/ · 준비 중/g)).toHaveLength(5);
+    expect(html.match(/aria-disabled="true"/g)).toHaveLength(5);
     expect(html).toContain('href="/admin/settings/exports"');
     expect(html).toContain('href="/admin/catalog/inventory"');
     expect(html).toContain('href="/admin/catalog/categories"');
+    expect(html).toContain('href="/admin/popups"');
   });
 
   it('에픽 #248이 연 화면들이 모두 링크로 붙어 있다', () => {
