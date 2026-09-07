@@ -33,6 +33,10 @@ const CONFIRM_TIMEOUT_MS = 25_000;
 // reconcile)에 맡기는 편이 낫고, 취소는 응답 본문이 아니라 fresh 조회가 판정하므로
 // 오래 기다릴 이유가 없다.
 const REQUEST_TIMEOUT_MS = 8_000;
+// 승인 409(IDEMPOTENT_REQUEST_PROCESSING) 뒤 같은 키로 재요청하기 전 대기. 문서 122가
+// 대기 시간을 규정하지 않으므로 "처리 중"이 끝날 여지를 주는 최소값이며, 라우트 예산
+// (승인 25 + 대기 1 + 재요청 25 + 조회 8) 안에 들어간다.
+const RETRY_DELAY_MS = 1_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PROVIDER_PRODUCT_CODE = /^P[0-9a-f]{32}$/i;
 // 토스 paymentKey는 최대 200자 고유 문자열이라는 계약 외 형식 명세가 없다 — DB
@@ -106,6 +110,10 @@ interface TossGatewayOptions {
   readonly confirmTimeoutMs?: number;
   /** 조회 GET·취소 POST 시한(ms). 기본 8초, 100ms~60초. */
   readonly requestTimeoutMs?: number;
+  /** 승인 409(멱등 처리 중) 뒤 같은 키로 재요청하기 전 대기(ms). 기본 1초, 0~10초. */
+  readonly retryDelayMs?: number;
+  /** 재요청 대기 구현 — 테스트 주입용. 기본은 setTimeout. */
+  readonly wait?: (ms: number) => Promise<void>;
 }
 
 class TossResponseTooLargeError extends Error {}
@@ -369,6 +377,12 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
   const now = options.now ?? (() => new Date());
   const confirmTimeoutMs = timeoutOption(options.confirmTimeoutMs, CONFIRM_TIMEOUT_MS);
   const requestTimeoutMs = timeoutOption(options.requestTimeoutMs, REQUEST_TIMEOUT_MS);
+  const retryDelayMs = options.retryDelayMs ?? RETRY_DELAY_MS;
+  if (!Number.isSafeInteger(retryDelayMs) || retryDelayMs < 0 || retryDelayMs > 10_000) {
+    return configurationError();
+  }
+  const wait = options.wait
+    ?? ((ms: number) => new Promise<void>((resolve) => { setTimeout(resolve, ms); }));
   const authorizationHeader = `Basic ${Buffer.from(`${secretKey}:`, 'utf8').toString('base64')}`;
 
   function callbackNonce(attempt: PaymentAttempt) {
@@ -615,21 +629,32 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         return baseOutcome(input.attempt, 'needs_review', 'provider_invalid_callback') as ConfirmOutcome;
       }
 
+      const requestConfirm = () => providerRequest('/v1/payments/confirm', {
+        method: 'POST',
+        timeoutMs: confirmTimeoutMs,
+        idempotencyKey: input.idempotencyKey,
+        body: {
+          paymentKey,
+          orderId: input.attempt.providerOrderId,
+          amount: input.attempt.amount,
+        },
+      });
       let confirmResult: { status: number; payload: unknown };
       try {
-        confirmResult = await providerRequest('/v1/payments/confirm', {
-          method: 'POST',
-          timeoutMs: confirmTimeoutMs,
-          idempotencyKey: input.idempotencyKey,
-          body: {
-            paymentKey,
-            orderId: input.attempt.providerOrderId,
-            amount: input.attempt.amount,
-          },
-        });
+        confirmResult = await requestConfirm();
+        if (confirmResult.status === 409) {
+          // 문서 122: "첫 번째 요청이 처리 중일 때 같은 요청을 다시 보내면 HTTP 409 -
+          // IDEMPOTENT_REQUEST_PROCESSING … 이 에러가 돌아오면 다시 한번 요청해서
+          // 응답을 확인하세요." 문서화된 409는 이것뿐이다(문서 59 에러 표에 409 행이
+          // 없다). 같은 Idempotency-Key로 정확히 1회만 재요청하고 — 키를 바꿔 재시도하는
+          // 것은 문서가 위험하다고 경고하는 경로다 — 그 응답을 첫 응답과 같은 분기로
+          // 읽는다. 재요청도 409면 아래에서 조회로 수렴한다.
+          await wait(retryDelayMs);
+          confirmResult = await requestConfirm();
+        }
       } catch {
         // 타임아웃·과대 응답·네트워크 실패 — 승인이 성립했을 수 있으므로 조회로
-        // 확인하고, 조회까지 실패하면 unknown으로 보존한다.
+        // 확인하고, 조회까지 실패하면 unknown으로 보존한다. 재요청 중 실패도 같다.
         return recheckByInquiry(input.attempt);
       }
 
@@ -684,7 +709,8 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         });
       }
       if (code === 'ALREADY_PROCESSED_PAYMENT' || confirmResult.status === 409) {
-        // 이미 처리됐다는 신호(중복 콜백·멱등 처리 중) — 실상태를 조회로 수렴한다.
+        // 이미 처리됐다는 신호(중복 콜백) 또는 재요청 뒤에도 409(멱등 처리 중) —
+        // 실상태를 조회로 수렴한다.
         return recheckByInquiry(input.attempt);
       }
       if (confirmResult.status >= 500) {

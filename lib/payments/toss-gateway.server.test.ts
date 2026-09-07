@@ -60,6 +60,8 @@ function gateway(overrides: {
   secretKey?: string;
   confirmTimeoutMs?: number;
   requestTimeoutMs?: number;
+  retryDelayMs?: number;
+  wait?: (ms: number) => Promise<void>;
 } = {}) {
   const fetchImpl = overrides.fetch ?? (vi.fn() as unknown as typeof fetch);
   return {
@@ -75,9 +77,17 @@ function gateway(overrides: {
       ...(overrides.requestTimeoutMs !== undefined
         ? { requestTimeoutMs: overrides.requestTimeoutMs }
         : {}),
+      ...(overrides.retryDelayMs !== undefined ? { retryDelayMs: overrides.retryDelayMs } : {}),
+      ...(overrides.wait ? { wait: overrides.wait } : {}),
     }),
     fetchImpl: fetchImpl as ReturnType<typeof vi.fn>,
   };
+}
+
+/** 대기를 실제로 하지 않고 요청된 ms만 기록하는 wait — 409 재요청 테스트 주입용. */
+function recordingWait() {
+  const waits: number[] = [];
+  return { waits, wait: async (ms: number) => { waits.push(ms); } };
 }
 
 /**
@@ -392,20 +402,143 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.reasonCode).toBe('provider_session_expired');
     });
 
-    it('멱등 처리 중(409)·이미 처리됨 신호는 조회로 실상태에 수렴한다', async () => {
+    it('이미 처리됨(ALREADY_PROCESSED_PAYMENT) 신호는 재요청 없이 조회로 실상태에 수렴한다', async () => {
       const fetchImpl = vi.fn()
         .mockResolvedValueOnce(jsonResponse(400, {
           code: 'ALREADY_PROCESSED_PAYMENT',
           message: '이미 처리된 결제 입니다.',
         }))
         .mockResolvedValueOnce(jsonResponse(200, donePayment()));
-      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+      const { waits, wait } = recordingWait();
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch, wait });
 
       const outcome = await tossGateway.confirm(await confirmInput());
 
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      expect(fetchImpl.mock.calls[1]![1].method).toBe('GET');
+      expect(waits).toEqual([]);
       expect(outcome.outcome).toBe('approved');
       expect(outcome.reasonCode).toBe('provider_approved_after_recheck');
       expect(outcome.evidence?.providerPaymentKey).toBe(PAYMENT_KEY);
+    });
+
+    describe('409 멱등 처리 중', () => {
+      const processing = () => jsonResponse(409, {
+        code: 'IDEMPOTENT_REQUEST_PROCESSING',
+        message: '이전 멱등 요청이 처리중입니다.',
+      });
+
+      it('같은 멱등키로 정확히 1회 재요청하고 그 응답(200 DONE)을 approved로 읽는다', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(processing())
+          .mockResolvedValueOnce(jsonResponse(200, donePayment()));
+        const { waits, wait } = recordingWait();
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch, wait });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        const [firstUrl, firstInit] = fetchImpl.mock.calls[0]!;
+        const [secondUrl, secondInit] = fetchImpl.mock.calls[1]!;
+        expect(secondUrl).toBe(firstUrl);
+        expect(secondInit.method).toBe('POST');
+        expect(secondInit.headers['idempotency-key']).toBe(`confirm:${ATTEMPT.id}`);
+        expect(secondInit.headers['idempotency-key']).toBe(firstInit.headers['idempotency-key']);
+        expect(secondInit.body).toBe(firstInit.body);
+        // 기본 대기 1초 뒤 재요청한다.
+        expect(waits).toEqual([1_000]);
+        expect(outcome.outcome).toBe('approved');
+        expect(outcome.reasonCode).toBe('provider_approved');
+        expect(outcome.evidence?.providerPaymentKey).toBe(PAYMENT_KEY);
+      });
+
+      it('재요청 응답도 첫 응답과 같은 분기로 읽는다 — 거절 코드면 조회 없이 declined', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(processing())
+          .mockResolvedValueOnce(jsonResponse(403, {
+            code: 'REJECT_CARD_COMPANY',
+            message: '결제 승인이 거절되었습니다.',
+          }));
+        const { wait } = recordingWait();
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch, wait });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        expect(outcome.outcome).toBe('declined');
+        expect(outcome.evidence?.resultCode).toBe('REJECT_CARD_COMPANY');
+      });
+
+      it('재요청도 409면 조회로 수렴한다(재요청은 1회뿐)', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(processing())
+          .mockResolvedValueOnce(processing())
+          .mockResolvedValueOnce(jsonResponse(200, donePayment()));
+        const { waits, wait } = recordingWait();
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch, wait });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(fetchImpl).toHaveBeenCalledTimes(3);
+        const [inquiryUrl, inquiryInit] = fetchImpl.mock.calls[2]!;
+        expect(inquiryUrl).toBe(
+          `https://api.tosspayments.com/v1/payments/orders/${ATTEMPT.providerOrderId}`,
+        );
+        expect(inquiryInit.method).toBe('GET');
+        expect(waits).toEqual([1_000]);
+        expect(outcome.outcome).toBe('approved');
+        expect(outcome.reasonCode).toBe('provider_approved_after_recheck');
+      });
+
+      it('재요청 중 네트워크 실패는 조회로 수렴한다', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(processing())
+          .mockRejectedValueOnce(new Error('network down'))
+          .mockResolvedValueOnce(jsonResponse(404, {
+            code: 'NOT_FOUND_PAYMENT',
+            message: '존재하지 않는 결제 입니다.',
+          }));
+        const { wait } = recordingWait();
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch, wait });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(fetchImpl).toHaveBeenCalledTimes(3);
+        expect(fetchImpl.mock.calls[2]![1].method).toBe('GET');
+        expect(outcome.outcome).toBe('unknown');
+        expect(outcome.reasonCode).toBe('provider_inquiry_not_found');
+      });
+
+      it('wait를 주입하지 않으면 실제로 retryDelayMs만큼 기다린 뒤 재요청한다', async () => {
+        vi.useFakeTimers();
+        try {
+          const fetchImpl = vi.fn()
+            .mockResolvedValueOnce(processing())
+            .mockResolvedValueOnce(jsonResponse(200, donePayment()));
+          const { gateway: tossGateway } = gateway({
+            fetch: fetchImpl as unknown as typeof fetch,
+            retryDelayMs: 500,
+          });
+          const input = await confirmInput();
+
+          const pending = tossGateway.confirm(input);
+          await vi.advanceTimersByTimeAsync(499);
+          expect(fetchImpl).toHaveBeenCalledTimes(1);
+          await vi.advanceTimersByTimeAsync(1);
+          expect(fetchImpl).toHaveBeenCalledTimes(2);
+
+          const outcome = await pending;
+          expect(outcome.outcome).toBe('approved');
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+
+      it('retryDelayMs는 0~10초 밖이면 게이트웨이를 만들지 않는다', () => {
+        expect(() => gateway({ retryDelayMs: -1 })).toThrow('invalid_toss_configuration');
+        expect(() => gateway({ retryDelayMs: 10_001 })).toThrow('invalid_toss_configuration');
+        expect(() => gateway({ retryDelayMs: 0 })).not.toThrow();
+      });
     });
 
     it('서버 오류 후 조회가 진행 중 상태를 돌려주면 unknown으로 보존한다', async () => {
