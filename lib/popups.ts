@@ -147,3 +147,85 @@ export function phaseProgress(phase: PopupPhaseView, asOf: string): number {
   if (now >= end) return 1;
   return (now - start) / (end - start);
 }
+
+/* ------------------------------------------------------------------------- */
+/* 편성 달력                                                                   */
+/* ------------------------------------------------------------------------- */
+
+export interface PopupSchedulePhase {
+  key: string;
+  label: string;
+  startsAt: string;
+  endsAt: string;
+  defaultSaleMode: string;
+  on: boolean;
+}
+
+export interface PopupScheduleRow {
+  id: string;
+  title: string;
+  ipId: string;
+  status: string;
+  displayState: string;
+  startsAt: string;
+  endsAt: string;
+  currentPhase: string | null;
+  phases: PopupSchedulePhase[];
+}
+
+export interface PopupSchedule {
+  from: string;
+  to: string;
+  serverNow: string;
+  popups: PopupScheduleRow[];
+}
+
+export const POPUP_SCHEDULE_WINDOW_DAYS = [7, 14, 30] as const;
+export type PopupScheduleWindowDays = (typeof POPUP_SCHEDULE_WINDOW_DAYS)[number];
+
+/**
+ * 창 안에서의 위치(0~1). 창 밖으로 나간 부분은 잘라 낸다 —
+ * 이미 돌고 있는 팝업이 왼쪽 끝에서 시작하는 것처럼 보여야 「지금 걸쳐 있다」가 읽힌다.
+ */
+export function windowSpan(
+  startsAt: string,
+  endsAt: string,
+  from: string,
+  to: string,
+): { left: number; width: number } | null {
+  const start = Date.parse(startsAt);
+  const end = Date.parse(endsAt);
+  const windowStart = Date.parse(from);
+  const windowEnd = Date.parse(to);
+  if (![start, end, windowStart, windowEnd].every(Number.isFinite)) return null;
+  const total = windowEnd - windowStart;
+  if (total <= 0) return null;
+
+  const clampedStart = Math.max(start, windowStart);
+  const clampedEnd = Math.min(end, windowEnd);
+  if (clampedEnd <= clampedStart) return null;
+
+  return {
+    left: (clampedStart - windowStart) / total,
+    width: (clampedEnd - clampedStart) / total,
+  };
+}
+
+/** 달력 눈금 — KST 날짜 라벨. */
+export function scheduleDayTicks(from: string, to: string): { label: string; at: number }[] {
+  const start = Date.parse(from);
+  const end = Date.parse(to);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return [];
+  const total = end - start;
+  const dayMs = 86_400_000;
+  const ticks: { label: string; at: number }[] = [];
+  for (let time = start; time < end; time += dayMs) {
+    ticks.push({
+      label: new Intl.DateTimeFormat('ko-KR', {
+        timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric',
+      }).format(new Date(time)),
+      at: (time - start) / total,
+    });
+  }
+  return ticks;
+}

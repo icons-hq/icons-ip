@@ -245,3 +245,58 @@ on conflict (id) do update set
   reward_pool_id = excluded.reward_pool_id,
   per_user_daily_limit = excluded.per_user_daily_limit,
   updated_at = now();
+
+-- ---------------------------------------------------------------------------
+-- 온라인 팝업 데모 — 페이즈가 도는 것을 로컬에서 바로 볼 수 있게 한다.
+--
+-- 시각을 절대값으로 박지 않고 `now()` 기준으로 잡는다. 고정 날짜로 두면 며칠 뒤 reset 한
+-- 사람은 「이미 끝난 팝업」만 보게 되고, 페이즈가 도는 모습을 볼 수 없다.
+-- ---------------------------------------------------------------------------
+insert into public.popups (id, ip_id, title, subtitle, status, starts_at, ends_at) values
+  (
+    'demo-popup', 'rilakkuma', '리락쿠마 온라인 팝업', '프리뷰 → 1부 → 마무리 3단 편성 데모',
+    'published',
+    date_trunc('hour', now()) - interval '2 hours',
+    date_trunc('hour', now()) + interval '6 hours'
+  )
+on conflict (id) do update set
+  status = excluded.status, starts_at = excluded.starts_at, ends_at = excluded.ends_at,
+  updated_at = now();
+
+insert into public.popup_zones (popup_id, code, kind, name, door, sort) values
+  ('demo-popup', 'Z1', 'commerce', '상점', '합류', 1),
+  ('demo-popup', 'Z2', 'experience', '체험 존', '수색', 2),
+  ('demo-popup', 'Z3', 'record', '내 기록', '기억', 3)
+on conflict (popup_id, code) do update set
+  kind = excluded.kind, name = excluded.name, door = excluded.door, sort = excluded.sort;
+
+insert into public.popup_phases (popup_id, key, label, during, sort, default_sale_mode) values
+  ('demo-popup', 'preview', '프리뷰',
+   tstzrange(date_trunc('hour', now()) - interval '2 hours', date_trunc('hour', now()), '[)'), 1, 'teaser'),
+  ('demo-popup', 'live_1', '1부',
+   tstzrange(date_trunc('hour', now()), date_trunc('hour', now()) + interval '3 hours', '[)'), 2, 'on_sale'),
+  ('demo-popup', 'wrapup', '마무리',
+   tstzrange(date_trunc('hour', now()) + interval '3 hours', date_trunc('hour', now()) + interval '6 hours', '[)'), 3, 'sellout')
+on conflict (popup_id, key) do update set
+  label = excluded.label, during = excluded.during, sort = excluded.sort,
+  default_sale_mode = excluded.default_sale_mode;
+
+insert into public.popup_links (popup_id, zone_id, target_type, target_id, sort, default_sale_mode)
+select 'demo-popup',
+       (select id from public.popup_zones where popup_id = 'demo-popup' and code = 'Z1'),
+       'good', good.id, row_number() over (order by good.id), null
+from public.goods as good
+where good.ip_id = 'rilakkuma' and good.archived_at is null
+on conflict (popup_id, target_type, target_id) do update set
+  zone_id = excluded.zone_id, sort = excluded.sort;
+
+-- 프리뷰에서는 굿즈 하나만 미리 보여준다 — 「감춘 연결은 아예 안 나간다」를 눈으로 확인하는 자리다.
+insert into public.popup_link_phase_rules (link_id, phase_id, sale_mode)
+select link.id, phase.id, 'hidden'
+from public.popup_links as link
+join public.popup_phases as phase on phase.popup_id = link.popup_id and phase.key = 'preview'
+where link.popup_id = 'demo-popup'
+  and link.target_id <> (
+    select min(good.id) from public.goods as good where good.ip_id = 'rilakkuma' and good.archived_at is null
+  )
+on conflict (link_id, phase_id) do update set sale_mode = excluded.sale_mode;

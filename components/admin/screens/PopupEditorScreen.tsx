@@ -5,6 +5,7 @@ import { useActionState } from 'react';
 import {
   linkPopupTargetAction,
   savePopupPhasesAction,
+  savePopupZonesAction,
   setPopupLinkRuleAction,
   upsertPopupAction,
   type AdminPopupActionState,
@@ -19,7 +20,7 @@ import {
   POPUP_STATUSES,
   POPUP_TARGET_TYPES,
   POPUP_TARGET_TYPE_LABELS,
-  POPUP_ZONE_KIND_LABELS,
+  POPUP_ZONE_KINDS,
   type PopupSnapshot,
 } from '@/lib/popups';
 
@@ -191,6 +192,48 @@ function LinkRuleRow({ detail, link }: { detail: AdminPopupDetail; link: AdminPo
   );
 }
 
+
+function ZonesForm({ detail }: { detail: AdminPopupDetail }) {
+  const [state, action, pending] = useActionState(savePopupZonesAction, EMPTY);
+  /* 빈 줄 하나를 늘 남겨 둔다 — 「추가」 버튼 없이 바로 적을 수 있게. */
+  const rows = [...detail.zones, null];
+  return (
+    <form action={action} className="col" style={{ gap: 8 }}>
+      <input name="popupId" type="hidden" value={(detail.popup as Record<string, string>).id} />
+      <input name="expectedUpdatedAt" type="hidden" value={detail.updatedAt} />
+      <table className="admin-stats-table">
+        <thead>
+          <tr><th>코드</th><th>이름</th><th>유형</th><th>문</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((zone, index) => (
+            <tr key={zone?.id ?? 'new'}>
+              <td><input defaultValue={zone?.code ?? ''} name={`zone:${index}:code`} placeholder="Z1" style={{ width: 70 }} /></td>
+              <td><input defaultValue={zone?.name ?? ''} name={`zone:${index}:name`} placeholder="상점" style={{ width: 130 }} /></td>
+              <td>
+                <select defaultValue={zone?.kind ?? 'info'} name={`zone:${index}:kind`}>
+                  {POPUP_ZONE_KINDS.map((kind) => (
+                    <option key={kind.value} value={kind.value}>{kind.label}</option>
+                  ))}
+                </select>
+              </td>
+              <td><input defaultValue={zone?.door ?? ''} name={`zone:${index}:door`} placeholder="합류" style={{ width: 90 }} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="row" style={{ alignItems: 'center', gap: 10 }}>
+        <button className="btn btn-sm btn-holo" disabled={pending} type="submit">존 저장</button>
+        <Message state={state} />
+      </div>
+      <p className="muted" style={{ fontSize: 11.5, margin: 0 }}>
+        한 존은 <strong>한 유형만</strong> 갖습니다. 코드를 지우면 그 존이 삭제되지만,
+        거기 걸려 있던 연결은 남고 존만 떨어집니다 — 존을 정리하다 편성이 사라지지 않게.
+      </p>
+    </form>
+  );
+}
+
 export function PopupEditorScreen({
   detail,
   ipOptions,
@@ -228,21 +271,12 @@ export function PopupEditorScreen({
 
       <section className="card col" style={{ borderRadius: 10, gap: 12, padding: 18 }}>
         <h2 style={{ fontSize: 16, margin: 0 }}>어디에 — 존</h2>
-        {detail.zones.length > 0 ? (
-          <ul className="admin-order-refs">
-            {detail.zones.map((zone) => (
-              <li key={zone.id} style={{ fontSize: 12 }}>
-                <strong className="mono">{zone.code}</strong> · {zone.name}
-                <span className="faint"> · {POPUP_ZONE_KIND_LABELS[zone.kind] ?? zone.kind}</span>
-                {zone.door ? <span className="faint"> · 문 {zone.door}</span> : null}
-              </li>
-            ))}
-          </ul>
-        ) : (
+        {detail.zones.length === 0 ? (
           <p className="muted" style={{ fontSize: 12, margin: 0 }}>
-            존이 없습니다. 존 없이도 연결은 되지만, 허브 화면이 무엇을 어느 자리에 그릴지 알 수 없습니다.
+            존 없이도 연결은 되지만, 허브 화면이 무엇을 어느 자리에 그릴지 알 수 없습니다.
           </p>
-        )}
+        ) : null}
+        <ZonesForm detail={detail} />
       </section>
 
       <section className="card col" style={{ borderRadius: 10, gap: 12, padding: 18 }}>

@@ -56,6 +56,7 @@ export const DISPLAY_MESSAGING_TOPIC: AdminGuideTopic = {
         '판매 방식은 **규칙 › 연결 기본 › 페이즈 기본** 순으로 좁은 것이 이깁니다.',
         '**팝업은 원본을 열 수 없고 닫을 수만 있습니다.** 판매가 끝난 굿즈를 팝업에서 「판매」로 두어도 팔리지 않습니다.',
         '「미공개」로 둔 연결은 손님 화면에 아예 나가지 않습니다 — 목록에서 빠지지, 회색으로 보이는 게 아닙니다.',
+        '**팝업 편성** 화면은 여러 팝업을 한 시간축에 겹쳐 보여줍니다. 겹치는 것 자체는 문제가 아니지만, 모르고 겹치는 것은 사고입니다.',
         '페이즈가 하나도 없으면 게시할 수 없습니다. 화면이 「지금 무엇을 하는 시간인지」 말할 수 없기 때문입니다.',
       ],
       callouts: [
@@ -68,7 +69,7 @@ export const DISPLAY_MESSAGING_TOPIC: AdminGuideTopic = {
           ],
         },
       ],
-      screens: [{ href: '/admin/popups' }],
+      screens: [{ href: '/admin/popups' }, { href: '/admin/popups/schedule' }],
     },
     {
       id: 'campaigns',

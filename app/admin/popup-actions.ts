@@ -33,6 +33,7 @@ function popupErrorMessage(raw: string) {
   if (raw.includes('phase_outside_popup')) return '페이즈가 팝업 기간을 벗어납니다.';
   if (raw.includes('stale_write')) return '다른 사람이 먼저 저장했습니다. 새로고침한 뒤 다시 시도해주세요.';
   if (raw.includes('invalid_phases')) return '페이즈 입력을 확인해주세요.';
+  if (raw.includes('invalid_zones')) return '존 입력을 확인해주세요 (코드는 대문자·숫자, 유형은 6종 중 하나).';
   if (raw.includes('unknown_target')) return '연결할 대상을 찾을 수 없습니다 (보관·삭제된 원본은 걸 수 없습니다).';
   if (raw.includes('unknown_zone')) return '존 코드를 찾을 수 없습니다.';
   if (raw.includes('unknown_phase_key')) return '페이즈 키를 찾을 수 없습니다.';
@@ -203,4 +204,48 @@ export async function setPopupLinkRuleAction(
 
   invalidate(popupId);
   return { message: '판매 규칙을 저장했습니다.' };
+}
+
+/** 존 표를 통째로 저장한다. 폼은 `zone:<n>:<칸>` 으로 줄을 보낸다. */
+export async function savePopupZonesAction(
+  _state: AdminPopupActionState,
+  formData: FormData,
+): Promise<AdminPopupActionState> {
+  const denied = await requireStaff();
+  if (denied) return denied;
+
+  const popupId = String(formData.get('popupId') ?? '').trim();
+  if (!popupId) return { error: '팝업을 찾을 수 없습니다.' };
+
+  const rows = new Map<string, Record<string, string>>();
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith('zone:') || typeof value !== 'string') continue;
+    const [, index, field] = key.split(':');
+    const row = rows.get(index) ?? {};
+    row[field] = value.trim();
+    rows.set(index, row);
+  }
+
+  const zones: Record<string, unknown>[] = [];
+  for (const [index, row] of [...rows.entries()].sort((a, b) => Number(a[0]) - Number(b[0]))) {
+    if (!row.code) continue;
+    zones.push({
+      code: row.code.toUpperCase(),
+      door: row.door || null,
+      kind: row.kind || 'info',
+      name: row.name || row.code,
+      sort: Number(index),
+    });
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_set_popup_zones', {
+    target_expected_updated_at: String(formData.get('expectedUpdatedAt') ?? '').trim() || null,
+    target_popup_id: popupId,
+    target_zones: zones,
+  });
+  if (error) return { error: popupErrorMessage(error.message) };
+
+  invalidate(popupId);
+  return { message: `존 ${zones.length}개를 저장했습니다.` };
 }

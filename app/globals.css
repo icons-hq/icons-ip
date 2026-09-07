@@ -561,6 +561,26 @@
     grid-column: 1 / -1; justify-self: start; max-width: 100%;
     overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap;
   }
+  /* 팝업 편성 달력 — 창을 가로로 두고 팝업·페이즈를 겹쳐 그린다. */
+  .admin-popup-ticks { position: relative; height: 14px; }
+  .admin-popup-ticks > span { position: absolute; font-size: 9px; transform: translateX(-50%); }
+  .admin-popup-track {
+    position: relative; height: 22px; border-radius: 4px;
+    background: rgba(255,255,255,.03); overflow: hidden;
+  }
+  .admin-popup-bar {
+    position: absolute; top: 0; bottom: 0; border-radius: 4px;
+    border: 1px solid var(--line-2);
+  }
+  .admin-popup-phase {
+    position: absolute; top: 3px; bottom: 3px; display: flex; align-items: center;
+    overflow: hidden; padding: 0 5px; border-radius: 3px;
+    font-size: 9px; white-space: nowrap;
+  }
+  .admin-popup-phase.on { outline: 1px solid var(--cyan); outline-offset: -1px; }
+  /* 지금 시각. 달력의 첫 질문이 「어디까지 왔나」라서 가장 위에 둔다. */
+  .admin-popup-now { position: absolute; top: 0; bottom: 0; z-index: 2; width: 1px; background: var(--cyan); }
+  .admin-popup-row:hover { border-color: var(--line-2); }
   .admin-stats-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .admin-stats-table th, .admin-stats-table td { padding: 7px 8px; border-bottom: 1px solid var(--line); text-align: left; }
   .admin-stats-table th { color: var(--faint); font-size: 10px; font-weight: 600; }

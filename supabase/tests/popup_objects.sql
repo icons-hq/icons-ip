@@ -290,6 +290,76 @@ select 1 / case when :'fan_links'::integer = 0 then 1 else 0 end as assert_links
 reset role;
 
 -- ---------------------------------------------------------------------------
+-- H. 존 편집 — 코드를 빼면 존만 사라지고 연결은 남는다
+-- ---------------------------------------------------------------------------
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000e001', true);
+
+select public.admin_set_popup_zones('pop-demo', jsonb_build_array(
+  jsonb_build_object('code', 'Z1', 'kind', 'commerce', 'name', '상점', 'door', '합류'),
+  jsonb_build_object('code', 'Z9', 'kind', 'community', 'name', '방명록')
+)) as zone_ids \gset
+reset role;
+
+select 1 / case when (
+  jsonb_array_length(:'zone_ids'::jsonb) = 2
+  and (select count(*) from public.popup_zones where popup_id = 'pop-demo') = 2
+  -- Z2 를 뺐다. 거기 걸려 있던 연결이 있었다면 존만 떨어지고 연결은 남아야 한다.
+  and (select count(*) from public.popup_links where popup_id = 'pop-demo') = 2
+  and (select count(*) from public.popup_links where popup_id = 'pop-demo' and zone_id is not null) = 2
+) then 1 else 0 end as assert_removing_a_zone_keeps_its_links;
+
+-- 모르는 유형·잘못된 코드는 막는다.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000e001', true);
+do $$
+begin
+  perform public.admin_set_popup_zones('pop-demo', jsonb_build_array(
+    jsonb_build_object('code', 'z1', 'kind', 'commerce', 'name', '소문자 코드')
+  ));
+  raise exception 'lowercase zone code must fail';
+exception when others then
+  if sqlerrm <> 'invalid_zones' then raise; end if;
+end $$;
+do $$
+begin
+  perform public.admin_set_popup_zones('pop-demo', jsonb_build_array(
+    jsonb_build_object('code', 'Z1', 'kind', '없는유형', 'name', '상점')
+  ));
+  raise exception 'unknown zone kind must fail';
+exception when others then
+  if sqlerrm <> 'invalid_zones' then raise; end if;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- I. 편성 달력 — 창에 걸치기만 해도 나온다
+-- ---------------------------------------------------------------------------
+select public.admin_popup_schedule(
+  current_setting('pop.t1')::timestamptz, current_setting('pop.t2')::timestamptz
+) as schedule \gset
+reset role;
+
+select 1 / case when (
+  -- 팝업은 창보다 넓게 걸쳐 있다(t0~t3). 「이 창에서 시작하는」 것만 보면 빠진다.
+  (select count(*) from jsonb_array_elements(:'schedule'::jsonb -> 'popups') as entry
+   where entry ->> 'id' = 'pop-demo') = 1
+  and (select jsonb_array_length(entry -> 'phases') from jsonb_array_elements(:'schedule'::jsonb -> 'popups') as entry
+       where entry ->> 'id' = 'pop-demo') = 3
+  and (:'schedule'::jsonb ->> 'serverNow') is not null
+) then 1 else 0 end as assert_schedule_includes_popups_that_merely_overlap;
+
+-- 창을 완전히 벗어난 기간에는 나오지 않는다.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000e001', true);
+select public.admin_popup_schedule(
+  current_setting('pop.t3')::timestamptz + interval '1 day',
+  current_setting('pop.t3')::timestamptz + interval '2 days'
+) as far_schedule \gset
+reset role;
+select 1 / case when jsonb_array_length(:'far_schedule'::jsonb -> 'popups') = 0
+  then 1 else 0 end as assert_schedule_excludes_popups_outside_the_window;
+
+-- ---------------------------------------------------------------------------
 -- G. 권한
 -- ---------------------------------------------------------------------------
 select 1 / case when (
@@ -299,6 +369,10 @@ select 1 / case when (
   and not has_function_privilege('service_role', 'public.admin_link_popup_targets(text,jsonb,boolean)', 'execute')
   and not has_table_privilege('anon', 'public.popup_links', 'select')
   and not has_table_privilege('authenticated', 'public.popups', 'insert')
+  and has_function_privilege('authenticated', 'public.admin_set_popup_zones(text,jsonb,timestamptz)', 'execute')
+  and not has_function_privilege('anon', 'public.admin_popup_schedule(timestamptz,timestamptz)', 'execute')
+  and has_function_privilege('service_role', 'public.popup_boundary_tick()', 'execute')
+  and not has_function_privilege('authenticated', 'public.popup_boundary_tick()', 'execute')
 ) then 1 else 0 end as assert_popup_acl;
 
 rollback;
