@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdminIpRecord } from '@/lib/admin/catalog.server';
 import { IpSection } from './IpSection';
 
@@ -153,5 +153,107 @@ describe('IpSection', () => {
 
     expect(html).toMatch(/<textarea[^>]*name="glyph"/);
     expect(html).toContain('글리프 (줄바꿈 가능)');
+  });
+
+  /*
+   * 저장 실패 뒤 React 19 <form action> 이 폼을 리셋해도, 액션이 되돌려준 제출값이
+   * defaultValue 로 다시 심겨야 한다 — 타이핑한 값과 업로드해 둔 imagePath 모두.
+   */
+  describe('after a failed save', () => {
+    const failedNewIp = {
+      errors: { verticalKey: '등록된 버티컬을 선택해주세요.' },
+      values: {
+        previousId: '',
+        id: 'new-ip',
+        title: '새 IP 이름',
+        sub: '보조 설명 유지',
+        verticalKey: 'global',
+        tagline: '태그라인 유지',
+        glyph: '새\n글리프',
+        synopsis: '시놉시스 유지',
+        bg: '',
+        featured: '',
+        imagePath: 'public-media/catalog/ip/uploaded.png',
+      },
+      attempt: 1,
+    };
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it('restores every typed value and the uploaded artwork path for a new IP', () => {
+      vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://demo.supabase.co');
+      const html = renderToStaticMarkup(
+        <IpSection
+          action={vi.fn()}
+          onSelect={vi.fn()}
+          pending={false}
+          records={[]}
+          selected={null}
+          state={failedNewIp}
+          verticals={[{ key: 'global', label: '글로벌 IP', color: '#2DE2FF' }]}
+        />,
+      );
+
+      expect(html).toMatch(/name="id"[^>]*value="new-ip"|value="new-ip"[^>]*name="id"/);
+      expect(html).toMatch(/name="title"[^>]*value="새 IP 이름"|value="새 IP 이름"[^>]*name="title"/);
+      expect(html).toContain('보조 설명 유지');
+      expect(html).toContain('태그라인 유지');
+      expect(html).toContain('시놉시스 유지');
+      expect(html).toMatch(/<textarea[^>]*name="glyph"[^>]*>새\n글리프<\/textarea>/);
+      expect(html).toMatch(/<option[^>]*selected=""[^>]*value="global"|<option[^>]*value="global"[^>]*selected=""/);
+      expect(html).toContain('name="imagePath"');
+      expect(html).toContain('value="public-media/catalog/ip/uploaded.png"');
+      expect(html).toContain('현재 경로: public-media/catalog/ip/uploaded.png');
+      /* 업로드 직후의 object URL 은 리마운트에서 사라졌으니 경로에서 미리보기를 되살린다. */
+      expect(html).toContain('src="https://demo.supabase.co/storage/v1/object/public/public-media/catalog/ip/uploaded.png"');
+      expect(html).toContain('등록된 버티컬을 선택해주세요.');
+    });
+
+    it('keeps a cleared field empty instead of falling back to the stored record', () => {
+      const state = {
+        errors: { title: 'IP 이름을 입력해주세요.' },
+        values: { previousId: 'hwasan', id: 'hwasan', title: '', sub: '', imagePath: '' },
+        attempt: 2,
+      };
+      const stored = { ...ip, sub: '저장된 보조 설명', imagePath: 'public-media/catalog/ip/stored.png', imageUrl: 'https://cdn.test/stored.png' };
+      const html = renderToStaticMarkup(
+        <IpSection
+          action={vi.fn()}
+          onSelect={vi.fn()}
+          pending={false}
+          records={[stored]}
+          selected={stored}
+          state={state}
+          verticals={[]}
+        />,
+      );
+
+      expect(html).not.toContain('저장된 보조 설명');
+      /* 목록 썸네일은 저장된 이미지를 계속 보여주지만, 폼의 미리보기는 제거된 상태를 따른다. */
+      expect(html).not.toContain('alt="현재 아트워크 미리보기" src="https://cdn.test/stored.png"');
+      expect(html).toContain('이미지 없음');
+      expect(html).toContain('현재 경로: 없음');
+      expect(html).toContain('IP 이름을 입력해주세요.');
+    });
+
+    it('ignores a failed submission that belonged to a different record', () => {
+      const html = renderToStaticMarkup(
+        <IpSection
+          action={vi.fn()}
+          onSelect={vi.fn()}
+          pending={false}
+          records={[ip]}
+          selected={ip}
+          state={failedNewIp}
+          verticals={[]}
+        />,
+      );
+
+      expect(html).not.toContain('새 IP 이름');
+      expect(html).not.toContain('uploaded.png');
+      expect(html).toMatch(/name="title"[^>]*value="화산강림"|value="화산강림"[^>]*name="title"/);
+    });
   });
 });
