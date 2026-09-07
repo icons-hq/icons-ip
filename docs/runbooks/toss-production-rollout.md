@@ -289,10 +289,14 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
   계속 받는다) ② 티켓 내부 Bearer reconcile 라우트 ③ 굿즈 내부 Bearer reconcile 라우트
   (`POST /api/internal/payments/goods/reconcile`, Bearer `PAYMENT_RECONCILIATION_SECRET`, 본문
   `{ "operation": "payment", "attemptId": "<uuid>", "caseRef": "<opaque 16~128자>" }` — 검토된
-  한 건만 지정) 셋뿐이고, 주기 크론은 의도적으로 없다. 재전송이 소진되거나 웹훅이 아예 오지
-  않으면 그 건은 `unknown`으로 아래 drain 집계에 남고, 운영자가 attempt id를 지정해 굿즈 내부
-  reconcile 라우트로 건 지정 재정합한다(응답 200은 종결, 202는 `unknown | needs_review` 또는
-  다른 처리자의 claim 리스가 살아 있는 진행 중 — 리스 10분이 지난 뒤 다시 지정한다).
+  한 건만 지정, **토스 attempt 전용**) 셋뿐이고, 주기 크론은 의도적으로 없다. 재전송이
+  소진되거나 웹훅이 아예 오지 않으면 그 건은 `unknown`으로 아래 drain 집계에 남고, 운영자가
+  attempt id를 지정해 굿즈 내부 reconcile 라우트로 건 지정 재정합한다(응답 200은 종결, 202는
+  `unknown | needs_review` 또는 다른 처리자의 claim 리스가 살아 있는 진행 중 — 리스 10분이
+  지난 뒤 다시 지정한다; 404는 attempt 부재, 422 `unsupported_attempt`는 토스 굿즈 attempt가
+  아님 — 라우트가 claim 전에 걸러 상태를 바꾸지 않는다, 502는 attempt 조회 실패). 코페이
+  attempt(#208 수동 큐의 `needs_review`)는 이 라우트로 닫지 않는다 — 수동 복구 seam이 정상
+  경로다.
 - **미종결 attempt·장애 신호**: 토스 웹훅·키 장애는 미종결 attempt 집계
   (`prepared | confirming | unknown | needs_review` — Rollback drain 집계와 같은 축)와
   `/admin/sales/orders` 원장의 `pending` 카드 주문 누적, 개발자센터 웹훅 전송 이력으로 본다.

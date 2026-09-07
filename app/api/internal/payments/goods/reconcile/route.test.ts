@@ -13,8 +13,24 @@ const mocks = vi.hoisted(() => ({
   availabilityProvider: undefined as string | undefined,
   checkoutProvider: undefined as string | undefined,
   reconcile: vi.fn(),
+  /* reconcile(claim RPC) 전에 라우트가 읽는 attempt 행 — provider·purpose만. */
+  attemptRow: { provider: 'toss', purpose: 'order' } as Record<string, unknown> | null,
+  attemptLookupError: null as { code?: string; message: string } | null,
+  serviceClientThrows: false,
+  from: vi.fn(),
+  select: vi.fn(),
+  eq: vi.fn(),
+  maybeSingle: vi.fn(),
 }));
 
+vi.mock('@/lib/supabase/service', () => ({
+  createServiceClient: () => {
+    if (mocks.serviceClientThrows) {
+      throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+    }
+    return { from: mocks.from };
+  },
+}));
 vi.mock('@/lib/payments/goods-checkout-availability', () => ({
   goodsPaymentConfirmationAvailable: (provider?: string) => {
     mocks.availabilityProvider = provider;
@@ -64,6 +80,20 @@ describe('POST /api/internal/payments/goods/reconcile', () => {
       reasonCode: 'provider_reconciled_approved',
       evidence: { providerPaymentKey: PAYMENT_KEY, resultCode: 'DONE' },
     });
+    mocks.attemptRow = { provider: 'toss', purpose: 'order' };
+    mocks.attemptLookupError = null;
+    mocks.serviceClientThrows = false;
+    mocks.from.mockReset();
+    mocks.select.mockReset();
+    mocks.eq.mockReset();
+    mocks.maybeSingle.mockReset();
+    mocks.maybeSingle.mockImplementation(async () => ({
+      data: mocks.attemptRow,
+      error: mocks.attemptLookupError,
+    }));
+    mocks.eq.mockImplementation(() => ({ maybeSingle: mocks.maybeSingle }));
+    mocks.select.mockImplementation(() => ({ eq: mocks.eq }));
+    mocks.from.mockImplementation(() => ({ select: mocks.select }));
   });
 
   it('전용 secret과 opaque caseRef로 지정 건 하나를 toss 조립으로 재정합하고 provider 식별자는 응답에 싣지 않는다', async () => {
@@ -81,6 +111,70 @@ describe('POST /api/internal/payments/goods/reconcile', () => {
     expect(mocks.checkoutProvider).toBe('toss');
   });
 
+  it('reconcile(claim RPC) 전에 service role로 attempt의 provider·purpose만 읽는다', async () => {
+    await POST(request());
+
+    expect(mocks.from).toHaveBeenCalledTimes(1);
+    expect(mocks.from).toHaveBeenCalledWith('payment_attempts');
+    expect(mocks.select).toHaveBeenCalledWith('provider,purpose');
+    expect(mocks.eq).toHaveBeenCalledWith('id', attemptId);
+    expect(mocks.maybeSingle).toHaveBeenCalledTimes(1);
+    // 조회가 claim보다 먼저다 — 코페이 행을 선점하고 나서 거절하는 순서를 막는 이유.
+    expect(mocks.maybeSingle.mock.invocationCallOrder[0]!)
+      .toBeLessThan(mocks.reconcile.mock.invocationCallOrder[0]!);
+  });
+
+  it.each([
+    ['코페이 굿즈 attempt(#208 수동 큐)', { provider: 'korpay', purpose: 'order' }],
+    ['토스 티켓 attempt', { provider: 'toss', purpose: 'ticket' }],
+    ['무통장 attempt', { provider: 'bank_transfer', purpose: 'order' }],
+  ])('토스 굿즈 attempt가 아니면 claim 없이 422로 거절한다 — 상태를 바꾸지 않는다: %s', async (_label, row) => {
+    mocks.attemptRow = row;
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(422);
+    const text = await response.text();
+    expect(JSON.parse(text)).toEqual({ error: 'unsupported_attempt' });
+    // provider 식별자·paymentKey를 응답에 싣지 않는 계약은 거절 응답에도 적용된다.
+    expect(text).not.toContain(String(row.provider));
+    expect(text).not.toContain(PAYMENT_KEY);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+  });
+
+  it('attempt 행이 없으면 404이고 reconcile을 부르지 않는다', async () => {
+    mocks.attemptRow = null;
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toEqual({ error: 'attempt_not_found' });
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+  });
+
+  it('attempt 조회 오류는 부재와 합치지 않고 502로 돌려 reconcile을 부르지 않는다', async () => {
+    mocks.attemptLookupError = { code: '57P01', message: 'terminating connection' };
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(502);
+    const text = await response.text();
+    expect(JSON.parse(text)).toEqual({ error: 'attempt_lookup_failed' });
+    expect(text).not.toContain('terminating connection');
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+  });
+
+  it('service role 클라이언트를 만들 수 없으면 502이고 내부 메시지를 노출하지 않는다', async () => {
+    mocks.serviceClientThrows = true;
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(502);
+    await expect(response.json()).resolves.toEqual({ error: 'attempt_lookup_failed' });
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+  });
+
   it('secret 불일치·legacy CRON secret은 401로 닫고 domain을 부르지 않는다', async () => {
     expect((await POST(request('wrong-secret'))).status).toBe(401);
     expect((await POST(request('retired-shared-cron-secret'))).status).toBe(401);
@@ -90,6 +184,8 @@ describe('POST /api/internal/payments/goods/reconcile', () => {
       body: JSON.stringify({ operation: 'payment', attemptId, caseRef: 'case_goods_opaque_410' }),
     }))).status).toBe(401);
     expect(mocks.reconcile).not.toHaveBeenCalled();
+    // 인증 전에는 DB에도 닿지 않는다.
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 
   it('미설정 또는 형식 불량 secret은 exact bearer여도 fail closed한다', async () => {
@@ -125,6 +221,8 @@ describe('POST /api/internal/payments/goods/reconcile', () => {
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: 'invalid_request' });
     expect(mocks.reconcile).not.toHaveBeenCalled();
+    // 형식을 통과한 attemptId만 DB 조회에 쓴다.
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 
   it('JSON이 아닌 본문은 400이다', async () => {
