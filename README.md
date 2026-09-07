@@ -14,7 +14,7 @@ ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 �
 - 검색은 Supabase 환경변수가 있으면 Postgres `search_public_content` RPC로 IP, 굿즈, 카드, visible 포스트, 태그를 그룹 검색하고, 로컬 fallback에서는 mock 데이터를 사용한다.
 - `/admin`은 staff/admin 게이트, 카탈로그 CRUD·보관/복원·아트워크 업로드, 카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩, 뽑기권 발급 정책, 카드 보상형 참여형 게임 등록·운영과 PII-free 플레이 집계, 감사 로그, 커뮤니티 신고 상태 변경과 포스트 숨김 처리 경로에 연결되어 있다. 기존 게임 `goods` variant는 운영 콘솔에서 읽기 전용이고, mock 연출은 실제 경품·구매권을 만들지 않으며 신규 실물 판매에 쓰지 않는다.
 - Google, Kakao, Apple 버튼은 Supabase 관리형 OAuth Server Action에 연결되어 있고 production Supabase provider도 모두 활성화되어 있다. Google은 production 공개 상태이며 Apple App ID·Services ID·callback·서명 키 구성이 완료됐다. Kakao는 `(주) 아이콘스` 비즈 앱, 로그인용 client secret, `account_email` 필수 동의·계정 정보 수집까지 설정했고 Supabase의 이메일 없는 사용자 허용은 꺼져 있다. 코드가 production에 배포된 뒤 controlled login smoke가 남아 있다.
-- 굿즈와 티켓 checkout은 provider-neutral attempt/claim/finalizer와 `PaymentGateway` 경계, Korpay SDK prepare→form-urlencoded callback→confirm 경로에 연결됐다. 목적별 rollout gate의 기본값은 OFF지만, 2026-08-18 Production 굿즈 gate를 공개 ON으로 전환해 로그인·온보딩 완료 사용자가 결제를 시작할 수 있다. 티켓 gate와 두 canary는 OFF이며 기존 Toss 거래는 알려진 결제의 조회·취소·웹훅 정리 경로로만 남는다.
+- 굿즈와 티켓 checkout은 provider-neutral attempt/claim/finalizer와 `PaymentGateway` 경계 위에서 **토스페이먼츠 주문서형 v2**를 기본 provider로 쓴다(prepare→위젯 SDK→경로 세그먼트 nonce callback→서버 승인, ADR-0013). **판매 제한 상품**(성인(19금))이 담긴 주문만 서버가 주문 단위로 코페이를 파생하며 관리자가 PG를 고르지 않는다. 목적별 rollout gate의 기본값은 OFF이고 토스 gate 둘과 canary 둘은 모두 닫혀 있다 — 개방은 심사 트랙(`docs/runbooks/toss-production-rollout.md`)을 따른다. 2026-08-18 공개 ON으로 열어 둔 코페이 굿즈 gate는 폐쇄 실행 대기다.
 - 범용 온라인 팝업 운영 레이어와 Expo webview 호스트는 현 로드맵에 없다. 19+ 꽝 없는 유한 실물 쿠지는 기존 카드·게임과 분리된 `prize_sale`로 설계하며 [#212](https://github.com/icons-hq/icons-ip/issues/212)·[#213](https://github.com/icons-hq/icons-ip/issues/213)이 별도 추적한다.
 
 ## 빠른 시작
@@ -58,7 +58,15 @@ RESEND_WEBHOOK_SECRET=
 # Optional Resend-compatible endpoint override; normally leave empty.
 RESEND_API_ENDPOINT=
 PAYMENT_RECONCILIATION_SECRET=
-# Korpay live credentials: Production only; never put these in Preview/CI or NEXT_PUBLIC_*.
+# Toss (default PG) keys: Production only. Client/secret must share one mode.
+NEXT_PUBLIC_TOSS_CLIENT_KEY=
+TOSS_SECRET_KEY=
+TOSS_ORDER_CHECKOUT_ENABLED=false
+TOSS_TICKET_CHECKOUT_ENABLED=false
+# Optional Production-only UUID for one authenticated canary actor; leave unset by default.
+TOSS_ORDER_CANARY_USER_ID=
+TOSS_TICKET_CANARY_USER_ID=
+# Korpay (sale-restricted goods only): Production only; never put these in Preview/CI or NEXT_PUBLIC_*.
 KORPAY_MID=
 KORPAY_KEY=
 KORPAY_ORDER_CHECKOUT_ENABLED=false
@@ -73,26 +81,29 @@ KORPAY_TICKET_CANARY_USER_ID=
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: legacy Supabase anon public key. `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`가 없을 때 fallback으로만 사용한다.
 - `ICONS_CATALOG_SOURCE`: 서버 전용 catalog/search source override. 값은 `mock` 또는 `supabase`만 허용한다. 비워두면 Vercel Preview는 `mock`, Supabase 환경변수가 있는 production/local은 `supabase`, Supabase 환경변수가 없으면 `mock`을 쓴다. GitHub Actions의 PR preview는 선택된 shared/isolated Supabase 자격 증명과 함께 `supabase`를 강제한다.
 - `AUTH_SIGNUP_RESEND_SECRET`: 회원가입 확인 메일 재전송 상태, 인증 `next`, 비밀번호 재설정 요청 제한 쿠키를 domain-separated HMAC으로 서명하는 서버 전용 secret. 긴 랜덤 값을 사용하고 `NEXT_PUBLIC_` prefix를 붙이지 않는다.
-- `SITE_URL`: secret이 아닌 서버 전용 canonical public origin이다. Production은 정확히 `https://iconsip.com`을 사용하며 Korpay 굿즈·티켓 `returnUrl` callback도 이 origin 아래에서 생성한다. Preview/CI는 필요하면 각 환경의 일반 서버 origin을 둘 수 있지만 Korpay 실자격 증명과 canary actor는 두지 않고 목적별 gate를 닫는다. `SITE_URL`만으로 live checkout이 열리지는 않는다.
+- `SITE_URL`: secret이 아닌 서버 전용 canonical public origin이다. Production은 정확히 `https://iconsip.com`을 사용하며 토스 `successUrl`·`failUrl`과 코페이 `returnUrl` callback이 모두 이 origin 아래에서 생성된다. Preview/CI는 필요하면 각 환경의 일반 서버 origin을 둘 수 있지만 Korpay 실자격 증명과 canary actor는 두지 않고 목적별 gate를 닫는다. `SITE_URL`만으로 live checkout이 열리지는 않는다.
 - `CRON_SECRET`: production Vercel Cron이 만료된 관리자 아트워크 staging 객체를 정리할 때 쓰는 서버 전용 bearer secret. 16~128자의 URL-safe 랜덤 값을 사용하고 preview에는 필요하지 않다.
 - `SUPABASE_SEND_EMAIL_HOOK_SECRET`·`RESEND_WEBHOOK_SECRET`: #191 Hook/webhook의 raw body 서명 검증용 서버 secret이다.
 - `EMAIL_DISPATCH_HMAC_SECRET`: recipient·source·provider reference를 목적 분리 keyed HMAC으로 투영하는 32자 이상 서버 secret이다.
 - `RESEND_API_KEY`·`RESEND_FROM`·`RESEND_REPLY_TO`: durable EmailDispatcher의 Resend HTTP 발송 설정이다. Preview·CI에는 실값을 두지 않는다.
 - `RESEND_API_ENDPOINT`: 호환성 검증에만 쓰는 선택적 endpoint override다. 일반 운영에서는 비워 둔다.
 - `PAYMENT_RECONCILIATION_SECRET`: 검토된 단일 결제·환급 건을 명시적으로 재조회하는 내부 route 전용 bearer secret. `CRON_SECRET`과 공유하지 않는다. #206 dark deploy에서는 미설정이 정상이며 route가 401로 닫힌다. 활성화 시 별도 승인 절차로 Production에만 16~128자의 URL-safe 랜덤 값을 두고 Preview/CI에는 넣지 않는다. 요청은 이메일 등 PII가 아닌 opaque URL-safe `caseRef`만 받으며 actor는 서버가 `payment_reconciliation_service_v1`으로 고정한다.
-- `KORPAY_MID`·`KORPAY_KEY`: 코페이 운영 자격 증명이다. Vercel Production에만 sensitive 값으로 두고 Preview/CI에는 만들지 않는다. 두 변수 모두 서버 환경변수이며 `NEXT_PUBLIC_` 접두사를 쓰지 않는다. MKEY인 `KORPAY_KEY`는 브라우저로 보내지 않는다. `KORPAY_MID`는 정적 클라이언트 설정이 아니라 서버가 hash를 포함해 만든 일회성 SDK payload의 provider 필드로만 전달한다.
-- `KORPAY_ORDER_CHECKOUT_ENABLED`·`KORPAY_TICKET_CHECKOUT_ENABLED`: 신규 굿즈·티켓 provider session을 목적별로 여는 정확한 `true`/`false` gate다. 기본값은 `false`다. gate를 내려도 이미 durable하게 준비된 known order+nonce callback은 계속 drain한다.
+- `NEXT_PUBLIC_TOSS_CLIENT_KEY`·`TOSS_SECRET_KEY`: 토스페이먼츠 주문서형 v2 위젯 키 쌍이다. 형식은 `(test|live)_gck_…`/`(test|live)_gsk_…`이고 **두 키의 모드가 같아야 한다** — 테스트 클라이언트 키로 띄운 결제를 라이브 시크릿 키로 승인하는 반쪽 전환을 빌드와 런타임이 함께 막는다. API 개별연동 `test_sk_…` 계열은 형식에서 거절한다. 클라이언트 키만 `NEXT_PUBLIC_`이고 시크릿 키는 server-only 모듈 밖으로 나가지 않는다. Vercel Production에만 sensitive 값으로 두고, 심사 기간에는 테스트 키가 물린다.
+- `TOSS_ORDER_CHECKOUT_ENABLED`·`TOSS_TICKET_CHECKOUT_ENABLED`: 신규 굿즈·티켓 토스 provider session을 목적별로 여는 정확한 `true`/`false` gate다. 기본값은 `false`이고 개방은 [`docs/runbooks/toss-production-rollout.md`](./docs/runbooks/toss-production-rollout.md)의 심사 트랙을 따른다. gate를 내려도 이미 durable하게 준비된 known order+nonce callback은 계속 drain한다.
+- `TOSS_ORDER_CANARY_USER_ID`·`TOSS_TICKET_CANARY_USER_ID`: public gate가 `false`인 동안 목적별로 인증된 단일 UUID actor만 허용하는 선택적 Production canary allowlist다. 기본값은 미설정이고 Preview/CI에는 두지 않는다.
+- `KORPAY_MID`·`KORPAY_KEY`: 판매 제한 상품 전용 PG인 코페이의 운영 자격 증명이다. Vercel Production에만 sensitive 값으로 두고 Preview/CI에는 만들지 않는다. 두 변수 모두 서버 환경변수이며 `NEXT_PUBLIC_` 접두사를 쓰지 않는다. MKEY인 `KORPAY_KEY`는 브라우저로 보내지 않는다. `KORPAY_MID`는 정적 클라이언트 설정이 아니라 서버가 hash를 포함해 만든 일회성 SDK payload의 provider 필드로만 전달한다.
+- `KORPAY_ORDER_CHECKOUT_ENABLED`·`KORPAY_TICKET_CHECKOUT_ENABLED`: 신규 굿즈·티켓 코페이 provider session을 목적별로 여는 정확한 `true`/`false` gate다. 기본값은 `false`이고, 기본 PG 지위가 토스로 넘어간 뒤에는 판매 제한 상품 트랙에서 재개방될 때까지 닫아 둔다. gate를 내려도 이미 durable하게 준비된 known order+nonce callback은 계속 drain한다.
 - `KORPAY_ORDER_CANARY_USER_ID`·`KORPAY_TICKET_CANARY_USER_ID`: public gate가 `false`인 동안 목적별로 인증된 단일 UUID actor만 허용하는 선택적 Production canary allowlist다. 기본값은 미설정이고 Preview/CI에는 두지 않는다. 현재 provision됐다고 가정하지 않는다.
 
 #191 코드는 dark deploy 상태다. DB gate는 기본 OFF이고 Supabase Send Email Hook도 사람이 운영 증거를 확인하기 전에는 활성화하지 않는다. 기존 Supabase custom SMTP와 주문 메일 경로는 실제 Auth 흐름 canary와 direct SMTP 0 증거가 끝날 때까지 유지한다. 상세 순서는 [`docs/transactional-email.md`](./docs/transactional-email.md)에 있다.
 
 ### Production 결제 활성화 경계
 
-Korpay 계약 완료와 현재 운영 자격 증명의 사용 가능 상태는 2026-08-14 사용자 확인으로 정정됐다. 이는 공급사 서면 증거나 19+ 유한 실물 쿠지 승인 범위를 뜻하지 않는다. 연동 계약은 코페이 인증결제 가이드 v1.2.2와 `@korpay/sdk` 1.1.8에 맞춘 서버 prepare → 브라우저 SDK → `application/x-www-form-urlencoded` callback → 서버 confirm → 명시적 303 redirect다. Production의 Korpay callback은 `SITE_URL=https://iconsip.com`에서 만든 canonical origin만 사용한다.
+신규 결제의 기본 provider는 **토스페이먼츠 주문서형 v2**다([ADR-0013](./docs/adr/0013-toss-default-pg-pivot.md)). 연동 계약은 서버 prepare → 브라우저 위젯 SDK(Redirect) → `successUrl` 경로 세그먼트의 단회용 nonce → 서버 `POST /v1/payments/confirm` → 명시적 303 redirect이고, 모호 결과는 `GET /v1/payments/orders/{orderId}` 조회로 정합화한다. **판매 제한 상품**(성인(19금))이 하나라도 담긴 주문만 서버가 주문 단위로 코페이를 파생한다 — 관리자가 PG를 고르는 설정이 아니다. 코페이 연동 계약은 코페이 인증결제 가이드 v1.2.2와 `@korpay/sdk` 1.1.8에 맞춘 서버 prepare → 브라우저 SDK → `application/x-www-form-urlencoded` callback → 서버 confirm이며, 자동 status/reconcile/cancel API가 없어 모호 결과를 추측하지 않고 `needs_review`로 격리한다(취소는 #208 수동 운영). 두 provider의 callback origin은 모두 `SITE_URL=https://iconsip.com`에서 만든다.
 
-Provider credential readiness와 목적별(`order`·`ticket`) rollout gate를 분리한다. 판매 gate를 내리면 해당 목적의 새 reserve·prepare·provider session 생성만 차단하고, 이미 DB에 durable한 attempt의 known opaque order+nonce callback은 계속 claim·확정한다. 알 수 없는 order·nonce는 provider 호출 전에 거부한다. 코페이가 공개한 가이드에는 자동 status/reconcile/cancel API가 없으므로 모호 결과를 추측하거나 자동 재시도하지 않고 `needs_review`로 격리하며, 취소는 #208의 수동 운영 절차로 처리한다. Toss 결제위젯과 `/api/payments/confirm`을 이용한 신규 결제는 열지 않고, Production의 `TOSS_SECRET_KEY`는 알려진 기존 거래가 종결될 때까지만 유지한다.
+Provider credential readiness와 목적별(`order`·`ticket`) rollout gate를 분리한다. 판매 gate를 내리면 해당 목적의 새 reserve·prepare·provider session 생성만 차단하고, 이미 DB에 durable한 attempt의 known opaque order+nonce callback은 계속 claim·확정한다. 알 수 없는 order·nonce는 provider 호출 전에 거부한다.
 
-2026-08-18 사용자 지시로 Production 굿즈 public gate를 ON으로 전환했고 티켓 gate와 canary는 OFF로 유지했다. 이는 2026-08-21 개정 법정 문서 활성화, callback 서명·자동 상태조회 부재, #208 수동 취소 운영을 해소하지 않는다. 실제 배포 증거, drain, rollback과 잔여 위험은 [`docs/runbooks/korpay-production-rollout.md`](./docs/runbooks/korpay-production-rollout.md)를 따른다.
+현재 Production의 토스 gate 둘과 canary 둘은 모두 닫혀 있다 — 테스트 키 배포·전자결제 심사·라이브 키 전환 순서와 잔여 위험은 [`docs/runbooks/toss-production-rollout.md`](./docs/runbooks/toss-production-rollout.md)를 따른다. 2026-08-18 사용자 지시로 열어 둔 코페이 굿즈 public gate는 폐쇄 실행 대기이며, 그 상태와 drain·rollback은 [`docs/runbooks/korpay-production-rollout.md`](./docs/runbooks/korpay-production-rollout.md)를 따른다. 어느 쪽도 2026-08-21 개정 법정 문서 활성화나 #208 수동 취소 운영을 해소하지 않는다.
 
 URL과 public key 둘 중 하나라도 없으면 인증 미들웨어는 세션 갱신을 건너뛰고, 공개 카탈로그는 로컬 개발용 mock 데이터로 fallback한다. `AUTH_SIGNUP_RESEND_SECRET`이 없으면 회원가입 재전송 제한과 서명된 `next` 보존을 신뢰할 수 없으며, 비밀번호 재설정 요청은 fail closed한다. Vercel preview와 production 배포는 Supabase 공개 환경변수 또는 이 secret이 없으면 workflow preflight에서 실패한다.
 
@@ -228,7 +239,7 @@ CRON_SECRET
 - deployment secret 검사는 각 deploy job 안에서 수행한다. 누락 시 job이 즉시 실패하며, 필요한 GitHub Secret을 설정한 뒤 rerun해야 한다.
 - `.vercel/` 연결 파일은 commit하지 않고, workflow가 `VERCEL_ORG_ID`와 `VERCEL_PROJECT_ID`로 Vercel 원격 build/deploy를 요청한다.
 - `.vercelignore`가 로컬 제작 산출물 `outputs/`를 명시적으로 제외한다. Preview job은 Vercel dry-run manifest에서 `outputs/`, 900MB 이상, 15,000개 이상 source를 실제 업로드 전에 거부한다. 원본·실험·반복 렌더는 deploy context에 넣지 않고 최종 runtime asset만 repo의 공개 asset 경로로 배포한다.
-- Vercel 환경변수는 sensitive 상태로 각 환경에 둔다. production deploy job은 기존 관리자 아트워크용 GitHub `CRON_SECRET`만 Vercel production에 동기화한다. Korpay credential·optional canary actor는 Vercel Production에만 별도 등록하고 GitHub, Preview, CI에는 복제하지 않는다. public 목적별 gate의 기본값은 `false`이며 현재 Production은 굿즈만 `true`, 티켓은 `false`다. 결제 재조정 secret은 workflow가 provision/mutate하지 않으며, 값이 이미 있으면 원격 `prebuild` guard가 형식만 검증한다. Preview에는 현재 legacy Toss 환경변수 잔여가 있지만 신규 checkout을 열지 않고 알려지지 않은 거래를 provider 호출 전에 거부한다. 이 잔여 정리는 Korpay rollout과 분리한다. development 환경변수는 별도 요청 전까지 추가하지 않는다.
+- Vercel 환경변수는 sensitive 상태로 각 환경에 둔다. production deploy job은 기존 관리자 아트워크용 GitHub `CRON_SECRET`만 Vercel production에 동기화한다. Toss 키 페어·Korpay credential·optional canary actor는 Vercel Production에만 별도 등록하고 GitHub, Preview, CI에는 복제하지 않는다. public 목적별 gate의 기본값은 `false`이며 현재 Production에서 `true`인 것은 폐쇄 대기 중인 코페이 굿즈 gate 하나뿐이고 토스 gate 둘은 심사 트랙 전까지 `false`다. 결제 재조정 secret은 workflow가 provision/mutate하지 않으며, 값이 이미 있으면 원격 `prebuild` guard가 형식만 검증한다. Preview에는 구 v1 Toss 환경변수 잔여가 있지만 실 게이트웨이는 `VERCEL_ENV=production`에서만 생성되고 형식이 어긋난 키는 런타임이 거절한다. development 환경변수는 별도 요청 전까지 추가하지 않는다.
 
 ## 프리뷰 환경
 
@@ -315,5 +326,5 @@ curl -s "$PREVIEW_URL" | grep -o '/_next/static/chunks/[^"]*\.js' | sort -u | wh
 - 보호 액션은 구매, 가챠, 예매, 작성, 팔로우 시점에 로그인 게이트를 둔다.
 - `/exchange`와 `/market`은 v2 전까지 프로토타입/플레이스홀더로 유지한다.
 - 돈, 재고, 가챠 RNG, 천장, 티켓 검표는 클라이언트 상태에 맡기지 않는다. Supabase Postgres RPC, RLS, 행 잠금, 멱등 처리를 기준으로 구현한다.
-- 결제 확정은 provider-neutral `PaymentGateway.confirm/reconcile` 결과와 DB finalizer를 진실원으로 삼는다. 기존 Toss 거래만 provider 재조회·웹훅 계약을 유지하며, 어느 경로도 클라이언트 성공 콜백만으로 주문·티켓을 확정하지 않는다.
+- 결제 확정은 provider-neutral `PaymentGateway.confirm/reconcile` 결과와 DB finalizer를 진실원으로 삼는다. 토스 경로는 조회 API 재검증과 웹훅 트리거 재정합을 함께 쓰고, 어느 경로도 클라이언트 성공 콜백이나 웹훅 payload만으로 주문·티켓을 확정하지 않는다.
 - Next.js 16 관련 API, 라우팅, proxy/middleware, metadata, caching 코드를 수정하기 전에는 `node_modules/next/dist/docs/`의 현재 버전 문서를 확인한다.
