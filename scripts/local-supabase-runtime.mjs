@@ -114,7 +114,21 @@ export async function ensureLocalTestAccount(
     consents: { terms: true, privacy: true, marketing: false },
     onboarded_at: now().toISOString(),
   }, { onConflict: 'id' });
-  if (profileError) throw new Error(`Could not onboard the local test account: ${profileError.message}`);
+  /*
+   * 이 스키마는 `service_role` 에 public 표 DML 을 주지 않는다(테스트 14개가 그 계약을
+   * 단언한다) — 그래서 이 upsert 는 `permission denied for table profiles` 로 떨어진다.
+   *
+   * 그때 **dev 서버 자체를 못 뜨게 하지는 않는다.** 프로필이 없으면 앱이 온보딩으로 보내
+   * 눈에 보이는 실패가 되지만, 여기서 던지면 아무것도 안 뜨고 원인도 안 보인다.
+   * 고치는 법을 그대로 찍어 주고 계속한다.
+   */
+  if (profileError) {
+    console.warn(
+      `[local] 프로필을 자동으로 맞추지 못했습니다: ${profileError.message}\n`
+      + '[local] 로그인 후 온보딩으로 튕기면 아래를 한 번 실행하세요:\n'
+      + `[local]   docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -c "update public.profiles set onboarded_at = now(), role = 'admin' where email = '${LOCAL_TEST_ACCOUNT.email}';"`,
+    );
+  }
 
   const publicClient = clientFactory(url, environment.publishableKey, clientOptions);
   const { data: signInData, error: signInError } = await publicClient.auth.signInWithPassword({

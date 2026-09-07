@@ -2,8 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   ADMIN_NAV_GROUPS,
   ADMIN_SCREENS,
+  ADMIN_NAV_COLLAPSED_KEY,
+  ADMIN_NAV_TIER_KEY,
   adminGroupForPath,
+  adminNavGroupsForView,
+  adminNavTierValue,
   adminScreenForPath,
+  isAdminNavShowingAll,
+  isNavGroupCollapsed,
+  parseCollapsedNavGroups,
+  serializeCollapsedNavGroups,
+  toggleCollapsedNavGroup,
   legacyAdminSectionHref,
   visibleAdminNavGroups,
 } from './navigation';
@@ -54,9 +63,9 @@ describe('어드민 IA 정의', () => {
 });
 
 describe('편성 / 원장 / 거래 재편', () => {
-  it('대분류 10개를 편성 → 원장 → 거래 → 공통 순으로 세운다', () => {
+  it('대분류 10개를 편성 → 원장 → 거래 → 공통 순으로 세우고, 매일 쓰지 않는 셋은 뒤로 뺀다', () => {
     expect(ADMIN_NAV_GROUPS.map((group) => group.id)).toEqual([
-      'home', 'popups', 'display', 'catalog', 'fandom', 'events', 'sales', 'cs', 'stats', 'settings',
+      'home', 'popups', 'display', 'catalog', 'sales', 'cs', 'stats', 'fandom', 'events', 'settings',
     ]);
   });
 
@@ -119,6 +128,90 @@ describe('legacyAdminSectionHref', () => {
     expect(legacyAdminSectionHref('nope')).toBeNull();
     expect(legacyAdminSectionHref(undefined)).toBeNull();
     expect(legacyAdminSectionHref(['orders'])).toBeNull();
+  });
+});
+
+describe('사이드바 대분류 순서', () => {
+  it('팬덤 콘텐츠·이벤트·설정은 맨 아래로 내린다 — 매일 쓰는 그룹이 아니다', () => {
+    const ids = ADMIN_NAV_GROUPS.map((group) => group.id);
+    const core = ADMIN_NAV_GROUPS.filter((group) => group.tier === 'core').map((group) => group.id);
+    const extended = ADMIN_NAV_GROUPS.filter((group) => group.tier === 'extended').map((group) => group.id);
+
+    expect(extended).toEqual(['fandom', 'events', 'settings']);
+    /* 확장 그룹은 전부 기본 그룹 뒤에 있어야 한다 — 켜면 아래로 이어 붙는 구조다. */
+    expect(ids).toEqual([...core, ...extended]);
+    expect(ids.indexOf('fandom')).toBeGreaterThan(ids.indexOf('sales'));
+    expect(ids.indexOf('events')).toBeGreaterThan(ids.indexOf('stats'));
+  });
+});
+
+describe('adminNavGroupsForView', () => {
+  it('기본 메뉴는 core 만 보여 준다', () => {
+    const ids = adminNavGroupsForView('admin', { showAll: false }).map((group) => group.id);
+
+    expect(ids).not.toContain('fandom');
+    expect(ids).not.toContain('events');
+    expect(ids).toContain('catalog');
+  });
+
+  it('전체 메뉴는 전부 보여 주고 순서는 그대로다', () => {
+    expect(adminNavGroupsForView('admin', { showAll: true }).map((group) => group.id))
+      .toEqual(ADMIN_NAV_GROUPS.map((group) => group.id));
+  });
+
+  it('기본 메뉴여도 지금 보고 있는 그룹은 남긴다 — 왼쪽에서 현재 위치가 사라지면 안 된다', () => {
+    const ids = adminNavGroupsForView('admin', { showAll: false, activeGroupId: 'fandom' })
+      .map((group) => group.id);
+
+    expect(ids).toContain('fandom');
+    expect(ids).not.toContain('events');
+  });
+
+  it('감춘 그룹에도 staff 규칙은 그대로 걸린다', () => {
+    const staff = adminNavGroupsForView('staff', { showAll: true }).flatMap((group) => group.screens);
+    expect(staff.some((screen) => screen.id === 'roles')).toBe(false);
+  });
+});
+
+describe('저장소 키', () => {
+  it('보기 상태는 브라우저에만 남는다 — 운영자 개인 취향이라 계정에 저장하지 않는다', () => {
+    expect(ADMIN_NAV_TIER_KEY).toBe('admin:nav:tier');
+    expect(ADMIN_NAV_COLLAPSED_KEY).toBe('admin:nav:collapsed-groups');
+  });
+
+  it('현재 그룹은 기존 경로 헬퍼로 찾는다', () => {
+    expect(adminGroupForPath('/admin/catalog/cards')?.id).toBe('fandom');
+  });
+});
+
+describe('그룹 접기 상태', () => {
+  it('깨진 저장값은 빈 목록으로 떨어뜨린다', () => {
+    expect(parseCollapsedNavGroups('')).toEqual([]);
+    expect(parseCollapsedNavGroups('{')).toEqual([]);
+    expect(parseCollapsedNavGroups('{"a":1}')).toEqual([]);
+    expect(parseCollapsedNavGroups('["catalog","catalog",5,""]')).toEqual(['catalog']);
+  });
+
+  it('토글은 켜고 끈다', () => {
+    expect(toggleCollapsedNavGroup([], 'catalog')).toEqual(['catalog']);
+    expect(toggleCollapsedNavGroup(['catalog'], 'catalog')).toEqual([]);
+    expect(JSON.parse(serializeCollapsedNavGroups(['a', 'a', 'b']))).toEqual(['a', 'b']);
+  });
+
+  it('지금 보고 있는 그룹은 접히지 않는다', () => {
+    expect(isNavGroupCollapsed(['catalog'], 'catalog', 'catalog')).toBe(false);
+    expect(isNavGroupCollapsed(['catalog'], 'catalog', 'sales')).toBe(true);
+    expect(isNavGroupCollapsed([], 'catalog', null)).toBe(false);
+  });
+});
+
+describe('기본/전체 저장값', () => {
+  it('저장값이 없으면 기본 메뉴로 시작한다', () => {
+    expect(isAdminNavShowingAll('')).toBe(false);
+    expect(isAdminNavShowingAll('core')).toBe(false);
+    expect(isAdminNavShowingAll('all')).toBe(true);
+    expect(adminNavTierValue(true)).toBe('all');
+    expect(adminNavTierValue(false)).toBe('core');
   });
 });
 
