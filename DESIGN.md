@@ -21,7 +21,7 @@ authority:
     discovery: app/styles/wc-discovery.css
     account-commerce: app/styles/wc-account-commerce.css
     campaign: app/styles/wc-campaign.css
-  retained-for-admin:               # 어드민 콘솔 어휘 — 이번 개편 대상이 아니다
+  retained-for-admin:               # 어드민 콘솔 잔존 어휘 — ADR-0014로 White Catalog 편입 중, 미전환 화면이 쓴다
     - app/globals.css               # S9 이후 전역 하부(Tailwind·Pretendard·리셋)+어드민 HM 유산 밑층
     - app/styles/editorial-foundation.css
     - app/styles/editorial-admin.css  # 실제 라이트 콘솔 룩 — 나중에 로드돼 밑층을 덮는다
@@ -59,7 +59,7 @@ breakpoints:
 ## 0. 상태와 적용 원칙
 
 - 근거 결정은 [ADR-0011](docs/adr/0011-lfs-storefront-redesign.md)이다. 공개 스토어프론트 전 표면이 이 시스템으로 이행됐고, 직전 시스템(Living IP Editorial)의 공개 표면 CSS 3파일과 1세대 잔재(Holographic Midnight)의 공개 표면 규칙은 S9에서 제거됐다.
-- 예외: **어드민**(`/admin/**`)은 이번 개편 대상이 아니며 현재 어휘를 그대로 유지한다. 실제 룩은 editorial 토큰의 라이트 콘솔(editorial-foundation·editorial-admin·admin-console)이고, `globals.css`의 어드민부는 그 아래 깔린 Holographic Midnight 유산 밑층이다 — 라이트 콘솔이 덮지 않는 배치·간격·모션이 거기 있어 "안 보이니 지워도 된다"가 성립하지 않는다. **`/about`**은 구 홈의 콘텐츠 섹션을 보존 전시하는 표면으로, 자체 스타일(about-legacy)을 갖되 전역 셸은 White Catalog을 쓴다.
+- **어드민**(`/admin/**`)은 ADR-0011 시점에는 개편 비대상이었으나 2026-09 운영 콘솔 재설계(ADR-0014)로 White Catalog에 편입한다. 미전환 화면의 룩은 editorial 토큰의 라이트 콘솔(editorial-foundation·editorial-admin·admin-console)이고, `globals.css`의 어드민부는 그 아래 깔린 Holographic Midnight 유산 밑층이다 — 미전환 화면이 남아 있는 동안 라이트 콘솔이 덮지 않는 배치·간격·모션이 거기 있어 "안 보이니 지워도 된다"가 성립하지 않는다. 어드민 전용 규율은 §어드민 콘솔을 따른다. **`/about`**은 구 홈의 콘텐츠 섹션을 보존 전시하는 표면으로, 자체 스타일(about-legacy)을 갖되 전역 셸은 White Catalog을 쓴다.
 - 재조판 잔여: **오프라인 팝업**(`/offline-popups`·`/offline-popups/[eventId]`)과 **법적 문서**(`/legal/*`)는 §8 플레이북의 대상이지만 아직 구 조판이다. S9의 원본 CSS 제거에 맞춰 표면별 격리 CSS(offline-popups-legacy·legal-doc)로 자립시켰고, 재조판은 후속 작업이다.
 - 시각·IA는 전면 교체하지만 기능 계약(인증, 카트, 주문, 결제, 카드팩, 예매, QR, 권한)은 §11의 동결 경계를 따른다.
 - 용어는 `CONTEXT.md`를 따른다: **온라인 팝업**(구 IP 허브), **오프라인 팝업**(예매 도메인), **이벤트**(캠페인 허브), **카테고리**(굿즈 분류), 수집형 **카드** ≠ 실물 **굿즈**.
@@ -343,3 +343,11 @@ protected-boundaries:
 ## 13. 구현 순서
 
 구현 단계·PR 구조·티켓 분해는 [docs/research/linefriends-square/09-implementation-plan.md](docs/research/linefriends-square/09-implementation-plan.md)가 정본이다. 완료 조건: 각 표면이 §8 플레이북과 R-스펙 수치를 만족하고, §11 계약 테스트가 통과하며, `npm run lint`·`npm run build`·`npm run test` 통과 + preview 검수 후 일괄 전환한다. S1~S9 구현은 통합 브랜치에서 끝났고, 남은 단계는 main 일괄 전환이다.
+
+## 어드민 콘솔 (ADR-0014)
+
+- 범위: 셸·2단 IA·audited RPC·원장·테스트는 유지한다. 재설계 대상은 워크플로 표면 — 폼·목록·상세·설정.
+- 다섯 패턴이 합격 기준이다: 모든 자원에 전용 상세 페이지와 타임라인 / 모든 목록에 검색·필터·페이지·일괄 액션 / 초안→공개→보관 게시 상태와 실패에 살아남는 폼 / 설정 섹션(코드 상수→DB 설정) / 엑셀 가져오기·내보내기.
+- 토큰: `app/styles/wc-foundation.css`를 그대로 쓴다. 어드민 전용 값이 필요하면 별도 어드민 레이어에 두고 `wc-*` 파일에 어드민 셀렉터를 넣지 않는다. 전환은 셸(사이드바·헤더·레이아웃)부터 첫 웨이브에 바꾸고 화면은 재설계 순서대로 하나씩 전환한다. 미전환 화면은 새 셸 안에서 editorial 클래스로 남아 두 스타일이 공존하며, editorial 계열은 마지막 웨이브에서 퇴역한다.
+- 라벨 어휘: 운영팀 어휘(상품·상품코드·옵션). 카드·카드팩·티켓은 어드민 안에서도 "상품"이라 부르지 않는다(`CONTEXT.md` Flagged ambiguities).
+- 운영 합격 시나리오 S1~S5(일괄 등록 30종·입력값 소실 0·주문 100건 발송 클릭 10회 이내·이동 없는 문의 응대·배포 없는 설정 변경)는 ADR-0014에 기록돼 있다.
