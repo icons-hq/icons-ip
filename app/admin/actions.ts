@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import {
@@ -30,6 +30,7 @@ import {
 import { normalizeAdminUserRoleForm } from '@/lib/admin/roles';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { getCatalogSnapshot } from '@/lib/catalog';
+import { STOREFRONT_GOODS_CACHE_TAG, STOREFRONT_IPS_CACHE_TAG } from '@/lib/storefront';
 import { sendRestockAlertEmails } from '@/lib/email/transactional.server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -95,6 +96,10 @@ function revalidateCatalog(paths: string[]) {
   for (const path of [...defaults, ...paths]) {
     revalidatePath(path);
   }
+  /* 컬렉션 집계(개수·facet·가격 상한)는 태그로 캐시돼 있어 경로 재검증만으로는 안 바뀐다.
+     상품을 하나 숨겼는데 「전체 13개」가 그대로면 운영자는 저장이 안 된 줄 안다. */
+  updateTag(STOREFRONT_GOODS_CACHE_TAG);
+  updateTag(STOREFRONT_IPS_CACHE_TAG);
 }
 
 function revalidateStock(ipPath: string | null) {

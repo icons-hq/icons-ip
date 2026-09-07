@@ -95,7 +95,7 @@ interface VerticalRow {
   color: string;
 }
 
-interface IpRow {
+export interface IpRow {
   id: string;
   title: string;
   sub: string | null;
@@ -111,7 +111,7 @@ interface IpRow {
   cards_count: number;
 }
 
-interface GoodRow {
+export interface GoodRow {
   id: string;
   ip_id: string;
   name: string;
@@ -468,7 +468,7 @@ function applyHomeFeaturedArtwork(
   };
 }
 
-function toIp(row: IpRow, verticalsByKey: Map<string, Vertical>, imageUrlForPath: (path: string) => string): Ip {
+export function toIp(row: IpRow, verticalsByKey: Map<string, Vertical>, imageUrlForPath: (path: string) => string): Ip {
   return {
     id: row.id,
     title: row.title,
@@ -485,7 +485,7 @@ function toIp(row: IpRow, verticalsByKey: Map<string, Vertical>, imageUrlForPath
   };
 }
 
-function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
+export function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
   const stockQty = row.stock_qty ?? 0;
   return {
     id: row.id,
@@ -621,6 +621,19 @@ async function countReactionsByPostId(
   return new Map(entries);
 }
 
+function assertNotTruncated(
+  label: string,
+  result: { data: unknown[] | null; count: number | null },
+) {
+  const received = result.data?.length ?? 0;
+  if (result.count !== null && result.count > received) {
+    throw new Error(
+      `Catalog snapshot truncated: ${label} has ${result.count} rows but only ${received} were returned. `
+      + 'Move this consumer to the storefront paging RPCs (lib/storefront.server.ts).',
+    );
+  }
+}
+
 export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): Promise<CatalogSnapshot> {
   const source = getCatalogSource(options);
   if (source === 'mock') return mockSnapshot();
@@ -631,22 +644,28 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
     supabase.from('verticals').select('key,label,color').order('key'),
     supabase
       .from('ips')
-      .select('id,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count,goods_count,cards_count')
+      .select(
+        'id,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count,goods_count,cards_count',
+        { count: 'exact' },
+      )
       .is('archived_at', null)
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
-      .select('id,ip_id,name,type,price,compare_at_price,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer')
+      .select(
+        'id,ip_id,name,type,price,compare_at_price,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer',
+        { count: 'exact' },
+      )
       .is('archived_at', null)
       .order('id'),
     supabase
       .from('cards')
-      .select('id,ip_id,name,no,rarity,bg,image_path')
+      .select('id,ip_id,name,no,rarity,bg,image_path', { count: 'exact' })
       .is('archived_at', null)
       .order('id'),
     supabase
       .from('events')
-      .select('id,ip_id,title,mode,status,starts_at,ends_at,location,accent,bg,image_path')
+      .select('id,ip_id,title,mode,status,starts_at,ends_at,location,accent,bg,image_path', { count: 'exact' })
       .is('archived_at', null)
       .order('id'),
   ]);
@@ -667,6 +686,20 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
   if (eventsResult.error) {
     throw new Error(`Failed to load catalog events: ${eventsResult.error.message}`);
   }
+
+  /*
+   * **잘렸으면 조용히 넘어가지 않는다** (규모 ⑤).
+   *
+   * limit 없는 select 는 PostgREST `max_rows`(기본 1,000)에서 잘린다. 이 스냅샷은 화면들이
+   * 「전부」로 믿고 쓰는 값이라, 잘린 채 통과하면 1,001번째 상품·카드·이벤트는 느린 게 아니라
+   * **없는 것**이 된다 — 화면에도 로그에도 아무 흔적이 없다. 정확한 count 와 받은 행 수를
+   * 비교해 어긋나면 여기서 멈춘다. 목록 화면은 이미 페이징 RPC 로 옮겼고(`storefront.server`),
+   * 남은 소비처가 이 상한에 닿으면 그때 옮기라는 신호다.
+   */
+  assertNotTruncated('ips', ipsResult);
+  assertNotTruncated('goods', goodsResult);
+  assertNotTruncated('cards', cardsResult);
+  assertNotTruncated('events', eventsResult);
 
   const verticals = (verticalsResult.data ?? []) as VerticalRow[];
   const verticalsByKey = new Map(verticals.map((vertical) => [vertical.key, vertical]));

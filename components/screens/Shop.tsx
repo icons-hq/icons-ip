@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { OverlayPortal } from '@/components/shell/OverlayPortal';
 import { useOverlayA11y } from '@/components/shell/useOverlayA11y';
 import { EmptyState } from '@/components/wc/EmptyState';
@@ -9,6 +9,7 @@ import { ProductCard } from '@/components/wc/ProductCard';
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import { ViewMore } from '@/components/wc/ViewMore';
 import { WcButton } from '@/components/wc/WcButton';
+import type { Good } from '@/lib/data';
 import { krw } from '@/lib/format';
 import { goodDetailHref } from '@/lib/goods-display';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
@@ -40,6 +41,9 @@ export interface ShopProps {
   view: ShopView;
   query: ShopListQuery;
   result: ShopListResult;
+  /* 「더 보기」가 다음 페이지를 서버에서 받아 온다. 주지 않으면 받은 목록 안에서만 늘어난다
+     — BEST 처럼 큐레이션이 목록을 통째로 정하는 화면은 더 받을 것이 없다. */
+  loadMore?: (offset: number) => Promise<Good[]>;
 }
 
 export interface ShopFilterDraft {
@@ -214,7 +218,7 @@ function PriceSlider({
   );
 }
 
-export function Shop({ query, result, view }: ShopProps) {
+export function Shop({ loadMore, query, result, view }: ShopProps) {
   const pathname = usePathname();
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -223,6 +227,9 @@ export function Shop({ query, result, view }: ShopProps) {
      한 프레임 동안 옛 상태가 그려지므로, 질의 문자열을 키로 들고 렌더 중에 판별한다. */
   const queryKey = shopQueryString(query);
   const [shown, setShown] = useState({ key: queryKey, count: SHOP_PAGE_SIZE });
+  /* 서버에서 이어 받은 페이지. 질의가 바뀌면 버린다 — 옛 질의의 상품이 섞이면 개수가 거짓이 된다. */
+  const [appended, setAppended] = useState<{ key: string; goods: Good[] }>({ key: queryKey, goods: [] });
+  const [loadingMore, startLoadMore] = useTransition();
   const [price, setPrice] = useState({ key: queryKey, min: query.priceMin, max: query.priceMax });
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sheetTab, setSheetTab] = useState<SheetTabId>('ips');
@@ -271,7 +278,22 @@ export function Shop({ query, result, view }: ShopProps) {
   }
 
   const brandByIpId = new Map(result.ipFacets.map((facet) => [facet.value, facet.label]));
-  const visibleGoods = result.goods.slice(0, visibleCount);
+  const loadedGoods = appended.key === queryKey ? [...result.goods, ...appended.goods] : result.goods;
+  const visibleGoods = loadedGoods.slice(0, visibleCount);
+
+  const onViewMore = () => {
+    const next = visibleCount + SHOP_PAGE_SIZE;
+    setShown({ key: queryKey, count: next });
+    /* 이미 받아 둔 것으로 채울 수 있거나 더 받을 것이 없으면 서버를 부르지 않는다. */
+    if (!loadMore || next <= loadedGoods.length || loadedGoods.length >= result.filteredTotal) return;
+    startLoadMore(async () => {
+      const fetched = await loadMore(loadedGoods.length);
+      setAppended((previous) => ({
+        key: queryKey,
+        goods: previous.key === queryKey ? [...previous.goods, ...fetched] : fetched,
+      }));
+    });
+  };
   const hasFilters = query.ips.length > 0
     || query.types.length > 0
     || query.priceMin !== null
@@ -398,9 +420,7 @@ export function Shop({ query, result, view }: ShopProps) {
                   ))}
                 </div>
                 {visibleCount < result.filteredTotal ? (
-                  <ViewMore
-                    onClick={() => setShown({ key: queryKey, count: visibleCount + SHOP_PAGE_SIZE })}
-                  />
+                  <ViewMore loading={loadingMore} onClick={onViewMore} />
                 ) : null}
               </>
             )}

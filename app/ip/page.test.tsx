@@ -1,10 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CatalogSnapshot } from '@/lib/catalog';
+import type { Ip } from '@/lib/data';
 import Page from './page';
 
 const mocks = vi.hoisted(() => ({
-  catalog: null as unknown as CatalogSnapshot,
+  ips: [] as Ip[],
   directory: vi.fn<(props: Record<string, unknown>) => null>(() => null),
   redirect: vi.fn<(path: string) => never>((path) => {
     throw new Error(`redirect:${path}`);
@@ -13,7 +13,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
 vi.mock('@/components/screens/IpDirectory', () => ({ IpDirectory: mocks.directory }));
-vi.mock('@/lib/catalog', () => ({ getCatalogSnapshot: () => mocks.catalog }));
+vi.mock('@/lib/storefront.server', () => ({
+  getStorefrontIpsPage: async () => ({ ips: mocks.ips, total: mocks.ips.length }),
+}));
 
 const ip = {
   id: 'ip-1',
@@ -31,7 +33,7 @@ const ip = {
 };
 
 beforeEach(() => {
-  mocks.catalog = { source: 'mock', verticals: [], ips: [ip], goods: [], cards: [], events: [] };
+  mocks.ips = [ip];
   mocks.directory.mockClear();
   mocks.redirect.mockClear();
 });
@@ -60,7 +62,7 @@ describe('/ip page', () => {
   });
 
   it('still renders the directory for an empty catalog — the empty state lives in the screen', async () => {
-    mocks.catalog = { ...mocks.catalog, ips: [] };
+    mocks.ips = [];
 
     renderToStaticMarkup(await Page({ searchParams: Promise.resolve({}) }));
 

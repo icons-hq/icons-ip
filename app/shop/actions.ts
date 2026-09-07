@@ -1,6 +1,9 @@
 'use server';
 
 import { isAccountSuspended } from '@/lib/auth/onboarding';
+import type { Good } from '@/lib/data';
+import { SHOP_SORTS, type ShopListQuery } from '@/lib/shop-catalog';
+import { getStorefrontGoodsPage } from '@/lib/storefront.server';
 import { getCurrentAuthState, type CurrentAuthState } from '@/lib/auth/server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -105,4 +108,30 @@ export async function requestRestockAlertAction(goodIdValue: unknown): Promise<R
   }
 
   return { ok: true, status: 'pending' };
+}
+
+/*
+ * 「더 보기」 한 번 = 다음 페이지 하나 (규모 ⑤).
+ *
+ * 질의는 브라우저가 보내므로 믿지 않는다 — 뷰·정렬은 목록에서 다시 고르고, 상한과 필터
+ * 검증은 RPC 안에 있다. 실패는 빈 배열로 수렴한다: 더 못 받았다고 이미 보던 목록을
+ * 지울 이유는 없다.
+ */
+export async function loadMoreShopGoodsAction(
+  query: ShopListQuery,
+  offset: number,
+): Promise<Good[]> {
+  const safeOffset = Number.isSafeInteger(offset) && offset > 0 ? offset : 0;
+  const safeQuery: ShopListQuery = {
+    ...query,
+    view: query.view === 'new' ? 'new' : 'all',
+    sort: SHOP_SORTS.find((candidate) => candidate === query.sort) ?? 'recommended',
+  };
+
+  try {
+    const page = await getStorefrontGoodsPage(safeQuery, { offset: safeOffset });
+    return page.goods;
+  } catch {
+    return [];
+  }
 }

@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { CatalogSnapshot } from '@/lib/catalog';
+import type { Good, Ip } from '@/lib/data';
 import type { WishlistEntry } from '@/lib/wishlist.server';
 import Page, { metadata } from './page';
 
@@ -28,8 +28,12 @@ vi.mock('@/lib/auth/server', () => ({
 vi.mock('@/lib/wishlist.server', () => ({
   getWishlistEntries: async () => mocks.entries,
 }));
-vi.mock('@/lib/catalog', () => ({
-  getCatalogSnapshot: async () => catalog,
+/* 위시는 찜한 id 만 읽는다(규모 ⑤) — 여기서도 그 계약대로, 물어본 id 만 돌려준다. */
+vi.mock('@/lib/storefront.server', () => ({
+  getStorefrontGoodsByIds: async (ids: readonly string[]) =>
+    catalog.goods.filter((good: Good) => ids.includes(good.id)),
+  getStorefrontIpsByIds: async (ids: readonly string[]) =>
+    catalog.ips.filter((ip: Ip) => ids.includes(ip.id)),
 }));
 vi.mock('@/components/shell/CartProvider', () => ({
   useCart: () => ({
@@ -77,7 +81,7 @@ const catalog = {
   }],
   cards: [],
   events: [],
-} as unknown as CatalogSnapshot;
+} as unknown as { goods: Good[]; ips: Ip[] };
 
 async function render() {
   return renderToStaticMarkup(await Page());

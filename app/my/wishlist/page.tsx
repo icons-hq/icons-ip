@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Wishlist } from '@/components/screens/Wishlist';
 import { getCurrentAuthState } from '@/lib/auth/server';
-import { getCatalogSnapshot } from '@/lib/catalog';
+import { getStorefrontGoodsByIds, getStorefrontIpsByIds } from '@/lib/storefront.server';
 import { getWishlistEntries } from '@/lib/wishlist.server';
 
 export const metadata: Metadata = {
@@ -15,13 +15,16 @@ export const metadata: Metadata = {
    목록 자체는 RLS 가 본인 행만 주지만, 로그인 없이 열면 빈 화면이 "찜한 게 없다"는
    거짓말이 된다.
 
-   찜 항목과 카탈로그는 서로를 기다릴 이유가 없어 함께 읽는다. 조인은 화면이 한다 —
+   카탈로그는 **찜한 id 만** 읽는다(규모 ⑤). 전량을 읽으면 1,000번째 뒤의 상품을 찜한
+   사람에게는 「판매 종료」로 보인다 — 조용히 틀리는 종류의 버그다. 조인은 화면이 한다:
    판매 종료 행 처리를 페이지와 화면 두 곳에 두면 한쪽만 고쳐진다. */
 export default async function Page() {
   const auth = await getCurrentAuthState();
   if (!auth.user) redirect(`/login?next=${encodeURIComponent('/my/wishlist')}`);
 
-  const [entries, catalog] = await Promise.all([getWishlistEntries(), getCatalogSnapshot()]);
+  const entries = await getWishlistEntries();
+  const goods = await getStorefrontGoodsByIds(entries.map((entry) => entry.goodId));
+  const ips = await getStorefrontIpsByIds(goods.map((good) => good.ip));
 
-  return <Wishlist catalog={catalog} entries={entries} />;
+  return <Wishlist catalog={{ goods, ips }} entries={entries} />;
 }

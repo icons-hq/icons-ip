@@ -76,14 +76,20 @@ function dedupe(values: readonly string[]): string[] {
   return [...new Set(values)];
 }
 
+/*
+ * `validIpIds` 를 주면 모르는 IP id 를 URL 에서 떨궈 낸다(전량 카탈로그를 쥔 화면).
+ * 서버가 거르는 경로에서는 주지 않는다 — 모르는 id 는 **DB 가 0건으로 답하는 것**이 정답이고,
+ * 목록 상한 안에 없는 IP 를 「없는 IP」로 오해해 지우면 딥링크가 조용히 다른 결과를 낸다.
+ */
 export function parseShopSearchParams(
   params: Record<string, SearchParamValue>,
-  options: { view: ShopView; validIpIds: ReadonlySet<string> },
+  options: { view: ShopView; validIpIds?: ReadonlySet<string> },
 ): ShopListQuery {
   const sortParam = firstOf(params.sort);
+  const validIpIds = options.validIpIds;
 
   return {
-    ips: dedupe(valuesOf(params.ip).filter((id) => options.validIpIds.has(id))),
+    ips: dedupe(valuesOf(params.ip).filter((id) => validIpIds === undefined || validIpIds.has(id))),
     types: dedupe(valuesOf(params.type).filter(isGoodType)),
     priceMin: parsePrice(params.min),
     priceMax: parsePrice(params.max),

@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   getAdminCatalogRecords: vi.fn(),
   rpc: vi.fn(),
   revalidatePath: vi.fn(),
+  updateTag: vi.fn(),
   sendRestockAlertEmails: vi.fn(),
 }));
 
@@ -57,6 +58,7 @@ vi.mock('@/lib/email/transactional.server', () => ({
 }));
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
+  updateTag: mocks.updateTag,
 }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => {

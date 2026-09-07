@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Good } from '@/lib/data';
+import { selectShopGoods, type ShopListQuery } from '@/lib/shop-catalog';
 import Page, { metadata } from './page';
 
 const mocks = vi.hoisted(() => ({ goods: [] as Good[] }));
@@ -10,29 +10,28 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/shop/new',
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
 }));
-vi.mock('@/lib/catalog', () => ({
-  getCatalogSnapshot: async (): Promise<CatalogSnapshot> => ({
-    source: 'supabase',
-    verticals: [],
-    ips: [{
-      id: 'ip1',
-      title: '홍실',
-      sub: '',
-      v: { key: 'story', label: '스토리', color: '#111' },
-      glyph: '◆',
-      bg: 'none',
-      fans: 0,
-      goods: 0,
-      cards: 0,
-      featured: false,
-      tagline: '',
-      synopsis: '',
-    }],
-    goods: mocks.goods,
-    cards: [],
-    events: [],
-  }),
+const ip = {
+  id: 'ip1',
+  title: '홍실',
+  sub: '',
+  v: { key: 'story', label: '스토리', color: '#111' },
+  glyph: '◆',
+  bg: 'none',
+  fans: 0,
+  goods: 0,
+  cards: 0,
+  featured: false,
+  tagline: '',
+  synopsis: '',
+};
+
+/* 페이지는 이제 DB 가 만든 한 판을 받는다(규모 ⑤). 여기서는 그 자리에 메모리 구현을 끼워
+   URL 파라미터 → 목록 계약만 본다 — 목록 규칙 자체는 lib/shop-catalog 테스트가 잠근다. */
+vi.mock('@/lib/storefront.server', () => ({
+  getStorefrontShopResult: async (query: ShopListQuery) =>
+    selectShopGoods({ ips: [ip], goods: mocks.goods }, query),
 }));
+vi.mock('@/app/shop/actions', () => ({ loadMoreShopGoodsAction: vi.fn() }));
 
 function good(id: string, overrides: Partial<Good> = {}): Good {
   return {

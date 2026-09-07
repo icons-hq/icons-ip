@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import { Shop } from '@/components/screens/Shop';
-import { getCatalogSnapshot } from '@/lib/catalog';
-import { parseShopSearchParams, selectShopGoods } from '@/lib/shop-catalog';
+import { loadMoreShopGoodsAction } from '@/app/shop/actions';
+import { parseShopSearchParams } from '@/lib/shop-catalog';
+import { getStorefrontShopResult } from '@/lib/storefront.server';
 
 export const metadata: Metadata = {
   title: 'NEW — ICONS',
@@ -15,11 +16,15 @@ interface PageProps {
 /* NEW 는 별도 큐레이션이 아니라 굿즈의 NEW 배지가 정의한다 — 컬렉션 스코프만 다르고
    필터·정렬·VIEW MORE 는 굿즈샵과 같은 화면이다. */
 export default async function Page({ searchParams }: PageProps) {
-  const [catalog, params] = await Promise.all([getCatalogSnapshot(), searchParams ?? {}]);
-  const query = parseShopSearchParams(params, {
-    view: 'new',
-    validIpIds: new Set(catalog.ips.map((ip) => ip.id)),
-  });
+  const params = (await searchParams) ?? {};
+  const query = parseShopSearchParams(params, { view: 'new' });
 
-  return <Shop query={query} result={selectShopGoods(catalog, query)} view="new" />;
+  return (
+    <Shop
+      loadMore={loadMoreShopGoodsAction.bind(null, query)}
+      query={query}
+      result={await getStorefrontShopResult(query)}
+      view="new"
+    />
+  );
 }
