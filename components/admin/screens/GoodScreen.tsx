@@ -16,6 +16,7 @@ import type { AdminGoodVariantEditorData } from '@/lib/admin/variants';
 import type { AdminCategory } from '@/lib/admin/categories';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import { useSelectedRecord } from './record-selection';
+import type { AdminShippingPolicy } from '@/lib/admin/shipping-policies';
 
 const emptyState: AdminCatalogActionState = {};
 
@@ -44,6 +45,7 @@ export function GoodScreen({
   variantEditor = null,
   categories = [],
   categoryMemberships = [],
+  shippingPolicies = [],
 }: {
   adjustmentId: string;
   catalogIps: CatalogSnapshot['ips'];
@@ -58,6 +60,7 @@ export function GoodScreen({
   /** 분류 선택지와 이 굿즈의 소속(D-9). */
   categories?: readonly AdminCategory[];
   categoryMemberships?: readonly { categoryId: string; isPrimary: boolean }[];
+  shippingPolicies?: AdminShippingPolicy[];
 }) {
   const [state, action, pending] = useActionState(upsertAdminGoodAction, emptyState);
   const creating = filters.selected === ADMIN_CATALOG_NEW_RECORD;
@@ -95,6 +98,7 @@ export function GoodScreen({
       variantEditor={variantEditor}
       categories={categories}
       categoryMemberships={categoryMemberships}
+      shippingPolicies={shippingPolicies}
     />
   );
 }

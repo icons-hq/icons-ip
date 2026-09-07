@@ -11,6 +11,7 @@ import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { getAdminGoodVariantEditorData } from '@/lib/admin/variants.server';
 import { getAdminCategories, getAdminGoodCategories } from '@/lib/admin/categories.server';
 import { getCatalogSnapshot } from '@/lib/catalog';
+import { getAdminShippingPolicies } from '@/lib/admin/shipping-policies.server';
 
 /*
  * 목록 조건(탭·검색·필터·정렬·페이지)과 편집 대상(`?selected=`)은 전부 URL에 있다.
@@ -33,7 +34,7 @@ export default async function AdminCatalogGoodsPage({
   /* 편집 대상이 없으면(낡은 링크) 목록을 그리되 화면 래퍼가 그 id 를 알린다. */
   const editing = creating || selected !== null;
 
-  const [list, ipOptions, catalog, variantEditor, categories, categoryMemberships] = await Promise.all([
+  const [list, ipOptions, catalog, variantEditor, categories, categoryMemberships, shippingPolicies] = await Promise.all([
     editing ? null : getAdminGoodList(filters),
     getAdminIpOptions({ selectedId: editing ? (selected?.ipId ?? template?.ipId ?? null) : (filters.ip || null) }),
     /* 미리보기용 공개 스냅샷은 편집 화면만 쓴다. */
@@ -42,6 +43,7 @@ export default async function AdminCatalogGoodsPage({
     selected ? getAdminGoodVariantEditorData(selected.id) : null,
     selected ? getAdminCategories() : [],
     selected ? getAdminGoodCategories(selected.id) : [],
+    selected ? getAdminShippingPolicies() : [],
   ]);
 
   return (
@@ -57,6 +59,7 @@ export default async function AdminCatalogGoodsPage({
       variantEditor={variantEditor}
       categories={categories}
       categoryMemberships={categoryMemberships}
+      shippingPolicies={shippingPolicies}
     />
   );
 }

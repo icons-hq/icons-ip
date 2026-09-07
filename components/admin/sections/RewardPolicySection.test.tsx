@@ -79,6 +79,7 @@ const goods: AdminGoodRecord[] = [
     maxQtyPerAccount: null,
     adultOnly: false,
     barcode: null,
+    shippingPolicyId: null,
   },
   {
     id: 'good-b',
@@ -129,6 +130,7 @@ const goods: AdminGoodRecord[] = [
     maxQtyPerAccount: null,
     adultOnly: false,
     barcode: null,
+    shippingPolicyId: null,
   },
 ];
 

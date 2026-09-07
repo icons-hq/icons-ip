@@ -34,6 +34,7 @@ function good(overrides: Partial<AdminGoodRecord> & Pick<AdminGoodRecord, 'id' |
     maxQtyPerAccount: null,
     adultOnly: false,
     barcode: null,
+    shippingPolicyId: null,
     archivedAt: null,
     ipId: 'hwasan',
     type: '아크릴',

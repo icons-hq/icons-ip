@@ -64,6 +64,9 @@ vi.mock('@/lib/admin/categories.server', () => ({
   getAdminCategoryGoods: vi.fn(),
   getAdminGoodCategories: mocks.goodCategories,
 }));
+vi.mock('@/lib/admin/shipping-policies.server', () => ({
+  getAdminShippingPolicies: async () => [],
+}));
 vi.mock('@/lib/admin/draw-ticket-grants.server', () => ({
   getAdminDrawTicketGrants: mocks.drawTicketGrants,
 }));

@@ -20,6 +20,11 @@ import {
   type AdminCategory,
 } from '@/lib/admin/categories';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
+import { setGoodShippingPolicyAction } from '@/app/admin/shipping-policy-actions';
+import {
+  shippingPolicySummary,
+  type AdminShippingPolicy,
+} from '@/lib/admin/shipping-policies';
 import { Icon } from '@/components/ui/Icon';
 import { Field, FormShell, InlineNotice, SelectField, TextArea } from '../fields';
 import { SeededForm } from '@/components/admin/form-seed';
@@ -399,6 +404,61 @@ export function GoodCategoriesPanel({
           대표 분류는 하나뿐입니다. 체크하지 않아도 대표로 고른 분류는 자동으로 포함됩니다.
         </p>
         <FormShell pending={pending} state={state} />
+      </SeededForm>
+    </section>
+  );
+}
+
+/*
+ * 배송 정책 연결 (현업 슬라이스 2).
+ *
+ * 상품에 배송비를 적지 않고 **정책을 가리킨다** — 값이 바뀔 때 상품 수천 개를 고칠 수는 없다.
+ * 비워 두면 기본 정책을 쓴다.
+ */
+export function GoodShippingPolicyPanel({
+  good,
+  policies,
+}: {
+  good: AdminGoodRecord;
+  policies: AdminShippingPolicy[];
+}) {
+  const [state, action, pending] = useActionState(setGoodShippingPolicyAction, emptyState);
+  const applied = policies.find((policy) => policy.id === good.shippingPolicyId)
+    ?? policies.find((policy) => policy.isDefault)
+    ?? null;
+
+  return (
+    <section aria-labelledby={`shipping-${good.id}`} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+      <div>
+        <span className="eyebrow">SHIPPING</span>
+        <h2 id={`shipping-${good.id}`} style={{ fontSize: 18, margin: '6px 0 0' }}>배송·교환반품</h2>
+        {applied ? (
+          <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: '6px 0 0' }}>
+            지금 적용: <strong>{applied.name}</strong> — {shippingPolicySummary(applied)}
+            {applied.returnFee > 0 ? ` · 반품 배송비 ${applied.returnFee.toLocaleString('ko-KR')}원` : ''}
+          </p>
+        ) : null}
+      </div>
+      <SeededForm values={state.values} action={action} className="col" style={{ gap: 10 }}>
+        <input name="goodId" type="hidden" value={good.id} />
+        <SelectField
+          defaultValue={good.shippingPolicyId ?? ''}
+          error={state.errors?.shippingPolicyId}
+          label="배송 정책"
+          name="shippingPolicyId"
+        >
+          <option value="">기본 정책 사용</option>
+          {policies.filter((policy) => !policy.isDefault).map((policy) => (
+            <option key={policy.id} value={policy.id}>{policy.name}</option>
+          ))}
+        </SelectField>
+        <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+          정책 자체는 <a href="/admin/settings/shipping">출고지·배송 정책</a> 에서 만듭니다.
+        </p>
+        <InlineNotice state={state} />
+        <button className="btn btn-holo" disabled={pending} style={{ justifySelf: 'start', minWidth: 150 }}>
+          <Icon name="check" size={15} /> {pending ? '저장 중' : '배송 정책 연결'}
+        </button>
       </SeededForm>
     </section>
   );

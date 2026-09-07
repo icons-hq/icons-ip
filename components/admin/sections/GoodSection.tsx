@@ -7,6 +7,7 @@ import {
   type AdminCatalogActionState,
 } from '@/app/admin/actions';
 import { IpPicker } from '@/components/admin/catalog/IpPicker';
+import type { AdminShippingPolicy } from '@/lib/admin/shipping-policies';
 import { GOODS_DESCRIPTION_MAX_LENGTH, GOODS_GALLERY_MAX, type AdminFieldErrors } from '@/lib/admin/catalog';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import { buildGoodPreview, goodFormValues } from '@/lib/admin/good-preview';
@@ -54,6 +55,7 @@ import {
   GoodPurchaseLimitPanel,
   GoodSalePanel,
   GoodSearchSeoPanel,
+  GoodShippingPolicyPanel,
 } from '../catalog/GoodSalePanels';
 import type { AdminGoodVariantEditorData } from '@/lib/admin/variants';
 import { GOOD_SALE_STATE_LABELS, type AdminCategory } from '@/lib/admin/categories';
@@ -701,6 +703,7 @@ export function GoodSection({
   variantEditor = null,
   categories = [],
   categoryMemberships = [],
+  shippingPolicies = [],
 }: {
   action: (payload: FormData) => void;
   adjustmentId: string;
@@ -708,6 +711,7 @@ export function GoodSection({
   /** 분류 선택지(D-9). 편집 화면에서만 채워진다. */
   categories?: readonly AdminCategory[];
   categoryMemberships?: readonly { categoryId: string; isPrimary: boolean }[];
+  shippingPolicies?: AdminShippingPolicy[];
   /** 기존 굿즈를 원본으로 새 등록을 여는 링크(`?selected=new&copyFrom=`). 수정 화면에서만 뜬다. */
   copyHref?: string | null;
   ipOptions: { id: string; title: string; archivedAt: string | null }[];
@@ -753,6 +757,13 @@ export function GoodSection({
       )}
       {selected && !selected.archivedAt && (
         <GoodPurchaseLimitPanel good={selected} key={`limits-${selected.id}:${selected.minOrderQty}`} />
+      )}
+      {selected && !selected.archivedAt && (
+        <GoodShippingPolicyPanel
+          good={selected}
+          key={`shipping-${selected.id}:${selected.shippingPolicyId ?? 'default'}`}
+          policies={shippingPolicies}
+        />
       )}
       {selected && !selected.archivedAt && (
         <GoodCompliancePanel good={selected} key={`compliance-${selected.id}:${selected.kcStatus}`} />

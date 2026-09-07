@@ -69,6 +69,7 @@ function good(overrides: Partial<AdminGoodRecord> & Pick<AdminGoodRecord, 'id'>)
     maxQtyPerAccount: null,
     adultOnly: false,
     barcode: null,
+    shippingPolicyId: null,
     ...overrides,
   };
 }

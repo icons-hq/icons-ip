@@ -117,6 +117,7 @@ const good: AdminGoodRecord = {
   maxQtyPerAccount: null,
   adultOnly: false,
   barcode: null,
+  shippingPolicyId: null,
 };
 
 function renderGoodSection(
@@ -284,9 +285,9 @@ describe('GoodSection', () => {
     expect(html).toContain('name="adjustmentId"');
     expect(html).toContain('name="expectedStockQty"');
     expect(html).toContain('재고 조정');
-    /* 저장 · 판매기간 · 스위치 · 공급가 · 할인 · 구매조건 · KC표기 · 분류 · 검색SEO ·
-       재고 조정 · 무통장 · 보관 열두 개다(현업 요청 슬라이스 1 에서 셋 늘었다). */
-    expect(html.match(/<form/g)).toHaveLength(12);
+    /* 저장 · 판매기간 · 스위치 · 공급가 · 할인 · 구매조건 · 배송정책 · KC표기 · 분류 ·
+       검색SEO · 재고 조정 · 무통장 · 보관 열세 개다(현업 슬라이스 1·2 에서 넷 늘었다). */
+    expect(html.match(/<form/g)).toHaveLength(13);
   });
 
   it('renders the variant table and per-slot stock forms when the variant editor data is present', () => {
@@ -339,8 +340,8 @@ describe('GoodSection', () => {
     expect(html).toContain('name="safetyQty"');
     expect(html).toContain('12 / 0 / 0');
     /* 저장 · 판매기간 · 스위치 · 공급가 · 할인 · 구매조건 · KC표기 · 분류 · 검색SEO ·
-       품목 저장 · 재고 조정 · 이동 · 안전재고 · 무통장 · 보관 = 15 */
-    expect(html.match(/<form/g)).toHaveLength(15);
+       배송정책 · 품목 저장 · 재고 조정 · 이동 · 안전재고 · 무통장 · 보관 = 16 */
+    expect(html.match(/<form/g)).toHaveLength(16);
   });
 
   it('derives soldout for zero quantity without changing the raw stock label', () => {
@@ -455,8 +456,8 @@ describe('GoodSection', () => {
     const html = renderGoodSection(good);
 
     expect(html).not.toContain('shop-cart-button');
-    /* 편집 화면의 폼 열두 개 그대로다. 미리보기는 폼을 늘리지 않는다. */
-    expect(html.match(/<form/g)).toHaveLength(12);
+    /* 편집 화면의 폼 열세 개 그대로다. 미리보기는 폼을 늘리지 않는다. */
+    expect(html.match(/<form/g)).toHaveLength(13);
   });
 
   /* #326 — 유형·배지는 자유 입력이 아니라 표준 값 select 다(DB CHECK 와 같은 목록). */

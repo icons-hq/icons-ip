@@ -76,6 +76,7 @@ export interface AdminGoodRecord {
   maxQtyPerAccount: number | null;
   adultOnly: boolean;
   barcode: string | null;
+  shippingPolicyId: string | null;
 }
 
 export interface AdminCardRecord {
@@ -379,6 +380,7 @@ interface GoodRow {
   max_qty_per_account?: number | null;
   adult_only?: boolean;
   barcode?: string | null;
+  shipping_policy_id?: string | null;
 }
 
 /** 굿즈·IP 목록 RPC 로더(`catalog-list.server.ts`)가 같은 행 모양을 받는다. */
@@ -387,7 +389,7 @@ export type AdminGoodRow = GoodRow;
 
 /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
 export const ADMIN_IP_SELECT = 'id,archived_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count';
-export const ADMIN_GOOD_SELECT = 'id,archived_at,ip_id,name,type,price,compare_at_price,badge,stock,stock_qty,allow_bank_transfer,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path,hidden_at,stopped_at,sale_starts_at,sale_ends_at,sale_mode,preorder_ships_at,summary,search_keywords,seo_title,seo_description,image_alt,gallery_alts,supply_price,tax_type,discount_kind,discount_value,discount_starts_at,discount_ends_at,discount_shows_rate,kc_status,kc_type,kc_number,kc_company,min_order_qty,max_order_qty,max_qty_per_account,adult_only,barcode,sale_state:good_sale_state';
+export const ADMIN_GOOD_SELECT = 'id,archived_at,ip_id,name,type,price,compare_at_price,badge,stock,stock_qty,allow_bank_transfer,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path,hidden_at,stopped_at,sale_starts_at,sale_ends_at,sale_mode,preorder_ships_at,summary,search_keywords,seo_title,seo_description,image_alt,gallery_alts,supply_price,tax_type,discount_kind,discount_value,discount_starts_at,discount_ends_at,discount_shows_rate,kc_status,kc_type,kc_number,kc_company,min_order_qty,max_order_qty,max_qty_per_account,adult_only,barcode,shipping_policy_id,sale_state:good_sale_state';
 
 interface AdminMediaClient {
   storage: {
@@ -499,6 +501,7 @@ export function toAdminGoodRecord(row: GoodRow, media: AdminMediaResolver): Admi
     maxQtyPerAccount: row.max_qty_per_account ?? null,
     adultOnly: row.adult_only ?? false,
     barcode: row.barcode ?? null,
+    shippingPolicyId: row.shipping_policy_id ?? null,
   };
 }
 
