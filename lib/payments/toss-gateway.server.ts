@@ -104,6 +104,15 @@ const CONFIGURATION_CODES = new Set([
   'INVALID_REQUIRED_PARAM',
   'INVALID_IDEMPOTENCY_KEY',
 ]);
+// 문서 59 에러 표의 403 중 키·상점 설정 축이 아닌 일시 코드 — FORBIDDEN_CONSECUTIVE_REQUEST
+// "반복적인 요청은 허용되지 않습니다. 잠시 후 다시 시도해주세요."·NOT_AVAILABLE_BANK "은행
+// 서비스 시간이 아닙니다." 조회가 이 코드로 거부되면 사람이 키를 고칠 일이 아니라 재시도로
+// 풀리는 상태이므로, 401/403 일괄 설정 오류 규칙보다 먼저 unknown(provider_unavailable)으로
+// 분류해 웹훅 재전송·같은 멱등키 재실행에 맡긴다.
+const TRANSIENT_CODES = new Set([
+  'FORBIDDEN_CONSECUTIVE_REQUEST',
+  'NOT_AVAILABLE_BANK',
+]);
 
 interface TossGatewayOptions {
   readonly clientKey: string;
@@ -264,6 +273,62 @@ function paymentMatchesAttempt(payment: Record<string, unknown>, attempt: Paymen
     && integerAmount(payment.totalAmount) === attempt.amount
     && safeString(payment.paymentKey, 200)
     && PROVIDER_PAYMENT_KEY.test(payment.paymentKey as string);
+}
+
+/**
+ * 가상계좌 결제인지. Payment 객체의 `method`는 `가상계좌`이고(문서 127 결제수단
+ * 열거) `virtualAccount` 객체가 실린다 — 둘 중 하나만 있어도 가상계좌로 본다.
+ * 카드·간편결제 응답의 `virtualAccount: null`은 객체가 아니므로 걸리지 않는다.
+ */
+function isVirtualAccountPayment(payment: Record<string, unknown>) {
+  return payment.method === '가상계좌' || plainRecord(payment.virtualAccount);
+}
+
+/**
+ * 조회·승인 응답이 `DONE`인 결제의 종결 판정 — 승인 200·confirm 재확인 조회·reconcile
+ * 조회 세 곳이 같은 규칙을 쓴다. identity가 어긋나면 needs_review(identity_mismatch),
+ * 가상계좌면 identity가 맞아도 approved가 아니라 needs_review(provider_method_not_allowed)다.
+ *
+ * 가상계좌 가드(declineUnsupportedMethod)가 입금 전 취소에 실패해 needs_review로 남은
+ * 건은 재정합 대상이라, 구매자가 입금하면 DONE 웹훅→reconcile 조회 DONE이 이 분기로
+ * 들어온다(문서 125 가상계좌 흐름 "WAITING_FOR_DEPOSIT →입금 완료→ DONE"; 문서 41
+ * PAYMENT_STATUS_CHANGED는 "모든 결제수단에 사용 가능"). 여기서 approved를 돌려주면
+ * 에스크로(구매안전서비스) 계약 없는 가상계좌 판매가 성립하고, 그 환불은 취소 API가
+ * refundReceiveAccount를 요구해(문서 127 "가상계좌 결제에만 필수") 어댑터가 되돌릴 수
+ * 없다. 그래서 입금 뒤 DONE은 취소도 승인도 하지 않고 needs_review에 남겨 운영자가
+ * 결제 어드민에서 환불 계좌를 받아 처리한다 — resultCode `DONE_virtual_account`가 입금
+ * 전(`WAITING_FOR_DEPOSIT`) 격리와 구분되는 표지다.
+ *
+ * `callbackPaymentKey`는 승인 200 경로 전용 — successUrl 콜백의 paymentKey와 승인
+ * 응답의 paymentKey가 같아야 하고, 어긋나면 그 콜백 키를 증거로 남긴다.
+ */
+function settleDonePayment(
+  attempt: PaymentAttempt,
+  payment: Record<string, unknown>,
+  reasonCode: 'provider_approved' | 'provider_approved_after_recheck' | 'provider_reconciled_approved',
+  callbackPaymentKey?: string,
+): PaymentOperationOutcome {
+  if (
+    !paymentMatchesAttempt(payment, attempt)
+    || (callbackPaymentKey !== undefined && payment.paymentKey !== callbackPaymentKey)
+  ) {
+    return baseOutcome(
+      attempt,
+      'needs_review',
+      'provider_identity_mismatch',
+      callbackPaymentKey !== undefined
+        ? { providerPaymentKey: callbackPaymentKey, resultCode: 'DONE_identity_mismatch' }
+        : undefined,
+    );
+  }
+  if (isVirtualAccountPayment(payment)) {
+    return baseOutcome(attempt, 'needs_review', 'provider_method_not_allowed', {
+      providerPaymentKey: payment.paymentKey as string,
+      resultCode: 'DONE_virtual_account',
+      ...(safeString(payment.method, 32) ? { paymentMethod: payment.method } : {}),
+    });
+  }
+  return baseOutcome(attempt, 'approved', reasonCode, approvedEvidence(payment));
 }
 
 /**
@@ -456,6 +521,12 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
    * 환불은 provider_unavailable로 잘못 라벨링된다. 그 밖의 비200 응답도 본문 code가
    * CONFIGURATION_CODES(400 INVALID_API_KEY 등)면 같은 축이다. 404·5xx·미지 4xx·
    * 타임아웃은 기존 unknown 규칙 그대로다.
+   *
+   * 예외는 문서 59의 일시 403(TRANSIENT_CODES) — 본문 code가 FORBIDDEN_CONSECUTIVE_REQUEST
+   * (반복 요청 제한)·NOT_AVAILABLE_BANK(은행 서비스 시간 밖)면 상태가 403이어도 키 축이
+   * 아니므로 401/403 규칙보다 먼저 unavailable로 읽는다. 취소 200 직후의 사후 조회가
+   * 반복 요청 제한에 걸려 needs_review로 오라벨링되거나, 웹훅이 200 ack로 재전송을
+   * 끊는 것을 막는다. 본문 없는 401/403은 그대로 설정 오류다.
    */
   async function inquireByOrderId(attempt: PaymentAttempt): Promise<OrderInquiry> {
     let inquiry: ProviderResponse;
@@ -468,6 +539,9 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       return { kind: 'unavailable' };
     }
     const code = inquiry.parsed ? errorCode(inquiry.payload) : null;
+    if (inquiry.status !== 200 && code !== null && TRANSIENT_CODES.has(code)) {
+      return { kind: 'unavailable' };
+    }
     if (inquiry.status === 401 || inquiry.status === 403) {
       return { kind: 'configuration_error', code: code ?? `HTTP_${inquiry.status}` };
     }
@@ -492,9 +566,16 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
    * 파라미터를 추가할 필요가 없"고 "부분 취소를 할 수 없고 전체 금액 취소만" 가능하므로
    * (문서 127), 발견 즉시 cancelReason만 실어 전액 취소해 입금 경로를 닫고 declined
    * (reasonCode provider_method_not_allowed)로 종결한다. 취소가 성립하지 않으면(비200·
-   * 본문 상태 미취소·전송 실패) 돈은 아직 움직이지 않았으니 needs_review로 격리해
-   * 운영자가 결제 어드민에서 취소한다. 어휘가 canceled가 아니라 declined인 이유:
-   * reconcile 계약에서 canceled는 승인 결제의 전액 취소 검증을 통과했을 때만 쓴다.
+   * 본문 상태 미취소·전송 실패) needs_review로 격리해 운영자가 결제 어드민에서 취소한다.
+   * 이 격리가 "돈이 움직이지 않은 상태"인 것은 입금 전까지다 — needs_review는 재정합
+   * 대상이라 구매자가 입금하면 DONE 웹훅이 다시 조회를 태우는데, 그 DONE은
+   * settleDonePayment가 approved를 막아 needs_review(resultCode DONE_virtual_account)에
+   * 남긴다(환불은 refundReceiveAccount가 필요해 수동). 어휘가 canceled가 아니라 declined인
+   * 이유: reconcile 계약에서 canceled는 승인 결제의 전액 취소 검증을 통과했을 때만 쓴다.
+   *
+   * 입금 전 취소의 성립 판정은 예외적으로 fresh 조회가 아니라 취소 응답 본문의
+   * `CANCELED`다 — 문서 127 "가상계좌 입금 전에 결제가 취소된 경우도 이 상태로 전환",
+   * 입금 전이라 잔액이 없고, 웹훅 10초 예산 안에서 조회 1회를 더 쓰지 않기 위해서다.
    *
    * 호출자는 paymentMatchesAttempt를 먼저 통과시킨다 — 이 attempt의 결제가 아닌 것을
    * 취소하지 않는다.
@@ -579,15 +660,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
     }
     const payment = inquiry.payment;
     if (payment.status === 'DONE') {
-      if (!paymentMatchesAttempt(payment, attempt)) {
-        return baseOutcome(attempt, 'needs_review', 'provider_identity_mismatch') as ConfirmOutcome;
-      }
-      return baseOutcome(
-        attempt,
-        'approved',
-        'provider_approved_after_recheck',
-        approvedEvidence(payment),
-      ) as ConfirmOutcome;
+      return settleDonePayment(attempt, payment, 'provider_approved_after_recheck') as ConfirmOutcome;
     }
     if (payment.status === 'WAITING_FOR_DEPOSIT') {
       if (!paymentMatchesAttempt(payment, attempt)) {
@@ -607,9 +680,14 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       }) as ConfirmOutcome;
     }
     if (paymentFullyCanceled(payment, attempt)) {
-      return baseOutcome(attempt, 'canceled', 'provider_payment_canceled', {
-        resultCode: 'CANCELED',
-      }) as ConfirmOutcome;
+      // reconcile과 같은 증거 — 호출자가 원장 payment_key와 대조할 providerPaymentKey를
+      // 경로에 따라 빠뜨리지 않는다.
+      return baseOutcome(
+        attempt,
+        'canceled',
+        'provider_payment_canceled',
+        canceledEvidence(payment),
+      ) as ConfirmOutcome;
     }
     if (payment.status === 'CANCELED' || payment.status === 'PARTIAL_CANCELED') {
       // 우리는 부분취소를 발행하지 않는다 — 전액 취소 검증(금액·잔액 대조)을
@@ -738,7 +816,8 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
           plainRecord(confirmResult.payload)
           && confirmResult.payload.status === 'WAITING_FOR_DEPOSIT'
         ) {
-          // 가상계좌 — 승인 200이지만 돈은 아직 움직이지 않았다. 입금 경로를 닫는다.
+          // 가상계좌 — 승인 200이지만 입금 전이라 돈은 아직 움직이지 않았다. 입금 경로를
+          // 닫는다(입금 뒤 DONE은 아래 settleDonePayment가 승인을 막는다).
           if (
             !paymentMatchesAttempt(confirmResult.payload, input.attempt)
             || confirmResult.payload.paymentKey !== paymentKey
@@ -755,20 +834,11 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
             providerPaymentKey: paymentKey,
           }) as ConfirmOutcome;
         }
-        if (
-          !paymentMatchesAttempt(confirmResult.payload, input.attempt)
-          || confirmResult.payload.paymentKey !== paymentKey
-        ) {
-          return baseOutcome(input.attempt, 'needs_review', 'provider_identity_mismatch', {
-            providerPaymentKey: paymentKey,
-            resultCode: 'DONE_identity_mismatch',
-          }) as ConfirmOutcome;
-        }
-        return baseOutcome(
+        return settleDonePayment(
           input.attempt,
-          'approved',
+          confirmResult.payload,
           'provider_approved',
-          approvedEvidence(confirmResult.payload),
+          paymentKey,
         ) as ConfirmOutcome;
       }
 
@@ -859,18 +929,12 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       }
       const payment = inquiry.payment;
       if (payment.status === 'DONE') {
-        if (!paymentMatchesAttempt(payment, attempt)) {
-          return baseOutcome(attempt, 'needs_review', 'provider_identity_mismatch');
-        }
-        return baseOutcome(
-          attempt,
-          'approved',
-          'provider_reconciled_approved',
-          approvedEvidence(payment),
-        );
+        // 가상계좌 DONE(입금 완료)은 여기서 approved가 아니라 needs_review에 머문다.
+        return settleDonePayment(attempt, payment, 'provider_reconciled_approved');
       }
       if (payment.status === 'WAITING_FOR_DEPOSIT') {
-        // 가상계좌 입금 대기 — unknown으로 두면 입금 뒤 DONE 웹훅이 approved를 만든다.
+        // 가상계좌 입금 대기 — unknown으로 두면 입금 뒤 DONE 웹훅이 이 attempt를 다시
+        // 태우는데, 그때는 settleDonePayment가 막는다. 입금 전에 닫는 것이 우선이다.
         if (!paymentMatchesAttempt(payment, attempt)) {
           return baseOutcome(attempt, 'needs_review', 'provider_identity_mismatch');
         }
@@ -943,6 +1007,11 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
           && integerAmount(payment.totalAmount) === attempt.amount
           && safeString(payment.paymentKey, 200)
           && PROVIDER_PAYMENT_KEY.test(payment.paymentKey as string)
+          // 입금이 끝난 가상계좌는 취소 API가 refundReceiveAccount를 요구한다(문서 127
+          // "가상계좌 결제에만 필수"). 어댑터는 환불 계좌를 싣지 않으므로 호출하면
+          // INVALID_REQUEST로 거부돼 설정 오류로 오라벨링된다 — 호출하지 않고
+          // not_refundable(needs_review)로 운영 판단에 태운다.
+          && !isVirtualAccountPayment(payment)
         ) {
           return { kind: 'done', payment };
         }

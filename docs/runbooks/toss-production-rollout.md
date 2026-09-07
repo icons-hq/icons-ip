@@ -113,7 +113,9 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
    `GET /v1/payments/orders/{orderId}`로 실상태를 확인해 분기한다 — 표 밖 4xx의 조회 404는
    실패 확정(`declined`, 원 코드를 `resultCode`로 보존), 5xx의 404는 `unknown`, `EXPIRED`는
    `declined`다. 승인 200이 `WAITING_FOR_DEPOSIT`(가상계좌)이면 즉시 전액 취소한 뒤 `declined`로
-   닫고, 취소가 성립하지 않으면 `needs_review`다(심사 트랙 3번의 결제수단 확인 참조).
+   닫고, 취소가 성립하지 않으면 `needs_review`다 — 이 격리는 입금 전까지 유효하고, 입금 뒤
+   `DONE`은 코드가 `approved`를 막아 `needs_review`에 남긴다(환불은 `refundReceiveAccount`가
+   필요해 수동, 심사 트랙 3번의 결제수단 확인 참조).
 6. 정규화한 `approved | declined | canceled | unknown | needs_review`만 DB 멱등 finalizer에
    넘긴다. 사용자 브라우저는 provider 식별자가 없는 303 success·checking·failure 경로로
    이동한다.
@@ -156,7 +158,10 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
      `WAITING_FOR_DEPOSIT`(가상계좌)을 만나면 어댑터가 입금 전에 즉시 전액 취소(`cancelReason`만
      싣는다 — 입금 전에는 환불할 금액이 없어 `refundReceiveAccount`가 필요 없고 전액 취소만
      가능하다, 공식문서 127)하고 `declined`(`provider_method_not_allowed`)로 닫으며, 취소가
-     성립하지 않으면 `needs_review`로 격리해 운영자가 결제 어드민에서 취소한다. 가드가 막는
+     성립하지 않으면 `needs_review`로 격리해 운영자가 결제 어드민에서 취소한다. 그 전에
+     구매자가 입금해 `DONE`이 오면 코드가 `approved`를 막아 `needs_review`(`resultCode`
+     `DONE_virtual_account`)에 남기고, 그 환불은 `refundReceiveAccount`가 필요해 어댑터가
+     발행하지 않으므로 운영자가 결제 어드민에서 처리한다(운영 노트 참조). 가드가 막는
      것은 원장 쪽이다: `PAYMENT_STATUS_CHANGED`는 가상계좌를 포함한 **모든 결제수단**에
      발송되므로(공식문서 41; 문서 125는 두 이벤트를 모두 등록하면 가상계좌 상태 변경에 웹훅이
      두 번 간다고 경고한다) 가드 없이는 구매자가 입금하는 순간 `DONE` 웹훅이 reconcile을
@@ -171,7 +176,9 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
      전적으로 이 조회에 의존한다. 승인이 200 `DONE`으로 한 번에 끝나면 앱은 조회를 부르지
      않으므로, 이 결제를 이어서 취소(클레임 승인)해 환불 경로의 fresh 조회를 태우거나 키를
      노출하지 않는 방식으로 조회를 한 번 직접 호출해 확인한다. **401/403이나 키·설정 오류
-     코드로 거부되면 4번 gate를 열지 않는다** — 그 상태에서는 웹훅 재전송이 전부 소진되고
+     코드로 거부되면 4번 gate를 열지 않는다**(반복 요청 제한 `FORBIDDEN_CONSECUTIVE_REQUEST`·
+     은행 서비스 시간 `NOT_AVAILABLE_BANK`의 일시 403은 키 오류가 아니라 잠시 뒤 다시
+     호출한다) — 그 상태에서는 웹훅 재전송이 전부 소진되고
      환불이 전건 `needs_review`로 잘못 라벨링되므로, paymentKey 기반 조회 fallback 설계가
      선행 과제가 된다.
    - **웹훅이 실제로 도착하는지** 개발자센터 전송 이력과 앱 응답 코드로 확인한다. 2번의 URL
@@ -231,7 +238,9 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
    토스 결제 어드민에서 다시 확인한다(심사 트랙 3번과 같은 확인이며, 여기서부터는 실과금이라
    결과가 무겁다). 가상계좌가 노출되면 승인 API 200이 `DONE`이 아니라 `WAITING_FOR_DEPOSIT`으로
    오고, 어댑터는 승인·재확인 조회·reconcile 조회 어디서 만나든 입금 전에 즉시 전액 취소해
-   `declined`로 닫는다(취소가 성립하지 않으면 `needs_review` — 운영자가 어드민에서 취소한다).
+   `declined`로 닫는다(취소가 성립하지 않으면 `needs_review` — 운영자가 어드민에서 취소한다.
+   격리는 입금 전까지 유효하고, 입금 뒤 `DONE`은 코드가 `approved`를 막아 `needs_review`에
+   남긴다 — 환불은 `refundReceiveAccount`가 필요해 수동이다).
    가드가 없던 경로는 `PAYMENT_STATUS_CHANGED`가 가상계좌에도 발송돼 구매자가 입금하면 `DONE`
    웹훅이 reconcile을 태워 주문이 `paid`로 종결되고 그 환불은 취소 API가 요구하는 환불 계좌
    정보를 어댑터가 싣지 않아 수동이 되는 것이었다. 실과금 리허설에서는 가드에 기대지 말고
@@ -270,7 +279,9 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
   `unknown`으로 재전송을 유도한 것이다. 토스는 200이 아닐 때만 재전송하므로 "지금 처리 중"을
   200으로 닫지 않는 것이 이 정책의 핵심이다. 반대로 조회 401/403·키 설정 오류는 재전송으로
   풀리지 않는 사람 몫이라 `needs_review`로 격리되고 웹훅에는 ack가 나간다 — 아래 미종결
-  attempt 집계에서 `needs_review`가 갑자기 늘면 그것이 키 오류 신호다.
+  attempt 집계에서 `needs_review`가 갑자기 늘면 그것이 키 오류 신호다. 단 공식문서 59의 일시
+  403(`FORBIDDEN_CONSECUTIVE_REQUEST` 반복 요청 제한·`NOT_AVAILABLE_BANK` 은행 서비스 시간)은
+  키 축이 아니라 `unknown`으로 남아 5xx·재전송을 받는다.
   콜백이 유실된 건의 만료 + 45분(결제창 30분 · 승인 10분 · 버퍼)은 **시한이 아니라
   `reconcile()`이 실행됐을 때의 판정 규칙**이다 — 그 시각을 지났고 조회가 404이면 실패로
   확정되지만, 시한 도달만으로 스스로 실행되지는 않는다. reconcile을 태우는 트리거는 ① 토스
@@ -308,6 +319,15 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
   운영자가 이미 송금했는데 취소 API까지 나가면 이중 환불이 되기 때문이며, 되돌리기 어려운
   쪽을 막는 것이 의도다. 이 건을 어떻게 종결할지(운영자 확인 vs 접수 취소)는 이 runbook이
   정하지 않고 후속 이슈 소관이다 — 큐에서는 `결제확인필요`로 보인다.
+- **가상계좌 `needs_review` 건(`provider_method_not_allowed`)**: 두 상태를 `resultCode`로
+  구분한다. `WAITING_FOR_DEPOSIT`은 입금 전 취소가 성립하지 않은 것이라 운영자가 토스 결제
+  어드민에서 전액 취소하면 입금 경로가 닫힌다(입금 전이라 환불 계좌가 필요 없다). 격리는
+  입금 전까지만 "돈이 움직이지 않은 상태"다 — `needs_review`는 웹훅·내부 reconcile의 재정합
+  대상이라 구매자가 입금하면 `DONE` 조회가 다시 들어오는데, 코드가 `approved`를 막아
+  `DONE_virtual_account`로 남긴다(주문은 `pending`·재고 점유 유지). 이 건은 이미 입금된 돈이
+  있으므로 취소 API가 `refundReceiveAccount`(환불 계좌)를 요구하고(공식문서 127) 어댑터는
+  그 값을 싣지 않는다 — 구매자에게 환불 계좌를 받아 결제 어드민에서 취소·환불한 뒤 주문을
+  닫는다. 어느 상태든 이 건을 `approved`로 손대지 않는다(에스크로 계약 없는 가상계좌 판매).
 
 ## Rollback과 callback drain
 
