@@ -633,6 +633,8 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .from('ips')
       .select('id,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count,goods_count,cards_count')
       .is('archived_at', null)
+      /* 초안(published_at null)은 공개 표면 어디에도 나오지 않는다 — 보관 필터와 같은 층 (20260907130000). */
+      .not('published_at', 'is', null)
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
@@ -677,10 +679,23 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
     return data.publicUrl;
   };
   const ips = ((ipsResult.data ?? []) as IpRow[]).map((row) => toIp(row, verticalsByKey, imageUrlForPath));
-  const goods = ((goodsResult.data ?? []) as GoodRow[]).map((row) => toGood(row, imageUrlForPath)).sort(byNaturalId);
-  const cards = ((cardsResult.data ?? []) as CardRow[]).map((row) => toCard(row, imageUrlForPath)).sort(byNaturalId);
   const ipsById = new Map(ips.map((ip) => [ip.id, ip]));
+  /*
+   * 초안 IP 에 속한 굿즈·카드·이벤트도 함께 숨긴다 — 검색 RPC(20260907130001)와 같은 규칙이다.
+   * 보관은 DB 트리거가 활성 자식을 못 남기게 막지만 초안에는 그런 불변식이 없어 여기서 거른다.
+   * IP 없는 이벤트(플랫폼·합동)는 그대로 남는다.
+   */
+  const belongsToPublicIp = (ipId: string | null) => ipId === null || ipsById.has(ipId);
+  const goods = ((goodsResult.data ?? []) as GoodRow[])
+    .filter((row) => belongsToPublicIp(row.ip_id))
+    .map((row) => toGood(row, imageUrlForPath))
+    .sort(byNaturalId);
+  const cards = ((cardsResult.data ?? []) as CardRow[])
+    .filter((row) => belongsToPublicIp(row.ip_id))
+    .map((row) => toCard(row, imageUrlForPath))
+    .sort(byNaturalId);
   const events = ((eventsResult.data ?? []) as EventRow[])
+    .filter((row) => belongsToPublicIp(row.ip_id))
     .map((row) => toEvent(row, ipsById, imageUrlForPath))
     .sort(byNaturalId);
 

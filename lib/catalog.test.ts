@@ -75,7 +75,7 @@ type QueryRecord = {
   lte: [string, string][];
   is: [string, unknown][];
   in: [string, unknown[]][];
-  not: [string, string, string][];
+  not: [string, string, unknown][];
   or: string[];
   order: [string, { ascending?: boolean } | undefined][];
   limit?: number;
@@ -131,7 +131,7 @@ function createQuery(
       record.in.push([column, value]);
       return query;
     },
-    not(column: string, operator: string, value: string) {
+    not(column: string, operator: string, value: unknown) {
       record.not.push([column, operator, value]);
       return query;
     },
@@ -173,8 +173,10 @@ function createQuery(
         }
         for (const [column, operator, value] of record.not) {
           if (operator === 'in') {
-            const excluded = value.replace(/^\(|\)$/g, '').split(',').filter(Boolean);
+            const excluded = String(value).replace(/^\(|\)$/g, '').split(',').filter(Boolean);
             data = data.filter((row) => !excluded.includes(String(row[column])));
+          } else if (operator === 'is' && value === null) {
+            data = data.filter((row) => row[column] != null);
           }
         }
         for (const expression of record.or) {
@@ -221,6 +223,7 @@ function defaultSupabaseRows(): SupabaseRows {
       fans_count: 1200,
       goods_count: 1,
       cards_count: 1,
+      published_at: '2026-06-01T00:00:00.000Z',
     }],
     goods: [],
     cards: [],
@@ -380,6 +383,46 @@ describe('getCatalogSnapshot', () => {
     mocks.client = null;
   });
 
+  /* 게시 상태(20260907130000) — 초안은 보관과 같은 층(앱 로더)에서, 소속 자식과 함께 빠진다. */
+  it('excludes draft IPs and everything that belongs to them from the public snapshot', async () => {
+    const records: QueryRecord[] = [];
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records, {
+      ips: [
+        ...defaultSupabaseRows().ips,
+        { ...defaultSupabaseRows().ips[0], id: 'draft-ip', title: '초안 IP', published_at: null },
+      ],
+      goods: [
+        { id: 'g-live', ip_id: 'hwasan', name: '공개 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, archived_at: null },
+        { id: 'g-draft', ip_id: 'draft-ip', name: '초안 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, archived_at: null },
+      ],
+      cards: [
+        { id: 'c-live', ip_id: 'hwasan', name: '공개 카드', no: '001', rarity: 'N', bg: null, image_path: null, archived_at: null },
+        { id: 'c-draft', ip_id: 'draft-ip', name: '초안 카드', no: '002', rarity: 'N', bg: null, image_path: null, archived_at: null },
+      ],
+      events: [
+        { id: 'e-live', ip_id: 'hwasan', title: '공개 이벤트', mode: '온라인', status: '예정', starts_at: null, ends_at: null, location: null, accent: null, bg: null, image_path: null, archived_at: null },
+        { id: 'e-draft', ip_id: 'draft-ip', title: '초안 이벤트', mode: '온라인', status: '예정', starts_at: null, ends_at: null, location: null, accent: null, bg: null, image_path: null, archived_at: null },
+        { id: 'e-joint', ip_id: null, title: '합동 이벤트', mode: '오프라인', status: '진행중', starts_at: null, ends_at: null, location: null, accent: null, bg: null, image_path: null, archived_at: null },
+      ],
+    });
+
+    const snapshot = await getCatalogSnapshot();
+
+    expect(snapshot.ips.map((item) => item.id)).toEqual(['hwasan']);
+    expect(snapshot.goods.map((item) => item.id)).toEqual(['g-live']);
+    expect(snapshot.cards.map((item) => item.id)).toEqual(['c-live']);
+    expect(snapshot.events.map((item) => item.id)).toEqual(['e-joint', 'e-live']);
+    expect(records.find((record) => record.table === 'ips')?.not).toContainEqual(['published_at', 'is', null]);
+    /* 자식 컬렉션의 초안 제외는 앱에서 IP 집합으로 거른다 — 쿼리에 published 조건을 조인하지 않는다. */
+    for (const table of ['goods', 'cards', 'events']) {
+      expect(records.find((record) => record.table === table)?.not).toEqual([]);
+    }
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
   it('derives soldout at zero quantity while preserving a positive manual soldout gate', async () => {
     const records: QueryRecord[] = [];
     mocks.isConfigured = true;
@@ -493,6 +536,9 @@ describe('getBinderCatalogOverlay', () => {
     expect(records.find((record) => record.table === 'cards')?.in).toEqual([['id', ['c-archived']]]);
     expect(records.find((record) => record.table === 'cards')?.is).toEqual([]);
     expect(records.find((record) => record.table === 'ips')?.in).toEqual([['id', ['archived-ip']]]);
+    /* 보유 이력은 게시 상태와도 무관하다 — 초안·보관 필터를 바인더에 걸지 않는다. */
+    expect(records.find((record) => record.table === 'ips')?.not).toEqual([]);
+    expect(records.find((record) => record.table === 'ips')?.is).toEqual([]);
 
     mocks.isConfigured = false;
     mocks.client = null;
@@ -636,6 +682,7 @@ describe('getHomeSnapshot', () => {
           fans_count: 1200,
           goods_count: 1,
           cards_count: 1,
+          published_at: '2026-06-01T00:00:00.000Z',
         },
         {
           id: 'lumen',
@@ -651,6 +698,7 @@ describe('getHomeSnapshot', () => {
           fans_count: 900,
           goods_count: 1,
           cards_count: 1,
+          published_at: '2026-06-01T00:00:00.000Z',
         },
         {
           id: 'regular',
@@ -666,6 +714,7 @@ describe('getHomeSnapshot', () => {
           fans_count: 5000,
           goods_count: 1,
           cards_count: 1,
+          published_at: '2026-06-01T00:00:00.000Z',
         },
       ],
       posts: [

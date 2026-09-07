@@ -409,6 +409,43 @@ describe('admin catalog actions', () => {
       target_image_path: null,
       target_featured: true,
       target_previous_id: null,
+      target_publish: null,
+    });
+  });
+
+  /* 게시 상태(20260907130000) — "저장 후 공개"만 true 를 보내고, 나머지는 상태를 건드리지 않는다. */
+  it('publishes an IP in the same RPC call when the form asks for it', async () => {
+    const formData = ipForm();
+    formData.set('intent', 'publish');
+
+    await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({
+      message: 'IP를 저장하고 공개했습니다.',
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_ip', expect.objectContaining({
+      target_id: 'hwasan',
+      target_publish: true,
+    }));
+    expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toContain('/search');
+    expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toContain('/ip/hwasan');
+  });
+
+  it('keeps the publish state out of a plain draft save', async () => {
+    const formData = ipForm();
+    formData.set('intent', 'draft');
+
+    await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({ message: 'IP를 저장했습니다.' });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_ip', expect.objectContaining({ target_publish: null }));
+  });
+
+  it('explains that an archived IP has to be restored before it can be published', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_item_archived' } });
+    const formData = ipForm();
+    formData.set('intent', 'publish');
+
+    await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({
+      errors: { form: '보관된 카탈로그 항목을 먼저 복원해주세요.' },
+      values: collectFormValues(formData),
+      attempt: 1,
     });
   });
 

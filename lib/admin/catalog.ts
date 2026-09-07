@@ -27,6 +27,13 @@ export interface AdminIpFormValue {
   bg: string | null;
   imagePath: string | null;
   featured: boolean;
+  /**
+   * 게시 상태 의도. 폼의 제출 버튼(`intent`)이 정한다 — "저장 후 공개"만 true 고, "초안으로
+   * 저장"·"저장"은 null(신규는 초안으로 시작, 기존은 상태 유지)이다. 초안으로 되돌리기는
+   * 폼이 아니라 별도 컨트롤(admin_set_ip_published)이 맡아 폼 저장이 조용히 비공개로
+   * 바꾸는 일이 없다.
+   */
+  publish: boolean | null;
 }
 
 export interface AdminGoodFormValue {
@@ -383,6 +390,11 @@ export function gameContextFromRecords(records: {
   };
 }
 
+/*
+ * 초안 저장과 공개 저장의 검증 요건은 지금 같다(ID·이름·버티컬) — 초안이라고 이 셋을
+ * 비울 수는 없다(DB 제약이기도 하다). 공개 전용 요건이 생기면 `publish` 가 true 일 때만
+ * 여기서 더 검사한다.
+ */
 export function normalizeAdminIpForm(
   formData: FormData,
   context: AdminCatalogContext,
@@ -392,6 +404,7 @@ export function normalizeAdminIpForm(
   const previousId = readPreviousId(formData, id, errors);
   const title = readString(formData, 'title');
   const verticalKey = readString(formData, 'verticalKey');
+  const publish = readString(formData, 'intent') === 'publish' ? true : null;
 
   if (!title) errors.title = 'IP 이름을 입력해주세요.';
   if (!verticalKey || !context.verticalKeys.has(verticalKey)) {
@@ -414,6 +427,7 @@ export function normalizeAdminIpForm(
       bg: nullableString(formData, 'bg'),
       imagePath: nullableString(formData, 'imagePath'),
       featured: formData.get('featured') === 'on',
+      publish,
     },
   };
 }

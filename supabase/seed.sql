@@ -22,7 +22,8 @@ insert into public.ips (
   featured,
   fans_count,
   goods_count,
-  cards_count
+  cards_count,
+  published_at
 ) values
   (
     'rilakkuma',
@@ -36,7 +37,8 @@ insert into public.ips (
     true,
     124500,
     2,
-    2
+    2,
+    now()
   ),
   (
     'maplestory',
@@ -50,7 +52,8 @@ insert into public.ips (
     true,
     198000,
     3,
-    3
+    3,
+    now()
   ),
   (
     'nongdamgom',
@@ -64,7 +67,8 @@ insert into public.ips (
     true,
     52300,
     2,
-    2
+    2,
+    now()
   ),
   (
     'kakao-friends',
@@ -78,7 +82,8 @@ insert into public.ips (
     true,
     214000,
     2,
-    3
+    3,
+    now()
   ),
   (
     'attack-on-titan',
@@ -92,7 +97,8 @@ insert into public.ips (
     true,
     176400,
     1,
-    2
+    2,
+    now()
   )
 -- fans_count는 최초 seed 값만 넣고, 이후 팔로우 RPC가 유지하는 공개 카운트를 덮어쓰지 않는다.
 on conflict (id) do update set
@@ -106,6 +112,8 @@ on conflict (id) do update set
   featured = excluded.featured,
   goods_count = excluded.goods_count,
   cards_count = excluded.cards_count,
+  -- 게시 상태(20260907130000): seed IP 는 공개다. 이미 값이 있으면 그대로 두고 초안이던 행만 공개로 올린다.
+  published_at = coalesce(ips.published_at, excluded.published_at),
   updated_at = now();
 
 -- Keep local-reset home featured curation aligned with the one-time migration
