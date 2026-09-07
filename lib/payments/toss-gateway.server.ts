@@ -26,16 +26,22 @@ const MAX_RESPONSE_BYTES = 64 * 1024;
 // 여기서 abort한 뒤 조회로 가는데, 그 시점의 조회는 아직 승인 전이라 404→unknown이고
 // 실제 승인은 provider 쪽에서 뒤늦게 성립한다 — 결과적으로 정상 결제가 웹훅 재전송에
 // 의존하게 된다. 문서 127은 승인 응답 시간 상한을 규정하지 않으므로, confirm 라우트
-// 예산(maxDuration 60초 = 승인 25 + 409 재요청 25 + 조회 8 + DB) 안에서 승인에 가장
-// 긴 시한을 준다.
+// 예산(maxDuration 60초) 안에서 승인에 가장 긴 시한을 준다. 최악 경로는 두 갈래다 —
+// 첫 요청이 이 시한까지 가면 409는 오지 않고 곧장 조회 8초로 가므로 ≤33초 + DB, 409는
+// 처리 중인 중복 요청에 대한 즉시 응답이라 그 경로는 (즉시 409) + 대기 1초 + 재요청
+// ≤25초 + 조회 8초 ≈ 34초 + DB다(25+25+8을 직렬로 더한 59초는 성립하지 않는 경로다).
 const CONFIRM_TIMEOUT_MS = 25_000;
 // 조회 GET·취소 POST의 시한. 조회는 멱등이라 짧게 끊고 다음 트리거(웹훅 재전송·내부
 // reconcile)에 맡기는 편이 낫고, 취소는 응답 본문이 아니라 fresh 조회가 판정하므로
-// 오래 기다릴 이유가 없다.
+// 오래 기다릴 이유가 없다. 예외는 가상계좌 입금 전 취소(declineUnsupportedMethod) —
+// 취소 응답 본문의 CANCELED로 판정한다(문서 127 "가상계좌 입금 전에 결제가 취소된
+// 경우도 이 상태로 전환"; 입금 전이라 잔액이 없고, 웹훅 10초 예산 안에서 fresh 조회
+// 1회를 더 쓰지 않기 위해서다).
 const REQUEST_TIMEOUT_MS = 8_000;
 // 승인 409(IDEMPOTENT_REQUEST_PROCESSING) 뒤 같은 키로 재요청하기 전 대기. 문서 122가
-// 대기 시간을 규정하지 않으므로 "처리 중"이 끝날 여지를 주는 최소값이며, 라우트 예산
-// (승인 25 + 대기 1 + 재요청 25 + 조회 8) 안에 들어간다.
+// 대기 시간을 규정하지 않으므로 "처리 중"이 끝날 여지를 주는 최소값이다. 409는 처리 중인
+// 중복 요청에 대한 즉시 응답이라 이 경로는 (즉시 409) + 대기 1 + 재요청 ≤25 + 조회 8
+// ≈ 34초 + DB로 라우트 예산 60초 안에 든다(첫 요청이 시한까지 가면 409 없이 조회로 간다).
 const RETRY_DELAY_MS = 1_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PROVIDER_PRODUCT_CODE = /^P[0-9a-f]{32}$/i;
@@ -844,6 +850,9 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
 
       const code = errorCode(confirmResult.payload);
       if (code === 'PAY_PROCESS_CANCELED') {
+        // 구매자 결제창 이탈 — 승인이 시작되지 않은 취소라 조회 경로의 전액 취소 검증
+        // 대상이 아니다. 조회 경로 밖에서 canceled를 쓰는 유일한 지점이며, finalizer는
+        // declined와 같이 취급하고 환불 재정합은 gateway.reconcile 결과만 읽는다.
         return baseOutcome(input.attempt, 'canceled', 'provider_user_canceled', {
           providerPaymentKey: paymentKey,
           resultCode: code,

@@ -12,13 +12,16 @@ import {
 } from '@/lib/payments/toss-callback.server';
 
 /**
- * 라우트 실행 예산(초). 토스 승인 POST 25초 + 409(멱등 처리 중) 같은 키 재요청 25초 +
- * orderId 조회 8초 + DB claim/finalize. Next.js 16은 route 세그먼트의 named export
+ * 라우트 실행 예산(초). 최악 경로는 두 갈래다 — 토스 승인 POST가 25초 시한까지 가면
+ * 409는 오지 않고 곧장 orderId 조회 8초로 가므로 ≤33초 + DB claim/finalize이고, 409(멱등
+ * 처리 중)는 처리 중인 중복 요청에 대한 즉시 응답이라 그 경로는 (즉시 409) + 대기 1초 +
+ * 같은 키 재요청 ≤25초 + 조회 8초 ≈ 34초 + DB다. Next.js 16은 route 세그먼트의 named export
  * `maxDuration`을 빌드 출력에 싣고 배포 플랫폼이 그 값을 읽는다. Vercel Functions
  * duration 문서(2026-08-24판, fluid compute 기본): Hobby 기본·최대 300초, Pro 기본
- * 300초·최대 800초 — 60초는 모든 플랜에서 유효한 값이고, 명시하는 이유는 플랫폼
- * 기본값 의존을 끊고 예산을 코드에 적어 두기 위해서다. 예산을 넘겨 함수가 죽어도
- * attempt는 confirming(claim 리스 10분)으로 남아 웹훅 재전송·내부 reconcile이 회수한다.
+ * 300초·최대 800초 — 60초는 모든 플랜에서 유효한 값이고 두 경로 모두에 DB·리다이렉트
+ * 여유를 남기며, 명시하는 이유는 플랫폼 기본값 의존을 끊고 예산을 코드에 적어 두기
+ * 위해서다. 예산을 넘겨 함수가 죽어도 attempt는 confirming(claim 리스 10분)으로 남아
+ * 웹훅 재전송·내부 reconcile이 회수한다.
  */
 export const maxDuration = 60;
 

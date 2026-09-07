@@ -39,7 +39,7 @@ paymentKey, transactionKey, 승인번호, 원문 응답, 키 fingerprint는 문�
 
 ②가 끝나 코드는 토스 기본 상태이지만, Production gate가 모두 닫혀 있어 실제 결제 경로는
 아직 열리지 않는다. ③에서 심사자가 결제창을 볼 수 있도록 **테스트 키 위에서 굿즈 gate만**
-연다(canary로는 대체할 수 없다 — 아래 심사 트랙 4번). ①은 ③과 독립이므로 순서를 기다리지
+연다(canary로는 대체할 수 없다 — 아래 심사 트랙 5번). ①은 ③과 독립이므로 순서를 기다리지
 말고 먼저 닫는다. 티켓 gate는 ⑤ 이후에도 판매 일정이 확정될 때까지 닫아 둔다.
 
 ## 환경별 변수
@@ -104,8 +104,11 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
 4. 서버가 nonce·orderId를 상수 시간으로 대조하고 **successUrl 금액이 저장 주문 금액과 다르면
    승인 API를 호출하지 않는다**. 통과한 건만 `POST /v1/payments/confirm`을 `Idempotency-Key`와
    함께 정확히 한 번 호출한다.
-5. 승인 호출 시한은 25초(조회·취소는 8초)이고 confirm 라우트는 `maxDuration = 60`(승인 25s +
-   409 재요청 25s + 조회 8s + DB)을 명시한다. 409(`IDEMPOTENT_REQUEST_PROCESSING`)는 같은
+5. 승인 호출 시한은 25초(조회·취소는 8초)이고 confirm 라우트는 `maxDuration = 60`을 명시한다.
+   최악 경로는 두 갈래다 — 첫 승인 요청이 25초 시한까지 가면 409는 오지 않고 곧장 조회 8초로
+   가므로 ≤33초 + DB, 409는 처리 중인 중복 요청에 대한 즉시 응답이라 (즉시 409) + 대기 1초 +
+   재요청 ≤25초 + 조회 8초 ≈ 34초 + DB다(60초는 두 경로 모두에 DB·리다이렉트 여유가 있다;
+   25+25+8을 직렬로 더한 59초는 성립하지 않는 경로다). 409(`IDEMPOTENT_REQUEST_PROCESSING`)는 같은
    `Idempotency-Key`로 1초 뒤 정확히 1회 재요청해 그 응답을 첫 응답과 같은 분기로 읽고,
    재요청도 409면 조회로 간다(공식문서 122 — 키를 바꿔 재시도하지 않는다). 결정적 거절 코드
    (`REJECT_CARD_PAYMENT` 포함)는 조회 없이 `declined`다. confirm이 모호하면(타임아웃·5xx·
@@ -125,7 +128,10 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
    503으로 돌려 재전송이 다시 가져가게 한다.
 8. 취소는 `POST /v1/payments/{paymentKey}/cancel`을 `cancelAmount` 없이(=전액 취소) 호출하고,
    성공 판정은 취소 API 응답이 아니라 fresh 조회(`CANCELED`·`balanceAmount=0`·`totalAmount`
-   대조)로만 한다.
+   대조)로만 한다. 예외는 가상계좌 입금 전 취소(가드 `declineUnsupportedMethod`) 하나다 —
+   취소 응답 본문의 `CANCELED`로 판정한다(공식문서 127 "가상계좌 입금 전에 결제가 취소된
+   경우도 이 상태로 전환"; 입금 전이라 잔액이 없고, 웹훅 10초 예산 안에서 fresh 조회 1회를
+   더 쓰지 않기 위해서다). 200이 아니거나 본문이 `CANCELED`가 아니면 `needs_review`다.
 
 ## 심사 트랙 (③④, [#394](https://github.com/icons-hq/icons-ip/issues/394))
 
@@ -137,7 +143,7 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
    전자결제 신청 이후에만 개발자센터에서 확인할 수 있고, 신청 전에 쓸 수 있는 것은 문서에
    박혀 있는 공개 테스트 키(`test_gck_docs_…` 계열)뿐이다(공식문서 121·122). 공개 키로는
    결제 연동을 시연할 수 있어도 **결제내역과 웹훅이 우리 상점에 남지 않아** 3번의 실증이
-   성립하지 않는다. 상점 테스트 키가 아직 없으면 7번(전자결제 신청)을 먼저 밟는다.
+   성립하지 않는다. 상점 테스트 키가 아직 없으면 8번(전자결제 신청)을 먼저 밟는다.
 2. (human) 개발자센터에 **웹훅 URL**(`https://iconsip.com/api/webhooks/tosspayments`)과
    이벤트를 등록한다. 구독 이벤트는 **`PAYMENT_STATUS_CHANGED`만**이다. 10초 안에 200을
    돌려주고, 200이 아니면 최대 7회(1·4·16·64·256·1024·4096분) 재전송된다는 전제로 멱등
@@ -149,7 +155,8 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
    그 IP들이 허용되는지 규칙을 직접 본다. 반대로 우리가 토스로 나가는 승인·조회·취소 호출은
    Vercel Functions에 아웃바운드 방화벽이 없으므로 문서 124의 아웃바운드 IP 허용 대상이 아니다.
 3. (human/agent) **공개 gate를 열기 전에** 결제수단 노출을 확인하고 canary 한 명으로 테스트
-   결제를 1건 만들어 세 가지를 실증한다 — 이것이 4번 공개 gate 개방의 하드 게이트다. 공개
+   결제를 1건 만들어 세 가지를 실증한다 — 4번의 약관 개정과 함께 5번 공개 gate 개방의 하드
+   게이트다. 공개
    gate는 `false`로 둔 채 `TOSS_ORDER_CANARY_USER_ID`에 인증된 단일 사용자 UUID만 등록한 새
    Production deployment를 만들고(gate false · canary true readback), 그 사용자로 굿즈 결제를
    한 건 통과시킨다.
@@ -162,7 +169,7 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
      구매자가 입금해 `DONE`이 오면 코드가 `approved`를 막아 `needs_review`(`resultCode`
      `DONE_virtual_account`)에 남기고, 그 환불은 `refundReceiveAccount`가 필요해 어댑터가
      발행하지 않으므로 운영자가 결제 어드민에서 처리한다(운영 노트 참조). 가드가 막는
-     것은 원장 쪽이다: `PAYMENT_STATUS_CHANGED`는 가상계좌를 포함한 **모든 결제수단**에
+     것은 원장 쪽이다(공개 gate는 5번): `PAYMENT_STATUS_CHANGED`는 가상계좌를 포함한 **모든 결제수단**에
      발송되므로(공식문서 41; 문서 125는 두 이벤트를 모두 등록하면 가상계좌 상태 변경에 웹훅이
      두 번 간다고 경고한다) 가드 없이는 구매자가 입금하는 순간 `DONE` 웹훅이 reconcile을
      태워 에스크로(구매안전서비스) 계약 없는 가상계좌 판매가 성립하고, 그 환불은 취소 API가
@@ -176,7 +183,7 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
      전적으로 이 조회에 의존한다. 승인이 200 `DONE`으로 한 번에 끝나면 앱은 조회를 부르지
      않으므로, 이 결제를 이어서 취소(클레임 승인)해 환불 경로의 fresh 조회를 태우거나 키를
      노출하지 않는 방식으로 조회를 한 번 직접 호출해 확인한다. **401/403이나 키·설정 오류
-     코드로 거부되면 4번 gate를 열지 않는다**(반복 요청 제한 `FORBIDDEN_CONSECUTIVE_REQUEST`·
+     코드로 거부되면 5번 gate를 열지 않는다**(반복 요청 제한 `FORBIDDEN_CONSECUTIVE_REQUEST`·
      은행 서비스 시간 `NOT_AVAILABLE_BANK`의 일시 403은 키 오류가 아니라 잠시 뒤 다시
      호출한다) — 그 상태에서는 웹훅 재전송이 전부 소진되고
      환불이 전건 `needs_review`로 잘못 라벨링되므로, paymentKey 기반 조회 fallback 설계가
@@ -186,7 +193,18 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
 
    확인이 끝나면 canary를 제거하고, 그 결제로 생긴 주문·attempt는 라이브 전환 6번(테스트 주문·
    attempt 정리)과 같은 기준으로 회수 대상에 함께 적어 둔다.
-4. (human) `TOSS_ORDER_CHECKOUT_ENABLED=true`로 **굿즈만** 공개한다.
+4. (human) **약관·개인정보처리방침의 결제대행사 고지를 개정한다 — 3번의 canary 실증과
+   함께 5번 공개 gate 개방의 하드 게이트다.** 라이브 법정 문서(`lib/legal/documents.ts`)의
+   이용약관 제11조(지급방법)와 개인정보처리방침 제5조(처리 위탁) 수탁자 표는 신규 카드 결제
+   처리 주체를 주식회사 코페이로만 고지하고, 토스페이먼츠 주식회사는 2026-08-21 이전 결제의
+   조회·취소·환급으로만 적고 있다. gate가 열리는 순간부터 굿즈·티켓 카드·간편결제의 승인·
+   취소·환급은 토스가 처리하므로 그 고지는 사실과 어긋난다. 제11조·제5조에 토스페이먼츠
+   주식회사(굿즈·티켓 카드·간편결제 처리, 결제 취소와 환급)를 추가하고 코페이를 판매 제한
+   상품 전용으로 재서술한 뒤, `LEGAL_EFFECTIVE_DATES`의 시행일과 사전 공지 필요 여부(약관
+   변경 고지 기간)를 확정한다. 법정 고지 개정은 시행일·사전 공지가 필요한 사람 결정이라
+   agent가 문안·시행일을 임의로 바꾸지 않으며, 개정 시행일이 공개 gate 개방일보다 늦으면
+   gate를 열지 않는다. 시행일은 남길 증거에 적는다.
+5. (human) `TOSS_ORDER_CHECKOUT_ENABLED=true`로 **굿즈만** 공개한다.
    `TOSS_TICKET_CHECKOUT_ENABLED`와 canary 두 개는 닫힌 상태를 유지한다. 심사자는 우리
    원장에 계정이 없는 **비회원 방문자**라 canary(로그인 사용자 UUID 단일 일치)로 대체할 수
    없고, gate·canary가 모두 닫히면 `goodsCheckoutPaymentsEnabled()`가 false여서 결제창을
@@ -196,24 +214,24 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
    가짜 `paid` 주문을 만들 수 있고, 그 주문이 발주 확인 큐·주문 확인 메일·재고 점유로
    그대로 유입된다. 감수 근거는 **첫 실판매 전**이라는 전제 하나뿐이며, 회수는 라이브
    전환 6번(테스트 주문·attempt 정리)에서 한다. 심사가 끝난 뒤에는 이 상태를 남기지 않는다.
-5. (agent/CI) 승인된 exact main SHA를 GitHub Actions Production 경로로 배포하고, canonical
+6. (agent/CI) 승인된 exact main SHA를 GitHub Actions Production 경로로 배포하고, canonical
    alias와 build readback(`Toss configured=true`, `order checkout enabled=true`,
    `ticket checkout enabled=false`, `order canary configured=false`,
    `ticket canary configured=false`)을 확인한다. 이 조합에서는 빌드가
    `Toss public checkout gate is open on test-mode keys…` 경고를 출력하는 것이 정상이다 —
    빌드를 멈추는 조건이 아니라 심사 창 상태를 로그에 남기는 비치명 경고다. build log에
    키·paymentKey·provider 원문이 없는지 함께 본다.
-6. (agent) 심사 요건을 점검한다 — 판매 상품이 **1개 이상** 공개 노출될 것, 사이트 하단
+7. (agent) 심사 요건을 점검한다 — 판매 상품이 **1개 이상** 공개 노출될 것, 사이트 하단
    **사업자 정보** 표기가 있을 것, 테스트 키로 결제창이 정상 노출될 것, 토스 공식 홈페이지
    심사 조건인 **비회원도 구매 가능할 것**. 마지막 항목은 현재 구조와 충돌한다 — ICONS는
    구매를 로그인 뒤 보호 액션으로 두므로(`AGENTS.md` 구현 원칙) 반려·지연 소지가 있다.
    대응은 human 스텝([#394](https://github.com/icons-hq/icons-ip/issues/394))에서
    **비회원 구매 허용 검토**와 **심사팀 사전 협의** 중 무엇을 먼저 밟을지 정한다. 테스트 키
    기간의 결제는 실결제가 아니며, 첫 실판매 전이라 결제창 공개가 2026-09-01 확정으로 허용됐다.
-7. (human) 전자결제를 신청한다(사업자등록증 등 서류). 19금 공존 구조의 서면 확인 문서를
+8. (human) 전자결제를 신청한다(사업자등록증 등 서류). 19금 공존 구조의 서면 확인 문서를
    함께 보관한다. 1번의 상점 테스트 키가 이 신청 이후에 나오므로, 키가 아직 없다면 이 단계가
    실질적인 출발점이다.
-8. (human) 홈페이지 심사(1~2일) → 카드사 심사(최대 14일)를 추적하고 심사 요청 사항에
+9. (human) 홈페이지 심사(1~2일) → 카드사 심사(최대 14일)를 추적하고 심사 요청 사항에
    대응한다. 라이브까지 3~4주를 전제로 첫 실판매(에픽 #319) 일정과 맞춘다.
 
 완료 조건: 카드사 심사 통과, 라이브 키 발급 가능 상태.
@@ -250,7 +268,7 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
    (2026-09-01 결정). 변경 뒤 새 Production deployment와 boolean readback까지 확인해야 적용된
    것으로 본다. 이 배포부터는 테스트 모드 경고가 더 이상 나오지 않는 것이 정상이다.
 6. (agent) 테스트 키 기간에 생성된 테스트 주문·attempt 상태를 원장 이력 보존 원칙 안에서
-   정리하고, 이 runbook에 readback을 기록한다. 심사 창(③ 4번)에서 공개 사용자가 만든 무과금
+   정리하고, 이 runbook에 readback을 기록한다. 심사 창(③ 5번)에서 공개 사용자가 만든 무과금
    `paid` 주문이 여기 포함된다 — 발주 확인 큐에서 빼고 점유된 재고를 되돌린 결과까지 함께
    적는다.
 
@@ -282,6 +300,11 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
   attempt 집계에서 `needs_review`가 갑자기 늘면 그것이 키 오류 신호다. 단 공식문서 59의 일시
   403(`FORBIDDEN_CONSECUTIVE_REQUEST` 반복 요청 제한·`NOT_AVAILABLE_BANK` 은행 서비스 시간)은
   키 축이 아니라 `unknown`으로 남아 5xx·재전송을 받는다.
+  가상계좌 웹훅(`WAITING_FOR_DEPOSIT`)은 조회 8초 + 취소 8초로 첫 전송이 토스의 10초 응답
+  예산(공식문서 41 "10 초 이내로 200 응답")을 넘길 수 있어 전송 실패 1회·실패 메일이 기록될
+  수 있다 — 핸들러는 완주해 `declined`로 종결하고, +1분 재전송은 종결 attempt라 200으로
+  수렴한다(취소는 멱등키 `cancel-unsupported:{attemptId}`라 중복 발행이 없다). 가상계좌 건의
+  이 실패 기록 1회는 정상이며 돈에 영향이 없다.
   콜백이 유실된 건의 만료 + 45분(결제창 30분 · 승인 10분 · 버퍼)은 **시한이 아니라
   `reconcile()`이 실행됐을 때의 판정 규칙**이다 — 그 시각을 지났고 조회가 404이면 실패로
   확정되지만, 시한 도달만으로 스스로 실행되지는 않는다. reconcile을 태우는 트리거는 ① 토스
@@ -370,6 +393,8 @@ deployment → exact SHA/canonical alias → boolean readback 순서를 반복�
 - 배포 exact SHA, PR, Actions run, Vercel deployment URL과 canonical production alias 대상
 - 환경별 변수 **이름·존재 여부·sensitive 여부·gate boolean**과 canonical `SITE_URL` 값만 담은 readback
 - 심사 제출·홈페이지 심사·카드사 심사의 접수 시각과 결과, 19금 공존 서면 확인 보관 위치
+- 약관 제11조·개인정보처리방침 제5조 결제대행사 고지 개정(심사 트랙 4번)의 시행일과 사전
+  공지 여부
 - 공개 gate 개방 전 canary 실증(심사 트랙 3번)의 확인 시각과 결과 — 위젯 노출 결제수단이
   카드·간편결제뿐이었는지, orderId 조회가 200이었는지, 웹훅이 도착했는지, 그 결제로 생긴
   주문·attempt를 어디에 적어 뒀는지

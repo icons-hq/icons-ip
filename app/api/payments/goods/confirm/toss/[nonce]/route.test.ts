@@ -69,7 +69,7 @@ describe('GET /api/payments/goods/confirm/toss/[nonce]', () => {
     mocks.confirm.mockResolvedValue(outcome('approved'));
   });
 
-  it('라우트 실행 예산을 maxDuration 60초로 명시한다(승인 25s + 409 재요청 25s + 조회 8s + DB)', () => {
+  it('라우트 실행 예산을 maxDuration 60초로 명시한다(시한 도달 25s + 조회 8s ≤ 33s, 또는 즉시 409 + 대기 1s + 재요청 25s + 조회 8s ≈ 34s, + DB)', () => {
     expect(maxDuration).toBe(60);
   });
 
