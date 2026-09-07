@@ -107,6 +107,33 @@ select 1 / case when (
 ) then 1 else 0 end as assert_threshold_uses_the_discounted_price;
 
 -- ---------------------------------------------------------------------------
+-- D-2. 화면 견적 — 청구와 같은 함수를 보고, 답이 하나가 아니면 안내를 감춘다
+-- ---------------------------------------------------------------------------
+update public.goods set price = 10000, discount_kind = 'none', discount_value = 0, shipping_policy_id = null where id = 'ship-g1';
+
+select 1 / case when (
+  select fee = 3000 and free_remaining = 40000
+  from public.shipping_quote_for_lines('[{"goodId":"ship-g1","qty":1}]'::jsonb)
+) then 1 else 0 end as assert_quote_reports_remaining_for_free_shipping;
+
+select 1 / case when (
+  select fee = 0 and free_remaining = 0
+  from public.shipping_quote_for_lines('[{"goodId":"ship-g1","qty":5}]'::jsonb)
+) then 1 else 0 end as assert_quote_reports_zero_when_already_free;
+
+-- 정책이 섞이면 「얼마 더 담으면」에 답이 하나가 아니다 — 숫자를 지어내지 않는다.
+select 1 / case when (
+  select free_remaining is null
+  from public.shipping_quote_for_lines('[{"goodId":"ship-g1","qty":1},{"goodId":"ship-g2","qty":1}]'::jsonb)
+) then 1 else 0 end as assert_quote_hides_remaining_when_policies_mix;
+
+-- 견적과 청구가 같은 값이어야 한다.
+select 1 / case when (
+  select fee = public.shipping_fee_for_lines('[{"goodId":"ship-g1","qty":1},{"goodId":"ship-g2","qty":1}]'::jsonb, '63000')
+  from public.shipping_quote_for_lines('[{"goodId":"ship-g1","qty":1},{"goodId":"ship-g2","qty":1}]'::jsonb, '63000')
+) then 1 else 0 end as assert_quote_matches_the_charge;
+
+-- ---------------------------------------------------------------------------
 -- E. 제약 — 기본은 하나, 요금 형태는 짝이 맞아야 한다
 -- ---------------------------------------------------------------------------
 do $$

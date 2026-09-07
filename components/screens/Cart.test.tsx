@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CartItem } from '@/lib/cart';
 import type { UserCouponSummary } from '@/lib/coupons';
 import type { CartCouponState } from '@/lib/coupons.server';
@@ -9,6 +9,9 @@ import { Cart } from './Cart';
 const mocks = vi.hoisted(() => ({
   items: [] as CartItem[],
   mode: 'server' as 'server' | 'local',
+  /* 배송비는 서버 견적이다 — SSR 렌더에서는 효과가 안 돌아 여기서 끼워 넣는다. */
+  quote: null as { fee: number; freeRemaining: number | null } | null,
+  quotePending: false
 }));
 
 vi.mock('@/components/shell/CartProvider', () => ({
@@ -26,6 +29,10 @@ vi.mock('@/components/shell/CartProvider', () => ({
     refresh: vi.fn(),
     resetForSignOut: vi.fn(),
   }),
+}));
+
+vi.mock('@/components/shell/useShippingQuote', () => ({
+  useShippingQuote: () => ({ quote: mocks.quote, pending: mocks.quotePending }),
 }));
 
 vi.mock('@/app/cart/coupon-actions', () => ({
@@ -87,10 +94,25 @@ function render(
   answeredIds: string[] = items.map((item) => item.goodId),
 ) {
   mocks.items = items;
+  if (mocks.quote === null && !mocks.quotePending) {
+    /* 기본 정책과 같은 값 — 서버가 돌려주는 것을 흉내 낸다(3,000원 · 5만원 이상 무료). */
+    const subtotal = items.reduce((sum, item) => {
+      const good = goods.find((entry) => entry.id === item.goodId);
+      return sum + (good ? good.price * item.qty : 0);
+    }, 0);
+    mocks.quote = subtotal <= 0
+      ? { fee: 0, freeRemaining: null }
+      : { fee: subtotal >= 50000 ? 0 : 3000, freeRemaining: Math.max(0, 50000 - subtotal) };
+  }
   return renderToStaticMarkup(
     <Cart catalog={{ goods, ips: [], answeredIds }} couponState={couponState} />,
   );
 }
+
+beforeEach(() => {
+  mocks.quote = null;
+  mocks.quotePending = false;
+});
 
 describe('Cart 배송비 요약', () => {
   it('임계 미달이면 실제 배송비를 붙이고 남은 금액을 안내한다', () => {
@@ -108,6 +130,25 @@ describe('Cart 배송비 요약', () => {
     expect(html).toContain('₩60,000');
     expect(html).toContain('무료');
     expect(html).not.toContain('더 담으면');
+  });
+});
+
+describe('Cart 배송비 견적', () => {
+  it('아직 못 셌으면 0원이라고 단정하지 않는다 — 숫자를 보였다 바꾸는 게 더 나쁘다', () => {
+    mocks.quotePending = true;
+    mocks.quote = null;
+    const html = render([{ goodId: 'g13', qty: 1 }]);
+
+    expect(html).toContain('계산 중');
+    expect(html).not.toContain('₩15,000');
+  });
+
+  it('정책이 섞이면 무료배송 안내를 감춘다 — 답이 하나가 아닌 숫자는 거짓말이 된다', () => {
+    mocks.quote = { fee: 7000, freeRemaining: null };
+    const html = render([{ goodId: 'g13', qty: 1 }]);
+
+    expect(html).toContain('₩7,000');
+    expect(html).not.toContain('더 담으면 무료배송이에요.');
   });
 });
 

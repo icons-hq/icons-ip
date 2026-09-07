@@ -25,9 +25,10 @@ import {
 } from '@/lib/coupons';
 import type { CartCouponState } from '@/lib/coupons.server';
 import { useCartCatalog } from '@/components/shell/useCartCatalog';
+import { useShippingQuote } from '@/components/shell/useShippingQuote';
 import type { Good, Ip } from '@/lib/data';
 import { krw, krwAmountWords } from '@/lib/format';
-import { freeShippingRemainder, shippingFeeFor, shippingFeeLabel } from '@/lib/shipping';
+import { shippingFeeLabel } from '@/lib/shipping';
 
 interface CartLine {
   goodId: string;
@@ -258,9 +259,14 @@ export function Cart({
     total + (line.good ? line.good.price * line.qty : 0)
   ), 0);
   const unavailableCount = lines.filter(isUnavailable).length;
-  /* 표시용 예상치다. 실제 청구액은 place_order가 같은 정책으로 다시 계산한다. */
-  const shippingFee = shippingFeeFor(subtotal);
-  const remainingForFreeShipping = freeShippingRemainder(subtotal);
+  /*
+   * 배송비는 **서버가 정책으로 계산한 견적**이다(현업 슬라이스 2 후속). 화면이 코드 상수로
+   * 어림잡던 때는 정책이 섞인 장바구니에서 실제 청구와 어긋났다 — 이제 주문과 같은 함수를 본다.
+   * 배송지를 모르는 장바구니에서는 도서산간 추가비가 빠져 있고, 그건 결제 화면에서 붙는다.
+   */
+  const { quote: shippingQuote, pending: shippingPending } = useShippingQuote(items, null);
+  const shippingFee = shippingQuote?.fee ?? 0;
+  const remainingForFreeShipping = shippingQuote?.freeRemaining ?? 0;
   /* 조회가 끝나기 전에는 결제로 못 넘어간다 — 아직 못 받은 줄을 「없는 상품」으로 세면
      멀쩡한 장바구니가 잠긴다. */
   const canCheckout = unavailableCount === 0 && !pending && !resolving;
@@ -312,18 +318,20 @@ export function Cart({
                   </tr>
                   <tr>
                     <th scope="row">배송비</th>
-                    <td>{shippingFeeLabel(shippingFee)}</td>
+                    {/* 아직 못 셌으면 0원이라고 단정하지 않는다 — 숫자를 보였다 바꾸는 게 더 나쁘다. */}
+                    <td>{shippingPending ? '계산 중' : shippingFeeLabel(shippingFee)}</td>
                   </tr>
                 </tbody>
                 <tfoot>
                   <tr>
                     <th scope="row">예상 총액</th>
-                    <td>{krw(subtotal + shippingFee - couponDiscount)}</td>
+                    <td>{shippingPending ? '계산 중' : krw(subtotal + shippingFee - couponDiscount)}</td>
                   </tr>
                 </tfoot>
               </table>
               <p className="wc-cart__summary-note">배송비는 결제 화면에서 확인할 수 있어요.</p>
-              {/* 판매 종료 라인만 남은 카트는 소계가 0이다 — 담을 것도 없는데 무료배송을 권하지 않는다. */}
+              {/* 판매 종료 라인만 남은 카트는 소계가 0이다 — 담을 것도 없는데 무료배송을 권하지 않는다.
+                  정책이 섞이면 서버가 null 을 주고(답이 하나가 아니다) 이 안내는 사라진다. */}
               {subtotal > 0 && remainingForFreeShipping > 0 ? (
                 <p className="wc-cart__summary-note">
                   {krwAmountWords(remainingForFreeShipping)} 더 담으면 무료배송이에요.

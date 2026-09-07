@@ -7,6 +7,7 @@ import { placeOrderAction } from '@/app/checkout/actions';
 import { PostcodeField } from '@/components/checkout/PostcodeField';
 import { useCart } from '@/components/shell/CartProvider';
 import { useCartCatalog } from '@/components/shell/useCartCatalog';
+import { useShippingQuote } from '@/components/shell/useShippingQuote';
 import type { CartCatalog } from '@/lib/cart-catalog';
 import {
   checkoutAddressErrors,
@@ -18,7 +19,7 @@ import {
 import { krw } from '@/lib/format';
 import { couponPreviewDiscount, type UserCouponSummary } from '@/lib/coupons';
 import type { ComposedPostcodeAddress } from '@/lib/postcode';
-import { shippingFeeFor, shippingFeeLabel } from '@/lib/shipping';
+import { shippingFeeLabel } from '@/lib/shipping';
 
 const actionErrors = {
   account_suspended: '정지된 계정은 새 주문을 만들 수 없어요.',
@@ -100,8 +101,16 @@ export function Checkout({
   /* 주문서도 담긴 id 만 조회한다(규모 후속) — 아직 못 받은 줄은 「품절」이 아니다. */
   const { lines, resolving } = useCartCatalog(catalog, items);
   const subtotal = lines.reduce((sum, line) => sum + (line.good?.price ?? 0) * line.qty, 0);
-  /* 표시용 예상치다. 결제 금액은 place_order가 확정한 orders.total을 따른다. */
-  const shippingFee = shippingFeeFor(subtotal);
+  /*
+   * 배송비는 서버가 정책으로 계산한 견적이다 — 주문 생성과 **같은 함수**를 본다.
+   * 주문서에는 우편번호가 있으므로 **도서산간 추가비까지 반영된 금액**이다.
+   * 확정 금액은 그래도 place_order 가 만든 orders.total 을 따른다(재고·쿠폰이 그 사이 변한다).
+   */
+  const { quote: shippingQuote, pending: shippingPending } = useShippingQuote(
+    items,
+    address.postalCode || null,
+  );
+  const shippingFee = shippingQuote?.fee ?? 0;
   const couponDiscount = couponPreviewDiscount(appliedCoupon, subtotal, shippingFee);
   const unavailable = lines.some(({ good, qty }) => (
     !good || good.stock === 'soldout' || good.stockQty < qty
@@ -297,8 +306,12 @@ export function Checkout({
             {couponDiscount > 0 && appliedCoupon && (
               <div><dt>쿠폰 할인 ({appliedCoupon.coupon.name})</dt><dd>−{krw(couponDiscount)}</dd></div>
             )}
-            <div><dt>배송비</dt><dd>{shippingFeeLabel(shippingFee)}</dd></div>
-            <div className="checkout-total"><dt>결제 금액</dt><dd>{krw(subtotal + shippingFee - couponDiscount)}</dd></div>
+            {/* 아직 못 셌으면 0원이라고 단정하지 않는다. */}
+            <div><dt>배송비</dt><dd>{shippingPending ? '계산 중' : shippingFeeLabel(shippingFee)}</dd></div>
+            <div className="checkout-total">
+              <dt>결제 금액</dt>
+              <dd>{shippingPending ? '계산 중' : krw(subtotal + shippingFee - couponDiscount)}</dd>
+            </div>
           </dl>
 
           <fieldset className="checkout-method" aria-describedby="checkout-method-note">
