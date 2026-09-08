@@ -87,7 +87,7 @@ KORPAY_TICKET_CANARY_USER_ID=
 - `EMAIL_DISPATCH_HMAC_SECRET`: recipient·source·provider reference를 목적 분리 keyed HMAC으로 투영하는 32자 이상 서버 secret이다.
 - `RESEND_API_KEY`·`RESEND_FROM`·`RESEND_REPLY_TO`: durable EmailDispatcher의 Resend HTTP 발송 설정이다. Preview·CI에는 실값을 두지 않는다.
 - `RESEND_API_ENDPOINT`: 호환성 검증에만 쓰는 선택적 endpoint override다. 일반 운영에서는 비워 둔다.
-- `PAYMENT_RECONCILIATION_SECRET`: 검토된 단일 결제·환급 건을 명시적으로 재조회하는 내부 route 전용 bearer secret. `CRON_SECRET`과 공유하지 않는다. #206 dark deploy에서는 미설정이 정상이며 route가 401로 닫힌다. 활성화 시 별도 승인 절차로 Production에만 16~128자의 URL-safe 랜덤 값을 두고 Preview/CI에는 넣지 않는다. 요청은 이메일 등 PII가 아닌 opaque URL-safe `caseRef`만 받으며 actor는 서버가 `payment_reconciliation_service_v1`으로 고정한다.
+- `PAYMENT_RECONCILIATION_SECRET`: 검토된 단일 결제·환급 건을 명시적으로 재조회하는 내부 route(티켓 `/api/internal/payments/tickets/reconcile` — `operation: payment | refund`, 굿즈 `/api/internal/payments/goods/reconcile` — 환불 reconcile seam이 없어 `operation: payment`만) 전용 bearer secret. `CRON_SECRET`과 공유하지 않는다. #206 dark deploy에서는 미설정이 정상이며 route가 401로 닫힌다. 활성화 시 별도 승인 절차로 Production에만 16~128자의 URL-safe 랜덤 값을 두고 Preview/CI에는 넣지 않는다. 요청은 이메일 등 PII가 아닌 opaque URL-safe `caseRef`만 받으며 actor는 서버가 `payment_reconciliation_service_v1`으로 고정한다.
 - `NEXT_PUBLIC_TOSS_CLIENT_KEY`·`TOSS_SECRET_KEY`: 토스페이먼츠 주문서형 v2 위젯 키 쌍이다. 형식은 `(test|live)_gck_…`/`(test|live)_gsk_…`이고 **두 키의 모드가 같아야 한다** — 테스트 클라이언트 키로 띄운 결제를 라이브 시크릿 키로 승인하는 반쪽 전환을 빌드와 런타임이 함께 막는다. API 개별연동 `test_sk_…` 계열은 형식에서 거절한다. 클라이언트 키만 `NEXT_PUBLIC_`이고 시크릿 키는 server-only 모듈 밖으로 나가지 않는다. Vercel Production에만 sensitive 값으로 두고, 심사 기간에는 테스트 키가 물린다.
 - `TOSS_ORDER_CHECKOUT_ENABLED`·`TOSS_TICKET_CHECKOUT_ENABLED`: 신규 굿즈·티켓 토스 provider session을 목적별로 여는 정확한 `true`/`false` gate다. 기본값은 `false`이고 개방은 [`docs/runbooks/toss-production-rollout.md`](./docs/runbooks/toss-production-rollout.md)의 심사 트랙을 따른다. gate를 내려도 이미 durable하게 준비된 known order+nonce callback은 계속 drain한다.
 - `TOSS_ORDER_CANARY_USER_ID`·`TOSS_TICKET_CANARY_USER_ID`: public gate가 `false`인 동안 목적별로 인증된 단일 UUID actor만 허용하는 선택적 Production canary allowlist다. 기본값은 미설정이고 Preview/CI에는 두지 않는다.
@@ -323,8 +323,8 @@ curl -s "$PREVIEW_URL" | grep -o '/_next/static/chunks/[^"]*\.js' | sort -u | wh
 ## 작업 경계
 
 - 공개 브라우징이 기본이다. IP, 굿즈, 카드, 이벤트, 커뮤니티 읽기는 로그인 없이 접근 가능해야 한다.
-- 보호 액션은 구매, 가챠, 예매, 작성, 팔로우 시점에 로그인 게이트를 둔다.
+- 보호 액션은 구매, 카드팩 개봉, 게임 플레이, 예매, 작성, 팔로우 시점에 로그인 게이트를 둔다.
 - `/exchange`와 `/market`은 v2 전까지 프로토타입/플레이스홀더로 유지한다.
-- 돈, 재고, 가챠 RNG, 천장, 티켓 검표는 클라이언트 상태에 맡기지 않는다. Supabase Postgres RPC, RLS, 행 잠금, 멱등 처리를 기준으로 구현한다.
+- 돈, 재고, 카드 발급 RNG, 뽑기권 발급·개봉, 유한 실물 경품 배정, 티켓 검표는 클라이언트 상태에 맡기지 않는다. Supabase Postgres RPC, RLS, 행 잠금, 멱등 처리를 기준으로 구현한다.
 - 결제 확정은 provider-neutral `PaymentGateway.confirm/reconcile` 결과와 DB finalizer를 진실원으로 삼는다. 토스 경로는 조회 API 재검증과 웹훅 트리거 재정합을 함께 쓰고, 어느 경로도 클라이언트 성공 콜백이나 웹훅 payload만으로 주문·티켓을 확정하지 않는다.
 - Next.js 16 관련 API, 라우팅, proxy/middleware, metadata, caching 코드를 수정하기 전에는 `node_modules/next/dist/docs/`의 현재 버전 문서를 확인한다.

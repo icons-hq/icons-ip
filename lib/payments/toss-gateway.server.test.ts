@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PaymentAttempt } from './gateway';
 import { createTossPaymentGateway } from './toss-gateway.server';
 
@@ -58,6 +58,10 @@ function gateway(overrides: {
   now?: () => Date;
   clientKey?: string;
   secretKey?: string;
+  confirmTimeoutMs?: number;
+  requestTimeoutMs?: number;
+  retryDelayMs?: number;
+  wait?: (ms: number) => Promise<void>;
 } = {}) {
   const fetchImpl = overrides.fetch ?? (vi.fn() as unknown as typeof fetch);
   return {
@@ -67,9 +71,46 @@ function gateway(overrides: {
       siteUrl: SITE_URL,
       fetch: fetchImpl,
       now: overrides.now ?? (() => NOW),
+      ...(overrides.confirmTimeoutMs !== undefined
+        ? { confirmTimeoutMs: overrides.confirmTimeoutMs }
+        : {}),
+      ...(overrides.requestTimeoutMs !== undefined
+        ? { requestTimeoutMs: overrides.requestTimeoutMs }
+        : {}),
+      ...(overrides.retryDelayMs !== undefined ? { retryDelayMs: overrides.retryDelayMs } : {}),
+      ...(overrides.wait ? { wait: overrides.wait } : {}),
     }),
     fetchImpl: fetchImpl as ReturnType<typeof vi.fn>,
   };
+}
+
+/** 대기를 실제로 하지 않고 요청된 ms만 기록하는 wait — 409 재요청 테스트 주입용. */
+function recordingWait() {
+  const waits: number[] = [];
+  return { waits, wait: async (ms: number) => { waits.push(ms); } };
+}
+
+/**
+ * 응답을 주지 않고 매달려 있다가 abort 신호에만 reject하는 fetch. `respond`가
+ * Response를 돌려주는 호출 순번은 즉시 그 응답으로 끝난다 — 시한 판정을 fake
+ * timers로 결정적으로 검증하기 위한 도구다.
+ */
+function hangingFetch(respond: (call: number) => Response | undefined = () => undefined) {
+  const signals: AbortSignal[] = [];
+  const fetchImpl = vi.fn((_url: string, init?: RequestInit) => {
+    const signal = init?.signal as AbortSignal;
+    signals.push(signal);
+    const response = respond(signals.length);
+    if (response) return Promise.resolve(response);
+    return new Promise<Response>((_resolve, reject) => {
+      signal.addEventListener(
+        'abort',
+        () => reject(new DOMException('aborted', 'AbortError')),
+        { once: true },
+      );
+    });
+  });
+  return { fetchImpl: fetchImpl as unknown as typeof fetch, signals };
 }
 
 async function confirmInput(payloadOverrides: Record<string, unknown> = {}, attempt = ATTEMPT) {
@@ -296,6 +337,29 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.reasonCode).toBe('provider_identity_mismatch');
     });
 
+    it('승인 200이 DONE이어도 결제수단이 가상계좌면 approved가 아니라 needs_review다 — 입금 뒤라 취소 API도 호출하지 않는다', async () => {
+      // 취소 실패로 needs_review에 남은 가상계좌 건에 구매자가 입금하면 DONE이 돌아온다.
+      // identity가 맞아도 에스크로 미계약 가상계좌 판매를 approved로 성립시키지 않고,
+      // 입금 뒤 취소는 refundReceiveAccount가 필요하므로(문서 127) 취소도 발행하지 않는다.
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, donePayment({
+        method: '가상계좌',
+        card: null,
+        virtualAccount: { accountNumber: 'X1234567890', bankCode: '20', dueDate: '2026-09-02T00:00:00+09:00' },
+      })));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.confirm(await confirmInput());
+
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(outcome.outcome).toBe('needs_review');
+      expect(outcome.reasonCode).toBe('provider_method_not_allowed');
+      expect(outcome.evidence).toEqual({
+        providerPaymentKey: PAYMENT_KEY,
+        resultCode: 'DONE_virtual_account',
+        paymentMethod: '가상계좌',
+      });
+    });
+
     it('카드사 거절은 조회 없이 declined로 종결한다', async () => {
       const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(403, {
         code: 'REJECT_CARD_COMPANY',
@@ -309,6 +373,239 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.outcome).toBe('declined');
       expect(outcome.reasonCode).toBe('provider_declined');
       expect(outcome.evidence?.resultCode).toBe('REJECT_CARD_COMPANY');
+    });
+
+    it('한도초과·잔액부족(REJECT_CARD_PAYMENT)은 조회 없이 declined로 종결한다', async () => {
+      // 문서 11의 승인 API 에러 재현 예시 코드 — 문서 59 표에는 빠져 있다.
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(400, {
+        code: 'REJECT_CARD_PAYMENT',
+        message: '한도초과 혹은 잔액부족으로 결제에 실패했습니다.',
+      }));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.confirm(await confirmInput());
+
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(outcome.outcome).toBe('declined');
+      expect(outcome.reasonCode).toBe('provider_declined');
+      expect(outcome.evidence).toEqual({
+        providerPaymentKey: PAYMENT_KEY,
+        resultCode: 'REJECT_CARD_PAYMENT',
+      });
+    });
+
+    describe('미지 4xx 코드', () => {
+      const unknownFailure = () => jsonResponse(400, {
+        code: 'SOME_NEW_CODE',
+        message: '표에 없는 새 실패 코드',
+      });
+      const notFound = () => jsonResponse(404, {
+        code: 'NOT_FOUND_PAYMENT',
+        message: '존재하지 않는 결제 입니다.',
+      });
+
+      it('조회 404는 승인 불성립 확정이다 — 원 코드를 resultCode로 보존한 declined', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(unknownFailure())
+          .mockResolvedValueOnce(notFound());
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        expect(fetchImpl.mock.calls[1]![1].method).toBe('GET');
+        expect(outcome.outcome).toBe('declined');
+        expect(outcome.reasonCode).toBe('provider_declined');
+        expect(outcome.evidence).toEqual({
+          providerPaymentKey: PAYMENT_KEY,
+          resultCode: 'SOME_NEW_CODE',
+        });
+      });
+
+      it('조회가 DONE이면 승인으로 읽는다 — 4xx 본문을 믿지 않는다', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(unknownFailure())
+          .mockResolvedValueOnce(jsonResponse(200, donePayment()));
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(outcome.outcome).toBe('approved');
+        expect(outcome.reasonCode).toBe('provider_approved_after_recheck');
+      });
+
+      it('5xx 뒤 조회 404는 여전히 unknown이다(회귀) — 승인이 뒤늦게 성립할 수 있다', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(jsonResponse(500, {
+            code: 'FAILED_INTERNAL_SYSTEM_PROCESSING',
+            message: '내부 시스템 처리 작업이 실패했습니다.',
+          }))
+          .mockResolvedValueOnce(notFound());
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(outcome.outcome).toBe('unknown');
+        expect(outcome.reasonCode).toBe('provider_inquiry_not_found');
+      });
+
+      it('4xx인데 본문에 code가 없으면 조회 404를 unknown으로 남긴다(회귀)', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(jsonResponse(400, { message: 'code 없는 본문' }))
+          .mockResolvedValueOnce(notFound());
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(outcome.outcome).toBe('unknown');
+        expect(outcome.reasonCode).toBe('provider_inquiry_not_found');
+      });
+
+      it('4xx 본문이 JSON이 아니면 조회 404를 unknown으로 남긴다(회귀)', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(new Response('<html>bad gateway</html>', { status: 400 }))
+          .mockResolvedValueOnce(notFound());
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(outcome.outcome).toBe('unknown');
+        expect(outcome.reasonCode).toBe('provider_inquiry_not_found');
+      });
+    });
+
+    describe('가상계좌(WAITING_FOR_DEPOSIT) 가드', () => {
+      const waitingForDeposit = (overrides: Record<string, unknown> = {}) => donePayment({
+        status: 'WAITING_FOR_DEPOSIT',
+        method: '가상계좌',
+        card: null,
+        approvedAt: null,
+        virtualAccount: { accountNumber: 'X1234567890', bankCode: '20', dueDate: '2026-09-02T00:00:00+09:00' },
+        ...overrides,
+      });
+      const canceledBeforeDeposit = () => donePayment({
+        status: 'CANCELED',
+        method: '가상계좌',
+        card: null,
+        approvedAt: null,
+        balanceAmount: 0,
+      });
+      const CANCEL_URL = `https://api.tosspayments.com/v1/payments/${PAYMENT_KEY}/cancel`;
+
+      it('승인 200이 WAITING_FOR_DEPOSIT이면 즉시 전액 취소하고 declined로 닫는다', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(jsonResponse(200, waitingForDeposit()))
+          .mockResolvedValueOnce(jsonResponse(200, canceledBeforeDeposit()));
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        const [cancelUrl, cancelInit] = fetchImpl.mock.calls[1]!;
+        expect(cancelUrl).toBe(CANCEL_URL);
+        expect(cancelInit.method).toBe('POST');
+        expect(cancelInit.headers['idempotency-key']).toBe(`cancel-unsupported:${ATTEMPT.id}`);
+        const cancelBody = JSON.parse(cancelInit.body);
+        // cancelReason만 싣는다 — cancelAmount 없음 = 전액, refundReceiveAccount 없음 =
+        // 입금 전이라 환불할 금액이 없다(문서 127).
+        expect(cancelBody).toEqual({ cancelReason: '지원하지 않는 결제수단(가상계좌)' });
+        expect(cancelBody).not.toHaveProperty('cancelAmount');
+        expect(cancelBody).not.toHaveProperty('refundReceiveAccount');
+        expect(outcome.outcome).toBe('declined');
+        expect(outcome.reasonCode).toBe('provider_method_not_allowed');
+        expect(outcome.evidence).toEqual({
+          providerPaymentKey: PAYMENT_KEY,
+          resultCode: 'WAITING_FOR_DEPOSIT',
+          paymentMethod: '가상계좌',
+        });
+      });
+
+      it.each([
+        ['취소 5xx', () => jsonResponse(500, { code: 'FAILED_INTERNAL_SYSTEM_PROCESSING', message: '내부 시스템 처리 작업이 실패했습니다.' })],
+        ['취소 200인데 본문이 CANCELED가 아님', () => jsonResponse(200, waitingForDeposit())],
+        ['취소 본문이 JSON이 아님', () => new Response('<html/>', { status: 502 })],
+      ])('취소가 성립하지 않으면 needs_review로 격리한다 — 돈은 아직 움직이지 않았다: %s', async (_label, cancelResponse) => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(jsonResponse(200, waitingForDeposit()))
+          .mockResolvedValueOnce(cancelResponse());
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        expect(outcome.outcome).toBe('needs_review');
+        expect(outcome.reasonCode).toBe('provider_method_not_allowed');
+        expect(outcome.evidence).toEqual({
+          providerPaymentKey: PAYMENT_KEY,
+          resultCode: 'WAITING_FOR_DEPOSIT',
+          paymentMethod: '가상계좌',
+        });
+      });
+
+      it('취소 네트워크 실패도 needs_review로 격리한다', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(jsonResponse(200, waitingForDeposit()))
+          .mockRejectedValueOnce(new Error('network down'));
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        expect(outcome.outcome).toBe('needs_review');
+        expect(outcome.reasonCode).toBe('provider_method_not_allowed');
+      });
+
+      it('WAITING_FOR_DEPOSIT인데 결제 identity가 어긋나면 취소하지 않고 격리한다', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(jsonResponse(200, waitingForDeposit({ totalAmount: ATTEMPT.amount + 1 })));
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+        expect(outcome.outcome).toBe('needs_review');
+        expect(outcome.reasonCode).toBe('provider_identity_mismatch');
+      });
+
+      it('confirm 재확인 조회가 WAITING_FOR_DEPOSIT을 돌려줘도 같은 가드가 적용된다', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(jsonResponse(500, { code: 'COMMON_ERROR', message: '일시적인 오류' }))
+          .mockResolvedValueOnce(jsonResponse(200, waitingForDeposit()))
+          .mockResolvedValueOnce(jsonResponse(200, canceledBeforeDeposit()));
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(fetchImpl).toHaveBeenCalledTimes(3);
+        const [cancelUrl, cancelInit] = fetchImpl.mock.calls[2]!;
+        expect(cancelUrl).toBe(CANCEL_URL);
+        expect(cancelInit.headers['idempotency-key']).toBe(`cancel-unsupported:${ATTEMPT.id}`);
+        expect(outcome.outcome).toBe('declined');
+        expect(outcome.reasonCode).toBe('provider_method_not_allowed');
+        expect(outcome.evidence?.resultCode).toBe('WAITING_FOR_DEPOSIT');
+      });
+
+      it('confirm 재확인 조회가 입금 뒤 DONE(가상계좌)을 돌려주면 approved가 아니라 needs_review다', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(jsonResponse(500, { code: 'COMMON_ERROR', message: '일시적인 오류' }))
+          .mockResolvedValueOnce(jsonResponse(200, waitingForDeposit({
+            status: 'DONE',
+            approvedAt: '2026-09-01T09:00:21+09:00',
+          })));
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        // 조회 1회뿐 — 입금 뒤 취소는 발행하지 않는다.
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        expect(outcome.outcome).toBe('needs_review');
+        expect(outcome.reasonCode).toBe('provider_method_not_allowed');
+        expect(outcome.evidence).toEqual({
+          providerPaymentKey: PAYMENT_KEY,
+          resultCode: 'DONE_virtual_account',
+          paymentMethod: '가상계좌',
+        });
+      });
     });
 
     it('구매자 결제창 이탈 코드는 canceled로 종결한다', async () => {
@@ -361,20 +658,143 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.reasonCode).toBe('provider_session_expired');
     });
 
-    it('멱등 처리 중(409)·이미 처리됨 신호는 조회로 실상태에 수렴한다', async () => {
+    it('이미 처리됨(ALREADY_PROCESSED_PAYMENT) 신호는 재요청 없이 조회로 실상태에 수렴한다', async () => {
       const fetchImpl = vi.fn()
         .mockResolvedValueOnce(jsonResponse(400, {
           code: 'ALREADY_PROCESSED_PAYMENT',
           message: '이미 처리된 결제 입니다.',
         }))
         .mockResolvedValueOnce(jsonResponse(200, donePayment()));
-      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+      const { waits, wait } = recordingWait();
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch, wait });
 
       const outcome = await tossGateway.confirm(await confirmInput());
 
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      expect(fetchImpl.mock.calls[1]![1].method).toBe('GET');
+      expect(waits).toEqual([]);
       expect(outcome.outcome).toBe('approved');
       expect(outcome.reasonCode).toBe('provider_approved_after_recheck');
       expect(outcome.evidence?.providerPaymentKey).toBe(PAYMENT_KEY);
+    });
+
+    describe('409 멱등 처리 중', () => {
+      const processing = () => jsonResponse(409, {
+        code: 'IDEMPOTENT_REQUEST_PROCESSING',
+        message: '이전 멱등 요청이 처리중입니다.',
+      });
+
+      it('같은 멱등키로 정확히 1회 재요청하고 그 응답(200 DONE)을 approved로 읽는다', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(processing())
+          .mockResolvedValueOnce(jsonResponse(200, donePayment()));
+        const { waits, wait } = recordingWait();
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch, wait });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        const [firstUrl, firstInit] = fetchImpl.mock.calls[0]!;
+        const [secondUrl, secondInit] = fetchImpl.mock.calls[1]!;
+        expect(secondUrl).toBe(firstUrl);
+        expect(secondInit.method).toBe('POST');
+        expect(secondInit.headers['idempotency-key']).toBe(`confirm:${ATTEMPT.id}`);
+        expect(secondInit.headers['idempotency-key']).toBe(firstInit.headers['idempotency-key']);
+        expect(secondInit.body).toBe(firstInit.body);
+        // 기본 대기 1초 뒤 재요청한다.
+        expect(waits).toEqual([1_000]);
+        expect(outcome.outcome).toBe('approved');
+        expect(outcome.reasonCode).toBe('provider_approved');
+        expect(outcome.evidence?.providerPaymentKey).toBe(PAYMENT_KEY);
+      });
+
+      it('재요청 응답도 첫 응답과 같은 분기로 읽는다 — 거절 코드면 조회 없이 declined', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(processing())
+          .mockResolvedValueOnce(jsonResponse(403, {
+            code: 'REJECT_CARD_COMPANY',
+            message: '결제 승인이 거절되었습니다.',
+          }));
+        const { wait } = recordingWait();
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch, wait });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        expect(outcome.outcome).toBe('declined');
+        expect(outcome.evidence?.resultCode).toBe('REJECT_CARD_COMPANY');
+      });
+
+      it('재요청도 409면 조회로 수렴한다(재요청은 1회뿐)', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(processing())
+          .mockResolvedValueOnce(processing())
+          .mockResolvedValueOnce(jsonResponse(200, donePayment()));
+        const { waits, wait } = recordingWait();
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch, wait });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(fetchImpl).toHaveBeenCalledTimes(3);
+        const [inquiryUrl, inquiryInit] = fetchImpl.mock.calls[2]!;
+        expect(inquiryUrl).toBe(
+          `https://api.tosspayments.com/v1/payments/orders/${ATTEMPT.providerOrderId}`,
+        );
+        expect(inquiryInit.method).toBe('GET');
+        expect(waits).toEqual([1_000]);
+        expect(outcome.outcome).toBe('approved');
+        expect(outcome.reasonCode).toBe('provider_approved_after_recheck');
+      });
+
+      it('재요청 중 네트워크 실패는 조회로 수렴한다', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(processing())
+          .mockRejectedValueOnce(new Error('network down'))
+          .mockResolvedValueOnce(jsonResponse(404, {
+            code: 'NOT_FOUND_PAYMENT',
+            message: '존재하지 않는 결제 입니다.',
+          }));
+        const { wait } = recordingWait();
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch, wait });
+
+        const outcome = await tossGateway.confirm(await confirmInput());
+
+        expect(fetchImpl).toHaveBeenCalledTimes(3);
+        expect(fetchImpl.mock.calls[2]![1].method).toBe('GET');
+        expect(outcome.outcome).toBe('unknown');
+        expect(outcome.reasonCode).toBe('provider_inquiry_not_found');
+      });
+
+      it('wait를 주입하지 않으면 실제로 retryDelayMs만큼 기다린 뒤 재요청한다', async () => {
+        vi.useFakeTimers();
+        try {
+          const fetchImpl = vi.fn()
+            .mockResolvedValueOnce(processing())
+            .mockResolvedValueOnce(jsonResponse(200, donePayment()));
+          const { gateway: tossGateway } = gateway({
+            fetch: fetchImpl as unknown as typeof fetch,
+            retryDelayMs: 500,
+          });
+          const input = await confirmInput();
+
+          const pending = tossGateway.confirm(input);
+          await vi.advanceTimersByTimeAsync(499);
+          expect(fetchImpl).toHaveBeenCalledTimes(1);
+          await vi.advanceTimersByTimeAsync(1);
+          expect(fetchImpl).toHaveBeenCalledTimes(2);
+
+          const outcome = await pending;
+          expect(outcome.outcome).toBe('approved');
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+
+      it('retryDelayMs는 0~10초 밖이면 게이트웨이를 만들지 않는다', () => {
+        expect(() => gateway({ retryDelayMs: -1 })).toThrow('invalid_toss_configuration');
+        expect(() => gateway({ retryDelayMs: 10_001 })).toThrow('invalid_toss_configuration');
+        expect(() => gateway({ retryDelayMs: 0 })).not.toThrow();
+      });
     });
 
     it('서버 오류 후 조회가 진행 중 상태를 돌려주면 unknown으로 보존한다', async () => {
@@ -392,7 +812,10 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.reasonCode).toBe('provider_payment_in_progress');
     });
 
-    it('조회가 만료를 돌려주면 canceled로 종결한다', async () => {
+    it('조회가 만료를 돌려주면 declined로 종결한다 — reconcile과 같은 라벨', async () => {
+      // canceled는 전액 취소 검증(paymentFullyCanceled)을 통과했을 때만 쓴다. 환불
+      // 재정합이 canceled를 "원거래 전액 취소 확인"으로 읽으므로, 미승인 만료를
+      // canceled로 라벨링하면 원장이 취소 성공과 승인 불성립을 구분하지 못한다.
       const fetchImpl = vi.fn()
         .mockResolvedValueOnce(jsonResponse(500, { code: 'COMMON_ERROR', message: '일시적인 오류' }))
         .mockResolvedValueOnce(jsonResponse(200, donePayment({ status: 'EXPIRED' })));
@@ -400,8 +823,39 @@ describe('TossPayments v2 gateway', () => {
 
       const outcome = await tossGateway.confirm(await confirmInput());
 
-      expect(outcome.outcome).toBe('canceled');
+      expect(outcome.outcome).toBe('declined');
       expect(outcome.reasonCode).toBe('provider_payment_expired');
+      expect(outcome.evidence).toEqual({ resultCode: 'EXPIRED' });
+    });
+
+    it('조회가 전액 취소면 canceled로 종결하고 조회 응답의 취소 증거를 싣는다 — reconcile과 같은 증거', async () => {
+      // 증거의 providerPaymentKey는 provider가 "이 건을 취소했다"고 말한 결제의 식별자라
+      // 호출자가 원장 payment_key와 대조할 값이다. 경로(재확인 조회 vs reconcile)에 따라
+      // 같은 provider 상태의 증거가 달라지면 안 된다.
+      const fetchImpl = vi.fn()
+        .mockResolvedValueOnce(jsonResponse(500, { code: 'COMMON_ERROR', message: '일시적인 오류' }))
+        .mockResolvedValueOnce(jsonResponse(200, donePayment({
+          status: 'CANCELED',
+          balanceAmount: 0,
+          cancels: [{
+            cancelAmount: ATTEMPT.amount,
+            canceledAt: '2026-09-01T10:00:00+09:00',
+            transactionKey: 'CANCELTX',
+            cancelStatus: 'DONE',
+          }],
+        })));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.confirm(await confirmInput());
+
+      expect(outcome.outcome).toBe('canceled');
+      expect(outcome.reasonCode).toBe('provider_payment_canceled');
+      expect(outcome.evidence).toEqual({
+        providerPaymentKey: PAYMENT_KEY,
+        providerTransactionId: 'CANCELTX',
+        resultCode: 'CANCELED',
+        approvedAt: new Date('2026-09-01T10:00:00+09:00').toISOString(),
+      });
     });
 
     it('네트워크 실패 후 조회까지 실패하면 unknown으로 보존한다', async () => {
@@ -436,6 +890,28 @@ describe('TossPayments v2 gateway', () => {
       expect(JSON.stringify(outcome)).not.toContain(SECRET_KEY);
     });
 
+    it('서버 오류 후 조회가 403 FORBIDDEN_CONSECUTIVE_REQUEST면 unknown으로 보존한다 — 일시 403은 설정 오류가 아니다', async () => {
+      // 문서 59: 403 FORBIDDEN_CONSECUTIVE_REQUEST "반복적인 요청은 허용되지 않습니다. 잠시 후
+      // 다시 시도해주세요." — 키·상점 설정 축이 아니라 재시도로 풀리는 축이다.
+      const fetchImpl = vi.fn()
+        .mockResolvedValueOnce(jsonResponse(500, {
+          code: 'FAILED_INTERNAL_SYSTEM_PROCESSING',
+          message: '내부 시스템 처리 작업이 실패했습니다.',
+        }))
+        .mockResolvedValueOnce(jsonResponse(403, {
+          code: 'FORBIDDEN_CONSECUTIVE_REQUEST',
+          message: '반복적인 요청은 허용되지 않습니다. 잠시 후 다시 시도해주세요.',
+        }));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.confirm(await confirmInput());
+
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      expect(outcome.outcome).toBe('unknown');
+      expect(outcome.reasonCode).toBe('provider_unavailable');
+      expect(outcome.evidence).toBeUndefined();
+    });
+
     it('결과 어디에도 시크릿 키가 새지 않는다', async () => {
       const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, donePayment()));
       const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
@@ -443,6 +919,84 @@ describe('TossPayments v2 gateway', () => {
       const outcome = await tossGateway.confirm(await confirmInput());
 
       expect(JSON.stringify(outcome)).not.toContain(SECRET_KEY);
+    });
+  });
+
+  describe('시한', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('승인 POST는 8초를 넘겨도 abort되지 않고 25초에 abort된 뒤 조회로 수렴한다', async () => {
+      vi.useFakeTimers();
+      // 승인은 매달리고, 이어지는 조회(2번째 호출)는 즉시 404를 돌려준다.
+      const { fetchImpl, signals } = hangingFetch((call) => (call === 2
+        ? jsonResponse(404, { code: 'NOT_FOUND_PAYMENT', message: '존재하지 않는 결제 입니다.' })
+        : undefined));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl });
+      const input = await confirmInput();
+
+      const pending = tossGateway.confirm(input);
+      await vi.advanceTimersByTimeAsync(24_999);
+      expect(signals).toHaveLength(1);
+      expect(signals[0]!.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(signals[0]!.aborted).toBe(true);
+
+      const outcome = await pending;
+      expect(signals).toHaveLength(2);
+      expect(outcome.outcome).toBe('unknown');
+      expect(outcome.reasonCode).toBe('provider_inquiry_not_found');
+    });
+
+    it('조회 GET은 8초에 abort된다', async () => {
+      vi.useFakeTimers();
+      const { fetchImpl, signals } = hangingFetch();
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl });
+
+      const pending = tossGateway.reconcile(ATTEMPT);
+      await vi.advanceTimersByTimeAsync(7_999);
+      expect(signals[0]!.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(signals[0]!.aborted).toBe(true);
+
+      const outcome = await pending;
+      expect(outcome.outcome).toBe('unknown');
+      expect(outcome.reasonCode).toBe('provider_unavailable');
+    });
+
+    it('취소 POST도 8초에 abort되고 fresh 조회가 판정한다', async () => {
+      vi.useFakeTimers();
+      // 사전 조회(1)·사후 조회(3)는 DONE, 취소(2)는 매달린다.
+      const { fetchImpl, signals } = hangingFetch((call) => (call === 2
+        ? undefined
+        : jsonResponse(200, donePayment())));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl });
+
+      const pending = tossGateway.refund({
+        attempt: ATTEMPT,
+        idempotencyKey: `refund:${ATTEMPT.id}`,
+        amount: ATTEMPT.amount,
+        reason: 'ICONS 주문 취소',
+      });
+      await vi.advanceTimersByTimeAsync(7_999);
+      expect(signals).toHaveLength(2);
+      expect(signals[1]!.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(signals[1]!.aborted).toBe(true);
+
+      const outcome = await pending;
+      expect(signals).toHaveLength(3);
+      expect(outcome.outcome).toBe('unknown');
+      expect(outcome.reasonCode).toBe('provider_cancel_ambiguous');
+    });
+
+    it('시한 옵션은 100ms~60초 밖이면 게이트웨이를 만들지 않는다', () => {
+      expect(() => gateway({ confirmTimeoutMs: 60_001 })).toThrow('invalid_toss_configuration');
+      expect(() => gateway({ confirmTimeoutMs: 99 })).toThrow('invalid_toss_configuration');
+      expect(() => gateway({ requestTimeoutMs: 60_001 })).toThrow('invalid_toss_configuration');
+      expect(() => gateway({ requestTimeoutMs: 99 })).toThrow('invalid_toss_configuration');
+      expect(() => gateway({ confirmTimeoutMs: 25_000, requestTimeoutMs: 8_000 })).not.toThrow();
     });
   });
 
@@ -462,6 +1016,62 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.outcome).toBe('approved');
       expect(outcome.reasonCode).toBe('provider_reconciled_approved');
       expect(outcome.evidence?.providerPaymentKey).toBe(PAYMENT_KEY);
+    });
+
+    it('조회가 DONE이어도 identity가 어긋나면 needs_review로 격리한다', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, donePayment({
+        orderId: TICKET_ATTEMPT.providerOrderId,
+      })));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(outcome.outcome).toBe('needs_review');
+      expect(outcome.reasonCode).toBe('provider_identity_mismatch');
+      expect(outcome.evidence).toBeUndefined();
+    });
+
+    it('조회가 DONE인데 결제수단이 가상계좌면 approved가 아니라 needs_review로 격리한다 — 입금 뒤라 취소 API를 호출하지 않는다', async () => {
+      // 취소 실패로 needs_review에 남은 가상계좌 건은 재정합 대상이다(웹훅·내부 라우트).
+      // 구매자가 입금해 DONE 웹훅이 오면 이 분기가 approved를 막아야 에스크로 미계약
+      // 가상계좌 판매가 성립하지 않는다(문서 125 "WAITING_FOR_DEPOSIT →입금 완료→ DONE").
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, donePayment({
+        method: '가상계좌',
+        card: null,
+        virtualAccount: { accountNumber: 'X1234567890', bankCode: '20', dueDate: '2026-09-02T00:00:00+09:00' },
+      })));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(fetchImpl.mock.calls[0]![1].method).toBe('GET');
+      expect(outcome.outcome).toBe('needs_review');
+      expect(outcome.reasonCode).toBe('provider_method_not_allowed');
+      expect(outcome.evidence).toEqual({
+        providerPaymentKey: PAYMENT_KEY,
+        resultCode: 'DONE_virtual_account',
+        paymentMethod: '가상계좌',
+      });
+    });
+
+    it('method 없이 virtualAccount 객체만 있어도 가상계좌 DONE으로 본다', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, donePayment({
+        method: null,
+        card: null,
+        virtualAccount: { accountNumber: 'X1234567890', bankCode: '20' },
+      })));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(outcome.outcome).toBe('needs_review');
+      expect(outcome.reasonCode).toBe('provider_method_not_allowed');
+      expect(outcome.evidence).toEqual({
+        providerPaymentKey: PAYMENT_KEY,
+        resultCode: 'DONE_virtual_account',
+      });
     });
 
     it('전액 취소가 검증된 결제만 canceled를 돌려준다(환불 재정합 계약)', async () => {
@@ -519,6 +1129,70 @@ describe('TossPayments v2 gateway', () => {
 
       expect(outcome.outcome).toBe('unknown');
       expect(outcome.reasonCode).toBe('provider_payment_in_progress');
+    });
+
+    it('조회가 WAITING_FOR_DEPOSIT(가상계좌)이면 즉시 전액 취소하고 declined로 닫는다 — 입금 뒤 DONE 웹훅이 approved를 만들지 못하게', async () => {
+      const waiting = donePayment({
+        status: 'WAITING_FOR_DEPOSIT',
+        method: '가상계좌',
+        card: null,
+        approvedAt: null,
+      });
+      const fetchImpl = vi.fn()
+        .mockResolvedValueOnce(jsonResponse(200, waiting))
+        .mockResolvedValueOnce(jsonResponse(200, donePayment({
+          status: 'CANCELED',
+          method: '가상계좌',
+          card: null,
+          balanceAmount: 0,
+        })));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      const [cancelUrl, cancelInit] = fetchImpl.mock.calls[1]!;
+      expect(cancelUrl).toBe(`https://api.tosspayments.com/v1/payments/${PAYMENT_KEY}/cancel`);
+      expect(cancelInit.method).toBe('POST');
+      expect(cancelInit.headers['idempotency-key']).toBe(`cancel-unsupported:${ATTEMPT.id}`);
+      const cancelBody = JSON.parse(cancelInit.body);
+      expect(cancelBody).toEqual({ cancelReason: '지원하지 않는 결제수단(가상계좌)' });
+      expect(cancelBody).not.toHaveProperty('refundReceiveAccount');
+      expect(outcome.outcome).toBe('declined');
+      expect(outcome.reasonCode).toBe('provider_method_not_allowed');
+      expect(outcome.evidence).toEqual({
+        providerPaymentKey: PAYMENT_KEY,
+        resultCode: 'WAITING_FOR_DEPOSIT',
+        paymentMethod: '가상계좌',
+      });
+    });
+
+    it('WAITING_FOR_DEPOSIT 취소가 200이 아니면 needs_review로 격리한다', async () => {
+      const fetchImpl = vi.fn()
+        .mockResolvedValueOnce(jsonResponse(200, donePayment({ status: 'WAITING_FOR_DEPOSIT', method: '가상계좌' })))
+        .mockResolvedValueOnce(jsonResponse(403, { code: 'NOT_CANCELABLE_PAYMENT', message: '취소 할 수 없는 결제 입니다.' }));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(fetchImpl).toHaveBeenCalledTimes(2);
+      expect(outcome.outcome).toBe('needs_review');
+      expect(outcome.reasonCode).toBe('provider_method_not_allowed');
+      expect(outcome.evidence?.resultCode).toBe('WAITING_FOR_DEPOSIT');
+    });
+
+    it('WAITING_FOR_DEPOSIT인데 identity가 어긋나면 취소하지 않고 격리한다', async () => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, donePayment({
+        status: 'WAITING_FOR_DEPOSIT',
+        orderId: TICKET_ATTEMPT.providerOrderId,
+      })));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(outcome.outcome).toBe('needs_review');
+      expect(outcome.reasonCode).toBe('provider_identity_mismatch');
     });
 
     it('승인 가능 시한이 지난 404는 승인 불성립 확정으로 닫는다(콜백 유실 자동 종결)', async () => {
@@ -590,6 +1264,20 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.outcome).toBe('needs_review');
       expect(outcome.reasonCode).toBe('provider_configuration_error');
       expect(outcome.evidence).toEqual({ resultCode: 'HTTP_403' });
+    });
+
+    it.each([
+      ['FORBIDDEN_CONSECUTIVE_REQUEST', '반복적인 요청은 허용되지 않습니다. 잠시 후 다시 시도해주세요.'],
+      ['NOT_AVAILABLE_BANK', '은행 서비스 시간이 아닙니다.'],
+    ])('조회 403 %s는 일시 코드라 unknown으로 남긴다 — 문서 59의 일시 403은 키·설정 축이 아니다', async (code, message) => {
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(403, { code, message }));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.reconcile(ATTEMPT);
+
+      expect(outcome.outcome).toBe('unknown');
+      expect(outcome.reasonCode).toBe('provider_unavailable');
+      expect(outcome.evidence).toBeUndefined();
     });
 
     it.each([
@@ -808,6 +1496,26 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.reasonCode).toBe('provider_payment_not_refundable');
     });
 
+    it('사전 조회가 가상계좌 DONE이면 취소 API를 호출하지 않고 needs_review로 격리한다 — 입금 뒤 취소는 refundReceiveAccount가 필요하다', async () => {
+      // 문서 127: refundReceiveAccount는 "가상계좌 결제에만 필수". 어댑터는 환불 계좌를
+      // 싣지 않으므로 취소 API가 INVALID_REQUEST로 거부돼 설정 오류로 오라벨링된다 —
+      // 호출 자체를 하지 않고 운영 판단(수동 환불)에 태운다.
+      const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, donePayment({
+        method: '가상계좌',
+        card: null,
+        virtualAccount: { accountNumber: 'X1234567890', bankCode: '20', dueDate: '2026-09-02T00:00:00+09:00' },
+      })));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.refund(refundRequest());
+
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(fetchImpl.mock.calls[0]![1].method).toBe('GET');
+      expect(outcome.outcome).toBe('needs_review');
+      expect(outcome.reasonCode).toBe('provider_payment_not_refundable');
+      expect(outcome.refundedAmount).toBeUndefined();
+    });
+
     it('네트워크가 전부 실패하면 unknown으로 보존한다', async () => {
       const fetchImpl = vi.fn().mockRejectedValue(new Error('network down'));
       const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
@@ -854,6 +1562,27 @@ describe('TossPayments v2 gateway', () => {
         providerPaymentKey: PAYMENT_KEY,
         resultCode: 'FORBIDDEN_REQUEST',
       });
+      expect(outcome.refundedAmount).toBeUndefined();
+    });
+
+    it('취소 200 뒤 사후 조회가 403 FORBIDDEN_CONSECUTIVE_REQUEST면 설정 오류가 아니라 unknown이다', async () => {
+      // 취소 직후의 연속 조회가 반복 요청 제한(문서 59)에 걸릴 수 있다 — 취소는 성립했을
+      // 수 있으므로 needs_review로 종결하지 않고 같은 멱등키 재실행에 맡긴다.
+      const fetchImpl = vi.fn()
+        .mockResolvedValueOnce(jsonResponse(200, donePayment()))
+        .mockResolvedValueOnce(jsonResponse(200, canceledPayment()))
+        .mockResolvedValueOnce(jsonResponse(403, {
+          code: 'FORBIDDEN_CONSECUTIVE_REQUEST',
+          message: '반복적인 요청은 허용되지 않습니다. 잠시 후 다시 시도해주세요.',
+        }));
+      const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+      const outcome = await tossGateway.refund(refundRequest());
+
+      expect(fetchImpl).toHaveBeenCalledTimes(3);
+      expect(outcome.outcome).toBe('unknown');
+      expect(outcome.reasonCode).toBe('provider_unavailable');
+      expect(outcome.evidence).toEqual({ providerPaymentKey: PAYMENT_KEY });
       expect(outcome.refundedAmount).toBeUndefined();
     });
 

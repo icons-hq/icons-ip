@@ -2,7 +2,7 @@
 
 **목적:** 홍실 퀘스트 굿즈 첫 실판매에 필요한 법정 표기와 계약내용 전자문서 교부 방식을 확정합니다.
 
-> **상태: 2026-08-11 작성 · 미회신.** 사업자·통신판매업·공개 정보·계약내용 전자문서 교부 항목은 [#239](https://github.com/icons-hq/icons-ip/issues/239)로 유효하다. 결제는 이후 Korpay 실연동으로 전환됐으므로(#244·#245·#247) 아래 `토스페이먼츠` 섹션은 historical이라 **답변하지 않아도 됩니다.** 현행 결제 gate는 [#207](https://github.com/icons-hq/icons-ip/issues/207)·[#208](https://github.com/icons-hq/icons-ip/issues/208)이 추적한다.
+> **상태: 2026-08-11 작성 · 미회신 · 2026-09-07 배너 갱신.** 사업자·통신판매업·공개 정보·계약내용 전자문서 교부 항목은 [#239](https://github.com/icons-hq/icons-ip/issues/239)로 유효하다. 결제는 2026-08-14 Korpay 실연동(#244·#245·#247)을 거쳐 2026-09-01 토스페이먼츠 주문서형 v2로 기본 PG를 다시 전환했다([ADR-0013](../adr/0013-toss-default-pg-pivot.md), 에픽 [#384](https://github.com/icons-hq/icons-ip/issues/384)). 아래 `토스페이먼츠` 섹션은 다시 현행 트랙이며 심사 트랙([#394](https://github.com/icons-hq/icons-ip/issues/394)·[#395](https://github.com/icons-hq/icons-ip/issues/395))의 입력값이므로 **답변이 필요합니다.** 코페이는 판매 제한 상품 전용 대기이며 그 gate는 [#207](https://github.com/icons-hq/icons-ip/issues/207)·[#208](https://github.com/icons-hq/icons-ip/issues/208)이 추적한다.
 
 **보내는 사람:** ICONS 개발·운영팀  
 **답변 담당:** 사업자·법무 담당자  
@@ -10,7 +10,7 @@
 
 ## 배경
 
-ICONS는 실물 굿즈와 티켓을 정가로 직접 판매합니다. 디지털 카드는 판매·충전·현금화하지 않으며, 주문에 부수되거나 참여형 게임에서 제공될 수 있습니다. 결제는 2026-08-14부터 Korpay 실연동으로 운영 중이고, 남은 것은 공개 판매자 정보와 법정 표기입니다. 관련 추적 이슈는 [#239](https://github.com/icons-hq/icons-ip/issues/239)입니다(작성 당시에는 #87이었고, 이후 공개 사업자 정보 범위가 #239로 분리됐습니다).
+ICONS는 실물 굿즈와 티켓을 정가로 직접 판매합니다. 디지털 카드는 판매·충전·현금화하지 않으며, 주문에 부수되거나 참여형 게임에서 제공될 수 있습니다. 결제는 기본 PG 토스페이먼츠 주문서형 v2(심사 트랙 진행 중, [#394](https://github.com/icons-hq/icons-ip/issues/394)·[#395](https://github.com/icons-hq/icons-ip/issues/395))이고 코페이는 판매 제한 상품 전용으로 대기합니다. 남은 것은 공개 판매자 정보와 법정 표기입니다. 관련 추적 이슈는 [#239](https://github.com/icons-hq/icons-ip/issues/239)입니다(작성 당시에는 #87이었고, 이후 공개 사업자 정보 범위가 #239로 분리됐습니다).
 
 ## 답변 방법
 
@@ -82,7 +82,7 @@ ICONS는 실물 굿즈와 티켓을 정가로 직접 판매합니다. 디지털 
 
 ## 토스페이먼츠
 
-> **Historical — 답변 불필요.** 2026-08-14 Korpay 실연동 전환 이후 이 섹션은 현행 결제 경로가 아닙니다. 신규 결제는 전부 Korpay로 흐르고 토스는 기존 거래 처리로만 제한됩니다. 새 토스 라이브 계약을 진행하지 마세요. 아래 문항은 2026-08-11 작성 시점 기록으로 남깁니다. 현행 결제 gate는 [#207](https://github.com/icons-hq/icons-ip/issues/207)·[#208](https://github.com/icons-hq/icons-ip/issues/208)입니다.
+> **현행 — 답변 필요.** 2026-09-01 재전환([ADR-0013](../adr/0013-toss-default-pg-pivot.md))으로 이 섹션은 다시 현행 결제 트랙입니다. 신규 굿즈·티켓 결제의 기본 PG는 토스페이먼츠 주문서형 v2이고, 코페이는 판매 제한 상품(19금) 전용으로 대기합니다. 아래 문항은 심사 트랙([#394](https://github.com/icons-hq/icons-ip/issues/394)·[#395](https://github.com/icons-hq/icons-ip/issues/395))의 입력값이며 문항 본문은 2026-08-11 작성 시점 그대로입니다. 절차·잔여 위험의 정본은 [Toss Production rollout runbook](../runbooks/toss-production-rollout.md)입니다.
 
 ### 라이브 상점 계약은 승인됐습니까?
 
