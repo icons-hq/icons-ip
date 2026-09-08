@@ -161,8 +161,9 @@ interface ManualRecoveryAttemptRow {
  * 클레임을 종결 가능한 상태로 만든다.
  *
  * Korpay는 `refund()`가 API를 부르지 않고 전건 needs_review로 떨어지므로 수동
- * 확인 seam이 정상 경로다(#208). 오케스트레이터도 provider를 부르지 않는다 —
- * 해지된 legacy 계약의 유상 캡처는 수동 검토로만 승격된다(#384).
+ * 확인 seam이 정상 경로다(#208). toss 유상 캡처는 오케스트레이터가 게이트웨이
+ * refund(취소 API + fresh 조회 검증)로 자동 취소한다(#389) — 클레임 승인이
+ * 건별 메일 요청 없이 한 동작으로 종결되는 지점이 여기다.
  * 어느 쪽이든 마지막에 finalize_order_cancellation_with_provider_evidence를 지나며,
  * 그 함수만이 재고를 복원하고 미개봉 카드팩을 회수한다.
  */
