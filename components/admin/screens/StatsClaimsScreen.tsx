@@ -1,3 +1,4 @@
+import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
 import { StatsRangeTabs } from '@/components/admin/StatsRangeTabs';
 import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console';
 import {
@@ -40,7 +41,7 @@ export function StatsClaimsScreen({
   filters: AdminStatsFilters;
 }) {
   return (
-    <section className="admin-console admin-stats">
+    <section className="admin-console admin-stats wc-admin-kit">
       <StatsRangeTabs base="/admin/stats/claims" filters={filters} />
 
       <div className="admin-stats-summary">
@@ -49,7 +50,7 @@ export function StatsClaimsScreen({
           <strong className="mono">{data.orderCount.toLocaleString('ko-KR')}</strong>
         </div>
         <div>
-          <span>클레임 접수</span>
+          <span>{V.claimRequest} 접수</span>
           <strong className="mono">{data.claimCount.toLocaleString('ko-KR')}</strong>
         </div>
         <div>
@@ -68,11 +69,11 @@ export function StatsClaimsScreen({
         </div>
       </div>
 
-      <h3>유형별 접수와 클레임율</h3>
+      <h3>유형별 접수와 {V.claimRate}</h3>
       <ConsoleGrid
-        caption="유형별 클레임"
+        caption={`유형별 ${V.claimRequest}`}
         columns={TYPE_COLUMNS}
-        emptyLabel="이 기간에 접수된 클레임이 없습니다."
+        emptyLabel={`이 기간에 접수된 ${V.claimRequest}이 없습니다.`}
         rows={data.byType.map((row) => ({
           id: row.claimType,
           cells: [
@@ -90,9 +91,9 @@ export function StatsClaimsScreen({
 
       <h3>사유 분포</h3>
       <ConsoleGrid
-        caption="클레임 사유 분포"
+        caption={`${V.claimRequest} 사유 분포`}
         columns={REASON_COLUMNS}
-        emptyLabel="이 기간에 접수된 클레임이 없습니다."
+        emptyLabel={`이 기간에 접수된 ${V.claimRequest}이 없습니다.`}
         rows={data.byReason.map((row) => ({
           id: `${row.claimType}:${row.reasonType}`,
           cells: [

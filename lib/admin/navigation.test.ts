@@ -64,6 +64,8 @@ describe('adminScreenForPath', () => {
   it('하위 경로는 가장 긴 접두 화면으로 붙는다', () => {
     expect(adminScreenForPath('/admin/sales/claims/cancels')?.id).toBe('claims-cancels');
     expect(adminScreenForPath('/admin/catalog/goods/some-id')?.id).toBe('goods');
+    expect(adminScreenForPath('/admin/customers/customer-id')?.id).toBe('members');
+    expect(adminGroupForPath('/admin/customers/customer-id')?.id).toBe('community');
   });
 
   it('끝 슬래시를 붙여도 같은 화면을 고른다', () => {

@@ -160,13 +160,13 @@ values (
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values (
   '${order_id}', 'goods-payment-cancel-race-good', 1, 28000,
   '결제 claim 취소 경합 상품', '문구',
-  'goods-payment-cancel-race-ip'
-);
+  'goods-payment-cancel-race-ip',
+  (select id from public.goods_variants where good_id='goods-payment-cancel-race-good' and is_default));
 
 select public.prepare_goods_payment_attempt(
   '${user_id}', '${order_id}', 'toss'
@@ -452,8 +452,7 @@ delete from public.order_cancellation_claims where order_id = '${order_id}'::uui
 update public.orders
 set status = 'pending', expires_at = pg_catalog.now() - interval '10 minutes'
 where id = '${order_id}'::uuid;
-update public.goods set stock_qty = 10
-where id = 'goods-payment-cancel-race-good';
+update public.goods_variants set stock_qty = 10 where good_id = 'goods-payment-cancel-race-good' and is_default;
 update public.payment_attempts
 set
   state = 'prepared',

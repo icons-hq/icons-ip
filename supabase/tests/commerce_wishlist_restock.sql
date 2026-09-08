@@ -39,7 +39,7 @@ select 1 / case when not exists (
 
 select 1 / case when not exists (
   select 1 from public.goods
-  where type not in ('피규어', '인형', '키링', '아크릴', '문구', '쿠션', '파우치', '세트')
+  where (type <> '' or published_at is not null) and type not in ('피규어', '인형', '키링', '아크릴', '문구', '쿠션', '파우치', '세트')
 ) then 1 else 0 end as assert_goods_types_standardized;
 
 select 1 / case when (
@@ -75,24 +75,24 @@ select 1 / case when exists (
       || 'target_notice_material text, target_notice_size text, target_notice_made_on text, '
       || 'target_notice_as_manager text, target_notice_as_contact text, target_description text, '
       || 'target_gallery_paths text[], target_detail_image_path text, target_previous_id text, '
-      || 'target_compare_at_price integer'
+      || 'target_compare_at_price integer, target_publish boolean'
     and proc.prosecdef
 ) then 1 else 0 end as assert_admin_upsert_good_signature;
 
 select 1 / case when (
   not has_function_privilege(
     'anon',
-    'public.admin_upsert_good(text,text,text,text,integer,text,text,text,text,text,text,text,text,text,text,text,text,text[],text,text,integer)',
+    'public.admin_upsert_good(text,text,text,text,integer,text,text,text,text,text,text,text,text,text,text,text,text,text[],text,text,integer,boolean)',
     'execute'
   )
   and has_function_privilege(
     'authenticated',
-    'public.admin_upsert_good(text,text,text,text,integer,text,text,text,text,text,text,text,text,text,text,text,text,text[],text,text,integer)',
+    'public.admin_upsert_good(text,text,text,text,integer,text,text,text,text,text,text,text,text,text,text,text,text,text[],text,text,integer,boolean)',
     'execute'
   )
   and not has_function_privilege(
     'service_role',
-    'public.admin_upsert_good(text,text,text,text,integer,text,text,text,text,text,text,text,text,text,text,text,text,text[],text,text,integer)',
+    'public.admin_upsert_good(text,text,text,text,integer,text,text,text,text,text,text,text,text,text,text,text,text,text[],text,text,integer,boolean)',
     'execute'
   )
 ) then 1 else 0 end as assert_admin_upsert_good_acl;
@@ -121,13 +121,13 @@ values
    'commerce_staff', '2000-01-01', 'staff', '{"terms":true,"privacy":true}'::jsonb, now())
 on conflict (id) do update set role = excluded.role;
 
-insert into public.ips (id, title, vertical_key)
-values ('commerce-smoke-ip', '커머스 스모크 IP', 'character');
+insert into public.ips (id, title, vertical_key, published_at)
+values ('commerce-smoke-ip', '커머스 스모크 IP', 'character', now());
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
+insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
 values
-  ('commerce-smoke-good', 'commerce-smoke-ip', '커머스 스모크 굿즈', '키링', 12000, 'soldout', 0),
-  ('commerce-smoke-good-b', 'commerce-smoke-ip', '커머스 스모크 굿즈 B', '문구', 8000, 'ok', 5);
+  ('commerce-smoke-good', 'commerce-smoke-ip', '커머스 스모크 굿즈', '키링', 12000, 'soldout', 0, now()),
+  ('commerce-smoke-good-b', 'commerce-smoke-ip', '커머스 스모크 굿즈 B', '문구', 8000, 'ok', 5, now());
 
 -- staff 로 compare_at_price 를 저장·거부해 본다.
 set local role authenticated;

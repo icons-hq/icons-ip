@@ -91,6 +91,8 @@ function revalidateIpPublishSurfaces(id: string) {
   revalidatePath('/offline-popups/[eventId]', 'page');
   revalidatePath('/games/[gameId]', 'page');
   revalidatePath(`/ip/${id}`);
+  revalidatePath('/admin/catalog/ips');
+  revalidatePath(`/admin/catalog/ips/${id}`);
 }
 
 async function updateAdminIpPublishState(

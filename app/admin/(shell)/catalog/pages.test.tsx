@@ -57,7 +57,6 @@ vi.mock('@/components/admin/screens/GameScreen', () => ({ GameScreen: mocks.scre
 vi.mock('@/components/admin/screens/EventScreen', () => ({ EventScreen: mocks.screens.event }));
 vi.mock('@/components/admin/screens/TicketTypeScreen', () => ({ TicketTypeScreen: mocks.screens.ticketType }));
 
-const { default: AdminCatalogGoodsPage } = await import('./goods/page');
 const { default: AdminCatalogCardsPage } = await import('./cards/page');
 const { default: AdminCatalogPoolsPage } = await import('./pools/page');
 const { default: AdminCatalogPoliciesPage } = await import('./policies/page');
@@ -116,7 +115,6 @@ describe('어드민 카탈로그 라우트', () => {
   });
 
   it.each([
-    ['/admin/catalog/goods', () => AdminCatalogGoodsPage(), ['goods', 'ips']],
     ['/admin/catalog/cards', () => AdminCatalogCardsPage({ searchParams: searchParams() }), ['cards', 'ips', 'cardPools']],
     ['/admin/catalog/pools', () => AdminCatalogPoolsPage(), ['cardPools', 'cards', 'ips']],
     ['/admin/catalog/policies', () => AdminCatalogPoliciesPage(), ['rewardPolicies', 'goods', 'cardPools', 'ips']],
@@ -131,15 +129,6 @@ describe('어드민 카탈로그 라우트', () => {
     expect(mocks.order[0]).toBe(`guard:${pathname}`);
     expect(mocks.order.slice(1)).not.toContain(`guard:${pathname}`);
     expect(mocks.includes).toEqual([include]);
-  });
-
-  it('굿즈 화면은 공개 카탈로그 스냅샷과 재고 조정 멱등 키를 함께 내려준다', async () => {
-    const screen = await AdminCatalogGoodsPage();
-
-    expect(screen.type).toBe(mocks.screens.good);
-    expect(mocks.catalogSnapshot).toHaveBeenCalledWith({ previewDefaultSource: 'supabase' });
-    expect(screen.props.catalogIps).toEqual([]);
-    expect(screen.props.adjustmentId).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   /* 카드풀 화면의 "카드 편집" 링크(`?cardId=`)가 도착하는 지점이다. */

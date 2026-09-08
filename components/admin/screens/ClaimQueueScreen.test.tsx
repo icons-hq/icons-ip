@@ -77,7 +77,7 @@ describe('ClaimQueueScreen', () => {
     const html = renderToStaticMarkup(<ClaimQueueScreen data={data()} now={NOW} />);
 
     for (const column of [
-      '클레임번호', '주문번호', '유형', '사유', '상태', '구매자', '접수일', '환급 기한', '환불 수단', '처리자',
+      '요청번호', '주문번호', '유형', '사유', '상태', '구매자', '접수일', '환급 기한', '환불 수단', '처리자',
     ]) {
       expect(html).toContain(column);
     }
@@ -138,7 +138,7 @@ describe('ClaimQueueScreen', () => {
       <ClaimQueueScreen data={data({ rows: [], total: 0 })} now={NOW} />,
     );
 
-    expect(html).toContain('조건에 맞는 반품 클레임이 없습니다.');
+    expect(html).toContain('조건에 맞는 반품 요청이 없습니다.');
   });
 
   it('교환 화면은 교환 경로로 링크한다', () => {
@@ -147,6 +147,6 @@ describe('ClaimQueueScreen', () => {
     );
 
     expect(html).toContain('/admin/sales/claims/exchanges');
-    expect(html).toContain('조건에 맞는 교환 클레임이 없습니다.');
+    expect(html).toContain('조건에 맞는 교환 요청이 없습니다.');
   });
 });

@@ -12,16 +12,16 @@ update public.profiles set role='admin' where id='00000000-0000-4000-8000-000000
 insert into public.verticals(key,label,color) values ('ip-purchase-guard','게시 구매 경계','#000000');
 insert into public.ips(id,title,vertical_key,published_at)
 values ('ip-purchase-guard','게시 구매 경계','ip-purchase-guard',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty)
-values ('ip-purchase-guard','ip-purchase-guard','게시 상품','문구',12000,'ok',10);
+insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at)
+values ('ip-purchase-guard','ip-purchase-guard','게시 상품','문구',12000,'ok',10,now());
 insert into public.events(id,title,mode,status,ip_id)
 values ('ip-purchase-guard','게시 이벤트','오프라인','예매중','ip-purchase-guard'),
  ('ip-purchase-platform','플랫폼 이벤트','오프라인','예매중',null);
 insert into public.ticket_types(id,event_id,name,price,capacity,sold,per_user_limit)
 values ('10000000-0000-4000-8000-000000004101','ip-purchase-guard','게시 회차',12000,10,0,10),
  ('10000000-0000-4000-8000-000000004102','ip-purchase-platform','플랫폼 회차',12000,10,0,10);
-insert into public.cart_items(user_id,good_id,qty)
-values ('00000000-0000-4000-8000-000000004101','ip-purchase-guard',1);
+insert into public.cart_items(user_id,good_id,qty, variant_id)
+values ('00000000-0000-4000-8000-000000004101','ip-purchase-guard',1, (select id from public.goods_variants where good_id='ip-purchase-guard' and is_default));
 
 -- Both pages were opened while public; unpublishing must reject their stale submissions.
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000004102',true);

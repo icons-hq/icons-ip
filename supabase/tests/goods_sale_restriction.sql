@@ -116,10 +116,10 @@ values ('restrict-ip', '판매 제한 IP', 'character', now());
 
 -- 두 굿즈 모두 컬럼을 명시하지 않는다. 제한 전환은 아래 setter가 한다 —
 -- 운영 경로를 거치지 않은 값으로 뒤 절들을 세우면 setter가 고장나도 통과한다.
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
+insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
 values
-  ('restrict-plain-goods', 'restrict-ip', '일반 굿즈', '문구', 20000, 'ok', 10),
-  ('restrict-adult-goods', 'restrict-ip', '판매 제한 굿즈', '문구', 20000, 'ok', 10);
+  ('restrict-plain-goods', 'restrict-ip', '일반 굿즈', '문구', 20000, 'ok', 10, now()),
+  ('restrict-adult-goods', 'restrict-ip', '판매 제한 굿즈', '문구', 20000, 'ok', 10, now());
 
 -- 새 컬럼의 기본값은 제한 없음이다. 기존 상품이 조용히 판매 중지로 바뀌면
 -- 마이그레이션 한 번에 스토어가 비어 버린다.
@@ -233,8 +233,8 @@ reset role;
 -- ---------------------------------------------------------------------------
 -- 주문 생성은 service role 경계 안에 있다. 스모크는 superuser 세션에서 그
 -- 경계를 직접 부른다 — 브라우저 롤로는 닿을 수 없는 경로다.
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000f01', 'restrict-plain-goods', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000f01', 'restrict-plain-goods', 1, (select id from public.goods_variants where good_id='restrict-plain-goods' and is_default));
 
 select public.place_order(
   '00000000-0000-4000-8000-000000000f01'::uuid,
@@ -255,8 +255,8 @@ select 1 / case when (
   where id = :'plain_order_id'::uuid
 ) then 1 else 0 end as assert_unrestricted_good_still_orders;
 
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000f01', 'restrict-adult-goods', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000f01', 'restrict-adult-goods', 1, (select id from public.goods_variants where good_id='restrict-adult-goods' and is_default));
 
 do $$
 declare
@@ -387,17 +387,17 @@ values
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values
   (
     '2c000000-0000-4000-8000-000000000001', 'restrict-adult-goods', 1, 20000,
     '판매 제한 굿즈', '문구', 'restrict-ip'
-  ),
+  , (select id from public.goods_variants where good_id='restrict-adult-goods' and is_default)),
   (
     '2c000000-0000-4000-8000-000000000002', 'restrict-adult-goods', 1, 20000,
     '판매 제한 굿즈', '문구', 'restrict-ip'
-  );
+  , (select id from public.goods_variants where good_id='restrict-adult-goods' and is_default));
 
 do $$
 declare
@@ -462,8 +462,8 @@ select 1 / case when (
 -- prepare의 파생은 결제 준비 시점의 판정이고 attempt는 그 뒤 최대 10분을 더
 -- 산다. 그 창 안에서 상품을 내리면 이미 열린 토스 attempt가 캡처까지 완주할 수
 -- 있는지 여기서 확인한다 — claim은 provider 승인 API 직전의 마지막 DB 관문이다.
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
-values ('restrict-flip-goods', 'restrict-ip', '판매 중 내려간 굿즈', '문구', 20000, 'ok', 10);
+insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
+values ('restrict-flip-goods', 'restrict-ip', '판매 중 내려간 굿즈', '문구', 20000, 'ok', 10, now());
 
 insert into public.orders (
   id, user_id, status, total, shipping_fee, discount_total,
@@ -486,12 +486,12 @@ values (
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values (
   '2c000000-0000-4000-8000-000000000003', 'restrict-flip-goods', 1, 20000,
-  '판매 중 내려간 굿즈', '문구', 'restrict-ip'
-);
+  '판매 중 내려간 굿즈', '문구', 'restrict-ip',
+  (select id from public.goods_variants where good_id='restrict-flip-goods' and is_default));
 
 -- 준비 시점에는 제한이 없다. 그래서 파생 결과는 toss다.
 select public.prepare_goods_payment_attempt(
@@ -592,12 +592,12 @@ values (
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values (
   '2c000000-0000-4000-8000-000000000004', 'restrict-adult-goods', 1, 20000,
-  '판매 제한 굿즈', '문구', 'restrict-ip'
-);
+  '판매 제한 굿즈', '문구', 'restrict-ip',
+  (select id from public.goods_variants where good_id='restrict-adult-goods' and is_default));
 
 select public.prepare_goods_payment_attempt(
   '00000000-0000-4000-8000-000000000f01',

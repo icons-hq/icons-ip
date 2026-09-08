@@ -10,6 +10,7 @@ import { formatOrderDateTime, LEGAL_WITHDRAWAL_NOTICE, orderReferenceLabel } fro
  * 렌더되는 클라이언트에서 어두운 서피스가 검게 뭉개지는 문제를 애초에 만들지 않는다. */
 
 export interface OrderEmailItem {
+  variantName?: string | null;
   name: string;
   qty: number;
   unitPrice: number;
@@ -27,6 +28,7 @@ export interface OrderConfirmationEmailInput {
   items: OrderEmailItem[];
   itemsSubtotal: number;
   shippingFee: number;
+  discountTotal?: number;
   total: number;
   address: CheckoutAddress | null;
   orderUrl: string;
@@ -34,6 +36,8 @@ export interface OrderConfirmationEmailInput {
 
 export interface OrderShippedEmailInput {
   orderId: string;
+  shipmentId: string;
+  originName: string;
   items: OrderEmailItem[];
   address: CheckoutAddress | null;
   carrierName?: string | null;
@@ -87,8 +91,12 @@ function addressLines(address: CheckoutAddress | null): string[] {
   ];
 }
 
+function itemName(item: OrderEmailItem) {
+  return item.variantName ? `${item.name} · ${item.variantName}` : item.name;
+}
+
 function itemLine(item: OrderEmailItem) {
-  return `${item.name} × ${item.qty}  ${krw(item.unitPrice * item.qty)}`;
+  return `${itemName(item)} × ${item.qty}  ${krw(item.unitPrice * item.qty)}`;
 }
 
 function textBlock(lines: string[]) {
@@ -120,7 +128,7 @@ function htmlDefinitionRows(rows: [string, string][]) {
 function htmlItemRows(items: OrderEmailItem[]) {
   const cells = items.map((item) => (
     `<tr>`
-    + `<td style="padding:8px 0;border-bottom:1px solid ${LINE};font-size:13px;color:${INK};">${escapeHtml(item.name)}<span style="color:${MUTED};"> × ${item.qty}</span></td>`
+    + `<td style="padding:8px 0;border-bottom:1px solid ${LINE};font-size:13px;color:${INK};">${escapeHtml(itemName(item))}<span style="color:${MUTED};"> × ${item.qty}</span></td>`
     + `<td align="right" style="padding:8px 0;border-bottom:1px solid ${LINE};font-size:13px;color:${INK};font-weight:600;white-space:nowrap;">${escapeHtml(krw(item.unitPrice * item.qty))}</td>`
     + `</tr>`
   )).join('');
@@ -170,6 +178,7 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
     '',
     `굿즈 합계: ${krw(input.itemsSubtotal)}`,
     `배송비: ${shippingFeeLabel(input.shippingFee)}`,
+    ...(input.discountTotal ? [`쿠폰 할인: −${krw(input.discountTotal)}`] : []),
     `총 결제금액: ${krw(input.total)}`,
     '',
     '[배송지]',
@@ -194,6 +203,7 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
     htmlDefinitionRows([
       ['굿즈 합계', krw(input.itemsSubtotal)],
       ['배송비', shippingFeeLabel(input.shippingFee)],
+      ...(input.discountTotal ? [['쿠폰 할인', `−${krw(input.discountTotal)}`] as [string, string]] : []),
       ['총 결제금액', krw(input.total)],
     ]),
     htmlSectionTitle('배송지'),
@@ -208,7 +218,7 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
 
 export function renderOrderShippedEmail(input: OrderShippedEmailInput): RenderedEmail {
   const reference = orderReferenceLabel(input.orderId);
-  const subject = `[ICONS] 굿즈가 배송을 시작했어요 (주문번호 ${reference})`;
+  const subject = `[ICONS] ${input.originName} 굿즈가 배송을 시작했어요 (주문번호 ${reference})`;
   const carrierName = input.carrierName?.trim() || null;
   const trackingNumber = input.trackingNumber?.trim() || null;
   const trackingUrl = safeLinkUrl(input.trackingUrl);
@@ -216,6 +226,8 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
 
   const trackingRows: [string, string][] = [
     ['주문번호', reference],
+    ['배송 건 번호', input.shipmentId],
+    ['출고지', input.originName],
     ...(carrierName ? [['택배사', carrierName] as [string, string]] : []),
     ...(trackingNumber ? [['운송장번호', trackingNumber] as [string, string]] : []),
   ];
@@ -224,12 +236,14 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
     'ICONS 굿즈가 배송을 시작했어요.',
     '',
     `주문번호: ${reference}`,
+    `배송 건 번호: ${input.shipmentId}`,
+    `출고지: ${input.originName}`,
     ...(carrierName ? [`택배사: ${carrierName}`] : []),
     ...(trackingNumber ? [`운송장번호: ${trackingNumber}`] : []),
     ...(trackingUrl ? [`배송 조회: ${trackingUrl}`] : []),
     ...(hasTracking ? [] : [TRACKING_FALLBACK]),
     '',
-    '[주문 굿즈]',
+    '[이번 배송 굿즈]',
     ...input.items.map(itemLine),
     '',
     '[배송지]',
@@ -240,12 +254,12 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
 
   const html = htmlDocument(reference, [
     htmlHeading('굿즈가 배송을 시작했어요'),
-    htmlParagraph('주문한 굿즈가 배송지로 이동하고 있습니다.'),
+    htmlParagraph('아래 굿즈가 배송지로 이동하고 있습니다. 다른 배송 건은 주문 상세에서 확인해주세요.'),
     htmlSectionTitle('배송 정보'),
     htmlDefinitionRows(trackingRows),
     ...(hasTracking ? [] : [htmlParagraph(TRACKING_FALLBACK)]),
     ...(trackingUrl ? [htmlButton(trackingUrl, '배송 조회하기')] : []),
-    htmlSectionTitle('주문 굿즈'),
+    htmlSectionTitle('이번 배송 굿즈'),
     htmlItemRows(input.items),
     htmlSectionTitle('배송지'),
     htmlAddress(input.address),

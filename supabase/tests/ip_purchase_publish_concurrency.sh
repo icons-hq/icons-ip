@@ -66,13 +66,13 @@ update public.profiles set nickname='ip_purchase_race',birth_date='2000-01-01',
 update public.profiles set role='admin' where id='${admin_id}';
 insert into public.verticals(key,label,color) values ('ip-purchase-race','게시 경합','#000000');
 insert into public.ips(id,title,vertical_key,published_at) values ('ip-purchase-race','게시 경합','ip-purchase-race',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty)
-values ('ip-purchase-race','ip-purchase-race','게시 경합 상품','문구',12000,'ok',10);
+insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at)
+values ('ip-purchase-race','ip-purchase-race','게시 경합 상품','문구',12000,'ok',10,now());
 insert into public.events(id,title,mode,status,ip_id)
 values ('ip-purchase-race','게시 경합 이벤트','오프라인','예매중','ip-purchase-race');
 insert into public.ticket_types(id,event_id,name,price,capacity,sold,per_user_limit)
 values ('${ticket_type_id}','ip-purchase-race','게시 경합 회차',12000,10,0,10);
-insert into public.cart_items(user_id,good_id,qty) values ('${user_id}','ip-purchase-race',1);
+insert into public.cart_items(user_id,good_id,qty, variant_id) values ('${user_id}','ip-purchase-race',1, (select id from public.goods_variants where good_id='ip-purchase-race' and is_default));
 SQL
 
 for purchase_kind in goods ticket; do

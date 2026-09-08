@@ -7,7 +7,7 @@ begin;
 --
 -- 이 스모크가 고정하는 계약:
 --   1. 택배사 추가가 **코드 변경 없이** 등록만으로 끝난다 (이슈 완료 조건)
---   2. 등록되지 않은 코드는 orders에 들어가지 못한다 (FK가 옛 CHECK를 대체)
+--   2. 등록되지 않은 코드는 order_shipments에 들어가지 못한다 (FK가 옛 CHECK를 대체)
 --   3. 비활성 택배사는 새 운송장에 붙지 않지만 기존 주문에는 남는다
 --   4. 주문이 참조하는 택배사는 삭제되지 않는다
 --   5. 운송장 형식·쌍 제약은 그대로다 (20260807120002 계약 유지)
@@ -30,14 +30,14 @@ select 1 / case when (
   not exists (
     select 1
     from pg_constraint
-    where conrelid = 'public.orders'::regclass
-      and conname = 'orders_shipping_carrier_check'
+    where conrelid = 'public.order_shipments'::regclass
+      and conname = 'order_shipments_carrier_check'
   )
   and exists (
     select 1
     from pg_constraint
-    where conrelid = 'public.orders'::regclass
-      and conname = 'orders_shipping_carrier_fkey'
+    where conrelid = 'public.order_shipments'::regclass
+      and conname = 'order_shipments_carrier_fkey'
       and contype = 'f'
   )
 ) then 1 else 0 end as assert_check_is_replaced_by_fk;
@@ -45,8 +45,8 @@ select 1 / case when (
 -- 운송장 형식과 쌍 제약은 택배사 목록과 무관한 규칙이라 유지된다.
 select 1 / case when (
   (select count(*) from pg_constraint
-   where conrelid = 'public.orders'::regclass
-     and conname in ('orders_tracking_number_check', 'orders_shipment_pairing_check')) = 2
+   where conrelid = 'public.order_shipments'::regclass
+     and conname in ('order_shipments_tracking_number_check', 'order_shipments_check')) = 2
 ) then 1 else 0 end as assert_tracking_constraints_survive;
 
 -- ---------------------------------------------------------------------------
@@ -99,6 +99,23 @@ values
     '00000000-0000-4000-8000-000000000921', 'confirmed', 10000, '{}'::jsonb, null, now()
   );
 
+-- #428/#446: manual order fixtures explicitly include their single shipment.
+insert into public.order_shipments(order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,
+  status,carrier,tracking_number,shipped_at,delivered_at)
+select o.id,'00000000-0000-4000-8000-000000042201','김포',o.shipping_fee,'{}'::jsonb,
+  case when o.status='shipping' then 'shipping' when o.status in ('delivered','done') then 'delivered'
+    when o.status='canceled' then 'canceled' else 'ready' end,
+  o.shipping_carrier,o.tracking_number,o.shipped_at,o.delivered_at
+from public.orders o
+where o.user_id='00000000-0000-4000-8000-000000000921'
+  and not exists(select 1 from public.order_shipments s where s.order_id=o.id);
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id)
+select i.order_id,s.id,i.id from public.order_items i
+join public.order_shipments s on s.order_id=i.order_id
+join public.orders o on o.id=i.order_id
+where o.user_id='00000000-0000-4000-8000-000000000921'
+  and not exists(select 1 from public.order_shipment_items si where si.order_item_id=i.id);
+
 -- ---------------------------------------------------------------------------
 -- 1. 등록되지 않은 코드는 저장되지 않는다
 -- ---------------------------------------------------------------------------
@@ -106,9 +123,9 @@ values
 -- 결론을 내되 근거가 레지스트리 행이라는 점만 다르다.
 do $$
 begin
-  update public.orders
-  set shipping_carrier = 'cj_logistics', tracking_number = '123456789012'
-  where id = '40000000-0000-4000-8000-000000000921';
+  update public.order_shipments
+  set carrier = 'cj_logistics', tracking_number = '123456789012'
+  where order_id = '40000000-0000-4000-8000-000000000921';
   raise exception 'unregistered carrier must be rejected';
 exception
   when foreign_key_violation then null;
@@ -135,11 +152,11 @@ select public.admin_update_order_status(
 
 select 1 / case when (
   select status = 'shipping'
-    and shipping_carrier = 'cj_logistics'
+    and carrier = 'cj_logistics'
     and tracking_number = '123456789012'
     and shipped_at is not null
-  from public.orders
-  where id = '40000000-0000-4000-8000-000000000921'
+  from public.order_shipments
+  where order_id = '40000000-0000-4000-8000-000000000921'
 ) then 1 else 0 end as assert_new_carrier_needs_registry_only;
 
 -- ---------------------------------------------------------------------------
@@ -170,9 +187,9 @@ end;
 $$;
 
 select 1 / case when (
-  select status = 'confirmed' and shipping_carrier is null
-  from public.orders
-  where id = '40000000-0000-4000-8000-000000000922'
+  select o.status = 'confirmed' and s.status = 'ready' and s.carrier is null
+  from public.orders o join public.order_shipments s on s.order_id=o.id
+  where o.id = '40000000-0000-4000-8000-000000000922'
 ) then 1 else 0 end as assert_inactive_carrier_leaves_order_untouched;
 
 -- ---------------------------------------------------------------------------
@@ -193,11 +210,11 @@ select public.admin_update_order_status(
 
 select 1 / case when (
   select status = 'delivered'
-    and shipping_carrier = 'cj_logistics'
+    and carrier = 'cj_logistics'
     and tracking_number = '123456789012'
     and delivered_at is not null
-  from public.orders
-  where id = '40000000-0000-4000-8000-000000000921'
+  from public.order_shipments
+  where order_id = '40000000-0000-4000-8000-000000000921'
 ) then 1 else 0 end as assert_deactivation_keeps_existing_shipment;
 
 -- ---------------------------------------------------------------------------
@@ -292,14 +309,17 @@ exception
 end;
 $$;
 
--- staff는 등록할 수 있다 — 배포 없이 택배사를 늘리는 경로 그 자체다.
+-- #426: staff reads; only an active admin can mutate via the audited RPC.
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000922', true);
-
-insert into public.shipping_carriers (code, label, tracking_url_template)
-values ('lotte', '롯데택배', 'https://example.test/lotte?no={trackingNumber}');
-
-select 1 / case when (
-  (select count(*) from public.shipping_carriers where code = 'lotte') = 1
-) then 1 else 0 end as assert_staff_can_register_carrier;
+do $$ begin
+  insert into public.shipping_carriers(code,label,tracking_url_template)
+  values('lotte','연습택배','https://example.test/lotte?no={trackingNumber}');
+  raise exception 'staff direct write allowed';
+exception when insufficient_privilege then null; end $$;
+reset role;
+update public.profiles set role='admin' where id='00000000-0000-4000-8000-000000000922';
+set local role authenticated;
+select public.admin_save_shipping_carrier('lotte','연습택배','https://example.test/lotte?no={trackingNumber}',true,null);
+select 1 / case when exists(select 1 from public.shipping_carriers where code='lotte') then 1 else 0 end as assert_admin_audited_registration;
 
 rollback;

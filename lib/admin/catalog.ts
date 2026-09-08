@@ -37,8 +37,11 @@ export interface AdminIpFormValue {
 }
 
 export interface AdminGoodFormValue {
+  publish: boolean | null;
   previousId: string | null;
   id: string;
+  code: string | null;
+  defaultVariantCode: string | null;
   ipId: string;
   name: string;
   type: string;
@@ -59,6 +62,7 @@ export interface AdminGoodFormValue {
 export interface AdminStockAdjustmentFormValue {
   adjustmentId: string;
   goodId: string;
+  variantId: string;
   expectedStockQty: number;
   delta: number;
   reason: string;
@@ -309,14 +313,14 @@ function readPreviousId(formData: FormData, id: string, errors: AdminFieldErrors
  * 고시정보는 법정 표기라 한 항목이라도 비면 저장을 막는다 (#171).
  * 항목 목록은 lib/goods-notice.ts 하나에서만 늘어난다.
  */
-function readGoodsNotice(formData: FormData, errors: AdminFieldErrors): GoodsNoticeInfo {
+function readGoodsNotice(formData: FormData, errors: AdminFieldErrors, required = true): GoodsNoticeInfo {
   const notice = Object.fromEntries(
     GOODS_NOTICE_FIELDS.map((field) => [field.key, nullableString(formData, field.formName)]),
   ) as GoodsNoticeInfo;
   const missing = new Set(missingGoodsNoticeKeys(notice));
 
   for (const field of GOODS_NOTICE_FIELDS) {
-    if (missing.has(field.key)) errors[field.formName] = '고시정보 필수 항목입니다.';
+    if (required && missing.has(field.key)) errors[field.formName] = '고시정보 필수 항목입니다.';
   }
 
   return notice;
@@ -437,12 +441,20 @@ export function normalizeAdminGoodForm(
   context: AdminCatalogContext,
 ): AdminFormResult<AdminGoodFormValue> {
   const errors: AdminFieldErrors = {};
-  const id = readSlug(formData, 'id', errors, 'ID를 입력해주세요.');
-  const previousId = readPreviousId(formData, id, errors);
+  const publish = formData.get('intent') === 'publish' ? true : null;
+  const requiresCompleteNotice = publish === true || formData.get('published') === 'true';
+  const id = readString(formData, 'id');
+  const previousId = nullableString(formData, 'previousId');
+  if (id && (!SLUG_PATTERN.test(id) || id.length>64)) errors.id='URL은 영문 소문자·숫자·하이픈 64자 이내로 입력해주세요.';
+  if (previousId && !SLUG_PATTERN.test(previousId)) errors.id='수정 대상을 확인할 수 없습니다. 목록에서 다시 선택해주세요.';
+  const code=nullableString(formData,'code')?.toUpperCase() ?? null;
+  const defaultVariantCode=nullableString(formData,'defaultVariantCode')?.toUpperCase() ?? null;
+  if (code && code.length>100) errors.code='상품코드는 100자 이내로 입력해주세요.';
+  if (defaultVariantCode && defaultVariantCode.length>120) errors.defaultVariantCode='옵션코드는 120자 이내로 입력해주세요.';
   const ipId = validIpId(readString(formData, 'ipId'), context, errors);
   const name = readString(formData, 'name');
   const type = readString(formData, 'type');
-  const stock = readString(formData, 'stock') as Stock;
+  const stock = (readString(formData, 'stock') || 'ok') as Stock;
   const price = nonNegativeInteger(formData, 'price', errors, '가격은 0 이상의 정수여야 합니다.');
   const compareAtPrice = nullableNonNegativeInteger(
     formData,
@@ -450,12 +462,13 @@ export function normalizeAdminGoodForm(
     errors,
     '정가는 0 이상의 정수여야 합니다.',
   );
-  const notice = readGoodsNotice(formData, errors);
+  const notice = readGoodsNotice(formData, errors, requiresCompleteNotice);
   const description = nullableString(formData, 'description');
   const galleryPaths = readGoodsGalleryPaths(formData, errors);
 
   if (!name) errors.name = '굿즈 이름을 입력해주세요.';
-  if (!type) errors.type = '굿즈 유형을 입력해주세요.';
+  if (requiresCompleteNotice && !type) errors.type = '상품 유형을 선택해주세요.';
+  if (publish && !nullableString(formData, 'imagePath')) errors.imagePath = '대표 이미지를 업로드한 뒤 공개해주세요.';
   if (!STOCK_VALUES.has(stock)) errors.stock = '재고 상태를 선택해주세요.';
   /* 정가가 판매가 이하면 0%·음수 할인율이 나온다. RPC 도 goods_compare_at_price_invalid
      로 막지만, 운영자에게는 저장 실패가 아니라 그 칸의 에러로 보여야 고칠 수 있다. */
@@ -477,6 +490,9 @@ export function normalizeAdminGoodForm(
       name,
       type,
       price,
+      code,
+      defaultVariantCode,
+      publish,
       compareAtPrice,
       badge: nullableString(formData, 'badge'),
       stock,
@@ -496,6 +512,7 @@ export function normalizeAdminStockAdjustmentForm(
   const errors: AdminFieldErrors = {};
   const adjustmentId = readString(formData, 'adjustmentId').toLowerCase();
   const goodId = readSlug(formData, 'goodId', errors, '굿즈를 선택해주세요.');
+  const variantId = readString(formData, 'variantId').toLowerCase();
   const expectedStockQtyRaw = readString(formData, 'expectedStockQty');
   const deltaRaw = readString(formData, 'delta');
   const reason = readString(formData, 'reason');
@@ -503,6 +520,7 @@ export function normalizeAdminStockAdjustmentForm(
   if (!UUID_PATTERN.test(adjustmentId)) {
     errors.adjustmentId = '유효한 재고 조정 요청이 아닙니다.';
   }
+  if (!UUID_PATTERN.test(variantId)) errors.variantId = '재고를 조정할 옵션을 선택해주세요.';
 
   const expectedStockQty = Number(expectedStockQtyRaw);
   if (
@@ -533,6 +551,7 @@ export function normalizeAdminStockAdjustmentForm(
     value: {
       adjustmentId,
       goodId,
+      variantId,
       expectedStockQty,
       delta,
       reason,

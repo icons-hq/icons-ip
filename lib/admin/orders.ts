@@ -1,10 +1,11 @@
+import type { ShipmentRecord } from '@/lib/orders/shipments';
 import type { OrderWithdrawalReasonType } from '@/lib/orders';
 import type { OrderClaimStage, OrderClaimType } from '@/lib/orders/claims';
+import { ADMIN_VOCABULARY } from './vocabulary';
 import {
   isSelectableShippingCarrier,
   isTrackingNumber,
   normalizeTrackingNumber,
-  type OrderShipment,
   type ShippingCarrierRegistry,
 } from '@/lib/orders/shipment';
 
@@ -31,10 +32,10 @@ export type AdminOrderStatusFilter = AdminOrderStatus | 'all';
 export const ADMIN_ORDER_STATUS_LABELS: Record<AdminOrderStatus, string> = {
   pending: '결제 대기',
   paid: '신규주문',
-  confirmed: '발주확인',
+  confirmed: ADMIN_VOCABULARY.confirmed,
   shipping: '배송중',
   delivered: '배송완료',
-  done: '거래확정',
+  done: ADMIN_VOCABULARY.settled,
   canceled: '취소',
 };
 
@@ -88,6 +89,9 @@ export interface AdminOrderAddress {
 }
 
 export interface AdminOrderItemRecord {
+  variantId: string;
+  variantName?: string | null;
+  variantCode?: string | null;
   id: string;
   name: string;
   type: string;
@@ -170,7 +174,7 @@ export interface AdminOrderRecord {
   refunds: AdminOrderRefundRecord[];
   cancellationRequest: AdminOrderCancellationRequestRecord | null;
   manualRecoveryAttempt: AdminGoodsManualRecoveryAttemptRecord | null;
-  shipment: OrderShipment | null;
+  shipments: ShipmentRecord[];
 }
 
 export interface AdminOrderConsoleData {

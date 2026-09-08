@@ -9,8 +9,8 @@ select 1 / case when not exists (
 
 insert into public.verticals(key,label,color) values ('variant-expand','옵션 확장','#000000');
 insert into public.ips(id,title,vertical_key,published_at) values ('variant-expand','옵션 확장','variant-expand',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty)
-values ('variant-expand','variant-expand','기본 옵션 상품','문구',10000,'ok',7);
+insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at)
+values ('variant-expand','variant-expand','기본 옵션 상품','문구',10000,'ok',7,now());
 select 1 / case when exists (
   select 1 from public.goods_variants where good_id = 'variant-expand'
     and is_default and name = '기본 옵션' and price = 10000 and stock_qty = 7
@@ -36,11 +36,11 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000041901',true);
 select 1 / case when (select count(*) from public.goods_variants where good_id like 'variant-expand%') = 3
  then 1 else 0 end as assert_staff_reads_unpublished_and_restricted_options;
-select 1 / case when public.admin_adjust_stock('00000000-0000-4000-8000-000000041910','variant-expand',7,3,'옵션 입고') = 10 then 1 else 0 end as assert_existing_adjustment_signature;
+select 1 / case when public.admin_adjust_stock('00000000-0000-4000-8000-000000041910','variant-expand', (select id from public.goods_variants where good_id='variant-expand' and is_default),7,3,'옵션 입고') = 10 then 1 else 0 end as assert_explicit_option_adjustment;
 select 1 / case when (
   select stock_qty from public.goods_variants where good_id='variant-expand' and is_default
 ) = 10 then 1 else 0 end as assert_adjustment_targets_default_variant;
-select public.admin_adjust_stock('00000000-0000-4000-8000-000000041910','variant-expand',7,3,'옵션 입고');
+select public.admin_adjust_stock('00000000-0000-4000-8000-000000041910','variant-expand', (select id from public.goods_variants where good_id='variant-expand' and is_default),7,3,'옵션 입고');
 select 1 / case when (select stock_qty from public.goods_variants where good_id='variant-expand') = 10
   then 1 else 0 end as assert_replay_does_not_double_adjust_variant;
 reset role;
@@ -60,7 +60,7 @@ do $$ begin
   exception when check_violation then null; end;
 end $$;
 
-insert into public.cart_items(user_id,good_id,qty) values ('00000000-0000-4000-8000-000000041902','variant-expand',2);
+insert into public.cart_items(user_id,good_id,qty, variant_id) values ('00000000-0000-4000-8000-000000041902','variant-expand',2, (select id from public.goods_variants where good_id='variant-expand' and is_default));
 select public.place_order('00000000-0000-4000-8000-000000041902',
  '{"recipientName":"구매자","phone":"01012345678","postalCode":"12345","address1":"서울시"}'::jsonb,
  '00000000-0000-4000-8000-000000041920','card') as order_id \gset
@@ -75,8 +75,8 @@ select 1 / case when
   not has_table_privilege('anon','public.goods_variants','insert,update,delete')
   and not has_table_privilege('authenticated','public.goods_variants','insert,update,delete')
   and not has_table_privilege('service_role','public.goods_variants','insert,update,delete')
-  and not has_function_privilege('authenticated','private.change_default_goods_variant_stock(text,bigint)','execute')
-  and not has_function_privilege('service_role','private.change_default_goods_variant_stock(text,bigint)','execute')
-  and not has_function_privilege('anon','private.change_default_goods_variant_stock(text,bigint)','execute')
+  and not has_function_privilege('authenticated','private.change_goods_variant_stock(text,uuid,bigint)','execute')
+  and not has_function_privilege('service_role','private.change_goods_variant_stock(text,uuid,bigint)','execute')
+  and not has_function_privilege('anon','private.change_goods_variant_stock(text,uuid,bigint)','execute')
   then 1 else 0 end as assert_variant_writes_are_sealed;
 rollback;

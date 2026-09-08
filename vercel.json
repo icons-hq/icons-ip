@@ -1,6 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["icn1"],
+  "regions": [
+    "icn1"
+  ],
   "crons": [
     {
       "path": "/api/cron/admin-artwork",
@@ -9,6 +11,10 @@
     {
       "path": "/api/cron/bank-deposits",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/order-shipment-emails",
+      "schedule": "* * * * *"
     }
   ],
   "git": {

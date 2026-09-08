@@ -10,7 +10,7 @@ on conflict (key) do update set
   label = excluded.label,
   color = excluded.color;
 
-insert into public.ips (
+with ip_seed (
   id,
   title,
   sub,
@@ -24,7 +24,7 @@ insert into public.ips (
   goods_count,
   cards_count,
   published_at
-) values
+) as (values
   (
     'rilakkuma',
     '리락쿠마',
@@ -100,6 +100,21 @@ insert into public.ips (
     2,
     now()
   )
+)
+insert into public.ips (
+  id,title,sub,vertical_key,glyph,bg,tagline,synopsis,featured,
+  fans_count,goods_count,cards_count,published_at
+)
+select seed.id,seed.title,seed.sub,seed.vertical_key,seed.glyph,seed.bg,seed.tagline,seed.synopsis,
+  -- Keep operator choices on rerun. New seed IPs use only vacant featured slots;
+  -- a seed cannot turn a previously unselected IP into the sixth featured tile.
+  case when existing.id is not null then existing.featured
+    else seed.featured and row_number() over (
+      partition by (existing.id is null and seed.featured) order by seed.id
+    ) <= greatest(5-(select count(*) from public.ips where featured),0)
+  end,
+  seed.fans_count,seed.goods_count,seed.cards_count,seed.published_at
+from ip_seed seed left join public.ips existing on existing.id=seed.id
 -- fans_count는 최초 seed 값만 넣고, 이후 팔로우 RPC가 유지하는 공개 카운트를 덮어쓰지 않는다.
 on conflict (id) do update set
   title = excluded.title,
@@ -167,9 +182,9 @@ begin
   ('g11', 'attack-on-titan', '리바이 아크릴 스탠드', '아크릴', 26000, null, 'ok', 70, 'url("/generated/goods/g11.png") center / cover no-repeat, linear-gradient(150deg, #2b251f, #6B705C 55%, #A981FF)')
     ) as fixtures(id,ip_id,name,type,price,badge,stock,stock_qty,bg)
   loop
-    insert into public.goods(id,ip_id,name,type,price,badge,stock,stock_qty,bg)
+    insert into public.goods(id,ip_id,name,type,price,badge,stock,stock_qty,bg,published_at)
     values(seed_good.id,seed_good.ip_id,seed_good.name,seed_good.type,seed_good.price,
-      seed_good.badge,seed_good.stock,seed_good.stock_qty,seed_good.bg)
+      seed_good.badge,seed_good.stock,seed_good.stock_qty,seed_good.bg,now())
     on conflict (id) do update set
       ip_id = excluded.ip_id,
       name = excluded.name,

@@ -16,8 +16,8 @@ update public.profiles set nickname='shipping_policy_buyer',birth_date='2000-01-
  consents='{"terms":true,"privacy":true}',onboarded_at=now() where id='00000000-0000-4000-8000-000000043801';
 insert into public.verticals(key,label,color) values ('shipping-policy','배송 정책','#000000');
 insert into public.ips(id,title,vertical_key,published_at) values ('shipping-policy','배송 정책','shipping-policy',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,allow_bank_transfer)
- values ('shipping-policy','shipping-policy','배송 정책 상품','문구',49999,'ok',10,true);
+insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,allow_bank_transfer,published_at)
+ values ('shipping-policy','shipping-policy','배송 정책 상품','문구',49999,'ok',10,true,now());
 
 do $$
 declare payment_kind public.order_payment_method; goods_price integer; order_id uuid; expected_fee bigint;
@@ -25,8 +25,8 @@ begin
   foreach payment_kind in array array['card','bank_transfer']::public.order_payment_method[] loop
     foreach goods_price in array array[49999,50000,50001] loop
       update public.goods set price=goods_price where id='shipping-policy';
-      insert into public.cart_items(user_id,good_id,qty)
-        values ('00000000-0000-4000-8000-000000043801','shipping-policy',1);
+      insert into public.cart_items(user_id,good_id,qty, variant_id)
+        values ('00000000-0000-4000-8000-000000043801','shipping-policy',1, (select id from public.goods_variants where good_id='shipping-policy' and is_default));
       order_id := public.place_order('00000000-0000-4000-8000-000000043801',
         '{"recipientName":"구매자","phone":"01012345678","postalCode":"12345","address1":"서울시"}'::jsonb,
         extensions.gen_random_uuid(),payment_kind);

@@ -15,7 +15,6 @@ const mocks = vi.hoisted(() => ({
   },
   settledScreen: vi.fn(() => null),
   settled: vi.fn(async () => ({ filters: {}, pageSize: 20, rows: [], total: 0 })),
-  dispatchOrders: vi.fn(async () => ({ counts: {}, filters: {}, pageSize: 20, rows: [], total: 0 })),
   orders: vi.fn(async () => ({ items: [], filters: {}, pageSize: 20, total: 0 })),
 }));
 
@@ -23,7 +22,6 @@ vi.mock('@/components/admin/screens/SettledScreen', () => ({
   SettledScreen: mocks.settledScreen,
 }));
 vi.mock('@/lib/admin/settled.server', () => ({ getAdminSettledOrders: mocks.settled }));
-vi.mock('@/lib/admin/dispatch.server', () => ({ getAdminDispatchOrders: mocks.dispatchOrders }));
 vi.mock('@/lib/admin/orders.server', () => ({ getAdminOrderRecords: mocks.orders }));
 vi.mock('@/lib/auth/admin', () => ({
   getCurrentAdminAuthState: vi.fn(async () => mocks.authState),
@@ -47,7 +45,6 @@ describe('AdminSalesSettledPage', () => {
     };
     mocks.settledScreen.mockClear();
     mocks.settled.mockClear();
-    mocks.dispatchOrders.mockClear();
     mocks.orders.mockClear();
   });
 
@@ -94,7 +91,6 @@ describe('AdminSalesSettledPage', () => {
   it('다른 화면의 로더는 부르지 않는다', async () => {
     await AdminSalesSettledPage({ searchParams: Promise.resolve({}) });
 
-    expect(mocks.dispatchOrders).not.toHaveBeenCalled();
     expect(mocks.orders).not.toHaveBeenCalled();
   });
 });

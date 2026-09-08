@@ -3,7 +3,7 @@
 import type { Ip } from './data';
 import { ipEn } from './ip-display';
 
-type DirectoryIp = Pick<Ip, 'id' | 'title'>;
+type DirectoryIp = Pick<Ip, 'id' | 'title' | 'sortOrder'>;
 
 /** A–Z 인덱스 바 항목 전수 — ALL + A–Z + ETC 28개(R-03 §3). 렌더 순서가 곧 이 배열 순서다. */
 export const DIRECTORY_LETTERS: readonly string[] = [
@@ -24,9 +24,11 @@ export function filterIpsByLetter<T extends DirectoryIp>(ips: readonly T[], lett
   return ips.filter((ip) => directoryInitial(ipEn(ip)) === letter);
 }
 
-/** 디렉토리 리스트 정렬 — 표시명 A→Z, ETC(비라틴 이니셜)는 항상 뒤. */
+/** 운영자 순번 우선. 순번이 없는 기존 mock 데이터는 표시명 A→Z·ETC 뒤로 정렬한다. */
 export function sortIpsForDirectory<T extends DirectoryIp>(ips: readonly T[]): T[] {
   return [...ips].sort((a, b) => {
+    const rank = (a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER);
+    if (rank) return rank;
     const aEtc = directoryInitial(ipEn(a)) === 'ETC';
     const bEtc = directoryInitial(ipEn(b)) === 'ETC';
     if (aEtc !== bEtc) return aEtc ? 1 : -1;

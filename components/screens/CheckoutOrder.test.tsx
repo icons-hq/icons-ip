@@ -22,9 +22,11 @@ const order: CheckoutOrderSnapshot = {
   expiresAt: '2099-08-07T06:15:00.000Z',
   createdAt: '2026-08-07T06:00:00.000Z',
   paymentStatus: null,
+  shipments: [],
   paymentMethod: 'card' as const,
   items: [{
-    goodId: 'g13',
+    id: 'item-1',
+    variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13',
     name: '홍실 아크릴 블록',
     type: '아크릴',
     qty: 1,

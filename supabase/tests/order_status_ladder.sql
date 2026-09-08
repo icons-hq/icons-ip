@@ -141,6 +141,23 @@ values
     '00000000-0000-4000-8000-000000000901', 'paid', 10000, '{}'::jsonb, null, null, null
   );
 
+-- #428/#446: manual order fixtures explicitly include their single shipment.
+insert into public.order_shipments(order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,
+  status,carrier,tracking_number,shipped_at,delivered_at)
+select o.id,'00000000-0000-4000-8000-000000042201','김포',o.shipping_fee,'{}'::jsonb,
+  case when o.status='shipping' then 'shipping' when o.status in ('delivered','done') then 'delivered'
+    when o.status='canceled' then 'canceled' else 'ready' end,
+  o.shipping_carrier,o.tracking_number,o.shipped_at,o.delivered_at
+from public.orders o
+where o.user_id='00000000-0000-4000-8000-000000000901'
+  and not exists(select 1 from public.order_shipments s where s.order_id=o.id);
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id)
+select i.order_id,s.id,i.id from public.order_items i
+join public.order_shipments s on s.order_id=i.order_id
+join public.orders o on o.id=i.order_id
+where o.user_id='00000000-0000-4000-8000-000000000901'
+  and not exists(select 1 from public.order_shipment_items si where si.order_item_id=i.id);
+
 insert into public.order_cancellation_requests (
   order_id, requested_by, reason, reason_type, status
 )
@@ -237,8 +254,8 @@ select 1 / case when (
     and delivered_at is not null
     and delivered_at >= shipped_at
     and done_at is null
-    and shipping_carrier = 'hanjin'
-    and tracking_number = 'LD00000000901'
+    and exists (select 1 from public.order_shipments s
+      where s.order_id=orders.id and s.carrier='hanjin' and s.tracking_number='LD00000000901')
   from public.orders
   where id = '40000000-0000-4000-8000-000000000901'
 ) then 1 else 0 end as assert_delivery_records_delivered_at_and_keeps_the_waybill;
@@ -247,7 +264,7 @@ select 1 / case when (
 select 1 / case when (
   (select count(*) from public.audit_log
     where actor_id = '00000000-0000-4000-8000-000000000902'
-      and action = 'admin.order.status_updated'
+      and action in ('admin.order.status_updated', 'admin.shipment.status_updated')
       and target = 'order:40000000-0000-4000-8000-000000000901') = 3
   and exists (
     select 1 from public.audit_log
@@ -298,7 +315,7 @@ begin
       '40000000-0000-4000-8000-000000000903', 'shipping', 'hanjin', 'LD00000000903'
     );
   exception when others then
-    if sqlerrm = 'invalid_order_transition' then return; end if;
+    if sqlerrm = 'invalid_shipment_transition' then return; end if;
     raise;
   end;
   raise exception 'paid order should not skip 발주확인';
@@ -313,7 +330,7 @@ begin
       '40000000-0000-4000-8000-000000000903', 'delivered', null, null
     );
   exception when others then
-    if sqlerrm = 'invalid_order_transition' then return; end if;
+    if sqlerrm = 'invalid_shipment_transition' then return; end if;
     raise;
   end;
   raise exception 'paid order should not skip to delivered';
@@ -358,7 +375,7 @@ begin
       '40000000-0000-4000-8000-000000000901', 'shipping', 'hanjin', 'LD00000000901'
     );
   exception when others then
-    if sqlerrm = 'invalid_order_transition' then return; end if;
+    if sqlerrm = 'invalid_shipment_transition' then return; end if;
     raise;
   end;
   raise exception 'delivered order should not transition backwards';
@@ -534,6 +551,23 @@ values (
   now() - interval '20 days'
 )
 on conflict (id) do nothing;
+
+-- #428/#446: manual order fixtures explicitly include their single shipment.
+insert into public.order_shipments(order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,
+  status,carrier,tracking_number,shipped_at,delivered_at)
+select o.id,'00000000-0000-4000-8000-000000042201','김포',o.shipping_fee,'{}'::jsonb,
+  case when o.status='shipping' then 'shipping' when o.status in ('delivered','done') then 'delivered'
+    when o.status='canceled' then 'canceled' else 'ready' end,
+  o.shipping_carrier,o.tracking_number,o.shipped_at,o.delivered_at
+from public.orders o
+where o.user_id='00000000-0000-4000-8000-000000000901'
+  and not exists(select 1 from public.order_shipments s where s.order_id=o.id);
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id)
+select i.order_id,s.id,i.id from public.order_items i
+join public.order_shipments s on s.order_id=i.order_id
+join public.orders o on o.id=i.order_id
+where o.user_id='00000000-0000-4000-8000-000000000901'
+  and not exists(select 1 from public.order_shipment_items si where si.order_item_id=i.id);
 
 select public.settle_delivered_orders();
 

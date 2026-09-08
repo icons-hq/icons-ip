@@ -42,7 +42,7 @@ import { ReviewActionPanel } from './ReviewActionPanel';
 
 const COLUMNS: ConsoleGridColumn[] = [
   { key: 'createdAt', label: '작성일', width: '140px' },
-  { key: 'good', label: '굿즈', width: '150px' },
+  { key: 'good', label: '상품', width: '150px' },
   { key: 'rating', label: '평점', width: '92px' },
   { key: 'body', label: '리뷰 내용' },
   { key: 'photo', label: '사진', align: 'end', width: '70px' },
@@ -112,9 +112,9 @@ export function ReviewConsoleScreen({
   }));
 
   return (
-    <section className="admin-console">
+    <section className="admin-console wc-admin-kit">
       {/* 저평점 고정 필터. 목록의 어떤 조건보다 먼저 보여야 하는 한 줄이다. */}
-      <div className="admin-console-pinned-filter card">
+      <div className="admin-console-pinned-filter card wc-admin-kit wc-admin-kit__card">
         <div className="col" style={{ gap: 4, minWidth: 0 }}>
           <strong style={{ fontSize: 14 }}>저평점 리뷰 {counts.lowRating.toLocaleString('ko-KR')}건</strong>
           <span className="muted" style={{ fontSize: 12.5 }}>
@@ -161,7 +161,7 @@ export function ReviewConsoleScreen({
           fields: ADMIN_REVIEW_SEARCH_FIELDS,
           fieldName: 'field',
           fieldValue: filters.field,
-          placeholder: '굿즈명 · 작성자 · 리뷰 내용',
+          placeholder: '상품명 · 작성자 · 리뷰 내용',
           value: filters.query,
         }}
         statusFilter={{ options: ADMIN_REVIEW_STATUS_OPTIONS, value: filters.status }}
@@ -263,7 +263,7 @@ export function ReviewConsoleScreen({
       />
 
       <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>
-        리뷰는 배송완료된 주문의 구매자만 주문·굿즈당 한 번 남길 수 있고, 작성 기한은 배송완료 후 90일입니다.
+        리뷰는 배송완료된 주문의 구매자만 주문·상품당 한 번 남길 수 있고, 작성 기한은 배송완료 후 90일입니다.
         블라인드는 작성자 삭제와 다릅니다 — 원문과 사유가 남아 언제든 해제할 수 있습니다. 신고 건 처리는{' '}
         <Link href="/admin/community/moderation">모더레이션</Link>에서 이어집니다.
       </p>

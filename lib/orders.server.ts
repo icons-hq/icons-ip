@@ -14,7 +14,7 @@ import {
   type OrderListItem,
 } from './orders';
 import { isOrderClaimStage, isOrderClaimType } from './orders/claims';
-import { orderShipment } from './orders/shipment';
+import { loadOrderShipments } from './orders/shipments.server';
 import { getShippingCarrierRegistry } from './orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -31,8 +31,6 @@ interface OrderDetailRow extends OrderListRow {
   shipping_fee: number | null;
   discount_total: number | null;
   address: unknown;
-  shipping_carrier: string | null;
-  tracking_number: string | null;
   delivered_at: string | null;
   expires_at: string | null;
 }
@@ -52,6 +50,9 @@ interface OrderDetailItemRow extends OrderListItemRow {
   good_id: string;
   unit_price: number;
   good_type_snapshot: string;
+  variant_id: string;
+  variant_name_snapshot?: string | null;
+  variant_code_snapshot?: string | null;
 }
 
 interface PaymentRow {
@@ -182,7 +183,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     .from('orders')
     // delivered_at은 청약철회 기한의 기산점이다(#189). 이 값이 없으면 주문
     // 상세가 남은 기간을 말할 근거가 없다.
-    .select('id,user_id,status,total,shipping_fee,discount_total,address,created_at,shipping_carrier,tracking_number,delivered_at,payment_method,expires_at')
+    .select('id,user_id,status,total,shipping_fee,discount_total,address,created_at,delivered_at,payment_method,expires_at')
     .eq('id', orderId)
     .eq('user_id', userId)
     .in('status', [...ORDER_DETAIL_STATUSES])
@@ -197,7 +198,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   const [itemsResult, paymentResult, ticketsResult, cancellationRequestResult] = await Promise.all([
     supabase
       .from('order_items')
-      .select('id,order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot')
+      .select('id,order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot')
       .eq('order_id', orderId)
       .order('id', { ascending: true }),
     supabase
@@ -279,8 +280,10 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     paymentMethod: normalizeCheckoutPaymentMethod(orderData.payment_method) ?? 'card',
     expiresAt: orderData.expires_at,
     items: ((itemsResult.data ?? []) as OrderDetailItemRow[]).map((item) => ({
+      id: item.id,
       goodId: item.good_id,
       name: item.good_name_snapshot,
+      variantId: item.variant_id, variantName: item.variant_name_snapshot ?? null, variantCode: item.variant_code_snapshot ?? null,
       type: item.good_type_snapshot,
       qty: item.qty,
       unitPrice: item.unit_price,
@@ -318,11 +321,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
           reshipTrackingNumber: cancellationRequestRow.reship_tracking_number,
         }
       : null,
-    shipment: orderShipment(
-      await getShippingCarrierRegistry(),
-      orderData.shipping_carrier,
-      orderData.tracking_number,
-    ),
+    shipments: await loadOrderShipments(supabase, [orderId], await getShippingCarrierRegistry()),
     cardPacks: {
       issuedCount: ticketRows.length,
       availableCount: ticketRows.filter((ticket) => (

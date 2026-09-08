@@ -1,5 +1,7 @@
 'use client';
 
+import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
+
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useActionState, useEffect, useMemo, useState } from 'react';
@@ -233,8 +235,8 @@ export function CheckoutOrder({
           </div>
           <div className="checkout-items">
             {order.items.map((item) => (
-              <div className="checkout-item" key={item.goodId}>
-                <div><span>{item.type}</span><strong>{item.name}</strong></div>
+              <div className="checkout-item" key={`${item.goodId}:${item.variantId ?? "default"}`}>
+                <div><span>{item.type}</span><strong>{item.name}</strong>{item.variantName ? <span>{item.variantName}</span> : null}</div>
                 <span className="mono">{item.qty} × {krw(item.unitPrice)}</span>
               </div>
             ))}
@@ -248,6 +250,7 @@ export function CheckoutOrder({
             <div><dt>배송비</dt><dd>{shippingFeeLabel(order.shippingFee)}</dd></div>
             <div className="checkout-total"><dt>결제 금액</dt><dd>{krw(order.total)}</dd></div>
           </dl>
+          <ShipmentDetails shipments={order.shipments} items={order.items} />
           {order.address && (
             <div className="checkout-address-preview">
               <span>배송지</span>

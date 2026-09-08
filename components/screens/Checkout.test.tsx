@@ -6,6 +6,8 @@ import { Checkout, checkoutMethodAvailable } from './Checkout';
 
 const mocks = vi.hoisted(() => ({ items: [] as CartItem[] }));
 
+vi.mock('@/components/shop/useShippingQuote', () => ({useShippingQuote: () => ({quote:{totalFee:3000,groups:[]},loading:false,error:null,refresh:vi.fn()})}));
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
@@ -34,6 +36,7 @@ const goods: Good[] = [
     badge: null,
     stock: 'ok',
     stockQty: 20,
+    options: [{id:'00000000-0000-4000-8000-000000000001',name:'기본 옵션',price:12000,stockQty:20,code:'G13',isDefault:true,attributes:{}}],
     img: 'none',
   },
   {
@@ -45,6 +48,7 @@ const goods: Good[] = [
     badge: null,
     stock: 'ok',
     stockQty: 5,
+    options: [{id:'00000000-0000-4000-8000-000000000001',name:'기본 옵션',price:30000,stockQty:5,code:'G14',isDefault:true,attributes:{}}],
     img: 'none',
     allowBankTransfer: false,
   },
@@ -53,7 +57,7 @@ const goods: Good[] = [
 function render({
   paymentAvailable,
   bankTransferAvailable,
-  items = [{ goodId: 'g13', qty: 1 }],
+  items = [{ goodId: 'g13', variantId: '00000000-0000-4000-8000-000000000001', qty: 1 }],
   resumeOrderId = null,
   paymentFailCode = null,
 }: {
@@ -135,7 +139,7 @@ describe('Checkout 결제수단 게이트', () => {
     const html = render({
       paymentAvailable: false,
       bankTransferAvailable: true,
-      items: [{ goodId: 'g13', qty: 1 }, { goodId: 'g14', qty: 1 }],
+      items: [{ goodId: 'g13', variantId: '00000000-0000-4000-8000-000000000001', qty: 1 }, { goodId: 'g14', variantId: '00000000-0000-4000-8000-000000000001', qty: 1 }],
     });
 
     expect(methodRadio(html, 'bank_transfer')).toContain('disabled');

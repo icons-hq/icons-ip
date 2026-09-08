@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { CARD_FOIL_BACKGROUND } from '@/lib/rarity';
 import { blockedUserIds } from '@/lib/blocks.server';
 import { DATA, type Ip } from '@/lib/data';
 import { getCatalogSnapshot } from '@/lib/catalog';
@@ -258,7 +259,7 @@ function toCommunityPost(
     user: publicAuthorName(profilesById.get(row.user_id), row.user_id),
     ipId: row.ip_id,
     ipName: ip?.title ?? historicalIp?.title ?? '커뮤니티',
-    avatar: ip?.v.color ?? historicalVertical?.color ?? 'var(--holo)',
+    avatar: ip?.v.color ?? historicalVertical?.color ?? CARD_FOIL_BACKGROUND,
     text: row.text,
     likes: likesByPostId.get(row.id) ?? 0,
     comments: commentsByPostId.get(row.id) ?? 0,

@@ -95,7 +95,7 @@ export function UnpaidScreen({
   });
 
   return (
-    <div className="admin-console">
+    <div className="admin-console wc-admin-kit">
       <ConsoleFilterPanel
         action="/admin/sales/unpaid"
         search={{

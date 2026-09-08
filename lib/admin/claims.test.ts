@@ -155,8 +155,18 @@ describe('콘솔 폼 정규화', () => {
       formData({ carrier: 'hanjin', claimId: CLAIM_ID, trackingNumber: 'ld00000000c04' }),
     )).toEqual({
       ok: true,
-      value: { claimId: CLAIM_ID, carrier: 'hanjin', trackingNumber: 'LD00000000C04' },
+      value: { claimId: CLAIM_ID, carrier: 'hanjin', trackingNumber: 'LD00000000C04', items: [] },
     });
+  });
+
+  it('재출고 옵션을 주문 품목별로 받고 중복·잘못된 식별자를 거절한다', () => {
+    const data = formData({ claimId: CLAIM_ID, carrier: 'hanjin', trackingNumber: 'EX44000001' });
+    data.set(`variant:${CLAIM_ID}`, '00000000-0000-4000-8000-000000044011');
+    expect(normalizeAdminClaimReshipmentForm(data)).toMatchObject({ ok: true, value: { items: [{ orderItemId: CLAIM_ID, variantId: '00000000-0000-4000-8000-000000044011' }] } });
+    data.append(`variant:${CLAIM_ID}`, '00000000-0000-4000-8000-000000044010');
+    expect(normalizeAdminClaimReshipmentForm(data)).toMatchObject({ ok: false });
+    data.delete(`variant:${CLAIM_ID}`); data.set('variant:not-an-item', 'bad');
+    expect(normalizeAdminClaimReshipmentForm(data)).toMatchObject({ ok: false });
   });
 
   it('수거 단계는 두 값만 받는다', () => {

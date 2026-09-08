@@ -1,3 +1,6 @@
+
+import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
+import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
 import Link from 'next/link';
 import type { AdminClaimDetail } from '@/lib/admin/claims.server';
 import { krw } from '@/lib/format';
@@ -130,12 +133,7 @@ export function ClaimDetailScreen({
                   ? `${PAYMENT_PROVIDER_LABELS[payment.provider ?? ''] ?? payment.provider ?? '알 수 없음'} · ${payment.status}`
                   : '결제 내역 없음'}
               />
-              <Row
-                label="배송"
-                value={order.trackingNumber
-                  ? `${order.shippingCarrier ?? ''} ${order.trackingNumber}`
-                  : '운송장 없음'}
-              />
+              <ShipmentDetails admin shipments={order.shipments} items={order.items} />
               <ul style={{ margin: '10px 0 0', paddingLeft: 18 }}>
                 {order.items.map((item, index) => (
                   <li key={`${item.name}-${index}`} style={{ fontSize: 13 }}>
@@ -144,7 +142,7 @@ export function ClaimDetailScreen({
                 ))}
               </ul>
               <p className="muted" style={{ fontSize: 12, margin: '10px 0 0' }}>
-                클레임은 주문 단위 전액으로만 처리됩니다. 일부 품목만 불량이면 전체 반품 또는
+                {V.claimRequest}은 주문 단위 전액으로만 처리됩니다. 일부 품목만 불량이면 전체 반품 또는
                 협의 재발송으로 안내하고, 부분 환불을 약속하지 마세요.
               </p>
               <Link
@@ -235,6 +233,8 @@ export function ClaimDetailScreen({
               value={`${claim.reshipCarrier ?? ''} ${claim.reshipTrackingNumber}`}
             />
           ) : null}
+          {claim.reshippedItems?.map((item) => <Row key={item.orderItemId} label="재출고 옵션"
+            value={`${item.name} · ${item.variantName} · ${item.variantCode} · ${item.qty}개`} />)}
 
           <h4 style={{ margin: '14px 0 6px' }}>타임라인</h4>
           {timeline.length === 0 ? (
@@ -264,6 +264,7 @@ export function ClaimDetailScreen({
             refundCompleted={Boolean(refund?.completedAt)}
             refundFiled={Boolean(refund?.filedAt)}
             refundLedgerOpen={Boolean(refund)}
+            reshipItems={order?.items}
             stage={claim.stage}
           />
         </div>

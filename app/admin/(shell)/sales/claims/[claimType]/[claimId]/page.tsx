@@ -6,7 +6,7 @@ import {
 } from '@/lib/admin/claims';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
-import { BUSINESS_INFO } from '@/lib/legal/business-info';
+import { getBusinessInfo } from '@/lib/legal/business-info.server';
 import { orderReferenceLabel } from '@/lib/orders';
 import {
   buildKorpayCancellationForm,
@@ -44,7 +44,7 @@ export default async function AdminSalesClaimDetailPage({
   const cancellationForm = detail.payment?.provider === 'korpay' && detail.order
     ? buildKorpayCancellationForm({
       amount: detail.payment.amount,
-      merchantName: BUSINESS_INFO.companyName.trim() || '확인 필요',
+      merchantName: (await getBusinessInfo()).companyName.trim() || '확인 필요',
       orderId: detail.order.id,
       orderReference: orderReferenceLabel(detail.order.id),
       paidAt: detail.payment.createdAt,

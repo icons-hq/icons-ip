@@ -37,6 +37,8 @@ function confirmationInput(overrides: Partial<Parameters<typeof renderOrderConfi
 function shippedInput(overrides: Partial<Parameters<typeof renderOrderShippedEmail>[0]> = {}) {
   return {
     orderId: ORDER_ID,
+    shipmentId: '00000000-0000-4000-8000-000000044701',
+    originName: '김포',
     items: [{ name: '홍실 아크릴 블록', qty: 1, unitPrice: 12_000 }],
     address,
     carrierName: null,
@@ -249,3 +251,35 @@ describe('renderRestockAlertEmail (#326)', () => {
     expect(email.html).toContain('&lt;script&gt;');
   });
 });
+
+ it('preserves the selected option in confirmation text and escaped HTML', () => {
+  const result = renderOrderConfirmationEmail(confirmationInput({ items: [{name:'키링',variantName:'파랑 <한정>',qty:1,unitPrice:12000}] }));
+  expect(result.text).toContain('키링 · 파랑 <한정>');
+  expect(result.html).toContain('키링 · 파랑 &lt;한정&gt;');
+});
+
+ it('배송 건 번호·출고지와 이번 배송 품목으로 메일 스냅샷을 고정한다', () => {
+  const email = renderOrderShippedEmail(shippedInput({carrierName:'한진택배',trackingNumber:'123456789012',trackingUrl:'https://carrier.example.test/123456789012'}));
+  expect({subject:email.subject,text:email.text}).toMatchInlineSnapshot(`
+    {
+      "subject": "[ICONS] 김포 굿즈가 배송을 시작했어요 (주문번호 1F2A3B4C)",
+      "text": "ICONS 굿즈가 배송을 시작했어요.
+
+    주문번호: 1F2A3B4C
+    배송 건 번호: 00000000-0000-4000-8000-000000044701
+    출고지: 김포
+    택배사: 한진택배
+    운송장번호: 123456789012
+    배송 조회: https://carrier.example.test/123456789012
+
+    [이번 배송 굿즈]
+    홍실 아크릴 블록 × 1  ₩12,000
+
+    [배송지]
+    박상우 · 010-1234-5678
+    (04524) 서울시 중구 세종대로 110 3층
+
+    주문 상세: https://iconsip.com/orders/b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c",
+    }
+  `);
+ });

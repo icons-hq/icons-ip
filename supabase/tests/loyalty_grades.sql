@@ -58,10 +58,10 @@ insert into public.ips (id, title, vertical_key, published_at)
 values ('loy-ip', '등급 스모크 IP', 'character', now())
 on conflict (id) do nothing;
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
+insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
 values
-  ('loy-g1', 'loy-ip', '등급 굿즈 12만', '피규어', 120000, 'ok', 100),
-  ('loy-g2', 'loy-ip', '등급 굿즈 3만', '피규어', 30000, 'ok', 100)
+  ('loy-g1', 'loy-ip', '등급 굿즈 12만', '피규어', 120000, 'ok', 100, now()),
+  ('loy-g2', 'loy-ip', '등급 굿즈 3만', '피규어', 30000, 'ok', 100, now())
 on conflict (id) do update set
   price = excluded.price, stock = excluded.stock, stock_qty = excluded.stock_qty;
 
@@ -151,11 +151,13 @@ select 1 / case when (
 -- ── 결제 확정(paid 전이)이 재산정을 부른다 ──────────────────────────────────
 
 -- 12만원 주문을 만들고 결제 확정 상태로 전이시킨다(SILVER 임계 10만 초과).
+select id as loyalty_variant_one from public.goods_variants where good_id='loy-g1' and is_default \gset
+select id as loyalty_variant_two from public.goods_variants where good_id='loy-g2' and is_default \gset
 set local role service_role;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000721', true);
 
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000721', 'loy-g1', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000721', 'loy-g1', 1, :'loyalty_variant_one'::uuid);
 
 select public.place_order(
   '00000000-0000-4000-8000-000000000721',
@@ -255,8 +257,8 @@ select 1 / case when (
 set local role service_role;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000723', true);
 
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000723', 'loy-g2', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000723', 'loy-g2', 1, :'loyalty_variant_two'::uuid);
 
 select public.place_order(
   '00000000-0000-4000-8000-000000000723',
@@ -333,8 +335,8 @@ select 1 / case when exists (
 -- 실적 보정을 지우면 안 된다.
 set local role service_role;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000723', true);
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000723', 'loy-g2', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000723', 'loy-g2', 1, :'loyalty_variant_two'::uuid);
 select public.place_order(
   '00000000-0000-4000-8000-000000000723',
   '{"recipientName":"보정후주문","phone":"01012345678","postalCode":"12345","address1":"서울시"}'::jsonb,
@@ -382,8 +384,8 @@ alter table public.loyalty_grade_events
 set local role service_role;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000721', true);
 
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000721', 'loy-g1', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000721', 'loy-g1', 1, :'loyalty_variant_one'::uuid);
 
 select public.place_order(
   '00000000-0000-4000-8000-000000000721',

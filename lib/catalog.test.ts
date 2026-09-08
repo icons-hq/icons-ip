@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildCatalogIpDetail, getBinderCatalogOverlay, getCatalogIpDetail, getCatalogSnapshot, getHomeSnapshot, type CatalogPostPreview, type CatalogSnapshot } from './catalog';
+import { buildCatalogIpDetail, getBinderCatalogOverlay, getCatalogIpDetail, getCatalogGoodDetail, getCatalogSnapshot, getHomeSnapshot, type CatalogPostPreview, type CatalogSnapshot } from './catalog';
 import { getHomeSelectableIps } from './home-catalog';
 import type { Ip } from './data';
 
@@ -147,6 +147,10 @@ function createQuery(
       record.limit = value;
       return query;
     },
+    async maybeSingle(): Promise<{ data: Record<string, unknown> | null; error: { message: string } | null }> {
+      const result = await query;
+      return { data: result.data?.[0] ?? null, error: result.error };
+    },
     then<TResult1 = QueryResult<Record<string, unknown>>, TResult2 = never>(
       onfulfilled?: ((value: QueryResult<Record<string, unknown>>) => TResult1 | PromiseLike<TResult1>) | null,
       onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
@@ -267,6 +271,7 @@ function createSupabaseClient(
     ...overrides,
   };
 
+  rows.goods = rows.goods.map((row) => ({ published_at: '2026-09-01T00:00:00Z', ...row }));
   return {
     auth: {
       getUser: () => Promise.resolve({ data: { user: userId ? { id: userId } : null } }),
@@ -393,6 +398,7 @@ describe('getCatalogSnapshot', () => {
         { ...defaultSupabaseRows().ips[0], id: 'draft-ip', title: '초안 IP', published_at: null },
       ],
       goods: [
+        { id: 'g-own-draft', published_at: null, ip_id: 'hwasan', name: '자체 초안 굿즈', type: '아크릴', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none' },
         { id: 'g-live', ip_id: 'hwasan', name: '공개 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
         { id: 'g-draft', ip_id: 'draft-ip', name: '초안 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
       ],
@@ -415,7 +421,8 @@ describe('getCatalogSnapshot', () => {
     expect(snapshot.events.map((item) => item.id)).toEqual(['e-joint', 'e-live']);
     expect(records.find((record) => record.table === 'ips')?.not).toContainEqual(['published_at', 'is', null]);
     /* 자식 컬렉션의 초안 제외는 앱에서 IP 집합으로 거른다 — 쿼리에 published 조건을 조인하지 않는다. */
-    for (const table of ['goods', 'cards', 'events']) {
+    expect(records.find((record) => record.table === 'goods')?.not).toContainEqual(['published_at', 'is', null]);
+    for (const table of ['cards', 'events']) {
       expect(records.find((record) => record.table === table)?.not).toEqual([]);
     }
 
@@ -1388,5 +1395,27 @@ describe('getHomeSnapshot', () => {
     for (const ip of selectable) {
       expect(snapshot.postPreviewByIpId[ip.id], `${ip.title} 홈 팬덤 채널 포스트 누락`).not.toBeNull();
     }
+  });
+});
+
+
+describe('goods detail publication races', () => {
+  it.each(['good', 'ip'])('does not return a stale visible card after %s returns to draft', async (target) => {
+    const records: QueryRecord[] = [];
+    const good = { id: 'g-race', ip_id: 'hwasan', name: '판매 상품', type: '키링', price: 1000,
+      stock: 'ok', stock_qty: 1, archived_at: null, published_at: '2026-09-01', sale_restriction: 'none',
+      'ips.published_at': '2026-09-01', 'ips.archived_at': null };
+    const client = createSupabaseClient(records, { goods: [good] });
+    const originalFrom = client.from;
+    let goodsReads = 0;
+    client.from = (table) => {
+      if (table === 'goods' && ++goodsReads === 2) return createQuery('goods', [{
+        ...good, ...(target === 'good' ? { published_at: null } : { 'ips.published_at': null }),
+      }], records);
+      return originalFrom(table);
+    };
+    mocks.isConfigured = true; mocks.client = client;
+    try { expect(await getCatalogGoodDetail('g-race')).toBeNull(); }
+    finally { mocks.isConfigured = false; mocks.client = null; }
   });
 });

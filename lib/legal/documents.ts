@@ -1,6 +1,4 @@
-import { krwAmountWords } from '@/lib/format';
-import { getShippingPolicy } from '@/lib/shipping';
-import { businessContactWords } from './business-info';
+import { BUSINESS_INFO, businessContactWords, type BusinessInfo } from './business-info';
 import {
   LEGAL_DOCUMENT_LABELS,
   LEGAL_DOCUMENT_SLUGS,
@@ -12,7 +10,6 @@ import { socialLoginWords } from './social-login';
 export { LEGAL_DOCUMENT_SLUGS, legalDocumentHref };
 export type { LegalDocumentSlug };
 
-const shippingPolicy = getShippingPolicy();
 
 /* 법정 고지 문서의 본문 진실원.
  *
@@ -28,8 +25,8 @@ const shippingPolicy = getShippingPolicy();
  * 가리키는 상태를 남기지 않기 위해서다.
  */
 
-/* 배송비 정책값(계획 D5)은 lib/shipping.ts가 단일 진실원이다(#174).
- * 여기서 다시 선언하면 정책을 바꿔도 공개 고지 금액만 옛값에 남는다. */
+/* 배송 금액은 출고지 설정을 조회하는 상품 상세·주문 화면에서 고지한다.
+ * 이 문서는 그룹 합산과 주문 시점 고정 원칙을 설명하며 금액을 복제하지 않는다. */
 
 /** 법인명이 확정되지 않은 수탁자 표기. 지어내지 않고 확인 중으로 남긴다(#177 H7). */
 export const PENDING_PROCESSOR_LABEL = '확인 중';
@@ -89,38 +86,6 @@ export const LEGAL_EFFECTIVE_DATES: Record<LegalDocumentSlug, string> = {
   shipping: '2026-08-21',
 };
 
-/* 문의처 문장은 푸터와 같은 사업자 정보에서 파생된다.
- * 연락처가 채워지면 본문에 그 값이 그대로 드러나고, 비어 있는 동안에는
- * 존재하지 않는 창구를 가리키는 대신 그 사실과 실제로 열려 있는 경로를 안내한다(#87). */
-const CONTACT_WORDS = businessContactWords();
-const HAS_CONTACT = CONTACT_WORDS.length > 0;
-
-/* 인앱 1:1 문의는 지금 실제로 열려 있는 접수 경로다(#253).
- *
- * 전화·이메일은 #239의 사업자 등록이 끝나야 채워지지만, 그렇다고 "창구가 없다"고
- * 쓰면 거짓 고지가 된다 — 로그인한 이용자는 이 경로로 접수할 수 있고 회사는 답한다.
- * 공개 연락처는 비로그인 이용자와 기관 조회를 위해 여전히 필요하므로, 이 경로가
- * 그 공백을 메우는 것이지 대체하는 것은 아니라는 사실도 함께 남긴다. */
-const IN_APP_INQUIRY_ROUTE = '마이페이지의 1:1 문의(/my/inquiries)';
-const CONTACT_PENDING_NOTICE =
-  `공개 문의 연락처는 사업자 등록 절차가 끝나는 대로 이 문서와 사이트 하단 사업자 정보에 함께 공개합니다. 그때까지 회원은 ${IN_APP_INQUIRY_ROUTE}로 문의를 접수할 수 있으며, 회사는 영업일 기준 24시간 안에 1차 답변을 드립니다.`;
-
-/* 설정 화면이 실제로 열어 둔 자가 열람·정정 항목.
- * app/settings/actions.ts는 nickname·avatarPath·marketing만 읽는다. 온보딩에서 받는 생년월일은
- * 입력 필드도 액션도 없으므로, 방침이 설정 화면을 생년월일의 정정 경로로 가리키면
- * 연락처가 비어 있는 지금 이용자에게 존재하지 않는 경로를 안내하게 된다. */
-const SETTINGS_EDITABLE_ITEMS = '닉네임, 프로필 이미지, 마케팅 정보 수신 동의 여부';
-/* 회원 탈퇴는 아직 화면에도 RPC에도 없다(#102·#137). "즉시 처리합니다"라고 쓰면
- * 이용자가 찾을 수 없는 기능을 가리키게 되므로, 지금 실제로 열려 있는 경로만 적는다.
- * 연락처가 채워지면 문의 창구가 그대로 접수 경로가 된다. */
-const WITHDRAWAL_ROUTE_NOTICE = HAS_CONTACT
-  ? `회원이 화면에서 직접 탈퇴를 실행하는 기능은 아직 없습니다. 탈퇴 요청은 ${IN_APP_INQUIRY_ROUTE} 또는 ${CONTACT_WORDS}로 접수하며, 회사는 요청을 확인한 뒤 처리합니다.`
-  : `회원이 화면에서 직접 탈퇴를 실행하는 기능은 아직 없습니다. 탈퇴 요청은 ${IN_APP_INQUIRY_ROUTE}로 접수하며, 회사는 요청을 확인한 뒤 처리합니다. ${CONTACT_PENDING_NOTICE}`;
-
-const SETTINGS_UNEDITABLE_NOTICE = HAS_CONTACT
-  ? '온보딩에서 입력한 생년월일은 설정 화면에서 수정할 수 없습니다. 정정이 필요하면 제11조의 문의처로 요청해주세요.'
-  : `온보딩에서 입력한 생년월일은 설정 화면에서 수정할 수 없습니다. 정정이 필요하면 ${IN_APP_INQUIRY_ROUTE}로 요청해주세요.`;
-
 export interface LegalTable {
   columns: string[];
   rows: string[][];
@@ -155,6 +120,39 @@ export interface LegalDocument {
   pendingRevision?: LegalRevisionNotice;
   articles: LegalArticle[];
 }
+
+export function createLegalDocuments(businessInfo:BusinessInfo=BUSINESS_INFO) {
+/* 문의처 문장은 푸터와 같은 사업자 정보에서 파생된다.
+ * 연락처가 채워지면 본문에 그 값이 그대로 드러나고, 비어 있는 동안에는
+ * 존재하지 않는 창구를 가리키는 대신 그 사실과 실제로 열려 있는 경로를 안내한다(#87). */
+const CONTACT_WORDS = businessContactWords(businessInfo);
+const HAS_CONTACT = CONTACT_WORDS.length > 0;
+
+/* 인앱 1:1 문의는 지금 실제로 열려 있는 접수 경로다(#253).
+ *
+ * 전화·이메일은 #239의 사업자 등록이 끝나야 채워지지만, 그렇다고 "창구가 없다"고
+ * 쓰면 거짓 고지가 된다 — 로그인한 이용자는 이 경로로 접수할 수 있고 회사는 답한다.
+ * 공개 연락처는 비로그인 이용자와 기관 조회를 위해 여전히 필요하므로, 이 경로가
+ * 그 공백을 메우는 것이지 대체하는 것은 아니라는 사실도 함께 남긴다. */
+const IN_APP_INQUIRY_ROUTE = '마이페이지의 1:1 문의(/my/inquiries)';
+const CONTACT_PENDING_NOTICE =
+  `공개 문의 연락처는 사업자 등록 절차가 끝나는 대로 이 문서와 사이트 하단 사업자 정보에 함께 공개합니다. 그때까지 회원은 ${IN_APP_INQUIRY_ROUTE}로 문의를 접수할 수 있으며, 회사는 영업일 기준 24시간 안에 1차 답변을 드립니다.`;
+
+/* 설정 화면이 실제로 열어 둔 자가 열람·정정 항목.
+ * app/settings/actions.ts는 nickname·avatarPath·marketing만 읽는다. 온보딩에서 받는 생년월일은
+ * 입력 필드도 액션도 없으므로, 방침이 설정 화면을 생년월일의 정정 경로로 가리키면
+ * 연락처가 비어 있는 지금 이용자에게 존재하지 않는 경로를 안내하게 된다. */
+const SETTINGS_EDITABLE_ITEMS = '닉네임, 프로필 이미지, 마케팅 정보 수신 동의 여부';
+/* 회원 탈퇴는 아직 화면에도 RPC에도 없다(#102·#137). "즉시 처리합니다"라고 쓰면
+ * 이용자가 찾을 수 없는 기능을 가리키게 되므로, 지금 실제로 열려 있는 경로만 적는다.
+ * 연락처가 채워지면 문의 창구가 그대로 접수 경로가 된다. */
+const WITHDRAWAL_ROUTE_NOTICE = HAS_CONTACT
+  ? `회원이 화면에서 직접 탈퇴를 실행하는 기능은 아직 없습니다. 탈퇴 요청은 ${IN_APP_INQUIRY_ROUTE} 또는 ${CONTACT_WORDS}로 접수하며, 회사는 요청을 확인한 뒤 처리합니다.`
+  : `회원이 화면에서 직접 탈퇴를 실행하는 기능은 아직 없습니다. 탈퇴 요청은 ${IN_APP_INQUIRY_ROUTE}로 접수하며, 회사는 요청을 확인한 뒤 처리합니다. ${CONTACT_PENDING_NOTICE}`;
+
+const SETTINGS_UNEDITABLE_NOTICE = HAS_CONTACT
+  ? '온보딩에서 입력한 생년월일은 설정 화면에서 수정할 수 없습니다. 정정이 필요하면 제11조의 문의처로 요청해주세요.'
+  : `온보딩에서 입력한 생년월일은 설정 화면에서 수정할 수 없습니다. 정정이 필요하면 ${IN_APP_INQUIRY_ROUTE}로 요청해주세요.`;
 
 const terms: LegalDocument = {
   slug: 'terms',
@@ -626,16 +624,17 @@ const shipping: LegalDocument = {
       table: {
         columns: ['항목', '내용'],
         rows: [
-          ['배송 방법', '택배 (한진택배)'],
+          ['배송 방법', '출고지별 지정 택배사'],
           ['배송 지역', '대한민국 전국'],
-          ['기본 배송비', krwAmountWords(shippingPolicy.baseFee)],
-          ['무료 배송 조건', `주문 금액 ${krwAmountWords(shippingPolicy.freeThreshold)} 이상`],
+          ['기본 배송비', '굿즈 상세와 주문 화면에 표시된 출고지별 배송 정책에 따릅니다. 출고지가 다르면 배송비를 각각 더합니다.'],
+          ['무료 배송 조건', '같은 출고지의 정책 적용 굿즈 할인 전 소계로 확인합니다. 무료배송·개별 배송비 굿즈은 이 소계에 포함하지 않습니다.'],
           ['도서산간·제주 추가 배송비', '주문 화면과 굿즈 상세에서 별도 안내'],
           ['배송 기간', '대금을 먼저 지급하는 선지급 주문이므로, 결제가 확정된 날부터 3영업일 이내에 배송에 필요한 조치를 취합니다. 무통장 입금 주문은 입금이 확인된 날이 결제 확정일입니다. 공급 절차가 늦어지면 그 진행 상황을 알립니다.'],
           ['무통장 입금 기한', '주문 성립 후 24시간. 기한 안에 입금이 확인되지 않으면 주문이 자동 취소되고 선점된 수량이 복원됩니다.'],
         ],
       },
       closing: [
+        '개별 배송비는 같은 굿즈의 수량이나 옵션 수와 관계없이 굿즈당 한 번 더합니다.',
         '배송비는 주문 시점의 정책값으로 고정되며, 주문 이후 정책이 바뀌어도 이미 성립한 주문에는 적용되지 않습니다.',
       ],
     },
@@ -678,7 +677,7 @@ const shipping: LegalDocument = {
        * 최초 배송비를 환급액에서 뺄 방법이 없다. "공제될 수 있습니다"는 지킬 수 없는 고지다. */
       closing: [
         '청약철회가 승인되면 결제한 금액 전액이 취소됩니다. 이미 받은 배송비를 환급액에서 공제하지 않습니다.',
-        `무료 배송 조건(${krwAmountWords(shippingPolicy.freeThreshold)} 이상)으로 발송된 주문도 같습니다. 다만 반송에 드는 비용은 위 표의 부담 주체를 따릅니다.`,
+        '무료 배송 조건으로 발송된 주문도 같습니다. 다만 반송에 드는 비용은 위 표의 부담 주체를 따릅니다.',
       ],
     },
     {
@@ -743,10 +742,13 @@ const shipping: LegalDocument = {
   ],
 };
 
-export const LEGAL_DOCUMENTS: Record<LegalDocumentSlug, LegalDocument> = { terms, privacy, shipping };
+return {terms,privacy,shipping};
+}
 
-export function getLegalDocument(slug: string): LegalDocument | null {
+export const LEGAL_DOCUMENTS: Record<LegalDocumentSlug, LegalDocument> = createLegalDocuments();
+
+export function getLegalDocument(slug: string, businessInfo?: BusinessInfo): LegalDocument | null {
   return (LEGAL_DOCUMENT_SLUGS as string[]).includes(slug)
-    ? LEGAL_DOCUMENTS[slug as LegalDocumentSlug]
+    ? (businessInfo ? createLegalDocuments(businessInfo) : LEGAL_DOCUMENTS)[slug as LegalDocumentSlug]
     : null;
 }

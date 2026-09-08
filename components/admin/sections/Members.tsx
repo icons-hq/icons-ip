@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState, useState, type FormEvent } from 'react';
 import {
   adjustMemberLoyaltyAction,
@@ -354,12 +355,15 @@ export function MembersSection({
               <span className="mono" style={{ fontSize: 12 }}>{member.maskedEmail}</span>
               <span className="faint mono" style={{ fontSize: 11 }}>가입 {formatDate(member.createdAt)}</span>
             </div>
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+            <Link href={`/admin/customers/${member.id}`} className="btn btn-sm admin-field-control" style={{ minHeight: 44 }}>고객 상세 열기</Link>
             <form action={detailAction} onSubmit={() => setSelectedProfileId(member.id)}>
               <input name="profileId" type="hidden" value={member.id} />
               <button className="btn btn-sm admin-field-control" disabled={detailPending} style={{ minHeight: 44 }}>
                 <Icon name="user" size={14} /> {detailPending ? '불러오는 중' : '상세 보기'}
               </button>
             </form>
+            </div>
           </article>
         ))}
         {!searchState.members.length && (

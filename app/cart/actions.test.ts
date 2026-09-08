@@ -1,13 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+const VARIANT_ID = '00000000-0000-4000-8000-000000000001';
 import type { CurrentAuthState } from '@/lib/auth/server';
 import { deleteCartItemAction, setCartItemQuantityAction, syncCartAction } from './actions';
 
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
   rpc: vi.fn(),
+  variantQuery: vi.fn(),
+  variantRows: { data: [{ id: '00000000-0000-4000-8000-000000000001', good_id: 'g1' }], error: null } as { data: {id:string;good_id:string}[]; error: {message:string}|null },
   from: vi.fn(),
-  cartRows: { data: [{ good_id: 'g1', qty: 4 }], error: null } as {
-    data: { good_id: string; qty: number }[] | null;
+  cartRows: { data: [{ good_id: 'g1', variant_id: '00000000-0000-4000-8000-000000000001', qty: 4 }], error: null } as {
+    data: { good_id: string; variant_id?: string; qty: number }[] | null;
     error: { message: string } | null;
   },
   goodRow: { data: { stock: 'ok', stock_qty: 5 }, error: null } as {
@@ -25,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   goodsSelect: vi.fn(),
   goodsEq: vi.fn(),
   goodsIs: vi.fn(),
+  goodsNot: vi.fn(),
   goodsRestrictionEq: vi.fn(),
   goodsMaybeSingle: vi.fn(),
 }));
@@ -68,7 +72,9 @@ function thenableDeleteBuilder() {
 describe('cart Server Actions', () => {
   beforeEach(() => {
     mocks.auth = onboardedAuth();
-    mocks.cartRows = { data: [{ good_id: 'g1', qty: 4 }], error: null };
+    mocks.variantRows = {data:[{id:VARIANT_ID,good_id:'g1'}],error:null};
+    mocks.variantQuery.mockReset();
+    mocks.cartRows = { data: [{ good_id: 'g1', variant_id: '00000000-0000-4000-8000-000000000001', qty: 4 }], error: null };
     mocks.goodRow = { data: { stock: 'ok', stock_qty: 5 }, error: null };
     mocks.upsertResult = { error: null };
     mocks.deleteResult = { error: null };
@@ -85,6 +91,7 @@ describe('cart Server Actions', () => {
       mocks.goodsSelect,
       mocks.goodsEq,
       mocks.goodsIs,
+      mocks.goodsNot,
       mocks.goodsRestrictionEq,
       mocks.goodsMaybeSingle,
     ]) mock.mockReset();
@@ -97,9 +104,11 @@ describe('cart Server Actions', () => {
     mocks.cartDelete.mockImplementation(() => thenableDeleteBuilder());
     mocks.goodsMaybeSingle.mockImplementation(async () => mocks.goodRow);
     // 판매 제한(19금) 비노출 필터가 archived_at 뒤에 하나 더 붙는다(#392).
-    mocks.goodsRestrictionEq.mockReturnValue({ maybeSingle: mocks.goodsMaybeSingle });
-    mocks.goodsIs.mockReturnValue({ eq: mocks.goodsRestrictionEq });
-    mocks.goodsEq.mockReturnValue({ is: mocks.goodsIs });
+    const goodsFilters = { eq: mocks.goodsRestrictionEq, is: mocks.goodsIs, not: mocks.goodsNot, maybeSingle: mocks.goodsMaybeSingle };
+    mocks.goodsRestrictionEq.mockReturnValue(goodsFilters);
+    mocks.goodsIs.mockReturnValue(goodsFilters);
+    mocks.goodsNot.mockReturnValue(goodsFilters);
+    mocks.goodsEq.mockReturnValue(goodsFilters);
     mocks.goodsSelect.mockReturnValue({ eq: mocks.goodsEq });
     mocks.from.mockImplementation((table: string) => {
       if (table === 'cart_items') {
@@ -108,6 +117,10 @@ describe('cart Server Actions', () => {
           upsert: mocks.cartUpsert,
           delete: mocks.cartDelete,
         };
+      }
+      if (table === 'goods_variants') {
+        const query = { select: mocks.variantQuery, in: mocks.variantQuery, eq: mocks.variantQuery, is: mocks.variantQuery, not: mocks.variantQuery, then: (resolve: (value: typeof mocks.variantRows) => unknown) => Promise.resolve(mocks.variantRows).then(resolve) };
+        mocks.variantQuery.mockReturnValue(query); return query;
       }
       if (table === 'goods') return { select: mocks.goodsSelect };
       throw new Error(`Unexpected table ${table}`);
@@ -118,10 +131,10 @@ describe('cart Server Actions', () => {
     mocks.auth = { isConfigured: false, user: null, profile: null, isStaff: false };
 
     await expect(syncCartAction([
-      { goodId: 'g1', qty: 2 },
-      { goodId: 'g1', qty: 1 },
+      { goodId: 'g1', variantId: VARIANT_ID, qty: 2 },
+      { goodId: 'g1', variantId: VARIANT_ID, qty: 1 },
       { goodId: '', qty: 3 },
-    ])).resolves.toEqual({ ok: true, mode: 'local', items: [{ goodId: 'g1', qty: 2 }] });
+    ])).resolves.toEqual({ ok: true, mode: 'local', items: [{ goodId: 'g1', variantId: VARIANT_ID, qty: 2 }] });
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.from).not.toHaveBeenCalled();
   });
@@ -131,14 +144,14 @@ describe('cart Server Actions', () => {
     await expect(syncCartAction([{ goodId: 'g1', qty: 2 }])).resolves.toEqual({
       ok: true,
       mode: 'local',
-      items: [{ goodId: 'g1', qty: 2 }],
+      items: [{ goodId: 'g1', variantId: VARIANT_ID, qty: 2 }],
     });
 
     mocks.auth = { ...onboardedAuth(), profile: null };
     await expect(syncCartAction([{ goodId: 'g1', qty: 2 }])).resolves.toEqual({
       ok: true,
       mode: 'local',
-      items: [{ goodId: 'g1', qty: 2 }],
+      items: [{ goodId: 'g1', variantId: VARIANT_ID, qty: 2 }],
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -147,12 +160,12 @@ describe('cart Server Actions', () => {
     await expect(syncCartAction([{ goodId: 'g1', qty: 2 }])).resolves.toEqual({
       ok: true,
       mode: 'server',
-      items: [{ goodId: 'g1', qty: 4 }],
+      items: [{ goodId: 'g1', variantId: VARIANT_ID, qty: 4 }],
     });
     expect(mocks.rpc).toHaveBeenCalledWith('merge_cart_items', {
-      p_items: [{ good_id: 'g1', qty: 2 }],
+      p_items: [{ good_id: 'g1', variant_id: VARIANT_ID, qty: 2 }],
     });
-    expect(mocks.cartSelect).toHaveBeenCalledWith('good_id,qty');
+    expect(mocks.cartSelect).toHaveBeenCalledWith('good_id,variant_id,qty');
     expect(mocks.cartSelectEq).toHaveBeenCalledWith('user_id', 'user-1');
   });
 
@@ -167,58 +180,94 @@ describe('cart Server Actions', () => {
     expect(mocks.cartSelect).not.toHaveBeenCalled();
   });
 
-  it('validates current stock, upserts through RLS, and returns the current snapshot', async () => {
-    await expect(setCartItemQuantityAction('g1', 3)).resolves.toEqual({
-      ok: true,
-      mode: 'server',
-      items: [{ goodId: 'g1', qty: 4 }],
+  it('sends the selected option to the server-owned stock and visibility gate', async () => {
+    const variantId = '00000000-0000-4000-8000-000000000002';
+    mocks.cartRows.data = [{ good_id: 'g1', variant_id: variantId, qty: 3 }];
+    await expect(setCartItemQuantityAction('g1', 3, variantId)).resolves.toEqual({
+      ok: true, mode: 'server', items: [{ goodId: 'g1', variantId, qty: 3 }],
     });
-    expect(mocks.goodsSelect).toHaveBeenCalledWith('stock,stock_qty');
-    expect(mocks.goodsEq).toHaveBeenCalledWith('id', 'g1');
-    expect(mocks.goodsIs).toHaveBeenCalledWith('archived_at', null);
-    expect(mocks.cartUpsert).toHaveBeenCalledWith(
-      { user_id: 'user-1', good_id: 'g1', qty: 3 },
-      { onConflict: 'user_id,good_id' },
-    );
-  });
-
-  it('rejects sold-out or excessive quantities before writing', async () => {
-    mocks.goodRow = { data: { stock: 'low', stock_qty: 2 }, error: null };
-
-    await expect(setCartItemQuantityAction('g1', 3)).resolves.toEqual({
-      ok: false,
-      mode: 'server',
-      error: '현재 재고보다 많이 담을 수 없습니다.',
+    expect(mocks.rpc).toHaveBeenCalledWith('set_cart_item_quantity', {
+      p_good_id: 'g1', p_variant_id: variantId, p_qty: 3,
     });
     expect(mocks.cartUpsert).not.toHaveBeenCalled();
   });
 
-  it('deletes an authenticated cart item and refreshes the snapshot', async () => {
-    await expect(deleteCartItemAction('g1')).resolves.toEqual({
-      ok: true,
-      mode: 'server',
-      items: [{ goodId: 'g1', qty: 4 }],
+  it('rejects missing option identity at the mutation boundary', async () => {
+    await expect(setCartItemQuantityAction('g1', 2, undefined)).resolves.toMatchObject({ok:false});
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('reports current option stock without exposing other database errors', async () => {
+    mocks.rpc.mockResolvedValue({ error: { message: 'out of stock' } });
+    await expect(setCartItemQuantityAction('g1', 3, VARIANT_ID)).resolves.toEqual({
+      ok: false, mode: 'server', error: '현재 재고보다 많이 담을 수 없습니다.',
     });
-    expect(mocks.cartDelete).toHaveBeenCalled();
-    expect(mocks.cartDeleteEq).toHaveBeenNthCalledWith(1, 'user_id', 'user-1');
-    expect(mocks.cartDeleteEq).toHaveBeenNthCalledWith(2, 'good_id', 'g1');
+  });
+
+  it('deletes only the selected option and refreshes the snapshot', async () => {
+    const variantId = '00000000-0000-4000-8000-000000000002';
+    await expect(deleteCartItemAction('g1', variantId)).resolves.toMatchObject({ ok: true, mode: 'server' });
+    expect(mocks.rpc).toHaveBeenCalledWith('set_cart_item_quantity', {
+      p_good_id: 'g1', p_variant_id: variantId, p_qty: 0,
+    });
+    expect(mocks.cartDelete).not.toHaveBeenCalled();
+  });
+
+  it('preserves separate options when syncing the local cart', async () => {
+    const variantId = '00000000-0000-4000-8000-000000000002';
+    await syncCartAction([{ goodId: 'g1', variantId, qty: 2 }]);
+    expect(mocks.rpc).toHaveBeenCalledWith('merge_cart_items', {
+      p_items: [{ good_id: 'g1', variant_id: variantId, qty: 2 }],
+    });
+  });
+
+  it('adds legacy and already-selected default quantities before the idempotent server merge', async () => {
+    await syncCartAction([{ goodId: 'g1', qty: 2 }, { goodId: 'g1', variantId: VARIANT_ID, qty: 3 }]);
+    expect(mocks.rpc).toHaveBeenCalledWith('merge_cart_items', { p_items: [{ good_id: 'g1', variant_id: VARIANT_ID, qty: 5 }] });
+    expect(mocks.variantQuery).toHaveBeenCalledWith('goods.published_at', 'is', null);
+    expect(mocks.variantQuery).toHaveBeenCalledWith('goods.archived_at', null);
+    expect(mocks.variantQuery).toHaveBeenCalledWith('goods.sale_restriction', 'none');
+    expect(mocks.variantQuery).toHaveBeenCalledWith('goods.ips.published_at', 'is', null);
+    expect(mocks.variantQuery).toHaveBeenCalledWith('goods.ips.archived_at', null);
+  });
+
+  it('keeps unmigrated items when their public default cannot be resolved', async () => {
+    mocks.variantRows = { data: [], error: null };
+    await expect(syncCartAction([{ goodId: 'g1', qty: 2 }])).resolves.toMatchObject({
+      ok: false, mode: 'local', unresolvedItems: [{ goodId: 'g1', qty: 2 }],
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('does not discard a v1 cart while the backend is unconfigured', async () => {
+    mocks.auth = { isConfigured: false, user: null, profile: null, isStaff: false };
+    await expect(syncCartAction([{ goodId: 'g1', qty: 2 }])).resolves.toMatchObject({
+      ok: false, mode: 'local', unresolvedItems: [{ goodId: 'g1', qty: 2 }],
+    });
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it('rejects a malformed variant instead of silently selecting the default', async () => {
+    await expect(setCartItemQuantityAction('g1', 1, 'bad-option')).resolves.toMatchObject({ ok: false });
+    await expect(deleteCartItemAction('g1', {})).resolves.toMatchObject({ ok: false });
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it('does not touch the DB for invalid inputs or an expired session', async () => {
-    await expect(setCartItemQuantityAction('', 1)).resolves.toEqual({
+    await expect(setCartItemQuantityAction('', 1, VARIANT_ID)).resolves.toEqual({
       ok: false,
       mode: 'server',
       error: '장바구니 수량을 확인해주세요.',
     });
     mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
-    await expect(deleteCartItemAction('g1')).resolves.toEqual({ ok: false, mode: 'local' });
+    await expect(deleteCartItemAction('g1', VARIANT_ID)).resolves.toEqual({ ok: false, mode: 'local' });
     expect(mocks.from).not.toHaveBeenCalled();
   });
 
   it('returns a generic error without exposing database details', async () => {
-    mocks.upsertResult = { error: { message: 'sensitive database detail' } };
+    mocks.rpc.mockResolvedValue({ error: { message: 'sensitive database detail' } });
 
-    await expect(setCartItemQuantityAction('g1', 3)).resolves.toEqual({
+    await expect(setCartItemQuantityAction('g1', 3, VARIANT_ID)).resolves.toEqual({
       ok: false,
       mode: 'server',
       error: '장바구니를 저장하지 못했습니다. 다시 시도해주세요.',
@@ -226,12 +275,12 @@ describe('cart Server Actions', () => {
   });
 
   it('rejects malformed runtime arguments without throwing', async () => {
-    await expect(setCartItemQuantityAction(null, '2')).resolves.toEqual({
+    await expect(setCartItemQuantityAction(null, '2', VARIANT_ID)).resolves.toEqual({
       ok: false,
       mode: 'server',
       error: '장바구니 수량을 확인해주세요.',
     });
-    await expect(deleteCartItemAction({ goodId: 'g1' })).resolves.toEqual({
+    await expect(deleteCartItemAction({ goodId: 'g1' }, VARIANT_ID)).resolves.toEqual({
       ok: false,
       mode: 'server',
       error: '장바구니 수량을 확인해주세요.',

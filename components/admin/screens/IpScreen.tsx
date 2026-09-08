@@ -20,18 +20,23 @@ export function IpScreen({
   accountId,
   records,
   verticals,
+  selectedId = null,
+  hideRecordList = false,
 }: {
   accountId: string;
   records: AdminCatalogRecords['ips'];
   verticals: CatalogSnapshot['verticals'];
+  selectedId?: string | null;
+  hideRecordList?: boolean;
 }) {
   const [state, action, pending] = useActionState(upsertAdminIpAction, emptyState);
-  const { selected, select } = useSelectedRecord(records);
+  const { selected, select } = useSelectedRecord(records, selectedId);
 
   return (
     <IpSection
       accountId={accountId}
       action={action}
+      hideRecordList={hideRecordList}
       onSelect={select}
       pending={pending}
       records={records}

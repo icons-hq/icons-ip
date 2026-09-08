@@ -57,13 +57,13 @@ insert into public.ips (id, title, vertical_key, published_at)
 values ('cpn-ip', '쿠폰 스모크 IP', 'character', now())
 on conflict (id) do nothing;
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
+insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
 values
-  ('cpn-g1', 'cpn-ip', '쿠폰 굿즈 3만', '피규어', 30000, 'ok', 100),
-  ('cpn-g2', 'cpn-ip', '쿠폰 굿즈 4만', '피규어', 40000, 'ok', 100),
-  ('cpn-g3', 'cpn-ip', '쿠폰 굿즈 9만', '피규어', 90000, 'ok', 100)
+  ('cpn-g1', 'cpn-ip', '쿠폰 굿즈 3만', '피규어', 30000, 'ok', 100, now()),
+  ('cpn-g2', 'cpn-ip', '쿠폰 굿즈 4만', '피규어', 40000, 'ok', 100, now()),
+  ('cpn-g3', 'cpn-ip', '쿠폰 굿즈 9만', '피규어', 90000, 'ok', 100, now())
 on conflict (id) do update set
-  price = excluded.price, stock = excluded.stock, stock_qty = excluded.stock_qty;
+  price = excluded.price, stock = excluded.stock, stock_qty = excluded.stock_qty, published_at = excluded.published_at;
 
 -- ── 스키마·ACL 계약 ─────────────────────────────────────────────────────────
 
@@ -392,8 +392,8 @@ reset role;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000701', true);
 set local role authenticated;
 
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000701', 'cpn-g1', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000701', 'cpn-g1', 1, (select id from public.goods_variants where good_id='cpn-g1' and is_default));
 
 -- 코드 직접 입력: 발급과 카트 적용이 한 번에 이뤄진다. 소문자·공백은 정규화된다.
 select public.apply_cart_coupon_code('  cpnfix5k ') as fix5k_user_coupon_id \gset
@@ -477,8 +477,8 @@ select 1 / case when (
 
 -- 남의 보유 쿠폰은 적용할 수 없다.
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000702', true);
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000702', 'cpn-g1', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000702', 'cpn-g1', 1, (select id from public.goods_variants where good_id='cpn-g1' and is_default));
 do $$
 declare
   v_other uuid;
@@ -639,8 +639,8 @@ reset role;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000701', true);
 set local role authenticated;
 
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000701', 'cpn-g1', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000701', 'cpn-g1', 1, (select id from public.goods_variants where good_id='cpn-g1' and is_default));
 select public.apply_cart_coupon(:'fix5k_user_coupon_id'::uuid);
 
 reset role;
@@ -671,8 +671,8 @@ select 1 / case when (
 reset role;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000701', true);
 set local role authenticated;
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000701', 'cpn-g1', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000701', 'cpn-g1', 1, (select id from public.goods_variants where good_id='cpn-g1' and is_default));
 do $$
 declare
   v_used uuid;
@@ -694,10 +694,10 @@ $$;
 -- 소계 70,000(무료배송 유지): 10% = 7,000 ≤ 상한 8,000. 미달 시절 발급해 둔
 -- 보유분이 그대로 쓰인다(재발급 아님 — 멱등 적용).
 delete from public.cart_items where user_id = '00000000-0000-4000-8000-000000000701';
-insert into public.cart_items (user_id, good_id, qty)
+insert into public.cart_items (user_id, good_id, qty, variant_id)
 values
-  ('00000000-0000-4000-8000-000000000701', 'cpn-g1', 1),
-  ('00000000-0000-4000-8000-000000000701', 'cpn-g2', 1);
+  ('00000000-0000-4000-8000-000000000701', 'cpn-g1', 1, (select id from public.goods_variants where good_id='cpn-g1' and is_default)),
+  ('00000000-0000-4000-8000-000000000701', 'cpn-g2', 1, (select id from public.goods_variants where good_id='cpn-g2' and is_default));
 select public.apply_cart_coupon_code('CPNPCT10') as pct10_user_coupon_id \gset
 select 1 / case when :'pct10_user_coupon_id'::uuid = :'pct10_early_id'::uuid then 1 else 0 end
   as assert_below_minimum_issue_was_kept;
@@ -736,8 +736,8 @@ select 1 / case when (
 reset role;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000702', true);
 set local role authenticated;
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000702', 'cpn-g3', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000702', 'cpn-g3', 1, (select id from public.goods_variants where good_id='cpn-g3' and is_default));
 select public.apply_cart_coupon_code('CPNPCT10');
 
 reset role;
@@ -763,8 +763,8 @@ select 1 / case when (
 reset role;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000702', true);
 set local role authenticated;
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000702', 'cpn-g1', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000702', 'cpn-g1', 1, (select id from public.goods_variants where good_id='cpn-g1' and is_default));
 select public.apply_cart_coupon_code('CPNBIG');
 
 reset role;
@@ -791,10 +791,10 @@ select 1 / case when (
 reset role;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000702', true);
 set local role authenticated;
-insert into public.cart_items (user_id, good_id, qty)
+insert into public.cart_items (user_id, good_id, qty, variant_id)
 values
-  ('00000000-0000-4000-8000-000000000702', 'cpn-g1', 1),
-  ('00000000-0000-4000-8000-000000000702', 'cpn-g2', 1);
+  ('00000000-0000-4000-8000-000000000702', 'cpn-g1', 1, (select id from public.goods_variants where good_id='cpn-g1' and is_default)),
+  ('00000000-0000-4000-8000-000000000702', 'cpn-g2', 1, (select id from public.goods_variants where good_id='cpn-g2' and is_default));
 select public.apply_cart_coupon_code('CPNFULL');
 
 reset role;
@@ -822,10 +822,10 @@ reset role;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000701', true);
 set local role authenticated;
 -- 소계 70,000에서 CPNMIN50(min 50,000)을 적용해 두고, 카트를 30,000으로 줄인다.
-insert into public.cart_items (user_id, good_id, qty)
+insert into public.cart_items (user_id, good_id, qty, variant_id)
 values
-  ('00000000-0000-4000-8000-000000000701', 'cpn-g1', 1),
-  ('00000000-0000-4000-8000-000000000701', 'cpn-g2', 1);
+  ('00000000-0000-4000-8000-000000000701', 'cpn-g1', 1, (select id from public.goods_variants where good_id='cpn-g1' and is_default)),
+  ('00000000-0000-4000-8000-000000000701', 'cpn-g2', 1, (select id from public.goods_variants where good_id='cpn-g2' and is_default));
 select public.apply_cart_coupon_code('CPNMIN50') as min50_user_coupon_id \gset
 delete from public.cart_items
 where user_id = '00000000-0000-4000-8000-000000000701' and good_id = 'cpn-g2';

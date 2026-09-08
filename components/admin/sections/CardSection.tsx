@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminFormGrid } from '@/components/admin/console/AdminKit';
 import { useState } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminCardRecord } from '@/lib/admin/catalog.server';
@@ -70,10 +71,10 @@ export function CardSection({
         />
       </div>
       <div className="col" style={{ gap: 16, minWidth: 0 }}>
-        <form action={action} className="card col" key={selected ? JSON.stringify(selected) : 'new-card'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+        <form action={action} className="card col wc-admin-kit wc-admin-kit__card" key={selected ? JSON.stringify(selected) : 'new-card'} style={{ gap: 14 }}>
         <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
-        <div className="admin-form-grid">
+        <AdminFormGrid>
           <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="c100" readOnly={Boolean(selected)} />
           {pooled && selected ? (
             <ReadOnlyCatalogField label="연결 IP" name="ipId" value={selected.ipId}>
@@ -118,9 +119,9 @@ export function CardSection({
               <option key={pool.id} value={pool.id}>{pool.name}</option>
             ))}
           </SelectField>
-        </div>
+        </AdminFormGrid>
         {pooled && (
-          <p style={{ color: 'var(--dim)', fontSize: 12, margin: 0 }}>
+          <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, margin: 0 }}>
             풀에 연결된 카드는 먼저 풀을 해제한 뒤 IP·등급을 변경할 수 있습니다.
           </p>
         )}
@@ -161,7 +162,7 @@ function ReadOnlyCatalogField({
   const labelId = `${name}-readonly-label`;
   return (
     <div className="col" style={{ gap: 7 }}>
-      <span className="mono" id={labelId} style={{ color: 'var(--dim)', fontSize: 11 }}>{label}</span>
+      <span className="mono" id={labelId} style={{ color: 'var(--wc-ink-tertiary)', fontSize: 11 }}>{label}</span>
       <input name={name} type="hidden" value={value} />
       <div
         aria-labelledby={labelId}

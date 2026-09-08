@@ -107,7 +107,7 @@ values
   ('order-history-ip-a', '주문 스냅샷 IP A', 'character', now()),
   ('order-history-ip-b', '주문 스냅샷 IP B', 'character', now());
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
+insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
 values (
   'order-history-good',
   'order-history-ip-a',
@@ -116,7 +116,7 @@ values (
   25000,
   'ok',
   10
-);
+, now());
 
 insert into public.card_pools (id, ip_id, name, active_from)
 values
@@ -175,12 +175,12 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000601', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 
-insert into public.cart_items (user_id, good_id, qty)
+insert into public.cart_items (user_id, good_id, qty, variant_id)
 values (
   '00000000-0000-4000-8000-000000000601',
   'order-history-good',
-  1
-);
+  1,
+  (select id from public.goods_variants where good_id='order-history-good' and is_default));
 
 set local role service_role;
 select public.place_order(

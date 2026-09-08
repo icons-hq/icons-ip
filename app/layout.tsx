@@ -1,14 +1,14 @@
 import type { Metadata } from 'next';
 import { Space_Grotesk, Space_Mono } from 'next/font/google';
 import './globals.css';
-import './styles/editorial-foundation.css';
-import './styles/editorial-admin.css';
-import './styles/admin-console.css';
 import './styles/wc-foundation.css';
+import './styles/wc-admin-surfaces.css';
 import './styles/wc-admin.css';
 import './styles/admin-faq.css';
 import './styles/admin-goods-notice-presets.css';
 import './styles/admin-order-detail.css';
+import './styles/admin-customer-detail.css';
+import './styles/admin-store-settings.css';
 import './styles/wc-chrome.css';
 import './styles/wc-home.css';
 import './styles/wc-catalog.css';
@@ -16,15 +16,16 @@ import './styles/wc-discovery.css';
 import './styles/wc-account-commerce.css';
 import './styles/wc-campaign.css';
 import './styles/wc-help.css';
-/* 이행이 끝나지 않은 잔존 표면 3종의 legacy 스타일. editorial-* 원본과 같은 규칙을
-   화면별 앵커 안에 가둔 사본이라, 원본과 동률인 캐스케이드를 재현하려면 반드시
-   editorial-foundation 뒤 — 목록 맨 뒤 — 에 와야 한다(about-legacy와 같은 이유). */
+import './styles/wc-inquiry-widget.css';
+/* 보존 표면은 각 앵커 안에 자체 기본 규칙과 토큰을 가진다. */
 import './styles/about-legacy.css';
 import './styles/offline-popups-legacy.css';
 import './styles/legal-doc.css';
 import { AuthPresenceProvider } from '@/components/shell/AuthPresenceProvider';
 import { CartProvider } from '@/components/shell/CartProvider';
 import { Nav } from '@/components/shell/Nav';
+import { getBusinessInfo } from '@/lib/legal/business-info.server';
+import { InquiryWidget } from '@/components/screens/InquiryWidget';
 import { SiteFooter } from '@/components/shell/SiteFooter';
 import { CardRewardAvailabilityProvider } from '@/components/shell/CardRewardAvailability';
 import { getActiveNoticeStrip } from '@/lib/notice-strip.server';
@@ -49,7 +50,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   /* 공지 스트립은 셸의 일부라 루트에서 한 번만 읽는다. 쿠키를 만지지 않는 캐시 읽기라
      legal 라우트의 SSG가 dynamic으로 무너지지 않는다(lib/notice-strip.server.ts 주석 참고). */
-  const noticeStrip = await getActiveNoticeStrip();
+  const [noticeStrip,businessInfo] = await Promise.all([getActiveNoticeStrip(),getBusinessInfo()]);
 
   return (
     <html lang="ko" data-scroll-behavior="smooth" className={`${spaceGrotesk.variable} ${spaceMono.variable}`}>
@@ -59,8 +60,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <AuthPresenceProvider>
               <Nav noticeStrip={noticeStrip} />
               {/* tabIndex: 셸 스킵 링크(#root)가 키보드 포커스를 본문으로 실제 이동시키기 위한 타깃. */}
-              <div id="root" tabIndex={-1}>{children}</div>
-              <SiteFooter />
+              <div id="root" tabIndex={-1}>{children}<InquiryWidget /></div>
+              <SiteFooter businessInfo={businessInfo} />
             </AuthPresenceProvider>
           </CardRewardAvailabilityProvider>
         </CartProvider>

@@ -109,6 +109,7 @@ function revalidateCatalogArchiveSurfaces(kind: AdminCatalogArchiveKind, id: str
     '/checkout',
     '/packs',
     '/admin',
+    '/admin/catalog/goods',
   ]) {
     revalidatePath(path);
   }
@@ -116,7 +117,11 @@ function revalidateCatalogArchiveSurfaces(kind: AdminCatalogArchiveKind, id: str
   revalidatePath('/events/[eventId]', 'page');
   revalidatePath('/offline-popups/[eventId]', 'page');
   revalidatePath('/games/[gameId]', 'page');
-  if (kind === 'ip') revalidatePath(`/ip/${id}`);
+  if (kind === 'ip') {
+    revalidatePath(`/ip/${id}`);
+    revalidatePath('/admin/catalog/ips');
+    revalidatePath(`/admin/catalog/ips/${id}`);
+  }
 }
 
 async function updateAdminCatalogArchiveState(

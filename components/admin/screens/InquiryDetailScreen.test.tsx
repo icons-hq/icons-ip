@@ -1,7 +1,9 @@
+import { shipmentFixture } from '@/lib/orders/shipments.fixture';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminInquiryDetail } from '@/lib/admin/inquiries.server';
 import { InquiryDetailScreen } from './InquiryDetailScreen';
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
@@ -18,6 +20,7 @@ vi.mock('@/app/admin/inquiry-actions', () => ({
   deleteInquiryReplyTemplateAction: vi.fn(),
   saveInquiryReplyTemplateAction: vi.fn(),
 }));
+vi.mock('@/app/admin/customer-actions', () => ({ loadCustomerHistoryAction: vi.fn() }));
 
 const INQUIRY_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
@@ -62,8 +65,7 @@ function detail(overrides: Partial<AdminInquiryDetail> = {}): AdminInquiryDetail
       status: 'shipping',
       total: 57000,
       createdAt: '2026-08-11T01:00:00.000Z',
-      shippingCarrier: '한진택배',
-      trackingNumber: '1234567890',
+      shipments: [shipmentFixture({trackingNumber:'1234567890'})],
       itemCount: 4,
       leadItemName: '아크릴 블록',
       payment: { provider: 'korpay', status: 'paid', amount: 57000 },
@@ -94,6 +96,11 @@ function render(input = detail()) {
 }
 
 describe('InquiryDetailScreen', () => {
+  it('고객 ID 상세 링크와 화면 안의 고객 이력 패널을 제공한다', () => {
+    const html = render();
+    expect(html).toContain('/admin/customers/33333333-3333-4333-8333-333333333333');
+    expect(html).toContain('aria-label="고객 이력"');
+  });
   it('연결 주문을 페이지 필터와 무관한 정확한 상세 주소로 연다', () => {
     expect(render()).toContain(`/admin/sales/orders/${ORDER_ID}`);
   });
@@ -120,7 +127,8 @@ describe('InquiryDetailScreen', () => {
 
     expect(html).toContain('배송중');
     expect(html).toContain('Korpay');
-    expect(html).toContain('한진택배 1234567890');
+    expect(html).toContain('한진택배');
+    expect(html).toContain('1234567890');
     expect(html).toContain('승인 대기');
     expect(html).toContain('₩57,000');
   });

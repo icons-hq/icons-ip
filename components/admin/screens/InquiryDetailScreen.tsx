@@ -1,3 +1,5 @@
+
+import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
 import Link from 'next/link';
 import type { AdminInquiryDetail } from '@/lib/admin/inquiries.server';
 import {
@@ -11,6 +13,8 @@ import { orderReferenceLabel } from '@/lib/orders';
 import { isAdminInquiryOverdue } from '@/lib/admin/inquiries';
 import { InquiryAssignmentPanel, InquiryInternalNotesPanel } from './InquiryWorkspacePanel';
 import { InquiryReplyPanel } from './InquiryReplyPanel';
+import { CustomerHistoryPanel } from './CustomerHistoryPanel';
+import { InquiryLiveUpdates } from '@/components/screens/InquiryLiveUpdates';
 
 /* 어드민 문의 상세(#253).
  *
@@ -70,6 +74,7 @@ export function InquiryDetailScreen({
 
   return (
     <section className="admin-console col" style={{ gap: 16 }}>
+      <InquiryLiveUpdates inquiryId={inquiry.id} audience="staff" />
       <div className="col" style={{ gap: 6 }}>
         <Link className="mono" href={backHref} style={{ fontSize: 12 }}>← 문의 목록</Link>
         <div className="row" style={{ alignItems: 'baseline', gap: 8, justifyContent: 'flex-start' }}>
@@ -158,12 +163,7 @@ export function InquiryDetailScreen({
                     ? `${PAYMENT_PROVIDER_LABELS[order.payment.provider ?? ''] ?? order.payment.provider ?? '확인 필요'} · ${order.payment.status}`
                     : '결제 내역 없음'}
                 />
-                <ContextRow
-                  label="운송장"
-                  value={order.trackingNumber
-                    ? `${order.shippingCarrier ?? '택배사 미상'} ${order.trackingNumber}`
-                    : '미등록'}
-                />
+                <ShipmentDetails admin shipments={order.shipments} />
                 <div className="col" style={{ gap: 4 }}>
                   <span className="muted" style={{ fontSize: 12 }}>클레임 이력</span>
                   {order.claims.length ? (
@@ -221,11 +221,12 @@ export function InquiryDetailScreen({
             ) : null}
             <Link
               className="btn btn-sm btn-ghost"
-              href={`/admin/community/members?query=${encodeURIComponent(buyer.email ?? inquiry.buyerName)}`}
+              href={`/admin/customers/${buyer.id}`}
             >
-              회원 화면에서 열기
+              고객 상세 열기
             </Link>
           </section>
+          <CustomerHistoryPanel key={buyer.id} userId={buyer.id} />
         </aside>
       </div>
     </section>

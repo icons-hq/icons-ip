@@ -141,6 +141,7 @@ describe('getAdminOrderRecords', () => {
         raw: { cardNumber: 'must-not-leak' },
       }],
       rows: {
+        order_shipments: [{id:'shipment-1',order_id:ORDER_ID,origin_id:'origin',origin_name_snapshot:'김포',shipping_fee:3000,status:'shipping',carrier:'hanjin',tracking_number:'123456789012',shipped_at:null,delivered_at:null,exported_at:null,order_shipment_items:[{order_item_id:'item-1'}]}],
         order_items: [{
           id: 'item-1',
           order_id: ORDER_ID,
@@ -203,13 +204,15 @@ describe('getAdminOrderRecords', () => {
           decidedAt: null,
           decisionNote: null,
         },
-        shipment: {
+        shipments: [{
           carrier: 'hanjin',
           carrierLabel: '한진택배',
           trackingNumber: '123456789012',
-        },
+        }],
       }],
     });
+    expect(records.filter(record => record.table === 'order_shipments')).toHaveLength(1);
+    expect(records.find(record => record.table === 'order_shipments')?.in).toEqual([['order_id', [ORDER_ID]]]);
     // 사유 구분(reasonType)은 운영 판단에 필요해 노출하지만, 고객이 적은 자유
     // 서술 reason은 여전히 새면 안 된다. 키 이름으로 정확히 구분한다.
     expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|"raw"|"reason"/);

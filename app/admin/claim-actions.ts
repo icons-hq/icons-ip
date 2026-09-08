@@ -68,6 +68,10 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('claim_not_collectable')) return '수거 단계가 아닙니다. 최신 상태를 확인해주세요.';
   if (value.includes('claim_not_refundable')) return '환불을 접수할 수 있는 단계가 아닙니다.';
   if (value.includes('claim_not_reshippable')) return '입고 확인이 끝난 교환만 재출고할 수 있습니다.';
+  if (value.includes('reshipment_variant_unavailable')) return '선택한 재출고 옵션을 사용할 수 없습니다. 같은 상품의 판매 중인 옵션을 선택해주세요.';
+  if (value.includes('invalid reshipment items')) return '재출고할 주문 품목과 옵션을 확인해주세요.';
+  if (value.includes('reshipment_conflict')) return '이미 다른 운송장이나 옵션으로 재출고한 교환입니다. 처리 이력을 확인해주세요.';
+  if (value.includes('stock_out_of_range')) return '재출고할 옵션 재고가 부족합니다. 최신 옵션 수량을 확인해주세요.';
   if (value.includes('claim_not_held')) return '보류 상태가 아닙니다.';
   if (value.includes('claim_not_found')) return '클레임을 찾을 수 없습니다.';
   if (value.includes('unknown shipping carrier')) return '등록되지 않은 택배사입니다.';
@@ -305,9 +309,15 @@ export async function recordOrderClaimReshipmentAction(
     p_carrier: normalized.value.carrier,
     p_claim_id: normalized.value.claimId,
     p_tracking_number: normalized.value.trackingNumber,
+    p_items: normalized.value.items,
   });
   if (error) return { error: rpcErrorMessage(error.message, RESHIP_FAILED) };
 
   revalidateClaimSurfaces(normalized.value.claimId, 'exchange');
+  revalidatePath('/shop', 'layout');
+  revalidatePath('/ip', 'layout');
+  revalidatePath('/cart');
+  revalidatePath('/checkout');
+  revalidatePath('/admin/catalog/goods', 'layout');
   return { message: '교환 재출고 운송장을 등록하고 클레임을 종결했습니다.' };
 }

@@ -56,12 +56,29 @@ values (
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values (
   '40000000-0000-4000-8000-000000000801', 'withdrawal-deadline-goods', 1, 10000,
-  '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip'
-);
+  '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip',
+  (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default));
+
+-- #428/#446: manual order fixtures explicitly include their single shipment.
+insert into public.order_shipments(order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,
+  status,carrier,tracking_number,shipped_at,delivered_at)
+select o.id,'00000000-0000-4000-8000-000000042201','김포',o.shipping_fee,'{}'::jsonb,
+  case when o.status='shipping' then 'shipping' when o.status in ('delivered','done') then 'delivered'
+    when o.status='canceled' then 'canceled' else 'ready' end,
+  o.shipping_carrier,o.tracking_number,o.shipped_at,o.delivered_at
+from public.orders o
+where o.user_id='00000000-0000-4000-8000-000000000801'
+  and not exists(select 1 from public.order_shipments s where s.order_id=o.id);
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id)
+select i.order_id,s.id,i.id from public.order_items i
+join public.order_shipments s on s.order_id=i.order_id
+join public.orders o on o.id=i.order_id
+where o.user_id='00000000-0000-4000-8000-000000000801'
+  and not exists(select 1 from public.order_shipment_items si where si.order_item_id=i.id);
 
 -- 발송 전에는 두 시점 모두 비어 있다.
 select 1 / case when (
@@ -149,13 +166,30 @@ values
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values
-  ('40000000-0000-4000-8000-000000000802', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip'),
-  ('40000000-0000-4000-8000-000000000803', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip'),
-  ('40000000-0000-4000-8000-000000000804', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip'),
-  ('40000000-0000-4000-8000-000000000805', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip');
+  ('40000000-0000-4000-8000-000000000802', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default)),
+  ('40000000-0000-4000-8000-000000000803', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default)),
+  ('40000000-0000-4000-8000-000000000804', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default)),
+  ('40000000-0000-4000-8000-000000000805', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default));
+
+-- #428/#446: manual order fixtures explicitly include their single shipment.
+insert into public.order_shipments(order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,
+  status,carrier,tracking_number,shipped_at,delivered_at)
+select o.id,'00000000-0000-4000-8000-000000042201','김포',o.shipping_fee,'{}'::jsonb,
+  case when o.status='shipping' then 'shipping' when o.status in ('delivered','done') then 'delivered'
+    when o.status='canceled' then 'canceled' else 'ready' end,
+  o.shipping_carrier,o.tracking_number,o.shipped_at,o.delivered_at
+from public.orders o
+where o.user_id='00000000-0000-4000-8000-000000000801'
+  and not exists(select 1 from public.order_shipments s where s.order_id=o.id);
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id)
+select i.order_id,s.id,i.id from public.order_items i
+join public.order_shipments s on s.order_id=i.order_id
+join public.orders o on o.id=i.order_id
+where o.user_id='00000000-0000-4000-8000-000000000801'
+  and not exists(select 1 from public.order_shipment_items si where si.order_item_id=i.id);
 
 set local role service_role;
 
@@ -223,11 +257,28 @@ values
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values
-  ('40000000-0000-4000-8000-000000000806', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip'),
-  ('40000000-0000-4000-8000-000000000807', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip');
+  ('40000000-0000-4000-8000-000000000806', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default)),
+  ('40000000-0000-4000-8000-000000000807', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default));
+
+-- #428/#446: manual order fixtures explicitly include their single shipment.
+insert into public.order_shipments(order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,
+  status,carrier,tracking_number,shipped_at,delivered_at)
+select o.id,'00000000-0000-4000-8000-000000042201','김포',o.shipping_fee,'{}'::jsonb,
+  case when o.status='shipping' then 'shipping' when o.status in ('delivered','done') then 'delivered'
+    when o.status='canceled' then 'canceled' else 'ready' end,
+  o.shipping_carrier,o.tracking_number,o.shipped_at,o.delivered_at
+from public.orders o
+where o.user_id='00000000-0000-4000-8000-000000000801'
+  and not exists(select 1 from public.order_shipments s where s.order_id=o.id);
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id)
+select i.order_id,s.id,i.id from public.order_items i
+join public.order_shipments s on s.order_id=i.order_id
+join public.orders o on o.id=i.order_id
+where o.user_id='00000000-0000-4000-8000-000000000801'
+  and not exists(select 1 from public.order_shipment_items si where si.order_item_id=i.id);
 
 -- 요청 RPC를 거치지 않고 직접 접수된 기한 초과 요청(폼 우회 시뮬레이션).
 insert into public.order_cancellation_requests (

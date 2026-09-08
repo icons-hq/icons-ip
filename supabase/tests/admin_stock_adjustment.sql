@@ -59,19 +59,19 @@ on conflict (id) do update set
 -- 함수 ACL과 기존 직접 DML 차단 계약
 select 1 / case when not has_function_privilege(
   'anon',
-  'public.admin_adjust_stock(uuid,text,integer,integer,text)',
+  'public.admin_adjust_stock(uuid,text,uuid,integer,integer,text)',
   'execute'
 ) then 1 else 0 end as assert_anon_cannot_adjust_stock;
 
 select 1 / case when has_function_privilege(
   'authenticated',
-  'public.admin_adjust_stock(uuid,text,integer,integer,text)',
+  'public.admin_adjust_stock(uuid,text,uuid,integer,integer,text)',
   'execute'
 ) then 1 else 0 end as assert_authenticated_can_call_guarded_stock_rpc;
 
 select 1 / case when not has_function_privilege(
   'service_role',
-  'public.admin_adjust_stock(uuid,text,integer,integer,text)',
+  'public.admin_adjust_stock(uuid,text,uuid,integer,integer,text)',
   'execute'
 ) then 1 else 0 end as assert_service_role_cannot_adjust_stock;
 
@@ -91,7 +91,7 @@ begin
   begin
     perform public.admin_adjust_stock(
       '11111111-1111-4111-8111-111111111101',
-      'admin-stock-test-good',
+      'admin-stock-test-good', (select id from public.goods_variants where good_id='admin-stock-test-good' and is_default),
       10,
       1,
       '권한 없는 조정'
@@ -133,7 +133,7 @@ begin
     begin
       perform public.admin_adjust_stock(
         invalid_call.adjustment_id,
-        invalid_call.good_id,
+        invalid_call.good_id, coalesce((select id from public.goods_variants where good_id=invalid_call.good_id and is_default),'00000000-0000-4000-8000-000000000000'::uuid),
         invalid_call.expected_qty,
         invalid_call.delta,
         invalid_call.reason
@@ -155,7 +155,7 @@ begin
   begin
     perform public.admin_adjust_stock(
       '11111111-1111-4111-8111-111111111109',
-      'admin-stock-test-good',
+      'admin-stock-test-good', (select id from public.goods_variants where good_id='admin-stock-test-good' and is_default),
       9,
       1,
       '입고'
@@ -178,7 +178,7 @@ select 1 / case when (
 -- 첫 입고와 응답 유실 재시도는 한 번만 반영된다.
 select 1 / case when public.admin_adjust_stock(
   '22222222-2222-4222-8222-222222222201',
-  'admin-stock-test-good',
+  'admin-stock-test-good', (select id from public.goods_variants where good_id='admin-stock-test-good' and is_default),
   10,
   5,
   '  신규 입고  '
@@ -186,7 +186,7 @@ select 1 / case when public.admin_adjust_stock(
 
 select 1 / case when public.admin_adjust_stock(
   '22222222-2222-4222-8222-222222222201',
-  'admin-stock-test-good',
+  'admin-stock-test-good', (select id from public.goods_variants where good_id='admin-stock-test-good' and is_default),
   10,
   5,
   '신규 입고'
@@ -203,7 +203,7 @@ begin
   begin
     perform public.admin_adjust_stock(
       '22222222-2222-4222-8222-222222222201',
-      'admin-stock-test-good',
+      'admin-stock-test-good', (select id from public.goods_variants where good_id='admin-stock-test-good' and is_default),
       10,
       6,
       '신규 입고'
@@ -221,7 +221,7 @@ $$;
 
 select 1 / case when public.admin_adjust_stock(
   '22222222-2222-4222-8222-222222222202',
-  'admin-stock-test-good',
+  'admin-stock-test-good', (select id from public.goods_variants where good_id='admin-stock-test-good' and is_default),
   15,
   -15,
   '재고 조사 보정'
@@ -235,7 +235,7 @@ select 1 / case when (
 
 select 1 / case when public.admin_adjust_stock(
   '22222222-2222-4222-8222-222222222203',
-  'admin-stock-manual-stop',
+  'admin-stock-manual-stop', (select id from public.goods_variants where good_id='admin-stock-manual-stop' and is_default),
   2,
   3,
   '판매 전 입고'
@@ -267,7 +267,7 @@ select 1 / case when exists (
     and actor_id = '00000000-0000-4000-8000-000000000701'
     and action = 'admin.good.stock_adjusted'
     and target = 'goods:admin-stock-test-good'
-    and diff = '{"from":10,"delta":5,"to":15,"reason":"신규 입고"}'::jsonb
+    and diff = ('{"from":10,"delta":5,"to":15,"reason":"신규 입고"}'::jsonb || jsonb_build_object('variantId',(select id from public.goods_variants where good_id='admin-stock-test-good' and is_default)))
 ) then 1 else 0 end as assert_stock_audit_payload_is_exact;
 
 select 1 / case when not exists (
@@ -289,7 +289,7 @@ select 1 / case when not exists (
 ) then 1 else 0 end as assert_rejected_adjustments_are_not_audited;
 
 select lower(pg_get_functiondef(
-  'public.admin_adjust_stock(uuid,text,integer,integer,text)'::regprocedure
+  'public.admin_adjust_stock(uuid,text,uuid,integer,integer,text)'::regprocedure
 )) as stock_function_body \gset
 
 select 1 / case when strpos(:'stock_function_body', 'for update') > 0

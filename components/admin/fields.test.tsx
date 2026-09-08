@@ -15,10 +15,9 @@ describe('admin fields', () => {
       </>,
     );
 
-    expect(html).toContain('aria-describedby="quantity-error"');
-    expect(html).toContain('id="quantity-error" role="alert"');
-    expect(html).toContain('aria-describedby="reason-error"');
-    expect(html).toContain('id="reason-error" role="alert"');
+    const errors = [...html.matchAll(/aria-describedby="([^"]+)"/g)].map((match) => match[1]);
+    expect(errors).toHaveLength(2);
+    for (const id of errors) expect(html).toContain(`id="${id}" role="alert"`);
   });
 
   it('associates select errors and leaves valid controls undescribed', () => {
@@ -29,9 +28,22 @@ describe('admin fields', () => {
     );
     const validHtml = renderToStaticMarkup(<Field label="이름" name="name" />);
 
-    expect(invalidHtml).toContain('aria-describedby="status-error"');
-    expect(invalidHtml).toContain('id="status-error" role="alert"');
+    const errorId = invalidHtml.match(/aria-describedby="([^"]+)"/)?.[1];
+    expect(errorId).toBeTruthy();
+    expect(invalidHtml).toContain(`id="${errorId}" role="alert"`);
     expect(validHtml).not.toContain('aria-describedby');
+  });
+
+  it('keeps labels and error targets unique when two editors use the same field name', () => {
+    const html = renderToStaticMarkup(<><Field error="첫 오류" label="첫 상태" name="status" /><Field error="두 번째 오류" label="두 번째 상태" name="status" /></>);
+    const labels = [...html.matchAll(/<label[^>]*for="([^"]+)"/g)].map((match) => match[1]);
+    expect(labels).toHaveLength(2);
+    expect(new Set(labels).size).toBe(2);
+    for (const id of labels) {
+      expect(html).toContain(`id="${id}"`);
+      expect(html).toContain(`aria-describedby="${id}-error"`);
+      expect(html).toContain(`id="${id}-error" role="alert"`);
+    }
   });
 
   it('forwards numeric bounds, readonly state, and required select semantics', () => {

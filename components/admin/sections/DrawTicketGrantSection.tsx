@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminFormGrid } from '@/components/admin/console/AdminKit';
 import { useActionState, useMemo, useState } from 'react';
 import {
   grantAdminDrawTicketsAction,
@@ -65,7 +66,7 @@ export function DrawTicketGrantSection({
       </p>
 
       {!poolOptions.length ? (
-        <div className="card col" role="status" style={{ borderRadius: 10, gap: 6, padding: 18 }}>
+        <div className="card col wc-admin-kit wc-admin-kit__card" role="status" style={{ gap: 6 }}>
           <strong>발급할 수 있는 카드풀이 없습니다.</strong>
           <span className="muted" style={{ fontSize: 13 }}>
             카드풀 관리에서 운영 기간과 등급별 확률을 채우고 카드를 바인딩한 뒤 다시 시도해주세요.
@@ -121,12 +122,12 @@ function MemberPicker({
     <div className="col" style={{ gap: 8 }}>
       <form
         action={action}
-        className="card col"
+        className="card col wc-admin-kit wc-admin-kit__card"
         onSubmit={() => onSelect(null)}
-        style={{ borderRadius: 10, gap: 8, padding: 14 }}
+        style={{ gap: 8 }}
       >
         <label className="col" style={{ gap: 7 }}>
-          <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>발급 대상 검색</span>
+          <span className="mono" style={{ color: 'var(--wc-ink-tertiary)', fontSize: 11 }}>발급 대상 검색</span>
           <div className="row" style={{ gap: 8 }}>
             <input
               aria-describedby={queryError ? 'grant-query-error' : undefined}
@@ -137,10 +138,10 @@ function MemberPicker({
               name="query"
               placeholder="이메일 또는 닉네임"
               style={{
-                background: 'rgba(255,255,255,.045)',
-                border: '1px solid var(--line)',
+                background: 'var(--wc-surface)',
+                border: '1px solid var(--wc-hairline)',
                 borderRadius: 10,
-                color: 'var(--text)',
+                color: 'var(--wc-ink)',
                 fontFamily: 'inherit',
                 fontSize: 14,
                 minHeight: 44,
@@ -159,11 +160,11 @@ function MemberPicker({
       </form>
 
       {state.members.map((member) => (
-        <article key={member.id} className="card between" style={{ borderRadius: 10, flexWrap: 'wrap', gap: 12, padding: 14 }}>
+        <article key={member.id} className="card between wc-admin-kit wc-admin-kit__card" style={{ flexWrap: 'wrap', gap: 12 }}>
           <div className="col" style={{ gap: 4, minWidth: 0 }}>
             <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
               <strong style={{ fontSize: 15 }}>@{member.nickname}</strong>
-              {member.suspendedAt && <span className="tag" style={{ color: 'var(--pink)' }}>정지</span>}
+              {member.suspendedAt && <span className="tag" style={{ color: 'var(--wc-danger)' }}>정지</span>}
             </div>
             <span className="mono" style={{ fontSize: 12 }}>{member.maskedEmail}</span>
           </div>
@@ -200,7 +201,7 @@ function GrantForm({
 }) {
   if (!selected) {
     return (
-      <div className="card" role="status" style={{ borderRadius: 10, padding: 18 }}>
+      <div className="card wc-admin-kit wc-admin-kit__card" role="status" style={{  }}>
         <span className="muted" style={{ fontSize: 13 }}>
           발급 대상을 검색해 선택하면 발급 폼이 열립니다.
         </span>
@@ -209,14 +210,14 @@ function GrantForm({
   }
 
   return (
-    <form action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+    <form action={action} className="card col wc-admin-kit wc-admin-kit__card" style={{ gap: 14 }}>
       <input name="operationId" type="hidden" value={operationId} />
       <input name="profileId" type="hidden" value={selected.id} />
       <div className="col" style={{ gap: 4 }}>
         <strong>@{selected.nickname} 에게 발급</strong>
         <span className="mono muted" style={{ fontSize: 12 }}>{selected.maskedEmail}</span>
       </div>
-      <div className="admin-form-grid">
+      <AdminFormGrid>
         <SelectField
           defaultValue={poolOptions[0]?.id ?? ''}
           error={state.errors?.poolId}
@@ -239,7 +240,7 @@ function GrantForm({
           step={1}
           type="number"
         />
-      </div>
+      </AdminFormGrid>
       <TextArea
         error={state.errors?.reason}
         label="발급 사유"
@@ -264,12 +265,12 @@ function GrantHistory({ grants }: { grants: AdminDrawTicketGrantRecord[] }) {
     <section aria-labelledby="draw-ticket-grant-history-title" className="col" style={{ gap: 8 }}>
       <strong id="draw-ticket-grant-history-title" style={{ fontSize: 14 }}>최근 수동 발급</strong>
       {!grants.length && (
-        <div className="card" role="status" style={{ borderRadius: 10, padding: 18 }}>
+        <div className="card wc-admin-kit wc-admin-kit__card" role="status" style={{  }}>
           <span className="muted" style={{ fontSize: 13 }}>수동 발급 이력이 없습니다.</span>
         </div>
       )}
       {grants.map((grant) => (
-        <article key={grant.operationId} className="card col" style={{ borderRadius: 10, gap: 6, padding: 14 }}>
+        <article key={grant.operationId} className="card col wc-admin-kit wc-admin-kit__card" style={{ gap: 6 }}>
           <div className="between" style={{ flexWrap: 'wrap', gap: 8 }}>
             <strong style={{ fontSize: 14 }}>
               @{grant.recipientNickname} · 카드팩 {grant.quantity.toLocaleString('ko-KR')}개

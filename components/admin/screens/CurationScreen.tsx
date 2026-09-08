@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminPageHeader } from '@/components/admin/console/AdminKit';
 import { CurationSection } from '@/components/admin/sections/CurationSection';
 import type { AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
@@ -33,6 +34,7 @@ export function CurationScreen({
   const { selected, select } = useSelectedRecord(records);
 
   return (
+    <><AdminPageHeader title="홈 큐레이션" description="노출 위치·순서·기간을 확인합니다." />
     <CurationSection
       draftActiveFrom={draftActiveFrom}
       draftId={draftId}
@@ -43,6 +45,6 @@ export function CurationScreen({
       operationId={operationId}
       records={records}
       selected={selected}
-    />
+    /></>
   );
 }

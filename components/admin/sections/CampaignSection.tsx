@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminFormGrid } from '@/components/admin/console/AdminKit';
 import { useState } from 'react';
 import type { AdminCampaignActionState } from '@/app/admin/campaign-actions';
 import {
@@ -118,7 +119,7 @@ function CampaignEditor({
   return (
     <form
       action={action}
-      className="card col"
+      className="card col wc-admin-kit wc-admin-kit__card"
       onSubmit={(event) => {
         const raw = new FormData(event.currentTarget).get('sections');
         const parsed = parseAdminCampaignSections(typeof raw === 'string' ? raw : '');
@@ -129,10 +130,10 @@ function CampaignEditor({
         setSectionsError(parsed.message);
         event.preventDefault();
       }}
-      style={{ borderRadius: 10, gap: 14, padding: 16 }}
+      style={{ gap: 14 }}
     >
       <input name="previousId" type="hidden" value={selected?.id ?? ''} />
-      <div className="admin-form-grid">
+      <AdminFormGrid>
         <Field
           defaultValue={selected?.id ?? ''}
           error={state.errors?.id}
@@ -223,7 +224,7 @@ function CampaignEditor({
           name="bannerImagePath"
           placeholder="campaigns/autumn/banner.webp"
         />
-      </div>
+      </AdminFormGrid>
 
       <div className="admin-campaign-sections col" style={{ gap: 8 }}>
         <TextArea

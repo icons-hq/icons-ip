@@ -1,3 +1,4 @@
+import type { ShipmentRecord } from '@/lib/orders/shipments';
 import 'server-only';
 
 import { loadInquiryAuthorNames } from '@/lib/inquiry-authors.server';
@@ -151,8 +152,7 @@ export interface AdminInquiryOrderContext {
   status: string;
   total: number;
   createdAt: string;
-  shippingCarrier: string | null;
-  trackingNumber: string | null;
+  shipments: ShipmentRecord[];
   itemCount: number;
   leadItemName: string | null;
   payment: { provider: string | null; status: string; amount: number } | null;
@@ -211,9 +211,6 @@ interface ThreadRow {
   user_id: string;
   order_id: string | null;
   good_id: string | null;
-  handled_by: string | null;
-  assignee_id: string | null;
-  waiting_since: string | null;
   created_at: string;
   last_message_at: string;
   answered_at: string | null;
@@ -223,7 +220,6 @@ interface ThreadRow {
 interface MessageRow {
   id: string;
   author: string;
-  author_id: string;
   body: string;
   image_paths: string[] | null;
   created_at: string;
@@ -263,7 +259,7 @@ export async function loadAdminInquiryDetail(
   const { data: threadData, error: threadError } = await supabase
     .from('inquiries')
     .select(
-      'id,reference,category,title,status,user_id,order_id,good_id,handled_by,assignee_id,waiting_since,'
+      'id,reference,category,title,status,user_id,order_id,good_id,'
       + 'created_at,last_message_at,answered_at,closed_at',
     )
     .eq('id', inquiryId)
@@ -275,7 +271,7 @@ export async function loadAdminInquiryDetail(
   const [messageResult, contextResult, workspaceResult, goodResult, templates, authorNames] = await Promise.all([
     supabase
       .from('inquiry_messages')
-      .select('id,author,author_id,body,image_paths,created_at')
+      .select('id,author,body,image_paths,created_at')
       .eq('inquiry_id', inquiryId)
       .order('created_at', { ascending: true })
       .order('id', { ascending: true }),
@@ -294,6 +290,8 @@ export async function loadAdminInquiryDetail(
   if (contextResult.error) return null;
   if (workspaceResult.error) throw new Error(`Failed to load inquiry workspace: ${workspaceResult.error.message}`);
   const workspace = workspaceResult.data as {
+    assigneeId: string | null;
+    waitingSince: string | null;
     assigneeName: string | null;
     staffOptions: AdminInquiryStaffOption[];
     notes: AdminInquiryInternalNote[];
@@ -332,9 +330,9 @@ export async function loadAdminInquiryDetail(
       goodId: threadData.good_id,
       goodName: goodResult.data?.name ?? null,
       handlerName: null,
-      assigneeId: threadData.assignee_id,
+      assigneeId: workspace.assigneeId,
       assigneeName: workspace.assigneeName,
-      waitingSince: threadData.waiting_since,
+      waitingSince: workspace.waitingSince,
       createdAt: threadData.created_at,
       lastMessageAt: threadData.last_message_at,
       answeredAt: threadData.answered_at,

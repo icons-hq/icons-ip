@@ -40,7 +40,7 @@ const record: AdminCurationRecord = {
 };
 
 function renderScreen() {
-  return CurationScreen({
+  const tree = CurationScreen({
     draftActiveFrom: '2026-07-15T03:04:05.000Z',
     draftId: '22222222-2222-4222-8222-222222222222',
     eventOptions: [{ id: 'e100', title: '성수 팝업', archivedAt: null }],
@@ -49,6 +49,7 @@ function renderScreen() {
     operationId: '33333333-3333-4333-8333-333333333333',
     records: [record],
   });
+  return (tree.props.children as { type: unknown; props: Record<string, unknown> }[]).find((child) => child.type === mocks.curationSection)!;
 }
 
 describe('CurationScreen', () => {

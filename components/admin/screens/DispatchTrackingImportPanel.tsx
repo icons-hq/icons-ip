@@ -1,6 +1,8 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useRef, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   bulkRegisterAdminOrderTrackingAction,
   type AdminTrackingImportState,
@@ -13,42 +15,36 @@ import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 
 const EMPTY_STATE: AdminTrackingImportState = {};
 
-const IMPORT_CONFIRMATION = '붙여넣은 운송장으로 일괄 발송처리할까요? 성공한 주문은 곧바로 배송중으로 바뀌고 배송 시작 메일이 나갑니다.';
-
-/**
- * 엑셀 일괄 운송장 등록 (#251).
- *
- * ## 왜 붙여넣기인가
- *
- * `package.json`에 엑셀 파서가 없고 의존성 추가는 이 이슈 범위 밖이다. 스프레드시트
- * 선택 영역을 그대로 붙여넣으면 탭 구분 텍스트가 되고, CSV로 저장해 올려도 같은
- * 파서를 지난다 — 운영자 입장에서 잃는 단계가 없다.
- *
- * ## 실패는 주문번호와 사유를 그대로 보여준다
- *
- * 건수만 알려주면 100건 목록에서 어느 주문이 남았는지 찾지 못한다. 줄 번호까지
- * 함께 실어 운영자가 원본 파일에서 곧바로 고칠 수 있게 한다.
- *
- * ## 포맷은 잠정이다
- *
- * 실제 WMS 내보내기 포맷은 #177 확인 뒤 맞춘다. 지금은 우리가 정한 세 칸이고,
- * 이 화면 문구가 그 접점을 설명한다.
- */
-export function DispatchTrackingImportPanel({ carriers }: { carriers: ShippingCarrierRegistry }) {
+/** Shipment uploads return an actionable row report and preserve failed input. */
+export function DispatchTrackingImportPanel({ carriers, shippingHref = '/admin/sales/shipping?tab=transit&page=1' }: { carriers: ShippingCarrierRegistry; shippingHref?: string }) {
+  const router = useRouter();
+  const [pasted, setPasted] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const [state, action, pending] = useActionState(
-    bulkRegisterAdminOrderTrackingAction,
+    async (previous: AdminTrackingImportState, data: FormData) => {
+      if (selectedFile) data.set('file', selectedFile);
+      const result = await bulkRegisterAdminOrderTrackingAction(previous, data);
+      if (result.report?.succeeded.length && !result.report.failed.length && !result.errors?.form && !result.queueWarning) {
+        const [path, query] = shippingHref.split('?');
+        const params = new URLSearchParams(query);
+        params.set('registered', String(result.report.succeeded.length));
+        router.push(`${path}?${params}`);
+      }
+      return result;
+    },
     EMPTY_STATE,
   );
   const activeCodes = carriers.filter((carrier) => carrier.active);
 
   return (
-    <details className="admin-console-import card">
-      <summary>엑셀 일괄 운송장 등록</summary>
+    <section className="wc-admin-kit wc-admin-kit__card" aria-label="엑셀 일괄 운송장 등록">
+      <h2>엑셀 일괄 운송장 등록</h2>
 
       <p className="muted">
-        컬럼은 <strong>주문번호 · 택배사코드 · 운송장번호</strong> 순서입니다.
-        엑셀에서 세 칸을 복사해 붙여넣거나 CSV 파일을 올려주세요.
-        한 번에 {TRACKING_IMPORT_ROW_LIMIT}건까지 처리합니다.
+        컬럼은 <strong>배송건번호 · 택배사코드 · 운송장번호</strong> 순서입니다.
+        XLSX 파일을 올리거나 엑셀의 세 칸을 복사해 붙여넣어주세요. 단일 배송 주문은 주문번호도 사용할 수 있습니다.
+        한 번에 {TRACKING_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}건까지 처리합니다.
       </p>
       <p className="muted">
         택배사코드: {activeCodes.length
@@ -61,30 +57,30 @@ export function DispatchTrackingImportPanel({ carriers }: { carriers: ShippingCa
       </p>
       <pre className="admin-console-import-sample">{TRACKING_IMPORT_SAMPLE}</pre>
 
-      <form
-        action={action}
-        onSubmit={(event) => {
-          if (!window.confirm(IMPORT_CONFIRMATION)) event.preventDefault();
-        }}
-      >
+      <form action={action}>
         <label htmlFor="admin-dispatch-import-pasted">붙여넣기</label>
         <textarea
-          defaultValue=""
+          value={pasted}
+          onChange={event => setPasted(event.target.value)}
           disabled={pending}
           id="admin-dispatch-import-pasted"
           name="pasted"
           placeholder={TRACKING_IMPORT_SAMPLE}
           rows={6}
         />
-        <label htmlFor="admin-dispatch-import-file">또는 CSV 파일</label>
+        <label htmlFor="admin-dispatch-import-file">또는 XLSX·CSV 파일</label>
         <input
-          accept=".csv,.tsv,.txt,text/csv,text/plain"
+          accept=".xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
           disabled={pending}
           id="admin-dispatch-import-file"
           name="file"
+          ref={fileInput}
           type="file"
+          onChange={event => setSelectedFile(event.target.files?.[0] ?? null)}
         />
-        <button className="btn btn-sm" disabled={pending} type="submit">
+        {selectedFile ? <p>선택 파일: {selectedFile.name} <button type="button" disabled={pending} onClick={() => { setSelectedFile(null); if (fileInput.current) fileInput.current.value = ''; }}>파일 선택 해제</button></p> : null}
+        <p className="muted">등록에 성공한 배송 건은 배송 중으로 바뀌고 배송 메일이 대기열에 등록됩니다.</p>
+        <button className="wc-admin-kit__button" disabled={pending} type="submit">
           {pending ? '등록 중' : '일괄 등록'}
         </button>
       </form>
@@ -95,12 +91,14 @@ export function DispatchTrackingImportPanel({ carriers }: { carriers: ShippingCa
       </div>
 
       {state.report && state.report.failed.length > 0 ? (
+        <div>
+        <a className="wc-admin-kit__button" download="운송장-실패행.csv" href={`data:text/csv;charset=utf-8,${encodeURIComponent("\uFEFF"+[["줄","배송건번호","사유"],...state.report.failed.map(row=>[String(row.line),row.reference,row.reason])].map(row=>row.map(cell=>`"${(/^[\s]*[=+\-@]/.test(cell)?"'":"")+cell.replaceAll('"','""')}"`).join(',')).join('\r\n'))}`}>실패 행 내려받기</a>
         <table className="admin-console-import-report">
           <caption>등록하지 못한 줄</caption>
           <thead>
             <tr>
               <th scope="col">줄</th>
-              <th scope="col">주문번호</th>
+              <th scope="col">배송건번호</th>
               <th scope="col">사유</th>
             </tr>
           </thead>
@@ -114,13 +112,17 @@ export function DispatchTrackingImportPanel({ carriers }: { carriers: ShippingCa
             ))}
           </tbody>
         </table>
+        </div>
       ) : null}
 
       {state.report && state.report.succeeded.length > 0 ? (
+        <>
+        <Link className="wc-admin-kit__button" href={shippingHref}>배송현황에서 결과 확인</Link>
         <p className="muted">
           발송처리: <span className="mono">{state.report.succeeded.join(', ')}</span>
         </p>
+        </>
       ) : null}
-    </details>
+    </section>
   );
 }

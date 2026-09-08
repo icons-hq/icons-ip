@@ -1,5 +1,5 @@
 import type { CheckoutPaymentMethod, CheckoutAddress } from './checkout';
-import type { OrderShipment } from './orders/shipment';
+import type { ShipmentRecord } from './orders/shipments';
 import type { OrderClaimStage, OrderClaimType } from './orders/claims';
 
 // 주문 목록에 보이는 상태. pending은 결제가 끝나지 않은 선점이라 별도 취급한다.
@@ -108,6 +108,10 @@ export interface OrderListItem {
 }
 
 export interface OrderDetailItem {
+  id: string;
+  variantId: string;
+  variantName?: string | null;
+  variantCode?: string | null;
   goodId: string;
   name: string;
   type: string;
@@ -178,7 +182,7 @@ export interface OrderDetail {
   payment: OrderPaymentSummary | null;
   refund: OrderRefundSummary | null;
   cancellationRequest: OrderCancellationRequestSummary | null;
-  shipment: OrderShipment | null;
+  shipments: ShipmentRecord[];
   cardPacks: {
     issuedCount: number;
     availableCount: number;

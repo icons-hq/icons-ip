@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminPageHeader } from '@/components/admin/console/AdminKit';
 import { GameSection } from '@/components/admin/sections/GameSection';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
 import { useSelectedRecord } from './record-selection';
@@ -25,6 +26,7 @@ export function GameScreen({
   const { selected, select } = useSelectedRecord(records);
 
   return (
+    <><AdminPageHeader title="참여형 게임" description="공개 상태와 무상 리워드 구성을 관리합니다." />
     <GameSection
       endOperationId={endOperationId}
       events={events}
@@ -33,6 +35,6 @@ export function GameScreen({
       pools={pools}
       records={records}
       selected={selected}
-    />
+    /></>
   );
 }

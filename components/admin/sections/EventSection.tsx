@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminFormGrid } from '@/components/admin/console/AdminKit';
 import { useState } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminEventRecord } from '@/lib/admin/catalog.server';
@@ -80,10 +81,10 @@ export function EventSection({
         />
       </div>
       <div className="col" style={{ gap: 16, minWidth: 0 }}>
-        <form action={action} className="card col" key={selected ? JSON.stringify(selected) : 'new-event'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+        <form action={action} className="card col wc-admin-kit wc-admin-kit__card" key={selected ? JSON.stringify(selected) : 'new-event'} style={{ gap: 14 }}>
         <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
-        <div className="admin-form-grid">
+        <AdminFormGrid>
           <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="e100" readOnly={Boolean(selected)} />
           <SelectField defaultValue={optional(selected?.ipId)} error={state.errors?.ipId} label="연결 IP" name="ipId">
             <option value="">플랫폼/합동 이벤트</option>
@@ -112,7 +113,7 @@ export function EventSection({
           <Field defaultValue={dateTimeInput(selected?.endsAt)} label="종료" name="endsAt" type="datetime-local" />
           <Field defaultValue={selected?.location} label="장소" name="location" />
           <ColorField defaultValue={selected?.accent} fallback="#8B5CFF" label="액센트 색상" name="accent" />
-        </div>
+        </AdminFormGrid>
         {/* 배경 CSS 자유입력을 운영자 폼에서 뺐다 (#183). 아트워크가 없는 레거시
             레코드는 이 값으로 렌더되므로 그대로 실어 보내 보존한다. */}
         <input name="bg" type="hidden" value={selected?.bg ?? ''} />

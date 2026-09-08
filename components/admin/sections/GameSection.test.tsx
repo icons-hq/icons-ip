@@ -177,7 +177,7 @@ describe('GameSection', () => {
 
     expect(mocks.useActionState).toHaveBeenCalledWith(mocks.save, {});
     expect(html).toContain('class="admin-master-detail"');
-    expect(html).toContain('class="admin-form-grid"');
+    expect(html).toContain('class="wc-admin-kit wc-admin-kit__form-grid"');
     expect(html).toContain('aria-label="게임 목록"');
     expect(html).toContain('새 게임 등록');
     expect(html).toContain('name="operationId"');

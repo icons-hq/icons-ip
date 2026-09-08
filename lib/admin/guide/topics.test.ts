@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ADMIN_SCREENS } from '@/lib/admin/navigation';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
+import { ADMIN_VOCABULARY, adminGoodsCopy, adminClaimCopy } from '@/lib/admin/vocabulary';
 import {
   ADMIN_GUIDE_TOPIC_SLUGS,
   ADMIN_GUIDE_TOPICS,
@@ -129,6 +130,14 @@ describe('어드민 가이드 콘텐츠 무결성', () => {
         expect(text, `${topic.slug} · ${word}`).not.toMatch(new RegExp(word));
       }
     }
+  });
+  it('운영 안내는 매핑표에 결속하고 카드·티켓 안내는 상품이라 부르지 않는다', () => {
+    expect(ADMIN_GUIDE_TOPICS['goods-sales'].title).toContain(ADMIN_VOCABULARY.goods);
+    expect(ADMIN_GUIDE_TOPICS.claims.title).toBe(ADMIN_VOCABULARY.claims);
+    expect(plainText(ADMIN_GUIDE_TOPICS['cards-games'])).not.toContain('상품');
+    expect(plainText(ADMIN_GUIDE_TOPICS['events-tickets'])).not.toContain('상품');
+    const renderedErrors = plainText(ADMIN_GUIDE_TOPICS.troubleshooting);
+    for (const item of ADMIN_GUIDE_ERROR_CASES) expect(renderedErrors).toContain(adminClaimCopy(adminGoodsCopy(item.quote)));
   });
 });
 

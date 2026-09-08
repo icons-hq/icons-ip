@@ -136,10 +136,10 @@ values
   ('publish-archived-ip', '게시스모크 보관 IP', 'ip-publish-test', null, now()),
   ('publish-blank-ip', '   ', 'ip-publish-test', null, null);
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
+insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
 values
-  ('publish-draft-good', 'publish-draft-ip', '게시스모크 초안 굿즈', '문구', 1000, 'ok', 1),
-  ('publish-live-good', 'publish-live-ip', '게시스모크 공개 굿즈', '문구', 1000, 'ok', 1);
+  ('publish-draft-good', 'publish-draft-ip', '게시스모크 초안 굿즈', '문구', 1000, 'ok', 1, now()),
+  ('publish-live-good', 'publish-live-ip', '게시스모크 공개 굿즈', '문구', 1000, 'ok', 1, now());
 
 insert into public.cards (id, ip_id, name, no, rarity)
 values

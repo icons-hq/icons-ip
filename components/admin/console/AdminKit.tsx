@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-/** Screen opt-in is explicit; existing console primitives keep their behavior. */
+/** Shared operational screen kit; console primitives keep their behavior. */
 export function AdminPageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
   return <header className="wc-admin-kit wc-admin-kit__page-header">
     <div><h2 className="wc-admin-kit__heading">{title}</h2>{description ? <p className="wc-admin-kit__description">{description}</p> : null}</div>

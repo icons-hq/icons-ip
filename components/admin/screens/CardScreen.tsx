@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminPageHeader } from '@/components/admin/console/AdminKit';
 import { useActionState, useMemo } from 'react';
 import { upsertAdminCardAction, type AdminCatalogActionState } from '@/app/admin/actions';
 import { CardSection } from '@/components/admin/sections/CardSection';
@@ -35,6 +36,7 @@ export function CardScreen({
   const { selected, select } = useSelectedRecord(records, initialSelectedId);
 
   return (
+    <><AdminPageHeader title="카드 편집" description="카드를 선택해 연결 IP·카드풀과 표시 정보를 관리합니다." />
     <CardSection
       action={action}
       ipOptions={ipOptions}
@@ -44,6 +46,6 @@ export function CardScreen({
       records={records}
       selected={selected}
       state={state}
-    />
+    /></>
   );
 }

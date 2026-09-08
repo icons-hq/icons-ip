@@ -19,12 +19,18 @@ import {
 import {
   CART_STORAGE_KEY,
   cartItemsAfterSignOut,
+  cartItemKey,
   cartQuantityTotal,
+  legacyCartItems,
+  normalizeCartItems,
   parseStoredCart,
   serializeCart,
+  serializeUnmigratedCart,
   setCartItemQuantity,
   type CartItem,
   type CartMode,
+  type LegacyCartItem,
+  type StoredCartItem,
 } from '@/lib/cart';
 import { createClient } from '@/lib/supabase/client';
 import { getSupabaseConfig } from '@/lib/supabase/config';
@@ -38,10 +44,12 @@ interface CartCtx {
   mode: CartMode;
   pending: boolean;
   error: string | null;
-  getQuantity: (goodId: string) => number;
-  add: (goodId: string, stockQty: number) => Promise<void>;
-  setQuantity: (goodId: string, qty: number, stockQty: number) => Promise<void>;
-  remove: (goodId: string) => Promise<void>;
+  legacyItems: LegacyCartItem[];
+  removeLegacyItem: (goodId: string) => void;
+  getQuantity: (goodId: string, variantId: string) => number;
+  add: (goodId: string, stockQty: number, variantId: string) => Promise<void>;
+  setQuantity: (goodId: string, qty: number, stockQty: number, variantId: string) => Promise<void>;
+  remove: (goodId: string, variantId: string) => Promise<void>;
   refresh: () => Promise<void>;
   resetForSignOut: () => void;
 }
@@ -75,6 +83,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<CartMode>('local');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [legacyItems, setLegacyItems] = useState<LegacyCartItem[]>([]);
 
   const itemsRef = useRef<CartItem[]>([]);
   const modeRef = useRef<CartMode>('local');
@@ -82,7 +91,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const syncQueuedRef = useRef(false);
   const syncRef = useRef<() => Promise<void>>(async () => {});
   const hydratedRef = useRef(false);
-  const pendingLocalItemsRef = useRef<CartItem[]>([]);
+  const pendingLocalItemsRef = useRef<StoredCartItem[]>([]);
   const lastPathnameRef = useRef(pathname);
   const operationVersionRef = useRef(0);
 
@@ -129,6 +138,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
 
       replaceItems(result.items);
+      setLegacyItems([]);
       replaceMode(result.mode);
       if (result.mode === 'server') {
         pendingLocalItemsRef.current = [];
@@ -144,7 +154,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     } finally {
       if (operationVersion === operationVersionRef.current) {
         replacePending(false);
-        setReady(true);
+        setReady(legacyCartItems(pendingLocalItemsRef.current).length === 0);
         if (syncQueuedRef.current) {
           syncQueuedRef.current = false;
           window.setTimeout(() => void syncRef.current(), 0);
@@ -163,7 +173,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       const stored = readLocalCart();
       pendingLocalItemsRef.current = stored;
-      replaceItems(stored);
+      setLegacyItems(legacyCartItems(stored));
+      replaceItems(normalizeCartItems(stored));
       hydratedRef.current = true;
       void syncRef.current();
     }, 0);
@@ -193,7 +204,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     void sync();
   }, [pathname, sync]);
 
-  const setQuantity = useCallback(async (goodId: string, qty: number, stockQty: number) => {
+  const setQuantity = useCallback(async (goodId: string, qty: number, stockQty: number, variantId: string) => {
     if (!ready || pendingRef.current) return;
     if (qty > stockQty || (qty > 0 && stockQty <= 0)) {
       setError(STOCK_ERROR);
@@ -201,7 +212,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
 
     const previous = itemsRef.current;
-    const next = setCartItemQuantity(previous, goodId, qty);
+    const next = setCartItemQuantity(previous, goodId, qty, variantId);
     setError(null);
 
     if (modeRef.current === 'local') {
@@ -214,8 +225,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const operationVersion = operationVersionRef.current;
     try {
       const result = qty === 0
-        ? await deleteCartItemAction(goodId)
-        : await setCartItemQuantityAction(goodId, qty);
+        ? await deleteCartItemAction(goodId, variantId)
+        : await setCartItemQuantityAction(goodId, qty, variantId);
 
       if (operationVersion !== operationVersionRef.current) return;
 
@@ -249,26 +260,36 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [keepAsLocal, ready, replaceItems, replaceMode, replacePending]);
 
-  const add = useCallback(async (goodId: string, stockQty: number) => {
-    const currentQty = itemsRef.current.find((item) => item.goodId === goodId)?.qty ?? 0;
-    await setQuantity(goodId, currentQty + 1, stockQty);
+  const add = useCallback(async (goodId: string, stockQty: number, variantId: string) => {
+    const currentQty = itemsRef.current.find((item) => cartItemKey(item.goodId, item.variantId) === cartItemKey(goodId, variantId))?.qty ?? 0;
+    await setQuantity(goodId, currentQty + 1, stockQty, variantId);
   }, [setQuantity]);
 
-  const remove = useCallback(async (goodId: string) => {
-    await setQuantity(goodId, 0, Number.MAX_SAFE_INTEGER);
+  const remove = useCallback(async (goodId: string, variantId: string) => {
+    await setQuantity(goodId, 0, Number.MAX_SAFE_INTEGER, variantId);
   }, [setQuantity]);
+
+  const removeLegacyItem = useCallback((goodId: string) => {
+    if (pendingRef.current || modeRef.current !== 'local') return;
+    const remaining = pendingLocalItemsRef.current.filter((item) => item.variantId || item.goodId !== goodId);
+    pendingLocalItemsRef.current = remaining;
+    setLegacyItems(legacyCartItems(remaining));
+    try { window.localStorage.setItem(CART_STORAGE_KEY, serializeUnmigratedCart(remaining)); } catch { /* Keep memory when storage is blocked. */ }
+    void syncRef.current();
+  }, []);
 
   const resetForSignOut = useCallback(() => {
     const localItems = cartItemsAfterSignOut(modeRef.current, pendingLocalItemsRef.current);
     operationVersionRef.current += 1;
     syncQueuedRef.current = false;
     pendingLocalItemsRef.current = localItems;
-    replaceItems(localItems);
+    replaceItems(normalizeCartItems(localItems));
+    setLegacyItems(legacyCartItems(localItems));
     replaceMode('local');
     replacePending(false);
     setError(null);
-    setReady(true);
-    writeLocalCart(localItems);
+    setReady(legacyCartItems(localItems).length === 0);
+    if (!legacyCartItems(localItems).length) writeLocalCart(normalizeCartItems(localItems));
   }, [replaceItems, replaceMode, replacePending]);
 
   const count = cartQuantityTotal(items);
@@ -280,13 +301,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
     mode,
     pending,
     error,
-    getQuantity: (goodId) => items.find((item) => item.goodId === goodId)?.qty ?? 0,
+    legacyItems,
+    removeLegacyItem,
+    getQuantity: (goodId, variantId) => items.find((item) => cartItemKey(item.goodId, item.variantId) === cartItemKey(goodId, variantId))?.qty ?? 0,
     add,
     setQuantity,
     remove,
     refresh: sync,
     resetForSignOut,
-  }), [add, count, error, items, mode, pending, ready, remove, resetForSignOut, setQuantity, sync]);
+  }), [add, count, error, items, legacyItems, mode, pending, ready, remove, removeLegacyItem, resetForSignOut, setQuantity, sync]);
 
   return (
     <Ctx.Provider value={value}>

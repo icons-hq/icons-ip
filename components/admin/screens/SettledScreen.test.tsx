@@ -41,6 +41,7 @@ describe('SettledScreen', () => {
 
     expect(html).toContain('공급받은 날부터 3개월');
     expect(html).toContain('배송완료 8일 뒤 자동');
+    expect(html).toContain('에스크로의 구매확정과 구분합니다.');
   });
 
   it('3개월이 지난 주문은 기한 종료로 표기한다', () => {

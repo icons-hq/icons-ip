@@ -60,7 +60,7 @@ describe('StatsSalesScreen', () => {
   it('굿즈 순위와 티켓 매출을 나눠 그린다', () => {
     const html = renderToStaticMarkup(<StatsSalesScreen data={sales} filters={filters} />);
 
-    expect(html).toContain('굿즈별 판매 순위');
+    expect(html).toContain('상품별 판매 순위');
     expect(html).toContain('티켓 매출 · 이벤트');
     expect(html).toContain('팝업 이벤트');
     /* 이벤트 합계만으로는 어느 회차가 안 팔리는지 볼 수 없다. */
@@ -85,7 +85,7 @@ describe('StatsSalesScreen', () => {
     );
 
     expect(html).toContain('이 기간에 확정된 주문이 없습니다');
-    expect(html).toContain('이 기간에 판매된 굿즈가 없습니다');
+    expect(html).toContain('이 기간에 판매된 상품이 없습니다');
   });
 });
 

@@ -6,6 +6,8 @@
  * 사이드바·헤더 제목·레거시 리다이렉트가 함께 따라온다.
  */
 
+import { ADMIN_VOCABULARY } from './vocabulary';
+
 /** 화면이 실제로 구현됐는지. `planned`는 메뉴에 자리만 두고 라우트가 없다. */
 export type AdminScreenStatus = 'ready' | 'planned';
 
@@ -67,8 +69,8 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     icon: 'shop',
     screens: [
       { id: 'ips', label: 'IP', href: '/admin/catalog/ips', status: 'ready' },
-      { id: 'goods', label: '굿즈', href: '/admin/catalog/goods', status: 'ready' },
-      { id: 'notice-presets', label: '상품정보제공고시 프리셋', href: '/admin/catalog/notice-presets', status: 'ready' },
+      { id: 'goods', label: ADMIN_VOCABULARY.goods, href: '/admin/catalog/goods', status: 'ready' },
+      { id: 'notice-presets', label: `${ADMIN_VOCABULARY.noticeInfo} 프리셋`, href: '/admin/catalog/notice-presets', status: 'ready' },
       { id: 'cards', label: '카드', href: '/admin/catalog/cards', status: 'ready' },
       { id: 'pools', label: '카드풀', href: '/admin/catalog/pools', status: 'ready' },
       { id: 'policies', label: '뽑기권 발급 정책', href: '/admin/catalog/policies', status: 'ready' },
@@ -112,8 +114,16 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     icon: 'trendUp',
     screens: [
       { id: 'stats-sales', label: '판매분석', href: '/admin/stats/sales', status: 'ready' },
-      { id: 'stats-claims', label: '클레임', href: '/admin/stats/claims', status: 'ready' },
+      { id: 'stats-claims', label: ADMIN_VOCABULARY.claims, href: '/admin/stats/claims', status: 'ready' },
       { id: 'stats-customers', label: '고객현황', href: '/admin/stats/customers', status: 'ready' },
+    ],
+  },
+  {
+    id: 'settings', label: '설정', icon: 'settings',
+    screens: [
+      { id: 'store-settings', label: '사업자·CS·결제 표시', href: '/admin/settings/store', status: 'ready' },
+      { id: 'fulfillment-origins', label: '출고지·배송비', href: '/admin/settings/origins', status: 'ready' },
+      { id: 'shipping-carriers', label: '택배사 관리', href: '/admin/settings/carriers', status: 'ready' },
     ],
   },
   {
@@ -147,6 +157,11 @@ export function adminScreenForPath(pathname: string): AdminScreen | null {
   const normalized = pathname.length > 1 && pathname.endsWith('/')
     ? pathname.slice(0, -1)
     : pathname;
+
+  // 고객 상세는 회원 목록과 같은 메뉴·권한에 속한다.
+  if (normalized.startsWith('/admin/customers/')) {
+    return ADMIN_SCREENS.find((screen) => screen.id === 'members') ?? null;
+  }
 
   const exact = ADMIN_SCREENS.find((screen) => screen.href === normalized);
   if (exact) return exact;

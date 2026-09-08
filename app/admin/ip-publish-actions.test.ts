@@ -58,6 +58,8 @@ const revalidationCalls = [
   ['/offline-popups/[eventId]', 'page'],
   ['/games/[gameId]', 'page'],
   [`/ip/${IP_ID}`],
+  ['/admin/catalog/ips'],
+  [`/admin/catalog/ips/${IP_ID}`],
 ];
 
 describe('admin IP publish actions', () => {

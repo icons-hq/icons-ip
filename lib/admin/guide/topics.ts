@@ -9,10 +9,12 @@ import { GOODS_SALES_TOPIC } from './topics/goods-sales';
 import { INQUIRIES_REVIEWS_TOPIC } from './topics/inquiries-reviews';
 import { MEMBERS_ROLES_TOPIC } from './topics/members-roles';
 import { ORDERS_SHIPPING_TOPIC } from './topics/orders-shipping';
+import { STORE_SETTINGS_TOPIC } from './topics/store-settings';
 import { STATS_TOPIC } from './topics/stats';
 import { TROUBLESHOOTING_TOPIC } from './topics/troubleshooting';
 import { WHATS_NEW_TOPIC } from './topics/whats-new';
 import type { AdminGuideTopic, AdminGuideTopicSlug } from './types';
+import { ADMIN_VOCABULARY, adminGoodsCopy, adminClaimCopy } from '../vocabulary';
 
 export type { AdminGuideTopic, AdminGuideTopicSlug };
 
@@ -29,12 +31,13 @@ export const ADMIN_GUIDE_TOPIC_SLUGS: readonly AdminGuideTopicSlug[] = [
   'events-tickets',
   'display-messaging',
   'members-roles',
+  'store-settings',
   'stats',
   'troubleshooting',
   'dev-requests',
 ];
 
-export const ADMIN_GUIDE_TOPICS: Record<AdminGuideTopicSlug, AdminGuideTopic> = {
+const DOMAIN_GUIDE_TOPICS: Record<AdminGuideTopicSlug, AdminGuideTopic> = {
   'whats-new': WHATS_NEW_TOPIC,
   'getting-started': GETTING_STARTED_TOPIC,
   'goods-sales': GOODS_SALES_TOPIC,
@@ -46,10 +49,37 @@ export const ADMIN_GUIDE_TOPICS: Record<AdminGuideTopicSlug, AdminGuideTopic> = 
   'events-tickets': EVENTS_TICKETS_TOPIC,
   'display-messaging': DISPLAY_MESSAGING_TOPIC,
   'members-roles': MEMBERS_ROLES_TOPIC,
+  'store-settings': STORE_SETTINGS_TOPIC,
   stats: STATS_TOPIC,
   troubleshooting: TROUBLESHOOTING_TOPIC,
   'dev-requests': DEV_REQUESTS_TOPIC,
 };
+
+/** Static operator documentation only; card/ticket guides and route identifiers are unchanged. */
+const operatorCopy = (copy:string) => adminClaimCopy(adminGoodsCopy(copy));
+
+function operatorTopic(topic: AdminGuideTopic): AdminGuideTopic {
+  if (topic.slug === 'cards-games' || topic.slug === 'events-tickets') return topic;
+  return {
+    ...topic,
+    title: topic.slug === 'claims' ? ADMIN_VOCABULARY.claims : operatorCopy(topic.title),
+    navLabel: topic.slug === 'claims' ? ADMIN_VOCABULARY.claims : operatorCopy(topic.navLabel),
+    summary: operatorCopy(topic.summary),
+    sections: topic.sections.map((section) => ({
+      ...section,
+      heading: operatorCopy(section.heading),
+      paragraphs: section.paragraphs?.map(operatorCopy),
+      list: section.list?.map(operatorCopy),
+      steps: section.steps?.map((step) => ({ ...step, text: operatorCopy(step.text), detail: step.detail?.map(operatorCopy) })),
+      callouts: section.callouts?.map((callout) => ({ ...callout, title: operatorCopy(callout.title), body: callout.body.map(operatorCopy) })),
+      screens: section.screens?.map((screen) => ({ ...screen, note: screen.note ? operatorCopy(screen.note) : undefined })),
+      table: section.table ? { columns: section.table.columns.map(operatorCopy), rows: section.table.rows.map((row) => row.map(operatorCopy)) } : undefined,
+    })),
+  };
+}
+
+export const ADMIN_GUIDE_TOPICS = Object.fromEntries(Object.entries(DOMAIN_GUIDE_TOPICS)
+  .map(([slug, topic]) => [slug, operatorTopic(topic)])) as Record<AdminGuideTopicSlug, AdminGuideTopic>;
 
 /*
  * URL 파라미터는 어떤 문자열이든 들어온다. includes 가드를 지나야만 레코드를 여는

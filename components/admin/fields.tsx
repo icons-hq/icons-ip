@@ -1,10 +1,12 @@
+import { useId } from 'react';
+import { AdminField, AdminSidePanel } from './console/AdminKit';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import { Icon } from '@/components/ui/Icon';
 import { adminArtworkAspectRatio, type AdminArtworkKind } from '@/lib/admin/artwork';
 
 export function ErrorText({ children, id }: { children?: string; id?: string }) {
   if (!children) return null;
-  return <span id={id} role="alert" style={{ color: 'var(--pink)', fontSize: 12, fontWeight: 700 }}>{children}</span>;
+  return <span id={id} role="alert" style={{ color: 'var(--wc-danger)', fontSize: 12, fontWeight: 700 }}>{children}</span>;
 }
 
 export function Field({
@@ -32,14 +34,13 @@ export function Field({
   step?: number;
   type?: string;
 }) {
-  const errorId = error ? `${name}-error` : undefined;
+  const inputId = useId();
+  const errorId = error ? `${inputId}-error` : undefined;
 
   return (
-    <label className="col" style={{ gap: 7 }}>
-      <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>
-        {label}
-      </span>
+    <AdminField inputId={inputId} label={label} error={error}>
       <input
+        id={inputId}
         aria-describedby={errorId}
         aria-invalid={Boolean(error)}
         className="admin-field-control"
@@ -52,21 +53,8 @@ export function Field({
         required={required}
         step={step}
         type={type}
-        style={{
-          background: 'rgba(255,255,255,.045)',
-          border: '1px solid var(--line)',
-          borderRadius: 10,
-          color: 'var(--text)',
-          fontFamily: 'inherit',
-          fontSize: 14,
-          minHeight: 42,
-          outline: 'none',
-          padding: '0 12px',
-          width: '100%',
-        }}
       />
-      <ErrorText id={errorId}>{error}</ErrorText>
-    </label>
+    </AdminField>
   );
 }
 
@@ -87,14 +75,13 @@ export function TextArea({
   maxLength?: number;
   required?: boolean;
 }) {
-  const errorId = error ? `${name}-error` : undefined;
+  const inputId = useId();
+  const errorId = error ? `${inputId}-error` : undefined;
 
   return (
-    <label className="col" style={{ gap: 7 }}>
-      <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>
-        {label}
-      </span>
+    <AdminField inputId={inputId} label={label} error={error}>
       <textarea
+        id={inputId}
         aria-describedby={errorId}
         aria-invalid={Boolean(error)}
         className="admin-field-control"
@@ -104,22 +91,8 @@ export function TextArea({
         placeholder={placeholder}
         required={required}
         rows={3}
-        style={{
-          background: 'rgba(255,255,255,.045)',
-          border: '1px solid var(--line)',
-          borderRadius: 10,
-          color: 'var(--text)',
-          fontFamily: 'inherit',
-          fontSize: 14,
-          minHeight: 88,
-          outline: 'none',
-          padding: '12px',
-          resize: 'vertical',
-          width: '100%',
-        }}
       />
-      <ErrorText id={errorId}>{error}</ErrorText>
-    </label>
+    </AdminField>
   );
 }
 
@@ -142,34 +115,22 @@ export function ColorField({
   label: string;
   name: string;
 }) {
-  const errorId = error ? `${name}-error` : undefined;
+  const inputId = useId();
+  const errorId = error ? `${inputId}-error` : undefined;
   const value = defaultValue && COLOR_PATTERN.test(defaultValue) ? defaultValue : fallback;
 
   return (
-    <label className="col" style={{ gap: 7 }}>
-      <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>
-        {label}
-      </span>
+    <AdminField inputId={inputId} label={label} error={error}>
       <input
+        id={inputId}
         aria-describedby={errorId}
         aria-invalid={Boolean(error)}
         className="admin-field-control"
         defaultValue={value}
         name={name}
         type="color"
-        style={{
-          background: 'rgba(255,255,255,.045)',
-          border: '1px solid var(--line)',
-          borderRadius: 10,
-          cursor: 'pointer',
-          height: 42,
-          outline: 'none',
-          padding: 4,
-          width: '100%',
-        }}
       />
-      <ErrorText id={errorId}>{error}</ErrorText>
-    </label>
+    </AdminField>
   );
 }
 
@@ -194,14 +155,13 @@ export function SelectField({
   required?: boolean;
   value?: string;
 }) {
-  const errorId = error ? `${name}-error` : undefined;
+  const inputId = useId();
+  const errorId = error ? `${inputId}-error` : undefined;
 
   return (
-    <label className="col" style={{ gap: 7 }}>
-      <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>
-        {label}
-      </span>
+    <AdminField inputId={inputId} label={label} error={error}>
       <select
+        id={inputId}
         aria-describedby={errorId}
         aria-invalid={Boolean(error)}
         className="admin-field-control"
@@ -211,37 +171,24 @@ export function SelectField({
         onChange={onChange}
         required={required}
         value={value}
-        style={{
-          background: 'rgba(255,255,255,.045)',
-          border: '1px solid var(--line)',
-          borderRadius: 10,
-          color: 'var(--text)',
-          fontFamily: 'inherit',
-          fontSize: 14,
-          minHeight: 42,
-          outline: 'none',
-          padding: '0 12px',
-          width: '100%',
-        }}
       >
         {children}
       </select>
-      <ErrorText id={errorId}>{error}</ErrorText>
-    </label>
+    </AdminField>
   );
 }
 
 export function ActionNotice({ state }: { state: AdminCatalogActionState }) {
   if (state.errors?.form) {
     return (
-      <div className="card" role="alert" style={{ color: 'var(--pink)', padding: 12, borderRadius: 10, fontWeight: 700 }}>
+      <div className="card" role="alert" style={{ color: 'var(--wc-danger)', padding: 12, borderRadius: 10, fontWeight: 700 }}>
         {state.errors.form}
       </div>
     );
   }
   if (state.message) {
     return (
-      <div className="card" role="status" style={{ color: 'var(--mint)', padding: 12, borderRadius: 10, fontWeight: 700 }}>
+      <div className="card" role="status" style={{ color: 'var(--wc-success)', padding: 12, borderRadius: 10, fontWeight: 700 }}>
         {state.message}
       </div>
     );
@@ -251,10 +198,10 @@ export function ActionNotice({ state }: { state: AdminCatalogActionState }) {
 
 export function InlineNotice({ state }: { state: AdminCatalogActionState }) {
   if (state.errors?.form) {
-    return <span role="alert" style={{ color: 'var(--pink)', fontSize: 12, fontWeight: 700 }}>{state.errors.form}</span>;
+    return <span role="alert" style={{ color: 'var(--wc-danger)', fontSize: 12, fontWeight: 700 }}>{state.errors.form}</span>;
   }
   if (state.message) {
-    return <span role="status" style={{ color: 'var(--mint)', fontSize: 12, fontWeight: 700 }}>{state.message}</span>;
+    return <span role="status" style={{ color: 'var(--wc-success)', fontSize: 12, fontWeight: 700 }}>{state.message}</span>;
   }
   return null;
 }
@@ -271,7 +218,7 @@ export function FormShell({
   return (
     <>
       <ActionNotice state={state} />
-      <button className="btn btn-holo" disabled={disabled || pending} style={{ justifySelf: 'start', minWidth: 150 }}>
+      <button className="wc-admin-kit wc-admin-kit__button" disabled={disabled || pending} style={{ justifySelf: 'start', minWidth: 150 }}>
         <Icon name="check" size={15} /> {pending ? '저장 중' : '저장'}
       </button>
     </>
@@ -289,7 +236,7 @@ function RecordThumbnail({ kind, url }: { kind: AdminArtworkKind; url: string })
       aria-hidden="true"
       style={{
         aspectRatio: adminArtworkAspectRatio(kind),
-        background: 'rgba(255,255,255,.045)',
+        background: 'var(--wc-surface-grey)',
         borderRadius: 6,
         flex: '0 0 auto',
         overflow: 'hidden',
@@ -334,13 +281,13 @@ export function RecordList<T extends { id: string }>({
   thumbnailUrlFor?: (item: T) => string | null | undefined;
 }) {
   return (
-    <aside aria-label={ariaLabel} className="card" style={{ alignSelf: 'start', borderRadius: 10, padding: 14 }}>
-      <button className="btn btn-holo" onClick={onNew} style={{ width: '100%' }} type="button">
+    <AdminSidePanel title={ariaLabel}>
+      <button className="wc-admin-kit wc-admin-kit__button" onClick={onNew} style={{ width: '100%' }} type="button">
         <Icon name="plus" size={15} /> {newLabel}
       </button>
       <div className="col" style={{ gap: 8, marginTop: 14, maxHeight: 520, overflow: 'auto' }}>
         {!items.length && emptyMessage && (
-          <p style={{ color: 'var(--dim)', fontSize: 13, margin: 0 }}>{emptyMessage}</p>
+          <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 13, margin: 0 }}>{emptyMessage}</p>
         )}
         {items.map((item) => {
           const thumbnailUrl = thumbnailKind && thumbnailUrlFor ? thumbnailUrlFor(item) : null;
@@ -365,6 +312,6 @@ export function RecordList<T extends { id: string }>({
           );
         })}
       </div>
-    </aside>
+    </AdminSidePanel>
   );
 }

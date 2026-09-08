@@ -135,10 +135,10 @@ values ('coupon-race-ip', '쿠폰 경합 IP', 'character');
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
 values ('coupon-race-good', 'coupon-race-ip', '쿠폰 경합 굿즈', '피규어', 30000, 'ok', 10);
 
-insert into public.cart_items (user_id, good_id, qty)
+insert into public.cart_items (user_id, good_id, qty, variant_id)
 values
-  ('${first_user_id}'::uuid, 'coupon-race-good', 1),
-  ('${second_user_id}'::uuid, 'coupon-race-good', 1);
+  ('${first_user_id}'::uuid, 'coupon-race-good', 1, (select id from public.goods_variants where good_id='coupon-race-good' and is_default)),
+  ('${second_user_id}'::uuid, 'coupon-race-good', 1, (select id from public.goods_variants where good_id='coupon-race-good' and is_default));
 
 insert into public.coupons (
   code, name, discount_type, discount_value, min_subtotal, issue_limit, status

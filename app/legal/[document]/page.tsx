@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { getBusinessInfo } from '@/lib/legal/business-info.server';
 import { LegalDocumentScreen } from '@/components/screens/LegalDocument';
 import { LEGAL_DOCUMENT_SLUGS, getLegalDocument } from '@/lib/legal/documents';
 
@@ -17,7 +18,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function Page({ params }: PageProps) {
   const { document } = await params;
-  const legal = getLegalDocument(document);
+  const legal = getLegalDocument(document,await getBusinessInfo());
   if (!legal) notFound();
 
   return <LegalDocumentScreen document={legal} />;

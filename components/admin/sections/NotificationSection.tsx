@@ -91,14 +91,14 @@ export function NotificationSection({
         <span className="admin-notification-channel-badge">인앱 전용</span>
       </header>
 
-      <p className="card admin-notification-guide" role="note">
+      <p className="card admin-notification-guide wc-admin-kit wc-admin-kit__card" role="note">
         인앱 알림함에 즉시 발송됩니다. 이메일·푸시는 발송하지 않습니다. 수신자 수는 현재 기준 추정치이며 실제 수신자는 발송 시점에 확정됩니다.
       </p>
 
       <div className="admin-notification-layout">
         <form
           action={action}
-          className="card admin-notification-composer"
+          className="card admin-notification-composer wc-admin-kit wc-admin-kit__card"
           onSubmit={(event) => {
             if (confirmed && canSend) return;
             event.preventDefault();
@@ -258,7 +258,7 @@ export function NotificationSection({
           )}
         </form>
 
-        <aside aria-labelledby="notification-preview-heading" className="card admin-notification-preview">
+        <aside aria-labelledby="notification-preview-heading" className="card admin-notification-preview wc-admin-kit wc-admin-kit__card">
           <div className="admin-notification-form-heading">
             <div>
               <span className="mono">PREVIEW</span>
@@ -285,7 +285,7 @@ export function NotificationSection({
         </aside>
       </div>
 
-      <section aria-labelledby="notification-history-heading" className="card admin-notification-history">
+      <section aria-labelledby="notification-history-heading" className="card admin-notification-history wc-admin-kit wc-admin-kit__card">
         <div className="admin-notification-history-heading">
           <div>
             <span className="mono">LATEST 20</span>

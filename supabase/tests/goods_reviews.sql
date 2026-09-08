@@ -138,13 +138,13 @@ values
 -- 카탈로그가 나중에 바뀌어도 주문이 무엇이었는지 남기기 위해서다.
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values
-  ('50000000-0000-4000-8000-000000000951', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip'),
-  ('50000000-0000-4000-8000-000000000952', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip'),
-  ('50000000-0000-4000-8000-000000000953', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip'),
-  ('50000000-0000-4000-8000-000000000954', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip');
+  ('50000000-0000-4000-8000-000000000951', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default)),
+  ('50000000-0000-4000-8000-000000000952', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default)),
+  ('50000000-0000-4000-8000-000000000953', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default)),
+  ('50000000-0000-4000-8000-000000000954', 'review-goods', 1, 12000, '리뷰 굿즈', '문구', 'review-ip', (select id from public.goods_variants where good_id='review-goods' and is_default));
 
 -- ---------------------------------------------------------------------------
 -- 구매자 세션

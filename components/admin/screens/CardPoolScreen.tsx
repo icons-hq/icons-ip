@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminPageHeader } from '@/components/admin/console/AdminKit';
 import { useMemo } from 'react';
 import { CardPoolSection } from '@/components/admin/sections/CardPoolSection';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
@@ -32,6 +33,7 @@ export function CardPoolScreen({
   const { selected, select } = useSelectedRecord(records);
 
   return (
+    <><AdminPageHeader title="카드풀 구성" description="카드 구성과 개봉 준비 상태를 확인합니다." />
     <CardPoolSection
       cards={cards}
       draftActiveFrom={draftActiveFrom}
@@ -42,6 +44,6 @@ export function CardPoolScreen({
       operationId={operationId}
       records={records}
       selected={selected}
-    />
+    /></>
   );
 }

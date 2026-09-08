@@ -160,16 +160,33 @@ values
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values
-  ('40000000-0000-4000-8000-000000000801', 'admin-order-auto', 1, 10000, '자동 취소 굿즈', '문구', 'admin-order-ip'),
-  ('40000000-0000-4000-8000-000000000802', 'admin-order-reject', 1, 10000, '거절 굿즈', '문구', 'admin-order-ip'),
-  ('40000000-0000-4000-8000-000000000803', 'admin-order-review', 1, 20000, '검토 굿즈', '문구', 'admin-order-ip'),
-  ('40000000-0000-4000-8000-000000000804', 'admin-order-shipping', 1, 10000, '배송 굿즈', '문구', 'admin-order-ip'),
-  ('40000000-0000-4000-8000-000000000805', 'admin-order-pending-paid', 1, 10000, '결제행 보유 pending 굿즈', '문구', 'admin-order-ip'),
-  ('40000000-0000-4000-8000-000000000806', 'admin-order-post-shipping', 1, 10000, '반품 굿즈', '문구', 'admin-order-ip'),
-  ('40000000-0000-4000-8000-000000000807', 'admin-order-defect', 1, 10000, '하자 굿즈', '문구', 'admin-order-ip');
+  ('40000000-0000-4000-8000-000000000801', 'admin-order-auto', 1, 10000, '자동 취소 굿즈', '문구', 'admin-order-ip', (select id from public.goods_variants where good_id='admin-order-auto' and is_default)),
+  ('40000000-0000-4000-8000-000000000802', 'admin-order-reject', 1, 10000, '거절 굿즈', '문구', 'admin-order-ip', (select id from public.goods_variants where good_id='admin-order-reject' and is_default)),
+  ('40000000-0000-4000-8000-000000000803', 'admin-order-review', 1, 20000, '검토 굿즈', '문구', 'admin-order-ip', (select id from public.goods_variants where good_id='admin-order-review' and is_default)),
+  ('40000000-0000-4000-8000-000000000804', 'admin-order-shipping', 1, 10000, '배송 굿즈', '문구', 'admin-order-ip', (select id from public.goods_variants where good_id='admin-order-shipping' and is_default)),
+  ('40000000-0000-4000-8000-000000000805', 'admin-order-pending-paid', 1, 10000, '결제행 보유 pending 굿즈', '문구', 'admin-order-ip', (select id from public.goods_variants where good_id='admin-order-pending-paid' and is_default)),
+  ('40000000-0000-4000-8000-000000000806', 'admin-order-post-shipping', 1, 10000, '반품 굿즈', '문구', 'admin-order-ip', (select id from public.goods_variants where good_id='admin-order-post-shipping' and is_default)),
+  ('40000000-0000-4000-8000-000000000807', 'admin-order-defect', 1, 10000, '하자 굿즈', '문구', 'admin-order-ip', (select id from public.goods_variants where good_id='admin-order-defect' and is_default));
+
+-- #428/#446: manual order fixtures explicitly include their single shipment.
+insert into public.order_shipments(order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,
+  status,carrier,tracking_number,shipped_at,delivered_at)
+select o.id,'00000000-0000-4000-8000-000000042201','김포',o.shipping_fee,'{}'::jsonb,
+  case when o.status='shipping' then 'shipping' when o.status in ('delivered','done') then 'delivered'
+    when o.status='canceled' then 'canceled' else 'ready' end,
+  o.shipping_carrier,o.tracking_number,o.shipped_at,o.delivered_at
+from public.orders o
+where o.user_id='00000000-0000-4000-8000-000000000803'
+  and not exists(select 1 from public.order_shipments s where s.order_id=o.id);
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id)
+select i.order_id,s.id,i.id from public.order_items i
+join public.order_shipments s on s.order_id=i.order_id
+join public.orders o on o.id=i.order_id
+where o.user_id='00000000-0000-4000-8000-000000000803'
+  and not exists(select 1 from public.order_shipment_items si where si.order_item_id=i.id);
 
 insert into public.payments (
   id, user_id, purpose, ref_id, amount, status,
@@ -708,7 +725,7 @@ begin
       '40000000-0000-4000-8000-000000000804', 'shipping', 'hanjin', '444455556666'
     );
   exception when others then
-    if sqlerrm = 'invalid_order_transition' then return; end if;
+    if sqlerrm = 'invalid_shipment_transition' then return; end if;
     raise;
   end;
   raise exception 'paid order should not skip 발주확인';
@@ -751,8 +768,8 @@ $$;
 
 select 1 / case when (
   (select status from public.orders where id = '40000000-0000-4000-8000-000000000804') = 'confirmed'
-  and (select shipping_carrier is null and tracking_number is null
-       from public.orders where id = '40000000-0000-4000-8000-000000000804')
+  and (select carrier is null and tracking_number is null
+       from public.order_shipments where order_id = '40000000-0000-4000-8000-000000000804')
 ) then 1 else 0 end as assert_unregistered_carrier_does_not_start_shipping;
 
 select public.admin_update_order_status(
@@ -768,7 +785,7 @@ begin
       '40000000-0000-4000-8000-000000000804', 'shipping', 'hanjin', '444455556666'
     );
   exception when others then
-    if sqlerrm = 'invalid_order_transition' then return; end if;
+    if sqlerrm = 'invalid_shipment_transition' then return; end if;
     raise;
   end;
   raise exception 'delivered order should not transition backwards';
@@ -779,14 +796,14 @@ select 1 / case when (
   (select status from public.orders where id = '40000000-0000-4000-8000-000000000804') = 'delivered'
   and (select count(*) from public.audit_log
     where actor_id = '00000000-0000-4000-8000-000000000802'
-      and action = 'admin.order.status_updated'
+      and action in ('admin.order.status_updated', 'admin.shipment.status_updated')
       and target = 'order:40000000-0000-4000-8000-000000000804') = 3
 ) then 1 else 0 end as assert_shipping_transitions_are_guarded_idempotent_and_audited;
 
 -- 배송완료 전이는 등록된 운송장을 지우지 않고, 정정은 이전 값과 함께 감사된다.
 select 1 / case when (
-  (select shipping_carrier = 'hanjin' and tracking_number = '444455556666'
-   from public.orders where id = '40000000-0000-4000-8000-000000000804')
+  (select carrier = 'hanjin' and tracking_number = '444455556666'
+   from public.order_shipments where order_id = '40000000-0000-4000-8000-000000000804')
 ) then 1 else 0 end as assert_delivered_transition_keeps_the_waybill;
 
 select public.admin_update_order_tracking(
@@ -798,10 +815,10 @@ select public.admin_update_order_tracking(
 
 select 1 / case when (
   (select tracking_number = '777788889999'
-   from public.orders where id = '40000000-0000-4000-8000-000000000804')
+   from public.order_shipments where order_id = '40000000-0000-4000-8000-000000000804')
   and (select count(*) from public.audit_log
     where actor_id = '00000000-0000-4000-8000-000000000802'
-      and action = 'admin.order.tracking_updated'
+      and action = 'admin.shipment.tracking_updated'
       and target = 'order:40000000-0000-4000-8000-000000000804'
       and diff->>'fromTrackingNumber' = '444455556666'
       and diff->>'toTrackingNumber' = '777788889999') = 1
@@ -823,8 +840,8 @@ end;
 $$;
 
 select 1 / case when (
-  (select shipping_carrier = 'hanjin' and tracking_number = '777788889999'
-   from public.orders where id = '40000000-0000-4000-8000-000000000804')
+  (select carrier = 'hanjin' and tracking_number = '777788889999'
+   from public.order_shipments where order_id = '40000000-0000-4000-8000-000000000804')
 ) then 1 else 0 end as assert_unregistered_carrier_cannot_overwrite_the_waybill;
 
 -- ---------------------------------------------------------------------------

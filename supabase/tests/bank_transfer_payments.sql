@@ -163,10 +163,10 @@ on conflict (id) do update set
 insert into public.ips (id, title, vertical_key, published_at)
 values ('bank-ip', '무통장 IP', 'character', now());
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, allow_bank_transfer)
+insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, allow_bank_transfer, published_at)
 values
-  ('bank-goods', 'bank-ip', '무통장 굿즈', '문구', 20000, 'ok', 10, true),
-  ('bank-blocked-goods', 'bank-ip', '한정 드롭 굿즈', '문구', 20000, 'ok', 5, false);
+  ('bank-goods', 'bank-ip', '무통장 굿즈', '문구', 20000, 'ok', 10, true, now()),
+  ('bank-blocked-goods', 'bank-ip', '한정 드롭 굿즈', '문구', 20000, 'ok', 5, false, now());
 
 -- 새 컬럼의 기본값은 허용이다. 기존 굿즈가 조용히 무통장 불가로 바뀌면
 -- 오픈 직후 결제수단이 사라진다.
@@ -180,8 +180,8 @@ select 1 / case when (
 -- 주문 생성과 attempt 준비는 service role 경계 안에 있다. 스모크는 superuser
 -- 세션에서 그 경계를 직접 부른다 — 브라우저 롤로는 닿을 수 없는 경로다.
 reset role;
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000d01', 'bank-goods', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000d01', 'bank-goods', 1, (select id from public.goods_variants where good_id='bank-goods' and is_default));
 
 select public.place_order(
   '00000000-0000-4000-8000-000000000d01'::uuid,
@@ -236,8 +236,8 @@ select 1 / case when (
 -- 주문 생성과 attempt 준비는 service role 경계 안에 있다. 스모크는 superuser
 -- 세션에서 그 경계를 직접 부른다 — 브라우저 롤로는 닿을 수 없는 경로다.
 reset role;
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000d01', 'bank-goods', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000d01', 'bank-goods', 1, (select id from public.goods_variants where good_id='bank-goods' and is_default));
 
 -- 결제수단 없는 구 시그니처는 카드로 위임한다. 기존 호출자가 무통장 창을
 -- 얻어 가면 재고가 하루씩 묶인다.
@@ -288,8 +288,8 @@ end;
 $$;
 
 -- 무통장 불가 굿즈는 주문 생성에서 막힌다. 카드로는 그대로 살 수 있다.
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000d01', 'bank-blocked-goods', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000d01', 'bank-blocked-goods', 1, (select id from public.goods_variants where good_id='bank-blocked-goods' and is_default));
 
 do $$
 declare
@@ -486,8 +486,8 @@ reset role;
 -- 주문 생성과 attempt 준비는 service role 경계 안에 있다. 스모크는 superuser
 -- 세션에서 그 경계를 직접 부른다 — 브라우저 롤로는 닿을 수 없는 경로다.
 reset role;
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000d01', 'bank-goods', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000d01', 'bank-goods', 1, (select id from public.goods_variants where good_id='bank-goods' and is_default));
 
 select public.place_order(
   '00000000-0000-4000-8000-000000000d01'::uuid,
@@ -585,8 +585,8 @@ select 1 / case when (
 -- 빠져나갈 길이 없어진다(만료 스윕도 needs_review attempt는 건너뛴다).
 reset role;
 
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000d01', 'bank-goods', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000d01', 'bank-goods', 1, (select id from public.goods_variants where good_id='bank-goods' and is_default));
 
 select public.place_order(
   '00000000-0000-4000-8000-000000000d01'::uuid,
@@ -663,8 +663,8 @@ where id = '00000000-0000-4000-8000-000000000d01';
 -- 주문 생성과 attempt 준비는 service role 경계 안에 있다. 스모크는 superuser
 -- 세션에서 그 경계를 직접 부른다 — 브라우저 롤로는 닿을 수 없는 경로다.
 reset role;
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000d01', 'bank-goods', 2);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000d01', 'bank-goods', 2, (select id from public.goods_variants where good_id='bank-goods' and is_default));
 
 select public.place_order(
   '00000000-0000-4000-8000-000000000d01'::uuid,

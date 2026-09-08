@@ -5,37 +5,8 @@ import {
   type ShippingCarrierRegistry,
 } from '@/lib/orders/shipment';
 
-/**
- * 엑셀 일괄 운송장 등록의 텍스트 파싱 (#251).
- *
- * ## 왜 라이브러리를 쓰지 않는가
- *
- * `package.json`에 엑셀 파서가 없고, 이 이슈에 의존성을 하나 더 들이는 것은 범위
- * 밖이다. 대신 스프레드시트가 그대로 내보내는 CSV/TSV를 받는다 — 운영자는 엑셀에서
- * 세 칸을 복사해 붙여넣기만 하면 되고(붙여넣기는 항상 탭 구분이다), 파일로 저장해
- * 올려도 같은 경로를 지난다.
- *
- * ## 포맷은 아직 우리가 정한 것이다
- *
- * 컬럼은 `주문번호 | 택배사코드 | 운송장번호`. 실제 WMS 내보내기 포맷은 #177에서
- * 확인한 뒤 맞춘다. 그래서 파싱을 화면·액션과 떼어 놓는다 — 포맷이 바뀌면 고칠
- * 곳이 이 파일 하나여야 한다.
- *
- * ## 주문번호는 두 가지를 받는다
- *
- * 콘솔이 보여주는 주문번호는 UUID 끝 8자리(`orderReferenceLabel`)다. 운영자가
- * 화면에서 옮겨 적는 값이 그것이라 8자리를 받아야 하고, 시스템 간 연동에서 나오는
- * 전체 UUID도 함께 받는다. 둘 중 무엇이든 실제 주문으로 풀리는지는 액션이 DB에
- * 물어본다 — 여기서는 형식만 본다.
- */
-
-/**
- * 한 번에 처리할 수 있는 줄 수. 일괄 발주확인과 같은 상한이다.
- *
- * 상한이 없으면 붙여넣기 한 번이 수백 건의 순차 RPC가 된다. 이 값이 액션이 아니라
- * 여기 있는 이유는 `'use server'` 파일이 async 함수만 export할 수 있어서다.
- */
-export const TRACKING_IMPORT_ROW_LIMIT = 100;
+/** Shipment UUID is canonical; a single-shipment order also accepts its order reference. */
+export const TRACKING_IMPORT_ROW_LIMIT = 1000;
 
 export interface TrackingImportRow {
   /** 원본 줄 번호(1-based). 실패 리포트가 "몇 번째 줄"을 말할 수 있어야 한다. */
@@ -43,7 +14,7 @@ export interface TrackingImportRow {
   /** 입력된 주문번호 원문. 실패 리포트에 그대로 싣는다. */
   reference: string;
   /** 전체 UUID로 적힌 경우. 아니면 `null`이고 `reference`로 조회한다. */
-  orderId: string | null;
+  referenceId: string | null;
   carrier: string;
   trackingNumber: string;
 }
@@ -64,7 +35,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 const REFERENCE_PATTERN = /^[0-9A-F]{8}$/;
 
 /** 헤더 줄로 인정하는 첫 칸. 운영자가 헤더를 지우고 붙여넣어도 동작해야 한다. */
-const HEADER_FIRST_CELLS = new Set(['주문번호', 'order', 'orderid', 'order_id', '주문 번호']);
+const HEADER_FIRST_CELLS = new Set(['배송건번호', '배송 건 번호', 'shipmentid', 'shipment_id', '주문번호', 'order', 'orderid', 'order_id', '주문 번호']);
 
 function splitCells(line: string): string[] {
   /* 엑셀에서 복사한 값은 탭 구분, 파일로 저장한 값은 쉼표 구분이다. 한 줄 안에
@@ -121,11 +92,11 @@ export function parseTrackingImport(
     const [rawReference = '', rawCarrier = '', rawTracking = ''] = cells;
     const reference = rawReference.trim();
 
-    if (!reference || !rawCarrier || !rawTracking) {
+    if (cells.length !== 3 || !reference || !rawCarrier || !rawTracking) {
       issues.push({
         line,
         reference,
-        reason: '주문번호·택배사코드·운송장번호 세 칸이 모두 필요합니다.',
+        reason: '배송건번호·택배사코드·운송장번호 세 칸이 모두 필요합니다.',
       });
       return;
     }
@@ -139,7 +110,7 @@ export function parseTrackingImport(
       issues.push({
         line,
         reference,
-        reason: '주문번호는 콘솔에 표시되는 8자리 또는 전체 UUID여야 합니다.',
+        reason: '배송건번호 또는 단일 배송 주문번호는 콘솔에 표시되는 8자리 또는 전체 UUID여야 합니다.',
       });
       return;
     }
@@ -149,7 +120,7 @@ export function parseTrackingImport(
       issues.push({
         line,
         reference,
-        reason: `${duplicateLine}번째 줄과 주문번호가 중복됩니다.`,
+        reason: `${duplicateLine}번째 줄과 배송건번호가 중복됩니다.`,
       });
       return;
     }
@@ -186,7 +157,7 @@ export function parseTrackingImport(
     rows.push({
       line,
       reference: isUuid ? reference : normalizedReference,
-      orderId: isUuid ? normalizedReference : null,
+      referenceId: isUuid ? normalizedReference : null,
       carrier: carrier.code,
       trackingNumber,
     });
@@ -197,6 +168,6 @@ export function parseTrackingImport(
 
 /** 운영자가 화면에서 받아 갈 예시. 화면 문구와 테스트가 같은 값을 본다. */
 export const TRACKING_IMPORT_SAMPLE = [
-  '주문번호,택배사코드,운송장번호',
-  '1A2B3C4D,hanjin,123456789012',
+  '배송건번호,택배사코드,운송장번호',
+  '11111111-1111-4111-8111-111111111111,hanjin,123456789012',
 ].join('\n');

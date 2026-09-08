@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { InquiryLiveUpdates } from '@/components/screens/InquiryLiveUpdates';
 import {
   ConsoleCountChips,
   ConsoleFilterPanel,
@@ -105,6 +106,7 @@ export function InquiryQueueScreen({
 
   return (
     <section className="admin-console">
+      <InquiryLiveUpdates audience="staff" />
       <ConsoleFilterPanel
         action="/admin/cs/inquiries"
         dateRange={{

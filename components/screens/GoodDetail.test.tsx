@@ -281,7 +281,7 @@ describe('GoodDetail', () => {
     expect(html).toContain('주식회사 아이콘스');
     expect(html).toContain('A/S 연락처');
     expect(html).toContain('배송 안내');
-    expect(html).toContain('배송비 3,000원 · 50,000원 이상 구매 시 무료');
+    expect(html).toContain('배송 정책을 확인하지 못했습니다');
     expect(html).toContain('교환 · 반품 안내');
     expect(html).toContain('7일 이내');
   });
@@ -376,5 +376,16 @@ describe('GoodDetail', () => {
 
     expect(html).toContain('아직 등록된 질문이 없습니다.');
     expect(html).toContain('>Q&amp;A<');
+  });
+});
+
+
+describe('출고지 배송 정책 표시', () => {
+  it('DB 정책 금액과 상품별 유형을 표시하고 누락 시 금액을 추정하지 않는다', () => {
+    const policy = {originId:'gimpo',originName:'김포',baseFee:4700,freeThreshold:62000,feeType:'policy' as const,individualFee:2500};
+    expect(renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={policy} />)).toContain('4,700');
+    expect(renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={{...policy,feeType:'individual'}} />)).toContain('굿즈당 1회');
+    expect(renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={{...policy,feeType:'free'}} />)).toContain('무료배송');
+    expect(renderToStaticMarkup(<GoodDetailView detail={detail} />)).toContain('배송 정책을 확인하지 못했습니다');
   });
 });

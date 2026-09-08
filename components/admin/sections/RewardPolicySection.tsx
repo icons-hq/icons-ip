@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminFormGrid } from '@/components/admin/console/AdminKit';
 import { useActionState, useMemo, useState } from 'react';
 import {
   upsertAdminRewardPolicyAction,
@@ -184,20 +185,20 @@ function RewardPolicyForm({
   return (
     <form
       action={action}
-      className="card col"
+      className="card col wc-admin-kit wc-admin-kit__card"
       onReset={(event) => event.preventDefault()}
-      style={{ borderRadius: 10, gap: 14, padding: 18 }}
+      style={{ gap: 14 }}
     >
       <input name="operationId" type="hidden" value={operationId} />
       <input name="id" type="hidden" value={selected?.id ?? draftId} />
       <input name="trigger" type="hidden" value="order_paid" />
       <div>
         <strong>주문 결제 완료 발급</strong>
-        <p style={{ color: 'var(--dim)', fontSize: 12, margin: '6px 0 0' }}>
+        <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, margin: '6px 0 0' }}>
           결제 완료된 주문이 아래 조건을 충족하면 카드팩을 발급합니다.
         </p>
       </div>
-      <div className="admin-form-grid">
+      <AdminFormGrid>
         <SelectField
           disabled={noIps}
           error={state.errors?.targetIpId}
@@ -293,7 +294,7 @@ function RewardPolicyForm({
           name="activeTo"
           type="datetime-local"
         />
-      </div>
+      </AdminFormGrid>
       <label className="row" style={{ alignItems: 'center', gap: 8 }}>
         <input
           aria-describedby={state.errors?.active ? 'active-error' : undefined}
@@ -307,7 +308,7 @@ function RewardPolicyForm({
       </label>
       <ErrorText id={state.errors?.active ? 'active-error' : undefined}>{state.errors?.active}</ErrorText>
       {disabledReason && (
-        <p role={unavailableActivePool ? 'alert' : 'status'} style={{ color: 'var(--pink)', margin: 0 }}>
+        <p role={unavailableActivePool ? 'alert' : 'status'} style={{ color: 'var(--wc-danger)', margin: 0 }}>
           {disabledReason}
         </p>
       )}
@@ -318,7 +319,7 @@ function RewardPolicyForm({
 
 function RewardPolicySummary({ selected }: { selected: AdminRewardPolicyRecord | null }) {
   return (
-    <section aria-labelledby="reward-policy-summary-title" className="card col" style={{ borderRadius: 10, gap: 12, padding: 18 }}>
+    <section aria-labelledby="reward-policy-summary-title" className="card col wc-admin-kit wc-admin-kit__card" style={{ gap: 12 }}>
       <strong id="reward-policy-summary-title">발급 현황</strong>
       {selected ? (
         <div className="admin-form-grid mono" style={{ fontSize: 13 }}>
@@ -330,14 +331,14 @@ function RewardPolicySummary({ selected }: { selected: AdminRewardPolicyRecord |
           <span>최근 발급 {formatKstDateTime(selected.lastIssuedAt)}</span>
         </div>
       ) : (
-        <p role="status" style={{ color: 'var(--dim)', margin: 0 }}>
+        <p role="status" style={{ color: 'var(--wc-ink-tertiary)', margin: 0 }}>
           정책을 선택하거나 새 정책을 저장하면 발급 현황을 확인할 수 있습니다.
         </p>
       )}
-      <div className="card" role="status" style={{ color: 'var(--dim)', fontSize: 12, lineHeight: 1.6, padding: 12 }}>
+      <div className="card wc-admin-kit wc-admin-kit__card" role="status" style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, lineHeight: 1.6 }}>
         조건이 겹치는 활성 정책은 누적 적용됩니다.
       </div>
-      <div className="card" role="status" style={{ color: 'var(--dim)', fontSize: 12, lineHeight: 1.6, padding: 12 }}>
+      <div className="card wc-admin-kit wc-admin-kit__card" role="status" style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, lineHeight: 1.6 }}>
         정책 연결 정보가 없는 기존 뽑기권은 집계에서 제외됩니다.
       </div>
     </section>

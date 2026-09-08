@@ -1,3 +1,4 @@
+import type { ShipmentRecord } from '@/lib/orders/shipments';
 import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
@@ -137,6 +138,11 @@ export async function getAdminClaimConsoleData(
   };
 }
 
+export interface AdminClaimReshipItem {
+  id: string; goodId: string; name: string; qty: number; unitPrice: number;
+  variantId: string; variantName: string | null; currentVariantId: string;
+  options: { id: string; name: string; code: string; stockQty: number }[];
+}
 export interface AdminClaimDetailOrder {
   id: string;
   status: string;
@@ -144,11 +150,10 @@ export interface AdminClaimDetailOrder {
   shippingFee: number;
   createdAt: string;
   deliveredAt: string | null;
-  shippingCarrier: string | null;
-  trackingNumber: string | null;
+  shipments: ShipmentRecord[];
   buyerName: string | null;
   buyerEmail: string | null;
-  items: { name: string; qty: number; unitPrice: number }[];
+  items: AdminClaimReshipItem[];
 }
 
 export interface AdminClaimDetailPayment {
@@ -192,6 +197,7 @@ export interface AdminClaimDetail {
     reshipCarrier: string | null;
     reshipTrackingNumber: string | null;
     reshippedAt: string | null;
+    reshippedItems?: { orderItemId: string; name: string; variantId: string; variantName: string; variantCode: string; qty: number }[];
     lastErrorCode: string | null;
     handlerName: string | null;
   };
@@ -266,6 +272,10 @@ export async function loadAdminClaimDetail(
       reshipCarrier: text(claim.reshipCarrier),
       reshipTrackingNumber: text(claim.reshipTrackingNumber),
       reshippedAt: text(claim.reshippedAt),
+      reshippedItems: (Array.isArray(claim.reshippedItems) ? claim.reshippedItems : []).filter(isRecord).map((item) => ({
+        orderItemId: String(item.orderItemId ?? ''), name: String(item.name ?? ''), variantId: String(item.variantId ?? ''),
+        variantName: String(item.variantName ?? ''), variantCode: String(item.variantCode ?? ''), qty: toNumber(item.qty as number | string),
+      })),
       lastErrorCode: text(claim.lastErrorCode),
       handlerName: text(claim.handlerName),
     },
@@ -277,16 +287,20 @@ export async function loadAdminClaimDetail(
         shippingFee: toNumber(order.shippingFee as number | string),
         createdAt: String(order.createdAt ?? ''),
         deliveredAt: text(order.deliveredAt),
-        shippingCarrier: text(order.shippingCarrier),
-        trackingNumber: text(order.trackingNumber),
+        shipments: (Array.isArray(order.shipments) ? order.shipments : []) as ShipmentRecord[],
         buyerName: text(order.buyerName),
         buyerEmail: text(order.buyerEmail),
         items: (Array.isArray(order.items) ? order.items : [])
           .filter(isRecord)
           .map((item) => ({
+            id: String(item.id ?? ''), goodId: String(item.goodId ?? ''),
             name: String(item.name ?? ''),
             qty: toNumber(item.qty as number | string),
             unitPrice: toNumber(item.unitPrice as number | string),
+            variantId: String(item.variantId ?? ''), variantName: text(item.variantName), currentVariantId: String(item.currentVariantId ?? item.variantId ?? ''),
+            options: (Array.isArray(item.options) ? item.options : []).filter(isRecord).map((option) => ({
+              id: String(option.id ?? ''), name: String(option.name ?? ''), code: String(option.code ?? ''), stockQty: toNumber(option.stockQty as number | string),
+            })),
           })),
       }
       : null,

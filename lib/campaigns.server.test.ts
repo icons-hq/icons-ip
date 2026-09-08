@@ -33,6 +33,10 @@ vi.mock('@/lib/supabase/server', () => ({
           mocks.filters.push([table, column, value]);
           return query;
         },
+        not: (column: string, operator: string, value: unknown) => {
+          mocks.filters.push([table, column, `not.${operator}.${value}`]);
+          return query;
+        },
         is: (column: string, value: unknown) => {
           mocks.filters.push([table, column, value]);
           return query;
@@ -364,6 +368,7 @@ describe('loadCampaignDetail', () => {
     await loadCampaignDetail('archive-leak');
 
     expect(mocks.filters).toContainEqual(['goods', 'archived_at', null]);
+    expect(mocks.filters).toContainEqual(['goods', 'published_at', 'not.is.null']);
   });
 
   /* 같은 이유로 판매 제한 굿즈(#392)도 랜딩 블록에서 따로 걸러야 한다 — 보관 필터와
@@ -383,5 +388,6 @@ describe('loadCampaignDetail', () => {
 
     expect(mocks.filters).toContainEqual(['goods', 'sale_restriction', 'none']);
     expect(mocks.filters).toContainEqual(['goods', 'archived_at', null]);
+    expect(mocks.filters).toContainEqual(['goods', 'published_at', 'not.is.null']);
   });
 });

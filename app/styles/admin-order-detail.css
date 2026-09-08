@@ -45,3 +45,9 @@
   .wc-admin .admin-order-detail__facts > div { grid-template-columns: 80px minmax(0, 1fr); }
   .wc-admin .admin-order-detail__workspace { gap: 16px; }
 }
+
+/* #447: every origin keeps its own tracking and receipt dates. */
+.wc-admin .admin-order-detail__shipment + .admin-order-detail__shipment { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--wc-hairline); }
+.wc-admin .admin-order-detail__shipment h3 { margin: 0 0 16px; font-size: 15px; }
+.wc-admin .admin-order-detail__shipment ul { padding-left: 20px; font-size: 13px; }
+.wc-admin .admin-order-detail__shipment a { display: inline-flex; align-items: center; min-height: 44px; font-size: 13px; }

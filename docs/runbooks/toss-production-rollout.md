@@ -308,8 +308,7 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
 4. 새 deployment의 boolean readback에서 해당 gate와 canary configured가 모두 false인지
    확인한다. 이때부터 차단되는 것은 **그 provider의 새 reserve·prepare·provider session**
    뿐이다. 무통장 주문은 이 gate와 독립이다 — `placeOrderAction`이 `bank_transfer` 수단에는
-   `bankTransferCheckoutEnabled()`(service role + `BANK_TRANSFER_BANK_NAME`·
-   `BANK_TRANSFER_ACCOUNT_NUMBER`·`BANK_TRANSFER_ACCOUNT_HOLDER` 계좌 env)만 보므로, PG gate를
+   `bankTransferCheckoutEnabled()`(service role + `store_settings.bank_transfer`의 완전한 계좌 표시값; #426 설정 런북 참조)만 보므로, PG gate를
    닫아도 무통장 주문은 계속 생성된다.
 5. 신규 굿즈 접수 **전체**를 멈추는 롤백이면 별도 스텝으로 세 계좌 env를 Production에서
    제거하고(하나만 비어도 결제수단 자체가 사라진다) 같은 Actions 새 Production deployment →

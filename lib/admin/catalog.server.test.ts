@@ -39,11 +39,16 @@ function createClient({
     from(table: string) {
       const record: QueryRecord = { table, select: null, order: [], limit: [] };
       records.push(record);
+      let selectedId: string | undefined;
       const resolve = (): Result => ({
-        data: rows[table] ?? [],
+        data: selectedId ? (rows[table] ?? []).filter((row) => row.id === selectedId) : rows[table] ?? [],
         error: errors[table] ? { message: errors[table] } : null,
       });
       const query = {
+        eq(column: string, value: string) {
+          if (column === 'id') selectedId = value;
+          return query;
+        },
         select(columns: string) {
           record.select = columns;
           return query;
@@ -1047,4 +1052,10 @@ describe('getAdminCatalogRecords', () => {
     expect(result.cardPools[0].rewardReady).toBe(true);
     expect(result.cards).toEqual([]);
   });
+});
+
+it('loads only the exact goods editor target, including records outside the list page', async () => {
+  mocks.client = createClient({ records: [], rows: { goods: [{ id: 'g1' }, { id: 'g999' }] } });
+  const result = await getAdminCatalogRecords({ include: ['goods'], goodId: 'g999' });
+  expect(result.goods.map((good) => good.id)).toEqual(['g999']);
 });

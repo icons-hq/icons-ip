@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminPageHeader } from '@/components/admin/console/AdminKit';
 import { useActionState } from 'react';
 import { upsertAdminCampaignAction, type AdminCampaignActionState } from '@/app/admin/campaign-actions';
 import { CampaignSection } from '@/components/admin/sections/CampaignSection';
@@ -27,6 +28,7 @@ export function CampaignScreen({
   const { selected, select } = useSelectedRecord(records);
 
   return (
+    <><AdminPageHeader title="캠페인 운영" description="캠페인 노출과 무상 카드팩 교환처를 관리합니다." />
     <div className="col" style={{ gap: 18 }}>
       <CampaignSection
         action={action}
@@ -37,6 +39,6 @@ export function CampaignScreen({
         state={state}
       />
       <CoinExchangeOfferPanel offers={offers} pools={pools} />
-    </div>
+    </div></>
   );
 }

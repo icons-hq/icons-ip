@@ -71,7 +71,7 @@ function TabProductBand({
                   href={good.href}
                   imageBackground={good.imageBg}
                   name={good.name}
-                  price={good.price}
+                  price={good.price} priceMax={good.priceMax}
                   soldOut={good.soldOut}
                 />
               ))}

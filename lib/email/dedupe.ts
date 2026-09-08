@@ -75,16 +75,18 @@ export function restockAlertEmailDedupeKey(alertId: string, notifiedAtIso: strin
  * 형식을 벗어난 키는 null이다 — 재발송 대상이 아닌 행(미래에 추가될 다른 템플릿 등)을
  * 주문 메일로 오인해 엉뚱한 주문에 메일을 보내지 않게 한다.
  */
+export function shipmentEmailDedupeKey(orderId: string, shipmentId: string): string {
+  return `order_shipped:${orderId}:${shipmentId}`;
+}
+
+/** Legacy two-part keys are readable; every new shipping email includes its shipment. */
 export function parseOrderEmailDedupeKey(
   value: string,
-): { template: OrderEmailTemplateName; orderId: string } | null {
-  const separator = value.indexOf(':');
-  if (separator < 0) return null;
-
-  const template = value.slice(0, separator);
-  const orderId = value.slice(separator + 1).toLowerCase();
-  if (!isOrderEmailTemplateName(template)) return null;
-  if (!UUID_PATTERN.test(orderId)) return null;
-
-  return { template, orderId };
+): { template: OrderEmailTemplateName; orderId: string; shipmentId?: string } | null {
+  const [template, rawOrderId, rawShipmentId, ...extra] = value.split(':');
+  const orderId = rawOrderId?.toLowerCase() ?? '';
+  const shipmentId = rawShipmentId?.toLowerCase();
+  if (!isOrderEmailTemplateName(template) || !UUID_PATTERN.test(orderId ?? '') || extra.length) return null;
+  if (shipmentId !== undefined && (template !== 'order_shipped' || !UUID_PATTERN.test(shipmentId))) return null;
+  return { template, orderId, ...(shipmentId ? { shipmentId } : {}) };
 }

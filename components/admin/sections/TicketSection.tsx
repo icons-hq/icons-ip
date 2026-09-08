@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminFormGrid } from '@/components/admin/console/AdminKit';
 import Link from 'next/link';
 import { useActionState } from 'react';
 import {
@@ -36,10 +37,10 @@ export function TicketSection({
 
   return (
     <div className="col" style={{ gap: 14 }}>
-      <div className="card row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 14, justifyContent: 'space-between', padding: 16 }}>
+      <div className="card row wc-admin-kit wc-admin-kit__card" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 14, justifyContent: 'space-between' }}>
         <div>
           <strong>현장 티켓 검표</strong>
-          <div style={{ color: 'var(--dim)', fontSize: 12, marginTop: 4 }}>
+          <div style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, marginTop: 4 }}>
             모바일 카메라나 현장 스캐너로 입장 티켓을 확인합니다.
           </div>
         </div>
@@ -89,31 +90,31 @@ function TicketForm({
   return (
     <form
       action={action}
-      className="card col"
-      style={{ borderRadius: 10, gap: 14, padding: 18 }}
+      className="card col wc-admin-kit wc-admin-kit__card"
+      style={{ gap: 14 }}
     >
       <input name="operationId" type="hidden" value={operationId} />
       <input name="id" type="hidden" value={id} />
 
       {selected && (
-        <div className="card row" style={{ flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', padding: 14 }}>
+        <div className="card row wc-admin-kit wc-admin-kit__card" style={{ flexWrap: 'wrap', gap: 12, justifyContent: 'space-between' }}>
           <strong>{allocationStatus(selected)}</strong>
           <span>할당 {selected.sold} / {selected.capacity}</span>
           <span>잔여 {Math.max(0, selected.capacity - selected.sold)}</span>
-          <span style={{ color: 'var(--dim)', fontSize: 12 }}>결제 대기 포함</span>
+          <span style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12 }}>결제 대기 포함</span>
         </div>
       )}
 
       {noEvents && !selected && (
-        <div className="card" role="status" style={{ padding: 12 }}>
+        <div className="card wc-admin-kit wc-admin-kit__card" role="status" style={{  }}>
           먼저 이벤트를 등록해주세요.
         </div>
       )}
 
-      <div className="admin-form-grid">
+      <AdminFormGrid>
         {metadataLocked && selected ? (
           <div className="col" style={{ gap: 7 }}>
-            <span className="mono" id={eventLabelId} style={{ color: 'var(--dim)', fontSize: 11 }}>연결 이벤트</span>
+            <span className="mono" id={eventLabelId} style={{ color: 'var(--wc-ink-tertiary)', fontSize: 11 }}>연결 이벤트</span>
             <input name="eventId" type="hidden" value={selected.eventId} />
             <div
               aria-labelledby={eventLabelId}
@@ -174,10 +175,10 @@ function TicketForm({
           step={1}
           type="number"
         />
-      </div>
+      </AdminFormGrid>
 
       {metadataLocked && (
-        <p style={{ color: 'var(--dim)', fontSize: 12, margin: 0 }}>
+        <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, margin: 0 }}>
           예매 이력이 있어 이벤트·회차명·가격은 잠겼습니다. 정원만 현재 할당 수량 이상으로 조정할 수 있습니다.
         </p>
       )}

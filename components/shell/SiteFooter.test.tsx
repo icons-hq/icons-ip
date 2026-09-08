@@ -111,3 +111,5 @@ describe('SiteFooter White Catalog 진입점', () => {
     expect(html).toContain('© ICONS');
   });
 });
+
+it("현재 설정값을 푸터에 반영하고 비운 전화는 숨긴다",()=>{ const html=renderToStaticMarkup(<SiteFooter businessInfo={{...BUSINESS_INFO,companyName:"설정회사",phone:"",email:"new@example.test"}}/>);expect(html).toContain("설정회사 사업자 정보");expect(html).toContain("new@example.test");expect(html).not.toContain(BUSINESS_INFO.phone); });

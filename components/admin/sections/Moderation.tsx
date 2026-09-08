@@ -43,10 +43,10 @@ function ReportStatusForm({ report }: { report: AdminReportRecord }) {
         key={report.status}
         name="status"
         style={{
-          background: 'rgba(255,255,255,.045)',
-          border: '1px solid var(--line)',
+          background: 'var(--wc-surface)',
+          border: '1px solid var(--wc-hairline)',
           borderRadius: 10,
-          color: 'var(--text)',
+          color: 'var(--wc-ink)',
           fontFamily: 'inherit',
           fontSize: 13,
           minHeight: 44,
@@ -131,12 +131,12 @@ export function ModerationSection({ reports }: { reports: AdminReportRecord[] })
   return (
     <section className="col" style={{ gap: 12 }}>
       {reports.map((report) => (
-        <article key={report.id} className="card col" style={{ borderRadius: 10, gap: 12, padding: 16 }}>
+        <article key={report.id} className="card col wc-admin-kit wc-admin-kit__card" style={{ gap: 12 }}>
           <div className="between" style={{ gap: 12, alignItems: 'start' }}>
             <div className="col" style={{ gap: 6, minWidth: 0 }}>
               <div className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
                 <span className="tag">{reportTargetLabels[report.targetType]}</span>
-                <span className="tag" style={{ color: 'var(--violet-2)' }}>{report.status}</span>
+                <span className="tag" style={{ color: 'var(--wc-info)' }}>{report.status}</span>
                 <span className="faint mono" style={{ fontSize: 11 }}>{new Date(report.createdAt).toLocaleString('ko-KR')}</span>
               </div>
               <strong style={{ fontSize: 15, lineHeight: 1.4 }}>{report.targetLabel}</strong>
@@ -155,7 +155,7 @@ export function ModerationSection({ reports }: { reports: AdminReportRecord[] })
         </article>
       ))}
       {!reports.length && (
-        <div className="card" style={{ borderRadius: 10, padding: 18 }}>
+        <div className="card wc-admin-kit wc-admin-kit__card" style={{  }}>
           <div style={{ fontWeight: 700 }}>처리할 신고가 없습니다.</div>
           <p className="muted" style={{ marginTop: 6 }}>커뮤니티 신고가 접수되면 이곳에 표시됩니다.</p>
         </div>

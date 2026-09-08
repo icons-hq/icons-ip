@@ -238,16 +238,16 @@ values
   );
 
 insert into public.goods (
-  id, ip_id, name, type, price, stock, stock_qty, archived_at
+  id, ip_id, name, type, price, stock, stock_qty, archived_at, published_at
 )
 values
-  ('archive-life-good', 'archive-life-ip', '수명주기 굿즈', '문구', 1000, 'soldout', 0, null),
-  ('archive-child-good', 'archive-child-ip', '활성 자식 굿즈', '문구', 1000, 'soldout', 0, null),
-  ('archive-stock-good', 'archive-good-guard-ip', '재고 가드 굿즈', '문구', 1000, 'ok', 1, null),
-  ('archive-policy-good', 'archive-good-guard-ip', '정책 가드 굿즈', '문구', 1000, 'soldout', 0, null),
-  ('archive-parent-good', 'archive-parent-ip', '부모 가드 굿즈', '문구', 1000, 'soldout', 0, now()),
-  ('archive-history-good', 'archive-history-ip', '카탈로그보관검색 굿즈', '문구', 1000, 'soldout', 0, null),
-  ('archive-transaction-good', 'archive-transaction-ip', '보관 거래 굿즈', '문구', 1000, 'soldout', 0, null);
+  ('archive-life-good', 'archive-life-ip', '수명주기 굿즈', '문구', 1000, 'soldout', 0, null, now()),
+  ('archive-child-good', 'archive-child-ip', '활성 자식 굿즈', '문구', 1000, 'soldout', 0, null, now()),
+  ('archive-stock-good', 'archive-good-guard-ip', '재고 가드 굿즈', '문구', 1000, 'ok', 1, null, now()),
+  ('archive-policy-good', 'archive-good-guard-ip', '정책 가드 굿즈', '문구', 1000, 'soldout', 0, null, now()),
+  ('archive-parent-good', 'archive-parent-ip', '부모 가드 굿즈', '문구', 1000, 'soldout', 0, now(), null),
+  ('archive-history-good', 'archive-history-ip', '카탈로그보관검색 굿즈', '문구', 1000, 'soldout', 0, null, now()),
+  ('archive-transaction-good', 'archive-transaction-ip', '보관 거래 굿즈', '문구', 1000, 'soldout', 0, null, now());
 
 insert into public.cards (
   id, ip_id, name, no, rarity, pool_id, archived_at
@@ -368,15 +368,15 @@ values (
 
 insert into public.order_items (
   id, order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values (
   '00000000-0000-4000-8000-000000011362',
   '00000000-0000-4000-8000-000000011361',
   'archive-history-good',
   1, 1000,
-  '카탈로그보관검색 굿즈', '문구', 'archive-history-ip'
-);
+  '카탈로그보관검색 굿즈', '문구', 'archive-history-ip',
+  (select id from public.goods_variants where good_id='archive-history-good' and is_default));
 
 insert into public.user_cards (user_id, card_id, qty)
 values (
@@ -385,12 +385,12 @@ values (
   1
 );
 
-insert into public.cart_items (user_id, good_id, qty)
+insert into public.cart_items (user_id, good_id, qty, variant_id)
 values (
   '00000000-0000-4000-8000-000000011303',
   'archive-transaction-good',
-  1
-);
+  1,
+  (select id from public.goods_variants where good_id='archive-transaction-good' and is_default));
 
 insert into public.ip_follows (user_id, ip_id)
 values (
@@ -847,6 +847,7 @@ select public.admin_archive_good('archive-transaction-good');
 select public.admin_archive_event('archive-transaction-event');
 
 reset role;
+select set_config('tests.archived_good_variant',id::text,true) from public.goods_variants where good_id='archive-transaction-good' and is_default;
 update public.goods_variants set stock_qty = 5 where good_id = 'archive-transaction-good' and is_default;
 update public.goods set stock = 'ok' where id = 'archive-transaction-good';
 update public.events
@@ -861,7 +862,7 @@ do $$
 begin
   begin
     perform public.merge_cart_items(
-      '[{"good_id":"archive-transaction-good","qty":2}]'::jsonb
+      jsonb_build_array(jsonb_build_object('good_id','archive-transaction-good','variant_id',current_setting('tests.archived_good_variant')::uuid,'qty',2))
     );
   exception
     when check_violation then
@@ -977,9 +978,6 @@ select 1 / case when (
   pg_catalog.pg_get_functiondef(
     'public.grant_cards(uuid,uuid,text,uuid,text,integer)'::regprocedure
   ) ilike '%card.archived_at is null%'
-  and pg_catalog.pg_get_functiondef(
-    'public.admin_adjust_stock(uuid,text,integer,integer,text)'::regprocedure
-  ) ilike '%selected_archived_at%'
   and pg_catalog.pg_get_functiondef(
     'public.edit_own_post(uuid,text,text,text)'::regprocedure
   ) ilike '%selected_archived_at%'
@@ -1316,14 +1314,14 @@ begin
   begin
     perform public.admin_adjust_stock(
       '00000000-0000-4000-8000-000000011385',
-      'archive-transaction-good',
+      'archive-transaction-good', (select id from public.goods_variants where good_id='archive-transaction-good' and is_default),
       5,
       1,
       '보관 굿즈 수동 입고 거부'
     );
   exception
     when check_violation then
-      if sqlerrm = 'catalog_item_archived' then return; end if;
+      if sqlerrm = 'catalog_archived' then return; end if;
       raise;
   end;
   raise exception 'manual positive stock adjustment should reject archived good';

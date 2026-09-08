@@ -65,6 +65,9 @@ const hwasan: Ip = {
 
 const good: AdminGoodRecord = {
   id: 'g100',
+  code: 'HW-0100',
+  publishedAt: '2026-09-08',
+  firstPublishedAt: '2026-09-08T00:00:00Z',
   archivedAt: null,
   ipId: 'hwasan',
   name: '화산강림 아크릴 스탠드',
@@ -97,6 +100,7 @@ const good: AdminGoodRecord = {
 function renderGoodSection(
   selected: AdminGoodRecord | null,
   state: Parameters<typeof GoodSection>[0]['state'] = {},
+  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'> = {},
 ) {
   return renderToStaticMarkup(
     <GoodSection
@@ -108,18 +112,49 @@ function renderGoodSection(
       pending={false}
       records={selected ? [selected] : [good]}
       selected={selected}
+      variants={selected ? [{ id: '11111111-1111-4111-8111-111111111111', goodId: selected.id, name: '기본 옵션', code: 'HW-0100-01', price: selected.price, stockQty: selected.stockQty, isDefault: true, archivedAt: null }] : []}
       state={state}
+      {...options}
     />,
   );
 }
 
 describe('GoodSection', () => {
+  it('renders kit sections and restores failed uploaded paths, notice and invalid option values', () => {
+    const html = renderGoodSection(null, { attempt: 1, values: { previousId: '', name: '실패 뒤 상품', noticeAsContact: '복사된 연락처', imagePath: 'public-media/catalog/good/failed.webp', variants: '[{"name":"보존 옵션","code":"MANUAL","attributes":{},"extraPrice":-1,"stockQty":5}]' } });
+    expect(html).toContain('aria-label="기본 정보"');
+    expect(html).toContain('aria-label="배송 정보"');
+    expect(html).toContain('value="실패 뒤 상품"');
+    expect(html).toContain('value="복사된 연락처"');
+    expect(html).toContain('value="public-media/catalog/good/failed.webp"');
+    expect(html).toContain('value="보존 옵션"');
+    expect(html).toContain('value="-1"');
+    expect(html.match(/data-auto-upload="true"/g)).toHaveLength(6);
+    expect(html).toContain('최근 저장된 상품에서 복사');
+    expect(html).toContain('프리셋 찾기');
+  });
+  it('초안 저장은 브라우저 고시 필수 검증에 막히지 않고 공개 이미지 오류를 표시한다', () => {
+    const html = renderGoodSection(null, { errors: { imagePath: '대표 이미지를 업로드한 뒤 공개해주세요.' } });
+    expect(html).toContain('초안으로 저장');
+    expect(html).toContain('저장 후 공개');
+    expect(html).toContain('대표 이미지를 업로드한 뒤 공개해주세요.');
+    const noticeInputs = html.match(/<input[^>]*name="notice[^"]*"[^>]*>/g) ?? [];
+    expect(noticeInputs).toHaveLength(7);
+    expect(noticeInputs.every(input => !input.includes('required='))).toBe(true);
+  });
+  it('상품코드 검색이 목록을 거르고 새 상품의 연결 IP가 미리 채워진다',()=>{
+    const matching=renderGoodSection(null,{}, {initialQuery:'hw-0100',initialIpId:'hwasan'});
+    expect(matching).toContain('HW-0100 · 화산강림 아크릴 스탠드 · 12개');
+    expect(matching).toContain('<option value="hwasan" selected="">');
+    expect(matching).not.toContain('일치하는 상품이 없습니다.');
+    const empty=renderGoodSection(null,{}, {initialQuery:'없는 코드'});
+    expect(empty).toContain('일치하는 상품이 없습니다.');
+  });
   it('shows current inventory and a separate delta form for an existing good', () => {
     const html = renderGoodSection(good);
 
-    expect(html).toContain('현재 실재고');
+    expect(html).toContain('선택 옵션 재고');
     expect(html).toContain('12개');
-    expect(html).toContain('유효 표시 상태');
     expect(html).toContain('low');
     expect(html).toContain('name="delta"');
     expect(html).toContain('name="reason"');
@@ -129,15 +164,15 @@ describe('GoodSection', () => {
     expect(html).toContain('name="adjustmentId"');
     expect(html).toContain('name="expectedStockQty"');
     expect(html).toContain('재고 조정');
-    /* 저장 · 재고 조정 · 무통장 토글(#256) · 판매 제한(#392) · 보관 다섯 개다. */
-    expect(html.match(/<form/g)).toHaveLength(5);
+    /* 저장 · 재고 조정 · 무통장 토글(#256) · 판매 제한(#392) · 게시 상태 · 보관 여섯 개다. */
+    expect(html.match(/<form/g)).toHaveLength(6);
   });
 
   it('derives soldout for zero quantity without changing the raw stock label', () => {
     const html = renderGoodSection({ ...good, stock: 'ok', stockQty: 0 });
 
-    expect(html).toContain('운영 상태 ok');
-    expect(html).toContain('유효 표시 상태 soldout');
+    expect(html).toContain('<option value="ok" selected="">');
+    expect(html).toContain('판매 준비 중');
   });
 
   it('does not expose inventory adjustment controls while creating a new good', () => {
@@ -175,7 +210,7 @@ describe('GoodSection', () => {
     const html = renderGoodSection(archived);
 
     expect(html).toContain('aria-label="보관 상태"');
-    expect(html).toContain('[보관] g100 · 화산강림 아크릴 스탠드 · 12개');
+    expect(html).toContain('[보관] HW-0100 · 화산강림 아크릴 스탠드 · 12개');
     expect(html).toContain('보관 복원');
     expect(html).toContain('value="good"');
     expect(html).not.toContain('현재 실재고');
@@ -187,7 +222,7 @@ describe('GoodSection', () => {
   it('renders every goods notice item as a labelled required input', () => {
     const html = renderGoodSection(null);
 
-    expect(html).toContain('고시정보 (전자상거래 필수 표기)');
+    expect(html).toContain('상품정보제공고시 (전자상거래 필수 표기)');
     for (const field of GOODS_NOTICE_FIELDS) {
       expect(html).toContain(`name="${field.formName}"`);
       expect(html).toContain(field.label);
@@ -201,7 +236,10 @@ describe('GoodSection', () => {
 
     expect(html).toContain('value="주식회사 아이콘스"');
     expect(html).toContain('value="02-000-0000"');
-    expect(html).toContain('id="noticeOrigin-error"');
+    const originControl = html.match(/<input[^>]*name="noticeOrigin"[^>]*>/)?.[0];
+    const errorId = originControl?.match(/aria-describedby="([^"]+)"/)?.[1];
+    expect(errorId).toBeTruthy();
+    expect(html).toContain(`id="${errorId}" role="alert"`);
     expect(html).toContain('고시정보 필수 항목입니다.');
   });
 
@@ -238,7 +276,7 @@ describe('GoodSection', () => {
 
     expect(html).toContain('공개 화면 미리보기');
     expect(html).toContain('굿즈샵 목록 카드');
-    expect(html).toContain('굿즈 상세페이지');
+    expect(html).toContain('상품 상세페이지');
     /* wc 토큰은 .wc-root 스코프 안에서만 산다 — 어드민 캔버스를 밝게 바꾸지 않는다. */
     expect(html).toContain('wc-root');
     expect(html).toContain('wc-product-card');
@@ -257,8 +295,8 @@ describe('GoodSection', () => {
     const html = renderGoodSection(good);
 
     expect(html).not.toContain('shop-cart-button');
-    /* 저장 · 재고 조정 · 무통장 토글 · 판매 제한 · 보관 다섯 개 그대로다. 미리보기는 폼을 늘리지 않는다. */
-    expect(html.match(/<form/g)).toHaveLength(5);
+    /* 저장 · 재고 조정 · 무통장 토글 · 판매 제한 · 게시 상태 · 보관 여섯 개 그대로다. 미리보기는 폼을 늘리지 않는다. */
+    expect(html.match(/<form/g)).toHaveLength(6);
   });
 
   /* #326 — 유형·배지는 자유 입력이 아니라 표준 값 select 다(DB CHECK 와 같은 목록). */

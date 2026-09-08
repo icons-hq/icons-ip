@@ -9,14 +9,13 @@ import { WishlistHeart } from '@/components/shop/WishlistHeart';
 import { Badge } from '@/components/wc/Badge';
 import { PriceBlock } from '@/components/wc/PriceBlock';
 import { TabPanels, type TabPanelDef } from '@/components/wc/TabPanels';
-import { krwAmountWords } from '@/lib/format';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { goodsNoticeRows } from '@/lib/goods-notice';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import { newInquiryHref } from '@/lib/inquiries';
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
 import { formatReviewAverage, reviewRatingLabel, type ReviewRatingSummary } from '@/lib/reviews';
-import { getShippingPolicy } from '@/lib/shipping';
+import { shippingPolicyDescription, type GoodShippingPolicy } from '@/lib/fulfillment';
 
 /*
  * 굿즈 상세 (#173 → #326 White Catalog 재조판).
@@ -95,13 +94,13 @@ function NoticeTable({ detail }: { detail: GoodDetailContent }) {
   );
 }
 
-function ShippingGuide() {
-  const policy = getShippingPolicy();
+function ShippingGuide({ policy }: { policy?: GoodShippingPolicy | null }) {
   return (
     <section aria-labelledby="pdp-shipping-heading" className="wc-pdp-guide">
       <h2 className="wc-pdp-panel__title" id="pdp-shipping-heading">배송 안내</h2>
       <ul className="wc-pdp-guide__list">
-        <li>배송비 {krwAmountWords(policy.baseFee)} · {krwAmountWords(policy.freeThreshold)} 이상 구매 시 무료</li>
+        <li>{policy ? shippingPolicyDescription(policy) : '배송 정책을 확인하지 못했습니다. 주문 전에 배송비를 확인해주세요.'}</li>
+        <li>출고지별 정책 적용 굿즈의 할인 전 소계로 무료배송 조건을 확인합니다. 다른 출고지의 배송비는 각각 더합니다.</li>
         {/*
          * 출고 기한의 진실원은 배송·반품 정책(/legal/shipping 1. 배송 안내)이다. 여기서 더 짧은
          * 영업일 수를 따로 적으면 약관 제13조 3항이 손해배상 기준으로 삼는 "약정 배송기간"이
@@ -155,6 +154,7 @@ function InquiryEntry({ goodId }: { goodId: string }) {
 
 export interface GoodDetailViewProps {
   detail: GoodDetailContent;
+  shippingPolicy?: GoodShippingPolicy | null;
   /** 어드민 미리보기처럼 다른 화면 안에 놓일 때. 구매 패널·하트를 비활성으로 그린다. */
   embedded?: boolean;
   reviews?: ReactNode;
@@ -172,6 +172,7 @@ export interface GoodDetailViewProps {
 
 export function GoodDetailView({
   detail,
+  shippingPolicy,
   embedded = false,
   engagement,
   qna,
@@ -258,7 +259,7 @@ export function GoodDetailView({
       label: '배송·교환 안내',
       content: (
         <div className="wc-pdp-panel">
-          <ShippingGuide />
+          <ShippingGuide policy={shippingPolicy} />
           <ReturnGuide />
         </div>
       ),
@@ -279,7 +280,7 @@ export function GoodDetailView({
               </div>
             ) : null}
             <h1 className="wc-pdp__title">{good.name}</h1>
-            <PriceBlock className="wc-pdp__price" compareAtPrice={good.compareAtPrice} price={good.price} />
+            <PriceBlock className="wc-pdp__price" compareAtPrice={good.compareAtPrice} price={good.price} priceMax={good.priceMax} />
             <div className="wc-pdp-tools">
               {reviewSummary ? (
                 <p className="wc-pdp-tools__rating">
@@ -330,6 +331,7 @@ export function GoodDetailView({
 /** 공개 라우트용. 목록 카드와 같은 재고·수량 제약을 그대로 쓴다. */
 export function GoodDetail({
   detail,
+  shippingPolicy,
   engagement,
   qna,
   qnaSummary,
@@ -337,6 +339,7 @@ export function GoodDetail({
   reviews,
 }: {
   detail: GoodDetailContent;
+  shippingPolicy?: GoodShippingPolicy | null;
   engagement?: { wished: boolean; restockRequested: boolean };
   qna?: ReactNode;
   qnaSummary?: { count: number };
@@ -346,6 +349,7 @@ export function GoodDetail({
   return (
     <GoodDetailView
       detail={detail}
+      shippingPolicy={shippingPolicy}
       engagement={engagement}
       qna={qna}
       qnaSummary={qnaSummary}

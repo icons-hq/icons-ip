@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { businessContactWords } from './business-info';
+import { BUSINESS_INFO, businessContactWords } from './business-info';
 import {
   LEGAL_DOCUMENTS,
   LEGAL_DOCUMENT_SLUGS,
@@ -375,9 +375,12 @@ describe('배송·반품 정책', () => {
   const shipping = LEGAL_DOCUMENTS.shipping;
   const text = plainText(shipping);
 
-  it('배송비 고지가 현재 구매 정책과 같은 금액을 안내한다 (계획 D5)', () => {
-    expect(text).toContain('3,000원');
-    expect(text).toContain('50,000원 이상');
+  it('출고지별 DB 정책 안내와 합산 기준을 설명하고 고정 금액을 복제하지 않는다', () => {
+    expect(text).toContain('출고지별');
+    expect(text).toContain('할인 전');
+    expect(text).toContain('굿즈당 한 번');
+    expect(text).not.toContain('3,000원');
+    expect(text).not.toContain('50,000원 이상');
   });
 
   /* 주문 상세의 청약철회는 주문 단위 하나뿐이고, cancelTossPayment가 cancelAmount 없이
@@ -414,3 +417,5 @@ describe('배송·반품 정책', () => {
     expect(text).toMatch(/반송 주소/);
   });
 });
+
+it("설정 연락처 변경을 모든 법정 문서에 반영한다",()=>{for(const slug of LEGAL_DOCUMENT_SLUGS){const rendered=JSON.stringify(getLegalDocument(slug,{...BUSINESS_INFO,phone:"",email:"current@example.test"}));expect(rendered).toContain("current@example.test");expect(rendered).not.toContain(BUSINESS_INFO.phone);}});

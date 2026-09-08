@@ -1,8 +1,4 @@
-import { krwAmountWords } from '@/lib/format';
-import { getShippingPolicy } from '@/lib/shipping';
 import type { AdminGuideTopic } from '../types';
-
-const shippingPolicy = getShippingPolicy();
 
 export const DEV_REQUESTS_TOPIC: AdminGuideTopic = {
   slug: 'dev-requests',
@@ -14,18 +10,13 @@ export const DEV_REQUESTS_TOPIC: AdminGuideTopic = {
       id: 'not-in-admin',
       heading: '개발팀 요청으로만 바뀌는 설정',
       paragraphs: [
+        '사업자·CS 연락처, 무통장 계좌 표시값, 택배사 등록·비활성화, 출고지별 배송비 정책은 이제 설정 화면에서 관리자(admin)가 변경합니다.',
         '아래 항목은 어드민 화면 어디에도 스위치가 없습니다. 배포 설정·서버 설정·데이터 등록이 필요하므로 개발팀에 요청해주세요.',
       ],
       table: {
         columns: ['항목', '현재 방식'],
         rows: [
           ['카드 결제(PG) 열기·닫기', '배포 환경 설정으로 제어됩니다. 판매 개시·중단 일정이 잡히면 미리 요청해주세요.'],
-          ['무통장 입금 법인계좌 정보', '서버 설정입니다. 계좌가 설정되지 않으면 무통장 결제 자체가 화면에 뜨지 않습니다.'],
-          ['택배사 추가·계약 종료 처리', '택배사 목록은 데이터로 등록됩니다. 새 택배사 코드·이름·조회 주소를 함께 전달해주세요.'],
-          [
-            `배송비 정책 (현재 ${krwAmountWords(shippingPolicy.baseFee)} · ${krwAmountWords(shippingPolicy.freeThreshold)} 이상 무료)`,
-            '코드에 고정된 정책값입니다. 금액 변경은 공개 배송정책 문서 개정과 함께 진행됩니다.',
-          ],
           ['오래된 계정의 운영 역할 부여', '역할 화면 목록(최근 가입 50명) 밖의 계정은 개발팀이 처리합니다.'],
           ['도서산간 추가요금', '아직 시스템이 계산하지 않습니다. 별도 안내로 운영합니다.'],
         ],
@@ -38,7 +29,6 @@ export const DEV_REQUESTS_TOPIC: AdminGuideTopic = {
         '아래는 요청해도 스위치를 켜는 문제가 아니라 기능을 새로 만들어야 하는 영역입니다. 현재 동작을 전제로 운영 절차를 잡아주세요.',
       ],
       list: [
-        '굿즈 옵션(사이즈·색상) — 굿즈는 단일 구성입니다. 구성이 다르면 별도 굿즈로 등록합니다.',
         '부분 취소·부분 환불 — 취소·반품의 환불은 주문 단위 전액뿐입니다.',
         '어드민에서 클레임 만들기 — 클레임은 구매자가 주문 상세에서 접수합니다.',
         '어드민에서 예매 만들기 — 티켓은 고객 결제로만 발권됩니다.',

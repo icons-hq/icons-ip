@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BUSINESS_INFO, businessContactWords } from '@/lib/legal/business-info';
+import { BUSINESS_INFO, businessContactWords, type BusinessInfo as BusinessInfoData } from '@/lib/legal/business-info';
 import { LEGAL_DOCUMENT_LABELS, LEGAL_DOCUMENT_SLUGS, legalDocumentHref } from '@/lib/legal/links';
 import {
   FOOTER_ACCOUNT_ITEMS,
@@ -17,7 +17,7 @@ import { useCardRewardsEnabled } from './CardRewardAvailability';
 /* White Catalog 푸터. 링크 목록은 전부 lib/routes.ts가 진실원이고 여기서는 배치만 한다.
  * 법정 고지 3종은 회사·정책 행 뒤에 이어 붙는다 — 사업자 정보와 함께 표시 의무가 걸린 블록이라
  * 접이식(details) 안이라도 마크업에서 사라지지 않는다. */
-export function SiteFooter() {
+export function SiteFooter({businessInfo=BUSINESS_INFO}:{businessInfo?:BusinessInfoData}) {
   const pathname = usePathname();
   const cardRewardsEnabled = useCardRewardsEnabled();
   // 숨김 범위는 Nav와 같다 — 게임은 자기완결 번들, 어드민은 자체 작업대, 인증은 집중형 셸을 사용한다.
@@ -45,10 +45,10 @@ export function SiteFooter() {
         <div className="wc-footer__middle">
           <div className="wc-footer__cs">
             <h2 className="wc-footer__heading">고객센터</h2>
-            <p className="wc-footer__cs-lines">{businessContactWords()}</p>
+            <p className="wc-footer__cs-lines">{businessContactWords(businessInfo)}</p>
             <details className="wc-footer__biz">
-              <summary>{BUSINESS_INFO.companyName} 사업자 정보</summary>
-              <BusinessInfo className="wc-footer__biz-rows" />
+              <summary>{businessInfo.companyName} 사업자 정보</summary>
+              <BusinessInfo info={businessInfo} className="wc-footer__biz-rows" />
             </details>
           </div>
 

@@ -303,7 +303,7 @@ export function normalizeAdminClaimRefundForm(
 
 export function normalizeAdminClaimReshipmentForm(
   formData: FormData,
-): AdminClaimFormResult<{ claimId: string; carrier: string; trackingNumber: string }> {
+): AdminClaimFormResult<{ claimId: string; carrier: string; trackingNumber: string; items: { orderItemId: string; variantId: string }[] }> {
   const claimId = readString(formData, 'claimId').toLowerCase();
   const carrier = readString(formData, 'carrier');
   const trackingNumber = readString(formData, 'trackingNumber').toUpperCase();
@@ -314,7 +314,18 @@ export function normalizeAdminClaimReshipmentForm(
     return { ok: false, error: '운송장번호를 영문 대문자와 숫자 8~30자로 입력해주세요.' };
   }
 
-  return { ok: true, value: { claimId, carrier, trackingNumber } };
+  const items: { orderItemId: string; variantId: string }[] = [];
+  const seen = new Set<string>();
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith('variant:')) continue;
+    const orderItemId = key.slice(8).toLowerCase();
+    const variantId = typeof value === 'string' ? value.toLowerCase() : '';
+    if (!UUID_PATTERN.test(orderItemId) || !UUID_PATTERN.test(variantId) || seen.has(orderItemId)) {
+      return { ok: false, error: '재출고할 품목과 옵션을 확인해주세요.' };
+    }
+    seen.add(orderItemId); items.push({ orderItemId, variantId });
+  }
+  return { ok: true, value: { claimId, carrier, trackingNumber, items } };
 }
 
 export function normalizeAdminClaimCollectionForm(

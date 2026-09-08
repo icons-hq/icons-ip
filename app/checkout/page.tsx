@@ -52,7 +52,7 @@ export default async function Page({ searchParams }: PageProps) {
          상품은 현재 담기 자체가 차단되고, 19금 오픈 트랙에서 카트 파생과 함께
          korpay gate 분기가 이 자리에 온다(#392). 서버 prepare가 최종 gate다. */
       paymentAvailable={goodsCheckoutPaymentsEnabled(auth.user.id)}
-      bankTransferAvailable={bankTransferCheckoutEnabled()}
+      bankTransferAvailable={await bankTransferCheckoutEnabled()}
       appliedCoupon={appliedCoupon}
       paymentFailCode={paymentFailCode}
     />

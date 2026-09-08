@@ -6,6 +6,9 @@ export interface Rarity {
   foil: boolean;
 }
 
+/** Card foil is artwork material, independent of the page design system. */
+export const CARD_FOIL_BACKGROUND = 'linear-gradient(115deg, #2DE2FF 0%, #8B5CFF 34%, #FF4D9D 66%, #FFB23D 100%)';
+
 export const RARITY_META: Record<RarityKey, Rarity> = {
   N: { label: 'N', color: '#7E7AA0', foil: false },
   R: { label: 'R', color: '#2DE2FF', foil: false },
@@ -32,9 +35,9 @@ export interface RarityTag {
 /* 등급 배지의 표시 파생. RARITY_META의 색은 다크 표면 전제라 배지 배경으로 쓰면
    그 위 글자 대비가 등급마다 달라진다. 그래서 배경 알파와 글자색을 여기서 함께 정한다. */
 export function rarityTag(rarity: RarityKey): RarityTag {
-  if (rarity === 'HOLO') return { color: '#0A0813', bg: 'var(--holo)', ring: `${RARITY_META.HOLO.color}99` };
-  if (rarity === 'N') return { color: 'var(--text)', bg: 'rgba(8,6,15,.75)', ring: 'rgba(255,255,255,.18)' };
+  if (rarity === 'HOLO') return { color: '#0A0813', bg: CARD_FOIL_BACKGROUND, ring: `${RARITY_META.HOLO.color}99` };
+  if (rarity === 'N') return { color: '#11110f', bg: 'rgba(8,6,15,.75)', ring: 'rgba(255,255,255,.18)' };
   const c = RARITY_META[rarity].color;
   const ink = rarity === 'R'; // cyan 위엔 잉크색이 읽힌다
-  return { color: ink ? '#0A0813' : 'var(--text)', bg: `${c}${ink ? 'E6' : 'D9'}`, ring: `${c}73` };
+  return { color: ink ? '#0A0813' : '#11110f', bg: `${c}${ink ? 'E6' : 'D9'}`, ring: `${c}73` };
 }

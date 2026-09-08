@@ -51,6 +51,7 @@ interface ExchangeOfferRow {
 }
 
 interface GoodRow {
+  goods_variants?: {price:number; archived_at:string|null}[];
   id: string;
   name: string;
   price: number;
@@ -81,6 +82,7 @@ export interface ExchangeOfferView {
 }
 
 export interface GoodCardView {
+  priceMax?: number;
   id: string;
   name: string;
   price: number;
@@ -205,11 +207,12 @@ async function loadSectionGoods(
 
   const { data, error } = await supabase
     .from('goods')
-    .select('id,name,price,compare_at_price,badge,stock,stock_qty,bg,image_path,ips:ip_id(archived_at,published_at)')
+    .select('id,name,price,compare_at_price,badge,stock,stock_qty,bg,image_path,ips:ip_id(archived_at,published_at),goods_variants(price,archived_at)')
     .in('id', goodIds)
     // 캠페인 섹션은 카탈로그 스냅샷을 우회하는 직접 조회라 보관 제외와
     // 판매 제한 비노출(#392)을 여기서 따로 건다.
     .is('archived_at', null)
+    .not('published_at', 'is', null)
     .eq('sale_restriction', 'none');
 
   if (error) return new Map();
@@ -218,10 +221,12 @@ async function loadSectionGoods(
   return new Map(((data ?? []) as unknown as GoodRow[]).filter((row) => row.ips?.published_at && !row.ips.archived_at).map((row) => {
     const imageUrl = toPublicUrl(row.image_path);
     const stockQty = row.stock_qty ?? 0;
+    const prices = row.goods_variants?.filter(option => option.archived_at === null).map(option => option.price) ?? [];
     return [row.id, {
       id: row.id,
       name: row.name,
-      price: row.price,
+      price: prices.length ? Math.min(...prices) : row.price,
+      priceMax: prices.length ? Math.max(...prices) : row.price,
       compareAtPrice: row.compare_at_price ?? null,
       badge: row.badge,
       soldOut: stockQty <= 0 || row.stock === 'soldout',

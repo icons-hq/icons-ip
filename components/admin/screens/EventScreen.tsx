@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminPageHeader } from '@/components/admin/console/AdminKit';
 import { useActionState, useMemo } from 'react';
 import { upsertAdminEventAction, type AdminCatalogActionState } from '@/app/admin/actions';
 import { EventSection } from '@/components/admin/sections/EventSection';
@@ -21,6 +22,7 @@ export function EventScreen({
   const { selected, select } = useSelectedRecord(records);
 
   return (
+    <><AdminPageHeader title="이벤트·회차" description="이벤트 정보와 예매 회차를 관리합니다." />
     <EventSection
       action={action}
       ipOptions={ipOptions}
@@ -29,6 +31,6 @@ export function EventScreen({
       records={records}
       selected={selected}
       state={state}
-    />
+    /></>
   );
 }

@@ -1,3 +1,4 @@
+import { shipmentFixture } from '@/lib/orders/shipments.fixture';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import {
   sendOrderConfirmationEmail,
@@ -8,6 +9,7 @@ import {
 const ORDER_ID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
 
 const mocks = vi.hoisted(() => ({
+  shipments: [] as import('@/lib/orders/shipments').ShipmentRecord[],
   serviceConfigured: true,
   providerConfigured: true,
   send: vi.fn(),
@@ -66,6 +68,8 @@ vi.mock('@/lib/orders/shipment.server', () => {
   };
 });
 
+vi.mock('@/lib/orders/shipments.server', () => ({ loadOrderShipments: async () => mocks.shipments }));
+
 vi.mock('./provider.server', () => ({
   getEmailProviderConfig: () => ({ isConfigured: mocks.providerConfigured }),
   sendTransactionalEmail: mocks.send,
@@ -86,6 +90,7 @@ beforeEach(() => {
   mocks.rpc.mockImplementation(async (name: string) => (
     name === 'claim_email_delivery' ? { data: true, error: null } : { data: null, error: null }
   ));
+  mocks.shipments = [shipmentFixture({orderId:ORDER_ID,trackingUrl:'https://www.hanjin.com/tracking?number=123456789012'})];
   mocks.orderError = null;
   mocks.itemsError = null;
   mocks.order = {
@@ -102,11 +107,11 @@ beforeEach(() => {
     },
   };
   mocks.items = [
-    { good_name_snapshot: '홍실 아크릴 블록', qty: 2, unit_price: 12_000 },
+    { id:'item-1', good_name_snapshot: '홍실 아크릴 블록', qty: 2, unit_price: 12_000 },
   ];
   mocks.profile = { email: 'buyer@example.com' };
   mocks.goodError = null;
-  mocks.good = { name: '홍실 아크릴 블록' };
+  mocks.good = { name: '홍실 아크릴 블록', published_at: '2026-09-08', archived_at: null, sale_restriction: 'none', ips: { published_at: '2026-09-08', archived_at: null } };
   mocks.restockError = null;
   mocks.restockRows = [
     {
@@ -145,8 +150,8 @@ describe('sendOrderConfirmationEmail', () => {
     });
   });
 
-  it('배송비는 결제 총액에서 굿즈 합계를 뺀 값으로 파생한다', async () => {
-    mocks.order = { ...mocks.order, total: 27_000 };
+  it('배송비와 쿠폰 할인은 주문 당시 저장값을 별도로 표시한다', async () => {
+    mocks.order = { ...mocks.order, total: 22_000, shipping_fee: 3000, discount_total: 5000 };
     mocks.items = [{ good_name_snapshot: '홍실 아크릴 블록', qty: 2, unit_price: 12_000 }];
 
     await sendOrderConfirmationEmail(ORDER_ID);
@@ -154,7 +159,8 @@ describe('sendOrderConfirmationEmail', () => {
     const body = mocks.send.mock.calls[0][0].text as string;
     expect(body).toContain('굿즈 합계: ₩24,000');
     expect(body).toContain('배송비: ₩3,000');
-    expect(body).toContain('총 결제금액: ₩27,000');
+    expect(body).toContain('쿠폰 할인: −₩5,000');
+    expect(body).toContain('총 결제금액: ₩22,000');
   });
 
   it('이미 발송된 주문은 클레임에 실패하고 다시 보내지 않는다', async () => {
@@ -279,17 +285,15 @@ describe('sendOrderShippedEmail', () => {
     mocks.order = { ...mocks.order, status: 'shipping' };
   });
 
-  it('운송장 값을 인자로 받아 본문에 넣는다', async () => {
+  it('배송 건 ID로 저장된 운송장을 본문에 넣는다', async () => {
     const result = await sendOrderShippedEmail({
       orderId: ORDER_ID,
-      carrierName: '한진택배',
-      trackingNumber: '123456789012',
-      trackingUrl: 'https://www.hanjin.com/tracking?number=123456789012',
+      shipmentId: mocks.shipments[0].id,
     });
 
     expect(result.status).toBe('sent');
     expect(rpcCalls('claim_email_delivery')[0][1]).toMatchObject({
-      target_dedupe_key: `order_shipped:${ORDER_ID}`,
+      target_dedupe_key: `order_shipped:${ORDER_ID}:${mocks.shipments[0].id}`,
       target_template: 'order_shipped',
     });
     const body = mocks.send.mock.calls[0][0].text as string;
@@ -306,7 +310,7 @@ describe('sendOrderShippedEmail', () => {
 
   // 인자에만 의존하면 값을 넘기지 않는 호출자 하나가 빈 메일을 보내고 dedupe 행을
   // sent로 닫아버린다. 재발송처럼 폼 입력이 없는 경로도 완전한 메일을 만들어야 한다.
-  it('인자를 생략하면 주문 행의 운송장을 읽어 본문에 넣는다', async () => {
+  it('legacy 단일 배송건은 식별자를 생략해도 저장된 운송장을 읽는다', async () => {
     mocks.order = {
       ...mocks.order,
       shipping_carrier: 'hanjin',
@@ -377,6 +381,12 @@ describe('sendRestockAlertEmails (#326)', () => {
   });
 
   /* 재고를 건드릴 때마다 조건 없이 불린다 — 신청자 없는 굿즈가 절대다수다. */
+  it('발송 대기 중 상품이 초안으로 내려가면 재입고 메일을 보내지 않는다', async () => {
+    mocks.good = { ...mocks.good, published_at: null };
+    expect(await sendRestockAlertEmails('g13')).toEqual([{ status: 'skipped', reason: 'good_unavailable' }]);
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
   it('보낼 신청이 없으면 조용히 넘어간다', async () => {
     mocks.restockRows = [];
 
@@ -438,3 +448,24 @@ describe('sendRestockAlertEmails (#326)', () => {
     expect(loggedLines().some((line) => line.includes('restock alert failed'))).toBe(true);
   });
 });
+
+ it('같은 주문의 두 배송건에 각 품목만 담아 서로 다른 멱등 키로 보낸다', async () => {
+  mocks.order = {...mocks.order,status:'shipping'};
+  mocks.items = [{id:'item-1',good_name_snapshot:'김포 굿즈',qty:1,unit_price:1000},{id:'item-2',good_name_snapshot:'남양주 굿즈',qty:1,unit_price:1000}];
+  mocks.shipments = [shipmentFixture({orderId:ORDER_ID}),shipmentFixture({id:'00000000-0000-4000-8000-000000044702',orderId:ORDER_ID,originName:'남양주',orderItemIds:['item-2'],trackingNumber:'9876543210'})];
+  await sendOrderShippedEmail({orderId:ORDER_ID,shipmentId:mocks.shipments[0].id});
+  await sendOrderShippedEmail({orderId:ORDER_ID,shipmentId:mocks.shipments[1].id});
+  const claims = rpcCalls('claim_email_delivery');
+  expect(claims[0][1].target_dedupe_key).not.toBe(claims[1][1].target_dedupe_key);
+  expect(mocks.send.mock.calls[0][0].text).toContain('김포 굿즈');
+  expect(mocks.send.mock.calls[0][0].text).not.toContain('남양주 굿즈');
+  expect(mocks.send.mock.calls[1][0].text).toContain('남양주 굿즈');
+  expect(mocks.send.mock.calls[1][0].text).not.toContain('김포 굿즈');
+  expect(await sendOrderShippedEmail({orderId:ORDER_ID})).toEqual({status:'skipped',reason:'shipment_reference_required'});
+ });
+ it('다른 배송이 출발했어도 아직 준비 중인 배송건의 메일은 보내지 않는다', async () => {
+  mocks.order = {...mocks.order,status:'shipping'};
+  mocks.shipments[0].status='ready';
+  expect(await sendOrderShippedEmail({orderId:ORDER_ID,shipmentId:mocks.shipments[0].id})).toEqual({status:'skipped',reason:'shipment_status_mismatch'});
+  expect(mocks.send).not.toHaveBeenCalled();
+ });

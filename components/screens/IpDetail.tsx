@@ -244,7 +244,7 @@ export function IpDetail({
                   href={goodDetailHref(good.id)}
                   imageBackground={good.img}
                   name={good.name}
-                  price={good.price}
+                  price={good.price} priceMax={good.priceMax}
                   soldOut={good.stock === 'soldout'}
                 />
               ))}

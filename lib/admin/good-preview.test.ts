@@ -36,6 +36,16 @@ const values = {
 };
 
 describe('어드민 굿즈 미리보기', () => {
+  it('projects unsaved option prices, order and total inventory into the public preview', () => {
+    const preview = buildGoodPreview({ values: { ...values, price: '1000', variants: JSON.stringify([
+      { name: '파랑 / L', code: 'B-L', attributes: { 색상: '파랑', 사이즈: 'L' }, extraPrice: 500, stockQty: 2 },
+      { name: '빨강 / M', code: 'R-M', attributes: { 색상: '빨강', 사이즈: 'M' }, extraPrice: 0, stockQty: 3 },
+    ]) }, imageUrls: {}, ip, fallbackBg: null, stockQty: 99 });
+    expect(preview.good).toMatchObject({ price: 1000, priceMax: 1500, stockQty: 5, options: [
+      { name: '파랑 / L', price: 1500, stockQty: 2, isDefault: true },
+      { name: '빨강 / M', price: 1000, stockQty: 3, isDefault: false },
+    ] });
+  });
   /* #184 — 저장된 값이 아니라 지금 폼에 들어 있는 값을 그린다. */
   it('폼 값과 업로드 전 이미지를 공개 화면 모양으로 옮긴다', () => {
     const preview = buildGoodPreview({

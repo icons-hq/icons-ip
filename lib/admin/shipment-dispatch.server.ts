@@ -1,0 +1,13 @@
+import 'server-only';
+import {createClient} from '@/lib/supabase/server';
+import {getShippingCarrierRegistry} from '@/lib/orders/shipment.server';
+import {SHIPMENT_CONSOLE_PAGE_SIZE,type ShipmentConsoleData,type ShipmentConsoleFilters,type ShipmentConsoleSurface} from './shipment-dispatch';
+export async function getShipmentConsoleData(filters:ShipmentConsoleFilters,surface:ShipmentConsoleSurface):Promise<ShipmentConsoleData>{
+ const client=await createClient();const pageSize=SHIPMENT_CONSOLE_PAGE_SIZE;
+ const [result,origins,carriers]=await Promise.all([
+  client.rpc('admin_search_shipments',{p_tab:filters.tab,p_origin_id:filters.originId,p_query:filters.query||null,p_from:filters.from,p_to:filters.to,p_limit:pageSize,p_offset:(filters.page-1)*pageSize}),
+  client.from('fulfillment_origins').select('id,name').order('code'),getShippingCarrierRegistry(),
+ ]);
+ if(result.error||origins.error||!result.data)throw new Error('배송 건 목록을 불러오지 못했습니다.');
+ return {...result.data,surface,filters,pageSize,origins:origins.data??[],carriers} as ShipmentConsoleData;
+}

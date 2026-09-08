@@ -59,7 +59,7 @@ export function EmailDeliverySection({ deliveries }: { deliveries: EmailDelivery
       </p>
 
       {!deliveries.length ? (
-        <div className="card col" role="status" style={{ borderRadius: 10, gap: 6, padding: 18 }}>
+        <div className="card col wc-admin-kit wc-admin-kit__card" role="status" style={{ gap: 6 }}>
           <strong>다시 보낼 메일이 없습니다.</strong>
           <span className="muted" style={{ fontSize: 13 }}>
             실패했거나 결과를 확인하지 못한 발송이 생기면 여기에 쌓입니다.
@@ -69,9 +69,9 @@ export function EmailDeliverySection({ deliveries }: { deliveries: EmailDelivery
         <ul className="col" style={{ gap: 10, listStyle: 'none', margin: 0, padding: 0 }}>
           {deliveries.map((delivery) => (
             <li
-              className="card col"
+              className="card col wc-admin-kit wc-admin-kit__card"
               key={delivery.dedupeKey}
-              style={{ borderRadius: 10, gap: 8, padding: 16 }}
+              style={{ gap: 8 }}
             >
               <div className="row" style={{ gap: 8, justifyContent: 'space-between' }}>
                 <strong>{delivery.templateLabel}</strong>

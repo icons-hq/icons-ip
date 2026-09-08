@@ -20,6 +20,16 @@ const data = (values: Record<string, string>) => Object.entries(values);
 afterEach(() => vi.useRealTimers());
 
 describe('admin local autosave', () => {
+  it('recovers public goods notice contact and a full option list while still excluding account contacts', () => {
+    const storage = memoryStorage();
+    const goodsScope = { ...scope, formId: 'good' };
+    const allowed = ['noticeAsContact', 'customerContact', 'variants'];
+    const session = createAdminLocalAutosave({ scope: goodsScope, fields: allowed, storage });
+    const variants = 'v'.repeat(70000);
+    session.capture(data({ noticeAsContact: '공개 A/S 연락처', customerContact: '개인 연락처', variants })); session.flush();
+    expect(createAdminLocalAutosave({ scope: goodsScope, fields: allowed, storage }).getSnapshot().recovery?.values).toEqual({ noticeAsContact: '공개 A/S 연락처', variants });
+    expect(createAdminLocalAutosave({ scope, fields: allowed, storage }).getSnapshot().recovery).toBeNull();
+  });
   it('gives returned server validation values priority over a locally restored draft', () => {
     const server = { attempt: 2, values: { previousId: 'hwasan', title: '검증에 실패한 실제 제출값' } };
     expect(withLocalRecoveryValues(server, 'hwasan', { title: '오래된 로컬 입력' })).toBe(server);

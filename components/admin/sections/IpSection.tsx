@@ -25,6 +25,7 @@ const LOCAL_DRAFT_FIELDS = ['id', 'title', 'sub', 'verticalKey', 'tagline', 'gly
 
 export function IpSection({
   accountId,
+  hideRecordList = false,
   action,
   onSelect,
   pending,
@@ -34,6 +35,7 @@ export function IpSection({
   verticals,
 }: {
   accountId: string;
+  hideRecordList?: boolean;
   action: (payload: FormData) => void;
   onSelect: (ip: AdminIpRecord | null) => void;
   pending: boolean;
@@ -71,8 +73,8 @@ export function IpSection({
   const offersPublish = publishState === 'draft';
 
   return (
-    <div className="admin-master-detail">
-      <div className="col" style={{ gap: 12, minWidth: 0 }}>
+    <div className={hideRecordList ? undefined : 'admin-master-detail'}>
+      {!hideRecordList ? <div className="col" style={{ gap: 12, minWidth: 0 }}>
         <CatalogArchiveFilter
           counts={adminCatalogArchiveCounts(records)}
           filter={archiveFilter}
@@ -90,7 +92,7 @@ export function IpSection({
           thumbnailKind="ip"
           thumbnailUrlFor={(ip) => ip.imageUrl}
         />
-      </div>
+      </div> : null}
       <div className="col" style={{ gap: 16, minWidth: 0 }}>
         <AdminLocalDraftNotice
           onDiscard={discard}

@@ -285,13 +285,13 @@ values (
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values (
   '60000000-0000-4000-8000-000000001901',
   'card-reward-gate-good', 1, 1000,
-  '카드 보상 게이트 굿즈', '문구', 'card-reward-gate-ip'
-);
+  '카드 보상 게이트 굿즈', '문구', 'card-reward-gate-ip',
+  (select id from public.goods_variants where good_id='card-reward-gate-good' and is_default));
 
 set local role service_role;
 select public.confirm_order_payment(

@@ -127,6 +127,7 @@ export interface HomeEditorPick {
 /* 홈 밴드가 그리는 상품 카드 뷰모델 — 서버에서 카탈로그와 조인을 끝내 내려보낸다.
    존재하지 않는 굿즈 id 는 서버 resolve 단계에서 걸러지므로 화면은 목록만 그린다. */
 export interface HomeGoodsCard {
+  priceMax?: number;
   id: string;
   name: string;
   brand: string | null;
@@ -195,6 +196,7 @@ export function resolveHomeGoodsCards(
       name: good.name,
       brand: brandByIpId.get(good.ip) ?? null,
       price: good.price,
+      priceMax: good.priceMax,
       badge: good.badge ?? null,
       imageBg: good.img,
       href: `/shop/${good.id}`,

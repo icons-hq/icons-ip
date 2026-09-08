@@ -13,12 +13,13 @@ export function GoodVariantsPanel({ goodId, variants }: { goodId: string; varian
       {selectedVariants.length ? (
         <div style={{ overflowX: 'auto' }}>
           <table style={{ borderCollapse: 'collapse', fontSize: 13, textAlign: 'left', width: '100%' }}>
-            <thead><tr>{['옵션명', '판매가', '할당 재고', '상태'].map((label) => (
+            <thead><tr>{['옵션명', '옵션코드', '판매가', '할당 재고', '상태'].map((label) => (
               <th key={label} scope="col" style={{ borderBottom: '1px solid var(--line)', padding: '8px 6px', whiteSpace: 'nowrap' }}>{label}</th>
             ))}</tr></thead>
             <tbody>{selectedVariants.map((variant) => (
               <tr key={variant.id}>
                 <td style={{ padding: '10px 6px' }}>{variant.name}{variant.isDefault && variant.name !== '기본 옵션' ? ' (기본)' : ''}</td>
+                <td style={{ padding: '10px 6px' }}>{variant.code}</td>
                 <td style={{ padding: '10px 6px', whiteSpace: 'nowrap' }}>{variant.price.toLocaleString('ko-KR')}원</td>
                 <td style={{ padding: '10px 6px', whiteSpace: 'nowrap' }}>{variant.stockQty.toLocaleString('ko-KR')}개</td>
                 <td style={{ padding: '10px 6px', whiteSpace: 'nowrap' }}>{variant.archivedAt ? '보관' : '사용 중'}</td>

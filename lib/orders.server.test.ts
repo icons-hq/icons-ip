@@ -211,6 +211,7 @@ describe('loadOrderDetail', () => {
     mocks.client = createClient({
       records,
       rows: {
+        order_shipments: [{id:'shipment-1',order_id:orderId,origin_id:'origin',origin_name_snapshot:'김포',shipping_fee:3000,status:'shipping',carrier:'hanjin',tracking_number:'123456789012',shipped_at:null,delivered_at:null,exported_at:null,order_shipment_items:[{order_item_id:'item-1'}]}],
         orders: [{
           id: orderId,
           user_id: userId,
@@ -233,6 +234,9 @@ describe('loadOrderDetail', () => {
           id: 'item-1',
           order_id: orderId,
           good_id: 'goods-1',
+          variant_id: 'variant-blue',
+          variant_name_snapshot: '파랑',
+          variant_code_snapshot: 'BLUE',
           qty: 2,
           unit_price: 27000,
           good_name_snapshot: '아크릴 스탠드',
@@ -303,6 +307,7 @@ describe('loadOrderDetail', () => {
     });
 
     const result = await loadOrderDetail(userId, orderId);
+    expect(result?.items[0]).toMatchObject({ variantId: 'variant-blue', variantName: '파랑', variantCode: 'BLUE' });
 
     expect(result).toMatchObject({
       id: orderId,
@@ -320,20 +325,22 @@ describe('loadOrderDetail', () => {
         decisionNote: null,
       },
       cardPacks: { issuedCount: 3, availableCount: 1 },
-      shipment: {
+      shipments: [{
         carrier: 'hanjin',
         carrierLabel: '한진택배',
         trackingNumber: '123456789012',
-      },
+      }],
     });
     expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|idempotency_key|raw|last_error_code/);
 
     expect(records.find((record) => record.table === 'orders')).toMatchObject({
-      select: 'id,user_id,status,total,shipping_fee,discount_total,address,created_at,shipping_carrier,tracking_number,delivered_at,payment_method,expires_at',
+      select: 'id,user_id,status,total,shipping_fee,discount_total,address,created_at,delivered_at,payment_method,expires_at',
       eq: [['id', orderId], ['user_id', userId]],
       in: [['status', ['pending', 'paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled']]],
       maybeSingle: true,
     });
+    expect(records.filter(record => record.table === 'order_shipments')).toHaveLength(1);
+    expect(records.find(record => record.table === 'order_shipments')?.in).toEqual([['order_id', [orderId]]]);
     expect(records.find((record) => record.table === 'payment_summaries')).toMatchObject({
       select: 'id,amount,status,created_at',
       eq: [['user_id', userId], ['purpose', 'order'], ['ref_id', orderId]],

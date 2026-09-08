@@ -199,19 +199,19 @@ insert into public.order_items (
   unit_price,
   good_name_snapshot,
   good_type_snapshot,
-  good_ip_id_snapshot
+  good_ip_id_snapshot, variant_id
 )
 values
-  ('40000000-0000-4000-8000-000000000701', 'order-cancel-no-payment', 1, 10000, '무결제 취소 굿즈', '문구', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000702', 'order-cancel-active', 1, 10000, '활성 결제 취소 굿즈', '문구', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000703', 'order-cancel-no-evidence', 1, 10000, '결제 증거 누락 굿즈', '문구', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000704', 'order-cancel-shipping', 1, 10000, '배송 중 굿즈', '문구', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000705', 'order-cancel-done', 1, 10000, '배송 완료 굿즈', '문구', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000706', 'order-cancel-terminal', 1, 10000, '종결 결제 취소 굿즈', '문구', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000707', 'order-cancel-reward', 1, 10000, '리워드 취소 굿즈', '문구', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000708', 'order-cancel-failed-evidence', 1, 10000, '실패 장부 취소 굿즈', '문구', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000709', 'order-cancel-claim', 1, 10000, '취소 claim 굿즈', '문구', 'order-cancel-ip'),
-  ('40000000-0000-4000-8000-000000000710', 'order-cancel-post-shipping', 1, 10000, '배송 후 취소 굿즈', '문구', 'order-cancel-ip');
+  ('40000000-0000-4000-8000-000000000701', 'order-cancel-no-payment', 1, 10000, '무결제 취소 굿즈', '문구', 'order-cancel-ip', (select id from public.goods_variants where good_id='order-cancel-no-payment' and is_default)),
+  ('40000000-0000-4000-8000-000000000702', 'order-cancel-active', 1, 10000, '활성 결제 취소 굿즈', '문구', 'order-cancel-ip', (select id from public.goods_variants where good_id='order-cancel-active' and is_default)),
+  ('40000000-0000-4000-8000-000000000703', 'order-cancel-no-evidence', 1, 10000, '결제 증거 누락 굿즈', '문구', 'order-cancel-ip', (select id from public.goods_variants where good_id='order-cancel-no-evidence' and is_default)),
+  ('40000000-0000-4000-8000-000000000704', 'order-cancel-shipping', 1, 10000, '배송 중 굿즈', '문구', 'order-cancel-ip', (select id from public.goods_variants where good_id='order-cancel-shipping' and is_default)),
+  ('40000000-0000-4000-8000-000000000705', 'order-cancel-done', 1, 10000, '배송 완료 굿즈', '문구', 'order-cancel-ip', (select id from public.goods_variants where good_id='order-cancel-done' and is_default)),
+  ('40000000-0000-4000-8000-000000000706', 'order-cancel-terminal', 1, 10000, '종결 결제 취소 굿즈', '문구', 'order-cancel-ip', (select id from public.goods_variants where good_id='order-cancel-terminal' and is_default)),
+  ('40000000-0000-4000-8000-000000000707', 'order-cancel-reward', 1, 10000, '리워드 취소 굿즈', '문구', 'order-cancel-ip', (select id from public.goods_variants where good_id='order-cancel-reward' and is_default)),
+  ('40000000-0000-4000-8000-000000000708', 'order-cancel-failed-evidence', 1, 10000, '실패 장부 취소 굿즈', '문구', 'order-cancel-ip', (select id from public.goods_variants where good_id='order-cancel-failed-evidence' and is_default)),
+  ('40000000-0000-4000-8000-000000000709', 'order-cancel-claim', 1, 10000, '취소 claim 굿즈', '문구', 'order-cancel-ip', (select id from public.goods_variants where good_id='order-cancel-claim' and is_default)),
+  ('40000000-0000-4000-8000-000000000710', 'order-cancel-post-shipping', 1, 10000, '배송 후 취소 굿즈', '문구', 'order-cancel-ip', (select id from public.goods_variants where good_id='order-cancel-post-shipping' and is_default));
 
 insert into public.payments (
   id, user_id, purpose, ref_id, amount, status,

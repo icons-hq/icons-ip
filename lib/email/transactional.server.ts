@@ -1,12 +1,14 @@
 import 'server-only';
 
 import { normalizeCheckoutAddress } from '../checkout';
-import { orderShipment, type OrderShipment } from '../orders/shipment';
+import type { ShipmentRecord } from '../orders/shipments';
+import { loadOrderShipments } from '../orders/shipments.server';
 import { loadShippingCarrierRegistry } from '../orders/shipment.server';
 import { createServiceClient, getServiceRoleConfig } from '../supabase/service';
 import {
   inquiryEmailDedupeKey,
   orderEmailDedupeKey,
+  shipmentEmailDedupeKey,
   restockAlertEmailDedupeKey,
   type EmailTemplateName,
   type OrderEmailTemplateName,
@@ -30,8 +32,7 @@ import {
  * 멱등은 email_deliveries 클레임이 담당한다(claim_email_delivery). 웹훅이 7번 재전송돼도
  * 확인 메일은 1통이다.
  *
- * 배송비는 orders 컬럼을 읽지 않고 `총 결제금액 - 굿즈 합계`로 파생한다. 배송비 컬럼은
- * 다른 이슈(#174)의 범위이고, 어느 쪽이 먼저 들어와도 이 파생값은 맞다.
+ * 배송비와 할인은 주문 당시 스냅샷을 읽고, 발송 메일의 품목·운송장은 배송 건에서 읽는다.
  *
  * 보내지 못한 사실은 반드시 관측 가능해야 한다. 결과를 버리는 호출자가 하나라도 있으면
  * 미발송이 흔적 없이 사라지므로, 로그는 호출부가 아니라 이 훅이 직접 남긴다. */
@@ -66,18 +67,20 @@ export type TransactionalEmailResult =
   | { status: 'failed'; error: string };
 
 interface OrderRow {
+  shipping_fee: number | null;
+  discount_total: number | null;
   id: string;
   user_id: string;
   status: string;
   total: number;
   created_at: string;
   address: unknown;
-  shipping_carrier: string | null;
-  tracking_number: string | null;
 }
 
 interface OrderItemRow {
+  id: string;
   good_name_snapshot: string;
+  variant_name_snapshot?: string | null;
   qty: number;
   unit_price: number;
 }
@@ -87,12 +90,13 @@ interface OrderEmailContext {
   orderId: string;
   orderStatus: string;
   orderedAt: string;
-  items: OrderEmailItem[];
+  items: (OrderEmailItem & {id:string})[];
   itemsSubtotal: number;
   shippingFee: number;
+  discountTotal: number;
   total: number;
   address: ReturnType<typeof normalizeCheckoutAddress>;
-  shipment: OrderShipment | null;
+  shipments: ShipmentRecord[];
   orderUrl: string;
 }
 
@@ -109,7 +113,7 @@ async function loadOrderEmailContext(
 ): Promise<OrderEmailContext | { skipped: string }> {
   const { data: orderData, error: orderError } = await service
     .from('orders')
-    .select('id,user_id,status,total,created_at,address,shipping_carrier,tracking_number')
+    .select('id,user_id,status,total,shipping_fee,discount_total,created_at,address')
     .eq('id', orderId)
     .maybeSingle();
   if (orderError) throw new Error('order_email_load_failed');
@@ -118,7 +122,7 @@ async function loadOrderEmailContext(
 
   const { data: itemData, error: itemError } = await service
     .from('order_items')
-    .select('good_name_snapshot,qty,unit_price')
+    .select('id,good_name_snapshot,variant_name_snapshot,qty,unit_price')
     .eq('order_id', orderId)
     .order('id', { ascending: true });
   if (itemError) throw new Error('order_email_items_load_failed');
@@ -140,7 +144,9 @@ async function loadOrderEmailContext(
   const carriers = await loadShippingCarrierRegistry(service);
 
   const items = ((itemData ?? []) as OrderItemRow[]).map((row) => ({
+    id: row.id,
     name: row.good_name_snapshot,
+    ...(row.variant_name_snapshot ? { variantName: row.variant_name_snapshot } : {}),
     qty: row.qty,
     unitPrice: row.unit_price,
   }));
@@ -153,10 +159,11 @@ async function loadOrderEmailContext(
     orderedAt: order.created_at,
     items,
     itemsSubtotal,
-    shippingFee: Math.max(0, order.total - itemsSubtotal),
+    shippingFee: order.shipping_fee ?? 0,
+    discountTotal: order.discount_total ?? 0,
     total: order.total,
     address: normalizeCheckoutAddress(order.address),
-    shipment: orderShipment(carriers, order.shipping_carrier, order.tracking_number),
+    shipments: await loadOrderShipments(service, [orderId], carriers),
     orderUrl: `${siteUrl()}/orders/${order.id}`,
   };
 }
@@ -285,40 +292,34 @@ export function sendOrderConfirmationEmail(orderId: string): Promise<Transaction
   });
 }
 
-/**
- * 배송 시작 메일.
- *
- * 운송장 값은 인자로 받되, 생략하면 주문 행(orders.shipping_carrier·tracking_number)에서
- * 읽는다. 인자에만 의존하면 그 값을 넘기지 않는 호출자 하나가 "운송장 정보가 등록되면…"
- * 만 담긴 메일을 보내고, dedupe 행이 sent로 닫혀 영원히 다시 못 보낸다. 재발송 경로처럼
- * 폼 입력이 없는 호출자도 완전한 메일을 만들 수 있어야 한다.
- */
+/** Shipment ID chooses both the frozen items and the per-shipment dedupe key. */
 export function sendOrderShippedEmail(input: {
   orderId: string;
-  carrierName?: string | null;
-  trackingNumber?: string | null;
-  trackingUrl?: string | null;
+  /** Only legacy resends may omit this, and only for a single shipment order. */
+  shipmentId?: string;
 }): Promise<TransactionalEmailResult> {
   return safely('order shipped', `order:${input.orderId}`, async () => {
     const blocked = guardedEnvironment();
     if (blocked) return blocked;
-
     const service = createServiceClient();
     const context = await prepareOrderEmail(service, 'order_shipped', input.orderId);
     if ('skipped' in context) return { status: 'skipped', reason: context.skipped };
-
+    const shipment = input.shipmentId
+      ? context.shipments.find(item => item.id === input.shipmentId)
+      : context.shipments.length === 1 ? context.shipments[0] : undefined;
+    if (!shipment) return { status: 'skipped', reason: 'shipment_reference_required' };
+    if (!['shipping','delivered'].includes(shipment.status)) return { status: 'skipped', reason: 'shipment_status_mismatch' };
+    const items = context.items.filter(item => shipment.orderItemIds.includes(item.id));
+    if (!items.length) return { status: 'skipped', reason: 'shipment_items_missing' };
     return deliver(service, {
-      dedupeKey: orderEmailDedupeKey('order_shipped', input.orderId),
+      dedupeKey: shipmentEmailDedupeKey(input.orderId,shipment.id),
       template: 'order_shipped',
       recipient: context.recipient,
       rendered: renderOrderShippedEmail({
-        orderId: context.orderId,
-        items: context.items,
-        address: context.address,
-        carrierName: input.carrierName ?? context.shipment?.carrierLabel ?? null,
-        trackingNumber: input.trackingNumber ?? context.shipment?.trackingNumber ?? null,
-        trackingUrl: input.trackingUrl ?? context.shipment?.trackingUrl ?? null,
-        orderUrl: context.orderUrl,
+        orderId: context.orderId, shipmentId: shipment.id, originName: shipment.originName,
+        items, address: context.address,
+        carrierName: shipment.carrierLabel, trackingNumber: shipment.trackingNumber,
+        trackingUrl: shipment.trackingUrl, orderUrl: context.orderUrl,
       }),
     });
   });
@@ -371,13 +372,22 @@ export async function sendRestockAlertEmails(
 
     const { data: goodData, error: goodError } = await service
       .from('goods')
-      .select('name')
+      .select('name,published_at,archived_at,sale_restriction,ips:ip_id(published_at,archived_at)')
       .eq('id', goodId)
       .maybeSingle();
     if (goodError) throw new Error('restock_email_good_load_failed');
     const goodName = (goodData as { name?: unknown } | null)?.name;
     if (typeof goodName !== 'string' || !goodName.trim()) {
       return { status: 'skipped', reason: 'good_missing' };
+    }
+    // A notification may have been queued before the operator hid this good.
+    const current = goodData as unknown as {
+      published_at: string | null; archived_at: string | null; sale_restriction: string;
+      ips: { published_at: string | null; archived_at: string | null } | null;
+    };
+    if (!current.published_at || current.archived_at || current.sale_restriction !== 'none'
+      || !current.ips?.published_at || current.ips.archived_at) {
+      return { status: 'skipped', reason: 'good_unavailable' };
     }
 
     const { data, error } = await service

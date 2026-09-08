@@ -131,25 +131,25 @@ values
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values
   (
     '42000000-0000-4000-8000-000000000f01', 'stats-goods-a', 1, 10000,
     '통계 굿즈 A', '문구', 'stats-ip'
-  ),
+  , (select id from public.goods_variants where good_id='stats-goods-a' and is_default)),
   (
     '42000000-0000-4000-8000-000000000f02', 'stats-goods-b', 1, 30000,
     '통계 굿즈 B', '문구', 'stats-ip-b'
-  ),
+  , (select id from public.goods_variants where good_id='stats-goods-b' and is_default)),
   (
     '42000000-0000-4000-8000-000000000f03', 'stats-goods-a', 2, 10000,
     '통계 굿즈 A', '문구', 'stats-ip'
-  ),
+  , (select id from public.goods_variants where good_id='stats-goods-a' and is_default)),
   (
     '42000000-0000-4000-8000-000000000f04', 'stats-goods-a', 9, 11000,
     '통계 굿즈 A', '문구', 'stats-ip'
-  );
+  , (select id from public.goods_variants where good_id='stats-goods-a' and is_default));
 
 -- 클레임 둘(취소 완료 · 반품 접수)과 환불 하나.
 insert into public.payments (

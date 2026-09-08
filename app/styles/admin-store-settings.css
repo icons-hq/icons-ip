@@ -1,0 +1,9 @@
+@layer components {
+  .wc-admin .admin-store-settings { display: grid; gap: 24px; }
+  .wc-admin .admin-store-settings form { display: grid; gap: 16px; }
+  .wc-admin .admin-store-settings nav { gap: 24px; padding-block: 16px; border-block: 1px solid var(--wc-line-control); }
+  .wc-admin .admin-store-settings nav [aria-current="page"] { font-weight: 700; text-decoration: underline; text-underline-offset: 6px; }
+  .wc-admin .admin-store-settings__history { display: grid; gap: 16px; padding-inline-start: 24px; }
+  .wc-admin .admin-store-settings__history table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
+  .wc-admin .admin-store-settings__history :is(th,td) { padding: 8px; text-align: left; overflow-wrap: anywhere; border-bottom: 1px solid var(--wc-hairline); }
+}

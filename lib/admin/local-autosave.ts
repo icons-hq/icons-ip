@@ -4,7 +4,7 @@ import { preservedFormValues, type AdminFormValuesState } from './form-state';
 export const ADMIN_LOCAL_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const DEBOUNCE_MS = 500;
 const KEY_PREFIX = 'icons:admin:local-draft:v1:';
-const MAX_STORED_LENGTH = 64 * 1024;
+const MAX_STORED_LENGTH = 128 * 1024;
 const SENSITIVE_FIELD = /password|passcode|secret|token|authorization|email|phone|mobile|address|recipient|customer|buyer|bankaccount|accountnumber|cardnumber|cvc|cvv|birth|resident|contact/i;
 
 export interface AdminLocalDraftScope {
@@ -55,7 +55,7 @@ export function createAdminLocalAutosave({
 }) {
   const key = localDraftKey(scope);
   const allowed = new Set(fields.filter((field) => /^[A-Za-z][A-Za-z0-9_-]*$/.test(field)
-    && !SENSITIVE_FIELD.test(field) && !Object.hasOwn(Object.prototype, field)));
+    && (!SENSITIVE_FIELD.test(field) || (scope.formId === 'good' && field === 'noticeAsContact')) && !Object.hasOwn(Object.prototype, field)));
   const availableStorage = scope.accountId && scope.formId ? storage : null;
   const listeners = new Set<() => void>();
   let snapshot: AdminLocalAutosaveSnapshot = { ...EMPTY_LOCAL_AUTOSAVE_SNAPSHOT, unavailable: !availableStorage };

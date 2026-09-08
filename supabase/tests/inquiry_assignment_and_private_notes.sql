@@ -16,19 +16,25 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000004151', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select public.create_inquiry('etc','assignment-smoke-first','배송 확인 부탁드립니다.') as inquiry_id \gset
+reset role;
 select 1 / case when (select assignee_id is null and waiting_since = created_at
   from public.inquiries where id = :'inquiry_id') then 1 else 0 end as assert_new_inquiry_waits_unassigned;
+set local role authenticated;
 
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000004152', true);
 select message_id as first_reply from public.admin_answer_inquiry(:'inquiry_id', '확인하겠습니다.') \gset
+reset role;
 select 1 / case when (select assignee_id = '00000000-0000-4000-8000-000000004152' and waiting_since is null
   from public.inquiries where id = :'inquiry_id') then 1 else 0 end as assert_first_reply_assigns_and_clears_wait;
+set local role authenticated;
 
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000004153', true);
 select message_id as second_reply from public.admin_answer_inquiry(:'inquiry_id', '이어서 확인했습니다.') \gset
+reset role;
 select 1 / case when (select assignee_id = '00000000-0000-4000-8000-000000004152'
   and handled_by = '00000000-0000-4000-8000-000000004153'
   from public.inquiries where id = :'inquiry_id') then 1 else 0 end as assert_followup_reply_preserves_assignee;
+set local role authenticated;
 select 1 / case when (select count(*) from public.inquiry_message_author_names(:'inquiry_id')
   where (message_id = :'first_reply' and author_name = '수민') or (message_id = :'second_reply' and author_name = '지우')) = 2
   then 1 else 0 end as assert_staff_sees_actual_reply_authors;
@@ -47,8 +53,10 @@ select 1 / case when (select body = '고객 비노출: 물류팀과 재확인' f
 select 1 / case when public.admin_inquiry_workspace(:'inquiry_id')->>'assigneeName' = '지우'
   and public.admin_inquiry_workspace(:'inquiry_id')->'notes'->0->>'authorName' = '지우'
   then 1 else 0 end as assert_workspace_names_and_notes;
+reset role;
 select 1 / case when (select status = 'answered' and waiting_since is null from public.inquiries where id = :'inquiry_id')
   then 1 else 0 end as assert_note_does_not_reopen_or_reset_customer_thread;
+set local role authenticated;
 
 -- 고객이 같은 Data API table/RPC로 접근해도 내부 메모는 읽을 수 없다.
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000004151', true);
@@ -82,8 +90,10 @@ select 1 / case when (select count(*) from public.inquiry_internal_notes) = 0
 -- 답변 후 고객의 첫 추가 질문이 새 대기를 시작한다.
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000004151', true);
 select public.append_inquiry_message(:'inquiry_id', '다시 확인 부탁드립니다.');
+reset role;
 select 1 / case when (select status = 'open' and waiting_since = last_message_at and answered_at is not null
   from public.inquiries where id = :'inquiry_id') then 1 else 0 end as assert_reopened_wait_starts_even_after_first_answer;
+set local role authenticated;
 select public.create_inquiry('etc', 'assignment-smoke-second', '다른 문의입니다.') as later_inquiry_id \gset
 reset role;
 -- Clock fixtures: first inquiry has waited 25h, second 23h. A recent reminder must
@@ -92,8 +102,10 @@ update public.inquiries set waiting_since = now() - interval '25 hours' where id
 update public.inquiries set waiting_since = now() - interval '23 hours' where id = :'later_inquiry_id';
 set local role authenticated;
 select public.append_inquiry_message(:'inquiry_id', '추가로 문의합니다.');
+reset role;
 select 1 / case when (select waiting_since = now() - interval '25 hours' from public.inquiries where id = :'inquiry_id')
   then 1 else 0 end as assert_reminder_does_not_reset_wait;
+set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000004153', true);
 select 1 / case when (select id = :'inquiry_id' and waiting_since <= now() - interval '24 hours'
   from public.admin_search_inquiries('open', null, null, null, 'assignment-smoke', 'title', 1, 0))

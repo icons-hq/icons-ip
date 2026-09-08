@@ -221,10 +221,10 @@ values
   );
 
 insert into public.order_items (
-  order_id, good_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  order_id, good_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 select
-  order_record.id, 'order-claim-goods', 1, 10000, '클레임 굿즈', '문구', 'order-claim-ip'
+  order_record.id, 'order-claim-goods', 1, 10000, '클레임 굿즈', '문구', 'order-claim-ip', (select id from public.goods_variants where good_id='order-claim-goods' and is_default)
 from public.orders as order_record
 where order_record.id in (
   '41000000-0000-4000-8000-000000000c01',

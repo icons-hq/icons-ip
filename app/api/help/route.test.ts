@@ -5,6 +5,11 @@ const mocks = vi.hoisted(() => ({ loadPublishedFaq: vi.fn() }));
 vi.mock('@/lib/faq.server', () => ({ loadPublishedFaq: mocks.loadPublishedFaq }));
 beforeEach(() => { mocks.loadPublishedFaq.mockReset(); });
 describe('문의 전 FAQ 제안 API', () => {
+  it('위젯의 첫 화면은 키워드 없이도 공개 FAQ를 먼저 보여준다', async () => {
+    mocks.loadPublishedFaq.mockResolvedValue({ entries: [{ id: 'intro' }] });
+    expect(await (await GET(new NextRequest('http://localhost/api/help?featured=1'))).json()).toEqual({ entries: [{ id: 'intro' }] });
+    expect(mocks.loadPublishedFaq).toHaveBeenCalledWith(expect.objectContaining({ query: '', page: 1 }), 6);
+  });
   it('제목 키워드를 공개 FAQ 검색에 보내 최대 3개를 제안한다', async () => {
     mocks.loadPublishedFaq.mockResolvedValue({ entries: [{ id: 'shipping' }] });
     const response = await GET(new NextRequest('http://localhost/api/help?q=배송%20언제'));

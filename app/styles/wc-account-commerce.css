@@ -4070,3 +4070,8 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
     flex-wrap: wrap;
   }
 }
+
+/* #447: long shipment IDs stay readable in narrow receipt columns. */
+.wc-receipt .wc-shipment-details .order-payment-summary dt { flex: 0 0 96px; }
+.wc-receipt .wc-shipment-details .order-payment-summary dd { min-width: 0; overflow-wrap: anywhere; text-align: right; }
+.wc-receipt .wc-shipment-details ul { margin: 12px 0; padding-left: 20px; font-size: 13px; }

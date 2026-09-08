@@ -392,7 +392,7 @@ export function Shop({ query, result, view }: ShopProps) {
                       href={goodDetailHref(good.id)}
                       imageBackground={good.img}
                       name={good.name}
-                      price={good.price}
+                      price={good.price} priceMax={good.priceMax}
                       soldOut={good.stock === 'soldout'}
                     />
                   ))}

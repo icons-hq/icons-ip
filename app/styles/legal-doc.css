@@ -1,3 +1,17 @@
+:where(.legal-doc) :where(a, button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--editorial-focus); outline-offset: 3px; }
+/* #433: former shared foundation dependencies live only in this retained surface. */
+.legal-doc {
+
+  background: var(--editorial-canvas);
+  color: var(--editorial-ink);
+  font-weight: 450;
+}
+:where(.legal-doc) :where(button, input, select, textarea) { font: inherit; line-height: var(--editorial-leading-control); }
+:where(.legal-doc) :where(input, select, textarea) { color: var(--editorial-ink); caret-color: var(--editorial-focus); }
+:where(.legal-doc) :where(input, textarea)::placeholder { color: var(--editorial-ink-faint); opacity: 1; }
+:where(.legal-doc) :lang(ko):is(p, li, dd, blockquote) { word-break: keep-all; overflow-wrap: break-word; }
+:where(.legal-doc) ::selection { background: var(--editorial-pastel-green); color: var(--editorial-ink); }
+
 /* 법정 고지(잔존 표면) 전용 legacy 스타일 — /legal/[document].
  *
  * 왜 이 파일이 있나
@@ -22,7 +36,7 @@
  *   - Tailwind preflight(`@import "tailwindcss"`)는 계속 존재한다고 본다. 그 import 는
  *     globals.css 가 갖고 있다(S9 판정: Tailwind v4 는 스택 규칙이라 유지) — globals 를
  *     정리하는 쪽은 import 의 새 거처를 먼저 정해야 한다.
- *   - layout.tsx 임포트 순서는 editorial-foundation.css 뒤여야 한다.
+ *   - layout.tsx는 WC 기본 레이어 뒤에 이 격리 파일을 임포트한다.
  *
  * 삭제 조건
  *   이 화면이 White Catalog로 재조판되면 이 파일도 같이 지운다.

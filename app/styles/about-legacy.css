@@ -1,3 +1,44 @@
+:where(.icons-preview) :where(a, button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--editorial-focus); outline-offset: 3px; }
+/* #433: former shared foundation dependencies live only in this retained surface. */
+.icons-preview {
+  --editorial-ink: #11110f;
+  --editorial-ink-faint: #858580;
+  --editorial-focus: #5b74ff;
+  --editorial-pastel-green: #c4e5ae;
+  --editorial-placeholder: #dddddd;
+  --editorial-font-body: 'Pretendard Variable', 'Pretendard', var(--font-space-grotesk), sans-serif;
+  --editorial-leading-body: 1.65;
+  --editorial-leading-control: 1.4;
+  --editorial-leading-utility: 1.5;
+  --editorial-leading-display: 1.08;
+  --editorial-tracking-display: -.03em;
+  --editorial-leading-title: 1.2;
+  --editorial-tracking-title: -.025em;
+  --editorial-leading-display-mobile: 1.12;
+  --surface: var(--editorial-surface);
+  --line-2: var(--editorial-line);
+  --violet-2: #765db4;
+  --dim: var(--editorial-ink-muted);
+  --ff-body: var(--editorial-font-body);
+  --ff-display: var(--editorial-font-display);
+  --ff-mono: var(--editorial-font-utility);
+  --editorial-surface: #ffffff;
+  --editorial-line: rgba(17, 17, 15, 0.18);
+  --editorial-ink-muted: #686862;
+  --editorial-font-display: 'Pretendard Variable', 'Pretendard', var(--font-space-grotesk), sans-serif;
+  --editorial-font-utility: var(--font-space-mono), 'Pretendard', monospace;
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 450;
+}
+:where(.icons-preview) :where(button, input, select, textarea) { font: inherit; line-height: var(--editorial-leading-control); }
+:where(.icons-preview) :where(input, select, textarea) { color: var(--editorial-ink); caret-color: var(--editorial-focus); }
+:where(.icons-preview) :where(input, textarea)::placeholder { color: var(--editorial-ink-faint); opacity: 1; }
+:where(.icons-preview) :lang(ko):is(p, li, dd, blockquote) { word-break: keep-all; overflow-wrap: break-word; }
+:where(.icons-preview) ::selection { background: var(--editorial-pastel-green); color: var(--editorial-ink); }
+
+:where(.icons-preview) :is(h1, h2, h3) { color: var(--ink); font-family: var(--ff-display); text-wrap: balance; }
+
 /* 구 홈(Living IP Editorial) 콘텐츠의 보존 전시용 스타일이며, 정본은 git 이력의 app/styles/editorial-home.css 다. */
 html:has(.icons-preview) {
   scroll-padding-top: 0;
@@ -1265,3 +1306,6 @@ html:has(.icons-preview)::-webkit-scrollbar {
     to { clip-path: inset(0); opacity: 1; transform: translateX(0); }
   }
 }
+
+.icons-preview .col { display: flex; flex-direction: column; }
+.icons-preview .muted { color: var(--dim); }

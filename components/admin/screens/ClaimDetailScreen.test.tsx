@@ -1,3 +1,4 @@
+import { shipmentFixture } from '@/lib/orders/shipments.fixture';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { AdminClaimDetail } from '@/lib/admin/claims.server';
@@ -49,11 +50,13 @@ function detail(overrides: Partial<AdminClaimDetail> = {}): AdminClaimDetail {
       shippingFee: 3000,
       createdAt: '2026-08-10T01:00:00.000Z',
       deliveredAt: '2026-08-17T01:00:00.000Z',
-      shippingCarrier: 'hanjin',
-      trackingNumber: 'LD00000000901',
+      shipments: [shipmentFixture({trackingNumber:'LD00000000901', status:'delivered'})],
       buyerName: 'maple_fan',
       buyerEmail: 'buyer@example.com',
-      items: [{ name: '아크릴 블록', qty: 2, unitPrice: 20000 }],
+      items: [{ id: '00000000-0000-4000-8000-000000044041', goodId: 'good', name: '아크릴 블록', qty: 2, unitPrice: 20000,
+        variantId: '00000000-0000-4000-8000-000000044010', variantName: '파랑', currentVariantId: '00000000-0000-4000-8000-000000044010',
+        options: [{ id: '00000000-0000-4000-8000-000000044010', name: '파랑', code: 'A01', stockQty: 0 },
+          { id: '00000000-0000-4000-8000-000000044011', name: '빨강', code: 'A02', stockQty: 3 }] }],
     },
     payment: {
       id: '33333333-3333-4333-8333-333333333333',
@@ -130,6 +133,16 @@ describe('ClaimDetailScreen', () => {
 
     expect(html).toContain('교환은 카드팩을 회수하지 않습니다');
     expect(html).toContain('교환에는 환불 원장이 없습니다');
+    expect(html).toContain('name="variant:00000000-0000-4000-8000-000000044041"');
+    expect(html).toContain('빨강 · A02');
+    expect(html).toContain('선택한 옵션으로 주문 수량 전체를 재출고');
+  });
+
+  it('완료한 교환의 재출고 옵션 스냅샷을 보여준다', () => {
+    const html = render({ claim: { ...detail().claim, claimType: 'exchange', stage: 'completed', reshippedItems: [
+      { orderItemId: 'item', name: '아크릴 블록', variantId: 'red', variantName: '빨강', variantCode: 'A02', qty: 2 },
+    ] } });
+    expect(html).toContain('아크릴 블록 · 빨강 · A02 · 2개');
   });
 
   /* 환불계좌 원문은 어떤 경로로도 화면에 오지 않는다(#208 안전 기본값). */
@@ -183,7 +196,7 @@ describe('ClaimDetailScreen', () => {
     });
 
     expect(html).toContain('환불 완료를 원장에 기록');
-    expect(html).toContain('이 클레임은 이미 종결됐습니다');
+    expect(html).toContain('이 취소·반품·교환 요청은 이미 종결됐습니다');
     expect(html).not.toContain('주문과 재고는 그대로 유지됩니다');
     expect(html).not.toContain('재고 복원 · 카드팩 회수 포함');
   });

@@ -6,7 +6,7 @@ import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Card } from '@/lib/data';
 import type { DrawTicketInventory, OpenedCard, PackPoolGroup } from '@/lib/draw-tickets';
 import { ipAccentInk } from '@/lib/ip-display';
-import { rarityTag, RARITY_ORDER } from '@/lib/rarity';
+import { CARD_FOIL_BACKGROUND, rarityTag, RARITY_ORDER } from '@/lib/rarity';
 import { hrefFor } from '@/lib/routes';
 import { Badge } from '@/components/wc/Badge';
 import { EmptyState } from '@/components/wc/EmptyState';
@@ -36,7 +36,7 @@ function MachineCard({ card }: { card: Card }) {
         boxShadow: `0 0 0 1px ${tag.ring}`,
       }}
     >
-      <div aria-hidden style={{ position: 'absolute', inset: 0, mixBlendMode: 'color-dodge', opacity: 0.35, background: 'var(--holo)', backgroundSize: '240% 240%', backgroundPosition: '20% 20%' }} />
+      <div aria-hidden style={{ position: 'absolute', inset: 0, mixBlendMode: 'color-dodge', opacity: 0.35, background: CARD_FOIL_BACKGROUND, backgroundSize: '240% 240%', backgroundPosition: '20% 20%' }} />
       <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 58%, rgba(8,6,15,.9) 100%)' }} />
       <span style={{ position: 'absolute', top: 12, left: 12, fontSize: 11, letterSpacing: '.08em', padding: '4px 10px', borderRadius: 6, fontWeight: 700, color: tag.color, background: tag.bg }}>{card.rarity}</span>
       <span style={{ position: 'absolute', left: 14, right: 14, bottom: 14, fontWeight: 700, fontSize: 16, textAlign: 'left', color: '#FFFFFF' }}>{card.name}</span>

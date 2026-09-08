@@ -92,7 +92,7 @@ on conflict (id) do update set
   featured = excluded.featured,
   published_at = excluded.published_at;
 
-insert into public.goods (id, ip_id, name, type, price, stock, bg)
+insert into public.goods (id, ip_id, name, type, price, stock, bg, published_at)
 values (
   'search-smoke-good',
   'search-smoke-ip',
@@ -100,7 +100,8 @@ values (
   '문구',
   1000,
   'ok',
-  'linear-gradient(#111, #333)'
+  'linear-gradient(#111, #333)',
+  now()
 )
 on conflict (id) do update set
   ip_id = excluded.ip_id,
