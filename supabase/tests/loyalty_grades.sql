@@ -54,8 +54,8 @@ on conflict (id) do update set
   onboarded_at = excluded.onboarded_at,
   role = excluded.role;
 
-insert into public.ips (id, title, vertical_key)
-values ('loy-ip', '등급 스모크 IP', 'character')
+insert into public.ips (id, title, vertical_key, published_at)
+values ('loy-ip', '등급 스모크 IP', 'character', now())
 on conflict (id) do nothing;
 
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)

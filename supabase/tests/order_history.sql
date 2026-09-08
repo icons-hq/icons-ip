@@ -102,10 +102,10 @@ on conflict (id) do update set
   consents = excluded.consents,
   onboarded_at = excluded.onboarded_at;
 
-insert into public.ips (id, title, vertical_key)
+insert into public.ips (id, title, vertical_key, published_at)
 values
-  ('order-history-ip-a', '주문 스냅샷 IP A', 'character'),
-  ('order-history-ip-b', '주문 스냅샷 IP B', 'character');
+  ('order-history-ip-a', '주문 스냅샷 IP A', 'character', now()),
+  ('order-history-ip-b', '주문 스냅샷 IP B', 'character', now());
 
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
 values (

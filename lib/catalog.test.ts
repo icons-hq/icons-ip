@@ -393,8 +393,8 @@ describe('getCatalogSnapshot', () => {
         { ...defaultSupabaseRows().ips[0], id: 'draft-ip', title: '초안 IP', published_at: null },
       ],
       goods: [
-        { id: 'g-live', ip_id: 'hwasan', name: '공개 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, archived_at: null },
-        { id: 'g-draft', ip_id: 'draft-ip', name: '초안 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, archived_at: null },
+        { id: 'g-live', ip_id: 'hwasan', name: '공개 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
+        { id: 'g-draft', ip_id: 'draft-ip', name: '초안 굿즈', type: '아크릴', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null, sale_restriction: 'none', archived_at: null },
       ],
       cards: [
         { id: 'c-live', ip_id: 'hwasan', name: '공개 카드', no: '001', rarity: 'N', bg: null, image_path: null, archived_at: null },

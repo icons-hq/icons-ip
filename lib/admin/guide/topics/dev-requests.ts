@@ -1,6 +1,8 @@
 import { krwAmountWords } from '@/lib/format';
-import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '@/lib/shipping';
+import { getShippingPolicy } from '@/lib/shipping';
 import type { AdminGuideTopic } from '../types';
+
+const shippingPolicy = getShippingPolicy();
 
 export const DEV_REQUESTS_TOPIC: AdminGuideTopic = {
   slug: 'dev-requests',
@@ -21,7 +23,7 @@ export const DEV_REQUESTS_TOPIC: AdminGuideTopic = {
           ['무통장 입금 법인계좌 정보', '서버 설정입니다. 계좌가 설정되지 않으면 무통장 결제 자체가 화면에 뜨지 않습니다.'],
           ['택배사 추가·계약 종료 처리', '택배사 목록은 데이터로 등록됩니다. 새 택배사 코드·이름·조회 주소를 함께 전달해주세요.'],
           [
-            `배송비 정책 (현재 ${krwAmountWords(SHIPPING_FEE)} · ${krwAmountWords(FREE_SHIPPING_THRESHOLD)} 이상 무료)`,
+            `배송비 정책 (현재 ${krwAmountWords(shippingPolicy.baseFee)} · ${krwAmountWords(shippingPolicy.freeThreshold)} 이상 무료)`,
             '코드에 고정된 정책값입니다. 금액 변경은 공개 배송정책 문서 개정과 함께 진행됩니다.',
           ],
           ['오래된 계정의 운영 역할 부여', '역할 화면 목록(최근 가입 50명) 밖의 계정은 개발팀이 처리합니다.'],

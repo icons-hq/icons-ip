@@ -7,6 +7,7 @@ import {
 } from '@/app/admin/actions';
 import { GOODS_DESCRIPTION_MAX_LENGTH, GOODS_GALLERY_MAX } from '@/lib/admin/catalog';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
+import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import { buildGoodPreview, goodFormValues } from '@/lib/admin/good-preview';
 import type { Ip } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
@@ -25,6 +26,7 @@ import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { GoodBankTransferControl } from '../GoodBankTransferControl';
 import { GoodSaleRestrictionControl } from '../GoodSaleRestrictionControl';
+import { GoodVariantsPanel } from '../GoodVariantsPanel';
 import { ErrorText, Field, FormShell, InlineNotice, RecordList, SelectField, TextArea } from '../fields';
 
 const emptyStockState: AdminCatalogActionState = {};
@@ -411,6 +413,7 @@ export function GoodSection({
   records,
   selected,
   state,
+  variants = [],
 }: {
   action: (payload: FormData) => void;
   adjustmentId: string;
@@ -421,6 +424,7 @@ export function GoodSection({
   records: AdminGoodRecord[];
   selected: AdminGoodRecord | null;
   state: AdminCatalogActionState;
+  variants?: AdminGoodsVariant[];
 }) {
   const [archiveFilter, setArchiveFilter] = useState<AdminCatalogArchiveFilter>(
     selected?.archivedAt ? 'archived' : 'active',
@@ -464,6 +468,7 @@ export function GoodSection({
         {selected && !selected.archivedAt && (
           <StockAdjustmentForm adjustmentId={adjustmentId} good={selected} key={`stock-${selected.id}`} />
         )}
+        {selected && <GoodVariantsPanel goodId={selected.id} variants={variants} />}
         {selected && !selected.archivedAt && (
           <GoodBankTransferControl
             allowBankTransfer={selected.allowBankTransfer}

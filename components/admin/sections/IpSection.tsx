@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminIpRecord } from '@/lib/admin/catalog.server';
-import { adminFormRemountKey, resolveArtworkDefault, resolveFieldDefault } from '@/lib/admin/form-state';
+import { adminFormRemountKey, preservedFormValues, resolveArtworkDefault, resolveFieldDefault } from '@/lib/admin/form-state';
+import { withLocalRecoveryValues } from '@/lib/admin/local-autosave';
 import { adminIpPublishState, formatAdminIpRecordLabel } from '@/lib/admin/ip-publish';
 import { publicMediaUrl } from '@/lib/media';
 import {
@@ -17,8 +18,13 @@ import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { IpPublishControl, IpPublishStateBadge } from '../IpPublishControls';
 import { ActionNotice, Field, RecordList, SelectField, TextArea } from '../fields';
+import { AdminLocalDraftNotice } from '../AdminLocalDraftNotice';
+import { useAdminLocalAutosave } from '../useAdminLocalAutosave';
+
+const LOCAL_DRAFT_FIELDS = ['id', 'title', 'sub', 'verticalKey', 'tagline', 'glyph', 'synopsis', 'imagePath'] as const;
 
 export function IpSection({
+  accountId,
   action,
   onSelect,
   pending,
@@ -27,6 +33,7 @@ export function IpSection({
   state,
   verticals,
 }: {
+  accountId: string;
   action: (payload: FormData) => void;
   onSelect: (ip: AdminIpRecord | null) => void;
   pending: boolean;
@@ -39,15 +46,21 @@ export function IpSection({
     selected?.archivedAt ? 'archived' : 'active',
   );
   const visibleRecords = filterAdminCatalogRecords(records, archiveFilter);
+  const { snapshot: localDraft, formRef, onSubmitCapture, restore, discard, scopeKey } = useAdminLocalAutosave({
+    scope: { accountId, formId: 'ip', recordId: selected?.id ?? null },
+    fields: LOCAL_DRAFT_FIELDS,
+    serverState: state,
+  });
+  const inputState = withLocalRecoveryValues(state, selected?.id ?? null, localDraft.restoredValues);
 
   /*
    * 모든 입력은 비제어 defaultValue 다. 저장이 실패하면 액션이 제출값을 `state.values` 로
    * 되돌려주고, 폼 key 에 섞인 `state.attempt` 가 바뀌어 리마운트되면서 그 값이 다시
    * 심긴다 — 타이핑한 값도, 업로드해 둔 아트워크 경로도 사라지지 않는다.
    */
-  const field = (key: string) => resolveFieldDefault(state, selected, key);
-  const artwork = resolveArtworkDefault(state, selected, publicMediaUrl);
-  const formKey = adminFormRemountKey(state, selected);
+  const field = (key: string) => resolveFieldDefault(inputState, selected, key);
+  const artwork = resolveArtworkDefault(inputState, selected, publicMediaUrl);
+  const formKey = `${scopeKey}:${adminFormRemountKey(state, selected)}:${localDraft.revision}`;
 
   /*
    * 게시 상태 (20260907130000). 새 IP 와 초안은 "초안으로 저장"·"저장 후 공개" 두 동선을,
@@ -79,7 +92,14 @@ export function IpSection({
         />
       </div>
       <div className="col" style={{ gap: 16, minWidth: 0 }}>
-        <form action={action} className="card col" key={formKey} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+        <AdminLocalDraftNotice
+          onDiscard={discard}
+          onRestore={restore}
+          pending={pending}
+          recovery={Boolean(localDraft.recovery) && !preservedFormValues(state, selected?.id)}
+          unavailable={localDraft.unavailable}
+        />
+        <form action={action} className="card col" key={formKey} onSubmitCapture={onSubmitCapture} ref={formRef} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
           <div className="row" style={{ gap: 10 }}>
             <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>게시 상태</span>
             <IpPublishStateBadge state={publishState} />

@@ -1,0 +1,31 @@
+/* #424: catalog template management, scoped inside the White Catalog admin shell. */
+.wc-admin .admin-notice-presets { min-width: 0; }
+.wc-admin .admin-notice-presets__create { margin-bottom: 24px; border: 1px solid var(--wc-line-control); background: var(--wc-surface); }
+.wc-admin .admin-notice-presets__create > summary { min-height: 48px; padding: 12px 20px; font-weight: 600; cursor: pointer; }
+.wc-admin .admin-notice-presets__form { padding: 24px; }
+.wc-admin .admin-notice-presets__form fieldset { display: grid; gap: 24px; min-width: 0; border: 0; padding: 0; }
+.wc-admin .admin-notice-presets__form button { justify-self: start; }
+.wc-admin .admin-notice-presets__form fieldset:disabled { opacity: .65; }
+.wc-admin .admin-notice-presets__form > p { margin-top: 16px; }
+.wc-admin .admin-notice-presets__search { display: grid; gap: 8px; }
+.wc-admin .admin-notice-presets__search label { font-size: 13px; font-weight: 600; }
+.wc-admin .admin-notice-presets__search > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.wc-admin .admin-notice-presets__search input { width: min(100%, 360px); min-height: 40px; padding: 8px 12px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); }
+.wc-admin .admin-notice-presets__search a { display: inline-flex; align-items: center; min-height: 40px; padding: 8px; text-decoration: underline; }
+.wc-admin .admin-notice-presets__count { margin: 20px 0 12px; color: var(--wc-ink-tertiary); font-size: 13px; }
+.wc-admin .admin-notice-presets__entry { border-bottom: 1px solid var(--wc-hairline); background: var(--wc-surface); }
+.wc-admin .admin-notice-presets__entry > summary { min-height: 56px; padding: 16px 20px; cursor: pointer; overflow-wrap: anywhere; }
+.wc-admin .admin-notice-presets__entry > summary span { margin-left: 16px; color: var(--wc-ink-tertiary); font-size: 13px; }
+.wc-admin .admin-notice-presets__entry[open] { border: 1px solid var(--wc-line-control); }
+.wc-admin .admin-notice-presets__delete { padding: 0 24px 24px; }
+.wc-admin .admin-notice-presets__delete > summary { min-height: 44px; padding-block: 10px; color: var(--wc-danger); cursor: pointer; }
+.wc-admin .admin-notice-presets__delete form { display: grid; gap: 12px; }
+.wc-admin .admin-notice-presets__delete label { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.wc-admin .admin-notice-presets__delete button { justify-self: start; background: var(--wc-danger); border-color: var(--wc-danger); }
+.wc-admin .admin-notice-presets__error { color: var(--wc-danger); font-size: 13px; }
+.wc-admin .admin-notice-presets__empty { padding: 48px 24px; text-align: center; }
+@media (max-width: 600px) {
+  .wc-admin .admin-notice-presets__form { padding: 16px; }
+  .wc-admin .admin-notice-presets__delete { padding: 0 16px 16px; }
+  .wc-admin .admin-notice-presets__entry > summary span { display: block; margin-left: 0; }
+}

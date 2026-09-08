@@ -17,9 +17,11 @@ const emptyState: AdminCatalogActionState = {};
  * 전부 들고 있어서 어느 화면을 열든 모든 상태가 살아 있었다.
  */
 export function IpScreen({
+  accountId,
   records,
   verticals,
 }: {
+  accountId: string;
   records: AdminCatalogRecords['ips'];
   verticals: CatalogSnapshot['verticals'];
 }) {
@@ -28,6 +30,7 @@ export function IpScreen({
 
   return (
     <IpSection
+      accountId={accountId}
       action={action}
       onSelect={select}
       pending={pending}

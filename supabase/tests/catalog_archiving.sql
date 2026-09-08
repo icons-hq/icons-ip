@@ -847,9 +847,8 @@ select public.admin_archive_good('archive-transaction-good');
 select public.admin_archive_event('archive-transaction-event');
 
 reset role;
-update public.goods
-set stock = 'ok', stock_qty = 5
-where id = 'archive-transaction-good';
+update public.goods_variants set stock_qty = 5 where good_id = 'archive-transaction-good' and is_default;
+update public.goods set stock = 'ok' where id = 'archive-transaction-good';
 update public.events
 set status = '예매중'
 where id = 'archive-transaction-event';

@@ -290,16 +290,16 @@ select 1 / case when (
 ) then 1 else 0 end as assert_rpc_created_pending_alert;
 
 -- 판매 불가 상태 안에서의 변화(품절 유지)는 발화하지 않는다.
-update public.goods set stock_qty = 0, stock = 'soldout'
-where id = 'commerce-smoke-good';
+update public.goods_variants set stock_qty = 0 where good_id = 'commerce-smoke-good' and is_default;
+update public.goods set stock = 'soldout' where id = 'commerce-smoke-good';
 
 select 1 / case when (
   select count(*) = 0 from public.notifications where type = 'restock_available'
 ) then 1 else 0 end as assert_no_notification_without_transition;
 
 -- 품절 → 판매 가능 전이: pending 이 notified 로 넘어가고 알림함에 쌓인다.
-update public.goods set stock = 'ok', stock_qty = 10
-where id = 'commerce-smoke-good';
+update public.goods_variants set stock_qty = 10 where good_id = 'commerce-smoke-good' and is_default;
+update public.goods set stock = 'ok' where id = 'commerce-smoke-good';
 
 select 1 / case when (
   select status = 'notified' and notified_at is not null
@@ -317,15 +317,15 @@ select 1 / case when (
 ) then 1 else 0 end as assert_restock_notification_fanned_out;
 
 -- 판매 가능 상태 안에서의 재고 변화는 재발화하지 않는다.
-update public.goods set stock_qty = 20 where id = 'commerce-smoke-good';
+update public.goods_variants set stock_qty = 20 where good_id = 'commerce-smoke-good' and is_default;
 
 select 1 / case when (
   select count(*) = 1 from public.notifications where type = 'restock_available'
 ) then 1 else 0 end as assert_no_refire_while_sellable;
 
 -- 재품절 → 재신청 → 재입고 사이클이 성립한다(dedupe 키가 사이클마다 다르다).
-update public.goods set stock = 'soldout', stock_qty = 0
-where id = 'commerce-smoke-good';
+update public.goods_variants set stock_qty = 0 where good_id = 'commerce-smoke-good' and is_default;
+update public.goods set stock = 'soldout' where id = 'commerce-smoke-good';
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000002601', true);
@@ -342,8 +342,8 @@ select 1 / case when (
     and status = 'pending'
 ) then 1 else 0 end as assert_reapply_restores_pending_single_row;
 
-update public.goods set stock = 'ok', stock_qty = 3
-where id = 'commerce-smoke-good';
+update public.goods_variants set stock_qty = 3 where good_id = 'commerce-smoke-good' and is_default;
+update public.goods set stock = 'ok' where id = 'commerce-smoke-good';
 
 select 1 / case when (
   select count(*) = 2

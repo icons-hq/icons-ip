@@ -68,6 +68,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     screens: [
       { id: 'ips', label: 'IP', href: '/admin/catalog/ips', status: 'ready' },
       { id: 'goods', label: '굿즈', href: '/admin/catalog/goods', status: 'ready' },
+      { id: 'notice-presets', label: '상품정보제공고시 프리셋', href: '/admin/catalog/notice-presets', status: 'ready' },
       { id: 'cards', label: '카드', href: '/admin/catalog/cards', status: 'ready' },
       { id: 'pools', label: '카드풀', href: '/admin/catalog/pools', status: 'ready' },
       { id: 'policies', label: '뽑기권 발급 정책', href: '/admin/catalog/policies', status: 'ready' },

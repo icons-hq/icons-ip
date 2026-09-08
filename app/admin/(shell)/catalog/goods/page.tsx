@@ -2,14 +2,16 @@ import { randomUUID } from 'node:crypto';
 import { GoodScreen } from '@/components/admin/screens/GoodScreen';
 import { getAdminCatalogRecords } from '@/lib/admin/catalog.server';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
+import { loadAdminGoodsVariants } from '@/lib/admin/goods-variants.server';
 import { getCatalogSnapshot } from '@/lib/catalog';
 
 export default async function AdminCatalogGoodsPage() {
   await requireAdminScreenAccess('/admin/catalog/goods');
 
-  const [records, catalog] = await Promise.all([
+  const [records, catalog, variants] = await Promise.all([
     getAdminCatalogRecords({ include: ['goods', 'ips'] }),
     getCatalogSnapshot({ previewDefaultSource: 'supabase' }),
+    loadAdminGoodsVariants(),
   ]);
 
   return (
@@ -18,6 +20,7 @@ export default async function AdminCatalogGoodsPage() {
       catalogIps={catalog.ips}
       ips={records.ips}
       records={records.goods}
+      variants={variants}
     />
   );
 }

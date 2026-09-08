@@ -121,6 +121,15 @@ function actionMarker(label: string) {
 }
 
 describe('OrdersSection', () => {
+  it('opens no replacement panel when a linked order is outside the current page', () => {
+    const data = orderData();
+    data.filters.orderId = '99999999-9999-4999-8999-999999999999';
+    const html = renderToStaticMarkup(<OrdersSection data={data} />);
+    expect(html).toContain('선택한 주문은 현재 목록에 없습니다');
+    expect(html).toContain('/admin/sales/orders/99999999-9999-4999-8999-999999999999');
+    expect(html).not.toContain('서울 성동구 성수이로 1');
+    expect(html).not.toContain(STATUS_ACTION_MARKERS['발주확인']);
+  });
   /* 택배사 드롭다운을 상수로 채우면 레지스트리와 갈라져 저장은 되는데 조회는
      안 되는 운송장이 생긴다. 비활성 택배사는 고를 수 없어야 한다(#251). */
   it('택배사 드롭다운을 레지스트리의 활성 택배사로만 채운다', () => {

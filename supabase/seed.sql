@@ -148,7 +148,13 @@ on conflict (id) do update set
   active_to = excluded.active_to,
   enabled = excluded.enabled;
 
-insert into public.goods (id, ip_id, name, type, price, badge, stock, stock_qty, bg) values
+-- Reset-seed quantities belong to the default option; goods.stock_qty is its
+-- derived cache. Keep one fixture source and reuse existing option identities.
+do $$
+declare seed_good record;
+begin
+  for seed_good in
+    select * from (values
   ('g1', 'rilakkuma', '리락쿠마 낮잠 쿠션', '쿠션', 42000, 'EXCLUSIVE', 'low', 7, 'url("/generated/goods/g1.png") center / cover no-repeat, linear-gradient(150deg, #5a3517, #D68A2D 55%, #FFD84D)'),
   ('g2', 'rilakkuma', '코리락쿠마 미니 키링', '키링', 15000, 'NEW', 'ok', 120, 'url("/generated/goods/g2.png") center / cover no-repeat, linear-gradient(150deg, #7d4a2a, #F3B6C8 55%, #FFF3D6)'),
   ('g3', 'maplestory', '주황버섯 봉제인형', '인형', 28000, 'NEW', 'ok', 90, 'url("/generated/goods/g3.png") center / cover no-repeat, linear-gradient(150deg, #98440f, #FF8C32 55%, #FFD84D)'),
@@ -159,16 +165,25 @@ insert into public.goods (id, ip_id, name, type, price, badge, stock, stock_qty,
   ('g8', 'kakao-friends', '춘식이 수면 파우치', '파우치', 24000, 'NEW', 'ok', 100, 'url("/generated/goods/g8.png") center / cover no-repeat, linear-gradient(150deg, #66421d, #FFD84D 55%, #FFF3D6)'),
   ('g9', 'kakao-friends', '라이언&어피치 피크닉 세트', '세트', 59000, 'EXCLUSIVE', 'low', 8, 'url("/generated/goods/g9.png") center / cover no-repeat, linear-gradient(150deg, #724a1f, #FFD84D 55%, #FF9AAF)'),
   ('g11', 'attack-on-titan', '리바이 아크릴 스탠드', '아크릴', 26000, null, 'ok', 70, 'url("/generated/goods/g11.png") center / cover no-repeat, linear-gradient(150deg, #2b251f, #6B705C 55%, #A981FF)')
-on conflict (id) do update set
-  ip_id = excluded.ip_id,
-  name = excluded.name,
-  type = excluded.type,
-  price = excluded.price,
-  badge = excluded.badge,
-  stock = excluded.stock,
-  stock_qty = excluded.stock_qty,
-  bg = excluded.bg,
-  updated_at = now();
+    ) as fixtures(id,ip_id,name,type,price,badge,stock,stock_qty,bg)
+  loop
+    insert into public.goods(id,ip_id,name,type,price,badge,stock,stock_qty,bg)
+    values(seed_good.id,seed_good.ip_id,seed_good.name,seed_good.type,seed_good.price,
+      seed_good.badge,seed_good.stock,seed_good.stock_qty,seed_good.bg)
+    on conflict (id) do update set
+      ip_id = excluded.ip_id,
+      name = excluded.name,
+      type = excluded.type,
+      price = excluded.price,
+      badge = excluded.badge,
+      stock = excluded.stock,
+      bg = excluded.bg,
+      updated_at = now();
+    update public.goods_variants set stock_qty=seed_good.stock_qty
+      where good_id=seed_good.id and is_default;
+  end loop;
+end;
+$$;
 
 insert into public.cards (id, ip_id, name, no, rarity, bg) values
   ('c1', 'rilakkuma', '리락쿠마 · 낮잠 시간', '001/080', 'HOLO', 'url("/generated/cards/c1.png") center / cover no-repeat, linear-gradient(150deg, #5a3517, #D68A2D 55%, #FFD84D)'),

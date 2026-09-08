@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { redirect, unstable_rethrow } from 'next/navigation';
 import { after } from 'next/server';
 import {
   catalogContextFromSnapshot,
@@ -230,12 +230,17 @@ async function getAdminValidationContext(
     getAdminCatalogRecords(),
   ]);
   const activeContext = catalogContextFromSnapshot(catalog);
+  const ipIds = new Set(records.ips.filter((record) => !record.archivedAt).map((record) => record.id));
   const context = {
     ...activeContext,
-    eventIds: new Set(activeContext.eventIds),
-    goodIpById: new Map(activeContext.goodIpById),
+    eventIds: new Set(records.events
+      .filter((record) => !record.archivedAt && (!record.ipId || ipIds.has(record.ipId)))
+      .map((record) => record.id)),
+    goodIpById: new Map(records.goods
+      .filter((record) => !record.archivedAt && ipIds.has(record.ipId))
+      .map((record) => [record.id, record.ipId])),
     // 준비 중인 초안 IP는 공개 카탈로그에 없다. 신규 연결은 어드민의 미보관 IP로 검증한다.
-    ipIds: new Set(records.ips.filter((record) => !record.archivedAt).map((record) => record.id)),
+    ipIds,
   };
   const id = formString(formData, 'id');
 
@@ -274,11 +279,17 @@ export async function upsertAdminIpAction(
   /* 실패는 어느 단계에서 나든 제출값을 되돌려 폼이 리셋되지 않게 한다. */
   const fail = (failure: AdminCatalogActionState) => withPreservedFormValues(failure, state, formData);
 
-  const authError = await requireStaffAction();
-  if (authError) return fail(authError);
+  let result: ReturnType<typeof normalizeAdminIpForm>;
+  try {
+    const authError = await requireStaffAction();
+    if (authError) return fail(authError);
 
-  const catalog = await getAdminValidationCatalog();
-  const result = normalizeAdminIpForm(formData, catalogContextFromSnapshot(catalog));
+    const catalog = await getAdminValidationCatalog();
+    result = normalizeAdminIpForm(formData, catalogContextFromSnapshot(catalog));
+  } catch (error) {
+    unstable_rethrow(error);
+    return fail(rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.'));
+  }
   if (!result.ok) return fail({ errors: result.errors });
 
   const value = result.value;
@@ -300,7 +311,8 @@ export async function upsertAdminIpAction(
       /* null 이면 게시 상태를 건드리지 않는다(신규는 초안). "저장 후 공개"만 true 를 보낸다. */
       target_publish: value.publish,
     }));
-  } catch {
+  } catch (error) {
+    unstable_rethrow(error);
     return fail(rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.'));
   }
 

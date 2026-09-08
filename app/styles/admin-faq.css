@@ -4,12 +4,12 @@
 .wc-admin .admin-faq__heading h1 { font-size: 26px; font-weight: 700; }
 .wc-admin .admin-faq__heading p { color: var(--wc-ink-tertiary); margin-top: 8px; }
 .wc-admin .admin-faq__heading a { text-decoration: underline; min-height: 44px; display: inline-flex; align-items: center; }
-.wc-admin .admin-faq__create { border: 1px solid var(--wc-line-control); margin-bottom: 24px; }
+.wc-admin .admin-faq__create { border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-form); background: var(--wc-surface); margin-bottom: 24px; }
 .wc-admin .admin-faq__create > summary { padding: 16px 20px; font-weight: 600; cursor: pointer; }
 .wc-admin .admin-faq__form { padding: 20px; }
 .wc-admin .admin-faq__form fieldset { display: grid; gap: 16px; border: 0; padding: 0; min-width: 0; }
 .wc-admin .admin-faq__form label { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.wc-admin .admin-faq__form input:not([type=hidden]), .wc-admin .admin-faq__form select, .wc-admin .admin-faq__form textarea { width: 100%; border: 1px solid var(--wc-line-control); padding: 10px 12px; min-height: 44px; background: var(--wc-surface); color: var(--wc-ink); border-radius: 0; }
+.wc-admin .admin-faq__form input:not([type=hidden]), .wc-admin .admin-faq__form select, .wc-admin .admin-faq__form textarea { width: 100%; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); font-family: var(--wc-font); padding: 10px 12px; min-height: 44px; background: var(--wc-surface); color: var(--wc-ink); }
 .wc-admin .admin-faq__form textarea { resize: vertical; }
 .wc-admin .admin-faq__form-row { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
 .wc-admin .admin-faq__form button { justify-self: start; min-height: 44px; padding: 10px 24px; color: var(--wc-surface); background: var(--wc-ink); cursor: pointer; }

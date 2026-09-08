@@ -307,7 +307,8 @@ select 1 / case when :'second_user_order_id'::uuid <> :'first_order_id'::uuid th
 -- An out-of-stock failure rolls back the order and preserves the cart/inventory.
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000503', true);
 reset role;
-update public.goods set stock = 'soldout', stock_qty = 0 where id = 'g6';
+update public.goods_variants set stock_qty = 0 where good_id = 'g6' and is_default;
+update public.goods set stock = 'soldout' where id = 'g6';
 reset role;
 insert into public.cart_items (user_id, good_id, qty)
 values ('00000000-0000-4000-8000-000000000503', 'g6', 1);
@@ -345,7 +346,8 @@ select 1 / case when (
 delete from public.cart_items
 where user_id = '00000000-0000-4000-8000-000000000503' and good_id = 'g6';
 reset role;
-update public.goods set stock = 'soldout', stock_qty = 1 where id = 'g11';
+update public.goods_variants set stock_qty = 1 where good_id = 'g11' and is_default;
+update public.goods set stock = 'soldout' where id = 'g11';
 reset role;
 insert into public.cart_items (user_id, good_id, qty)
 values ('00000000-0000-4000-8000-000000000503', 'g11', 1);
@@ -406,7 +408,8 @@ select 1 / case when (
 -- A zero-priced catalog item cannot consume inventory into an order that the
 -- configured card provider can never prepare.
 reset role;
-update public.goods set price = 0, stock = 'ok', stock_qty = 2 where id = 'g11';
+update public.goods_variants set stock_qty = 2 where good_id = 'g11' and is_default;
+update public.goods set price = 0, stock = 'ok' where id = 'g11';
 delete from public.cart_items where user_id = '00000000-0000-4000-8000-000000000503';
 insert into public.cart_items (user_id, good_id, qty)
 values ('00000000-0000-4000-8000-000000000503', 'g11', 1);

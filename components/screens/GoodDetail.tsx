@@ -16,7 +16,7 @@ import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import { newInquiryHref } from '@/lib/inquiries';
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
 import { formatReviewAverage, reviewRatingLabel, type ReviewRatingSummary } from '@/lib/reviews';
-import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '@/lib/shipping';
+import { getShippingPolicy } from '@/lib/shipping';
 
 /*
  * 굿즈 상세 (#173 → #326 White Catalog 재조판).
@@ -96,11 +96,12 @@ function NoticeTable({ detail }: { detail: GoodDetailContent }) {
 }
 
 function ShippingGuide() {
+  const policy = getShippingPolicy();
   return (
     <section aria-labelledby="pdp-shipping-heading" className="wc-pdp-guide">
       <h2 className="wc-pdp-panel__title" id="pdp-shipping-heading">배송 안내</h2>
       <ul className="wc-pdp-guide__list">
-        <li>배송비 {krwAmountWords(SHIPPING_FEE)} · {krwAmountWords(FREE_SHIPPING_THRESHOLD)} 이상 구매 시 무료</li>
+        <li>배송비 {krwAmountWords(policy.baseFee)} · {krwAmountWords(policy.freeThreshold)} 이상 구매 시 무료</li>
         {/*
          * 출고 기한의 진실원은 배송·반품 정책(/legal/shipping 1. 배송 안내)이다. 여기서 더 짧은
          * 영업일 수를 따로 적으면 약관 제13조 3항이 손해배상 기준으로 삼는 "약정 배송기간"이

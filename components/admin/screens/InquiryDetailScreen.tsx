@@ -183,7 +183,7 @@ export function InquiryDetailScreen({
                 {/* 문의에서 클레임이 필요해지면 여기서 넘어간다. 이 화면은 절차를 만들지 않는다. */}
                 <Link
                   className="btn btn-sm btn-ghost"
-                  href={`/admin/sales/orders?status=all&page=1&order=${order.id}`}
+                  href={`/admin/sales/orders/${order.id}`}
                 >
                   주문 콘솔에서 열기
                 </Link>

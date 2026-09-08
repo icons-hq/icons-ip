@@ -51,6 +51,15 @@
 .wc-admin .wc-admin__email { font-size: 13px; overflow-wrap: anywhere; }
 .wc-admin .wc-admin__role { color: var(--wc-ink-tertiary); font-size: 11px; }
 .wc-admin .wc-admin__avatar { display: grid; width: 36px; height: 36px; flex: none; place-items: center; border: 1px solid var(--wc-hairline); border-radius: 50%; background: var(--wc-surface-grey); font-size: 13px; font-weight: 700; }
+/* Override the retained legacy important focus rule only on converted surfaces. */
+.wc-admin .wc-admin__sidebar :focus-visible,
+.wc-admin .wc-admin__header :focus-visible,
+.wc-admin .wc-admin-kit :focus-visible {
+  border-color: var(--wc-focus) !important;
+  box-shadow: none !important;
+  outline: 2px solid var(--wc-focus) !important;
+  outline-offset: 2px !important;
+}
 .wc-admin.collapsed .wc-admin__sidebar { width: 72px; }
 .wc-admin.collapsed .wc-admin__main { margin-left: 72px; }
 .wc-admin.collapsed .wc-admin__nav-label, .wc-admin.collapsed .wc-admin__nav-group-label { display: none; }
@@ -58,6 +67,18 @@
 
 /* Screen kit is opt-in: inherited editorial rules on older screens are retained. */
 .wc-admin .wc-admin-kit { color: var(--wc-ink); font-family: var(--wc-font); }
+/* Converted screens must win over retained editorial input !important rules. */
+.wc-admin .wc-admin-kit :where(input:not([type='checkbox']):not([type='radio']):not([type='hidden']), select, textarea) {
+  min-height: 44px !important;
+  border: 1px solid var(--wc-line-control) !important;
+  border-radius: var(--wc-radius-form) !important;
+  background: var(--wc-surface) !important;
+  box-shadow: none !important;
+  color: var(--wc-ink) !important;
+  font-family: var(--wc-font) !important;
+  font-size: 14px !important;
+}
+.wc-admin .wc-admin-kit :where(input, select, textarea)[aria-invalid='true'] { border-color: var(--wc-danger) !important; }
 .wc-admin .wc-admin-kit__page-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
 .wc-admin .wc-admin-kit__heading { margin: 0; color: var(--wc-ink); font: 700 20px/1.4 var(--wc-font); }
 .wc-admin .wc-admin-kit__description { margin: 6px 0 0; color: var(--wc-ink-tertiary); font-size: 13px; }
@@ -87,6 +108,12 @@
 .wc-admin .wc-admin-kit .admin-console-bulk-bar { border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); }
 .wc-admin .wc-admin-kit .admin-console-bulk-action { border: 1px solid var(--wc-ink); border-radius: var(--wc-radius-form); background: var(--wc-ink); color: var(--wc-surface); box-shadow: none; }
 .wc-admin .wc-admin-kit .admin-console-bulk-action--danger { background: var(--wc-danger); border-color: var(--wc-danger); }
+.wc-admin .wc-admin-kit .admin-console-filters { border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-form); background: var(--wc-surface); box-shadow: none; }
+.wc-admin .wc-admin-kit .admin-console-filters :is(input, select) { border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); font: 400 13px/1.5 var(--wc-font); }
+.wc-admin .wc-admin-kit .admin-console-filter-label { color: var(--wc-ink-tertiary); font-family: var(--wc-font); }
+.wc-admin .wc-admin-kit :is(.admin-console-filters, .admin-console-pagination) .btn { border: 1px solid var(--wc-ink); border-radius: var(--wc-radius-form); background: var(--wc-ink); color: var(--wc-surface); box-shadow: none; font-family: var(--wc-font); }
+.wc-admin .wc-admin-kit :is(.admin-console-filters, .admin-console-pagination) .btn-ghost { border-color: var(--wc-line-control); background: var(--wc-surface); color: var(--wc-ink); }
+.wc-admin .wc-admin-kit .admin-console-pagination-summary { color: var(--wc-ink-tertiary); font-family: var(--wc-font); }
 @media (max-width: 900px) {
   .wc-admin .wc-admin__sidebar { width: 72px; }
   .wc-admin .wc-admin__main { margin-left: 72px; }

@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => ({
     isStaff: boolean;
   },
   catalog: null as CatalogSnapshot | null,
+  getCurrentAdminAuthState: vi.fn(),
   getCatalogSnapshot: vi.fn(),
   getAdminCatalogRecords: vi.fn(),
   rpc: vi.fn(),
@@ -40,7 +41,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/auth/admin', () => ({
-  getCurrentAdminAuthState: () => mocks.adminState,
+  getCurrentAdminAuthState: mocks.getCurrentAdminAuthState,
 }));
 vi.mock('@/lib/admin/catalog.server', () => ({
   getAdminCatalogRecords: mocks.getAdminCatalogRecords,
@@ -59,11 +60,15 @@ vi.mock('@/lib/email/transactional.server', () => ({
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
 }));
-vi.mock('next/navigation', () => ({
-  redirect: (path: string) => {
-    throw new Error(`NEXT_REDIRECT:${path}`);
-  },
-}));
+vi.mock('next/navigation', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('next/navigation')>();
+  return {
+    unstable_rethrow: actual.unstable_rethrow,
+    redirect: (path: string) => {
+      throw Object.assign(new Error(`NEXT_REDIRECT:${path}`), { digest: `NEXT_REDIRECT;replace;${path};307;` });
+    },
+  };
+});
 /* after 는 request scope 밖(vitest)에서 던진다. 여기서는 "등록된 콜백이 실행된다"만
    흉내 내면 된다 — 재입고 메일러 호출 단언이 그 콜백 안에서 일어난다. */
 vi.mock('next/server', () => ({
@@ -117,7 +122,7 @@ const catalog: CatalogSnapshot = {
 const gamePoolId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const adminRecords = {
   ips: [{ id: 'hwasan', archivedAt: null, publishedAt: '2026-06-01T00:00:00.000Z' }],
-  goods: [],
+  goods: [{ id: 'g100', ipId: 'hwasan', archivedAt: null }],
   cards: [],
   cardPools: [{
     id: gamePoolId,
@@ -133,6 +138,19 @@ const adminRecords = {
   }],
   rewardPolicies: [],
   events: [{
+    id: 'e100',
+    ipId: 'hwasan',
+    archivedAt: null,
+    title: '화산 오프라인 팝업',
+    mode: '오프라인',
+    status: '예정',
+    startsAt: null,
+    endsAt: null,
+    location: null,
+    accent: null,
+    bg: null,
+    imagePath: null,
+  }, {
     id: 'online-hwasan',
     ipId: 'hwasan',
     title: '화산 온라인 팝업',
@@ -336,6 +354,45 @@ function hideCommentForm() {
 }
 
 describe('admin catalog actions', () => {
+  it.each(['child', 'parent'] as const)('rejects new links to %s-archived records even if the public snapshot is stale', async (archived) => {
+    mocks.getAdminCatalogRecords.mockResolvedValue({
+      ...adminRecords,
+      ips: [{ id: 'hwasan', archivedAt: archived === 'parent' ? '2026-09-08' : null, publishedAt: null }],
+      goods: [{ id: 'g100', ipId: 'hwasan', archivedAt: archived === 'child' ? '2026-09-08' : null }],
+      events: [{ id: 'e100', ipId: 'hwasan', archivedAt: archived === 'child' ? '2026-09-08' : null }],
+    });
+    await expect(upsertAdminTicketTypeAction({}, ticketTypeForm())).resolves.toEqual({
+      errors: { eventId: '등록된 이벤트를 선택해주세요.' },
+    });
+    await expect(upsertAdminRewardPolicyAction({}, rewardPolicyForm())).resolves.toMatchObject({
+      errors: { targetGoodId: '등록된 굿즈를 선택해주세요.' },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('creates a reward policy for a draft IP good missing from the public catalog', async () => {
+    mocks.getAdminCatalogRecords.mockResolvedValue({
+      ...adminRecords,
+      ips: [...adminRecords.ips, { id: 'draft-ip', archivedAt: null, publishedAt: null }],
+      goods: [{ id: 'draft-good', ipId: 'draft-ip', archivedAt: null }],
+    });
+    const form = rewardPolicyForm();
+    form.set('targetIpId', 'draft-ip');
+    form.set('targetGoodId', 'draft-good');
+    await expect(upsertAdminRewardPolicyAction({}, form)).resolves.toEqual({ message: '발급 정책을 저장했습니다.' });
+  });
+
+  it('creates a ticket type under a draft IP event missing from the public catalog', async () => {
+    mocks.getAdminCatalogRecords.mockResolvedValue({
+      ...adminRecords,
+      ips: [...adminRecords.ips, { id: 'draft-ip', archivedAt: null, publishedAt: null }],
+      events: [{ id: 'draft-event', ipId: 'draft-ip', archivedAt: null }],
+    });
+    const form = ticketTypeForm();
+    form.set('eventId', 'draft-event');
+    await expect(upsertAdminTicketTypeAction({}, form)).resolves.toEqual({ message: '티켓 회차를 저장했습니다.' });
+  });
+
   it.each([
     ['상품', upsertAdminGoodAction, goodForm, '굿즈를 저장했습니다.'],
     ['카드', upsertAdminCardAction, cardForm, '카드를 저장했습니다.'],
@@ -362,6 +419,8 @@ describe('admin catalog actions', () => {
       isStaff: true,
     };
     mocks.catalog = catalog;
+    mocks.getCurrentAdminAuthState.mockReset();
+    mocks.getCurrentAdminAuthState.mockImplementation(() => mocks.adminState);
     mocks.getCatalogSnapshot.mockReset();
     mocks.getCatalogSnapshot.mockResolvedValue(catalog);
     mocks.getAdminCatalogRecords.mockReset();
@@ -782,6 +841,26 @@ describe('admin catalog actions', () => {
    * 성공 응답은 바뀌지 않는다 — 성공 뒤 폼은 저장된 레코드를 보여야 한다.
    */
   describe('IP form state preservation', () => {
+    it.each(['auth', 'catalog'] as const)('preserves values when the %s infrastructure read rejects', async (boundary) => {
+      const request = boundary === 'auth' ? mocks.getCurrentAdminAuthState : mocks.getCatalogSnapshot;
+      request.mockRejectedValue(new Error('connection interrupted'));
+      const formData = ipForm();
+      formData.set('imagePath', 'public-media/catalog/ip/uploaded.png');
+      await expect(upsertAdminIpAction({ attempt: 3 }, formData)).resolves.toEqual({
+        errors: { form: 'IP를 저장하지 못했습니다. 다시 시도해주세요.' },
+        values: collectFormValues(formData),
+        attempt: 4,
+      });
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it('lets the unauthenticated login redirect reach Next instead of treating it as a failed save', async () => {
+      mocks.adminState = { isConfigured: true, user: null, role: null, isStaff: false };
+      await expect(upsertAdminIpAction({}, ipForm())).rejects.toThrow('NEXT_REDIRECT:/login?next=%2Fadmin');
+      expect(mocks.getCatalogSnapshot).not.toHaveBeenCalled();
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
     it('preserves the submitted values and artwork path when the save request throws', async () => {
       mocks.rpc.mockRejectedValue(new Error('connection interrupted'));
       const formData = ipForm();

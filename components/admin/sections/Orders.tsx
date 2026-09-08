@@ -525,6 +525,7 @@ function OrderDetail({
           <span className={`order-status order-status--${order.status}`}>{status.label}</span>
           <h2 id="admin-order-detail-title">주문 {orderReferenceLabel(order.id)}</h2>
           <p className="faint mono">{order.id}</p>
+          <Link className="btn btn-sm btn-ghost" href={`/admin/sales/orders/${order.id}`}>상세 열기</Link>
         </div>
         <strong>{formatKrw(order.total)}</strong>
       </header>
@@ -724,7 +725,9 @@ function OrderDetail({
 }
 
 export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
-  const selected = data.items.find((order) => order.id === data.filters.orderId) ?? data.items[0] ?? null;
+  const selected = data.filters.orderId
+    ? data.items.find((order) => order.id === data.filters.orderId) ?? null
+    : data.items[0] ?? null;
   const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize));
 
   return (
@@ -788,7 +791,12 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
             </nav>
           ) : null}
         </aside>
-        {selected ? <OrderDetail carriers={data.carriers} order={selected} /> : null}
+        {selected ? <OrderDetail carriers={data.carriers} order={selected} /> : data.filters.orderId ? (
+          <div className="card col" role="status">
+            <p>선택한 주문은 현재 목록에 없습니다.</p>
+            <Link href={`/admin/sales/orders/${data.filters.orderId}`}>지정한 주문 상세 열기</Link>
+          </div>
+        ) : null}
       </div>
     </section>
   );

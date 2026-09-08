@@ -94,6 +94,9 @@ function render(input = detail()) {
 }
 
 describe('InquiryDetailScreen', () => {
+  it('연결 주문을 페이지 필터와 무관한 정확한 상세 주소로 연다', () => {
+    expect(render()).toContain(`/admin/sales/orders/${ORDER_ID}`);
+  });
   it('내부 메모는 고객 답변과 구분해 작성자와 함께 보여준다', () => {
     const html = render(detail({ notes: [{ id: 'n1', authorName: '지우', body: '물류팀 재확인 필요', createdAt: '2026-08-20T01:00:00Z' }] }));
     expect(html).toContain('내부 메모 · 고객 비노출');

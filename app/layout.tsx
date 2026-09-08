@@ -7,6 +7,8 @@ import './styles/admin-console.css';
 import './styles/wc-foundation.css';
 import './styles/wc-admin.css';
 import './styles/admin-faq.css';
+import './styles/admin-goods-notice-presets.css';
+import './styles/admin-order-detail.css';
 import './styles/wc-chrome.css';
 import './styles/wc-home.css';
 import './styles/wc-catalog.css';

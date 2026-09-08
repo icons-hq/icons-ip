@@ -4,6 +4,7 @@ import { useActionState, useMemo } from 'react';
 import { upsertAdminGoodAction, type AdminCatalogActionState } from '@/app/admin/actions';
 import { GoodSection } from '@/components/admin/sections/GoodSection';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
+import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import { toRecordOptions, useSelectedRecord } from './record-selection';
 
@@ -20,11 +21,13 @@ export function GoodScreen({
   catalogIps,
   ips,
   records,
+  variants,
 }: {
   adjustmentId: string;
   catalogIps: CatalogSnapshot['ips'];
   ips: AdminCatalogRecords['ips'];
   records: AdminCatalogRecords['goods'];
+  variants: AdminGoodsVariant[];
 }) {
   const [state, action, pending] = useActionState(upsertAdminGoodAction, emptyState);
   const ipOptions = useMemo(() => toRecordOptions(ips), [ips]);
@@ -41,6 +44,7 @@ export function GoodScreen({
       records={records}
       selected={selected}
       state={state}
+      variants={variants}
     />
   );
 }

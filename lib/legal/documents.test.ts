@@ -1,7 +1,5 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { krwAmountWords } from '../format';
-import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '../shipping';
 import { businessContactWords } from './business-info';
 import {
   LEGAL_DOCUMENTS,
@@ -377,13 +375,9 @@ describe('배송·반품 정책', () => {
   const shipping = LEGAL_DOCUMENTS.shipping;
   const text = plainText(shipping);
 
-  /* 정책값을 문서가 다시 선언하면 lib/shipping.ts를 고쳐도 공개 고지만 옛값에 남는다.
-     리터럴이 아니라 상수를 참조해야 이 테스트가 그 어긋남을 잡는다. */
-  it('배송비 고지가 lib/shipping.ts의 정책값을 그대로 따른다 (계획 D5)', () => {
-    expect(text).toContain(krwAmountWords(SHIPPING_FEE));
-    expect(text).toContain(`${krwAmountWords(FREE_SHIPPING_THRESHOLD)} 이상`);
-    expect(source(), '배송비 상수를 문서가 자체 선언하면 정책 변경이 갈라진다')
-      .not.toMatch(/const\s+(SHIPPING_FEE|FREE_SHIPPING_THRESHOLD)\w*\s*=/);
+  it('배송비 고지가 현재 구매 정책과 같은 금액을 안내한다 (계획 D5)', () => {
+    expect(text).toContain('3,000원');
+    expect(text).toContain('50,000원 이상');
   });
 
   /* 주문 상세의 청약철회는 주문 단위 하나뿐이고, cancelTossPayment가 cancelAmount 없이

@@ -160,8 +160,8 @@ on conflict (id) do update set
   onboarded_at = excluded.onboarded_at,
   role = excluded.role;
 
-insert into public.ips (id, title, vertical_key)
-values ('bank-ip', '무통장 IP', 'character');
+insert into public.ips (id, title, vertical_key, published_at)
+values ('bank-ip', '무통장 IP', 'character', now());
 
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, allow_bank_transfer)
 values

@@ -34,6 +34,7 @@ describe('IpSection', () => {
   it('uses the shared artwork field and states the horizontal key-art rule', () => {
     const html = renderToStaticMarkup(
       <IpSection
+        accountId="operator-a"
         action={vi.fn()}
         onSelect={vi.fn()}
         pending={false}
@@ -56,6 +57,7 @@ describe('IpSection', () => {
   it('기존 IP의 featured 값을 보이지 않는 입력으로 보존한다', () => {
     const html = renderToStaticMarkup(
       <IpSection
+        accountId="operator-a"
         action={vi.fn()}
         onSelect={vi.fn()}
         pending={false}
@@ -73,6 +75,7 @@ describe('IpSection', () => {
   it('shows the archive filter and archive control only for an existing IP', () => {
     const existing = renderToStaticMarkup(
       <IpSection
+        accountId="operator-a"
         action={vi.fn()}
         onSelect={vi.fn()}
         pending={false}
@@ -84,6 +87,7 @@ describe('IpSection', () => {
     );
     const creating = renderToStaticMarkup(
       <IpSection
+        accountId="operator-a"
         action={vi.fn()}
         onSelect={vi.fn()}
         pending={false}
@@ -105,6 +109,7 @@ describe('IpSection', () => {
     const archived = { ...ip, archivedAt: '2026-07-17T12:00:00.000Z' };
     const html = renderToStaticMarkup(
       <IpSection
+        accountId="operator-a"
         action={vi.fn()}
         onSelect={vi.fn()}
         pending={false}
@@ -128,6 +133,7 @@ describe('IpSection', () => {
     const legacy = { ...ip, bg: 'url("/generated/ip/hwasan.png") center / cover no-repeat' };
     const html = renderToStaticMarkup(
       <IpSection
+        accountId="operator-a"
         action={vi.fn()}
         onSelect={vi.fn()}
         pending={false}
@@ -146,6 +152,7 @@ describe('IpSection', () => {
   it('takes the glyph as multi-line text instead of a typed escape sequence', () => {
     const html = renderToStaticMarkup(
       <IpSection
+        accountId="operator-a"
         action={vi.fn()}
         onSelect={vi.fn()}
         pending={false}
@@ -165,6 +172,7 @@ describe('IpSection', () => {
     function render(selected: AdminIpRecord | null, records = selected ? [selected] : []) {
       return renderToStaticMarkup(
         <IpSection
+          accountId="operator-a"
           action={vi.fn()}
           onSelect={vi.fn()}
           pending={false}
@@ -225,6 +233,7 @@ describe('IpSection', () => {
     it('disables both submit buttons while the action is pending', () => {
       const html = renderToStaticMarkup(
         <IpSection
+          accountId="operator-a"
           action={vi.fn()}
           onSelect={vi.fn()}
           pending
@@ -271,6 +280,7 @@ describe('IpSection', () => {
       vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://demo.supabase.co');
       const html = renderToStaticMarkup(
         <IpSection
+          accountId="operator-a"
           action={vi.fn()}
           onSelect={vi.fn()}
           pending={false}
@@ -305,6 +315,7 @@ describe('IpSection', () => {
       const stored = { ...ip, sub: '저장된 보조 설명', imagePath: 'public-media/catalog/ip/stored.png', imageUrl: 'https://cdn.test/stored.png' };
       const html = renderToStaticMarkup(
         <IpSection
+          accountId="operator-a"
           action={vi.fn()}
           onSelect={vi.fn()}
           pending={false}
@@ -326,6 +337,7 @@ describe('IpSection', () => {
     it('ignores a failed submission that belonged to a different record', () => {
       const html = renderToStaticMarkup(
         <IpSection
+          accountId="operator-a"
           action={vi.fn()}
           onSelect={vi.fn()}
           pending={false}

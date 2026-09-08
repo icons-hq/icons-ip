@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   catalogRecords: vi.fn(),
   catalogSnapshot: vi.fn(),
   drawTicketGrants: vi.fn(),
+  goodsVariants: vi.fn(),
   screens: {
     good: vi.fn(() => null),
     card: vi.fn(() => null),
@@ -39,6 +40,9 @@ vi.mock('@/lib/catalog', () => ({
 }));
 vi.mock('@/lib/admin/draw-ticket-grants.server', () => ({
   getAdminDrawTicketGrants: mocks.drawTicketGrants,
+}));
+vi.mock('@/lib/admin/goods-variants.server', () => ({
+  loadAdminGoodsVariants: mocks.goodsVariants,
 }));
 vi.mock('@/components/admin/screens/GoodScreen', () => ({ GoodScreen: mocks.screens.good }));
 vi.mock('@/components/admin/screens/CardScreen', () => ({ CardScreen: mocks.screens.card }));
@@ -103,6 +107,11 @@ describe('어드민 카탈로그 라우트', () => {
     mocks.drawTicketGrants.mockImplementation(async () => {
       mocks.order.push('grants');
       return [];
+    });
+    mocks.goodsVariants.mockReset();
+    mocks.goodsVariants.mockImplementation(async () => {
+      mocks.order.push('variants');
+      return {};
     });
   });
 

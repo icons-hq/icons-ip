@@ -111,8 +111,8 @@ on conflict (id) do update set
   onboarded_at = excluded.onboarded_at,
   role = excluded.role;
 
-insert into public.ips (id, title, vertical_key)
-values ('restrict-ip', '판매 제한 IP', 'character');
+insert into public.ips (id, title, vertical_key, published_at)
+values ('restrict-ip', '판매 제한 IP', 'character', now());
 
 -- 두 굿즈 모두 컬럼을 명시하지 않는다. 제한 전환은 아래 setter가 한다 —
 -- 운영 경로를 거치지 않은 값으로 뒤 절들을 세우면 setter가 고장나도 통과한다.

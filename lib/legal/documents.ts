@@ -1,5 +1,5 @@
 import { krwAmountWords } from '@/lib/format';
-import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '@/lib/shipping';
+import { getShippingPolicy } from '@/lib/shipping';
 import { businessContactWords } from './business-info';
 import {
   LEGAL_DOCUMENT_LABELS,
@@ -11,6 +11,8 @@ import { socialLoginWords } from './social-login';
 
 export { LEGAL_DOCUMENT_SLUGS, legalDocumentHref };
 export type { LegalDocumentSlug };
+
+const shippingPolicy = getShippingPolicy();
 
 /* 법정 고지 문서의 본문 진실원.
  *
@@ -626,8 +628,8 @@ const shipping: LegalDocument = {
         rows: [
           ['배송 방법', '택배 (한진택배)'],
           ['배송 지역', '대한민국 전국'],
-          ['기본 배송비', krwAmountWords(SHIPPING_FEE)],
-          ['무료 배송 조건', `주문 금액 ${krwAmountWords(FREE_SHIPPING_THRESHOLD)} 이상`],
+          ['기본 배송비', krwAmountWords(shippingPolicy.baseFee)],
+          ['무료 배송 조건', `주문 금액 ${krwAmountWords(shippingPolicy.freeThreshold)} 이상`],
           ['도서산간·제주 추가 배송비', '주문 화면과 굿즈 상세에서 별도 안내'],
           ['배송 기간', '대금을 먼저 지급하는 선지급 주문이므로, 결제가 확정된 날부터 3영업일 이내에 배송에 필요한 조치를 취합니다. 무통장 입금 주문은 입금이 확인된 날이 결제 확정일입니다. 공급 절차가 늦어지면 그 진행 상황을 알립니다.'],
           ['무통장 입금 기한', '주문 성립 후 24시간. 기한 안에 입금이 확인되지 않으면 주문이 자동 취소되고 선점된 수량이 복원됩니다.'],
@@ -676,7 +678,7 @@ const shipping: LegalDocument = {
        * 최초 배송비를 환급액에서 뺄 방법이 없다. "공제될 수 있습니다"는 지킬 수 없는 고지다. */
       closing: [
         '청약철회가 승인되면 결제한 금액 전액이 취소됩니다. 이미 받은 배송비를 환급액에서 공제하지 않습니다.',
-        `무료 배송 조건(${krwAmountWords(FREE_SHIPPING_THRESHOLD)} 이상)으로 발송된 주문도 같습니다. 다만 반송에 드는 비용은 위 표의 부담 주체를 따릅니다.`,
+        `무료 배송 조건(${krwAmountWords(shippingPolicy.freeThreshold)} 이상)으로 발송된 주문도 같습니다. 다만 반송에 드는 비용은 위 표의 부담 주체를 따릅니다.`,
       ],
     },
     {

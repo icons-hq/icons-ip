@@ -1,28 +1,24 @@
 import { krw } from './format';
 
-/* 배송비 정책의 단일 진실원(#174 · 결정 D5). 어드민 토글은 두지 않는다 —
-   값이 바뀌면 이 파일을 고치고 배포한다.
+export type ShippingPolicy = Readonly<{ baseFee: number; freeThreshold: number }>;
 
-   주의: 여기 값은 "지금 담으면 얼마인가"를 보여주는 표시용 파생일 뿐이다.
-   실제 청구액은 place_order RPC가 같은 정책으로 다시 계산해
-   orders.shipping_fee에 스냅샷으로 남긴다. 과거 주문의 영수증은
-   이 상수가 바뀌어도 변하지 않는다. */
-
-/** 기본 배송비. 도서산간 추가요금은 보류다(H6). */
-export const SHIPPING_FEE = 3000;
-
-/** 이 금액 **이상**이면 배송비를 받지 않는다. */
-export const FREE_SHIPPING_THRESHOLD = 50000;
+/* #438: 표시용 정책 조회는 이 함수로 모은다. #422에서 출고지 설정으로
+   조회 소스를 교체한다. 실제 청구액은 SQL 정책 조회로 다시 계산하고
+   orders.shipping_fee에 고정하므로 과거 주문은 정책 변경의 영향을 받지 않는다. */
+export function getShippingPolicy(): ShippingPolicy {
+  return { baseFee: 3000, freeThreshold: 50000 };
+}
 
 /** 굿즈 소계로 배송비를 정한다. 빈 장바구니(소계 0)는 청구 대상이 아니다. */
 export function shippingFeeFor(subtotal: number): number {
   if (subtotal <= 0) return 0;
-  return subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : SHIPPING_FEE;
+  const policy = getShippingPolicy();
+  return subtotal >= policy.freeThreshold ? 0 : policy.baseFee;
 }
 
 /** 무료배송까지 남은 금액. 이미 도달했으면 0이다. */
 export function freeShippingRemainder(subtotal: number): number {
-  return Math.max(0, FREE_SHIPPING_THRESHOLD - Math.max(0, subtotal));
+  return Math.max(0, getShippingPolicy().freeThreshold - Math.max(0, subtotal));
 }
 
 /** 영수증의 배송비 줄 표기. 장바구니·체크아웃·주문상세가 같은 문구를 쓴다. */
