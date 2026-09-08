@@ -56,7 +56,7 @@ function OfferRow({
       >
         <span className="col" style={{ gap: 3, minWidth: 0 }}>
           <strong style={{ fontSize: 13 }}>{offer.label}</strong>
-          <span className="faint mono" style={{ fontSize: 11 }}>
+          <span className="faint mono" style={{ fontSize: 12 }}>
             {pool ? pool.name : '삭제된 카드풀'}
             {' · '}코인 {offer.coinCost.toLocaleString('ko-KR')}
             {' · '}카드팩 {offer.ticketCount}장

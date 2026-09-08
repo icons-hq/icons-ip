@@ -81,7 +81,7 @@ function PopupForm({ detail, ipOptions }: {
         <button className="btn btn-sm btn-holo" disabled={pending} type="submit">팝업 저장</button>
         <Message state={state} />
       </div>
-      <p className="muted" style={{ fontSize: 11.5, margin: 0 }}>
+      <p className="muted" style={{ fontSize: 12, margin: 0 }}>
         게시하려면 페이즈가 하나 이상 있어야 합니다. 주소(<span className="mono">{popup.id}</span>)는 바꿀 수 없습니다.
       </p>
     </SeededForm>
@@ -122,7 +122,7 @@ function PhasesForm({ detail }: { detail: AdminPopupDetail }) {
         <button className="btn btn-sm btn-holo" disabled={pending} type="submit">페이즈 저장</button>
         <Message state={state} />
       </div>
-      <p className="muted" style={{ fontSize: 11.5, margin: 0 }}>
+      <p className="muted" style={{ fontSize: 12, margin: 0 }}>
         시간은 <strong>시작 포함·종료 제외</strong>입니다. 「23:59까지」는 다음 날 00:00으로 적습니다.
         같은 시각에 두 페이즈를 둘 수 없고, 키를 지우면 그 페이즈가 삭제됩니다.
       </p>
@@ -169,14 +169,14 @@ function LinkRuleRow({ detail, link }: { detail: AdminPopupDetail; link: AdminPo
       <div className="row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
         <span className="tag">{POPUP_TARGET_TYPE_LABELS[link.targetType] ?? link.targetType}</span>
         <strong className="mono" style={{ fontSize: 12 }}>{link.targetId}</strong>
-        {link.zoneCode ? <span className="faint" style={{ fontSize: 11 }}>{link.zoneCode}</span> : null}
-        <span className="faint" style={{ fontSize: 11 }}>
+        {link.zoneCode ? <span className="faint" style={{ fontSize: 12 }}>{link.zoneCode}</span> : null}
+        <span className="faint" style={{ fontSize: 12 }}>
           지금 {POPUP_SALE_MODE_LABELS[link.currentMode] ?? link.currentMode}
         </span>
       </div>
       <div className="row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
         {detail.phases.map((phase) => (
-          <label className="row" key={phase.key} style={{ alignItems: 'center', fontSize: 11, gap: 4 }}>
+          <label className="row" key={phase.key} style={{ alignItems: 'center', fontSize: 12, gap: 4 }}>
             <span className="faint">{phase.label}</span>
             <select defaultValue={ruleFor(phase.key)} name={`rule:${phase.key}`}>
               <option value="">기본</option>
@@ -227,7 +227,7 @@ function ZonesForm({ detail }: { detail: AdminPopupDetail }) {
         <button className="btn btn-sm btn-holo" disabled={pending} type="submit">존 저장</button>
         <Message state={state} />
       </div>
-      <p className="muted" style={{ fontSize: 11.5, margin: 0 }}>
+      <p className="muted" style={{ fontSize: 12, margin: 0 }}>
         한 존은 <strong>한 유형만</strong> 갖습니다. 코드를 지우면 그 존이 삭제되지만,
         거기 걸려 있던 연결은 남고 존만 떨어집니다 — 존을 정리하다 편성이 사라지지 않게.
       </p>
@@ -253,7 +253,7 @@ export function PopupEditorScreen({
         <div>
           <Link className="btn btn-sm btn-ghost" href="/admin/popups">← 목록으로</Link>
           <h1 style={{ fontSize: 22, margin: '8px 0 0' }}>{popup.title}</h1>
-          <p className="faint mono" style={{ fontSize: 11, margin: '4px 0 0' }}>
+          <p className="faint mono" style={{ fontSize: 12, margin: '4px 0 0' }}>
             {popup.id} · {formatPopupPeriod(popup.starts_at, popup.ends_at)}
           </p>
         </div>
@@ -289,7 +289,7 @@ export function PopupEditorScreen({
             <p className="muted" style={{ fontSize: 12, margin: 0 }}>아직 연결한 것이 없습니다.</p>
           ) : null}
         </div>
-        <p className="muted" style={{ fontSize: 11.5, margin: 0 }}>
+        <p className="muted" style={{ fontSize: 12, margin: 0 }}>
           판매 모드는 <strong>규칙 › 연결 기본 › 페이즈 기본</strong> 순으로 좁은 것이 이깁니다.
           팝업은 원본 조건을 넘어 열 수 없습니다 — 원본이 닫혀 있으면 여기서 열어도 닫힌 채입니다.
         </p>
@@ -319,7 +319,7 @@ export function PopupEditorScreen({
               ))}
               {preview.links.length === 0 ? <li className="muted">이 시각에는 보이는 것이 없습니다.</li> : null}
             </ul>
-            <p className="faint" style={{ fontSize: 11, margin: 0 }}>
+            <p className="faint" style={{ fontSize: 12, margin: 0 }}>
               이 화면은 소비자 화면과 <strong>같은 함수</strong>를 부릅니다. 다른 것은 시계뿐입니다.
             </p>
           </div>

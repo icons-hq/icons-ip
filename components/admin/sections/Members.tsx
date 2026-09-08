@@ -241,7 +241,7 @@ function MemberDetail({
             {member.suspendedAt && <span className="tag" style={{ color: 'var(--pink)' }}>정지</span>}
           </div>
           <span className="mono" style={{ fontSize: 13 }}>{member.email}</span>
-          <span className="faint mono" style={{ fontSize: 11 }}>
+          <span className="faint mono" style={{ fontSize: 12 }}>
             가입 {formatDate(member.createdAt)}
           </span>
         </div>
@@ -317,7 +317,7 @@ export function MembersSection({
         style={{ borderRadius: 10, gap: 8, padding: 14 }}
       >
         <label className="col" style={{ gap: 7 }}>
-          <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>회원 검색</span>
+          <span className="mono" style={{ color: 'var(--dim)', fontSize: 12 }}>회원 검색</span>
           <div className="row" style={{ gap: 8 }}>
             <input
               aria-describedby={searchState.errors?.query ? 'member-query-error' : undefined}
@@ -360,7 +360,7 @@ export function MembersSection({
             {entry.label}
           </Link>
         ))}
-        <span className="faint" style={{ fontSize: 11, marginLeft: 10 }}>등급</span>
+        <span className="faint" style={{ fontSize: 12, marginLeft: 10 }}>등급</span>
         <Link
           className={filters.grade ? 'btn btn-sm btn-ghost' : 'btn btn-sm btn-holo'}
           href={adminMembersHref(filters, { grade: '' })}
@@ -391,7 +391,7 @@ export function MembersSection({
                 {member.dormantAt && <span className="tag" style={{ color: 'var(--faint)' }}>휴면</span>}
               </div>
               <span className="mono" style={{ fontSize: 12 }}>{member.maskedEmail}</span>
-              <span className="faint mono" style={{ fontSize: 11 }}>
+              <span className="faint mono" style={{ fontSize: 12 }}>
                 가입 {formatDate(member.createdAt)}
                 {member.orderCount > 0
                   ? ` · 주문 ${member.orderCount}건 ${member.grossTotal.toLocaleString('ko-KR')}원`

@@ -92,7 +92,7 @@ export function OverviewSection({
               <strong style={{ fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {report.targetLabel}
               </strong>
-              <span className="faint mono" style={{ fontSize: 11 }}>
+              <span className="faint mono" style={{ fontSize: 12 }}>
                 {reportTargetLabels[report.targetType]} · 신고자 @{report.reporterName} ·{' '}
                 {new Date(report.createdAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}
               </span>

@@ -100,7 +100,7 @@ function GoodsNoticeFields({
 
   return (
     <fieldset style={{ border: '1px solid var(--line)', borderRadius: 10, margin: 0, padding: 14 }}>
-      <legend className="mono" style={{ color: 'var(--dim)', fontSize: 11, padding: '0 6px' }}>
+      <legend className="mono" style={{ color: 'var(--dim)', fontSize: 12, padding: '0 6px' }}>
         고시정보 (전자상거래 필수 표기)
       </legend>
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: '0 0 12px' }}>
@@ -219,7 +219,7 @@ function GoodsGalleryFields({
 }) {
   return (
     <fieldset style={{ border: '1px solid var(--line)', borderRadius: 10, margin: 0, padding: 14 }}>
-      <legend className="mono" style={{ color: 'var(--dim)', fontSize: 11, padding: '0 6px' }}>
+      <legend className="mono" style={{ color: 'var(--dim)', fontSize: 12, padding: '0 6px' }}>
         갤러리 (최대 {GOODS_GALLERY_MAX}장)
       </legend>
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: '0 0 12px' }}>
@@ -303,7 +303,7 @@ function GoodPreviewPanel({ detail, ip }: { detail: GoodDetailContent; ip: Ip | 
           지금 폼에 입력된 값으로 그린 화면입니다. 저장하기 전 모습이며, 미리보기는 카탈로그를 바꾸지 않습니다.
         </p>
         <div className="col" style={{ gap: 8 }}>
-          <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>굿즈샵 목록 카드</span>
+          <span className="mono" style={{ color: 'var(--dim)', fontSize: 12 }}>굿즈샵 목록 카드</span>
           {/* wc 토큰은 .wc-root 스코프 안에서만 산다 — 어드민 표면에서도 같은 래퍼가 필요하다. */}
           <div className="wc-root" style={{ maxWidth: 280 }}>
             <ProductCard
@@ -319,7 +319,7 @@ function GoodPreviewPanel({ detail, ip }: { detail: GoodDetailContent; ip: Ip | 
           </div>
         </div>
         <div className="col" style={{ gap: 8 }}>
-          <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>굿즈 상세페이지</span>
+          <span className="mono" style={{ color: 'var(--dim)', fontSize: 12 }}>굿즈 상세페이지</span>
           <div className="wc-root">
             <GoodDetailView detail={detail} embedded />
           </div>

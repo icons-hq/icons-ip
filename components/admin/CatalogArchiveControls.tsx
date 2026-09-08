@@ -29,7 +29,7 @@ export function CatalogArchiveFilter({
 }) {
   return (
     <label className="col" style={{ gap: 7 }}>
-      <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>보관 상태</span>
+      <span className="mono" style={{ color: 'var(--dim)', fontSize: 12 }}>보관 상태</span>
       <select
         aria-label="보관 상태"
         className="admin-field-control"

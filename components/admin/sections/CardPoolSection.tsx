@@ -201,7 +201,7 @@ function OddsForm({
           const errorId = state.errors?.[name] ? `${name}-error` : undefined;
           return (
             <label className="col" key={rarity} style={{ gap: 7 }}>
-              <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>{rarity} (%)</span>
+              <span className="mono" style={{ color: 'var(--dim)', fontSize: 12 }}>{rarity} (%)</span>
               <input
                 aria-describedby={errorId}
                 aria-invalid={Boolean(errorId)}
@@ -287,7 +287,7 @@ function PoolCardRoster({
         <div className="card row" key={card.id} style={{ alignItems: 'center', gap: 12, justifyContent: 'space-between', padding: 12 }}>
           <div>
             <strong>{card.archivedAt ? `[보관] ${card.name}` : card.name}</strong>
-            <div className="mono" style={{ color: 'var(--dim)', fontSize: 11, marginTop: 4 }}>{card.rarity} · {card.id}</div>
+            <div className="mono" style={{ color: 'var(--dim)', fontSize: 12, marginTop: 4 }}>{card.rarity} · {card.id}</div>
           </div>
           <Link className="btn" href={`/admin/catalog/cards?cardId=${encodeURIComponent(card.id)}`}>카드 편집</Link>
         </div>

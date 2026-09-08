@@ -1,11 +1,8 @@
 import type { AdminMetricWindow } from '@/lib/admin/insights.server';
 
+/* 운영 화면의 금액은 자릿수를 줄이지 않는다(PM 2026-09-08 「엑셀처럼」). 「₩6만」은 6만 원인지
+ * 6만 4천 원인지 말해 주지 않아 대사가 안 된다 — 대시보드·주문 목록·차트 눈금 모두 전체 숫자다. */
 export function formatKrw(value: number) {
-  if (value >= 100_000_000) {
-    const eok = value / 100_000_000;
-    return `₩${eok.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억`;
-  }
-  if (value >= 10_000) return `₩${Math.round(value / 10_000).toLocaleString('ko-KR')}만`;
   return `₩${value.toLocaleString('ko-KR')}`;
 }
 

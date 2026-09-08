@@ -36,10 +36,18 @@ export function DispatchOrderPeek({
         {reference}
       </button>
       <dialog className="admin-order-peek" ref={dialogRef}>
-        <form method="dialog" className="admin-order-peek-head">
+        {/* 목록 자체가 일괄 처리 <form> 안에 있다 — method="dialog" 폼을 여기 두면 폼 안의 폼이
+            되어 hydration 이 깨진다. 닫기는 버튼 하나로 충분하다. */}
+        <div className="admin-order-peek-head">
           <h2 className="mono" style={{ fontSize: 14, margin: 0 }}>{reference}</h2>
-          <button className="btn btn-sm btn-ghost" type="submit">닫기</button>
-        </form>
+          <button
+            className="btn btn-sm btn-ghost"
+            onClick={() => dialogRef.current?.close()}
+            type="button"
+          >
+            닫기
+          </button>
+        </div>
         <dl className="admin-order-peek-body">
           <div><dt>주문자</dt><dd>@{row.buyerName}</dd></div>
           <div><dt>주문 시각</dt><dd>{formatOrderDateTime(row.createdAt)}</dd></div>

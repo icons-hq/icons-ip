@@ -50,7 +50,7 @@ export function SettledExportPanel({
       <input name="clientKey" type="hidden" value="" />
       {/* 확정된 주문만 — 정산 파일에 결제만 된 주문이 섞이면 매출이 앞당겨 잡힌다. */}
       <input name="status" type="hidden" value="done" />
-      <span className="mono" style={{ fontSize: 11 }}>거래확정 내역 내보내기 (ERP 매출 업로드용)</span>
+      <span className="mono" style={{ fontSize: 12 }}>거래확정 내역 내보내기 (ERP 매출 업로드용)</span>
       <label className="admin-dispatch-export-field">
         <span className="mono">양식</span>
         <select className="admin-field-control" name="templateId">

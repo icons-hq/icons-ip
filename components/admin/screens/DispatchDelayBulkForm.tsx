@@ -45,7 +45,7 @@ export function DispatchDelayBulkForm({ candidates }: { candidates: DispatchDela
       </div>
 
       <fieldset className="col admin-dispatch-bulk-list" style={{ border: 0, gap: 4, margin: 0, padding: 0 }}>
-        <legend className="mono" style={{ fontSize: 11, padding: 0 }}>안내할 주문</legend>
+        <legend className="mono" style={{ fontSize: 12, padding: 0 }}>안내할 주문</legend>
         {candidates.map((candidate) => (
           <label className="row" key={candidate.orderId} style={{ alignItems: 'center', gap: 8 }}>
             <input name="orderIds" type="checkbox" value={candidate.orderId} />
@@ -58,7 +58,7 @@ export function DispatchDelayBulkForm({ candidates }: { candidates: DispatchDela
       </fieldset>
 
       <label className="col" style={{ gap: 6 }}>
-        <span className="mono" style={{ fontSize: 11 }}>지연 사유 (그대로 안내에 실립니다)</span>
+        <span className="mono" style={{ fontSize: 12 }}>지연 사유 (그대로 안내에 실립니다)</span>
         <textarea
           className="admin-field-control"
           maxLength={500}
@@ -70,7 +70,7 @@ export function DispatchDelayBulkForm({ candidates }: { candidates: DispatchDela
       </label>
 
       <label className="col" style={{ gap: 6 }}>
-        <span className="mono" style={{ fontSize: 11 }}>발송 예정일 (모르면 비웁니다)</span>
+        <span className="mono" style={{ fontSize: 12 }}>발송 예정일 (모르면 비웁니다)</span>
         <input className="admin-field-control" name="expectedShipDate" type="date" />
         {state.errors?.expectedShipDate ? <span role="alert" style={{ color: 'var(--pink)', fontSize: 12 }}>{state.errors.expectedShipDate}</span> : null}
       </label>

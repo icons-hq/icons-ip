@@ -40,7 +40,7 @@ export function TopIps({ ips }: { ips: AdminTopIp[] }) {
               <strong style={{ fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {ip.title}
               </strong>
-              <span className="faint mono" style={{ fontSize: 11 }}>주문 {ip.orderCount.toLocaleString('ko-KR')}건</span>
+              <span className="faint mono" style={{ fontSize: 12 }}>주문 {ip.orderCount.toLocaleString('ko-KR')}건</span>
             </div>
           </div>
           <span style={{ fontSize: 13.5, fontWeight: 700 }}>{formatKrw(ip.revenue)}</span>

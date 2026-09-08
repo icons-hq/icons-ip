@@ -45,11 +45,11 @@ export function PopupListScreen({ popups }: { popups: AdminPopupRow[] }) {
                 </span>
                 {popup.currentPhase ? <span className="tag">{popup.currentPhase}</span> : null}
               </span>
-              <span className="faint mono" style={{ fontSize: 11 }}>
+              <span className="faint mono" style={{ fontSize: 12 }}>
                 {popup.id} · {popup.ipTitle ?? popup.ipId} · {formatPopupPeriod(popup.startsAt, popup.endsAt)}
               </span>
             </span>
-            <span className="faint mono" style={{ fontSize: 11 }}>
+            <span className="faint mono" style={{ fontSize: 12 }}>
               페이즈 {popup.phaseCount} · 연결 {popup.linkCount}
             </span>
           </Link>

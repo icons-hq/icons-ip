@@ -389,7 +389,7 @@ export function GoodCategoriesPanel({
           ))}
         </SelectField>
         <fieldset className="admin-variant-options">
-          <legend className="mono" style={{ color: 'var(--dim)', fontSize: 11, padding: '0 6px' }}>추가 분류</legend>
+          <legend className="mono" style={{ color: 'var(--dim)', fontSize: 12, padding: '0 6px' }}>추가 분류</legend>
           <div className="admin-variant-values">
             {usable.map((category) => (
               <label className="admin-variant-value" key={category.id}>

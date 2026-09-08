@@ -304,7 +304,7 @@ export function ArtworkUploadField({
               style={{ height: '100%', objectFit: 'cover', width: '100%' }}
             />
           ) : (
-            <span className="mono" style={{ color: 'var(--faint)', fontSize: 11 }}>이미지 없음</span>
+            <span className="mono" style={{ color: 'var(--faint)', fontSize: 12 }}>이미지 없음</span>
           )}
         </div>
         <div className="col admin-artwork-controls" style={{ flex: 1, gap: 8, minWidth: 0 }}>
@@ -326,11 +326,11 @@ export function ArtworkUploadField({
               style={{ color: 'var(--dim)', fontFamily: 'inherit', fontSize: 12, width: '100%' }}
             />
           </label>
-          <span className="mono" id={helpId} style={{ color: 'var(--faint)', fontSize: 10 }}>
+          <span className="mono" id={helpId} style={{ color: 'var(--faint)', fontSize: 12 }}>
             JPEG, PNG, WebP · 최대 5MB · 가로·세로 최대 8192px · 총 4,000만 픽셀 이하 · 애니메이션 제외
           </span>
           {recommended && (
-            <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>
+            <span className="mono" style={{ color: 'var(--dim)', fontSize: 12 }}>
               {artworkGuideLabel(recommended)}
             </span>
           )}
@@ -370,7 +370,7 @@ export function ArtworkUploadField({
         </div>
       </div>
       <input name={name} readOnly type="hidden" value={display.imagePath} />
-      <div className="mono" style={{ color: 'var(--faint)', fontSize: 10, overflowWrap: 'anywhere' }}>
+      <div className="mono" style={{ color: 'var(--faint)', fontSize: 12, overflowWrap: 'anywhere' }}>
         현재 경로: {display.imagePath || '없음'}
       </div>
       {error && (

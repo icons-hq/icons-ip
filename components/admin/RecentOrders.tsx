@@ -51,7 +51,7 @@ export function RecentOrders({ orders }: { orders: AdminRecentOrder[] }) {
                 <strong style={{ fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   @{order.buyerName}
                 </strong>
-                <span className="faint mono" style={{ fontSize: 11 }}>
+                <span className="faint mono" style={{ fontSize: 12 }}>
                   {order.kind === 'ticket' ? '티켓' : '굿즈'} · {kstDateTime.format(new Date(order.createdAt))}
                 </span>
               </div>

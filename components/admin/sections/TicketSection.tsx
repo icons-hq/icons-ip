@@ -114,7 +114,7 @@ function TicketForm({
       <div className="admin-form-grid">
         {metadataLocked && selected ? (
           <div className="col" style={{ gap: 7 }}>
-            <span className="mono" id={eventLabelId} style={{ color: 'var(--dim)', fontSize: 11 }}>연결 이벤트</span>
+            <span className="mono" id={eventLabelId} style={{ color: 'var(--dim)', fontSize: 12 }}>연결 이벤트</span>
             <input name="eventId" type="hidden" value={selected.eventId} />
             <div
               aria-labelledby={eventLabelId}

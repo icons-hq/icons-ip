@@ -47,7 +47,7 @@ export function DispatchExportPanel({
       <input name="clientKey" type="hidden" value="" />
       {/* 발주서는 아직 안 보낸 주문만 뽑는다 — 이미 나간 건까지 담으면 창고가 두 번 싼다. */}
       <input name="unshippedOnly" type="hidden" value="on" />
-      <span className="mono" style={{ fontSize: 11 }}>발주서 내보내기</span>
+      <span className="mono" style={{ fontSize: 12 }}>발주서 내보내기</span>
       <label className="admin-dispatch-export-field">
         <span className="mono">양식</span>
         <select className="admin-field-control" name="templateId">

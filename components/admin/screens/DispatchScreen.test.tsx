@@ -131,13 +131,18 @@ describe('DispatchScreen', () => {
     expect(html).toContain('tab=delayed');
   });
 
-  /* 행 링크가 늘 status=paid 를 가리키면 발송 대기 행을 눌렀을 때 빈 목록이 뜬다. */
-  it('행 링크가 현재 탭의 상태를 따라간다', () => {
+  /* 첫 셀은 요약 팝업 버튼이다. 표가 첫 셀을 행 링크 <a> 로 감싸면 링크 안에 버튼과 팝업의
+   * 새 탭 링크가 들어가고, 팝업의 닫기 폼은 일괄 처리 폼 안의 폼이 된다 — 둘 다 hydration 을
+   * 깨뜨린다(실측: 개발 배지 4건). 상세로 가는 문은 팝업 안의 새 탭 링크 하나다. */
+  it('주문번호 셀은 행 링크로 감싸지 않고, 팝업 안에서만 새 탭 상세로 보낸다', () => {
     const html = renderToStaticMarkup(
       <DispatchScreen data={data({ filters: filters({ tab: 'ready' }) })} now={NOW} />,
     );
 
-    expect(html).toContain('status=confirmed');
+    expect(html).not.toContain('admin-console-grid-link');
+    expect(html).not.toContain('method="dialog"');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('/admin/sales/orders?selected=');
   });
 
   it('필터와 페이지 링크가 탭을 유지한다', () => {

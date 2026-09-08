@@ -50,14 +50,14 @@ export function RevenueTrend({ data }: { data: AdminDailyRevenue[] }) {
               dataKey="date"
               dy={8}
               minTickGap={28}
-              tick={{ fill: 'var(--faint)', fontSize: 11 }}
+              tick={{ fill: 'var(--faint)', fontSize: 12 }}
               tickFormatter={dayLabel}
               tickLine={false}
             />
             <YAxis
               axisLine={false}
               dx={-6}
-              tick={{ fill: 'var(--faint)', fontSize: 11 }}
+              tick={{ fill: 'var(--faint)', fontSize: 12 }}
               tickFormatter={(value: number) => (value ? formatKrw(value) : '0')}
               tickLine={false}
               width={64}

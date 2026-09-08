@@ -278,7 +278,7 @@ export function OrderRecordPanel({
             {record.notes.map((note) => (
               <li className="col" key={note.id} style={{ gap: 4 }}>
                 <div className="row" style={{ alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
-                  <span className="faint" style={{ fontSize: 11 }}>
+                  <span className="faint" style={{ fontSize: 12 }}>
                     {note.pinned ? '고정 · ' : ''}
                     {ORDER_NOTE_SYSTEM_LABELS[note.kind] ?? note.kind} · {note.authorName} · {formatOrderDateTime(note.createdAt)}
                   </span>

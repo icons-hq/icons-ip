@@ -133,9 +133,9 @@ export type AdminGoodStockFilter = (typeof ADMIN_GOOD_STOCK_FILTERS)[number];
 
 export const ADMIN_GOOD_STOCK_OPTIONS: { value: AdminGoodStockFilter; label: string }[] = [
   { value: 'all', label: '전체' },
-  { value: 'ok', label: '운영 상태 ok' },
-  { value: 'low', label: '운영 상태 low' },
-  { value: 'soldout', label: '운영 상태 soldout' },
+  { value: 'ok', label: '재고 정상' },
+  { value: 'low', label: '재고 부족' },
+  { value: 'soldout', label: '품절' },
   { value: 'zero', label: '수량 0' },
 ];
 

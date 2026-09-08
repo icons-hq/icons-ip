@@ -32,7 +32,7 @@ function OptionMasterForm({ selected }: { selected: AdminOptionMaster | null }) 
       </div>
       {selected ? (
         <fieldset className="admin-variant-options">
-          <legend className="mono" style={{ color: 'var(--dim)', fontSize: 11, padding: '0 6px' }}>옵션값 {selected.values.length}개</legend>
+          <legend className="mono" style={{ color: 'var(--dim)', fontSize: 12, padding: '0 6px' }}>옵션값 {selected.values.length}개</legend>
           <div className="col" style={{ gap: 8 }}>
             {selected.values.map((value) => (
               <div className="row" key={value.id} style={{ alignItems: 'center', gap: 12 }}>

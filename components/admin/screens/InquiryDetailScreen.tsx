@@ -98,7 +98,7 @@ export function InquiryDetailScreen({
                 key={message.id}
                 style={{ borderRadius: 12, gap: 8, padding: 14 }}
               >
-                <span className="mono muted" style={{ fontSize: 11 }}>
+                <span className="mono muted" style={{ fontSize: 12 }}>
                   {message.author === 'staff' ? 'ICONS 운영자' : `@${inquiry.buyerName}`}
                   {' · '}
                   {formatInquiryDateTime(message.createdAt)}

@@ -43,7 +43,7 @@ function ApprovalForm({ claimId, claimType }: { claimId: string; claimType: Orde
         <button className="btn btn-sm btn-holo" disabled={pending} type="submit">환불 승인</button>
         <Message state={state} />
       </div>
-      <p className="muted" style={{ fontSize: 11.5, margin: 0 }}>
+      <p className="muted" style={{ fontSize: 12, margin: 0 }}>
         승인은 관리자만 할 수 있고, 이 건을 처리한 사람은 스스로 승인할 수 없습니다.
       </p>
     </form>
@@ -66,7 +66,7 @@ function InspectionForm({ claimId, claimType }: { claimId: string; claimType: Or
         </button>
       </div>
       <Message state={state} />
-      <p className="muted" style={{ fontSize: 11.5, margin: 0 }}>
+      <p className="muted" style={{ fontSize: 12, margin: 0 }}>
         「다시 팔 수 있음」만 재고로 돌아갑니다. 검수는 한 번만 기록되니 물건을 보고 누르세요.
       </p>
     </form>

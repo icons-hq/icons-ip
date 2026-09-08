@@ -41,7 +41,7 @@ export function Field({
 
   return (
     <label className="col" style={{ gap: 7 }}>
-      <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>
+      <span className="mono" style={{ color: 'var(--dim)', fontSize: 12 }}>
         {label}
       </span>
       <input
@@ -97,7 +97,7 @@ export function TextArea({
 
   return (
     <label className="col" style={{ gap: 7 }}>
-      <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>
+      <span className="mono" style={{ color: 'var(--dim)', fontSize: 12 }}>
         {label}
       </span>
       <textarea
@@ -155,7 +155,7 @@ export function ColorField({
 
   return (
     <label className="col" style={{ gap: 7 }}>
-      <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>
+      <span className="mono" style={{ color: 'var(--dim)', fontSize: 12 }}>
         {label}
       </span>
       <input
@@ -207,7 +207,7 @@ export function SelectField({
 
   return (
     <label className="col" style={{ gap: 7 }}>
-      <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>
+      <span className="mono" style={{ color: 'var(--dim)', fontSize: 12 }}>
         {label}
       </span>
       <select
@@ -298,13 +298,13 @@ export function RecordThumbnail({ kind, url }: { kind: AdminArtworkKind; url: st
   return (
     <span
       aria-hidden="true"
+      className="admin-record-thumb"
       style={{
         aspectRatio: adminArtworkAspectRatio(kind),
         background: 'rgba(255,255,255,.045)',
         borderRadius: 6,
         flex: '0 0 auto',
         overflow: 'hidden',
-        width: 52,
       }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -362,10 +362,11 @@ export function RecordList<T extends { id: string }>({
               aria-current={activeId === item.id ? 'true' : undefined}
               className={[
                 activeId === item.id ? 'chip on' : 'chip',
+                'admin-record-list-item',
                 itemClassName,
               ].filter(Boolean).join(' ')}
               onClick={() => onSelect(item)}
-              style={{ gap: 10, justifyContent: 'flex-start', minHeight: 38, overflow: 'hidden', textAlign: 'left' }}
+              style={{ gap: 10, justifyContent: 'flex-start' }}
               type="button"
             >
               {thumbnailKind && thumbnailUrl && (

@@ -50,8 +50,8 @@ const COLUMNS: (ConsoleGridColumn & CatalogColumnOption)[] = [
   { key: 'stockQty', label: '재고', align: 'end', sortable: true, width: '120px' },
   { key: 'badge', label: '배지', width: '96px' },
   { key: 'bankTransfer', label: '무통장', width: '80px' },
-  { key: 'saleState', label: '판매', width: '110px' },
-  { key: 'status', label: '재고', width: '100px' },
+  { key: 'saleState', label: '판매 상태', width: '110px' },
+  { key: 'status', label: '상태', width: '100px' },
 ];
 
 const COLUMN_STORAGE_KEY = 'icons-admin.catalog.goods.columns';
@@ -76,12 +76,15 @@ function statusBadge(status: AdminGoodStatus) {
   );
 }
 
+/* 운영 상태는 코드값(ok/low/soldout)이 아니라 말로 보여준다 — 목록은 운영자가 읽는 표다. */
+const STOCK_STATE_LABELS: Record<string, string> = { ok: '정상', low: '부족', soldout: '품절' };
+
 function stockCell(row: AdminGoodListRow) {
   const { stock, stockQty } = row.good;
   return (
     <span className="admin-catalog-stock">
       <strong className="mono">{stockQty.toLocaleString('ko-KR')}개</strong>
-      <span className="muted">{stock}</span>
+      <span className="muted">{STOCK_STATE_LABELS[stock] ?? stock}</span>
     </span>
   );
 }
@@ -101,7 +104,8 @@ function goodCells(row: AdminGoodListRow, editHref: string): Record<string, Reac
     price: (
       <span className="mono">
         ₩{good.price.toLocaleString('ko-KR')}
-        {good.compareAtPrice ? <><br /><s className="muted">₩{good.compareAtPrice.toLocaleString('ko-KR')}</s></> : null}
+        {/* 소비자가는 같은 줄에 — 셀은 줄을 바꾸지 않는다(시트 규칙). */}
+        {good.compareAtPrice ? <> <s className="muted">₩{good.compareAtPrice.toLocaleString('ko-KR')}</s></> : null}
       </span>
     ),
     stockQty: stockCell(row),

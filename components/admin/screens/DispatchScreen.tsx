@@ -11,7 +11,6 @@ import {
   ADMIN_DISPATCH_TABS,
   adminDispatchConfirmedDaysLabel,
   adminDispatchElapsedLabel,
-  adminDispatchTab,
   adminDispatchHref,
   adminDispatchItemLabel,
   isAdminDispatchDelayed,
@@ -152,13 +151,13 @@ export function DispatchScreen({
 }) {
   const { carriers, counts, filters, pageSize, rows, total } = data;
   const tab = filters.tab;
-  const detailStatus = adminDispatchTab(tab).status;
 
   const rowsForGrid: ConsoleGridRow[] = rows.map((row) => {
     const reference = orderReferenceLabel(row.id, row.orderNo);
+    /* 행 링크(href)는 두지 않는다 — 첫 셀이 요약 팝업 버튼이라, 표가 첫 셀을 <a> 로 감싸면
+     * 링크 안에 버튼·링크가 들어가 hydration 이 깨진다. 상세로 가는 문은 팝업 안의 새 탭 링크다. */
     const base = {
       id: row.id,
-      href: `/admin/sales/orders?status=${detailStatus}&page=1&order=${row.id}`,
       selectLabel: `주문 ${reference} 선택`,
     };
 

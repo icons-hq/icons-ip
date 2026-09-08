@@ -70,13 +70,13 @@ function CategoryTree({
                 >
                   {node.name}
                 </Link>
-                <span className="muted mono" style={{ fontSize: 11, marginLeft: 6 }}>{node.id}</span>
+                <span className="muted mono" style={{ fontSize: 12, marginLeft: 6 }}>{node.id}</span>
                 {node.status === 'hidden' ? <span className="admin-badge admin-badge--muted" style={{ marginLeft: 6 }}>숨김</span> : null}
                 {node.isInternal ? <span className="admin-badge admin-badge--muted" style={{ marginLeft: 6 }}>내부</span> : null}
                 {node.archivedAt ? <span className="admin-badge admin-badge--muted" style={{ marginLeft: 6 }}>보관</span> : null}
               </span>
               <span className="row" style={{ alignItems: 'center', gap: 6 }}>
-                <span className="muted mono" style={{ fontSize: 11 }}>
+                <span className="muted mono" style={{ fontSize: 12 }}>
                   {node.goodsCount.toLocaleString('ko-KR')}
                   {node.descendantGoodsCount !== node.goodsCount ? ` / ${node.descendantGoodsCount.toLocaleString('ko-KR')}` : ''}
                 </span>
@@ -274,13 +274,13 @@ function CategoryGoodsPanel({ categoryId, goods, manual }: { categoryId: string;
                     <Link className="admin-console-grid-link" href={`/admin/catalog/goods?selected=${encodeURIComponent(row.goodId)}`}>
                       {row.goodName}
                     </Link>
-                    <span className="muted mono" style={{ fontSize: 11, marginLeft: 6 }}>{row.goodId}</span>
+                    <span className="muted mono" style={{ fontSize: 12, marginLeft: 6 }}>{row.goodId}</span>
                   </td>
                   <td><span className="admin-badge">{GOOD_SALE_STATE_LABELS[row.saleState] ?? row.saleState}</span></td>
                   <td>
                     {row.direct ? (row.isPrimary ? <span className="admin-badge">대표</span> : <span>직속</span>) : <span className="muted">하위 분류</span>}
                   </td>
-                  <td className="muted mono" style={{ fontSize: 11 }}>
+                  <td className="muted mono" style={{ fontSize: 12 }}>
                     {row.displayFrom || row.displayUntil
                       ? `${row.displayFrom?.slice(0, 16).replace('T', ' ') ?? '즉시'} ~ ${row.displayUntil?.slice(0, 16).replace('T', ' ') ?? '무기한'}`
                       : '상시'}

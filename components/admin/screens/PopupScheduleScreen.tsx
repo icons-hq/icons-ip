@@ -69,7 +69,7 @@ export function PopupScheduleScreen({ days, schedule }: { days: number; schedule
                 </Link>
                 <span className="tag">{POPUP_DISPLAY_STATE_LABELS[popup.displayState] ?? popup.displayState}</span>
                 {popup.currentPhase ? <span className="tag">{popup.currentPhase}</span> : null}
-                <span className="faint" style={{ fontSize: 11 }}>
+                <span className="faint" style={{ fontSize: 12 }}>
                   {formatPopupPeriod(popup.startsAt, popup.endsAt)}
                 </span>
               </div>
@@ -107,7 +107,7 @@ export function PopupScheduleScreen({ days, schedule }: { days: number; schedule
         ) : null}
       </section>
 
-      <p className="faint" style={{ fontSize: 11, margin: 0 }}>
+      <p className="faint" style={{ fontSize: 12, margin: 0 }}>
         띠 색은 그 페이즈의 <strong>기본</strong> 판매 방식입니다. 연결마다 다르게 정한 규칙은 팝업 편성 화면에서 봅니다.
       </p>
     </section>

@@ -33,7 +33,7 @@ function Tabs({
 }) {
   return (
     <div className="row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-      <span className="faint" style={{ fontSize: 11, minWidth: 52 }}>{label}</span>
+      <span className="faint" style={{ fontSize: 12, minWidth: 52 }}>{label}</span>
       {entries.map((entry) => (
         <Link
           className={current === entry.value ? 'btn btn-sm btn-holo' : 'btn btn-sm btn-ghost'}
@@ -77,14 +77,14 @@ export function StatsAnalysisScreen({ data }: { data: StatsAnalysisData }) {
           <h1 style={{ fontSize: 22, margin: '6px 0 0' }}>판매 분석</h1>
         </div>
         {/* 캐시가 없다는 사실을 화면이 드러낸다 — 운영자는 환불 직후의 숫자를 본다. */}
-        <span className="faint" style={{ fontSize: 11 }}>
+        <span className="faint" style={{ fontSize: 12 }}>
           기준 {new Date(data.refreshedAt).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })}
         </span>
       </div>
 
       <section className="card col" style={{ borderRadius: 10, gap: 10, padding: 18 }}>
         <div className="row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-          <span className="faint" style={{ fontSize: 11, minWidth: 52 }}>기간</span>
+          <span className="faint" style={{ fontSize: 12, minWidth: 52 }}>기간</span>
           {STATS_ANALYSIS_RANGE_DAYS.map((days) => (
             <Link
               className={data.filters.days === days ? 'btn btn-sm btn-holo' : 'btn btn-sm btn-ghost'}
@@ -94,7 +94,7 @@ export function StatsAnalysisScreen({ data }: { data: StatsAnalysisData }) {
               {days === 365 ? '1년' : `${days}일`}
             </Link>
           ))}
-          <span className="faint" style={{ fontSize: 11, marginLeft: 12, minWidth: 24 }}>IP</span>
+          <span className="faint" style={{ fontSize: 12, marginLeft: 12, minWidth: 24 }}>IP</span>
           <Link
             className={data.filters.ipId ? 'btn btn-sm btn-ghost' : 'btn btn-sm btn-holo'}
             href={statsAnalysisHref(data.filters, { ipId: '' })}
@@ -155,7 +155,7 @@ export function StatsAnalysisScreen({ data }: { data: StatsAnalysisData }) {
         <h2 style={{ fontSize: 16, margin: 0 }}>누가 · 어디서</h2>
         <Tabs current={data.filters.axis} data={data} entries={STATS_AXES} field="axis" label="축" />
         {data.filters.axis === 'dow' || data.filters.axis === 'hour' ? (
-          <p className="muted" style={{ fontSize: 11.5, margin: 0 }}>
+          <p className="muted" style={{ fontSize: 12, margin: 0 }}>
             요일·시간대는 <strong>주문한 때</strong>를 봅니다. 매출이 아니라 고객 행동을 보는 축이라 기준이 다릅니다.
           </p>
         ) : null}

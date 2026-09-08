@@ -171,16 +171,16 @@ function JobRow({ canSecureExport, job, now }: { canSecureExport: boolean; job: 
             {job.templateName}
             {pii ? <span className="admin-badge" style={{ marginLeft: 6 }}>개인정보</span> : null}
           </span>
-          <span className="muted" style={{ fontSize: 11 }}>{describeExportFilters(job.filters)}</span>
+          <span className="muted" style={{ fontSize: 12 }}>{describeExportFilters(job.filters)}</span>
         </span>
       </td>
       <td>
         <span className="admin-badge" data-export-status={job.status}>{EXPORT_STATUS_LABELS[job.status] ?? job.status}</span>
-        {job.error ? <span className="muted" style={{ display: 'block', fontSize: 11 }}>{job.error}</span> : null}
+        {job.error ? <span className="muted" style={{ display: 'block', fontSize: 12 }}>{job.error}</span> : null}
       </td>
       <td className="mono" data-align="end">{job.rowCount?.toLocaleString('ko-KR') ?? '-'}</td>
       <td className="mono" data-align="end">{formatBytes(job.fileBytes)}</td>
-      <td className="muted" style={{ fontSize: 11 }}>
+      <td className="muted" style={{ fontSize: 12 }}>
         {job.requesterNickname ?? '-'}<br />{formatDate(job.createdAt)}
       </td>
       <td>
@@ -244,7 +244,7 @@ function TemplatePanel({ templates }: { templates: readonly AdminExportTemplate[
         </SelectField>
       </div>
       <fieldset className="admin-variant-options">
-        <legend className="mono" style={{ color: 'var(--dim)', fontSize: 11, padding: '0 6px' }}>담을 열</legend>
+        <legend className="mono" style={{ color: 'var(--dim)', fontSize: 12, padding: '0 6px' }}>담을 열</legend>
         <div className="admin-variant-values">
           {(source?.columns ?? []).map((column, index) => (
             <label className="admin-variant-value" key={`${column.key}:${index}`}>

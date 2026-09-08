@@ -24,14 +24,29 @@
    필터 패널 — GET 폼, 기간 프리셋, 상태, 검색
    -------------------------------------------------------------------------- */
 
+/* 운영 가독성 규칙(PM 2026-09-08 「시인성 — 엑셀처럼」): 필터는 칸을 채우는 격자다.
+   한 칸 190px 아래로 내려가지 않고, 넘치면 다음 줄로 간다 — 두 칸에 여섯 필드를
+   욱여넣어 56px 입력이 세 줄씩 쌓이던 것을 걷어냈다. */
 .admin-console-filters {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(140px, .5fr) minmax(240px, 1fr) auto;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   align-items: end;
-  gap: 12px 14px;
-  padding: 16px;
+  gap: 10px 12px;
+  padding: 12px 14px;
   border-color: var(--editorial-line) !important;
-  border-radius: 14px;
+  border-radius: 10px;
+}
+
+.admin-console-filter-period,
+.admin-console-filter-field:has(.admin-console-filter-search-row) {
+  grid-column: span 2;
+}
+
+/* 셸의 폼 리셋이 44px·14px 을 !important 로 못 박아 둔다 — 조회 조건은 36px 이면 읽힌다. */
+.admin-shell .admin-console-filters :where(input:not([type='checkbox']):not([type='radio']), select) {
+  min-height: 36px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
 }
 
 .admin-console-filter-field {
@@ -43,10 +58,9 @@
 
 .admin-console-filter-label,
 .admin-console-filter-dates label > span {
-  color: var(--editorial-ink-muted);
-  font-family: var(--ff-mono);
-  font-size: 10px;
-  font-weight: 700;
+  color: var(--editorial-ink);
+  font-size: 12.5px;
+  font-weight: 600;
 }
 
 .admin-console-filter-period {
@@ -60,9 +74,9 @@
 }
 
 .admin-shell .admin-console-preset {
-  min-height: 34px;
-  padding: 0 13px;
-  font-size: 12px;
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 12.5px;
 }
 
 .admin-shell .admin-console-preset.on {
@@ -87,7 +101,7 @@
 }
 
 .admin-console-filter-tilde {
-  padding-bottom: 12px;
+  padding-bottom: 9px;
   color: var(--editorial-ink-faint);
 }
 
@@ -109,11 +123,12 @@
 
 .admin-console-filter-actions {
   display: flex;
+  align-self: end;
   gap: 8px;
 }
 
-.admin-console-filter-actions .btn {
-  min-height: 44px;
+.admin-shell .admin-console-filter-actions .btn {
+  min-height: 36px;
 }
 
 /* --------------------------------------------------------------------------
@@ -130,7 +145,7 @@
   display: inline-flex;
   align-items: baseline;
   gap: 8px;
-  padding: 9px 14px;
+  padding: 6px 12px;
   border: 1px solid var(--editorial-line-soft);
   border-radius: 999px;
   background: var(--editorial-surface);
@@ -153,14 +168,14 @@ a.admin-console-chip:hover {
 }
 
 .admin-console-chip-label {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
 }
 
 .admin-console-chip-count {
-  font-family: var(--ff-mono);
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .admin-console-chip--info .admin-console-chip-count {
@@ -188,9 +203,9 @@ a.admin-console-chip:hover {
   min-width: 0;
   flex-direction: column;
   gap: 10px;
-  padding: 12px;
+  padding: 10px;
   border: 1px solid var(--editorial-line);
-  border-radius: 14px;
+  border-radius: 10px;
   background: var(--editorial-surface);
 }
 
@@ -202,10 +217,16 @@ a.admin-console-chip:hover {
   scrollbar-width: thin;
 }
 
+/* 표는 시트다. 셀은 줄을 바꾸지 않고, 열은 내용만큼 넓어지며, 넘치면 표가 옆으로
+   흐른다(위 스크롤 상자). 열을 눌러 담으려고 글자를 한 자씩 세로로 쌓던 것이
+   운영자 눈에는 가장 큰 손실이었다. */
 .admin-console-grid-table {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 표 이름은 스크린리더에만 남긴다. display:none이면 읽히지 않는다. */
@@ -220,26 +241,54 @@ a.admin-console-chip:hover {
 }
 
 .admin-console-grid-table th {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--editorial-line);
-  color: var(--editorial-ink-muted);
-  font-family: var(--ff-mono);
-  font-size: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--editorial-line);
+  background: var(--editorial-canvas-soft);
+  color: var(--editorial-ink);
+  font-size: 12.5px;
   font-weight: 700;
   text-align: start;
   white-space: nowrap;
 }
 
 .admin-console-grid-table td {
-  padding: 12px;
-  border-bottom: 1px solid var(--editorial-line-soft);
+  max-width: 420px;
+  padding: 6px 10px;
+  border: 1px solid var(--editorial-line-soft);
   color: var(--editorial-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
   vertical-align: middle;
+  white-space: nowrap;
 }
 
-.admin-console-grid-table tbody tr:last-child td {
-  border-bottom: 0;
+/* 행 안의 처리 폼(발송·지연 사유)은 한 줄에 놓는다 — 셸 리셋의 width:100% 가 셀렉트·
+   입력·버튼을 세 줄로 쌓는다. */
+.admin-console-row-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
+
+.admin-shell .admin-console-row-form :where(select, input:not([type='checkbox']):not([type='radio'])) {
+  width: auto;
+  min-width: 0;
+  min-height: 34px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+}
+
+.admin-shell .admin-console-row-form select { flex: 0 0 auto; max-width: 140px; }
+.admin-shell .admin-console-row-form input { flex: 1 1 120px; max-width: 200px; }
+.admin-shell .admin-console-row-form .btn { min-height: 34px; }
+
+.admin-console-grid-table .admin-console-row-form .admin-order-action-feedback:empty {
+  display: none;
+}
+
+/* 목록 썸네일은 행 높이를 정한다 — 목록에서는 32px, 편집 미리보기는 52px. */
+.admin-record-thumb { width: 52px; }
+.admin-console-grid-table .admin-record-thumb { width: 32px; }
 
 .admin-console-grid-table th[data-align='end'],
 .admin-console-grid-table td[data-align='end'] {
@@ -255,12 +304,12 @@ a.admin-console-chip:hover {
 }
 
 .admin-console-grid-check {
-  width: 44px;
+  width: 36px;
   text-align: center;
 }
 
 .admin-console-grid-check-col {
-  width: 44px;
+  width: 36px;
 }
 
 .admin-console-grid-check input {
@@ -287,7 +336,7 @@ a.admin-console-chip:hover {
 
 .admin-console-grid-sort-mark {
   color: var(--editorial-ink-faint);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .admin-console-grid-sort.on .admin-console-grid-sort-mark {
@@ -311,7 +360,7 @@ a.admin-console-chip:hover {
 
 .admin-console-grid-empty > .muted {
   color: var(--editorial-ink-muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .admin-console-grid-sort:focus-visible,
@@ -340,12 +389,11 @@ a.admin-console-chip:hover {
 .admin-console-bulk-count {
   margin: 0;
   color: var(--editorial-ink);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .admin-console-bulk-count strong {
-  font-family: var(--ff-mono);
-  font-weight: 750;
+  font-weight: 700;
 }
 
 .admin-console-bulk-actions {
@@ -394,9 +442,8 @@ a.admin-console-chip:hover {
 }
 
 .admin-console-pagination-summary {
-  color: var(--editorial-ink-faint);
-  font-family: var(--ff-mono);
-  font-size: 10px;
+  color: var(--editorial-ink-muted);
+  font-size: 12.5px;
   text-align: center;
 }
 
@@ -545,19 +592,14 @@ a.admin-console-chip:hover {
    반응형 — 좁은 화면에서는 필터가 한 열로 쌓인다
    -------------------------------------------------------------------------- */
 
-@media (max-width: 1180px) {
-  .admin-console-filters {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .admin-console-filter-period {
-    grid-column: 1 / -1;
-  }
-}
-
 @media (max-width: 760px) {
   .admin-console-filters {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-console-filter-period,
+  .admin-console-filter-field:has(.admin-console-filter-search-row) {
+    grid-column: auto;
   }
 
   .admin-console-filter-actions .btn,
@@ -581,10 +623,12 @@ a.admin-console-chip:hover {
    물들이면 신호가 죽는다. */
 .admin-badge {
   display: inline-block;
-  padding: 2px 8px;
+  padding: 1px 8px;
   border: 1px solid var(--line-2);
   border-radius: 999px;
-  font-size: 11px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
 }
 
 .admin-badge--warn {
@@ -610,7 +654,7 @@ a.admin-console-chip:hover {
 .admin-unpaid-actions header p {
   margin: 0;
   color: var(--dim);
-  font-size: 11px;
+  font-size: 12.5px;
 }
 
 .admin-unpaid-action {
@@ -628,7 +672,7 @@ a.admin-console-chip:hover {
 
 .admin-unpaid-action label span {
   color: var(--faint);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .admin-unpaid-action input {
@@ -707,7 +751,7 @@ a.admin-console-chip:hover {
 
 .admin-deposit-head span:last-child {
   color: var(--faint);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .admin-deposit-action {
@@ -736,7 +780,7 @@ a.admin-console-chip:hover {
 
 .admin-deposit-action label span {
   color: var(--faint);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .admin-deposit-action input {
@@ -779,7 +823,7 @@ a.admin-console-chip:hover {
 
 .admin-stats-summary span {
   color: var(--dim);
-  font-size: 11px;
+  font-size: 12.5px;
 }
 
 .admin-stats-summary strong {
@@ -832,7 +876,7 @@ a.admin-console-chip:hover {
 
 .admin-stats-filter label span {
   color: var(--faint);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .admin-stats-filter input {
@@ -1012,10 +1056,10 @@ a.admin-console-chip:hover {
 
 .admin-catalog-stock {
   display: inline-flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  font-size: 12px;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .admin-badge--muted {
@@ -1056,7 +1100,7 @@ a.admin-console-chip:hover {
 }
 
 .admin-console-columns-note {
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 /* 고시정보 프리셋 바 · 노출 자리표시 */
@@ -1094,7 +1138,7 @@ a.admin-console-chip:hover {
 
 .admin-notice-presets-note {
   flex-basis: 100%;
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .admin-visibility-toggle {
@@ -1127,7 +1171,7 @@ a.admin-console-chip:hover {
 }
 
 .admin-draft-status {
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 /* 상품 등록 탭 7 · 자리표시 */
@@ -1171,7 +1215,7 @@ a.admin-console-chip:hover {
   border-radius: 999px;
   background: var(--pink);
   color: #fff;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1187,7 +1231,7 @@ a.admin-console-chip:hover {
 }
 
 .admin-placeholder-hint {
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .admin-placeholder-table td,
@@ -1212,7 +1256,7 @@ a.admin-console-chip:hover {
 
 /* ── 규모 ④ IP 검색형 선택기 ──────────────────────────────────────────── */
 .admin-ip-picker { display: flex; flex-direction: column; gap: 7px; border: 0; margin: 0; padding: 0; min-width: 0; }
-.admin-ip-picker-legend { color: var(--dim); font-size: 11px; padding: 0; }
+.admin-ip-picker-legend { color: var(--dim); font-size: 12px; padding: 0; }
 .admin-ip-picker[data-pending] .admin-ip-picker-list { opacity: .6; }
 .admin-ip-picker-list {
   display: flex; flex-direction: column; gap: 2px;
@@ -1228,8 +1272,8 @@ a.admin-console-chip:hover {
 .admin-ip-picker-option > span:nth-of-type(1) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .admin-ip-picker-option[data-archived] { color: var(--dim); }
 .admin-ip-picker-option:has(input:disabled) { cursor: not-allowed; opacity: .55; }
-.admin-ip-picker-id { color: var(--dim); font-size: 11px; }
-.admin-ip-picker-hint { color: var(--dim); font-size: 11.5px; margin: 0; }
+.admin-ip-picker-id { color: var(--dim); font-size: 12px; }
+.admin-ip-picker-hint { color: var(--dim); font-size: 12px; margin: 0; }
 
 /* ── 사이드바 위계 — 기본/전체 전환 · 그룹 접기 ──────────────────────── */
 .admin-nav-tier-toggle {
@@ -1244,11 +1288,11 @@ a.admin-console-chip:hover {
 .admin-nav-group-label {
   display: flex; align-items: center; justify-content: space-between; gap: 6px;
   margin: 0 0 4px; padding: 4px 12px;
-  color: var(--faint, var(--dim)); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--faint, var(--dim)); font-size: 12px;
 }
 .admin-nav-group-toggle {
   width: 100%; background: none; border: 0; font: inherit;
-  color: var(--faint, var(--dim)); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--faint, var(--dim)); font-size: 12px;
   cursor: pointer; text-align: left;
 }
 .admin-nav-group-toggle:hover { color: var(--text); }
@@ -1275,15 +1319,103 @@ a.admin-console-chip:hover {
 }
 .admin-order-peek-body { display: grid; gap: 8px; margin: 0; padding: 14px 16px; }
 .admin-order-peek-body > div { display: grid; grid-template-columns: 88px 1fr; gap: 10px; }
-.admin-order-peek-body dt { color: var(--dim); font-size: 12px; }
+.admin-order-peek-body dt { color: var(--dim); font-size: 12.5px; }
 .admin-order-peek-body dd { margin: 0; font-size: 13px; }
 .admin-order-peek-foot { margin: 0; padding: 0 16px 14px; font-size: 12.5px; }
 .admin-dispatch-export {
   display: flex; flex-wrap: wrap; align-items: flex-end;
 }
 .admin-dispatch-export-field { display: flex; flex-direction: column; gap: 4px; min-width: 160px; }
-.admin-dispatch-export-field .mono { color: var(--dim); font-size: 11px; }
+.admin-dispatch-export-field .mono { color: var(--dim); font-size: 12px; }
 .admin-dispatch-bulk-list {
   max-height: 180px; overflow-y: auto;
   border: 1px solid var(--line); border-radius: 8px; padding: 8px;
+}
+
+/* --------------------------------------------------------------------------
+   운영 가독성 규칙 — 셸 전체 (PM 2026-09-08 「텍스트 축소 규칙은 디자인을 위한 것,
+   사람 시인성을 위해 엑셀처럼」)
+   디자인 시스템의 장식 규칙(10~11px 대문자 자간 라벨 · 모노 숫자)을 운영 화면에서는
+   본문 글꼴 12px 이상으로 되돌린다. 색·간격 토큰은 그대로 쓴다.
+   -------------------------------------------------------------------------- */
+
+.admin-shell .mono {
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-shell .eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.admin-shell .admin-nav-group-label {
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.admin-shell :where(small, .small) {
+  font-size: 12px;
+}
+
+.admin-shell .tag {
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* 900px 아래에서 셸은 사이드바를 상단 가로 띠로 바꾼다(editorial-admin.css). 그룹 상자를
+   그대로 두면 띠 안에 그룹마다 세로 기둥이 서고 접기 화살표만 줄지어 남는다 — 그룹은
+   껍데기를 벗고(contents) 화면 항목만 한 줄로 흐른다. 접기·위계 토글은 띠에서는 뺀다. */
+@media (max-width: 900px) {
+  .admin-nav-group,
+  .admin-shell.collapsed .admin-nav-group {
+    display: contents;
+  }
+
+  .admin-nav-group-label,
+  .admin-nav-tier-toggle {
+    display: none;
+  }
+}
+
+/* 디자인 시스템 층(editorial-admin.css)의 10~11px 보조 글자 — 주문 목록·상세·큐레이션·알림·
+   체크인·가이드의 라벨과 메타를 12.5px 로 올린다. :is() 로 원 규칙보다 특이도를 높인다. */
+.admin-shell :is(
+  .admin-order-row > .mono, .admin-order-row > :last-child, .admin-order-list-heading span,
+  .admin-order-pagination > span, .admin-order-detail-header p, .admin-order-summary dt,
+  .admin-order-detail-section h3, .admin-order-item > div span, .admin-order-item > span,
+  .admin-order-address small, .admin-order-ledger > div > span:nth-child(2),
+  .admin-order-cancellation-heading span, .admin-order-cancellation-heading time,
+  .admin-order-cancellation p, .admin-order-action-feedback, .admin-order-filters label > span,
+  .admin-order-reject-form label,
+  .admin-curation-heading > div > .mono, .admin-curation-window > .mono,
+  .admin-curation-window > span:last-child, .admin-curation-ip-note,
+  .admin-notification-heading > div > .mono, .admin-notification-form-heading .mono,
+  .admin-notification-history-heading .mono, .admin-notification-form-heading > span,
+  .admin-notification-composer label > .mono, .admin-notification-label-row,
+  .admin-notification-preview-note, .admin-notification-history-meta,
+  .check-in-step, .check-in-panel-heading p, .check-in-manual-form label, .check-in-manual-form p,
+  .check-in-result-card > .mono, .check-in-result-card dt,
+  .admin-guide-table thead th, .admin-guide-screen-chip__note, .admin-guide-pager__hint
+) {
+  font-size: 12.5px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* 편집 화면의 왼쪽 목록(RecordList) — 칩 한 줄에 코드·이름·할인·대상을 다 넣고 잘라 내던 것을
+   두 줄로 풀어 다 보이게 한다. 목록은 읽는 자리다. */
+.admin-shell .admin-record-list-item {
+  height: auto;
+  min-height: 38px;
+  padding: 8px 12px;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
 }

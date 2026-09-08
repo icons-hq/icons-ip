@@ -323,7 +323,7 @@ function ReadOnlyControl({
 
   return (
     <div className="col" style={{ gap: 7 }}>
-      <span className="mono" id={labelId} style={{ color: 'var(--dim)', fontSize: 11 }}>{label}</span>
+      <span className="mono" id={labelId} style={{ color: 'var(--dim)', fontSize: 12 }}>{label}</span>
       <input name={name} type="hidden" value={value} />
       <div
         aria-describedby={describedBy}

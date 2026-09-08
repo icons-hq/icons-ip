@@ -23,7 +23,7 @@ export function MetricCard({
   return (
     <div className="card admin-metric">
       <div className="between" style={{ alignItems: 'flex-start', marginBottom: 10 }}>
-        <span className="mono" style={{ color: 'var(--dim)', fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase' }}>
+        <span className="mono" style={{ color: 'var(--dim)', fontSize: 12, letterSpacing: '.06em', textTransform: 'uppercase' }}>
           {label}
         </span>
         <span className="admin-metric-icon">

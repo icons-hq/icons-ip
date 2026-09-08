@@ -50,11 +50,11 @@ function inventoryCells(row: AdminInventoryRow): ReactNode[] {
   return [
     <span className="col" key="good" style={{ gap: 2 }}>
       <Link className="admin-console-grid-link" href={goodHref}>{row.goodName}</Link>
-      <span className="muted mono" style={{ fontSize: 11 }}>{row.goodId} · {row.ipTitle}</span>
+      <span className="muted mono" style={{ fontSize: 12 }}>{row.goodId} · {row.ipTitle}</span>
     </span>,
     <span className="col" key="variant" style={{ gap: 2 }}>
       <span>{row.optionSummary || (row.isDefault ? '기본 품목' : '-')}</span>
-      <span className="muted mono" style={{ fontSize: 11 }}>{row.variantCode}{row.customCode ? ` · ${row.customCode}` : ''}</span>
+      <span className="muted mono" style={{ fontSize: 12 }}>{row.variantCode}{row.customCode ? ` · ${row.customCode}` : ''}</span>
     </span>,
     <span key="location">{row.locationName}</span>,
     <span className="mono" key="onHand">{row.onHand.toLocaleString('ko-KR')}</span>,
@@ -63,7 +63,7 @@ function inventoryCells(row: AdminInventoryRow): ReactNode[] {
     <span className="mono muted" key="safety">{row.safety > 0 ? row.safety.toLocaleString('ko-KR') : '-'}</span>,
     <span className="col" key="last" style={{ gap: 2 }}>
       <span style={{ fontSize: 12 }}>{STOCK_SOURCE_LABELS[row.lastSource] ?? row.lastSource}</span>
-      <span className="muted" style={{ fontSize: 11 }}>{formatDate(row.lastMovementAt)}{row.countedAt ? ` · 실사 ${formatDate(row.countedAt)}` : ''}</span>
+      <span className="muted" style={{ fontSize: 12 }}>{formatDate(row.lastMovementAt)}{row.countedAt ? ` · 실사 ${formatDate(row.countedAt)}` : ''}</span>
     </span>,
     <span className="row" key="status" style={{ flexWrap: 'wrap', gap: 4 }}>
       {row.goodArchivedAt || row.variantArchivedAt ? <span className="admin-badge admin-badge--muted">보관</span> : null}

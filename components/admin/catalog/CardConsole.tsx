@@ -49,7 +49,8 @@ function cardCells(row: AdminCardListRow, filters: AdminCardListFilters, editHre
     id: (
       <span className="admin-catalog-thumb-cell">
         <RecordThumbnail kind="card" url={card.imageUrl ?? ''} />
-        <Link className="mono" href={editHref}>{card.id}</Link>
+        {/* 첫 셀은 표가 행 링크로 감싼다 — 여기 또 링크를 두면 <a> 안의 <a> 가 되어 hydration 이 깨진다. */}
+        <span className="mono">{card.id}</span>
       </span>
     ),
     name: <Link href={editHref}>{card.name}</Link>,

@@ -128,7 +128,7 @@ function MemberPicker({
         style={{ borderRadius: 10, gap: 8, padding: 14 }}
       >
         <label className="col" style={{ gap: 7 }}>
-          <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>발급 대상 검색</span>
+          <span className="mono" style={{ color: 'var(--dim)', fontSize: 12 }}>발급 대상 검색</span>
           <div className="row" style={{ gap: 8 }}>
             <input
               aria-describedby={queryError ? 'grant-query-error' : undefined}
@@ -277,13 +277,13 @@ function GrantHistory({ grants }: { grants: AdminDrawTicketGrantRecord[] }) {
             <strong style={{ fontSize: 14 }}>
               @{grant.recipientNickname} · 카드팩 {grant.quantity.toLocaleString('ko-KR')}개
             </strong>
-            <span className="faint mono" style={{ fontSize: 11 }}>{formatGrantedAt(grant.grantedAt)}</span>
+            <span className="faint mono" style={{ fontSize: 12 }}>{formatGrantedAt(grant.grantedAt)}</span>
           </div>
           <span className="mono muted" style={{ fontSize: 12 }}>
             {grant.poolName} · 개봉 {grant.openedCount.toLocaleString('ko-KR')} · 회수 {grant.revokedCount.toLocaleString('ko-KR')}
           </span>
           <span style={{ fontSize: 13 }}>사유: {grant.reason}</span>
-          <span className="faint mono" style={{ fontSize: 11 }}>실행자 @{grant.actorNickname}</span>
+          <span className="faint mono" style={{ fontSize: 12 }}>실행자 @{grant.actorNickname}</span>
         </article>
       ))}
     </section>

@@ -41,13 +41,13 @@ function campaignListLabel(campaign: AdminCampaignRecord) {
   return (
     <span className="col" style={{ gap: 3, minWidth: 0, textAlign: 'left' }}>
       <strong style={{ fontSize: 13 }}>{campaign.title}</strong>
-      <span className="faint mono" style={{ fontSize: 11 }}>
+      <span className="faint mono" style={{ fontSize: 12 }}>
         {ADMIN_CAMPAIGN_KIND_LABELS[campaign.kind]}
         {' · '}
         {ADMIN_CAMPAIGN_STATUS_LABELS[campaign.status]}
         {campaign.featuredOrder ? ` · 배너 ${campaign.featuredOrder}` : ''}
       </span>
-      <span className="faint mono" style={{ fontSize: 10.5 }}>{campaignPeriodLabel(campaign)}</span>
+      <span className="faint mono" style={{ fontSize: 12 }}>{campaignPeriodLabel(campaign)}</span>
     </span>
   );
 }

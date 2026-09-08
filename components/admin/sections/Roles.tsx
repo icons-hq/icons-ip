@@ -14,7 +14,7 @@ function UserRoleForm({ profile, isSelf }: { profile: AdminProfileRecord; isSelf
   const [state, action, pending] = useActionState(setAdminUserRoleAction, emptyState);
 
   if (isSelf) {
-    return <span className="faint mono" style={{ fontSize: 11 }}>본인 계정 — 변경 불가</span>;
+    return <span className="faint mono" style={{ fontSize: 12 }}>본인 계정 — 변경 불가</span>;
   }
 
   return (
@@ -60,7 +60,7 @@ export function RolesSection({ profiles, adminId }: { profiles: AdminProfileReco
               <strong style={{ fontSize: 15 }}>@{profile.nickname}</strong>
               <span className="tag" style={{ color: profile.role === 'user' ? 'var(--dim)' : 'var(--violet-2)' }}>{profile.role}</span>
             </div>
-            <span className="faint mono" style={{ fontSize: 11 }}>
+            <span className="faint mono" style={{ fontSize: 12 }}>
               {profile.id.slice(0, 8)} · 가입 {new Date(profile.createdAt).toLocaleDateString('ko-KR')}
             </span>
           </div>

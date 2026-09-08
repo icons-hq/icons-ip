@@ -34,7 +34,7 @@ export function PlaceholderField({
 }) {
   return (
     <label className="col admin-placeholder-field" style={{ gap: 7 }}>
-      <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>{label}</span>
+      <span className="mono" style={{ color: 'var(--dim)', fontSize: 12 }}>{label}</span>
       {options ? (
         <select className="admin-field-control" disabled style={CONTROL_STYLE} value={value} onChange={() => undefined}>
           {options.map((option) => <option key={option} value={option}>{option}</option>)}
@@ -61,7 +61,7 @@ export function PlaceholderGroup({
 }) {
   return (
     <fieldset className="admin-placeholder-group">
-      <legend className="mono" style={{ color: 'var(--dim)', fontSize: 11, padding: '0 6px' }}>
+      <legend className="mono" style={{ color: 'var(--dim)', fontSize: 12, padding: '0 6px' }}>
         {title} · 자리표시 ({layer})
       </legend>
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: '0 0 12px' }}>{note}</p>
@@ -115,7 +115,7 @@ export function GoodStockTablePlaceholder({
   const qty = creating ? (initialStockQty.trim() || '0') : String(stockQty ?? 0);
   return (
     <fieldset className="admin-placeholder-group">
-      <legend className="mono" style={{ color: 'var(--dim)', fontSize: 11, padding: '0 6px' }}>
+      <legend className="mono" style={{ color: 'var(--dim)', fontSize: 12, padding: '0 6px' }}>
         품목 표 · 자리표시 (D-1 옵션 마스터 · 품목 · 출고지별 재고)
       </legend>
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: '0 0 12px' }}>

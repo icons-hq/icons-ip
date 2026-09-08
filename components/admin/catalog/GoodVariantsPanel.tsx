@@ -222,7 +222,7 @@ export function GoodVariantsPanel({
         <input name="payload" type="hidden" value={payload} />
 
         <fieldset className="admin-variant-options">
-          <legend className="mono" style={{ color: 'var(--dim)', fontSize: 11, padding: '0 6px' }}>옵션 (최대 {VARIANT_OPTION_LIMIT})</legend>
+          <legend className="mono" style={{ color: 'var(--dim)', fontSize: 12, padding: '0 6px' }}>옵션 (최대 {VARIANT_OPTION_LIMIT})</legend>
           <div className="col" style={{ gap: 10 }}>
             {Array.from({ length: Math.min(VARIANT_OPTION_LIMIT, choices.length + 1) }).map((_, index) => {
               const choice = choices[index];

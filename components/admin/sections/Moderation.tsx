@@ -138,7 +138,7 @@ export function ModerationSection({ reports }: { reports: AdminReportRecord[] })
               <div className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
                 <span className="tag">{reportTargetLabels[report.targetType]}</span>
                 <span className="tag" style={{ color: 'var(--violet-2)' }}>{report.status}</span>
-                <span className="faint mono" style={{ fontSize: 11 }}>{new Date(report.createdAt).toLocaleString('ko-KR')}</span>
+                <span className="faint mono" style={{ fontSize: 12 }}>{new Date(report.createdAt).toLocaleString('ko-KR')}</span>
               </div>
               <strong style={{ fontSize: 15, lineHeight: 1.4 }}>{report.targetLabel}</strong>
               <div className="muted" style={{ fontSize: 13 }}>
