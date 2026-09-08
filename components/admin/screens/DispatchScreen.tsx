@@ -24,6 +24,10 @@ import { DispatchDelayNoteForm } from './DispatchDelayNoteForm';
 import { DispatchOrderGrid } from './DispatchOrderGrid';
 import { DispatchShipForm } from './DispatchShipForm';
 import { DispatchDelayBulkForm } from './DispatchDelayBulkForm';
+import { DispatchExportPanel } from './DispatchExportPanel';
+import { DispatchOrderPeek } from './DispatchOrderPeek';
+import type { AdminExportTemplate } from '@/lib/admin/exports';
+import type { AdminStockLocation } from '@/lib/admin/variants';
 import { DispatchTrackingImportPanel } from './DispatchTrackingImportPanel';
 
 /* 스마트스토어 신규주문 목록의 컬럼 구성(#250). 폭은 운영자가 가장 오래 보는 값
@@ -135,9 +139,14 @@ function confirmedDaysCell(row: AdminDispatchOrderRow, now: Date) {
  */
 export function DispatchScreen({
   data,
+  exportTemplates = [],
+  locations = [],
   now = new Date(),
 }: {
   data: AdminDispatchConsoleData;
+  /** 발주서 양식. 비면 내보내기 패널을 그리지 않는다. */
+  exportTemplates?: readonly AdminExportTemplate[];
+  locations?: readonly AdminStockLocation[];
   /** 경과시간 기준 시각. 테스트 주입용. */
   now?: Date;
 }) {
@@ -157,7 +166,7 @@ export function DispatchScreen({
       return {
         ...base,
         cells: [
-          <span className="mono" key="reference">{reference}</span>,
+          <DispatchOrderPeek key="reference" reference={reference} row={row} />,
           <time dateTime={row.createdAt} key="createdAt">{formatOrderDateTime(row.createdAt)}</time>,
           <span key="buyer">@{row.buyerName}</span>,
           <span key="items">{adminDispatchItemLabel(row.items)}</span>,
@@ -182,7 +191,7 @@ export function DispatchScreen({
       return {
         ...base,
         cells: [
-          <span className="mono" key="reference">{reference}</span>,
+          <DispatchOrderPeek key="reference" reference={reference} row={row} />,
           <span key="buyer">@{row.buyerName}</span>,
           <span key="items">{adminDispatchItemLabel(row.items)}</span>,
           confirmedAtCell(row),
@@ -201,7 +210,7 @@ export function DispatchScreen({
     return {
       ...base,
       cells: [
-        <span className="mono" key="reference">{reference}</span>,
+        <DispatchOrderPeek key="reference" reference={reference} row={row} />,
         <span key="buyer">@{row.buyerName}</span>,
         <span key="items">{adminDispatchItemLabel(row.items)}</span>,
         <span key="qty">{row.items.totalQty.toLocaleString('ko-KR')}개</span>,
@@ -245,6 +254,7 @@ export function DispatchScreen({
         />
       ) : (
         <>
+          <DispatchExportPanel locations={locations} templates={exportTemplates} />
           <DispatchTrackingImportPanel carriers={carriers} />
           {/* 지연 탭에서만 일괄 안내를 연다 — 다른 탭에서는 고를 대상이 아니다. */}
           {tab === 'delayed' ? (

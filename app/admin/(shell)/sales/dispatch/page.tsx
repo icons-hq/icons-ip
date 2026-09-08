@@ -1,7 +1,9 @@
 import { DispatchScreen } from '@/components/admin/screens/DispatchScreen';
 import { normalizeAdminDispatchFilters } from '@/lib/admin/dispatch';
 import { getAdminDispatchOrders } from '@/lib/admin/dispatch.server';
+import { getAdminExportTemplates } from '@/lib/admin/exports.server';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
+import { getAdminStockLocations } from '@/lib/admin/variants.server';
 
 export default async function AdminSalesDispatchPage({
   searchParams,
@@ -16,7 +18,13 @@ export default async function AdminSalesDispatchPage({
   await requireAdminScreenAccess('/admin/sales/dispatch');
   const query = await searchParams;
 
-  const data = await getAdminDispatchOrders(normalizeAdminDispatchFilters(query));
+  /* 발주서 양식·출고지는 여기서 함께 읽는다 — 양식을 고르러 설정 화면으로 갔다 오면
+     보던 탭·페이지가 사라진다(현업 3-2 #2). */
+  const [data, exportTemplates, locations] = await Promise.all([
+    getAdminDispatchOrders(normalizeAdminDispatchFilters(query)),
+    getAdminExportTemplates(),
+    getAdminStockLocations(),
+  ]);
 
-  return <DispatchScreen data={data} />;
+  return <DispatchScreen data={data} exportTemplates={exportTemplates} locations={locations} />;
 }

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AdminDispatchConsoleData, AdminDispatchFilters } from '@/lib/admin/dispatch';
 import { DispatchScreen } from './DispatchScreen';
 
+vi.mock('@/app/admin/export-actions', () => ({ requestExportAction: vi.fn() }));
 vi.mock('@/app/admin/order-actions', () => ({
   bulkConfirmAdminOrdersAction: vi.fn(),
   bulkNoteDispatchDelayAction: vi.fn(),
@@ -267,5 +268,41 @@ describe('DispatchScreen · 발송지연', () => {
     );
 
     expect(html).toContain('발주확인 후 3일이 지난 주문이 없습니다.');
+  });
+});
+
+describe('DispatchScreen · 현업 슬라이스 3', () => {
+  const TEMPLATES = [
+    { id: 'purchase-order', name: '출고지별 발주서', target: 'orders', securityLevel: 'pii' },
+  ] as never;
+  const LOCATIONS = [{ id: 'gimpo', name: '김포' }] as never;
+
+  it('주문번호는 목록을 떠나지 않는 요약 팝업을 연다', () => {
+    const html = renderToStaticMarkup(
+      <DispatchScreen data={data({ filters: filters({ tab: 'ready' }) })} now={NOW} />,
+    );
+
+    /* 링크가 아니라 버튼이다 — 눌러도 이 목록의 탭·페이지·필터가 그대로 남는다. */
+    expect(html).toContain('admin-order-peek-trigger');
+    expect(html).toContain('<dialog');
+    /* 더 깊이 볼 때만 새 탭으로 보낸다. */
+    expect(html).toContain('target="_blank"');
+  });
+
+  it('발주서 양식을 발주 화면에서 고른다 — 설정 화면으로 옮겨 다니지 않는다', () => {
+    const html = renderToStaticMarkup(
+      <DispatchScreen
+        data={data({ filters: filters({ tab: 'ready' }) })}
+        exportTemplates={TEMPLATES}
+        locations={LOCATIONS}
+        now={NOW}
+      />,
+    );
+
+    expect(html).toContain('발주서 내보내기');
+    expect(html).toContain('name="templateId"');
+    expect(html).toContain('name="locationId"');
+    /* 이미 나간 건까지 담으면 창고가 두 번 싼다. */
+    expect(html).toContain('name="unshippedOnly"');
   });
 });

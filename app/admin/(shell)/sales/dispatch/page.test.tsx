@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
     total: 0,
   })),
   orders: vi.fn(async () => ({ items: [], filters: {}, pageSize: 20, total: 0 })),
+  exportTemplates: vi.fn(async () => []),
+  locations: vi.fn(async () => []),
   settled: vi.fn(async () => ({ filters: {}, pageSize: 20, rows: [], total: 0 })),
 }));
 
@@ -31,6 +33,9 @@ vi.mock('@/components/admin/screens/DispatchScreen', () => ({
 vi.mock('@/lib/admin/dispatch.server', () => ({ getAdminDispatchOrders: mocks.dispatchOrders }));
 vi.mock('@/lib/admin/orders.server', () => ({ getAdminOrderRecords: mocks.orders }));
 vi.mock('@/lib/admin/settled.server', () => ({ getAdminSettledOrders: mocks.settled }));
+/* 발주서 양식·출고지는 이 화면에서 함께 읽는다(현업 3-2 #2). */
+vi.mock('@/lib/admin/exports.server', () => ({ getAdminExportTemplates: mocks.exportTemplates }));
+vi.mock('@/lib/admin/variants.server', () => ({ getAdminStockLocations: mocks.locations }));
 vi.mock('@/lib/auth/admin', () => ({
   getCurrentAdminAuthState: vi.fn(async () => mocks.authState),
 }));
@@ -96,6 +101,10 @@ describe('AdminSalesDispatchPage', () => {
     expect(screen.type).toBe(mocks.dispatchScreen);
     expect(screen.props).toEqual({
       data: { counts: { new: 0 }, filters: {}, pageSize: 20, rows: [], total: 0 },
+      /* 발주서 양식·출고지를 같이 내려 준다 — 양식을 고르러 설정 화면으로 갔다 오면
+         보던 탭·페이지가 사라진다(현업 3-2 #2). */
+      exportTemplates: [],
+      locations: [],
     });
   });
 
