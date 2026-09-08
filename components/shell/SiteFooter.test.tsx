@@ -3,10 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUSINESS_INFO, businessInfoRows } from '@/lib/legal/business-info';
 import { SiteFooter } from './SiteFooter';
 
-const mocks = vi.hoisted(() => ({ cardRewardsEnabled: true, pathname: '/shop' }));
+const mocks = vi.hoisted(() => ({ cardRewardsEnabled: true, demoVisible: false, pathname: '/shop' }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname }));
 vi.mock('./CardRewardAvailability', () => ({ useCardRewardsEnabled: () => mocks.cardRewardsEnabled }));
+vi.mock('./SecondaryMarketDemoAvailability', () => ({ useSecondaryMarketDemoVisible: () => mocks.demoVisible }));
 
 function render() {
   return renderToStaticMarkup(<SiteFooter />);
@@ -14,6 +15,7 @@ function render() {
 
 beforeEach(() => {
   mocks.cardRewardsEnabled = true;
+  mocks.demoVisible = false;
   mocks.pathname = '/shop';
 });
 
@@ -107,5 +109,30 @@ describe('SiteFooter White Catalog 진입점', () => {
     expect(html).toContain('내 티켓');
     expect(html).toContain('href="/my/wishlist"');
     expect(html).toContain('© ICONS');
+  });
+});
+
+describe('SiteFooter 세컨더리 마켓 시연 진입점', () => {
+  /* 시연은 로그인한 staff/admin 의 is_staff readback 이 참일 때만 존재한다. 공개 푸터·SSR 결과에
+   * 진입점이 남으면 PG 계약 문제로 내린 C2C 표면이 다시 공개로 새는 셈이다. */
+  it('기본(비로그인·일반 회원·readback 전)에는 시연 블록이 마크업에 없다', () => {
+    const html = render();
+
+    expect(html).not.toContain('wc-footer__demo');
+    expect(html).not.toContain('시연');
+    /* 공개 링크는 그대로 — v2 플레이스홀더 진입점이다. */
+    expect(html).toContain('href="/market"');
+    expect(html).toContain('href="/exchange"');
+  });
+
+  it('스태프에게는 굿즈 마켓·카드 트레이드 시연 링크를 스태프 전용 표기와 함께 연다', () => {
+    mocks.demoVisible = true;
+    const html = render();
+
+    expect(html).toContain('aria-label="스태프 시연 메뉴"');
+    expect(html).toContain('세컨더리 마켓 시연 · 스태프 전용');
+    expect(html).toContain('굿즈 마켓 시연');
+    expect(html).toContain('카드 트레이드 시연');
+    expect(html).toContain('실제 결제·체결은 일어나지 않습니다');
   });
 });
