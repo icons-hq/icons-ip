@@ -41,7 +41,7 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit }: { origin?: 
         {input('cutoff', '출고 마감 시각 (한국 시간)', 'time')}
         <AdminField inputId={`${prefix}-template`} label="출고지시 양식" error={state.errors?.exportTemplate}>
           <select id={`${prefix}-template`} name="exportTemplate" defaultValue={field('exportTemplate')} aria-invalid={Boolean(state.errors?.exportTemplate)} aria-describedby={state.errors?.exportTemplate ? `${prefix}-template-error` : undefined}>
-            <option value="standard">표준 양식</option><option value="wms_csv">WMS CSV</option><option value="seowon_xlsx">서원 Excel</option>
+            <option value="standard">표준 양식</option><option value="wms_csv">김포 WMS 21열</option><option value="seowon_xlsx">서원 우체국 7열</option>
           </select>
         </AdminField>
         <AdminField inputId={`${prefix}-active`} label="새 주문 사용" hint="비활성으로 바꾸면 이 출고지의 상품은 새 주문을 받을 수 없습니다. 기존 주문의 배송비는 바뀌지 않습니다.">

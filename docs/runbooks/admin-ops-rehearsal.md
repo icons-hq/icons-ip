@@ -138,7 +138,7 @@ PGHOST=127.0.0.1 PGPORT=55433 PGUSER=postgres PGDATABASE=postgres \
 
 ## 기술 검증 기록 — 2026-09-08
 
-아래 브라우저 결과는 에이전트가 격리 로컬 `3300/55421/55432`에서 수행한 기술 연습이다. 기준 commit은 `1719ddb`이며 이후 검토 보정은 별도 검증한다. 증거 파일 경로의 기준 디렉터리는 checkout 밖 `/tmp/icons-admin-redesign-evidence/`이고, hosted 배포·운영팀 수행의 증거가 아니다.
+아래 브라우저 결과는 에이전트가 격리 로컬 `3300/55421/55432`에서 수행한 기술 연습이다. S1·S3의 시작 기준은 `1719ddb`이고, 아래 최종 통합 결과는 `6058422` 이후 물류 양식·문서 검토 보정을 포함한다. 각 증거의 build·시각을 따른다. 증거 파일 경로의 기준 디렉터리는 checkout 밖 `/tmp/icons-admin-redesign-evidence/`이고, hosted 배포·운영팀 수행의 증거가 아니다.
 
 | 검증 | 결과 | 재현 근거 |
 | --- | --- | --- |
@@ -148,11 +148,14 @@ PGHOST=127.0.0.1 PGPORT=55433 PGUSER=postgres PGDATABASE=postgres \
 | Excel 경계 | 통과: 부분 성공, 재시도 멱등, 현재 재고 보존, 판매중지 변경 충돌, 이미지 작업 직렬화 | `supabase/tests/goods_excel_imports.sql`, `supabase/tests/goods_excel_imports_transactions.py` |
 | 로컬 브라우저 S1 | 에이전트 기술 연습: **25분 7.098초**. 30상품·60옵션, 실패 2행만 재업로드, 무수정 왕복 30상품 변경 없음, 30상품 공개·대표 공개 상세 확인 | `rehearsal-s1/browser-timing.json` |
 | 로컬 브라우저 S2 | 이번 최종 실측표에는 별도 실행 증거 미추가. 운영팀 수행은 미실행 | 입력 보존·복구의 자동 테스트와 사람 리허설을 구분 |
-| 로컬 브라우저 S3 | 에이전트 기술 연습: **175.258초**, 100주문·100배송 건·100행 내보내기·100건 배송완료. 운송장 선행 0 보존, 메일 100건 대기·외부 발송 0. 일반 UI 활성화 **10회로 환산**했으나 파일 선택·열기 2회는 CLI `filechooser.setFiles` 전송으로 대신했으므로 사람이 실제 10번 클릭한 결과가 아님. 합성 회신 사용·실제 WMS 파일 미사용. 현재 제공된 원본은 별도 대조 중 | `rehearsal-s3/browser-timing.json` |
+| 로컬 브라우저 S3 | 에이전트 기술 연습: **175.258초**, 100주문·100배송 건·100행 내보내기·100건 배송완료. 운송장 선행 0 보존, 메일 100건 대기·외부 발송 0. 일반 UI 활성화 **10회로 환산**했으나 파일 선택·열기 2회는 CLI `filechooser.setFiles` 전송으로 대신했으므로 사람이 실제 10번 클릭한 결과가 아님. 합성 회신 사용·실제 WMS 파일 미사용. 제공된 원본의 헤더·구조 대조 및 전용 매핑은 완료했으며 값 의미·창고 인수 확인은 별도 진행 | `rehearsal-s3/browser-timing.json` |
 | 로컬 브라우저 S4 | 에이전트 기술 연습: 문의 화면 이동 **0회**, 연결 주문 `00000010`과 배송 이력을 보며 내부 메모·담당자 변경·답변 저장, 답변 초안 보존 확인. 합성 주문의 결제 원장·클레임은 비어 있어 “이력 없음”만 확인했으며 실제 PG 승인·클레임 처리 검증은 아님 | `final-browser/s4-actions.log` |
 | 로컬 실시간 문의·모바일 키보드 | 관리자 답변이 고객 위젯에 **1,798ms**로 표시됨, 새로고침 클릭 0. 390×844에서 Tab 15회 포커스가 대화상자 안에 유지되고 Esc 닫기·호출 버튼으로 포커스 복귀 확인 | `realtime-widget/live-reply.log`, `realtime-widget/mobile-keyboard.log` |
 | 로컬 브라우저 S5 | 로컬 기술 검증 통과: 동일 build `IYLEiwQyKg0k2AemZ3qNc`·배포 **0회**에서 배송비 4,000원·무료 기준 75,000원·합성 기본 택배사·연락처 변경. 공개 상세·푸터·법정 안내 반영, 장바구니·결제 견적은 상품 26,000원 + 배송비 4,000원 = **30,000원**. 기존 100주문 합계와 100배송 건의 3,000원 배송비 스냅샷 보존. staff 조회 가능·저장 버튼 0·출고지 fieldset 비활성 확인; 서버 권한은 관련 SQL 검증과 함께 판정. 배송비 3,000원·무료 기준 50,000원·기본 택배사·연락처 원복, 합성 택배사 비활성까지 완료 | `final-browser/s5-summary.json`, `final-browser/s5-historical-snapshots.log` |
-| 통합 JavaScript 테스트 | 455파일 통과·1파일 건너뜀, **4,538 tests 통과·43 tests 건너뜀**. 건너뛴 검증을 통과로 계산하지 않음 | `full-suite-final-qa-fixes.log` |
-| 최종 DB 통합 재검증 | 격리 `55437`의 **149 migration·92/92 SQL 통과**. ledger·SQL 원본 해시 및 fixture 행 수 무변경 확인. 0원 주문 fixture를 명시적 무료배송으로 바꾼 뒤 해당 1개를 재검증했고 나머지 성공 91개의 해시는 유지됨. ledger SHA-256 `d831cf309ab90f662962ea2f56498dfdbaf473145c940ff2cd6da3459361807e` 시점 결과이며 이후 변경에는 재검증 필요 | `final-cold/pipeline-sql-closure.json` |
+| 다중 출고지 공개 견적 | 합성 두 출고지의 상품 38,000원 + 배송비 3,000원·5,000원 = **46,000원**을 장바구니와 결제 화면에서 확인. 무료배송 추가 필요액 24,000원·48,000원 일치. 주문 미생성, 추가 출고지 삭제·상품 배정 원복 완료 | `multi-origin-qa/cart-confirmed.log`, `multi-origin-qa/checkout-browser.log`, `multi-origin-qa/cleanup-proof.json` |
+| 관리자 시각 검증 | 데스크톱 39경로, 390×844 모바일 대표 5경로를 직접 확인. 개요 주문 상태 라벨·이벤트 목록 겹침 수정 후 재검증, 문서 가로 넘침 없음 | `final-browser/coverage.json`, `final-browser/admin-mobile.log`, `final-browser/overview-labels-final.log` |
+| 실제 물류 양식 UI | 합성 김포 출고 파일 21열·4상품행·2주문 → 동일 양식 회신의 운송장 2건 등록·배송 중 표시. 서원 7열·배송 건 1행 내보내기와 전달 표시 확인. 우편번호/운송장 선행 0, 할인 전 단가 12,000·13,000원, 김포 배송비 합계 6,000원 보존. 공급단가·EA·서원 수량의 의미와 실제 창고 인수는 미확정 | `warehouse-native-qa/gimpo-import.log`, `warehouse-native-qa/gimpo-file-proof.json`, `warehouse-native-qa/seowon-file-proof.json` |
+| 통합 JavaScript 테스트 | 455파일 통과·1파일 건너뜀, **4,562 tests 통과·43 tests 건너뜀**. 건너뛴 검증을 통과로 계산하지 않음 | `full-suite-warehouse-final.log` |
+| 최종 DB 통합 재검증 | 격리 `55437`의 **150 migration·93/93 SQL 통과**. 김포 회신 그룹 처리·출고지 격리와 기존 SQL 전체를 재실행했고 ledger·SQL 원본 해시 및 fixture 행 수 무변경 확인. ledger SHA-256 `3acc4e4f821c6d68344f655ca36b4501136d1e98c2cb3ef304735d9bafcb83ab` 시점 결과이며 이후 변경에는 재검증 필요 | `final-cold/pipeline-sql-closure.json` |
 
 기술 검증 통과는 #434의 실제 운영팀 1회 리허설 완료를 뜻하지 않는다. 최종 오픈 판정에는 운영팀 S1~S5 전부의 실제 기록, 고정 staging 접속 검증, 미해결 blocker 0 또는 제품 소유자의 명시적 예외가 필요하다. 피드백은 `ops-feedback` 이슈로 만들고 Project #8 Admin Ops에서 담당·재검증 회차를 연결한다.

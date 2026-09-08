@@ -16,7 +16,7 @@ import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 const EMPTY_STATE: AdminTrackingImportState = {};
 
 /** Shipment uploads return an actionable row report and preserve failed input. */
-export function DispatchTrackingImportPanel({ carriers, shippingHref = '/admin/sales/shipping?tab=transit&page=1' }: { carriers: ShippingCarrierRegistry; shippingHref?: string }) {
+export function DispatchTrackingImportPanel({ carriers, originId, shippingHref = '/admin/sales/shipping?tab=transit&page=1' }: { carriers: ShippingCarrierRegistry; originId?: string|null; shippingHref?: string }) {
   const router = useRouter();
   const [pasted, setPasted] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -51,6 +51,12 @@ export function DispatchTrackingImportPanel({ carriers, shippingHref = '/admin/s
           ? activeCodes.map((carrier) => `${carrier.code}(${carrier.label})`).join(' · ')
           : '등록된 택배사가 없습니다.'}
       </p>
+      <p className="muted">
+        김포 WMS의 21열 XLSX 회신도 그대로 올릴 수 있습니다. 목록 위에서 해당 출고지를 선택하고,
+        주문번호(쇼핑몰)는 ICONS 출고 파일의 전체 주문번호를 유지해주세요. 기본 택배사는 출고지 설정을 사용합니다.
+        같은 주문의 여러 상품 행은 한 배송 건으로 합치며, 서로 다른 운송장이 있으면 해당 주문 전체를 등록하지 않습니다.
+        서원 양식에는 회신용 주문번호·운송장 열이 없으므로 위 세 칸 양식으로 등록해주세요.
+      </p>
       {/* WMS 이중 입력 주의(#177). 어드민을 운송장 진실원으로 선언하지 않는다. */}
       <p className="muted">
         창고 WMS가 발행한 운송장을 옮겨 적는 운영 기록입니다. 값이 어긋나면 WMS가 기준입니다.
@@ -58,6 +64,7 @@ export function DispatchTrackingImportPanel({ carriers, shippingHref = '/admin/s
       <pre className="admin-console-import-sample">{TRACKING_IMPORT_SAMPLE}</pre>
 
       <form action={action}>
+        <input type="hidden" name="originId" value={originId??''} />
         <label htmlFor="admin-dispatch-import-pasted">붙여넣기</label>
         <textarea
           value={pasted}

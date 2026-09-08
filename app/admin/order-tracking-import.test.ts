@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { bulkRegisterAdminOrderTrackingAction } from './order-actions';
+import ExcelJS from 'exceljs';
+import {GIMPO_EXPORT_HEADERS} from '@/lib/admin/warehouse-templates';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), enqueue: vi.fn(), carriers: vi.fn(), refresh: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
@@ -7,6 +9,13 @@ vi.mock('@/lib/orders/shipment.server', () => ({ getShippingCarrierRegistry: moc
 vi.mock('@/lib/email/order-shipment-jobs.server', () => ({ enqueueOrderShippedEmails: mocks.enqueue }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.refresh }));
 function form(text: string) { const data = new FormData(); data.set('pasted', text); return data; }
+const warehouseOrder='00000000-0000-4000-8000-000000000042';
+const warehouseOrigin='00000000-0000-4000-8000-000000000099';
+async function warehouseForm(origin=warehouseOrigin){
+ const workbook=new ExcelJS.Workbook(),sheet=workbook.addWorksheet('김포');sheet.addRow([...GIMPO_EXPORT_HEADERS]);
+ for(let i=0;i<2;i++){const row=Array(21).fill('');row[8]=warehouseOrder;row[20]='001234567890';sheet.addRow(row);}
+ const data=new FormData();data.set('file',new File([await workbook.xlsx.writeBuffer() as ArrayBuffer],'reply.xlsx'));data.set('originId',origin);return data;
+}
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff' }, role: 'staff', isStaff: true });
@@ -16,6 +25,27 @@ beforeEach(() => {
     data: target_rows.map((row) => ({ ...row, ok: true, dispatched: true, orderId: `00000000-0000-4000-8000-${String(row.line).padStart(12, '0')}`, shipmentId: `10000000-0000-4000-8000-${String(row.line).padStart(12, '0')}` })) }));
 });
 describe('bulk tracking action', () => {
+  it('김포 회신은 출고지 선택 없이는 DB 변경을 하지 않는다',async()=>{
+    const result=await bulkRegisterAdminOrderTrackingAction({},await warehouseForm(''));
+    expect(result.errors?.form).toContain('출고지');expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it('김포 회신은 서버 출고지 문맥으로 등록하고 중복 상품행을 한 건으로 센다',async()=>{
+    mocks.rpc.mockResolvedValue({error:null,data:[
+      {line:2,reference:warehouseOrder,ok:true,shipmentId:'shipment-one',orderId:warehouseOrder,dispatched:true},
+      {line:3,reference:warehouseOrder,ok:true,shipmentId:'shipment-one',orderId:warehouseOrder,dispatched:false,duplicate:true},
+    ]});
+    const result=await bulkRegisterAdminOrderTrackingAction({},await warehouseForm());
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_import_warehouse_tracking_batch',{target_origin_id:warehouseOrigin,target_rows:[
+      {line:2,reference:warehouseOrder,trackingNumber:'001234567890'},
+      {line:3,reference:warehouseOrder,trackingNumber:'001234567890'},
+    ]});
+    expect(result.report?.succeeded).toEqual([warehouseOrder]);expect(mocks.enqueue).toHaveBeenCalledWith([{orderId:warehouseOrder,shipmentId:'shipment-one'}]);
+  });
+  it('출고지 양식과 기본 택배사 오류를 설명하고 메일을 만들지 않는다',async()=>{
+    mocks.rpc.mockResolvedValue({error:{message:'warehouse_template_required'},data:null});
+    const result=await bulkRegisterAdminOrderTrackingAction({},await warehouseForm());
+    expect(result.errors?.form).toContain('김포');expect(mocks.enqueue).not.toHaveBeenCalled();
+  });
   it('requires staff before parsing or writing a shipment', async () => {
     mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'buyer' }, role: 'user', isStaff: false });
     expect(await bulkRegisterAdminOrderTrackingAction({}, form('00000001,hanjin,12345678'))).toHaveProperty('errors.form');

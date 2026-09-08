@@ -32,7 +32,7 @@ export function ShipmentConsoleScreen({data,registeredCount}:{data:ShipmentConso
    statusFilter={{name:'originId',label:'출고지',value:filters.originId??'',options:[{value:'',label:'전체 출고지'},...origins.map(origin=>({value:origin.id,label:origin.name}))]}}
    search={{value:filters.query,placeholder:'배송건번호 · 주문번호 · 구매자'}} />
   <ConsoleCountChips label="배송 처리 단계" chips={SHIPMENT_CONSOLE_TABS[surface].map(tab=>({active:tab.id===filters.tab,label:tab.label,count:data.counts[tab.id],href:shipmentConsoleHref(surface,filters,{tab:tab.id,page:1})}))}/>
-  {isDispatch&&filters.tab!=='new'?<DispatchTrackingImportPanel carriers={carriers} shippingHref={shipmentConsoleHref('shipping',filters,{tab:'transit',page:1})}/>:null}
+  {isDispatch&&filters.tab!=='new'?<DispatchTrackingImportPanel carriers={carriers} originId={filters.originId} shippingHref={shipmentConsoleHref('shipping',filters,{tab:'transit',page:1})}/>:null}
   <ShipmentConsoleGrid rows={rows} columns={columns} gridRows={gridRows} tab={filters.tab}
    currentHref={shipmentConsoleHref(surface,filters)} readyHref={shipmentConsoleHref('dispatch',filters,{tab:'ready',page:1})}/>
   <ConsolePagination label="배송 건 페이지" page={filters.page} pageSize={data.pageSize} total={data.total} hrefForPage={page=>shipmentConsoleHref(surface,filters,{page})}/>

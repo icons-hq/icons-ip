@@ -20,7 +20,7 @@ export interface ShipmentConsoleData {
  surface:ShipmentConsoleSurface;filters:ShipmentConsoleFilters;rows:ShipmentConsoleRow[];total:number;pageSize:number;
  counts:Record<ShipmentConsoleTab,number>;carriers:ShippingCarrierRegistry;origins:{id:string;name:string}[];
 }
-export interface ShipmentExportData {shipments:{id:string;updatedAt:string;originId:string;originName:string;template:string;columns:ShipmentExportColumn[];lines:import('./shipment-workbook').ShipmentExportLine[]}[]}
+export interface ShipmentExportData {shipments:{id:string;updatedAt:string;originId:string;originName:string;shippingFee:number;template:string;columns:ShipmentExportColumn[];lines:import('./shipment-workbook').ShipmentExportLine[]}[]}
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const one=(value:string|string[]|undefined)=>typeof value==='string'?value.trim():'';
 function date(value:string){if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;const d=new Date(value+'T00:00:00Z');return !Number.isNaN(d.valueOf())&&d.toISOString().slice(0,10)===value?value:null;}
@@ -36,6 +36,18 @@ export function shipmentConsoleHref(surface:ShipmentConsoleSurface,filters:Shipm
  return `/admin/sales/${surface}?${query}`;
 }
 export function shipmentMutationError(code:string):string{
+ const warehouseErrors:Record<string,string>={
+  warehouse_origin_required:'김포 회신을 등록할 출고지를 선택해주세요.',
+  warehouse_origin_not_found:'선택한 출고지를 찾을 수 없습니다. 목록을 새로고침해주세요.',
+  warehouse_origin_inactive:'현재 사용 중인 출고지를 선택해주세요.',
+  warehouse_template_required:'선택한 출고지의 양식을 김포 WMS로 설정한 뒤 다시 올려주세요.',
+  warehouse_carrier_required:'출고지 설정에서 기본 택배사를 먼저 선택해주세요.',
+  invalid_tracking_batch:'운송장은 한 번에 1~1,000줄까지 등록할 수 있습니다.',
+  invalid_tracking_row:'회신 행의 주문번호와 운송장번호를 확인해주세요.',
+  invalid_warehouse_order_reference:'주문번호(쇼핑몰)에 ICONS 출고 파일의 전체 주문번호를 그대로 유지해주세요.',
+  conflicting_shipment_tracking:'같은 주문에 서로 다른 운송장이 있습니다. 해당 주문의 모든 행을 함께 확인해주세요.',
+ };
+ if(warehouseErrors[code])return warehouseErrors[code];
  const known:Record<string,string>={shipment_reference_required:'배송 건이 여러 개이거나 번호가 겹칩니다. 전체 배송건번호로 등록해주세요.',shipment_not_found:'배송 건을 찾을 수 없습니다.',invalid_shipment_reference:'배송건번호 형식을 확인해주세요.',duplicate_shipment_reference:'앞선 행과 같은 배송 건입니다.',invalid_shipment_transition:'발주확인 또는 현재 배송 상태를 확인해주세요.',tracking_required:'택배사와 운송장번호가 필요합니다.',invalid_tracking_input:'운송장번호 형식을 확인해주세요.',inactive_shipping_carrier:'현재 사용 중인 택배사를 선택해주세요.',order_not_shipped:'발송된 배송 건만 운송장을 정정할 수 있습니다.','order cancellation in progress':'취소·반품·교환 처리가 진행 중입니다. 주문 상세를 확인해주세요.'};
  return known[code]??'처리하지 못했습니다. 최신 상태를 확인한 뒤 다시 시도해주세요.';
 }

@@ -24,7 +24,7 @@ import {
 import { orderReferenceLabel } from '@/lib/orders';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
 import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recovery.server';
-import { parseTrackingWorkbook, TRACKING_IMPORT_FILE_LIMIT_BYTES } from '@/lib/admin/tracking-workbook.server';
+import { parseTrackingWorkbook, TRACKING_IMPORT_FILE_LIMIT_BYTES, type TrackingWorkbookParseResult } from '@/lib/admin/tracking-workbook.server';
 import { shipmentMutationError } from '@/lib/admin/shipment-dispatch';
 import { enqueueOrderShippedEmails } from '@/lib/email/order-shipment-jobs.server';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
@@ -407,7 +407,7 @@ export async function bulkRegisterAdminOrderTrackingAction(
   const access = await requireStaffAction();
   if (access.error) return { errors: { form: access.error.errors?.form } };
   const carriers = await getShippingCarrierRegistry();
-  let parsed: ReturnType<typeof parseTrackingImport>;
+  let parsed: TrackingWorkbookParseResult;
   try {
     const file = formData.get('file');
     if (file instanceof File && file.size > 0) {
@@ -421,6 +421,10 @@ export async function bulkRegisterAdminOrderTrackingAction(
       parsed=parseTrackingImport(text,carriers);
     }
   } catch(error) { return {errors:{form:error instanceof Error?error.message:'운송장 파일을 읽지 못했습니다.'}}; }
+  const warehouse='kind' in parsed&&parsed.kind==='gimpo';
+  const originId=String(formData.get('originId')??'');
+  if(warehouse&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(originId))
+    return {errors:{form:'김포 원본 회신은 목록 위에서 해당 출고지를 선택한 뒤 올려주세요.'}};
   const count=parsed.rows.length+parsed.issues.length;
   if(!count)return {errors:{form:'등록할 운송장을 붙여넣거나 파일을 선택해주세요.'}};
   if(count>TRACKING_IMPORT_ROW_LIMIT)return {errors:{form:'운송장은 한 번에 1,000줄까지 등록할 수 있습니다.'}};
@@ -429,11 +433,15 @@ export async function bulkRegisterAdminOrderTrackingAction(
   let queueWarning=false;
   if(parsed.rows.length){
     const supabase=await createClient();
-    const result=await supabase.rpc('admin_import_shipment_tracking_batch',{target_rows:parsed.rows.map(row=>({line:row.line,reference:row.reference,carrier:row.carrier,trackingNumber:row.trackingNumber}))});
+    const result=warehouse
+      ?await supabase.rpc('admin_import_warehouse_tracking_batch',{target_origin_id:originId,target_rows:parsed.rows.map(row=>({line:row.line,reference:row.reference,trackingNumber:row.trackingNumber}))})
+      :await supabase.rpc('admin_import_shipment_tracking_batch',{target_rows:parsed.rows.map(row=>({line:row.line,reference:row.reference,carrier:'carrier' in row?row.carrier:undefined,trackingNumber:row.trackingNumber}))});
+    if(warehouse&&result.error?.message&&/^(warehouse_|inactive_shipping_carrier$|invalid_tracking_)/.test(result.error.message))
+      return {errors:{form:shipmentMutationError(result.error.message)}};
     if(result.error||!Array.isArray(result.data)||result.data.length!==parsed.rows.length)return {errors:{form:'등록 결과를 확인하지 못했습니다. 최신 배송 상태를 확인하고 같은 파일로 다시 시도해주세요.'}};
-    const rows=result.data as {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean}[];
-    for(const row of rows){if(row.ok)succeeded.push(row.reference);else failed.push({line:row.line,reference:row.reference,reason:shipmentMutationError(row.error??'')});}
-    const deliveries=rows.filter(row=>row.ok&&row.shipmentId&&row.orderId).map(row=>({orderId:row.orderId!,shipmentId:row.shipmentId!}));
+    const rows=result.data as {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean}[];
+    for(const row of rows){if(row.ok){if(!row.duplicate)succeeded.push(row.reference);}else failed.push({line:row.line,reference:row.reference,reason:shipmentMutationError(row.error??'')});}
+    const deliveries=rows.filter(row=>row.ok&&!row.duplicate&&row.shipmentId&&row.orderId).map(row=>({orderId:row.orderId!,shipmentId:row.shipmentId!}));
     if(deliveries.length){try{await enqueueOrderShippedEmails(deliveries);}catch{queueWarning=true;}}
     revalidateOrderSurfaces();
   }

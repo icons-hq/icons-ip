@@ -1,9 +1,9 @@
 /** Warehouse exchange format. References/phone/postal codes stay strings in xlsx. */
 export interface ShipmentExportLine {
   shipmentId:string;orderId:string;recipient:string;phone:string;postalCode:string;address:string;
-  goodCode:string;variantCode:string;goodName:string;optionName:string;qty:number;deliveryNote:string;carrier:string;
+  goodCode:string;variantCode:string;goodName:string;optionName:string;qty:number;unitPrice:number;deliveryNote:string;carrier:string;
 }
-export type ShipmentExportKey=keyof ShipmentExportLine;
+export type ShipmentExportKey=Exclude<keyof ShipmentExportLine,'unitPrice'>;
 export interface ShipmentExportColumn {key:ShipmentExportKey;header:string}
 export const DEFAULT_SHIPMENT_EXPORT_COLUMNS:readonly ShipmentExportColumn[]=[
   {key:'shipmentId',header:'배송건번호'},{key:'orderId',header:'주문번호'},{key:'recipient',header:'수취인'},
@@ -32,6 +32,9 @@ function csvCell(value:string|number){
   return `"${text.replaceAll('"','""')}"`;
 }
 export function shipmentExportCsv(lines:readonly ShipmentExportLine[],columns:readonly ShipmentExportColumn[]):string {
-  return '\uFEFF'+[columns.map(column=>column.header),...lines.map(line=>shipmentExportCells(line,columns))]
+  return shipmentExportRowsCsv(columns.map(column=>column.header),lines.map(line=>shipmentExportCells(line,columns)));
+}
+export function shipmentExportRowsCsv(headers:readonly string[],rows:readonly (readonly (string|number)[])[]):string {
+  return '\uFEFF'+[headers,...rows]
     .map(row=>row.map(csvCell).join(',')).join('\r\n');
 }

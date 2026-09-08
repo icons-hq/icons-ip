@@ -24,12 +24,12 @@
 
 이 변경은 공개 앱 로더와 `search_public_content`에서 초안을 제외한다. `ips_read`의 `using (true)`와 기존 공개 카탈로그 SELECT 정책을 유지하므로 **anon REST 직접 조회는 초안 IP 및 하위 카탈로그를 읽을 수 있다**. 초안은 공개 시점 준비 상태이며 비밀자료 보관 수단이 아니다. 앱 필터 통과를 DB 접근 통제 완료로 기록하지 않는다.
 
-후속 이슈 초안: **초안·보관 카탈로그의 Data API 읽기를 제한하고 기존 보유·주문 이력 읽기를 분리한다**.
+후속 이슈: [#451 — 초안·보관 카탈로그의 Data API 읽기를 제한하고 보유 이력 읽기를 분리한다](https://github.com/icons-hq/icons-ip/issues/451).
 
 - anon과 일반 authenticated의 직접 `ips`·하위 카탈로그 SELECT는 공개 상태만 허용한다. staff는 현재 어드민 읽기를 유지한다.
 - 주문·바인더·카드팩·팔로우·커뮤니티 이력이 비공개 카탈로그에도 의존하는 호출처를 먼저 조사하고, 소유자 범위의 전용 RPC/뷰 또는 기존 스냅샷으로 옮긴다.
 - 공개 검색·캠페인·게임·홈·상품 상세와 직접 REST 조회를 모두 검증하고, 소유자 이력 열람과 운영자 초안 편집을 회귀 검증한다.
 - 익명·일반 회원·소유자·staff·service role의 allow/deny, 함수 EXECUTE 봉인, 동시 게시 전환을 SQL 스모크에서 확인한다.
-- RLS 강화는 #437 범위 밖이므로 이 슬라이스에서 기존 공개 SELECT 정책을 변경하지 않는다. 실제 후속 이슈 발행 번호는 추적 시스템에 기록한다.
+- RLS 강화는 #437 범위 밖이므로 이 슬라이스에서 기존 공개 SELECT 정책을 변경하지 않는다. #451 발행은 #410 리뷰 ⑥의 추적 요구를 충족하며, DB 읽기 통제 구현 완료를 뜻하지 않는다.
 
 공식 참조: [Supabase RLS의 grants와 policies](https://supabase.com/docs/guides/database/postgres/row-level-security), [함수 권한과 보안 경계](https://supabase.com/docs/guides/database/functions).

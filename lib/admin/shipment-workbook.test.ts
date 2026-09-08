@@ -1,6 +1,6 @@
 import { describe,expect,it } from 'vitest';
 import { DEFAULT_SHIPMENT_EXPORT_COLUMNS,parseShipmentExportColumns,shipmentExportCells,shipmentExportCsv,type ShipmentExportLine } from './shipment-workbook';
-const line:ShipmentExportLine={shipmentId:'00000000-0000-4000-8000-000000000001',orderId:'00000000-0000-4000-8000-000000000002',recipient:'=HYPERLINK("https://example.test")',phone:'01012345678',postalCode:'00123',address:'주소, 상세',goodCode:'ITEM-1',variantCode:'000123-RED',goodName:'상품',optionName:'파랑',qty:2,deliveryNote:'문 앞\n부탁합니다',carrier:'한진택배'};
+const line:ShipmentExportLine={shipmentId:'00000000-0000-4000-8000-000000000001',orderId:'00000000-0000-4000-8000-000000000002',recipient:'=HYPERLINK("https://example.test")',phone:'01012345678',postalCode:'00123',address:'주소, 상세',goodCode:'ITEM-1',variantCode:'000123-RED',goodName:'상품',optionName:'파랑',qty:2,unitPrice:12500,deliveryNote:'문 앞\n부탁합니다',carrier:'한진택배'};
 describe('출고지시 양식',()=>{
  it('기본 12열을 유지하고 옵션 물류 품번을 선택 컬럼으로 매핑한다',()=>{
   expect(DEFAULT_SHIPMENT_EXPORT_COLUMNS).toHaveLength(12);
