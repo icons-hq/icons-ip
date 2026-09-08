@@ -11,7 +11,9 @@ import {
   adminSettledHref,
   type AdminSettledConsoleData,
 } from '@/lib/admin/settled';
+import type { AdminExportTemplate } from '@/lib/admin/exports';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
+import { SettledExportPanel } from './SettledExportPanel';
 
 const COLUMNS: ConsoleGridColumn[] = [
   { key: 'reference', label: '주문번호', width: '110px' },
@@ -36,10 +38,13 @@ const COLUMNS: ConsoleGridColumn[] = [
 export function SettledScreen({
   data,
   now = new Date(),
+  templates = [],
 }: {
   data: AdminSettledConsoleData;
   /** 잔여 기한 기준 시각. 테스트 주입용. */
   now?: Date;
+  /** 내보내기 양식(거래확정 것만 골라 쓴다). 없으면 패널을 그리지 않는다. */
+  templates?: readonly AdminExportTemplate[];
 }) {
   const { filters, pageSize, rows, total } = data;
 
@@ -72,6 +77,7 @@ export function SettledScreen({
 
   return (
     <section className="admin-console">
+      <SettledExportPanel from={filters.from} templates={templates} to={filters.to} />
       <ConsoleFilterPanel
         action="/admin/sales/settled"
         dateRange={{ from: filters.from, label: '주문일', to: filters.to }}

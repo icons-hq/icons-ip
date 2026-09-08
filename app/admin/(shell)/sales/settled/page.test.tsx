@@ -23,6 +23,7 @@ vi.mock('@/components/admin/screens/SettledScreen', () => ({
   SettledScreen: mocks.settledScreen,
 }));
 vi.mock('@/lib/admin/settled.server', () => ({ getAdminSettledOrders: mocks.settled }));
+vi.mock('@/lib/admin/exports.server', () => ({ getAdminExportTemplates: async () => [] }));
 vi.mock('@/lib/admin/dispatch.server', () => ({ getAdminDispatchOrders: mocks.dispatchOrders }));
 vi.mock('@/lib/admin/orders.server', () => ({ getAdminOrderRecords: mocks.orders }));
 vi.mock('@/lib/auth/admin', () => ({
@@ -88,6 +89,8 @@ describe('AdminSalesSettledPage', () => {
     expect(screen.type).toBe(mocks.settledScreen);
     expect(screen.props).toEqual({
       data: { filters: {}, pageSize: 20, rows: [], total: 0 },
+      /* 내보내기 양식은 화면에서 고른다(현업 3-3). */
+      templates: [],
     });
   });
 

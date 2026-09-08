@@ -41,7 +41,8 @@ select set_config('exp.picking', :'picking_id', true), set_config('exp.sabang', 
 -- A. 시스템 양식 3종 — ERP 실화면에서 확인한 열 이름 + 상품 목록
 -- ---------------------------------------------------------------------------
 select 1 / case when (
-  (select count(*) from public.export_templates where is_system) = 3
+  -- 발주서 · 사방넷 호환 · 굿즈 카탈로그 · 거래확정 내역(현업 3-3)
+  (select count(*) from public.export_templates where is_system) = 4
   and (select security_level from public.export_templates where key = 'goods_catalog') = 'normal'
   and (select target from public.export_templates where key = 'goods_catalog')::text = 'goods'
   and (select security_level from public.export_templates where key = 'picking_list') = 'pii'

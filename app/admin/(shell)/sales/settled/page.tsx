@@ -2,6 +2,7 @@ import { SettledScreen } from '@/components/admin/screens/SettledScreen';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { normalizeAdminSettledFilters } from '@/lib/admin/settled';
 import { getAdminSettledOrders } from '@/lib/admin/settled.server';
+import { getAdminExportTemplates } from '@/lib/admin/exports.server';
 
 export default async function AdminSalesSettledPage({
   searchParams,
@@ -12,7 +13,11 @@ export default async function AdminSalesSettledPage({
   await requireAdminScreenAccess('/admin/sales/settled');
   const query = await searchParams;
 
-  const data = await getAdminSettledOrders(normalizeAdminSettledFilters(query));
+  /* 내보내기 양식은 화면에서 바로 고른다(현업 3-3) — 설정으로 갔다 오면 조건이 흐려진다. */
+  const [data, templates] = await Promise.all([
+    getAdminSettledOrders(normalizeAdminSettledFilters(query)),
+    getAdminExportTemplates(),
+  ]);
 
-  return <SettledScreen data={data} />;
+  return <SettledScreen data={data} templates={templates} />;
 }

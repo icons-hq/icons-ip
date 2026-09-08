@@ -31,7 +31,8 @@ export function DispatchExportPanel({
   templates: readonly AdminExportTemplate[];
 }) {
   const [state, action, pending] = useActionState(requestExportAction, emptyState);
-  const orderTemplates = templates.filter((entry) => entry.target !== 'goods');
+  /* 거래확정(정산) 양식은 여기 두지 않는다 — 발주서는 미출고 주문만 뽑으므로 확정 조건과 어긋난 빈 파일이 나온다. */
+  const orderTemplates = templates.filter((entry) => entry.target !== 'goods' && entry.defaultFilters?.status !== 'done');
 
   if (orderTemplates.length === 0) return null;
 

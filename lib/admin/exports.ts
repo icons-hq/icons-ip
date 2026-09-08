@@ -39,6 +39,8 @@ export const EXPORT_COLUMN_KEYS = [
   'good_id', 'good_name', 'variant_code', 'option_summary',
   'qty', 'unit_price', 'line_total', 'paid_total',
   'location_name', 'location_id', 'carrier_label', 'tracking_number', 'ship_by',
+  /* 거래확정 정산 열(현업 3-3). 배송비는 주문의 첫 품목 행에만 실린다. */
+  'done_at', 'paid_at', 'shipping_fee',
   'shipment_group', 'box_kind', 'delivery_note',
   'orderer_name', 'orderer_phone',
   'recipient_name', 'recipient_phone', 'recipient_postal_code', 'recipient_address',
