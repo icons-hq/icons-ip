@@ -15,14 +15,9 @@ const mocks = vi.hoisted(() => ({
   } as Record<string, unknown> | null,
   orderError: null as { message: string } | null,
   orderEq: vi.fn(),
-  cancel: vi.fn(),
   rpc: vi.fn(),
 }));
 
-vi.mock('@/lib/payments/toss-api', () => ({
-  getTossConfig: () => ({ isConfigured: true }),
-  cancelTossPayment: mocks.cancel,
-}));
 vi.mock('@/lib/supabase/config', () => ({
   getSupabaseConfig: () => ({ isConfigured: mocks.supabaseConfigured }),
 }));
@@ -68,9 +63,7 @@ describe('POST /api/orders/[orderId]/cancel', () => {
     mocks.order = { id: ORDER_UUID, user_id: USER_ID, status: 'paid' };
     mocks.orderError = null;
     mocks.orderEq.mockReset();
-    mocks.cancel.mockReset();
     mocks.rpc.mockReset();
-    mocks.cancel.mockResolvedValue({ ok: true, body: { status: 'CANCELED' } });
     mocks.rpc.mockResolvedValue({ data: 'requested', error: null });
   });
 

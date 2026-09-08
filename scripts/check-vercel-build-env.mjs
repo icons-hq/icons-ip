@@ -1,6 +1,5 @@
 import { pathToFileURL } from 'node:url';
 
-import { paymentKeyMode } from '../lib/payments/key-mode.mjs';
 import {
   isKorpayMerchantId,
   isKorpayMerchantKey,
@@ -41,7 +40,6 @@ export function validateVercelBuildEnvironment(environment) {
   ];
   if (target === 'production') {
     required.push(
-      'TOSS_SECRET_KEY',
       'CRON_SECRET',
       'KORPAY_MID',
       'KORPAY_KEY',
@@ -114,17 +112,11 @@ export function validateVercelBuildEnvironment(environment) {
     throw new Error(`Invalid Vercel ${target} PAYMENT_RECONCILIATION_SECRET: use 16-128 URL-safe characters`);
   }
 
-  const secretMode = paymentKeyMode(environment.TOSS_SECRET_KEY, 'secret');
-  if (isPresent(environment.TOSS_SECRET_KEY) && secretMode === null) {
-    throw new Error(`Invalid Vercel ${target} Toss legacy server key`);
-  }
-
   const korpayOrderCanaryConfigured = isPresent(environment.KORPAY_ORDER_CANARY_USER_ID);
   const korpayTicketCanaryConfigured = isPresent(environment.KORPAY_TICKET_CANARY_USER_ID);
 
   return {
     checked: true,
-    legacyTossMode: secretMode,
     newCheckoutEnabled: korpayOrderCheckoutEnabled
       || korpayTicketCheckoutEnabled
       || korpayOrderCanaryConfigured
@@ -146,11 +138,8 @@ function main() {
       return;
     }
 
-    const legacyStatus = result.legacyTossMode
-      ? `Toss legacy ${result.legacyTossMode} API available`
-      : 'Toss legacy API unavailable (Fake-only preview)';
     console.log(
-      `Vercel ${process.env.VERCEL_ENV} environment verified; ${legacyStatus}; `
+      `Vercel ${process.env.VERCEL_ENV} environment verified; `
       + `Korpay configured=${result.korpayConfigured}, `
       + `order checkout enabled=${result.korpayOrderCheckoutEnabled}, `
       + `ticket checkout enabled=${result.korpayTicketCheckoutEnabled}, `

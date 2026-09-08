@@ -6,7 +6,6 @@ const baseEnvironment = {
   NEXT_PUBLIC_SUPABASE_URL: 'https://example.supabase.co',
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'publishable-key',
   AUTH_SIGNUP_RESEND_SECRET: 'resend-secret',
-  TOSS_SECRET_KEY: 'test_gsk_example',
   SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
 };
 
@@ -31,12 +30,9 @@ describe('validateVercelBuildEnvironment', () => {
     expect(validateVercelBuildEnvironment({})).toEqual({ checked: false });
   });
 
-  it('accepts a Fake-only preview without a Toss credential and keeps checkout closed', () => {
-    const previewEnvironment = { ...baseEnvironment };
-    delete previewEnvironment.TOSS_SECRET_KEY;
-    expect(validateVercelBuildEnvironment(previewEnvironment)).toEqual({
+  it('accepts a Fake-only preview and keeps checkout closed', () => {
+    expect(validateVercelBuildEnvironment({ ...baseEnvironment })).toEqual({
       checked: true,
-      legacyTossMode: null,
       newCheckoutEnabled: false,
       paymentReconciliationConfigured: false,
       korpayConfigured: false,
@@ -93,25 +89,16 @@ describe('validateVercelBuildEnvironment', () => {
     );
   });
 
-  it('rejects a non-widget Toss server credential when one is present', () => {
-    expect(() => validateVercelBuildEnvironment({
-      ...baseEnvironment,
-      TOSS_SECRET_KEY: 'test_sk_example',
-    })).toThrow('Invalid Vercel preview Toss legacy server key');
-  });
-
-  it('retired public widget flags cannot open preview checkout without a server credential', () => {
-    const previewEnvironment = { ...baseEnvironment };
-    delete previewEnvironment.TOSS_SECRET_KEY;
+  it('retired legacy Toss variables cannot open preview checkout or fail the build', () => {
     expect(validateVercelBuildEnvironment({
-      ...previewEnvironment,
+      ...baseEnvironment,
       ALLOW_TOSS_TEST_PAYMENTS_IN_PRODUCTION: 'true',
+      TOSS_SECRET_KEY: 'test_gsk_retired',
       NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_retired',
       NEXT_PUBLIC_TOSS_PAYMENT_METHOD_VARIANT_KEY: 'ICONS_REVIEW',
       TOSS_PAYMENT_KEY_PAIR_SHA256: '0'.repeat(64),
     })).toEqual({
       checked: true,
-      legacyTossMode: null,
       newCheckoutEnabled: false,
       paymentReconciliationConfigured: false,
       korpayConfigured: false,
@@ -120,12 +107,6 @@ describe('validateVercelBuildEnvironment', () => {
       korpayOrderCanaryConfigured: false,
       korpayTicketCanaryConfigured: false,
     });
-  });
-
-  it('requires the known-only Toss server credential in production', () => {
-    expect(() => validateVercelBuildEnvironment(productionEnvironment({
-      TOSS_SECRET_KEY: undefined,
-    }))).toThrow('Missing Vercel production environment: TOSS_SECRET_KEY');
   });
 
   it('requires valid Korpay credentials and an HTTPS site URL in production', () => {

@@ -17,8 +17,8 @@ const lazyRuntimeGateway: PaymentGateway = {
 export function createRuntimeTicketPaymentCheckout() {
   return createTicketPaymentCheckout({
     provider: 'korpay',
-    // Resolve the adapter only at the network boundary. A known legacy Toss
-    // refund must reach the repository's `legacy` result while #207 is OFF.
+    // Resolve the adapter only at the network boundary so the repository's
+    // `legacy` classification can answer before any gateway configuration runs.
     gateway: lazyRuntimeGateway,
     repository: createTicketPaymentAttemptRepository(createServiceClient()),
   });

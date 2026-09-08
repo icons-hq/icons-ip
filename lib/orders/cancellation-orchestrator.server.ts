@@ -1,19 +1,6 @@
 import 'server-only';
 
-import {
-  cancelTossPayment,
-  fetchTossPayment,
-  type TossApiResult,
-} from '../payments/toss-api';
-import {
-  buildTossOrderId,
-  isIndeterminateTossFailure,
-  verifyTossCancellationState,
-} from '../payments/toss';
-import { createLegacyTossPaymentRepository } from '../payments/legacy-toss-ledger.server';
 import { createServiceClient } from '../supabase/service';
-
-const PROVIDER_CANCEL_REASON = '관리자 승인 주문 취소';
 
 export type CancellationRequestStatus =
   | 'requested'
@@ -41,6 +28,8 @@ export interface CancellationReconciliationContext {
   }>;
 }
 
+/* provider_* 코드 일부는 더 이상 새로 기록되지 않지만, 과거 요청 행이 이미
+ * 이 코드들을 담고 있어 DB 계약과 읽기 표면을 위해 유지한다. */
 export type CancellationReconciliationCode =
   | 'request_not_found'
   | 'request_not_ready'
@@ -67,12 +56,6 @@ export interface CancellationReconciliationDependencies {
     requestId: string;
     actorId: string;
   }): Promise<ExpiredPreparedGoodsReconciliation>;
-  fetchPayment(paymentKey: string): Promise<TossApiResult>;
-  cancelPayment(input: {
-    paymentKey: string;
-    cancelReason: string;
-    idempotencyKey: string;
-  }): Promise<TossApiResult>;
   completeRequest(input: {
     requestId: string;
     actorId: string;
@@ -101,7 +84,6 @@ const PAYMENT_STATUSES = new Set<CancellationPaymentStatus>([
 ]);
 function createDefaultDependencies(): CancellationReconciliationDependencies {
   const service = createServiceClient();
-  const tossPayments = createLegacyTossPaymentRepository(service);
 
   return {
     async loadContext(requestId) {
@@ -124,8 +106,12 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         throw new Error('invalid cancellation request state');
       }
 
-      const { data: paymentData, error: paymentError } = await tossPayments
+      // 이 조회는 해지된 legacy Toss 계약의 원장 행만 본다. Korpay 결제는 여기가
+      // 아니라 수동 복구 seam(goods-manual-recovery)이 정합화 경로다.
+      const { data: paymentData, error: paymentError } = await service
+        .from('payments')
         .select('id,status,amount,payment_key')
+        .eq('provider', 'toss')
         .eq('purpose', 'order')
         .eq('ref_id', request.order_id)
         .order('id', { ascending: true });
@@ -176,10 +162,6 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
       }
       return data;
     },
-    fetchPayment: fetchTossPayment,
-    cancelPayment: ({ paymentKey, cancelReason }) => (
-      cancelTossPayment(paymentKey, cancelReason)
-    ),
     async completeRequest({ requestId, actorId, verifiedPaymentKeys }) {
       const { error } = await service.rpc('complete_order_cancellation_request', {
         p_request_id: requestId,
@@ -199,14 +181,6 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
   };
 }
 
-function verificationFailureCode(
-  reason: 'provider_response_mismatch' | 'unsupported_payment_contract' | 'incomplete_cancellation',
-): CancellationReconciliationCode {
-  return reason === 'incomplete_cancellation'
-    ? 'provider_cancellation_incomplete'
-    : 'provider_mismatch';
-}
-
 async function markNeedsReview(
   dependencies: CancellationReconciliationDependencies,
   input: { requestId: string; actorId: string },
@@ -221,8 +195,12 @@ async function markNeedsReview(
 }
 
 /**
- * 승인된 주문 취소 요청을 provider의 fresh GET 증거와 로컬 원자 RPC로 정합화한다.
- * 호출자는 인증된 actor/request id만 전달하며 결제 키·금액은 service DB에서만 읽는다.
+ * 승인된 주문 취소 요청을 로컬 원자 RPC로 정합화한다. 호출자는 인증된
+ * actor/request id만 전달하며 결제 키·금액은 service DB에서만 읽는다.
+ *
+ * provider 원격 왕복은 없다. 유상 캡처가 남아 있다면 그것은 해지된 legacy
+ * Toss 계약의 결제뿐이라 원격 취소·재검증이 불가능하므로(#384), 자동 완료
+ * 대신 수동 검토로 승격하는 것이 이 함수가 내릴 수 있는 가장 강한 판정이다.
  */
 export async function reconcileOrderCancellation(
   input: { requestId: string; actorId: string },
@@ -249,8 +227,8 @@ export async function reconcileOrderCancellation(
   }
 
   // A Korpay prepared session has no provider capture to cancel. Its durable
-  // action TTL, not an empty Toss ledger, decides when stock can be released.
-  // The service-only RPC owns that exact expiry check under the money locks.
+  // action TTL decides when stock can be released, and the service-only RPC
+  // owns that exact expiry check under the money locks.
   let preparedGoods: ExpiredPreparedGoodsReconciliation;
   try {
     preparedGoods = await dependencies.reconcileExpiredPreparedGoods(input);
@@ -260,14 +238,11 @@ export async function reconcileOrderCancellation(
   if (preparedGoods === 'completed') return { ok: true, status: 'completed' };
   if (preparedGoods === 'in_progress') return { ok: true, status: 'in_progress' };
   // needs_review is admitted only for the dedicated no-capture decision above.
-  // Legacy Toss reconciliation still requires admin_begin... to have restored
-  // the request to processing before any provider call.
+  // Anything else still requires admin_begin... to have restored the request
+  // to processing before completion.
   if (context.status !== 'processing') return { ok: false, code: 'request_not_ready' };
 
-  const verifiedPaymentKeys: string[] = [];
-  const payments = [...context.payments].sort((left, right) => left.id.localeCompare(right.id));
-
-  for (const payment of payments) {
+  for (const payment of context.payments) {
     if (payment.status === 'failed') continue;
     if (
       typeof payment.paymentKey !== 'string'
@@ -277,86 +252,14 @@ export async function reconcileOrderCancellation(
     ) {
       return markNeedsReview(dependencies, input, 'payment_evidence_invalid');
     }
-
-    const paymentKey = payment.paymentKey;
-    const expected = {
-      paymentKey,
-      orderId: buildTossOrderId('order', context.orderId),
-      amount: payment.amount,
-    };
-
-    let beforeCancel: TossApiResult;
-    try {
-      beforeCancel = await dependencies.fetchPayment(paymentKey);
-    } catch {
-      return markNeedsReview(dependencies, input, 'provider_unavailable');
-    }
-    if (!beforeCancel.ok) {
-      return markNeedsReview(dependencies, input, 'provider_unavailable');
-    }
-
-    const beforeVerification = verifyTossCancellationState(beforeCancel.body, expected);
-    if (!beforeVerification.ok) {
-      return markNeedsReview(
-        dependencies,
-        input,
-        verificationFailureCode(beforeVerification.reason),
-      );
-    }
-    if (beforeVerification.state === 'fully_canceled') {
-      verifiedPaymentKeys.push(paymentKey);
-      continue;
-    }
-
-    let cancelResult: TossApiResult;
-    try {
-      cancelResult = await dependencies.cancelPayment({
-        paymentKey,
-        cancelReason: PROVIDER_CANCEL_REASON,
-        idempotencyKey: `cancel-${paymentKey}`,
-      });
-    } catch {
-      cancelResult = {
-        ok: false,
-        status: 0,
-        code: 'NETWORK_ERROR',
-        message: 'provider request failed',
-      };
-    }
-
-    let afterCancel: TossApiResult;
-    try {
-      afterCancel = await dependencies.fetchPayment(paymentKey);
-    } catch {
-      return markNeedsReview(dependencies, input, 'provider_unavailable');
-    }
-    if (!afterCancel.ok) {
-      return markNeedsReview(dependencies, input, 'provider_unavailable');
-    }
-
-    const afterVerification = verifyTossCancellationState(afterCancel.body, expected);
-    if (!afterVerification.ok) {
-      return markNeedsReview(
-        dependencies,
-        input,
-        verificationFailureCode(afterVerification.reason),
-      );
-    }
-    if (afterVerification.state !== 'fully_canceled') {
-      const code = !cancelResult.ok && isIndeterminateTossFailure(cancelResult)
-        ? 'provider_unavailable'
-        : 'provider_cancel_failed';
-      return markNeedsReview(dependencies, input, code);
-    }
-
-    verifiedPaymentKeys.push(paymentKey);
+    return markNeedsReview(dependencies, input, 'provider_unavailable');
   }
 
   try {
     await dependencies.completeRequest({
       requestId: input.requestId,
       actorId: input.actorId,
-      verifiedPaymentKeys: [...new Set(verifiedPaymentKeys)],
+      verifiedPaymentKeys: [],
     });
   } catch {
     return markNeedsReview(dependencies, input, 'local_finalize_failed');
