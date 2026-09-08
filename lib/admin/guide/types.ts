@@ -10,6 +10,7 @@
  */
 
 export type AdminGuideTopicSlug =
+  | 'whats-new'
   | 'getting-started'
   | 'goods-sales'
   | 'orders-shipping'

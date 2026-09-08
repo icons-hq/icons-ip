@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { loadInquiryAuthorNames } from '@/lib/inquiry-authors.server';
 import { orderReferenceLabel } from '@/lib/orders';
 import { createClient } from '@/lib/supabase/server';
 import {
@@ -21,6 +22,7 @@ const SIGNED_IMAGE_EXPIRES_IN_SECONDS = 60 * 60;
 export interface InquiryMessageView {
   id: string;
   author: 'user' | 'staff';
+  authorName: string | null;
   body: string;
   imageUrls: string[];
   createdAt: string;
@@ -148,16 +150,17 @@ export async function loadMyInquiryThread(
   if (messageError) throw new Error(`Failed to load inquiry messages: ${messageError.message}`);
 
   const rows = (messageData ?? []) as MessageRow[];
-  const urls = await signedImageUrls(
-    supabase,
-    [...new Set(rows.flatMap((row) => row.image_paths ?? []))],
-  );
+  const [urls, authorNames] = await Promise.all([
+    signedImageUrls(supabase, [...new Set(rows.flatMap((row) => row.image_paths ?? []))]),
+    loadInquiryAuthorNames(supabase, inquiryId),
+  ]);
 
   return {
     ...toListItem(data),
     messages: rows.map((row) => ({
       id: row.id,
       author: row.author === 'staff' ? 'staff' : 'user',
+      authorName: authorNames.get(row.id) ?? null,
       body: row.body,
       imageUrls: (row.image_paths ?? [])
         .map((path) => urls.get(path))

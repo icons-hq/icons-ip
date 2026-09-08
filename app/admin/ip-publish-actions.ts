@@ -143,5 +143,8 @@ export async function unpublishAdminIpAction(
   _state: AdminIpPublishActionState,
   formData: FormData,
 ): Promise<AdminIpPublishActionState> {
+  if (formData.get('confirmUnpublish') !== 'yes') {
+    return { errors: { form: '초안 전환의 영향을 확인한 뒤 다시 시도해주세요.' } };
+  }
   return updateAdminIpPublishState(false, formData);
 }

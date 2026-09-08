@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getSupabaseConfig: vi.fn(),
   identity: vi.fn(),
   ipArchivedFilter: vi.fn(),
+  ipPublishedFilter: vi.fn(),
   profilePayloads: [] as Record<string, unknown>[],
   profileResults: [] as { data: { id: string } | null; error: { message: string } | null }[],
   revalidatePath: vi.fn(),
@@ -68,7 +69,13 @@ function ipQuery(rows: { id: string }[]) {
     select: () => ({
       is: (column: string, value: unknown) => {
         mocks.ipArchivedFilter(column, value);
-        return { in: async () => ({ data: rows, error: null }) };
+        return {
+          not: (column: string, operator: string, value: unknown) => {
+            mocks.ipPublishedFilter(column, operator, value);
+            return { in: async () => ({ data: rows, error: null }) };
+          },
+          in: async () => ({ data: rows, error: null }),
+        };
       },
     }),
   };
@@ -89,6 +96,7 @@ beforeEach(() => {
   mocks.getSupabaseConfig.mockReset();
   mocks.identity.mockReset();
   mocks.ipArchivedFilter.mockReset();
+  mocks.ipPublishedFilter.mockReset();
   mocks.profilePayloads = [];
   mocks.profileResults = [];
   mocks.revalidatePath.mockReset();
@@ -288,6 +296,7 @@ describe('completeOnboardingAction profile identity', () => {
       ['unfollow_ip', { target_ip_id: IP_ONE }],
     ]);
     expect(mocks.ipArchivedFilter).toHaveBeenCalledWith('archived_at', null);
+    expect(mocks.ipPublishedFilter).toHaveBeenCalledWith('published_at', 'is', null);
     expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toEqual([
       `/ip/${IP_TWO}`,
       `/ip/${IP_ONE}`,

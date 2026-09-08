@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminIpRecord } from '@/lib/admin/catalog.server';
-import { resolveArtworkDefault, resolveFieldDefault } from '@/lib/admin/form-state';
+import { adminFormRemountKey, resolveArtworkDefault, resolveFieldDefault } from '@/lib/admin/form-state';
 import { adminIpPublishState, formatAdminIpRecordLabel } from '@/lib/admin/ip-publish';
 import { publicMediaUrl } from '@/lib/media';
 import {
@@ -47,7 +47,7 @@ export function IpSection({
    */
   const field = (key: string) => resolveFieldDefault(state, selected, key);
   const artwork = resolveArtworkDefault(state, selected, publicMediaUrl);
-  const formKey = `${selected ? JSON.stringify(selected) : 'new-ip'}:${state.attempt ?? 0}`;
+  const formKey = adminFormRemountKey(state, selected);
 
   /*
    * 게시 상태 (20260907130000). 새 IP 와 초안은 "초안으로 저장"·"저장 후 공개" 두 동선을,

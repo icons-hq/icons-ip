@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { loadInquiryAuthorNames } from '@/lib/inquiry-authors.server';
 import { createClient } from '@/lib/supabase/server';
 import {
   isInquiryCategory,
@@ -37,7 +38,10 @@ interface QueueRow {
   good_id: string | null;
   good_name: string | null;
   handled_by: string | null;
+  assignee_id: string | null;
+  waiting_since: string | null;
   handler_name: string | null;
+  assignee_name: string | null;
   created_at: string;
   last_message_at: string;
   answered_at: string | null;
@@ -71,6 +75,9 @@ function toRow(row: QueueRow): AdminInquiryRow {
     goodId: row.good_id,
     goodName: row.good_name,
     handlerName: row.handler_name?.trim() || null,
+    assigneeId: row.assignee_id,
+    assigneeName: row.assignee_name,
+    waitingSince: row.waiting_since,
     createdAt: row.created_at,
     lastMessageAt: row.last_message_at,
     answeredAt: row.answered_at,
@@ -173,6 +180,20 @@ export interface AdminInquiryDetail {
   order: AdminInquiryOrderContext | null;
   buyer: AdminInquiryBuyerContext;
   templates: AdminInquiryReplyTemplate[];
+  staffOptions: AdminInquiryStaffOption[];
+  notes: AdminInquiryInternalNote[];
+}
+
+export interface AdminInquiryStaffOption {
+  id: string;
+  name: string;
+}
+
+export interface AdminInquiryInternalNote {
+  id: string;
+  authorName: string;
+  body: string;
+  createdAt: string;
 }
 
 export interface AdminInquiryReplyTemplate {
@@ -191,6 +212,8 @@ interface ThreadRow {
   order_id: string | null;
   good_id: string | null;
   handled_by: string | null;
+  assignee_id: string | null;
+  waiting_since: string | null;
   created_at: string;
   last_message_at: string;
   answered_at: string | null;
@@ -240,7 +263,7 @@ export async function loadAdminInquiryDetail(
   const { data: threadData, error: threadError } = await supabase
     .from('inquiries')
     .select(
-      'id,reference,category,title,status,user_id,order_id,good_id,handled_by,'
+      'id,reference,category,title,status,user_id,order_id,good_id,handled_by,assignee_id,waiting_since,'
       + 'created_at,last_message_at,answered_at,closed_at',
     )
     .eq('id', inquiryId)
@@ -249,7 +272,7 @@ export async function loadAdminInquiryDetail(
   if (threadError) throw new Error(`Failed to load inquiry: ${threadError.message}`);
   if (!threadData) return null;
 
-  const [messageResult, contextResult, handlerResult, goodResult, templates] = await Promise.all([
+  const [messageResult, contextResult, workspaceResult, goodResult, templates, authorNames] = await Promise.all([
     supabase
       .from('inquiry_messages')
       .select('id,author,author_id,body,image_paths,created_at')
@@ -257,19 +280,24 @@ export async function loadAdminInquiryDetail(
       .order('created_at', { ascending: true })
       .order('id', { ascending: true }),
     supabase.rpc('admin_inquiry_context', { target_inquiry_id: inquiryId }),
-    threadData.handled_by
-      ? supabase.from('profiles').select('nickname').eq('id', threadData.handled_by).maybeSingle<{ nickname: string | null }>()
-      : Promise.resolve({ data: null, error: null }),
+    supabase.rpc('admin_inquiry_workspace', { target_inquiry_id: inquiryId }),
     threadData.good_id
       ? supabase.from('goods').select('name').eq('id', threadData.good_id).maybeSingle<{ name: string }>()
       : Promise.resolve({ data: null, error: null }),
     loadAdminInquiryReplyTemplates(),
+    loadInquiryAuthorNames(supabase, inquiryId),
   ]);
 
   if (messageResult.error) {
     throw new Error(`Failed to load inquiry messages: ${messageResult.error.message}`);
   }
   if (contextResult.error) return null;
+  if (workspaceResult.error) throw new Error(`Failed to load inquiry workspace: ${workspaceResult.error.message}`);
+  const workspace = workspaceResult.data as {
+    assigneeName: string | null;
+    staffOptions: AdminInquiryStaffOption[];
+    notes: AdminInquiryInternalNote[];
+  };
 
   const messageRows = (messageResult.data ?? []) as MessageRow[];
   const urls = await signedImageUrls(
@@ -303,7 +331,10 @@ export async function loadAdminInquiryDetail(
       orderId: threadData.order_id,
       goodId: threadData.good_id,
       goodName: goodResult.data?.name ?? null,
-      handlerName: handlerResult.data?.nickname?.trim() || null,
+      handlerName: null,
+      assigneeId: threadData.assignee_id,
+      assigneeName: workspace.assigneeName,
+      waitingSince: threadData.waiting_since,
       createdAt: threadData.created_at,
       lastMessageAt: threadData.last_message_at,
       answeredAt: threadData.answered_at,
@@ -314,7 +345,7 @@ export async function loadAdminInquiryDetail(
     messages: messageRows.map((message) => ({
       id: message.id,
       author: message.author === 'staff' ? 'staff' : 'user',
-      authorName: message.author === 'staff' ? 'ICONS 운영자' : null,
+      authorName: authorNames.get(message.id) ?? null,
       body: message.body,
       imageUrls: (message.image_paths ?? [])
         .map((path) => urls.get(path))
@@ -324,5 +355,7 @@ export async function loadAdminInquiryDetail(
     order: context.order ?? null,
     buyer,
     templates,
+    staffOptions: workspace.staffOptions,
+    notes: workspace.notes,
   };
 }

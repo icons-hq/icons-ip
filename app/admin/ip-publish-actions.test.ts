@@ -37,6 +37,7 @@ vi.mock('next/navigation', () => ({
 function publishForm(id = IP_ID) {
   const formData = new FormData();
   formData.set('id', id);
+  formData.set('confirmUnpublish', 'yes');
   return formData;
 }
 
@@ -60,6 +61,14 @@ const revalidationCalls = [
 ];
 
 describe('admin IP publish actions', () => {
+  it('requires explicit acknowledgement before reverting a published IP', async () => {
+    const form = publishForm();
+    form.delete('confirmUnpublish');
+    await expect(unpublishAdminIpAction({}, form)).resolves.toEqual({
+      errors: { form: '초안 전환의 영향을 확인한 뒤 다시 시도해주세요.' },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     mocks.adminState = {
       isConfigured: true,

@@ -8,6 +8,8 @@ import {
   inquirySlaState,
 } from '@/lib/inquiries';
 import { orderReferenceLabel } from '@/lib/orders';
+import { isAdminInquiryOverdue } from '@/lib/admin/inquiries';
+import { InquiryAssignmentPanel, InquiryInternalNotesPanel } from './InquiryWorkspacePanel';
 import { InquiryReplyPanel } from './InquiryReplyPanel';
 
 /* 어드민 문의 상세(#253).
@@ -60,7 +62,7 @@ export function InquiryDetailScreen({
   detail: AdminInquiryDetail;
   now?: Date;
 }) {
-  const { buyer, inquiry, messages, order, templates } = detail;
+  const { buyer, inquiry, messages, order, templates, staffOptions, notes } = detail;
   const sla = inquirySlaState(
     { answeredAt: inquiry.answeredAt, createdAt: inquiry.createdAt, status: inquiry.status },
     now,
@@ -80,11 +82,12 @@ export function InquiryDetailScreen({
           <span data-sla-tone={sla.tone}>{sla.label}</span>
         </div>
         <h2 style={{ margin: 0 }}>{inquiry.title}</h2>
+        {isAdminInquiryOverdue(inquiry, now) ? <span data-sla-tone="danger">미답변 24시간 경과</span> : null}
         <span className="muted" style={{ fontSize: 12.5 }}>
           @{inquiry.buyerName}
           {inquiry.buyerEmail ? ` · ${inquiry.buyerEmail}` : ''}
           {' · 접수 '}{formatInquiryDateTime(inquiry.createdAt)}
-          {inquiry.handlerName ? ` · 처리자 @${inquiry.handlerName}` : ' · 처리자 미배정'}
+          {inquiry.assigneeName ? ` · 담당자 @${inquiry.assigneeName}` : ' · 담당자 미배정'}
         </span>
       </div>
 
@@ -99,7 +102,7 @@ export function InquiryDetailScreen({
                 style={{ borderRadius: 12, gap: 8, padding: 14 }}
               >
                 <span className="mono muted" style={{ fontSize: 11 }}>
-                  {message.author === 'staff' ? 'ICONS 운영자' : `@${inquiry.buyerName}`}
+                  {message.author === 'staff' ? (message.authorName ?? 'ICONS 운영자') : `@${inquiry.buyerName}`}
                   {' · '}
                   {formatInquiryDateTime(message.createdAt)}
                 </span>
@@ -123,6 +126,8 @@ export function InquiryDetailScreen({
             ))}
           </ol>
 
+          <InquiryInternalNotesPanel inquiryId={inquiry.id} notes={notes} />
+
           <InquiryReplyPanel
             category={inquiry.category}
             closed={inquiry.status === 'closed'}
@@ -132,6 +137,7 @@ export function InquiryDetailScreen({
         </div>
 
         <aside aria-label="문의 컨텍스트" className="col" style={{ gap: 12 }}>
+          <InquiryAssignmentPanel assigneeId={inquiry.assigneeId} assigneeName={inquiry.assigneeName} inquiryId={inquiry.id} staffOptions={staffOptions} />
           <section className="card col" style={{ borderRadius: 12, gap: 8, padding: 16 }}>
             <strong style={{ fontSize: 13.5 }}>연결 주문</strong>
             {order ? (

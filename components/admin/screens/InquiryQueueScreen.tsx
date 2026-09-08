@@ -13,6 +13,7 @@ import {
   ADMIN_INQUIRY_STATUS_OPTIONS,
   adminInquiryDetailHref,
   adminInquiryHref,
+  isAdminInquiryOverdue,
   type AdminInquiryConsoleData,
 } from '@/lib/admin/inquiries';
 import {
@@ -43,7 +44,7 @@ const COLUMNS: ConsoleGridColumn[] = [
   { key: 'status', label: '상태', width: '90px' },
   { key: 'times', label: '접수 · 최근', width: '160px' },
   { key: 'sla', label: '1차 답변 기한', align: 'end', width: '130px' },
-  { key: 'handler', label: '처리자', width: '110px' },
+  { key: 'handler', label: '담당자', width: '110px' },
 ];
 
 const CHIP_TONES = {
@@ -76,6 +77,7 @@ export function InquiryQueueScreen({
         <span key="category">{INQUIRY_CATEGORY_LABELS[row.category]}</span>,
         <span key="title">
           {row.title}
+          {isAdminInquiryOverdue(row, now) ? <span data-sla-tone="danger"> · 미답변 24시간 경과</span> : null}
           {row.messageCount > 1 ? (
             <span className="muted"> · {row.messageCount}건</span>
           ) : null}
@@ -94,8 +96,8 @@ export function InquiryQueueScreen({
         </span>,
         /* SLA는 운영자가 가장 먼저 보는 값이라 톤을 데이터 속성으로 남겨 CSS가 강조한다. */
         <span data-sla-tone={sla.tone} key="sla">{sla.label}</span>,
-        row.handlerName
-          ? <span key="handler">@{row.handlerName}</span>
+        row.assigneeName
+          ? <span key="handler">@{row.assigneeName}</span>
           : <span className="muted" key="handler">미배정</span>,
       ],
     };
@@ -173,7 +175,7 @@ export function InquiryQueueScreen({
       />
 
       <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>
-        1차 답변 목표는 영업일 기준 24시간입니다. 답변 후 7일 동안 추가 질문이 없으면 문의는 자동으로
+        미답변 24시간 배지는 주말을 포함한 실제 대기 시간이며 오래 기다린 문의부터 정렬합니다. 1차 답변 목표는 영업일 기준 24시간입니다. 답변 후 7일 동안 추가 질문이 없으면 문의는 자동으로
         종결됩니다. 취소·반품·교환을 실제로 처리하려면{' '}
         <Link href="/admin/sales/orders">주문 통합검색</Link>에서 해당 주문의 클레임 경로를 이용하세요.
       </p>

@@ -351,3 +351,20 @@ protected-boundaries:
 - 토큰: `app/styles/wc-foundation.css`를 그대로 쓴다. 어드민 전용 값이 필요하면 별도 어드민 레이어에 두고 `wc-*` 파일에 어드민 셀렉터를 넣지 않는다. 전환은 셸(사이드바·헤더·레이아웃)부터 첫 웨이브에 바꾸고 화면은 재설계 순서대로 하나씩 전환한다. 미전환 화면은 새 셸 안에서 editorial 클래스로 남아 두 스타일이 공존하며, editorial 계열은 마지막 웨이브에서 퇴역한다.
 - 라벨 어휘: 운영팀 어휘(상품·상품코드·옵션). 카드·카드팩·티켓은 어드민 안에서도 "상품"이라 부르지 않는다(`CONTEXT.md` Flagged ambiguities).
 - 운영 합격 시나리오 S1~S5(일괄 등록 30종·입력값 소실 0·주문 100건 발송 클릭 10회 이내·이동 없는 문의 응대·배포 없는 설정 변경)는 ADR-0014에 기록돼 있다.
+
+### 컴포넌트 키트 anatomy (#409)
+
+전용 레이어는 `app/styles/wc-admin.css`이며 공개 `wc-*` 표면 파일과 분리한다. 모든 셀렉터는 `.wc-admin` 스코프이고 색·폰트·모션은 WC 토큰만 읽는다. `wc-foundation.css` 다음에 임포트한다. 셸 루트는 `admin-shell wc-root wc-admin`, 미전환 본문은 기존 `admin-content`·editorial 클래스를 유지한다.
+
+| 요소 | 구조와 규율 |
+|---|---|
+| 셸 | 사이드바 248px(접힘 72px), 헤더 최소 72px, 본문 기존 최대폭 1488px. 900px 이하 아이콘 내비게이션, 각 링크에 접근성 이름·현재 페이지 표시. |
+| 페이지 헤더 | `AdminPageHeader`: h2 제목 20px/700, 설명 13px, 우측 액션 8px 간격. 헤더 아래 24px. |
+| 섹션 카드 | `AdminSectionCard`: section + h3, 흰 지면·hairline·2px 모서리, 패딩 24px(모바일 16px). |
+| 데이터 표 | 기존 `ConsoleGrid`를 `wc-admin-kit` 안에서 사용. caption·정렬 링크·행 선택 계약 유지, 셀 패딩 12px 16px, 숫자 우측 정렬. |
+| 폼 | `AdminFormGrid`: 2열(600px 이하 1열), 행 간격 20px·열 24px. `AdminField`: label→입력→도움말→오류. 컨트롤 최소 40px, 오류는 aria-invalid와 error id를 연결. |
+| 상태 배지 | `AdminStatusBadge`: 12px/600, 텍스트로 상태 명시. neutral·success·warning·danger의 의미색은 WC 토큰. |
+| 일괄 액션 | 기존 `ConsoleBulkActionBar`를 `wc-admin-kit` 안에서 재사용. 선택 0건이면 숨김, 위험 액션 확인은 소유 폼이 처리. |
+| 사이드 패널 | `AdminSidePanel`: 제목·닫기 링크/액션·내용. 흐름 안의 aside로 본문 접근 유지, modal로 선언하지 않는다. |
+
+키트는 `components/admin/console/AdminKit.tsx`에서 직접 가져온다. 미전환 화면 전체에 키트 스타일을 강제로 적용하지 않는다.

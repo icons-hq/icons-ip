@@ -5,12 +5,15 @@ import './styles/editorial-foundation.css';
 import './styles/editorial-admin.css';
 import './styles/admin-console.css';
 import './styles/wc-foundation.css';
+import './styles/wc-admin.css';
+import './styles/admin-faq.css';
 import './styles/wc-chrome.css';
 import './styles/wc-home.css';
 import './styles/wc-catalog.css';
 import './styles/wc-discovery.css';
 import './styles/wc-account-commerce.css';
 import './styles/wc-campaign.css';
+import './styles/wc-help.css';
 /* 이행이 끝나지 않은 잔존 표면 3종의 legacy 스타일. editorial-* 원본과 같은 규칙을
    화면별 앵커 안에 가둔 사본이라, 원본과 동률인 캐스케이드를 재현하려면 반드시
    editorial-foundation 뒤 — 목록 맨 뒤 — 에 와야 한다(about-legacy와 같은 이유). */

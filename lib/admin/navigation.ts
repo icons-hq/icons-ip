@@ -56,6 +56,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     icon: 'chat',
     screens: [
       { id: 'inquiries', label: '1:1 문의', href: '/admin/cs/inquiries', status: 'ready' },
+      { id: 'faq', label: 'FAQ 관리', href: '/admin/cs/faq', status: 'ready' },
       { id: 'qna', label: '상품 Q&A', href: '/admin/cs/qna', status: 'ready' },
       { id: 'reviews', label: '리뷰 관리', href: '/admin/cs/reviews', status: 'ready' },
     ],

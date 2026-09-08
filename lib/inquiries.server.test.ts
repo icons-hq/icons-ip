@@ -20,10 +20,12 @@ const mocks = vi.hoisted(() => ({
   tables: {} as Record<string, TableResult>,
   filters: [] as [string, string, unknown][],
   signedUrl: vi.fn(),
+  rpc: vi.fn(),
 }));
 
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
+    rpc: mocks.rpc,
     from(table: string) {
       const result = () => mocks.tables[table] ?? { data: null, error: null };
       const query = {
@@ -49,6 +51,8 @@ vi.mock('@/lib/supabase/server', () => ({
 
 beforeEach(() => {
   mocks.tables = {};
+  mocks.rpc.mockReset();
+  mocks.rpc.mockResolvedValue({ data: [], error: null });
   mocks.filters = [];
   mocks.signedUrl.mockReset();
   mocks.signedUrl.mockResolvedValue({ data: { signedUrl: 'https://signed.example/a.png' }, error: null });
@@ -119,7 +123,7 @@ describe('loadMyInquiryThread', () => {
     mocks.tables.inquiry_messages = {
       data: [{
         id: 'm1',
-        author: 'user',
+        author: 'staff',
         body: '본문',
         image_paths: [`${USER_ID}/inquiry/x.png`],
         created_at: '2026-08-18T01:00:00.000Z',
@@ -128,7 +132,11 @@ describe('loadMyInquiryThread', () => {
     };
     mocks.signedUrl.mockResolvedValue({ data: null, error: { message: 'nope' } });
 
+    mocks.rpc.mockResolvedValue({ data: [{ message_id: 'm1', author_name: '수민' }], error: null });
+    mocks.tables.inquiry_internal_notes = { data: [{ body: '고객에게 비밀인 메모' }], error: null };
     const thread = await loadMyInquiryThread(USER_ID, INQUIRY_ID);
+    expect(thread?.messages[0].authorName).toBe('수민');
+    expect(JSON.stringify(thread)).not.toContain('고객에게 비밀인 메모');
 
     expect(thread?.messages[0].body).toBe('본문');
     expect(thread?.messages[0].imageUrls).toEqual([]);

@@ -234,7 +234,8 @@ async function getAdminValidationContext(
     ...activeContext,
     eventIds: new Set(activeContext.eventIds),
     goodIpById: new Map(activeContext.goodIpById),
-    ipIds: new Set(activeContext.ipIds),
+    // 준비 중인 초안 IP는 공개 카탈로그에 없다. 신규 연결은 어드민의 미보관 IP로 검증한다.
+    ipIds: new Set(records.ips.filter((record) => !record.archivedAt).map((record) => record.id)),
   };
   const id = formString(formData, 'id');
 
@@ -281,22 +282,27 @@ export async function upsertAdminIpAction(
   if (!result.ok) return fail({ errors: result.errors });
 
   const value = result.value;
-  const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_upsert_ip', {
-    target_id: value.id,
-    target_title: value.title,
-    target_sub: value.sub,
-    target_vertical_key: value.verticalKey,
-    target_tagline: value.tagline,
-    target_synopsis: value.synopsis,
-    target_glyph: value.glyph,
-    target_bg: value.bg,
-    target_image_path: value.imagePath,
-    target_featured: value.featured,
-    target_previous_id: value.previousId,
-    /* null 이면 게시 상태를 건드리지 않는다(신규는 초안). "저장 후 공개"만 true 를 보낸다. */
-    target_publish: value.publish,
-  });
+  let error: { message: string } | null;
+  try {
+    const supabase = await createClient();
+    ({ error } = await supabase.rpc('admin_upsert_ip', {
+      target_id: value.id,
+      target_title: value.title,
+      target_sub: value.sub,
+      target_vertical_key: value.verticalKey,
+      target_tagline: value.tagline,
+      target_synopsis: value.synopsis,
+      target_glyph: value.glyph,
+      target_bg: value.bg,
+      target_image_path: value.imagePath,
+      target_featured: value.featured,
+      target_previous_id: value.previousId,
+      /* null 이면 게시 상태를 건드리지 않는다(신규는 초안). "저장 후 공개"만 true 를 보낸다. */
+      target_publish: value.publish,
+    }));
+  } catch {
+    return fail(rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.'));
+  }
 
   if (error) {
     return fail(

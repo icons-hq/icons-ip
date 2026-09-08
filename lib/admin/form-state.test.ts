@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   collectFormValues,
+  adminFormRemountKey,
   fieldValueFromRecord,
   nextFormAttempt,
   preservedFormValues,
@@ -14,6 +15,26 @@ function ipForm(values: Record<string, string | File>) {
   for (const [key, value] of Object.entries(values)) formData.set(key, value);
   return formData;
 }
+
+describe('adminFormRemountKey', () => {
+  const record = { id: 'hwasan', title: '화산강림', publishedAt: null, archivedAt: null };
+
+  it('keeps unsaved inputs mounted when only publish or archive state changes', () => {
+    expect(adminFormRemountKey({}, { ...record, publishedAt: '2026-09-08T00:00:00Z' }))
+      .toBe(adminFormRemountKey({}, record));
+    expect(adminFormRemountKey({}, { ...record, archivedAt: '2026-09-08T00:00:00Z' }))
+      .toBe(adminFormRemountKey({}, record));
+  });
+
+  it('remounts for a failed submission, a different record, or newly saved field values', () => {
+    const key = adminFormRemountKey({}, record);
+    expect(adminFormRemountKey({ attempt: 1 }, record)).not.toBe(key);
+    expect(adminFormRemountKey({}, { ...record, id: 'lumen' })).not.toBe(key);
+    expect(adminFormRemountKey({}, { ...record, title: '새 이름' })).not.toBe(key);
+    expect(adminFormRemountKey({}, null)).not.toBe(key);
+    expect(adminFormRemountKey({ attempt: 1 }, null)).not.toBe(adminFormRemountKey({}, null));
+  });
+});
 
 describe('collectFormValues', () => {
   it('keeps every string field and drops files and Next internals', () => {

@@ -34,7 +34,7 @@ function MessageBubble({
   return (
     <li className={`wc-thread__bubble${isStaff ? ' wc-thread__bubble--staff' : ''}`}>
       <span className="wc-thread__meta">
-        {isStaff ? 'ICONS 운영자' : '내 문의'} · {formatInquiryDateTime(message.createdAt)}
+        {isStaff ? (message.authorName ?? 'ICONS 운영자') : '내 문의'} · {formatInquiryDateTime(message.createdAt)}
       </span>
       <p className="wc-thread__body">
         {message.body}

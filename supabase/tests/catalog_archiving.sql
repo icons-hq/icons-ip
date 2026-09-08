@@ -188,24 +188,24 @@ insert into public.verticals (key, label, color)
 values ('catalog-archive-test', '카탈로그 보관 테스트', '#8B5CFF')
 on conflict (key) do update set label = excluded.label, color = excluded.color;
 
-insert into public.ips (id, title, vertical_key)
+insert into public.ips (id, title, vertical_key, published_at)
 values
-  ('archive-free-ip', '보관 자유 IP', 'catalog-archive-test'),
-  ('archive-life-ip', '보관 수명주기 IP', 'catalog-archive-test'),
-  ('archive-child-ip', '보관 자식 가드 IP', 'catalog-archive-test'),
-  ('archive-operation-ip', '보관 운영 가드 IP', 'catalog-archive-test'),
-  ('archive-policy-ip', '보관 정책 가드 IP', 'catalog-archive-test'),
-  ('archive-pool-owner-ip', '보관 풀 소유 IP', 'catalog-archive-test'),
-  ('archive-good-guard-ip', '보관 굿즈 가드 IP', 'catalog-archive-test'),
-  ('archive-card-guard-ip', '보관 카드 가드 IP', 'catalog-archive-test'),
-  ('archive-event-guard-ip', '보관 이벤트 가드 IP', 'catalog-archive-test'),
-  ('archive-parent-ip', '보관 부모 가드 IP', 'catalog-archive-test'),
-  ('archive-history-ip', '카탈로그보관검색 IP', 'catalog-archive-test'),
-  ('archive-transaction-ip', '보관 거래 가드 IP', 'catalog-archive-test'),
-  ('archive-curation-active-ip', '활성 큐레이션 가드 IP', 'catalog-archive-test'),
-  ('archive-curation-future-ip', '예약 큐레이션 가드 IP', 'catalog-archive-test'),
-  ('archive-curation-disabled-ip', '비활성 큐레이션 허용 IP', 'catalog-archive-test'),
-  ('archive-curation-ended-ip', '종료 큐레이션 허용 IP', 'catalog-archive-test');
+  ('archive-free-ip', '보관 자유 IP', 'catalog-archive-test', now()),
+  ('archive-life-ip', '보관 수명주기 IP', 'catalog-archive-test', now()),
+  ('archive-child-ip', '보관 자식 가드 IP', 'catalog-archive-test', now()),
+  ('archive-operation-ip', '보관 운영 가드 IP', 'catalog-archive-test', now()),
+  ('archive-policy-ip', '보관 정책 가드 IP', 'catalog-archive-test', now()),
+  ('archive-pool-owner-ip', '보관 풀 소유 IP', 'catalog-archive-test', now()),
+  ('archive-good-guard-ip', '보관 굿즈 가드 IP', 'catalog-archive-test', now()),
+  ('archive-card-guard-ip', '보관 카드 가드 IP', 'catalog-archive-test', now()),
+  ('archive-event-guard-ip', '보관 이벤트 가드 IP', 'catalog-archive-test', now()),
+  ('archive-parent-ip', '보관 부모 가드 IP', 'catalog-archive-test', now()),
+  ('archive-history-ip', '카탈로그보관검색 IP', 'catalog-archive-test', now()),
+  ('archive-transaction-ip', '보관 거래 가드 IP', 'catalog-archive-test', now()),
+  ('archive-curation-active-ip', '활성 큐레이션 가드 IP', 'catalog-archive-test', now()),
+  ('archive-curation-future-ip', '예약 큐레이션 가드 IP', 'catalog-archive-test', now()),
+  ('archive-curation-disabled-ip', '비활성 큐레이션 허용 IP', 'catalog-archive-test', now()),
+  ('archive-curation-ended-ip', '종료 큐레이션 허용 IP', 'catalog-archive-test', now());
 
 insert into public.home_curations (
   id, kind, ip_id, title, link_path, display_order,
@@ -756,6 +756,20 @@ select 1 / case when not exists (
 -- Archived catalog disappears from catalog search while community history,
 -- existing follows, and historical foreign keys remain intact.
 -- ---------------------------------------------------------------------------
+-- A real positive baseline is required; draft fixtures would make the exclusion test vacuous.
+reset role;
+set local role anon;
+select 1 / case when (
+  select count(*) from public.search_public_content('카탈로그보관검색', 20)
+  where (kind = 'ip' and id = 'archive-history-ip')
+     or (kind = 'good' and id = 'archive-history-good')
+     or (kind = 'card' and id = 'archive-history-card')
+) = 3 then 1 else 0 end as assert_catalog_searchable_before_archive;
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000011301', true);
+
 select public.admin_archive_good('archive-history-good');
 select public.admin_archive_card('archive-history-card');
 select public.admin_archive_ip('archive-history-ip');

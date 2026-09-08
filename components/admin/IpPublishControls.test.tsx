@@ -42,7 +42,12 @@ describe('IpPublishControl', () => {
     );
 
     expect(html).toContain('data-ip-publish-control="published"');
-    expect(html).toContain('소속 굿즈·카드도 함께 숨겨지지만');
+    expect(html).toContain('판매 종료');
+    expect(html).toContain('결제할 수 없습니다');
+    expect(html).toContain('이벤트 상세는 찾을 수 없는 페이지');
+    expect(html).toContain('type="checkbox"');
+    expect(html).toContain('required=""');
+    expect(html).toContain('초안 전환의 영향을 확인했습니다');
     expect(html).toMatch(/<button[^>]*btn-ghost[^>]*>초안으로 되돌리기<\/button>/);
   });
 
@@ -53,7 +58,7 @@ describe('IpPublishControl', () => {
 
     expect(html).toContain('data-ip-publish-control="archived"');
     expect(html).toContain('보관된 IP는 게시 상태를 바꿀 수 없습니다.');
-    expect(html).toContain('게시 이력이 없으면 초안이 됩니다.');
+    expect(html).toContain('복원하면 초안이 됩니다. 다시 노출하려면 공개로 전환해주세요.');
     expect(html).not.toContain('<form');
   });
 });

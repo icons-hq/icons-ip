@@ -49,6 +49,17 @@ export function nextFormAttempt(state: AdminFormValuesState | null | undefined):
   return (state?.attempt ?? 0) + 1;
 }
 
+/** 게시·보관 전환은 편집값을 저장하지 않으므로 폼을 리마운트하지 않는다. */
+export function adminFormRemountKey(
+  state: AdminFormValuesState | null | undefined,
+  selected: object | null | undefined,
+): string {
+  const fields = selected
+    ? Object.fromEntries(Object.entries(selected).filter(([key]) => key !== 'publishedAt' && key !== 'archivedAt'))
+    : null;
+  return `${JSON.stringify(fields)}:${state?.attempt ?? 0}`;
+}
+
 /** 실패 상태에 제출값과 회차를 싣는다. 성공 상태에는 쓰지 않는다 — 성공 뒤 폼은 저장된 레코드를 보여야 한다. */
 export function withPreservedFormValues<T extends object>(
   failure: T,

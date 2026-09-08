@@ -12,6 +12,8 @@ vi.mock('react', async () => {
 });
 vi.mock('@/app/admin/inquiry-actions', () => ({
   answerInquiryAction: vi.fn(),
+  reassignInquiryAction: vi.fn(),
+  addInquiryInternalNoteAction: vi.fn(),
   closeInquiryAction: vi.fn(),
   deleteInquiryReplyTemplateAction: vi.fn(),
   saveInquiryReplyTemplateAction: vi.fn(),
@@ -35,6 +37,9 @@ function detail(overrides: Partial<AdminInquiryDetail> = {}): AdminInquiryDetail
       goodId: null,
       goodName: null,
       handlerName: null,
+      assigneeId: null,
+      assigneeName: null,
+      waitingSince: '2026-08-18T01:00:00.000Z',
       createdAt: '2026-08-18T01:00:00.000Z',
       lastMessageAt: '2026-08-18T01:00:00.000Z',
       answeredAt: null,
@@ -76,6 +81,8 @@ function detail(overrides: Partial<AdminInquiryDetail> = {}): AdminInquiryDetail
       openInquiryCount: 1,
     },
     templates: [{ id: 't1', title: '배송 지연 안내', body: '배송이 지연되어 죄송합니다.' }],
+    staffOptions: [],
+    notes: [],
     ...overrides,
   };
 }
@@ -87,6 +94,23 @@ function render(input = detail()) {
 }
 
 describe('InquiryDetailScreen', () => {
+  it('내부 메모는 고객 답변과 구분해 작성자와 함께 보여준다', () => {
+    const html = render(detail({ notes: [{ id: 'n1', authorName: '지우', body: '물류팀 재확인 필요', createdAt: '2026-08-20T01:00:00Z' }] }));
+    expect(html).toContain('내부 메모 · 고객 비노출');
+    expect(html).toContain('물류팀 재확인 필요');
+    expect(html).toContain('변경 사유');
+    expect(html).toContain('담당자 변경');
+  });
+
+  it('각 답변에 실제 답변자의 표시명을 보여준다', () => {
+    const html = render(detail({ messages: [
+      { id: 'staff-a', author: 'staff', authorName: '수민', body: '확인했습니다.', imageUrls: [], createdAt: '2026-08-20T01:00:00Z' },
+      { id: 'staff-b', author: 'staff', authorName: '지우', body: '발송했습니다.', imageUrls: [], createdAt: '2026-08-20T02:00:00Z' },
+    ] }));
+    expect(html).toContain('수민');
+    expect(html).toContain('지우');
+  });
+
   /* 컨텍스트 패널이 이 화면의 존재 이유다 — 없으면 CS가 주문 콘솔을 오간다. */
   it('연결 주문의 상태·결제·운송장·클레임 이력을 한 화면에 싣는다', () => {
     const html = render();

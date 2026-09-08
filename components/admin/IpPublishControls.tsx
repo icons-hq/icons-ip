@@ -58,10 +58,10 @@ export function IpPublishControl({
       </div>
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
         {state === 'archived'
-          ? '보관된 IP는 게시 상태를 바꿀 수 없습니다. 복원하면 이전 게시 상태로 돌아오고, 게시 이력이 없으면 초안이 됩니다.'
+          ? '보관된 IP는 게시 상태를 바꿀 수 없습니다. 복원하면 초안이 됩니다. 다시 노출하려면 공개로 전환해주세요.'
           : publishing
             ? '공개하면 온라인 팝업 디렉토리·IP관·홈 특집·검색에 바로 노출됩니다.'
-            : '초안으로 되돌리면 공개 화면에서 빠집니다. 소속 굿즈·카드도 함께 숨겨지지만, 이미 담긴 장바구니와 주문 이력은 유지됩니다.'}
+            : '초안으로 되돌리면 IP와 소속 상품·카드가 공개 목록·검색에서 제외됩니다. 이미 담긴 상품은 장바구니에 판매 종료로 표시되고 결제할 수 없습니다. 연결된 이벤트 상세는 찾을 수 없는 페이지(404)가 됩니다. 기존 주문·보유 카드 이력은 유지됩니다.'}
       </p>
       {actionState.errors?.form && (
         <div className="card" role="alert" style={{ color: 'var(--pink)', padding: 12 }}>
@@ -81,6 +81,12 @@ export function IpPublishControl({
       {state !== 'archived' && (
         <form action={formAction}>
           <input name="id" readOnly type="hidden" value={id} />
+          {!publishing && (
+            <label className="row" style={{ gap: 8, marginBottom: 12 }}>
+              <input disabled={pending} name="confirmUnpublish" required type="checkbox" value="yes" />
+              <span>초안 전환의 영향을 확인했습니다</span>
+            </label>
+          )}
           <button className={publishing ? 'btn btn-holo' : 'btn btn-ghost'} disabled={pending}>
             {pending ? '처리 중' : publishing ? '공개로 전환' : '초안으로 되돌리기'}
           </button>

@@ -35,6 +35,7 @@ const WC_STYLESHEETS = [
   './styles/wc-discovery.css',
   './styles/wc-account-commerce.css',
   './styles/wc-campaign.css',
+  './styles/wc-admin.css',
 ];
 
 describe('Living IP Editorial global design wiring', () => {
@@ -48,6 +49,7 @@ describe('Living IP Editorial global design wiring', () => {
       './styles/editorial-admin.css',
       './styles/admin-console.css',
       './styles/wc-foundation.css',
+      './styles/wc-admin.css',
       './styles/about-legacy.css',
       './styles/offline-popups-legacy.css',
       './styles/legal-doc.css',
@@ -113,7 +115,7 @@ describe('Living IP Editorial global design wiring', () => {
   });
 
   it('keeps both Holographic Midnight display faces loaded for the admin console', () => {
-    /* 어드민은 `.mono`·`.admin-title`에서 Space Mono / Space Grotesk 에 그대로 기대고 있다.
+    /* 미전환 화면은 `.mono` 등에서 Space Mono / Space Grotesk 에 그대로 기대고 있다.
      * S9는 어드민 시각 회귀 없음을 단언하므로 폰트 로드는 함께 남는다. */
     const layout = read('./layout.tsx');
 

@@ -116,7 +116,7 @@ const catalog: CatalogSnapshot = {
 
 const gamePoolId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const adminRecords = {
-  ips: [],
+  ips: [{ id: 'hwasan', archivedAt: null, publishedAt: '2026-06-01T00:00:00.000Z' }],
   goods: [],
   cards: [],
   cardPools: [{
@@ -336,6 +336,24 @@ function hideCommentForm() {
 }
 
 describe('admin catalog actions', () => {
+  it.each([
+    ['상품', upsertAdminGoodAction, goodForm, '굿즈를 저장했습니다.'],
+    ['카드', upsertAdminCardAction, cardForm, '카드를 저장했습니다.'],
+    ['카드풀', upsertAdminCardPoolAction, cardPoolForm, '카드풀을 저장했습니다.'],
+    ['이벤트', upsertAdminEventAction, eventForm, '이벤트를 저장했습니다.'],
+  ] as const)('allows a new %s to belong to a draft IP absent from the public catalog', async (
+    _label, action, makeForm, message,
+  ) => {
+    mocks.getAdminCatalogRecords.mockResolvedValue({
+      ...adminRecords,
+      ips: [{ id: 'draft-ip', archivedAt: null, publishedAt: null }],
+    });
+    const form = makeForm();
+    form.set('previousId', '');
+    form.set('ipId', 'draft-ip');
+    await expect(action({}, form)).resolves.toEqual({ message });
+  });
+
   beforeEach(() => {
     mocks.adminState = {
       isConfigured: true,
@@ -764,6 +782,16 @@ describe('admin catalog actions', () => {
    * 성공 응답은 바뀌지 않는다 — 성공 뒤 폼은 저장된 레코드를 보여야 한다.
    */
   describe('IP form state preservation', () => {
+    it('preserves the submitted values and artwork path when the save request throws', async () => {
+      mocks.rpc.mockRejectedValue(new Error('connection interrupted'));
+      const formData = ipForm();
+      formData.set('imagePath', 'public-media/catalog/ip/uploaded.png');
+      await expect(upsertAdminIpAction({ attempt: 1 }, formData)).resolves.toEqual({
+        errors: { form: 'IP를 저장하지 못했습니다. 다시 시도해주세요.' },
+        values: collectFormValues(formData),
+        attempt: 2,
+      });
+    });
     it('returns the submitted values with a bumped attempt when validation fails', async () => {
       const formData = ipForm();
       formData.set('title', '');

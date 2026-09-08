@@ -395,4 +395,43 @@ select 1 / case when (
   from public.ips where id = 'publish-archived-ip'
 ) then 1 else 0 end as assert_archived_upsert_publish_rolled_back;
 
+-- Archival clears publication in the same audited transaction. Replays stay no-ops,
+-- and restoration leaves the IP private until the operator explicitly republishes.
+select 1 / case when public.admin_archive_ip('publish-upsert-draft-ip') then 1 else 0 end
+  as assert_draft_archive_transition;
+select 1 / case when public.admin_unarchive_ip('publish-upsert-draft-ip') then 1 else 0 end
+  as assert_draft_restore_transition;
+select public.admin_set_ip_published('publish-upsert-live-ip', true);
+select 1 / case when public.admin_archive_ip('publish-upsert-live-ip') then 1 else 0 end
+  as assert_live_archive_transition;
+select 1 / case when (
+  select published_at is null and archived_at is not null from public.ips
+  where id = 'publish-upsert-live-ip'
+) then 1 else 0 end as assert_archive_clears_publication;
+select 1 / case when not public.admin_archive_ip('publish-upsert-live-ip') then 1 else 0 end
+  as assert_live_archive_replay;
+select 1 / case when public.admin_unarchive_ip('publish-upsert-live-ip') then 1 else 0 end
+  as assert_live_restore_transition;
+select 1 / case when not public.admin_unarchive_ip('publish-upsert-live-ip') then 1 else 0 end
+  as assert_live_restore_replay;
+select 1 / case when (
+  select published_at is null and archived_at is null from public.ips
+  where id = 'publish-upsert-live-ip'
+) then 1 else 0 end as assert_restoration_is_draft;
+select 1 / case when (
+  select count(*) from public.audit_log
+  where target = 'ips:publish-upsert-live-ip'
+    and action in ('catalog.ip.archived', 'catalog.ip.unarchived')
+    and diff ? 'published_at' and diff->'published_at' = 'null'::jsonb
+) = 2 then 1 else 0 end as assert_archive_restore_publication_audited;
+
+reset role;
+set local role anon;
+select set_config('request.jwt.claim.role', 'anon', true);
+select set_config('request.jwt.claim.sub', '', true);
+select 1 / case when not exists (
+  select 1 from public.search_public_content('게시 업서트', 20)
+  where kind = 'ip' and id in ('publish-upsert-live-ip', 'publish-upsert-draft-ip')
+) then 1 else 0 end as assert_restoration_not_reexposed;
+
 rollback;

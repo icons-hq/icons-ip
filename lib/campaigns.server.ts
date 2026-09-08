@@ -60,6 +60,7 @@ interface GoodRow {
   stock_qty: number;
   bg: string | null;
   image_path: string | null;
+  ips: { archived_at: string | null; published_at: string | null } | null;
 }
 
 const HUB_COLUMNS =
@@ -204,7 +205,7 @@ async function loadSectionGoods(
 
   const { data, error } = await supabase
     .from('goods')
-    .select('id,name,price,compare_at_price,badge,stock,stock_qty,bg,image_path')
+    .select('id,name,price,compare_at_price,badge,stock,stock_qty,bg,image_path,ips:ip_id(archived_at,published_at)')
     .in('id', goodIds)
     // 캠페인 섹션은 카탈로그 스냅샷을 우회하는 직접 조회라 보관 제외도 여기서 건다.
     .is('archived_at', null);
@@ -212,7 +213,7 @@ async function loadSectionGoods(
   if (error) return new Map();
 
   const toPublicUrl = publicUrlResolver(supabase);
-  return new Map(((data ?? []) as GoodRow[]).map((row) => {
+  return new Map(((data ?? []) as unknown as GoodRow[]).filter((row) => row.ips?.published_at && !row.ips.archived_at).map((row) => {
     const imageUrl = toPublicUrl(row.image_path);
     const stockQty = row.stock_qty ?? 0;
     return [row.id, {

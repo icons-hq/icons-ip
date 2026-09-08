@@ -11,12 +11,14 @@ import { MEMBERS_ROLES_TOPIC } from './topics/members-roles';
 import { ORDERS_SHIPPING_TOPIC } from './topics/orders-shipping';
 import { STATS_TOPIC } from './topics/stats';
 import { TROUBLESHOOTING_TOPIC } from './topics/troubleshooting';
+import { WHATS_NEW_TOPIC } from './topics/whats-new';
 import type { AdminGuideTopic, AdminGuideTopicSlug } from './types';
 
 export type { AdminGuideTopic, AdminGuideTopicSlug };
 
 /** 인덱스 카드와 이전/다음 내비가 따르는 열람 순서. */
 export const ADMIN_GUIDE_TOPIC_SLUGS: readonly AdminGuideTopicSlug[] = [
+  'whats-new',
   'getting-started',
   'goods-sales',
   'orders-shipping',
@@ -33,6 +35,7 @@ export const ADMIN_GUIDE_TOPIC_SLUGS: readonly AdminGuideTopicSlug[] = [
 ];
 
 export const ADMIN_GUIDE_TOPICS: Record<AdminGuideTopicSlug, AdminGuideTopic> = {
+  'whats-new': WHATS_NEW_TOPIC,
   'getting-started': GETTING_STARTED_TOPIC,
   'goods-sales': GOODS_SALES_TOPIC,
   'orders-shipping': ORDERS_SHIPPING_TOPIC,
