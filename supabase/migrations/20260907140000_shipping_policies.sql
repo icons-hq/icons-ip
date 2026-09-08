@@ -247,9 +247,9 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_actor uuid := private.require_staff_actor();
   v_policy public.shipping_policies;
 begin
-  perform private.require_staff_actor();
 
   -- 기본을 새로 지정하면 먼저 기존 기본을 내린다 — 부분 유일 인덱스가 둘을 허용하지 않는다.
   if coalesce(p_is_default, false) then
@@ -293,7 +293,11 @@ begin
     updated_at = now()
   returning * into v_policy;
 
-  perform private.record_admin_action('admin_upsert_shipping_policy', p_request_id, p_id);
+  perform private.record_admin_action(
+    p_request_id, v_actor, 'shipping.policy.upsert', 'shipping_policy:' || p_id,
+    jsonb_build_object('fee_kind', v_policy.fee_kind, 'fee_amount', v_policy.fee_amount,
+                       'is_default', v_policy.is_default)
+  );
   return v_policy;
 end;
 $$;
@@ -306,9 +310,9 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_actor uuid := private.require_staff_actor();
   v_policy public.shipping_policies;
 begin
-  perform private.require_staff_actor();
 
   -- 기본 정책은 보관할 수 없다. 비워 둔 상품이 갈 곳을 잃는다.
   if exists (select 1 from public.shipping_policies where id = p_id and is_default) then
@@ -327,7 +331,9 @@ begin
   -- 보관한 정책을 쓰던 상품은 기본으로 되돌린다 — 참조가 남으면 조회가 빈 정책을 만난다.
   update public.goods set shipping_policy_id = null where shipping_policy_id = p_id;
 
-  perform private.record_admin_action('admin_archive_shipping_policy', p_request_id, p_id);
+  perform private.record_admin_action(
+    p_request_id, v_actor, 'shipping.policy.archive', 'shipping_policy:' || p_id, '{}'::jsonb
+  );
   return v_policy;
 end;
 $$;
@@ -344,9 +350,9 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_actor uuid := private.require_staff_actor();
   v_good public.goods;
 begin
-  perform private.require_staff_actor();
 
   update public.goods
   set shipping_policy_id = nullif(p_policy_id, ''),
@@ -358,7 +364,10 @@ begin
     raise check_violation using message = 'good_not_found';
   end if;
 
-  perform private.record_admin_action('admin_set_good_shipping_policy', p_request_id, p_good_id);
+  perform private.record_admin_action(
+    p_request_id, v_actor, 'shipping.policy.assign', 'good:' || p_good_id,
+    jsonb_build_object('policy_id', v_good.shipping_policy_id)
+  );
   return v_good;
 end;
 $$;

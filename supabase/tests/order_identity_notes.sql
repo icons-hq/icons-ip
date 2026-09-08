@@ -223,4 +223,60 @@ exception when insufficient_privilege then null;
 end $$;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- 발송지연 일괄 안내 (현업 슬라이스 3)
+-- ---------------------------------------------------------------------------
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000009d2', true);
+
+do $$
+declare
+  v_orders uuid[] := array[
+    current_setting('ident.order_a')::uuid,
+    current_setting('ident.order_b')::uuid
+  ];
+  v_count integer;
+begin
+  -- 사유 없이는 보낼 수 없다. 「늦어집니다」만 가는 안내는 문의를 늘린다.
+  begin
+    perform public.admin_bulk_note_dispatch_delay(v_orders, '   ', null, false, gen_random_uuid());
+    raise exception 'expected an empty reason to be rejected';
+  exception when check_violation then null;
+  end;
+
+  begin
+    perform public.admin_bulk_note_dispatch_delay(array[]::uuid[], '사유', null, false, gen_random_uuid());
+    raise exception 'expected an empty selection to be rejected';
+  exception when check_violation then null;
+  end;
+
+  v_count := public.admin_bulk_note_dispatch_delay(
+    v_orders, '공급사 입고 지연', current_date + 3, true, gen_random_uuid()
+  );
+  if v_count <> 2 then
+    raise exception 'bulk delay should touch every selected order';
+  end if;
+
+  -- 같은 사유·예정일로 두 번 눌러도 알림은 하나다.
+  perform public.admin_bulk_note_dispatch_delay(
+    v_orders, '공급사 입고 지연', current_date + 3, true, gen_random_uuid()
+  );
+end;
+$$;
+reset role;
+
+-- 알림 확인은 역할을 내려놓고 한다 — staff 는 남의 알림함을 RLS 로 못 본다.
+select 1 / case when (
+  (select count(*) from public.order_dispatch_delays
+   where order_id in (current_setting('ident.order_a')::uuid, current_setting('ident.order_b')::uuid)
+     and reason = '공급사 입고 지연') = 2
+) then 1 else 0 end as assert_bulk_delay_records_every_order;
+
+select 1 / case when (
+  (select count(*) from public.notifications
+   where type = 'order_dispatch_delayed'
+     and source_id in (current_setting('ident.order_a'), current_setting('ident.order_b'))) = 2
+) then 1 else 0 end as assert_bulk_delay_notifies_once_per_order;
+
 rollback;

@@ -5,6 +5,7 @@ import { DispatchScreen } from './DispatchScreen';
 
 vi.mock('@/app/admin/order-actions', () => ({
   bulkConfirmAdminOrdersAction: vi.fn(),
+  bulkNoteDispatchDelayAction: vi.fn(),
   bulkRegisterAdminOrderTrackingAction: vi.fn(),
   saveAdminOrderDispatchDelayAction: vi.fn(),
   updateAdminOrderStatusAction: vi.fn(),

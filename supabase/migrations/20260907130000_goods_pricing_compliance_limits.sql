@@ -236,9 +236,9 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_actor uuid := private.require_staff_actor();
   v_good public.goods;
 begin
-  perform private.require_staff_actor();
 
   update public.goods
   set discount_kind = coalesce(p_kind, 'none'),
@@ -254,7 +254,10 @@ begin
     raise check_violation using message = 'good_not_found';
   end if;
 
-  perform private.record_admin_action('admin_set_good_discount', p_request_id, p_good_id);
+  perform private.record_admin_action(
+    p_request_id, v_actor, 'catalog.good.discount', 'good:' || p_good_id,
+    jsonb_build_object('kind', v_good.discount_kind, 'value', v_good.discount_value)
+  );
   return v_good;
 end;
 $$;
@@ -276,9 +279,9 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_actor uuid := private.require_staff_actor();
   v_good public.goods;
 begin
-  perform private.require_staff_actor();
 
   update public.goods
   set kc_status = coalesce(p_kc_status, 'unknown'),
@@ -295,7 +298,10 @@ begin
     raise check_violation using message = 'good_not_found';
   end if;
 
-  perform private.record_admin_action('admin_set_good_compliance', p_request_id, p_good_id);
+  perform private.record_admin_action(
+    p_request_id, v_actor, 'catalog.good.compliance', 'good:' || p_good_id,
+    jsonb_build_object('kc_status', v_good.kc_status, 'adult_only', v_good.adult_only)
+  );
   return v_good;
 end;
 $$;
@@ -314,9 +320,9 @@ security definer
 set search_path = ''
 as $$
 declare
+  v_actor uuid := private.require_staff_actor();
   v_good public.goods;
 begin
-  perform private.require_staff_actor();
 
   update public.goods
   set min_order_qty = greatest(coalesce(p_min_order_qty, 1), 1),
@@ -330,7 +336,11 @@ begin
     raise check_violation using message = 'good_not_found';
   end if;
 
-  perform private.record_admin_action('admin_set_good_purchase_limits', p_request_id, p_good_id);
+  perform private.record_admin_action(
+    p_request_id, v_actor, 'catalog.good.purchase_limits', 'good:' || p_good_id,
+    jsonb_build_object('min', v_good.min_order_qty, 'max', v_good.max_order_qty,
+                       'per_account', v_good.max_qty_per_account)
+  );
   return v_good;
 end;
 $$;

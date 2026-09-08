@@ -220,4 +220,37 @@ select count(*) as own_shipments from public.shipments \gset
 select 1 / case when :'own_shipments'::integer = 3 then 1 else 0 end as assert_buyer_sees_own_shipments;
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- 발송 방법 (현업 슬라이스 3) — 송장은 택배일 때만 필요하다
+-- ---------------------------------------------------------------------------
+select 1 / case when (
+  select method = 'parcel' from public.shipments limit 1
+) then 1 else 0 end as assert_shipment_method_defaults_to_parcel;
+
+do $$
+declare
+  v_order uuid;
+  v_item uuid;
+  v_ship uuid;
+begin
+  select ord.id into v_order from public.orders as ord order by ord.created_at desc limit 1;
+  select item.id into v_item from public.order_items as item
+  where item.order_id = v_order and item.qty - item.qty_canceled - item.qty_shipped > 0
+  limit 1;
+  if v_item is null then return; end if;
+
+  -- 방문수령은 송장 없이 만들고 내보낼 수 있다. 옛 제약은 이런 출고를 아예 막았다.
+  v_ship := public.admin_create_shipment(
+    v_order,
+    pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_object('order_item_id', v_item, 'qty', 1)),
+    null, null, 'pickup'
+  );
+  perform public.admin_ship_shipment(v_ship, null, null);
+
+  if (select status from public.shipments where id = v_ship) <> 'shipped' then
+    raise exception 'pickup shipment should ship without a tracking number';
+  end if;
+end;
+$$;
+
 rollback;

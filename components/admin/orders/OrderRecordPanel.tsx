@@ -26,6 +26,7 @@ import {
 } from '@/lib/admin/order-records';
 import { ADMIN_ORDER_STATUS_LABELS } from '@/lib/admin/orders';
 import { formatOrderDateTime } from '@/lib/orders';
+import { SHIPMENT_METHODS } from '@/lib/orders/shipment';
 import { SeededForm } from '@/components/admin/form-seed';
 
 /*
@@ -183,8 +184,14 @@ function NewShipmentForm({
         </label>
       ))}
       <div className="admin-form-grid">
+        <SelectField defaultValue="parcel" label="발송 방법" name="method">
+          {SHIPMENT_METHODS.map((entry) => (
+            <option key={entry.value} value={entry.value}>{entry.label}</option>
+          ))}
+        </SelectField>
         <Field label="택배사 코드" name="carrier" placeholder="hanjin" />
-        <Field label="송장번호" name="tracking" placeholder="영문 대문자·숫자 8~30자" />
+        {/* 퀵·방문수령은 송장이 없다 — 비워 두고 만들 수 있다(슬라이스 3). */}
+        <Field label="송장번호 (택배만)" name="tracking" placeholder="영문 대문자·숫자 8~30자" />
       </div>
       <div className="row" style={{ alignItems: 'center', gap: 10 }}>
         <button className="btn btn-sm btn-ghost" disabled={formPending} type="submit">출고 만들기</button>

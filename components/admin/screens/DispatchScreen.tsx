@@ -23,6 +23,7 @@ import { formatOrderDate, formatOrderDateTime, orderReferenceLabel } from '@/lib
 import { DispatchDelayNoteForm } from './DispatchDelayNoteForm';
 import { DispatchOrderGrid } from './DispatchOrderGrid';
 import { DispatchShipForm } from './DispatchShipForm';
+import { DispatchDelayBulkForm } from './DispatchDelayBulkForm';
 import { DispatchTrackingImportPanel } from './DispatchTrackingImportPanel';
 
 /* 스마트스토어 신규주문 목록의 컬럼 구성(#250). 폭은 운영자가 가장 오래 보는 값
@@ -245,6 +246,17 @@ export function DispatchScreen({
       ) : (
         <>
           <DispatchTrackingImportPanel carriers={carriers} />
+          {/* 지연 탭에서만 일괄 안내를 연다 — 다른 탭에서는 고를 대상이 아니다. */}
+          {tab === 'delayed' ? (
+            <DispatchDelayBulkForm
+              candidates={rows.map((row) => ({
+                orderId: row.id,
+                reference: orderReferenceLabel(row.id, row.orderNo),
+                recipientName: row.buyerName,
+                confirmedDays: null,
+              }))}
+            />
+          ) : null}
           {/* 행마다 독립된 발송처리 폼이 붙으므로 목록 전체를 감싸는 일괄 폼을 두지
               않는다. 폼 안에 폼은 HTML이 허용하지 않고, 하나로 묶으면 어느 행이
               거절됐는지 운영자가 알 수 없다. */}

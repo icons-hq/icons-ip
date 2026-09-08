@@ -169,6 +169,44 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- E-2. 어드민 RPC 를 실제로 부른다
+-- ---------------------------------------------------------------------------
+insert into auth.users (id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+values ('00000000-0000-4000-8000-0000000009b1', 'authenticated', 'authenticated', 'ship-staff@example.test', now(), '{}', '{}', now(), now())
+on conflict (id) do nothing;
+insert into public.profiles (id, email, nickname, birth_date, consents, onboarded_at, role)
+values ('00000000-0000-4000-8000-0000000009b1', 'ship-staff@example.test', 'ship_staff', '1990-01-01', '{"terms":true,"privacy":true}'::jsonb, now(), 'staff')
+on conflict (id) do update set role = 'staff';
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000009b1', true);
+
+select 1 / case when (
+  (public.admin_upsert_shipping_policy(
+    'ship-rpc', 'RPC 정책', 'quick', false, 'paid', 6000, null, 1000,
+    null, null, null, 2000, 3000, '개봉 후 반품 불가', '고객센터', false, false, gen_random_uuid()
+  )).fee_amount = 6000
+  and (public.admin_set_good_shipping_policy('ship-g1', 'ship-rpc', gen_random_uuid())).shipping_policy_id = 'ship-rpc'
+  and (public.admin_archive_shipping_policy('ship-rpc', gen_random_uuid())).archived_at is not null
+) then 1 else 0 end as assert_shipping_admin_rpcs_actually_run;
+
+-- 보관한 정책을 쓰던 상품은 기본으로 되돌아간다 — 참조가 남으면 조회가 빈 정책을 만난다.
+select 1 / case when (
+  select shipping_policy_id is null from public.goods where id = 'ship-g1'
+) then 1 else 0 end as assert_archive_releases_goods;
+
+-- 기본 정책은 보관할 수 없다.
+do $$
+begin
+  perform public.admin_archive_shipping_policy('default', gen_random_uuid());
+  raise exception 'expected the default policy to be protected';
+exception when check_violation then null;
+end;
+$$;
+reset role;
+
+-- ---------------------------------------------------------------------------
 -- F. 권한 — 정책은 공개 읽기, 쓰기는 staff
 -- ---------------------------------------------------------------------------
 select 1 / case when (

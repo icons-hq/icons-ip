@@ -196,6 +196,27 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- E-2. 어드민 RPC 를 실제로 부른다 — 권한만 확인하면 런타임 실패를 못 잡는다
+-- ---------------------------------------------------------------------------
+insert into auth.users (id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+values ('00000000-0000-4000-8000-0000000009a3', 'authenticated', 'authenticated', 'price-staff@example.test', now(), '{}', '{}', now(), now())
+on conflict (id) do nothing;
+insert into public.profiles (id, email, nickname, birth_date, consents, onboarded_at, role)
+values ('00000000-0000-4000-8000-0000000009a3', 'price-staff@example.test', 'price_staff', '1990-01-01', '{"terms":true,"privacy":true}'::jsonb, now(), 'staff')
+on conflict (id) do update set role = 'staff';
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000009a3', true);
+
+select 1 / case when (
+  (public.admin_set_good_discount('price-g1', 'percent', 15, null, null, true, gen_random_uuid())).discount_value = 15
+  and (public.admin_set_good_compliance('price-g1', 'certified', '안전확인', 'XU-1', '아이콘스', true, '880123', gen_random_uuid())).kc_status = 'certified'
+  and (public.admin_set_good_purchase_limits('price-g1', 2, 4, 8, gen_random_uuid())).max_order_qty = 4
+) then 1 else 0 end as assert_admin_rpcs_actually_run;
+reset role;
+
+-- ---------------------------------------------------------------------------
 -- F. 권한 — 어드민 RPC 는 staff 만, 판정 함수는 anon 에게 주지 않는다
 -- ---------------------------------------------------------------------------
 select 1 / case when (

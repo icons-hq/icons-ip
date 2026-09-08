@@ -131,3 +131,27 @@ export function orderShipment(
     trackingUrl: shippingCarrierTrackingUrl(found, normalized),
   };
 }
+
+/*
+ * 발송 방법 (현업 슬라이스 3).
+ *
+ * 주문이 아니라 **출고**에 붙는다 — 한 주문이 택배와 방문수령으로 나뉠 수 있다.
+ * 배송 정책(`shipping_policies.method`)과 같은 어휘를 쓴다.
+ */
+export const SHIPMENT_METHODS = [
+  { value: 'parcel', label: '택배' },
+  { value: 'quick', label: '퀵' },
+  { value: 'pickup', label: '방문수령' },
+  { value: 'freight', label: '화물' },
+] as const;
+
+export type ShipmentMethod = (typeof SHIPMENT_METHODS)[number]['value'];
+
+/** 송장이 필요한 방법인지. 퀵·방문수령·화물은 번호가 없다. */
+export function shipmentNeedsTracking(method: string): boolean {
+  return method === 'parcel';
+}
+
+export function shipmentMethodLabel(method: string): string {
+  return SHIPMENT_METHODS.find((entry) => entry.value === method)?.label ?? method;
+}

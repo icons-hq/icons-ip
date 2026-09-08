@@ -1,5 +1,7 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
+
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { normalizeAdminDispatchDelayForm } from '@/lib/admin/dispatch';
@@ -35,6 +37,7 @@ import { orderShipment } from '@/lib/orders/shipment';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
 import { preserveValues } from '@/lib/admin/form-values';
+import { SHIPMENT_METHODS } from '@/lib/orders/shipment';
 
 export interface AdminOrderActionState {
   errors?: AdminOrderFieldErrors & { form?: string };
@@ -841,11 +844,19 @@ async function run_createOrderShipmentAction(_state: AdminOrderActionState,
 
   const carrier = String(formData.get('carrier') ?? '').trim() || null;
   const tracking = String(formData.get('tracking') ?? '').trim().toUpperCase() || null;
+  /* 발송 방법은 출고에 붙는다 — 한 주문이 택배와 방문수령으로 나뉠 수 있다(슬라이스 3).
+     모르는 값이 오면 택배로 떨어뜨린다: DB CHECK 가 막긴 하지만 화면에 원문 오류를 보이지 않는다. */
+  const methodRaw = String(formData.get('method') ?? '').trim();
+  const method = SHIPMENT_METHODS.some((entry) => entry.value === methodRaw) ? methodRaw : 'parcel';
+  if (method === 'parcel' && !tracking && String(formData.get('ship') ?? '') === 'now') {
+    return { errors: { tracking: '택배로 바로 보내려면 송장번호가 있어야 합니다.' } };
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.rpc('admin_create_shipment', {
     p_carrier: carrier,
     p_items: items,
+    p_method: method,
     p_order_id: orderId,
     p_tracking: tracking,
   });
@@ -905,4 +916,59 @@ async function run_deliverOrderShipmentAction(
 
   revalidateOrderSurfaces(orderId);
   return { message: '배송완료로 바꿨습니다.' };
+}
+
+/*
+ * 발송지연 일괄 안내 (현업 슬라이스 3).
+ *
+ * 지연은 대개 한 원인으로 여러 주문에 온다 — 열 건에 열 번 같은 문장을 치게 두지 않는다.
+ * **사유 없이는 보내지 않는다**: 「늦어집니다」만 가는 안내는 문의를 늘린다.
+ */
+export async function bulkNoteDispatchDelayAction(state: AdminOrderActionState,
+  formData: FormData,): Promise<AdminOrderActionState> {
+  return preserveValues(formData, () => run_bulkNoteDispatchDelayAction(state, formData));
+}
+
+async function run_bulkNoteDispatchDelayAction(_state: AdminOrderActionState,
+  formData: FormData,): Promise<AdminOrderActionState> {
+  const access = await requireStaffAction();
+  if (access.error) return access.error;
+
+  const orderIds = formData.getAll('orderIds')
+    .filter((value): value is string => typeof value === 'string')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const reason = String(formData.get('reason') ?? '').trim();
+  const expectedShipDate = String(formData.get('expectedShipDate') ?? '').trim();
+  const notify = formData.get('notify') !== null;
+
+  if (orderIds.length === 0) return { errors: { form: '안내할 주문을 하나 이상 고르세요.' } };
+  if (!reason) return { errors: { reason: '지연 사유를 적어주세요. 사유 없는 안내는 문의를 늘립니다.' } };
+  if (reason.length > 500) return { errors: { reason: '지연 사유는 500자까지 적을 수 있습니다.' } };
+  if (expectedShipDate && !/^\d{4}-\d{2}-\d{2}$/.test(expectedShipDate)) {
+    return { errors: { expectedShipDate: '발송 예정일 형식이 올바르지 않습니다.' } };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_bulk_note_dispatch_delay', {
+    p_expected_ship_date: expectedShipDate || null,
+    p_notify: notify,
+    p_order_ids: orderIds,
+    p_reason: reason,
+    p_request_id: randomUUID(),
+  });
+  if (error) {
+    if (error.message.includes('too_many_orders')) {
+      return { errors: { form: '한 번에 200건까지 처리할 수 있습니다. 나눠서 보내주세요.' } };
+    }
+    return { errors: { form: '지연 안내를 기록하지 못했습니다. 다시 시도해주세요.' } };
+  }
+
+  revalidatePath('/admin/sales/dispatch');
+  const count = typeof data === 'number' ? data : orderIds.length;
+  return {
+    message: notify
+      ? `${count}건에 지연 사유를 적고 안내를 보냈습니다.`
+      : `${count}건에 지연 사유를 적었습니다.`,
+  };
 }
