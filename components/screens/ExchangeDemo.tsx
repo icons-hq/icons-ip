@@ -41,6 +41,9 @@ const NEW_AUCTION_SEC = 24 * 3600;
 
 const userLabel = (user: string) => (user === MY_USER ? '내 등록' : `@${user}`);
 
+/** 카운트다운이 0 에 닿은 경매 — 목록 버튼과 입찰 제출이 같은 판정을 쓴다. */
+const isAuctionClosed = (trade: AuctionTrade, elapsed: number) => trade.endsInSec - elapsed <= 0;
+
 /* 마감 카운트다운 — 마운트 후 1초마다 흐른 초를 센다. 서버 렌더와 첫 클라이언트 렌더는 0 으로 같다. */
 function useElapsedSeconds() {
   const [elapsed, setElapsed] = useState(0);
@@ -70,6 +73,9 @@ export function ExchangeDemo() {
   const closeDialog = () => setDialog(null);
   const markMine = (id: string) => setMine((prev) => new Set(prev).add(id));
   const placeBid = (id: string, amount: number) => {
+    /* 마감된 경매는 다이얼로그가 제출을 막지만, 상태 갱신 경로에서도 한 번 더 거른다. */
+    const target = trades.find((trade) => trade.id === id);
+    if (!target || target.kind !== '경매' || isAuctionClosed(target, elapsed)) return;
     setTrades((prev) => prev.map((trade) => (
       trade.id === id && trade.kind === '경매' ? { ...trade, bid: amount, bids: trade.bids + 1 } : trade
     )));
@@ -201,15 +207,21 @@ function TradeCard({
         {trade.kind === '경매' ? (
           <>
             <div className="wc-c2c__trade-row">
-              <span>현재가 · {trade.bids}입찰</span>
-              <span className="wc-c2c__trade-timer">마감 {formatCountdown(trade.endsInSec - elapsed)}</span>
+              <span>{isAuctionClosed(trade, elapsed) ? '낙찰가' : '현재가'} · {trade.bids}입찰</span>
+              <span className="wc-c2c__trade-timer">
+                {isAuctionClosed(trade, elapsed) ? '경매 마감' : `마감 ${formatCountdown(trade.endsInSec - elapsed)}`}
+              </span>
             </div>
             <div className="wc-c2c__trade-row">
               <strong className="wc-c2c__trade-price">{krw(trade.bid)}</strong>
-              {mine ? <Badge>최고 입찰 중</Badge> : null}
+              {mine ? <Badge>{isAuctionClosed(trade, elapsed) ? '낙찰' : '최고 입찰 중'}</Badge> : null}
             </div>
             <div className="wc-c2c__trade-action">
-              <WcButton onClick={onBid} variant="primary">입찰</WcButton>
+              {isAuctionClosed(trade, elapsed) ? (
+                <WcButton disabled>경매 마감</WcButton>
+              ) : (
+                <WcButton onClick={onBid} variant="primary">입찰</WcButton>
+              )}
             </div>
           </>
         ) : (
@@ -241,7 +253,8 @@ export function BidDialog({
   const [amount, setAmount] = useState(String(min));
   const [done, setDone] = useState<number | null>(null);
   const value = Number(amount);
-  const valid = Number.isFinite(value) && value >= min;
+  const closed = isAuctionClosed(trade, elapsed);
+  const valid = !closed && Number.isFinite(value) && value >= min;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -256,7 +269,9 @@ export function BidDialog({
         <CardTile bg={trade.bg} className="wc-c2c__summary-card" rarity={trade.rarity} />
         <div className="wc-c2c__summary-body">
           <p className="wc-c2c__summary-name">{trade.card}</p>
-          <p className="wc-c2c__summary-meta">경매 · {userLabel(trade.user)} · 마감 {formatCountdown(trade.endsInSec - elapsed)}</p>
+          <p className="wc-c2c__summary-meta">
+            경매 · {userLabel(trade.user)} · {closed ? '경매 마감' : `마감 ${formatCountdown(trade.endsInSec - elapsed)}`}
+          </p>
         </div>
       </div>
 
@@ -280,7 +295,11 @@ export function BidDialog({
             <span>입찰가 (원)</span>
             <input inputMode="numeric" min={min} onChange={(event) => setAmount(event.target.value)} required step={BID_STEP} type="number" value={amount} />
           </label>
-          {!valid ? <p className="wc-c2c__field-error" role="alert">최소 입찰가 {krw(min)} 이상이어야 해요.</p> : null}
+          {closed ? (
+            <p className="wc-c2c__field-error" role="alert">마감된 경매예요. 더 이상 입찰할 수 없어요.</p>
+          ) : !valid ? (
+            <p className="wc-c2c__field-error" role="alert">최소 입찰가 {krw(min)} 이상이어야 해요.</p>
+          ) : null}
           <p className="wc-c2c__caption">시연 입찰이에요. 대금 보관·체결은 화면 상태로만 표현됩니다.</p>
           <div className="wc-c2c__dialog-actions">
             <WcButton onClick={onClose}>취소</WcButton>

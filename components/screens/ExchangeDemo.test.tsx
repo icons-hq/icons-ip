@@ -56,6 +56,18 @@ describe('ExchangeDemo 다이얼로그', () => {
     expect(html).toContain('시연 입찰이에요');
   });
 
+  it('마감된 경매의 입찰 다이얼로그는 제출을 막고 마감을 알린다', () => {
+    /* 카운트다운이 0 에 닿은 뒤에도 입찰이 들어가면 마감 시각이 무의미해진다 — 제출 경로에서 잠근다. */
+    const html = renderToStaticMarkup(
+      <BidDialog elapsed={auction.endsInSec} onClose={() => {}} onSubmit={() => {}} trade={auction} />,
+    );
+
+    expect(html).toContain('마감된 경매예요');
+    expect(html).toContain('경매 마감');
+    expect(html).not.toContain(`마감 ${formatCountdown(0)}`);
+    expect(html).toMatch(/<button class="wc-btn primary" disabled="" type="submit">입찰하기<\/button>/);
+  });
+
   it('제안 다이얼로그는 보유 카드만 고르게 한다', () => {
     const html = renderToStaticMarkup(
       <OfferDialog ipsById={ipsById} myCards={myCards} onClose={() => {}} onSubmit={() => {}} trade={direct} />,

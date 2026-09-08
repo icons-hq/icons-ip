@@ -18,10 +18,18 @@ describe('MarketDemo 시연 표면', () => {
       expect(html).toContain(listing.name);
       expect(html).toContain(`@${listing.seller}`);
     }
-    expect(html.match(/에스크로 구매/g)?.length).toBe(MARKET_LISTINGS.length);
+    /* 검수센터를 통과한 매물만 결제로 넘어간다 — 검수 대기 매물은 비활성 버튼으로 막는다. */
+    const verified = MARKET_LISTINGS.filter((listing) => listing.verified).length;
+    expect(html.match(/에스크로 구매/g)?.length).toBe(verified);
+    expect(html.match(/검수 대기 중/g)?.length).toBe(MARKET_LISTINGS.length - verified);
     expect(html).toContain('검수완료');
     expect(html).toContain('검수 대기');
     expect(html).toContain('판매 등록');
+  });
+
+  it('실물은 굿즈로 부르고 회피어 상품을 노출 문구에 남기지 않는다', () => {
+    /* CONTEXT.md 용어집 — 실물은 굿즈, 상품은 회피어. 카드와의 혼용을 막는 규칙이다. */
+    expect(html).not.toContain('상품');
   });
 
   it('매물이 있는 IP 만 필터 칩으로 세운다', () => {
@@ -58,7 +66,12 @@ describe('MarketDemo 다이얼로그', () => {
 
     expect(html).toContain('role="dialog"');
     expect(html).toContain(listing.name);
+    expect(html).toContain('굿즈 금액');
+    expect(html).not.toContain('상품');
     expect(html).toContain('에스크로 결제 금액');
+    /* 구매 가능한 매물은 이미 검수를 통과했다 — 타임라인의 검수 단계는 완료, 결제 단계가 진행 중이다. */
+    expect(html).toContain('class="is-done">검수센터 입고');
+    expect(html).toContain('class="is-active">에스크로 결제');
     expect(html).toContain(`₩${sellerPayout(listing.price).toLocaleString('ko-KR')}`);
     expect(html).toContain('시연 결제예요');
     expect(html).toContain('에스크로로 결제');
@@ -67,7 +80,8 @@ describe('MarketDemo 다이얼로그', () => {
   it('판매 등록 폼은 검수 대기로 시작함을 안내한다', () => {
     const html = renderToStaticMarkup(<SellDialog onClose={() => {}} onSubmit={() => {}} />);
 
-    expect(html).toContain('상품명');
+    expect(html).toContain('굿즈명');
+    expect(html).not.toContain('상품');
     expect(html).toContain('희망가');
     expect(html).toContain('검수 대기');
     for (const candidate of DATA.IPS) expect(html).toContain(`>${candidate.title}</option>`);

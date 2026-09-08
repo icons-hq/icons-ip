@@ -169,10 +169,13 @@ function ListingCard({
         </div>
         <PriceBlock price={listing.price} />
         <div className="wc-c2c__item-action">
+          {/* 검수센터를 통과한 매물만 결제로 넘어간다 — 페이지 카피(검수 → 에스크로 결제 → 정산)와 같은 순서. */}
           {escrow ? (
             <WcButton disabled>에스크로 보관 중</WcButton>
-          ) : (
+          ) : listing.verified ? (
             <WcButton onClick={onBuy} variant="primary">에스크로 구매</WcButton>
+          ) : (
+            <WcButton disabled>검수 대기 중</WcButton>
           )}
         </div>
       </div>
@@ -210,11 +213,12 @@ export function PurchaseDialog({
         <div className="wc-c2c__done">
           <span aria-hidden className="wc-c2c__done-mark">✓</span>
           <p className="wc-c2c__done-title">{krw(listing.price)}이 에스크로에 보관됐어요</p>
-          <p className="wc-c2c__done-desc">검수센터 검수를 통과하면 배송이 시작되고, 수령을 확정하면 판매자에게 정산돼요.</p>
+          <p className="wc-c2c__done-desc">검수센터를 이미 통과한 굿즈예요. 배송을 받고 수령을 확정하면 판매자에게 정산돼요.</p>
+          {/* 구매 가능한 매물은 전부 검수 통과 상태라 검수 단계는 완료로 고정한다 — 결제 뒤에 검수로 되돌아가지 않는다. */}
           <ol className="wc-c2c__timeline">
+            <li className="is-done">검수센터 검수 통과</li>
             <li className="is-done">결제 완료 · 에스크로 보관</li>
-            <li className="is-active">검수센터 검수 중</li>
-            <li>배송 · 수령 확정</li>
+            <li className="is-active">배송 · 수령 확정</li>
             <li>판매자 정산</li>
           </ol>
           <div className="wc-c2c__dialog-actions">
@@ -224,7 +228,7 @@ export function PurchaseDialog({
       ) : (
         <>
           <dl className="wc-c2c__rows">
-            <div className="wc-c2c__row"><dt>상품 금액</dt><dd>{krw(listing.price)}</dd></div>
+            <div className="wc-c2c__row"><dt>굿즈 금액</dt><dd>{krw(listing.price)}</dd></div>
             <div className="wc-c2c__row is-total"><dt>에스크로 결제 금액</dt><dd>{krw(listing.price)}</dd></div>
             <div className="wc-c2c__row is-muted">
               <dt>판매자 정산 예정액 · 예시 수수료 {feePercent}% 차감</dt>
@@ -233,7 +237,7 @@ export function PurchaseDialog({
           </dl>
           <ol className="wc-c2c__timeline">
             {ESCROW_STEPS.map((step, index) => (
-              <li key={step.no} className={index === 1 ? 'is-active' : undefined}>{step.title}</li>
+              <li key={step.no} className={index === 0 ? 'is-done' : index === 1 ? 'is-active' : undefined}>{step.title}</li>
             ))}
           </ol>
           <p className="wc-c2c__caption">시연 결제예요. 실제 PG 호출·대금 이동 없이 화면 상태만 바뀝니다.</p>
@@ -292,7 +296,7 @@ export function SellDialog({
     <DemoDialog onClose={onClose} title="판매 등록">
       <form className="wc-c2c__form" onSubmit={submit}>
         <label className="wc-c2c__field">
-          <span>상품명</span>
+          <span>굿즈명</span>
           <input onChange={(event) => setName(event.target.value)} placeholder="예: 리락쿠마 낮잠 쿠션 (미개봉)" required value={name} />
         </label>
         <label className="wc-c2c__field">
