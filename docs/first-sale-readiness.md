@@ -1,10 +1,12 @@
 # ICONS 첫 실판매 준비 계획 (First Sale Readiness)
 
-> 상태: Active · 작성 2026-08-06 · 구현 2026-08-07 · 현재 진실원 갱신 2026-08-18 · 근거: 그릴링 세션(범위 확정) + 코드베이스 전수 감사
-> 대상 마일스톤: **홍실 퀘스트 굿즈 소프트런칭** — v1 출시([`launch-readiness-plan.md`](./launch-readiness-plan.md))와 **별개 마일스톤**이다.
+> 상태: Active · 작성 2026-08-06 · 구현 2026-08-07 · 현재 진실원 갱신 2026-08-26 · 근거: 그릴링 세션(범위 확정) + 코드베이스 전수 감사
+> 대상 마일스톤: **메이플스토리 공식 라이선스 굿즈 소프트런칭** — v1 출시([`launch-readiness-plan.md`](./launch-readiness-plan.md))와 **별개 마일스톤**이다.
 > 이 문서는 **기준선·갭 분석·트랙 구조**의 진실원이다. 각 이슈의 스펙 진실원은 issue body다.
 >
-> **§3의 갭 분석은 2026-08-06 기준선이다.** 코드가 그 뒤로 움직였으므로 현재 상태는 §8을 본다.
+> **2026-08-26 첫 판매 대상 전환**: 홍실 퀘스트 3종 → 실제 메이플스토리 굿즈([#319](https://github.com/icons-hq/icons-ip/issues/319)).
+> §1~§8은 홍실 기준의 결정·구현 이력이고, 현재 게이트와 전환 결정은 **§10**을 본다.
+> **§3의 갭 분석은 2026-08-06 기준선이다.** 코드가 그 뒤로 움직였으므로 §8(2026-08-18 홍실 기준 마지막 상태)과 §10을 본다.
 > 기준선을 지우지 않는 이유는 "왜 이 작업을 했는가"의 근거가 거기 있기 때문이다.
 
 ---
@@ -326,3 +328,60 @@
 - 첫 판매 기간에는 ICONS 할당 재고를 다른 채널이 건드리지 않는다(D4의 전제).
 - callback body와 클라이언트 성공 신호는 결제 확정의 진실원이 아니다. Toss는 알려진 기존 거래만 provider 재조회·웹훅으로 정리하고, 신규 Korpay는 서버 confirm의 엄격한 응답 검증과 DB 멱등 finalizer를 사용한다. 문서화되지 않은 reconcile/cancel endpoint를 가정하지 않는다. 돈·재고는 Postgres RPC + 행 잠금 + 멱등([`AGENTS.md`](../AGENTS.md) 불변).
 - 법무 검토는 판매 개시를 막지 않는다(D12). 개인정보처리방침은 코드에서 추출한 **사실 기술**이라 내용 리스크가 낮고, 이용약관은 공정위 표준약관 기반이라 골격 리스크가 낮다는 판단이다.
+
+---
+
+## 10. 2026-08-26 첫 판매 대상 전환 — 메이플스토리
+
+제품 소유자 결정(2026-08-26)으로 첫 실판매 대상을 홍실 퀘스트 3종에서 **실제 메이플스토리 공식
+라이선스 굿즈**로 전환한다. 넥슨 상품화 라이선스 **계약 완료**는 같은 날 제품 소유자가 확인했고,
+품목 범위·감수 절차 등 세부는 [#315](https://github.com/icons-hq/icons-ip/issues/315) 확인서
+([`first-sale-maplestory-license.md`](./questionnaires/first-sale-maplestory-license.md))로 기록한다.
+에픽은 [#168](https://github.com/icons-hq/icons-ip/issues/168) →
+[#319](https://github.com/icons-hq/icons-ip/issues/319)로 승계한다.
+
+### 10.1 승계 — 재작업 없음
+
+§8의 코드 트랙은 전부 IP 무관이라 그대로 유효하다. 2026-08-25 이후 추가로 완료된 것: 주문 확인
+메일이 현행 결제 확정 경로(Korpay confirm·무통장 확정)에 연결되고 Production `EMAIL_*` 등록으로
+실발송이 활성화됐다(PR [#311](https://github.com/icons-hq/icons-ip/pull/311)). 결제 결과 배너가
+주문 내역·티켓 목록에 추가됐다(PR [#312](https://github.com/icons-hq/icons-ip/pull/312)·
+[#313](https://github.com/icons-hq/icons-ip/pull/313)). 무통장 단독 구성의 checkout 제출 가드가
+수정됐다(PR [#310](https://github.com/icons-hq/icons-ip/pull/310)). WMS 연동 확인서가 등재됐다
+(PR [#314](https://github.com/icons-hq/icons-ip/pull/314)).
+
+### 10.2 홍실 폐기 범위
+
+홍실 퀘스트는 공개 카탈로그에서 **IP 페이지 포함 전체 제거**한다(굿즈 `g13`~`g15`·IP row 보관).
+2026-08-20 입력한 고시정보 21칸·설명은 보관 행에 남는다.
+[#179](https://github.com/icons-hq/icons-ip/issues/179)·[#190](https://github.com/icons-hq/icons-ip/issues/190)은
+대상 소멸로 종료했다. 실행은 데모 카탈로그 정리와 함께
+[#318](https://github.com/icons-hq/icons-ip/issues/318)에서 **제품 소유자 요청 시** 수행한다.
+홍실 원작 IP 자산(`docs/ip/hong-sil-quest/`)과 VN 프로토타입은 이 폐기 범위가 아니다.
+
+### 10.3 상품 데이터 전략
+
+데모 굿즈 `g3`~`g5`는 실데이터로 갱신 재사용하지 않고 **보관**한다 — 기존 테스트 주문 2건이 데모
+행을 참조하므로 데모 이력과 실판매를 분리한다. 실판매 상품은 **운영 담당자가 어드민에서 직접 신규
+등록**한다([#316](https://github.com/icons-hq/icons-ip/issues/316)) — 고시정보 7칸 필수 가드,
+Storage 이미지 업로드, 상세 미리보기가 이미 그 경로에 있다. #315의 라이선스 표기 의무(©NEXON 등)를
+상세 설명에 반영한다.
+
+### 10.4 카드 리워드 재결정
+
+D3(카드 리워드 OFF)의 근거였던 "홍실에 카드 0장"은 메이플스토리에는 해당하지 않는다. 그래도 첫
+판매는 **OFF를 유지**한다 — 라이선스 카드 아트·감수 없이 켤 수 없고, 어드민에서 코드 배포 없이
+나중에 켤 수 있다(§2.2). 데모 카드·이벤트와 가짜 시드 수치(`fans_count` 198,000 등)는 #318에서
+정리한다.
+
+### 10.5 현재 게이트 (2026-08-26)
+
+| 게이트 | 이슈 | 성격 |
+|---|---|---|
+| 넥슨 라이선스 세부 — 감수·표기·품목·채널·정산 | [#315](https://github.com/icons-hq/icons-ip/issues/315) | `[human]` · 일정 지배 변수 |
+| 상품 운영 데이터 어드민 등록 | [#316](https://github.com/icons-hq/icons-ip/issues/316) | `[human]` · #315 표기 의무 반영 |
+| 물류 연동 사양 H1~H7 | [#177](https://github.com/icons-hq/icons-ip/issues/177) | `[human]` · IP 무관 유지 |
+| 할당 재고 확정·`stock_qty` 입력 | [#317](https://github.com/icons-hq/icons-ip/issues/317) | `[human]` · #177·#316 선행 |
+| 데모·홍실 카탈로그 정리 | [#318](https://github.com/icons-hq/icons-ip/issues/318) | 제품 소유자 요청 시 실행 · 데모 굿즈 10종이 구매 가능 노출 중 |
+| Korpay 실결제 canary 1건 | [#207](https://github.com/icons-hq/icons-ip/issues/207) | 운영 검증 · Korpay 실결제 이력 0건 |
+| 무통장 법인계좌 (선택) | [#255](https://github.com/icons-hq/icons-ip/issues/255) | 무통장 포함 시에만 · #279·#280·#281 선행 |
