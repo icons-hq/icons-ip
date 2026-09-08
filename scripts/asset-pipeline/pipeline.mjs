@@ -133,7 +133,14 @@ async function readOwnerFile(path) {
   if (!stats.isFile()) {
     throw new Error(`Asset pipeline lock must be a regular file: ${path}`);
   }
-  const raw = await readFile(path, 'utf8');
+  let raw;
+  try {
+    raw = await readFile(path, 'utf8');
+  } catch (error) {
+    // The owner released or recovered the file between the existence check and this read.
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
   let owner = null;
   try {
     owner = JSON.parse(raw);
@@ -218,7 +225,13 @@ async function refreshOwnedFileLease(path, owner) {
   const current = await readOwnerFile(path);
   if (current?.owner?.token !== owner.token) return false;
   const refreshedAt = new Date();
-  await utimes(path, refreshedAt, refreshedAt);
+  try {
+    await utimes(path, refreshedAt, refreshedAt);
+  } catch (error) {
+    // Losing the file between the token check and the touch is an ownership loss, not a crash.
+    if (error?.code === 'ENOENT') return false;
+    throw error;
+  }
   return true;
 }
 
