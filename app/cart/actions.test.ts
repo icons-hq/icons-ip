@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   goodsSelect: vi.fn(),
   goodsEq: vi.fn(),
   goodsIs: vi.fn(),
+  goodsRestrictionEq: vi.fn(),
   goodsMaybeSingle: vi.fn(),
 }));
 
@@ -84,6 +85,7 @@ describe('cart Server Actions', () => {
       mocks.goodsSelect,
       mocks.goodsEq,
       mocks.goodsIs,
+      mocks.goodsRestrictionEq,
       mocks.goodsMaybeSingle,
     ]) mock.mockReset();
 
@@ -94,7 +96,9 @@ describe('cart Server Actions', () => {
     mocks.cartUpsert.mockImplementation(async () => mocks.upsertResult);
     mocks.cartDelete.mockImplementation(() => thenableDeleteBuilder());
     mocks.goodsMaybeSingle.mockImplementation(async () => mocks.goodRow);
-    mocks.goodsIs.mockReturnValue({ maybeSingle: mocks.goodsMaybeSingle });
+    // 판매 제한(19금) 비노출 필터가 archived_at 뒤에 하나 더 붙는다(#392).
+    mocks.goodsRestrictionEq.mockReturnValue({ maybeSingle: mocks.goodsMaybeSingle });
+    mocks.goodsIs.mockReturnValue({ eq: mocks.goodsRestrictionEq });
     mocks.goodsEq.mockReturnValue({ is: mocks.goodsIs });
     mocks.goodsSelect.mockReturnValue({ eq: mocks.goodsEq });
     mocks.from.mockImplementation((table: string) => {

@@ -638,6 +638,9 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .from('goods')
       .select('id,ip_id,name,type,price,compare_at_price,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer')
       .is('archived_at', null)
+      /* 판매 제한(19금) 상품은 성인인증(#209·#210) 도입 전까지 스토어 전 표면에서
+         비노출이다(#392). 이 스냅샷이 리스트·검색·홈·바인더를 모두 먹인다. */
+      .eq('sale_restriction', 'none')
       .order('id'),
     supabase
       .from('cards')
@@ -819,6 +822,8 @@ export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodD
     .select('description,gallery_paths,detail_image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact')
     .eq('id', goodId)
     .is('archived_at', null)
+    // 스냅샷 제외로 이미 걸러지지만 URL 직접 접근을 이중으로 막는다(#392).
+    .eq('sale_restriction', 'none')
     .maybeSingle();
 
   if (result.error) {

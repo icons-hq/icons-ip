@@ -9,6 +9,10 @@ const mocks = vi.hoisted(() => ({
   loadOrder: vi.fn(),
   paymentAvailable: true,
   availabilityUserIds: [] as Array<string | undefined>,
+  availabilityProviders: [] as Array<string | undefined>,
+  derivedProvider: 'toss' as 'toss' | 'korpay',
+  deriveProvider: vi.fn(),
+  runtimeProviders: [] as Array<string | undefined>,
   prepare: vi.fn(),
   rpc: vi.fn(),
 }));
@@ -16,13 +20,23 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
 vi.mock('@/lib/checkout.server', () => ({ loadCheckoutOrder: mocks.loadOrder }));
 vi.mock('@/lib/payments/goods-checkout-availability', () => ({
-  goodsCheckoutPaymentsEnabled: (userId?: string) => {
+  goodsCheckoutPaymentsEnabled: (userId?: string, provider?: string) => {
     mocks.availabilityUserIds.push(userId);
+    mocks.availabilityProviders.push(provider);
     return mocks.paymentAvailable;
   },
 }));
+vi.mock('@/lib/payments/goods-sale-restriction.server', () => ({
+  deriveGoodsOrderProvider: (orderId: string) => {
+    mocks.deriveProvider(orderId);
+    return Promise.resolve(mocks.derivedProvider);
+  },
+}));
 vi.mock('@/lib/payments/goods-checkout.runtime.server', () => ({
-  createRuntimeGoodsPaymentCheckout: () => ({ prepare: mocks.prepare }),
+  createRuntimeGoodsPaymentCheckout: (provider?: string) => {
+    mocks.runtimeProviders.push(provider);
+    return { prepare: mocks.prepare };
+  },
 }));
 vi.mock('@/lib/supabase/service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/supabase/service')>()),
@@ -211,6 +225,10 @@ describe('prepareGoodsPaymentAction', () => {
   beforeEach(() => {
     mocks.auth = onboardedAuth();
     mocks.paymentAvailable = true;
+    mocks.availabilityProviders = [];
+    mocks.derivedProvider = 'toss';
+    mocks.deriveProvider.mockReset();
+    mocks.runtimeProviders = [];
     mocks.loadOrder.mockReset();
     mocks.loadOrder.mockResolvedValue(checkoutOrder);
     mocks.prepare.mockReset();
@@ -227,6 +245,19 @@ describe('prepareGoodsPaymentAction', () => {
     await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ prepared });
     expect(mocks.loadOrder).toHaveBeenCalledWith(userId, orderId);
     expect(mocks.prepare).toHaveBeenCalledWith({ userId, orderId });
+    // 일반 주문은 toss로 파생되고 gate·runtime 모두 그 provider를 본다(#392).
+    expect(mocks.deriveProvider).toHaveBeenCalledWith(orderId);
+    expect(mocks.availabilityProviders).toEqual(['toss']);
+    expect(mocks.runtimeProviders).toEqual(['toss']);
+  });
+
+  it('판매 제한 상품 포함 주문은 korpay로 파생돼 korpay gate·조립을 탄다', async () => {
+    mocks.derivedProvider = 'korpay';
+
+    await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ prepared });
+
+    expect(mocks.availabilityProviders).toEqual(['korpay']);
+    expect(mocks.runtimeProviders).toEqual(['korpay']);
   });
 
   it('비로그인·foreign 주문·provider OFF는 attempt를 만들지 않는다', async () => {
