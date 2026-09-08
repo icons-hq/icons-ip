@@ -32,14 +32,14 @@ paymentKey, transactionKey, 승인번호, 원문 응답, 키 fingerprint는 문�
 |---|---|---|---|
 | ① | prod `KORPAY_ORDER_CHECKOUT_ENABLED` 폐쇄 | human [#385](https://github.com/icons-hq/icons-ip/issues/385) | 실행 대기 (코페이 런북에 readback 자리 확보) |
 | ② | 레거시 제거 + 신규 개발(#386·#387·#388·#389·#390·#392·#393) | agent | 코드 완료 |
-| ③ | prod 테스트 키 공개 배포 | human/CI [#394](https://github.com/icons-hq/icons-ip/issues/394) | **다음 단계** |
+| ③ | prod 테스트 키 공개 배포 | human/CI [#394](https://github.com/icons-hq/icons-ip/issues/394) | **진행 중** — 2026-09-08 굿즈 gate 개방(아래 "2026-09-08 심사 창 개방 기록") |
 | ④ | 전자결제 신청 → 홈페이지 심사 → 카드사 심사 | human [#394](https://github.com/icons-hq/icons-ip/issues/394) | 대기 |
 | ⑤ | 라이브 키 전환·굿즈 공개 | human [#395](https://github.com/icons-hq/icons-ip/issues/395) | 대기 |
 | ⑥ | 코페이 재개방 | 19+ 오픈 트랙 | 별도 에픽 |
 
-②가 끝나 코드는 토스 기본 상태이지만, Production gate가 모두 닫혀 있어 실제 결제 경로는
-아직 열리지 않는다. ③에서 심사자가 결제창을 볼 수 있도록 **테스트 키 위에서 굿즈 gate만**
-연다(canary로는 대체할 수 없다 — 아래 심사 트랙 5번). ①은 ③과 독립이므로 순서를 기다리지
+②가 끝나 코드는 토스 기본 상태이고, ③에서 심사자가 결제창을 볼 수 있도록 **테스트 키 위에서
+굿즈 gate만** 연다(canary로는 대체할 수 없다 — 아래 심사 트랙 5번). 2026-09-08 토스 검수를 위해
+그 gate를 열었다 — 티켓 gate·canary는 닫혀 있고, 웹훅 등록은 계약 완료까지 보류다(심사 트랙 2번). ①은 ③과 독립이므로 순서를 기다리지
 말고 먼저 닫는다. 티켓 gate는 ⑤ 이후에도 판매 일정이 확정될 때까지 닫아 둔다.
 
 ## 환경별 변수
@@ -154,6 +154,17 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
    인바운드 IP를 차단하지 않아 별도 조치가 필요 없지만, Vercel Firewall/WAF 규칙을 켜 두었다면
    그 IP들이 허용되는지 규칙을 직접 본다. 반대로 우리가 토스로 나가는 승인·조회·취소 호출은
    Vercel Functions에 아웃바운드 방화벽이 없으므로 문서 124의 아웃바운드 IP 허용 대상이 아니다.
+
+   **보류(2026-09-08, 사용자 확인)**: 전자결제 계약(8번)이 끝나기 전에는 개발자센터 웹훅 등록을
+   할 수 없다. **계약이 완료되면 가장 먼저 이 단계를 수행**하고 3번의 "웹훅이 실제로 도착하는지"
+   확인까지 이어서 한다. 등록 전까지 결제 확정은 confirm 동기 경로로만 닫히고, 모호하게 끝난
+   attempt(`confirming`·`unknown`)에는 웹훅 재정합이 오지 않는다. 그 기간의 수동 정합 경로는
+   운영 확인 절의 미종결 attempt 집계와 내부 reconcile 라우트
+   (`/api/internal/payments/{goods,tickets}/reconcile`)인데, 이 라우트가 요구하는
+   `PAYMENT_RECONCILIATION_SECRET`도 Production에 아직 없다(2026-09-08 env 목록 실측) — 웹훅
+   등록 전에 미종결 건이 생기면 이 비밀을 먼저 등록해 재배포한다. 2026-07 구 연동 시절
+   개발자센터에 같은 이벤트로 등록했던 항목이 남아 있을 수 있으므로, 등록 시 기존 항목의
+   URL·이벤트를 먼저 대조한다.
 3. (human/agent) **공개 gate를 열기 전에** 결제수단 노출을 확인하고 canary 한 명으로 테스트
    결제를 1건 만들어 세 가지를 실증한다 — 4번의 약관 개정과 함께 5번 공개 gate 개방의 하드
    게이트다. 공개
@@ -406,3 +417,18 @@ deployment → exact SHA/canonical alias → boolean readback 순서를 반복�
 
 실제 클라이언트 키·시크릿 키·paymentKey·transactionKey·승인번호·provider raw는 어느
 issue·PR·로그에도 복사하지 않는다.
+
+### 2026-09-08 심사 창 개방 기록
+
+- 결정: 토스 검수 일정 때문에 사용자 결정으로 심사 트랙 3번(canary 실증)과 4번(약관 제11조·
+  방침 제5조 고지 개정)을 선행하지 않고 5번 공개 gate를 열었다. 두 항목은 **미이행 잔여
+  위험**으로 남으며, 라이브 전환(⑤) 전에 반드시 이행한다.
+- Production env: `TOSS_ORDER_CHECKOUT_ENABLED=true`(sensitive) 등록. `TOSS_TICKET_CHECKOUT_ENABLED`·
+  `TOSS_ORDER_CANARY_USER_ID`·`TOSS_TICKET_CANARY_USER_ID`는 미설정. 키 페어는 기존 등록분이며
+  main `17b0273` 배포 로그 readback이 `Toss configured=true`였다.
+- 설정 반영 배포의 exact SHA·run·readback(굿즈 open · 티켓 closed · canary 없음 · 테스트 모드
+  경고)은 [#394](https://github.com/icons-hq/icons-ip/issues/394) 코멘트에 적는다.
+- 웹훅: 미등록·보류(심사 트랙 2번). 계약 완료 즉시 등록한다.
+- 심사 요건(7번) 점검 2026-09-08: `/shop` 공개 상품 7개, 사이트 하단 상호·대표자·사업자등록번호·
+  통신판매업 신고번호 표기 확인. 비회원 구매 요건은 미해결 — 검수팀에 테스트 계정 제공을 협의한다.
+- 무통장 입금은 `BANK_TRANSFER_*` 미설정(계좌 미확정 #255)으로 닫혀 있으며 이 개방과 무관하다.
