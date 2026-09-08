@@ -77,6 +77,7 @@ function good(overrides: Partial<AdminGoodRecord> & Pick<AdminGoodRecord, 'id'>)
 function ip(overrides: Partial<AdminIpRecord> & Pick<AdminIpRecord, 'id'>): AdminIpRecord {
   return {
     archivedAt: null,
+    hiddenAt: null,
     title: `IP ${overrides.id}`,
     sub: null,
     verticalKey: 'webtoon',

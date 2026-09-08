@@ -9,13 +9,17 @@ import type { AdminFieldErrors } from '@/lib/admin/catalog';
  * 오류가 난 필드가 어느 탭에 있는지 세어 배지로 알리고, 첫 오류 탭을 연다.
  */
 
+/*
+ * 순서는 **등록하는 순서**다 (현업 슬라이스 5 · 「입력 순서: 기본→가격→재고→배송」).
+ * 배송이 뒤에 있으면 상품 하나를 올리는 데 탭을 왔다 갔다 하게 된다.
+ */
 export const GOOD_FORM_TABS = [
   { id: 'basic', label: '① 기본' },
   { id: 'sales', label: '② 판매' },
   { id: 'stock', label: '③ 옵션·재고' },
-  { id: 'images', label: '④ 이미지' },
-  { id: 'notice', label: '⑤ 제작·고시' },
-  { id: 'shipping', label: '⑥ 배송·출고' },
+  { id: 'shipping', label: '④ 배송·출고' },
+  { id: 'images', label: '⑤ 이미지' },
+  { id: 'notice', label: '⑥ 제작·고시' },
   { id: 'exposure', label: '⑦ 노출' },
 ] as const;
 

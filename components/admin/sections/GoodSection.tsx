@@ -9,6 +9,7 @@ import {
 import { IpPicker } from '@/components/admin/catalog/IpPicker';
 import type { AdminShippingPolicy } from '@/lib/admin/shipping-policies';
 import { GOODS_DESCRIPTION_MAX_LENGTH, GOODS_GALLERY_MAX, type AdminFieldErrors } from '@/lib/admin/catalog';
+import { DESCRIPTION_ALLOWED_TAGS } from '@/lib/admin/description-html';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import { buildGoodPreview, goodFormValues } from '@/lib/admin/good-preview';
 import {
@@ -236,6 +237,7 @@ function GoodsGalleryFields({
               label={`갤러리 ${slot + 1}`}
               name={`galleryPath${slot}`}
               onPreviewChange={(url) => onPreviewChange(`galleryPath${slot}`, url)}
+              recommended={{ width: 1000, height: 1000 }}
             />
             <ErrorText id={`galleryPath${slot}-error`}>{state.errors?.[`galleryPath${slot}`]}</ErrorText>
           </div>
@@ -337,6 +339,7 @@ function GoodEditor({
   pending,
   selected,
   state,
+  suggestedId,
   template,
 }: {
   action: (payload: FormData) => void;
@@ -347,6 +350,8 @@ function GoodEditor({
   pending: boolean;
   selected: AdminGoodRecord | null;
   state: AdminCatalogActionState;
+  /** 등록 화면의 다음 순번 제안. 채워 줄 뿐 고쳐 쓸 수 있다(현업 슬라이스 5). */
+  suggestedId: string | null;
   /** 「복사해서 등록」 원본. 새 등록에서만 쓰고 ID·이미지·재고는 옮기지 않는다. */
   template: AdminGoodRecord | null;
 }) {
@@ -355,7 +360,7 @@ function GoodEditor({
   const base = selected ?? template;
   const [values, setValues] = useState<Record<string, string>>(() => ({
     ...initialGoodFormValues(base),
-    ...(template ? { id: '' } : {}),
+    ...(selected ? {} : { id: suggestedId ?? '' }),
   }));
   const [imageUrls, setImageUrls] = useState(() => initialGoodImageUrls(selected));
   /* 임시본을 되살리면 폼 전체를 다시 마운트해 defaultValue 를 갈아 끼운다. */
@@ -382,7 +387,8 @@ function GoodEditor({
   const restoredActive = restored && restored.seedRef === seedRef ? restored.values : null;
   const defaults: Record<string, string> = {
     ...initialGoodFormValues(base),
-    ...(template ? { id: '' } : {}),
+    /* 복사 등록도 id 는 원본을 물려받지 않는다 — 제안이 있으면 그것으로 채운다. */
+    ...(selected ? {} : { id: suggestedId ?? '' }),
     ...seed,
     ...(restoredActive ?? {}),
   };
@@ -510,7 +516,15 @@ function GoodEditor({
 
         <GoodFormTabPanel active={activeTab} id="basic" idPrefix={tabPrefix}>
           <div className="admin-form-grid">
-            <Field defaultValue={defaults.id} error={state.errors?.id} label="ID (자체 코드)" name="id" placeholder="g100" readOnly={Boolean(selected)} />
+            <Field
+              defaultValue={defaults.id}
+              error={state.errors?.id}
+              /* 제안일 뿐이라고 라벨이 직접 말한다 — 자동 발급으로 읽히면 고쳐도 되는 줄 모른다. */
+              label={creating && suggestedId ? `ID (자체 코드) · 다음 순번 제안 ${suggestedId}` : 'ID (자체 코드)'}
+              name="id"
+              placeholder="g100"
+              readOnly={Boolean(selected)}
+            />
             {/* 선택기는 시드값이 바뀌면 다시 마운트한다 — 라디오도 defaultChecked 갱신을 무시한다. */}
             <IpPicker
               defaultOptions={ipOptions}
@@ -531,11 +545,18 @@ function GoodEditor({
           <TextArea
             defaultValue={defaults.description}
             error={state.errors?.description}
-            label="상세 설명 (최대 2,000자)"
+            label={`상세 설명 (HTML 가능 · 최대 ${GOODS_DESCRIPTION_MAX_LENGTH.toLocaleString('ko-KR')}자)`}
             maxLength={GOODS_DESCRIPTION_MAX_LENGTH}
             name="description"
-            placeholder="굿즈 구성과 특징을 짧게 설명해주세요."
+            placeholder="굿즈 구성과 특징을 적어주세요. HTML 을 쓸 수 있습니다."
           />
+          {/* 허용 목록을 화면이 직접 말한다 — 저장이 막힌 뒤에야 알게 되면 늦다. */}
+          <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
+            쓸 수 있는 태그: <code>{DESCRIPTION_ALLOWED_TAGS.join(' ')}</code>.
+            링크는 사이트 내부 경로(<code>/…</code>)나 <code>https://</code> 주소만,
+            이미지는 <code>src</code>·<code>alt</code> 만 씁니다. 목록 밖 태그가 있으면
+            저장이 <strong>거절</strong>됩니다 — 조용히 지우지 않습니다.
+          </p>
           <GoodBasicPlaceholders />
         </GoodFormTabPanel>
 
@@ -618,6 +639,10 @@ function GoodEditor({
           ) : null}
         </GoodFormTabPanel>
 
+        <GoodFormTabPanel active={activeTab} id="shipping" idPrefix={tabPrefix}>
+          <GoodShippingPlaceholders />
+        </GoodFormTabPanel>
+
         <GoodFormTabPanel active={activeTab} id="images" idPrefix={tabPrefix}>
           <ArtworkUploadField
             currentPath={selected?.imagePath ?? null}
@@ -627,6 +652,7 @@ function GoodEditor({
             kind="good"
             label="대표 이미지"
             onPreviewChange={(url) => setImageUrl('imagePath', url)}
+            recommended={{ width: 1000, height: 1000 }}
           />
           <GoodsGalleryFields
             galleryPaths={selected?.galleryPaths ?? []}
@@ -644,6 +670,7 @@ function GoodEditor({
             label="상세 이미지"
             name="detailImagePath"
             onPreviewChange={(url) => setImageUrl('detailImagePath', url)}
+            recommended={{ width: 860 }}
           />
         </GoodFormTabPanel>
 
@@ -657,10 +684,6 @@ function GoodEditor({
           />
         </GoodFormTabPanel>
 
-        <GoodFormTabPanel active={activeTab} id="shipping" idPrefix={tabPrefix}>
-          <GoodShippingPlaceholders />
-        </GoodFormTabPanel>
-
         <GoodFormTabPanel active={activeTab} id="exposure" idPrefix={tabPrefix}>
           {selected ? (
             <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
@@ -668,7 +691,7 @@ function GoodEditor({
               {selected.searchKeywords.length > 0 ? ` 지금 검색어 ${selected.searchKeywords.length}개.` : ' 검색어가 아직 없습니다.'}
             </p>
           ) : null}
-          <GoodExposurePlaceholders archived={Boolean(selected?.archivedAt)} />
+          <GoodExposurePlaceholders />
         </GoodFormTabPanel>
 
         <FormShell pending={pending} state={state} />
@@ -704,6 +727,7 @@ export function GoodSection({
   categories = [],
   categoryMemberships = [],
   shippingPolicies = [],
+  suggestedId = null,
 }: {
   action: (payload: FormData) => void;
   adjustmentId: string;
@@ -719,6 +743,8 @@ export function GoodSection({
   pending: boolean;
   selected: AdminGoodRecord | null;
   state: AdminCatalogActionState;
+  /** 등록 화면의 다음 순번 제안(현업 슬라이스 5). */
+  suggestedId?: string | null;
   /** 「복사해서 등록」 원본. 새 등록일 때만 뜻이 있다. */
   template?: AdminGoodRecord | null;
   /** 품목 일괄 저장의 배치 멱등 키(요청당 하나). 품목 표가 있을 때만 쓴다. */
@@ -747,6 +773,7 @@ export function GoodSection({
         pending={pending}
         selected={selected}
         state={state}
+        suggestedId={suggestedId}
         template={selected ? null : template}
       />
       {selected && !selected.archivedAt && (

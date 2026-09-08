@@ -47,6 +47,7 @@ const RPC_MESSAGES: [string, string][] = [
   ['tax_type_invalid', '과세 구분을 확인해주세요.'],
   ['supply_price_invalid', '공급가를 확인해주세요.'],
   ['good_not_found', '굿즈를 찾을 수 없습니다.'],
+  ['ip_not_found', 'IP를 찾을 수 없습니다.'],
   ['request_conflict', '이미 처리된 요청입니다. 화면을 새로고침해주세요.'],
   ['auth_required', '로그인이 필요합니다.'],
   ['forbidden', '관리자 권한이 필요합니다.'],
@@ -366,6 +367,43 @@ async function run_setGoodSwitchAction(_state: AdminCatalogActionState,
 
   revalidateCatalogPaths(goodId);
   return { message: `상태를 바꿨습니다. 지금 상태는 「${saleStateLabel(String(data ?? ''))}」입니다.` };
+}
+
+/*
+ * IP 노출/숨김 (현업 슬라이스 5).
+ *
+ * 보관과 다르다 — 하위 굿즈가 살아 있어 보관할 수 없는 IP 를 목록에서만 잠시 내린다.
+ * **직접 링크는 살아 있다**: 이미 공유된 링크가 404 가 되면 그게 더 큰 사고다.
+ */
+export async function setIpVisibilityAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_setIpVisibilityAction(_state, formData));
+}
+
+async function run_setIpVisibilityAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  const authError = await requireStaff();
+  if (authError) return authError;
+
+  const ipId = String(formData.get('ipId') ?? '').trim();
+  const visible = String(formData.get('visible') ?? '') === 'true';
+  const reason = String(formData.get('reason') ?? '').trim();
+  if (!ipId) return { errors: { form: 'IP를 찾을 수 없습니다.' } };
+  /* 끄는 쪽에만 사유를 요구한다 — 되돌릴 때 왜 내렸는지가 남아야 한다. */
+  if (!visible && !reason) return { errors: { reason: '숨김에는 사유가 필요합니다.' } };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_set_ip_visibility', {
+    target_ip_id: ipId,
+    target_visible: visible,
+    target_reason: reason || null,
+  });
+  if (error) return { errors: { form: rpcMessage(error.message, '노출 상태를 바꾸지 못했습니다.') } };
+
+  revalidateCatalogPaths();
+  revalidatePath('/admin/catalog/ips');
+  revalidatePath(`/ip/${ipId}`);
+  return { message: visible ? 'IP를 다시 노출했습니다.' : 'IP를 숨겼습니다. 직접 링크는 그대로 열립니다.' };
 }
 
 export async function setGoodSearchSeoAction(_state: AdminCatalogActionState,

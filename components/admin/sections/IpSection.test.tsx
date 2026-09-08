@@ -13,6 +13,7 @@ vi.mock('../../../lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork:
 const ip: AdminIpRecord = {
   id: 'hwasan',
   archivedAt: null,
+  hiddenAt: null,
   title: '화산강림',
   sub: null,
   verticalKey: 'webtoon',
@@ -78,15 +79,26 @@ describe('IpSection', () => {
   });
 
   /* 숨김(노출 중지) 자리표시 — 스키마가 없어 동작하지 않음을 화면이 직접 말한다. */
-  it('shows a disabled visibility placeholder for an existing IP only', () => {
+  /* 현업 슬라이스 5 — 자리표시였던 노출 토글이 실제로 동작한다. */
+  it('shows a working visibility control for an existing IP only', () => {
     const existing = renderIpSection(ip);
     const creating = renderIpSection(null);
 
     expect(existing).toContain('노출 상태');
-    expect(existing).toContain('aria-label="노출 상태 (준비 중)"');
-    expect(existing).toContain('D-1');
-    expect(existing).toMatch(/<button[^>]*disabled=""[^>]*>숨김<\/button>/);
+    expect(existing).toContain('name="ipId"');
+    expect(existing).toContain('>숨기기</button>');
+    /* 끄는 쪽에만 사유를 받는다. */
+    expect(existing).toContain('숨김 사유 (필수)');
+    /* 직접 링크가 산다는 사실을 화면이 직접 말해야 「내렸으니 안 보이겠지」로 오해하지 않는다. */
+    expect(existing).toContain('직접 링크와 하위 굿즈는 그대로');
     expect(creating).not.toContain('노출 상태');
+  });
+
+  it('offers to bring a hidden IP back, without asking for a reason', () => {
+    const html = renderIpSection({ ...ip, hiddenAt: '2026-09-08T00:00:00.000Z' });
+
+    expect(html).toContain('>다시 노출하기</button>');
+    expect(html).not.toContain('숨김 사유 (필수)');
   });
 
   it('labels an archived IP and offers restoration', () => {

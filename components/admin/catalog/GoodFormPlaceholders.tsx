@@ -1,6 +1,4 @@
 import type { ReactNode } from 'react';
-import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '@/lib/shipping';
-import { CatalogVisibilityPlaceholder } from './CatalogVisibilityPlaceholder';
 
 /*
  * 탭 7 가운데 데이터 층(설계서 §7 D-1~D-3)이 아직 없는 칸의 자리표시.
@@ -154,30 +152,35 @@ export function GoodStockTablePlaceholder({
 }
 
 export function GoodShippingPlaceholders() {
-  const won = (value: number) => `₩${value.toLocaleString('ko-KR')}`;
   return (
-    <PlaceholderGroup
-      layer="D-2 배송 정책 · D-1 출고지"
-      note={`지금은 코드 상수 하나가 전 상품에 같은 배송 정책을 적용한다(${won(FREE_SHIPPING_THRESHOLD)} 이상 무료 · 미만 ${won(SHIPPING_FEE)}). 배송 정책 객체와 출고지 마스터가 생기면 이 탭에서 상속/개별과 기본 출고지를 고른다.`}
-      title="배송 · 출고"
-    >
-      <PlaceholderField
-        hint={`기본 정책 = 조건부 무료 · ${won(FREE_SHIPPING_THRESHOLD)} 이상 무료 · 미만 ${won(SHIPPING_FEE)}`}
-        label="배송 정책"
-        options={['기본 상속', '개별 정책']}
-        value="기본 상속"
-      />
-      <PlaceholderField hint="제주 · 도서산간 추가비" label="지역 추가비 템플릿" options={['기본 템플릿']} value="기본 템플릿" />
-      <PlaceholderField hint="품목에서 덮어쓸 수 있다(설계서 결정 2)" label="출고지 (기본값)" options={['김포 (기본)', '남양주']} value="김포 (기본)" />
-      <PlaceholderField label="배송 유형" options={['택배', '방문 수령', '배송 없음']} value="택배" />
-    </PlaceholderGroup>
+    <>
+      {/* 배송 정책은 이제 객체다(현업 슬라이스 2) — 「코드 상수 하나」라고 적힌 옛 안내를
+          그대로 두면 화면이 거짓말을 한다. */}
+      <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
+        배송 정책은 아래 <strong>배송 정책</strong> 카드에서 고릅니다. 정책은 설정 › 배송 정책에서
+        만들고, 여기서는 이 상품이 어느 정책을 따를지만 정합니다 — 배송비가 바뀔 때 상품을
+        하나씩 고치지 않기 위해서입니다.
+      </p>
+      <PlaceholderGroup
+        layer="D-1 출고지"
+        note="출고지 마스터는 있지만 상품별 기본 출고지는 아직 없다 — 지금은 출고 시점에 고른다."
+        title="출고"
+      >
+        <PlaceholderField hint="품목에서 덮어쓸 수 있다(설계서 결정 2)" label="출고지 (기본값)" options={['김포 (기본)', '남양주']} value="김포 (기본)" />
+        <PlaceholderField label="배송 유형" options={['택배', '방문 수령', '배송 없음']} value="택배" />
+      </PlaceholderGroup>
+    </>
   );
 }
 
-export function GoodExposurePlaceholders({ archived }: { archived: boolean }) {
+export function GoodExposurePlaceholders() {
   return (
     <>
-      <CatalogVisibilityPlaceholder archived={archived} kind="good" />
+      {/* 굿즈의 진열 스위치는 이미 동작한다(아래 「판매 기간 · 상태」 카드) — 여기 죽은
+          토글을 두면 운영자가 안 되는 쪽을 먼저 누른다. */}
+      <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
+        진열 켜기·끄기는 아래 <strong>판매 기간 · 상태</strong> 카드의 「판매 · 진열 스위치」에서 합니다.
+      </p>
       <PlaceholderGroup
         layer="전시 관리 연결 · 개발자 스키마"
         note="큐레이션 순서는 전시 관리가 맡는다 — 여기서는 연결돼 있는지만 보여줄 자리다. SEO 열은 아직 없다."

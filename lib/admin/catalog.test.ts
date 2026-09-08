@@ -407,14 +407,14 @@ describe('admin catalog form normalization', () => {
     formData.set('type', '아크릴 블록');
     formData.set('price', '12000');
     formData.set('stock', 'ok');
-    formData.set('description', 'ㄱ'.repeat(2001));
+    formData.set('description', 'ㄱ'.repeat(8001));
     formData.set('galleryPath0', duplicate);
     formData.set('galleryPath1', duplicate);
 
     expect(normalizeAdminGoodForm(formData, context)).toEqual({
       ok: false,
       errors: {
-        description: '설명은 2,000자 이하로 입력해주세요.',
+        description: '설명은 8,000자 이하로 입력해주세요.',
         galleryPath1: '같은 이미지를 갤러리에 두 번 넣을 수 없습니다.',
       },
     });
@@ -862,5 +862,44 @@ describe('admin catalog form normalization', () => {
         activeTo: '운영 종료는 시작보다 뒤여야 합니다.',
       },
     });
+  });
+});
+
+/*
+ * 현업 슬라이스 5 — 상세 설명 HTML 화이트리스트.
+ * 조용히 지우지 않고 **저장을 거절하고 무엇이 문제인지 말한다**.
+ */
+describe('상세 설명 HTML', () => {
+  function goodForm(description: string) {
+    const formData = setGoodsNotice(new FormData());
+    formData.set('id', 'g14');
+    formData.set('ipId', 'hwasan');
+    formData.set('name', '설명 시험');
+    formData.set('type', '문구');
+    formData.set('price', '1000');
+    formData.set('stock', 'ok');
+    formData.set('description', description);
+    return formData;
+  }
+
+  it('허용 태그는 그대로 저장한다', () => {
+    const html = '<h2>구성</h2><p><strong>본품</strong> 1개</p>';
+    const result = normalizeAdminGoodForm(goodForm(html), context);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.description).toBe(html);
+  });
+
+  it('목록 밖 태그·속성은 그 칸의 오류로 돌려준다', () => {
+    const script = normalizeAdminGoodForm(goodForm('<p>x</p><script>alert(1)</script>'), context);
+    expect(script.ok).toBe(false);
+    if (script.ok) return;
+    expect(script.errors.description).toContain('<script>');
+
+    const handler = normalizeAdminGoodForm(goodForm('<img src="/a.png" onerror="alert(1)">'), context);
+    expect(handler.ok).toBe(false);
+    if (handler.ok) return;
+    expect(handler.errors.description).toContain('onerror');
   });
 });

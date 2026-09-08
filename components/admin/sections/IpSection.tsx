@@ -7,7 +7,7 @@ import type { CatalogSnapshot } from '@/lib/catalog';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl } from '../CatalogArchiveControls';
 import { CatalogEditorHeader } from '../catalog/CatalogEditorHeader';
-import { CatalogVisibilityPlaceholder } from '../catalog/CatalogVisibilityPlaceholder';
+import { IpVisibilityPanel } from '../catalog/IpVisibilityPanel';
 import { Field, FormShell, SelectField, TextArea } from '../fields';
 
 export function IpSection({
@@ -69,11 +69,16 @@ export function IpSection({
           currentUrl={selected?.imageUrl ?? null}
           helpText="IP 키아트는 가로형 이미지를 사용해주세요."
           kind="ip"
+          recommended={{ width: 1600, height: 900 }}
         />
         <FormShell pending={pending} state={state} />
       </form>
       {selected && (
-        <CatalogVisibilityPlaceholder archived={Boolean(selected.archivedAt)} kind="ip" />
+        <IpVisibilityPanel
+          hiddenAt={selected.hiddenAt}
+          id={selected.id}
+          key={`${selected.id}:${selected.hiddenAt ?? 'visible'}`}
+        />
       )}
       {selected && (
         <CatalogArchiveControl

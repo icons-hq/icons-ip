@@ -9,6 +9,8 @@ import { imageUrlFromBg, normalizePublicMediaPath } from '@/lib/media';
 export interface AdminIpRecord {
   id: string;
   archivedAt: string | null;
+  /** 숨김 — 목록에서만 빠진다. 직접 링크와 하위 굿즈는 살아 있다(현업 슬라이스 5). */
+  hiddenAt: string | null;
   title: string;
   sub: string | null;
   verticalKey: string;
@@ -315,6 +317,7 @@ const skippedResult = Promise.resolve({ data: [] as never[], error: null as { me
 interface IpRow {
   id: string;
   archived_at: string | null;
+  hidden_at?: string | null;
   title: string;
   sub: string | null;
   vertical_key: string;
@@ -388,7 +391,7 @@ export type AdminIpRow = IpRow;
 export type AdminGoodRow = GoodRow;
 
 /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-export const ADMIN_IP_SELECT = 'id,archived_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count';
+export const ADMIN_IP_SELECT = 'id,archived_at,hidden_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count';
 export const ADMIN_GOOD_SELECT = 'id,archived_at,ip_id,name,type,price,compare_at_price,badge,stock,stock_qty,allow_bank_transfer,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path,hidden_at,stopped_at,sale_starts_at,sale_ends_at,sale_mode,preorder_ships_at,summary,search_keywords,seo_title,seo_description,image_alt,gallery_alts,supply_price,tax_type,discount_kind,discount_value,discount_starts_at,discount_ends_at,discount_shows_rate,kc_status,kc_type,kc_number,kc_company,min_order_qty,max_order_qty,max_qty_per_account,adult_only,barcode,shipping_policy_id,sale_state:good_sale_state';
 
 interface AdminMediaClient {
@@ -425,6 +428,7 @@ export function toAdminIpRecord(row: IpRow, media: AdminMediaResolver): AdminIpR
   return {
     id: row.id,
     archivedAt: row.archived_at,
+    hiddenAt: row.hidden_at ?? null,
     title: row.title,
     sub: row.sub,
     verticalKey: row.vertical_key,

@@ -107,6 +107,40 @@
   gap: 6px;
 }
 
+/* 비밀번호 칸 — 인풋 오른쪽 안쪽에 「보기」 토글을 얹는다. */
+.wc-auth__password {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.wc-auth__password input {
+  padding-right: 68px;
+}
+
+.wc-auth__reveal {
+  position: absolute;
+  top: 0;
+  right: 12px;
+  height: 40px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-sub);
+  cursor: pointer;
+}
+
+/* Caps Lock 경고는 오류가 아니다 — 입력을 막지 않으니 위험색을 쓰지 않는다. */
+.wc-auth__notice {
+  margin: 0;
+  font-size: 13px;
+  letter-spacing: -0.38px;
+  color: var(--wc-ink-sub);
+}
+
 /* 폼 검증 피드백 — 13px, 상태색만 쓴다(액센트로 위장 금지). */
 .wc-auth__error {
   margin: 0;

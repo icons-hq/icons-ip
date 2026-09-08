@@ -292,6 +292,20 @@ export async function getAdminGoodOptions(
   return [{ id: row.id, title: row.name, archivedAt: row.archived_at }, ...picked];
 }
 
+/*
+ * 다음 굿즈 id 제안 (현업 슬라이스 5).
+ *
+ * **강제가 아니라 제안이다** — 운영자가 고쳐 쓸 수 있어야 이관 데이터의 기존 코드와
+ * 충돌하지 않는다. 실패하면 제안 없이 빈 칸으로 둔다: 제안 하나 때문에 등록 화면이
+ * 열리지 않으면 그게 더 큰 손해다.
+ */
+export async function getAdminSuggestedGoodId(): Promise<string | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_suggest_good_id');
+  if (error) return null;
+  return typeof data === 'string' && data ? data : null;
+}
+
 export async function getAdminGoodRecord(id: string): Promise<AdminGoodRecord | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.from('goods').select(ADMIN_GOOD_SELECT).eq('id', id).maybeSingle();

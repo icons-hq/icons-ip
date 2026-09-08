@@ -30,6 +30,7 @@ const card: AdminCatalogRecords['cards'][number] = {
 const ip: AdminCatalogRecords['ips'][number] = {
   id: 'hwasan',
   archivedAt: null,
+  hiddenAt: null,
   title: '화산강림',
   sub: null,
   verticalKey: 'webtoon',

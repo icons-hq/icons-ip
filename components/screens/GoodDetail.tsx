@@ -9,6 +9,7 @@ import { WishlistHeart } from '@/components/shop/WishlistHeart';
 import { Badge } from '@/components/wc/Badge';
 import { PriceBlock } from '@/components/wc/PriceBlock';
 import { TabPanels, type TabPanelDef } from '@/components/wc/TabPanels';
+import { descriptionHtmlToRender } from '@/lib/admin/description-html';
 import { krwAmountWords } from '@/lib/format';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { goodsNoticeRows } from '@/lib/goods-notice';
@@ -206,6 +207,7 @@ export function GoodDetailView({
   /* 갤러리가 비어도 대표 이미지 한 장으로 정상 렌더된다(#172 완료 조건). */
   const frames = [good.img, ...detail.gallery];
   const badges = goodDisplayBadges(good);
+  const descriptionHtml = descriptionHtmlToRender(detail.description);
 
   const panels: TabPanelDef[] = [
     {
@@ -213,7 +215,14 @@ export function GoodDetailView({
       label: '상세정보',
       content: (
         <div className="wc-pdp-panel">
-          {detail.description ? (
+          {descriptionHtml ? (
+            /* 허용 목록을 통과한 마크업만 그린다 — 저장 때 검사한 것과 **같은 검사기**를
+               여기서 다시 돌린다(옛 행·손으로 고친 행이 있을 수 있다). */
+            <div
+              className="wc-pdp-panel__desc wc-pdp-panel__desc--rich"
+              dangerouslySetInnerHTML={{ __html: descriptionHtml }}
+            />
+          ) : detail.description ? (
             /* 줄바꿈은 운영자가 넣은 내용이다 — 접으면 설명이 한 덩어리가 된다. */
             <p className="wc-pdp-panel__desc" style={{ whiteSpace: 'pre-wrap' }}>{detail.description}</p>
           ) : null}

@@ -257,14 +257,17 @@ describe('GoodSection', () => {
   it('renders shipping, stock-table, and exposure placeholders disabled and unnamed', () => {
     const html = renderGoodSection(good);
 
-    expect(html).toContain('D-2 배송 정책 · D-1 출고지');
-    expect(html).toContain('₩50,000');
+    /* 배송 정책은 이제 객체다(슬라이스 2) — 남은 자리표시는 출고지뿐이다. */
+    expect(html).toContain('D-1 출고지');
+    expect(html).not.toContain('D-2 배송 정책');
     expect(html).toContain('김포 (기본)');
     /* 기존 굿즈의 품목 표는 저장 폼 밖 「품목 · 재고」 카드가 맡는다 — 자리표시는 새 등록에서만 뜬다. */
     expect(html).not.toContain('품목 표 · 자리표시');
     expect(html).toContain('품목 · 재고');
     expect(renderGoodSection(null)).toContain('품목 표 · 자리표시');
-    expect(html).toContain('노출 상태');
+    /* 노출 토글은 「판매 기간 · 상태」 카드가 맡는다 — 죽은 토글을 두면 그쪽을 먼저 누른다. */
+    expect(html).not.toContain('aria-label="노출 상태 (준비 중)"');
+    expect(html).toContain('판매 · 진열 스위치');
     expect(html).toContain('메인 큐레이션 연결');
     expect(html).not.toMatch(/<(input|select)[^>]*disabled=""[^>]*name=/);
     expect(html).not.toMatch(/<(input|select)[^>]*name=[^>]*disabled=""/);

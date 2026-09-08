@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useBrowserStoredValue, writeBrowserStoredValue } from '@/components/admin/catalog/browser-store';
+import { signOutAdminAction } from '@/app/admin/session-actions';
 import { Icon } from '@/components/ui/Icon';
 import {
   ADMIN_NAV_COLLAPSED_KEY,
@@ -114,6 +115,13 @@ export function AdminSidebar({
           <Icon name="arrow" size={18} style={{ transform: 'rotate(180deg)' }} />
           <span className="admin-nav-label">사이트로 돌아가기</span>
         </Link>
+        {/* 로그아웃은 사이드바 발치에 둔다 — 어드민 안에서 끝나야 다시 들어오는 길을 잃지 않는다. */}
+        <form action={signOutAdminAction}>
+          <button aria-label="로그아웃" className="admin-nav-item" title="로그아웃" type="submit">
+            <Icon name="signOut" size={18} />
+            <span className="admin-nav-label">로그아웃</span>
+          </button>
+        </form>
         <button
           aria-expanded={!collapsed}
           aria-label={collapsed ? '사이드바 펼치기' : '사이드바 접기'}

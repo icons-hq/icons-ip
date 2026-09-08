@@ -913,6 +913,57 @@
   color: var(--wc-ink-sub);
 }
 
+/* 운영자가 넣은 마크업 — 지면 규칙을 여기서 한 번에 준다(태그마다 인라인 스타일을
+   요구하면 어드민 화면이 HTML 편집기가 된다). */
+.wc-pdp-panel__desc--rich > :first-child { margin-top: 0; }
+.wc-pdp-panel__desc--rich > :last-child { margin-bottom: 0; }
+
+.wc-pdp-panel__desc--rich p { margin: 0 0 12px; }
+
+.wc-pdp-panel__desc--rich h2,
+.wc-pdp-panel__desc--rich h3 {
+  margin: 20px 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-pdp-panel__desc--rich ul,
+.wc-pdp-panel__desc--rich ol {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+
+.wc-pdp-panel__desc--rich li { margin: 0 0 4px; }
+
+.wc-pdp-panel__desc--rich a {
+  color: var(--wc-ink);
+  text-decoration: underline;
+}
+
+/* 표는 좁은 화면에서 **자기 안에서** 가로로 흐른다 — 지면 전체가 밀리면 안 된다. */
+.wc-pdp-panel__desc--rich table {
+  display: block;
+  overflow-x: auto;
+  width: 100%;
+  margin: 0 0 12px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.wc-pdp-panel__desc--rich th,
+.wc-pdp-panel__desc--rich td {
+  padding: 8px 10px;
+  border: 1px solid var(--wc-line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.wc-pdp-panel__desc--rich th {
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
 .wc-pdp-panel__note {
   margin: 12px 0 0;
   font-size: 13px;

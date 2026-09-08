@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useId } from 'react';
+import { useActionState, useId, useState } from 'react';
 import {
   requestPasswordResetAction,
   signInWithEmailAction,
@@ -63,6 +63,81 @@ function Field({
   );
 }
 
+/*
+ * 비밀번호 칸 (현업 슬라이스 5 · 「비밀번호 입력에 대/소문자 표시」).
+ *
+ * 두 가지를 한다: **Caps Lock 켜짐 경고**와 **보기 토글**. 로그인 실패의 흔한 원인이
+ * 「대문자로 쳤다」인데, 화면이 점만 보여 주면 몇 번이고 같은 실수를 반복한다.
+ *
+ * Caps 상태는 **키 이벤트로만** 읽는다 — 브라우저는 그 밖에 알려 주지 않고, 렌더 중에
+ * 물어볼 방법도 없다. 그래서 첫 타를 치기 전에는 아무 말도 하지 않는다(모르는 것을
+ * 「꺼짐」이라고 말하지 않는다).
+ *
+ * 보기 토글은 **로그인 화면 한정**이다. 어깨 너머로 보이는 위험을 감수할 자리는 자기
+ * 비밀번호를 자기가 치는 순간뿐이다.
+ */
+function PasswordField({
+  autoComplete,
+  error,
+  label,
+  name,
+  placeholder,
+}: {
+  autoComplete: string;
+  error?: string;
+  label: string;
+  name: string;
+  placeholder: string;
+}) {
+  const inputId = useId();
+  const errorId = `${inputId}-error`;
+  const capsId = `${inputId}-caps`;
+  const [revealed, setRevealed] = useState(false);
+  const [capsOn, setCapsOn] = useState(false);
+
+  const readCaps = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    setCapsOn(event.getModifierState('CapsLock'));
+  };
+
+  return (
+    <div className="wc-auth__field">
+      <div className="wc-auth__password">
+        <input
+          aria-label={label}
+          autoComplete={autoComplete}
+          aria-describedby={[error ? errorId : null, capsOn ? capsId : null].filter(Boolean).join(' ') || undefined}
+          aria-invalid={Boolean(error)}
+          id={inputId}
+          name={name}
+          onBlur={() => setCapsOn(false)}
+          onKeyDown={readCaps}
+          onKeyUp={readCaps}
+          placeholder={placeholder}
+          type={revealed ? 'text' : 'password'}
+        />
+        <button
+          aria-pressed={revealed}
+          className="wc-auth__reveal"
+          onClick={() => setRevealed((current) => !current)}
+          type="button"
+        >
+          {revealed ? '숨기기' : '보기'}
+        </button>
+      </div>
+      {capsOn && (
+        <p className="wc-auth__notice" id={capsId} role="status">
+          Caps Lock 이 켜져 있습니다.
+        </p>
+      )}
+      {error && (
+        <span className="wc-auth__error" id={errorId}>
+          {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
 /* 원형 55px 소셜 버튼 열 — 브랜드 마크만 담고 접근 이름은 aria-label 로 남긴다. */
 function SocialMark({ provider }: { provider: 'google' | 'apple' | 'kakao' }) {
   if (provider === 'apple') {
@@ -110,13 +185,12 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
           <input type="hidden" name="next" value={next} />
           <Field autoComplete="email" error={state.errors?.email} label="이메일" name="email" placeholder="이메일" type="email" />
           {!isReset && (
-            <Field
+            <PasswordField
               autoComplete={isSignUp ? 'new-password' : 'current-password'}
               error={state.errors?.password}
               label="비밀번호"
               name="password"
               placeholder="비밀번호"
-              type="password"
             />
           )}
           {!isSignUp && !isReset && (

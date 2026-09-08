@@ -7,6 +7,7 @@ import { IpConsole } from './IpConsole';
 function ip(overrides: Partial<AdminIpRecord> & Pick<AdminIpRecord, 'id' | 'title'>): AdminIpRecord {
   return {
     archivedAt: null,
+    hiddenAt: null,
     sub: null,
     verticalKey: 'webtoon',
     tagline: null,

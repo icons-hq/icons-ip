@@ -1,3 +1,4 @@
+import { checkDescriptionHtml } from '@/lib/admin/description-html';
 import type { Stock } from '@/lib/data';
 import {
   GOODS_NOTICE_FIELDS,
@@ -162,7 +163,9 @@ const INT32_MAX = 2147483647;
 const STOCK_VALUES = new Set<Stock>(['low', 'ok', 'soldout']);
 /* 갤러리는 대표 이미지 외 최대 4장 (#172 · 계획 D6). DB check 제약과 같은 값이다. */
 export const GOODS_GALLERY_MAX = 4;
-export const GOODS_DESCRIPTION_MAX_LENGTH = 2000;
+/* HTML 을 받기 시작하면서 늘렸다(현업 슬라이스 5) — 표 하나가 2,000자를 통째로 먹는다.
+   DB 쪽 길이 제약은 없다. */
+export const GOODS_DESCRIPTION_MAX_LENGTH = 8000;
 const RARITY_VALUES = new Set<RarityKey>(['N', 'R', 'SR', 'SSR', 'HOLO']);
 const EVENT_MODES = new Set(['온라인', '오프라인']);
 const EVENT_STATUSES = new Set(['예매중', '예정', '진행중', '종료']);
@@ -449,8 +452,12 @@ export function normalizeAdminGoodForm(
     errors.compareAtPrice = '정가는 판매가보다 커야 해요';
   }
   if (description && description.length > GOODS_DESCRIPTION_MAX_LENGTH) {
-    errors.description = '설명은 2,000자 이하로 입력해주세요.';
+    errors.description = `설명은 ${GOODS_DESCRIPTION_MAX_LENGTH.toLocaleString('ko-KR')}자 이하로 입력해주세요.`;
   }
+  /* 허용 목록 밖의 태그·속성·주소는 **거절한다**. 조용히 지우면 운영자는 저장된 줄 알고
+     화면에는 없다 — 무엇이 문제인지 이 칸에서 말한다. */
+  const markup = checkDescriptionHtml(description);
+  if (!markup.ok) errors.description = markup.error;
 
   if (Object.keys(errors).length) return { ok: false, errors };
 

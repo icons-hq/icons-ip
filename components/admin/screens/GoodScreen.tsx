@@ -46,6 +46,7 @@ export function GoodScreen({
   categories = [],
   categoryMemberships = [],
   shippingPolicies = [],
+  suggestedId = null,
 }: {
   adjustmentId: string;
   catalogIps: CatalogSnapshot['ips'];
@@ -61,6 +62,8 @@ export function GoodScreen({
   categories?: readonly AdminCategory[];
   categoryMemberships?: readonly { categoryId: string; isPrimary: boolean }[];
   shippingPolicies?: AdminShippingPolicy[];
+  /** 등록 화면의 id 제안(현업 슬라이스 5). 채워 줄 뿐 고쳐 쓸 수 있다. */
+  suggestedId?: string | null;
 }) {
   const [state, action, pending] = useActionState(upsertAdminGoodAction, emptyState);
   const creating = filters.selected === ADMIN_CATALOG_NEW_RECORD;
@@ -99,6 +102,7 @@ export function GoodScreen({
       categories={categories}
       categoryMemberships={categoryMemberships}
       shippingPolicies={shippingPolicies}
+      suggestedId={suggestedId}
     />
   );
 }

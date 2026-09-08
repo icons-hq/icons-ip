@@ -54,6 +54,7 @@ vi.mock('@/lib/admin/catalog-list.server', () => ({
   getAdminIpOptions: mocks.ipOptions,
   getAdminIpList: mocks.ipList,
   getAdminIpRecord: mocks.ipRecord,
+  getAdminSuggestedGoodId: async () => 'g101',
   getAdminVerticals: mocks.verticals,
 }));
 vi.mock('@/lib/admin/variants.server', () => ({
