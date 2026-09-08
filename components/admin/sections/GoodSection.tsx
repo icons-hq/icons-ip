@@ -520,7 +520,9 @@ function GoodEditor({
               defaultValue={defaults.id}
               error={state.errors?.id}
               /* 제안일 뿐이라고 라벨이 직접 말한다 — 자동 발급으로 읽히면 고쳐도 되는 줄 모른다. */
-              label={creating && suggestedId ? `ID (자체 코드) · 다음 순번 제안 ${suggestedId}` : 'ID (자체 코드)'}
+              label={selected
+                ? 'ID (자체 코드) · 주문·정산이 참조하는 키라 바꿀 수 없습니다'
+                : creating && suggestedId ? `ID (자체 코드) · 다음 순번 제안 ${suggestedId}` : 'ID (자체 코드)'}
               name="id"
               placeholder="g100"
               readOnly={Boolean(selected)}

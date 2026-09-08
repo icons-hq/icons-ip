@@ -41,7 +41,15 @@ export function IpSection({
       <form action={action} className="card col" key={selected ? JSON.stringify(selected) : 'new-ip'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
         <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <div className="admin-form-grid">
-          <Field defaultValue={seed.id ?? selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="rilakkuma" readOnly={Boolean(selected)} />
+          <Field
+            defaultValue={seed.id ?? selected?.id}
+            error={state.errors?.id}
+            /* 등록 뒤 못 바꾸는 이유를 라벨이 직접 말한다(현업 1-2 #1). */
+            label={selected ? 'ID (주문·정산이 참조하는 키 — 등록 뒤 바꿀 수 없습니다)' : 'ID'}
+            name="id"
+            placeholder="rilakkuma"
+            readOnly={Boolean(selected)}
+          />
           <Field defaultValue={seed.title ?? selected?.title} error={state.errors?.title} label="IP 이름" name="title" placeholder="리락쿠마" />
           <Field defaultValue={seed.sub ?? selected?.sub} label="보조 설명" name="sub" placeholder="San-X · 캐릭터 IP" />
           {/* select 는 defaultValue 갱신을 무시하므로 시드값을 key 로 삼아 다시 마운트한다. */}

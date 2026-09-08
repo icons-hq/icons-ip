@@ -81,6 +81,15 @@ export function CatalogArchiveControl({
           ? '보관된 항목을 공개 카탈로그로 복원합니다.'
           : ARCHIVE_WARNINGS[kind]}
       </p>
+      {/* 「삭제 버튼이 없다」는 현업 요청(1-2 #1)에 화면이 직접 답한다 — 이유를 적지 않으면
+          없는 기능으로 읽히고, 같은 질문이 다시 올라온다. */}
+      {!archived && (
+        <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+          <strong>지우는 기능은 없습니다.</strong> 지난 주문·정산이 이 항목을 참조하고 있어,
+          지우면 과거 주문 내역이 끊깁니다. 대신 <strong>보관</strong>으로 공개 화면에서 내리고
+          기록은 남깁니다. 잠시만 내릴 때는 숨김을 쓰세요.
+        </p>
+      )}
       {state.errors?.form && (
         <div className="card" role="alert" style={{ color: 'var(--pink)', padding: 12 }}>
           {state.errors.form}
