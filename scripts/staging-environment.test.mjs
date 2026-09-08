@@ -72,14 +72,12 @@ describe('persistent staging isolation', () => {
     expect(calls.some((call) => call.includes('delete'))).toBe(false);
   });
 
-  it('pins alias, both Supabase scopes and closed payment gates; rejects live test keys', () => {
+  it('pins alias, both Supabase scopes and closed payment gates while inheriting remote Toss credentials', () => {
     const input = {
       ...stagingCredentials(credentials, stagingRef),
       SUPABASE_PREVIEW_PROJECT_ID: previewRef,
       SUPABASE_PRODUCTION_PROJECT_ID: productionRef,
       STAGING_ALIAS: 'icons-ip-staging.vercel.app',
-      STAGING_TOSS_CLIENT_KEY: 'test_gck_staging00000001',
-      STAGING_TOSS_SECRET_KEY: 'test_gsk_staging00000001',
     };
     const env = stagingDeploymentEnvironment(input);
     expect(env.SITE_URL).toBe('https://icons-ip-staging.vercel.app');
@@ -88,7 +86,8 @@ describe('persistent staging isolation', () => {
     expect(env.TOSS_ORDER_CHECKOUT_ENABLED).toBe('false');
     expect(env.KORPAY_KEY).toBe('');
     expect(env.RESEND_API_KEY).toBe('');
-    expect(() => stagingDeploymentEnvironment({ ...input, STAGING_TOSS_SECRET_KEY: 'live_gsk_staging00000001' })).toThrow();
+    expect(env).not.toHaveProperty('NEXT_PUBLIC_TOSS_CLIENT_KEY');
+    expect(env).not.toHaveProperty('TOSS_SECRET_KEY');
     expect(() => stagingDeploymentEnvironment({ ...input, STAGING_ALIAS: 'icons-ip.vercel.app' })).toThrow();
     expect(() => stagingDeploymentEnvironment({ ...input, PROJECT_REF: productionRef })).toThrow();
   });

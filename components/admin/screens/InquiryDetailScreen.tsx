@@ -151,7 +151,7 @@ export function InquiryDetailScreen({
                 <ContextRow label="주문상태" value={ORDER_STATUS_LABELS[order.status] ?? order.status} />
                 <ContextRow label="주문일시" value={formatInquiryDateTime(order.createdAt)} />
                 <ContextRow
-                  label="굿즈"
+                  label="상품"
                   value={order.leadItemName
                     ? `${order.leadItemName} · 총 ${order.itemCount}개`
                     : `총 ${order.itemCount}개`}
@@ -198,7 +198,7 @@ export function InquiryDetailScreen({
           {inquiry.goodId ? (
             <section className="card col" style={{ borderRadius: 12, gap: 8, padding: 16 }}>
               <strong style={{ fontSize: 13.5 }}>연결 굿즈</strong>
-              <ContextRow label="굿즈" value={inquiry.goodName ?? inquiry.goodId} />
+              <ContextRow label="상품" value={inquiry.goodName ?? inquiry.goodId} />
               <Link className="btn btn-sm btn-ghost" href={`/shop/${inquiry.goodId}`}>
                 굿즈 상세 보기
               </Link>

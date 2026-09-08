@@ -26,6 +26,37 @@ const event: AdminEventRecord = {
 };
 
 describe('EventSection', () => {
+  it('restores failed input, raw KST times and uploaded artwork only for the submitted event', () => {
+    const state = {
+      attempt: 2,
+      errors: { form: '다시 시도해주세요.' },
+      values: {
+        previousId: '', id: 'e200', ipId: 'lumen', title: '작성 중 이벤트',
+        mode: '온라인', status: '예매중', startsAt: '2026-09-09T10:30', endsAt: '',
+        location: '작성 중 장소', accent: '#123456', imagePath: 'artworks/event/kept.webp',
+      },
+    };
+    const render = (selected: AdminEventRecord | null) => renderToStaticMarkup(
+      <EventSection action={vi.fn()} ipOptions={[{ id: 'lumen', title: '루멘', archivedAt: null }]}
+        onSelect={vi.fn()} pending={false} records={[event]} selected={selected} state={state} />,
+    );
+    const failed = render(null);
+    expect(failed).toContain('value="e200"');
+    expect(failed).toContain('value="작성 중 이벤트"');
+    expect(failed).toContain('value="lumen" selected=""');
+    expect(failed).toContain('value="온라인" selected=""');
+    expect(failed).toContain('value="예매중" selected=""');
+    expect(failed).toContain('value="2026-09-09T10:30"');
+    expect(failed).toMatch(/name="endsAt"[^>]*value=""/);
+    expect(failed).toContain('value="작성 중 장소"');
+    expect(failed).toContain('value="#123456"');
+    expect(failed).toContain('value="artworks/event/kept.webp"');
+    const other = render(event);
+    expect(other).toContain('value="아이콘즈 페스티벌"');
+    expect(other).not.toContain('작성 중 이벤트');
+    expect(other).not.toContain('artworks/event/kept.webp');
+  });
+
   it('uses the shared artwork upload field', () => {
     const html = renderToStaticMarkup(
       <EventSection

@@ -6,6 +6,19 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf
 const retired = ['editorial-foundation.css', 'editorial-admin.css', 'admin-console.css'];
 
 describe('complete admin WC cutover (#433)', () => {
+  it('keeps the actionable unanswered-inquiry badge spaced inside the WC shell', () => {
+    const css=postcss.parse(read('./styles/wc-admin.css'));
+    const rules=new Map<string,Map<string,string>>();
+    css.walkRules(rule=>{
+      const declarations=rules.get(rule.selector)??new Map<string,string>();
+      rule.walkDecls(decl=>{declarations.set(decl.prop,decl.value);});
+      rules.set(rule.selector,declarations);
+    });
+    expect(rules.get('.wc-admin .admin-shell-badges')?.get('padding')).toBe('16px 32px 0');
+    expect(rules.get('.wc-admin .admin-shell-badge')?.get('display')).toBe('inline-flex');
+    expect(rules.get('.wc-admin .admin-shell-badge')?.get('gap')).toBe('8px');
+    expect(rules.get('.wc-admin .admin-shell-badge')?.get('border')).toBe('1px solid var(--wc-warning)');
+  });
   it('retires the shared editorial cascade and global admin selectors', () => {
     for (const file of retired) {
       expect(existsSync(new URL(`./styles/${file}`, import.meta.url)), file).toBe(false);

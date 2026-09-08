@@ -291,6 +291,7 @@ export function RecordList<T extends { id: string }>({
         )}
         {items.map((item) => {
           const thumbnailUrl = thumbnailKind && thumbnailUrlFor ? thumbnailUrlFor(item) : null;
+          const label = labelFor(item);
 
           return (
             <button
@@ -307,7 +308,9 @@ export function RecordList<T extends { id: string }>({
               {thumbnailKind && thumbnailUrl && (
                 <RecordThumbnail kind={thumbnailKind} url={thumbnailUrl} />
               )}
-              {labelFor(item)}
+              {typeof label === 'string'
+                ? <span className="admin-record-label" title={label}>{label}</span>
+                : label}
             </button>
           );
         })}

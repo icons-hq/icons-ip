@@ -7,6 +7,7 @@ import {
   normalizeKorpaySiteUrl,
 } from '../lib/payments/korpay-config.mjs';
 import { isTossKeyPairAligned, tossKeyMode } from '../lib/payments/toss-config.mjs';
+import { validateStagingBuildEnvironment } from './staging-environment.mjs';
 
 const VERCEL_TARGETS = new Set(['preview', 'production']);
 const KORPAY_GATE_NAMES = [
@@ -39,6 +40,7 @@ function parseBooleanGate(environment, target, name) {
 }
 
 export function validateVercelBuildEnvironment(environment) {
+  const stagingVerified = validateStagingBuildEnvironment(environment);
   const target = environment.VERCEL_ENV;
   if (!VERCEL_TARGETS.has(target)) return { checked: false };
 
@@ -199,6 +201,7 @@ export function validateVercelBuildEnvironment(environment) {
 
   return {
     checked: true,
+    ...(stagingVerified ? { stagingVerified: true } : {}),
     warnings,
     newCheckoutEnabled: korpayOrderCheckoutEnabled
       || korpayTicketCheckoutEnabled
@@ -232,6 +235,10 @@ function main() {
 
     for (const warning of result.warnings) {
       console.warn(`Warning: Vercel ${process.env.VERCEL_ENV} ${warning}`);
+    }
+
+    if (result.stagingVerified) {
+      console.log('Staging inherited test widget keys and isolated Preview target verified; checkout gates closed');
     }
 
     console.log(

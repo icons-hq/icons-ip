@@ -229,9 +229,8 @@ function ipForm() {
   return formData;
 }
 
-/* IP 액션만 실패 시 제출값을 되돌린다(폼 상태 보존). 다른 폼은 아직 예전 응답 그대로다. */
-function preservedIfIp(label: string, formData: FormData) {
-  return label === 'IP' ? { values: collectFormValues(formData), attempt: 1 } : {};
+function preservedCatalogValues(_label: string, formData: FormData) {
+  return { values: collectFormValues(formData), attempt: 1 };
 }
 
 function eventForm() {
@@ -818,6 +817,7 @@ describe('admin catalog actions', () => {
 
     await expect(upsertAdminEventAction({}, eventForm())).resolves.toEqual({
       errors: { form: '연결된 게임이 있어 이벤트 IP·운영 방식을 변경할 수 없습니다.' },
+      ...preservedCatalogValues('이벤트', eventForm()),
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
@@ -834,7 +834,7 @@ describe('admin catalog actions', () => {
 
     await expect(action({}, formData)).resolves.toMatchObject({
       errors: { id: '이미 사용 중인 ID입니다. 수정하려면 목록에서 선택해주세요.' },
-      ...preservedIfIp(label, formData),
+      ...preservedCatalogValues(label, formData),
     });
   });
 
@@ -849,7 +849,7 @@ describe('admin catalog actions', () => {
 
     await expect(action({}, formData)).resolves.toMatchObject({
       errors: { form: '수정할 항목을 찾을 수 없습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' },
-      ...preservedIfIp(label, formData),
+      ...preservedCatalogValues(label, formData),
     });
   });
 
@@ -857,6 +857,46 @@ describe('admin catalog actions', () => {
    * 저장 실패가 폼을 리셋하지 않게, IP 액션은 어느 단계에서 실패하든 제출값을 되돌린다.
    * 성공 응답은 바뀌지 않는다 — 성공 뒤 폼은 저장된 레코드를 보여야 한다.
    */
+  describe.each([
+    ['카드', upsertAdminCardAction, cardForm, 'name'],
+    ['이벤트', upsertAdminEventAction, eventForm, 'title'],
+    ['카드풀', upsertAdminCardPoolAction, cardPoolForm, 'name'],
+  ] as const)('%s form state preservation', (_label, action, makeForm, requiredField) => {
+    it('returns submitted values and the next attempt after validation fails', async () => {
+      const form = makeForm();
+      form.set(requiredField, '');
+      form.set('imagePath', 'artworks/retained-after-error.webp');
+      form.set('$ACTION_ID_private', 'internal');
+      const result = await action({ attempt: 3 }, form);
+      expect(result).toMatchObject({
+        values: collectFormValues(form), attempt: 4,
+        errors: { [requiredField]: expect.any(String) },
+      });
+      expect(result.values).not.toHaveProperty('$ACTION_ID_private');
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it.each(['auth', 'catalog', 'transport', 'rpc'] as const)('preserves values after %s failure without provider details', async (boundary) => {
+      const form = makeForm();
+      if (boundary === 'auth') mocks.getCurrentAdminAuthState.mockRejectedValue(new Error('private-provider-token'));
+      if (boundary === 'catalog') mocks.getAdminCatalogRecords.mockRejectedValue(new Error('private-provider-token'));
+      if (boundary === 'transport') mocks.rpc.mockRejectedValue(new Error('private-provider-token'));
+      if (boundary === 'rpc') mocks.rpc.mockResolvedValue({ data: null, error: { message: 'private-provider-token' } });
+      const result = await action({ attempt: 5 }, form);
+      expect(result).toMatchObject({ values: collectFormValues(form), attempt: 6, errors: { form: expect.any(String) } });
+      expect(JSON.stringify(result)).not.toContain('private-provider-token');
+    });
+
+    it('does not retain a failed submission after success or swallow login redirects', async () => {
+      const result = await action({ values: { id: 'stale' }, attempt: 9 }, makeForm());
+      expect(result).toHaveProperty('message');
+      expect(result).not.toHaveProperty('values');
+      expect(result).not.toHaveProperty('attempt');
+      mocks.adminState.user = null;
+      await expect(action({}, makeForm())).rejects.toThrow('NEXT_REDIRECT:/login?next=%2Fadmin');
+    });
+  });
+
   describe('IP form state preservation', () => {
     it.each(['auth', 'catalog'] as const)('preserves values when the %s infrastructure read rejects', async (boundary) => {
       const request = boundary === 'auth' ? mocks.getCurrentAdminAuthState : mocks.getCatalogSnapshot;
@@ -1334,6 +1374,7 @@ describe('admin catalog actions', () => {
 
     await expect(upsertAdminCardPoolAction({}, cardPoolForm())).resolves.toEqual({
       errors: { form: expected },
+      ...preservedCatalogValues('카드풀', cardPoolForm()),
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
@@ -1364,6 +1405,7 @@ describe('admin catalog actions', () => {
 
     await expect(upsertAdminCardAction({}, cardForm())).resolves.toEqual({
       errors: { form: expected },
+      ...preservedCatalogValues('카드', cardForm()),
     });
   });
 

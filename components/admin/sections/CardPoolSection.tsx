@@ -9,6 +9,7 @@ import {
   type AdminCatalogActionState,
 } from '@/app/admin/actions';
 import type { AdminCardPoolRecord, AdminCardRecord } from '@/lib/admin/catalog.server';
+import { adminFormRemountKey, resolveFieldDefault } from '@/lib/admin/form-state';
 import type { RarityKey } from '@/lib/rarity';
 import { ErrorText, Field, FormShell, RecordList, SelectField } from '../fields';
 
@@ -118,15 +119,22 @@ function PoolForm({
 }) {
   const [state, action, pending] = useActionState(upsertAdminCardPoolAction, emptyState);
   const noIps = !ipOptions.some((ip) => !ip.archivedAt || ip.id === selected?.ipId);
-  const initialIpId = selected?.ipId ?? ipOptions.find((ip) => !ip.archivedAt)?.id ?? '';
+  const defaults = {
+    id: selected?.id ?? draftId,
+    ipId: selected?.ipId ?? ipOptions.find((ip) => !ip.archivedAt)?.id ?? '',
+    name: selected?.name ?? '',
+    activeFrom: toKstDateTimeInput(selected?.activeFrom ?? draftActiveFrom),
+    activeTo: toKstDateTimeInput(selected?.activeTo ?? null),
+  };
+  const field = (name: string) => resolveFieldDefault(state, defaults, name, { scopeKey: 'id' });
 
   return (
-    <form action={action} className="card col wc-admin-kit wc-admin-kit__card" style={{ gap: 14 }}>
+    <form action={action} className="card col wc-admin-kit wc-admin-kit__card" key={adminFormRemountKey(state, defaults)} style={{ gap: 14 }}>
       <input name="operationId" type="hidden" value={operationId} />
       <input name="id" type="hidden" value={selected?.id ?? draftId} />
       <AdminFormGrid>
         <SelectField
-          defaultValue={initialIpId}
+          defaultValue={field('ipId')}
           error={state.errors?.ipId}
           label="연결 IP"
           name="ipId"
@@ -144,14 +152,14 @@ function PoolForm({
           ))}
         </SelectField>
         <Field
-          defaultValue={selected?.name}
+          defaultValue={field('name')}
           error={state.errors?.name}
           label="카드풀 이름"
           name="name"
           required
         />
         <Field
-          defaultValue={toKstDateTimeInput(selected?.activeFrom ?? draftActiveFrom)}
+          defaultValue={field('activeFrom')}
           error={state.errors?.activeFrom}
           label="운영 시작 (KST)"
           name="activeFrom"
@@ -159,7 +167,7 @@ function PoolForm({
           type="datetime-local"
         />
         <Field
-          defaultValue={toKstDateTimeInput(selected?.activeTo ?? null)}
+          defaultValue={field('activeTo')}
           error={state.errors?.activeTo}
           label="운영 종료 (KST, 선택)"
           name="activeTo"

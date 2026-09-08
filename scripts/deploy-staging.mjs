@@ -2,13 +2,21 @@ import { spawnSync } from 'node:child_process';
 import { appendFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 
-import { stagingDeploymentEnvironment } from './staging-environment.mjs';
+import { STAGING_BUILD_MARKER, stagingDeploymentEnvironment } from './staging-environment.mjs';
 
 export function stagingDeployArgs(environment) {
   const values = stagingDeploymentEnvironment(environment);
+  // These attest the selected target to prebuild; they are not runtime or NEXT_PUBLIC variables.
+  // Toss keys are deliberately absent so Vercel uses its existing sensitive Preview values.
+  const buildChecks = {
+    ICONS_STAGING_BUILD: STAGING_BUILD_MARKER,
+    ICONS_STAGING_PROJECT_REF: environment.PROJECT_REF,
+    ICONS_STAGING_PREVIEW_PROJECT_REF: environment.SUPABASE_PREVIEW_PROJECT_ID,
+    ICONS_STAGING_PRODUCTION_PROJECT_REF: environment.SUPABASE_PRODUCTION_PROJECT_ID,
+  };
   return ['deploy', '--yes', '--archive=tgz', ...Object.entries(values).flatMap(([name, value]) => [
     '--build-env', `${name}=${value}`, '--env', `${name}=${value}`,
-  ])];
+  ]), ...Object.entries(buildChecks).flatMap(([name, value]) => ['--build-env', `${name}=${value}`])];
 }
 
 function vercel(args) {

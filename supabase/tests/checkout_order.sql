@@ -400,11 +400,12 @@ select 1 / case when (
   from public.orders where id = :'shipping_fee_order_id'::uuid
 ) then 1 else 0 end as assert_flat_shipping_fee_below_threshold;
 
--- A zero-priced catalog item cannot consume inventory into an order that the
--- configured card provider can never prepare.
+-- A free item with free shipping cannot consume inventory into a zero-total
+-- order that the configured card provider can never prepare. Policy shipping
+-- still charges its base fee when the item subtotal is zero.
 reset role;
 update public.goods_variants set stock_qty = 2 where good_id = 'g11' and is_default;
-update public.goods set price = 0, stock = 'ok' where id = 'g11';
+update public.goods set price = 0, stock = 'ok', shipping_fee_type = 'free' where id = 'g11';
 delete from public.cart_items where user_id = '00000000-0000-4000-8000-000000000503';
 insert into public.cart_items (user_id, good_id, qty, variant_id)
 values ('00000000-0000-4000-8000-000000000503', 'g11', 1, (select id from public.goods_variants where good_id='g11' and is_default));

@@ -102,4 +102,14 @@ describe('admin fields', () => {
 
     expect(html).not.toContain('<img');
   });
+
+  it('keeps the full event title available when the list label is shortened to fit its column', () => {
+    const title = 'e5 · 진격의 거인 리바이 에디션 온라인 팝업 — 아주 긴 이벤트 이름';
+    const html = renderToStaticMarkup(
+      <RecordList activeId={null} items={[{ id: 'e5' }]} labelFor={() => title}
+        onNew={vi.fn()} onSelect={vi.fn()} />,
+    );
+    expect(html).toContain(`title="${title}"`);
+    expect(html).toContain(`>${title}</span>`);
+  });
 });

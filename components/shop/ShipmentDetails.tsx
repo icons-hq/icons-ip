@@ -12,7 +12,7 @@ export function ShipmentDetails({ shipments, items = [], admin = false }: {
     <dl className={admin ? 'admin-order-detail__facts' : 'order-payment-summary'}>
       <div><dt>배송 건 번호</dt><dd>{shipment.id}</dd></div>
       <div><dt>배송비</dt><dd>{krw(shipment.shippingFee)}</dd></div>
-      <div><dt>택배사</dt><dd>{shipment.carrierLabel ?? '발송 준비 중'}</dd></div>
+      <div><dt>택배사</dt><dd>{shipment.carrierLabel ?? (shipment.status === 'ready' ? '발송 준비 중' : '미등록')}</dd></div>
       <div><dt>운송장번호</dt><dd>{shipment.trackingNumber ?? '미등록'}</dd></div>
       {shipment.shippedAt ? <div><dt>발송일시</dt><dd><time dateTime={shipment.shippedAt}>{formatOrderDateTime(shipment.shippedAt)}</time></dd></div> : null}
       {shipment.deliveredAt ? <div><dt>배송 완료일시</dt><dd><time dateTime={shipment.deliveredAt}>{formatOrderDateTime(shipment.deliveredAt)}</time></dd></div> : null}

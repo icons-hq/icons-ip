@@ -14,6 +14,7 @@ describe('staging release and preservation contract', () => {
     const preflight = steps.find((step) => step.name === 'Check staging configuration and current main');
     expect(preflight.run).toContain('"$GITHUB_SHA" != "$(git rev-parse origin/main)"');
     expect(steps.indexOf(preflight)).toBeLessThan(steps.findIndex((step) => step.run === 'node scripts/staging-environment.mjs'));
+    expect(JSON.stringify(job)).not.toContain('STAGING_TOSS_');
   });
 
   it('preserves rehearsal data and operator passwords across app deployments', () => {
@@ -35,7 +36,7 @@ describe('staging release and preservation contract', () => {
     expect(names.indexOf('Activate staging recovery template')).toBeGreaterThan(deploy);
   });
 
-  it('passes the same selected credentials to build and runtime without a production target', () => {
+  it('inherits Preview Toss keys while passing isolated credentials to both scopes and markers only to the build', () => {
     const ref = 'cdefghijklmnopqrstuv';
     const args = stagingDeployArgs({
       PROJECT_REF: ref,
@@ -44,12 +45,21 @@ describe('staging release and preservation contract', () => {
       SUPABASE_URL: `https://${ref}.supabase.co`,
       SUPABASE_PUBLISHABLE_KEY: 'test-public', SUPABASE_SERVICE_ROLE_KEY: 'test-private',
       POSTGRES_URL: `postgres://postgres.${ref}:test@pooler.supabase.com/postgres`,
-      STAGING_TOSS_CLIENT_KEY: 'test_gck_staging00000001', STAGING_TOSS_SECRET_KEY: 'test_gsk_staging00000001',
     });
     const build = args.flatMap((value, index) => value === '--build-env' ? [args[index + 1]] : []);
     const runtime = args.flatMap((value, index) => value === '--env' ? [args[index + 1]] : []);
-    expect(build).toEqual(runtime);
+    expect(build.filter((entry) => !entry.startsWith('ICONS_STAGING_'))).toEqual(runtime);
+    expect(build.filter((entry) => entry.startsWith('ICONS_STAGING_'))).toEqual([
+      'ICONS_STAGING_BUILD=admin-ops-v1',
+      'ICONS_STAGING_PROJECT_REF=cdefghijklmnopqrstuv',
+      'ICONS_STAGING_PREVIEW_PROJECT_REF=abcdefghijklmnopqrst',
+      'ICONS_STAGING_PRODUCTION_PROJECT_REF=bcdefghijklmnopqrstu',
+    ]);
+    expect(runtime.some((entry) => entry.startsWith('ICONS_STAGING_'))).toBe(false);
+    expect(args.some((entry) => /^(NEXT_PUBLIC_TOSS_CLIENT_KEY|TOSS_SECRET_KEY)=/.test(entry))).toBe(false);
     expect(args).not.toContain('--prod');
+    expect(args).not.toContain('--prebuilt');
+    expect(args).not.toContain('--no-wait');
     expect(build).not.toContain(expect.stringMatching(/^POSTGRES_URL=/));
     expect(build).toContain('KORPAY_ORDER_CHECKOUT_ENABLED=false');
     expect(build).toContain('TOSS_ORDER_CHECKOUT_ENABLED=false');

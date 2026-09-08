@@ -1,7 +1,14 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminCardPoolRecord, AdminCardRecord } from '@/lib/admin/catalog.server';
 import { CardPoolSection, poolOddsTotalMilliPercent } from './CardPoolSection';
+
+const actionState = vi.hoisted(() => ({ value: {} as AdminCatalogActionState }));
+vi.mock('react', async (importOriginal) => ({
+  ...await importOriginal<typeof import('react')>(),
+  useActionState: () => [actionState.value, vi.fn(), false],
+}));
 
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => null }));
 vi.mock('@/app/admin/actions', () => ({
@@ -56,6 +63,34 @@ function renderPool(
 }
 
 describe('CardPoolSection', () => {
+  beforeEach(() => { actionState.value = {}; });
+
+  it('restores failed fields and KST input for the same draft without changing its operation identity', () => {
+    actionState.value = {
+      attempt: 3,
+      errors: { form: '다시 시도해주세요.' },
+      values: {
+        id: '22222222-2222-4222-8222-222222222222',
+        operationId: 'untrusted-operation',
+        ipId: 'lumen', name: '작성 중 카드풀', activeFrom: '2026-09-09T10:30', activeTo: '',
+      },
+    };
+    const failed = renderPool(null, [], [], [
+      { id: 'hwasan', title: '화산강림', archivedAt: null },
+      { id: 'lumen', title: '루멘', archivedAt: null },
+    ]);
+    expect(failed).toContain('value="작성 중 카드풀"');
+    expect(failed).toContain('value="lumen" selected=""');
+    expect(failed).toContain('value="2026-09-09T10:30"');
+    expect(failed).toMatch(/name="activeTo"[^>]*value=""/);
+    expect(failed).toContain('name="operationId" value="44444444-4444-4444-8444-444444444444"');
+    expect(failed).not.toContain('untrusted-operation');
+    const other = renderPool();
+    expect(other).toContain('value="화산강림 무상 리워드 풀"');
+    expect(other).toContain('value="2026-07-15T09:00"');
+    expect(other).not.toContain('작성 중 카드풀');
+  });
+
   it('renders KST operating fields, live 100% total, and the current card roster', () => {
     const html = renderPool();
 

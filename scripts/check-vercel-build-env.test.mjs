@@ -25,7 +25,76 @@ function productionEnvironment(overrides = {}) {
   };
 }
 
+const stagingEnvironment = {
+  ...baseEnvironment,
+  ICONS_STAGING_BUILD: 'admin-ops-v1',
+  ICONS_STAGING_PROJECT_REF: 'cdefghijklmnopqrstuv',
+  ICONS_STAGING_PREVIEW_PROJECT_REF: 'abcdefghijklmnopqrst',
+  ICONS_STAGING_PRODUCTION_PROJECT_REF: 'bcdefghijklmnopqrstu',
+  NEXT_PUBLIC_SUPABASE_URL: 'https://cdefghijklmnopqrstuv.supabase.co',
+  SITE_URL: 'https://icons-ip-staging.vercel.app',
+  NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_staging00000001',
+  TOSS_SECRET_KEY: 'test_gsk_staging00000001',
+  KORPAY_ORDER_CHECKOUT_ENABLED: 'false',
+  KORPAY_TICKET_CHECKOUT_ENABLED: 'false',
+  TOSS_ORDER_CHECKOUT_ENABLED: 'false',
+  TOSS_TICKET_CHECKOUT_ENABLED: 'false',
+};
+
 describe('validateVercelBuildEnvironment', () => {
+  it('validates inherited staging test widget keys only inside the remote build without exposing values', () => {
+    const result = validateVercelBuildEnvironment(stagingEnvironment);
+    expect(result).toMatchObject({ checked: true, stagingVerified: true, newCheckoutEnabled: false });
+    expect(JSON.stringify(result)).not.toContain(stagingEnvironment.TOSS_SECRET_KEY);
+    for (const change of [
+      { TOSS_SECRET_KEY: '' },
+      { NEXT_PUBLIC_TOSS_CLIENT_KEY: '[SENSITIVE]' },
+      { TOSS_SECRET_KEY: 'test_sk_legacyapikey00000001' },
+      { TOSS_SECRET_KEY: 'live_gsk_staging00000001' },
+      { NEXT_PUBLIC_TOSS_CLIENT_KEY: 'live_gck_staging00000001', TOSS_SECRET_KEY: 'live_gsk_staging00000001' },
+    ]) {
+      expect(() => validateVercelBuildEnvironment({ ...stagingEnvironment, ...change }))
+        .toThrow('Staging requires an inherited Toss test widget key pair');
+    }
+  });
+
+  it('binds the staging marker to Preview, a staging alias, an isolated Supabase ref and closed gates', () => {
+    expect(validateVercelBuildEnvironment({
+      ...stagingEnvironment, SITE_URL: 'https://icons-ip-staging-ops.vercel.app',
+    }).checked).toBe(true);
+    for (const change of [
+      { ICONS_STAGING_BUILD: undefined },
+      { ICONS_STAGING_BUILD: '' },
+      { ICONS_STAGING_BUILD: 'true' },
+      { VERCEL_ENV: undefined },
+      { VERCEL_ENV: 'production' },
+      { SITE_URL: undefined },
+      { SITE_URL: 'https://iconsip.com' },
+      { SITE_URL: 'http://icons-ip-staging.vercel.app' },
+      { SITE_URL: 'https://user:private@icons-ip-staging.vercel.app' },
+      { SITE_URL: 'https://icons-ip-staging.vercel.app/path' },
+      { SITE_URL: 'https://icons-ip-staging.vercel.app?redirect=elsewhere' },
+      { SITE_URL: 'https://icons-ip-staging.vercel.app#fragment' },
+      { ICONS_STAGING_PROJECT_REF: undefined },
+      { ICONS_STAGING_PROJECT_REF: stagingEnvironment.ICONS_STAGING_PREVIEW_PROJECT_REF },
+      { ICONS_STAGING_PROJECT_REF: stagingEnvironment.ICONS_STAGING_PRODUCTION_PROJECT_REF },
+      { ICONS_STAGING_PREVIEW_PROJECT_REF: stagingEnvironment.ICONS_STAGING_PRODUCTION_PROJECT_REF },
+      { NEXT_PUBLIC_SUPABASE_URL: 'https://abcdefghijklmnopqrst.supabase.co' },
+      { TOSS_ORDER_CHECKOUT_ENABLED: undefined },
+      { TOSS_TICKET_CHECKOUT_ENABLED: 'true' },
+      { KORPAY_ORDER_CHECKOUT_ENABLED: '' },
+      { KORPAY_TICKET_CHECKOUT_ENABLED: 'TRUE' },
+    ]) expect(() => validateVercelBuildEnvironment({ ...stagingEnvironment, ...change })).toThrow(/Staging/);
+  });
+
+  it('retains Preview canary and Korpay credential prohibitions for staging', () => {
+    for (const name of ['TOSS_ORDER_CANARY_USER_ID', 'TOSS_TICKET_CANARY_USER_ID',
+      'KORPAY_ORDER_CANARY_USER_ID', 'KORPAY_TICKET_CANARY_USER_ID', 'KORPAY_MID', 'KORPAY_KEY']) {
+      expect(() => validateVercelBuildEnvironment({ ...stagingEnvironment, [name]: 'private-forbidden-value' }))
+        .toThrow(`Invalid Vercel preview ${name}`);
+    }
+  });
+
   it('skips checks outside a Vercel preview or production build', () => {
     expect(validateVercelBuildEnvironment({})).toEqual({ checked: false });
   });

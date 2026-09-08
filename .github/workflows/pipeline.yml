@@ -206,6 +206,7 @@ jobs:
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_goods_directory.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_publish_state.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/fulfillment_origins_policy.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/fulfillment_zero_price_policy.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/inquiry_realtime_delivery.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/cart_order_variants.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/option_stock_recovery_reshipment.sql
@@ -216,6 +217,7 @@ jobs:
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_shipments_contract.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shipment_dispatch_workspace.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shipment_export.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shipment_export_variant_code.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_excel_imports.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_shipment_email_jobs.sql
           PSQL_BIN=psql PGHOST=127.0.0.1 PGPORT=54322 PGUSER=postgres PGPASSWORD=postgres PGDATABASE=postgres bash supabase/tests/option_stock_recovery_concurrency.sh
@@ -988,8 +990,6 @@ jobs:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
       STAGING_ALIAS: ${{ vars.STAGING_ALIAS || 'icons-ip-staging.vercel.app' }}
-      STAGING_TOSS_CLIENT_KEY: ${{ secrets.STAGING_TOSS_CLIENT_KEY }}
-      STAGING_TOSS_SECRET_KEY: ${{ secrets.STAGING_TOSS_SECRET_KEY }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
@@ -1011,7 +1011,7 @@ jobs:
       - name: Check staging configuration and current main
         run: |
           set -euo pipefail
-          for name in SUPABASE_ACCESS_TOKEN SUPABASE_PREVIEW_PROJECT_ID SUPABASE_PRODUCTION_PROJECT_ID VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID STAGING_TOSS_CLIENT_KEY STAGING_TOSS_SECRET_KEY; do
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_PREVIEW_PROJECT_ID SUPABASE_PRODUCTION_PROJECT_ID VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
             if [ -z "${!name}" ]; then
               echo "::error title=Missing staging configuration::$name is required; see docs/runbooks/staging.md"
               exit 1
@@ -1024,7 +1024,7 @@ jobs:
           fi
       - name: Resolve persistent staging Supabase branch
         run: node scripts/staging-environment.mjs
-      - name: Validate staging build and runtime environment
+      - name: Validate staging deployment environment
         run: node --input-type=module -e "import { stagingDeploymentEnvironment } from './scripts/staging-environment.mjs'; stagingDeploymentEnvironment(process.env)"
       - name: Apply staging migrations without resetting rehearsal data
         run: supabase db push --db-url "$POSTGRES_URL" --include-roles --yes
@@ -1046,6 +1046,7 @@ jobs:
           https://$STAGING_ALIAS/auth/recovery/callback"
           node scripts/sync-supabase-auth.mjs
       - name: Deploy and alias staging Preview
+        # Remote prebuild validates the inherited sensitive Preview Toss keys before alias activation.
         run: node scripts/deploy-staging.mjs
       - name: Activate staging recovery template
         env:

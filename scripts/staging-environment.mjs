@@ -7,6 +7,42 @@ import { isTossKeyPairAligned, tossKeyMode } from '../lib/payments/toss-config.m
 
 const REF = /^[a-z]{20}$/;
 const ALIAS = /^icons-ip-staging(?:-[a-z0-9]+)*\.vercel\.app$/;
+export const STAGING_BUILD_MARKER = 'admin-ops-v1';
+const STAGING_BUILD_REF_NAMES = [
+  'ICONS_STAGING_PROJECT_REF', 'ICONS_STAGING_PREVIEW_PROJECT_REF', 'ICONS_STAGING_PRODUCTION_PROJECT_REF',
+];
+
+/** Sensitive Preview values are available inside Vercel's remote build, never pulled into Actions. */
+export function validateStagingBuildEnvironment(environment) {
+  const stagingSite = /^https?:\/\/icons-ip-staging(?:-[a-z0-9]+)*\.vercel\.app(?:[/?#:]|$)/
+    .test(environment.SITE_URL ?? '');
+  if (environment.ICONS_STAGING_BUILD === undefined && !stagingSite
+    && !STAGING_BUILD_REF_NAMES.some((name) => environment[name] !== undefined)) return false;
+  if (environment.ICONS_STAGING_BUILD !== STAGING_BUILD_MARKER || environment.VERCEL_ENV !== 'preview') {
+    throw new Error('Staging build marker requires the Vercel preview target');
+  }
+  const alias = environment.SITE_URL?.slice('https://'.length);
+  if (!environment.SITE_URL?.startsWith('https://') || !ALIAS.test(alias ?? '')) {
+    throw new Error('Staging SITE_URL must be an HTTPS staging alias origin');
+  }
+  const projectRef = environment.ICONS_STAGING_PROJECT_REF;
+  if (!REF.test(projectRef ?? '')) throw new Error('Staging build requires the selected project ref');
+  assertProjects(environment.ICONS_STAGING_PREVIEW_PROJECT_REF,
+    environment.ICONS_STAGING_PRODUCTION_PROJECT_REF, projectRef);
+  if (environment.NEXT_PUBLIC_SUPABASE_URL !== `https://${projectRef}.supabase.co`) {
+    throw new Error('Staging build API URL must match the selected project ref');
+  }
+  for (const name of ['KORPAY_ORDER_CHECKOUT_ENABLED', 'KORPAY_TICKET_CHECKOUT_ENABLED',
+    'TOSS_ORDER_CHECKOUT_ENABLED', 'TOSS_TICKET_CHECKOUT_ENABLED']) {
+    if (environment[name] !== 'false') throw new Error(`Staging ${name} must be false`);
+  }
+  const clientKey = environment.NEXT_PUBLIC_TOSS_CLIENT_KEY?.trim() ?? '';
+  const secretKey = environment.TOSS_SECRET_KEY?.trim() ?? '';
+  if (!isTossKeyPairAligned(clientKey, secretKey) || tossKeyMode(secretKey) !== 'test') {
+    throw new Error('Staging requires an inherited Toss test widget key pair');
+  }
+  return true;
+}
 
 function assertProjects(previewRef, productionRef, stagingRef) {
   if (!REF.test(previewRef ?? '') || !REF.test(productionRef ?? '') || previewRef === productionRef) {
@@ -103,18 +139,12 @@ export function stagingDeploymentEnvironment(environment) {
   const credentials = stagingCredentials(environment, environment.PROJECT_REF);
   const alias = environment.STAGING_ALIAS || 'icons-ip-staging.vercel.app';
   if (!ALIAS.test(alias)) throw new Error('STAGING_ALIAS must be an icons-ip-staging Vercel hostname');
-  const clientKey = environment.STAGING_TOSS_CLIENT_KEY?.trim() ?? '';
-  const secretKey = environment.STAGING_TOSS_SECRET_KEY?.trim() ?? '';
-  if (!isTossKeyPairAligned(clientKey, secretKey) || tossKeyMode(secretKey) !== 'test') {
-    throw new Error('Staging requires a matching Toss test widget key pair');
-  }
   return {
     NEXT_PUBLIC_SUPABASE_URL: credentials.SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: credentials.SUPABASE_PUBLISHABLE_KEY,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: '',
     SUPABASE_SERVICE_ROLE_KEY: credentials.SUPABASE_SERVICE_ROLE_KEY,
     ICONS_CATALOG_SOURCE: 'supabase', SITE_URL: `https://${alias}`,
-    NEXT_PUBLIC_TOSS_CLIENT_KEY: clientKey, TOSS_SECRET_KEY: secretKey,
     AUTH_SIGNUP_RESEND_SECRET: environment.STAGING_AUTH_RESEND_SECRET || randomBytes(32).toString('base64url'),
     KORPAY_MID: '', KORPAY_KEY: '',
     KORPAY_ORDER_CHECKOUT_ENABLED: 'false', KORPAY_TICKET_CHECKOUT_ENABLED: 'false',

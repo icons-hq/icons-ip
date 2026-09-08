@@ -6,9 +6,21 @@ import type { ShipmentExportData } from './shipment-dispatch';
 
 const line = { shipmentId: '00000000-0000-4000-8000-000000000001', orderId: '00000000-0000-4000-8000-000000000002',
   recipient: '=HYPERLINK("https://example.test")', phone: '01001234567', postalCode: '00123', address: '서울시, 상세주소',
-  goodCode: '000123', goodName: '상품', optionName: '파랑', qty: 2, deliveryNote: '문 앞\n부탁합니다', carrier: '한진택배' };
+  goodCode: '000123', variantCode: '000123-RED', goodName: '상품', optionName: '파랑', qty: 2, deliveryNote: '문 앞\n부탁합니다', carrier: '한진택배' };
 const shipment = { id: line.shipmentId, updatedAt: '2026-09-08T00:00:00Z', originId: 'gimpo', originName: '김포', template: 'wms_csv', columns: [...DEFAULT_SHIPMENT_EXPORT_COLUMNS], lines: [line] };
 describe('shipment workbook exchange', () => {
+  it('round-trips distinct optional SKU strings with a custom warehouse header', async () => {
+    const columns=[{key:'variantCode' as const,header:'WMS SKU'},...DEFAULT_SHIPMENT_EXPORT_COLUMNS];
+    const file=await buildShipmentExport({shipments:[{...shipment,columns,lines:[line,{...line,variantCode:'000124-BLUE',optionName:'파랑'}]}]},'xlsx');
+    const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(file.bytes as never);
+    const sheet=workbook.worksheets[0];
+    expect(sheet.getCell('A1').value).toBe('WMS SKU');
+    expect(sheet.getCell('A2').value).toBe('000123-RED');
+    expect(sheet.getCell('A3').value).toBe('000124-BLUE');
+    expect(sheet.getCell('A2').type).toBe(ExcelJS.ValueType.String);
+    expect(sheet.getCell('H2').value).toBe('000123');
+    expect(sheet.getCell('H3').value).toBe('000123');
+  });
   it('exports valid warehouse names that end in a quotation mark', async () => {
     const file = await buildShipmentExport({ shipments: [{ ...shipment, originName: "작가 '창고'" }] }, 'xlsx');
     const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(file.bytes as never);
@@ -20,7 +32,8 @@ describe('shipment workbook exchange', () => {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(file.bytes as never);
     const sheet = workbook.worksheets[0];
-    for (const [key, expected] of Object.entries(line)) {
+    for (const {key} of shipment.columns) {
+      const expected=line[key];
       const column = shipment.columns.findIndex((candidate) => candidate.key === key) + 1;
       expect(sheet.getCell(2, column).value).toBe(expected);
       expect(sheet.getCell(2, column).type).toBe(key === 'qty' ? ExcelJS.ValueType.Number : ExcelJS.ValueType.String);

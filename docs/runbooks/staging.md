@@ -31,11 +31,15 @@
 ## 최초 hosted 준비
 
 1. 구현·검증 후 main merge 및 스테이징 배포 승인 범위를 확인한다. `main` merge는 production 경로도 시작하므로 별도 Preview 배포와 혼동하지 않는다.
-2. GitHub의 기존 `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PREVIEW_PROJECT_ID`, `SUPABASE_PROJECT_ID`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`를 사용한다. `STAGING_TOSS_CLIENT_KEY`와 `STAGING_TOSS_SECRET_KEY`에는 **같은 test 모드 주문서형 키 페어**를 등록한다. live 키나 구 결제창형 키는 거절한다.
+2. GitHub의 기존 `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PREVIEW_PROJECT_ID`, `SUPABASE_PROJECT_ID`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`를 사용한다. Toss 키는 Vercel `icons-ip` 프로젝트의 기존 Preview `NEXT_PUBLIC_TOSS_CLIENT_KEY`·`TOSS_SECRET_KEY`를 그대로 상속한다. 별도 `STAGING_TOSS_*` GitHub secret을 만들거나 키를 다운로드하지 않는다. 두 키 이름은 배포 인자의 `--build-env`·`--env`에서도 덮어쓰지 않는다.
 3. 고정 alias 기본값은 `icons-ip-staging.vercel.app`이다. 선점돼 있으면 GitHub variable `STAGING_ALIAS`에 `icons-ip-staging-ops.vercel.app` 같은 미사용 대안을 지정한다. production alias를 받지 않는다.
 4. `deploy-staging`은 성공한 `sync-supabase-preview-main` 뒤 실행된다. 실행 SHA가 현재 main인지 확인하고, 존재하지 않을 때만 `--persistent` 무데이터 `staging` branch를 만든다. 기존 staging은 삭제·reset하지 않는다.
 5. 앱 배포 전에 해당 branch에 migration·roles, 누락된 demo fixture, repo Edge Functions, Auth URL을 적용한다. 일반 `supabase/seed.sql`을 매번 재적용하지 않는다. demo 시드는 `supabase/seeds/admin-ops-staging.sql`만 사용한다.
-6. Vercel Preview의 build/runtime에 동일한 staging ref를 주입하고 고정 alias를 연결한다. Auth redirect 두 경로는 alias의 `/auth/callback`, `/auth/recovery/callback`이다. 앱 배포 후 recovery template를 활성화한다.
+6. Vercel Preview의 build/runtime에 동일한 staging ref를 주입한다. `vercel deploy --archive=tgz`의 원격 `prebuild`가 상속된 **test 모드 주문서형 키 페어의 형식**과 닫힌 결제 gate·비어 있는 canary를 검사한다. 고정 서버 빌드 표식 `ICONS_STAGING_BUILD=admin-ops-v1`과 세 환경 ref는 `--build-env`에만 넣고, Preview 대상·허용된 staging `SITE_URL`·분리된 Supabase ref를 함께 검증한다. 표식·검증용 ref는 runtime 변수나 `NEXT_PUBLIC_*`로 전달하지 않는다. 원격 빌드 성공 후에만 고정 alias를 연결한다. Auth redirect 두 경로는 alias의 `/auth/callback`, `/auth/recovery/callback`이다. 앱 배포 후 recovery template를 활성화한다.
+
+2026-09-08 읽기 점검에서 기존 Preview Toss 변수 두 항목은 branch 제한 없이 `sensitive`로 존재했다. 읽기 API와 공식 `vercel pull --environment=preview`는 키 값을 반환하지 않았으므로, 실제 test 모드·페어 형식 검증은 첫 원격 빌드까지 미확인이다. Vercel [Secret 값은 저장 후 읽을 수 없으며](https://vercel.com/docs/environment-variables/sensitive-environment-variables), [Preview 배포의 빌드와 함수에는 해당 환경 값이 적용된다](https://vercel.com/docs/environment-variables). 로컬 `pull`의 빈 값으로 기존 키가 없다고 판정하거나 Secret을 읽기 가능한 타입으로 바꾸지 않는다.
+
+원격 검사 실패는 키 값 없이 원인만 Vercel 빌드 로그에 남기고 alias 갱신을 막는다. 해당 로그에서 키 누락·live 모드·형식 오류가 확인될 때만 소유자가 원본 보관처의 테스트 키를 확인하고 명시적 승인 범위에서 기존 Preview 설정을 수정한다. 일반 Preview 빌드는 기존처럼 구 키를 허용하며, 이 staging 검사가 신규 결제 gate를 열지는 않는다. 상속은 키 복제 절차를 없애지만 실제 PG 호출이나 같은 상점 소속 증명까지 대신하지 않는다.
 
 Supabase 공식 [Branching 문서](https://supabase.com/docs/guides/deployment/branching)의 persistent branch와 무데이터 생성 계약을 사용한다. 이 workflow는 Supabase GitHub integration의 자동 seed나 hosted `config.toml` 전체 push에 의존하지 않는다.
 
@@ -68,7 +72,7 @@ hosted 완료 시 배포 SHA, Actions run URL, 고정 alias, staging project ref
 
 | 게이트 | 현재 결과 |
 | --- | --- |
-| staging 격리·자격 증명·test 키 검증 | 로컬 단위 검증 통과 |
+| staging 격리·자격 증명·test 키 검증 | 로컬 단위 검증 통과; 상속된 실제 키는 첫 원격 빌드 검사 대기 |
 | 합성 시드와 재실행 데이터 보존 | 로컬 SQL 통과 |
 | 계정 5명 로그인·역할 조회 | 로컬 5/5 통과; hosted 대기 |
 | 고정 URL·실제 emitted ref 확인 | 배포 대기 |

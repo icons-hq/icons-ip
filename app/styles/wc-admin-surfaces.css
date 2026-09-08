@@ -1034,7 +1034,8 @@
   .wc-admin .admin-form-grid { grid-template-columns: minmax(0, 1fr); }
 }
 .wc-admin .admin-master-detail > .wc-admin-kit__panel,
-.wc-admin .admin-master-detail > .col:first-child > .wc-admin-kit__panel { position: sticky; top: 98px; align-self: start; }
+.wc-admin .admin-master-detail > .col:first-child > .wc-admin-kit__panel { position: sticky; top: 98px; align-self: start; width: 100%; max-width: 100%; }
+.wc-admin .admin-record-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wc-admin .wc-admin-kit__field input[type='color'] { padding: 4px; cursor: pointer; }
 @media (max-width: 900px) {
   .wc-admin .admin-master-detail > .wc-admin-kit__panel,

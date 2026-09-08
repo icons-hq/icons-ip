@@ -478,9 +478,29 @@ export async function adjustAdminStockAction(
 }
 
 export async function upsertAdminCardAction(
-  _state: AdminCatalogActionState,
+  state: AdminCatalogActionState,
   formData: FormData,
 ): Promise<AdminCatalogActionState> {
+  return preserveCatalogSubmission(state, formData, () => saveAdminCard(formData),
+    '카드를 저장하지 못했습니다. 다시 시도해주세요.');
+}
+
+async function preserveCatalogSubmission(
+  state: AdminCatalogActionState,
+  formData: FormData,
+  save: () => Promise<AdminCatalogActionState>,
+  failureMessage: string,
+): Promise<AdminCatalogActionState> {
+  try {
+    const result = await save();
+    return result.errors ? withPreservedFormValues(result, state, formData) : result;
+  } catch (error) {
+    unstable_rethrow(error);
+    return withPreservedFormValues(rpcFailure(failureMessage), state, formData);
+  }
+}
+
+async function saveAdminCard(formData: FormData): Promise<AdminCatalogActionState> {
   const authError = await requireStaffAction();
   if (authError) return authError;
 
@@ -534,9 +554,14 @@ export async function upsertAdminCardAction(
 }
 
 export async function upsertAdminCardPoolAction(
-  _state: AdminCatalogActionState,
+  state: AdminCatalogActionState,
   formData: FormData,
 ): Promise<AdminCatalogActionState> {
+  return preserveCatalogSubmission(state, formData, () => saveAdminCardPool(formData),
+    '카드풀을 저장하지 못했습니다. 다시 시도해주세요.');
+}
+
+async function saveAdminCardPool(formData: FormData): Promise<AdminCatalogActionState> {
   const authError = await requireStaffAction();
   if (authError) return authError;
 
@@ -849,9 +874,14 @@ export async function endAdminGameAction(
 }
 
 export async function upsertAdminEventAction(
-  _state: AdminCatalogActionState,
+  state: AdminCatalogActionState,
   formData: FormData,
 ): Promise<AdminCatalogActionState> {
+  return preserveCatalogSubmission(state, formData, () => saveAdminEvent(formData),
+    '이벤트를 저장하지 못했습니다. 다시 시도해주세요.');
+}
+
+async function saveAdminEvent(formData: FormData): Promise<AdminCatalogActionState> {
   const authError = await requireStaffAction();
   if (authError) return authError;
 
