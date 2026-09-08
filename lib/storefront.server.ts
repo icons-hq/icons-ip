@@ -2,8 +2,8 @@ import 'server-only';
 
 import { createServerClient } from '@supabase/ssr';
 import { unstable_cache } from 'next/cache';
-import { toGood, toIp, type GoodRow, type IpRow } from './catalog';
-import type { Good, Ip, Vertical } from './data';
+import { toEvent, toGood, toIp, type EventRow, type GoodRow, type IpRow } from './catalog';
+import type { FandomEvent, Good, Ip, Vertical } from './data';
 import { GOOD_TYPES } from './goods-taxonomy';
 import { normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from './media';
 import type { ShopFacetOption, ShopListQuery, ShopListResult, ShopView } from './shop-catalog';
@@ -271,6 +271,9 @@ export async function getStorefrontIpsByIds(ids: readonly string[]): Promise<Ip[
  *
  * 조회량은 준 id 수만큼이다. 보관된 IP 는 빠진다 — 새 글의 채널로 고를 수 없어야 한다.
  */
+/** 이벤트 목록 한 판. 칩으로 거르는 화면이라 한 페이지가 곧 전부다 — 잘리는 자리를 우리가 정한다. */
+export const STOREFRONT_EVENT_PAGE_SIZE = 200;
+
 export async function getActiveIpIds(ids: readonly string[]): Promise<Set<string>> {
   const unique = [...new Set(ids)].filter(Boolean);
   if (unique.length === 0) return new Set();
@@ -283,4 +286,54 @@ export async function getActiveIpIds(ids: readonly string[]): Promise<Set<string
     .in('id', unique);
 
   return new Set(rows<{ id: string }>(result, 'active ip ids').map((row) => row.id));
+}
+
+/**
+ * 이벤트 목록 한 페이지 (규모 후속).
+ *
+ * `excludeMode` 는 **서버에서** 거른다 — 페이지를 자른 뒤 화면에서 거르면 한 페이지가
+ * 통째로 비어 보인다. 정렬(진행중 → 예매중 → 예정)도 서버가 한다: 자르는 쪽과 순서를
+ * 정하는 쪽이 다르면 1페이지에 예정만 담긴다.
+ *
+ * IP 는 이 페이지에 실제로 실린 이벤트의 것만 읽는다.
+ */
+export async function getStorefrontEventsPage(
+  options: { excludeMode?: string | null; limit?: number; offset?: number } = {},
+): Promise<{ events: FandomEvent[]; ips: Ip[]; total: number }> {
+  const supabase = await createClient();
+  const result = await supabase.rpc('storefront_events_page', {
+    p_exclude_mode: options.excludeMode ?? null,
+    p_limit: options.limit ?? STOREFRONT_EVENT_PAGE_SIZE,
+    p_offset: options.offset ?? 0,
+  });
+
+  const data = rows<EventRow & { total_count: number | string }>(result, 'storefront events page');
+  const ips = await getStorefrontIpsByIds(
+    data.map((row) => row.ip_id).filter((id): id is string => Boolean(id)),
+  );
+  const ipsById = new Map(ips.map((ip) => [ip.id, ip]));
+  const toImage = imageResolver(supabase);
+  return {
+    events: data.map((row) => toEvent(row, ipsById, toImage)),
+    ips,
+    total: data.length ? toCount(data[0].total_count) : 0,
+  };
+}
+
+/** id 로 이벤트 — 상세와 옛 링크 브리지가 쓴다. 하나를 열자고 전부 읽지 않는다. */
+export async function getStorefrontEventsByIds(
+  ids: readonly string[],
+): Promise<{ events: FandomEvent[]; ips: Ip[] }> {
+  const unique = [...new Set(ids)].filter(Boolean);
+  if (unique.length === 0) return { events: [], ips: [] };
+
+  const supabase = await createClient();
+  const result = await supabase.rpc('storefront_events_by_ids', { p_ids: unique });
+  const data = rows<EventRow>(result, 'storefront events by ids');
+  const ips = await getStorefrontIpsByIds(
+    data.map((row) => row.ip_id).filter((id): id is string => Boolean(id)),
+  );
+  const ipsById = new Map(ips.map((ip) => [ip.id, ip]));
+  const toImage = imageResolver(supabase);
+  return { events: data.map((row) => toEvent(row, ipsById, toImage)), ips };
 }

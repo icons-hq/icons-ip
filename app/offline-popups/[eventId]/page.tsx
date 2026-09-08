@@ -3,7 +3,8 @@ import { notFound } from 'next/navigation';
 import { EventDetail } from '@/components/screens/EventDetail';
 import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
-import { getCatalogSnapshot, getCatalogSource } from '@/lib/catalog';
+import { getCatalogSource } from '@/lib/catalog';
+import { getStorefrontEventsByIds } from '@/lib/storefront.server';
 import { getIpFollowState } from '@/lib/ip-follow.server';
 import { ticketCheckoutPaymentsEnabled } from '@/lib/payments/ticket-checkout-availability';
 import { loadPublicTicketTypes } from '@/lib/ticketing.server';
@@ -26,16 +27,17 @@ export default async function Page({
 }) {
   const { eventId } = await params;
   const catalogSource = getCatalogSource();
-  const [catalog, auth] = await Promise.all([
-    getCatalogSnapshot(),
+  /* 이벤트 하나를 열자고 카탈로그 전량을 읽지 않는다(규모 후속). */
+  const [detail, auth] = await Promise.all([
+    getStorefrontEventsByIds([eventId]),
     getCurrentAuthState(),
   ]);
   const sessions = catalogSource === 'supabase'
     ? await loadPublicTicketTypes(eventId, auth.user?.id)
     : [];
-  const event = catalog.events.find((item) => item.id === eventId);
+  const event = detail.events[0];
   if (!event) notFound();
-  const ip = catalog.ips.find((item) => item.id === event.ip) ?? null;
+  const ip = detail.ips.find((item) => item.id === event.ip) ?? null;
   const [notificationState, query] = await Promise.all([
     event.status === '예정' && ip ? getIpFollowState(ip.id) : Promise.resolve(null),
     searchParams ?? Promise.resolve<Record<string, string | string[] | undefined>>({}),

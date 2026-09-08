@@ -143,7 +143,7 @@ interface UserCardOwnershipRow {
   card_id: string;
 }
 
-interface EventRow {
+export interface EventRow {
   id: string;
   ip_id: string | null;
   title: string;
@@ -548,7 +548,7 @@ function formatEventDate(startsAt: string | null, endsAt: string | null) {
   return startDate === endDate ? `${startDate}${startTime}` : `${startDate} - ${endDate}`;
 }
 
-function toEvent(row: EventRow, ipsById: Map<string, Ip>, imageUrlForPath: (path: string) => string): FandomEvent {
+export function toEvent(row: EventRow, ipsById: Map<string, Ip>, imageUrlForPath: (path: string) => string): FandomEvent {
   const ip = row.ip_id ? ipsById.get(row.ip_id) : null;
   return {
     id: row.id,

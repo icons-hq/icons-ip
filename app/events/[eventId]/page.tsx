@@ -15,7 +15,7 @@ import { CampaignLanding } from '@/components/screens/CampaignLanding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { loadCampaignDetail } from '@/lib/campaigns.server';
 import { readCardRewardsEnabled } from '@/lib/card-rewards/gate.server';
-import { getCatalogSnapshot } from '@/lib/catalog';
+import { getStorefrontEventsByIds } from '@/lib/storefront.server';
 import { loadCoinOverview } from '@/lib/coins.server';
 
 /* /packs 와 같은 관례 — 게이트 값은 요청당 한 번만 읽는다. */
@@ -103,8 +103,9 @@ export default async function Page({ params, searchParams }: PageProps) {
     );
   }
 
-  const catalog = await getCatalogSnapshot();
-  if (!catalog.events.some((event) => event.id === eventId)) notFound();
+  /* 옛 링크 하나를 넘기자고 카탈로그 전량을 읽지 않는다(규모 후속). */
+  const bridged = await getStorefrontEventsByIds([eventId]);
+  if (bridged.events.length === 0) notFound();
 
   /* 쿼리는 리다이렉트 분기에서만 읽는다 — 캠페인 렌더 경로에는 필요 없다. */
   const query = legacyQueryString(await searchParams);

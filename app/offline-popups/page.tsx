@@ -1,7 +1,7 @@
 import { Events } from '@/components/screens/Events';
-import { getCatalogSnapshot } from '@/lib/catalog';
-import { selectOfflinePopupEvents } from '@/lib/events-catalog';
+import { OFFLINE_POPUP_EXCLUDED_MODE } from '@/lib/events-catalog';
 import { listEventGameLinks } from '@/lib/games/catalog';
+import { getStorefrontEventsPage } from '@/lib/storefront.server';
 
 /* 오프라인 팝업 목록.
  *
@@ -14,12 +14,17 @@ import { listEventGameLinks } from '@/lib/games/catalog';
  * 절충이고, 온라인 이벤트를 어느 표면이 소유할지는 별도 이사 작업의 몫이다. */
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ ip?: string | string[] }> }) {
-  const [catalog, gameLinks] = await Promise.all([getCatalogSnapshot(), listEventGameLinks()]);
-  const events = selectOfflinePopupEvents(catalog.events);
+  /* 온라인 이벤트는 **서버에서** 뺀다 — 페이지를 자른 뒤 화면에서 거르면 한 페이지가
+     통째로 비어 보인다(규모 후속). */
+  const [page, gameLinks] = await Promise.all([
+    getStorefrontEventsPage({ excludeMode: OFFLINE_POPUP_EXCLUDED_MODE }),
+    listEventGameLinks(),
+  ]);
+  const events = page.events;
   const ipParam = (await searchParams).ip;
   const requestedIp = Array.isArray(ipParam) ? ipParam[0] : ipParam;
   /* IP 칩은 걸러낸 목록에서 나온다 — 원본으로 검증하면 온라인 이벤트만 가진 IP 가
      선택된 채 열려, 지울 수 없는 필터 뒤에 빈 목록이 남는다. */
   const initialIpId = events.some((event) => event.ip === requestedIp) ? requestedIp : undefined;
-  return <Events catalog={{ ...catalog, events }} initialIpId={initialIpId} gameLinks={gameLinks} />;
+  return <Events catalog={{ ips: page.ips, events }} initialIpId={initialIpId} gameLinks={gameLinks} />;
 }

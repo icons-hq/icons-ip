@@ -2,7 +2,6 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CurrentAuthState } from '@/lib/auth/server';
 import type { CampaignLandingSnapshot } from '@/lib/campaigns.server';
-import type { CatalogSnapshot } from '@/lib/catalog';
 import type { CoinOverview } from '@/lib/coins.server';
 import type { FandomEvent } from '@/lib/data';
 import Page, { generateMetadata } from './page';
@@ -13,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   auth: null as unknown as CurrentAuthState,
   campaign: null as CampaignLandingSnapshot | null,
   cardRewardsEnabled: true,
-  catalog: null as CatalogSnapshot | null,
+  events: [] as FandomEvent[],
   coin: null as CoinOverview | null,
   screen: vi.fn<(props: Record<string, unknown>) => null>(() => null),
   notFound: vi.fn(() => {
@@ -36,7 +35,13 @@ vi.mock('@/lib/campaigns.server', () => ({
 vi.mock('@/lib/card-rewards/gate.server', () => ({
   readCardRewardsEnabled: async () => mocks.cardRewardsEnabled,
 }));
-vi.mock('@/lib/catalog', () => ({ getCatalogSnapshot: () => mocks.catalog }));
+/* 옛 링크 하나를 넘기자고 카탈로그 전량을 읽지 않는다(규모 후속) — id 조회 하나다. */
+vi.mock('@/lib/storefront.server', () => ({
+  getStorefrontEventsByIds: async (ids: readonly string[]) => ({
+    events: mocks.events.filter((entry) => ids.includes(entry.id)),
+    ips: [],
+  }),
+}));
 vi.mock('@/lib/coins.server', () => ({ loadCoinOverview: async () => mocks.coin }));
 
 const event: FandomEvent = {
@@ -50,10 +55,6 @@ const event: FandomEvent = {
   accent: '#38F0C0',
   img: 'linear-gradient(#111, #222)',
 };
-
-function snapshot(events: FandomEvent[]): CatalogSnapshot {
-  return { source: 'mock', verticals: [], ips: [], goods: [], cards: [], events };
-}
 
 function campaignFor(id: string): CampaignLandingSnapshot {
   return {
@@ -113,7 +114,7 @@ beforeEach(() => {
   mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
   mocks.campaign = null;
   mocks.cardRewardsEnabled = true;
-  mocks.catalog = snapshot([event]);
+  mocks.events = [event];
   mocks.coin = null;
   mocks.screen.mockClear();
   mocks.notFound.mockClear();
@@ -233,7 +234,7 @@ describe('/events/[eventId] 레거시 브리지', () => {
   });
 
   it('경로 세그먼트를 인코딩해 넘긴다', async () => {
-    mocks.catalog = snapshot([{ ...event, id: 'e 100/x' }]);
+    mocks.events = [{ ...event, id: 'e 100/x' }];
 
     await expect(Page(pageProps('e 100/x')))
       .rejects.toThrow('NEXT_REDIRECT:/offline-popups/e%20100%2Fx');

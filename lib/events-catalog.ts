@@ -5,6 +5,8 @@ export const ALL_MODES = '전체';
 export const ALL_STATUSES = '전체';
 
 const ONLINE_MODE = '온라인';
+/** 오프라인 팝업 표면이 빼는 모드. 서버 페이징이 같은 값을 쓴다(규모 후속). */
+export const OFFLINE_POPUP_EXCLUDED_MODE = ONLINE_MODE;
 const MODE_ORDER = [ONLINE_MODE, '오프라인'];
 // 예매 의도가 큰 순서로 노출한다: 지금 입장 가능한 진행중 → 예매중 → 예정.
 const STATUS_PRIORITY = ['진행중', '예매중', '예정'];

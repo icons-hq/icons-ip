@@ -14,8 +14,15 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({ notFound: () => { throw new Error('not found'); } }));
 vi.mock('@/lib/catalog', () => ({
-  getCatalogSnapshot: () => mocks.catalog,
   getCatalogSource: () => mocks.catalog?.source ?? 'mock',
+}));
+/* 이벤트 하나를 열자고 카탈로그 전량을 읽지 않는다(규모 후속) — 페이지는 id 조회 하나를 부른다.
+   테스트 판은 그대로 두고 그 판에서 id 로 골라 준다. */
+vi.mock('@/lib/storefront.server', () => ({
+  getStorefrontEventsByIds: async (ids: readonly string[]) => ({
+    events: (mocks.catalog?.events ?? []).filter((entry) => ids.includes(entry.id)),
+    ips: mocks.catalog?.ips ?? [],
+  }),
 }));
 vi.mock('@/lib/auth/server', () => ({
   getCurrentAuthState: () => ({ isConfigured: false, user: null, profile: null, isStaff: false }),
