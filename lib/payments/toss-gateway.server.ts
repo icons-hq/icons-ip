@@ -97,6 +97,28 @@ interface TossGatewayOptions {
 }
 
 class TossResponseTooLargeError extends Error {}
+class TossResponseBodyInvalidError extends Error {}
+
+interface ProviderRequestInit {
+  readonly method: 'GET' | 'POST';
+  readonly idempotencyKey?: string;
+  readonly body?: Record<string, unknown>;
+}
+
+interface ProviderResponse {
+  readonly status: number;
+  /** 본문을 JSON으로 읽었는지. false면 payload는 undefined이고 상태 코드만 믿을 수 있다. */
+  readonly parsed: boolean;
+  readonly payload: unknown;
+}
+
+/** orderId 조회의 공통 판독 결과(inquireByOrderId). */
+type OrderInquiry =
+  | { readonly kind: 'ok'; readonly payment: Record<string, unknown> }
+  | { readonly kind: 'not_found' }
+  | { readonly kind: 'configuration_error'; readonly code: string }
+  | { readonly kind: 'unavailable' }
+  | { readonly kind: 'http_error' };
 
 function configurationError(): never {
   throw new Error('invalid_toss_configuration');
@@ -335,11 +357,12 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       .digest('base64url');
   }
 
-  async function providerRequest(path: string, init: {
-    readonly method: 'GET' | 'POST';
-    readonly idempotencyKey?: string;
-    readonly body?: Record<string, unknown>;
-  }) {
+  /**
+   * 코어 API 호출의 저수준 계층. 전송 실패(타임아웃·네트워크·과대 응답)는 throw하고,
+   * 본문이 JSON이 아닌 응답은 상태 코드를 보존한 채 parsed:false로 돌려준다 — 401·403은
+   * 본문 없이도 설정 오류로 읽어야 하기 때문이다(inquireByOrderId).
+   */
+  async function providerFetch(path: string, init: ProviderRequestInit): Promise<ProviderResponse> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), confirmTimeoutMs);
     try {
@@ -355,32 +378,85 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         cache: 'no-store',
         signal: controller.signal,
       });
-      const payload = await readBoundedJson(response);
-      return { status: response.status, payload } as const;
+      let payload: unknown;
+      try {
+        payload = await readBoundedJson(response);
+      } catch (error) {
+        // 과대 응답과 시한 내 미완(abort)은 전송 실패다. 그 밖(빈 본문·JSON 아님)은
+        // 상태 코드가 이미 도착한 응답이라 status만 남긴다.
+        if (error instanceof TossResponseTooLargeError || controller.signal.aborted) throw error;
+        return { status: response.status, parsed: false, payload: undefined };
+      }
+      return { status: response.status, parsed: true, payload };
     } finally {
       clearTimeout(timeout);
     }
   }
 
   /**
+   * 승인·취소 호출 계약: 본문이 JSON이 아니면 throw한다 — 호출자가 조회로 수렴하는
+   * 기존 규율 그대로다.
+   */
+  async function providerRequest(path: string, init: ProviderRequestInit) {
+    const response = await providerFetch(path, init);
+    if (!response.parsed) throw new TossResponseBodyInvalidError();
+    return { status: response.status, payload: response.payload } as const;
+  }
+
+  /**
+   * orderId 조회(GET /v1/payments/orders/{orderId})의 공통 판독 — confirm 재확인·
+   * reconcile·refund 사전/사후 조회 세 곳이 같은 규칙을 쓴다.
+   *
+   * 401·403은 본문 코드와 무관하게 키·설정 오류다. 이 endpoint를 주문서형 시크릿 키
+   * (gsk)가 호출할 수 있다는 명문이 공식문서에 없고(문서 121 "주문서형, 결제창형 연동
+   * 키 > 시크릿 키"의 코어 API 목록은 결제 승인·결제 취소·paymentKey로 결제 조회·거래
+   * 조회·정산 조회·수동 정산 조회뿐이다), 문서 59 에러 표에서 401 UNAUTHORIZED_KEY·
+   * 403 API_KEY_ACCESS_DENIED(IP 접근 정책)·403 FORBIDDEN_REQUEST는 모두 키·상점
+   * 설정 축이다(문서 127 orderId 조회 절은 실패 시 "HTTP 상태 코드와 함께 에러 객체"
+   * 만 약속한다). 이를 unknown으로 흡수하면 웹훅 재전송 7회가 전부 5xx로 소진되고
+   * 환불은 provider_unavailable로 잘못 라벨링된다. 그 밖의 비200 응답도 본문 code가
+   * CONFIGURATION_CODES(400 INVALID_API_KEY 등)면 같은 축이다. 404·5xx·미지 4xx·
+   * 타임아웃은 기존 unknown 규칙 그대로다.
+   */
+  async function inquireByOrderId(attempt: PaymentAttempt): Promise<OrderInquiry> {
+    let inquiry: ProviderResponse;
+    try {
+      inquiry = await providerFetch(
+        `/v1/payments/orders/${encodeURIComponent(attempt.providerOrderId)}`,
+        { method: 'GET' },
+      );
+    } catch {
+      return { kind: 'unavailable' };
+    }
+    const code = inquiry.parsed ? errorCode(inquiry.payload) : null;
+    if (inquiry.status === 401 || inquiry.status === 403) {
+      return { kind: 'configuration_error', code: code ?? `HTTP_${inquiry.status}` };
+    }
+    // 본문이 JSON이 아닌 응답은 상태와 무관하게 전송 실패와 같은 축이다(기존 계약).
+    if (!inquiry.parsed) return { kind: 'unavailable' };
+    // 404 규칙은 호출자마다 다르다(시한 판정·declined 승격) — 코드와 무관하게 넘긴다.
+    if (inquiry.status === 404) return { kind: 'not_found' };
+    if (inquiry.status !== 200 && code !== null && CONFIGURATION_CODES.has(code)) {
+      return { kind: 'configuration_error', code };
+    }
+    if (inquiry.status !== 200 || !plainRecord(inquiry.payload)) return { kind: 'http_error' };
+    return { kind: 'ok', payment: inquiry.payload };
+  }
+
+  /**
    * confirm이 모호하게 끝났을 때 orderId 조회로 실상태를 확인해 분기한다(스펙:
    * confirm 실패를 즉시 실패로 단정하지 않는다). 조회까지 모호하면 unknown으로
-   * 보존해 reconcile(#390)에 넘긴다.
+   * 보존해 reconcile(#390)에 넘기고, 키·설정 오류는 needs_review로 격리한다.
    */
   async function recheckByInquiry(
     attempt: PaymentAttempt,
     options: { readonly notFoundOutcome?: 'declined'; readonly notFoundReason?: string } = {},
   ): Promise<ConfirmOutcome> {
-    let inquiry: { status: number; payload: unknown };
-    try {
-      inquiry = await providerRequest(
-        `/v1/payments/orders/${encodeURIComponent(attempt.providerOrderId)}`,
-        { method: 'GET' },
-      );
-    } catch {
+    const inquiry = await inquireByOrderId(attempt);
+    if (inquiry.kind === 'unavailable') {
       return baseOutcome(attempt, 'unknown', 'provider_unavailable') as ConfirmOutcome;
     }
-    if (inquiry.status === 404) {
+    if (inquiry.kind === 'not_found') {
       if (options.notFoundOutcome === 'declined') {
         return baseOutcome(
           attempt,
@@ -390,10 +466,16 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       }
       return baseOutcome(attempt, 'unknown', 'provider_inquiry_not_found') as ConfirmOutcome;
     }
-    if (inquiry.status !== 200 || !plainRecord(inquiry.payload)) {
+    if (inquiry.kind === 'configuration_error') {
+      // 재조회해도 같은 결과다 — unknown으로 위장하지 않고 운영 관측에 태운다.
+      return baseOutcome(attempt, 'needs_review', 'provider_configuration_error', {
+        resultCode: inquiry.code,
+      }) as ConfirmOutcome;
+    }
+    if (inquiry.kind === 'http_error') {
       return baseOutcome(attempt, 'unknown', 'provider_http_error') as ConfirmOutcome;
     }
-    const payment = inquiry.payload;
+    const payment = inquiry.payment;
     if (payment.status === 'DONE') {
       if (!paymentMatchesAttempt(payment, attempt)) {
         return baseOutcome(attempt, 'needs_review', 'provider_identity_mismatch') as ConfirmOutcome;
@@ -415,10 +497,15 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         resultCode: 'EXPIRED',
       }) as ConfirmOutcome;
     }
-    if (payment.status === 'CANCELED' || payment.status === 'PARTIAL_CANCELED') {
+    if (paymentFullyCanceled(payment, attempt)) {
       return baseOutcome(attempt, 'canceled', 'provider_payment_canceled', {
-        resultCode: typeof payment.status === 'string' ? payment.status : undefined,
+        resultCode: 'CANCELED',
       }) as ConfirmOutcome;
+    }
+    if (payment.status === 'CANCELED' || payment.status === 'PARTIAL_CANCELED') {
+      // 우리는 부분취소를 발행하지 않는다 — 전액 취소 검증(금액·잔액 대조)을
+      // 통과하지 못한 취소 상태는 자동 종결하지 않는다.
+      return baseOutcome(attempt, 'needs_review', 'provider_cancellation_mismatch') as ConfirmOutcome;
     }
     // READY·IN_PROGRESS 등 비종결 상태는 추측 종결하지 않는다.
     return baseOutcome(attempt, 'unknown', 'provider_payment_in_progress') as ConfirmOutcome;
@@ -439,8 +526,11 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       const successPath = attempt.purpose === 'order'
         ? `/api/payments/goods/confirm/toss/${nonce}`
         : `/api/payments/tickets/confirm/toss/${nonce}`;
-      // failUrl 쿼리로 보장되는 것은 code·message뿐이라(공식문서 실패 리다이렉트
-      // 계약) 어느 주문에서 실패했는지는 successUrl의 nonce와 같은 규율로 경로에
+      // failUrl 쿼리는 code·message·orderId다(문서 48 SDK 레퍼런스·28 실패 리다이렉트
+      // 절: `{failUrl}?code=…&message=…&orderId=…`). 다만 그 orderId는 provider
+      // 주문번호(O…)라 주문 화면의 refId가 아니고, 구매자가 결제창을 닫은
+      // PAY_PROCESS_CANCELED에서는 orderId가 아예 넘어오지 않는다(문서 162 FAQ).
+      // 그래서 어느 주문에서 실패했는지는 successUrl의 nonce와 같은 규율로 경로에
       // 싣는다. 평평한 '/checkout'으로 돌리면 복귀 화면이 "같은 주문에서 다시
       // 시도"를 최신 pending 주문으로 링크해, pending이 둘 이상이면 다른 주문으로
       // 유도한다.
@@ -583,11 +673,70 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       return recheckByInquiry(input.attempt);
     },
 
+    /**
+     * 조회 API 기반 자동 정합화(#390). 이 outcome 어휘는 결제 재정합(미종결
+     * attempt)과 환불 재정합(reconcileRefund) 두 문맥이 공유한다 — 환불 재정합은
+     * 'canceled'를 "원거래 전액 취소 확인"으로 읽어 환불 승인으로 승격하므로,
+     * canceled는 전액 취소 검증(paymentFullyCanceled)을 통과했을 때만 돌려주고
+     * EXPIRED·미승인 실패 확정은 declined로 돌려준다.
+     */
     async reconcile(attempt) {
       assertAttempt(attempt);
-      // 조회 API 기반 자동 정합화는 웹훅·정합화 슬라이스(#390)에서 구현한다.
-      // 그 전까지는 코페이와 같은 수동 검토 격리로 fail closed.
-      return baseOutcome(attempt, 'needs_review', 'provider_reconciliation_unavailable');
+      const inquiry = await inquireByOrderId(attempt);
+      if (inquiry.kind === 'unavailable') {
+        return baseOutcome(attempt, 'unknown', 'provider_unavailable');
+      }
+      if (inquiry.kind === 'not_found') {
+        // orderId 조회는 승인된 결제만 돌려준다. 승인 가능 시한(attempt TTL
+        // 안 결제창 오픈 + 결제창 유효 30분 + 인증 후 승인 10분 + 버퍼)이
+        // 지난 404는 이 주문으로 승인이 성립할 수 없다는 확정 사실이다 —
+        // 콜백 유실이 사람 손 없이 닫히는 지점.
+        const absentAfter = Date.parse(attempt.expiresAt) + 45 * 60_000;
+        if (Number.isFinite(absentAfter) && now().getTime() > absentAfter) {
+          return baseOutcome(attempt, 'declined', 'provider_payment_absent');
+        }
+        return baseOutcome(attempt, 'unknown', 'provider_inquiry_not_found');
+      }
+      if (inquiry.kind === 'configuration_error') {
+        return baseOutcome(attempt, 'needs_review', 'provider_configuration_error', {
+          resultCode: inquiry.code,
+        });
+      }
+      if (inquiry.kind === 'http_error') {
+        return baseOutcome(attempt, 'unknown', 'provider_http_error');
+      }
+      const payment = inquiry.payment;
+      if (payment.status === 'DONE') {
+        if (!paymentMatchesAttempt(payment, attempt)) {
+          return baseOutcome(attempt, 'needs_review', 'provider_identity_mismatch');
+        }
+        return baseOutcome(
+          attempt,
+          'approved',
+          'provider_reconciled_approved',
+          approvedEvidence(payment),
+        );
+      }
+      if (paymentFullyCanceled(payment, attempt)) {
+        return baseOutcome(
+          attempt,
+          'canceled',
+          'provider_payment_canceled',
+          canceledEvidence(payment),
+        );
+      }
+      if (payment.status === 'CANCELED' || payment.status === 'PARTIAL_CANCELED') {
+        return baseOutcome(attempt, 'needs_review', 'provider_cancellation_mismatch');
+      }
+      if (payment.status === 'ABORTED') {
+        return baseOutcome(attempt, 'declined', 'provider_declined', { resultCode: 'ABORTED' });
+      }
+      if (payment.status === 'EXPIRED') {
+        return baseOutcome(attempt, 'declined', 'provider_payment_expired', {
+          resultCode: 'EXPIRED',
+        });
+      }
+      return baseOutcome(attempt, 'unknown', 'provider_payment_in_progress');
     },
 
     async refund(request): Promise<RefundOutcome> {
@@ -616,22 +765,18 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         | { readonly kind: 'done'; readonly payment: Record<string, unknown> }
         | { readonly kind: 'not_found' }
         | { readonly kind: 'not_refundable' }
+        | { readonly kind: 'configuration_error'; readonly code: string }
         | { readonly kind: 'ambiguous' }
       > {
-        let inquiry: { status: number; payload: unknown };
-        try {
-          inquiry = await providerRequest(
-            `/v1/payments/orders/${encodeURIComponent(attempt.providerOrderId)}`,
-            { method: 'GET' },
-          );
-        } catch {
+        const inquiry = await inquireByOrderId(attempt);
+        if (inquiry.kind === 'unavailable' || inquiry.kind === 'http_error') {
           return { kind: 'ambiguous' };
         }
-        if (inquiry.status === 404) return { kind: 'not_found' };
-        if (inquiry.status !== 200 || !plainRecord(inquiry.payload)) {
-          return { kind: 'ambiguous' };
+        if (inquiry.kind === 'not_found') return { kind: 'not_found' };
+        if (inquiry.kind === 'configuration_error') {
+          return { kind: 'configuration_error', code: inquiry.code };
         }
-        const payment = inquiry.payload;
+        const payment = inquiry.payment;
         if (paymentFullyCanceled(payment, attempt)) return { kind: 'canceled', payment };
         if (
           payment.status === 'DONE'
@@ -662,6 +807,12 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       }
       if (before.kind === 'not_refundable') {
         return baseOutcome(attempt, 'needs_review', 'provider_payment_not_refundable') as RefundOutcome;
+      }
+      if (before.kind === 'configuration_error') {
+        // 키·설정 오류를 일시 장애로 위장하지 않는다 — 취소 API를 호출하지 않고 격리.
+        return baseOutcome(attempt, 'needs_review', 'provider_configuration_error', {
+          resultCode: before.code,
+        }) as RefundOutcome;
       }
       if (before.kind === 'ambiguous') {
         return baseOutcome(attempt, 'unknown', 'provider_unavailable') as RefundOutcome;
@@ -723,6 +874,14 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       if (after.kind === 'not_refundable') {
         return baseOutcome(attempt, 'needs_review', 'provider_payment_not_refundable', {
           providerPaymentKey: paymentKey,
+        }) as RefundOutcome;
+      }
+      if (after.kind === 'configuration_error') {
+        // 취소 API가 200이었어도 조회가 키·설정 축에서 거부되면 자동 종결하지 않는다
+        // — 조회만 진실원이라는 규율 그대로다.
+        return baseOutcome(attempt, 'needs_review', 'provider_configuration_error', {
+          providerPaymentKey: paymentKey,
+          resultCode: after.code,
         }) as RefundOutcome;
       }
       return baseOutcome(attempt, 'unknown', 'provider_unavailable', {
