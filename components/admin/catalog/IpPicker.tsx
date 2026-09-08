@@ -25,7 +25,7 @@ interface PickerKind {
   emptyResultText: string;
   idleHint: string;
   recentKey: string;
-  search: (query: string, selectedId: string | null) => Promise<IpPickerSearchResult>;
+  search: (query: string, selectedId: string | null, scope: string | null) => Promise<IpPickerSearchResult>;
   searchPlaceholder: string;
 }
 
@@ -33,7 +33,7 @@ const IP_KIND: PickerKind = {
   emptyResultText: '해당하는 IP가 없습니다.',
   idleHint: '최근 고른 IP 가 먼저 나옵니다.',
   recentKey: IP_PICKER_RECENT_KEY,
-  search: searchAdminIpsAction,
+  search: (query, selectedId) => searchAdminIpsAction(query, selectedId),
   searchPlaceholder: 'IP 이름 또는 코드로 검색',
 };
 
@@ -41,7 +41,7 @@ const GOOD_KIND: PickerKind = {
   emptyResultText: '해당하는 상품이 없습니다.',
   idleHint: '최근 고른 상품이 먼저 나옵니다.',
   recentKey: GOOD_PICKER_RECENT_KEY,
-  search: searchAdminGoodsAction,
+  search: (query, selectedId, scope) => searchAdminGoodsAction(query, selectedId, scope),
   searchPlaceholder: '상품 이름 또는 코드로 검색',
 };
 
@@ -59,6 +59,8 @@ interface IpPickerProps {
   /** 고른 값을 바깥 상태가 쥐어야 할 때(수신자 수 추정처럼) 넘긴다. 없으면 폼이 값을 쥔다. */
   value?: string;
   onValueChange?: (next: string) => void;
+  /** 검색 범위(예: 「이 IP 의 굿즈」). 종류에 따라 서버가 해석한다. 없으면 전체. */
+  searchScope?: string | null;
 }
 
 /*
@@ -89,6 +91,7 @@ function CatalogPicker({
   name,
   onValueChange,
   required,
+  searchScope = null,
   selected,
   value,
 }: IpPickerProps & { kind: PickerKind }) {
@@ -104,7 +107,7 @@ function CatalogPicker({
 
   const runSearch = (next: string) => {
     startTransition(async () => {
-      const result = await kind.search(next, selected?.id ?? null);
+      const result = await kind.search(next, selected?.id ?? null, searchScope);
       setSearchError(result.error ?? null);
       /* 실패했으면 목록을 비우지 않는다 — 보고 있던 후보가 사라지는 게 더 나쁘다. */
       if (!result.error) setResults(result.options);

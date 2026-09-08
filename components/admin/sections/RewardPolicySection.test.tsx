@@ -272,7 +272,7 @@ describe('RewardPolicySection', () => {
     const html = renderPolicySection({ records: [selectedPolicy], selected: selectedPolicy });
 
     expect(html).toContain('종료된 보존 풀');
-    expect(html).toContain('value="good-a" selected=""');
+    expect(html).toContain('name="targetGoodId" checked="" value="good-a"');
     expect(html).toContain(`value="${endedPool.id}" selected=""`);
     expect(html.match(/<input[^>]+name="active"[^>]*>/)?.[0]).toContain('checked');
     expect(html).toContain('value="30000"');

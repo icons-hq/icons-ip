@@ -19,6 +19,11 @@ const mocks = vi.hoisted(() => ({
   goodList: vi.fn(),
   goodRecord: vi.fn(),
   ipOptions: vi.fn(),
+  ipOptionsWith: vi.fn(),
+  goodsByIds: vi.fn(),
+  cardList: vi.fn(),
+  cardRecord: vi.fn(),
+  cardsByPools: vi.fn(),
   ipList: vi.fn(),
   ipRecord: vi.fn(),
   verticals: vi.fn(),
@@ -52,11 +57,18 @@ vi.mock('@/lib/storefront.server', () => ({
 vi.mock('@/lib/admin/catalog-list.server', () => ({
   getAdminGoodList: mocks.goodList,
   getAdminGoodRecord: mocks.goodRecord,
+  getAdminGoodOptions: async () => [],
+  getAdminGoodsByIds: mocks.goodsByIds,
   getAdminIpOptions: mocks.ipOptions,
+  getAdminIpOptionsWith: mocks.ipOptionsWith,
   getAdminIpList: mocks.ipList,
   getAdminIpRecord: mocks.ipRecord,
   getAdminSuggestedGoodId: async () => 'g101',
   getAdminVerticals: mocks.verticals,
+  /* 카드·카드풀도 전량 로더가 아니라 페이지·풀 단위 로더를 쓴다(규모 후속). */
+  getAdminCardList: mocks.cardList,
+  getAdminCardRecord: mocks.cardRecord,
+  getAdminCardsByPools: mocks.cardsByPools,
 }));
 vi.mock('@/lib/admin/variants.server', () => ({
   getAdminGoodVariantEditorData: mocks.variantEditor,
@@ -113,6 +125,8 @@ function searchParams(query: Record<string, string | string[] | undefined> = {})
 
 const emptyGoodList = { rows: [], total: 0, counts: { all: 0, selling: 0, low: 0, soldout: 0, archived: 0 }, page: 1, size: 20 };
 const emptyIpList = { rows: [], total: 0, counts: { all: 0, active: 0, archived: 0 }, page: 1, size: 20 };
+const emptyCardList = { rows: [], total: 0, counts: { all: 0, active: 0, archived: 0 }, page: 1, size: 20 };
+const cardRecord = { id: 'c100', ipId: 'hwasan', poolId: null, name: '청명 홀로 카드', no: '001', rarity: 'HOLO', bg: null, imagePath: null, archivedAt: null };
 const goodRecord = { id: 'g100', ipId: 'hwasan', name: '아크릴 스탠드', archivedAt: null };
 
 describe('어드민 카탈로그 라우트', () => {
@@ -154,6 +168,19 @@ describe('어드민 카탈로그 라우트', () => {
     });
     mocks.ipOptions.mockReset();
     mocks.ipOptions.mockResolvedValue([]);
+    mocks.ipOptionsWith.mockReset();
+    mocks.ipOptionsWith.mockResolvedValue([]);
+    mocks.goodsByIds.mockReset();
+    mocks.goodsByIds.mockResolvedValue([]);
+    mocks.cardList.mockReset();
+    mocks.cardList.mockImplementation(async () => {
+      mocks.order.push('cardList');
+      return emptyCardList;
+    });
+    mocks.cardRecord.mockReset();
+    mocks.cardRecord.mockResolvedValue(null);
+    mocks.cardsByPools.mockReset();
+    mocks.cardsByPools.mockResolvedValue([]);
     mocks.ipList.mockReset();
     mocks.ipList.mockImplementation(async () => {
       mocks.order.push('ipList');
@@ -172,12 +199,11 @@ describe('어드민 카탈로그 라우트', () => {
   });
 
   it.each([
-    ['/admin/catalog/cards', () => AdminCatalogCardsPage({ searchParams: searchParams() }), ['cards', 'ips', 'cardPools']],
-    ['/admin/catalog/pools', () => AdminCatalogPoolsPage(), ['cardPools', 'cards', 'ips']],
-    ['/admin/catalog/policies', () => AdminCatalogPoliciesPage(), ['rewardPolicies', 'goods', 'cardPools', 'ips']],
+    ['/admin/catalog/pools', () => AdminCatalogPoolsPage(), ['cardPools']],
+    ['/admin/catalog/policies', () => AdminCatalogPoliciesPage(), ['rewardPolicies', 'cardPools']],
     ['/admin/catalog/grants', () => AdminCatalogGrantsPage(), ['cardPools']],
     ['/admin/catalog/games', () => AdminCatalogGamesPage(), ['games', 'events', 'cardPools']],
-    ['/admin/catalog/events', () => AdminCatalogEventsPage(), ['events', 'ips']],
+    ['/admin/catalog/events', () => AdminCatalogEventsPage(), ['events']],
     ['/admin/catalog/ticket-types', () => AdminCatalogTicketTypesPage(), ['ticketTypes', 'events']],
   ])('%s는 권한 게이트를 먼저 통과한 뒤 자기 화면 데이터만 불러온다', async (pathname, render, include) => {
     await render();
@@ -192,6 +218,7 @@ describe('어드민 카탈로그 라우트', () => {
   it.each([
     ['/admin/catalog/goods', () => AdminCatalogGoodsPage({ searchParams: searchParams() }), 'goodList'],
     ['/admin/catalog/ips', () => AdminCatalogIpsPage({ searchParams: searchParams() }), 'ipList'],
+    ['/admin/catalog/cards', () => AdminCatalogCardsPage({ searchParams: searchParams() }), 'cardList'],
   ])('%s 목록은 권한 게이트 뒤에 페이지 로더만 부른다', async (pathname, render, loader) => {
     await render();
 
@@ -199,6 +226,37 @@ describe('어드민 카탈로그 라우트', () => {
     expect(mocks.order).toContain(loader);
     expect(mocks.catalogRecords).not.toHaveBeenCalled();
     expect(mocks.catalogSnapshot).not.toHaveBeenCalled();
+  });
+
+  /* 카드 편집은 그 카드 하나 + IP 선택지(상위 N + 그 카드의 IP) + 카드풀(운영 표)만 읽는다. */
+  it('카드 편집 화면은 레코드 하나와 좁힌 선택지만 읽는다', async () => {
+    mocks.cardRecord.mockResolvedValue(cardRecord);
+
+    const screen = await AdminCatalogCardsPage({ searchParams: searchParams({ selected: 'c100' }) });
+
+    expect(mocks.cardRecord).toHaveBeenCalledWith('c100');
+    expect(mocks.cardList).not.toHaveBeenCalled();
+    expect(mocks.ipOptions).toHaveBeenCalledWith({ selectedId: 'hwasan' });
+    expect(mocks.includes).toEqual([['cardPools']]);
+    expect(screen.props.records).toEqual([cardRecord]);
+  });
+
+  /* 카드풀 화면의 옛 「카드 편집」 링크(`?cardId=`)는 그대로 열린다. */
+  it('옛 cardId 링크를 selected 로 받는다', async () => {
+    mocks.cardRecord.mockResolvedValue(cardRecord);
+    await AdminCatalogCardsPage({ searchParams: searchParams({ cardId: 'c100' }) });
+    expect(mocks.cardRecord).toHaveBeenCalledWith('c100');
+  });
+
+  it('카드풀 화면은 화면에 오른 풀의 로스터와 참조 IP 만 읽는다', async () => {
+    mocks.catalogRecords.mockImplementationOnce(async (options: { include?: readonly AdminCatalogRecordKind[] } = {}) => {
+      mocks.order.push('records');
+      mocks.includes.push(options.include);
+      return { ...emptyRecords, cardPools: [{ id: 'pool-1', ipId: 'hwasan', name: '풀' }] };
+    });
+    await AdminCatalogPoolsPage();
+    expect(mocks.cardsByPools).toHaveBeenCalledWith(['pool-1']);
+    expect(mocks.ipOptionsWith).toHaveBeenCalledWith(['hwasan']);
   });
 
   it('굿즈 목록 화면은 페이지 로더 결과와 재고 조정 멱등 키를 내려준다', async () => {
@@ -268,16 +326,16 @@ describe('어드민 카탈로그 라우트', () => {
     expect(mocks.verticals).toHaveBeenCalledTimes(1);
   });
 
-  /* 카드풀 화면의 "카드 편집" 링크(`?cardId=`)가 도착하는 지점이다. */
-  it('카드 화면은 cardId 쿼리를 초기 선택값으로 넘긴다', async () => {
+  /* 카드풀 화면의 "카드 편집" 링크(`?cardId=`)가 도착하는 지점이다 — 이제 URL 의 selected 로 받는다(규모 후속). */
+  it('카드 화면은 cardId 쿼리를 selected 로 넘긴다', async () => {
     const selected = await AdminCatalogCardsPage({ searchParams: searchParams({ cardId: 'c100' }) });
     const repeated = await AdminCatalogCardsPage({ searchParams: searchParams({ cardId: ['c100', 'c200'] }) });
     const none = await AdminCatalogCardsPage({ searchParams: searchParams() });
 
-    expect(selected.props.initialSelectedId).toBe('c100');
+    expect(selected.props.filters.selected).toBe('c100');
     /* 중복 쿼리는 배열로 온다 — 어느 한쪽을 임의로 고르지 않고 선택 없이 연다. */
-    expect(repeated.props.initialSelectedId).toBeNull();
-    expect(none.props.initialSelectedId).toBeNull();
+    expect(repeated.props.filters.selected).toBeNull();
+    expect(none.props.filters.selected).toBeNull();
   });
 
   /*

@@ -1,9 +1,9 @@
 'use client';
 
-import { useMemo } from 'react';
 import { CardPoolSection } from '@/components/admin/sections/CardPoolSection';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
-import { toRecordOptions, useSelectedRecord } from './record-selection';
+import type { AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
+import { useSelectedRecord } from './record-selection';
 
 /*
  * 카드풀 화면 래퍼.
@@ -15,7 +15,7 @@ export function CardPoolScreen({
   cards,
   draftActiveFrom,
   draftId,
-  ips,
+  ipOptions,
   oddsOperationId,
   operationId,
   records,
@@ -23,12 +23,12 @@ export function CardPoolScreen({
   cards: AdminCatalogRecords['cards'];
   draftActiveFrom: string;
   draftId: string;
-  ips: AdminCatalogRecords['ips'];
+  /** IP 선택지 — 상위 N + 화면의 풀이 참조하는 IP(규모 후속). 전량이 아니다. */
+  ipOptions: AdminCurationTargetRecord[];
   oddsOperationId: string;
   operationId: string;
   records: AdminCatalogRecords['cardPools'];
 }) {
-  const ipOptions = useMemo(() => toRecordOptions(ips), [ips]);
   const { selected, select } = useSelectedRecord(records);
 
   return (

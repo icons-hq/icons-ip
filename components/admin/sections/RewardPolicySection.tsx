@@ -11,6 +11,7 @@ import type {
   AdminRewardPolicyRecord,
 } from '@/lib/admin/catalog.server';
 import { ErrorText, Field, FormShell, RecordList, SelectField } from '../fields';
+import { GoodPicker } from '@/components/admin/catalog/IpPicker';
 import { SeededForm } from '@/components/admin/form-seed';
 
 const emptyState: AdminCatalogActionState = {};
@@ -166,8 +167,9 @@ function RewardPolicyForm({
   const [targetGoodId, setTargetGoodId] = useState(selected?.targetGoodId ?? '');
   const [poolId, setPoolId] = useState(selected?.poolId ?? poolOptions[0]?.id ?? '');
   const [active, setActive] = useState(selected?.active ?? false);
-  const targetGoods = useMemo(
-    () => goods.filter((good) => good.ipId === targetIpId),
+  /* 선택기의 첫 후보 = 이 IP 의 굿즈 중 화면이 아는 것(참조분). 나머지는 검색으로 찾는다. */
+  const targetGoodOptions = useMemo(
+    () => goods.filter((good) => good.ipId === targetIpId).map((good) => ({ id: good.id, title: good.name, archivedAt: good.archivedAt })),
     [goods, targetIpId],
   );
   const currentPool = pools.find((pool) => pool.id === poolId);
@@ -223,25 +225,21 @@ function RewardPolicyForm({
             </option>
           ))}
         </SelectField>
-        <SelectField
+        {/* 굿즈는 검색 선택기로 고른다(규모 후속) — 전량 select 는 1,000개에서 잘린다.
+            IP 를 바꾸면 범위가 바뀌므로 다시 마운트한다. */}
+        <GoodPicker
+          defaultOptions={targetGoodOptions}
           disabled={!targetIpId}
+          emptyLabel="전체 굿즈(IP 결제 합계)"
           error={state.errors?.targetGoodId}
+          key={`targetGoodId:${targetIpId}`}
           label="대상 굿즈"
           name="targetGoodId"
-          onChange={(event) => setTargetGoodId(event.target.value)}
+          onValueChange={setTargetGoodId}
+          searchScope={targetIpId || null}
+          selected={targetGoodOptions.find((good) => good.id === targetGoodId) ?? null}
           value={targetGoodId}
-        >
-          <option value="">전체 굿즈(IP 결제 합계)</option>
-          {targetGoods.map((good) => (
-            <option
-              disabled={Boolean(good.archivedAt && good.id !== selected?.targetGoodId)}
-              key={good.id}
-              value={good.id}
-            >
-              {good.archivedAt ? `[보관] ${good.name}` : good.name}
-            </option>
-          ))}
-        </SelectField>
+        />
         <SelectField
           disabled={!poolOptions.length}
           error={state.errors?.poolId}

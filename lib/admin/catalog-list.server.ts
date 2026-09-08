@@ -4,7 +4,10 @@ import type { AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
 import type { Vertical } from '@/lib/data';
 import { createClient } from '@/lib/supabase/server';
 import {
+  adminCardStatus,
   adminIpStatus,
+  type AdminCardList,
+  type AdminCardListFilters,
   type AdminGoodList,
   type AdminGoodListFilters,
   type AdminGoodStatus,
@@ -17,6 +20,7 @@ import {
   createAdminMediaResolver,
   toAdminGoodRecord,
   toAdminIpRecord,
+  type AdminCardRecord,
   type AdminGoodRecord,
   type AdminGoodRow,
   type AdminIpRecord,
@@ -58,6 +62,21 @@ type IpSearchRow = AdminIpRow & {
   active_goods_count: number;
   total_count: number;
 };
+
+interface CardSearchRow {
+  id: string;
+  archived_at: string | null;
+  ip_id: string;
+  ip_title: string;
+  pool_id: string | null;
+  pool_name: string | null;
+  name: string;
+  no: string | null;
+  rarity: string;
+  bg: string | null;
+  image_path: string | null;
+  total_count: number;
+}
 
 interface IpCountsRow {
   all_count: number;
@@ -259,13 +278,15 @@ interface GoodPickRow {
  * 끼워 넣는 이유와 같은 함정이다. 여기서는 빠졌을 때만 한 건 더 읽어 맨 앞에 붙인다.
  */
 export async function getAdminGoodOptions(
-  options: { selectedId?: string | null; query?: string | null } = {},
+  options: { selectedId?: string | null; query?: string | null; ipId?: string | null } = {},
 ): Promise<AdminCurationTargetRecord[]> {
   const supabase = await createClient();
   const result = await supabase.rpc('admin_search_goods', {
     p_tab: 'all',
     p_field: 'all',
     p_query: options.query || null,
+    /* 발급 정책처럼 「이 IP 의 굿즈」만 골라야 하는 자리가 있다. */
+    p_ip_id: options.ipId || null,
     p_sort: 'id',
     p_dir: 'asc',
     p_limit: ADMIN_GOOD_PICK_LIMIT,
@@ -325,4 +346,161 @@ export async function getAdminVerticals(): Promise<Vertical[]> {
   const { data, error } = await supabase.from('verticals').select('key,label,color').order('key');
   if (error) throw new Error(`Failed to load admin verticals: ${error.message}`);
   return (data ?? []) as Vertical[];
+}
+
+/*
+ * 카드 목록·레코드·풀별 로스터 (규모 후속).
+ *
+ * 카드 화면은 카드·IP 전량을 읽었다 — 1,000행에서 말없이 잘리는 자리다. 목록은 RPC 가 한
+ * 페이지만 자르고, 편집은 그 레코드 하나만 읽고, 카드풀 화면의 로스터는 **그 풀의 카드**만
+ * 읽는다(전량을 받아 화면에서 풀로 거르던 자리).
+ */
+export function adminCardSearchArgs(filters: AdminCardListFilters) {
+  return {
+    p_tab: filters.tab,
+    p_query: filters.query || null,
+    p_ip_id: filters.ip || null,
+    p_pool_id: filters.pool || null,
+    p_rarity: filters.rarity || null,
+    p_sort: filters.sort ?? 'id',
+    p_dir: filters.sort ? filters.dir : 'asc',
+    p_limit: filters.size,
+    p_offset: (filters.page - 1) * filters.size,
+  };
+}
+
+export function adminCardCountArgs(filters: AdminCardListFilters) {
+  const { p_query, p_ip_id, p_pool_id, p_rarity } = adminCardSearchArgs(filters);
+  return { p_query, p_ip_id, p_pool_id, p_rarity };
+}
+
+function toCardRecordFromSearch(row: CardSearchRow, media: ReturnType<typeof createAdminMediaResolver>): AdminCardRecord {
+  return {
+    id: row.id,
+    archivedAt: row.archived_at,
+    ipId: row.ip_id,
+    poolId: row.pool_id,
+    name: row.name,
+    no: row.no,
+    rarity: (['N', 'R', 'SR', 'SSR', 'HOLO'] as const).includes(row.rarity as 'N') ? (row.rarity as AdminCardRecord['rarity']) : 'N',
+    bg: row.bg,
+    imagePath: row.image_path,
+    imageUrl: media.previewUrlFor({ image_path: row.image_path, bg: row.bg }),
+  };
+}
+
+export async function getAdminCardList(filters: AdminCardListFilters): Promise<AdminCardList> {
+  const supabase = await createClient();
+  const media = createAdminMediaResolver(supabase);
+  const [searchResult, countsResult] = await Promise.all([
+    supabase.rpc('admin_search_cards', adminCardSearchArgs(filters)),
+    supabase.rpc('admin_cards_tab_counts', adminCardCountArgs(filters)),
+  ]);
+  const countsRow = rpcRows<IpCountsRow>(countsResult, 'admin cards counts')[0];
+  const counts = {
+    all: countsRow?.all_count ?? 0,
+    active: countsRow?.active_count ?? 0,
+    archived: countsRow?.archived_count ?? 0,
+  };
+  const total = counts[filters.tab];
+
+  let page = filters.page;
+  let rows = rpcRows<CardSearchRow>(searchResult, 'admin cards');
+  const lastPage = clampAdminListPage(filters.page, total, filters.size);
+  if (rows.length === 0 && lastPage < filters.page) {
+    page = lastPage;
+    if (total > 0) {
+      rows = rpcRows<CardSearchRow>(
+        await supabase.rpc('admin_search_cards', adminCardSearchArgs({ ...filters, page })),
+        'admin cards',
+      );
+    }
+  }
+
+  return {
+    rows: rows.map((row) => {
+      const card = toCardRecordFromSearch(row, media);
+      return { card, tab: adminCardStatus(card), ipTitle: row.ip_title, poolName: row.pool_name };
+    }),
+    total,
+    counts,
+    page,
+    size: filters.size,
+  };
+}
+
+const ADMIN_CARD_SELECT = 'id,archived_at,ip_id,pool_id,name,no,rarity,bg,image_path';
+
+function toCardRecordFromRow(
+  row: { id: string; archived_at: string | null; ip_id: string; pool_id: string | null; name: string; no: string | null; rarity: string; bg: string | null; image_path: string | null },
+  media: ReturnType<typeof createAdminMediaResolver>,
+): AdminCardRecord {
+  return toCardRecordFromSearch({ ...row, ip_title: row.ip_id, pool_name: null, total_count: 0 }, media);
+}
+
+export async function getAdminCardRecord(id: string): Promise<AdminCardRecord | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from('cards').select(ADMIN_CARD_SELECT).eq('id', id).maybeSingle();
+  if (error) throw new Error(`Failed to load admin card ${id}: ${error.message}`);
+  return data ? toCardRecordFromRow(data as Parameters<typeof toCardRecordFromRow>[0], createAdminMediaResolver(supabase)) : null;
+}
+
+/** 한 카드풀의 로스터. 풀 하나의 카드 수는 라인업 크기(수십)로 묶여 있다. */
+export async function getAdminCardsByPool(poolId: string): Promise<AdminCardRecord[]> {
+  if (!poolId) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase.from('cards').select(ADMIN_CARD_SELECT).eq('pool_id', poolId).order('id');
+  if (error) throw new Error(`Failed to load admin pool cards ${poolId}: ${error.message}`);
+  const media = createAdminMediaResolver(supabase);
+  return ((data ?? []) as Parameters<typeof toCardRecordFromRow>[0][]).map((row) => toCardRecordFromRow(row, media));
+}
+
+/** 여러 풀의 로스터 — 카드풀 화면. 풀 수 × 라인업 크기로 묶인다(카드 전량이 아니다). */
+export async function getAdminCardsByPools(poolIds: readonly string[]): Promise<AdminCardRecord[]> {
+  const unique = [...new Set(poolIds)].filter(Boolean);
+  if (unique.length === 0) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase.from('cards').select(ADMIN_CARD_SELECT).in('pool_id', unique).order('id');
+  if (error) throw new Error(`Failed to load admin pool cards: ${error.message}`);
+  const media = createAdminMediaResolver(supabase);
+  return ((data ?? []) as Parameters<typeof toCardRecordFromRow>[0][]).map((row) => toCardRecordFromRow(row, media));
+}
+
+/**
+ * id 로 IP 선택지. 화면에 오른 레코드(카드풀·이벤트·정책)가 참조하는 IP 는 상위 N 밖이어도
+ * 선택지에 있어야 한다 — 없으면 이름이 id 로 보이고, 저장할 때 그 값을 다시 만들 수 없다.
+ * 조회량은 준 id 수만큼이다.
+ */
+export async function getAdminIpOptionsByIds(ids: readonly string[]): Promise<AdminCurationTargetRecord[]> {
+  const unique = [...new Set(ids)].filter(Boolean);
+  if (unique.length === 0) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase.from('ips').select('id,title,archived_at').in('id', unique).order('id');
+  if (error) throw new Error(`Failed to load admin ip options by ids: ${error.message}`);
+  return ((data ?? []) as { id: string; title: string; archived_at: string | null }[])
+    .map((row) => ({ id: row.id, title: row.title, archivedAt: row.archived_at }));
+}
+
+/** 상위 N 선택지에 「화면이 참조하는 IP」를 합친다. 같은 id 는 한 번만 — 선택된 것이 먼저다. */
+export async function getAdminIpOptionsWith(referencedIds: readonly string[]): Promise<AdminCurationTargetRecord[]> {
+  const [top, referenced] = await Promise.all([getAdminIpOptions(), getAdminIpOptionsByIds(referencedIds)]);
+  const seen = new Set<string>();
+  const merged: AdminCurationTargetRecord[] = [];
+  for (const option of [...referenced, ...top]) {
+    if (seen.has(option.id)) continue;
+    seen.add(option.id);
+    merged.push(option);
+  }
+  return merged;
+}
+
+/** id 로 굿즈 레코드 — 정책·큐레이션이 참조하는 굿즈의 이름·IP 만 필요할 때. 조회량은 준 id 수만큼이다. */
+export async function getAdminGoodsByIds(ids: readonly string[]): Promise<AdminGoodRecord[]> {
+  const unique = [...new Set(ids)].filter(Boolean);
+  if (unique.length === 0) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase.from('goods').select(ADMIN_GOOD_SELECT).in('id', unique).order('id');
+  if (error) throw new Error(`Failed to load admin goods by ids: ${error.message}`);
+  const media = createAdminMediaResolver(supabase);
+  return ((data ?? []) as AdminGoodRow[]).map((row) => toAdminGoodRecord(row, media));
 }

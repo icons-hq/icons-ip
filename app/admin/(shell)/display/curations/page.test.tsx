@@ -28,6 +28,14 @@ const mocks = vi.hoisted(() => ({
 vi.mock('node:crypto', () => ({ randomUUID: mocks.randomUuid }));
 vi.mock('@/components/admin/screens/CurationScreen', () => ({ CurationScreen: mocks.curationScreen }));
 vi.mock('@/lib/admin/curations.server', () => ({ getAdminCurations: mocks.curations }));
+/* 굿즈·IP 이동 대상은 전량이 아니라 상위 N + 큐레이션이 참조하는 것만 읽는다(규모 후속).
+   대역은 같은 판에서 같은 모양을 돌려준다. */
+vi.mock('@/lib/admin/catalog-list.server', () => ({
+  getAdminGoodOptions: async () => [{ id: 'g13', title: '홍실 아크릴 블록', archivedAt: null }],
+  getAdminGoodsByIds: async (ids: readonly string[]) =>
+    ids.includes('g13') ? [{ id: 'g13', name: '홍실 아크릴 블록', archivedAt: null }] : [],
+  getAdminIpOptionsWith: async () => [{ id: 'ip-1', title: '홍실', archivedAt: '2026-07-01T00:00:00.000Z' }],
+}));
 vi.mock('@/lib/admin/catalog.server', () => ({ getAdminCatalogRecords: mocks.catalogRecords }));
 vi.mock('@/lib/admin/notifications.server', () => ({ getAdminNotificationConsoleData: mocks.notifications }));
 vi.mock('@/lib/admin/orders.server', () => ({ getAdminOrderRecords: mocks.orders }));
@@ -107,7 +115,8 @@ describe('AdminDisplayCurationsPage', () => {
   it('쓰는 카탈로그 종류만 요청하고 다른 화면의 로더는 부르지 않는다', async () => {
     await AdminDisplayCurationsPage();
 
-    expect(mocks.catalogRecords).toHaveBeenCalledWith({ include: ['events', 'goods', 'ips'] });
+    /* 이벤트만 전량 로더로 — 굿즈·IP 는 페이지 로더가 맡는다. */
+    expect(mocks.catalogRecords).toHaveBeenCalledWith({ include: ['events'] });
     expect(mocks.notifications).not.toHaveBeenCalled();
     expect(mocks.orders).not.toHaveBeenCalled();
   });

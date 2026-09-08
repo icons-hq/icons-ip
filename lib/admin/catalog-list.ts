@@ -1,4 +1,4 @@
-import type { AdminGoodRecord, AdminIpRecord } from './catalog.server';
+import type { AdminCardRecord, AdminGoodRecord, AdminIpRecord } from './catalog.server';
 import { GOOD_TYPES } from '../goods-taxonomy';
 
 /**
@@ -461,4 +461,142 @@ export function emptyAdminIpList(filters: Pick<AdminIpListFilters, 'size'>): Adm
     page: 1,
     size: filters.size,
   };
+}
+
+/*
+ * 카드 목록 (규모 후속 — 「다른 8화면의 getAdminCatalogRecords 는 후속」).
+ *
+ * IP 목록과 같은 규칙이다: 조건은 전부 URL 에 남고, 실제 목록은 같은 계약을 인자로 받는
+ * RPC(`admin_search_cards`)가 서버에서 한 페이지만 자른다. 메모리 구현은 참조 구현이자
+ * 테스트 픽스처다 — 상태 판정·탭 건수·정렬 규칙이 1:1 이어야 한다.
+ */
+export const ADMIN_CARD_LIST_PATH = '/admin/catalog/cards';
+export const ADMIN_CARD_LIST_TABS = ['all', 'active', 'archived'] as const;
+export type AdminCardListTab = (typeof ADMIN_CARD_LIST_TABS)[number];
+export type AdminCardStatus = Exclude<AdminCardListTab, 'all'>;
+
+export const ADMIN_CARD_LIST_TAB_LABELS: Record<AdminCardListTab, string> = {
+  all: '전체',
+  active: '운영 중',
+  archived: '보관',
+};
+
+export const ADMIN_CARD_SORT_KEYS = ['id', 'name', 'no', 'rarity'] as const;
+export type AdminCardSortKey = (typeof ADMIN_CARD_SORT_KEYS)[number];
+
+export interface AdminCardListFilters {
+  tab: AdminCardListTab;
+  /** IP id. 비면 전체. */
+  ip: string;
+  /** 카드풀 id(uuid). 비면 전체. */
+  pool: string;
+  /** 등급. 비면 전체. */
+  rarity: string;
+  query: string;
+  sort: AdminCardSortKey | null;
+  dir: AdminCatalogSortDirection;
+  page: number;
+  size: number;
+  selected: string | null;
+}
+
+export interface AdminCardListRow {
+  card: AdminCardRecord;
+  tab: AdminCardStatus;
+  ipTitle: string;
+  poolName: string | null;
+}
+
+export interface AdminCardList {
+  rows: AdminCardListRow[];
+  total: number;
+  counts: Record<AdminCardListTab, number>;
+  page: number;
+  size: number;
+}
+
+const POOL_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function normalizeAdminCardListFilters(query: AdminCatalogSearchQuery): AdminCardListFilters {
+  const sort = singleParam(query.sort);
+  const pool = singleParam(query.pool);
+
+  return {
+    tab: pickOption(singleParam(query.tab), ADMIN_CARD_LIST_TABS, 'all'),
+    ip: normalizeSelected(singleParam(query.ip)) ?? '',
+    pool: POOL_ID_PATTERN.test(pool) ? pool.toLowerCase() : '',
+    rarity: singleParam(query.rarity).slice(0, 8),
+    query: singleParam(query.query).slice(0, QUERY_MAX_LENGTH),
+    sort: (ADMIN_CARD_SORT_KEYS as readonly string[]).includes(sort) ? (sort as AdminCardSortKey) : null,
+    dir: normalizeDirection(singleParam(query.dir)),
+    page: normalizePage(singleParam(query.page)),
+    size: normalizeSize(singleParam(query.size)),
+    selected: normalizeSelected(singleParam(query.selected)),
+  };
+}
+
+export function adminCardListHref(
+  filters: AdminCardListFilters,
+  patch: Partial<AdminCardListFilters> = {},
+) {
+  const next = { ...filters, ...patch };
+  return buildHref(ADMIN_CARD_LIST_PATH, {
+    tab: next.tab === 'all' ? null : next.tab,
+    ip: next.ip,
+    pool: next.pool,
+    rarity: next.rarity,
+    query: next.query,
+    sort: next.sort,
+    dir: next.sort && next.dir === 'desc' ? 'desc' : null,
+    page: next.page > 1 ? next.page : null,
+    size: next.size === ADMIN_CATALOG_DEFAULT_PAGE_SIZE ? null : next.size,
+    selected: next.selected,
+  });
+}
+
+export function adminCardStatus(card: Pick<AdminCardRecord, 'archivedAt'>): AdminCardStatus {
+  return card.archivedAt ? 'archived' : 'active';
+}
+
+function cardSortValue(row: AdminCardListRow, key: AdminCardSortKey): string | number {
+  if (key === 'no') return row.card.no ?? '';
+  return row.card[key];
+}
+
+export function buildAdminCardList(
+  cards: readonly AdminCardRecord[],
+  ips: readonly Pick<AdminIpRecord, 'id' | 'title'>[],
+  pools: readonly { id: string; name: string }[],
+  filters: AdminCardListFilters,
+): AdminCardList {
+  const ipTitles = new Map(ips.map((ip) => [ip.id, ip.title]));
+  const poolNames = new Map(pools.map((pool) => [pool.id, pool.name]));
+  const needle = filters.query.toLowerCase();
+
+  const searched: AdminCardListRow[] = [];
+  for (const card of cards) {
+    if (filters.ip && card.ipId !== filters.ip) continue;
+    if (filters.pool && card.poolId !== filters.pool) continue;
+    if (filters.rarity && card.rarity !== filters.rarity) continue;
+    if (needle && !contains(card.name, needle) && !contains(card.id, needle) && !contains(card.no ?? '', needle)) continue;
+    searched.push({
+      card,
+      tab: adminCardStatus(card),
+      ipTitle: ipTitles.get(card.ipId) ?? card.ipId,
+      poolName: card.poolId ? (poolNames.get(card.poolId) ?? null) : null,
+    });
+  }
+
+  const counts = countByTab(ADMIN_CARD_LIST_TABS.filter((tab) => tab !== 'all'), searched);
+  const tabbed = filters.tab === 'all' ? searched : searched.filter((row) => row.tab === filters.tab);
+  const sorted = filters.sort
+    ? sortRows(tabbed, filters.dir, (row) => cardSortValue(row, filters.sort as AdminCardSortKey))
+    : tabbed;
+  const paged = paginate(sorted, filters.page, filters.size);
+
+  return { rows: paged.rows, total: paged.total, counts, page: paged.page, size: filters.size };
+}
+
+export function emptyAdminCardList(filters: Pick<AdminCardListFilters, 'size'>): AdminCardList {
+  return { rows: [], total: 0, counts: { all: 0, active: 0, archived: 0 }, page: 1, size: filters.size };
 }

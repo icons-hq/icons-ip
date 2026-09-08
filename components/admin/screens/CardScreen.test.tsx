@@ -1,102 +1,70 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
+import { normalizeAdminCardListFilters, emptyAdminCardList } from '@/lib/admin/catalog-list';
 import { CardScreen } from './CardScreen';
 
+/* 규모 후속 — 카드 화면은 굿즈·IP 와 같은 규칙이다: `?selected=` 가 목록과 편집을 가른다. */
 const mocks = vi.hoisted(() => ({
-  /* props를 받는 것으로 선언해야 mock.calls[0][0]이 빈 튜플로 좁혀지지 않는다. */
   cardSection: vi.fn<(props: unknown) => null>(() => null),
+  cardConsole: vi.fn<(props: unknown) => null>(() => null),
 }));
 
-vi.mock('@/app/admin/actions', () => ({
-  upsertAdminCardAction: vi.fn(),
-}));
-vi.mock('@/components/admin/sections/CardSection', () => ({
-  CardSection: mocks.cardSection,
-}));
+vi.mock('@/app/admin/actions', () => ({ upsertAdminCardAction: vi.fn() }));
+vi.mock('@/components/admin/sections/CardSection', () => ({ CardSection: mocks.cardSection }));
+vi.mock('@/components/admin/catalog/CardConsole', () => ({ CardConsole: mocks.cardConsole }));
 
 const card: AdminCatalogRecords['cards'][number] = {
-  id: 'c100',
-  archivedAt: null,
-  ipId: 'hwasan',
-  poolId: 'pool-1',
-  name: '청명 홀로 카드',
-  no: '001/120',
-  rarity: 'HOLO',
-  bg: null,
-  imagePath: null,
+  id: 'c100', archivedAt: null, ipId: 'hwasan', poolId: 'pool-1', name: '청명 홀로 카드', no: '001/120',
+  rarity: 'HOLO', bg: null, imagePath: null,
 };
-
-const ip: AdminCatalogRecords['ips'][number] = {
-  id: 'hwasan',
-  archivedAt: null,
-  hiddenAt: null,
-  title: '화산강림',
-  sub: null,
-  verticalKey: 'webtoon',
-  tagline: null,
-  synopsis: null,
-  glyph: null,
-  bg: null,
-  imagePath: null,
-  featured: false,
-  fansCount: 0,
-};
-
 const pool: AdminCatalogRecords['cardPools'][number] = {
-  id: 'pool-1',
-  ipId: 'hwasan',
-  name: '화산강림 무상 리워드 풀',
-  activeFrom: '2026-07-15T00:00:00.000Z',
-  activeTo: null,
-  updatedAt: '2026-07-15T01:00:00.000Z',
-  status: 'active',
-  oddsConfigured: true,
-  rewardReady: true,
+  id: 'pool-1', ipId: 'hwasan', name: '화산강림 무상 리워드 풀', activeFrom: '2026-07-15T00:00:00.000Z', activeTo: null,
+  updatedAt: '2026-07-15T01:00:00.000Z', status: 'active', oddsConfigured: true, rewardReady: true,
   odds: { N: 0, R: 0.7, SR: 0, SSR: 0.2, HOLO: 0.1 },
 };
+const ipOptions = [{ id: 'hwasan', title: '화산강림', archivedAt: null }];
 
-function renderScreen(initialSelectedId?: string | null) {
+function renderScreen(query: Record<string, string> = {}, records = [card]) {
+  const filters = normalizeAdminCardListFilters(query);
   renderToStaticMarkup(
-    <CardScreen
-      initialSelectedId={initialSelectedId}
-      ips={[ip]}
-      pools={[pool]}
-      records={[card]}
-    />,
+    <CardScreen filters={filters} ipOptions={ipOptions} list={emptyAdminCardList(filters)} pools={[pool]} records={records} />,
   );
-  return mocks.cardSection.mock.calls[0][0] as unknown as {
-    ipOptions: { id: string; title: string; archivedAt: string | null }[];
-    poolOptions: { id: string; ipId: string; name: string }[];
-    selected: AdminCatalogRecords['cards'][number] | null;
-  };
 }
 
 describe('CardScreen', () => {
   beforeEach(() => {
     mocks.cardSection.mockClear();
+    mocks.cardConsole.mockClear();
   });
 
-  /*
-   * 카드풀 화면의 "카드 편집" 링크가 `?cardId=`로 넘겨준 카드는 처음부터 선택돼 있어야 한다.
-   * 라우트가 갈라진 뒤로 두 화면이 상태를 공유하지 않으므로 이 값이 유일한 연결 고리다.
-   */
-  it('딥링크로 받은 카드를 선택 레코드로 섹션에 넘긴다', () => {
-    expect(renderScreen('c100').selected).toMatchObject({ id: 'c100', name: '청명 홀로 카드' });
+  it('selected 가 없으면 목록 콘솔만 그린다', () => {
+    renderScreen();
+    expect(mocks.cardConsole).toHaveBeenCalledTimes(1);
+    expect(mocks.cardSection).not.toHaveBeenCalled();
   });
 
-  /* 목록에 없는 id로 들어와도 화면이 죽지 않고 "새 카드" 상태로 열려야 한다. */
-  it('모르는 cardId는 선택 없이 연다', () => {
-    expect(renderScreen('does-not-exist').selected).toBeNull();
-    expect(renderScreen().selected).toBeNull();
+  it('selected 가 레코드와 맞으면 편집 폼에 IP·카드풀 선택지를 좁혀 넘긴다', () => {
+    renderScreen({ selected: 'c100' });
+    const props = mocks.cardSection.mock.calls[0][0] as {
+      selected: { id: string } | null;
+      ipOptions: unknown;
+      poolOptions: { id: string; ipId: string; name: string }[];
+    };
+    expect(props.selected).toMatchObject({ id: 'c100' });
+    expect(props.ipOptions).toEqual(ipOptions);
+    expect(props.poolOptions).toEqual([{ id: 'pool-1', ipId: 'hwasan', name: '화산강림 무상 리워드 풀' }]);
   });
 
-  it('IP·카드풀 옵션을 섹션 계약대로 좁혀 넘긴다', () => {
-    const props = renderScreen('c100');
+  /* 낡은 링크는 죽지 않고 목록으로 돌아가되, 어떤 id 를 못 찾았는지 콘솔이 말한다. */
+  it('모르는 selected 는 목록으로 돌아가고 못 찾은 id 를 알린다', () => {
+    renderScreen({ selected: 'nope' }, []);
+    expect(mocks.cardSection).not.toHaveBeenCalled();
+    expect((mocks.cardConsole.mock.calls[0][0] as { missingSelection: string }).missingSelection).toBe('nope');
+  });
 
-    expect(props.ipOptions).toEqual([{ id: 'hwasan', title: '화산강림', archivedAt: null }]);
-    expect(props.poolOptions).toEqual([
-      { id: 'pool-1', ipId: 'hwasan', name: '화산강림 무상 리워드 풀' },
-    ]);
+  it('new 는 빈 등록 폼이다', () => {
+    renderScreen({ selected: 'new' }, []);
+    expect((mocks.cardSection.mock.calls[0][0] as { selected: unknown }).selected).toBeNull();
   });
 });

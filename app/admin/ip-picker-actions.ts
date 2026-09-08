@@ -37,6 +37,7 @@ export async function searchAdminIpsAction(
 export async function searchAdminGoodsAction(
   query: string,
   selectedId: string | null,
+  ipId: string | null = null,
 ): Promise<IpPickerSearchResult> {
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user || !auth.isStaff) {
@@ -44,7 +45,7 @@ export async function searchAdminGoodsAction(
   }
 
   try {
-    const options = await getAdminGoodOptions({ query: query.trim() || null, selectedId });
+    const options = await getAdminGoodOptions({ query: query.trim() || null, selectedId, ipId });
     return { options };
   } catch {
     return { options: [], error: '상품을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.' };

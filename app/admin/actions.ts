@@ -669,7 +669,8 @@ export async function upsertAdminGameAction(
   const authError = await requireStaffAction();
   if (authError) return authError;
 
-  const records = await getAdminCatalogRecords();
+  /* 게임 폼이 보는 것은 카드풀·이벤트뿐이다 — 인자 없이 부르면 굿즈·IP·카드 전량까지 딸려 온다(규모 후속). */
+  const records = await getAdminCatalogRecords({ include: ['cardPools', 'events'] });
   const result = normalizeAdminGameForm(formData, gameContextFromRecords(records));
   if (!result.ok) return { errors: result.errors };
 
