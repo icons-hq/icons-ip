@@ -242,6 +242,21 @@ select 1 / case when (
   and (select bool_and(rank = 3 and archived_at is null) from public.admin_pick_ips()) 
 ) then 1 else 0 end as assert_ip_picker_semantics;
 
+-- 바코드 축 (현업 슬라이스 5 마무리 — 「굿즈 조회: 상품번호·바코드·상품명」).
+-- 열만 있고 검색 축이 없으면 적어 둔 값이 아무 일도 하지 않는다.
+reset role;
+update public.goods set barcode = '8801234567890' where id = 'admin-cs-g-a1';
+set local role authenticated;
+select 1 / case when (
+  (select id from public.admin_search_goods(p_field => 'barcode', p_query => '8801234567890')) = 'admin-cs-g-a1'
+  -- 전체 검색에도 걸린다: 스캐너로 찍은 값을 그대로 붙여 넣는다.
+  and (select id from public.admin_search_goods(p_query => '8801234567890')) = 'admin-cs-g-a1'
+  -- 이름 축으로 고르면 바코드는 안 걸린다 — 축을 골랐으면 그 축만 본다.
+  and (select count(*) from public.admin_search_goods(p_field => 'name', p_query => '8801234567890')) = 0
+  -- 목록과 탭 집계가 같은 조건을 본다. 한쪽만 고치면 「검색하면 나오는데 탭 수는 0」이 된다.
+  and (select all_count from public.admin_goods_tab_counts(p_field => 'barcode', p_query => '8801234567890')) = 1
+) then 1 else 0 end as assert_goods_barcode_search_axis;
+
 -- anon 은 거부
 reset role;
 set local role anon;

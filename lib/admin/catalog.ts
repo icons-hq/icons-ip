@@ -437,7 +437,7 @@ export function normalizeAdminGoodForm(
     formData,
     'compareAtPrice',
     errors,
-    '정가는 0 이상의 정수여야 합니다.',
+    '소비자가는 0 이상의 정수여야 합니다.',
   );
   const notice = readGoodsNotice(formData, errors);
   const description = nullableString(formData, 'description');
@@ -449,7 +449,7 @@ export function normalizeAdminGoodForm(
   /* 정가가 판매가 이하면 0%·음수 할인율이 나온다. RPC 도 goods_compare_at_price_invalid
      로 막지만, 운영자에게는 저장 실패가 아니라 그 칸의 에러로 보여야 고칠 수 있다. */
   if (compareAtPrice !== null && !errors.compareAtPrice && compareAtPrice <= price) {
-    errors.compareAtPrice = '정가는 판매가보다 커야 해요';
+    errors.compareAtPrice = '소비자가는 판매가보다 커야 해요';
   }
   if (description && description.length > GOODS_DESCRIPTION_MAX_LENGTH) {
     errors.description = `설명은 ${GOODS_DESCRIPTION_MAX_LENGTH.toLocaleString('ko-KR')}자 이하로 입력해주세요.`;

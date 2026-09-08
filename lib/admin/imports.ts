@@ -386,7 +386,7 @@ export const IMPORT_REPORT_LABELS: Record<string, string> = {
   ip_not_found: 'IP를 찾지 못했습니다',
   invalid_type: '분류가 목록에 없습니다',
   invalid_price: '금액이 올바르지 않습니다',
-  compare_at_price_invalid: '정가는 판매가보다 커야 합니다',
+  compare_at_price_invalid: '소비자가는 판매가보다 커야 합니다',
   invalid_tax_type: '과세구분이 올바르지 않습니다',
   invalid_badge: '배지는 NEW 또는 EXCLUSIVE 만 됩니다',
   location_not_found: '출고지를 찾지 못했습니다',

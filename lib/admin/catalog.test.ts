@@ -340,11 +340,11 @@ describe('admin catalog form normalization', () => {
 
     expect(normalizeAdminGoodForm(goodForm('22000'), context)).toEqual({
       ok: false,
-      errors: { compareAtPrice: '정가는 판매가보다 커야 해요' },
+      errors: { compareAtPrice: '소비자가는 판매가보다 커야 해요' },
     });
     expect(normalizeAdminGoodForm(goodForm('26000.5'), context)).toEqual({
       ok: false,
-      errors: { compareAtPrice: '정가는 0 이상의 정수여야 합니다.' },
+      errors: { compareAtPrice: '소비자가는 0 이상의 정수여야 합니다.' },
     });
   });
 

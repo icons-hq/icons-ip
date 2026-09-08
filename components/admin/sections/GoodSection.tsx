@@ -567,7 +567,7 @@ function GoodEditor({
             <Field
               defaultValue={defaults.compareAtPrice}
               error={state.errors?.compareAtPrice}
-              label="정가 (할인 표기용, 비우면 할인 없음)"
+              label="소비자가 (할인 표기용, 비우면 할인 없음)"
               name="compareAtPrice"
               placeholder="26000"
               type="number"

@@ -87,7 +87,7 @@ export function GoodSalesPlaceholders() {
   return (
     <PlaceholderGroup
       layer="개발자 스키마 · 설계서 §3-1 상품 · §3-2 등급/프로모션"
-      note="정산과 구매 규칙은 ERP·회원 등급 객체가 있어야 붙는다. 지금은 판매가·정가·배지·운영 상태만 저장된다."
+      note="정산과 구매 규칙은 ERP·회원 등급 객체가 있어야 붙는다. 지금은 판매가·소비자가·배지·운영 상태만 저장된다."
       title="공급가 · 과세 · 구매 규칙 · 할인 혜택"
     >
       <PlaceholderField hint="ERP 원가 대사용" label="공급가" value="" />

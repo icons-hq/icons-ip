@@ -176,7 +176,7 @@ function goodsNoticeFailure(message: string): AdminCatalogActionState | null {
 /* 폼 검증을 우회해 RPC 까지 닿은 정가 오류를 운영자 언어로 옮긴다 (#326). */
 function compareAtPriceFailure(message: string): AdminCatalogActionState | null {
   return message.includes('goods_compare_at_price_invalid')
-    ? rpcFailure('정가는 판매가보다 커야 해요')
+    ? rpcFailure('소비자가는 판매가보다 커야 해요')
     : null;
 }
 

@@ -450,7 +450,7 @@ describe('admin catalog actions', () => {
     formData.set('compareAtPrice', '22000');
 
     await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
-      errors: { compareAtPrice: '정가는 판매가보다 커야 해요' },
+      errors: { compareAtPrice: '소비자가는 판매가보다 커야 해요' },
       values: expect.any(Object),
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
@@ -489,7 +489,7 @@ describe('admin catalog actions', () => {
     });
 
     await expect(upsertAdminGoodAction({}, goodForm())).resolves.toEqual({
-      errors: { form: '정가는 판매가보다 커야 해요' },
+      errors: { form: '소비자가는 판매가보다 커야 해요' },
       values: expect.any(Object),
     });
   });

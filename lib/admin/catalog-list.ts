@@ -145,7 +145,7 @@ export const ADMIN_GOOD_SALE_STATE_FILTERS = [
 ] as const;
 export type AdminGoodSaleStateFilter = (typeof ADMIN_GOOD_SALE_STATE_FILTERS)[number];
 
-export const ADMIN_GOOD_SEARCH_FIELDS_LIST = ['all', 'name', 'id', 'ip'] as const;
+export const ADMIN_GOOD_SEARCH_FIELDS_LIST = ['all', 'name', 'id', 'ip', 'barcode'] as const;
 export type AdminGoodSearchField = (typeof ADMIN_GOOD_SEARCH_FIELDS_LIST)[number];
 
 export const ADMIN_GOOD_SEARCH_FIELDS: { value: AdminGoodSearchField; label: string }[] = [
@@ -153,6 +153,7 @@ export const ADMIN_GOOD_SEARCH_FIELDS: { value: AdminGoodSearchField; label: str
   { value: 'name', label: '굿즈 이름' },
   { value: 'id', label: 'ID' },
   { value: 'ip', label: 'IP' },
+  { value: 'barcode', label: '바코드' },
 ];
 
 export const ADMIN_GOOD_SORT_KEYS = ['id', 'name', 'ip', 'price', 'stockQty'] as const;
@@ -265,10 +266,13 @@ function matchesGoodSearch(
   const byName = () => contains(good.name, needle);
   const byId = () => contains(good.id, needle);
   const byIp = () => contains(ipTitle, needle) || contains(good.ipId, needle);
+  const byBarcode = () => contains(good.barcode ?? '', needle);
   if (field === 'name') return byName();
   if (field === 'id') return byId();
   if (field === 'ip') return byIp();
-  return byName() || byId() || byIp();
+  if (field === 'barcode') return byBarcode();
+  /* 바코드도 전체 검색에 걸린다 — 스캐너로 찍은 값을 그대로 붙여 넣는다. */
+  return byName() || byId() || byIp() || byBarcode();
 }
 
 function goodSortValue(row: AdminGoodListRow, key: AdminGoodSortKey): string | number {
