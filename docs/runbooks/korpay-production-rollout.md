@@ -4,6 +4,45 @@
 목적별 공개 활성화** 순서로 운영한다. MID, MKEY, paymentKey, TID, 승인번호, 원문 응답,
 자격 증명 fingerprint는 문서·issue·PR·로그·명령 인자에 기록하지 않는다.
 
+## 현재 상태 — 판매 제한 상품 전용 대기 (2026-09-01~)
+
+> **이 runbook의 gate는 닫힌 대기 상태다.** 기본 PG 지위는 토스페이먼츠 주문서형
+> 결제(구 결제위젯 v2)로 이관됐다(에픽
+> [#384](https://github.com/icons-hq/icons-ip/issues/384), 정본 스펙
+> [#398](https://github.com/icons-hq/icons-ip/issues/398)). 신규 굿즈·티켓 결제의
+> 기본 provider는 `toss`이고, 토스가 취급하지 않는 **판매 제한 상품**(성인(19금),
+> 추후 랜덤박스)이 담긴 주문만 코페이로 파생된다.
+>
+> 아래 절차는 삭제하지 않는다 — 19+ 오픈 트랙(NICE 성인인증 #209·#210 · 노출 게이트 ·
+> 코페이 수동 취소 운영 콘솔)이 갖춰진 뒤 코페이 gate를 판매 제한 상품 전용으로
+> 재개방할 때 그대로 재사용한다(에픽 #384 시퀀스 ⑥).
+>
+> 토스 심사·라이브 전환 절차는 [Toss Production rollout runbook](./toss-production-rollout.md)에 있다.
+
+전환 뒤에도 유지되는 사실:
+
+- 코페이 자격 증명(`KORPAY_MID`·`KORPAY_KEY`)과 어댑터는 제거하지 않는다. 진행 중이던
+  코페이 결제의 callback drain은 rollout gate가 아니라 자격 증명 기준으로 열려 있어,
+  gate를 닫아도 known order+nonce는 계속 claim·confirm·finalize된다.
+- 판매 제한 상품은 성인인증이 붙기 전까지 스토어에서 비노출이고 주문 생성이 서버에서
+  차단되므로, 코페이 gate가 닫힌 지금 코페이로 파생되는 신규 주문은 만들어지지 않는다.
+- 코페이에는 취소·상태 조회 API가 없다는 제약이 그대로다. 아래 "모호 결제와 취소",
+  수동 복구 seam, #208 운영 경계는 재개방 시점에도 같은 조건으로 적용된다.
+
+### 2026-09-01 굿즈 gate 폐쇄 readback (#385)
+
+- 2026-09-01 기본 PG 재전환 결정으로 굿즈 공개 gate를 닫기로 확정했다. 근거는 첫 실판매가
+  약 2개월 뒤로 확정돼 수동 취소밖에 안 되는 결제를 공개로 열어 둘 효익이 없다는 것이다.
+  이는 아래 `2026-08-18` 예외 전환(승인 경계 밖 운영 예외)의 복원이며, 그 예외 기록과
+  잔여 위험은 이력으로 보존한다.
+- 폐쇄 실행은 human 티켓
+  [#385](https://github.com/icons-hq/icons-ip/issues/385)가 수행한다: Vercel Production
+  `KORPAY_ORDER_CHECKOUT_ENABLED`를 `false`로 변경(또는 제거 — 기본값이 closed)한 뒤
+  아래 "Rollback과 callback drain" 순서대로 새 Production deployment를 만들고 boolean
+  readback까지 확인한다. 티켓 gate와 두 canary는 이미 닫힌 상태를 유지한다.
+- **실행 일시·배포 SHA·Actions run·readback 결과는 #385가 수행한 뒤 여기에 채운다.**
+  기록 형식은 아래 `2026-08-18` readback과 같게 하고, 원문 provider 식별자는 남기지 않는다.
+
 ## 확인된 범위
 
 - 2026-08-14 사용자 확인으로 Korpay 계약은 완료됐고 현재 운영 자격 증명을 사용할 수
