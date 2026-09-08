@@ -147,7 +147,7 @@ PGHOST=127.0.0.1 PGPORT=55433 PGUSER=postgres PGDATABASE=postgres \
 | S1 입력 파일 | 통과: 현재 양식으로 30상품·60옵션, 의도한 오류 2행, 초안·공개 파일 재파싱 | `scripts/admin-ops-rehearsal.test.mjs` |
 | Excel 경계 | 통과: 부분 성공, 재시도 멱등, 현재 재고 보존, 판매중지 변경 충돌, 이미지 작업 직렬화 | `supabase/tests/goods_excel_imports.sql`, `supabase/tests/goods_excel_imports_transactions.py` |
 | 로컬 브라우저 S1 | 에이전트 기술 연습: **25분 7.098초**. 30상품·60옵션, 실패 2행만 재업로드, 무수정 왕복 30상품 변경 없음, 30상품 공개·대표 공개 상세 확인 | `rehearsal-s1/browser-timing.json` |
-| 로컬 브라우저 S2 | 이번 최종 실측표에는 별도 실행 증거 미추가. 운영팀 수행은 미실행 | 입력 보존·복구의 자동 테스트와 사람 리허설을 구분 |
+| 로컬 브라우저 S2 | 에이전트 기술 연습: **207.283초**(입력 기준선 이후). 이미지 형식 오류·서버 ID 오류·실제 이탈 및 새로고침 복구에서 의도하지 않은 입력값 차이 **0건**. 유효 이미지 업로드·초안 저장 후 새 폼8값 비움·복구 배너0, 저장 IP 재열기 값 일치. 실제 운영팀 수행 미실행 | `rehearsal-s2/browser-timing.json`, `rehearsal-s2/persisted-db-proof.json` |
 | 로컬 브라우저 S3 | 에이전트 기술 연습: **175.258초**, 100주문·100배송 건·100행 내보내기·100건 배송완료. 운송장 선행 0 보존, 메일 100건 대기·외부 발송 0. 일반 UI 활성화 **10회로 환산**했으나 파일 선택·열기 2회는 CLI `filechooser.setFiles` 전송으로 대신했으므로 사람이 실제 10번 클릭한 결과가 아님. 합성 회신 사용·실제 WMS 파일 미사용. 제공된 원본의 헤더·구조 대조 및 전용 매핑은 완료했으며 값 의미·창고 인수 확인은 별도 진행 | `rehearsal-s3/browser-timing.json` |
 | 로컬 브라우저 S4 | 에이전트 기술 연습: 문의 화면 이동 **0회**, 연결 주문 `00000010`과 배송 이력을 보며 내부 메모·담당자 변경·답변 저장, 답변 초안 보존 확인. 합성 주문의 결제 원장·클레임은 비어 있어 “이력 없음”만 확인했으며 실제 PG 승인·클레임 처리 검증은 아님 | `final-browser/s4-actions.log` |
 | 로컬 실시간 문의·모바일 키보드 | 관리자 답변이 고객 위젯에 **1,798ms**로 표시됨, 새로고침 클릭 0. 390×844에서 Tab 15회 포커스가 대화상자 안에 유지되고 Esc 닫기·호출 버튼으로 포커스 복귀 확인 | `realtime-widget/live-reply.log`, `realtime-widget/mobile-keyboard.log` |

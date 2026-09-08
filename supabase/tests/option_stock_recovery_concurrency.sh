@@ -88,7 +88,7 @@ competing=$!
 wait_for_state "${test_prefix}-reship-competing" Lock "$competing" "$work_dir/reship-competing.log"
 wait "$holder"; wait "$replay"
 if wait "$competing"; then echo 'last option shipped twice' >&2; exit 1; fi
-rg -q 'stock_out_of_range' "$work_dir/reship-competing.log"
+grep -Fq 'stock_out_of_range' "$work_dir/reship-competing.log"
 psql_exec -q <<SQL >"$work_dir/reship-assert.log"
 select 1 / case when (select stock_qty from public.goods_variants where id='${red}')=0
 and (select stock_qty from public.goods_variants where id='${blue}')=1
@@ -125,7 +125,7 @@ adjuster=$!
 wait_for_state "${test_prefix}-stale-adjustment" Lock "$adjuster" "$work_dir/stale-adjustment.log"
 wait "$holder"; wait "$replay"
 if wait "$adjuster"; then echo 'stale option quantity accepted' >&2; exit 1; fi
-rg -q 'stock_changed' "$work_dir/stale-adjustment.log"
+grep -Fq 'stock_changed' "$work_dir/stale-adjustment.log"
 psql_exec -q <<SQL >"$work_dir/refund-assert.log"
 select 1 / case when (select stock_qty from public.goods_variants where id='${red}')=1
 and (select stock_qty from public.goods_variants where id='${blue}')=1
