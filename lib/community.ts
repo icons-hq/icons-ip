@@ -1,4 +1,3 @@
-import type { Good } from './data';
 
 export type CommunityPostStatus = 'visible' | 'hidden';
 /* DB의 report_target enum과 같은 목록이어야 한다. 'review'는 굿즈 리뷰다(#254) —
@@ -74,7 +73,6 @@ export interface CommunitySnapshot {
   source: 'supabase' | 'mock';
   channels: CommunityChannel[];
   hasFandomFollows?: boolean;
-  goods: Good[];
   posts: CommunityFeedPost[];
   trending: string[];
 }

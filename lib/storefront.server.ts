@@ -261,3 +261,26 @@ export async function getStorefrontIpsByIds(ids: readonly string[]): Promise<Ip[
   const toImage = imageResolver(supabase);
   return rows<IpRow>(ipsResult, 'storefront ips by ids').map((row) => toIp(row, byKey, toImage));
 }
+
+/**
+ * 준 id 중 **공개 카탈로그에 살아 있는** 것만 돌려준다.
+ *
+ * 폼 검증이 「전부 읽고 대조」하지 않게 하려는 것이다 — 채널 하나를 확인하자고 IP 전량을
+ * 읽으면 카탈로그가 커질수록 글쓰기가 느려지고, 1,000개를 넘는 순간 **그 뒤의 IP 는 고를 수
+ * 없는 채널**이 된다(있는데 없다고 답한다).
+ *
+ * 조회량은 준 id 수만큼이다. 보관된 IP 는 빠진다 — 새 글의 채널로 고를 수 없어야 한다.
+ */
+export async function getActiveIpIds(ids: readonly string[]): Promise<Set<string>> {
+  const unique = [...new Set(ids)].filter(Boolean);
+  if (unique.length === 0) return new Set();
+
+  const supabase = await createClient();
+  const result = await supabase
+    .from('ips')
+    .select('id')
+    .is('archived_at', null)
+    .in('id', unique);
+
+  return new Set(rows<{ id: string }>(result, 'active ip ids').map((row) => row.id));
+}

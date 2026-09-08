@@ -2,7 +2,8 @@ import 'server-only';
 
 import { blockedUserIds } from '@/lib/blocks.server';
 import { DATA, type Ip } from '@/lib/data';
-import { getCatalogSnapshot } from '@/lib/catalog';
+import { getCatalogSnapshot, getCatalogSource } from '@/lib/catalog';
+import { getStorefrontIpsByIds, getStorefrontIpsPage } from '@/lib/storefront.server';
 import { postgrestInList } from '@/lib/supabase/postgrest';
 import { createClient } from '@/lib/supabase/server';
 import {
@@ -391,19 +392,28 @@ async function getSupabaseTrendingTags(supabase: CommunitySupabaseClient) {
   }
 }
 
+/*
+ * 채널 칩으로 한 번에 그리는 IP 수 (규모 후속).
+ *
+ * 카탈로그 전량을 읽던 자리다 — IP 가 1,000개를 넘으면 PostgREST 가 **말없이** 잘라
+ * 그 뒤의 채널은 없는 것이 됐다. 칩 줄은 어차피 이만큼 이상을 보여줄 수 없으니, 잘리는
+ * 자리를 **우리가 정한다**. 팬덤 피드는 팔로우한 IP 만 보므로 이 상한을 타지 않는다.
+ */
+const COMMUNITY_CHANNEL_LIMIT = 60;
+
 export async function getCommunitySnapshot(options: CommunitySnapshotOptions = {}): Promise<CommunitySnapshot> {
-  const catalog = await getCatalogSnapshot();
   const viewerId = options.viewerId ?? null;
   const isStaff = options.isStaff ?? false;
   const feed = options.feed ?? 'all';
+  const fandom = feed === 'fandom';
 
-  if (catalog.source === 'mock') {
-    const fandom = feed === 'fandom';
+  /* 목업은 메모리라 「전량」이 곧 전부다 — 절단이 없다. */
+  if (getCatalogSource() === 'mock') {
+    const catalog = await getCatalogSnapshot();
     return {
       source: 'mock',
       channels: fandom ? [] : catalog.ips.map(channelFromIp),
       ...(fandom ? { hasFandomFollows: false } : {}),
-      goods: catalog.goods,
       posts: fandom ? [] : mockPosts(catalog.ips),
       trending: DATA.TRENDING,
     };
@@ -411,22 +421,23 @@ export async function getCommunitySnapshot(options: CommunitySnapshotOptions = {
 
   const supabase = await createClient();
   const trendingPromise = getSupabaseTrendingTags(supabase);
-  const feedIpIds = feed === 'fandom' ? await followedIpIds(supabase, viewerId) : null;
+  const feedIpIds = fandom ? await followedIpIds(supabase, viewerId) : null;
+  /* 팬덤 피드는 팔로우한 것만, 전체 피드는 한 페이지만 읽는다. */
+  const channelIps = feedIpIds
+    ? await getStorefrontIpsByIds(feedIpIds)
+    : (await getStorefrontIpsPage({ limit: COMMUNITY_CHANNEL_LIMIT })).ips;
+
   const [posts, trending] = await Promise.all([
     feedIpIds && feedIpIds.length === 0
       ? Promise.resolve([])
-      : getSupabasePosts(supabase, catalog.ips, viewerId, isStaff, feedIpIds),
+      : getSupabasePosts(supabase, channelIps, viewerId, isStaff, feedIpIds),
     trendingPromise,
   ]);
-  const channels = feedIpIds
-    ? catalog.ips.filter((ip) => feedIpIds.includes(ip.id))
-    : catalog.ips;
 
   return {
     source: 'supabase',
-    channels: channels.map(channelFromIp),
+    channels: channelIps.map(channelFromIp),
     ...(feedIpIds ? { hasFandomFollows: feedIpIds.length > 0 } : {}),
-    goods: catalog.goods,
     posts,
     trending,
   };

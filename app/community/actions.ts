@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { notFound, redirect } from 'next/navigation';
-import { getCatalogSnapshot } from '@/lib/catalog';
+import { getActiveIpIds } from '@/lib/storefront.server';
 import {
   ACCOUNT_SUSPENDED_PATH,
   isAccountSuspended,
@@ -192,8 +192,10 @@ export async function createCommunityPostAction(
   const next = readNext(formData);
   const user = await requireActiveCommunityUser(next);
 
-  const catalog = await getCatalogSnapshot();
-  const normalized = normalizeCommunityPostForm(formData, new Set(catalog.ips.map((ip) => ip.id)));
+  /* 고른 채널 하나만 확인한다 — 전량을 읽어 대조하면 카탈로그가 클수록 글쓰기가 느려지고,
+     1,000개를 넘는 순간 그 뒤의 IP 는 「없는 채널」이 된다. */
+  const submittedIpId = String(formData.get('ipId') ?? '').trim();
+  const normalized = normalizeCommunityPostForm(formData, await getActiveIpIds([submittedIpId]));
 
   if (!normalized.ok) return { errors: normalized.errors };
 
@@ -261,14 +263,13 @@ export async function editCommunityPostAction(
   const next = readNext(formData);
   const user = await requireActiveCommunityUser(next);
 
-  const catalog = await getCatalogSnapshot();
   const supabase = await createClient();
   if (!await isCommunityWriteEnabled(supabase, 'postEdit')) {
     return { errors: { form: COMMUNITY_WRITES_DISABLED_MESSAGE } };
   }
 
   const postId = normalizeCommunityUuid(formData.get('postId'));
-  const allowedIpIds = new Set(catalog.ips.map((ip) => ip.id));
+  const allowedIpIds = await getActiveIpIds([String(formData.get('ipId') ?? '').trim()]);
 
   if (postId) {
     const { data: currentPost, error: currentPostError } = await supabase

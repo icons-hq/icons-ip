@@ -23,7 +23,6 @@ vi.mock('@/components/ui/Icon', () => ({ Icon: () => <span aria-hidden /> }));
 const snapshot: CommunitySnapshot = {
   source: 'supabase',
   channels: [{ id: 'hwasan', title: '화산강림', sub: '리디 · 로판', color: '#8B5CFF' }],
-  goods: [],
   posts: [],
   trending: [],
 };

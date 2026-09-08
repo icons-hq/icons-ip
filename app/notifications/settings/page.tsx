@@ -4,7 +4,7 @@ import { setIpNotificationPreferencesAction } from '@/app/ip/actions';
 import { NotificationSettings } from '@/components/screens/NotificationSettings';
 import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
-import { getCatalogSnapshot } from '@/lib/catalog';
+import { getStorefrontIpsByIds } from '@/lib/storefront.server';
 import { getIpNotificationPreferencesForUser } from '@/lib/ip-follow.server';
 
 const SETTINGS_PATH = '/notifications/settings';
@@ -30,12 +30,13 @@ export default async function Page({
     redirect(onboardingPath(SETTINGS_PATH));
   }
 
-  const [rows, catalog, query] = await Promise.all([
+  const [rows, query] = await Promise.all([
     getIpNotificationPreferencesForUser(auth.user.id),
-    getCatalogSnapshot(),
     searchParams,
   ]);
-  const titles = new Map(catalog.ips.map((ip) => [ip.id, ip.title]));
+  /* 이름이 필요한 것은 **이 사람이 가진 행**뿐이다 — 카탈로그 전량을 읽을 이유가 없다. */
+  const ips = await getStorefrontIpsByIds(rows.map((row) => row.ipId));
+  const titles = new Map(ips.map((ip) => [ip.id, ip.title]));
   const preferences = rows.map((row) => ({
     ...row,
     title: titles.get(row.ipId) ?? row.ipId,

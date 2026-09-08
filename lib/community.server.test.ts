@@ -12,6 +12,14 @@ vi.mock('@/lib/data', async () => await import('./data'));
 vi.mock('@/lib/community', async () => await import('./community'));
 vi.mock('@/lib/catalog', () => ({
   getCatalogSnapshot: () => mocks.catalog,
+  getCatalogSource: () => mocks.catalog?.source ?? 'supabase',
+}));
+/* 채널은 이제 카탈로그 전량이 아니라 스토어프론트 헬퍼에서 온다(규모 후속).
+   테스트 판은 그대로 두고 입구만 바꾼다 — 무엇이 바뀌었는지가 이 두 줄에 보인다. */
+vi.mock('@/lib/storefront.server', () => ({
+  getStorefrontIpsPage: async () => ({ ips: mocks.catalog?.ips ?? [], total: mocks.catalog?.ips.length ?? 0 }),
+  getStorefrontIpsByIds: async (ids: readonly string[]) =>
+    (mocks.catalog?.ips ?? []).filter((ip) => ids.includes(ip.id)),
 }));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => mocks.client,

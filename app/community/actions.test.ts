@@ -58,6 +58,8 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
+  /* 액션이 스토어프론트 헬퍼(IP 존재 확인)를 거치면서 함께 딸려 온다. */
+  unstable_cache: (fn: unknown) => fn,
 }));
 vi.mock('next/navigation', () => ({
   notFound: () => {

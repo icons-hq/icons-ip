@@ -6,8 +6,8 @@ import Page, { metadata } from './page';
 const mocks = vi.hoisted(() => ({
   action: vi.fn(),
   auth: null as unknown as CurrentAuthState,
-  catalog: { ips: [{ id: 'hwasan', title: '화산강림' }] },
-  getCatalogSnapshot: vi.fn(),
+  ips: [{ id: 'hwasan', title: '화산강림' }],
+  getIpsByIds: vi.fn(),
   getPreferences: vi.fn(),
   onboarded: true,
   screen: vi.fn<(props: Record<string, unknown>) => null>(() => null),
@@ -24,7 +24,8 @@ vi.mock('@/lib/auth/onboarding', () => ({
   onboardingPath: (next: string) => `/onboarding?next=${encodeURIComponent(next)}`,
 }));
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: async () => mocks.auth }));
-vi.mock('@/lib/catalog', () => ({ getCatalogSnapshot: mocks.getCatalogSnapshot }));
+/* 이름이 필요한 것은 이 사람이 가진 행뿐이다 — 카탈로그 전량 로더를 쓰지 않는다(규모 후속). */
+vi.mock('@/lib/storefront.server', () => ({ getStorefrontIpsByIds: mocks.getIpsByIds }));
 vi.mock('@/lib/ip-follow.server', () => ({
   getIpNotificationPreferencesForUser: mocks.getPreferences,
 }));
@@ -53,8 +54,8 @@ function onboardedAuth(): CurrentAuthState {
 
 beforeEach(() => {
   mocks.auth = onboardedAuth();
-  mocks.getCatalogSnapshot.mockReset();
-  mocks.getCatalogSnapshot.mockResolvedValue(mocks.catalog);
+  mocks.getIpsByIds.mockReset();
+  mocks.getIpsByIds.mockResolvedValue(mocks.ips);
   mocks.getPreferences.mockReset();
   mocks.getPreferences.mockResolvedValue([
     { ipId: 'hwasan', notifyDrops: true, notifyEvents: false },
@@ -84,7 +85,7 @@ describe('/notifications/settings page', () => {
       'NEXT_REDIRECT:/login?next=%2Fnotifications%2Fsettings',
     );
     expect(mocks.getPreferences).not.toHaveBeenCalled();
-    expect(mocks.getCatalogSnapshot).not.toHaveBeenCalled();
+    expect(mocks.getIpsByIds).not.toHaveBeenCalled();
   });
 
   it('requires onboarding before reading preference data', async () => {
@@ -100,6 +101,8 @@ describe('/notifications/settings page', () => {
     renderToStaticMarkup(await Page({ searchParams: Promise.resolve({}) }));
 
     expect(mocks.getPreferences).toHaveBeenCalledWith(USER_ID);
+    /* 조회량은 가진 행 수만큼이다. */
+    expect(mocks.getIpsByIds).toHaveBeenCalledWith(['hwasan', 'retired-ip']);
     expect(mocks.screen).toHaveBeenCalledWith({
       action: mocks.action,
       error: false,
