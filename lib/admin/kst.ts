@@ -59,3 +59,23 @@ export function kstDateTimeToIso(
   }
   return parsed.toISOString();
 }
+
+const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * `date` 입력(`YYYY-MM-DD`)을 KST 하루 경계의 ISO 로 옮긴다.
+ *
+ * `boundary: 'end'` 는 **다음 날 0시**를 돌려준다. 조회 기간의 끝은 어디서나
+ * 「미만」으로 비교하는데, 고른 날 0시를 그대로 넘기면 그 날 하루가 통째로 빠진다 —
+ * 운영자는 9/30 까지 봤다고 믿고 9/30 을 못 본다.
+ */
+export function kstDateToIso(raw: string, boundary: 'start' | 'end' = 'start'): string | null {
+  const match = DATE_PATTERN.exec(raw.trim());
+  if (!match) return null;
+
+  const [, year, month, day] = match;
+  const parsed = new Date(`${year}-${month}-${day}T00:00:00+09:00`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (boundary === 'end') parsed.setUTCDate(parsed.getUTCDate() + 1);
+  return parsed.toISOString();
+}

@@ -90,8 +90,8 @@ select 1 / case when not has_function_privilege('anon', 'public.apply_cart_coupo
   and has_function_privilege('authenticated', 'public.apply_cart_coupon(uuid)', 'execute')
   and not has_function_privilege('anon', 'public.clear_cart_coupon()', 'execute')
   and has_function_privilege('authenticated', 'public.clear_cart_coupon()', 'execute')
-  and not has_function_privilege('anon', 'public.admin_upsert_coupon(text, text, text, integer, integer, integer, timestamptz, timestamptz, integer, text, public.loyalty_grade, text)', 'execute')
-  and has_function_privilege('authenticated', 'public.admin_upsert_coupon(text, text, text, integer, integer, integer, timestamptz, timestamptz, integer, text, public.loyalty_grade, text)', 'execute')
+  and not has_function_privilege('anon', 'public.admin_upsert_coupon(text, text, text, integer, integer, integer, timestamptz, timestamptz, integer, text, public.loyalty_grade, text, text, text)', 'execute')
+  and has_function_privilege('authenticated', 'public.admin_upsert_coupon(text, text, text, integer, integer, integer, timestamptz, timestamptz, integer, text, public.loyalty_grade, text, text, text)', 'execute')
 then 1 else 0 end as assert_coupon_rpc_acl;
 
 -- 주문당 applied redemption은 1장 — 스키마가 강제한다.

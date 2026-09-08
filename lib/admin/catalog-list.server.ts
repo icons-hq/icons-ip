@@ -241,6 +241,57 @@ export async function getAdminIpOptions(
   }));
 }
 
+/** 굿즈 선택지. IP 선택기와 같은 모양으로 돌려준다 — 선택기 구현은 하나다. */
+export const ADMIN_GOOD_PICK_LIMIT = 50;
+
+interface GoodPickRow {
+  id: string;
+  name: string;
+  ip_title: string | null;
+  archived_at: string | null;
+}
+
+/*
+ * 굿즈 선택지 (현업 슬라이스 4 — 「이 상품을 산 고객만」 쿠폰).
+ *
+ * `admin_search_goods` 에는 `p_selected_id` 가 없다. 그래서 지금 값이 검색어에 안 걸리면
+ * 목록에서 사라지고, 저장할 때 그 값을 되살릴 수 없다 — IP 선택기가 selectedId 를 항상
+ * 끼워 넣는 이유와 같은 함정이다. 여기서는 빠졌을 때만 한 건 더 읽어 맨 앞에 붙인다.
+ */
+export async function getAdminGoodOptions(
+  options: { selectedId?: string | null; query?: string | null } = {},
+): Promise<AdminCurationTargetRecord[]> {
+  const supabase = await createClient();
+  const result = await supabase.rpc('admin_search_goods', {
+    p_tab: 'all',
+    p_field: 'all',
+    p_query: options.query || null,
+    p_sort: 'id',
+    p_dir: 'asc',
+    p_limit: ADMIN_GOOD_PICK_LIMIT,
+    p_offset: 0,
+  });
+  const rows = rpcRows<GoodPickRow>(result, 'admin good options');
+  const picked = rows.map((row) => ({
+    id: row.id,
+    title: row.ip_title ? `${row.name} · ${row.ip_title}` : row.name,
+    archivedAt: row.archived_at,
+  }));
+
+  const selectedId = options.selectedId || null;
+  if (!selectedId || picked.some((option) => option.id === selectedId)) return picked;
+
+  const { data } = await supabase
+    .from('goods')
+    .select('id,name,archived_at')
+    .eq('id', selectedId)
+    .maybeSingle();
+  if (!data) return picked;
+
+  const row = data as { id: string; name: string; archived_at: string | null };
+  return [{ id: row.id, title: row.name, archivedAt: row.archived_at }, ...picked];
+}
+
 export async function getAdminGoodRecord(id: string): Promise<AdminGoodRecord | null> {
   const supabase = await createClient();
   const { data, error } = await supabase.from('goods').select(ADMIN_GOOD_SELECT).eq('id', id).maybeSingle();

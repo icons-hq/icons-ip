@@ -65,6 +65,8 @@ async function run_upsertAdminCouponAction(_state: AdminCouponActionState,
     target_issue_limit: result.value.issueLimit,
     target_status: result.value.status,
     target_grade_benefit: result.value.gradeBenefit,
+    target_target_kind: result.value.targetKind,
+    target_target_good_id: result.value.targetGoodId,
     target_previous_code: result.value.previousCode,
   });
 

@@ -1,7 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import type { AdminCouponActionState } from '@/app/admin/coupon-actions';
-import type { AdminCouponRecord } from '@/lib/admin/coupons';
+import { GoodPicker } from '@/components/admin/catalog/IpPicker';
+import { COUPON_TARGET_KINDS, couponTargetLabel, type AdminCouponRecord } from '@/lib/admin/coupons';
+import type { AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
 import { LOYALTY_GRADES, loyaltyBasisSummary, loyaltyGradeLabel } from '@/lib/loyalty';
 import { Field, FormShell, RecordList, SelectField } from '../fields';
 import { SeededForm } from '@/components/admin/form-seed';
@@ -38,20 +41,31 @@ function couponListLabel(coupon: AdminCouponRecord) {
     ? `${coupon.discountValue.toLocaleString('ko-KR')}원`
     : `${coupon.discountValue}%`;
   const state = coupon.status === 'archived' ? ' · 보관' : '';
-  return `${coupon.code} · ${coupon.name} · ${benefit}${state}`;
+  const target = coupon.targetKind === 'all' ? '' : ` · ${couponTargetLabel(coupon)}`;
+  return `${coupon.code} · ${coupon.name} · ${benefit}${target}${state}`;
 }
 
 function CouponEditor({
   action,
+  goodOptions,
   pending,
   selected,
   state,
 }: {
   action: (formData: FormData) => void;
+  goodOptions: readonly AdminCurationTargetRecord[];
   pending: boolean;
   selected: AdminCouponRecord | null;
   state: AdminCouponActionState;
 }) {
+  /* 「이 상품을 산 고객만」일 때만 상품 선택기를 연다. 늘 열어 두면 조건과 상관없는 값이
+     남아, 나중에 조건을 바꾼 사람이 안 지운 채 저장한다. */
+  const [targetKind, setTargetKind] = useState(
+    state.values?.targetKind ?? selected?.targetKind ?? 'all',
+  );
+  const selectedGoodId = state.values?.targetGoodId ?? selected?.targetGoodId ?? '';
+  const selectedGood = goodOptions.find((option) => option.id === selectedGoodId) ?? null;
+
   return (
     <SeededForm values={state.values} action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 16 }}>
       <input name="previousCode" type="hidden" value={selected?.code ?? ''} />
@@ -151,6 +165,33 @@ function CouponEditor({
           ))}
         </SelectField>
       </div>
+      <div className="col" style={{ gap: 10 }}>
+        <SelectField
+          defaultValue={selected?.targetKind ?? 'all'}
+          error={state.errors?.targetKind}
+          label="받을 수 있는 사람 (발급 시점에 한 번 판정)"
+          name="targetKind"
+          onChange={(event) => setTargetKind(event.target.value)}
+        >
+          {COUPON_TARGET_KINDS.map((entry) => (
+            <option key={entry.value} value={entry.value}>{entry.label}</option>
+          ))}
+        </SelectField>
+        {targetKind === 'bought_good' ? (
+          <GoodPicker
+            defaultOptions={goodOptions}
+            error={state.errors?.targetGoodId}
+            label="기준 상품"
+            name="targetGoodId"
+            required
+            selected={selectedGood}
+          />
+        ) : null}
+        <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
+          자격은 <strong>받는 순간</strong>에만 봅니다 — 이미 받은 쿠폰은 조건에서 벗어나도
+          그대로 쓸 수 있습니다.
+        </p>
+      </div>
       {selected && (
         <p className="muted" style={{ fontSize: 12, margin: 0 }}>
           발급 {selected.issuedCount.toLocaleString('ko-KR')}장
@@ -166,6 +207,7 @@ function CouponEditor({
 
 export function CouponSection({
   action,
+  goodOptions = [],
   onSelect,
   pending,
   records,
@@ -173,6 +215,7 @@ export function CouponSection({
   state,
 }: {
   action: (formData: FormData) => void;
+  goodOptions?: readonly AdminCurationTargetRecord[];
   onSelect: (record: { id: string } | null) => void;
   pending: boolean;
   records: AdminCouponRecord[];
@@ -197,6 +240,7 @@ export function CouponSection({
         />
         <CouponEditor
           action={action}
+          goodOptions={goodOptions}
           key={selected ? selected.code : 'new-coupon'}
           pending={pending}
           selected={selected}

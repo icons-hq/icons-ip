@@ -85,3 +85,45 @@ describe('normalizeAdminCouponForm', () => {
     if (good.ok) expect(good.value.gradeBenefit).toBe('gold');
   });
 });
+
+describe('normalizeAdminCouponForm 타겟 (현업 슬라이스 4)', () => {
+  it('대상을 안 고르면 「누구나」다', () => {
+    const result = normalizeAdminCouponForm(form(valid));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.targetKind).toBe('all');
+    expect(result.value.targetGoodId).toBeNull();
+  });
+
+  it('「이 상품을 산 고객만」인데 상품이 비면 막는다', () => {
+    const result = normalizeAdminCouponForm(form({ ...valid, targetKind: 'bought_good' }));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.targetGoodId).toBeTruthy();
+  });
+
+  /* 조건을 바꾸고 상품 칸을 안 지운 채 저장하면 DB 체크가 거절한다 —
+     화면이 먼저 접어야 「저장이 안 된다」로 끝나지 않는다. */
+  it('대상이 상품이 아니면 남아 있던 상품 값을 버린다', () => {
+    const result = normalizeAdminCouponForm(form({
+      ...valid,
+      targetKind: 'first_purchase',
+      targetGoodId: 'g-leftover',
+    }));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.targetKind).toBe('first_purchase');
+    expect(result.value.targetGoodId).toBeNull();
+  });
+
+  it('모르는 대상 값은 거른다', () => {
+    const result = normalizeAdminCouponForm(form({ ...valid, targetKind: 'vip_only' }));
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.targetKind).toBeTruthy();
+  });
+});

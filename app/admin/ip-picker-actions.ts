@@ -1,6 +1,6 @@
 'use server';
 
-import { getAdminIpOptions } from '@/lib/admin/catalog-list.server';
+import { getAdminGoodOptions, getAdminIpOptions } from '@/lib/admin/catalog-list.server';
 import type { IpPickerOption } from '@/lib/admin/ip-picker';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 
@@ -30,5 +30,23 @@ export async function searchAdminIpsAction(
     return { options };
   } catch {
     return { options: [], error: 'IP를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.' };
+  }
+}
+
+/** 굿즈 선택기의 검색 한 번 (현업 슬라이스 4). IP 쪽과 같은 계약이다 — 던지지 않고 메시지로 답한다. */
+export async function searchAdminGoodsAction(
+  query: string,
+  selectedId: string | null,
+): Promise<IpPickerSearchResult> {
+  const auth = await getCurrentAdminAuthState();
+  if (!auth.isConfigured || !auth.user || !auth.isStaff) {
+    return { options: [], error: '관리자 권한이 필요합니다.' };
+  }
+
+  try {
+    const options = await getAdminGoodOptions({ query: query.trim() || null, selectedId });
+    return { options };
+  } catch {
+    return { options: [], error: '상품을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.' };
   }
 }

@@ -22,7 +22,17 @@ export interface AdminCouponRecord {
   usedCount: number;
   status: 'active' | 'archived';
   gradeBenefit: string | null;
+  /* 받을 수 있는 사람. 판정은 **발급 시점에 한 번**이다(현업 슬라이스 4). */
+  targetKind: string;
+  targetGoodId: string | null;
 }
+
+export const COUPON_TARGET_KINDS = [
+  { value: 'all', label: '누구나' },
+  { value: 'first_purchase', label: '첫 구매 고객만' },
+  { value: 'repeat_purchase', label: '재구매 고객만' },
+  { value: 'bought_good', label: '특정 상품을 산 고객만' },
+] as const;
 
 export interface AdminCouponFormValue {
   previousCode: string | null;
@@ -37,6 +47,8 @@ export interface AdminCouponFormValue {
   issueLimit: number | null;
   status: 'active' | 'archived';
   gradeBenefit: string | null;
+  targetKind: string;
+  targetGoodId: string | null;
 }
 
 export type AdminCouponFormResult =
@@ -127,6 +139,16 @@ export function normalizeAdminCouponForm(formData: FormData): AdminCouponFormRes
     errors.endsAt = '종료 시각은 시작 시각보다 뒤여야 합니다.';
   }
 
+  const targetKind = readString(formData, 'targetKind') || 'all';
+  const targetGoodId = readString(formData, 'targetGoodId');
+  if (!COUPON_TARGET_KINDS.some((entry) => entry.value === targetKind)) {
+    errors.targetKind = '받을 수 있는 사람을 선택해주세요.';
+  }
+  /* 「이 상품을 산 사람」인데 상품이 없으면 아무도 못 받는 쿠폰이 된다. */
+  if (targetKind === 'bought_good' && !targetGoodId) {
+    errors.targetGoodId = '기준이 될 상품을 골라주세요.';
+  }
+
   if (Object.keys(errors).length) return { ok: false, errors };
 
   return {
@@ -144,6 +166,22 @@ export function normalizeAdminCouponForm(formData: FormData): AdminCouponFormRes
       issueLimit,
       status: status as 'active' | 'archived',
       gradeBenefit: rawGradeBenefit || null,
+      targetKind,
+      targetGoodId: targetKind === 'bought_good' ? targetGoodId : null,
     },
   };
+}
+
+/** 목록·조회 결과에 쓰는 타겟 한 줄. 모르는 값은 원문을 그대로 보여준다 — 조용히 「누구나」로
+ *  접으면 실제로는 걸려 있는 조건을 없다고 읽는다. */
+export function couponTargetLabel(coupon: {
+  targetKind: string;
+  targetGoodId: string | null;
+}): string {
+  const known = COUPON_TARGET_KINDS.find((entry) => entry.value === coupon.targetKind);
+  if (!known) return coupon.targetKind;
+  if (coupon.targetKind === 'bought_good') {
+    return `${known.label} (${coupon.targetGoodId ?? '상품 미지정'})`;
+  }
+  return known.label;
 }

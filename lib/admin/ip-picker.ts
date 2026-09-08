@@ -13,6 +13,8 @@ export interface IpPickerOption {
 }
 
 export const IP_PICKER_RECENT_KEY = 'admin:ip-picker:recent';
+/** 굿즈 선택기의 최근 목록. IP 와 **다른 칸**이다 — 섞이면 고를 수 없는 항목이 먼저 나온다. */
+export const GOOD_PICKER_RECENT_KEY = 'admin:good-picker:recent';
 export const IP_PICKER_RECENT_LIMIT = 8;
 /** 한 번에 그리는 줄 수. 서버 검색 상한(`ADMIN_IP_PICK_LIMIT`)과 같다. */
 export const IP_PICKER_PAGE_LIMIT = 50;

@@ -1,9 +1,14 @@
 'use client';
 
 import { useRef, useState, useTransition } from 'react';
-import { searchAdminIpsAction } from '@/app/admin/ip-picker-actions';
+import {
+  searchAdminGoodsAction,
+  searchAdminIpsAction,
+  type IpPickerSearchResult,
+} from '@/app/admin/ip-picker-actions';
 import { ErrorText } from '@/components/admin/fields';
 import {
+  GOOD_PICKER_RECENT_KEY,
   IP_PICKER_RECENT_KEY,
   buildPickerOptions,
   parseRecentIps,
@@ -14,6 +19,31 @@ import {
 import { useBrowserStoredValue, writeBrowserStoredValue } from './browser-store';
 
 const SEARCH_DEBOUNCE_MS = 220;
+
+/** 무엇을 고르는 선택기인가. 검색·최근 목록·문구만 다르고 **동작은 하나**다. */
+interface PickerKind {
+  emptyResultText: string;
+  idleHint: string;
+  recentKey: string;
+  search: (query: string, selectedId: string | null) => Promise<IpPickerSearchResult>;
+  searchPlaceholder: string;
+}
+
+const IP_KIND: PickerKind = {
+  emptyResultText: '해당하는 IP가 없습니다.',
+  idleHint: '최근 고른 IP 가 먼저 나옵니다.',
+  recentKey: IP_PICKER_RECENT_KEY,
+  search: searchAdminIpsAction,
+  searchPlaceholder: 'IP 이름 또는 코드로 검색',
+};
+
+const GOOD_KIND: PickerKind = {
+  emptyResultText: '해당하는 상품이 없습니다.',
+  idleHint: '최근 고른 상품이 먼저 나옵니다.',
+  recentKey: GOOD_PICKER_RECENT_KEY,
+  search: searchAdminGoodsAction,
+  searchPlaceholder: '상품 이름 또는 코드로 검색',
+};
 
 interface IpPickerProps {
   /** 서버가 그려 준 첫 후보(상위 N + 지금 값). JS 가 죽어도 이 목록으로 고를 수 있다. */
@@ -40,31 +70,41 @@ interface IpPickerProps {
  *
  * 검색은 서버가 한다 — 1만 개를 내려받아 거르면 화면이 먼저 죽는다.
  */
-export function IpPicker({
+export function IpPicker(props: IpPickerProps) {
+  return <CatalogPicker {...props} kind={IP_KIND} />;
+}
+
+/** 굿즈 선택기 (현업 슬라이스 4). 「이 상품을 산 고객만」 쿠폰이 기준 상품을 여기서 고른다. */
+export function GoodPicker(props: IpPickerProps) {
+  return <CatalogPicker {...props} kind={GOOD_KIND} />;
+}
+
+function CatalogPicker({
   defaultOptions,
   disabled,
   emptyLabel,
   error,
+  kind,
   label,
   name,
   onValueChange,
   required,
   selected,
   value,
-}: IpPickerProps) {
+}: IpPickerProps & { kind: PickerKind }) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<readonly IpPickerOption[]>(defaultOptions);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const recents = parseRecentIps(useBrowserStoredValue(IP_PICKER_RECENT_KEY));
+  const recents = parseRecentIps(useBrowserStoredValue(kind.recentKey));
   const options = buildPickerOptions({ query, results, recents, selected });
   const errorId = error ? `${name}-error` : undefined;
 
   const runSearch = (next: string) => {
     startTransition(async () => {
-      const result = await searchAdminIpsAction(next, selected?.id ?? null);
+      const result = await kind.search(next, selected?.id ?? null);
       setSearchError(result.error ?? null);
       /* 실패했으면 목록을 비우지 않는다 — 보고 있던 후보가 사라지는 게 더 나쁘다. */
       if (!result.error) setResults(result.options);
@@ -80,7 +120,7 @@ export function IpPicker({
   const onPick = (option: IpPickerOption | null) => {
     onValueChange?.(option?.id ?? '');
     if (option) {
-      writeBrowserStoredValue(IP_PICKER_RECENT_KEY, serializeRecentIps(rememberRecentIp(recents, option)));
+      writeBrowserStoredValue(kind.recentKey, serializeRecentIps(rememberRecentIp(recents, option)));
     }
   };
 
@@ -91,13 +131,14 @@ export function IpPicker({
         aria-label={`${label} 검색`}
         className="admin-field-control"
         onChange={(event) => onQueryChange(event.target.value)}
-        placeholder="IP 이름 또는 코드로 검색"
+        placeholder={kind.searchPlaceholder}
         type="search"
         value={query}
       />
       <IpPickerOptions
         controlled={value !== undefined}
         emptyLabel={emptyLabel}
+        emptyResultText={kind.emptyResultText}
         errorId={errorId}
         hasError={Boolean(error)}
         name={name}
@@ -111,7 +152,7 @@ export function IpPicker({
           ? searchError
           : query
             ? `검색 결과 ${options.length}개${options.length >= 50 ? ' — 더 좁혀서 검색하세요' : ''}`
-            : '최근 고른 IP 가 먼저 나옵니다.'}
+            : kind.idleHint}
       </p>
       <ErrorText id={errorId}>{error}</ErrorText>
     </fieldset>
@@ -121,6 +162,7 @@ export function IpPicker({
 function IpPickerOptions({
   controlled,
   emptyLabel,
+  emptyResultText,
   errorId,
   hasError,
   name,
@@ -131,6 +173,7 @@ function IpPickerOptions({
 }: {
   controlled: boolean;
   emptyLabel?: string;
+  emptyResultText: string;
   errorId?: string;
   hasError: boolean;
   name: string;
@@ -163,7 +206,7 @@ function IpPickerOptions({
           <input
             checked={controlled ? selectedId === option.id : undefined}
             defaultChecked={controlled ? undefined : selectedId === option.id}
-            /* 보관된 IP 는 새로 고를 수 없다 — 지금 그 값인 레코드에서만 남는다. */
+            /* 보관된 항목은 새로 고를 수 없다 — 지금 그 값인 레코드에서만 남는다. */
             disabled={Boolean(option.archivedAt) && option.id !== selectedId}
             name={name}
             onChange={() => onPick(option)}
@@ -175,7 +218,7 @@ function IpPickerOptions({
           <span className="mono admin-ip-picker-id">{option.id}</span>
         </label>
       ))}
-      {options.length === 0 ? <p className="admin-ip-picker-hint">해당하는 IP가 없습니다.</p> : null}
+      {options.length === 0 ? <p className="admin-ip-picker-hint">{emptyResultText}</p> : null}
     </div>
   );
 }
