@@ -137,15 +137,47 @@ export function CardDetail({
   );
 }
 
+/** 서버가 센 도감 수치(규모 후속). 목록은 페이지로 잘라도 이 수는 전량 기준이다. */
+export interface BinderOverviewProps {
+  totalCards: number;
+  ownedCards: number;
+  totalIps: number;
+  ownedIps: number;
+  holoCards: number;
+  holoOwned: number;
+  ssrCards: number;
+}
+
+/* 데이터만 넘긴다 — 서버 컴포넌트가 클라이언트 컴포넌트에 함수를 넘기면 렌더가 죽는다.
+   링크는 여기서 basePath 로 만든다. */
+export interface BinderPaging {
+  page: number;
+  pageCount: number;
+  basePath: string;
+}
+
+function binderPageHref(paging: BinderPaging, page: number) {
+  return page > 1 ? `${paging.basePath}?page=${page}` : paging.basePath;
+}
+
 export function Binder({
   cardRewardsEnabled,
   catalog,
+  ipProgress = null,
+  overview = null,
   ownedCardIds = null,
+  paging = null,
 }: {
   cardRewardsEnabled: boolean;
   catalog: Pick<CatalogSnapshot, 'source' | 'ips' | 'cards'>;
+  /** IP 별 「보유/전체」. 없으면 화면에 있는 카드로 센다(목업). */
+  ipProgress?: ReadonlyMap<string, { total: number; owned: number }> | null;
+  /** 전량 기준 수치. 없으면 화면에 있는 카드로 센다(목업). */
+  overview?: BinderOverviewProps | null;
   /** supabase 모드 본인 보유(user_cards) — null = 미로그인/미설정(공개 도감) */
   ownedCardIds?: string[] | null;
+  /** 목록이 페이지로 잘렸을 때의 이동. 없으면 한 페이지가 전부다. */
+  paging?: BinderPaging | null;
 }) {
   const hasOwnership = catalog.source === 'mock' || ownedCardIds !== null;
   const [own, setOwn] = useState<'all' | 'owned' | 'wish'>('all');
@@ -166,26 +198,39 @@ export function Binder({
   if (hasOwnership && own === 'wish') list = list.filter((c) => !c.owned);
   if (rar !== 'all') list = list.filter((c) => c.rarity === rar);
 
+  /* 수치는 **전량 기준**이어야 한다. 목록이 페이지로 잘린 뒤 화면에 있는 카드로 세면
+     첫 페이지만 센 숫자가 된다 — 서버가 준 값이 있으면 그것을, 없으면(목업) 화면에서 센다. */
   const ownedCards = hasOwnership ? cards.filter((c) => c.owned) : [];
-  const total = cards.length;
-  const pct = hasOwnership && total ? Math.round((ownedCards.length / total) * 100) : 0;
+  const counts: BinderOverviewProps = overview ?? {
+    totalCards: cards.length,
+    ownedCards: ownedCards.length,
+    totalIps: new Set(cards.map((c) => c.ip)).size,
+    ownedIps: new Set(ownedCards.map((c) => c.ip)).size,
+    holoCards: cards.filter((c) => c.rarity === 'HOLO').length,
+    holoOwned: ownedCards.filter((c) => c.rarity === 'HOLO').length,
+    ssrCards: cards.filter((c) => c.rarity === 'SSR').length,
+  };
+  const total = counts.totalCards;
+  const pct = hasOwnership && total ? Math.round((counts.ownedCards / total) * 100) : 0;
 
   const stats: [string, string][] = hasOwnership
     ? [
-        [String(ownedCards.length), '보유 카드'],
-        [String(total - ownedCards.length), '미보유'],
-        [String(new Set(ownedCards.map((c) => c.ip)).size), '보유 IP'],
-        [String(ownedCards.filter((c) => c.rarity === 'HOLO').length), 'HOLO'],
+        [String(counts.ownedCards), '보유 카드'],
+        [String(total - counts.ownedCards), '미보유'],
+        [String(counts.ownedIps), '보유 IP'],
+        [String(counts.holoOwned), 'HOLO'],
       ]
     : [
         [String(total), '카드 종수'],
-        [String(new Set(cards.map((c) => c.ip)).size), 'IP'],
-        [String(cards.filter((c) => c.rarity === 'HOLO').length), 'HOLO'],
-        [String(cards.filter((c) => c.rarity === 'SSR').length), 'SSR'],
+        [String(counts.totalIps), 'IP'],
+        [String(counts.holoCards), 'HOLO'],
+        [String(counts.ssrCards), 'SSR'],
       ];
 
   const collectionOf = (card: Card) => {
     if (!hasOwnership) return '—';
+    const known = ipProgress?.get(card.ip);
+    if (known) return `${known.owned}/${known.total}`;
     const sameIp = cards.filter((c) => c.ip === card.ip);
     const ownedSameIp = sameIp.filter((c) => c.owned);
     return `${ownedSameIp.length}/${sameIp.length}`;
@@ -216,7 +261,7 @@ export function Binder({
                 <span className="wc-binder__progress-fill" style={{ width: `${pct}%` }} />
               </span>
               <strong className="wc-binder__progress-pct">{pct}%</strong>
-              <span className="wc-binder__progress-note">{ownedCards.length} / {total}장 보유</span>
+              <span className="wc-binder__progress-note">{counts.ownedCards} / {total}장 보유</span>
             </div>
           ) : (
             <p className="wc-binder__signin-note" style={{ margin: '16px 0 0', fontSize: 13, color: 'var(--wc-ink-tertiary)' }}>
@@ -324,6 +369,15 @@ export function Binder({
               description="Supabase 카탈로그 seed 또는 admin 등록 후 도감에 공개됩니다."
               title="등록된 카드가 아직 없습니다"
             />
+          )}
+
+          {/* 페이지 이동 — 목록이 잘렸을 때만 그린다(규모 후속). 필터는 현재 페이지 안에서만 걸린다. */}
+          {paging && paging.pageCount > 1 && (
+            <nav aria-label="도감 페이지" className="wc-binder__paging" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16, marginTop: 24, fontSize: 13 }}>
+              {paging.page > 1 ? <Link href={binderPageHref(paging, paging.page - 1)}>이전</Link> : <span aria-hidden />}
+              <span style={{ color: 'var(--wc-ink-tertiary)' }}>{paging.page} / {paging.pageCount} 페이지</span>
+              {paging.page < paging.pageCount ? <Link href={binderPageHref(paging, paging.page + 1)}>다음</Link> : <span aria-hidden />}
+            </nav>
           )}
 
           {/* CTA row — 헤어라인 박스 링크 밴드(박스 전체가 링크) */}

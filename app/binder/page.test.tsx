@@ -5,13 +5,22 @@ import Page from './page';
 const mocks = vi.hoisted(() => ({
   cardRewardsEnabled: false,
   getBinderCatalogOverlay: vi.fn(),
-  getCatalogSnapshot: vi.fn(),
+  getCardsPage: vi.fn(),
+  getOverview: vi.fn(),
+  getIpProgress: vi.fn(),
 }));
 
 vi.mock('@/components/screens/Binder', () => ({ Binder: () => null }));
 vi.mock('@/lib/catalog', () => ({
   getBinderCatalogOverlay: mocks.getBinderCatalogOverlay,
-  getCatalogSnapshot: mocks.getCatalogSnapshot,
+  getCatalogSource: () => 'supabase',
+}));
+/* 목록은 서버가 자른 한 페이지, 수치는 서버가 전량을 센다(규모 후속) — 전량 스냅샷을 쓰지 않는다. */
+vi.mock('@/lib/storefront.server', () => ({
+  STOREFRONT_CARD_PAGE_SIZE: 120,
+  getStorefrontCardsPage: mocks.getCardsPage,
+  getBinderOverview: mocks.getOverview,
+  getBinderIpProgress: mocks.getIpProgress,
 }));
 vi.mock('@/lib/card-rewards/gate.server', () => ({
   readCardRewardsEnabled: () => mocks.cardRewardsEnabled,
@@ -51,16 +60,15 @@ const archivedIp: Ip = {
 
 describe('binder page', () => {
   beforeEach(() => {
-    mocks.getCatalogSnapshot.mockReset();
     mocks.getBinderCatalogOverlay.mockReset();
-    mocks.getCatalogSnapshot.mockResolvedValue({
-      source: 'supabase',
-      verticals: [],
-      ips: [],
-      goods: [],
-      cards: [activeCard],
-      events: [],
+    mocks.getCardsPage.mockReset();
+    mocks.getCardsPage.mockResolvedValue({ cards: [activeCard], ips: [], total: 1 });
+    mocks.getOverview.mockReset();
+    mocks.getOverview.mockResolvedValue({
+      totalCards: 1, ownedCards: 0, totalIps: 1, ownedIps: 0, holoCards: 0, holoOwned: 0, ssrCards: 0, signedIn: false,
     });
+    mocks.getIpProgress.mockReset();
+    mocks.getIpProgress.mockResolvedValue(new Map());
   });
 
   it('merges owned archived cards into the authenticated binder only', async () => {
@@ -79,6 +87,8 @@ describe('binder page', () => {
     expect(props.catalog.cards.map((card) => card.id)).toEqual(['c-active', 'c-archived']);
     expect(props.catalog.ips).toEqual([archivedIp]);
     expect(props.ownedCardIds).toEqual(['c-active', 'c-archived']);
+    /* IP 별 진행은 화면에 오른 IP(보관된 것 포함)만 묻는다. */
+    expect(mocks.getIpProgress).toHaveBeenCalledWith(['ip-archived']);
     expect((page.props as { cardRewardsEnabled: boolean }).cardRewardsEnabled).toBe(false);
   });
 
@@ -93,5 +103,18 @@ describe('binder page', () => {
 
     expect(props.catalog.cards).toEqual([activeCard]);
     expect(props.ownedCardIds).toBeNull();
+  });
+
+  /* 목록은 페이지로 잘린다 — 2페이지를 열면 offset 으로 묻고, 페이지 수는 total 로 센다. */
+  it('reads one page of the catalog and derives paging from the server total', async () => {
+    mocks.getBinderCatalogOverlay.mockResolvedValue(null);
+    mocks.getCardsPage.mockResolvedValue({ cards: [activeCard], ips: [], total: 250 });
+
+    const page = await Page({ searchParams: Promise.resolve({ page: '2' }) });
+    const props = page.props as { paging: { page: number; pageCount: number; basePath: string } };
+
+    expect(mocks.getCardsPage).toHaveBeenCalledWith({ limit: 120, offset: 120 });
+    /* 함수는 넘기지 않는다 — 서버→클라이언트 경계에서 렌더가 죽는다. 데이터만 넘긴다. */
+    expect(props.paging).toEqual({ page: 2, pageCount: 3, basePath: '/binder' });
   });
 });

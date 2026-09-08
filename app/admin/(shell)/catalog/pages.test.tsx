@@ -44,8 +44,9 @@ vi.mock('@/lib/admin/guard.server', () => ({
 vi.mock('@/lib/admin/catalog.server', () => ({
   getAdminCatalogRecords: mocks.catalogRecords,
 }));
-vi.mock('@/lib/catalog', () => ({
-  getCatalogSnapshot: mocks.catalogSnapshot,
+/* 미리보기 IP 는 선택기에 오른 id 로만 읽는다(규모 후속) — 전량 스냅샷을 쓰지 않는다. */
+vi.mock('@/lib/storefront.server', () => ({
+  getStorefrontIpsByIds: mocks.catalogSnapshot,
 }));
 /* 굿즈·IP 목록은 전량 로더가 아니라 RPC 페이지 로더를 쓴다(1,000행 절단 회피). */
 vi.mock('@/lib/admin/catalog-list.server', () => ({
@@ -134,7 +135,7 @@ describe('어드민 카탈로그 라우트', () => {
     mocks.catalogSnapshot.mockReset();
     mocks.catalogSnapshot.mockImplementation(async () => {
       mocks.order.push('snapshot');
-      return { verticals: [], ips: [] };
+      return [];
     });
     mocks.drawTicketGrants.mockReset();
     mocks.drawTicketGrants.mockImplementation(async () => {
@@ -221,7 +222,8 @@ describe('어드민 카탈로그 라우트', () => {
 
     expect(mocks.goodRecord).toHaveBeenCalledWith('g100');
     expect(mocks.goodList).not.toHaveBeenCalled();
-    expect(mocks.catalogSnapshot).toHaveBeenCalledWith({ previewDefaultSource: 'supabase' });
+    /* 선택기에 오른 id 만 묻는다. */
+    expect(mocks.catalogSnapshot).toHaveBeenCalledWith(expect.any(Array));
     expect(mocks.ipOptions).toHaveBeenCalledWith({ selectedId: 'hwasan' });
     expect(screen.props.records).toEqual([goodRecord]);
     expect(screen.props.list).toMatchObject({ rows: [], total: 0 });

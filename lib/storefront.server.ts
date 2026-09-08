@@ -2,8 +2,8 @@ import 'server-only';
 
 import { createServerClient } from '@supabase/ssr';
 import { unstable_cache } from 'next/cache';
-import { toEvent, toGood, toIp, type EventRow, type GoodRow, type IpRow } from './catalog';
-import type { FandomEvent, Good, Ip, Vertical } from './data';
+import { toCard, toEvent, toGood, toIp, type CardRow, type EventRow, type GoodRow, type IpRow } from './catalog';
+import type { Card, FandomEvent, Good, Ip, Vertical } from './data';
 import { GOOD_TYPES } from './goods-taxonomy';
 import { normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from './media';
 import type { ShopFacetOption, ShopListQuery, ShopListResult, ShopView } from './shop-catalog';
@@ -336,4 +336,132 @@ export async function getStorefrontEventsByIds(
   const ipsById = new Map(ips.map((ip) => [ip.id, ip]));
   const toImage = imageResolver(supabase);
   return { events: data.map((row) => toEvent(row, ipsById, toImage)), ips };
+}
+
+/** 도감 한 페이지 크기. 화면이 「더 보기」로 다음 페이지를 연다. */
+export const STOREFRONT_CARD_PAGE_SIZE = 120;
+
+export interface StorefrontCardsPage {
+  cards: Card[];
+  ips: Ip[];
+  total: number;
+}
+
+/**
+ * 도감 카드 한 페이지 (규모 후속).
+ *
+ * 순서는 서버가 낸다(IP → 카드 자연 순서). IP 는 이 페이지에 실린 카드의 것만 읽는다.
+ * 보유 여부는 여기서 칠하지 않는다 — 보유 id 는 부르는 쪽이 따로 가져와 겹친다.
+ */
+export async function getStorefrontCardsPage(
+  options: { ipIds?: readonly string[] | null; rarity?: string | null; limit?: number; offset?: number } = {},
+): Promise<StorefrontCardsPage> {
+  const supabase = await createClient();
+  const result = await supabase.rpc('storefront_cards_page', {
+    p_ip_ids: options.ipIds?.length ? [...options.ipIds] : null,
+    p_rarity: options.rarity ?? null,
+    p_limit: options.limit ?? STOREFRONT_CARD_PAGE_SIZE,
+    p_offset: options.offset ?? 0,
+  });
+
+  const data = rows<CardRow & { total_count: number | string }>(result, 'storefront cards page');
+  const ips = await getStorefrontIpsByIds(data.map((row) => row.ip_id));
+  const toImage = imageResolver(supabase);
+  return {
+    cards: data.map((row) => toCard(row, toImage)),
+    ips,
+    total: data.length ? toCount(data[0].total_count) : 0,
+  };
+}
+
+/**
+ * id 로 카드 — 카드팩 라인업·보유 카드처럼 「이 카드들」만 필요할 때.
+ * 보관된 카드도 돌아온다: 보유 행·라인업이 가리키는 칸이 비면 안 된다.
+ */
+export async function getStorefrontCardsByIds(ids: readonly string[]): Promise<{ cards: Card[]; ips: Ip[] }> {
+  const unique = [...new Set(ids)].filter(Boolean);
+  if (unique.length === 0) return { cards: [], ips: [] };
+
+  const supabase = await createClient();
+  const result = await supabase.rpc('storefront_cards_by_ids', { p_ids: unique });
+  const data = rows<CardRow>(result, 'storefront cards by ids');
+  const ips = await getStorefrontIpsByIds(data.map((row) => row.ip_id));
+  const toImage = imageResolver(supabase);
+  return { cards: data.map((row) => toCard(row, toImage)), ips };
+}
+
+export interface BinderOverview {
+  totalCards: number;
+  ownedCards: number;
+  totalIps: number;
+  ownedIps: number;
+  holoCards: number;
+  holoOwned: number;
+  ssrCards: number;
+  signedIn: boolean;
+}
+
+/** 바인더 머리의 수치. 전량을 세는 일은 서버가 한다 — 페이지만 세면 첫 페이지 숫자가 된다. */
+export async function getBinderOverview(): Promise<BinderOverview> {
+  const supabase = await createClient();
+  const result = await supabase.rpc('storefront_binder_overview');
+  const row = rows<Record<string, number | string | boolean>>(result, 'storefront binder overview')[0];
+  const n = (key: string) => toCount((row?.[key] ?? 0) as number | string);
+  return {
+    totalCards: n('total_cards'),
+    ownedCards: n('owned_cards'),
+    totalIps: n('total_ips'),
+    ownedIps: n('owned_ips'),
+    holoCards: n('holo_cards'),
+    holoOwned: n('holo_owned'),
+    ssrCards: n('ssr_cards'),
+    signedIn: row?.signed_in === true,
+  };
+}
+
+/** IP 별 「보유/전체」. 카드 상세가 「3/12」 를 적는 데 쓴다. */
+export async function getBinderIpProgress(
+  ipIds: readonly string[],
+): Promise<Map<string, { total: number; owned: number }>> {
+  const unique = [...new Set(ipIds)].filter(Boolean);
+  if (unique.length === 0) return new Map();
+
+  const supabase = await createClient();
+  const result = await supabase.rpc('storefront_binder_ip_progress', { p_ip_ids: unique });
+  return new Map(
+    rows<{ ip_id: string; total_cards: number | string; owned_cards: number | string }>(
+      result,
+      'storefront binder ip progress',
+    ).map((row) => [row.ip_id, { total: toCount(row.total_cards), owned: toCount(row.owned_cards) }]),
+  );
+}
+
+/**
+ * 굿즈 검색 한 페이지 (규모 후속).
+ *
+ * 순위(이름 → IP 이름 → 유형·배지)와 자르기를 서버가 한다. 전에는 굿즈 전량을 메모리에서
+ * 훑어 매겼다 — 검색 한 번에 카탈로그 전부를 나르는 셈이고, 1,000개를 넘으면 그 뒤의
+ * 상품은 검색되지 않는 상품이 된다.
+ */
+export async function searchStorefrontGoods(
+  query: string,
+  page: { limit: number; offset: number },
+): Promise<{ goods: Good[]; ips: Ip[]; total: number }> {
+  const trimmed = query.trim();
+  if (!trimmed) return { goods: [], ips: [], total: 0 };
+
+  const supabase = await createClient();
+  const result = await supabase.rpc('storefront_goods_search', {
+    p_query: trimmed,
+    p_limit: page.limit,
+    p_offset: page.offset,
+  });
+  const data = rows<GoodRow & { filtered_total: number | string }>(result, 'storefront goods search');
+  const ips = await getStorefrontIpsByIds(data.map((row) => row.ip_id));
+  const toImage = imageResolver(supabase);
+  return {
+    goods: data.map((row) => toGood(row, toImage)),
+    ips,
+    total: data.length ? toCount(data[0].filtered_total) : 0,
+  };
 }

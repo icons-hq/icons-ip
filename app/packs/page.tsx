@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import { CardPacks } from '@/components/screens/CardPacks';
-import { getCatalogSnapshot } from '@/lib/catalog';
+import { getCatalogSource } from '@/lib/catalog';
+import { getStorefrontCardsByIds } from '@/lib/storefront.server';
 import { getDrawTicketInventory } from '@/lib/draw-tickets';
 import { readCardRewardsEnabled } from '@/lib/card-rewards/gate.server';
 
@@ -20,6 +21,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function Page() {
   if (!await getCardRewardsEnabled()) notFound();
-  const [catalog, inventory] = await Promise.all([getCatalogSnapshot(), getDrawTicketInventory()]);
-  return <CardPacks catalog={catalog} inventory={inventory} />;
+  /* 카드 전량이 아니라 **보유 팩의 라인업**만 읽는다(규모 후속). 히어로는 라인업에서 고른다. */
+  const inventory = await getDrawTicketInventory();
+  const lineup = await getStorefrontCardsByIds(inventory.groups.flatMap((group) => group.lineupCardIds));
+  return <CardPacks catalog={{ source: getCatalogSource(), ...lineup }} inventory={inventory} />;
 }

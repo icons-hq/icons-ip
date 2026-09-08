@@ -129,7 +129,7 @@ export interface GoodRow {
   allow_bank_transfer: boolean | null;
 }
 
-interface CardRow {
+export interface CardRow {
   id: string;
   ip_id: string;
   name: string;
@@ -503,7 +503,7 @@ export function toGood(row: GoodRow, imageUrlForPath: (path: string) => string):
   };
 }
 
-function toCard(row: CardRow, imageUrlForPath: (path: string) => string): Card {
+export function toCard(row: CardRow, imageUrlForPath: (path: string) => string): Card {
   return {
     id: row.id,
     ip: row.ip_id,

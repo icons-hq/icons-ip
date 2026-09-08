@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { catalogContextFromSnapshot } from '@/lib/admin/catalog';
 import {
   adjustAdminStockAction,
   endAdminGameAction,
@@ -47,6 +48,37 @@ vi.mock('@/lib/admin/catalog.server', () => ({
 }));
 vi.mock('@/lib/catalog', () => ({
   getCatalogSnapshot: mocks.getCatalogSnapshot,
+}));
+/* 검증 컨텍스트는 이제 제출된 id 만 조회한다(규모 후속). 테스트 판(catalog·adminRecords)은
+   그대로 두고, 그 판에서 같은 규칙으로 컨텍스트를 만들어 준다 — 각 테스트 본문은 손대지 않는다. */
+vi.mock('@/lib/admin/validation-context.server', () => ({
+  loadAdminValidationContext: async (formData: FormData, kind: string) => {
+    const catalog = (await mocks.getCatalogSnapshot({ previewDefaultSource: 'supabase' })) as CatalogSnapshot;
+    const records = (await mocks.getAdminCatalogRecords()) as Record<string, { id: string }[]>;
+    const context = catalogContextFromSnapshot(catalog);
+    const ipIds = new Set(context.ipIds);
+    const eventIds = new Set(context.eventIds);
+    const goodIpById = new Map(context.goodIpById);
+    const id = String(formData.get('id') ?? '').trim();
+    const find = <T,>(key: string) => (records[key] ?? []).find((r) => r.id === id) as T | undefined;
+    if (kind === 'good' || kind === 'card' || kind === 'cardPool') {
+      const current = find<{ ipId?: string }>(kind === 'good' ? 'goods' : kind === 'card' ? 'cards' : 'cardPools');
+      if (current?.ipId) ipIds.add(current.ipId);
+    } else if (kind === 'rewardPolicy') {
+      const current = find<{ targetIpId?: string; targetGoodId?: string | null }>('rewardPolicies');
+      if (current?.targetIpId) {
+        ipIds.add(current.targetIpId);
+        if (current.targetGoodId) goodIpById.set(current.targetGoodId, current.targetIpId);
+      }
+    } else if (kind === 'event') {
+      const current = find<{ ipId?: string | null }>('events');
+      if (current?.ipId) ipIds.add(current.ipId);
+    } else if (kind === 'ticketType') {
+      const current = find<{ eventId?: string }>('ticketTypes');
+      if (current?.eventId) eventIds.add(current.eventId);
+    }
+    return { ...context, ipIds, eventIds, goodIpById };
+  },
 }));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({
@@ -434,7 +466,6 @@ describe('admin catalog actions', () => {
       target_previous_id: null,
       target_compare_at_price: 26000,
     });
-    expect(mocks.getCatalogSnapshot).toHaveBeenCalledWith({ previewDefaultSource: 'supabase' });
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip/hwasan');

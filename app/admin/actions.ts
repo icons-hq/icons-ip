@@ -4,7 +4,6 @@ import { revalidatePath, updateTag } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { after } from 'next/server';
 import {
-  catalogContextFromSnapshot,
   gameContextFromRecords,
   normalizeAdminCardForm,
   normalizeAdminCardPoolForm,
@@ -23,6 +22,10 @@ import {
 } from '@/lib/admin/catalog';
 import { getAdminCatalogRecords } from '@/lib/admin/catalog.server';
 import {
+  loadAdminValidationContext,
+  type AdminValidationRecordKind,
+} from '@/lib/admin/validation-context.server';
+import {
   normalizeAdminHideCommentForm,
   normalizeAdminHidePostForm,
   normalizeAdminReportStatusForm,
@@ -30,7 +33,6 @@ import {
 import { keepSubmittedValues } from '@/lib/admin/form-values';
 import { normalizeAdminUserRoleForm } from '@/lib/admin/roles';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
-import { getCatalogSnapshot } from '@/lib/catalog';
 import { STOREFRONT_GOODS_CACHE_TAG, STOREFRONT_IPS_CACHE_TAG } from '@/lib/storefront';
 import { sendRestockAlertEmails } from '@/lib/email/transactional.server';
 import { createClient } from '@/lib/supabase/server';
@@ -222,60 +224,9 @@ function archivedCatalogFailure(message: string): AdminCatalogActionState | null
     : null;
 }
 
-function getAdminValidationCatalog() {
-  return getCatalogSnapshot({ previewDefaultSource: 'supabase' });
-}
-
-type AdminValidationRecordKind = 'good' | 'card' | 'cardPool' | 'rewardPolicy' | 'event' | 'ticketType';
-
-function formString(formData: FormData, key: string) {
-  const value = formData.get(key);
-  return typeof value === 'string' ? value.trim() : '';
-}
-
-async function getAdminValidationContext(
-  formData: FormData,
-  kind: AdminValidationRecordKind,
-) {
-  const [catalog, records] = await Promise.all([
-    getAdminValidationCatalog(),
-    getAdminCatalogRecords(),
-  ]);
-  const activeContext = catalogContextFromSnapshot(catalog);
-  const context = {
-    ...activeContext,
-    eventIds: new Set(activeContext.eventIds),
-    goodIpById: new Map(activeContext.goodIpById),
-    ipIds: new Set(activeContext.ipIds),
-  };
-  const id = formString(formData, 'id');
-
-  if (kind === 'good') {
-    const current = records.goods.find((record) => record.id === id);
-    if (current) context.ipIds.add(current.ipId);
-  } else if (kind === 'card') {
-    const current = records.cards.find((record) => record.id === id);
-    if (current) context.ipIds.add(current.ipId);
-  } else if (kind === 'cardPool') {
-    const current = records.cardPools.find((record) => record.id === id);
-    if (current) context.ipIds.add(current.ipId);
-  } else if (kind === 'rewardPolicy') {
-    const current = records.rewardPolicies.find((record) => record.id === id);
-    if (current) {
-      context.ipIds.add(current.targetIpId);
-      if (current.targetGoodId) {
-        context.goodIpById.set(current.targetGoodId, current.targetIpId);
-      }
-    }
-  } else if (kind === 'event') {
-    const current = records.events.find((record) => record.id === id);
-    if (current?.ipId) context.ipIds.add(current.ipId);
-  } else {
-    const current = records.ticketTypes.find((record) => record.id === id);
-    if (current) context.eventIds.add(current.eventId);
-  }
-
-  return context;
+/* 폼이 제출한 id 만 확인한다(규모 후속) — 카탈로그 전량과 어드민 레코드 8종을 읽던 자리다. */
+function getAdminValidationContext(formData: FormData, kind: AdminValidationRecordKind) {
+  return loadAdminValidationContext(formData, kind);
 }
 
 export async function upsertAdminIpAction(
@@ -285,8 +236,7 @@ export async function upsertAdminIpAction(
   const authError = await requireStaffAction();
   if (authError) return authError;
 
-  const catalog = await getAdminValidationCatalog();
-  const result = normalizeAdminIpForm(formData, catalogContextFromSnapshot(catalog));
+  const result = normalizeAdminIpForm(formData, await getAdminValidationContext(formData, 'ip'));
   if (!result.ok) return keepSubmittedValues({ errors: result.errors }, formData);
 
   const value = result.value;
