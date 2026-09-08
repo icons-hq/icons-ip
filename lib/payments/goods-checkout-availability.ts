@@ -19,7 +19,14 @@ export function goodsPaymentConfirmationAvailable(
   return getServiceRoleConfig().isConfigured && paymentProviderConfigured(provider);
 }
 
-export function goodsCheckoutPaymentsEnabled(userId?: string) {
-  return goodsPaymentConfirmationAvailable('toss')
-    && newPaymentCheckoutEnabled('order', userId, 'toss');
+/**
+ * 신규 결제 시작 gate. provider는 주문의 도메인 사실(판매 제한 상품 포함 여부)
+ * 에서 파생된다(#392) — 일반 주문은 toss, 제한 주문은 korpay gate를 본다.
+ */
+export function goodsCheckoutPaymentsEnabled(
+  userId?: string,
+  provider: PaymentCheckoutProvider = 'toss',
+) {
+  return goodsPaymentConfirmationAvailable(provider)
+    && newPaymentCheckoutEnabled('order', userId, provider);
 }

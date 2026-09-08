@@ -365,4 +365,23 @@ describe('loadCampaignDetail', () => {
 
     expect(mocks.filters).toContainEqual(['goods', 'archived_at', null]);
   });
+
+  /* 같은 이유로 판매 제한 굿즈(#392)도 랜딩 블록에서 따로 걸러야 한다 — 보관 필터와
+     판매 제한 필터는 한 쿼리 체인에 함께 남아야 한다. */
+  it('굿즈 조회는 판매 제한 굿즈를 제외한다', async () => {
+    mocks.tables.campaigns = {
+      data: {
+        ...hubRow('restriction-leak'),
+        hero_image_path: null,
+        sections: [{ type: 'goods', good_ids: ['g14'] }],
+      },
+      error: null,
+    };
+    mocks.tables.goods = { data: [], error: null };
+
+    await loadCampaignDetail('restriction-leak');
+
+    expect(mocks.filters).toContainEqual(['goods', 'sale_restriction', 'none']);
+    expect(mocks.filters).toContainEqual(['goods', 'archived_at', null]);
+  });
 });

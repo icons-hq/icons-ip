@@ -169,7 +169,7 @@ values (
 );
 
 select public.prepare_goods_payment_attempt(
-  '${user_id}', '${order_id}', 'korpay'
+  '${user_id}', '${order_id}', 'toss'
 );
 
 select public.bind_goods_payment_callback_nonce(
@@ -191,7 +191,7 @@ docker exec -e PGAPPNAME="$claim_application" -i "$db_container" \
   psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t >"$claim_log" 2>&1 <<SQL &
 begin;
 select public.claim_goods_payment_attempt(
-  'korpay', '${provider_order_id}', '${nonce_digest}', '${claim_token}'
+  'toss', '${provider_order_id}', '${nonce_digest}', '${claim_token}'
 );
 select pg_catalog.pg_sleep(2);
 commit;
@@ -341,7 +341,7 @@ wait_for_backend_wait \
 docker exec -e PGAPPNAME="$claim_second_application" -i "$db_container" \
   psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t >"$claim_log" 2>&1 <<SQL &
 select public.claim_goods_payment_attempt(
-  'korpay', '${provider_order_id}', '${nonce_digest}', '${claim_token}'
+  'toss', '${provider_order_id}', '${nonce_digest}', '${claim_token}'
 );
 SQL
 claim_second_client_pid=$!
@@ -500,7 +500,7 @@ wait_for_backend_wait \
 docker exec -e PGAPPNAME="$callback_after_expiry_application" -i "$db_container" \
   psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t >"$claim_log" 2>&1 <<SQL &
 select public.claim_goods_payment_attempt(
-  'korpay', '${provider_order_id}', '${nonce_digest}', '${claim_token}'
+  'toss', '${provider_order_id}', '${nonce_digest}', '${claim_token}'
 );
 SQL
 callback_after_expiry_pid=$!

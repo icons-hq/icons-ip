@@ -18,7 +18,9 @@ function redirectForOutcome(outcome: string) {
 
 /** Session-independent, bounded Korpay form callback ingress. */
 export async function POST(request: Request) {
-  if (!ticketPaymentProviderAvailable()) {
+  // korpay 콜백 drain은 korpay 자격 증명 기준이다 — 기본 provider가 toss로
+  // 전환(#393)돼도 진행 중이던 korpay 결제의 종결 경로는 닫히지 않는다.
+  if (!ticketPaymentProviderAvailable('korpay')) {
     return Response.json({ error: 'payment_unavailable' }, { status: 503 });
   }
 
@@ -33,7 +35,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const outcome = await createRuntimeTicketPaymentCheckout().confirm(callback);
+    const outcome = await createRuntimeTicketPaymentCheckout('korpay').confirm(callback);
     return korpayRedirect(redirectForOutcome(outcome.outcome));
   } catch (error) {
     if (error instanceof TicketPaymentConfirmationInProgressError) {

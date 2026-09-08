@@ -322,7 +322,7 @@ protected-boundaries:
   - components/payments/**
 ```
 
-- 결제: 굿즈·티켓 신규 결제 provider는 **Korpay**(provider-neutral seam 뒤 gate 제어)이고, 확정은 서버 전용 `PaymentGateway.confirm/reconcile`+DB 멱등 finalizer뿐이다. Toss는 `provider=toss` 기존 거래의 조회·취소·웹훅에만 남긴다. 콜백 body·클라이언트 성공 신호는 진실원이 아니다.
+- 결제: 굿즈·티켓 신규 결제의 기본 provider는 **토스페이먼츠 주문서형 v2**(provider-neutral seam 뒤 gate 제어, ADR-0013)이고, 확정은 서버 전용 `PaymentGateway.confirm/reconcile`+DB 멱등 finalizer뿐이다. **판매 제한 상품**(성인(19금))이 담긴 주문만 서버가 주문 단위로 **Korpay**를 파생한다 — 관리자가 PG를 고르는 축이 아니다. 콜백 body·클라이언트 성공 신호는 진실원이 아니다.
 - **쿠폰(B1)이 유일한 금액 개입 지점**이며 할인은 서버 주문 생성 RPC에서 확정한다. 코인·등급·리워드는 결제와 무관하다.
 - 가격·재고·카드 RNG·뽑기권 발급/개봉·티켓 수용량·QR 검표를 클라이언트 상태로 옮기지 않는다.
 - 공개 브라우징 유지 — 로그인은 보호 액션 시점에만.

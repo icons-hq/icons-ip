@@ -19,6 +19,9 @@ vi.mock('../../../app/admin/archive-actions', () => ({
 vi.mock('../../../app/admin/good-bank-transfer-actions', () => ({
   setGoodBankTransferAction: vi.fn(),
 }));
+vi.mock('../../../app/admin/good-sale-restriction-actions', () => ({
+  setGoodSaleRestrictionAction: vi.fn(),
+}));
 vi.mock('../../../lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: vi.fn() }));
 /* 미리보기는 공개 상세 화면(구매 패널·위시 하트)을 그대로 그린다 — 그 클라이언트 훅들은
    앱 라우터와 카트 컨텍스트를 요구한다. 여기서 확인하려는 것은 어드민 폼과 미리보기의
@@ -72,6 +75,7 @@ const good: AdminGoodRecord = {
   stock: 'low',
   stockQty: 12,
   allowBankTransfer: true,
+  saleRestriction: 'none',
   bg: null,
   imagePath: null,
   notice: {
@@ -125,8 +129,8 @@ describe('GoodSection', () => {
     expect(html).toContain('name="adjustmentId"');
     expect(html).toContain('name="expectedStockQty"');
     expect(html).toContain('재고 조정');
-    /* 저장 · 재고 조정 · 무통장 토글(#256) · 보관 네 개다. */
-    expect(html.match(/<form/g)).toHaveLength(4);
+    /* 저장 · 재고 조정 · 무통장 토글(#256) · 판매 제한(#392) · 보관 다섯 개다. */
+    expect(html.match(/<form/g)).toHaveLength(5);
   });
 
   it('derives soldout for zero quantity without changing the raw stock label', () => {
@@ -144,6 +148,18 @@ describe('GoodSection', () => {
     expect(html).not.toContain('name="reason"');
     expect(html).not.toContain('재고 조정');
     expect(html.match(/<form/g)).toHaveLength(1);
+  });
+
+  /* #392 — 판매 제한은 고시정보 7칸을 다시 채우지 않고 바꾸는 행 단위 컨트롤이고,
+     2택 이상이라 토글이 아니라 저장된 값이 선택된 select 다. */
+  it('offers the sale restriction control with the stored value preselected', () => {
+    const html = renderGoodSection({ ...good, saleRestriction: 'adult' });
+
+    expect(html).toContain('판매 제한 유형');
+    expect(html).toContain('name="restriction"');
+    expect(html).toContain('성인(19금)');
+    expect(html).toMatch(/<option[^>]*value="adult"[^>]*selected|<option[^>]*selected[^>]*value="adult"/);
+    expect(html).toContain('성인인증 도입 전까지 스토어에 노출되지 않고 구매가 차단됩니다');
   });
 
   it('uses the shared artwork upload field', () => {
@@ -241,8 +257,8 @@ describe('GoodSection', () => {
     const html = renderGoodSection(good);
 
     expect(html).not.toContain('shop-cart-button');
-    /* 저장 · 재고 조정 · 무통장 토글 · 보관 네 개 그대로다. 미리보기는 폼을 늘리지 않는다. */
-    expect(html.match(/<form/g)).toHaveLength(4);
+    /* 저장 · 재고 조정 · 무통장 토글 · 판매 제한 · 보관 다섯 개 그대로다. 미리보기는 폼을 늘리지 않는다. */
+    expect(html.match(/<form/g)).toHaveLength(5);
   });
 
   /* #326 — 유형·배지는 자유 입력이 아니라 표준 값 select 다(DB CHECK 와 같은 목록). */

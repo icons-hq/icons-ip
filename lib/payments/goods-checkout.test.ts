@@ -9,6 +9,7 @@ import { FakePaymentGateway } from './fake-payment-gateway';
 import {
   GoodsPaymentConfirmationInProgressError,
   GoodsPaymentContractError,
+  GoodsPaymentReconciliationInProgressError,
   createGoodsPaymentCheckout,
   type GoodsPaymentAttemptClaim,
   type GoodsPaymentAttemptRepository,
@@ -123,6 +124,30 @@ class MemoryGoodsPaymentAttemptRepository implements GoodsPaymentAttemptReposito
     this.outcomes.set(input.attemptId, finalized);
     return finalized;
   }
+
+  /* DB 재정합 claim 계약 재현 — approved·declined·canceled만 terminal 재생이고
+     unknown·needs_review 종결은 다시 claim할 수 있다(#390). */
+  async claimOrderReconciliation(input: {
+    attemptId: string;
+    claimToken: string;
+    caseRef: string;
+  }): Promise<GoodsPaymentAttemptClaim> {
+    const target = [...this.attempts.values()].find((entry) => entry.id === input.attemptId);
+    if (!target) throw new GoodsPaymentContractError('attempt_not_found');
+    const replay = this.outcomes.get(target.id);
+    if (replay && ['approved', 'declined', 'canceled'].includes(replay.outcome)) {
+      return { status: 'terminal', attempt: target, outcome: replay };
+    }
+    if (this.claimMode === 'in_progress') {
+      return { status: 'in_progress', attempt: target };
+    }
+    this.claims.set(target.id, input.claimToken);
+    return { status: 'claimed', attempt: target, claimToken: input.claimToken };
+  }
+
+  async finalizeOrderReconciliation(input: GoodsPaymentFinalization) {
+    return this.finalizeOrderAttempt(input);
+  }
 }
 
 function outcome(value: ConfirmOutcome['outcome'], overrides: Partial<ConfirmOutcome> = {}): ConfirmOutcome {
@@ -138,9 +163,10 @@ function outcome(value: ConfirmOutcome['outcome'], overrides: Partial<ConfirmOut
 function checkoutFixture(
   confirm: readonly ConfirmOutcome[] = [outcome('approved')],
   onApproved?: (attempt: PaymentAttempt) => Promise<unknown>,
+  reconcile: readonly ConfirmOutcome[] = [],
 ) {
   const repository = new MemoryGoodsPaymentAttemptRepository();
-  const gateway = new FakePaymentGateway({ prepare: [prepared()], confirm });
+  const gateway = new FakePaymentGateway({ prepare: [prepared()], confirm, reconcile });
   const checkout = createGoodsPaymentCheckout({
     provider: 'korpay',
     gateway,
@@ -342,5 +368,82 @@ describe('GoodsPaymentCheckout', () => {
     await expect(checkout.confirm(CALLBACK)).resolves.toMatchObject({ outcome: 'approved' });
     expect(onApproved).toHaveBeenCalledTimes(1);
     errorSpy.mockRestore();
+  });
+
+  describe('reconcilePayment', () => {
+    const CASE_REF = 'goods-webhook-case-ref-000390';
+
+    it('unknown 종결을 조회 결과로 재정합하고, 승인 확정이면 알림 훅을 태운다', async () => {
+      const onApproved = vi.fn(async () => undefined);
+      const { checkout, repository } = checkoutFixture(
+        [outcome('unknown')],
+        onApproved,
+        [outcome('approved', { reasonCode: 'provider_reconciled_approved' })],
+      );
+      await checkout.prepare({ userId: USER_ID, orderId: ORDER_ID });
+      await checkout.confirm(CALLBACK);
+      expect(onApproved).not.toHaveBeenCalled();
+
+      const reconciled = await checkout.reconcilePayment({
+        attemptId: ATTEMPT_ID,
+        caseRef: CASE_REF,
+      });
+
+      expect(reconciled.outcome).toBe('approved');
+      expect(repository.outcomes.get(ATTEMPT_ID)?.outcome).toBe('approved');
+      expect(onApproved).toHaveBeenCalledTimes(1);
+    });
+
+    it('approved terminal 재생은 provider를 다시 부르지 않고 알림 훅만 멱등 재발화한다', async () => {
+      const onApproved = vi.fn(async () => undefined);
+      const { checkout } = checkoutFixture([outcome('approved')], onApproved);
+      await checkout.prepare({ userId: USER_ID, orderId: ORDER_ID });
+      await checkout.confirm(CALLBACK);
+      expect(onApproved).toHaveBeenCalledTimes(1);
+
+      // reconcile 스크립트가 비어 있어도 terminal 재생은 provider에 닿지 않는다.
+      const replay = await checkout.reconcilePayment({
+        attemptId: ATTEMPT_ID,
+        caseRef: CASE_REF,
+      });
+
+      expect(replay.outcome).toBe('approved');
+      expect(onApproved).toHaveBeenCalledTimes(2);
+    });
+
+    it('다른 재정합 리스가 살아 있으면 진행 중 예외로 알린다', async () => {
+      const { checkout, repository } = checkoutFixture(
+        [outcome('unknown')],
+        undefined,
+        [outcome('approved')],
+      );
+      await checkout.prepare({ userId: USER_ID, orderId: ORDER_ID });
+      await checkout.confirm(CALLBACK);
+      repository.claimMode = 'in_progress';
+
+      await expect(checkout.reconcilePayment({ attemptId: ATTEMPT_ID, caseRef: CASE_REF }))
+        .rejects.toBeInstanceOf(GoodsPaymentReconciliationInProgressError);
+    });
+
+    it('provider 조회가 throw하면 unknown으로 보존해 다음 재정합에 맡긴다', async () => {
+      const { checkout, repository } = checkoutFixture([outcome('unknown')]);
+      await checkout.prepare({ userId: USER_ID, orderId: ORDER_ID });
+      await checkout.confirm(CALLBACK);
+
+      // reconcile 스크립트 소진 상태 — Fake가 throw한다.
+      const reconciled = await checkout.reconcilePayment({
+        attemptId: ATTEMPT_ID,
+        caseRef: CASE_REF,
+      });
+
+      expect(reconciled.outcome).toBe('unknown');
+      expect(repository.outcomes.get(ATTEMPT_ID)?.outcome).toBe('unknown');
+    });
+
+    it('caseRef 형식 위반은 저장소에 닿기 전에 계약 오류다', async () => {
+      const { checkout } = checkoutFixture();
+      await expect(checkout.reconcilePayment({ attemptId: ATTEMPT_ID, caseRef: 'short' }))
+        .rejects.toBeInstanceOf(GoodsPaymentContractError);
+    });
   });
 });

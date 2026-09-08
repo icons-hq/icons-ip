@@ -9,16 +9,17 @@ import {
 
 /**
  * Existing attempts can finish or be recovered while new checkout is paused.
- * 티켓 seam은 아직 korpay에 물려 있다 — 토스 전환(#393)에서 기본값이 'toss'로
- * 바뀌고, gate(TOSS_TICKET_CHECKOUT_ENABLED)는 판매 일정 확정 시 env로 연다.
+ * 티켓 seam의 기본 provider는 toss다(#393). korpay 콜백 drain 라우트만
+ * 'korpay'를 명시하고, gate(TOSS_TICKET_CHECKOUT_ENABLED)는 공연/티켓 판매
+ * 일정이 확정될 때 env로 연다.
  */
 export function ticketPaymentProviderAvailable(
-  provider: PaymentCheckoutProvider = 'korpay',
+  provider: PaymentCheckoutProvider = 'toss',
 ) {
   return getServiceRoleConfig().isConfigured && paymentProviderConfigured(provider);
 }
 
 export function ticketCheckoutPaymentsEnabled(userId?: string) {
-  return ticketPaymentProviderAvailable('korpay')
-    && newPaymentCheckoutEnabled('ticket', userId, 'korpay');
+  return ticketPaymentProviderAvailable('toss')
+    && newPaymentCheckoutEnabled('ticket', userId, 'toss');
 }

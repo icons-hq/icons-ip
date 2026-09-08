@@ -1,7 +1,7 @@
 import 'server-only';
 
 import type { PaymentAttempt, RefundOutcome } from '../payments/gateway';
-import { getPaymentGateway } from '../payments/runtime-gateway';
+import { getPaymentGateway, type PaymentCheckoutProvider } from '../payments/runtime-gateway';
 import { createServiceClient } from '../supabase/service';
 
 export type CancellationRequestStatus =
@@ -18,7 +18,7 @@ export type CancellationPaymentStatus =
   | 'failed'
   | 'refunded';
 
-export type CancellationPaymentProvider = 'toss' | 'korpay';
+export type CancellationPaymentProvider = PaymentCheckoutProvider;
 
 export interface CancellationReconciliationContext {
   requestId: string;
