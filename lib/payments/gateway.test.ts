@@ -3,6 +3,7 @@ import {
   PAYMENT_OUTCOMES,
   type ConfirmOutcome,
   type PaymentAttempt,
+  type PaymentProvider,
   type PaymentReturnInput,
   type PreparedCheckout,
   type RefundOutcome,
@@ -54,6 +55,24 @@ function returnInput(overrides: Partial<PaymentReturnInput> = {}): PaymentReturn
     ...overrides,
   };
 }
+
+// 유니온이 DB enum과 어긋나면 컴파일 단계에서 걸린다: 값이 빠지면 초과 속성으로,
+// 값이 늘면 누락 속성으로 이 Record가 실패한다.
+const PAYMENT_PROVIDERS: Record<PaymentProvider, true> = {
+  toss: true,
+  korpay: true,
+  bank_transfer: true,
+};
+
+describe('PaymentProvider', () => {
+  it('원장 provider 축은 DB enum public.payment_provider 3종과 일치한다', () => {
+    expect(Object.keys(PAYMENT_PROVIDERS).sort()).toEqual([
+      'bank_transfer',
+      'korpay',
+      'toss',
+    ]);
+  });
+});
 
 describe('FakePaymentGateway', () => {
   it.each(PAYMENT_OUTCOMES)('공통 confirm outcome %s를 공개 계약으로 반환한다', async (outcome) => {

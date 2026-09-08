@@ -7,7 +7,12 @@ export const PAYMENT_OUTCOMES = [
 ] as const;
 
 export type PaymentOutcome = (typeof PAYMENT_OUTCOMES)[number];
-export type PaymentProvider = 'toss' | 'korpay';
+/**
+ * DB enum `public.payment_provider`와 같은 축이다. `bank_transfer` attempt는
+ * 게이트웨이 seam(prepare/confirm/refund)을 타지 않지만, 원장의 provider 축은
+ * DB enum과 어긋나면 안 된다 — attempt·payment 행을 읽는 코드가 같은 타입을 쓴다.
+ */
+export type PaymentProvider = 'toss' | 'korpay' | 'bank_transfer';
 export type PaymentPurpose = 'order' | 'ticket' | 'prize_sale';
 
 export interface PaymentAttempt {
