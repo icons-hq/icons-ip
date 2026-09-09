@@ -220,8 +220,8 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 | `underline-gnb` | 1차 탐색 | NEW·BEST·카테고리·온라인 팝업·카드팩·이벤트·커뮤니티. 활성=green 텍스트+3px 밑줄 (01) |
 | `mega-menu` | 카테고리 확장 | 헤더 컨텍스트 내 z0, 헤어라인 상하, 그룹 헤딩 14/700 (01) |
 | `search-overlay` | 검색 진입 | 페이지 이동 없는 오버레이, 인풋 60px(grey)+추천 칩(green), 결과는 `/search` (01·03) |
-| `mobile-tab-gnb` | 모바일 1차 탐색 | 햄버거 없는 가로 스크롤 탭, 활성 opacity 1/비활성 .35, 좌우 16px fade (01) |
-| `bottom-tab-bar` | 모바일 전역 바 | 5탭(메뉴·굿즈샵·홈·위시·마이) 62px, 상단 헤어라인 (01) |
+| `mobile-tab-gnb` | 모바일 1차 탐색 | 햄버거 없는 가로 스크롤 탭, 기본 ink.tertiary·활성 ink.default+2px 밑줄, 좌우 16px fade (01, §10 대비 보정) |
+| `bottom-tab-bar` | 모바일 전역 바 | 5탭(메뉴·굿즈샵·홈·위시·마이) 62px, 기본 ink.tertiary·활성 ink.default, 상단 헤어라인 (01, §10 대비 보정) |
 | `category-sheet` | 모바일 카테고리 | 75% 높이 바텀시트, 상단 radius 8, 딤 70% (01) |
 | `product-card` | 상품 단위 | 3:4 이미지 무보더 플랫 → 뱃지(정보영역 인라인) → 브랜드 12/600 → 이름 13/400 → 가격 14/600. 품절=하단 1/3 scrim 밴드+italic SOLD OUT (02·03) |
 | `content-card` | 콘텐츠 단위 | 썸네일+뱃지+타이틀, 홈 ②·이벤트 허브·커뮤니티 공용 (02·06) |
@@ -300,6 +300,9 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 
 - 반응형: §frontmatter 브레이크포인트. 모바일에서 콘텐츠는 2열(상품)·1열(정보), 유틸바 숨김, GNB는 가로 탭, PDP는 1열 스택+`mobile-buybar`. 360px에서 금액·주문번호·CTA overflow 별도 검증.
 - 접근성: WCAG AA 대비(**확정 — 소형 액센트 텍스트는 brand-green 대신 `state.success`를 쓴다. §2 사용처 분류 참조**), 키보드 전 조작, focus-visible 2px `state.focus`, 아이콘 버튼 44px+접근 이름, 캐러셀 정지 수단·현재 위치, 모달·시트 focus trap·Escape·복귀 포커스, 색·위치 단독 의미 전달 금지.
+- 모바일 탐색의 이동 가능한 비현재 메뉴는 불투명도 대신 `ink.tertiary`(#616161, 흰 지면 대비 약 6.2:1)를 쓴다. R-01의 GNB .35·하단 탭 .3 opacity는 비활성 상태로 오인되고 AA 대비에 미달하여 채택하지 않는다. 모바일 GNB의 현재 탭은 밑줄도 함께 표시한다.
+- 모바일 회사·정책 링크는 구분선 없는 2열 목록으로 정렬한다. 마켓·트레이드 안내는 좌우 16px 거터와 최대 300px CTA를 유지한다.
+- 온라인 팝업 디렉토리는 750~989px에서 2열 행과 피처드 캐러셀·가로 이니셜 필터를 유지하고, 990px부터 5열 피처드·4열 목록을 펼친다. 클릭 가능한 이니셜 필터도 `ink.tertiary`를 써 비활성처럼 보이지 않게 한다.
 
 ## 11. 백엔드·API 불변 계약
 

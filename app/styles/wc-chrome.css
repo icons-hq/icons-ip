@@ -500,7 +500,8 @@
   list-style: none;
 }
 
-/* 모바일 탭의 활성 표기는 색이 아니라 불투명도다(R-01 §7). */
+/* 이동 가능한 메뉴를 투명하게 만들면 비활성처럼 보이고 AA 대비에 미달한다.
+   R-01의 opacity 차이는 읽기 가능한 잉크 + 현재 탭 밑줄로 대체한다(DESIGN §10). */
 .wc-mob-gnb__link {
   display: block;
   padding: 0 11px;
@@ -513,13 +514,15 @@
   white-space: nowrap;
   border: 0;
   background: none;
-  color: var(--wc-ink);
-  opacity: .35;
+  color: var(--wc-ink-tertiary);
   cursor: pointer;
 }
 
 .wc-mob-gnb__link.is-active {
-  opacity: 1;
+  color: var(--wc-ink);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 8px;
 }
 
 @media (min-width: 990px) {
@@ -743,15 +746,14 @@
   text-decoration: none;
   border: 0;
   background: none;
-  color: var(--wc-ink);
-  opacity: .3;
+  color: var(--wc-ink-tertiary);
   cursor: pointer;
 }
 
 /* 시트를 연 '메뉴' 탭도 활성으로 읽혀야 한다 — 열려 있는 동안 눌린 탭이 흐리면 길을 잃는다. */
 .wc-tabbar__item.is-active,
 .wc-tabbar__item[aria-expanded='true'] {
-  opacity: 1;
+  color: var(--wc-ink);
 }
 
 @media (min-width: 990px) {
@@ -1006,6 +1008,27 @@
 @media (max-width: 989px) {
   .wc-footer {
     padding-bottom: 122px;
+  }
+
+  /* 줄이 바뀔 때 첫 링크 앞에 구분선과 들여쓰기가 남지 않게 간격으로 구분한다. */
+  .wc-footer__primary ul {
+    display: grid;
+    grid-template-columns: repeat(2, max-content);
+    gap: 4px 24px;
+  }
+
+  .wc-footer__primary li:not(:first-child) {
+    padding-left: 0;
+  }
+
+  .wc-footer__primary li:not(:first-child)::before {
+    content: none;
+  }
+
+  .wc-footer__primary a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
   }
 
   .wc-footer__middle {

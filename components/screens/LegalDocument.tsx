@@ -101,6 +101,15 @@ export function LegalDocumentScreen({ document }: { document: LegalDocument }) {
           </aside>
         )}
 
+        {document.revisionChanges && (
+          <aside className="legal-doc__revision" aria-label={`${document.effectiveDate} 개정 안내`}>
+            <h2 className="legal-doc__revision-heading">{document.effectiveDate} 개정 안내</h2>
+            <ul className="legal-doc__revision-changes">
+              {document.revisionChanges.map((change) => <li key={change}>{change}</li>)}
+            </ul>
+          </aside>
+        )}
+
         <div className="legal-doc__body">
           {document.articles.map((article) => (
             <section key={article.heading} className="legal-doc__article">
@@ -109,6 +118,24 @@ export function LegalDocumentScreen({ document }: { document: LegalDocument }) {
             </section>
           ))}
         </div>
+
+        {document.previousVersion && (
+          <details className="legal-doc__body">
+            <summary className="legal-doc__heading">
+              이전 정책 본문 (시행일 {document.previousVersion.effectiveDate})
+            </summary>
+            <p className="legal-doc__paragraph">
+              개정 전 정책 문구를 보존합니다. 고객지원 연락처는 현재 정보로 표시합니다.
+              개별 이용자의 약관 동의 기록은 아닙니다.
+            </p>
+            {document.previousVersion.articles.map((article) => (
+              <section key={article.heading} className="legal-doc__article">
+                <h3 className="legal-doc__heading">{article.heading}</h3>
+                <ArticleBody article={article} />
+              </section>
+            ))}
+          </details>
+        )}
       </div>
     </div>
   );
