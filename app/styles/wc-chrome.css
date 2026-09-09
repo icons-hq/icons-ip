@@ -958,6 +958,50 @@
   text-decoration: underline;
 }
 
+/* 스태프 전용 시연 진입점 — 점선 테두리로 "운영 표면"임을 드러내고, 공개 열의 링크 위계(15px/34px)보다
+   한 단계 작게 둔다. is_staff readback 이 참일 때만 마크업에 존재한다(SiteFooter). */
+.wc-footer__demo {
+  margin-top: 28px;
+  padding: 12px 16px;
+  border: 1px dashed var(--wc-line-control);
+}
+
+.wc-footer__demo-heading {
+  margin: 0 0 4px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-footer__demo ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-footer__demo a {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 28px;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-footer__demo a:hover {
+  text-decoration: underline;
+}
+
+.wc-footer__demo-note {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
 /* 고정 탭바(62px)에 마지막 줄이 가리지 않도록 모바일에서만 바닥을 더 연다. */
 @media (max-width: 989px) {
   .wc-footer {
