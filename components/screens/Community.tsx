@@ -39,15 +39,15 @@ const emptyCommentState: CommunityCommentActionState = {};
 const emptyEditState: CommunityPostEditActionState = {};
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-/* select 는 wc-discovery 의 인풋 규칙 범위 밖이라 여기서 같은 각진 문법으로 맞춘다. */
+/* select 도 커뮤니티 인풋과 같은 8px 라운드·44px 높이를 쓴다. */
 const selectStyle: CSSProperties = {
   background: 'var(--wc-surface)',
   border: '1px solid var(--wc-line-control)',
-  borderRadius: 0,
+  borderRadius: 8,
   color: 'var(--wc-ink)',
   fontFamily: 'inherit',
   fontSize: 15,
-  height: 50,
+  height: 44,
   minWidth: 0,
   padding: '0 12px',
 };
@@ -55,7 +55,6 @@ const selectStyle: CSSProperties = {
 /* 신고·차단·수정·삭제류 텍스트 버튼(S5 §2 .wc-community__actions): 12.5px ink-tertiary, 44px 타깃.
    폼 안에 중첩돼 wc-discovery 의 `.wc-community__actions > *` 가 닿지 않는 버튼용. */
 const textActionStyle: CSSProperties = {
-  background: 'none',
   border: 'none',
   color: 'var(--wc-ink-tertiary)',
   cursor: 'pointer',
@@ -65,6 +64,26 @@ const textActionStyle: CSSProperties = {
   minHeight: 44,
   padding: '0 6px',
 };
+
+function CommunityActionMenu({ children, label }: { children: ReactNode; label: string }) {
+  return (
+    <details
+      className="wc-community__menu"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        event.currentTarget.open = false;
+        event.currentTarget.querySelector('summary')?.focus();
+      }}
+    >
+      <summary aria-label={label}>더보기</summary>
+      <div className="wc-community__menu-actions">{children}</div>
+    </details>
+  );
+}
 
 function ErrorText({ children, id }: { children?: string; id: string }) {
   if (!children) return null;
@@ -110,7 +129,7 @@ function ReportForm({
       <input type="hidden" name="next" value={nextPath} />
       <input type="hidden" name="targetType" value={targetType} />
       <input type="hidden" name="targetId" value={targetId} />
-      <SmallActionButton label={label}>신고</SmallActionButton>
+      <SmallActionButton label={label}>{label}</SmallActionButton>
     </form>
   );
 }
@@ -151,7 +170,7 @@ function LikeButton({ active, likes }: { active?: boolean; likes: number }) {
         padding: '0 8px',
       }}
     >
-      <span aria-hidden style={{ color: active ? 'var(--wc-accent)' : 'var(--wc-ink-tertiary)' }}>♥</span>
+      <span aria-hidden style={{ color: active ? 'var(--wc-accent)' : 'var(--wc-ink-tertiary)', display: 'inline-flex' }}><Icon name="heart" size={18} fill={active} /></span>
       {likes}
     </button>
   );
@@ -336,7 +355,7 @@ function PostCard({ channels, nextPath, p }: { channels: CommunityChannel[]; nex
 
   return (
     <article className="wc-community__post" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+      <div className="wc-community__post-head">
         <span
           style={{
             alignItems: 'center',
@@ -360,10 +379,7 @@ function PostCard({ channels, nextPath, p }: { channels: CommunityChannel[]; nex
             {p.ipName} · {p.time}{p.isEdited ? ' · 수정됨' : ''}
           </span>
         </div>
-        <div
-          className="wc-community__actions"
-          style={{ justifyContent: 'flex-end', marginLeft: 'auto', marginTop: 0 }}
-        >
+        <CommunityActionMenu label="포스트 관리 메뉴">
           <ReportForm label="포스트 신고" nextPath={nextPath} targetId={p.id} targetType="post" />
           {!p.canDelete && (
             <>
@@ -390,7 +406,7 @@ function PostCard({ channels, nextPath, p }: { channels: CommunityChannel[]; nex
               수정
             </button>
           )}
-        </div>
+        </CommunityActionMenu>
       </div>
 
       {p.canEdit && (
@@ -427,8 +443,8 @@ function PostCard({ channels, nextPath, p }: { channels: CommunityChannel[]; nex
           <input type="hidden" name="shouldLike" value={p.likedByViewer ? '0' : '1'} />
           <LikeButton active={p.likedByViewer} likes={p.likes} />
         </form>
-        <span style={{ cursor: 'default' }}>💬 {p.comments}</span>
-        <span style={{ cursor: 'default', marginLeft: 'auto' }}>#{p.tag ?? '커뮤니티'}</span>
+        <span className="wc-community__comment-count"><span aria-hidden><Icon name="chat" size={18} /></span><span className="wc-sr-only">댓글 </span>{p.comments}</span>
+        <span className="wc-community__post-tag">#{p.tag ?? '커뮤니티'}</span>
       </div>
 
       {p.commentItems.length > 0 && (
@@ -459,6 +475,7 @@ function PostCard({ channels, nextPath, p }: { channels: CommunityChannel[]; nex
                 </div>
                 <p style={{ fontSize: 13.5, lineHeight: 1.5, margin: 0 }}>{comment.text}</p>
               </div>
+              <CommunityActionMenu label="댓글 관리 메뉴">
               {comment.canDelete && (
                 <form action={deleteCommunityCommentAction}>
                   <input type="hidden" name="next" value={nextPath} />
@@ -473,6 +490,7 @@ function PostCard({ channels, nextPath, p }: { channels: CommunityChannel[]; nex
                   <BlockUserForm authorId={comment.authorId} nextPath={nextPath} />
                 </>
               )}
+              </CommunityActionMenu>
             </div>
           ))}
         </div>
@@ -505,7 +523,7 @@ function TrendingTags({ tags }: { tags: string[] }) {
     <section
       aria-labelledby="community-trending-title"
       className="wc-community__trending"
-      style={{ boxSizing: 'border-box', marginBottom: 20, maxWidth: '100%', minWidth: 0, width: '100%' }}
+      style={{ boxSizing: 'border-box', maxWidth: '100%', minWidth: 0, width: '100%' }}
     >
       <h2
         id="community-trending-title"
@@ -558,11 +576,12 @@ function Composer({
       style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}
     >
       <input type="hidden" name="next" value={nextPath} />
-      <div style={{ alignItems: 'center', display: 'grid', gap: 10, gridTemplateColumns: '40px minmax(0, 1fr) auto', minWidth: 0 }}>
+      <div className="wc-community__compose-row">
         <span
           aria-hidden
-          style={{ background: 'var(--wc-surface-grey)', border: '1px solid var(--wc-hairline)', borderRadius: '50%', height: 40, width: 40 }}
-        />
+          className="wc-community__compose-avatar"
+          style={{ background: 'var(--wc-surface)', border: '1px solid var(--wc-hairline)', borderRadius: '50%', height: 40, width: 40 }}
+        ><Icon name="user" size={20} /></span>
         <input
           aria-describedby={state.errors?.text ? 'community-text-error' : undefined}
           aria-invalid={Boolean(state.errors?.text)}
@@ -571,7 +590,7 @@ function Composer({
         />
         <PostSubmitButton disabled={disabled} />
       </div>
-      <div style={{ alignItems: 'center', display: 'flex', flexWrap: 'wrap', gap: 8, minWidth: 0 }}>
+      <div className="wc-community__compose-tools">
         <select
           key={defaultIpId}
           aria-describedby={state.errors?.ipId ? 'community-ip-error' : undefined}
@@ -596,11 +615,12 @@ function Composer({
             alignItems: 'center',
             background: 'var(--wc-surface)',
             border: '1px solid var(--wc-line-control)',
+            borderRadius: 8,
             cursor: 'pointer',
             display: 'flex',
             flex: '2 1 190px',
             gap: 8,
-            minHeight: 50,
+            minHeight: 44,
             minWidth: 0,
             outline: fileFocusRing ? '2px solid var(--wc-focus)' : undefined,
             outlineOffset: fileFocusRing ? 2 : undefined,
@@ -757,11 +777,9 @@ export function Community({
   return (
     <div className="wc-root wc-community">
       <div className="wc-container">
-        <header
-          style={{ alignItems: 'flex-end', display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: 'space-between', margin: '0 0 20px' }}
-        >
+        <header className="wc-community__heading">
           <div>
-            <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, fontWeight: 700, margin: 0 }}>떠들어요 · 팬덤 채널</p>
+            <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, fontWeight: 700, margin: 0 }}>커뮤니티 · 팬덤 채널</p>
             <h1
               style={{ color: 'var(--wc-ink)', fontFamily: 'inherit', fontSize: 26, fontWeight: 700, letterSpacing: '-0.8px', lineHeight: 1.3, margin: '6px 0 0' }}
             >
@@ -771,7 +789,6 @@ export function Community({
           <span style={{ color: 'var(--wc-ink-tertiary)', fontSize: 13 }}>지금 이야기 {snapshot.posts.length}개</span>
         </header>
 
-        <TrendingTags tags={snapshot.trending} />
         <FeedScopeTabs feedScope={feedScope} />
 
         <div
@@ -816,6 +833,7 @@ export function Community({
           </div>
 
           <aside className="wc-community__rail">
+            <TrendingTags tags={snapshot.trending} />
             {feedScope === 'all' && ranking.length > 0 && (
               <div>
                 <h2 style={{ color: 'var(--wc-ink-tertiary)', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, letterSpacing: '.08em', margin: 0 }}>

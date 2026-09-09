@@ -38,7 +38,7 @@
    ------------------------------------------------------------------ */
 
 .wc-collection {
-  padding-block: 24px 96px;
+  padding-block: 16px 96px;
 }
 
 /* 모바일은 그리드 한 칼럼뿐이다 — 사이드바는 바텀시트로 빠진다(R-03 §1.8). */
@@ -54,26 +54,27 @@
   min-width: 0;
 }
 
-/* 카운트·정렬·필터 트리거가 모두 이 행에 모인다. 모바일은 두 줄(트리거 / 카운트+정렬),
-   데스크톱은 한 줄(카운트 좌 / 정렬 우)로 접힌다. */
+/* 상품 수와 조작부를 한 줄에 정렬한다. 필터와 정렬을 분리해 각 버튼의 역할을 명확히 한다. */
 .wc-collection__toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 20px;
 }
 
-/* 필터 트리거는 모바일에서 첫 줄 전체를 우측 정렬로 차지한다. */
 .wc-collection__toolbar > .wc-filter-trigger {
-  grid-column: 1 / -1;
+  grid-column: 3;
   grid-row: 1;
   justify-self: end;
 }
 
 .wc-collection__count {
-  font-size: 14px;
+  grid-column: 1;
+  grid-row: 1;
+  margin: 0;
+  font-size: 13px;
   font-weight: 400;
   color: var(--wc-ink);
 }
@@ -87,13 +88,16 @@
 /* editorial 파운데이션의 `:where(select)` 규칙이 48px 높이·12px 라운드를 얹는다 — 지면 값으로 되돌린다.
    커스텀 패널 없이 네이티브 옵션 리스트를 그대로 쓰고 caret 만 그린다(R-03 §1.4). */
 .wc-collection__sort {
-  min-height: 0;
-  height: 30px;
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 44px;
+  height: 44px;
   padding: 0 22px 0 8px;
   font-family: inherit;
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 30px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: normal;
   text-align: right;
   -webkit-appearance: none;
   appearance: none;
@@ -132,6 +136,15 @@
 
   .wc-collection__sidebar {
     display: block;
+  }
+
+  .wc-collection {
+
+    padding-top: 32px;
+
+  }
+  .wc-collection__toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 }
 
@@ -350,21 +363,50 @@
    컬렉션 — 모바일 필터 바텀시트
    ------------------------------------------------------------------ */
 
-/* 101×30 트리거(R-03 §1.8). 990px 이상에서는 위 toolbar 규칙이 통째로 감춘다. */
+/* 작은 사각형 대신 44px 터치 영역을 가진 캡슐형 조작부. 상품 이미지의 각진 문법과 구분한다. */
 .wc-filter-trigger {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 30px;
-  padding: 0 10px;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 14px;
   font-family: inherit;
-  font-size: 15px;
-  font-weight: 400;
-  border: 1px solid var(--wc-line-control);
-  border-radius: var(--wc-radius-form);
-  background: var(--wc-surface);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid var(--wc-hairline);
+  border-radius: 24px;
+  background: var(--wc-surface-grey);
   color: var(--wc-ink);
   cursor: pointer;
+  transition: background-color var(--wc-duration-default), border-color var(--wc-duration-default);
+}
+
+.wc-filter-trigger > span {
+
+  display: inline-flex;
+}
+
+.wc-filter-trigger:hover {
+  border-color: var(--wc-ink);
+}
+
+.wc-filter-trigger[data-active] {
+  background: var(--wc-ink);
+  border-color: var(--wc-ink);
+  color: var(--wc-surface);
+}
+
+.wc-filter-trigger__count {
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  font-size: 11px;
 }
 
 /* 전역 시트(`.wc-sheet-dim`)와 같은 값이다 — 필터 시트가 셸 시트와 다른 밝기로 뜨지 않게 맞춘다. */
@@ -383,11 +425,54 @@
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  height: 500px;
-  max-height: 90vh;
-  border-radius: var(--wc-radius-sheet) var(--wc-radius-sheet) 0 0;
+  height: 600px;
+  max-height: 88dvh;
+  border-radius: 20px 20px 0 0;
   background: var(--wc-surface);
   animation: wc-filter-sheet-in var(--wc-duration-medium) var(--wc-ease-out-slow);
+}
+
+.wc-filter-sheet__heading {
+
+  display: flex;
+
+  flex: none;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  gap: 16px;
+
+  padding: 24px 20px 8px;
+}
+
+.wc-filter-sheet__heading h2 {
+  margin: 0;
+  font: inherit;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -.5px;
+}
+
+.wc-filter-sheet__heading p {
+  margin: 4px 0 0;
+  color: var(--wc-ink-tertiary);
+  font-size: 13px;
+}
+
+.wc-filter-sheet__close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--wc-surface-grey);
+  color: var(--wc-ink);
+  cursor: pointer;
 }
 
 @keyframes wc-filter-sheet-in {
@@ -404,8 +489,8 @@
 .wc-filter-sheet__tabs {
   display: flex;
   flex: none;
-  gap: 24px;
-  padding: 20px 16px 0;
+  gap: 28px;
+  padding: 8px 20px 0;
   border-bottom: 1px solid var(--wc-hairline);
 }
 
@@ -417,7 +502,7 @@
   font-weight: 400;
   border: 0;
   background: none;
-  color: var(--wc-line-divider);
+  color: var(--wc-ink-tertiary);
   cursor: pointer;
 }
 
@@ -429,7 +514,7 @@
 .wc-filter-sheet__body {
   flex: 1;
   min-height: 0;
-  padding: 16px;
+  padding: 16px 20px;
   overflow-y: auto;
 }
 
@@ -457,8 +542,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  height: 79px;
-  padding: 0 16px;
+  min-height: 84px;
+  padding: 14px 20px max(14px, env(safe-area-inset-bottom));
   border-top: 1px solid var(--wc-hairline);
   background: var(--wc-surface);
 }

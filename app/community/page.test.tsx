@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CurrentAuthState } from '@/lib/auth/server';
-import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import Page from './page';
 
 const mocks = vi.hoisted(() => ({
@@ -13,6 +12,11 @@ const mocks = vi.hoisted(() => ({
     trending: [],
   },
   getCommunitySnapshot: vi.fn(),
+  canViewCommunity: true,
+}));
+
+vi.mock('@/lib/community-visibility.server', () => ({
+  canViewCommunity: async () => mocks.canViewCommunity,
 }));
 
 vi.mock('@/lib/auth/server', () => ({
@@ -28,13 +32,14 @@ vi.mock('@/components/screens/Community', () => ({
   Community: () => null,
 }));
 
-/* 커뮤니티 임시 비공개 — 스위치가 꺼진 동안 라우트는 404라 피드 스코프 계약을 검증할 수 없다.
-   테스트를 지우지 않고 스위치에 매달아 둔다: 복원하면 이 describe가 그대로 되살아난다. */
-describe.skipIf(!COMMUNITY_ENABLED)('community page feed scope', () => {
+/* 게이트를 통과한 뒤의 피드 스코프 계약. 공개 스위치가 꺼진 동안에도 스태프 프리뷰가 이 경로를
+   지나가므로, 게이트 mock 을 열어 두고 그대로 검증한다(lib/community-visibility.server.ts). */
+describe('community page feed scope', () => {
   beforeEach(() => {
     mocks.getCommunitySnapshot.mockReset();
     mocks.getCommunitySnapshot.mockResolvedValue(mocks.snapshot);
     mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
+    mocks.canViewCommunity = true;
   });
 
   it('loads the explicit fandom feed and exposes the guest state to its screen', async () => {
@@ -94,9 +99,12 @@ describe.skipIf(!COMMUNITY_ENABLED)('community page feed scope', () => {
   });
 });
 
-describe.runIf(!COMMUNITY_ENABLED)('커뮤니티 임시 비공개', () => {
-  it('라우트를 404로 닫고 스냅샷을 읽지 않는다', async () => {
+describe('커뮤니티 임시 비공개', () => {
+  /* 게이트가 닫히면(비로그인·일반 회원) 라우트는 404다. 진입점을 지우는 것만으로는 직접 URL
+     접근이 남으므로, 스냅샷 조회에 아예 닿지 않는지도 함께 잠근다. */
+  it('게이트가 닫히면 라우트를 404로 닫고 스냅샷을 읽지 않는다', async () => {
     mocks.getCommunitySnapshot.mockReset();
+    mocks.canViewCommunity = false;
 
     await expect(Page({ searchParams: Promise.resolve({}) })).rejects.toThrow(/NEXT_HTTP_ERROR_FALLBACK;404/);
     expect(mocks.getCommunitySnapshot).not.toHaveBeenCalled();

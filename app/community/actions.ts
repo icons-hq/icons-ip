@@ -21,7 +21,7 @@ import {
   normalizeCommunityReportForm,
   normalizeCommunityUuid,
 } from '@/lib/community';
-import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
+import { canViewCommunity } from '@/lib/community-visibility.server';
 import { createClient } from '@/lib/supabase/server';
 
 export interface CommunityPostActionState {
@@ -66,9 +66,10 @@ async function isCommunityWriteEnabled(
 }
 
 /* 커뮤니티 임시 비공개 — 라우트가 404여도 서버 액션은 폼 없이 직접 호출될 수 있어 여기서도 막는다.
+   라우트와 같은 게이트를 쓴다: 공개 스위치가 꺼진 동안에는 로그인한 staff/admin 만 통과한다.
    DB의 community_write_capabilities 게이트보다 앞단이고, 읽기 액션까지 함께 닫는다. */
-function assertCommunityEnabled() {
-  if (!COMMUNITY_ENABLED) notFound();
+async function assertCommunityViewable() {
+  if (!(await canViewCommunity())) notFound();
 }
 
 function readNext(formData: FormData) {
@@ -188,7 +189,7 @@ export async function createCommunityPostAction(
   _state: CommunityPostActionState,
   formData: FormData,
 ): Promise<CommunityPostActionState> {
-  assertCommunityEnabled();
+  await assertCommunityViewable();
   const next = readNext(formData);
   const user = await requireActiveCommunityUser(next);
 
@@ -257,7 +258,7 @@ export async function editCommunityPostAction(
   _state: CommunityPostEditActionState,
   formData: FormData,
 ): Promise<CommunityPostEditActionState> {
-  assertCommunityEnabled();
+  await assertCommunityViewable();
   const next = readNext(formData);
   const user = await requireActiveCommunityUser(next);
 
@@ -315,7 +316,7 @@ export async function createCommunityCommentAction(
   _state: CommunityCommentActionState,
   formData: FormData,
 ): Promise<CommunityCommentActionState> {
-  assertCommunityEnabled();
+  await assertCommunityViewable();
   const next = readNext(formData);
   await requireActiveCommunityUser(next);
 
@@ -347,7 +348,7 @@ export async function createCommunityCommentAction(
 }
 
 export async function setCommunityPostLikeAction(formData: FormData) {
-  assertCommunityEnabled();
+  await assertCommunityViewable();
   const next = readNext(formData);
   await requireCommunityUser(next);
 
@@ -367,7 +368,7 @@ export async function setCommunityPostLikeAction(formData: FormData) {
 }
 
 export async function deleteCommunityPostAction(formData: FormData) {
-  assertCommunityEnabled();
+  await assertCommunityViewable();
   const next = readNext(formData);
   await requireCommunityUser(next);
 
@@ -386,7 +387,7 @@ export async function deleteCommunityPostAction(formData: FormData) {
 }
 
 export async function deleteCommunityCommentAction(formData: FormData) {
-  assertCommunityEnabled();
+  await assertCommunityViewable();
   const next = readNext(formData);
   await requireCommunityUser(next);
 
@@ -413,7 +414,7 @@ export async function reportCommunityTargetAction(formData: FormData) {
 
   /* 게이트를 대상별로 건다. 굿즈 리뷰 신고(#254)는 커머스 표면(components/shop/GoodReviews.tsx)이
      이 액션을 공유하므로, 커뮤니티가 닫혔다고 상품 리뷰 신고까지 404가 되면 안 된다. */
-  if (normalized.value.targetType !== 'review') assertCommunityEnabled();
+  if (normalized.value.targetType !== 'review') await assertCommunityViewable();
 
   const supabase = await createClient();
   const { error, data } = await supabase.rpc('submit_community_report', {
@@ -429,7 +430,7 @@ export async function reportCommunityTargetAction(formData: FormData) {
 }
 
 export async function blockCommunityUserAction(formData: FormData) {
-  assertCommunityEnabled();
+  await assertCommunityViewable();
   const next = readNext(formData);
   await requireAuthenticatedCommunityUser(next);
 

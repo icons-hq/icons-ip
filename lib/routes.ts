@@ -167,6 +167,15 @@ export const FOOTER_DEMO_ITEMS: NavItem[] = [
   { id: 'exchange', label: '카드 트레이드 시연' },
 ];
 
+/* 커뮤니티 스태프 프리뷰 진입점 — 공개 스위치가 꺼진 동안 커뮤니티로 가는 유일한 링크다.
+   위 시연 블록과 별개로 두는 이유는 성격이 다르기 때문이다: 저쪽은 mock 이고 이쪽은 실제
+   DB 를 읽는 진짜 커뮤니티라, "실제 결제·체결은 일어나지 않습니다" 안내를 공유하면 거짓말이
+   된다. 노출은 is_staff readback, 열람 권한은 lib/community-visibility.server.ts 가 판정한다.
+   visibleItems 를 통과시키지 않는다 — 공개 스위치가 꺼진 상태에서만 존재하는 항목이다. */
+export const FOOTER_COMMUNITY_STAFF_ITEMS: NavItem[] = [
+  { id: 'community', label: '커뮤니티' },
+];
+
 /* 카테고리 메가메뉴 — goods.type 표준화(S4) 전까지 실존 라우트 그룹만 노출한다. */
 export const CATEGORY_MEGA_GROUPS: NavGroup[] = [
   { heading: '굿즈샵', items: [

@@ -226,7 +226,7 @@ describe('굿즈샵 목록', () => {
   it('모바일 필터 트리거와 전체 초기화를 제공한다', () => {
     const html = render('all', { ip: 'ip1' });
 
-    expect(html).toContain('필터 및 정렬');
+    expect(html).toContain('aria-label="필터, 1개 적용됨"');
     expect(html).toContain('전체 초기화');
     expect(html).toContain('wc-filter-trigger');
   });

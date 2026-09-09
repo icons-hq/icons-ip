@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useRef, useState } from 'react';
+import { Icon } from '@/components/ui/Icon';
 import { OverlayPortal } from '@/components/shell/OverlayPortal';
 import { useOverlayA11y } from '@/components/shell/useOverlayA11y';
 import { EmptyState } from '@/components/wc/EmptyState';
@@ -276,6 +277,8 @@ export function Shop({ query, result, view }: ShopProps) {
     || query.types.length > 0
     || query.priceMin !== null
     || query.priceMax !== null;
+  const filterCount = query.ips.length + query.types.length
+    + Number(query.priceMin !== null || query.priceMax !== null);
 
   return (
     <div className="wc-root wc-collection">
@@ -341,9 +344,11 @@ export function Shop({ query, result, view }: ShopProps) {
                 개 굿즈
               </p>
               <button
+                aria-label={filterCount ? `필터, ${filterCount}개 적용됨` : '필터'}
                 aria-expanded={sheetOpen}
                 aria-haspopup="dialog"
                 className="wc-filter-trigger"
+                data-active={hasFilters || undefined}
                 onClick={() => {
                   setDraft(shopFilterDraftFromQuery(query));
                   setSheetTab('ips');
@@ -351,7 +356,9 @@ export function Shop({ query, result, view }: ShopProps) {
                 }}
                 type="button"
               >
-                필터 및 정렬
+                <span aria-hidden><Icon name="filter" size={17} /></span>
+                필터
+                {filterCount > 0 ? <span aria-hidden className="wc-filter-trigger__count">{filterCount}</span> : null}
               </button>
               {result.filteredTotal > 0 ? (
                 <>
@@ -420,6 +427,15 @@ export function Shop({ query, result, view }: ShopProps) {
             className="wc-filter-sheet"
             role="dialog"
           >
+            <div className="wc-filter-sheet__heading">
+              <div>
+                <h2>굿즈 필터</h2>
+                <p>원하는 IP와 가격을 골라보세요.</p>
+              </div>
+              <button aria-label="필터 닫기" className="wc-filter-sheet__close" onClick={closeSheet} type="button">
+                <Icon name="close" size={20} />
+              </button>
+            </div>
             <div className="wc-filter-sheet__tabs" role="tablist">
               {SHEET_TABS.map((tab) => (
                 <button

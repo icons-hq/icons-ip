@@ -960,12 +960,20 @@
   text-decoration: underline;
 }
 
-/* 스태프 전용 시연 진입점 — 점선 테두리로 "운영 표면"임을 드러내고, 공개 열의 링크 위계(15px/34px)보다
-   한 단계 작게 둔다. is_staff readback 이 참일 때만 마크업에 존재한다(SiteFooter). */
+/* 스태프 전용 진입점 블록 — 흰 패널과 명시적 안내로 성격을 드러내고, 공개 열의 링크 위계(15px/34px)보다
+   한 단계 작게 둔다. is_staff readback 이 참일 때만 마크업에 존재한다(SiteFooter).
+   세컨더리 마켓 시연과 커뮤니티 스태프 프리뷰가 이 스킨을 공유하고, 둘이 함께 뜰 때는
+   블록 사이 간격만 좁혀 한 덩어리로 읽히게 한다. */
 .wc-footer__demo {
   margin-top: 28px;
-  padding: 12px 16px;
-  border: 1px dashed var(--wc-line-control);
+  padding: 16px 20px;
+  border: 1px solid var(--wc-hairline);
+  border-radius: 12px;
+  background: var(--wc-surface);
+}
+
+.wc-footer__demo + .wc-footer__demo {
+  margin-top: 8px;
 }
 
 .wc-footer__demo-heading {
