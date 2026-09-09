@@ -11,7 +11,6 @@ import {
 } from './actions';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { CurrentAuthState } from '@/lib/auth/server';
-import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
@@ -22,8 +21,15 @@ const mocks = vi.hoisted(() => ({
   communityWriteCapabilities: vi.fn(),
   upload: vi.fn(),
   revalidatePath: vi.fn(),
+  canViewCommunity: true,
 }));
 
+/* 열람 게이트는 라우트와 같은 모듈이다 — 공개 스위치가 꺼진 동안 staff/admin 만 참이다.
+   아래 계약들은 게이트를 통과한 뒤의 동작이라 기본값을 열어 두고, 닫힌 경우는 마지막
+   describe 가 여덟 액션 전부에 대해 따로 잠근다. */
+vi.mock('@/lib/community-visibility.server', () => ({
+  canViewCommunity: async () => mocks.canViewCommunity,
+}));
 vi.mock('@/lib/auth/server', () => ({
   getCurrentAuthState: () => mocks.auth,
 }));
@@ -67,6 +73,10 @@ vi.mock('next/navigation', () => ({
     throw new Error(`NEXT_REDIRECT:${path}`);
   },
 }));
+
+beforeEach(() => {
+  mocks.canViewCommunity = true;
+});
 
 const catalog: CatalogSnapshot = {
   source: 'supabase',
@@ -176,9 +186,7 @@ function blockForm(next = '/community') {
   return formData;
 }
 
-/* 커뮤니티 임시 비공개 — 스위치가 꺼진 동안 액션은 첫 줄에서 404를 던져 아래 계약을 실행조차
-   하지 않는다. 테스트를 지우지 않고 스위치에 매달아 두면 복원과 함께 그대로 되살아난다. */
-describe.skipIf(!COMMUNITY_ENABLED)('createCommunityPostAction', () => {
+describe('createCommunityPostAction', () => {
   beforeEach(() => {
     mocks.auth = {
       isConfigured: true,
@@ -323,7 +331,7 @@ describe.skipIf(!COMMUNITY_ENABLED)('createCommunityPostAction', () => {
   });
 });
 
-describe.skipIf(!COMMUNITY_ENABLED)('editCommunityPostAction', () => {
+describe('editCommunityPostAction', () => {
   beforeEach(() => {
     mocks.auth = {
       isConfigured: true,
@@ -518,7 +526,7 @@ describe.skipIf(!COMMUNITY_ENABLED)('editCommunityPostAction', () => {
   });
 });
 
-describe.skipIf(!COMMUNITY_ENABLED)('community reaction actions', () => {
+describe('community reaction actions', () => {
   beforeEach(() => {
     mocks.auth = {
       isConfigured: true,
@@ -763,8 +771,13 @@ describe.skipIf(!COMMUNITY_ENABLED)('community reaction actions', () => {
   });
 });
 
-describe.runIf(!COMMUNITY_ENABLED)('커뮤니티 임시 비공개', () => {
-  /* 라우트가 404여도 서버 액션은 폼 없이 직접 호출될 수 있다 — 여덟 개 전부 막혔는지 본다. */
+describe('커뮤니티 임시 비공개', () => {
+  /* 라우트가 404여도 서버 액션은 폼 없이 직접 호출될 수 있다 — 게이트가 닫힌 뷰어에게
+     여덟 개 전부 막혔는지 본다. */
+  beforeEach(() => {
+    mocks.canViewCommunity = false;
+  });
+
   const actions: Array<[string, () => Promise<unknown>]> = [
     ['createCommunityPostAction', () => createCommunityPostAction({}, new FormData())],
     ['editCommunityPostAction', () => editCommunityPostAction({}, new FormData())],

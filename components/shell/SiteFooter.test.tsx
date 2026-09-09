@@ -3,11 +3,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUSINESS_INFO, businessInfoRows } from '@/lib/legal/business-info';
 import { SiteFooter } from './SiteFooter';
 
-const mocks = vi.hoisted(() => ({ cardRewardsEnabled: true, demoVisible: false, pathname: '/shop' }));
+const mocks = vi.hoisted(() => ({
+  cardRewardsEnabled: true,
+  demoVisible: false,
+  communityPreviewVisible: false,
+  pathname: '/shop',
+}));
 
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname }));
 vi.mock('./CardRewardAvailability', () => ({ useCardRewardsEnabled: () => mocks.cardRewardsEnabled }));
-vi.mock('./SecondaryMarketDemoAvailability', () => ({ useSecondaryMarketDemoVisible: () => mocks.demoVisible }));
+vi.mock('./StaffPreviewAvailability', () => ({
+  useSecondaryMarketDemoVisible: () => mocks.demoVisible,
+  useCommunityStaffPreviewVisible: () => mocks.communityPreviewVisible,
+}));
 
 function render() {
   return renderToStaticMarkup(<SiteFooter />);
@@ -16,6 +24,7 @@ function render() {
 beforeEach(() => {
   mocks.cardRewardsEnabled = true;
   mocks.demoVisible = false;
+  mocks.communityPreviewVisible = false;
   mocks.pathname = '/shop';
 });
 
@@ -138,5 +147,45 @@ describe('SiteFooter 세컨더리 마켓 시연 진입점', () => {
     expect(html).toContain('굿즈 마켓 시연');
     expect(html).toContain('카드 트레이드 시연');
     expect(html).toContain('실제 결제·체결은 일어나지 않습니다');
+  });
+});
+
+describe('SiteFooter 커뮤니티 스태프 프리뷰 진입점', () => {
+  /* 커뮤니티는 임시 비공개다 — 공개 푸터·SSR 결과에 링크가 남으면 비공개가 무너진다.
+   * 진입점은 로그인한 staff/admin 의 is_staff readback 이 참일 때만 존재한다. */
+  it('기본(비로그인·일반 회원·readback 전)에는 커뮤니티 링크가 마크업에 없다', () => {
+    const html = render();
+
+    expect(html).not.toContain('href="/community"');
+    expect(html).not.toContain('커뮤니티');
+  });
+
+  it('스태프에게는 커뮤니티 링크를 스태프 전용 표기와 함께 연다', () => {
+    mocks.communityPreviewVisible = true;
+    const html = render();
+
+    expect(html).toContain('aria-label="스태프 전용 커뮤니티 메뉴"');
+    expect(html).toContain('커뮤니티 · 스태프 전용');
+    expect(html).toContain('href="/community"');
+    expect(html).toContain('임시 비공개 상태의 커뮤니티입니다');
+  });
+
+  /* 두 스태프 블록은 성격이 달라 문구를 공유하면 거짓말이 된다 — 커뮤니티는 mock 이 아니다. */
+  it('커뮤니티 블록에 세컨더리 마켓 시연 문구를 붙이지 않는다', () => {
+    mocks.communityPreviewVisible = true;
+    const html = render();
+
+    expect(html).not.toContain('실제 결제·체결은 일어나지 않습니다');
+    expect(html).not.toContain('mock 시연 진입점');
+  });
+
+  /* 두 readback 은 서로 독립이다 — 한쪽 스위치를 내려도 다른 블록이 함께 사라지지 않는다. */
+  it('세컨더리 마켓 시연과 커뮤니티 프리뷰가 함께 열려도 각자 블록으로 선다', () => {
+    mocks.demoVisible = true;
+    mocks.communityPreviewVisible = true;
+    const html = render();
+
+    expect(html).toContain('aria-label="스태프 시연 메뉴"');
+    expect(html).toContain('aria-label="스태프 전용 커뮤니티 메뉴"');
   });
 });

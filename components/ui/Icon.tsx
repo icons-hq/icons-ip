@@ -11,6 +11,8 @@ const PATHS: Record<string, string> = {
   swap: 'M7 8h12l-3-3M17 16H5l3 3',
   bag: 'M6 8h12l-1 12H7zM9 8a3 3 0 0 1 6 0',
   search: 'M11 4a7 7 0 1 1 0 14 7 7 0 0 1 0-14zM20 20l-4-4',
+  /* Lucide sliders-horizontal (ISC): canonical paths, license in docs/licenses/lucide.txt. */
+  filter: 'M10 5H3M12 19H3M14 3v4M16 17v4M21 12h-9M21 19h-5M21 5h-7M8 10v4M8 12H3',
   user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 20a8 8 0 0 1 16 0',
   heart: 'M12 20S4 14.5 4 9a4 4 0 0 1 7-2.6A4 4 0 0 1 20 9c0 5.5-8 11-8 11z',
   arrow: 'M5 12h14M13 6l6 6-6 6',

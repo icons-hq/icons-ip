@@ -28,7 +28,7 @@ import { getBusinessInfo } from '@/lib/legal/business-info.server';
 import { InquiryWidget } from '@/components/screens/InquiryWidget';
 import { SiteFooter } from '@/components/shell/SiteFooter';
 import { CardRewardAvailabilityProvider } from '@/components/shell/CardRewardAvailability';
-import { SecondaryMarketDemoAvailabilityProvider } from '@/components/shell/SecondaryMarketDemoAvailability';
+import { StaffPreviewAvailabilityProvider } from '@/components/shell/StaffPreviewAvailability';
 import { getActiveNoticeStrip } from '@/lib/notice-strip.server';
 
 const spaceGrotesk = Space_Grotesk({
@@ -59,13 +59,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <CartProvider>
           <CardRewardAvailabilityProvider>
             <AuthPresenceProvider>
-              {/* 세컨더리 마켓 시연 진입점은 presence 위에서 is_staff 를 읽으므로 AuthPresence 안쪽이다. */}
-              <SecondaryMarketDemoAvailabilityProvider>
+              {/* 스태프 전용 진입점(세컨더리 마켓 시연·커뮤니티 프리뷰)은 presence 위에서 is_staff 를 읽으므로 AuthPresence 안쪽이다. */}
+              <StaffPreviewAvailabilityProvider>
                 <Nav noticeStrip={noticeStrip} />
                 {/* tabIndex: 셸 스킵 링크(#root)가 키보드 포커스를 본문으로 실제 이동시키기 위한 타깃. */}
                 <div id="root" tabIndex={-1}>{children}<InquiryWidget /></div>
                 <SiteFooter businessInfo={businessInfo} />
-              </SecondaryMarketDemoAvailabilityProvider>
+              </StaffPreviewAvailabilityProvider>
             </AuthPresenceProvider>
           </CardRewardAvailabilityProvider>
         </CartProvider>
