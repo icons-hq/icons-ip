@@ -1109,6 +1109,8 @@
 .wc-placeholder__cta .wc-btn {
   width: 100%;
   max-width: 300px;
+  /* 가로 정렬·모바일 줄바꿈 모두 gap 하나로 간격을 결정한다. */
+  margin-top: 0;
 }
 
 @media (min-width: 990px) {
