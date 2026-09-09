@@ -13,6 +13,21 @@ export function normalizePublicMediaPath(path: string): string {
     : withoutLeadingSlash;
 }
 
+/*
+ * 서버 왕복 없이 Storage 공개 URL을 만든다 — supabase-js `getPublicUrl`과 같은 모양
+ * (`<url>/storage/v1/object/public/<bucket>/<path>`, encodeURI). 어드민 폼이 저장 실패
+ * 뒤 업로드된 아트워크 미리보기를 되살릴 때처럼, 클라이언트에 경로만 남은 자리에서 쓴다.
+ * `process.env.NEXT_PUBLIC_*` 참조는 그대로 두어야 클라이언트 번들에 인라인된다.
+ */
+export function publicMediaUrl(
+  path: string,
+  supabaseUrl: string | undefined = process.env.NEXT_PUBLIC_SUPABASE_URL,
+): string | null {
+  const base = supabaseUrl?.trim().replace(/\/+$/, '');
+  if (!base) return null;
+  return encodeURI(`${base}/storage/v1/object/public/${PUBLIC_MEDIA_BUCKET}/${normalizePublicMediaPath(path)}`);
+}
+
 /** 이미지 URL을 CSS background 축약값으로 바꾼다. */
 export const imageBg = (path: string) => `url("${path}") center / cover no-repeat`;
 

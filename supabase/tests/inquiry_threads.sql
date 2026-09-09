@@ -19,13 +19,15 @@ begin;
 -- ---------------------------------------------------------------------------
 select 1 / case when (
   not has_table_privilege('anon', 'public.inquiries', 'select')
-  and has_table_privilege('authenticated', 'public.inquiries', 'select')
+  and has_column_privilege('authenticated', 'public.inquiries', 'id', 'select')
+  and not has_column_privilege('authenticated', 'public.inquiries', 'assignee_id', 'select')
   and not has_table_privilege('authenticated', 'public.inquiries', 'insert')
   and not has_table_privilege('authenticated', 'public.inquiries', 'update')
   and not has_table_privilege('authenticated', 'public.inquiries', 'delete')
   and not has_table_privilege('service_role', 'public.inquiries', 'insert')
   and not has_table_privilege('anon', 'public.inquiry_messages', 'select')
-  and has_table_privilege('authenticated', 'public.inquiry_messages', 'select')
+  and has_column_privilege('authenticated', 'public.inquiry_messages', 'body', 'select')
+  and not has_column_privilege('authenticated', 'public.inquiry_messages', 'author_id', 'select')
   and not has_table_privilege('authenticated', 'public.inquiry_messages', 'insert')
   and not has_table_privilege('authenticated', 'public.inquiry_reply_templates', 'insert')
 ) then 1 else 0 end as assert_inquiry_tables_are_read_only;
@@ -281,6 +283,8 @@ select message_id from public.admin_answer_inquiry(
   '{}'::text[]
 ) \gset
 
+-- The internal handler UUID is no longer selectable through the customer role.
+reset role;
 select 1 / case when (
   select count(*)
   from public.inquiries
@@ -289,6 +293,7 @@ select 1 / case when (
     and handled_by = '00000000-0000-4000-8000-000000002503'
     and answered_at is not null
 ) = 1 then 1 else 0 end as assert_answer_marks_inquiry_answered;
+set local role authenticated;
 
 select 1 / case when (
   select count(*)

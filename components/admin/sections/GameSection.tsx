@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminFormGrid } from '@/components/admin/console/AdminKit';
 import { useActionState, useState } from 'react';
 import {
   endAdminGameAction,
@@ -173,19 +174,19 @@ function GameForm({
   return (
     <form
       action={action}
-      className="card col"
+      className="card col wc-admin-kit wc-admin-kit__card"
       onReset={(event) => event.preventDefault()}
-      style={{ borderRadius: 10, gap: 14, padding: 18 }}
+      style={{ gap: 14 }}
     >
       <input name="operationId" type="hidden" value={operationId} />
       <input name="previousGameId" type="hidden" value={selected?.id ?? ''} />
       <div>
         <strong>{selected ? '게임 설정' : '카드 보상형 게임 등록'}</strong>
-        <p style={{ color: 'var(--dim)', fontSize: 12, margin: '6px 0 0' }}>
+        <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, margin: '6px 0 0' }}>
           마블 룰렛 · 카드 보상형 · 구슬 10개
         </p>
       </div>
-      <div className="admin-form-grid">
+      <AdminFormGrid>
         <Field
           defaultValue={selected?.id}
           error={state.errors?.id}
@@ -289,14 +290,14 @@ function GameForm({
           name="activeTo"
           type="datetime-local"
         />
-      </div>
+      </AdminFormGrid>
       {fieldsLocked ? (
-        <p id={lockReasonId} style={{ color: 'var(--dim)', fontSize: 12, margin: 0 }}>
+        <p id={lockReasonId} style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, margin: 0 }}>
           플레이 이력이 있어 slug·보상 카드풀·연결 이벤트는 변경할 수 없습니다.
         </p>
       ) : null}
       {noEligiblePool ? (
-        <p role="status" style={{ color: 'var(--pink)', margin: 0 }}>
+        <p role="status" style={{ color: 'var(--wc-danger)', margin: 0 }}>
           확률과 카드 구성이 완료된 운영 예정/운영 중 카드풀을 먼저 준비해주세요.
         </p>
       ) : null}
@@ -322,7 +323,7 @@ function ReadOnlyControl({
 
   return (
     <div className="col" style={{ gap: 7 }}>
-      <span className="mono" id={labelId} style={{ color: 'var(--dim)', fontSize: 11 }}>{label}</span>
+      <span className="mono" id={labelId} style={{ color: 'var(--wc-ink-tertiary)', fontSize: 11 }}>{label}</span>
       <input name={name} type="hidden" value={value} />
       <div
         aria-describedby={describedBy}
@@ -342,14 +343,14 @@ function ReadOnlyVariantNotice({ selected }: { selected: AdminGameRecord }) {
   return (
     <section
       aria-labelledby={`game-readonly-${selected.id}`}
-      className="card col"
-      style={{ borderRadius: 10, gap: 12, padding: 18 }}
+      className="card col wc-admin-kit wc-admin-kit__card"
+      style={{ gap: 12 }}
     >
       <strong id={`game-readonly-${selected.id}`}>{selected.title} · 읽기 전용</strong>
-      <p style={{ color: 'var(--dim)', fontSize: 13, margin: 0 }}>
+      <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 13, margin: 0 }}>
         {variantLabel(selected)}은 이 콘솔에서 등록하거나 편집할 수 없습니다.
       </p>
-      <p style={{ color: 'var(--dim)', fontSize: 13, margin: 0 }}>
+      <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 13, margin: 0 }}>
         legacy 굿즈 variant는 현 로드맵에서 활성화하지 않으며 신규 실물 쿠지에 재사용하지 않습니다.
       </p>
     </section>
@@ -360,8 +361,8 @@ function GameSummary({ selected }: { selected: AdminGameRecord | null }) {
   return (
     <section
       aria-labelledby="game-summary-title"
-      className="card col"
-      style={{ borderRadius: 10, gap: 12, padding: 18 }}
+      className="card col wc-admin-kit wc-admin-kit__card"
+      style={{ gap: 12 }}
     >
       <strong id="game-summary-title">게임 현황</strong>
       {selected ? (
@@ -376,7 +377,7 @@ function GameSummary({ selected }: { selected: AdminGameRecord | null }) {
           <span>최근 플레이 {formatKstDateTime(selected.lastPlayedAt)}</span>
         </div>
       ) : (
-        <p role="status" style={{ color: 'var(--dim)', margin: 0 }}>
+        <p role="status" style={{ color: 'var(--wc-ink-tertiary)', margin: 0 }}>
           게임을 선택하거나 새 카드 보상형 게임을 등록하면 운영 현황을 확인할 수 있습니다.
         </p>
       )}
@@ -392,14 +393,14 @@ function EndGameForm({ gameId, operationId }: { gameId: string; operationId: str
     <form
       action={action}
       aria-labelledby={`end-game-title-${gameId}`}
-      className="card col"
+      className="card col wc-admin-kit wc-admin-kit__card"
       onReset={(event) => event.preventDefault()}
-      style={{ borderRadius: 10, gap: 12, padding: 18 }}
+      style={{ gap: 12 }}
     >
       <input name="operationId" type="hidden" value={operationId} />
       <input name="gameId" type="hidden" value={gameId} />
       <strong id={`end-game-title-${gameId}`}>게임 종료</strong>
-      <p id={descriptionId} style={{ color: 'var(--dim)', fontSize: 12, margin: 0 }}>
+      <p id={descriptionId} style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, margin: 0 }}>
         삭제하지 않고 서버의 현재 시각을 운영 종료로 기록합니다.
       </p>
       <ActionNotice state={state} />

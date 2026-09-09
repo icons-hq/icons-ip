@@ -1,4 +1,7 @@
 import 'server-only';
+import type { ShipmentRecord } from './orders/shipments';
+import { loadOrderShipments } from './orders/shipments.server';
+import { getShippingCarrierRegistry } from './orders/shipment.server';
 
 import {
   normalizeCheckoutAddress,
@@ -23,14 +26,22 @@ interface OrderRow {
 }
 
 interface OrderItemRow {
+  id: string;
   good_id: string;
   qty: number;
   unit_price: number;
   good_name_snapshot: string;
   good_type_snapshot: string;
+  variant_id: string;
+  variant_name_snapshot?: string | null;
+  variant_code_snapshot?: string | null;
 }
 
 export interface CheckoutOrderItem {
+  id: string;
+  variantId: string;
+  variantName?: string | null;
+  variantCode?: string | null;
   goodId: string;
   name: string;
   type: string;
@@ -39,6 +50,7 @@ export interface CheckoutOrderItem {
 }
 
 export interface CheckoutOrderSnapshot {
+  shipments: ShipmentRecord[];
   id: string;
   status: string;
   total: number;
@@ -105,7 +117,7 @@ export async function loadCheckoutOrder(
   ] = await Promise.all([
     supabase
       .from('order_items')
-      .select('good_id,qty,unit_price,good_name_snapshot,good_type_snapshot')
+      .select('id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot')
       .eq('order_id', orderId)
       .order('id'),
     supabase
@@ -145,9 +157,12 @@ export async function loadCheckoutOrder(
       || attemptData?.state === 'needs_review'
     ) ? 'pending' : paymentData?.status ?? null,
     paymentMethod: normalizeCheckoutPaymentMethod(orderData.payment_method) ?? 'card',
+    shipments: await loadOrderShipments(supabase, [orderId], await getShippingCarrierRegistry()),
     items: itemRows.map((item) => ({
+      id: item.id,
       goodId: item.good_id,
       name: item.good_name_snapshot,
+      variantId: item.variant_id, variantName: item.variant_name_snapshot ?? null, variantCode: item.variant_code_snapshot ?? null,
       type: item.good_type_snapshot,
       qty: item.qty,
       unitPrice: item.unit_price,

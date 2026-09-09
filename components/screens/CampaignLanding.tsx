@@ -132,7 +132,7 @@ function SectionBody({
               imageBackground={good.imageBackground}
               key={good.id}
               name={good.name}
-              price={good.price}
+              price={good.price} priceMax={good.priceMax}
               soldOut={good.soldOut}
             />
           ))}

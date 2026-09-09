@@ -81,6 +81,21 @@ const ARCHIVE_CASES: AdminGuideErrorCase[] = [
   },
 ];
 
+const PUBLISH_CASES: AdminGuideErrorCase[] = [
+  {
+    quote: '보관된 IP는 게시 상태를 바꿀 수 없습니다. 먼저 복원해주세요.',
+    sourceFile: 'app/admin/ip-publish-actions.ts',
+    cause: '보관된 IP에서 "공개로 전환"이나 "초안으로 되돌리기"를 눌렀습니다. 보관 중에는 게시 상태가 잠깁니다.',
+    fix: '보관 복원을 먼저 누릅니다. 복원된 IP는 항상 초안으로 돌아오니, 노출하려면 그다음 "공개로 전환"을 누릅니다.',
+  },
+  {
+    quote: '보관된 카탈로그 항목을 먼저 복원해주세요.',
+    sourceFile: 'app/admin/actions.ts',
+    cause: '보관된 IP를 폼에서 "저장 후 공개"로 저장하려 했습니다. 공개가 거절되면 그 저장도 함께 취소됩니다.',
+    fix: '보관 복원을 먼저 하고, 필요하면 다시 저장·공개합니다.',
+  },
+];
+
 const CLAIM_CASES: AdminGuideErrorCase[] = [
   {
     quote: '결제 취소 정합화가 끝나지 않았습니다. 재고 복원과 카드팩 회수가 확인된 뒤에만 환불 완료를 기록할 수 있습니다.',
@@ -138,6 +153,7 @@ export const ADMIN_GUIDE_ERROR_CASES: AdminGuideErrorCase[] = [
   ...ORDER_CASES,
   ...BANK_CASES,
   ...ARCHIVE_CASES,
+  ...PUBLISH_CASES,
   ...CLAIM_CASES,
   ...PROMOTION_CASES,
   ...POOL_CASES,
@@ -170,6 +186,7 @@ export const TROUBLESHOOTING_TOPIC: AdminGuideTopic = {
     { id: 'orders', heading: '주문·배송', table: errorTable(ORDER_CASES) },
     { id: 'bank', heading: '무통장 입금', table: errorTable(BANK_CASES) },
     { id: 'archive', heading: '보관', table: errorTable(ARCHIVE_CASES) },
+    { id: 'publish', heading: 'IP 게시 상태', table: errorTable(PUBLISH_CASES) },
     { id: 'claims', heading: '클레임', table: errorTable(CLAIM_CASES) },
     { id: 'promotions', heading: '쿠폰·캠페인', table: errorTable(PROMOTION_CASES) },
     { id: 'pools', heading: '카드풀', table: errorTable(POOL_CASES) },

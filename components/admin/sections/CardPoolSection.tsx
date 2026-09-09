@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminFormGrid } from '@/components/admin/console/AdminKit';
 import Link from 'next/link';
 import { useActionState, useMemo, useState } from 'react';
 import {
@@ -8,6 +9,7 @@ import {
   type AdminCatalogActionState,
 } from '@/app/admin/actions';
 import type { AdminCardPoolRecord, AdminCardRecord } from '@/lib/admin/catalog.server';
+import { adminFormRemountKey, resolveFieldDefault } from '@/lib/admin/form-state';
 import type { RarityKey } from '@/lib/rarity';
 import { ErrorText, Field, FormShell, RecordList, SelectField } from '../fields';
 
@@ -117,15 +119,22 @@ function PoolForm({
 }) {
   const [state, action, pending] = useActionState(upsertAdminCardPoolAction, emptyState);
   const noIps = !ipOptions.some((ip) => !ip.archivedAt || ip.id === selected?.ipId);
-  const initialIpId = selected?.ipId ?? ipOptions.find((ip) => !ip.archivedAt)?.id ?? '';
+  const defaults = {
+    id: selected?.id ?? draftId,
+    ipId: selected?.ipId ?? ipOptions.find((ip) => !ip.archivedAt)?.id ?? '',
+    name: selected?.name ?? '',
+    activeFrom: toKstDateTimeInput(selected?.activeFrom ?? draftActiveFrom),
+    activeTo: toKstDateTimeInput(selected?.activeTo ?? null),
+  };
+  const field = (name: string) => resolveFieldDefault(state, defaults, name, { scopeKey: 'id' });
 
   return (
-    <form action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+    <form action={action} className="card col wc-admin-kit wc-admin-kit__card" key={adminFormRemountKey(state, defaults)} style={{ gap: 14 }}>
       <input name="operationId" type="hidden" value={operationId} />
       <input name="id" type="hidden" value={selected?.id ?? draftId} />
-      <div className="admin-form-grid">
+      <AdminFormGrid>
         <SelectField
-          defaultValue={initialIpId}
+          defaultValue={field('ipId')}
           error={state.errors?.ipId}
           label="연결 IP"
           name="ipId"
@@ -143,14 +152,14 @@ function PoolForm({
           ))}
         </SelectField>
         <Field
-          defaultValue={selected?.name}
+          defaultValue={field('name')}
           error={state.errors?.name}
           label="카드풀 이름"
           name="name"
           required
         />
         <Field
-          defaultValue={toKstDateTimeInput(selected?.activeFrom ?? draftActiveFrom)}
+          defaultValue={field('activeFrom')}
           error={state.errors?.activeFrom}
           label="운영 시작 (KST)"
           name="activeFrom"
@@ -158,13 +167,13 @@ function PoolForm({
           type="datetime-local"
         />
         <Field
-          defaultValue={toKstDateTimeInput(selected?.activeTo ?? null)}
+          defaultValue={field('activeTo')}
           error={state.errors?.activeTo}
           label="운영 종료 (KST, 선택)"
           name="activeTo"
           type="datetime-local"
         />
-      </div>
+      </AdminFormGrid>
       {noIps && <p role="status" style={{ margin: 0 }}>먼저 IP를 등록해주세요.</p>}
       <FormShell disabled={noIps} pending={pending} state={state} />
     </form>
@@ -189,26 +198,26 @@ function OddsForm({
     : `합계 ${Number((total / 1_000).toFixed(3))}% · ${validTotal ? '저장 가능' : '100% 필요'}`;
 
   return (
-    <form action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+    <form action={action} className="card col wc-admin-kit wc-admin-kit__card" style={{ gap: 14 }}>
       <input name="operationId" type="hidden" value={operationId} />
       <input name="poolId" type="hidden" value={selected?.id ?? ''} />
       <div>
         <strong>등급별 발급 확률</strong>
-        <p style={{ color: 'var(--dim)', fontSize: 12, margin: '6px 0 0' }}>퍼센트 합계가 정확히 100%여야 저장됩니다.</p>
+        <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, margin: '6px 0 0' }}>퍼센트 합계가 정확히 100%여야 저장됩니다.</p>
       </div>
-      {!selected && <div className="card" role="status" style={{ padding: 12 }}>카드풀을 먼저 저장해주세요.</div>}
+      {!selected && <div className="card wc-admin-kit wc-admin-kit__card" role="status" style={{  }}>카드풀을 먼저 저장해주세요.</div>}
       {selected && !selected.oddsConfigured && (
-        <div className="card" role="status" style={{ color: 'var(--pink)', padding: 12 }}>
+        <div className="card wc-admin-kit wc-admin-kit__card" role="status" style={{ color: 'var(--wc-danger)' }}>
           등급별 발급 확률이 아직 설정되지 않았습니다.
         </div>
       )}
-      <div className="admin-form-grid">
+      <AdminFormGrid>
         {RARITIES.map((rarity) => {
           const name = `odds${rarity[0]}${rarity.slice(1).toLowerCase()}`;
           const errorId = state.errors?.[name] ? `${name}-error` : undefined;
           return (
             <label className="col" key={rarity} style={{ gap: 7 }}>
-              <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>{rarity} (%)</span>
+              <span className="mono" style={{ color: 'var(--wc-ink-tertiary)', fontSize: 11 }}>{rarity} (%)</span>
               <input
                 aria-describedby={errorId}
                 aria-invalid={Boolean(errorId)}
@@ -223,10 +232,10 @@ function OddsForm({
                 type="number"
                 value={values[rarity]}
                 style={{
-                  background: 'rgba(255,255,255,.045)',
-                  border: '1px solid var(--line)',
+                  background: 'var(--wc-surface)',
+                  border: '1px solid var(--wc-hairline)',
                   borderRadius: 10,
-                  color: 'var(--text)',
+                  color: 'var(--wc-ink)',
                   fontFamily: 'inherit',
                   fontSize: 14,
                   minHeight: 42,
@@ -239,16 +248,16 @@ function OddsForm({
             </label>
           );
         })}
-      </div>
+      </AdminFormGrid>
       <div
         aria-live="polite"
         role="status"
-        style={{ color: validTotal ? 'var(--mint)' : 'var(--pink)', fontSize: 13, fontWeight: 800 }}
+        style={{ color: validTotal ? 'var(--wc-success)' : 'var(--wc-danger)', fontSize: 13, fontWeight: 800 }}
       >
         {totalLabel}
       </div>
       <ErrorText>{state.errors?.oddsTotal}</ErrorText>
-      <div className="card" style={{ color: 'var(--dim)', fontSize: 12, lineHeight: 1.6, padding: 12 }}>
+      <div className="card wc-admin-kit wc-admin-kit__card" style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, lineHeight: 1.6 }}>
         변경한 구성과 확률은 저장 즉시 적용되며, 이미 발급된 미사용 카드팩도 개봉 시점의 최신 구성과 확률을 사용합니다.
       </div>
       <FormShell disabled={!selected || !validTotal} pending={pending} state={state} />
@@ -278,23 +287,23 @@ function PoolCardRoster({
     : [];
 
   return (
-    <section aria-label="선택한 카드풀 소속 카드" className="card col" style={{ borderRadius: 10, gap: 12, padding: 18 }}>
+    <section aria-label="선택한 카드풀 소속 카드" className="card col wc-admin-kit wc-admin-kit__card" style={{ gap: 12 }}>
       <div>
         <strong>소속 카드</strong>
-        <p style={{ color: 'var(--dim)', fontSize: 12, margin: '6px 0 0' }}>카드 편집 화면에서 풀 바인딩을 변경합니다.</p>
+        <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, margin: '6px 0 0' }}>카드 편집 화면에서 풀 바인딩을 변경합니다.</p>
       </div>
-      {!selected && <p style={{ color: 'var(--dim)', margin: 0 }}>카드풀을 선택해주세요.</p>}
-      {selected && !cards.length && <p style={{ color: 'var(--dim)', margin: 0 }}>연결된 카드가 없습니다.</p>}
+      {!selected && <p style={{ color: 'var(--wc-ink-tertiary)', margin: 0 }}>카드풀을 선택해주세요.</p>}
+      {selected && !cards.length && <p style={{ color: 'var(--wc-ink-tertiary)', margin: 0 }}>연결된 카드가 없습니다.</p>}
       {missingRarities.map((rarity) => (
-        <div className="card" key={rarity} role="alert" style={{ color: 'var(--pink)', padding: 12 }}>
+        <div className="card wc-admin-kit wc-admin-kit__card" key={rarity} role="alert" style={{ color: 'var(--wc-danger)' }}>
           {rarity} 등급 카드가 없습니다.
         </div>
       ))}
       {cards.map((card) => (
-        <div className="card row" key={card.id} style={{ alignItems: 'center', gap: 12, justifyContent: 'space-between', padding: 12 }}>
+        <div className="card row wc-admin-kit wc-admin-kit__card" key={card.id} style={{ alignItems: 'center', gap: 12, justifyContent: 'space-between' }}>
           <div>
             <strong>{card.archivedAt ? `[보관] ${card.name}` : card.name}</strong>
-            <div className="mono" style={{ color: 'var(--dim)', fontSize: 11, marginTop: 4 }}>{card.rarity} · {card.id}</div>
+            <div className="mono" style={{ color: 'var(--wc-ink-tertiary)', fontSize: 11, marginTop: 4 }}>{card.rarity} · {card.id}</div>
           </div>
           <Link className="btn" href={`/admin/catalog/cards?cardId=${encodeURIComponent(card.id)}`}>카드 편집</Link>
         </div>

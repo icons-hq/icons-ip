@@ -1,0 +1,53 @@
+/* #414: opt-in detail surface inside the White Catalog admin shell. */
+.wc-admin .admin-order-detail { display: grid; gap: 24px; min-width: 0; }
+.wc-admin .admin-order-detail .wc-admin-kit__page-header { margin-bottom: 0; }
+.wc-admin .admin-order-detail .wc-admin-kit__description { overflow-wrap: anywhere; }
+.wc-admin .admin-order-detail__overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.wc-admin .admin-order-detail__workspace { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr); gap: 24px; align-items: start; }
+.wc-admin .admin-order-detail__facts { display: grid; gap: 16px; margin: 0; }
+.wc-admin .admin-order-detail__facts > div { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 12px; }
+.wc-admin .admin-order-detail__facts dt { color: var(--wc-ink-tertiary); font-size: 13px; }
+.wc-admin .admin-order-detail__facts dd { margin: 0; overflow-wrap: anywhere; font-size: 14px; }
+.wc-admin .admin-order-detail__facts dd > span:not(.wc-admin-kit__badge) { display: block; margin-top: 4px; color: var(--wc-ink-tertiary); font-size: 13px; }
+.wc-admin .admin-order-detail__items { list-style: none; padding: 0; margin: 0; }
+.wc-admin .admin-order-detail__items li { display: flex; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--wc-hairline); }
+.wc-admin .admin-order-detail__items li:first-child { padding-top: 0; }
+.wc-admin .admin-order-detail__items li:last-child { padding-bottom: 0; border-bottom: 0; }
+.wc-admin .admin-order-detail__items li > div { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+.wc-admin .admin-order-detail__items li > div:last-child { text-align: right; flex-shrink: 0; }
+.wc-admin .admin-order-detail__items span,
+.wc-admin .admin-order-detail__muted { color: var(--wc-ink-tertiary); font-size: 13px; line-height: 1.6; }
+.wc-admin .admin-order-detail__timeline { list-style: none; margin: 24px 0 0; padding: 0; }
+.wc-admin .admin-order-detail__event { position: relative; margin-left: 6px; padding: 0 0 28px 24px; border-left: 1px solid var(--wc-line-control); }
+.wc-admin .admin-order-detail__event::before { content: ''; position: absolute; width: 9px; height: 9px; left: -5px; top: 8px; border: 1px solid var(--wc-ink); border-radius: 50%; background: var(--wc-surface); }
+.wc-admin .admin-order-detail__event:last-child { padding-bottom: 0; }
+.wc-admin .admin-order-detail__event-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; color: var(--wc-ink-tertiary); }
+.wc-admin .admin-order-detail__event h4 { margin: 10px 0 4px; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.wc-admin .admin-order-detail__event p { margin: 4px 0 0; font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.wc-admin .admin-order-detail__event > a { display: inline-flex; align-items: center; min-height: 40px; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+.wc-admin .admin-order-detail__body { white-space: pre-wrap; }
+.wc-admin .admin-order-detail__note { display: grid; gap: 16px; }
+.wc-admin .admin-order-detail__note textarea { width: 100%; resize: vertical; min-height: 120px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); padding: 12px; font: inherit; line-height: 1.6; }
+.wc-admin .admin-order-detail__note textarea[aria-invalid='true'] { border-color: var(--wc-danger); }
+.wc-admin .admin-order-detail__note > p { font-size: 13px; margin: 0; }
+.wc-admin .admin-order-detail__button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 10px 16px; border: 1px solid var(--wc-ink); border-radius: var(--wc-radius-cta); background: var(--wc-ink); color: var(--wc-surface); font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; }
+.wc-admin .admin-order-detail__button--secondary { background: var(--wc-surface); color: var(--wc-ink); border-color: var(--wc-line-control); }
+.wc-admin .admin-order-detail__note > button { justify-self: start; }
+.wc-admin .admin-order-detail__button:disabled { cursor: wait; opacity: .55; }
+.wc-admin .admin-order-detail a:focus-visible,
+.wc-admin .admin-order-detail button:focus-visible,
+.wc-admin .admin-order-detail textarea:focus-visible { outline: 2px solid var(--wc-focus); outline-offset: 3px; }
+@media (max-width: 1100px) {
+  .wc-admin .admin-order-detail__workspace { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 700px) {
+  .wc-admin .admin-order-detail__overview { grid-template-columns: minmax(0, 1fr); }
+  .wc-admin .admin-order-detail__facts > div { grid-template-columns: 80px minmax(0, 1fr); }
+  .wc-admin .admin-order-detail__workspace { gap: 16px; }
+}
+
+/* #447: every origin keeps its own tracking and receipt dates. */
+.wc-admin .admin-order-detail__shipment + .admin-order-detail__shipment { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--wc-hairline); }
+.wc-admin .admin-order-detail__shipment h3 { margin: 0 0 16px; font-size: 15px; }
+.wc-admin .admin-order-detail__shipment ul { padding-left: 20px; font-size: 13px; }
+.wc-admin .admin-order-detail__shipment a { display: inline-flex; align-items: center; min-height: 44px; font-size: 13px; }

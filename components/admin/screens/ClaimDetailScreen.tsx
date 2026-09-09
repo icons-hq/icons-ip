@@ -1,3 +1,6 @@
+
+import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
+import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
 import Link from 'next/link';
 import type { AdminClaimDetail } from '@/lib/admin/claims.server';
 import { krw } from '@/lib/format';
@@ -16,6 +19,7 @@ import {
 } from '@/lib/orders/claims';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { ClaimActionPanel } from './ClaimActionPanel';
+import { ClaimReshipmentDelivery } from './ClaimReshipmentDelivery';
 
 /* 어드민 클레임 상세(#252).
  *
@@ -29,16 +33,18 @@ import { ClaimActionPanel } from './ClaimActionPanel';
  * 갈라지고, 갈라지면 어느 쪽이 사실인지 알 수 없다. */
 
 const TIMELINE_LABELS: Record<string, string> = {
-  'order.claim_auto_approved': '자동 승인 (발송 전 변심 취소)',
+  'order.claim_auto_approved': '자동 승인 (발주확인 전 취소)',
   'admin.order.claim_in_review': '검토중으로 변경',
   'admin.order.claim_approved': '승인',
   'admin.order.claim_rejected': '거부',
   'admin.order.claim_held': '보류',
   'admin.order.claim_resumed': '보류 해제',
   'admin.order.claim_collected': '수거·입고',
+  'admin.order.claim_origin_collected': '출고지 회수 확인',
   'admin.order.claim_refund_filed': '환불 접수',
   'admin.order.claim_refund_completed': '환불 완료',
   'admin.order.claim_reshipped': '교환 재출고',
+  'admin.order.claim_reshipment_delivered': '교환품 배송완료 확인',
   'admin.order.cancellation_approved': '청약철회 승인 (레거시 경로)',
   'admin.order.cancellation_rejected': '청약철회 거절 (레거시 경로)',
 };
@@ -60,7 +66,7 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="row" style={{ gap: 8, justifyContent: 'space-between' }}>
+    <div className="row admin-claim-summary-row" style={{ gap: 8, justifyContent: 'space-between' }}>
       <span className="muted" style={{ fontSize: 12 }}>{label}</span>
       <span style={{ fontSize: 13 }}>{value}</span>
     </div>
@@ -114,6 +120,7 @@ export function ClaimDetailScreen({
       </div>
 
       <div className="admin-claim-detail-layout">
+        <div className="admin-claim-detail-column">
         <div className="card">
           <h3 style={{ marginTop: 0 }}>주문 요약</h3>
           {order ? (
@@ -130,12 +137,7 @@ export function ClaimDetailScreen({
                   ? `${PAYMENT_PROVIDER_LABELS[payment.provider ?? ''] ?? payment.provider ?? '알 수 없음'} · ${payment.status}`
                   : '결제 내역 없음'}
               />
-              <Row
-                label="배송"
-                value={order.trackingNumber
-                  ? `${order.shippingCarrier ?? ''} ${order.trackingNumber}`
-                  : '운송장 없음'}
-              />
+              <ShipmentDetails admin shipments={order.shipments} items={order.items} />
               <ul style={{ margin: '10px 0 0', paddingLeft: 18 }}>
                 {order.items.map((item, index) => (
                   <li key={`${item.name}-${index}`} style={{ fontSize: 13 }}>
@@ -144,7 +146,7 @@ export function ClaimDetailScreen({
                 ))}
               </ul>
               <p className="muted" style={{ fontSize: 12, margin: '10px 0 0' }}>
-                클레임은 주문 단위 전액으로만 처리됩니다. 일부 품목만 불량이면 전체 반품 또는
+                {V.claimRequest}은 주문 단위 전액으로만 처리됩니다. 일부 품목만 불량이면 전체 반품 또는
                 협의 재발송으로 안내하고, 부분 환불을 약속하지 마세요.
               </p>
               <Link
@@ -160,6 +162,42 @@ export function ClaimDetailScreen({
           )}
         </div>
 
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>요청 내용</h3>
+          <p style={{ fontSize: 13 }}>{claim.reason}</p>
+          {claim.decisionNote ? <Row label="거부 사유" value={claim.decisionNote} /> : null}
+          {claim.holdReason ? <Row label="보류 사유" value={claim.holdReason} /> : null}
+          {claim.lastErrorCode ? (
+            <Row label="정합화 오류" value={claim.lastErrorCode} />
+          ) : null}
+          {claim.reshipTrackingNumber ? (
+            <Row
+              label="재출고 운송장"
+              value={`${claim.reshipCarrier ?? ''} ${claim.reshipTrackingNumber}`}
+            />
+          ) : null}
+          {claim.reshippedItems?.map((item) => <Row key={item.orderItemId} label="재출고 옵션"
+            value={`${item.name} · ${item.variantName} · ${item.variantCode} · ${item.qty}개`} />)}
+
+          <h4 style={{ margin: '14px 0 6px' }}>타임라인</h4>
+          {timeline.length === 0 ? (
+            <p className="muted" style={{ fontSize: 12.5 }}>아직 기록된 처리가 없습니다.</p>
+          ) : (
+            <ol style={{ margin: 0, paddingLeft: 18 }}>
+              {timeline.map((entry, index) => (
+                <li key={`${entry.action}-${index}`} style={{ fontSize: 12.5 }}>
+                  <time dateTime={entry.createdAt}>{formatOrderDateTime(entry.createdAt)}</time>
+                  {' · '}
+                  {TIMELINE_LABELS[entry.action] ?? entry.action}
+                  {entry.actorName ? ` · @${entry.actorName}` : ''}
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+
+        </div>
+        <div className="admin-claim-detail-column">
         <div className="card">
           <h3 style={{ marginTop: 0 }}>카드팩 · 환불</h3>
           <Row
@@ -218,54 +256,25 @@ export function ClaimDetailScreen({
             </>
           ) : null}
         </div>
-      </div>
-
-      <div className="admin-claim-detail-layout">
-        <div className="card">
-          <h3 style={{ marginTop: 0 }}>요청 내용</h3>
-          <p style={{ fontSize: 13 }}>{claim.reason}</p>
-          {claim.decisionNote ? <Row label="거부 사유" value={claim.decisionNote} /> : null}
-          {claim.holdReason ? <Row label="보류 사유" value={claim.holdReason} /> : null}
-          {claim.lastErrorCode ? (
-            <Row label="정합화 오류" value={claim.lastErrorCode} />
-          ) : null}
-          {claim.reshipTrackingNumber ? (
-            <Row
-              label="재출고 운송장"
-              value={`${claim.reshipCarrier ?? ''} ${claim.reshipTrackingNumber}`}
-            />
-          ) : null}
-
-          <h4 style={{ margin: '14px 0 6px' }}>타임라인</h4>
-          {timeline.length === 0 ? (
-            <p className="muted" style={{ fontSize: 12.5 }}>아직 기록된 처리가 없습니다.</p>
-          ) : (
-            <ol style={{ margin: 0, paddingLeft: 18 }}>
-              {timeline.map((entry, index) => (
-                <li key={`${entry.action}-${index}`} style={{ fontSize: 12.5 }}>
-                  <time dateTime={entry.createdAt}>{formatOrderDateTime(entry.createdAt)}</time>
-                  {' · '}
-                  {TIMELINE_LABELS[entry.action] ?? entry.action}
-                  {entry.actorName ? ` · @${entry.actorName}` : ''}
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-
         <div className="card">
           <ClaimActionPanel
             cancellationForm={cancellationForm}
             carriers={carriers}
             claimId={claim.id}
             claimType={claim.claimType}
+            collectionPolicy={claim.collectionPolicy}
+            collectionComplete={claim.collectionComplete}
+            collections={claim.collections}
             heldFrom={claim.heldFrom}
             orderId={claim.orderId}
             refundCompleted={Boolean(refund?.completedAt)}
             refundFiled={Boolean(refund?.filedAt)}
             refundLedgerOpen={Boolean(refund)}
+            reshipItems={order?.items}
             stage={claim.stage}
           />
+          <ClaimReshipmentDelivery claim={claim} />
+        </div>
         </div>
       </div>
     </section>

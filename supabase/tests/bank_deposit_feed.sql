@@ -98,16 +98,16 @@ on conflict (id) do update set
   onboarded_at = excluded.onboarded_at,
   role = excluded.role;
 
-insert into public.ips (id, title, vertical_key)
-values ('deposit-ip', '입금 IP', 'character');
+insert into public.ips (id, title, vertical_key, published_at)
+values ('deposit-ip', '입금 IP', 'character', now());
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
-values ('deposit-goods', 'deposit-ip', '입금 굿즈', '문구', 20000, 'ok', 30);
+insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
+values ('deposit-goods', 'deposit-ip', '입금 굿즈', '문구', 20000, 'ok', 30, now());
 
 reset role;
 
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000e01', 'deposit-goods', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000e01', 'deposit-goods', 1, (select id from public.goods_variants where good_id='deposit-goods' and is_default));
 
 select public.place_order(
   '00000000-0000-4000-8000-000000000e01'::uuid,
@@ -255,8 +255,8 @@ select 1 / case when (
 -- ---------------------------------------------------------------------------
 reset role;
 
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000e01', 'deposit-goods', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000e01', 'deposit-goods', 1, (select id from public.goods_variants where good_id='deposit-goods' and is_default));
 
 select public.place_order(
   '00000000-0000-4000-8000-000000000e01'::uuid,
@@ -364,8 +364,8 @@ $$;
 -- 큐에서 사라져 아무도 정합화하지 않는다.
 reset role;
 
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000e01', 'deposit-goods', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000e01', 'deposit-goods', 1, (select id from public.goods_variants where good_id='deposit-goods' and is_default));
 
 select public.place_order(
   '00000000-0000-4000-8000-000000000e01'::uuid,

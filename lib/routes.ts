@@ -69,6 +69,7 @@ const PATHS: Record<string, string> = {
   wish: '/my/wishlist',
   notifications: '/notifications',
   about: '/about',
+  help: '/help',
   /* 법정 고지 — 슬러그 표기와 헬퍼는 lib/legal/links.ts가 감싼다. */
   terms: '/legal/terms',
   privacy: '/legal/privacy',
@@ -148,6 +149,7 @@ export const FOOTER_DISCOVER_ITEMS: NavItem[] = visibleItems([
 ]);
 
 export const FOOTER_ACCOUNT_ITEMS: NavItem[] = [
+  { id: 'help', label: '자주 묻는 질문' },
   { id: 'orders', label: '주문조회' },
   { id: 'tickets', label: '내 티켓' },
   { id: 'binder', label: '바인더' },

@@ -1,7 +1,9 @@
+import { shipmentFixture } from '@/lib/orders/shipments.fixture';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminInquiryDetail } from '@/lib/admin/inquiries.server';
 import { InquiryDetailScreen } from './InquiryDetailScreen';
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
@@ -12,10 +14,13 @@ vi.mock('react', async () => {
 });
 vi.mock('@/app/admin/inquiry-actions', () => ({
   answerInquiryAction: vi.fn(),
+  reassignInquiryAction: vi.fn(),
+  addInquiryInternalNoteAction: vi.fn(),
   closeInquiryAction: vi.fn(),
   deleteInquiryReplyTemplateAction: vi.fn(),
   saveInquiryReplyTemplateAction: vi.fn(),
 }));
+vi.mock('@/app/admin/customer-actions', () => ({ loadCustomerHistoryAction: vi.fn() }));
 
 const INQUIRY_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
@@ -35,6 +40,9 @@ function detail(overrides: Partial<AdminInquiryDetail> = {}): AdminInquiryDetail
       goodId: null,
       goodName: null,
       handlerName: null,
+      assigneeId: null,
+      assigneeName: null,
+      waitingSince: '2026-08-18T01:00:00.000Z',
       createdAt: '2026-08-18T01:00:00.000Z',
       lastMessageAt: '2026-08-18T01:00:00.000Z',
       answeredAt: null,
@@ -57,8 +65,7 @@ function detail(overrides: Partial<AdminInquiryDetail> = {}): AdminInquiryDetail
       status: 'shipping',
       total: 57000,
       createdAt: '2026-08-11T01:00:00.000Z',
-      shippingCarrier: '한진택배',
-      trackingNumber: '1234567890',
+      shipments: [shipmentFixture({trackingNumber:'1234567890'})],
       itemCount: 4,
       leadItemName: '아크릴 블록',
       payment: { provider: 'korpay', status: 'paid', amount: 57000 },
@@ -76,6 +83,8 @@ function detail(overrides: Partial<AdminInquiryDetail> = {}): AdminInquiryDetail
       openInquiryCount: 1,
     },
     templates: [{ id: 't1', title: '배송 지연 안내', body: '배송이 지연되어 죄송합니다.' }],
+    staffOptions: [],
+    notes: [],
     ...overrides,
   };
 }
@@ -87,13 +96,39 @@ function render(input = detail()) {
 }
 
 describe('InquiryDetailScreen', () => {
+  it('고객 ID 상세 링크와 화면 안의 고객 이력 패널을 제공한다', () => {
+    const html = render();
+    expect(html).toContain('/admin/customers/33333333-3333-4333-8333-333333333333');
+    expect(html).toContain('aria-label="고객 이력"');
+  });
+  it('연결 주문을 페이지 필터와 무관한 정확한 상세 주소로 연다', () => {
+    expect(render()).toContain(`/admin/sales/orders/${ORDER_ID}`);
+  });
+  it('내부 메모는 고객 답변과 구분해 작성자와 함께 보여준다', () => {
+    const html = render(detail({ notes: [{ id: 'n1', authorName: '지우', body: '물류팀 재확인 필요', createdAt: '2026-08-20T01:00:00Z' }] }));
+    expect(html).toContain('내부 메모 · 고객 비노출');
+    expect(html).toContain('물류팀 재확인 필요');
+    expect(html).toContain('변경 사유');
+    expect(html).toContain('담당자 변경');
+  });
+
+  it('각 답변에 실제 답변자의 표시명을 보여준다', () => {
+    const html = render(detail({ messages: [
+      { id: 'staff-a', author: 'staff', authorName: '수민', body: '확인했습니다.', imageUrls: [], createdAt: '2026-08-20T01:00:00Z' },
+      { id: 'staff-b', author: 'staff', authorName: '지우', body: '발송했습니다.', imageUrls: [], createdAt: '2026-08-20T02:00:00Z' },
+    ] }));
+    expect(html).toContain('수민');
+    expect(html).toContain('지우');
+  });
+
   /* 컨텍스트 패널이 이 화면의 존재 이유다 — 없으면 CS가 주문 콘솔을 오간다. */
   it('연결 주문의 상태·결제·운송장·클레임 이력을 한 화면에 싣는다', () => {
     const html = render();
 
     expect(html).toContain('배송중');
     expect(html).toContain('Korpay');
-    expect(html).toContain('한진택배 1234567890');
+    expect(html).toContain('한진택배');
+    expect(html).toContain('1234567890');
     expect(html).toContain('승인 대기');
     expect(html).toContain('₩57,000');
   });

@@ -32,6 +32,8 @@ export interface InquiryActionState {
   message?: string;
   /** 성공한 등록마다 새로 생기는 값. 화면이 입력창을 비우는 신호다. */
   resultKey?: string;
+  /** Widget success stays in the overlay instead of redirecting the page. */
+  inquiryId?: string;
 }
 
 const CREATE_FAILED = '문의를 접수하지 못했습니다. 잠시 후 다시 시도해주세요.';
@@ -106,34 +108,43 @@ async function uploadInquiryImages(
   return { ok: true, paths };
 }
 
-export async function createInquiryAction(
-  _state: InquiryActionState,
-  formData: FormData,
-): Promise<InquiryActionState> {
+async function submitInquiry(formData: FormData): Promise<InquiryActionState> {
   const user = await requireActiveUser('/my/inquiries/new');
 
   const normalized = normalizeInquiryForm(formData);
   if (!normalized.ok) return { errors: normalized.errors };
 
-  const supabase = await createClient();
-  const uploaded = await uploadInquiryImages(supabase, user.id, normalized.value.images);
-  if (!uploaded.ok) return { errors: { images: UPLOAD_FAILED } };
-
-  const { data, error } = await supabase.rpc('create_inquiry', {
-    target_body: normalized.value.body,
-    target_category: normalized.value.category,
-    target_good_id: normalized.value.goodId,
-    target_image_paths: uploaded.paths,
-    target_order_id: normalized.value.orderId,
-    target_title: normalized.value.title,
-  });
-
-  if (error || typeof data !== 'string') {
-    return { errors: rpcErrorMessage(error?.message, CREATE_FAILED) };
+  let inquiryId: string;
+  try {
+    const supabase = await createClient();
+    const uploaded = await uploadInquiryImages(supabase, user.id, normalized.value.images);
+    if (!uploaded.ok) return { errors: { images: UPLOAD_FAILED } };
+    const { data, error } = await supabase.rpc('create_inquiry', {
+      target_body: normalized.value.body,
+      target_category: normalized.value.category,
+      target_good_id: normalized.value.goodId,
+      target_image_paths: uploaded.paths,
+      target_order_id: normalized.value.orderId,
+      target_title: normalized.value.title,
+    });
+    if (error || typeof data !== 'string') return { errors: rpcErrorMessage(error?.message, CREATE_FAILED) };
+    inquiryId = data;
+  } catch {
+    return { errors: { form: CREATE_FAILED } };
   }
 
   revalidatePath('/my/inquiries');
-  redirect(`/my/inquiries/${data}`);
+  return { inquiryId, resultKey: crypto.randomUUID(), message: '문의를 접수했습니다.' };
+}
+
+export async function createInquiryAction(_state: InquiryActionState, formData: FormData): Promise<InquiryActionState> {
+  const result = await submitInquiry(formData);
+  if (result.inquiryId) redirect(`/my/inquiries/${result.inquiryId}`);
+  return result;
+}
+
+export async function createWidgetInquiryAction(_state: InquiryActionState, formData: FormData): Promise<InquiryActionState> {
+  return submitInquiry(formData);
 }
 
 export async function replyToInquiryAction(

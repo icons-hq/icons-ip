@@ -68,12 +68,7 @@ on conflict (id) do update set
   consents = excluded.consents,
   onboarded_at = excluded.onboarded_at;
 
-select 1 / case when not has_function_privilege('anon', 'public.place_order(jsonb)', 'execute') then 1 else 0 end
-  as assert_anon_cannot_use_legacy_place_order;
-select 1 / case when not has_function_privilege('authenticated', 'public.place_order(jsonb)', 'execute') then 1 else 0 end
-  as assert_authenticated_cannot_use_legacy_place_order;
-select 1 / case when not has_function_privilege('service_role', 'public.place_order(jsonb)', 'execute') then 1 else 0 end
-  as assert_service_role_cannot_use_legacy_place_order;
+select 1 / case when to_regprocedure('public.place_order(jsonb)') is null then 1 else 0 end as assert_legacy_checkout_removed;
 
 select 1 / case when not has_function_privilege('anon', 'public.place_order(jsonb,uuid)', 'execute') then 1 else 0 end
   as assert_anon_cannot_use_browser_place_order;
@@ -191,10 +186,10 @@ begin
 end;
 $$;
 
-insert into public.cart_items (user_id, good_id, qty)
+insert into public.cart_items (user_id, good_id, qty, variant_id)
 values
-  ('00000000-0000-4000-8000-000000000501', 'g1', 2),
-  ('00000000-0000-4000-8000-000000000501', 'g2', 1);
+  ('00000000-0000-4000-8000-000000000501', 'g1', 2, (select id from public.goods_variants where good_id='g1' and is_default)),
+  ('00000000-0000-4000-8000-000000000501', 'g2', 1, (select id from public.goods_variants where good_id='g2' and is_default));
 
 select stock_qty as g1_stock_before from public.goods where id = 'g1' \gset
 select stock_qty as g2_stock_before from public.goods where id = 'g2' \gset
@@ -292,8 +287,8 @@ $$;
 
 -- Idempotency is scoped per user, not globally.
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000502', true);
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000502', 'g3', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000502', 'g3', 1, (select id from public.goods_variants where good_id='g3' and is_default));
 
 select public.place_order(
   '00000000-0000-4000-8000-000000000502',
@@ -307,10 +302,11 @@ select 1 / case when :'second_user_order_id'::uuid <> :'first_order_id'::uuid th
 -- An out-of-stock failure rolls back the order and preserves the cart/inventory.
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000503', true);
 reset role;
-update public.goods set stock = 'soldout', stock_qty = 0 where id = 'g6';
+update public.goods_variants set stock_qty = 0 where good_id = 'g6' and is_default;
+update public.goods set stock = 'soldout' where id = 'g6';
 reset role;
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000503', 'g6', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000503', 'g6', 1, (select id from public.goods_variants where good_id='g6' and is_default));
 
 do $$
 begin
@@ -345,10 +341,11 @@ select 1 / case when (
 delete from public.cart_items
 where user_id = '00000000-0000-4000-8000-000000000503' and good_id = 'g6';
 reset role;
-update public.goods set stock = 'soldout', stock_qty = 1 where id = 'g11';
+update public.goods_variants set stock_qty = 1 where good_id = 'g11' and is_default;
+update public.goods set stock = 'soldout' where id = 'g11';
 reset role;
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000503', 'g11', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000503', 'g11', 1, (select id from public.goods_variants where good_id='g11' and is_default));
 
 do $$
 begin
@@ -387,8 +384,8 @@ select 1 / case when (
 ) then 1 else 0 end as assert_free_shipping_above_threshold;
 
 delete from public.cart_items where user_id = '00000000-0000-4000-8000-000000000501';
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000501', 'g2', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000501', 'g2', 1, (select id from public.goods_variants where good_id='g2' and is_default));
 
 set local role service_role;
 select public.place_order(
@@ -403,13 +400,15 @@ select 1 / case when (
   from public.orders where id = :'shipping_fee_order_id'::uuid
 ) then 1 else 0 end as assert_flat_shipping_fee_below_threshold;
 
--- A zero-priced catalog item cannot consume inventory into an order that the
--- configured card provider can never prepare.
+-- A free item with free shipping cannot consume inventory into a zero-total
+-- order that the configured card provider can never prepare. Policy shipping
+-- still charges its base fee when the item subtotal is zero.
 reset role;
-update public.goods set price = 0, stock = 'ok', stock_qty = 2 where id = 'g11';
+update public.goods_variants set stock_qty = 2 where good_id = 'g11' and is_default;
+update public.goods set price = 0, stock = 'ok', shipping_fee_type = 'free' where id = 'g11';
 delete from public.cart_items where user_id = '00000000-0000-4000-8000-000000000503';
-insert into public.cart_items (user_id, good_id, qty)
-values ('00000000-0000-4000-8000-000000000503', 'g11', 1);
+insert into public.cart_items (user_id, good_id, qty, variant_id)
+values ('00000000-0000-4000-8000-000000000503', 'g11', 1, (select id from public.goods_variants where good_id='g11' and is_default));
 
 set local role service_role;
 do $$

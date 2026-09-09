@@ -1,3 +1,4 @@
+import { shipmentFixture } from '@/lib/orders/shipments.fixture';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { OrderDetail as OrderDetailData } from '@/lib/orders';
@@ -28,16 +29,12 @@ function order(overrides: Partial<OrderDetailData> = {}): OrderDetailData {
     },
     createdAt: '2026-08-01T06:00:00.000Z',
     deliveredAt: null,
-    items: [{ goodId: 'g13', name: '홍실 아크릴 블록', type: '아크릴 블록', qty: 1, unitPrice: 27000 }],
+    items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13', name: '홍실 아크릴 블록', type: '아크릴 블록', qty: 1, unitPrice: 27000 }],
     payment: { amount: 30000, status: 'paid', createdAt: '2026-08-01T06:01:00.000Z' },
     refund: null,
     cancellationRequest: null,
-    shipment: {
-      carrier: 'hanjin',
-      carrierLabel: '한진택배',
-      trackingNumber: '123456789012',
-      trackingUrl: 'https://carrier.example.test/track?no=123456789012',
-    },
+    claimEligibility: { cancel: false, return: false, exchange: false },
+    shipments: [shipmentFixture()],
     cardPacks: { issuedCount: 0, availableCount: 0 },
     ...overrides,
   };
@@ -55,7 +52,7 @@ describe('OrderDetail', () => {
   });
 
   it('운송장이 없으면 배송조회를 지어내지 않는다', () => {
-    const html = renderToStaticMarkup(<OrderDetail order={order({ shipment: null })} />);
+    const html = renderToStaticMarkup(<OrderDetail order={order({ shipments: [] })} />);
 
     expect(html).not.toContain('배송조회');
     expect(html).not.toContain('운송장번호');
@@ -72,7 +69,7 @@ describe('OrderDetail', () => {
   /* 배송비 스냅샷은 주문 시점 값이다 — 정책이 바뀌어도 과거 영수증은 변하지 않는다. */
   it('배송비 스냅샷이 0인 과거 주문은 무료로 남는다', () => {
     const html = renderToStaticMarkup(
-      <OrderDetail order={order({ shippingFee: 0, total: 27000, payment: null })} />,
+      <OrderDetail order={order({ shippingFee: 0, total: 27000, payment: null, shipments: [shipmentFixture({shippingFee:0})] })} />,
     );
 
     expect(html).toContain('무료');
@@ -169,3 +166,14 @@ describe('OrderDetail 무통장 입금 대기', () => {
     expect(html).not.toContain('입금을 기다리고 있어요');
   });
 });
+
+ it('두 출고지 배송을 각각 추적하고 각 배송 완료시각을 분리한다', () => {
+  const shipments = [shipmentFixture({status:'delivered',deliveredAt:'2026-09-08T00:00:00Z'}),shipmentFixture({id:'00000000-0000-4000-8000-000000044702',originName:'남양주',trackingNumber:'9876543210',trackingUrl:'https://carrier.example.test/9876543210'})];
+  const html = renderToStaticMarkup(<OrderDetail order={order({shipments})} />);
+  expect(html).toContain('김포 · 배송 완료');
+  expect(html).toContain('남양주 · 배송 중');
+  expect(html).toContain('123456789012');
+  expect(html).toContain('9876543210');
+  expect(html).toContain('김포 배송조회');
+  expect(html).toContain('남양주 배송조회');
+ });

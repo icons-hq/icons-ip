@@ -29,15 +29,14 @@ export function IpDirectory({
   const [letter, setLetter] = useState(initialLetter);
   const sorted = useMemo(() => sortIpsForDirectory(ips), [ips]);
   const filtered = useMemo(() => filterIpsByLetter(sorted, letter), [sorted, letter]);
-  /* 피처드는 큐레이션(카탈로그 순서)을 그대로 따르고 A–Z 정렬을 섞지 않는다. */
-  const featured = ips.filter((ip) => ip.featured).slice(0, FEATURED_LIMIT);
+  const featured = sorted.filter((ip) => ip.featured).slice(0, FEATURED_LIMIT);
 
   return (
     <div className="wc-root wc-ipdir">
       <div className="wc-container">
         <SectionHeading
           as="h1"
-          subcopy="IP별 전시관을 A–Z로 훑고, 관심 있는 세계로 들어가 보세요."
+          subcopy="IP별 전시관을 둘러보고, 관심 있는 세계로 들어가 보세요."
           title="온라인 팝업"
         />
 

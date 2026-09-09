@@ -25,10 +25,24 @@ export interface Ip {
   goods: number;
   cards: number;
   featured: boolean;
+  /** Operator ordering for the IP directory; legacy mock fixtures fall back to display-name order. */
+  sortOrder?: number;
   tagline: string;
   synopsis: string;
 }
+export interface GoodOption {
+  id: string;
+  name: string;
+  code: string;
+  price: number;
+  stockQty: number;
+  isDefault: boolean;
+  attributes: Record<string, string>;
+}
 export interface Good {
+  options?: GoodOption[];
+  originId?: string;
+  priceMax?: number;
   id: string;
   name: string;
   ip: string;

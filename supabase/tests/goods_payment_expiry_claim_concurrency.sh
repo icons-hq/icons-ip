@@ -134,13 +134,13 @@ values (
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values (
   '${order_id}', 'goods-payment-expiry-claim-good', 1, 28000,
   '결제 만료 claim 경합 상품', '문구',
-  'goods-payment-expiry-claim-ip'
-);
+  'goods-payment-expiry-claim-ip',
+  (select id from public.goods_variants where good_id='goods-payment-expiry-claim-good' and is_default));
 
 insert into public.payment_attempts (
   id, provider, user_id, purpose, ref_id, amount, currency, state,
@@ -367,9 +367,7 @@ set
   claim_expires_at = null,
   expires_at = pg_catalog.now() - interval '10 minutes'
 where id = '${attempt_id}'::uuid;
-update public.goods
-set stock_qty = 10
-where id = 'goods-payment-expiry-claim-good';
+update public.goods_variants set stock_qty = 10 where good_id = 'goods-payment-expiry-claim-good' and is_default;
 SQL
 
 : >"$expiry_log"

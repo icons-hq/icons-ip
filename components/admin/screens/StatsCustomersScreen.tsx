@@ -31,7 +31,7 @@ export function StatsCustomersScreen({
   filters: AdminStatsFilters;
 }) {
   return (
-    <section className="admin-console admin-stats">
+    <section className="admin-console admin-stats wc-admin-kit">
       <StatsRangeTabs base="/admin/stats/customers" filters={filters} />
 
       <div className="admin-stats-summary">

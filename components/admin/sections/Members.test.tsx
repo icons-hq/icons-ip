@@ -97,6 +97,7 @@ describe('MembersSection', () => {
     expect(html).toContain('name="query"');
     expect(html).not.toContain('method="get"');
     expect(html).toContain('f***@icons.gg');
+    expect(html).toContain(`href="/admin/customers/${summaries[0].id}"`);
     expect(html).toContain('정지');
     expect(html).not.toContain('fan@example.test');
     expect(html).not.toContain('내부 사유');

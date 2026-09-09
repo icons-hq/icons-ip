@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminPageHeader } from '@/components/admin/console/AdminKit';
 import { useActionState } from 'react';
 import { upsertAdminCouponAction, type AdminCouponActionState } from '@/app/admin/coupon-actions';
 import { CouponSection } from '@/components/admin/sections/CouponSection';
@@ -13,6 +14,7 @@ export function CouponScreen({ records }: { records: AdminCouponRecord[] }) {
   const { selected, select } = useSelectedRecord(records);
 
   return (
+    <><AdminPageHeader title="쿠폰 관리" description="쿠폰 발급 조건과 사용 기간을 관리합니다." />
     <CouponSection
       action={action}
       onSelect={select}
@@ -20,6 +22,6 @@ export function CouponScreen({ records }: { records: AdminCouponRecord[] }) {
       records={records}
       selected={selected}
       state={state}
-    />
+    /></>
   );
 }

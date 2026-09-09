@@ -55,6 +55,8 @@ where id in (
   '00000000-0000-4000-8000-000000000116'
 );
 
+-- published_at: a direct insert is a draft, and drafts are hidden from public search
+-- (20260907130001). The smoke IP has to be published to exercise the result groups.
 insert into public.ips (
   id,
   title,
@@ -64,7 +66,8 @@ insert into public.ips (
   synopsis,
   glyph,
   bg,
-  featured
+  featured,
+  published_at
 )
 values (
   'search-smoke-ip',
@@ -75,7 +78,8 @@ values (
   '검색 smoke synopsis',
   '검색',
   'linear-gradient(#111, #222)',
-  false
+  false,
+  now()
 )
 on conflict (id) do update set
   title = excluded.title,
@@ -85,9 +89,10 @@ on conflict (id) do update set
   synopsis = excluded.synopsis,
   glyph = excluded.glyph,
   bg = excluded.bg,
-  featured = excluded.featured;
+  featured = excluded.featured,
+  published_at = excluded.published_at;
 
-insert into public.goods (id, ip_id, name, type, price, stock, bg)
+insert into public.goods (id, ip_id, name, type, price, stock, bg, published_at)
 values (
   'search-smoke-good',
   'search-smoke-ip',
@@ -95,7 +100,8 @@ values (
   '문구',
   1000,
   'ok',
-  'linear-gradient(#111, #333)'
+  'linear-gradient(#111, #333)',
+  now()
 )
 on conflict (id) do update set
   ip_id = excluded.ip_id,

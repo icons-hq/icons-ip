@@ -13,6 +13,12 @@ describe('PriceBlock', () => {
     expect(html).not.toContain('%');
   });
 
+  it('shows the whole option range without a misleading discount rate', () => {
+    const html = renderToStaticMarkup(<PriceBlock price={12000} priceMax={15000} compareAtPrice={16000} />);
+    expect(html).toContain('₩12,000 ~ ₩15,000');
+    expect(html).not.toContain('wc-price__rate');
+  });
+
   it('shows the struck original, the rate and the sale amount', () => {
     const html = renderToStaticMarkup(<PriceBlock compareAtPrice={12000} price={9000} />);
 

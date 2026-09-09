@@ -1,3 +1,4 @@
+import { shipmentFixture } from '@/lib/orders/shipments.fixture';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { AdminClaimDetail } from '@/lib/admin/claims.server';
@@ -35,10 +36,17 @@ function detail(overrides: Partial<AdminClaimDetail> = {}): AdminClaimDetail {
       decidedAt: '2026-08-18T02:00:00.000Z',
       collectingAt: '2026-08-18T02:00:00.000Z',
       collectedAt: '2026-08-19T06:00:00.000Z',
+      collectionPolicy: 'legacy',
+      collectionComplete: true,
+      collections: [],
       completedAt: null,
       reshipCarrier: null,
       reshipTrackingNumber: null,
       reshippedAt: null,
+      reshipDeliveredAt: null,
+      reshipDeliveredBy: null,
+      reshipDeliveredByName: null,
+      reshipDeliveryEvidence: null,
       lastErrorCode: null,
       handlerName: 'cs_lead',
     },
@@ -49,11 +57,13 @@ function detail(overrides: Partial<AdminClaimDetail> = {}): AdminClaimDetail {
       shippingFee: 3000,
       createdAt: '2026-08-10T01:00:00.000Z',
       deliveredAt: '2026-08-17T01:00:00.000Z',
-      shippingCarrier: 'hanjin',
-      trackingNumber: 'LD00000000901',
+      shipments: [shipmentFixture({trackingNumber:'LD00000000901', status:'delivered'})],
       buyerName: 'maple_fan',
       buyerEmail: 'buyer@example.com',
-      items: [{ name: '아크릴 블록', qty: 2, unitPrice: 20000 }],
+      items: [{ id: '00000000-0000-4000-8000-000000044041', goodId: 'good', name: '아크릴 블록', qty: 2, unitPrice: 20000,
+        variantId: '00000000-0000-4000-8000-000000044010', variantName: '파랑', currentVariantId: '00000000-0000-4000-8000-000000044010',
+        options: [{ id: '00000000-0000-4000-8000-000000044010', name: '파랑', code: 'A01', stockQty: 0 },
+          { id: '00000000-0000-4000-8000-000000044011', name: '빨강', code: 'A02', stockQty: 3 }] }],
     },
     payment: {
       id: '33333333-3333-4333-8333-333333333333',
@@ -103,6 +113,49 @@ function render(overrides: Partial<AdminClaimDetail> = {}, cancellationForm: str
 }
 
 describe('ClaimDetailScreen', () => {
+  it('교환 재출고 뒤에는 배송완료 근거를 별도로 확인하고 기록한 뒤 잠근다', () => {
+    const exchanged = { ...detail().claim, claimType: 'exchange' as const, stage: 'completed' as const,
+      reshipCarrier: 'hanjin', reshipTrackingNumber: 'QA4530000001', reshippedAt: '2026-09-09T00:00:00Z',
+      reshipDeliveredAt: null, reshipDeliveredBy: null, reshipDeliveredByName: null, reshipDeliveryEvidence: null };
+    expect(render({ claim: exchanged })).toContain('교환품 배송완료 확인</button>');
+    const completed = render({ claim: { ...exchanged, reshipDeliveredAt: '2026-09-09T01:00:00Z',
+      reshipDeliveredBy: 'staff-1', reshipDeliveredByName: '배송담당', reshipDeliveryEvidence: '배송 조회 D-001: 전체 수령 확인' } });
+    expect(completed).toContain('배송 조회 D-001: 전체 수령 확인');
+    expect(completed).toContain('배송담당');
+    expect(completed).not.toContain('교환품 배송완료 확인</button>');
+  });
+  const collections = [
+    { shipmentId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', originId: 'gimpo', originName: '김포',
+      returnAddress: '김포 시험 반송지', items: [{ orderItemId: 'item-1', name: '아크릴 블록', qty: 2 }],
+      collectedAt: '2026-09-08T04:00:00Z', collectedBy: 'staff-1', collectorName: '김담당', evidence: '창고 회신 G-001, 수량 2개 확인' },
+    { shipmentId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', originId: 'seowon', originName: '서원',
+      returnAddress: '서원 시험 반송지', items: [{ orderItemId: 'item-2', name: '키링', qty: 1 }],
+      collectedAt: null, collectedBy: null, collectorName: null, evidence: null },
+  ];
+
+  it('각 출고지의 회수 주소·품목·근거를 보여주고 미회수 건만 확인한다', () => {
+    const html = render({ claim: { ...detail().claim, stage: 'collecting', collectionPolicy: 'origin',
+      collectionComplete: false, collections } });
+    expect(html).toContain('김포 시험 반송지');
+    expect(html).toContain('서원 시험 반송지');
+    expect(html).toContain('창고 회신 G-001, 수량 2개 확인');
+    expect(html).toContain('김담당');
+    expect(html).toContain('서원 회수 확인');
+    expect(html).not.toContain('김포 회수 확인</button>');
+    expect(html).not.toContain('환불 완료 확정');
+    expect(html).not.toContain('반송 상품 입고 확인');
+  });
+
+  it.each(['return', 'exchange', 'cancel'] as const)('회수가 남은 %s는 과거 처리중 상태여도 환불·재출고와 결제사 양식을 열지 않는다', (claimType) => {
+    const html = render({ claim: { ...detail().claim, claimType, stage: 'processing', collectionPolicy: 'origin',
+      collectionComplete: false, collections } }, '[결제 취소 요청]');
+    expect(html).toContain('서원 회수 확인');
+    expect(html).not.toContain('환불 완료 확정');
+    expect(html).not.toContain('환불 접수 완료로 기록');
+    expect(html).not.toContain('교환 재출고로 완료');
+    expect(html).not.toContain('결제사 취소 접수 양식');
+  });
+
   it('승인 전에 봐야 하는 주문 맥락을 한 화면에 모은다', () => {
     const html = render();
 
@@ -130,6 +183,16 @@ describe('ClaimDetailScreen', () => {
 
     expect(html).toContain('교환은 카드팩을 회수하지 않습니다');
     expect(html).toContain('교환에는 환불 원장이 없습니다');
+    expect(html).toContain('name="variant:00000000-0000-4000-8000-000000044041"');
+    expect(html).toContain('빨강 · A02');
+    expect(html).toContain('선택한 옵션으로 주문 수량 전체를 재출고');
+  });
+
+  it('완료한 교환의 재출고 옵션 스냅샷을 보여준다', () => {
+    const html = render({ claim: { ...detail().claim, claimType: 'exchange', stage: 'completed', reshippedItems: [
+      { orderItemId: 'item', name: '아크릴 블록', variantId: 'red', variantName: '빨강', variantCode: 'A02', qty: 2 },
+    ] } });
+    expect(html).toContain('아크릴 블록 · 빨강 · A02 · 2개');
   });
 
   /* 환불계좌 원문은 어떤 경로로도 화면에 오지 않는다(#208 안전 기본값). */
@@ -183,7 +246,7 @@ describe('ClaimDetailScreen', () => {
     });
 
     expect(html).toContain('환불 완료를 원장에 기록');
-    expect(html).toContain('이 클레임은 이미 종결됐습니다');
+    expect(html).toContain('이 취소·반품·교환 요청은 이미 종결됐습니다');
     expect(html).not.toContain('주문과 재고는 그대로 유지됩니다');
     expect(html).not.toContain('재고 복원 · 카드팩 회수 포함');
   });

@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdminIpRecord } from '@/lib/admin/catalog.server';
 import { IpSection } from './IpSection';
 
@@ -9,10 +9,15 @@ vi.mock('../../../app/admin/archive-actions', () => ({
   unarchiveAdminCatalogRecordAction: vi.fn(),
 }));
 vi.mock('../../../lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: vi.fn() }));
+vi.mock('../../../app/admin/ip-publish-actions', () => ({
+  publishAdminIpAction: vi.fn(),
+  unpublishAdminIpAction: vi.fn(),
+}));
 
 const ip: AdminIpRecord = {
   id: 'hwasan',
   archivedAt: null,
+  publishedAt: '2026-07-15T00:00:00.000Z',
   title: '화산강림',
   sub: null,
   verticalKey: 'webtoon',
@@ -29,6 +34,7 @@ describe('IpSection', () => {
   it('uses the shared artwork field and states the horizontal key-art rule', () => {
     const html = renderToStaticMarkup(
       <IpSection
+        accountId="operator-a"
         action={vi.fn()}
         onSelect={vi.fn()}
         pending={false}
@@ -51,6 +57,7 @@ describe('IpSection', () => {
   it('기존 IP의 featured 값을 보이지 않는 입력으로 보존한다', () => {
     const html = renderToStaticMarkup(
       <IpSection
+        accountId="operator-a"
         action={vi.fn()}
         onSelect={vi.fn()}
         pending={false}
@@ -68,6 +75,7 @@ describe('IpSection', () => {
   it('shows the archive filter and archive control only for an existing IP', () => {
     const existing = renderToStaticMarkup(
       <IpSection
+        accountId="operator-a"
         action={vi.fn()}
         onSelect={vi.fn()}
         pending={false}
@@ -79,6 +87,7 @@ describe('IpSection', () => {
     );
     const creating = renderToStaticMarkup(
       <IpSection
+        accountId="operator-a"
         action={vi.fn()}
         onSelect={vi.fn()}
         pending={false}
@@ -100,6 +109,7 @@ describe('IpSection', () => {
     const archived = { ...ip, archivedAt: '2026-07-17T12:00:00.000Z' };
     const html = renderToStaticMarkup(
       <IpSection
+        accountId="operator-a"
         action={vi.fn()}
         onSelect={vi.fn()}
         pending={false}
@@ -123,6 +133,7 @@ describe('IpSection', () => {
     const legacy = { ...ip, bg: 'url("/generated/ip/hwasan.png") center / cover no-repeat' };
     const html = renderToStaticMarkup(
       <IpSection
+        accountId="operator-a"
         action={vi.fn()}
         onSelect={vi.fn()}
         pending={false}
@@ -141,6 +152,7 @@ describe('IpSection', () => {
   it('takes the glyph as multi-line text instead of a typed escape sequence', () => {
     const html = renderToStaticMarkup(
       <IpSection
+        accountId="operator-a"
         action={vi.fn()}
         onSelect={vi.fn()}
         pending={false}
@@ -153,5 +165,192 @@ describe('IpSection', () => {
 
     expect(html).toMatch(/<textarea[^>]*name="glyph"/);
     expect(html).toContain('글리프 (줄바꿈 가능)');
+  });
+
+  /* 게시 상태(20260907130000) — 초안·공개·보관을 폼 머리와 목록에서 읽을 수 있어야 한다. */
+  describe('publish state', () => {
+    function render(selected: AdminIpRecord | null, records = selected ? [selected] : []) {
+      return renderToStaticMarkup(
+        <IpSection
+          accountId="operator-a"
+          action={vi.fn()}
+          onSelect={vi.fn()}
+          pending={false}
+          records={records}
+          selected={selected}
+          state={{}}
+          verticals={[]}
+        />,
+      );
+    }
+
+    it('starts a new IP as a draft with both save flows', () => {
+      const html = render(null);
+
+      expect(html).toContain('data-publish-state="draft"');
+      expect(html).toContain('새 IP는 초안으로 시작합니다.');
+      expect(html).toMatch(/<button[^>]*value="draft"[^>]*name="intent"[^>]*>[^<]*초안으로 저장<\/button>/);
+      expect(html).toMatch(/<button[^>]*value="publish"[^>]*name="intent"[^>]*>[^<]*저장 후 공개<\/button>/);
+      expect(html).not.toContain('PUBLISH STATE');
+    });
+
+    it('keeps both flows for an existing draft and offers the publish toggle beside archive', () => {
+      const draft = { ...ip, publishedAt: null };
+      const html = render(draft);
+
+      expect(html).toContain('[초안] hwasan · 화산강림');
+      expect(html).toContain('data-publish-state="draft"');
+      expect(html).toContain('value="publish"');
+      expect(html).toContain('data-ip-publish-control="draft"');
+      expect(html).toContain('공개로 전환');
+      expect(html).toContain('카탈로그 보관');
+    });
+
+    it('offers a single state-preserving save for a published IP and the revert toggle', () => {
+      const html = render(ip);
+
+      expect(html).toContain('hwasan · 화산강림');
+      expect(html).not.toContain('[초안]');
+      expect(html).toContain('data-publish-state="published"');
+      expect(html).toMatch(/<button[^>]*value="save"[^>]*name="intent"[^>]*>[^<]*저장<\/button>/);
+      expect(html).not.toContain('value="publish"');
+      expect(html).not.toContain('초안으로 저장');
+      expect(html).toContain('data-ip-publish-control="published"');
+      expect(html).toContain('초안으로 되돌리기');
+    });
+
+    it('shows the archived badge and blocks publish changes until restored', () => {
+      const archived = { ...ip, archivedAt: '2026-07-17T12:00:00.000Z' };
+      const html = render(archived);
+
+      expect(html).toContain('[보관] hwasan · 화산강림');
+      expect(html).toContain('data-publish-state="archived"');
+      expect(html).toContain('data-ip-publish-control="archived"');
+      expect(html).toContain('보관된 IP는 게시 상태를 바꿀 수 없습니다.');
+      expect(html).not.toContain('value="publish"');
+    });
+
+    it('disables both submit buttons while the action is pending', () => {
+      const html = renderToStaticMarkup(
+        <IpSection
+          accountId="operator-a"
+          action={vi.fn()}
+          onSelect={vi.fn()}
+          pending
+          records={[]}
+          selected={null}
+          state={{}}
+          verticals={[]}
+        />,
+      );
+
+      expect(html.match(/name="intent"[^>]*disabled=""|disabled=""[^>]*name="intent"/g)).toHaveLength(2);
+      expect(html).toContain('저장 중');
+    });
+  });
+
+  /*
+   * 저장 실패 뒤 React 19 <form action> 이 폼을 리셋해도, 액션이 되돌려준 제출값이
+   * defaultValue 로 다시 심겨야 한다 — 타이핑한 값과 업로드해 둔 imagePath 모두.
+   */
+  describe('after a failed save', () => {
+    const failedNewIp = {
+      errors: { verticalKey: '등록된 버티컬을 선택해주세요.' },
+      values: {
+        previousId: '',
+        id: 'new-ip',
+        title: '새 IP 이름',
+        sub: '보조 설명 유지',
+        verticalKey: 'global',
+        tagline: '태그라인 유지',
+        glyph: '새\n글리프',
+        synopsis: '시놉시스 유지',
+        bg: '',
+        featured: '',
+        imagePath: 'public-media/catalog/ip/uploaded.png',
+      },
+      attempt: 1,
+    };
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it('restores every typed value and the uploaded artwork path for a new IP', () => {
+      vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://demo.supabase.co');
+      const html = renderToStaticMarkup(
+        <IpSection
+          accountId="operator-a"
+          action={vi.fn()}
+          onSelect={vi.fn()}
+          pending={false}
+          records={[]}
+          selected={null}
+          state={failedNewIp}
+          verticals={[{ key: 'global', label: '글로벌 IP', color: '#2DE2FF' }]}
+        />,
+      );
+
+      expect(html).toMatch(/name="id"[^>]*value="new-ip"|value="new-ip"[^>]*name="id"/);
+      expect(html).toMatch(/name="title"[^>]*value="새 IP 이름"|value="새 IP 이름"[^>]*name="title"/);
+      expect(html).toContain('보조 설명 유지');
+      expect(html).toContain('태그라인 유지');
+      expect(html).toContain('시놉시스 유지');
+      expect(html).toMatch(/<textarea[^>]*name="glyph"[^>]*>새\n글리프<\/textarea>/);
+      expect(html).toMatch(/<option[^>]*selected=""[^>]*value="global"|<option[^>]*value="global"[^>]*selected=""/);
+      expect(html).toContain('name="imagePath"');
+      expect(html).toContain('value="public-media/catalog/ip/uploaded.png"');
+      expect(html).toContain('현재 경로: public-media/catalog/ip/uploaded.png');
+      /* 업로드 직후의 object URL 은 리마운트에서 사라졌으니 경로에서 미리보기를 되살린다. */
+      expect(html).toContain('src="https://demo.supabase.co/storage/v1/object/public/public-media/catalog/ip/uploaded.png"');
+      expect(html).toContain('등록된 버티컬을 선택해주세요.');
+    });
+
+    it('keeps a cleared field empty instead of falling back to the stored record', () => {
+      const state = {
+        errors: { title: 'IP 이름을 입력해주세요.' },
+        values: { previousId: 'hwasan', id: 'hwasan', title: '', sub: '', imagePath: '' },
+        attempt: 2,
+      };
+      const stored = { ...ip, sub: '저장된 보조 설명', imagePath: 'public-media/catalog/ip/stored.png', imageUrl: 'https://cdn.test/stored.png' };
+      const html = renderToStaticMarkup(
+        <IpSection
+          accountId="operator-a"
+          action={vi.fn()}
+          onSelect={vi.fn()}
+          pending={false}
+          records={[stored]}
+          selected={stored}
+          state={state}
+          verticals={[]}
+        />,
+      );
+
+      expect(html).not.toContain('저장된 보조 설명');
+      /* 목록 썸네일은 저장된 이미지를 계속 보여주지만, 폼의 미리보기는 제거된 상태를 따른다. */
+      expect(html).not.toContain('alt="현재 아트워크 미리보기" src="https://cdn.test/stored.png"');
+      expect(html).toContain('이미지 없음');
+      expect(html).toContain('현재 경로: 없음');
+      expect(html).toContain('IP 이름을 입력해주세요.');
+    });
+
+    it('ignores a failed submission that belonged to a different record', () => {
+      const html = renderToStaticMarkup(
+        <IpSection
+          accountId="operator-a"
+          action={vi.fn()}
+          onSelect={vi.fn()}
+          pending={false}
+          records={[ip]}
+          selected={ip}
+          state={failedNewIp}
+          verticals={[]}
+        />,
+      );
+
+      expect(html).not.toContain('새 IP 이름');
+      expect(html).not.toContain('uploaded.png');
+      expect(html).toMatch(/name="title"[^>]*value="화산강림"|value="화산강림"[^>]*name="title"/);
+    });
   });
 });

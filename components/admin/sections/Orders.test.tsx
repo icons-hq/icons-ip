@@ -1,3 +1,4 @@
+import { shipmentFixture } from '@/lib/orders/shipments.fixture';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type {
@@ -17,6 +18,7 @@ vi.mock('@/app/admin/order-actions', () => ({
 }));
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
+const SHIPMENT_ID = '00000000-0000-4000-8000-000000044701';
 
 /* 택배사 드롭다운은 DB 레지스트리에서 온다(#251). 상수 목록이 없으므로 콘솔이
    목록 응답에 실려 온 값을 그대로 쓰는지 함께 고정한다. */
@@ -81,6 +83,7 @@ function orderData(overrides: Partial<AdminOrderRecord> = {}): AdminOrderConsole
       updatedAt: '2026-07-14T06:01:00.000Z',
       items: [{
         id: 'item-1',
+        variantId: '00000000-0000-4000-8000-000000000001',
         name: '화산강림 아크릴 스탠드',
         type: '아크릴 스탠드',
         qty: 1,
@@ -97,7 +100,8 @@ function orderData(overrides: Partial<AdminOrderRecord> = {}): AdminOrderConsole
       refunds: [],
       cancellationRequest: null,
       manualRecoveryAttempt: null,
-      shipment: null,
+      shipments: ['shipping','delivered','done'].includes(overrides.status ?? 'paid')
+        ? [shipmentFixture({orderId:ORDER_ID,status:overrides.status==='shipping'?'shipping':'delivered'})] : [],
       ...overrides,
     }],
     pageSize: 20,
@@ -121,14 +125,24 @@ function actionMarker(label: string) {
 }
 
 describe('OrdersSection', () => {
+  it('opens no replacement panel when a linked order is outside the current page', () => {
+    const data = orderData();
+    data.filters.orderId = '99999999-9999-4999-8999-999999999999';
+    const html = renderToStaticMarkup(<OrdersSection data={data} />);
+    expect(html).toContain('선택한 주문은 현재 목록에 없습니다');
+    expect(html).toContain('/admin/sales/orders/99999999-9999-4999-8999-999999999999');
+    expect(html).not.toContain('서울 성동구 성수이로 1');
+    expect(html).not.toContain(STATUS_ACTION_MARKERS['발주확인']);
+  });
   /* 택배사 드롭다운을 상수로 채우면 레지스트리와 갈라져 저장은 되는데 조회는
      안 되는 운송장이 생긴다. 비활성 택배사는 고를 수 없어야 한다(#251). */
   it('택배사 드롭다운을 레지스트리의 활성 택배사로만 채운다', () => {
     const html = renderToStaticMarkup(
-      <OrdersSection data={orderData({ status: 'confirmed' })} />,
+      <OrdersSection data={orderData({ status: 'shipping' })} />,
     );
 
-    expect(html).toContain('<option value="hanjin">한진택배</option>');
+    expect(html).toContain('value="hanjin"');
+    expect(html).toContain('한진택배</option>');
     expect(html).not.toContain('계약종료 택배');
   });
 
@@ -288,7 +302,7 @@ describe('OrdersSection', () => {
         }),
       },
       visible: ['발주확인', '거부'],
-      hidden: ['발송처리', '배송완료', '청약철회 승인', '요청 거절', '상태 다시 확인', '클레임 콘솔에서 처리'],
+      hidden: ['발송처리', '배송완료', '청약철회 승인', '요청 거절', '상태 다시 확인', '취소·반품·교환 관리에서 처리'],
     },
     {
       name: 'completed cancellation awaiting an order refresh',
@@ -302,7 +316,7 @@ describe('OrdersSection', () => {
       visible: ['처리완료'],
       hidden: [
         '발주확인', '발송처리', '배송완료', '청약철회 승인', '요청 거절', '상태 다시 확인',
-        '클레임 콘솔에서 처리',
+        '취소·반품·교환 관리에서 처리',
       ],
     },
     /* 새 stage는 전부 status='requested'로 투영된다. 주문 콘솔이 그 투영으로
@@ -314,7 +328,7 @@ describe('OrdersSection', () => {
         status: 'delivered' as const,
         cancellationRequest: cancellationRequest({ claimType: 'return', stage: 'collecting' }),
       },
-      visible: ['클레임 콘솔에서 처리', '수거중'],
+      visible: ['취소·반품·교환 관리에서 처리', '수거중'],
       hidden: ['청약철회 승인', '요청 거절'],
     },
     {
@@ -323,7 +337,7 @@ describe('OrdersSection', () => {
         status: 'delivered' as const,
         cancellationRequest: cancellationRequest({ claimType: 'exchange', stage: 'collected' }),
       },
-      visible: ['클레임 콘솔에서 처리', '교환 클레임', '입고완료'],
+      visible: ['취소·반품·교환 관리에서 처리', '교환 요청', '입고완료'],
       hidden: ['청약철회 승인', '요청 거절'],
     },
     {
@@ -332,7 +346,7 @@ describe('OrdersSection', () => {
         status: 'delivered' as const,
         cancellationRequest: cancellationRequest({ claimType: 'return', stage: 'on_hold' }),
       },
-      visible: ['클레임 콘솔에서 처리', '보류'],
+      visible: ['취소·반품·교환 관리에서 처리', '보류'],
       hidden: ['청약철회 승인', '요청 거절'],
     },
     {
@@ -340,19 +354,19 @@ describe('OrdersSection', () => {
       overrides: {
         cancellationRequest: cancellationRequest({ stage: 'in_review' }),
       },
-      visible: ['클레임 콘솔에서 처리', '검토중'],
+      visible: ['취소·반품·교환 관리에서 처리', '검토중'],
       hidden: ['청약철회 승인', '요청 거절'],
     },
     {
       name: 'confirmed order',
       overrides: { status: 'confirmed' as const },
-      visible: ['발송처리'],
+      visible: ['배송 건별 운송장 등록'],
       hidden: ['발주확인', '배송완료', '청약철회 승인', '요청 거절', '상태 다시 확인'],
     },
     {
       name: 'shipping order',
       overrides: { status: 'shipping' as const },
-      visible: ['배송완료'],
+      visible: ['배송 건별 배송완료 처리'],
       hidden: ['발주확인', '발송처리', '청약철회 승인', '요청 거절', '상태 다시 확인'],
     },
     /* delivered→done은 자동 거래확정 잡이 소유한다. 운영자 버튼이 생기면
@@ -482,26 +496,21 @@ describe('OrdersSection', () => {
     expect(html).toContain('admin-order-reason--defect');
   });
 
-  it('발송처리 폼에서 택배사와 운송장번호를 필수로 받는다', () => {
-    const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'confirmed' })} />);
+  it('배송 건 운송장 정정 폼에서 택배사와 운송장번호를 필수로 받는다', () => {
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'shipping' })} />);
 
     expect(html).toContain('name="carrier"');
     expect(html).toContain('value="hanjin"');
     expect(html).toContain('한진택배');
     expect(html).toContain('name="trackingNumber"');
-    expect(html).toContain(`for="admin-order-tracking-${ORDER_ID}">운송장번호`);
+    expect(html).toContain(`for="admin-order-edit-${SHIPMENT_ID}-tracking-${ORDER_ID}">운송장번호`);
     expect(html).toContain('required=""');
   });
 
   it('운송장이 등록된 주문은 값과 수정 폼을 함께 보여준다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({
       status: 'shipping',
-      shipment: {
-        carrier: 'hanjin',
-        carrierLabel: '한진택배',
-        trackingNumber: '123456789012',
-        trackingUrl: 'https://carrier.example.test/track?no=123456789012',
-      },
+      shipments: [shipmentFixture()],
     })} />);
 
     expect(html).toContain('123456789012');
@@ -549,14 +558,14 @@ describe('OrdersSection', () => {
     try {
       const { OrdersSection: ErroredOrdersSection } = await import('./Orders');
       const html = renderToStaticMarkup(
-        <ErroredOrdersSection data={orderData({ status: 'confirmed' })} />,
+        <ErroredOrdersSection data={orderData({ status: 'shipping' })} />,
       );
 
       expect(html).toContain('운송장번호를 입력해주세요.');
-      expect(html).toContain(`aria-describedby="admin-order-carrier-error-${ORDER_ID}"`);
-      expect(html).toContain(`id="admin-order-carrier-error-${ORDER_ID}"`);
-      expect(html).toContain(`aria-describedby="admin-order-tracking-error-${ORDER_ID}"`);
-      expect(html).toContain(`id="admin-order-tracking-error-${ORDER_ID}"`);
+      expect(html).toContain(`aria-describedby="admin-order-edit-${SHIPMENT_ID}-carrier-error-${ORDER_ID}"`);
+      expect(html).toContain(`id="admin-order-edit-${SHIPMENT_ID}-carrier-error-${ORDER_ID}"`);
+      expect(html).toContain(`aria-describedby="admin-order-edit-${SHIPMENT_ID}-tracking-error-${ORDER_ID}"`);
+      expect(html).toContain(`id="admin-order-edit-${SHIPMENT_ID}-tracking-error-${ORDER_ID}"`);
     } finally {
       vi.doUnmock('react');
       vi.resetModules();
@@ -609,3 +618,14 @@ describe('OrdersSection', () => {
     }
   });
 });
+
+ it('두 배송건 정정 폼은 서로 다른 shipmentId와 오류 필드 ID를 사용한다', () => {
+  const second = '00000000-0000-4000-8000-000000044702';
+  const html = renderToStaticMarkup(<OrdersSection data={orderData({status:'shipping',shipments:[shipmentFixture(),shipmentFixture({id:second,originName:'남양주'})]})} />);
+  for (const id of [SHIPMENT_ID,second]) {
+   expect(html).toContain(`name="shipmentId" value="${id}"`);
+   expect(html).toContain(`id="admin-order-edit-${id}-tracking-${ORDER_ID}"`);
+  }
+  expect(html).not.toContain(STATUS_ACTION_MARKERS['배송완료']);
+  expect(html).toContain('배송 건별 배송완료 처리');
+ });

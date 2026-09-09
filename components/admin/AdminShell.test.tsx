@@ -20,7 +20,7 @@ describe('AdminShell', () => {
   /* editorial-admin.css 의 `#root:has(> .admin-shell)` 이 이 클래스를 보고
    * 어드민 캔버스를 덮어쓴다. 클래스가 사라지면 공개 화면 테마가 새어 들어온다. */
   it('셸 루트에 admin-shell 클래스를 남긴다', () => {
-    expect(render()).toContain('class="admin-shell"');
+    expect(render()).toContain('class="admin-shell wc-root wc-admin"');
   });
 
   it('현재 화면 이름을 헤더 제목으로 쓴다', () => {

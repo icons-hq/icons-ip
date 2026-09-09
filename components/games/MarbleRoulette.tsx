@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DATA, type Card, type Game, type Good } from '@/lib/data';
 import { krw } from '@/lib/format';
 import { ipAccent } from '@/lib/ip-display';
-import { RARITY_ORDER, RARITY_META, type RarityKey } from '@/lib/rarity';
+import { CARD_FOIL_BACKGROUND, RARITY_ORDER, RARITY_META, type RarityKey } from '@/lib/rarity';
 import { loadBox2D } from '@/lib/games/box2d-loader';
 import { GamePlayError, type PopupGameHost } from '@/lib/games/host';
 import { imageUrlFromBg } from '@/lib/media';
@@ -670,7 +670,7 @@ export function MarbleRoulette({
                         borderRadius: 6,
                         fontWeight: 700,
                         color: '#0A0813',
-                        background: RARITY_META[granted.rarity].foil ? 'var(--holo)' : RARITY_META[granted.rarity].color,
+                        background: RARITY_META[granted.rarity].foil ? CARD_FOIL_BACKGROUND : RARITY_META[granted.rarity].color,
                       }}
                     >
                       {granted.rarity}

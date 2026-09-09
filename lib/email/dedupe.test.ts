@@ -105,3 +105,13 @@ describe('재입고 알림 메일 키 (#326)', () => {
     expect(parseOrderEmailDedupeKey(restockAlertEmailDedupeKey(ALERT_ID, NOTIFIED_AT))).toBeNull();
   });
 });
+
+it('같은 주문의 배송 건마다 별도 멱등 키를 쓰고 재발송 대상을 복원한다', async () => {
+ const { shipmentEmailDedupeKey } = await import('./dedupe');
+ const first = '00000000-0000-4000-8000-000000044701';
+ const second = '00000000-0000-4000-8000-000000044702';
+ expect(shipmentEmailDedupeKey(ORDER_ID,first)).not.toBe(shipmentEmailDedupeKey(ORDER_ID,second));
+ expect(parseOrderEmailDedupeKey(shipmentEmailDedupeKey(ORDER_ID,first))).toEqual({template:'order_shipped',orderId:ORDER_ID,shipmentId:first});
+ expect(parseOrderEmailDedupeKey(`order_confirmation:${ORDER_ID}:${first}`)).toBeNull();
+ expect(parseOrderEmailDedupeKey(`ORDER_SHIPPED:${ORDER_ID}:${first}`)).toBeNull();
+});

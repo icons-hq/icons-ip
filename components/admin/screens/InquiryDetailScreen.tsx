@@ -1,3 +1,5 @@
+
+import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
 import Link from 'next/link';
 import type { AdminInquiryDetail } from '@/lib/admin/inquiries.server';
 import {
@@ -8,7 +10,11 @@ import {
   inquirySlaState,
 } from '@/lib/inquiries';
 import { orderReferenceLabel } from '@/lib/orders';
+import { isAdminInquiryOverdue } from '@/lib/admin/inquiries';
+import { InquiryAssignmentPanel, InquiryInternalNotesPanel } from './InquiryWorkspacePanel';
 import { InquiryReplyPanel } from './InquiryReplyPanel';
+import { CustomerHistoryPanel } from './CustomerHistoryPanel';
+import { InquiryLiveUpdates } from '@/components/screens/InquiryLiveUpdates';
 
 /* 어드민 문의 상세(#253).
  *
@@ -60,7 +66,7 @@ export function InquiryDetailScreen({
   detail: AdminInquiryDetail;
   now?: Date;
 }) {
-  const { buyer, inquiry, messages, order, templates } = detail;
+  const { buyer, inquiry, messages, order, templates, staffOptions, notes } = detail;
   const sla = inquirySlaState(
     { answeredAt: inquiry.answeredAt, createdAt: inquiry.createdAt, status: inquiry.status },
     now,
@@ -68,6 +74,7 @@ export function InquiryDetailScreen({
 
   return (
     <section className="admin-console col" style={{ gap: 16 }}>
+      <InquiryLiveUpdates inquiryId={inquiry.id} audience="staff" />
       <div className="col" style={{ gap: 6 }}>
         <Link className="mono" href={backHref} style={{ fontSize: 12 }}>← 문의 목록</Link>
         <div className="row" style={{ alignItems: 'baseline', gap: 8, justifyContent: 'flex-start' }}>
@@ -80,11 +87,12 @@ export function InquiryDetailScreen({
           <span data-sla-tone={sla.tone}>{sla.label}</span>
         </div>
         <h2 style={{ margin: 0 }}>{inquiry.title}</h2>
+        {isAdminInquiryOverdue(inquiry, now) ? <span data-sla-tone="danger">미답변 24시간 경과</span> : null}
         <span className="muted" style={{ fontSize: 12.5 }}>
           @{inquiry.buyerName}
           {inquiry.buyerEmail ? ` · ${inquiry.buyerEmail}` : ''}
           {' · 접수 '}{formatInquiryDateTime(inquiry.createdAt)}
-          {inquiry.handlerName ? ` · 처리자 @${inquiry.handlerName}` : ' · 처리자 미배정'}
+          {inquiry.assigneeName ? ` · 담당자 @${inquiry.assigneeName}` : ' · 담당자 미배정'}
         </span>
       </div>
 
@@ -99,7 +107,7 @@ export function InquiryDetailScreen({
                 style={{ borderRadius: 12, gap: 8, padding: 14 }}
               >
                 <span className="mono muted" style={{ fontSize: 11 }}>
-                  {message.author === 'staff' ? 'ICONS 운영자' : `@${inquiry.buyerName}`}
+                  {message.author === 'staff' ? (message.authorName ?? 'ICONS 운영자') : `@${inquiry.buyerName}`}
                   {' · '}
                   {formatInquiryDateTime(message.createdAt)}
                 </span>
@@ -123,6 +131,8 @@ export function InquiryDetailScreen({
             ))}
           </ol>
 
+          <InquiryInternalNotesPanel inquiryId={inquiry.id} notes={notes} />
+
           <InquiryReplyPanel
             category={inquiry.category}
             closed={inquiry.status === 'closed'}
@@ -132,6 +142,7 @@ export function InquiryDetailScreen({
         </div>
 
         <aside aria-label="문의 컨텍스트" className="col" style={{ gap: 12 }}>
+          <InquiryAssignmentPanel assigneeId={inquiry.assigneeId} assigneeName={inquiry.assigneeName} inquiryId={inquiry.id} staffOptions={staffOptions} />
           <section className="card col" style={{ borderRadius: 12, gap: 8, padding: 16 }}>
             <strong style={{ fontSize: 13.5 }}>연결 주문</strong>
             {order ? (
@@ -140,7 +151,7 @@ export function InquiryDetailScreen({
                 <ContextRow label="주문상태" value={ORDER_STATUS_LABELS[order.status] ?? order.status} />
                 <ContextRow label="주문일시" value={formatInquiryDateTime(order.createdAt)} />
                 <ContextRow
-                  label="굿즈"
+                  label="상품"
                   value={order.leadItemName
                     ? `${order.leadItemName} · 총 ${order.itemCount}개`
                     : `총 ${order.itemCount}개`}
@@ -152,12 +163,7 @@ export function InquiryDetailScreen({
                     ? `${PAYMENT_PROVIDER_LABELS[order.payment.provider ?? ''] ?? order.payment.provider ?? '확인 필요'} · ${order.payment.status}`
                     : '결제 내역 없음'}
                 />
-                <ContextRow
-                  label="운송장"
-                  value={order.trackingNumber
-                    ? `${order.shippingCarrier ?? '택배사 미상'} ${order.trackingNumber}`
-                    : '미등록'}
-                />
+                <ShipmentDetails admin shipments={order.shipments} />
                 <div className="col" style={{ gap: 4 }}>
                   <span className="muted" style={{ fontSize: 12 }}>클레임 이력</span>
                   {order.claims.length ? (
@@ -177,7 +183,7 @@ export function InquiryDetailScreen({
                 {/* 문의에서 클레임이 필요해지면 여기서 넘어간다. 이 화면은 절차를 만들지 않는다. */}
                 <Link
                   className="btn btn-sm btn-ghost"
-                  href={`/admin/sales/orders?status=all&page=1&order=${order.id}`}
+                  href={`/admin/sales/orders/${order.id}`}
                 >
                   주문 콘솔에서 열기
                 </Link>
@@ -192,7 +198,7 @@ export function InquiryDetailScreen({
           {inquiry.goodId ? (
             <section className="card col" style={{ borderRadius: 12, gap: 8, padding: 16 }}>
               <strong style={{ fontSize: 13.5 }}>연결 굿즈</strong>
-              <ContextRow label="굿즈" value={inquiry.goodName ?? inquiry.goodId} />
+              <ContextRow label="상품" value={inquiry.goodName ?? inquiry.goodId} />
               <Link className="btn btn-sm btn-ghost" href={`/shop/${inquiry.goodId}`}>
                 굿즈 상세 보기
               </Link>
@@ -215,11 +221,12 @@ export function InquiryDetailScreen({
             ) : null}
             <Link
               className="btn btn-sm btn-ghost"
-              href={`/admin/community/members?query=${encodeURIComponent(buyer.email ?? inquiry.buyerName)}`}
+              href={`/admin/customers/${buyer.id}`}
             >
-              회원 화면에서 열기
+              고객 상세 열기
             </Link>
           </section>
+          <CustomerHistoryPanel key={buyer.id} userId={buyer.id} />
         </aside>
       </div>
     </section>

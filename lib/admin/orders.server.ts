@@ -8,7 +8,7 @@ import {
   type OrderClaimStage,
   type OrderClaimType,
 } from '@/lib/orders/claims';
-import { orderShipment } from '@/lib/orders/shipment';
+import { loadOrderShipments } from '@/lib/orders/shipments.server';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
 import {
@@ -48,8 +48,6 @@ interface SearchRow {
   cancellation_decision_note: string | null;
   cancellation_claim_type: string | null;
   cancellation_stage: string | null;
-  shipping_carrier: string | null;
-  tracking_number: string | null;
   total_count: number;
 }
 
@@ -60,6 +58,9 @@ interface ItemRow {
   unit_price: number;
   good_name_snapshot: string;
   good_type_snapshot: string;
+  variant_id: string;
+  variant_name_snapshot?: string | null;
+  variant_code_snapshot?: string | null;
 }
 
 interface PaymentRow {
@@ -193,6 +194,7 @@ export async function getAdminOrderRecords(
   }
 
   const orderIds = rows.map((row) => row.id);
+  const shipments = await loadOrderShipments(supabase, orderIds, carriers);
   const recoveryOrderIds = includeManualRecovery
     ? rows.filter((row) => row.cancellation_request_id
       && (row.cancellation_request_status === 'processing'
@@ -202,7 +204,7 @@ export async function getAdminOrderRecords(
   const [itemsResult, paymentsResult, recoveryAttemptsResult] = await Promise.all([
     supabase
       .from('order_items')
-      .select('id,order_id,qty,unit_price,good_name_snapshot,good_type_snapshot')
+      .select('id,order_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot')
       .in('order_id', orderIds)
       .order('id', { ascending: true }),
     supabase
@@ -323,6 +325,7 @@ export async function getAdminOrderRecords(
       items: (itemsByOrder.get(row.id) ?? []).map((item) => ({
         id: item.id,
         name: item.good_name_snapshot,
+        variantId: item.variant_id, variantName: item.variant_name_snapshot ?? null, variantCode: item.variant_code_snapshot ?? null,
         type: item.good_type_snapshot,
         qty: item.qty,
         unitPrice: item.unit_price,
@@ -349,7 +352,7 @@ export async function getAdminOrderRecords(
         currency: relatedAttempt.currency,
         manualRecoveryAvailable: relatedAttempt.manualRecoveryAvailable,
       },
-      shipment: orderShipment(carriers, row.shipping_carrier, row.tracking_number),
+      shipments: shipments.filter(shipment => shipment.orderId === row.id),
     };
   });
 

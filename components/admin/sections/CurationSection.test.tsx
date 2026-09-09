@@ -253,7 +253,7 @@ describe('CurationSection', () => {
     const record = { ...activeAnnouncement, title: longTitle };
     const html = renderSection(record);
     const button = html.match(/<button[^>]*admin-curation-record-button[^>]*>[\s\S]*?<\/button>/)?.[0];
-    const css = readFileSync(new URL('../../../app/globals.css', import.meta.url), 'utf8');
+    const css = readFileSync(new URL('../../../app/styles/wc-admin-surfaces.css', import.meta.url), 'utf8');
 
     expect(button).toBeDefined();
     expect(button).toContain(`<strong class="admin-curation-record-title">${longTitle}</strong>`);
@@ -264,7 +264,7 @@ describe('CurationSection', () => {
     expect(css).toMatch(
       /\.admin-curation-record-title\s*\{[^}]*word-break:\s*keep-all;[^}]*overflow-wrap:\s*break-word/s,
     );
-    expect(css).toMatch(/\.admin-curation-record-meta\s*\{[^}]*color:\s*var\(--dim\)[^}]*font-size:\s*11px/);
+    expect(css).toMatch(/\.admin-curation-record-meta\s*\{[^}]*color:\s*var\(--wc-ink-tertiary\)[^}]*font-size:\s*12px/);
   });
 
   /* S3 홈 편성 확장 (#325) — 아래는 kind 5종이 늘면서 붙은 폼 계약이다. */

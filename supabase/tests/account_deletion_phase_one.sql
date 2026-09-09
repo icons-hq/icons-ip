@@ -310,17 +310,26 @@ values
   );
 
 insert into public.orders (
-  id, user_id, status, total, address, shipping_carrier, tracking_number,
-  shipped_at, delivered_at
+  id, user_id, status, total, address, shipped_at, delivered_at
 )
 values (
   '00000000-0000-4000-8000-000000001306',
   '00000000-0000-4000-8000-000000001371',
   'done', 33000,
   '{"recipient":"never-snapshot","phone":"010-secret"}'::jsonb,
-  'hanjin', '123456789012',
-  '2026-08-01T01:00:00Z', '2026-08-02T02:00:00Z'
+  '2026-08-01T01:00:00Z', '2026-08-03T02:00:00Z'
 );
+
+-- #447: each warehouse has its own supplied-at clock and tracking evidence.
+insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,
+  shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
+values
+ ('00000000-0000-4000-8000-000000447071','00000000-0000-4000-8000-000000001306',
+  '00000000-0000-4000-8000-000000042201','김포',0,'{}','delivered','hanjin','123456789012',
+  '2026-08-01T01:00:00Z','2026-08-02T02:00:00Z'),
+ ('00000000-0000-4000-8000-000000447072','00000000-0000-4000-8000-000000001306',
+  '00000000-0000-4000-8000-000000042202','남양주',0,'{}','delivered','hanjin','987654321098',
+  '2026-08-02T01:00:00Z','2026-08-03T02:00:00Z');
 
 insert into public.order_cancellation_requests (
   id, order_id, requested_by, reason, reason_type, status,
@@ -622,18 +631,36 @@ select 1 / case when exists (
     )
 ) then 1 else 0 end as assert_withdrawal_decision_is_allowlisted;
 
-select 1 / case when exists (
-  select 1
-  from private.account_deletion_legal_snapshots
-  where record_type = 'shipment'
-    and record_ref = '00000000-0000-4000-8000-000000001306'
-    and snapshot_data ->> 'carrier' = 'hanjin'
-    and snapshot_data ->> 'shippedAt' is not null
-    and snapshot_data ->> 'suppliedAt' is not null
-    and snapshot_data ->> 'opaqueTrackingRef' ~ '^[0-9a-f]{64}$'
-    and snapshot_data -> 'trackingKeyVersion' = '1'::jsonb
-    and snapshot_data::text not like '%123456789012%'
-) then 1 else 0 end as assert_shipping_snapshot_uses_opaque_tracking_ref;
+select 1 / case when (
+  select count(*)=2 and count(distinct evidence.snapshot_data->>'opaqueTrackingRef')=2
+    and bool_and(
+      evidence.record_ref=shipment.id::text
+      and evidence.legal_basis='ecommerce_transaction_v1'
+      and evidence.retain_until=shipment.delivered_at+interval '5 years'
+      and evidence.snapshot_data=jsonb_build_object(
+        'orderRef',shipment.order_id::text,
+        'shipmentRef',shipment.id::text,
+        'originName',shipment.origin_name_snapshot,
+        'status','delivered',
+        'carrier','hanjin',
+        'opaqueTrackingRef',encode(extensions.hmac(
+          convert_to('account-deletion-shipment-v1|hanjin|'||shipment.tracking_number,'UTF8'),
+          control.shipment_tracking_hmac_key,'sha256'),'hex'),
+        'trackingKeyVersion',1,
+        'shippedAt',shipment.shipped_at,
+        'suppliedAt',shipment.delivered_at
+      )
+    )
+  from private.account_deletion_legal_snapshots evidence
+  join public.order_shipments shipment on shipment.id::text=evidence.record_ref
+  cross join private.account_deletion_control control
+  where evidence.record_type='shipment'
+    and shipment.order_id='00000000-0000-4000-8000-000000001306'
+) and not exists (
+  select 1 from private.account_deletion_legal_snapshots
+  where snapshot_data::text like '%123456789012%'
+    or snapshot_data::text like '%987654321098%'
+) then 1 else 0 end as assert_both_shipments_preserve_only_keyed_tracking_evidence;
 
 select 1 / case when exists (
   select 1

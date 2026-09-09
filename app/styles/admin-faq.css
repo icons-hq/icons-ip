@@ -1,0 +1,33 @@
+/* Dedicated admin workflow surface; tokens come from wc-root. */
+.wc-admin .admin-faq { min-width: 0; }
+.wc-admin .admin-faq__heading { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 24px; flex-wrap: wrap; }
+.wc-admin .admin-faq__heading h1 { font-size: 26px; font-weight: 700; }
+.wc-admin .admin-faq__heading p { color: var(--wc-ink-tertiary); margin-top: 8px; }
+.wc-admin .admin-faq__heading a { text-decoration: underline; min-height: 44px; display: inline-flex; align-items: center; }
+.wc-admin .admin-faq__create { border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-form); background: var(--wc-surface); margin-bottom: 24px; }
+.wc-admin .admin-faq__create > summary { padding: 16px 20px; font-weight: 600; cursor: pointer; }
+.wc-admin .admin-faq__form { padding: 20px; }
+.wc-admin .admin-faq__form fieldset { display: grid; gap: 16px; border: 0; padding: 0; min-width: 0; }
+.wc-admin .admin-faq__form label { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.wc-admin .admin-faq__form input:not([type=hidden]), .wc-admin .admin-faq__form select, .wc-admin .admin-faq__form textarea { width: 100%; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); font-family: var(--wc-font); padding: 10px 12px; min-height: 44px; background: var(--wc-surface); color: var(--wc-ink); }
+.wc-admin .admin-faq__form textarea { resize: vertical; }
+.wc-admin .admin-faq__form-row { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; }
+.wc-admin .admin-faq__form button { justify-self: start; min-height: 44px; padding: 10px 24px; color: var(--wc-surface); background: var(--wc-ink); cursor: pointer; }
+.wc-admin .admin-faq__form fieldset:disabled { opacity: .65; }
+.wc-admin .admin-faq__error { color: var(--wc-danger); font-size: 13px; }
+.wc-admin .admin-faq__hint { font-size: 13px; color: var(--wc-ink-tertiary); margin: 12px 0; }
+.wc-admin .admin-faq__entry { border-bottom: 1px solid var(--wc-hairline); }
+.wc-admin .admin-faq__entry > summary { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; min-height: 60px; padding: 16px; cursor: pointer; }
+.wc-admin .admin-faq__entry > summary strong { flex: 1; min-width: 120px; overflow-wrap: anywhere; }
+.wc-admin .admin-faq__entry > summary span { color: var(--wc-ink-tertiary); font-size: 12px; }
+.wc-admin .admin-faq__entry[open] { border: 1px solid var(--wc-line-control); }
+.wc-admin .admin-faq__delete { padding: 12px 20px 20px; }
+.wc-admin .admin-faq__delete summary { min-height: 44px; color: var(--wc-danger); cursor: pointer; }
+.wc-admin .admin-faq__delete form { display: grid; gap: 12px; }
+.wc-admin .admin-faq__delete label { display: flex; gap: 8px; align-items: center; min-height: 44px; }
+.wc-admin .admin-faq__delete button { justify-self: start; padding: 10px 20px; min-height: 44px; border: 1px solid var(--wc-danger); color: var(--wc-danger); cursor: pointer; }
+.wc-admin .admin-faq__empty { padding: 48px 20px; text-align: center; }
+@media (max-width: 600px) {
+  .wc-admin .admin-faq__form-row { grid-template-columns: 1fr; }
+  .wc-admin .admin-faq__form { padding: 16px; }
+}

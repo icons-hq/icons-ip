@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminFormGrid } from '@/components/admin/console/AdminKit';
 import { useActionState, useState } from 'react';
 import {
   upsertAdminCoinExchangeOfferAction,
@@ -83,7 +84,7 @@ export function CoinExchangeOfferPanel({
   const poolsById = new Map(pools.map((pool) => [pool.id, pool]));
 
   return (
-    <section className="card col admin-campaign-panel" style={{ borderRadius: 10, gap: 14, padding: 16 }}>
+    <section className="card col admin-campaign-panel wc-admin-kit wc-admin-kit__card" style={{ gap: 14 }}>
       <div className="col" style={{ gap: 5 }}>
         <strong style={{ fontSize: 15 }}>카드팩 교환처</strong>
         <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
@@ -111,7 +112,7 @@ export function CoinExchangeOfferPanel({
 
       <form action={action} className="col" key={selected ? `${selected.id}:${selected.updatedAt}` : 'new-offer'} style={{ gap: 12 }}>
         <input name="offerId" type="hidden" value={selected?.id ?? ''} />
-        <div className="admin-form-grid">
+        <AdminFormGrid>
           <SelectField
             defaultValue={selected?.poolId ?? pools[0]?.id ?? ''}
             error={state.errors?.poolId}
@@ -164,7 +165,7 @@ export function CoinExchangeOfferPanel({
               <option key={status} value={status}>{ADMIN_COIN_OFFER_STATUS_LABELS[status]}</option>
             ))}
           </SelectField>
-        </div>
+        </AdminFormGrid>
         <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
           <button className="btn btn-sm admin-field-control" disabled={pending} style={{ minHeight: 40 }}>
             <Icon name="check" size={14} /> {pending ? '저장 중' : selected ? '교환처 수정' : '교환처 등록'}

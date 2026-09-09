@@ -30,8 +30,8 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000401', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 
-select public.merge_cart_items('[{"good_id":"g1","qty":2},{"good_id":"g2","qty":1}]'::jsonb);
-select public.merge_cart_items('[{"good_id":"g1","qty":1},{"good_id":"g1","qty":2}]'::jsonb);
+select public.merge_cart_items(jsonb_build_array(jsonb_build_object('good_id','g1','variant_id',(select id from public.goods_variants where good_id='g1' and is_default),'qty',2),jsonb_build_object('good_id','g2','variant_id',(select id from public.goods_variants where good_id='g2' and is_default),'qty',1)));
+select public.merge_cart_items(jsonb_build_array(jsonb_build_object('good_id','g1','variant_id',(select id from public.goods_variants where good_id='g1' and is_default),'qty',1),jsonb_build_object('good_id','g1','variant_id',(select id from public.goods_variants where good_id='g1' and is_default),'qty',2)));
 
 select 1 / case when (
   select jsonb_object_agg(good_id, qty order by good_id)
@@ -39,7 +39,7 @@ select 1 / case when (
   where user_id = '00000000-0000-4000-8000-000000000401'
 ) = '{"g1":2,"g2":1}'::jsonb then 1 else 0 end as assert_merge_is_max_and_retry_idempotent;
 
-select public.merge_cart_items('[{"good_id":"g1","qty":4}]'::jsonb);
+select public.merge_cart_items(jsonb_build_array(jsonb_build_object('good_id','g1','variant_id',(select id from public.goods_variants where good_id='g1' and is_default),'qty',4)));
 select 1 / case when (
   select qty from public.cart_items
   where user_id = '00000000-0000-4000-8000-000000000401' and good_id = 'g1'
@@ -53,7 +53,7 @@ select 1 / case when not exists (
 do $$
 begin
   begin
-    perform public.merge_cart_items('[{"good_id":"g1","qty":0}]'::jsonb);
+    perform public.merge_cart_items(jsonb_build_array(jsonb_build_object('good_id','g1','variant_id',(select id from public.goods_variants where good_id='g1' and is_default),'qty',0)));
     raise exception 'zero quantity should be rejected';
   exception
     when check_violation then null;
@@ -68,7 +68,7 @@ select set_config('request.jwt.claim.role', '', true);
 do $$
 begin
   begin
-    perform public.merge_cart_items('[{"good_id":"g1","qty":1}]'::jsonb);
+    perform public.merge_cart_items(jsonb_build_array(jsonb_build_object('good_id','g1','variant_id',(select id from public.goods_variants where good_id='g1' and is_default),'qty',1)));
     raise exception 'unauthenticated merge should be rejected';
   exception
     when insufficient_privilege then null;

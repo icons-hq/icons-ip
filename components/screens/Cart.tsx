@@ -25,11 +25,17 @@ import {
 } from '@/lib/coupons';
 import type { CartCouponState } from '@/lib/coupons.server';
 import type { Good, Ip } from '@/lib/data';
-import { krw, krwAmountWords } from '@/lib/format';
-import { freeShippingRemainder, shippingFeeFor, shippingFeeLabel } from '@/lib/shipping';
+import { krw } from '@/lib/format';
+import { cartItemKey } from '@/lib/cart';
+import { cartOptionGood, optionLabel } from '@/lib/goods-options';
+import { shippingFeeLabel } from '@/lib/shipping';
+import { useShippingQuote } from '@/components/shop/useShippingQuote';
+import { ShippingGroupSummary } from '@/components/shop/ShippingGroupSummary';
 
 interface CartLine {
   goodId: string;
+  variantId: string;
+  optionName?: string | null;
   qty: number;
   good?: Good;
   ip?: Ip;
@@ -54,7 +60,7 @@ function lineStateLabel(good: Good, qty: number) {
 
 function CartLineRow({ line }: { line: CartLine }) {
   const { pending, remove, setQuantity } = useCart();
-  const { good, goodId, ip, qty } = line;
+  const { good, goodId, variantId, ip, qty, optionName } = line;
 
   if (!good) {
     return (
@@ -68,7 +74,7 @@ function CartLineRow({ line }: { line: CartLine }) {
           aria-label={`판매 종료된 굿즈 ${goodId} 삭제`}
           className="wc-cart__remove"
           disabled={pending}
-          onClick={() => void remove(goodId)}
+          onClick={() => void remove(goodId, variantId)}
           type="button"
         >
           <Icon name="close" size={18} />
@@ -94,6 +100,7 @@ function CartLineRow({ line }: { line: CartLine }) {
       <div className="wc-cart__line-info">
         <p className="wc-cart__line-brand">{ip?.title ?? 'ICONS'}</p>
         <Link className="wc-cart__line-name" href={href}>{good.name}</Link>
+        {optionName ? <p className="wc-cart__line-option">{optionName}</p> : null}
         <PriceBlock compareAtPrice={good.compareAtPrice} price={good.price} />
         {stateLabel ? <p className="wc-cart__line-state">{stateLabel}</p> : null}
       </div>
@@ -103,7 +110,7 @@ function CartLineRow({ line }: { line: CartLine }) {
           <QuantityStepper
             label={`${good.name} 수량`}
             max={good.stockQty}
-            onChange={(next) => void setQuantity(goodId, next, good.stockQty)}
+            onChange={(next) => void setQuantity(goodId, next, good.stockQty, variantId)}
             value={qty}
           />
         )}
@@ -113,7 +120,7 @@ function CartLineRow({ line }: { line: CartLine }) {
         aria-label={`${good.name} 장바구니에서 삭제`}
         className="wc-cart__remove"
         disabled={pending}
-        onClick={() => void remove(goodId)}
+        onClick={() => void remove(goodId, variantId)}
         type="button"
       >
         <Icon name="close" size={18} />
@@ -248,16 +255,18 @@ export function Cart({
   catalog: Pick<CatalogSnapshot, 'goods' | 'ips'>;
   couponState: CartCouponState;
 }) {
-  const { count, error, items, mode, pending, ready } = useCart();
+  const { count, error, items, mode, pending, ready, legacyItems = [], removeLegacyItem, refresh } = useCart();
 
   const lines = useMemo<CartLine[]>(() => {
     const goodsById = new Map(catalog.goods.map((good) => [good.id, good]));
     const ipsById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
 
     return items.map((item) => {
-      const good = goodsById.get(item.goodId);
+      const good = cartOptionGood(goodsById.get(item.goodId), item.variantId);
+      const option = good?.options?.find(option => option.id === item.variantId);
       return {
         ...item,
+        optionName: optionLabel(option, good?.options?.length ?? 0),
         good,
         ip: good ? ipsById.get(good.ip) : undefined,
       };
@@ -269,9 +278,9 @@ export function Cart({
   ), 0);
   const unavailableCount = lines.filter(isUnavailable).length;
   /* 표시용 예상치다. 실제 청구액은 place_order가 같은 정책으로 다시 계산한다. */
-  const shippingFee = shippingFeeFor(subtotal);
-  const remainingForFreeShipping = freeShippingRemainder(subtotal);
-  const canCheckout = unavailableCount === 0 && !pending;
+  const shipping = useShippingQuote(items, ready);
+  const shippingFee = shipping.quote?.totalFee ?? 0;
+  const canCheckout = unavailableCount === 0 && !pending && shipping.quote !== null;
 
   const appliedCoupon = couponState.coupons.find(
     (held) => held.id === couponState.selectedUserCouponId,
@@ -287,10 +296,18 @@ export function Cart({
         ) : null}
 
         {error ? <p className="wc-cart__error" role="alert">{error}</p> : null}
+        {legacyItems.length > 0 ? <section aria-label="이전 장바구니 확인">
+          <p>이전 장바구니를 현재 옵션에 연결하고 있습니다. 확인하지 못한 항목은 그대로 보관합니다.</p>
+          <ul>{legacyItems.map((item) => <li key={item.goodId}>
+            이전 굿즈 ({item.goodId}) · {item.qty}개
+            <button className="wc-btn" disabled={pending} type="button" onClick={() => removeLegacyItem(item.goodId)}>이 항목 삭제</button>
+          </li>)}</ul>
+          <button className="wc-btn" disabled={pending} type="button" onClick={() => void refresh()}>다시 확인</button>
+        </section> : null}
 
         {!ready ? (
           <p aria-live="polite" className="wc-cart__loading" role="status">
-            장바구니를 불러오는 중이에요.
+            {legacyItems.length && !pending ? '이전 장바구니를 확인해주세요.' : '장바구니를 불러오는 중이에요.'}
           </p>
         ) : lines.length === 0 ? (
           <EmptyState
@@ -302,8 +319,18 @@ export function Cart({
         ) : (
           <div className="wc-cart__layout">
             <div aria-busy={pending} className="wc-cart__list-col">
+              {shipping.quote?.groups.map(group => (
+                <section className="wc-shipping-group" key={group.originId} aria-label={`${group.originName} 출고 굿즈`}>
+                  <h2>{group.originName} 출고</h2>
+                  <ul className="wc-cart__list">
+                    {lines.filter(line => line.good?.originId === group.originId).map(line => <CartLineRow key={cartItemKey(line.goodId, line.variantId)} line={line} />)}
+                  </ul>
+                  <ShippingGroupSummary group={group} />
+                </section>
+              ))}
               <ul className="wc-cart__list">
-                {lines.map((line) => <CartLineRow key={line.goodId} line={line} />)}
+                {lines.filter(line => !shipping.quote?.groups.some(group => line.good?.originId === group.originId))
+                  .map(line => <CartLineRow key={cartItemKey(line.goodId, line.variantId)} line={line} />)}
               </ul>
             </div>
 
@@ -320,23 +347,19 @@ export function Cart({
                   </tr>
                   <tr>
                     <th scope="row">배송비</th>
-                    <td>{shippingFeeLabel(shippingFee)}</td>
+                    <td>{shipping.quote ? shippingFeeLabel(shippingFee) : '확인 중'}</td>
                   </tr>
                 </tbody>
                 <tfoot>
                   <tr>
                     <th scope="row">예상 총액</th>
-                    <td>{krw(subtotal + shippingFee - couponDiscount)}</td>
+                    <td>{shipping.quote ? krw(subtotal + shippingFee - couponDiscount) : '배송비 확인 후 표시'}</td>
                   </tr>
                 </tfoot>
               </table>
-              <p className="wc-cart__summary-note">배송비는 결제 화면에서 확인할 수 있어요.</p>
-              {/* 판매 종료 라인만 남은 카트는 소계가 0이다 — 담을 것도 없는데 무료배송을 권하지 않는다. */}
-              {subtotal > 0 && remainingForFreeShipping > 0 ? (
-                <p className="wc-cart__summary-note">
-                  {krwAmountWords(remainingForFreeShipping)} 더 담으면 무료배송이에요.
-                </p>
-              ) : null}
+              <p className="wc-cart__summary-note">출고지별 배송비를 합산합니다. 주문을 만들 때 서버가 최종 금액을 확인합니다.</p>
+              {shipping.loading ? <p role="status">배송비를 확인하고 있어요.</p> : null}
+              {shipping.error ? <div role="alert"><p>{shipping.error}</p><button type="button" onClick={shipping.refresh}>배송비 다시 확인</button></div> : null}
 
               {mode === 'server' ? (
                 <CartCouponSection

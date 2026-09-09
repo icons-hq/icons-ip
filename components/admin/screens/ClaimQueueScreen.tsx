@@ -1,3 +1,4 @@
+import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
 import {
   ConsoleCountChips,
   ConsoleFilterPanel,
@@ -64,7 +65,7 @@ const CHIP_TONES: Record<OrderClaimStage, 'default' | 'info' | 'success' | 'warn
 };
 
 const COLUMNS: ConsoleGridColumn[] = [
-  { key: 'reference', label: '클레임번호', width: '104px' },
+  { key: 'reference', label: V.claimNumber, width: '104px' },
   { key: 'order', label: '주문번호', width: '104px' },
   { key: 'type', label: '유형', width: '70px' },
   { key: 'reason', label: '사유', width: '110px' },
@@ -151,11 +152,11 @@ export function ClaimQueueScreen({
           to: null,
         })}
         search={{
-          placeholder: '주문번호 · 클레임번호 · 구매자',
+          placeholder: `주문번호 · ${V.claimNumber} · 구매자`,
           value: filters.query,
         }}
         statusFilter={{
-          label: '클레임 상태',
+          label: V.claimStatus,
           name: 'stage',
           options: ADMIN_CLAIM_STAGE_OPTIONS,
           value: filters.stage,
@@ -183,15 +184,15 @@ export function ClaimQueueScreen({
       />
 
       <ConsoleGrid
-        caption={`${typeLabel} 클레임 목록`}
+        caption={`${typeLabel} 요청 목록`}
         columns={COLUMNS}
-        emptyLabel={`조건에 맞는 ${typeLabel} 클레임이 없습니다.`}
+        emptyLabel={`조건에 맞는 ${typeLabel} 요청이 없습니다.`}
         rows={rowsForGrid}
       />
 
       <ConsolePagination
         hrefForPage={(page) => adminClaimHref(claimType, filters, { page })}
-        label={`${typeLabel} 클레임 목록 페이지`}
+        label={`${typeLabel} 요청 목록 페이지`}
         page={filters.page}
         pageSize={pageSize}
         total={total}
@@ -199,7 +200,7 @@ export function ClaimQueueScreen({
 
       <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>
         환급 기한은 약관 제16조의 &ldquo;굿즈를 반환받은 날부터 3영업일&rdquo;입니다. 기산점은 입고
-        확인 시점이며, 회수가 없는 취소 클레임에는 기산점이 없습니다. 클레임은 주문 단위 전액으로만
+        확인 시점이며, 회수가 없는 취소 요청에는 기산점이 없습니다. {V.claimRequest}은 주문 단위 전액으로만
         처리되고, 한 주문의 일부만 환급하는 처리는 제공하지 않습니다.
       </p>
     </section>

@@ -100,7 +100,7 @@ export async function placeOrderAction(
   // 수단별로 게이트가 다르다. 무통장에는 결제사가 없으므로 PG rollout gate가
   // 닫혀 있어도 열릴 수 있고, 반대로 계좌가 없으면 카드가 열려 있어도 닫힌다.
   const available = paymentMethod === 'bank_transfer'
-    ? bankTransferCheckoutEnabled()
+    ? await bankTransferCheckoutEnabled()
     : goodsCheckoutPaymentsEnabled(auth.user.id);
   if (!available) {
     return { ok: false, error: 'payment_unavailable' };

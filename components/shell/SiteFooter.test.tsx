@@ -100,6 +100,8 @@ describe('SiteFooter White Catalog 진입점', () => {
 
     expect(html).toContain('wc-footer');
     expect(html).toContain('href="/about"');
+    expect(html).toContain('href="/help"');
+    expect(html).toContain('자주 묻는 질문');
     expect(html).toContain('오프라인 팝업');
     expect(html).toContain('href="/offline-popups"');
     /* 캠페인 허브는 별개 도메인이라 발견 열에 자기 링크를 따로 유지한다. */
@@ -111,6 +113,8 @@ describe('SiteFooter White Catalog 진입점', () => {
     expect(html).toContain('© ICONS');
   });
 });
+
+it("현재 설정값을 푸터에 반영하고 비운 전화는 숨긴다",()=>{ const html=renderToStaticMarkup(<SiteFooter businessInfo={{...BUSINESS_INFO,companyName:"설정회사",phone:"",email:"new@example.test"}}/>);expect(html).toContain("설정회사 사업자 정보");expect(html).toContain("new@example.test");expect(html).not.toContain(BUSINESS_INFO.phone); });
 
 describe('SiteFooter 세컨더리 마켓 시연 진입점', () => {
   /* 시연은 로그인한 staff/admin 의 is_staff readback 이 참일 때만 존재한다. 공개 푸터·SSR 결과에

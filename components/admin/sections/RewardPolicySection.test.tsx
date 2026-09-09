@@ -32,6 +32,8 @@ vi.mock('@/app/admin/actions', () => ({ upsertAdminRewardPolicyAction: mocks.ups
 const goods: AdminGoodRecord[] = [
   {
     id: 'good-a',
+    code: 'GOOD-A',
+    publishedAt: null, firstPublishedAt: '2026-09-08T00:00:00Z',
     archivedAt: null,
     ipId: 'ip-a',
     name: '화산 키링',
@@ -54,6 +56,8 @@ const goods: AdminGoodRecord[] = [
   },
   {
     id: 'good-b',
+    code: 'GOOD-B',
+    publishedAt: null, firstPublishedAt: '2026-09-08T00:00:00Z',
     archivedAt: null,
     ipId: 'ip-b',
     name: '루멘 포스터',

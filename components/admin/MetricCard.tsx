@@ -2,9 +2,9 @@ import { Icon } from '@/components/ui/Icon';
 import type { MetricChangeType } from './format';
 
 const CHANGE_COLORS: Record<MetricChangeType, string> = {
-  positive: 'var(--mint)',
-  negative: 'var(--pink)',
-  neutral: 'var(--dim)',
+  positive: 'var(--wc-success)',
+  negative: 'var(--wc-danger)',
+  neutral: 'var(--wc-ink-tertiary)',
 };
 
 export function MetricCard({
@@ -21,9 +21,9 @@ export function MetricCard({
   value: string;
 }) {
   return (
-    <div className="card admin-metric">
+    <div className="card admin-metric wc-admin-kit wc-admin-kit__card">
       <div className="between" style={{ alignItems: 'flex-start', marginBottom: 10 }}>
-        <span className="mono" style={{ color: 'var(--dim)', fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase' }}>
+        <span className="mono" style={{ color: 'var(--wc-ink-tertiary)', fontSize: 11, letterSpacing: '.06em', textTransform: 'uppercase' }}>
           {label}
         </span>
         <span className="admin-metric-icon">
@@ -33,7 +33,7 @@ export function MetricCard({
       <div className="row" style={{ alignItems: 'flex-end', gap: 10, justifyContent: 'flex-start' }}>
         <span
           className="holo-text"
-          style={{ fontFamily: 'var(--ff-display)', fontSize: 26, fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1.05 }}
+          style={{ fontFamily: 'var(--wc-font)', fontSize: 26, fontWeight: 700, letterSpacing: '-.02em', lineHeight: 1.05 }}
         >
           {value}
         </span>

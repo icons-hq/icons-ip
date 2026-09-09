@@ -29,7 +29,7 @@ import { QnaActionPanel } from './QnaActionPanel';
 
 const COLUMNS: ConsoleGridColumn[] = [
   { key: 'createdAt', label: '작성일', width: '140px' },
-  { key: 'good', label: '굿즈', width: '160px' },
+  { key: 'good', label: '상품', width: '160px' },
   { key: 'body', label: '질문 내용' },
   { key: 'author', label: '작성자', width: '130px' },
   { key: 'status', label: '노출', width: '90px' },
@@ -70,10 +70,10 @@ export function QnaConsoleScreen({ data }: { data: AdminProductQuestionConsoleDa
   }));
 
   return (
-    <section className="admin-console">
+    <section className="admin-console wc-admin-kit">
       {/* 미답변 고정 줄. 목록의 어떤 조건보다 먼저 읽혀야 하는 한 줄이다 —
           구매 전 질문은 답이 늦을수록 판매 기회 자체가 사라진다. */}
-      <div className="admin-console-pinned-filter card">
+      <div className="admin-console-pinned-filter card wc-admin-kit wc-admin-kit__card">
         <div className="col" style={{ gap: 4, minWidth: 0 }}>
           <strong style={{ fontSize: 14 }}>
             답변 미등록 {counts.unanswered.toLocaleString('ko-KR')}건
@@ -154,7 +154,7 @@ export function QnaConsoleScreen({ data }: { data: AdminProductQuestionConsoleDa
       />
 
       <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>
-        상품 Q&A는 굿즈 상세에 공개로 붙는 구매 전 질문입니다 — 비공개 1:1{' '}
+        상품 Q&A는 상품 상세에 공개로 붙는 구매 전 질문입니다 — 비공개 1:1{' '}
         <Link href="/admin/cs/inquiries">문의</Link>와 다릅니다. 답변을 저장하면 작성자에게 알림이
         가고, 답변을 고칠 때마다 알림이 다시 갑니다. 비노출은 작성자 삭제와 다릅니다: 원문이 남고
         작성자에게는 계속 보이며 언제든 되돌릴 수 있습니다.

@@ -10,6 +10,7 @@
  */
 
 export type AdminGuideTopicSlug =
+  | 'whats-new'
   | 'getting-started'
   | 'goods-sales'
   | 'orders-shipping'
@@ -20,6 +21,7 @@ export type AdminGuideTopicSlug =
   | 'events-tickets'
   | 'display-messaging'
   | 'members-roles'
+  | 'store-settings'
   | 'stats'
   | 'troubleshooting'
   | 'dev-requests';

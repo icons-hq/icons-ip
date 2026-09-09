@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import postcss from 'postcss';
 
 /*
  * 우편번호 칸 안내문의 WCAG AA 대비를 실제 합성 배경 기준으로 고정한다(#175).
@@ -33,12 +34,11 @@ type Rgba = [number, number, number, number];
 /* 우편번호 칸이 앉는 종이. `.wc-receipt .card` 가 체크아웃 폼 카드를 칠한다. */
 const CHECKOUT_PAPER_RULE = '.wc-receipt .card';
 
-/* 소스 순서대로 덮어써 캐스케이드 승자를 남긴다. 문서 :root(globals·editorial)와
-   White Catalog 스코프 루트(.wc-root)를 함께 읽는다 — 후자가 지면의 실값이다. */
+/* 공개 체크아웃이 실제로 받는 .wc-root 토큰만 읽는다. 어드민과 보존 표면의 토큰은 격리돼 있다. */
 function scopeTokens(...sources: string[]): Map<string, string> {
   const tokens = new Map<string, string>();
   for (const css of sources) {
-    for (const block of css.matchAll(/(?::root|@theme|\.wc-root)\s*\{([^}]*)\}/g)) {
+    for (const block of css.matchAll(/\.wc-root\s*\{([^}]*)\}/g)) {
       for (const declaration of block[1].matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g)) {
         tokens.set(declaration[1], declaration[2].trim());
       }
@@ -105,33 +105,28 @@ function contrastRatio(foreground: Rgba, background: Rgba): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-function ruleBody(css: string, selector: string): string {
-  const start = css.indexOf(`${selector} {`);
-  if (start < 0) throw new Error(`missing rule: ${selector}`);
-  const open = css.indexOf('{', start);
-  const close = css.indexOf('}', open);
-  if (close < 0) throw new Error(`unterminated rule: ${selector}`);
-  return css.slice(open + 1, close);
-}
-
 function declaredValue(css: string, selector: string, property: string): string {
-  const match = new RegExp(`(?:^|[;{\\s])${property}\\s*:\\s*([^;]+)`).exec(
-    ruleBody(css, selector),
-  );
-  if (!match) throw new Error(`missing ${property} on ${selector}`);
-  return match[1].trim();
+  let value: string | undefined;
+  postcss.parse(css).walkRules((rule) => {
+    if (!rule.selectors.includes(selector) || rule.parent?.type !== 'root') return;
+    rule.walkDecls(property, (decl) => { value = decl.value; });
+  });
+  if (!value) throw new Error(`missing ${property} on ${selector}`);
+  return value;
 }
 
 describe('postcode field contrast', () => {
   const commerce = read('./styles/wc-account-commerce.css');
-  /* app/layout.tsx 의 import 순서 그대로. 뒤가 앞을 덮는다. */
-  const tokens = scopeTokens(
-    read('./globals.css'),
-    read('./styles/editorial-foundation.css'),
-    read('./styles/wc-foundation.css'),
-  );
+  const tokens = scopeTokens(read('./styles/wc-foundation.css'));
 
   const color = (value: string) => parseColor(resolveToken(value, tokens));
+
+  it('measures the final scoped receipt rather than a retired global palette', () => {
+    expect(read('../components/screens/Checkout.tsx')).toContain('wc-root wc-receipt');
+    expect(read('./layout.tsx')).not.toContain("'./styles/editorial-foundation.css'");
+    expect([...tokens.keys()].every((name) => name.startsWith('--wc-'))).toBe(true);
+    expect(declaredValue('.sample { color: #111111; } .sample { color: #FFFFFF; }', '.sample', 'color')).toBe('#FFFFFF');
+  });
 
   /* 레이어 배경이 지금은 불투명이라 composite 두 번은 무연산이지만, 계산을 남겨
      둔다 — 배경이 반투명으로 돌아오는 순간 실제 합성색으로 재는 단언이 된다. */

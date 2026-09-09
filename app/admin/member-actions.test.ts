@@ -84,6 +84,12 @@ describe('admin member actions', () => {
     expect(mocks.getDetail).toHaveBeenCalledWith(profileId);
   });
 
+  it('계정 상태 변경 후 정확한 고객 상세와 회원 목록을 갱신한다', async () => {
+    await suspendAdminMemberAction({}, form());
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/admin/customers/${profileId}`);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/community/members');
+  });
+
   it('비staff는 모든 RPC·loader 전에 차단한다', async () => {
     mocks.auth = {
       isConfigured: true,
@@ -113,7 +119,10 @@ describe('admin member actions', () => {
 
     await expect(unsuspendAdminMemberAction({}, form())).resolves.toEqual({ message: '회원 정지를 해제했습니다.' });
     expect(mocks.rpc).toHaveBeenNthCalledWith(2, 'admin_unsuspend_user', { target_profile_id: profileId });
-    expect(mocks.revalidatePath.mock.calls).toEqual([['/admin'], ['/admin']]);
+    expect(mocks.revalidatePath.mock.calls).toEqual([
+      ['/admin'], ['/admin/community/members'], [`/admin/customers/${profileId}`],
+      ['/admin'], ['/admin/community/members'], [`/admin/customers/${profileId}`],
+    ]);
   });
 
   it('DB 오류 원문을 숨기고 stale/권한 오류를 안전한 문구로 매핑한다', async () => {

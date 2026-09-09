@@ -41,11 +41,13 @@ import {
   ORDER_CLAIM_TYPE_SLUGS,
 } from '@/lib/orders/claims';
 import {
+  orderShipment,
   selectableShippingCarriers,
   type OrderShipment,
   type ShippingCarrierRegistry,
 } from '@/lib/orders/shipment';
 import { formatKrw } from '../format';
+import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 
 /* 사다리 순서 그대로 둔다 — 드롭다운 순서가 운영자에게는 단계 순서다(#250).
    문구는 ADMIN_ORDER_STATUS_LABELS에서 가져온다. 여기에 다시 적으면 일괄 등록
@@ -252,10 +254,12 @@ function OrderStatusAction({
 function UpdateTrackingForm({
   carriers,
   orderId,
+  shipmentId,
   shipment,
 }: {
   carriers: ShippingCarrierRegistry;
   orderId: string;
+  shipmentId: string;
   shipment: OrderShipment | null;
 }) {
   const [state, action, pending] = useActionState(updateAdminOrderTrackingAction, EMPTY_ACTION_STATE);
@@ -269,10 +273,11 @@ function UpdateTrackingForm({
       onSubmit={(event) => confirmAction(event, confirmation)}
     >
       <input name="orderId" type="hidden" value={orderId} />
+      <input name="shipmentId" type="hidden" value={shipmentId} />
       <TrackingFields
         carriers={carriers}
         errors={state.errors}
-        idPrefix="admin-order-edit"
+        idPrefix={`admin-order-edit-${shipmentId}`}
         orderId={orderId}
         pending={pending}
         shipment={shipment}
@@ -522,9 +527,14 @@ function OrderDetail({
     <article aria-labelledby="admin-order-detail-title" className="admin-order-detail card">
       <header className="admin-order-detail-header">
         <div>
-          <span className={`order-status order-status--${order.status}`}>{status.label}</span>
+          <span className={`order-status order-status--${order.status}`}
+            title={order.status === 'done' ? ADMIN_VOCABULARY.settledHint : undefined}
+            data-admin-tooltip={order.status === 'done' ? ADMIN_VOCABULARY.settledHint : undefined}
+            aria-label={order.status === 'done' ? `${status.label}: ${ADMIN_VOCABULARY.settledHint}` : undefined}
+            tabIndex={order.status === 'done' ? 0 : undefined}>{status.label}</span>
           <h2 id="admin-order-detail-title">주문 {orderReferenceLabel(order.id)}</h2>
           <p className="faint mono">{order.id}</p>
+          <Link className="btn btn-sm btn-ghost" href={`/admin/sales/orders/${order.id}`}>상세 열기</Link>
         </div>
         <strong>{formatKrw(order.total)}</strong>
       </header>
@@ -589,7 +599,7 @@ function OrderDetail({
             <div>
               {/* 유형과 절차 단계를 그대로 쓴다. status 투영만 보이면 수거 중인
                   반품이 "청약철회 요청 · 요청 접수"로 표시된다(#252). */}
-              <span>{ORDER_CLAIM_TYPE_LABELS[cancellationRequest.claimType]} 클레임</span>
+              <span>{ORDER_CLAIM_TYPE_LABELS[cancellationRequest.claimType]} 요청</span>
               <h3 id="admin-order-cancellation-title">
                 {ORDER_CLAIM_STAGE_LABELS[cancellationRequest.stage]}
               </h3>
@@ -647,33 +657,20 @@ function OrderDetail({
             carriers={carriers}
             label="발주확인"
             orderId={order.id}
-            shipment={order.shipment}
+            shipment={null}
             status="confirmed"
           />
         ) : null}
-        {canAdvanceOrderStatus && order.status === 'confirmed' ? (
-          <OrderStatusAction
-            carriers={carriers}
-            label="발송처리"
-            orderId={order.id}
-            shipment={order.shipment}
-            status="shipping"
-          />
-        ) : null}
-        {canAdvanceOrderStatus && order.status === 'shipping' ? (
-          <OrderStatusAction
-            carriers={carriers}
-            label="배송완료"
-            orderId={order.id}
-            shipment={order.shipment}
-            status="delivered"
-          />
-        ) : null}
+        {canAdvanceOrderStatus && order.status === 'confirmed' ? <Link href={`/admin/sales/dispatch?tab=ready&query=${order.id}`}>배송 건별 운송장 등록</Link> : null}
+        {canAdvanceOrderStatus && order.status === 'shipping' ? <Link href={`/admin/sales/shipping?tab=transit&query=${order.id}`}>배송 건별 배송완료 처리</Link> : null}
         {/* delivered→done은 자동 거래확정 잡이 맡는다. 운영자 버튼을 두면
             청약철회 창을 사람 손으로 조기 종료시킬 수 있다. */}
-        {hasShipped ? (
-          <UpdateTrackingForm carriers={carriers} orderId={order.id} shipment={order.shipment} />
-        ) : null}
+        {hasShipped ? order.shipments.filter(shipment=>shipment.status==='shipping'||shipment.status==='delivered').map(shipment=>(
+          <section key={shipment.id} aria-label={`${shipment.originName} 운송장 수정`}>
+            <h4>{shipment.originName} · {shipment.id.slice(-8).toUpperCase()}</h4>
+            <UpdateTrackingForm carriers={carriers} orderId={order.id} shipmentId={shipment.id} shipment={orderShipment(carriers,shipment.carrier,shipment.trackingNumber)} />
+          </section>
+        )) : null}
         {/* 주문 콘솔이 소유하는 것은 "접수 단계의 취소"뿐이다. 반품·교환과 검토중·
             수거중·입고완료·보류는 절차가 다르고, 여기서 승인하면 입고 확인을
             건너뛴 채 전액 환불과 재고 복원이 끝난다. DB도 같은 경계를 지키지만
@@ -693,7 +690,7 @@ function OrderDetail({
             className="btn btn-sm btn-ghost"
             href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[cancellationRequest.claimType]}/${cancellationRequest.id}`}
           >
-            클레임 콘솔에서 처리
+            {ADMIN_VOCABULARY.claims}에서 처리
           </Link>
         ) : null}
         {(cancellationRequest?.status === 'processing' || cancellationRequest?.status === 'needs_review')
@@ -724,7 +721,9 @@ function OrderDetail({
 }
 
 export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
-  const selected = data.items.find((order) => order.id === data.filters.orderId) ?? data.items[0] ?? null;
+  const selected = data.filters.orderId
+    ? data.items.find((order) => order.id === data.filters.orderId) ?? null
+    : data.items[0] ?? null;
   const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize));
 
   return (
@@ -750,7 +749,11 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
               href={adminOrdersHref(data.filters, { orderId: order.id })}
               key={order.id}
             >
-              <span className={`order-status order-status--${order.status}`}>{orderStatusMeta(order.status).label}</span>
+              <span className={`order-status order-status--${order.status}`}
+                title={order.status === 'done' ? ADMIN_VOCABULARY.settledHint : undefined}
+            data-admin-tooltip={order.status === 'done' ? ADMIN_VOCABULARY.settledHint : undefined}
+                aria-label={order.status === 'done' ? `${ADMIN_VOCABULARY.settled}: ${ADMIN_VOCABULARY.settledHint}` : undefined}
+                tabIndex={order.status === 'done' ? 0 : undefined}>{orderStatusMeta(order.status).label}</span>
               <strong>@{order.buyerName}</strong>
               <span className="faint mono">{orderReferenceLabel(order.id)}</span>
               <span className="admin-order-row-total">{formatKrw(order.total)}</span>
@@ -788,7 +791,12 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
             </nav>
           ) : null}
         </aside>
-        {selected ? <OrderDetail carriers={data.carriers} order={selected} /> : null}
+        {selected ? <OrderDetail carriers={data.carriers} order={selected} /> : data.filters.orderId ? (
+          <div className="card col" role="status">
+            <p>선택한 주문은 현재 목록에 없습니다.</p>
+            <Link href={`/admin/sales/orders/${data.filters.orderId}`}>지정한 주문 상세 열기</Link>
+          </div>
+        ) : null}
       </div>
     </section>
   );

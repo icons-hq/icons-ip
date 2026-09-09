@@ -1,3 +1,4 @@
+import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import Link from 'next/link';
 import type { AdminInsights } from '@/lib/admin/insights.server';
 import type { AdminReportRecord } from '@/lib/admin/moderation.server';
@@ -64,7 +65,7 @@ export function OverviewSection({
           판매분석 <Icon name="arrow" size={14} />
         </Link>
         <Link className="btn btn-sm btn-ghost" href="/admin/stats/claims">
-          클레임 <Icon name="arrow" size={14} />
+          {ADMIN_VOCABULARY.claims} <Icon name="arrow" size={14} />
         </Link>
         <Link className="btn btn-sm btn-ghost" href="/admin/stats/customers">
           고객현황 <Icon name="arrow" size={14} />
@@ -76,7 +77,7 @@ export function OverviewSection({
         <TopIps ips={insights.topIps} />
       </div>
 
-      <div className="card col" style={{ borderRadius: 10, padding: 18 }}>
+      <div className="card col wc-admin-kit wc-admin-kit__card" style={{  }}>
         <div className="between" style={{ marginBottom: 8 }}>
           <div>
             <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>최근 신고</h2>
@@ -87,7 +88,7 @@ export function OverviewSection({
           </Link>
         </div>
         {recent.map((report) => (
-          <div key={report.id} className="between" style={{ borderTop: '1px solid var(--line)', gap: 12, padding: '11px 0' }}>
+          <div key={report.id} className="between" style={{ borderTop: '1px solid var(--wc-hairline)', gap: 12, padding: '11px 0' }}>
             <div className="col" style={{ gap: 3, minWidth: 0 }}>
               <strong style={{ fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {report.targetLabel}
@@ -97,7 +98,7 @@ export function OverviewSection({
                 {new Date(report.createdAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}
               </span>
             </div>
-            <span className="tag" style={{ color: 'var(--violet-2)' }}>{report.status}</span>
+            <span className="tag" style={{ color: 'var(--wc-info)' }}>{report.status}</span>
           </div>
         ))}
         {!recent.length && (

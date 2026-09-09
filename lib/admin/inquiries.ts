@@ -68,6 +68,9 @@ export interface AdminInquiryRow {
   goodId: string | null;
   goodName: string | null;
   handlerName: string | null;
+  assigneeId: string | null;
+  assigneeName: string | null;
+  waitingSince: string | null;
   createdAt: string;
   lastMessageAt: string;
   answeredAt: string | null;
@@ -196,4 +199,15 @@ export function adminInquiryBackHref(back: unknown) {
 /** 구매자 표기. 닉네임이 비면 주문 콘솔과 같은 fan_ 축약을 쓴다. */
 export function adminInquiryBuyerLabel(name: string | null, userId: string) {
   return name?.trim() || `fan_${userId.slice(0, 6)}`;
+}
+
+
+/** 실제 대기 24시간 배지. 기존 영업일 기준 1차 답변 SLA와 별개의 운영 신호다. */
+export function isAdminInquiryOverdue(
+  inquiry: { status: string; waitingSince: string | null },
+  now: Date = new Date(),
+) {
+  if (inquiry.status !== 'open' || !inquiry.waitingSince) return false;
+  const since = Date.parse(inquiry.waitingSince);
+  return Number.isFinite(since) && now.getTime() - since >= 24 * 60 * 60 * 1000;
 }

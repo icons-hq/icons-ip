@@ -91,6 +91,7 @@ export function restoreCommittedArtworkPreview(
  */
 export function ArtworkUploadField({
   allowRemove = false,
+  autoUpload = false,
   currentPath,
   currentUrl,
   fieldId,
@@ -101,6 +102,7 @@ export function ArtworkUploadField({
   onPreviewChange,
 }: {
   allowRemove?: boolean;
+  autoUpload?: boolean;
   currentPath: string | null;
   currentUrl: string | null;
   fieldId?: string;
@@ -210,15 +212,16 @@ export function ArtworkUploadField({
     setStatus('업로드 전 미리보기입니다. 확인 후 업로드해주세요.');
     event.currentTarget.setCustomValidity(UPLOAD_VALIDITY_MESSAGE);
     onPreviewChange?.(objectUrl);
+    if (autoUpload) void handleUpload(selected);
   }
 
-  async function handleUpload() {
-    if (!file || pending) return;
+  async function handleUpload(selectedFile = file) {
+    if (!selectedFile || pending) return;
 
     setError(undefined);
     setPending(true);
     setStatus(undefined);
-    const result = await uploadAdminArtwork({ kind, file });
+    const result = await uploadAdminArtwork({ kind, file: selectedFile });
     setPending(false);
 
     if (!result.ok) {
@@ -248,6 +251,7 @@ export function ArtworkUploadField({
 
   return (
     <section
+      data-auto-upload={autoUpload || undefined}
       className="card col"
       data-artwork-kind={kind}
       style={{ borderRadius: 10, gap: 12, padding: 14 }}
@@ -306,7 +310,7 @@ export function ArtworkUploadField({
             <button
               className="btn btn-ghost admin-artwork-upload"
               disabled={!file || pending}
-              onClick={handleUpload}
+              onClick={() => void handleUpload()}
               type="button"
             >
               {pending ? '업로드 중' : display.imagePath ? '이미지 교체' : '이미지 업로드'}

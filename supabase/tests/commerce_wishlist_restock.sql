@@ -39,7 +39,7 @@ select 1 / case when not exists (
 
 select 1 / case when not exists (
   select 1 from public.goods
-  where type not in ('피규어', '인형', '키링', '아크릴', '문구', '쿠션', '파우치', '세트')
+  where (type <> '' or published_at is not null) and type not in ('피규어', '인형', '키링', '아크릴', '문구', '쿠션', '파우치', '세트')
 ) then 1 else 0 end as assert_goods_types_standardized;
 
 select 1 / case when (
@@ -75,24 +75,24 @@ select 1 / case when exists (
       || 'target_notice_material text, target_notice_size text, target_notice_made_on text, '
       || 'target_notice_as_manager text, target_notice_as_contact text, target_description text, '
       || 'target_gallery_paths text[], target_detail_image_path text, target_previous_id text, '
-      || 'target_compare_at_price integer'
+      || 'target_compare_at_price integer, target_publish boolean'
     and proc.prosecdef
 ) then 1 else 0 end as assert_admin_upsert_good_signature;
 
 select 1 / case when (
   not has_function_privilege(
     'anon',
-    'public.admin_upsert_good(text,text,text,text,integer,text,text,text,text,text,text,text,text,text,text,text,text,text[],text,text,integer)',
+    'public.admin_upsert_good(text,text,text,text,integer,text,text,text,text,text,text,text,text,text,text,text,text,text[],text,text,integer,boolean)',
     'execute'
   )
   and has_function_privilege(
     'authenticated',
-    'public.admin_upsert_good(text,text,text,text,integer,text,text,text,text,text,text,text,text,text,text,text,text,text[],text,text,integer)',
+    'public.admin_upsert_good(text,text,text,text,integer,text,text,text,text,text,text,text,text,text,text,text,text,text[],text,text,integer,boolean)',
     'execute'
   )
   and not has_function_privilege(
     'service_role',
-    'public.admin_upsert_good(text,text,text,text,integer,text,text,text,text,text,text,text,text,text,text,text,text,text[],text,text,integer)',
+    'public.admin_upsert_good(text,text,text,text,integer,text,text,text,text,text,text,text,text,text,text,text,text,text[],text,text,integer,boolean)',
     'execute'
   )
 ) then 1 else 0 end as assert_admin_upsert_good_acl;
@@ -121,13 +121,13 @@ values
    'commerce_staff', '2000-01-01', 'staff', '{"terms":true,"privacy":true}'::jsonb, now())
 on conflict (id) do update set role = excluded.role;
 
-insert into public.ips (id, title, vertical_key)
-values ('commerce-smoke-ip', '커머스 스모크 IP', 'character');
+insert into public.ips (id, title, vertical_key, published_at)
+values ('commerce-smoke-ip', '커머스 스모크 IP', 'character', now());
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
+insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
 values
-  ('commerce-smoke-good', 'commerce-smoke-ip', '커머스 스모크 굿즈', '키링', 12000, 'soldout', 0),
-  ('commerce-smoke-good-b', 'commerce-smoke-ip', '커머스 스모크 굿즈 B', '문구', 8000, 'ok', 5);
+  ('commerce-smoke-good', 'commerce-smoke-ip', '커머스 스모크 굿즈', '키링', 12000, 'soldout', 0, now()),
+  ('commerce-smoke-good-b', 'commerce-smoke-ip', '커머스 스모크 굿즈 B', '문구', 8000, 'ok', 5, now());
 
 -- staff 로 compare_at_price 를 저장·거부해 본다.
 set local role authenticated;
@@ -290,16 +290,16 @@ select 1 / case when (
 ) then 1 else 0 end as assert_rpc_created_pending_alert;
 
 -- 판매 불가 상태 안에서의 변화(품절 유지)는 발화하지 않는다.
-update public.goods set stock_qty = 0, stock = 'soldout'
-where id = 'commerce-smoke-good';
+update public.goods_variants set stock_qty = 0 where good_id = 'commerce-smoke-good' and is_default;
+update public.goods set stock = 'soldout' where id = 'commerce-smoke-good';
 
 select 1 / case when (
   select count(*) = 0 from public.notifications where type = 'restock_available'
 ) then 1 else 0 end as assert_no_notification_without_transition;
 
 -- 품절 → 판매 가능 전이: pending 이 notified 로 넘어가고 알림함에 쌓인다.
-update public.goods set stock = 'ok', stock_qty = 10
-where id = 'commerce-smoke-good';
+update public.goods_variants set stock_qty = 10 where good_id = 'commerce-smoke-good' and is_default;
+update public.goods set stock = 'ok' where id = 'commerce-smoke-good';
 
 select 1 / case when (
   select status = 'notified' and notified_at is not null
@@ -317,15 +317,15 @@ select 1 / case when (
 ) then 1 else 0 end as assert_restock_notification_fanned_out;
 
 -- 판매 가능 상태 안에서의 재고 변화는 재발화하지 않는다.
-update public.goods set stock_qty = 20 where id = 'commerce-smoke-good';
+update public.goods_variants set stock_qty = 20 where good_id = 'commerce-smoke-good' and is_default;
 
 select 1 / case when (
   select count(*) = 1 from public.notifications where type = 'restock_available'
 ) then 1 else 0 end as assert_no_refire_while_sellable;
 
 -- 재품절 → 재신청 → 재입고 사이클이 성립한다(dedupe 키가 사이클마다 다르다).
-update public.goods set stock = 'soldout', stock_qty = 0
-where id = 'commerce-smoke-good';
+update public.goods_variants set stock_qty = 0 where good_id = 'commerce-smoke-good' and is_default;
+update public.goods set stock = 'soldout' where id = 'commerce-smoke-good';
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000002601', true);
@@ -342,8 +342,8 @@ select 1 / case when (
     and status = 'pending'
 ) then 1 else 0 end as assert_reapply_restores_pending_single_row;
 
-update public.goods set stock = 'ok', stock_qty = 3
-where id = 'commerce-smoke-good';
+update public.goods_variants set stock_qty = 3 where good_id = 'commerce-smoke-good' and is_default;
+update public.goods set stock = 'ok' where id = 'commerce-smoke-good';
 
 select 1 / case when (
   select count(*) = 2

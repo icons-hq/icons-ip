@@ -23,7 +23,7 @@ export type ShippingCarrierRegistry = readonly ShippingCarrier[];
 
 export const TRACKING_NUMBER_PLACEHOLDER = '{trackingNumber}';
 
-/** DB의 orders.tracking_number check와 같은 형식이다. 양쪽을 함께 바꾼다. */
+/** DB의 order_shipments.tracking_number check와 같은 형식이다. 양쪽을 함께 바꾼다. */
 const TRACKING_NUMBER_PATTERN = /^[A-Z0-9]{8,30}$/;
 
 /** DB의 shipping_carriers_code_check와 같은 형식이다. */
@@ -105,7 +105,7 @@ export function isTrackingNumber(value: string): boolean {
 }
 
 /**
- * 주문 행의 택배사·운송장을 화면이 쓸 수 있는 모양으로 바꾼다.
+ * 배송 건의 택배사·운송장을 화면이 쓸 수 있는 모양으로 바꾼다.
  *
  * 활성 여부는 보지 않는다. 계약이 끝난 택배사로 이미 나간 주문도 고객은 계속
  * 추적할 수 있어야 한다 — 비활성화가 과거 배송의 조회 링크를 지우면 CS가

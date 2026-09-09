@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminCardRecord } from '@/lib/admin/catalog.server';
+import type { AdminCatalogActionState } from '@/app/admin/actions';
 import { CardSection } from './CardSection';
 
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => null }));
@@ -25,7 +26,7 @@ const selected: AdminCardRecord = {
   imagePath: null,
 };
 
-function renderCard(selectedCard: AdminCardRecord | null = selected) {
+function renderCard(selectedCard: AdminCardRecord | null = selected, state: AdminCatalogActionState = {}) {
   return renderToStaticMarkup(
     <CardSection
       action={vi.fn()}
@@ -41,12 +42,35 @@ function renderCard(selectedCard: AdminCardRecord | null = selected) {
       ]}
       records={selectedCard ? [selectedCard] : []}
       selected={selectedCard}
-      state={{}}
+      state={state}
     />,
   );
 }
 
 describe('CardSection', () => {
+  it('restores a failed new card including its IP, pool, rarity and uploaded image path', () => {
+    const html = renderCard(null, {
+      attempt: 2, errors: { name: '저장 실패' },
+      values: { previousId: '', id: 'c200', name: '작성 중 카드', no: '005/100',
+        ipId: 'lumen', rarity: 'SSR', poolId: '22222222-2222-4222-8222-222222222222',
+        imagePath: 'artworks/card/kept.webp' },
+    });
+    for (const value of ['c200', '작성 중 카드', '005/100', 'artworks/card/kept.webp']) {
+      expect(html).toContain(`value="${value}"`);
+    }
+    expect(html).toContain('value="lumen" selected=""');
+    expect(html).toContain('value="SSR" selected=""');
+    expect(html).toContain('value="22222222-2222-4222-8222-222222222222" selected=""');
+  });
+
+  it('does not use another record or a failed new card as the selected card defaults', () => {
+    const html = renderCard(selected, {
+      attempt: 3, values: { previousId: '', name: '다른 카드 입력', imagePath: 'artworks/card/other.webp' },
+    });
+    expect(html).toContain('value="청명 홀로 카드"');
+    expect(html).not.toContain('다른 카드 입력');
+    expect(html).not.toContain('artworks/card/other.webp');
+  });
   it('shows only same-IP pools and keeps an explicit unbound option', () => {
     const html = renderCard();
 

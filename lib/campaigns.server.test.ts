@@ -33,6 +33,10 @@ vi.mock('@/lib/supabase/server', () => ({
           mocks.filters.push([table, column, value]);
           return query;
         },
+        not: (column: string, operator: string, value: unknown) => {
+          mocks.filters.push([table, column, `not.${operator}.${value}`]);
+          return query;
+        },
         is: (column: string, value: unknown) => {
           mocks.filters.push([table, column, value]);
           return query;
@@ -177,6 +181,24 @@ describe('loadCampaignHub', () => {
 });
 
 describe('loadCampaignDetail', () => {
+  it('omits goods whose parent IP is draft, archived, or unavailable', async () => {
+    mocks.tables.campaigns = {
+      data: { ...hubRow('ip-state'), hero_image_path: null, sections: [{ type: 'goods', good_ids: ['draft', 'archived', 'missing', 'live'] }] },
+      error: null,
+    };
+    const good = { name: '굿즈', price: 1000, badge: null, stock: 'ok', stock_qty: 1, bg: null, image_path: null };
+    mocks.tables.goods = {
+      data: [
+        { ...good, id: 'draft', ips: { published_at: null, archived_at: null } },
+        { ...good, id: 'archived', ips: { published_at: '2026-07-01', archived_at: '2026-09-01' } },
+        { ...good, id: 'missing', ips: null },
+        { ...good, id: 'live', ips: { published_at: '2026-07-01', archived_at: null } },
+      ],
+      error: null,
+    };
+    const detail = await loadCampaignDetail('ip-state');
+    expect(detail?.resolvedSections[0]).toMatchObject({ type: 'goods', goods: [{ id: 'live' }] });
+  });
   it('supabase 미구성이면 null이다', async () => {
     mocks.configured = false;
 
@@ -210,6 +232,7 @@ describe('loadCampaignDetail', () => {
     mocks.tables.goods = {
       data: [{
         id: 'g13',
+        ips: { published_at: '2026-07-01', archived_at: null },
         name: '아크릴 블록',
         price: 12000,
         compare_at_price: 15000,
@@ -309,6 +332,7 @@ describe('loadCampaignDetail', () => {
     mocks.tables.goods = {
       data: [{
         id: 'g99',
+        ips: { published_at: '2026-07-01', archived_at: null },
         name: '품절 굿즈',
         price: 9000,
         compare_at_price: null,
@@ -344,6 +368,7 @@ describe('loadCampaignDetail', () => {
     await loadCampaignDetail('archive-leak');
 
     expect(mocks.filters).toContainEqual(['goods', 'archived_at', null]);
+    expect(mocks.filters).toContainEqual(['goods', 'published_at', 'not.is.null']);
   });
 
   /* 같은 이유로 판매 제한 굿즈(#392)도 랜딩 블록에서 따로 걸러야 한다 — 보관 필터와
@@ -363,5 +388,6 @@ describe('loadCampaignDetail', () => {
 
     expect(mocks.filters).toContainEqual(['goods', 'sale_restriction', 'none']);
     expect(mocks.filters).toContainEqual(['goods', 'archived_at', null]);
+    expect(mocks.filters).toContainEqual(['goods', 'published_at', 'not.is.null']);
   });
 });

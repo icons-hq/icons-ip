@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { imageBg, imageUrlFromBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from './media';
+import { imageBg, imageUrlFromBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET, publicMediaUrl } from './media';
+
+describe('publicMediaUrl', () => {
+  it('supabase-js getPublicUrl과 같은 공개 object URL을 만든다', () => {
+    expect(publicMediaUrl('public-media/catalog/ip/a b.png', 'https://demo.supabase.co/'))
+      .toBe('https://demo.supabase.co/storage/v1/object/public/public-media/catalog/ip/a%20b.png');
+    expect(publicMediaUrl('/catalog/ip/a.png', 'https://demo.supabase.co'))
+      .toBe('https://demo.supabase.co/storage/v1/object/public/public-media/catalog/ip/a.png');
+  });
+
+  it('Supabase URL이 없으면 null이다 — 미리보기를 조용히 깨진 이미지로 두지 않는다', () => {
+    expect(publicMediaUrl('catalog/ip/a.png', undefined)).toBeNull();
+    expect(publicMediaUrl('catalog/ip/a.png', '  ')).toBeNull();
+  });
+});
 
 describe('normalizePublicMediaPath', () => {
   it.each([

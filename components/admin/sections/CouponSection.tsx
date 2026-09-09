@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminFormGrid } from '@/components/admin/console/AdminKit';
 import type { AdminCouponActionState } from '@/app/admin/coupon-actions';
 import type { AdminCouponRecord } from '@/lib/admin/coupons';
 import { LOYALTY_GRADES, loyaltyBasisSummary, loyaltyGradeLabel } from '@/lib/loyalty';
@@ -52,9 +53,9 @@ function CouponEditor({
   state: AdminCouponActionState;
 }) {
   return (
-    <form action={action} className="card col" style={{ borderRadius: 10, gap: 14, padding: 16 }}>
+    <form action={action} className="card col wc-admin-kit wc-admin-kit__card" style={{ gap: 14 }}>
       <input name="previousCode" type="hidden" value={selected?.code ?? ''} />
-      <div className="admin-form-grid">
+      <AdminFormGrid>
         <Field
           defaultValue={selected?.code ?? ''}
           error={state.errors?.code}
@@ -149,7 +150,7 @@ function CouponEditor({
             <option key={grade} value={grade}>{loyaltyGradeLabel(grade)} 달성 시</option>
           ))}
         </SelectField>
-      </div>
+      </AdminFormGrid>
       {selected && (
         <p className="muted" style={{ fontSize: 12, margin: 0 }}>
           발급 {selected.issuedCount.toLocaleString('ko-KR')}장

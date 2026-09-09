@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminFormGrid } from '@/components/admin/console/AdminKit';
 import Link from 'next/link';
 import { useActionState, useMemo, useState } from 'react';
 import { upsertAdminCurationAction } from '@/app/admin/curation-actions';
@@ -189,7 +190,7 @@ function CurationForm({
   );
 
   return (
-    <form action={action} className="card col admin-curation-form">
+    <form action={action} className="card col admin-curation-form wc-admin-kit wc-admin-kit__card">
       <input name="operationId" type="hidden" value={operationId} />
       <input name="id" type="hidden" value={selected?.id ?? draftId} />
 
@@ -201,7 +202,7 @@ function CurationForm({
         <span>{formatKstDateTime(selected?.activeFrom ?? draftActiveFrom)} → {formatKstDateTime(selected?.activeTo ?? null)}</span>
       </div>
 
-      <div className="admin-form-grid">
+      <AdminFormGrid>
         <SelectField
           error={state.errors?.kind}
           label="홈에 보일 영역"
@@ -359,7 +360,7 @@ function CurationForm({
           <input defaultChecked={selected?.enabled ?? true} name="enabled" type="checkbox" />
           <span>홈 노출 활성화</span>
         </label>
-      </div>
+      </AdminFormGrid>
 
       <ArtworkUploadField
         allowRemove={!IMAGE_REQUIRED_KINDS.has(kind)}

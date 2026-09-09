@@ -230,10 +230,10 @@ on conflict (id) do update set
   consents = excluded.consents,
   onboarded_at = excluded.onboarded_at;
 
-insert into public.ips (id, title, vertical_key)
+insert into public.ips (id, title, vertical_key, published_at)
 values
-  ('notification-ip', '알림 테스트 IP', 'character'),
-  ('notification-other-ip', '미팔로우 테스트 IP', 'character');
+  ('notification-ip', '알림 테스트 IP', 'character', now()),
+  ('notification-other-ip', '미팔로우 테스트 IP', 'character', now());
 
 insert into public.ip_follows (user_id, ip_id)
 values
@@ -443,6 +443,14 @@ select public.admin_upsert_good(
   null, null, null,
   null
 );
+
+-- Draft creation does not notify; the first explicit publication does.
+reset role;
+select set_config('request.jwt.claim.sub','',true);
+update public.goods set image_path='public-media/notification-fixture.webp' where id='notification-runtime-good';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000001503',true);
+select public.admin_set_good_published('notification-runtime-good',true);
 
 select public.admin_upsert_good(
   'notification-runtime-good',

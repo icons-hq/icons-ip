@@ -21,11 +21,11 @@ authority:
     discovery: app/styles/wc-discovery.css
     account-commerce: app/styles/wc-account-commerce.css
     campaign: app/styles/wc-campaign.css
-  retained-for-admin:               # 어드민 콘솔 어휘 — 이번 개편 대상이 아니다
-    - app/globals.css               # S9 이후 전역 하부(Tailwind·Pretendard·리셋)+어드민 HM 유산 밑층
-    - app/styles/editorial-foundation.css
-    - app/styles/editorial-admin.css  # 실제 라이트 콘솔 룩 — 나중에 로드돼 밑층을 덮는다
-    - app/styles/admin-console.css
+  admin:
+    shell-and-kit: app/styles/wc-admin.css
+    surfaces: app/styles/wc-admin-surfaces.css
+    boundary: .wc-admin
+  global-plumbing: app/globals.css  # Tailwind·Pretendard·element 리셋·공용 구조 유틸만 소유
   retained-legacy-surfaces:         # WC 재조판이 남은 공개 표면 — 표면별 격리 CSS로 자립
     - app/styles/about-legacy.css           # /about
     - app/styles/offline-popups-legacy.css  # /offline-popups·/offline-popups/[eventId]
@@ -34,7 +34,7 @@ authority:
   note: >
     status=implemented: 공개 스토어프론트 전 표면이 이 시스템으로 이행됐다(S1~S9, 통합 브랜치
     ps/feat/lfs-storefront-redesign). 직전 시스템(Living IP Editorial)의 공개 표면 CSS 3파일은
-    S9에서 삭제됐고, globals.css는 전역 하부와 어드민 잔존 어휘만 남겼다.
+    S9에서 삭제됐다. ADR-0014 전환 뒤 어드민도 WC 토큰과 격리 레이어를 쓰며, globals.css는 전역 하부만 소유한다.
     retained-legacy-surfaces의 세 표면은 이행 대상이지만 아직 재조판되지 않았고, 원본 제거에
     맞춰 격리 CSS로 자립시켰다 — 재조판은 후속 작업이며 그때 해당 파일을 지운다.
 reference:
@@ -59,7 +59,7 @@ breakpoints:
 ## 0. 상태와 적용 원칙
 
 - 근거 결정은 [ADR-0011](docs/adr/0011-lfs-storefront-redesign.md)이다. 공개 스토어프론트 전 표면이 이 시스템으로 이행됐고, 직전 시스템(Living IP Editorial)의 공개 표면 CSS 3파일과 1세대 잔재(Holographic Midnight)의 공개 표면 규칙은 S9에서 제거됐다.
-- 예외: **어드민**(`/admin/**`)은 이번 개편 대상이 아니며 현재 어휘를 그대로 유지한다. 실제 룩은 editorial 토큰의 라이트 콘솔(editorial-foundation·editorial-admin·admin-console)이고, `globals.css`의 어드민부는 그 아래 깔린 Holographic Midnight 유산 밑층이다 — 라이트 콘솔이 덮지 않는 배치·간격·모션이 거기 있어 "안 보이니 지워도 된다"가 성립하지 않는다. **`/about`**은 구 홈의 콘텐츠 섹션을 보존 전시하는 표면으로, 자체 스타일(about-legacy)을 갖되 전역 셸은 White Catalog을 쓴다.
+- **어드민**(`/admin/**`)은 2026-09 운영 콘솔 재설계(ADR-0014)로 White Catalog에 편입됐다. 셸·공통 키트는 `wc-admin.css`, 워크플로 배치·반응형·검표·가이드는 `wc-admin-surfaces.css`가 `.wc-admin` 안에서 소유한다. 공유 editorial 3파일과 `globals.css`의 관리자 규칙은 제거됐다. 어드민 전용 규율은 §어드민 콘솔을 따른다. **`/about`**은 구 홈의 콘텐츠를 보존하는 표면으로 자체 스타일(about-legacy)을 갖고 전역 셸은 White Catalog을 쓴다.
 - 재조판 잔여: **오프라인 팝업**(`/offline-popups`·`/offline-popups/[eventId]`)과 **법적 문서**(`/legal/*`)는 §8 플레이북의 대상이지만 아직 구 조판이다. S9의 원본 CSS 제거에 맞춰 표면별 격리 CSS(offline-popups-legacy·legal-doc)로 자립시켰고, 재조판은 후속 작업이다.
 - 시각·IA는 전면 교체하지만 기능 계약(인증, 카트, 주문, 결제, 카드팩, 예매, QR, 권한)은 §11의 동결 경계를 따른다.
 - 용어는 `CONTEXT.md`를 따른다: **온라인 팝업**(구 IP 허브), **오프라인 팝업**(예매 도메인), **이벤트**(캠페인 허브), **카테고리**(굿즈 분류), 수집형 **카드** ≠ 실물 **굿즈**.
@@ -335,7 +335,7 @@ protected-boundaries:
 ### 회귀 기준선
 
 - 이행 각 단계 시작 시 `npm run test` 전체 통과 수를 기준선으로 기록하고, 기능 assertion을 느슨하게 만들어 통과시키지 않는다. 시각 마크업 변경으로 클래스명·스냅샷 기대값을 바꿀 때도 행동 단언은 유지한다.
-- CSS 계약은 두 파일이 나눠 지킨다. `app/wc-design.test.ts`가 White Catalog 계약(임포트 순서·토큰 hex·reduced-motion·focus ring)이고, S9에서 잔존 범위 기준으로 재작성한 `app/editorial-design.test.ts`가 경계 계약(삭제된 CSS 재임포트 금지, wc CSS의 HM hex·`--editorial-*` 참조 금지, globals의 어드민 한정)을 기계 검증한다.
+- CSS 계약은 `app/wc-design.test.ts`(WC 토큰·임포트·모션·포커스), `app/admin-surface-contract.test.ts`(editorial 퇴역·중첩 규칙의 `.wc-admin` 경계·토큰 해석·검표), `app/editorial-design.test.ts`(보존 공개 표면의 자립·퇴역 파일 부활 금지)가 지킨다. 문자열 계약은 실제 브라우저 시각 회귀 검수를 대신하지 않는다.
 
 ## 12. Do / Don't
 
@@ -346,3 +346,28 @@ protected-boundaries:
 ## 13. 구현 순서
 
 구현 단계·PR 구조·티켓 분해는 [docs/research/linefriends-square/09-implementation-plan.md](docs/research/linefriends-square/09-implementation-plan.md)가 정본이다. 완료 조건: 각 표면이 §8 플레이북과 R-스펙 수치를 만족하고, §11 계약 테스트가 통과하며, `npm run lint`·`npm run build`·`npm run test` 통과 + preview 검수 후 일괄 전환한다. S1~S9 구현은 통합 브랜치에서 끝났고, 남은 단계는 main 일괄 전환이다.
+
+## 어드민 콘솔 (ADR-0014)
+
+- 범위: 셸·2단 IA·audited RPC·원장·테스트는 유지한다. 재설계 대상은 워크플로 표면 — 폼·목록·상세·설정.
+- 다섯 패턴이 합격 기준이다: 모든 자원에 전용 상세 페이지와 타임라인 / 모든 목록에 검색·필터·페이지·일괄 액션 / 초안→공개→보관 게시 상태와 실패에 살아남는 폼 / 설정 섹션(코드 상수→DB 설정) / 엑셀 가져오기·내보내기.
+- 토큰: `app/styles/wc-foundation.css`를 그대로 쓴다. `wc-admin.css`와 `wc-admin-surfaces.css`의 모든 규칙은 `.wc-admin`으로 시작하고, 색·폰트·모션 값은 `--wc-*`만 참조한다. 공개 `wc-*` 스타일시트에는 관리자 셀렉터를 넣지 않는다. CSS 역할을 바꾸면 중첩 media·forced-colors·print 규칙과 실제 JSX 소비자를 함께 확인한다.
+- 라벨 어휘: 운영팀 어휘(상품·상품코드·옵션). 카드·카드팩·티켓은 어드민 안에서도 "상품"이라 부르지 않는다(`CONTEXT.md` Flagged ambiguities).
+- 운영 합격 시나리오 S1~S5(일괄 등록 30종·입력값 소실 0·주문 100건 발송 클릭 10회 이내·이동 없는 문의 응대·배포 없는 설정 변경)는 ADR-0014에 기록돼 있다.
+
+### 컴포넌트 키트 anatomy (#409)
+
+전용 레이어는 `wc-admin-surfaces.css`(표면 배치)와 `wc-admin.css`(셸·공통 키트)다. `wc-foundation.css` → `wc-admin-surfaces.css` → `wc-admin.css` 순서로 임포트한다. 셸 루트는 `admin-shell wc-root wc-admin`, 독립 검표 루트는 `check-in-shell wc-root wc-admin`이다. 공통 Field·TextArea·SelectField는 AdminField의 label/입력/오류 구조를 쓰고, RecordList는 AdminSidePanel을 쓴다.
+
+| 요소 | 구조와 규율 |
+|---|---|
+| 셸 | 사이드바 248px(접힘 72px), 헤더 최소 72px, 본문 기존 최대폭 1488px. 900px 이하 아이콘 내비게이션, 각 링크에 접근성 이름·현재 페이지 표시. |
+| 페이지 헤더 | `AdminPageHeader`: h2 제목 20px/700, 설명 13px, 우측 액션 8px 간격. 헤더 아래 24px. |
+| 섹션 카드 | `AdminSectionCard`: section + h3, 흰 지면·hairline·2px 모서리, 패딩 24px(모바일 16px). |
+| 데이터 표 | 기존 `ConsoleGrid`를 `wc-admin-kit` 안에서 사용. caption·정렬 링크·행 선택 계약 유지, 셀 패딩 12px 16px, 숫자 우측 정렬. |
+| 폼 | `AdminFormGrid`: 2열(600px 이하 1열), 행 간격 20px·열 24px. `AdminField`: label→입력→도움말→오류. 컨트롤 최소 40px, 오류는 aria-invalid와 error id를 연결. |
+| 상태 배지 | `AdminStatusBadge`: 12px/600, 텍스트로 상태 명시. neutral·success·warning·danger의 의미색은 WC 토큰. |
+| 일괄 액션 | 기존 `ConsoleBulkActionBar`를 `wc-admin-kit` 안에서 재사용. 선택 0건이면 숨김, 위험 액션 확인은 소유 폼이 처리. |
+| 사이드 패널 | `AdminSidePanel`: 제목·닫기 링크/액션·내용. 흐름 안의 aside로 본문 접근 유지, modal로 선언하지 않는다. |
+
+키트는 `components/admin/console/AdminKit.tsx`에서 직접 가져온다. 공개 보존 표면 3곳의 바탕·폰트·입력·한글 줄바꿈은 각 격리 CSS 안에 정의한다. 카드 foil은 `lib/rarity.ts`의 카드 물성 상수이며 페이지 테마 변수에 의존하지 않는다.

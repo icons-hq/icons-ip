@@ -16,6 +16,7 @@ import {
   upsertAdminRewardPolicyAction,
   upsertAdminTicketTypeAction,
 } from './actions';
+import { collectFormValues } from '@/lib/admin/form-state';
 import type { CatalogSnapshot } from '@/lib/catalog';
 
 const mocks = vi.hoisted(() => ({
@@ -31,6 +32,7 @@ const mocks = vi.hoisted(() => ({
     isStaff: boolean;
   },
   catalog: null as CatalogSnapshot | null,
+  getCurrentAdminAuthState: vi.fn(),
   getCatalogSnapshot: vi.fn(),
   getAdminCatalogRecords: vi.fn(),
   rpc: vi.fn(),
@@ -39,7 +41,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('@/lib/auth/admin', () => ({
-  getCurrentAdminAuthState: () => mocks.adminState,
+  getCurrentAdminAuthState: mocks.getCurrentAdminAuthState,
 }));
 vi.mock('@/lib/admin/catalog.server', () => ({
   getAdminCatalogRecords: mocks.getAdminCatalogRecords,
@@ -58,11 +60,15 @@ vi.mock('@/lib/email/transactional.server', () => ({
 vi.mock('next/cache', () => ({
   revalidatePath: mocks.revalidatePath,
 }));
-vi.mock('next/navigation', () => ({
-  redirect: (path: string) => {
-    throw new Error(`NEXT_REDIRECT:${path}`);
-  },
-}));
+vi.mock('next/navigation', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('next/navigation')>();
+  return {
+    unstable_rethrow: actual.unstable_rethrow,
+    redirect: (path: string) => {
+      throw Object.assign(new Error(`NEXT_REDIRECT:${path}`), { digest: `NEXT_REDIRECT;replace;${path};307;` });
+    },
+  };
+});
 /* after 는 request scope 밖(vitest)에서 던진다. 여기서는 "등록된 콜백이 실행된다"만
    흉내 내면 된다 — 재입고 메일러 호출 단언이 그 콜백 안에서 일어난다. */
 vi.mock('next/server', () => ({
@@ -115,8 +121,8 @@ const catalog: CatalogSnapshot = {
 
 const gamePoolId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const adminRecords = {
-  ips: [],
-  goods: [],
+  ips: [{ id: 'hwasan', archivedAt: null, publishedAt: '2026-06-01T00:00:00.000Z' }],
+  goods: [{ id: 'g100', ipId: 'hwasan', archivedAt: null }],
   cards: [],
   cardPools: [{
     id: gamePoolId,
@@ -132,6 +138,19 @@ const adminRecords = {
   }],
   rewardPolicies: [],
   events: [{
+    id: 'e100',
+    ipId: 'hwasan',
+    archivedAt: null,
+    title: '화산 오프라인 팝업',
+    mode: '오프라인',
+    status: '예정',
+    startsAt: null,
+    endsAt: null,
+    location: null,
+    accent: null,
+    bg: null,
+    imagePath: null,
+  }, {
     id: 'online-hwasan',
     ipId: 'hwasan',
     title: '화산 온라인 팝업',
@@ -160,13 +179,13 @@ const goodsNoticeForm = {
 };
 
 const goodsNoticeRpcArgs = {
-  target_notice_maker: '주식회사 아이콘스',
-  target_notice_origin: '대한민국',
-  target_notice_material: '아크릴',
-  target_notice_size: '80 x 60 x 20mm · 90g',
-  target_notice_made_on: '2026-07',
-  target_notice_as_manager: '아이콘스 고객센터',
-  target_notice_as_contact: '02-000-0000',
+  notice_maker: '주식회사 아이콘스',
+  notice_origin: '대한민국',
+  notice_material: '아크릴',
+  notice_size: '80 x 60 x 20mm · 90g',
+  notice_made_on: '2026-07',
+  notice_as_manager: '아이콘스 고객센터',
+  notice_as_contact: '02-000-0000',
 };
 
 function goodForm() {
@@ -188,6 +207,7 @@ function stockAdjustmentForm() {
   const formData = new FormData();
   formData.set('adjustmentId', '11111111-1111-4111-8111-111111111111');
   formData.set('goodId', 'g100');
+  formData.set('variantId', '22222222-2222-4222-8222-222222222222');
   formData.set('ipId', 'hwasan');
   formData.set('expectedStockQty', '40');
   formData.set('delta', '12');
@@ -207,6 +227,10 @@ function ipForm() {
   formData.set('featured', 'on');
   formData.set('fansCount', '42');
   return formData;
+}
+
+function preservedCatalogValues(_label: string, formData: FormData) {
+  return { values: collectFormValues(formData), attempt: 1 };
 }
 
 function eventForm() {
@@ -330,6 +354,63 @@ function hideCommentForm() {
 }
 
 describe('admin catalog actions', () => {
+  it.each(['child', 'parent'] as const)('rejects new links to %s-archived records even if the public snapshot is stale', async (archived) => {
+    mocks.getAdminCatalogRecords.mockResolvedValue({
+      ...adminRecords,
+      ips: [{ id: 'hwasan', archivedAt: archived === 'parent' ? '2026-09-08' : null, publishedAt: null }],
+      goods: [{ id: 'g100', ipId: 'hwasan', archivedAt: archived === 'child' ? '2026-09-08' : null }],
+      events: [{ id: 'e100', ipId: 'hwasan', archivedAt: archived === 'child' ? '2026-09-08' : null }],
+    });
+    await expect(upsertAdminTicketTypeAction({}, ticketTypeForm())).resolves.toEqual({
+      errors: { eventId: '등록된 이벤트를 선택해주세요.' },
+    });
+    await expect(upsertAdminRewardPolicyAction({}, rewardPolicyForm())).resolves.toMatchObject({
+      errors: { targetGoodId: '등록된 굿즈를 선택해주세요.' },
+    });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('creates a reward policy for a draft IP good missing from the public catalog', async () => {
+    mocks.getAdminCatalogRecords.mockResolvedValue({
+      ...adminRecords,
+      ips: [...adminRecords.ips, { id: 'draft-ip', archivedAt: null, publishedAt: null }],
+      goods: [{ id: 'draft-good', ipId: 'draft-ip', archivedAt: null }],
+    });
+    const form = rewardPolicyForm();
+    form.set('targetIpId', 'draft-ip');
+    form.set('targetGoodId', 'draft-good');
+    await expect(upsertAdminRewardPolicyAction({}, form)).resolves.toEqual({ message: '발급 정책을 저장했습니다.' });
+  });
+
+  it('creates a ticket type under a draft IP event missing from the public catalog', async () => {
+    mocks.getAdminCatalogRecords.mockResolvedValue({
+      ...adminRecords,
+      ips: [...adminRecords.ips, { id: 'draft-ip', archivedAt: null, publishedAt: null }],
+      events: [{ id: 'draft-event', ipId: 'draft-ip', archivedAt: null }],
+    });
+    const form = ticketTypeForm();
+    form.set('eventId', 'draft-event');
+    await expect(upsertAdminTicketTypeAction({}, form)).resolves.toEqual({ message: '티켓 회차를 저장했습니다.' });
+  });
+
+  it.each([
+    ['상품', upsertAdminGoodAction, goodForm, '굿즈를 저장했습니다.'],
+    ['카드', upsertAdminCardAction, cardForm, '카드를 저장했습니다.'],
+    ['카드풀', upsertAdminCardPoolAction, cardPoolForm, '카드풀을 저장했습니다.'],
+    ['이벤트', upsertAdminEventAction, eventForm, '이벤트를 저장했습니다.'],
+  ] as const)('allows a new %s to belong to a draft IP absent from the public catalog', async (
+    _label, action, makeForm, message,
+  ) => {
+    mocks.getAdminCatalogRecords.mockResolvedValue({
+      ...adminRecords,
+      ips: [{ id: 'draft-ip', archivedAt: null, publishedAt: null }],
+    });
+    const form = makeForm();
+    form.set('previousId', '');
+    form.set('ipId', 'draft-ip');
+    await expect(action({}, form)).resolves.toMatchObject({ message, ...(action === upsertAdminGoodAction ? {savedGoodId:String(form.get("id"))}: {}) });
+  });
+
   beforeEach(() => {
     mocks.adminState = {
       isConfigured: true,
@@ -338,6 +419,8 @@ describe('admin catalog actions', () => {
       isStaff: true,
     };
     mocks.catalog = catalog;
+    mocks.getCurrentAdminAuthState.mockReset();
+    mocks.getCurrentAdminAuthState.mockImplementation(() => mocks.adminState);
     mocks.getCatalogSnapshot.mockReset();
     mocks.getCatalogSnapshot.mockResolvedValue(catalog);
     mocks.getAdminCatalogRecords.mockReset();
@@ -366,7 +449,7 @@ describe('admin catalog actions', () => {
       isStaff: false,
     };
 
-    await expect(upsertAdminGoodAction({}, goodForm())).resolves.toEqual({
+    await expect(upsertAdminGoodAction({}, goodForm())).resolves.toMatchObject({
       errors: { form: '관리자 권한이 필요합니다.' },
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
@@ -377,7 +460,7 @@ describe('admin catalog actions', () => {
     formData.set('ipId', 'missing');
     formData.set('price', '-1');
 
-    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
       errors: {
         ipId: '등록된 IP를 선택해주세요.',
         price: '가격은 0 이상의 정수여야 합니다.',
@@ -401,8 +484,47 @@ describe('admin catalog actions', () => {
       target_glyph: '화산',
       target_bg: null,
       target_image_path: null,
-      target_featured: true,
+      target_featured: null,
       target_previous_id: null,
+      target_publish: null,
+    });
+  });
+
+  /* 게시 상태(20260907130000) — "저장 후 공개"만 true 를 보내고, 나머지는 상태를 건드리지 않는다. */
+  it('publishes an IP in the same RPC call when the form asks for it', async () => {
+    const formData = ipForm();
+    formData.set('intent', 'publish');
+
+    await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({
+      message: 'IP를 저장하고 공개했습니다.',
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_ip', expect.objectContaining({
+      target_id: 'hwasan',
+      target_publish: true,
+    }));
+    expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toContain('/search');
+    expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toContain('/ip/hwasan');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/catalog/ips');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/catalog/ips/hwasan');
+  });
+
+  it('keeps the publish state out of a plain draft save', async () => {
+    const formData = ipForm();
+    formData.set('intent', 'draft');
+
+    await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({ message: 'IP를 저장했습니다.' });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_ip', expect.objectContaining({ target_publish: null }));
+  });
+
+  it('explains that an archived IP has to be restored before it can be published', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_item_archived' } });
+    const formData = ipForm();
+    formData.set('intent', 'publish');
+
+    await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({
+      errors: { form: '보관된 카탈로그 항목을 먼저 복원해주세요.' },
+      values: collectFormValues(formData),
+      attempt: 1,
     });
   });
 
@@ -410,27 +532,31 @@ describe('admin catalog actions', () => {
     const formData = goodForm();
     formData.set('previousIpId', 'lumen');
 
-    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
       message: '굿즈를 저장했습니다.',
+      savedGoodId: 'g100',
     });
 
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_good', {
-      target_id: 'g100',
-      target_ip_id: 'hwasan',
-      target_name: '화산강림 아크릴 스탠드',
-      target_type: '아크릴 스탠드',
-      target_price: 22000,
-      target_badge: '신상',
-      target_stock: 'ok',
-      target_bg: null,
-      target_image_path: null,
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_good', { target_good: {
+      id: 'g100',
+      ip_id: 'hwasan',
+      name: '화산강림 아크릴 스탠드',
+      type: '아크릴 스탠드',
+      price: 22000,
+      badge: '신상',
+      stock: 'ok',
+      bg: null,
+      image_path: null,
       ...goodsNoticeRpcArgs,
-      target_description: null,
-      target_gallery_paths: [],
-      target_detail_image_path: null,
-      target_previous_id: null,
-      target_compare_at_price: 26000,
-    });
+      description: null,
+      gallery_paths: [],
+      detail_image_path: null,
+      previous_id: null,
+      compare_at_price: 26000,
+      code: null,
+      default_variant_code: null,
+      publish: null,
+    } });;
     expect(mocks.getCatalogSnapshot).toHaveBeenCalledWith({ previewDefaultSource: 'supabase' });
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip');
@@ -446,7 +572,7 @@ describe('admin catalog actions', () => {
     const formData = goodForm();
     formData.set('compareAtPrice', '22000');
 
-    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
       errors: { compareAtPrice: '정가는 판매가보다 커야 해요' },
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
@@ -456,10 +582,11 @@ describe('admin catalog actions', () => {
     const formData = goodForm();
     formData.set('compareAtPrice', '');
 
-    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
       message: '굿즈를 저장했습니다.',
+      savedGoodId: 'g100',
     });
-    expect(mocks.rpc.mock.calls[0][1]).toMatchObject({ target_compare_at_price: null });
+    expect(mocks.rpc.mock.calls[0][1].target_good).toMatchObject({ compare_at_price: null });
   });
 
   /* 전이 판정은 DB 트리거 몫이라 저장 뒤에는 조건 없이 부른다. 여기서 다시 판정하면
@@ -484,7 +611,7 @@ describe('admin catalog actions', () => {
       error: { message: 'goods_compare_at_price_invalid' },
     });
 
-    await expect(upsertAdminGoodAction({}, goodForm())).resolves.toEqual({
+    await expect(upsertAdminGoodAction({}, goodForm())).resolves.toMatchObject({
       errors: { form: '정가는 판매가보다 커야 해요' },
     });
   });
@@ -504,10 +631,11 @@ describe('admin catalog actions', () => {
       target_adjustment_id: '11111111-1111-4111-8111-111111111111',
       target_good_id: 'g100',
       target_expected_stock_qty: 40,
+      target_variant_id: '22222222-2222-4222-8222-222222222222',
       target_delta: 12,
       target_reason: '신규 입고',
     });
-    for (const path of ['/', '/ip', '/ip/hwasan', '/shop', '/cart', '/checkout', '/admin']) {
+    for (const path of ['/', '/ip', '/ip/hwasan', '/shop', '/cart', '/checkout', '/admin', '/admin/catalog/goods']) {
       expect(mocks.revalidatePath).toHaveBeenCalledWith(path);
     }
   });
@@ -605,7 +733,7 @@ describe('admin catalog actions', () => {
     });
     mocks.getAdminCatalogRecords.mockResolvedValue({ ...adminRecords, ...records });
 
-    await expect(action({}, makeForm())).resolves.toEqual({ message: expected });
+    await expect(action({}, makeForm())).resolves.toMatchObject({ message: expected, ...(action === upsertAdminGoodAction ? {savedGoodId:String(makeForm().get("id"))}: {}) });
     expect(mocks.rpc).toHaveBeenCalledOnce();
   });
 
@@ -621,6 +749,14 @@ describe('admin catalog actions', () => {
       },
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('adjusts the selected option and gives the next save a fresh operation key', async () => {
+    mocks.rpc.mockResolvedValue({ data: 52, error: null });
+    const result = await adjustAdminStockAction({}, stockAdjustmentForm());
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_adjust_stock', expect.objectContaining({ target_variant_id: '22222222-2222-4222-8222-222222222222' }));
+    expect(result).toMatchObject({ stockAdjustment: { variantId: '22222222-2222-4222-8222-222222222222', stockQty: 52, adjustmentId: expect.any(String) } });
+    expect(result.stockAdjustment?.adjustmentId).not.toBe('11111111-1111-4111-8111-111111111111');
   });
 
   it('blocks non-staff stock adjustments without writing', async () => {
@@ -681,6 +817,7 @@ describe('admin catalog actions', () => {
 
     await expect(upsertAdminEventAction({}, eventForm())).resolves.toEqual({
       errors: { form: '연결된 게임이 있어 이벤트 IP·운영 방식을 변경할 수 없습니다.' },
+      ...preservedCatalogValues('이벤트', eventForm()),
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
@@ -691,11 +828,13 @@ describe('admin catalog actions', () => {
     ['굿즈', upsertAdminGoodAction, goodForm],
     ['카드', upsertAdminCardAction, cardForm],
     ['이벤트', upsertAdminEventAction, eventForm],
-  ])('refuses to overwrite an existing %s record from the new-record form', async (_label, action, makeForm) => {
+  ])('refuses to overwrite an existing %s record from the new-record form', async (label, action, makeForm) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_id_taken' } });
+    const formData = makeForm();
 
-    await expect(action({}, makeForm())).resolves.toEqual({
+    await expect(action({}, formData)).resolves.toMatchObject({
       errors: { id: '이미 사용 중인 ID입니다. 수정하려면 목록에서 선택해주세요.' },
+      ...preservedCatalogValues(label, formData),
     });
   });
 
@@ -704,26 +843,204 @@ describe('admin catalog actions', () => {
     ['굿즈', upsertAdminGoodAction, goodForm],
     ['카드', upsertAdminCardAction, cardForm],
     ['이벤트', upsertAdminEventAction, eventForm],
-  ])('explains a vanished %s edit target', async (_label, action, makeForm) => {
+  ])('explains a vanished %s edit target', async (label, action, makeForm) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'catalog_record_missing' } });
+    const formData = makeForm();
 
-    await expect(action({}, makeForm())).resolves.toEqual({
+    await expect(action({}, formData)).resolves.toMatchObject({
       errors: { form: '수정할 항목을 찾을 수 없습니다. 목록을 새로고침한 뒤 다시 시도해주세요.' },
+      ...preservedCatalogValues(label, formData),
     });
+  });
+
+  /*
+   * 저장 실패가 폼을 리셋하지 않게, IP 액션은 어느 단계에서 실패하든 제출값을 되돌린다.
+   * 성공 응답은 바뀌지 않는다 — 성공 뒤 폼은 저장된 레코드를 보여야 한다.
+   */
+  describe.each([
+    ['카드', upsertAdminCardAction, cardForm, 'name'],
+    ['이벤트', upsertAdminEventAction, eventForm, 'title'],
+    ['카드풀', upsertAdminCardPoolAction, cardPoolForm, 'name'],
+  ] as const)('%s form state preservation', (_label, action, makeForm, requiredField) => {
+    it('returns submitted values and the next attempt after validation fails', async () => {
+      const form = makeForm();
+      form.set(requiredField, '');
+      form.set('imagePath', 'artworks/retained-after-error.webp');
+      form.set('$ACTION_ID_private', 'internal');
+      const result = await action({ attempt: 3 }, form);
+      expect(result).toMatchObject({
+        values: collectFormValues(form), attempt: 4,
+        errors: { [requiredField]: expect.any(String) },
+      });
+      expect(result.values).not.toHaveProperty('$ACTION_ID_private');
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it.each(['auth', 'catalog', 'transport', 'rpc'] as const)('preserves values after %s failure without provider details', async (boundary) => {
+      const form = makeForm();
+      if (boundary === 'auth') mocks.getCurrentAdminAuthState.mockRejectedValue(new Error('private-provider-token'));
+      if (boundary === 'catalog') mocks.getAdminCatalogRecords.mockRejectedValue(new Error('private-provider-token'));
+      if (boundary === 'transport') mocks.rpc.mockRejectedValue(new Error('private-provider-token'));
+      if (boundary === 'rpc') mocks.rpc.mockResolvedValue({ data: null, error: { message: 'private-provider-token' } });
+      const result = await action({ attempt: 5 }, form);
+      expect(result).toMatchObject({ values: collectFormValues(form), attempt: 6, errors: { form: expect.any(String) } });
+      expect(JSON.stringify(result)).not.toContain('private-provider-token');
+    });
+
+    it('does not retain a failed submission after success or swallow login redirects', async () => {
+      const result = await action({ values: { id: 'stale' }, attempt: 9 }, makeForm());
+      expect(result).toHaveProperty('message');
+      expect(result).not.toHaveProperty('values');
+      expect(result).not.toHaveProperty('attempt');
+      mocks.adminState.user = null;
+      await expect(action({}, makeForm())).rejects.toThrow('NEXT_REDIRECT:/login?next=%2Fadmin');
+    });
+  });
+
+  describe('IP form state preservation', () => {
+    it.each(['auth', 'catalog'] as const)('preserves values when the %s infrastructure read rejects', async (boundary) => {
+      const request = boundary === 'auth' ? mocks.getCurrentAdminAuthState : mocks.getCatalogSnapshot;
+      request.mockRejectedValue(new Error('connection interrupted'));
+      const formData = ipForm();
+      formData.set('imagePath', 'public-media/catalog/ip/uploaded.png');
+      await expect(upsertAdminIpAction({ attempt: 3 }, formData)).resolves.toEqual({
+        errors: { form: 'IP를 저장하지 못했습니다. 다시 시도해주세요.' },
+        values: collectFormValues(formData),
+        attempt: 4,
+      });
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it('lets the unauthenticated login redirect reach Next instead of treating it as a failed save', async () => {
+      mocks.adminState = { isConfigured: true, user: null, role: null, isStaff: false };
+      await expect(upsertAdminIpAction({}, ipForm())).rejects.toThrow('NEXT_REDIRECT:/login?next=%2Fadmin');
+      expect(mocks.getCatalogSnapshot).not.toHaveBeenCalled();
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it('preserves the submitted values and artwork path when the save request throws', async () => {
+      mocks.rpc.mockRejectedValue(new Error('connection interrupted'));
+      const formData = ipForm();
+      formData.set('imagePath', 'public-media/catalog/ip/uploaded.png');
+      await expect(upsertAdminIpAction({ attempt: 1 }, formData)).resolves.toEqual({
+        errors: { form: 'IP를 저장하지 못했습니다. 다시 시도해주세요.' },
+        values: collectFormValues(formData),
+        attempt: 2,
+      });
+    });
+    it('returns the submitted values with a bumped attempt when validation fails', async () => {
+      const formData = ipForm();
+      formData.set('title', '');
+      formData.set('imagePath', 'public-media/catalog/ip/uploaded.png');
+
+      await expect(upsertAdminIpAction({ attempt: 2 }, formData)).resolves.toEqual({
+        errors: { title: 'IP 이름을 입력해주세요.' },
+        values: {
+          id: 'hwasan',
+          title: '',
+          sub: '리디 · 로판',
+          verticalKey: 'rofan',
+          tagline: '매화는 다시 핀다',
+          synopsis: '화산파의 부활',
+          glyph: '화산',
+          featured: 'on',
+          fansCount: '42',
+          imagePath: 'public-media/catalog/ip/uploaded.png',
+        },
+        attempt: 3,
+      });
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it('returns the submitted values when the RPC rejects the save', async () => {
+      mocks.rpc.mockResolvedValue({ data: null, error: { message: 'unverified_artwork' } });
+      const formData = ipForm();
+
+      await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({
+        errors: { form: '검증된 이미지를 다시 업로드한 뒤 저장해주세요.' },
+        values: collectFormValues(formData),
+        attempt: 1,
+      });
+    });
+
+    it('returns the submitted values when the caller is not staff', async () => {
+      mocks.adminState = {
+        isConfigured: true,
+        user: { id: 'user-1', email: 'fan@icons.gg' },
+        role: 'user',
+        isStaff: false,
+      };
+      const formData = ipForm();
+
+      await expect(upsertAdminIpAction({}, formData)).resolves.toEqual({
+        errors: { form: '관리자 권한이 필요합니다.' },
+        values: collectFormValues(formData),
+        attempt: 1,
+      });
+    });
+
+    it('does not carry values or an attempt on success', async () => {
+      await expect(upsertAdminIpAction({ values: { id: 'stale' }, attempt: 3 }, ipForm())).resolves.toEqual({
+        message: 'IP를 저장했습니다.',
+      });
+    });
+  });
+
+  it('preserves every submitted good field when validation or transport fails', async () => {
+    const form = goodForm();
+    form.set('name', '');
+    form.set('variants', '[{"name":"블루 / M","stockQty":12}]');
+    form.set('galleryPath0', 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp');
+    const invalid = await upsertAdminGoodAction({ attempt: 3 }, form);
+    expect(invalid).toMatchObject({ attempt: 4, values: collectFormValues(form), errors: { name: expect.any(String) } });
+    form.set('name', '보존할 상품');
+    form.set('variants', '[{"name":"블루 / M","code":"","attributes":{},"extraPrice":0,"stockQty":12}]');
+    mocks.rpc.mockRejectedValueOnce(new Error('private connection detail'));
+    expect(await upsertAdminGoodAction({}, form)).toMatchObject({ attempt: 1, values: collectFormValues(form), errors: { form: expect.any(String) } });
+  });
+
+  it('sends options and explicit empty origin in the same good save while omitted shipping keys stay absent', async () => {
+    const form = goodForm();
+    const rows = [{ name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: 12 }];
+    form.set('variants', JSON.stringify(rows)); form.set('variantBaseline', '[]'); form.set('originId', '');
+    await upsertAdminGoodAction({}, form);
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_save_good', { target_good: expect.objectContaining({ variants: rows, variant_baseline: [], origin_id: null }) });
+    expect(mocks.rpc.mock.calls.at(-1)?.[1].target_good).not.toHaveProperty('shipping_fee_type');
+    mocks.rpc.mockResolvedValue({ error: { message: 'stock_changed private inventory details' }, data: null });
+    expect(await upsertAdminGoodAction({}, form)).toMatchObject({ values: collectFormValues(form), errors: { variants: expect.stringContaining('다른 작업') } });
   });
 
   it('passes the edit target to the good RPC so an update is not mistaken for a create', async () => {
     const formData = goodForm();
     formData.set('previousId', 'g100');
 
-    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
       message: '굿즈를 저장했습니다.',
+      savedGoodId: 'g100',
     });
 
     expect(mocks.rpc).toHaveBeenCalledWith(
-      'admin_upsert_good',
-      expect.objectContaining({ target_previous_id: 'g100' }),
+      'admin_save_good',
+      { target_good: expect.objectContaining({ previous_id: 'g100' }) },
     );
+  });
+
+  it('uses the DB-generated URL after a new good leaves its URL field empty', async () => {
+    const form=goodForm();
+    form.delete('id');
+    mocks.rpc.mockResolvedValue({data:{id:'hwasan-kiring',code:'HWA-0001'},error:null});
+    expect(await upsertAdminGoodAction({},form)).toEqual({message:'굿즈를 저장했습니다.',savedGoodId:'hwasan-kiring'});
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/hwasan-kiring');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/catalog/goods');
+  });
+
+  it.each([
+    ['duplicate key violates goods_code_key','code','이미 사용 중인 상품코드입니다.'],
+    ['duplicate key violates goods_variants_code_key','defaultVariantCode','이미 사용 중인 옵션코드입니다.'],
+    ['goods_slug_locked','id','한 번 공개한 상품의 URL은 변경할 수 없습니다.'],
+  ])('maps identifier rejection %s to its form field',async(message,field,copy)=>{
+    mocks.rpc.mockResolvedValue({data:null,error:{message}});
+    expect(await upsertAdminGoodAction({},goodForm())).toMatchObject({errors:{[field]:copy}});
   });
 
   it.each([
@@ -733,7 +1050,7 @@ describe('admin catalog actions', () => {
   ])('maps an archived-parent race while saving %s', async (_label, action, makeForm) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'parent_archived private detail' } });
 
-    await expect(action({}, makeForm())).resolves.toEqual({
+    await expect(action({}, makeForm())).resolves.toMatchObject({
       errors: { form: '상위 IP를 먼저 복원해주세요.' },
     });
   });
@@ -747,25 +1064,26 @@ describe('admin catalog actions', () => {
     formData.set('galleryPath2', 'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp');
     formData.set('detailImagePath', 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp');
 
-    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
       message: '굿즈를 저장했습니다.',
+      savedGoodId: 'g100',
     });
 
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_good', expect.objectContaining({
-      target_description: '붉은 실을 따라 놓인 아크릴 블록입니다.',
-      target_gallery_paths: [
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_good', { target_good: expect.objectContaining({
+      description: '붉은 실을 따라 놓인 아크릴 블록입니다.',
+      gallery_paths: [
         'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp',
         'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp',
       ],
-      target_detail_image_path: 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp',
-    }));
+      detail_image_path: 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp',
+    }) });
   });
 
   /* #171 — 폼 검증을 우회해 RPC 까지 닿은 고시정보 누락도 운영자 언어로 돌아온다. */
   it('maps a goods notice guard raised by the admin RPC', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'goods_notice_required' } });
 
-    await expect(upsertAdminGoodAction({}, goodForm())).resolves.toEqual({
+    await expect(upsertAdminGoodAction({}, goodForm())).resolves.toMatchObject({
       errors: { form: '고시정보를 모두 입력한 뒤 저장해주세요.' },
     });
   });
@@ -773,9 +1091,10 @@ describe('admin catalog actions', () => {
   it('rejects a good form missing goods notice fields before calling the RPC', async () => {
     const formData = goodForm();
     formData.set('noticeOrigin', '  ');
+    formData.set('published', 'true');
     formData.delete('noticeAsContact');
 
-    await expect(upsertAdminGoodAction({}, formData)).resolves.toEqual({
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
       errors: {
         noticeOrigin: '고시정보 필수 항목입니다.',
         noticeAsContact: '고시정보 필수 항목입니다.',
@@ -1055,6 +1374,7 @@ describe('admin catalog actions', () => {
 
     await expect(upsertAdminCardPoolAction({}, cardPoolForm())).resolves.toEqual({
       errors: { form: expected },
+      ...preservedCatalogValues('카드풀', cardPoolForm()),
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
@@ -1085,6 +1405,7 @@ describe('admin catalog actions', () => {
 
     await expect(upsertAdminCardAction({}, cardForm())).resolves.toEqual({
       errors: { form: expected },
+      ...preservedCatalogValues('카드', cardForm()),
     });
   });
 

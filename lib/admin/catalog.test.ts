@@ -178,8 +178,27 @@ describe('admin catalog form normalization', () => {
         bg: 'linear-gradient(red, blue)',
         imagePath: 'public-media/ip/hwasan.png',
         featured: true,
+        publish: null,
       },
     });
+  });
+
+  /* 게시 의도는 제출 버튼이 정한다 — "저장 후 공개"만 true 고 나머지는 상태를 건드리지 않는다. */
+  it.each([
+    ['publish', true],
+    ['draft', null],
+    ['save', null],
+    ['', null],
+  ])('maps the IP form intent %j to publish %j', (intent, publish) => {
+    const formData = new FormData();
+    formData.set('id', 'hwasan');
+    formData.set('title', '화산강림');
+    formData.set('verticalKey', 'rofan');
+    if (intent) formData.set('intent', intent);
+
+    const result = normalizeAdminIpForm(formData, context);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.value.publish).toBe(publish);
   });
 
   /*
@@ -194,17 +213,7 @@ describe('admin catalog form normalization', () => {
       formData.set('verticalKey', 'rofan');
       return formData;
     }],
-    ['굿즈', normalizeAdminGoodForm, () => {
-      const formData = new FormData();
-      formData.set('id', 'g100');
-      formData.set('ipId', 'hwasan');
-      formData.set('name', '아크릴 스탠드');
-      formData.set('type', '아크릴 스탠드');
-      formData.set('price', '22000');
-      formData.set('stock', 'ok');
-      setGoodsNotice(formData);
-      return formData;
-    }],
+
     ['카드', normalizeAdminCardForm, () => {
       const formData = new FormData();
       formData.set('id', 'c100');
@@ -275,6 +284,9 @@ describe('admin catalog form normalization', () => {
         previousId: null,
         id: 'g100',
         ipId: 'hwasan',
+        code: null,
+        defaultVariantCode: null,
+        publish: null,
         name: '화산강림 아크릴 스탠드',
         type: '아크릴 스탠드',
         price: 22000,
@@ -356,6 +368,7 @@ describe('admin catalog form normalization', () => {
     missing.set('type', '아크릴 키링');
     missing.set('price', '9000');
     missing.set('stock', 'ok');
+    missing.set('published', 'true');
     missing.set('noticeOrigin', '   ');
     missing.delete('noticeAsContact');
 
@@ -423,6 +436,7 @@ describe('admin catalog form normalization', () => {
     const formData = new FormData();
     formData.set('adjustmentId', '11111111-1111-4111-8111-111111111111');
     formData.set('goodId', 'g100');
+    formData.set('variantId', '22222222-2222-4222-8222-222222222222');
     formData.set('expectedStockQty', '12');
     formData.set('delta', '-3');
     formData.set('reason', '  파손 재고 보정  ');
@@ -432,6 +446,7 @@ describe('admin catalog form normalization', () => {
       value: {
         adjustmentId: '11111111-1111-4111-8111-111111111111',
         goodId: 'g100',
+        variantId: '22222222-2222-4222-8222-222222222222',
         expectedStockQty: 12,
         delta: -3,
         reason: '파손 재고 보정',
@@ -449,6 +464,7 @@ describe('admin catalog form normalization', () => {
     const formData = new FormData();
     formData.set('adjustmentId', '11111111-1111-4111-8111-111111111111');
     formData.set('goodId', 'g100');
+    formData.set('variantId', '22222222-2222-4222-8222-222222222222');
     formData.set('expectedStockQty', '12');
     formData.set('delta', delta);
     formData.set('reason', reason);
@@ -460,6 +476,7 @@ describe('admin catalog form normalization', () => {
     const formData = new FormData();
     formData.set('adjustmentId', 'not-a-uuid');
     formData.set('goodId', 'g100');
+    formData.set('variantId', '22222222-2222-4222-8222-222222222222');
     formData.set('expectedStockQty', '-1');
     formData.set('delta', '1');
     formData.set('reason', '입고');

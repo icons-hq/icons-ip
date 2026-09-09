@@ -5,6 +5,7 @@ import { canViewCommunityPost, formatPostTime, type CommunityPostStatus } from '
 import { DATA, type Card, type FandomEvent, type Good, type Ip, type Stock, type Vertical } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { EMPTY_GOODS_NOTICE } from '@/lib/goods-notice';
+import { optionPriceRange } from '@/lib/goods-options';
 import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
 import { isRarityKey } from '@/lib/rarity';
 import { getSupabaseConfig } from '@/lib/supabase/config';
@@ -106,12 +107,20 @@ interface IpRow {
   bg: string | null;
   image_path: string | null;
   featured: boolean;
+  sort_order?: number;
   fans_count: number;
   goods_count: number;
   cards_count: number;
 }
 
+interface GoodOptionRow {
+  id: string; name: string; code: string; price: number; stock_qty: number;
+  is_default: boolean; attributes: Record<string, string>; archived_at: string | null; sort_order: number;
+}
+
 interface GoodRow {
+  origin_id?: string;
+  goods_variants?: GoodOptionRow[];
   id: string;
   ip_id: string;
   name: string;
@@ -480,6 +489,7 @@ function toIp(row: IpRow, verticalsByKey: Map<string, Vertical>, imageUrlForPath
     goods: row.goods_count ?? 0,
     cards: row.cards_count ?? 0,
     featured: row.featured,
+    sortOrder: row.sort_order,
     tagline: row.tagline ?? '',
     synopsis: row.synopsis ?? '',
   };
@@ -487,12 +497,19 @@ function toIp(row: IpRow, verticalsByKey: Map<string, Vertical>, imageUrlForPath
 
 function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
   const stockQty = row.stock_qty ?? 0;
+  const options = row.goods_variants?.filter(option => option.archived_at === null)
+    .sort((left, right) => left.sort_order - right.sort_order || left.id.localeCompare(right.id))
+    .map(option => ({id: option.id, name: option.name, code: option.code, price: option.price,
+      stockQty: option.stock_qty, isDefault: option.is_default, attributes: option.attributes}));
   return {
     id: row.id,
     ip: row.ip_id,
     name: row.name,
     type: row.type,
     price: row.price,
+    ...(options?.length ? optionPriceRange(options) : {}),
+    ...(options ? { options } : {}),
+    originId: row.origin_id,
     compareAtPrice: row.compare_at_price ?? null,
     badge: row.badge,
     stock: stockQty <= 0 ? 'soldout' : toStock(row.stock),
@@ -631,13 +648,16 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
     supabase.from('verticals').select('key,label,color').order('key'),
     supabase
       .from('ips')
-      .select('id,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count,goods_count,cards_count')
+      .select('id,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,sort_order,fans_count,goods_count,cards_count')
       .is('archived_at', null)
+      /* 초안(published_at null)은 공개 표면 어디에도 나오지 않는다 — 보관 필터와 같은 층 (20260907130000). */
+      .not('published_at', 'is', null)
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
-      .select('id,ip_id,name,type,price,compare_at_price,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer')
+      .select('id,ip_id,name,type,price,compare_at_price,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,origin_id,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order)')
       .is('archived_at', null)
+      .not('published_at', 'is', null)
       /* 판매 제한(19금) 상품은 성인인증(#209·#210) 도입 전까지 스토어 전 표면에서
          비노출이다(#392). 이 스냅샷이 리스트·검색·홈·바인더를 모두 먹인다. */
       .eq('sale_restriction', 'none')
@@ -680,10 +700,23 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
     return data.publicUrl;
   };
   const ips = ((ipsResult.data ?? []) as IpRow[]).map((row) => toIp(row, verticalsByKey, imageUrlForPath));
-  const goods = ((goodsResult.data ?? []) as GoodRow[]).map((row) => toGood(row, imageUrlForPath)).sort(byNaturalId);
-  const cards = ((cardsResult.data ?? []) as CardRow[]).map((row) => toCard(row, imageUrlForPath)).sort(byNaturalId);
   const ipsById = new Map(ips.map((ip) => [ip.id, ip]));
+  /*
+   * 초안 IP 에 속한 굿즈·카드·이벤트도 함께 숨긴다 — 검색 RPC(20260907130001)와 같은 규칙이다.
+   * 보관은 DB 트리거가 활성 자식을 못 남기게 막지만 초안에는 그런 불변식이 없어 여기서 거른다.
+   * IP 없는 이벤트(플랫폼·합동)는 그대로 남는다.
+   */
+  const belongsToPublicIp = (ipId: string | null) => ipId === null || ipsById.has(ipId);
+  const goods = ((goodsResult.data ?? []) as GoodRow[])
+    .filter((row) => belongsToPublicIp(row.ip_id))
+    .map((row) => toGood(row, imageUrlForPath))
+    .sort(byNaturalId);
+  const cards = ((cardsResult.data ?? []) as CardRow[])
+    .filter((row) => belongsToPublicIp(row.ip_id))
+    .map((row) => toCard(row, imageUrlForPath))
+    .sort(byNaturalId);
   const events = ((eventsResult.data ?? []) as EventRow[])
+    .filter((row) => belongsToPublicIp(row.ip_id))
     .map((row) => toEvent(row, ipsById, imageUrlForPath))
     .sort(byNaturalId);
 
@@ -744,7 +777,7 @@ export async function getBinderCatalogOverlay(): Promise<BinderCatalogOverlay | 
   const [ipsResult, verticalsResult] = await Promise.all([
     supabase
       .from('ips')
-      .select('id,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count,goods_count,cards_count')
+      .select('id,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,sort_order,fans_count,goods_count,cards_count')
       .in('id', parentIpIds)
       .order('id'),
     supabase
@@ -819,9 +852,12 @@ export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodD
   const result = await supabase
     .from('goods')
     /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-    .select('description,gallery_paths,detail_image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact')
+    .select('description,gallery_paths,detail_image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,ips!inner(id)')
     .eq('id', goodId)
     .is('archived_at', null)
+    .not('published_at', 'is', null)
+    .is('ips.archived_at', null)
+    .not('ips.published_at', 'is', null)
     // 스냅샷 제외로 이미 걸러지지만 URL 직접 접근을 이중으로 막는다(#392).
     .eq('sale_restriction', 'none')
     .maybeSingle();
@@ -829,7 +865,8 @@ export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodD
   if (result.error) {
     throw new Error(`Failed to load good detail: ${result.error.message}`);
   }
-  if (!result.data) return empty;
+  // Publication may change after the first snapshot read. Do not return a stale card.
+  if (!result.data) return null;
 
   const row = result.data as GoodDetailRow;
   const imageUrlForPath = (path: string) => supabase.storage

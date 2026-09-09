@@ -44,9 +44,9 @@ describe('repository Auth redirect contract', () => {
     expect(localConfig).toContain('[auth.email.template.recovery]');
     expect(localConfig).toContain('content_path = "./supabase/templates/recovery.html"');
     expect(localConfig).toContain('otp_expiry = 3600');
-    expect(pipeline.match(/RECOVERY_TEMPLATE_PATH: supabase\/templates\/recovery\.html/g)).toHaveLength(3);
-    // Production, isolated PR branch, shared preview main each own an explicit sync step.
-    expect(pipeline.match(/EMAIL_OTP_EXPIRY_SECONDS: "3600"/g)).toHaveLength(3);
+    expect(pipeline.match(/RECOVERY_TEMPLATE_PATH: supabase\/templates\/recovery\.html/g)).toHaveLength(4);
+    // Production, isolated PR, shared preview and persistent staging each own a sync step.
+    expect(pipeline.match(/EMAIL_OTP_EXPIRY_SECONDS: "3600"/g)).toHaveLength(4);
     expect(isSafeRecoveryTemplate(recoveryTemplate)).toBe(true);
 
     const productionDeploy = pipeline.indexOf('- name: Deploy Vercel production');

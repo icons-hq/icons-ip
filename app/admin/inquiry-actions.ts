@@ -214,3 +214,58 @@ export async function deleteInquiryReplyTemplateAction(
   if (inquiryId) revalidatePath(`/admin/cs/inquiries/${inquiryId}`);
   return { message: '답변 템플릿을 삭제했습니다.' };
 }
+
+const INQUIRY_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export async function reassignInquiryAction(
+  _state: AdminInquiryActionState,
+  formData: FormData,
+): Promise<AdminInquiryActionState> {
+  const access = await requireStaffAction();
+  if (access.error) return access.error;
+  const inquiryId = readString(formData, 'inquiryId');
+  const assigneeId = readString(formData, 'assigneeId');
+  const reason = readString(formData, 'reason');
+  if (!INQUIRY_UUID.test(inquiryId) || (assigneeId && !INQUIRY_UUID.test(assigneeId))) {
+    return { errors: { form: '문의와 담당자를 다시 확인해주세요.' } };
+  }
+  if (!reason || reason.length > 500) {
+    return { errors: { form: '담당자 변경 사유를 500자 이내로 입력해주세요.' } };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_reassign_inquiry', {
+    target_inquiry_id: inquiryId,
+    target_assignee_id: assigneeId || null,
+    target_reason: reason,
+  });
+  if (error) {
+    return { errors: { form: error.message.includes('invalid_inquiry_assignee')
+      ? '현재 응대 가능한 운영자를 선택해주세요.'
+      : '담당자를 변경하지 못했습니다. 최신 상태를 확인해주세요.' } };
+  }
+  revalidatePath('/admin/cs/inquiries');
+  revalidatePath(`/admin/cs/inquiries/${inquiryId}`);
+  return { message: '담당자를 변경했습니다. 변경 사유가 이력에 기록됐습니다.', resultKey: crypto.randomUUID() };
+}
+
+export async function addInquiryInternalNoteAction(
+  _state: AdminInquiryActionState,
+  formData: FormData,
+): Promise<AdminInquiryActionState> {
+  const access = await requireStaffAction();
+  if (access.error) return access.error;
+  const inquiryId = readString(formData, 'inquiryId');
+  const body = readString(formData, 'body');
+  if (!INQUIRY_UUID.test(inquiryId)) return { errors: { form: '문의를 찾을 수 없습니다.' } };
+  if (!body || body.length > MAX_INQUIRY_BODY_LENGTH) {
+    return { errors: { body: `내부 메모를 ${MAX_INQUIRY_BODY_LENGTH}자 이내로 입력해주세요.` } };
+  }
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_add_inquiry_internal_note', {
+    target_inquiry_id: inquiryId,
+    target_body: body,
+  });
+  if (error) return { errors: { form: '내부 메모를 저장하지 못했습니다. 다시 시도해주세요.' } };
+  revalidatePath(`/admin/cs/inquiries/${inquiryId}`);
+  return { message: '내부 메모를 저장했습니다. 고객에게는 보이지 않습니다.', resultKey: crypto.randomUUID() };
+}

@@ -1,8 +1,7 @@
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { krwAmountWords } from '../format';
-import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '../shipping';
-import { businessContactWords } from './business-info';
+import { BUSINESS_INFO, businessContactWords } from './business-info';
 import {
   LEGAL_DOCUMENTS,
   LEGAL_DOCUMENT_SLUGS,
@@ -103,13 +102,10 @@ describe('법정 문서 레지스트리', () => {
     expect(source(), '문서 셋이 시행일 상수 하나를 공유하면 개정 이력을 만들 수 없다').not.toMatch(/const EFFECTIVE_DATE\b/);
   });
 
-  it('2026-08-21 개정을 본문으로 승격하고 사전 공지를 걷는다', () => {
-    /* 공지 2026-08-14 → 시행 2026-08-21. 시행일이 되면 예고가 아니라 본문이 진실이어야 한다.
-       사전 공지를 남겨두면 이미 시행된 내용을 계속 "예정"이라고 알리게 된다. */
-    expect(LEGAL_DOCUMENTS.terms.effectiveDate).toBe('2026-08-22');
+  it('승인된 2026-09-09 신청 안내 개정은 두 문서에만 적용한다', () => {
+    expect(LEGAL_DOCUMENTS.terms.effectiveDate).toBe('2026-09-09');
     expect(LEGAL_DOCUMENTS.privacy.effectiveDate).toBe('2026-08-22');
-    /* shipping은 08-21에 머문다 — 가입 연령은 배송정책 본문에 나오지 않는다. */
-    expect(LEGAL_DOCUMENTS.shipping.effectiveDate).toBe('2026-08-21');
+    expect(LEGAL_DOCUMENTS.shipping.effectiveDate).toBe('2026-09-09');
 
     for (const document of documents) {
       expect(document.pendingRevision, document.slug).toBeUndefined();
@@ -168,6 +164,65 @@ describe('법정 문서 레지스트리', () => {
     for (const label of Object.values(SOCIAL_LOGIN_LABELS)) {
       expect(text, label).toContain(label);
     }
+  });
+});
+
+describe('승인된 A 정책의 직접 신청과 고객지원 안내', () => {
+  it.each([
+    { phone: '', email: '' },
+    { phone: '000-0000-0000', email: 'policy@example.test' },
+  ])('연락처 $email 유무와 관계없이 의사표시 통로와 전체 배송 조건을 안내한다', (contact) => {
+    const shipping = getLegalDocument('shipping', { ...BUSINESS_INFO, ...contact })!;
+    const text = plainText(shipping);
+    expect(text).toContain('직접 취소 신청은 발주확인 전까지');
+    expect(text).toContain('모두 실제 배송 완료된 뒤');
+    expect(text).toContain('의사표시와 최초 접수 시각');
+    expect(text).toContain('1:1 문의(/my/inquiries)');
+    expect(text).toContain('문의 접수만으로 환급이 승인되거나');
+    expect(text).toContain('출고지별 반송 대상 굿즈와 수량의 실제 입고');
+    expect(text).toContain('교환품 전체의 실제 배송 완료');
+    expect(text).toContain('기존 신청 기한이 자동으로 연장되지는 않습니다');
+    expect(text).not.toContain('취소는 발송 전');
+    expect(text).not.toContain('문의는 질문과 답변을 주고받는 창구이며 청약철회 접수를 대신하지 않습니다');
+    if (!contact.email) expect(text).toContain('공개 문의 연락처는 사업자 등록 절차가 끝나는 대로');
+  });
+
+  it('이전 공개본을 보존하고 권리·계약·금액·비용·기한 조항은 바꾸지 않는다', () => {
+    const terms = LEGAL_DOCUMENTS.terms;
+    const shipping = LEGAL_DOCUMENTS.shipping;
+    expect(terms.previousVersion?.effectiveDate).toBe('2026-08-22');
+    expect(shipping.previousVersion?.effectiveDate).toBe('2026-08-21');
+    expect(LEGAL_DOCUMENTS.privacy.previousVersion).toBeUndefined();
+    for (const [document, headings] of [
+      [terms, ['제3조 (약관의 명시와 개정)', '제4조 (서비스의 제공과 변경)', '제15조 (청약철회 등)', '제16조 (청약철회 등의 효과)']],
+      [shipping, ['4. 청약철회가 제한되는 경우', '7. 환급 계좌', '8. 환급', '9. 하자·오배송 시 재발송']],
+    ] as const) {
+      for (const heading of headings) {
+        const current = document.articles.find((article) => article.heading === heading);
+        const previous = document.previousVersion!.articles.find((article) => article.heading === heading);
+        expect(current, heading).toEqual(previous);
+      }
+    }
+    const currentCost = shipping.articles.find((article) => article.heading === '5. 반송비 부담')!;
+    const previousCost = shipping.previousVersion!.articles.find((article) => article.heading === '5. 반송비 부담')!;
+    expect(currentCost.table).toEqual(previousCost.table);
+    expect(currentCost.closing![0]).toBe(previousCost.closing![0]);
+    const currentTwelve = terms.articles.find((article) => article.heading.startsWith('제12조 '))!;
+    const previousTwelve = terms.previousVersion!.articles.find((article) => article.heading.startsWith('제12조 '))!;
+    expect(currentTwelve.paragraphs!.slice(0, 2)).toEqual(previousTwelve.paragraphs);
+  });
+
+  it('보존 원문은 개인 연락처 대신 참조만 담고 현재 연락처로만 표시한다', () => {
+    const bytes = readFileSync(new URL('./archive/pre-2026-09-09.json', import.meta.url));
+    // Captured from the former production source 7ea5d1fd, with contact references preserved.
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe('a6b34eae5c3b650d1f278aee76f0d8775f4672414aabf681423c1e1fb45c1379');
+    expect(bytes.toString()).toContain('{{CURRENT_CUSTOMER_SUPPORT}}');
+    expect(bytes.toString()).not.toMatch(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/);
+    const current = getLegalDocument('shipping', { ...BUSINESS_INFO, phone: '', email: 'archive@example.test' })!;
+    expect(JSON.stringify(current.previousVersion)).toContain('archive@example.test');
+    expect(JSON.stringify(current.previousVersion)).not.toContain('{{CURRENT_CUSTOMER_SUPPORT}}');
+    const blank = getLegalDocument('shipping', { ...BUSINESS_INFO, phone: '', email: '' })!;
+    expect(JSON.stringify(blank.previousVersion)).toContain('1:1 문의(/my/inquiries)');
   });
 });
 
@@ -377,13 +432,12 @@ describe('배송·반품 정책', () => {
   const shipping = LEGAL_DOCUMENTS.shipping;
   const text = plainText(shipping);
 
-  /* 정책값을 문서가 다시 선언하면 lib/shipping.ts를 고쳐도 공개 고지만 옛값에 남는다.
-     리터럴이 아니라 상수를 참조해야 이 테스트가 그 어긋남을 잡는다. */
-  it('배송비 고지가 lib/shipping.ts의 정책값을 그대로 따른다 (계획 D5)', () => {
-    expect(text).toContain(krwAmountWords(SHIPPING_FEE));
-    expect(text).toContain(`${krwAmountWords(FREE_SHIPPING_THRESHOLD)} 이상`);
-    expect(source(), '배송비 상수를 문서가 자체 선언하면 정책 변경이 갈라진다')
-      .not.toMatch(/const\s+(SHIPPING_FEE|FREE_SHIPPING_THRESHOLD)\w*\s*=/);
+  it('출고지별 DB 정책 안내와 합산 기준을 설명하고 고정 금액을 복제하지 않는다', () => {
+    expect(text).toContain('출고지별');
+    expect(text).toContain('할인 전');
+    expect(text).toContain('굿즈당 한 번');
+    expect(text).not.toContain('3,000원');
+    expect(text).not.toContain('50,000원 이상');
   });
 
   /* 주문 상세의 청약철회는 주문 단위 하나뿐이고, cancelTossPayment가 cancelAmount 없이
@@ -420,3 +474,5 @@ describe('배송·반품 정책', () => {
     expect(text).toMatch(/반송 주소/);
   });
 });
+
+it("설정 연락처 변경을 모든 법정 문서에 반영한다",()=>{for(const slug of LEGAL_DOCUMENT_SLUGS){const rendered=JSON.stringify(getLegalDocument(slug,{...BUSINESS_INFO,phone:"",email:"current@example.test"}));expect(rendered).toContain("current@example.test");expect(rendered).not.toContain(BUSINESS_INFO.phone);}});

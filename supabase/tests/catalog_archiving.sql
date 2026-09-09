@@ -188,24 +188,24 @@ insert into public.verticals (key, label, color)
 values ('catalog-archive-test', '카탈로그 보관 테스트', '#8B5CFF')
 on conflict (key) do update set label = excluded.label, color = excluded.color;
 
-insert into public.ips (id, title, vertical_key)
+insert into public.ips (id, title, vertical_key, published_at)
 values
-  ('archive-free-ip', '보관 자유 IP', 'catalog-archive-test'),
-  ('archive-life-ip', '보관 수명주기 IP', 'catalog-archive-test'),
-  ('archive-child-ip', '보관 자식 가드 IP', 'catalog-archive-test'),
-  ('archive-operation-ip', '보관 운영 가드 IP', 'catalog-archive-test'),
-  ('archive-policy-ip', '보관 정책 가드 IP', 'catalog-archive-test'),
-  ('archive-pool-owner-ip', '보관 풀 소유 IP', 'catalog-archive-test'),
-  ('archive-good-guard-ip', '보관 굿즈 가드 IP', 'catalog-archive-test'),
-  ('archive-card-guard-ip', '보관 카드 가드 IP', 'catalog-archive-test'),
-  ('archive-event-guard-ip', '보관 이벤트 가드 IP', 'catalog-archive-test'),
-  ('archive-parent-ip', '보관 부모 가드 IP', 'catalog-archive-test'),
-  ('archive-history-ip', '카탈로그보관검색 IP', 'catalog-archive-test'),
-  ('archive-transaction-ip', '보관 거래 가드 IP', 'catalog-archive-test'),
-  ('archive-curation-active-ip', '활성 큐레이션 가드 IP', 'catalog-archive-test'),
-  ('archive-curation-future-ip', '예약 큐레이션 가드 IP', 'catalog-archive-test'),
-  ('archive-curation-disabled-ip', '비활성 큐레이션 허용 IP', 'catalog-archive-test'),
-  ('archive-curation-ended-ip', '종료 큐레이션 허용 IP', 'catalog-archive-test');
+  ('archive-free-ip', '보관 자유 IP', 'catalog-archive-test', now()),
+  ('archive-life-ip', '보관 수명주기 IP', 'catalog-archive-test', now()),
+  ('archive-child-ip', '보관 자식 가드 IP', 'catalog-archive-test', now()),
+  ('archive-operation-ip', '보관 운영 가드 IP', 'catalog-archive-test', now()),
+  ('archive-policy-ip', '보관 정책 가드 IP', 'catalog-archive-test', now()),
+  ('archive-pool-owner-ip', '보관 풀 소유 IP', 'catalog-archive-test', now()),
+  ('archive-good-guard-ip', '보관 굿즈 가드 IP', 'catalog-archive-test', now()),
+  ('archive-card-guard-ip', '보관 카드 가드 IP', 'catalog-archive-test', now()),
+  ('archive-event-guard-ip', '보관 이벤트 가드 IP', 'catalog-archive-test', now()),
+  ('archive-parent-ip', '보관 부모 가드 IP', 'catalog-archive-test', now()),
+  ('archive-history-ip', '카탈로그보관검색 IP', 'catalog-archive-test', now()),
+  ('archive-transaction-ip', '보관 거래 가드 IP', 'catalog-archive-test', now()),
+  ('archive-curation-active-ip', '활성 큐레이션 가드 IP', 'catalog-archive-test', now()),
+  ('archive-curation-future-ip', '예약 큐레이션 가드 IP', 'catalog-archive-test', now()),
+  ('archive-curation-disabled-ip', '비활성 큐레이션 허용 IP', 'catalog-archive-test', now()),
+  ('archive-curation-ended-ip', '종료 큐레이션 허용 IP', 'catalog-archive-test', now());
 
 insert into public.home_curations (
   id, kind, ip_id, title, link_path, display_order,
@@ -238,16 +238,16 @@ values
   );
 
 insert into public.goods (
-  id, ip_id, name, type, price, stock, stock_qty, archived_at
+  id, ip_id, name, type, price, stock, stock_qty, archived_at, published_at
 )
 values
-  ('archive-life-good', 'archive-life-ip', '수명주기 굿즈', '문구', 1000, 'soldout', 0, null),
-  ('archive-child-good', 'archive-child-ip', '활성 자식 굿즈', '문구', 1000, 'soldout', 0, null),
-  ('archive-stock-good', 'archive-good-guard-ip', '재고 가드 굿즈', '문구', 1000, 'ok', 1, null),
-  ('archive-policy-good', 'archive-good-guard-ip', '정책 가드 굿즈', '문구', 1000, 'soldout', 0, null),
-  ('archive-parent-good', 'archive-parent-ip', '부모 가드 굿즈', '문구', 1000, 'soldout', 0, now()),
-  ('archive-history-good', 'archive-history-ip', '카탈로그보관검색 굿즈', '문구', 1000, 'soldout', 0, null),
-  ('archive-transaction-good', 'archive-transaction-ip', '보관 거래 굿즈', '문구', 1000, 'soldout', 0, null);
+  ('archive-life-good', 'archive-life-ip', '수명주기 굿즈', '문구', 1000, 'soldout', 0, null, now()),
+  ('archive-child-good', 'archive-child-ip', '활성 자식 굿즈', '문구', 1000, 'soldout', 0, null, now()),
+  ('archive-stock-good', 'archive-good-guard-ip', '재고 가드 굿즈', '문구', 1000, 'ok', 1, null, now()),
+  ('archive-policy-good', 'archive-good-guard-ip', '정책 가드 굿즈', '문구', 1000, 'soldout', 0, null, now()),
+  ('archive-parent-good', 'archive-parent-ip', '부모 가드 굿즈', '문구', 1000, 'soldout', 0, now(), null),
+  ('archive-history-good', 'archive-history-ip', '카탈로그보관검색 굿즈', '문구', 1000, 'soldout', 0, null, now()),
+  ('archive-transaction-good', 'archive-transaction-ip', '보관 거래 굿즈', '문구', 1000, 'soldout', 0, null, now());
 
 insert into public.cards (
   id, ip_id, name, no, rarity, pool_id, archived_at
@@ -368,15 +368,15 @@ values (
 
 insert into public.order_items (
   id, order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values (
   '00000000-0000-4000-8000-000000011362',
   '00000000-0000-4000-8000-000000011361',
   'archive-history-good',
   1, 1000,
-  '카탈로그보관검색 굿즈', '문구', 'archive-history-ip'
-);
+  '카탈로그보관검색 굿즈', '문구', 'archive-history-ip',
+  (select id from public.goods_variants where good_id='archive-history-good' and is_default));
 
 insert into public.user_cards (user_id, card_id, qty)
 values (
@@ -385,12 +385,12 @@ values (
   1
 );
 
-insert into public.cart_items (user_id, good_id, qty)
+insert into public.cart_items (user_id, good_id, qty, variant_id)
 values (
   '00000000-0000-4000-8000-000000011303',
   'archive-transaction-good',
-  1
-);
+  1,
+  (select id from public.goods_variants where good_id='archive-transaction-good' and is_default));
 
 insert into public.ip_follows (user_id, ip_id)
 values (
@@ -756,6 +756,20 @@ select 1 / case when not exists (
 -- Archived catalog disappears from catalog search while community history,
 -- existing follows, and historical foreign keys remain intact.
 -- ---------------------------------------------------------------------------
+-- A real positive baseline is required; draft fixtures would make the exclusion test vacuous.
+reset role;
+set local role anon;
+select 1 / case when (
+  select count(*) from public.search_public_content('카탈로그보관검색', 20)
+  where (kind = 'ip' and id = 'archive-history-ip')
+     or (kind = 'good' and id = 'archive-history-good')
+     or (kind = 'card' and id = 'archive-history-card')
+) = 3 then 1 else 0 end as assert_catalog_searchable_before_archive;
+reset role;
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000011301', true);
+
 select public.admin_archive_good('archive-history-good');
 select public.admin_archive_card('archive-history-card');
 select public.admin_archive_ip('archive-history-ip');
@@ -833,9 +847,9 @@ select public.admin_archive_good('archive-transaction-good');
 select public.admin_archive_event('archive-transaction-event');
 
 reset role;
-update public.goods
-set stock = 'ok', stock_qty = 5
-where id = 'archive-transaction-good';
+select set_config('tests.archived_good_variant',id::text,true) from public.goods_variants where good_id='archive-transaction-good' and is_default;
+update public.goods_variants set stock_qty = 5 where good_id = 'archive-transaction-good' and is_default;
+update public.goods set stock = 'ok' where id = 'archive-transaction-good';
 update public.events
 set status = '예매중'
 where id = 'archive-transaction-event';
@@ -848,7 +862,7 @@ do $$
 begin
   begin
     perform public.merge_cart_items(
-      '[{"good_id":"archive-transaction-good","qty":2}]'::jsonb
+      jsonb_build_array(jsonb_build_object('good_id','archive-transaction-good','variant_id',current_setting('tests.archived_good_variant')::uuid,'qty',2))
     );
   exception
     when check_violation then
@@ -964,9 +978,6 @@ select 1 / case when (
   pg_catalog.pg_get_functiondef(
     'public.grant_cards(uuid,uuid,text,uuid,text,integer)'::regprocedure
   ) ilike '%card.archived_at is null%'
-  and pg_catalog.pg_get_functiondef(
-    'public.admin_adjust_stock(uuid,text,integer,integer,text)'::regprocedure
-  ) ilike '%selected_archived_at%'
   and pg_catalog.pg_get_functiondef(
     'public.edit_own_post(uuid,text,text,text)'::regprocedure
   ) ilike '%selected_archived_at%'
@@ -1303,14 +1314,14 @@ begin
   begin
     perform public.admin_adjust_stock(
       '00000000-0000-4000-8000-000000011385',
-      'archive-transaction-good',
+      'archive-transaction-good', (select id from public.goods_variants where good_id='archive-transaction-good' and is_default),
       5,
       1,
       '보관 굿즈 수동 입고 거부'
     );
   exception
     when check_violation then
-      if sqlerrm = 'catalog_item_archived' then return; end if;
+      if sqlerrm = 'catalog_archived' then return; end if;
       raise;
   end;
   raise exception 'manual positive stock adjustment should reject archived good';

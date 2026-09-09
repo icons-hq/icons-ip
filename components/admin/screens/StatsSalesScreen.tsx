@@ -17,7 +17,7 @@ const DAILY_COLUMNS: ConsoleGridColumn[] = [
 ];
 
 const GOODS_COLUMNS: ConsoleGridColumn[] = [
-  { key: 'name', label: '굿즈' },
+  { key: 'name', label: '상품' },
   { key: 'ip', label: 'IP', width: '140px' },
   { key: 'qty', label: '수량', align: 'end', width: '90px' },
   { key: 'revenue', label: '금액', align: 'end', width: '130px' },
@@ -57,7 +57,7 @@ export function StatsSalesScreen({
   const totalOrders = data.daily.reduce((sum, row) => sum + row.orderCount, 0);
 
   return (
-    <section className="admin-console admin-stats">
+    <section className="admin-console admin-stats wc-admin-kit">
       <StatsRangeTabs base="/admin/stats/sales" filters={filters} />
 
       {/* IP 필터는 굿즈 순위만 좁힌다. 일별 매출까지 좁히면 두 숫자가 서로 다른
@@ -65,7 +65,7 @@ export function StatsSalesScreen({
       <form action="/admin/stats/sales" className="admin-stats-filter" method="get">
         <input name="days" type="hidden" value={filters.days} />
         <label>
-          <span>IP 필터 (굿즈 순위)</span>
+          <span>IP 필터 (상품 순위)</span>
           <input defaultValue={filters.ipId} maxLength={64} name="ip" placeholder="예: hwasan" />
         </label>
         <button className="btn btn-ghost">적용</button>
@@ -114,11 +114,11 @@ export function StatsSalesScreen({
         }))}
       />
 
-      <h3>굿즈별 판매 순위{filters.ipId ? ` · ${filters.ipId}` : ''}</h3>
+      <h3>상품별 판매 순위{filters.ipId ? ` · ${filters.ipId}` : ''}</h3>
       <ConsoleGrid
-        caption="굿즈별 판매 순위"
+        caption="상품별 판매 순위"
         columns={GOODS_COLUMNS}
-        emptyLabel="이 기간에 판매된 굿즈가 없습니다."
+        emptyLabel="이 기간에 판매된 상품이 없습니다."
         rows={data.goods.map((row) => ({
           id: row.goodId,
           cells: [

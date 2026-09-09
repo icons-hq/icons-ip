@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { AdminInquiryConsoleData } from '@/lib/admin/inquiries';
 import { InquiryQueueScreen } from './InquiryQueueScreen';
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 const NOW = new Date('2026-08-20T06:00:00.000Z');
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
@@ -33,6 +34,9 @@ function data(overrides: Partial<AdminInquiryConsoleData> = {}): AdminInquiryCon
         goodId: null,
         goodName: null,
         handlerName: null,
+      assigneeId: null,
+      assigneeName: null,
+      waitingSince: '2026-08-18T01:00:00.000Z',
         createdAt: '2026-08-18T01:00:00.000Z',
         lastMessageAt: '2026-08-18T01:00:00.000Z',
         answeredAt: null,
@@ -50,6 +54,9 @@ function data(overrides: Partial<AdminInquiryConsoleData> = {}): AdminInquiryCon
         goodId: 'g13',
         goodName: '아크릴 블록',
         handlerName: 'cs_lead',
+        assigneeId: 'staff-1',
+        assigneeName: 'cs_lead',
+        waitingSince: null,
         createdAt: '2026-08-20T02:00:00.000Z',
         lastMessageAt: '2026-08-20T05:00:00.000Z',
         answeredAt: '2026-08-20T05:00:00.000Z',
@@ -61,10 +68,22 @@ function data(overrides: Partial<AdminInquiryConsoleData> = {}): AdminInquiryCon
 }
 
 describe('InquiryQueueScreen', () => {
+  it.each([
+    ['2026-09-06T00:00:00.001Z', 'open', false],
+    ['2026-09-06T00:00:00.000Z', 'open', true],
+    ['2026-09-05T23:59:59.999Z', 'open', true],
+    ['2026-09-05T00:00:00.000Z', 'answered', false],
+    ['2026-09-05T00:00:00.000Z', 'closed', false],
+  ] as const)('실제 대기 24시간 경계를 정확히 표시한다: %s %s', (waitingSince, status, overdue) => {
+    const source = data();
+    const html = renderToStaticMarkup(<InquiryQueueScreen data={{ ...source, rows: [{ ...source.rows[0], waitingSince, status, answeredAt: '2026-09-01T00:00:00Z' }] }} now={new Date('2026-09-07T00:00:00Z')} />);
+    expect(html.includes('미답변 24시간 경과')).toBe(overdue);
+  });
+
   it('이슈가 요구한 큐 컬럼을 순서대로 보여준다', () => {
     const html = renderToStaticMarkup(<InquiryQueueScreen data={data()} now={NOW} />);
 
-    for (const column of ['문의번호', '유형', '제목', '구매자', '연결 주문', '상태', '접수 · 최근', '1차 답변 기한', '처리자']) {
+    for (const column of ['문의번호', '유형', '제목', '구매자', '연결 주문', '상태', '접수 · 최근', '1차 답변 기한', '담당자']) {
       expect(html).toContain(column);
     }
     expect(html).toContain('#12');

@@ -1,3 +1,17 @@
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) :where(a, button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--editorial-focus); outline-offset: 3px; }
+/* #433: former shared foundation dependencies live only in this retained surface. */
+#root:is(:has(.event-guide-grid), :has(.event-detail-page)) {
+
+  background: var(--editorial-canvas);
+  color: var(--editorial-ink);
+  font-weight: 450;
+}
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) :where(button, input, select, textarea) { font: inherit; line-height: var(--editorial-leading-control); }
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) :where(input, select, textarea) { color: var(--editorial-ink); caret-color: var(--editorial-focus); }
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) :where(input, textarea)::placeholder { color: var(--editorial-ink-faint); opacity: 1; }
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) :lang(ko):is(p, li, dd, blockquote) { word-break: keep-all; overflow-wrap: break-word; }
+:where(#root:is(:has(.event-guide-grid), :has(.event-detail-page))) ::selection { background: var(--editorial-pastel-green); color: var(--editorial-ink); }
+
 /* 오프라인 팝업(잔존 표면) 전용 legacy 스타일 — /offline-popups 목록과
  * /offline-popups/[eventId] 상세.
  *
@@ -22,15 +36,14 @@
  *     editorial-foundation 의 `.chip.on` 에 지는 현재 동작), 레이어를 벗기면 색이 바뀐다.
  *   - `.event-*` 는 이 두 화면 전용 어휘라 원본 셀렉터 그대로 둔다.
  *   - 토큰·keyframes 는 아래에 자체 정의한다. 구 토큰 원천(editorial 3파일)은 S9 에서
- *     삭제됐고, 남은 globals.css·editorial-foundation.css 가 나중에 더 줄어도 자립한다.
+ *     삭제됐고, #433에서 남은 공유 foundation 의존성도 이 앵커 안에 고정했다.
  *
  * 전제
  *   - Tailwind preflight(`@import "tailwindcss"`)와 `.sr-only` 유틸리티는 계속 존재한다고
  *     본다. 그 import 는 globals.css 가 갖고 있다(S9 판정: Tailwind v4 는 스택 규칙이라
  *     유지) — globals 를 정리하는 쪽은 import 의 새 거처를 먼저 정해야 한다.
- *   - layout.tsx 임포트 순서는 editorial-foundation.css 뒤여야 한다(about-legacy.css 처럼
- *     맨 뒤가 가장 안전하다). 이 파일 규칙은 명시도가 원본과 같아서, 동률일 때 나중에
- *     선언된 쪽이 이기는 현재 순서를 그대로 재현해야 한다.
+ *   - layout.tsx는 WC 기본 레이어 뒤에 이 격리 파일을 임포트한다. 공유 원본은
+ *     #433에서 퇴역했으며 이 파일 안의 선언 순서가 현재 표면의 캐스케이드를 소유한다.
  *
  * 삭제 조건
  *   두 화면이 White Catalog로 재조판되면 이 파일도 같이 지운다.

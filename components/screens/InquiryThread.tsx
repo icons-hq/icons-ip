@@ -17,6 +17,7 @@ import {
 } from '@/lib/inquiries';
 import type { InquiryThreadView } from '@/lib/inquiries.server';
 import { orderReferenceLabel } from '@/lib/orders';
+import { InquiryLiveUpdates } from './InquiryLiveUpdates';
 
 /* 문의 스레드(#253).
  *
@@ -34,7 +35,7 @@ function MessageBubble({
   return (
     <li className={`wc-thread__bubble${isStaff ? ' wc-thread__bubble--staff' : ''}`}>
       <span className="wc-thread__meta">
-        {isStaff ? 'ICONS 운영자' : '내 문의'} · {formatInquiryDateTime(message.createdAt)}
+        {isStaff ? (message.authorName ?? 'ICONS 운영자') : '내 문의'} · {formatInquiryDateTime(message.createdAt)}
       </span>
       <p className="wc-thread__body">
         {message.body}
@@ -61,6 +62,7 @@ export function InquiryThread({ inquiry }: { inquiry: InquiryThreadView }) {
 
   return (
     <MypageShell active="/my/inquiries">
+      <InquiryLiveUpdates inquiryId={inquiry.id} audience="customer" />
       <div className="wc-mypage__headbar">
         <h1 className="wc-mypage__headbar-title">{inquiry.title}</h1>
         <Link className="wc-mypage__headbar-link" href="/my/inquiries">1:1 문의</Link>

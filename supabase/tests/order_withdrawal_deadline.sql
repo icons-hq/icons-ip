@@ -45,8 +45,12 @@ on conflict (id) do update set
 insert into public.ips (id, title, vertical_key)
 values ('withdrawal-deadline-ip', '청약철회 기한 IP', 'character');
 
-insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
-values ('withdrawal-deadline-goods', 'withdrawal-deadline-ip', '기한 판정 굿즈', '문구', 10000, 'ok', 9);
+insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active)
+values ('00000000-0000-4000-8000-000000000811','withdrawal-deadline-origin','기한 검증 출고지','hanjin',0,'합성 반품 주소 811',true);
+
+insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, origin_id)
+values ('withdrawal-deadline-goods', 'withdrawal-deadline-ip', '기한 판정 굿즈', '문구', 10000, 'ok', 9,
+  '00000000-0000-4000-8000-000000000811');
 
 insert into public.orders (id, user_id, status, total, address, expires_at)
 values (
@@ -56,12 +60,29 @@ values (
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values (
   '40000000-0000-4000-8000-000000000801', 'withdrawal-deadline-goods', 1, 10000,
-  '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip'
-);
+  '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip',
+  (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default));
+
+-- #428/#446: manual order fixtures explicitly include their single shipment.
+insert into public.order_shipments(order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,
+  status,carrier,tracking_number,shipped_at,delivered_at)
+select o.id,'00000000-0000-4000-8000-000000000811','기한 검증 출고지',o.shipping_fee,'{}'::jsonb,
+  case when o.status='shipping' then 'shipping' when o.status in ('delivered','done') then 'delivered'
+    when o.status='canceled' then 'canceled' else 'ready' end,
+  o.shipping_carrier,o.tracking_number,o.shipped_at,o.delivered_at
+from public.orders o
+where o.user_id='00000000-0000-4000-8000-000000000801'
+  and not exists(select 1 from public.order_shipments s where s.order_id=o.id);
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty)
+select i.order_id,s.id,i.id,i.qty from public.order_items i
+join public.order_shipments s on s.order_id=i.order_id
+join public.orders o on o.id=i.order_id
+where o.user_id='00000000-0000-4000-8000-000000000801'
+  and not exists(select 1 from public.order_shipment_items si where si.order_item_id=i.id);
 
 -- 발송 전에는 두 시점 모두 비어 있다.
 select 1 / case when (
@@ -149,49 +170,79 @@ values
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values
-  ('40000000-0000-4000-8000-000000000802', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip'),
-  ('40000000-0000-4000-8000-000000000803', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip'),
-  ('40000000-0000-4000-8000-000000000804', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip'),
-  ('40000000-0000-4000-8000-000000000805', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip');
+  ('40000000-0000-4000-8000-000000000802', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default)),
+  ('40000000-0000-4000-8000-000000000803', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default)),
+  ('40000000-0000-4000-8000-000000000804', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default)),
+  ('40000000-0000-4000-8000-000000000805', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default));
+
+-- #428/#446: manual order fixtures explicitly include their single shipment.
+insert into public.order_shipments(order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,
+  status,carrier,tracking_number,shipped_at,delivered_at)
+select o.id,'00000000-0000-4000-8000-000000000811','기한 검증 출고지',o.shipping_fee,'{}'::jsonb,
+  case when o.status='shipping' then 'shipping' when o.status in ('delivered','done') then 'delivered'
+    when o.status='canceled' then 'canceled' else 'ready' end,
+  o.shipping_carrier,o.tracking_number,o.shipped_at,o.delivered_at
+from public.orders o
+where o.user_id='00000000-0000-4000-8000-000000000801'
+  and not exists(select 1 from public.order_shipments s where s.order_id=o.id);
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty)
+select i.order_id,s.id,i.id,i.qty from public.order_items i
+join public.order_shipments s on s.order_id=i.order_id
+join public.orders o on o.id=i.order_id
+where o.user_id='00000000-0000-4000-8000-000000000801'
+  and not exists(select 1 from public.order_shipment_items si where si.order_item_id=i.id);
 
 set local role service_role;
 
 -- 공급 8일 뒤의 단순 변심은 기한을 넘겼다.
-select 1 / case when public.request_order_cancellation(
+select 1 / case when public.request_order_claim(
   '40000000-0000-4000-8000-000000000802',
   '00000000-0000-4000-8000-000000000801',
+  'return',
   '단순 변심 청약철회',
   'change_of_mind'
 ) = 'deadline_expired' then 1 else 0 end as assert_change_of_mind_expires_after_seven_days;
 
 -- 같은 시점이라도 하자·오배송은 열려 있어야 한다. 기한 판정이 사유를 가리지
 -- 않으면 환급 의무가 남은 요청까지 막힌다.
-select 1 / case when public.request_order_cancellation(
+select 1 / case when public.request_order_claim(
   '40000000-0000-4000-8000-000000000803',
   '00000000-0000-4000-8000-000000000801',
+  'return',
   '상품 하자 청약철회',
   'defect'
 ) = 'requested' then 1 else 0 end as assert_defect_survives_seven_day_deadline;
 
 -- 하자도 무기한은 아니다. 공급일부터 3개월이 상한이다.
-select 1 / case when public.request_order_cancellation(
+select 1 / case when public.request_order_claim(
   '40000000-0000-4000-8000-000000000804',
   '00000000-0000-4000-8000-000000000801',
+  'return',
   '상품 하자 청약철회',
   'defect'
 ) = 'deadline_expired' then 1 else 0 end as assert_defect_expires_after_three_months;
 
--- 공급일이 없으면 기한은 시작하지 않는다. 운영자가 배송 완료를 기록하지 않은
--- 사이에 고객 권리가 소멸하면 안 된다.
+-- 공급일 미기록은 기한 미시작이다. 하지만 전체 배송완료 전에는 앱 반품 접수를
+-- 열지 않으며, 발주확인 이후의 취소 접수도 허용하지 않는다(A 정책).
+select 1 / case when not public.order_withdrawal_deadline_passed(
+  null, 'change_of_mind', now()
+) then 1 else 0 end as assert_deadline_does_not_start_without_delivery;
+
+select 1 / case when public.request_order_claim(
+  '40000000-0000-4000-8000-000000000805',
+  '00000000-0000-4000-8000-000000000801',
+  'return', '배송 중 반품 요청', 'change_of_mind'
+) = 'not_claimable' then 1 else 0 end as assert_undelivered_order_cannot_request_return;
+
 select 1 / case when public.request_order_cancellation(
   '40000000-0000-4000-8000-000000000805',
   '00000000-0000-4000-8000-000000000801',
   '단순 변심 청약철회',
   'change_of_mind'
-) = 'requested' then 1 else 0 end as assert_deadline_does_not_start_without_delivery;
+) = 'not_cancelable' then 1 else 0 end as assert_shipping_order_cannot_use_cancel_instead;
 
 reset role;
 
@@ -223,29 +274,46 @@ values
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values
-  ('40000000-0000-4000-8000-000000000806', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip'),
-  ('40000000-0000-4000-8000-000000000807', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip');
+  ('40000000-0000-4000-8000-000000000806', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default)),
+  ('40000000-0000-4000-8000-000000000807', 'withdrawal-deadline-goods', 1, 10000, '기한 판정 굿즈', '문구', 'withdrawal-deadline-ip', (select id from public.goods_variants where good_id='withdrawal-deadline-goods' and is_default));
+
+-- #428/#446: manual order fixtures explicitly include their single shipment.
+insert into public.order_shipments(order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,
+  status,carrier,tracking_number,shipped_at,delivered_at)
+select o.id,'00000000-0000-4000-8000-000000000811','기한 검증 출고지',o.shipping_fee,'{}'::jsonb,
+  case when o.status='shipping' then 'shipping' when o.status in ('delivered','done') then 'delivered'
+    when o.status='canceled' then 'canceled' else 'ready' end,
+  o.shipping_carrier,o.tracking_number,o.shipped_at,o.delivered_at
+from public.orders o
+where o.user_id='00000000-0000-4000-8000-000000000801'
+  and not exists(select 1 from public.order_shipments s where s.order_id=o.id);
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty)
+select i.order_id,s.id,i.id,i.qty from public.order_items i
+join public.order_shipments s on s.order_id=i.order_id
+join public.orders o on o.id=i.order_id
+where o.user_id='00000000-0000-4000-8000-000000000801'
+  and not exists(select 1 from public.order_shipment_items si where si.order_item_id=i.id);
 
 -- 요청 RPC를 거치지 않고 직접 접수된 기한 초과 요청(폼 우회 시뮬레이션).
 insert into public.order_cancellation_requests (
-  id, order_id, requested_by, reason, reason_type, status, requested_at
+  id, order_id, requested_by, reason, reason_type, status, requested_at, claim_type
 )
 values
   (
     '70000000-0000-4000-8000-000000000806',
     '40000000-0000-4000-8000-000000000806',
     '00000000-0000-4000-8000-000000000801',
-    '단순 변심 청약철회', 'change_of_mind', 'requested', now()
+    '단순 변심 청약철회', 'change_of_mind', 'requested', now(), 'return'
   ),
   -- 기한 안에 접수됐지만 검토가 늦어진 요청.
   (
     '70000000-0000-4000-8000-000000000807',
     '40000000-0000-4000-8000-000000000807',
     '00000000-0000-4000-8000-000000000801',
-    '단순 변심 청약철회', 'change_of_mind', 'requested', now() - interval '18 days'
+    '단순 변심 청약철회', 'change_of_mind', 'requested', now() - interval '18 days', 'return'
   );
 
 set local role authenticated;
@@ -255,7 +323,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000802
 do $$
 begin
   begin
-    perform public.admin_decide_order_cancellation(
+    perform public.admin_decide_order_claim(
       '70000000-0000-4000-8000-000000000806',
       'approve',
       null
@@ -270,14 +338,14 @@ $$;
 
 -- 기한 초과 요청도 거절은 언제든 가능해야 한다. 그러지 않으면 요청이 영원히
 -- 미결 상태로 남아 주문의 다른 전이까지 막는다.
-select public.admin_decide_order_cancellation(
+select public.admin_decide_order_claim(
   '70000000-0000-4000-8000-000000000806',
   'reject',
   '청약철회 기한이 지난 요청입니다'
 );
 
 -- 요청 시점이 기한 안이었다면 승인이 늦어져도 통과한다.
-select public.admin_decide_order_cancellation(
+select public.admin_decide_order_claim(
   '70000000-0000-4000-8000-000000000807',
   'approve',
   null
@@ -292,9 +360,9 @@ select 1 / case when (
 ) then 1 else 0 end as assert_expired_request_stays_rejectable;
 
 select 1 / case when (
-  select status = 'processing'
+  select status = 'requested' and stage = 'collecting' and collected_at is null
   from public.order_cancellation_requests
   where id = '70000000-0000-4000-8000-000000000807'
-) then 1 else 0 end as assert_timely_request_survives_late_review;
+) then 1 else 0 end as assert_timely_return_starts_collection_despite_late_review;
 
 rollback;

@@ -1,6 +1,6 @@
 import type { CheckoutPaymentMethod, CheckoutAddress } from './checkout';
-import type { OrderShipment } from './orders/shipment';
-import type { OrderClaimStage, OrderClaimType } from './orders/claims';
+import type { ShipmentRecord } from './orders/shipments';
+import type { OrderClaimEligibility, OrderClaimStage, OrderClaimType } from './orders/claims';
 
 // 주문 목록에 보이는 상태. pending은 결제가 끝나지 않은 선점이라 별도 취급한다.
 // 사다리는 pending → paid → confirmed → shipping → delivered → done이고
@@ -108,6 +108,10 @@ export interface OrderListItem {
 }
 
 export interface OrderDetailItem {
+  id: string;
+  variantId: string;
+  variantName?: string | null;
+  variantCode?: string | null;
   goodId: string;
   name: string;
   type: string;
@@ -145,6 +149,8 @@ export interface OrderCancellationRequestSummary {
   /** 교환 재출고 운송장. 교환이 아니면 항상 null이다. */
   reshipCarrier: string | null;
   reshipTrackingNumber: string | null;
+  /** 교환품의 실제 배송완료 확인. 누락된 과거 응답도 미확인으로 취급한다. */
+  reshipDeliveredAt?: string | null;
 }
 
 export interface OrderDetail {
@@ -178,7 +184,9 @@ export interface OrderDetail {
   payment: OrderPaymentSummary | null;
   refund: OrderRefundSummary | null;
   cancellationRequest: OrderCancellationRequestSummary | null;
-  shipment: OrderShipment | null;
+  /** DB가 발주확인 이력과 실제 배송 수량으로 판정한다. 조회 불가는 null이며 접수를 열지 않는다. */
+  claimEligibility: OrderClaimEligibility | null;
+  shipments: ShipmentRecord[];
   cardPacks: {
     issuedCount: number;
     availableCount: number;

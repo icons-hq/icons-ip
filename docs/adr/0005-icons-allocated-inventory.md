@@ -1,8 +1,10 @@
 ---
-status: accepted
+status: partially superseded by ADR-0015 (2026-09-08)
 ---
 
 # 판매 재고는 WMS에서 격리한 ICONS 할당 물량으로 한다
+
+2026-09-08: **WMS 물량을 ICONS 판매용으로 격리한다는 운영 계약은 유지한다.** 아래는 굿즈 단위 재고를 사용하던 당시 결정의 기록이다. 저장·선점 단위와 운영자 입력 대상은 [ADR-0015](./0015-goods-variants.md)가 대체한다. 현재 재고 진실원은 `goods_variants.stock_qty`이며, `goods.stock_qty`는 보관 옵션을 포함한 전체 옵션 합계 캐시다. 운영자는 옵션 재고를 조정하고, 굿즈 캐시를 WMS 수량으로 직접 덮어쓰지 않는다. 캐시 갱신·대조 규칙은 ADR-0015에 기록한다.
 
 모회사는 이미 물류 스택(김포 창고 · 한진택배 · WMS)을 보유하고 있어 같은 굿즈의 실재고가 WMS에도 존재한다. 그런데 ICONS의 `place_order`는 `goods.stock_qty`를 행 잠금으로 원자적 선점하며([`p1_commerce.sql`](../../supabase/migrations/20260617090002_p1_commerce.sql)), 이 락은 **ICONS 안에서만** 유효하다 — WMS는 이 선점을 모른다. 첫 실판매에서는 WMS 실재고 중 일부를 **ICONS 판매용으로 격리**하고, 그 물량에 한해 `goods.stock_qty`를 단일 진실원으로 삼는다. 격리된 물량은 다른 판매 채널이 건드리지 않는다는 것이 이 결정의 전제이자 운영 계약이다.
 

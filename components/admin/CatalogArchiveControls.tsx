@@ -78,7 +78,7 @@ export function CatalogArchiveControl({
       </div>
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
         {archived
-          ? '보관된 항목을 공개 카탈로그로 복원합니다.'
+          ? (kind === 'ip' || kind === 'good' ? '초안으로 복원합니다. 다시 노출하려면 내용을 확인한 뒤 공개로 전환해주세요.' : '보관된 항목을 공개 카탈로그로 복원합니다.')
           : ARCHIVE_WARNINGS[kind]}
       </p>
       {state.errors?.form && (

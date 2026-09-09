@@ -771,6 +771,15 @@
   color: var(--wc-ink-tertiary);
 }
 
+.wc-buy-panel__option { display:grid; gap:8px; margin-bottom:20px; font-size:14px; }
+.wc-buy-panel__option select { width:100%; min-width:0; min-height:44px; padding:8px 12px; border:1px solid var(--wc-line-control); border-radius:2px; color:var(--wc-ink); background:var(--wc-surface); font:inherit; }
+.wc-buy-panel__option select:focus-visible { outline:2px solid var(--wc-ink); outline-offset:2px; }
+.wc-cart__line-option { margin:4px 0; font-size:13px; color:var(--wc-ink-sub); }
+.wc-shipping-group { margin-bottom:24px; }
+.wc-shipping-group > h2, .wc-shipping-group > h3 { margin:0; padding:12px 0; border-bottom:1px solid var(--wc-hairline); font-size:16px; font-weight:700; }
+.wc-shipping-group__summary { padding:12px 0; border-bottom:1px solid var(--wc-hairline); font-size:13px; line-height:1.6; color:var(--wc-ink-sub); }
+.wc-shipping-group__summary p { margin:2px 0; }
+
 .wc-buy-panel__row {
   display: flex;
   align-items: center;

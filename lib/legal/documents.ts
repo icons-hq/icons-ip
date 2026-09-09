@@ -1,6 +1,4 @@
-import { krwAmountWords } from '@/lib/format';
-import { FREE_SHIPPING_THRESHOLD, SHIPPING_FEE } from '@/lib/shipping';
-import { businessContactWords } from './business-info';
+import { BUSINESS_INFO, businessContactWords, type BusinessInfo } from './business-info';
 import {
   LEGAL_DOCUMENT_LABELS,
   LEGAL_DOCUMENT_SLUGS,
@@ -8,9 +6,11 @@ import {
   type LegalDocumentSlug,
 } from './links';
 import { socialLoginWords } from './social-login';
+import previousPublicDocuments from './archive/pre-2026-09-09.json';
 
 export { LEGAL_DOCUMENT_SLUGS, legalDocumentHref };
 export type { LegalDocumentSlug };
+
 
 /* 법정 고지 문서의 본문 진실원.
  *
@@ -26,8 +26,8 @@ export type { LegalDocumentSlug };
  * 가리키는 상태를 남기지 않기 위해서다.
  */
 
-/* 배송비 정책값(계획 D5)은 lib/shipping.ts가 단일 진실원이다(#174).
- * 여기서 다시 선언하면 정책을 바꿔도 공개 고지 금액만 옛값에 남는다. */
+/* 배송 금액은 출고지 설정을 조회하는 상품 상세·주문 화면에서 고지한다.
+ * 이 문서는 그룹 합산과 주문 시점 고정 원칙을 설명하며 금액을 복제하지 않는다. */
 
 /** 법인명이 확정되지 않은 수탁자 표기. 지어내지 않고 확인 중으로 남긴다(#177 H7). */
 export const PENDING_PROCESSOR_LABEL = '확인 중';
@@ -81,43 +81,13 @@ const EMAIL_PROCESSOR_LABEL = 'Resend';
  * 비어 있어 화면에 뜨지 않으므로, 조문이 먼저 시행되어도 가리킬 기능이 없고
  * 반대로 시행일을 당기면 이미 공지된 08-20 개정(#252)의 이력이 흐트러진다.
  * 무통장을 실제로 여는 시점에 개정 공지와 시행일을 함께 정해야 한다. */
+/* 2026-09-09 — 승인된 A 직접 신청·출고지별 회수·CS 의사표시 안내를 반영한다.
+ * 이전 공개 정책 본문은 개정 이력으로 남기며, 개인정보처리방침 시행일은 바꾸지 않는다. */
 export const LEGAL_EFFECTIVE_DATES: Record<LegalDocumentSlug, string> = {
-  terms: '2026-08-22',
+  terms: '2026-09-09',
   privacy: '2026-08-22',
-  shipping: '2026-08-21',
+  shipping: '2026-09-09',
 };
-
-/* 문의처 문장은 푸터와 같은 사업자 정보에서 파생된다.
- * 연락처가 채워지면 본문에 그 값이 그대로 드러나고, 비어 있는 동안에는
- * 존재하지 않는 창구를 가리키는 대신 그 사실과 실제로 열려 있는 경로를 안내한다(#87). */
-const CONTACT_WORDS = businessContactWords();
-const HAS_CONTACT = CONTACT_WORDS.length > 0;
-
-/* 인앱 1:1 문의는 지금 실제로 열려 있는 접수 경로다(#253).
- *
- * 전화·이메일은 #239의 사업자 등록이 끝나야 채워지지만, 그렇다고 "창구가 없다"고
- * 쓰면 거짓 고지가 된다 — 로그인한 이용자는 이 경로로 접수할 수 있고 회사는 답한다.
- * 공개 연락처는 비로그인 이용자와 기관 조회를 위해 여전히 필요하므로, 이 경로가
- * 그 공백을 메우는 것이지 대체하는 것은 아니라는 사실도 함께 남긴다. */
-const IN_APP_INQUIRY_ROUTE = '마이페이지의 1:1 문의(/my/inquiries)';
-const CONTACT_PENDING_NOTICE =
-  `공개 문의 연락처는 사업자 등록 절차가 끝나는 대로 이 문서와 사이트 하단 사업자 정보에 함께 공개합니다. 그때까지 회원은 ${IN_APP_INQUIRY_ROUTE}로 문의를 접수할 수 있으며, 회사는 영업일 기준 24시간 안에 1차 답변을 드립니다.`;
-
-/* 설정 화면이 실제로 열어 둔 자가 열람·정정 항목.
- * app/settings/actions.ts는 nickname·avatarPath·marketing만 읽는다. 온보딩에서 받는 생년월일은
- * 입력 필드도 액션도 없으므로, 방침이 설정 화면을 생년월일의 정정 경로로 가리키면
- * 연락처가 비어 있는 지금 이용자에게 존재하지 않는 경로를 안내하게 된다. */
-const SETTINGS_EDITABLE_ITEMS = '닉네임, 프로필 이미지, 마케팅 정보 수신 동의 여부';
-/* 회원 탈퇴는 아직 화면에도 RPC에도 없다(#102·#137). "즉시 처리합니다"라고 쓰면
- * 이용자가 찾을 수 없는 기능을 가리키게 되므로, 지금 실제로 열려 있는 경로만 적는다.
- * 연락처가 채워지면 문의 창구가 그대로 접수 경로가 된다. */
-const WITHDRAWAL_ROUTE_NOTICE = HAS_CONTACT
-  ? `회원이 화면에서 직접 탈퇴를 실행하는 기능은 아직 없습니다. 탈퇴 요청은 ${IN_APP_INQUIRY_ROUTE} 또는 ${CONTACT_WORDS}로 접수하며, 회사는 요청을 확인한 뒤 처리합니다.`
-  : `회원이 화면에서 직접 탈퇴를 실행하는 기능은 아직 없습니다. 탈퇴 요청은 ${IN_APP_INQUIRY_ROUTE}로 접수하며, 회사는 요청을 확인한 뒤 처리합니다. ${CONTACT_PENDING_NOTICE}`;
-
-const SETTINGS_UNEDITABLE_NOTICE = HAS_CONTACT
-  ? '온보딩에서 입력한 생년월일은 설정 화면에서 수정할 수 없습니다. 정정이 필요하면 제11조의 문의처로 요청해주세요.'
-  : `온보딩에서 입력한 생년월일은 설정 화면에서 수정할 수 없습니다. 정정이 필요하면 ${IN_APP_INQUIRY_ROUTE}로 요청해주세요.`;
 
 export interface LegalTable {
   columns: string[];
@@ -151,8 +121,65 @@ export interface LegalDocument {
   summary: string;
   effectiveDate: string;
   pendingRevision?: LegalRevisionNotice;
+  revisionChanges?: string[];
+  previousVersion?: { effectiveDate: string; articles: LegalArticle[] };
   articles: LegalArticle[];
 }
+
+/** Preserve the former public policy, without copying personal contact values into its archive.
+ * Support references intentionally show today's contact; this is not a user's acceptance record. */
+function previousPublicVersion(slug: 'terms' | 'shipping', contact: string) {
+  const previous = previousPublicDocuments[slug];
+  const text = (value: string) => value.replaceAll(
+    '{{CURRENT_CUSTOMER_SUPPORT}}', contact || '마이페이지의 1:1 문의(/my/inquiries)',
+  );
+  return {
+    effectiveDate: previous.effectiveDate,
+    articles: (previous.articles as LegalArticle[]).map((article) => ({
+      ...article,
+      paragraphs: article.paragraphs?.map(text),
+      list: article.list?.map(text),
+      closing: article.closing?.map(text),
+      table: article.table && {
+        columns: article.table.columns.map(text),
+        rows: article.table.rows.map((row) => row.map(text)),
+      },
+    })),
+  };
+}
+
+export function createLegalDocuments(businessInfo:BusinessInfo=BUSINESS_INFO) {
+/* 문의처 문장은 푸터와 같은 사업자 정보에서 파생된다.
+ * 연락처가 채워지면 본문에 그 값이 그대로 드러나고, 비어 있는 동안에는
+ * 존재하지 않는 창구를 가리키는 대신 그 사실과 실제로 열려 있는 경로를 안내한다(#87). */
+const CONTACT_WORDS = businessContactWords(businessInfo);
+const HAS_CONTACT = CONTACT_WORDS.length > 0;
+
+/* 인앱 1:1 문의는 지금 실제로 열려 있는 접수 경로다(#253).
+ *
+ * 전화·이메일은 #239의 사업자 등록이 끝나야 채워지지만, 그렇다고 "창구가 없다"고
+ * 쓰면 거짓 고지가 된다 — 로그인한 이용자는 이 경로로 접수할 수 있고 회사는 답한다.
+ * 공개 연락처는 비로그인 이용자와 기관 조회를 위해 여전히 필요하므로, 이 경로가
+ * 그 공백을 메우는 것이지 대체하는 것은 아니라는 사실도 함께 남긴다. */
+const IN_APP_INQUIRY_ROUTE = '마이페이지의 1:1 문의(/my/inquiries)';
+const CONTACT_PENDING_NOTICE =
+  `공개 문의 연락처는 사업자 등록 절차가 끝나는 대로 이 문서와 사이트 하단 사업자 정보에 함께 공개합니다. 그때까지 회원은 ${IN_APP_INQUIRY_ROUTE}로 문의를 접수할 수 있으며, 회사는 영업일 기준 24시간 안에 1차 답변을 드립니다.`;
+
+/* 설정 화면이 실제로 열어 둔 자가 열람·정정 항목.
+ * app/settings/actions.ts는 nickname·avatarPath·marketing만 읽는다. 온보딩에서 받는 생년월일은
+ * 입력 필드도 액션도 없으므로, 방침이 설정 화면을 생년월일의 정정 경로로 가리키면
+ * 연락처가 비어 있는 지금 이용자에게 존재하지 않는 경로를 안내하게 된다. */
+const SETTINGS_EDITABLE_ITEMS = '닉네임, 프로필 이미지, 마케팅 정보 수신 동의 여부';
+/* 회원 탈퇴는 아직 화면에도 RPC에도 없다(#102·#137). "즉시 처리합니다"라고 쓰면
+ * 이용자가 찾을 수 없는 기능을 가리키게 되므로, 지금 실제로 열려 있는 경로만 적는다.
+ * 연락처가 채워지면 문의 창구가 그대로 접수 경로가 된다. */
+const WITHDRAWAL_ROUTE_NOTICE = HAS_CONTACT
+  ? `회원이 화면에서 직접 탈퇴를 실행하는 기능은 아직 없습니다. 탈퇴 요청은 ${IN_APP_INQUIRY_ROUTE} 또는 ${CONTACT_WORDS}로 접수하며, 회사는 요청을 확인한 뒤 처리합니다.`
+  : `회원이 화면에서 직접 탈퇴를 실행하는 기능은 아직 없습니다. 탈퇴 요청은 ${IN_APP_INQUIRY_ROUTE}로 접수하며, 회사는 요청을 확인한 뒤 처리합니다. ${CONTACT_PENDING_NOTICE}`;
+
+const SETTINGS_UNEDITABLE_NOTICE = HAS_CONTACT
+  ? '온보딩에서 입력한 생년월일은 설정 화면에서 수정할 수 없습니다. 정정이 필요하면 제11조의 문의처로 요청해주세요.'
+  : `온보딩에서 입력한 생년월일은 설정 화면에서 수정할 수 없습니다. 정정이 필요하면 ${IN_APP_INQUIRY_ROUTE}로 요청해주세요.`;
 
 const terms: LegalDocument = {
   slug: 'terms',
@@ -160,6 +187,11 @@ const terms: LegalDocument = {
   navLabel: LEGAL_DOCUMENT_LABELS.terms,
   summary: '굿즈 구매, 카드팩과 카드, 팝업 티켓, 커뮤니티 이용에 적용되는 회사와 이용자의 권리·의무를 정합니다.',
   effectiveDate: LEGAL_EFFECTIVE_DATES.terms,
+  revisionChanges: [
+    '직접 취소는 발주확인 전, 직접 반품·교환은 주문한 굿즈 전체의 실제 배송 완료 뒤에 신청하는 기능 조건을 안내합니다.',
+    '직접 신청을 이용할 수 없는 상태에서도 1:1 문의·고객지원으로 의사표시와 최초 접수 시각을 남겨 확인합니다. 기존 계약과 청약철회 권리·기한·환급 기준은 변경하지 않습니다.',
+  ],
+  previousVersion: previousPublicVersion('terms', CONTACT_WORDS),
   articles: [
     {
       heading: '제1조 (목적)',
@@ -285,6 +317,7 @@ const terms: LegalDocument = {
       paragraphs: [
         '이용자는 구매신청 후 의사표시의 불일치가 있는 경우 즉시 변경·취소를 요청할 수 있고, 회사는 배송 전에 요청을 받으면 지체 없이 처리합니다.',
         '이미 대금을 지급한 경우에는 제15조와 제16조의 청약철회 규정을 따릅니다.',
+        '주문 상세의 직접 취소 신청은 발주확인 전까지 이용할 수 있습니다. 그 밖의 변경·취소 또는 청약철회 의사는 1:1 문의나 안내된 고객지원 연락처로 전할 수 있으며, 회사는 최초 접수 시각과 주문·배송 사실을 확인하여 앞의 처리 기준에 따라 안내합니다. 직접 신청 기능의 조건 때문에 의사표시를 늦추거나 배송이 끝날 때까지 기다릴 필요는 없습니다.',
       ],
     },
     {
@@ -341,7 +374,8 @@ const terms: LegalDocument = {
        * 밀면 이미 공개된 문서의 상호참조가 전부 어긋난다. */
       heading: '제16조의2 (반품과 교환)',
       paragraphs: [
-        '이용자는 굿즈를 공급받은 뒤 주문 상세에서 반품 또는 교환을 신청할 수 있습니다. 반품은 굿즈를 회수하고 대금을 환급하는 절차이고, 교환은 굿즈를 회수한 뒤 같은 굿즈를 다시 발송하는 절차입니다.',
+        '반품은 굿즈를 회수하고 대금을 환급하는 절차이며, 교환은 굿즈를 회수한 뒤 같은 굿즈를 다시 발송하는 절차입니다. 주문 상세의 직접 반품·교환 신청은 주문한 굿즈가 모두 실제 배송 완료된 뒤에 이용할 수 있습니다.',
+        '일부 굿즈만 받았거나 그 밖에 직접 신청을 이용할 수 없는 상태에서는 1:1 문의 또는 안내된 고객지원 연락처로 의사를 전할 수 있습니다. 회사는 의사표시와 최초 접수 시각, 받은 굿즈와 배송 사실을 확인하며, 직접 신청 기능의 조건이 제15조의 권리를 제한하지는 않습니다.',
         '반품과 교환의 신청 기한은 제15조의 청약철회 기간을 준용합니다. 단순 변심은 굿즈를 공급받은 날부터 7일 이내, 굿즈의 하자나 오배송은 공급받은 날부터 3개월 이내입니다.',
         '회사는 신청을 확인한 뒤 반송 방법을 안내하고, 반송된 굿즈가 입고되면 상태를 확인합니다. 반품은 입고 확인일부터 3영업일 이내에 환급하고, 교환은 같은 굿즈를 새 운송장으로 발송합니다.',
         /* 교환은 재고 복원도 카드팩 회수도 하지 않는다. 주문이 살아 있고 같은 굿즈가
@@ -618,22 +652,29 @@ const shipping: LegalDocument = {
   navLabel: LEGAL_DOCUMENT_LABELS.shipping,
   summary: '굿즈 배송비와 배송 절차, 청약철회 기간과 제한 사유, 취소·반품·교환 절차와 반송비 부담 주체, 환급 계좌 처리 기준을 안내합니다.',
   effectiveDate: LEGAL_EFFECTIVE_DATES.shipping,
+  revisionChanges: [
+    '직접 신청 조건과 고객지원 접수 경로, 출고지별 반송 대상·실제 입고 확인, 교환품의 실제 배송 완료 확인을 안내합니다.',
+    '배송비는 출고지별 정책과 주문 시점의 고정값으로 안내합니다. 기존 주문의 금액·배송 시각·신청 기한·금융 처리 사실은 바꾸지 않습니다.',
+    '최초 배송비를 포함한 주문 전체 환급과 기존 반송비 부담 기준을 유지합니다. 문의 접수만으로 환급이 승인되거나 출고가 중단되지는 않습니다.',
+  ],
+  previousVersion: previousPublicVersion('shipping', CONTACT_WORDS),
   articles: [
     {
       heading: '1. 배송 안내',
       table: {
         columns: ['항목', '내용'],
         rows: [
-          ['배송 방법', '택배 (한진택배)'],
+          ['배송 방법', '출고지별 지정 택배사'],
           ['배송 지역', '대한민국 전국'],
-          ['기본 배송비', krwAmountWords(SHIPPING_FEE)],
-          ['무료 배송 조건', `주문 금액 ${krwAmountWords(FREE_SHIPPING_THRESHOLD)} 이상`],
+          ['기본 배송비', '굿즈 상세와 주문 화면에 표시된 출고지별 배송 정책에 따릅니다. 출고지가 다르면 배송비를 각각 더합니다.'],
+          ['무료 배송 조건', '같은 출고지의 정책 적용 굿즈 할인 전 소계로 확인합니다. 무료배송·개별 배송비 굿즈은 이 소계에 포함하지 않습니다.'],
           ['도서산간·제주 추가 배송비', '주문 화면과 굿즈 상세에서 별도 안내'],
           ['배송 기간', '대금을 먼저 지급하는 선지급 주문이므로, 결제가 확정된 날부터 3영업일 이내에 배송에 필요한 조치를 취합니다. 무통장 입금 주문은 입금이 확인된 날이 결제 확정일입니다. 공급 절차가 늦어지면 그 진행 상황을 알립니다.'],
           ['무통장 입금 기한', '주문 성립 후 24시간. 기한 안에 입금이 확인되지 않으면 주문이 자동 취소되고 선점된 수량이 복원됩니다.'],
         ],
       },
       closing: [
+        '개별 배송비는 같은 굿즈의 수량이나 옵션 수와 관계없이 굿즈당 한 번 더합니다.',
         '배송비는 주문 시점의 정책값으로 고정되며, 주문 이후 정책이 바뀌어도 이미 성립한 주문에는 적용되지 않습니다.',
       ],
     },
@@ -649,7 +690,8 @@ const shipping: LegalDocument = {
       list: [
         '굿즈를 공급받은 날부터 7일 이내에 청약철회를 신청할 수 있습니다. 계약내용에 관한 서면을 받은 때가 굿즈를 공급받은 때보다 늦은 경우에는 그 서면을 받은 날부터 기산합니다.',
         '굿즈가 표시·광고 내용과 다르거나 계약내용과 다르게 이행된 경우에는 공급받은 날부터 3개월 이내, 그 사실을 안 날 또는 알 수 있었던 날부터 30일 이내에 신청할 수 있습니다.',
-        '배송이 시작되기 전에는 주문 상세에서 취소를 신청할 수 있습니다. 배송이 완료된 뒤에는 같은 화면에서 반품 또는 교환을 신청할 수 있으며, 신청 기한은 위와 같습니다.',
+        '주문 상세의 직접 취소 신청은 발주확인 전까지, 직접 반품·교환 신청은 주문한 굿즈가 모두 실제 배송 완료된 뒤에 이용할 수 있습니다. 발주확인은 회사가 주문을 확인하고 준비를 시작한 상태를 뜻합니다.',
+        '직접 신청을 이용할 수 없는 상태에서도 청약철회 의사는 1:1 문의 또는 안내된 고객지원 연락처로 전할 수 있습니다. 회사는 의사표시와 접수 시각을 남기고 주문·배송 사실을 확인합니다. 직접 신청 기능의 조건이 위 청약철회 기간이나 관계 법령에 따른 권리를 제한하지는 않습니다.',
       ],
     },
     {
@@ -676,26 +718,28 @@ const shipping: LegalDocument = {
        * 최초 배송비를 환급액에서 뺄 방법이 없다. "공제될 수 있습니다"는 지킬 수 없는 고지다. */
       closing: [
         '청약철회가 승인되면 결제한 금액 전액이 취소됩니다. 이미 받은 배송비를 환급액에서 공제하지 않습니다.',
-        `무료 배송 조건(${krwAmountWords(FREE_SHIPPING_THRESHOLD)} 이상)으로 발송된 주문도 같습니다. 다만 반송에 드는 비용은 위 표의 부담 주체를 따릅니다.`,
+        '무료 배송 조건으로 발송된 주문도 같습니다. 다만 반송에 드는 비용은 위 표의 부담 주체를 따릅니다.',
       ],
     },
     {
       heading: '6. 취소·반품·교환 절차',
       paragraphs: [
-        '주문 상세에서 취소, 반품, 교환 중 하나를 선택해 신청합니다. 취소는 발송 전, 반품과 교환은 배송이 완료된 뒤에 신청할 수 있습니다.',
-        '발송 준비가 시작되기 전의 단순 변심 취소는 별도 확인 없이 접수되어 곧바로 환급 절차로 넘어갑니다.',
+        '주문 상세의 직접 신청에서는 발주확인 전 주문의 전체 취소, 주문한 굿즈가 모두 실제 배송 완료된 뒤의 전체 반품·교환을 신청할 수 있습니다. 발주확인 뒤나 일부 굿즈만 받은 상태에서 청약철회 의사를 전하려면 1:1 문의 또는 안내된 고객지원 연락처를 이용해 주세요.',
+        '발주확인 전 직접 취소는 주문과 결제 상태를 확인한 뒤 기존 결제수단의 취소·환급 절차에 따라 처리합니다. 이미 지급한 대금이 없는 주문에는 환급할 대금이 없습니다.',
+        '문의로 의사를 전한 경우에는 회사가 원문과 최초 접수 시각, 배송·회수 상황을 확인하여 처리 방법을 안내합니다. 문의 접수만으로 환급이 승인되거나 출고가 자동으로 중단되는 것은 아닙니다.',
       ],
       list: [
-        '신청 — 주문 상세에서 유형과 사유를 선택합니다.',
-        '확인 — 회사가 신청 내용을 확인하고 반송 주소와 회수 방법을 안내합니다.',
+        '신청 — 주문 상세의 직접 신청 또는 1:1 문의·안내된 고객지원 연락처로 의사를 전합니다. 직접 신청과 문의 접수는 서로 다른 기록이며, 문의 접수만으로 클레임이나 환급이 자동 생성되지는 않습니다.',
+        '확인 — 회사가 신청 내용과 주문 전체의 굿즈·수량을 확인하고, 출고지별 반송 주소와 회수 방법을 안내합니다.',
         '반송 — 이용자가 안내받은 방법으로 굿즈를 반송합니다.',
-        '입고 확인 — 반송된 굿즈가 창고에 입고되고 상태 확인이 끝나면 회사가 입고를 확정합니다.',
+        '입고 확인 — 회사가 출고지별 반송 대상 굿즈와 수량의 실제 입고를 확인합니다. 필요한 회수가 일부 남아 있으면 주문 전체의 입고가 완료된 것으로 표시하지 않습니다.',
         '처리 — 반품은 입고 확인일부터 3영업일 이내에 환급하고, 교환은 같은 굿즈를 새 운송장으로 발송합니다.',
       ],
       closing: [
         '반송 주소는 물류 창고 운영 조건에 따라 달라질 수 있어 신청 확인 시점에 개별 안내합니다. 안내 없이 임의로 반송한 경우 처리가 지연될 수 있습니다.',
         '반송 굿즈의 상태 확인이 끝나지 않았거나 반송 비용의 정산이 확인되지 않은 경우 처리가 보류될 수 있으며, 이때 회사는 그 사유를 알립니다.',
         '교환은 환급이 아니라 재발송으로 끝나므로 결제는 유지되고, 그 주문으로 지급된 카드팩도 회수하지 않습니다.',
+        '교환품을 다시 발송한 경우에는 교환품 전체의 실제 배송 완료를 확인한 뒤 다음 반품·교환 직접 신청을 이용할 수 있습니다. 이 확인으로 원주문의 공급 시점이나 기존 신청 기한이 자동으로 연장되지는 않습니다. 신청 기한이나 배송 사실을 별도로 확인해야 하는 경우에는 1:1 문의 또는 안내된 고객지원 연락처로 알려주세요.',
       ],
     },
     {
@@ -729,22 +773,25 @@ const shipping: LegalDocument = {
       heading: '10. 문의',
       paragraphs: HAS_CONTACT
         ? [
-          `배송과 반품에 관한 문의는 ${IN_APP_INQUIRY_ROUTE} 또는 이 사이트 하단 사업자 정보에도 함께 표기된 ${CONTACT_WORDS}로 접수할 수 있습니다.`,
-          '청약철회와 반품 신청은 주문 상세의 청약철회 경로로도 접수할 수 있습니다.',
+          `배송과 반품에 관한 질문, 청약철회 의사표시는 ${IN_APP_INQUIRY_ROUTE} 또는 이 사이트 하단 사업자 정보에도 표기된 ${CONTACT_WORDS}로 보낼 수 있습니다.`,
+          '주문에 연결해 보내면 회사가 주문 내역과 배송 상황을 함께 확인합니다. 주문 상세의 직접 신청을 이용할 수 없는 상태에서도 의사표시와 최초 접수 시각을 남겨 검토합니다. 문의 접수만으로 환급이 승인되거나 자동 실행되는 것은 아닙니다.',
         ]
         : [
-          `배송과 반품에 관한 문의는 ${IN_APP_INQUIRY_ROUTE}로 접수할 수 있습니다. 주문에 연결해 보내면 회사가 주문 내역과 배송 상태를 함께 확인한 뒤 답변합니다.`,
-          '청약철회와 반품 신청은 문의가 아니라 주문 상세의 청약철회 경로로 접수합니다. 문의는 질문과 답변을 주고받는 창구이며 청약철회 접수를 대신하지 않습니다.',
+          `배송과 반품에 관한 질문, 청약철회 의사표시는 ${IN_APP_INQUIRY_ROUTE}로 보낼 수 있습니다.`,
+          '주문에 연결해 보내면 회사가 주문 내역과 배송 상황을 함께 확인합니다. 주문 상세의 직접 신청을 이용할 수 없는 상태에서도 의사표시와 최초 접수 시각을 남겨 검토합니다. 문의 접수만으로 환급이 승인되거나 자동 실행되는 것은 아닙니다.',
           CONTACT_PENDING_NOTICE,
         ],
     },
   ],
 };
 
-export const LEGAL_DOCUMENTS: Record<LegalDocumentSlug, LegalDocument> = { terms, privacy, shipping };
+return {terms,privacy,shipping};
+}
 
-export function getLegalDocument(slug: string): LegalDocument | null {
+export const LEGAL_DOCUMENTS: Record<LegalDocumentSlug, LegalDocument> = createLegalDocuments();
+
+export function getLegalDocument(slug: string, businessInfo?: BusinessInfo): LegalDocument | null {
   return (LEGAL_DOCUMENT_SLUGS as string[]).includes(slug)
-    ? LEGAL_DOCUMENTS[slug as LegalDocumentSlug]
+    ? (businessInfo ? createLegalDocuments(businessInfo) : LEGAL_DOCUMENTS)[slug as LegalDocumentSlug]
     : null;
 }

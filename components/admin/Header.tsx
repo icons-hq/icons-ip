@@ -8,14 +8,14 @@ export function Header({
   const initial = (admin.email ?? 'staff').charAt(0).toUpperCase();
 
   return (
-    <header className="admin-header">
-      <h1 className="admin-title">{title}</h1>
-      <div className="row" style={{ gap: 12 }}>
-        <div className="col hide-mob" style={{ alignItems: 'flex-end', gap: 3 }}>
-          <span style={{ fontSize: 13, fontWeight: 600 }}>{admin.email ?? 'staff'}</span>
-          <span className="tag" style={{ color: 'var(--violet-2)' }}>{admin.role}</span>
+    <header className="wc-admin__header">
+      <h1 className="wc-admin__title">{title}</h1>
+      <div className="wc-admin__identity">
+        <div className="wc-admin__identity-text">
+          <span className="wc-admin__email">{admin.email ?? 'staff'}</span>
+          <span className="wc-admin__role">{admin.role}</span>
         </div>
-        <span className="admin-avatar">{initial}</span>
+        <span className="wc-admin__avatar">{initial}</span>
       </div>
     </header>
   );

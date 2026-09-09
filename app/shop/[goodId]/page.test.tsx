@@ -7,6 +7,7 @@ const summary = { average: 4.5, count: 3, distribution: [0, 0, 0, 1, 2], photoCo
 
 const mocks = vi.hoisted(() => ({
   details: [] as CatalogGoodDetail[],
+  shipping: vi.fn(async () => ({originId:'gimpo',originName:'김포',baseFee:4700,freeThreshold:62000,feeType:'policy',individualFee:0})),
   engagement: vi.fn(async () => ({ restockRequested: false, wished: true })),
   goodDetail: vi.fn<(props: Record<string, unknown>) => null>(() => null),
   goodQna: vi.fn<(props: Record<string, unknown>) => null>(() => null),
@@ -32,6 +33,7 @@ vi.mock('@/components/shop/GoodReviews', () => ({ GoodReviews: mocks.goodReviews
 vi.mock('@/lib/product-questions.server', () => ({ loadGoodQuestions: mocks.questionSection }));
 vi.mock('@/lib/reviews.server', () => ({ loadGoodReviewSection: mocks.reviewSection }));
 vi.mock('@/lib/wishlist.server', () => ({ getGoodEngagement: mocks.engagement }));
+vi.mock('@/lib/fulfillment.server', () => ({loadGoodShippingPolicy:mocks.shipping}));
 vi.mock('@/lib/catalog', () => ({
   getCatalogGoodDetail: async (id: string) => mocks.details.find((item) => item.good.id === id) ?? null,
 }));
@@ -85,6 +87,8 @@ describe('/shop/[goodId] page', () => {
     renderToStaticMarkup(await Page({ params: Promise.resolve({ goodId: 'g13' }), searchParams: Promise.resolve({}) }));
 
     expect(mocks.goodDetail.mock.calls[0]?.[0]?.detail).toEqual(mocks.details[0]);
+    expect(mocks.shipping).toHaveBeenCalledWith('g13');
+    expect(mocks.goodDetail.mock.calls[0]?.[0]?.shippingPolicy).toMatchObject({baseFee:4700,freeThreshold:62000});
   });
 
   /* 리뷰도 비로그인에게 열린다(#254). 살지 말지를 정하는 사람은 아직 로그인하지 않았다. */

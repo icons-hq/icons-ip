@@ -17,18 +17,26 @@ const emptyState: AdminCatalogActionState = {};
  * 전부 들고 있어서 어느 화면을 열든 모든 상태가 살아 있었다.
  */
 export function IpScreen({
+  accountId,
   records,
   verticals,
+  selectedId = null,
+  hideRecordList = false,
 }: {
+  accountId: string;
   records: AdminCatalogRecords['ips'];
   verticals: CatalogSnapshot['verticals'];
+  selectedId?: string | null;
+  hideRecordList?: boolean;
 }) {
   const [state, action, pending] = useActionState(upsertAdminIpAction, emptyState);
-  const { selected, select } = useSelectedRecord(records);
+  const { selected, select } = useSelectedRecord(records, selectedId);
 
   return (
     <IpSection
+      accountId={accountId}
       action={action}
+      hideRecordList={hideRecordList}
       onSelect={select}
       pending={pending}
       records={records}

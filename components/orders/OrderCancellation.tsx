@@ -7,14 +7,13 @@ import {
   LEGAL_WITHDRAWAL_NOTICE,
   ORDER_WITHDRAWAL_DEADLINE_LABELS,
   ORDER_WITHDRAWAL_REASON_LABELS,
-  ORDER_WITHDRAWAL_REASON_TYPES,
   refundStatusLabel,
   type OrderCancellationRequestSummary,
   type OrderDetailStatus,
   type OrderRefundSummary,
   type OrderWithdrawalReasonType,
 } from '../../lib/orders';
-import { orderWithdrawalDeadlinePassed } from '../../lib/orders/withdrawal';
+import { orderClaimAvailability, type OrderClaimEligibility } from '@/lib/orders/claims';
 
 export { LEGAL_WITHDRAWAL_NOTICE };
 export const CANCELLATION_FAILURE_MESSAGE = '취소 요청을 처리하지 못했습니다. 주문 상태를 새로 확인한 뒤 다시 시도해주세요.';
@@ -34,12 +33,14 @@ export const WITHDRAWAL_REASON_LABELS: Record<OrderWithdrawalReasonType, string>
 };
 
 export const DEADLINE_EXPIRED_MESSAGE = '청약철회 기한이 지난 주문입니다. 하자나 오배송이라면 고객센터로 문의해주세요.';
+export const CANCELLATION_BLOCKED_MESSAGE = '주문 상태가 변경되어 취소를 신청할 수 없습니다. 취소는 발주확인 전, 반품은 주문의 모든 굿즈가 배송 완료된 뒤에 직접 신청할 수 있습니다. 그 밖의 청약철회 의사표시는 1:1 문의로 알려주세요.';
 
 type CancellationSubmissionResult =
   | 'requested'
   | 'canceled'
   | 'already_canceled'
   | 'deadline_expired'
+  | 'not_cancelable'
   | false;
 
 export async function submitOrderCancellation(
@@ -53,10 +54,10 @@ export async function submitOrderCancellation(
     body: JSON.stringify({ reasonType }),
   });
   if (!response.ok) {
-    // 기한 초과는 실패가 아니라 결과다. 재시도 안내 대신 사유를 알려야 한다.
+    // 신청 조건의 변화는 재시도 안내 대신 사유를 알려야 한다.
     const failure: unknown = await response.json().catch(() => null);
     const code = (failure as { error?: { code?: unknown } } | null)?.error?.code;
-    return code === 'deadline_expired' ? 'deadline_expired' : false;
+    return code === 'deadline_expired' || code === 'not_cancelable' ? code : false;
   }
   const body: unknown = await response.json().catch(() => null);
   if (!body || typeof body !== 'object') return false;
@@ -139,13 +140,7 @@ export function cancellationPresentation(
   status: OrderDetailStatus,
   refund: OrderRefundSummary | null,
   cancellationRequest: OrderCancellationRequestSummary | null = null,
-  /*
-   * 배송 이후 문구는 상태가 아니라 기한에서 나와야 한다. delivered→done은 하루 한 번
-   * 도는 잡이 옮기므로 변심 7일이 지난 뒤에도 주문이 최대 하루 더 delivered에 남는다.
-   * 상태로만 문구를 고르면 그 사이 화면은 "7일 이내에 요청할 수 있습니다"라고 하는데
-   * DB는 deadline_expired를 돌려주고, 같은 페이지의 기한 안내는 창이 닫혔다고 적는다.
-   */
-  options: { deliveredAt?: string | null; at?: Date } = {},
+  options: { deliveredAt?: string | null; at?: Date; eligibility?: OrderClaimEligibility | null } = {},
 ): CancellationPresentation {
   if (cancellationRequest && cancellationRequest.status !== 'rejected') {
     return requestPresentation(cancellationRequest);
@@ -153,6 +148,21 @@ export function cancellationPresentation(
   const priorRejection = cancellationRequest?.status === 'rejected'
     ? cancellationRequest
     : null;
+
+  const available = orderClaimAvailability({ orderStatus: status, hasActiveClaim: false,
+    eligibility: options.eligibility }).find((entry) => entry.claimType === 'cancel')?.available;
+  if (status !== 'canceled' && !available) {
+    const statusBlocksCancellation = status !== 'pending' && status !== 'paid';
+    return {
+      canCancel: false,
+      heading: '주문 취소 신청 안내',
+      body: statusBlocksCancellation || options.eligibility
+        ? '주문 취소는 발주확인 전에만 직접 신청할 수 있습니다. 주문의 모든 굿즈가 배송 완료된 뒤에는 아래에서 반품을 신청해주세요. 그 밖의 청약철회 의사표시는 1:1 문의 또는 고객센터로 알려주세요.'
+        : '신청 가능 여부를 확인할 수 없습니다. 주문을 새로고침하거나 1:1 문의로 알려주세요.',
+      ...(priorRejection ? { requestLabel: '이전 요청 거절', requestRequestedAt: priorRejection.requestedAt,
+        ...(priorRejection.decidedAt ? { requestDecidedAt: priorRejection.decidedAt } : {}) } : {}),
+    };
+  }
 
   if (status === 'pending') {
     return {
@@ -178,48 +188,10 @@ export function cancellationPresentation(
       heading: priorRejection ? '청약철회 재요청' : '청약철회 요청',
       body: priorRejection
         ? `이전 청약철회 요청이 거절됐습니다. ${priorRejection.decisionNote ? `${priorRejection.decisionNote} ` : ''}주문 상태가 바뀌지 않았다면 다시 요청할 수 있습니다.`
-        : '배송 시작 전 주문입니다. 주문 취소와 결제 취소를 함께 요청합니다.',
+        : '발주확인 전 주문입니다. 주문 취소와 결제 취소를 함께 요청합니다.',
       actionLabel: priorRejection ? '다시 청약철회 요청' : '청약철회 요청',
       confirmTitle: '청약철회를 요청할까요?',
       confirmBody: '주문과 결제 취소 처리를 요청합니다.',
-      ...(priorRejection ? {
-        requestLabel: '이전 요청 거절',
-        requestRequestedAt: priorRejection.requestedAt,
-        ...(priorRejection.decidedAt ? { requestDecidedAt: priorRejection.decidedAt } : {}),
-      } : {}),
-    };
-  }
-
-  // 배송이 시작된 뒤가 실물 반품의 주 경로다. 법정 고지가 "공급받은 날부터 7일"을
-  // 안내하는 만큼 같은 시점에 요청 버튼도 열어 둔다(D10).
-  if (status === 'shipping' || status === 'delivered' || status === 'done') {
-    /* 사다리가 늘면서 "배송 이후"가 셋이 됐다(#250). done은 변심 창이 이미 닫힌
-       거래확정이지만 하자·오배송은 공급받은 날부터 3개월 남아 있으므로 요청
-       경로를 계속 연다 — 기한 판정의 진실원은 DB다. */
-    const changeOfMindOpen = !orderWithdrawalDeadlinePassed(
-      options.deliveredAt,
-      'change_of_mind',
-      options.at ?? new Date(),
-    );
-    const stateNotice = status === 'shipping'
-      ? '배송이 시작된 주문입니다.'
-      : status === 'delivered'
-        ? '배송이 완료된 주문입니다.'
-        : '거래가 확정된 주문입니다.';
-    const deadlineNotice = changeOfMindOpen
-      ? `${stateNotice} 굿즈를 공급받은 날부터 7일 이내에 청약철회를 요청할 수 있습니다.`
-      : `${stateNotice} 단순 변심 기한은 지났고, 상품 하자·오배송은 공급받은 날부터 3개월 이내에 요청할 수 있습니다.`;
-    const returnNotice = '요청이 승인되려면 굿즈가 반품 입고돼야 하고, 반품 배송은 고객 착불 반송입니다.';
-
-    return {
-      canCancel: true,
-      heading: priorRejection ? '청약철회 재요청' : '청약철회 요청',
-      body: priorRejection
-        ? `이전 청약철회 요청이 거절됐습니다. ${priorRejection.decisionNote ? `${priorRejection.decisionNote} ` : ''}${deadlineNotice} ${returnNotice}`
-        : `${deadlineNotice} ${returnNotice}`,
-      actionLabel: priorRejection ? '다시 청약철회 요청' : '청약철회 요청',
-      confirmTitle: '청약철회를 요청할까요?',
-      confirmBody: '요청 접수 후 굿즈를 착불로 반송해주세요. 반품 입고가 확인되면 결제 취소를 진행합니다.',
       ...(priorRejection ? {
         requestLabel: '이전 요청 거절',
         requestRequestedAt: priorRejection.requestedAt,
@@ -245,7 +217,8 @@ interface OrderCancellationProps {
   status: OrderDetailStatus;
   refund: OrderRefundSummary | null;
   cancellationRequest: OrderCancellationRequestSummary | null;
-  /** 청약철회 기한의 기산점(공급받은 날). 문구와 기본 사유가 여기서 갈린다. */
+  eligibility: OrderClaimEligibility | null;
+  /** 기존 요청의 배송 시각. 직접 취소 허용 여부는 eligibility를 따른다. */
   deliveredAt: string | null;
 }
 
@@ -256,10 +229,12 @@ type SubmissionState =
   | 'requested'
   | 'success'
   | 'expired'
+  | 'blocked'
   | 'error';
 
 export function OrderCancellation({
   cancellationRequest,
+  eligibility,
   deliveredAt,
   orderId,
   status,
@@ -267,19 +242,9 @@ export function OrderCancellation({
 }: OrderCancellationProps) {
   const router = useRouter();
   const [submission, setSubmission] = useState<SubmissionState>('idle');
-  /* 변심 창이 이미 닫힌 주문에서 변심을 기본값으로 두면 첫 제출이 반드시
-     deadline_expired로 튕긴다. 열려 있을 때만 변심으로 시작한다. */
-  const [reasonType, setReasonType] = useState<OrderWithdrawalReasonType>(
-    orderWithdrawalDeadlinePassed(deliveredAt, 'change_of_mind', new Date())
-      ? 'defect'
-      : 'change_of_mind',
-  );
   const openButtonRef = useRef<HTMLButtonElement>(null);
   const shouldRestoreFocus = useRef(false);
-  const presentation = cancellationPresentation(status, refund, cancellationRequest, { deliveredAt });
-  // 배송 전 취소는 기한 판정 대상이 아니다. 사유를 물어도 결과가 같으므로
-  // 실물이 고객 손에 갈 수 있는 시점부터만 선택을 받는다.
-  const asksReason = status === 'shipping' || status === 'delivered' || status === 'done';
+  const presentation = cancellationPresentation(status, refund, cancellationRequest, { deliveredAt, eligibility });
 
   useEffect(() => {
     if (submission !== 'idle' || !shouldRestoreFocus.current) return;
@@ -297,7 +262,7 @@ export function OrderCancellation({
 
     let result: CancellationSubmissionResult = false;
     try {
-      result = await submitOrderCancellation(orderId, asksReason ? reasonType : 'change_of_mind');
+      result = await submitOrderCancellation(orderId, 'change_of_mind');
     } catch {
       result = false;
     }
@@ -310,6 +275,12 @@ export function OrderCancellation({
 
     if (result === 'deadline_expired') {
       setSubmission('expired');
+      router.refresh();
+      return;
+    }
+
+    if (result === 'not_cancelable') {
+      setSubmission('blocked');
       router.refresh();
       return;
     }
@@ -344,23 +315,6 @@ export function OrderCancellation({
             <div className="order-cancellation-confirm">
               <strong>{presentation.confirmTitle}</strong>
               <p>{presentation.confirmBody}</p>
-              {asksReason && (
-                <fieldset className="order-cancellation-reason">
-                  <legend>청약철회 사유</legend>
-                  {ORDER_WITHDRAWAL_REASON_TYPES.map((value) => (
-                    <label key={value}>
-                      <input
-                        type="radio"
-                        name="withdrawal-reason-type"
-                        value={value}
-                        checked={reasonType === value}
-                        onChange={() => setReasonType(value)}
-                      />
-                      {WITHDRAWAL_REASON_LABELS[value]}
-                    </label>
-                  ))}
-                </fieldset>
-              )}
               <div>
                 <button autoFocus className="btn btn-ghost" type="button" onClick={closeConfirmation}>돌아가기</button>
                 <button className="btn order-cancellation-submit" type="button" onClick={() => void cancelOrder()}>{presentation.actionLabel}</button>
@@ -374,6 +328,8 @@ export function OrderCancellation({
             <p className="order-cancellation-feedback order-cancellation-feedback--success" role="status">청약철회 요청을 접수했습니다. 최신 상태를 불러오고 있어요.</p>
           ) : submission === 'expired' ? (
             <p className="order-cancellation-feedback order-cancellation-feedback--error" role="alert">{DEADLINE_EXPIRED_MESSAGE}</p>
+          ) : submission === 'blocked' ? (
+            <p className="order-cancellation-feedback order-cancellation-feedback--error" role="alert">{CANCELLATION_BLOCKED_MESSAGE}</p>
           ) : (
             <>
               {submission === 'error' && <p className="order-cancellation-feedback order-cancellation-feedback--error" role="alert">{CANCELLATION_FAILURE_MESSAGE}</p>}

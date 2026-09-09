@@ -38,6 +38,7 @@ function createQuery(
       record.eq.push([column, value]);
       return query;
     },
+    in() { return query; },
     order() {
       return query;
     },
@@ -82,8 +83,12 @@ describe('loadCheckoutOrder', () => {
         created_at: '2026-07-14T06:45:00.000Z',
       }],
       order_items: [{
+        id: 'item-1',
         order_id: orderId,
         good_id: 'goods-1',
+        variant_id: '00000000-0000-4000-8000-000000000001',
+        variant_name_snapshot: '파랑',
+        variant_code_snapshot: 'BLUE',
         qty: 1,
         unit_price: 27000,
         good_name_snapshot: '주문 당시 이름',
@@ -102,14 +107,18 @@ describe('loadCheckoutOrder', () => {
     const order = await loadCheckoutOrder(userId, orderId);
 
     expect(order?.items).toEqual([{
+      id: 'item-1',
       goodId: 'goods-1',
+      variantId: '00000000-0000-4000-8000-000000000001',
+      variantName: '파랑',
+      variantCode: 'BLUE',
       name: '주문 당시 이름',
       type: '아크릴',
       qty: 1,
       unitPrice: 27000,
     }]);
     expect(records.find((record) => record.table === 'order_items')?.select)
-      .toBe('good_id,qty,unit_price,good_name_snapshot,good_type_snapshot');
+      .toBe('id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot');
     expect(records.some((record) => record.table === 'goods')).toBe(false);
   });
 

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   answerInquiryAction,
+  reassignInquiryAction,
+  addInquiryInternalNoteAction,
   closeInquiryAction,
   saveInquiryReplyTemplateAction,
 } from './inquiry-actions';
@@ -189,5 +191,45 @@ describe('saveInquiryReplyTemplateAction', () => {
       target_title: '배송 지연 안내',
     });
     expect(state.message).toBe('답변 템플릿을 저장했습니다.');
+  });
+});
+
+
+describe('문의 담당자와 내부 메모', () => {
+  it('재배정 사유와 담당자만 audited RPC에 보내고 고객 알림은 발송하지 않는다', async () => {
+    const form = answerForm();
+    form.set('assigneeId', MESSAGE_ID);
+    form.set('reason', '  오후 담당으로 인계  ');
+    const state = await reassignInquiryAction({}, form);
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_reassign_inquiry', {
+      target_inquiry_id: INQUIRY_ID, target_assignee_id: MESSAGE_ID, target_reason: '오후 담당으로 인계',
+    });
+    expect(state.message).toContain('담당자');
+    expect(mocks.sendInquiryEmail).not.toHaveBeenCalled();
+  });
+
+  it('재배정 사유가 비어 있으면 기존 배정을 바꾸지 않는다', async () => {
+    const form = answerForm();
+    form.set('assigneeId', MESSAGE_ID);
+    const state = await reassignInquiryAction({}, form);
+    expect(state.errors?.form).toContain('사유');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('고객은 내부 메모와 담당자 액션을 실행할 수 없다', async () => {
+    mocks.adminState.isStaff = false;
+    expect((await addInquiryInternalNoteAction({}, answerForm())).errors?.form).toContain('권한');
+    expect((await reassignInquiryAction({}, answerForm())).errors?.form).toContain('권한');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('내부 메모는 별도 RPC로 저장하고 고객 메일을 보내지 않는다', async () => {
+    const state = await addInquiryInternalNoteAction({}, answerForm('내부 확인 필요'));
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_add_inquiry_internal_note', {
+      target_inquiry_id: INQUIRY_ID, target_body: '내부 확인 필요',
+    });
+    expect(state.message).toContain('내부 메모');
+    expect(state.resultKey).toBeTruthy();
+    expect(mocks.sendInquiryEmail).not.toHaveBeenCalled();
   });
 });

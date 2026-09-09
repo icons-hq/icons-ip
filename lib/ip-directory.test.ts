@@ -49,6 +49,11 @@ describe('filterIpsByLetter', () => {
 });
 
 describe('sortIpsForDirectory', () => {
+  it('uses the operator rank before the display-name fallback', () => {
+    const later = { ...maplestory, sortOrder: 2 };
+    const first = { ...unlisted, sortOrder: 1 };
+    expect(sortIpsForDirectory([later, first])).toEqual([first, later]);
+  });
   it('orders by display name A→Z with ETC entries last', () => {
     expect(sortIpsForDirectory([unlisted, rilakkuma, hongsil, maplestory])).toEqual([
       maplestory, // MAPLESTORY

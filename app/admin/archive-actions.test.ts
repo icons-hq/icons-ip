@@ -56,6 +56,7 @@ const broadRevalidationCalls = [
   ['/checkout'],
   ['/packs'],
   ['/admin'],
+  ['/admin/catalog/goods'],
   ['/ip/[id]', 'page'],
   ['/events/[eventId]', 'page'],
   ['/offline-popups/[eventId]', 'page'],
@@ -101,7 +102,7 @@ describe('admin catalog archive actions', () => {
     expect(mocks.rpc).toHaveBeenCalledWith(rpcName, { target_id: RECORD_ID });
     expect(mocks.revalidatePath.mock.calls).toEqual([
       ...broadRevalidationCalls,
-      ...(kind === 'ip' ? [[`/ip/${RECORD_ID}`]] : []),
+      ...(kind === 'ip' ? [[`/ip/${RECORD_ID}`], ['/admin/catalog/ips'], [`/admin/catalog/ips/${RECORD_ID}`]] : []),
     ]);
   });
 

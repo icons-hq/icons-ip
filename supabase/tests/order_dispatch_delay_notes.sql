@@ -62,34 +62,41 @@ on conflict (id) do update set
   role = excluded.role;
 
 insert into public.orders (
-  id, user_id, status, total, address, expires_at, confirmed_at, shipped_at,
-  shipping_carrier, tracking_number
+  id, user_id, status, total, address, expires_at, confirmed_at, shipped_at
 )
 values
   -- A: 발주확인 후 5일 — 지연 목록에 들어간다
   (
     '40000000-0000-4000-8000-000000000931',
     '00000000-0000-4000-8000-000000000931', 'confirmed', 10000, '{}'::jsonb, null,
-    now() - interval '5 days', null, null, null
+    now() - interval '5 days', null
   ),
   -- B: 발주확인 후 1일 — 아직 지연이 아니다
   (
     '40000000-0000-4000-8000-000000000932',
     '00000000-0000-4000-8000-000000000931', 'confirmed', 10000, '{}'::jsonb, null,
-    now() - interval '1 day', null, null, null
+    now() - interval '1 day', null
   ),
   -- C: 발주확인 기록이 없는 주문 — 기산점이 없으므로 지연으로 부르지 않는다
   (
     '40000000-0000-4000-8000-000000000933',
     '00000000-0000-4000-8000-000000000931', 'confirmed', 10000, '{}'::jsonb, null,
-    null, null, null, null
+    null, null
   ),
   -- D: 이미 발송된 주문 — 지연 메모 대상이 아니다
   (
     '40000000-0000-4000-8000-000000000934',
     '00000000-0000-4000-8000-000000000931', 'shipping', 10000, '{}'::jsonb, null,
-    now() - interval '9 days', now() - interval '8 days', 'hanjin', '123456789012'
+    now() - interval '9 days', now() - interval '8 days'
   );
+
+insert into public.order_shipments(order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,
+  status,carrier,tracking_number,shipped_at)
+select id,'00000000-0000-4000-8000-000000042201','김포',0,'{}',
+  case when status='shipping' then 'shipping' else 'ready' end,
+  case when status='shipping' then 'hanjin' end,
+  case when status='shipping' then '123456789012' end,shipped_at
+from public.orders where user_id='00000000-0000-4000-8000-000000000931';
 
 -- ---------------------------------------------------------------------------
 -- 1. 메모 등록 — staff만, 감사 로그와 함께

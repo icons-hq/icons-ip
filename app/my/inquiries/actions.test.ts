@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createInquiryAction, replyToInquiryAction } from './actions';
+import { createInquiryAction, createWidgetInquiryAction, replyToInquiryAction } from './actions';
 
 const INQUIRY_ID = '11111111-1111-4111-8111-111111111111';
 const ORDER_ID = '22222222-2222-4222-8222-222222222222';
@@ -65,6 +65,21 @@ beforeEach(() => {
 });
 
 describe('createInquiryAction', () => {
+  it('위젯 통신 실패는 작성 화면을 유지할 수 있는 오류 상태로 반환한다', async () => {
+    mocks.rpc.mockRejectedValue(new Error('private transport details'));
+    const result = await createWidgetInquiryAction({}, createForm());
+    expect(result.errors?.form).toContain('접수하지 못했습니다');
+    expect(result.inquiryId).toBeUndefined();
+    expect(JSON.stringify(result)).not.toContain('private transport');
+  });
+  it('위젯은 같은 보호 액션으로 접수하고 페이지 이동 없이 새 문의를 연다', async () => {
+    const state = await createWidgetInquiryAction({}, createForm());
+    expect(state.inquiryId).toBe(INQUIRY_ID);
+    expect(state.resultKey).toBeTruthy();
+    expect(mocks.rpc).toHaveBeenCalledWith('create_inquiry', expect.objectContaining({ target_title: '배송 문의' }));
+    mocks.authState = { isConfigured: true, user: null, profile: null, isStaff: false };
+    await expect(createWidgetInquiryAction({}, createForm())).rejects.toThrow('NEXT_REDIRECT:/login');
+  });
   /* 문의는 개인 기록이라 공개 브라우징 대상이 아니다. */
   it('로그인 전에는 작성 경로를 next로 실어 로그인으로 보낸다', async () => {
     mocks.authState = { isConfigured: true, user: null, profile: null, isStaff: false };

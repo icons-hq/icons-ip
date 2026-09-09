@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { redirect, unstable_rethrow } from 'next/navigation';
 import { after } from 'next/server';
 import {
   catalogContextFromSnapshot,
@@ -20,6 +20,8 @@ import {
   type AdminFieldErrors,
 } from '@/lib/admin/catalog';
 import { getAdminCatalogRecords } from '@/lib/admin/catalog.server';
+import { parseGoodsOptionRows } from '@/lib/admin/goods-option-editor';
+import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import {
   normalizeAdminHideCommentForm,
   normalizeAdminHidePostForm,
@@ -31,7 +33,13 @@ import { getCatalogSnapshot } from '@/lib/catalog';
 import { sendRestockAlertEmails } from '@/lib/email/transactional.server';
 import { createClient } from '@/lib/supabase/server';
 
-export interface AdminCatalogActionState {
+/*
+ * `values`·`attempt` 는 실패한 제출을 폼이 되살리기 위한 값이다(lib/admin/form-state.ts).
+ * 성공 응답은 지금처럼 `message` 만 싣는다 — 성공 뒤 폼은 저장된 레코드를 보여야 한다.
+ */
+export interface AdminCatalogActionState extends AdminFormValuesState {
+  savedGoodId?: string;
+  stockAdjustment?: { variantId: string; stockQty: number; adjustmentId: string };
   errors?: AdminFieldErrors & { form?: string };
   message?: string;
 }
@@ -70,14 +78,14 @@ async function requireAdminAction(): Promise<AdminCatalogActionState | null> {
 }
 
 function revalidateCatalog(paths: string[]) {
-  const defaults = ['/', '/ip', '/shop', '/binder', '/events', '/offline-popups', '/admin'];
+  const defaults = ['/', '/ip', '/shop', '/binder', '/events', '/offline-popups', '/admin', '/admin/catalog/goods'];
   for (const path of [...defaults, ...paths]) {
     revalidatePath(path);
   }
 }
 
 function revalidateStock(ipPath: string | null) {
-  const paths = ['/', '/ip', '/shop', '/cart', '/checkout', '/admin'];
+  const paths = ['/', '/ip', '/shop', '/cart', '/checkout', '/admin', '/admin/catalog/goods'];
   if (ipPath) paths.push(ipPath);
   for (const path of paths) revalidatePath(path);
 }
@@ -225,11 +233,17 @@ async function getAdminValidationContext(
     getAdminCatalogRecords(),
   ]);
   const activeContext = catalogContextFromSnapshot(catalog);
+  const ipIds = new Set(records.ips.filter((record) => !record.archivedAt).map((record) => record.id));
   const context = {
     ...activeContext,
-    eventIds: new Set(activeContext.eventIds),
-    goodIpById: new Map(activeContext.goodIpById),
-    ipIds: new Set(activeContext.ipIds),
+    eventIds: new Set(records.events
+      .filter((record) => !record.archivedAt && (!record.ipId || ipIds.has(record.ipId)))
+      .map((record) => record.id)),
+    goodIpById: new Map(records.goods
+      .filter((record) => !record.archivedAt && ipIds.has(record.ipId))
+      .map((record) => [record.id, record.ipId])),
+    // 준비 중인 초안 IP는 공개 카탈로그에 없다. 신규 연결은 어드민의 미보관 IP로 검증한다.
+    ipIds,
   };
   const id = formString(formData, 'id');
 
@@ -262,43 +276,75 @@ async function getAdminValidationContext(
 }
 
 export async function upsertAdminIpAction(
-  _state: AdminCatalogActionState,
+  state: AdminCatalogActionState,
   formData: FormData,
 ): Promise<AdminCatalogActionState> {
-  const authError = await requireStaffAction();
-  if (authError) return authError;
+  /* 실패는 어느 단계에서 나든 제출값을 되돌려 폼이 리셋되지 않게 한다. */
+  const fail = (failure: AdminCatalogActionState) => withPreservedFormValues(failure, state, formData);
 
-  const catalog = await getAdminValidationCatalog();
-  const result = normalizeAdminIpForm(formData, catalogContextFromSnapshot(catalog));
-  if (!result.ok) return { errors: result.errors };
+  let result: ReturnType<typeof normalizeAdminIpForm>;
+  try {
+    const authError = await requireStaffAction();
+    if (authError) return fail(authError);
+
+    const catalog = await getAdminValidationCatalog();
+    result = normalizeAdminIpForm(formData, catalogContextFromSnapshot(catalog));
+  } catch (error) {
+    unstable_rethrow(error);
+    return fail(rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.'));
+  }
+  if (!result.ok) return fail({ errors: result.errors });
 
   const value = result.value;
-  const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_upsert_ip', {
-    target_id: value.id,
-    target_title: value.title,
-    target_sub: value.sub,
-    target_vertical_key: value.verticalKey,
-    target_tagline: value.tagline,
-    target_synopsis: value.synopsis,
-    target_glyph: value.glyph,
-    target_bg: value.bg,
-    target_image_path: value.imagePath,
-    target_featured: value.featured,
-    target_previous_id: value.previousId,
-  });
-
-  if (error) {
-    return catalogWriteIntentFailure(error.message)
-      ?? artworkClaimFailure(error.message)
-      ?? rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.');
+  let error: { message: string } | null;
+  try {
+    const supabase = await createClient();
+    ({ error } = await supabase.rpc('admin_upsert_ip', {
+      target_id: value.id,
+      target_title: value.title,
+      target_sub: value.sub,
+      target_vertical_key: value.verticalKey,
+      target_tagline: value.tagline,
+      target_synopsis: value.synopsis,
+      target_glyph: value.glyph,
+      target_bg: value.bg,
+      target_image_path: value.imagePath,
+      // Exposure controls own this value; metadata saves preserve the latest DB flag.
+      target_featured: null,
+      target_previous_id: value.previousId,
+      /* null 이면 게시 상태를 건드리지 않는다(신규는 초안). "저장 후 공개"만 true 를 보낸다. */
+      target_publish: value.publish,
+    }));
+  } catch (error) {
+    unstable_rethrow(error);
+    return fail(rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.'));
   }
 
-  revalidateCatalog([`/ip/${value.id}`]);
-  return { message: 'IP를 저장했습니다.' };
+  if (error) {
+    return fail(
+      catalogWriteIntentFailure(error.message)
+        ?? artworkClaimFailure(error.message)
+        ?? archivedCatalogFailure(error.message)
+        ?? rpcFailure('IP를 저장하지 못했습니다. 다시 시도해주세요.'),
+    );
+  }
+
+  /* 게시 전환은 검색 결과도 바꾼다 — 보관 액션이 비우는 표면과 맞춘다. */
+  revalidateCatalog([`/ip/${value.id}`, '/search', '/admin/catalog/ips', `/admin/catalog/ips/${value.id}`]);
+  return { message: value.publish ? 'IP를 저장하고 공개했습니다.' : 'IP를 저장했습니다.' };
 }
 
-export async function upsertAdminGoodAction(
+export async function upsertAdminGoodAction(state: AdminCatalogActionState, formData: FormData): Promise<AdminCatalogActionState> {
+  try {
+    const result = await saveAdminGood(state, formData);
+    return result.errors ? withPreservedFormValues(result, state, formData) : result;
+  } catch (error) {
+    unstable_rethrow(error);
+    return withPreservedFormValues(rpcFailure('상품을 저장하지 못했습니다. 다시 시도해주세요.'), state, formData);
+  }
+}
+
+async function saveAdminGood(
   _state: AdminCatalogActionState,
   formData: FormData,
 ): Promise<AdminCatalogActionState> {
@@ -310,33 +356,62 @@ export async function upsertAdminGoodAction(
   if (!result.ok) return { errors: result.errors };
 
   const value = result.value;
+  const optionFields: Record<string, unknown> = {};
+  if (formData.has('variants')) {
+    const options = parseGoodsOptionRows(String(formData.get('variants')), value.price);
+    if (!options.ok) return { errors: { variants: options.error } };
+    try {
+      const baseline = JSON.parse(String(formData.get('variantBaseline') ?? '[]'));
+      if (!Array.isArray(baseline) || baseline.length > 100 || baseline.some((id) => typeof id !== 'string')) throw new Error();
+      optionFields.variants = options.rows;
+      optionFields.variant_baseline = baseline;
+    } catch { return { errors: { variants: '옵션 기준값을 확인하지 못했습니다. 새로고침 후 다시 시도해주세요.' } }; }
+  }
+  const fulfillmentFields: Record<string, unknown> = {};
+  if (formData.has('originId')) fulfillmentFields.origin_id = String(formData.get('originId') ?? '').trim() || null;
+  if (formData.has('shippingFeeType')) fulfillmentFields.shipping_fee_type = String(formData.get('shippingFeeType'));
+  if (formData.has('individualFee')) fulfillmentFields.individual_fee = String(formData.get('individualFee'));
   const previousIpPath = readPreviousIpPath(formData);
   const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_upsert_good', {
-    target_id: value.id,
-    target_ip_id: value.ipId,
-    target_name: value.name,
-    target_type: value.type,
-    target_price: value.price,
-    target_badge: value.badge,
-    target_stock: value.stock,
-    target_bg: value.bg,
-    target_image_path: value.imagePath,
-    target_notice_maker: value.notice.maker,
-    target_notice_origin: value.notice.origin,
-    target_notice_material: value.notice.material,
-    target_notice_size: value.notice.size,
-    target_notice_made_on: value.notice.madeOn,
-    target_notice_as_manager: value.notice.asManager,
-    target_notice_as_contact: value.notice.asContact,
-    target_description: value.description,
-    target_gallery_paths: value.galleryPaths,
-    target_detail_image_path: value.detailImagePath,
-    target_previous_id: value.previousId,
-    target_compare_at_price: value.compareAtPrice,
-  });
+  const { data, error } = await supabase.rpc('admin_save_good', { target_good: {
+    ...optionFields,
+    ...fulfillmentFields,
+    id: value.id,
+    ip_id: value.ipId,
+    name: value.name,
+    type: value.type,
+    price: value.price,
+    badge: value.badge,
+    stock: value.stock,
+    bg: value.bg,
+    image_path: value.imagePath,
+    notice_maker: value.notice.maker,
+    notice_origin: value.notice.origin,
+    notice_material: value.notice.material,
+    notice_size: value.notice.size,
+    notice_made_on: value.notice.madeOn,
+    notice_as_manager: value.notice.asManager,
+    notice_as_contact: value.notice.asContact,
+    description: value.description,
+    gallery_paths: value.galleryPaths,
+    detail_image_path: value.detailImagePath,
+    previous_id: value.previousId,
+    compare_at_price: value.compareAtPrice,
+    code: value.code,
+    default_variant_code: value.defaultVariantCode,
+    publish: value.publish,
+  } });
 
   if (error) {
+    if (/stock_changed|goods_options_changed/.test(error.message)) return { errors: { variants: '다른 작업에서 옵션이나 재고가 바뀌었습니다. 입력값은 유지됩니다. 최신 내용을 확인하고 다시 저장해주세요.' } };
+    if (/invalid_goods_options/.test(error.message)) return { errors: { variants: '옵션 이름·코드·금액·재고를 확인해주세요.' } };
+    if (/invalid_good_origin|fulfillment_origin_required|fulfillment_origin_inactive/.test(error.message)) return { errors: { originId: '공개하려면 활성 출고지를 선택해주세요.' } };
+    if (/invalid_good_shipping|invalid_individual_fee/.test(error.message)) return { errors: { shippingFeeType: '배송비 유형과 금액을 확인해주세요.' } };
+    if (error.message.includes('goods_publish_incomplete')) return { errors: { form: '상품 유형·대표 이미지·상품정보제공고시와 옵션을 채운 뒤 공개해주세요.' } };
+    if (error.message.includes('goods_code_key')) return { errors: { code: '이미 사용 중인 상품코드입니다.' } };
+    if (error.message.includes('goods_variants_code_key')) return { errors: { [formData.has('variants') ? 'variants' : 'defaultVariantCode']: '이미 사용 중인 옵션코드입니다.' } };
+    if (error.message.includes('goods_slug_locked')) return { errors: { id: '한 번 공개한 상품의 URL은 변경할 수 없습니다.' } };
+    if (error.message.includes('goods_pkey')) return { errors: { id: '이미 사용 중인 URL입니다.' } };
     return catalogWriteIntentFailure(error.message)
       ?? artworkClaimFailure(error.message)
       ?? archivedParentFailure(error.message)
@@ -345,9 +420,11 @@ export async function upsertAdminGoodAction(
       ?? rpcFailure('굿즈를 저장하지 못했습니다. 다시 시도해주세요.');
   }
 
-  notifyRestockSubscribers(value.id);
-  revalidateCatalog(relatedIpPaths(value.ipId, previousIpPath));
-  return { message: '굿즈를 저장했습니다.' };
+  const savedId = typeof data?.id === 'string' ? data.id : value.id;
+  if (!savedId) return rpcFailure('상품 저장 결과를 확인하지 못했습니다. 목록을 새로고침해주세요.');
+  notifyRestockSubscribers(savedId);
+  revalidateCatalog([...relatedIpPaths(value.ipId, previousIpPath), `/admin/catalog/ips/${value.ipId}`, `/shop/${savedId}`, ...(value.previousId ? [`/shop/${value.previousId}`] : [])]);
+  return { message: '굿즈를 저장했습니다.', savedGoodId: savedId };
 }
 
 export async function adjustAdminStockAction(
@@ -363,9 +440,10 @@ export async function adjustAdminStockAction(
   const value = result.value;
   const ipPath = readStockIpPath(formData);
   const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_adjust_stock', {
+  const { data, error } = await supabase.rpc('admin_adjust_stock', {
     target_adjustment_id: value.adjustmentId,
     target_good_id: value.goodId,
+    target_variant_id: value.variantId,
     target_expected_stock_qty: value.expectedStockQty,
     target_delta: value.delta,
     target_reason: value.reason,
@@ -385,6 +463,7 @@ export async function adjustAdminStockAction(
     if (error.message.includes('stock_out_of_range')) {
       return rpcFailure('재고는 0개 미만이거나 허용 범위를 넘도록 조정할 수 없습니다.');
     }
+    if (error.message.includes('goods_variant_not_found')) return rpcFailure('재고를 조정할 옵션을 찾을 수 없습니다. 최신 옵션 목록을 확인해주세요.');
     if (error.message.includes('good_not_found')) {
       return rpcFailure('굿즈를 찾을 수 없습니다.');
     }
@@ -393,13 +472,35 @@ export async function adjustAdminStockAction(
 
   notifyRestockSubscribers(value.goodId);
   revalidateStock(ipPath);
-  return { message: '실재고를 조정했습니다.' };
+  return { message: '실재고를 조정했습니다.', ...(typeof data === 'number' ? {
+    stockAdjustment: { variantId: value.variantId, stockQty: data, adjustmentId: crypto.randomUUID() },
+  } : {}) };
 }
 
 export async function upsertAdminCardAction(
-  _state: AdminCatalogActionState,
+  state: AdminCatalogActionState,
   formData: FormData,
 ): Promise<AdminCatalogActionState> {
+  return preserveCatalogSubmission(state, formData, () => saveAdminCard(formData),
+    '카드를 저장하지 못했습니다. 다시 시도해주세요.');
+}
+
+async function preserveCatalogSubmission(
+  state: AdminCatalogActionState,
+  formData: FormData,
+  save: () => Promise<AdminCatalogActionState>,
+  failureMessage: string,
+): Promise<AdminCatalogActionState> {
+  try {
+    const result = await save();
+    return result.errors ? withPreservedFormValues(result, state, formData) : result;
+  } catch (error) {
+    unstable_rethrow(error);
+    return withPreservedFormValues(rpcFailure(failureMessage), state, formData);
+  }
+}
+
+async function saveAdminCard(formData: FormData): Promise<AdminCatalogActionState> {
   const authError = await requireStaffAction();
   if (authError) return authError;
 
@@ -453,9 +554,14 @@ export async function upsertAdminCardAction(
 }
 
 export async function upsertAdminCardPoolAction(
-  _state: AdminCatalogActionState,
+  state: AdminCatalogActionState,
   formData: FormData,
 ): Promise<AdminCatalogActionState> {
+  return preserveCatalogSubmission(state, formData, () => saveAdminCardPool(formData),
+    '카드풀을 저장하지 못했습니다. 다시 시도해주세요.');
+}
+
+async function saveAdminCardPool(formData: FormData): Promise<AdminCatalogActionState> {
   const authError = await requireStaffAction();
   if (authError) return authError;
 
@@ -768,9 +874,14 @@ export async function endAdminGameAction(
 }
 
 export async function upsertAdminEventAction(
-  _state: AdminCatalogActionState,
+  state: AdminCatalogActionState,
   formData: FormData,
 ): Promise<AdminCatalogActionState> {
+  return preserveCatalogSubmission(state, formData, () => saveAdminEvent(formData),
+    '이벤트를 저장하지 못했습니다. 다시 시도해주세요.');
+}
+
+async function saveAdminEvent(formData: FormData): Promise<AdminCatalogActionState> {
   const authError = await requireStaffAction();
   if (authError) return authError;
 

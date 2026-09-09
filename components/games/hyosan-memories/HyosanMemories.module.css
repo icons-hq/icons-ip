@@ -1,6 +1,10 @@
 .game,
 .loading,
 .accessGate {
+  /* These values belonged to the former shared foundation; keep the approved HUD unchanged. */
+  --hyosan-font-body: 'Pretendard Variable', 'Pretendard', var(--font-space-grotesk), sans-serif;
+  --hyosan-font-utility: var(--font-space-mono), 'Pretendard', monospace;
+  --hyosan-focus: #5b74ff;
   --hyosan-ink: #071011;
   --hyosan-panel: rgba(10, 18, 19, 0.82);
   --hyosan-line: rgba(198, 222, 215, 0.3);
@@ -16,7 +20,7 @@
   background:
     radial-gradient(circle at 50% 12%, rgba(80, 116, 111, 0.22), transparent 42%),
     var(--hyosan-ink);
-  font-family: var(--editorial-font-body, "Pretendard Variable", "Pretendard", sans-serif);
+  font-family: var(--hyosan-font-body);
   touch-action: none;
   overscroll-behavior: none;
   user-select: none;
@@ -68,7 +72,7 @@
 }
 
 .loginButton:focus-visible {
-  outline: 2px solid var(--editorial-focus);
+  outline: 2px solid var(--hyosan-focus);
   outline-offset: 4px;
 }
 
@@ -83,7 +87,7 @@
 .loadingEyebrow,
 .eyebrow {
   color: var(--hyosan-mint);
-  font-family: var(--editorial-font-utility, monospace);
+  font-family: var(--hyosan-font-utility);
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.16em;
@@ -160,7 +164,7 @@
 .waveCount {
   display: block;
   margin-top: 7px;
-  font-family: var(--editorial-font-utility, monospace);
+  font-family: var(--hyosan-font-utility);
   font-size: 18px;
   letter-spacing: 0.02em;
 }
@@ -197,7 +201,7 @@
   top: max(18px, env(safe-area-inset-top));
   right: max(18px, env(safe-area-inset-right));
   padding: 10px 12px;
-  font-family: var(--editorial-font-utility, monospace);
+  font-family: var(--hyosan-font-utility);
   text-align: right;
 }
 
@@ -235,7 +239,7 @@
 
 .desktopHelp kbd {
   color: #eef5f1;
-  font-family: var(--editorial-font-utility, monospace);
+  font-family: var(--hyosan-font-utility);
   font-size: 10px;
   font-weight: 800;
 }
@@ -329,7 +333,7 @@
 .actionButton:focus-visible,
 .result button:focus-visible,
 .result a:focus-visible {
-  outline: 2px solid var(--editorial-focus);
+  outline: 2px solid var(--hyosan-focus);
   outline-offset: 3px;
 }
 
@@ -346,7 +350,7 @@
 .actionButton small {
   margin-top: 2px;
   color: rgba(238, 245, 241, 0.52);
-  font-family: var(--editorial-font-utility, monospace);
+  font-family: var(--hyosan-font-utility);
   font-size: 8px;
 }
 
@@ -386,7 +390,7 @@
 
 .result span {
   color: var(--hyosan-mint);
-  font-family: var(--editorial-font-utility, monospace);
+  font-family: var(--hyosan-font-utility);
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.14em;

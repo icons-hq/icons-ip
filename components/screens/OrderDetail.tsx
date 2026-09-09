@@ -1,3 +1,5 @@
+
+import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
 import Link from 'next/link';
 import { OrderCancellation } from '@/components/orders/OrderCancellation';
 import { OrderClaimRequest } from '@/components/orders/OrderClaimRequest';
@@ -235,10 +237,11 @@ export function OrderDetail({
 
           <div className="order-detail-items">
             {order.items.map((item) => (
-              <article className="order-detail-item" key={item.goodId}>
+              <article className="order-detail-item" key={`${item.goodId}:${item.variantId ?? "default"}`}>
                 <div className="order-detail-item-copy">
                   <span>{item.type}</span>
                   <h3>{item.name}</h3>
+                  {item.variantName ? <p>{item.variantName}</p> : null}
                 </div>
                 <dl className="order-detail-item-numbers">
                   <div><dt>수량</dt><dd>{item.qty}개</dd></div>
@@ -265,6 +268,7 @@ export function OrderDetail({
           {!claimRequest || isCancelClaim ? (
             <OrderCancellation
               cancellationRequest={claimRequest}
+              eligibility={order.claimEligibility}
               deliveredAt={order.deliveredAt}
               orderId={order.id}
               refund={order.refund}
@@ -278,14 +282,13 @@ export function OrderDetail({
           {!activeCancelClaim ? (
             <OrderClaimRequest
               claim={isCancelClaim ? null : claimRequest}
+              eligibility={order.claimEligibility}
               orderId={order.id}
               status={order.status}
             />
           ) : null}
 
-          {/* 청약철회(클레임 접수) 바로 아래에 둔다. 둘은 다른 일이다 — 철회는 절차이고
-              문의는 질문이다. 붙여 두면 "무엇을 눌러야 하는지" 헷갈리는 대신 두 경로가
-              모두 있다는 사실이 한눈에 보인다. */}
+          {/* 직접 신청 조건 밖의 의사표시도 주문 맥락과 최초 문의 시각을 남긴다. */}
           <div className="order-detail-inquiry">
             <Link
               className="btn btn-ghost"
@@ -294,7 +297,9 @@ export function OrderDetail({
               이 주문 문의하기
             </Link>
             <span className="faint" style={{ fontSize: 12.5 }}>
-              주문번호와 배송 정보가 함께 전달되어 운영자가 바로 확인할 수 있습니다.
+              직접 취소는 발주확인 전, 반품·교환은 모든 굿즈 배송 완료 후에 신청할 수 있습니다.
+              그 밖의 청약철회 의사표시는 이 주문의 1:1 문의 또는 고객센터로 알려주세요.
+              주문 정보와 접수 시각이 함께 보존됩니다. 문의 접수만으로 환불이 승인되거나 출고가 중단되지는 않습니다.
             </span>
           </div>
         </section>
@@ -327,23 +332,7 @@ export function OrderDetail({
             )}
           </section>
 
-          {order.shipment && (
-            <section className="order-receipt-section" aria-labelledby="shipment-heading">
-              <h3 id="shipment-heading">배송 정보</h3>
-              <dl className="order-payment-summary">
-                <div><dt>택배사</dt><dd>{order.shipment.carrierLabel}</dd></div>
-                <div><dt>운송장번호</dt><dd className="mono">{order.shipment.trackingNumber}</dd></div>
-              </dl>
-              <a
-                className="btn btn-ghost order-tracking-link"
-                href={order.shipment.trackingUrl}
-                rel="noreferrer"
-                target="_blank"
-              >
-                배송조회
-              </a>
-            </section>
-          )}
+          <ShipmentDetails shipments={order.shipments} items={order.items} />
 
           <section className="order-receipt-section" aria-labelledby="payment-summary-heading">
             <h3 id="payment-summary-heading">결제 정보</h3>

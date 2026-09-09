@@ -45,6 +45,9 @@ const good: Good = {
 function controller(overrides: Partial<GoodPurchaseController> = {}): GoodPurchaseController {
   return {
     good,
+    selectedOption: undefined,
+    selectOption: vi.fn(),
+    selectionRequired: false,
     quantity: 1,
     setQuantity: vi.fn(),
     subtotal: good.price,
@@ -168,6 +171,29 @@ describe('activeGalleryIndex', () => {
 });
 
 describe('GoodPurchasePanel', () => {
+  it('단일 옵션은 선택기를 숨기고 기본값이 아닌 옵션명만 표시한다', () => {
+    const option = {id:'blue',name:'파랑',price:12000,stockQty:3,code:'BLUE',attributes:{색상:'파랑'},isDefault:true};
+    const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...good,options:[option]},selectedOption:option})} />);
+    expect(html).not.toContain('<select');
+    expect(html).toContain('파랑');
+    const defaultOption = {...option,name:'기본 옵션',attributes:{}};
+    const defaultHtml = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...good,options:[defaultOption]},selectedOption:defaultOption})} />);
+    expect(defaultHtml).not.toContain('<select');
+    expect(defaultHtml).not.toContain('wc-buy-panel__option');
+  });
+
+  it('keeps sold-out options visible and prevents choosing them', () => {
+    const options = [
+      {id:'blue',name:'파랑',price:12000,stockQty:0,code:'BLUE',attributes:{},isDefault:true},
+      {id:'red',name:'빨강',price:15000,stockQty:2,code:'RED',attributes:{},isDefault:false},
+    ];
+    const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...good,options},selectionRequired:true,inert:true})} />);
+    expect(html).toContain('옵션을 선택해주세요');
+    expect(html).toMatch(/<option[^>]*value="blue"[^>]*disabled=""/);
+    expect(html).toContain('파랑 · ₩12,000 · 품절');
+    expect(html).toContain('빨강 · ₩15,000');
+  });
+
   it('합계는 단가가 아니라 수량을 반영한 금액이다', () => {
     const html = renderToStaticMarkup(
       <GoodPurchasePanel purchase={controller({ quantity: 3, subtotal: purchaseSubtotal(good.price, 3) })} />,

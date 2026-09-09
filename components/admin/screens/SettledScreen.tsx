@@ -12,13 +12,14 @@ import {
   type AdminSettledConsoleData,
 } from '@/lib/admin/settled';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
+import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 
 const COLUMNS: ConsoleGridColumn[] = [
   { key: 'reference', label: '주문번호', width: '110px' },
   { key: 'buyer', label: '구매자', width: '140px' },
   { key: 'deliveredAt', label: '배송완료', width: '160px' },
   { key: 'doneAt', label: '확정일', width: '160px' },
-  { key: 'claim', label: '하자 클레임' },
+  { key: 'claim', label: '하자 요청' },
   { key: 'total', label: '결제금액', align: 'end', width: '110px' },
 ];
 
@@ -71,7 +72,7 @@ export function SettledScreen({
   });
 
   return (
-    <section className="admin-console">
+    <section className="admin-console wc-admin-kit">
       <ConsoleFilterPanel
         action="/admin/sales/settled"
         dateRange={{ from: filters.from, label: '주문일', to: filters.to }}
@@ -83,8 +84,8 @@ export function SettledScreen({
       />
 
       <p className="muted">
-        거래확정은 배송완료 8일 뒤 자동으로 처리됩니다. 확정 이후에도 상품 하자·오배송
-        클레임은 공급받은 날부터 3개월 이내에 접수할 수 있습니다.
+        <span data-admin-tooltip={ADMIN_VOCABULARY.settledHint} title={ADMIN_VOCABULARY.settledHint} tabIndex={0}>{ADMIN_VOCABULARY.settled}</span>은 배송완료 8일 뒤 자동으로 처리됩니다. 확정 이후에도 상품 하자·오배송
+        {ADMIN_VOCABULARY.claimRequest}은 공급받은 날부터 3개월 이내에 접수할 수 있습니다.
       </p>
 
       <ConsoleGrid

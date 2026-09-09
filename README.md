@@ -17,6 +17,8 @@ ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 �
 - 굿즈와 티켓 checkout은 provider-neutral attempt/claim/finalizer와 `PaymentGateway` 경계 위에서 **토스페이먼츠 주문서형 v2**를 기본 provider로 쓴다(prepare→위젯 SDK→경로 세그먼트 nonce callback→서버 승인, ADR-0013). **판매 제한 상품**(성인(19금))이 담긴 주문만 서버가 주문 단위로 코페이를 파생하며 관리자가 PG를 고르지 않는다. 목적별 rollout gate의 기본값은 OFF이고 토스 gate 둘과 canary 둘은 모두 닫혀 있다 — 개방은 심사 트랙(`docs/runbooks/toss-production-rollout.md`)을 따른다. 2026-08-18 공개 ON으로 열어 둔 코페이 굿즈 gate는 폐쇄 실행 대기다.
 - 범용 온라인 팝업 운영 레이어와 Expo webview 호스트는 현 로드맵에 없다. 19+ 꽝 없는 유한 실물 쿠지는 기존 카드·게임과 분리된 `prize_sale`로 설계하며 [#212](https://github.com/icons-hq/icons-ip/issues/212)·[#213](https://github.com/icons-hq/icons-ip/issues/213)이 별도 추적한다.
 
+운영자는 [설정 런북](./docs/runbooks/admin-store-settings.md)에서 사업자·CS, 무통장 계좌 표시값과 택배사 변경 절차를 확인할 수 있습니다.
+
 ## 빠른 시작
 
 ```bash
@@ -204,7 +206,7 @@ npm run hong-sil:download -- \
 
 ## CI/CD
 
-GitHub Actions의 `CI/CD Pipeline`은 PR 검증(lint/typecheck/test/build/Supabase local lint), Vercel preview 배포, production 배포를 처리하고 `Supabase Preview Cleanup`은 PR close 시 최종 base와 무관하게 deterministic isolated branch만 정리한다.
+GitHub Actions의 `CI/CD Pipeline`은 PR 검증(lint/typecheck/test/build/Supabase local lint), Vercel preview 배포, production 배포를 처리하고 `Supabase Preview Cleanup`은 PR close 시 최종 base와 무관하게 deterministic isolated branch만 정리한다. 운영팀용 `deploy-staging`은 성공한 main shared-preview 동기화 뒤 영구 `staging` branch에 앱을 배포한다. 고정 alias·test 키·생성 계정·연습 데이터 보존 절차와 실제 활성화 상태는 [스테이징 런북](docs/runbooks/staging.md)을 따른다.
 
 - `pull_request`: open·commit 갱신·reopen과 base branch retarget에서 `validate`를 실행하고, 같은 repo 브랜치 PR이면 preview DB mode를 고른다. 제목·본문만 편집한 `edited` 이벤트는 다시 배포하거나 실행 중인 Preview run을 취소하지 않는다. `main` 대상은 merge-base 기준 전체 diff를 rename 비탐지로 읽고, Supabase 배포 변경이 없을 때만 base SHA의 main→shared sync 성공 증거를 확인한 뒤 shared main을 변경 없이 사용한다. shared Vercel 배포 직전에도 원격 `main`이 검증한 base SHA와 같은지 다시 확인하며, 달라졌으면 새 base run을 기다리도록 실패한다. 통합 브랜치 대상 PR은 선행 stage의 누적 DB 상태를 놓치지 않도록 앱 전용 diff여도 항상 isolated다. isolated head는 현재 `main`을 포함해야 하며, 무데이터 `pr-<number>` branch를 재생성한 직후에도 `main` ancestry를 다시 확인해 동시 main sync 경쟁을 차단한다. 그 뒤 migration·custom roles·seed·repo Edge Functions·baseline 검증을 마치고 Vercel preview와 recovery template를 순서대로 배포한다. Hosted `config.toml` 전체 push는 이 경로가 소유하지 않는다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
 - `pull_request: closed`: 최종 base와 무관하게 Preview pipeline과 같은 per-PR concurrency key에서 대기한 뒤 non-default `pr-<number>` branch가 있으면 삭제한다.

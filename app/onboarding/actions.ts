@@ -94,6 +94,7 @@ async function filterExistingRecommendedIpIds(
     .from('ips')
     .select('id')
     .is('archived_at', null)
+    .not('published_at', 'is', null)
     .in('id', recommendedIpIds);
 
   if (error) {

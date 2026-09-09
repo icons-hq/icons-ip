@@ -4,19 +4,16 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { normalizeAdminDispatchDelayForm } from '@/lib/admin/dispatch';
 import {
-  ADMIN_ORDER_STATUS_LABELS,
   normalizeAdminCancellationDecisionForm,
   normalizeAdminGoodsManualRecoveryForm,
   normalizeAdminOrderStatusForm,
   normalizeAdminOrderTrackingForm,
   type AdminOrderFieldErrors,
   type AdminOrderFormStatus,
-  type AdminOrderStatus,
 } from '@/lib/admin/orders';
 import {
   parseTrackingImport,
   TRACKING_IMPORT_ROW_LIMIT,
-  type TrackingImportRow,
 } from '@/lib/admin/tracking-import';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { parseOrderEmailDedupeKey } from '@/lib/email/dedupe';
@@ -27,13 +24,16 @@ import {
 import { orderReferenceLabel } from '@/lib/orders';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
 import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recovery.server';
-import { orderShipment } from '@/lib/orders/shipment';
+import { parseTrackingWorkbook, TRACKING_IMPORT_FILE_LIMIT_BYTES, type TrackingWorkbookParseResult } from '@/lib/admin/tracking-workbook.server';
+import { shipmentMutationError } from '@/lib/admin/shipment-dispatch';
+import { enqueueOrderShippedEmails } from '@/lib/email/order-shipment-jobs.server';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
 
 export interface AdminOrderActionState {
   errors?: AdminOrderFieldErrors & { form?: string };
   message?: string;
+  confirmedOrderIds?: string[];
 }
 
 function loginPath() {
@@ -57,6 +57,7 @@ function revalidateOrderSurfaces(orderId?: string) {
   revalidatePath('/admin/sales/dispatch');
   revalidatePath('/admin/sales/shipping');
   if (orderId) revalidatePath(`/orders/${orderId}`);
+  else { revalidatePath('/orders/[orderId]', 'page'); revalidatePath('/admin/sales/orders/[orderId]', 'page'); }
 }
 
 async function reconcileApprovedRequest(requestId: string, actorId: string) {
@@ -106,17 +107,7 @@ export async function updateAdminOrderStatusAction(
   // 구매자는 "운송장 정보가 등록되면…"만 담긴 메일을 받고, dedupe 행이 sent로 닫혀
   // 다시 보낼 수도 없다. 발송 결과는 상태 전이에 영향을 주지 않는다.
   if (normalized.value.status === 'shipping') {
-    const shipment = orderShipment(
-      carriers,
-      normalized.value.carrier,
-      normalized.value.trackingNumber,
-    );
-    const delivery = await sendOrderShippedEmail({
-      orderId: normalized.value.orderId,
-      carrierName: shipment?.carrierLabel ?? null,
-      trackingNumber: shipment?.trackingNumber ?? null,
-      trackingUrl: shipment?.trackingUrl ?? null,
-    });
+    const delivery = await sendOrderShippedEmail({ orderId: normalized.value.orderId });
     // 결과를 버리면 실패가 로그에도 남지 않는다. 재발송 대상은 발송 이력 화면에서 본다.
     if (delivery.status === 'failed') {
       console.error(`[admin] shipped email failed (order:${normalized.value.orderId}): ${delivery.error}`);
@@ -168,7 +159,7 @@ export async function bulkConfirmAdminOrdersAction(
   }
 
   const supabase = await createClient();
-  let confirmed = 0;
+  const confirmedOrderIds: string[] = [];
   const failed: string[] = [];
 
   for (const orderId of orderIds) {
@@ -182,11 +173,12 @@ export async function bulkConfirmAdminOrdersAction(
       failed.push(orderId);
       continue;
     }
-    confirmed += 1;
+    confirmedOrderIds.push(orderId);
   }
 
   for (const orderId of orderIds) revalidateOrderSurfaces(orderId);
 
+  const confirmed = confirmedOrderIds.length;
   if (!confirmed) {
     return {
       errors: {
@@ -201,12 +193,13 @@ export async function bulkConfirmAdminOrdersAction(
        못한다. 주문번호를 그대로 실어 보낸다 — 원인은 주문마다 다를 수 있으므로
        (취소 요청·이미 바뀐 상태·일시적 오류) 한 가지로 단정하지 않는다. */
     return {
+      confirmedOrderIds,
       message: `${confirmed}건을 발주확인했습니다. 처리하지 못한 ${failed.length}건: ${
         failed.map(orderReferenceLabel).join(', ')
       } — 주문 상세에서 취소 요청 여부와 현재 상태를 확인해주세요.`,
     };
   }
-  return { message: `${confirmed}건을 발주확인했습니다.` };
+  return { confirmedOrderIds, message: `${confirmed}건을 발주확인했습니다.` };
 }
 
 export async function updateAdminOrderTrackingAction(
@@ -218,11 +211,13 @@ export async function updateAdminOrderTrackingAction(
 
   const normalized = normalizeAdminOrderTrackingForm(formData, await getShippingCarrierRegistry());
   if (!normalized.ok) return { errors: normalized.errors };
+  const shipmentId = String(formData.get('shipmentId') ?? '').trim();
+  if (shipmentId && !UUID_PATTERN.test(shipmentId)) return { errors: { form: '배송건번호를 확인해주세요.' } };
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_update_order_tracking', {
+  const { error } = await supabase.rpc(shipmentId ? 'admin_update_shipment_tracking' : 'admin_update_order_tracking', {
     p_carrier: normalized.value.carrier,
-    p_order_id: normalized.value.orderId,
+    ...(shipmentId ? { p_shipment_id: shipmentId } : { p_order_id: normalized.value.orderId }),
     p_tracking_number: normalized.value.trackingNumber,
   });
   if (error) {
@@ -260,7 +255,7 @@ export async function resendOrderEmailAction(
   // 운송장 값은 넘기지 않는다 — 발송 훅이 주문 행에서 읽는다.
   const delivery = parsed.template === 'order_confirmation'
     ? await sendOrderConfirmationEmail(parsed.orderId)
-    : await sendOrderShippedEmail({ orderId: parsed.orderId });
+    : await sendOrderShippedEmail({ orderId: parsed.orderId, shipmentId: parsed.shipmentId });
 
   revalidatePath('/admin');
 
@@ -398,175 +393,62 @@ export interface AdminTrackingImportFailure {
 export interface AdminTrackingImportState {
   errors?: { form?: string };
   message?: string;
+  queueWarning?: boolean;
   report?: {
     succeeded: string[];
     failed: AdminTrackingImportFailure[];
   };
 }
 
-/** 업로드 파일 상한. 100줄짜리 CSV는 몇 KB다. */
-const TRACKING_IMPORT_FILE_LIMIT_BYTES = 256 * 1024;
-
-interface SearchOrderRow {
-  id: string;
-  status: string;
-}
-
-async function readTrackingImportSource(formData: FormData) {
-  const file = formData.get('file');
-  if (file instanceof File && file.size > 0) {
-    if (file.size > TRACKING_IMPORT_FILE_LIMIT_BYTES) {
-      return { error: '파일이 너무 큽니다. 100건 이하로 나눠 올려주세요.' };
-    }
-    return { text: await file.text() };
-  }
-  return { text: String(formData.get('pasted') ?? '') };
-}
-
-/**
- * 파일에 적힌 주문번호를 실제 주문으로 푼다.
- *
- * `admin_search_orders`를 그대로 쓴다 — staff 권한 검사가 그 안에 있고, orders를
- * 직접 읽으면 같은 검사를 한 벌 더 만들게 된다. 상태 필터를 걸지 않는 이유는
- * "주문이 없다"와 "발주확인 상태가 아니다"를 구분해 돌려주기 위해서다.
- */
-async function resolveTrackingImportOrder(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  row: TrackingImportRow,
-): Promise<{ id: string } | { reason: string }> {
-  const { data, error } = await supabase.rpc('admin_search_orders', {
-    p_from: null,
-    p_limit: 100,
-    p_offset: 0,
-    p_query: row.orderId ?? row.reference,
-    p_status: null,
-    p_to: null,
-  });
-  if (error) return { reason: '주문을 조회하지 못했습니다. 잠시 뒤 다시 시도해주세요.' };
-
-  /* 검색은 부분 일치라 닉네임·이메일에 같은 문자열이 든 주문까지 걸린다.
-     주문번호가 정확히 같은 것만 남긴다. */
-  const matches = ((data ?? []) as SearchOrderRow[]).filter((candidate) => (
-    row.orderId
-      ? candidate.id === row.orderId
-      : orderReferenceLabel(candidate.id) === row.reference
-  ));
-
-  if (!matches.length) return { reason: '주문을 찾을 수 없습니다.' };
-  if (matches.length > 1) {
-    return { reason: '주문번호가 여러 주문과 일치합니다. 전체 주문 UUID로 다시 올려주세요.' };
-  }
-
-  const [match] = matches;
-  if (match.status !== 'confirmed') {
-    const label = ADMIN_ORDER_STATUS_LABELS[match.status as AdminOrderStatus] ?? match.status;
-    return { reason: `발주확인 상태가 아닙니다(현재: ${label}).` };
-  }
-  return { id: match.id };
-}
-
-/**
- * 엑셀(CSV/TSV) 일괄 운송장 등록.
- *
- * 건별로 기존 `admin_update_order_status`를 부른다. 일괄 전용 RPC를 만들지 않는
- * 이유는 전이 규칙·활성 클레임 검사·운송장 필수 게이트·감사 로그가 이미 그 함수
- * 안에 있기 때문이다 — 우회로를 만들면 규칙이 두 벌이 된다(#250과 같은 판단).
- *
- * 한 줄이 실패해도 나머지를 멈추지 않는다. 창고에서 이미 나간 물건의 운송장을
- * 한 줄 때문에 통째로 되돌리면 운영자는 무엇이 등록됐는지 모른 채 다시 올린다.
- *
- * **어드민이 운송장의 진실원이 아니다.** 김포 창고는 WMS로 운송장을 발행하고,
- * 이 경로는 그 결과를 옮겨 적는 운영 기록이다(#177). 포맷을 파일로 유지하는 것이
- * WMS와의 접점이다.
- */
+/** The DB batch keeps per-row failures and commits each valid shipment once. */
 export async function bulkRegisterAdminOrderTrackingAction(
-  _state: AdminTrackingImportState,
-  formData: FormData,
+  _state: AdminTrackingImportState, formData: FormData,
 ): Promise<AdminTrackingImportState> {
   const access = await requireStaffAction();
   if (access.error) return { errors: { form: access.error.errors?.form } };
-
-  const source = await readTrackingImportSource(formData);
-  if ('error' in source) return { errors: { form: source.error } };
-  if (!source.text.trim()) {
-    return { errors: { form: '등록할 내용을 붙여넣거나 파일을 선택해주세요.' } };
-  }
-
   const carriers = await getShippingCarrierRegistry();
-  const parsed = parseTrackingImport(source.text, carriers);
-
-  if (parsed.rows.length + parsed.issues.length === 0) {
-    return { errors: { form: '읽을 수 있는 줄이 없습니다. 주문번호·택배사코드·운송장번호 세 칸을 확인해주세요.' } };
-  }
-  if (parsed.rows.length > TRACKING_IMPORT_ROW_LIMIT) {
-    return {
-      errors: {
-        form: `한 번에 등록할 수 있는 운송장은 ${TRACKING_IMPORT_ROW_LIMIT}건까지입니다. 파일을 나눠 올려주세요.`,
-      },
-    };
-  }
-
-  const supabase = await createClient();
-  const succeeded: string[] = [];
-  const failed: AdminTrackingImportFailure[] = parsed.issues.map((issue) => ({
-    line: issue.line,
-    reference: issue.reference,
-    reason: issue.reason,
-  }));
-
-  for (const row of parsed.rows) {
-    const resolved = await resolveTrackingImportOrder(supabase, row);
-    if ('reason' in resolved) {
-      failed.push({ line: row.line, reference: row.reference, reason: resolved.reason });
-      continue;
+  let parsed: TrackingWorkbookParseResult;
+  try {
+    const file = formData.get('file');
+    if (file instanceof File && file.size > 0) {
+      if (file.size > TRACKING_IMPORT_FILE_LIMIT_BYTES) return {errors:{form:'파일은 256KB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.'}};
+      if (/\.xlsx$/i.test(file.name)) parsed=await parseTrackingWorkbook(Buffer.from(await file.arrayBuffer()),carriers);
+      else if (/\.(csv|tsv|txt)$/i.test(file.name)) parsed=parseTrackingImport(await file.text(),carriers);
+      else return {errors:{form:'XLSX 또는 CSV·TSV 파일을 올려주세요.'}};
+    } else {
+      const text=String(formData.get('pasted')??'');
+      if(Buffer.byteLength(text,'utf8')>TRACKING_IMPORT_FILE_LIMIT_BYTES)return {errors:{form:'붙여넣기 내용은 256KB 이하로 나누어주세요.'}};
+      parsed=parseTrackingImport(text,carriers);
     }
-
-    const { error } = await supabase.rpc('admin_update_order_status', {
-      p_carrier: row.carrier,
-      p_order_id: resolved.id,
-      p_status: 'shipping',
-      p_tracking_number: row.trackingNumber,
-    });
-    if (error) {
-      failed.push({
-        line: row.line,
-        reference: row.reference,
-        reason: '발송처리에 실패했습니다. 취소 요청이 열려 있는지 주문 상세에서 확인해주세요.',
-      });
-      continue;
-    }
-
-    succeeded.push(row.reference);
-    revalidateOrderSurfaces(resolved.id);
-
-    // 배송 시작 메일. 발송 결과는 상태 전이에 영향을 주지 않는다(#180).
-    const shipment = orderShipment(carriers, row.carrier, row.trackingNumber);
-    const delivery = await sendOrderShippedEmail({
-      orderId: resolved.id,
-      carrierName: shipment?.carrierLabel ?? null,
-      trackingNumber: shipment?.trackingNumber ?? null,
-      trackingUrl: shipment?.trackingUrl ?? null,
-    });
-    if (delivery.status === 'failed') {
-      console.error(`[admin] shipped email failed (order:${resolved.id}): ${delivery.error}`);
-    }
+  } catch(error) { return {errors:{form:error instanceof Error?error.message:'운송장 파일을 읽지 못했습니다.'}}; }
+  const warehouse='kind' in parsed&&parsed.kind==='gimpo';
+  const originId=String(formData.get('originId')??'');
+  if(warehouse&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(originId))
+    return {errors:{form:'김포 원본 회신은 목록 위에서 해당 출고지를 선택한 뒤 올려주세요.'}};
+  const count=parsed.rows.length+parsed.issues.length;
+  if(!count)return {errors:{form:'등록할 운송장을 붙여넣거나 파일을 선택해주세요.'}};
+  if(count>TRACKING_IMPORT_ROW_LIMIT)return {errors:{form:'운송장은 한 번에 1,000줄까지 등록할 수 있습니다.'}};
+  const failed:AdminTrackingImportFailure[]=[...parsed.issues];
+  const succeeded:string[]=[];
+  let queueWarning=false;
+  if(parsed.rows.length){
+    const supabase=await createClient();
+    const result=warehouse
+      ?await supabase.rpc('admin_import_warehouse_tracking_batch',{target_origin_id:originId,target_rows:parsed.rows.map(row=>({line:row.line,reference:row.reference,trackingNumber:row.trackingNumber}))})
+      :await supabase.rpc('admin_import_shipment_tracking_batch',{target_rows:parsed.rows.map(row=>({line:row.line,reference:row.reference,carrier:'carrier' in row?row.carrier:undefined,trackingNumber:row.trackingNumber}))});
+    if(warehouse&&result.error?.message&&/^(warehouse_|inactive_shipping_carrier$|invalid_tracking_)/.test(result.error.message))
+      return {errors:{form:shipmentMutationError(result.error.message)}};
+    if(result.error||!Array.isArray(result.data)||result.data.length!==parsed.rows.length)return {errors:{form:'등록 결과를 확인하지 못했습니다. 최신 배송 상태를 확인하고 같은 파일로 다시 시도해주세요.'}};
+    const rows=result.data as {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean}[];
+    for(const row of rows){if(row.ok){if(!row.duplicate)succeeded.push(row.reference);}else failed.push({line:row.line,reference:row.reference,reason:shipmentMutationError(row.error??'')});}
+    const deliveries=rows.filter(row=>row.ok&&!row.duplicate&&row.shipmentId&&row.orderId).map(row=>({orderId:row.orderId!,shipmentId:row.shipmentId!}));
+    if(deliveries.length){try{await enqueueOrderShippedEmails(deliveries);}catch{queueWarning=true;}}
+    revalidateOrderSurfaces();
   }
-
-  /* 실패한 줄만 있어도 리포트를 돌려준다 — 사유가 줄마다 다르므로 한 문장으로
-     접으면 운영자가 무엇을 고쳐 다시 올릴지 알 수 없다. */
-  const report = { failed, succeeded };
-  if (!succeeded.length) {
-    return {
-      errors: { form: `${failed.length}건을 등록하지 못했습니다. 아래 사유를 확인해주세요.` },
-      report,
-    };
-  }
-  return {
-    message: failed.length
-      ? `${succeeded.length}건을 발송처리했습니다. 처리하지 못한 ${failed.length}건은 아래에 있습니다.`
-      : `${succeeded.length}건을 발송처리했습니다.`,
-    report,
-  };
+  failed.sort((a,b)=>a.line-b.line);
+  const report={failed,succeeded};
+  if(!succeeded.length)return {errors:{form:`${failed.length}건을 등록하지 못했습니다. 행별 사유를 확인해주세요.`},report};
+  return {message:`${succeeded.length}건의 운송장을 등록했습니다.${failed.length?` 실패 ${failed.length}건은 행별 사유를 확인해주세요.`:''}${queueWarning?' 배송 메일 대기열 확인이 필요합니다. 발송 이력에서 확인해주세요.':''}`,report,...(queueWarning?{queueWarning:true}:{})};
 }
 
 /**

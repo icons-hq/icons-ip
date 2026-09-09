@@ -9,6 +9,8 @@ import { imageUrlFromBg, normalizePublicMediaPath } from '@/lib/media';
 export interface AdminIpRecord {
   id: string;
   archivedAt: string | null;
+  /** 게시 시각. null 이면 초안(비공개). 보관 여부와 함께 읽어야 상태가 정해진다(lib/admin/ip-publish.ts). */
+  publishedAt: string | null;
   title: string;
   sub: string | null;
   verticalKey: string;
@@ -30,6 +32,12 @@ export type AdminGoodSaleRestriction = 'none' | 'adult';
 
 export interface AdminGoodRecord {
   id: string;
+  code: string;
+  firstPublishedAt: string | null;
+  originId?: string | null;
+  shippingFeeType?: 'policy' | 'free' | 'individual';
+  individualFee?: number;
+  publishedAt: string | null;
   archivedAt: string | null;
   ipId: string;
   name: string;
@@ -291,6 +299,7 @@ const skippedResult = Promise.resolve({ data: [] as never[], error: null as { me
 interface IpRow {
   id: string;
   archived_at: string | null;
+  published_at?: string | null;
   title: string;
   sub: string | null;
   vertical_key: string;
@@ -305,6 +314,12 @@ interface IpRow {
 
 interface GoodRow {
   id: string;
+  code: string;
+  first_published_at: string | null;
+  origin_id: string | null;
+  shipping_fee_type: 'policy' | 'free' | 'individual';
+  individual_fee: number;
+  published_at: string | null;
   archived_at: string | null;
   ip_id: string;
   name: string;
@@ -457,7 +472,7 @@ function hasReadyPoolOdds(pool: CardPoolRow, cards: CardRow[]) {
  * 권한 가드는 여기 없다 — 각 page가 로더보다 먼저 `requireAdminScreenAccess`를 await 한다.
  */
 export async function getAdminCatalogRecords(
-  options: { include?: readonly AdminCatalogRecordKind[] } = {},
+  options: { include?: readonly AdminCatalogRecordKind[]; goodId?: string } = {},
 ): Promise<AdminCatalogRecords> {
   const queried = resolveQueriedKinds(options.include);
   const requested = options.include
@@ -482,6 +497,14 @@ export async function getAdminCatalogRecords(
   const previewUrlFor = (row: { bg: string | null; image_path: string | null }) => (
     imageUrlForPath(row.image_path) ?? imageUrlFromBg(row.bg)
   );
+  let goodsQuery = queried.has('goods')
+      ? supabase
+        .from('goods')
+        /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
+        .select('id,code,origin_id,shipping_fee_type,individual_fee,first_published_at,published_at,archived_at,ip_id,name,type,price,compare_at_price,badge,stock,stock_qty,allow_bank_transfer,sale_restriction,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path')
+        .order('id')
+      : null;
+  if (goodsQuery && options.goodId) goodsQuery = goodsQuery.eq('id', options.goodId);
   const [
     ipsResult,
     goodsResult,
@@ -495,16 +518,10 @@ export async function getAdminCatalogRecords(
     queried.has('ips')
       ? supabase
         .from('ips')
-        .select('id,archived_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count')
+        .select('id,archived_at,published_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count')
         .order('id')
       : skippedResult,
-    queried.has('goods')
-      ? supabase
-        .from('goods')
-        /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-        .select('id,archived_at,ip_id,name,type,price,compare_at_price,badge,stock,stock_qty,allow_bank_transfer,sale_restriction,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path')
-        .order('id')
-      : skippedResult,
+    goodsQuery ?? skippedResult,
     queried.has('cards')
       ? supabase
         .from('cards')
@@ -606,6 +623,7 @@ export async function getAdminCatalogRecords(
     ips: ((ipsResult.data ?? []) as IpRow[]).map((row) => ({
       id: row.id,
       archivedAt: row.archived_at,
+      publishedAt: row.published_at ?? null,
       title: row.title,
       sub: row.sub,
       verticalKey: row.vertical_key,
@@ -620,6 +638,12 @@ export async function getAdminCatalogRecords(
     })),
     goods: ((goodsResult.data ?? []) as GoodRow[]).map((row) => ({
       id: row.id,
+      code: row.code,
+      firstPublishedAt: row.first_published_at,
+      originId: row.origin_id,
+      shippingFeeType: row.shipping_fee_type,
+      individualFee: row.individual_fee,
+      publishedAt: row.published_at,
       archivedAt: row.archived_at,
       ipId: row.ip_id,
       name: row.name,

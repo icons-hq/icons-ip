@@ -188,8 +188,57 @@ jobs:
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/community_write_gate.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/search_public_content.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/catalog_archiving.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/ip_publish_state.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/ip_purchase_publish_guard.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/search_catalog_visibility.sql
+          bash supabase/tests/ip_purchase_publish_concurrency.sh
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/inquiry_threads.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/inquiry_assignment_and_private_notes.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/faq_entries.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_notice_presets.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_order_detail.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_variants_expand.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shipping_policy_lookup.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_customer_detail.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/ip_directory_workspace.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_identifiers.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/store_settings.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_goods_directory.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_publish_state.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/fulfillment_origins_policy.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/fulfillment_zero_price_policy.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/inquiry_realtime_delivery.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/cart_order_variants.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/option_stock_recovery_reshipment.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_option_editor.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_option_contract.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_shipments_expand.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_shipments_transitions.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_shipments_contract.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shipment_dispatch_workspace.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shipment_export.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shipment_export_variant_code.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/warehouse_native_tracking.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_excel_imports.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_shipment_email_jobs.sql
+          PSQL_BIN=psql PGHOST=127.0.0.1 PGPORT=54322 PGUSER=postgres PGPASSWORD=postgres PGDATABASE=postgres bash supabase/tests/option_stock_recovery_concurrency.sh
+          bash supabase/tests/order_shipments_concurrency.sh
+          PSQL_BIN=psql PGHOST=127.0.0.1 PGPORT=54322 PGUSER=postgres PGPASSWORD=postgres PGDATABASE=postgres bash supabase/tests/order_claim_origin_concurrency.sh
+          bash supabase/tests/order_shipment_email_jobs_concurrency.sh
+          bash supabase/tests/goods_publish_concurrency.sh
+          bash supabase/tests/cart_order_variants_concurrency.sh
+          PSQL_BIN=psql PGHOST=127.0.0.1 PGPORT=54322 PGUSER=postgres PGPASSWORD=postgres PGDATABASE=postgres bash supabase/tests/fulfillment_origins_concurrency.sh
+          bash supabase/tests/goods_identifiers_concurrency.sh
+          bash supabase/tests/ip_directory_workspace_concurrency.sh
+          bash supabase/tests/goods_variants_expand_concurrency.sh
+          docker cp supabase supabase_db_icons-ip:/tmp/admin-ops-sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/admin-ops-sql/tests/admin_ops_staging_seed.sql
+          PSQL_BIN=psql PGHOST=127.0.0.1 PGPORT=54322 PGUSER=postgres PGPASSWORD=postgres PGDATABASE=postgres node supabase/tests/admin_ops_rehearsal.mjs
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/admin-ops-sql/tests/goods_variants_seed.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/admin-ops-sql/tests/ip_directory_seed.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_claims.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_claim_origin_policy.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_claim_reshipment_delivery.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_reviews.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/bank_transfer_payments.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_sale_restriction.sql
@@ -930,6 +979,87 @@ jobs:
             echo "- production 앱·Supabase 배포 성공 후 동일한 main migration, roles, seed, Auth template과 Edge Functions를 적용했습니다."
             echo "- PR migration은 이 프로젝트에 적용하지 않습니다."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-staging:
+    name: deploy-staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    needs: sync-supabase-preview-main
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PREVIEW_PROJECT_ID: ${{ secrets.SUPABASE_PREVIEW_PROJECT_ID }}
+      SUPABASE_PRODUCTION_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      STAGING_ALIAS: ${{ vars.STAGING_ALIAS || 'icons-ip-staging.vercel.app' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v2
+        with:
+          version: ${{ env.SUPABASE_CLI_VERSION }}
+      - name: Install Vercel CLI
+        run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
+      - name: Check staging configuration and current main
+        run: |
+          set -euo pipefail
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_PREVIEW_PROJECT_ID SUPABASE_PRODUCTION_PROJECT_ID VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error title=Missing staging configuration::$name is required; see docs/runbooks/staging.md"
+              exit 1
+            fi
+          done
+          git fetch --no-tags origin main
+          if [ "$GITHUB_SHA" != "$(git rev-parse origin/main)" ]; then
+            echo "::error title=Outdated staging deployment::Run source must equal current main"
+            exit 1
+          fi
+      - name: Resolve persistent staging Supabase branch
+        run: node scripts/staging-environment.mjs
+      - name: Validate staging deployment environment
+        run: node --input-type=module -e "import { stagingDeploymentEnvironment } from './scripts/staging-environment.mjs'; stagingDeploymentEnvironment(process.env)"
+      - name: Apply staging migrations without resetting rehearsal data
+        run: supabase db push --db-url "$POSTGRES_URL" --include-roles --yes
+      - name: Add missing synthetic staging fixtures
+        run: |
+          docker run --rm -i -e PGOPTIONS='-c app.staging_seed_enabled=admin-ops-v1' postgres:17-alpine \
+            psql "$POSTGRES_URL" --single-transaction -v ON_ERROR_STOP=1 \
+            < supabase/seeds/admin-ops-staging.sql
+      - name: Reconcile staging Supabase Edge Functions
+        run: node scripts/reconcile-supabase-functions.mjs
+      - name: Sync staging Auth URLs
+        env:
+          REQUIRE_SMTP: "false"
+          ENFORCE_MAILER: "false"
+          EMAIL_OTP_EXPIRY_SECONDS: "3600"
+        run: |
+          export SITE_URL="https://$STAGING_ALIAS"
+          export REDIRECT_URLS="https://$STAGING_ALIAS/auth/callback
+          https://$STAGING_ALIAS/auth/recovery/callback"
+          node scripts/sync-supabase-auth.mjs
+      - name: Deploy and alias staging Preview
+        # Remote prebuild validates the inherited sensitive Preview Toss keys before alias activation.
+        run: node scripts/deploy-staging.mjs
+      - name: Activate staging recovery template
+        env:
+          REQUIRE_SMTP: "false"
+          ENFORCE_MAILER: "false"
+          RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
+        run: |
+          export SITE_URL="https://$STAGING_ALIAS"
+          node scripts/sync-supabase-auth.mjs
 
   deploy-vercel:
     name: deploy-vercel

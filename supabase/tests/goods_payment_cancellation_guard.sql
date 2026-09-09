@@ -152,14 +152,14 @@ from (
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 select
   order_record.id,
   'goods-payment-cancel-guard-good',
   1, 28000,
   '결제 취소 guard 상품', '문구',
-  'goods-payment-cancel-guard-ip'
+  'goods-payment-cancel-guard-ip', (select id from public.goods_variants where good_id='goods-payment-cancel-guard-good' and is_default)
 from public.orders as order_record
 where order_record.id between
   '20000000-0000-4000-8000-000000002071'::uuid
@@ -654,7 +654,7 @@ values
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 select
   order_record.id,
@@ -663,7 +663,7 @@ select
   28000,
   'prepared 만료 취소 정합화 상품',
   '문구',
-  'goods-payment-cancel-guard-ip'
+  'goods-payment-cancel-guard-ip', (select id from public.goods_variants where good_id='goods-prepared-reconcile-good' and is_default)
 from public.orders as order_record
 where order_record.id between
   '20000000-0000-4000-8000-000000002085'::uuid

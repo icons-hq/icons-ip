@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useActionState, useState } from 'react';
 import { createInquiryAction, type InquiryActionState } from '@/app/my/inquiries/actions';
+import { FaqSuggestions } from '@/components/screens/FaqSuggestions';
 import { MypageShell } from '@/components/wc/MypageShell';
 import { WcButton } from '@/components/wc/WcButton';
 import {
@@ -44,6 +45,7 @@ export function InquiryComposer({
   link: InquiryComposerLink;
 }) {
   const [state, action, pending] = useActionState(createInquiryAction, EMPTY_STATE);
+  const [title, setTitle] = useState('');
   const [keepOrder, setKeepOrder] = useState(Boolean(link.orderId));
   const [keepGood, setKeepGood] = useState(Boolean(link.goodId));
 
@@ -54,6 +56,8 @@ export function InquiryComposer({
         <Link className="wc-mypage__headbar-link" href="/my/inquiries">1:1 문의</Link>
       </div>
       <p className="wc-mypage__lede">영업일 기준 24시간 안에 첫 답변을 드립니다.</p>
+
+      <FaqSuggestions title={title} />
 
       <form action={action} className="wc-mypage__form">
         {keepOrder && link.orderId ? (
@@ -78,6 +82,7 @@ export function InquiryComposer({
           <input
             maxLength={MAX_INQUIRY_TITLE_LENGTH}
             name="title"
+            onChange={(event) => setTitle(event.target.value)}
             placeholder="무엇을 도와드릴까요?"
             type="text"
           />

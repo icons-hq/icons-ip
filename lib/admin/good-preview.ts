@@ -1,8 +1,10 @@
-import type { Ip, Stock } from '@/lib/data';
+import type { GoodOption, Ip, Stock } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { GOODS_NOTICE_FIELDS, type GoodsNoticeInfo } from '@/lib/goods-notice';
 import { imageBg } from '@/lib/media';
 import { GOODS_GALLERY_MAX } from './catalog';
+import { restoreGoodsOptionRows } from './goods-option-editor';
+import { optionPriceRange } from '@/lib/goods-options';
 
 /*
  * 어드민 굿즈 미리보기 (#184).
@@ -25,7 +27,7 @@ export interface GoodPreviewInput {
   /** 아트워크가 없는 레거시 레코드가 쓰던 배경 값 */
   fallbackBg: string | null;
   ip: Ip | null;
-  /** 실재고는 이 폼에서 바꿀 수 없다. 선택한 레코드 값을 그대로 쓴다. */
+  /** 옵션 입력이 없는 레거시 호출의 재고 기본값. */
   stockQty: number;
 }
 
@@ -56,6 +58,12 @@ export function buildGoodPreview(input: GoodPreviewInput): GoodDetailContent {
   const { fallbackBg, imageUrls, ip, stockQty, values } = input;
   const stock = trimmed(values, 'stock') as Stock;
   const price = Number(trimmed(values, 'price'));
+  const basePrice = Number.isFinite(price) && price >= 0 ? Math.trunc(price) : 0;
+  const rows = restoreGoodsOptionRows(values.variants);
+  const options: GoodOption[] | undefined = rows?.map((row, index) => ({
+    id: row.id ?? `preview-option-${index}`, name: row.name, code: row.code, attributes: row.attributes,
+    price: basePrice + Math.max(0, Math.trunc(row.extraPrice)), stockQty: Math.max(0, Math.trunc(row.stockQty)), isDefault: index === 0,
+  }));
   const mainUrl = imageUrls.imagePath ?? null;
   const gallery: string[] = [];
 
@@ -70,10 +78,11 @@ export function buildGoodPreview(input: GoodPreviewInput): GoodDetailContent {
       name: trimmed(values, 'name') || '(굿즈 이름 미입력)',
       ip: trimmed(values, 'ipId'),
       type: trimmed(values, 'type') || '(유형 미입력)',
-      price: Number.isFinite(price) && price >= 0 ? Math.trunc(price) : 0,
+      price: basePrice,
+      ...(options ? { options, ...optionPriceRange(options) } : {}),
       badge: trimmed(values, 'badge') || null,
       stock: STOCK_VALUES.has(stock) ? stock : 'ok',
-      stockQty,
+      stockQty: options ? options.reduce((total, option) => total + option.stockQty, 0) : stockQty,
       img: mainUrl ? imageBg(mainUrl) : fallbackBg || PREVIEW_PLACEHOLDER_BG,
     },
     ip,

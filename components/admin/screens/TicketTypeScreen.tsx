@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminPageHeader } from '@/components/admin/console/AdminKit';
 import { useMemo } from 'react';
 import { TicketSection } from '@/components/admin/sections/TicketSection';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
@@ -28,6 +29,7 @@ export function TicketTypeScreen({
   const { selected, select } = useSelectedRecord(records);
 
   return (
+    <><AdminPageHeader title="티켓 종류" description="이벤트별 티켓 가격과 정원을 관리합니다." />
     <TicketSection
       draftId={draftId}
       eventOptions={eventOptions}
@@ -35,6 +37,6 @@ export function TicketTypeScreen({
       operationId={operationId}
       records={records}
       selected={selected}
-    />
+    /></>
   );
 }

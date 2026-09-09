@@ -8,11 +8,16 @@ import {
 
 const defaultMocks = vi.hoisted(() => ({
   rpc: vi.fn(),
+  gatewayRefund: vi.fn(),
   request: null as Record<string, unknown> | null,
   payments: [] as Array<Record<string, unknown>>,
   refunds: [] as Array<Record<string, unknown>>,
   attempt: null as Record<string, unknown> | null,
   filters: [] as Array<{ table: string; column: string; value: unknown }>,
+}));
+
+vi.mock('../payments/runtime-gateway', () => ({
+  getPaymentGateway: () => ({ refund: defaultMocks.gatewayRefund }),
 }));
 
 vi.mock('../supabase/service', () => ({
@@ -86,6 +91,7 @@ function dependencies(
 ): CancellationReconciliationDependencies {
   return {
     loadContext: vi.fn(async () => context()),
+    preflightReconciliation: vi.fn(async () => 'allowed' as const),
     reconcileExpiredPreparedGoods: vi.fn(async () => 'not_applicable' as const),
     refundTossPayment: vi.fn(async () => approvedRefund()),
     completeRequest: vi.fn(async () => undefined),
@@ -112,10 +118,11 @@ describe('reconcileOrderCancellation', () => {
     }];
     defaultMocks.refunds = [];
     defaultMocks.attempt = null;
+    defaultMocks.gatewayRefund.mockResolvedValue(approvedRefund());
     defaultMocks.rpc.mockImplementation(async (name: string) => ({
       data: name === 'reconcile_expired_prepared_goods_cancellation'
         ? 'not_applicable'
-        : null,
+        : name === 'assert_order_cancellation_reconciliation_allowed' ? 'allowed' : null,
       error: null,
     }));
   });
@@ -165,6 +172,7 @@ describe('reconcileOrderCancellation', () => {
 
     expect(deps.completeRequest).not.toHaveBeenCalled();
     expect(deps.markNeedsReview).not.toHaveBeenCalled();
+    expect(deps.preflightReconciliation).not.toHaveBeenCalled();
   });
 
   it('processing 이외 상태는 상태 전이 없이 거절한다', async () => {
@@ -179,6 +187,112 @@ describe('reconcileOrderCancellation', () => {
 
     expect(deps.completeRequest).not.toHaveBeenCalled();
     expect(deps.markNeedsReview).not.toHaveBeenCalled();
+  });
+
+  it('발주확인 또는 미회수로 DB가 거절하면 PG와 로컬 완료를 시작하지 않는다', async () => {
+    const deps = dependencies({
+      preflightReconciliation: vi.fn(async () => 'not_allowed' as const),
+    });
+
+    await expect(reconcileOrderCancellation(
+      { requestId: REQUEST_ID, actorId: ACTOR_ID },
+      deps,
+    )).resolves.toEqual({ ok: false, code: 'request_not_ready' });
+
+    expect(deps.refundTossPayment).not.toHaveBeenCalled();
+    expect(deps.completeRequest).not.toHaveBeenCalled();
+    expect(deps.reconcileExpiredPreparedGoods).not.toHaveBeenCalled();
+    expect(deps.markNeedsReview).not.toHaveBeenCalled();
+  });
+
+  it('사전 검사 통신 오류에서는 기존 원장을 바꾸거나 환불을 추측 실행하지 않는다', async () => {
+    const deps = dependencies({
+      preflightReconciliation: vi.fn(async () => {
+        throw new Error(`database detail ${PAYMENT_KEY}`);
+      }),
+    });
+
+    const result = await reconcileOrderCancellation({ requestId: REQUEST_ID, actorId: ACTOR_ID }, deps);
+
+    expect(result).toEqual({ ok: false, code: 'local_state_unavailable' });
+    expect(JSON.stringify(result)).not.toContain(PAYMENT_KEY);
+    expect(deps.refundTossPayment).not.toHaveBeenCalled();
+    expect(deps.completeRequest).not.toHaveBeenCalled();
+    expect(deps.reconcileExpiredPreparedGoods).not.toHaveBeenCalled();
+    expect(deps.markNeedsReview).not.toHaveBeenCalled();
+  });
+
+  it('조회 뒤 다른 실행이 완료한 요청은 사전 검사 결과로 멱등 종료한다', async () => {
+    const deps = dependencies({
+      preflightReconciliation: vi.fn(async () => 'completed' as const),
+    });
+
+    await expect(reconcileOrderCancellation(
+      { requestId: REQUEST_ID, actorId: ACTOR_ID }, deps,
+    )).resolves.toEqual({ ok: true, status: 'already_completed' });
+
+    expect(deps.refundTossPayment).not.toHaveBeenCalled();
+    expect(deps.completeRequest).not.toHaveBeenCalled();
+    expect(deps.reconcileExpiredPreparedGoods).not.toHaveBeenCalled();
+    expect(deps.markNeedsReview).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'claim_collections_incomplete',
+    'cancellation_request_not_processing',
+    'claim_on_hold',
+    'order_not_cancelable',
+    'staff required',
+    'cancellation_request_not_found',
+  ])('service 사전 검사 거절(%s)은 PG와 완료 RPC에 도달하지 않는다', async (message) => {
+    defaultMocks.rpc.mockResolvedValue({ data: null, error: { message } });
+
+    await expect(reconcileOrderCancellation({
+      requestId: REQUEST_ID, actorId: ACTOR_ID,
+    })).resolves.toEqual({ ok: false, code: 'request_not_ready' });
+
+    expect(defaultMocks.rpc.mock.calls).toEqual([[
+      'assert_order_cancellation_reconciliation_allowed',
+      { p_request_id: REQUEST_ID, p_actor_id: ACTOR_ID },
+    ]]);
+    expect(defaultMocks.gatewayRefund).not.toHaveBeenCalled();
+    expect(defaultMocks.filters.some((filter) => filter.table === 'payment_attempts')).toBe(false);
+  });
+
+  it.each([
+    { data: null, error: { message: `connection detail ${PAYMENT_KEY}` } },
+    { data: null, error: null },
+    { data: true, error: null },
+    { data: 'allowed ', error: null },
+  ])('service 사전 검사 오류·계약 불일치는 안전하게 중단한다 (%j)', async (response) => {
+    defaultMocks.rpc.mockResolvedValue(response);
+
+    const result = await reconcileOrderCancellation({ requestId: REQUEST_ID, actorId: ACTOR_ID });
+
+    expect(result).toEqual({ ok: false, code: 'local_state_unavailable' });
+    expect(JSON.stringify(result)).not.toContain(PAYMENT_KEY);
+    expect(defaultMocks.rpc.mock.calls.map(([name]) => name)).toEqual([
+      'assert_order_cancellation_reconciliation_allowed',
+    ]);
+    expect(defaultMocks.gatewayRefund).not.toHaveBeenCalled();
+  });
+
+  it('service 사전 검사를 통과한 승인 건은 기존 PG 전액 환불·완료 계약을 유지한다', async () => {
+    defaultMocks.attempt = {
+      id: '44444444-4444-4444-8444-444444444444',
+      provider: 'toss', purpose: 'order', ref_id: ORDER_ID, amount: 42000, currency: 'KRW',
+      idempotency_key: 'approved-order-attempt', provider_order_id: 'approved-order',
+      provider_product_code: 'goods', expires_at: '2026-09-01T00:00:00.000Z',
+    };
+
+    await expect(reconcileOrderCancellation({
+      requestId: REQUEST_ID, actorId: ACTOR_ID,
+    })).resolves.toEqual({ ok: true, status: 'completed' });
+
+    expect(defaultMocks.gatewayRefund).toHaveBeenCalledWith(expect.objectContaining({ amount: 42000 }));
+    expect(defaultMocks.rpc).toHaveBeenCalledWith('complete_order_cancellation_request', {
+      p_request_id: REQUEST_ID, p_actor_id: ACTOR_ID, p_provider_payment_keys: [PAYMENT_KEY],
+    });
   });
 
   it('fresh prepared 세션은 in_progress로 유지하고 완료나 needs_review를 호출하지 않는다', async () => {
@@ -418,7 +532,7 @@ describe('reconcileOrderCancellation', () => {
       defaultMocks.rpc.mockImplementation(async (name: string) => ({
         data: name === 'reconcile_expired_prepared_goods_cancellation'
           ? 'not_applicable'
-          : null,
+          : name === 'assert_order_cancellation_reconciliation_allowed' ? 'allowed' : null,
         error: null,
       }));
       defaultMocks.refunds = refunds;

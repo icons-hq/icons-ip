@@ -138,14 +138,11 @@ describe('admin order actions', () => {
 
   // 운송장을 넘기지 않으면 구매자는 "운송장 정보가 등록되면…"만 담긴 메일을 받고,
   // dedupe 행이 sent로 닫혀 다시 보낼 수도 없다.
-  it('배송 시작 메일에 방금 등록한 운송장을 실어 보낸다', async () => {
+  it('배송 시작 메일은 서버가 저장된 배송 건을 다시 조회한다', async () => {
     await updateAdminOrderStatusAction({}, statusForm('shipping'));
 
     expect(mocks.sendShippedEmail).toHaveBeenCalledWith({
       orderId: ORDER_ID,
-      carrierName: '한진택배',
-      trackingNumber: '123456789012',
-      trackingUrl: expect.stringContaining('123456789012'),
     });
   });
 
@@ -522,7 +519,7 @@ describe('admin order actions', () => {
 
     it('선택한 주문마다 audited 상태 RPC를 confirmed로 부른다', async () => {
       await expect(bulkConfirmAdminOrdersAction({}, bulkForm(ORDER_ID, SECOND_ORDER_ID)))
-        .resolves.toEqual({ message: '2건을 발주확인했습니다.' });
+        .resolves.toEqual({ message: '2건을 발주확인했습니다.', confirmedOrderIds: [ORDER_ID, SECOND_ORDER_ID] });
 
       expect(mocks.rpc).toHaveBeenCalledTimes(2);
       expect(mocks.rpc).toHaveBeenCalledWith('admin_update_order_status', {
@@ -549,6 +546,7 @@ describe('admin order actions', () => {
       /* 건수만으로는 100건 목록에서 남은 주문을 못 찾는다. 주문번호를 실어 보낸다. */
       expect(state.message).toContain('처리하지 못한 1건');
       expect(state.message).toContain('11111111');
+      expect(state.confirmedOrderIds).toEqual([SECOND_ORDER_ID]);
     });
 
     it('전부 실패하면 성공 문구를 내보내지 않는다', async () => {
@@ -557,6 +555,7 @@ describe('admin order actions', () => {
       const state = await bulkConfirmAdminOrdersAction({}, bulkForm(ORDER_ID));
 
       expect(state.message).toBeUndefined();
+      expect(state.confirmedOrderIds).toBeUndefined();
       expect(state.errors?.form).toContain('발주확인하지 못했습니다');
     });
 

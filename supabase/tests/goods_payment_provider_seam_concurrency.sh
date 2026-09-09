@@ -126,12 +126,12 @@ values (
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 values (
   '${order_id}', 'goods-payment-claim-good', 1, 28000,
-  '굿즈 결제 claim 상품', '문구', 'goods-payment-claim-ip'
-);
+  '굿즈 결제 claim 상품', '문구', 'goods-payment-claim-ip',
+  (select id from public.goods_variants where good_id='goods-payment-claim-good' and is_default));
 
 select public.prepare_goods_payment_attempt(
   '${user_id}', '${order_id}', 'toss'

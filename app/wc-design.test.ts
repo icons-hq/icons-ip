@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import postcss from 'postcss';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
@@ -10,14 +11,43 @@ const readWcComponents = () =>
     .filter((entry) => entry.endsWith('.tsx'))
     .map((entry) => ({ entry, source: readFileSync(new URL(entry, WC_COMPONENT_DIR), 'utf8') }));
 
+describe('White Catalog admin boundary (#433)', () => {
+  it('loads the final isolated admin layers after the shared foundation', () => {
+    const layout = read('./layout.tsx');
+    expect(layout.indexOf("'./styles/wc-admin.css'")).toBeGreaterThan(layout.indexOf("'./styles/wc-foundation.css'"));
+    expect(layout.indexOf("'./styles/wc-admin-surfaces.css'")).toBeGreaterThan(layout.indexOf("'./styles/wc-foundation.css'"));
+    expect(layout.indexOf("'./styles/wc-admin.css'")).toBeGreaterThan(layout.indexOf("'./styles/wc-admin-surfaces.css'"));
+    expect(layout).not.toContain("'./styles/editorial-admin.css'");
+    expect(layout).not.toContain("'./styles/admin-console.css'");
+  });
+
+  it('scopes all admin rules including nested media rules and uses only WC tokens', () => {
+    const ast = postcss.parse(read('./styles/wc-admin.css'));
+    ast.walkRules((rule) => {
+      for (const selector of rule.selectors) expect(selector.trim()).toMatch(/^\.wc-admin(?:\b|[.\s:#])/);
+    });
+    ast.walkDecls((decl) => {
+      for (const match of decl.value.matchAll(/var\(\s*(--[\w-]+)/g)) expect(match[1]).toMatch(/^--wc-/);
+      expect(decl.value).not.toMatch(/#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i);
+    });
+  });
+
+  it('keeps admin selectors out of every public WC stylesheet', () => {
+    const paths = readdirSync(new URL('./styles/', import.meta.url)).filter((name) => name.startsWith('wc-') && name.endsWith('.css') && !name.startsWith('wc-admin'));
+    for (const path of paths) postcss.parse(read(`./styles/${path}`)).walkRules((rule) => {
+      expect(rule.selector, path).not.toMatch(/\.admin-|\.wc-admin/);
+    });
+  });
+});
+
 describe('White Catalog design wiring', () => {
-  it('loads the White Catalog foundation after the legacy stylesheets', () => {
+  it('loads the White Catalog foundation after global plumbing', () => {
     /* 나중에 로드돼야 같은 특정성의 기존 규칙을 이길 수 있다. 순서가 뒤집히면 표면이 조용히 옛 스타일로 돌아간다. */
     const layout = read('./layout.tsx');
 
     expect(layout).toContain("'./styles/wc-foundation.css'");
     expect(layout.indexOf("'./styles/wc-foundation.css'")).toBeGreaterThan(
-      layout.indexOf("'./styles/admin-console.css'"),
+      layout.indexOf("'./globals.css'"),
     );
   });
 
@@ -275,7 +305,7 @@ describe('White Catalog discovery wiring', () => {
       'utf8',
     );
 
-    expect(game).toContain("'var(--holo)'");
+    expect(game).toContain('CARD_FOIL_BACKGROUND');
     expect(game).toContain('RARITY_META');
     expect(game).not.toContain('btn-holo');
     expect(game).not.toContain('var(--mint)');
@@ -371,4 +401,3 @@ describe('White Catalog campaign wiring', () => {
     expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*z-index:\s*2/s);
   });
 });
-

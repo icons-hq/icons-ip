@@ -4,6 +4,8 @@ import { LegalDocumentScreen } from '@/components/screens/LegalDocument';
 import { LEGAL_DOCUMENTS, LEGAL_DOCUMENT_SLUGS } from '@/lib/legal/documents';
 import Page, { generateMetadata, generateStaticParams } from './page';
 
+vi.mock('@/lib/legal/business-info.server', async () => { const {BUSINESS_INFO}=await import('@/lib/legal/business-info'); return {getBusinessInfo:async()=>BUSINESS_INFO}; });
+
 vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');
@@ -91,5 +93,18 @@ describe('/legal/[document] 라우트', () => {
     expect(html).toContain('href="/legal/privacy"');
     expect(html).toContain('href="/legal/shipping"');
     expect(html).not.toContain('href="/legal/terms"');
+  });
+
+  it('개정 안내와 이전 공개 본문을 현재 안내와 구별해 열람할 수 있다', async () => {
+    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: 'shipping' }) }));
+    expect(html).toContain('2026-09-09 개정 안내');
+    expect(html).toContain('<details');
+    expect(html).toContain('이전 정책 본문 (시행일 2026-08-21)');
+    expect(html).toContain('고객지원 연락처는 현재 정보로 표시합니다');
+    expect(html).toContain('개별 이용자의 약관 동의 기록은 아닙니다');
+    const currentEnd = html.indexOf('<details');
+    expect(html.slice(0, currentEnd)).toContain('직접 취소 신청은 발주확인 전까지');
+    expect(html.slice(0, currentEnd)).not.toContain('취소는 발송 전');
+    expect(html.slice(currentEnd)).toContain('취소는 발송 전');
   });
 });

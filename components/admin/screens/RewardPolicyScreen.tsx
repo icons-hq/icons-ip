@@ -1,5 +1,6 @@
 'use client';
 
+import { AdminPageHeader } from '@/components/admin/console/AdminKit';
 import { useMemo } from 'react';
 import { RewardPolicySection } from '@/components/admin/sections/RewardPolicySection';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
@@ -31,6 +32,7 @@ export function RewardPolicyScreen({
   const { selected, select } = useSelectedRecord(records);
 
   return (
+    <><AdminPageHeader title="카드팩 발급 정책" description="발급 조건과 연결 카드풀을 확인하고 저장합니다." />
     <RewardPolicySection
       draftActiveFrom={draftActiveFrom}
       draftId={draftId}
@@ -41,6 +43,6 @@ export function RewardPolicyScreen({
       pools={pools}
       records={records}
       selected={selected}
-    />
+    /></>
   );
 }

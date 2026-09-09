@@ -30,7 +30,7 @@ describe('parseTrackingImport', () => {
     expect(result.rows).toEqual([{
       line: 2,
       reference: '1A2B3C4D',
-      orderId: null,
+      referenceId: null,
       carrier: 'hanjin',
       trackingNumber: '123456789012',
     }]);
@@ -49,7 +49,7 @@ describe('parseTrackingImport', () => {
   it('전체 주문 UUID도 받는다', () => {
     const result = parseTrackingImport(`${ORDER_ID},hanjin,123456789012`, CARRIERS);
 
-    expect(result.rows[0]).toMatchObject({ orderId: ORDER_ID, reference: ORDER_ID });
+    expect(result.rows[0]).toMatchObject({ referenceId: ORDER_ID, reference: ORDER_ID });
   });
 
   /* 운영자가 화면에서 보는 것은 표시명이고, WMS가 무엇을 내보낼지는 아직 모른다
@@ -87,7 +87,7 @@ describe('parseTrackingImport · 행 단위 검증', () => {
     expect(result.issues).toEqual([{
       line: 1,
       reference: '1A2B3C4D',
-      reason: '주문번호·택배사코드·운송장번호 세 칸이 모두 필요합니다.',
+      reason: '배송건번호·택배사코드·운송장번호 세 칸이 모두 필요합니다.',
     }]);
   });
 
@@ -128,7 +128,7 @@ describe('parseTrackingImport · 행 단위 검증', () => {
     );
 
     expect(result.rows).toHaveLength(1);
-    expect(result.issues[0]).toMatchObject({ line: 2, reason: '1번째 줄과 주문번호가 중복됩니다.' });
+    expect(result.issues[0]).toMatchObject({ line: 2, reason: '1번째 줄과 배송건번호가 중복됩니다.' });
   });
 
   /* 한 줄이 틀렸다고 나머지를 버리면 창고에서 이미 나간 물건의 운송장이 통째로

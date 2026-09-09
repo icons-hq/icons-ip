@@ -26,7 +26,7 @@ export interface GameRow {
   reward_pool_id: string | null;
   active_from: string | null;
   active_to: string | null;
-  card_pools: { ip_id: string } | null;
+  card_pools: { ip_id: string; ips: { archived_at: string | null; published_at: string | null } | null } | null;
 }
 
 interface GameCardRow {
@@ -80,6 +80,10 @@ export function toGameFromRow(row: GameRow, now: Date = new Date()): Game | null
 
   const config = toGameConfig(row.config);
   if (!config) return null;
+  if (config.variant.kind === 'card') {
+    const ip = row.card_pools?.ips;
+    if (!ip?.published_at || ip.archived_at) return null;
+  }
 
   return {
     id: row.id,
@@ -126,7 +130,7 @@ export async function listEventGameLinks(): Promise<EventGameLink[]> {
   // 같은 이벤트에 게임이 여럿 등록돼도 CTA가 요청마다 바뀌지 않도록 정렬을 고정한다
   const { data, error } = await supabase
     .from('games')
-    .select('id,type,title,event_id,config,reward_pool_id,active_from,active_to,card_pools:reward_pool_id(ip_id)')
+    .select('id,type,title,event_id,config,reward_pool_id,active_from,active_to,card_pools:reward_pool_id(ip_id,ips:ip_id(archived_at,published_at))')
     .not('event_id', 'is', null)
     .order('id');
 
@@ -147,7 +151,7 @@ export async function getGameCatalogEntry(gameId: string): Promise<GameCatalogEn
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('games')
-    .select('id,type,title,event_id,config,reward_pool_id,active_from,active_to,card_pools:reward_pool_id(ip_id)')
+    .select('id,type,title,event_id,config,reward_pool_id,active_from,active_to,card_pools:reward_pool_id(ip_id,ips:ip_id(archived_at,published_at))')
     .eq('id', gameId)
     .maybeSingle();
 

@@ -120,7 +120,7 @@ describe('QnaConsoleScreen', () => {
     const markup = render();
 
     expect(markup).toContain('/admin/cs/inquiries');
-    expect(markup).toContain('굿즈 상세에 공개로 붙는 구매 전 질문');
+    expect(markup).toContain('상품 상세에 공개로 붙는 구매 전 질문');
   });
 
   it('페이지네이션이 전체 건수를 그대로 읽는다', () => {

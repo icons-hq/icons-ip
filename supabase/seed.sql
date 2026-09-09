@@ -10,7 +10,7 @@ on conflict (key) do update set
   label = excluded.label,
   color = excluded.color;
 
-insert into public.ips (
+with ip_seed (
   id,
   title,
   sub,
@@ -22,8 +22,9 @@ insert into public.ips (
   featured,
   fans_count,
   goods_count,
-  cards_count
-) values
+  cards_count,
+  published_at
+) as (values
   (
     'rilakkuma',
     '리락쿠마',
@@ -36,7 +37,8 @@ insert into public.ips (
     true,
     124500,
     2,
-    2
+    2,
+    now()
   ),
   (
     'maplestory',
@@ -50,7 +52,8 @@ insert into public.ips (
     true,
     198000,
     3,
-    3
+    3,
+    now()
   ),
   (
     'nongdamgom',
@@ -64,7 +67,8 @@ insert into public.ips (
     true,
     52300,
     2,
-    2
+    2,
+    now()
   ),
   (
     'kakao-friends',
@@ -78,7 +82,8 @@ insert into public.ips (
     true,
     214000,
     2,
-    3
+    3,
+    now()
   ),
   (
     'attack-on-titan',
@@ -92,8 +97,24 @@ insert into public.ips (
     true,
     176400,
     1,
-    2
+    2,
+    now()
   )
+)
+insert into public.ips (
+  id,title,sub,vertical_key,glyph,bg,tagline,synopsis,featured,
+  fans_count,goods_count,cards_count,published_at
+)
+select seed.id,seed.title,seed.sub,seed.vertical_key,seed.glyph,seed.bg,seed.tagline,seed.synopsis,
+  -- Keep operator choices on rerun. New seed IPs use only vacant featured slots;
+  -- a seed cannot turn a previously unselected IP into the sixth featured tile.
+  case when existing.id is not null then existing.featured
+    else seed.featured and row_number() over (
+      partition by (existing.id is null and seed.featured) order by seed.id
+    ) <= greatest(5-(select count(*) from public.ips where featured),0)
+  end,
+  seed.fans_count,seed.goods_count,seed.cards_count,seed.published_at
+from ip_seed seed left join public.ips existing on existing.id=seed.id
 -- fans_count는 최초 seed 값만 넣고, 이후 팔로우 RPC가 유지하는 공개 카운트를 덮어쓰지 않는다.
 on conflict (id) do update set
   title = excluded.title,
@@ -106,6 +127,8 @@ on conflict (id) do update set
   featured = excluded.featured,
   goods_count = excluded.goods_count,
   cards_count = excluded.cards_count,
+  -- 게시 상태(20260907130000): seed IP 는 공개다. 이미 값이 있으면 그대로 두고 초안이던 행만 공개로 올린다.
+  published_at = coalesce(ips.published_at, excluded.published_at),
   updated_at = now();
 
 -- Keep local-reset home featured curation aligned with the one-time migration
@@ -140,7 +163,13 @@ on conflict (id) do update set
   active_to = excluded.active_to,
   enabled = excluded.enabled;
 
-insert into public.goods (id, ip_id, name, type, price, badge, stock, stock_qty, bg) values
+-- Reset-seed quantities belong to the default option; goods.stock_qty is its
+-- derived cache. Keep one fixture source and reuse existing option identities.
+do $$
+declare seed_good record;
+begin
+  for seed_good in
+    select * from (values
   ('g1', 'rilakkuma', '리락쿠마 낮잠 쿠션', '쿠션', 42000, 'EXCLUSIVE', 'low', 7, 'url("/generated/goods/g1.png") center / cover no-repeat, linear-gradient(150deg, #5a3517, #D68A2D 55%, #FFD84D)'),
   ('g2', 'rilakkuma', '코리락쿠마 미니 키링', '키링', 15000, 'NEW', 'ok', 120, 'url("/generated/goods/g2.png") center / cover no-repeat, linear-gradient(150deg, #7d4a2a, #F3B6C8 55%, #FFF3D6)'),
   ('g3', 'maplestory', '주황버섯 봉제인형', '인형', 28000, 'NEW', 'ok', 90, 'url("/generated/goods/g3.png") center / cover no-repeat, linear-gradient(150deg, #98440f, #FF8C32 55%, #FFD84D)'),
@@ -151,16 +180,25 @@ insert into public.goods (id, ip_id, name, type, price, badge, stock, stock_qty,
   ('g8', 'kakao-friends', '춘식이 수면 파우치', '파우치', 24000, 'NEW', 'ok', 100, 'url("/generated/goods/g8.png") center / cover no-repeat, linear-gradient(150deg, #66421d, #FFD84D 55%, #FFF3D6)'),
   ('g9', 'kakao-friends', '라이언&어피치 피크닉 세트', '세트', 59000, 'EXCLUSIVE', 'low', 8, 'url("/generated/goods/g9.png") center / cover no-repeat, linear-gradient(150deg, #724a1f, #FFD84D 55%, #FF9AAF)'),
   ('g11', 'attack-on-titan', '리바이 아크릴 스탠드', '아크릴', 26000, null, 'ok', 70, 'url("/generated/goods/g11.png") center / cover no-repeat, linear-gradient(150deg, #2b251f, #6B705C 55%, #A981FF)')
-on conflict (id) do update set
-  ip_id = excluded.ip_id,
-  name = excluded.name,
-  type = excluded.type,
-  price = excluded.price,
-  badge = excluded.badge,
-  stock = excluded.stock,
-  stock_qty = excluded.stock_qty,
-  bg = excluded.bg,
-  updated_at = now();
+    ) as fixtures(id,ip_id,name,type,price,badge,stock,stock_qty,bg)
+  loop
+    insert into public.goods(id,ip_id,name,type,price,badge,stock,stock_qty,bg,published_at)
+    values(seed_good.id,seed_good.ip_id,seed_good.name,seed_good.type,seed_good.price,
+      seed_good.badge,seed_good.stock,seed_good.stock_qty,seed_good.bg,now())
+    on conflict (id) do update set
+      ip_id = excluded.ip_id,
+      name = excluded.name,
+      type = excluded.type,
+      price = excluded.price,
+      badge = excluded.badge,
+      stock = excluded.stock,
+      bg = excluded.bg,
+      updated_at = now();
+    update public.goods_variants set stock_qty=seed_good.stock_qty
+      where good_id=seed_good.id and is_default;
+  end loop;
+end;
+$$;
 
 insert into public.cards (id, ip_id, name, no, rarity, bg) values
   ('c1', 'rilakkuma', '리락쿠마 · 낮잠 시간', '001/080', 'HOLO', 'url("/generated/cards/c1.png") center / cover no-repeat, linear-gradient(150deg, #5a3517, #D68A2D 55%, #FFD84D)'),

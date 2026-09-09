@@ -173,7 +173,7 @@ from (
 
 insert into public.order_items (
   order_id, good_id, qty, unit_price,
-  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot
+  good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
 select
   order_record.id,
@@ -182,7 +182,7 @@ select
   107000,
   '굿즈 수동 복구 상품',
   '문구',
-  'goods-manual-recovery-ip'
+  'goods-manual-recovery-ip', (select id from public.goods_variants where good_id='goods-manual-recovery-good' and is_default)
 from public.orders as order_record
 where order_record.id between
   '20000000-0000-4000-8000-000000002081'::uuid

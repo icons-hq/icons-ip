@@ -66,6 +66,7 @@ const checkoutOrder: CheckoutOrderSnapshot = {
   expiresAt: '2099-08-13T10:10:00.000Z',
   createdAt: '2026-08-13T10:00:00.000Z',
   paymentStatus: null,
+  shipments: [],
   paymentMethod: 'card' as const,
   items: [],
 };

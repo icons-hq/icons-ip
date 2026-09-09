@@ -6,14 +6,15 @@ import { useCart } from '@/components/shell/CartProvider';
 import { RestockCta } from '@/components/shop/RestockCta';
 import { QuantityStepper } from '@/components/wc/QuantityStepper';
 import { WcButton } from '@/components/wc/WcButton';
-import type { Good } from '@/lib/data';
+import type { Good, GoodOption } from '@/lib/data';
+import { initialGoodOption, optionLabel } from '@/lib/goods-options';
 import { krw } from '@/lib/format';
 import { STOCK_LABEL } from '@/lib/goods-display';
 
 /*
  * 굿즈 상세의 구매 블록 (R-04 §3.6~3.8 · DESIGN `pdp-buybox`·`cta-pair`·`restock-cta`).
  *
- * 옵션(variant) 도메인이 없으므로 셀렉트 행은 만들지 않는다 — 수량과 합계뿐이다.
+ * 여러 옵션은 명시적으로 선택하고 단일 옵션은 자동 선택한다.
  * 상태는 이 훅 하나가 갖고, 정보 칼럼 패널과 고정 구매바가 같은 컨트롤러를 나눠 쓴다.
  * 두 표면이 각자 수량을 들면 아래 바로 산 개수와 위에서 고른 개수가 갈린다.
  *
@@ -95,6 +96,9 @@ export function buyNowNavigation(state: {
 
 export interface GoodPurchaseController {
   good: Good;
+  selectedOption: GoodOption | undefined;
+  selectOption: (id: string) => void;
+  selectionRequired: boolean;
   quantity: number;
   setQuantity: (next: number) => void;
   subtotal: number;
@@ -119,6 +123,10 @@ export function useGoodPurchase({
   const router = useRouter();
   const cart = useCart();
   const [quantity, setQuantityState] = useState(1);
+  const [selectedId, setSelectedId] = useState(() => initialGoodOption(good)?.id);
+  const selectedOption = good.options?.find(option => option.id === selectedId && option.stockQty > 0);
+  const selectionRequired = !selectedOption;
+  const stockQty = selectedOption?.stockQty ?? 0;
   const [status, setStatus] = useState<string | null>(null);
   /* 바로구매 요청은 세대 번호로 든다 — 소비 표시는 ref 에 적어 effect 가 상태를 되쓰지
      않는다(리셋 setState 는 캐스케이딩 렌더 lint 에 걸리고, 실제로도 파생이 아니라 소비다). */
@@ -139,30 +147,37 @@ export function useGoodPurchase({
   }, [checkoutGen, cartPending, cartError, router]);
 
   const soldOut = isGoodSoldOut(good);
-  const nextQuantity = mergedCartQuantity(cart.getQuantity(good.id), quantity);
+  const nextQuantity = mergedCartQuantity(selectedOption ? cart.getQuantity(good.id, selectedOption.id) : 0, quantity);
   const blocked = purchaseBlockReason({
     disabled,
     nextQuantity,
     pending: cart.pending,
     ready: cart.ready,
     soldOut,
-    stockQty: good.stockQty,
+    stockQty,
   });
-  const inert = blocked !== null && blocked !== 'stock';
+  const inert = selectionRequired || (blocked !== null && blocked !== 'stock');
 
   const commit = async () => {
-    await cart.setQuantity(good.id, nextQuantity, good.stockQty);
+    if (!selectedOption) return false;
+    await cart.setQuantity(good.id, nextQuantity, stockQty, selectedOption.id);
     return blocked === null;
   };
 
   return {
     good,
+    selectedOption,
+    selectionRequired,
+    selectOption: (id: string) => {
+      if (!good.options?.some(option => option.id === id && option.stockQty > 0)) return;
+      setSelectedId(id); setQuantityState(1); setStatus(null);
+    },
     quantity,
     setQuantity: (next: number) => {
       setStatus(null);
       setQuantityState(next);
     },
-    subtotal: purchaseSubtotal(good.price, quantity),
+    subtotal: selectionRequired ? 0 : purchaseSubtotal(selectedOption?.price ?? good.price, quantity),
     soldOut,
     restockRequested,
     disabled,
@@ -200,21 +215,35 @@ function CartGlyph() {
 
 /** 정보 칼럼의 구매 패널. 품절이면 CTA 자리만 재입고 알림으로 바뀐다(R-04 §4). */
 export function GoodPurchasePanel({ purchase }: { purchase: GoodPurchaseController }) {
-  const { disabled, good, inert, message, quantity, restockRequested, setQuantity, soldOut, subtotal } = purchase;
+  const { disabled, good, inert, message, quantity, restockRequested, selectedOption, selectOption, selectionRequired, setQuantity, soldOut, subtotal } = purchase;
   const stockLabel = STOCK_LABEL[good.stock];
+  const singleOptionLabel = good.options?.length === 1 ? optionLabel(good.options[0], 1) : null;
 
   return (
     <div className="wc-buy-panel">
       {stockLabel ? <p className="wc-buy-panel__state">{stockLabel}</p> : null}
+      {(good.options?.length ?? 0) > 1 ? (
+        <label className="wc-buy-panel__option">
+          <span>옵션</span>
+          <select disabled={disabled} onChange={event => selectOption(event.target.value)} value={selectedOption?.id ?? ''}>
+            <option value="" disabled>옵션을 선택해주세요</option>
+            {good.options!.map(option => (
+              <option key={option.id} value={option.id} disabled={option.stockQty <= 0}>
+                {`${option.name} · ${krw(option.price)}${option.stockQty <= 0 ? ' · 품절' : ''}`}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : singleOptionLabel ? <p className="wc-buy-panel__option">{singleOptionLabel}</p> : null}
       <div className="wc-buy-panel__row">
         <span className="wc-buy-panel__label">수량</span>
         {/* 재고가 0인데 판매중인 데이터는 없다. 그래도 max 0 이면 스테퍼가 0에 잠겨
             수량을 고를 수 없는 컨트롤이 되므로 최소 1은 남긴다. */}
-        <QuantityStepper max={Math.max(1, good.stockQty)} onChange={setQuantity} value={quantity} />
+        <QuantityStepper max={Math.max(1, selectedOption?.stockQty ?? (good.options ? 0 : good.stockQty))} onChange={setQuantity} value={quantity} />
       </div>
       <div className="wc-buy-panel__total">
         <span className="wc-buy-panel__total-label">총 금액</span>
-        <strong className="wc-buy-panel__total-amount">{krw(subtotal)}</strong>
+        <strong className="wc-buy-panel__total-amount">{selectionRequired ? '옵션 선택 후 표시' : krw(subtotal)}</strong>
       </div>
       {soldOut ? (
         <RestockCta disabled={disabled} goodId={good.id} initialRequested={restockRequested} />

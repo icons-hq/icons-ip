@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isRarityKey, rarityTag, RARITY_META, RARITY_ORDER } from './rarity';
+import { CARD_FOIL_BACKGROUND, isRarityKey, rarityTag, RARITY_META, RARITY_ORDER } from './rarity';
 
 describe('RARITY_ORDER', () => {
   it('희귀도 내림차순이고 모든 등급을 한 번씩 담는다', () => {
@@ -30,15 +30,15 @@ describe('rarityTag', () => {
   it('HOLO는 홀로 그라디언트 위에 잉크색 글자를 쓴다', () => {
     expect(rarityTag('HOLO')).toEqual({
       color: '#0A0813',
-      bg: 'var(--holo)',
+      bg: CARD_FOIL_BACKGROUND,
       ring: `${RARITY_META.HOLO.color}99`,
     });
   });
 
   it('R만 밝은 cyan이라 글자를 잉크색으로 뒤집는다', () => {
     expect(rarityTag('R').color).toBe('#0A0813');
-    expect(rarityTag('SR').color).toBe('var(--text)');
-    expect(rarityTag('SSR').color).toBe('var(--text)');
+    expect(rarityTag('SR').color).toBe('#11110f');
+    expect(rarityTag('SSR').color).toBe('#11110f');
   });
 
   it('N은 등급색 대신 중립 배경을 쓴다', () => {

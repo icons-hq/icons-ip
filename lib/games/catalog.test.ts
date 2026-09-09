@@ -30,7 +30,7 @@ const cardRow = (overrides: Partial<GameRow> = {}): GameRow => ({
   reward_pool_id: 'a0000000-0000-4000-8000-000000000001',
   active_from: '2026-07-01T00:00:00+09:00',
   active_to: null,
-  card_pools: { ip_id: 'maplestory' },
+  card_pools: { ip_id: 'maplestory', ips: { archived_at: null, published_at: '2026-07-01T00:00:00Z' } },
   ...overrides,
 });
 
@@ -63,6 +63,14 @@ describe('toGameConfig', () => {
 
 describe('toGameFromRow', () => {
   const now = new Date('2026-07-07T12:00:00+09:00');
+
+  it('excludes games belonging to a draft or archived reward IP from detail and event links', () => {
+    const draft = toGameFromRow(cardRow({ card_pools: { ip_id: 'draft', ips: { archived_at: null, published_at: null } } }), now);
+    const archived = toGameFromRow(cardRow({ card_pools: { ip_id: 'archived', ips: { archived_at: '2026-07-01', published_at: '2026-06-01' } } }), now);
+    expect(draft).toBeNull();
+    expect(archived).toBeNull();
+    expect(toEventGameLinks([draft, archived])).toEqual([]);
+  });
 
   it('card variant는 보상 풀 IP를 Game.ip로 파생한다', () => {
     const game = toGameFromRow(cardRow(), now);

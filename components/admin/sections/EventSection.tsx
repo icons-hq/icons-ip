@@ -1,8 +1,11 @@
 'use client';
 
+import { AdminFormGrid } from '@/components/admin/console/AdminKit';
 import { useState } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import type { AdminEventRecord } from '@/lib/admin/catalog.server';
+import { adminFormRemountKey, resolveArtworkDefault, resolveFieldDefault } from '@/lib/admin/form-state';
+import { publicMediaUrl } from '@/lib/media';
 import {
   adminCatalogArchiveCounts,
   filterAdminCatalogRecords,
@@ -12,10 +15,6 @@ import {
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { ColorField, Field, FormShell, RecordList, SelectField } from '../fields';
-
-function optional(value: string | null | undefined) {
-  return value ?? '';
-}
 
 function dateTimeInput(value: string | null | undefined) {
   if (!value) return '';
@@ -53,6 +52,13 @@ export function EventSection({
   selected: AdminEventRecord | null;
   state: AdminCatalogActionState;
 }) {
+  const defaults = selected ? {
+    ...selected,
+    startsAt: dateTimeInput(selected.startsAt),
+    endsAt: dateTimeInput(selected.endsAt),
+  } : null;
+  const field = (name: string) => resolveFieldDefault(state, defaults, name);
+  const artwork = resolveArtworkDefault(state, selected, publicMediaUrl);
   const [archiveFilter, setArchiveFilter] = useState<AdminCatalogArchiveFilter>(
     selected?.archivedAt ? 'archived' : 'active',
   );
@@ -80,12 +86,12 @@ export function EventSection({
         />
       </div>
       <div className="col" style={{ gap: 16, minWidth: 0 }}>
-        <form action={action} className="card col" key={selected ? JSON.stringify(selected) : 'new-event'} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+        <form action={action} className="card col wc-admin-kit wc-admin-kit__card" key={adminFormRemountKey(state, selected)} style={{ gap: 14 }}>
         <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
-        <div className="admin-form-grid">
-          <Field defaultValue={selected?.id} error={state.errors?.id} label="ID" name="id" placeholder="e100" readOnly={Boolean(selected)} />
-          <SelectField defaultValue={optional(selected?.ipId)} error={state.errors?.ipId} label="연결 IP" name="ipId">
+        <AdminFormGrid>
+          <Field defaultValue={field('id')} error={state.errors?.id} label="ID" name="id" placeholder="e100" readOnly={Boolean(selected)} />
+          <SelectField defaultValue={field('ipId')} error={state.errors?.ipId} label="연결 IP" name="ipId">
             <option value="">플랫폼/합동 이벤트</option>
             {ipOptions.map((ip) => (
               <option
@@ -97,28 +103,28 @@ export function EventSection({
               </option>
             ))}
           </SelectField>
-          <Field defaultValue={selected?.title} error={state.errors?.title} label="이벤트 이름" name="title" />
-          <SelectField defaultValue={selected?.mode ?? '오프라인'} error={state.errors?.mode} label="모드" name="mode">
+          <Field defaultValue={field('title')} error={state.errors?.title} label="이벤트 이름" name="title" />
+          <SelectField defaultValue={field('mode') || '오프라인'} error={state.errors?.mode} label="모드" name="mode">
             <option value="오프라인">오프라인</option>
             <option value="온라인">온라인</option>
           </SelectField>
-          <SelectField defaultValue={selected?.status ?? '예정'} error={state.errors?.status} label="상태" name="status">
+          <SelectField defaultValue={field('status') || '예정'} error={state.errors?.status} label="상태" name="status">
             <option value="예정">예정</option>
             <option value="예매중">예매중</option>
             <option value="진행중">진행중</option>
             <option value="종료">종료</option>
           </SelectField>
-          <Field defaultValue={dateTimeInput(selected?.startsAt)} label="시작" name="startsAt" type="datetime-local" />
-          <Field defaultValue={dateTimeInput(selected?.endsAt)} label="종료" name="endsAt" type="datetime-local" />
-          <Field defaultValue={selected?.location} label="장소" name="location" />
-          <ColorField defaultValue={selected?.accent} fallback="#8B5CFF" label="액센트 색상" name="accent" />
-        </div>
+          <Field defaultValue={field('startsAt')} label="시작" name="startsAt" type="datetime-local" />
+          <Field defaultValue={field('endsAt')} label="종료" name="endsAt" type="datetime-local" />
+          <Field defaultValue={field('location')} label="장소" name="location" />
+          <ColorField defaultValue={field('accent')} fallback="#8B5CFF" label="액센트 색상" name="accent" />
+        </AdminFormGrid>
         {/* 배경 CSS 자유입력을 운영자 폼에서 뺐다 (#183). 아트워크가 없는 레거시
             레코드는 이 값으로 렌더되므로 그대로 실어 보내 보존한다. */}
-        <input name="bg" type="hidden" value={selected?.bg ?? ''} />
+        <input name="bg" type="hidden" value={field('bg')} />
         <ArtworkUploadField
-          currentPath={selected?.imagePath ?? null}
-          currentUrl={selected?.imageUrl ?? null}
+          currentPath={artwork.currentPath}
+          currentUrl={artwork.currentUrl}
           kind="event"
         />
         <FormShell pending={pending} state={state} />

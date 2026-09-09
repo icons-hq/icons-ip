@@ -25,8 +25,8 @@ export const MEMBERS_ROLES_TOPIC: AdminGuideTopic = {
       id: 'members',
       heading: '회원 조회와 정지',
       steps: [
-        { text: '회원 화면에서 닉네임·이메일로 검색합니다.', screenHref: '/admin/community/members' },
-        { text: '회원 상세에서 주문·티켓·신고 이력을 확인합니다.' },
+        { text: '회원 화면에서 닉네임·이메일로 검색합니다. 완전한 이메일 주소를 입력하면 정확히 일치하는 회원을 먼저 보여줍니다.', screenHref: '/admin/community/members' },
+        { text: '회원 상세에서 기본 정보·주문·문의·취소·반품·교환 요청·카드·티켓의 6개 탭을 확인합니다.' },
         {
           text: '규정 위반 회원은 내부 정지 사유를 적고 정지합니다.',
           detail: [
@@ -34,6 +34,9 @@ export const MEMBERS_ROLES_TOPIC: AdminGuideTopic = {
             '정지 사유는 내부 기록입니다. 사정이 해소되면 같은 화면에서 정지를 해제합니다.',
           ],
         },
+      ],
+      paragraphs: [
+        '내부 메모는 운영자에게만 보이며 고객 화면에는 노출되지 않습니다. 문의 상세에서는 화면을 떠나지 않고 고객의 주문·취소·반품·교환 이력을 조회할 수 있습니다.',
       ],
       callouts: [
         {

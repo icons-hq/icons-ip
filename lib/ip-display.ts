@@ -16,5 +16,5 @@ const META: Record<string, { en: string; accent: string; ink: string }> = {
 /** 테두리·글로우·배경 틴트 등 장식용 브랜드 색. 대비를 보장하지 않는다. */
 export const ipAccent = (ip: Pick<Ip, 'id' | 'v'>): string => META[ip.id]?.accent ?? ip.v.color;
 /** 라이트 표면 위 텍스트용 브랜드 색. 미등재 IP는 대비가 보장된 중립 잉크로 떨어뜨린다. */
-export const ipAccentInk = (ip: Pick<Ip, 'id'>): string => META[ip.id]?.ink ?? 'var(--editorial-ink-muted)';
+export const ipAccentInk = (ip: Pick<Ip, 'id'>): string => META[ip.id]?.ink ?? '#686862';
 export const ipEn = (ip: Pick<Ip, 'id' | 'title'>): string => META[ip.id]?.en ?? ip.title;

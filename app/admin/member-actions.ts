@@ -37,6 +37,12 @@ async function requireStaffAction(): Promise<AdminMemberMutationActionState | nu
   return null;
 }
 
+function revalidateMemberViews(profileId: string) {
+  revalidatePath('/admin');
+  revalidatePath('/admin/community/members');
+  revalidatePath(`/admin/customers/${profileId}`);
+}
+
 export async function searchAdminMembersAction(
   state: AdminMemberSearchActionState,
   formData: FormData,
@@ -110,7 +116,7 @@ export async function suspendAdminMemberAction(
   });
   if (error) return { errors: { form: suspensionRpcError(error.message) } };
 
-  revalidatePath('/admin');
+  revalidateMemberViews(result.value.profileId);
   return { message: '회원을 정지했습니다.' };
 }
 
@@ -130,7 +136,7 @@ export async function unsuspendAdminMemberAction(
   });
   if (error) return { errors: { form: suspensionRpcError(error.message) } };
 
-  revalidatePath('/admin');
+  revalidateMemberViews(result.value.profileId);
   return { message: '회원 정지를 해제했습니다.' };
 }
 
@@ -158,8 +164,8 @@ export async function adjustMemberLoyaltyAction(
     return { errors: { form: '등급을 보정하지 못했습니다. 다시 시도해주세요.' } };
   }
 
-  revalidatePath('/admin');
-  return { message: `등급을 ${result.value.grade.toUpperCase()} 로 보정했습니다. 상세 보기를 다시 열면 반영된 값이 보입니다.` };
+  revalidateMemberViews(result.value.profileId);
+  return { message: `등급을 ${result.value.grade.toUpperCase()} 로 보정했습니다.` };
 }
 
 /* 결제 트리거가 삼킨 재산정 실패를 사람 손으로 따라잡는 복구 경로. */
@@ -181,7 +187,7 @@ export async function recalculateMemberLoyaltyAction(
     return { errors: { form: '등급을 재산정하지 못했습니다. 다시 시도해주세요.' } };
   }
 
-  revalidatePath('/admin');
+  revalidateMemberViews(result.value.profileId);
   const grade = typeof data === 'string' ? data.toUpperCase() : null;
   return { message: grade ? `재산정 결과 ${grade} 등급입니다.` : '재산정을 실행했습니다.' };
 }

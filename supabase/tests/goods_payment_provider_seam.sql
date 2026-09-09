@@ -247,7 +247,7 @@ insert into public.order_items (
   unit_price,
   good_name_snapshot,
   good_type_snapshot,
-  good_ip_id_snapshot
+  good_ip_id_snapshot, variant_id
 )
 select
   source.order_id,
@@ -256,7 +256,7 @@ select
   28000,
   '굿즈 결제 seam 상품',
   '문구',
-  'goods-payment-seam-ip'
+  'goods-payment-seam-ip', (select id from public.goods_variants where good_id='goods-payment-seam-good' and is_default)
 from (
   values
     ('20000000-0000-4000-8000-000000002051'::uuid),

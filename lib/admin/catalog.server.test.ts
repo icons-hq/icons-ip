@@ -39,11 +39,16 @@ function createClient({
     from(table: string) {
       const record: QueryRecord = { table, select: null, order: [], limit: [] };
       records.push(record);
+      let selectedId: string | undefined;
       const resolve = (): Result => ({
-        data: rows[table] ?? [],
+        data: selectedId ? (rows[table] ?? []).filter((row) => row.id === selectedId) : rows[table] ?? [],
         error: errors[table] ? { message: errors[table] } : null,
       });
       const query = {
+        eq(column: string, value: string) {
+          if (column === 'id') selectedId = value;
+          return query;
+        },
         select(columns: string) {
           record.select = columns;
           return query;
@@ -321,6 +326,28 @@ describe('getAdminCatalogRecords', () => {
     for (const table of ['ips', 'goods', 'cards', 'events']) {
       expect(records.find((record) => record.table === table)?.select).toContain('archived_at');
     }
+  });
+
+  /* 게시 상태(20260907130000) — 어드민은 초안까지 전부 보되, 상태를 가릴 수 있어야 한다. */
+  it('loads the IP publish timestamp so the console can tell drafts from published IPs', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({
+      records,
+      rows: {
+        ips: [
+          { id: 'draft-ip', title: '초안 IP', vertical_key: 'webtoon', featured: false, fans_count: 0, archived_at: null, published_at: null },
+          { id: 'live-ip', title: '공개 IP', vertical_key: 'webtoon', featured: false, fans_count: 0, archived_at: null, published_at: '2026-09-07T04:00:00.000Z' },
+        ],
+      },
+    });
+
+    const result = await getAdminCatalogRecords({ include: ['ips'] });
+
+    expect(records.find((record) => record.table === 'ips')?.select).toContain('published_at');
+    expect(result.ips.map(({ id, publishedAt }) => ({ id, publishedAt }))).toEqual([
+      { id: 'draft-ip', publishedAt: null },
+      { id: 'live-ip', publishedAt: '2026-09-07T04:00:00.000Z' },
+    ]);
   });
 
   /* 정가는 어드민 폼의 기본값이자 미리보기의 할인 표기 근거다 — 목록 select 에서
@@ -1025,4 +1052,10 @@ describe('getAdminCatalogRecords', () => {
     expect(result.cardPools[0].rewardReady).toBe(true);
     expect(result.cards).toEqual([]);
   });
+});
+
+it('loads only the exact goods editor target, including records outside the list page', async () => {
+  mocks.client = createClient({ records: [], rows: { goods: [{ id: 'g1' }, { id: 'g999' }] } });
+  const result = await getAdminCatalogRecords({ include: ['goods'], goodId: 'g999' });
+  expect(result.goods.map((good) => good.id)).toEqual(['g999']);
 });
