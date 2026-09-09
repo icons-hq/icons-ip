@@ -1,0 +1,1228 @@
+{
+  "sourceRepository": "https://github.com/icons-hq/icons",
+  "sourceCommit": "7989794969bd74cf53a0fdefb595cfcfff8717b9",
+  "sourceEntry": "50_apps/plan-viewer/components/aouad/AouadSample.jsx",
+  "sourcePurpose": "Password-protected planning demonstration; simulated commerce and campaign data.",
+  "importedAt": "2026-09-09",
+  "baselineAdaptations": [
+    {
+      "path": "source/components/aouad/LibraryRun.jsx",
+      "change": "Map upstream phaser4 npm alias to the existing phaser 4.2.1 dependency."
+    }
+  ],
+  "hashMeaning": "sourceSha256 identifies the unchanged upstream input. Local implementation may evolve after import.",
+  "sourceFiles": [
+    {
+      "sourcePath": "50_apps/plan-viewer/components/OfflineMap.jsx",
+      "importedPath": "components/online-popup/aouad/source/components/OfflineMap.jsx",
+      "sourceSha256": "6eec3b5e621443f9f08804aa82d3b382470d30b1f9dbcd11aea6e1da7c83ea3b"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/AouadSample.jsx",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/AouadSample.jsx",
+      "sourceSha256": "9d88cb4a9e96fb379faf48d5556bec76467f047abdf3565115908f95b09afa21"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/AouadSample.module.css",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/AouadSample.module.css",
+      "sourceSha256": "e6858e475f51fa699bb139d9e1e111fa40a2dcd15ea3fd7c2fb2523d1fcd7335"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/BoxLive.jsx",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/BoxLive.jsx",
+      "sourceSha256": "b292e7bedc04775ca12dfebec0485f7d78206ee8e2480d0a271ee2cda4c25cb3"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/CafeteriaCrash.jsx",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/CafeteriaCrash.jsx",
+      "sourceSha256": "77b8e35318f8d8c34dbea610a09ed36b154cc0c945693c6d9e8f61d072ae1144"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/CafeteriaCrash.module.css",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/CafeteriaCrash.module.css",
+      "sourceSha256": "59d64cb7de04781d3cd88f10bd0687497eb84d2994f94ccf2b8565f35ccec7e7"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/DealFaces.jsx",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/DealFaces.jsx",
+      "sourceSha256": "34b66f667f2f851dc82e0e2a753d3df319bb49ddd567e0f14cde54a1ad4b502b"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/GameGate.jsx",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/GameGate.jsx",
+      "sourceSha256": "5b5f50107d0b8e4895fa5faa821e561bf1169bf8cb79bb893095dcf79f4d2c07"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/GameGate.module.css",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/GameGate.module.css",
+      "sourceSha256": "63eddfaff5587556aafcb9bbb78704832743e8247a99e9879453ba2428f8a2e5"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/HoseDescent.jsx",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/HoseDescent.jsx",
+      "sourceSha256": "12933377f1e2479a895b6a712c4c24cc50f207bbc1eeb11824a2f0892d276979"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/HoseDescent.module.css",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/HoseDescent.module.css",
+      "sourceSha256": "d8fe1277f9b972752c6671f33d318a745ff31d50b476dad8fd48071b5d71aabb"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/KujiFace.jsx",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/KujiFace.jsx",
+      "sourceSha256": "1904ca38ab45eadeada94138556376d9c7a9512bc9914bbc359d988d8514d657"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/LibraryRun.jsx",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/LibraryRun.jsx",
+      "sourceSha256": "ce326947e6f396b97097eb6b8d10b4c75eb163b737bcdacaddd58930a71c1bfe"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/LibraryRun.module.css",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/LibraryRun.module.css",
+      "sourceSha256": "cc6176cc156b81229002364d85abda60d827a869ffba83e7266f19bee4d329c2"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/SceneHero.jsx",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/SceneHero.jsx",
+      "sourceSha256": "766327ac44610f24a97ca51cea3e1c074e73b47aedd4bc80c8345af23fd738b7"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/SceneHero.module.css",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/SceneHero.module.css",
+      "sourceSha256": "074d1c2bf8c99549a00e0278d4b529a4ec2f55a98a29f992a0a518dabbd7da33"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/aouad-copy.js",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/aouad-copy.js",
+      "sourceSha256": "06e481e6a2e4479533df6a827214fb21b7f262841a38ea6e8bc6a3de65642ddf"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/aouad-data.js",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/aouad-data.js",
+      "sourceSha256": "dd134566b0d577956b7f8ca2450596e3bc2f1ce2bb3cf6d52b4aee415e8a7ad4"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/deal-format.js",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/deal-format.js",
+      "sourceSha256": "58f9071827b8a2b14685c2e60fa5566d879f2e95d05d003d2ea0ec2e87866319"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/kuji-stage.js",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/kuji-stage.js",
+      "sourceSha256": "13f5e982d845cb4da52f343b8a61daf620b5579bc17c3cc1b1275e9e23eaa2c0"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/aouad/library-run-scene.js",
+      "importedPath": "components/online-popup/aouad/source/components/aouad/library-run-scene.js",
+      "sourceSha256": "e6a9ff25cf3e2514da2a3ac9c6cc22a65f5e59c0a92a5cd0a4fc984e1fcd6f04"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/popup/PopupFloorplan.jsx",
+      "importedPath": "components/online-popup/aouad/source/components/popup/PopupFloorplan.jsx",
+      "sourceSha256": "c6f7de7037a164f11c7c50362a65d9af710d1d1cc515cbf850e2ca30ac89baf3"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/popup/PopupFloorplan.module.css",
+      "importedPath": "components/online-popup/aouad/source/components/popup/PopupFloorplan.module.css",
+      "sourceSha256": "c9c2c601882946cde2b7306434d3e8350420547512953e9d7c9601d9aa06868d"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/popup/PopupHud.jsx",
+      "importedPath": "components/online-popup/aouad/source/components/popup/PopupHud.jsx",
+      "sourceSha256": "637d6b744dbf0db969c25b77dce2d37243f095710028991398f6355a73303f04"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/components/popup/PopupHud.module.css",
+      "importedPath": "components/online-popup/aouad/source/components/popup/PopupHud.module.css",
+      "sourceSha256": "d38dbb4e836f79c3edd230f96bd64a81360c1a440f11086c4e4e9a0fe6dbb349"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/lib/box/audio.js",
+      "importedPath": "components/online-popup/aouad/source/lib/box/audio.js",
+      "sourceSha256": "368764c5c8e04f43b1500a83ac6d96859ac45aa0c78f9804498c55697044565b"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/lib/box/engine-dark.js",
+      "importedPath": "components/online-popup/aouad/source/lib/box/engine-dark.js",
+      "sourceSha256": "19f38349d5135e34269a37aa78cd93c83ecf25df876ec0789e424bf1fec4c0bf"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/lib/box/engine-drop.js",
+      "importedPath": "components/online-popup/aouad/source/lib/box/engine-drop.js",
+      "sourceSha256": "52644cd0f939f87b08a86b9477ffeaf69384f2ce122fa348ab71d07995e4dbf8"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/lib/box/engine-wire.js",
+      "importedPath": "components/online-popup/aouad/source/lib/box/engine-wire.js",
+      "sourceSha256": "e2a9614994777aa97f50b5db779b1c8e92cf904ef9fe86deee2777914040a69b"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/lib/box/engine.js",
+      "importedPath": "components/online-popup/aouad/source/lib/box/engine.js",
+      "sourceSha256": "531c3c1ec16d1bea01a7a16c1198ce2270000fb477f0194160d5baf3daeaeeda"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/lib/box/session.js",
+      "importedPath": "components/online-popup/aouad/source/lib/box/session.js",
+      "sourceSha256": "72cce3fdc0569a7b947db246a5c2ae88eda57e2a94caf141135701ce60e4427c"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/lib/stage/snap-assist.js",
+      "importedPath": "components/online-popup/aouad/source/lib/stage/snap-assist.js",
+      "sourceSha256": "4a513109b48aad2993052721f005ade4c8b9e5cfbb3dcf9cf15d221b63b612ad"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/lib/stage/url-state.js",
+      "importedPath": "components/online-popup/aouad/source/lib/stage/url-state.js",
+      "sourceSha256": "aed60f372271fcbbd0be4ddddb5b6a20a4de97ef8b417e91795df47bdeca224e"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/lib/zones/engine-cafeteria.js",
+      "importedPath": "components/online-popup/aouad/source/lib/zones/engine-cafeteria.js",
+      "sourceSha256": "d93686f6d9ba670aee44a5b1ac2e7e3ed9c2375c2079d036c4f91fa1e9e3567c"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/lib/zones/engine-hose.js",
+      "importedPath": "components/online-popup/aouad/source/lib/zones/engine-hose.js",
+      "sourceSha256": "f9fabb91c1e11f42f2749e9e702787bb4f45c7773c1d1c380dcf5d2396b7e7d4"
+    },
+    {
+      "sourcePath": "50_apps/plan-viewer/lib/zones/engine-library.js",
+      "importedPath": "components/online-popup/aouad/source/lib/zones/engine-library.js",
+      "sourceSha256": "09f010489703282525abdce1b7c3ed7ee66a2864c2815bd8d112670c44d8a992"
+    }
+  ],
+  "assets": [
+    {
+      "path": "public/ip-popups/aouad/box-bandage-tin.jpg",
+      "sourceSha256": "dfe08a9a2f366cf31f3ee4457758df95b3218df49cd5c9ae8624d6bea07f2ee0",
+      "bytes": 225070
+    },
+    {
+      "path": "public/ip-popups/aouad/box-broadcast-badge.jpg",
+      "sourceSha256": "3706d857c65e1b37013d56d38cf28de7bc94bf6c0f72027160f09f42310fe80f",
+      "bytes": 235659
+    },
+    {
+      "path": "public/ip-popups/aouad/box-cable-tie.jpg",
+      "sourceSha256": "eb4f5a948da8a00c67c8fcebe6cfc29f95b182932a8c1e3a314a45eb0a4fd03a",
+      "bytes": 236995
+    },
+    {
+      "path": "public/ip-popups/aouad/box-carabiner-box.jpg",
+      "sourceSha256": "b979f9f28290e182fb0a2395c7f607ea97012ce79778ba9b4376e2b184e239a3",
+      "bytes": 887779
+    },
+    {
+      "path": "public/ip-popups/aouad/box-cassette-case.jpg",
+      "sourceSha256": "c56274932f4a97704b8d663a8f13d04355b411735c668d7029fa390de08420f8",
+      "bytes": 205117
+    },
+    {
+      "path": "public/ip-popups/aouad/box-ember-charm.jpg",
+      "sourceSha256": "9a7b9a8459b9df2ecd58211ccb8753a6c90fbc73e80231d2fdf8d2187aee1217",
+      "bytes": 172282
+    },
+    {
+      "path": "public/ip-popups/aouad/box-ember-sticker.jpg",
+      "sourceSha256": "c906dea6eb5ef00844a62e22a55ccf88198a66f1a762b2961dc64624a25c1e31",
+      "bytes": 204693
+    },
+    {
+      "path": "public/ip-popups/aouad/box-emergency-light.jpg",
+      "sourceSha256": "a01c774936beec722b1da41a7f175472b69eb85e136379e820950dc71f608345",
+      "bytes": 155243
+    },
+    {
+      "path": "public/ip-popups/aouad/box-emergency-sticker.jpg",
+      "sourceSha256": "c64dddb4d60dd3ed8da72890821956e8cf7ab21df465cfd93703e5483b4f80f7",
+      "bytes": 210820
+    },
+    {
+      "path": "public/ip-popups/aouad/box-flashlight-charm.jpg",
+      "sourceSha256": "218f95835685935f0cfaa67f04af8b9ffba490d9ef972f9f47e406a2cee7bef6",
+      "bytes": 169252
+    },
+    {
+      "path": "public/ip-popups/aouad/box-freq-dial.jpg",
+      "sourceSha256": "69fd17d7758102e425a0954c84b9ea4bb285e7f907d77818dcaa1d9ba12242da",
+      "bytes": 259172
+    },
+    {
+      "path": "public/ip-popups/aouad/box-freq-sticker.jpg",
+      "sourceSha256": "011be5b8bda80671e05b20e57152fd23c11a00387f0cbd8c1011a9e801604d08",
+      "bytes": 211558
+    },
+    {
+      "path": "public/ip-popups/aouad/box-glow-charm.jpg",
+      "sourceSha256": "7930ab7970603ab6743ad0d260d887b4b16bbafc964557e79f3addd7741759e5",
+      "bytes": 172397
+    },
+    {
+      "path": "public/ip-popups/aouad/box-glow-sticker.jpg",
+      "sourceSha256": "b395acf44ad090ab8e7ce35d27e6d9af93f6b07ec1338854315923d19be1fdfd",
+      "bytes": 156524
+    },
+    {
+      "path": "public/ip-popups/aouad/box-key-25.jpg",
+      "sourceSha256": "7232201508c13e212a0e65431aef805f628a5e99fa6d2725bc56f3c8ff733268",
+      "bytes": 851251
+    },
+    {
+      "path": "public/ip-popups/aouad/box-lightsout-card.jpg",
+      "sourceSha256": "daec9fb02632bf798e42ef3204d9708cdc6b442f6846e571b95c3e2d6da1c161",
+      "bytes": 153425
+    },
+    {
+      "path": "public/ip-popups/aouad/box-lock-dial.jpg",
+      "sourceSha256": "68e7f702011b19454bc76e2bcf1efb84cc1586c3a914462c38e304c5a0ac712b",
+      "bytes": 800318
+    },
+    {
+      "path": "public/ip-popups/aouad/box-locker-label.jpg",
+      "sourceSha256": "17ec2c17be44b4b0dba09dd07439ac83317da436a0eb21d52221820fe5cbaec7",
+      "bytes": 837160
+    },
+    {
+      "path": "public/ip-popups/aouad/box-locker-magnet.jpg",
+      "sourceSha256": "9171427e779d740250b8f3ad43b11c74b31b1a8d383ee39b0c43e2dfce7d1771",
+      "bytes": 713885
+    },
+    {
+      "path": "public/ip-popups/aouad/box-logo-sticker.jpg",
+      "sourceSha256": "32025b04fdf851dfa8a38289d9e36f990f73b37b5625187360518773d6429eca",
+      "bytes": 1093515
+    },
+    {
+      "path": "public/ip-popups/aouad/box-meal-ticket.jpg",
+      "sourceSha256": "3ad1832435f460fa02f3e0d659f59f99da3eddbfc3eb88697e59a281307b3d66",
+      "bytes": 804405
+    },
+    {
+      "path": "public/ip-popups/aouad/box-mic-mini.jpg",
+      "sourceSha256": "2f77fd8375c16983af544c0906f72091cc274d8f5d83f2eafa6674c3095c3b45",
+      "bytes": 254819
+    },
+    {
+      "path": "public/ip-popups/aouad/box-mini-candle.jpg",
+      "sourceSha256": "f6ddaa8e656cbd7ae884ab47a109808add46c7687bca20f6e990d18de4e13bf7",
+      "bytes": 215343
+    },
+    {
+      "path": "public/ip-popups/aouad/box-mini-pouch.jpg",
+      "sourceSha256": "959f91316bcb6dd259ff8be0959445de2f8885e71c1f8ddd3f712a440f39f1a2",
+      "bytes": 801798
+    },
+    {
+      "path": "public/ip-popups/aouad/box-notice-replica.jpg",
+      "sourceSha256": "afeb0efdf0b1ea210e80fd46fe5a598869403e12dab3fc56297ce7c9e2218258",
+      "bytes": 950374
+    },
+    {
+      "path": "public/ip-popups/aouad/box-onair-magnet.jpg",
+      "sourceSha256": "61fad067b7e3da2fb4508f6c75ee368a29a0588351091042c031b921b9910b44",
+      "bytes": 161474
+    },
+    {
+      "path": "public/ip-popups/aouad/box-paper-nametag.jpg",
+      "sourceSha256": "5597f4ec7ace61d60fb7fead8b937319a4351b5de5e0b72841faf98cce723753",
+      "bytes": 791711
+    },
+    {
+      "path": "public/ip-popups/aouad/box-radio-single.jpg",
+      "sourceSha256": "715d2e34d57ed5d8f01bbb46bf58f7fb07b4ac5dda58faf9daf137fc8c9e8fd9",
+      "bytes": 772355
+    },
+    {
+      "path": "public/ip-popups/aouad/box-ration-slip.jpg",
+      "sourceSha256": "e3ba4d20ddeeb4f8b0c9b290a1852d68c9079987d8d77dc12cc242d59fe94313",
+      "bytes": 213647
+    },
+    {
+      "path": "public/ip-popups/aouad/box-reflect-strap.jpg",
+      "sourceSha256": "d17a5a526d3338ce8761bc479dcec0188f39196732a956dd75c2a187ec8a7b5a",
+      "bytes": 255983
+    },
+    {
+      "path": "public/ip-popups/aouad/box-rule-card.jpg",
+      "sourceSha256": "eef3e3e4ebec7e2b4b51c545a5f2e19ce325303f352eda414b85069adf5f5868",
+      "bytes": 167442
+    },
+    {
+      "path": "public/ip-popups/aouad/box-script-replica.jpg",
+      "sourceSha256": "47957257e5bc64afe57a77b9834e1c0fc108fce732fa4516b60c40ced535cb5c",
+      "bytes": 195552
+    },
+    {
+      "path": "public/ip-popups/aouad/box-slipper-charm.jpg",
+      "sourceSha256": "068c08800ace05a4cb3312c5e7fdc913a427b5cd821a5f115465be06fff861a8",
+      "bytes": 1054515
+    },
+    {
+      "path": "public/ip-popups/aouad/box-sos-magnet.jpg",
+      "sourceSha256": "a50a6e44a0601826e68b7b8d3efc151b692470abf207d1ce90eb63062fd2fb7e",
+      "bytes": 224734
+    },
+    {
+      "path": "public/ip-popups/aouad/box-still-postcard.jpg",
+      "sourceSha256": "ad7949136f8a4ef7c7ee59841f4d486f31745da81bf93b106144664b73818700",
+      "bytes": 214230
+    },
+    {
+      "path": "public/ip-popups/aouad/box-whistle-cord.jpg",
+      "sourceSha256": "9c6f6623ed083efbb2f03b9c5be5f7447111a07f119831338a6faa37d5f07f31",
+      "bytes": 978087
+    },
+    {
+      "path": "public/ip-popups/aouad/characters/cheongsan.jpg",
+      "sourceSha256": "d32c5827de6a335a1bb2fdc0f3ac6ee298be4d15c24c9035e160595ca5f66965",
+      "bytes": 341865
+    },
+    {
+      "path": "public/ip-popups/aouad/characters/gwinam.jpg",
+      "sourceSha256": "d2c102de06135bc532e1ec736b37292479b48f475ad2279630115fd2e39695ff",
+      "bytes": 347429
+    },
+    {
+      "path": "public/ip-popups/aouad/characters/hari.jpg",
+      "sourceSha256": "e6262fc9170f55b492aa491ac81650b2ceb91aa01b22bf6361a3fe9027f24d35",
+      "bytes": 337374
+    },
+    {
+      "path": "public/ip-popups/aouad/characters/namra.jpg",
+      "sourceSha256": "d7df6009574febaf8ec9936c3ba6bd7b26e29fe532d3673215ed6336001f22aa",
+      "bytes": 318607
+    },
+    {
+      "path": "public/ip-popups/aouad/characters/nayeon.jpg",
+      "sourceSha256": "c6ec0fa14f057b41aff0bd5c381190c0a17f838a33627e93a7e87f56b2701558",
+      "bytes": 3846
+    },
+    {
+      "path": "public/ip-popups/aouad/characters/onjo.jpg",
+      "sourceSha256": "c959454711f33f58cc24fbb55fd1b22f83c0cff807b767e140d1f379e236f1da",
+      "bytes": 320590
+    },
+    {
+      "path": "public/ip-popups/aouad/characters/suhyeok.jpg",
+      "sourceSha256": "3605dcae9dde3acc53e557a0a6279a30edc0c66f15ef62e453de0de4e3950412",
+      "bytes": 332336
+    },
+    {
+      "path": "public/ip-popups/aouad/gate-closed.jpg",
+      "sourceSha256": "d06eb88312652e1656927ddf7759273a9bf1c53d4e00750d6e4b9dffcc6714ac",
+      "bytes": 229055
+    },
+    {
+      "path": "public/ip-popups/aouad/hero-broadcast-poster.jpg",
+      "sourceSha256": "5f031390a503ea6bd6de7c853e4e0952d7b2c1c64d5ceca06749825f1b15db40",
+      "bytes": 88829
+    },
+    {
+      "path": "public/ip-popups/aouad/hero-broadcast.mp4",
+      "sourceSha256": "116c1a3f4f7051ca69df4550376c02cb53e364149159ef882a139f0d7e3b3e50",
+      "bytes": 903837
+    },
+    {
+      "path": "public/ip-popups/aouad/hero-cafeteria-poster.jpg",
+      "sourceSha256": "7a9eb9a41931dfce90cb86091563b7afb98f6aca2549be01f4a82c22fee594f8",
+      "bytes": 76408
+    },
+    {
+      "path": "public/ip-popups/aouad/hero-cafeteria.mp4",
+      "sourceSha256": "a8ad5257295e865ac48c7c9526c5e4caf0027a448d914c0b07c26e8cdee19161",
+      "bytes": 7898246
+    },
+    {
+      "path": "public/ip-popups/aouad/hose-ground.jpg",
+      "sourceSha256": "770e849bcc08a5a65094aa71199da1c3d1f90f8b8d59d9a34c6293cab70b2e0b",
+      "bytes": 297163
+    },
+    {
+      "path": "public/ip-popups/aouad/hose-rider-land.png",
+      "sourceSha256": "b6acdf1531d93b39f16cf9bafd73b965087ccab21285ffb05af9a8d06979e5a7",
+      "bytes": 14617
+    },
+    {
+      "path": "public/ip-popups/aouad/hose-rider-slip.png",
+      "sourceSha256": "67d046762740f623be42e4aecd8a3227d3b7d3e5f6f78387fbd498a75ebaea3e",
+      "bytes": 10717
+    },
+    {
+      "path": "public/ip-popups/aouad/hose-rider.png",
+      "sourceSha256": "b215f11ab0998f6f5d1f086a074b5b925c109ec2248043acf87c9b6a17264af7",
+      "bytes": 10862
+    },
+    {
+      "path": "public/ip-popups/aouad/hose-roof.jpg",
+      "sourceSha256": "a1195f77b97d1fc4293db7a6b507111aa32281c32b6e164c542b9a42ef359eda",
+      "bytes": 123373
+    },
+    {
+      "path": "public/ip-popups/aouad/hose-rope-tile.png",
+      "sourceSha256": "c3926f5e861d8064048b157959201c7cb3fb1f2485fd94fa27634dd93bd96397",
+      "bytes": 22766
+    },
+    {
+      "path": "public/ip-popups/aouad/hose-wall-tile.jpg",
+      "sourceSha256": "790784167280770b2b65c849c42f8c92e52e4d8d6d0745aba3fc1916960f77fb",
+      "bytes": 153529
+    },
+    {
+      "path": "public/ip-popups/aouad/hose-win-closed.png",
+      "sourceSha256": "f0516d687da1cd97b335bb9fea89d8ee9bf7dfa3548dd8a0e9415caab37afde4",
+      "bytes": 40925
+    },
+    {
+      "path": "public/ip-popups/aouad/hose-win-goal.png",
+      "sourceSha256": "6becb99573f8923e360963261bbceb521881997dc3e8589c65304a0a447cb877",
+      "bytes": 65254
+    },
+    {
+      "path": "public/ip-popups/aouad/hose-win-open.png",
+      "sourceSha256": "834b79130ea1eb5136b344fc031cdca023e065c3f9e9dd6113c1d3f4fec771d2",
+      "bytes": 36635
+    },
+    {
+      "path": "public/ip-popups/aouad/hose-win-out-side.png",
+      "sourceSha256": "a09377a0f473a027efa32b6c8c2da8431bc414aff2ea20e61d303a3037735125",
+      "bytes": 50512
+    },
+    {
+      "path": "public/ip-popups/aouad/hose-win-out-up.png",
+      "sourceSha256": "724e10053bdd55fc7e09fedceda8aff9af4facd6fa6ac207d23832fe25cd7068",
+      "bytes": 48927
+    },
+    {
+      "path": "public/ip-popups/aouad/key-armed-group.jpg",
+      "sourceSha256": "02d0950caafe67774398998f58c41866b0ccd5f5b889efb5acad3a0bc910fc46",
+      "bytes": 202952
+    },
+    {
+      "path": "public/ip-popups/aouad/key-title-art.jpg",
+      "sourceSha256": "ce0af8b411c0a56732c79a981773875ab88a38363b5c26d72632d5e95dfff693",
+      "bytes": 357612
+    },
+    {
+      "path": "public/ip-popups/aouad/key-yearbook-blood.jpg",
+      "sourceSha256": "989997cd2e7408439b93b15add3779024dc9c52310f4abafa05329f129ccf03c",
+      "bytes": 158238
+    },
+    {
+      "path": "public/ip-popups/aouad/library/bg-reading.png",
+      "sourceSha256": "98eceb7437325edefe31ce5611a3d7387dde08df7d67542546cb436783ae87e2",
+      "bytes": 1900968
+    },
+    {
+      "path": "public/ip-popups/aouad/library/bg-stacks.png",
+      "sourceSha256": "4766bbff873a2e3094fa680a867f379c1bc730a8279257be6b16da539c4033f3",
+      "bytes": 2293993
+    },
+    {
+      "path": "public/ip-popups/aouad/library/bg-stairwell.png",
+      "sourceSha256": "3de8038ed612e0b61336cb217956662781d9eec2debf56ead440a1b0339103c2",
+      "bytes": 1842852
+    },
+    {
+      "path": "public/ip-popups/aouad/library/motion/hand.json",
+      "sourceSha256": "641f6af4e14405efc347a5e730381424f4ed24e393636f0867347944954d8d7f",
+      "bytes": 151
+    },
+    {
+      "path": "public/ip-popups/aouad/library/motion/hand.png",
+      "sourceSha256": "fbec6c8f783907c1c9a4a3b5ba8a5bc1f921fbc1d28ddf116ef4a375ea41e3a3",
+      "bytes": 16366
+    },
+    {
+      "path": "public/ip-popups/aouad/library/motion/horde.json",
+      "sourceSha256": "f2d93f69686f85220b0fb43e3132ce064f161d49b1a8367eb97a172224216b63",
+      "bytes": 226
+    },
+    {
+      "path": "public/ip-popups/aouad/library/motion/horde.png",
+      "sourceSha256": "01aa1d4352d62b53d341a8772abc068f5d4e5c2a73c76b8eb65d7d460026b1ba",
+      "bytes": 716109
+    },
+    {
+      "path": "public/ip-popups/aouad/library/motion/lunge-leap.json",
+      "sourceSha256": "e37e7cf1120cc2524487aa674545bf06a1732e04c3a39ec2ed8a9cfad37445e7",
+      "bytes": 151
+    },
+    {
+      "path": "public/ip-popups/aouad/library/motion/lunge-leap.png",
+      "sourceSha256": "f112ed7876c1ba1506bdc8792c426e652b23625bf2079586a71d8f8ec11013e1",
+      "bytes": 85126
+    },
+    {
+      "path": "public/ip-popups/aouad/library/motion/lunge-low.json",
+      "sourceSha256": "7f0c55155e0c032e14eee9181e2d73aac50a9a2e6a33f8be9f72b66bea538323",
+      "bytes": 151
+    },
+    {
+      "path": "public/ip-popups/aouad/library/motion/lunge-low.png",
+      "sourceSha256": "acd1e72ebb095cfaa33d6a0a02af4791af639ad7cc17314eaf3a97747ce92d7f",
+      "bytes": 65819
+    },
+    {
+      "path": "public/ip-popups/aouad/library/motion/runner.json",
+      "sourceSha256": "b686ffeef4a8fed3a1b4a58e1aa33e566df0c21c74a07fc119fec6a2ede3f270",
+      "bytes": 377
+    },
+    {
+      "path": "public/ip-popups/aouad/library/motion/runner.png",
+      "sourceSha256": "4965112585118cc195c8229dbddd975e88efcee43bebb72e878857fa93087bba",
+      "bytes": 212885
+    },
+    {
+      "path": "public/ip-popups/aouad/library/motion/zombie.json",
+      "sourceSha256": "23ce140ee74c592baa825294eb98b88203e9dd0ff690cf7af1bc1fc54a94f58f",
+      "bytes": 303
+    },
+    {
+      "path": "public/ip-popups/aouad/library/motion/zombie.png",
+      "sourceSha256": "344ed6d84763b31f6b45d8fcdf2f287ff1e70cf802c485b0b4472f53e4c1a46a",
+      "bytes": 190794
+    },
+    {
+      "path": "public/ip-popups/aouad/library/obj-book-cart.png",
+      "sourceSha256": "483f21b95edf619216ce835f3ad62e858140e7fd9cfad2940ac7438e82ac0f8a",
+      "bytes": 952009
+    },
+    {
+      "path": "public/ip-popups/aouad/library/obj-book-pile.png",
+      "sourceSha256": "40ce065341ef28203e80434413f5bba48a833a5721356f31a3e5dd6d45b53d80",
+      "bytes": 646191
+    },
+    {
+      "path": "public/ip-popups/aouad/library/obj-bookmark.png",
+      "sourceSha256": "e546e186cacfa8e1c2d42e39eebf1c1a1b96da2b66785e62a128f6ae0047a320",
+      "bytes": 1102846
+    },
+    {
+      "path": "public/ip-popups/aouad/library/obj-desk-top.png",
+      "sourceSha256": "adb27009592fef5f7e99841f0237dd81b2c7f68917ae65f155c1809a8327597a",
+      "bytes": 140242
+    },
+    {
+      "path": "public/ip-popups/aouad/library/obj-door-locked.png",
+      "sourceSha256": "e15547be0c90376972c9eed885e324a63c58772bf29e22f07913ed1d16e5e70f",
+      "bytes": 1173486
+    },
+    {
+      "path": "public/ip-popups/aouad/library/obj-shelf-door.png",
+      "sourceSha256": "2e92a4b7fe94ebc64e95971414f443e9a3a6dcecf9df95ee350e69ac1ef15025",
+      "bytes": 1026089
+    },
+    {
+      "path": "public/ip-popups/aouad/library/obj-shelf-fallen.png",
+      "sourceSha256": "03023740bbe2d029982172c3b59a4f61b83d029c9ea645891b795ec5c9d0e7a4",
+      "bytes": 1052502
+    },
+    {
+      "path": "public/ip-popups/aouad/library/obj-shelf-standing.png",
+      "sourceSha256": "99b8923cdb6f36f6439d1ff46d060cab01dbed6dc92dfacf126a50884964d062",
+      "bytes": 650047
+    },
+    {
+      "path": "public/ip-popups/aouad/library/obj-stair-step.png",
+      "sourceSha256": "65a55db7bcfcdfb43ef0fe26cd1874c74c193ee9eda635ef100fd5db19ba7dc3",
+      "bytes": 989298
+    },
+    {
+      "path": "public/ip-popups/aouad/library/obj-window-exit.png",
+      "sourceSha256": "42f46b9be328de0b03bd83dd6e0c14add32b237c4019d502b814bb03335c4f3e",
+      "bytes": 1218889
+    },
+    {
+      "path": "public/ip-popups/aouad/library/tile-floor-concrete.png",
+      "sourceSha256": "cd7bcb7b8d7ee17662a377617aae50195b8b9e3e66ba42c87bdc9dc2b84240f3",
+      "bytes": 710842
+    },
+    {
+      "path": "public/ip-popups/aouad/library/tile-floor-hall.png",
+      "sourceSha256": "6cb677a4325d5d7bceb3a460e00f93251ff917ede424b0bfcd1f6aea9600cf2a",
+      "bytes": 605261
+    },
+    {
+      "path": "public/ip-popups/aouad/logo-title.png",
+      "sourceSha256": "8a915b0158c688385cc4cfee0d2d6631439e0e989b7179984a5528fb9aa204da",
+      "bytes": 105491
+    },
+    {
+      "path": "public/ip-popups/aouad/map-paper-bg.jpg",
+      "sourceSha256": "842f223f83fea2b3792437f60cb500d1a32534f6c8deb31cf07fdfa46d7d7df0",
+      "bytes": 138602
+    },
+    {
+      "path": "public/ip-popups/aouad/md-archery-cardwallet.jpg",
+      "sourceSha256": "96d4900e21ed906f488d205ec4c31c3189caac5268864a6051317289ea709908",
+      "bytes": 165835
+    },
+    {
+      "path": "public/ip-popups/aouad/md-archery-tracksuit-last.jpg",
+      "sourceSha256": "1d849b6d6edd3e23e6713e088ab539a00108dfcd9010efb5bc6845af1038eab9",
+      "bytes": 778103
+    },
+    {
+      "path": "public/ip-popups/aouad/md-archery-tracksuit.jpg",
+      "sourceSha256": "883db3298a0a109da554beb256e87f2ade0615703a009428c3af4f3852d2bd73",
+      "bytes": 709444
+    },
+    {
+      "path": "public/ip-popups/aouad/md-archery.jpg",
+      "sourceSha256": "1b12b45081fca642ec06d74222684ec6f9e1a8f61b4256814b463458bbde14dd",
+      "bytes": 767926
+    },
+    {
+      "path": "public/ip-popups/aouad/md-badge.jpg",
+      "sourceSha256": "0f28675c13d5fa89d00a36334a20640f83abff16d9fea5c50695169403f78388",
+      "bytes": 928533
+    },
+    {
+      "path": "public/ip-popups/aouad/md-barricade-stand.jpg",
+      "sourceSha256": "4449a71b4fe14459bac9a51f288dc0963c55a109493b58c89208892cafa52d5d",
+      "bytes": 756726
+    },
+    {
+      "path": "public/ip-popups/aouad/md-binder-attendance.jpg",
+      "sourceSha256": "41c7bcbd6558f8170a149bbb381d11802240bc1c6d8bac3a8e35a6688be42489",
+      "bytes": 195045
+    },
+    {
+      "path": "public/ip-popups/aouad/md-blanket.jpg",
+      "sourceSha256": "4ba4f741f431e46324ec6829bee0b981a40b6c1e6fa9336a3d83d2d02485e55e",
+      "bytes": 873706
+    },
+    {
+      "path": "public/ip-popups/aouad/md-cabinet-penholder.jpg",
+      "sourceSha256": "bf1542fbae984e6a812e8f4225fefadb08952919099666ca20331903aa3bd8fb",
+      "bytes": 251418
+    },
+    {
+      "path": "public/ip-popups/aouad/md-candle.jpg",
+      "sourceSha256": "cb1198b99dfc2100c99a4688d91d69245b53d9e0715854560fe78c15c742d036",
+      "bytes": 807193
+    },
+    {
+      "path": "public/ip-popups/aouad/md-carabiner-multitool.jpg",
+      "sourceSha256": "d9759743e65990d6895db14285ef7b444cb8a2f0f5d2ec5d73859d128de191ef",
+      "bytes": 366248
+    },
+    {
+      "path": "public/ip-popups/aouad/md-deskmat-map.jpg",
+      "sourceSha256": "32dddc56364515dcf8a9d9dba8045df0af1b07f87c874dcbec84d5a75870fecb",
+      "bytes": 397233
+    },
+    {
+      "path": "public/ip-popups/aouad/md-dogtag-survivor.jpg",
+      "sourceSha256": "00bda286d9132c242ddecfaba4fe1a0f5e6542e211139c22380424516552126f",
+      "bytes": 136872
+    },
+    {
+      "path": "public/ip-popups/aouad/md-earphone-namra.jpg",
+      "sourceSha256": "6786081eeffed95762a44296aca37b5e2b50ac65def4859165d9c4569f663a73",
+      "bytes": 247413
+    },
+    {
+      "path": "public/ip-popups/aouad/md-firstaid-pouch.jpg",
+      "sourceSha256": "2447a9ba7bb829d5dcf2a9494a3de248dd08d8ebfce34eb8d42b57671fef9ca1",
+      "bytes": 207438
+    },
+    {
+      "path": "public/ip-popups/aouad/md-glass-canteen.jpg",
+      "sourceSha256": "ccf5b8dabf17a83b6e1c9975854fcf38c3f8fa32e1400b065898480e3a743293",
+      "bytes": 282574
+    },
+    {
+      "path": "public/ip-popups/aouad/md-hamster-keyring.jpg",
+      "sourceSha256": "f0eb83f16aad68324232fd69efe47eb8e4808ac5fb017c074ebdf773757fc979",
+      "bytes": 705807
+    },
+    {
+      "path": "public/ip-popups/aouad/md-hoodie-broadcast-last.jpg",
+      "sourceSha256": "3cbd74178fb1f48c614ec656d221cb481ffd812a419e396e39efe7362f45f034",
+      "bytes": 788933
+    },
+    {
+      "path": "public/ip-popups/aouad/md-hoodie-broadcast.jpg",
+      "sourceSha256": "855932ebd5e1939d2a1c2cc5e1797fdddd5a56b6052c456f6f2d6298d5d441a2",
+      "bytes": 235645
+    },
+    {
+      "path": "public/ip-popups/aouad/md-idcard.jpg",
+      "sourceSha256": "8f10ca3916d487952b705da62a7af6990d1f084986eba47778da7d1ab4b11d79",
+      "bytes": 827619
+    },
+    {
+      "path": "public/ip-popups/aouad/md-kit.jpg",
+      "sourceSha256": "2d77f3f79c515056895b4f8ec0bc38f990c2ed6e21637945c3d15699ce06d8e1",
+      "bytes": 1002505
+    },
+    {
+      "path": "public/ip-popups/aouad/md-knit-namra-last.jpg",
+      "sourceSha256": "2bece51b61d6b411a8dccaa39d3afc6574fe26a9f2782b975e36ea98121d7bba",
+      "bytes": 343013
+    },
+    {
+      "path": "public/ip-popups/aouad/md-lenticular-block.jpg",
+      "sourceSha256": "ec98d1cf3f13b5568d0aec590f76a97db0f08b20b7b6b0bf6b0310b37f8f14af",
+      "bytes": 215508
+    },
+    {
+      "path": "public/ip-popups/aouad/md-lighter-eunji.jpg",
+      "sourceSha256": "36b82238ad11bc73143dd02c5b072e5f39a88894e89ef5e17793479970343956",
+      "bytes": 264141
+    },
+    {
+      "path": "public/ip-popups/aouad/md-maskingtape-set.jpg",
+      "sourceSha256": "8e854f3faf92b73d348c456fec80f1122e27ea6d1976aad5ea3923d3e604a83b",
+      "bytes": 352631
+    },
+    {
+      "path": "public/ip-popups/aouad/md-musicbox-bonfire.jpg",
+      "sourceSha256": "bbb5decfad7879e619ad65ed0b105ef18541b840065b8e84fdd21b75c793709c",
+      "bytes": 176344
+    },
+    {
+      "path": "public/ip-popups/aouad/md-photo.jpg",
+      "sourceSha256": "e309b2722db37776943e7ae6ed7c328d997d3a86e3d66fde1bebea50c4f58849",
+      "bytes": 849289
+    },
+    {
+      "path": "public/ip-popups/aouad/md-postcard.jpg",
+      "sourceSha256": "a0ad07bcaa9cc0c55994227ead98a1cb909e8b8f357f7c676f77458b7cc892c0",
+      "bytes": 997746
+    },
+    {
+      "path": "public/ip-popups/aouad/md-radio.jpg",
+      "sourceSha256": "fa7b935cf42eee8c49702192ef1d84393f7b0694fcda5ec11c132f28de61e1df",
+      "bytes": 830699
+    },
+    {
+      "path": "public/ip-popups/aouad/md-ribbon-keyring.jpg",
+      "sourceSha256": "c01f56b8b4a855000ab3ac649b1700e1cec70b813536022a34a2ff471f27d3d3",
+      "bytes": 666012
+    },
+    {
+      "path": "public/ip-popups/aouad/md-sleeveless-gwinam.jpg",
+      "sourceSha256": "c5ba0c82b3455b52ff21c3f8bb8e0428fde6e4d5660e6d2abcf086fe027a0cc2",
+      "bytes": 377261
+    },
+    {
+      "path": "public/ip-popups/aouad/md-strap-suhyeok.jpg",
+      "sourceSha256": "ec4c4a01968ccf1abcca10109f3fe754c1a2f638bd0a84e174b860c417aedc4d",
+      "bytes": 203412
+    },
+    {
+      "path": "public/ip-popups/aouad/md-tactical-flashlight.jpg",
+      "sourceSha256": "ff51144a80a160a118b52b6016632dd3a05d8186169ffb0c6525e9d9eb6baf0f",
+      "bytes": 202819
+    },
+    {
+      "path": "public/ip-popups/aouad/md-uniform-female-last.jpg",
+      "sourceSha256": "613a9478e9a1d843c9a05eb310c0c09d54c2a6eb46eb9ed71fdc54f1a3122f40",
+      "bytes": 765389
+    },
+    {
+      "path": "public/ip-popups/aouad/md-uniform-female.jpg",
+      "sourceSha256": "dc4a98f4f17e36cb0e190deaf20628d49afc95fe9b9d6846639ae328e6977ee5",
+      "bytes": 633645
+    },
+    {
+      "path": "public/ip-popups/aouad/md-uniform-male.jpg",
+      "sourceSha256": "4c8659aa7f9381c0e333c8018ac63bc1b84702f012422d6b6355cf7f90142ea3",
+      "bytes": 678044
+    },
+    {
+      "path": "public/ip-popups/aouad/md-virus-journal.jpg",
+      "sourceSha256": "74e5606b14bd25477136aca037ea0c9a976977b11d7d3a633ebaa990cd1c358d",
+      "bytes": 845656
+    },
+    {
+      "path": "public/ip-popups/aouad/md-virus-paperweight.jpg",
+      "sourceSha256": "b22a04da0c24171b545f5a10567326b4e99f75d01e958c2cf0365437299a2082",
+      "bytes": 140144
+    },
+    {
+      "path": "public/ip-popups/aouad/md-windbreaker-cheongsan.jpg",
+      "sourceSha256": "738f55b03063d85d9ea1fc48a92fac0c76bb12f28df63709d56f3dac53f54a61",
+      "bytes": 254760
+    },
+    {
+      "path": "public/ip-popups/aouad/md-zipup-namra.jpg",
+      "sourceSha256": "1ba7c54d28d6f6344a33c01409365248399049c1f01334121cd137e04a2d4d4d",
+      "bytes": 305021
+    },
+    {
+      "path": "public/ip-popups/aouad/md-zipup.jpg",
+      "sourceSha256": "5d8f77ed9fe038d2db1f9ce381221c4586a80af011e60c4d12a4a7c9a9cc2be7",
+      "bytes": 908848
+    },
+    {
+      "path": "public/ip-popups/aouad/opening-title-poster.jpg",
+      "sourceSha256": "0435713e1900b0260e117c986317689451cbfd4c18b55b38da898c807ba1f660",
+      "bytes": 55106
+    },
+    {
+      "path": "public/ip-popups/aouad/opening-title.mp4",
+      "sourceSha256": "af3eb3de9935a4b43516f00d6dd31a7ce8c6e4f0b5ff176cd61b22d8257d3cbd",
+      "bytes": 4590736
+    },
+    {
+      "path": "public/ip-popups/aouad/poster-action-group.jpg",
+      "sourceSha256": "078be9ef0337675d1a955d233bca1a6b11dc9570e0ef43ddcd68d9a9f5cb6f89",
+      "bytes": 84750
+    },
+    {
+      "path": "public/ip-popups/aouad/poster-archery.jpg",
+      "sourceSha256": "d0df7064eef90367b5dffeee3f96582c78c1af5918925e3079e7fa98207a1d19",
+      "bytes": 83982
+    },
+    {
+      "path": "public/ip-popups/aouad/poster-duo-dark.jpg",
+      "sourceSha256": "ffbc4717cfc3d71d50af8635a1ad8411cfc5056e6eb19a9e9dc4a46cbf44d32e",
+      "bytes": 65861
+    },
+    {
+      "path": "public/ip-popups/aouad/poster-main-kr.jpg",
+      "sourceSha256": "c58cffb8eda746aa716296f091e68fd20e34ff9de83aab72e9b87b011c1cd718",
+      "bytes": 71943
+    },
+    {
+      "path": "public/ip-popups/aouad/poster-school-aerial.jpg",
+      "sourceSha256": "76c75a3f3d3472dfcc89f6975bed6f83050ec35afb1f0a5b797699d59ed37ee0",
+      "bytes": 108598
+    },
+    {
+      "path": "public/ip-popups/aouad/poster-villain.jpg",
+      "sourceSha256": "7939ac0058bd34de29f5369ad49ba376a12ef6ddebe8ee50830be65175879142",
+      "bytes": 79771
+    },
+    {
+      "path": "public/ip-popups/aouad/promo-cast-profile.jpg",
+      "sourceSha256": "d1c490c0006f13dd6dacad7ec8784b73292fa599b8b73a5b0ca00033009d1635",
+      "bytes": 115522
+    },
+    {
+      "path": "public/ip-popups/aouad/sfx/amb-corridor-loop.mp3",
+      "sourceSha256": "d4c93dec381e8bacb4e585e1bb1aaf7561a7cee54a44210f1fa96d9edc6d2dfc",
+      "bytes": 305154
+    },
+    {
+      "path": "public/ip-popups/aouad/sfx/sfx-cell-pick.mp3",
+      "sourceSha256": "95658fb09bc035de2fb5f37df7e8653d0b8c9d94e56e64ef9a6711188e6a842f",
+      "bytes": 9261
+    },
+    {
+      "path": "public/ip-popups/aouad/sfx/sfx-cell-release.mp3",
+      "sourceSha256": "45d7edd1b0a084d7ee539dd5cdb084b4ae91885069e755ebdfa5bc08ac0c570f",
+      "bytes": 12141
+    },
+    {
+      "path": "public/ip-popups/aouad/sfx/sfx-dark-open.mp3",
+      "sourceSha256": "a1bfbae50355e4ad155f2e1e972433dffd4f95162698623454f3425361411da8",
+      "bytes": 23085
+    },
+    {
+      "path": "public/ip-popups/aouad/sfx/sfx-dark-scan.mp3",
+      "sourceSha256": "5b562db7205d91e61d71ee671cf0c78a82c57fcd96f537ae43006f1e1e3b2401",
+      "bytes": 10989
+    },
+    {
+      "path": "public/ip-popups/aouad/sfx/sfx-door-open.mp3",
+      "sourceSha256": "538465ef996a4c2fe44824a5c9d102cff5786e93a2b54aac74ca06d69593127b",
+      "bytes": 34605
+    },
+    {
+      "path": "public/ip-popups/aouad/sfx/sfx-drop-bounce.mp3",
+      "sourceSha256": "abe485dd943cc25f68a3000d3f27531bc7feec3c4646c27acad29a27a1aeca4e",
+      "bytes": 9837
+    },
+    {
+      "path": "public/ip-popups/aouad/sfx/sfx-drop-land.mp3",
+      "sourceSha256": "19919dcd43984791ae21354db5a4172c443bf83482f8004eed819752252f33a3",
+      "bytes": 18477
+    },
+    {
+      "path": "public/ip-popups/aouad/sfx/sfx-hold-warning.mp3",
+      "sourceSha256": "a316c721b5c7a09f224d49137596b31943256ca80573f81ed52e027711e289e3",
+      "bytes": 9261
+    },
+    {
+      "path": "public/ip-popups/aouad/sfx/sfx-reveal-long.mp3",
+      "sourceSha256": "bf84f3b67c41b7048fcdd2680c5b7c36ffaecaf3a4b841887e7648467ca8ee2e",
+      "bytes": 25389
+    },
+    {
+      "path": "public/ip-popups/aouad/sfx/sfx-reveal-short.mp3",
+      "sourceSha256": "fd4feda9cebba292f28df3398997981ec09d81acb5b6d2b26c3d9e0a122e0a60",
+      "bytes": 14445
+    },
+    {
+      "path": "public/ip-popups/aouad/sfx/sfx-round-empty.mp3",
+      "sourceSha256": "dc37dece9970d405a596c6dae68bb0e1a53d8bc1ede7e59c7fe871a6f95aaf30",
+      "bytes": 32301
+    },
+    {
+      "path": "public/ip-popups/aouad/sfx/sfx-ui-tick.mp3",
+      "sourceSha256": "ed29809f7020f3d93e8cbf540c193395ea57d9df681f30107b47abfba4bea64f",
+      "bytes": 6381
+    },
+    {
+      "path": "public/ip-popups/aouad/sfx/sfx-wire-arrive.mp3",
+      "sourceSha256": "19f6e34f6965690472280680529e8eca73d1a504816fa454a5c4932afd846e89",
+      "bytes": 15597
+    },
+    {
+      "path": "public/ip-popups/aouad/sfx/sfx-wire-trace.mp3",
+      "sourceSha256": "ee558d52c7e1cd99e7b140546622a56bae97d3117ca1ee7e9f56d4cf50a50752",
+      "bytes": 8685
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-cafe-glass-0.jpg",
+      "sourceSha256": "e4a5a151757f8e0b66e34cf53c00472a45a7d5d1dd3bc69c29ac4f0ac3a7aed7",
+      "bytes": 539496
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-cafe-glass-1.jpg",
+      "sourceSha256": "78e468c8b4554a739251746901e9e7bb8623657c17549229ed752c939fd933ba",
+      "bytes": 437949
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-cafe-glass-2.jpg",
+      "sourceSha256": "f008bbd77e94048b059f92fb0fa69a363be3bc5a36d91dbbf2882a98f1101c9e",
+      "bytes": 458484
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-cafe-glass-3.jpg",
+      "sourceSha256": "e3bdaa5b7ea8d40e20dddaa29cc859ab858d0029c9599c02434a977a4162067c",
+      "bytes": 553914
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-dark-beam.png",
+      "sourceSha256": "7613c20e9d0a09fffbed30c4b8456fc965cd8b8c8230f46e195a213a9f9af8fc",
+      "bytes": 199717
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-dark-bg.jpg",
+      "sourceSha256": "0e167f719d7bccc58acd68f00d45d042c34260ceae738f70be6b6a6a78bbbf1a",
+      "bytes": 451930
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-dark-hero.jpg",
+      "sourceSha256": "2db85affdde4e0373f5cf60b542b08ad299ee6faf8ac95ef26fd3c41cc2cada9",
+      "bytes": 322882
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-dark-slot-closed.png",
+      "sourceSha256": "79a8ef27e09a9e5f5155d3feb7aee9bfe1729e459a0fda14acda74a868a59ecc",
+      "bytes": 1352175
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-dark-slot-empty.png",
+      "sourceSha256": "78e439dd57a196b7f289174b7cc762dcbd48ed70def324241a6b8f589e28ebcd",
+      "bytes": 1349961
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-dark-slot-lit.png",
+      "sourceSha256": "94366db93abd2d8a4b5cc59deac9b22ff8e4e6cb96dc09fb495644bd99024f34",
+      "bytes": 1696890
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-drop-bg.jpg",
+      "sourceSha256": "a59eaee1b8e18864409f518c2fd320cb73d7d1cba00473642bad40d224c5baba",
+      "bytes": 606215
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-drop-chute.png",
+      "sourceSha256": "fa98df702d53fa7764c6baabc254f515a40d80d13ed6636476d63e25d9078ec2",
+      "bytes": 511640
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-drop-hero.jpg",
+      "sourceSha256": "0c3f7ffaf3115257edf6b3be77c73680fdce191d0316135e131ca6598d41eaac",
+      "bytes": 375489
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-drop-payload.png",
+      "sourceSha256": "be1e5276f06472499ee77478d7fa4993eb1a1d0183449e43d2a7cf0185f259f4",
+      "bytes": 77989
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-drop-peg.png",
+      "sourceSha256": "7186f2b8bfd630df6d0c2cb740feb48b30d59a7aea2c6f3a0d815d84504d770b",
+      "bytes": 18933
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-drop-slot-empty.png",
+      "sourceSha256": "12dafbcaff3db84d6b6a931cbbef3c050a6f788f69cff0ff22d5bf11dfc93494",
+      "bytes": 1914474
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-drop-slot-full.png",
+      "sourceSha256": "c4570a26e489dd1755b9872d94227a48d064387a70b639acab2c2eed00d11b16",
+      "bytes": 1897874
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-locker-closed.png",
+      "sourceSha256": "f4202838239f032de01a87fc4d01787add757823ac1c23aa47cc880cf978f715",
+      "bytes": 1558978
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-locker-hero.jpg",
+      "sourceSha256": "3c9679dac553828373913e164439ee028655d63184d179683635b801d2e81b23",
+      "bytes": 382020
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-locker-open-fx.png",
+      "sourceSha256": "86f297ae162c73ea8ae7a5de28b8096629af203df7584603fcdf3a0013d224f1",
+      "bytes": 1545694
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-locker-open.png",
+      "sourceSha256": "f69ff03bc3d65dc547076f80c95a9a67fbee4bf2b4b13541b6d813f794af4c97",
+      "bytes": 1420415
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-locker-wall-bg.jpg",
+      "sourceSha256": "e225dace4892921d2e80d9efd4435ba71dc097bc80e70540960d159b98990976",
+      "bytes": 472391
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-wire-bg.jpg",
+      "sourceSha256": "26d3f2fcdffbfd6e2868bb1cf1337936b8e9f83ae46e45488609ceefd55c05a5",
+      "bytes": 471187
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-wire-hero.jpg",
+      "sourceSha256": "b2706f7596ccb0c3661a4f8dab282908936eb501aad043700445a12eacd1a3d3",
+      "bytes": 395593
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-wire-run-h.png",
+      "sourceSha256": "8ab309a5f150ba33740c8dbfc9e4eb975472583bff2f4d1ec6612b55b5986a26",
+      "bytes": 60969
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-wire-run-v.png",
+      "sourceSha256": "d010cf6f6694493f11d7b77cbd5663f80ec6ccde881d1242040d53238312cfde",
+      "bytes": 65887
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-wire-slot-empty.png",
+      "sourceSha256": "621bd7dcc57fbe0613982a7d6bf1367c0b9fe17b819fca2778c4d0be34bb9b60",
+      "bytes": 1587237
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-wire-slot-full.png",
+      "sourceSha256": "f151e048939555963bc2bfe6ee61f921c920af7a0516acca9d8d06a0237f8107",
+      "bytes": 1751411
+    },
+    {
+      "path": "public/ip-popups/aouad/stage-wire-terminal.png",
+      "sourceSha256": "a2cfe4248c1d6087da2e2a9a4863d69c6b53d086a5fbcc41b5a997ad16ef4eb0",
+      "bytes": 467588
+    },
+    {
+      "path": "public/ip-popups/aouad/still-armed-group-walk.jpg",
+      "sourceSha256": "dcc6f029cbe3b06afa24e4da9662f6b3157fcad1264283d413c568da2d24adfb",
+      "bytes": 216528
+    },
+    {
+      "path": "public/ip-popups/aouad/still-barricade.jpg",
+      "sourceSha256": "de550fe5dbfda14b54af589fdc6793bd5d76f4741bb010ef217714bed9514daf",
+      "bytes": 236553
+    },
+    {
+      "path": "public/ip-popups/aouad/still-bonfire.jpg",
+      "sourceSha256": "04190b041980f708f4e2f25c9e2d9ddefc42b0438c48110dbaeb6068747e9aa1",
+      "bytes": 235077
+    },
+    {
+      "path": "public/ip-popups/aouad/still-broadcast-room.jpg",
+      "sourceSha256": "3c6a7d1475f12f5928dff23a7585b572c50caf8c6f453b01f6bf872ab39d61bd",
+      "bytes": 218318
+    },
+    {
+      "path": "public/ip-popups/aouad/still-cafeteria-counter.jpg",
+      "sourceSha256": "f0b9602b2962a26a7ebb3c4b4c2b503e2f12d479de5359a6512551dc577d7336",
+      "bytes": 186898
+    },
+    {
+      "path": "public/ip-popups/aouad/still-cafeteria-glass.jpg",
+      "sourceSha256": "7671dbcfce6f0b11b5d25105cae536962c66a329f2d5c6f7e171f53250d5512c",
+      "bytes": 337949
+    },
+    {
+      "path": "public/ip-popups/aouad/still-cafeteria-horde.jpg",
+      "sourceSha256": "42124f2d2582fae618c6d09146e940889e97a1991991af548d0c1d90c18da1bf",
+      "bytes": 198795
+    },
+    {
+      "path": "public/ip-popups/aouad/still-classroom-outbreak.jpg",
+      "sourceSha256": "8feebed85a2208deb4fef13ea9518d977586f3e0391692530f4bd7dbcceadeb6",
+      "bytes": 159693
+    },
+    {
+      "path": "public/ip-popups/aouad/still-corridor-run.jpg",
+      "sourceSha256": "c1fb286a81ad57143b199eaf813101ecd56442beb67877d9033b52e0f1951315",
+      "bytes": 144568
+    },
+    {
+      "path": "public/ip-popups/aouad/still-gym-group.jpg",
+      "sourceSha256": "65143c61c4e0e8e8ae0c2f381e1c5eaa5851d85f453e020f78dea3e31d4db58e",
+      "bytes": 253062
+    },
+    {
+      "path": "public/ip-popups/aouad/still-infirmary.jpg",
+      "sourceSha256": "0ed3a7b25c9bdc6ff2f53efc8b98c2a58ee32c7d3c36fb2d7de6ed677c09cc93",
+      "bytes": 206404
+    },
+    {
+      "path": "public/ip-popups/aouad/still-jeolbi-closeup.jpg",
+      "sourceSha256": "cf1dc7a47bbbd1cb1390d338e9ea50b90059e972a431da1dd2f2b5ef4a9ac6fb",
+      "bytes": 62404
+    },
+    {
+      "path": "public/ip-popups/aouad/still-library-shelftop.jpg",
+      "sourceSha256": "9a20ad6e640b622ec96578fc86eee80cb4f97b7a587ab786b6112a111c4e7b50",
+      "bytes": 220184
+    },
+    {
+      "path": "public/ip-popups/aouad/still-library-stacks.jpg",
+      "sourceSha256": "ba1b17d0b4ff24cbe5a97ffb484c5b8a95ba4cff9c0ef27c25881a7bbd4739cf",
+      "bytes": 70558
+    },
+    {
+      "path": "public/ip-popups/aouad/still-library.jpg",
+      "sourceSha256": "56cf8727d4678d88d013c8472488d111fe46c5055bc1f5deabd7534db2d3bc53",
+      "bytes": 246584
+    },
+    {
+      "path": "public/ip-popups/aouad/still-music-room.jpg",
+      "sourceSha256": "e7c700877600f8eae66e29e43dbcfee40f97dc76b1bee660910d1432c21d129b",
+      "bytes": 170346
+    },
+    {
+      "path": "public/ip-popups/aouad/still-rooftop-fire.jpg",
+      "sourceSha256": "5b467c1e10976a72ff415fd6014ce9b55b337990e53e615187d986d093c88f3b",
+      "bytes": 257058
+    },
+    {
+      "path": "public/ip-popups/aouad/still-schoolyard.jpg",
+      "sourceSha256": "44e855474aa8cf966a6ed7083c26dcbb088c826de68981f8fbce3468377a7938",
+      "bytes": 157769
+    },
+    {
+      "path": "public/ip-popups/aouad/still-window-pair.jpg",
+      "sourceSha256": "c3d09f7303bff7cf710a39da2a79c63ec94fb4d36b418719633a57044cb0ad3d",
+      "bytes": 146006
+    },
+    {
+      "path": "public/ip-popups/aouad/still-zombie-rush.jpg",
+      "sourceSha256": "46c5479e29e52e14a1d89e5ab8be6a162f293dec5b476d4d92b59abd070e85da",
+      "bytes": 134872
+    }
+  ]
+}

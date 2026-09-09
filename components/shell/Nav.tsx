@@ -14,7 +14,7 @@ import {
   activeNavId,
   hrefFor,
   isActive,
-  isAuthShellPath,
+  isStandaloneShellPath,
   type NavGroup,
 } from '@/lib/routes';
 import { createClient } from '@/lib/supabase/client';
@@ -83,7 +83,7 @@ export function Nav({ noticeStrip = null }: { noticeStrip?: NoticeStrip | null }
   const pathname = usePathname();
   const cardRewardsEnabled = useCardRewardsEnabled();
   // 게임은 자기완결 번들, 어드민은 자체 작업대, 인증은 집중형 셸을 사용한다.
-  if (isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
+  if (isStandaloneShellPath(pathname)) return null;
   return <WcChrome cardRewardsEnabled={cardRewardsEnabled} noticeStrip={noticeStrip} pathname={pathname} />;
 }
 

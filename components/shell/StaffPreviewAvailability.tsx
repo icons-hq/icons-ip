@@ -2,13 +2,14 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { fetchCommunityStaffPreviewVisible } from '@/lib/community-visibility.client';
-import { fetchSecondaryMarketDemoVisible } from '@/lib/secondary-market-demo.client';
+import { COMMUNITY_ENABLED, COMMUNITY_STAFF_PREVIEW_ENABLED } from '@/lib/community-visibility';
+import { SECONDARY_MARKET_DEMO_ENABLED } from '@/lib/secondary-market-demo';
+import { fetchStaffPreviewVisible } from '@/lib/staff-preview.client';
 import { useAuthPresence, type AuthPresence } from './AuthPresenceProvider';
 
-/* 스태프 전용 진입점 가시성 — 푸터가 읽는다. 세컨더리 마켓 mock 시연과 커뮤니티 스태프
- * 프리뷰가 같은 `is_staff` 경계를 쓰지만 킬스위치는 각자 갖는다(각 readback 모듈이 자기
- * 스위치를 먼저 본다). presence·pathname 리듬은 두 기능이 공유해야 하므로 provider 하나에
+/* 스태프 전용 진입점 가시성 — 푸터와 온라인 팝업 디렉토리가 읽는다. 세컨더리 마켓 mock,
+ * 커뮤니티와 AOUAD 프레젠테이션은 같은 `is_staff` readback 한 번을 공유하고 각자의
+ * 공개·킬스위치를 적용한다. presence·pathname 리듬은 기능들이 공유해야 하므로 provider 하나에
  * 모아 둔다 — 복사본이 갈라지면 한쪽만 강등된 세션에 진입점을 남기는 사고가 난다.
  *
  * 로그인 presence 가 확정된 뒤에만 readback 을 보내고, 로그아웃되면 값이 저절로 닫힌다.
@@ -20,33 +21,35 @@ import { useAuthPresence, type AuthPresence } from './AuthPresenceProvider';
  * 들어와도 이전 결과가 새 세션에 잠깐이라도 새지 않는다. 기본값은 항상 false 라
  * provider 밖(테스트·정적 렌더)에서도 진입점은 닫혀 있다. */
 interface StaffPreviewVisibility {
+  isStaff: boolean;
   secondaryMarketDemo: boolean;
   communityPreview: boolean;
 }
 
-const CLOSED: StaffPreviewVisibility = { secondaryMarketDemo: false, communityPreview: false };
+const CLOSED: StaffPreviewVisibility = { isStaff: false, secondaryMarketDemo: false, communityPreview: false };
 
 const StaffPreviewContext = createContext<StaffPreviewVisibility>(CLOSED);
 
 export function StaffPreviewAvailabilityProvider({ children }: { children: ReactNode }) {
   const presence = useAuthPresence();
   const pathname = usePathname();
-  const [trackedPresence, setTrackedPresence] = useState<AuthPresence>(presence);
+  const [trackedContext, setTrackedContext] = useState<{ presence: AuthPresence; pathname: string }>({ presence, pathname });
   const [visible, setVisible] = useState<StaffPreviewVisibility>(CLOSED);
 
-  if (trackedPresence !== presence) {
-    setTrackedPresence(presence);
+  if (trackedContext.presence !== presence || trackedContext.pathname !== pathname) {
+    setTrackedContext({ presence, pathname });
     setVisible(CLOSED);
   }
 
   useEffect(() => {
     if (presence !== 'signed-in') return;
     let active = true;
-    void Promise.all([
-      fetchSecondaryMarketDemoVisible(),
-      fetchCommunityStaffPreviewVisible(),
-    ]).then(([secondaryMarketDemo, communityPreview]) => {
-      if (active) setVisible({ secondaryMarketDemo, communityPreview });
+    void fetchStaffPreviewVisible().then((isStaff) => {
+      if (active) setVisible({
+        isStaff,
+        secondaryMarketDemo: isStaff && SECONDARY_MARKET_DEMO_ENABLED,
+        communityPreview: isStaff && !COMMUNITY_ENABLED && COMMUNITY_STAFF_PREVIEW_ENABLED,
+      });
     });
     return () => {
       active = false;
@@ -62,6 +65,10 @@ export function StaffPreviewAvailabilityProvider({ children }: { children: React
 
 export function useSecondaryMarketDemoVisible() {
   return useContext(StaffPreviewContext).secondaryMarketDemo;
+}
+
+export function useStaffPreviewVisible() {
+  return useContext(StaffPreviewContext).isStaff;
 }
 
 export function useCommunityStaffPreviewVisible() {

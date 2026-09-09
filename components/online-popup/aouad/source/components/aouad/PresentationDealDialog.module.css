@@ -1,0 +1,39 @@
+.overlay { display: grid; place-items: center; padding: 18px; background: transparent; }
+.sheet { width: min(560px, 100%); max-height: min(90dvh, 880px); overflow: auto; overscroll-behavior: contain; border: 1px solid rgb(232 228 218 / 18%); border-radius: 18px; padding: 26px; background: #11161c; color: #e8e4da; box-shadow: 0 30px 100px rgb(0 0 0 / 50%); }
+.header { position: relative; padding-right: 52px; }
+.close { position: absolute; right: 0; top: -3px; min-height: 36px; border: 1px solid rgb(232 228 218 / 25%); border-radius: 999px; padding: 6px 12px; background: transparent; color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+.close:focus-visible { outline: 2px solid #ffc9a5; outline-offset: 3px; }
+.header > span { font-size: 10px; font-weight: 700; letter-spacing: .14em; color: #ff9d5d; }
+.header h2 { margin: 10px 0 6px; font-size: clamp(21px, 3vw, 26px); font-weight: 700; line-height: 1.3; }
+.header p { margin: 0 0 18px; color: #b4b6b8; font-size: 13px; }
+.image { height: clamp(160px, 26dvh, 240px); border-radius: 11px; background-size: contain; background-position: center; background-repeat: no-repeat; background-color: #20252b; }
+.name { margin: 18px 0 5px; font-size: 17px; line-height: 1.45; font-weight: 700; }
+.edition { margin: 0 0 18px; font-size: 12px; line-height: 1.5; color: #c0bbb1; }
+.form { display: grid; gap: 18px; }
+.options { display: flex; flex-wrap: wrap; gap: 7px; margin: 0; padding: 0; border: 0; }
+.options legend { margin-bottom: 9px; font-size: 13px; }
+.options button, .actions button { min-height: 42px; border: 1px solid rgb(232 228 218 / 26%); border-radius: 999px; padding: 10px 18px; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.options button[aria-pressed="true"] { border-color: #ff9d5d; background: rgb(255 157 93 / 15%); color: #ffc9a5; }
+.quantity { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; font-size: 13px; }
+.quantity select { min-height: 42px; min-width: 76px; border: 1px solid rgb(232 228 218 / 25%); border-radius: 8px; padding: 8px 12px; color: #e8e4da; background: #1a2027; font: inherit; }
+.quantity > span { color: #a9afb5; font-size: 12px; }
+.total, .receipt > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 13px; line-height: 1.6; }
+.total b { font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.receipt { display: grid; gap: 9px; padding: 17px; border-radius: 10px; background: rgb(232 228 218 / 5%); }
+.receipt span { color: #b2b7ba; }
+.receipt b { text-align: right; font-weight: 600; }
+.free { margin: 0; font-size: 16px; color: #ffc9a5; }
+.note { margin: 20px 0 0; font-size: 12px; line-height: 1.6; color: #a9afb5; }
+.message { margin: 0; font-size: 13px; line-height: 1.55; color: #ffc9a5; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+.actions button { flex: 1 1 160px; }
+.actions .primary { border-color: #ff9d5d; background: #ff9d5d; color: #1a130e; font-weight: 700; }
+.actions button:disabled { opacity: .4; cursor: default; }
+.options button:focus-visible, .actions button:focus-visible, .quantity select:focus-visible { outline: 2px solid #ffc9a5; outline-offset: 4px; }
+@media (max-width: 560px) {
+  .overlay { padding: 12px; }
+  .sheet { padding: 20px; max-height: 91dvh; }
+  .image { height: 170px; }
+  .actions { flex-direction: column; }
+  .actions button { flex: none; width: 100%; min-height: 46px; }
+}

@@ -7,7 +7,7 @@ import { createWidgetInquiryAction, replyToInquiryAction, type InquiryActionStat
 import { OverlayPortal } from '@/components/shell/OverlayPortal';
 import { useOverlayA11y } from '@/components/shell/useOverlayA11y';
 import { WcButton } from '@/components/wc/WcButton';
-import { isAuthShellPath } from '@/lib/routes';
+import { isStandaloneShellPath } from '@/lib/routes';
 import type { FaqEntry } from '@/lib/faq';
 import { formatInquiryDateTime, INQUIRY_CATEGORIES, INQUIRY_IMAGE_ACCEPT, INQUIRY_STATUS_LABELS, MAX_INQUIRY_BODY_LENGTH,
   MAX_INQUIRY_IMAGES, MAX_INQUIRY_TITLE_LENGTH, type InquiryCategory } from '@/lib/inquiries';
@@ -183,7 +183,7 @@ export function InquiryWidget() {
   const pathname = usePathname();
   const [overlay, setOverlay] = useState({ pathname, open: false });
   if (overlay.pathname !== pathname) setOverlay({ pathname, open: false });
-  if (isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
+  if (isStandaloneShellPath(pathname)) return null;
   const open = overlay.pathname === pathname && overlay.open;
   return <div className="wc-root wc-inquiry-widget">
     <button className="wc-inquiry-widget__launcher" type="button" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOverlay({ pathname, open: true })}>FAQ · 문의</button>

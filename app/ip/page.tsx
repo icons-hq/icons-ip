@@ -5,6 +5,7 @@
 import { redirect } from 'next/navigation';
 import { IpDirectory } from '@/components/screens/IpDirectory';
 import { getCatalogSnapshot } from '@/lib/catalog';
+import { isAouadLocalPreviewEnabled } from '@/lib/aouad-popup.server';
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -22,5 +23,5 @@ export default async function Page({
     redirect(`/ip/${encodeURIComponent(legacyId)}`);
   }
 
-  return <IpDirectory ips={catalog.ips} />;
+  return <IpDirectory ips={catalog.ips} aouadLocalPreview={isAouadLocalPreviewEnabled()} />;
 }

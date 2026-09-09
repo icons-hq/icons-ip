@@ -15,6 +15,7 @@ import {
   hrefFor,
   isActive,
   isAuthShellPath,
+  isStandaloneShellPath,
 } from './routes';
 import { COMMUNITY_ENABLED } from './community-visibility';
 
@@ -64,6 +65,19 @@ describe('isAuthShellPath', () => {
   });
 });
 
+describe('독립 경험 셸', () => {
+  it.each(['/ip/aouad', '/ip/aouad/scene', '/games', '/games/hyosan-memories', '/admin/orders', '/login'])('%s에는 공용 크롬을 겹치지 않는다', (pathname) => {
+    expect(isStandaloneShellPath(pathname)).toBe(true);
+  });
+  it.each(['/ip', '/ip/aouad-other', '/ip/maplestory', '/games-guide', '/administrator', '/shop'])('%s의 공용 크롬은 유지한다', (pathname) => {
+    expect(isStandaloneShellPath(pathname)).toBe(false);
+  });
+  it('온라인 팝업 하위의 전용 프레젠테이션 경로를 등록한다', () => {
+    expect(hrefFor('aouadPopup')).toBe('/ip/aouad');
+    expect(isActive('iphub', '/ip/aouad')).toBe(true);
+  });
+});
+
 describe('White Catalog 내비게이션 경로', () => {
   it('카탈로그 진입 표면을 굿즈샵 하위 경로로 건다', () => {
     expect(hrefFor('new')).toBe('/shop/new');
@@ -84,7 +98,7 @@ describe('White Catalog 내비게이션 경로', () => {
     expect(isActive('events', '/offline-popups/e100')).toBe(false);
   });
 
-  it.each(['wish', 'new', 'best', 'offlinePopups'])('%s 링크는 실제 페이지 파일에 묶인다', (id) => {
+  it.each(['wish', 'new', 'best', 'offlinePopups', 'aouadPopup'])('%s 링크는 실제 페이지 파일에 묶인다', (id) => {
     /* S2 셸이 이 링크들을 노출하고도 라우트가 없어 위시는 전 표면 프리페치 404를,
        NEW·BEST는 /shop/[goodId]에 잡힌 soft 404 화면을 만든 이력이 있다.
        동적 세그먼트 없는 경로만 넣는다 — 미등록 id는 hrefFor가 '/'로 폴백해

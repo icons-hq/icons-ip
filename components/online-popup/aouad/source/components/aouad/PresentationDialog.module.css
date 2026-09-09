@@ -1,0 +1,19 @@
+.dialog {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  color: inherit;
+  overscroll-behavior: contain;
+}
+
+.dialog:not([open]) { display: none; }
+.dialog::backdrop { background: rgb(3 5 7 / 72%); backdrop-filter: blur(10px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog::backdrop { backdrop-filter: none; }
+}

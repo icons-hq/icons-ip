@@ -1,0 +1,113 @@
+/* 방송실 소화전 호스 하강 — 별도 모듈. AouadSample.module.css 는 HUD 축이 동시에 건드리는 파일이라 섞지 않는다.
+   색은 회색 상자와 같은 팔레트다(P4 에서 무대 배경이 들어오면 이 판이 그 위에 얹힌다). */
+
+/* 무대가 섹션 폭을 다 쓴다(PM 2026-09-09 「게임 플레이 창이 엄청 작고 쓸데없는 텍스트가 많다」).
+   규칙·그림의 좌표계는 640 폭 그대로 두고(벽 타일 1280×300 이 150px 층일 때 맞는 폭) **세계를 배율로 키운다** —
+   폭이 640 을 넘으면 그만큼, 좁으면 1 배로 두고 가운데만 보인다. 숫자는 하나도 안 바뀌고 보이는 크기만 바뀐다. */
+.view {
+  position: relative; overflow: hidden; cursor: pointer;
+  width: 100%;
+  border: 1px solid #23232b; border-radius: 6px; background: #101014;
+  user-select: none; touch-action: none;
+}
+.world { position: absolute; left: 50%; top: 0; margin-left: -320px; transform-origin: 50% 0; will-change: transform; }
+.shaft {
+  position: absolute; left: 0; right: 0; top: 0; will-change: transform;
+  background-image: url("/ip-popups/aouad/hose-wall-tile.jpg");
+  background-repeat: repeat-y;
+  background-size: 100% 150px;
+  background-position: center top 130px;
+}
+.roof {
+  position: absolute; left: 0; right: 0; top: 0; height: 130px;
+  background-image: url("/ip-popups/aouad/hose-roof.jpg");
+  background-size: 100% 100%;
+  background-position: center;
+  z-index: 1;
+}
+.ground {
+  position: absolute; left: 0; right: 0; height: 260px;
+  background-image: url("/ip-popups/aouad/hose-ground.jpg");
+  background-size: 100% 100%;
+  background-position: center;
+  z-index: 1;
+}
+/* 소화전 호스 — 세로 타일(48×300 → 24×150, 한 층에 한 번). 위아래가 이어진다 */
+.hose {
+  position: absolute; left: 50%; top: 0; width: 24px; margin-left: -12px;
+  background: url("/ip-popups/aouad/hose-rope-tile.png") center top / 24px 150px repeat-y;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.8));
+  z-index: 2;
+}
+
+.win {
+  position: absolute; left: 50%; width: 104px; margin-left: -52px;
+  display: block;
+  background-size: 100% 100%; background-repeat: no-repeat; background-position: center;
+  background-image: url("/ip-popups/aouad/hose-win-closed.png");
+  z-index: 2;
+  transition: box-shadow 0.15s ease;
+}
+.win[data-trap] {
+  background-image: url("/ip-popups/aouad/hose-win-open.png");
+}
+.win[data-z="tell"] {
+  box-shadow: 0 0 14px rgba(224, 145, 58, 0.5);
+}
+.win[data-z="out"] {
+  box-shadow: 0 0 18px rgba(216, 87, 74, 0.7);
+}
+/* 좀비가 나와 있다 — 창 그림 위에 「같은 창 + 좀비」 플레이트를 겹친다.
+   플레이트는 창보다 12px 씩 큰 캔버스(팔이 창틀 밖으로 나간다)라 원점을 -12 로 당긴다.
+   open·out 은 한 원본에서 파생한 같은 프레임이다 — 상태가 바뀌어도 창이 덜컥거리지 않는다. */
+.win[data-z="out"]::after {
+  content: ""; position: absolute; left: -12px; top: -12px; width: 128px; height: 92px;
+  background-size: 100% 100%; background-repeat: no-repeat; pointer-events: none;
+  background-image: url("/ip-popups/aouad/hose-win-out-up.png");
+}
+.win[data-z="out"][data-pose="side"]::after { background-image: url("/ip-popups/aouad/hose-win-out-side.png"); }
+.win[data-goal] {
+  background-image: url("/ip-popups/aouad/hose-win-goal.png");
+  box-shadow: 0 0 20px rgba(224, 145, 58, 0.4);
+}
+.win[data-bit] {
+  box-shadow: 0 0 24px rgba(216, 87, 74, 0.9);
+}
+.win[data-hit] {
+  box-shadow: 0 0 24px rgba(127, 176, 105, 0.8);
+}
+
+
+/* 매달린 학생 — 한 장(20×84)을 상태별 CSS 변형으로 쓴다. 한 층 150px ≈ 3m 이니 사람 84px ≈ 1.7m 로 창(68px)과 비율이 맞다.
+   자세 4장 발주는 과잉이었다 — 이 크기에서는 기울기·번짐·색이면 상태가 읽힌다. */
+.rider {
+  position: absolute; left: 50%; width: 40px; height: 88px; margin-left: -20px;
+  background: url("/ip-popups/aouad/hose-rider.png") center top / auto 100% no-repeat;   /* 손이 위 — 세 자세 모두 손을 원점에 */
+  transform-origin: 50% 12%;                                 /* 손 = 호스를 잡은 점 */
+  transition: transform 0.12s ease, filter 0.12s ease;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.9));
+}
+.rider[data-state="run"] { transform: scaleY(1.05) translateY(2px); filter: drop-shadow(0 0 2px rgba(0,0,0,.9)) blur(0.4px); }   /* 미끄러져 내려감 — 잡음 자세를 늘린다(⑤는 안 받았다) */
+.rider[data-state="hold"] { transform: none; }
+.rider[data-state="slip"] { background-image: url("/ip-popups/aouad/hose-rider-slip.png"); transform: rotate(-8deg) translateX(3px); filter: drop-shadow(0 0 8px rgba(224, 145, 58, 0.9)); }   /* 손이 미끄러짐 = ⑥ (6.png) */
+.rider[data-state="in"] { background-image: url("/ip-popups/aouad/hose-rider-land.png"); filter: drop-shadow(0 0 8px rgba(127, 176, 105, 0.95)); }
+.rider[data-state="zombie"] { transform: rotate(18deg) translateX(8px); filter: drop-shadow(0 0 10px rgba(216, 87, 74, 0.95)); }
+.rider[data-state="ground"] { transform: rotate(-90deg) translateY(10px); filter: drop-shadow(0 0 8px rgba(224, 145, 58, 0.9)); }
+/* ── 무대 위 층 ── */
+.hud { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.queue { position: absolute; top: 10px; left: 10px; display: flex; gap: 4px; }
+.q { width: 18px; height: 6px; border-radius: 2px; background: rgba(16, 16, 20, 0.7); border: 1px solid rgba(255, 255, 255, 0.12); }
+.q[data-r="now"] { border-color: #e0913a; background: #e0913a; }
+.q[data-r="in"] { border-color: #7fb069; background: #7fb069; }
+.q[data-r="zombie"] { border-color: #d8574a; background: #d8574a; }
+.q[data-r="ground"] { border-color: #b77a2a; background: #b77a2a; }
+.gripBar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; display: block; background: rgba(0, 0, 0, 0.5); }
+.gripBar b { display: block; height: 100%; background: #6a8fb5; transition: width 0.08s linear; }
+.gripBar b[data-low] { background: #d8574a; }
+.cue {
+  position: absolute; left: 12px; right: 12px; top: 44%; margin: 0; text-align: center;
+  font-size: 16px; font-weight: 700; color: #e8e8ee; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.95); word-break: keep-all;
+}
+.cue[data-kind="in"] { color: #7fb069; }
+.cue[data-kind="zombie"] { color: #d8574a; }
+.cue[data-kind="ground"] { color: #e0913a; }

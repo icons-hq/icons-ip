@@ -1,0 +1,3452 @@
+/* 지우학 기획 시연판 — 야간 학교 톤 + 모닥불 주황 포인트 (시연 전용 스테이지) */
+
+.stage {
+  /* 색 예산(③ 2026-08-28 PM): 배경(무대·패널) + 잉크 2(--ink·--dim) + 강조 1(--fire).
+     UI 는 이 예산 밖 색을 쓰지 않는다. 소품(학생증·제비 티켓·혈흔 등 아트)은 예산 밖. */
+  --ink: #e8e4da;
+  --dim: #9a958a;
+  --line: rgba(232, 228, 218, 0.16);
+  --fire: #ff8a3d;
+  --panel: rgba(16, 18, 22, 0.86);
+  --mono: var(--font-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;   /* 실제로 실린 IBM Plex Mono — 기기별 숫자 폭 차이 제거(2026-09-04) */
+  /* 수치 표면 3규칙(계약 §4 · 2026-09-07):
+     ① **바뀌는 수치**(타이머·잔여·응모 수·글자 수) = `var(--mono)` + tabular-nums — 폭이 흔들리면 옆 요소가 밀린다
+     ② **읽는 수치**(상품 가격·합계) = 본문 글꼴 + tabular-nums만 — 모노로 하면 상품 카드가 영수증처럼 보인다
+     ③ **식별자**(일련번호·바코드·코드) = `var(--mono)` — 기록물 표식 */
+  /* 타이포·레이아웃 계약 v0 — 결정을 6·3·4·5단으로 줄인다(2026-08-28) */
+  --fs-display: 38px; --fs-title: 20px; --fs-heading: 15px;
+  --fs-body: 13px; --fs-caption: 11.5px; --fs-micro: 10px;
+  --lh-display: 1.12; --lh-title: 1.25; --lh-body: 1.5; --lh-dense: 1.35;
+  --ls-tight: -0.02em; --ls-wide: 0.06em; --ls-cine: 0.18em;  /* 오프닝 시네마 자막 전용(부칙 5) */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 16px; --sp-4: 24px; --sp-5: 40px;
+  --r-s: 8px; --r-m: 12px; --r-l: 16px;
+  font-variant-numeric: tabular-nums;
+  --hud: max(15dvh, 132px);   /* 고정 HUD — PC 15%(v4.8 · PM 2026-09-04). px 바닥은 비율과 같이 내린다(148 × 15/18 ≒ 124) — 바닥 발동 지점을 세로 827px 로 유지해 노트북 구간에서 15% 가 실제로 성립하게. 이력: 30%→24%(v2.1)→18%(v3.3)→15% */
+  position: relative;
+  /* 무대 = 뷰포트 한 장. HUD 를 하단에 붙이려면 무대가 화면 밖으로 넘치면 안 된다(PM 2026-08-27) */
+  height: 100dvh;
+  overflow: hidden;
+  background: linear-gradient(180deg, #0b0d12 0%, #12151c 60%, #171b23 100%);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+/* ── 오프닝 (시네마틱 6비트) ── */
+.opening {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: #04050a;
+  color: var(--ink);
+  padding: 60px 24px;
+  overflow: hidden;
+}
+
+/* 레터박스 — 영화 프레임 */
+.bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 44px;
+  background: #000;
+  z-index: 5;
+}
+
+.barBottom { top: auto; bottom: 0; }
+
+.noise {
+  position: absolute;
+  inset: 0;
+  opacity: 0.4;
+  background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px 3px);
+  animation: noiseShift 0.12s steps(2) infinite;
+}
+
+@keyframes noiseShift {
+  from { transform: translateY(0); }
+  to { transform: translateY(3px); }
+}
+
+.eraCaption {
+  margin: 0;
+  font-size: var(--fs-body);
+  letter-spacing: var(--ls-cine);
+  color: var(--dim);
+  animation: slowFade 2s ease-in-out;
+}
+
+/* beat 0 — 타이틀 모션 오마주(입자 수렴→불씨 리빌) */
+.titleVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 2;
+  pointer-events: none;
+  background: #000;
+}
+.revivalCap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 16%;
+  z-index: 4;
+  margin: 0;
+  text-align: center;
+  font-size: clamp(15px, 3.4vw, 22px);
+  font-weight: 800;
+  letter-spacing: var(--ls-cine);
+  color: var(--ink);
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.85), 0 2px 24px rgba(255, 138, 61, 0.4);
+  opacity: 0;
+  /* 영상 후반 타이틀 복귀(~9.7s)에 얹혀 뜨는 기대감 태그라인 */
+  animation: revivalIn 1.2s ease-out 8.6s forwards;
+}
+@keyframes revivalIn {
+  0% { opacity: 0; transform: translateY(8px); letter-spacing: 0.34em; }
+  55% { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0); letter-spacing: 0.16em; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lkFx { animation: none; opacity: .5; inset: 0; }
+  .revivalCap { animation: none; opacity: 1; }
+}
+
+@keyframes slowFade {
+  0% { opacity: 0; }
+  35% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0.75; }
+}
+
+/* 무전 튜너 — 방송실 게임과 시각 문법 통일 */
+
+
+/* 무전 3줄 — 줄마다 한 호흡의 여백 (PM 2026-08-21) */
+.radioLine { display: block; }
+.radioLine + .radioLine { margin-top: 0.6em; }
+
+.radioText {
+  position: relative;
+  z-index: 4;
+  margin: 0;
+  font-size: clamp(17px, 2.6vw, 24px);
+  font-weight: 700;
+  letter-spacing: 0;
+  max-width: 620px;
+  text-align: center;
+  line-height: 2;
+  animation: fadeIn 0.4s ease-out;
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+
+.radioDim { opacity: 0.42; transform: translateY(-26px) scale(0.92); }
+
+.caret {
+  display: inline-block;
+  width: 9px;
+  height: 1.1em;
+  margin-left: 3px;
+  background: var(--fire);
+  vertical-align: text-bottom;
+  animation: blink 0.8s steps(1) infinite;
+}
+
+@keyframes blink { 50% { opacity: 0; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* 학교 실루엣 — 어둠 속에서 드러남 */
+.schoolLayer {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center 30%;
+  filter: brightness(0.34) saturate(0.55) contrast(1.05);
+  animation: reveal 2.6s ease-out forwards;
+  mask-image: linear-gradient(180deg, transparent 0%, #000 26%, #000 78%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 26%, #000 78%, transparent 100%);
+}
+
+@keyframes reveal {
+  from { opacity: 0; transform: scale(1.06); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* 불씨 파티클 */
+.embers { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+
+.embers i {
+  position: absolute;
+  bottom: -12px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--fire);
+  box-shadow: 0 0 8px rgba(255, 138, 61, 0.9);
+  opacity: 0;
+  animation: emberRise 5.2s linear infinite;
+}
+
+.embers i:nth-child(1) { left: 12%; animation-delay: 0s; }
+.embers i:nth-child(2) { left: 24%; animation-delay: 1.4s; animation-duration: 6.1s; width: 3px; height: 3px; }
+.embers i:nth-child(3) { left: 33%; animation-delay: 0.7s; }
+.embers i:nth-child(4) { left: 41%; animation-delay: 2.3s; animation-duration: 4.6s; }
+.embers i:nth-child(5) { left: 50%; animation-delay: 0.2s; width: 4px; height: 4px; }
+.embers i:nth-child(6) { left: 58%; animation-delay: 1.9s; animation-duration: 6.6s; }
+.embers i:nth-child(7) { left: 65%; animation-delay: 0.9s; width: 3px; height: 3px; }
+.embers i:nth-child(8) { left: 72%; animation-delay: 2.8s; }
+.embers i:nth-child(9) { left: 80%; animation-delay: 0.4s; animation-duration: 5.7s; }
+.embers i:nth-child(10) { left: 88%; animation-delay: 1.6s; width: 4px; height: 4px; }
+.embers i:nth-child(11) { left: 18%; animation-delay: 3.4s; animation-duration: 4.9s; }
+.embers i:nth-child(12) { left: 94%; animation-delay: 2.1s; width: 3px; height: 3px; }
+
+@keyframes emberRise {
+  0% { transform: translate(0, 0); opacity: 0; }
+  8% { opacity: 0.95; }
+  60% { opacity: 0.7; }
+  100% { transform: translate(14px, -78vh); opacity: 0; }
+}
+
+/* 하단 글로우 — 모닥불 예감 */
+.glow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 42%;
+  background: radial-gradient(60% 90% at 50% 110%, rgba(255, 122, 40, 0.32) 0%, rgba(255, 122, 40, 0.1) 45%, transparent 75%);
+  animation: glowUp 3s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes glowUp { from { opacity: 0; } to { opacity: 1; } }
+
+.noticeWrap { position: relative; z-index: 6; }
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  text-align: center;
+  border: 1px solid rgba(255, 138, 61, 0.4);
+  border-radius: 14px;
+  padding: 24px 34px;
+  background: rgba(10, 11, 16, 0.9);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.5), 0 0 30px rgba(255, 138, 61, 0.12);
+}
+
+.noticeRise { animation: rise 0.7s ease-out; }
+
+.noticeTag {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: var(--ls-cine);
+  color: var(--fire);
+}
+
+.notice p { font-size: 16px; font-weight: 700; margin: 0; }
+
+/* 무전 대화 카드 (B7) — 내 응답 → 상대의 대답(타이핑) → 「내 이름? 내 이름은 ___」 */
+.dialog { align-items: stretch; text-align: left; width: min(460px, 100%); }
+.notice .dlgLine { margin: 0; font-size: 14.5px; line-height: 1.65; font-weight: 700; }
+.notice .dlgMe { align-self: flex-end; color: var(--fire); font-size: 13px; opacity: 0.9; }
+.notice .dlgRadio { color: var(--ink); }
+.dlgForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  margin-top: 6px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--line);
+  animation: fadeIn 0.4s ease-out;
+}
+
+/* 학생증 기입 캐럿 (B8 — 이름이 한 글자씩 적힌다) */
+.penCaret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  background: #2a3327;
+  vertical-align: -0.12em;
+  animation: blink 0.7s steps(1) infinite;
+}
+
+/* 오프닝 → 허브: 학생증이 벤토 타일 자리로 날아가 안착하는 동안 어둠이 걷히고 나머지 타일이 뒤따라 뜬다 */
+.veil {
+  position: absolute;
+  inset: 0;
+  z-index: 35;
+  background: #04050a;
+  pointer-events: none;
+  animation: veilOut 0.9s ease-out forwards;
+}
+
+@keyframes veilOut { from { opacity: 1; } to { opacity: 0; } }
+
+.hubArrive .sectionBody > * { animation: fadeIn 0.9s ease-out 0.3s both; }
+
+.answerBtn { margin-top: 4px; animation: fadeIn 0.5s ease-out; box-shadow: 0 0 24px rgba(255, 138, 61, 0.45); }
+
+/* 자기소개 입력 (오프닝 비트 7 · 허브 내 학생증 박스) */
+.issueInput {
+  width: min(260px, 100%);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #0d1016;
+  color: var(--ink);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  text-align: center;
+  padding: 10px 16px;
+}
+
+.issueInput:focus { outline: none; border-color: var(--fire); }
+
+.issueHint { font-size: var(--fs-micro); color: var(--dim); }
+
+.stuCard.cardReveal { width: min(224px, 88vw); animation: rise 0.5s ease-out; box-shadow: 0 14px 44px rgba(0, 0, 0, 0.6), 0 0 34px rgba(255, 138, 61, 0.25); }
+
+/* ── 온라인 팝업 평면도 오버레이 (기획 v0) ── */
+.fpBox { max-width: 700px; width: min(700px, 94vw); }
+.fpHead { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.fpEn { font-size: var(--fs-micro, 10px); color: var(--dim); letter-spacing: var(--ls-wide, 0.06em); }
+.fpHead b { font-size: var(--fs-body, 13px); letter-spacing: 0; display: flex; align-items: center; gap: 4px; }
+.fpHead .fpLive { margin-left: auto; }
+.fpLive { font-size: var(--fs-micro, 10px); color: var(--dim); }
+.fpLive em { font-style: normal; color: var(--fire); font-weight: 700; }
+.fpMap { width: 100%; display: block; }
+.fpLegend { display: flex; justify-content: flex-end; margin-top: 8px; }
+
+/* ── 학생증 상세 오버레이 ── */
+.idDetailBox { max-width: 560px; }
+/* 「나」 패널(v6.0) — 게임 메뉴 모달. 탭 줄 + 본문(학생증 앞뒤 / HUD 본문 렌더러). 데스크톱 가운데 720×70vh · 모바일 아래서 올라오는 전체 시트 */
+.overlayBox.meBox { width: min(720px, 100%); height: min(70vh, 640px); max-height: none; padding: 14px 18px 16px; gap: 10px; }   /* .overlayBox 의 480px 를 이기려면 특이도 하나 더 */
+.meTabs { display: flex; align-items: center; gap: 6px; flex: none; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.meTabs::-webkit-scrollbar { display: none; }
+.meTabs button { flex: none; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--dim);
+  font: inherit; font-size: var(--fs-caption); font-weight: 700; padding: 6px 12px; cursor: pointer; white-space: nowrap;
+  transition: border-color .15s, color .15s, background .15s; }
+.meTabs button:hover { color: var(--ink); }
+.meTabs .meTabOn { color: var(--fire); border-color: rgba(255, 138, 61, .85); background: rgba(255, 138, 61, .12); }
+.meTabs .meClose { margin-left: auto; border-radius: 50%; width: 30px; height: 30px; padding: 0; display: grid; place-items: center; }
+.meBody { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+@media (max-width: 640px) {
+  .overlay:has(.meBox) { padding: 0; align-items: flex-end; }
+  .overlayBox.meBox { width: 100%; height: 88dvh; border-radius: 16px 16px 0 0; padding: 12px 14px calc(14px + env(safe-area-inset-bottom)); }
+}
+.idDetailBody { display: flex; gap: 20px; align-items: flex-start; }
+.idDetailBody > :first-child { flex: none; }
+.idDetailCardCol { display: flex; flex-direction: column; align-items: center; gap: 2px; width: min(224px, 88vw); }
+/* 뒤집는 학생증(v5.2) — 두 면이 같은 격자 칸을 쓴다: 높이는 큰 쪽에 맞고, 뒤를 보는 면은 backface 로 사라진다.
+   판 자체를 돌리는 게 아니라 안쪽(.idFlipInner)만 돌려야 그림자·원근이 카드에 붙어 돈다. */
+.idFlip { width: 100%; perspective: 1400px; padding: 0; border: 0; background: none;
+  font: inherit; color: inherit; text-align: left; cursor: pointer; display: block; }
+.idFlip:focus-visible { outline: 2px solid var(--fire); outline-offset: 4px; border-radius: 16px; }
+.idFlipInner { display: grid; transform-style: preserve-3d;
+  transition: transform .55s cubic-bezier(.2, .7, .3, 1); }
+.idFlipped .idFlipInner { transform: rotateY(180deg); }
+.idFace { grid-area: 1 / 1; display: block; width: 100%;
+  backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.idFace > * { width: 100%; }
+/* 같은 카드의 뒷면이니 앞면과 같은 크기로 선다 — 짧은 기록란 아래가 비면 다른 물건처럼 보인다.
+   일련번호 띠는 실물 카드처럼 아래쪽 끝에 붙인다 */
+.idFaceBack { transform: rotateY(180deg); }
+.idFaceBack > * { min-height: 100%; }
+.idFaceBack .idBackCode { margin-top: auto; }
+.idFlipHint { margin-top: 8px; font-size: var(--fs-micro, 10px); color: var(--dim); letter-spacing: 0; }
+@media (prefers-reduced-motion: reduce) { .idFlipInner { transition: none; } }
+.idDetailCardCol .portraitRow { margin: 2px 0 0; }
+.idDetailPickTitle { font-size: 11px; color: var(--dim); letter-spacing: 0; }
+.idDetailInfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.idDetailList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.idDetailList li { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); }
+.idDetailList li i { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--line); flex: none; }
+.idDetailList li.on { color: var(--ink); }
+.idDetailList li.on i { background: var(--fire); border-color: var(--fire); }
+.idDetailList li em { margin-left: auto; font-style: normal; font-size: 10.5px; }
+.idDetailList li.on em { color: var(--fire); font-weight: 700; }
+.idDetailStats { margin: 0; font-size: 12px; color: var(--dim); }
+.idDetailStats b { color: var(--ink); }
+.idDetailActs { display: flex; gap: 8px; margin-top: 4px; }
+@media (max-width: 640px) {
+  .idDetailBody { flex-direction: column; align-items: center; }
+  .idDetailInfo { width: 100%; }
+}
+
+/* ── 현황판 ── */
+
+
+/* 상시 진행 지표의 다음 지점 상품 (정책 §7-①) */
+.boardGoods {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: #1a1e26;
+  flex: none;
+}
+
+.boardGoods img { width: 100%; height: 100%; object-fit: cover; }
+
+
+.stampDot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid var(--dim);
+  display: inline-block;
+}
+
+.stampDot.on { background: var(--fire); border-color: var(--fire); box-shadow: 0 0 8px rgba(255, 138, 61, 0.6); }
+
+
+/* ── 공통 버튼 ── */
+.primaryBtn {
+  border: 0;
+  border-radius: 999px;
+  background: var(--fire);
+  color: #14100c;
+  font-size: 13px;
+  font-weight: 800;
+  padding: 10px 20px;
+  cursor: pointer;
+}
+
+.primaryBtn:disabled { background: rgba(232, 228, 218, 0.1); color: var(--dim); cursor: default; }
+
+.ghostBtn {
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 15px;
+  cursor: pointer;
+}
+
+/* ── 허브 (벤토그리드 — 인계서 v1.8 12칸 문법) ── */
+.hub { height: 100%; padding: 0; display: flex; flex-direction: column; }
+.hubLine { margin: 0; color: var(--dim); font-size: 13.5px; }
+
+.sp3 { grid-column: span 3; }
+.sp4 { grid-column: span 4; }
+.sp6 { grid-column: span 6; }
+.sp8 { grid-column: span 8; }
+.sp12 { grid-column: span 12; }
+
+
+
+
+.storeCard {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #141821;
+  padding: 15px 17px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.storeCard:hover { border-color: var(--fire); }
+
+
+
+
+
+/* ── 딜 벤토 — 메인페이지 룩 목업 v0 문법 이식(어두운 무대 톤): 래플 중앙 스택 · 사전예약 카드 · 럭키드로우 이치방쿠지 · 선착순 4열 ── */
+.dealBox {
+  /* 프레임 제거(④) — 무대가 이미 그릇이다. 구획은 여백이 한다 */
+  display: flex;
+  flex-direction: column;
+}
+
+.fcfsPerk { align-self: flex-start; font-size: var(--fs-caption); font-weight: 700; color: var(--fire);
+  padding: 3px 10px; border: 1px solid rgba(255,138,61,.45); border-radius: 999px; margin-bottom: var(--sp-2); }
+.dealCta { margin-top: auto; align-self: flex-start; }
+
+
+/* 래플 — 중앙 스택 */
+.rfStage { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 7px; }
+.rfSrc { font-size: 10.5px; letter-spacing: 0; color: var(--dim); }
+.rfName { font-size: clamp(18px, 2.2vw, 24px); font-weight: 900; letter-spacing: -0.01em; }
+.rfEdition { font-size: 12px; color: var(--fire); font-weight: 700; }
+.rfPhoto {
+  position: relative;
+  width: min(440px, 100%);
+  aspect-ratio: 4 / 3;
+  border-radius: 18px;
+  background: center / cover no-repeat;
+  border: 1.5px solid var(--line);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+  margin-top: 4px;
+}
+.rfTimer { font-family: var(--mono); font-size: clamp(34px, 4vw, 46px); font-weight: 700; letter-spacing: 0; font-variant-numeric: tabular-nums; line-height: 1.1; margin-top: 6px; }
+.rfClose { font-size: 11.5px; color: var(--dim); }
+.rfCount { font-size: 12.5px; color: var(--dim); }
+.rfCount b { font-family: var(--mono); color: var(--ink); font-size: 15px; font-variant-numeric: tabular-nums; }
+.rfRail { display: flex; gap: 10px; margin-top: 8px; max-width: 100%; overflow-x: auto; scrollbar-width: none; padding: 4px 2px; }
+.rfRail::-webkit-scrollbar { display: none; }
+.rfChip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: #0d1016;
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+  padding: 7px 14px 7px 7px;
+  cursor: pointer;
+  color: var(--ink);
+  transition: transform 0.18s, border-color 0.18s;
+}
+.rfChip:hover { transform: translateY(-2px); }
+.rfChip.sel { border-color: var(--fire); box-shadow: 0 6px 18px rgba(255, 138, 61, 0.18); }
+.rfChip i { width: 36px; height: 36px; border-radius: 9px; background: center / cover no-repeat; flex: none; }
+.rfChip b { font-size: 12.5px; white-space: nowrap; }
+
+/* 사전예약 — 참여 밴드 카드 */
+.preThumb { position: relative; aspect-ratio: 4 / 3; border-radius: 14px; background: center / cover no-repeat; border: 1px solid var(--line); margin-bottom: 8px; }
+.preK { font-family: var(--mono); font-size: 10px; letter-spacing: var(--ls-wide); color: var(--dim); text-transform: uppercase; }
+.preName { font-size: 17px; font-weight: 900; letter-spacing: -0.01em; margin: 2px 0; line-height: 1.3; }
+.preSub { font-size: 11.5px; color: var(--dim); }
+.preSub b { color: var(--ink); }
+.preTimer { font-family: var(--mono); font-size: 24px; font-weight: 700; letter-spacing: 0; font-variant-numeric: tabular-nums; display: flex; align-items: baseline; gap: 8px; margin: 6px 0 4px; }
+.preTimer small { font-size: 10.5px; font-weight: 600; color: var(--dim); letter-spacing: 0; }
+
+/* 럭키드로우 — 이치방쿠지 */
+.kjTabs { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin-bottom: 12px; }
+.kjTabs::-webkit-scrollbar { display: none; }
+.kjTab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 15px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(255, 138, 61, 0.45);
+  background: #0d1016;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--ink);
+  cursor: pointer;
+}
+.kjTab small { font-size: 10px; font-weight: 500; opacity: 0.75; }
+.kjTab.on { background: var(--fire); border-color: var(--fire); color: #1a0e06; }
+.kuji { display: grid; grid-template-columns: 1.15fr 1fr; border: 1.5px solid rgba(255, 138, 61, 0.35); border-radius: 16px; overflow: hidden; background: #10131a; }
+.kjTickets { padding: 18px; border-right: 2px dashed rgba(255, 138, 61, 0.35); display: flex; flex-direction: column; gap: 12px; }
+.kjLeft { font-size: 12px; color: var(--dim); }
+.kjLeft b { font-family: var(--mono); color: var(--ink); font-size: 15px; font-variant-numeric: tabular-nums; }
+.tGrid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 5px; }  /* 80칸 */
+
+/* 회차 무대(사물함) — 닫힌 문과 열린 칸 그 자체가 잔여 표시다.
+   타일은 격자에 80번 반복되므로 gap 0 으로 이어 붙인다(간격을 주면 벽이 아니라 카드가 된다). */
+.lkHero { flex: 0 0 84px; height: 84px; border-radius: 6px; background-size: cover; background-position: center 62%; position: relative; overflow: hidden; }
+.lkHero span {
+  position: absolute; left: 12px; bottom: 9px; font-size: 12px; letter-spacing: .02em; color: var(--ink);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, .8);
+}
+.lkHero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.05), rgba(0,0,0,.62)); }
+.lkWall { padding: 7px; border-radius: 6px; background-size: cover; background-position: center; }
+.lkGrid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 0; }
+.lkCell { position: relative; display: block; aspect-ratio: 1; background-size: 100% 100%; }
+/* 번호는 문에 붙은 라벨 홀더 자리에 앉힌다 — 문 색과 대비가 약해 어두운 판을 깔아야 읽힌다 */
+.lkCell b {
+  position: absolute; left: 50%; top: 28.5%; transform: translateX(-50%);
+  min-width: 44%; padding: 1px 2px; text-align: center; border-radius: 1px;
+  background: rgba(22, 24, 19, .74); color: var(--ink);
+  font-family: var(--mono); font-size: 8.5px; line-height: 1.4; letter-spacing: .04em;
+}
+.lkCell.lkOpen b { background: rgba(22, 24, 19, .5); color: var(--dim); }
+
+/* 살아 있는 회차(P5-a) — 칸이 버튼이 된다 */
+.lkCell { border: 0; padding: 0; font: inherit; color: inherit; cursor: default; }
+button.lkCell:not(:disabled) { cursor: pointer; }
+button.lkCell:not(:disabled):hover b { background: rgba(22, 24, 19, .9); color: #fff; }
+.lkCell.lkMine { outline: 2px solid var(--acc); outline-offset: -2px; }
+.lkCell.lkMine b { background: var(--acc); color: #16180f; }
+.lkCell.lkRival { opacity: .45; }
+.lkCell.lkOpening { outline: 2px solid #ece8dd; outline-offset: -2px; filter: brightness(1.35); }
+
+/* 개봉 먼지 — 칸 밖으로 조금 번진다(문이 열리며 먼지가 새어 나오는 것이라 가둘 이유가 없다).
+   소리(sfx-door-open)와 같은 1.2초를 살고, 끝에서 문이 열린 그림으로 바뀐다. */
+.lkFx {
+  position: absolute; inset: -30%; pointer-events: none; z-index: 1;
+  background-size: 100% 100%; background-repeat: no-repeat;
+  opacity: 0; animation: lkFxBurst 1.2s ease-out forwards;
+}
+@keyframes lkFxBurst {
+  0%   { opacity: 0;   transform: scale(.55); }
+  22%  { opacity: .95; transform: scale(.9); }
+  65%  { opacity: .8;  transform: scale(1.06); }
+  100% { opacity: 0;   transform: scale(1.18); }
+}
+
+/* 확인 시트 — 돈을 낸다는 사실이 화면에 있어야 유상 상자로 읽힌다 */
+.bxVeil { position: fixed; inset: 0; z-index: 70; display: grid; /* 대화상자 층(.overlay 와 동급) — HUD(60)와 동률이면 DOM 순서에 기대는 셈이라 위로 올린다(v4.1b) */ place-items: center; background: rgba(8, 9, 7, .72); padding: 20px; }
+.bxSheet { width: min(360px, 100%); background: #14161a; border: 1.5px solid rgba(255, 138, 61, .35); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.bxSheetTitle { font-size: 15px; }
+.bxSheetCells { display: flex; flex-wrap: wrap; gap: 4px; }
+.bxSheetCells i { font-family: var(--mono); font-size: 11px; padding: 2px 6px; border-radius: 3px; background: rgba(255, 255, 255, .07); color: var(--ink); }
+.bxSheetRows { display: flex; flex-direction: column; gap: 5px; margin: 0; font-size: 12px; }
+.bxSheetRows div { display: flex; justify-content: space-between; }
+.bxSheetRows dt, .bxSheetRows dd { margin: 0; color: var(--dim); }
+.bxSum { padding-top: 7px; border-top: 1px solid rgba(255, 255, 255, .1); }
+.bxSum dt, .bxSum dd { color: var(--ink); font-size: 14px; font-weight: 600; }
+.bxSheetNote { margin: 0; font-size: 11px; color: var(--dim); }
+.bxSheetBtns { display: flex; gap: 8px; }
+.bxSheetBtns button { flex: 1; }
+.bxDemo { margin: 0; font-size: 10.5px; color: var(--dim); text-align: center; }
+.bxResults { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
+.bxResults li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; font-size: 12px; }
+.bxResults em { font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--dim); }
+
+/* 3층 무대(shaft) — 넣는 곳 / 길 / 받는 곳.
+   투입구·단자는 격자와 같은 10열이라 위아래가 세로로 맞는다. */
+.lkEntry { display: grid; grid-template-columns: repeat(10, 1fr); gap: 0; }
+.lkEntry i { position: relative; display: block; aspect-ratio: 1; background-size: 100% 100%; }
+.lkEntry i b {
+  position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%);
+  padding: 0 3px; border-radius: 1px; background: rgba(22, 24, 19, .74); color: #ece8dd;
+  font-family: var(--mono); font-size: 8.5px; line-height: 1.4;
+}
+
+.lkEntryBtn { position: relative; display: block; aspect-ratio: 1; background-size: 100% 100%; border: 0; padding: 0; cursor: pointer; }
+.lkEntryBtn b {
+  position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%);
+  padding: 0 3px; border-radius: 1px; background: rgba(22, 24, 19, .74); color: #ece8dd;
+  font-family: var(--mono); font-size: 8.5px; line-height: 1.4;
+}
+.lkEntryBtn:hover b { background: rgba(22, 24, 19, .92); color: #fff; }
+.lkEntryBtn.lkMine { outline: 2px solid var(--acc); outline-offset: -2px; }
+.lkEntryBtn.lkMine b { background: var(--acc); color: #16180f; }
+/* 떨어지는 보급품 — 핀 층 위를 지난다 */
+.lkPayload { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; background-size: contain; background-repeat: no-repeat; z-index: 2; transition: left .1s linear, top .1s linear; }
+/* 이미 밝혀진 출발점 — 아는 것과 모르는 것이 눈으로 갈려야 지도가 의미를 갖는다 */
+.lkEntryBtn.lkKnown b { background: rgba(120, 180, 140, .85); color: #10140f; letter-spacing: 0; font-size: 7.5px; }
+/* 배선을 따라가는 표시 */
+.lkTracer { position: absolute; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; border-radius: 50%; background: var(--acc); box-shadow: 0 0 8px 2px rgba(255, 138, 61, .55); z-index: 2; transition: left .12s linear, top .12s linear; }
+/* 소등 회차 — 어둠은 그림이 아니라 층이다. 비춰진 칸만 밝기가 돌아온다.
+   (칸 에셋 재생성 전까지 「비춰짐」을 밝기로 만든다 — 에셋이 오면 두 벌 그림으로 바꾼다) */
+/* 어둠은 그림이 아니라 층이다(P4 §3) — 빛이 닿은 칸만 드러난다.
+   **어둠의 대부분은 이제 타일 자체가 갖고 있다**(`stage-dark-slot-closed.png` — 소등된 문짝 사진).
+   그래서 여기서 더 누르는 값은 얕다. 자리표시자 시절의 .3 은 밝은 사물함 타일을 어둡게 만들려던 값이라,
+   진짜 어두운 타일에 그대로 걸면 판이 새까매져 아무것도 안 보인다(실측). */
+.lkWall[data-dark] .lkCell { filter: brightness(.82) saturate(.7); transition: filter .2s ease-out; }
+.lkWall[data-dark] .lkCell.lkLit { filter: brightness(1.15) saturate(1.05); }
+.lkWall[data-dark] .lkCell.lkOpen { filter: brightness(1) saturate(.8); }
+.lkCell.lkLit { filter: brightness(1.6) saturate(1.1); }
+.lkBeam { position: absolute; inset: -110%; pointer-events: none; z-index: 1; background-size: 100% 100%; background-repeat: no-repeat; opacity: .5; mix-blend-mode: screen; }
+.dkBar { display: flex; flex-direction: column; gap: 7px; margin-top: 2px; }
+.dkModes { display: flex; gap: 6px; }
+.dkModes button { flex: 1; }
+.dkLog { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--dim); font-family: var(--mono); }
+.dkLog b { color: var(--acc); }
+.dkLogEmpty { font-family: inherit; line-height: 1.5; }
+/* 길 — 핀·배선을 계산된 좌표에 얹는 층. 통짜 그림을 쓰지 않는 이유는 P4 사양에 있다. */
+.lkField { position: relative; height: 96px; margin: 2px 0; }
+.lkPeg { position: absolute; width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; background-size: contain; background-repeat: no-repeat; }
+.lkWireV { position: absolute; top: 0; bottom: 0; width: 7px; margin-left: -3.5px; background-size: 100% 100%; opacity: .55; }
+.lkWireH { position: absolute; width: 10%; height: 7px; margin-top: -3.5px; background-size: 100% 100%; }
+.tk {
+  aspect-ratio: 3 / 4;
+  border-radius: 5px;
+  background: #f4f5f1;
+  border: 1.5px solid rgba(196, 68, 58, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-style: normal;
+  color: #c4443a;
+}
+.tk.used { background: #2a2420; border-style: dashed; border-color: rgba(255, 255, 255, 0.12); color: #6a625a; text-decoration: line-through; }
+.kjInfo { padding: 18px; display: flex; flex-direction: column; gap: 7px; }
+.kjName { font-size: 18px; font-weight: 900; }
+.kjPrice { font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.kjTimer { font-family: var(--mono); font-size: 15px; font-weight: 700; letter-spacing: 0; font-variant-numeric: tabular-nums; color: var(--fire); }
+.kjPrizes { list-style: none; margin: 4px 0 6px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.kjPrizes li { display: flex; align-items: center; gap: 9px; font-size: 12px; min-height: 30px; }
+.kjPrizes li i { width: 30px; height: 30px; border-radius: 7px; background: #1c2028 center / cover no-repeat; flex: none; }
+.kjPrizes li span { flex: 1; }
+.kjPrizes li em { font-style: normal; font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+/* 구성표 — 에셋 없는 상자 전용 소품은 등급 글자로 자리를 표시한다(실물 사진은 별도 제작) */
+.kjNoArt {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; font-style: normal; color: var(--dim);
+  background: #14171f !important; border: 1px dashed var(--line);
+}
+.kjOut { opacity: .42; }
+.kjOut em { text-decoration: line-through; }
+
+.grade { width: 40px; text-align: center; font-size: 10px; font-weight: 900; border: 1px solid var(--fire); color: var(--fire); border-radius: 6px; padding: 2px 0; flex: none; }
+
+/* 선착순·보급소 — 굿즈샵 카드 4열 */
+.fcfsGrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+
+/* 굿즈샵 진열 — 선착순 딜(fcfsGrid)과 분리된 독립 클래스.
+   딜은 3단 보조라 가로 레일 1행으로 접지만(정보 위계 §3.0-1), 굿즈샵 화면의 진열은
+   그 화면의 주인공이라 접지 않는다. 5개씩 한 행 · 가로 스크롤 없음(PM 2026-08-27). */
+.shopShelf { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--sp-3); }
+.shopShelf > * { min-width: 0; }
+@media (max-width: 1100px) { .shopShelf { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 860px)  { .shopShelf { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px)  { .shopShelf { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } }
+.gcard {
+  /* 무크롬(2026-08-28 PM — 진열과 같은 문법): 사진이 곧 칸, 경계는 사진 헤어라인만 */
+  display: flex; flex-direction: column;
+}
+.gPh {
+  /* 5:6 세로 — 레퍼런스 실측(무신사 랭킹 카드 238×285 = 0.833). 목록이 세로로 서면 한 눈에 담기는 줄이 늘고
+     옷·키링처럼 세로로 긴 물건이 제 비율로 선다. 가로 원본은 좌우가 잘리므로 가운데 정렬을 유지한다. */
+  position: relative; aspect-ratio: 5 / 6; background: #0a0d12 center / cover no-repeat;
+  border-radius: var(--r-s); overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07); transition: box-shadow .15s;
+}
+.gBadge { position: absolute; right: 10px; top: 10px; font-size: 10px; font-weight: 900; letter-spacing: 0; background: var(--fire); color: #1a0e06; border-radius: 999px; padding: 3px 9px; }
+.gBadge.soon { background: rgba(4, 5, 10, 0.7); color: var(--ink); border: 1px solid var(--line); }
+.gInfo { padding: var(--sp-2) 2px 0; display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.gCat { font-size: var(--fs-micro); letter-spacing: 0; color: var(--dim); }  /* 한글 분류 — 양수 자간 금지(계약) */
+.gInfo > b { font-size: var(--fs-body); line-height: var(--lh-dense); }
+/* 가격 줄 = 레퍼런스의 「할인율 + 가격」 자리. 우리에겐 할인이 없고 그 자리를 받는 건 희소성이다 */
+.gPrice { display: flex; align-items: baseline; gap: 6px;
+  font-size: var(--fs-heading); font-weight: 900; letter-spacing: var(--ls-tight); font-variant-numeric: tabular-nums; }
+.gScarce { font-size: var(--fs-caption); font-weight: 800; letter-spacing: 0; color: var(--fire); white-space: nowrap; }
+.gStock { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+.gStock i { font-style: normal; color: var(--fire); font-weight: 800; }
+.gBar { display: block; height: 4px; border-radius: 999px; background: #1c2028; overflow: hidden; }
+.gBar b { display: block; height: 100%; background: var(--fire); }
+.gTimer { font-family: var(--mono); font-size: 11px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.shelfPad { padding: var(--sp-3) var(--sp-4) 0; }
+
+/* ── 굿즈샵 목록 — 무신사 목록 문법(PM 2026-09-04) ──
+   2차 필터는 알약이 아니라 밑줄 텍스트다(1차와 위계가 눈으로 갈린다).
+   카드 안에서 사지 않으므로 버튼 줄이 없다 — 사진 위 찜 하나만 남고 나머지는 읽는 정보다. */
+.subRail { display: flex; gap: 14px; margin: 0 20px 10px; padding-bottom: 2px; overflow-x: auto; scrollbar-width: none; }
+.subRail::-webkit-scrollbar { display: none; }
+.subItem {
+  flex: none; cursor: pointer; background: none; border: 0; padding: 3px 0;
+  font: inherit; font-size: var(--fs-caption); font-weight: 700; color: var(--dim);
+  transition: color .15s, box-shadow .15s;
+}
+.subItem em { font-style: normal; font-size: 10px; font-weight: 700; margin-left: 3px; opacity: .7; }
+.subItem:hover { color: var(--ink); }
+.subItem.subOn { color: var(--ink); box-shadow: inset 0 -1.5px 0 var(--ink); }
+
+.optRow { display: flex; align-items: center; gap: 10px; margin: 0 20px 12px; flex-wrap: wrap; }
+.optCheck { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: var(--fs-caption); color: var(--dim); transition: color .15s; }
+.optCheck:hover { color: var(--ink); }
+.optCheck input { width: 13px; height: 13px; accent-color: var(--fire); cursor: pointer; }
+.sortRow { margin-left: auto; display: flex; gap: 12px; }
+.sortBtn {
+  cursor: pointer; background: none; border: 0; padding: 3px 0;
+  font: inherit; font-size: var(--fs-caption); font-weight: 700; color: var(--dim); transition: color .15s;
+}
+.sortBtn:hover { color: var(--ink); }
+.sortBtn.sortOn { color: var(--ink); }
+
+/* 배지는 사진 좌하단 — 우상단은 찜과 부딪힌다. 강조색은 「지금 살 수 있다」 하나에만 쓴다 */
+.gTag {
+  position: absolute; left: 8px; bottom: 8px;
+  font-size: 10px; font-weight: 800; letter-spacing: 0;
+  background: rgba(4, 5, 10, .72); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 4px; padding: 3px 7px;
+}
+.gTag.gTagOn { background: var(--fire); border-color: var(--fire); color: #1a0e06; }
+.gHeart {
+  position: absolute; right: 5px; bottom: 3px; cursor: pointer;
+  background: none; border: 0; padding: 4px 7px; line-height: 1; font-size: 16px;
+  color: rgba(232, 228, 218, .72); text-shadow: 0 1px 3px rgba(4, 5, 10, .8); transition: color .15s;
+}
+.gHeart:hover { color: var(--ink); }
+.gHeart.on { color: var(--fire); }
+/* 순위 — 인기순에서만 붙는다. 사진 좌상단 모서리에 물려 배지가 아니라 사진의 일부처럼 읽힌다 */
+.gRank {
+  position: absolute; left: 0; top: 0; z-index: 2;
+  min-width: 21px; padding: 3px 6px;
+  background: var(--ink); color: #0b0e14;
+  font-size: 11px; font-weight: 900; letter-spacing: 0; text-align: center;
+  border-bottom-right-radius: var(--r-s);
+}
+.gName { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* 지표는 칩이 아니라 회색 한 줄이다(레퍼런스 「668명이 보는 중」 자리) — 칸마다 알약이 서면 목록이 시끄럽다 */
+.gProof { display: flex; gap: 6px; font-size: 10.5px; color: var(--dim); white-space: nowrap; overflow: hidden; }
+.gProof span + span::before { content: "·"; margin-right: 6px; opacity: .55; }
+.gInfo > .gZone { align-self: flex-start; margin-top: auto; }
+.gEmpty { margin: 0 20px; font-size: var(--fs-caption); color: var(--dim); }
+
+/* ── 보상 = 구매권 (PM 2026-08-21): 게임 진입 시 계약 카드 · 달성 순간 획득 배너 · 보급소 구매권 목록·잠금 상품 ── */
+.contractWrap { padding: 0 22px 12px; }
+
+/* 살 수 있게 되는 상품 1행 스트립 — 이미지 우선 */
+.miniCard { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: #0d1016; }
+.miniCard .stuCard { transform: scale(0.42); transform-origin: center; pointer-events: none; }
+
+/* 허브 존 타일 — 상품 칩 (입구에서부터 살 것을 보여준다) */
+.zoneGoods {
+  position: absolute !important;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 62%;
+  background: rgba(4, 5, 10, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 5px 8px 5px 5px;
+}
+.zoneGoods i { width: 34px; height: 34px; border-radius: 7px; background: center / cover no-repeat; flex: none; }
+.zoneGoods > span { display: flex; flex-direction: column; min-width: 0; }
+.zoneGoods b { font-size: 9.5px; letter-spacing: 0; color: var(--fire); font-weight: 900; }
+.zoneGoods em { font-style: normal; font-size: 10.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.zoneGoodsOn { border-color: var(--fire); box-shadow: 0 0 12px rgba(255, 138, 61, 0.3); }
+.zoneCard .stampDot { position: absolute; top: 10px; right: 10px; }
+
+
+/* 시연 컨트롤 — 첫 방문 상태로 초기화 (우측 정렬·은은) */
+.resetBtn {
+  margin-left: auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dim);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 5px 11px;
+  cursor: pointer;
+  opacity: 0.72;
+}
+.resetBtn:hover { opacity: 1; color: var(--ink); border-color: var(--ink); }
+@media (max-width: 560px) { .resetBtn { margin-left: 0; } }
+
+/* 오프닝 화면 우상단 초기화 (레터박스 위에 은은히) */
+.openingReset {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  z-index: 40;
+  border: 1px solid rgba(232, 228, 218, 0.28);
+  border-radius: 999px;
+  background: rgba(4, 5, 10, 0.55);
+  color: var(--dim);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  padding: 5px 11px;
+  cursor: pointer;
+  opacity: 0.68;
+}
+.openingReset:hover { opacity: 1; color: var(--ink); border-color: var(--ink); }
+
+.claimRight {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  border: 1px solid var(--fire);
+  border-radius: 12px;
+  padding: 10px 16px;
+  background: rgba(255, 138, 61, 0.1);
+}
+.claimRight b { font-size: 13.5px; }
+.claimRight > span:last-child { font-size: 11px; color: var(--dim); }
+
+
+.gLocked .gPh { filter: grayscale(0.6) brightness(0.7); }
+.gZone { /* 이 상품의 장면으로 가는 문 — 조용한 알약, 호버에만 fire */
+  font-size: var(--fs-caption); font-weight: 700; color: var(--dim); cursor: pointer;
+  padding: 6px 10px; border: 1px dashed var(--line); border-radius: 999px; background: transparent;
+}
+.gZone:hover { border-color: var(--fire); color: var(--fire); }
+
+.toast {
+  position: absolute;
+  left: 50%;
+  /* 모바일 캡슐 HUD 에서 --hud 가 0 이 된다(icons-26 #642) — 그대로 두면 토스트가
+     화면 맨 밑 장면 내용(시즌 게이지 등) 위에 얹힌다. 바닥에서 최소한 띄운다. */
+  bottom: max(calc(var(--hud) + 14px), 56px);
+  transform: translateX(-50%);
+  z-index: 50;
+  background: rgba(10, 11, 16, 0.95);
+  border: 1px solid rgba(255, 138, 61, 0.45);
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 10px 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.feedCard {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #12151d;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.feedCard:hover { border-color: var(--fire); }
+.feedCard > b { font-size: 13px; }
+.feedCard > span { font-size: 12px; color: var(--dim); line-height: 1.55; }
+.feedSub { font-size: 11.5px !important; }
+.feedSub i { font-style: normal; color: var(--fire); font-weight: 700; margin-right: 6px; }
+
+.welcome {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--fire);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: rgba(255, 138, 61, 0.06);
+}
+
+.welcomeActs { display: flex; gap: 8px; }
+
+/* 학생증 — 한국 학생증 실물 문법·세로형 목걸이 카드 (PM 2026-08-21): 밝은 카드가 어두운 무대 위에서 실물처럼 뜬다 */
+.stuCard {
+  position: relative;
+  width: min(224px, 100%);
+  border-radius: 14px;
+  overflow: hidden;
+  /* 실물 플라스틱 카드 — 살짝 누렇게 바랜 바탕 + 미세 결 + 가장자리 비네트 (디자인 지시서 A-1 · 정식 자산 입고 전 근사) */
+  background:
+    radial-gradient(120% 70% at 50% -10%, rgba(255, 255, 255, 0.38), transparent 60%),
+    repeating-linear-gradient(100deg, rgba(0, 0, 0, 0.022) 0 1px, transparent 1px 3px),
+    radial-gradient(140% 120% at 50% 50%, #f1eee5 55%, #e3dfd2 100%);
+  color: #2a2f33;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(60, 50, 30, 0.08), inset 0 0 18px rgba(60, 40, 20, 0.1);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 마른 핏자국 — 약간: 우상단 엄지 자국 · 좌하단 스친 줄 · 사진 칸 모서리 점 2 (전체 면적 8% 이내, 마른 갈적색) */
+.stuCard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background:
+    radial-gradient(22% 15% at 92% 6%, rgba(96, 22, 16, 0.46) 0%, rgba(96, 22, 16, 0.26) 42%, rgba(96, 22, 16, 0) 72%),
+    radial-gradient(9% 6% at 83% 12%, rgba(110, 26, 18, 0.36) 0%, rgba(110, 26, 18, 0) 70%),
+    radial-gradient(30% 2.6% at 13% 96.5%, rgba(90, 20, 14, 0.36) 0%, rgba(90, 20, 14, 0) 70%),
+    radial-gradient(2.4% 1.9% at 33% 39%, rgba(100, 24, 18, 0.42) 0%, rgba(100, 24, 18, 0) 80%),
+    radial-gradient(1.6% 1.3% at 36% 43%, rgba(100, 24, 18, 0.34) 0%, rgba(100, 24, 18, 0) 80%);
+  mix-blend-mode: multiply;
+}
+
+/* 긁힘·지문·모서리 마모 */
+.stuCard::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background:
+    linear-gradient(112deg, transparent 31%, rgba(255, 255, 255, 0.34) 31.3%, transparent 31.8%),
+    linear-gradient(118deg, transparent 58%, rgba(255, 255, 255, 0.26) 58.2%, transparent 58.6%),
+    linear-gradient(105deg, transparent 76%, rgba(255, 255, 255, 0.2) 76.15%, transparent 76.5%),
+    radial-gradient(12% 9% at 62% 30%, rgba(80, 70, 50, 0.08), transparent 70%),
+    radial-gradient(60% 50% at 100% 100%, rgba(70, 60, 40, 0.2), transparent 70%),
+    radial-gradient(40% 40% at 0% 0%, rgba(70, 60, 40, 0.16), transparent 70%);
+}
+
+.stuHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(90deg, #2c4a38 0%, #30513f 55%, #263f2f 100%);
+  color: #f2f5ef;
+  padding: 9px 14px;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.28);
+}
+
+.stuHead b { font-size: 13px; letter-spacing: 0.14em; }
+.stuHead span { font-size: 10.5px; letter-spacing: 0.3em; opacity: 0.85; }
+
+.stuPhotoWrap { display: flex; justify-content: center; padding: 16px 14px 10px; }
+
+.stuPhoto {
+  width: 88px;
+  height: 116px;
+  border: 1px solid #c7ccc2;
+  border-radius: 6px;
+  background: #e8ebe4;
+  overflow: hidden;
+  flex: none;
+}
+
+.stuPhoto .portrait { border-radius: 0; filter: saturate(0.85) sepia(0.12) contrast(0.98); }
+
+.stuName { display: flex; flex-direction: column; gap: 2px; align-items: center; }
+.stuName b { font-size: 17px; font-weight: 900; letter-spacing: 0.1em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 90%; }
+.stuNameTag { font-size: 9px; color: #66705f; font-weight: 700; letter-spacing: 0.34em; }
+.stuUnnamed { color: #9aa295; }
+
+.stuCert { margin: auto 12px 0; padding-top: 10px; font-size: 9.5px; color: #78816f; line-height: 1.45; }
+
+.stuFoot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 5px 14px 13px;
+}
+
+.stuPrincipal { font-size: 12px; font-weight: 900; letter-spacing: 0.16em; color: #2a3327; }
+
+
+.stuLine { font-size: 10.5px; color: #5d675c; font-weight: 600; }
+
+.stuBtn {
+  border: 1px solid #b9c0b4;
+  color: #2a3327;
+  background: #eceee8;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.stuBtn:hover { background: #e2e5dd; }
+
+.stuSeal {
+  width: 27px;
+  height: 27px;
+  border: 2px solid #c4443a;
+  color: #c4443a;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-style: normal;
+  font-size: 8.5px;
+  font-weight: 900;
+  transform: rotate(-8deg);
+  opacity: 0.8;
+  filter: blur(0.2px);
+}
+
+.stuBadge {
+  position: absolute;
+  top: 118px;
+  right: 12px;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 900;
+  color: var(--fire);
+  border: 2px solid var(--fire);
+  border-radius: 999px;
+  padding: 7px 9px;
+  transform: rotate(-14deg);
+  background: rgba(255, 245, 238, 0.85);
+  box-shadow: 0 0 14px rgba(255, 138, 61, 0.45);
+  animation: sealIn 0.4s ease-out 0.5s backwards;
+}
+
+@keyframes sealIn {
+  from { transform: rotate(-14deg) scale(2); opacity: 0; }
+  to { transform: rotate(-14deg) scale(1); opacity: 1; }
+}
+
+.myIdLabel { font-size: 11px; font-weight: 800; color: var(--dim); letter-spacing: 0; }
+
+/* 이름 선언 + 증명사진 (PM 2026-08-21: 「내 이름은 ___」 = 무전에 대고 말하기 · 사진이 학생증에 박힌다) */
+.speakRow { display: flex; align-items: center; gap: 8px; justify-content: center; }
+
+.speakPrefix { font-size: var(--fs-body); font-weight: 800; white-space: nowrap; opacity: 0.9; }
+
+.speakInput { width: min(170px, 46vw); text-align: left; }
+
+.portraitRow { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin: 8px 0; }
+
+.portraitBtn {
+  width: 44px;
+  height: 54px;
+  padding: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: #0d1016;
+  cursor: pointer;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+}
+
+.portraitBtn:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.portraitBtn.picked {
+  border-color: var(--fire);
+  box-shadow: 0 0 14px rgba(255, 138, 61, 0.5);
+  transform: translateY(-2px);
+}
+
+.charPhoto {
+  width: 100%;
+  height: 38px;
+  object-fit: cover;
+  display: block;
+}
+
+.charNameMini {
+  font-size: 8.5px;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 15px;
+  width: 100%;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.uploadBtn {
+  width: 52px;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1.5px dashed rgba(255, 255, 255, 0.3);
+}
+
+.uploadLabel {
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  color: var(--dim);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.photoError {
+  flex-basis: 100%;
+  color: var(--fire);
+  font-size: var(--fs-micro);
+  line-height: 1.45;
+  text-align: center;
+}
+
+.portrait { border-radius: 7px; object-fit: cover; display: block; flex: none; }
+
+
+.zoneCard {
+  position: relative;
+  min-height: 128px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 12px 14px;
+  color: var(--ink);
+  text-align: left;
+  overflow: hidden;
+  transition: transform 0.15s ease;
+}
+
+.zoneCard::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(5, 6, 10, 0.25) 0%, rgba(5, 6, 10, 0.85) 100%);
+}
+
+.zoneCard:hover { transform: translateY(-3px); }
+.zoneCard > * { position: relative; }
+.zoneName { font-size: 15.5px; font-weight: 800; }
+.zoneSub { font-size: var(--fs-caption); color: var(--dim); }
+/* 유상 존 — 참여권 가격표. 역할 줄 아래, 구매권 얼굴과는 다른 자리(PM 2026-09-03) */
+.zoneTicket {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 2px 7px;
+  border: 1px solid rgba(255, 138, 61, 0.55);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--fire);
+  font-variant-numeric: tabular-nums;
+  background: rgba(8, 8, 11, 0.55);
+}
+.zoneCard .stampDot { position: absolute; top: 10px; right: 10px; }
+
+
+div.bannerCard { cursor: default; }
+
+.footNote { margin: 4px 0 0; font-size: 11px; color: var(--dim); line-height: 1.6; }
+
+/* ── 존 공통 ── */
+/* 존 화면 = 화면 셋 — 한 섹션이 한 화면을 다 쓴다(메인페이지와 같은 원칙 · PM 2026-09-08).
+   스크롤러는 존 뷰. 화면마다 아래에 HUD 몫을 남긴다 — 좁은 화면은 --hud 가 0 이라 원 띠(56px)를 따로 센다. */
+.zoneView { height: 100%; overflow-y: auto; scroll-snap-type: y proximity; --hudGap: calc(max(var(--hud), 60px) + var(--sp-3)); }
+.zoneScreen { min-height: 100%; scroll-snap-align: start; }
+/* 「아래에 화면이 더 있다」 엿보기 힌트(다음 화면 윗머리가 HUD 위로 비치던 --peek)는 폐기 — PM 2026-09-08 「너무 이상해 · 원상태로」. 화면은 HUD 몫만 남긴다. */
+/* 커머스 존 본문 화면 — 안의 모듈(굿즈샵·뽑기·래플…)은 제 여백을 갖고 있으니 좌우는 손대지 않고 아래 HUD 몫만 남긴다.
+   현장 예약(.rsvWrap)은 제 HUD 여백이 있어 겹치지 않게 뺀다 */
+.zoneBody { display: flex; flex-direction: column; justify-content: center; padding-bottom: var(--hudGap); }
+.zoneBody:has(> .rsvWrap) { padding-bottom: 0; }
+.zoneHead + .zoneBody { border-top: 1px solid var(--line); }
+.zoneBody > .zoneSec { min-height: 0; padding-bottom: 0; }
+/* 커머스 존 본문을 한 화면에(PM 2026-09-09 「굿즈샵만 제외」) —
+   사전예약: 카드 썸네일이 4:3 풀폭(1283×962)으로 터져 본문이 1223px 이었다 → 넓은 화면은 **사진 | 글** 두 기둥, 사진은 520px 까지.
+   럭키드로우: 넓은 화면 10px 초과 → 티켓 판 여백 한 단. */
+@media (min-width: 900px) {
+  .zoneBody .preCard { display: grid; grid-template-columns: minmax(0, 520px) minmax(0, 1fr); column-gap: var(--sp-4); align-items: center; }
+  .zoneBody .preCard .preThumb { margin-bottom: 0; }
+  .zoneBody .kjTickets { padding: 12px 14px; }
+  .zoneBody .kjTabs { margin-bottom: 8px; }
+}
+/* 럭키드로우 좁은 화면 — 티켓 판(434)+정보 판(440)이 세로로 쌓여 924. 한 화면(≈740)에 넣는다:
+   회차 얼굴 사진(84)은 접고(제목·잔여가 이미 말한다), 등급 목록은 세로 스크롤 상자(232) 대신 **가로 레일 한 줄**, 판 여백 한 단. 메인의 럭키드로우 장면은 무접촉(.zoneBody 안에서만). */
+@media (max-width: 640px) {
+  /* 등급 레일(가로 넘침)이 격자 열의 min-content 를 3651px 로 밀어 티켓 판·사물함 칸까지 10배로 터졌다(실측) — 열이 줄어들 수 있게 minmax(0, 1fr) */
+  .zoneBody .kuji { grid-template-columns: minmax(0, 1fr); }
+  .zoneBody .kjTickets, .zoneBody .kjInfo { padding: 12px; gap: 6px; min-width: 0; }
+  .zoneBody .lkHero { display: none; }
+  .zoneBody .kjPrizes { max-height: none; overflow: visible; flex-direction: row; overflow-x: auto; gap: 8px; margin: 2px 0; scrollbar-width: none; min-width: 0; }
+  .zoneBody .kjPrizes::-webkit-scrollbar { display: none; }
+  .zoneBody .kjPrizes li { flex: 0 0 auto; max-width: 78%; min-height: 0; padding: 5px 8px; border: 1px solid var(--line); border-radius: 999px; }
+  .zoneBody .kjPrizes li i { width: 22px; height: 22px; }
+  .zoneBody .kjPrizes li span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}   /* 커머스 존 안의 매대는 본문 화면의 일부다 — 저 혼자 한 화면을 먹지 않는다 */
+
+/* 존 페이지 = 풀블리드 밴드 셋 — **이미지(히어로) · 체험 · 매대**(PM 2026-09-07 통일).
+   한 밴드 = 한 단위. 폭을 다 쓰고, 좌우 여백이 같고, 헤어라인 하나로만 나뉜다.
+   밴드가 여백을 소유하므로 안에 들어가는 옛 래퍼들의 개별 좌우 여백은 전부 0으로 눕힌다 — 안 그러면 20+22 로 어긋난다. */
+.zoneSec { width: 100%; min-height: 100%; scroll-snap-align: start; padding: var(--sp-3) 20px var(--hudGap);
+  display: flex; flex-direction: column; justify-content: center; gap: 12px; }   /* 짧은 화면(매대·잠긴 옥상)은 가운데, 긴 화면(게임+선반)은 위에서부터 */
+.zoneSec + .zoneSec, .zoneHead + .zoneSec { border-top: 1px solid var(--line); }
+/* 섹션 머리 — 히어로 리드의 축소판. 문(오른쪽)은 아래 정렬 */
+.secHead { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--sp-3); }
+.secHead .leadEyebrow { display: block; margin-bottom: 4px; }
+.secTitle { margin: 0; font-family: var(--font-grotesk), var(--font-sans), sans-serif; font-size: var(--fs-title); line-height: var(--lh-title); font-weight: 900; letter-spacing: var(--ls-tight); }
+/* 체험 밴드 바탕 — **유리는 굴절할 것이 있어야 유리다**(Apple HIG Materials: 유리는 아래 콘텐츠를 흐려 보여 준다).
+   평평한 검정 위에 얹으면 그냥 「조금 밝은 상자」가 되고, 그게 PM 이 「AI 스럽다」고 한 그림이다.
+   그래서 히어로의 그 스틸을 밴드 바닥에 아주 낮게 깔고 아래로 사라지게 한다 — 무대 위쪽에서만 산다. */
+.zoneHead + .zoneSec:has(> .zoneGuide) { position: relative; isolation: isolate; }
+/* 사진은 **유리가 있는 밴드에만** 깐다 — 옥상(보상 계약 카드가 첫 자식)·커머스 존(진열대)에 깔면 상품이 지저분해진다 */
+.zoneHead + .zoneSec:has(> .zoneGuide)::before {
+  content: ""; position: absolute; inset: 0 0 auto; height: 230px; z-index: -1; pointer-events: none;
+  background-image: var(--zone-img); background-size: cover; background-position: center 30%;
+  opacity: 0.34;
+  /* 사진은 **모듈 한 덩어리 뒤에만** 산다 — 밴드 위 24px + 모듈 101~120px 이니 143px 까지 온전히 깔고 230px 에서 끝낸다.
+     더 내려가면 도서관 보상 계약 카드·무대 그래프 바닥이 사진 위에 얹혀 지저분해진다(실측 2026-09-08). */
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
+          mask-image: linear-gradient(to bottom, #000 0%, #000 62%, transparent 100%);
+}
+.zoneSec .gameStage, .zoneSec .zoneMeta,
+.zoneSec .contractWrap, .zoneSec .bonfireWrap, .zoneSec .shelfPad { padding-left: 0; padding-right: 0; }
+.zoneSec .gameStage, .zoneSec .shelfPad { padding-top: 0; }
+.zoneSec .contractWrap, .zoneSec .bonfireWrap { padding-bottom: 0; }
+.zoneSec .gameStage { align-items: stretch; }
+/* 급식실 기록 줄(최고·판수) — 무대 아래 한 줄을 더 먹지 않고 알림 줄 오른쪽에 붙는다(한 화면 규칙). 알림 줄은 22px 한 줄이라 자리가 빈다 */
+.zoneSec .gameStage { position: relative; }
+.gameGateWrap { position: relative; width: 100%; }   /* 게임 관문(GameGate)이 게임 위에 얹히는 틀 */
+.metaTop { position: absolute; top: 0; right: 0; margin: 0; line-height: 22px; font-size: var(--fs-micro); }
+/* 게임 무대 + 보상 진열 — 급식실 문법(PM 2026-09-09): **게임은 반드시 한 행**, 보상(구매권 타일)은 **무대 아래 한 줄**.
+   진열 자체는 `CafeteriaCrash.module.css` 의 .rewards/.card 를 그대로 쓴다(전 존 공통 — 존마다 모양이 다르던 것을 합침).
+   게임 폭은 960 까지 — 도서관 캔버스(960:360)가 밴드 폭 1283 을 다 쓰면 481px 이 되어 한 화면을 넘긴다. */
+.playGrid { display: flex; flex-direction: column; gap: 12px; }
+@media (min-width: 900px) {
+  .playGrid { gap: 12px; }
+  .playGrid .gameStage { order: 1; } .playGrid .contractWrap { order: 2; } .playGrid .noticeBox { order: 3; margin: 0; }
+  .playGrid .gameStage > * { width: 100%; max-width: 960px; margin-inline: auto; }
+}
+.zoneSec .season2 { margin: 0; }
+.zgLabel { font-size: var(--fs-micro); font-weight: 800; color: var(--dim); letter-spacing: 0; }
+/* 좁은 화면 — 밴드 여백·틈을 한 단 줄인다. 「하는 법」 모듈이 들어오면서 조작 줄이 하단 HUD 원(775~831) 뒤로
+   밀렸다(실측 자동 탈출 줄 783~813). 무대나 글을 깎지 않고 **여백만** 회수해 되돌린다. */
+@media (max-width: 560px) {
+  .zoneSec { padding: var(--sp-3) 14px var(--hudGap); gap: 4px; }
+}
+/* 이 장면의 굿즈 — 존 매대 진열(무크롬·헤어라인 문법 공유) */
+.zgWrap { gap: var(--sp-2); }   /* 여백·방향은 .zoneSec 이 갖는다 */
+/* **몇 종을 걸지는 데이터가 정한다**(`ZONE_GOODS`) — 칸 수를 3으로 못 박아 두면 큐레이션이 CSS 에 묶인다(PM 2026-09-08).
+   `auto-fit` 이라 빈 칸은 접힌다.
+   200px 이 하한 — 1283px 밴드에서 **6칸이 한 줄에 선다**(202px). 그 아래로 좁아지면 상품 이름 한 줄과 값이 안 읽힌다.
+   3종이면 auto-fit 이 빈 칸을 접어 종전처럼 417px 3칸으로 선다. */
+.zgRow { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--sp-3); align-items: start; }
+/* 카드 = 세로 사진 한 장. 이름·값은 사진 아래쪽 그늘 위에 얹힌다 — 글상자가 따로 없어 선반이 조용하다(PM 2026-09-08 「유려하게」) */
+.zgCard { position: relative; min-width: 0; border-radius: var(--r-l); overflow: hidden; cursor: pointer; transition: transform .25s ease; }
+.zgCard:nth-child(even) { transform: translateY(22px); }   /* 엇갈림 — 진열대가 물결친다 */
+.zgCard:hover { transform: translateY(-4px); }
+.zgCard:nth-child(even):hover { transform: translateY(18px); }
+.zgPh { aspect-ratio: 4 / 5; background: #0a0d12 center / cover no-repeat; transition: transform .6s ease; }
+.zgCard:hover .zgPh { transform: scale(1.05); }
+.zgCap { position: absolute; inset: auto 0 0 0; padding: 44px 12px 12px; display: flex; flex-direction: column; gap: 2px;
+  background: linear-gradient(to top, rgba(8, 8, 11, .92) 0%, rgba(8, 8, 11, .55) 55%, rgba(8, 8, 11, 0) 100%); }
+.zgName { font-size: var(--fs-caption); line-height: var(--lh-dense); color: var(--ink); opacity: .85;
+  display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.zgPrice { font-size: var(--fs-body); font-weight: 900; font-variant-numeric: tabular-nums; }
+/* 좁은 화면: 가로 레일(엇갈림 없음) — 한 화면에 한 줄 */
+@media (max-width: 620px) {
+  .zgRow { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; padding-bottom: 4px; }
+  .zgRow::-webkit-scrollbar { display: none; }
+  .zgRow > * { flex: 0 0 150px; scroll-snap-align: start; transform: none !important; }
+}
+
+.zoneHead {
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 20px 20px var(--hudGap);
+  animation: zoneIn 0.25s ease-out;
+}
+/* 「학교 맵」은 왼쪽 위 — 오른쪽 위는 앱 크롬(모바일로 보기·내부 샘플)이 쓴다 */
+.zoneHead .backBtn { position: absolute; top: 14px; left: 20px; z-index: 2; }
+/* 리드 = 메인 표지와 같은 글자(.lead·.leadEyebrow·.leadTitle 공유). 영상·스틸 위에 서므로 층을 올린다 */
+.zoneLead { position: relative; z-index: 1; }
+/* 후킹 서브텍스트 — 표지의 부제(.leadTitle em)와 같은 크기·무게, 제목에 붙어 선다. 글줄은 두 줄 안에서 끊는다 */
+.leadHook { margin: calc(var(--sp-3) * -1 + 6px) 0 0; max-width: 560px; font-size: var(--fs-title); font-weight: 600; line-height: 1.45; color: var(--ink); opacity: .86; word-break: keep-all; text-shadow: 0 1px 6px rgba(0, 0, 0, .7); }
+.leadHook span { display: block; }
+/* 존 문 한 줄 — 제목 바로 아래, 히어로 초대문보다 한 단 작다 */
+.leadCall { margin: calc(var(--sp-3) * -1 + 4px) 0 0; font-size: var(--fs-body); font-weight: 600; line-height: 1.4; color: var(--ink); opacity: .82; word-break: keep-all; }
+@media (max-width: 640px) { .leadHook { font-size: 14px; max-width: 86vw; } }
+/* 좁은 화면 — 표제만 한 단 줄인다 */
+@media (max-width: 640px) { .zoneHead .leadTitle { font-size: 30px; } }
+
+@keyframes zoneIn { from { opacity: 0; transform: scale(0.985); } to { opacity: 1; transform: scale(1); } }
+/* 굿즈샵 머리 — 히어로 대신 한 줄(PM 2026-09-08). 문 · 눈썹 · 이름이 나란히, 아래로 바로 필터가 이어진다 */
+.zoneBar { display: flex; align-items: center; gap: var(--sp-3); padding: 14px 20px 4px; animation: zoneIn 0.25s ease-out; }
+.zoneBar .backBtn { align-self: center; }
+.zoneBarTitle { margin: 0; font-size: var(--fs-title); font-weight: 800; letter-spacing: var(--ls-tight); line-height: 1.2; }
+/* 폰 폭: 오른쪽 위 고정 칩(모바일로 보기·내부 샘플)과 겹치지 않게 문은 첫 줄, 눈썹·이름은 둘째 줄 */
+@media (max-width: 640px) { .zoneBar { flex-wrap: wrap; gap: 6px 10px; } .zoneBar .backBtn { margin-right: 100%; flex: 0 0 auto; white-space: nowrap; } }
+
+.backBtn {
+  align-self: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(11, 13, 18, 0.6);
+  color: var(--ink);
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 5px 11px;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+/* 하는 법 모듈 — 규칙·조작을 한 덩어리로 세운다(PM 2026-09-07).
+   본문을 --dim 에서 --ink 로 올린 게 시인성의 절반이다 — 나머지 절반은 면(--panel)과 왼쪽 불씨 레일. */
+/* 유리 문법 — 레퍼런스 실측(2026-09-08): Apple 글로벌 내비 `saturate(1.8) blur(20px)` · Linear 다크 유리
+   `rgba(255,255,255,.05)` + 4겹 그림자(안쪽 헤어라인 → 윗면 광 → 바깥 어두운 링 → 얕은 낙하).
+   테두리 대신 **그림자로 가장자리를 만든다** — 1px 실선 테두리는 유리가 아니라 카드가 된다.
+   왼쪽 불씨 레일은 뺐다(강조 막대는 유리의 문법이 아니다 · 색 예산도 하나 돌려준다).
+   흰색이 아니라 `--ink`(232,228,218) 를 낮은 알파로 쓴다 — 색 예산 밖으로 나가지 않는다. */
+.zoneGuide {
+  display: flex; flex-direction: column; gap: var(--sp-2);
+  padding: 12px var(--sp-3); border: 0; border-radius: var(--r-l);
+  background: rgba(232, 228, 218, 0.055);
+  -webkit-backdrop-filter: blur(20px) saturate(1.6);
+          backdrop-filter: blur(20px) saturate(1.6);
+  box-shadow:
+    inset 0 0 0 1px rgba(232, 228, 218, 0.09),
+    inset 0 1px 0 0 rgba(232, 228, 218, 0.16),
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 10px 28px -10px rgba(0, 0, 0, 0.6);
+}
+/* 유리를 못 만들거나(구형) 투명을 원치 않는(접근성) 자리에서는 불투명 면으로 내려앉는다 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .zoneGuide { background: var(--panel); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .zoneGuide { background: var(--panel); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+/* 면은 밴드를 다 쓰되 글줄은 읽을 수 있는 길이에서 끊는다 — 1283px 한 줄은 한글 85자다.
+   `ch` 는 한글에서 반각이라 못 쓴다(78ch = 604px = 40자) → px 로 잡는다. */
+.zoneGuide p { margin: 0; max-width: 880px; font-size: var(--fs-body); line-height: 1.65; color: var(--ink); }
+.zoneGuide b { font-weight: 800; }
+/* 하는 법 줄 — 한 줄에 한 가지, 불릿(PM 2026-09-09 전 체험존 공통). `<p>` 안에서도 서는 블록 span */
+.guideLine { display: block; position: relative; padding-left: 1.1em; }
+.guideLine::before { content: "•"; position: absolute; left: 0.1em; color: var(--fire); }
+.guideLine + .guideLine { margin-top: 4px; }
+.hintTip .guideLine { text-align: left; }
+.hintTip .guideLine + .guideLine { margin-top: 3px; }
+/* 좁은 화면 — 모듈 자신도 한 단 좁게(선언 순서상 기본값 뒤에 와야 이긴다) */
+@media (max-width: 560px) {
+  .zoneGuide { padding: var(--sp-2) var(--sp-3); gap: var(--sp-1); }
+  .zoneGuide p { line-height: 1.55; }
+}
+.zoneMeta { padding: 0 20px; margin: 10px 0 0; font-size: var(--fs-caption); color: var(--dim); }
+
+/* ── 교실 ── */
+.deskRail {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 16px 20px 6px;
+  scroll-snap-type: x mandatory;
+}
+
+.desk {
+  flex: 0 0 210px;
+  scroll-snap-align: start;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #141821;
+  color: var(--ink);
+  text-align: left;
+  padding: 13px 14px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.deskOpen { border-color: var(--fire); }
+.deskTitle { font-size: var(--fs-caption); color: var(--dim); }
+.desk b { font-size: var(--fs-heading); }
+.desk p { margin: 0; font-size: var(--fs-caption); line-height: 1.55; color: var(--ink); }
+.deskHint { color: var(--dim) !important; }
+
+/* ── 게임 공통 ── */
+.gameStage { display: flex; flex-direction: column; gap: 10px; align-items: center; padding: 12px 20px 0; }
+.gameMsg { margin: 0; font-size: var(--fs-body); font-weight: 700; }
+
+
+/* 집단 마일스톤 단계 눈금 — 최종 지점 대비 위치 */
+
+/* 3단계 목록 — 단계마다 열리는 상품이 보인다(정책 §3-2) */
+
+
+.stageList li em { font-style: normal; font-size: 11px; white-space: nowrap; }
+
+
+/* 좁은 폭에서는 상품명을 줄이지 않고 아래로 흘린다 — 「전원 개방」이 잘리면 집단 보상인 게 안 보인다 */
+@media (max-width: 480px) {
+  .stageList li { grid-template-columns: 1fr auto; }
+  .stageList li span { grid-column: 1 / -1; white-space: normal; }
+}
+.noiseMeter i { background: var(--fire); }
+
+.signal {
+  font-size: var(--fs-heading);
+  font-weight: 900;
+  letter-spacing: 0;
+  border-radius: 10px;
+  padding: 10px 26px;
+  border: 1.5px solid var(--line);
+}
+
+/* 색 예산(③): 신호등 3색 → 밝기 사다리(흐림→잉크 점멸→fire). 라벨 텍스트(안전/경고/위험)가 뜻을 보증한다 */
+.safe { color: var(--dim); border-color: var(--line); }
+.warn { color: var(--ink); border-color: var(--ink); animation: blink 0.5s steps(1) infinite; }
+.danger { color: var(--fire); border-color: var(--fire); background: rgba(255, 138, 61, 0.12); }
+
+.holdBtn {
+  border: 1.5px solid var(--fire);
+  border-radius: 14px;
+  background: rgba(255, 138, 61, 0.1);
+  color: var(--ink);
+  font-size: var(--fs-body);
+  font-weight: 800;
+  padding: 18px 26px;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.freqBar {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  height: 34px;
+  border-radius: 10px;
+  background: repeating-linear-gradient(90deg, #1a1f29 0 8px, #151923 8px 16px);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.freqTarget {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 18%;
+  transform: translateX(-50%);
+  /* 색 예산(③): 목표 구간 초록 → 잉크 띠(fire 바늘과 구분 유지) */
+  background: rgba(232, 228, 218, 0.16);
+  border-left: 1px solid rgba(232, 228, 218, 0.4);
+  border-right: 1px solid rgba(232, 228, 218, 0.4);
+  transition: left 0.1s linear;
+}
+
+.freqMine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--fire);
+  transform: translateX(-50%);
+  transition: left 0.05s linear;
+}
+
+.freqSlider { width: 100%; max-width: 460px; accent-color: #ff8a3d; }
+
+
+/* ── IF 극장 ── */
+.ifBanner {
+  margin: 14px 20px 0;
+  padding: 11px 0;   /* 선 대신 여백(④) */
+  font-size: var(--fs-body);
+  color: var(--dim);
+}
+
+.sceneBox { padding: 18px 20px 0; max-width: 620px; margin: 0 auto; }
+.sceneBox > p { font-size: var(--fs-heading); line-height: 1.8; }
+
+.choiceCol { display: flex; flex-direction: column; gap: 9px; margin-top: 14px; }
+
+.choiceBtn {
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: #141821;
+  color: var(--ink);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  padding: 13px 16px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.choiceBtn:hover { border-color: var(--fire); }
+
+.endingRow { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+.endingChip {
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 13px;
+  color: var(--dim);
+}
+
+.endingChip.on { color: var(--ink); border-color: var(--fire); }
+
+.endingCard {
+  margin-top: 14px;
+  border: 1px solid var(--fire);
+  border-radius: 12px;
+  padding: 13px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 0 22px rgba(255, 138, 61, 0.2);
+}
+
+.endingCard span { font-size: var(--fs-caption); color: var(--dim); }
+
+/* ── 매점 ── */
+.wishBtn {
+  align-self: flex-start;
+  margin-top: 6px;
+  border: 1.5px solid var(--line);
+  border-radius: 999px;
+  background: rgba(11, 13, 18, 0.55);
+  color: var(--ink);
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.wishBtn.on { border-color: var(--fire); color: var(--fire); }
+
+/* ── 옥상 ── */
+.bonfireWrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  align-items: center;
+  padding: 20px 20px 0;
+}
+
+.flame {
+  position: relative;
+  width: 90px;
+  height: 110px;
+  flex: none;
+}
+
+.flame i {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%;
+  animation: flick 1.2s ease-in-out infinite alternate;
+}
+
+.flame i:nth-child(1) { width: 62px; height: 86px; background: rgba(255, 118, 43, 0.55); }
+.flame i:nth-child(2) { width: 42px; height: 64px; background: rgba(255, 165, 66, 0.8); animation-delay: 0.2s; }
+.flame i:nth-child(3) { width: 22px; height: 40px; background: #ffd88f; animation-delay: 0.4s; }
+
+@keyframes flick {
+  from { transform: translateX(-50%) scale(1) rotate(-1.5deg); }
+  to { transform: translateX(-52%) scale(1.06) rotate(1.5deg); }
+}
+
+.fireInfo { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 240px; }
+.fireInfo b { font-size: var(--fs-title); }
+.fireInfo .zoneMeta { padding: 0; }
+.fireInfo .ghostBtn { align-self: flex-start; }
+
+.claimBox, .claimDone {
+  margin: 18px 20px 0;
+  padding: 14px 0;   /* 선 대신 여백(④) */
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.claimBox b, .claimDone b { font-size: var(--fs-body); }
+.claimBox span, .claimDone span { font-size: var(--fs-caption); color: var(--dim); }
+.claimBox .primaryBtn { align-self: flex-start; }
+.claimDone { border-color: var(--fire); }
+
+
+/* ── 오버레이 ── */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70; /* HUD(60) 위 — 대화상자는 HUD를 덮는다 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 5, 8, 0.78);
+  padding: 20px;
+}
+
+.overlayBox {
+  width: min(480px, 100%);
+  max-height: 82vh;
+  overflow: auto;
+  background: #12151c;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--ink);
+}
+
+.overlayBox > b { font-size: 14px; }
+.quizQ { margin: 0; font-size: var(--fs-heading); line-height: 1.6; }
+
+
+/* 컬렉션 — 「효산고 생존자」 한 장 슬롯 (보유 = 인장 찍힌 내 학생증 / 미보유 = 빈 틀) */
+.collectionBox { align-items: center; text-align: center; }
+.survivorSlot { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.survivorSlot > b { font-size: 14px; margin-top: 4px; }
+.survivorSlot > span { font-size: 11.5px; color: var(--dim); }
+.slotFrame {
+  width: 150px;
+  height: 232px;
+  border: 1.5px dashed var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.survivorEmpty > b { color: var(--dim); }
+
+.claimReveal { align-items: center; text-align: center; animation: rise 0.45s ease-out; }
+.claimLine { margin: 0; font-size: 14px; font-weight: 700; }
+
+@keyframes rise { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .noise, .caret, .warn, .flame i, .claimReveal, .zoneHead,
+  .hearRipple i, .hearLabel, .embers i, .glow, .schoolLayer,
+  .eraCaption, .radioText, .noticeRise, .answerBtn, .cardReveal, .stuBadge { animation: none !important; }
+  .zoneCard, .zoneCard:hover, .radioText { transition: none; transform: none; }
+}
+
+@media (max-width: 860px) {
+  .sp3 { grid-column: span 6; }
+  .sp4, .sp6, .sp8 { grid-column: span 12; }
+  /* 1열 스택에서는 학생증 타일을 실물 폭으로 중앙 배치 */
+  .fcfsGrid { grid-template-columns: 1fr 1fr; }
+  .kuji { grid-template-columns: 1fr; }
+  .kjTickets { border-right: 0; border-bottom: 2px dashed rgba(255, 138, 61, 0.35); }
+  .tGrid { grid-template-columns: repeat(10, 1fr); }
+  .lkGrid { grid-template-columns: repeat(10, 1fr); }
+  .lkHero { height: 66px; }
+  .lkEntry { grid-template-columns: repeat(10, 1fr); }
+  .lkField { height: 52px; }
+  .lkPeg { width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; }
+}
+
+@media (max-width: 560px) {
+  .sp3 { grid-column: span 12; }
+  .shelfPad, .bonfireWrap, .contractWrap { padding-left: 14px; padding-right: 14px; }
+  .zoneHead { padding-left: 14px; padding-right: 14px; }
+  .zoneHead .backBtn { left: 14px; }
+  .zoneGoods { max-width: 70%; }
+  .fcfsGrid { gap: 10px; }
+  .deskRail { padding-left: 14px; padding-right: 14px; }
+  .claimBox, .claimDone, .ifBanner { margin-left: 14px; margin-right: 14px; }
+}
+
+/* ── 가청 영역 밖 소리 파동 (무전 튜너 대체 · 원작 소리 반응+초청각의 확장, v1.0 2026-08-25) ── */
+.hear {
+  position: relative;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+}
+.hearRipple { position: relative; width: 132px; height: 132px; }
+.hearRipple i {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 138, 61, 0.55);
+  opacity: 0;
+  animation: hearOut 3.2s ease-out infinite;
+}
+.hearRipple i:nth-child(2) { animation-delay: 0.8s; }
+.hearRipple i:nth-child(3) { animation-delay: 1.6s; }
+.hearRipple i:nth-child(4) { animation-delay: 2.4s; }
+@keyframes hearOut {
+  0%   { transform: scale(0.18); opacity: 0; }
+  18%  { opacity: 0.85; }
+  100% { transform: scale(1); opacity: 0; }
+}
+.hearLabel {
+  font-size: var(--fs-caption);
+  letter-spacing: var(--ls-cine);
+  color: var(--dim);
+  animation: slowFade 2.4s ease-in-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hearRipple i { animation: none; opacity: 0.4; }
+}
+
+/* ── A5 모닥불 부름 + 회상 (v1.0 2026-08-25) ── */
+.bonfireMsg {
+  margin: 0 0 14px;
+  text-align: center;
+  animation: slowFade 1.2s ease-out;
+}
+.recallCol {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+.recallLine {
+  font-size: var(--fs-body);
+  color: var(--dim);
+  letter-spacing: 0;
+  opacity: 0;
+  animation: recallIn 0.7s ease-out forwards;
+}
+@keyframes recallIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 0.9; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recallLine { animation: none; opacity: 0.9; }
+}
+
+/* ── 오프닝 화자 구분 (PM 2026-08-25): 나=속마음 / 남라=밖에서 오는 부름 ── */
+.selfLine { color: var(--ink); }
+.callerLine {
+  color: var(--fire);
+  font-style: italic;
+  text-shadow: 0 0 18px rgba(255, 138, 61, 0.35);
+}
+/* A4 — 학생증을 찾아낸 줄 */
+.foundLine {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--dim);
+}
+
+/* ── 기억 복원 (체험여정 v1.0 · 2026-08-25) ── */
+.zoneRecall {
+  margin: 0 20px 6px;
+  font-size: var(--fs-heading);
+  font-style: italic;
+  color: var(--ink);
+  opacity: 0.86;
+}
+.memory {
+  margin: 14px 20px 0;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.memoryOn { border-style: solid; border-color: rgba(255, 138, 61, 0.5); background: rgba(255, 138, 61, 0.06); }
+.memoryTag { font-size: 10.5px; letter-spacing: 0; color: var(--dim); }
+.memoryText { font-size: 14px; color: var(--ink); }
+.memoryClue { margin: 0; font-size: 12.5px; color: var(--dim); font-style: italic; }
+
+/* 내 자리 — 8개 열람 후 열리는 아홉 번째 책상 */
+.myDesk {
+  margin: 14px 20px 0;
+  border: 1px solid rgba(255, 138, 61, 0.55);
+  border-radius: 12px;
+  padding: 13px 15px;
+  background: rgba(255, 138, 61, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: fadeIn 0.6s ease-out;
+}
+.myDesk p { margin: 0; font-size: var(--fs-body); color: var(--dim); }
+
+/* 옥상 리빌 */
+.reveal {
+  margin-bottom: 14px;
+  border-left: 2px solid var(--fire);
+  padding-left: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: fadeIn 0.8s ease-out;
+}
+.revealTag { font-size: var(--fs-micro); letter-spacing: 0; color: var(--fire); }
+.revealLine { margin: 0; font-size: var(--fs-body); color: var(--dim); }
+.revealTurn { margin: 8px 0 0; font-size: var(--fs-heading); font-weight: 700; color: var(--ink); }
+/* 남라의 자기소개 — 오프닝 화자 문법(fire+italic)을 그대로 이어받되, 캐치프레이즈가 정점이도록 한 단 낮춘다 */
+.revealName { margin: 12px 0 0; font-size: var(--fs-body); font-weight: 700; color: var(--fire); font-style: italic; }
+.revealCatch { margin: 10px 0 0; font-size: var(--fs-heading); font-weight: 800; color: var(--fire); }
+.revealCatchSub { margin: 0; font-size: var(--fs-body); color: var(--dim); font-style: italic; }
+
+/* ── 공식 소식 (정보성) — 방송실 송출판 ──
+   ON AIR 램프 + 스피커 그릴(반복 그라디언트)로 「교내 방송」의 물성을 준다.
+   램프는 감산 모션: prefers-reduced-motion 에서 점멸을 멈추고 상시 점등으로 남는다. */
+.noticeModule {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 0 0 12px;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,.045) 0 2px, transparent 2px 5px) top / 100% 34px no-repeat,
+    #12151d;
+  display: flex; flex-direction: column; gap: 10px;
+  color: var(--ink); text-align: left; cursor: pointer; overflow: hidden;
+}
+.noticeModule:hover { border-color: var(--fire); }
+.noticeMore { font-size: 11px; color: var(--fire); font-weight: 700; }
+.noticeList { list-style: none; margin: 0; padding: 0 14px; display: flex; flex-direction: column; gap: 10px; }
+.noticeItem { display: flex; gap: 10px; align-items: flex-start; }
+.noticeThumb {
+  width: 62px; height: 46px; flex: none; border-radius: 8px;
+  background-size: cover; background-position: center; border: 1px solid var(--line);
+}
+.noticeBody { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.noticeMeta { font-size: 10px; color: var(--dim); display: flex; gap: 6px; align-items: center; }
+.noticeMeta em {
+  font-style: normal; color: var(--fire); font-weight: 700;
+  border: 1px solid rgba(255,138,61,.4); border-radius: 3px; padding: 0 4px;
+}
+.noticeBody > b { font-size: 12.5px; line-height: 1.4; }
+.noticeBody > span { font-size: 11.5px; color: var(--dim); line-height: 1.5; }
+.noticeRule { font-size: 11px; color: var(--dim); padding: 0 14px; padding-top: 10px; margin-top: 2px; }
+
+/* ── 커뮤니티 — 태그 모아보기 ──
+/* ── 커뮤니티 — 실제 icons-ip 피드 디자인 적용 & 최신 3건 스크롤 ── */
+/* 「생존자의 벽」 별칭 폐기(PM 2026-09-04) — .wall* 클래스 이름은 내부 식별자로만 남는다 */
+.wallModule {
+  /* 프레임 제거(④) */
+  display: flex; flex-direction: column; gap: 12px;
+  color: var(--ink); text-align: left; position: relative; overflow: hidden;
+}
+.wallHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: nowrap; }
+.wallTag {
+  font-size: var(--fs-micro); font-weight: 700; color: var(--fire);
+  background: rgba(255,138,61,.1); border: 1px solid rgba(255,138,61,.35);
+  border-radius: 999px; padding: 2px 7px; white-space: nowrap;
+}
+.wallNavButtons { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.wallPageIndicator { font-size: 11px; color: var(--dim); font-family: var(--ff-mono, monospace); margin-right: 2px; }
+.wallNavBtn {
+  width: 24px; height: 24px; border-radius: 6px; background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1); color: var(--ink); display: grid;
+  place-items: center; font-size: 13px; cursor: pointer; transition: background .15s; line-height: 1;
+}
+.wallNavBtn:hover { background: rgba(255,255,255,.15); }
+
+/* 스크롤 피드 트랙 */
+.wallFeedTrack {
+  display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch; padding-bottom: 2px;
+}
+.wallFeedTrack::-webkit-scrollbar { display: none; }
+
+/* 커뮤니티 포스트 카드 (icons-ip 정본 문법) */
+.communityCard {
+  /* X 피드 포스트(PM 2026-08-31): 무크롬 — 아바타 좌열 40px + 콘텐츠 열. 경계는 여백과 미디어 헤어라인 */
+  flex: 0 0 100%; scroll-snap-align: start; box-sizing: border-box;
+  display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: var(--sp-2);
+  padding: var(--sp-2) 0; align-items: start;
+}
+.commAvatar {
+  width: 40px; height: 40px; border-radius: 999px; display: grid;
+  place-items: center; font-weight: 800; font-size: var(--fs-body); color: #0a0813;
+  flex: none; box-shadow: 0 0 0 1px rgba(255, 255, 255, .15);
+}
+.commBody { min-width: 0; display: flex; flex-direction: column; gap: var(--sp-1); }
+.commMetaLine { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.commMetaLine b { font-size: var(--fs-body); font-weight: 800; color: var(--ink); white-space: nowrap; }
+.commMetaLine span {
+  font-size: var(--fs-caption); color: var(--dim); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.commText {
+  margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink);
+  white-space: pre-line; word-break: keep-all;
+}
+.commMedia {
+  width: 100%; aspect-ratio: 4 / 3; border-radius: var(--r-l);
+  background: #0a0d12 center / cover no-repeat; margin-top: 2px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07);
+}
+.commReactions { display: flex; align-items: center; gap: var(--sp-4); margin-top: 2px; }
+.commAct {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 0;
+  border: 0; background: transparent; cursor: pointer;
+  font-size: var(--fs-caption); color: var(--dim); font-variant-numeric: tabular-nums;
+  transition: color .15s;
+}
+.commAct em { font-style: normal; }
+.commAct:hover, .commActOn { color: var(--fire); }
+.commTag { margin-left: auto; font-size: var(--fs-caption); color: var(--fire); font-weight: 700; }
+
+.wallCta {
+  margin-top: 2px; padding: 10px 14px; border-radius: 10px;
+  background: rgba(255,138,61,.08); border: 1px solid rgba(255,138,61,.28);
+  color: var(--fire); font-size: 12px; font-weight: 700; display: flex;
+  align-items: center; justify-content: space-between; cursor: pointer;
+  transition: all .2s; text-align: left;
+}
+.wallCta:hover { background: rgba(255,138,61,.16); border-color: var(--fire); }
+
+/* 옥상 존 — SNS 카드 전문 (메인페이지 M5 문법) */
+
+@media (prefers-reduced-motion: reduce) {
+}
+
+/* ── 구매 마일스톤 — 참여 지표와 시각적으로도 구분한다(주황=참여 / 청록=구매) ── */
+
+/* ── 현대화된 벤토 그리드 리디자인 스타일 ── */
+
+/* 1. 메인 히어로 앵커 */
+@keyframes pulseGlow { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.85); } }
+
+.heroActions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* 2. 공식 의류 쇼케이스 (sp4) */
+
+/* 3. 한정 MD 갤러리 — 스크롤 없는 2행 5열 그리드 (sp12) */
+
+/* 좁은 화면 — 2행 5열은 데스크톱 기준. 모바일은 열을 줄여 가독을 지킨다(여전히 스크롤 없음) */
+@media (max-width: 900px) { .mdRail { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .mdRail { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* 4. 모닥불 커뮤니티 진척률 게이지 (sp12) */
+
+
+/* 6. 모바일 고정 하단 내비게이션 바 */
+
+@media (max-width: 768px) {
+  .mobIcon { font-size: 18px; }
+
+}
+
+
+/* ── 매점 모듈 — 선착순과 같은 굿즈 카드 문법(sp8 = 3열) ── */
+.storeGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 720px) { .storeGrid { grid-template-columns: repeat(2, 1fr); } }
+
+/* ── 매점 필터 바 — 굿즈샵의 필터 뷰임을 드러낸다(ADR-0026) ── */
+.filterBar { display: flex; align-items: center; gap: 8px; margin: 0 20px 10px; flex-wrap: wrap; }
+.filterChip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--fs-caption); font-weight: 700; padding: 4px 10px; border-radius: 999px;
+  background: rgba(255,138,61,.12); color: var(--fire); border: 1px solid rgba(255,138,61,.42);
+}
+.filterChip i { font-style: normal; opacity: .65; }
+.filterCount { font-size: var(--fs-caption); color: var(--dim); }
+.filterWish { font-size: var(--fs-caption); font-weight: 700; color: var(--fire); }
+
+/* 분류 칩 — 고르는 수단. 목록은 고르는 곳이라 진열 바로 위에 붙는다.
+   칩은 데이터에서 나오므로 분류가 늘어도 레일이 감당한다(고정 열 금지). */
+.catRail {
+  display: flex; gap: 7px; margin: 0 20px 12px; padding-bottom: 4px;
+  overflow-x: auto; scrollbar-width: none;
+}
+.catRail::-webkit-scrollbar { display: none; }
+.catChip {
+  flex: none; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--fs-caption); font-weight: 700; padding: 6px 12px; border-radius: 999px;
+  background: rgba(255,255,255,.04); border: 1px solid var(--line); color: var(--ink);
+  transition: border-color .15s, background .15s, color .15s;
+}
+.catChip em { font-style: normal; font-size: 10.5px; font-weight: 800; color: var(--dim); }
+.catChip:hover { border-color: rgba(255,255,255,.28); }
+.catChip.catOn { background: var(--ink); border-color: var(--ink); color: #0b0e14; }
+.catChip.catOn em { color: rgba(11,14,20,.6); }
+.filterClear {
+  margin-left: auto; font-size: var(--fs-caption); font-weight: 700; cursor: pointer;
+  background: none; border: none; color: var(--dim); padding: 4px 2px;
+}
+.filterClear:hover { color: var(--fire); }
+
+/* ── 오프라인 안내 모듈 (정보성) — 인계서 §3.0-2 계약 ── */
+.offWrap {
+  border: 1px solid var(--line); border-radius: 16px; background: #12151d;
+  padding: 16px; display: flex; flex-direction: column; gap: 12px;
+}
+/* 포스터 │ 소개·정보·행동 │ 오시는 길 — 실제 체험 소개 페이지의 3분할 */
+.offGrid { display: grid; grid-template-columns: 176px minmax(0, 1fr) minmax(288px, 0.58fr); gap: 18px; align-items: stretch; }
+/* 필드1 — 포스터가 얼굴. 행 전체 높이를 채우고 비율은 잘라 맞춘다 */
+.offPoster {
+  position: relative; min-height: 100%; border-radius: 12px;
+  background-size: cover; background-position: center 18%; border: 1px solid var(--line);
+}
+.offBadge {
+  position: absolute; top: 8px; left: 8px;
+  font-size: 10px; font-weight: 800; letter-spacing: 0; padding: 3px 8px; border-radius: 5px;
+  background: rgba(18,21,29,.88); color: var(--fire); border: 1px solid rgba(255,138,61,.55);
+}
+.offBadgeLive { color: var(--fire) !important; border-color: rgba(255,138,61,.6) !important; }
+.offMain { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.offTitleRow { display: flex; align-items: baseline; gap: 8px; }
+.offDday { margin-left: auto; font-size: 13px; font-weight: 800; color: var(--fire); }
+/* 필드3 — 문장형 소개. 읽는 글이므로 줄길이를 묶는다 */
+/* 행사 소개글 — 팝업 안내 포스팅 문법(타이틀·훅·할 수 있는 것·클로징). 읽는 글이므로 줄길이를 묶는다 */
+.offIntro { display: flex; flex-direction: column; gap: 2px; max-width: 62ch; }
+.offIntro > b { font-size: var(--fs-body); font-weight: 800; letter-spacing: var(--ls-wide); }
+.offIntro > span { font-size: var(--fs-caption); color: var(--dim); }
+.offIntro > p { margin: 2px 0 0; font-size: var(--fs-body); color: var(--ink); line-height: var(--lh-body); }
+/* 필드4 — 기본 정보 5 */
+.offFacts {
+  margin: 0; padding: var(--sp-2) 0 0;   /* 선 대신 여백(④) — 소개글이 들어오며 한 단 줄임 */
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 18px;
+}
+.offFacts > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.offFacts dt { font-size: 10px; color: var(--dim); letter-spacing: 0; }
+.offFacts dd { margin: 0; font-size: 12px; color: var(--ink); font-weight: 600; line-height: 1.45; }
+/* 필드7 — 행동 2 */
+.offActions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 2px; }
+.offPrimary {
+  font-size: 12.5px; font-weight: 700; padding: 9px 18px; border-radius: 9px; cursor: pointer;
+  background: var(--fire); color: #14100c; border: 1px solid var(--fire);
+}
+.offGhost {
+  font-size: 12.5px; font-weight: 700; padding: 9px 16px; border-radius: 9px; cursor: pointer;
+  background: transparent; color: var(--fire); border: 1px solid rgba(255,138,61,.45);
+}
+/* 필드5 — 오시는 길 */
+.offWay { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.offWayHead { font-size: 10px; color: var(--dim); letter-spacing: 0; }
+.offMap {
+  flex: 1; border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+  background: #0e1118; display: flex; flex-direction: column; justify-content: center; position: relative;
+}
+.offMap:has(> span) { padding: 22px; align-items: center; }
+.offMapMeta { font-size: 10.5px; color: var(--dim); }
+/* 필드6 — 프로그램: 세로 목록이 아니라 가로 3열(정보 위계 계약 검증 3) */
+.offProgram { padding-top: var(--sp-2); display: flex; flex-direction: column; gap: 10px; }   /* 선 대신 여백(④) */
+.offProgHead { display: flex; gap: 10px; flex-wrap: wrap; font-size: 10.5px; font-weight: 700; }
+.offProgDay { color: var(--dim); }
+.offProgNight { color: var(--fire); }
+.offProgList {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
+}
+.offProgList li {
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: #0e1118;
+}
+.offProgTop { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.offProgTop > b { font-size: 12.5px; }
+.offProgKind {
+  flex: none; font-size: 9.5px; font-weight: 800; letter-spacing: 0; padding: 3px 7px;
+  border-radius: 5px; color: var(--fire); background: rgba(255,138,61,.12); border: 1px solid rgba(255,138,61,.32);
+}
+.offProgDesc { font-size: 11px; color: var(--dim); line-height: 1.5; }
+.offProgMeta { font-size: 10.5px; color: var(--dim); opacity: .85; }
+/* 필드8 — 유의사항 · 온오프 연결 */
+.offFoot { margin: 0; display: flex; gap: 10px 16px; flex-wrap: wrap; align-items: baseline; }
+.offCaution { font-size: 11px; color: var(--dim); line-height: 1.5; }
+.offBridge { font-size: 11.5px; color: var(--fire); margin-left: auto; }
+
+@media (max-width: 1180px) {
+  .offGrid { grid-template-columns: 168px minmax(0, 1fr); }
+  .offWay { grid-column: 1 / -1; }
+  .offProgList { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .offGrid { grid-template-columns: 1fr; }
+  .offPoster { min-height: 0; aspect-ratio: 3 / 2; }
+  .offFacts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .offProgList { grid-template-columns: 1fr; }
+  .offBridge { margin-left: 0; }
+}
+/* 일러스트 약도 — 크기는 SVG 자체 style 로 준다(CSS Modules 는 순수 :global 선택자를 막는다) */
+.offMapCta {
+  position: absolute; left: 10px; bottom: 10px;
+  font-size: 11px; font-weight: 700; padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  background: rgba(14,17,24,.92); color: var(--fire); border: 1px solid rgba(255,138,61,.5);
+}
+
+/* ══ 정보 위계 계약 적용 (인계서 §3.0-1 · 2026-08-26) ══ */
+
+/* 검증 1 — 얼굴이 가장 크다. sp12 보조 모듈과 면적으로 비교되므로 폭이 같아야 한다 */
+/* 얼굴은 섹션 한 장을 통째로 쓴다 — 최소 높이 규정이 필요 없다 */
+
+/* 검증 3 — 높이는 카드 수가 아니라 등급이 정한다. 딜은 3단 보조: 세로로 쌓지 않고 가로 레일로 접는다 */
+.fcfsGrid {
+  grid-template-columns: none;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(190px, 1fr);
+  overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  padding-bottom: 6px;
+}
+.fcfsGrid > * { scroll-snap-align: start; }
+.fcfsGrid::-webkit-scrollbar { height: 6px; }
+.fcfsGrid::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+.fcfsGrid .gPh { aspect-ratio: 4 / 3; }
+
+/* 3단 보조 — 기능을 빼지 않고 매체 크기만 등급에 맞춘다 */
+.tGrid { grid-auto-rows: 44px; }
+.tk { height: 44px; min-height: 0; font-size: 12px; }
+/* kjTickets 모바일 상한(300px)은 티켓 무대 시절 장치 — 사물함 벽(≈395px)이 들어오며 벽이 상한을 넘어
+   아래 가격·타이머를 덮었다(PM 「확 깨져」). 회차 무대는 콘텐츠 높이 그대로, 스크롤은 화면이 갖는다. */
+/* 상자가 체험 축의 중심이 되면서(ADR-0029) 구성표가 이 화면의 핵심이 됐다 —
+   14행 중 4행만 보이면 「잔여가 진실의 단위」가 전달되지 않는다. 상한을 올린다. */
+.kjPrizes { max-height: 232px; overflow-y: auto; }
+.rfPhoto { height: 210px; }
+
+/* 검증 4(6유형 구조색 바)의 시각 표기는 벤토 표면의 장치였다 — 장면 표면(한 화면 = 한 모듈)에서는
+   가를 이웃이 없어 정체불명의 띠로 읽힌다(PM 2026-08-28 지적). 시각은 걷고 data-mtype 토큰만 남긴다
+   (토큰 = 유형별 점검·검증의 입력, 인계서 §3.0 「구현 토큰」 열). */
+
+@media (max-width: 900px) {
+  .fcfsGrid { grid-auto-columns: minmax(158px, 1fr); }
+}
+/* 집결지 — 3단 보조가 얼굴(heroCard 500px)을 넘지 않게 상한을 둔다.
+   3분할 + 프로그램 가로 3열로 조성 높이가 471px 라 상한 안에서 잘리지 않는다(내부 스크롤·overflow 없음) */
+.offWrap { max-height: 480px; }
+.offMap { max-height: 218px; }
+/* 세로로 접히는 폭에서는 상한을 푼다 — 위계는 나란히 놓일 때의 규칙이다 */
+@media (max-width: 1180px) {
+  .offWrap { max-height: none; }
+  .offMap { max-height: none; }
+}
+
+/* ── 굿즈 상품 상세 (커머스) — 화면기획 v0 계약 ──
+   위계 3단: 1단(대표 컷·이름·값·상태·행동)은 스크롤 없이 · 2단 구성/규격/원작 · 3단 고지/인증 */
+.pdWrap { height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; padding: 16px 20px calc(var(--hud) + 24px); }
+.pdBar { display: flex; }
+
+/* 1단 얼굴 — 왼쪽 이미지 / 오른쪽 정보·행동 */
+.pdTop { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 0.86fr); gap: 22px; align-items: start; }
+.pdGallery { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; }
+.pdGallery:has(> .pdShot:first-child) { grid-template-columns: minmax(0, 1fr); }
+.pdThumbs { display: flex; flex-direction: column; gap: 8px; }
+.pdThumb {
+  width: 64px; aspect-ratio: 1; border-radius: 8px; cursor: pointer; padding: 0;
+  background-size: cover; background-position: center; border: 1px solid var(--line); opacity: .55;
+}
+.pdThumbOn { opacity: 1; border-color: var(--fire); }
+.pdShot {
+  aspect-ratio: 4 / 3; border-radius: var(--r-m);
+  background-size: cover; background-position: center; background-color: #0e1118;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07);   /* 무크롬 — 사진 헤어라인 */
+}
+
+.pdInfo { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.pdCat { font-size: var(--fs-caption); color: var(--dim); letter-spacing: 0; }  /* 한글 — 양수 자간 금지 */
+.pdName { margin: 0; font-size: var(--fs-title); font-weight: 800; line-height: var(--lh-title); }
+.pdPriceRow { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.pdPrice { font-size: var(--fs-title); font-weight: 900; letter-spacing: var(--ls-tight); }
+.pdState {
+  font-size: var(--fs-micro); font-weight: 800; padding: 4px 9px; border-radius: 4px;
+  border: 1px solid var(--line); color: var(--dim);
+}
+.pdState_on { color: var(--ink); }  /* 색 예산(③) — teal 강등: 긍정 상태는 잉크, 강조는 fire 하나 */
+.pdState_locked { color: var(--fire); border-color: rgba(255,138,61,.5); }
+.pdState_soldout { color: var(--dim); }
+
+.pdFacts { margin: 0; padding: var(--sp-2) 0;   /* 선 대신 여백(④) */
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 18px; }
+.pdFacts > div { display: flex; gap: 10px; align-items: baseline; min-width: 0; }
+.pdFacts dt { flex: none; width: 34px; font-size: var(--fs-micro); color: var(--dim); }
+.pdFacts dd { margin: 0; font-size: var(--fs-body); font-weight: 600; line-height: var(--lh-dense); }
+
+/* 구매 자격 — 구매권 상품에만 존재하는 구획 */
+.pdGate { border: 1px solid rgba(255,138,61,.32); border-radius: var(--r-s); padding: 11px 13px; display: flex; flex-direction: column; gap: 5px; background: rgba(255,138,61,.06); }
+.pdGateOn { border-color: var(--fire); background: rgba(255,138,61,.12); }
+.pdGateHead { display: flex; align-items: baseline; gap: 10px; }
+.pdGateHead > b { font-size: var(--fs-body); }
+.pdGateHead > span { margin-left: auto; font-size: var(--fs-caption); font-weight: 700; color: var(--fire); }
+.pdGateOn .pdGateHead > span { color: var(--fire); }
+.pdGateGoal { font-size: var(--fs-caption); color: var(--dim); line-height: 1.5; }
+.pdGateEdition { font-size: var(--fs-micro); color: var(--dim); opacity: .8; }
+
+.pdOpt { display: flex; flex-direction: column; gap: 7px; }
+.pdOptName { font-size: var(--fs-micro); color: var(--dim); }
+.pdOptRow { display: flex; gap: 7px; flex-wrap: wrap; }
+.pdChip {
+  font-size: var(--fs-caption); font-weight: 700; padding: 7px 14px; border-radius: var(--r-s); cursor: pointer;
+  background: transparent; color: var(--ink); border: 1px solid var(--line);
+}
+.pdChipOn { border-color: var(--fire); color: var(--fire); }
+
+.pdActions { display: flex; gap: 9px; flex-wrap: wrap; }
+.pdPrimary {
+  flex: 1; min-width: 160px; font-size: var(--fs-body); font-weight: 800; padding: 13px 20px; border-radius: var(--r-s); cursor: pointer;
+  background: var(--fire); color: #14100c; border: 1px solid var(--fire);
+}
+.pdWish {
+  font-size: var(--fs-body); font-weight: 700; padding: 13px 18px; border-radius: var(--r-s); cursor: pointer;
+  background: transparent; color: var(--dim); border: 1px solid var(--line);
+}
+.pdWish.on { color: var(--fire); border-color: rgba(255,138,61,.45); }
+
+/* 재공급 표기 — 항상 있다. 「없음」이 가장 강한 신호다 */
+.pdSupply { margin: 0; font-size: var(--fs-caption); color: var(--dim); line-height: 1.5; }
+.pdSupply > b { color: var(--ink); font-weight: 700; }
+.pdSupplyEnd > b { color: var(--fire); }
+
+/* 2단 본체 */
+/* 구획 수가 2~3개로 변한다(원작 근거는 선택) — 남는 칸이 생기지 않게 auto-fit 으로 채운다 */
+.pdBody { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 22px; }
+.pdSec { padding-top: var(--sp-3); display: flex; flex-direction: column; gap: 9px; min-width: 0; }   /* 선 대신 여백(④) */
+.pdSec h5 { margin: 0; font-size: var(--fs-micro); font-weight: 800; color: var(--dim); letter-spacing: 0; }  /* 한글 — 양수 자간 금지 */
+.pdParts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.pdParts li { font-size: var(--fs-body); line-height: 1.5; padding-left: 12px; position: relative; }
+.pdParts li::before { content: ""; position: absolute; left: 0; top: 8px; width: 4px; height: 4px; border-radius: 50%; background: var(--fire); opacity: .7; }
+.pdSpec { margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.pdSpec > div { display: flex; gap: 12px; align-items: baseline; }
+.pdSpec dt { flex: none; width: 42px; font-size: var(--fs-micro); color: var(--dim); }
+.pdSpec dd { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); }
+.pdOrigin { gap: 8px; }
+.pdOriginShot {
+  width: 100%; aspect-ratio: 16 / 9; border-radius: var(--r-s); cursor: pointer; padding: 0;
+  background-size: cover; background-position: center; border: 0;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07);
+}
+.pdOriginLine { margin: 0; font-size: var(--fs-caption); color: var(--dim); line-height: 1.55; }
+
+/* 3단 보조 — 고지와 인증 */
+.pdNotice { }   /* 그릇 프레임 제거(④) — 공시 표 괘선만 가독 예외 */
+.pdNoticeRow, .pdFold, .pdProof {
+  width: 100%; display: flex; align-items: center; gap: 12px; padding: var(--sp-2) 0;
+  border: 0; background: transparent; color: var(--ink); text-align: left;
+}
+.pdNotice > *:first-child { border-top: 0; }
+.pdFold, .pdProof { cursor: pointer; font-size: var(--fs-body); }
+.pdNoticeKey { flex: none; width: 74px; font-size: var(--fs-micro); color: var(--dim); }
+.pdNoticeVal { font-size: var(--fs-body); color: var(--ink); line-height: 1.5; min-width: 0; }
+.pdFold > i { margin-left: auto; font-style: normal; color: var(--dim); font-size: 15px; }
+.pdOdds { width: 100%; border-collapse: collapse; border-top: 1px solid var(--line); }
+.pdOdds th, .pdOdds td { font-size: var(--fs-caption); padding: 8px 10px; text-align: left; }
+.pdOdds th { color: var(--dim); font-weight: 600; background: rgba(232,228,218,.03); }
+.pdOdds td { border-top: 1px solid var(--line); }
+.pdWithdrawal { margin: 0; padding: 0 0 var(--sp-2); font-size: 11.5px; color: var(--dim); line-height: 1.65; }
+.pdProof > b { font-size: var(--fs-body); }
+.pdProof > i { margin-left: auto; font-style: normal; color: var(--fire); }
+
+/* 목록 카드가 상세로 가는 이동 대상임을 호버로만 알린다(지시 텍스트 없음) */
+.gLink { cursor: pointer; transition: transform .15s; }
+.gLink:hover { transform: translateY(-2px); }
+.gLink:hover .gPh { box-shadow: inset 0 0 0 1px rgba(255, 138, 61, .65); }
+.gLink:focus-visible { outline: 2px solid var(--fire); outline-offset: 2px; }
+
+@media (max-width: 1100px) {
+  .pdTop { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .pdWrap { padding: 12px 14px 88px; gap: 14px; }
+  /* 모바일은 밴드가 없고 원 클러스터가 바닥에 뜬다 — 마지막 줄이 원 뒤로 숨지 않게 자리를 비운다(v5.6) */
+  .zoneView { padding-bottom: 92px; }
+  .pdGallery { grid-template-columns: 1fr; }
+  .pdThumbs { flex-direction: row; }
+  .pdName { font-size: 18px; }
+  .pdBody { grid-template-columns: 1fr; }
+  .pdFacts { grid-template-columns: 1fr; }
+  /* 행동은 하단에 고정한다 — 계약 §8 모바일 */
+  .pdActions {
+    position: sticky; bottom: 60px; z-index: 4; margin: 0 -14px; padding: 10px 14px;
+    background: linear-gradient(180deg, rgba(13,15,18,0), #0d0f12 22%);
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   HUD + 섹션 스크롤 틀 (PM 2026-08-27 확정 · 회색 상자 G1 통과분 이식)
+   세로 = 이야기 순서 · 가로 = 그 장면의 분기 · 하단 HUD = 상시 인터페이스
+   ══════════════════════════════════════════════════════════════ */
+
+
+/* ── 세로 무대 — 한 화면에 한 섹션 ── */
+/* ── C안 컨테이너(스크롤 연출 계약 v1 · PM 2026-09-07 「유려하다 본판에 적용해」) ──
+   CSS 스냅은 **끈다**(mandatory 는 스크럽 거리를 0 으로, proximity 는 시작점 0.2 화면 안을 되당겨 스크럽 초반을 죽인다 — 실측).
+   붙잡기는 JS 스냅 보조(lib/stage/snap-assist.js)가 **전환 구간에서만** 한다 — 화면 안쪽에선 손을 놓는다.
+   화면 상자는 예산(--budget)만큼 길고, 안쪽 핀 층(.secPin)이 한 화면을 sticky 로 붙잡는다 — 남는 길이가 스크럽 구간.
+   화면당 타임라인 하나(--scene): 스크럽 층·장 전환 층이 전부 이 축을 참조한다. */
+.secStage {
+  flex: 1; min-height: 0; overflow-y: scroll; scroll-snap-type: none; scroll-behavior: smooth;
+  overscroll-behavior-y: contain;
+}
+.secBox {
+  height: calc(var(--budget, 1) * 100%);
+  view-timeline-name: --scene; view-timeline-axis: block;
+}
+.secPin {
+  position: sticky; top: 0; height: calc(100% / var(--budget, 1)); overflow: hidden;
+  padding: var(--sp-3) var(--sp-4) calc(var(--hud) + var(--sp-3));
+  display: flex; flex-direction: column; gap: 10px;
+}
+/* 머리 2줄 규격(② — skin184 문법): 위 = 영문 라벨(강조색) + 우측 출구, 아래 = 한국어 한 문장 */
+.sectionHead { flex: none; display: flex; flex-direction: column; gap: 3px; }
+.sectionNo {
+  /* 출구는 라벨 옆에 — 우측 끝은 샘플 뷰어 크롬(모바일로 보기)과 겹친다 */
+  display: flex; align-items: center; gap: var(--sp-3);
+  font-family: var(--font-grotesk), var(--font-sans), sans-serif;   /* 영문 라벨(CAFETERIA 등) — 디스플레이 글꼴 */
+  font-size: var(--fs-micro); font-weight: 800; letter-spacing: var(--ls-wide); color: var(--fire);
+}
+.sectionTitle { margin: 0; font-size: var(--fs-title); line-height: var(--lh-title); font-weight: 800; letter-spacing: var(--ls-tight); }
+
+/* ? 툴팁 — 설명의 유일한 거처(PM 2026-08-28). 화면에는 이름과 물건만 남는다 */
+.hintWrap { position: relative; display: inline-flex; }
+.hintBtn {
+  width: 16px; height: 16px; border-radius: 50%; border: 1px solid var(--line);
+  background: transparent; color: var(--dim); font-size: var(--fs-micro); font-weight: 800;
+  line-height: 1; cursor: help; display: inline-flex; align-items: center; justify-content: center; padding: 0;
+}
+.hintBtn:hover, .hintBtn[aria-expanded="true"] { border-color: var(--fire); color: var(--fire); }
+.hintTip {
+  /* 오른쪽 위로 뜨고 바탕은 불투명(PM 2026-09-09) — 아래로 뜨면 제목 위에 겹쳐 반투명 바탕 너머로 글자가 비쳤다.
+     폰 폭은 50vw 로 잘라 오른쪽 가장자리를 안 넘는다 */
+  position: absolute; bottom: calc(100% + 6px); left: calc(100% + 4px); z-index: 40; width: max-content; max-width: min(280px, 50vw);
+  padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line); border-radius: var(--r-s);
+  background: #12151d; color: var(--ink); font-size: var(--fs-caption); font-weight: 600;
+  line-height: var(--lh-dense); letter-spacing: 0; text-transform: none; white-space: normal;
+}
+
+.sectionAct {
+  padding: 3px 10px; border: 1px dashed var(--line); border-radius: 999px; background: transparent;
+  color: var(--dim); font-size: var(--fs-caption); font-weight: 700; letter-spacing: 0; cursor: pointer;
+}
+.sectionAct:hover { border-color: var(--fire); color: var(--fire); }
+/* 섹션 본문은 남는 높이를 전부 쓴다 — 안에서 세로로 쌓지 않는 것이 이 틀의 계약이다 */
+.sectionBody { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.sectionBody > * { flex: 1; min-height: 0; }
+
+/* ── 장면 문법(PM 2026-08-27: 「게임 화면을 디자인한다」) ──
+   화면은 카드가 아니다. 배경 스틸이 화면 전체를 쓰고, 내용은 그 위에 얹힌다.
+   그래서 섹션 안의 모듈에서 카드 테두리·배경을 걷어낸다 — 화면이 곧 그릇이다. */
+/* 절대 위치 층(영상·교문·셔터)의 기준은 핀 층(.secPin · sticky = positioned) */
+.sceneBg {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: center / cover no-repeat;
+  opacity: .34;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 42%, transparent 92%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 42%, transparent 92%);
+}
+.secPin > .sectionHead, .secPin > .sectionBody { position: relative; z-index: 1; }
+/* 화면 안의 모듈은 자기 테두리를 벗는다 — 그릇은 화면이다 */
+.sectionBody > [data-mtype] {
+  border: none !important; background: transparent !important; border-radius: 0 !important;
+  padding-left: 0 !important; padding-right: 0 !important;
+}
+
+/* ── 장면 영상 — sceneBg 와 같은 자리·같은 마스크. 영상 소스가 어두워 스틸(.34)보다 밝게 둔다 ── */
+.sceneVideo {
+  position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  width: 100%; height: 100%; object-fit: cover;
+  opacity: .55;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 42%, transparent 92%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 42%, transparent 92%);
+}
+
+/* ══ 장면 등장 연출 — 유형이 연출을 정한다(연출 계약 v0 → 리듬 v1, PM 2026-09-07) ══
+   트리거 = .secOn(스크롤 싱크의 현재 화면). 재진입마다 재생.
+   기본 상태에서 모든 요소는 정상 표시 — 연출은 덧입는 것이지 가리는 것이 아니다.
+   리듬 v1(PM 「깜빡이는 속도가 너무 빨라서 오류처럼 보여 — 부드럽게 천천히 하나씩 찢어서 순차적으로」):
+   요소 하나 0.7s(v0 0.3~0.5) · 요소 사이 0.18s · 한 화면 총 ≤ 1.6s. 덩어리째 튀어나오지 않고 **한 요소씩 순서대로** 선다 —
+   액자 → 라벨 → 이름 → 부속 → 문. 리드 덩어리(.lead)는 시간 연출에서 빠지고 자식이 받는다(스크럽 층이 .lead 를 갖는다). */
+@media (prefers-reduced-motion: no-preference) {
+
+  /* 공통 리듬 — 화면 머리: 라벨 줄 → 이름 */
+  .secOn .sectionHead > * { animation: fadeRise .7s cubic-bezier(.22,.8,.28,1) both; }
+  .secOn .sectionHead > :nth-child(2) { animation-delay: .18s; }
+
+  /* 정보성 — 조용한 부상(머리 뒤에) */
+  .secOn [data-mtype="info"] { animation: fadeRise .8s cubic-bezier(.22,.8,.28,1) both .2s; }
+
+  /* 커머스 — 진열: 윗줄부터 한 줄씩, 천천히 깔린다 */
+  .secOn .shelfGrid > * { animation: shelfIn .6s cubic-bezier(.22,.8,.28,1) both; }
+  .secOn .shelfGrid > :nth-child(-n+2)  { animation-delay: .15s; }
+  .secOn .shelfGrid > :nth-child(n+3)   { animation-delay: .3s; }
+  .secOn .shelfGrid > :nth-child(n+5)   { animation-delay: .45s; }
+  .secOn .shelfGrid > :nth-child(n+7)   { animation-delay: .6s; }
+  .secOn .shelfGrid > :nth-child(n+9)   { animation-delay: .75s; }
+
+  /* 체험·이벤트(zoneScene) — 드러남: 액자가 먼저 밝아지고, 리드는 한 줄씩 아래서 */
+  .secOn .zoneStill { animation: stillReveal .9s ease-out both; }
+  .secOn .zoneScene .lead > * { animation: leadIn .7s cubic-bezier(.22,.8,.28,1) both; }
+  .secOn .zoneScene .lead > :nth-child(1) { animation-delay: .25s; }
+  .secOn .zoneScene .lead > :nth-child(2) { animation-delay: .43s; }
+  .secOn .zoneScene .lead > :nth-child(3) { animation-delay: .61s; }
+  .secOn .zoneScene .lead > :nth-child(4) { animation-delay: .79s; }
+  .secOn .zoneScene .lead > :nth-child(n+5) { animation-delay: .97s; }
+  .secOn .zoneScene .leadActs { animation-delay: 1.05s; }   /* 문은 언제나 마지막 */
+
+  /* 이벤트 — 팝: zoneScene 이 아닌 매대 모듈만(존 화면은 위 드러남 리듬을 따른다 — 덩어리 팝 + 자식 등장이 겹치면 두 번 깜빡인다) */
+  .secOn [data-mtype="event"]:not(.zoneScene) { animation: dealPop .7s cubic-bezier(.2,.9,.3,1.12) both .2s; }
+
+  /* 커뮤니티 — 부착: 포스트가 비뚤게 떠서 차례로 붙는다 */
+  .secOn .wallFeedTrack > :nth-child(1) { animation: pinUp .7s cubic-bezier(.2,.9,.3,1.1) both .2s; }
+  .secOn .wallFeedTrack > :nth-child(2) { animation: pinUp .7s cubic-bezier(.2,.9,.3,1.1) both .4s; }
+  .secOn .wallFeedTrack > :nth-child(3) { animation: pinUp .7s cubic-bezier(.2,.9,.3,1.1) both .6s; }
+  .secOn .noticeGrid > :nth-child(1) { animation: fadeRise .6s ease-out both .2s; }
+  .secOn .noticeGrid > :nth-child(2) { animation: fadeRise .6s ease-out both .38s; }
+  .secOn .noticeGrid > :nth-child(3) { animation: fadeRise .6s ease-out both .56s; }
+  .secOn .noticeGrid > :nth-child(4) { animation: fadeRise .6s ease-out both .74s; }
+
+  /* 기록 유형 연출(날인)은 휴면 — 캐리어(학생증 실물 카드)가 #517 로 HUD 좌열로 이사했고,
+     HUD 는 무연출 계약이다. 옥상 화면은 ZoneScene 이 되어 체험 연출(드러남)을 따른다.
+     기록 유형이 화면 표면으로 돌아오면 sealDot keyframes 로 되살린다. */
+}
+
+@keyframes fadeRise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes leadIn   { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes shelfIn  { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes stillReveal { from { opacity: 0; filter: brightness(.55); transform: translateX(14px); }
+                         to { opacity: 1; filter: brightness(1); transform: none; } }
+@keyframes slideInL { from { opacity: 0; transform: translateX(-18px); } to { opacity: 1; transform: none; } }
+@keyframes dealPop  { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: scale(1); } }
+@keyframes pinUp    { from { opacity: 0; transform: translateY(18px) rotate(-1.2deg); } to { opacity: 1; transform: none; } }
+@keyframes sealDot  { from { transform: scale(1.6); opacity: .2; } to { transform: scale(1); opacity: 1; } }
+
+/* ── 체험 화면 — 배경이던 스틸이 액자로. 배경은 조용하고 얼굴은 액자 안에 있다(미션 선택 문법) ── */
+.zoneScene {
+  height: 100%; display: grid; gap: var(--sp-4); align-items: center;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+}
+.zoneScene { position: relative; }   /* 옥상 막(::after)의 기준 */
+.zoneScene .lead { grid-column: 1; grid-row: 1; position: relative; z-index: 2; }   /* 막 위 — 문이 끝까지 눌린다 */
+.zoneStill {
+  /* 세로 중앙(PM 2026-08-31 「위로 치우쳐져 있어」): stretch+max-height 는 캡에 걸리면 행 상단에 붙는다 —
+     center+height 100% 로: 행이 캡보다 작으면 꽉, 크면 가운데 */
+  grid-column: 2; grid-row: 1; align-self: center; height: 100%;
+  max-height: 560px; border-radius: var(--r-l); border: 1px solid var(--line);
+  background: #0a0d13 center / cover no-repeat; min-height: 0;
+}
+
+/* ── 도착 표지 — 얼굴이 숨 쉬고, 아래에 「지금」이 흐른다 ── */
+/* ── 팝업 타임라인(PM 2026-09-07 「더 간단하고 시인성 있게 · 인포그래픽과 간단한 텍스트만」) ──
+   자 하나 + 표시. 페이즈 막대·이름 알약·정보 상자를 걷어냈고, 글자는 기간·D-N·달 눈금·고른 줄 넷뿐이다.
+   색 예산: 자·표시는 잉크, 오늘 선과 고른 표시만 fire. ── */
+.seasonTl {
+  flex: none; display: flex; flex-direction: column; gap: 8px; font-variant-numeric: tabular-nums;
+  /* 무대 영상 위에 놓이므로 불투명 바닥을 깐다 — 재질보다 가독이 먼저다 */
+  padding: 11px 14px 13px; border-radius: var(--r-m);
+  background: rgba(11, 14, 20, .55); border: 1px solid var(--line);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
+@supports not (backdrop-filter: blur(2px)) { .seasonTl { background: rgba(11, 14, 20, .82); } }
+.tlHead { display: flex; align-items: baseline; gap: var(--sp-2); font-size: var(--fs-caption); color: var(--dim); }
+/* 종료 D-N 은 날마다 바뀌는 수치 — 모노 + 자릿수 고정(HUD 계약 v5.5 수치 표면 ①).
+   자 위의 날짜는 안 바뀌는 「읽는 수치」라 본문 글꼴 그대로 두고 자릿수만 고정(.seasonTl) */
+.tlDday { margin-left: auto; font-family: var(--mono); font-weight: 700; color: var(--fire); font-variant-numeric: tabular-nums; }
+
+/* 자 — 선 하나가 기간이다. 기간 있는 일정은 선이 굵어지고, 하루짜리는 선 위에 핀으로 꽂힌다.
+   둘을 같은 높이에 두면 띠 위에 얹힌 점이 안 읽힌다(실측) — 높이로 갈라 놓는 것이 유일한 구분 장치다.
+   좌우 8px 는 양 끝 일정(개장 0% · 결산 100%)이 잘리지 않게 비워 둔 자리. */
+.tlTrack { position: relative; height: 34px; margin: 0 8px; }
+.tlRule {
+  position: absolute; left: 0; right: 0; top: 24px; height: 2px; border-radius: 999px;
+  background: rgba(232, 228, 218, .18);
+}
+/* 달 눈금 — 자에 눈금이 없으면 가운데가 언제인지 못 읽는다. 눈금 하나에 이름 하나 */
+.tlTick { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(232, 228, 218, .22); }
+.tlTick b {
+  position: absolute; left: 4px; top: -1px;
+  font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0; color: var(--dim); white-space: nowrap;
+}
+
+/* 일정 표시 — 제 날짜 자리. 버튼은 트랙 높이를 다 써서 손가락 자리를 넉넉히 갖고, 보이는 건 ::after 다 */
+.tlMark {
+  position: absolute; top: 0; bottom: 0; padding: 0; cursor: pointer;
+  background: none; border: 0; appearance: none; transition: opacity .15s;
+}
+.tlMark::after {
+  content: ""; position: absolute; left: 0; right: 0;
+  background: rgba(232, 228, 218, .52); border-radius: 999px;
+}
+/* 기간 = 자가 굵어진 구간 */
+.tlMarkBar { min-width: 10px; }
+.tlMarkBar::after { top: 21px; height: 8px; }
+/* 하루 = 선 위에 꽂힌 핀(머리 + 대) */
+.tlMarkDot { width: 16px; margin-left: -8px; }
+.tlMarkDot::after { left: 4px; right: 4px; top: 9px; height: 8px; }
+.tlMarkDot::before {
+  content: ""; position: absolute; left: 50%; top: 16px; width: 1px; height: 9px;
+  margin-left: -.5px; background: rgba(232, 228, 218, .32);
+}
+.tlMarkOff { opacity: .34; }
+.tlMarkOn { opacity: 1; }
+.tlMarkOn::after { background: var(--fire); box-shadow: 0 0 7px rgba(255, 138, 61, .55); }
+.tlMarkDot.tlMarkOn::before { background: rgba(255, 138, 61, .6); }
+.tlMark:hover::after { background: rgba(232, 228, 218, .85); }
+.tlMarkOn:hover::after { background: var(--fire); }
+
+.tlToday {
+  position: absolute; top: 6px; height: 24px; width: 2px; margin-left: -1px; border-radius: 999px;
+  background: var(--fire); box-shadow: 0 0 8px rgba(255, 138, 61, .75); pointer-events: none;
+}
+
+.tlPick {
+  margin: 0; display: flex; align-items: baseline; gap: 7px;
+  font-size: var(--fs-caption); font-weight: 700; color: var(--ink);
+}
+.tlPick em { font-style: normal; font-weight: 700; color: var(--fire); white-space: nowrap; }
+
+@media (max-width: 640px) {
+  /* 모바일 HUD 는 하단 중앙에 떠 있는 원이다(계약 v4.6) — 그 아래로 깔리지 않게 자리를 비운다 */
+  .seasonTl { margin-bottom: 62px; }
+  /* 41일이 좁은 화면에 들어오면 하루가 8px 다 — 핀 머리를 줄여 이웃과 덜 붙게 한다 */
+  .tlMarkDot { width: 14px; margin-left: -7px; }
+  .tlMarkDot::after { left: 4px; right: 4px; height: 6px; top: 10px; }
+  .tlMarkDot::before { top: 16px; height: 9px; }
+}
+/* 딜 페이즈 상태 — 진행 중(fire 점) / 창 밖(흐림) */
+.dealLive {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--fs-caption); font-weight: 700; color: var(--ink); padding: 6px 11px;
+  border: 1px solid var(--line); border-radius: 999px;
+}
+.dealLive i { width: 6px; height: 6px; border-radius: 50%; background: var(--fire); box-shadow: 0 0 6px rgba(255,138,61,.7); }
+.dealClosed {
+  font-size: var(--fs-caption); font-weight: 700; color: var(--dim); padding: 8px 14px;
+  border: 1px dashed var(--line); border-radius: 999px;
+}
+
+.arriveScene { height: 100%; display: flex; flex-direction: column; }
+.arriveScene > :first-child { flex: 1; min-height: 0; }
+
+/* ── 장면 리드 — 배경이 주인공인 화면 ── */
+.lead { display: flex; flex-direction: column; justify-content: center; gap: var(--sp-3); max-width: 640px; }
+.leadEyebrow { font-family: var(--font-grotesk), var(--font-sans), sans-serif; font-size: var(--fs-micro); font-weight: 800; letter-spacing: var(--ls-wide); color: var(--fire); }
+/* 영문 디스플레이 = Space Grotesk(이미 실려 있었으나 시연판이 안 쓰고 있었다). 한글은 뒤 폰트로 자동 폴백된다 */
+.leadTitle { margin: 0; font-family: var(--font-grotesk), var(--font-sans), sans-serif; font-size: var(--fs-display); line-height: var(--lh-display); font-weight: 900; letter-spacing: var(--ls-tight); }
+.leadTitle em { display: block; margin-top: var(--sp-2); font-style: normal; font-size: var(--fs-title); font-weight: 700; color: var(--ink); opacity: .82; }
+.leadActs { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-top: 4px; }
+.leadBtn, .leadBtnOn {
+  border-radius: var(--r-m); padding: 11px 18px; font-size: var(--fs-body); font-weight: 800; cursor: pointer;
+  border: 1px solid var(--line); background: rgba(16,20,28,.72); color: var(--ink);
+  transition: border-color .15s, transform .15s;
+}
+.leadBtn:hover, .leadBtnOn:hover { transform: translateY(-2px); border-color: var(--fire); }
+.leadBtnOn { background: var(--fire); border-color: var(--fire); color: #1a0e06; }
+.leadStamp { font-size: var(--fs-caption); font-weight: 700; color: var(--dim); padding: 6px 11px;
+  border: 1px dashed var(--line); border-radius: 999px; }
+.leadStamp.on { color: var(--fire); border-style: solid; border-color: rgba(255,138,61,.55); }
+/* 체험 화면의 상품 칩 — 「무엇을 얻는가」는 반드시 보인다(ADR-0021 부칙 2) */
+.leadGoods { display: inline-flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-2);
+  border: 1px solid var(--line); border-radius: var(--r-m); background: rgba(16,20,28,.72); align-self: flex-start; }
+.leadGoods i { width: 46px; height: 46px; border-radius: 8px; flex: none;
+  background: #0a0d13 center / cover no-repeat; border: 1px solid var(--line); }
+.leadGoods b { display: block; font-size: var(--fs-micro); font-weight: 800; color: var(--dim); letter-spacing: var(--ls-wide); }
+.leadGoods em { display: block; font-style: normal; font-size: var(--fs-body); font-weight: 700; margin-top: 2px; }
+.leadGoods.leadGoodsOn { border-color: rgba(255,138,61,.55); }
+.leadGoods.leadGoodsOn b { color: var(--fire); }
+
+/* ── 체험의 문 — 문 하나 안에 존 여러 개(D′ 2026-08-31). 리드 문법을 그대로 쓰되 행으로 쌓는다 ── */
+.gateList { display: flex; flex-direction: column; gap: var(--sp-2); align-self: stretch; max-width: 520px; }
+.gateRow {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-2);
+  border: 1px solid var(--line); border-radius: var(--r-m); background: rgba(16,20,28,.72);
+}
+.gateRowOn { border-color: rgba(255,138,61,.55); }
+.gateThumb { width: 46px; height: 46px; border-radius: 8px; flex: none;
+  background: #0a0d13 center / cover no-repeat; border: 1px solid var(--line); }
+.gateThumbIcon { display: flex; align-items: center; justify-content: center;
+  font-style: normal; font-size: 20px; background: rgba(10,13,19,.6); }
+.gateName { flex: 1; min-width: 0; }
+.gateName b { display: block; font-size: var(--fs-body); font-weight: 800; }
+.gateName em { display: block; font-style: normal; font-size: var(--fs-micro); font-weight: 700;
+  color: var(--dim); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gateRowOn .gateName em { color: var(--fire); }
+
+/* ── 구매권 상품 (커머스) — 진열과 같은 굿즈 문법. 잠긴 것도 얼굴을 보여준다 ── */
+.rgWrap { height: 100%; display: flex; }
+/* 6종이 화면 하나를 채운다 — 3×2. 진열과 같은 굿즈 격자 문법이되 얼굴이 크다 */
+.rgGrid { flex: 1; min-height: 0; display: grid; gap: var(--sp-3);
+  grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); }
+.rgItem {
+  display: flex; flex-direction: column; gap: 6px; min-width: 0; min-height: 0;
+  padding: var(--sp-2); border: 1px solid var(--line); border-radius: var(--r-m);
+  background: rgba(16,20,28,.72);
+}
+.rgOn { border-color: rgba(255,138,61,.55); }
+.rgThumb { position: relative; flex: 1; min-height: 0; border-radius: 8px; border: 1px solid var(--line);
+  background: #0a0d13 center / cover no-repeat; filter: grayscale(1) brightness(.62); }
+.rgOn .rgThumb { filter: none; }
+.rgBadge { position: absolute; left: 6px; top: 6px; padding: 3px 8px; border-radius: 999px;
+  font-size: var(--fs-micro); font-weight: 800; letter-spacing: var(--ls-wide);
+  background: rgba(10,13,19,.86); border: 1px solid var(--line); color: var(--dim); }
+.rgOn .rgBadge { background: var(--fire); border-color: var(--fire); color: #1a0e06; }
+.rgName { font-size: var(--fs-caption); font-weight: 800; line-height: 1.35;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rgGoal { font-size: var(--fs-micro); font-weight: 700; color: var(--dim); line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rgBtn, .rgBtnOn {
+  border-radius: 8px; padding: 7px 10px; font-size: var(--fs-micro); font-weight: 800; cursor: pointer;
+  border: 1px solid var(--line); background: transparent; color: var(--ink);
+  transition: border-color .15s, transform .15s;
+}
+.rgBtn:hover, .rgBtnOn:hover { transform: translateY(-1px); border-color: var(--fire); }
+.rgBtnOn { background: var(--fire); border-color: var(--fire); color: #1a0e06; }
+
+@media (max-width: 900px) { .rgGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .rgGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: auto; gap: 10px; }
+  .rgThumb { flex: none; aspect-ratio: 1 / 1; }
+  .rgWrap { align-items: flex-start; overflow-y: auto; }
+  .gateList { max-width: none; }
+  .gateThumb { width: 38px; height: 38px; }
+}
+
+/* 배선 재꽂힘 알림 — 지도가 사라지는 건 규칙이지 사고가 아니다(PM 2026-08-31 판정 A) */
+.wireRewired { display: inline-block; margin-left: var(--sp-2); padding: 5px 11px; border-radius: 999px;
+  font-size: var(--fs-micro); font-weight: 800; color: var(--fire);
+  border: 1px solid rgba(255,138,61,.55); background: rgba(255,138,61,.08);
+  animation: dealPop .3s ease-out both; }
+
+/* ── 매대 화면의 얼굴 — 스틸 자리에 지금 팔고 있는 것이 선다(PM 2026-08-31) ──
+   게임의 얼굴이 판이라면 매대의 얼굴은 상품과 남은 시간이다. 세 매대가 같은 골격을 쓰되
+   무엇이 커지는가로 갈린다 — 래플은 시계, 사전예약은 기간, 선착순은 매대 수. */
+.dealFace { grid-column: 2; grid-row: 1; align-self: center; height: 100%; display: flex; flex-direction: column;
+  gap: var(--sp-2); min-height: 0; max-height: 560px; }   /* 세로 중앙 — zoneStill 과 같은 이유 */
+
+/* 상품 사진 = 얼굴의 바탕. 글자는 그 위에 최소한만 얹는다 */
+.dfPhoto { position: relative; flex: 1; min-height: 0; border-radius: var(--r-l); border: 1px solid var(--line);
+  background: #0a0d13 center / cover no-repeat; overflow: hidden; }
+.dfPhoto::after { content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(8,10,14,0) 38%, rgba(8,10,14,.55) 68%, rgba(8,10,14,.92) 100%); }
+
+/* 시계 — 매대에서 가장 큰 숫자. 마감이 곧 규칙이다.
+   위가 아니라 아래에 둔다 — 사진 위쪽은 밝을 때가 많고, 화면 상단은 다른 것들이 먼저 앉는 자리다. */
+.dfClock { position: absolute; z-index: 1; right: var(--sp-3); bottom: var(--sp-3); text-align: right; }
+.dfClock b { display: block; font-family: var(--mono); font-size: clamp(20px, 3.4vw, 34px); font-weight: 700; line-height: 1.05;
+  letter-spacing: 0; font-variant-numeric: tabular-nums; color: var(--fire); }
+.dfClock em { display: block; font-style: normal; font-size: var(--fs-micro); font-weight: 700; color: var(--dim); margin-top: 3px; }
+
+.dfCaption { position: absolute; z-index: 1; left: var(--sp-3); right: 44%; bottom: var(--sp-3); }
+.dfCaption b { display: block; font-size: var(--fs-title); font-weight: 900; line-height: 1.25; }
+.dfCaption em { display: block; font-style: normal; font-size: var(--fs-micro); font-weight: 700; color: var(--dim); margin-top: 4px; }
+.dfSrc { display: block; font-size: var(--fs-micro); font-weight: 800; letter-spacing: var(--ls-wide); color: var(--fire); margin-bottom: 5px; }
+
+/* 매물 레일 — 지금 선 것이 셋 중 하나라는 사실 */
+.dfRail { flex: none; display: flex; gap: var(--sp-2); }
+.dfRailItem { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; padding: 5px 8px 5px 5px;
+  border: 1px solid var(--line); border-radius: var(--r-m); background: rgba(16,20,28,.72); opacity: .5;
+  transition: opacity .2s, border-color .2s; }
+.dfRailItem.on { opacity: 1; border-color: rgba(255,138,61,.55); }
+.dfRailItem i { width: 26px; height: 26px; border-radius: 5px; flex: none;
+  background: #0a0d13 center / cover no-repeat; border: 1px solid var(--line); }
+.dfRailItem b { font-size: var(--fs-micro); font-weight: 800; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* 상품명 — 좁으면 말줄임(칩은 색인이고 이름 전체는 얼굴 캡션이 갖는다) */
+
+/* 기간·다음 마감 한 줄 */
+.dfMeter { flex: none; display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-caption); }
+.dfMeterHead { font-weight: 800; flex: none; }
+.dfMeterHead b { color: var(--fire); }
+.dfMeterTrack { flex: 1; min-width: 0; height: 2px; border-radius: 999px; background: rgba(232,228,218,.15); }
+.dfMeterTrack i { display: block; height: 100%; border-radius: 999px; background: var(--fire); }
+.dfMeterFoot { flex: none; font-weight: 700; color: var(--dim); font-variant-numeric: tabular-nums; }
+.dfMeterClock { margin-left: auto; flex: none; font-family: var(--mono); font-weight: 700; color: var(--fire); font-variant-numeric: tabular-nums; }
+
+/* 선착순 — 매대 여덟이 한눈에. 숫자를 여덟 번 쓰지 않고 막대로 말한다 */
+.dfFcfs .dfGrid { flex: 1; min-height: 0; display: grid; gap: var(--sp-2);
+  grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: minmax(0, 1fr); }
+.dfCell { display: flex; flex-direction: column; gap: 5px; min-width: 0; min-height: 0; }
+.dfCellPh { position: relative; flex: 1; min-height: 0; border-radius: var(--r-m); border: 1px solid var(--line);
+  background: #0a0d13 center / cover no-repeat; }
+.dfCell.on .dfCellPh { border-color: rgba(255,138,61,.65); }
+.dfCellTag { position: absolute; left: 5px; bottom: 5px; padding: 3px 8px; border-radius: 999px; font-style: normal;
+  font-size: var(--fs-micro); font-weight: 800; font-variant-numeric: tabular-nums;
+  background: rgba(10,13,19,.86); border: 1px solid var(--line); color: var(--ink); }
+/* 아직 안 연 매대는 물러나 있다 — 오늘 살 수 있는 것과 섞이면 여덟 칸이 다 같아 보인다 */
+.dfCell.soon .dfCellPh { filter: grayscale(1) brightness(.62); }
+.dfCell.soon .dfCellTag { color: var(--dim); }
+.dfCell.on .dfCellTag { background: var(--fire); border-color: var(--fire); color: #1a0e06; }
+.dfCellBar { flex: none; display: block; height: 5px; border-radius: 999px; background: rgba(232,228,218,.16); overflow: hidden; }
+.dfCellBar i { display: block; height: 100%; border-radius: 999px; background: rgba(232,228,218,.72); }
+.dfCell.soon .dfCellBar i { background: rgba(232,228,218,.2); }
+.dfCell.on .dfCellBar i { background: var(--fire); }
+
+@media (max-width: 640px) {
+  .dealFace { flex: none; height: 38vh; max-height: none; }
+  .dfCaption b { font-size: var(--fs-body); }
+  .dfCaption { right: 40%; }
+  .dfFcfs .dfGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .dfRailItem b { display: none; }
+}
+
+/* ── 럭키드로우 화면의 얼굴 — 스틸 자리에 실판이 선다(PM 2026-08-31) ──
+   존의 판과 **같은 클래스**로 그린다. 얼굴만 따로 예쁘게 만들면 들어가서 본 판과 다른 것이 된다. */
+.kjFace { grid-column: 2; grid-row: 1; align-self: center; height: 100%; display: flex; flex-direction: column; gap: var(--sp-2);
+  align-items: center; justify-content: center; min-height: 0; max-height: 560px; }   /* 세로 중앙(#621 과 같은 함정) — stretch+캡은 행 상단에 붙는다 */
+/* 폭은 컴포넌트가 재서 넣는다(위 주석) — 여기서는 늘어나지 않게만 막는다 */
+.kjFaceWall { flex: 0 0 auto; display: flex; flex-direction: column; justify-content: flex-start;
+  border: 1px solid var(--line); max-width: 100%; }
+.kjFace .lkField { height: auto; aspect-ratio: 10 / 2.2; width: 100%; }
+/* 얼굴은 읽는 판이 아니라 보는 판 — 칸 번호는 지운다(존에 들어가면 있다) */
+.kjFace .lkCell b, .kjFace .lkEntry i b { display: none; }
+.kjFace .lkEntry i.lkMine { outline: 2px solid var(--acc); outline-offset: -2px; }
+.kjFaceTag { flex: none; display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-micro); }
+.kjFaceTag b { font-weight: 800; }
+.kjFaceTag em { font-style: normal; font-weight: 700; color: var(--dim); flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kjFaceDots { display: inline-flex; gap: 4px; flex: none; }
+.kjFaceDots i { width: 5px; height: 5px; border-radius: 50%; background: rgba(232,228,218,.28); }
+.kjFaceDots i.on { background: var(--fire); }
+
+@media (max-width: 640px) {
+  .kjFace { flex: none; height: 34vh; max-height: none; }
+}
+
+/* 래플 화면 — 사진 높이가 고정이라 화면 하나에 39px 넘쳤다. 화면 높이에 맞춰 준다. */
+.sectionBody .rfPhoto { height: clamp(100px, 18vh, 210px); }
+.sectionBody .rfRail { flex: none; }
+
+@media (max-width: 900px) { .leadTitle { font-size: 30px; } .leadTitle em { font-size: 16px; } }
+@media (max-width: 640px) { .leadTitle { font-size: 23px; } .leadTitle em { font-size: 14px; }
+  .zoneScene { display: flex; flex-direction: column; gap: 14px; align-items: stretch; justify-content: center; }   /* 세로 가운데(PM 2026-09-08 「상단 정렬인데 중앙정렬 식으로」) — 스틸·리드 덩어리가 화면 가운데에 선다 */
+  /* 좁은 폭 파손 수정(PM 2026-09-08 「특정 구간에 뷰포트에서 화면이 깨져」): 그리드용 align-self: center 가
+     이 세로 flex 분기로 새면 「가로 가운데 + 폭 auto」가 되어 스틸은 폭 0 의 실금(테두리 2px), 딜 얼굴은 140px 로 눌린다.
+     세로 분기에서는 셋 다 stretch — 폭을 꽉 채우고 높이만 준다. */
+  .zoneStill { flex: none; height: 30vh; max-height: none; align-self: stretch; }
+  .dealFace, .kjFace { flex: none; height: 42vh; max-height: none; align-self: stretch; }
+  /* 딜 얼굴 안 시계·캡션 — 폰 폭에서는 캡션 56% 와 시계가 7px 겹친다(실측 375). 시계를 한 단 줄이고 캡션에 시계 자리를 비워 준다 */
+  .dfClock b { font-size: 18px; }
+  .dfCaption { right: 150px; }
+  .zoneScene .lead { flex: 0 0 auto; min-height: 0; justify-content: flex-start; }   /* 리드가 남는 높이를 먹지 않아야 덩어리가 가운데로 온다 */
+  .lead { gap: 10px; } .leadBtn, .leadBtnOn { padding: 9px 14px; font-size: 12px; } }
+
+/* ── 굿즈 진열 — 전 품목이 한 화면에(중첩 스크롤 없이) ── */
+.shelfCard {
+  height: 100%; border: 1px solid var(--line); border-radius: var(--r-l); background: #11151d;
+  padding: var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-2);
+}
+.shelfRailWrap { position: relative; flex: 1; min-height: 0; }
+.shelfGrid {
+  /* 진열 = 2행 가로 레일(PM 2026-08-28 「2행 구조로 이미지가 시원하게 크게」) —
+     칸은 세로형(큰 사진 위·이름·가격 아래), 20종이 2행으로 흐르고 가로 스냅으로 넘긴다.
+     전량(37종)의 출구는 머리행의 「굿즈샵 전체」. */
+  height: 100%; display: grid; gap: var(--sp-2) var(--sp-3);
+  grid-auto-flow: column; grid-template-rows: repeat(2, minmax(0, 1fr));
+  grid-auto-columns: clamp(200px, 22%, 280px);
+  overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity;
+  scrollbar-width: none; padding-bottom: 2px;
+}
+.shelfGrid::-webkit-scrollbar { display: none; }
+/* 그랩 스크롤 + 호버 화살표(QA #614) — 파인 포인터 전용 */
+@media (hover: hover) and (pointer: fine) {
+  .shelfGrid { cursor: grab; }
+  .shelfGrid.railDragging { cursor: grabbing; scroll-snap-type: none; user-select: none; }
+  .shelfRailWrap:hover .railArrow { opacity: 1; pointer-events: auto; }
+}
+.railArrow {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 6;
+  width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line);
+  background: var(--panel); color: var(--ink); font-size: var(--fs-title); line-height: 1;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  opacity: 0; pointer-events: none; transition: opacity .15s, border-color .15s, color .15s;
+}
+.railArrow:hover { border-color: var(--fire); color: var(--fire); }
+.railPrev { left: var(--sp-1); }
+.railNext { right: var(--sp-1); }
+@media (hover: none) { .railArrow { display: none; } }
+.shelfGrid > * { scroll-snap-align: start; }
+.shelfItem {
+  /* 무크롬(①) 유지 — 세로형: 사진이 칸의 몸통, 이름·가격은 발치 */
+  min-width: 0; min-height: 0; display: flex; flex-direction: column; cursor: pointer;
+  transition: transform .15s;
+}
+.shelfItem:hover { transform: translateY(-2px); }
+.shelfThumb {
+  flex: 1; min-height: 0; width: 100%; position: relative;
+  border-radius: var(--r-s); overflow: hidden; background: #0a0d12 center / cover no-repeat;
+  /* 어두운 무대에서 어두운 사진이 배경에 묻지 않게 — 헤어라인 하나만 남긴다 */
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07);
+  transition: box-shadow .15s;
+}
+.shelfImage { z-index: 0; object-fit: cover; }
+.shelfItem:hover .shelfThumb { box-shadow: inset 0 0 0 1px rgba(255, 138, 61, .65); }
+.shelfBadge {
+  position: absolute; z-index: 1; top: var(--sp-1); left: var(--sp-1); font-size: var(--fs-micro); font-weight: 800;
+  padding: 2px 6px; border-radius: 4px; background: rgba(0,0,0,.75); color: var(--ink);
+}
+.shelfBadge.shelfBadgeLock { color: var(--fire); }
+/* 잠금 오버레이 — 사진을 덮는 스크림 + 두 줄(상태·문). 색 예산 내: 잉크 스크림 + fire 문 */
+.thumbLocked { filter: grayscale(.45) brightness(.85); }
+.lockOverlay {
+  position: absolute; z-index: 1; inset: 0; border: 0; padding: 0; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-1);
+  background: rgba(4, 5, 10, 0.52); color: var(--ink); text-align: center;
+}
+.lockOverlay i {
+  font-style: normal; font-size: var(--fs-micro); font-weight: 800; color: var(--dim); letter-spacing: 0;
+}
+.lockOverlay b {
+  font-size: var(--fs-caption); font-weight: 800; color: var(--fire);
+  padding: 4px 10px; border: 1px solid rgba(255, 138, 61, 0.5); border-radius: 999px;
+  transition: background .15s, color .15s;
+}
+.lockOverlay:hover b { background: var(--fire); color: #14100c; }
+.shelfMeta { flex: none; min-width: 0; padding: var(--sp-2) 2px 0; display: flex; flex-direction: column; gap: 2px; }
+.shelfName {
+  font-size: var(--fs-caption); line-height: var(--lh-dense); color: var(--dim);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.shelfPrice { font-size: var(--fs-body); font-weight: 900; font-variant-numeric: tabular-nums; }
+
+/* ── 13·14 장면화(섹션·화면 담당 검토) ──
+   벽: 화면이 넓은데 한 장씩 넘기던 레일을 펴서 3포스트가 나란히 선다(모바일은 레일 유지).
+   소식: 「모듈 전체가 버튼」이던 벤토 잔재를 해체 — 소식 4건이 이미지 카드로 화면을 채운다. */
+.sectionBody .wallFeedTrack {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: visible; flex: 1; min-height: 0;
+}
+.sectionBody .wallFeedTrack .communityCard { flex: none; min-height: 0; overflow: hidden; }
+.sectionBody .wallNavButtons { display: none; }   /* 전부 보이면 넘길 것이 없다 */
+.noticeScene { height: 100%; display: flex; flex-direction: column; gap: var(--sp-3); }
+.noticeGrid {
+  flex: 1; min-height: 0; display: grid; gap: var(--sp-3);
+  grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr));
+}
+.noticeCard {
+  /* 무크롬(④ — 진열과 같은 문법): 이미지가 곧 카드. 경계는 이미지의 헤어라인만 */
+  min-height: 0; display: flex; flex-direction: column; gap: var(--sp-1);
+}
+.noticeArt { flex: 1; min-height: 0; border-radius: var(--r-s); border: 1px solid var(--line);
+  background: #0a0d13 center / cover no-repeat; }
+.noticeCard .noticeMeta { display: flex; gap: var(--sp-2); font-size: var(--fs-micro); letter-spacing: var(--ls-wide); color: var(--dim); }
+.noticeCard .noticeMeta em { font-style: normal; font-weight: 800; color: var(--fire); }
+.noticeCard b { font-size: var(--fs-body); line-height: var(--lh-dense); }
+.noticeBodyText { font-size: var(--fs-caption); color: var(--dim); line-height: var(--lh-dense);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-width: 640px) {
+  /* 좁은 화면 — 벽은 원래의 한 장 스냅 레일이 옳다(3열이 안 선다) */
+  .sectionBody .wallFeedTrack { display: flex; overflow-x: auto; }
+  .sectionBody .wallFeedTrack .communityCard { flex: 0 0 100%; }
+  .sectionBody .wallNavButtons { display: flex; }
+  .noticeGrid { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-rows: minmax(0, 1fr); overflow-y: auto; }
+}
+/* 상품 상세로 가는 문 — 딜 화면의 사진·행이 곧 이동이다(이동=클릭, 버튼=행동).
+   비표준 인터랙션이므로 호버 어포던스를 준다(카피 규율: 지시문 금지·시각 신호 허용). */
+.toProduct { cursor: pointer; transition: transform .15s, border-color .15s, outline-color .15s; }
+.toProduct:hover { transform: translateY(-2px); }
+.rfPhoto[role="link"], .preThumb[role="link"] { cursor: pointer; outline: 1px solid transparent; transition: outline-color .15s, transform .15s; }
+.rfPhoto[role="link"]:hover, .preThumb[role="link"]:hover { outline-color: rgba(255,138,61,.6); transform: translateY(-2px); }
+.kjPrizes li.toProduct:hover { border-color: rgba(255,138,61,.55); }
+.gcard.toProduct:hover { border-color: rgba(255,138,61,.55); }
+/* 2차 이동 — 이 장의 화면. 지금 장의 것만 펴서 16개가 한꺼번에 늘어서지 않는다 */
+/* 이동 칸의 화면 수 배지 — 장 안에 화면이 몇 개인지 */
+
+/* 옥상 섹션의 학생증 행동 2개 */
+.stuActs { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* 4×5 는 폭이 줄어도 성립한다 — 중간 브레이크포인트 재분할 불필요(20종 고정) */
+@media (max-width: 640px) {
+  /* v5.17: 모바일 시트가 상시라 그 높이를 HUD 가 --hud-sheet 로 내보낸다 — 하단 여백·토스트가 시트 위로.
+     시트가 닫혀도 **원 띠(56px + 아래 12px + 안전영역)는 남는다** — 그 띠를 안전영역으로 바닥에 깐다. 안 그러면 화면 바닥의 문
+     (커뮤니티 「글 남기기」)이 원 뒤로 숨는다(PM 2026-09-09 「hud 쪽을 안전영역으로 두고 버튼을 올려줘」). */
+  /* 원 띠 68px + 카메라 시차(camDrift ±10px)의 몫 — 몸이 10px 내려앉은 순간에도 바닥의 문이 원에 닿지 않게(정본 실측 2026-09-09: 68 이면 여유 1px) */
+  .stage { --hud: max(var(--hud-sheet, 0px), calc(80px + env(safe-area-inset-bottom, 0px))); }
+  /* 좁은 화면 — 3분할이 성립하지 않는다. 세 구역을 세로로 쌓고,
+     이동은 세로 격자 대신 **가로 레일**로 눕힌다(7칸을 세로로 쌓으면 버튼이 16px 로 눌리지 않는다). */
+  .hud > * { padding: 7px 10px; gap: 6px; }
+  .hud > * + * { border-left: none; border-top: 1px solid var(--line); }
+  /* 좁은 화면 — 「다음 목표」는 한 줄로 접는다. 목표 이름과 진척, 마감만 남기고
+     세부(조건·도전하러·마일스톤)는 「남은 보상」 탭이 이미 갖고 있다. */
+  /* 좁은 화면에서는 구매권 게이지를 접는다 — 같은 값이 탭 라벨(구매권 n/7)에 이미 있다.
+     그 줄을 비워야 「내 기록」 목록이 볼 만한 높이를 얻는다. */
+  .secPin { padding: 12px 12px calc(var(--hud) + 10px); }
+  /* 좁은 화면 예외 — 필드가 많은 정보 모듈(오프라인 팝업)은 390px 에서 한 화면에 안 들어간다.
+     섹션의 스냅은 유지하고 그 섹션 안에서만 스크롤을 허용한다(데스크톱은 여전히 넘침 0). */
+  /* 좁은 화면 예외 — 정보가 많은 화면만 안에서 스크롤한다.
+     `overscroll-behavior: contain` 을 쓰면 안 된다 — 그 화면에 손이 닿는 순간 스크롤이 갇혀
+     다음 화면으로 넘어가지 못하고, 화면을 따라가는 HUD 컨텍스트 패널도 같이 멈춘다.
+     끝까지 내리면 무대로 이어지도록 연쇄를 열어 둔다(auto). */
+  .sectionBody { overflow-y: auto; overscroll-behavior-y: auto; scrollbar-width: none; }
+  /* 넘침이 작은 화면은 아예 안 넘치게 깎는다 — 갇힐 구간을 만들지 않는 것이 최선이다.
+     럭키드로우(티켓판)·오프라인(필드 8)은 400px 이상 넘쳐 깎아서 될 일이 아니라 안쪽 스크롤을 남긴다. */
+  .sectionBody .rfPhoto { height: clamp(84px, 13vh, 140px); }
+  .sectionBody .rfRail { gap: 4px; }
+  .sectionBody .preCard .preThumb { min-height: 92px; }
+  .sectionBody::-webkit-scrollbar { display: none; }
+  .sectionBody > * { flex: 0 0 auto; min-height: 100%; }
+  .sectionTitle { font-size: 16px; }
+  /* 2행 레일은 좁은 화면에서도 그대로 — 열 폭만 줄인다(이미지는 여전히 큼) */
+  .shelfGrid { grid-auto-columns: clamp(150px, 44%, 200px); gap: var(--sp-2); }
+}
+
+/* 사전예약 카드 — 원래 좁은 칸(sp4)용 세로 스택이라 넓은 레일 패널에서 세로로 넘쳤다.
+   사진과 내용을 좌우로 편다(내용 자체는 그대로). */
+.preCard .preBody { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+/* 화면 하나를 통째로 쓰므로 사진과 내용을 좌우로 편다(원래는 좁은 칸용 세로 스택이었다) */
+.sectionBody .preCard {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  grid-template-rows: auto minmax(0, 1fr); column-gap: 22px; height: 100%;
+}
+.sectionBody .preCard > :first-child { grid-column: 1 / -1; }
+.sectionBody .preCard .preThumb { grid-column: 1; grid-row: 2; height: 100%; min-height: 0; }
+.sectionBody .preCard .preBody { grid-column: 2; grid-row: 2; justify-content: center; }
+@media (max-width: 640px) {
+  .sectionBody .preCard { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr); }
+  /* 높이가 그리드에서 오는데 4/3 비율이 살아 있으면 폭이 높이에서 역산돼 칸을 넘는다(전수점검 발견) */
+  .sectionBody .preCard .preThumb { grid-row: 2; min-height: 120px; aspect-ratio: auto; width: 100%; }
+  .sectionBody .preCard .preBody { grid-column: 1; grid-row: 3; }
+}
+
+/* QA(뷰포트 전수, 2026-08-28): 오프라인 화면은 1280 이하에서 내용이 화면을 넘는데(35~310px)
+   무대의 한 화면 원칙이 스크롤을 잠가 하단(프로그램·주의문)이 접근 불가였다 —
+   이 화면만 좁은 폭에서 내부 스크롤을 연다(모바일 예외의 확장). */
+@media (max-width: 1280px) {
+  [data-scene="offline"] .sectionBody { overflow-y: auto; }
+}
+
+/* 오프라인 화면 — 긴 화면에서 내용이 위에 붙고 아래가 비었다(PM). 채우기 대신 자연 높이+세로 중앙.
+   내용이 화면보다 크면 마진이 0으로 접혀 기존(≤1280 내부 스크롤) 동작 그대로. */
+[data-scene="offline"] .sectionBody > * { flex: 0 0 auto; margin-top: auto; margin-bottom: auto; }
+
+/* ══ 장 전환 연출(PM 2026-08-31 채택 A+B+C → **A·B 폐기 PM 2026-09-08 「그건 없애」**) ══
+   A 암전 셔터·B 손전등 = 장 첫 화면에 검정 판이 덮였다 걷히던 층 — 폐기(스크롤 연출 v1 이후 검정 판이 두 겹 보였다).
+   C 카메라 시차: 모든 화면 몸이 ±10px 떠 흐른다 — 페이지 넘김이 아니라 공간 이동. 이것만 남는다.
+   view-timeline 네이티브 — 미지원 브라우저·prefers-reduced-motion 은 아래 게이트가 통째로 무효화. */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* C — 카메라 시차 */
+    .secPin > .sectionBody {
+      animation: camDrift linear both;
+      animation-timeline: --scene;
+      animation-range: cover;
+    }
+    @keyframes camDrift {
+      from { transform: translateY(10px) scale(0.996); }
+      50%  { transform: none; }
+      to   { transform: translateY(-10px) scale(0.996); }
+    }
+
+    /* ══ 스크럽 층(스크롤 연출 계약 v1 §4-3 · 회색 상자 PR 802 · PM 「유려하다」) — 화면 안 스크롤 진행도 구동 ══
+       범위 contain = 핀이 잡혀 있는 구간. 예산 1.0 이면 구간 길이 0 → 안 움직인다. 전부 선형(이징은 손이 만든다).
+       등장 층(시간)과 같은 요소를 건드릴 때는 animation 목록으로 겹친다 — 등장 반쪽은 위 2388·2389 를 그대로 베낀 것이라
+       그쪽을 고치면 여기도 고친다(test:scroll-grammar 가 대조한다). 개별 속성(scale·translate)만 써서 transform 과 안 부딪친다. */
+    /* ㄱ 푸시인 — 존 스틸이 ×1.06 밀려 들어온다(액자라 1.08 은 리드 열과 닿는다) */
+    .secOn .zoneStill {
+      animation: stillReveal .9s ease-out both, stillPush linear both;
+      animation-timeline: auto, --scene;
+      animation-range: normal, contain;
+    }
+    @keyframes stillPush { from { scale: 1; translate: 0 0; } to { scale: 1.06; translate: 0 -3vh; } }
+    /* ㄴ+ㄷ 두 겹 시차 · 글자 퇴장 — 리드 덩어리는 스크롤 전용(시간 등장은 자식이 받는다 · 리듬 v1).
+       퇴장은 **화면이 밀려 나가는 구간(exit)** 에서만 — 스크럽 구간(contain) 뒤 절반에 두면 스크럽 끝이 글 없는 프레임이 되는데,
+       스냅 보조가 바로 그 스크럽 끝에 손님을 앉힌다(실측 2026-09-09: 선착순 114px 에서 리드 0.01 · PM 「텍스트 안 보임」).
+       exit 는 다음 화면이 이미 밀고 들어오는 전환 구간이라 보조가 쉬지 않는 자리 — 모든 정지 위치에서 글이 온전하다. */
+    .secOn .zoneScene .lead {
+      animation: leadDrift linear both, leadOut linear both;
+      animation-timeline: --scene, --scene;
+      animation-range: contain, exit 0% exit 35%;
+    }
+    .secOn .arriveScene { animation: leadDrift linear both; animation-timeline: --scene; animation-range: contain; }
+    /* 이동 0(예산 1.0) 화면은 contain 구간 길이가 0 이라 「안 움직인다」가 아니라 **끝값에 선다** — 퇴장(opacity 0)이 곧바로 적용돼 글이 사라진다
+       (럭키드로우 실측 2026-09-08 · PM 「텍스트 쪽이 안 뜨는 오류」). 그런 화면은 리드 스크럽 자체를 끈다 */
+    .secOn .secBox[style*="--budget: 1;"] .zoneScene .lead, .secOn .secBox[style*="--budget:1;"] .zoneScene .lead { animation: none; }
+    @keyframes leadDrift { from { translate: 0 0; } to { translate: 0 4vh; } }
+    @keyframes leadOut { from { opacity: 1; translate: 0 0; } to { opacity: 0; translate: 0 -12px; } }
+    /* ㅁ 진열 부상 — 격자 그릇이 전반에 떠오른다(행 단위 그릇이 없어 그릇 하나로 · P5 범위) */
+    .secOn .shelfRailWrap, .secOn .rgWrap {
+      animation: gridRise linear both; animation-timeline: --scene; animation-range: contain 0% contain 50%;
+    }
+    @keyframes gridRise { from { translate: 0 24px; } to { translate: 0 0; } }
+    /* 옥상 후반 암전(검정 막)은 폐기 — PM 2026-09-09 「화면 스크롤 제일 밑으로 가면 이렇게 돼」. 마지막 화면은 스크럽 끝이 곧 페이지 바닥이라
+       가장 흔한 정지 위치인데, 그 자리에서 사진이 .92 검정 막 뒤로 사라져 있었다(장 전환 검정 판 폐기와 같은 판정 — 「까만 레이어는 없애」). */
+  }
+}
+
+/* ── 현장 예약(PM 2026-08-31) — 날짜 칩 → 시간대 격자 → 확정 바. 토큰·무크롬 문법 */
+.rsvWrap { padding: var(--sp-3) 20px calc(var(--hud) + var(--sp-4)); display: flex; flex-direction: column; gap: var(--sp-2); max-width: 720px; }
+.rsvLabel { font-size: var(--fs-micro); font-weight: 800; color: var(--dim); margin-top: var(--sp-2); }
+.rsvDays { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.rsvDay, .rsvSlot {
+  font-size: var(--fs-caption); font-weight: 700; color: var(--ink); cursor: pointer;
+  padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-s); background: transparent;
+  font-variant-numeric: tabular-nums;
+}
+.rsvDay:disabled, .rsvSlot:disabled { color: var(--dim); opacity: .5; cursor: default; }
+.rsvOn { border-color: var(--fire); color: var(--fire); }
+.rsvSlots { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: var(--sp-2); }
+.rsvBar { margin-top: var(--sp-3); }
+.rsvBar .primaryBtn { width: 100%; padding: 13px 20px; font-size: var(--fs-body); }
+.rsvDone { display: flex; flex-direction: column; gap: var(--sp-2); max-width: 480px; margin-top: var(--sp-3); }
+.rsvDoneTag { font-size: var(--fs-micro); font-weight: 800; color: var(--fire); letter-spacing: var(--ls-wide); }
+.rsvDoneLabel { font-size: var(--fs-title); font-weight: 900; letter-spacing: var(--ls-tight); }
+.rsvDoneNo { font-size: var(--fs-caption); color: var(--dim); font-variant-numeric: tabular-nums; }
+.rsvDoneNote { margin: 0; font-size: var(--fs-body); line-height: var(--lh-body); color: var(--ink); }
+.rsvDone .ghostBtn { align-self: flex-start; }
+
+/* ── 커뮤니티 글 남기기 오버레이 — X 작성 문법(본문 먼저·태그 고정·카운터) */
+.cmpBox { width: min(440px, 92vw); display: flex; flex-direction: column; gap: var(--sp-2); }
+.cmpInput {
+  width: 100%; resize: none; padding: var(--sp-2); border: 1px solid var(--line); border-radius: var(--r-s);
+  background: rgba(4, 5, 10, 0.5); color: var(--ink); font-size: var(--fs-body); line-height: var(--lh-body);
+}
+.cmpInput:focus { outline: none; border-color: var(--fire); }
+.cmpFoot { display: flex; align-items: center; gap: var(--sp-2); }
+.cmpTag { font-size: var(--fs-caption); font-weight: 700; color: var(--fire); }
+.cmpCount { margin-left: auto; font-family: var(--mono); font-size: var(--fs-micro); color: var(--dim); font-variant-numeric: tabular-nums; }
+
+/* ── 학생증 뒷면 — 앞면(stuCard)과 같은 소품 재질(색 예산 밖). 뒷면 문법 = 자기 띠·기록란·미세문구·일련 */
+.idBack {
+  position: relative; width: min(224px, 100%); border-radius: 14px; overflow: hidden;
+  background:
+    repeating-linear-gradient(100deg, rgba(0, 0, 0, 0.022) 0 1px, transparent 1px 3px),
+    radial-gradient(140% 120% at 50% 50%, #edefe7 55%, #dfe1d6 100%);
+  color: #2a2f33;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(60, 50, 30, 0.08), inset 0 0 18px rgba(60, 40, 20, 0.1);
+  padding: 0 12px 10px; display: flex; flex-direction: column; gap: 8px;
+  font-size: 10.5px;
+}
+.idBackStripe { margin: 0 -12px 4px; height: 26px; background: #23261f; }   /* 자기 띠 */
+.idBackSec { display: flex; flex-direction: column; gap: 3px; border-bottom: 1.5px dashed #cdd2c9; padding-bottom: 7px; }
+.idBackSec > b { font-size: 9px; letter-spacing: 0.24em; color: #66705f; font-weight: 800; display: flex; }
+.idBackSec > b em { margin-left: auto; font-style: normal; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.idBackSec > span { font-size: 10.5px; color: #3a423a; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.idBackBlank { color: #9aa295; }
+.idBackStamps { list-style: none; margin: 2px 0 0; padding: 0; display: flex; gap: 6px; }
+.idBackStamps li { display: flex; flex-direction: column; align-items: center; gap: 2px; flex: 1; min-width: 0; }
+.idBackStamps li i {
+  width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center;
+  border: 1.5px dashed #c2c8bd; color: #9aa295; font-style: normal; font-size: 10px; font-weight: 800;
+}
+.idBackStamps li.on i {
+  /* 인주 도장 — 완료의 실물 표식(소품 red) */
+  border: 1.5px solid rgba(196, 68, 58, 0.8); color: #c4443a; transform: rotate(-8deg);
+  box-shadow: inset 0 0 0 1px rgba(196, 68, 58, 0.25);
+}
+.idBackStamps li span { font-size: 8px; color: #78816f; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.idBackFine { margin: 0; font-size: 8px; color: #78816f; line-height: 1.5; }
+.idBackCode {
+  height: 22px; border-radius: 3px; display: flex; align-items: center; justify-content: center;
+  background: repeating-linear-gradient(90deg, #2a2f33 0 2px, transparent 2px 4px, #2a2f33 4px 5px, transparent 5px 8px);
+}
+.idBackCode em { font-family: var(--mono); font-style: normal; font-size: 8px; letter-spacing: 0.3em; color: #edefe7; background: #2a2f33; padding: 1px 6px; }
+
+/* ── 교문 열림(PM 2026-09-02) — 한 장의 정문 사진을 반씩 잘라 좌우로 민다.
+   clip-path 로 자르면 두 짝이 같은 원본이라 이음매가 없고, cover 라 비율도 지켜진다.
+   사진 미입고 시에는 배경색만 남아 「어두운 문짝」으로 동작한다(폴백). */
+.gate { position: absolute; inset: 0; z-index: 6; pointer-events: none; overflow: hidden; }
+.gateLeaf {
+  position: absolute; inset: 0;
+  background: #0a0d12 center / cover no-repeat;
+  box-shadow: 0 0 60px rgba(0, 0, 0, .85);
+  transition: transform 5.4s cubic-bezier(.42, .015, .12, 1);   /* JS GATE_SLIDE 와 같은 값 · 무거운 철문이라 뒤가 길게 눕는다 */
+  will-change: transform;
+}
+.gateLeft  { clip-path: inset(0 50% 0 0); }
+.gateRight { clip-path: inset(0 0 0 50%); }
+.gateOpen .gateLeft  { transform: translateX(-100%); }
+.gateOpen .gateRight { transform: translateX(100%); }
+/* 맞물린 자리 — 문이 갈라지는 선을 한 줄로 남긴다(사진이 와도 중앙이 어디인지 읽힌다) */
+.gateSeam {
+  position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; transform: translateX(-50%);
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .9) 18%, rgba(0, 0, 0, .9) 82%, transparent);
+  transition: opacity 1.7s;
+}
+.gateOpen .gateSeam { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .gate { display: none; } }
+
+/* ── 교문이 열리면 이름이 튀어나온다(PM 2026-09-02) ──
+   문이 닫혀 있는 동안 표지 글자는 숨고, 문짝이 갈라지기 시작하면(.gateOpen) 안쪽에서 튀어나온다.
+   문과 글자는 형제라 상태를 JS 로 나르지 않고 :has() 로 읽는다 — 문이 다시 닫히면(재진입) 글자도 다시 숨었다 튀어나온다.
+   문이 끝나 사라지면(:has 불일치) 기본 상태 = 보임이라 그대로 남는다. 동작 축소는 문 자체가 없어 이 블록이 안 걸린다. */
+@supports selector(:has(a)) {
+  .secBox:has(.gate:not(.gateOpen)) .arriveScene .leadEyebrow,
+  .secBox:has(.gate:not(.gateOpen)) .arriveScene .leadTitle,
+  .secBox:has(.gate:not(.gateOpen)) .arriveScene .leadTitle em,
+  .secBox:has(.gate:not(.gateOpen)) .arriveScene .seasonTl { opacity: 0; }
+  .secBox:has(.gateOpen) .arriveScene .leadEyebrow { animation: leadPop .9s cubic-bezier(.2, 1.3, .3, 1) 1.6s both; }
+  .secBox:has(.gateOpen) .arriveScene .leadTitle   { animation: leadPop 1.1s cubic-bezier(.2, 1.35, .3, 1) 1.95s both; }
+  .secBox:has(.gateOpen) .arriveScene .leadTitle em { animation: leadRise .8s cubic-bezier(.2, .9, .2, 1) 2.75s both; }
+  .secBox:has(.gateOpen) .arriveScene .seasonTl { animation: leadRise .8s cubic-bezier(.2, .9, .2, 1) 3.35s both; }
+}
+@keyframes leadPop {
+  0%   { opacity: 0; transform: translateY(34px) scale(.82); filter: blur(8px); }
+  55%  { opacity: 1; transform: translateY(-8px) scale(1.05); filter: blur(0); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes leadRise {
+  0%   { opacity: 0; transform: translateY(18px); }
+  100% { opacity: 1; transform: none; }
+}
+
+
+/* ── 주문 확정 오버레이(v4.0) — 장바구니 → 주문 기록. 결제·배송은 자리만 ── */
+.coBox { width: min(440px, 92vw); display: flex; flex-direction: column; gap: 12px; }
+.coList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 40dvh; overflow-y: auto; }
+.coList li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 6px 8px; border: 1px dashed var(--line); border-radius: 8px; }
+.coList i { width: 34px; height: 34px; border-radius: 6px; background-size: cover; background-position: center; }
+.coList span { font-size: var(--fs-caption, 11.5px); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.coList em { font-style: normal; font-size: var(--fs-caption, 11.5px); font-variant-numeric: tabular-nums; color: var(--dim); }
+.coTotal { display: flex; justify-content: space-between; align-items: baseline; padding: 4px 8px 0; border-top: 1px solid var(--line); }
+.coTotal span { font-size: var(--fs-micro, 10px); color: var(--dim); }
+.coTotal b { font-size: var(--fs-heading, 15px); font-weight: 900; color: var(--fire); font-variant-numeric: tabular-nums; }
+.coNote, .coDone { margin: 0; font-size: var(--fs-micro, 10px); line-height: 1.5; color: var(--dim); }
+
+
+/* ── 무대 모달(v4.1) — 무대 위 · HUD 아래(z 55 < HUD 60). 밴드 위에서 끝나 HUD 가 계속 보인다 ── */
+/* v5.6 — 무대 모달(StageModal) 폐지. 존·상품 상세는 허브를 대체하는 상세페이지다(PM 2026-09-07) */
+
+/* 옥상 시즌2 관문 — 결말 화면의 커머스 모듈(사전예약 문). 계약 카드와 같은 여백 문법 */
+.season2 { margin: var(--sp-3) 20px; padding: var(--sp-3); border: 1px solid var(--line); border-radius: var(--r-m);
+  display: flex; flex-direction: column; gap: var(--sp-2); align-items: flex-start; }
+.season2 > b { font-size: var(--fs-title); font-weight: 900; letter-spacing: var(--ls-tight); }
+
+
+/* ── 소개 모달(v4.4) — 일정 모달은 폐기(2026-09-07), 일정 글자는 HUD 컨텍스트 패널이 갖는다 ── */
+.infoLead { margin: 0; font-size: var(--fs-heading, 15px); font-weight: 900; letter-spacing: 0.06em; line-height: 1.3; }
+.infoLead span { font-size: var(--fs-body, 13px); font-weight: 700; color: var(--fire); letter-spacing: 0; }
+.infoBody { margin: 0; font-size: var(--fs-body, 13px); line-height: 1.65; color: var(--ink); }
+.infoList { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 12px; font-size: var(--fs-caption, 11.5px); line-height: 1.5; }
+.infoList dt { color: var(--dim); font-weight: 800; }
+.infoList dd { margin: 0; }
+
+
+/* ══ 문 문법 v1 (PM 2026-09-08 「화살표 기호 다 빼 · 눌러야 하는 버튼임을 다른 방법으로 · 종류 전수조사해 통일」) ══
+   화살표(→ ‹ › ←)로 「누르는 것」을 표시하던 것을 걷어내고 **형태 하나**로 말한다 — 누르는 것은 전부 **알약**이다.
+   · 주 문   = fire 채움 · 어두운 글자 — 화면당 하나, 다음 행동(들어가기·입장·담기·예약)
+   · 보조 문 = 잉크 헤어라인 알약 · 투명 바탕 — 다른 곳으로 가는 문(굿즈샵 전체·학교 맵·급식실·전체 상품)
+   · 잠긴 문 = 점선 헤어라인 · 흐린 글자 · not-allowed(「문이 잠겨 있다」)
+   · 이전/다음 = 보조 문의 작은 것 — 원·네모·글리프 대신 **말**(「이전」「다음」)
+   반응은 전부 같다: 호버 fire 헤어라인 + 1px 리프트(DESIGN.md 6칙 ①) · 누름 .98 · 비활성 흐림.
+   선택지(필터 알약·정렬·탭·찜·썸네일)는 문이 아니다 — 글자 700, 고르면 잉크 채움. 여기 안 넣는다.
+   이 블록은 파일 끝에서 앞의 개별 규칙을 덮는다(같은 특이성 · 뒤가 이긴다). 개별 규칙엔 배치(margin·position·flex)만 남는다.
+   등록부가 곧 검증 대상이다 — scripts/test-button-grammar.mjs 가 무대의 모든 <button> 클래스가 여기(또는 선택지 목록)에 있는지 대조한다. */
+.primaryBtn, .leadBtnOn, .rgBtnOn, .offPrimary, .pdPrimary, .wallCta,
+.ghostBtn, .leadBtn, .rgBtn, .offGhost, .pdWish, .sectionAct, .gZone, .backBtn, .filterClear, .offMapCta, .railArrow, .wallNavBtn {
+  border-radius: 999px; font: inherit; font-weight: 800; letter-spacing: 0; line-height: 1.2; cursor: pointer;
+  transition: border-color .15s, background-color .15s, color .15s, transform .15s, box-shadow .15s, filter .15s;
+}
+/* 주 문 */
+.primaryBtn, .leadBtnOn, .rgBtnOn, .offPrimary, .pdPrimary, .wallCta {
+  background: var(--fire); border: 1px solid var(--fire); color: #1a0e06; padding: 10px 20px; font-size: var(--fs-body);
+}
+/* 보조 문 */
+.ghostBtn, .leadBtn, .rgBtn, .offGhost, .pdWish, .sectionAct, .gZone, .backBtn, .filterClear, .offMapCta {
+  background: transparent; border: 1px solid var(--line); color: var(--ink); padding: 9px 16px; font-size: var(--fs-caption);
+}
+/* 이전/다음 — 보조 문의 작은 것 */
+.railArrow, .wallNavBtn {
+  width: auto; height: auto; padding: 6px 12px; font-size: var(--fs-micro);
+  background: rgba(11, 14, 20, .72); border: 1px solid var(--line); color: var(--ink); display: inline-flex; align-items: center;
+}
+/* 잠긴 문 */
+.leadBtn:disabled, .primaryBtn:disabled, .rgBtn:disabled, .ghostBtn:disabled {
+  border-style: dashed; border-color: var(--line); color: var(--dim); background: transparent; cursor: not-allowed; filter: none; transform: none; box-shadow: none;
+}
+/* 반응 — 셋 다 같다(이전/다음은 절대 위치라 리프트 없이 색만) */
+.primaryBtn:hover:not(:disabled), .leadBtnOn:hover, .rgBtnOn:hover, .offPrimary:hover, .pdPrimary:hover, .wallCta:hover {
+  filter: brightness(1.06); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(255, 138, 61, .25);
+}
+.ghostBtn:hover:not(:disabled), .leadBtn:hover:not(:disabled), .rgBtn:hover:not(:disabled), .offGhost:hover, .pdWish:hover,
+.sectionAct:hover, .gZone:hover, .backBtn:hover, .filterClear:hover, .offMapCta:hover {
+  border-color: var(--fire); color: var(--fire); transform: translateY(-1px);
+}
+.railArrow:hover, .wallNavBtn:hover { border-color: var(--fire); color: var(--fire); }
+.primaryBtn:active, .leadBtnOn:active, .rgBtnOn:active, .offPrimary:active, .pdPrimary:active, .wallCta:active,
+.ghostBtn:active, .leadBtn:active:not(:disabled), .rgBtn:active, .offGhost:active, .pdWish:active, .sectionAct:active,
+.gZone:active, .backBtn:active, .filterClear:active, .offMapCta:active { transform: translateY(0) scale(.98); }
+@media (max-width: 640px) {
+  .primaryBtn, .leadBtnOn, .rgBtnOn, .offPrimary, .pdPrimary, .wallCta { padding: 9px 16px; font-size: var(--fs-caption); }
+  .ghostBtn, .leadBtn, .rgBtn, .offGhost, .pdWish, .sectionAct, .gZone, .backBtn, .filterClear, .offMapCta { padding: 8px 13px; }
+}
+
+/* 도서관 폰 배치(PM 2026-09-09) — 넓은 화면 전용 판. 폰에서는 게임의 버튼 셋이 시트로 대신한다 */
+@media (max-width: 640px) {
+  .libDesk { display: none !important; }
+  .zoneSec:has(> .zoneGuide.libDesk)::before { display: none; }
+}
+
+/* ICONS presentation: full-bleed cinema, readable details and one quiet HUD. */
+.stage {
+  --ink: #f5f1e8; --dim: #b8b5ad; --line: rgb(235 226 207 / 18%); --fire: #efa66b; --panel: #111719;
+  --mono: var(--font-space-mono), ui-monospace, monospace;
+  --font-grotesk: inherit;
+  --fs-display: clamp(44px, 5.4vw, 80px); --fs-title: 24px; --fs-heading: 18px;
+  --fs-body: 15px; --fs-caption: 13px; --fs-micro: 11px; --lh-body: 1.65;
+  --hud: clamp(136px, 16dvh, 160px);
+  border: 0; background: #080d0f; font-size: 15px; font-family: inherit; isolation: isolate;
+}
+.stage :is(button, a, input, select, textarea):focus-visible { outline: 2px solid #ffd3a6; outline-offset: 4px; }
+.stage :is(button, a) { -webkit-tap-highlight-color: transparent; }
+.stage button { touch-action: manipulation; }
+.stage :is(.pdWrap, .zoneView, .secStage) { scrollbar-width: thin; scrollbar-color: #50605e #080d0f; }
+.presentationUtility {
+  position: absolute; inset: 0 0 auto; height: 62px; z-index: 45;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 clamp(20px, 3.3vw, 56px); pointer-events: none;
+  background: linear-gradient(#050809b8, transparent);
+}
+.presentationUtility a, .presentationUtility button { pointer-events: auto; }
+.presentationUtility a { font-size: 12px; letter-spacing: .11em; font-weight: 750; color: #f0eee5; text-decoration: none; }
+.presentationUtility a span { color: #74827b; margin: 0 8px; }
+.presentationUtility button { border: 1px solid rgb(255 255 255 / 20%); padding: 7px 13px; background: rgb(9 14 15 / 68%); border-radius: 999px; color: #d6d2c7; font: inherit; font-size: 11px; cursor: pointer; }
+.presentationUtility button:hover { border-color: var(--fire); color: var(--fire); }
+.bootScreen { height: 100%; display: grid; align-content: center; justify-items: center; gap: 16px; color: var(--dim); }
+.bootScreen span { font-size: 13px; letter-spacing: .25em; color: var(--fire); }
+.bootScreen p { font-size: 15px; }
+.secPin { padding: 74px clamp(24px, 4.4vw, 72px) calc(var(--hud) + 28px); gap: 22px; }
+.sectionNo { font-size: 12px; letter-spacing: .12em; }
+.sectionTitle { font-size: 28px; }
+.sceneBg { opacity: .2; }
+.secBox:first-child .sceneBg { opacity: .8; mask-image: none; -webkit-mask-image: none; background-position: 64% center; }
+.secBox:first-child .secPin::after { content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none; background: linear-gradient(90deg, #04090df5 0%, #071115b8 35%, #07111510 80%), linear-gradient(0deg, #071013 3%, transparent 45%, #02050760); }
+.coverLead { position: relative; z-index: 1; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 20px; max-width: 880px; }
+.coverLead .leadEyebrow { margin: 0; color: #dfb18a; letter-spacing: .18em; font-size: 12px; font-weight: 600; }
+.coverTitle { position: relative; width: fit-content; margin: 0; font-size: clamp(62px, 7.2vw, 108px); line-height: 1.05; letter-spacing: -.075em; font-weight: 900; text-shadow: 0 5px 45px #02050580; }
+.coverTitle > span { position: absolute; top: 8px; right: -72px; color: var(--fire); font-size: 40px; font-weight: 400; letter-spacing: -.05em; }
+.coverLine { margin: 4px 0 0; font-size: clamp(18px, 2vw, 25px); font-weight: 450; letter-spacing: -.03em; color: #d7dcd7; }
+.coverActions { display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+.coverActions :is(.primaryBtn, .ghostBtn) { min-height: 48px; padding: 12px 24px; font-size: 15px; }
+.seasonTl { width: min(680px, 100%); margin: 20px 0 0; padding: 16px 20px; border-radius: 8px; background: rgb(6 13 15 / 65%); border-color: rgb(203 216 204 / 20%); backdrop-filter: blur(14px); }
+.tlHead, .tlPick { font-size: 12px; }
+.tlDday { color: var(--fire); }
+.lead { max-width: 640px; gap: 20px; }
+.leadEyebrow { font-size: 12px; letter-spacing: .12em; font-weight: 650; }
+.leadTitle { font-family: inherit; font-size: var(--fs-display); font-weight: 800; line-height: 1.1; letter-spacing: -.045em; }
+.leadCall { font-size: 17px; font-weight: 400; line-height: 1.7; max-width: 420px; margin: 0; opacity: 1; color: #c4cac4; }
+.leadGoods { background: transparent; border: 0; border-left: 2px solid #748673; border-radius: 0; padding: 4px 0 4px 16px; gap: 12px; }
+.leadGoods i { width: 52px; height: 52px; border-radius: 4px; }
+.leadGoods b { font-size: 12px; letter-spacing: 0; font-weight: 500; }
+.leadGoods em { font-size: 14px; max-width: 340px; line-height: 1.5; }
+.leadActs { margin-top: 10px; gap: 14px; }
+.zoneStill { border-radius: 8px; box-shadow: none; }
+.zoneScene { gap: clamp(32px, 5vw, 80px); }
+.secOn .zoneScene .lead > *, .secOn .sectionHead > * { animation: none; }
+.secOn [data-mtype="info"], .secOn [data-mtype="event"]:not(.zoneScene),
+.secOn .shelfGrid > *, .secOn .wallFeedTrack > *, .secOn .noticeGrid > * { animation: none; }
+.secBox[data-scene="arrive"] .arriveScene { animation: none; }
+.secOn .zoneStill { animation-duration: .28s; }
+.leadBtnOn, .leadBtn { min-height: 46px; padding: 12px 24px; font-size: 14px; }
+.primaryBtn, .pdPrimary, .wallCta, .offPrimary { min-height: 46px; }
+.hintBtn { width: 28px; height: 28px; font-size: 12px; cursor: pointer; }
+.hintTip { bottom: auto; top: calc(100% + 8px); left: auto; right: 0; width: 300px; max-width: min(320px, 82vw); padding: 18px; font-size: 13px; line-height: 1.6; background: #111c20; box-shadow: 0 12px 40px #0006; }
+.zoneHead { padding: 110px clamp(24px, 4.4vw, 72px) calc(var(--hud) + 48px); }
+.zoneHead .backBtn { top: 74px; left: clamp(24px, 4.4vw, 72px); }
+.zoneLead { gap: 22px; max-width: 780px; }
+.leadHook { max-width: 560px; font-size: 18px; font-weight: 400; line-height: 1.7; opacity: 1; margin: 0; }
+.zoneLead .leadActs { margin-top: 4px; }
+.zoneSec { padding: 78px clamp(24px, 4.4vw, 72px) calc(var(--hud) + 32px); gap: 18px; }
+.zoneScreen.zoneBody { padding: 80px clamp(24px, 4.4vw, 72px) calc(var(--hud) + 32px); }
+.zoneScreen.zoneBody > div { width: 100%; max-width: 1320px; margin-inline: auto; }
+.fcfsGrid { grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 26px 22px; overflow: visible; }
+.fcfsGrid .gInfo { gap: 9px; padding: 14px 0 0; }
+.fcfsGrid .gInfo > b { font-size: 15px; line-height: 1.45; min-height: 44px; }
+.fcfsGrid .gStock, .fcfsGrid .gTimer { font-size: 12px; }
+.fcfsGrid .gPrice { font-size: 20px; }
+.zoneScreen.zoneBody > .rsvWrap { max-width: 920px; padding: 8px 0 24px; gap: 14px; }
+.rsvHead { margin-bottom: 16px; }
+.rsvHead > span { color: var(--fire); font-size: 12px; letter-spacing: .12em; }
+.rsvHead h4 { font-size: clamp(24px, 3vw, 34px); line-height: 1.3; margin: 12px 0; }
+.rsvHead p { color: var(--dim); font-size: 14px; margin: 0; }
+.rsvLabel { font-size: 13px; }
+.rsvDay, .rsvSlot { min-height: 44px; font-size: 13px; }
+.zoneBar { padding: 80px clamp(24px, 4.4vw, 72px) 20px; }
+.zoneBar + .zoneBody { padding: 12px clamp(24px, 4.4vw, 72px) calc(var(--hud) + 32px); }
+.zoneSec + .zoneSec, .zoneHead + .zoneSec { border-color: rgb(235 226 207 / 8%); }
+.zoneGuide { background: none; border: 0; box-shadow: none; padding: 0; }
+.zoneSec .gameStage { max-width: none; }
+.zoneSecHead h4 { font-size: 25px; }
+.zgRow { gap: 18px; }
+.zgShot { border-radius: 6px; }
+.zgName { font-size: 14px; -webkit-line-clamp: 2; min-height: 40px; }
+.zgPrice { font-size: 16px; }
+.pdWrap { padding: 74px clamp(24px, 4.4vw, 72px) calc(var(--hud) + 32px); gap: 26px; }
+.pdTop { grid-template-columns: minmax(0, 1.15fr) minmax(320px, 1fr); gap: clamp(28px, 4vw, 64px); }
+.pdInfo { gap: 18px; padding-top: 12px; }
+.pdName { font-size: clamp(24px, 2.25vw, 32px); line-height: 1.3; letter-spacing: -.04em; }
+.pdPrice { font-size: 28px; font-weight: 650; }
+.pdShot { border-radius: 6px; background-size: contain; background-repeat: no-repeat; background-color: #101717; }
+.pdFacts { gap: 14px 22px; padding: 16px 0; border-block: 1px solid var(--line); }
+.pdFacts dt, .pdOptName, .pdSpec dt { font-size: 12px; }
+.pdFacts dd { font-weight: 500; }
+.pdChip { min-width: 48px; min-height: 42px; font-size: 14px; }
+.pdPrimary { padding: 14px 24px; font-size: 15px; }
+.pdWish { min-width: 88px; min-height: 48px; font-size: 14px; }
+.pdBody { gap: 32px; padding: 18px 0; }
+.pdSec h5 { font-size: 14px; color: var(--ink); font-weight: 650; }
+.pdSec { gap: 14px; }
+.pdNoticeKey { font-size: 13px; }
+.pdNoticeRow, .pdFold, .pdProof { min-height: 54px; }
+.pdSupply, .pdOriginLine, .pdWithdrawal { font-size: 13px; line-height: 1.75; }
+.pdCat::after { content: " · 굿즈 디자인 시안"; color: #8b9d95; }
+.shelfName { font-size: 14px; line-height: 1.5; }
+.shelfPrice { font-size: 17px; }
+.gName { font-size: 14px; line-height: 1.5; }
+.gPrice { font-size: 17px; }
+.overlay { background: transparent; padding: 24px; }
+.overlayBox { background: #11191c; border: 1px solid rgb(224 235 220 / 20%); padding: 32px; border-radius: 16px; box-shadow: 0 32px 100px #0008; gap: 20px; max-height: calc(100dvh - 48px); }
+.overlayBox > b { font-size: 25px; letter-spacing: -.035em; }
+.overlayBox.meBox { width: min(820px, 100%); height: min(68dvh, 620px); padding: 26px; gap: 24px; }
+.overlayBox.meBox[data-tab="id"] { height: auto; min-height: 440px; }
+.meTabs { gap: 8px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.meTabs button { min-height: 42px; padding: 10px 16px; font-size: 14px; }
+.meTabs .meClose { width: 38px; height: 38px; min-height: 38px; font-size: 16px; }
+.meTabs .meTabOn { background: #e9d5b3; color: #1a211d; border-color: #e9d5b3; }
+.idDetailBody { gap: 36px; align-items: center; }
+.idDetailPickTitle { font-size: 16px; line-height: 1.5; }
+.coBox { width: min(560px, 100%); }
+.coNote, .coDone, .infoBody { font-size: 14px; line-height: 1.8; color: #c6cec7; }
+.coList li { gap: 14px; padding: 14px 0; font-size: 14px; }
+.coList li i { width: 52px; height: 52px; border-radius: 5px; }
+.coTotal { padding: 22px 0; font-size: 16px; }
+.coTotal b { font-size: 24px; color: var(--ink); }
+.cmpInput { min-height: 140px; padding: 16px; font-size: 16px; background: #080f12; border-radius: 8px; }
+.opening { padding: 82px 28px; background: #030709; }
+.opening .resetBtn { top: auto; bottom: 16px; right: 24px; font-size: 12px; z-index: 8; }
+.welcome, .dlgPanel { background: rgb(7 15 19 / 88%); border-color: rgb(239 166 107 / 35%); backdrop-filter: blur(16px); }
+.dlgLine { font-size: 18px; line-height: 1.75; }
+.issueInput { min-height: 44px; font-size: 16px; }
+.issueHint { font-size: 12px; line-height: 1.7; }
+.photoPick { gap: 10px; }
+.opening .noise { opacity: .14; animation-duration: .2s; }
+@media (max-width: 1040px) {
+  .stage { --fs-display: 48px; --fs-title: 22px; --fs-body: 14px; }
+  .pdTop { grid-template-columns: minmax(0, 1fr) minmax(300px, 1fr); gap: 26px; }
+  .coverTitle { font-size: 76px; }
+  .coverTitle > span { right: -56px; font-size: 32px; }
+  .leadGoods em { max-width: 230px; }
+}
+@media (max-width: 640px) {
+  .stage { --hud: 0px; --fs-display: 42px; --fs-title: 21px; --fs-heading: 17px; --fs-body: 14px; --fs-caption: 12px; --fs-micro: 11px; }
+  .presentationUtility { height: 58px; padding: 0 18px; }
+  .presentationUtility a { font-size: 10px; letter-spacing: .08em; }
+  .presentationUtility button { font-size: 10px; padding: 6px 10px; }
+  .secPin { padding: 76px 22px calc(96px + env(safe-area-inset-bottom)); gap: 16px; }
+  .coverLead { gap: 18px; justify-content: flex-end; padding-bottom: 24px; }
+  .coverLead .leadEyebrow { font-size: 10px; max-width: 240px; line-height: 1.8; letter-spacing: .12em; }
+  .coverTitle { font-size: clamp(48px, 13.2vw, 76px); letter-spacing: -.06em; }
+  .coverTitle > span { font-size: 25px; right: -43px; top: 4px; }
+  .coverLine { font-size: 19px; }
+  .coverActions { gap: 8px; margin-top: 4px; }
+  .coverActions :is(.primaryBtn, .ghostBtn) { min-height: 44px; padding: 12px 16px; font-size: 13px; }
+  .seasonTl { padding: 12px 14px; margin: 0; }
+  .secBox:first-child .sceneBg { background-position: 64% center; }
+  .secBox:first-child .secPin::after { background: linear-gradient(0deg, #050d11 4%, #071216bd 48%, #060c1220 82%, #0710138c); }
+  .leadTitle, .zoneHead .leadTitle { font-size: 42px; }
+  .leadCall { font-size: 15px; line-height: 1.6; }
+  .leadGoods { padding-left: 12px; }
+  .leadGoods em { max-width: 260px; font-size: 13px; }
+  .leadGoods i { width: 42px; height: 42px; }
+  .zoneScene { gap: 22px; }
+  .lead { gap: 16px; }
+  .zoneHead { padding: 104px 22px 114px; }
+  .zoneHead .backBtn { top: 72px; left: 22px; }
+  .zoneLead { gap: 18px; }
+  .leadHook { font-size: 16px; line-height: 1.65; max-width: 100%; }
+  .zoneSec { padding: 78px 18px 106px; gap: 12px; }
+  .zoneScreen.zoneBody { padding: 76px 18px 104px; }
+  .fcfsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px 14px; }
+  .fcfsGrid .gInfo > b { font-size: 13px; min-height: 57px; }
+  .fcfsGrid .gStock, .fcfsGrid .gTimer { font-size: 11px; }
+  .fcfsGrid .gPrice { font-size: 18px; }
+  .zoneView { padding-bottom: 0; }
+  .zoneBar { padding: 76px 20px 12px; flex-wrap: wrap; }
+  .zoneBar + .zoneBody { padding: 12px 18px 108px; }
+  .pdWrap { padding: 74px 20px 112px; gap: 22px; }
+  .pdTop { grid-template-columns: 1fr; gap: 22px; }
+  .pdGallery { display: flex; flex-direction: column-reverse; gap: 10px; }
+  .pdShot { flex: none; width: 100%; aspect-ratio: 4 / 3; }
+  .pdThumbs { flex-direction: row; }
+  .pdThumb { width: 48px; border-radius: 4px; }
+  .pdInfo { padding: 0; gap: 16px; }
+  .pdName { font-size: 25px; }
+  .pdPrice { font-size: 25px; }
+  .pdFacts { grid-template-columns: 1fr; gap: 10px; }
+  .pdActions { position: static; background: none; padding: 0; box-shadow: none; }
+  .pdBody { grid-template-columns: 1fr; gap: 18px; }
+  .pdPrimary { flex: 1; }
+  .pdWish { min-width: 74px; }
+  .overlay { padding: 16px; }
+  .overlayBox { padding: 24px; max-height: calc(100dvh - 32px); }
+  .overlay:has(.meBox) { padding: 0; align-items: flex-end; }
+  .overlayBox.meBox, .overlayBox.meBox[data-tab="id"] { height: min(88dvh, 800px); min-height: 0; width: 100%; padding: 22px 18px calc(22px + env(safe-area-inset-bottom)); border-radius: 20px 20px 0 0; gap: 18px; }
+  .meTabs { padding-bottom: 14px; gap: 4px; }
+  .meTabs button { padding: 9px 12px; font-size: 12px; min-height: 40px; }
+  .meTabs .meClose { width: 32px; min-width: 32px; height: 32px; min-height: 32px; }
+  .idDetailBody { gap: 22px; }
+  .coList li { flex-wrap: wrap; }
+  .coList li em { margin-left: 66px; }
+  .opening { overflow-y: auto; padding: 76px 18px; }
+  .dlgLine { font-size: 16px; }
+  .opening .resetBtn { bottom: 12px; right: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .stage *, .stage *::before, .stage *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  .presentationUtility, .seasonTl, .welcome, .dlgPanel { backdrop-filter: none; }
+}
+.openingReset { top: auto; bottom: 16px; right: 24px; font-size: 12px; z-index: 8; }
+@media (max-width: 640px) { .openingReset { bottom: 12px; right: 18px; } }

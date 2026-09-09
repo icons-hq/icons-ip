@@ -1,0 +1,480 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-09",
+  "purpose": "Replacement small merchandise concept artwork for the AOUAD executive demonstration",
+  "transform": {
+    "library": "sharp",
+    "version": "0.35.3",
+    "operation": "resize inside 1200 by 1200 without enlargement and WebP encoding; no crop or retouch",
+    "maxWidth": 1200,
+    "maxHeight": 1200,
+    "format": "webp",
+    "quality": 90,
+    "effort": 6
+  },
+  "qaStatus": "passed",
+  "assets": [
+    {
+      "assetId": "box-bandage-tin",
+      "batch": "batch1",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-a443523d-25f7-45e1-bf67-6e08d178d208.png",
+      "sourceSha256": "eee4a2b529af1f4d0c3eadc460b27f86670248bb43399b58a15c2f0aab3bcc53",
+      "sourceBytes": 2039972,
+      "sourceDimensions": {
+        "width": 1254,
+        "height": 1254
+      },
+      "finalPath": "private/ip-popups/aouad/box-bandage-tin-v2.webp",
+      "finalSha256": "e1173cda358012cdfaf754fed2ae91db34e272e855abdf8e13d760dcfc719eff",
+      "finalBytes": 172802,
+      "finalDimensions": {
+        "width": 1200,
+        "height": 1200
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "sha256": "eee4a2b529af1f4d0c3eadc460b27f86670248bb43399b58a15c2f0aab3bcc53",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "note": "Direct inspection of the source PNG: coherent physical object, legible principal product markings, consistent warm classroom lighting."
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "e1173cda358012cdfaf754fed2ae91db34e272e855abdf8e13d760dcfc719eff",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-box-batch1.png"
+      }
+    },
+    {
+      "assetId": "box-broadcast-badge",
+      "batch": "batch1",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-b133c8b8-8849-4d24-be87-2540caaddb6d.png",
+      "sourceSha256": "6fa7bd915cfaa7767fef2eb735aba5dcc298ea6dc75f1adf061237f25d006275",
+      "sourceBytes": 1932338,
+      "sourceDimensions": {
+        "width": 1254,
+        "height": 1254
+      },
+      "finalPath": "private/ip-popups/aouad/box-broadcast-badge-v2.webp",
+      "finalSha256": "661ec507574f30c57187b2b5fb8ae0295815675e81d54aef3d75a3164d9d3c47",
+      "finalBytes": 172020,
+      "finalDimensions": {
+        "width": 1200,
+        "height": 1200
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "sha256": "6fa7bd915cfaa7767fef2eb735aba5dcc298ea6dc75f1adf061237f25d006275",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "note": "Direct inspection of the source PNG: coherent physical object, legible principal product markings, consistent warm classroom lighting."
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "661ec507574f30c57187b2b5fb8ae0295815675e81d54aef3d75a3164d9d3c47",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-box-batch1.png"
+      }
+    },
+    {
+      "assetId": "box-cable-tie",
+      "batch": "batch1",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-71692940-5396-43c0-bce1-f60245c5abd1.png",
+      "sourceSha256": "7baa5755e5c34854b7a517773d23019c392ee3e34f8ec91b8ebd352c868451f8",
+      "sourceBytes": 2152000,
+      "sourceDimensions": {
+        "width": 1254,
+        "height": 1254
+      },
+      "finalPath": "private/ip-popups/aouad/box-cable-tie-v2.webp",
+      "finalSha256": "c7a741fa2705d868969443ec3998ed6b0bf7d4d1366fbb4c5ba525996b645413",
+      "finalBytes": 221006,
+      "finalDimensions": {
+        "width": 1200,
+        "height": 1200
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "sha256": "7baa5755e5c34854b7a517773d23019c392ee3e34f8ec91b8ebd352c868451f8",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "note": "Direct inspection of the source PNG: coherent physical object, legible principal product markings, consistent warm classroom lighting."
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "c7a741fa2705d868969443ec3998ed6b0bf7d4d1366fbb4c5ba525996b645413",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-box-batch1.png"
+      }
+    },
+    {
+      "assetId": "box-cassette-case",
+      "batch": "batch1",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-9e396273-121d-4db5-90a4-9b55723a23f7.png",
+      "sourceSha256": "0ca7a4a3166758501249ca763053fce7dd741d598350c04ec83646d3cf1de01d",
+      "sourceBytes": 2216235,
+      "sourceDimensions": {
+        "width": 1254,
+        "height": 1254
+      },
+      "finalPath": "private/ip-popups/aouad/box-cassette-case-v2.webp",
+      "finalSha256": "eddf8eb383dfea9a92500ef0137718b58f4ca02b3b896c51431740644881dde5",
+      "finalBytes": 217920,
+      "finalDimensions": {
+        "width": 1200,
+        "height": 1200
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "sha256": "0ca7a4a3166758501249ca763053fce7dd741d598350c04ec83646d3cf1de01d",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "note": "Direct inspection of the source PNG: coherent physical object, legible principal product markings, consistent warm classroom lighting."
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "eddf8eb383dfea9a92500ef0137718b58f4ca02b3b896c51431740644881dde5",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-box-batch1.png"
+      }
+    },
+    {
+      "assetId": "box-ember-charm",
+      "batch": "batch1",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-6003dbe6-bb1b-47a2-9da4-5692fff35cc1.png",
+      "sourceSha256": "7bd1bb591873ffb915d80969881032276e05a87fd443726c4dbf05bf55ea5991",
+      "sourceBytes": 1909167,
+      "sourceDimensions": {
+        "width": 1254,
+        "height": 1254
+      },
+      "finalPath": "private/ip-popups/aouad/box-ember-charm-v2.webp",
+      "finalSha256": "fbe7549c2cf10c6917885dd180696488ddbdc5dfd723bf7950fcc727d55ea3dd",
+      "finalBytes": 176902,
+      "finalDimensions": {
+        "width": 1200,
+        "height": 1200
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "sha256": "7bd1bb591873ffb915d80969881032276e05a87fd443726c4dbf05bf55ea5991",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "note": "Direct inspection of the source PNG: coherent physical object, legible principal product markings, consistent warm classroom lighting."
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "fbe7549c2cf10c6917885dd180696488ddbdc5dfd723bf7950fcc727d55ea3dd",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-box-batch1.png"
+      }
+    },
+    {
+      "assetId": "box-emergency-light",
+      "batch": "batch1",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-ad29fb4e-ddb7-4de2-9cb9-7ce050a0b626.png",
+      "sourceSha256": "519500900ea613cf8c90cb39b514332241d603ffd2ecd48af98f0644b8a985c0",
+      "sourceBytes": 1737593,
+      "sourceDimensions": {
+        "width": 1254,
+        "height": 1254
+      },
+      "finalPath": "private/ip-popups/aouad/box-emergency-light-v2.webp",
+      "finalSha256": "9b22ca2d274c87cc97d9ced323a17500a9663e22cae34db7c87edd69ea2a04bd",
+      "finalBytes": 124160,
+      "finalDimensions": {
+        "width": 1200,
+        "height": 1200
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "sha256": "519500900ea613cf8c90cb39b514332241d603ffd2ecd48af98f0644b8a985c0",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "note": "Direct inspection of the source PNG: coherent physical object, legible principal product markings, consistent warm classroom lighting."
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "9b22ca2d274c87cc97d9ced323a17500a9663e22cae34db7c87edd69ea2a04bd",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-box-batch1.png"
+      }
+    },
+    {
+      "assetId": "box-flashlight-charm",
+      "batch": "batch1",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-7f3a8f45-3cac-45b4-ad52-7f337e223844.png",
+      "sourceSha256": "19554365de9685d5eaef9ee3245115e3f13ed5a7e555deffe325a94e84b1365b",
+      "sourceBytes": 1811522,
+      "sourceDimensions": {
+        "width": 1254,
+        "height": 1254
+      },
+      "finalPath": "private/ip-popups/aouad/box-flashlight-charm-v2.webp",
+      "finalSha256": "03b167371b1d7bc45e396d2df8c3edf03d6b32986fc8205dae555968b4da0729",
+      "finalBytes": 153772,
+      "finalDimensions": {
+        "width": 1200,
+        "height": 1200
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "sha256": "19554365de9685d5eaef9ee3245115e3f13ed5a7e555deffe325a94e84b1365b",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "note": "Direct inspection of the source PNG: coherent physical object, legible principal product markings, consistent warm classroom lighting."
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "03b167371b1d7bc45e396d2df8c3edf03d6b32986fc8205dae555968b4da0729",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-box-batch1.png"
+      }
+    },
+    {
+      "assetId": "box-glow-charm",
+      "batch": "batch2",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-bfc53231-cd12-4639-98fe-4299bd465cdb.png",
+      "sourceSha256": "df4ea5c1cca1abf386d67ff6cd760df04f2aab6ed358b03eed77bdd6652a6a5c",
+      "sourceBytes": 2067631,
+      "sourceDimensions": {
+        "width": 1254,
+        "height": 1254
+      },
+      "finalPath": "private/ip-popups/aouad/box-glow-charm-v2.webp",
+      "finalSha256": "53e37c34839d7ef8a5c2e3aa00d8435b2d721fe3806f052c074305392ae9ef5d",
+      "finalBytes": 187686,
+      "finalDimensions": {
+        "width": 1200,
+        "height": 1200
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "sha256": "df4ea5c1cca1abf386d67ff6cd760df04f2aab6ed358b03eed77bdd6652a6a5c",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "note": "Direct inspection of the source PNG: coherent physical object, legible principal product markings, consistent warm classroom lighting."
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "53e37c34839d7ef8a5c2e3aa00d8435b2d721fe3806f052c074305392ae9ef5d",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-box-batch2.png"
+      }
+    },
+    {
+      "assetId": "box-freq-dial",
+      "batch": "batch2",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-97933d97-943d-4e5f-8bf1-7f5c671be01c.png",
+      "sourceSha256": "cb539a145f63192a3939753f642f111a34d952eaaaa51a9860febceb1c2d46ba",
+      "sourceBytes": 2001932,
+      "sourceDimensions": {
+        "width": 1254,
+        "height": 1254
+      },
+      "finalPath": "private/ip-popups/aouad/box-freq-dial-v2.webp",
+      "finalSha256": "92d8d897655e704b732047e4720f193f94c44bc4ad8e800a552cb5323043f639",
+      "finalBytes": 190714,
+      "finalDimensions": {
+        "width": 1200,
+        "height": 1200
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "sha256": "cb539a145f63192a3939753f642f111a34d952eaaaa51a9860febceb1c2d46ba",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "note": "Direct inspection of the source PNG: coherent physical object, legible principal product markings, consistent warm classroom lighting."
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "92d8d897655e704b732047e4720f193f94c44bc4ad8e800a552cb5323043f639",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-box-batch2.png"
+      }
+    },
+    {
+      "assetId": "box-mic-mini",
+      "batch": "batch2",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-e10f9f61-a442-48ad-9726-6515c489ed78.png",
+      "sourceSha256": "4d339aef9ad67e819beeefdd5e3fa6202c73fcd42c7aeb0e8d6827b43b41d327",
+      "sourceBytes": 1892032,
+      "sourceDimensions": {
+        "width": 1254,
+        "height": 1254
+      },
+      "finalPath": "private/ip-popups/aouad/box-mic-mini-v2.webp",
+      "finalSha256": "87b039bda22f37d32b4858ca6eb36e5c8ec8f26aeb9bad5703e61c87add17441",
+      "finalBytes": 185796,
+      "finalDimensions": {
+        "width": 1200,
+        "height": 1200
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "sha256": "4d339aef9ad67e819beeefdd5e3fa6202c73fcd42c7aeb0e8d6827b43b41d327",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "note": "Direct inspection of the source PNG: coherent physical object, legible principal product markings, consistent warm classroom lighting."
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "87b039bda22f37d32b4858ca6eb36e5c8ec8f26aeb9bad5703e61c87add17441",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-box-batch2.png"
+      }
+    },
+    {
+      "assetId": "box-mini-candle",
+      "batch": "batch2",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-8039e982-a502-4065-83f5-b08a6ad305a9.png",
+      "sourceSha256": "0d6fa8d8c953a5d8c818abe7ceefc3fb3f43543f81d5cfe7097281503db9de34",
+      "sourceBytes": 1972796,
+      "sourceDimensions": {
+        "width": 1254,
+        "height": 1254
+      },
+      "finalPath": "private/ip-popups/aouad/box-mini-candle-v2.webp",
+      "finalSha256": "944f5b2e39ccf7f4bd04c28eb306b55c3596f8da626a2f4e1ac8fdbbeaaf250d",
+      "finalBytes": 170608,
+      "finalDimensions": {
+        "width": 1200,
+        "height": 1200
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "sha256": "0d6fa8d8c953a5d8c818abe7ceefc3fb3f43543f81d5cfe7097281503db9de34",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "note": "Direct inspection of the source PNG: coherent physical object, legible principal product markings, consistent warm classroom lighting."
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "944f5b2e39ccf7f4bd04c28eb306b55c3596f8da626a2f4e1ac8fdbbeaaf250d",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-box-batch2.png"
+      }
+    },
+    {
+      "assetId": "box-onair-magnet",
+      "batch": "batch2",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-79f528fe-eabe-45c8-a00a-ca31ac59ca19.png",
+      "sourceSha256": "9ad4a85e33bde4027879ba25e0ed989df47de375e38608e3a840dc6275d86262",
+      "sourceBytes": 1890887,
+      "sourceDimensions": {
+        "width": 1254,
+        "height": 1254
+      },
+      "finalPath": "private/ip-popups/aouad/box-onair-magnet-v2.webp",
+      "finalSha256": "9ea86a5bd5cea4600b7c5c322842c4813582612fb2efe2565bdc62bb4656f798",
+      "finalBytes": 154376,
+      "finalDimensions": {
+        "width": 1200,
+        "height": 1200
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "sha256": "9ad4a85e33bde4027879ba25e0ed989df47de375e38608e3a840dc6275d86262",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "note": "Direct inspection of the source PNG: coherent physical object, legible principal product markings, consistent warm classroom lighting."
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "9ea86a5bd5cea4600b7c5c322842c4813582612fb2efe2565bdc62bb4656f798",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-box-batch2.png"
+      }
+    },
+    {
+      "assetId": "box-reflect-strap",
+      "batch": "batch2",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-6a5fc0a6-1c7d-4302-a3f4-f4f2d20adb92.png",
+      "sourceSha256": "f004a7e317bbedab2b5c3d44e1150068cb723bb6463460dcaec305c5c1e3937d",
+      "sourceBytes": 2054304,
+      "sourceDimensions": {
+        "width": 1254,
+        "height": 1254
+      },
+      "finalPath": "private/ip-popups/aouad/box-reflect-strap-v2.webp",
+      "finalSha256": "fe782b747011c4a26a5d4d0140f783b98270629adf09e6348aa8bca10cae0e54",
+      "finalBytes": 203744,
+      "finalDimensions": {
+        "width": 1200,
+        "height": 1200
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "sha256": "f004a7e317bbedab2b5c3d44e1150068cb723bb6463460dcaec305c5c1e3937d",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "note": "Direct inspection of the source PNG: coherent physical object, legible principal product markings, consistent warm classroom lighting."
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "fe782b747011c4a26a5d4d0140f783b98270629adf09e6348aa8bca10cae0e54",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-box-batch2.png"
+      }
+    },
+    {
+      "assetId": "box-sos-magnet",
+      "batch": "batch2",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-b749f20a-4573-479f-911a-b97a977b7f74.png",
+      "sourceSha256": "b5a49fd68fd6bbd1babb2f3f6cfc0f4b79b135f3347fcafe93b25523ecda45d4",
+      "sourceBytes": 1862374,
+      "sourceDimensions": {
+        "width": 1254,
+        "height": 1254
+      },
+      "finalPath": "private/ip-popups/aouad/box-sos-magnet-v2.webp",
+      "finalSha256": "13c6eda094371623b446102f8ee5969a5f2691d288925b43bbe8641050b84052",
+      "finalBytes": 166510,
+      "finalDimensions": {
+        "width": 1200,
+        "height": 1200
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "sha256": "b5a49fd68fd6bbd1babb2f3f6cfc0f4b79b135f3347fcafe93b25523ecda45d4",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "note": "Direct inspection of the source PNG: coherent physical object, legible principal product markings, consistent warm classroom lighting."
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "13c6eda094371623b446102f8ee5969a5f2691d288925b43bbe8641050b84052",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-box-batch2.png"
+      }
+    }
+  ]
+}

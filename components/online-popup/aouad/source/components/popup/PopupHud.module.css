@@ -1,0 +1,490 @@
+/* 프레젠테이션 HUD: 장면 아래 하나의 조용한 제어면.
+   높이는 부모 --hud(136–160px)를 따르고, 학생증·맥락·안내도는 여백과 얇은 선으로 나눈다.
+   안내 14px, 보조 라벨 최소 12px. 모바일에서는 같은 기능을 캡슐·시트로 배치한다. */
+.hud {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 60; height: var(--hud);
+  -webkit-font-smoothing: antialiased;   /* 어두운 판 위 작은 글자 — 획이 뭉치는 것을 막는다 */
+  background: rgba(12, 15, 17, .97); border-top: 1px solid rgba(232,228,218,.2);
+  line-height: var(--lh-dense, 1.35); /* 크기·행간 쌍 — 토큰만 쓰고 행간을 안 주면 본문 1.65 상속(#521 함정) */
+  /* HUD 자체 타이포 단(v5.9 · PM 「HUD 폰트가 너무 작다」) — 무대보다 한 단 크게 읽는다.
+     밴드가 15% 라 통째로 키우면 목록이 밀린다 → **읽는 글자만** 올리고, 지도 부스는 자기 단을 지킨다(아래 안내도 CSS). */
+  --fs-micro: 12px; --fs-caption: 14px; --fs-body: 15px; --dim: #b8b3a9;
+  display: grid; grid-template-columns: 164px minmax(0, 1fr) 308px;
+  gap: 0; padding: 10px 20px;
+}
+.hud > * { min-width: 0; min-height: 0; padding: 0 20px; display: flex; flex-direction: column; gap: 8px;
+  position: relative; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.hud :focus-visible { outline: 2px solid #ffbd8e; outline-offset: 3px; }
+.hud > .mid { border-left: 1px solid rgba(232, 228, 218, .12); border-right: 1px solid rgba(232, 228, 218, .12); }
+
+/* 1 — 나 */
+.hud > .me { display: flex; flex-direction: row; gap: 12px; align-items: center; padding: 0 18px 0 0; }
+.identityLabel { align-self: stretch; display: flex; flex-direction: column; justify-content: center; gap: 5px; min-width: 0;
+  border: 0; padding: 0; color: var(--ink); background: transparent; text-align: left; font: inherit; cursor: pointer; }
+.identityLabel b { font-size: 14px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.identityLabel span { color: var(--dim); font-size: 12px; word-break: keep-all; }
+.identityLabel em { margin-top: 9px; color: var(--fire); font-size: 12px; font-style: normal; white-space: nowrap; }
+.id {
+  display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; gap: 2px 9px;
+  align-items: center; border: 1px solid var(--line); border-radius: 9px; background: #161b26;
+  padding: 8px 10px; cursor: pointer; color: var(--ink); text-align: left; font: inherit;
+}
+.id:hover { border-color: var(--fire); }
+.idPhoto { grid-row: 1 / -1; width: 34px; height: 43px; border-radius: 4px; border: 1px solid var(--line);
+  background: #0a0d13 center / cover no-repeat; }
+.id b { font-size: 14px; align-self: end; }
+/* 나 패널 배지(v6.0) — 새 획득 수. 카드 슬롯 오른쪽 위 · 맥동 1회 */
+.cardSlot { position: relative; }
+.meBadge { position: absolute; top: 4px; right: 4px; z-index: 2; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px;
+  display: grid; place-items: center; font-style: normal; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: #0f131b; background: var(--fire); box-shadow: 0 2px 6px rgba(0, 0, 0, .35); }
+.mePulse { animation: mePulse 1s ease-out; }
+@keyframes mePulse { 0% { box-shadow: 0 0 0 0 rgba(255, 138, 61, .7); } 100% { box-shadow: 0 0 0 14px rgba(255, 138, 61, 0); } }
+.seal { font-style: normal; font-size: 12px; color: var(--dim); align-self: start; }
+.seal.sealOn { color: var(--fire); font-weight: 700; }
+/* 실물 카드 슬롯 — 카드 원본 폭(224px)을 열 높이에 맞춰 축소해 세운다.
+   래퍼 높이 = 축소 후 실높이로 잡아 아래 게이지가 붙는다. */
+.cardSlot { flex: 0 0 58px; height: 100%; min-height: 0; display: flex; align-items: flex-start; justify-content: center;
+  overflow: hidden; cursor: pointer; }
+/* transform 은 레이아웃 크기를 못 줄인다 — 래퍼 높이를 축소 후 실높이로 잡아 아래 게이지가 붙는다 */
+.cardSlot > :first-child { width: 224px; flex: none; transform: scale(var(--cardScale, 0.52)); transform-origin: top center; }
+.cardSlot:hover > * { filter: brightness(1.06); }
+.caps, .scrim { display: none; }
+
+/* 데스크톱 이동 열(v3.0c) — 지도는 HUD 밴드 위로 솟은 우하단 코너 패널(고전 MMO 미니맵 문법).
+   라벨은 패널 좌상단에 얹히고, 2차 칩은 열 바닥에 남는다 */
+.navCol { justify-content: flex-end; padding-left: 18px; padding-right: 0; }
+/* v3.6 — 지도는 밴드 안 고정 상시판 하나뿐(PM 「박힌 섹션 꽉 차게」 — v3.4 호버 확대판 폐지).
+   스트레치 레이아웃이라 판이 섹션 양축을 100% 채운다 */
+.navMap { flex: 1; min-height: 0; display: flex; margin: 0; }
+.navMap > * { width: 100%; height: 100%; }
+
+/* P3 — 카드 소유 도장의 모바일 요약 점 */
+.fbStamps { display: flex; gap: 3px; align-items: center; margin-left: 6px; }
+.fbDot, .fbDotOn { width: 6px; height: 6px; border-radius: 50%; border: 1px solid var(--dim); }
+.fbDotOn { background: var(--fire); border-color: var(--fire); }
+
+.idFallback { display: none; }
+.statsCol { display: flex; flex-direction: column; gap: 4px; }
+.gauge { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--dim); }
+.gauge > i { font-style: normal; flex: none; }
+.gauge b { color: var(--ink); font-size: 14px; }
+.pips { display: flex; gap: 3px; flex: 1; min-width: 0; }
+.pips i { flex: 1; height: 5px; border-radius: 3px; background: var(--line); transition: background .3s; }
+.pips i.on { background: var(--fire); }
+.pipsAlt i.on { background: var(--ink, #e8e4da); } /* 색 예산: 둘째 게이지는 색상이 아니라 잉크 명도로 구분 */
+.statLine { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.stat { display: inline-flex; align-items: baseline; gap: 4px; font-size: 12px; color: var(--dim);
+  transition: transform .2s cubic-bezier(.22,.8,.28,1); }
+.stat i { font-style: normal; }
+.stat b { color: var(--ink); font-size: 14px; font-variant-numeric: tabular-nums; }
+.stat .accent, .accent { color: var(--fire) !important; }
+.stat.bump { transform: translateY(-3px) scale(1.08); }
+
+/* 2 — 내 기록 */
+.mid { }
+.tabs { flex: none; display: flex; align-items: center; gap: 8px; min-height: 26px;
+  min-width: 0; overflow-x: auto; scrollbar-width: none; } /* 중간 폭에서 탭이 퀘스트 열로 새던 것 차단(#614 QA) — 좁으면 레일 스크롤 */
+.tabs::-webkit-scrollbar { display: none; }
+/* v4.5 가변 칩 — 「지금 화면 · 내용」. 자동 상태(고정형이 안 열림)에서 점등. 누르면 가변 복귀 */
+.ctxChip { flex: 1 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid transparent; border-radius: 999px; background: transparent; color: var(--dim);
+  font: inherit; font-size: 13px; font-weight: 650; padding: 2px 0; cursor: default;
+  text-align: left; transition: color .15s, border-color .15s; }
+.ctxChip i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .5; }
+.ctxChip b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctxChip:hover { color: var(--ink); }
+.ctxChip.ctxOn { color: var(--fire); border-color: transparent; background: transparent; }
+.ctxChip.ctxOn i { opacity: 1; }
+/* 상시 알림(v5.7) — 새 것이 있을 때만 선다. 자리를 상시로 차지하지 않는 게 요점이다 */
+.alertBtn { flex: none; margin-left: 8px; display: inline-flex; align-items: center; gap: 6px; min-height: 28px;
+  border: 1px solid rgba(255, 138, 61, .24); border-radius: 999px; background: rgba(255, 138, 61, .07);
+  color: var(--fire); font: inherit; font-size: 12px; font-weight: 800;
+  padding: 2px 8px 2px 6px; cursor: pointer; }
+.alertBtn:hover { background: rgba(255, 138, 61, .2); }
+.alertBtn i { width: 6px; height: 6px; border-radius: 50%; background: var(--fire); animation: alertPulse 2.4s ease-in-out infinite; }
+.alertBtn em { font-style: normal; font-variant-numeric: tabular-nums; }
+@keyframes alertPulse { 0%, 70% { opacity: 1; } 85% { opacity: .35; } 100% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .alertBtn i { animation: none; } }
+
+/* 고정 버튼 묶음 — 레일 우측에 항상 박혀 있다(게임의 인벤토리·퀘스트 키) */
+.reset { flex: none; border: 0; border-radius: 4px; background: transparent; min-width: 28px; min-height: 28px;
+  color: var(--dim); font-size: 18px; padding: 2px 6px; cursor: pointer; font-family: inherit; }
+.list { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin;
+  display: grid; align-content: start; gap: 4px;
+  grid-template-columns: repeat(auto-fill, minmax(228px, 1fr)); }
+
+/* v3.8 개요 블록 — 한 줄 개요 + 페이즈 타임라인(세그먼트 바 문법 · 색 예산 내) */
+.brief { flex: none; display: flex; flex-direction: column; gap: 4px; padding: 2px 4px 5px; }
+.briefTop { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.briefTop b { font-size: 14px; font-weight: 800; white-space: nowrap; }
+.briefTop span { font-size: 12px; color: var(--dim); white-space: nowrap; }
+.briefTop em { margin-left: auto; font-style: normal; font-size: 12px; font-weight: 800;
+  color: var(--fire); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.briefTop .goText { margin-left: 6px; grid-column: auto; grid-row: auto; }
+.brief.door { border-radius: 8px; cursor: pointer; }
+.brief.door:hover { background: rgba(255, 138, 61, .05); }
+.phases { display: flex; gap: 3px; }
+.phase { flex: 1; min-width: 0; font-size: 12px; line-height: 1.2; color: var(--dim);
+  text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.phase i { display: block; height: 3px; border-radius: 2px; background: var(--line); margin-bottom: 3px; }
+.phase.phaseDone i { background: var(--dim); }
+.phase.phaseOn { color: var(--fire); font-weight: 800; }
+.phase.phaseOn i { background: var(--fire); box-shadow: 0 0 6px rgba(255, 138, 61, .5); }
+.briefPhase { display: none; font-style: normal; font-size: 12px; font-weight: 800; color: var(--fire); white-space: nowrap; }
+/* 낮은 밴드(vh<972 → --hud<175px): 타임라인을 접고 현 단계만 한 줄에 — 이벤트 행 1개 자리(39px) 보장 */
+@media (max-height: 971px) {
+  .phases { display: none; }
+  .briefPhase { display: inline; }
+  .brief { padding: 1px 4px 2px; gap: 0; }
+}
+
+/* v4.0 장바구니 — 행 안 수량 조절 + 하단 고정 주문 바(페이지 문법과 공존: 행은 넘기고 바는 고정) */
+.qty { display: inline-flex; align-items: center; gap: 2px; }
+.qty button { border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--dim);
+  font-family: inherit; font-size: 12px; line-height: 1; width: 22px; height: 22px; cursor: pointer; }
+.qty button:hover:not(:disabled) { border-color: var(--fire); color: var(--fire); }
+.qty button:disabled { opacity: .35; cursor: default; }
+.qty b { min-width: 16px; text-align: center; font-size: 14px; font-variant-numeric: tabular-nums; }
+.cartBar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-top: 4px; padding: 5px 6px 2px; border-top: 1px solid var(--line); }
+.cartBar span { font-size: 12px; color: var(--dim); }
+.cartBar span b { color: var(--ink); font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
+/* v4.9 커머스 목록 — 장 넘김 대신 내부 스크롤. 얇은 손잡이만 두고 판은 비운다 */
+.scrollList { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 4px; padding-right: 3px;
+  scrollbar-width: thin; scrollbar-color: rgba(232, 228, 218, .3) transparent; }
+.scrollList::-webkit-scrollbar { width: 6px; }
+.scrollList::-webkit-scrollbar-track { background: transparent; }
+.scrollList::-webkit-scrollbar-thumb { background: rgba(232, 228, 218, .3); border-radius: 999px; }
+.scrollList::-webkit-scrollbar-thumb:hover { background: rgba(232, 228, 218, .5); }
+/* 장바구니 행 — 일반 커머스 문법 한 줄: 썸네일 · 이름 · 수량 · 줄 합계 · 삭제 */
+.cartRow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-items: center;
+  column-gap: 10px; min-width: 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 10px 2px; }
+.cartRow > b { font-size: 14px; font-weight: 700; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cartRow > b.door:hover { color: var(--fire); }
+.lineTotal { font-style: normal; font-size: 14px; font-weight: 800; color: var(--ink);
+  font-variant-numeric: tabular-nums; white-space: nowrap; }
+.del { border: 0; background: transparent; color: var(--dim); font-family: inherit; font-size: 11px;
+  line-height: 1; padding: 3px 2px; cursor: pointer; }
+.del:hover { color: var(--fire); }
+.cartCta { border: 1px solid var(--fire); border-radius: 999px; background: rgba(255, 138, 61, .12); color: var(--fire);
+  font-family: inherit; font-size: 12px; font-weight: 800; padding: 4px 11px; cursor: pointer; }
+.cartCta:hover { background: rgba(255, 138, 61, .22); }
+
+/* v5.0 섹션 소개 — 소개글 한 문단 + 상세로 가는 문 하나. 밴드가 좁으니 문단은 두 줄까지만 보이고 나머지는 접는다 */
+.intro { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: flex-start;
+  gap: 8px; padding: 0; }
+.intro p { margin: 0; flex: 0 1 auto; min-height: 0;   /* 버튼은 글 바로 아래 — 남는 자리를 문단이 먹지 않는다 */
+  /* 어두운 바닥의 밝은 글자는 실제보다 가늘어 보인다 — 굵기를 한 단 올려 광학적으로 400 처럼 읽히게 한다 */
+  font-size: 14px; font-weight: 500; color: var(--ink);
+  line-height: 1.5; word-break: keep-all;
+  /* 소개글은 자르지 않는다(v5.3) — 안 들어가면 줄여 쓰는 게 아니라 스크롤한다(§2-8 과 같은 결) */
+  overflow-y: auto; overscroll-behavior: contain; padding-right: 3px;
+  scrollbar-width: thin; scrollbar-color: rgba(232, 228, 218, .3) transparent; }
+.intro p::-webkit-scrollbar { width: 6px; }
+.intro p::-webkit-scrollbar-track { background: transparent; }
+.intro p::-webkit-scrollbar-thumb { background: rgba(232, 228, 218, .3); border-radius: 999px; }
+.introGo { flex: none; border: 0; border-bottom: 1px solid rgba(255, 138, 61, .55); border-radius: 0; background: transparent;
+  color: var(--fire); font-family: inherit; font-size: 12px; font-weight: 650; min-height: 28px;
+  padding: 3px 0; cursor: pointer; transition: background .15s; }
+.introGo:hover { background: rgba(255, 138, 61, .22); }
+
+/* v3.2 페이지 문법 — 고정 밴드의 목록은 스크롤 대신 장을 넘긴다(잘림·스크롤바 없음, 수량 무제한) */
+.pgView { flex: 1; min-height: 0; overflow: hidden; touch-action: pan-y; }
+.pgTrack { display: flex; height: 100%; transition: transform .28s ease; }
+.pgPage { flex: 0 0 100%; min-width: 0; display: grid; align-content: start; gap: 10px 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); overflow: hidden; }
+.pager { margin-left: auto; flex: none; display: flex; align-items: center; gap: 4px; }
+.pager b { font-size: 12px; font-weight: 800; color: var(--ink);
+  font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+.pager b i { font-style: normal; font-weight: 700; color: var(--dim); }
+.pgBtn { border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--dim);
+  font-family: inherit; font-size: 12px; line-height: 1; padding: 2px 7px; cursor: pointer;
+  transition: border-color .15s, color .15s; }
+.pgBtn:hover:not(:disabled) { border-color: var(--fire); color: var(--fire); }
+.pgBtn:disabled { opacity: .35; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .pgTrack { transition: none; } }
+.row {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center;
+  column-gap: 8px; min-width: 0;
+  border: 0; border-bottom: 1px solid var(--line); border-radius: 0; padding: 8px 4px;
+}
+.row b { grid-column: 2; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row > span { grid-column: 2; font-size: 12px; color: var(--dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .dot, .row .thumb { grid-column: 1; grid-row: 1 / span 2; }
+.row .go { grid-column: 3; grid-row: 1 / span 2; }
+/* 수량 조절도 오른쪽 칸에 붙인다 — 자리를 안 주면 격자 셋째 줄로 밀려 장바구니 행만 65px 이 된다(v4.8 실측) */
+.row .qty { grid-column: 3; grid-row: 1 / span 2; }
+.row.rowOn { border-color: rgba(255,138,61,.4); background: rgba(255,138,61,.04); }
+.dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--line); flex: none; }
+.row.rowOn .dot { background: var(--fire); border-color: var(--fire); }
+.thumb { width: 26px; height: 26px; border-radius: 5px; flex: none;
+  background: #0a0d13 center / cover no-repeat; border: 1px solid var(--line); }
+/* 달성 순간 — 받은 자리에서 번쩍인다(계약 §2-4) */
+.row.flash { animation: hudFlash 1s cubic-bezier(.22,.8,.28,1); }
+@keyframes hudFlash {
+  0% { background: rgba(255,138,61,.4); transform: scale(1.02); }
+  100% { background: rgba(255,138,61,.06); transform: none; }
+}
+.go { flex: none; border: 1px solid var(--line); border-radius: 7px; background: transparent;
+  color: var(--dim); font-size: 12px; font-weight: 700; padding: 4px 9px; cursor: pointer; font-family: inherit; }
+.go:hover { border-color: var(--fire); color: var(--fire); }
+.empty { margin: 0; font-size: 14px; color: var(--dim); }
+.spend { display: flex; flex-direction: column; gap: 6px; min-height: 0; max-height: 100%; }
+.spendTop { display: flex; align-items: baseline; gap: 8px; }
+.spendTop b { font-size: var(--fs-heading, 15px); font-weight: 900; font-variant-numeric: tabular-nums; }
+.spendTop span { font-size: 12px; color: var(--dim); }
+.track { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.track i { display: block; height: 100%; background: var(--fire, #ff8a3d); }
+.tiers { display: flex; gap: 6px; }
+.tier { flex: 1; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; min-width: 0; }
+.tier.tierOn { border-color: rgba(110,200,190,.5); }
+.tier b { display: block; font-size: 14px; }
+.tier em { display: block; font-style: normal; font-size: 12px; color: var(--dim);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 3 — 다음 목표 */
+.segs { flex: none; display: flex; gap: 5px; align-items: center; overflow-x: auto; scrollbar-width: none; }
+.segs::-webkit-scrollbar { display: none; }
+.seg { border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--dim);
+  font: inherit; font-size: 12px; font-weight: 700; padding: 3px 9px; cursor: pointer; white-space: nowrap; }
+.seg.segOn { background: rgba(232,228,218,.08); color: var(--ink); }
+.door { cursor: pointer; }
+.door:hover { border-color: rgba(255,138,61,.55); }
+.goText { font-style: normal; flex: none; margin-left: auto; font-size: 12px;
+  color: var(--fire); font-weight: 700; white-space: nowrap; }
+.row .goText { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+
+.questRowItem { border: 1px solid rgba(232, 228, 218, .12); border-radius: 10px; padding: 12px 14px;
+  background: rgba(232, 228, 218, .025); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.questRowHead { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 5px 10px; min-width: 0; }
+.questRowHead .thumb { grid-column: 1; grid-row: 1 / span 2; width: 32px; height: 36px; }
+.questRowHead b { grid-column: 2; font-size: 14px; font-weight: 650; min-width: 0; line-height: 1.45; word-break: keep-all; }
+.questRowHead span { grid-column: 2; font-size: 12px; color: var(--dim); font-weight: 500; }
+.questRowHead .goText { grid-column: 3; grid-row: 1 / span 2; font-size: 12px; }
+.questRowHead .go { flex: none; margin: 0; padding: 2px 8px; }
+.questRowItem .journey { width: auto; margin: 2px 2px 0; align-self: stretch; }
+
+
+.spendNext { font-style: normal; margin-left: auto; font-size: 12px; color: var(--fire); font-weight: 700; white-space: nowrap; }
+.tierRows { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; min-height: 0; flex: 1; scrollbar-width: thin; }
+.tierRow { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border: 0; border-bottom: 1px solid var(--line);
+  border-radius: 0; min-width: 0; }
+.tierRowOn { border-style: solid; border-color: rgba(255,138,61,.45); opacity: 1; }
+.tierThumb { width: 26px; height: 26px; border-radius: 6px; object-fit: cover; flex: none;
+  border: 1px solid var(--line); background: #0d1016; }
+.tierBody { min-width: 0; display: flex; flex-direction: column; }
+.tierBody b { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tierBody span { font-size: 12px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tierState { font-style: normal; margin-left: auto; flex: none; font-size: 12px; font-weight: 700; color: var(--dim); }
+.tierRowOn .tierState { color: var(--fire); }
+.spendNote { margin: 2px 0 0; font-size: 12px; color: var(--dim); }
+.gridWrap { display: contents; }
+.gridOff { display: none; }
+/* P1 — 여정 세그먼트 바: 채움 + 마일스톤 점 (2026-08-31) */
+.journey { position: relative; height: 8px; margin: 2px 6px 0 0; }
+.journey::before { content: ""; position: absolute; inset: 3px 0; border-radius: 2px; background: rgba(255,255,255,.12); }
+.jFill { position: absolute; top: 3px; bottom: 3px; left: 0; border-radius: 2px; background: var(--fire); }
+.jMark { position: absolute; top: 0; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%;
+  border: 1.5px solid var(--dim); background: #0f131b; box-sizing: border-box; }
+.jMark.jDone { border-color: var(--fire); background: var(--fire); }
+
+/* P2 — 핀 상품 카드: 썸네일 + 이름 + 잔여·자격 한 장 (2026-08-31) */
+
+
+/* 4 — 이동 (한계: 장 ≤8 — 계약 §4) */
+.navCol { }
+.grid { flex: 1; min-height: 0; display: grid; gap: 4px;
+  grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, minmax(0, 1fr)); }
+.navBtn {
+  border: 1px solid var(--line); border-radius: 8px; background: #161b26; color: var(--dim);
+  font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; padding: 0 4px; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  transition: border-color .15s, color .15s;
+}
+.navBtn:hover { border-color: rgba(255,255,255,.3); color: var(--ink); }
+.navBtn.navOn { border-color: var(--fire); color: var(--fire); background: rgba(255,138,61,.1); }
+.navBtn em { font-style: normal; font-size: 12px; font-weight: 800; margin-left: 4px;
+  color: var(--dim); vertical-align: 1px; }
+.navBtn.navOn em { color: var(--fire); }
+.sub { flex: none; display: flex; flex-wrap: wrap; gap: 5px; padding-top: 2px; }
+.subBtn {
+  border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--dim);
+  font: inherit; font-size: 12px; font-weight: 600; min-height: 28px; padding: 3px 7px; cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.subBtn:hover { border-color: rgba(255,255,255,.3); color: var(--ink); }
+.subBtn.subOn { border-color: var(--fire); color: var(--fire); background: rgba(255,138,61,.1); }
+
+/* 좁은 밴드 감산(v4.8) — 15% 밴드가 노트북 세로(≤1040px)에서 132~156px 이 된다.
+   그 구간에서 크롬(여백·구간 사이·주문 바)이 목록 자리를 먹어 행이 잘렸다(실측: 장바구니 목록 19px < 행 39px).
+   글자 크기는 건드리지 않고 여백만 조인다 — 읽는 크기는 유지, 비는 곳만 줄인다.
+   ⚠ 모바일 블록(max-width:640)보다 위에 둔다: 아래에 두면 캡슐 HUD 의 padding:0 을 덮어쓴다. */
+@media (max-height: 1040px) {
+  .hud { padding-top: 8px; padding-bottom: 8px; }
+  .hud > * { gap: 6px; }
+  .seg { padding: 2px 9px; }
+  .row { padding: 3px 8px; }
+  .cartBar { margin-top: 0; padding: 2px 6px 0; }   /* 하단 합계·주문 바는 커머스 표준이라 좁은 밴드에서도 유지(v4.9) — 목록은 스크롤이 흡수한다 */
+  .cartCta { padding: 3px 10px; }
+  /* 글자를 한 단 키운 만큼(v5.9) 장바구니 한 줄에서 되산다 — 썸네일은 자리표지라 줄여도 읽는 데 지장이 없고,
+     행이 36 → 28px 로 낮아져 좁은 밴드에서 오히려 한 줄을 더 보여준다 */
+  .cartRow { padding: 2px 8px; }
+  .cartRow .thumb { width: 22px; height: 22px; }
+}
+
+@media (min-width: 641px) and (max-width: 1040px) {
+  .hud { grid-template-columns: 136px minmax(0, 1fr) 270px; padding-inline: 12px; }
+  .hud > * { padding-inline: 14px; }
+  .hud > .me { padding-right: 12px; gap: 8px; }
+  .cardSlot { flex-basis: 44px; }
+  .identityLabel span { max-width: 70px; white-space: normal; }
+  .navCol { padding-right: 0; }
+}
+
+/* ── 모바일: 캡슐 HUD(v3 프로토) — 풀블리드 무대 + 가장자리 캡슐 + 바텀 시트.
+   데스크톱 3열 DOM 을 재배치: me 소멸(학생증 캡슐이 대체) · mid = 컨텍스트 시트 · navCol = 지도 시트 ── */
+@media (max-width: 640px) {
+  .hud { display: block; position: absolute; inset: 0; height: auto;
+    background: transparent; border-top: none; pointer-events: none; padding: 0; gap: 0; }
+  /* 벤토 프레임 해제 — 모바일에서 세 모듈은 원·시트로 바뀌므로 판 위의 카드가 아니다 */
+  .hud > * { pointer-events: auto; padding: 0; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+  .hud > *::before, .hud > *::after { display: none; }
+  .hud > .me { display: none; }
+  .hud > .mid { border-inline: 0; }
+
+  /* 원형 HUD 층(v4.6 · v4.7 유리 재질) — 하단 중앙 원 3 + 위성 호 + (존 펼침 시) 2차 칩 한 줄.
+     재질 = 뒤를 흐려 비추는 유리 한 겹: 배경 투과(backdrop) + 위에서 내려오는 光沢 + 가장자리 반사 테 + 부드러운 그림자.
+     색은 늘리지 않는다 — 전부 잉크(흰색) 알파와 기존 강조 1(--fire)뿐(계약 §4 색 예산).
+     불투명 바닥(--gTint)은 밝은 무대 위에서도 글자 대비를 지키는 하한이다. */
+  .caps { display: block; position: absolute; inset: 0; pointer-events: none;
+    --gTint: rgba(17, 21, 23, .9);
+    --gBlur: blur(18px) saturate(110%);
+    --gSheen: linear-gradient(180deg, rgba(232, 228, 218, .045), transparent);
+    --gRim: inset 0 1px 0 rgba(232, 228, 218, .12);
+    --gCast: 0 8px 24px rgba(0, 0, 0, .3);
+    --gSpring: cubic-bezier(.34, 1.4, .64, 1); }
+  .caps > * { pointer-events: auto; }
+  /* 이동 팝오버의 바깥 탭 받이 — **투명**(v6.2 · PM 「이동 탭을 눌러도 뒤가 블러 처리되지 않도록」). 어둡히지도 흐리지도 않는다:
+     팝오버 자체가 유리라 뒤가 비치고, 무대는 그대로 보여야 지도와 무대를 같이 읽는다. 역할은 바깥을 누르면 닫히는 것뿐 */
+  .scrim { display: block; position: absolute; inset: 0; background: transparent;
+    border: 0; padding: 0; cursor: pointer; z-index: 64; }
+  .orbs { position: absolute; left: 0; right: 0; bottom: calc(12px + env(safe-area-inset-bottom)); height: 56px;
+    z-index: 66; pointer-events: none; }
+  .orbRow { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); display: flex; gap: 14px; pointer-events: auto; }
+  .orb, .navPop {
+    background-image: var(--gSheen); background-color: var(--gTint);
+    backdrop-filter: var(--gBlur); -webkit-backdrop-filter: var(--gBlur);
+    border: 1px solid rgba(232, 228, 218, .17);
+    box-shadow: var(--gRim), var(--gCast);
+    transition: transform .24s var(--gSpring), border-color .15s, color .15s, background-color .15s; }
+  .orb:active, .navSub .subBtn:active { transform: scale(.93); }  /* 누르면 눌리는 유리 — 손끝에 반응이 붙는다 */
+  .orb { width: 56px; height: 56px; border-radius: 50%; color: var(--ink);
+    display: grid; place-items: center; font-family: inherit; cursor: pointer; padding: 0; position: relative; }
+  .orb b { font-size: 12px; font-weight: 650; line-height: 1.2; max-width: 46px; text-align: center;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .55);
+    overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: keep-all; overflow-wrap: anywhere; }
+  .orb .idPhoto { width: 30px; height: 36px; border-radius: 6px; }
+  .orb em { position: absolute; top: -3px; right: -3px; font-style: normal; min-width: 18px; height: 18px;
+    display: grid; place-items: center; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+    color: #0f131b; background: var(--fire);
+    border-radius: 999px; padding: 0 5px; box-shadow: 0 2px 6px rgba(0, 0, 0, .35); }
+  /* ── 컨텍스트 알약(v5.11 → v5.13 감산) — 화면 제목 한 줄 + 배지. 원 줄 = ● 학생증 · 알약 · ● 이동.
+     알약 폭은 화면에서 양옆 원과 여백을 뺀 나머지(375px 에서 211px). 높이는 원과 같은 56px 이라 무대 여백 조정 없음 ── */
+  .orbRow { gap: 10px; perspective: 700px; }
+  .pill { width: min(211px, calc(100vw - 32px - 20px - 112px)); border-radius: 999px;
+    display: flex; align-items: center; justify-content: center; padding: 0 16px; text-align: center;
+    transform-origin: 50% 50%; backface-visibility: hidden; }
+  .pillNow { min-width: 0; display: flex; align-items: center; line-height: 1.15; }
+  /* 제목 한 줄뿐(v5.12) — 두 줄이던 자리를 한 줄이 쓰므로 한 단 크게(14px). 긴 제목은 말줄임 */
+  .pillL1 { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    word-break: keep-all; animation: labelReveal .2s ease-out; }
+  @keyframes labelReveal { from { opacity: .4; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  /* 이동 시 회전 — 앞면이 사라지는 90° 에서 JS 가 제목을 바꾼다(0.2s 나감 → 0.26s 들어옴). 줄어든 동작 설정에서는 즉시 교체 */
+  .pillOut { animation: pillOut .2s ease-in forwards; }
+  .pillIn { animation: pillIn .26s var(--gSpring) both; }
+  @keyframes pillOut { to { transform: rotateX(-90deg); } }
+  @keyframes pillIn { from { transform: rotateX(90deg); } to { transform: rotateX(0deg); } }
+  /* 열린 원 — 유리 안쪽에 강조색이 번지고 테가 강조로 바뀐다(색 추가 아님) */
+  .orb.orbOn { border-color: rgba(255, 138, 61, .65); color: #ffc398;
+    background-color: rgba(33, 27, 23, .96);
+    box-shadow: var(--gRim), var(--gCast); }
+  .orbPulse { animation: orbPulse 1s ease-out; }
+  @keyframes orbPulse { 0% { box-shadow: var(--gRim), var(--gCast), 0 0 0 0 rgba(255, 138, 61, .7); }
+    100% { box-shadow: var(--gRim), var(--gCast), 0 0 0 22px rgba(255, 138, 61, 0); } }
+  /* 이동 팝오버(v5.14) — 미니맵이 이동 원 바로 위. 원 줄(.orbRow)의 자식이라 right:0 = 이동 원 오른쪽 끝.
+     유리 재질은 원과 같다(떠 있는 표면). 판 안높이 300px 이라 안내도의 큰 판 단(부스 13px · 상태 라벨)이 켜진다 — 손가락으로 누를 만한 부스(≈100×58) */
+  .navPop { position: absolute; right: 0; bottom: calc(100% + 10px);
+    width: min(300px, calc(100vw - 32px)); max-height: calc(100dvh - 110px - env(safe-area-inset-bottom)); overflow-y: auto;
+    padding: 12px; border-radius: 16px; z-index: 66; pointer-events: auto;
+    display: flex; flex-direction: column; gap: 10px;
+    border: 1px solid rgba(232, 228, 218, .17); box-shadow: var(--gRim), var(--gCast);
+    animation: popIn .2s var(--gSpring) both; transform-origin: 85% 100%; }
+  .navPopHead { display: flex; align-items: center; justify-content: space-between; flex: none; gap: 12px; padding-left: 4px; }
+  .navPopHead b { font-size: 13px; color: var(--ink); font-weight: 650; }
+  .navPopHead button { display: grid; place-items: center; width: 36px; height: 36px; border: 0; border-radius: 50%; color: var(--dim); background: rgba(232, 228, 218, .06); font-size: 24px; line-height: 1; }
+  .popMap { width: 100%; height: min(302px, calc(100dvh - 230px)); min-height: 180px; flex: none; }
+  .popMap > * { width: 100%; height: 100%; }
+  /* 2차 화면 칩 줄 = 팝오버 안 지도 아래(v6.1) — 구 .orbSub(팝오버 위 허공 한 줄)는 폐지. 부스를 누르면 이 줄이 그 장의 것으로 바뀐다 */
+  .navSub { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; padding: 0 2px 2px; }
+  .navSub .subBtn { border-radius: 7px; color: var(--ink); min-height: 44px; padding: 0 12px; }
+  .navSub .subOn { border-color: rgba(255, 138, 61, .85); color: var(--fire); background: rgba(255, 138, 61, .1); }
+  @keyframes popIn { from { opacity: 0; scale: .8; } to { opacity: 1; scale: 1; } }
+  /* 유리를 못 쓰는 환경(구형 브라우저·투명도 줄이기 설정)에서는 불투명 판으로 내려앉는다 — 가독이 재질보다 먼저다 */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .orb, .navPop { background-color: rgba(15, 19, 27, .94); }
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .orb, .navPop { background-image: none; background-color: #0f131b;
+      backdrop-filter: none; -webkit-backdrop-filter: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { .navPop { animation: none; } .orbPulse { animation: none; } .pillOut, .pillIn, .pillL1 { animation: none; }
+    .orb, .navSub .subBtn { transition: border-color .15s, color .15s; }
+    .orb:active, .navSub .subBtn:active { transform: none; } }
+
+  /* 바텀 시트 공통 — mid(컨텍스트) · navCol(지도) */
+  .mid, .navCol { position: absolute; left: 0; right: 0; bottom: 0; z-index: 65;
+    background: rgba(15, 19, 21, .98); border-top: 1px solid rgba(232, 228, 218, .2);
+    border-radius: 20px 20px 0 0; padding: 14px 18px calc(14px + env(safe-area-inset-bottom));
+    transform: translateY(105%); transition: transform .25s ease-out;
+    display: flex; flex-direction: column; gap: 8px; }
+  /* 시트 높이 = 유동(v5.15) — 내용만큼, 상한 50dvh(JS 가 px 로 확정해 전환). 하한 = 머리 칩 줄 + 한 행 */
+  .mid { height: auto; max-height: 50dvh; min-height: calc(150px + env(safe-area-inset-bottom)); overflow: hidden;
+    transition: transform .25s ease-out, height .25s ease-out; }
+  .navCol { display: none; }                           /* 지도는 이동 팝오버(.navPop · v5.14)로 나간다 — 열 자체는 모바일에 없다 */
+  .sheetCtx .mid { transform: translateY(0); padding-bottom: calc(84px + env(safe-area-inset-bottom)); } /* 원 3 이 시트 위에 남는다 — 마지막 행이 원 뒤로 숨지 않게 */
+  @media (prefers-reduced-motion: reduce) { .mid, .navCol { transition: none; } }
+
+  /* 시트 내부 — 탭·목록·지도 */
+  .tabs { flex-wrap: nowrap; }
+  /* 시트 머리(v5.19 · PM A안) = 고정 칩 3 + 되돌리기. 가변 칩은 뺀다 — 알약이 같은 제목을 전체로 보이고 있어 375px 에서 「교문 · 럭키…」로 잘린 채 두 번 서던 것.
+     열린 고정 항목에서 지금 화면으로 돌아오는 길 = 그 칩을 다시 누른다(토글) */
+  .ctxChip { display: none; }
+  .list, .pgPage { grid-template-columns: minmax(0, 1fr); }
+  .row .qty { grid-column: 4; grid-row: 1; }
+  .row { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto; padding: 9px 2px; column-gap: 10px; }
+  .row b { grid-row: 1; font-size: 14px; }
+  .row > span { grid-column: 2; grid-row: 2; text-align: left; font-size: 12px; }
+  .row .go { grid-column: 4; grid-row: 1; padding: 3px 7px; }
+  .row .goText { grid-column: 3; grid-row: 1 / span 2; }
+  .thumb, .cartRow .thumb { width: 28px; height: 32px; }
+  .cartRow { padding: 4px 8px; }                         /* 시트는 자리가 넉넉하다 — 밴드에서 되산 여백을 여기서까지 깎지 않는다 */
+  .tierRows { flex: none; min-height: 0; max-height: 40dvh; }
+  .navMap { display: none; } /* 컴팩트(가로형)는 데스크톱 상시판 — 시트는 세로형 판을 쓴다 */
+  .gridOff { display: none; }
+  .grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .navBtn { flex: none; font-size: 14px; padding: 8px 12px; }
+  .sub { width: 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; border-top: none; padding-top: 0; }
+  .sub::-webkit-scrollbar { display: none; }
+  .subBtn { flex: none; padding: 7px 11px; font-size: 12px; }
+  .qty button, .del { min-width: 32px; min-height: 32px; }
+  .questRowHead { grid-template-columns: 32px minmax(0, 1fr); }
+  .questRowHead .goText { grid-column: 2; grid-row: 3; margin-left: 0; justify-self: start; }
+  .questRowHead .thumb { grid-row: 1 / span 3; }
+}
+
+
+/* 장 넘김 버튼 — 글리프(‹ ›) 대신 말(이전·다음) · 무대 문 문법 v1(PM 2026-09-08 「화살표 기호 다 빼」)과 같은 형태 */
+.pgBtn { width: auto; height: auto; min-width: 44px; min-height: 28px; padding: 3px 9px; border-radius: 5px; font-size: 12px; font-weight: 650; line-height: 1.4; }

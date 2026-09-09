@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('next/navigation', () => ({ redirect: mocks.redirect }));
 vi.mock('@/components/screens/IpDirectory', () => ({ IpDirectory: mocks.directory }));
 vi.mock('@/lib/catalog', () => ({ getCatalogSnapshot: () => mocks.catalog }));
+vi.mock('@/lib/aouad-popup.server', () => ({ isAouadLocalPreviewEnabled: () => false }));
 
 const ip = {
   id: 'ip-1',
