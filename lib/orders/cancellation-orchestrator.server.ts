@@ -63,8 +63,14 @@ export type ExpiredPreparedGoodsReconciliation =
   | 'in_progress'
   | 'not_applicable';
 
+export type CancellationReconciliationPreflight = 'allowed' | 'completed' | 'not_allowed';
+
 export interface CancellationReconciliationDependencies {
   loadContext(requestId: string): Promise<CancellationReconciliationContext | null>;
+  preflightReconciliation(input: {
+    requestId: string;
+    actorId: string;
+  }): Promise<CancellationReconciliationPreflight>;
   reconcileExpiredPreparedGoods(input: {
     requestId: string;
     actorId: string;
@@ -104,10 +110,29 @@ const PAYMENT_STATUSES = new Set<CancellationPaymentStatus>([
   'failed',
   'refunded',
 ]);
+const PREFLIGHT_REJECTIONS = new Set([
+  'claim_collections_incomplete',
+  'cancellation_request_not_processing',
+  'claim_on_hold',
+  'order_not_cancelable',
+  'staff required',
+  'cancellation_request_not_found',
+]);
 function createDefaultDependencies(): CancellationReconciliationDependencies {
   const service = createServiceClient();
 
   return {
+    async preflightReconciliation(input) {
+      const { data, error } = await service.rpc('assert_order_cancellation_reconciliation_allowed', {
+        p_request_id: input.requestId,
+        p_actor_id: input.actorId,
+      });
+      if (error && PREFLIGHT_REJECTIONS.has(error.message)) return 'not_allowed';
+      if (error || (data !== 'allowed' && data !== 'completed')) {
+        throw new Error('cancellation preflight unavailable');
+      }
+      return data;
+    },
     async loadContext(requestId) {
       const { data: requestData, error: requestError } = await service
         .from('order_cancellation_requests')
@@ -330,6 +355,18 @@ export async function reconcileOrderCancellation(
   if (context.status !== 'processing' && context.status !== 'needs_review') {
     return { ok: false, code: 'request_not_ready' };
   }
+
+  // Approval can predate the current intake policy, or a claim can be held after
+  // the context read. The DB rechecks the actor, order and collection snapshots
+  // under the shared locks before any provider call or no-capture completion.
+  let preflight: CancellationReconciliationPreflight;
+  try {
+    preflight = await dependencies.preflightReconciliation(input);
+  } catch {
+    return { ok: false, code: 'local_state_unavailable' };
+  }
+  if (preflight === 'completed') return { ok: true, status: 'already_completed' };
+  if (preflight !== 'allowed') return { ok: false, code: 'request_not_ready' };
 
   // A Korpay prepared session has no provider capture to cancel. Its durable
   // action TTL decides when stock can be released, and the service-only RPC

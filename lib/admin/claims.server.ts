@@ -174,6 +174,18 @@ export interface AdminClaimDetailRefund {
   handlerName: string | null;
 }
 
+export interface AdminClaimCollection {
+  shipmentId: string;
+  originId: string;
+  originName: string;
+  returnAddress: string;
+  items: { orderItemId: string; name: string; qty: number }[];
+  collectedAt: string | null;
+  collectedBy: string | null;
+  collectorName: string | null;
+  evidence: string | null;
+}
+
 export interface AdminClaimDetail {
   claim: {
     id: string;
@@ -193,10 +205,17 @@ export interface AdminClaimDetail {
     decidedAt: string | null;
     collectingAt: string | null;
     collectedAt: string | null;
+    collectionPolicy: 'origin' | 'legacy' | null;
+    collectionComplete: boolean;
+    collections: AdminClaimCollection[];
     completedAt: string | null;
     reshipCarrier: string | null;
     reshipTrackingNumber: string | null;
     reshippedAt: string | null;
+    reshipDeliveredAt: string | null;
+    reshipDeliveredBy: string | null;
+    reshipDeliveredByName: string | null;
+    reshipDeliveryEvidence: string | null;
     reshippedItems?: { orderItemId: string; name: string; variantId: string; variantName: string; variantCode: string; qty: number }[];
     lastErrorCode: string | null;
     handlerName: string | null;
@@ -268,10 +287,25 @@ export async function loadAdminClaimDetail(
       decidedAt: text(claim.decidedAt),
       collectingAt: text(claim.collectingAt),
       collectedAt: text(claim.collectedAt),
+      collectionPolicy: claim.collectionPolicy === 'origin' || claim.collectionPolicy === 'legacy' ? claim.collectionPolicy : null,
+      collectionComplete: claim.collectionComplete === true,
+      collections: (Array.isArray(claim.collections) ? claim.collections : []).filter(isRecord).map((collection) => ({
+        shipmentId: String(collection.shipmentId ?? ''), originId: String(collection.originId ?? ''),
+        originName: String(collection.originName ?? ''), returnAddress: String(collection.returnAddress ?? ''),
+        items: (Array.isArray(collection.items) ? collection.items : []).filter(isRecord).map((item) => ({
+          orderItemId: String(item.orderItemId ?? ''), name: String(item.name ?? ''), qty: toNumber(item.qty as number | string),
+        })),
+        collectedAt: text(collection.collectedAt), collectedBy: text(collection.collectedBy),
+        collectorName: text(collection.collectorName), evidence: text(collection.evidence),
+      })),
       completedAt: text(claim.completedAt),
       reshipCarrier: text(claim.reshipCarrier),
       reshipTrackingNumber: text(claim.reshipTrackingNumber),
       reshippedAt: text(claim.reshippedAt),
+      reshipDeliveredAt: text(claim.reshipDeliveredAt),
+      reshipDeliveredBy: text(claim.reshipDeliveredBy),
+      reshipDeliveredByName: text(claim.reshipDeliveredByName),
+      reshipDeliveryEvidence: text(claim.reshipDeliveryEvidence),
       reshippedItems: (Array.isArray(claim.reshippedItems) ? claim.reshippedItems : []).filter(isRecord).map((item) => ({
         orderItemId: String(item.orderItemId ?? ''), name: String(item.name ?? ''), variantId: String(item.variantId ?? ''),
         variantName: String(item.variantName ?? ''), variantCode: String(item.variantCode ?? ''), qty: toNumber(item.qty as number | string),

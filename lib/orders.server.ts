@@ -83,6 +83,7 @@ interface CancellationRequestRow {
   decision_note: string | null;
   reship_carrier: string | null;
   reship_tracking_number: string | null;
+  reship_delivered_at: string | null;
 }
 
 function requireDetailStatus(status: string) {
@@ -195,7 +196,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   if (!orderData) return null;
 
   const status = requireDetailStatus(orderData.status);
-  const [itemsResult, paymentResult, ticketsResult, cancellationRequestResult] = await Promise.all([
+  const [itemsResult, paymentResult, ticketsResult, cancellationRequestResult, eligibilityResult] = await Promise.all([
     supabase
       .from('order_items')
       .select('id,order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot')
@@ -219,12 +220,13 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       .from('order_cancellation_requests')
       .select(
         'id,status,claim_type,stage,reference,requested_at,decided_at,decision_note,'
-        + 'reship_carrier,reship_tracking_number',
+        + 'reship_carrier,reship_tracking_number,reship_delivered_at',
       )
       .eq('order_id', orderId)
       .order('requested_at', { ascending: false })
       .limit(1)
       .maybeSingle<CancellationRequestRow>(),
+    supabase.rpc('order_claim_eligibility', { p_order_id: orderId }),
   ]);
 
   if (itemsResult.error) {
@@ -243,6 +245,12 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   const ticketRows = (ticketsResult.data ?? []) as DrawTicketRow[];
   const paymentRows = (paymentResult.data ?? []) as PaymentRow[];
   const payment = paymentRows[0] ?? null;
+  const eligibility = eligibilityResult.error ? null : eligibilityResult.data;
+  const claimEligibility = eligibility && typeof eligibility === 'object'
+    && typeof eligibility.cancel === 'boolean' && typeof eligibility.return === 'boolean'
+    && typeof eligibility.exchange === 'boolean'
+    ? { cancel: eligibility.cancel, return: eligibility.return, exchange: eligibility.exchange }
+    : null;
   let refund: RefundRow | null = null;
   const cancellationRequestRow = cancellationRequestResult.data;
   let cancellationRequestStatus: OrderCancellationRequestStatus | null = null;
@@ -277,6 +285,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     address: normalizeCheckoutAddress(orderData.address),
     createdAt: orderData.created_at,
     deliveredAt: orderData.delivered_at,
+    claimEligibility,
     paymentMethod: normalizeCheckoutPaymentMethod(orderData.payment_method) ?? 'card',
     expiresAt: orderData.expires_at,
     items: ((itemsResult.data ?? []) as OrderDetailItemRow[]).map((item) => ({
@@ -319,6 +328,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
           decisionNote: cancellationRequestRow.decision_note,
           reshipCarrier: cancellationRequestRow.reship_carrier,
           reshipTrackingNumber: cancellationRequestRow.reship_tracking_number,
+          reshipDeliveredAt: cancellationRequestRow.reship_delivered_at ?? null,
         }
       : null,
     shipments: await loadOrderShipments(supabase, [orderId], await getShippingCarrierRegistry()),

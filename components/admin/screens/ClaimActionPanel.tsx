@@ -19,7 +19,8 @@ import {
   type OrderClaimType,
 } from '@/lib/orders/claims';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
-import type { AdminClaimReshipItem } from '@/lib/admin/claims.server';
+import type { AdminClaimCollection, AdminClaimReshipItem } from '@/lib/admin/claims.server';
+import { ClaimOriginCollection } from './ClaimOriginCollection';
 
 /* 클레임 액션 패널(#252).
  *
@@ -72,6 +73,9 @@ export interface ClaimActionPanelProps {
   refundFiled: boolean;
   refundCompleted: boolean;
   reshipItems?: AdminClaimReshipItem[];
+  collectionPolicy: 'origin' | 'legacy' | null;
+  collectionComplete: boolean;
+  collections: AdminClaimCollection[];
 }
 
 export function ClaimActionPanel({
@@ -86,6 +90,9 @@ export function ClaimActionPanel({
   refundLedgerOpen,
   stage,
   reshipItems = [],
+  collectionPolicy,
+  collectionComplete,
+  collections,
 }: ClaimActionPanelProps) {
   const [decisionState, decisionAction, decisionPending] = useActionState(
     decideOrderClaimAction,
@@ -111,8 +118,12 @@ export function ClaimActionPanel({
   const canHold = next.includes('on_hold');
   const canResume = stage === 'on_hold';
   const canReject = canRejectOrderClaim(stage, heldFrom);
-  const canCollect = claimType !== 'cancel' && stage === 'collecting';
+  const collectionReady = collectionPolicy !== null && collectionComplete;
+  const canRecordOrigin = collectionPolicy === 'origin'
+    && !collectionComplete && ['collecting', 'collected', 'processing', 'needs_review'].includes(stage);
+  const canCollect = collectionPolicy === 'legacy' && claimType !== 'cancel' && stage === 'collecting';
   const canFileRefund = claimType !== 'exchange'
+    && collectionReady
     && (stage === 'collected' || stage === 'processing');
   /* 완료를 적을 수 있는지는 단계가 아니라 원장이 정한다. 레거시 경로로 종결된
      클레임은 stage가 completed여도 refunds.completed_at이 비어 있고, 반대로 원장
@@ -122,6 +133,7 @@ export function ClaimActionPanel({
     || stage === 'needs_review'
     || stage === 'completed';
   const canCompleteRefund = claimType !== 'exchange'
+    && collectionReady
     && refundStageReached
     && refundLedgerOpen
     && !refundCompleted;
@@ -130,7 +142,7 @@ export function ClaimActionPanel({
     && !refundLedgerOpen;
   /* 이미 종결된 클레임에서는 정합화가 더 돌지 않는다. 남은 일은 원장 기록뿐이다. */
   const refundFinalizationPending = stage !== 'completed';
-  const canReship = claimType === 'exchange' && stage === 'collected';
+  const canReship = claimType === 'exchange' && stage === 'collected' && collectionReady;
 
   return (
     <div className="admin-claim-actions">
@@ -138,6 +150,17 @@ export function ClaimActionPanel({
       <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>
         현재 단계: {ORDER_CLAIM_STAGE_LABELS[stage]}
       </p>
+
+      {collectionPolicy === 'origin' ? <section aria-label="출고지별 회수 확인">
+        <h4 style={{ margin: '8px 0' }}>출고지별 회수 확인</h4>
+        <p style={{ fontSize: 13 }}>{collectionComplete
+          ? '모든 출고지의 회수를 확인했습니다.'
+          : '모든 출고지의 상품과 수량을 회수 확인한 뒤 환불·재출고를 진행합니다.'}</p>
+        {collections.length ? collections.map((collection) => <ClaimOriginCollection
+          key={collection.shipmentId} claimId={claimId} claimType={claimType}
+          collection={collection} canRecord={canRecordOrigin} />)
+          : <p className="muted">수거를 승인하면 출고지별 반송 주소와 상품이 표시됩니다.</p>}
+      </section> : collectionPolicy === null ? <p role="alert">회수 확인 기준을 불러오지 못했습니다. 새로고침한 뒤 다시 확인해주세요.</p> : null}
 
       {canReview || canApprove ? (
         <form action={decisionAction}>
@@ -198,7 +221,7 @@ export function ClaimActionPanel({
         </form>
       ) : null}
 
-      {cancellationForm ? (
+      {cancellationForm && collectionReady ? (
         <section aria-labelledby="claim-cancellation-form-heading">
           <h4 id="claim-cancellation-form-heading" style={{ margin: '0 0 6px' }}>
             결제사 취소 접수 양식

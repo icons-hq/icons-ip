@@ -5,11 +5,14 @@ import { redirect } from 'next/navigation';
 import {
   adminClaimBasePath,
   normalizeAdminClaimCollectionForm,
+  normalizeAdminClaimOriginCollectionForm,
+  normalizeAdminClaimEvidenceForm,
   normalizeAdminClaimDecisionForm,
   normalizeAdminClaimRefundForm,
   normalizeAdminClaimReshipmentForm,
 } from '@/lib/admin/claims';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
+import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import { getCurrentAdminAuthState, type AdminRole } from '@/lib/auth/admin';
 import { isOrderClaimType, type OrderClaimType } from '@/lib/orders/claims';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
@@ -24,7 +27,7 @@ import { createClient } from '@/lib/supabase/server';
  * 를 그대로 호출한 뒤 그 결과를 환불 원장에 적을 뿐이다. 두 번째 원장을 만들면
  * "환불은 완료인데 재고는 그대로"인 주문이 생긴다. */
 
-export interface AdminClaimActionState {
+export interface AdminClaimActionState extends AdminFormValuesState {
   error?: string;
   message?: string;
 }
@@ -46,6 +49,16 @@ const DECISION_MESSAGES: Record<string, string> = {
 /** DB가 던지는 message를 운영자 문구로 옮긴다. 원문을 그대로 노출하지 않는다. */
 function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   const value = (message ?? '').toLowerCase();
+  if (value.includes('claim_collections_incomplete')) return '모든 출고지의 회수를 확인한 뒤 환불·재출고를 진행해주세요.';
+  if (value.includes('origin_collection_required')) return '출고지별 회수 확인에서 각 배송 건의 입고를 기록해주세요.';
+  if (value.includes('claim_return_address_required')) return '출고지 설정에 반송 주소를 등록한 뒤 다시 진행해주세요.';
+  if (value.includes('claim_collection_conflict')) return '이미 다른 근거로 회수 확인된 배송 건입니다. 이력을 확인해주세요.';
+  if (value.includes('claim_collection_not_found')) return '이 클레임에 속한 회수 배송 건을 찾을 수 없습니다.';
+  if (value.includes('invalid_collection_evidence')) return '회수 확인 근거를 500자 이내로 입력해주세요.';
+  if (value.includes('invalid_reshipment_delivery_evidence')) return '교환품 배송완료 확인 근거를 500자 이내로 입력해주세요.';
+  if (value.includes('reshipment_delivery_conflict')) return '이미 기록된 배송완료 확인과 다릅니다. 담당자와 근거를 확인해주세요.';
+  if (value.includes('claim_not_reshipped') || value.includes('claim_reshipment_not_dispatched')) return '재출고 운송장이 기록된 교환만 배송완료를 확인할 수 있습니다.';
+  if (value.includes('order_not_cancelable') || value.includes('claim_not_cancelable')) return '발주확인 이후 주문은 취소를 승인할 수 없습니다. 배송·회수 상태와 접수 이력을 확인해주세요.';
   if (value.includes('withdrawal_deadline_expired')) {
     return '청약철회 기한이 지난 요청입니다. 승인 대신 사유를 남겨 거부해주세요.';
   }
@@ -56,7 +69,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
     return '이 주문에는 환불 원장이 없습니다. 결제 내역을 먼저 확인해주세요.';
   }
   if (value.includes('exchange_has_no_refund')) return '교환 클레임에는 환불이 없습니다.';
-  if (value.includes('claim_type_has_no_collection')) return '취소 클레임에는 수거 단계가 없습니다.';
+  if (value.includes('claim_type_has_no_collection')) return '이 클레임에는 회수 확인이 필요하지 않습니다. 최신 처리 이력을 확인해주세요.';
   if (value.includes('claim_type_has_no_reshipment')) return '교환 클레임만 재출고를 기록할 수 있습니다.';
   if (value.includes('claim_not_rejectable')) {
     return '처리에 착수한 클레임은 거부할 수 없습니다. 결제 취소를 마치거나, 사람이 판단할 일이면 보류로 남겨주세요.';
@@ -149,9 +162,52 @@ export async function recordOrderClaimCollectionAction(
   revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
   return {
     message: normalized.value.stage === 'collected'
-      ? '반송 굿즈 입고를 확인했습니다. 환급 SLA 타이머가 시작됩니다.'
+      ? '반송 굿즈 입고를 확인했습니다. 실제 반환받은 날을 기준으로 환급 기한을 확인해주세요.'
       : '수거중으로 표시했습니다.',
   };
+}
+
+export async function recordOrderClaimOriginCollectionAction(
+  previous: AdminClaimActionState,
+  formData: FormData,
+): Promise<AdminClaimActionState> {
+  const fail = (error: string) => withPreservedFormValues({ error }, previous, formData);
+  const access = await requireStaffAction();
+  if (access.error) return fail(access.error.error ?? COLLECTION_FAILED);
+  const normalized = normalizeAdminClaimOriginCollectionForm(formData);
+  if (!normalized.ok) return fail(normalized.error);
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_record_order_claim_origin_collection', {
+    p_claim_id: normalized.value.claimId,
+    p_shipment_id: normalized.value.shipmentId,
+    p_evidence: normalized.value.evidence,
+  });
+  if (error) return fail(rpcErrorMessage(error.message, COLLECTION_FAILED));
+  if (data !== 'collecting' && data !== 'collected') return fail(COLLECTION_FAILED);
+  revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
+  return { message: data === 'collected'
+    ? '모든 출고지의 회수를 확인했습니다. 다음 처리 단계와 환급 기한을 확인해주세요.'
+    : '이 출고지의 회수를 확인했습니다. 남은 출고지를 확인해주세요.' };
+}
+
+export async function recordOrderClaimReshipmentDeliveryAction(
+  previous: AdminClaimActionState,
+  formData: FormData,
+): Promise<AdminClaimActionState> {
+  const failureMessage = '교환품 배송완료를 기록하지 못했습니다. 최신 상태를 확인해주세요.';
+  const fail = (error: string) => withPreservedFormValues({ error }, previous, formData);
+  const access = await requireStaffAction();
+  if (access.error) return fail(access.error.error ?? failureMessage);
+  const normalized = normalizeAdminClaimEvidenceForm(formData);
+  if (!normalized.ok) return fail(normalized.error);
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_record_order_claim_reshipment_delivery', {
+    p_claim_id: normalized.value.claimId, p_evidence: normalized.value.evidence,
+  });
+  if (error) return fail(rpcErrorMessage(error.message, failureMessage));
+  if (data !== 'delivered') return fail(failureMessage);
+  revalidateClaimSurfaces(normalized.value.claimId, 'exchange');
+  return { message: '교환품의 실제 배송완료를 확인했습니다. 이후 신청은 기존 신청 기한과 조건을 따릅니다.' };
 }
 
 interface ManualRecoveryAttemptRow {

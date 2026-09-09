@@ -7,6 +7,7 @@ import {
   adminClaimHref,
   adminClaimOpenCount,
   normalizeAdminClaimCollectionForm,
+  normalizeAdminClaimOriginCollectionForm,
   normalizeAdminClaimDecisionForm,
   normalizeAdminClaimFilters,
   normalizeAdminClaimRefundForm,
@@ -15,6 +16,27 @@ import {
 } from './claims';
 
 const CLAIM_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+describe('출고지별 회수 확인 입력', () => {
+  const shipmentId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  it('정확한 클레임·배송 건과 회수 확인 근거를 받는다', () => {
+    expect(normalizeAdminClaimOriginCollectionForm(formData({ claimId: CLAIM_ID, shipmentId,
+      evidence: '  창고 회신 R-001: 상품 2개 수량 대조 완료  ' }))).toEqual({ ok: true,
+      value: { claimId: CLAIM_ID, shipmentId, evidence: '창고 회신 R-001: 상품 2개 수량 대조 완료' } });
+  });
+  it.each(['', '  ', '가'.repeat(501)])('확인 근거가 비었거나 너무 길면 거절한다', (evidence) => {
+    expect(normalizeAdminClaimOriginCollectionForm(formData({ claimId: CLAIM_ID, shipmentId, evidence })).ok).toBe(false);
+  });
+  it('배송 건 UUID가 없으면 다른 출고지를 추정하지 않는다', () => {
+    expect(normalizeAdminClaimOriginCollectionForm(formData({ claimId: CLAIM_ID, evidence: '입고 확인' })).ok).toBe(false);
+  });
+  it('여러 줄로 적은 근거를 보존하고 표시할 수 없는 제어문자는 거절한다', () => {
+    const evidence = '창고 회신 R-001\n상품 A\t2개 대조 완료';
+    expect(normalizeAdminClaimOriginCollectionForm(formData({ claimId: CLAIM_ID, shipmentId, evidence })))
+      .toEqual({ ok: true, value: { claimId: CLAIM_ID, shipmentId, evidence } });
+    expect(normalizeAdminClaimOriginCollectionForm(formData({ claimId: CLAIM_ID, shipmentId, evidence: `근거${String.fromCharCode(1)}` })).ok).toBe(false);
+  });
+});
 
 function filters(overrides: Partial<AdminClaimFilters> = {}): AdminClaimFilters {
   return {

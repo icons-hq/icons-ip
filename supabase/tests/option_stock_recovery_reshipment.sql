@@ -60,10 +60,24 @@ insert into public.orders(id,user_id,status,total,address,shipped_at,delivered_a
 ('00000000-0000-4000-8000-000000044040','00000000-0000-4000-8000-000000044002','delivered',20000,'{}',now(),now());
 insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot) values
 ('00000000-0000-4000-8000-000000044041','00000000-0000-4000-8000-000000044040','option-stock-test','00000000-0000-4000-8000-000000044010',2,10000,'옵션 재고 테스트','문구','option-stock-test');
-insert into public.order_cancellation_requests(id,order_id,requested_by,reason,claim_type,stage,collected_at) values
-('00000000-0000-4000-8000-000000044042','00000000-0000-4000-8000-000000044040','00000000-0000-4000-8000-000000044002','색상 교환','exchange','collected',now());
+insert into public.fulfillment_origins(id,code,name,base_fee,return_address)
+values ('00000000-0000-4000-8000-000000044050','option-stock-return-test','옵션 검증 창고',0,'합성 옵션 반송 주소');
+insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
+values ('00000000-0000-4000-8000-000000044051','00000000-0000-4000-8000-000000044040','00000000-0000-4000-8000-000000044050','옵션 검증 창고',0,'{}','delivered','hanjin','SALE44000001',now(),now());
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty)
+values ('00000000-0000-4000-8000-000000044040','00000000-0000-4000-8000-000000044051','00000000-0000-4000-8000-000000044041',2);
+insert into public.order_cancellation_requests(id,order_id,requested_by,reason,claim_type,stage) values
+('00000000-0000-4000-8000-000000044042','00000000-0000-4000-8000-000000044040','00000000-0000-4000-8000-000000044002','색상 교환','exchange','requested');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000044001',true);
+select public.admin_decide_order_claim('00000000-0000-4000-8000-000000044042','approve',null);
+-- 승인만으로는 재고를 이동할 수 없다. 실제 출고지의 2개 입고가 선행해야 한다.
+do $$ begin
+ perform public.admin_record_order_claim_reshipment('00000000-0000-4000-8000-000000044042','hanjin','EX44000001',
+  '[{"orderItemId":"00000000-0000-4000-8000-000000044041","variantId":"00000000-0000-4000-8000-000000044011"}]');
+ raise exception 'exchange before collection accepted';
+exception when check_violation then if sqlerrm<>'claim_collections_incomplete' then raise; end if; end $$;
+select public.admin_record_order_claim_origin_collection('00000000-0000-4000-8000-000000044042','00000000-0000-4000-8000-000000044051','파랑 옵션 2개 입고 확인');
 -- An option from a different product cannot be shipped; no partial ledger or
 -- stock change may survive the rejected transaction.
 do $$ declare other_variant uuid; begin
@@ -98,6 +112,9 @@ select 1 / case when public.admin_order_claim_detail('00000000-0000-4000-8000-00
  and public.admin_order_claim_detail('00000000-0000-4000-8000-000000044042')->'order'->'items'
  @> '[{"variantId":"00000000-0000-4000-8000-000000044010","currentVariantId":"00000000-0000-4000-8000-000000044011"}]'
  then 1 else 0 end as assert_staff_detail_preserves_purchased_and_shipped_options;
+-- The later return concerns the replacement units, so actual receipt of those
+-- two red options must be confirmed before another claim can be approved.
+select public.admin_record_order_claim_reshipment_delivery('00000000-0000-4000-8000-000000044042','빨강 교환품 2개 실제 배송완료 근거 대조');
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000044002',true);
 select 1 / case when (select count(*) from public.order_claim_reshipment_items where claim_id='00000000-0000-4000-8000-000000044042')=1 then 1 else 0 end as assert_owner_reads_shipment;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000044099',true);
@@ -108,7 +125,15 @@ select set_config('request.jwt.claim.sub','',true);
 -- A later verified full return restores the most recently shipped red option.
 insert into public.payments(id,user_id,provider,payment_key,purpose,ref_id,amount,status,idempotency_key) values
 ('00000000-0000-4000-8000-000000044043','00000000-0000-4000-8000-000000044002','toss','option-exchange-paid','order','00000000-0000-4000-8000-000000044040',20000,'paid','00000000-0000-4000-8000-000000044044');
-insert into public.order_cancellation_claims(order_id,requested_by,previous_status) values('00000000-0000-4000-8000-000000044040','00000000-0000-4000-8000-000000044002','delivered');
+insert into public.order_cancellation_requests(id,order_id,requested_by,reason,claim_type,stage) values
+('00000000-0000-4000-8000-000000044046','00000000-0000-4000-8000-000000044040','00000000-0000-4000-8000-000000044002','교환 후 전액 반품','return','requested');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000044001',true);
+select public.admin_decide_order_claim('00000000-0000-4000-8000-000000044046','approve',null);
+select public.admin_record_order_claim_origin_collection('00000000-0000-4000-8000-000000044046','00000000-0000-4000-8000-000000044051','마지막 재출고 빨강 옵션 2개 입고 확인');
+select public.admin_record_order_claim_refund('00000000-0000-4000-8000-000000044046','pg_cancel','filed',null);
+reset role;
+select set_config('request.jwt.claim.sub','',true);
 select public.finalize_order_cancellation_with_provider_evidence('00000000-0000-4000-8000-000000044040','교환 후 전액 반품','{option-exchange-paid}');
 select 1 / case when (select stock_qty from public.goods_variants where id='00000000-0000-4000-8000-000000044010')=8
  and (select stock_qty from public.goods_variants where id='00000000-0000-4000-8000-000000044011')=3

@@ -33,6 +33,7 @@ function order(overrides: Partial<OrderDetailData> = {}): OrderDetailData {
     payment: { amount: 30000, status: 'paid', createdAt: '2026-08-01T06:01:00.000Z' },
     refund: null,
     cancellationRequest: null,
+    claimEligibility: { cancel: false, return: false, exchange: false },
     shipments: [shipmentFixture()],
     cardPacks: { issuedCount: 0, availableCount: 0 },
     ...overrides,

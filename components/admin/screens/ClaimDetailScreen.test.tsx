@@ -36,10 +36,17 @@ function detail(overrides: Partial<AdminClaimDetail> = {}): AdminClaimDetail {
       decidedAt: '2026-08-18T02:00:00.000Z',
       collectingAt: '2026-08-18T02:00:00.000Z',
       collectedAt: '2026-08-19T06:00:00.000Z',
+      collectionPolicy: 'legacy',
+      collectionComplete: true,
+      collections: [],
       completedAt: null,
       reshipCarrier: null,
       reshipTrackingNumber: null,
       reshippedAt: null,
+      reshipDeliveredAt: null,
+      reshipDeliveredBy: null,
+      reshipDeliveredByName: null,
+      reshipDeliveryEvidence: null,
       lastErrorCode: null,
       handlerName: 'cs_lead',
     },
@@ -106,6 +113,49 @@ function render(overrides: Partial<AdminClaimDetail> = {}, cancellationForm: str
 }
 
 describe('ClaimDetailScreen', () => {
+  it('교환 재출고 뒤에는 배송완료 근거를 별도로 확인하고 기록한 뒤 잠근다', () => {
+    const exchanged = { ...detail().claim, claimType: 'exchange' as const, stage: 'completed' as const,
+      reshipCarrier: 'hanjin', reshipTrackingNumber: 'QA4530000001', reshippedAt: '2026-09-09T00:00:00Z',
+      reshipDeliveredAt: null, reshipDeliveredBy: null, reshipDeliveredByName: null, reshipDeliveryEvidence: null };
+    expect(render({ claim: exchanged })).toContain('교환품 배송완료 확인</button>');
+    const completed = render({ claim: { ...exchanged, reshipDeliveredAt: '2026-09-09T01:00:00Z',
+      reshipDeliveredBy: 'staff-1', reshipDeliveredByName: '배송담당', reshipDeliveryEvidence: '배송 조회 D-001: 전체 수령 확인' } });
+    expect(completed).toContain('배송 조회 D-001: 전체 수령 확인');
+    expect(completed).toContain('배송담당');
+    expect(completed).not.toContain('교환품 배송완료 확인</button>');
+  });
+  const collections = [
+    { shipmentId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', originId: 'gimpo', originName: '김포',
+      returnAddress: '김포 시험 반송지', items: [{ orderItemId: 'item-1', name: '아크릴 블록', qty: 2 }],
+      collectedAt: '2026-09-08T04:00:00Z', collectedBy: 'staff-1', collectorName: '김담당', evidence: '창고 회신 G-001, 수량 2개 확인' },
+    { shipmentId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', originId: 'seowon', originName: '서원',
+      returnAddress: '서원 시험 반송지', items: [{ orderItemId: 'item-2', name: '키링', qty: 1 }],
+      collectedAt: null, collectedBy: null, collectorName: null, evidence: null },
+  ];
+
+  it('각 출고지의 회수 주소·품목·근거를 보여주고 미회수 건만 확인한다', () => {
+    const html = render({ claim: { ...detail().claim, stage: 'collecting', collectionPolicy: 'origin',
+      collectionComplete: false, collections } });
+    expect(html).toContain('김포 시험 반송지');
+    expect(html).toContain('서원 시험 반송지');
+    expect(html).toContain('창고 회신 G-001, 수량 2개 확인');
+    expect(html).toContain('김담당');
+    expect(html).toContain('서원 회수 확인');
+    expect(html).not.toContain('김포 회수 확인</button>');
+    expect(html).not.toContain('환불 완료 확정');
+    expect(html).not.toContain('반송 상품 입고 확인');
+  });
+
+  it.each(['return', 'exchange', 'cancel'] as const)('회수가 남은 %s는 과거 처리중 상태여도 환불·재출고와 결제사 양식을 열지 않는다', (claimType) => {
+    const html = render({ claim: { ...detail().claim, claimType, stage: 'processing', collectionPolicy: 'origin',
+      collectionComplete: false, collections } }, '[결제 취소 요청]');
+    expect(html).toContain('서원 회수 확인');
+    expect(html).not.toContain('환불 완료 확정');
+    expect(html).not.toContain('환불 접수 완료로 기록');
+    expect(html).not.toContain('교환 재출고로 완료');
+    expect(html).not.toContain('결제사 취소 접수 양식');
+  });
+
   it('승인 전에 봐야 하는 주문 맥락을 한 화면에 모은다', () => {
     const html = render();
 

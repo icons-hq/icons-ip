@@ -141,6 +141,13 @@ values
     '00000000-0000-4000-8000-000000000901', 'paid', 10000, '{}'::jsonb, null, null, null
   );
 
+-- 상태뿐 아니라 실제 주문 품목과 배송 수량을 가진 주문으로 검증한다.
+insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
+select o.id,'order-ladder-goods',1,10000,'사다리 굿즈','문구','order-ladder-ip',
+  (select id from public.goods_variants where good_id='order-ladder-goods' and is_default)
+from public.orders o where o.user_id='00000000-0000-4000-8000-000000000901'
+  and not exists(select 1 from public.order_items i where i.order_id=o.id);
+
 -- #428/#446: manual order fixtures explicitly include their single shipment.
 insert into public.order_shipments(order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,
   status,carrier,tracking_number,shipped_at,delivered_at)
@@ -151,8 +158,8 @@ select o.id,'00000000-0000-4000-8000-000000042201','김포',o.shipping_fee,'{}':
 from public.orders o
 where o.user_id='00000000-0000-4000-8000-000000000901'
   and not exists(select 1 from public.order_shipments s where s.order_id=o.id);
-insert into public.order_shipment_items(order_id,shipment_id,order_item_id)
-select i.order_id,s.id,i.id from public.order_items i
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty)
+select i.order_id,s.id,i.id,i.qty from public.order_items i
 join public.order_shipments s on s.order_id=i.order_id
 join public.orders o on o.id=i.order_id
 where o.user_id='00000000-0000-4000-8000-000000000901'
@@ -489,9 +496,10 @@ select 1 / case when (
 set local role service_role;
 
 select 1 / case when (
-  public.request_order_cancellation(
+  public.request_order_claim(
     '40000000-0000-4000-8000-000000000905',
     '00000000-0000-4000-8000-000000000901',
+    'return',
     '수령 후 파손 확인',
     'defect'
   ) = 'requested'
@@ -552,6 +560,13 @@ values (
 )
 on conflict (id) do nothing;
 
+-- 상태뿐 아니라 실제 주문 품목과 배송 수량을 가진 주문으로 검증한다.
+insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot,variant_id)
+select o.id,'order-ladder-goods',1,10000,'사다리 굿즈','문구','order-ladder-ip',
+  (select id from public.goods_variants where good_id='order-ladder-goods' and is_default)
+from public.orders o where o.user_id='00000000-0000-4000-8000-000000000901'
+  and not exists(select 1 from public.order_items i where i.order_id=o.id);
+
 -- #428/#446: manual order fixtures explicitly include their single shipment.
 insert into public.order_shipments(order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,
   status,carrier,tracking_number,shipped_at,delivered_at)
@@ -562,8 +577,8 @@ select o.id,'00000000-0000-4000-8000-000000042201','김포',o.shipping_fee,'{}':
 from public.orders o
 where o.user_id='00000000-0000-4000-8000-000000000901'
   and not exists(select 1 from public.order_shipments s where s.order_id=o.id);
-insert into public.order_shipment_items(order_id,shipment_id,order_item_id)
-select i.order_id,s.id,i.id from public.order_items i
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty)
+select i.order_id,s.id,i.id,i.qty from public.order_items i
 join public.order_shipments s on s.order_id=i.order_id
 join public.orders o on o.id=i.order_id
 where o.user_id='00000000-0000-4000-8000-000000000901'

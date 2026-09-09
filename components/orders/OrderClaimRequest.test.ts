@@ -1,6 +1,24 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import type { OrderCancellationRequestSummary } from '@/lib/orders';
-import { claimStageNotice, submitOrderClaim } from './OrderClaimRequest';
+import { OrderClaimRequest, claimStageNotice, submitOrderClaim } from './OrderClaimRequest';
+
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => undefined }) }));
+
+describe('실제 전체 배송 완료 후 반품 접수', () => {
+  it.each([
+    ['shipping', { cancel: false, return: false, exchange: false }, false],
+    ['delivered', { cancel: false, return: false, exchange: false }, false],
+    ['delivered', { cancel: false, return: true, exchange: true }, true],
+    ['delivered', null, false],
+  ] as const)('%s 상태와 서버 자격으로 반품 신청 버튼을 표시한다', (status, eligibility, expected) => {
+    const html = renderToStaticMarkup(createElement(OrderClaimRequest, {
+      orderId: '11111111-1111-4111-8111-111111111111', claim: null, status, eligibility,
+    }));
+    expect(html.includes('order-cancellation-open')).toBe(expected);
+  });
+});
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -139,5 +157,11 @@ describe('claimStageNotice', () => {
     expect(claimStageNotice(claim({ claimType: 'exchange', stage: 'completed' })))
       .toContain('재출고했습니다');
     expect(claimStageNotice(claim({ stage: 'completed' }))).toContain('환급 처리가 완료');
+  });
+
+  it('교환 재출고와 실제 배송완료를 구분해 다음 신청 시점을 안내한다', () => {
+    expect(claimStageNotice(claim({ claimType: 'exchange', stage: 'completed' }))).toContain('배송완료 확인');
+    expect(claimStageNotice(claim({ claimType: 'exchange', stage: 'completed', reshipDeliveredAt: '2026-09-09T01:00:00Z' })))
+      .toContain('교환품의 배송완료가 확인됐습니다');
   });
 });

@@ -9,10 +9,10 @@ begin;
 --   · 새 RPC의 실행 권한 봉인과 환불계좌의 service_role 전용 격리
 --   · stage → status 투영 — 레거시 writer가 status만 바꿔도 두 값이 갈라지지 않는다
 --   · 접수 게이트(반품·교환은 delivered 이후 · 기한 · 주문당 1건)
---   · paid 변심 취소의 자동 승인 경계 — confirmed와 하자는 자동 승인되지 않는다
+--   · paid 변심 취소의 자동 승인 경계 — confirmed 접수 차단, paid 하자는 운영 판단
 --   · 반품 절차 수거 → 입고 → 환불 접수, 그 시점에 durable claim이 생긴다
 --   · 환불 완료는 클레임이 completed일 때만 기록된다 (재고 복원 없는 "환불 완료" 금지)
---   · 교환 재출고는 환불도 재고 복원도 카드팩 회수도 하지 않는다
+--   · 교환 재출고는 회수·차감을 함께 처리하고 결제·카드팩을 유지한다
 --   · 보류(on_hold)와 provider 정합화 실패(needs_review)는 서로 다른 값으로 남는다
 -- ============================================================================
 
@@ -43,6 +43,9 @@ select 1 / case when (
   and has_function_privilege('authenticated', 'public.admin_decide_order_claim(uuid,text,text)', 'execute')
   and not has_function_privilege('anon', 'public.admin_record_order_claim_collection(uuid,text)', 'execute')
   and has_function_privilege('authenticated', 'public.admin_record_order_claim_collection(uuid,text)', 'execute')
+  and not has_function_privilege('anon', 'public.admin_record_order_claim_origin_collection(uuid,uuid,text)', 'execute')
+  and has_function_privilege('authenticated', 'public.admin_record_order_claim_origin_collection(uuid,uuid,text)', 'execute')
+  and not has_function_privilege('service_role', 'public.admin_record_order_claim_origin_collection(uuid,uuid,text)', 'execute')
   and not has_function_privilege('anon', 'public.admin_record_order_claim_refund(uuid,text,text,text)', 'execute')
   and has_function_privilege('authenticated', 'public.admin_record_order_claim_refund(uuid,text,text,text)', 'execute')
   and not has_function_privilege('anon', 'public.admin_record_order_claim_reshipment(uuid,text,text)', 'execute')
@@ -132,7 +135,7 @@ values
     '41000000-0000-4000-8000-000000000c01',
     '00000000-0000-4000-8000-000000000c01', 'paid', 10000, '{}'::jsonb, null, null, null
   ),
-  -- B: confirmed — 자동 승인되지 않는다
+  -- B: confirmed — 직접 취소 접수부터 거절한다
   (
     '41000000-0000-4000-8000-000000000c02',
     '00000000-0000-4000-8000-000000000c01', 'confirmed', 10000, '{}'::jsonb, null, null, null
@@ -220,6 +223,10 @@ values
     now() - interval '3 days', now() - interval '1 day'
   );
 
+-- 별도 paid 하자 취소: confirmed 거절을 유지하면서 기존 운영 결정 경로도 검증한다.
+insert into public.orders(id,user_id,status,total,address)
+values ('41000000-0000-4000-8000-000000000c16','00000000-0000-4000-8000-000000000c01','paid',10000,'{}');
+
 insert into public.order_items (
   order_id, good_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id
 )
@@ -241,8 +248,23 @@ where order_record.id in (
   '41000000-0000-4000-8000-000000000c12',
   '41000000-0000-4000-8000-000000000c13',
   '41000000-0000-4000-8000-000000000c14',
-  '41000000-0000-4000-8000-000000000c15'
+  '41000000-0000-4000-8000-000000000c15',
+  '41000000-0000-4000-8000-000000000c16'
 );
+
+-- A 정책: 상태 라벨뿐 아니라 실제 shipment 품목 수량이 전체 도착을 증명해야 한다.
+-- 테스트 전용 출고지는 다른 롤백/경합 fixture의 운영 설정을 잠그지 않는다.
+insert into public.fulfillment_origins(id,code,name,base_fee,return_address)
+values ('00000000-0000-4000-8000-000000000c20','order-claims-test','클레임 검증 창고',0,'합성 반송 주소 c20');
+insert into public.order_shipments(order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at)
+select o.id,'00000000-0000-4000-8000-000000000c20','클레임 검증 창고',0,'{}',
+ case when o.status in ('delivered','done') then 'delivered' when o.status='shipping' then 'shipping' else 'ready' end,
+ case when o.shipped_at is not null then 'hanjin' end,
+ case when o.shipped_at is not null then 'CLAIM'||upper(right(o.id::text,3)) end,o.shipped_at,o.delivered_at
+from public.orders o where o.user_id='00000000-0000-4000-8000-000000000c01';
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty)
+select i.order_id,s.id,i.id,i.qty from public.order_items i join public.order_shipments s on s.order_id=i.order_id
+where s.origin_id='00000000-0000-4000-8000-000000000c20';
 
 insert into public.payments (
   id, user_id, purpose, ref_id, amount, status, payment_key, idempotency_key
@@ -305,7 +327,7 @@ values (
 -- ---------------------------------------------------------------------------
 set local role service_role;
 
--- 반품·교환은 배송이 끝난 뒤에만 받는다. shipping 주문에는 회수할 물건이 없다.
+-- 반품·교환은 배송이 끝난 뒤에만 받는다. shipping 주문은 전체 수령을 증명하지 못한다.
 select 1 / case when (
   public.request_order_claim(
     '41000000-0000-4000-8000-000000000c05',
@@ -381,19 +403,26 @@ select 1 / case when (
   )
 ) then 1 else 0 end as assert_auto_approval_opens_the_refund_ledger;
 
--- 발주확인된 주문은 사람이 판단한다.
+-- 발주확인 뒤에는 직접 취소 접수 자체가 닫힌다.
 select 1 / case when (
   public.request_order_claim(
     '41000000-0000-4000-8000-000000000c02',
     '00000000-0000-4000-8000-000000000c01',
     'cancel', '주문 취소', 'change_of_mind'
-  ) = 'requested'
-) then 1 else 0 end as assert_confirmed_orders_are_not_auto_approved;
+  ) = 'not_cancelable'
+) then 1 else 0 end as assert_confirmed_orders_cannot_request_cancellation;
 
--- 주문당 활성 클레임은 하나다. 수거 중인 반품이 있는데 취소가 또 들어오면 안 된다.
+select 1 / case when not exists (select 1 from public.order_cancellation_requests
+ where order_id='41000000-0000-4000-8000-000000000c02') then 1 else 0 end as assert_confirmed_denial_leaves_no_request;
+
+select 1 / case when public.request_order_claim(
+ '41000000-0000-4000-8000-000000000c16','00000000-0000-4000-8000-000000000c01',
+ 'cancel','출고 전 하자 확인','defect')='requested' then 1 else 0 end as assert_paid_defect_cancel_requires_operator;
+
+-- 주문당 활성 클레임은 하나다. 검토 중인 취소가 있는데 새 요청을 추가하지 않는다.
 select 1 / case when (
   public.request_order_claim(
-    '41000000-0000-4000-8000-000000000c02',
+    '41000000-0000-4000-8000-000000000c16',
     '00000000-0000-4000-8000-000000000c01',
     'cancel', '다시 취소', 'change_of_mind'
   ) = 'already_requested'
@@ -455,12 +484,23 @@ select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000c02', true);
 
 select 1 / case when (
-  public.admin_record_order_claim_collection(
-    (select id from public.order_cancellation_requests
-     where order_id = '41000000-0000-4000-8000-000000000c03'),
-    'collected'
+  public.admin_record_order_claim_origin_collection(
+    (select id from public.order_cancellation_requests where order_id = '41000000-0000-4000-8000-000000000c03'),
+    (select id from public.order_shipments where order_id = '41000000-0000-4000-8000-000000000c03'),
+    '합성 창고의 해당 주문 굿즈 1개 입고 확인'
   ) = 'collected'
 ) then 1 else 0 end as assert_return_records_warehouse_intake;
+
+select 1 / case when exists (
+ select 1 from public.order_claim_collections c
+ join public.order_cancellation_requests r on r.id=c.claim_id
+ where r.order_id='41000000-0000-4000-8000-000000000c03'
+   and c.origin_id='00000000-0000-4000-8000-000000000c20'
+   and c.return_address_snapshot='합성 반송 주소 c20'
+   and c.items_snapshot @> '[{"qty":1}]'
+   and c.collected_at is not null
+   and c.evidence='합성 창고의 해당 주문 굿즈 1개 입고 확인'
+) then 1 else 0 end as assert_return_receipt_preserves_origin_address_and_quantity;
 
 -- SLA 기산점(약관 제16조 "반환받은 날")이 남는다.
 select 1 / case when (
@@ -554,11 +594,11 @@ select public.admin_decide_order_claim(
    where order_id = '41000000-0000-4000-8000-000000000c04'),
   'approve', null
 );
-select public.admin_record_order_claim_collection(
-  (select id from public.order_cancellation_requests
-   where order_id = '41000000-0000-4000-8000-000000000c04'),
-  'collected'
-);
+select public.admin_record_order_claim_origin_collection(
+    (select id from public.order_cancellation_requests where order_id = '41000000-0000-4000-8000-000000000c04'),
+    (select id from public.order_shipments where order_id = '41000000-0000-4000-8000-000000000c04'),
+    '합성 창고의 해당 주문 굿즈 1개 입고 확인'
+  );
 
 -- 교환에는 환불 원장이 없다.
 do $$
@@ -585,7 +625,7 @@ select 1 / case when (
   ) = 'completed'
 ) then 1 else 0 end as assert_exchange_completes_with_a_new_waybill;
 
--- 교환은 재고를 복원하지 않고 카드팩도 회수하지 않는다. 주문은 살아 있다.
+-- 같은 옵션 교환은 회수 복원과 재출고 차감이 상쇄된다. 카드팩·결제·주문은 유지한다.
 reset role;
 
 select 1 / case when (
@@ -605,7 +645,7 @@ select 1 / case when (
     select 1 from public.refunds as refund
     where refund.payment_id = '42000000-0000-4000-8000-000000000c04'
   )
-) then 1 else 0 end as assert_exchange_restores_nothing_and_revokes_nothing;
+) then 1 else 0 end as assert_same_option_exchange_keeps_net_stock_and_card_packs;
 
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
@@ -942,11 +982,11 @@ select public.admin_decide_order_claim(
    where order_id = '41000000-0000-4000-8000-000000000c09'),
   'approve', null
 );
-select public.admin_record_order_claim_collection(
-  (select id from public.order_cancellation_requests
-   where order_id = '41000000-0000-4000-8000-000000000c09'),
-  'collected'
-);
+select public.admin_record_order_claim_origin_collection(
+    (select id from public.order_cancellation_requests where order_id = '41000000-0000-4000-8000-000000000c09'),
+    (select id from public.order_shipments where order_id = '41000000-0000-4000-8000-000000000c09'),
+    '합성 창고의 해당 주문 굿즈 1개 입고 확인'
+  );
 select public.admin_decide_order_claim(
   (select id from public.order_cancellation_requests
    where order_id = '41000000-0000-4000-8000-000000000c10'),
@@ -1039,7 +1079,7 @@ select 1 / case when (
 select 1 / case when (
   select request.stage = 'requested' and request.claim_type = 'cancel'
   from public.order_cancellation_requests as request
-  where request.order_id = '41000000-0000-4000-8000-000000000c02'
+  where request.order_id = '41000000-0000-4000-8000-000000000c16'
 ) then 1 else 0 end as assert_legacy_path_still_owns_requested_cancels;
 
 set local role authenticated;
@@ -1048,7 +1088,7 @@ select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000c02
 
 select public.admin_decide_order_cancellation(
   (select id from public.order_cancellation_requests
-   where order_id = '41000000-0000-4000-8000-000000000c02'),
+   where order_id = '41000000-0000-4000-8000-000000000c16'),
   'approve',
   null
 );
@@ -1058,7 +1098,7 @@ reset role;
 select 1 / case when (
   select request.stage = 'processing' and request.status = 'processing'
   from public.order_cancellation_requests as request
-  where request.order_id = '41000000-0000-4000-8000-000000000c02'
+  where request.order_id = '41000000-0000-4000-8000-000000000c16'
 ) then 1 else 0 end as assert_legacy_approval_still_works_on_requested_cancels;
 
 -- ---------------------------------------------------------------------------
@@ -1356,11 +1396,11 @@ select public.admin_decide_order_claim(
    where order_id = '41000000-0000-4000-8000-000000000c15'),
   'approve', null
 );
-select public.admin_record_order_claim_collection(
-  (select id from public.order_cancellation_requests
-   where order_id = '41000000-0000-4000-8000-000000000c15'),
-  'collected'
-);
+select public.admin_record_order_claim_origin_collection(
+    (select id from public.order_cancellation_requests where order_id = '41000000-0000-4000-8000-000000000c15'),
+    (select id from public.order_shipments where order_id = '41000000-0000-4000-8000-000000000c15'),
+    '합성 창고의 해당 주문 굿즈 1개 입고 확인'
+  );
 select public.admin_record_order_claim_refund(
   (select id from public.order_cancellation_requests
    where order_id = '41000000-0000-4000-8000-000000000c15'),

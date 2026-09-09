@@ -47,14 +47,15 @@ select 1 / case when (
   and not has_function_privilege('service_role', 'public.admin_update_order_tracking(uuid,text,text)', 'execute')
 ) then 1 else 0 end as assert_shipping_rpc_is_authenticated_only;
 
--- 배송 후 청약철회(#176)는 새 상태기계 대신 claim의 원상태 허용값만 넓혔다.
+-- 과거 배송 후 청약철회 원장의 원상태는 이력/재정합을 위해 계속 보존한다.
+-- 이 CHECK가 새 배송 후 cancel 접수 권한을 의미하지는 않는다.
 select 1 / case when exists (
   select 1
   from pg_constraint
   where conname = 'order_cancellation_claims_previous_status_check'
     and pg_get_constraintdef(oid) like '%shipping%'
     and pg_get_constraintdef(oid) like '%done%'
-) then 1 else 0 end as assert_cancellation_claim_allows_post_shipping_status;
+) then 1 else 0 end as assert_historical_cancellation_claim_retains_post_shipping_status;
 
 select 1 / case when (
   not has_table_privilege('anon', 'public.order_cancellation_requests', 'select')
@@ -171,18 +172,21 @@ values
   ('40000000-0000-4000-8000-000000000806', 'admin-order-post-shipping', 1, 10000, '반품 굿즈', '문구', 'admin-order-ip', (select id from public.goods_variants where good_id='admin-order-post-shipping' and is_default)),
   ('40000000-0000-4000-8000-000000000807', 'admin-order-defect', 1, 10000, '하자 굿즈', '문구', 'admin-order-ip', (select id from public.goods_variants where good_id='admin-order-defect' and is_default));
 
+-- Dedicated rollback-only origin with a usable physical return address.
+insert into public.fulfillment_origins(id,code,name,base_fee,return_address)
+values ('00000000-0000-4000-8000-000000000850','admin-console-return-test','콘솔 검증 창고',0,'합성 콘솔 반송 주소');
 -- #428/#446: manual order fixtures explicitly include their single shipment.
 insert into public.order_shipments(order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,
   status,carrier,tracking_number,shipped_at,delivered_at)
-select o.id,'00000000-0000-4000-8000-000000042201','김포',o.shipping_fee,'{}'::jsonb,
+select o.id,'00000000-0000-4000-8000-000000000850','콘솔 검증 창고',o.shipping_fee,'{}'::jsonb,
   case when o.status='shipping' then 'shipping' when o.status in ('delivered','done') then 'delivered'
     when o.status='canceled' then 'canceled' else 'ready' end,
   o.shipping_carrier,o.tracking_number,o.shipped_at,o.delivered_at
 from public.orders o
 where o.user_id='00000000-0000-4000-8000-000000000803'
   and not exists(select 1 from public.order_shipments s where s.order_id=o.id);
-insert into public.order_shipment_items(order_id,shipment_id,order_item_id)
-select i.order_id,s.id,i.id from public.order_items i
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id,qty)
+select i.order_id,s.id,i.id,i.qty from public.order_items i
 join public.order_shipments s on s.order_id=i.order_id
 join public.orders o on o.id=i.order_id
 where o.user_id='00000000-0000-4000-8000-000000000803'
@@ -845,7 +849,7 @@ select 1 / case when (
 ) then 1 else 0 end as assert_unregistered_carrier_cannot_overwrite_the_waybill;
 
 -- ---------------------------------------------------------------------------
--- 배송 후 청약철회(#176)는 staff 승인 경로에서만 열린다.
+-- A 정책: 배송 중 cancel 거절 → 전체 도착 뒤 return → 출고지 회수 → 전액 환급.
 -- ---------------------------------------------------------------------------
 select public.admin_update_order_status(
   '40000000-0000-4000-8000-000000000806', 'confirmed', null, null
@@ -853,76 +857,59 @@ select public.admin_update_order_status(
 select public.admin_update_order_status(
   '40000000-0000-4000-8000-000000000806', 'shipping', 'hanjin', '222233334444'
 );
-
 reset role;
 set local role service_role;
-
--- 승인 전에는 결제 증거가 있어도 배송된 주문을 호환 RPC로 취소할 수 없다.
-do $$
-begin
-  begin
-    perform public.cancel_order_with_provider_evidence(
-      '40000000-0000-4000-8000-000000000806',
-      '운영 수기 정합화',
-      array['admin-post-shipping-key']
-    );
-  exception when raise_exception then
-    if sqlerrm = 'order not cancelable' then return; end if;
-    raise;
-  end;
-  raise exception 'post-shipping cancellation without a staff claim should be rejected';
-end;
-$$;
-
-select public.request_order_cancellation(
-  '40000000-0000-4000-8000-000000000806',
-  '00000000-0000-4000-8000-000000000803',
-  '수령 후 반품 요청',
-  'change_of_mind'
-);
-
+do $$ begin
+ begin
+  perform public.cancel_order_with_provider_evidence('40000000-0000-4000-8000-000000000806','운영 수기 정합화',array['admin-post-shipping-key']);
+  raise exception 'post-shipping cancellation without a collected return accepted';
+ exception when check_violation then if sqlerrm <> 'order_not_cancelable' then raise; end if; end;
+end $$;
+select 1 / case when public.request_order_cancellation(
+ '40000000-0000-4000-8000-000000000806','00000000-0000-4000-8000-000000000803','배송 중 취소','change_of_mind')='not_cancelable'
+ then 1 else 0 end as assert_post_confirmation_direct_cancel_denied;
+reset role;
+select 1 / case when
+ not exists(select 1 from public.order_cancellation_requests where order_id='40000000-0000-4000-8000-000000000806')
+ and (select stock_qty=9 from public.goods where id='admin-order-post-shipping')
+ and (select status='paid' from public.payments where id='50000000-0000-4000-8000-000000000806')
+ then 1 else 0 end as assert_shipping_cancellation_denial_preserves_money_and_stock;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000802',true);
+select public.admin_update_order_status('40000000-0000-4000-8000-000000000806','delivered',null,null);
+reset role;
+set local role service_role;
+select 1 / case when public.request_order_claim(
+ '40000000-0000-4000-8000-000000000806','00000000-0000-4000-8000-000000000803',
+ 'return','전체 수령 후 반품 요청','change_of_mind')='requested' then 1 else 0 end as assert_delivered_return_is_requested;
 reset role;
 set local role authenticated;
-select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000802', true);
-select set_config('request.jwt.claim.role', 'authenticated', true);
-
--- 발주확인 전 변심 취소는 접수 시점에 자동 승인된다(#252). 이미 processing인
--- 요청에 승인을 다시 걸면 거부되므로 아직 requested일 때만 결정한다.
-do $$
-declare
-  request_id uuid;
-begin
-  select id into request_id
-  from public.order_cancellation_requests
-  where order_id = '40000000-0000-4000-8000-000000000806' and status = 'requested';
-
-  if request_id is not null then
-    perform public.admin_decide_order_cancellation(request_id, 'approve', null);
-  end if;
-end;
-$$;
-
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000802',true);
+select public.admin_decide_order_claim(
+ (select id from public.order_cancellation_requests where order_id='40000000-0000-4000-8000-000000000806'),'approve',null);
+do $$ begin
+ perform public.admin_record_order_claim_refund(
+  (select id from public.order_cancellation_requests where order_id='40000000-0000-4000-8000-000000000806'),'pg_cancel','filed',null);
+ raise exception 'return before collection entered refund';
+exception when check_violation then if sqlerrm<>'claim_collections_incomplete' then raise; end if; end $$;
+select public.admin_record_order_claim_origin_collection(
+ (select id from public.order_cancellation_requests where order_id='40000000-0000-4000-8000-000000000806'),
+ (select id from public.order_shipments where order_id='40000000-0000-4000-8000-000000000806'),'콘솔 검증 창고 굿즈 1개 입고 확인');
+select public.admin_record_order_claim_refund(
+ (select id from public.order_cancellation_requests where order_id='40000000-0000-4000-8000-000000000806'),'pg_cancel','filed',null);
 reset role;
 set local role service_role;
-
 select public.complete_order_cancellation_request(
-  (select id from public.order_cancellation_requests where order_id = '40000000-0000-4000-8000-000000000806'),
-  array['admin-post-shipping-key'],
-  '00000000-0000-4000-8000-000000000802'
-);
-
+ (select id from public.order_cancellation_requests where order_id='40000000-0000-4000-8000-000000000806'),
+ array['admin-post-shipping-key'],'00000000-0000-4000-8000-000000000802');
 reset role;
-
-select 1 / case when (
-  (select status from public.orders where id = '40000000-0000-4000-8000-000000000806') = 'canceled'
-  and (select stock_qty from public.goods where id = 'admin-order-post-shipping') = 10
-  and (select status from public.order_cancellation_requests where order_id = '40000000-0000-4000-8000-000000000806') = 'completed'
-  and (select status from public.payments where id = '50000000-0000-4000-8000-000000000806') = 'refunded'
-  and not exists (
-    select 1 from public.order_cancellation_claims
-    where order_id = '40000000-0000-4000-8000-000000000806'
-  )
-) then 1 else 0 end as assert_approved_post_shipping_withdrawal_still_completes;
+select 1 / case when
+ (select status='canceled' from public.orders where id='40000000-0000-4000-8000-000000000806')
+ and (select stock_qty=10 from public.goods where id='admin-order-post-shipping')
+ and (select stage='completed' and claim_type='return' from public.order_cancellation_requests where order_id='40000000-0000-4000-8000-000000000806')
+ and (select status='refunded' from public.payments where id='50000000-0000-4000-8000-000000000806')
+ and not exists(select 1 from public.order_cancellation_claims where order_id='40000000-0000-4000-8000-000000000806')
+ then 1 else 0 end as assert_collected_return_refunds_and_restores_stock;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000802', true);

@@ -362,16 +362,23 @@ export interface OrderClaimAvailability {
 /**
  * 구매자가 지금 접수할 수 있는 클레임 유형.
  *
- * 반품·교환은 `delivered` 이후에만 연다 — 그 전에는 회수할 물건이 고객에게 없다.
- * DB의 `request_order_claim`이 같은 판정을 다시 하므로 여기 값은 안내용이다.
+ * 취소는 발주확인 전, 반품·교환은 실제 모든 주문 수량 배송완료 후에 연다.
+ * DB의 `request_order_claim`이 잠금 안에서 다시 판정하므로 여기 값은 안내용이다.
  */
+/** 소유자/직원 전용 RPC의 발주확인 이력·실제 배송 수량 판정. 접수 시 DB가 다시 검증한다. */
+export interface OrderClaimEligibility {
+  cancel: boolean;
+  return: boolean;
+  exchange: boolean;
+}
+
 export function orderClaimAvailability(input: {
   orderStatus: string;
   hasActiveClaim: boolean;
+  eligibility?: OrderClaimEligibility | null;
 }): OrderClaimAvailability[] {
   const delivered = input.orderStatus === 'delivered' || input.orderStatus === 'done';
-  const cancelable = ['pending', 'paid', 'confirmed', 'shipping', 'delivered', 'done']
-    .includes(input.orderStatus);
+  const cancelable = input.orderStatus === 'pending' || input.orderStatus === 'paid';
 
   return ORDER_CLAIM_TYPES.map((claimType) => {
     if (input.hasActiveClaim) {
@@ -381,24 +388,29 @@ export function orderClaimAvailability(input: {
         blockedReason: '이미 처리 중인 클레임이 있습니다.',
       };
     }
+    if (!input.eligibility) {
+      return { claimType, available: false, blockedReason: '신청 가능 여부를 확인할 수 없습니다. 주문을 새로고침하거나 1:1 문의로 알려주세요.' };
+    }
     if (claimType === 'cancel') {
+      const available = cancelable && input.eligibility.cancel;
       return {
         claimType,
-        available: cancelable,
-        blockedReason: cancelable ? null : '취소할 수 없는 주문입니다.',
+        available,
+        blockedReason: available ? null : '주문 취소는 발주확인 전에만 신청할 수 있습니다.',
       };
     }
+    const available = delivered && input.eligibility[claimType];
     return {
       claimType,
-      available: delivered,
-      blockedReason: delivered ? null : '배송이 완료된 뒤에 신청할 수 있습니다.',
+      available,
+      blockedReason: available ? null : '주문의 모든 굿즈가 배송 완료된 뒤에 신청할 수 있습니다.',
     };
   });
 }
 
 /** 유형별 접수 안내. 부분 환불을 약속하지 않는 문구를 한 곳에 모아 둔다. */
 export const ORDER_CLAIM_INTAKE_NOTICES: Record<OrderClaimType, string> = {
-  cancel: '취소는 주문 단위로 처리됩니다. 승인되면 그 주문의 결제금액 전액이 취소되고, 지급된 카드팩 중 개봉하지 않은 것은 회수됩니다.',
-  return: '반품은 주문 단위로 처리됩니다. 한 주문의 굿즈 중 일부만 반품하고 나머지 대금을 그대로 두는 처리는 제공하지 않습니다. 반송된 굿즈가 입고 확인되면 영업일 기준 3일 이내에 환급합니다.',
-  exchange: '교환은 굿즈를 회수한 뒤 같은 굿즈를 다시 보내드립니다. 환불이 아니므로 결제는 유지되고 카드팩도 회수하지 않습니다.',
+  cancel: '취소는 발주확인 전에만 직접 신청할 수 있으며 주문 단위로 처리됩니다. 승인되면 최초 배송비를 포함한 결제금액 전액이 취소되고, 지급된 카드팩 중 개봉하지 않은 것은 회수됩니다.',
+  return: '주문의 모든 굿즈가 배송 완료된 뒤에 주문 전체 반품을 직접 신청할 수 있습니다. 일부 굿즈만 반품하는 처리는 제공하지 않습니다. 안내된 출고지별 반송지에서 모든 굿즈의 회수를 확인한 뒤 최초 배송비를 포함한 결제금액 전액을 환급합니다. 환급 기한은 반환받은 날부터 영업일 기준 3일 이내이며 담당자의 확인이 늦어져도 연장되지 않습니다.',
+  exchange: '주문의 모든 굿즈가 배송 완료된 뒤에 직접 신청할 수 있습니다. 안내된 출고지별 반송지에서 모든 굿즈의 회수를 확인한 뒤 같은 굿즈를 다시 보내드립니다. 결제는 유지되고 카드팩도 회수하지 않습니다.',
 };

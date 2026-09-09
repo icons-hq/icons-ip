@@ -223,6 +223,7 @@ jobs:
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_shipment_email_jobs.sql
           PSQL_BIN=psql PGHOST=127.0.0.1 PGPORT=54322 PGUSER=postgres PGPASSWORD=postgres PGDATABASE=postgres bash supabase/tests/option_stock_recovery_concurrency.sh
           bash supabase/tests/order_shipments_concurrency.sh
+          PSQL_BIN=psql PGHOST=127.0.0.1 PGPORT=54322 PGUSER=postgres PGPASSWORD=postgres PGDATABASE=postgres bash supabase/tests/order_claim_origin_concurrency.sh
           bash supabase/tests/order_shipment_email_jobs_concurrency.sh
           bash supabase/tests/goods_publish_concurrency.sh
           bash supabase/tests/cart_order_variants_concurrency.sh
@@ -236,6 +237,8 @@ jobs:
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/admin-ops-sql/tests/goods_variants_seed.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/admin-ops-sql/tests/ip_directory_seed.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_claims.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_claim_origin_policy.sql
+          docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_claim_reshipment_delivery.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_reviews.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/bank_transfer_payments.sql
           docker exec -i supabase_db_icons-ip psql -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_sale_restriction.sql

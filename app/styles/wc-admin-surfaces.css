@@ -922,6 +922,14 @@
 .wc-admin [data-sla-tone="danger"] { color: var(--wc-danger); font-weight: 700; }
 .wc-admin [data-sla-tone="settled"] { color: var(--wc-ink-tertiary); }
 .wc-admin .admin-claim-detail-layout { display: grid; min-width: 0; grid-template-columns: minmax(0, 1.3fr) minmax(300px, 1fr); gap: 16px; align-items: start; margin-top: 16px; }
+.wc-admin .admin-claim-detail-column { display: grid; min-width: 0; gap: 16px; }
+.wc-admin .admin-claim-detail-column > .card { min-width: 0; padding: 18px; }
+.wc-admin .admin-claim-summary-row { align-items: baseline; margin: 6px 0; }
+.wc-admin .admin-claim-summary-row > :first-child { flex-shrink: 0; }
+.wc-admin .admin-claim-summary-row > :last-child { min-width: 0; text-align: right; overflow-wrap: anywhere; }
+.wc-admin .admin-claim-origin-collection { margin-top: 12px; padding: 14px; min-width: 0; }
+.wc-admin .admin-claim-origin-collection form, .wc-admin .admin-claim-reship-delivery form { display: grid; gap: 8px; }
+.wc-admin .admin-claim-reship-delivery textarea { width: 100%; min-height: 88px; resize: vertical; }
 .wc-admin .admin-claim-actions { display: grid; gap: 14px; }
 .wc-admin .admin-claim-actions > form { display: grid; gap: 8px; padding-top: 12px; border-top: 1px solid var(--wc-line-control); }
 .wc-admin .admin-claim-actions > form:first-of-type { border-top: 0; padding-top: 0; }
@@ -929,6 +937,18 @@
 .wc-admin .admin-claim-actions textarea { resize: vertical; }
 @media (max-width: 900px) {
   .wc-admin .admin-claim-detail-layout { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 720px) {
+  .wc-admin .admin-claim-detail { min-width: 0; overflow-wrap: anywhere; }
+  .wc-admin .admin-claim-detail > .row { flex-direction: column; align-items: flex-start; }
+  .wc-admin .admin-claim-detail > .row > * { min-width: 0; max-width: 100%; }
+  .wc-admin .admin-claim-detail-column > .card { padding: 12px; }
+  .wc-admin .admin-claim-summary-row { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .wc-admin .admin-claim-summary-row > :last-child { text-align: left; }
+  .wc-admin .admin-claim-detail .admin-order-detail__facts > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .wc-admin .admin-claim-detail .admin-order-detail__facts dd { min-width: 0; overflow-wrap: anywhere; }
+  .wc-admin .admin-claim-detail .admin-claim-origin-collection { padding: 10px; }
+  .wc-admin .admin-claim-detail .btn { max-width: 100%; height: auto; min-height: 44px; padding-block: 8px; white-space: normal; text-align: center; }
 }
 .wc-admin .admin-inquiry-layout { display: grid; min-width: 0; grid-template-columns: minmax(0, 1.6fr) minmax(260px, .9fr); gap: 16px; align-items: start; }
 .wc-admin .admin-inquiry-thread > li[data-author="staff"] { border-inline-start: 3px solid var(--wc-info); }

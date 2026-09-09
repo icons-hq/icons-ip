@@ -341,3 +341,27 @@ export function normalizeAdminClaimCollectionForm(
 
   return { ok: true, value: { claimId, stage } };
 }
+
+export function normalizeAdminClaimEvidenceForm(
+  formData: FormData,
+): AdminClaimFormResult<{ claimId: string; evidence: string }> {
+  const claimId = readString(formData, 'claimId').toLowerCase();
+  const evidence = readString(formData, 'evidence');
+  if (!UUID_PATTERN.test(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
+  if (!evidence || evidence.length > 500) return { ok: false, error: '확인 근거를 500자 이내로 입력해주세요.' };
+  if (Array.from(evidence).some((character) => {
+    const code = character.charCodeAt(0);
+    return (code < 32 && ![9, 10, 13].includes(code)) || code === 127;
+  })) return { ok: false, error: '확인 근거에 표시할 수 없는 문자가 있습니다. 내용을 확인해주세요.' };
+  return { ok: true, value: { claimId, evidence } };
+}
+
+export function normalizeAdminClaimOriginCollectionForm(
+  formData: FormData,
+): AdminClaimFormResult<{ claimId: string; shipmentId: string; evidence: string }> {
+  const normalized = normalizeAdminClaimEvidenceForm(formData);
+  if (!normalized.ok) return normalized;
+  const shipmentId = readString(formData, 'shipmentId').toLowerCase();
+  if (!UUID_PATTERN.test(shipmentId)) return { ok: false, error: '회수 확인할 배송 건을 선택해주세요.' };
+  return { ok: true, value: { ...normalized.value, shipmentId } };
+}

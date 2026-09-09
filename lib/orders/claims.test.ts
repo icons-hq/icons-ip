@@ -220,14 +220,48 @@ describe('코페이 취소 접수 양식', () => {
 });
 
 describe('구매자 접수 가능 여부', () => {
+  it('집계 상태만 배송완료여도 실제 배송 수량이 부족하면 반품을 열지 않는다', () => {
+    const availability = orderClaimAvailability({
+      orderStatus: 'delivered', hasActiveClaim: false,
+      eligibility: { cancel: false, return: false, exchange: false },
+    });
+    expect(availability.find((entry) => entry.claimType === 'return')?.available).toBe(false);
+  });
+
+  it('발주확인 이력이 있는 결제완료 주문도 서버가 취소를 금지하면 닫는다', () => {
+    const availability = orderClaimAvailability({
+      orderStatus: 'paid', hasActiveClaim: false,
+      eligibility: { cancel: false, return: false, exchange: false },
+    });
+    expect(availability.find((entry) => entry.claimType === 'cancel')?.available).toBe(false);
+  });
+
+  it('서버 자격 조회가 없으면 접수 가능 상태를 추정하지 않는다', () => {
+    expect(orderClaimAvailability({ orderStatus: 'paid', hasActiveClaim: false, eligibility: null })
+      .every((entry) => !entry.available)).toBe(true);
+  });
+
   it('반품·교환은 배송 완료 이후에만 열린다', () => {
-    const shipping = orderClaimAvailability({ orderStatus: 'shipping', hasActiveClaim: false });
+    const shipping = orderClaimAvailability({ orderStatus: 'shipping', hasActiveClaim: false,
+      eligibility: { cancel: false, return: false, exchange: false } });
     expect(shipping.find((entry) => entry.claimType === 'return')?.available).toBe(false);
     expect(shipping.find((entry) => entry.claimType === 'exchange')?.available).toBe(false);
-    expect(shipping.find((entry) => entry.claimType === 'cancel')?.available).toBe(true);
+    expect(shipping.find((entry) => entry.claimType === 'cancel')?.available).toBe(false);
 
-    const delivered = orderClaimAvailability({ orderStatus: 'delivered', hasActiveClaim: false });
-    expect(delivered.every((entry) => entry.available)).toBe(true);
+    const delivered = orderClaimAvailability({ orderStatus: 'delivered', hasActiveClaim: false,
+      eligibility: { cancel: false, return: true, exchange: true } });
+    expect(delivered.filter((entry) => entry.claimType !== 'cancel').every((entry) => entry.available)).toBe(true);
+    expect(delivered.find((entry) => entry.claimType === 'cancel')?.available).toBe(false);
+  });
+
+  it.each([
+    ['pending', true], ['paid', true], ['confirmed', false], ['shipping', false],
+    ['delivered', false], ['done', false], ['canceled', false],
+  ] as const)('취소 접수는 발주확인 전 주문만 허용한다: %s', (orderStatus, expected) => {
+    const cancel = orderClaimAvailability({ orderStatus, hasActiveClaim: false,
+      eligibility: { cancel: true, return: true, exchange: true } })
+      .find((entry) => entry.claimType === 'cancel');
+    expect(cancel?.available).toBe(expected);
   });
 
   /* 주문당 활성 클레임은 하나다. 버튼을 감추지 않고 이유를 적는다. */

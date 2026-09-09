@@ -36,6 +36,8 @@ interface QueryRecord {
 }
 
 interface ClientOptions {
+  claimEligibility?: unknown;
+  eligibilityError?: boolean;
   errors?: Partial<Record<string, string>>;
   records: QueryRecord[];
   rows: Record<string, Row[]>;
@@ -107,6 +109,10 @@ function createQuery(table: string, options: ClientOptions) {
 
 function createClient(options: ClientOptions) {
   return {
+    rpc: vi.fn().mockResolvedValue({
+      data: options.claimEligibility ?? null,
+      error: options.eligibilityError ? { message: 'unavailable' } : null,
+    }),
     from(table: string) {
       return createQuery(table, options);
     },
@@ -206,6 +212,20 @@ describe('loadOrders', () => {
 });
 
 describe('loadOrderDetail', () => {
+  it.each([
+    [{ cancel: true, return: false, exchange: false }, false, { cancel: true, return: false, exchange: false }],
+    [{ cancel: false, return: true, exchange: true }, false, { cancel: false, return: true, exchange: true }],
+    [null, false, null],
+    [{ cancel: 'true', return: true }, false, null],
+    [{ cancel: true, return: true, exchange: true }, true, null],
+  ])('DB 접수 자격을 투영하고 누락·잘못된 응답·조회 오류는 닫는다', async (claimEligibility, eligibilityError, expected) => {
+    mocks.client = createClient({ records: [], claimEligibility, eligibilityError: Boolean(eligibilityError), rows: {
+      orders: [{ id: orderId, user_id: userId, status: 'paid', total: 14000, created_at: '2026-09-01T00:00:00Z',
+        address: null, delivered_at: null, payment_method: 'card', expires_at: null }],
+    } });
+    expect((await loadOrderDetail(userId, orderId))?.claimEligibility).toEqual(expected);
+  });
+
   it('loads a safe receipt and counts legacy, revoked, and opened card packs', async () => {
     const records: QueryRecord[] = [];
     mocks.client = createClient({
@@ -360,7 +380,7 @@ describe('loadOrderDetail', () => {
     });
     expect(records.find((record) => record.table === 'order_cancellation_requests')).toMatchObject({
       select: 'id,status,claim_type,stage,reference,requested_at,decided_at,decision_note,'
-        + 'reship_carrier,reship_tracking_number',
+        + 'reship_carrier,reship_tracking_number,reship_delivered_at',
       eq: [['order_id', orderId]],
       order: [['requested_at', { ascending: false }]],
       limit: 1,
