@@ -78,23 +78,26 @@ describe('AdminSidebar 2단 메뉴', () => {
     expect(html).not.toContain('이벤트·티켓');
   });
 
-  it('그룹을 접으면 머리만 남고 화면 목록은 DOM 에서 빠진다', () => {
-    mocks.store = { 'admin:nav:collapsed-groups': '["sales"]' };
+  /* 처음엔 전부 접혀 있고, 보고 있는 그룹만 펼쳐 준다(PM 2026-09-09). 접힌 그룹의 화면은
+   * 그려 두되 숨긴다 — 900px 아래 상단 띠에서는 접힘과 무관하게 전부 보여야 한다. */
+  it('저장값이 없으면 보고 있는 그룹만 펼쳐지고 나머지는 접힌다', () => {
+    mocks.pathname = '/admin/sales/orders';
     const html = render();
 
-    expect(html).toContain('주문');
-    expect(html).not.toContain('href="/admin/sales/orders"');
+    expect(html).toContain('href="/admin/sales/orders"');
+    expect(html).toContain('주문 접기');
+    expect(html).toContain('상품 펼치기');
     expect(html).toContain('aria-expanded="false"');
   });
 
-  it('지금 보고 있는 그룹은 접는 단추를 주지 않는다', () => {
+  it('모든 그룹이 접는 단추를 가진다 — 보고 있는 그룹도', () => {
     mocks.pathname = '/admin/sales/orders';
-    mocks.store = { 'admin:nav:collapsed-groups': '["sales"]' };
+    mocks.store = { 'admin:nav:groups': '{"expanded":[],"collapsed":["sales"]}' };
     const html = render();
 
-    /* 접기 표시가 저장돼 있어도 현재 그룹은 펼쳐진 채로, 단추 없이 라벨만 그린다. */
-    expect(html).toContain('href="/admin/sales/orders"');
-    expect(html).not.toContain('주문 접기');
+    expect(html).toContain('주문 펼치기');
+    expect(html).toContain('data-collapsed="true"');
+    expect(html).not.toContain('<p class="admin-nav-group-label">');
   });
 
   it('현재 화면만 aria-current를 단다', () => {

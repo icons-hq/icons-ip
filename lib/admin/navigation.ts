@@ -256,7 +256,7 @@ export function visibleAdminNavGroups(role: string): AdminNavGroup[] {
 
 /** 사이드바 보기 상태를 담는 브라우저 저장소 키. 운영자 개인 취향이라 계정에 저장하지 않는다. */
 export const ADMIN_NAV_TIER_KEY = 'admin:nav:tier';
-export const ADMIN_NAV_COLLAPSED_KEY = 'admin:nav:collapsed-groups';
+export const ADMIN_NAV_GROUPS_KEY = 'admin:nav:groups';
 
 /**
  * 「전체 메뉴」인지. 저장된 값이 없으면 **기본 메뉴**로 시작한다 — 처음 여는 사람에게
@@ -287,36 +287,64 @@ export function adminNavGroupsForView(
   );
 }
 
-/** 접어 둔 그룹 id. 형식이 깨졌으면 빈 목록 — 메뉴가 안 열리는 것보다 낫다. */
-export function parseCollapsedNavGroups(raw: string): string[] {
-  if (!raw) return [];
+/**
+ * 그룹 접기 상태. **처음엔 전부 접혀 있고, 지금 보고 있는 화면이 든 그룹만 펼쳐 준다**(PM 2026-09-09
+ * 「기본값은 모두 접힌 상태」). 운영자가 손댄 그룹은 그 선택이 기본값을 이긴다 — 보고 있는 그룹도
+ * 접을 수 있다(접는 단추를 안 주면 「왜 여기만 안 접혀」가 된다).
+ */
+export interface AdminNavGroupState {
+  /** 운영자가 펼쳐 둔 그룹 */
+  expanded: string[];
+  /** 운영자가 접어 둔 그룹 — 보고 있는 그룹을 접었을 때 여기 남는다 */
+  collapsed: string[];
+}
+
+const EMPTY_NAV_GROUP_STATE: AdminNavGroupState = { expanded: [], collapsed: [] };
+
+function navGroupIdList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((id): id is string => typeof id === 'string' && id.length > 0))];
+}
+
+/** 저장값이 깨졌으면 기본값 — 메뉴가 안 열리는 것보다 낫다. */
+export function parseNavGroupState(raw: string): AdminNavGroupState {
+  if (!raw) return EMPTY_NAV_GROUP_STATE;
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return [...new Set(parsed.filter((id): id is string => typeof id === 'string' && id.length > 0))];
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return EMPTY_NAV_GROUP_STATE;
+    const record = parsed as Record<string, unknown>;
+    return { expanded: navGroupIdList(record.expanded), collapsed: navGroupIdList(record.collapsed) };
   } catch {
-    return [];
+    return EMPTY_NAV_GROUP_STATE;
   }
 }
 
-export function serializeCollapsedNavGroups(ids: readonly string[]): string {
-  return JSON.stringify([...new Set(ids)]);
+export function serializeNavGroupState(state: AdminNavGroupState): string {
+  return JSON.stringify({
+    expanded: [...new Set(state.expanded)],
+    collapsed: [...new Set(state.collapsed)],
+  });
 }
 
-/** 그룹 하나를 접거나 편다. */
-export function toggleCollapsedNavGroup(ids: readonly string[], groupId: string): string[] {
-  return ids.includes(groupId) ? ids.filter((id) => id !== groupId) : [...ids, groupId];
-}
-
-/**
- * 그룹을 접어 둘 수 있는지. **지금 보고 있는 화면이 든 그룹은 접지 않는다** — 접으면
- * 현재 위치 표시가 사라지고, 다시 펴기 전까지 내가 어디 있는지 알 수 없다.
- */
 export function isNavGroupCollapsed(
-  collapsedIds: readonly string[],
+  state: AdminNavGroupState,
   groupId: string,
   activeGroupId: string | null,
 ): boolean {
-  if (groupId === activeGroupId) return false;
-  return collapsedIds.includes(groupId);
+  if (state.collapsed.includes(groupId)) return true;
+  if (state.expanded.includes(groupId)) return false;
+  return groupId !== activeGroupId;
+}
+
+/** 그룹 하나를 접거나 편다 — 지금 보이는 상태의 반대를 저장한다. */
+export function toggleNavGroup(
+  state: AdminNavGroupState,
+  groupId: string,
+  activeGroupId: string | null,
+): AdminNavGroupState {
+  const collapsedNow = isNavGroupCollapsed(state, groupId, activeGroupId);
+  const without = (ids: readonly string[]) => ids.filter((id) => id !== groupId);
+  return collapsedNow
+    ? { expanded: [...without(state.expanded), groupId], collapsed: without(state.collapsed) }
+    : { expanded: without(state.expanded), collapsed: [...without(state.collapsed), groupId] };
 }

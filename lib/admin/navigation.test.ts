@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ADMIN_NAV_GROUPS,
   ADMIN_SCREENS,
-  ADMIN_NAV_COLLAPSED_KEY,
+  ADMIN_NAV_GROUPS_KEY,
   ADMIN_NAV_TIER_KEY,
   adminGroupForPath,
   adminNavGroupsForView,
@@ -10,9 +10,9 @@ import {
   adminScreenForPath,
   isAdminNavShowingAll,
   isNavGroupCollapsed,
-  parseCollapsedNavGroups,
-  serializeCollapsedNavGroups,
-  toggleCollapsedNavGroup,
+  parseNavGroupState,
+  serializeNavGroupState,
+  toggleNavGroup,
   legacyAdminSectionHref,
   visibleAdminNavGroups,
 } from './navigation';
@@ -176,7 +176,7 @@ describe('adminNavGroupsForView', () => {
 describe('저장소 키', () => {
   it('보기 상태는 브라우저에만 남는다 — 운영자 개인 취향이라 계정에 저장하지 않는다', () => {
     expect(ADMIN_NAV_TIER_KEY).toBe('admin:nav:tier');
-    expect(ADMIN_NAV_COLLAPSED_KEY).toBe('admin:nav:collapsed-groups');
+    expect(ADMIN_NAV_GROUPS_KEY).toBe('admin:nav:groups');
   });
 
   it('현재 그룹은 기존 경로 헬퍼로 찾는다', () => {
@@ -185,23 +185,37 @@ describe('저장소 키', () => {
 });
 
 describe('그룹 접기 상태', () => {
-  it('깨진 저장값은 빈 목록으로 떨어뜨린다', () => {
-    expect(parseCollapsedNavGroups('')).toEqual([]);
-    expect(parseCollapsedNavGroups('{')).toEqual([]);
-    expect(parseCollapsedNavGroups('{"a":1}')).toEqual([]);
-    expect(parseCollapsedNavGroups('["catalog","catalog",5,""]')).toEqual(['catalog']);
+  const empty = { expanded: [], collapsed: [] };
+
+  it('깨진 저장값은 기본값으로 떨어뜨린다', () => {
+    expect(parseNavGroupState('')).toEqual(empty);
+    expect(parseNavGroupState('{')).toEqual(empty);
+    expect(parseNavGroupState('["sales"]')).toEqual(empty);
+    expect(parseNavGroupState('{"expanded":["catalog","catalog",5,""],"collapsed":"x"}'))
+      .toEqual({ expanded: ['catalog'], collapsed: [] });
   });
 
-  it('토글은 켜고 끈다', () => {
-    expect(toggleCollapsedNavGroup([], 'catalog')).toEqual(['catalog']);
-    expect(toggleCollapsedNavGroup(['catalog'], 'catalog')).toEqual([]);
-    expect(JSON.parse(serializeCollapsedNavGroups(['a', 'a', 'b']))).toEqual(['a', 'b']);
+  /* 처음엔 전부 접혀 있고, 보고 있는 그룹만 펼쳐 준다(PM 2026-09-09). */
+  it('저장값이 없으면 보고 있는 그룹만 펼쳐진다', () => {
+    expect(isNavGroupCollapsed(empty, 'catalog', 'catalog')).toBe(false);
+    expect(isNavGroupCollapsed(empty, 'catalog', 'sales')).toBe(true);
+    expect(isNavGroupCollapsed(empty, 'catalog', null)).toBe(true);
   });
 
-  it('지금 보고 있는 그룹은 접히지 않는다', () => {
-    expect(isNavGroupCollapsed(['catalog'], 'catalog', 'catalog')).toBe(false);
-    expect(isNavGroupCollapsed(['catalog'], 'catalog', 'sales')).toBe(true);
-    expect(isNavGroupCollapsed([], 'catalog', null)).toBe(false);
+  it('운영자가 손댄 그룹은 그 선택이 기본값을 이긴다 — 보고 있는 그룹도 접힌다', () => {
+    expect(isNavGroupCollapsed({ expanded: ['catalog'], collapsed: [] }, 'catalog', 'sales')).toBe(false);
+    expect(isNavGroupCollapsed({ expanded: [], collapsed: ['sales'] }, 'sales', 'sales')).toBe(true);
+  });
+
+  it('토글은 지금 보이는 상태의 반대를 저장한다', () => {
+    const opened = toggleNavGroup(empty, 'catalog', 'sales');
+    expect(opened).toEqual({ expanded: ['catalog'], collapsed: [] });
+    expect(toggleNavGroup(opened, 'catalog', 'sales')).toEqual({ expanded: [], collapsed: ['catalog'] });
+    const closedActive = toggleNavGroup(empty, 'sales', 'sales');
+    expect(closedActive).toEqual({ expanded: [], collapsed: ['sales'] });
+    expect(toggleNavGroup(closedActive, 'sales', 'sales')).toEqual({ expanded: ['sales'], collapsed: [] });
+    expect(JSON.parse(serializeNavGroupState({ expanded: ['a', 'a'], collapsed: ['b'] })))
+      .toEqual({ expanded: ['a'], collapsed: ['b'] });
   });
 });
 
