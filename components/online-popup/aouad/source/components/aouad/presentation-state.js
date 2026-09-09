@@ -2,12 +2,13 @@ import { useEffect, useSyncExternalStore } from "react";
 import { BOX_ITEMS, MD, MD_DETAIL, NOTICES, OFFLINE, ZONES } from "./aouad-data";
 import { normalizeCart, cartKey } from "./presentation-commerce";
 import { normalizeDealRecords } from "./presentation-deals";
+import { normalizeDrawRecords } from "./presentation-draws";
 
 export const PRESENTATION_STORAGE_KEY = "icons:aouad-presentation:v1";
 export const EMPTY_PRESENTATION_STATE = {
   op: false, temp: null, callsign: null, photo: null, clears: {}, quiz: null,
   wishes: [], rec: {}, reserve: null, posts: [], cart: [], orders: [], spent: 0,
-  cafeRound: null, wins: [], tickets: {}, readNews: [], dealRecords: [], clockStartedAt: null,
+  cafeRound: null, wins: [], tickets: {}, readNews: [], dealRecords: [], drawRecords: [], clockStartedAt: null,
 };
 
 const GOODS = new Set(MD.map((item) => item.id));
@@ -62,13 +63,19 @@ function normalizeOrders(value) {
 }
 
 function normalizeWins(value) {
+  const seen = new Set();
   return array(value).slice(-200).flatMap((entry) => {
     const input = object(entry);
     const item = GOODS.has(input.mdId) ? { mdId: input.mdId }
       : typeof input.boxId === "string" && Object.hasOwn(BOX_ITEMS, input.boxId) ? { boxId: input.boxId } : null;
     if (!item || !GRADES.has(input.grade)) return [];
+    const id = text(input.id, 128), at = text(input.at, 40);
+    if (id && seen.has(id)) return [];
+    if (id) seen.add(id);
     const source = text(input.source, 64) || "시연";
     return [{ ...item, grade: input.grade, source,
+      ...(id ? { id } : {}),
+      ...(at && Number.isFinite(Date.parse(at)) ? { at } : {}),
       ...(GRADES.has(input.fellFrom) ? { fellFrom: input.fellFrom } : {}),
       ...(finite(input.claimedAt) && input.claimedAt > 0 ? { claimedAt: input.claimedAt } : {}),
     }];
@@ -99,6 +106,7 @@ export function normalizePresentationState(value) {
     cart: normalizeCart(input.cart),
     orders: normalizeOrders(input.orders),
     dealRecords: normalizeDealRecords(input.dealRecords),
+    drawRecords: normalizeDrawRecords(input.drawRecords),
     clockStartedAt: integer(input.clockStartedAt) && input.clockStartedAt > 0 && input.clockStartedAt <= 8_640_000_000_000_000 ? input.clockStartedAt : null,
     spent: integer(input.spent) ? input.spent : 0,
     wins: normalizeWins(input.wins),

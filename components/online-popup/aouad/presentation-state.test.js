@@ -55,6 +55,14 @@ describe("presentation state normalization", () => {
     ]);
   });
 
+  it("preserves valid win identities and timestamps while retaining legacy locker entries", () => {
+    const legacy = { boxId: "lock_dial", grade: "C", source: "locker", claimedAt: 1788934534000 };
+    const current = { boxId: "whistle_cord", grade: "C", source: "보급 낙하 회차", id: "draw:k2:op:1", at: "2026-09-09T01:00:00.000Z" };
+    const malformed = { mdId: "ribbon_keyring", grade: "A", source: "시연", id: { nested: true }, at: { nested: true } };
+    const state = normalizePresentationState({ wins: [legacy, current, current, malformed] });
+    expect(state.wins).toEqual([legacy, current, { mdId: "ribbon_keyring", grade: "A", source: "시연" }]);
+  });
+
   it("removes malformed order lines and untrusted extra properties", () => {
     const result = normalizePresentationState({
       orders: [{ id: "od-1", at: "2026-09-09T00:00:00Z", total: 0, note: { bad: true }, items: [

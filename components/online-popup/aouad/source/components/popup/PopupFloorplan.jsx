@@ -31,7 +31,7 @@ export default function PopupFloorplan({ booths = [], path, entry, current, onJu
       )}
       <div className={s.plane}>
         {useBg && (
-          <Image fill sizes="(max-width: 640px) 90vw, 420px" className={s.bgImg} src={bg} alt="" onError={() => setBgOk(false)} />
+          <Image unoptimized fill sizes="(max-width: 640px) 90vw, 420px" className={s.bgImg} src={bg} alt="" onError={() => setBgOk(false)} />
         )}
         {path && (
           <svg className={s.deco} viewBox={viewBox} preserveAspectRatio="none" aria-hidden="true">

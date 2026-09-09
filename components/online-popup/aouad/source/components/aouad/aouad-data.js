@@ -596,14 +596,13 @@ export const ACHIEVEMENTS = [
   { id: "signal", name: "전파", path: "공유(공시형)", cond: "내 기록을 지정 해시태그와 함께 밖으로 내보낸다", line: "밖으로 신호를 보냈다", companion: null },
   { id: "wall", name: "벽에 남긴 말", path: "미션", cond: "커뮤니티에 이 팝업 태그로 글을 남긴다", line: "누군가 읽을 자리에 적어두었다", companion: null },
   { id: "supply", name: "보급 개시", path: "구매 리워드", cond: "보급소에서 처음으로 무언가를 산다", line: "빈손으로 버티지 않기로 했다", companion: "상품이 본체 — 카드는 무상 동봉" },
-  { id: "stock", name: "비축", path: "구매 리워드", cond: "누적 구매 12만원 지점에 닿는다", line: "오래 버틸 준비를 했다", companion: "전 매대 10분 선오픈(R3)에 얹힌다" },
+  { id: "stock", name: "비축", path: "구매 리워드", cond: "누적 구매 12만원 지점에 닿는다", line: "오래 버틸 준비를 했다", companion: "누적 구매 기록" },
   { id: "drill", name: "실전 통과", path: "게임", cond: "급식실·방송실 미니게임을 모두 클리어한다", line: "둘 다 몸으로 겪었다", companion: "각 게임의 구매권이 이미 본체 — 전수 상태의 증표" },
 ];
 
 // rightLabel = 표시 라벨(구매권/우선구매권) — RIGHTS 의 id 참조가 아니다. 게임 구매권과 별개인 구매 마일스톤 축(PM #435).
 export const PURCHASE_TIERS = [
   { at: 50000, mdId: "archery", rightLabel: "구매권", name: "양궁부 화살 북마크 + 연필 세트", line: "오래 앉아 있던 사람에게 남는 것" },
-  { at: 120000, mdId: null, rightLabel: "우선구매권", name: "전 매대 10분 선오픈", line: "먼저 볼 수 있게 열어둔다" },
   { at: 200000, mdId: "zipup", rightLabel: "구매권", name: "체육복 집업 — 생존자 각인판", line: "등번호 자리에 이름을 새긴다", note: "일반 집업은 사전예약으로 계속 열려 있다. 이 구간은 각인판 한정." },
 ];
 export const PURCHASE_SPENT = 138000;

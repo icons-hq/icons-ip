@@ -195,7 +195,7 @@ export default function KujiFace() {
 
   return (
     <div className={s.kjFace} ref={ref} role="img"
-      aria-label={`럭키드로우 ${round.name} 회차 판 — ${stage.theme}`}>
+      aria-label={`럭키드로우 ${round.name} 체험 방식 미리보기 — ${stage.theme}`}>
       {/* 판의 비율은 회차 종류가 정한다 — 벽은 8단, 통로는 투입구+길+칸까지 얹혀 더 길다.
           높이에서 폭을 받아 액자를 넘지 않게 한다(폭에서 높이를 받으면 통로 회차가 흘러넘친다). */}
       <div className={`${s.lkWall} ${s.kjFaceWall}`} ref={wallRef} data-kind={stage.kind} data-dark={stage.dark ? "" : undefined}
@@ -263,7 +263,7 @@ export default function KujiFace() {
 
       {/* 지금 무슨 회차를 보고 있는가 — 네 회차가 돌아간다는 사실 자체가 정보다 */}
       <div className={s.kjFaceTag}>
-        <b>{round.name}</b>
+        <b>{round.name} · 체험 방식 미리보기</b>
         <em>{stage.theme}</em>
         <span className={s.kjFaceDots}>
           {REEL.map((r, n) => <i key={r.id} className={n === i ? s.on : ""} />)}

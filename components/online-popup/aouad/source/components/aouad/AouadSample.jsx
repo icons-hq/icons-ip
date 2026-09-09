@@ -2,9 +2,9 @@
 
 // 지우학 기획 시연판 — 설계서 v0.1(존·계약) + 체험여정 설계서 v0(감정 여정·오프닝·보상 회로)의 실동작 구현.
 // 시연 경계: 굿즈·게임 정식판 = 개발 트랙 / 이미지 = 웹 수집 내부 시안 / 서사 카피 = 감수 전 가안 / 수치 = 시연 데이터.
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import NextImage from "next/image";
 import s from "./AouadSample.module.css";
 import c from "./CafeteriaCrash.module.css";   // 보상 진열은 급식실 모양 그대로 — 전 존 공통(PM 2026-09-09)
 import { SECTION_LEAD, ZONE_CALL } from "./aouad-copy";
@@ -23,6 +23,7 @@ import PresentationDealDialog from "./PresentationDealDialog";
 import { completePresentationDeal, presentationDealSummary } from "./presentation-deals";
 import { addToCart, cartLimit, cartRows, cartTotal, getProductPresentationStatus, setCartQty, spentOf } from "./presentation-commerce";
 import { EMPTY_PRESENTATION_STATE as EMPTY, usePresentationState } from "./presentation-state";
+import { claimPresentationWin, presentationDrawState, recordPresentationDraw } from "./presentation-draws";
 import { LEVEL as LIB_LEVEL } from "../../lib/zones/engine-library";
 import { CONFIG as HOSE } from "../../lib/zones/engine-hose";
 import { KUJI_STAGE } from "./kuji-stage";
@@ -30,6 +31,7 @@ import { BoxConfirmSheet, BoxResult, DarkConfirmSheet, DropConfirmSheet, WireCon
 import OfflineMap from "../OfflineMap";
 import PopupHud, { HudBody } from "../popup/PopupHud";
 import PopupFloorplan from "../popup/PopupFloorplan";
+import { scaledPhotoSize } from "./photo-utils";
 import {
   ASSET, OPENING, ZONES,
   MD, LANE_LABEL, RAFFLES, FCFS, KUJI, PREORDER, RIGHTS, RIGHT_GOALS, ZONE_RIGHT,
@@ -47,12 +49,7 @@ import {
 const winItem = (w) => (w.mdId ? mdById(w.mdId) : BOX_ITEMS[w.boxId]) || null;
 const WIN_SOURCE = { "kuji-cafeteria": "급식실", cafeteria: "급식실" }; // 급식실 = 체험(PM 2026-09-02) · "kuji-cafeteria" 는 옛 저장값 호환용 — 새 기록은 "cafeteria"
 const winSub = (w) => `${w.grade}상 · ${WIN_SOURCE[w.source] || w.source}${w.fellFrom ? ` · ${w.fellFrom}상 소진` : ""}${w.claimedAt ? " · 배송 신청됨" : ""}`;
-const claimWin = (update, idx) => update((p) => {
-  const wins = (p.wins || []).map((w, i) => (i === idx ? { ...w, claimedAt: Date.now() } : w));
-  const w = wins[idx]; const it = w ? winItem(w) : null;
-  const order = { id: `od-${Date.now()}`, at: new Date().toISOString(), items: [{ id: w.mdId || w.boxId, qty: 1, win: true }], total: 0, note: it ? `당첨 배송 · ${it.name}` : "당첨 배송" };
-  return { ...p, wins, orders: [...(p.orders || []), order] };
-});
+const claimWin = (update, idx) => update((p) => claimPresentationWin(p, idx));
 
 
 
@@ -308,32 +305,76 @@ function StudentIdCard({ name, photo, sealed, className, extra, cardRef, writing
   );
 }
 
+const PHOTO_ERROR_MESSAGE = "사진을 불러오지 못했어요. JPG, PNG 또는 WebP 이미지 파일을 선택해 주세요.";
+
 function shrinkPhoto(file) {
   return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
+    let url;
+    try {
+      url = URL.createObjectURL(file);
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    const release = () => URL.revokeObjectURL(url);
+    let img;
+    try {
+      img = new window.Image();
+    } catch (error) {
+      release();
+      reject(error);
+      return;
+    }
     img.onload = () => {
-      const MAX = 240;
-      const r = Math.min(MAX / img.width, MAX / img.height, 1);
-      const c = document.createElement("canvas");
-      const S = Math.round(Math.max(img.width, img.height) * r);
-      c.width = S; c.height = S;
-      c.getContext("2d").drawImage(img, (S - img.width * r) / 2, (S - img.height * r) / 2, img.width * r, img.height * r);
-      URL.revokeObjectURL(url);
-      resolve(c.toDataURL("image/jpeg", 0.82));
+      try {
+        const width = img.naturalWidth || img.width;
+        const height = img.naturalHeight || img.height;
+        if (!width || !height) throw new Error("image");
+        const size = scaledPhotoSize(width, height);
+        const canvas = document.createElement("canvas");
+        canvas.width = size.width;
+        canvas.height = size.height;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("canvas");
+        context.drawImage(img, 0, 0, size.width, size.height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      } catch (error) {
+        reject(error);
+      } finally {
+        release();
+      }
     };
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("image")); };
-    img.src = url;
+    img.onerror = () => { release(); reject(new Error("image")); };
+    try {
+      img.src = url;
+    } catch (error) {
+      release();
+      reject(error);
+    }
   });
 }
 
 function PhotoPicker({ photo, onPick, onSelectName }) {
   const fileRef = useRef(null);
+  const errorId = useId();
+  const [photoError, setPhotoError] = useState(null);
   const uploaded = photo && (photo.startsWith("data:") || photo.startsWith("http"));
   const onFile = (e) => {
-    const f = e.target.files && e.target.files[0];
-    if (f) shrinkPhoto(f).then(onPick).catch(() => {});
-    e.target.value = "";
+    const input = e.currentTarget;
+    const f = input.files && input.files[0];
+    input.value = "";
+    if (!f) return;
+    setPhotoError(null);
+    if (f.type && !f.type.startsWith("image/")) {
+      setPhotoError(PHOTO_ERROR_MESSAGE);
+      return;
+    }
+    shrinkPhoto(f)
+      .then((next) => {
+        setPhotoError(null);
+        onPick(next);
+      })
+      .catch(() => setPhotoError(PHOTO_ERROR_MESSAGE));
   };
   return (
     <div className={s.portraitRow} role="group" aria-label="학생증 증명사진 선택">
@@ -343,6 +384,7 @@ function PhotoPicker({ photo, onPick, onSelectName }) {
           type="button"
           className={`${s.portraitBtn} ${photo === char.id ? s.picked : ""}`}
           onClick={() => {
+            setPhotoError(null);
             const next = photo === char.id ? null : char.id;
             onPick(next);
             if (onSelectName && next) onSelectName(char.name);
@@ -350,7 +392,7 @@ function PhotoPicker({ photo, onPick, onSelectName }) {
           aria-label={char.name}
           title={`${char.name} (${char.role})`}
         >
-          <Image width={96} height={128} unoptimized className={s.charPhoto} src={ASSET(char.src)} alt={char.name} />
+          <NextImage width={96} height={128} unoptimized className={s.charPhoto} src={ASSET(char.src)} alt={char.name} />
           <span className={s.charNameMini}>{char.name}</span>
         </button>
       ))}
@@ -363,14 +405,23 @@ function PhotoPicker({ photo, onPick, onSelectName }) {
       >
         {uploaded ? (
           <>
-            <Image width={96} height={128} unoptimized className={s.charPhoto} src={photo} alt="내 사진" />
+            <NextImage width={96} height={128} unoptimized className={s.charPhoto} src={photo} alt="내 사진" />
             <span className={s.charNameMini}>내 사진</span>
           </>
         ) : (
           <span className={s.uploadLabel}>📷<br />내 사진</span>
         )}
       </button>
-      <input ref={fileRef} type="file" accept="image/*" hidden onChange={onFile} />
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        hidden
+        aria-invalid={photoError ? "true" : undefined}
+        aria-describedby={photoError ? errorId : undefined}
+        onChange={onFile}
+      />
+      {photoError && <span id={errorId} className={s.photoError} role="alert">{photoError}</span>}
     </div>
   );
 }
@@ -737,7 +788,7 @@ function AouadHud({ st, section, scene, zone, product, modal, onSection, onScene
       cart: { count: cartCount, total: won(cartTotal(st)), cta: "주문하기", onCheckout },
     empty: "장바구니 0" };
   const spendBody = { kind: "spend",
-      spend: { total: won(spent), label: "누적 구매",
+      spend: { total: won(spent), label: "누적 구매 시연",
         pct: Math.min(100, (spent / PURCHASE_TIERS[PURCHASE_TIERS.length - 1].at) * 100),
         next: nextTier ? `다음 지점까지 ${won(nextTier.at - spent)}` : null,
         tiers: PURCHASE_TIERS.map((t) => {
@@ -746,10 +797,10 @@ function AouadHud({ st, section, scene, zone, product, modal, onSection, onScene
           return { label: `${t.at / 10000}만`, name: t.name, done,
             thumb: md ? ASSET(md.src) : undefined,
             sub: `${md ? `${won(md.price)} · ` : ""}${t.line}`,
-            state: done ? `${t.rightLabel || "획득"}` : `🔒 ${(t.at / 10000).toLocaleString()}만원`,
+            state: done ? "해당 구간" : `${(t.at / 10000).toLocaleString()}만원 구간`,
             go: md && openProduct ? { act: () => openProduct(t.mdId, "hud") } : go ? { act: () => go("store") } : undefined };
         }),
-        note: "구간·상품은 사전 공시 · 기간 중 불변 · 게임·추첨 확률 무영향" } };
+        note: "구매 혜택 구성안 · 실제 구매권이나 우선 입장을 발급하지 않습니다" } };
   /* 개요(v4.4 · PM 「교문 컨텍스트 = 테마 소개(오프라인 팝업 소개글처럼) + 타임라인이면 족하다 · 상세는 모달」)
      — 바로가기 행 없음. 문 2 = 테마 소개 행 → 소개 모달 · 타임라인 블록 → 일정 모달 */
   /* 가변형 — 화면(존·모달·장면)별 본문. 표는 계약 v4.5 §2-1 */
@@ -1223,21 +1274,28 @@ function KujiZone({ openProduct }) {
 function KujiBoard({ base, now, onDemo, openProduct }) {
   const [round, setRound] = useState(0);
   const k = KUJI[round];
+  const [drawState, updateDrawState, drawReady] = usePresentationState();
+  const savedDraw = presentationDrawState(drawState, k.id, now);
+  const onDrawCommitted = useCallback((commit) => updateDrawState((p) => recordPresentationDraw(p, commit)), [updateDrawState]);
+  const persistence = { roundId: k.id, initialDrawState: savedDraw, onDrawCommitted };
   const soon = k.state === "soon";
   const stage = KUJI_STAGE[k.id];
   const wallLive = stage?.live && stage.kind === "wall" && !stage.dark;
   const shaftLive = stage?.live && stage.kind === "shaft";
   const isWire = stage?.field?.type === "wires";
   // A presenter explores their own local lot; invented competing shoppers never consume it.
-  const box = useBoxRound({ seed: stage?.seed ?? 0, rivals: 0, enabled: !!wallLive });
-  const dropBox = useDropRound({ seed: stage?.seed ?? 0, rivals: 0, enabled: !!(shaftLive && !isWire) });
-  const wireBox = useWireRound({ seed: stage?.seed ?? 0, rivals: 0, enabled: !!(shaftLive && isWire) });
-  const darkBox = useDarkRound({ seed: stage?.seed ?? 0, rivals: 0, enabled: !!(stage?.live && stage.dark) });
+  const box = useBoxRound({ seed: stage?.seed ?? 0, rivals: 0, enabled: drawReady && !!wallLive, ...persistence });
+  const dropBox = useDropRound({ seed: stage?.seed ?? 0, rivals: 0, enabled: drawReady && !!(shaftLive && !isWire), ...persistence });
+  const wireBox = useWireRound({ seed: stage?.seed ?? 0, rivals: 0, enabled: drawReady && !!(shaftLive && isWire), ...persistence });
+  const darkBox = useDarkRound({ seed: stage?.seed ?? 0, rivals: 0, enabled: drawReady && !!(stage?.live && stage.dark), ...persistence });
   const dark = stage?.live && stage.dark && darkBox.snap ? darkBox : null;
   const live = wallLive && !stage?.dark && box.snap ? box : null;
   const drop = shaftLive && !isWire && dropBox.snap ? dropBox : null;
   const wire = shaftLive && isWire && wireBox.snap ? wireBox : null;
   const snapshot = (dark || live || drop || wire)?.snap;
+  const limitReached = !!snapshot && snapshot.today >= snapshot.dailyLimit;
+  const drawUnavailable = limitReached || snapshot?.left === 0;
+  const drawUnavailableLabel = limitReached ? `오늘 체험 완료 (${snapshot.dailyLimit} / ${snapshot.dailyLimit}회)` : "이 회차의 모든 칸을 열었습니다";
   const total = snapshot?.total ?? k.total;
   const left = snapshot?.left ?? (stage?.live ? k.total : k.total - k.drawn.length);
   const prizes = k.prizes.map((prize, index) => {
@@ -1259,7 +1317,7 @@ function KujiBoard({ base, now, onDemo, openProduct }) {
       <div className={s.kjTabs} role="group" aria-label="럭키드로우 회차">
         {KUJI.map((x, i) => (
           <button key={x.id} type="button" aria-pressed={i === round} className={`${s.kjTab} ${i === round ? s.on : ""}`} onClick={() => setRound(i)}>
-            {x.name}<small>{i === round ? `잔여 ${left}` : `총 ${x.total}칸 체험`}</small>
+            {x.name}<small>잔여 {i === round ? left : x.total - presentationDrawState(drawState, x.id, now).taken.length}</small>
           </button>
         ))}
       </div>
@@ -1283,7 +1341,7 @@ function KujiBoard({ base, now, onDemo, openProduct }) {
                     <div className={s.lkEntry} aria-hidden={!drop && !wire}>
                       {Array.from({ length: 10 }).map((_, c) => (
                         drop ? (
-                          <button key={c} type="button"
+                          <button key={c} type="button" disabled={drawUnavailable || !!drop.fall}
                             className={`${s.lkEntryBtn} ${drop.entry === c ? s.lkMine : ""}`}
                             style={{ backgroundImage: `url(${ASSET(stage.entry)})` }}
                             aria-label={`${c + 1}번 투입구${drop.snap.aCol === c ? " — 이 열에 A상이 남아 있다" : ""}`}
@@ -1291,7 +1349,7 @@ function KujiBoard({ base, now, onDemo, openProduct }) {
                             <b>{c + 1}</b>
                           </button>
                         ) : wire ? (
-                          <button key={c} type="button"
+                          <button key={c} type="button" disabled={drawUnavailable || !!wire.trace}
                             className={`${s.lkEntryBtn} ${wire.start === c ? s.lkMine : ""} ${c in wire.snap.known ? s.lkKnown : ""}`}
                             style={{ backgroundImage: `url(${ASSET(stage.entry)})` }}
                             aria-label={`${c + 1}번 출발점 — ${c in wire.snap.known ? `${wire.snap.known[c] + 1}열로 이어진다` : "어디로 가는지 아직 모른다"}`}
@@ -1357,7 +1415,7 @@ function KujiBoard({ base, now, onDemo, openProduct }) {
                       const litNow = dark.beam.includes(n);
                       const litBefore = dark.snap.lit.includes(n);
                       return (
-                        <button key={n} type="button" disabled={taken}
+                        <button key={n} type="button" disabled={taken || drawUnavailable}
                           className={`${s.lkCell} ${taken ? s.lkOpen : ""} ${dark.target === n ? s.lkMine : ""} ${litNow || litBefore ? s.lkLit : ""}`}
                           /* 빛이 닿은 칸은 밝기를 올리는 게 아니라 밝은 사진으로 갈아 끼운다 */
                           style={{ backgroundImage: `url(${ASSET(taken ? stage.open : (litNow || litBefore) && stage.lit ? stage.lit : stage.closed)})` }}
@@ -1374,7 +1432,7 @@ function KujiBoard({ base, now, onDemo, openProduct }) {
                       );
                     }
                     return live ? (
-                      <button key={n} type="button" className={cls} disabled={taken || cs === "rival"}
+                      <button key={n} type="button" className={cls} disabled={taken || cs === "rival" || drawUnavailable}
                         style={{ backgroundImage: `url(${ASSET(taken ? stage.open : stage.closed)})` }}
                         aria-label={`${n + 1}번 ${stage.unit} — ${label}`} onClick={() => live.toggle(n)}>
                         <b>{n + 1}</b>
@@ -1457,8 +1515,8 @@ function KujiBoard({ base, now, onDemo, openProduct }) {
                 </ul>
               </div>
               <button type="button" className={`${s.primaryBtn} ${s.dealCta}`}
-                disabled={dark.mode !== "open" || dark.target === null} onClick={dark.openSheet}>
-                {dark.mode === "scan"
+                disabled={drawUnavailable || dark.mode !== "open" || dark.target === null} onClick={dark.openSheet}>
+                {drawUnavailable ? drawUnavailableLabel : dark.mode === "scan"
                   ? (dark.snap.scans > 0 ? `비출 곳을 고르세요 (${dark.snap.scans}회 남음)` : "손전등을 다 썼습니다 — 열기로")
                   : dark.target === null ? "열 칸을 고르세요"
                   : `${dark.target + 1}번 열기 · ${won(dark.snap.price)}`}
@@ -1470,8 +1528,8 @@ function KujiBoard({ base, now, onDemo, openProduct }) {
           ) : wire ? (
             <>
               <button type="button" className={`${s.primaryBtn} ${s.dealCta}`}
-                disabled={wire.start === null || !!wire.trace} onClick={wire.openSheet}>
-                {wire.trace ? "따라가는 중…"
+                disabled={drawUnavailable || wire.start === null || !!wire.trace} onClick={wire.openSheet}>
+                {drawUnavailable ? drawUnavailableLabel : wire.trace ? "따라가는 중…"
                   : wire.start === null ? `출발점을 고르세요 (밝혀진 길 ${wire.snap.knownCount} / ${wire.snap.cols} · 다음 배선까지 ${wire.snap.untilRewire}회)`
                   : `${wire.start + 1}번 따라가기 · ${won(wire.snap.price)}`}
               </button>
@@ -1484,8 +1542,8 @@ function KujiBoard({ base, now, onDemo, openProduct }) {
           ) : drop ? (
             <>
               <button type="button" className={`${s.primaryBtn} ${s.dealCta}`}
-                disabled={drop.entry === null || !!drop.fall} onClick={drop.openSheet}>
-                {drop.fall ? "떨어지는 중…"
+                disabled={drawUnavailable || drop.entry === null || !!drop.fall} onClick={drop.openSheet}>
+                {drawUnavailable ? drawUnavailableLabel : drop.fall ? "떨어지는 중…"
                   : drop.entry === null ? "투입구를 고르세요"
                   : `${drop.entry + 1}번에 넣기 · ${won(drop.snap.price)}`}
               </button>
@@ -1496,8 +1554,8 @@ function KujiBoard({ base, now, onDemo, openProduct }) {
           ) : live ? (
             <>
               <button type="button" className={`${s.primaryBtn} ${s.dealCta}`}
-                disabled={live.snap.picks.length === 0} onClick={live.openSheet}>
-                {live.snap.picks.length === 0
+                disabled={drawUnavailable || live.snap.picks.length === 0} onClick={live.openSheet}>
+                {drawUnavailable ? drawUnavailableLabel : live.snap.picks.length === 0
                   ? `칸을 고르세요 (최대 ${live.snap.maxPick})`
                   : `${live.snap.picks.length}칸 뽑기 · ${won(live.snap.price * live.snap.picks.length)}`}
               </button>
@@ -1606,6 +1664,50 @@ function LockOverlay({ right, go }) {
   );
 }
 
+function useShelfThumbVisible(thumbRef, railRef) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const thumb = thumbRef.current;
+    const rail = railRef.current;
+    if (!thumb) return undefined;
+    if (typeof IntersectionObserver === "undefined" || !rail) {
+      setVisible(true);
+      return undefined;
+    }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting) return;
+      setVisible(true);
+      observer.unobserve(entry.target);
+    // A viewport root also clips against the nested stage and rail. A rail root alone
+    // would report its cards visible even while the whole shelf is below the cover.
+    }, { root: null, rootMargin: "160px", threshold: 0 });
+    observer.observe(thumb);
+    return () => observer.disconnect();
+  }, [railRef, thumbRef]);
+  return visible;
+}
+
+function ShelfThumb({ m, locked, railRef, children }) {
+  const thumbRef = useRef(null);
+  const visible = useShelfThumbVisible(thumbRef, railRef);
+  return (
+    <div ref={thumbRef} className={`${s.shelfThumb} ${locked ? s.thumbLocked : ""}`}>
+      {visible && (
+        <NextImage
+          fill
+          unoptimized
+          loading="lazy"
+          sizes="(max-width: 640px) 44vw, (max-width: 1280px) 22vw, 280px"
+          className={s.shelfImage}
+          src={ASSET(m.src)}
+          alt=""
+        />
+      )}
+      {children}
+    </div>
+  );
+}
+
 function ShelfPanel({ st, go, openProduct }) {
   const rights = rightsOf(st);
   // 그랩 스크롤(QA #614 — 데스크톱 마우스의 유일한 조작 공백): 마우스 포인터만, 터치는 네이티브 스와이프.
@@ -1641,29 +1743,32 @@ function ShelfPanel({ st, go, openProduct }) {
         <div ref={railRef} className={s.shelfGrid} aria-label={`한정 굿즈 진열 ${SHELF_COUNT}종`}
           onPointerDown={onPointerDown} onPointerMove={onPointerMove}
           onPointerUp={endDrag} onPointerLeave={endDrag} onClickCapture={onClickCapture}>
-        {MD.slice(0, SHELF_COUNT).map((m) => (
-          <div
-            key={m.id} role="link" tabIndex={0} className={s.shelfItem}
-            onClick={() => openProduct?.(m.id, "hub")}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProduct?.(m.id, "hub"); } }}
-          >
-            <div className={`${s.shelfThumb} ${m.right && !rights[m.right] ? s.thumbLocked : ""}`} style={{ backgroundImage: `url(${ASSET(m.src)})` }}>
-              {/* 잠금 오버레이(PM 2026-08-28): 아직 못 사는 상품은 썸네일이 말한다 — 획득의 문까지 겸한다 */}
-              {m.right && !rights[m.right] ? (
-                <LockOverlay right={m.right} go={go} />
-              ) : (
-                <span className={`${s.shelfBadge} ${m.right ? s.shelfBadgeLock : ""}`}>
-                  {/* 선구매(first)는 매대를 막지 않는다 — 가진 사람에게만 「선구매」로 바뀐다(PM 판정 C 2026-09-04) */}
-                  {m.right ? "구매권" : m.first && rights[m.first] ? "선구매" : LANE_LABEL[m.lanes[0]]}
-                </span>
-              )}
-            </div>
-            <div className={s.shelfMeta}>
-              <span className={s.shelfName}>{m.name}</span>
-              <b className={s.shelfPrice}>{won(m.price)}</b>
-            </div>
-          </div>
-        ))}
+          {MD.slice(0, SHELF_COUNT).map((m) => {
+            const locked = m.right && !rights[m.right];
+            return (
+              <div
+                key={m.id} role="link" tabIndex={0} className={s.shelfItem}
+                onClick={() => openProduct?.(m.id, "hub")}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProduct?.(m.id, "hub"); } }}
+              >
+                <ShelfThumb m={m} locked={locked} railRef={railRef}>
+                  {/* 잠금 오버레이(PM 2026-08-28): 아직 못 사는 상품은 썸네일이 말한다 — 획득의 문까지 겸한다 */}
+                  {locked ? (
+                    <LockOverlay right={m.right} go={go} />
+                  ) : (
+                    <span className={`${s.shelfBadge} ${m.right ? s.shelfBadgeLock : ""}`}>
+                      {/* 선구매(first)는 매대를 막지 않는다 — 가진 사람에게만 「선구매」로 바뀐다(PM 판정 C 2026-09-04) */}
+                      {m.right ? "구매권" : m.first && rights[m.first] ? "선구매" : LANE_LABEL[m.lanes[0]]}
+                    </span>
+                  )}
+                </ShelfThumb>
+                <div className={s.shelfMeta}>
+                  <span className={s.shelfName}>{m.name}</span>
+                  <b className={s.shelfPrice}>{won(m.price)}</b>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -1740,7 +1845,7 @@ function Hub({ st, update, go, openProduct, onCompose, onSection, onScene, onSce
             공식 의류 화면은 삭제(PM 2026-08-28): 의류도 진열·굿즈샵이 판다 */}
         <ShelfPanel st={st} go={go} openProduct={openProduct} />
         <RightsPanel st={st} go={go} openProduct={openProduct} />
-        <DealIntro en="LUCKY DRAW" title="럭키드로우" hint="80칸 확정 구성 · 등급별 잔여 실측 · 1인 1일 10회" img="still-barricade.jpg" meta={`회차 ${KUJI.length} · 잔여 ${KUJI.filter((k) => k.state !== "soon").reduce((a, k) => a + (k.total - k.drawn.length), 0)}칸`} id="kuji" go={go} mtype="commerce" face={<KujiFace />} />
+        <DealIntro en="LUCKY DRAW" title="럭키드로우" hint="회차별 80칸 · 회차별 하루 10회 체험" img="still-barricade.jpg" meta={`회차 ${KUJI.length} · 잔여 ${KUJI.reduce((sum, round) => sum + round.total - presentationDrawState(st, round.id).taken.length, 0)}칸`} id="kuji" go={go} mtype="commerce" face={<KujiFace />} />
 
         {/* 05~07 체험존 — 급식실·방송실·도서관(옥상은 장 6 결말). 문과 방이 1:1이다 */}
         {PLAY_ZONES.map((zid) => <ZoneScene key={zid} st={st} id={zid} go={go} />)}
@@ -1748,7 +1853,7 @@ function Hub({ st, update, go, openProduct, onCompose, onSection, onScene, onSce
         {/* 08~10 한정판존 — 응모·마감 구조의 매대만 남는다(ADR-0032: 자격 없이 사면 커머스) */}
         <DealIntro en="RAFFLE" title="래플" hint="무상 응모 · 정시 발표 · 1인 1회" img="still-zombie-rush.jpg" meta={`진행 ${RAFFLES.length}건`} id="raffle" go={go} face={<RaffleFace state={st} />} />
         <DealIntro en="PRE-ORDER" title="사전예약" hint="시즌2 연계 사전예약" img="still-armed-group-walk.jpg" meta={`누적 ${presentationDealSummary(st, { kind: "preorder", productId: PREORDER.mdId }).reservations.toLocaleString()}명`} id="preorder" go={go} face={<PreorderFace state={st} />} />
-        <DealIntro en="FIRST COME" title="선착순" hint="정시 오픈 · 수량 한정 · 선오픈권 보유 시 전 매대 10분 먼저 입장" img="still-infirmary.jpg" meta={`오늘 매대 ${FCFS.length}개`} id="fcfs" go={go} face={<FcfsFace state={st} />} />
+        <DealIntro en="FIRST COME" title="선착순" hint="정시 오픈 · 수량 한정 · 매대별 구매 한도" img="still-infirmary.jpg" meta={`오늘 매대 ${FCFS.length}개`} id="fcfs" go={go} face={<FcfsFace state={st} />} />
 
         {/* 11~12 커뮤니티존 */}
         <CommunityModule st={st} onCompose={onCompose} />
@@ -1811,7 +1916,26 @@ function SectionStage({ scenes, onSection, onScene, pending, onPendingDone, acts
   const ref = useRef(null);
   const kids = (Array.isArray(children) ? children : [children]).flat();
   const [active, setActive] = useState(0);   // 현재 화면 — 등장 연출의 트리거(연출 계약 v0)
+  const [loadedScenes, setLoadedScenes] = useState(() => new Set([0]));
   const activeRef = useRef(0);
+  // Keep each scene's scroll footprint, but load its artwork only as it approaches the viewport.
+  // Once visited, preserve the mounted controls and their local state when scrolling away.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === "undefined") return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      const incoming = entries.filter((entry) => entry.isIntersecting);
+      if (!incoming.length) return;
+      setLoadedScenes((previous) => {
+        const next = new Set(previous);
+        incoming.forEach((entry) => next.add(Number(entry.target.dataset.sceneIndex)));
+        return next.size === previous.size ? previous : next;
+      });
+      incoming.forEach((entry) => observer.unobserve(entry.target));
+    }, { root: el, rootMargin: "300px 0px", threshold: 0 });
+    [...el.children].forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, []);
   // HUD 이동은 장 단위 — 그 장의 첫 화면으로 보낸다
   useEffect(() => {
     const el = ref.current;
@@ -1858,7 +1982,7 @@ function SectionStage({ scenes, onSection, onScene, pending, onPendingDone, acts
       {kids.map((child, i) => {
         const sc = scenes[i] || { t: "", ch: 0, bg: null, k: `x${i}` };
         return (
-          <section key={sc.k} className={`${s.secBox} ${i === active ? s.secOn : ""}`} data-name={sc.t} data-scene={sc.k}
+          <section key={sc.k} className={`${s.secBox} ${i === active ? s.secOn : ""}`} data-name={sc.t} data-scene={sc.k} data-scene-index={i}
             style={{ "--budget": sc.budget || 1 }}
             /* 장 경계의 검정 판(암전 셔터·손전등)은 폐기(PM 2026-09-08 「그건 없애」) — 남은 전환은 카메라 시차(CSS)뿐 */
             >
@@ -1881,7 +2005,7 @@ function SectionStage({ scenes, onSection, onScene, pending, onPendingDone, acts
                 {!sc.noTitle && <h2 className={s.sectionTitle}>{sc.t}</h2>}
               </div>
             )}
-            <div className={s.sectionBody}>{child}</div>
+            <div className={s.sectionBody}>{(i === active || i === pending?.s || loadedScenes.has(i) || typeof IntersectionObserver === "undefined") && child}</div>
             </div>
           </section>
         );

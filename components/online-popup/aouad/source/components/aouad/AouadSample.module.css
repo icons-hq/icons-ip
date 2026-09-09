@@ -1152,6 +1152,14 @@ button.lkCell:not(:disabled):hover b { background: rgba(22, 24, 19, .9); color: 
   line-height: 1.2;
 }
 
+.photoError {
+  flex-basis: 100%;
+  color: var(--fire);
+  font-size: var(--fs-micro);
+  line-height: 1.45;
+  text-align: center;
+}
+
 .portrait { border-radius: 7px; object-fit: cover; display: block; flex: none; }
 
 
@@ -2824,16 +2832,17 @@ div.bannerCard { cursor: default; }
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .07);
   transition: box-shadow .15s;
 }
+.shelfImage { z-index: 0; object-fit: cover; }
 .shelfItem:hover .shelfThumb { box-shadow: inset 0 0 0 1px rgba(255, 138, 61, .65); }
 .shelfBadge {
-  position: absolute; top: var(--sp-1); left: var(--sp-1); font-size: var(--fs-micro); font-weight: 800;
+  position: absolute; z-index: 1; top: var(--sp-1); left: var(--sp-1); font-size: var(--fs-micro); font-weight: 800;
   padding: 2px 6px; border-radius: 4px; background: rgba(0,0,0,.75); color: var(--ink);
 }
 .shelfBadge.shelfBadgeLock { color: var(--fire); }
 /* 잠금 오버레이 — 사진을 덮는 스크림 + 두 줄(상태·문). 색 예산 내: 잉크 스크림 + fire 문 */
 .thumbLocked { filter: grayscale(.45) brightness(.85); }
 .lockOverlay {
-  position: absolute; inset: 0; border: 0; padding: 0; cursor: pointer;
+  position: absolute; z-index: 1; inset: 0; border: 0; padding: 0; cursor: pointer;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-1);
   background: rgba(4, 5, 10, 0.52); color: var(--ink); text-align: center;
 }

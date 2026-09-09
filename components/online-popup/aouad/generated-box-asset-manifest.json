@@ -24,7 +24,7 @@
         "width": 1254,
         "height": 1254
       },
-      "finalPath": "public/ip-popups/aouad/box-bandage-tin-v2.webp",
+      "finalPath": "private/ip-popups/aouad/box-bandage-tin-v2.webp",
       "finalSha256": "e1173cda358012cdfaf754fed2ae91db34e272e855abdf8e13d760dcfc719eff",
       "finalBytes": 172802,
       "finalDimensions": {
@@ -57,7 +57,7 @@
         "width": 1254,
         "height": 1254
       },
-      "finalPath": "public/ip-popups/aouad/box-broadcast-badge-v2.webp",
+      "finalPath": "private/ip-popups/aouad/box-broadcast-badge-v2.webp",
       "finalSha256": "661ec507574f30c57187b2b5fb8ae0295815675e81d54aef3d75a3164d9d3c47",
       "finalBytes": 172020,
       "finalDimensions": {
@@ -90,7 +90,7 @@
         "width": 1254,
         "height": 1254
       },
-      "finalPath": "public/ip-popups/aouad/box-cable-tie-v2.webp",
+      "finalPath": "private/ip-popups/aouad/box-cable-tie-v2.webp",
       "finalSha256": "c7a741fa2705d868969443ec3998ed6b0bf7d4d1366fbb4c5ba525996b645413",
       "finalBytes": 221006,
       "finalDimensions": {
@@ -123,7 +123,7 @@
         "width": 1254,
         "height": 1254
       },
-      "finalPath": "public/ip-popups/aouad/box-cassette-case-v2.webp",
+      "finalPath": "private/ip-popups/aouad/box-cassette-case-v2.webp",
       "finalSha256": "eddf8eb383dfea9a92500ef0137718b58f4ca02b3b896c51431740644881dde5",
       "finalBytes": 217920,
       "finalDimensions": {
@@ -156,7 +156,7 @@
         "width": 1254,
         "height": 1254
       },
-      "finalPath": "public/ip-popups/aouad/box-ember-charm-v2.webp",
+      "finalPath": "private/ip-popups/aouad/box-ember-charm-v2.webp",
       "finalSha256": "fbe7549c2cf10c6917885dd180696488ddbdc5dfd723bf7950fcc727d55ea3dd",
       "finalBytes": 176902,
       "finalDimensions": {
@@ -189,7 +189,7 @@
         "width": 1254,
         "height": 1254
       },
-      "finalPath": "public/ip-popups/aouad/box-emergency-light-v2.webp",
+      "finalPath": "private/ip-popups/aouad/box-emergency-light-v2.webp",
       "finalSha256": "9b22ca2d274c87cc97d9ced323a17500a9663e22cae34db7c87edd69ea2a04bd",
       "finalBytes": 124160,
       "finalDimensions": {
@@ -222,7 +222,7 @@
         "width": 1254,
         "height": 1254
       },
-      "finalPath": "public/ip-popups/aouad/box-flashlight-charm-v2.webp",
+      "finalPath": "private/ip-popups/aouad/box-flashlight-charm-v2.webp",
       "finalSha256": "03b167371b1d7bc45e396d2df8c3edf03d6b32986fc8205dae555968b4da0729",
       "finalBytes": 153772,
       "finalDimensions": {
@@ -255,7 +255,7 @@
         "width": 1254,
         "height": 1254
       },
-      "finalPath": "public/ip-popups/aouad/box-glow-charm-v2.webp",
+      "finalPath": "private/ip-popups/aouad/box-glow-charm-v2.webp",
       "finalSha256": "53e37c34839d7ef8a5c2e3aa00d8435b2d721fe3806f052c074305392ae9ef5d",
       "finalBytes": 187686,
       "finalDimensions": {
@@ -288,7 +288,7 @@
         "width": 1254,
         "height": 1254
       },
-      "finalPath": "public/ip-popups/aouad/box-freq-dial-v2.webp",
+      "finalPath": "private/ip-popups/aouad/box-freq-dial-v2.webp",
       "finalSha256": "92d8d897655e704b732047e4720f193f94c44bc4ad8e800a552cb5323043f639",
       "finalBytes": 190714,
       "finalDimensions": {
@@ -321,7 +321,7 @@
         "width": 1254,
         "height": 1254
       },
-      "finalPath": "public/ip-popups/aouad/box-mic-mini-v2.webp",
+      "finalPath": "private/ip-popups/aouad/box-mic-mini-v2.webp",
       "finalSha256": "87b039bda22f37d32b4858ca6eb36e5c8ec8f26aeb9bad5703e61c87add17441",
       "finalBytes": 185796,
       "finalDimensions": {
@@ -354,7 +354,7 @@
         "width": 1254,
         "height": 1254
       },
-      "finalPath": "public/ip-popups/aouad/box-mini-candle-v2.webp",
+      "finalPath": "private/ip-popups/aouad/box-mini-candle-v2.webp",
       "finalSha256": "944f5b2e39ccf7f4bd04c28eb306b55c3596f8da626a2f4e1ac8fdbbeaaf250d",
       "finalBytes": 170608,
       "finalDimensions": {
@@ -387,7 +387,7 @@
         "width": 1254,
         "height": 1254
       },
-      "finalPath": "public/ip-popups/aouad/box-onair-magnet-v2.webp",
+      "finalPath": "private/ip-popups/aouad/box-onair-magnet-v2.webp",
       "finalSha256": "9ea86a5bd5cea4600b7c5c322842c4813582612fb2efe2565bdc62bb4656f798",
       "finalBytes": 154376,
       "finalDimensions": {
@@ -420,7 +420,7 @@
         "width": 1254,
         "height": 1254
       },
-      "finalPath": "public/ip-popups/aouad/box-reflect-strap-v2.webp",
+      "finalPath": "private/ip-popups/aouad/box-reflect-strap-v2.webp",
       "finalSha256": "fe782b747011c4a26a5d4d0140f783b98270629adf09e6348aa8bca10cae0e54",
       "finalBytes": 203744,
       "finalDimensions": {
@@ -453,7 +453,7 @@
         "width": 1254,
         "height": 1254
       },
-      "finalPath": "public/ip-popups/aouad/box-sos-magnet-v2.webp",
+      "finalPath": "private/ip-popups/aouad/box-sos-magnet-v2.webp",
       "finalSha256": "13c6eda094371623b446102f8ee5969a5f2691d288925b43bbe8641050b84052",
       "finalBytes": 166510,
       "finalDimensions": {

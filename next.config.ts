@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // 시연 미디어는 public으로 복사하지 않고 권한을 검사하는 단일 함수에만 포함한다.
+  outputFileTracingIncludes: {
+    '/ip-popups/aouad/*': ['./private/ip-popups/aouad/**/*'],
+  },
   async redirects() {
     // 유료 뽑기 화면(/gacha)을 카드팩 개봉 화면으로 재목적화(#71) — 구 링크 보존
     return [{ source: '/gacha', destination: '/packs', permanent: true }];

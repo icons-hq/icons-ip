@@ -614,7 +614,7 @@ export function HudBody({ cur, seg, onSeg, bodyKey, flashId }) {
                     role={t.go ? "button" : undefined} tabIndex={t.go ? 0 : undefined}
                     onClick={t.go ? t.go.act : undefined}
                     onKeyDown={t.go ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); t.go.act(); } } : undefined}>
-                    {t.thumb ? <Image width={26} height={26} className={s.tierThumb} src={t.thumb} alt="" />
+                    {t.thumb ? <Image unoptimized width={26} height={26} className={s.tierThumb} src={t.thumb} alt="" />
                       : <i className={s.tierThumb} aria-hidden="true" />}
                     <span className={s.tierBody}><b>{t.name}</b>{t.sub && <span>{t.sub}</span>}</span>
                     <em className={s.tierState}>{t.state || (t.done ? `${t.label} ✓` : t.label)}</em>
