@@ -1,0 +1,16 @@
+.showcase { margin: 8px 0 48px; }
+.card { position: relative; display: block; isolation: isolate; overflow: hidden; min-height: 360px; color: #f8f5ed; background: #111612; text-decoration: none; }
+.art { position: absolute; z-index: -2; inset: 0; background: url('/ip-popups/aouad/key-armed-group.jpg') 67% center / cover no-repeat; transition: transform .7s ease; }
+.card::before { content: ''; position: absolute; z-index: -1; inset: 0; background: linear-gradient(90deg, rgba(7, 13, 11, .97) 0%, rgba(7, 13, 11, .76) 39%, rgba(7, 13, 11, .12) 100%); }
+.card:hover .art { transform: scale(1.025); }
+.card:focus-visible { outline: 3px solid var(--wc-focus); outline-offset: 5px; }
+.content { padding: 36px 28px; }
+.eyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 0 36px; font-size: 10px; font-weight: 600; letter-spacing: .08em; }
+.eyebrow span { padding: 4px 7px; border: 1px solid rgba(248, 245, 237, .5); font-size: 10px; font-weight: 500; letter-spacing: 0; }
+.content h2 { margin: 0 0 16px; font-size: clamp(30px, 5vw, 58px); font-weight: 800; line-height: 1.12; letter-spacing: -.045em; word-break: keep-all; }
+.description { margin: 0; font-size: clamp(15px, 2vw, 19px); line-height: 1.6; color: #e2e3dd; }
+.cta { display: inline-flex; gap: 24px; align-items: center; min-height: 44px; margin-top: 30px; padding: 0 0 5px; border-bottom: 1px solid rgba(248, 245, 237, .65); font-size: 13px; font-weight: 650; }
+.note { margin: 12px 0 0; color: var(--wc-ink-tertiary, #616161); font-size: 12px; line-height: 1.5; word-break: keep-all; }
+@media (min-width: 750px) { .content { padding: 44px 48px; } .card { min-height: 430px; } .eyebrow { margin-bottom: 48px; } }
+@media (max-width: 499px) { .art { background-position: 65% center; opacity: .62; } .card::before { background: linear-gradient(90deg, rgba(7, 13, 11, .9), rgba(7, 13, 11, .25)); } .content { padding: 28px 22px; } }
+@media (prefers-reduced-motion: reduce) { .art { transition: none; } .card:hover .art { transform: none; } }

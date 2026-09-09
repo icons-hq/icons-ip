@@ -1,0 +1,30 @@
+{
+  "cell": [
+    176,
+    256
+  ],
+  "cols": 8,
+  "rows": 4,
+  "acts": {
+    "run": {
+      "start": 0,
+      "end": 7,
+      "frames": 8
+    },
+    "jump": {
+      "start": 8,
+      "end": 11,
+      "frames": 4
+    },
+    "slide": {
+      "start": 16,
+      "end": 18,
+      "frames": 3
+    },
+    "caught": {
+      "start": 24,
+      "end": 27,
+      "frames": 4
+    }
+  }
+}

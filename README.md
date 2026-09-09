@@ -327,6 +327,7 @@ curl -s "$PREVIEW_URL" | grep -o '/_next/static/chunks/[^"]*\.js' | sort -u | wh
 - 공개 브라우징이 기본이다. IP, 굿즈, 카드, 이벤트, 커뮤니티 읽기는 로그인 없이 접근 가능해야 한다.
 - 보호 액션은 구매, 카드팩 개봉, 게임 플레이, 예매, 작성, 팔로우 시점에 로그인 게이트를 둔다.
 - `/exchange`와 `/market`은 v2 전까지 프로토타입/플레이스홀더로 유지한다. 예외는 스태프 전용 mock 시연 하나다 — 로그인한 staff/admin에게만 같은 라우트가 시연 화면을 렌더하고 푸터에 진입점이 열리며, `lib/secondary-market-demo.ts`의 스위치 한 줄로 함께 닫힌다. 실거래 배선이 아니다.
+- 지우학 온라인 팝업 프레젠테이션은 `/ip`의 스태프 전용 카드에서 `/ip/aouad`로 들어간다. 전용 서버 게이트와 로컬 QA, 시연 초기화, 배포 확인은 [운영 가이드](./docs/runbooks/aouad-executive-demo.md)에 정리한다. 화면의 주문·결제·예약·리워드는 브라우저 시연이며 실제 거래를 만들지 않는다.
 - 돈, 재고, 카드 발급 RNG, 뽑기권 발급·개봉, 유한 실물 경품 배정, 티켓 검표는 클라이언트 상태에 맡기지 않는다. Supabase Postgres RPC, RLS, 행 잠금, 멱등 처리를 기준으로 구현한다.
 - 결제 확정은 provider-neutral `PaymentGateway.confirm/reconcile` 결과와 DB finalizer를 진실원으로 삼는다. 토스 경로는 조회 API 재검증과 웹훅 트리거 재정합을 함께 쓰고, 어느 경로도 클라이언트 성공 콜백이나 웹훅 payload만으로 주문·티켓을 확정하지 않는다.
 - Next.js 16 관련 API, 라우팅, proxy/middleware, metadata, caching 코드를 수정하기 전에는 `node_modules/next/dist/docs/`의 현재 버전 문서를 확인한다.

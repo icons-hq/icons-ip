@@ -4,6 +4,8 @@
 
 import { COMMUNITY_ENABLED } from './community-visibility';
 
+export const AOUAD_POPUP_PATH = '/ip/aouad';
+
 export interface NavItem {
   id: string;
   label: string;
@@ -50,6 +52,7 @@ const PATHS: Record<string, string> = {
   new: '/shop/new',
   best: '/shop/best',
   iphub: '/ip',
+  aouadPopup: AOUAD_POPUP_PATH,
   shop: '/shop',
   packs: '/packs',
   binder: '/binder',
@@ -118,6 +121,14 @@ export function isAuthShellPath(pathname: string): boolean {
   return pathname === '/login'
     || pathname === '/update-password'
     || pathname === '/account-suspended';
+}
+
+/** 공용 내비게이션·푸터·문의 위젯을 함께 비우는 독립 경험 경계. */
+export function isStandaloneShellPath(pathname: string): boolean {
+  return isAuthShellPath(pathname)
+    || pathname === '/games' || pathname.startsWith('/games/')
+    || pathname === '/admin' || pathname.startsWith('/admin/')
+    || pathname === AOUAD_POPUP_PATH || pathname.startsWith(`${AOUAD_POPUP_PATH}/`);
 }
 
 /* 제목 있는 링크 묶음 — 메가메뉴와 모바일 시트가 같은 모양을 공유한다. */

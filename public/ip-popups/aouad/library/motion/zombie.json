@@ -1,0 +1,25 @@
+{
+  "cell": [
+    176,
+    256
+  ],
+  "cols": 8,
+  "rows": 3,
+  "acts": {
+    "walk": {
+      "start": 0,
+      "end": 5,
+      "frames": 6
+    },
+    "alert": {
+      "start": 8,
+      "end": 11,
+      "frames": 4
+    },
+    "charge": {
+      "start": 16,
+      "end": 21,
+      "frames": 6
+    }
+  }
+}

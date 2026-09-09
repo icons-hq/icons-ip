@@ -1,0 +1,319 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-09",
+  "purpose": "Replacement concept artwork for the AOUAD executive demonstration",
+  "transform": {
+    "library": "sharp",
+    "operation": "resize without enlargement and WebP encoding; no crop or retouch",
+    "maxWidth": 1440,
+    "format": "webp",
+    "quality": 90,
+    "effort": 6
+  },
+  "qaStatus": "passed",
+  "assets": [
+    {
+      "productId": "cabinet_penholder",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-d6cefc04-9d61-4aa8-9df4-2aa9d23d3aa2.png",
+      "sourceSha256": "8db2647510b5c776b1aa80a1ffd7d2d023b83c0b11d8a5e44d7dce2c6a85c2df",
+      "sourceBytes": 1898920,
+      "sourceDimensions": {
+        "width": 1448,
+        "height": 1086
+      },
+      "finalPath": "public/ip-popups/aouad/md-cabinet-penholder-v2.webp",
+      "finalSha256": "b8295bd13097379ea1950b3b62d6b9b6c92992483850ec05dd304b5631f75389",
+      "finalBytes": 154126,
+      "finalDimensions": {
+        "width": 1440,
+        "height": 1080
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "reviewer": "root and source_audit",
+        "date": "2026-09-09"
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "b8295bd13097379ea1950b3b62d6b9b6c92992483850ec05dd304b5631f75389",
+        "reviewer": "root",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-generated-six.png"
+      }
+    },
+    {
+      "productId": "maskingtape_set",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-c875071a-4dc5-4eb3-9f24-78799168071f.png",
+      "sourceSha256": "6258873e7c66fc1874b23c93c86e23b53e27bf4e6f00718e038d9053eec069aa",
+      "sourceBytes": 2085538,
+      "sourceDimensions": {
+        "width": 1448,
+        "height": 1086
+      },
+      "finalPath": "public/ip-popups/aouad/md-maskingtape-set-v2.webp",
+      "finalSha256": "853dabca93b297287cf728d0468279acbbce031da439a911b536cfbd4d3ae1e9",
+      "finalBytes": 219762,
+      "finalDimensions": {
+        "width": 1440,
+        "height": 1080
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "reviewer": "root and source_audit",
+        "date": "2026-09-09"
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "853dabca93b297287cf728d0468279acbbce031da439a911b536cfbd4d3ae1e9",
+        "reviewer": "root",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-generated-six.png"
+      }
+    },
+    {
+      "productId": "strap_suhyeok",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-0a476433-24a5-42af-8440-b7053a11ba14.png",
+      "sourceSha256": "4db69cfb4aae203b2ac22270692ed6616082c02ec3228032eba2a395404462a7",
+      "sourceBytes": 2033957,
+      "sourceDimensions": {
+        "width": 1448,
+        "height": 1086
+      },
+      "finalPath": "public/ip-popups/aouad/md-strap-suhyeok-v2.webp",
+      "finalSha256": "50211f0cdbad171a71e79be29e79512339bea1e46d60ee2b2d6f809560e4f354",
+      "finalBytes": 213810,
+      "finalDimensions": {
+        "width": 1440,
+        "height": 1080
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "reviewer": "root and source_audit",
+        "date": "2026-09-09"
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "50211f0cdbad171a71e79be29e79512339bea1e46d60ee2b2d6f809560e4f354",
+        "reviewer": "root",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-generated-six.png"
+      }
+    },
+    {
+      "productId": "glass_canteen",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-cc49028e-69cd-4aa0-8066-0193edd9a3c0.png",
+      "sourceSha256": "e7faeb23f8267357b31093af2be3826c123abc783dcc142280b536f03ddc8ad4",
+      "sourceBytes": 1781446,
+      "sourceDimensions": {
+        "width": 1448,
+        "height": 1086
+      },
+      "finalPath": "public/ip-popups/aouad/md-glass-canteen-v2.webp",
+      "finalSha256": "13290fd96524ae932a2cc779fed219c35a3454a286c7cbf8098f685aeb715d43",
+      "finalBytes": 149684,
+      "finalDimensions": {
+        "width": 1440,
+        "height": 1080
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "reviewer": "root and source_audit",
+        "date": "2026-09-09"
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "13290fd96524ae932a2cc779fed219c35a3454a286c7cbf8098f685aeb715d43",
+        "reviewer": "root",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-generated-six.png"
+      }
+    },
+    {
+      "productId": "photo",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-9d221c37-0c79-409f-a1ff-fd2e6bd69859.png",
+      "sourceSha256": "bf9371bf4e662eb121d7e7495ef7de258a4bf0c625d78686931a9488d54f5bc0",
+      "sourceBytes": 2647031,
+      "sourceDimensions": {
+        "width": 1448,
+        "height": 1086
+      },
+      "finalPath": "public/ip-popups/aouad/md-photo-v2.webp",
+      "finalSha256": "c66e2fd52844ee4da4e1b355564f6eaae31b89875769a5cfde4323826b5e1d5f",
+      "finalBytes": 358142,
+      "finalDimensions": {
+        "width": 1440,
+        "height": 1080
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "reviewer": "root and source_audit",
+        "date": "2026-09-09"
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "c66e2fd52844ee4da4e1b355564f6eaae31b89875769a5cfde4323826b5e1d5f",
+        "reviewer": "root",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-generated-six.png"
+      }
+    },
+    {
+      "productId": "dogtag_survivor",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-211db410-1ecb-4d04-85fd-260b58e8b580.png",
+      "sourceSha256": "80408e71689eaa179bee81f3804dee1936674c1c9c0f5759a231366d94294baf",
+      "sourceBytes": 2257805,
+      "sourceDimensions": {
+        "width": 1448,
+        "height": 1086
+      },
+      "finalPath": "public/ip-popups/aouad/md-dogtag-survivor-v2.webp",
+      "finalSha256": "5edcff6b12545b00863fb84cff7ceea4118d587b0052a130d1af41a40a85c4c8",
+      "finalBytes": 265018,
+      "finalDimensions": {
+        "width": 1440,
+        "height": 1080
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "reviewer": "root and source_audit",
+        "date": "2026-09-09"
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "5edcff6b12545b00863fb84cff7ceea4118d587b0052a130d1af41a40a85c4c8",
+        "reviewer": "root",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-generated-six.png"
+      }
+    },
+    {
+      "productId": "deskmat_map",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-f7084595-0f03-4be0-8b2f-1cae143be2fa.png",
+      "sourceSha256": "1e714525230348d2cca66ec205230fbfc975930c0d95cfece621c93dc7a72608",
+      "sourceBytes": 2666000,
+      "sourceDimensions": {
+        "width": 1254,
+        "height": 1254
+      },
+      "finalPath": "public/ip-popups/aouad/md-deskmat-map-v2.webp",
+      "finalSha256": "dfad07d7eff1119068dcc90a72b9aacae7a3bd6c2ab3e5d32d32c4c8a6670426",
+      "finalBytes": 346950,
+      "finalDimensions": {
+        "width": 1200,
+        "height": 1200
+      },
+      "transform": {
+        "maxWidth": 1200,
+        "maxHeight": 1200,
+        "fit": "inside",
+        "withoutEnlargement": true,
+        "format": "webp",
+        "quality": 90,
+        "effort": 6
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "sha256": "1e714525230348d2cca66ec205230fbfc975930c0d95cfece621c93dc7a72608",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "note": "Direct source PNG inspection: HYOSAN map, unbranded flashlight, or blank-name customizable student ID kit."
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "dfad07d7eff1119068dcc90a72b9aacae7a3bd6c2ab3e5d32d32c4c8a6670426",
+        "reviewer": "root",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-generated-additional-three.png"
+      }
+    },
+    {
+      "productId": "tactical_flashlight",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-9e497825-ae70-42bd-8b46-36b35b7cfac9.png",
+      "sourceSha256": "71d3af1736a0ad5b02ba14b51fe35848f7d0242387946890127c40090ac9c61e",
+      "sourceBytes": 1987804,
+      "sourceDimensions": {
+        "width": 1254,
+        "height": 1254
+      },
+      "finalPath": "public/ip-popups/aouad/md-tactical-flashlight-v2.webp",
+      "finalSha256": "081e0e53ae2a744cf31fa4f2ad69af08571b7a5ad0100317b83628f1d86be89e",
+      "finalBytes": 189566,
+      "finalDimensions": {
+        "width": 1200,
+        "height": 1200
+      },
+      "transform": {
+        "maxWidth": 1200,
+        "maxHeight": 1200,
+        "fit": "inside",
+        "withoutEnlargement": true,
+        "format": "webp",
+        "quality": 90,
+        "effort": 6
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "sha256": "71d3af1736a0ad5b02ba14b51fe35848f7d0242387946890127c40090ac9c61e",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "note": "Direct source PNG inspection: HYOSAN map, unbranded flashlight, or blank-name customizable student ID kit."
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "081e0e53ae2a744cf31fa4f2ad69af08571b7a5ad0100317b83628f1d86be89e",
+        "reviewer": "root",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-generated-additional-three.png"
+      }
+    },
+    {
+      "productId": "idcard",
+      "sourcePath": "/Users/sangwopark19/.codex/generated_images/01a084cc-b072-70d1-9e0f-d068d0ce02a4/exec-10c1384c-7248-4645-81d2-467fa659bf02.png",
+      "sourceSha256": "1542e8e46ca508d2804672e137f53b99ff0d1f27309ef4fdf405b4c736dbe491",
+      "sourceBytes": 2668232,
+      "sourceDimensions": {
+        "width": 1254,
+        "height": 1254
+      },
+      "finalPath": "public/ip-popups/aouad/md-idcard-v2.webp",
+      "finalSha256": "a26e2a9b1cacc5faa72883b0dc90c19d1d30f87127119fba1492de2c283789e2",
+      "finalBytes": 340602,
+      "finalDimensions": {
+        "width": 1200,
+        "height": 1200
+      },
+      "transform": {
+        "maxWidth": 1200,
+        "maxHeight": 1200,
+        "fit": "inside",
+        "withoutEnlargement": true,
+        "format": "webp",
+        "quality": 90,
+        "effort": 6
+      },
+      "provenance": "Codex built-in imagegen; new concept product illustration",
+      "sourceVisualQa": {
+        "status": "accepted",
+        "sha256": "1542e8e46ca508d2804672e137f53b99ff0d1f27309ef4fdf405b4c736dbe491",
+        "reviewer": "root and integration_audit",
+        "date": "2026-09-09",
+        "note": "Direct source PNG inspection: HYOSAN map, unbranded flashlight, or blank-name customizable student ID kit."
+      },
+      "finalVisualQa": {
+        "status": "passed",
+        "sha256": "a26e2a9b1cacc5faa72883b0dc90c19d1d30f87127119fba1492de2c283789e2",
+        "reviewer": "root",
+        "date": "2026-09-09",
+        "evidence": "/tmp/icons-aouad-qa-2026-09-09/assets/final-generated-additional-three.png"
+      }
+    }
+  ]
+}

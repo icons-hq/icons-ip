@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/wc/EmptyState';
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import { Slider } from '@/components/wc/Slider';
 import { WcButton } from '@/components/wc/WcButton';
+import { AouadShowcaseCard } from '@/components/online-popup/aouad/AouadShowcaseCard';
 import type { Ip } from '@/lib/data';
 import { DIRECTORY_LETTERS, filterIpsByLetter, sortIpsForDirectory } from '@/lib/ip-directory';
 import { ipEn } from '@/lib/ip-display';
@@ -21,10 +22,13 @@ const FEATURED_LIMIT = 5;
 export function IpDirectory({
   ips,
   initialLetter = 'ALL',
+  aouadLocalPreview = false,
 }: {
   ips: Ip[];
   /** 시작 레터 — 정적 렌더 테스트가 필터 상태를 단언하기 위한 주입점(Events.initialIpId 선례). 기본은 ALL. */
   initialLetter?: string;
+  /** 서버가 development + 명시 로컬 QA 환경 변수에서만 연다. 실제 권한은 목적지 라우트가 판정한다. */
+  aouadLocalPreview?: boolean;
 }) {
   const [letter, setLetter] = useState(initialLetter);
   const sorted = useMemo(() => sortIpsForDirectory(ips), [ips]);
@@ -39,6 +43,8 @@ export function IpDirectory({
           subcopy="IP별 전시관을 둘러보고, 관심 있는 세계로 들어가 보세요."
           title="온라인 팝업"
         />
+
+        <AouadShowcaseCard localPreview={aouadLocalPreview} />
 
         {ips.length === 0 ? (
           <EmptyState description="곧 새로운 IP가 공개될 예정이에요." title="등록된 IP가 아직 없습니다" />

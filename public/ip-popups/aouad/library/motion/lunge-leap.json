@@ -1,0 +1,15 @@
+{
+  "cell": [
+    176,
+    320
+  ],
+  "cols": 8,
+  "rows": 1,
+  "acts": {
+    "idle": {
+      "start": 0,
+      "end": 5,
+      "frames": 6
+    }
+  }
+}

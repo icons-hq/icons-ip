@@ -1,0 +1,93 @@
+/* 공통 안내도 — v3.6 스트레치 레이아웃(부스 = HTML 층 · 판이 컨테이너 양축 100%).
+   스킨 색은 프레임 클래스(.fMini/.fPaper)의 변수로 갈아끼운다 — 색 예산 내. */
+
+.frame { position: relative; width: 100%; height: 100%; min-height: 0; display: flex;
+  flex-direction: column; border-radius: 6px; overflow: hidden; container-type: size;
+  --pf-ink: var(--ink, #e8e4da); --pf-dim: var(--dim, #b8b3a9); --pf-fire: var(--fire, #ff8a3d);
+  --fs-micro: 12px; --fs-caption: 12px; --fs-body: 14px; }
+.fMini { background: transparent;
+  border: 0;
+  --pf-wall: rgba(232, 228, 218, .25); --pf-room: rgba(232, 228, 218, .035);
+  --pf-hatch: rgba(232, 228, 218, .045); }
+.fPaper { background:
+  repeating-linear-gradient(0deg, transparent 0 12px, rgba(92, 87, 76, .1) 12px 13px),
+  repeating-linear-gradient(90deg, transparent 0 12px, rgba(92, 87, 76, .1) 12px 13px),
+  #efe9da;
+  border: 1px solid #d6cfbd;
+  --pf-ink: #3f3a31; --pf-dim: #8a8272; --pf-fire: #c14e20;
+  --pf-wall: #5c574c; --pf-room: rgba(246, 241, 228, .92); --pf-hatch: rgba(92, 87, 76, .07); }
+
+.head { flex: none; display: flex; align-items: center; gap: 6px; padding: 5px 9px 3px;
+  font-size: var(--fs-micro, 10px); font-weight: 800; letter-spacing: 0.08em; color: var(--pf-ink); }
+.head i { width: 5px; height: 5px; border-radius: 50%; background: var(--pf-fire); flex: none; }
+
+.plane { position: relative; flex: 1; min-height: 0; margin: 2px 4px; }
+.bgImg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 4px; }
+.deco { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
+.route { stroke: var(--pf-fire); opacity: .3; stroke-width: 1.2; }
+
+/* 부스 — 좌표 % 절대 배치. 판이 늘면 부스도 늘고 글자는 그대로다 */
+.booth { position: absolute; z-index: 2; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 1px; min-width: 0;
+  border: 1px solid var(--pf-wall); border-radius: 5px;
+  background: var(--pf-room);
+  color: var(--pf-ink); font-family: inherit; cursor: pointer; padding: 2px 4px;
+  transition: border-color .15s; }
+.booth:hover { border-color: var(--pf-fire); }
+.booth:focus-visible { outline: 2px solid var(--pf-fire); outline-offset: 2px; }
+.booth b { font-size: var(--fs-caption, 12px); line-height: 1.25; font-weight: 600;
+  max-width: 100%; overflow: hidden; text-align: center; word-break: keep-all;
+  overflow-wrap: anywhere; /* 공백 없는 긴 이름(「오프라인팝업존」)은 어절 유지가 불가능하니 마지막 수단으로 글자 사이에서 꺾는다 — 잘림 대신 */
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.booth > span { font-size: var(--fs-micro, 12px); line-height: 1.2; color: var(--pf-dim);
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.booth.here { border-color: var(--pf-fire); border-width: 1.5px;
+  background: rgba(255, 138, 61, .12);
+  color: var(--pf-fire); }
+.booth.locked { border-style: dashed; color: var(--pf-dim); }
+.booth.done > span { color: var(--pf-fire); }
+.glyph { width: 12px; height: 12px; flex: none; position: absolute; top: 4px; left: 5px;
+  color: var(--pf-dim); }
+.booth.here .glyph { color: var(--pf-fire); }
+.flag { position: absolute; top: 5px; right: 6px; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--pf-fire); animation: pfBlink 1.6s ease-in-out infinite; }
+.hereDot { position: absolute; top: 4px; right: 4px; width: 4px; height: 4px;
+  border-radius: 50%; background: var(--pf-fire); }
+.hereDot .pulse { position: absolute; inset: 0; border-radius: 50%;
+  border: 1.5px solid var(--pf-fire); animation: pfPulse 2s ease-out infinite; }
+
+.entry { position: absolute; z-index: 3; transform: translate(-50%, 0);
+  display: inline-flex; align-items: center; gap: 3px; padding: 1.5px 7px; border-radius: 3px;
+  background: #1a1d1d; color: var(--pf-fire); font-size: 12px; font-weight: 600; }
+.fPaper .entry { color: #efe9da; }
+.entry i { font-style: normal; font-size: 9px; line-height: 1; }
+
+
+/* 낮은 컨테이너(밴드 상시판) — 띠 접고 지도만. 좁은 부스 글자도 한 단 감산 */
+@container (max-height: 149px) {
+  .head { display: none; }
+  .plane { margin: 4px; }
+  .booth b { font-size: 12px; }
+  .booth > span { font-size: 12px; }
+  .glyph { display: none; }
+}
+/* 아주 낮은 판(15% 밴드 × 2차 칩 줄이 함께 선 장 — v4.8 실측 80px) — 이름 두 줄을 지키려면 나머지를 접는다.
+   상태 라벨(「체험 0/3」)은 접고 이름만 남긴다: 현 위치는 테두리·점이 이미 말하고, 이름이 잘리면 어디인지 알 수 없다. */
+@container (max-height: 110px) {
+  .booth { padding: 0 3px; gap: 0; }
+  .booth b { line-height: 1.2; }
+  .booth > span { display: none; }
+}
+/* 큰 판(시트·대형 밴드) — 부스 글자 승급 */
+@container (min-height: 300px) {
+  .booth b { font-size: var(--fs-body, 14px); }
+  .booth > span { font-size: var(--fs-caption, 12px); }
+  .booth { border-radius: 8px; gap: 3px; }
+  .glyph { width: 15px; height: 15px; top: 7px; left: 8px; }
+  .head { font-size: var(--fs-caption, 11.5px); padding: 8px 12px 4px; }
+  .plane { margin: 5px 10px; }
+}
+
+@keyframes pfPulse { 0% { transform: scale(1); opacity: .8; } 70% { transform: scale(2.2); opacity: 0; } 100% { transform: scale(2.2); opacity: 0; } }
+@keyframes pfBlink { 0%, 60% { opacity: 1; } 80% { opacity: .25; } 100% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .pulse, .flag { animation: none; } }

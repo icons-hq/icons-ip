@@ -1,11 +1,19 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { InquiryWidgetPanel, WidgetInquiryConversation } from './InquiryWidget';
+import { InquiryWidget, InquiryWidgetPanel, WidgetInquiryConversation } from './InquiryWidget';
 import type { InquiryThreadView } from '@/lib/inquiries.server';
 vi.mock('@/app/my/inquiries/actions', () => ({ createWidgetInquiryAction: vi.fn(), replyToInquiryAction: vi.fn() }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: vi.fn() }));
-vi.mock('next/navigation', () => ({ usePathname: () => '/' }));
+const mocks = vi.hoisted(() => ({ pathname: '/' }));
+vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname }));
 describe('FAQ 먼저 여는 상담 위젯', () => {
+  it('독립 AOUAD 경험에는 문의 런처를 겹치지 않는다', () => {
+    mocks.pathname = '/ip/aouad';
+    expect(renderToStaticMarkup(<InquiryWidget />)).toBe('');
+    mocks.pathname = '/ip';
+    expect(renderToStaticMarkup(<InquiryWidget />)).toContain('FAQ · 문의');
+    mocks.pathname = '/';
+  });
   it('비로그인은 FAQ와 로그인 유도를 보고 문의 작성 폼을 받지 않는다', () => {
     const html = renderToStaticMarkup(<InquiryWidgetPanel userId={null} onClose={() => {}} />);
     expect(html).toContain('role="dialog"'); expect(html).toContain('aria-modal="true"');

@@ -306,6 +306,8 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 | 게임 | `/games/[gameId]` | `standalone-game` | 서버 판정·한도·보상 동결 |
 | 404·에러·로딩 | `not-found`·`error`·`loading` | White Catalog 기본 표면 신설 | — |
 
+지우학 프레젠테이션 `/ip/aouad`는 `/ip`의 별도 시연 카드에서 들어가는 전용 경험이다. 디렉토리는 White Catalog를 유지하고, 경험은 `components/online-popup/aouad`의 CSS module 경계 안에서 야간 효산고의 장면·소품·타이포를 사용한다. 공용 내비게이션·푸터·문의 위젯은 `isStandaloneShellPath`로 함께 비우며 전역 토큰을 덮지 않는다. 프레젠테이션 표기와 ICONS 복귀 동선을 유지하고 실제 주문·결제·예약·리워드로 이어지지 않는다.
+
 ## 9. 상태·피드백 (승계)
 
 로딩=최종 비율 보존 skeleton / 빈 상태=원인+다음 행동 1개 / 오류=재시도와 안전 이탈 / 성공=서버 확인 전 "완료" 금지 / disabled=시각+`aria` 일관. 결제·예매·검표 진행 중 주변 자동 모션 금지.

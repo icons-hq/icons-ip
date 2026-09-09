@@ -41,7 +41,7 @@ describe('White Catalog 전역 셸', () => {
   /* 인증은 집중형 셸, 게임은 자기완결 번들, 어드민은 자체 작업대다.
    * 공용 크롬이 새어 들어가면 각 표면이 헤더를 두 개 갖는다. */
   it('인증·게임·어드민에서는 크롬과 푸터를 모두 비운다', () => {
-    for (const pathname of ['/login', '/update-password', '/account-suspended', '/games/roulette', '/admin']) {
+    for (const pathname of ['/login', '/update-password', '/account-suspended', '/games/roulette', '/admin', '/ip/aouad']) {
       mocks.pathname = pathname;
 
       expect(renderToStaticMarkup(<Nav />), pathname).toBe('');
