@@ -829,43 +829,68 @@ interface GoodDetailRow {
  * 보관된 굿즈는 스냅샷에서 이미 빠져 있으므로 여기서도 null 이 되고, 라우트가 404 로 옮긴다.
  */
 export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodDetail | null> {
-  const catalog = await getCatalogSnapshot();
-  const good = catalog.goods.find((item) => item.id === goodId);
-  if (!good) return null;
-
-  const ip = catalog.ips.find((item) => item.id === good.ip) ?? null;
-  const empty: CatalogGoodDetail = {
-    source: catalog.source,
-    good,
-    ip,
-    description: null,
-    gallery: [],
-    detailImageUrl: null,
-    notice: EMPTY_GOODS_NOTICE,
-  };
-  if (catalog.source !== 'supabase') return empty;
+  /* 상세는 전량 스냅샷을 읽지 않는다 — 목록·장바구니·주문 생성과 같은 RPC(할인가) 로 한 건만 읽는다.
+   * 스냅샷은 할인 전 판매가를 들고 있어 상품 화면 ₩42,000 · 결제 ₩37,800 이 갈렸다(2026-09-09 브라우저 QA). */
+  if (getCatalogSource({}) === 'mock') {
+    const catalog = mockSnapshot();
+    const mockGood = catalog.goods.find((item) => item.id === goodId);
+    if (!mockGood) return null;
+    return {
+      source: 'mock',
+      good: mockGood,
+      ip: catalog.ips.find((item) => item.id === mockGood.ip) ?? null,
+      description: null,
+      gallery: [],
+      detailImageUrl: null,
+      notice: EMPTY_GOODS_NOTICE,
+    };
+  }
 
   const supabase = await createClient();
-  const result = await supabase
-    .from('goods')
-    /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-    .select('description,gallery_paths,detail_image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact')
-    .eq('id', goodId)
-    .is('archived_at', null)
-    .maybeSingle();
-
-  if (result.error) {
-    throw new Error(`Failed to load good detail: ${result.error.message}`);
-  }
-  if (!result.data) return empty;
-
-  const row = result.data as GoodDetailRow;
   const imageUrlForPath = (path: string) => supabase.storage
     .from(PUBLIC_MEDIA_BUCKET)
     .getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
 
+  const goodResult = await supabase.rpc('storefront_goods_by_ids', { p_ids: [goodId] });
+  if (goodResult.error) {
+    throw new Error(`Failed to load good: ${goodResult.error.message}`);
+  }
+  const goodRow = ((goodResult.data ?? []) as GoodRow[])[0];
+  if (!goodRow) return null;
+  const good = toGood(goodRow, imageUrlForPath);
+
+  const [ipResult, verticalsResult, result] = await Promise.all([
+    supabase
+      .from('ips')
+      .select('id,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count,goods_count,cards_count')
+      .eq('id', good.ip)
+      .is('archived_at', null)
+      .maybeSingle(),
+    supabase.from('verticals').select('key,label,color').order('key'),
+    supabase
+      .from('goods')
+    /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
+    .select('description,gallery_paths,detail_image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact')
+    .eq('id', goodId)
+    .is('archived_at', null)
+    .maybeSingle(),
+  ]);
+
+  if (result.error) {
+    throw new Error(`Failed to load good detail: ${result.error.message}`);
+  }
+  const verticalsByKey = new Map(
+    ((verticalsResult.data ?? []) as VerticalRow[]).map((vertical) => [vertical.key, vertical]),
+  );
+  const ip = ipResult.data ? toIp(ipResult.data as IpRow, verticalsByKey, imageUrlForPath) : null;
+  if (!result.data) {
+    return { source: 'supabase', good, ip, description: null, gallery: [], detailImageUrl: null, notice: EMPTY_GOODS_NOTICE };
+  }
+
+  const row = result.data as GoodDetailRow;
+
   return {
-    source: catalog.source,
+    source: 'supabase',
     good,
     ip,
     description: row.description,

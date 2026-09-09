@@ -228,4 +228,39 @@ select 1 / case when (
   and has_function_privilege('anon', 'public.good_effective_price(public.goods,timestamptz)', 'execute')
 ) then 1 else 0 end as assert_pricing_acl;
 
+
+-- 스토어프론트 RPC 는 주문 생성과 같은 할인가를 돌려준다(2026-09-09 브라우저 QA — 화면 42,000 · 결제 37,800 이 갈렸던 결함).
+update public.goods
+set discount_kind = 'percent', discount_value = 20, discount_starts_at = null, discount_ends_at = null
+where id = 'price-g1';
+do $$
+declare
+  v_by_ids integer;
+  v_page integer;
+  v_search integer;
+  v_ceil integer;
+begin
+  select price into v_by_ids from public.storefront_goods_by_ids(array['price-g1']);
+  select price into v_page from public.storefront_goods_page('all', array['price-ip'], null, null, null, 'recommended', 200, 0) where id = 'price-g1';
+  select price into v_search from public.storefront_goods_search('가격 테스트', 40, 0) where id = 'price-g1';
+  select price_ceil into v_ceil from public.storefront_goods_scope('all');
+  if v_by_ids is distinct from 8000 then
+    raise exception 'storefront_goods_by_ids returned % — expected the effective price 8000', v_by_ids;
+  end if;
+  if v_page is distinct from 8000 then
+    raise exception 'storefront_goods_page returned % — expected the effective price 8000', v_page;
+  end if;
+  if v_search is distinct from 8000 then
+    raise exception 'storefront_goods_search returned % — expected the effective price 8000', v_search;
+  end if;
+  if v_ceil < 8000 then
+    raise exception 'storefront_goods_scope price_ceil % is below the discounted good', v_ceil;
+  end if;
+  -- 가격 필터도 할인가 기준: 상한 9,000 이면 10,000짜리(할인 전)가 아니라 8,000짜리(할인 후)로 잡혀야 한다.
+  if not exists (select 1 from public.storefront_goods_page('all', array['price-ip'], null, null, 9000, 'recommended', 200, 0) where id = 'price-g1') then
+    raise exception 'price filter must use the effective price';
+  end if;
+end $$;
+select 1 as assert_storefront_effective_price;
+
 rollback;

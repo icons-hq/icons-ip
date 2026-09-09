@@ -7,6 +7,11 @@
 
 begin;
 
+-- ── 스태프 계정에 개인정보 내보내기 권한 — 발주서(개인정보 포함) 양식은 이 권한이 없으면 요청이 거절된다.
+insert into public.admin_permissions (user_id, permission)
+select id, 'secure_export' from public.profiles where email = 'test@test.com'
+on conflict do nothing;
+
 -- ── 손님 셋
 insert into auth.users (id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
