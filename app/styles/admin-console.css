@@ -1424,3 +1424,14 @@ a.admin-console-chip:hover {
   overflow-wrap: anywhere;
   text-align: left;
 }
+
+/* ── 분류 트리 — 시트처럼 한 줄 한 행(이름·코드·배지 | 상품 수·순서·자체 분류). 클래스가 없어 개수와 단추가 다음 줄로 떨어지던 것을 고침. */
+.admin-shell .admin-category-tree { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.admin-shell .admin-category-tree-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 36px; padding: 2px 8px; border-bottom: 1px solid var(--line); white-space: nowrap;
+}
+.admin-shell .admin-category-tree-row > span:first-child { display: inline-flex; align-items: center; min-width: 0; }
+.admin-shell .admin-category-tree-row[data-depth="1"] { background: rgba(0, 0, 0, .025); font-weight: 600; }
+.admin-shell .admin-category-tree-row .btn.btn-sm { min-height: 26px; padding: 0 8px; }
+.admin-shell .admin-category-tree-row .admin-console-grid-link.is-active { text-decoration: underline; }
