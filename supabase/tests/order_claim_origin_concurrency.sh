@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
+# Host psql only. The shared developer stack is never a test fallback.
+[[ "${PGHOST:-}" == '127.0.0.1' && "${PGPORT:-}" =~ ^[1-9][0-9]{0,4}$ && "$PGPORT" -le 65535 && ( "$PGPORT" != '54322' || "${GITHUB_ACTIONS:-}" == 'true' )
+ && ( -z "${PGDATABASE:-}" || "$PGDATABASE" == 'postgres' ) && ( -z "${PGUSER:-}" || "$PGUSER" == 'postgres' ) ]] || {
+ echo 'Set PGHOST=127.0.0.1 and an isolated PGPORT other than shared 54322.' >&2; exit 1;
+}
 claim_run="claim-origin-race-$$"
 claim_logs="$(mktemp -d)"
 psql_exec() {
- if [[ -n "${PSQL_BIN:-}" ]]; then
-  "$PSQL_BIN" -X -U "${PGUSER:-postgres}" -d "${PGDATABASE:-postgres}" -v ON_ERROR_STOP=1 "$@"
- else
-  docker exec -i "${SUPABASE_DB_CONTAINER:-supabase_db_icons-ip}" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"
- fi
+ env -u PGHOSTADDR -u PGSERVICE -u PGSERVICEFILE "${PSQL_BIN:-psql}" -X -h "$PGHOST" -p "$PGPORT" -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"
 }
 cleanup() {
  local result=$?
@@ -28,7 +29,20 @@ SQL
  if [[ "$result" == 0 ]]; then rm -r "$claim_logs";else echo "Logs: ${claim_logs}" >&2;fi
  exit "$result"
 }
-trap cleanup EXIT
+# Refuse collisions before arming cleanup; a failed preflight must never delete
+# preexisting rows that happen to use the fixture identifiers.
+psql_exec -qAt <<'SQL' >"${claim_logs}/preflight.log"
+select 1 / case when
+ not exists(select 1 from auth.users where id in('00000000-0000-4000-8000-000000045301','00000000-0000-4000-8000-000000045302','00000000-0000-4000-8000-000000045303'))
+ and not exists(select 1 from public.ips where id='claim-origin-test')
+ and not exists(select 1 from public.goods where id='claim-origin-test')
+ and not exists(select 1 from public.orders where id='00000000-0000-4000-8000-000000045310')
+ and not exists(select 1 from public.order_items where id in('00000000-0000-4000-8000-000000045311','00000000-0000-4000-8000-000000045312'))
+ and not exists(select 1 from public.order_shipments where id in('00000000-0000-4000-8000-000000045321','00000000-0000-4000-8000-000000045322'))
+ and not exists(select 1 from public.fulfillment_origins where id in('00000000-0000-4000-8000-000000045341','00000000-0000-4000-8000-000000045342') or code in('claimracea','claimraceb'))
+ and not exists(select 1 from public.audit_log where target='order:00000000-0000-4000-8000-000000045310')
+ then 1 else 0 end;
+SQL
 wait_event() {
  local name="$1" expected="$2" pid="$3"
  for _ in $(seq 1 180);do
@@ -38,9 +52,12 @@ wait_event() {
  done
  echo "Did not observe ${expected}: ${name}" >&2;return 1
 }
-psql_exec -q <<'SQL' >"${claim_logs}/setup.log" 2>&1
+if ! psql_exec -q <<'SQL' >"${claim_logs}/setup.log" 2>&1
 
--- Rollback-only synthetic catalog/order; no payment provider is called.
+-- Synthetic catalog/order removed by cleanup; no payment provider is called.
+-- The transaction owns the fixed identifiers atomically. A competing setup
+-- rolls back on collision without arming cleanup for another run's rows.
+begin;
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
 ('00000000-0000-4000-8000-000000045301','authenticated','authenticated','claim-origin-staff@example.test','{}','{}',now(),now()),
 ('00000000-0000-4000-8000-000000045302','authenticated','authenticated','claim-origin-owner@example.test','{}','{}',now(),now()),
@@ -62,7 +79,14 @@ insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,sh
 insert into public.order_shipment_items(order_id,shipment_id,order_item_id) values
 ('00000000-0000-4000-8000-000000045310','00000000-0000-4000-8000-000000045321','00000000-0000-4000-8000-000000045311'),
 ('00000000-0000-4000-8000-000000045310','00000000-0000-4000-8000-000000045322','00000000-0000-4000-8000-000000045312');
+commit;
 SQL
+then
+ cat "${claim_logs}/setup.log" >&2
+ echo "Setup rolled back; cleanup was not armed. Logs: ${claim_logs}" >&2
+ exit 1
+fi
+trap cleanup EXIT
 # Each scenario leaves one winner; the other transaction re-evaluates eligibility
 # after waiting for the exact same order lock, without deadlocks or dual writes.
 for first in confirm request;do
