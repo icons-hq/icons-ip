@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import {
   normalizeAdminCategoryForm,
+  parseErpCategoryRows,
   normalizeGoodComplianceForm,
   normalizeGoodDiscountForm,
   normalizeGoodPricingForm,
@@ -46,6 +47,10 @@ const RPC_MESSAGES: [string, string][] = [
   ['goods_gallery_alts_mismatch', '갤러리 설명 개수가 이미지 수와 다릅니다.'],
   ['tax_type_invalid', '과세 구분을 확인해주세요.'],
   ['supply_price_invalid', '공급가를 확인해주세요.'],
+  ['category_erp_locked', 'ERP 분류의 이름·위치·순서는 ERP 에서 바꾸고 동기화합니다.'],
+  ['category_catalog_under_erp_leaf', '자체 분류는 ERP 소분류 아래에만 만들 수 있습니다.'],
+  ['erp_categories_payload_invalid', 'ERP 분류 목록 형식이 올바르지 않습니다.'],
+  ['erp_categories_parent_missing', 'ERP 분류 목록에 상위 분류가 없는 행이 있습니다.'],
   ['good_not_found', '굿즈를 찾을 수 없습니다.'],
   ['ip_not_found', 'IP를 찾을 수 없습니다.'],
   ['request_conflict', '이미 처리된 요청입니다. 화면을 새로고침해주세요.'],
@@ -108,6 +113,43 @@ async function run_upsertCategoryAction(_state: AdminCatalogActionState,
 
   revalidateCatalogPaths();
   return { message: `분류 ${value.name}을(를) 저장했습니다.` };
+}
+
+export async function syncErpCategoriesAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  return preserveValues(formData, () => run_syncErpCategoriesAction(_state, formData));
+}
+
+/*
+ * ERP 분류 동기화 — `scripts/erp/erp-categories-from-xlsx.py` 가 ERP 「품목대중소분류정의」에서 만든 JSON 을 올린다.
+ * 파일은 여기서 모양만 보고, 맞추는 일(추가·이름 바꿈·사라진 노드 숨김)은 DB 함수가 한 트랜잭션으로 한다.
+ */
+async function run_syncErpCategoriesAction(_state: AdminCatalogActionState,
+  formData: FormData,): Promise<AdminCatalogActionState> {
+  const authError = await requireStaff();
+  if (authError) return authError;
+
+  const file = formData.get('file');
+  if (!(file instanceof File) || file.size === 0) return { errors: { file: 'ERP 분류 JSON 파일을 골라주세요.' } };
+  if (file.size > 2_000_000) return { errors: { file: '파일이 너무 큽니다(2MB 까지).' } };
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await file.text());
+  } catch {
+    return { errors: { file: 'JSON 파일이 아닙니다.' } };
+  }
+  const parsed = parseErpCategoryRows(raw);
+  if (!parsed.ok) return { errors: { file: parsed.error } };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_sync_erp_categories', { p_rows: parsed.rows });
+  if (error) return { errors: { form: rpcMessage(error.message, 'ERP 분류를 동기화하지 못했습니다.') } };
+
+  revalidateCatalogPaths();
+  const result = (Array.isArray(data) ? data[0] : data) as { inserted?: number; updated?: number; removed?: number } | null;
+  return {
+    message: `ERP 분류 동기화 — 새로 ${result?.inserted ?? 0} · 바뀜 ${result?.updated ?? 0} · ERP 에서 사라짐 ${result?.removed ?? 0} (목록 ${parsed.rows.length}행)`,
+  };
 }
 
 export async function moveCategoryAction(

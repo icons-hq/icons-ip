@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   adminCategoryHref,
   buildCategoryTree,
+  categoryOptionGroups,
   categoryParentOptions,
+  categoryPathLabel,
   flattenCategoryTree,
+  isErpCategory,
+  isErpLeafCategory,
   isPurchasableSaleState,
   normalizeAdminCategoryFilters,
   normalizeAdminCategoryForm,
@@ -13,6 +17,7 @@ import {
   normalizeGoodPurchaseLimitForm,
   normalizeGoodSaleWindowForm,
   normalizeGoodSearchSeoForm,
+  parseErpCategoryRows,
   type AdminCategory,
 } from './categories';
 
@@ -35,9 +40,28 @@ function category(overrides: Partial<AdminCategory> & Pick<AdminCategory, 'id' |
     archivedAt: null,
     goodsCount: 0,
     descendantGoodsCount: 0,
+    source: 'store',
+    erpKey: null,
+    erpSyncedAt: null,
+    erpRemovedAt: null,
     ...overrides,
   };
 }
+
+/** ERP 대 › 중 › 소 세 줄 + 그 아래 자체 분류 하나 + 기획전 하나. */
+const erpTree: AdminCategory[] = [
+  category({ id: 'erp-03', path: '/erp-03/', depth: 1, name: '리빙', source: 'erp', erpKey: '리빙', position: 2 }),
+  category({ id: 'erp-03-14', path: '/erp-03/erp-03-14/', depth: 2, parentId: 'erp-03', name: '홈데코', source: 'erp', erpKey: '리빙 > 홈데코' }),
+  category({ id: 'erp-03-14-09', path: '/erp-03/erp-03-14/erp-03-14-09/', depth: 3, parentId: 'erp-03-14', name: '장식소품', source: 'erp', erpKey: '리빙 > 홈데코 > 장식소품' }),
+  category({ id: 'erp-05', path: '/erp-05/', depth: 1, name: '패션', source: 'erp', erpKey: '패션', position: 4 }),
+  category({ id: 'erp-05-37', path: '/erp-05/erp-05-37/', depth: 2, parentId: 'erp-05', name: '키링', source: 'erp', erpKey: '패션 > 키링' }),
+  category({ id: 'erp-05-37-02', path: '/erp-05/erp-05-37/erp-05-37-02/', depth: 3, parentId: 'erp-05-37', name: '아크릴키링', source: 'erp', erpKey: '패션 > 키링 > 아크릴키링' }),
+  category({ id: 'erp-09-50', path: '/erp-09/erp-09-50/', depth: 2, parentId: 'erp-09', name: '뷰티소품2', source: 'erp', erpKey: '화장품/미용 > 뷰티소품2' }),
+  category({ id: 'erp-09', path: '/erp-09/', depth: 1, name: '화장품/미용', source: 'erp', erpKey: '화장품/미용', position: 8 }),
+  category({ id: 'acrylic-stand', path: '/erp-03/erp-03-14/erp-03-14-09/acrylic-stand/', depth: 4, parentId: 'erp-03-14-09', name: '아크릴 스탠드' }),
+  category({ id: 'gone', path: '/erp-05/erp-05-37/gone/', depth: 3, parentId: 'erp-05-37', name: '사라진 소분류', source: 'erp', erpKey: '패션 > 키링 > 사라짐', erpRemovedAt: '2026-09-09T00:00:00Z' }),
+  category({ id: 'season', path: '/season/', depth: 1, name: '가을 기획전', kind: 'collection' }),
+];
 
 const tree: AdminCategory[] = [
   category({ id: 'goods', path: '/goods/', depth: 1, position: 1 }),
@@ -61,11 +85,51 @@ describe('분류 트리', () => {
     expect(roots[1].children[0].children[0].id).toBe('stand');
   });
 
-  it('상위 분류 선택지에서 자기 자신·자손·기획전·4단 항목을 뺀다', () => {
-    const deep = [...tree, category({ id: 'mini', path: '/goods/acrylic/stand/mini/', depth: 4, parentId: 'stand' })];
-    expect(categoryParentOptions(deep, 'acrylic').map((entry) => entry.id)).toEqual(['goods', 'plush']);
-    /* 새 분류(selfId 없음)는 자기 자손 제한이 없고 깊이만 본다. */
-    expect(categoryParentOptions(deep, null).map((entry) => entry.id)).toEqual(['goods', 'acrylic', 'stand', 'plush']);
+  it('상위 분류 선택지는 ERP 잎(소분류)뿐이다 — 자체 노드·중분류·기획전·ERP 삭제 표시는 뺀다', () => {
+    /* ERP 가 없는 트리(자체 노드뿐)에서는 매달 자리가 없다. */
+    expect(categoryParentOptions(tree, null)).toEqual([]);
+    expect(categoryParentOptions(erpTree, null).map((entry) => entry.id)).toEqual(['erp-03-14-09', 'erp-05-37-02', 'erp-09-50', 'gone']);
+    /* 편집 중인 자체 분류도 같은 선택지를 본다(자기 자신은 ERP 가 아니라 애초에 없다). */
+    expect(categoryParentOptions(erpTree, 'acrylic-stand').map((entry) => entry.id)).toEqual(['erp-03-14-09', 'erp-05-37-02', 'erp-09-50', 'gone']);
+  });
+
+  it('ERP 잎 판정 — ERP 자식이 없는 ERP 노드. 자체 자식이 있어도 잎이다', () => {
+    const byId = (id: string) => erpTree.find((entry) => entry.id === id)!;
+    expect(isErpLeafCategory(byId('erp-03-14-09'), erpTree)).toBe(true);
+    expect(isErpLeafCategory(byId('erp-03-14'), erpTree)).toBe(false);
+    expect(isErpLeafCategory(byId('erp-09-50'), erpTree)).toBe(true);
+    expect(isErpLeafCategory(byId('acrylic-stand'), erpTree)).toBe(false);
+    expect(isErpCategory(byId('acrylic-stand'))).toBe(false);
+  });
+
+  it('선택지를 「대 › 중」 묶음으로 접고 자체 분류는 ERP 잎 아래 └ 로, 기획전은 맨 뒤로 둔다', () => {
+    const groups = categoryOptionGroups(erpTree);
+    expect(groups.map((group) => group.label)).toEqual(['리빙 › 홈데코', '패션 › 키링', '화장품/미용', '기획전']);
+    expect(groups[0].options.map((option) => option.label)).toEqual(['장식소품', '└ 아크릴 스탠드']);
+    /* ERP 에서 사라진 노드는 새로 고를 수 없다. */
+    expect(groups[1].options.map((option) => option.id)).toEqual(['erp-05-37-02']);
+    expect(groups[3].options[0]).toEqual({ id: 'season', label: '가을 기획전', source: 'store' });
+    expect(categoryPathLabel(erpTree.find((entry) => entry.id === 'acrylic-stand')!, erpTree)).toBe('리빙 › 홈데코 › 장식소품 › 아크릴 스탠드');
+  });
+});
+
+describe('ERP 분류 목록 파일', () => {
+  it('모양이 맞는 행만 통과시키고 어느 행이 왜 틀렸는지 말한다', () => {
+    const ok = parseErpCategoryRows([
+      { id: 'erp-02', key: '문구', parentKey: null, name: '문구', level: 1, position: 1 },
+      { id: 'erp-02-02', key: '문구 > 노트', parentKey: '문구', name: ' 노트 ', level: '2', position: 1 },
+    ]);
+    expect(ok).toEqual({ ok: true, rows: [
+      { id: 'erp-02', key: '문구', parentKey: null, name: '문구', level: 1, position: 1 },
+      { id: 'erp-02-02', key: '문구 > 노트', parentKey: '문구', name: '노트', level: 2, position: 1 },
+    ] });
+    expect(parseErpCategoryRows({})).toMatchObject({ ok: false });
+    expect(parseErpCategoryRows([])).toMatchObject({ ok: false });
+    /* 1단인데 상위 키가 있거나, 2단인데 상위 키가 없으면 거부. */
+    expect(parseErpCategoryRows([{ id: 'erp-02', key: '문구', parentKey: '없음', name: '문구', level: 1, position: 0 }]))
+      .toEqual({ ok: false, error: '1번째 행의 상위 키이(가) 올바르지 않습니다.' });
+    expect(parseErpCategoryRows([{ id: 'ERP 02', key: '문구', parentKey: null, name: '문구', level: 1, position: 0 }]))
+      .toEqual({ ok: false, error: '1번째 행의 코드이(가) 올바르지 않습니다.' });
   });
 });
 

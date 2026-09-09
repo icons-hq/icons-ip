@@ -118,4 +118,40 @@ insert into public.user_coupons (user_id, coupon_code, issued_source)
 select '00000000-0000-4000-8000-00000000d003', 'FIRST5000', 'code_entry'
 where not exists (select 1 from public.user_coupons where user_id = '00000000-0000-4000-8000-00000000d003' and coupon_code = 'FIRST5000');
 
+-- ── 굿즈의 대표 분류 = ERP 소분류 (PM 2026-09-09 「상품 분류는 ERP 기준으로」).
+--    ERP 에 없는 「아크릴 스탠드」는 리빙 › 홈데코 › 장식소품 아래 자체 분류로 두고 ERP 에 소분류 추가를 요청한다.
+insert into public.categories (id, kind, parent_id, name, description, path, depth, position, source)
+select 'acrylic-stand', 'catalog', leaf.id, '아크릴 스탠드', 'ERP 에 소분류가 없어 장식소품 아래 자체 분류로 둔다(ERP 추가 요청 중).', '', 1, 0, 'store'
+from public.categories as leaf
+where leaf.erp_key = '리빙 > 홈데코 > 장식소품'
+on conflict (id) do nothing;
+
+delete from public.good_categories where good_id in ('g1','g2','g3','g4','g5','g6','g7','g8','g9','g10','g11','g12','g13','g14','g15');
+insert into public.good_categories (good_id, category_id, is_primary, position)
+select mapping.good_id, category.id, true, 0
+from (values
+  ('g1',  '리빙 > 쿠션 > 형태쿠션'),
+  ('g2',  '패션 > 키링 > 봉제키링'),
+  ('g3',  '리빙 > 토이 > 인형'),
+  ('g4',  '패션 > 키링 > 아크릴키링'),
+  ('g5',  '리빙 > 홈데코 > 장식소품'),
+  ('g6',  '문구 > 데스크정리/보관 > 매트/패드/보드'),
+  ('g7',  '리빙 > 쿠션 > 형태쿠션'),
+  ('g8',  '패션 > 파우치 > 납작파우치'),
+  ('g9',  '리빙 > 캠핑용품 > 캠핑매트'),
+  ('g10', '리빙 > 토이 > 피규어'),
+  ('g12', '리빙 > 토이 > 피규어'),
+  ('g14', '패션 > 키링 > 아크릴키링'),
+  ('g15', '리빙 > 토이 > 인형')
+) as mapping(good_id, erp_key)
+join public.categories as category on category.erp_key = mapping.erp_key
+join public.goods as good on good.id = mapping.good_id
+on conflict do nothing;
+-- 아크릴 스탠드·블록은 자체 분류(4단째)에 — 엑셀에는 조상 셋(리빙/홈데코/장식소품)이 나간다.
+insert into public.good_categories (good_id, category_id, is_primary, position)
+select good.id, 'acrylic-stand', true, 0
+from public.goods as good
+where good.id in ('g11', 'g13')
+on conflict do nothing;
+
 commit;

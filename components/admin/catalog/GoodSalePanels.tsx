@@ -17,6 +17,8 @@ import {
   GOOD_KC_STATUSES,
   GOOD_SALE_STATE_LABELS,
   TAX_TYPES,
+  categoryOptionGroups,
+  categoryPathLabel,
   type AdminCategory,
 } from '@/lib/admin/categories';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
@@ -370,9 +372,16 @@ export function GoodCategoriesPanel({
   memberships: readonly { categoryId: string; isPrimary: boolean }[];
 }) {
   const [state, action, pending] = useActionState(setGoodCategoriesAction, emptyState);
-  const selectedIds = new Set(memberships.map((entry) => entry.categoryId));
+  const selectedIds = memberships.map((entry) => entry.categoryId);
   const primary = memberships.find((entry) => entry.isPrimary)?.categoryId ?? '';
-  const usable = categories.filter((category) => !category.archivedAt);
+  const primaryCategory = categories.find((category) => category.id === primary) ?? null;
+  const groups = categoryOptionGroups(categories);
+  const optionCount = groups.reduce((count, group) => count + group.options.length, 0);
+  const options = groups.map((group) => (
+    <optgroup key={group.label} label={group.label}>
+      {group.options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+    </optgroup>
+  ));
 
   return (
     <section aria-labelledby={`categories-${good.id}`} className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
@@ -380,28 +389,43 @@ export function GoodCategoriesPanel({
         <span className="eyebrow">CATEGORIES</span>
         <h2 id={`categories-${good.id}`} style={{ fontSize: 18, margin: '6px 0 0' }}>분류</h2>
       </div>
+      <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+        분류는 ERP(K-System) 품목분류를 그대로 씁니다. 대표 분류의 대/중/소분류가 ERP 품목 등록 엑셀에 그대로 들어갑니다.
+        {primaryCategory
+          ? ` 지금 대표 분류: ${categoryPathLabel(primaryCategory, categories)}`
+          : ' 대표 분류가 없으면 엑셀의 분류 열이 비어 나갑니다.'}
+      </p>
       <SeededForm values={state.values} action={action} className="col" style={{ gap: 10 }}>
         <input name="goodId" type="hidden" value={good.id} />
-        <SelectField defaultValue={primary} error={state.errors?.primaryCategoryId} label="대표 분류" name="primaryCategoryId">
+        <SelectField defaultValue={primary} error={state.errors?.primaryCategoryId} label="대표 분류 (대 › 중 묶음 안의 소분류)" name="primaryCategoryId">
           <option value="">지정 안 함</option>
-          {usable.map((category) => (
-            <option key={category.id} value={category.id}>{'— '.repeat(category.depth - 1)}{category.name}</option>
-          ))}
+          {options}
         </SelectField>
-        <fieldset className="admin-variant-options">
-          <legend className="mono" style={{ color: 'var(--dim)', fontSize: 12, padding: '0 6px' }}>추가 분류</legend>
-          <div className="admin-variant-values">
-            {usable.map((category) => (
-              <label className="admin-variant-value" key={category.id}>
-                <input defaultChecked={selectedIds.has(category.id)} name="categoryIds" type="checkbox" value={category.id} />
-                {'— '.repeat(category.depth - 1)}{category.name}
-              </label>
-            ))}
-            {usable.length === 0 ? <span className="muted" style={{ fontSize: 12 }}>분류가 없습니다. 상품 › 분류에서 먼저 만드세요.</span> : null}
-          </div>
-        </fieldset>
+        <label className="col" style={{ gap: 7 }}>
+          <span className="mono" style={{ color: 'var(--dim)', fontSize: 12 }}>추가 분류 (여러 개는 Ctrl/⌘ 을 누른 채 고르기)</span>
+          <select
+            className="admin-field-control"
+            defaultValue={selectedIds}
+            multiple
+            name="categoryIds"
+            size={8}
+            style={{
+              background: 'rgba(255,255,255,.045)',
+              border: '1px solid var(--line)',
+              borderRadius: 10,
+              color: 'var(--text)',
+              fontFamily: 'inherit',
+              fontSize: 13,
+              padding: 6,
+              width: '100%',
+            }}
+          >
+            {options}
+          </select>
+        </label>
+        {optionCount === 0 ? <span className="muted" style={{ fontSize: 12 }}>분류가 없습니다. 상품 › 분류에서 「ERP 분류 동기화」를 먼저 하세요.</span> : null}
         <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
-          대표 분류는 하나뿐입니다. 체크하지 않아도 대표로 고른 분류는 자동으로 포함됩니다.
+          대표 분류는 하나뿐이고, 고르지 않아도 추가 분류에 자동으로 포함됩니다. 키링·파우치·쿠션·인형·피규어·문구 아래로 정하면 「유형」도 같이 맞춰집니다.
         </p>
         <FormShell pending={pending} state={state} />
       </SeededForm>

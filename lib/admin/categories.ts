@@ -91,6 +91,26 @@ export interface AdminCategory {
   goodsCount: number;
   /** 하위 분류까지 포함한 상품 수(중복 제거). */
   descendantGoodsCount: number;
+  /** `erp` = K-System 품목분류에서 동기화한 노드(이름·위치 잠금) · `store` = 어드민이 만든 노드. */
+  source: string;
+  /** ERP 자연키(이름 경로 「문구 > 노트 > 스프링노트」). ERP 노드에만 있다. */
+  erpKey: string | null;
+  erpSyncedAt: string | null;
+  /** 마지막 동기화 목록에 없던 ERP 노드 — 지우지 않고 숨긴다. */
+  erpRemovedAt: string | null;
+}
+
+export const CATEGORY_SOURCE_ERP = 'erp';
+
+/** ERP 노드인지. 정체(이름·부모·순서)는 ERP 가 원본이라 화면이 편집 칸을 잠근다. */
+export function isErpCategory(category: Pick<AdminCategory, 'source'>) {
+  return category.source === CATEGORY_SOURCE_ERP;
+}
+
+/** ERP 잎(소분류) — 자체 분류를 매달 수 있는 유일한 자리. DB `private.is_erp_leaf_category` 와 같은 규칙. */
+export function isErpLeafCategory(category: AdminCategory, categories: readonly AdminCategory[]) {
+  if (!isErpCategory(category) || category.archivedAt) return false;
+  return !categories.some((child) => child.parentId === category.id && isErpCategory(child));
 }
 
 export interface AdminCategoryNode extends AdminCategory {
@@ -129,18 +149,126 @@ export function isDescendantCategory(candidate: Pick<AdminCategory, 'path'>, anc
   return candidate.path.includes(`/${ancestorId}/`);
 }
 
+/**
+ * 자체 분류를 매달 수 있는 상위 분류 = ERP 잎(소분류)뿐이다. 1~3단은 ERP 가 원본이라 그 사이에 우리 노드를 끼우지 않는다 —
+ * 그래야 어떤 굿즈든 대표 분류의 조상 셋이 항상 ERP 대/중/소분류다(ERP 엑셀의 분류 열이 확정값이 되는 조건).
+ */
 export function categoryParentOptions(
   categories: readonly AdminCategory[],
   selfId: string | null,
 ): AdminCategory[] {
   return categories.filter((category) => {
     if (category.kind !== 'catalog') return false;
-    if (category.archivedAt) return false;
-    if (!selfId) return category.depth < CATEGORY_MAX_DEPTH;
-    if (category.id === selfId) return false;
-    if (isDescendantCategory(category, selfId)) return false;
-    return category.depth < CATEGORY_MAX_DEPTH;
+    if (selfId && (category.id === selfId || isDescendantCategory(category, selfId))) return false;
+    return isErpLeafCategory(category, categories) && category.depth < CATEGORY_MAX_DEPTH;
   });
+}
+
+export interface AdminCategoryOption {
+  id: string;
+  /** 그룹 안에서 보이는 이름. 자체 분류는 「└ 이름」으로 ERP 잎 아래임을 드러낸다. */
+  label: string;
+  source: string;
+}
+
+export interface AdminCategoryOptionGroup {
+  /** 「대분류 › 중분류」 또는 「기획전」. */
+  label: string;
+  options: AdminCategoryOption[];
+}
+
+/** 분류 이름 경로 — 「리빙 › 홈데코 › 장식소품」. 굿즈 편집·목록이 대표 분류를 한 줄로 보여 줄 때 쓴다. */
+export function categoryPathLabel(category: Pick<AdminCategory, 'path'>, categories: readonly AdminCategory[]) {
+  const byId = new Map(categories.map((entry) => [entry.id, entry]));
+  return category.path
+    .split('/')
+    .filter(Boolean)
+    .map((id) => byId.get(id)?.name ?? id)
+    .join(' › ');
+}
+
+/**
+ * 굿즈 편집의 분류 선택지. 350개를 한 줄로 늘어놓으면 못 고르므로 「대 › 중」 묶음(optgroup) 아래에
+ * ERP 소분류와 그 밑의 자체 분류를 둔다. 기획전은 맨 뒤 한 묶음. 보관·ERP 삭제 표시 노드는 뺀다.
+ */
+export function categoryOptionGroups(categories: readonly AdminCategory[]): AdminCategoryOptionGroup[] {
+  const usable = categories.filter((category) => !category.archivedAt && !category.erpRemovedAt);
+  const byId = new Map(usable.map((entry) => [entry.id, entry]));
+  const groups = new Map<string, AdminCategoryOptionGroup>();
+  const sorted = [...usable].sort((a, b) => a.path.localeCompare(b.path));
+
+  for (const category of sorted) {
+    if (category.kind === 'collection') {
+      const group = groups.get('collection') ?? { label: '기획전', options: [] };
+      group.options.push({ id: category.id, label: category.name, source: category.source });
+      groups.set('collection', group);
+      continue;
+    }
+    const isLeaf = isErpLeafCategory(category, usable);
+    if (isErpCategory(category) && !isLeaf) continue;
+    /* ERP 잎은 부모(중분류)까지, 자체 분류는 ERP 잎의 부모까지 올라가 그룹 이름을 만든다. */
+    const anchor = isErpCategory(category) ? category : byId.get(category.parentId ?? '');
+    const groupParent = anchor?.parentId ? byId.get(anchor.parentId) : null;
+    const grandParent = groupParent?.parentId ? byId.get(groupParent.parentId) : null;
+    const key = groupParent?.id ?? 'root';
+    const label = [grandParent?.name, groupParent?.name].filter(Boolean).join(' › ') || '분류';
+    const group = groups.get(key) ?? { label, options: [] };
+    group.options.push({
+      id: category.id,
+      label: isErpCategory(category) ? category.name : `└ ${category.name}`,
+      source: category.source,
+    });
+    groups.set(key, group);
+  }
+
+  const collection = groups.get('collection');
+  groups.delete('collection');
+  return [...groups.values(), ...(collection ? [collection] : [])];
+}
+
+/* ------------------------------------------------------------------------- */
+/* ERP 분류 동기화 목록 (JSON 파일 업로드)                                       */
+/* ------------------------------------------------------------------------- */
+
+export interface ErpCategoryRow {
+  id: string;
+  key: string;
+  parentKey: string | null;
+  name: string;
+  level: number;
+  position: number;
+}
+
+export const ERP_CATEGORY_ROWS_MAX = 5000;
+
+/**
+ * `scripts/erp/erp-categories-from-xlsx.py` 가 만든 목록인지 본다. 모양만 본다 — 부모가 있는지·이름이 겹치는지는
+ * DB 동기화 함수가 판단한다(거기가 원장이다).
+ */
+export function parseErpCategoryRows(value: unknown): { ok: true; rows: ErpCategoryRow[] } | { ok: false; error: string } {
+  if (!Array.isArray(value)) return { ok: false, error: 'ERP 분류 목록은 배열이어야 합니다.' };
+  if (value.length === 0) return { ok: false, error: 'ERP 분류 목록이 비어 있습니다.' };
+  if (value.length > ERP_CATEGORY_ROWS_MAX) return { ok: false, error: `ERP 분류 목록은 ${ERP_CATEGORY_ROWS_MAX}행까지입니다.` };
+  const rows: ErpCategoryRow[] = [];
+  for (const [index, item] of value.entries()) {
+    const row = item as Partial<Record<keyof ErpCategoryRow, unknown>> | null;
+    const id = typeof row?.id === 'string' ? row.id.trim() : '';
+    const key = typeof row?.key === 'string' ? row.key.trim() : '';
+    const name = typeof row?.name === 'string' ? row.name.trim() : '';
+    const parentKey = row?.parentKey === null || row?.parentKey === undefined ? null : String(row.parentKey).trim();
+    const level = Number(row?.level);
+    const position = Number(row?.position);
+    const problem = !SLUG_PATTERN.test(id) ? '코드'
+      : !key || key.length > 200 ? '키'
+      : !name || name.length > 60 ? '이름'
+      : !Number.isInteger(level) || level < 1 || level > 3 ? '단계'
+      : !Number.isInteger(position) || position < 0 ? '순서'
+      : (level === 1) !== (parentKey === null || parentKey === '') ? '상위 키'
+      : null;
+    if (problem) return { ok: false, error: `${index + 1}번째 행의 ${problem}이(가) 올바르지 않습니다.` };
+    rows.push({ id, key, parentKey: parentKey || null, name, level, position });
+  }
+  return { ok: true, rows };
 }
 
 /* ------------------------------------------------------------------------- */

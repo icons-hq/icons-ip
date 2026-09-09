@@ -39,6 +39,10 @@ interface CategoryRow {
   archived_at: string | null;
   goods_count: number;
   descendant_goods_count: number;
+  source: string;
+  erp_key: string | null;
+  erp_synced_at: string | null;
+  erp_removed_at: string | null;
 }
 
 export async function getAdminCategories(options: { includeArchived?: boolean } = {}): Promise<AdminCategory[]> {
@@ -67,6 +71,10 @@ export async function getAdminCategories(options: { includeArchived?: boolean } 
     archivedAt: row.archived_at,
     goodsCount: Number(row.goods_count ?? 0),
     descendantGoodsCount: Number(row.descendant_goods_count ?? 0),
+    source: row.source ?? 'store',
+    erpKey: row.erp_key ?? null,
+    erpSyncedAt: row.erp_synced_at ?? null,
+    erpRemovedAt: row.erp_removed_at ?? null,
   }));
 }
 

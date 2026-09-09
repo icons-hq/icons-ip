@@ -51,24 +51,28 @@ exception when insufficient_privilege then null;
 end $$;
 
 -- ---------------------------------------------------------------------------
--- B. 트리 — 깊이 4 상한 · 순환 거부 · 서브트리 이동 시 자손 재계산 · 재정렬 0..n-1
+-- B. 트리 — 1~3단은 ERP 노드(정체 잠금), 자체 분류는 ERP 잎 아래 4단째. 깊이 4 상한·순환 거부·서브트리 재계산은
+--    트리거의 일이라 동기화 플래그 아래 직접 조작으로 확인한다(ERP 노드를 옮기는 주체가 동기화라서).
 -- ---------------------------------------------------------------------------
-select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000008a1', true);
-
-select public.admin_upsert_category('cat-root', '굿즈');
-select public.admin_upsert_category('cat-acrylic', '아크릴', 'cat-root');
-select public.admin_upsert_category('cat-stand', '스탠드', 'cat-acrylic');
-select public.admin_upsert_category('cat-mini', '미니', 'cat-stand');
-select public.admin_upsert_category('cat-root2', '두번째');
+reset role;
+select set_config('icons.erp_category_sync', 'on', true);
+insert into public.categories (id, kind, parent_id, name, path, depth, position, source, erp_key) values
+  ('cat-root', 'catalog', null, '테스트 대', '', 1, 90, 'erp', 'T > 대'),
+  ('cat-acrylic', 'catalog', 'cat-root', '테스트 중', '', 1, 0, 'erp', 'T > 대 > 중'),
+  ('cat-stand', 'catalog', 'cat-acrylic', '테스트 소', '', 1, 0, 'erp', 'T > 대 > 중 > 소'),
+  ('cat-root2', 'catalog', null, '테스트 대2', '', 1, 91, 'erp', 'T > 대2');
 
 select 1 / case when (
-  (select path || ':' || depth from public.categories where id = 'cat-mini') = '/cat-root/cat-acrylic/cat-stand/cat-mini/:4'
-  and (select position from public.categories where id = 'cat-root2') = 1
+  (select path || ':' || depth from public.categories where id = 'cat-stand') = '/cat-root/cat-acrylic/cat-stand/:3'
+  and (select position from public.categories where id = 'cat-root2') = 91
 ) then 1 else 0 end as assert_tree_path_and_depth;
 
 do $$
 begin
-  perform public.admin_upsert_category('cat-too-deep', '너무깊음', 'cat-mini');
+  insert into public.categories (id, kind, parent_id, name, path, depth, position, source, erp_key)
+  values ('cat-mini', 'catalog', 'cat-stand', '4단', '', 1, 0, 'erp', 'T > 4단');
+  insert into public.categories (id, kind, parent_id, name, path, depth, position, source, erp_key)
+  values ('cat-too-deep', 'catalog', 'cat-mini', '너무깊음', '', 1, 0, 'erp', 'T > 5단');
   raise exception 'depth 5 must fail';
 exception when check_violation then
   if sqlerrm <> 'category_depth_exceeded' then raise; end if;
@@ -76,113 +80,150 @@ end $$;
 
 do $$
 begin
-  perform public.admin_move_category('cat-root', 'cat-mini');
+  update public.categories set parent_id = 'cat-stand' where id = 'cat-root';
   raise exception 'moving a node under its own descendant must fail';
 exception when check_violation then
   if sqlerrm <> 'category_cycle' then raise; end if;
 end $$;
 
 -- 서브트리를 옮기면 자손 path·depth 가 따라온다.
-select public.admin_move_category('cat-acrylic', 'cat-root2', 0);
+update public.categories set parent_id = 'cat-root2' where id = 'cat-acrylic';
 select 1 / case when (
-  (select path || ':' || depth from public.categories where id = 'cat-mini') = '/cat-root2/cat-acrylic/cat-stand/cat-mini/:4'
+  (select path || ':' || depth from public.categories where id = 'cat-stand') = '/cat-root2/cat-acrylic/cat-stand/:3'
   and (select depth from public.categories where id = 'cat-acrylic') = 2
 ) then 1 else 0 end as assert_subtree_move_recomputes_descendants;
+select set_config('icons.erp_category_sync', 'off', true);
 
--- 깊이가 넘치는 이동은 거부한다(서브트리 최대 깊이 + 새 깊이 > 4).
+-- 플래그 없이는 ERP 노드를 못 건드린다 — RPC 도 마찬가지.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000008a1', true);
 do $$
 begin
-  perform public.admin_move_category('cat-acrylic', 'cat-mini');
-  raise exception 'move that overflows depth must fail';
-exception when check_violation then null;
+  perform public.admin_move_category('cat-acrylic', 'cat-root');
+  raise exception 'moving an erp node must fail';
+exception when check_violation then
+  if sqlerrm <> 'category_erp_locked' then raise; end if;
+end $$;
+do $$
+declare
+  v_ids text[];
+begin
+  select array_agg(id order by position desc, id) into v_ids from public.categories where parent_id is null;
+  perform public.admin_reorder_categories(null, v_ids);
+  raise exception 'reordering erp roots must fail';
+exception when check_violation then
+  if sqlerrm <> 'category_erp_locked' then raise; end if;
 end $$;
 
--- 재정렬은 형제 전체를 요구하고 0..n-1 로 다시 매긴다.
+-- 자체 분류: ERP 잎 아래 4단째만. 형제 재정렬은 자체 분류끼리, 형제 전체를 요구하고 0..n-1 로 다시 매긴다.
 do $$
 begin
-  perform public.admin_reorder_categories(null, array['cat-root']);
+  perform public.admin_upsert_category('cat-own-root', '자체 최상위');
+  raise exception 'store root must fail';
+exception when check_violation then
+  if sqlerrm <> 'category_catalog_under_erp_leaf' then raise; end if;
+end $$;
+select public.admin_upsert_category('cat-own-a', '자체 A', 'cat-stand');
+select public.admin_upsert_category('cat-own-b', '자체 B', 'cat-stand');
+select 1 / case when (
+  (select path || ':' || depth || ':' || source from public.categories where id = 'cat-own-b') = '/cat-root2/cat-acrylic/cat-stand/cat-own-b/:4:store'
+  and (select position from public.categories where id = 'cat-own-b') = 1
+) then 1 else 0 end as assert_store_leaf_under_erp_leaf;
+
+do $$
+begin
+  perform public.admin_reorder_categories('cat-stand', array['cat-own-a']);
   raise exception 'partial reorder must fail';
 exception when check_violation then
   if sqlerrm <> 'category_reorder_incomplete' then raise; end if;
 end $$;
-select public.admin_reorder_categories(null, array['cat-root2', 'cat-root']);
+select public.admin_reorder_categories('cat-stand', array['cat-own-b', 'cat-own-a']);
 select 1 / case when (
-  (select position from public.categories where id = 'cat-root2') = 0
-  and (select position from public.categories where id = 'cat-root') = 1
+  (select position from public.categories where id = 'cat-own-b') = 0
+  and (select position from public.categories where id = 'cat-own-a') = 1
 ) then 1 else 0 end as assert_reorder_renumbers;
 
 -- 같은 요청 id 의 재전송은 이미 적용으로 읽는다(멱등).
-select public.admin_reorder_categories(null, array['cat-root', 'cat-root2'], '00000000-0000-4000-8000-0000000008b1');
-select public.admin_reorder_categories(null, array['cat-root2', 'cat-root'], '00000000-0000-4000-8000-0000000008b1');
-select 1 / case when (select position from public.categories where id = 'cat-root') = 0
+select public.admin_reorder_categories('cat-stand', array['cat-own-a', 'cat-own-b'], '00000000-0000-4000-8000-0000000008b1');
+select public.admin_reorder_categories('cat-stand', array['cat-own-b', 'cat-own-a'], '00000000-0000-4000-8000-0000000008b1');
+select 1 / case when (select position from public.categories where id = 'cat-own-a') = 0
   then 1 else 0 end as assert_reorder_is_idempotent;
 
 -- ---------------------------------------------------------------------------
--- C. 소속 — 대표 1개 · 집합 교체 · 대표 없이 소속 불가 · 비어 있지 않은 분류 보관 거부
+-- C. 소속 — 대표 1개 · 집합 교체 · 대표 없이 소속 불가 · 비어 있지 않은 분류 보관 거부 · ERP 노드 보관 거부
 -- ---------------------------------------------------------------------------
-select public.admin_set_good_categories('cat-g1', 'cat-stand', array['cat-stand', 'cat-acrylic']);
+select public.admin_set_good_categories('cat-g1', 'cat-own-a', array['cat-own-a', 'cat-stand']);
 select 1 / case when (
   (select count(*) from public.good_categories where good_id = 'cat-g1') = 2
-  and (select category_id from public.good_categories where good_id = 'cat-g1' and is_primary) = 'cat-stand'
+  and (select category_id from public.good_categories where good_id = 'cat-g1' and is_primary) = 'cat-own-a'
 ) then 1 else 0 end as assert_primary_and_set;
 
 -- 집합을 줄이면 빠진 소속이 사라진다.
-select public.admin_set_good_categories('cat-g1', 'cat-acrylic', array['cat-acrylic']);
+select public.admin_set_good_categories('cat-g1', 'cat-stand', array['cat-stand']);
 select 1 / case when (
   (select count(*) from public.good_categories where good_id = 'cat-g1') = 1
-  and (select category_id from public.good_categories where good_id = 'cat-g1' and is_primary) = 'cat-acrylic'
+  and (select category_id from public.good_categories where good_id = 'cat-g1' and is_primary) = 'cat-stand'
 ) then 1 else 0 end as assert_set_replacement;
 
 do $$
 begin
-  perform public.admin_set_good_categories('cat-g1', null, array['cat-acrylic']);
+  perform public.admin_set_good_categories('cat-g1', null, array['cat-stand']);
   raise exception 'membership without a primary must fail';
 exception when check_violation then
   if sqlerrm <> 'category_primary_required' then raise; end if;
 end $$;
 
+select public.admin_set_good_categories('cat-g3', 'cat-own-b', array['cat-own-b']);
 do $$
 begin
-  perform public.admin_archive_category('cat-acrylic');
+  perform public.admin_archive_category('cat-own-b');
   raise exception 'archiving a category that still holds goods must fail';
 exception when check_violation then
   if sqlerrm <> 'category_not_empty' then raise; end if;
 end $$;
+do $$
+begin
+  perform public.admin_archive_category('cat-stand');
+  raise exception 'archiving an erp node must fail';
+exception when check_violation then
+  if sqlerrm <> 'category_erp_locked' then raise; end if;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- D. 분류별 진열 — 고정 핀 우선 · 품절 뒤로 · 하위 분류 포함 · 진열 기간
+--    cat-g1·cat-g2 는 ERP 잎(cat-stand)에 직속, cat-g3 는 그 아래 자체 분류(cat-own-b)에 있다.
 -- ---------------------------------------------------------------------------
-select public.admin_set_good_categories('cat-g2', 'cat-acrylic', array['cat-acrylic']);
-select public.admin_set_good_categories('cat-g3', 'cat-stand', array['cat-stand']);
-select public.admin_reorder_category_goods('cat-acrylic', array['cat-g2', 'cat-g1']);
+select public.admin_set_good_categories('cat-g2', 'cat-stand', array['cat-stand']);
+select public.admin_reorder_category_goods('cat-stand', array['cat-g2', 'cat-g1']);
 select 1 / case when (
   -- 직속(cat-g1) → 하위 분류(cat-g3) → 품절(cat-g2). soldout_last 가 품절을 맨 뒤로 민다.
   (select string_agg(good_id, ',' order by ordinality) from (
-     select good_id, row_number() over () as ordinality from public.category_goods('cat-acrylic')
+     select good_id, row_number() over () as ordinality from public.category_goods('cat-stand')
    ) as ordered) = 'cat-g1,cat-g3,cat-g2'
 ) then 1 else 0 end as assert_category_display_order;
 
 -- 고정 핀은 품절·순서보다 앞선다.
-select public.admin_reorder_category_goods('cat-acrylic', array['cat-g2', 'cat-g1'], array['cat-g2']);
-select 1 / case when (select good_id from public.category_goods('cat-acrylic') limit 1) = 'cat-g2'
+select public.admin_reorder_category_goods('cat-stand', array['cat-g2', 'cat-g1'], array['cat-g2']);
+select 1 / case when (select good_id from public.category_goods('cat-stand') limit 1) = 'cat-g2'
   then 1 else 0 end as assert_pinned_first;
 
--- 하위 분류를 포함하지 않게 바꾸면 손자 상품(cat-g3)이 빠진다.
-select public.admin_upsert_category('cat-acrylic', '아크릴', 'cat-root2', 'catalog', null, 'active', false, 'manual', 'newest', true, false, null, null, null, 'cat-acrylic');
-select 1 / case when (select count(*) from public.category_goods('cat-acrylic')) = 2
+-- 하위 분류를 포함하지 않게 바꾸면 손자 상품(cat-g3)이 빠진다 — ERP 노드라도 진열 설정은 우리 몫이다.
+select public.admin_upsert_category('cat-stand', '테스트 소', null, 'catalog', null, 'active', false, 'manual', 'newest', true, false, null, null, null, 'cat-stand');
+select 1 / case when (select count(*) from public.category_goods('cat-stand')) = 2
   then 1 else 0 end as assert_include_descendants_toggle;
 
 -- 진열 기간 밖이면 그 분류에서 빠진다.
-select public.admin_set_category_good_display_window('cat-acrylic', 'cat-g1', now() + interval '1 day', null);
+select public.admin_set_category_good_display_window('cat-stand', 'cat-g1', now() + interval '1 day', null);
 select 1 / case when (
-  (select count(*) from public.category_goods('cat-acrylic')) = 1
-  and (select count(*) from public.category_goods('cat-acrylic', now() + interval '2 days')) = 2
+  (select count(*) from public.category_goods('cat-stand')) = 1
+  and (select count(*) from public.category_goods('cat-stand', now() + interval '2 days')) = 2
 ) then 1 else 0 end as assert_display_window;
-select public.admin_set_category_good_display_window('cat-acrylic', 'cat-g1', null, null);
+select public.admin_set_category_good_display_window('cat-stand', 'cat-g1', null, null);
 
 do $$
 begin
-  perform public.admin_set_category_good_display_window('cat-acrylic', 'cat-g1', now() + interval '2 days', now());
+  perform public.admin_set_category_good_display_window('cat-stand', 'cat-g1', now() + interval '2 days', now());
   raise exception 'inverted display window must fail';
 exception when check_violation then
   if sqlerrm <> 'display_window_invalid' then raise; end if;
