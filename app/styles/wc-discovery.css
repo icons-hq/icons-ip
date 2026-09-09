@@ -37,7 +37,7 @@
 }
 
 /* 정사각 타일 — 키아트 bg 위 하단 스크림, 좌하단 IP명. 모바일 슬라이드는 700 28px,
-   데스크톱 그리드 타일은 700 14px(아래 750px 블록에서 축소). */
+   데스크톱 그리드 타일은 700 14px(아래 990px 블록에서 축소). */
 .wc-ipdir__tile {
   position: relative;
   display: flex;
@@ -107,7 +107,7 @@
   font-weight: 400;
   border: 0;
   background: none;
-  color: var(--wc-line-control);
+  color: var(--wc-ink-tertiary);
   cursor: pointer;
 }
 
@@ -160,6 +160,13 @@
   color: var(--wc-ink);
 }
 
+/* 긴 IP명도 자기 그리드 칸 안에서 줄바꿈한다. flex의 기본 min-width:auto가
+   이름 길이만큼 칸을 밀어내면 좁은 태블릿에서 오른쪽 열이 화면 밖으로 나간다. */
+.wc-ipdir__row > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .wc-ipdir__thumb {
   display: block;
   flex: none;
@@ -175,6 +182,27 @@
 }
 
 @media (min-width: 750px) {
+  .wc-ipdir__list {
+    gap: 0 24px;
+  }
+
+  .wc-ipdir__row {
+    flex-direction: row;
+    align-items: center;
+    gap: 20px;
+    min-height: 89px;
+    border-bottom: 1px solid var(--wc-hairline);
+    font-size: 14px;
+  }
+
+  .wc-ipdir__thumb {
+    width: 56px;
+  }
+}
+
+/* 750~989px에서는 2열 목록과 스크롤 가능한 피처드를 유지한다.
+   5열 타일·4열 행·28개 이니셜을 동시에 펼치는 조판은 데스크톱 폭부터 쓴다. */
+@media (min-width: 990px) {
   .wc-ipdir__featured .wc-slider__track {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -226,18 +254,6 @@
     gap: 0 52px;
   }
 
-  .wc-ipdir__row {
-    flex-direction: row;
-    align-items: center;
-    gap: 20px;
-    min-height: 89px;
-    border-bottom: 1px solid var(--wc-hairline);
-    font-size: 14px;
-  }
-
-  .wc-ipdir__thumb {
-    width: 56px;
-  }
 }
 
 /* ------------------------------------------------------------------
@@ -1056,9 +1072,9 @@
 
 /* 좁은 칼럼 안내 페이지 — 원인(아직 준비 중)과 지금 가능한 행동 1~2개만 남긴다. */
 .wc-placeholder {
-  max-width: 620px;
+  max-width: 652px;
   margin-inline: auto;
-  padding: 64px 0 120px;
+  padding: 64px var(--wc-gutter) 96px;
 }
 
 .wc-placeholder h1 {
@@ -1088,6 +1104,17 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 32px;
+}
+
+.wc-placeholder__cta .wc-btn {
+  width: 100%;
+  max-width: 300px;
+}
+
+@media (min-width: 990px) {
+  .wc-placeholder {
+    padding-bottom: 120px;
+  }
 }
 
 /* ------------------------------------------------------------------
