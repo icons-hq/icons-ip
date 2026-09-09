@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import { upsertAdminGoodAction, type AdminCatalogActionState } from '@/app/admin/actions';
 import { GoodConsole } from '@/components/admin/catalog/GoodConsole';
+import type { AdminExportTemplate } from '@/lib/admin/exports';
 import { GoodSection } from '@/components/admin/sections/GoodSection';
 import {
   ADMIN_CATALOG_NEW_RECORD,
@@ -47,6 +48,7 @@ export function GoodScreen({
   categoryMemberships = [],
   shippingPolicies = [],
   suggestedId = null,
+  exportTemplates = [],
 }: {
   adjustmentId: string;
   catalogIps: CatalogSnapshot['ips'];
@@ -64,6 +66,8 @@ export function GoodScreen({
   shippingPolicies?: AdminShippingPolicy[];
   /** 등록 화면의 id 제안(현업 슬라이스 5). 채워 줄 뿐 고쳐 쓸 수 있다. */
   suggestedId?: string | null;
+  /** 목록의 ERP 등록용 내려받기 양식. */
+  exportTemplates?: readonly AdminExportTemplate[];
 }) {
   const [state, action, pending] = useActionState(upsertAdminGoodAction, emptyState);
   const creating = filters.selected === ADMIN_CATALOG_NEW_RECORD;
@@ -75,6 +79,7 @@ export function GoodScreen({
   if (!creating && !selected) {
     return (
       <GoodConsole
+        exportTemplates={exportTemplates}
         filters={filters}
         ipOptions={ipOptions}
         list={list}

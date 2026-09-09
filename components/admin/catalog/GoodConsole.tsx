@@ -29,7 +29,9 @@ import {
   type AdminGoodStatus,
 } from '@/lib/admin/catalog-list';
 import { GOOD_TYPES } from '@/lib/goods-taxonomy';
+import type { AdminExportTemplate } from '@/lib/admin/exports';
 import { RecordThumbnail } from '../fields';
+import { GoodsExportPanel } from './GoodsExportPanel';
 import { ColumnPicker, useColumnVisibility, type CatalogColumnOption } from './ColumnPicker';
 
 /*
@@ -119,11 +121,14 @@ function goodCells(row: AdminGoodListRow, editHref: string): Record<string, Reac
 }
 
 export function GoodConsole({
+  exportTemplates = [],
   filters,
   ipOptions,
   list,
   missingSelection = null,
 }: {
+  /** 엑셀 양식(ERP 등록용 내려받기). 비면 패널을 그리지 않는다. */
+  exportTemplates?: readonly AdminExportTemplate[];
   filters: AdminGoodListFilters;
   ipOptions: readonly { id: string; title: string; archivedAt: string | null }[];
   list: AdminGoodList;
@@ -167,6 +172,8 @@ export function GoodConsole({
           </Link>
         </div>
       </div>
+
+      <GoodsExportPanel ipId={filters.ip || null} templates={exportTemplates} />
 
       {missingSelection ? (
         <p className="muted" role="status" style={{ fontSize: 12.5, margin: 0 }}>

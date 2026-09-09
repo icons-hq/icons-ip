@@ -16,6 +16,7 @@ import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { getAdminGoodVariantEditorData } from '@/lib/admin/variants.server';
 import { getAdminCategories, getAdminGoodCategories } from '@/lib/admin/categories.server';
 import { getAdminShippingPolicies } from '@/lib/admin/shipping-policies.server';
+import { getAdminExportTemplates } from '@/lib/admin/exports.server';
 import { getStorefrontIpsByIds } from '@/lib/storefront.server';
 
 /*
@@ -39,7 +40,7 @@ export default async function AdminCatalogGoodsPage({
   /* 편집 대상이 없으면(낡은 링크) 목록을 그리되 화면 래퍼가 그 id 를 알린다. */
   const editing = creating || selected !== null;
 
-  const [list, ipOptions, variantEditor, categories, categoryMemberships, shippingPolicies, suggestedId] = await Promise.all([
+  const [list, ipOptions, variantEditor, categories, categoryMemberships, shippingPolicies, suggestedId, exportTemplates] = await Promise.all([
     editing ? null : getAdminGoodList(filters),
     getAdminIpOptions({ selectedId: editing ? (selected?.ipId ?? template?.ipId ?? null) : (filters.ip || null) }),
     /* 옵션·품목·출고지별 재고는 저장된 굿즈에만 있다. */
@@ -49,6 +50,8 @@ export default async function AdminCatalogGoodsPage({
     selected ? getAdminShippingPolicies() : [],
     /* 다음 순번은 등록할 때만 묻는다 — 수정 화면에서 id 는 바꿀 수 없다. */
     creating ? getAdminSuggestedGoodId() : null,
+    /* ERP 등록용 내려받기 양식 — 목록에서만 쓴다. */
+    editing ? [] : getAdminExportTemplates(),
   ]);
   /* 미리보기가 쓰는 IP 는 **선택기에 오른 것**뿐이다(규모 후속) — 전량 스냅샷을 읽던 자리다.
      선택기는 상위 N + 지금 값을 담으므로 고를 수 있는 IP 는 전부 미리보기에도 있다. */
@@ -68,6 +71,7 @@ export default async function AdminCatalogGoodsPage({
       categories={categories}
       categoryMemberships={categoryMemberships}
       shippingPolicies={shippingPolicies}
+      exportTemplates={exportTemplates}
       suggestedId={suggestedId}
     />
   );

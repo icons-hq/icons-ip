@@ -12,7 +12,9 @@ export default async function AdminExportsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireAdminScreenAccess('/admin/settings/exports');
-  const filters = normalizeAdminExportsFilters(await searchParams);
+  const query = await searchParams;
+  const filters = normalizeAdminExportsFilters(query);
+  const initialSourceId = typeof query.source === 'string' ? query.source : null;
   const [templates, jobs, locations, ipOptions, canSecureExport] = await Promise.all([
     getAdminExportTemplates(),
     getAdminExportJobs({ status: filters.status, page: filters.page }),
@@ -23,6 +25,7 @@ export default async function AdminExportsPage({
 
   return (
     <ExportConsole
+      initialSourceId={initialSourceId}
       canSecureExport={canSecureExport}
       filters={filters}
       ipOptions={ipOptions}

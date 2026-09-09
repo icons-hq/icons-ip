@@ -22,6 +22,7 @@ import {
   type AdminExportJob,
   type AdminExportTemplate,
   type AdminExportsFilters,
+  exportColumnCatalog,
 } from '@/lib/admin/exports';
 import type { AdminExportJobList } from '@/lib/admin/exports.server';
 import { IMPORT_KINDS } from '@/lib/admin/imports';
@@ -212,10 +213,20 @@ function JobRow({ canSecureExport, job, now }: { canSecureExport: boolean; job: 
   );
 }
 
-function TemplatePanel({ templates }: { templates: readonly AdminExportTemplate[] }) {
+function TemplatePanel({
+  initialSourceId = null,
+  templates,
+}: {
+  initialSourceId?: string | null;
+  templates: readonly AdminExportTemplate[];
+}) {
   const [state, action, pending] = useActionState(upsertExportTemplateAction, emptyState);
-  const [sourceId, setSourceId] = useState(templates[0]?.id ?? '');
+  const [sourceId, setSourceId] = useState(
+    initialSourceId && templates.some((entry) => entry.id === initialSourceId) ? initialSourceId : (templates[0]?.id ?? ''),
+  );
   const source = templates.find((entry) => entry.id === sourceId) ?? null;
+  /* 원본 열 + 같은 대상의 다른 양식이 가진 열(꺼진 채) — 빼기만이 아니라 넣기도 된다. */
+  const catalog = exportColumnCatalog(source, templates);
 
   return (
     <SeededForm values={state.values} action={action} className="card col" style={{ borderRadius: 10, gap: 12, padding: 18 }}>
@@ -226,7 +237,8 @@ function TemplatePanel({ templates }: { templates: readonly AdminExportTemplate[
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
         시스템 양식은 고칠 수 없습니다 — 창고와 ERP 가 그 열 순서를 기대하기 때문입니다. 열을 빼거나 줄이려면 복제해서 쓰세요.
       </p>
-      <input name="columnCatalog" type="hidden" value={JSON.stringify(source?.columns ?? [])} />
+      <input name="columnCatalog" type="hidden" value={JSON.stringify(catalog.map((entry) => entry.column))} />
+      <input name="target" type="hidden" value={source?.target ?? 'order_items'} />
       <div className="admin-form-grid">
         <SelectField label="복제할 양식" name="sourceId" onChange={(event) => setSourceId(event.target.value)} value={sourceId}>
           {templates.map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
@@ -246,10 +258,10 @@ function TemplatePanel({ templates }: { templates: readonly AdminExportTemplate[
       <fieldset className="admin-variant-options">
         <legend className="mono" style={{ color: 'var(--dim)', fontSize: 12, padding: '0 6px' }}>담을 열</legend>
         <div className="admin-variant-values">
-          {(source?.columns ?? []).map((column, index) => (
-            <label className="admin-variant-value" key={`${column.key}:${index}`}>
-              <input defaultChecked name="columnKeys" type="checkbox" value={column.key} />
-              {column.header}{column.mask ? ' (개인정보)' : ''}
+          {catalog.map(({ column, inSource }) => (
+            <label className="admin-variant-value" key={`${sourceId}:${column.key}`}>
+              <input defaultChecked={inSource} name="columnKeys" type="checkbox" value={column.key} />
+              {column.header}{column.mask ? ' (개인정보)' : ''}{inSource ? '' : ' (추가)'}
             </label>
           ))}
         </div>
@@ -337,6 +349,7 @@ function ImportPanel() {
 export function ExportConsole({
   canSecureExport,
   filters,
+  initialSourceId = null,
   jobs,
   ipOptions,
   locations,
@@ -344,6 +357,8 @@ export function ExportConsole({
   templates,
 }: {
   canSecureExport: boolean;
+  /** 굿즈 목록의 「열 넣고 빼기」가 복제 원본을 미리 골라 보내는 자리(`?source=`). */
+  initialSourceId?: string | null;
   filters: AdminExportsFilters;
   ipOptions: { id: string; title: string }[];
   jobs: AdminExportJobList;
@@ -412,7 +427,7 @@ export function ExportConsole({
       </section>
 
       <ImportPanel />
-      <TemplatePanel templates={templates} />
+      <TemplatePanel initialSourceId={initialSourceId} templates={templates} />
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
         지금은 CSV 로 내보냅니다(엑셀에서 바로 열립니다). 파일 열기 암호가 붙는 보안 엑셀과 상품·재고 일괄 업로드는 다음 단계입니다.
         경로: <span className="mono">{ADMIN_EXPORTS_PATH}</span>

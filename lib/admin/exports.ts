@@ -23,6 +23,7 @@ export const EXPORT_STATUS_LABELS: Record<string, string> = Object.fromEntries(
 
 export const EXPORT_TARGETS = [
   { value: 'order_items', label: '주문 품목' },
+  { value: 'goods', label: '굿즈' },
 ] as const;
 
 export const EXPORT_SECURITY_LEVELS = [
@@ -248,12 +249,15 @@ export function normalizeExportTemplateForm(
   const name = read('name');
   const securityLevel = read('securityLevel') || 'normal';
   const fileFormat = read('fileFormat') || 'csv';
+  /* 대상은 원본 양식을 따른다 — 굿즈 양식을 복제했는데 주문 품목 양식이 되면 파일이 빈다. */
+  const target = read('target') || 'order_items';
   const chosen = formData.getAll('columnKeys').map((key) => String(key));
 
   if (rawId && !isUuid(rawId)) errors.form = '양식을 찾을 수 없습니다.';
   if (!name || name.length > 60) errors.name = '양식 이름은 1~60자여야 합니다.';
   if (!EXPORT_SECURITY_LEVELS.some((entry) => entry.value === securityLevel)) errors.securityLevel = '보안 등급을 선택해주세요.';
   if (fileFormat !== 'csv' && fileFormat !== 'xlsx') errors.fileFormat = '파일 형식을 선택해주세요.';
+  if (!EXPORT_TARGETS.some((entry) => entry.value === target)) errors.form = '양식 대상을 확인해주세요.';
 
   const columns = chosen
     .map((key) => catalog.find((column) => column.key === key))
@@ -271,12 +275,46 @@ export function normalizeExportTemplateForm(
       id: rawId || null,
       name,
       description: read('description') || null,
-      target: 'order_items',
+      target,
       columns,
       securityLevel,
       fileFormat,
     },
   };
+}
+
+/** 굿즈 목록에서 고를 양식 — 굿즈 대상만, ERP 양식이 맨 앞(기본값). */
+export function goodsExportTemplates(templates: readonly AdminExportTemplate[]): AdminExportTemplate[] {
+  return templates
+    .filter((entry) => entry.target === 'goods')
+    .sort((a, b) => Number(b.key === 'erp_goods') - Number(a.key === 'erp_goods'));
+}
+
+/**
+ * 복제 폼의 열 목록 = 같은 대상의 모든 양식이 가진 열의 합집합. 원본 열이 앞에 켜진 채로,
+ * 나머지는 「더 넣을 수 있는 열」로 꺼진 채 따라온다 — 열을 빼는 것만이 아니라 넣는 것도 여기서.
+ */
+export function exportColumnCatalog(
+  source: AdminExportTemplate | null,
+  templates: readonly AdminExportTemplate[],
+): { column: ExportColumn; inSource: boolean }[] {
+  if (!source) return [];
+  const seen = new Set<string>();
+  const catalog: { column: ExportColumn; inSource: boolean }[] = [];
+  for (const column of source.columns) {
+    if (seen.has(column.key)) continue;
+    seen.add(column.key);
+    catalog.push({ column, inSource: true });
+  }
+  for (const entry of templates) {
+    if (entry.id === source.id || entry.target !== source.target) continue;
+    for (const column of entry.columns) {
+      if (seen.has(column.key)) continue;
+      seen.add(column.key);
+      catalog.push({ column, inSource: false });
+    }
+  }
+  return catalog;
 }
 
 /* ------------------------------------------------------------------------- */

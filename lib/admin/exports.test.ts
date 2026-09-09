@@ -7,6 +7,8 @@ import {
   normalizeAdminExportsFilters,
   normalizeExportFilters,
   normalizeExportTemplateForm,
+  goodsExportTemplates,
+  exportColumnCatalog,
   renderCsv,
   toCsvCell,
   toExportRpcFilters,
@@ -129,5 +131,44 @@ describe('목록 URL 계약', () => {
     expect(filters).toEqual({ status: 'done', template: null, page: 2 });
     expect(adminExportsHref(filters)).toBe('/admin/settings/exports?status=done&page=2');
     expect(adminExportsHref(filters, { status: null, page: 1 })).toBe('/admin/settings/exports');
+  });
+});
+
+
+describe('굿즈 양식 (ERP 등록용)', () => {
+  const template = (over: Partial<import('./exports').AdminExportTemplate>) => ({
+    id: 'id', key: null, name: '양식', description: null, target: 'goods', columns: [],
+    sort: [], defaultFilters: {}, securityLevel: 'normal', fileFormat: 'xlsx', isSystem: false, archivedAt: null,
+    ...over,
+  } as import('./exports').AdminExportTemplate);
+
+  it('굿즈 대상만 고르고 ERP 양식이 맨 앞이다', () => {
+    const picked = goodsExportTemplates([
+      template({ id: 'a', key: 'goods_catalog', name: '굿즈 목록' }),
+      template({ id: 'o', key: 'picking_list', target: 'order_items' }),
+      template({ id: 'b', key: 'erp_goods', name: 'ERP' }),
+    ]);
+    expect(picked.map((entry) => entry.id)).toEqual(['b', 'a']);
+  });
+
+  it('복제 열 목록은 원본 열이 켜진 채 앞에, 같은 대상의 다른 열이 꺼진 채 뒤에 온다', () => {
+    const erp = template({ id: 'b', key: 'erp_goods', columns: [{ key: 'name', header: '품명' }, { key: 'erp_item_no', header: '품번' }] });
+    const catalog = template({ id: 'a', key: 'goods_catalog', columns: [{ key: 'name', header: '굿즈명' }, { key: 'stock_qty', header: '재고' }] });
+    const other = template({ id: 'o', target: 'order_items', columns: [{ key: 'order_no', header: '주문번호' }] });
+    const result = exportColumnCatalog(erp, [erp, catalog, other]);
+    expect(result.map((entry) => `${entry.column.key}:${entry.inSource}`)).toEqual(['name:true', 'erp_item_no:true', 'stock_qty:false']);
+    expect(exportColumnCatalog(null, [erp])).toEqual([]);
+  });
+
+  it('복제 폼은 원본의 대상을 따른다 — 굿즈 양식을 복제하면 굿즈 양식이 된다', () => {
+    const columns = [{ key: 'name', header: '품명' }];
+    const data = new FormData();
+    data.set('name', 'ERP 간단'); data.set('target', 'goods'); data.append('columnKeys', 'name');
+    const result = normalizeExportTemplateForm(data, columns);
+    expect(result.ok && result.value.target).toBe('goods');
+    const bad = new FormData();
+    bad.set('name', 'x'); bad.set('target', 'members'); bad.append('columnKeys', 'name');
+    const rejected = normalizeExportTemplateForm(bad, columns);
+    expect(rejected.ok).toBe(false);
   });
 });

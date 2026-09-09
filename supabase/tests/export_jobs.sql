@@ -42,7 +42,7 @@ select set_config('exp.picking', :'picking_id', true), set_config('exp.sabang', 
 -- ---------------------------------------------------------------------------
 select 1 / case when (
   -- 발주서 · 사방넷 호환 · 굿즈 카탈로그 · 거래확정 내역(현업 3-3)
-  (select count(*) from public.export_templates where is_system) = 4
+  (select count(*) from public.export_templates where is_system) = 5
   and (select security_level from public.export_templates where key = 'goods_catalog') = 'normal'
   and (select target from public.export_templates where key = 'goods_catalog')::text = 'goods'
   and (select security_level from public.export_templates where key = 'picking_list') = 'pii'

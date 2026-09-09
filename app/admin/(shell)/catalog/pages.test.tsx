@@ -78,6 +78,10 @@ vi.mock('@/lib/admin/categories.server', () => ({
   getAdminCategoryGoods: vi.fn(),
   getAdminGoodCategories: mocks.goodCategories,
 }));
+vi.mock('@/lib/admin/exports.server', () => ({
+  /* ERP 등록용 내려받기 양식 — 라우트 테스트에서는 빈 목록이면 된다. */
+  getAdminExportTemplates: async () => [],
+}));
 vi.mock('@/lib/admin/shipping-policies.server', () => ({
   getAdminShippingPolicies: async () => [],
 }));
