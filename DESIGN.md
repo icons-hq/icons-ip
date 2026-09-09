@@ -288,7 +288,7 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 | 마이 | `/my` 이하 전부 | `mypage-shell`+위시리스트·쿠폰함(B1)·Q&A 내역(B3) | 기존 조회·설정 계약 유지 |
 | 법적·문서 | `/legal/*` | `document-page` — **재조판 대기**, 구 조판을 legal-doc으로 격리 유지 | 정적 파라미터 유지 |
 | 회사 소개 | `/about`(신규) | `about-legacy-showcase` | 구 홈 콘텐츠 보존, CTA 링크는 신 사이트로 |
-| 마켓·트레이드 | `/market`, `/exchange` | v2 플레이스홀더 재조판 | 플레이스홀더 유지 |
+| 마켓·트레이드 | `/market`, `/exchange` | v2 플레이스홀더 재조판 · staff/admin 전용 mock 시연(`.wc-c2c`)은 같은 라우트의 서버 분기 | 플레이스홀더 유지 |
 | 게임 | `/games/[gameId]` | `standalone-game` | 서버 판정·한도·보상 동결 |
 | 404·에러·로딩 | `not-found`·`error`·`loading` | White Catalog 기본 표면 신설 | — |
 

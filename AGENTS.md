@@ -41,7 +41,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - 돈, 재고, 카드 발급 RNG, 뽑기권 발급·개봉, 유한 실물 경품 배정, 티켓 검표는 클라이언트나 앱 레벨 상태에 맡기지 않는다. Supabase Postgres RPC, RLS, 행 잠금, 멱등 처리를 기준으로 구현한다.
 - 결제 callback body와 클라이언트 성공 신호는 확정의 진실원이 아니다. 굿즈·티켓 seam은 서버 전용 `PaymentGateway.confirm/reconcile` 결과와 DB 멱등 finalizer로만 신규 결제를 확정한다. 웹훅 payload도 불신한다 — orderId로 attempt를 찾아 조회 API 재검증(reconcile seam)에 태울 뿐, 웹훅이 확정을 우회하는 경로는 없다.
 - 관리자 권한은 `profiles.role`과 RLS 양쪽에서 확인하고, 민감 작업은 감사 가능해야 한다.
-- `exchange`와 `market` 화면은 v2 전까지 프로토타입/플레이스홀더로 유지한다.
+- `exchange`와 `market` 화면은 v2 전까지 프로토타입/플레이스홀더로 유지한다. 로그인한 staff/admin에게만 같은 라우트가 렌더하는 mock 시연(`lib/secondary-market-demo.ts` 스위치·`MarketDemo`·`ExchangeDemo`)은 발표용 표면이라 공개 진입점·실거래 배선을 붙이지 않는다.
 - 커뮤니티는 현재 임시 비공개다. `lib/community-visibility.ts`의 `COMMUNITY_ENABLED` 하나가 GNB·푸터·메뉴시트 진입점, `/community` 라우트(404), 커뮤니티 서버 액션, 검색의 포스트·태그 결과를 함께 닫는다. 화면·도메인 모듈·DB·어드민 운영 화면은 그대로라 복원은 이 상수 한 줄이다. 위 공개 브라우징 원칙에서 커뮤니티 읽기는 스위치가 켜질 때 다시 적용된다.
 
 ## 이미지 생성 워크플로우

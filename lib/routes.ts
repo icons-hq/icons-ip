@@ -159,6 +159,14 @@ export const FOOTER_ACCOUNT_ITEMS: NavItem[] = [
   { id: 'market', label: '굿즈 마켓' },
 ];
 
+/* 스태프 전용 시연 진입점 — 푸터가 is_staff readback 이 참일 때만 그린다(SiteFooter).
+   경로는 공개 플레이스홀더와 같다: 같은 라우트가 staff/admin 에게만 mock 시연 화면을 렌더한다
+   (lib/secondary-market-demo.ts 의 스위치가 서버 게이트·이 진입점을 함께 좌우한다). */
+export const FOOTER_DEMO_ITEMS: NavItem[] = [
+  { id: 'market', label: '굿즈 마켓 시연' },
+  { id: 'exchange', label: '카드 트레이드 시연' },
+];
+
 /* 카테고리 메가메뉴 — goods.type 표준화(S4) 전까지 실존 라우트 그룹만 노출한다. */
 export const CATEGORY_MEGA_GROUPS: NavGroup[] = [
   { heading: '굿즈샵', items: [

@@ -386,7 +386,7 @@ Production Auth 설정:
 5. **결제 연결**: provider-neutral attempt/finalizer → 토스 기본 결제(ADR-0013), Korpay는 판매 제한 상품 전용 대기.
 6. 단계는 [PRD §9](./PRD.md#9-출시-단계)의 P0→P3 순서를 따른다.
 
-`lib/routes.ts`의 라우트 맵·`useGo`는 유지(프로토타입 네비게이션 자산 재사용). 프로토타입의 `/exchange`·`/market` 화면은 v2까지 읽기/플레이스홀더로 둔다.
+`lib/routes.ts`의 라우트 맵·`useGo`는 유지(프로토타입 네비게이션 자산 재사용). 프로토타입의 `/exchange`·`/market` 화면은 v2까지 읽기/플레이스홀더로 둔다. 같은 라우트는 로그인한 staff/admin에게만 mock 시연(`components/screens/MarketDemo.tsx`·`ExchangeDemo.tsx`)을 렌더한다 — 서버 게이트 `lib/secondary-market-demo.server.ts`(어드민 콘솔과 같은 `isStaff` 경계)와 푸터의 `is_staff()` readback이 `lib/secondary-market-demo.ts`의 스위치 하나에 묶여 있고, 화면 상태 밖으로는 아무것도 쓰지 않는다.
 
 ---
 

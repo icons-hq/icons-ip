@@ -1091,6 +1091,688 @@
 }
 
 /* ------------------------------------------------------------------
+   세컨더리 마켓 스태프 전용 시연 (.wc-c2c) — /market·/exchange 의 staff/admin 분기
+   ------------------------------------------------------------------ */
+
+/* 공개 플레이스홀더와 같은 라우트가 로그인한 staff/admin 에게만 렌더하는 mock 시연 표면이다
+   (lib/secondary-market-demo.ts). 카탈로그의 상품 그리드·배지·가격 블록을 그대로 빌리고,
+   이 블록은 시연 안내·필터 칩·트레이드 행·다이얼로그처럼 카탈로그에 없는 부위만 보탠다.
+   카드 타일 안쪽(5:7·rarity 링·배지 색)은 Binder 와 같은 rarity 물성이라 화면 인라인이 정한다. */
+.wc-c2c {
+  padding-block: 24px 96px;
+}
+
+.wc-c2c__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 24px;
+  padding: 12px 16px;
+  border: 1px solid var(--wc-hairline);
+  background: var(--wc-surface-grey);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+}
+
+.wc-c2c__notice .wc-badge {
+  flex: none;
+  margin-top: 2px;
+}
+
+.wc-c2c__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+  margin-bottom: 24px;
+}
+
+.wc-c2c__head .wc-section-heading {
+  margin: 0;
+}
+
+.wc-c2c__head-cta {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+}
+
+.wc-c2c__head-cta .wc-btn {
+  width: auto;
+  min-width: 160px;
+  height: 44px;
+  font-size: 15px;
+}
+
+.wc-c2c__caption {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-c2c__head-cta .wc-c2c__caption {
+  margin: 0;
+}
+
+/* 필터 칩 — Binder 의 칩과 같은 값(32px·form 라운드·활성은 잉크 반전). */
+.wc-c2c__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.wc-c2c__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  border: 1px solid var(--wc-line-control);
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-c2c__chip[aria-pressed='true'] {
+  font-weight: 700;
+  border-color: var(--wc-ink);
+  background: var(--wc-ink);
+  color: #FFFFFF;
+}
+
+.wc-c2c__chip-count {
+  font-size: 12px;
+  opacity: .7;
+}
+
+.wc-c2c__count {
+  margin: 0 0 16px;
+  font-size: 14px;
+  color: var(--wc-ink);
+}
+
+.wc-c2c__count strong {
+  font-weight: 700;
+}
+
+/* 매물 카드 — 상품 카드 위에 상태 배지 오버레이·판매자 메타·행동 버튼을 얹는다. */
+.wc-c2c__item-badges {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 1;
+  display: flex;
+  gap: 4px;
+}
+
+.wc-c2c__item-badges .wc-badge {
+  background: rgba(255, 255, 255, .92);
+}
+
+.wc-c2c__item-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-c2c__item-action {
+  margin-top: 10px;
+}
+
+.wc-c2c__item-action .wc-btn {
+  height: 40px;
+  font-size: 14px;
+}
+
+/* 안전 거래 프로세스 — 3단계 셀. */
+.wc-c2c__trust {
+  margin-top: 64px;
+  padding-top: 32px;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-c2c__trust .wc-section-heading {
+  margin-bottom: 16px;
+}
+
+.wc-c2c__steps {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-c2c__step {
+  padding: 16px 18px;
+  border: 1px solid var(--wc-hairline);
+}
+
+.wc-c2c__step-no {
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-c2c__step-title {
+  display: block;
+  margin-top: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-c2c__step-desc {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+}
+
+/* 트레이드 행 — 카드 타일(5:7) + 본문. */
+.wc-c2c__trades {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-c2c__trade {
+  display: flex;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--wc-hairline);
+}
+
+.wc-c2c__trade-tile,
+.wc-c2c__summary-card,
+.wc-c2c__my-card-tile {
+  position: relative;
+  display: block;
+  flex: none;
+  overflow: hidden;
+  aspect-ratio: 5 / 7;
+  border-radius: 8px;
+  background-position: center;
+  background-size: cover;
+}
+
+.wc-c2c__trade-tile {
+  width: 88px;
+}
+
+.wc-c2c__rarity {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 1;
+  padding: 3px 6px;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .06em;
+}
+
+.wc-c2c__trade-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.wc-c2c__trade-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+/* editorial 파운데이션의 h3 display 서체 강제를 지면 서체로 되돌린다. */
+.wc-c2c__trade-name {
+  margin: 8px 0 0;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -.3px;
+  color: var(--wc-ink);
+}
+
+.wc-c2c__trade-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-c2c__trade-timer {
+  font-variant-numeric: tabular-nums;
+  color: var(--wc-warning);
+}
+
+.wc-c2c__trade-price {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-c2c__trade-want {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-c2c__trade-want span {
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-c2c__trade-action {
+  margin-top: auto;
+  padding-top: 10px;
+}
+
+.wc-c2c__trade-action .wc-btn {
+  height: 38px;
+  font-size: 14px;
+}
+
+.wc-c2c__footnote {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 26px 0 0;
+  padding: 14px 16px;
+  border: 1px solid var(--wc-hairline);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+}
+
+.wc-c2c__footnote-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--wc-accent-tint);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--wc-success);
+}
+
+/* 다이얼로그 — Binder 카드 상세와 같은 딤·패널 값. 포털이 body 직계에 .wc-root 로 감싼다. */
+.wc-c2c__dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow-y: auto;
+  background: var(--wc-dim);
+}
+
+.wc-c2c__dialog-panel {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 16px 20px 24px;
+  background: var(--wc-surface);
+  box-shadow: var(--wc-shadow-popup);
+}
+
+.wc-c2c__dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.wc-c2c__dialog-title {
+  margin: 0;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -.5px;
+  color: var(--wc-ink);
+}
+
+.wc-c2c__dialog-close {
+  min-height: 44px;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: underline;
+  border: 0;
+  background: none;
+  color: var(--wc-ink-tertiary);
+  cursor: pointer;
+}
+
+.wc-c2c__summary {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--wc-hairline);
+}
+
+.wc-c2c__summary-thumb {
+  flex: none;
+  width: 64px;
+  aspect-ratio: 1;
+  background-position: center;
+  background-size: cover;
+}
+
+.wc-c2c__summary-card {
+  width: 56px;
+}
+
+.wc-c2c__summary-body {
+  min-width: 0;
+}
+
+.wc-c2c__summary-brand {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.wc-c2c__summary-name {
+  margin: 2px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-c2c__summary-meta {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-c2c__rows {
+  display: grid;
+  gap: 6px;
+  margin: 16px 0 0;
+}
+
+.wc-c2c__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  color: var(--wc-ink);
+}
+
+.wc-c2c__row dt,
+.wc-c2c__row dd {
+  margin: 0;
+}
+
+.wc-c2c__row.is-total {
+  padding-top: 8px;
+  border-top: 1px solid var(--wc-hairline);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.wc-c2c__row.is-muted {
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-c2c__timeline {
+  display: grid;
+  gap: 6px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: c2c-step;
+}
+
+.wc-c2c__timeline li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-c2c__timeline li::before {
+  content: counter(c2c-step);
+  counter-increment: c2c-step;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.wc-c2c__timeline li.is-active {
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-c2c__timeline li.is-active::before {
+  border-color: var(--wc-ink);
+  background: var(--wc-ink);
+  color: #FFFFFF;
+}
+
+.wc-c2c__timeline li.is-done {
+  color: var(--wc-success);
+}
+
+.wc-c2c__timeline li.is-done::before {
+  content: '✓';
+  border-color: var(--wc-accent);
+  background: var(--wc-accent-tint);
+  color: var(--wc-success);
+}
+
+.wc-c2c__form {
+  display: grid;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.wc-c2c__field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.wc-c2c__field {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-c2c__field-label {
+  margin: 16px 0 8px;
+  font-size: 13px;
+  color: var(--wc-ink-sub);
+}
+
+/* editorial 파운데이션의 `:where(input, select)` 48px·12px 라운드 규칙을 지면 값으로 되돌린다. */
+.wc-c2c__field input,
+.wc-c2c__field select {
+  min-height: 0;
+  height: 40px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 14px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: var(--wc-radius-form);
+  box-shadow: none;
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+}
+
+.wc-c2c__field-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--wc-danger);
+}
+
+.wc-c2c__fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 13px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-c2c__fieldset legend {
+  padding: 0;
+  margin-bottom: 6px;
+}
+
+.wc-c2c__radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--wc-ink);
+}
+
+.wc-c2c__radio input {
+  margin: 0;
+  accent-color: var(--wc-ink);
+}
+
+.wc-c2c__dialog-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.wc-c2c__dialog-actions .wc-btn {
+  flex: 1;
+  height: 46px;
+  margin-top: 0;
+  font-size: 15px;
+}
+
+.wc-c2c__done {
+  padding: 8px 0 0;
+  text-align: center;
+}
+
+.wc-c2c__done-mark {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin: 12px auto;
+  border-radius: 50%;
+  background: var(--wc-accent-tint);
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--wc-success);
+}
+
+.wc-c2c__done-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-c2c__done-desc {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+}
+
+.wc-c2c__done .wc-c2c__timeline {
+  text-align: left;
+}
+
+/* 내 카드 고르기 — 3열 타일 버튼, 선택은 잉크 링. */
+.wc-c2c__my-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.wc-c2c__my-card {
+  display: block;
+  width: 100%;
+  padding: 6px;
+  font: inherit;
+  text-align: left;
+  border: 1px solid var(--wc-line-control);
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-c2c__my-card[aria-pressed='true'] {
+  border-color: var(--wc-ink);
+  box-shadow: 0 0 0 1px var(--wc-ink);
+}
+
+.wc-c2c__my-card-name {
+  display: block;
+  margin-top: 6px;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.wc-c2c__my-card-meta {
+  display: block;
+  font-size: 11px;
+  color: var(--wc-ink-tertiary);
+}
+
+@media (min-width: 750px) {
+  .wc-c2c__steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .wc-c2c__trades {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ------------------------------------------------------------------
    참여형 게임 크롬 (.wc-game) — DESIGN §6 standalone-game
    ------------------------------------------------------------------ */
 

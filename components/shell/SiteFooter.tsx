@@ -6,6 +6,7 @@ import { BUSINESS_INFO, businessContactWords, type BusinessInfo as BusinessInfoD
 import { LEGAL_DOCUMENT_LABELS, LEGAL_DOCUMENT_SLUGS, legalDocumentHref } from '@/lib/legal/links';
 import {
   FOOTER_ACCOUNT_ITEMS,
+  FOOTER_DEMO_ITEMS,
   FOOTER_DISCOVER_ITEMS,
   FOOTER_PRIMARY_ITEMS,
   hrefFor,
@@ -13,6 +14,7 @@ import {
 } from '@/lib/routes';
 import { BusinessInfo } from './BusinessInfo';
 import { useCardRewardsEnabled } from './CardRewardAvailability';
+import { useSecondaryMarketDemoVisible } from './SecondaryMarketDemoAvailability';
 
 /* White Catalog 푸터. 링크 목록은 전부 lib/routes.ts가 진실원이고 여기서는 배치만 한다.
  * 법정 고지 3종은 회사·정책 행 뒤에 이어 붙는다 — 사업자 정보와 함께 표시 의무가 걸린 블록이라
@@ -20,6 +22,7 @@ import { useCardRewardsEnabled } from './CardRewardAvailability';
 export function SiteFooter({businessInfo=BUSINESS_INFO}:{businessInfo?:BusinessInfoData}) {
   const pathname = usePathname();
   const cardRewardsEnabled = useCardRewardsEnabled();
+  const demoVisible = useSecondaryMarketDemoVisible();
   // 숨김 범위는 Nav와 같다 — 게임은 자기완결 번들, 어드민은 자체 작업대, 인증은 집중형 셸을 사용한다.
   if (isAuthShellPath(pathname) || pathname.startsWith('/games') || pathname.startsWith('/admin')) return null;
 
@@ -69,6 +72,20 @@ export function SiteFooter({businessInfo=BUSINESS_INFO}:{businessInfo?:BusinessI
             </nav>
           </div>
         </div>
+
+        {/* 세컨더리 마켓 시연 진입점 — 로그인한 staff/admin 의 is_staff readback 이 참일 때만 마크업에
+            존재한다. 공개 푸터·SSR 결과에는 없고, 실제 권한 판정은 라우트 서버 게이트가 한다. */}
+        {demoVisible ? (
+          <nav aria-label="스태프 시연 메뉴" className="wc-footer__demo">
+            <h2 className="wc-footer__demo-heading">세컨더리 마켓 시연 · 스태프 전용</h2>
+            <ul>
+              {FOOTER_DEMO_ITEMS.map((item) => (
+                <li key={item.id}><Link href={hrefFor(item.id)}>{item.label}</Link></li>
+              ))}
+            </ul>
+            <p className="wc-footer__demo-note">로그인한 스태프·관리자에게만 보이는 mock 시연 진입점입니다. 실제 결제·체결은 일어나지 않습니다.</p>
+          </nav>
+        ) : null}
 
         <div className="wc-footer__line">
           <span>© ICONS</span>

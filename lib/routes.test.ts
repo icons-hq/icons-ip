@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CATEGORY_MEGA_GROUPS,
   FOOTER_ACCOUNT_ITEMS,
+  FOOTER_DEMO_ITEMS,
   FOOTER_DISCOVER_ITEMS,
   FOOTER_PRIMARY_ITEMS,
   MENU_SHEET_GROUPS,
@@ -203,5 +204,20 @@ describe('activeNavId', () => {
 
   it('매칭이 없으면 null을 돌려준다', () => {
     expect(activeNavId('/legal/terms')).toBeNull();
+  });
+});
+
+describe('세컨더리 마켓 시연 진입점', () => {
+  it('시연 링크는 공개 플레이스홀더와 같은 라우트를 가리키고 실제 페이지 파일에 묶인다', () => {
+    /* 같은 라우트가 staff/admin 에게만 시연을 렌더한다 — 별도 경로를 두면 서버 게이트가 둘로 갈린다. */
+    expect(FOOTER_DEMO_ITEMS.map((item) => item.id)).toEqual(['market', 'exchange']);
+    for (const item of FOOTER_DEMO_ITEMS) {
+      const href = hrefFor(item.id);
+      expect(href).not.toBe('/');
+      expect(FOOTER_ACCOUNT_ITEMS.some((account) => account.id === item.id)).toBe(true);
+      const page = join(process.cwd(), 'app', ...href.split('/').filter(Boolean), 'page.tsx');
+      expect(existsSync(page)).toBe(true);
+      expect(item.label).toContain('시연');
+    }
   });
 });
