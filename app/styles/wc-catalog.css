@@ -57,8 +57,8 @@
 /* 카운트·정렬·필터 트리거가 모두 이 행에 모인다. 모바일은 두 줄(트리거 / 카운트+정렬),
    데스크톱은 한 줄(카운트 좌 / 정렬 우)로 접힌다. */
 .wc-collection__toolbar {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -67,8 +67,9 @@
 
 /* 필터 트리거는 모바일에서 첫 줄 전체를 우측 정렬로 차지한다. */
 .wc-collection__toolbar > .wc-filter-trigger {
-  order: -1;
-  margin-left: auto;
+  grid-column: 1 / -1;
+  grid-row: 1;
+  justify-self: end;
 }
 
 .wc-collection__count {
@@ -131,10 +132,6 @@
 
   .wc-collection__sidebar {
     display: block;
-  }
-
-  .wc-collection__toolbar {
-    flex-wrap: nowrap;
   }
 }
 
