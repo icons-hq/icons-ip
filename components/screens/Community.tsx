@@ -79,7 +79,7 @@ function CommunityActionMenu({ children, label }: { children: ReactNode; label: 
         event.currentTarget.querySelector('summary')?.focus();
       }}
     >
-      <summary aria-label={label}>더보기</summary>
+      <summary aria-label={`더보기: ${label}`}>더보기</summary>
       <div className="wc-community__menu-actions">{children}</div>
     </details>
   );
