@@ -410,7 +410,14 @@ function PostCard({ channels, nextPath, p }: { channels: CommunityChannel[]; nex
               aria-controls={`community-post-edit-${p.id}`}
               aria-expanded={editing}
               aria-label="포스트 수정"
-              onClick={toggleEditor}
+              onClick={(event) => {
+                const menu = event.currentTarget.closest('details');
+                if (menu) {
+                  menu.open = false;
+                  menu.querySelector('summary')?.focus();
+                }
+                toggleEditor();
+              }}
               style={{ ...textActionStyle, minWidth: 44 }}
               type="button"
             >

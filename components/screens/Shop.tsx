@@ -343,6 +343,21 @@ export function Shop({ query, result, view }: ShopProps) {
                 </strong>
                 개 굿즈
               </p>
+              {result.filteredTotal > 0 ? (
+                <>
+                  <label className="wc-sr-only" htmlFor="wc-shop-sort">정렬 기준</label>
+                  <select
+                    className="wc-collection__sort"
+                    id="wc-shop-sort"
+                    onChange={(event) => navigate({ ...query, sort: event.target.value as ShopSort })}
+                    value={query.sort}
+                  >
+                    {SHOP_SORTS.map((sort) => (
+                      <option key={sort} value={sort}>{SHOP_SORT_LABELS[sort]}</option>
+                    ))}
+                  </select>
+                </>
+              ) : null}
               <button
                 aria-label={filterCount ? `필터, ${filterCount}개 적용됨` : '필터'}
                 aria-expanded={sheetOpen}
@@ -360,21 +375,6 @@ export function Shop({ query, result, view }: ShopProps) {
                 필터
                 {filterCount > 0 ? <span aria-hidden className="wc-filter-trigger__count">{filterCount}</span> : null}
               </button>
-              {result.filteredTotal > 0 ? (
-                <>
-                  <label className="wc-sr-only" htmlFor="wc-shop-sort">정렬 기준</label>
-                  <select
-                    className="wc-collection__sort"
-                    id="wc-shop-sort"
-                    onChange={(event) => navigate({ ...query, sort: event.target.value as ShopSort })}
-                    value={query.sort}
-                  >
-                    {SHOP_SORTS.map((sort) => (
-                      <option key={sort} value={sort}>{SHOP_SORT_LABELS[sort]}</option>
-                    ))}
-                  </select>
-                </>
-              ) : null}
             </div>
 
             {result.filteredTotal === 0 ? (
