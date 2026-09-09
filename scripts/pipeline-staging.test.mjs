@@ -26,6 +26,15 @@ describe('staging release and preservation contract', () => {
     }
   });
 
+  it('sets the seed guard inside the same transaction before reading the seed file', () => {
+    const seed = steps.find((step) => step.name === 'Add missing synthetic staging fixtures');
+    const command = seed.run.replace(/\\\s*\n\s*/g, ' ').replace(/\s+/g, ' ');
+    expect(command).toContain('-c "SET LOCAL app.staging_seed_enabled = \'admin-ops-v1\'" -f -');
+    expect(command).toContain('psql "$POSTGRES_URL" -X --single-transaction -v ON_ERROR_STOP=1');
+    expect(command).toContain('< supabase/seeds/admin-ops-staging.sql');
+    expect(command).not.toContain('PGOPTIONS');
+  });
+
   it('completes database, functions and Auth URL changes before app and template activation', () => {
     const names = steps.map(({ name }) => name);
     const deploy = names.indexOf('Deploy and alias staging Preview');

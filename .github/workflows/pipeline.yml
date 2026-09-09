@@ -1034,8 +1034,9 @@ jobs:
         run: supabase db push --db-url "$POSTGRES_URL" --include-roles --yes
       - name: Add missing synthetic staging fixtures
         run: |
-          docker run --rm -i -e PGOPTIONS='-c app.staging_seed_enabled=admin-ops-v1' postgres:17-alpine \
-            psql "$POSTGRES_URL" --single-transaction -v ON_ERROR_STOP=1 \
+          docker run --rm -i postgres:17-alpine \
+            psql "$POSTGRES_URL" -X --single-transaction -v ON_ERROR_STOP=1 \
+            -c "SET LOCAL app.staging_seed_enabled = 'admin-ops-v1'" -f - \
             < supabase/seeds/admin-ops-staging.sql
       - name: Reconcile staging Supabase Edge Functions
         run: node scripts/reconcile-supabase-functions.mjs
