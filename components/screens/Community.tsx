@@ -66,9 +66,20 @@ const textActionStyle: CSSProperties = {
 };
 
 function CommunityActionMenu({ children, label }: { children: ReactNode; label: string }) {
+  const [opensAbove, setOpensAbove] = useState(false);
   return (
     <details
       className="wc-community__menu"
+      data-side={opensAbove ? 'above' : 'below'}
+      onToggle={(event) => {
+        if (!event.currentTarget.open) return;
+        const trigger = event.currentTarget.getBoundingClientRect();
+        const menu = event.currentTarget.querySelector('.wc-community__menu-actions')?.getBoundingClientRect();
+        if (!menu) return;
+        // 모바일 탭바 위의 공간까지 확보하고, 아래가 좁으면 위로 펼친다.
+        const bottomInset = window.matchMedia('(max-width: 989px)').matches ? 80 : 16;
+        setOpensAbove(trigger.bottom + menu.height + bottomInset > window.innerHeight && trigger.top > menu.height + 80);
+      }}
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
       }}
