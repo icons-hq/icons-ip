@@ -55,6 +55,10 @@
 
 지우학 프레젠테이션은 고정 전용 경로 `/ip/aouad`로 통합한다. 현재 기본은 공개(`AOUAD_POPUP_ENABLED=true`, `AOUAD_POPUP_PUBLIC=true`)이며 로그인 없이 `/ip`의 카드, `/ip/aouad` 직접 진입, 전용 에셋 Route Handler를 사용할 수 있다. `lib/aouad-popup.server.ts`의 공개 분기는 페이지와 디렉토리 카드·GET/HEAD/Range 에셋에 함께 적용되고, `AOUAD_POPUP_ENABLED`는 전체 회수 스위치다. `AOUAD_POPUP_PUBLIC=false`인 비공개 모드에서는 서버가 어드민과 같은 정지 계정 제외 staff/admin 권한을 확인하고 디렉토리 카드는 `is_staff` readback으로 노출한다. 로컬 QA 우회는 `NODE_ENV=development`와 `ICONS_AOUAD_LOCAL_PREVIEW=1`을 모두 요구하므로 Preview/production에서는 작동하지 않는다. 페이지는 동적·noindex이고, 화면·게임·샘플 굿즈 상태는 별도 클라이언트 모듈에서만 처리하며 카탈로그 DB·실주문·결제·예약·리워드에는 연결하지 않는다. 공용 셸은 `isStandaloneShellPath`로 함께 숨긴다.
 
+효산의 기억 3D 활 게임은 이 시연의 체험존 `?s=hyosan`에서 사용자가 실행할 때만 같은 origin의 iframe으로 적재한다. `88b9937a`의 독립 Vite 산출물과 원본 미디어를 해시 검증해 `private/ip-popups/aouad-hyosan/`에 보관하고, `/ip-popups/aouad/hyosan/[...asset]`가 매 요청 `canViewAouadPopup()`을 검사한다. 공개 요청은 패키지 manifest의 HTML·JS·CSS·미디어 18개로 제한하며 Brotli/gzip·identity를 협상해 스트리밍한다. 이 함수의 출력 추적은 기존 팝업 미디어와 분리한다. 개발용 게임 API와 일반 게임의 로그인·리워드 gate는 그대로 둔다.
+
+게임 저장은 원본 브라우저 캠페인·난이도 키와 origin 단위 Web Lock 계약을 유지한다. 닫기·페이지 이탈로 게임 문서를 해제하면 잠금을 반환하고, 다른 탭은 최신 저장으로 재시도한다. 팝업 학생증·거래 시연 상태와 게임 진행은 별도 저장이며 서로의 초기화나 실제 서버 완료·리워드에 연결하지 않는다. 원본 소스 보관본과 미디어에서 재빌드하는 절차는 [시연 운영 가이드](runbooks/aouad-executive-demo.md#효산의-기억-게임-통합--2026-09-10)에 둔다.
+
 ---
 
 ## 3. 목표 아키텍처
