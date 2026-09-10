@@ -179,6 +179,7 @@ export async function getAdminOrderRecords(
      상수가 없으므로 목록 응답에 실어 보낸다(#251). */
   const carriers = await getShippingCarrierRegistry();
   const { data, error } = await supabase.rpc('admin_search_orders', {
+    p_field: filters.field,
     p_from: filters.from,
     p_limit: PAGE_SIZE,
     p_offset: (filters.page - 1) * PAGE_SIZE,

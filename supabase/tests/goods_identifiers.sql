@@ -53,6 +53,7 @@ end $$;
 reset role;
 select set_config('request.jwt.claim.sub','',true);
 update public.goods set image_path='public-media/goods-code-fixture.webp' where id='hangeul-keyring';
+select pg_temp.review_goods_kc_fixture('hangeul-keyring');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000042001',true);
 select public.admin_set_good_published('hangeul-keyring',true);

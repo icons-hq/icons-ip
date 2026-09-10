@@ -21,6 +21,12 @@ export interface AdminGoodSummary {
   archivedAt: string | null;
   stock: Stock;
   stockQty: number;
+  activeStockQty: number;
+  saleAvailableQty?: number;
+  lowStockOptionCount: number;
+  allowCardPayment?: boolean;
+  allowBankTransfer?: boolean;
+  saleRestriction?: 'none' | 'adult';
   noticeComplete: boolean;
 }
 export interface AdminGoodsListData {

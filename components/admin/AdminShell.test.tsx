@@ -39,4 +39,13 @@ describe('AdminShell', () => {
     expect(html).toContain('ops@example.test');
     expect(html).toContain('staff');
   });
+
+  it('현재 관리자 경로를 로그아웃 복귀 값으로 전달한다', () => {
+    mocks.pathname = '/admin/sales/orders';
+
+    const html = render();
+
+    expect(html).toContain('name="next"');
+    expect(html).toContain('value="/admin/sales/orders"');
+  });
 });

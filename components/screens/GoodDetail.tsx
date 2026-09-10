@@ -1,7 +1,9 @@
 'use client';
 
+import { krw } from '@/lib/format';
+
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { GoodBuyBars, GoodPurchasePanel, isMiniBuybarVisible, useGoodPurchase } from '@/components/shop/GoodPurchasePanel';
 import { PdpGallery } from '@/components/shop/PdpGallery';
@@ -11,11 +13,15 @@ import { PriceBlock } from '@/components/wc/PriceBlock';
 import { TabPanels, type TabPanelDef } from '@/components/wc/TabPanels';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { goodsNoticeRows } from '@/lib/goods-notice';
+import { GoodsKcDisclosure } from '@/components/shop/GoodsKcDisclosure';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import { newInquiryHref } from '@/lib/inquiries';
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
 import { formatReviewAverage, reviewRatingLabel, type ReviewRatingSummary } from '@/lib/reviews';
 import { shippingPolicyDescription, type GoodShippingPolicy } from '@/lib/fulfillment';
+import { cartOptionGood } from '@/lib/goods-options';
+import { goodsShipDateLabel } from '@/lib/goods-preorders';
+import type { Good } from '@/lib/data';
 
 /*
  * 굿즈 상세 (#173 → #326 White Catalog 재조판).
@@ -94,30 +100,49 @@ function NoticeTable({ detail }: { detail: GoodDetailContent }) {
   );
 }
 
-function ShippingGuide({ policy }: { policy?: GoodShippingPolicy | null }) {
+function ShippingGuide({ policy, goods }: { policy?: GoodShippingPolicy | null; goods: readonly Good[] }) {
+  const preorders = goods.flatMap(good => (good.options ?? [])
+    .filter(option => option.supply?.mode === 'preorder')
+    .map(option => ({ id: option.id, label: `${good.name} · ${option.name}`, date: option.supply!.expectedShipDate })));
   return (
     <section aria-labelledby="pdp-shipping-heading" className="wc-pdp-guide">
       <h2 className="wc-pdp-panel__title" id="pdp-shipping-heading">배송 안내</h2>
       <ul className="wc-pdp-guide__list">
         <li>{policy ? shippingPolicyDescription(policy) : '배송 정책을 확인하지 못했습니다. 주문 전에 배송비를 확인해주세요.'}</li>
-        <li>출고지별 정책 적용 굿즈의 할인 전 소계로 무료배송 조건을 확인합니다. 다른 출고지의 배송비는 각각 더합니다.</li>
+        {policy?.shippingNotice && <li style={{ whiteSpace: 'pre-wrap' }}>{policy.shippingNotice}</li>}
+        <li>출고지별 정책 적용 굿즈의 기간 할인 적용 후, 쿠폰·적립금 차감 전 소계로 무료배송 조건을 확인합니다. 다른 출고지의 배송비는 각각 더합니다.</li>
         {/*
          * 출고 기한의 진실원은 배송·반품 정책(/legal/shipping 1. 배송 안내)이다. 여기서 더 짧은
          * 영업일 수를 따로 적으면 약관 제13조 3항이 손해배상 기준으로 삼는 "약정 배송기간"이
          * 두 개가 되어, 어느 쪽이 약정인지 정할 수 없다. 그래서 정책 문장을 그대로 싣는다.
          */}
-        <li>대금을 먼저 지급하는 선지급 주문이므로, 결제가 확정된 날부터 3영업일 이내에 배송에 필요한 조치를 취합니다. 무통장 입금 주문은 입금이 확인된 날이 결제 확정일입니다. 공급 절차가 늦어지면 그 진행 상황을 알립니다.</li>
-        <li>도서산간 지역은 지역별 추가 배송비와 배송 일정이 별도 안내됩니다.</li>
+        {preorders.length ? <>
+          <li>예약판매 옵션은 아래 발송 예정일에 맞춰 공급을 준비합니다. 같은 출고지의 일반 상품과 예약상품을 함께 주문하면 가장 늦은 예정일에 함께 발송합니다. 주문서에서 최종 발송 예정일을 확인해주세요.</li>
+          {preorders.map(option => <li key={option.id}>{option.label}: {goodsShipDateLabel(option.date)}</li>)}
+          <li>일반 판매 옵션만 주문한 경우에는 기본 배송 정책을 따릅니다. 예약 공급 일정이 바뀌면 주문 상세에서 변경된 예정일을 확인할 수 있습니다.</li>
+        </> : <li>대금을 먼저 지급하는 선지급 주문이므로, 결제가 확정된 날부터 3영업일 이내에 배송에 필요한 조치를 취합니다. 무통장 입금 주문은 입금이 확인된 날이 결제 확정일입니다. 공급 절차가 늦어지면 그 진행 상황을 알립니다.</li>}
+        <li>배송지에 따른 추가 배송비는 주문서에서 주소를 입력한 뒤 확인합니다. 배송 가능 여부와 최종 배송비를 확인해야 주문할 수 있습니다.</li>
+        <li>원화(KRW)로 결제하며 대한민국 주소로 배송합니다. 국내 배송대행지를 이용할 수 있고, 이후 해외 운송은 고객이 배송대행사에 별도로 신청합니다.</li>
       </ul>
     </section>
   );
 }
 
-function ReturnGuide() {
+function ReturnGuide({ policy }: { policy?: GoodShippingPolicy | null }) {
+  const terms = policy?.claimPolicy;
   return (
     <section aria-labelledby="pdp-return-heading" className="wc-pdp-guide">
       <h2 className="wc-pdp-panel__title" id="pdp-return-heading">교환 · 반품 안내</h2>
       <ul className="wc-pdp-guide__list">
+        {terms?.restrictionReason && <li style={{ whiteSpace: 'pre-wrap' }}>상품별 확인 조건: {terms.restrictionReason} · 고객센터에 사유를 접수하면 개별 확인합니다.</li>}
+        {terms && <>
+          <li>고객 귀책 반품비(편도): {terms.returnFee === null ? '확인 후 안내' : krw(terms.returnFee)}</li>
+          <li>최초 무료배송 후 반품비(왕복 합계): {terms.returnFreeShippingFee === null ? '확인 후 안내' : krw(terms.returnFreeShippingFee)}</li>
+          <li>고객 귀책 교환비(왕복 합계): {terms.exchangeFee === null ? '확인 후 안내' : krw(terms.exchangeFee)}</li>
+        </>}
+        {policy?.returnExchangeNotice && <li style={{ whiteSpace: 'pre-wrap' }}>{policy.returnExchangeNotice}</li>}
+        {policy?.returnAddress && <li>회수 주소: {policy.returnAddress} · 먼저 고객센터에 접수한 뒤 안내에 따라 보내주세요.</li>}
+        {policy?.cs && (policy.cs.name || policy.cs.phone || policy.cs.email) && <li>고객센터: {[policy.cs.name, policy.cs.phone, policy.cs.email].filter(Boolean).join(' · ')}</li>}
         <li>굿즈를 받은 날부터 7일 이내에 청약철회를 신청할 수 있습니다.</li>
         <li>단순 변심으로 반품하는 경우 반송비는 구매자가 부담하며 착불로 보내주세요.</li>
         <li>굿즈가 파손·오배송된 경우에는 반송비를 ICONS가 부담합니다.</li>
@@ -182,14 +207,43 @@ export function GoodDetailView({
 }: GoodDetailViewProps) {
   const { good, ip } = detail;
   const searchParams = useSearchParams();
+  const router = useRouter();
   const tabsRef = useRef<HTMLDivElement>(null);
   const [panelsInView, setPanelsInView] = useState(false);
 
   const purchase = useGoodPurchase({
     disabled: embedded,
     good,
+    additionalGoods: detail.additionalGoods ?? [],
     restockRequested: engagement?.restockRequested ?? false,
   });
+  const nextPriceChange = [good, ...(detail.additionalGoods ?? [])].flatMap((item) => item.options ?? []).reduce<number | null>((next, option) => {
+    return [option.pricing?.nextChangeAt, option.supply?.nextChangeAt].reduce<number | null>((earliest, changeAt) => {
+      const time = changeAt ? Date.parse(changeAt) : NaN;
+      return Number.isFinite(time) ? Math.min(earliest ?? time, time) : earliest;
+    }, next);
+  }, null) ?? null;
+  useEffect(() => {
+    if (embedded || nextPriceChange === null) return;
+    const refreshAtBoundary = () => {
+      if (document.visibilityState !== 'hidden' && Date.now() >= nextPriceChange) router.refresh();
+    };
+    let timer: ReturnType<typeof setTimeout>;
+    const scheduleBoundary = () => {
+      timer = setTimeout(() => {
+        if (Date.now() < nextPriceChange) scheduleBoundary();
+        else refreshAtBoundary();
+      }, Math.min(2_147_483_647, Math.max(100, nextPriceChange - Date.now() + 25)));
+    };
+    scheduleBoundary();
+    window.addEventListener('focus', refreshAtBoundary);
+    document.addEventListener('visibilitychange', refreshAtBoundary);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('focus', refreshAtBoundary);
+      document.removeEventListener('visibilitychange', refreshAtBoundary);
+    };
+  }, [embedded, nextPriceChange, router]);
 
   /* 미니 구매바는 상단 구매 패널이 화면 밖으로 밀려난 뒤에만 의미가 있다. 그 시점을
      스크롤 좌표로 계산하지 않고 하부 탭 영역의 가시성으로 읽는다 — 탭이 보인다는 것은
@@ -207,7 +261,8 @@ export function GoodDetailView({
 
   /* 갤러리가 비어도 대표 이미지 한 장으로 정상 렌더된다(#172 완료 조건). */
   const frames = [good.img, ...detail.gallery];
-  const badges = goodDisplayBadges(good);
+  const displayedGood = purchase.selectedOption ? cartOptionGood(good, purchase.selectedOption.id) ?? good : good;
+  const badges = goodDisplayBadges(displayedGood);
 
   const panels: TabPanelDef[] = [
     {
@@ -226,6 +281,7 @@ export function GoodDetailView({
             <img alt={`${good.name} 상세 이미지`} className="wc-pdp-panel__image" src={detail.detailImageUrl} />
           ) : null}
           <NoticeTable detail={detail} />
+          <GoodsKcDisclosure disclosures={detail.kcDisclosures ?? []} />
           <InquiryEntry goodId={good.id} />
         </div>
       ),
@@ -259,8 +315,8 @@ export function GoodDetailView({
       label: '배송·교환 안내',
       content: (
         <div className="wc-pdp-panel">
-          <ShippingGuide policy={shippingPolicy} />
-          <ReturnGuide />
+          <ShippingGuide policy={shippingPolicy} goods={[good, ...(purchase.additionalChoices ?? []).filter(choice => choice.selected && choice.good).map(choice => choice.good!)]} />
+          <ReturnGuide policy={shippingPolicy} />
         </div>
       ),
     },
@@ -280,7 +336,9 @@ export function GoodDetailView({
               </div>
             ) : null}
             <h1 className="wc-pdp__title">{good.name}</h1>
-            <PriceBlock className="wc-pdp__price" compareAtPrice={good.compareAtPrice} price={good.price} priceMax={good.priceMax} />
+            {good.nameEn ? <p lang="en" className="wc-pdp__english-name">{good.nameEn}</p> : null}
+            <PriceBlock className="wc-pdp__price"
+              compareAtPrice={displayedGood.compareAtPrice} price={displayedGood.price} priceMax={displayedGood.priceMax} />
             <div className="wc-pdp-tools">
               {reviewSummary ? (
                 <p className="wc-pdp-tools__rating">

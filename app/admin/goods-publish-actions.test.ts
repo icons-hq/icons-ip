@@ -32,4 +32,11 @@ describe('상품 게시 상태 액션', () => {
     expect(JSON.stringify(result)).not.toContain('private diagnostic');
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
+  it('KC 미검토로 차단된 경우 검토할 작업을 알려준다', async () => {
+    mocks.rpc.mockResolvedValue({ error: { message: 'goods_kc_review_required private diagnostic' } });
+    const result = await setAdminGoodPublishedAction({}, form(true));
+    expect(result.error).toContain('KC');
+    expect(result.error).toContain('검토');
+    expect(result.error).not.toContain('private diagnostic');
+  });
 });

@@ -3,10 +3,11 @@ begin;
 select 1 / case when exists(select 1 from information_schema.columns where table_schema='public' and table_name='cart_items' and column_name='variant_id') then 1 else 0 end as assert_variant_migration;
 insert into public.verticals(key,label,color) values('cart-variant-test','옵션 테스트','#111111');
 insert into public.ips(id,title,vertical_key,published_at) values('cart-variant-test','옵션 테스트','cart-variant-test',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at) values('cart-variant-test','cart-variant-test','옵션 굿즈','문구',10000,'ok',5,now());
+insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at) values('cart-variant-test','cart-variant-test','옵션 굿즈','문구',10000,'ok',5,null);
 insert into public.goods_variants(id,good_id,name,price,stock_qty,sort_order) values
 ('00000000-0000-4000-8000-000000043910','cart-variant-test','파랑',12000,2,1),
 ('00000000-0000-4000-8000-000000043911','cart-variant-test','빨강',15000,3,2);
+select pg_temp.publish_goods_kc_fixture('cart-variant-test');
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
 ('00000000-0000-4000-8000-000000043901','authenticated','authenticated','cart-variants@example.test',now(),'{}','{}',now(),now());
 update public.profiles set nickname='옵션 구매자',birth_date='2000-01-01',consents='{"terms":true,"privacy":true}',onboarded_at=now() where id='00000000-0000-4000-8000-000000043901';

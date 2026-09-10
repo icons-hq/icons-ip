@@ -29,6 +29,10 @@ function includesFold(haystack: string | null | undefined, needle: string) {
   return (haystack ?? '').toLowerCase().includes(needle);
 }
 
+function includesKeyword(keywords: readonly string[] | undefined, needle: string) {
+  return (keywords ?? []).some((keyword) => includesFold(keyword, needle));
+}
+
 export function searchGoods(
   catalog: Pick<CatalogSnapshot, 'ips' | 'goods'>,
   query: string,
@@ -41,12 +45,17 @@ export function searchGoods(
 
   /* 순위별 버킷에 담으면 정렬 없이 카탈로그 원순서가 그대로 동순위 순서가 된다. */
   const byName: Good[] = [];
+  const byKeyword: Good[] = [];
   const byIp: Good[] = [];
   const rest: Good[] = [];
 
   for (const good of catalog.goods) {
     if (includesFold(good.name, needle)) {
       byName.push(good);
+      continue;
+    }
+    if (includesKeyword(good.searchKeywords, needle)) {
+      byKeyword.push(good);
       continue;
     }
     if (includesFold(ipTitleById.get(good.ip), needle)) {
@@ -58,7 +67,7 @@ export function searchGoods(
     }
   }
 
-  const matched = [...byName, ...byIp, ...rest];
+  const matched = [...byName, ...byKeyword, ...byIp, ...rest];
   const total = matched.length;
   if (total === 0) return emptyResult();
 

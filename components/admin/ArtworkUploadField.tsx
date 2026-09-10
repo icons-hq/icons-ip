@@ -8,6 +8,7 @@ import {
   type AdminArtworkKind,
 } from '../../lib/admin/artwork';
 import { uploadAdminArtwork } from '../../lib/admin/artwork-upload.client';
+import { ArtworkCropGuide } from './ArtworkCropGuide';
 
 const CURRENT_PREVIEW_ALT = '현재 아트워크 미리보기';
 const SELECTED_PREVIEW_ALT = '선택한 아트워크 미리보기';
@@ -336,6 +337,7 @@ export function ArtworkUploadField({
           </div>
         </div>
       </div>
+      <ArtworkCropGuide kind={kind} src={display.previewUrl} detailImage={name === 'detailImagePath'} />
       <input name={name} readOnly type="hidden" value={display.imagePath} />
       <div className="mono" style={{ color: 'var(--faint)', fontSize: 10, overflowWrap: 'anywhere' }}>
         현재 경로: {display.imagePath || '없음'}

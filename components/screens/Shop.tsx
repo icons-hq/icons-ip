@@ -45,6 +45,7 @@ export interface ShopProps {
 
 export interface ShopFilterDraft {
   ips: string[];
+  categories?: string[];
   types: string[];
   priceMin: number | null;
   priceMax: number | null;
@@ -60,6 +61,7 @@ export const EMPTY_SHOP_FILTER_DRAFT: ShopFilterDraft = {
 export function shopFilterDraftFromQuery(query: ShopListQuery): ShopFilterDraft {
   return {
     ips: [...query.ips],
+    ...(query.categories ? { categories: [...query.categories] } : {}),
     types: [...query.types],
     priceMin: query.priceMin,
     priceMax: query.priceMax,
@@ -68,10 +70,10 @@ export function shopFilterDraftFromQuery(query: ShopListQuery): ShopFilterDraft 
 
 export function toggleDraftValue(
   draft: ShopFilterDraft,
-  group: 'ips' | 'types',
+  group: 'ips' | 'types' | 'categories',
   value: string,
 ): ShopFilterDraft {
-  const current = draft[group];
+  const current = draft[group] ?? [];
   return {
     ...draft,
     [group]: current.includes(value)
@@ -102,6 +104,7 @@ export function setDraftPriceRange(
 /** 컨트롤이 만들 다음 URL 의 쿼리 문자열. 뷰 기본 정렬은 싣지 않아 기본 상태 URL 이 깨끗하다. */
 export function shopQueryString(query: ShopListQuery): string {
   const params = new URLSearchParams();
+  for (const id of query.categories ?? []) params.append('category', id);
   for (const id of query.ips) params.append('ip', id);
   for (const type of query.types) params.append('type', type);
   if (query.priceMin !== null) params.set('min', String(query.priceMin));
@@ -117,6 +120,7 @@ const VIEW_HEADINGS: Record<ShopView, { title: string; subcopy?: string }> = {
 };
 
 const SHEET_TABS = [
+  { id: 'categories', label: '카테고리' },
   { id: 'ips', label: 'IP' },
   { id: 'types', label: '타입' },
   { id: 'price', label: '가격' },
@@ -140,7 +144,7 @@ function FilterCheckList({
       {/* 네이티브 input 은 지우지 않고 커스텀 마크 위에 겹쳐 둔다 — 체크 상태·포커스·키보드가
           그대로 살아 있어야 한다(계약 §5). 시각 처리는 wc-catalog.css 몫이다. */}
       {options.map((option) => (
-        <label key={option.value} className="wc-filter-group__option">
+        <label key={option.value} className="wc-filter-group__option" style={option.depth ? { paddingInlineStart: (option.depth - 1) * 12 } : undefined}>
           <input
             checked={selected.includes(option.value)}
             name={name}
@@ -249,7 +253,7 @@ export function Shop({ query, result, view }: ShopProps) {
     if (qs === queryKey) return;
     router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
-  const applyFilters = (next: ShopFilterDraft) => navigate({ ...query, ...next });
+  const applyFilters = (next: ShopFilterDraft) => navigate({ ...query, ...next, categories: next.categories ?? [] });
   const currentDraft = shopFilterDraftFromQuery(query);
 
   /* 스코프가 통째로 비면 필터·정렬을 그릴 이유가 없다. 가짜 목록 대신 안내만 남긴다. */
@@ -273,11 +277,11 @@ export function Shop({ query, result, view }: ShopProps) {
 
   const brandByIpId = new Map(result.ipFacets.map((facet) => [facet.value, facet.label]));
   const visibleGoods = result.goods.slice(0, visibleCount);
-  const hasFilters = query.ips.length > 0
+  const hasFilters = Boolean(query.categories?.length) || query.ips.length > 0
     || query.types.length > 0
     || query.priceMin !== null
     || query.priceMax !== null;
-  const filterCount = query.ips.length + query.types.length
+  const filterCount = (query.categories?.length ?? 0) + query.ips.length + query.types.length
     + Number(query.priceMin !== null || query.priceMax !== null);
 
   return (
@@ -287,6 +291,10 @@ export function Shop({ query, result, view }: ShopProps) {
         <div className="wc-collection__layout">
           {/* 데스크톱 사이드바는 체크 즉시 URL 을 갱신한다 — 적용 버튼이 없는 쪽 패턴(R-03 §1.3). */}
           <aside aria-label="굿즈 필터" className="wc-collection__sidebar">
+            {Boolean(result.categoryFacets?.length) && <details className="wc-filter-group" open>
+              <summary className="wc-filter-group__summary">{`카테고리 (${query.categories?.length ?? 0})`}</summary>
+              <FilterCheckList name="wc-shop-category" onToggle={(value) => applyFilters(toggleDraftValue(currentDraft, 'categories', value))} options={result.categoryFacets!} selected={query.categories ?? []} />
+            </details>}
             <details className="wc-filter-group" open>
               <summary className="wc-filter-group__summary">{`IP (${query.ips.length})`}</summary>
               <FilterCheckList
@@ -437,7 +445,7 @@ export function Shop({ query, result, view }: ShopProps) {
               </button>
             </div>
             <div className="wc-filter-sheet__tabs" role="tablist">
-              {SHEET_TABS.map((tab) => (
+              {SHEET_TABS.filter((tab) => tab.id !== 'categories' || result.categoryFacets?.length).map((tab) => (
                 <button
                   key={tab.id}
                   aria-controls={`wc-shop-sheet-${tab.id}`}
@@ -459,6 +467,9 @@ export function Shop({ query, result, view }: ShopProps) {
               role="tabpanel"
             >
               {/* 시트 안에서는 탭이 그룹 제목 역할을 하므로 details 없이 그룹 본문만 둔다. */}
+              {sheetTab === 'categories' && <div className="wc-filter-group">
+                <FilterCheckList name="wc-shop-sheet-category" onToggle={(value) => setDraft(toggleDraftValue(draft, 'categories', value))} options={result.categoryFacets ?? []} selected={draft.categories ?? []} />
+              </div>}
               {sheetTab === 'ips' ? (
                 <div className="wc-filter-group">
                   <FilterCheckList

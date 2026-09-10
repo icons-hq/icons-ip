@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   categoryBestTabs: [] as HomeBestTab[],
   popularTabs: [] as HomeBestTab[],
 }));
+vi.mock('@/lib/catalog-categories.server', () => ({ loadPublicCatalogCategories: async () => [] }));
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/shop/best',

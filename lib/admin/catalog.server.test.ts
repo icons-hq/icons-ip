@@ -374,6 +374,25 @@ describe('getAdminCatalogRecords', () => {
     ]);
   });
 
+  it('굿즈 목록에 검색 키워드와 공통 진열 순서를 싣는다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({
+      records,
+      rows: {
+        goods: [{ id: 'ordered-good', search_keywords: ['여름 굿즈', 'KUMA'], display_order: 7 }],
+      },
+    });
+
+    const result = await getAdminCatalogRecords({ include: ['goods'] });
+
+    expect(records.find((record) => record.table === 'goods')?.select)
+      .toContain('search_keywords,display_order');
+    expect(result.goods[0]).toMatchObject({
+      searchKeywords: ['여름 굿즈', 'KUMA'],
+      displayOrder: 7,
+    });
+  });
+
   it('classifies reward-policy status in the required priority order', () => {
     const now = Date.parse('2026-07-15T00:00:00.000Z');
     const activePolicy = {

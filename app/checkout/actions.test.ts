@@ -62,6 +62,7 @@ const checkoutOrder: CheckoutOrderSnapshot = {
   total: 31_000,
   shippingFee: 3_000,
   discountTotal: 0,
+  storeCreditTotal: 0,
   address: null,
   expiresAt: '2099-08-13T10:10:00.000Z',
   createdAt: '2026-08-13T10:00:00.000Z',
@@ -116,7 +117,7 @@ describe('placeOrderAction', () => {
 
   it('normalizes fulfillment data and sends no client amount or item list', async () => {
     await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: true, orderId });
-    expect(mocks.rpc).toHaveBeenCalledWith('place_order', {
+    expect(mocks.rpc).toHaveBeenCalledWith('place_order_with_store_credits', {
       p_user_id: userId,
       p_address: {
         recipientName: '팬',
@@ -130,6 +131,7 @@ describe('placeOrderAction', () => {
       /* 결제수단을 넘기지 않은 호출은 카드다. 무통장 24시간 선점을 기본값으로
          흘려보내면 재고가 하루씩 묶인다(#256). */
       p_payment_method: 'card',
+      p_store_credit_amount: 0,
     });
     expect(mocks.availabilityUserIds).toContain(userId);
   });
@@ -143,6 +145,26 @@ describe('placeOrderAction', () => {
       ok: false,
       error: 'invalid_request',
     });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it('passes explicit coupon intent including no coupon without any client discount amount', async () => {
+    await expect(placeOrderAction(address, checkoutKey, 'card', 0, null)).resolves.toEqual({ ok: true, orderId });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('place_order_with_store_credits', expect.objectContaining({ p_expected_user_coupon_id: null }));
+    const selectedId = '11111111-1111-4111-8111-111111111111';
+    await expect(placeOrderAction(address, checkoutKey, 'card', 0, selectedId)).resolves.toEqual({ ok: true, orderId });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('place_order_with_store_credits', expect.objectContaining({ p_expected_user_coupon_id: selectedId }));
+    mocks.rpc.mockClear();
+    await expect(placeOrderAction(address, checkoutKey, 'card', 0, 'bad-id')).resolves.toEqual({ ok: false, error: 'invalid_request' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('passes only an explicit whole-won credit request and leaves all totals to the atomic order RPC', async () => {
+    await expect(placeOrderAction(address, checkoutKey, 'card', '1500')).resolves.toEqual({ ok: true, orderId });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('place_order_with_store_credits', expect.objectContaining({ p_store_credit_amount: 1500 }));
+    mocks.rpc.mockClear();
+    for (const invalid of [-1, 1.5, '1e3', { amount: 1000 }, Number.MAX_SAFE_INTEGER]) {
+      await expect(placeOrderAction(address, checkoutKey, 'card', invalid)).resolves.toEqual({ ok: false, error: 'invalid_request' });
+    }
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
@@ -199,6 +221,9 @@ describe('placeOrderAction', () => {
     ['cart empty', 'empty_cart'],
     ['out of stock: private-id', 'out_of_stock'],
     ['invalid checkout address', 'invalid_address'],
+    ['store_credit_insufficient', 'store_credit_rejected'],
+    ['store_credit_disabled', 'store_credit_rejected'],
+    ['checkout key conflict', 'checkout_changed'],
     ['sensitive db detail', 'unavailable'],
   ] as const)('maps database error %s to %s', async (message, error) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message } });

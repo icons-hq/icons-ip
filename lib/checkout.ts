@@ -16,8 +16,19 @@ export type PlaceOrderErrorCode =
   | 'out_of_stock'
   | 'invalid_address'
   | 'bank_transfer_blocked'
+  | 'card_payment_blocked'
+  | 'purchase_limit_not_configured'
+  | 'order_quantity_below_minimum'
+  | 'order_quantity_above_maximum'
+  | 'member_purchase_limit_exceeded'
   | 'restricted_good_blocked'
   | 'coupon_rejected'
+  | 'store_credit_rejected'
+  | 'checkout_changed'
+  | 'shipping_region_unresolved'
+  | 'preorder_sale_not_open'
+  | 'preorder_capacity_exceeded'
+  | 'preorder_policy_not_configured'
   | 'unavailable';
 
 /** 주문서에서 고르는 결제수단. DB `public.order_payment_method`와 같은 값. */
@@ -141,10 +152,20 @@ export function checkoutOrderName(itemNames: readonly string[]) {
 export function mapPlaceOrderError(message: unknown): PlaceOrderErrorCode {
   const normalized = typeof message === 'string' ? message.toLowerCase() : '';
   if (normalized.includes('account_suspended')) return 'account_suspended';
+  if (normalized.includes('checkout key conflict')) return 'checkout_changed';
+  if (normalized.includes('shipping_region_')) return 'shipping_region_unresolved';
+  if (normalized.includes('store_credit_')) return 'store_credit_rejected';
+  for (const code of ['preorder_sale_not_open', 'preorder_capacity_exceeded', 'preorder_policy_not_configured'] as const) {
+    if (normalized.includes(code)) return code;
+  }
   if (normalized.includes('cart empty')) return 'empty_cart';
   if (normalized.includes('out of stock')) return 'out_of_stock';
   if (normalized.includes('invalid checkout address')) return 'invalid_address';
   if (normalized.includes('bank transfer blocked')) return 'bank_transfer_blocked';
+  if (normalized.includes('card_payment_blocked') || normalized.includes('card payment blocked')) return 'card_payment_blocked';
+  for (const code of ['purchase_limit_not_configured', 'order_quantity_below_minimum', 'order_quantity_above_maximum', 'member_purchase_limit_exceeded'] as const) {
+    if (normalized.includes(code)) return code;
+  }
   /* 판매 제한(19금) 상품은 성인인증 도입 전까지 서버가 주문을 차단한다(#392). */
   if (normalized.includes('restricted good blocked')) return 'restricted_good_blocked';
   /* 적용해 둔 쿠폰이 주문 확정 시점 재검증에서 거부된 경우(만료·조건 미달 등).

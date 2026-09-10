@@ -64,6 +64,12 @@ describe('어드민 굿즈 미리보기', () => {
     expect(preview.good).toEqual({
       id: 'g13',
       name: '아크릴 블록',
+      nameEn: undefined,
+      searchKeywords: [],
+      displayOrder: null, categoryId: null,
+      allowCardPayment: true, allowBankTransfer: true, saleRestriction: 'none',
+      orderQuantityLimitEnabled: false, minOrderQty: null, maxOrderQty: null,
+      memberPurchaseLimitEnabled: false, memberLifetimeQtyLimit: null,
       ip: 'hong-sil-quest',
       type: '아크릴 블록',
       price: 12000,

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { placeOrderAction } from '@/app/checkout/actions';
 import { PostcodeField } from '@/components/checkout/PostcodeField';
+import { useStoreCreditQuote } from '@/components/checkout/useStoreCreditQuote';
 import { useCart } from '@/components/shell/CartProvider';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import {
@@ -16,13 +17,17 @@ import {
 } from '@/lib/checkout';
 import { krw } from '@/lib/format';
 import { cartItemKey } from '@/lib/cart';
-import { cartOptionGood, optionLabel } from '@/lib/goods-options';
-import { couponPreviewDiscount, type UserCouponSummary } from '@/lib/coupons';
+import { cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
+import { goodsPurchaseReasonMessage, goodsSalesQuoteProblem } from '@/lib/goods-sales';
+import type { UserCouponSummary } from '@/lib/coupons';
+import { normalizeStoreCreditAmount } from '@/lib/store-credits';
+import { goodsShipDateLabel } from '@/lib/goods-preorders';
 import { paymentFailNoticeCopy } from '@/lib/payments/checkout-fail-copy';
 import type { ComposedPostcodeAddress } from '@/lib/postcode';
 import { shippingFeeLabel } from '@/lib/shipping';
 import { useShippingQuote } from '@/components/shop/useShippingQuote';
 import { ShippingGroupSummary } from '@/components/shop/ShippingGroupSummary';
+import { parseShippingDestination } from '@/lib/shipping-regions';
 
 const actionErrors = {
   account_suspended: '정지된 계정은 새 주문을 만들 수 없어요.',
@@ -32,10 +37,21 @@ const actionErrors = {
   onboarding_required: '프로필 설정을 먼저 완료해주세요.',
   payment_unavailable: '현재 결제 환경을 확인 중이에요. 잠시 후 다시 시도해주세요.',
   bank_transfer_blocked: '무통장 입금을 쓸 수 없는 굿즈가 담겨 있어요. 카드로 결제해주세요.',
+  card_payment_blocked: '카드 결제를 쓸 수 없는 상품이 담겨 있어요. 결제수단을 다시 확인해주세요.',
+  purchase_limit_not_configured: goodsPurchaseReasonMessage('purchase_limit_not_configured'),
+  order_quantity_below_minimum: goodsPurchaseReasonMessage('order_quantity_below_minimum'),
+  order_quantity_above_maximum: goodsPurchaseReasonMessage('order_quantity_above_maximum'),
+  member_purchase_limit_exceeded: goodsPurchaseReasonMessage('member_purchase_limit_exceeded'),
   restricted_good_blocked: '지금은 구매할 수 없는 굿즈가 담겨 있어요. 장바구니에서 빼고 다시 시도해주세요.',
   empty_cart: '장바구니가 비어 있어요.',
   out_of_stock: '결제 직전 재고가 변경됐어요. 장바구니에서 수량을 다시 확인해주세요.',
   coupon_rejected: '적용한 쿠폰을 쓸 수 없게 됐어요. 장바구니에서 쿠폰을 확인해주세요.',
+  store_credit_rejected: '적립금 잔액이나 사용 조건이 바뀌었어요. 사용 금액을 다시 확인해주세요.',
+  checkout_changed: '이미 만든 주문과 요청 내용이 달라요. 내 주문에서 결제를 이어가거나 기존 주문을 취소한 뒤 다시 주문해주세요.',
+  preorder_sale_not_open: '예약 접수가 종료되거나 중지된 상품이 있어요. 장바구니를 확인해주세요.',
+  preorder_capacity_exceeded: '예약 가능한 수량이 변경됐어요. 장바구니에서 수량을 다시 확인해주세요.',
+  preorder_policy_not_configured: '상품의 예약 조건을 확인 중입니다. 잠시 후 다시 시도해주세요.',
+  shipping_region_unresolved: '배송지의 배송 가능 여부와 배송비가 변경되었습니다. 배송지와 최신 배송비를 다시 확인해주세요.',
   unavailable: '주문을 만들지 못했어요. 잠시 후 다시 시도해주세요.',
 } as const;
 
@@ -102,21 +118,33 @@ export function Checkout({
     address2: latestAddress?.address2 ?? '',
     deliveryNote: latestAddress?.deliveryNote ?? '',
   });
+  const destination = parseShippingDestination({ postalCode: address.postalCode, address1: address.address1 });
+  const shipping = useShippingQuote(items, ready, appliedCoupon?.id ?? '', destination);
+  const [storeCreditInput, setStoreCreditInput] = useState('');
+  const requestedStoreCredits = normalizeStoreCreditAmount(storeCreditInput);
+  const credits = useStoreCreditQuote(requestedStoreCredits, shipping.sales?.calculatedAt ?? null, destination);
+  const creditProblem = requestedStoreCredits === null ? '적립금은 0 이상의 원 단위 정수로 입력해주세요.'
+    : requestedStoreCredits > 0 && credits.quote && !credits.quote.valid ? actionErrors.store_credit_rejected : null;
+  const creditReady = requestedStoreCredits === 0 || (requestedStoreCredits !== null && credits.quote?.valid === true);
+  const usedStoreCredits = creditReady ? requestedStoreCredits ?? 0 : 0;
 
   const lines = useMemo(() => {
     const goodsById = new Map(catalog.goods.map((good) => [good.id, good]));
     const ipsById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
+    const prices = new Map(shipping.sales?.lines.map(line => [cartItemKey(line.goodId, line.variantId), line]));
     return items.map((item) => {
-      const good = cartOptionGood(goodsById.get(item.goodId), item.variantId);
+      const good = goodAtQuotedPrice(cartOptionGood(goodsById.get(item.goodId), item.variantId), prices.get(cartItemKey(item.goodId, item.variantId)));
       const option = good?.options?.find(option => item.variantId ? option.id === item.variantId : option.isDefault);
-      return { ...item, good, optionName: optionLabel(option, good?.options?.length ?? 0), ip: good ? ipsById.get(good.ip) : undefined };
+      return { ...item, good, supply: prices.get(cartItemKey(item.goodId, item.variantId))?.supply ?? option?.supply,
+        optionName: optionLabel(option, good?.options?.length ?? 0), ip: good ? ipsById.get(good.ip) : undefined };
     });
-  }, [catalog.goods, catalog.ips, items]);
-  const subtotal = lines.reduce((sum, line) => sum + (line.good?.price ?? 0) * line.qty, 0);
+  }, [catalog.goods, catalog.ips, items, shipping.sales]);
+  const subtotal = shipping.sales?.subtotal ?? lines.reduce((sum, line) => sum + (line.good?.price ?? 0) * line.qty, 0);
   /* 표시용 예상치다. 결제 금액은 place_order가 확정한 orders.total을 따른다. */
-  const shipping = useShippingQuote(items, ready);
   const shippingFee = shipping.quote?.totalFee ?? 0;
-  const couponDiscount = couponPreviewDiscount(appliedCoupon, subtotal, shippingFee);
+  const shippingReady = shipping.quote?.checkoutAllowed === true && shipping.quote.finalTotalFee !== null;
+  const couponDiscount = shipping.sales?.coupon?.discount ?? 0;
+  const couponSelectionChanged = Boolean(shipping.sales && (shipping.sales.coupon?.userCouponId ?? null) !== (appliedCoupon?.id ?? null));
   const unavailable = lines.some(({ good, qty }) => (
     !good || good.stock === 'soldout' || good.stockQty < qty
   ));
@@ -126,9 +154,13 @@ export function Checkout({
    * 판단을 한다(여기 판단은 UI 안내일 뿐 게이트가 아니다).
    */
   const bankTransferBlockedByCart = lines.some(({ good }) => good?.allowBankTransfer === false);
-  const bankTransferSelectable = bankTransferAvailable && !bankTransferBlockedByCart;
-  const methodAvailable = checkoutMethodAvailable(paymentMethod, {
-    card: paymentAvailable,
+  const purchaseProblem = shipping.sales ? goodsSalesQuoteProblem(shipping.sales) : null;
+  const cardSelectable = paymentAvailable && shipping.sales?.paymentMethods.card === true;
+  const bankTransferSelectable = bankTransferAvailable && !bankTransferBlockedByCart && shipping.sales?.paymentMethods.bankTransfer === true;
+  const selectedPaymentMethod = checkoutMethodAvailable(paymentMethod, { card: cardSelectable, bankTransfer: bankTransferSelectable })
+    ? paymentMethod : cardSelectable ? 'card' : bankTransferSelectable ? 'bank_transfer' : paymentMethod;
+  const methodAvailable = checkoutMethodAvailable(selectedPaymentMethod, {
+    card: cardSelectable,
     bankTransfer: bankTransferSelectable,
   });
 
@@ -160,7 +192,7 @@ export function Checkout({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (submitting || cartPending || mode !== 'server' || unavailable || !methodAvailable || !shipping.quote) return;
+    if (submitting || cartPending || mode !== 'server' || unavailable || !methodAvailable || !shippingReady || !shipping.sales || purchaseProblem || !creditReady || couponSelectionChanged) return;
 
     const nextFieldErrors = checkoutAddressErrors(address);
     if (Object.keys(nextFieldErrors).length > 0) {
@@ -179,7 +211,7 @@ export function Checkout({
     checkoutKey.current ??= crypto.randomUUID();
     let result: Awaited<ReturnType<typeof placeOrderAction>>;
     try {
-      result = await placeOrderAction(address, checkoutKey.current, paymentMethod);
+      result = await placeOrderAction(address, checkoutKey.current, selectedPaymentMethod, requestedStoreCredits, shipping.sales.coupon?.userCouponId ?? null);
     } catch {
       setSubmitError(actionErrors.unavailable);
       setSubmitting(false);
@@ -187,6 +219,8 @@ export function Checkout({
     }
     if (!result.ok) {
       setSubmitError(actionErrors[result.error]);
+      shipping.refresh();
+      credits.refresh();
       setSubmitting(false);
       return;
     }
@@ -260,6 +294,7 @@ export function Checkout({
             <div>
               <h2 id="shipping-title">배송지</h2>
               <p>{latestAddress ? '최근 배송지를 불러왔어요. 주문 전 한 번 더 확인해주세요.' : '수령에 필요한 정보만 주문에 안전하게 저장합니다.'}</p>
+              <p>원화(KRW) 결제·국내 배송만 제공합니다. 국내 배송대행지 주소도 사용할 수 있으며, 이후 해외 운송은 고객이 별도로 진행합니다.</p>
             </div>
           </div>
 
@@ -304,12 +339,13 @@ export function Checkout({
             <h2>주문 확인</h2>
           </div>
           <div className="checkout-items">
-            {lines.map(({ goodId, variantId, good, ip, qty, optionName }) => (
+            {lines.map(({ goodId, variantId, good, ip, qty, optionName, supply }) => (
               <div className="checkout-item" key={cartItemKey(goodId, variantId)}>
                 <div>
                   <span>{ip?.title ?? 'ICONS'} · {good?.type ?? '판매 종료'}</span>
                   <strong>{good?.name ?? goodId}</strong>
                   {optionName ? <span>{optionName}</span> : null}
+                  {supply?.mode === 'preorder' ? <span>예약판매 · {goodsShipDateLabel(supply.expectedShipDate)}</span> : null}
                 </div>
                 <span className="mono">{qty} × {krw(good?.price ?? 0)}</span>
               </div>
@@ -317,16 +353,36 @@ export function Checkout({
           </div>
           <dl className="checkout-totals">
             <div><dt>굿즈 금액</dt><dd>{krw(subtotal)}</dd></div>
-            {couponDiscount > 0 && appliedCoupon && (
-              <div><dt>쿠폰 할인 ({appliedCoupon.coupon.name})</dt><dd>−{krw(couponDiscount)}</dd></div>
+            {couponDiscount > 0 && (
+              <div><dt>쿠폰 할인 ({!couponSelectionChanged && appliedCoupon ? appliedCoupon.coupon.name : shipping.sales?.coupon?.couponCode})</dt><dd>−{krw(couponDiscount)}</dd></div>
             )}
-            <div><dt>배송비</dt><dd>{shipping.quote ? shippingFeeLabel(shippingFee) : '확인 중'}</dd></div>
-            <div className="checkout-total"><dt>결제 금액</dt><dd>{shipping.quote ? krw(subtotal + shippingFee - couponDiscount) : '배송비 확인 후 표시'}</dd></div>
+            {usedStoreCredits > 0 && <div><dt>적립금 사용</dt><dd>−{krw(usedStoreCredits)}</dd></div>}
+            <div><dt>배송비</dt><dd>{shippingReady ? shippingFeeLabel(shippingFee) : shipping.quote ? '배송지 확인 후 확정' : '확인 중'}</dd></div>
+            <div className="checkout-total"><dt>결제 금액</dt><dd>{shippingReady && creditReady ? krw(subtotal + shippingFee - couponDiscount - usedStoreCredits) : '배송비·사용 조건 확인 후 표시'}</dd></div>
           </dl>
 
+          <fieldset className="checkout-method" disabled={submitting} aria-describedby="checkout-credit-note">
+            <legend>적립금 사용</legend>
+            <label htmlFor="checkout-store-credits">사용 금액 (원)</label>
+            <input id="checkout-store-credits" type="text" inputMode="numeric" value={storeCreditInput}
+              disabled={credits.quote?.enabled === false || !shippingReady} aria-invalid={Boolean(creditProblem)}
+              onChange={event => setStoreCreditInput(event.target.value)} placeholder="0" />
+            {credits.quote ? <p id="checkout-credit-note">{credits.quote.enabled
+              ? !shippingReady ? `보유 ${krw(credits.quote.available)} · 사용 한도는 배송지 확인 후 안내합니다.`
+                : `보유 ${krw(credits.quote.available)} · 이 주문에서 최대 ${krw(credits.quote.maxUse)} 사용 가능${credits.quote.minUse ? ` · 최소 ${krw(credits.quote.minUse)}` : ''}`
+              : '현재 적립금 사용을 준비 중입니다.'}</p> : <p id="checkout-credit-note">적립금 잔액과 이 주문의 사용 조건을 확인합니다.</p>}
+            <p className="money-caption">1원 단위로 굿즈 금액에 사용합니다. 배송비는 제외하며 쿠폰 적용 뒤 남은 금액에 적용됩니다.</p>
+            {credits.loading ? <p role="status">적립금 사용 조건을 확인하고 있어요.</p> : null}
+            {credits.error ? <p role="alert">{credits.error} <button type="button" onClick={credits.refresh}>다시 조회</button></p> : null}
+            {creditProblem ? <p className="checkout-error" role="alert">{creditProblem}</p> : null}
+            {(requestedStoreCredits ?? 0) > 0 && <button type="button" onClick={() => setStoreCreditInput('')}>적립금 사용 취소</button>}
+          </fieldset>
+
           {shipping.quote?.groups.map(group => <section className="wc-shipping-group" key={group.originId}><h3>{group.originName} 출고</h3><ShippingGroupSummary group={group} /></section>)}
-          {shipping.loading ? <p role="status">배송비를 확인하고 있어요.</p> : null}
-          {shipping.error ? <div role="alert"><p>{shipping.error}</p><button type="button" onClick={shipping.refresh}>배송비 다시 확인</button></div> : null}
+          {shipping.loading ? <p role="status">현재 가격과 배송비를 확인하고 있어요.</p> : null}
+          {shipping.error ? <div role="alert"><p>{shipping.error}</p><button type="button" onClick={shipping.refresh}>가격·배송비 다시 확인</button></div> : null}
+          {purchaseProblem ? <p className="checkout-error" role="alert">{purchaseProblem}</p> : null}
+          {couponSelectionChanged ? <p className="checkout-error" role="alert">다른 화면에서 선택한 쿠폰이 변경되었습니다. <button type="button" onClick={() => router.refresh()}>현재 쿠폰 다시 확인</button></p> : null}
 
           <fieldset className="checkout-method" aria-describedby="checkout-method-note">
             <legend>결제수단</legend>
@@ -335,13 +391,13 @@ export function Checkout({
                 type="radio"
                 name="paymentMethod"
                 value="card"
-                checked={paymentMethod === 'card'}
-                disabled={!paymentAvailable}
+                checked={selectedPaymentMethod === 'card'}
+                disabled={!cardSelectable}
                 onChange={() => setPaymentMethod('card')}
               />
               <span>
                 <strong>신용·체크카드</strong>
-                <small>결제 후 바로 확정됩니다. 재고 선점 15분.</small>
+                <small>{shipping.sales?.paymentMethods.card === false ? '이 주문에는 카드를 쓸 수 없는 상품이 있어요.' : '결제 후 바로 확정됩니다. 재고 선점 15분.'}</small>
               </span>
             </label>
             <label className="checkout-method-option">
@@ -349,7 +405,7 @@ export function Checkout({
                 type="radio"
                 name="paymentMethod"
                 value="bank_transfer"
-                checked={paymentMethod === 'bank_transfer'}
+                checked={selectedPaymentMethod === 'bank_transfer'}
                 disabled={!bankTransferSelectable}
                 onChange={() => setPaymentMethod('bank_transfer')}
               />
@@ -372,13 +428,13 @@ export function Checkout({
           {unavailable && <p className="checkout-error" role="alert">재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.</p>}
           {!methodAvailable && <p className="checkout-error" role="alert">선택한 결제수단을 지금은 쓸 수 없어요. 다른 수단을 골라주세요.</p>}
           {submitError && <p className="checkout-error" role="alert">{submitError}</p>}
-          <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || unavailable || !methodAvailable || !shipping.quote}>
+          <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || unavailable || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged}>
             {submitting
               ? '재고를 확인하는 중'
-              : paymentMethod === 'bank_transfer' ? '주문 만들고 입금 안내 받기' : '주문 만들고 결제하기'}
+              : selectedPaymentMethod === 'bank_transfer' ? '주문 만들고 입금 안내 받기' : '주문 만들고 결제하기'}
           </button>
           <p className="money-caption">
-            {paymentMethod === 'bank_transfer'
+            {selectedPaymentMethod === 'bank_transfer'
               ? '이 버튼은 결제를 완료하지 않습니다. 다음 화면에서 입금 계좌와 기한을 안내합니다.'
               : '이 버튼은 결제를 완료하지 않습니다. 다음 화면에서 결제수단과 약관을 확인합니다.'}
           </p>

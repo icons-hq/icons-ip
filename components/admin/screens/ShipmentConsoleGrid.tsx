@@ -4,7 +4,7 @@ import {useRouter} from 'next/navigation';
 import {bulkConfirmAdminOrdersAction} from '@/app/admin/order-actions';
 import {completeShipmentsAction,exportShipmentsAction} from '@/app/admin/shipment-actions';
 import {ConsoleGrid,type ConsoleGridColumn,type ConsoleGridRow} from '@/components/admin/console';
-import type {ShipmentConsoleRow,ShipmentConsoleTab} from '@/lib/admin/shipment-dispatch';
+import {isParcelShipment,shipmentConsoleSelectable,type ShipmentConsoleRow,type ShipmentConsoleTab} from '@/lib/admin/shipment-dispatch';
 export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,readyHref}:{rows:ShipmentConsoleRow[];columns:ConsoleGridColumn[];gridRows:ConsoleGridRow[];tab:ShipmentConsoleTab;currentHref:string;readyHref:string}){
  const [selected,setSelected]=useState<string[]>([]);const [pending,startTransition]=useTransition();const router=useRouter();
  const [confirmedSelection,setConfirmedSelection]=useState<{href:string;ids:string[]}|null>(null);
@@ -14,10 +14,12 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  // Keep that successful batch for the immediate export without putting UUIDs in the URL.
  const retainedIds=confirmedSelection?.href===currentHref?confirmedSelection.ids:null;
  const visibleIds=new Set(rows.map(row=>row.id));
- const ids=retainedIds??selected.filter(id=>visibleIds.has(id));
+ const selectableIds=new Set(rows.filter(row=>shipmentConsoleSelectable(row,tab)).map(row=>row.id));
+ const ids=retainedIds?retainedIds.filter(id=>!visibleIds.has(id)||selectableIds.has(id)):selected.filter(id=>selectableIds.has(id));
  const retainedOffPage=retainedIds?.filter(id=>!visibleIds.has(id)).length??0;
  const orderIds=[...new Set(rows.filter(row=>ids.includes(row.id)).map(row=>row.orderId))];
- function select(next:string[]){setConfirmedSelection(null);setSelected(next.filter(id=>visibleIds.has(id)));}
+ const hasBatchActions=tab==='new'||rows.some(isParcelShipment)||Boolean(retainedIds?.length);
+ function select(next:string[]){setConfirmedSelection(null);setSelected(next.filter(id=>selectableIds.has(id)));}
  function run(kind:'confirm'|'export'|'complete'){
   if(!ids.length||pending)return;
   if(kind==='complete'&&!window.confirm('선택한 배송 건이 실제 도착했는지 확인했나요? 배송완료 시각부터 해당 배송 건의 철회 기간이 시작됩니다.'))return;
@@ -30,9 +32,9 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
      else{
       setMessage(result.message??'발주확인했습니다.');
       const confirmedOrders=new Set(result.confirmedOrderIds??[]);
-      const confirmedIds=rows.filter(row=>ids.includes(row.id)&&confirmedOrders.has(row.orderId)).map(row=>row.id);
-      if(confirmedIds.length){
-       setSelected([]);setConfirmedSelection({href:readyHref,ids:confirmedIds});
+      const confirmedIds=rows.filter(row=>ids.includes(row.id)&&confirmedOrders.has(row.orderId)&&isParcelShipment(row)&&row.preorderReady!==false).map(row=>row.id);
+      if(confirmedOrders.size){
+       setSelected([]);setConfirmedSelection(confirmedIds.length?{href:readyHref,ids:confirmedIds}:null);
        router.push(readyHref);return;
       }
      }
@@ -50,8 +52,8 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  }
  return <div className="wc-admin-kit">
   <ConsoleGrid caption="출고지별 배송 건 목록" columns={columns} rows={gridRows} emptyLabel="조건에 맞는 배송 건이 없습니다."
-   selectable={tab!=='delivered'} selectedIds={ids} onSelectionChange={select}>
-   {tab!=='delivered'?<div className="wc-admin-kit__actions" style={{padding:12}}>
+   selectable={tab!=='delivered'&&hasBatchActions} selectedIds={ids} onSelectionChange={select}>
+   {tab!=='delivered'&&hasBatchActions?<div className="wc-admin-kit__actions" style={{padding:12}}>
     <span>{ids.length}개 배송 건 선택</span>
     {retainedOffPage>0?<span>방금 발주확인한 다른 페이지의 {retainedOffPage}건 포함 <button type="button" className="wc-admin-kit__button" onClick={()=>select([])}>선택 해제</button></span>:null}
     {tab==='new'?<button className="wc-admin-kit__button" disabled={pending||!ids.length} onClick={()=>run('confirm')}>선택 주문 {orderIds.length}건 발주확인</button>:tab==='transit'?

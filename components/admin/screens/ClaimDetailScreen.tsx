@@ -19,6 +19,7 @@ import {
 } from '@/lib/orders/claims';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { ClaimActionPanel } from './ClaimActionPanel';
+import { ClaimOperationalFeePanel } from './ClaimOperationalFeePanel';
 import { ClaimReshipmentDelivery } from './ClaimReshipmentDelivery';
 
 /* 어드민 클레임 상세(#252).
@@ -121,6 +122,9 @@ export function ClaimDetailScreen({
 
       <div className="admin-claim-detail-layout">
         <div className="admin-claim-detail-column">
+        <div className="card">
+          <ClaimOperationalFeePanel claimId={claim.id} claimType={claim.claimType} fee={claim.operationalFee} />
+        </div>
         <div className="card">
           <h3 style={{ marginTop: 0 }}>주문 요약</h3>
           {order ? (

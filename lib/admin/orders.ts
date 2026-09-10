@@ -1,6 +1,8 @@
 import type { ShipmentRecord } from '@/lib/orders/shipments';
 import type { OrderWithdrawalReasonType } from '@/lib/orders';
 import type { OrderClaimStage, OrderClaimType } from '@/lib/orders/claims';
+import { adminSettledHref, normalizeAdminSettledFilters } from './settled';
+import { normalizeShipmentFilters, shipmentConsoleHref } from './shipment-dispatch';
 import { ADMIN_VOCABULARY } from './vocabulary';
 import {
   isSelectableShippingCarrier,
@@ -22,6 +24,24 @@ export const ADMIN_ORDER_STATUSES = [
 ] as const;
 export type AdminOrderStatus = (typeof ADMIN_ORDER_STATUSES)[number];
 export type AdminOrderStatusFilter = AdminOrderStatus | 'all';
+
+/** 주문 통합검색에서 검색할 원장을 고른다. 기본값은 기존 전체 검색이다. */
+export type AdminOrderSearchField =
+  | 'all'
+  | 'order'
+  | 'nickname'
+  | 'email'
+  | 'recipient'
+  | 'tracking';
+
+export const ADMIN_ORDER_SEARCH_FIELDS: { value: AdminOrderSearchField; label: string }[] = [
+  { value: 'all', label: '전체' },
+  { value: 'order', label: '주문번호' },
+  { value: 'nickname', label: '닉네임' },
+  { value: 'email', label: '이메일' },
+  { value: 'recipient', label: '수취인' },
+  { value: 'tracking', label: '운송장번호' },
+];
 
 /**
  * 상태 표기의 단일 진실원.
@@ -75,6 +95,7 @@ export interface AdminOrderFilters {
   orderId: string | null;
   page: number;
   query: string;
+  field: AdminOrderSearchField;
   status: AdminOrderStatusFilter;
   to: string | null;
 }
@@ -201,6 +222,7 @@ type AdminOrderSearchParams = Record<string, SearchParamValue>;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const ORDER_STATUS_SET = new Set<string>(ADMIN_ORDER_STATUSES);
+const SEARCH_FIELDS = new Set<string>(ADMIN_ORDER_SEARCH_FIELDS.map((field) => field.value));
 /**
  * 어드민 상태 폼이 직접 밀 수 있는 전이 대상(#250).
  *
@@ -254,10 +276,12 @@ export function normalizeAdminOrderFilters(searchParams: AdminOrderSearchParams)
   const page = Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1;
   const rawQuery = singleParam(searchParams.query).trim();
   const query = rawQuery.length <= 100 ? rawQuery : '';
+  const rawField = singleParam(searchParams.field);
   const rawStatus = singleParam(searchParams.status);
   const status = ORDER_STATUS_SET.has(rawStatus) ? rawStatus as AdminOrderStatus : 'all';
 
   return {
+    field: SEARCH_FIELDS.has(rawField) ? rawField as AdminOrderSearchField : 'all',
     from,
     orderId: normalizedUuid(searchParams.order),
     page,
@@ -445,8 +469,75 @@ export function adminOrdersHref(
   if (next.status !== 'all') params.set('status', next.status);
   if (next.from) params.set('from', next.from);
   if (next.to) params.set('to', next.to);
-  if (next.query) params.set('query', next.query);
+  if (next.query) {
+    params.set('query', next.query);
+    if (next.field !== 'all') params.set('field', next.field);
+  }
   params.set('page', String(next.page));
   if (next.orderId) params.set('order', next.orderId);
   return `/admin/sales/orders?${params.toString()}`;
+}
+
+/** 목록 문맥을 함께 들고 여는 전용 주문 상세 링크. */
+export function adminOrderDetailHref(orderId: string, filters?: AdminOrderFilters) {
+  const base = `/admin/sales/orders/${orderId}`;
+  if (!filters) return base;
+  return `${base}?back=${encodeURIComponent(adminOrdersHref(filters))}`;
+}
+
+/** 거래확정 목록처럼 주문 콘솔이 아닌 화면에서도 같은 상세 링크를 쓴다. */
+export function adminOrderDetailHrefFromBack(orderId: string, backHref?: string) {
+  const base = `/admin/sales/orders/${orderId}`;
+  return backHref ? `${base}?back=${encodeURIComponent(backHref)}` : base;
+}
+
+const ORDER_DETAIL_BACK_FIELDS = ['status', 'from', 'to', 'query', 'field', 'page', 'order'] as const;
+const SETTLED_DETAIL_BACK_FIELDS = ['from', 'to', 'query', 'page'] as const;
+const SHIPMENT_DETAIL_BACK_FIELDS = ['tab', 'originId', 'from', 'to', 'query', 'page'] as const;
+const ADMIN_BACK_ORIGIN = 'https://icons-admin.invalid';
+
+/**
+ * 상세 URL의 `back`은 외부 입력이다. 허용된 목록 경로와 필터만 다시 만들고,
+ * 외부 origin·임의 파라미터는 버려서 상세 화면이 임의 URL redirector가 되지 않게 한다.
+ */
+export function adminOrderBackHref(back: unknown) {
+  if (typeof back !== 'string' || !back.trim()) return '/admin/sales/orders';
+
+  let source: URL;
+  try {
+    source = new URL(back, ADMIN_BACK_ORIGIN);
+  } catch {
+    return '/admin/sales/orders';
+  }
+  if (source.origin !== ADMIN_BACK_ORIGIN) return '/admin/sales/orders';
+
+  if (source.pathname === '/admin/sales/orders') {
+    const known: Record<string, string> = {};
+    for (const key of ORDER_DETAIL_BACK_FIELDS) {
+      const value = source.searchParams.get(key);
+      if (value) known[key] = value;
+    }
+    return adminOrdersHref(normalizeAdminOrderFilters(known));
+  }
+
+  if (source.pathname === '/admin/sales/settled') {
+    const known: Record<string, string> = {};
+    for (const key of SETTLED_DETAIL_BACK_FIELDS) {
+      const value = source.searchParams.get(key);
+      if (value) known[key] = value;
+    }
+    return adminSettledHref(normalizeAdminSettledFilters(known));
+  }
+
+  for (const surface of ['dispatch', 'shipping'] as const) {
+    if (source.pathname !== `/admin/sales/${surface}`) continue;
+    const known: Record<string, string> = {};
+    for (const key of SHIPMENT_DETAIL_BACK_FIELDS) {
+      const value = source.searchParams.get(key);
+      if (value) known[key] = value;
+    }
+    return shipmentConsoleHref(surface, normalizeShipmentFilters(known, surface));
+  }
+
+  return '/admin/sales/orders';
 }

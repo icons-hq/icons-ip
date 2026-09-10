@@ -1,4 +1,6 @@
 import 'server-only';
+import { loadAdminCategoryWorkspace } from './category.server';
+import { loadActiveShippingNoticeTemplateOptions } from './shipping-notice-templates.server';
 
 import { createClient } from '@/lib/supabase/server';
 import { getAdminCatalogRecords } from './catalog.server';
@@ -11,15 +13,16 @@ import { GOODS_LIST_PAGE_SIZE, type AdminGoodsListData, type GoodsListFilters } 
 interface GoodsListRow {
   id: string; code: string; name: string; ip_id: string;
   published_at: string | null; archived_at: string | null;
+  allow_card_payment: boolean; allow_bank_transfer: boolean; sale_restriction: 'none' | 'adult';
   notice_maker: string | null; notice_origin: string | null; notice_material: string | null; notice_size: string | null;
   notice_made_on: string | null; notice_as_manager: string | null; notice_as_contact: string | null;
-  stock: Stock; stock_qty: number; ip: { title: string };
+  stock: Stock; stock_qty: number; active_stock_qty: number; sale_available_qty?: number; low_stock_option_count: number; ip: { title: string };
 }
 
 export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<AdminGoodsListData> {
   const supabase = await createClient();
   let query = supabase.rpc('admin_search_goods', { search_text: filters.query }, { count: 'exact' })
-    .select('id,code,name,ip_id,published_at,archived_at,stock,stock_qty,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,ip:ips!inner(title)');
+    .select('id,code,name,ip_id,published_at,archived_at,stock,stock_qty,allow_card_payment,allow_bank_transfer,sale_restriction,active_stock_qty:admin_goods_active_stock_qty,sale_available_qty:goods_sale_available_qty,low_stock_option_count:admin_goods_low_stock_option_count,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,ip:ips!inner(title)');
   if (filters.ipId) query = query.eq('ip_id', filters.ipId);
   if (filters.status === 'archived') query = query.not('archived_at', 'is', null);
   else if (filters.status !== 'all') {
@@ -27,10 +30,10 @@ export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<Adm
     if (filters.status === 'draft') query = query.is('published_at', null);
     if (filters.status === 'published') query = query.not('published_at', 'is', null);
   }
-  // Match the public effective stock: zero quantity is sold out even when the
-  // operator has not manually switched the display status to soldout.
-  if (filters.stock === 'soldout') query = query.or('stock.eq.soldout,stock_qty.eq.0');
-  else if (filters.stock !== 'all') query = query.eq('stock', filters.stock).gt('stock_qty', 0);
+  // Compute before filtering/count/pagination: stopped options still own physical
+  // inventory but cannot make a good appear available for a new purchase.
+  if (filters.stock === 'soldout') query = query.or('stock.eq.soldout,admin_goods_active_stock_qty.eq.0');
+  else if (filters.stock !== 'all') query = query.eq('stock', filters.stock).gt('admin_goods_active_stock_qty', 0);
   const result = await query.order('id')
     .range((filters.page - 1) * GOODS_LIST_PAGE_SIZE, filters.page * GOODS_LIST_PAGE_SIZE - 1);
   if (result.error) throw new Error('상품 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
@@ -50,7 +53,11 @@ export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<Adm
       id: good.id, code: good.code, name: good.name, ipId: good.ip_id,
       ipTitle: good.ip.title,
       publishedAt: good.published_at, archivedAt: good.archived_at,
+      allowCardPayment: good.allow_card_payment, allowBankTransfer: good.allow_bank_transfer,
+      saleRestriction: good.sale_restriction,
       stock: good.stock, stockQty: good.stock_qty ?? 0,
+      activeStockQty: good.active_stock_qty ?? 0, lowStockOptionCount: good.low_stock_option_count ?? 0,
+      saleAvailableQty: good.sale_available_qty,
       noticeComplete: [good.notice_maker,good.notice_origin,good.notice_material,good.notice_size,good.notice_made_on,good.notice_as_manager,good.notice_as_contact].every(value=>Boolean(value?.trim())),
     })),
   };
@@ -59,11 +66,13 @@ export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<Adm
 /** Editor requests one good and its options; opening the list never loads these. */
 export async function loadAdminGoodEditor(goodId?: string) {
   const supabase = await createClient();
-  const [records, variants, verticals, origins] = await Promise.all([
+  const [records, variants, verticals, origins, categoryWorkspace, shippingNoticeOptions] = await Promise.all([
     getAdminCatalogRecords({ include: goodId ? ['goods', 'ips'] : ['ips'], ...(goodId ? { goodId } : {}) }),
     goodId ? loadAdminGoodsVariants(goodId) : Promise.resolve([]),
     supabase.from('verticals').select('key,label,color').order('key'),
     loadAdminFulfillmentOrigins(),
+    loadAdminCategoryWorkspace(),
+    loadActiveShippingNoticeTemplateOptions(),
   ]);
   if (verticals.error) throw new Error('상품 편집 정보를 불러오지 못했습니다.');
   // The preview needs IP presentation only, so avoid the public snapshot's full
@@ -76,5 +85,5 @@ export async function loadAdminGoodEditor(goodId?: string) {
     fans: ip.fansCount, goods: 0, cards: 0, featured: ip.featured,
     tagline: ip.tagline ?? '', synopsis: ip.synopsis ?? '',
   }));
-  return { records, variants, catalogIps, origins };
+  return { records, variants, catalogIps, origins, categories: categoryWorkspace.categories, shippingNoticeOptions };
 }

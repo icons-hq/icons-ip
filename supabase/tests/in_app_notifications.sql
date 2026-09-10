@@ -448,10 +448,14 @@ select public.admin_upsert_good(
 reset role;
 select set_config('request.jwt.claim.sub','',true);
 update public.goods set image_path='public-media/notification-fixture.webp' where id='notification-runtime-good';
+select pg_temp.review_goods_kc_fixture('notification-runtime-good');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000001503',true);
 select public.admin_set_good_published('notification-runtime-good',true);
 
+-- Product identity edits now require draft + renewed KC review. Republishing
+-- the same product still must not duplicate its original drop notification.
+select public.admin_set_good_published('notification-runtime-good',false);
 select public.admin_upsert_good(
   'notification-runtime-good',
   'notification-ip',
@@ -461,11 +465,13 @@ select public.admin_upsert_good(
   'NEW',
   'ok',
   null,
-  null,
+  'public-media/notification-fixture.webp',
   '(주)아이콘즈', '대한민국', 'PVC', '80x80x30mm / 120g', '2026-07', '아이콘즈 CS', '02-000-0000',
   null, null, null,
   'notification-runtime-good'
 );
+select pg_temp.review_goods_kc_fixture('notification-runtime-good');
+select public.admin_set_good_published('notification-runtime-good',true);
 
 -- 오프라인 팝업 알림은 mode='오프라인'에만 나간다(20260901090000). 온라인 편성의
 -- 정본 표면은 캠페인 허브·IP 관이라 이 트리거가 알리지 않는다.

@@ -8,14 +8,19 @@ import Page from './page';
 const mocks = vi.hoisted(() => ({
   auth: null as unknown as CurrentAuthState,
   detail: null as CatalogIpDetail | null,
+  identity: null as { internalId: string; publicSlug: string; isAlias: boolean } | null,
   followState: null as unknown as IpFollowState,
   ipDetail: vi.fn<(props: Record<string, unknown>) => null>(() => null),
 }));
 
-vi.mock('next/navigation', () => ({ notFound: () => { throw new Error('not found'); } }));
+vi.mock('next/navigation', () => ({
+  notFound: () => { throw new Error('not found'); },
+  permanentRedirect: (path: string) => { throw new Error(`NEXT_REDIRECT:${path}`); },
+}));
 vi.mock('@/components/screens/IpDetail', () => ({ IpDetail: mocks.ipDetail }));
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
 vi.mock('@/lib/catalog', () => ({ getCatalogIpDetail: () => mocks.detail }));
+vi.mock('@/lib/ip-identity.server', () => ({ resolvePublicIpIdentity: () => mocks.identity }));
 vi.mock('@/lib/ip-follow.server', () => ({ getIpFollowState: () => mocks.followState }));
 
 const ip = {
@@ -35,6 +40,7 @@ const ip = {
 
 beforeEach(() => {
   mocks.detail = { source: 'mock', ip, goods: [], cards: [], events: [], posts: [] };
+  mocks.identity = { internalId: 'ip-1', publicSlug: 'ip-1', isAlias: false };
   mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
   mocks.followState = { isFollowed: true, notifyDrops: true, notifyEvents: false };
   mocks.ipDetail.mockClear();
@@ -49,6 +55,7 @@ describe('/ip/[id] page', () => {
 
     expect(mocks.ipDetail.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
       detail: mocks.detail,
+      publicSlug: 'ip-1',
       followState: mocks.followState,
       followError: false,
       notificationError: true,
@@ -70,13 +77,23 @@ describe('/ip/[id] page', () => {
   });
 
   it('renders notFound for an unknown ip id', async () => {
-    mocks.detail = null;
+    mocks.identity = null;
 
     await expect(Page({
       params: Promise.resolve({ id: 'no-such-ip' }),
       searchParams: Promise.resolve({}),
     })).rejects.toThrow('not found');
 
+    expect(mocks.ipDetail).not.toHaveBeenCalled();
+  });
+
+  it('redirects an old public alias to the current canonical slug while keeping the internal id', async () => {
+    mocks.identity = { internalId: 'ip-1', publicSlug: 'mountain-fire', isAlias: true };
+
+    await expect(Page({
+      params: Promise.resolve({ id: 'hwasan' }),
+      searchParams: Promise.resolve({ follow_error: '1', notification_saved: '1', unknown: 'drop-me' }),
+    })).rejects.toThrow('NEXT_REDIRECT:/ip/mountain-fire?follow_error=1&notification_saved=1');
     expect(mocks.ipDetail).not.toHaveBeenCalled();
   });
 });

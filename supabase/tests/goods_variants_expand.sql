@@ -10,7 +10,9 @@ select 1 / case when not exists (
 insert into public.verticals(key,label,color) values ('variant-expand','옵션 확장','#000000');
 insert into public.ips(id,title,vertical_key,published_at) values ('variant-expand','옵션 확장','variant-expand',now());
 insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at)
-values ('variant-expand','variant-expand','기본 옵션 상품','문구',10000,'ok',7,now());
+values ('variant-expand','variant-expand','기본 옵션 상품','문구',10000,'ok',7,null);
+-- Build reviewed synthetic KC evidence before publishing each fixture.
+select pg_temp.publish_goods_kc_fixture('variant-expand');
 select 1 / case when exists (
   select 1 from public.goods_variants where good_id = 'variant-expand'
     and is_default and name = '기본 옵션' and price = 10000 and stock_qty = 7

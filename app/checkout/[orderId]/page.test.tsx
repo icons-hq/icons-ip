@@ -37,6 +37,7 @@ const order: CheckoutOrderSnapshot = {
   total: 31_000,
   shippingFee: 3_000,
   discountTotal: 0,
+  storeCreditTotal: 0,
   address: null,
   expiresAt: '2099-08-13T10:10:00.000Z',
   createdAt: '2026-08-13T10:00:00.000Z',

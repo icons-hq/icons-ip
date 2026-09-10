@@ -217,6 +217,18 @@ export function adminClaimOpenCount(counts: Record<OrderClaimStage, number>) {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const TRACKING_NUMBER_PATTERN = /^[A-Z0-9]{8,30}$/;
+export const ADMIN_CLAIM_OPERATIONAL_FEE_KINDS = ['return_shipping', 'exchange_shipping', 'other'] as const;
+export type AdminClaimOperationalFeeKind = (typeof ADMIN_CLAIM_OPERATIONAL_FEE_KINDS)[number];
+
+export interface AdminClaimOperationalFee {
+  kind: AdminClaimOperationalFeeKind | null;
+  amount: number | null;
+  note: string | null;
+  evidence: string | null;
+  confirmedBy: string | null;
+  confirmedAt: string | null;
+  updatedAt: string;
+}
 
 export type AdminClaimFormResult<T> =
   | { ok: true; value: T }
@@ -354,6 +366,43 @@ export function normalizeAdminClaimEvidenceForm(
     return (code < 32 && ![9, 10, 13].includes(code)) || code === 127;
   })) return { ok: false, error: '확인 근거에 표시할 수 없는 문자가 있습니다. 내용을 확인해주세요.' };
   return { ok: true, value: { claimId, evidence } };
+}
+
+export function normalizeAdminClaimOperationalFeeForm(
+  formData: FormData,
+): AdminClaimFormResult<{
+  claimId: string;
+  feeKind: AdminClaimOperationalFeeKind | null;
+  amount: number | null;
+  note: string | null;
+  evidence: string | null;
+  expectedUpdatedAt: string;
+}> {
+  const claimId = readString(formData, 'claimId').toLowerCase();
+  const kind = readString(formData, 'feeKind');
+  const amountText = readString(formData, 'amount');
+  const note = readString(formData, 'note');
+  const evidence = readString(formData, 'evidence');
+  const expectedUpdatedAt = readString(formData, 'expectedUpdatedAt');
+  if (!UUID_PATTERN.test(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
+  if (!expectedUpdatedAt || Number.isNaN(Date.parse(expectedUpdatedAt))) return { ok: false, error: '최신 클레임을 다시 열어주세요.' };
+  if (!amountText) {
+    if (kind || note || evidence) return { ok: false, error: '금액을 비우면 비용 유형·메모·근거도 비워야 합니다.' };
+    return { ok: true, value: { claimId, feeKind: null, amount: null, note: null, evidence: null, expectedUpdatedAt } };
+  }
+  if (!(ADMIN_CLAIM_OPERATIONAL_FEE_KINDS as readonly string[]).includes(kind)) {
+    return { ok: false, error: '운영 확인액의 비용 유형을 선택해주세요.' };
+  }
+  if (!/^(0|[1-9][0-9]*)$/.test(amountText)) return { ok: false, error: '운영 확인액은 0~1,000,000원의 정수입니다.' };
+  const amount = Number(amountText);
+  if (!Number.isSafeInteger(amount) || amount < 0 || amount > 1000000) return { ok: false, error: '운영 확인액은 0~1,000,000원의 정수입니다.' };
+  if (!note || note.length > 500) return { ok: false, error: '비용 메모는 1~500자로 입력해주세요.' };
+  if (!evidence || evidence.length > 1000) return { ok: false, error: '운영 확인 근거는 1~1,000자로 입력해주세요.' };
+  if ([note, evidence].some((value) => Array.from(value).some((character) => {
+    const code = character.charCodeAt(0);
+    return (code < 32 && ![9, 10, 13].includes(code)) || code === 127;
+  }))) return { ok: false, error: '메모와 근거에 표시할 수 없는 문자가 있습니다. 내용을 확인해주세요.' };
+  return { ok: true, value: { claimId, feeKind: kind as AdminClaimOperationalFeeKind, amount, note, evidence, expectedUpdatedAt } };
 }
 
 export function normalizeAdminClaimOriginCollectionForm(

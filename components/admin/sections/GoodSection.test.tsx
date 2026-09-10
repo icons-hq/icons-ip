@@ -150,6 +150,16 @@ describe('GoodSection', () => {
     const empty=renderGoodSection(null,{}, {initialQuery:'없는 코드'});
     expect(empty).toContain('일치하는 상품이 없습니다.');
   });
+
+  it('검색 키워드와 진열 순서를 편집하고 키워드로 기존 목록을 찾는다', () => {
+    const record = { ...good, searchKeywords: ['여름 굿즈', 'KUMA'], displayOrder: 4 };
+    const html = renderGoodSection(record, {}, { initialQuery: 'kuma' });
+
+    expect(html).toContain('여름 굿즈');
+    expect(html).toContain('name="searchKeywords"');
+    expect(html).toContain('name="displayOrder"');
+    expect(html).toContain('value="4"');
+  });
   it('shows current inventory and a separate delta form for an existing good', () => {
     const html = renderGoodSection(good);
 
@@ -164,8 +174,9 @@ describe('GoodSection', () => {
     expect(html).toContain('name="adjustmentId"');
     expect(html).toContain('name="expectedStockQty"');
     expect(html).toContain('재고 조정');
-    /* 저장 · 재고 조정 · 무통장 토글(#256) · 판매 제한(#392) · 게시 상태 · 보관 여섯 개다. */
-    expect(html.match(/<form/g)).toHaveLength(6);
+    const stockForm = (html.match(/<form\b[\s\S]*?<\/form>/g) ?? []).find(form => form.includes('name="delta"'));
+    expect(stockForm).toContain('name="reason"');
+    expect(stockForm).not.toContain('name="saleRestriction"');
   });
 
   it('derives soldout for zero quantity without changing the raw stock label', () => {
@@ -185,16 +196,15 @@ describe('GoodSection', () => {
     expect(html.match(/<form/g)).toHaveLength(1);
   });
 
-  /* #392 — 판매 제한은 고시정보 7칸을 다시 채우지 않고 바꾸는 행 단위 컨트롤이고,
-     2택 이상이라 토글이 아니라 저장된 값이 선택된 select 다. */
-  it('offers the sale restriction control with the stored value preselected', () => {
+  it('keeps the stored sale restriction in the same goods form as payment methods', () => {
     const html = renderGoodSection({ ...good, saleRestriction: 'adult' });
 
-    expect(html).toContain('판매 제한 유형');
-    expect(html).toContain('name="restriction"');
+    expect(html).toContain('결제·구매 조건');
+    expect(html).toContain('name="saleRestriction"');
+    expect(html).toContain('name="allowCardPayment"');
     expect(html).toContain('성인(19금)');
     expect(html).toMatch(/<option[^>]*value="adult"[^>]*selected|<option[^>]*selected[^>]*value="adult"/);
-    expect(html).toContain('성인인증 도입 전까지 스토어에 노출되지 않고 구매가 차단됩니다');
+    expect(html).toContain('성인인증을 도입하기 전까지 공개되지 않고 구매가 차단됩니다');
   });
 
   it('uses the shared artwork upload field', () => {
@@ -215,7 +225,7 @@ describe('GoodSection', () => {
     expect(html).toContain('value="good"');
     expect(html).not.toContain('현재 실재고');
     expect(html).not.toContain('name="delta"');
-    expect(html.match(/<form/g)).toHaveLength(2);
+    expect(html.match(/<form/g)).toHaveLength(3);
   });
 
   /* #171 — 고시정보는 라벨 붙은 고정 입력이다. 자유 텍스트 한 칸이 아니다. */
@@ -295,8 +305,8 @@ describe('GoodSection', () => {
     const html = renderGoodSection(good);
 
     expect(html).not.toContain('shop-cart-button');
-    /* 저장 · 재고 조정 · 무통장 토글 · 판매 제한 · 게시 상태 · 보관 여섯 개 그대로다. 미리보기는 폼을 늘리지 않는다. */
-    expect(html.match(/<form/g)).toHaveLength(6);
+    const preview = html.slice(html.indexOf('공개 화면 미리보기'), html.indexOf('실재고 조정'));
+    expect(preview).not.toContain('<form');
   });
 
   /* #326 — 유형·배지는 자유 입력이 아니라 표준 값 select 다(DB CHECK 와 같은 목록). */

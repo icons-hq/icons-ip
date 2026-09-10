@@ -6,7 +6,7 @@ import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { readBoundedZip } from '@/lib/admin/bounded-zip.server';
-import { parseGoodsWorkbook } from '@/lib/admin/goods-workbook-file';
+import { parseGoodsWorkbookWithKc } from '@/lib/admin/goods-workbook-file';
 import {
   GOODS_IMPORT_BUCKET,
   GOODS_IMPORT_PATH,
@@ -135,7 +135,7 @@ export async function previewGoodsImport(id: string) {
     const batch = await loadGoodsImportBatch(id, actorId);
     if (batch.state !== 'uploading')
       return { ok: true as const, view: goodsImportView(batch) };
-    const rows = await parseGoodsWorkbook(
+    const { rows, kcRows } = await parseGoodsWorkbookWithKc(
       await downloadSource(batch, 'workbook.xlsx', GOODS_WORKBOOK_BYTES_LIMIT),
     );
     const files = batch.has_images
@@ -156,6 +156,7 @@ export async function previewGoodsImport(id: string) {
     const context = await loadGoodsWorkbookContext(rows);
     const plan = planGoodsWorkbookImport(rows, {
       ...context,
+      kcRows,
       imageNames: [...files.keys()],
     });
     const service = createServiceClient();

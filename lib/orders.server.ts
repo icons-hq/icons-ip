@@ -30,6 +30,7 @@ interface OrderListRow {
 interface OrderDetailRow extends OrderListRow {
   shipping_fee: number | null;
   discount_total: number | null;
+  store_credit_total: number | null;
   address: unknown;
   delivered_at: string | null;
   expires_at: string | null;
@@ -53,6 +54,8 @@ interface OrderDetailItemRow extends OrderListItemRow {
   variant_id: string;
   variant_name_snapshot?: string | null;
   variant_code_snapshot?: string | null;
+  supply_source?: 'stock' | 'preorder';
+  preorder_expected_ship_date?: string | null;
 }
 
 interface PaymentRow {
@@ -184,7 +187,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     .from('orders')
     // delivered_at은 청약철회 기한의 기산점이다(#189). 이 값이 없으면 주문
     // 상세가 남은 기간을 말할 근거가 없다.
-    .select('id,user_id,status,total,shipping_fee,discount_total,address,created_at,delivered_at,payment_method,expires_at')
+    .select('id,user_id,status,total,shipping_fee,discount_total,store_credit_total,address,created_at,delivered_at,payment_method,expires_at')
     .eq('id', orderId)
     .eq('user_id', userId)
     .in('status', [...ORDER_DETAIL_STATUSES])
@@ -199,7 +202,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   const [itemsResult, paymentResult, ticketsResult, cancellationRequestResult, eligibilityResult] = await Promise.all([
     supabase
       .from('order_items')
-      .select('id,order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot')
+      .select('id,order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,supply_source,preorder_expected_ship_date')
       .eq('order_id', orderId)
       .order('id', { ascending: true }),
     supabase
@@ -282,6 +285,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     total: orderData.total,
     shippingFee: orderData.shipping_fee ?? 0,
     discountTotal: orderData.discount_total ?? 0,
+    storeCreditTotal: orderData.store_credit_total ?? 0,
     address: normalizeCheckoutAddress(orderData.address),
     createdAt: orderData.created_at,
     deliveredAt: orderData.delivered_at,
@@ -296,6 +300,8 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       type: item.good_type_snapshot,
       qty: item.qty,
       unitPrice: item.unit_price,
+      supplySource: item.supply_source ?? 'stock',
+      preorderExpectedShipDate: item.preorder_expected_ship_date ?? null,
     })),
     payment: payment
       ? {

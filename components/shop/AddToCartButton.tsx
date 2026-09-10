@@ -2,7 +2,7 @@
 
 import type { Good } from '@/lib/data';
 import { useCart } from '@/components/shell/CartProvider';
-import { initialGoodOption } from '@/lib/goods-options';
+import { goodsPurchaseConditionProblem, initialGoodOption } from '@/lib/goods-options';
 import Link from 'next/link';
 
 /*
@@ -24,6 +24,7 @@ export function AddToCartButton({ good, variant = 'card' }: { good: Good; varian
       : quantity > 0
         ? `담김 · ${quantity}`
         : '담기';
+  const conditionProblem = goodsPurchaseConditionProblem(good);
   const ariaLabel = sold
     ? `${good.name} 품절`
     : !ready
@@ -39,9 +40,9 @@ export function AddToCartButton({ good, variant = 'card' }: { good: Good; varian
   if ((good.options?.length ?? 0) > 1) return <Link className="wc-btn shop-cart-button" href={`/shop/${good.id}`}>옵션 선택</Link>;
   return (
     <button
-      aria-label={ariaLabel}
+      aria-label={conditionProblem ? `${good.name} ${conditionProblem}` : ariaLabel}
       className="shop-cart-button"
-      disabled={sold || atStockLimit || !ready || pending}
+      disabled={sold || Boolean(conditionProblem) || atStockLimit || !ready || pending}
       onClick={() => { if (option) void add(good.id, option.stockQty, option.id); }}
       type="button"
       style={{
@@ -60,7 +61,7 @@ export function AddToCartButton({ good, variant = 'card' }: { good: Good; varian
         transition: 'transform .18s ease, background .25s ease',
       }}
     >
-      {label}
+      {conditionProblem ? '판매 준비 중' : label}
     </button>
   );
 }

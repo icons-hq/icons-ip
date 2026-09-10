@@ -85,6 +85,7 @@ describe('AdminSalesSettledPage', () => {
     expect(screen.type).toBe(mocks.settledScreen);
     expect(screen.props).toEqual({
       data: { filters: {}, pageSize: 20, rows: [], total: 0 },
+      exportRequestId: expect.any(String),
     });
   });
 

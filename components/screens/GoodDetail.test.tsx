@@ -308,6 +308,17 @@ describe('GoodDetail', () => {
     expect(shippingSection).toContain(SHIPPING_PERIOD_NOTICE);
     expect(shippingSection).not.toContain('영업일 기준');
   });
+  it('예약 옵션의 발송 예정일을 배송 안내에도 표시해 일반 출고 기한과 혼동하지 않는다', () => {
+    const html = render({ good: { ...detail.good, options: [{ id: '00000000-0000-4000-8000-000000000485',
+      name: '10월 예약', attributes: {}, code: 'TEST-485', isDefault: true, price: detail.good.price, stockQty: 5,
+      supply: { mode: 'preorder', state: 'open', policyId: '00000000-0000-4000-8000-000000000486', policyRevision: 1,
+        availableQty: 5, startsAt: '2026-09-01T00:00:00Z', endsAt: '2026-09-30T00:00:00Z',
+        expectedShipDate: '2026-10-10', calculatedAt: '2026-09-10T00:00:00Z', nextChangeAt: '2026-09-30T00:00:00Z' } }] } });
+    const section = html.slice(html.indexOf('pdp-shipping-heading'), html.indexOf('pdp-return-heading'));
+    expect(section).toContain('2026년 10월 10일 발송 예정');
+    expect(section).toContain('같은 출고지');
+    expect(section).not.toContain(SHIPPING_PERIOD_NOTICE);
+  });
 
   /* 요약만으로는 반송비 부담·반품 절차·환급 기한을 확인할 수 없다. 전문으로 가는 길이 있어야 한다. */
   it('교환·반품 안내에서 배송·반품 정책 전문으로 갈 수 있다', () => {

@@ -614,6 +614,14 @@
   color: var(--wc-ink);
 }
 
+.wc-pdp__english-name {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wc-ink-sub);
+  overflow-wrap: anywhere;
+}
+
 /* 가격은 정보 칼럼에서 가장 큰 수다(R-04 §3.3) — 카드용 14px 기본값을 이 지면에서만 키운다. */
 .wc-pdp__price {
   margin-top: 16px;

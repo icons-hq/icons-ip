@@ -19,6 +19,7 @@ interface OrderRow {
   total: number;
   shipping_fee: number | null;
   discount_total: number | null;
+  store_credit_total: number | null;
   address: unknown;
   expires_at: string | null;
   created_at: string;
@@ -35,6 +36,8 @@ interface OrderItemRow {
   variant_id: string;
   variant_name_snapshot?: string | null;
   variant_code_snapshot?: string | null;
+  supply_source?: 'stock' | 'preorder';
+  preorder_expected_ship_date?: string | null;
 }
 
 export interface CheckoutOrderItem {
@@ -47,6 +50,8 @@ export interface CheckoutOrderItem {
   type: string;
   qty: number;
   unitPrice: number;
+  supplySource?: 'stock' | 'preorder';
+  preorderExpectedShipDate?: string | null;
 }
 
 export interface CheckoutOrderSnapshot {
@@ -58,6 +63,8 @@ export interface CheckoutOrderSnapshot {
   shippingFee: number;
   /** 주문 시점 쿠폰 할인 스냅샷. total에서 이미 빠져 있다(S7). */
   discountTotal: number;
+  /** 주문 시 사용한 적립금. 쿠폰과 구별하며 total에서 이미 빠져 있다. */
+  storeCreditTotal: number;
   address: CheckoutAddress | null;
   expiresAt: string | null;
   createdAt: string;
@@ -103,7 +110,7 @@ export async function loadCheckoutOrder(
   const supabase = await createClient();
   const { data: orderData, error: orderError } = await supabase
     .from('orders')
-    .select('id,user_id,status,total,shipping_fee,discount_total,address,expires_at,created_at,payment_method')
+    .select('id,user_id,status,total,shipping_fee,discount_total,store_credit_total,address,expires_at,created_at,payment_method')
     .eq('id', orderId)
     .eq('user_id', userId)
     .maybeSingle<OrderRow>();
@@ -117,7 +124,7 @@ export async function loadCheckoutOrder(
   ] = await Promise.all([
     supabase
       .from('order_items')
-      .select('id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot')
+      .select('id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,supply_source,preorder_expected_ship_date')
       .eq('order_id', orderId)
       .order('id'),
     supabase
@@ -148,6 +155,7 @@ export async function loadCheckoutOrder(
     total: orderData.total,
     shippingFee: orderData.shipping_fee ?? 0,
     discountTotal: orderData.discount_total ?? 0,
+    storeCreditTotal: orderData.store_credit_total ?? 0,
     address: normalizeCheckoutAddress(orderData.address),
     expiresAt: orderData.expires_at,
     createdAt: orderData.created_at,
@@ -166,6 +174,8 @@ export async function loadCheckoutOrder(
       type: item.good_type_snapshot,
       qty: item.qty,
       unitPrice: item.unit_price,
+      supplySource: item.supply_source ?? 'stock',
+      preorderExpectedShipDate: item.preorder_expected_ship_date ?? null,
     })),
   };
 }

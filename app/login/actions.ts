@@ -42,6 +42,12 @@ export interface AuthActionState {
   };
 }
 
+export interface SignOutActionState {
+  errors?: {
+    form?: string;
+  };
+}
+
 export type SocialAuthProvider = 'google' | 'apple' | 'kakao';
 
 interface Credentials {
@@ -485,12 +491,39 @@ export async function requestPasswordResetAction(
   return { message: PASSWORD_RESET_SENT_MESSAGE };
 }
 
-export async function signOutAction() {
+const SIGN_OUT_FAILURE_MESSAGE = '로그아웃을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.';
+
+async function signOutLocally() {
   const { isConfigured } = getSupabaseConfig();
-  if (isConfigured) {
+  if (!isConfigured) return true;
+
+  try {
     const supabase = await createClient();
-    await supabase.auth.signOut({ scope: 'local' });
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    return !error;
+  } catch {
+    return false;
   }
+}
+
+function safeAdminReturnPath(value: FormDataEntryValue | string | null | undefined) {
+  const next = safeNextPath(value);
+  return next === '/admin' || next.startsWith('/admin/') ? next : '/admin';
+}
+
+export async function adminSignOutAction(
+  _state: SignOutActionState,
+  formData: FormData,
+): Promise<SignOutActionState> {
+  if (!await signOutLocally()) {
+    return { errors: { form: SIGN_OUT_FAILURE_MESSAGE } };
+  }
+
+  redirect(`/login?next=${encodeURIComponent(safeAdminReturnPath(formData.get('next')))}`);
+}
+
+export async function signOutAction() {
+  await signOutLocally();
 
   redirect('/');
 }

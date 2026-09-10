@@ -14,6 +14,7 @@ export function Field({
   error,
   label,
   max,
+  maxLength,
   min,
   name,
   placeholder,
@@ -26,6 +27,7 @@ export function Field({
   error?: string;
   label: string;
   max?: number;
+  maxLength?: number;
   min?: number;
   name: string;
   placeholder?: string;
@@ -46,6 +48,7 @@ export function Field({
         className="admin-field-control"
         defaultValue={defaultValue ?? ''}
         max={max}
+        maxLength={maxLength}
         min={min}
         name={name}
         placeholder={placeholder}

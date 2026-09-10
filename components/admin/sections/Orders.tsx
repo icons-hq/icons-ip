@@ -13,8 +13,10 @@ import {
 } from '@/app/admin/order-actions';
 import {
   ADMIN_ORDER_STATUSES,
+  ADMIN_ORDER_SEARCH_FIELDS,
   ADMIN_ORDER_STATUS_LABELS,
   ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS,
+  adminOrderDetailHref,
   adminOrdersHref,
   isKorpayManualRecoveryState,
   isLegacyDecidableCancellation,
@@ -48,6 +50,8 @@ import {
 } from '@/lib/orders/shipment';
 import { formatKrw } from '../format';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
+import { isParcelShipment } from '@/lib/admin/shipment-dispatch';
+import { DELIVERY_METHOD_LABELS, deliveryStatusLabel } from '@/lib/shipment-delivery';
 
 /* 사다리 순서 그대로 둔다 — 드롭다운 순서가 운영자에게는 단계 순서다(#250).
    문구는 ADMIN_ORDER_STATUS_LABELS에서 가져온다. 여기에 다시 적으면 일괄 등록
@@ -466,11 +470,16 @@ function OrderFilters({ filters }: { filters: AdminOrderFilters }) {
     <form action="/admin/sales/orders" className="admin-order-filters card" method="get">
       <label>
         <span>주문 검색</span>
+        <select aria-label="주문 검색 대상" defaultValue={filters.field} name="field">
+          {ADMIN_ORDER_SEARCH_FIELDS.map((field) => (
+            <option key={field.value} value={field.value}>{field.label}</option>
+          ))}
+        </select>
         <input
-          aria-label="주문번호 또는 구매자 검색"
+          aria-label="주문번호·구매자·수취인·운송장 검색"
           defaultValue={filters.query}
           name="query"
-          placeholder="주문 UUID · 닉네임 · 이메일"
+          placeholder="주문 UUID · 닉네임 · 이메일 · 수취인 · 운송장번호"
           type="search"
         />
       </label>
@@ -500,9 +509,11 @@ function OrderFilters({ filters }: { filters: AdminOrderFilters }) {
 
 function OrderDetail({
   carriers,
+  filters,
   order,
 }: {
   carriers: ShippingCarrierRegistry;
+  filters: AdminOrderFilters;
   order: AdminOrderRecord;
 }) {
   const status = orderStatusMeta(order.status);
@@ -513,6 +524,7 @@ function OrderDetail({
   const hasShipped = order.status === 'shipping'
     || order.status === 'delivered'
     || order.status === 'done';
+  const hasParcelShipment = !order.shipments.length || order.shipments.some(isParcelShipment);
   const manualRecoveryAttempt = order.manualRecoveryAttempt
     && cancellationRequest
     && order.manualRecoveryAttempt.requestId === cancellationRequest.id
@@ -534,7 +546,14 @@ function OrderDetail({
             tabIndex={order.status === 'done' ? 0 : undefined}>{status.label}</span>
           <h2 id="admin-order-detail-title">주문 {orderReferenceLabel(order.id)}</h2>
           <p className="faint mono">{order.id}</p>
-          <Link className="btn btn-sm btn-ghost" href={`/admin/sales/orders/${order.id}`}>상세 열기</Link>
+          <Link
+            className="btn btn-sm btn-ghost"
+            href={adminOrderDetailHref(order.id, filters)}
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            상세 열기 (새 탭)
+          </Link>
         </div>
         <strong>{formatKrw(order.total)}</strong>
       </header>
@@ -661,16 +680,25 @@ function OrderDetail({
             status="confirmed"
           />
         ) : null}
-        {canAdvanceOrderStatus && order.status === 'confirmed' ? <Link href={`/admin/sales/dispatch?tab=ready&query=${order.id}`}>배송 건별 운송장 등록</Link> : null}
-        {canAdvanceOrderStatus && order.status === 'shipping' ? <Link href={`/admin/sales/shipping?tab=transit&query=${order.id}`}>배송 건별 배송완료 처리</Link> : null}
+        {canAdvanceOrderStatus && hasParcelShipment && order.status === 'confirmed' ? <Link href={`/admin/sales/dispatch?tab=ready&query=${order.id}`}>배송 건별 운송장 등록</Link> : null}
+        {canAdvanceOrderStatus && hasParcelShipment && order.status === 'shipping' ? <Link href={`/admin/sales/shipping?tab=transit&query=${order.id}`}>배송 건별 배송완료 처리</Link> : null}
         {/* delivered→done은 자동 거래확정 잡이 맡는다. 운영자 버튼을 두면
             청약철회 창을 사람 손으로 조기 종료시킬 수 있다. */}
-        {hasShipped ? order.shipments.filter(shipment=>shipment.status==='shipping'||shipment.status==='delivered').map(shipment=>(
+        {hasShipped ? order.shipments.filter(shipment=>isParcelShipment(shipment)&&(shipment.status==='shipping'||shipment.status==='delivered')).map(shipment=>(
           <section key={shipment.id} aria-label={`${shipment.originName} 운송장 수정`}>
             <h4>{shipment.originName} · {shipment.id.slice(-8).toUpperCase()}</h4>
             <UpdateTrackingForm carriers={carriers} orderId={order.id} shipmentId={shipment.id} shipment={orderShipment(carriers,shipment.carrier,shipment.trackingNumber)} />
           </section>
         )) : null}
+        {order.shipments.filter(shipment=>!isParcelShipment(shipment)).map(shipment=>(
+          <section key={shipment.id} aria-label={`${shipment.originName} 인계·수령 확인`}>
+            <h4>{shipment.originName} · {shipment.id.slice(-8).toUpperCase()}</h4>
+            <p>{shipment.delivery ? deliveryStatusLabel(shipment.delivery.method,shipment.status) : '배송 방식 확인 필요'}</p>
+            <Link href={adminOrderDetailHref(order.id,filters)} target="_blank" rel="noopener noreferrer">
+              {shipment.delivery ? DELIVERY_METHOD_LABELS[shipment.delivery.method] : '배송 방식'} 인계·수령 확인
+            </Link>
+          </section>
+        ))}
         {/* 주문 콘솔이 소유하는 것은 "접수 단계의 취소"뿐이다. 반품·교환과 검토중·
             수거중·입고완료·보류는 절차가 다르고, 여기서 승인하면 입고 확인을
             건너뛴 채 전액 환불과 재고 복원이 끝난다. DB도 같은 경계를 지키지만
@@ -791,10 +819,16 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
             </nav>
           ) : null}
         </aside>
-        {selected ? <OrderDetail carriers={data.carriers} order={selected} /> : data.filters.orderId ? (
+        {selected ? <OrderDetail carriers={data.carriers} filters={data.filters} order={selected} /> : data.filters.orderId ? (
           <div className="card col" role="status">
             <p>선택한 주문은 현재 목록에 없습니다.</p>
-            <Link href={`/admin/sales/orders/${data.filters.orderId}`}>지정한 주문 상세 열기</Link>
+            <Link
+              href={adminOrderDetailHref(data.filters.orderId, data.filters)}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              지정한 주문 상세 열기 (새 탭)
+            </Link>
           </div>
         ) : null}
       </div>

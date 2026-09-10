@@ -18,6 +18,7 @@ const order: CheckoutOrderSnapshot = {
   total: 15000,
   shippingFee: 3000,
   discountTotal: 0,
+  storeCreditTotal: 0,
   address: null,
   expiresAt: '2099-08-07T06:15:00.000Z',
   createdAt: '2026-08-07T06:00:00.000Z',
@@ -35,6 +36,14 @@ const order: CheckoutOrderSnapshot = {
 };
 
 describe('CheckoutOrder 영수증', () => {
+  it('서버 원장 금액에서 쿠폰과 적립금을 함께 복원해 굿즈 소계를 표시한다', () => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, total: 12500, discountTotal: 1000, storeCreditTotal: 1500 }} />);
+    expect(html).toContain('₩12,000');
+    expect(html).toContain('−₩1,000');
+    expect(html).toContain('−₩1,500');
+    expect(html).toContain('₩12,500');
+    expect(html).toContain('적립금 사용');
+  });
   it('서버가 확정한 배송비를 굿즈 금액과 분리해 보여준다', () => {
     const html = renderToStaticMarkup(
       <CheckoutOrder

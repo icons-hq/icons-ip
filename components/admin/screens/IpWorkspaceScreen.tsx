@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '../console/AdminKit';
 import { ConsoleGrid } from '../console/ConsoleGrid';
 import { IpDirectoryControls } from '../IpDirectoryControls';
+import { IpIdentityForm } from '../IpIdentityForm';
 import { IP_INDEX_PATH, IP_WORKSPACE_TABS, ipWorkspaceHref, newGoodForIpHref, type AdminIpWorkspaceData } from '@/lib/admin/ip-workspace';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 
@@ -20,7 +21,10 @@ export function IpWorkspaceScreen({ data, children }: { data: AdminIpWorkspaceDa
         {entry.id === 'goods' ? ADMIN_VOCABULARY.goods : entry.label}
       </Link>)}
     </nav>
-    {tab === 'basic' ? children : tab === 'exposure' ? <IpDirectoryControls id={ip.id} directory={data.directory} /> : <AdminSectionCard title={`${label} ${relatedTotal}개`}>
+    {tab === 'basic' ? <>
+      {children}
+      {data.identity ? <IpIdentityForm identity={data.identity} /> : null}
+    </> : tab === 'exposure' ? <IpDirectoryControls id={ip.id} directory={data.directory} /> : <AdminSectionCard title={`${label} ${relatedTotal}개`}>
       <div className="wc-admin-kit__actions" style={{ marginBottom: 20 }}>
         {tab === 'goods' && !ip.archivedAt ? <Link className="wc-admin-kit__button" href={newGoodForIpHref(ip.id)}>{ADMIN_VOCABULARY.goods} 등록</Link> : null}
         <Link href={relatedHref}>전체 {label} 목록</Link>

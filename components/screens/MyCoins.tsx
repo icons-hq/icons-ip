@@ -103,7 +103,7 @@ export function MyCoins({ coin, ledger }: { coin: CoinOverview | null; ledger: C
         <p>코인 안내</p>
         <ul>
           <li>코인은 출석 체크와 이벤트 참여로 모으는 무상 참여 재화예요.</li>
-          <li>결제에는 쓸 수 없어요. 주문 금액 할인은 쿠폰이 맡아요.</li>
+          <li>결제에는 쓸 수 없어요. 주문 할인용 적립금과는 별도로 관리돼요.</li>
           <li>모은 코인은 이벤트에서 카드팩으로 바꿀 수 있어요.</li>
           <li>이 목록은 최근 {COIN_LEDGER_LIMIT}건까지 보여줘요.</li>
         </ul>

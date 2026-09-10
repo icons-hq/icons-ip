@@ -118,8 +118,11 @@ values ('restrict-ip', '판매 제한 IP', 'character', now());
 -- 운영 경로를 거치지 않은 값으로 뒤 절들을 세우면 setter가 고장나도 통과한다.
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
 values
-  ('restrict-plain-goods', 'restrict-ip', '일반 굿즈', '문구', 20000, 'ok', 10, now()),
-  ('restrict-adult-goods', 'restrict-ip', '판매 제한 굿즈', '문구', 20000, 'ok', 10, now());
+  ('restrict-plain-goods', 'restrict-ip', '일반 굿즈', '문구', 20000, 'ok', 10,null),
+  ('restrict-adult-goods', 'restrict-ip', '판매 제한 굿즈', '문구', 20000, 'ok', 10,null);
+-- Build reviewed synthetic KC evidence before publishing each fixture.
+select pg_temp.publish_goods_kc_fixture('restrict-plain-goods');
+select pg_temp.publish_goods_kc_fixture('restrict-adult-goods');
 
 -- 새 컬럼의 기본값은 제한 없음이다. 기존 상품이 조용히 판매 중지로 바뀌면
 -- 마이그레이션 한 번에 스토어가 비어 버린다.
@@ -463,7 +466,9 @@ select 1 / case when (
 -- 산다. 그 창 안에서 상품을 내리면 이미 열린 토스 attempt가 캡처까지 완주할 수
 -- 있는지 여기서 확인한다 — claim은 provider 승인 API 직전의 마지막 DB 관문이다.
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
-values ('restrict-flip-goods', 'restrict-ip', '판매 중 내려간 굿즈', '문구', 20000, 'ok', 10, now());
+values ('restrict-flip-goods', 'restrict-ip', '판매 중 내려간 굿즈', '문구', 20000, 'ok', 10,null);
+-- Build reviewed synthetic KC evidence before publishing each fixture.
+select pg_temp.publish_goods_kc_fixture('restrict-flip-goods');
 
 insert into public.orders (
   id, user_id, status, total, shipping_fee, discount_total,

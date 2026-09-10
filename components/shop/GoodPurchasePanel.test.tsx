@@ -223,4 +223,33 @@ describe('GoodPurchasePanel', () => {
     expect(html).toContain('role="status"');
     expect(html).toContain('현재 재고보다 많이 담을 수 없습니다.');
   });
+
+  it('추가상품은 선택형이며 선택한 상품의 옵션과 독립 수량을 표시한다', () => {
+    const extraOption = { id: 'extra-blue', name: '파랑', price: 3000, stockQty: 4, code: 'EXTRA-BLUE', attributes: { 색상: '파랑' }, isDefault: false };
+    const unavailableOption = { ...extraOption, id: 'extra-red', name: '빨강', stockQty: 0 };
+    const extra = { ...good, id: 'g14', name: '추가 스티커', price: 3000, options: [extraOption, unavailableOption] };
+    const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({
+      subtotal: 18000,
+      additionalChoices: [{ goodId: extra.id, name: extra.name, good: extra, selected: true, selectedOption: extraOption, quantity: 2 }],
+      toggleAdditional: vi.fn(), selectAdditionalOption: vi.fn(), setAdditionalQuantity: vi.fn(),
+    })} />);
+    expect(html).toContain('추가상품');
+    expect(html).toContain('(선택)');
+    expect(html).toMatch(/type="checkbox"[^>]*checked=""/);
+    expect(html).toContain('추가 스티커 옵션');
+    expect(html).toContain('aria-label="추가 스티커 추가 수량"');
+    expect(html).toMatch(/<option[^>]*value="extra-red"[^>]*disabled=""/);
+    expect(html).toContain('₩18,000');
+  });
+
+  it('없어진 추가 선택을 숨기지 않고 해제할 체크박스와 구매 불가 상태를 남긴다', () => {
+    const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({
+      inert: true, selectionRequired: true,
+      additionalChoices: [{ goodId: 'gone', name: '이전 추가상품', selected: true, quantity: 1 }],
+      toggleAdditional: vi.fn(),
+    })} />);
+    expect(html).toContain('이전 추가상품 · 현재 구매 불가');
+    expect(html).toMatch(/type="checkbox"[^>]*checked=""/);
+    expect(html).toContain('옵션 선택 후 표시');
+  });
 });

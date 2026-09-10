@@ -1,5 +1,8 @@
 'use client';
 
+import type { AdminCategoryNode } from '@/lib/admin/category';
+import type { GoodsShippingNoticeOption } from '@/components/admin/GoodsShippingNoticeField';
+
 import { useCallback, useRef, useState, type FormEvent } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import { GOODS_DESCRIPTION_MAX_LENGTH, GOODS_GALLERY_MAX } from '@/lib/admin/catalog';
@@ -11,9 +14,20 @@ import { initialGoodsOptionRows, restoreGoodsOptionRows, type GoodsOptionRow } f
 import { adminFormRemountKey, preservedFormValues } from '@/lib/admin/form-state';
 import { withLocalRecoveryValues } from '@/lib/admin/local-autosave';
 import { publicMediaUrl } from '@/lib/media';
-import { AdminSectionCard, AdminStatusBadge } from '../console/AdminKit';
+import { AdminFormGrid, AdminSectionCard, AdminStatusBadge } from '../console/AdminKit';
+import { GoodsClaimPolicyFields } from '../GoodsClaimPolicyFields';
+import { readGoodsClaimPolicy } from '@/lib/admin/goods-claim-policy';
+import { CategoryAssignmentField } from '../CategoryAssignmentField';
+import { GoodsShippingNoticeField } from '../GoodsShippingNoticeField';
+import type { GoodShippingPolicy } from '@/lib/fulfillment';
 import { GoodsFulfillmentFields } from '../GoodsFulfillmentFields';
 import { GoodsOptionEditor } from '../GoodsOptionEditor';
+import { GoodsSalePolicyFields } from '../GoodsSalePolicyFields';
+import { GoodsPurchaseCostsPanel } from '../GoodsPurchaseCostsPanel';
+import { GoodsAdditionalPanel } from '../GoodsAdditionalPanel';
+import { GoodsKcPanel } from '../GoodsKcPanel';
+import { GoodsPreordersPanel } from '../GoodsPreordersPanel';
+import { GoodsPricePeriodsPanel } from '../GoodsPricePeriodsPanel';
 import { GoodNoticePicker } from '../GoodNoticePicker';
 import { useAdminLocalAutosave } from '../useAdminLocalAutosave';
 import { AdminLocalDraftNotice } from '../AdminLocalDraftNotice';
@@ -33,10 +47,9 @@ import { ProductCard } from '@/components/wc/ProductCard';
 import { VariantStockAdjustmentForm } from '../VariantStockAdjustmentForm';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
-import { GoodBankTransferControl } from '../GoodBankTransferControl';
-import { GoodSaleRestrictionControl } from '../GoodSaleRestrictionControl';
 import { GoodVariantsPanel } from '../GoodVariantsPanel';
 import { GoodIdentifierFields } from '../GoodIdentifierFields';
+import { GoodClonePanel } from '../GoodClonePanel';
 import { GoodPublishControls } from '../GoodPublishControls';
 import { canSellAdminGood } from '@/lib/admin/goods-publish';
 import { ADMIN_STOCK_LABELS, ADMIN_VOCABULARY, adminGoodsCopy } from '@/lib/admin/vocabulary';
@@ -135,7 +148,7 @@ function GoodsGalleryFields({
  * 조건이 첫 수정에서 깨진다. `embedded` 가 구매 패널·위시 하트를 비활성으로 그려
  * 미리보기가 장바구니나 카탈로그를 건드리지 않게 한다.
  */
-function GoodPreviewPanel({ detail, ip }: { detail: GoodDetailContent; ip: Ip | null }) {
+function GoodPreviewPanel({ detail, ip, shippingPolicy }: { detail: GoodDetailContent; ip: Ip | null; shippingPolicy?: GoodShippingPolicy | null }) {
   const good = detail.good;
   /* 아직 저장하지 않은 신규 굿즈는 갈 곳이 없다 — 없는 상세로 보내는 대신 목록으로 둔다. */
   const href = good.id ? `/shop/${good.id}` : '/shop';
@@ -168,7 +181,7 @@ function GoodPreviewPanel({ detail, ip }: { detail: GoodDetailContent; ip: Ip | 
         <div className="col" style={{ gap: 8 }}>
           <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>{ADMIN_VOCABULARY.goods} 상세페이지</span>
           <div className="wc-root">
-            <GoodDetailView detail={detail} embedded />
+            <GoodDetailView detail={detail} embedded shippingPolicy={shippingPolicy} />
           </div>
         </div>
       </div>
@@ -176,11 +189,18 @@ function GoodPreviewPanel({ detail, ip }: { detail: GoodDetailContent; ip: Ip | 
   );
 }
 
-function GoodEditor({ action, catalogIps, ipOptions, pending, selected, state, initialIpId, variants, origins, noticeDefaults, formRef, onSubmitCapture }: {
+function goodFormData(values: Record<string, string>): FormData {
+  const form = new FormData();
+  Object.entries(values).forEach(([key, value]) => form.set(key, value));
+  return form;
+}
+
+function GoodEditor({ action, catalogIps, ipOptions, pending, selected, state, initialIpId, variants, origins, noticeDefaults, categories, shippingNoticeOptions, formRef, onSubmitCapture }: {
   action: (payload: FormData) => void; catalogIps: Ip[];
   ipOptions: { id: string; title: string; archivedAt: string | null }[];
   pending: boolean; selected: AdminGoodRecord | null; state: AdminCatalogActionState;
   initialIpId?: string; variants: AdminGoodsVariant[]; origins: FulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
+  categories: AdminCategoryNode[]; shippingNoticeOptions: GoodsShippingNoticeOption[];
   formRef: (form: HTMLFormElement | null) => void | (() => void); onSubmitCapture: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const initial = goodEditorValues(selected, state, initialIpId, noticeDefaults);
@@ -208,6 +228,16 @@ function GoodEditor({ action, catalogIps, ipOptions, pending, selected, state, i
     }
     setValues(goodFormValues(new FormData(form)));
   }
+  const previewOrigin = origins.find((origin) => origin.id === values.originId);
+  const previewNotice = shippingNoticeOptions.find((option) => `${option.code}@${option.version}` === values.shippingNoticeTemplate)
+    ?? (values.shippingNoticeTemplate === initial.shippingNoticeTemplate ? selected?.shippingNoticeSnapshot : null);
+  const shippingPolicy: GoodShippingPolicy | null = previewOrigin ? {
+    originId: previewOrigin.id, originName: previewOrigin.name, baseFee: previewOrigin.baseFee, freeThreshold: previewOrigin.freeThreshold,
+    feeType: (['policy', 'free', 'individual'].includes(values.shippingFeeType) ? values.shippingFeeType : 'policy') as GoodShippingPolicy['feeType'],
+    individualFee: Number(values.individualFee) || 0, returnAddress: previewOrigin.returnAddress,
+    claimPolicy: readGoodsClaimPolicy(goodFormData(values)).value ?? null,
+    ...(previewNotice ? { shippingNotice: previewNotice.shippingNotice, returnExchangeNotice: previewNotice.returnExchangeNotice, cs: { name: previewNotice.csName, phone: previewNotice.csPhone, email: previewNotice.csEmail } } : {}),
+  } : null;
   const previewIp = catalogIps.find((ip) => ip.id === values.ipId) ?? null;
   const preview = buildGoodPreview({ fallbackBg: selected?.bg ?? null, imageUrls, ip: previewIp, stockQty: selected?.stockQty ?? 0, values });
   const compare = Number(values.compareAtPrice);
@@ -220,16 +250,26 @@ function GoodEditor({ action, catalogIps, ipOptions, pending, selected, state, i
       <input name="published" type="hidden" value={String(Boolean(selected?.publishedAt))} />
       <input name="bg" type="hidden" value={selected?.bg ?? ''} />
       <AdminSectionCard title="기본 정보">
-        <p role="status"><AdminStatusBadge>{selected?.archivedAt ? '보관' : selected?.publishedAt ? '공개' : '초안'}</AdminStatusBadge> · {selected && canSellAdminGood({ ...selected, noticeComplete: missingGoodsNoticeKeys(selected.notice).length === 0 }) ? '판매 가능' : '판매 준비 중'}</p>
+        <p role="status"><AdminStatusBadge>{selected?.archivedAt ? '보관' : selected?.publishedAt ? '공개' : '초안'}</AdminStatusBadge> · {selected && canSellAdminGood({ ...selected, noticeComplete: missingGoodsNoticeKeys(selected.notice).length === 0 }, variants.filter((variant) => variant.goodId === selected.id)) ? '판매 가능' : '판매 준비 중'}</p>
         <div className="admin-form-grid">
           <SelectField defaultValue={initial.ipId} error={state.errors?.ipId} label="연결 IP" name="ipId"><option value="">선택</option>{ipOptions.map((ip) => <option disabled={Boolean(ip.archivedAt && ip.id !== selected?.ipId)} key={ip.id} value={ip.id}>{ip.archivedAt ? `[보관] ${ip.title}` : ip.title}</option>)}</SelectField>
           <Field defaultValue={initial.name} error={state.errors?.name} label={`${ADMIN_VOCABULARY.goods} 이름`} name="name" />
+          <CategoryAssignmentField categories={categories} value={initial.categoryId} error={state.errors?.categoryId} />
+          <Field defaultValue={initial.nameEn} error={state.errors?.nameEn} label="영문 상품명 (선택)" name="nameEn" maxLength={200} />
+          <Field defaultValue={initial.displayOrder} error={state.errors?.displayOrder} label="진열 순서 (선택)" name="displayOrder" min={0} type="number" />
           <SelectField defaultValue={initial.type} error={state.errors?.type} label="유형" name="type"><option value="">선택</option>{GOOD_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</SelectField>
-          <Field defaultValue={initial.price} error={state.errors?.price} label="기본 가격" name="price" min={0} type="number" />
-          <Field defaultValue={initial.compareAtPrice} error={state.errors?.compareAtPrice} label="정가 (할인 표기용, 비우면 할인 없음)" name="compareAtPrice" type="number" />
           <SelectField defaultValue={initial.badge} error={state.errors?.badge} label="배지" name="badge"><option value="">없음</option>{GOOD_BADGES.map((badge) => <option key={badge} value={badge}>{badge}</option>)}</SelectField>
           <SelectField defaultValue={initial.stock} error={state.errors?.stock} label="운영 상태" name="stock">{Object.entries(ADMIN_STOCK_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</SelectField>
         </div>
+        <TextArea
+          defaultValue={initial.searchKeywords}
+          error={state.errors?.searchKeywords}
+          label="검색 키워드 (선택)"
+          maxLength={4200}
+          name="searchKeywords"
+          placeholder="한 줄에 하나 또는 쉼표로 구분해 입력해주세요."
+        />
+        <p className="muted">고객 통합 검색과 어드민 상품 검색에만 쓰이며, 공개 상세에는 표시하지 않습니다.</p>
         <GoodIdentifierFields code={initial.code} defaultVariantCode={initial.defaultVariantCode ?? variants.find((v) => v.isDefault)?.code} hideVariantCode onCodeSuggestion={setSuggestedCode} errors={state.errors ?? {}} ipId={values.ipId} name={values.name} slug={initial.id} slugLocked={Boolean(selected?.firstPublishedAt)} />
       </AdminSectionCard>
       <AdminSectionCard title="이미지와 상세 설명">
@@ -240,16 +280,26 @@ function GoodEditor({ action, catalogIps, ipOptions, pending, selected, state, i
         <ArtworkUploadField autoUpload allowRemove currentPath={initial.detailImagePath || null} currentUrl={imageUrls.detailImagePath} fieldId="good-detail" helpText="상세페이지 아래에 원래 비율로 길게 표시되는 이미지 1장입니다." kind="good" label="상세 이미지" name="detailImagePath" onPreviewChange={(url) => setImageUrl('detailImagePath', url)} />
         <ErrorText>{state.errors?.detailImagePath}</ErrorText>
       </AdminSectionCard>
-      <AdminSectionCard title="옵션과 재고"><GoodsOptionEditor onRowsChange={syncOptions} codePrefix={values.code || suggestedCode} initialRows={rows} baseline={baseline} basePrice={Number(values.price) || 0} error={state.errors?.variants} axisValues={initial} /></AdminSectionCard>
-      <AdminSectionCard title="배송 정보"><GoodsFulfillmentFields origins={origins} value={{ originId: initial.originId || null, shippingFeeType: initial.shippingFeeType as 'policy' | 'free' | 'individual', individualFee: Number(initial.individualFee) }} errors={state.errors} /></AdminSectionCard>
       <AdminSectionCard title={ADMIN_VOCABULARY.noticeInfo}>
         <GoodNoticePicker onApply={applyNotice} /><GoodsNoticeFields notice={notice} required={Boolean(selected?.publishedAt)} state={state} />
       </AdminSectionCard>
+      <AdminSectionCard title="가격">
+        <p>옵션 판매가는 기준 판매가에 옵션별 추가금액을 더한 금액입니다. 고객은 선택한 옵션 판매가로 구매합니다.</p>
+        <AdminFormGrid>
+          <Field defaultValue={initial.price} error={state.errors?.price} label="기준 판매가" name="price" min={0} type="number" />
+          <Field defaultValue={initial.compareAtPrice} error={state.errors?.compareAtPrice} label="소비자가 (비교용, 선택)" name="compareAtPrice" min={0} type="number" />
+        </AdminFormGrid>
+        <p className="muted">소비자가는 할인 표시를 위한 비교 금액입니다. 비워두면 할인율을 표시하지 않습니다.</p>
+      </AdminSectionCard>
+      <AdminSectionCard title="옵션과 재고"><GoodsOptionEditor onRowsChange={syncOptions} codePrefix={values.code || suggestedCode} initialRows={rows} baseline={baseline} basePrice={Number(values.price) || 0} error={state.errors?.variants} axisValues={initial} /></AdminSectionCard>
+      <GoodsSalePolicyFields values={initial} errors={state.errors} />
+      <AdminSectionCard title="배송 정보"><GoodsFulfillmentFields origins={origins} value={{ originId: initial.originId || null, shippingFeeType: initial.shippingFeeType as 'policy' | 'free' | 'individual', individualFee: Number(initial.individualFee) }} errors={state.errors} /><GoodsShippingNoticeField options={shippingNoticeOptions} value={initial.shippingNoticeTemplate} error={state.errors?.shippingNoticeTemplate} /></AdminSectionCard>
+      <GoodsClaimPolicyFields values={initial} errors={state.errors} />
       <ActionNotice state={state} />
       <div className="row"><button className="btn btn-holo" disabled={pending} name="intent" value="save">{pending ? '저장 중…' : selected?.publishedAt ? '저장' : '초안으로 저장'}</button>{!selected?.publishedAt && !selected?.archivedAt && <button className="btn btn-ghost" disabled={pending} name="intent" value="publish">저장 후 공개</button>}</div>
       {!selected?.publishedAt && <p className="muted">저장은 초안으로 남습니다. 상품명과 IP만 있어도 이어서 작성할 수 있습니다.</p>}
     </form>
-    <GoodPreviewPanel detail={previewDetail} ip={previewIp} />
+    <GoodPreviewPanel detail={previewDetail} ip={previewIp} shippingPolicy={shippingPolicy} />
   </>;
 }
 
@@ -267,7 +317,7 @@ export function GoodSection({
   initialIpId,
   initialQuery='',
   hideRecordList=false,
-  accountId='', origins=[], noticeDefaults,
+  accountId='', origins=[], noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, cloneOperationId,
 }: {
   action: (payload: FormData) => void;
   adjustmentId: string;
@@ -283,6 +333,7 @@ export function GoodSection({
   initialQuery?: string;
   hideRecordList?: boolean;
   accountId?: string; origins?: FulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
+  categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; cloneOperationId?: string;
 }) {
   const [archiveFilter, setArchiveFilter] = useState<AdminCatalogArchiveFilter>(
     selected?.archivedAt ? 'archived' : 'active',
@@ -292,15 +343,15 @@ export function GoodSection({
   const [query,setQuery]=useState(initialQuery);
   const normalizedQuery=query.trim().toLocaleLowerCase();
   const visibleRecords = filterAdminCatalogRecords(records, archiveFilter).filter((good)=>!normalizedQuery
-    || `${good.name} ${good.code}`.toLocaleLowerCase().includes(normalizedQuery)
+    || `${good.name} ${good.code} ${(good.searchKeywords ?? []).join(' ')}`.toLocaleLowerCase().includes(normalizedQuery)
     || variants.some((variant)=>variant.goodId===good.id && variant.code.toLocaleLowerCase().includes(normalizedQuery)));
 
   return (
     <div className={hideRecordList?'col':'admin-master-detail'}>
       {!hideRecordList && <div className="col" style={{ gap: 12, minWidth: 0 }}>
         <label className="col" style={{gap:7}}>
-          <span>{ADMIN_VOCABULARY.goods}명·{ADMIN_VOCABULARY.goodsCode} 검색</span>
-          <input className="admin-field-control" onChange={(event)=>setQuery(event.target.value)} placeholder={`${ADMIN_VOCABULARY.goods}명 또는 ${ADMIN_VOCABULARY.goodsCode}`} type="search" value={query}/>
+          <span>{ADMIN_VOCABULARY.goods}명·{ADMIN_VOCABULARY.goodsCode}·검색 키워드</span>
+          <input className="admin-field-control" onChange={(event)=>setQuery(event.target.value)} placeholder={`${ADMIN_VOCABULARY.goods}명·${ADMIN_VOCABULARY.goodsCode}·검색 키워드`} type="search" value={query}/>
         </label>
         <CatalogArchiveFilter
           counts={adminCatalogArchiveCounts(records)}
@@ -327,12 +378,12 @@ export function GoodSection({
       <div className="col" style={{ gap: 16, minWidth: 0 }}>
         <AdminLocalDraftNotice onDiscard={local.discard} onRestore={local.restore} pending={pending} recovery={Boolean(local.snapshot.recovery) && !preservedFormValues(state, selected?.id)} unavailable={local.snapshot.unavailable} />
         <GoodEditor
-          origins={origins} noticeDefaults={noticeDefaults} formRef={local.formRef} onSubmitCapture={local.onSubmitCapture}
+          origins={origins} noticeDefaults={noticeDefaults} categories={categories} shippingNoticeOptions={shippingNoticeOptions} formRef={local.formRef} onSubmitCapture={local.onSubmitCapture}
           variants={variants.filter((variant) => variant.goodId === selected?.id)}
           action={action}
           catalogIps={catalogIps}
           ipOptions={ipOptions}
-          key={`${local.scopeKey}:${adminFormRemountKey(state, selected ? { ...selected, stockQty: undefined, firstPublishedAt: undefined } : null)}:${local.snapshot.revision}`}
+          key={`${local.scopeKey}:${adminFormRemountKey(state, selected ? { ...selected, stockQty: undefined, saleAvailableQty: undefined, firstPublishedAt: undefined } : null)}:${local.snapshot.revision}`}
           pending={pending}
           selected={selected}
           state={inputState}
@@ -342,21 +393,13 @@ export function GoodSection({
           <VariantStockAdjustmentForm adjustmentId={adjustmentId} good={selected} variants={variants} key={`stock-${selected.id}`} />
         )}
         {selected && <GoodPublishControls id={selected.id} publishedAt={selected.publishedAt} archivedAt={selected.archivedAt} key={`publish-${selected.id}-${selected.publishedAt}-${selected.archivedAt}`}/>}
-        {selected && <GoodVariantsPanel goodId={selected.id} variants={variants} />}
-        {selected && !selected.archivedAt && (
-          <GoodBankTransferControl
-            allowBankTransfer={selected.allowBankTransfer}
-            id={selected.id}
-            key={`bank-${selected.id}:${selected.allowBankTransfer}`}
-          />
-        )}
-        {selected && !selected.archivedAt && (
-          <GoodSaleRestrictionControl
-            id={selected.id}
-            key={`sale-restriction-${selected.id}:${selected.saleRestriction}`}
-            saleRestriction={selected.saleRestriction}
-          />
-        )}
+        {selected && <GoodVariantsPanel goodId={selected.id} variants={variants} basePrice={selected.price} />}
+        {selected && !selected.archivedAt && <GoodsKcPanel goodId={selected.id} key={`kc-${selected.id}-${selected.publishedAt}-${selected.archivedAt}`} />}
+        {selected && !selected.archivedAt && canManageCosts && <GoodsPurchaseCostsPanel goodId={selected.id} variants={variants} key={`costs-${selected.id}`} />}
+        {selected && !selected.archivedAt && <GoodsAdditionalPanel goodId={selected.id} key={`additional-${selected.id}`} />}
+        {selected && !selected.archivedAt && <GoodsPricePeriodsPanel goodId={selected.id} variants={variants} key={`prices-${selected.id}`} />}
+        {selected && !selected.archivedAt && <GoodsPreordersPanel goodId={selected.id} variants={variants} canActivate={canManageCosts} key={`preorders-${selected.id}`} />}
+        {selected && !selected.archivedAt && cloneOperationId && <GoodClonePanel operationId={cloneOperationId} goodId={selected.id} goodName={selected.name} goodCode={selected.code} key={`clone-${selected.id}`} />}
         {selected && (
           <CatalogArchiveControl
             archivedAt={selected.archivedAt}

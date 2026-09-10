@@ -1,11 +1,12 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { redirect, unstable_rethrow } from 'next/navigation';
 import {
   adminClaimBasePath,
   normalizeAdminClaimCollectionForm,
   normalizeAdminClaimOriginCollectionForm,
+  normalizeAdminClaimOperationalFeeForm,
   normalizeAdminClaimEvidenceForm,
   normalizeAdminClaimDecisionForm,
   normalizeAdminClaimRefundForm,
@@ -36,6 +37,7 @@ const DECIDE_FAILED = '클레임을 처리하지 못했습니다. 최신 상태�
 const COLLECTION_FAILED = '수거 상태를 기록하지 못했습니다. 최신 상태를 확인해주세요.';
 const REFUND_FAILED = '환불 원장을 기록하지 못했습니다. 최신 상태를 확인해주세요.';
 const RESHIP_FAILED = '재출고를 기록하지 못했습니다. 최신 상태를 확인해주세요.';
+const OPERATIONAL_FEE_FAILED = '운영 확인액을 기록하지 못했습니다. 최신 클레임을 다시 확인해주세요.';
 const FINALIZE_FAILED = '결제 취소 상태를 확정하지 못했습니다. 주문과 재고는 그대로 유지됩니다. 결제사 원장을 확인한 뒤 다시 시도해주세요.';
 
 const DECISION_MESSAGES: Record<string, string> = {
@@ -87,6 +89,8 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('stock_out_of_range')) return '재출고할 옵션 재고가 부족합니다. 최신 옵션 수량을 확인해주세요.';
   if (value.includes('claim_not_held')) return '보류 상태가 아닙니다.';
   if (value.includes('claim_not_found')) return '클레임을 찾을 수 없습니다.';
+  if (value.includes('claim_operational_fee_conflict')) return '다른 운영자가 금액을 변경했습니다. 최신 클레임을 다시 열어주세요.';
+  if (value.includes('invalid_claim_operational_fee')) return '운영 확인액·비용 유형·메모·근거를 확인해주세요.';
   if (value.includes('unknown shipping carrier')) return '등록되지 않은 택배사입니다.';
   return fallback;
 }
@@ -188,6 +192,34 @@ export async function recordOrderClaimOriginCollectionAction(
   return { message: data === 'collected'
     ? '모든 출고지의 회수를 확인했습니다. 다음 처리 단계와 환급 기한을 확인해주세요.'
     : '이 출고지의 회수를 확인했습니다. 남은 출고지를 확인해주세요.' };
+}
+
+export async function recordOrderClaimOperationalFeeAction(
+  previous: AdminClaimActionState,
+  formData: FormData,
+): Promise<AdminClaimActionState> {
+  const fail = (error: string) => withPreservedFormValues({ error }, previous, formData);
+  try {
+  const access = await requireStaffAction();
+  if (access.error) return fail(access.error.error ?? OPERATIONAL_FEE_FAILED);
+  const normalized = normalizeAdminClaimOperationalFeeForm(formData);
+  if (!normalized.ok) return fail(normalized.error);
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('admin_record_order_claim_operational_fee', {
+    p_claim_id: normalized.value.claimId,
+    p_fee_kind: normalized.value.feeKind,
+    p_amount: normalized.value.amount,
+    p_note: normalized.value.note,
+    p_evidence: normalized.value.evidence,
+    p_expected_updated_at: normalized.value.expectedUpdatedAt,
+  });
+  if (error) return fail(rpcErrorMessage(error.message, OPERATIONAL_FEE_FAILED));
+  revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
+  return { message: normalized.value.amount === null ? '운영 확인액 기록을 해제했습니다.' : '운영 확인액을 기록했습니다.' };
+  } catch (error) {
+    unstable_rethrow(error);
+    return fail(OPERATIONAL_FEE_FAILED);
+  }
 }
 
 export async function recordOrderClaimReshipmentDeliveryAction(

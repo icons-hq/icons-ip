@@ -100,9 +100,7 @@ values (
   '문구',
   1000,
   'ok',
-  'linear-gradient(#111, #333)',
-  now()
-)
+  'linear-gradient(#111, #333)',null)
 on conflict (id) do update set
   ip_id = excluded.ip_id,
   name = excluded.name,
@@ -110,6 +108,8 @@ on conflict (id) do update set
   price = excluded.price,
   stock = excluded.stock,
   bg = excluded.bg;
+-- Build reviewed synthetic KC evidence before publishing each fixture.
+select pg_temp.publish_goods_kc_fixture('search-smoke-good');
 
 insert into public.cards (id, ip_id, name, no, rarity, bg)
 values (

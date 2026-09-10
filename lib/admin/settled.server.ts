@@ -24,9 +24,8 @@ function buyerName(value: string | null, userId: string) {
 }
 
 /**
- * 거래확정 내역. 조회 전용이므로 품목·결제 상세는 싣지 않는다 — 여기서 필요한 것은
- * "확정된 주문이 언제 확정됐고 아직 하자 클레임을 받을 수 있는가"뿐이고, 나머지는
- * 주문 통합검색이 이미 보여준다.
+ * 거래확정 목록. 행은 주문 단위로 유지한다. 품목·결제 원장 엑셀은 생성 시점의
+ * 비공개 영수증을 별도로 캡처하므로, 목록 페이지마다 상세 원장을 읽지 않는다.
  */
 export async function getAdminSettledOrders(
   filters: AdminSettledFilters,

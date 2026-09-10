@@ -31,7 +31,7 @@ set local role authenticated;
 do $$ begin
  perform public.admin_save_good((select payload from option_request));
  raise exception 'stale stock edit succeeded';
-exception when serialization_failure then if sqlerrm<>'stock_changed' then raise; end if;
+exception when sqlstate 'PT409' then if sqlerrm<>'stock_changed' then raise; end if;
 end $$;
 select 1 / case when (select name from public.goods where id='option-editor')='메타데이터 수정' then 1 else 0 end as assert_stock_conflict_rolls_back_metadata;
 reset role;
@@ -48,6 +48,7 @@ select set_config('request.jwt.claim.sub','',true);
 update public.goods set type='문구',image_path='public-media/options-fixture.webp',notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-09',notice_as_manager='CS',notice_as_contact='02-000'
 where id='option-editor';
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000044101',true);
+select pg_temp.review_goods_kc_fixture('option-editor');
 select pg_temp.option_payload() as complete_snapshot \gset
 set local role authenticated;
 select public.admin_save_good(jsonb_set(:'complete_snapshot'::jsonb,'{variants,0,stockQty}','7')||'{"publish":true}');
@@ -75,7 +76,7 @@ select public.place_order('00000000-0000-4000-8000-000000044101','{"recipientNam
 reset role;
 select pg_temp.option_payload() as ordered_snapshot \gset
 set local role authenticated;
-select public.admin_save_good(:'ordered_snapshot'::jsonb||'{"variants":[{"name":"초록","attributes":{"색상":"초록"},"code":"GREEN-441","extraPrice":100,"stockQty":2}]}');
+select public.admin_save_good(:'ordered_snapshot'::jsonb||'{"publish":false,"variants":[{"name":"초록","attributes":{"색상":"초록"},"code":"GREEN-441","extraPrice":100,"stockQty":2}]}');
 select 1 / case when exists(select 1 from public.order_items item join public.goods_variants variant on variant.id=item.variant_id
  where item.order_id=:'order_id' and variant.archived_at is not null and item.variant_name_snapshot='파랑')
  and exists(select 1 from public.goods_variants where code='GREEN-441' and is_default and stock_qty=2)

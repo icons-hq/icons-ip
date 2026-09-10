@@ -49,6 +49,8 @@ function detail(overrides: Partial<AdminClaimDetail> = {}): AdminClaimDetail {
       reshipDeliveryEvidence: null,
       lastErrorCode: null,
       handlerName: 'cs_lead',
+      updatedAt: '2026-08-19T07:00:00.000Z',
+      operationalFee: { kind: null, amount: null, note: null, evidence: null, confirmedBy: null, confirmedAt: null, updatedAt: '2026-08-19T07:00:00.000Z' },
     },
     order: {
       id: ORDER_ID,

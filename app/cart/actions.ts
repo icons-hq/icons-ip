@@ -11,6 +11,7 @@ import {
   type CartItem,
 } from '@/lib/cart';
 import { createClient } from '@/lib/supabase/server';
+import { parseCartAdditionRequest, parseCartAdditionSnapshot } from '@/lib/cart-additions';
 
 const SYNC_ERROR = '장바구니를 동기화하지 못했습니다. 다시 시도해주세요.';
 const SAVE_ERROR = '장바구니를 저장하지 못했습니다. 다시 시도해주세요.';
@@ -143,4 +144,27 @@ export async function setCartItemQuantityAction(
 
 export async function deleteCartItemAction(goodIdValue: unknown, variantIdValue: unknown): Promise<CartActionResult> {
   return setCartItemQuantityAction(goodIdValue, 0, variantIdValue);
+}
+
+export async function addCartSelectionAction(baseGoodIdValue: unknown, entriesValue: unknown): Promise<CartActionResult> {
+  const baseGoodId = typeof baseGoodIdValue === 'string' ? baseGoodIdValue.trim() : '';
+  const entries = parseCartAdditionRequest(entriesValue);
+  if (!baseGoodId || baseGoodId.length > 200 || !entries || !entries.some((entry) => entry.goodId === baseGoodId)) {
+    return { ok: false, mode: 'server', error: INPUT_ERROR };
+  }
+  const context = await currentCartAuth();
+  if (!context) return { ok: false, mode: 'local' };
+  const { data, error } = await context.supabase.rpc('add_cart_selection', {
+    p_base_good_id: baseGoodId,
+    p_items: entries.map((entry) => ({ good_id: entry.goodId, variant_id: entry.variantId, qty: entry.qty, expected_qty: entry.expectedQty })),
+  });
+  if (error) {
+    return { ok: false, mode: 'server', error: error.message === 'out of stock' ? STOCK_ERROR
+      : error.message === 'cart_selection_changed' ? '장바구니가 변경되었습니다. 현재 수량을 확인하고 다시 담아주세요.'
+        : error.message === 'additional_good_unavailable' ? '추가상품의 판매 또는 연결 상태가 변경되었습니다. 선택을 다시 확인해주세요.'
+          : SAVE_ERROR };
+  }
+  const items = parseCartAdditionSnapshot(data);
+  return items ? { ok: true, mode: 'server', items }
+    : { ok: false, mode: 'server', error: '장바구니 반영 결과를 확인하지 못했습니다. 현재 수량을 새로고침한 뒤 다시 확인해주세요.' };
 }

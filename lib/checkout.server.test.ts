@@ -116,9 +116,11 @@ describe('loadCheckoutOrder', () => {
       type: '아크릴',
       qty: 1,
       unitPrice: 27000,
+      supplySource: 'stock',
+      preorderExpectedShipDate: null,
     }]);
     expect(records.find((record) => record.table === 'order_items')?.select)
-      .toBe('id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot');
+      .toBe('id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,supply_source,preorder_expected_ship_date');
     expect(records.some((record) => record.table === 'goods')).toBe(false);
   });
 

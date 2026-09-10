@@ -82,4 +82,28 @@ describe('SettledScreen', () => {
     expect(html).toContain('거래확정된 주문이 없습니다.');
     expect(html).toContain('전체 0건');
   });
+
+  it('같은 조회 조건의 전체 페이지를 영수증 생성 동선에 전달한다', () => {
+    const html = renderToStaticMarkup(<SettledScreen data={data({ filters: { from: '2026-09-01', to: '2026-09-09', query: '0000', page: 3 } })}
+      exportRequestId="10000000-0000-4000-8000-000000004951" now={NOW} />);
+    expect(html).toContain('현재 조건의 거래확정 엑셀 만들기');
+    expect(html).toContain('현재 조회 조건의 전체 페이지');
+    expect(html).toContain('name="from" value="2026-09-01"');
+    expect(html).toContain('name="query" value="0000"');
+    expect(html).toContain('name="requestId" value="10000000-0000-4000-8000-000000004951"');
+  });
+
+  it('거래확정 행은 목록 문맥을 보존한 주문 상세를 새 탭으로 연다', () => {
+    const html = renderToStaticMarkup(<SettledScreen data={data({
+      filters: { from: '2026-07-01', to: '2026-07-14', query: 'maple', page: 2 },
+    })} now={NOW} />);
+
+    expect(html).toContain(`/admin/sales/orders/${ORDER_ID}?back=`);
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('rel="noopener noreferrer"');
+    expect(html).toContain('주문 11111111 상세 열기 (새 탭)');
+    expect(html).toContain(encodeURIComponent(
+      '/admin/sales/settled?from=2026-07-01&to=2026-07-14&query=maple&page=2',
+    ));
+  });
 });

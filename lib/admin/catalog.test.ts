@@ -14,6 +14,48 @@ import {
   normalizeAdminTicketTypeForm,
 } from './catalog';
 
+it('영문 상품명을 공백 정리해 저장하고 비우면 제거하며 과도한 길이는 거절한다', () => {
+  const form = new FormData();
+  form.set('ipId', 'hwasan');
+  form.set('name', '아크릴 키링');
+  form.set('price', '1000');
+  form.set('nameEn', '  Acrylic Keyring  ');
+  expect(normalizeAdminGoodForm(form, context)).toMatchObject({ ok: true, value: { nameEn: 'Acrylic Keyring' } });
+  form.set('nameEn', '');
+  expect(normalizeAdminGoodForm(form, context)).toMatchObject({ ok: true, value: { nameEn: null } });
+  form.set('nameEn', 'a'.repeat(201));
+  expect(normalizeAdminGoodForm(form, context)).toMatchObject({ ok: false, errors: { nameEn: expect.any(String) } });
+});
+
+it('검색 키워드는 줄바꿈·쉼표를 나누고 공백과 대소문자 중복을 정리한다', () => {
+  const form = new FormData();
+  form.set('ipId', 'hwasan');
+  form.set('name', '아크릴 키링');
+  form.set('price', '1000');
+  form.set('searchKeywords', '  여름 굿즈, 낮잠\n여름 굿즈\nKUMA, kuma  ');
+  form.set('displayOrder', ' 12 ');
+
+  expect(normalizeAdminGoodForm(form, context)).toMatchObject({
+    ok: true,
+    value: { searchKeywords: ['여름 굿즈', '낮잠', 'KUMA'], displayOrder: 12 },
+  });
+});
+
+it('진열 순서는 미설정과 0을 구분하고 음수는 거절한다', () => {
+  const form = new FormData();
+  form.set('ipId', 'hwasan');
+  form.set('name', '아크릴 키링');
+  form.set('price', '1000');
+  form.set('displayOrder', '');
+  expect(normalizeAdminGoodForm(form, context)).toMatchObject({ ok: true, value: { displayOrder: null } });
+
+  form.set('displayOrder', '-1');
+  expect(normalizeAdminGoodForm(form, context)).toMatchObject({
+    ok: false,
+    errors: { displayOrder: expect.any(String) },
+  });
+});
+
 const context = {
   eventIds: new Set(['e100', 'e200']),
   goodIpById: new Map([
@@ -23,6 +65,56 @@ const context = {
   ipIds: new Set(['hwasan', 'lumen']),
   verticalKeys: new Set(['rofan', 'global']),
 };
+
+describe('상품 판매 조건 입력', () => {
+  function form(values: Record<string, string> = {}) {
+    const data = new FormData();
+    for (const [key, value] of Object.entries({ ipId: 'hwasan', name: '아크릴 키링', price: '1000', ...values })) data.set(key, value);
+    return data;
+  }
+
+  it('무통장 전용과 주문·회원 한도를 명시한 값으로 전달한다', () => {
+    expect(normalizeAdminGoodForm(form({
+      allowCardPayment: 'false', allowBankTransfer: 'true', saleRestriction: 'none',
+      orderQuantityLimitEnabled: 'true', minOrderQty: '2', maxOrderQty: '5',
+      memberPurchaseLimitEnabled: 'true', memberLifetimeQtyLimit: '8',
+    }), context)).toMatchObject({ ok: true, value: {
+      allowCardPayment: false, allowBankTransfer: true, saleRestriction: 'none',
+      orderQuantityLimitEnabled: true, minOrderQty: 2, maxOrderQty: 5,
+      memberPurchaseLimitEnabled: true, memberLifetimeQtyLimit: 8,
+    } });
+  });
+
+  it('미설정 한도를 0이나 무제한 값으로 바꾸지 않고 활성화를 거절한다', () => {
+    expect(normalizeAdminGoodForm(form({ orderQuantityLimitEnabled: 'true', minOrderQty: '', maxOrderQty: '',
+      memberPurchaseLimitEnabled: 'true', memberLifetimeQtyLimit: '' }), context)).toMatchObject({
+      ok: false, errors: { minOrderQty: expect.any(String), maxOrderQty: expect.any(String), memberLifetimeQtyLimit: expect.any(String) },
+    });
+    expect(normalizeAdminGoodForm(form({ orderQuantityLimitEnabled: 'false', minOrderQty: '', maxOrderQty: '',
+      memberPurchaseLimitEnabled: 'false', memberLifetimeQtyLimit: '' }), context)).toMatchObject({
+      ok: true, value: { orderQuantityLimitEnabled: false, minOrderQty: null, maxOrderQty: null,
+        memberPurchaseLimitEnabled: false, memberLifetimeQtyLimit: null },
+    });
+  });
+
+  it('범위 역전·0·소수·임의 결제 상태를 거절한다', () => {
+    expect(normalizeAdminGoodForm(form({ minOrderQty: '6', maxOrderQty: '5', memberLifetimeQtyLimit: '0',
+      allowCardPayment: 'yes', saleRestriction: 'unrestricted' }), context)).toMatchObject({
+      ok: false, errors: { maxOrderQty: expect.any(String), memberLifetimeQtyLimit: expect.any(String),
+        allowCardPayment: expect.any(String), saleRestriction: expect.any(String) },
+    });
+    expect(normalizeAdminGoodForm(form({ minOrderQty: '1.5' }), context)).toMatchObject({ ok: false });
+  });
+
+  it('이전 폼에서 생략한 정책은 현재 저장값 보존을 위해 전달하지 않는다', () => {
+    const result = normalizeAdminGoodForm(form(), context);
+    expect(result.ok).toBe(true);
+    if (result.ok) for (const key of ['allowCardPayment', 'allowBankTransfer', 'saleRestriction',
+      'orderQuantityLimitEnabled', 'minOrderQty', 'maxOrderQty', 'memberPurchaseLimitEnabled', 'memberLifetimeQtyLimit']) {
+      expect(result.value).not.toHaveProperty(key);
+    }
+  });
+});
 
 /* 고시정보는 저장 필수라서(#171) 굿즈 폼 픽스처는 항상 값을 채워야 한다. */
 const goodsNoticeValues: Record<string, string> = {
@@ -351,11 +443,11 @@ describe('admin catalog form normalization', () => {
 
     expect(normalizeAdminGoodForm(goodForm('22000'), context)).toEqual({
       ok: false,
-      errors: { compareAtPrice: '정가는 판매가보다 커야 해요' },
+      errors: { compareAtPrice: '소비자가는 기준 판매가보다 커야 해요' },
     });
     expect(normalizeAdminGoodForm(goodForm('26000.5'), context)).toEqual({
       ok: false,
-      errors: { compareAtPrice: '정가는 0 이상의 정수여야 합니다.' },
+      errors: { compareAtPrice: '소비자가는 0 이상의 정수여야 합니다.' },
     });
   });
 

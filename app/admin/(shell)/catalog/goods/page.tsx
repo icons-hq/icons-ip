@@ -32,7 +32,7 @@ export default async function AdminCatalogGoodsPage({ searchParams }: {
     <Link href={listHref}>← {ADMIN_VOCABULARY.goods} 목록으로</Link>
     <AdminPageHeader title={selected?.name ?? `${ADMIN_VOCABULARY.goods} 등록`} description={selected?.id} />
     <GoodScreen key={selected?.id ?? `create-${initialIpId ?? 'any'}`}
-      accountId={auth.user.id} origins={editor.origins} noticeDefaults={business ? { asManager: business.companyName, asContact: business.phone || business.email } : undefined}
+      accountId={auth.user.id} cloneOperationId={randomUUID()} canManageCosts={auth.role === 'admin'} categories={editor.categories} shippingNoticeOptions={editor.shippingNoticeOptions} origins={editor.origins} noticeDefaults={business ? { asManager: business.companyName, asContact: business.phone || business.email } : undefined}
       adjustmentId={randomUUID()} catalogIps={editor.catalogIps} ips={editor.records.ips}
       records={selected ? [selected] : []} variants={editor.variants}
       initialIpId={initialIpId} initialSelectedId={selected?.id} hideRecordList listHref={listHref} />

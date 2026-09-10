@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getShipmentConsoleData } from './shipment-dispatch.server';
 import { normalizeShipmentFilters, shipmentConsoleHref } from './shipment-dispatch';
+import { shipmentDeliveryFixture } from '@/lib/shipment-delivery.fixture';
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), origins: vi.fn(), carriers: vi.fn() }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc, from: () => ({ select: () => ({ order: mocks.origins }) }) }) }));
 vi.mock('@/lib/orders/shipment.server', () => ({ getShippingCarrierRegistry: mocks.carriers }));
@@ -28,5 +29,12 @@ describe('shipment console query boundary', () => {
   });
   it('resets page values whose SQL integer offset cannot be represented', () => {
     expect(normalizeShipmentFilters({ page: '21474838' }, 'dispatch').page).toBe(1);
+  });
+  it('preserves method and preorder data while refusing a missing or malformed method response', async () => {
+    const delivery = shipmentDeliveryFixture();
+    mocks.rpc.mockResolvedValue({ data: { rows: [{ id: 'shipment', preorderReady: false, delivery }], total: 1, counts }, error: null });
+    expect((await getShipmentConsoleData(normalizeShipmentFilters({}, 'dispatch'), 'dispatch')).rows[0]).toMatchObject({ delivery, preorderReady: false });
+    mocks.rpc.mockResolvedValue({ data: { rows: [{ id: 'shipment', delivery: { method: 'pickup', policy: null } }], total: 1, counts }, error: null });
+    await expect(getShipmentConsoleData(normalizeShipmentFilters({}, 'dispatch'), 'dispatch')).rejects.toThrow('배송 방식을 확인하지 못했습니다');
   });
 });

@@ -6,9 +6,13 @@ insert into public.ips(id,title,vertical_key,published_at)
 values ('search-visibility-live','검색통합 공개 IP','search-visibility',now()),
  ('search-visibility-draft','검색통합 초안 IP','search-visibility',null);
 insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,sale_restriction,published_at)
-values ('search-visibility-live-good','search-visibility-live','검색통합 공개 굿즈','문구',12000,'ok',1,'none',now()),
- ('search-visibility-adult-good','search-visibility-live','검색통합 제한 굿즈','문구',12000,'ok',1,'adult',now()),
- ('search-visibility-draft-good','search-visibility-draft','검색통합 초안 굿즈','문구',12000,'ok',1,'none',now());
+values ('search-visibility-live-good','search-visibility-live','검색통합 공개 굿즈','문구',12000,'ok',1,'none',null),
+ ('search-visibility-adult-good','search-visibility-live','검색통합 제한 굿즈','문구',12000,'ok',1,'adult',null),
+ ('search-visibility-draft-good','search-visibility-draft','검색통합 초안 굿즈','문구',12000,'ok',1,'none',null);
+-- Build reviewed synthetic KC evidence before publishing each fixture.
+select pg_temp.publish_goods_kc_fixture('search-visibility-live-good');
+select pg_temp.publish_goods_kc_fixture('search-visibility-adult-good');
+select pg_temp.publish_goods_kc_fixture('search-visibility-draft-good');
 
 set local role anon;
 select 1 / case when exists (

@@ -12,8 +12,10 @@ insert into public.ips(id, title, vertical_key, published_at)
 values ('demo-maple-placeholder', '[데모] 메이플 자리표시', 'demo-ops', now()) on conflict(id) do nothing;
 insert into public.goods(id, ip_id, name, type, price, stock, stock_qty, published_at)
 select 'demo-goods-' || lpad(n::text, 3, '0'), 'demo-maple-placeholder',
-  '[데모] 자리표시 상품 ' || lpad(n::text, 2, '0'), '문구', 10000 + n * 100, 'ok', 500, now()
+  '[데모] 자리표시 상품 ' || lpad(n::text, 2, '0'), '문구', 10000 + n * 100, 'ok', 500, null
 from generate_series(1, 20) as n on conflict do nothing;
+-- These placeholders have no real KC evidence. New rows remain drafts; existing
+-- published staging rows are preserved by the insert-only conflict policy.
 
 -- This synthetic customer has no password or provider identity and cannot sign in.
 insert into auth.users(id, aud, role, email, email_confirmed_at, raw_app_meta_data,

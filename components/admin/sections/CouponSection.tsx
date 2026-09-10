@@ -1,8 +1,19 @@
 'use client';
 
 import { AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { CouponTargetingFields } from '@/components/admin/CouponTargetingFields';
+import { adminFormRemountKey } from '@/lib/admin/form-state';
+import { ConsoleFilterPanel } from '@/components/admin/console/ConsoleFilterPanel';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import type { AdminCouponActionState } from '@/app/admin/coupon-actions';
-import type { AdminCouponRecord } from '@/lib/admin/coupons';
+import {
+  ADMIN_COUPON_LIST_PATH,
+  ADMIN_COUPON_STATUS_OPTIONS,
+  adminCouponResetHref,
+  adminCouponListHref,
+  type AdminCouponFilters,
+  type AdminCouponRecord,
+} from '@/lib/admin/coupons';
 import { LOYALTY_GRADES, loyaltyBasisSummary, loyaltyGradeLabel } from '@/lib/loyalty';
 import { Field, FormShell, RecordList, SelectField } from '../fields';
 
@@ -46,18 +57,33 @@ function CouponEditor({
   pending,
   selected,
   state,
+  draft,
 }: {
   action: (formData: FormData) => void;
   pending: boolean;
   selected: AdminCouponRecord | null;
   state: AdminCouponActionState;
+  draft: Record<string, string> | null;
 }) {
+  const value = (
+    key: string,
+    fallback: string | number | null | undefined,
+  ) => draft?.[key] ?? fallback ?? '';
+
   return (
-    <form action={action} className="card col wc-admin-kit wc-admin-kit__card" style={{ gap: 14 }}>
+    <form
+      action={action}
+      className="card col wc-admin-kit wc-admin-kit__card"
+      key={adminFormRemountKey(state, selected)}
+      style={{ gap: 14 }}
+    >
       <input name="previousCode" type="hidden" value={selected?.code ?? ''} />
+      <input name="expectedRevision" type="hidden" value={value('expectedRevision', selected?.termsRevision)} />
+      <fieldset disabled={pending} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
+        <legend className="sr-only">쿠폰 정보</legend>
       <AdminFormGrid>
         <Field
-          defaultValue={selected?.code ?? ''}
+          defaultValue={value('code', selected?.code)}
           error={state.errors?.code}
           label="코드 (대문자·숫자·하이픈)"
           name="code"
@@ -66,7 +92,7 @@ function CouponEditor({
           required
         />
         <Field
-          defaultValue={selected?.name ?? ''}
+          defaultValue={value('name', selected?.name)}
           error={state.errors?.name}
           label="쿠폰 이름"
           name="name"
@@ -74,7 +100,7 @@ function CouponEditor({
           required
         />
         <SelectField
-          defaultValue={selected?.discountType ?? 'fixed'}
+          defaultValue={value('discountType', selected?.discountType ?? 'fixed') as string}
           error={state.errors?.discountType}
           label="할인 방식"
           name="discountType"
@@ -83,7 +109,7 @@ function CouponEditor({
           <option value="percent">정률 (%)</option>
         </SelectField>
         <Field
-          defaultValue={selected?.discountValue ?? ''}
+          defaultValue={value('discountValue', selected?.discountValue)}
           error={state.errors?.discountValue}
           label="할인 값"
           min={1}
@@ -92,7 +118,7 @@ function CouponEditor({
           type="number"
         />
         <Field
-          defaultValue={selected?.maxDiscountAmount ?? ''}
+          defaultValue={value('maxDiscountAmount', selected?.maxDiscountAmount)}
           error={state.errors?.maxDiscountAmount}
           label="최대 할인액 (정률 전용, 비우면 없음)"
           min={1}
@@ -100,15 +126,15 @@ function CouponEditor({
           type="number"
         />
         <Field
-          defaultValue={selected?.minSubtotal ?? 0}
+          defaultValue={value('minSubtotal', selected?.minSubtotal ?? 0)}
           error={state.errors?.minSubtotal}
-          label="최소 주문 금액 (굿즈 소계 기준)"
+          label="최소 주문 금액 (할인 대상 상품 소계 기준)"
           min={0}
           name="minSubtotal"
           type="number"
         />
         <Field
-          defaultValue={dateTimeInput(selected?.startsAt) || dateTimeInput(new Date().toISOString())}
+          defaultValue={value('startsAt', dateTimeInput(selected?.startsAt) || dateTimeInput(new Date().toISOString()))}
           error={state.errors?.startsAt}
           label="사용 시작"
           name="startsAt"
@@ -116,14 +142,14 @@ function CouponEditor({
           type="datetime-local"
         />
         <Field
-          defaultValue={dateTimeInput(selected?.endsAt)}
+          defaultValue={value('endsAt', dateTimeInput(selected?.endsAt))}
           error={state.errors?.endsAt}
           label="사용 종료 (비우면 무기한)"
           name="endsAt"
           type="datetime-local"
         />
         <Field
-          defaultValue={selected?.issueLimit ?? ''}
+          defaultValue={value('issueLimit', selected?.issueLimit)}
           error={state.errors?.issueLimit}
           label="발급 한도 (비우면 무제한)"
           min={1}
@@ -131,7 +157,7 @@ function CouponEditor({
           type="number"
         />
         <SelectField
-          defaultValue={selected?.status ?? 'active'}
+          defaultValue={value('status', selected?.status ?? 'active') as string}
           error={state.errors?.status}
           label="상태"
           name="status"
@@ -140,7 +166,7 @@ function CouponEditor({
           <option value="archived">보관 (발급·사용 중단)</option>
         </SelectField>
         <SelectField
-          defaultValue={selected?.gradeBenefit ?? ''}
+          defaultValue={value('gradeBenefit', selected?.gradeBenefit) as string}
           error={state.errors?.gradeBenefit}
           label="등급 혜택 (승급 시 자동 발급)"
           name="gradeBenefit"
@@ -151,12 +177,19 @@ function CouponEditor({
           ))}
         </SelectField>
       </AdminFormGrid>
+      <CouponTargetingFields
+        recipientSegment={String(value('recipientSegment', selected?.recipientSegment ?? 'all'))}
+        goodsScope={String(value('goodsScope', selected?.goodsScope ?? 'all'))}
+        targetIds={String(value('targetGoodIds', JSON.stringify(selected?.targetGoodIds ?? [])))}
+        targetGoods={selected?.targetGoods ?? []}
+        errors={state.errors}
+      />
+      </fieldset>
       {selected && (
         <p className="muted" style={{ fontSize: 12, margin: 0 }}>
           발급 {selected.issuedCount.toLocaleString('ko-KR')}장
           {selected.issueLimit ? ` / 한도 ${selected.issueLimit.toLocaleString('ko-KR')}장` : ' (무제한)'}
-          {' · '}사용 {selected.usedCount.toLocaleString('ko-KR')}건 — 사용 이력은 주문과
-          coupon_redemptions 원장으로 연결됩니다.
+          {' · '}사용 {selected.usedCount.toLocaleString('ko-KR')}건
         </p>
       )}
       <FormShell pending={pending} state={state} />
@@ -166,29 +199,54 @@ function CouponEditor({
 
 export function CouponSection({
   action,
+  draft,
+  filters,
   onSelect,
+  pageSize,
   pending,
   records,
   selected,
   state,
+  total,
 }: {
   action: (formData: FormData) => void;
+  draft: Record<string, string> | null;
+  filters: AdminCouponFilters;
   onSelect: (record: { id: string } | null) => void;
+  pageSize: number;
   pending: boolean;
   records: AdminCouponRecord[];
   selected: AdminCouponRecord | null;
   state: AdminCouponActionState;
+  total: number;
 }) {
   return (
     <div className="col" style={{ gap: 14 }}>
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
         {loyaltyBasisSummary()} 등급 혜택으로 지정한 쿠폰은 승급 시 자동 발급됩니다.
       </p>
+      <ConsoleFilterPanel
+        action={ADMIN_COUPON_LIST_PATH}
+        hiddenFields={filters.selectedCode ? { couponCode: filters.selectedCode } : undefined}
+        resetHref={adminCouponResetHref()}
+        search={{
+          label: '쿠폰명·코드',
+          name: 'q',
+          placeholder: '쿠폰 이름 또는 코드를 입력하세요',
+          value: filters.query,
+        }}
+        statusFilter={{
+          label: '상태',
+          options: ADMIN_COUPON_STATUS_OPTIONS,
+          value: filters.status,
+        }}
+      />
+      {filters.inputError ? <p role="alert">{filters.inputError}</p> : null}
       <div className="admin-master-detail">
         <RecordList
           activeId={selected?.id ?? null}
           ariaLabel="쿠폰 목록"
-          emptyMessage="등록된 쿠폰이 없습니다."
+          emptyMessage="조건에 맞는 쿠폰이 없습니다."
           items={records}
           labelFor={couponListLabel}
           newLabel="새 쿠폰"
@@ -197,12 +255,29 @@ export function CouponSection({
         />
         <CouponEditor
           action={action}
-          key={selected ? selected.code : 'new-coupon'}
+          draft={draft}
           pending={pending}
           selected={selected}
           state={state}
         />
       </div>
+      {filters.selectedCode && !selected ? (
+        <p className="muted" role="status" style={{ fontSize: 12.5, margin: 0 }}>
+          선택한 쿠폰을 찾을 수 없습니다. 목록을 새로고침한 뒤 다시 선택해주세요.
+        </p>
+      ) : null}
+      {selected && !records.some((record) => record.id === selected.id) ? (
+        <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>
+          현재 검색·필터 조건과 다른 선택 쿠폰의 상세를 유지하고 있습니다.
+        </p>
+      ) : null}
+      <ConsolePagination
+        hrefForPage={(page) => adminCouponListHref(filters, { page })}
+        label="쿠폰 목록 페이지"
+        page={filters.page}
+        pageSize={pageSize}
+        total={total}
+      />
     </div>
   );
 }

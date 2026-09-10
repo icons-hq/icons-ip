@@ -8,6 +8,7 @@ import {
   adminClaimOpenCount,
   normalizeAdminClaimCollectionForm,
   normalizeAdminClaimOriginCollectionForm,
+  normalizeAdminClaimOperationalFeeForm,
   normalizeAdminClaimDecisionForm,
   normalizeAdminClaimFilters,
   normalizeAdminClaimRefundForm,
@@ -138,6 +139,14 @@ describe('구매자 표기와 집계', () => {
 });
 
 describe('콘솔 폼 정규화', () => {
+  it('운영 확인액은 0원과 미확인을 구분하고 근거를 요구한다', () => {
+    const base = { claimId: CLAIM_ID, expectedUpdatedAt: '2026-09-10T00:00:00Z', feeKind: 'return_shipping', note: '반품 배송비 확인', evidence: '택배 회신' };
+    expect(normalizeAdminClaimOperationalFeeForm(formData({ ...base, amount: '0' }))).toMatchObject({ ok: true, value: { amount: 0 } });
+    expect(normalizeAdminClaimOperationalFeeForm(formData({ claimId: CLAIM_ID, expectedUpdatedAt: base.expectedUpdatedAt, amount: '' })))
+      .toMatchObject({ ok: true, value: { amount: null, feeKind: null } });
+    expect(normalizeAdminClaimOperationalFeeForm(formData({ ...base, amount: '1000', evidence: '' }))).toMatchObject({ ok: false });
+    expect(normalizeAdminClaimOperationalFeeForm(formData({ ...base, amount: '1000', evidence: `근거${String.fromCharCode(1)}` }))).toMatchObject({ ok: false });
+  });
   it('거부와 보류는 10자 이상 사유를 요구한다', () => {
     expect(normalizeAdminClaimDecisionForm(
       formData({ claimId: CLAIM_ID, decision: 'reject', note: '짧음' }),

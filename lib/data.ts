@@ -38,13 +38,22 @@ export interface GoodOption {
   stockQty: number;
   isDefault: boolean;
   attributes: Record<string, string>;
+  pricing?: import('./goods-sales').GoodsVariantPricing;
+  supply?: import('./goods-preorders').GoodsVariantSupply;
 }
 export interface Good {
   options?: GoodOption[];
   originId?: string;
+  /** 운영자가 지정한 공통 추천 진열 순서. 비어 있으면 기존 결정적 순서를 쓴다. */
+  displayOrder?: number | null;
+  categoryId?: string | null;
+  additionalGoodIds?: string[];
+  /** 고객·어드민 검색에 쓰는 운영 키워드. 공개 상세에는 표시하지 않는다. */
+  searchKeywords?: string[];
   priceMax?: number;
   id: string;
   name: string;
+  nameEn?: string;
   ip: string;
   type: string;
   price: number;
@@ -54,6 +63,8 @@ export interface Good {
    * 파생된다.
    */
   compareAtPrice?: number | null;
+  /** Stored comparison amount, retained while a period uses its own regular option price. */
+  catalogCompareAtPrice?: number | null;
   badge: string | null;
   stock: Stock;
   stockQty: number;
@@ -65,6 +76,13 @@ export interface Good {
    * 한정 드롭처럼 재고가 24시간 묶이면 곤란한 굿즈만 운영자가 끈다.
    */
   allowBankTransfer?: boolean;
+  allowCardPayment?: boolean;
+  saleRestriction?: 'none' | 'adult';
+  orderQuantityLimitEnabled?: boolean;
+  minOrderQty?: number | null;
+  maxOrderQty?: number | null;
+  memberPurchaseLimitEnabled?: boolean;
+  memberLifetimeQtyLimit?: number | null;
 }
 export interface Card {
   id: string;

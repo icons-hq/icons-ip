@@ -14,5 +14,5 @@ export default async function AdminSalesSettledPage({
 
   const data = await getAdminSettledOrders(normalizeAdminSettledFilters(query));
 
-  return <SettledScreen data={data} />;
+  return <SettledScreen data={data} exportRequestId={crypto.randomUUID()} />;
 }

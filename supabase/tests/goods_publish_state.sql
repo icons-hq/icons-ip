@@ -27,6 +27,7 @@ update public.goods_variants set stock_qty=5 where good_id='minimal-draft';
 update public.profiles set nickname='goods_publisher',birth_date='2000-01-01',onboarded_at=now(),consents='{"terms":true,"privacy":true}'
 where id='00000000-0000-4000-8000-000000042101';
 insert into public.ip_follows(user_id,ip_id) values('00000000-0000-4000-8000-000000042101','goods-publish');
+select pg_temp.review_goods_kc_fixture('minimal-draft');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000042101',true);
 select public.admin_save_good(to_jsonb(good)||jsonb_build_object('previous_id',good.id,'publish',true)) from public.goods good where id='minimal-draft';
@@ -82,7 +83,9 @@ select 1 / case when not has_function_privilege('anon','public.admin_set_good_pu
  and has_function_privilege('authenticated','public.admin_set_good_published(text,boolean)','execute')
  then 1 else 0 end as assert_publish_acl;
 select set_config('request.jwt.claim.sub','',true);
-insert into public.goods(id,ip_id,name,type,price,published_at) values('archive-published-good','goods-publish','보관 검증','문구',1000,now());
+insert into public.goods(id,ip_id,name,type,price,published_at) values('archive-published-good','goods-publish','보관 검증','문구',1000,null);
+-- Build reviewed synthetic KC evidence before publishing each fixture.
+select pg_temp.publish_goods_kc_fixture('archive-published-good');
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000042101',true);
 set local role authenticated;
 select public.admin_archive_good('archive-published-good');

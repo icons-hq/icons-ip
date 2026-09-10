@@ -39,10 +39,15 @@ insert into public.verticals(key,label,color) values ('shipping-origins','출고
 insert into public.ips(id,title,vertical_key,published_at) values ('shipping-origins','출고지 검증','shipping-origins',now());
 insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at,origin_id,shipping_fee_type,individual_fee)
 values
- ('shipping-origin-a','shipping-origins','김포 정책 상품','키링',25000,'ok',20,now(),'00000000-0000-4000-8000-000000042201','policy',0),
- ('shipping-origin-b','shipping-origins','남양주 정책 상품','키링',60000,'ok',20,now(),'00000000-0000-4000-8000-000000042202','policy',0),
- ('shipping-origin-c','shipping-origins','김포 무료 상품','키링',100000,'ok',20,now(),'00000000-0000-4000-8000-000000042201','free',0),
- ('shipping-origin-d','shipping-origins','남양주 개별 상품','키링',9000,'ok',20,now(),'00000000-0000-4000-8000-000000042202','individual',2500);
+ ('shipping-origin-a','shipping-origins','김포 정책 상품','키링',25000,'ok',20,null,'00000000-0000-4000-8000-000000042201','policy',0),
+ ('shipping-origin-b','shipping-origins','남양주 정책 상품','키링',60000,'ok',20,null,'00000000-0000-4000-8000-000000042202','policy',0),
+ ('shipping-origin-c','shipping-origins','김포 무료 상품','키링',100000,'ok',20,null,'00000000-0000-4000-8000-000000042201','free',0),
+ ('shipping-origin-d','shipping-origins','남양주 개별 상품','키링',9000,'ok',20,null,'00000000-0000-4000-8000-000000042202','individual',2500);
+-- Build reviewed synthetic KC evidence before publishing each fixture.
+select pg_temp.publish_goods_kc_fixture('shipping-origin-a');
+select pg_temp.publish_goods_kc_fixture('shipping-origin-b');
+select pg_temp.publish_goods_kc_fixture('shipping-origin-c');
+select pg_temp.publish_goods_kc_fixture('shipping-origin-d');
 create temp table shipping_items(value jsonb);
 insert into shipping_items values (jsonb_build_array(jsonb_build_object('goodId','shipping-origin-a','qty',1,'variantId',(select id from public.goods_variants where good_id='shipping-origin-a' and is_default)),jsonb_build_object('goodId','shipping-origin-b','qty',1,'variantId',(select id from public.goods_variants where good_id='shipping-origin-b' and is_default)),jsonb_build_object('goodId','shipping-origin-c','qty',1,'variantId',(select id from public.goods_variants where good_id='shipping-origin-c' and is_default)),jsonb_build_object('goodId','shipping-origin-d','qty',3,'variantId',(select id from public.goods_variants where good_id='shipping-origin-d' and is_default)),jsonb_build_object('goodId','shipping-origin-d','qty',2,'variantId',(select id from public.goods_variants where good_id='shipping-origin-d' and is_default))));
 select 1 / case when public.quote_goods_shipping(value)->>'totalFee'='10000'
@@ -70,8 +75,10 @@ end $$;
 update public.goods set published_at=now() where id='shipping-origin-c';
 -- Both payment methods use the same final order helper, including two options
 -- of one individually charged good. Client/cart prices are never consulted.
+update public.goods set published_at=null where id='shipping-origin-d';
 insert into public.goods_variants(id,good_id,name,price,stock_qty,sort_order)
  values('00000000-0000-4000-8000-000000042231','shipping-origin-d','두 번째 옵션',11000,5,1);
+select pg_temp.publish_goods_kc_fixture('shipping-origin-d');
 select 1 / case when public.quote_goods_shipping(jsonb_build_array(jsonb_build_object('goodId','shipping-origin-d','qty',3,'variantId',(select id from public.goods_variants where good_id='shipping-origin-d' and is_default)),jsonb_build_object('goodId','shipping-origin-d','variantId','00000000-0000-4000-8000-000000042231','qty',2)))->>'totalFee'='2500'
  then 1 else 0 end as assert_individual_fee_once_across_distinct_options;
 update public.profiles set nickname='배송 구매자',birth_date='2000-01-01',consents='{"terms":true,"privacy":true}',onboarded_at=now()
@@ -91,7 +98,8 @@ begin
  end loop;
 end $$;
 insert into public.orders(id,user_id,status,total,shipping_fee,address,expires_at)
- values ('00000000-0000-4000-8000-000000042221','00000000-0000-4000-8000-000000042211','pending',0,0,'{}',now()+interval '1 hour');
+ values ('00000000-0000-4000-8000-000000042221','00000000-0000-4000-8000-000000042211','pending',0,0,
+ '{"recipientName":"배송 검증","phone":"01012345678","postalCode":"00000","address1":"배송 금지 테스트 주소"}',now()+interval '1 hour');
 insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot, variant_id)
  select '00000000-0000-4000-8000-000000042221',id,case when id='shipping-origin-d' then 5 else 1 end,price,name,type,ip_id, (select id from public.goods_variants where good_id=public.goods.id and is_default) from public.goods where ip_id='shipping-origins';
 -- Admin save carries shipping atomically and omission preserves existing policy.
@@ -112,6 +120,7 @@ update public.goods set type='문구',price=1000,image_path='public-media/origin
  where id='no-shipping-draft';
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000042212',true);
 set local role authenticated;
+select pg_temp.review_goods_kc_fixture('no-shipping-draft');
 do $$ begin
  begin
   perform public.admin_set_good_published('no-shipping-draft',true);
@@ -127,12 +136,14 @@ update public.fulfillment_origins set is_active=false where code='gimpo';
 set local role authenticated;
 do $$ begin
  begin
-  perform public.admin_save_good(to_jsonb(good)||jsonb_build_object('previous_id',good.id,'name','Should roll back','origin_id','00000000-0000-4000-8000-000000042201')) from public.goods good where id='no-shipping-draft';
+  -- A reviewed product name is part of the KC context. Change only price here
+  -- so this test isolates the invalid-origin boundary and full-save rollback.
+  perform public.admin_save_good(to_jsonb(good)||jsonb_build_object('previous_id',good.id,'price',1200,'origin_id','00000000-0000-4000-8000-000000042201')) from public.goods good where id='no-shipping-draft';
   raise exception 'inactive origin save accepted';
  exception when check_violation then if sqlerrm<>'fulfillment_origin_inactive' then raise; end if; end;
 end $$;
 select 1 / case when exists(select 1 from public.goods where id='no-shipping-draft' and name='No shipping draft'
- and origin_id='00000000-0000-4000-8000-000000042202') then 1 else 0 end as assert_failed_shipping_rolls_back_complete_save;
+ and price=1000 and origin_id='00000000-0000-4000-8000-000000042202') then 1 else 0 end as assert_failed_shipping_rolls_back_complete_save;
 reset role;
 update public.fulfillment_origins set is_active=true where code='gimpo';
 select set_config('request.jwt.claim.sub','',true);

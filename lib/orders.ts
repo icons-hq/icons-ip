@@ -117,6 +117,8 @@ export interface OrderDetailItem {
   type: string;
   qty: number;
   unitPrice: number;
+  supplySource?: 'stock' | 'preorder';
+  preorderExpectedShipDate?: string | null;
 }
 
 export interface OrderPaymentSummary {
@@ -161,6 +163,7 @@ export interface OrderDetail {
   shippingFee: number;
   /** 주문 시점 쿠폰 할인 스냅샷. total에서 이미 빠져 있다(S7). */
   discountTotal: number;
+  storeCreditTotal: number;
   address: CheckoutAddress | null;
   createdAt: string;
   /**

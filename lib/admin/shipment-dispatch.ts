@@ -1,6 +1,7 @@
 import type {ShippingCarrierRegistry} from '@/lib/orders/shipment';
 import type {ShipmentStatus} from '@/lib/orders/shipments';
 import type {ShipmentExportColumn} from './shipment-workbook';
+import type {ShipmentDeliverySummary} from '@/lib/shipment-delivery';
 export type ShipmentConsoleTab='new'|'ready'|'delayed'|'transit'|'delivered';
 export type ShipmentConsoleSurface='dispatch'|'shipping';
 export const SHIPMENT_CONSOLE_PAGE_SIZE=100;
@@ -15,6 +16,7 @@ export interface ShipmentConsoleRow {
  buyerName:string;recipientName:string|null;total:number;paymentMethod:string;shippingFee:number;carrier:string|null;trackingNumber:string|null;
  shippedAt:string|null;deliveredAt:string|null;exportedAt:string|null;updatedAt:string;delayReason:string|null;expectedShipDate:string|null;
  items:{id:string;name:string;variantName:string|null;qty:number}[];
+ originalExpectedShipDate?:string|null;preorderReady?:boolean;delivery?:ShipmentDeliverySummary|null;
 }
 export interface ShipmentConsoleData {
  surface:ShipmentConsoleSurface;filters:ShipmentConsoleFilters;rows:ShipmentConsoleRow[];total:number;pageSize:number;
@@ -48,6 +50,13 @@ export function shipmentMutationError(code:string):string{
   conflicting_shipment_tracking:'같은 주문에 서로 다른 운송장이 있습니다. 해당 주문의 모든 행을 함께 확인해주세요.',
  };
  if(warehouseErrors[code])return warehouseErrors[code];
- const known:Record<string,string>={shipment_reference_required:'배송 건이 여러 개이거나 번호가 겹칩니다. 전체 배송건번호로 등록해주세요.',shipment_not_found:'배송 건을 찾을 수 없습니다.',invalid_shipment_reference:'배송건번호 형식을 확인해주세요.',duplicate_shipment_reference:'앞선 행과 같은 배송 건입니다.',invalid_shipment_transition:'발주확인 또는 현재 배송 상태를 확인해주세요.',tracking_required:'택배사와 운송장번호가 필요합니다.',invalid_tracking_input:'운송장번호 형식을 확인해주세요.',inactive_shipping_carrier:'현재 사용 중인 택배사를 선택해주세요.',order_not_shipped:'발송된 배송 건만 운송장을 정정할 수 있습니다.','order cancellation in progress':'취소·반품·교환 처리가 진행 중입니다. 주문 상세를 확인해주세요.'};
+ const known:Record<string,string>={shipment_reference_required:'배송 건이 여러 개이거나 번호가 겹칩니다. 전체 배송건번호로 등록해주세요.',shipment_not_found:'배송 건을 찾을 수 없습니다.',invalid_shipment_reference:'배송건번호 형식을 확인해주세요.',duplicate_shipment_reference:'앞선 행과 같은 배송 건입니다.',invalid_shipment_transition:'발주확인 또는 현재 배송 상태를 확인해주세요.',tracking_required:'택배사와 운송장번호가 필요합니다.',invalid_tracking_input:'운송장번호 형식을 확인해주세요.',inactive_shipping_carrier:'현재 사용 중인 택배사를 선택해주세요.',order_not_shipped:'발송된 배송 건만 운송장을 정정할 수 있습니다.','order cancellation in progress':'취소·반품·교환 처리가 진행 중입니다. 주문 상세를 확인해주세요.',delivery_method_evidence_required:'퀵·방문수령은 주문 상세의 인계·수령 확인에서 처리해주세요.',preorder_allocation_required:'예약 품목에 실제 입고 물량을 먼저 할당해주세요.'};
  return known[code]??'처리하지 못했습니다. 최신 상태를 확인한 뒤 다시 시도해주세요.';
+}
+/** Older in-process projections may omit delivery; a present invalid value fails closed. */
+export function isParcelShipment(row:Pick<ShipmentConsoleRow,'delivery'>):boolean{return row.delivery===undefined||row.delivery?.method==='parcel';}
+export function shipmentConsoleSelectable(row:ShipmentConsoleRow,tab:ShipmentConsoleTab):boolean{
+ if(tab==='new')return true; // Order confirmation remains shared by every fulfillment method.
+ if(tab==='delivered'||!isParcelShipment(row))return false;
+ return tab==='transit'||row.preorderReady!==false;
 }

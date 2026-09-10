@@ -47,6 +47,7 @@ const MYPAGE_MENU_GROUPS: MypageMenuGroup[] = [
       { href: '/my/coupons', label: '쿠폰함', description: '보유한 쿠폰과 사용·만료 내역을 확인하세요.' },
       /* 코인은 쿠폰 옆에 서지만 돈에 개입하지 않는다 — 설명에서 '할인'을 말하지 않아야
          두 재화가 여기서부터 갈라진다(CONTEXT.md 코인 vs 쿠폰 vs 뽑기권). */
+      { href: '/my/store-credits', label: '적립금', description: '주문 할인용 적립금 잔액과 사용·복원 이력을 확인하세요.' },
       { href: '/my/coins', label: '코인', description: '출석·이벤트 참여로 모은 코인을 확인하세요.' },
       { href: '/notifications', label: '알림함', description: '주문, 카드팩, 팔로우한 IP의 새 소식을 확인하세요.' },
       { href: '/settings', label: '설정', description: '프로필과 정보 수신 동의를 관리하세요.' },

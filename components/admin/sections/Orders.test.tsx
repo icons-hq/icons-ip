@@ -1,4 +1,5 @@
 import { shipmentFixture } from '@/lib/orders/shipments.fixture';
+import { shipmentDeliveryFixture } from '@/lib/shipment-delivery.fixture';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type {
@@ -57,6 +58,7 @@ function orderData(overrides: Partial<AdminOrderRecord> = {}): AdminOrderConsole
   return {
     carriers: CARRIERS,
     filters: {
+      field: 'all',
       from: null,
       orderId: ORDER_ID,
       page: 1,
@@ -155,7 +157,25 @@ describe('OrdersSection', () => {
     expect(html).toContain('화산강림 아크릴 스탠드');
     expect(html).toContain('서울 성동구 성수이로 1');
     expect(html).toContain(STATUS_ACTION_MARKERS['발주확인']);
+    expect(html).toContain(`/admin/sales/orders/${ORDER_ID}?back=`);
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('rel="noopener noreferrer"');
+    expect(html).toContain('상세 열기 (새 탭)');
     expect(html).not.toContain('must-not-render');
+  });
+
+  it('offers the recipient and shipment tracking search targets in the filter', () => {
+    const data = orderData();
+    // The filter is carried by the server-rendered URL; this verifies the selected
+    // option survives a refresh alongside the existing order filters.
+    data.filters = { ...data.filters, field: 'tracking' };
+    const html = renderToStaticMarkup(<OrdersSection data={data} />);
+
+    expect(html).toContain('aria-label="주문 검색 대상"');
+    expect(html).toContain('name="field"');
+    expect(html).toContain('<option value="recipient">수취인</option>');
+    expect(html).toContain('<option value="tracking" selected="">운송장번호</option>');
+    expect(html).toContain('placeholder="주문 UUID · 닉네임 · 이메일 · 수취인 · 운송장번호"');
   });
 
   it('shows the related safe Korpay reference and exact provider-ledger attestation action', () => {
@@ -393,6 +413,7 @@ describe('OrdersSection', () => {
     };
     data.items = [data.items[0], secondOrder];
     data.filters = {
+      field: 'all',
       from: '2026-07-01',
       orderId: ORDER_ID,
       page: 2,
@@ -522,6 +543,24 @@ describe('OrdersSection', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
 
     expect(html).not.toContain('운송장 수정');
+  });
+  it('퀵·방문수령은 운송장을 요구하지 않고 필터를 보존한 주문 상세 인계 확인으로 연결한다', () => {
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'shipping', shipments: [shipmentFixture({
+      status: 'shipping', carrier: null, carrierLabel: null, trackingNumber: null, trackingUrl: null,
+      delivery: shipmentDeliveryFixture({ method: 'quick', providerName: '실제 퀵 업체' }),
+    })] })} />);
+    expect(html).toContain('퀵 배송 중'); expect(html).toContain('퀵 인계·수령 확인');
+    expect(html).toContain(`/admin/sales/orders/${ORDER_ID}?back=`);
+    expect(html).not.toContain('name="carrier"'); expect(html).not.toContain('name="trackingNumber"');
+    expect(html).not.toContain('운송장 수정'); expect(html).not.toContain('배송 건별 배송완료 처리');
+  });
+  it('택배와 퀵이 섞인 주문은 택배 배송 건의 운송장만 수정할 수 있다', () => {
+    const quickId = '00000000-0000-4000-8000-000000000492';
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'shipping', shipments: [shipmentFixture(),
+      shipmentFixture({ id: quickId, delivery: shipmentDeliveryFixture({ method: 'quick' }) })] })} />);
+    expect(html).toContain(`name="shipmentId" value="${SHIPMENT_ID}"`);
+    expect(html).not.toContain(`name="shipmentId" value="${quickId}"`);
+    expect(html).toContain('퀵 인계·수령 확인'); expect(html).toContain('배송 건별 배송완료 처리');
   });
 
   it('renders explicit confirmations and an accessible rejection reason field', () => {

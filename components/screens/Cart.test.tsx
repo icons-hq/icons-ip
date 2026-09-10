@@ -4,7 +4,8 @@ import type { CartItem, LegacyCartItem } from '@/lib/cart';
 import type { UserCouponSummary } from '@/lib/coupons';
 import type { CartCouponState } from '@/lib/coupons.server';
 import type { Good } from '@/lib/data';
-import type { ShippingQuote } from '@/lib/fulfillment';
+import type { AddressShippingQuote } from '@/lib/shipping-regions';
+import type { CouponQuote } from '@/lib/coupon-targeting';
 import { Cart } from './Cart';
 
 const mocks = vi.hoisted(() => ({
@@ -12,17 +13,27 @@ const mocks = vi.hoisted(() => ({
   legacyItems: [] as LegacyCartItem[],
   ready: true,
   mode: 'server' as 'server' | 'local',
-  quote: null as ShippingQuote | null,
+  quote: null as AddressShippingQuote | null,
+  quotePrices: new Map<string, number>(),
+  coupon: null as CouponQuote | null,
 }));
 
 vi.mock('@/components/shop/useShippingQuote', () => ({
-  useShippingQuote: () => ({quote:mocks.quote,loading:!mocks.quote,error:null,refresh:vi.fn()}),
+  useShippingQuote: () => ({quote:mocks.quote,sales:mocks.quote ? {
+    calculatedAt:'2026-09-10T00:00:00Z', shipping:mocks.quote,
+    subtotal:mocks.items.reduce((sum,item)=>sum+(mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0)*item.qty,0),
+    lines:mocks.items.map(item=>({...item,regularPrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,effectivePrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,pricePeriodId:null,startsAt:null,endsAt:null,available:true})),
+    goods:[],paymentMethods:{card:true,bankTransfer:true},
+    coupon:mocks.coupon,
+  } : null,loading:!mocks.quote,error:null,refresh:vi.fn()}),
 }));
-const gimpoGroup = {originId:'gimpo',originCode:'GIMPO',originName:'김포',baseFee:3000,freeThreshold:50000,
-  policySubtotal:12000,policyFee:3000,individualFee:0,totalFee:3000};
-const defaultQuote = {totalFee:3000,groups:[gimpoGroup]};
+const gimpoGroup: AddressShippingQuote['groups'][number] = {originId:'gimpo',originCode:'GIMPO',originName:'김포',baseFee:3000,freeThreshold:50000,
+  policySubtotal:12000,policyFee:3000,individualFee:0,totalFee:3000, regionMode: 'legacy_base_only', regionStatus: 'unconfigured',
+  regionalContractFee: null, regionalFee: 0, finalFee: 3000, policyId: null, policyVersion: null, ruleId: null,
+  regionLabel: null, carrierCode: 'hanjin', feeUnit: null, unitCount: 0, destinationPostalCode: null, matchedAddressPrefix: null};
+const defaultQuote: AddressShippingQuote = {totalFee:3000,groups:[gimpoGroup],checkoutAllowed:true,finalTotalFee:3000,destination:null,nextChangeAt:null};
 mocks.quote = defaultQuote;
-beforeEach(() => { mocks.quote = defaultQuote; mocks.legacyItems = []; mocks.ready = true; });
+beforeEach(() => { mocks.quote = defaultQuote; mocks.legacyItems = []; mocks.ready = true; mocks.quotePrices.clear(); mocks.coupon = null; });
 
 vi.mock('@/components/shell/CartProvider', () => ({
   useCart: () => ({
@@ -115,7 +126,7 @@ describe('Cart 배송비 요약', () => {
   });
 
   it('임계에 도달하면 배송비를 받지 않고 안내를 감춘다', () => {
-    mocks.quote = {totalFee:0,groups:[{...gimpoGroup,policySubtotal:60000,policyFee:0,totalFee:0}]};
+    mocks.quote = {...defaultQuote,totalFee:0,finalTotalFee:0,groups:[{...gimpoGroup,policySubtotal:60000,policyFee:0,totalFee:0,finalFee:0}]};
     const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 5 }]);
 
     expect(html).toContain('₩60,000');
@@ -129,7 +140,7 @@ describe('Cart 주문 요약 테이블', () => {
 
   it('금액 행을 표로 세운다', () => {
     expect(html).toContain('총 굿즈 금액');
-    expect(html).toContain('총 할인 금액');
+    expect(html).toContain('쿠폰 할인');
     expect(html).toContain('−₩0');
     expect(html).toContain('배송비');
     expect(html).toContain('예상 총액');
@@ -156,7 +167,8 @@ describe('Cart 쿠폰 슬롯 (S7)', () => {
   });
 
   it('적용된 쿠폰은 할인 행과 예상 총액에 반영된다', () => {
-    mocks.quote = {totalFee:0,groups:[{...gimpoGroup,policySubtotal:60000,policyFee:0,totalFee:0}]};
+    mocks.quote = {...defaultQuote,totalFee:0,finalTotalFee:0,groups:[{...gimpoGroup,policySubtotal:60000,policyFee:0,totalFee:0,finalFee:0}]};
+    mocks.coupon = { userCouponId: fix5k.id, couponCode: 'TEST-COUPON', eligibleSubtotal: 60000, discount: 5000, reason: null };
     const html = render(
       [{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 5 }],
       { selectedUserCouponId: fix5k.id, coupons: [fix5k] },
@@ -167,7 +179,17 @@ describe('Cart 쿠폰 슬롯 (S7)', () => {
     expect(html).toContain('적용 해제');
   });
 
+  it('대상 품목 일부에만 적용된 서버 할인액을 전체 소계로 다시 계산하지 않는다', () => {
+    mocks.quote = {...defaultQuote,totalFee:0,finalTotalFee:0,groups:[{...gimpoGroup,policySubtotal:60000,policyFee:0,totalFee:0,finalFee:0}]};
+    mocks.coupon = { userCouponId: fix5k.id, couponCode: 'TEST-COUPON', eligibleSubtotal: 1500, discount: 1500, reason: null };
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 5 }], { selectedUserCouponId: fix5k.id, coupons: [fix5k] });
+    expect(html).toContain('−₩1,500');
+    expect(html).toContain('₩58,500');
+    expect(html).not.toContain('−₩5,000');
+  });
+
   it('조건 미달이 되면 할인을 접고 사유를 알린다', () => {
+    mocks.coupon = { userCouponId: fix5k.id, couponCode: 'TEST-COUPON', eligibleSubtotal: 12000, discount: 0, reason: 'coupon_min_subtotal' };
     const html = render(
       [{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }],
       { selectedUserCouponId: fix5k.id, coupons: [fix5k] },
@@ -230,7 +252,7 @@ describe('Cart 빈 상태', () => {
 describe('origin quote and option lines', () => {
   it('keeps each origin fee and free-shipping remainder separate', () => {
     mocks.items=[{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1},{goodId:'g14',variantId:SOLD_VARIANT,qty:1}];
-    mocks.quote={totalFee:7000,groups:[gimpoGroup,{...gimpoGroup,originId:'namyangju',originCode:'NAMYANGJU',originName:'남양주',baseFee:4000,policyFee:4000,totalFee:4000,policySubtotal:9000,freeThreshold:30000}]};
+    mocks.quote={...defaultQuote,totalFee:7000,finalTotalFee:7000,groups:[gimpoGroup,{...gimpoGroup,originId:'namyangju',originCode:'NAMYANGJU',originName:'남양주',baseFee:4000,policyFee:4000,totalFee:4000,finalFee:4000,policySubtotal:9000,freeThreshold:30000}]};
     const html=renderToStaticMarkup(<Cart catalog={{goods:[goods[0],{...goods[1],stock:'ok',stockQty:5,originId:'namyangju',options:goods[1].options!.map(option=>({...option,stockQty:5}))}],ips:[]}} couponState={emptyCouponState} />);
     expect(html).toContain('김포 출고');expect(html).toContain('남양주 출고');
     expect(html).toContain('38,000원 더 담으면');expect(html).toContain('21,000원 더 담으면');
@@ -241,12 +263,28 @@ describe('origin quote and option lines', () => {
     const html=render([{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1}]);
     expect(html).toContain('배송비 확인 후 표시');expect(html).not.toContain('href="/checkout"');
   });
+  it('배송지를 아직 받지 않은 장바구니는 금액 확정을 미루고 주문서 진입을 허용한다', () => {
+    mocks.quote = { ...defaultQuote, checkoutAllowed: false, finalTotalFee: null,
+      groups: [{ ...gimpoGroup, regionMode: 'managed', regionStatus: 'address_required', finalFee: null, regionalFee: null }] };
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
+    expect(html).toContain('배송지 입력 후 확정');
+    expect(html).not.toContain('₩15,000');
+    expect(html).toContain('href="/checkout"');
+  });
+  it('정책이 중지된 배송 견적은 확인 없이 주문서로 넘기지 않는다', () => {
+    mocks.quote = { ...defaultQuote, checkoutAllowed: false, finalTotalFee: null,
+      groups: [{ ...gimpoGroup, regionMode: 'managed', regionStatus: 'policy_unavailable', finalFee: null, regionalFee: null }] };
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
+    expect(html).toContain('현재 배송비를 확인 중입니다');
+    expect(html).not.toContain('href="/checkout"');
+  });
   it('shows separate option names and prices for the same good', () => {
     const options=[
       {id:'00000000-0000-4000-8000-000000000001',name:'파랑',price:12000,stockQty:2,code:'BLUE',attributes:{},isDefault:true},
       {id:'00000000-0000-4000-8000-000000000002',name:'빨강',price:15000,stockQty:3,code:'RED',attributes:{},isDefault:false},
     ];
     mocks.items=options.map(option=>({goodId:'g13',variantId:option.id,qty:1}));
+    mocks.quotePrices = new Map(options.map(option => [option.id, option.price]));
     const html=renderToStaticMarkup(<Cart catalog={{goods:[{...goods[0],options}],ips:[]}} couponState={emptyCouponState} />);
     expect(html).toContain('파랑');expect(html).toContain('빨강');
     expect(html).toContain('₩15,000');expect(html).toContain('₩27,000');

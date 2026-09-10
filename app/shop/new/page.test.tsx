@@ -5,6 +5,7 @@ import type { Good } from '@/lib/data';
 import Page, { metadata } from './page';
 
 const mocks = vi.hoisted(() => ({ goods: [] as Good[] }));
+vi.mock('@/lib/catalog-categories.server', () => ({ loadPublicCatalogCategories: async () => [] }));
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/shop/new',

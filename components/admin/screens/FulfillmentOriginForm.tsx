@@ -36,7 +36,7 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit }: { origin?: 
           </select>
         </AdminField>
         {input('baseFee', '기본 배송비 (원)', 'number')}
-        {input('freeThreshold', '무료 배송 기준 (원)', 'number', '할인 전 정책 적용 상품 소계 기준입니다. 비우면 금액별 무료배송을 적용하지 않습니다.')}
+        {input('freeThreshold', '무료 배송 기준 (원)', 'number', '기간 할인 후, 쿠폰·적립금 차감 전 정책 적용 상품 소계 기준입니다. 비우면 금액별 무료배송을 적용하지 않습니다.')}
         {input('returnAddress', '반품 주소')}
         {input('cutoff', '출고 마감 시각 (한국 시간)', 'time')}
         <AdminField inputId={`${prefix}-template`} label="출고지시 양식" error={state.errors?.exportTemplate}>

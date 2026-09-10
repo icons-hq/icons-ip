@@ -566,6 +566,25 @@ describe('admin catalog actions', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin');
   });
 
+  it('passes normalized discovery metadata to the good save RPC and revalidates public lists', async () => {
+    const formData = goodForm();
+    formData.set('searchKeywords', '  여름 굿즈, KUMA\nkuma ');
+    formData.set('displayOrder', '7');
+
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
+      message: '굿즈를 저장했습니다.',
+      savedGoodId: 'g100',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_good', { target_good: expect.objectContaining({
+      search_keywords: ['여름 굿즈', 'KUMA'],
+      display_order: 7,
+    }) });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/new');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/best');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/search');
+  });
+
   /* 정가가 판매가 이하면 0%·음수 할인율이 나온다. RPC 도 막지만, 운영자에게는
      저장 실패가 아니라 그 칸의 에러로 보여야 고칠 수 있다. */
   it('rejects a compare-at price that is not above the sale price', async () => {
@@ -573,7 +592,7 @@ describe('admin catalog actions', () => {
     formData.set('compareAtPrice', '22000');
 
     await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
-      errors: { compareAtPrice: '정가는 판매가보다 커야 해요' },
+      errors: { compareAtPrice: '소비자가는 기준 판매가보다 커야 해요' },
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -612,7 +631,7 @@ describe('admin catalog actions', () => {
     });
 
     await expect(upsertAdminGoodAction({}, goodForm())).resolves.toMatchObject({
-      errors: { form: '정가는 판매가보다 커야 해요' },
+      errors: { form: '소비자가는 기준 판매가보다 커야 해요' },
     });
   });
 

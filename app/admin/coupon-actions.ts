@@ -1,8 +1,11 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { normalizeAdminCouponForm } from '@/lib/admin/coupons';
+import { redirect, unstable_rethrow } from 'next/navigation';
+import {
+  normalizeAdminCouponForm,
+} from '@/lib/admin/coupons';
+import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -10,7 +13,7 @@ import { createClient } from '@/lib/supabase/server';
  * 검증·감사·코드 불변 계약은 admin_upsert_coupon(security definer)이 진실원이고,
  * 여기서는 폼 정규화와 에러 번역만 한다. */
 
-export interface AdminCouponActionState {
+export interface AdminCouponActionState extends AdminFormValuesState {
   errors?: Record<string, string> & { form?: string };
   message?: string;
 }
@@ -33,13 +36,25 @@ function couponWriteIntentFailure(message: string): AdminCouponActionState | nul
   if (message.includes('catalog_id_immutable')) {
     return { errors: { code: '등록된 코드는 변경할 수 없습니다.' } };
   }
+  if (message.includes('coupon_terms_changed')) return { errors: { form: '다른 작업에서 쿠폰 조건이 변경됐습니다. 목록을 새로고침한 뒤 다시 확인해주세요.' } };
+  if (message.includes('coupon_target_good_unavailable') || message.includes('coupon_goods_scope_ready')) return { errors: { targetGoodIds: '할인 대상 상품의 설정과 현재 상태를 다시 확인해주세요.' } };
   return null;
 }
 
 export async function upsertAdminCouponAction(
-  _state: AdminCouponActionState,
+  state: AdminCouponActionState,
   formData: FormData,
 ): Promise<AdminCouponActionState> {
+  try {
+    const result = await saveAdminCoupon(formData);
+    return result.errors ? withPreservedFormValues(result, state, formData) : result;
+  } catch (error) {
+    unstable_rethrow(error);
+    return withPreservedFormValues({ errors: { form: '쿠폰을 저장하지 못했습니다. 다시 시도해주세요.' } }, state, formData);
+  }
+}
+
+async function saveAdminCoupon(formData: FormData): Promise<AdminCouponActionState> {
   const authError = await requireStaffAction();
   if (authError) return authError;
 
@@ -47,7 +62,7 @@ export async function upsertAdminCouponAction(
   if (!result.ok) return { errors: result.errors };
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_upsert_coupon', {
+  const { error } = await supabase.rpc('admin_upsert_coupon_targeted', { target_payload: {
     target_code: result.value.code,
     target_name: result.value.name,
     target_discount_type: result.value.discountType,
@@ -60,13 +75,20 @@ export async function upsertAdminCouponAction(
     target_status: result.value.status,
     target_grade_benefit: result.value.gradeBenefit,
     target_previous_code: result.value.previousCode,
-  });
+    target_recipient_segment: result.value.recipientSegment,
+    target_goods_scope: result.value.goodsScope,
+    target_good_ids: result.value.targetGoodIds,
+    target_expected_revision: result.value.expectedRevision,
+  } });
 
   if (error) {
-    return couponWriteIntentFailure(error.message)
-      ?? { errors: { form: '쿠폰을 저장하지 못했습니다. 다시 시도해주세요.' } };
+    const intentFailure = couponWriteIntentFailure(error.message);
+    return intentFailure ?? { errors: { form: '쿠폰을 저장하지 못했습니다. 다시 시도해주세요.' } };
   }
 
   revalidatePath('/admin/sales/coupons');
+  revalidatePath('/cart');
+  revalidatePath('/checkout');
+  revalidatePath('/my/coupons');
   return { message: `${result.value.code} 쿠폰을 저장했습니다.` };
 }
