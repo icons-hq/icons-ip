@@ -1850,9 +1850,9 @@ function Hub({ st, update, go, openProduct, onCompose, onSection, onScene, onSce
         <RightsPanel st={st} go={go} openProduct={openProduct} />
         <DealIntro en="LUCKY DRAW" title="럭키드로우" hint="회차별 80칸 · 회차별 하루 10회 체험" img="still-barricade.jpg" meta={`회차 ${KUJI.length} · 잔여 ${KUJI.reduce((sum, round) => sum + round.total - presentationDrawState(st, round.id).taken.length, 0)}칸`} id="kuji" go={go} mtype="commerce" face={<KujiFace />} />
 
-        {/* 05~08 체험존 — 효산의 기억 3D 진입점과 급식실·방송실·도서관. 옥상은 장 6 결말이다. */}
-        <HyosanLaunchScene onOpen={onHyosanOpen} />
+        {/* 05~08 체험존 — 급식실·방송실·도서관 다음에 효산의 기억 3D 진입점을 둔다. */}
         {PLAY_ZONES.map((zid) => <ZoneScene key={zid} st={st} id={zid} go={go} />)}
+        <HyosanLaunchScene onOpen={onHyosanOpen} />
 
         {/* 09~11 한정판존 — 응모·마감 구조의 매대만 남는다(ADR-0032: 자격 없이 사면 커머스) */}
         <DealIntro en="RAFFLE" title="래플" hint="무상 응모 · 정시 발표 · 1인 1회" img="still-zombie-rush.jpg" meta={`진행 ${RAFFLES.length}건`} id="raffle" go={go} face={<RaffleFace state={st} />} />
@@ -1902,10 +1902,10 @@ export const SCENES = [
   { k: "rights", budget: 1.2,    ch: 1, t: "구매권 상품",       bg: "still-library.jpg", tab: 2, en: "UNLOCKED GOODS", hint: "체험을 끝내면 열리는 상품 6종", noTitle: true },  /* 화면 제목 숨김(PM 2026-09-04) — t 는 HUD 라벨이 쓴다 */
   { k: "kuji", budget: 1.2,      ch: 1, t: "럭키드로우",      bg: "still-barricade.jpg", tab: 3, en: "LUCKY DRAW", lead: true },  /* 자격 없이 돈만 내면 사는 상품 = 커머스(ADR-0032) · 예산 1.0 이면 이동 0 → 글자 퇴장(50~100%)이 끝값(opacity 0)에 서서 글이 안 보였다(PM 2026-09-08) → 형제 딜 화면과 같은 1.2 */
   /* 체험존 4 + 옥상(결말 = 체험존 5번째, 장 6 유지) — PM 2026-09-02. 그날의 교실은 존에서 뺐다(#675). 순서 = 원작 장면 순 */
-  { k: "hyosan",    budget: 1.6, ch: 2, t: "효산의 기억",      bg: "still-corridor-run.jpg", tab: 1, en: "HYOSAN MEMORIES", lead: true },
   { k: "cafeteria", budget: 1.6, ch: 2, t: "급식실",          bg: "still-corridor-run.jpg", tab: 1, en: "CAFETERIA", lead: true },
   { k: "broadcast", budget: 1.6, ch: 2, t: "방송실",          bg: "still-broadcast-room.jpg", tab: 1, en: "BROADCAST ROOM", lead: true },
   { k: "library", budget: 1.6,   ch: 2, t: "도서관",          bg: "still-library.jpg", tab: 1, en: "LIBRARY", lead: true },  /* 여정 단계로는 「만약」이지만 문 뒤에 방이 하나뿐이라 방 이름을 그대로 쓴다 — 문과 방이 다른 이름이면 같은 곳인지 알 수 없다 */
+  { k: "hyosan",    budget: 1.6, ch: 2, t: "효산의 기억",      bg: "still-corridor-run.jpg", tab: 1, en: "HYOSAN MEMORIES", lead: true },
   { k: "raffle", budget: 1.2,    ch: 3, t: "래플",            bg: "still-zombie-rush.jpg", tab: 3, en: "RAFFLE", lead: true },
   { k: "preorder", budget: 1.2,  ch: 3, t: "사전예약",        bg: "still-armed-group-walk.jpg", tab: 3, en: "PRE-ORDER", lead: true },
   { k: "fcfs", budget: 1.2,      ch: 3, t: "선착순",          bg: "still-infirmary.jpg", tab: 3, en: "FIRST COME", lead: true },
