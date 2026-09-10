@@ -1,0 +1,373 @@
+{
+  "version": 1,
+  "source": "components/games/hyosan-memories-3d/asset-route.server.ts",
+  "inputs": [
+    {
+      "path": "showcase/hyosan/index.html",
+      "bytes": 551,
+      "sha256": "2f69fbcc0db6256f256907fd92591a8074124d1eeaa7737706f76459e6976dcd"
+    },
+    {
+      "path": "showcase/hyosan/main.tsx",
+      "bytes": 388,
+      "sha256": "a82b5bf54b5c87abf6eca19dc76c8b41df18fbd7b9c4c9ed2aaeba5bfd2bd4e2"
+    },
+    {
+      "path": "showcase/hyosan/styles.css",
+      "bytes": 283,
+      "sha256": "fe124f6cdcc3995714a45137974dc0388d40d88dedc4fef5983a724aed11f071"
+    },
+    {
+      "path": "showcase/hyosan/vite.config.ts",
+      "bytes": 733,
+      "sha256": "1cf5866987981c9b4488f46b61f7e965c92f09d2783a12ef60d077bdcafb428b"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/Hyosan3DGame.client.tsx",
+      "bytes": 21206,
+      "sha256": "f8ec31afff4c4cfbbcde94085fb412f3fd59485dafe28185c1c37045cc569e01"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/Hyosan3DOverlay.tsx",
+      "bytes": 39442,
+      "sha256": "7fd85526572c7b3d18b186dc316702e4ded70cae5d78d47f4bfdbe7ff3256b0a"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/Hyosan3D.module.css",
+      "bytes": 16601,
+      "sha256": "cccc447fdca6401dfc44579cb06bc57f361e6569e7e377808de07700809154fb"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/campaign-storage.ts",
+      "bytes": 7793,
+      "sha256": "48b366b17486cbda65f1177a0a03f054719f9e2f4d2c966c03deae61b71ae436"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/campaign-writer-lease.ts",
+      "bytes": 1818,
+      "sha256": "41abcdb0c47a852789702796ee76bfa7713b182ce667dfbb6cbd7d9ebf7115e3"
+    },
+    {
+      "path": "scripts/build-hyosan-showcase.mjs",
+      "bytes": 15470,
+      "sha256": "a106e60b9db8ad1a22f81b3d93f9dbec0d3b91a3160aa729e5ce29b5b391c74b"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/asset-route.server.ts",
+      "bytes": 4814,
+      "sha256": "bbeee07efe384682ef4289d24c3e2c8b441026a3f47c25bb2ffefb7133b52a0c"
+    }
+  ],
+  "outputFiles": [
+    {
+      "path": "assets/index-CG7ZSOaA.js",
+      "bytes": 5780526,
+      "sha256": "b29f803e8f2dce5f08bf05b89eb22607b6a6e8ae7798e5c592fd17e0cff416a8"
+    },
+    {
+      "path": "assets/index-Db1wKV3a.css",
+      "bytes": 27143,
+      "sha256": "29543e0966e8f001349a344965d790a86a20ad6fb2991cda12dba109433cff89"
+    },
+    {
+      "path": "index.html",
+      "bytes": 653,
+      "sha256": "60ecee8aa3feedf926934e9d5bfe622af576c73e632cfeee006aebd73579f94e"
+    }
+  ],
+  "assets": [
+    {
+      "name": "hyosan-opening.webp",
+      "source": "docs/games/hyosan-memories-3d/assets/story/hyosan-opening.webp",
+      "original": {
+        "path": "api/dev/hyosan-3d/hyosan-opening.webp",
+        "bytes": 206286,
+        "sha256": "4d12a4937264f363182a16a7b2b253cf7c4ef80620629c5151db1ade879f54ac"
+      },
+      "encodings": {}
+    },
+    {
+      "name": "hyosan-music-memory.webp",
+      "source": "docs/games/hyosan-memories-3d/assets/story/hyosan-music-memory.webp",
+      "original": {
+        "path": "api/dev/hyosan-3d/hyosan-music-memory.webp",
+        "bytes": 111144,
+        "sha256": "015336ea381e16302befb9a9237486e5a9c4ff0bac37250c93025f287eb45c7c"
+      },
+      "encodings": {}
+    },
+    {
+      "name": "school-environment.glb",
+      "source": "docs/games/hyosan-memories-3d/assets/environment/s2-serving-kitchen/school-environment.glb",
+      "original": {
+        "path": "api/dev/hyosan-3d/school-environment.glb",
+        "bytes": 39412212,
+        "sha256": "c99a0f97e9e399c55ada07aec2a5bbabef865ad14eda7b17ec6735ae4092b081"
+      },
+      "encodings": {
+        "br": {
+          "path": "__encoded/br/school-environment.glb",
+          "bytes": 8873139,
+          "sha256": "1f6d5f73a62ffc3f3ca73e4294b5ddc22ad3fdd05c3a57efc4fabb031394ac06"
+        },
+        "gzip": {
+          "path": "__encoded/gzip/school-environment.glb",
+          "bytes": 11933198,
+          "sha256": "f770000acb1a474b16afc0d4d0d12ec85c7f922bdeb2452394b4e03d481de887"
+        }
+      }
+    },
+    {
+      "name": "school-surroundings.glb",
+      "source": "docs/games/hyosan-memories-3d/assets/environment/surroundings/school-surroundings.glb",
+      "original": {
+        "path": "api/dev/hyosan-3d/school-surroundings.glb",
+        "bytes": 1986860,
+        "sha256": "5d7a9919dc7b8127b7fa8d19aefa9faf531c03de2864a184413e4493e0b52f45"
+      },
+      "encodings": {
+        "br": {
+          "path": "__encoded/br/school-surroundings.glb",
+          "bytes": 587282,
+          "sha256": "5cca86c069f88d83160fa1c1074fc64df70beca146e6024a41f93cc898767783"
+        },
+        "gzip": {
+          "path": "__encoded/gzip/school-surroundings.glb",
+          "bytes": 658590,
+          "sha256": "4d1a644ca76702151399c736ca471811be249e46a3108433a9126725af08ced9"
+        }
+      }
+    },
+    {
+      "name": "science-dressing.glb",
+      "source": "docs/games/hyosan-memories-3d/assets/environment/science-dressing/science-dressing.glb",
+      "original": {
+        "path": "api/dev/hyosan-3d/science-dressing.glb",
+        "bytes": 932184,
+        "sha256": "85cb5e1ae3666cfde52580f29f2d20b37644df95a4a0258346a3f34bf1087166"
+      },
+      "encodings": {
+        "br": {
+          "path": "__encoded/br/science-dressing.glb",
+          "bytes": 259709,
+          "sha256": "80a4287627708b350e213cc4efd5b2cbb9b6fe238e64c8e33473f2921a1345bb"
+        },
+        "gzip": {
+          "path": "__encoded/gzip/science-dressing.glb",
+          "bytes": 298464,
+          "sha256": "44a8245345b2738c6b6bc70da11252600efcdfb89e1a1e6c52c0a6844a5ddd11"
+        }
+      }
+    },
+    {
+      "name": "namra.glb",
+      "source": "docs/games/hyosan-memories-3d/assets/character/hyosan-namra-reunion.glb",
+      "original": {
+        "path": "api/dev/hyosan-3d/namra.glb",
+        "bytes": 2317364,
+        "sha256": "ab91db35d460a8495c9ce8136ff0a20ed83934a4defaecdefda3477e4eb32d84"
+      },
+      "encodings": {
+        "br": {
+          "path": "__encoded/br/namra.glb",
+          "bytes": 323350,
+          "sha256": "7a25a43f0146e9edc041411a3b71a172c83706a83abe8da9627b59d7aab5a166"
+        },
+        "gzip": {
+          "path": "__encoded/gzip/namra.glb",
+          "bytes": 412391,
+          "sha256": "619f7e2222fdadd7665d86e47c9770643274ac58e6921ba01760005f2871a778"
+        }
+      }
+    },
+    {
+      "name": "student.glb",
+      "source": "docs/games/hyosan-memories-3d/assets/character/archery/hyosan-student.glb",
+      "original": {
+        "path": "api/dev/hyosan-3d/student.glb",
+        "bytes": 1433004,
+        "sha256": "ced8ba254370a456c9a7031462d800713fc686388ee7b0faf8ead6bbf5296224"
+      },
+      "encodings": {
+        "br": {
+          "path": "__encoded/br/student.glb",
+          "bytes": 492562,
+          "sha256": "741a56f7b382083f70b3606c0b12f45f421be69cf294816fb7ee12ea1f3d9a18"
+        },
+        "gzip": {
+          "path": "__encoded/gzip/student.glb",
+          "bytes": 593901,
+          "sha256": "efa01f301004d569c6e2c4f528eccfdbd9a8def01ff5ad0aa736a5abddfce774"
+        }
+      }
+    },
+    {
+      "name": "zombie.glb",
+      "source": "docs/games/hyosan-memories-3d/assets/character/tailoring/hyosan-student-zombie.glb",
+      "original": {
+        "path": "api/dev/hyosan-3d/zombie.glb",
+        "bytes": 1183692,
+        "sha256": "ff23403422caab9693d7966f09bafeea5a548a7790662a1f2919042e5d949f59"
+      },
+      "encodings": {
+        "br": {
+          "path": "__encoded/br/zombie.glb",
+          "bytes": 433609,
+          "sha256": "9808a99464397e7fe065eeda583923a7968f581d291b07bc82eb5ce25c9dba6f"
+        },
+        "gzip": {
+          "path": "__encoded/gzip/zombie.glb",
+          "bytes": 516686,
+          "sha256": "a93e361112f61f95e5d45d4cbac1c7958e8d4a4a8d7073a29e2aa69d53796915"
+        }
+      }
+    },
+    {
+      "name": "eunji.glb",
+      "source": "docs/games/hyosan-memories-3d/assets/character/hyosan-eunji.glb",
+      "original": {
+        "path": "api/dev/hyosan-3d/eunji.glb",
+        "bytes": 1954844,
+        "sha256": "b25e0ca08af604daf3e60a5343c2b9ebd157d36ef872f1e9cc0059b7cbf200bb"
+      },
+      "encodings": {
+        "br": {
+          "path": "__encoded/br/eunji.glb",
+          "bytes": 380081,
+          "sha256": "ce22cdd9f4bc4e57484658bc7877b18fbfcc637d4cd57806541908dd8de7e0e7"
+        },
+        "gzip": {
+          "path": "__encoded/gzip/eunji.glb",
+          "bytes": 469325,
+          "sha256": "b54b132ab8fb0fb29309ae1b45f49e51feede8301432f77f8eed475d228b3c04"
+        }
+      }
+    },
+    {
+      "name": "hyunju.glb",
+      "source": "docs/games/hyosan-memories-3d/assets/character/hyosan-hyunju.glb",
+      "original": {
+        "path": "api/dev/hyosan-3d/hyunju.glb",
+        "bytes": 1391040,
+        "sha256": "e51a51266ae5c1771c9f9e7ef88696b5fe94f542f5803b926d25b786aa2b8a95"
+      },
+      "encodings": {
+        "br": {
+          "path": "__encoded/br/hyunju.glb",
+          "bytes": 374717,
+          "sha256": "16a54aff9fa52a840393bf4ac544bb0bf67bf72c4d92b5cac3bc51a23f9ce35e"
+        },
+        "gzip": {
+          "path": "__encoded/gzip/hyunju.glb",
+          "bytes": 455545,
+          "sha256": "2a4f9252be297ea5125f6a5e355765fde4f3c49b6376d95ebdc6c7bcdd76eef7"
+        }
+      }
+    },
+    {
+      "name": "jingu.glb",
+      "source": "docs/games/hyosan-memories-3d/assets/character/hyosan-jingu.glb",
+      "original": {
+        "path": "api/dev/hyosan-3d/jingu.glb",
+        "bytes": 1221180,
+        "sha256": "121d1f8b83f4baac1ad2cda8565fb5ab48b5125081d15519f972e1d9565fc0b7"
+      },
+      "encodings": {
+        "br": {
+          "path": "__encoded/br/jingu.glb",
+          "bytes": 325394,
+          "sha256": "dee04c340dddd47fa653d5abcf25474ed7bf87e1c21c654d589e34fb55d3e9f7"
+        },
+        "gzip": {
+          "path": "__encoded/gzip/jingu.glb",
+          "bytes": 394949,
+          "sha256": "0d42acf46f2a4ecef3f7db3acc219acc5764becd1b86b9cc466b6c328d355617"
+        }
+      }
+    },
+    {
+      "name": "gwinam-human.glb",
+      "source": "docs/games/hyosan-memories-3d/assets/character/hyosan-gwinam-human.glb",
+      "original": {
+        "path": "api/dev/hyosan-3d/gwinam-human.glb",
+        "bytes": 1566744,
+        "sha256": "2d578ae956c842d3512b3896fa5f6475eee99926fd0b527f6a22a2ab2c006525"
+      },
+      "encodings": {
+        "br": {
+          "path": "__encoded/br/gwinam-human.glb",
+          "bytes": 322233,
+          "sha256": "73d81ae9a63d6520f9317846c05efbb0a7331f426454c5ba11444cde4368eac7"
+        },
+        "gzip": {
+          "path": "__encoded/gzip/gwinam-human.glb",
+          "bytes": 398726,
+          "sha256": "6b85eda71a19491987f9925a4229f755f81e9e5e411dba9170b403351b77ad4e"
+        }
+      }
+    },
+    {
+      "name": "gwinam-halfbie.glb",
+      "source": "docs/games/hyosan-memories-3d/assets/character/hyosan-gwinam-halfbie.glb",
+      "original": {
+        "path": "api/dev/hyosan-3d/gwinam-halfbie.glb",
+        "bytes": 2394880,
+        "sha256": "e5f1bbdf1e8569e83fbe91453042a27fe6083982e6058dd6bc9b8488c4279564"
+      },
+      "encodings": {
+        "br": {
+          "path": "__encoded/br/gwinam-halfbie.glb",
+          "bytes": 384499,
+          "sha256": "e162c8424db7d638697ba1a63c699fe380ceba5e127e7bc5e3d3547fd3d0c12b"
+        },
+        "gzip": {
+          "path": "__encoded/gzip/gwinam-halfbie.glb",
+          "bytes": 467970,
+          "sha256": "217dfc990038ae69654d38c3f4b4e725318b5d4c16547b2d57a8be7e4e5303ca"
+        }
+      }
+    },
+    {
+      "name": "daewon.glb",
+      "source": "docs/games/hyosan-memories-3d/assets/character/hyosan-daewon.glb",
+      "original": {
+        "path": "api/dev/hyosan-3d/daewon.glb",
+        "bytes": 1535220,
+        "sha256": "ae36cf066bd68857f8e0419f38aaec70c55f084316b55a5f87b397e4509fe29b"
+      },
+      "encodings": {
+        "br": {
+          "path": "__encoded/br/daewon.glb",
+          "bytes": 332776,
+          "sha256": "b20973d484e5f6d3699469325acf2350902826bbc47d109a50dd8396639033aa"
+        },
+        "gzip": {
+          "path": "__encoded/gzip/daewon.glb",
+          "bytes": 401657,
+          "sha256": "b9b337292018974d5f61cb3ccac8a6ffb7c78692ae4ec0e592049ee6da5babaa"
+        }
+      }
+    },
+    {
+      "name": "nurse.glb",
+      "source": "docs/games/hyosan-memories-3d/assets/character/hyosan-nurse-boss.glb",
+      "original": {
+        "path": "api/dev/hyosan-3d/nurse.glb",
+        "bytes": 1191108,
+        "sha256": "c06cef7a5607845eccc9ec152d44ff49278793e3698394fc13d7afdd6ff36773"
+      },
+      "encodings": {
+        "br": {
+          "path": "__encoded/br/nurse.glb",
+          "bytes": 430154,
+          "sha256": "cc65299a3807e3df82e43644cd5ca393ca9b38acea4edd01de6ef217442703d2"
+        },
+        "gzip": {
+          "path": "__encoded/gzip/nurse.glb",
+          "bytes": 503799,
+          "sha256": "1177cf28b23b686e6946cd846041ef98fa2b51bde19f5d2e1ebb3034043639e6"
+        }
+      }
+    }
+  ]
+}

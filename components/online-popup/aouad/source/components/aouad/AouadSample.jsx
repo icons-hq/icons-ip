@@ -32,6 +32,7 @@ import OfflineMap from "../OfflineMap";
 import PopupHud, { HudBody } from "../popup/PopupHud";
 import PopupFloorplan from "../popup/PopupFloorplan";
 import { scaledPhotoSize } from "./photo-utils";
+import { HyosanGameDialog } from "../../../HyosanGameDialog.client";
 import {
   ASSET, OPENING, ZONES,
   MD, LANE_LABEL, RAFFLES, FCFS, KUJI, PREORDER, RIGHTS, RIGHT_GOALS, ZONE_RIGHT,
@@ -717,6 +718,7 @@ const SECTION_INTRO = {
   cafeteria: { text: `${SECTION_LEAD.cafeteria} 참여는 무료고, 오래 버틸수록 점수가 올라갑니다. 1,400p·2,200p·3,000p·3,600p 네 구간을 넘을 때마다 구매권이 하나씩 열립니다.`, detail: "cafeteria" },
   broadcast: { text: `${SECTION_LEAD.broadcast} 누르고 있으면 잡고 놓으면 미끄러집니다. 열린 창에서는 좀비가 튀어나오니 창과 창 사이에서 멈춰 기다립니다. 여덟 명 가운데 여섯 명 이상을 들여보내면 「다방」 무전기 키링 구매권이 열립니다.`, detail: "broadcast" },
   library: { text: `${SECTION_LEAD.library} 탈출에 성공하면 생존자 포토카드 팩 구매권이 열리고, 책갈피를 다 줍거나 한 번도 안 잡히는 등 조건을 더 채우면 열리는 상품이 늘어납니다.`, detail: "library" },
+  hyosan: { text: "효산고를 연결된 공간으로 탐험하며 활 전투와 기억의 장면을 이어갑니다." },
   raffle: { text: `${SECTION_LEAD.raffle} 회차마다 걸린 상품이 다르고 응모에는 돈이 들지 않습니다. 발표 시각은 화면에 표시됩니다.`, detail: "raffle" },
   preorder: { text: `${SECTION_LEAD.preorder} 예약자에게는 이름 각인과 선배송 특전이 붙고, 정식 판매 전에 수량을 확보할 수 있습니다.`, detail: "preorder" },
   fcfs: { text: `${SECTION_LEAD.fcfs} 매대마다 수량이 따로 잡혀 있어 한 곳이 마감돼도 다른 곳은 남아 있을 수 있습니다. 오픈 시각은 화면에서 확인합니다.`, detail: "fcfs" },
@@ -726,7 +728,7 @@ const SECTION_INTRO = {
   rooftop: { text: `${SECTION_LEAD.rooftop} 옥상까지 완주하면 학생증 각인판과 모닥불 오르골 구매권이 함께 열립니다.`, detail: "rooftop" },
 };
 
-function AouadHud({ st, section, scene, zone, product, modal, onSection, onSceneJump, onReset, go, openProduct, update, onCheckout, onClaimWin, onOpenInfo, flyRef, tlPick, libPane = null, libLive = {}, band = "hero", onBand, storeLane = null, onStoreLane, meOpen, onMeOpenChange, productOption, onMobileOverlayChange }) {
+function AouadHud({ st, section, scene, zone, product, modal, onSection, onSceneJump, onReset, go, openProduct, update, onCheckout, onClaimWin, onOpenInfo, flyRef, tlPick, libPane = null, libLive = {}, band = "hero", onBand, storeLane = null, onStoreLane, meOpen, onMeOpenChange, productOption, onMobileOverlayChange, hyosanOpen = false }) {
   const now = useNow();
   const rights = rightsOf(st);
   const held = RIGHTS.filter((r) => rights[r.id]);
@@ -1026,7 +1028,7 @@ function AouadHud({ st, section, scene, zone, product, modal, onSection, onScene
       onMobileOverlayChange={onMobileOverlayChange}
       floorplan={<FloorplanMini st={st} section={section} onJump={onSection} variant="wide" />}
       floorplanSheet={<FloorplanMini st={st} section={section} onJump={onSection} />}
-      active={section >= 0 && !modal && !meOpen} /* 모달·나 패널이 떠 있으면 ←→ 화면 이동 키 개입 금지(v4.1·v6.0) */
+      active={section >= 0 && !modal && !meOpen && !hyosanOpen} /* 모달·나 패널·Hyosan 게임이 떠 있으면 ←→ 화면 이동 키 개입 금지 */
     />
     </>
   );
@@ -1776,7 +1778,7 @@ function ShelfPanel({ st, go, openProduct }) {
   );
 }
 
-function Hub({ st, update, go, openProduct, onCompose, onSection, onScene, onSceneJump, pendingSection, onPendingDone, flipFrom, onFlipDone, flyRef, tlPick, onTlPick }) {
+function Hub({ st, update, go, openProduct, onCompose, onSection, onScene, onSceneJump, pendingSection, onPendingDone, flipFrom, onFlipDone, flyRef, tlPick, onTlPick, onHyosanOpen }) {
   // 오프닝의 학생증이 벤토 「내 기록」 자리로 날아와 안착 (FLIP — 시작 좌표 = 오프닝 카드 실측, 도착 = 모듈 실측)
   useLayoutEffect(() => {
     const el = flyRef.current;
@@ -1823,7 +1825,7 @@ function Hub({ st, update, go, openProduct, onCompose, onSection, onScene, onSce
 
       {/* ── 세로 = 이야기 순서. 한 화면에 하나만 둔다(PM 2026-08-27: 「게임 화면을 디자인한다」) ──
           화면은 카드가 아니라 장면이다 — 배경 스틸이 화면 전체를 쓰고 내용은 그 위에 최소한만 얹힌다.
-          가로 레일은 폐기했다. 나란히 두던 것을 전부 자기 화면으로 승격시켰다(7 → 16). */}
+          가로 레일은 폐기했다. 나란히 두던 것을 전부 자기 화면으로 승격시켰다(7 → 17). */}
       <SectionStage scenes={SCENES} onSection={onSection} onScene={onScene} pending={pendingSection} onPendingDone={onPendingDone}
         acts={{ shelf: { label: "굿즈샵 전체 보기", run: () => go("store") } }}>
 
@@ -1848,22 +1850,23 @@ function Hub({ st, update, go, openProduct, onCompose, onSection, onScene, onSce
         <RightsPanel st={st} go={go} openProduct={openProduct} />
         <DealIntro en="LUCKY DRAW" title="럭키드로우" hint="회차별 80칸 · 회차별 하루 10회 체험" img="still-barricade.jpg" meta={`회차 ${KUJI.length} · 잔여 ${KUJI.reduce((sum, round) => sum + round.total - presentationDrawState(st, round.id).taken.length, 0)}칸`} id="kuji" go={go} mtype="commerce" face={<KujiFace />} />
 
-        {/* 05~07 체험존 — 급식실·방송실·도서관(옥상은 장 6 결말). 문과 방이 1:1이다 */}
+        {/* 05~08 체험존 — 효산의 기억 3D 진입점과 급식실·방송실·도서관. 옥상은 장 6 결말이다. */}
+        <HyosanLaunchScene onOpen={onHyosanOpen} />
         {PLAY_ZONES.map((zid) => <ZoneScene key={zid} st={st} id={zid} go={go} />)}
 
-        {/* 08~10 한정판존 — 응모·마감 구조의 매대만 남는다(ADR-0032: 자격 없이 사면 커머스) */}
+        {/* 09~11 한정판존 — 응모·마감 구조의 매대만 남는다(ADR-0032: 자격 없이 사면 커머스) */}
         <DealIntro en="RAFFLE" title="래플" hint="무상 응모 · 정시 발표 · 1인 1회" img="still-zombie-rush.jpg" meta={`진행 ${RAFFLES.length}건`} id="raffle" go={go} face={<RaffleFace state={st} />} />
         <DealIntro en="PRE-ORDER" title="사전예약" hint="시즌2 연계 사전예약" img="still-armed-group-walk.jpg" meta={`누적 ${presentationDealSummary(st, { kind: "preorder", productId: PREORDER.mdId }).reservations.toLocaleString()}명`} id="preorder" go={go} face={<PreorderFace state={st} />} />
         <DealIntro en="FIRST COME" title="선착순" hint="정시 오픈 · 수량 한정 · 매대별 구매 한도" img="still-infirmary.jpg" meta={`오늘 매대 ${FCFS.length}개`} id="fcfs" go={go} face={<FcfsFace state={st} />} />
 
-        {/* 11~12 커뮤니티존 */}
+        {/* 12~13 커뮤니티존 */}
         <CommunityModule st={st} onCompose={onCompose} />
         <NoticeModule />
 
-        {/* 13 오프라인팝업존 */}
+        {/* 14 오프라인팝업존 */}
         <OfflineModule pst={st} go={go} />
 
-        {/* 14 옥상 — 결말이자 체험의 마지막 문(합류). 학생증 원본은 HUD 좌열로 이사했다(PM 2026-08-28) —
+        {/* 15 옥상 — 결말이자 체험의 마지막 문(합류). 학생증 원본은 HUD 좌열로 이사했다(PM 2026-08-28) —
             나의 카드는 이제 어느 화면에서든 발밑에 있고, 이 화면은 옥상으로 들어가는 문이다. */}
         <ZoneScene st={st} id="rooftop" go={go} />
 
@@ -1882,7 +1885,7 @@ const offsetIn = (box, child, axis) => {
 /* ── 화면 목록 — 한 화면에 하나만 둔다(게임 장면 문법, PM 2026-08-27) ──
    장(chapter)은 HUD 이동의 단위, 화면(scene)은 스크롤의 단위다.
    장 7개는 그대로 두고 그 안을 화면으로 쪼갰다 — 이동 격자는 바뀌지 않는다.
-   체험은 존 하나가 문 하나(여정 묶음 해체, PM 2026-09-02) — 급식실·방송실·도서관 + 옥상(결말, 장 6).
+   체험은 존 하나가 문 하나(여정 묶음 해체, PM 2026-09-02) — 효산의 기억·급식실·방송실·도서관 + 옥상(결말, 장 6).
    커머스에 「구매권 상품」 한 자리를 세워 상품이 자기 무대를 셋 갖는다 — 체험의 보상이 상품인데 상품 자리가 하나뿐이면 위계가 뒤집힌다. */
 /* 장 이름 = 「~존」(PM 2026-09-02) — 교문·옥상만 예외(들어오는 곳·끝나는 곳이라 존이 아니다).
    HUD 이동·안내도는 이 배열에서 이름을 파생한다(chapters · 부스 name) — 여기만 바꾸면 따라온다. */
@@ -1898,7 +1901,8 @@ export const SCENES = [
   { k: "shelf", budget: 1.2,     ch: 1, t: "진열",           bg: "still-gym-group.jpg", tab: 2, en: "GOODS SHOP", hint: "이 팝업 한정 37종 · 진열 20종 · 전체는 굿즈샵", noTitle: true },  /* PM 2026-09-03 「굿즈샵에 한정 굿즈라는 텍스트는 빼」 — 화면 제목은 숨기고(noTitle), t 는 HUD 라벨·이동 목록이 쓰므로 중립어로. 굿즈존 3화면 = 진열(바로) · 구매권 상품(열어야) · 럭키드로우(운) */
   { k: "rights", budget: 1.2,    ch: 1, t: "구매권 상품",       bg: "still-library.jpg", tab: 2, en: "UNLOCKED GOODS", hint: "체험을 끝내면 열리는 상품 6종", noTitle: true },  /* 화면 제목 숨김(PM 2026-09-04) — t 는 HUD 라벨이 쓴다 */
   { k: "kuji", budget: 1.2,      ch: 1, t: "럭키드로우",      bg: "still-barricade.jpg", tab: 3, en: "LUCKY DRAW", lead: true },  /* 자격 없이 돈만 내면 사는 상품 = 커머스(ADR-0032) · 예산 1.0 이면 이동 0 → 글자 퇴장(50~100%)이 끝값(opacity 0)에 서서 글이 안 보였다(PM 2026-09-08) → 형제 딜 화면과 같은 1.2 */
-  /* 체험존 3 + 옥상(결말 = 체험존 4번째, 장 6 유지) — PM 2026-09-02. 그날의 교실은 존에서 뺐다(#675). 순서 = 원작 장면 순 */
+  /* 체험존 4 + 옥상(결말 = 체험존 5번째, 장 6 유지) — PM 2026-09-02. 그날의 교실은 존에서 뺐다(#675). 순서 = 원작 장면 순 */
+  { k: "hyosan",    budget: 1.6, ch: 2, t: "효산의 기억",      bg: "still-corridor-run.jpg", tab: 1, en: "HYOSAN MEMORIES", lead: true },
   { k: "cafeteria", budget: 1.6, ch: 2, t: "급식실",          bg: "still-corridor-run.jpg", tab: 1, en: "CAFETERIA", lead: true },
   { k: "broadcast", budget: 1.6, ch: 2, t: "방송실",          bg: "still-broadcast-room.jpg", tab: 1, en: "BROADCAST ROOM", lead: true },
   { k: "library", budget: 1.6,   ch: 2, t: "도서관",          bg: "still-library.jpg", tab: 1, en: "LIBRARY", lead: true },  /* 여정 단계로는 「만약」이지만 문 뒤에 방이 하나뿐이라 방 이름을 그대로 쓴다 — 문과 방이 다른 이름이면 같은 곳인지 알 수 없다 */
@@ -2184,6 +2188,22 @@ function RightsPanel({ st, go, openProduct }) {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function HyosanLaunchScene({ onOpen }) {
+  return (
+    <div className={s.zoneScene} data-mtype="experience" data-hyosan-launch>
+      <span className={s.zoneStill} style={{ backgroundImage: `url(${ASSET("still-corridor-run.jpg")})` }} aria-hidden="true" />
+      <div className={s.lead}>
+        <span className={s.leadEyebrow}>HYOSAN MEMORIES · 3D SURVIVAL</span>
+        <h3 className={s.leadTitle}>효산의 기억</h3>
+        <p className={s.leadCall}>연결된 효산고를 탐험하며 활로 길을 엽니다.</p>
+        <div className={s.leadActs}>
+          <button type="button" className={s.leadBtnOn} onClick={onOpen}>효산의 기억 시작하기</button>
+        </div>
       </div>
     </div>
   );
@@ -3423,6 +3443,21 @@ export default function AouadSample() {
   const [st, update, ready] = usePresentationState();
   const [view, setView] = useState("boot"); // boot|opening|hub|<zoneId>
   const [overlay, setOverlay] = useState(null); // local presentation dialogs
+  const [hyosanOpen, setHyosanOpen] = useState(false);
+  const hyosanReturnFocusRef = useRef(null);
+  const openHyosan = useCallback(() => {
+    const active = typeof document !== "undefined" ? document.activeElement : null;
+    hyosanReturnFocusRef.current = active instanceof HTMLElement ? active : null;
+    setHyosanOpen(true);
+  }, []);
+  const closeHyosan = useCallback(() => {
+    setHyosanOpen(false);
+    window.setTimeout(() => {
+      const target = hyosanReturnFocusRef.current;
+      if (target?.isConnected) target.focus({ preventScroll: true });
+      hyosanReturnFocusRef.current = null;
+    }, 0);
+  }, []);
   const [meOpen, setMeOpen] = useState(false);
   const [hudOverlayOpen, setHudOverlayOpen] = useState(false);
   const [resetNonce, setResetNonce] = useState(0); // 리셋 시 Opening 강제 리마운트
@@ -3589,18 +3624,19 @@ export default function AouadSample() {
   if (!ready || view === "boot") return <div className={s.stage}><div className={s.bootScreen} role="status"><span>HYOSAN HIGH</span><p>학교의 기록을 불러오고 있습니다.</p></div></div>;
 
   const zone = ZONES.find((z) => z.id === view);
-  const gamePaused = !!overlay || meOpen || zoneBand !== "play" || hudOverlayOpen;
+  const gamePaused = !!overlay || hyosanOpen || meOpen || zoneBand !== "play" || hudOverlayOpen;
   // 상품 상세는 어디서 들어왔는지 기억한다 — 굿즈샵에서 왔으면 굿즈샵으로, 허브에서 왔으면 허브로 돌아간다
   const backLabel = product && product.from === "store" ? "굿즈샵" : "학교 맵";
   return (
-    <div className={s.stage} data-view={view} data-presentation="aouad">
+    <>
+    <div className={s.stage} data-view={view} data-presentation="aouad" inert={hyosanOpen ? true : undefined}>
       <div className={s.presentationUtility}><Link href="/ip" prefetch={false} aria-label="ICONS 온라인 팝업으로 돌아가기">ICONS<span> / </span>HYOSAN</Link><button type="button" onClick={() => { setMeOpen(false); setOverlay("intro"); }}>프레젠테이션</button></div>
       {view === "opening" && <Opening key={resetNonce} short={st.op} reduced={reduced} hasId={st.temp !== null} onDone={finishOpening} onReset={resetDemo} />}
       {view !== "opening" && (
         <>
           {/* v5.6 — 존과 상품 상세는 모달이 아니라 **상세페이지**다(PM 2026-09-07 「굿즈존·체험존이 다 모달인 게 불편하다」).
               허브를 덮지 않고 대체한다. 돌아올 때 보던 자리로 되돌리는 건 backToHub 가 맡는다 */}
-          {view === "hub" && !product && <Hub st={st} update={update} go={setView} openProduct={openProduct} onCompose={() => setOverlay("compose")} onSection={setSection} onScene={setScene} onSceneJump={jumpScene} pendingSection={pendingSection} onPendingDone={onPendingDone} flipFrom={flipFrom} onFlipDone={onFlipDone} flyRef={flyRef} tlPick={tlPick} onTlPick={setTlPick} />}
+          {view === "hub" && !product && <Hub st={st} update={update} go={setView} openProduct={openProduct} onCompose={() => setOverlay("compose")} onSection={setSection} onScene={setScene} onSceneJump={jumpScene} pendingSection={pendingSection} onPendingDone={onPendingDone} flipFrom={flipFrom} onFlipDone={onFlipDone} flyRef={flyRef} tlPick={tlPick} onTlPick={setTlPick} onHyosanOpen={openHyosan} />}
           {flipFrom && <div className={s.veil} aria-hidden="true" />}
           {product && (
             <ProductDetail
@@ -3681,10 +3717,13 @@ export default function AouadSample() {
           onSceneJump={jumpScene}
           tlPick={tlPick}
           onReset={resetDemo} go={goFromHud} openProduct={openProduct}
+          hyosanOpen={hyosanOpen}
           update={update} onCheckout={() => { setMeOpen(false); setOverlay("checkout"); }} onClaimWin={(i) => { setMeOpen(false); setOverlay({ win: i }); }} onOpenInfo={(k) => { setMeOpen(false); setOverlay(k); }} product={product ? product.id : null}
           flyRef={flyRef}
         />
       )}
     </div>
+    {hyosanOpen && <HyosanGameDialog onClose={closeHyosan} />}
+    </>
   );
 }
