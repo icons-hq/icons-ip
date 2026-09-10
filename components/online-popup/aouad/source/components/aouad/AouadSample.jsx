@@ -355,7 +355,7 @@ function shrinkPhoto(file) {
   });
 }
 
-function PhotoPicker({ photo, onPick, onSelectName }) {
+function PhotoPicker({ photo, onPick, onSelectName, onProcessingChange }) {
   const fileRef = useRef(null);
   const errorId = useId();
   const [photoError, setPhotoError] = useState(null);
@@ -370,12 +370,14 @@ function PhotoPicker({ photo, onPick, onSelectName }) {
       setPhotoError(PHOTO_ERROR_MESSAGE);
       return;
     }
+    onProcessingChange?.(1);
     shrinkPhoto(f)
       .then((next) => {
         setPhotoError(null);
         onPick(next);
       })
-      .catch(() => setPhotoError(PHOTO_ERROR_MESSAGE));
+      .catch(() => setPhotoError(PHOTO_ERROR_MESSAGE))
+      .finally(() => onProcessingChange?.(-1));
   };
   return (
     <div className={s.portraitRow} role="group" aria-label="학생증 증명사진 선택">
@@ -433,6 +435,8 @@ function Opening({ short, reduced, hasId, onDone, onReset }) {
   const [typed, setTyped] = useState([]); // 완성된 줄들 + 진행 중인 줄
   const [callsign, setCallsign] = useState("");
   const [photo, setPhoto] = useState(null);
+  const [pendingPhotos, setPendingPhotos] = useState(0);
+  const onPhotoProcessing = useCallback((delta) => setPendingPhotos((count) => count + delta), []);
   const [reply, setReply] = useState(""); // B7 — 상대의 대답 타이핑
   const [recall, setRecall] = useState(""); // A5 — 회상 1줄 타이핑
   const [written, setWritten] = useState(null); // B8 — 학생증에 기입 중인 이름(null = 무명)
@@ -441,7 +445,10 @@ function Opening({ short, reduced, hasId, onDone, onReset }) {
   const latest = useRef({ callsign: "", photo: null, onDone });
   useLayoutEffect(() => { latest.current = { callsign, photo, onDone }; }, [callsign, photo, onDone]);
   const answer = () => (hasId ? onDone(undefined) : setBeat(7));
-  const skip = () => onDone(hasId ? undefined : { name: callsign.trim() || null, photo });
+  const skip = () => {
+    if (pendingPhotos > 0) return;
+    onDone(hasId ? undefined : { name: callsign.trim() || null, photo });
+  };
   // 등교 = 학생증에 이름이 기입되는 연출(B8) → 카드의 화면 좌표를 들고 허브로(카드가 벤토 모듈 자리로 날아가 안착)
   const issue = (name) => {
     setCallsign(name || "");
@@ -551,7 +558,7 @@ function Opening({ short, reduced, hasId, onDone, onReset }) {
   if (reduced) {
     return (
       <div className={s.opening} role="dialog" aria-label="생존 무전">
-        <button type="button" className={s.openingSkip} onClick={skip} aria-label="오프닝 건너뛰기">스킵 →</button>
+        <button type="button" className={s.openingSkip} onClick={skip} disabled={pendingPhotos > 0} aria-label="오프닝 건너뛰기">{pendingPhotos > 0 ? "사진 처리 중…" : "스킵 →"}</button>
         {onReset && <button type="button" className={s.openingReset} onClick={onReset} title="처음부터 다시 보기">↺ 첫 방문 상태로</button>}
         <div className={s.notice}>
           <span className={s.noticeTag}>{OPENING.noticeTitle}</span>
@@ -566,7 +573,7 @@ function Opening({ short, reduced, hasId, onDone, onReset }) {
                 <span className={s.speakPrefix}>{DLG_ME_PREFIX}</span>
                 <input className={`${s.issueInput} ${s.speakInput}`} value={callsign} maxLength={12} placeholder="…" onChange={(e) => setCallsign(e.target.value)} aria-label="이름" />
               </div>
-              <PhotoPicker photo={photo} onPick={setPhoto} onSelectName={(n) => { if (!callsign.trim()) setCallsign(n); }} />
+              <PhotoPicker photo={photo} onPick={setPhoto} onProcessingChange={onPhotoProcessing} onSelectName={(n) => { if (!callsign.trim()) setCallsign(n); }} />
               <div className={s.welcomeActs}>
                 <button type="button" className={s.primaryBtn} disabled={!callsign.trim()} onClick={() => onDone({ name: callsign.trim(), photo })}>그래, 옥상으로 갈게, 만나</button>
                 <button type="button" className={s.ghostBtn} onClick={() => onDone({ name: null, photo })}>이름은 나중에, 일단 갈게</button>
@@ -580,7 +587,7 @@ function Opening({ short, reduced, hasId, onDone, onReset }) {
 
   return (
     <div className={s.opening} role="dialog" aria-label="무전 수신">
-      <button type="button" className={s.openingSkip} onClick={skip} aria-label="오프닝 건너뛰기">스킵 →</button>
+      <button type="button" className={s.openingSkip} onClick={skip} disabled={pendingPhotos > 0} aria-label="오프닝 건너뛰기">{pendingPhotos > 0 ? "사진 처리 중…" : "스킵 →"}</button>
       {onReset && <button type="button" className={s.openingReset} onClick={onReset} title="처음부터 다시 보기">↺ 첫 방문 상태로</button>}
       <i className={s.bar} aria-hidden="true" />
       <i className={`${s.bar} ${s.barBottom}`} aria-hidden="true" />
@@ -660,7 +667,7 @@ function Opening({ short, reduced, hasId, onDone, onReset }) {
                     onKeyDown={(e) => { if (e.key === "Enter" && callsign.trim()) issue(callsign.trim()); }}
                   />
                 </div>
-                <PhotoPicker photo={photo} onPick={setPhoto} onSelectName={(n) => { if (!callsign.trim()) setCallsign(n); }} />
+                <PhotoPicker photo={photo} onPick={setPhoto} onProcessingChange={onPhotoProcessing} onSelectName={(n) => { if (!callsign.trim()) setCallsign(n); }} />
                 <div className={s.welcomeActs}>
                   <button type="button" className={s.primaryBtn} disabled={!callsign.trim()} onClick={() => issue(callsign.trim())}>그래, 옥상으로 갈게, 만나</button>
                   <button type="button" className={s.ghostBtn} onClick={() => issue("")}>이름은 나중에, 일단 갈게</button>

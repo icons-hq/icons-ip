@@ -3466,7 +3466,7 @@ div.bannerCard { cursor: default; }
 
 /* 영상과 대화 전체에서 즉시 팝업으로 진입한다. */
 .openingSkip {
-  position: absolute;
+  position: fixed;
   top: max(72px, env(safe-area-inset-top));
   right: max(20px, env(safe-area-inset-right));
   z-index: 40;
@@ -3481,5 +3481,6 @@ div.bannerCard { cursor: default; }
   font-weight: 700;
   cursor: pointer;
 }
+.openingSkip:disabled { opacity: .7; cursor: wait; }
 .openingSkip:hover { background: #202423; }
 .openingSkip:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
