@@ -441,6 +441,7 @@ function Opening({ short, reduced, hasId, onDone, onReset }) {
   const latest = useRef({ callsign: "", photo: null, onDone });
   useLayoutEffect(() => { latest.current = { callsign, photo, onDone }; }, [callsign, photo, onDone]);
   const answer = () => (hasId ? onDone(undefined) : setBeat(7));
+  const skip = () => onDone(hasId ? undefined : { name: callsign.trim() || null, photo });
   // 등교 = 학생증에 이름이 기입되는 연출(B8) → 카드의 화면 좌표를 들고 허브로(카드가 벤토 모듈 자리로 날아가 안착)
   const issue = (name) => {
     setCallsign(name || "");
@@ -550,6 +551,7 @@ function Opening({ short, reduced, hasId, onDone, onReset }) {
   if (reduced) {
     return (
       <div className={s.opening} role="dialog" aria-label="생존 무전">
+        <button type="button" className={s.openingSkip} onClick={skip} aria-label="오프닝 건너뛰기">스킵 →</button>
         {onReset && <button type="button" className={s.openingReset} onClick={onReset} title="처음부터 다시 보기">↺ 첫 방문 상태로</button>}
         <div className={s.notice}>
           <span className={s.noticeTag}>{OPENING.noticeTitle}</span>
@@ -578,6 +580,7 @@ function Opening({ short, reduced, hasId, onDone, onReset }) {
 
   return (
     <div className={s.opening} role="dialog" aria-label="무전 수신">
+      <button type="button" className={s.openingSkip} onClick={skip} aria-label="오프닝 건너뛰기">스킵 →</button>
       {onReset && <button type="button" className={s.openingReset} onClick={onReset} title="처음부터 다시 보기">↺ 첫 방문 상태로</button>}
       <i className={s.bar} aria-hidden="true" />
       <i className={`${s.bar} ${s.barBottom}`} aria-hidden="true" />
@@ -3465,13 +3468,13 @@ export default function AouadSample() {
   const reduced = usePrefersReducedMotion();
 
   /* URL 계약(설계서 §6-5 · PM 2026-09-09) — 존·레인·상품·장면을 쿼리로 비춘다. 진입 URL 은 목적지가 된다.
-     첫 방문은 오프닝을 반드시 거친 뒤(PM 2026-08-21 「건너뛰기는 없다」) 목적지로 간다. */
+     첫 방문은 오프닝 완료 또는 스킵 후 목적지로 간다. */
   const deepRef = useRef(null);       // 진입 쿼리 → 목적지(한 번만 읽는다)
   const popRef = useRef(false);       // popstate·진입으로 온 변경은 이력에 새 칸을 만들지 않는다
   const lastKeyRef = useRef(null);
 
 
-  // res: {name, photo}=자기소개 후 등교(name null=무명) · undefined=재방문 응답(이미 이름 확인됨). 건너뛰기는 없다(PM 2026-08-21) — 첫 방문은 반드시 대화를 거친다
+  // res: {name, photo}=자기소개 후 등교(name null=무명) · undefined=재방문 응답(이미 이름 확인됨). 스킵도 같은 완료 경로를 사용한다
   const [product, setProduct] = useState(null); // {id, from} — 상품 상세
   // 장 점프 — HUD 이동 격자와 안내도 부스가 같은 관을 쓴다
   const goSection = (i) => {
@@ -3600,7 +3603,7 @@ export default function AouadSample() {
   const finishOpening = useCallback((res) => {
     update((p) => (res === undefined ? { ...p, op: true } : { ...p, op: true, temp: true, callsign: res.name || null, photo: res.photo || null }));
     setFlipFrom(res && res.fromRect ? res.fromRect : null);
-    // 오프닝을 마치면 진입 URL 의 목적지로 — 링크로 온 첫 방문자도 대화는 거치고 자기 자리로 간다
+    // 오프닝을 마치면 진입 URL 의 목적지로 — 링크로 온 첫 방문자도 스킵 후 자기 자리로 간다
     const q = deepRef.current; deepRef.current = {};
     if (q && (q.zone || q.product || q.scene)) applyUrl(q); else setView("hub");
   }, [update, applyUrl, setFlipFrom]);
