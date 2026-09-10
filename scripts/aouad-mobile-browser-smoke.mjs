@@ -36,6 +36,11 @@ async function screenshot(page, name) {
 async function checkBroadcast(page, engine, viewport) {
   await page.goto(`${origin}/ip/aouad?zone=broadcast`);
   await page.getByRole('button', { name: '체험 시작하기', exact: true }).tap();
+  // Let the site's smooth section navigation finish before Playwright scrolls the start button.
+  await page.waitForFunction(() => {
+    const section = document.querySelector('[aria-label^="호스 잡기 —"]')?.closest('section');
+    return section && Math.abs(section.getBoundingClientRect().top) < 1;
+  });
   await page.locator('[class*="GameGate-module__"] button').filter({ hasText: '시작' }).tap();
   const game = page.getByRole('button', { name: /^호스 잡기 —/ });
   await game.waitFor();
