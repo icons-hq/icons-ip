@@ -171,6 +171,63 @@ async function desktop(browser) {
   }
 }
 
+async function keyboardReturn(browser, engine) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  await context.addInitScript(() => localStorage.setItem('icons:aouad-presentation:v1', JSON.stringify({ op: true, temp: true })));
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  const returnButton = page.getByRole('button', { name: '팝업으로 돌아가기', exact: true });
+  const isReturnFocused = () => returnButton.evaluate(element => element === document.activeElement);
+  // macOS WebKit uses Option+Tab for buttons unless full Tab navigation is enabled.
+  const optionTab = engine === 'webkit' && process.platform === 'darwin';
+  const forwardTab = optionTab ? 'Alt+Tab' : 'Tab';
+  const reverseTab = optionTab ? 'Alt+Shift+Tab' : 'Shift+Tab';
+
+  async function leaveMenu(frame, label) {
+    await frame.waitForFunction(() => document.activeElement?.closest('[role="dialog"][aria-modal="true"]'));
+    const isFirstFocused = () => frame.evaluate(() => {
+      const menu = document.querySelector('[role="dialog"][aria-modal="true"]');
+      return Boolean(menu && document.activeElement === menu.querySelector('button:not(:disabled)'));
+    });
+    for (let step = 0; step < 30 && !(await isFirstFocused()); step++) await page.keyboard.press(reverseTab);
+    assert.ok(await isFirstFocused(), `${label}: reverse Tab must reach the first menu button`);
+    await page.keyboard.press(reverseTab);
+    assert.ok(await isReturnFocused(), `${label}: Shift+Tab from the first game button must reach the popup return`);
+    await page.keyboard.press(forwardTab);
+    await frame.waitForFunction(() => parent.document.activeElement === frameElement
+      && document.activeElement?.closest('[role="dialog"][aria-modal="true"]'));
+    for (let step = 0; step < 30 && !(await isReturnFocused()); step++) await page.keyboard.press(forwardTab);
+    assert.ok(await isReturnFocused(), `${label}: Tab from the last game button must reach the popup return`);
+    await screenshot(page, `${engine}-keyboard-${label}`);
+    await page.keyboard.press('Enter');
+    await expectClosed(page);
+    await page.waitForFunction(() => document.activeElement?.textContent?.trim() === '효산의 기억 시작하기');
+  }
+
+  try {
+    await page.goto(`${origin}/ip/aouad?s=hyosan`);
+    let frame = await openGame(page);
+    await leaveMenu(frame, 'start-menu');
+    await page.keyboard.press('Enter');
+    frame = await frameFor(page);
+    await frame.locator('[data-hyosan-ready="true"]').waitFor({ timeout: 90000 });
+    await frame.getByRole('button', { name: '여유롭게', exact: true }).click();
+    await frame.getByRole('button', { name: '탐험 시작', exact: true }).click();
+    await frame.getByRole('button', { name: '이야기 건너뛰기', exact: true }).click();
+    await page.keyboard.press('Escape');
+    await frame.locator('[data-hyosan-3d-state="paused"]').waitFor();
+    await leaveMenu(frame, 'pause-menu');
+    assert.deepEqual(errors, []);
+    results.push({ group: `${engine}-keyboard-menu-and-pause-return`, status: 'passed', forwardTab, reverseTab });
+  } catch (error) {
+    await screenshot(page, `${engine}-keyboard-failure`).catch(() => {});
+    results.push({ group: `${engine}-keyboard-menu-and-pause-return`, status: 'failed', message: error.message, errors });
+  } finally {
+    await context.close();
+  }
+}
+
 async function mobile(browser, engine, viewport) {
   const context = await browser.newContext({ viewport, hasTouch: true, isMobile: true, deviceScaleFactor: 1 });
   const page = await context.newPage();
@@ -293,6 +350,7 @@ for (const [name, engine] of [['chromium', chromium], ['webkit', webkit]]) {
   const browser = await engine.launch({ headless: true });
   try {
     if (name === 'chromium' && (!selectedGroup || selectedGroup === 'desktop')) await desktop(browser);
+    if (!selectedGroup || selectedGroup === 'keyboard') await keyboardReturn(browser, name);
     for (const viewport of selectedGroup && selectedGroup !== 'mobile' ? [] : [{ width: 390, height: 844 }, { width: 844, height: 390 }, { width: 320, height: 568 }]) {
       await mobile(browser, name, viewport);
     }

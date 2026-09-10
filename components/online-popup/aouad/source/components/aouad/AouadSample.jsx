@@ -3445,8 +3445,9 @@ export default function AouadSample() {
   const [overlay, setOverlay] = useState(null); // local presentation dialogs
   const [hyosanOpen, setHyosanOpen] = useState(false);
   const hyosanReturnFocusRef = useRef(null);
-  const openHyosan = useCallback(() => {
-    const active = typeof document !== "undefined" ? document.activeElement : null;
+  const openHyosan = useCallback((event) => {
+    // Safari does not focus a button on pointer click; remember the actual launcher.
+    const active = event?.currentTarget ?? (typeof document !== "undefined" ? document.activeElement : null);
     hyosanReturnFocusRef.current = active instanceof HTMLElement ? active : null;
     setHyosanOpen(true);
   }, []);

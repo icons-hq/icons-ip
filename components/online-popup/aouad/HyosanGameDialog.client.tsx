@@ -20,6 +20,8 @@ function hasGameRendererMarker(frame: HTMLIFrameElement | null) {
 
 export function HyosanGameDialog({ onClose }: { onClose: () => void }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
+  const returnButtonRef = useRef<HTMLButtonElement>(null);
+  const keyboardCleanupRef = useRef<(() => void) | null>(null);
   const timeoutRef = useRef<number | null>(null);
   const pollRef = useRef<number | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -32,28 +34,58 @@ export function HyosanGameDialog({ onClose }: { onClose: () => void }) {
     pollRef.current = null;
   }, []);
 
+  const detachKeyboardBridge = useCallback(() => {
+    keyboardCleanupRef.current?.();
+    keyboardCleanupRef.current = null;
+  }, []);
+
   useEffect(() => {
     clearPendingChecks();
     timeoutRef.current = window.setTimeout(() => {
       clearPendingChecks();
       setStatus('failed');
     }, LOAD_TIMEOUT_MS);
-    return clearPendingChecks;
-  }, [attempt, clearPendingChecks]);
+    return () => {
+      clearPendingChecks();
+      detachKeyboardBridge();
+    };
+  }, [attempt, clearPendingChecks, detachKeyboardBridge]);
 
   const handleLoad = useCallback(() => {
-    // The iframe load event only proves that its document loaded. The game
-    // surface becomes available after the embedded app exposes its ready marker.
+    detachKeyboardBridge();
+    let frameDocument: Document | null = null;
+    try { frameDocument = frameRef.current?.contentDocument ?? null; } catch { /* Failed document load. */ }
+    if (frameDocument) {
+      const gameDocument = frameDocument;
+      const onKeyDown = (event: KeyboardEvent) => {
+        if (event.key !== 'Tab' || event.ctrlKey || event.metaKey) return;
+        const active = gameDocument.activeElement;
+        const menu = active?.closest('[role="dialog"][aria-modal="true"]');
+        const returnButton = returnButtonRef.current;
+        if (!menu || !returnButton) return;
+        const buttons = [...menu.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')];
+        const boundary = event.shiftKey ? buttons[0] : buttons.at(-1);
+        if (active !== boundary && active !== menu) return;
+        // Extend the game's menu focus loop to the host dialog's return action.
+        // Capture runs before the original menu's React Tab handler; Escape stays in the game.
+        event.preventDefault();
+        event.stopPropagation();
+        returnButton.focus();
+      };
+      gameDocument.addEventListener('keydown', onKeyDown, true);
+      keyboardCleanupRef.current = () => gameDocument.removeEventListener('keydown', onKeyDown, true);
+    }
+
+    // Document load is not enough: wait for the app root, including its recovery UI.
     if (pollRef.current !== null) window.clearInterval(pollRef.current);
     const check = () => {
-      if (hasGameRendererMarker(frameRef.current)) {
-        clearPendingChecks();
-        setStatus('loaded');
-      }
+      if (!hasGameRendererMarker(frameRef.current)) return false;
+      clearPendingChecks();
+      setStatus('loaded');
+      return true;
     };
-    check();
-    if (status !== 'loaded') pollRef.current = window.setInterval(check, READY_POLL_MS);
-  }, [clearPendingChecks, status]);
+    if (!check()) pollRef.current = window.setInterval(check, READY_POLL_MS);
+  }, [clearPendingChecks, detachKeyboardBridge]);
 
   const handleError = useCallback(() => {
     clearPendingChecks();
@@ -74,7 +106,7 @@ export function HyosanGameDialog({ onClose }: { onClose: () => void }) {
             <span>HYOSAN MEMORIES / 3D SURVIVAL</span>
             <h1>효산의 기억</h1>
           </div>
-          <button autoFocus className={styles.returnButton} onClick={onClose} type="button">
+          <button ref={returnButtonRef} autoFocus className={styles.returnButton} onClick={onClose} type="button">
             팝업으로 돌아가기
           </button>
         </header>

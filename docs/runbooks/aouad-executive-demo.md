@@ -25,13 +25,18 @@ ICONS_AOUAD_LOCAL_PREVIEW=1 npm run dev -- --hostname 127.0.0.1 --port 4312
 
 체험존의 마지막 장면 `/ip/aouad?s=hyosan`에서 **효산의 기억 시작하기**를 누른다. 체험존 순서는 급식실 → 방송실 → 도서관 → 효산의 기억이다. 첫 방문자는 이 직접 링크로 들어오면 기존 학생증 오프닝을 마친 뒤 같은 장면으로 도착한다. 게임은 같은 origin의 전체 화면 iframe으로 열리며 **팝업으로 돌아가기**로 닫는다. 실행 전에는 게임 엔진·모델을 요청하지 않는다. 기존 세 미니게임과 팝업의 학생증·상품·시연 기록은 유지한다.
 
+게임 메뉴의 첫 버튼에서 `Shift+Tab`, 마지막 버튼에서 `Tab`을 누르면 상단 **팝업으로 돌아가기**로 이동하고 `Enter`로 닫을 수 있다. 게임 안의 일반 `Escape`는 일시정지 동작을 유지하며, 일시정지 메뉴에서도 같은 키보드 복귀 경로를 사용한다. 닫힌 뒤 포커스는 원래 시작 버튼으로 돌아간다.
+
+macOS Safari의 기본 키보드 탐색에서는 버튼 이동에 `Option+Tab`·`Option+Shift+Tab`을 사용할 수 있고 이 조합도 같은 복귀 경로를 따른다. Safari의 “Tab 키로 웹 페이지의 각 항목 강조 표시” 설정에 따른 차이는 [Apple 단축키 안내](https://support.apple.com/guide/safari/cpsh003/mac)를 참고한다. 브라우저 검사는 사용자 설정을 바꾸지 않는다.
+
 선택된 게임은 `88b9937a118120f60ef5166b66e5c370fc292b3a`의 S1–S8 연결 학교 탐험·활 전투 시연판이다. 기존 원본의 최종 미술 승인과 실제 휴대폰 성능 검증은 이식으로 완료 처리하지 않는다. 원본 소스 109파일과 재빌드 설정은 `components/online-popup/aouad/hyosan/upstream-source.tar.gz`에 보관하며, 승인 기록이나 원본 모델을 수정하지 않는다.
 
 ### 파일 제공과 회수
 
 - `private/ip-popups/aouad-hyosan/`의 50파일은 약 98.77MB다. 공개 요청 키는 `package-manifest.json`의 HTML·JS·CSS·미디어 18개뿐이며 원본 manifest·소스 보관본·압축 디렉터리는 직접 요청할 수 없다.
 - `/ip-popups/aouad/hyosan/[...asset]`의 GET·HEAD는 문서·엔진·미디어 모두 `canViewAouadPopup()`을 먼저 확인한다. 기존 `AOUAD_POPUP_PUBLIC`·`AOUAD_POPUP_ENABLED`로 함께 회수한다. 다운로드되어 이미 실행 중인 문서의 즉시 종료까지 보장하는 스위치는 아니다.
-- `Accept-Encoding`에 따라 Brotli/gzip·identity를 선택하고 `Vary: Cookie, Accept-Encoding`·`private, no-store`·`noindex`로 응답한다. 엔진 JS의 Brotli 전송량은 1,412,926 bytes이며 모델도 미리 압축한다. 큰 파일은 메모리 응답으로 합치지 않고 스트리밍한다.
+- `Accept-Encoding`에 따라 Brotli/gzip·identity를 선택하고 `Vary: Cookie, Accept-Encoding`·`private, no-store`·`noindex`로 응답한다. 패키지에 보관한 엔진 JS의 Brotli 압축본은 1,412,926 bytes이며 모델도 미리 압축한다. 큰 파일은 메모리 응답으로 합치지 않고 스트리밍한다.
+- 원격 전송에는 [Vercel CDN 압축](https://vercel.com/docs/how-vercel-cdn-works/compression)이 추가로 관여한다. 2026-09-10 Preview에서는 Brotli 16개 응답의 전송 바이트가 사전 압축본과 달랐지만, 50개 identity/Brotli/gzip 응답을 각각 해제한 원본 크기·SHA는 모두 일치했다. 당시 실제 Brotli 전송량은 JS 1,642,992 bytes, 최대 학교 모델 11,196,289 bytes였으며 스트림이 끝까지 도착했다. 배포 검증은 실제 `Content-Encoding`·전송 크기·전송 SHA를 별도로 기록하고, 압축 해제 후 `package-manifest.json`의 원본 크기·SHA와 비교한다. CDN 전송량을 사전 압축 파일의 크기로 단정하지 않는다.
 - Next 출력 추적은 기존 팝업 미디어 함수와 게임 패키지 함수를 분리한다. includes/excludes 모두 실제 동적 route의 대괄호를 escape한 키를 사용한다. Next matcher의 `contains: true`에서는 부모 경로의 단순 `*`가 게임 경로에도 적용되므로 이를 넓히지 않는다. `public/` 복사나 `/api/dev/hyosan-3d/` 공개로 대체하지 않는다.
 - `/games/hyosan-memories`·카드·리워드·계정별 진행·DB 권한은 이번 통합의 대상이 아니다. 이 게임은 브라우저 저장으로만 동작한다.
 
@@ -60,13 +65,14 @@ npm run package:aouad-hyosan -- --source-directory "$hyosan_rebuild_dir/output/h
 ```bash
 npx vitest run lib/aouad-hyosan-assets.server.test.ts scripts/package-aouad-hyosan.test.mjs
 AOUAD_QA_ORIGIN=http://127.0.0.1:4314 npm run test:aouad-hyosan-browser
+AOUAD_QA_ORIGIN=http://127.0.0.1:4314 AOUAD_QA_GROUP=keyboard npm run test:aouad-hyosan-browser
 AOUAD_QA_ORIGIN=http://127.0.0.1:4314 npm run test:aouad-mobile-browser
 npm run typecheck
 npm run lint
 npm run build
 ```
 
-게임 브라우저 검사는 별도 저장 컨텍스트에서 첫 방문·진입 전 지연 로딩·실제 WASD/J/E·다중 탭 저장 보호·팝업 복귀·좁은 화면을 확인한다. 개발 QA driver나 시뮬레이션 좌표를 조작하지 않는다. 브라우저 출력 폴더의 `results.json`과 스크린샷으로 검증 범위를 확인하며, viewport 에뮬레이션은 실제 iPhone·카카오톡의 GPU·터치·발열 검사와 구분한다. 배포 시에는 해당 산출물의 최종 SHA, 공개/회수 동작, Brotli 해제 후 실제 HTTP 바이트를 다시 확인한다.
+게임 브라우저 검사는 별도 저장 컨텍스트에서 첫 방문·진입 전 지연 로딩·실제 WASD/J/E·다중 탭 저장 보호·팝업 복귀·좁은 화면을 확인한다. `keyboard` 그룹은 Chromium·WebKit의 실제 게임 시작/일시정지 메뉴에서 양방향 Tab 이동·Enter 복귀·포커스 복원을 확인한다. 개발 QA driver나 시뮬레이션 좌표를 조작하지 않는다. 브라우저 출력 폴더의 `results.json`과 스크린샷으로 검증 범위를 확인하며, viewport 에뮬레이션은 실제 iPhone·카카오톡의 GPU·터치·발열 검사와 구분한다. 배포 시에는 해당 산출물의 최종 SHA, 공개/회수 동작, Brotli 해제 후 실제 HTTP 바이트를 다시 확인한다.
 
 ### 통합 검증 기록
 
@@ -85,6 +91,8 @@ npm run build
 | 원본 재현 | 소스 보관본 복원·npm ci·Vite 빌드 후 원본 manifest와 45개 산출물 동일 |
 
 진입 시 게임 파일 요청 0건, 렌더러 마운트 전 오류 안내와 재시도, 내부 저장 복구 버튼의 실제 클릭, 닫기 후 iframe 제거·Web Lock 반환·원래 CTA focus·학생증 저장 보존을 확인했다. 실제 게임 조사는 화면에 노출된 미니맵 위치를 읽어 WASD를 누르는 방식이며 좌표·HP·진행을 직접 설정하지 않았다. 시연 초보자의 전 구역 완주율과 실기기 카카오톡 검수는 이번 통합 검증에 포함하지 않았다.
+
+PR #497 리뷰 후 준비 완료 시 남던 폴링을 제거하고 게임 메뉴의 키보드 복귀 경로를 보완했다. 추가 집중 테스트 8개와 Chromium·WebKit의 시작/일시정지 메뉴 키보드 검사 2개가 통과했다. Safari의 포인터 클릭이 버튼에 포커스를 주지 않아도 실제 시작 버튼을 복귀 대상으로 보관한다. 두 엔진의 저장 실패·다운로드 실패 복구 4개 검사와 수정 후 lint·production build도 통과했다.
 
 ## 이미지와 검수
 
