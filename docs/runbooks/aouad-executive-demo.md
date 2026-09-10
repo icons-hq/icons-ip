@@ -84,4 +84,4 @@ Vercel Git 자동 배포는 비활성화되어 있다. 일반 PR의 `validate`·
 3. 화면의 시연 표기, 네이티브 대화상자 초점·Escape, 숨긴 패널의 키보드 제외, 오류 없는 네트워크/콘솔을 확인한다. 시연 행동으로 실제 거래 API가 호출되지 않아야 한다.
 4. 배포 SHA와 canonical alias를 확인하고 새 이미지 23종의 실제 HTTP bytes를 manifest의 최종 SHA와 대조한다. 실제 Preview/production 실행 결과는 연결된 PR의 배포 체크와 완료 기록으로 남긴다.
 
-이 문서의 수치는 로컬 검증 기록이다. [PR #458](https://github.com/icons-hq/icons-ip/pull/458)의 최신 head 체크와 merge 이후 main Actions, 작업 완료 기록에서 실제 배포·read-back 결과를 확인한다.
+이 문서의 수치는 로컬 검증 기록이다. 초기 통합은 [PR #458](https://github.com/icons-hq/icons-ip/pull/458), 공개 전환·모바일 수정은 [PR #459](https://github.com/icons-hq/icons-ip/pull/459)의 최신 head 체크와 merge 이후 main Actions, 작업 완료 기록에서 실제 배포·read-back 결과를 확인한다.

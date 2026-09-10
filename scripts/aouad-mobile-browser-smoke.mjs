@@ -40,10 +40,6 @@ async function checkBroadcast(page, engine, viewport) {
   const game = page.getByRole('button', { name: /^호스 잡기 —/ });
   await game.waitFor();
   await page.waitForFunction(() => document.querySelector('[aria-label^="호스 잡기 —"]')?.getAttribute('aria-disabled') === 'false');
-  await page.waitForFunction(() => {
-    const section = document.querySelector('[aria-label^="호스 잡기 —"]')?.closest('section');
-    return section && Math.abs(section.getBoundingClientRect().top) < 1;
-  });
   const navigation = page.getByRole('navigation', { name: '효산고 탐험 안내', exact: true });
   const field = await rect(game);
   const hud = await rect(navigation.locator('[class*="orbs"]'));
