@@ -216,12 +216,41 @@ async function checkFirstVisit(browser, engine) {
   }
 }
 
+async function checkHudResize(browser, engine) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 });
+  try {
+    await context.addInitScript((state) => localStorage.setItem('icons:aouad-presentation:v1', JSON.stringify(state)), fixture);
+    const page = await context.newPage();
+    await page.goto(`${origin}/ip/aouad?zone=store`);
+    await page.getByRole('button', { name: /안내 펼치기$/ }).tap();
+    for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 568 }, { width: 390, height: 844 }]) {
+      await page.setViewportSize(viewport);
+      await page.waitForFunction(() => {
+        const panel = document.querySelector('nav[aria-label="효산고 탐험 안내"] > [class*="mid"]');
+        const scope = document.querySelector('[data-aouad-experience]');
+        if (!panel || !scope) return false;
+        const height = panel.getBoundingClientRect().height;
+        const cap = parseFloat(getComputedStyle(panel).maxHeight);
+        const reserved = parseFloat(scope.style.getPropertyValue('--hud-sheet'));
+        return Math.abs(height - cap) < 1 && Math.abs(reserved - height) < 1
+          && Math.abs(panel.getBoundingClientRect().bottom - panel.parentElement.getBoundingClientRect().bottom) < 1;
+      }, undefined, { timeout: 3000 });
+      await screenshot(page, `${engine}-${viewport.width}-resized-hud`);
+    }
+    results.push({ engine, status: 'passed', checks: ['open-hud-resize-and-restore'] });
+    console.log(`${engine} open HUD resize: passed`);
+  } finally {
+    await context.close();
+  }
+}
+
 try {
   for (const [engine, launcher] of [['chromium', chromium], ['webkit', webkit]]) {
     const browser = await launcher.launch({ headless: true, ...(engine === 'chromium' ? { channel: process.env.AOUAD_CHROMIUM_CHANNEL || 'chrome' } : {}) });
     try {
       for (const viewport of viewports) await checkMobile(browser, engine, viewport);
       await checkFirstVisit(browser, engine);
+      await checkHudResize(browser, engine);
     } finally {
       await browser.close();
     }

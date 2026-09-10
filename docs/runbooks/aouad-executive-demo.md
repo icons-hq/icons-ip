@@ -7,6 +7,7 @@
 - 2026-09-10 현재 기본값은 `AOUAD_POPUP_ENABLED=true`, `AOUAD_POPUP_PUBLIC=true`다. 비로그인·일반 회원·staff/admin 모두 `/ip`의 카드를 보고 `/ip/aouad`에 직접 들어가며, 전용 에셋 GET·HEAD·Range도 사용할 수 있다. Next.js의 스트리밍 응답은 HTTP 200일 수 있으므로 페이지 검증 때 상태 코드만 보지 않고 시연 본문·noindex를 함께 확인한다.
 - 서버 페이지·에셋의 공통 게이트는 `lib/aouad-popup.server.ts`의 `canViewAouadPopup()`이다. 공개 모드에서는 인증 전에 통과하고, `AOUAD_POPUP_PUBLIC=false`인 비공개 모드에서만 `getCurrentAdminAuthState()`의 정지되지 않은 staff/admin 판정을 사용한다. 디렉토리의 `is_staff` readback은 비공개 카드 노출용이며 서버 검사를 대신하지 않는다.
 - 공개 전환은 `lib/aouad-popup.ts`의 `AOUAD_POPUP_PUBLIC`을, 전체 회수는 `AOUAD_POPUP_ENABLED`를 변경한 뒤 같은 검증·배포 경로로 반영한다. 현재 공개 상태는 환경 변수로 우회하지 않으며, `AOUAD_POPUP_PUBLIC=false`로 되돌릴 때는 아래 비공개 접근 검증을 다시 적용한다.
+- 2026-09-10 PM이 현재 시연 스틸의 Netflix 검토용 공유에 대한 사용을 승인했다. 공개 모드는 페이지뿐 아니라 현재 시연의 이미지·영상도 익명으로 열며, `noindex`·`no-store`는 접근 통제가 아니다. 원본 권리 기록과 이번 시연 사용 승인 범위는 [모듈 README](../../components/online-popup/aouad/README.md#시연과-운영의-경계)에 구분해 둔다.
 - 페이지는 `force-dynamic`이고 `noindex, nofollow`다. 전용 화면의 ICONS 복귀 링크로 `/ip`에 돌아온다.
 - 이미지·영상·오디오·게임 JSON 229개는 `private/ip-popups/aouad/`에 둔다. 같은 URL의 `/ip-popups/aouad/[...asset]` Route Handler가 GET·HEAD마다 같은 공개·회수 스위치를 확인하므로 현재 공개 모드에서는 비로그인 요청도 통과한다. 비활성화·manifest 밖 경로·경로 탈출·symlink는 HTTP 404와 빈 본문으로 닫힌다. 모든 응답은 `private, no-store, max-age=0`이며 영상은 스트리밍과 단일 byte Range를 지원한다. 에셋을 `public`으로 복사하면 Route Handler의 allowlist·경로 보호를 우회하므로 금지한다. 새 파일은 `asset-index.json`의 크기·SHA와 생성 이미지 manifest를 함께 갱신한다.
 
@@ -64,6 +65,7 @@ ICONS_AOUAD_LOCAL_PREVIEW=1 npm run dev -- --hostname 127.0.0.1 --port 4312
 - 14개 메인 장면·10개 상세 존·37개 굿즈를 390×844와 320×568에서 확인했다. 122개 화면 진입과 74개 상품 행동 스크롤 검사에서 가로 넘침·이미지 누락·HUD와 행동의 겹침·앱 오류가 없었다.
 - 급식실·방송실·도서관을 두 엔진의 320×568·390×844에서 실제로 시작하고 입력했다. 12개 조합에서 학생증·안내 시트·학교 안내도의 각 열림 동안 게임 상태가 멈추고 닫으면 재개되는 것을 확인했다. 방송실의 표시 영역과 안내 시트·지도 중 정지·재개는 회귀 검사에도 포함한다.
 - 방송실은 두 엔진의 320px 폭에서 높이 540·568·600·601·640px 모두 세계 전체와 HUD가 겹치지 않았다. 390×844 → 320×568 → 390×844로 바꾼 뒤 표시 배율과 높이가 원래 값으로 복원됐고 터치 입력·앱 오류도 확인했다.
+- 펼친 안내 시트는 같은 모바일 구간 안의 폭·높이 변경도 다시 측정한다. 굿즈샵의 시트를 연 채 390×844 → 320×568 → 390×844 및 390px 폭에서 844 → 568 → 844로 바꿔 실제 높이·CSS 상한·예약 여백이 모두 422 → 284 → 422px로 일치하는 것을 두 엔진에서 확인했다. 모바일 여부는 CSS와 같은 미디어 쿼리를 따르고 상한은 실제 `50dvh` 계산값을 사용한다.
 - 로컬 production build의 테스트 결과다. 실제 아이폰 기기나 사용자의 광고 차단 설정을 원격으로 조작한 검증으로 표현하지 않는다. 운영 반영은 PR의 배포 결과와 실제 도메인 확인으로 별도 기록한다.
 
 회귀 검사는 설치된 Chrome과 Playwright WebKit 런타임을 사용한다. WebKit 준비가 필요하면 `node node_modules/playwright-core/cli.js install webkit`을 한 번 실행한다. 별도 터미널에서 `npm run build` 후 `npm run start -- --hostname 127.0.0.1 --port 4314`로 앱을 실행한 다음 검사한다.

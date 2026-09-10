@@ -206,14 +206,26 @@ export default function PopupHud({
   //    장 넘김 본문(pgView)은 자기 높이로 행 수를 재므로 내용 높이가 없다 → 상한을 그대로 준다(그 안에서 장을 나눈다).
   //    항목이 바뀌면(타임라인 ②→③ · 퀘스트→장바구니) 이전 높이에서 새 높이로 0.25s 전환. 데스크톱은 인라인 높이를 지운다 ──
   const midRef = useRef(null);
-  const [narrow, setNarrow] = useState(false);       // 640px 경계를 넘나들면 인라인 높이를 다시 판정(데스크톱은 지운다)
+  const [viewportSize, setViewportSize] = useState({ narrow: false, width: 0, height: 0 });
   useEffect(() => {
     if (typeof matchMedia !== "function") return undefined;
     const mql = matchMedia("(max-width: 640px)");
-    const on = () => setNarrow(mql.matches);
-    on(); mql.addEventListener("change", on); window.addEventListener("resize", on);   // resize 도 듣는다 — 에뮬레이션·회전에서 change 가 안 오는 경우
-    return () => { mql.removeEventListener("change", on); window.removeEventListener("resize", on); };
+    const visual = window.visualViewport;
+    const on = () => {
+      const next = { narrow: mql.matches, width: visual?.width ?? window.innerWidth, height: visual?.height ?? window.innerHeight };
+      setViewportSize((previous) => previous.narrow === next.narrow && previous.width === next.width && previous.height === next.height ? previous : next);
+    };
+    on();
+    mql.addEventListener("change", on);
+    window.addEventListener("resize", on);
+    visual?.addEventListener("resize", on);
+    return () => {
+      mql.removeEventListener("change", on);
+      window.removeEventListener("resize", on);
+      visual?.removeEventListener("resize", on);
+    };
   }, []);
+  const { narrow, width: viewportWidth, height: viewportHeight } = viewportSize;
   const mobileOverlayOpen = narrow && (sheetOn || orb === "zone");
   useLayoutEffect(() => {
     onMobileOverlayChange?.(mobileOverlayOpen);
@@ -244,7 +256,8 @@ export default function PopupHud({
     const prev = el.style.height;
     el.style.height = "auto";
     const auto = el.offsetHeight;
-    const cap = Math.round(window.innerHeight * 0.5);
+    const cssCap = Number.parseFloat(getComputedStyle(el).maxHeight);
+    const cap = Number.isFinite(cssCap) ? cssCap : Math.round((viewportHeight || window.innerHeight) * 0.5);
     // 무대에 시트 몫을 알린다 — 모바일 .stage 가 --hud 로 받아 하단 여백·토스트가 시트 위로 올라온다(v5.17). 닫히면 0
     const tell = (h) => scope.style.setProperty("--hud-sheet", sheetOn ? `${h}px` : "0px");
     if (paged) {
@@ -261,7 +274,7 @@ export default function PopupHud({
     void el.offsetHeight;                              // 이전 값으로 한 번 그린 뒤 전환이 걸린다
     el.style.height = `${target}px`;
     tell(target);
-  }, [narrow, bodyKey, paged, sheetOn, rowCount]);
+  }, [narrow, viewportWidth, viewportHeight, bodyKey, paged, sheetOn, rowCount]);
 
   return (
     <nav className={`${s.hud} ${sheetOn ? s.sheetCtx : ""}`} aria-label="효산고 탐험 안내">
