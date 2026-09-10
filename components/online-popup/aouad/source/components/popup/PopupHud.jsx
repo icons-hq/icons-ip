@@ -37,6 +37,7 @@ export default function PopupHud({
                    // key = 화면 식별자(바뀌면 장·세그 상태 리셋 · 알약 회전) · label = 「화면 · 내용」 칩 문구
   nav,             // { chapters: [..], sceneCountOf: [..], subScenes: [{ gi, t }], section, scene }
   onSection, onSceneJump, onReset,
+  onMobileOverlayChange, // optional parent pause seam for mobile context sheets and the map popover
   floorplan,       // ReactNode — 있으면 지도가 존 열의 유일 표면(v2.8 A안 · 데스크톱, 밴드 내 상시 고정판 — v3.6 호버 확대 폐지). 없으면 격자 폴백
   floorplanSheet,  // ReactNode? — 모바일 이동 팝오버 판(세로형 · v5.14 부활: 이동 원 바로 위에 뜨는 미니맵). 데스크톱은 상시판(floorplan) 하나뿐이다
   active = true,   // 허브 밖(존·상세)에서는 키보드 개입 금지
@@ -213,6 +214,11 @@ export default function PopupHud({
     on(); mql.addEventListener("change", on); window.addEventListener("resize", on);   // resize 도 듣는다 — 에뮬레이션·회전에서 change 가 안 오는 경우
     return () => { mql.removeEventListener("change", on); window.removeEventListener("resize", on); };
   }, []);
+  const mobileOverlayOpen = narrow && (sheetOn || orb === "zone");
+  useLayoutEffect(() => {
+    onMobileOverlayChange?.(mobileOverlayOpen);
+    return () => onMobileOverlayChange?.(false);
+  }, [mobileOverlayOpen, onMobileOverlayChange]);
   useEffect(() => {
     if (!narrow || orb !== "zone") return;
     const frame = requestAnimationFrame(() => {

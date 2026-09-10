@@ -34,11 +34,17 @@ export default function HoseDescent({ onFinish, enabled = true, paused = false }
     else viewRef.current?.focus({ preventScroll: true });
   }, [enabled, paused]);
   const viewRef = useRef(null);
-  const [k, setK] = useState(1);                              // 세계 → 화면 배율. 폭이 640 을 넘으면 그만큼, 좁으면 1.3 으로 두고 가운데만 보인다(사람이 작아지지 않게)
+  const [layout, setLayout] = useState({ height: VIEW_H, scale: 1 });
   useEffect(() => {
     const el = viewRef.current;
     if (!el) return undefined;
-    const ro = new ResizeObserver(([e]) => { const w = e.contentRect.width; setK(Math.max(w < WORLD_W ? 1.3 : 1, w / WORLD_W)); });   // 좁은 화면은 1.3 배로 키우고 가운데만 보인다(창 104 + 호스면 다 보인다) — 폰 한 화면(812)에 계약 카드와 같이 든다
+    const ro = new ResizeObserver(([e]) => {
+      const preferred = Math.max(e.contentRect.width < WORLD_W ? 1.3 : 1, e.contentRect.width / WORLD_W);
+      // 높이는 폭으로만 정한다. CSS가 확보한 실제 높이에 세계 전체를 맞춰 lead를 자르지 않는다.
+      const height = VIEW_H * preferred;
+      const scale = Math.min(preferred, e.contentRect.height / VIEW_H);
+      setLayout((previous) => previous.height === height && previous.scale === scale ? previous : { height, scale });
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -149,7 +155,7 @@ export default function HoseDescent({ onFinish, enabled = true, paused = false }
     : hud.phase === "idle" ? "누르면 잡는다" : null;
 
   return (
-    <div className={s.view} ref={viewRef} style={{ height: VIEW_H * k }}
+    <div className={s.view} ref={viewRef} style={{ height: layout.height }}
       onPointerDown={(e) => {
         if (!enabled || paused || e.button !== 0) return;
         e.preventDefault(); e.currentTarget.focus({ preventScroll: true });
@@ -164,7 +170,7 @@ export default function HoseDescent({ onFinish, enabled = true, paused = false }
       }}
       role="button" tabIndex={enabled && !paused ? 0 : -1} aria-disabled={!enabled || paused} aria-label="호스 잡기 — 스페이스 또는 엔터를 누르고 있으면 잡고, 놓으면 내려갑니다">
       {/* 세계 — 규칙 좌표계(640 폭) 그대로 그리고 배율만 건다. 카메라(translateY)는 그 안에서 돈다 */}
-      <div className={s.world} style={{ width: WORLD_W, height: VIEW_H, transform: `scale(${k})` }}>
+      <div className={s.world} style={{ width: WORLD_W, height: VIEW_H, transform: `scale(${layout.scale})` }}>
         <div className={s.shaft} ref={shaftRef} style={{ height: bottomY() + VIEW_H }}>
           <div className={s.roof} />
           <div className={s.ground} style={{ top: bottomY() }} />

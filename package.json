@@ -14,6 +14,7 @@
     "typecheck": "next typegen && tsc --project tsconfig.test.json --noEmit --incremental false",
     "test": "vitest run",
     "test:hyosan-g1-browser": "node scripts/hyosan-g1-browser-smoke.mjs",
+    "test:aouad-mobile-browser": "node scripts/aouad-mobile-browser-smoke.mjs",
     "test:goods-payment-local-integration": "bash supabase/tests/goods_payment_route_integration.sh",
     "hong-sil:download": "node scripts/hong-sil-downloader.mjs",
     "hyosan:assets:g2": "node scripts/asset-pipeline/index.mjs",

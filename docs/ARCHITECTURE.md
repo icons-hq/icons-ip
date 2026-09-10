@@ -53,7 +53,7 @@
 
 라우팅 재정의(S8, ADR-0011): `/events`는 **캠페인 허브**이고 오프라인 팝업 예매는 `/offline-popups`로 이사했다. `/events/[eventId]`는 캠페인 → 오프라인 팝업 순으로 조회해, 캠페인이 없으면 저장·공유된 옛 팝업 딥링크를 쿼리까지 보존한 채 `/offline-popups/[eventId]`로 `permanentRedirect`한다.
 
-지우학 프레젠테이션은 고정 전용 경로 `/ip/aouad`로 통합한다. 기본은 staff/admin 전용이며 `lib/aouad-popup.server.ts`가 어드민과 같은 정지 계정 제외 권한을 매 요청 확인한다. `AOUAD_POPUP_ENABLED`는 전체 회수, `AOUAD_POPUP_PUBLIC`은 공개 전환을 서버·디렉토리 양쪽에 적용하고, 디렉토리 카드는 기존 `is_staff` readback을 공유한다. 로컬 QA 우회는 `NODE_ENV=development`와 `ICONS_AOUAD_LOCAL_PREVIEW=1`을 모두 요구하므로 Preview/production에서는 작동하지 않는다. 페이지는 동적·noindex이고, 화면·게임·샘플 굿즈 상태는 별도 클라이언트 모듈에서만 처리하며 카탈로그 DB·실주문·결제·예약·리워드에는 연결하지 않는다. 공용 셸은 `isStandaloneShellPath`로 함께 숨긴다.
+지우학 프레젠테이션은 고정 전용 경로 `/ip/aouad`로 통합한다. 현재 기본은 공개(`AOUAD_POPUP_ENABLED=true`, `AOUAD_POPUP_PUBLIC=true`)이며 로그인 없이 `/ip`의 카드, `/ip/aouad` 직접 진입, 전용 에셋 Route Handler를 사용할 수 있다. `lib/aouad-popup.server.ts`의 공개 분기는 페이지와 디렉토리 카드·GET/HEAD/Range 에셋에 함께 적용되고, `AOUAD_POPUP_ENABLED`는 전체 회수 스위치다. `AOUAD_POPUP_PUBLIC=false`인 비공개 모드에서는 서버가 어드민과 같은 정지 계정 제외 staff/admin 권한을 확인하고 디렉토리 카드는 `is_staff` readback으로 노출한다. 로컬 QA 우회는 `NODE_ENV=development`와 `ICONS_AOUAD_LOCAL_PREVIEW=1`을 모두 요구하므로 Preview/production에서는 작동하지 않는다. 페이지는 동적·noindex이고, 화면·게임·샘플 굿즈 상태는 별도 클라이언트 모듈에서만 처리하며 카탈로그 DB·실주문·결제·예약·리워드에는 연결하지 않는다. 공용 셸은 `isStandaloneShellPath`로 함께 숨긴다.
 
 ---
 
