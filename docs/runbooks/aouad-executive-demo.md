@@ -4,11 +4,12 @@
 
 ## 접근과 회수
 
-- 기본값은 `AOUAD_POPUP_ENABLED=true`, `AOUAD_POPUP_PUBLIC=false`다. 정지되지 않은 staff/admin만 `/ip`의 카드를 보고 `/ip/aouad`에 들어간다. 비로그인·일반 회원의 직접 진입은 `notFound()`로 차단한다. Next.js의 스트리밍 응답은 HTTP 200일 수 있으므로 검증할 때 상태 코드만 보지 않고 not-found 화면·시연 본문 부재·noindex를 함께 확인한다.
-- 서버 권한은 `lib/aouad-popup.server.ts`의 `getCurrentAdminAuthState()` 검사다. 디렉토리의 `is_staff` readback은 노출용이며 서버 검사를 대신하지 않는다.
-- 공개 전환은 `lib/aouad-popup.ts`의 `AOUAD_POPUP_PUBLIC`을, 전체 회수는 `AOUAD_POPUP_ENABLED`를 변경한 뒤 같은 검증·배포 경로로 반영한다. 비공개 기본값을 환경 변수로 우회하지 않는다.
+- 2026-09-10 현재 기본값은 `AOUAD_POPUP_ENABLED=true`, `AOUAD_POPUP_PUBLIC=true`다. 비로그인·일반 회원·staff/admin 모두 `/ip`의 카드를 보고 `/ip/aouad`에 직접 들어가며, 전용 에셋 GET·HEAD·Range도 사용할 수 있다. Next.js의 스트리밍 응답은 HTTP 200일 수 있으므로 페이지 검증 때 상태 코드만 보지 않고 시연 본문·noindex를 함께 확인한다.
+- 서버 페이지·에셋의 공통 게이트는 `lib/aouad-popup.server.ts`의 `canViewAouadPopup()`이다. 공개 모드에서는 인증 전에 통과하고, `AOUAD_POPUP_PUBLIC=false`인 비공개 모드에서만 `getCurrentAdminAuthState()`의 정지되지 않은 staff/admin 판정을 사용한다. 디렉토리의 `is_staff` readback은 비공개 카드 노출용이며 서버 검사를 대신하지 않는다.
+- 공개 전환은 `lib/aouad-popup.ts`의 `AOUAD_POPUP_PUBLIC`을, 전체 회수는 `AOUAD_POPUP_ENABLED`를 변경한 뒤 같은 검증·배포 경로로 반영한다. 현재 공개 상태는 환경 변수로 우회하지 않으며, `AOUAD_POPUP_PUBLIC=false`로 되돌릴 때는 아래 비공개 접근 검증을 다시 적용한다.
+- 2026-09-10 PM이 현재 시연 스틸의 Netflix 검토용 공유에 대한 사용을 승인했다. 공개 모드는 페이지뿐 아니라 현재 시연의 이미지·영상도 익명으로 열며, `noindex`·`no-store`는 접근 통제가 아니다. 원본 권리 기록과 이번 시연 사용 승인 범위는 [모듈 README](../../components/online-popup/aouad/README.md#시연과-운영의-경계)에 구분해 둔다.
 - 페이지는 `force-dynamic`이고 `noindex, nofollow`다. 전용 화면의 ICONS 복귀 링크로 `/ip`에 돌아온다.
-- 이미지·영상·오디오·게임 JSON 229개는 `private/ip-popups/aouad/`에 둔다. 같은 URL의 `/ip-popups/aouad/[...asset]` Route Handler가 GET·HEAD마다 같은 권한과 회수 스위치를 확인하며, 거부는 HTTP 404와 빈 본문이다. 모든 응답은 `private, no-store, max-age=0`이며 영상은 스트리밍과 단일 byte Range를 지원한다. 에셋을 `public`으로 복사하면 권한을 우회하므로 금지한다. 새 파일은 `asset-index.json`의 크기·SHA와 생성 이미지 manifest를 함께 갱신한다.
+- 이미지·영상·오디오·게임 JSON 229개는 `private/ip-popups/aouad/`에 둔다. 같은 URL의 `/ip-popups/aouad/[...asset]` Route Handler가 GET·HEAD마다 같은 공개·회수 스위치를 확인하므로 현재 공개 모드에서는 비로그인 요청도 통과한다. 비활성화·manifest 밖 경로·경로 탈출·symlink는 HTTP 404와 빈 본문으로 닫힌다. 모든 응답은 `private, no-store, max-age=0`이며 영상은 스트리밍과 단일 byte Range를 지원한다. 에셋을 `public`으로 복사하면 Route Handler의 allowlist·경로 보호를 우회하므로 금지한다. 새 파일은 `asset-index.json`의 크기·SHA와 생성 이미지 manifest를 함께 갱신한다.
 
 ## 로컬 시연
 
@@ -51,16 +52,39 @@ ICONS_AOUAD_LOCAL_PREVIEW=1 npm run dev -- --hostname 127.0.0.1 --port 4312
 - 네 뽑기 방식의 정확한 상품·보관함 복원, G1 세 칸 동시 개봉, G2 10회 뒤 한도와 잔여 70의 새로고침·회차 전환 복원, 배송 신청 1건의 주문 내역 반영을 실제 UI로 확인했다. G3에서는 확인 직후 결과 연출 중 학교 맵으로 나간 다음 새로고침한 보관함에 새 결과가 유지됐다.
 - 일일 한도는 시연 카운트다운과 무관한 실제 KST 자정 기준으로 회차별 10회다. 자정에도 열린 칸은 복원되지 않는다. 시연 상태 초기화만 네 판을 새로 만든다. 이 기록은 실제 결제·경품 배정·배송의 운영 원장이 아니다.
 
+## 모바일 브라우저 검증 — 2026-09-10
+
+아이폰의 오프라인 포스터 누락·배지 겹침은 광고 차단 없이 WebKit에서 재현됐다. 배경만 있는 grid 자식의 폭이 미정이라 포스터가 약 3×2px로 축소됐고, 모바일 폭을 명시한 뒤 390px 화면에서 약 346×231px로 복구됐다. 이미지가 늦게 오거나 실패해도 레이아웃 크기는 이미지에 의존하지 않는다.
+
+함께 보정한 범위는 설명의 첫 터치·화면 안 배치, 학생증 패널 닫기의 탭 레일 분리, 주문 미리보기 행, 짧은 화면의 첫 방문 대화, 펼친 HUD에 따른 본문 여백, 굿즈 상세 행동의 음수 여백이다. 모바일 예약 폼은 Safari의 스크롤 스냅이 마지막 버튼을 HUD 아래로 되감지 않도록 자유 스크롤을 사용한다. 학생증의 3D 양면은 WebKit 실제 창에서도 교차 확인했다. 게임 위에 모바일 안내 시트·학교 안내도가 열리면 기존 게임 일시정지 경로에 연결되며, 가려진 상태로 게임이 진행되지 않아야 한다.
+
+방송실은 모바일 화면의 높이에서 머리 영역과 HUD 몫을 뺀 크기 안에 세계 전체를 같은 비율로 맞춘다. 프레임의 희망 높이는 가로 폭으로 정하고 실제 세계 배율은 ResizeObserver가 측정한 내부 높이로 정하므로 화면 회전·주소창 높이 변화에도 세계를 자르거나 크기 계산을 순환하지 않는다. 게임 좌표·물리·내려다보는 거리는 변경하지 않는다.
+
+- Chromium·WebKit 각각 320×568, 375×667, 390×844, 440×956에서 포스터·설명·모달·주문·HUD·굿즈 행동을 검사한다. 현장 예약은 HUD를 접은 상태와 펼친 상태 모두에서 확정·변경 버튼의 접근성을 확인한다.
+- 새 브라우저의 첫 방문에서 이름·사진 선택 → 학생증 → 원래 오프라인 팝업 딥링크 복귀를 확인했다. 높이 360px의 짧은 viewport에서도 안내 시작점과 입력/완료 동선을 확인했다.
+- 14개 메인 장면·10개 상세 존·37개 굿즈를 390×844와 320×568에서 확인했다. 122개 화면 진입과 74개 상품 행동 스크롤 검사에서 가로 넘침·이미지 누락·HUD와 행동의 겹침·앱 오류가 없었다.
+- 급식실·방송실·도서관을 두 엔진의 320×568·390×844에서 실제로 시작하고 입력했다. 12개 조합에서 학생증·안내 시트·학교 안내도의 각 열림 동안 게임 상태가 멈추고 닫으면 재개되는 것을 확인했다. 방송실의 표시 영역과 안내 시트·지도 중 정지·재개는 회귀 검사에도 포함한다.
+- 방송실은 두 엔진의 320px 폭에서 높이 540·568·600·601·640px 모두 세계 전체와 HUD가 겹치지 않았다. 390×844 → 320×568 → 390×844로 바꾼 뒤 표시 배율과 높이가 원래 값으로 복원됐고 터치 입력·앱 오류도 확인했다.
+- 펼친 안내 시트는 같은 모바일 구간 안의 폭·높이 변경도 다시 측정한다. 굿즈샵의 시트를 연 채 390×844 → 320×568 → 390×844 및 390px 폭에서 844 → 568 → 844로 바꿔 실제 높이·CSS 상한·예약 여백이 모두 422 → 284 → 422px로 일치하는 것을 두 엔진에서 확인했다. 모바일 여부는 CSS와 같은 미디어 쿼리를 따르고 상한은 실제 `50dvh` 계산값을 사용한다.
+- 로컬 production build의 테스트 결과다. 실제 아이폰 기기나 사용자의 광고 차단 설정을 원격으로 조작한 검증으로 표현하지 않는다. 운영 반영은 PR의 배포 결과와 실제 도메인 확인으로 별도 기록한다.
+
+회귀 검사는 설치된 Chrome과 Playwright WebKit 런타임을 사용한다. WebKit 준비가 필요하면 `node node_modules/playwright-core/cli.js install webkit`을 한 번 실행한다. 별도 터미널에서 `npm run build` 후 `npm run start -- --hostname 127.0.0.1 --port 4314`로 앱을 실행한 다음 검사한다.
+
+```bash
+npm run test:aouad-mobile-browser
+```
+
+다른 실행 주소는 `AOUAD_QA_ORIGIN`으로, 증거 저장 위치는 `AOUAD_QA_OUTPUT_DIR`로 지정한다. 기본 주소는 `http://127.0.0.1:4314`이고 기본 출력은 OS 임시 디렉터리다. 검사에서 쓰는 이름·사진·장바구니는 각 브라우저 컨텍스트의 시연 fixture이며 운영 계정·주문·결제·예약 원장은 변경하지 않는다.
+
 ## 배포와 실제 도메인 확인
 
 Vercel Git 자동 배포는 비활성화되어 있다. 일반 PR의 `validate`·Supabase Preview·Vercel Preview 성공 및 현재 head의 리뷰 결과를 확인한 뒤 승인 범위에서 merge한다. `main` Actions의 production DB·Vercel·shared Preview·staging 결과까지 확인한다. 이 작업은 DB migration을 추가하지 않는다.
 
 배포 후에는 실제 `https://iconsip.com`에서 다음을 확인한다.
 
-1. 비로그인·일반 회원은 시연 카드가 없고 `/ip/aouad`는 차단된다. staff/admin은 `/ip`에서 시연에 진입한다.
-   에셋 직접 URL의 GET·HEAD·Range도 비로그인·일반 회원은 404여야 한다. staff의 실제 이미지·Phaser 에셋·오디오·영상 재생 및 seek를 확인한다.
+1. 현재 공개 모드에서는 비로그인 상태에서 `/ip`에 시연 카드가 보이고 `/ip/aouad` 직접 진입이 성공하는지 확인한다. 에셋 직접 URL의 GET·HEAD·Range도 비로그인 상태에서 성공하고, 실제 이미지·Phaser 에셋·오디오·영상 재생 및 seek가 동작하는지 확인한다. `AOUAD_POPUP_PUBLIC=false`인 비공개 배포에서는 이 검증을 비로그인·일반 회원 404, staff/admin 성공으로 바꾼다.
 2. 데스크톱·모바일의 첫 방문, 모든 장/존 이동, 상품 옵션·장바구니·주문 체험, 학생증·퀘스트, 세 게임, 네 뽑기 방식, 현장 예약 체험, 뒤로가기·새로고침·초기화를 확인한다.
 3. 화면의 시연 표기, 네이티브 대화상자 초점·Escape, 숨긴 패널의 키보드 제외, 오류 없는 네트워크/콘솔을 확인한다. 시연 행동으로 실제 거래 API가 호출되지 않아야 한다.
 4. 배포 SHA와 canonical alias를 확인하고 새 이미지 23종의 실제 HTTP bytes를 manifest의 최종 SHA와 대조한다. 실제 Preview/production 실행 결과는 연결된 PR의 배포 체크와 완료 기록으로 남긴다.
 
-이 문서의 수치는 로컬 검증 기록이다. [PR #458](https://github.com/icons-hq/icons-ip/pull/458)의 최신 head 체크와 merge 이후 main Actions, 작업 완료 기록에서 실제 배포·read-back 결과를 확인한다.
+이 문서의 수치는 로컬 검증 기록이다. 초기 통합은 [PR #458](https://github.com/icons-hq/icons-ip/pull/458), 공개 전환·모바일 수정은 [PR #459](https://github.com/icons-hq/icons-ip/pull/459)의 최신 head 체크와 merge 이후 main Actions, 작업 완료 기록에서 실제 배포·read-back 결과를 확인한다.

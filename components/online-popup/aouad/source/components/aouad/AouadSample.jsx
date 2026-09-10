@@ -726,7 +726,7 @@ const SECTION_INTRO = {
   rooftop: { text: `${SECTION_LEAD.rooftop} 옥상까지 완주하면 학생증 각인판과 모닥불 오르골 구매권이 함께 열립니다.`, detail: "rooftop" },
 };
 
-function AouadHud({ st, section, scene, zone, product, modal, onSection, onSceneJump, onReset, go, openProduct, update, onCheckout, onClaimWin, onOpenInfo, flyRef, tlPick, libPane = null, libLive = {}, band = "hero", onBand, storeLane = null, onStoreLane, meOpen, onMeOpenChange, productOption }) {
+function AouadHud({ st, section, scene, zone, product, modal, onSection, onSceneJump, onReset, go, openProduct, update, onCheckout, onClaimWin, onOpenInfo, flyRef, tlPick, libPane = null, libLive = {}, band = "hero", onBand, storeLane = null, onStoreLane, meOpen, onMeOpenChange, productOption, onMobileOverlayChange }) {
   const now = useNow();
   const rights = rightsOf(st);
   const held = RIGHTS.filter((r) => rights[r.id]);
@@ -1023,6 +1023,7 @@ function AouadHud({ st, section, scene, zone, product, modal, onSection, onScene
       }}
       immersive={!!zone && PLAY_ZONES.includes(zone)}   /* 몰입 존(급식실·방송실·도서관 — 손이 조작에 묶이는 실시간 게임) = 모바일 시트를 내린다(v5.18 · 계약 §1-2) */
       onSection={onSection} onSceneJump={onSceneJump} onReset={onReset}
+      onMobileOverlayChange={onMobileOverlayChange}
       floorplan={<FloorplanMini st={st} section={section} onJump={onSection} variant="wide" />}
       floorplanSheet={<FloorplanMini st={st} section={section} onJump={onSection} />}
       active={section >= 0 && !modal && !meOpen} /* 모달·나 패널이 떠 있으면 ←→ 화면 이동 키 개입 금지(v4.1·v6.0) */
@@ -2031,7 +2032,8 @@ function Hint({ text, items }) {
   const [on, setOn] = useState(false);
   return (
     <span className={s.hintWrap}
-      onMouseEnter={() => setOn(true)} onMouseLeave={() => setOn(false)}>
+      onPointerEnter={(event) => { if (event.pointerType === "mouse") setOn(true); }}
+      onPointerLeave={(event) => { if (event.pointerType === "mouse") setOn(false); }}>
       <button type="button" className={s.hintBtn} aria-label="설명 보기" aria-expanded={on}
         onClick={() => setOn((v) => !v)} onBlur={() => setOn(false)}>?</button>
       {on && <span className={s.hintTip} role="tooltip">{items ? <GuideLines items={items} /> : text}</span>}
@@ -3345,11 +3347,13 @@ function MePanel({ st, update, tabs, tab, onTab, onClose }) {
   return (
     <PresentationDialog className={s.overlay} label="나 — 학생증·퀘스트·보유·장바구니" onClose={onClose}>
       <div className={`${s.overlayBox} ${s.meBox}`} data-tab={tab} onClick={(e) => e.stopPropagation()}>
-        <div className={s.meTabs} role="tablist" aria-label="나 패널">
-          <button type="button" role="tab" aria-selected={tab === "id"} className={tab === "id" ? s.meTabOn : undefined} onClick={() => onTab("id")}>학생증</button>
-          {tabs.map((t) => (
-            <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} className={tab === t.key ? s.meTabOn : undefined} onClick={() => onTab(t.key)}>{t.label}</button>
-          ))}
+        <div className={s.meNav}>
+          <div className={s.meTabs} role="tablist" aria-label="나 패널">
+            <button type="button" role="tab" aria-selected={tab === "id"} className={tab === "id" ? s.meTabOn : undefined} onClick={() => onTab("id")}>학생증</button>
+            {tabs.map((t) => (
+              <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} className={tab === t.key ? s.meTabOn : undefined} onClick={() => onTab(t.key)}>{t.label}</button>
+            ))}
+          </div>
           <button type="button" className={s.meClose} onClick={onClose} aria-label="닫기">✕</button>
         </div>
         {tab === "id" ? (
@@ -3420,6 +3424,7 @@ export default function AouadSample() {
   const [view, setView] = useState("boot"); // boot|opening|hub|<zoneId>
   const [overlay, setOverlay] = useState(null); // local presentation dialogs
   const [meOpen, setMeOpen] = useState(false);
+  const [hudOverlayOpen, setHudOverlayOpen] = useState(false);
   const [resetNonce, setResetNonce] = useState(0); // 리셋 시 Opening 강제 리마운트
   const reduced = usePrefersReducedMotion();
 
@@ -3584,7 +3589,7 @@ export default function AouadSample() {
   if (!ready || view === "boot") return <div className={s.stage}><div className={s.bootScreen} role="status"><span>HYOSAN HIGH</span><p>학교의 기록을 불러오고 있습니다.</p></div></div>;
 
   const zone = ZONES.find((z) => z.id === view);
-  const gamePaused = !!overlay || meOpen || zoneBand !== "play";
+  const gamePaused = !!overlay || meOpen || zoneBand !== "play" || hudOverlayOpen;
   // 상품 상세는 어디서 들어왔는지 기억한다 — 굿즈샵에서 왔으면 굿즈샵으로, 허브에서 왔으면 허브로 돌아간다
   const backLabel = product && product.from === "store" ? "굿즈샵" : "학교 맵";
   return (
@@ -3664,6 +3669,7 @@ export default function AouadSample() {
       {view !== "opening" && (
         <AouadHud
           meOpen={meOpen} onMeOpenChange={setMeOpen} productOption={product?.option || null}
+          onMobileOverlayChange={setHudOverlayOpen}
           libPane={libPane} libLive={libLive}   /* 도서관 컨텍스트 칩·미션 진행(PM 2026-09-09) */
           band={zoneBand} onBand={goBand}          /* 존 밴드 추종(v6.0 PR ②) */
           storeLane={storeLane} onStoreLane={setStoreLane}   /* 굿즈샵 진열 레인(v6.0 PR ③) */
