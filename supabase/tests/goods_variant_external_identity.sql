@@ -253,4 +253,48 @@ begin
   end;
 end
 $$;
+-- PR #499: replacing a stopped option with the same combination creates a
+-- different option. Give the historical row a lower UUID than every generated
+-- v4 UUID so the old attributes/sort-order resolver fails deterministically.
+select public.admin_save_good('{"id":"sales-erp-replacement","ip_id":"sales-erp","name":"ERP 옵션 재생성","price":1000,"variant_baseline":[],"variants":[{"name":"이전 옵션","attributes":{},"extraPrice":0,"stockQty":0}]}');
+reset role;
+select set_config('request.jwt.claim.sub','',true);
+delete from public.goods_variants where good_id='sales-erp-replacement';
+insert into public.goods_variants(id,good_id,name,attributes,price,code,sort_order,is_default)
+ values('00000000-0000-0000-0000-000000047299','sales-erp-replacement','이전 옵션','{}',1000,'ERP-REPLACEMENT-OLD',0,true);
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047201',true);
+select public.admin_set_goods_variant_active('sales-erp-replacement','00000000-0000-0000-0000-000000047299',false,
+ (select updated_at from public.goods_variants where id='00000000-0000-0000-0000-000000047299'));
+select public.admin_save_good('{"id":"sales-erp-replacement","previous_id":"sales-erp-replacement","ip_id":"sales-erp","name":"ERP 옵션 재생성","price":1000,"variant_baseline":[],"variants":[{"name":"재생성 옵션","attributes":{},"extraPrice":0,"stockQty":0,"externalIdentity":{"erpCode":"000047299","erpName":"새 ERP 옵션","barcode":"0088047299"}}]}');
+select variant.id,variant.archived_at is null as active,identity.erp_code,identity.barcode
+ from public.goods_variants variant
+ left join public.admin_list_goods_variant_external_identities('sales-erp-replacement') identity on identity.variant_id=variant.id
+ where variant.good_id='sales-erp-replacement' order by variant.id;
+select 1 / case when exists(
+ select 1 from public.admin_list_goods_variant_external_identities('sales-erp-replacement') identity
+ join public.goods_variants variant on variant.id=identity.variant_id
+ where variant.archived_at is null and variant.is_default
+   and identity.erp_code='000047299' and identity.barcode='0088047299'
+) and not exists(
+ select 1 from public.admin_list_goods_variant_external_identities('sales-erp-replacement')
+ where variant_id='00000000-0000-0000-0000-000000047299' and erp_code is not null
+) then 1 else 0 end as assert_recreated_option_owns_its_external_identity;
+select public.admin_set_goods_variant_active('sales-erp-replacement',id,false,updated_at)
+ from public.goods_variants where good_id='sales-erp-replacement' and archived_at is null;
+select public.admin_save_good('{"id":"sales-erp-replacement","previous_id":"sales-erp-replacement","ip_id":"sales-erp","name":"ERP 옵션 재생성","price":1000,"variant_baseline":[],"variants":[{"name":"중지 상태로 새로 등록","attributes":{},"extraPrice":0,"stockQty":0,"isActive":false,"externalIdentity":{"erpCode":"000047298","erpName":"새 중지 옵션","barcode":"0088047298"}}]}');
+select 1 / case when exists(
+ select 1 from public.admin_list_goods_variant_external_identities('sales-erp-replacement') identity
+ join public.goods_variants variant on variant.id=identity.variant_id
+ where variant.archived_at is not null and variant.is_default and identity.erp_code='000047298'
+) and exists(
+ select 1 from public.admin_list_goods_variant_external_identities('sales-erp-replacement') where erp_code='000047299'
+) then 1 else 0 end as assert_new_stopped_option_owns_its_external_identity;
+select public.admin_save_good('{"id":"sales-erp-replacement","previous_id":"sales-erp-replacement","ip_id":"sales-erp","name":"ERP 옵션 재생성","price":1000,"variant_baseline":[],"variants":[{"id":"00000000-0000-0000-0000-000000047299","name":"기존 중지 옵션 명시","attributes":{},"extraPrice":0,"stockQty":0,"expectedStockQty":0,"isActive":false,"externalIdentity":{"erpCode":"000047297","erpName":"명시한 기존 옵션","barcode":"0088047297"}}]}');
+select 1 / case when exists(
+ select 1 from public.admin_list_goods_variant_external_identities('sales-erp-replacement') identity
+ join public.goods_variants variant on variant.id=identity.variant_id
+ where variant.id='00000000-0000-0000-0000-000000047299' and variant.archived_at is not null
+   and identity.erp_code='000047297' and identity.barcode='0088047297'
+) then 1 else 0 end as assert_explicit_stopped_option_identity_is_preserved;
 rollback;

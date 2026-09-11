@@ -78,7 +78,50 @@ select 1/case when exists(select 1 from public.admin_goods_import_records('{}','
 select record->>'fingerprint' as previous_fingerprint from public.admin_goods_import_records('{}','{purchase-cost-good}') record \gset
 select public.admin_save_goods_variant_purchase_cost('purchase-cost-good',:'variant_id',1460,'exempt',4);
 select 1/case when exists(select 1 from public.admin_goods_import_records('{}','{purchase-cost-good}') record where record->>'fingerprint'<>:'previous_fingerprint')
- then 1 else 0 end as assert_cost_revision_invalidates_stale_import;
+then 1 else 0 end as assert_cost_revision_invalidates_stale_import;
+
+-- PR #499: new input without an ID must not resolve to a stopped option with
+-- the same attributes and sort order, even if the historical UUID sorts first.
+select public.admin_save_good('{"id":"purchase-cost-replacement","ip_id":"purchase-cost-tests","name":"매입단가 옵션 재생성","price":1000,"variant_baseline":[],"variants":[{"name":"이전 옵션","attributes":{},"extraPrice":0,"stockQty":0}]}');
+reset role;
+select set_config('request.jwt.claim.sub','',true);
+delete from public.goods_variants where good_id='purchase-cost-replacement';
+insert into public.goods_variants(id,good_id,name,attributes,price,code,sort_order,is_default)
+ values('00000000-0000-0000-0000-000000047599','purchase-cost-replacement','이전 옵션','{}',1000,'COST-REPLACEMENT-OLD',0,true);
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047501',true);
+select public.admin_set_goods_variant_active('purchase-cost-replacement','00000000-0000-0000-0000-000000047599',false,
+ (select updated_at from public.goods_variants where id='00000000-0000-0000-0000-000000047599'));
+select public.admin_save_good('{"id":"purchase-cost-replacement","previous_id":"purchase-cost-replacement","ip_id":"purchase-cost-tests","name":"매입단가 옵션 재생성","price":1000,"variant_baseline":[],"variants":[{"name":"재생성 옵션","attributes":{},"extraPrice":0,"stockQty":0,"purchaseCost":{"unitCostKrw":729,"taxBasis":"included","expectedRevision":null}}]}');
+select variant.id,variant.archived_at is null as active,cost.unit_cost_krw,cost.revision
+ from public.goods_variants variant
+ left join public.admin_list_goods_variant_purchase_costs('purchase-cost-replacement') cost on cost.variant_id=variant.id
+ where variant.good_id='purchase-cost-replacement' order by variant.id;
+select 1 / case when exists(
+ select 1 from public.admin_list_goods_variant_purchase_costs('purchase-cost-replacement') cost
+ join public.goods_variants variant on variant.id=cost.variant_id
+ where variant.archived_at is null and variant.is_default and cost.unit_cost_krw=729 and cost.revision=1
+) and not exists(
+ select 1 from public.admin_list_goods_variant_purchase_costs('purchase-cost-replacement')
+ where variant_id='00000000-0000-0000-0000-000000047599' and unit_cost_krw is not null
+) then 1 else 0 end as assert_recreated_option_owns_its_purchase_cost;
+select public.admin_set_goods_variant_active('purchase-cost-replacement',id,false,updated_at)
+ from public.goods_variants where good_id='purchase-cost-replacement' and archived_at is null;
+select public.admin_save_good('{"id":"purchase-cost-replacement","previous_id":"purchase-cost-replacement","ip_id":"purchase-cost-tests","name":"매입단가 옵션 재생성","price":1000,"variant_baseline":[],"variants":[{"name":"중지 상태로 새로 등록","attributes":{},"extraPrice":0,"stockQty":0,"isActive":false,"purchaseCost":{"unitCostKrw":831,"taxBasis":"excluded","expectedRevision":null}}]}');
+select 1 / case when exists(
+ select 1 from public.admin_list_goods_variant_purchase_costs('purchase-cost-replacement') cost
+ join public.goods_variants variant on variant.id=cost.variant_id
+ where variant.archived_at is not null and variant.is_default and cost.unit_cost_krw=831 and cost.revision=1
+) and exists(
+ select 1 from public.admin_list_goods_variant_purchase_costs('purchase-cost-replacement') where unit_cost_krw=729 and revision=1
+) then 1 else 0 end as assert_new_stopped_option_owns_its_purchase_cost;
+select public.admin_save_good('{"id":"purchase-cost-replacement","previous_id":"purchase-cost-replacement","ip_id":"purchase-cost-tests","name":"매입단가 옵션 재생성","price":1000,"variant_baseline":[],"variants":[{"id":"00000000-0000-0000-0000-000000047599","name":"기존 중지 옵션 명시","attributes":{},"extraPrice":0,"stockQty":0,"expectedStockQty":0,"isActive":false,"purchaseCost":{"unitCostKrw":752,"taxBasis":"exempt","expectedRevision":null}}]}');
+select 1 / case when exists(
+ select 1 from public.admin_list_goods_variant_purchase_costs('purchase-cost-replacement') cost
+ join public.goods_variants variant on variant.id=cost.variant_id
+ where variant.id='00000000-0000-0000-0000-000000047599' and variant.archived_at is not null
+   and cost.unit_cost_krw=752 and cost.revision=1
+) then 1 else 0 end as assert_explicit_stopped_option_cost_is_preserved;
 
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047502',true);
 select 1/case when not exists(select 1 from public.admin_goods_import_records('{}','{purchase-cost-good}') record,

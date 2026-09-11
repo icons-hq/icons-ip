@@ -92,6 +92,19 @@ select record#>>'{variants,0,updated_at}' as ordered_variant_updated_at
 from public.admin_goods_import_records('{}','{variant-operations}') record \gset
 select public.admin_set_goods_variant_active('variant-operations',:'variant_id',false,:'ordered_variant_updated_at');
 select public.admin_set_goods_variant_active('variant-operations',:'variant_id',false,:'ordered_variant_updated_at');
+select good.id,public.admin_goods_active_stock_qty(good) as active_stock_qty,
+ public.admin_goods_low_stock_option_count(good) as low_stock_option_count
+ from public.admin_search_goods('SAFE-468') good;
+select 1 / case when exists(select 1 from public.admin_search_goods('SAFE-468') good
+ where public.admin_goods_active_stock_qty(good)=0 and public.admin_goods_low_stock_option_count(good)=0)
+ then 1 else 0 end as assert_stopped_low_stock_does_not_raise_goods_warning;
+select public.admin_set_goods_variant_active('variant-operations',:'variant_id',true,
+ (select updated_at from public.goods_variants where id=:'variant_id'));
+select 1 / case when exists(select 1 from public.admin_search_goods('SAFE-468') good
+ where public.admin_goods_active_stock_qty(good)=3 and public.admin_goods_low_stock_option_count(good)=1)
+ then 1 else 0 end as assert_reactivated_low_stock_restores_goods_warning;
+select public.admin_set_goods_variant_active('variant-operations',:'variant_id',false,
+ (select updated_at from public.goods_variants where id=:'variant_id'));
 select 1 / case when exists(select 1 from public.admin_goods_export_candidates('SAFE-468','','published','soldout') where good_id='variant-operations' and option_rows=1)
  and not exists(select 1 from public.admin_goods_export_candidates('SAFE-468','','published','ok'))
  then 1 else 0 end as assert_stopped_inventory_is_filtered_before_export;
@@ -136,7 +149,7 @@ select 1 / case when exists(select 1 from public.admin_goods_import_records('{}'
  then 1 else 0 end as assert_cancel_restores_stock_once_without_reactivating_option;
 
 reset role;
-select 1 / case when (select count(*) from public.audit_log where action='admin.good.option_stopped' and target='goods:variant-operations')=1
+select 1 / case when (select count(*) from public.audit_log where action='admin.good.option_stopped' and target='goods:variant-operations')=2
  and (select count(*) from public.audit_log where action='order.option_stock_restored' and target='order:'||:'order_id')=1
  and (select count(*) from public.orders where user_id='00000000-0000-4000-8000-000000046802')=1
  then 1 else 0 end as assert_replays_do_not_duplicate_state_stock_or_orders;
