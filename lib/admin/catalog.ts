@@ -9,6 +9,7 @@ import {
 } from '@/lib/goods-notice';
 import type { RarityKey } from '@/lib/rarity';
 import { readAdminGoodsSalePolicy, type AdminGoodsSalePolicyInput } from './goods-sale-policy';
+import { GOODS_HTML_IMAGE_MAX, GOODS_HTML_MAX_LENGTH, sanitizeGoodsDescription, type GoodsDescriptionFormat } from '@/lib/goods-description';
 
 export type AdminFieldErrors = Record<string, string>;
 
@@ -62,6 +63,8 @@ export interface AdminGoodFormValue extends AdminGoodsSalePolicyInput, GoodsLink
   imagePath: string | null;
   notice: GoodsNoticeInfo;
   description: string | null;
+  descriptionFormat?: GoodsDescriptionFormat;
+  descriptionImagePaths?: string[];
   /** 순서가 곧 노출 순서다. 빈 슬롯은 빠진 채로 온다. */
   galleryPaths: string[];
   detailImagePath: string | null;
@@ -501,7 +504,16 @@ export function normalizeAdminGoodForm(
     '소비자가는 0 이상의 정수여야 합니다.',
   );
   const notice = readGoodsNotice(formData, errors, requiresCompleteNotice);
-  const description = nullableString(formData, 'description');
+  const descriptionFormat = readString(formData, 'descriptionFormat') || 'plain';
+  const rawDescription = nullableString(formData, 'description');
+  const htmlContent = descriptionFormat === 'html' && rawDescription && rawDescription.length <= GOODS_HTML_MAX_LENGTH
+    ? sanitizeGoodsDescription(rawDescription) : null;
+  const description = descriptionFormat === 'html' ? htmlContent?.html || null : rawDescription;
+  if (!['plain', 'html'].includes(descriptionFormat)) errors.descriptionFormat = '일반 텍스트 또는 HTML을 선택해주세요.';
+  if (descriptionFormat === 'html' && ((rawDescription?.length ?? 0) > GOODS_HTML_MAX_LENGTH || (description?.length ?? 0) > GOODS_HTML_MAX_LENGTH)) {
+    errors.description = 'HTML 설명은 정리된 코드까지 30,000자 이하로 입력해주세요.';
+  }
+  if ((htmlContent?.imagePaths.length ?? 0) > GOODS_HTML_IMAGE_MAX) errors.description = 'HTML 설명 이미지는 최대 20장입니다.';
   const nameEn = nullableString(formData, 'nameEn');
   if (nameEn && nameEn.length > 200) errors.nameEn = '영문 상품명은 200자 이하로 입력해주세요.';
   const searchKeywords = formData.has('searchKeywords')
@@ -531,7 +543,7 @@ export function normalizeAdminGoodForm(
   if (compareAtPrice !== null && !errors.compareAtPrice && compareAtPrice <= price) {
     errors.compareAtPrice = '소비자가는 기준 판매가보다 커야 해요';
   }
-  if (description && description.length > GOODS_DESCRIPTION_MAX_LENGTH) {
+  if (descriptionFormat === 'plain' && description && description.length > GOODS_DESCRIPTION_MAX_LENGTH) {
     errors.description = '설명은 2,000자 이하로 입력해주세요.';
   }
 
@@ -561,6 +573,7 @@ export function normalizeAdminGoodForm(
       imagePath: nullableString(formData, 'imagePath'),
       notice,
       description,
+      ...(formData.has('descriptionFormat') ? { descriptionFormat: descriptionFormat as GoodsDescriptionFormat, descriptionImagePaths: htmlContent?.imagePaths ?? [] } : {}),
       ...(formData.has('nameEn') ? { nameEn } : {}),
       galleryPaths,
       detailImagePath: nullableString(formData, 'detailImagePath'),

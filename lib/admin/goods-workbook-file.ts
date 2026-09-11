@@ -33,6 +33,7 @@ const IDENTIFIER_KEYS = new Set<GoodsWorkbookKey>([
   'erpCode', 'barcode', 'categoryCode', 'shippingNoticeTemplateCode',
 ]);
 const LISTS: Partial<Record<GoodsWorkbookKey, string>> = {
+  descriptionFormat: 'plain,html',
   kcReset: '예',
   claimReturnAllowed: '예,아니오',
   claimExchangeAllowed: '예,아니오',
@@ -213,6 +214,10 @@ export async function buildGoodsWorkbook(
     [
       '고시 프리셋',
       '정확한 프리셋 이름을 입력하면 비어 있는 고시정보 칸을 채웁니다. 직접 입력한 값이 우선합니다.',
+    ],
+    [
+      '상세 설명',
+      '상세 설명 형식은 plain(일반 텍스트) 또는 html입니다. HTML은 정리된 코드까지 30,000자이며 CSS·스크립트·외부 이미지는 제거됩니다. HTML 이미지는 상품 편집에서 검증 업로드하고 내보낸 경로를 유지해주세요.',
     ],
     [
       '오류 처리',

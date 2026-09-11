@@ -402,6 +402,7 @@ async function saveAdminGood(
     notice_as_manager: value.notice.asManager,
     notice_as_contact: value.notice.asContact,
     description: value.description,
+    ...(value.descriptionFormat ? { description_format: value.descriptionFormat, description_image_paths: value.descriptionImagePaths ?? [] } : {}),
     gallery_paths: value.galleryPaths,
     detail_image_path: value.detailImagePath,
     previous_id: value.previousId,
@@ -412,6 +413,7 @@ async function saveAdminGood(
   } });
 
   if (error) {
+    if (/goods_description_/.test(error.message)) return { errors: { description: '설명 형식과 길이, HTML 이미지 20장 제한을 확인해주세요. 입력한 원문은 유지됩니다.' } };
     if (/stock_changed|goods_options_changed/.test(error.message)) return { errors: { variants: '다른 작업에서 옵션이나 재고가 바뀌었습니다. 입력값은 유지됩니다. 최신 내용을 확인하고 다시 저장해주세요.' } };
     if (/goods_kc_reassessment_required|goods_kc_published_edit_requires_draft/.test(error.message)) return { errors: { form: '모델·옵션·고시정보 변경에는 KC 재검토가 필요합니다. 상품을 먼저 초안으로 전환한 뒤 수정해주세요.' } };
     if (error.message.includes('goods_kc_')) return { errors: { form: 'KC 정보에서 실제 모델·옵션과 원본 근거를 확인하고 검토를 완료한 뒤 공개해주세요.' } };

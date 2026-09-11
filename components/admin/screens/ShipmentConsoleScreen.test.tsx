@@ -9,6 +9,12 @@ vi.mock('@/app/admin/shipment-actions',()=>({completeShipmentsAction:vi.fn(),exp
 const base:ShipmentConsoleData={surface:'dispatch',filters:{tab:'ready',originId:null,query:'',from:null,to:null,page:1},rows:[],total:2,pageSize:100,counts:{new:0,ready:2,delayed:0,transit:0,delivered:0},carriers:[{code:'hanjin',label:'한진택배',active:true,trackingUrlTemplate:'https://example.test/{trackingNumber}'}],origins:[{id:'one',name:'김포'},{id:'two',name:'남양주'}]};
 const row={id:'60000000-0000-4000-8000-000000000001',orderId:'50000000-0000-4000-8000-000000000001',originId:'one',originName:'김포',status:'ready' as const,createdAt:'2026-09-08T00:00:00Z',confirmedAt:'2026-09-08T01:00:00Z',buyerName:'구매자',recipientName:'받는 분',total:30000,paymentMethod:'card',shippingFee:3000,carrier:null,trackingNumber:null,shippedAt:null,deliveredAt:null,exportedAt:null,updatedAt:'2026-09-08T00:00:00Z',delayReason:null,expectedShipDate:null,items:[{id:'item-1',name:'상품',variantName:'파랑',qty:2}]};
 describe('배송 건 콘솔',()=>{
+ it('지연 탭은 예약 미할당·방문수령도 고객 안내 대상으로 선택하면서 기존 출고 실행은 막는다',()=>{
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,tab:'delayed'},rows:[{...row,preorderReady:false,delivery:shipmentDeliveryFixture()}]}}/>);
+  expect(html).toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
+  expect(html).toContain('고객 지연 안내');expect(html).toContain('고객 지연 안내 이력·결과');
+  expect(html).toMatch(/disabled=""[^>]*>출고지시 내보내기/);
+ });
  it('같은 주문의 두 출고지를 별도 행으로 표시하고 발송은 업로드 한 곳으로 모은다',()=>{
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row,{...row,id:'60000000-0000-4000-8000-000000000002',originName:'남양주',originId:'two',exportedAt:'2026-09-08T01:10:00Z'}]}}/>);
   expect(html).toContain('김포');expect(html).toContain('남양주');expect(html).toContain('상품 · 파랑');

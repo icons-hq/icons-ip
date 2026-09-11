@@ -36,6 +36,11 @@ const values = {
 };
 
 describe('어드민 굿즈 미리보기', () => {
+  it('현재 HTML 입력을 저장 서버와 같은 문서/이미지 형식으로 미리본다', () => {
+    const path = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
+    const preview = buildGoodPreview({ values: { ...values, descriptionFormat: 'html', description: `<h2>상세</h2><img src="${path}" alt="앞면"><img src="https://evil.test/x.png"><script>alert(1)</script>` }, imageUrls: {}, ip, fallbackBg: null, stockQty: 0 });
+    expect(preview).toMatchObject({ descriptionFormat: 'html', descriptionImagePaths: [path], description: `<h2>상세</h2><img src="${path}" alt="앞면" loading="lazy" decoding="async" />` });
+  });
   it('projects unsaved option prices, order and total inventory into the public preview', () => {
     const preview = buildGoodPreview({ values: { ...values, price: '1000', variants: JSON.stringify([
       { name: '파랑 / L', code: 'B-L', attributes: { 색상: '파랑', 사이즈: 'L' }, extraPrice: 500, stockQty: 2 },

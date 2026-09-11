@@ -174,6 +174,9 @@ jobs:
           run_sql_test supabase/tests/admin_coupon_search.sql
           run_sql_test supabase/tests/shipping_carrier_registry.sql
           run_sql_test supabase/tests/order_dispatch_delay_notes.sql
+          run_sql_test supabase/tests/order_delay_notices.sql
+          run_sql_test supabase/tests/order_delay_notice_recovery.sql
+          ORDER_DELAY_TEST_SCOPE=1 SUPABASE_DB_CONTAINER=supabase_db_icons-ip SUPABASE_DB_DATABASE=postgres bash supabase/tests/order_delay_notices_concurrency.sh
           run_sql_test supabase/tests/admin_stock_adjustment.sql
           run_sql_test supabase/tests/admin_ticket_type_console.sql
           run_sql_test supabase/tests/admin_card_pool_console.sql
@@ -232,6 +235,8 @@ jobs:
           run_sql_test supabase/tests/store_credit_checkout.sql
           run_sql_test supabase/tests/store_credit_earned_refund.sql
           run_sql_test supabase/tests/goods_clone.sql
+          run_sql_test supabase/tests/goods_detail_html.sql
+          bash supabase/tests/goods_detail_html_concurrency.sh supabase_db_icons-ip postgres
           run_sql_test supabase/tests/goods_additional.sql
           run_sql_test supabase/tests/goods_kc_compliance.sql
           run_sql_test supabase/tests/goods_preorders.sql

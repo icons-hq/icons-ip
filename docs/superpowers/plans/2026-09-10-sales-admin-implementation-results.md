@@ -1,9 +1,9 @@
 # 영업팀 어드민 피드백 구현 결과
 
-작성일: 2026-09-10 KST
+최종 갱신: 2026-09-11 KST
 범위: #461~#496, 총 36개 항목
 
-현재 결과는 **33개 기능 구현**, **#478·#494 미구현**, **#496 통합 검증 진행 중**이다. #478의 상세 rich text는 Q12, #494의 지연 주문 고객 안내 채널은 Q11이 답변되지 않아 임의의 운영 계약을 만들지 않았다. 따라서 이 문서는 기술 구현과 검증 증거를 정리한 인계 문서이며, 전체 영업 흐름이 완료됐다는 승인 기록은 아니다.
+현재 결과는 **35개 기능과 통합 검증 1건, 총 36개 항목의 로컬 구현·기술 검증 완료**다. 2026-09-11 사용자가 권장안을 승인하여 Q12의 기본 문서 HTML과 Q11의 인앱 알림·주문 이메일을 구현했다. 실제 정책값 입력, 운영팀 인수, production 활성화·배포는 별도 범위이며 이 기록이 그 승인을 대신하지 않는다.
 
 각 신규 opt-in 정책은 실제 수치·증빙이 없을 때 그 정책만 비활성 상태로 둔다. 미설정 값을 0원·무제한·무기한·모든 직원 허용으로 해석하지 않으며, 기존 일반 판매·배송·주문 경로 전체를 닫는 의미는 아니다. 브라우저에서 사용한 주문·주소·연락처·입금·출고지 값은 task-local 합성 QA용 `TEST-ONLY` 데이터다. 실제 결제, 재고 인수, 고객 발송, production DB 변경은 이 결과의 근거가 아니다.
 
@@ -30,7 +30,7 @@
 | #475 매입단가·이력·조회 | ✅ 구현 | `supabase/migrations/20260910081641_sales_variant_purchase_cost.sql`, `lib/admin/goods-purchase-costs.ts`, `app/admin/goods-purchase-cost-actions.ts`, `components/admin/GoodsPurchaseCostsPanel.tsx` | `supabase/tests/goods_variant_purchase_cost.sql`, workbook tests, `browser-cost-saved.png` | 원 단위·세금 구분·관리자 전용 조회/수정·이력 구조 완료. 실제 매입단가만 운영 자료로 입력 |
 | #476 기간 할인·옵션 할인율 | ✅ 구현 | `supabase/migrations/20260910072933_sales_goods_purchase_policies.sql`, `lib/admin/goods-price-periods.ts`, `app/admin/goods-price-period-actions.ts`, `components/admin/GoodsPricePeriodsPanel.tsx` | price-period Vitest와 `supabase/tests/goods_purchase_policies.sql`, `browser-price-period-active.png` | 기간·옵션 단일 판정 구조 완료. 실제 할인 기간·가격을 입력할 때 해당 정책만 활성화 |
 | #477 KC 정보·공개·게시 검증 | ✅ 구현 | `supabase/migrations/20260910091552_sales_goods_kc_compliance.sql`, `lib/goods-kc.ts`, `lib/admin/goods-kc.ts`, `components/admin/GoodsKcPanel.tsx`, `lib/admin/goods-kc-workbook.ts` | `supabase/tests/goods_kc_compliance.sql`, KC workbook tests, `browser-kc-reviewed.png`, `browser-kc-public.png` | 상품 모델별 법적 분류와 실제 KC 서류·담당자·근거가 필요 |
-| #478 상세 HTML 편집·미리보기·공개 | ⏸ 미구현 | 신규 rich text editor/허용 HTML 저장 경로를 만들지 않음 | Q12 미응답 상태를 유지; 완료 테스트·브라우저 증거 없음 | 제목·문단·목록·표·링크·이미지 범위와 기존 HTML/CSS 원문 이전 여부를 먼저 선택해야 함 |
+| #478 상세 HTML 편집·미리보기·공개 | ✅ 구현·검증 | lib/goods-description.ts, GoodSection, GoodsDescription, 상품 엑셀 v3, 20260910235726 migration | HTML·이미지 소속 SQL, 저장/복사 동시성, 실제 업로드·공개·실패 복구·XLSX 왕복 | 기술 잔여 없음. 기본 문서 HTML 범위를 유지하고 실제 콘텐츠와 배포 인수는 별도 |
 | #479 상품 전체 초안 복사 | ✅ 구현 | `supabase/migrations/20260910085008_sales_goods_clone.sql`, `lib/admin/good-clone.ts`, `app/admin/good-clone-actions.ts`, `components/admin/GoodClonePanel.tsx` | `supabase/tests/goods_clone.sql`, `goods_clone` concurrency, `cold-goods_clone-test.log` | 승인된 복사 범위 표 반영 완료. 새 상품은 초안·재고 0으로 저장 |
 | #480 상품 검색 키워드 | ✅ 구현 | `supabase/migrations/20260910065342_sales_goods_discovery_metadata.sql`, `lib/search-goods.ts`, `lib/catalog.ts`, `lib/admin/catalog.ts`, `lib/admin/goods-workbook.ts` | `supabase/tests/goods_discovery_metadata.sql`, 240개 catalog/discovery tests, `catalog-discovery-result.md` | 기술·브라우저 검증 완료. 실제 검색어 입력과 배포 read-back은 별도 |
 | #481 상품 진열 순서 | ✅ 구현 | `lib/shop-catalog.ts`, `lib/catalog.ts`, `app/shop/page.tsx`, `app/shop/best/page.tsx`, `app/shop/new/page.tsx` | catalog/shop tests, `catalog-discovery-result.md`, `goods-main.png` | 기술·브라우저 검증 완료. 기존 BEST/NEW 우선순위 보존 |
@@ -46,13 +46,31 @@
 | #491 교환·반품 조건·확인 비용 | ✅ 구현 | `supabase/migrations/20260910083942_sales_claim_policy_costs.sql`, `lib/goods-claim-policy.ts`, `lib/admin/goods-claim-policy.ts`, `components/admin/GoodsClaimPolicyFields.tsx`, `components/admin/screens/ClaimOperationalFeePanel.tsx` | `supabase/tests/sales_claim_policy_costs.sql`, claim-linked tests | 귀책별 반품/교환 비용과 운영 확인액의 실제 의미·근거를 확정 필요 |
 | #492 퀵·방문수령·완료 증거 | ✅ 구현 | `supabase/migrations/20260910103635_sales_shipment_delivery_methods.sql`, `lib/shipment-delivery.ts`, `app/admin/shipment-delivery-actions.ts`, `components/admin/DeliveryPoliciesPanel.tsx`, `components/admin/ShipmentDeliveryPanel.tsx` | `supabase/tests/shipment_delivery_methods.sql`, 87개 related tests, `browser-preorder-handoff-blocked.png`, `browser-receipt-code.png`, `browser-pickup-complete.png` | 합성 정책 blank activation 거부→TEST 조건 active, TEST-ONLY paid 주문 fixture pickup 변경·배송비 5,500원 유지, 입고 전 수령 차단→2개 할당→주문자 one-use code→admin UI delivered와 금액 19,900원 보존을 완료 |
 | #493 제주·도서산간 배송비 | ✅ 구현 | `supabase/migrations/20260910100643_sales_shipping_regions.sql`, `lib/shipping-regions.ts`, `app/admin/shipping-region-actions.ts`, `app/admin/(shell)/settings/shipping-regions/page.tsx` | `supabase/tests/shipping_regions.sql`, shipping-region tests, `browser-regional-policy-active.png` | #177 H6의 출고지별 실제 지역·요금표가 필요; 임의 정액을 넣지 않음 |
-| #494 지연 주문 고객 일괄 안내·재시도 | ⏸ 미구현 | 기존 지연 메모 경계만 유지; 고객 발송 action/channel을 추가하지 않음 | Q11 채널 미응답 상태; 발송·부분 실패 재시도 증거 없음 | 인앱/이메일/알림톡/SMS 중 채널·수신·문구·멱등 재시도 계약을 먼저 선택해야 함 |
+| #494 지연 주문 고객 일괄 안내·재시도 | ✅ 구현·검증 | OrderDelayNoticePanel, order-delay-actions, order-delay-jobs.server, 20260910235736 migration, 전용 cron | 알림·복구 SQL, 동시 요청/worker, 실제 화면과 로컬 모의 공급자의 성공·부분 실패·응답 유실·영구 거절 | 기본 OFF 전용 gate 유지. 실제 발신자·키·운영 절차 확인 및 고객 발송은 별도 활성화 범위 |
 | #495 거래확정 영업·정산 검토 엑셀 | ✅ 구현 | `supabase/migrations/20260910095819_sales_settled_export_snapshots.sql`, `lib/admin/settled-export.ts`, `lib/admin/settled-workbook.server.ts`, `app/api/admin/settled-workbook/route.ts`, `components/admin/screens/SettledScreen.tsx` | `supabase/tests/settled_export.sql`, workbook artifact inspection/render, `settled-main.png`, `settled-amounts.png`, `settled-reconciliation.png` | 8개 열·행 의미와 ERP/할인 배분은 구현 계약으로 고정. 실제 영업 양식의 배포 인수만 별도 |
-| #496 신규 영업 흐름 통합 검증·운영 안내 | △ 통합 진행 | `docs/runbooks/admin-ops-rehearsal.md`, `scripts/admin-ops-rehearsal.test.mjs`, `supabase/tests/admin_ops_rehearsal.mjs`, 각 기능 runbook | `sales-integration-current.log`: 6 files/44 tests PASS; full test·DB exact replay는 아래 기록 | #478/#494의 답변·구현과 두 기능을 포함한 조합 검증이 남음. 기존 사람 인수 이슈는 별도 유지 |
+| #496 신규 영업 흐름 통합 검증·운영 안내 | ✅ 기술 검증 | 기능별 runbook, admin-ops-rehearsal, 2026-09-11-sales-admin-integration-checklist | 178 migration·121 SQL·3 seed·9 동시성, 전체 JS/타입/빌드, 실제 주문·HTML·엑셀·알림의 전후 데이터 보존 | 로컬 구현·검증 완료. 기존 운영팀·창고 인수 이슈는 별도 유지 |
 
-## 전체 검증 스냅샷
+## 2026-09-11 최종 통합 검증
 
-- 최종 Vitest: **542 files passed + 1 skipped (543)**, **5,202 tests passed + 3 skipped (5,205)**. 근거: `/tmp/icons-sales-admin-4273/full-test-final.log`.
+- 전체 Vitest: **545개 파일 통과 + 1개 생략**, **5,237개 테스트 통과 + 3개 생략**. 생략 사유는 아래 기준선과 같으며 통과로 계산하지 않았다. 전체 typecheck와 build도 통과했다. 빌드 ID는 syLefyrKayeyZN3C3dP_E다.
+- 전체 lint는 오류 0건·기존 hong-sil-downloader 경고 1건이며, 이후 변경 파일의 ESLint도 통과했다. 최종 빌드로 공개 HTML과 관리자 안내 이력을 다시 조회했다.
+- 전용 CI DB를 초기화 완료한 Supabase Postgres 17 이미지에서 새로 구성하고 **178개 migration 원문 SHA-256 일치**, **121/121 SQL**, **seed 3종**, **동시성 9종**을 확인했다. 일반 리허설도 100주문·100배송 건의 상태·금액·재고·프로필 보존을 통과했다. 기본 icons-ip DB를 이 추가 검증에 사용하지 않았다.
+- HTML은 실제 이미지 업로드 → 설명 삽입 → 미리보기 → 저장 → 공개 상세 → XLSX 다운로드·재업로드 → 새 초안 복사까지 확인했다. 실행 태그·이벤트·CSS·외부 이미지는 제거되고 ERP 코드 0004273001·바코드 00123456784273은 문자열로 보존된다.
+- FormData의 CRLF가 XLSX에서 LF로 바뀌는 경우를 실제 파일에서 발견했다. 비교할 때 줄바꿈만 통일하여 같은 파일이 **변경 없이 완료**되고, DB의 원문 CRLF와 전체 상품·옵션 row가 그대로 유지되는 것을 확인했다.
+- 정리 후 30,000자를 초과하는 HTML은 저장을 거절했다. 입력한 6,001개의 앰퍼샌드가 실패 후에도 보존됐으며, 편집기를 다시 열어 임시 입력을 복구했다. 검증 후 복사 상품의 원래 설명으로 복원했다.
+- 고객 안내는 실제 로컬 주문서에서 만든 2개 합성 주문을 사용했다. 각 주문은 상품 10,100원 + 배송비 3,000원 - 적립금 100원 = **13,000원**이다. 지연 조건만 재현하기 위해 이 두 주문의 확인 시각을 테스트 fixture로 조정했으며 실제 나흘이 경과한 운영 기록으로 취급하지 않는다.
+- 인앱 알림·구매자 이메일·예정일 확인 중·주문 링크를 화면과 DB에서 대조했다. 내부 지연 메모는 고객 알림과 모의 메일에 포함되지 않았다. 첫 안내의 이메일 1건 성공·1건 실패 뒤 실패 이메일만 재시도했고 인앱 알림은 늘지 않았다.
+- 모의 공급자는 수신자를 example.test/example.invalid로 제한한 로컬 HTTP 서버다. 총 4개의 이메일 intent에서 공급자 접수는 3건이다. 응답 유실 건은 같은 키로 1회 재조정되어 접수가 중복되지 않았다. 영구 거절은 기존 dispatcher의 needs_review로 멈추고 수동 재시도 버튼이 없으며, 마지막 worker 재호출은 처리 대상 0건이다. 실제 고객 발송은 0건이다.
+- 안내 전후 2개 주문·품목·배송 건 전체 payload가 일치한다. 기존 19,900원 주문과 2026-10-10 예약 배송 약속도 그대로다. HTML 원본 상품은 설명·형식·이미지 목록과 수정 시각만 바뀌었고, 복사본은 초안·재고 0·ERP/바코드·매입단가 공란이다.
+- 공개 HTML과 안내 결과는 데스크톱·390px에서 확인했다. 넓은 표는 자체 스크롤하고 긴 링크는 줄바꿈한다. 관리자 미리보기의 수량·가격 스타일 충돌과 운송장 예시의 넘침을 수정했다. 320px 검사는 기존 전역 최소 폭 320px 범위에서 수행했다.
+- 독립 Standards/Spec 리뷰의 잠금 순서·기존 이미지 이동 지적을 수정했다. 실제 교착과 이미지 이동 실패의 RED → GREEN, 엑셀 줄바꿈 재리뷰까지 확인했으며 두 축의 잔여 지적은 0건이다.
+- 작업용 메일 gate를 OFF로 복원하고 모의 공급자를 종료했다. 최종 앱은 원래 로컬 설정으로 실행하며 기록을 조회할 수 있다.
+
+최신 근거는 /tmp/icons-sales-admin-4273/final-two/의 final-verification-summary.json, integration-preservation.json, fake-mail-verification.json, cold/manifest.json, cold/sql/results.json, cold/concurrency/results.json과 q11/q12 스크린샷·실제 XLSX다. 배포할 코드·SQL과 로컬 검증의 연결은 migration SHA 목록으로 확인한다.
+
+## 2026-09-10 기준선 검증
+
+- 기준선 Vitest: **542 files passed + 1 skipped (543)**, **5,202 tests passed + 3 skipped (5,205)**. 근거: `/tmp/icons-sales-admin-4273/full-test-final.log`.
 - 생략 3건은 실행 환경을 명시적으로 켜야 하는 기존 `goods_payment_route.integration.test.ts` 1건과 공개 커뮤니티 스위치가 꺼진 상태의 `AboutLegacy.test.tsx` 2건이다. 실제 PG 승인·환급·고객 메시지 발송은 실행하지 않았다.
 - `npm run typecheck`: route type generation과 `tsc --project tsconfig.test.json --noEmit --incremental false` 통과. 근거: `/tmp/icons-sales-admin-4273/full-typecheck.log`.
 - `npm run lint`: **0 errors**, 기존 `scripts/hong-sil-downloader.mjs:294`의 unused-vars warning 1건. 근거: `/tmp/icons-sales-admin-4273/full-lint-final.log`.
@@ -72,9 +90,9 @@
 
 ## 남은 조건과 완료 경계
 
-기술 검증은 현재 migration·RPC·Server Action·화면·엑셀의 연결을 확인한다. 신규 opt-in을 실제로 활성화하려면 해당 상품의 실물 재고와 공급/물류 자료, 결제·성인인증 gate, KC 자료, 환불·클레임 비용 등 해당 정책의 실제값과 증빙이 별도로 채워져야 한다. 이는 기존 일반 운영 경로 전체를 닫는 판정이 아니다. Q11(#494)과 Q12(#478)는 답변 전까지 구현을 완료로 표시하지 않는다. #496은 두 기능의 구현과 이를 포함한 조합 시나리오 검증이 남아 부분 완료다. 기존 #410/#414/#423/#425/#426/#429/#430/#434의 사람 인수는 이 기술 작업과 별도로 추적하며 완료 처리하거나 복제하지 않는다.
+기술 검증은 현재 migration·RPC·Server Action·화면·엑셀의 연결을 확인한다. 신규 opt-in을 실제로 활성화하려면 해당 상품의 실물 재고와 공급/물류 자료, 결제·성인인증 gate, KC 자료, 환불·클레임 비용 등 해당 정책의 실제값과 증빙이 별도로 채워져야 한다. 이는 기존 일반 운영 경로 전체를 닫는 판정이 아니다. Q11(#494)과 Q12(#478)는 승인된 구조로 구현됐고, #496의 로컬 기술 검증도 완료했다. 기존 #410/#414/#423/#425/#426/#429/#430/#434의 사람 인수는 이 기술 작업과 별도로 추적하며 완료 처리하거나 복제하지 않는다.
 
-GitHub read-back에서 #461~#496은 모두 OPEN이며 연결된 Project 항목은 없었다. 로컬 구현을 원격 완료로 표시하지 않았고 PR·push·배포는 실행하지 않았다. 이후 구현 PR을 병합할 때 완전히 해결된 기능 이슈의 자동 종료와 Project 연결 상태를 확인한다. 실제 정책 활성화와 사람 인수는 해당 운영 이슈에서 별도로 기록한다.
+2026-09-11 GitHub read-back에서 #461~#496은 모두 OPEN이며 연결된 Project 항목은 없었다. 로컬 구현을 원격 완료로 표시하지 않았고 PR·push·배포는 실행하지 않았다. 이후 구현 PR을 병합할 때 완전히 해결된 기능 이슈의 자동 종료와 Project 연결 상태를 확인한다. 실제 정책 활성화와 사람 인수는 해당 운영 이슈에서 별도로 기록한다.
 
 ## 로컬 DB reset 사고
 

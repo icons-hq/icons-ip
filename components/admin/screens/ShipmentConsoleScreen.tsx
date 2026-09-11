@@ -20,7 +20,7 @@ export function ShipmentConsoleScreen({data,registeredCount}:{data:ShipmentConso
   const parcel=isParcelShipment(row);const tracking=parcel?orderShipment(carriers,row.carrier,row.trackingNumber):null;
   const methodLabel=row.delivery?DELIVERY_METHOD_LABELS[row.delivery.method]:parcel?'택배':'확인 필요';
   const detailHref=adminOrderDetailHrefFromBack(row.orderId,shipmentConsoleHref(surface,filters));
-  return {id:row.id,selectable:shipmentConsoleSelectable(row,filters.tab),selectLabel:`배송 건 ${row.id.slice(-8).toUpperCase()} 선택`,cells:[
+  return {id:row.id,selectable:filters.tab==='delayed'||shipmentConsoleSelectable(row,filters.tab),selectLabel:`배송 건 ${row.id.slice(-8).toUpperCase()} 선택`,cells:[
    <div key="id"><Link
     aria-label={`주문 ${orderReferenceLabel(row.orderId)} 상세 열기 (새 탭)`}
     className="mono"

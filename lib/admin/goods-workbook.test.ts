@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { emptyGoodsKcWorkbookRow } from './goods-kc-workbook';
+import { buildGoodsWorkbook, parseGoodsWorkbookWithKc } from './goods-workbook-file';
 import {
   emptyGoodsWorkbookRow,
   exportGoodsWorkbookRows,
@@ -78,6 +79,50 @@ const row = (
   },
 });
 describe('goods Excel planning', () => {
+  it('CRLF HTML과 검증 이미지 경로가 실제 XLSX에서 LF로 바뀌어도 무수정으로 계획한다', async () => {
+    const path = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
+    const description = `<h2>구성품</h2>\r\n<p>키링 &amp; 스티커</p>\r\n<img src="${path}" alt="구성" loading="lazy" decoding="async" />`;
+    const record = { ...existing, good: { ...existing.good, description, description_format: 'html', description_image_paths: [path], search_keywords: ['0', '키링', '스티커'], display_order: 0 } };
+    const ctx = { ...context, existing: [record] };
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook(exportGoodsWorkbookRows(record, ctx)));
+    expect(parsed.rows[0].values).toMatchObject({ description: `<h2>구성품</h2>\n<p>키링 &amp; 스티커</p>\n<img src="${path}" alt="구성" loading="lazy" decoding="async" />`, descriptionFormat: 'html', searchKeywords: '0\n키링\n스티커', displayOrder: '0' });
+    expect(planGoodsWorkbookImport(parsed.rows, { ...ctx, kcRows: parsed.kcRows })[0]).toMatchObject({ kind: 'unchanged', target: null });
+    expect(record.good.description).toBe(description);
+    expect(record.good.description_image_paths).toEqual([path]);
+  });
+  it('plain 줄바꿈과 여러 키워드는 왕복하며 0·공란·실제 문구와 이미지 변경은 계속 구분한다', async () => {
+    const description = '0\r\n첫 설명\r\n\r\n마지막 설명';
+    const record = { ...existing, good: { ...existing.good, description, description_format: 'plain', search_keywords: ['0', '키링', '스티커'], display_order: 0 },
+      variants: [{ ...existing.variants[0], erp_code: '00000123' }] };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx);
+    const parsePlan = async (edits: Partial<typeof exported[number]>) => {
+      const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook([{ ...exported[0], ...edits }]));
+      return planGoodsWorkbookImport(parsed.rows, { ...ctx, kcRows: parsed.kcRows })[0];
+    };
+    expect(await parsePlan({ searchKeywords: '0\r\n키링\r\n스티커' })).toMatchObject({ kind: 'unchanged', target: null });
+    expect(await parsePlan({ description: '0\r\n수정한 설명\r\n\r\n마지막 설명' })).toMatchObject({ kind: 'update', target: { description: '0\n수정한 설명\n\n마지막 설명' } });
+    expect(await parsePlan({ displayOrder: '' })).toMatchObject({ kind: 'update', target: { display_order: null } });
+    expect(await parsePlan({ description: '0' })).toMatchObject({ kind: 'update', target: { description: '0' } });
+    expect(await parsePlan({ description: '' })).toMatchObject({ kind: 'update', target: { description: null } });
+    expect(await parsePlan({ searchKeywords: '0\r\n다른 키워드' })).toMatchObject({ kind: 'update', target: { search_keywords: ['0', '다른 키워드'] } });
+    expect(await parsePlan({ erpCode: '00000124' })).toMatchObject({ kind: 'update', target: { variants: [{ erpCode: '00000124' }] } });
+    const imagePath = 'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp';
+    expect(await parsePlan({ descriptionFormat: 'html', description: `<p>새 HTML</p>\r\n<img src="${imagePath}" alt="새 이미지">` })).toMatchObject({ kind: 'update', target: { description_format: 'html', description_image_paths: [imagePath] } });
+    expect(record.good.description).toBe(description);
+    expect(record.good.display_order).toBe(0);
+    expect(record.variants[0].erp_code).toBe('00000123');
+  });
+  it('HTML 형식과 코드·이미지 경로를 무수정 왕복하고 다른 항목 수정에도 보존한다', () => {
+    const path = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
+    const description = `<h2>구성품</h2>\n<p>키링 &amp; 스티커</p><img src="${path}" alt="구성" loading="lazy" decoding="async" />`;
+    const record = { ...existing, good: { ...existing.good, description, description_format: 'html', description_image_paths: [path] } };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx);
+    expect(exported[0]).toMatchObject({ descriptionFormat: 'html', description });
+    expect(planGoodsWorkbookImport([{ row: 5, values: exported[0] }], ctx)[0].kind).toBe('unchanged');
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported[0], name: '이름만 변경' } }], ctx)[0]).toMatchObject({ kind: 'update', target: { description, description_format: 'html', description_image_paths: [path] } });
+  });
   it('plans KC-only changes in the same atomic product payload and never discards them as an unchanged product', () => {
     const record = { ...existing, good: { ...existing.good, published_at: null } };
     const kc = { ...emptyGoodsKcWorkbookRow(), goodCode: 'GO-001', modelIndex: '1', variantCodes: 'GO-001-01', modelName: 'TEST 전용 모델' };

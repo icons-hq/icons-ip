@@ -5,7 +5,7 @@ import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import sharp from 'sharp';
 
-const CURRENT_GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v2';
+const CURRENT_GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v3';
 
 /** Populate the actual downloaded template by header names, preserving its formatting. */
 export async function buildRehearsalWorkbooks({
@@ -27,7 +27,7 @@ export async function buildRehearsalWorkbooks({
     await workbook.xlsx.load(template);
     const sheet = workbook.getWorksheet('상품');
     if (!sheet || sheet.getCell('A1').text !== CURRENT_GOODS_WORKBOOK_VERSION)
-      throw new Error('Current goods v2 template required');
+      throw new Error('Current goods v3 template required');
     const headers = new Map();
     sheet.getRow(4).eachCell((cell, column) => headers.set(cell.text, column));
     const lastHeaderColumn = sheet.getColumn(Math.max(...headers.values())).letter;
@@ -66,6 +66,7 @@ export async function buildRehearsalWorkbooks({
           'AS 책임자': '[연습용] 운영팀',
           'AS 연락처': 'cs@staging.icons.test',
           '상품 설명': '합성 운영 연습 상품입니다. 실제 구매·출고·연락 금지.',
+          '상세 설명 형식': 'plain',
           '대표 이미지 파일명': 'rehearsal.png',
         };
         for (const [header, value] of Object.entries(fields)) {

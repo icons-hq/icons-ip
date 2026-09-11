@@ -44,6 +44,7 @@ describe('reproducible rehearsal fixtures', () => {
           row.values.originCode === 'gimpo' &&
           row.values.allowCardPayment === '예' &&
           row.values.variantActive === '사용' &&
+          row.values.descriptionFormat === 'plain' &&
           row.values.orderQuantityLimitEnabled === '아니오' &&
           row.values.memberPurchaseLimitEnabled === '아니오',
       ),

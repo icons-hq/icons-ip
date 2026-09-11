@@ -5,6 +5,7 @@ import { imageBg } from '@/lib/media';
 import { GOODS_GALLERY_MAX, normalizeGoodsSearchKeywords } from './catalog';
 import { restoreGoodsOptionRows } from './goods-option-editor';
 import { optionPriceRange } from '@/lib/goods-options';
+import { sanitizeGoodsDescription } from '@/lib/goods-description';
 
 /*
  * 어드민 굿즈 미리보기 (#184).
@@ -56,6 +57,8 @@ function previewNotice(values: Record<string, string>): GoodsNoticeInfo {
 
 export function buildGoodPreview(input: GoodPreviewInput): GoodDetailContent {
   const { fallbackBg, imageUrls, ip, stockQty, values } = input;
+  const descriptionFormat = values.descriptionFormat === 'html' ? 'html' : 'plain';
+  const htmlContent = descriptionFormat === 'html' ? sanitizeGoodsDescription(trimmed(values, 'description')) : null;
   const stock = trimmed(values, 'stock') as Stock;
   const price = Number(trimmed(values, 'price'));
   const basePrice = Number.isFinite(price) && price >= 0 ? Math.trunc(price) : 0;
@@ -100,7 +103,9 @@ export function buildGoodPreview(input: GoodPreviewInput): GoodDetailContent {
       img: mainUrl ? imageBg(mainUrl) : fallbackBg || PREVIEW_PLACEHOLDER_BG,
     },
     ip,
-    description: trimmed(values, 'description') || null,
+    description: htmlContent ? htmlContent.html || null : trimmed(values, 'description') || null,
+    descriptionFormat,
+    descriptionImagePaths: htmlContent?.imagePaths ?? [],
     gallery,
     detailImageUrl: imageUrls.detailImagePath ?? null,
     notice: previewNotice(values),

@@ -14,6 +14,7 @@ import { TabPanels, type TabPanelDef } from '@/components/wc/TabPanels';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { goodsNoticeRows } from '@/lib/goods-notice';
 import { GoodsKcDisclosure } from '@/components/shop/GoodsKcDisclosure';
+import { GoodsDescription } from '@/components/shop/GoodsDescription';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import { newInquiryHref } from '@/lib/inquiries';
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
@@ -270,10 +271,7 @@ export function GoodDetailView({
       label: '상세정보',
       content: (
         <div className="wc-pdp-panel">
-          {detail.description ? (
-            /* 줄바꿈은 운영자가 넣은 내용이다 — 접으면 설명이 한 덩어리가 된다. */
-            <p className="wc-pdp-panel__desc" style={{ whiteSpace: 'pre-wrap' }}>{detail.description}</p>
-          ) : null}
+          <GoodsDescription description={detail.description} format={detail.descriptionFormat} imagePaths={detail.descriptionImagePaths} />
           {detail.detailImageUrl ? (
             /* 긴 세로 이미지는 크롭하지 않고 <img> 로 그린다. 어드민이 넣는 외부 URL 이라
                next/image 의 최적화 대상이 아니다. */

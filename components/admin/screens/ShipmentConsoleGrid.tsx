@@ -5,23 +5,27 @@ import {bulkConfirmAdminOrdersAction} from '@/app/admin/order-actions';
 import {completeShipmentsAction,exportShipmentsAction} from '@/app/admin/shipment-actions';
 import {ConsoleGrid,type ConsoleGridColumn,type ConsoleGridRow} from '@/components/admin/console';
 import {isParcelShipment,shipmentConsoleSelectable,type ShipmentConsoleRow,type ShipmentConsoleTab} from '@/lib/admin/shipment-dispatch';
+import {OrderDelayNoticePanel} from './OrderDelayNoticePanel';
 export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,readyHref}:{rows:ShipmentConsoleRow[];columns:ConsoleGridColumn[];gridRows:ConsoleGridRow[];tab:ShipmentConsoleTab;currentHref:string;readyHref:string}){
  const [selected,setSelected]=useState<string[]>([]);const [pending,startTransition]=useTransition();const router=useRouter();
  const [confirmedSelection,setConfirmedSelection]=useState<{href:string;ids:string[]}|null>(null);
  const [message,setMessage]=useState('');const [error,setError]=useState('');const [format,setFormat]=useState<'xlsx'|'csv'>('xlsx');
  const [failures,setFailures]=useState<{id:string;reason:string}[]>([]);
+ const [noticeSelection,setNoticeSelection]=useState<string[]|null>(null);
  // Revalidation can move just-confirmed shipments behind an existing ready backlog.
  // Keep that successful batch for the immediate export without putting UUIDs in the URL.
  const retainedIds=confirmedSelection?.href===currentHref?confirmedSelection.ids:null;
  const visibleIds=new Set(rows.map(row=>row.id));
- const selectableIds=new Set(rows.filter(row=>shipmentConsoleSelectable(row,tab)).map(row=>row.id));
+ const selectableIds=new Set(rows.filter(row=>tab==='delayed'||shipmentConsoleSelectable(row,tab)).map(row=>row.id));
  const ids=retainedIds?retainedIds.filter(id=>!visibleIds.has(id)||selectableIds.has(id)):selected.filter(id=>selectableIds.has(id));
  const retainedOffPage=retainedIds?.filter(id=>!visibleIds.has(id)).length??0;
  const orderIds=[...new Set(rows.filter(row=>ids.includes(row.id)).map(row=>row.orderId))];
- const hasBatchActions=tab==='new'||rows.some(isParcelShipment)||Boolean(retainedIds?.length);
+ const hasBatchActions=tab==='new'||tab==='delayed'||rows.some(isParcelShipment)||Boolean(retainedIds?.length);
+ const exportEligible=ids.length>0&&ids.every(id=>{const row=rows.find(item=>item.id===id);return row?shipmentConsoleSelectable(row,tab):Boolean(retainedIds?.includes(id));});
  function select(next:string[]){setConfirmedSelection(null);setSelected(next.filter(id=>selectableIds.has(id)));}
  function run(kind:'confirm'|'export'|'complete'){
   if(!ids.length||pending)return;
+  if(kind==='export'&&!exportEligible)return;
   if(kind==='complete'&&!window.confirm('선택한 배송 건이 실제 도착했는지 확인했나요? 배송완료 시각부터 해당 배송 건의 철회 기간이 시작됩니다.'))return;
   setMessage('');setError('');setFailures([]);
   startTransition(async()=>{
@@ -59,10 +63,13 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     {tab==='new'?<button className="wc-admin-kit__button" disabled={pending||!ids.length} onClick={()=>run('confirm')}>선택 주문 {orderIds.length}건 발주확인</button>:tab==='transit'?
      <button className="wc-admin-kit__button" disabled={pending||!ids.length} onClick={()=>run('complete')}>선택 배송완료</button>:
      <><label>파일 형식 <select value={format} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></select></label>
-     <button className="wc-admin-kit__button" disabled={pending||!ids.length} onClick={()=>run('export')}>출고지시 내보내기</button></>}
+     <button className="wc-admin-kit__button" disabled={pending||!exportEligible} onClick={()=>run('export')}>출고지시 내보내기</button></>}
+    {tab==='delayed'?<button className="wc-admin-kit__button" disabled={pending||!ids.length} onClick={()=>setNoticeSelection([...ids])}>선택 주문 {orderIds.length}건 고객 지연 안내</button>:null}
     {pending?<span role="status">처리 중…</span>:null}
    </div>:null}
   </ConsoleGrid>
+  {tab==='delayed'?<button className="wc-admin-kit__button" type="button" onClick={()=>setNoticeSelection([])}>고객 지연 안내 이력·결과</button>:null}
+  {noticeSelection!==null?<OrderDelayNoticePanel key={noticeSelection.join(',')} shipmentIds={noticeSelection} onClose={()=>setNoticeSelection(null)}/>:null}
   {message?<p role="status">{message}</p>:null}{error?<p role="alert" className="wc-admin-kit__error">{error}</p>:null}
   {failures.length?<ul>{failures.map(row=><li key={row.id}>{row.id}: {row.reason}</li>)}</ul>:null}
  </div>;

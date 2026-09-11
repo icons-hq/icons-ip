@@ -886,6 +886,10 @@
 .wc-admin .admin-console-chip--danger .admin-console-chip-count { color: var(--wc-danger); }
 .wc-admin .admin-console-grid { display: flex; min-width: 0; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); }
 .wc-admin .admin-console-grid-scroll { min-width: 0; overflow-x: auto; scrollbar-color: var(--wc-line-control) transparent; scrollbar-width: thin; }
+.wc-admin .admin-console-import-sample { max-width: 100%; overflow-x: auto; }
+.wc-admin .wc-pdp.is-embedded .wc-stepper__input { width: 28px; height: 30px; min-height: 30px !important; padding: 0; border: 0 !important; background: none !important; font-size: 15px !important; font-weight: 700; }
+.wc-admin .wc-pdp.is-embedded .wc-buy-panel__row { flex-wrap: wrap; }
+.wc-admin .wc-pdp.is-embedded .wc-price__row { flex-wrap: wrap; }
 .wc-admin .admin-console-grid-table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .wc-admin .admin-console-grid-caption { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .wc-admin .admin-console-grid-table th { padding: 10px 12px; border-bottom: 1px solid var(--wc-line-control); color: var(--wc-ink-tertiary); font-family: var(--wc-font); font-size: 12px; font-weight: 700; text-align: start; white-space: nowrap; }
@@ -1070,3 +1074,10 @@
   .wc-admin .admin-master-detail > .wc-admin-kit__panel,
   .wc-admin .admin-master-detail > .col:first-child > .wc-admin-kit__panel { position: static; }
 }
+.wc-admin .admin-goods-html-tools { min-width: 0; margin: 0; padding: 0; border: 0; }
+.wc-admin .admin-goods-html-tools:not([hidden]) { display: grid; gap: 12px; }
+.wc-admin .admin-goods-html-tools[hidden] { display: none; }
+.wc-admin .admin-goods-html-tools .row { flex-wrap: wrap; }
+.wc-admin .admin-goods-html-tools .btn { max-width: 100%; height: auto; white-space: normal; overflow-wrap: anywhere; }
+.wc-admin .admin-goods-html-review { padding: 12px 16px; border-left: 3px solid var(--wc-warning); background: var(--wc-surface-grey); color: var(--wc-ink-sub); font-size: 13px; line-height: 1.7; }
+.wc-admin .admin-goods-html-review ul { padding-left: 20px; list-style: disc; }

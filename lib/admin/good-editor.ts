@@ -7,7 +7,7 @@ import { DEFAULT_FULFILLMENT_ORIGIN_ID } from './fulfillment-origins';
 import { GOODS_CLAIM_POLICY_FIELDS } from './goods-claim-policy';
 import { GOODS_SALE_POLICY_FIELDS } from './goods-sale-policy';
 export type GoodNoticeDefaults = { asManager: string; asContact: string };
-export const GOOD_LOCAL_DRAFT_FIELDS = ['id', 'ipId', 'name', 'nameEn', 'searchKeywords', 'displayOrder', 'categoryId', 'shippingNoticeTemplate', 'type', 'code', 'defaultVariantCode', 'price', 'compareAtPrice', 'badge', 'stock', 'description', 'imagePath', 'detailImagePath', 'originId', 'shippingFeeType', 'individualFee', 'variants', 'variantBaseline', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', ...GOODS_SALE_POLICY_FIELDS, ...GOODS_CLAIM_POLICY_FIELDS,
+export const GOOD_LOCAL_DRAFT_FIELDS = ['id', 'ipId', 'name', 'nameEn', 'searchKeywords', 'displayOrder', 'categoryId', 'shippingNoticeTemplate', 'type', 'code', 'defaultVariantCode', 'price', 'compareAtPrice', 'badge', 'stock', 'description', 'descriptionFormat', 'descriptionUploadPath', 'descriptionImageAlt', 'imagePath', 'detailImagePath', 'originId', 'shippingFeeType', 'individualFee', 'variants', 'variantBaseline', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', ...GOODS_SALE_POLICY_FIELDS, ...GOODS_CLAIM_POLICY_FIELDS,
   ...GOODS_NOTICE_FIELDS.map((field) => field.formName), ...Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => `galleryPath${i}`)];
 /** Failure/recovery owns even empty values; business defaults apply only to untouched new goods. */
 export function goodEditorValues(selected: AdminGoodRecord | null, state: AdminFormValuesState, initialIpId = '', noticeDefaults?: GoodNoticeDefaults): Record<string, string> {
@@ -24,6 +24,7 @@ export function goodEditorValues(selected: AdminGoodRecord | null, state: AdminF
     categoryId: selected?.categoryId ?? '',
     shippingNoticeTemplate: selected?.shippingNoticeSnapshot ? `${selected.shippingNoticeSnapshot.code}@${selected.shippingNoticeSnapshot.version}` : '',
     badge: selected?.badge ?? '', stock: selected?.stock ?? 'ok', description: selected?.description ?? '',
+    descriptionFormat: selected?.descriptionFormat ?? 'plain', descriptionUploadPath: '', descriptionImageAlt: '',
     imagePath: selected?.imagePath ?? '', detailImagePath: selected?.detailImagePath ?? '',
     originId: selected ? selected.originId ?? '' : DEFAULT_FULFILLMENT_ORIGIN_ID,
     shippingFeeType: selected?.shippingFeeType ?? 'policy', individualFee: String(selected?.individualFee ?? 0),

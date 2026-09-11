@@ -872,6 +872,8 @@ export async function getCatalogIp(id: string): Promise<Ip | null> {
 interface GoodDetailRow {
   kc_disclosures?: unknown;
   description: string | null;
+  description_format?: 'plain' | 'html';
+  description_image_paths?: string[];
   gallery_paths: string[] | null;
   detail_image_path: string | null;
   notice_maker: string | null;
@@ -913,7 +915,7 @@ export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodD
   const result = await supabase
     .from('goods')
     /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-    .select('description,gallery_paths,detail_image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,kc_disclosures,ips!inner(id)')
+    .select('description,description_format,description_image_paths,gallery_paths,detail_image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,kc_disclosures,ips!inner(id)')
     .eq('id', goodId)
     .is('archived_at', null)
     .not('published_at', 'is', null)
@@ -942,6 +944,8 @@ export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodD
     additionalGoods,
     ip,
     description: row.description,
+    descriptionFormat: row.description_format ?? 'plain',
+    descriptionImagePaths: row.description_image_paths ?? [],
     kcDisclosures,
     gallery: (row.gallery_paths ?? []).map((path) => imageBg(imageUrlForPath(path))),
     detailImageUrl: row.detail_image_path ? imageUrlForPath(row.detail_image_path) : null,

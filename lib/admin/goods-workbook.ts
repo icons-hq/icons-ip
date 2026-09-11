@@ -5,6 +5,7 @@ import {
   validateGoodsSearchKeywords,
 } from './catalog';
 import { parseGoodsOptionRows } from './goods-option-editor';
+import { sanitizeGoodsDescription } from '@/lib/goods-description';
 import { parsePurchaseCostInput, type PurchaseTaxBasis } from './goods-purchase-costs';
 import { goodsLinkedMetadataRpcFields } from './goods-linked-metadata';
 import { goodsSalePolicyRpcFields } from './goods-sale-policy';
@@ -16,7 +17,7 @@ export const GOODS_WORKBOOK_BYTES_LIMIT = 2 * 1024 * 1024;
 export const GOODS_IMAGES_ZIP_BYTES_LIMIT = 50 * 1024 * 1024;
 export const GOODS_IMPORT_PATH = '/admin/catalog/goods/import';
 export const GOODS_IMPORT_BUCKET = 'admin-goods-imports';
-export const GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v2';
+export const GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v3';
 export const GOODS_WORKBOOK_HEADERS = {
   code: '상품코드',
   name: '상품명',
@@ -88,6 +89,7 @@ export const GOODS_WORKBOOK_HEADERS = {
   memberPurchaseLimitEnabled: '회원 누적 한도 적용',
   memberLifetimeQtyLimit: '회원 누적 최대 수량',
   kcReset: 'KC 초기화',
+  descriptionFormat: '상세 설명 형식',
 } as const;
 export type GoodsWorkbookKey = keyof typeof GOODS_WORKBOOK_HEADERS;
 export const GOODS_WORKBOOK_KEYS = Object.keys(
@@ -172,8 +174,12 @@ const integer = (text: string) =>
   /^\d+$/.test(text) &&
   Number.isSafeInteger(Number(text)) &&
   Number(text) <= 2147483647;
+// Form submissions use CRLF while XLSX XML readers normalize line endings to LF.
+// Normalize only for comparison: preserve the raw stored/input text, blanks,
+// zero values, spaces and every other content change.
+const comparableCellText = (value: string) => value.replace(/\r\n?/g, '\n');
 const canonical = (values: GoodsWorkbookRow) =>
-  JSON.stringify(GOODS_WORKBOOK_KEYS.map((key) => values[key]));
+  JSON.stringify(GOODS_WORKBOOK_KEYS.map((key) => comparableCellText(values[key])));
 const imagePairs = [
   ['imageUrl', 'imageFile', 'image_path'],
   ['galleryUrl0', 'galleryFile0', 'gallery_0'],
@@ -243,6 +249,7 @@ export function exportGoodsWorkbookRows(
     noticeAsManager: str(good.notice_as_manager),
     noticeAsContact: str(good.notice_as_contact),
     description: str(good.description),
+    descriptionFormat: good.description_format === 'html' ? 'html' : 'plain',
   };
   for (const [url, , field] of imagePairs) {
     const path = field.startsWith('gallery_')
@@ -370,7 +377,7 @@ export function planGoodsWorkbookImport(
         GOODS_WORKBOOK_KEYS.some(
           (key) => !OPTION_KEYS.has(key)
             && key !== 'searchKeywords'
-            && current[key] !== first[key],
+            && comparableCellText(current[key]) !== comparableCellText(first[key]),
         )
         || normalizeGoodsSearchKeywords(current.searchKeywords).join('\n')
           !== normalizeGoodsSearchKeywords(first.searchKeywords).join('\n')
@@ -441,6 +448,7 @@ export function planGoodsWorkbookImport(
       'stock',
       'code',
       'description',
+      'descriptionFormat',
       'noticeMaker',
       'noticeOrigin',
       'noticeMaterial',
@@ -613,6 +621,7 @@ export function planGoodsWorkbookImport(
       return group;
     }
     const value = normalized.value;
+    if (value.descriptionFormat === 'html') group.warnings.push(...sanitizeGoodsDescription(first.description).warnings);
     group.target = {
       ...(kcPlan.kind === 'save' ? { kc_update: kcPlan.update } : {}),
       ...goodsSalePolicyRpcFields(value),
@@ -634,6 +643,8 @@ export function planGoodsWorkbookImport(
       detail_image_path: imageValues.detail_image_path,
       gallery_paths: galleries,
       description: value.description,
+      description_format: value.descriptionFormat ?? 'plain',
+      description_image_paths: value.descriptionImagePaths ?? [],
       search_keywords: value.searchKeywords ?? [],
       display_order: value.displayOrder ?? null,
       notice_maker: value.notice.maker,

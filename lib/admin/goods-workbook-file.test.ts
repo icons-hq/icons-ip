@@ -18,6 +18,11 @@ const values = {
   description: '두 줄\n설명',
 };
 describe('real xlsx boundary', () => {
+  it('상세 HTML 형식과 30,000자 문서 원문을 실제 XLSX 파일에서 손실 없이 왕복한다', async () => {
+    const description = `<h2>상세</h2><p>${'가'.repeat(29980)}</p>`;
+    const html = { ...values, descriptionFormat: 'html', description };
+    expect(await parseGoodsWorkbook(await buildGoodsWorkbook([html]))).toEqual([{ row: 5, values: html, errors: [] }]);
+  });
   it('keeps KC model rows and textual option identifiers in a separate re-uploadable sheet', async () => {
     const kc = { ...emptyGoodsKcWorkbookRow(), goodCode: values.code, modelIndex: '1', variantCodes: '00001-01\n00001-02',
       family: '그 외', scheme: '해당 없음', modelName: 'TEST 전용 모델', publicNote: '첫 줄\n둘째 줄', basis: 'TEST 적용근거' };

@@ -1020,6 +1020,35 @@
   color: var(--wc-ink-tertiary);
 }
 
+.wc-root .wc-goods-description {
+  min-width: 0;
+  max-width: 100%;
+  color: var(--wc-ink-sub);
+  font: 400 14px/1.8 var(--wc-font);
+  overflow-wrap: anywhere;
+}
+.wc-root .wc-goods-description > :first-child { margin-top: 0; }
+.wc-root .wc-goods-description > :last-child { margin-bottom: 0; }
+.wc-root .wc-goods-description :is(p, ul, ol, blockquote, figure, table) { margin: 0 0 18px; }
+.wc-root .wc-goods-description :is(h2, h3, h4, h5, h6) { margin: 28px 0 12px; color: var(--wc-ink); font-weight: 700; line-height: 1.5; }
+.wc-root .wc-goods-description h2 { font-size: 22px; }
+.wc-root .wc-goods-description h3 { font-size: 19px; }
+.wc-root .wc-goods-description :is(h4, h5, h6) { font-size: 16px; }
+.wc-root .wc-goods-description :is(ul, ol) { padding-left: 24px; }
+.wc-root .wc-goods-description ul { list-style: disc; }
+.wc-root .wc-goods-description ol { list-style: decimal; }
+.wc-root .wc-goods-description li { margin: 4px 0; }
+.wc-root .wc-goods-description li > :last-child { margin-bottom: 0; }
+.wc-root .wc-goods-description blockquote { padding: 8px 16px; border-left: 3px solid var(--wc-line-control); }
+.wc-root .wc-goods-description a { color: var(--wc-ink); text-decoration: underline; text-underline-offset: 3px; }
+.wc-root .wc-goods-description img { display: block; max-width: 100%; width: auto; height: auto; margin: 12px auto; }
+.wc-root .wc-goods-description figcaption { color: var(--wc-ink-tertiary); font-size: 12px; text-align: center; }
+.wc-root .wc-goods-description table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.wc-root .wc-goods-description :is(th, td) { min-width: 80px; padding: 10px 12px; border: 1px solid var(--wc-hairline); text-align: left; vertical-align: top; }
+.wc-root .wc-goods-description th { color: var(--wc-ink); background: var(--wc-surface-grey); font-weight: 600; }
+.wc-root .wc-goods-description caption { padding-bottom: 8px; text-align: left; font-weight: 600; }
+.wc-root .wc-goods-description hr { margin: 24px 0; border: 0; border-top: 1px solid var(--wc-hairline); }
+
 .wc-pdp-panel__image,
 .wc-pdp-panel img {
   display: block;
