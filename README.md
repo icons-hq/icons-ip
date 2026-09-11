@@ -214,6 +214,12 @@ GitHub Actions의 `CI/CD Pipeline`은 PR 검증(lint/typecheck/test/build/Supaba
 GRANT를 완화하지 않고 수정된 이미지가 포함된 CLI로 검증한다. 이 버전 변경이 hosted DB
 엔진을 교체하거나 production 데이터를 초기화하는 것은 아니다.
 
+로컬·CI의 `api.auto_expose_new_tables=true`는 기존 hosted 프로젝트에서 확인한 초기
+기본 권한을 재현한다. 이후 migration의 명시적 REVOKE/GRANT는 그대로 적용한다. 이 옵션은
+폐기 예정이므로 이를 제거하는 CLI로 갱신하기 전에 신규 DB에서도 같은 권한이 만들어지도록
+기존 migration의 누락된 명시적 GRANT를 별도 보완해야 한다. hosted `config.toml` 전체를
+push하는 설정은 아니다.
+
 - `pull_request`: open·commit 갱신·reopen과 base branch retarget에서 `validate`를 실행하고, 같은 repo 브랜치 PR이면 preview DB mode를 고른다. 제목·본문만 편집한 `edited` 이벤트는 다시 배포하거나 실행 중인 Preview run을 취소하지 않는다. `main` 대상은 merge-base 기준 전체 diff를 rename 비탐지로 읽고, Supabase 배포 변경이 없을 때만 base SHA의 main→shared sync 성공 증거를 확인한 뒤 shared main을 변경 없이 사용한다. shared Vercel 배포 직전에도 원격 `main`이 검증한 base SHA와 같은지 다시 확인하며, 달라졌으면 새 base run을 기다리도록 실패한다. 통합 브랜치 대상 PR은 선행 stage의 누적 DB 상태를 놓치지 않도록 앱 전용 diff여도 항상 isolated다. isolated head는 현재 `main`을 포함해야 하며, 무데이터 `pr-<number>` branch를 재생성한 직후에도 `main` ancestry를 다시 확인해 동시 main sync 경쟁을 차단한다. 그 뒤 migration·custom roles·seed·repo Edge Functions·baseline 검증을 마치고 Vercel preview와 recovery template를 순서대로 배포한다. Hosted `config.toml` 전체 push는 이 경로가 소유하지 않는다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
 - `pull_request: closed`: 최종 base와 무관하게 Preview pipeline과 같은 per-PR concurrency key에서 대기한 뒤 non-default `pr-<number>` branch가 있으면 삭제한다.
 - `merge_group`: `validate` job만 실행한다.
