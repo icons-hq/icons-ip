@@ -40,7 +40,7 @@ select pg_temp.publish_goods_kc_fixture('fulfillment-policy-race');
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 values('${actor}','authenticated','authenticated','fulfillment-policy-race@example.test',now(),'{}','{}',now(),now());
 insert into public.orders(id,user_id,status,total,shipping_fee,address,expires_at)
-select id::uuid,'${actor}','pending',0,0,'{}',now()+interval '1 hour' from unnest(array['${order_a}','${order_b}'])id;
+select id::uuid,'${actor}','pending',0,0,'{"recipientName":"정책 검증","phone":"01000000000","postalCode":"12345","address1":"서울시 합성 검증주소"}',now()+interval '1 hour' from unnest(array['${order_a}','${order_b}'])id;
 insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot, variant_id)
 select id::uuid,'fulfillment-policy-race',1,1000,'정책 경합 검증','문구','fulfillment-policy-race', (select id from public.goods_variants where good_id='fulfillment-policy-race' and is_default) from unnest(array['${order_a}','${order_b}'])id;
 commit;
