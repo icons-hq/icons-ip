@@ -134,6 +134,11 @@ jobs:
       - name: Apply local migrations
         run: supabase db reset --local --no-seed
 
+      - name: Install database smoke test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ripgrep
+
       - name: Run database smoke tests
         run: |
           run_sql_test() {
@@ -213,6 +218,7 @@ jobs:
           run_sql_test supabase/tests/ip_directory_workspace.sql
           run_sql_test supabase/tests/goods_identifiers.sql
           run_sql_test supabase/tests/store_settings.sql
+          run_sql_test supabase/tests/admin_operations_contacts.sql
           run_sql_test supabase/tests/admin_goods_directory.sql
           run_sql_test supabase/tests/goods_publish_state.sql
           run_sql_test supabase/tests/fulfillment_origins_policy.sql

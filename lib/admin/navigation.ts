@@ -122,6 +122,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
   {
     id: 'settings', label: '설정', icon: 'settings',
     screens: [
+      { id: 'operations-settings', label: '운영 준비', href: '/admin/settings/operations', status: 'ready' },
       { id: 'store-credits', label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true },
       { id: 'store-settings', label: '사업자·CS·결제 표시', href: '/admin/settings/store', status: 'ready' },
       { id: 'fulfillment-origins', label: '출고지·배송비', href: '/admin/settings/origins', status: 'ready' },

@@ -98,7 +98,7 @@
 
 - 최신 `main`의 팝업 변경을 보존해 통합했다. 운영 배포는 기존 GitHub Actions의 격리 Preview → production DB → 앱 경로를 따른다.
 - GitHub 리뷰의 P2 3건을 재현·수정했다. 쿠폰 선택 변경은 주문 변경 복구 안내로 매핑한다. 옵션 저장이 반환한 실제 UUID로 ERP·바코드·매입단가를 연결하여 과거 중지 옵션과 혼동하지 않으며, 신규 중지 옵션과 명시적 기존 중지 ID도 지원한다. 부족 경보는 활성 옵션만 집계하고 복원 시 다시 표시한다.
-- 이미 공유한 migration은 변경하지 않고 `20260911024351_fix_variant_metadata_resolution_and_stock_warnings.sql`을 추가했다. 최종 migration은 **179개**이며 관련 SQL 10개와 checkout 테스트 50개를 통과했다. 이전의 178개 기록은 해당 시점의 검증 기준선이다.
+- 이미 공유한 migration은 변경하지 않고 `20260911024351_fix_variant_metadata_resolution_and_stock_warnings.sql`을 추가했다. 이 시점 migration은 **179개**이며 관련 SQL 10개와 checkout 테스트 50개를 통과했다. 이전의 178개 기록은 해당 시점의 검증 기준선이다.
 - CI의 구형 Supabase Postgres `17.6.1.106` 권한 오류 처리 결함을 확인하고 CLI를 `2.109.1`로 갱신했다. 로컬·CI 초기 Data API 권한은 현재 hosted 프로젝트의 기본 권한과 일치시킨다. migration의 권한 회수와 권한 거절 테스트는 유지한다. 버전·폐기 예정 설정의 후속 조건은 [README](../../../README.md#cicd)에 기록했다.
 - 기존 앱의 민감 메일 키·발신자를 한 쌍으로 재사용하는 설정 호환을 추가했다. HMAC·webhook 설정과 Q11의 전용 gate는 [지연 주문 안내 런북](../../runbooks/order-delay-notices.md)을 따른다. #191 Auth Hook 전환과 그 readiness는 별도다.
 - 실제 공개 중인 사업자·CS 값 8개를 기존 관리자 화면으로 운영 설정에 저장하고 감사 이력·공개 연락처 일치·나머지 93개 테이블의 보존을 확인했다. 법인계좌·반송주소·상품별 실제 금액과 증빙은 확인되지 않은 값을 임의로 채우지 않는다.
@@ -107,3 +107,14 @@
 ## 로컬 DB reset 사고
 
 `/Users/sangwopark19/Documents/Codex/2026-09-10/sales-admin-feedback-qa/local-reset-incident.md`에 당시 보고를 보존했다. 권한 범위는 `icons-sales-admin-4273-db/sales_admin`였지만 이 worktree에서 `supabase db reset --local --no-seed --yes`를 두 차례 실행했고, `supabase/config.toml`의 `project_id = "icons-ip"`에 따라 대상은 `supabase_db_icons-ip` 로컬 stack(API 54321, DB 54322)이었다. task DB `icons-sales-admin-4273-db/sales_admin`(container DB 55482, REST 55485, Auth 55484, API proxy 55481)에는 reset을 실행하지 않았다. reset 전 row count·dump·backup이 없어 기존 `icons-ip` 데이터 영향과 복원 가능성은 unknown이며, task DB의 검증·seed·rollback 증거와는 분리한다.
+
+## 운영값을 어드민에서 직접 관리하는 후속 요청
+
+사용자가 실제 자료를 대화로 전달하는 대신 어드민에서 직접 입력·관리하도록 요청했다. `/admin/settings/operations`에 운영 준비 페이지를 추가하여 계좌·배송비·반품 주소·지역료·택배사·배송 안내·상품 ERP/매입단가/KC·카테고리·혜택의 기존 입력 화면을 연결했다. 같은 화면에서 운영 총괄과 출고지별 담당자 이름·업무 연락처·운영 자료 위치·인수 기록 위치를 저장한다. staff는 조회하고 활성 admin만 저장하며 입력 수는 인수·계약·판매 승인 상태가 아니다.
+
+- `20260911030432_admin_operations_contacts.sql`을 추가해 migration은 180개가 됐다. 새 private 테이블의 직접 접근을 봉인하고 조회·저장·최근 이력 RPC 3개를 분리했다. 최초 저장과 기존 행 수정의 버전 경합을 보호하고 감사 로그에 연락처·자료 위치 원문을 복제하지 않는다.
+- 전체 Vitest 5,318개 통과/기존 3개 생략, 타입 검사·빌드·lint 오류 0건(기존 경고 1건). 새 SQL smoke와 실제 두 세션 최초 저장 경합도 통과했다.
+- 실제 로컬 브라우저에서 최초·연속·공란 저장, 새로고침 후 보존, 두 탭의 충돌 후 입력 보존, 다른 담당자 저장으로 화면이 갱신된 뒤에도 이전 버전 덮어쓰기 차단을 확인했다. admin 권한 회수 후 저장 거절, 직원의 읽기 전용 필드·저장 버튼/적립금 정책 링크 숨김, 390px 화면의 가로 넘침 없음도 확인했다. 모두 작업 전용 합성 기록이다.
+- CI 동시성 검증 스크립트가 사용하는 ripgrep을 runner에 명시적으로 설치한다. 검사 구문이나 실패 판정은 완화하지 않는다.
+
+운영 준비 페이지의 절차는 [운영 설정 runbook](../../runbooks/admin-store-settings.md)과 내장 사용 가이드에 반영했다. 검증 증거는 `sales-admin-release/operations-ui/`에 저장했다. 실제 운영값은 관리자가 해당 입력 화면에서 입력하며, 운영팀·창고의 회신과 인수 여부는 기존 인수 이슈에서 별도로 확인한다.

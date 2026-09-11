@@ -85,6 +85,23 @@
 .wc-admin .admin-overview-bottom { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: start; }
 .wc-admin .admin-pipeline-fill { height: 100%; border-radius: var(--wc-radius-form); transition: width 1s cubic-bezier(.2,.7,.2,1); }
 .wc-admin .admin-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.wc-admin .admin-operations { display: grid; gap: 24px; min-width: 0; }
+.wc-admin .admin-operations__links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; list-style: none; padding: 0; margin: 20px 0 0; }
+.wc-admin .admin-operations__links a { display: grid; gap: 6px; padding: 16px 0; border-bottom: 1px solid var(--wc-hairline); }
+.wc-admin .admin-operations__links a:hover strong { text-decoration: underline; text-underline-offset: 4px; }
+.wc-admin .admin-operations__links span { font-size: 13px; color: var(--wc-ink-tertiary); }
+.wc-admin .admin-operations__links .admin-operations__link-action { color: var(--wc-ink); }
+.wc-admin .admin-operations__intro { display: grid; gap: 8px; }
+.wc-admin .admin-operations__intro p { font-size: 13px; color: var(--wc-ink-tertiary); line-height: 1.7; }
+.wc-admin .admin-operations__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 20px; font-size: 12px; color: var(--wc-ink-tertiary); }
+.wc-admin .admin-operations__form { display: grid; gap: 16px; }
+.wc-admin .admin-operations__form > button { justify-self: start; }
+.wc-admin .admin-operations__history { display: grid; gap: 16px; padding-inline-start: 20px; font-size: 13px; overflow-wrap: anywhere; }
+.wc-admin .admin-operations__history p { margin-top: 6px; color: var(--wc-ink-tertiary); }
+@media (max-width: 600px) {
+  .wc-admin .admin-operations__links { grid-template-columns: minmax(0, 1fr); }
+  .wc-admin .admin-operations__form > button { justify-self: stretch; }
+}
 .wc-admin .admin-field-control:focus-visible { outline: 2px solid var(--wc-info) !important; outline-offset: 2px; }
 .wc-admin .admin-curation-console { gap: 16px; min-width: 0; }
 .wc-admin .admin-curation-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; }
