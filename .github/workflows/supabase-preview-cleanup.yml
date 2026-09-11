@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  SUPABASE_CLI_VERSION: "2.101.0"
+  SUPABASE_CLI_VERSION: "2.109.1"
 
 jobs:
   delete-preview-branch:

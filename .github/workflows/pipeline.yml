@@ -39,7 +39,9 @@ concurrency:
 
 env:
   NODE_VERSION: "26"
-  SUPABASE_CLI_VERSION: "2.101.0"
+  # 2.101.0 bundles Postgres 17.6.1.106, whose supautils permission-denied
+  # path can crash instead of raising 42501 (supabase/postgres#2112).
+  SUPABASE_CLI_VERSION: "2.109.1"
   VERCEL_CLI_VERSION: "54.17.2"
 
 jobs:
