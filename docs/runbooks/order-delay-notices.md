@@ -34,7 +34,7 @@
 
 - `private.order_delay_notice_delivery_control.enabled`는 기본 `false`다. 일반 Data API 사용자·staff·service role의 직접 조회/변경과 공개 활성화 RPC는 없다. 별도 승인된 운영 변경으로만 활성화한다.
 - 주문 지연 안내는 이 전용 gate를 사용한다. `private.email_dispatch_control`의 Auth Hook·탈퇴 알림 전환 gate와 5개 readiness는 변경하지 않는다. 지연 안내 활성화를 위해 해당 readiness를 사실과 다르게 바꾸지 않는다.
-- 기존 `emailDispatcherFromEnvironment()`의 service role, `EMAIL_DISPATCH_HMAC_SECRET`, `RESEND_API_KEY`, `RESEND_FROM` 설정 검사와 Resend provider를 재사용한다. webhook 수신과 서명 검증은 기존 `/api/webhooks/resend` 경로를 따른다. 환경 미구성 또는 전용 gate가 꺼져 있으면 화면에서 이유를 표시하고 두 채널 최초 요청을 막는다.
+- 기존 `emailDispatcherFromEnvironment()`의 service role, `EMAIL_DISPATCH_HMAC_SECRET` 설정 검사와 Resend provider를 재사용한다. `RESEND_API_KEY`·`RESEND_FROM`·`RESEND_REPLY_TO`·`RESEND_API_ENDPOINT`가 모두 비어 있으면 기존 앱의 `EMAIL_PROVIDER_API_KEY`·`EMAIL_FROM`·`EMAIL_REPLY_TO`를 그대로 사용한다. 기존 endpoint는 미설정 또는 `https://api.resend.com/emails`여야 한다. 전용 설정을 하나라도 입력했다면 `RESEND_API_KEY`·`RESEND_FROM` 두 값이 모두 필요하며 기존 계정과 섞지 않는다. webhook 수신과 서명 검증은 기존 `/api/webhooks/resend` 경로를 따른다. 환경 미구성 또는 전용 gate가 꺼져 있으면 화면에서 이유를 표시하고 두 채널 최초 요청을 막는다.
 - 작업 cron은 `GET /api/cron/order-delay-notices`, 기존 `CRON_SECRET` 인증, 매분, 최대 25건 claim·5건 병렬 발송이다. 요청에는 수신자·문구를 받지 않으며 응답은 집계만 반환한다. 일부 실패·결과 불명·저장 실패는 HTTP 503으로 관측한다.
 - Preview·CI에는 실 provider key와 고객 자료를 넣지 않는다. 검증은 합성 주문·계정과 `RESEND_API_ENDPOINT`의 로컬 fake HTTP provider만 사용한다. gate 변경도 격리된 테스트 DB에서만 한다.
 - 실제 활성화 전 승인된 발신자·provider/webhook 설정, 보존·접근·파기 운영 절차, HMAC 키 유지 정책을 확인한다. HMAC 값의 임의 회전은 기존 source/recipient/provider digest와 멱등 fence를 끊으므로 기존 dispatcher의 키 회전 제한을 그대로 따른다.

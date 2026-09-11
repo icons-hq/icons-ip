@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createResendEmailProvider } from './resend-provider.server';
+import { createResendEmailProvider, resendEmailProviderFromEnvironment } from './resend-provider.server';
 
 const input = {
   intentId: '9b15cb25-98d8-4d9b-84e9-128e421430f5',
@@ -14,6 +14,60 @@ const input = {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
+});
+
+describe('Resend production configuration', () => {
+  const configure = (overrides: Record<string, string> = {}) => {
+    for (const name of ['RESEND_API_KEY', 'RESEND_FROM', 'RESEND_REPLY_TO', 'RESEND_API_ENDPOINT',
+      'EMAIL_PROVIDER_API_KEY', 'EMAIL_FROM', 'EMAIL_REPLY_TO', 'EMAIL_PROVIDER_ENDPOINT']) {
+      vi.stubEnv(name, overrides[name] ?? '');
+    }
+  };
+
+  it('uses the existing approved app sender without copying its sensitive key', async () => {
+    configure({ EMAIL_PROVIDER_API_KEY: 'legacy-sending-key', EMAIL_FROM: 'ICONS <no-reply@iconsip.com>',
+      EMAIL_REPLY_TO: 'help@iconsip.com' });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'accepted-legacy' })));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(resendEmailProviderFromEnvironment()?.send(input)).resolves.toEqual({
+      kind: 'accepted', providerReference: 'accepted-legacy',
+    });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://api.resend.com/emails');
+    expect(init.headers).toMatchObject({ Authorization: 'Bearer legacy-sending-key' });
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      from: 'ICONS <no-reply@iconsip.com>', reply_to: 'help@iconsip.com',
+    });
+  });
+
+  it('prefers a complete dedicated sender and keeps its reply address separate', async () => {
+    configure({ RESEND_API_KEY: 'dedicated-key', RESEND_FROM: 'new@example.test',
+      RESEND_API_ENDPOINT: 'https://provider.example.test/emails',
+      EMAIL_PROVIDER_API_KEY: 'legacy-key', EMAIL_FROM: 'legacy@example.test', EMAIL_REPLY_TO: 'old@example.test' });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'accepted-dedicated' })));
+    vi.stubGlobal('fetch', fetchMock);
+    await resendEmailProviderFromEnvironment()?.send(input);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://provider.example.test/emails');
+    expect(init.headers).toMatchObject({ Authorization: 'Bearer dedicated-key' });
+    const body = JSON.parse(String(init.body));
+    expect(body.from).toBe('new@example.test');
+    expect(body).not.toHaveProperty('reply_to');
+  });
+
+  it.each(['RESEND_API_KEY', 'RESEND_FROM', 'RESEND_REPLY_TO', 'RESEND_API_ENDPOINT'])(
+    'rejects partial dedicated configuration instead of mixing %s with a legacy sender', (name) => {
+      configure({ [name]: 'partial', EMAIL_PROVIDER_API_KEY: 'legacy-key', EMAIL_FROM: 'legacy@example.test' });
+      expect(resendEmailProviderFromEnvironment()).toBeNull();
+    },
+  );
+
+  it('does not use a legacy key configured for a different email provider', () => {
+    configure({ EMAIL_PROVIDER_API_KEY: 'another-key', EMAIL_FROM: 'legacy@example.test',
+      EMAIL_PROVIDER_ENDPOINT: 'https://another-provider.example.test/emails' });
+    expect(resendEmailProviderFromEnvironment()).toBeNull();
+  });
 });
 
 describe('Resend email provider adapter', () => {
