@@ -1,12 +1,24 @@
 import type { AdminFieldErrors } from '@/lib/admin/catalog';
 import { kstDateTimeToIso } from '@/lib/admin/kst';
 import { LOYALTY_GRADES } from '@/lib/loyalty';
+import { parseCouponTargeting, type CouponTargetGood, type CouponTargeting } from '@/lib/coupon-targeting';
+
+export const ADMIN_COUPON_LIST_PATH = '/admin/sales/coupons';
+export const ADMIN_COUPON_PAGE_SIZE = 20;
+
+export type AdminCouponStatusFilter = 'all' | 'active' | 'archived';
+
+export const ADMIN_COUPON_STATUS_OPTIONS: { value: AdminCouponStatusFilter; label: string }[] = [
+  { value: 'all', label: '전체' },
+  { value: 'active', label: '활성' },
+  { value: 'archived', label: '보관' },
+];
 
 /* 어드민 쿠폰 콘솔의 폼 계약 (S7 #329).
  * 검증의 진실원은 admin_upsert_coupon RPC 와 coupons 테이블 체크다 — 여기는
  * 운영자에게 필드 단위 피드백을 주기 위한 1차 정규화만 한다. */
 
-export interface AdminCouponRecord {
+export interface AdminCouponRecord extends Partial<CouponTargeting> {
   /** RecordList 규약상 id — 쿠폰 코드가 곧 운영 식별자다. */
   id: string;
   code: string;
@@ -22,9 +34,27 @@ export interface AdminCouponRecord {
   usedCount: number;
   status: 'active' | 'archived';
   gradeBenefit: string | null;
+  termsRevision?: number;
+  targetGoods?: CouponTargetGood[];
 }
 
-export interface AdminCouponFormValue {
+export interface AdminCouponFilters {
+  query: string;
+  status: AdminCouponStatusFilter;
+  page: number;
+  selectedCode: string | null;
+  inputError?: string;
+}
+
+export interface AdminCouponListData {
+  filters: AdminCouponFilters;
+  records: AdminCouponRecord[];
+  selectedRecord: AdminCouponRecord | null;
+  pageSize: number;
+  total: number;
+}
+
+export interface AdminCouponFormValue extends CouponTargeting {
   previousCode: string | null;
   code: string;
   name: string;
@@ -37,6 +67,7 @@ export interface AdminCouponFormValue {
   issueLimit: number | null;
   status: 'active' | 'archived';
   gradeBenefit: string | null;
+  expectedRevision: number | null;
 }
 
 export type AdminCouponFormResult =
@@ -45,6 +76,53 @@ export type AdminCouponFormResult =
 
 const CODE_PATTERN = /^[A-Z0-9][A-Z0-9-]{2,23}$/;
 const GRADE_SET = new Set<string>(LOYALTY_GRADES);
+
+type SearchParamValue = string | string[] | undefined;
+
+function singleParam(value: SearchParamValue) {
+  return typeof value === 'string' ? value : '';
+}
+
+export function normalizeAdminCouponFilters(
+  values: Record<string, SearchParamValue>,
+): AdminCouponFilters {
+  const rawQuery = singleParam(values.q).trim();
+  const rawStatus = singleParam(values.status);
+  const rawPage = Number(singleParam(values.page));
+  const rawSelectedCode = singleParam(values.couponCode).trim().toUpperCase();
+
+  return {
+    ...(rawQuery.length > 100 ? { inputError: '검색어는 100자 이하로 입력해주세요.' } : {}),
+    query: rawQuery.length <= 100 ? rawQuery : '',
+    status: rawStatus === 'active' || rawStatus === 'archived' ? rawStatus : 'all',
+    page: Number.isSafeInteger(rawPage) && rawPage > 0 ? Math.min(rawPage, 100000) : 1,
+    selectedCode: CODE_PATTERN.test(rawSelectedCode) ? rawSelectedCode : null,
+  };
+}
+
+export const DEFAULT_ADMIN_COUPON_FILTERS: AdminCouponFilters = {
+  query: '',
+  status: 'all',
+  page: 1,
+  selectedCode: null,
+};
+
+export function adminCouponListHref(
+  filters: AdminCouponFilters,
+  overrides: Partial<AdminCouponFilters> = {},
+) {
+  const next = { ...filters, ...overrides };
+  const params = new URLSearchParams();
+  if (next.query) params.set('q', next.query);
+  if (next.status !== 'all') params.set('status', next.status);
+  if (next.selectedCode) params.set('couponCode', next.selectedCode);
+  params.set('page', String(next.page));
+  return `${ADMIN_COUPON_LIST_PATH}?${params.toString()}`;
+}
+
+export function adminCouponResetHref() {
+  return adminCouponListHref(DEFAULT_ADMIN_COUPON_FILTERS);
+}
 
 function readString(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -69,9 +147,14 @@ function optionalPositiveInteger(
 
 export function normalizeAdminCouponForm(formData: FormData): AdminCouponFormResult {
   const errors: AdminFieldErrors = {};
+  const targeting = parseCouponTargeting(formData);
+  if (!targeting.ok) Object.assign(errors, targeting.errors);
 
   const code = readString(formData, 'code').toUpperCase();
   const previousCode = readString(formData, 'previousCode').toUpperCase() || null;
+  const revisionRaw = readString(formData, 'expectedRevision');
+  const expectedRevision = revisionRaw ? Number(revisionRaw) : null;
+  if (previousCode && (expectedRevision === null || !Number.isSafeInteger(expectedRevision) || expectedRevision < 1)) errors.form = '쿠폰 목록을 새로고침한 뒤 다시 수정해주세요.';
   const name = readString(formData, 'name');
   const discountType = readString(formData, 'discountType');
   const status = readString(formData, 'status');
@@ -127,11 +210,13 @@ export function normalizeAdminCouponForm(formData: FormData): AdminCouponFormRes
     errors.endsAt = '종료 시각은 시작 시각보다 뒤여야 합니다.';
   }
 
-  if (Object.keys(errors).length) return { ok: false, errors };
+  if (Object.keys(errors).length || !targeting.ok) return { ok: false, errors };
 
   return {
     ok: true,
     value: {
+      ...targeting.value,
+      expectedRevision,
       previousCode,
       code,
       name,

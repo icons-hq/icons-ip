@@ -70,6 +70,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     screens: [
       { id: 'ips', label: 'IP', href: '/admin/catalog/ips', status: 'ready' },
       { id: 'goods', label: ADMIN_VOCABULARY.goods, href: '/admin/catalog/goods', status: 'ready' },
+      { id: 'categories', label: '고객 카테고리', href: '/admin/catalog/categories', status: 'ready' },
       { id: 'notice-presets', label: `${ADMIN_VOCABULARY.noticeInfo} 프리셋`, href: '/admin/catalog/notice-presets', status: 'ready' },
       { id: 'cards', label: '카드', href: '/admin/catalog/cards', status: 'ready' },
       { id: 'pools', label: '카드풀', href: '/admin/catalog/pools', status: 'ready' },
@@ -121,8 +122,12 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
   {
     id: 'settings', label: '설정', icon: 'settings',
     screens: [
+      { id: 'operations-settings', label: '운영 준비', href: '/admin/settings/operations', status: 'ready' },
+      { id: 'store-credits', label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true },
       { id: 'store-settings', label: '사업자·CS·결제 표시', href: '/admin/settings/store', status: 'ready' },
       { id: 'fulfillment-origins', label: '출고지·배송비', href: '/admin/settings/origins', status: 'ready' },
+      { id: 'shipping-regions', label: '지역 추가 배송비', href: '/admin/settings/shipping-regions', status: 'ready' },
+      { id: 'shipping-notice-templates', label: '배송정보 템플릿', href: '/admin/settings/shipping-notices', status: 'ready' },
       { id: 'shipping-carriers', label: '택배사 관리', href: '/admin/settings/carriers', status: 'ready' },
     ],
   },

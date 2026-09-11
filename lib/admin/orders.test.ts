@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  adminOrderBackHref,
+  adminOrderDetailHref,
   adminOrdersHref,
   isKorpayManualRecoveryState,
   normalizeAdminCancellationDecisionForm,
@@ -53,6 +55,7 @@ describe('normalizeAdminOrderFilters', () => {
       status: 'paid',
       to: '2026-07-14',
     })).toEqual({
+      field: 'all',
       from: '2026-07-01',
       orderId: ORDER_ID,
       page: 3,
@@ -71,6 +74,7 @@ describe('normalizeAdminOrderFilters', () => {
       status: 'refunded',
       to: '2026-07-01',
     })).toEqual({
+      field: 'all',
       from: null,
       orderId: null,
       page: 1,
@@ -95,6 +99,17 @@ describe('normalizeAdminOrderFilters', () => {
       query: '가'.repeat(101),
       to: '2026-13-01',
     })).toMatchObject({ from: null, query: '', to: null });
+  });
+
+  it.each(['all', 'order', 'nickname', 'email', 'recipient', 'tracking'] as const)(
+    '%s 검색 대상을 URL 필터로 보존한다',
+    (field) => {
+      expect(normalizeAdminOrderFilters({ field })).toMatchObject({ field });
+    },
+  );
+
+  it('허용하지 않은 검색 대상은 전체 검색으로 되돌린다', () => {
+    expect(normalizeAdminOrderFilters({ field: 'phone' })).toMatchObject({ field: 'all' });
   });
 });
 
@@ -268,13 +283,45 @@ describe('adminOrdersHref', () => {
   it('필터를 보존하면서 선택 주문과 페이지를 교체한다', () => {
     expect(adminOrdersHref({
       from: '2026-07-01',
+      field: 'recipient',
       orderId: null,
       page: 2,
       query: 'maple fan',
       status: 'paid',
       to: '2026-07-14',
     }, { orderId: ORDER_ID, page: 1 })).toBe(
-      `/admin/sales/orders?status=paid&from=2026-07-01&to=2026-07-14&query=maple+fan&page=1&order=${ORDER_ID}`,
+      `/admin/sales/orders?status=paid&from=2026-07-01&to=2026-07-14&query=maple+fan&field=recipient&page=1&order=${ORDER_ID}`,
     );
+  });
+
+  it('전용 주문 상세 링크에 목록 조건을 안전하게 싣는다', () => {
+    const filters = {
+      field: 'tracking' as const,
+      from: '2026-07-01',
+      orderId: ORDER_ID,
+      page: 2,
+      query: '1234-5678',
+      status: 'shipping' as const,
+      to: '2026-07-14',
+    };
+    const href = adminOrderDetailHref(ORDER_ID, filters);
+    const back = new URLSearchParams(href.split('?')[1]).get('back');
+
+    expect(href).toContain(`/admin/sales/orders/${ORDER_ID}?back=`);
+    expect(back).toBe(adminOrdersHref(filters));
+    expect(adminOrderBackHref(back)).toBe(adminOrdersHref(filters));
+  });
+
+  it('상세 back 값은 허용된 주문·거래확정 목록 조건만 복원한다', () => {
+    expect(adminOrderBackHref(
+      `/admin/sales/orders?status=shipping&field=tracking&query=ABC&page=3&evil=1`,
+    )).toBe('/admin/sales/orders?status=shipping&query=ABC&field=tracking&page=3');
+    expect(adminOrderBackHref(
+      '/admin/sales/settled?from=2026-07-01&to=2026-07-14&query=ABC&page=2&evil=1',
+    )).toBe('/admin/sales/settled?from=2026-07-01&to=2026-07-14&query=ABC&page=2');
+    expect(adminOrderBackHref(
+      '/admin/sales/shipping?tab=transit&originId=00000000-0000-4000-8000-000000042201&query=ABC&page=2&evil=1',
+    )).toBe('/admin/sales/shipping?tab=transit&page=2&originId=00000000-0000-4000-8000-000000042201&query=ABC');
+    expect(adminOrderBackHref('https://evil.example/steal')).toBe('/admin/sales/orders');
   });
 });

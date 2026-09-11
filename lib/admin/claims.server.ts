@@ -14,6 +14,7 @@ import {
 import {
   ADMIN_CLAIM_PAGE_SIZE,
   adminClaimBuyerLabel,
+  type AdminClaimOperationalFee,
   type AdminClaimConsoleData,
   type AdminClaimFilters,
   type AdminClaimRow,
@@ -219,6 +220,8 @@ export interface AdminClaimDetail {
     reshippedItems?: { orderItemId: string; name: string; variantId: string; variantName: string; variantCode: string; qty: number }[];
     lastErrorCode: string | null;
     handlerName: string | null;
+    updatedAt: string;
+    operationalFee: AdminClaimOperationalFee;
   };
   order: AdminClaimDetailOrder | null;
   payment: AdminClaimDetailPayment | null;
@@ -246,6 +249,12 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
+function nullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = toNumber(value as number | string);
+  return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
 export async function loadAdminClaimDetail(
   claimId: string,
 ): Promise<AdminClaimDetail | null> {
@@ -266,6 +275,7 @@ export async function loadAdminClaimDetail(
   const packs = isRecord(data.cardPacks) ? data.cardPacks : null;
   const account = isRecord(data.refundAccount) ? data.refundAccount : null;
   const timeline = Array.isArray(data.timeline) ? data.timeline : [];
+  const operationalFee = isRecord(claim.operationalFee) ? claim.operationalFee : {};
 
   return {
     claim: {
@@ -312,6 +322,17 @@ export async function loadAdminClaimDetail(
       })),
       lastErrorCode: text(claim.lastErrorCode),
       handlerName: text(claim.handlerName),
+      updatedAt: String(claim.updatedAt ?? ''),
+      operationalFee: {
+        kind: operationalFee.kind === 'return_shipping' || operationalFee.kind === 'exchange_shipping' || operationalFee.kind === 'other'
+          ? operationalFee.kind : null,
+        amount: nullableNumber(operationalFee.amount),
+        note: text(operationalFee.note),
+        evidence: text(operationalFee.evidence),
+        confirmedBy: text(operationalFee.confirmedBy),
+        confirmedAt: text(operationalFee.confirmedAt),
+        updatedAt: String(operationalFee.updatedAt ?? claim.updatedAt ?? ''),
+      },
     },
     order: order
       ? {

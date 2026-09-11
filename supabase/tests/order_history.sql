@@ -116,7 +116,9 @@ values (
   25000,
   'ok',
   10
-, now());
+,null);
+-- Build reviewed synthetic KC evidence before publishing each fixture.
+select pg_temp.publish_goods_kc_fixture('order-history-good');
 
 insert into public.card_pools (id, ip_id, name, active_from)
 values
@@ -192,6 +194,8 @@ select public.place_order(
 reset role;
 
 -- Catalog edits after checkout must never rewrite the historical receipt.
+-- A model identity change requires a draft; the historical receipt is retained.
+update public.goods set published_at=null where id='order-history-good';
 update public.goods
 set
   ip_id = 'order-history-ip-b',

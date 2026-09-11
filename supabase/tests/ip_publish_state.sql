@@ -138,8 +138,11 @@ values
 
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
 values
-  ('publish-draft-good', 'publish-draft-ip', '게시스모크 초안 굿즈', '문구', 1000, 'ok', 1, now()),
-  ('publish-live-good', 'publish-live-ip', '게시스모크 공개 굿즈', '문구', 1000, 'ok', 1, now());
+  ('publish-draft-good', 'publish-draft-ip', '게시스모크 초안 굿즈', '문구', 1000, 'ok', 1,null),
+  ('publish-live-good', 'publish-live-ip', '게시스모크 공개 굿즈', '문구', 1000, 'ok', 1,null);
+-- Build reviewed synthetic KC evidence before publishing each fixture.
+select pg_temp.publish_goods_kc_fixture('publish-draft-good');
+select pg_temp.publish_goods_kc_fixture('publish-live-good');
 
 insert into public.cards (id, ip_id, name, no, rarity)
 values

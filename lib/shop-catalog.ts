@@ -1,3 +1,4 @@
+import { categoryAncestorIds, orderedCatalogCategories, type CatalogCategory } from './catalog-categories';
 import type { CatalogSnapshot } from './catalog';
 import type { Good } from './data';
 import { GOOD_TYPES, isGoodType } from './goods-taxonomy';
@@ -31,6 +32,7 @@ export const SHOP_DEFAULT_SORT: Record<ShopView, ShopSort> = {
 
 export interface ShopListQuery {
   ips: string[];
+  categories?: string[];
   types: string[];
   priceMin: number | null;
   priceMax: number | null;
@@ -42,6 +44,7 @@ export interface ShopFacetOption {
   value: string;
   label: string;
   count: number;
+  depth?: number;
 }
 
 export interface ShopListResult {
@@ -51,6 +54,29 @@ export interface ShopListResult {
   priceCeil: number;
   ipFacets: ShopFacetOption[];
   typeFacets: ShopFacetOption[];
+  categoryFacets?: ShopFacetOption[];
+}
+
+const naturalIdCollator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
+
+function displayOrderOf(good: Good) {
+  return typeof good.displayOrder === 'number' && Number.isInteger(good.displayOrder) && good.displayOrder >= 0
+    ? good.displayOrder
+    : null;
+}
+
+/** 추천순의 기본 키. 중복·미설정 값은 상품 ID로 고정해 페이지 경계를 흔들지 않는다. */
+function compareRecommendedGoods(left: Good, right: Good) {
+  const leftOrder = displayOrderOf(left);
+  const rightOrder = displayOrderOf(right);
+  if (leftOrder !== null && rightOrder === null) return -1;
+  if (leftOrder === null && rightOrder !== null) return 1;
+  if (leftOrder !== null && rightOrder !== null && leftOrder !== rightOrder) return leftOrder - rightOrder;
+  return naturalIdCollator.compare(left.id, right.id);
+}
+
+function sortRecommendedGoods(goods: Good[]) {
+  return [...goods].sort(compareRecommendedGoods);
 }
 
 type SearchParamValue = string | string[] | undefined;
@@ -78,13 +104,14 @@ function dedupe(values: readonly string[]): string[] {
 
 export function parseShopSearchParams(
   params: Record<string, SearchParamValue>,
-  options: { view: ShopView; validIpIds: ReadonlySet<string> },
+  options: { view: ShopView; validIpIds: ReadonlySet<string>; validCategoryIds?: ReadonlySet<string> },
 ): ShopListQuery {
   const sortParam = firstOf(params.sort);
 
   return {
     ips: dedupe(valuesOf(params.ip).filter((id) => options.validIpIds.has(id))),
     types: dedupe(valuesOf(params.type).filter(isGoodType)),
+    ...(options.validCategoryIds ? { categories: dedupe(valuesOf(params.category).filter((id) => options.validCategoryIds!.has(id))) } : {}),
     priceMin: parsePrice(params.min),
     priceMax: parsePrice(params.max),
     sort: SHOP_SORTS.find((candidate) => candidate === sortParam) ?? SHOP_DEFAULT_SORT[options.view],
@@ -144,7 +171,7 @@ function sortGoods(goods: Good[], sort: ShopSort): Good[] {
 }
 
 export function selectShopGoods(
-  catalog: Pick<CatalogSnapshot, 'ips' | 'goods'>,
+  catalog: Pick<CatalogSnapshot, 'ips' | 'goods'> & { categories?: readonly CatalogCategory[] },
   query: ShopListQuery,
   bestGoodIds: readonly string[] = [],
 ): ShopListResult {
@@ -152,7 +179,11 @@ export function selectShopGoods(
 
   const selectedIps = new Set(query.ips);
   const selectedTypes = new Set(query.types);
+  const categories = catalog.categories ?? [];
+  const selectedCategories = new Set(query.categories ?? []);
+  const goodCategoryIds = new Map(scope.map((good) => [good.id, good.categoryId ? categoryAncestorIds(categories, good.categoryId) : []]));
   const filtered = scope.filter((good) => {
+    if (selectedCategories.size > 0 && !goodCategoryIds.get(good.id)?.some((id) => selectedCategories.has(id))) return false;
     if (selectedIps.size > 0 && !selectedIps.has(good.ip)) return false;
     if (selectedTypes.size > 0 && !selectedTypes.has(good.type)) return false;
     if (query.priceMin !== null && good.price < query.priceMin) return false;
@@ -169,14 +200,20 @@ export function selectShopGoods(
     countByType.set(good.type, (countByType.get(good.type) ?? 0) + 1);
   }
 
+  const recommended = query.view === 'best' ? filtered : sortRecommendedGoods(filtered);
+
   return {
-    goods: sortGoods(filtered, query.sort),
+    goods: query.sort === 'recommended' ? recommended : sortGoods(filtered, query.sort),
     filteredTotal: filtered.length,
     total: scope.length,
     priceCeil: scope.reduce((max, good) => Math.max(max, good.price), 0),
     ipFacets: catalog.ips
       .filter((ip) => (countByIp.get(ip.id) ?? 0) > 0)
       .map((ip) => ({ value: ip.id, label: ip.title, count: countByIp.get(ip.id) ?? 0 })),
+    ...(categories.length ? { categoryFacets: orderedCatalogCategories(categories).map((category) => ({
+      value: category.id, label: category.name, depth: category.depth,
+      count: scope.filter((good) => goodCategoryIds.get(good.id)?.includes(category.id)).length,
+    })) } : {}),
     typeFacets: GOOD_TYPES.filter((type) => (countByType.get(type) ?? 0) > 0).map((type) => ({
       value: type,
       label: type,

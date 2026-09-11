@@ -37,7 +37,7 @@ export interface AdminOrderDetail {
   emailJobs: AdminShipmentEmailJob[];
   order: {
     id: string; userId: string; buyerName: string | null; buyerEmail: string | null;
-    status: AdminOrderStatus; total: number; shippingFee: number; discountTotal: number;
+    status: AdminOrderStatus; total: number; shippingFee: number; discountTotal: number; storeCreditTotal: number;
     createdAt: string;
     address: Partial<AdminOrderAddress>;
   };

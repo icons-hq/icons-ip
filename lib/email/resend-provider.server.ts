@@ -78,14 +78,20 @@ export function createResendEmailProvider(config: ResendEmailProviderConfig): Em
 }
 
 export function resendEmailProviderFromEnvironment(): EmailProvider | null {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  const from = process.env.RESEND_FROM?.trim();
+  // Reuse the existing app sender when no dedicated provider configuration was
+  // supplied. Select the whole pair so a partial override cannot mix accounts.
+  const dedicated = [process.env.RESEND_API_KEY, process.env.RESEND_FROM,
+    process.env.RESEND_REPLY_TO, process.env.RESEND_API_ENDPOINT].some((value) => value?.trim());
+  const legacyEndpoint = process.env.EMAIL_PROVIDER_ENDPOINT?.trim();
+  if (!dedicated && legacyEndpoint && legacyEndpoint !== DEFAULT_ENDPOINT) return null;
+  const apiKey = (dedicated ? process.env.RESEND_API_KEY : process.env.EMAIL_PROVIDER_API_KEY)?.trim();
+  const from = (dedicated ? process.env.RESEND_FROM : process.env.EMAIL_FROM)?.trim();
   if (!apiKey || !from) return null;
 
   return createResendEmailProvider({
     apiKey,
     from,
-    replyTo: process.env.RESEND_REPLY_TO?.trim() || undefined,
-    endpoint: process.env.RESEND_API_ENDPOINT?.trim() || undefined,
+    replyTo: (dedicated ? process.env.RESEND_REPLY_TO : process.env.EMAIL_REPLY_TO)?.trim() || undefined,
+    endpoint: dedicated ? process.env.RESEND_API_ENDPOINT?.trim() || undefined : undefined,
   });
 }

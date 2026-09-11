@@ -7,6 +7,9 @@ import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
 import { ADMIN_ORDER_STATUS_LABELS } from '@/lib/admin/orders';
 import { isOrderClaimType, ORDER_CLAIM_STAGE_LABELS, ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/claims';
 import { OrderNoteForm } from './OrderNoteForm';
+import { ShipmentPreorderPromisePanel } from '@/components/admin/ShipmentPreorderPromisePanel';
+import { ShipmentDeliveryPanel } from '@/components/admin/ShipmentDeliveryPanel';
+import { DELIVERY_METHOD_LABELS } from '@/lib/shipment-delivery';
 
 const SOURCE_LABELS: Record<AdminOrderTimelineSource, string> = {
   order: '주문', payment: '결제', refund: '환불', status: '상태 변경', shipment: '배송·송장',
@@ -14,6 +17,9 @@ const SOURCE_LABELS: Record<AdminOrderTimelineSource, string> = {
 };
 const ACTION_LABELS: Record<string, string> = {
   'admin.shipment.status_updated': '배송 건 상태 변경', 'admin.shipment.tracking_updated': '배송 건 운송장 수정',
+  'order.preorder_stock_allocated': '예약 재고 할당', 'order.preorder_capacity_released': '예약 물량 해제',
+  'admin.shipment.preorder_promise_changed': '예약 발송 일정 변경',
+  'admin.shipment.delivery_method_selected': '배송 방식 변경', 'admin.shipment.delivery_evidence_recorded': '인계·수령 근거 기록',
   'admin.order.status_updated': '주문 상태 변경', 'admin.order.tracking_updated': '운송장 수정',
   'admin.order.note': '운영자 메모', 'admin.order.dispatch_delay_noted': '발송 지연 기록',
   'admin.order.dispatch_delay_cleared': '발송 지연 해제',
@@ -60,6 +66,8 @@ function TimelineEntry({ entry }: { entry: AdminOrderTimelineEntry }) {
   const href = entry.relatedId && entry.source === 'inquiry' ? `/admin/cs/inquiries/${entry.relatedId}`
     : entry.relatedId && entry.source === 'claim' && isOrderClaimType(entry.claimType)
       ? `/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[entry.claimType]}/${entry.relatedId}` : null;
+  const stateLabel = (value: string) => entry.action === 'admin.shipment.delivery_method_selected'
+    ? (DELIVERY_METHOD_LABELS as Record<string, string>)[value] ?? '배송 방식' : entry.shipmentId ? shipmentState(value) : orderStatus(value);
   return <li className="admin-order-detail__event">
     <div className="admin-order-detail__event-meta">
       <AdminStatusBadge tone={entry.source === 'note' ? 'warning' : 'neutral'}>{SOURCE_LABELS[entry.source]}</AdminStatusBadge>
@@ -67,7 +75,7 @@ function TimelineEntry({ entry }: { entry: AdminOrderTimelineEntry }) {
       {entry.actorName ? <span>{entry.actorName}</span> : null}
     </div>
     <h4>{entryTitle(entry)}</h4>
-    {entry.fromStatus && entry.toStatus ? <p>{entry.shipmentId ? shipmentState(entry.fromStatus) : orderStatus(entry.fromStatus)} → {entry.shipmentId ? shipmentState(entry.toStatus) : orderStatus(entry.toStatus)}</p> : null}
+    {entry.fromStatus && entry.toStatus ? <p>{stateLabel(entry.fromStatus)} → {stateLabel(entry.toStatus)}</p> : null}
     {entry.amount != null ? <p>{money(entry.amount)}{entry.provider ? ` · ${entry.provider === 'korpay' ? 'Korpay' : entry.provider === 'toss' ? 'Toss' : '결제사'}` : ''}</p> : null}
     {status ? <p className="admin-order-detail__muted">현재 상태 · {status}</p> : null}
     {entry.shipmentId ? <p>{entry.originName ?? '배송 건'} · {entry.shipmentId}</p> : null}
@@ -77,11 +85,21 @@ function TimelineEntry({ entry }: { entry: AdminOrderTimelineEntry }) {
   </li>;
 }
 
-export function OrderDetailScreen({ detail, noteOperationId }: { detail: AdminOrderDetail; noteOperationId: string }) {
+export function OrderDetailScreen({
+  backHref = '/admin/sales/orders',
+  backLabel = '주문 목록',
+  detail,
+  noteOperationId,
+}: {
+  backHref?: string;
+  backLabel?: string;
+  detail: AdminOrderDetail;
+  noteOperationId: string;
+}) {
   const { order, items, timeline } = detail;
   return <div className="admin-order-detail">
     <AdminPageHeader title="주문 상세" description={order.id} actions={<>
-      <Link href="/admin/sales/orders" className="admin-order-detail__button admin-order-detail__button--secondary">주문 목록</Link>
+      <Link href={backHref} className="admin-order-detail__button admin-order-detail__button--secondary">{backLabel}</Link>
       <Link href={`/admin/sales/orders?status=all&query=${order.id}&order=${order.id}`} className="admin-order-detail__button">주문 처리</Link>
     </>} />
     <div className="admin-order-detail__overview">
@@ -91,7 +109,7 @@ export function OrderDetailScreen({ detail, noteOperationId }: { detail: AdminOr
           <div><dt>주문 일시</dt><dd>{dateTime(order.createdAt)}</dd></div>
           <div><dt>주문자</dt><dd>{order.buyerName || '탈퇴 회원'}{order.buyerEmail ? <span>{order.buyerEmail}</span> : null}<Link href={`/admin/customers/${order.userId}`}>고객 상세 열기</Link></dd></div>
           <div><dt>주문 금액</dt><dd>{money(order.total)}</dd></div>
-          <div><dt>배송비 / 할인</dt><dd>{money(order.shippingFee)} / {money(order.discountTotal)}</dd></div>
+          <div><dt>배송비 / 쿠폰 할인 / 적립금 사용</dt><dd>{money(order.shippingFee)} / {money(order.discountTotal)} / {money(order.storeCreditTotal)}</dd></div>
         </dl>
       </AdminSectionCard>
       <AdminSectionCard title="배송 정보">
@@ -105,6 +123,8 @@ export function OrderDetailScreen({ detail, noteOperationId }: { detail: AdminOr
     </div>
     <AdminSectionCard title="배송 건별 현황">
       <ShipmentDetails admin shipments={detail.shipments} items={items} />
+      {detail.shipments.map(shipment => <ShipmentDeliveryPanel shipmentId={shipment.id} originName={shipment.originName} key={shipment.id} />)}
+      {detail.shipments.filter(shipment => shipment.originalExpectedShipDate).map(shipment => <ShipmentPreorderPromisePanel shipmentId={shipment.id} key={shipment.id} />)}
       {detail.emailJobs.length ? <section aria-label="배송 메일 처리 상태">
         <h3>배송 안내 메일</h3>
         <ul>{detail.emailJobs.map(job=><li key={job.shipmentId}>

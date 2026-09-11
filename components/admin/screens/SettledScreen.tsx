@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import {
   ConsoleFilterPanel,
   ConsoleGrid,
@@ -11,8 +12,10 @@ import {
   adminSettledHref,
   type AdminSettledConsoleData,
 } from '@/lib/admin/settled';
+import { adminOrderDetailHrefFromBack } from '@/lib/admin/orders';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
+import { SettledExportForm } from './SettledExportForm';
 
 const COLUMNS: ConsoleGridColumn[] = [
   { key: 'reference', label: '주문번호', width: '110px' },
@@ -36,9 +39,11 @@ const COLUMNS: ConsoleGridColumn[] = [
  */
 export function SettledScreen({
   data,
+  exportRequestId,
   now = new Date(),
 }: {
   data: AdminSettledConsoleData;
+  exportRequestId?: string;
   /** 잔여 기한 기준 시각. 테스트 주입용. */
   now?: Date;
 }) {
@@ -49,9 +54,17 @@ export function SettledScreen({
 
     return {
       id: row.id,
-      href: `/admin/sales/orders?status=done&page=1&order=${row.id}`,
       cells: [
-        <span className="mono" key="reference">{orderReferenceLabel(row.id)}</span>,
+        <Link
+          aria-label={`주문 ${orderReferenceLabel(row.id)} 상세 열기 (새 탭)`}
+          className="admin-console-grid-link"
+          href={adminOrderDetailHrefFromBack(row.id, adminSettledHref(filters))}
+          key="reference"
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          <span className="mono">{orderReferenceLabel(row.id)}</span>
+        </Link>,
         <span key="buyer">@{row.buyerName}</span>,
         row.deliveredAt
           ? (
@@ -87,6 +100,8 @@ export function SettledScreen({
         <span data-admin-tooltip={ADMIN_VOCABULARY.settledHint} title={ADMIN_VOCABULARY.settledHint} tabIndex={0}>{ADMIN_VOCABULARY.settled}</span>은 배송완료 8일 뒤 자동으로 처리됩니다. 확정 이후에도 상품 하자·오배송
         {ADMIN_VOCABULARY.claimRequest}은 공급받은 날부터 3개월 이내에 접수할 수 있습니다.
       </p>
+
+      {exportRequestId ? <SettledExportForm key={adminSettledHref(filters)} filters={filters} requestId={exportRequestId} /> : null}
 
       <ConsoleGrid
         caption="거래확정 주문 목록"

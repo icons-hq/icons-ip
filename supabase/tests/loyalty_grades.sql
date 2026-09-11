@@ -60,10 +60,13 @@ on conflict (id) do nothing;
 
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
 values
-  ('loy-g1', 'loy-ip', '등급 굿즈 12만', '피규어', 120000, 'ok', 100, now()),
-  ('loy-g2', 'loy-ip', '등급 굿즈 3만', '피규어', 30000, 'ok', 100, now())
+  ('loy-g1', 'loy-ip', '등급 굿즈 12만', '피규어', 120000, 'ok', 100,null),
+  ('loy-g2', 'loy-ip', '등급 굿즈 3만', '피규어', 30000, 'ok', 100,null)
 on conflict (id) do update set
   price = excluded.price, stock = excluded.stock, stock_qty = excluded.stock_qty;
+-- Build reviewed synthetic KC evidence before publishing each fixture.
+select pg_temp.publish_goods_kc_fixture('loy-g1');
+select pg_temp.publish_goods_kc_fixture('loy-g2');
 
 -- ── 스키마·ACL 계약 ─────────────────────────────────────────────────────────
 

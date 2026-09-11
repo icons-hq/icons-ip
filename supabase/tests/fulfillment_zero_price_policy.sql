@@ -10,10 +10,15 @@ insert into public.ips(id,title,vertical_key,published_at)
 values ('shipping-zero-policy','0원 배송 검증','shipping-zero-policy',now());
 insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at,origin_id,shipping_fee_type,individual_fee)
 values
- ('shipping-zero-policy-good','shipping-zero-policy','0원 정책 상품','키링',0,'ok',10,now(),'00000000-0000-4000-8000-000000042201','policy',0),
- ('shipping-zero-free-good','shipping-zero-policy','무료배송 상품','키링',10000,'ok',10,now(),'00000000-0000-4000-8000-000000042201','free',0),
- ('shipping-zero-individual-good','shipping-zero-policy','개별배송 상품','키링',10000,'ok',10,now(),'00000000-0000-4000-8000-000000042201','individual',2000),
- ('shipping-zero-paid-policy-good','shipping-zero-policy','유상 정책 상품','키링',25000,'ok',10,now(),'00000000-0000-4000-8000-000000042201','policy',0);
+ ('shipping-zero-policy-good','shipping-zero-policy','0원 정책 상품','키링',0,'ok',10,null,'00000000-0000-4000-8000-000000042201','policy',0),
+ ('shipping-zero-free-good','shipping-zero-policy','무료배송 상품','키링',10000,'ok',10,null,'00000000-0000-4000-8000-000000042201','free',0),
+ ('shipping-zero-individual-good','shipping-zero-policy','개별배송 상품','키링',10000,'ok',10,null,'00000000-0000-4000-8000-000000042201','individual',2000),
+ ('shipping-zero-paid-policy-good','shipping-zero-policy','유상 정책 상품','키링',25000,'ok',10,null,'00000000-0000-4000-8000-000000042201','policy',0);
+-- Build reviewed synthetic KC evidence before publishing each fixture.
+select pg_temp.publish_goods_kc_fixture('shipping-zero-policy-good');
+select pg_temp.publish_goods_kc_fixture('shipping-zero-free-good');
+select pg_temp.publish_goods_kc_fixture('shipping-zero-individual-good');
+select pg_temp.publish_goods_kc_fixture('shipping-zero-paid-policy-good');
 
 create temp table zero_price_lines as
 select good.id, jsonb_build_object('goodId',good.id,'variantId',variant.id,'qty',1) value

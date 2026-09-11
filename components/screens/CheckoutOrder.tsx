@@ -116,6 +116,7 @@ export function CheckoutOrder({
       }
       return { title: '결제 가능한 시간이 지났어요', body: '선점된 재고는 자동으로 복원됩니다. 새 장바구니에서 주문을 다시 만들어주세요.' };
     }
+    if (isBankTransfer) return { title: '입금 정보를 확인하세요', body: '주문 금액과 입금자명을 확인하고 안내된 계좌로 기한 안에 입금해주세요.' };
     return null;
   }, [isBankTransfer, state]);
 
@@ -243,10 +244,11 @@ export function CheckoutOrder({
           </div>
           <dl className="checkout-totals">
             {/* total 은 할인·배송비가 이미 반영된 청구액이다 — 굿즈 금액은 둘을 되돌려 복원한다. */}
-            <div><dt>굿즈 금액</dt><dd>{krw(order.total - order.shippingFee + order.discountTotal)}</dd></div>
+            <div><dt>굿즈 금액</dt><dd>{krw(order.total - order.shippingFee + order.discountTotal + order.storeCreditTotal)}</dd></div>
             {order.discountTotal > 0 && (
               <div><dt>쿠폰 할인</dt><dd>−{krw(order.discountTotal)}</dd></div>
             )}
+            {order.storeCreditTotal > 0 && <div><dt>적립금 사용</dt><dd>−{krw(order.storeCreditTotal)}</dd></div>}
             <div><dt>배송비</dt><dd>{shippingFeeLabel(order.shippingFee)}</dd></div>
             <div className="checkout-total"><dt>결제 금액</dt><dd>{krw(order.total)}</dd></div>
           </dl>

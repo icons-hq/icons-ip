@@ -46,11 +46,22 @@
 .wc-admin .wc-admin__main { display: flex; min-width: 0; min-height: 100svh; flex: 1; flex-direction: column; margin-left: 248px; transition: margin-left var(--wc-duration-default); }
 .wc-admin .wc-admin__header { position: sticky; top: 0; z-index: 60; display: flex; min-height: 72px; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 32px; background: var(--wc-surface); border-bottom: 1px solid var(--wc-hairline); }
 .wc-admin .wc-admin__title { margin: 0; color: var(--wc-ink); font-family: var(--wc-font); font-size: 22px; font-weight: 700; line-height: 1.4; }
-.wc-admin .wc-admin__identity { display: flex; min-width: 0; align-items: center; gap: 12px; }
+.wc-admin .wc-admin__identity { position: relative; display: flex; min-width: 0; align-items: center; gap: 12px; }
+.wc-admin .wc-admin__account-trigger { display: flex; min-width: 0; align-items: center; gap: 12px; padding: 4px; border: 1px solid transparent; border-radius: var(--wc-radius-form); background: transparent; color: inherit; font: inherit; text-align: right; cursor: pointer; }
+.wc-admin .wc-admin__account-trigger:hover { background: var(--wc-surface-grey); }
 .wc-admin .wc-admin__identity-text { display: flex; align-items: flex-end; flex-direction: column; gap: 2px; }
 .wc-admin .wc-admin__email { font-size: 13px; overflow-wrap: anywhere; }
 .wc-admin .wc-admin__role { color: var(--wc-ink-tertiary); font-size: 11px; }
 .wc-admin .wc-admin__avatar { display: grid; width: 36px; height: 36px; flex: none; place-items: center; border: 1px solid var(--wc-hairline); border-radius: 50%; background: var(--wc-surface-grey); font-size: 13px; font-weight: 700; }
+.wc-admin .wc-admin__account-menu { position: absolute; top: calc(100% + 8px); right: 0; z-index: 100; display: grid; width: min(280px, calc(100vw - 32px)); gap: 14px; padding: 16px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); box-shadow: var(--wc-shadow-popup); text-align: left; }
+.wc-admin .wc-admin__account-summary { display: grid; gap: 3px; min-width: 0; }
+.wc-admin .wc-admin__account-label { color: var(--wc-ink-tertiary); font-size: 11px; }
+.wc-admin .wc-admin__account-email { overflow-wrap: anywhere; font-size: 13px; font-weight: 700; }
+.wc-admin .wc-admin__account-role { color: var(--wc-ink-tertiary); font-size: 12px; }
+.wc-admin .wc-admin__account-form { margin: 0; }
+.wc-admin .wc-admin__account-logout { width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--wc-ink); border-radius: var(--wc-radius-form); background: var(--wc-ink); color: var(--wc-surface); font: 600 13px/1.5 var(--wc-font); cursor: pointer; }
+.wc-admin .wc-admin__account-logout:disabled { border-color: var(--wc-line-control); background: var(--wc-surface-grey); color: var(--wc-ink-tertiary); cursor: default; }
+.wc-admin .wc-admin__account-error { margin: 0; color: var(--wc-danger); font-size: 12px; line-height: 1.5; }
 /* This slot renders only when an unanswered inquiry needs attention. */
 .wc-admin .admin-shell-badges { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px 32px 0; }
 .wc-admin .admin-shell-badge { display: inline-flex; min-height: 40px; align-items: center; gap: 8px; padding: 7px 14px; border: 1px solid var(--wc-warning); border-radius: var(--wc-radius-badge); background: var(--wc-surface); color: var(--wc-ink); font-size: 13px; }

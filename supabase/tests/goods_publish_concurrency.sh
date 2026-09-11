@@ -17,11 +17,13 @@ psql_exec() {
   fi
 }
 psql_scalar() { psql_exec -qAt -c "$1"; }
+kc_fixture_sql="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/helpers/goods_kc_fixture.sql"
+psql_exec_with_kc() { { cat "$kc_fixture_sql"; cat; } | psql_exec "$@"; }
 
 cleanup() {
   local result=$?
   trap - EXIT
-  if ! psql_exec -q <<SQL >"$work_dir/cleanup.log" 2>&1
+  if ! psql_exec_with_kc -q <<SQL >"$work_dir/cleanup.log" 2>&1
 begin;
 select pg_terminate_backend(pid) from pg_stat_activity
 where application_name like '${test_prefix}-%' and pid <> pg_backend_pid();
@@ -29,6 +31,7 @@ delete from public.audit_log where actor_id='${admin_id}';
 delete from public.order_items where order_id in (select id from public.orders where user_id='${user_id}');
 delete from public.orders where user_id='${user_id}';
 delete from public.cart_items where user_id='${user_id}';
+select pg_temp.cleanup_goods_kc_fixture('goods-publish-race');
 delete from public.goods where id='goods-publish-race';
 delete from public.ips where id='goods-publish-race';
 delete from public.verticals where key='goods-publish-race';
@@ -58,7 +61,7 @@ wait_for_wait() {
   return 1
 }
 
-psql_exec -q <<SQL >/dev/null
+psql_exec_with_kc -q <<SQL >/dev/null
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 values ('${user_id}','authenticated','authenticated','goods-publish-race@example.test',now(),'{}','{}',now(),now()),
  ('${admin_id}','authenticated','authenticated','ip-publisher-race@example.test',now(),'{}','{}',now(),now());
@@ -68,7 +71,8 @@ update public.profiles set role='admin' where id='${admin_id}';
 insert into public.verticals(key,label,color) values ('goods-publish-race','게시 경합','#000000');
 insert into public.ips(id,title,vertical_key,published_at) values ('goods-publish-race','게시 경합','goods-publish-race',now());
 insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact)
-values ('goods-publish-race','goods-publish-race','게시 경합 상품','문구',12000,'ok',10,now(),'public-media/goods-race.webp','제조사','한국','종이','A5','2026-09','CS','02-000-0000');
+values ('goods-publish-race','goods-publish-race','게시 경합 상품','문구',12000,'ok',10,null,'public-media/goods-race.webp','제조사','한국','종이','A5','2026-09','CS','02-000-0000');
+select pg_temp.publish_goods_kc_fixture('goods-publish-race');
 insert into public.cart_items(user_id,good_id,qty, variant_id) values ('${user_id}','goods-publish-race',1, (select id from public.goods_variants where good_id='goods-publish-race' and is_default));
 SQL
 

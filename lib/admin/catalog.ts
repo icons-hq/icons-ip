@@ -1,3 +1,6 @@
+import { readGoodsClaimPolicy } from './goods-claim-policy';
+import type { GoodClaimPolicy } from '@/lib/goods-claim-policy';
+import { readGoodsLinkedMetadata, type GoodsLinkedMetadataInput } from './goods-linked-metadata';
 import type { Stock } from '@/lib/data';
 import {
   GOODS_NOTICE_FIELDS,
@@ -5,6 +8,8 @@ import {
   type GoodsNoticeInfo,
 } from '@/lib/goods-notice';
 import type { RarityKey } from '@/lib/rarity';
+import { readAdminGoodsSalePolicy, type AdminGoodsSalePolicyInput } from './goods-sale-policy';
+import { GOODS_HTML_IMAGE_MAX, GOODS_HTML_MAX_LENGTH, sanitizeGoodsDescription, type GoodsDescriptionFormat } from '@/lib/goods-description';
 
 export type AdminFieldErrors = Record<string, string>;
 
@@ -36,7 +41,8 @@ export interface AdminIpFormValue {
   publish: boolean | null;
 }
 
-export interface AdminGoodFormValue {
+export interface AdminGoodFormValue extends AdminGoodsSalePolicyInput, GoodsLinkedMetadataInput {
+  claimPolicy?: GoodClaimPolicy;
   publish: boolean | null;
   previousId: string | null;
   id: string;
@@ -44,6 +50,9 @@ export interface AdminGoodFormValue {
   defaultVariantCode: string | null;
   ipId: string;
   name: string;
+  nameEn?: string | null;
+  searchKeywords?: string[];
+  displayOrder?: number | null;
   type: string;
   price: number;
   /** 취소선으로 표기할 정가 (#326). 할인 중일 때만 값이 있고, 아니면 null 이다. */
@@ -54,6 +63,8 @@ export interface AdminGoodFormValue {
   imagePath: string | null;
   notice: GoodsNoticeInfo;
   description: string | null;
+  descriptionFormat?: GoodsDescriptionFormat;
+  descriptionImagePaths?: string[];
   /** 순서가 곧 노출 순서다. 빈 슬롯은 빠진 채로 온다. */
   galleryPaths: string[];
   detailImagePath: string | null;
@@ -174,6 +185,8 @@ const STOCK_VALUES = new Set<Stock>(['low', 'ok', 'soldout']);
 /* 갤러리는 대표 이미지 외 최대 4장 (#172 · 계획 D6). DB check 제약과 같은 값이다. */
 export const GOODS_GALLERY_MAX = 4;
 export const GOODS_DESCRIPTION_MAX_LENGTH = 2000;
+export const GOODS_SEARCH_KEYWORDS_MAX_COUNT = 50;
+export const GOODS_SEARCH_KEYWORD_MAX_LENGTH = 80;
 const RARITY_VALUES = new Set<RarityKey>(['N', 'R', 'SR', 'SSR', 'HOLO']);
 const EVENT_MODES = new Set(['온라인', '오프라인']);
 const EVENT_STATUSES = new Set(['예매중', '예정', '진행중', '종료']);
@@ -187,6 +200,34 @@ function readString(formData: FormData, key: string) {
 
 function nullableString(formData: FormData, key: string) {
   return readString(formData, key) || null;
+}
+
+function rawGoodsSearchKeywords(value: string) {
+  return value
+    .split(/[\n,]/)
+    .map((keyword) => keyword.trim())
+    .filter(Boolean);
+}
+
+/** 쉼표·줄바꿈 입력을 저장용 순서 있는 목록으로 바꾼다. 첫 표기를 유지한다. */
+export function normalizeGoodsSearchKeywords(value: string) {
+  const seen = new Set<string>();
+  return rawGoodsSearchKeywords(value).filter((keyword) => {
+    const identity = keyword.toLocaleLowerCase();
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+}
+
+export function validateGoodsSearchKeywords(value: string) {
+  const rawKeywords = rawGoodsSearchKeywords(value);
+  if (rawKeywords.length > GOODS_SEARCH_KEYWORDS_MAX_COUNT
+    || normalizeGoodsSearchKeywords(value).length > GOODS_SEARCH_KEYWORDS_MAX_COUNT
+    || rawKeywords.some((keyword) => keyword.length > GOODS_SEARCH_KEYWORD_MAX_LENGTH)) {
+    return `검색 키워드는 ${GOODS_SEARCH_KEYWORDS_MAX_COUNT}개 이하, 키워드당 ${GOODS_SEARCH_KEYWORD_MAX_LENGTH}자 이하로 입력해주세요.`;
+  }
+  return null;
 }
 
 function readSlug(formData: FormData, key: string, errors: AdminFieldErrors, requiredMessage: string) {
@@ -460,10 +501,37 @@ export function normalizeAdminGoodForm(
     formData,
     'compareAtPrice',
     errors,
-    '정가는 0 이상의 정수여야 합니다.',
+    '소비자가는 0 이상의 정수여야 합니다.',
   );
   const notice = readGoodsNotice(formData, errors, requiresCompleteNotice);
-  const description = nullableString(formData, 'description');
+  const descriptionFormat = readString(formData, 'descriptionFormat') || 'plain';
+  const rawDescription = nullableString(formData, 'description');
+  const htmlContent = descriptionFormat === 'html' && rawDescription && rawDescription.length <= GOODS_HTML_MAX_LENGTH
+    ? sanitizeGoodsDescription(rawDescription) : null;
+  const description = descriptionFormat === 'html' ? htmlContent?.html || null : rawDescription;
+  if (!['plain', 'html'].includes(descriptionFormat)) errors.descriptionFormat = '일반 텍스트 또는 HTML을 선택해주세요.';
+  if (descriptionFormat === 'html' && ((rawDescription?.length ?? 0) > GOODS_HTML_MAX_LENGTH || (description?.length ?? 0) > GOODS_HTML_MAX_LENGTH)) {
+    errors.description = 'HTML 설명은 정리된 코드까지 30,000자 이하로 입력해주세요.';
+  }
+  if ((htmlContent?.imagePaths.length ?? 0) > GOODS_HTML_IMAGE_MAX) errors.description = 'HTML 설명 이미지는 최대 20장입니다.';
+  const nameEn = nullableString(formData, 'nameEn');
+  if (nameEn && nameEn.length > 200) errors.nameEn = '영문 상품명은 200자 이하로 입력해주세요.';
+  const searchKeywords = formData.has('searchKeywords')
+    ? normalizeGoodsSearchKeywords(readString(formData, 'searchKeywords'))
+    : undefined;
+  if (formData.has('searchKeywords')) {
+    const keywordError = validateGoodsSearchKeywords(readString(formData, 'searchKeywords'));
+    if (keywordError) errors.searchKeywords = keywordError;
+  }
+  const displayOrder = formData.has('displayOrder')
+    ? nullableNonNegativeInteger(formData, 'displayOrder', errors, '진열 순서는 0 이상의 정수여야 합니다.')
+    : undefined;
+  const claimPolicy = readGoodsClaimPolicy(formData);
+  Object.assign(errors, claimPolicy.errors);
+  const linkedMetadata = readGoodsLinkedMetadata(formData);
+  Object.assign(errors, linkedMetadata.errors);
+  const salePolicy = readAdminGoodsSalePolicy(formData);
+  Object.assign(errors, salePolicy.errors);
   const galleryPaths = readGoodsGalleryPaths(formData, errors);
 
   if (!name) errors.name = '굿즈 이름을 입력해주세요.';
@@ -473,9 +541,9 @@ export function normalizeAdminGoodForm(
   /* 정가가 판매가 이하면 0%·음수 할인율이 나온다. RPC 도 goods_compare_at_price_invalid
      로 막지만, 운영자에게는 저장 실패가 아니라 그 칸의 에러로 보여야 고칠 수 있다. */
   if (compareAtPrice !== null && !errors.compareAtPrice && compareAtPrice <= price) {
-    errors.compareAtPrice = '정가는 판매가보다 커야 해요';
+    errors.compareAtPrice = '소비자가는 기준 판매가보다 커야 해요';
   }
-  if (description && description.length > GOODS_DESCRIPTION_MAX_LENGTH) {
+  if (descriptionFormat === 'plain' && description && description.length > GOODS_DESCRIPTION_MAX_LENGTH) {
     errors.description = '설명은 2,000자 이하로 입력해주세요.';
   }
 
@@ -488,18 +556,25 @@ export function normalizeAdminGoodForm(
       id,
       ipId,
       name,
+      ...salePolicy.value,
+      ...linkedMetadata.value,
+      ...(claimPolicy.value ? { claimPolicy: claimPolicy.value } : {}),
       type,
       price,
       code,
       defaultVariantCode,
       publish,
       compareAtPrice,
+      ...(searchKeywords !== undefined ? { searchKeywords } : {}),
+      ...(displayOrder !== undefined ? { displayOrder } : {}),
       badge: nullableString(formData, 'badge'),
       stock,
       bg: nullableString(formData, 'bg'),
       imagePath: nullableString(formData, 'imagePath'),
       notice,
       description,
+      ...(formData.has('descriptionFormat') ? { descriptionFormat: descriptionFormat as GoodsDescriptionFormat, descriptionImagePaths: htmlContent?.imagePaths ?? [] } : {}),
+      ...(formData.has('nameEn') ? { nameEn } : {}),
       galleryPaths,
       detailImagePath: nullableString(formData, 'detailImagePath'),
     },

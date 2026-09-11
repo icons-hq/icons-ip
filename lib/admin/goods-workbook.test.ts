@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { emptyGoodsKcWorkbookRow } from './goods-kc-workbook';
+import { buildGoodsWorkbook, parseGoodsWorkbookWithKc } from './goods-workbook-file';
 import {
   emptyGoodsWorkbookRow,
   exportGoodsWorkbookRows,
@@ -14,6 +16,8 @@ const existing: GoodsImportExisting = {
     id: 'existing-good',
     code: 'GO-001',
     name: '기존 상품',
+    search_keywords: ['  여름 굿즈  ', 'KUMA'],
+    display_order: 7,
     ip_id: 'ip',
     price: 12000,
     compare_at_price: null,
@@ -75,6 +79,107 @@ const row = (
   },
 });
 describe('goods Excel planning', () => {
+  it('CRLF HTML과 검증 이미지 경로가 실제 XLSX에서 LF로 바뀌어도 무수정으로 계획한다', async () => {
+    const path = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
+    const description = `<h2>구성품</h2>\r\n<p>키링 &amp; 스티커</p>\r\n<img src="${path}" alt="구성" loading="lazy" decoding="async" />`;
+    const record = { ...existing, good: { ...existing.good, description, description_format: 'html', description_image_paths: [path], search_keywords: ['0', '키링', '스티커'], display_order: 0 } };
+    const ctx = { ...context, existing: [record] };
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook(exportGoodsWorkbookRows(record, ctx)));
+    expect(parsed.rows[0].values).toMatchObject({ description: `<h2>구성품</h2>\n<p>키링 &amp; 스티커</p>\n<img src="${path}" alt="구성" loading="lazy" decoding="async" />`, descriptionFormat: 'html', searchKeywords: '0\n키링\n스티커', displayOrder: '0' });
+    expect(planGoodsWorkbookImport(parsed.rows, { ...ctx, kcRows: parsed.kcRows })[0]).toMatchObject({ kind: 'unchanged', target: null });
+    expect(record.good.description).toBe(description);
+    expect(record.good.description_image_paths).toEqual([path]);
+  });
+  it('plain 줄바꿈과 여러 키워드는 왕복하며 0·공란·실제 문구와 이미지 변경은 계속 구분한다', async () => {
+    const description = '0\r\n첫 설명\r\n\r\n마지막 설명';
+    const record = { ...existing, good: { ...existing.good, description, description_format: 'plain', search_keywords: ['0', '키링', '스티커'], display_order: 0 },
+      variants: [{ ...existing.variants[0], erp_code: '00000123' }] };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx);
+    const parsePlan = async (edits: Partial<typeof exported[number]>) => {
+      const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook([{ ...exported[0], ...edits }]));
+      return planGoodsWorkbookImport(parsed.rows, { ...ctx, kcRows: parsed.kcRows })[0];
+    };
+    expect(await parsePlan({ searchKeywords: '0\r\n키링\r\n스티커' })).toMatchObject({ kind: 'unchanged', target: null });
+    expect(await parsePlan({ description: '0\r\n수정한 설명\r\n\r\n마지막 설명' })).toMatchObject({ kind: 'update', target: { description: '0\n수정한 설명\n\n마지막 설명' } });
+    expect(await parsePlan({ displayOrder: '' })).toMatchObject({ kind: 'update', target: { display_order: null } });
+    expect(await parsePlan({ description: '0' })).toMatchObject({ kind: 'update', target: { description: '0' } });
+    expect(await parsePlan({ description: '' })).toMatchObject({ kind: 'update', target: { description: null } });
+    expect(await parsePlan({ searchKeywords: '0\r\n다른 키워드' })).toMatchObject({ kind: 'update', target: { search_keywords: ['0', '다른 키워드'] } });
+    expect(await parsePlan({ erpCode: '00000124' })).toMatchObject({ kind: 'update', target: { variants: [{ erpCode: '00000124' }] } });
+    const imagePath = 'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp';
+    expect(await parsePlan({ descriptionFormat: 'html', description: `<p>새 HTML</p>\r\n<img src="${imagePath}" alt="새 이미지">` })).toMatchObject({ kind: 'update', target: { description_format: 'html', description_image_paths: [imagePath] } });
+    expect(record.good.description).toBe(description);
+    expect(record.good.display_order).toBe(0);
+    expect(record.variants[0].erp_code).toBe('00000123');
+  });
+  it('HTML 형식과 코드·이미지 경로를 무수정 왕복하고 다른 항목 수정에도 보존한다', () => {
+    const path = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
+    const description = `<h2>구성품</h2>\n<p>키링 &amp; 스티커</p><img src="${path}" alt="구성" loading="lazy" decoding="async" />`;
+    const record = { ...existing, good: { ...existing.good, description, description_format: 'html', description_image_paths: [path] } };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx);
+    expect(exported[0]).toMatchObject({ descriptionFormat: 'html', description });
+    expect(planGoodsWorkbookImport([{ row: 5, values: exported[0] }], ctx)[0].kind).toBe('unchanged');
+    expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported[0], name: '이름만 변경' } }], ctx)[0]).toMatchObject({ kind: 'update', target: { description, description_format: 'html', description_image_paths: [path] } });
+  });
+  it('plans KC-only changes in the same atomic product payload and never discards them as an unchanged product', () => {
+    const record = { ...existing, good: { ...existing.good, published_at: null } };
+    const kc = { ...emptyGoodsKcWorkbookRow(), goodCode: 'GO-001', modelIndex: '1', variantCodes: 'GO-001-01', modelName: 'TEST 전용 모델' };
+    const ctx = { ...context, existing: [record], kcRows: [{ row: 5, values: kc }] };
+    const goodsRows = exportGoodsWorkbookRows(record, ctx).map(values => ({ row: 5, values }));
+    expect(planGoodsWorkbookImport(goodsRows, ctx)[0]).toMatchObject({ kind: 'update',
+      target: { kc_update: { models: [{ modelName: 'TEST 전용 모델', variantCodes: ['GO-001-01'] }], expectedRevision: null } },
+      kcSource: [{ row: 5, values: kc }] });
+    expect(planGoodsWorkbookImport(goodsRows, { ...ctx, kcRows: undefined })[0].kind).toBe('unchanged');
+    expect(() => planGoodsWorkbookImport(goodsRows, { ...ctx, kcRows: [{ row: 5, values: { ...kc, goodCode: 'MISSING' } }] })).toThrow('상품 시트');
+  });
+  it('ERP 식별자의 선행 0과 외부값 기준 시각을 보존하고 판매 조건을 왕복한다', () => {
+    const record = { ...existing, good: { ...existing.good, allow_card_payment: false, order_quantity_limit_enabled: true,
+      min_order_qty: 2, max_order_qty: 4, member_purchase_limit_enabled: true, member_lifetime_qty_limit: 7 },
+      variants: [{ ...existing.variants[0], erp_code: '0000123', erp_name: 'ERP 아크릴', barcode: '00123456789', external_updated_at: '2026-09-10T00:00:00Z' }] };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx);
+    expect(exported[0]).toMatchObject({ erpCode: '0000123', erpName: 'ERP 아크릴', barcode: '00123456789',
+      allowCardPayment: '아니오', orderQuantityLimitEnabled: '예', minOrderQty: '2', maxOrderQty: '4', memberLifetimeQtyLimit: '7' });
+    const plan = planGoodsWorkbookImport([{ row: 5, values: { ...exported[0], name: '메타데이터 수정' } }], ctx)[0];
+    expect(plan).toMatchObject({ kind: 'update', target: { allow_card_payment: false, order_quantity_limit_enabled: true,
+      min_order_qty: 2, max_order_qty: 4, member_purchase_limit_enabled: true, member_lifetime_qty_limit: 7,
+      variants: [{ erpCode: '0000123', erpName: 'ERP 아크릴', barcode: '00123456789', externalUpdatedAt: '2026-09-10T00:00:00Z' }] } });
+  });
+
+  it('수치가 없는 한도 활성화와 0 한도는 적용 계획에서 거절한다', () => {
+    expect(planGoodsWorkbookImport([row({ orderQuantityLimitEnabled: '예', minOrderQty: '', maxOrderQty: '' })], context)[0].kind).toBe('error');
+    expect(planGoodsWorkbookImport([row({ memberPurchaseLimitEnabled: '예', memberLifetimeQtyLimit: '0' })], context)[0].kind).toBe('error');
+  });
+  it('검색 키워드와 진열 순서를 내보내고 같은 상품 행에서 왕복한다', () => {
+    const exported = exportGoodsWorkbookRows(existing, context);
+    expect(exported[0]).toMatchObject({ searchKeywords: '여름 굿즈\nKUMA', displayOrder: '7' });
+    const group = planGoodsWorkbookImport(
+      [{ row: 5, values: { ...exported[0], name: '수정 상품' } }],
+      context,
+    )[0];
+    expect(group).toMatchObject({
+      kind: 'update',
+      target: { search_keywords: ['여름 굿즈', 'KUMA'], display_order: 7 },
+    });
+  });
+  it('재고 경보 기준과 중지된 기본 옵션을 엑셀 수정에서도 보존한다', () => {
+    const stopped = { ...existing, variants: [{ ...existing.variants[0], stock_qty: 10, low_stock_threshold: 3, archived_at: '2026-09-10T00:00:00Z' }] };
+    const stoppedContext = { ...context, existing: [stopped] };
+    const exported = exportGoodsWorkbookRows(stopped, stoppedContext);
+    expect(exported[0]).toMatchObject({ stockQty: '10', lowStockThreshold: '3', variantActive: '중지' });
+    const plan = planGoodsWorkbookImport([{ row: 5, values: { ...exported[0], name: '상품명만 수정' } }], stoppedContext)[0];
+    expect(plan).toMatchObject({ kind: 'update', target: { variants: [{ id: variantId, stockQty: 10, lowStockThreshold: 3, isActive: false }] } });
+  });
+  it('영문 상품명을 내보내고 다른 상품 정보를 고쳐 가져와도 보존한다', () => {
+    const translated = { ...existing, good: { ...existing.good, name_en: 'Acrylic Keyring' } };
+    const translatedContext = { ...context, existing: [translated] };
+    const rows = exportGoodsWorkbookRows(translated, translatedContext);
+    expect(rows[0].nameEn).toBe('Acrylic Keyring');
+    const result = planGoodsWorkbookImport([{ row: 5, values: { ...rows[0], name: '다른 한글 이름' } }], translatedContext)[0];
+    expect(result).toMatchObject({ kind: 'update', target: { name_en: 'Acrylic Keyring', name: '다른 한글 이름' } });
+  });
   it('treats an untouched export as zero changes, including blanks and storage paths', () => {
     const rows = exportGoodsWorkbookRows(existing, context).map(
       (values, index) => ({ row: index + 5, values }),
@@ -222,4 +327,44 @@ describe('goods Excel planning', () => {
       ]),
     ).toEqual([['a', 'b'], ['c']]);
   });
+});
+
+it('카테고리 코드와 배송 안내 버전을 같은 값으로 엑셀 왕복한다', () => {
+  const categoryId = '00000000-0000-4000-8000-000000047401';
+  const nextContext = { ...context, categories: [{ id: categoryId, code: 'stationery', archived_at: null }] };
+  const item: GoodsImportExisting = { ...existing, good: { ...existing.good, category_id: categoryId,
+    shipping_notice_snapshot: { code: 'confirmed', templateVersion: 2 } } };
+  nextContext.existing = [item];
+  const [row] = exportGoodsWorkbookRows(item, nextContext);
+  expect(row.categoryCode).toBe('stationery');
+  expect(row.shippingNoticeTemplateVersion).toBe('2');
+  row.name += ' 수정';
+  const [plan] = planGoodsWorkbookImport([{ row: 5, values: row }], nextContext);
+  expect(plan.errors).toEqual([]);
+  expect(plan.target).toMatchObject({ category_id: categoryId, shipping_notice_template_code: 'confirmed', shipping_notice_template_version: 2 });
+});
+
+it('분류와 템플릿의 누락된 식별자를 묵시적으로 해제하지 않는다', () => {
+  expect(() => exportGoodsWorkbookRows({ ...existing, good: { ...existing.good, category_id: 'unknown' } }, context)).toThrow('카테고리 코드');
+  const [row] = exportGoodsWorkbookRows(existing, context);
+  row.categoryCode = 'unknown'; row.shippingNoticeTemplateCode = 'confirmed'; row.shippingNoticeTemplateVersion = '';
+  expect(planGoodsWorkbookImport([{ row: 5, values: row }], context)[0].errors.length).toBeGreaterThan(0);
+});
+
+it('매입단가 0원과 세금 구분은 관리자 엑셀에서만 왕복하고 staff는 수정할 수 없다', () => {
+  const item: GoodsImportExisting = { ...existing, variants: existing.variants.map((variant) => ({ ...variant,
+    purchase_cost_krw: 0, purchase_tax_basis: 'exempt', purchase_cost_revision: 7,
+  })) };
+  const adminContext = { ...context, existing: [item], canManageCosts: true };
+  const [row] = exportGoodsWorkbookRows(item, adminContext);
+  expect(row.purchaseCostKrw).toBe('0'); expect(row.purchaseTaxBasis).toBe('exempt');
+  row.name += ' 수정';
+  const [plan] = planGoodsWorkbookImport([{ row: 5, values: row }], adminContext);
+  expect(plan.errors).toEqual([]);
+  expect(plan.target?.variants).toEqual(expect.arrayContaining([expect.objectContaining({ purchaseCost: { unitCostKrw: 0, taxBasis: 'exempt', expectedRevision: 7 } })]));
+  const [staffRow] = exportGoodsWorkbookRows(item, context);
+  expect(staffRow.purchaseCostKrw).toBe(''); expect(staffRow.purchaseTaxBasis).toBe('');
+  expect(planGoodsWorkbookImport([{ row: 5, values: row }], context)[0].errors.join(' ')).toContain('관리자만');
+  row.purchaseTaxBasis = '';
+  expect(planGoodsWorkbookImport([{ row: 5, values: row }], adminContext)[0].errors.join(' ')).toContain('함께');
 });

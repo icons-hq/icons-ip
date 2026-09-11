@@ -24,7 +24,7 @@ export function AdminShell({
     <div className={collapsed ? 'admin-shell wc-root wc-admin collapsed' : 'admin-shell wc-root wc-admin'}>
       <AdminSidebar collapsed={collapsed} onCollapsedChange={setCollapsed} role={admin.role} />
       <div className="wc-admin__main">
-        <Header admin={admin} title={screen?.label ?? '어드민'} />
+        <Header admin={admin} next={pathname} title={screen?.label ?? '어드민'} />
         {badges}
         <main className="admin-content">
           {/* key로 화면 전환마다 진입 애니메이션을 다시 태운다 */}

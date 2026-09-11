@@ -15,6 +15,7 @@ describe('origin settings workspace', () => {
     expect(html).toContain('<fieldset disabled=""');
     expect(html).not.toContain('출고지 저장');
     expect(html).not.toContain('출고지 추가');
+    expect(html).toContain('퀵·방문수령 운영 조건');
   });
   it('allows admins to create and edit origins, with inactive-order impact explained', () => {
     const html = renderToStaticMarkup(<FulfillmentOriginsScreen origins={[origin]} carriers={carriers} history={[]} canEdit />);

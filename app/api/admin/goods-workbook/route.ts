@@ -3,11 +3,12 @@ import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { buildGoodsWorkbook } from '@/lib/admin/goods-workbook-file';
 import {
   goodsImportErrorMessage,
-  loadGoodsExportRows,
+  loadGoodsExportWorkbook,
   loadGoodsImportBatch,
 } from '@/lib/admin/goods-import.server';
 import { normalizeGoodsListFilters } from '@/lib/admin/goods-list';
 import type { GoodsWorkbookRow } from '@/lib/admin/goods-workbook';
+import type { GoodsKcWorkbookRow } from '@/lib/admin/goods-kc-workbook';
 export const runtime = 'nodejs';
 export async function GET(request: Request) {
   const auth = await requireAdminScreenAccess('/admin/catalog/goods/import');
@@ -15,13 +16,14 @@ export async function GET(request: Request) {
     const params = new URL(request.url).searchParams;
     const mode = params.get('mode') ?? 'template';
     let rows: GoodsWorkbookRow[] = [];
+    let kcRows: GoodsKcWorkbookRow[] = [];
     let errors: string[] | undefined;
-    if (mode === 'export')
-      rows = await loadGoodsExportRows(
+    if (mode === 'export') {
+      ({ rows, kcRows } = await loadGoodsExportWorkbook(
         normalizeGoodsListFilters(Object.fromEntries(params)),
         Number(params.get('part') ?? 1),
-      );
-    else if (mode === 'failures') {
+      ));
+    } else if (mode === 'failures') {
       const batch = await loadGoodsImportBatch(
         params.get('batch') ?? '',
         auth.user.id,
@@ -37,6 +39,7 @@ export async function GET(request: Request) {
           rows.push(row.values);
           errors!.push(message);
         }
+        kcRows.push(...(group.kcSource ?? []).map(row => row.values));
       });
       if (!rows.length)
         return Response.json(
@@ -48,7 +51,7 @@ export async function GET(request: Request) {
         { error: '잘못된 다운로드 요청입니다.' },
         { status: 400 },
       );
-    const bytes = await buildGoodsWorkbook(rows, errors);
+    const bytes = await buildGoodsWorkbook(rows, errors, kcRows);
     return new Response(new Uint8Array(bytes), {
       headers: {
         'Content-Type':

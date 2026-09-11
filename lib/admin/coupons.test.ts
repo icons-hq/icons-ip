@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeAdminCouponForm } from './coupons';
+import {
+  adminCouponListHref,
+  normalizeAdminCouponFilters,
+  normalizeAdminCouponForm,
+} from './coupons';
 
 function form(entries: Record<string, string>) {
   const data = new FormData();
@@ -83,5 +87,42 @@ describe('normalizeAdminCouponForm', () => {
     const good = normalizeAdminCouponForm(form({ ...valid, gradeBenefit: 'gold' }));
     expect(good.ok).toBe(true);
     if (good.ok) expect(good.value.gradeBenefit).toBe('gold');
+  });
+});
+
+describe('admin coupon list URL state', () => {
+  it('keeps the search, status, page, and selected coupon together', () => {
+    const filters = normalizeAdminCouponFilters({
+      couponCode: ' autumn-3000 ',
+      page: '3',
+      q: '가을',
+      status: 'archived',
+    });
+
+    expect(filters).toEqual({
+      query: '가을',
+      status: 'archived',
+      page: 3,
+      selectedCode: 'AUTUMN-3000',
+    });
+    expect(adminCouponListHref(filters)).toBe(
+      '/admin/sales/coupons?q=%EA%B0%80%EC%9D%84&status=archived&couponCode=AUTUMN-3000&page=3',
+    );
+    expect(adminCouponListHref(filters, { page: 4 })).toContain('couponCode=AUTUMN-3000');
+  });
+
+  it('fails closed for malformed filters and overlong search values', () => {
+    expect(normalizeAdminCouponFilters({
+      couponCode: 'not a code',
+      page: '-1',
+      q: 'x'.repeat(101),
+      status: 'unknown',
+    })).toEqual({
+      query: '',
+      status: 'all',
+      page: 1,
+      selectedCode: null,
+      inputError: '검색어는 100자 이하로 입력해주세요.',
+    });
   });
 });

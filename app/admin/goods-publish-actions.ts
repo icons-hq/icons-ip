@@ -18,7 +18,9 @@ export async function setAdminGoodPublishedAction(_previous: GoodPublishActionSt
     if (!auth.isStaff) return { error: '운영자 권한이 필요합니다.' };
     const client = await createClient();
     const { error } = await client.rpc('admin_set_good_published', { target_id: id, target_published: target === 'true' });
-    if (error) return { error: error.message.includes('goods_publish_incomplete')
+    if (error) return { error: error.message.includes('goods_kc_')
+      ? '아래 KC 정보에서 실제 모델·옵션과 원본 근거를 확인하고 검토를 완료한 뒤 공개해주세요.'
+      : error.message.includes('goods_publish_incomplete')
       ? '상품 유형·대표 이미지·상품정보제공고시와 옵션을 채운 뒤 공개해주세요.'
       : error.message.includes('catalog_item_archived') ? '보관된 상품은 복원한 뒤 공개해주세요.' : '게시 상태를 변경하지 못했습니다. 최신 상품을 확인해주세요.' };
     for (const path of ['/', '/shop', '/cart', '/checkout', '/search', '/admin/catalog/goods', '/admin/catalog/ips']) revalidatePath(path);

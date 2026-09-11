@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  addCartSelectionAction,
   deleteCartItemAction,
   setCartItemQuantityAction,
   syncCartAction,
@@ -32,6 +33,7 @@ import {
   type LegacyCartItem,
   type StoredCartItem,
 } from '@/lib/cart';
+import { prepareCartAddition, type CartSelectionItem } from '@/lib/cart-additions';
 import { createClient } from '@/lib/supabase/client';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 
@@ -49,6 +51,7 @@ interface CartCtx {
   getQuantity: (goodId: string, variantId: string) => number;
   add: (goodId: string, stockQty: number, variantId: string) => Promise<void>;
   setQuantity: (goodId: string, qty: number, stockQty: number, variantId: string) => Promise<void>;
+  addSelection: (baseGoodId: string, selection: readonly CartSelectionItem[]) => Promise<boolean>;
   remove: (goodId: string, variantId: string) => Promise<void>;
   refresh: () => Promise<void>;
   resetForSignOut: () => void;
@@ -265,6 +268,54 @@ export function CartProvider({ children }: { children: ReactNode }) {
     await setQuantity(goodId, currentQty + 1, stockQty, variantId);
   }, [setQuantity]);
 
+  const addSelection = useCallback(async (baseGoodId: string, selection: readonly CartSelectionItem[]) => {
+    if (!ready || pendingRef.current) return false;
+    const previous = itemsRef.current;
+    const prepared = prepareCartAddition(previous, selection);
+    if (!prepared.ok) {
+      setError(prepared.reason === 'stock' ? STOCK_ERROR : '선택한 상품과 수량을 확인해주세요.');
+      return false;
+    }
+    setError(null);
+    if (modeRef.current === 'local') {
+      keepAsLocal(prepared.items);
+      return true;
+    }
+    replaceItems(prepared.items);
+    replacePending(true);
+    const operationVersion = operationVersionRef.current;
+    try {
+      const result = await addCartSelectionAction(baseGoodId, prepared.entries);
+      if (operationVersion !== operationVersionRef.current) return false;
+      if (result.ok) {
+        replaceItems(result.items);
+        replaceMode(result.mode);
+        return true;
+      }
+      if (result.mode === 'local' && !result.error) {
+        keepAsLocal(prepared.items);
+        return true;
+      }
+      replaceItems(previous);
+      setError(result.error ?? '선택한 상품을 담지 못했습니다. 장바구니를 새로고침한 뒤 확인해주세요.');
+      return false;
+    } catch {
+      if (operationVersion === operationVersionRef.current) {
+        replaceItems(previous);
+        setError('장바구니 반영 결과를 확인하지 못했습니다. 장바구니를 새로고침한 뒤 확인해주세요.');
+      }
+      return false;
+    } finally {
+      if (operationVersion === operationVersionRef.current) {
+        replacePending(false);
+        if (syncQueuedRef.current) {
+          syncQueuedRef.current = false;
+          window.setTimeout(() => void syncRef.current(), 0);
+        }
+      }
+    }
+  }, [keepAsLocal, ready, replaceItems, replaceMode, replacePending]);
+
   const remove = useCallback(async (goodId: string, variantId: string) => {
     await setQuantity(goodId, 0, Number.MAX_SAFE_INTEGER, variantId);
   }, [setQuantity]);
@@ -305,11 +356,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     removeLegacyItem,
     getQuantity: (goodId, variantId) => items.find((item) => cartItemKey(item.goodId, item.variantId) === cartItemKey(goodId, variantId))?.qty ?? 0,
     add,
+    addSelection,
     setQuantity,
     remove,
     refresh: sync,
     resetForSignOut,
-  }), [add, count, error, items, legacyItems, mode, pending, ready, remove, removeLegacyItem, resetForSignOut, setQuantity, sync]);
+  }), [add, addSelection, count, error, items, legacyItems, mode, pending, ready, remove, removeLegacyItem, resetForSignOut, setQuantity, sync]);
 
   return (
     <Ctx.Provider value={value}>

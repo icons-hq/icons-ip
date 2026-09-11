@@ -110,6 +110,7 @@ export function GoodsImportScreen({
       );
       setStatus('검증을 완료했습니다. 적용할 내용을 확인해주세요.');
     } catch (error) {
+      setStatus('');
       setError(
         error instanceof Error
           ? error.message
@@ -156,6 +157,7 @@ export function GoodsImportScreen({
             : '처리를 완료했습니다.',
       );
     } catch (error) {
+      setStatus('');
       setError(
         error instanceof Error
           ? error.message

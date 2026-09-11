@@ -1,3 +1,4 @@
+import { loadPublicCatalogCategories } from '@/lib/catalog-categories.server';
 import type { Metadata } from 'next';
 import { Shop } from '@/components/screens/Shop';
 import { getHomeSnapshot } from '@/lib/catalog';
@@ -20,12 +21,14 @@ export default async function Page({ searchParams }: PageProps) {
   const [home, params] = await Promise.all([getHomeSnapshot(), searchParams ?? {}]);
   const bestGoodIds = [...home.curation.categoryBestTabs, ...home.curation.popularTabs]
     .flatMap((tab) => tab.goods.map((good) => good.id));
+  const categories = home.catalog.source === 'supabase' ? await loadPublicCatalogCategories() : [];
   const query = parseShopSearchParams(params, {
     view: 'best',
     validIpIds: new Set(home.catalog.ips.map((ip) => ip.id)),
+    validCategoryIds: new Set(categories.map((category) => category.id)),
   });
 
   return (
-    <Shop query={query} result={selectShopGoods(home.catalog, query, bestGoodIds)} view="best" />
+    <Shop query={query} result={selectShopGoods({ ...home.catalog, categories }, query, bestGoodIds)} view="best" />
   );
 }

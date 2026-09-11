@@ -18,10 +18,12 @@ psql_exec() {
   fi
 }
 psql_scalar() { psql_exec -qAt -c "$1"; }
+kc_fixture_sql="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/helpers/goods_kc_fixture.sql"
+psql_exec_with_kc() { { cat "$kc_fixture_sql"; cat; } | psql_exec "$@"; }
 
 cleanup() {
   set +e
-  psql_exec -q <<SQL >/dev/null 2>&1
+  psql_exec_with_kc -q <<SQL >/dev/null 2>&1
 select pg_terminate_backend(pid) from pg_stat_activity
 where application_name like '${test_prefix}-%' and pid <> pg_backend_pid();
 delete from public.audit_log where actor_id='${admin_id}';
@@ -31,6 +33,7 @@ delete from public.ticket_orders where user_id='${user_id}';
 delete from public.cart_items where user_id='${user_id}';
 delete from public.ticket_types where id='${ticket_type_id}';
 delete from public.events where id='ip-purchase-race';
+select pg_temp.cleanup_goods_kc_fixture('ip-purchase-race');
 delete from public.goods where id='ip-purchase-race';
 delete from public.ips where id='ip-purchase-race';
 delete from public.verticals where key='ip-purchase-race';
@@ -57,7 +60,7 @@ wait_for_wait() {
   return 1
 }
 
-psql_exec -q <<SQL >/dev/null
+psql_exec_with_kc -q <<SQL >/dev/null
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 values ('${user_id}','authenticated','authenticated','ip-purchase-race@example.test',now(),'{}','{}',now(),now()),
  ('${admin_id}','authenticated','authenticated','ip-publisher-race@example.test',now(),'{}','{}',now(),now());
@@ -67,7 +70,8 @@ update public.profiles set role='admin' where id='${admin_id}';
 insert into public.verticals(key,label,color) values ('ip-purchase-race','게시 경합','#000000');
 insert into public.ips(id,title,vertical_key,published_at) values ('ip-purchase-race','게시 경합','ip-purchase-race',now());
 insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at)
-values ('ip-purchase-race','ip-purchase-race','게시 경합 상품','문구',12000,'ok',10,now());
+values ('ip-purchase-race','ip-purchase-race','게시 경합 상품','문구',12000,'ok',10,null);
+select pg_temp.publish_goods_kc_fixture('ip-purchase-race');
 insert into public.events(id,title,mode,status,ip_id)
 values ('ip-purchase-race','게시 경합 이벤트','오프라인','예매중','ip-purchase-race');
 insert into public.ticket_types(id,event_id,name,price,capacity,sold,per_user_limit)

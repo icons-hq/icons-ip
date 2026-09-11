@@ -9,11 +9,15 @@ import type { GoodsNoticeInfo } from './goods-notice';
  */
 export interface GoodDetailContent {
   good: Good;
+  additionalGoods?: Good[];
   ip: Ip | null;
   description: string | null;
+  descriptionFormat?: import('./goods-description').GoodsDescriptionFormat;
+  descriptionImagePaths?: string[];
   /** 대표 이미지와 같은 CSS background 규약. 배열 순서가 곧 노출 순서다. */
   gallery: string[];
   /** 긴 세로 이미지는 크롭하지 않고 <img> 로 그린다. */
   detailImageUrl: string | null;
   notice: GoodsNoticeInfo;
+  kcDisclosures?: import('./goods-kc').GoodsKcDisclosure[];
 }

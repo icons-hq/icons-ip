@@ -2,9 +2,10 @@ import type { GoodOption, Ip, Stock } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { GOODS_NOTICE_FIELDS, type GoodsNoticeInfo } from '@/lib/goods-notice';
 import { imageBg } from '@/lib/media';
-import { GOODS_GALLERY_MAX } from './catalog';
+import { GOODS_GALLERY_MAX, normalizeGoodsSearchKeywords } from './catalog';
 import { restoreGoodsOptionRows } from './goods-option-editor';
 import { optionPriceRange } from '@/lib/goods-options';
+import { sanitizeGoodsDescription } from '@/lib/goods-description';
 
 /*
  * 어드민 굿즈 미리보기 (#184).
@@ -56,11 +57,15 @@ function previewNotice(values: Record<string, string>): GoodsNoticeInfo {
 
 export function buildGoodPreview(input: GoodPreviewInput): GoodDetailContent {
   const { fallbackBg, imageUrls, ip, stockQty, values } = input;
+  const descriptionFormat = values.descriptionFormat === 'html' ? 'html' : 'plain';
+  const htmlContent = descriptionFormat === 'html' ? sanitizeGoodsDescription(trimmed(values, 'description')) : null;
   const stock = trimmed(values, 'stock') as Stock;
   const price = Number(trimmed(values, 'price'));
   const basePrice = Number.isFinite(price) && price >= 0 ? Math.trunc(price) : 0;
+  const displayOrderText = trimmed(values, 'displayOrder');
+  const displayOrderValue = displayOrderText ? Number(displayOrderText) : null;
   const rows = restoreGoodsOptionRows(values.variants);
-  const options: GoodOption[] | undefined = rows?.map((row, index) => ({
+  const options: GoodOption[] | undefined = rows?.filter((row) => row.isActive !== false).map((row, index) => ({
     id: row.id ?? `preview-option-${index}`, name: row.name, code: row.code, attributes: row.attributes,
     price: basePrice + Math.max(0, Math.trunc(row.extraPrice)), stockQty: Math.max(0, Math.trunc(row.stockQty)), isDefault: index === 0,
   }));
@@ -76,17 +81,31 @@ export function buildGoodPreview(input: GoodPreviewInput): GoodDetailContent {
     good: {
       id: trimmed(values, 'id'),
       name: trimmed(values, 'name') || '(굿즈 이름 미입력)',
+      nameEn: trimmed(values, 'nameEn') || undefined,
+      categoryId: trimmed(values, 'categoryId') || null,
+      searchKeywords: normalizeGoodsSearchKeywords(trimmed(values, 'searchKeywords')),
+      displayOrder: displayOrderValue !== null && Number.isInteger(displayOrderValue) && displayOrderValue >= 0 ? displayOrderValue : null,
+      allowCardPayment: values.allowCardPayment !== 'false',
+      allowBankTransfer: values.allowBankTransfer !== 'false',
+      saleRestriction: values.saleRestriction === 'adult' ? 'adult' : 'none',
+      orderQuantityLimitEnabled: values.orderQuantityLimitEnabled === 'true',
+      minOrderQty: trimmed(values, 'minOrderQty') ? Number(values.minOrderQty) : null,
+      maxOrderQty: trimmed(values, 'maxOrderQty') ? Number(values.maxOrderQty) : null,
+      memberPurchaseLimitEnabled: values.memberPurchaseLimitEnabled === 'true',
+      memberLifetimeQtyLimit: trimmed(values, 'memberLifetimeQtyLimit') ? Number(values.memberLifetimeQtyLimit) : null,
       ip: trimmed(values, 'ipId'),
       type: trimmed(values, 'type') || '(유형 미입력)',
       price: basePrice,
       ...(options ? { options, ...optionPriceRange(options) } : {}),
       badge: trimmed(values, 'badge') || null,
-      stock: STOCK_VALUES.has(stock) ? stock : 'ok',
+      stock: options && !options.some((option) => option.stockQty > 0) ? 'soldout' : STOCK_VALUES.has(stock) ? stock : 'ok',
       stockQty: options ? options.reduce((total, option) => total + option.stockQty, 0) : stockQty,
       img: mainUrl ? imageBg(mainUrl) : fallbackBg || PREVIEW_PLACEHOLDER_BG,
     },
     ip,
-    description: trimmed(values, 'description') || null,
+    description: htmlContent ? htmlContent.html || null : trimmed(values, 'description') || null,
+    descriptionFormat,
+    descriptionImagePaths: htmlContent?.imagePaths ?? [],
     gallery,
     detailImageUrl: imageUrls.detailImagePath ?? null,
     notice: previewNotice(values),

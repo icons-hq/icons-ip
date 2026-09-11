@@ -2,11 +2,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { CartItem } from '@/lib/cart';
 import type { Good } from '@/lib/data';
+import type { AddressGoodsSalesQuote } from '@/lib/shipping-regions';
 import { Checkout, checkoutMethodAvailable } from './Checkout';
 
-const mocks = vi.hoisted(() => ({ items: [] as CartItem[] }));
+const mocks = vi.hoisted(() => ({ items: [] as CartItem[], sales: null as AddressGoodsSalesQuote | null }));
 
-vi.mock('@/components/shop/useShippingQuote', () => ({useShippingQuote: () => ({quote:{totalFee:3000,groups:[]},loading:false,error:null,refresh:vi.fn()})}));
+vi.mock('@/components/shop/useShippingQuote', () => ({useShippingQuote: () => ({quote:mocks.sales?.shipping ?? null,sales:mocks.sales,loading:false,error:null,refresh:vi.fn()})}));
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -60,14 +61,25 @@ function render({
   items = [{ goodId: 'g13', variantId: '00000000-0000-4000-8000-000000000001', qty: 1 }],
   resumeOrderId = null,
   paymentFailCode = null,
+  quote = {},
 }: {
   paymentAvailable: boolean;
   bankTransferAvailable: boolean;
   items?: CartItem[];
   resumeOrderId?: string | null;
   paymentFailCode?: string | null;
+  quote?: Partial<AddressGoodsSalesQuote> | null;
 }) {
   mocks.items = items;
+  const lines = items.map(item => ({ ...item, regularPrice: goods.find(good => good.id === item.goodId)?.price ?? 0,
+    effectivePrice: goods.find(good => good.id === item.goodId)?.price ?? 0, pricePeriodId: null, startsAt: null, endsAt: null, available: true }));
+  mocks.sales = quote === null ? null : {
+    calculatedAt: '2026-09-10T00:00:00Z', subtotal: lines.reduce((sum, line) => sum + line.effectivePrice * line.qty, 0), lines,
+    goods: items.map(item => ({ goodId: item.goodId, qty: item.qty, orderQuantityLimitEnabled: false, minOrderQty: null, maxOrderQty: null,
+      memberPurchaseLimitEnabled: false, memberLifetimeQtyLimit: null, memberReservedQty: null, memberRemainingQty: null, reason: null })),
+    shipping: { totalFee: 3000, groups: [], checkoutAllowed: true, finalTotalFee: 3000, destination: null, nextChangeAt: null },
+    paymentMethods: { card: true, bankTransfer: !items.some(item => goods.find(good => good.id === item.goodId)?.allowBankTransfer === false) }, ...quote,
+  };
   return renderToStaticMarkup(
     <Checkout
       catalog={{ goods, ips: [] }}
@@ -113,6 +125,38 @@ describe('checkoutMethodAvailable', () => {
 });
 
 describe('Checkout 결제수단 게이트', () => {
+  it('배송비가 확정되지 않으면 확정 결제 금액을 제시하거나 주문을 허용하지 않는다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { shipping: {
+      totalFee: 3000, groups: [], checkoutAllowed: false, finalTotalFee: null, destination: null, nextChangeAt: null,
+    } } });
+    expect(html).toContain('배송지 확인 후 확정');
+    expect(html).not.toContain('₩15,000');
+    expect(submitButton(html)).toContain('disabled');
+  });
+  it('다른 화면의 새 쿠폰을 갱신된 주문서 확인 없이 소비하지 않는다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { coupon: {
+      userCouponId: '11111111-1111-4111-8111-111111111111', couponCode: 'CHANGED',
+      discount: 1000, eligibleSubtotal: 12000, reason: null,
+    } } });
+    expect(html).toContain('다른 화면에서 선택한 쿠폰이 변경되었습니다');
+    expect(submitButton(html)).toContain('disabled');
+  });
+  it('상품이 무통장 전용이면 카드 PG가 열려 있어도 서버 견적의 무통장을 선택한다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { paymentMethods: { card: false, bankTransfer: true } } });
+    expect(methodRadio(html, 'card')).toContain('disabled');
+    expect(methodRadio(html, 'bank_transfer')).toContain('checked');
+    expect(submitButton(html)).not.toContain('disabled');
+  });
+
+  it('구매 한도 위반과 견적 미확인 상태에서는 주문을 제출할 수 없다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { goods: [{
+      goodId: 'g13', qty: 1, orderQuantityLimitEnabled: true, minOrderQty: 2, maxOrderQty: 3,
+      memberPurchaseLimitEnabled: false, memberLifetimeQtyLimit: null, memberReservedQty: null, memberRemainingQty: null, reason: 'order_quantity_below_minimum',
+    }] } });
+    expect(html).toContain('최소 구매 수량보다 적어요');
+    expect(submitButton(html)).toContain('disabled');
+    expect(submitButton(render({ paymentAvailable: true, bankTransferAvailable: true, quote: null }))).toContain('disabled');
+  });
   it('카드 OFF·무통장 ON이면 무통장이 선택된 채 제출 버튼이 살아 있다', () => {
     const html = render({ paymentAvailable: false, bankTransferAvailable: true });
 

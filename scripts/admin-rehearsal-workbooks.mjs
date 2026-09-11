@@ -5,6 +5,8 @@ import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import sharp from 'sharp';
 
+const CURRENT_GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v3';
+
 /** Populate the actual downloaded template by header names, preserving its formatting. */
 export async function buildRehearsalWorkbooks({
   template,
@@ -24,10 +26,11 @@ export async function buildRehearsalWorkbooks({
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(template);
     const sheet = workbook.getWorksheet('상품');
-    if (!sheet || sheet.getCell('A1').text !== 'ICONS 상품 일괄 등록 v1')
-      throw new Error('Current goods template required');
+    if (!sheet || sheet.getCell('A1').text !== CURRENT_GOODS_WORKBOOK_VERSION)
+      throw new Error('Current goods v3 template required');
     const headers = new Map();
     sheet.getRow(4).eachCell((cell, column) => headers.set(cell.text, column));
+    const lastHeaderColumn = sheet.getColumn(Math.max(...headers.values())).letter;
     let row = 5;
     for (let product = 1; product <= count; product++)
       for (const option of [0, 1]) {
@@ -37,10 +40,13 @@ export async function buildRehearsalWorkbooks({
           'IP ID': ipId,
           '게시 상태': mode === 'publish' ? '공개' : '초안',
           '상품 유형': '문구',
-          '기본 판매가': 12000,
+          '기준 판매가': 12000,
           '재고 표시': 'ok',
           '무통장 허용': '아니오',
+          '카드 허용': '예',
           '판매 제한': 'none',
+          '주문당 한도 적용': '아니오',
+          '회원 누적 한도 적용': '아니오',
           '출고지 코드': originCode,
           '배송비 유형': 'policy',
           '개별 배송비': 0,
@@ -50,6 +56,8 @@ export async function buildRehearsalWorkbooks({
           '옵션 값 1': option ? '파랑' : '빨강',
           '옵션 판매가': option ? 13000 : 12000,
           '옵션 재고': mode === 'draft-errors' && product === count ? -1 : 10,
+          '옵션 사용': '사용',
+          'KC 초기화': '',
           제조자: '[연습용] 가상 제조자',
           제조국: '[연습용] 대한민국',
           소재: '[연습용] 종이',
@@ -58,6 +66,7 @@ export async function buildRehearsalWorkbooks({
           'AS 책임자': '[연습용] 운영팀',
           'AS 연락처': 'cs@staging.icons.test',
           '상품 설명': '합성 운영 연습 상품입니다. 실제 구매·출고·연락 금지.',
+          '상세 설명 형식': 'plain',
           '대표 이미지 파일명': 'rehearsal.png',
         };
         for (const [header, value] of Object.entries(fields)) {
@@ -71,7 +80,7 @@ export async function buildRehearsalWorkbooks({
         sheet.getRow(row).height = 32;
         row++;
       }
-    sheet.autoFilter = `A4:AR${row - 1}`;
+    sheet.autoFilter = `A4:${lastHeaderColumn}${row - 1}`;
     output[`goods-${mode}.xlsx`] = Buffer.from(
       await workbook.xlsx.writeBuffer(),
     );

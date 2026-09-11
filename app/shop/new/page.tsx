@@ -1,3 +1,4 @@
+import { loadPublicCatalogCategories } from '@/lib/catalog-categories.server';
 import type { Metadata } from 'next';
 import { Shop } from '@/components/screens/Shop';
 import { getCatalogSnapshot } from '@/lib/catalog';
@@ -16,10 +17,12 @@ interface PageProps {
    필터·정렬·VIEW MORE 는 굿즈샵과 같은 화면이다. */
 export default async function Page({ searchParams }: PageProps) {
   const [catalog, params] = await Promise.all([getCatalogSnapshot(), searchParams ?? {}]);
+  const categories = catalog.source === 'supabase' ? await loadPublicCatalogCategories() : [];
   const query = parseShopSearchParams(params, {
     view: 'new',
     validIpIds: new Set(catalog.ips.map((ip) => ip.id)),
+    validCategoryIds: new Set(categories.map((category) => category.id)),
   });
 
-  return <Shop query={query} result={selectShopGoods(catalog, query)} view="new" />;
+  return <Shop query={query} result={selectShopGoods({ ...catalog, categories }, query)} view="new" />;
 }

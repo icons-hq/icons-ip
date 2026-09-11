@@ -164,7 +164,8 @@ on conflict (id) do update set
   enabled = excluded.enabled;
 
 -- Reset-seed quantities belong to the default option; goods.stock_qty is its
--- derived cache. Keep one fixture source and reuse existing option identities.
+-- derived cache. New seed goods stay drafts until real model-specific KC review.
+-- Existing rows keep their publication state; seed data is not KC evidence.
 do $$
 declare seed_good record;
 begin
@@ -184,7 +185,7 @@ begin
   loop
     insert into public.goods(id,ip_id,name,type,price,badge,stock,stock_qty,bg,published_at)
     values(seed_good.id,seed_good.ip_id,seed_good.name,seed_good.type,seed_good.price,
-      seed_good.badge,seed_good.stock,seed_good.stock_qty,seed_good.bg,now())
+      seed_good.badge,seed_good.stock,seed_good.stock_qty,seed_good.bg,null)
     on conflict (id) do update set
       ip_id = excluded.ip_id,
       name = excluded.name,

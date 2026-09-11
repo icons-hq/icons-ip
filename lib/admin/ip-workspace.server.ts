@@ -2,6 +2,7 @@ import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
 import { imageUrlFromBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
+import { loadAdminIpIdentity } from '@/lib/ip-identity.server';
 import {
   IP_INDEX_PAGE_SIZE, type AdminIpIndexData, type AdminIpSummary, type AdminIpWorkspaceData,
   type IpIndexFilters, type IpWorkspaceTab,
@@ -48,6 +49,7 @@ export async function loadAdminIpWorkspace(id: string, tab: IpWorkspaceTab): Pro
   const row = result.data;
   if (!row) return null;
   const data: AdminIpWorkspaceData = {
+    identity: await loadAdminIpIdentity(id),
     ip: { id: row.id, archivedAt: row.archived_at, publishedAt: row.published_at, title: row.title,
       sub: row.sub, verticalKey: row.vertical_key, tagline: row.tagline, synopsis: row.synopsis,
       glyph: row.glyph, bg: row.bg, imagePath: row.image_path,

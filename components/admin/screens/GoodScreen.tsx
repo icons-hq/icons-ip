@@ -1,5 +1,8 @@
 'use client';
 
+import type { AdminCategoryNode } from '@/lib/admin/category';
+import type { GoodsShippingNoticeOption } from '@/components/admin/GoodsShippingNoticeField';
+
 import { useActionState, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { upsertAdminGoodAction, type AdminCatalogActionState } from '@/app/admin/actions';
@@ -31,7 +34,7 @@ export function GoodScreen({
   initialSelectedId,
   hideRecordList=false,
   listHref='/admin/catalog/goods',
-  accountId='', origins=[], noticeDefaults,
+  accountId='', origins=[], noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, cloneOperationId,
 }: {
   adjustmentId: string;
   catalogIps: CatalogSnapshot['ips'];
@@ -44,6 +47,7 @@ export function GoodScreen({
   hideRecordList?: boolean;
   listHref?: string;
   accountId?: string; origins?: FulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
+  categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; cloneOperationId?: string;
 }) {
   const [state, action, pending] = useActionState(upsertAdminGoodAction, emptyState);
   const noticeState = useMemo(() => adminGoodsNotice(state), [state]);
@@ -63,6 +67,7 @@ export function GoodScreen({
   return (
     <GoodSection
       accountId={accountId} origins={origins} noticeDefaults={noticeDefaults}
+      categories={categories} shippingNoticeOptions={shippingNoticeOptions} canManageCosts={canManageCosts} cloneOperationId={cloneOperationId}
       action={action}
       adjustmentId={adjustmentId}
       catalogIps={catalogIps}

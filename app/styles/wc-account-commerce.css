@@ -89,6 +89,39 @@
   box-shadow: none;
 }
 
+.wc-auth__password-control {
+  position: relative;
+}
+
+.wc-auth__password-control input {
+  padding-right: 84px !important;
+}
+
+.wc-auth__password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  min-height: 32px;
+  padding: 4px 6px;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--wc-ink-tertiary);
+  font: 600 13px/1.4 var(--wc-font);
+  cursor: pointer;
+}
+
+.wc-auth__password-toggle:hover {
+  color: var(--wc-ink);
+}
+
+.wc-auth__caps-lock {
+  margin: 0;
+  color: var(--wc-warning);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .wc-auth input::placeholder {
   color: var(--wc-ink-disabled);
   opacity: 1;

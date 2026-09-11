@@ -9,11 +9,13 @@ select 1 / case when not has_function_privilege('anon','public.admin_adjust_stoc
  then 1 else 0 end as assert_option_writers_are_sealed;
 insert into public.ips(id,title,vertical_key,published_at) values('option-stock-test','옵션 재고 테스트','character',now());
 insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at) values
-('option-stock-test','option-stock-test','옵션 재고 테스트','문구',10000,'ok',5,now()),
-('option-stock-other','option-stock-test','다른 상품','문구',10000,'ok',1,now());
+('option-stock-test','option-stock-test','옵션 재고 테스트','문구',10000,'ok',5,null),
+('option-stock-other','option-stock-test','다른 상품','문구',10000,'ok',1,null);
 insert into public.goods_variants(id,good_id,name,price,stock_qty,sort_order) values
 ('00000000-0000-4000-8000-000000044010','option-stock-test','파랑',10000,2,1),
 ('00000000-0000-4000-8000-000000044011','option-stock-test','빨강',11000,3,2);
+select pg_temp.publish_goods_kc_fixture('option-stock-test');
+select pg_temp.publish_goods_kc_fixture('option-stock-other');
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
 ('00000000-0000-4000-8000-000000044001','authenticated','authenticated','option-stock-staff@example.test',now(),'{}','{}',now(),now()),
 ('00000000-0000-4000-8000-000000044002','authenticated','authenticated','option-stock-owner@example.test',now(),'{}','{}',now(),now());

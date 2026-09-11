@@ -1,4 +1,6 @@
 import 'server-only';
+import { parseGoodClaimPolicy, type GoodClaimPolicy } from '@/lib/goods-claim-policy';
+import { parseShippingNoticeSnapshot } from '@/lib/fulfillment';
 
 import { createClient } from '@/lib/supabase/server';
 import type { RarityKey } from '@/lib/rarity';
@@ -41,6 +43,12 @@ export interface AdminGoodRecord {
   archivedAt: string | null;
   ipId: string;
   name: string;
+  nameEn?: string | null;
+  searchKeywords?: string[];
+  displayOrder?: number | null;
+  categoryId?: string | null;
+  claimPolicy?: GoodClaimPolicy | null;
+  shippingNoticeSnapshot?: import('@/lib/fulfillment').ShippingNoticeSnapshot | null;
   type: string;
   price: number;
   /** 취소선으로 표기할 정가 (#326). 할인 중일 때만 값이 있다. */
@@ -48,8 +56,15 @@ export interface AdminGoodRecord {
   badge: string | null;
   stock: Stock;
   stockQty: number;
+  saleAvailableQty?: number;
   /** 무통장 입금 허용 여부 (#256). 한정 드롭은 꺼서 24시간 재고 잠김을 막는다. */
   allowBankTransfer: boolean;
+  allowCardPayment?: boolean;
+  orderQuantityLimitEnabled?: boolean;
+  minOrderQty?: number | null;
+  maxOrderQty?: number | null;
+  memberPurchaseLimitEnabled?: boolean;
+  memberLifetimeQtyLimit?: number | null;
   /** 판매 제한 유형 (#392). 'adult' 는 노출·구매를 막고 결제 PG를 코페이로 분기한다. */
   saleRestriction: AdminGoodSaleRestriction;
   bg: string | null;
@@ -57,6 +72,8 @@ export interface AdminGoodRecord {
   imageUrl?: string | null;
   notice: GoodsNoticeInfo;
   description: string | null;
+  descriptionFormat?: import('@/lib/goods-description').GoodsDescriptionFormat;
+  descriptionImagePaths?: string[];
   galleryPaths: string[];
   galleryUrls: string[];
   detailImagePath: string | null;
@@ -323,13 +340,27 @@ interface GoodRow {
   archived_at: string | null;
   ip_id: string;
   name: string;
+  name_en?: string | null;
+  search_keywords?: string[] | null;
+  display_order?: number | null;
+  category_id?: string | null;
+  shipping_notice_snapshot?: unknown;
+  claim_return_allowed?: boolean | null; claim_exchange_allowed?: boolean | null; claim_restriction_reason?: string | null;
+  claim_return_fee?: number | null; claim_return_free_shipping_fee?: number | null; claim_exchange_fee?: number | null;
   type: string;
   price: number;
   compare_at_price: number | null;
   badge: string | null;
   stock: Stock;
   stock_qty: number | null;
+  sale_available_qty?: number;
   allow_bank_transfer: boolean | null;
+  allow_card_payment?: boolean;
+  order_quantity_limit_enabled?: boolean;
+  min_order_qty?: number | null;
+  max_order_qty?: number | null;
+  member_purchase_limit_enabled?: boolean;
+  member_lifetime_qty_limit?: number | null;
   sale_restriction: AdminGoodSaleRestriction | null;
   bg: string | null;
   image_path: string | null;
@@ -341,6 +372,8 @@ interface GoodRow {
   notice_as_manager: string | null;
   notice_as_contact: string | null;
   description: string | null;
+  description_format?: 'plain' | 'html';
+  description_image_paths?: string[];
   gallery_paths: string[] | null;
   detail_image_path: string | null;
 }
@@ -501,7 +534,7 @@ export async function getAdminCatalogRecords(
       ? supabase
         .from('goods')
         /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-        .select('id,code,origin_id,shipping_fee_type,individual_fee,first_published_at,published_at,archived_at,ip_id,name,type,price,compare_at_price,badge,stock,stock_qty,allow_bank_transfer,sale_restriction,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,gallery_paths,detail_image_path')
+        .select('id,code,origin_id,shipping_fee_type,individual_fee,first_published_at,published_at,archived_at,sale_available_qty:goods_sale_available_qty,ip_id,name,name_en,search_keywords,display_order,category_id,shipping_notice_snapshot,claim_return_allowed,claim_exchange_allowed,claim_restriction_reason,claim_return_fee,claim_return_free_shipping_fee,claim_exchange_fee,type,price,compare_at_price,badge,stock,stock_qty,allow_bank_transfer,allow_card_payment,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,sale_restriction,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,description_format,description_image_paths,gallery_paths,detail_image_path')
         .order('id')
       : null;
   if (goodsQuery && options.goodId) goodsQuery = goodsQuery.eq('id', options.goodId);
@@ -640,6 +673,7 @@ export async function getAdminCatalogRecords(
       id: row.id,
       code: row.code,
       firstPublishedAt: row.first_published_at,
+      saleAvailableQty: row.sale_available_qty,
       originId: row.origin_id,
       shippingFeeType: row.shipping_fee_type,
       individualFee: row.individual_fee,
@@ -649,11 +683,23 @@ export async function getAdminCatalogRecords(
       name: row.name,
       type: row.type,
       price: row.price,
+      ...(row.name_en ? { nameEn: row.name_en } : {}),
+      searchKeywords: row.search_keywords ?? [],
+      displayOrder: row.display_order ?? null,
+    categoryId: row.category_id ?? null,
+      shippingNoticeSnapshot: parseShippingNoticeSnapshot(row.shipping_notice_snapshot),
+      claimPolicy: parseGoodClaimPolicy({ returnAllowed: row.claim_return_allowed ?? null, exchangeAllowed: row.claim_exchange_allowed ?? null, restrictionReason: row.claim_restriction_reason ?? null, returnFee: row.claim_return_fee ?? null, returnFreeShippingFee: row.claim_return_free_shipping_fee ?? null, exchangeFee: row.claim_exchange_fee ?? null }),
       compareAtPrice: row.compare_at_price,
       badge: row.badge,
       stock: row.stock,
       stockQty: row.stock_qty ?? 0,
       allowBankTransfer: row.allow_bank_transfer ?? true,
+      allowCardPayment: row.allow_card_payment ?? true,
+      orderQuantityLimitEnabled: row.order_quantity_limit_enabled ?? false,
+      minOrderQty: row.min_order_qty ?? null,
+      maxOrderQty: row.max_order_qty ?? null,
+      memberPurchaseLimitEnabled: row.member_purchase_limit_enabled ?? false,
+      memberLifetimeQtyLimit: row.member_lifetime_qty_limit ?? null,
       saleRestriction: row.sale_restriction ?? 'none',
       bg: row.bg,
       imagePath: row.image_path,
@@ -668,6 +714,8 @@ export async function getAdminCatalogRecords(
         asContact: row.notice_as_contact,
       },
       description: row.description,
+      descriptionFormat: row.description_format ?? 'plain',
+      descriptionImagePaths: row.description_image_paths ?? [],
       galleryPaths: row.gallery_paths ?? [],
       galleryUrls: (row.gallery_paths ?? [])
         .map((path) => imageUrlForPath(path))

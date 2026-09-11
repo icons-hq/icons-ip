@@ -8,12 +8,15 @@ actor='00000000-0000-4000-8000-000000042292'
 order_a='00000000-0000-4000-8000-000000042293'
 order_b='00000000-0000-4000-8000-000000042294'
 psql_exec() { "$psql_bin" -X -U "${PGUSER:-postgres}" -d "${PGDATABASE:-postgres}" -v ON_ERROR_STOP=1 "$@"; }
+kc_fixture_sql="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/helpers/goods_kc_fixture.sql"
+psql_exec_with_kc() { { cat "$kc_fixture_sql"; cat; } | psql_exec "$@"; }
 cleanup() {
   local result=$?
-  if ! psql_exec -q > "$work_dir/cleanup.log" 2>&1 <<SQL
+  if ! psql_exec_with_kc -q > "$work_dir/cleanup.log" 2>&1 <<SQL
 select pg_terminate_backend(pid) from pg_stat_activity where application_name like '${app_prefix}-%' and pid<>pg_backend_pid();
 begin;
 delete from public.orders where id in ('${order_a}','${order_b}');
+select pg_temp.cleanup_goods_kc_fixture('fulfillment-policy-race');
 delete from public.goods_variants where good_id='fulfillment-policy-race';
 delete from public.goods where id='fulfillment-policy-race';
 delete from public.ips where id='fulfillment-policy-race';
@@ -27,16 +30,17 @@ SQL
   exit "$result"
 }
 trap cleanup EXIT
-psql_exec -q >/dev/null <<SQL
+psql_exec_with_kc -q >/dev/null <<SQL
 begin;
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,free_threshold,is_active) values('${origin}','policy-race','정책 경합 검증','hanjin',1900,null,true);
 insert into public.verticals(key,label,color) values('fulfillment-policy-race','정책 경합 검증','#000000');
 insert into public.ips(id,title,vertical_key,published_at) values('fulfillment-policy-race','정책 경합 검증','fulfillment-policy-race',now());
-insert into public.goods(id,ip_id,name,type,price,origin_id,published_at) values('fulfillment-policy-race','fulfillment-policy-race','정책 경합 검증','문구',1000,'${origin}',now());
+insert into public.goods(id,ip_id,name,type,price,origin_id,published_at) values('fulfillment-policy-race','fulfillment-policy-race','정책 경합 검증','문구',1000,'${origin}',null);
+select pg_temp.publish_goods_kc_fixture('fulfillment-policy-race');
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 values('${actor}','authenticated','authenticated','fulfillment-policy-race@example.test',now(),'{}','{}',now(),now());
 insert into public.orders(id,user_id,status,total,shipping_fee,address,expires_at)
-select id::uuid,'${actor}','pending',0,0,'{}',now()+interval '1 hour' from unnest(array['${order_a}','${order_b}'])id;
+select id::uuid,'${actor}','pending',0,0,'{"recipientName":"정책 검증","phone":"01000000000","postalCode":"12345","address1":"서울시 합성 검증주소"}',now()+interval '1 hour' from unnest(array['${order_a}','${order_b}'])id;
 insert into public.order_items(order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot, variant_id)
 select id::uuid,'fulfillment-policy-race',1,1000,'정책 경합 검증','문구','fulfillment-policy-race', (select id from public.goods_variants where good_id='fulfillment-policy-race' and is_default) from unnest(array['${order_a}','${order_b}'])id;
 commit;

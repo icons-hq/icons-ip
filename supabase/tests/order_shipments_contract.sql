@@ -8,8 +8,11 @@ update public.fulfillment_origins set is_active=true,base_fee=4000,free_threshol
 insert into public.verticals(key,label,color) values('shipments-contract-test','배송 테스트','#111111');
 insert into public.ips(id,title,vertical_key,published_at) values('shipments-contract-test','배송 테스트','shipments-contract-test',now());
 insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at,origin_id) values
- ('shipment-contract-gimpo','shipments-contract-test','김포 굿즈','문구',10000,'ok',5,now(),'00000000-0000-4000-8000-000000042201'),
- ('shipment-contract-seowon','shipments-contract-test','서원 굿즈','문구',15000,'ok',5,now(),'00000000-0000-4000-8000-000000042202');
+ ('shipment-contract-gimpo','shipments-contract-test','김포 굿즈','문구',10000,'ok',5,null,'00000000-0000-4000-8000-000000042201'),
+ ('shipment-contract-seowon','shipments-contract-test','서원 굿즈','문구',15000,'ok',5,null,'00000000-0000-4000-8000-000000042202');
+-- Build reviewed synthetic KC evidence before publishing each fixture.
+select pg_temp.publish_goods_kc_fixture('shipment-contract-gimpo');
+select pg_temp.publish_goods_kc_fixture('shipment-contract-seowon');
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
  ('00000000-0000-4000-8000-000000044701','authenticated','authenticated','shipments@example.test',now(),'{}','{}',now(),now()),
  ('00000000-0000-4000-8000-000000044702','authenticated','authenticated','shipment-staff@example.test',now(),'{}','{}',now(),now()),

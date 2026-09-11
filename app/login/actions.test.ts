@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  adminSignOutAction,
   requestPasswordResetAction,
+  signOutAction,
   signInWithSocialAction,
   signUpWithEmailAction,
 } from './actions';
@@ -20,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   cookieSetCalls: [] as Array<{ name: string; value: string; options?: Record<string, unknown> }>,
   signUp: vi.fn(),
   signInWithOAuth: vi.fn(),
+  signOut: vi.fn(),
   resend: vi.fn(),
   resetPasswordForEmail: vi.fn(),
 }));
@@ -33,6 +36,7 @@ vi.mock('@/lib/supabase/server', () => ({
     auth: {
       signUp: mocks.signUp,
       signInWithOAuth: mocks.signInWithOAuth,
+      signOut: mocks.signOut,
       resend: mocks.resend,
       resetPasswordForEmail: mocks.resetPasswordForEmail,
     },
@@ -548,5 +552,48 @@ describe('requestPasswordResetAction', () => {
     const state = await requestPasswordResetAction({}, resetFormData());
 
     expect(state.errors?.form).toContain(message);
+  });
+});
+
+describe('sign-out actions', () => {
+  beforeEach(() => {
+    mocks.isConfigured = true;
+    mocks.signOut.mockReset();
+    mocks.signOut.mockResolvedValue({ error: null });
+  });
+
+  it('ends only the local session and returns an admin deep link to the shared login screen', async () => {
+    const data = new FormData();
+    data.set('next', '/admin/sales/coupons?status=active&page=2');
+
+    await expect(adminSignOutAction({}, data)).rejects.toThrow(
+      'NEXT_REDIRECT:/login?next=%2Fadmin%2Fsales%2Fcoupons%3Fstatus%3Dactive%26page%3D2',
+    );
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+  });
+
+  it('falls back to the admin home when the submitted return path is not an admin path', async () => {
+    const data = new FormData();
+    data.set('next', 'https://evil.example/account');
+
+    await expect(adminSignOutAction({}, data)).rejects.toThrow(
+      'NEXT_REDIRECT:/login?next=%2Fadmin',
+    );
+  });
+
+  it('keeps the admin screen available for retry when local sign-out fails', async () => {
+    mocks.signOut.mockResolvedValueOnce({ error: { code: 'network_error', message: 'private detail' } });
+    const data = new FormData();
+    data.set('next', '/admin');
+
+    const state = await adminSignOutAction({}, data);
+
+    expect(state.errors?.form).toBe('로그아웃을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.');
+    expect(JSON.stringify(state)).not.toContain('private detail');
+  });
+
+  it('keeps public logout on the shared home destination', async () => {
+    await expect(signOutAction()).rejects.toThrow('NEXT_REDIRECT:/');
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
   });
 });

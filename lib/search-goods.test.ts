@@ -64,6 +64,17 @@ describe('searchGoods 매칭 축', () => {
     expect(searchGoods(catalog, '메이플', 1).items.map((item) => item.id)).toEqual(['g3']);
   });
 
+  it('저장된 검색 키워드로 찾고 굿즈명 일치 다음에 둔다', () => {
+    const result = searchGoods(catalogOf([
+      good('keyword', { name: '표시 이름', searchKeywords: ['  여름 굿즈 ', 'KUMA'] }),
+      good('name', { name: '여름 굿즈 본품' }),
+      good('other', { name: '무관' }),
+    ]), '여름 굿즈', 1);
+
+    expect(result.items.map((item) => item.id)).toEqual(['name', 'keyword']);
+    expect(result.total).toBe(2);
+  });
+
   it('어느 축에도 걸리지 않으면 제외한다', () => {
     const catalog = catalogOf([good('g1'), good('g2')]);
 

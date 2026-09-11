@@ -87,7 +87,7 @@ KORPAY_TICKET_CANARY_USER_ID=
 - `CRON_SECRET`: production Vercel Cron이 만료된 관리자 아트워크 staging 객체를 정리할 때 쓰는 서버 전용 bearer secret. 16~128자의 URL-safe 랜덤 값을 사용하고 preview에는 필요하지 않다.
 - `SUPABASE_SEND_EMAIL_HOOK_SECRET`·`RESEND_WEBHOOK_SECRET`: #191 Hook/webhook의 raw body 서명 검증용 서버 secret이다.
 - `EMAIL_DISPATCH_HMAC_SECRET`: recipient·source·provider reference를 목적 분리 keyed HMAC으로 투영하는 32자 이상 서버 secret이다.
-- `RESEND_API_KEY`·`RESEND_FROM`·`RESEND_REPLY_TO`: durable EmailDispatcher의 Resend HTTP 발송 설정이다. Preview·CI에는 실값을 두지 않는다.
+- `RESEND_API_KEY`·`RESEND_FROM`·`RESEND_REPLY_TO`: durable EmailDispatcher의 Resend HTTP 발송 설정이다. 전용 provider 설정과 `RESEND_API_ENDPOINT`를 모두 생략하면 기존 앱의 `EMAIL_PROVIDER_API_KEY`·`EMAIL_FROM`·`EMAIL_REPLY_TO`를 사용한다. 일부 전용 값과 기존 계정 값을 섞지 않으며 자세한 조건은 [이메일 운영](docs/transactional-email.md)을 따른다. Preview·CI에는 실값을 두지 않는다.
 - `RESEND_API_ENDPOINT`: 호환성 검증에만 쓰는 선택적 endpoint override다. 일반 운영에서는 비워 둔다.
 - `PAYMENT_RECONCILIATION_SECRET`: 검토된 단일 결제·환급 건을 명시적으로 재조회하는 내부 route(티켓 `/api/internal/payments/tickets/reconcile` — `operation: payment | refund`, 굿즈 `/api/internal/payments/goods/reconcile` — 환불 reconcile seam이 없어 `operation: payment`만) 전용 bearer secret. `CRON_SECRET`과 공유하지 않는다. #206 dark deploy에서는 미설정이 정상이며 route가 401로 닫힌다. 활성화 시 별도 승인 절차로 Production에만 16~128자의 URL-safe 랜덤 값을 두고 Preview/CI에는 넣지 않는다. 요청은 이메일 등 PII가 아닌 opaque URL-safe `caseRef`만 받으며 actor는 서버가 `payment_reconciliation_service_v1`으로 고정한다.
 - `NEXT_PUBLIC_TOSS_CLIENT_KEY`·`TOSS_SECRET_KEY`: 토스페이먼츠 주문서형 v2 위젯 키 쌍이다. 형식은 `(test|live)_gck_…`/`(test|live)_gsk_…`이고 **두 키의 모드가 같아야 한다** — 테스트 클라이언트 키로 띄운 결제를 라이브 시크릿 키로 승인하는 반쪽 전환을 빌드와 런타임이 함께 막는다. API 개별연동 `test_sk_…` 계열은 형식에서 거절한다. 클라이언트 키만 `NEXT_PUBLIC_`이고 시크릿 키는 server-only 모듈 밖으로 나가지 않는다. Vercel Production에만 sensitive 값으로 두고, 심사 기간에는 테스트 키가 물린다.
@@ -207,6 +207,18 @@ npm run hong-sil:download -- \
 ## CI/CD
 
 GitHub Actions의 `CI/CD Pipeline`은 PR 검증(lint/typecheck/test/build/Supabase local lint), Vercel preview 배포, production 배포를 처리하고 `Supabase Preview Cleanup`은 PR close 시 최종 base와 무관하게 deterministic isolated branch만 정리한다. 운영팀용 `deploy-staging`은 성공한 main shared-preview 동기화 뒤 영구 `staging` branch에 앱을 배포한다. 고정 alias·test 키·생성 계정·연습 데이터 보존 절차와 실제 활성화 상태는 [스테이징 런북](docs/runbooks/staging.md)을 따른다.
+
+두 workflow는 Supabase CLI `2.109.1`을 사용한다. 이전 `2.101.0`의 로컬 DB 이미지
+`17.6.1.106`에는 함수 실행 권한 거절 시 DB 연결이 비정상 종료되는
+[upstream 결함](https://github.com/supabase/postgres/issues/2112)이 있었다. 권한 테스트나
+GRANT를 완화하지 않고 수정된 이미지가 포함된 CLI로 검증한다. 이 버전 변경이 hosted DB
+엔진을 교체하거나 production 데이터를 초기화하는 것은 아니다.
+
+로컬·CI의 `api.auto_expose_new_tables=true`는 기존 hosted 프로젝트에서 확인한 초기
+기본 권한을 재현한다. 이후 migration의 명시적 REVOKE/GRANT는 그대로 적용한다. 이 옵션은
+폐기 예정이므로 이를 제거하는 CLI로 갱신하기 전에 신규 DB에서도 같은 권한이 만들어지도록
+기존 migration의 누락된 명시적 GRANT를 별도 보완해야 한다. hosted `config.toml` 전체를
+push하는 설정은 아니다.
 
 - `pull_request`: open·commit 갱신·reopen과 base branch retarget에서 `validate`를 실행하고, 같은 repo 브랜치 PR이면 preview DB mode를 고른다. 제목·본문만 편집한 `edited` 이벤트는 다시 배포하거나 실행 중인 Preview run을 취소하지 않는다. `main` 대상은 merge-base 기준 전체 diff를 rename 비탐지로 읽고, Supabase 배포 변경이 없을 때만 base SHA의 main→shared sync 성공 증거를 확인한 뒤 shared main을 변경 없이 사용한다. shared Vercel 배포 직전에도 원격 `main`이 검증한 base SHA와 같은지 다시 확인하며, 달라졌으면 새 base run을 기다리도록 실패한다. 통합 브랜치 대상 PR은 선행 stage의 누적 DB 상태를 놓치지 않도록 앱 전용 diff여도 항상 isolated다. isolated head는 현재 `main`을 포함해야 하며, 무데이터 `pr-<number>` branch를 재생성한 직후에도 `main` ancestry를 다시 확인해 동시 main sync 경쟁을 차단한다. 그 뒤 migration·custom roles·seed·repo Edge Functions·baseline 검증을 마치고 Vercel preview와 recovery template를 순서대로 배포한다. Hosted `config.toml` 전체 push는 이 경로가 소유하지 않는다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
 - `pull_request: closed`: 최종 base와 무관하게 Preview pipeline과 같은 per-PR concurrency key에서 대기한 뒤 non-default `pr-<number>` branch가 있으면 삭제한다.

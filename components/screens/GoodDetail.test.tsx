@@ -6,6 +6,7 @@ import { EMPTY_GOODS_NOTICE } from '@/lib/goods-notice';
 import { getLegalDocument } from '@/lib/legal/documents';
 import type { ReviewRatingSummary } from '@/lib/reviews';
 import { GoodDetail, GoodDetailView, pdpDefaultPanelId } from './GoodDetail';
+import { buildGoodPreview } from '@/lib/admin/good-preview';
 
 /* 상세페이지의 출고 기한 문장은 배송·반품 정책이 진실원이다.
  * 정책이 바뀌면 이 값이 따라 바뀌고, 상세페이지가 안 따라오면 아래 테스트가 깨진다. */
@@ -140,6 +141,49 @@ function render(overrides: Partial<GoodDetailContent> = {}) {
 }
 
 describe('GoodDetail', () => {
+  it('HTML 설명은 문서 요소를 표시하고 실행 코드와 유해 링크를 제거한다', () => {
+    const html = render({ descriptionFormat: 'html', description: '<h2>구성품</h2><p>키링 <strong>2개</strong></p><ul><li>보관 안내</li></ul><table><tbody><tr><th>소재</th><td>아크릴</td></tr></tbody></table><script>window.attacked=1</script><a href="javascript:alert(1)" onclick="alert(2)">위험 링크</a><a href="https://iconsip.com/legal/shipping">배송 안내</a>' });
+    expect(html).toContain('<h2>구성품</h2>');
+    expect(html).toContain('<strong>2개</strong>');
+    expect(html).toContain('<th>소재</th><td>아크릴</td>');
+    expect(html).toContain('href="https://iconsip.com/legal/shipping"');
+    expect(html).not.toMatch(/window.attacked|javascript:|onclick=/);
+  });
+
+  it('HTML 미리보기와 공개 결과가 같고 DB가 검증한 이미지 경로만 표시한다', () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://media.example.test');
+    try {
+      const path = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
+      const raw = `<h1>구성품</h1><p>키링 &amp; 스티커</p><img src="${path}" alt="구성" width="9000" onerror="alert(1)"><img src="https://external.test/a.webp">`;
+      const preview = buildGoodPreview({ values: { descriptionFormat: 'html', description: raw }, imageUrls: {}, fallbackBg: null, stockQty: 0, ip });
+      const publicHtml = render({ description: raw, descriptionFormat: 'html', descriptionImagePaths: [path] });
+      const previewHtml = render(preview);
+      const descriptionHtml = (html: string) => html.match(/<div class="wc-goods-description">.*?<\/div>/s)?.[0];
+      expect(descriptionHtml(previewHtml)).toBe(descriptionHtml(publicHtml));
+      expect(publicHtml).toContain('src="https://media.example.test/storage/v1/object/public/public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp"');
+      expect(publicHtml).not.toMatch(/onerror=|width="9000"|external.test/);
+      expect(render({ description: raw, descriptionFormat: 'html', descriptionImagePaths: [] })).not.toContain('src="https://media.example.test/');
+    } finally { vi.unstubAllEnvs(); }
+  });
+
+  it.each([
+    '<p onclick="alert(1)">본문</p><style>body{display:none}</style>',
+    '<svg><a xlink:href="javascript:alert(1)">SVG</a></svg><math><mtext><img src=x onerror="alert(2)"></mtext></math>',
+    '<iframe srcdoc="<script>alert(1)</script>"></iframe><object data="javascript:alert(1)"></object>',
+    '<a href="java&#x0a;script:alert(1)" style="color:red">링크</a><a href="//evil.test">외부</a>',
+    '<img src="data:image/svg+xml,<svg onload=alert(1)>"><img srcset="https://evil.test/x 2x">',
+  ])('직접 저장된 HTML도 공개 렌더에서 실행·유해 URL을 제거한다: %s', (source) => {
+    const html = render({ descriptionFormat: 'html', description: source }).match(/<div class="wc-goods-description">.*?<\/div>/s)?.[0];
+    expect(html).toBeDefined();
+    expect(html).not.toMatch(/<script|<style|<svg|<math|<iframe|<object|onerror=|onclick=|onload=|javascript:|srcdoc=|srcset=|evil\.test|display:none|color:red/);
+  });
+
+  it('기존 일반 텍스트 설명의 태그 모양과 <3도 문자 그대로 보존한다', () => {
+    const html = render({ description: '<3 & <strong>문자</strong>\n다음 줄' });
+    expect(html).toContain('&lt;3 &amp; &lt;strong&gt;문자&lt;/strong&gt;\n다음 줄');
+    expect(html).not.toContain('<strong>문자</strong>');
+  });
+
   it('White Catalog PDP 골격으로 굿즈 정체성과 가격을 그린다', () => {
     const html = render();
 
@@ -307,6 +351,17 @@ describe('GoodDetail', () => {
     expect(html).toContain(SHIPPING_PERIOD_NOTICE);
     expect(shippingSection).toContain(SHIPPING_PERIOD_NOTICE);
     expect(shippingSection).not.toContain('영업일 기준');
+  });
+  it('예약 옵션의 발송 예정일을 배송 안내에도 표시해 일반 출고 기한과 혼동하지 않는다', () => {
+    const html = render({ good: { ...detail.good, options: [{ id: '00000000-0000-4000-8000-000000000485',
+      name: '10월 예약', attributes: {}, code: 'TEST-485', isDefault: true, price: detail.good.price, stockQty: 5,
+      supply: { mode: 'preorder', state: 'open', policyId: '00000000-0000-4000-8000-000000000486', policyRevision: 1,
+        availableQty: 5, startsAt: '2026-09-01T00:00:00Z', endsAt: '2026-09-30T00:00:00Z',
+        expectedShipDate: '2026-10-10', calculatedAt: '2026-09-10T00:00:00Z', nextChangeAt: '2026-09-30T00:00:00Z' } }] } });
+    const section = html.slice(html.indexOf('pdp-shipping-heading'), html.indexOf('pdp-return-heading'));
+    expect(section).toContain('2026년 10월 10일 발송 예정');
+    expect(section).toContain('같은 출고지');
+    expect(section).not.toContain(SHIPPING_PERIOD_NOTICE);
   });
 
   /* 요약만으로는 반송비 부담·반품 절차·환급 기한을 확인할 수 없다. 전문으로 가는 길이 있어야 한다. */

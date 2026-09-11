@@ -86,7 +86,7 @@ describe('AdminSalesOrdersPage', () => {
     });
 
     expect(mocks.orders).toHaveBeenCalledWith(
-      { from: null, orderId: null, page: 2, query: 'maple fan', status: 'paid', to: null },
+      { field: 'all', from: null, orderId: null, page: 2, query: 'maple fan', status: 'paid', to: null },
       false,
     );
     expect(screen.type).toBe(mocks.ordersSection);

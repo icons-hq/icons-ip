@@ -12,7 +12,7 @@ const ORDER = '10000000-0000-4000-8000-000000004141';
 const detail: AdminOrderDetail = {
   emailJobs: [],
   order: { id: ORDER, userId: 'buyer', buyerName: '주문자', buyerEmail: 'buyer@example.test',
-    status: 'shipping', total: 12800, shippingFee: 3000, discountTotal: 200,
+    status: 'shipping', total: 12800, shippingFee: 3000, discountTotal: 200, storeCreditTotal: 0,
     createdAt: '2026-09-01T00:00:00Z',
     address: { recipientName: '수령자', phone: '01012345678', postalCode: '12345', address1: '서울시', address2: '101호' } },
   shipments: [shipmentFixture()],
@@ -32,9 +32,21 @@ describe('주문 상세', () => {
     expect(html.indexOf('2026-09-01T01')).toBeLessThan(html.indexOf('2026-09-01T04'));
     expect(html).toContain('/admin/cs/inquiries/40000000-0000-4000-8000-000000004141');
     expect(html).toContain('/admin/customers/buyer');
+    expect(html).toContain('href="/admin/sales/orders"');
     expect(html).toContain(`query=${ORDER}&amp;order=${ORDER}`);
     expect(html).not.toContain('admin.order.status_updated');
-  });
+    expect(html).toContain('배송 방식·인계 확인');
+ });
+
+ it('상세에서 목록으로 돌아갈 때 전달받은 필터와 선택 주문을 유지한다', () => {
+  const html = renderToStaticMarkup(<OrderDetailScreen
+    backHref={`/admin/sales/orders?status=done&page=2&order=${ORDER}`}
+    backLabel="주문 목록"
+    detail={detail}
+    noteOperationId="operation"
+  />);
+  expect(html).toContain(`href="/admin/sales/orders?status=done&amp;page=2&amp;order=${ORDER}"`);
+ });
 });
 
  it('아직 메일 원장이 생기기 전 큐의 대기·확인 필요 상태를 배송건별로 보여준다',()=>{

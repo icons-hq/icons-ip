@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const VARIANT_ID = '00000000-0000-4000-8000-000000000001';
 import type { CurrentAuthState } from '@/lib/auth/server';
-import { deleteCartItemAction, setCartItemQuantityAction, syncCartAction } from './actions';
+import { addCartSelectionAction, deleteCartItemAction, setCartItemQuantityAction, syncCartAction } from './actions';
 
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
@@ -272,6 +272,32 @@ describe('cart Server Actions', () => {
       mode: 'server',
       error: '장바구니를 저장하지 못했습니다. 다시 시도해주세요.',
     });
+  });
+
+  it('adds one base and its extras through a single quantity comparison RPC and uses its committed snapshot', async () => {
+    const extraVariant = '00000000-0000-4000-8000-000000000002';
+    const snapshot = [{ goodId: 'g1', variantId: VARIANT_ID, qty: 3 }, { goodId: 'g2', variantId: extraVariant, qty: 2 }];
+    mocks.rpc.mockResolvedValue({ data: snapshot, error: null });
+    expect(await addCartSelectionAction('g1', [
+      { goodId: 'g1', variantId: VARIANT_ID, qty: 2, expectedQty: 1 },
+      { goodId: 'g2', variantId: extraVariant, qty: 2, expectedQty: 0 },
+    ])).toEqual({ ok: true, mode: 'server', items: snapshot });
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('add_cart_selection', { p_base_good_id: 'g1', p_items: [
+      { good_id: 'g1', variant_id: VARIANT_ID, qty: 2, expected_qty: 1 },
+      { good_id: 'g2', variant_id: extraVariant, qty: 2, expected_qty: 0 },
+    ] });
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it('cannot report success for a malformed extra or a stale cart snapshot', async () => {
+    expect(await addCartSelectionAction('g1', [
+      { goodId: 'g1', variantId: VARIANT_ID, qty: 1, expectedQty: 0 },
+      { goodId: 'g2', variantId: 'bad', qty: 1, expectedQty: 0 },
+    ])).toMatchObject({ ok: false });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValue({ data: null, error: { code: 'PT409', message: 'cart_selection_changed' } });
+    expect(await addCartSelectionAction('g1', [{ goodId: 'g1', variantId: VARIANT_ID, qty: 1, expectedQty: 0 }]))
+      .toMatchObject({ ok: false, error: expect.stringContaining('장바구니가 변경') });
   });
 
   it('rejects malformed runtime arguments without throwing', async () => {

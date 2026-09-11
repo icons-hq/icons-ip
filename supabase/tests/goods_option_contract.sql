@@ -10,7 +10,9 @@ select 1 / case when to_regprocedure('public.admin_adjust_stock(uuid,text,intege
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
 ('00000000-0000-4000-8000-000000044301','authenticated','authenticated','option-contract@example.test',now(),'{}','{}',now(),now());
 insert into public.ips(id,title,vertical_key,published_at) values('option-contract-test','옵션 필수','character',now());
-insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at) values('option-contract-test','option-contract-test','옵션 필수','문구',10000,'ok',4,now());
+insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at) values('option-contract-test','option-contract-test','옵션 필수','문구',10000,'ok',4,null);
+-- Build reviewed synthetic KC evidence before publishing each fixture.
+select pg_temp.publish_goods_kc_fixture('option-contract-test');
 do $$ begin
  perform public.quote_goods_shipping('[{"goodId":"option-contract-test","qty":1}]');
  raise exception 'quote silently selected default option';

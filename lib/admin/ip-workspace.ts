@@ -1,4 +1,5 @@
 import type { AdminIpRecord } from './catalog.server';
+import type { AdminIpIdentity } from '@/lib/ip-identity';
 
 export const IP_INDEX_PATH = '/admin/catalog/ips';
 export const IP_INDEX_PAGE_SIZE = 20;
@@ -14,6 +15,8 @@ export type AdminIpSummary = Pick<AdminIpRecord, 'id' | 'title' | 'verticalKey' 
 export interface AdminIpIndexData { ips: AdminIpSummary[]; total: number; filters: IpIndexFilters; verticals: { key: string; label: string }[] }
 export interface AdminIpWorkspaceData {
   ip: AdminIpRecord;
+  /** Public slug/alias metadata is an isolated identity seam; legacy callers may omit it. */
+  identity?: AdminIpIdentity | null;
   tab: IpWorkspaceTab;
   verticals: { key: string; label: string; color: string }[];
   directory: AdminIpSummary[];

@@ -36,12 +36,15 @@ export function GoodsListScreen({ data }: { data: AdminGoodsListData }) {
     </ConsoleFilterPanel>
     <ConsoleGrid caption={`${ADMIN_VOCABULARY.goods} 목록`} columns={[
       { key: 'name', label: `${ADMIN_VOCABULARY.goods}명` }, { key: 'code', label: ADMIN_VOCABULARY.goodsCode },
-      { key: 'ip', label: 'IP' }, { key: 'qty', label: '재고', align: 'end' },
+      { key: 'ip', label: 'IP' }, { key: 'qty', label: '할당 재고', align: 'end' },
+      { key: 'activeQty', label: '사용 옵션 재고', align: 'end' }, { key: 'lowStock', label: '안전재고' },
       { key: 'stock', label: '재고 상태' }, { key: 'status', label: '게시 상태' }, { key: 'sale', label: '판매 가능' },
     ]} rows={goods.map((good) => ({ id: good.id, href: goodEditorHref(filters, good.id), cells: [
       good.name, <span key="code">{good.code}<small style={{ display: 'block', color: 'var(--wc-ink-tertiary)' }}>{good.id}</small></span>,
       good.ipTitle, `${good.stockQty.toLocaleString('ko-KR')}개`,
-      good.stock === 'soldout' || good.stockQty === 0 ? '품절·판매 중지' : good.stock === 'low' ? '소량' : '재고 있음',
+      `${good.activeStockQty.toLocaleString('ko-KR')}개`,
+      good.lowStockOptionCount > 0 ? `부족 ${good.lowStockOptionCount}개 옵션` : '부족 경보 없음',
+      good.stock === 'soldout' || good.activeStockQty === 0 ? '품절·판매 중지' : good.stock === 'low' ? '소량' : '재고 있음',
       <AdminStatusBadge key="status" tone={good.publishedAt && !good.archivedAt ? 'success' : 'neutral'}>{good.archivedAt ? '보관' : good.publishedAt ? '공개' : '초안'}</AdminStatusBadge>,
       canSellAdminGood(good) ? '판매 가능' : '판매 준비 중',
     ] }))} />

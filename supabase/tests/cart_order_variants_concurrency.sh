@@ -15,15 +15,18 @@ psql_exec() {
   fi
 }
 
+kc_fixture_sql="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/helpers/goods_kc_fixture.sql"
+psql_exec_with_kc() { { cat "$kc_fixture_sql"; cat; } | psql_exec "$@"; }
 cleanup() {
   local exit_status=$?
   set +e
-  psql_exec -q <<SQL >"${work_dir}/cleanup.log" 2>&1
+  psql_exec_with_kc -q <<SQL >"${work_dir}/cleanup.log" 2>&1
 select pg_terminate_backend(pid) from pg_stat_activity
 where application_name like '${test_prefix}-%' and pid <> pg_backend_pid();
 delete from public.order_items where order_id in (select id from public.orders where user_id in ('${first_user}','${second_user}'));
 delete from public.orders where user_id in ('${first_user}','${second_user}');
 delete from public.cart_items where user_id in ('${first_user}','${second_user}');
+select pg_temp.cleanup_goods_kc_fixture('cart-option-race');
 delete from public.goods where id='cart-option-race';
 delete from public.ips where id='cart-option-race';
 delete from public.verticals where key='cart-option-race';
@@ -50,7 +53,7 @@ wait_for_wait() {
   return 1
 }
 
-psql_exec -q <<SQL >/dev/null
+psql_exec_with_kc -q <<SQL >/dev/null
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 values ('${first_user}','authenticated','authenticated','cart-option-first@example.test',now(),'{}','{}',now(),now()),
  ('${second_user}','authenticated','authenticated','cart-option-second@example.test',now(),'{}','{}',now(),now());
@@ -60,8 +63,9 @@ update public.profiles set nickname=case when id='${first_user}' then 'cart_opti
 insert into public.verticals(key,label,color) values ('cart-option-race','옵션 경합','#000000');
 insert into public.ips(id,title,vertical_key,published_at) values ('cart-option-race','옵션 경합','cart-option-race',now());
 insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at)
-values ('cart-option-race','cart-option-race','마지막 옵션 상품','문구',12000,'ok',9,now());
+values ('cart-option-race','cart-option-race','마지막 옵션 상품','문구',12000,'ok',9,null);
 insert into public.goods_variants(id,good_id,name,price,stock_qty) values('00000000-0000-4000-8000-000000043930','cart-option-race','파랑 마지막 한 개',15000,1);
+select pg_temp.publish_goods_kc_fixture('cart-option-race');
 insert into public.cart_items(user_id,good_id,variant_id,qty) values
  ('${first_user}','cart-option-race','00000000-0000-4000-8000-000000043930',1),('${second_user}','cart-option-race','00000000-0000-4000-8000-000000043930',1);
 SQL

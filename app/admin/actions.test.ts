@@ -566,6 +566,25 @@ describe('admin catalog actions', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin');
   });
 
+  it('passes normalized discovery metadata to the good save RPC and revalidates public lists', async () => {
+    const formData = goodForm();
+    formData.set('searchKeywords', '  여름 굿즈, KUMA\nkuma ');
+    formData.set('displayOrder', '7');
+
+    await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
+      message: '굿즈를 저장했습니다.',
+      savedGoodId: 'g100',
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_good', { target_good: expect.objectContaining({
+      search_keywords: ['여름 굿즈', 'KUMA'],
+      display_order: 7,
+    }) });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/new');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/best');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/search');
+  });
+
   /* 정가가 판매가 이하면 0%·음수 할인율이 나온다. RPC 도 막지만, 운영자에게는
      저장 실패가 아니라 그 칸의 에러로 보여야 고칠 수 있다. */
   it('rejects a compare-at price that is not above the sale price', async () => {
@@ -573,7 +592,7 @@ describe('admin catalog actions', () => {
     formData.set('compareAtPrice', '22000');
 
     await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
-      errors: { compareAtPrice: '정가는 판매가보다 커야 해요' },
+      errors: { compareAtPrice: '소비자가는 기준 판매가보다 커야 해요' },
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -612,7 +631,7 @@ describe('admin catalog actions', () => {
     });
 
     await expect(upsertAdminGoodAction({}, goodForm())).resolves.toMatchObject({
-      errors: { form: '정가는 판매가보다 커야 해요' },
+      errors: { form: '소비자가는 기준 판매가보다 커야 해요' },
     });
   });
 
@@ -1056,6 +1075,31 @@ describe('admin catalog actions', () => {
   });
 
   /* #172 — 갤러리 슬롯은 순서를 지킨 배열 하나로 RPC 에 넘어간다. */
+  it('HTML 저장은 정제 결과와 이미지 검증 경로를 보내며 RPC 실패 후 원문과 형식을 복구한다', async () => {
+    const form = goodForm();
+    const path = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
+    const source = `<h2>구성품</h2><p style="color:red">키링</p><img src="${path}" alt="앞면"><script>alert(1)</script>`;
+    form.set('descriptionFormat', 'html');
+    form.set('description', source);
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'unverified_artwork' } });
+    const failed = await upsertAdminGoodAction({}, form);
+    expect(failed).toMatchObject({ values: { description: source, descriptionFormat: 'html' } });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_good', { target_good: expect.objectContaining({
+      description: `<h2>구성품</h2><p>키링</p><img src="${path}" alt="앞면" loading="lazy" decoding="async" />`,
+      description_format: 'html', description_image_paths: [path],
+    }) });
+  });
+
+  it('HTML이 정제되며 늘어난 길이까지 30,000자를 넘으면 저장하지 않고 원문을 복구한다', async () => {
+    const form = goodForm();
+    form.set('descriptionFormat', 'html');
+    form.set('description', '&'.repeat(7000));
+    const result = await upsertAdminGoodAction({}, form);
+    expect(result.errors?.description).toContain('30,000');
+    expect(result.values?.description).toBe('&'.repeat(7000));
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
   it('passes ordered gallery slots and detail content to the admin good RPC', async () => {
     const formData = goodForm();
     formData.set('description', '  붉은 실을 따라 놓인 아크릴 블록입니다.  ');

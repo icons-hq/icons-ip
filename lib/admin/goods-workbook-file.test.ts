@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
-import { buildGoodsWorkbook, parseGoodsWorkbook } from './goods-workbook-file';
+import { buildGoodsWorkbook, parseGoodsWorkbook, parseGoodsWorkbookWithKc } from './goods-workbook-file';
+import { emptyGoodsKcWorkbookRow, GOODS_KC_WORKBOOK_SHEET } from './goods-kc-workbook';
 import {
   emptyGoodsWorkbookRow,
   GOODS_WORKBOOK_HEADERS,
@@ -17,6 +18,22 @@ const values = {
   description: '두 줄\n설명',
 };
 describe('real xlsx boundary', () => {
+  it('상세 HTML 형식과 30,000자 문서 원문을 실제 XLSX 파일에서 손실 없이 왕복한다', async () => {
+    const description = `<h2>상세</h2><p>${'가'.repeat(29980)}</p>`;
+    const html = { ...values, descriptionFormat: 'html', description };
+    expect(await parseGoodsWorkbook(await buildGoodsWorkbook([html]))).toEqual([{ row: 5, values: html, errors: [] }]);
+  });
+  it('keeps KC model rows and textual option identifiers in a separate re-uploadable sheet', async () => {
+    const kc = { ...emptyGoodsKcWorkbookRow(), goodCode: values.code, modelIndex: '1', variantCodes: '00001-01\n00001-02',
+      family: '그 외', scheme: '해당 없음', modelName: 'TEST 전용 모델', publicNote: '첫 줄\n둘째 줄', basis: 'TEST 적용근거' };
+    const bytes = await buildGoodsWorkbook([values], undefined, [kc]);
+    expect(await parseGoodsWorkbookWithKc(bytes)).toMatchObject({ rows: [{ values }], kcRows: [{ row: 5, values: kc }] });
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(bytes as never);
+    expect(book.getWorksheet(GOODS_KC_WORKBOOK_SHEET)?.getCell('C5').value).toBe('00001-01\n00001-02');
+    book.getWorksheet(GOODS_KC_WORKBOOK_SHEET)!.getCell('A5').value = { formula: '1+1', result: 2 };
+    await expect(parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()))).rejects.toThrow('수식');
+  });
   it('round trips typed money, textual codes, blanks and multiline descriptions losslessly', async () => {
     const bytes = await buildGoodsWorkbook([values]);
     expect(bytes.subarray(0, 2).toString()).toBe('PK');

@@ -84,6 +84,16 @@ describe('Login', () => {
     expect(html).not.toContain('<button type="button" class="mono"');
   });
 
+  it('keeps passwords hidden by default and exposes a keyboard-accessible visibility toggle', () => {
+    const html = render();
+
+    expect(html).toContain('type="password"');
+    expect(html).toContain('aria-label="비밀번호 보기"');
+    expect(html).toContain('aria-pressed="false"');
+    expect(html).toContain('type="button"');
+    expect(html).not.toContain('Caps Lock이 켜져 있어요');
+  });
+
   it('renders reset mode as an email-only form with the exact generic success', () => {
     mocks.resetState = {
       message: '해당 이메일로 가입한 계정이 있다면 재설정 메일을 보냈습니다. 요청한 브라우저에서 최신 링크를 열어주세요.',

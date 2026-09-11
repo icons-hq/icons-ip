@@ -102,6 +102,21 @@ describe('IpDetail follow form', () => {
     expect(html).toContain('팬 </span>100');
     expect(html).not.toContain('is-followed');
   });
+
+  it('keeps internal follow identity while redirecting action feedback to the canonical public slug', () => {
+    const html = renderToStaticMarkup(
+      <IpDetail
+        detail={detail}
+        followError={false}
+        followState={notFollowed}
+        notificationError={false}
+        notificationSaved={false}
+        publicSlug="maple-world"
+      />,
+    );
+    expect(inputNamed(html, 'ipId')).toContain('value="maplestory"');
+    expect(inputNamed(html, 'next')).toContain('value="/ip/maple-world"');
+  });
 });
 
 describe('IpDetail notification forms', () => {

@@ -1,4 +1,5 @@
 import 'server-only';
+import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { publicMediaUrl } from '@/lib/media';
@@ -11,6 +12,8 @@ import {
   type GoodsWorkbookInputRow,
 } from './goods-workbook';
 import type { GoodsListFilters } from './goods-list';
+import { parseAdminGoodsKc } from './goods-kc';
+import { exportGoodsKcWorkbookRows } from './goods-kc-workbook';
 export type GoodsImportResult = {
   status: 'success' | 'failed' | 'unchanged';
   id?: string;
@@ -89,7 +92,7 @@ export async function loadGoodsWorkbookContext(
   const names = [
     ...new Set(rows.map((row) => row.values.preset).filter(Boolean)),
   ];
-  const [records, origins, presets] = await Promise.all([
+  const [records, origins, presets, auth] = await Promise.all([
     client.rpc('admin_goods_import_records', {
       target_codes: codes,
       target_ids: ids,
@@ -103,11 +106,19 @@ export async function loadGoodsWorkbookContext(
           )
           .in('name', names)
       : Promise.resolve({ data: [], error: null }),
+    getCurrentAdminAuthState(),
   ]);
   if (records.error || origins.error || presets.error)
     throw new Error(
       '현재 상품·배송·고시정보를 읽지 못했습니다. 다시 시도해주세요.',
     );
+  const categories: NonNullable<GoodsWorkbookContext['categories']> = [];
+  for (let start = 0; ; start += 1000) {
+    const result = await client.from('catalog_categories').select('id,code,archived_at').order('id').range(start, start + 999);
+    if (result.error) throw new Error('카테고리 코드를 읽지 못했습니다.');
+    categories.push(...(result.data ?? []));
+    if ((result.data?.length ?? 0) < 1000) break;
+  }
   const ips: GoodsWorkbookContext['ips'] = [];
   for (let start = 0; ; start += 1000) {
     const result = await client
@@ -120,8 +131,14 @@ export async function loadGoodsWorkbookContext(
     if ((result.data?.length ?? 0) < 1000) break;
   }
   return {
-    existing: (records.data ?? []) as GoodsImportExisting[],
+    existing: ((records.data ?? []) as GoodsImportExisting[]).map(record => {
+      const kcReview = record.kcReview == null ? null : parseAdminGoodsKc(record.kcReview);
+      if (record.kcReview != null && !kcReview) throw new Error('현재 KC 검토 정보를 읽지 못했습니다. 다시 시도해주세요.');
+      return { ...record, kcReview };
+    }),
+    canManageCosts: auth.role === 'admin',
     origins: origins.data ?? [],
+    categories,
     ips,
     mediaUrl: publicMediaUrl,
     presets: (presets.data ?? []).map((row) => ({
@@ -166,7 +183,7 @@ export async function loadGoodsExportParts(filters: GoodsListFilters) {
     totalGoods: candidates.length,
   };
 }
-export async function loadGoodsExportRows(
+export async function loadGoodsExportWorkbook(
   filters: GoodsListFilters,
   part: number,
 ) {
@@ -181,7 +198,7 @@ export async function loadGoodsExportRows(
     throw new Error(
       '옵션 구성이 바뀌어 500행을 초과했습니다. 내보내기 페이지를 새로 열어주세요.',
     );
-  return rows;
+  return { rows, kcRows: exportGoodsKcWorkbookRows(context.existing.map(record => ({ goodCode: String(record.good.code), review: record.kcReview ?? null }))) };
 }
 export function goodsImportErrorMessage(error?: string) {
   if (error?.includes('stock_changed'))

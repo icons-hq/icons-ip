@@ -1,11 +1,15 @@
 import { CouponScreen } from '@/components/admin/screens/CouponScreen';
-import { getAdminCouponRecords } from '@/lib/admin/coupons.server';
+import { getAdminCouponListData } from '@/lib/admin/coupons.server';
+import { adminCouponListHref, normalizeAdminCouponFilters } from '@/lib/admin/coupons';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 
-export default async function AdminSalesCouponsPage() {
+export default async function AdminSalesCouponsPage({ searchParams }: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   await requireAdminScreenAccess('/admin/sales/coupons');
+  const params = await searchParams;
+  const filters = normalizeAdminCouponFilters(params);
+  const data = await getAdminCouponListData(filters);
 
-  const records = await getAdminCouponRecords();
-
-  return <CouponScreen records={records} />;
+  return <CouponScreen data={data} key={adminCouponListHref(data.filters)} />;
 }

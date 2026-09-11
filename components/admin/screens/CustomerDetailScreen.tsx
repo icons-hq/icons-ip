@@ -15,7 +15,7 @@ export function CustomerDetailScreen({ detail, actor, noteOperationId }: {
   return <div className="admin-customer">
     <AdminPageHeader title={customer.nickname} description={`${customer.email} · ${customer.id}`}
       actions={<Link className="admin-customer__link-button" href="/admin/community/members">회원 목록</Link>} />
-    <div className="admin-customer__summary"><AdminStatusBadge>{isLoyaltyGrade(customer.loyaltyGrade) ? loyaltyGradeLabel(customer.loyaltyGrade) : '등급 확인 필요'}</AdminStatusBadge>
+    <div className="admin-customer__summary">{actor.role === 'admin' && <Link className="admin-customer__link-button" href={`/admin/customers/${encodeURIComponent(customer.id)}/store-credits`}>적립금 잔액·조정</Link>}<AdminStatusBadge>{isLoyaltyGrade(customer.loyaltyGrade) ? loyaltyGradeLabel(customer.loyaltyGrade) : '등급 확인 필요'}</AdminStatusBadge>
       <AdminStatusBadge tone={customer.suspendedAt ? 'danger' : 'neutral'}>{customer.suspendedAt ? '정지' : '이용 중'}</AdminStatusBadge>
       <span>가입 · {customerDateTime(customer.createdAt)}</span>
     </div>

@@ -202,6 +202,42 @@ describe('selectShopGoods 정렬', () => {
     expect(ids(selectShopGoods(catalog, query({ sort: 'recommended' })))).toEqual(['a', 'b', 'c', 'd']);
   });
 
+  it('추천순은 설정된 진열 순서를 먼저 쓰고 중복·미설정은 기존 ID 순서로 안정화한다', () => {
+    const ordered = {
+      ips,
+      goods: [
+        good('z', 'ip1', { displayOrder: null }),
+        good('b', 'ip1', { displayOrder: 2 }),
+        good('a', 'ip1', { displayOrder: 1 }),
+        good('c', 'ip1', { displayOrder: 2 }),
+      ],
+    };
+
+    expect(ids(selectShopGoods(ordered, query()))).toEqual(['a', 'b', 'c', 'z']);
+    expect(ids(selectShopGoods(ordered, query({ types: ['키링'] })))).toEqual(['a', 'b', 'c', 'z']);
+  });
+
+  it('사용자가 고른 최신순·가격순은 진열 순서를 덮어쓴다', () => {
+    const ordered = {
+      ips,
+      goods: [
+        good('late', 'ip1', { displayOrder: 1, price: 20000, createdAt: '2026-09-10T00:00:00Z' }),
+        good('early', 'ip1', { displayOrder: 2, price: 10000, createdAt: '2026-09-01T00:00:00Z' }),
+      ],
+    };
+
+    expect(ids(selectShopGoods(ordered, query({ sort: 'newest' })))).toEqual(['late', 'early']);
+    expect(ids(selectShopGoods(ordered, query({ sort: 'price_asc' })))).toEqual(['early', 'late']);
+  });
+
+  it('BEST 큐레이션은 공통 진열 순서보다 앞선다', () => {
+    const ordered = {
+      ips,
+      goods: [good('a', 'ip1', { displayOrder: 2 }), good('b', 'ip1', { displayOrder: 1 })],
+    };
+    expect(ids(selectShopGoods(ordered, query({ view: 'best' }), ['a', 'b']))).toEqual(['a', 'b']);
+  });
+
   it('가격순은 오름·내림차순으로 정렬한다', () => {
     expect(ids(selectShopGoods(catalog, query({ sort: 'price_asc' })))).toEqual(['b', 'c', 'a', 'd']);
     expect(ids(selectShopGoods(catalog, query({ sort: 'price_desc' })))).toEqual(['d', 'a', 'c', 'b']);
@@ -284,5 +320,27 @@ describe('selectShopGoods facet', () => {
     expect(empty.typeFacets).toEqual([]);
     expect(empty.priceCeil).toBe(0);
     expect(empty.total).toBe(0);
+  });
+});
+
+describe('고객 계층 카테고리', () => {
+  const categories = [
+    { id: 'root', parentId: null, name: '생활', code: 'life', depth: 1, sortOrder: 0 },
+    { id: 'child', parentId: 'root', name: '문구', code: 'stationery', depth: 2, sortOrder: 0 },
+    { id: 'leaf', parentId: 'child', name: '노트', code: 'note', depth: 3, sortOrder: 0 },
+    { id: 'last', parentId: 'leaf', name: '줄노트', code: 'lined', depth: 4, sortOrder: 0 },
+  ];
+  const catalog = { ips, categories, goods: [good('g1', 'ip1', { categoryId: 'last' }), good('g2', 'ip1')] };
+  const parse = (params: Record<string, string | string[]>) => parseShopSearchParams(params, { view: 'all', validIpIds: new Set(['ip1']), validCategoryIds: new Set(categories.map((category) => category.id)) });
+  it('상위 분류는 4단계 하위 굿즈까지 포함하고 미분류는 전체에 남는다', () => {
+    expect(selectShopGoods(catalog, parse({})).goods).toHaveLength(2);
+    const result = selectShopGoods(catalog, parse({ category: ['root', 'child'] }));
+    expect(result.goods.map((item) => item.id)).toEqual(['g1']);
+    expect(result.categoryFacets?.map((facet) => facet.count)).toEqual([1, 1, 1, 1]);
+  });
+  it('활성 공개 분류만 URL에서 받고 기존 유형 필터와 결합한다', () => {
+    expect(parse({ category: 'archived' }).categories).toEqual([]);
+    expect(selectShopGoods(catalog, parse({ category: 'root', type: '문구' })).goods).toHaveLength(0);
+    expect(selectShopGoods({ ...catalog, categories: [] }, parseShopSearchParams({}, { view: 'all', validIpIds: new Set(['ip1']) })).goods).toHaveLength(2);
   });
 });

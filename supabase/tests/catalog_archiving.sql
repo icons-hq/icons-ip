@@ -241,13 +241,20 @@ insert into public.goods (
   id, ip_id, name, type, price, stock, stock_qty, archived_at, published_at
 )
 values
-  ('archive-life-good', 'archive-life-ip', '수명주기 굿즈', '문구', 1000, 'soldout', 0, null, now()),
-  ('archive-child-good', 'archive-child-ip', '활성 자식 굿즈', '문구', 1000, 'soldout', 0, null, now()),
-  ('archive-stock-good', 'archive-good-guard-ip', '재고 가드 굿즈', '문구', 1000, 'ok', 1, null, now()),
-  ('archive-policy-good', 'archive-good-guard-ip', '정책 가드 굿즈', '문구', 1000, 'soldout', 0, null, now()),
+  ('archive-life-good', 'archive-life-ip', '수명주기 굿즈', '문구', 1000, 'soldout', 0, null,null),
+  ('archive-child-good', 'archive-child-ip', '활성 자식 굿즈', '문구', 1000, 'soldout', 0, null,null),
+  ('archive-stock-good', 'archive-good-guard-ip', '재고 가드 굿즈', '문구', 1000, 'ok', 1, null,null),
+  ('archive-policy-good', 'archive-good-guard-ip', '정책 가드 굿즈', '문구', 1000, 'soldout', 0, null,null),
   ('archive-parent-good', 'archive-parent-ip', '부모 가드 굿즈', '문구', 1000, 'soldout', 0, now(), null),
-  ('archive-history-good', 'archive-history-ip', '카탈로그보관검색 굿즈', '문구', 1000, 'soldout', 0, null, now()),
-  ('archive-transaction-good', 'archive-transaction-ip', '보관 거래 굿즈', '문구', 1000, 'soldout', 0, null, now());
+  ('archive-history-good', 'archive-history-ip', '카탈로그보관검색 굿즈', '문구', 1000, 'soldout', 0, null,null),
+  ('archive-transaction-good', 'archive-transaction-ip', '보관 거래 굿즈', '문구', 1000, 'soldout', 0, null,null);
+-- Build reviewed synthetic KC evidence before publishing each fixture.
+select pg_temp.publish_goods_kc_fixture('archive-life-good');
+select pg_temp.publish_goods_kc_fixture('archive-child-good');
+select pg_temp.publish_goods_kc_fixture('archive-stock-good');
+select pg_temp.publish_goods_kc_fixture('archive-policy-good');
+select pg_temp.publish_goods_kc_fixture('archive-history-good');
+select pg_temp.publish_goods_kc_fixture('archive-transaction-good');
 
 insert into public.cards (
   id, ip_id, name, no, rarity, pool_id, archived_at

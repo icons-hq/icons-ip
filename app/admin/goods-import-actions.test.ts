@@ -37,7 +37,7 @@ vi.mock('@/lib/admin/goods-import-images.server', () => ({
   prepareGoodsImportImages: mocks.images,
 }));
 vi.mock('@/lib/admin/goods-workbook-file', () => ({
-  parseGoodsWorkbook: mocks.parse,
+  parseGoodsWorkbookWithKc: mocks.parse,
 }));
 vi.mock('@/lib/admin/goods-workbook', async (original) => ({
   ...(await original<object>()),

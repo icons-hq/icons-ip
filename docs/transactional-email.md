@@ -58,6 +58,13 @@ Production dark deploy → masked env/readback → webhook → Auth 4개 흐름�
 `RESEND_API_KEY`, `RESEND_FROM`, `RESEND_REPLY_TO`, `RESEND_WEBHOOK_SECRET`이며 endpoint override가
 필요할 때만 `RESEND_API_ENDPOINT`를 쓴다. secret 값은 이 문서·로그·이슈에 남기지 않는다.
 
+2026-09-11 지연 주문 안내 배포부터 provider 전용 `RESEND_API_KEY`·`RESEND_FROM`·
+`RESEND_REPLY_TO`·`RESEND_API_ENDPOINT`를 모두 생략하면 기존 앱의 `EMAIL_PROVIDER_API_KEY`·
+`EMAIL_FROM`·`EMAIL_REPLY_TO`를 사용한다. 이때 기존 endpoint도 미설정 또는 정확히
+`https://api.resend.com/emails`여야 한다. 전용 설정을 일부만 입력하면 기존 값과 조합하지 않고
+설정 오류로 닫는다. 민감 키를 복제하거나 재발급할 필요는 없으며 HMAC·webhook 서명 설정과
+각 source의 DB 활성화 gate는 여전히 별도로 필요하다.
+
 legacy `email_deliveries`는 `legacy_unverified`로 분류한다. migration 이후 새 legacy 행은
 recipient·subject·오류를 즉시 redaction하며 staff 조회도 masked 값만 반환한다. migration 전
 평문 행의 retry/completion은 기존 recipient·subject·오류를 보존하고, 기존 오류가 null인 경우에만

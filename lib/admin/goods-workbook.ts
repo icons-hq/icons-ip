@@ -1,13 +1,23 @@
 import type { GoodsNoticeInfo } from '@/lib/goods-notice';
-import { normalizeAdminGoodForm } from './catalog';
+import {
+  normalizeAdminGoodForm,
+  normalizeGoodsSearchKeywords,
+  validateGoodsSearchKeywords,
+} from './catalog';
 import { parseGoodsOptionRows } from './goods-option-editor';
+import { sanitizeGoodsDescription } from '@/lib/goods-description';
+import { parsePurchaseCostInput, type PurchaseTaxBasis } from './goods-purchase-costs';
+import { goodsLinkedMetadataRpcFields } from './goods-linked-metadata';
+import { goodsSalePolicyRpcFields } from './goods-sale-policy';
+import type { AdminGoodsKc } from './goods-kc';
+import { goodsKcWorkbookOrphanErrors, planGoodsKcWorkbookRows, type GoodsKcWorkbookInputRow } from './goods-kc-workbook';
 
 export const GOODS_WORKBOOK_ROW_LIMIT = 500;
 export const GOODS_WORKBOOK_BYTES_LIMIT = 2 * 1024 * 1024;
 export const GOODS_IMAGES_ZIP_BYTES_LIMIT = 50 * 1024 * 1024;
 export const GOODS_IMPORT_PATH = '/admin/catalog/goods/import';
 export const GOODS_IMPORT_BUCKET = 'admin-goods-imports';
-export const GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v1';
+export const GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v3';
 export const GOODS_WORKBOOK_HEADERS = {
   code: '상품코드',
   name: '상품명',
@@ -15,8 +25,8 @@ export const GOODS_WORKBOOK_HEADERS = {
   id: '상품 URL',
   publish: '게시 상태',
   type: '상품 유형',
-  price: '기본 판매가',
-  compareAtPrice: '정가',
+  price: '기준 판매가',
+  compareAtPrice: '소비자가',
   badge: '배지',
   stock: '재고 표시',
   allowBankTransfer: '무통장 허용',
@@ -53,6 +63,33 @@ export const GOODS_WORKBOOK_HEADERS = {
   galleryFile3: '갤러리 4 파일명',
   detailImageUrl: '상세 이미지 URL',
   detailImageFile: '상세 이미지 파일명',
+  nameEn: '영문 상품명',
+  categoryCode: '고객 카테고리 코드',
+  claimReturnAllowed: '반품 기본조건 적용',
+  claimExchangeAllowed: '교환 기본조건 적용',
+  claimRestrictionReason: '교환 반품 제한 사유',
+  claimReturnFee: '고객 귀책 반품비 편도',
+  claimReturnFreeShippingFee: '최초 무료배송 후 반품비 왕복',
+  claimExchangeFee: '고객 귀책 교환비 왕복',
+  purchaseCostKrw: '매입단가 (관리자 전용)',
+  purchaseTaxBasis: '매입단가 세금 구분 (관리자 전용)',
+  shippingNoticeTemplateCode: '배송 안내 템플릿 코드',
+  shippingNoticeTemplateVersion: '배송 안내 템플릿 버전',
+  lowStockThreshold: '안전재고 기준',
+  variantActive: '옵션 사용',
+  searchKeywords: '검색 키워드',
+  displayOrder: '진열 순서',
+  erpCode: 'ERP 코드',
+  erpName: 'ERP 품명',
+  barcode: '바코드',
+  allowCardPayment: '카드 허용',
+  orderQuantityLimitEnabled: '주문당 한도 적용',
+  minOrderQty: '주문당 최소 수량',
+  maxOrderQty: '주문당 최대 수량',
+  memberPurchaseLimitEnabled: '회원 누적 한도 적용',
+  memberLifetimeQtyLimit: '회원 누적 최대 수량',
+  kcReset: 'KC 초기화',
+  descriptionFormat: '상세 설명 형식',
 } as const;
 export type GoodsWorkbookKey = keyof typeof GOODS_WORKBOOK_HEADERS;
 export const GOODS_WORKBOOK_KEYS = Object.keys(
@@ -74,18 +111,30 @@ export type GoodsImportVariant = {
   is_default: boolean;
   sort_order: number;
   archived_at: string | null;
+  low_stock_threshold?: number | null;
+  erp_code?: string | null;
+  erp_name?: string | null;
+  barcode?: string | null;
+  external_updated_at?: string | null;
+  purchase_cost_krw?: number | null;
+  purchase_tax_basis?: PurchaseTaxBasis | null;
+  purchase_cost_revision?: number | null;
 };
 export type GoodsImportExisting = {
   good: Record<string, unknown>;
   variants: GoodsImportVariant[];
   fingerprint: string;
+  kcReview?: AdminGoodsKc | null;
 };
 export type GoodsWorkbookContext = {
   existing: GoodsImportExisting[];
+  canManageCosts?: boolean;
   ips: { id: string; archived_at: string | null }[];
   origins: { id: string; code: string; is_active: boolean }[];
   presets: { name: string; notice: GoodsNoticeInfo }[];
+  categories?: { id: string; code: string; archived_at: string | null }[];
   imageNames?: string[];
+  kcRows?: GoodsKcWorkbookInputRow[] | null;
   mediaUrl: (path: string) => string | null;
 };
 export type GoodsImportImage = {
@@ -105,6 +154,7 @@ export type GoodsImportGroup = {
   target: Record<string, unknown> | null;
   fingerprint: string | null;
   images: GoodsImportImage[];
+  kcSource?: GoodsKcWorkbookInputRow[];
 };
 const OPTION_KEYS = new Set<GoodsWorkbookKey>([
   'variantCode',
@@ -115,14 +165,21 @@ const OPTION_KEYS = new Set<GoodsWorkbookKey>([
   'value2',
   'variantPrice',
   'stockQty',
+  'lowStockThreshold',
+  'variantActive',
+  'erpCode', 'erpName', 'barcode', 'purchaseCostKrw', 'purchaseTaxBasis',
 ]);
 const str = (value: unknown) => (value == null ? '' : String(value));
 const integer = (text: string) =>
   /^\d+$/.test(text) &&
   Number.isSafeInteger(Number(text)) &&
   Number(text) <= 2147483647;
+// Form submissions use CRLF while XLSX XML readers normalize line endings to LF.
+// Normalize only for comparison: preserve the raw stored/input text, blanks,
+// zero values, spaces and every other content change.
+const comparableCellText = (value: string) => value.replace(/\r\n?/g, '\n');
 const canonical = (values: GoodsWorkbookRow) =>
-  JSON.stringify(GOODS_WORKBOOK_KEYS.map((key) => values[key]));
+  JSON.stringify(GOODS_WORKBOOK_KEYS.map((key) => comparableCellText(values[key])));
 const imagePairs = [
   ['imageUrl', 'imageFile', 'image_path'],
   ['galleryUrl0', 'galleryFile0', 'gallery_0'],
@@ -139,13 +196,30 @@ export function emptyGoodsWorkbookRow(): GoodsWorkbookRow {
 /** An export carries editable values; fields outside this format remain in the stored record. */
 export function exportGoodsWorkbookRows(
   record: GoodsImportExisting,
-  context: Pick<GoodsWorkbookContext, 'origins' | 'mediaUrl'>,
+  context: Pick<GoodsWorkbookContext, 'origins' | 'mediaUrl' | 'categories' | 'canManageCosts'>,
 ): GoodsWorkbookRow[] {
   const { good } = record;
+  const categoryCode = good.category_id ? context.categories?.find((category) => category.id === good.category_id)?.code : '';
+  if (good.category_id && !categoryCode) throw new Error('상품의 카테고리 코드를 확인하지 못했습니다. 다시 내보내주세요.');
+  const shippingNotice = good.shipping_notice_snapshot && typeof good.shipping_notice_snapshot === 'object' ? good.shipping_notice_snapshot as Record<string, unknown> : {};
   const base: GoodsWorkbookRow = {
     ...emptyGoodsWorkbookRow(),
     code: str(good.code),
     name: str(good.name),
+    nameEn: str(good.name_en),
+    categoryCode: categoryCode ?? '',
+    claimReturnAllowed: good.claim_return_allowed == null ? '' : good.claim_return_allowed ? '예' : '아니오',
+    claimExchangeAllowed: good.claim_exchange_allowed == null ? '' : good.claim_exchange_allowed ? '예' : '아니오',
+    claimRestrictionReason: str(good.claim_restriction_reason),
+    claimReturnFee: str(good.claim_return_fee),
+    claimReturnFreeShippingFee: str(good.claim_return_free_shipping_fee),
+    claimExchangeFee: str(good.claim_exchange_fee),
+    shippingNoticeTemplateCode: str(shippingNotice.code),
+    shippingNoticeTemplateVersion: str(shippingNotice.templateVersion),
+    searchKeywords: normalizeGoodsSearchKeywords(
+      Array.isArray(good.search_keywords) ? good.search_keywords.map(str).join('\n') : '',
+    ).join('\n'),
+    displayOrder: str(good.display_order),
     ipId: str(good.ip_id),
     id: str(good.id),
     publish: good.archived_at ? '보관' : good.published_at ? '공개' : '초안',
@@ -155,6 +229,12 @@ export function exportGoodsWorkbookRows(
     badge: str(good.badge),
     stock: str(good.stock),
     allowBankTransfer: good.allow_bank_transfer === false ? '아니오' : '예',
+    allowCardPayment: good.allow_card_payment === false ? '아니오' : '예',
+    orderQuantityLimitEnabled: good.order_quantity_limit_enabled === true ? '예' : '아니오',
+    minOrderQty: str(good.min_order_qty),
+    maxOrderQty: str(good.max_order_qty),
+    memberPurchaseLimitEnabled: good.member_purchase_limit_enabled === true ? '예' : '아니오',
+    memberLifetimeQtyLimit: str(good.member_lifetime_qty_limit),
     saleRestriction: str(good.sale_restriction || 'none'),
     originCode:
       context.origins.find((origin) => origin.id === good.origin_id)?.code ??
@@ -169,6 +249,7 @@ export function exportGoodsWorkbookRows(
     noticeAsManager: str(good.notice_as_manager),
     noticeAsContact: str(good.notice_as_contact),
     description: str(good.description),
+    descriptionFormat: good.description_format === 'html' ? 'html' : 'plain',
   };
   for (const [url, , field] of imagePairs) {
     const path = field.startsWith('gallery_')
@@ -177,7 +258,7 @@ export function exportGoodsWorkbookRows(
     base[url] = path ? (context.mediaUrl(str(path)) ?? str(path)) : '';
   }
   const variants = record.variants
-    .filter((v) => !v.archived_at)
+    .filter((v) => !v.archived_at || v.is_default)
     .sort(
       (a, b) =>
         Number(b.is_default) - Number(a.is_default) ||
@@ -196,6 +277,11 @@ export function exportGoodsWorkbookRows(
       value2: attributes[1]?.[1] ?? '',
       variantPrice: str(variant?.price ?? good.price),
       stockQty: str(variant?.stock_qty ?? 0),
+      lowStockThreshold: str(variant?.low_stock_threshold),
+      variantActive: variant?.archived_at ? '중지' : '사용',
+      purchaseCostKrw: context.canManageCosts ? str(variant?.purchase_cost_krw) : '',
+      purchaseTaxBasis: context.canManageCosts ? str(variant?.purchase_tax_basis) : '',
+      erpCode: str(variant?.erp_code), erpName: str(variant?.erp_name), barcode: str(variant?.barcode),
     };
   });
 }
@@ -240,6 +326,8 @@ export function planGoodsWorkbookImport(
     throw new Error(
       '옵션 행은 파일당 최대 500행입니다. 파일을 나누어 올려주세요.',
     );
+  const kcOrphans = goodsKcWorkbookOrphanErrors(context.kcRows ?? [], rows.map(row => row.values.code.trim().toUpperCase()));
+  if (kcOrphans.length) throw new Error(kcOrphans.join('\n'));
   const grouped = new Map<string, GoodsWorkbookInputRow[]>();
   for (const row of rows) {
     const code = row.values.code.trim().toUpperCase();
@@ -273,18 +361,31 @@ export function planGoodsWorkbookImport(
       target: null,
       fingerprint: record?.fingerprint ?? null,
       images: [],
+      kcSource: (context.kcRows ?? []).filter(row => row.values.goodCode.trim() === first.code),
     };
+    if (!['', '예'].includes(first.kcReset)) errors.push('KC 초기화는 비워두거나 예를 선택해주세요.');
+    const kcPlan = planGoodsKcWorkbookRows(context.kcRows, {
+      goodCode: first.code, existing: record?.kcReview ?? null,
+      variantCodes: source.map(row => row.values.variantCode.trim().toUpperCase()),
+      willBeDraft: first.publish !== '공개', reset: first.kcReset === '예',
+    });
+    group.warnings.push(...kcPlan.warnings);
+    if (kcPlan.kind === 'error') errors.push(...kcPlan.errors);
     for (const row of source) {
       const current = noticeFromPreset(row.values, context);
       if (
         GOODS_WORKBOOK_KEYS.some(
-          (key) => !OPTION_KEYS.has(key) && current[key] !== first[key],
+          (key) => !OPTION_KEYS.has(key)
+            && key !== 'searchKeywords'
+            && comparableCellText(current[key]) !== comparableCellText(first[key]),
         )
+        || normalizeGoodsSearchKeywords(current.searchKeywords).join('\n')
+          !== normalizeGoodsSearchKeywords(first.searchKeywords).join('\n')
       )
         errors.push(`${row.row}행: 같은 상품의 상품 정보가 서로 다릅니다.`);
     }
     // Legacy values outside today's editing rules still survive an untouched export.
-    if (record && !errors.length) {
+    if (record && !errors.length && kcPlan.kind === 'keep') {
       const exported = exportGoodsWorkbookRows(record, context);
       if (
         exported.length === source.length &&
@@ -307,8 +408,13 @@ export function planGoodsWorkbookImport(
       errors.push('게시 상태는 초안 또는 공개로 입력해주세요.');
     if (!['', '예', '아니오'].includes(first.allowBankTransfer))
       errors.push('무통장 허용은 예 또는 아니오입니다.');
+    for (const key of ['allowCardPayment', 'orderQuantityLimitEnabled', 'memberPurchaseLimitEnabled'] as const) {
+      if (!['', '예', '아니오'].includes(first[key])) errors.push(`${GOODS_WORKBOOK_HEADERS[key]}은 예 또는 아니오입니다.`);
+    }
     if (!['', 'none', 'adult'].includes(first.saleRestriction))
       errors.push('판매 제한은 none 또는 adult입니다.');
+    const searchKeywordsError = validateGoodsSearchKeywords(first.searchKeywords);
+    if (searchKeywordsError) errors.push(searchKeywordsError);
     if (first.code.length > 100) errors.push('상품코드는 100자 이내입니다.');
     const origin = context.origins.find(
       (origin) => origin.code === first.originCode,
@@ -329,6 +435,12 @@ export function planGoodsWorkbookImport(
       'id',
       'ipId',
       'name',
+      'nameEn',
+      'searchKeywords',
+      'displayOrder',
+      'shippingNoticeTemplateCode', 'shippingNoticeTemplateVersion',
+      'claimRestrictionReason', 'claimReturnFee', 'claimReturnFreeShippingFee', 'claimExchangeFee',
+      'minOrderQty', 'maxOrderQty', 'memberLifetimeQtyLimit',
       'type',
       'price',
       'compareAtPrice',
@@ -336,6 +448,7 @@ export function planGoodsWorkbookImport(
       'stock',
       'code',
       'description',
+      'descriptionFormat',
       'noticeMaker',
       'noticeOrigin',
       'noticeMaterial',
@@ -345,7 +458,20 @@ export function planGoodsWorkbookImport(
       'noticeAsContact',
     ] as const)
       form.set(field, first[field]);
+    const category = first.categoryCode ? context.categories?.find((category) => category.code === first.categoryCode) : null;
+    if (first.categoryCode && !category) errors.push('고객 카테고리 코드를 찾을 수 없습니다.');
+    if (category?.archived_at && category.id !== record?.good.category_id) errors.push('보관한 카테고리에 새 상품을 연결할 수 없습니다.');
+    form.set('categoryId', category?.id ?? '');
+    for (const key of ['claimReturnAllowed', 'claimExchangeAllowed'] as const) {
+      if (!['', '예', '아니오'].includes(first[key])) errors.push(`${GOODS_WORKBOOK_HEADERS[key]}은 예/아니오 또는 미검토 공란으로 입력해주세요.`);
+      form.set(key, first[key] === '' ? '' : String(first[key] === '예'));
+    }
     form.set('price', first.price || '0');
+    form.set('allowCardPayment', String(first.allowCardPayment !== '아니오'));
+    form.set('allowBankTransfer', String(first.allowBankTransfer !== '아니오'));
+    form.set('saleRestriction', first.saleRestriction || 'none');
+    form.set('orderQuantityLimitEnabled', String(first.orderQuantityLimitEnabled === '예'));
+    form.set('memberPurchaseLimitEnabled', String(first.memberPurchaseLimitEnabled === '예'));
     if (record) form.set('previousId', str(record.good.id));
     if (first.publish === '공개') form.set('intent', 'publish');
     const imageValues: Record<string, unknown> = {
@@ -410,9 +536,10 @@ export function planGoodsWorkbookImport(
       );
     const active =
       record?.variants.filter((variant) => !variant.archived_at) ?? [];
+    const editable = record?.variants.filter((variant) => !variant.archived_at || variant.is_default) ?? [];
     const options = source.map((row) => {
       const value = row.values;
-      const variant = active.find(
+      const variant = editable.find(
         (variant) =>
           variant.code.toUpperCase() === value.variantCode.toUpperCase(),
       );
@@ -430,7 +557,15 @@ export function planGoodsWorkbookImport(
         errors.push(
           `${row.row}행: 옵션 판매가·재고는 0~2,147,483,647 정수입니다.`,
         );
+      if (value.lowStockThreshold && !integer(value.lowStockThreshold))
+        errors.push(`${row.row}행: 안전재고 기준은 0~2,147,483,647 정수이거나 공란이어야 합니다.`);
+      if (!['', '사용', '중지'].includes(value.variantActive))
+        errors.push(`${row.row}행: 옵션 사용은 사용 또는 중지로 입력해주세요.`);
+      const purchaseCost = parsePurchaseCostInput({ unitCostKrw: value.purchaseCostKrw, taxBasis: value.purchaseTaxBasis });
+      if (!context.canManageCosts && (value.purchaseCostKrw || value.purchaseTaxBasis)) errors.push(`${row.row}행: 매입단가는 관리자만 입력할 수 있습니다.`);
+      if (context.canManageCosts && !purchaseCost) errors.push(`${row.row}행: 매입단가와 세금 구분(included/excluded/exempt)을 함께 입력하거나 함께 비워주세요.`);
       return {
+        ...(context.canManageCosts && purchaseCost ? { purchaseCost: { ...purchaseCost, expectedRevision: variant?.purchase_cost_revision ?? null } } : {}),
         ...(variant
           ? { id: variant.id, expectedStockQty: variant.stock_qty }
           : {}),
@@ -441,6 +576,10 @@ export function planGoodsWorkbookImport(
           Number(value.variantPrice || first.price || 0) -
           Number(first.price || 0),
         stockQty: Number(value.stockQty || 0),
+        lowStockThreshold: value.lowStockThreshold ? Number(value.lowStockThreshold) : null,
+        isActive: value.variantActive ? value.variantActive === '사용' : !variant?.archived_at,
+        erpCode: value.erpCode, erpName: value.erpName, barcode: value.barcode,
+        externalUpdatedAt: variant?.external_updated_at ?? null,
       };
     });
     const parsedOptions = parseGoodsOptionRows(
@@ -482,12 +621,18 @@ export function planGoodsWorkbookImport(
       return group;
     }
     const value = normalized.value;
+    if (value.descriptionFormat === 'html') group.warnings.push(...sanitizeGoodsDescription(first.description).warnings);
     group.target = {
+      ...(kcPlan.kind === 'save' ? { kc_update: kcPlan.update } : {}),
+      ...goodsSalePolicyRpcFields(value),
+      ...goodsLinkedMetadataRpcFields(value),
+      ...(value.claimPolicy ? { claim_policy: value.claimPolicy } : {}),
       id: value.id,
       previous_id: record ? str(record.good.id) : null,
       code: value.code,
       ip_id: value.ipId,
       name: value.name,
+      name_en: value.nameEn ?? null,
       type: value.type,
       price: value.price,
       compare_at_price: value.compareAtPrice,
@@ -498,6 +643,10 @@ export function planGoodsWorkbookImport(
       detail_image_path: imageValues.detail_image_path,
       gallery_paths: galleries,
       description: value.description,
+      description_format: value.descriptionFormat ?? 'plain',
+      description_image_paths: value.descriptionImagePaths ?? [],
+      search_keywords: value.searchKeywords ?? [],
+      display_order: value.displayOrder ?? null,
       notice_maker: value.notice.maker,
       notice_origin: value.notice.origin,
       notice_material: value.notice.material,

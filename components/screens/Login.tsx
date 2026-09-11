@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useId } from 'react';
+import { useActionState, useId, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import {
   requestPasswordResetAction,
   signInWithEmailAction,
@@ -40,23 +40,56 @@ function Field({
 }) {
   const inputId = useId();
   const errorId = `${inputId}-error`;
+  const capsLockId = `${inputId}-caps-lock`;
+  const isPassword = type === 'password';
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [capsLockOn, setCapsLockOn] = useState(false);
+
+  const updateCapsLock = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (isPassword) setCapsLockOn(event.getModifierState('CapsLock'));
+  };
+
+  const describedBy = [error ? errorId : null, capsLockOn ? capsLockId : null].filter(Boolean).join(' ') || undefined;
+  const inputType = isPassword && passwordVisible ? 'text' : type;
 
   return (
     <div className="wc-auth__field">
-      <input
-        aria-label={label}
-        autoComplete={autoComplete}
-        aria-describedby={error ? errorId : undefined}
-        aria-invalid={Boolean(error)}
-        id={inputId}
-        name={name}
-        spellCheck={type === 'email' ? false : undefined}
-        type={type}
-        placeholder={placeholder}
-      />
+      <div className={isPassword ? 'wc-auth__password-control' : undefined}>
+        <input
+          aria-label={label}
+          autoComplete={autoComplete}
+          aria-describedby={describedBy}
+          aria-invalid={Boolean(error)}
+          id={inputId}
+          name={name}
+          onBlur={() => isPassword && setCapsLockOn(false)}
+          onKeyDown={updateCapsLock}
+          onKeyUp={updateCapsLock}
+          spellCheck={type === 'email' ? false : undefined}
+          type={inputType}
+          placeholder={placeholder}
+        />
+        {isPassword && (
+          <button
+            aria-controls={inputId}
+            aria-label={passwordVisible ? '비밀번호 숨기기' : '비밀번호 보기'}
+            aria-pressed={passwordVisible}
+            className="wc-auth__password-toggle"
+            onClick={() => setPasswordVisible((visible) => !visible)}
+            type="button"
+          >
+            {passwordVisible ? '숨기기' : '보기'}
+          </button>
+        )}
+      </div>
       {error && (
         <span className="wc-auth__error" id={errorId}>
           {error}
+        </span>
+      )}
+      {isPassword && capsLockOn && (
+        <span className="wc-auth__caps-lock" id={capsLockId} role="status">
+          Caps Lock이 켜져 있어요. 대소문자를 확인해주세요.
         </span>
       )}
     </div>

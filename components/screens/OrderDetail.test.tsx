@@ -17,6 +17,7 @@ function order(overrides: Partial<OrderDetailData> = {}): OrderDetailData {
     total: 30000,
     shippingFee: 3000,
     discountTotal: 0,
+  storeCreditTotal: 0,
     paymentMethod: 'card',
     expiresAt: null,
     address: {

@@ -309,6 +309,19 @@ describe('buildCatalogIpDetail', () => {
   it('returns null when the IP does not exist', () => {
     expect(buildCatalogIpDetail(catalog, 'missing', [])).toBeNull();
   });
+
+  it('keeps IP goods in the common display order', () => {
+    const detail = buildCatalogIpDetail({
+      ...catalog,
+      goods: [
+        { ...catalog.goods[0], id: 'z', displayOrder: null },
+        { ...catalog.goods[0], id: 'b', displayOrder: 2 },
+        { ...catalog.goods[0], id: 'a', displayOrder: 1 },
+      ],
+    }, 'hwasan', []);
+
+    expect(detail?.goods.map((good) => good.id)).toEqual(['a', 'b', 'z']);
+  });
 });
 
 describe('getCatalogSnapshot', () => {
@@ -471,6 +484,28 @@ describe('getCatalogSnapshot', () => {
       expect.objectContaining({ id: 'g2', stock: 'soldout', stockQty: 7 }),
     ]));
     expect(records.find((record) => record.table === 'goods')?.select).toContain('stock_qty');
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
+  it('loads search metadata and applies the common display order to public goods', async () => {
+    const records: QueryRecord[] = [];
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records, {
+      goods: [
+        { id: 'z', ip_id: 'hwasan', name: '마지막', type: '키링', price: 1000, stock: 'ok', stock_qty: 1, search_keywords: ['끝'], display_order: null, sale_restriction: 'none' },
+        { id: 'b', ip_id: 'hwasan', name: '두 번째', type: '키링', price: 1000, stock: 'ok', stock_qty: 1, search_keywords: ['둘'], display_order: 2, sale_restriction: 'none' },
+        { id: 'a', ip_id: 'hwasan', name: '첫 번째', type: '키링', price: 1000, stock: 'ok', stock_qty: 1, search_keywords: ['하나'], display_order: 1, sale_restriction: 'none' },
+      ],
+    });
+
+    const snapshot = await getCatalogSnapshot();
+
+    expect(records.find((record) => record.table === 'goods')?.select)
+      .toContain('search_keywords,display_order');
+    expect(snapshot.goods.map((good) => good.id)).toEqual(['a', 'b', 'z']);
+    expect(snapshot.goods[0]).toMatchObject({ searchKeywords: ['하나'], displayOrder: 1 });
 
     mocks.isConfigured = false;
     mocks.client = null;

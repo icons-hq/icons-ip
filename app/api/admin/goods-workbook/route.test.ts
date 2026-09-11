@@ -9,7 +9,7 @@ vi.mock('@/lib/admin/guard.server', () => ({
   requireAdminScreenAccess: mocks.guard,
 }));
 vi.mock('@/lib/admin/goods-import.server', () => ({
-  loadGoodsExportRows: mocks.rows,
+  loadGoodsExportWorkbook: mocks.rows,
   loadGoodsImportBatch: mocks.batch,
   goodsImportErrorMessage: () => '재고 변경',
 }));
@@ -50,7 +50,7 @@ describe('downloadable goods XLSX', () => {
     expect(book.getWorksheet('작성 안내')).toBeTruthy();
   });
   it('exports the exact filters and produces re-uploadable values', async () => {
-    mocks.rows.mockResolvedValue([values]);
+    mocks.rows.mockResolvedValue({ rows: [values], kcRows: [] });
     const response = await GET(
       new Request(
         'http://localhost/api/admin/goods-workbook?mode=export&q=CODE&ipId=ip&status=draft&stock=low&part=2',

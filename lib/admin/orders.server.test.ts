@@ -91,6 +91,7 @@ function createClient(input: {
 }
 
 const filters: AdminOrderFilters = {
+  field: 'all',
   from: '2026-07-01',
   orderId: ORDER_ID,
   page: 2,
@@ -173,6 +174,7 @@ describe('getAdminOrderRecords', () => {
     const result = await getAdminOrderRecords(filters);
 
     expect(rpc).toHaveBeenCalledWith('admin_search_orders', {
+      p_field: 'all',
       p_from: '2026-07-01',
       p_limit: 20,
       p_offset: 20,
@@ -245,6 +247,17 @@ describe('getAdminOrderRecords', () => {
       total: 0,
     });
     expect(records).toEqual([]);
+  });
+
+  it('passes the selected search field through to the staff RPC', async () => {
+    const rpc = vi.fn();
+    mocks.client = createClient({ records: [], rpc, rpcRows: [] });
+
+    await getAdminOrderRecords({ ...filters, field: 'tracking', page: 1 });
+
+    expect(rpc).toHaveBeenCalledWith('admin_search_orders', expect.objectContaining({
+      p_field: 'tracking',
+    }));
   });
 
   it('loads only the staff-safe Korpay attempt summary for its active cancellation request', async () => {

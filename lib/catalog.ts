@@ -6,6 +6,9 @@ import { DATA, type Card, type FandomEvent, type Good, type Ip, type Stock, type
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { EMPTY_GOODS_NOTICE } from '@/lib/goods-notice';
 import { optionPriceRange } from '@/lib/goods-options';
+import { parseGoodsVariantPricing } from '@/lib/goods-sales';
+import { parseGoodsVariantSupply } from '@/lib/goods-preorders';
+import { parseGoodsKcDisclosures } from '@/lib/goods-kc';
 import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
 import { isRarityKey } from '@/lib/rarity';
 import { getSupabaseConfig } from '@/lib/supabase/config';
@@ -116,6 +119,8 @@ interface IpRow {
 interface GoodOptionRow {
   id: string; name: string; code: string; price: number; stock_qty: number;
   is_default: boolean; attributes: Record<string, string>; archived_at: string | null; sort_order: number;
+  pricing?: unknown;
+  supply?: unknown;
 }
 
 interface GoodRow {
@@ -124,6 +129,11 @@ interface GoodRow {
   id: string;
   ip_id: string;
   name: string;
+  name_en?: string | null;
+  search_keywords?: string[] | null;
+  display_order?: number | null;
+  category_id?: string | null;
+  additional_good_ids?: string[];
   type: string;
   price: number;
   /* #326 컬럼 2종은 옵셔널이다 — 기존 테스트 픽스처(리터럴 GoodRow)를 전부
@@ -136,6 +146,13 @@ interface GoodRow {
   bg: string | null;
   image_path: string | null;
   allow_bank_transfer: boolean | null;
+  allow_card_payment?: boolean;
+  sale_restriction?: 'none' | 'adult';
+  order_quantity_limit_enabled?: boolean;
+  min_order_qty?: number | null;
+  max_order_qty?: number | null;
+  member_purchase_limit_enabled?: boolean;
+  member_lifetime_qty_limit?: number | null;
 }
 
 interface CardRow {
@@ -496,28 +513,66 @@ function toIp(row: IpRow, verticalsByKey: Map<string, Vertical>, imageUrlForPath
 }
 
 function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
-  const stockQty = row.stock_qty ?? 0;
   const options = row.goods_variants?.filter(option => option.archived_at === null)
     .sort((left, right) => left.sort_order - right.sort_order || left.id.localeCompare(right.id))
-    .map(option => ({id: option.id, name: option.name, code: option.code, price: option.price,
-      stockQty: option.stock_qty, isDefault: option.is_default, attributes: option.attributes}));
+    .flatMap(option => {
+      const pricing = option.pricing === undefined ? undefined : parseGoodsVariantPricing(option.pricing);
+      const supply = option.supply === undefined ? undefined : parseGoodsVariantSupply(option.supply);
+      if (pricing === null || supply === null) return [];
+      return [{id: option.id, name: option.name, code: option.code, price: pricing?.effectivePrice ?? option.price,
+        stockQty: supply?.availableQty ?? option.stock_qty, isDefault: option.is_default, attributes: option.attributes,
+        ...(pricing ? { pricing } : {}), ...(supply ? { supply } : {})}];
+    });
+  const cheapestOption = options?.reduce<(typeof options)[number] | undefined>((lowest, option) => !lowest || option.price < lowest.price ? option : lowest, undefined);
+  const stockQty = options ? options.reduce((total, option) => total + option.stockQty, 0) : row.stock_qty ?? 0;
   return {
     id: row.id,
     ip: row.ip_id,
     name: row.name,
+    ...(row.name_en ? { nameEn: row.name_en } : {}),
+    searchKeywords: row.search_keywords ?? [],
+    displayOrder: row.display_order ?? null,
+    categoryId: row.category_id ?? null,
+    additionalGoodIds: Array.isArray(row.additional_good_ids) ? row.additional_good_ids.filter((id) => typeof id === 'string') : [],
     type: row.type,
     price: row.price,
     ...(options?.length ? optionPriceRange(options) : {}),
     ...(options ? { options } : {}),
     originId: row.origin_id,
-    compareAtPrice: row.compare_at_price ?? null,
+    compareAtPrice: cheapestOption?.pricing?.pricePeriodId ? cheapestOption.pricing.regularPrice : row.compare_at_price ?? null,
+    catalogCompareAtPrice: row.compare_at_price ?? null,
     badge: row.badge,
     stock: stockQty <= 0 ? 'soldout' : toStock(row.stock),
     stockQty,
     img: backgroundFor(row.bg, row.image_path, imageUrlForPath, DATA.GOODS[0]?.img ?? ''),
     createdAt: row.created_at ?? undefined,
     allowBankTransfer: row.allow_bank_transfer ?? true,
+    allowCardPayment: row.allow_card_payment ?? true,
+    saleRestriction: row.sale_restriction ?? 'none',
+    orderQuantityLimitEnabled: row.order_quantity_limit_enabled ?? false,
+    minOrderQty: row.min_order_qty ?? null,
+    maxOrderQty: row.max_order_qty ?? null,
+    memberPurchaseLimitEnabled: row.member_purchase_limit_enabled ?? false,
+    memberLifetimeQtyLimit: row.member_lifetime_qty_limit ?? null,
   };
+}
+
+/** 공개 굿즈 목록의 추천 기준. 명시 순서 뒤에 기존 ID 순서를 둔다. */
+function compareGoodsDisplayOrder(left: Good, right: Good) {
+  const leftOrder = typeof left.displayOrder === 'number' && Number.isInteger(left.displayOrder) && left.displayOrder >= 0
+    ? left.displayOrder
+    : null;
+  const rightOrder = typeof right.displayOrder === 'number' && Number.isInteger(right.displayOrder) && right.displayOrder >= 0
+    ? right.displayOrder
+    : null;
+  if (leftOrder !== null && rightOrder === null) return -1;
+  if (leftOrder === null && rightOrder !== null) return 1;
+  if (leftOrder !== null && rightOrder !== null && leftOrder !== rightOrder) return leftOrder - rightOrder;
+  return naturalIdCollator.compare(left.id, right.id);
+}
+
+function sortGoodsDisplayOrder(goods: Good[]) {
+  return [...goods].sort(compareGoodsDisplayOrder);
 }
 
 function toCard(row: CardRow, imageUrlForPath: (path: string) => string): Card {
@@ -655,7 +710,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
-      .select('id,ip_id,name,type,price,compare_at_price,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,origin_id,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order)')
+      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,pricing:goods_variant_pricing,supply:goods_variant_supply)')
       .is('archived_at', null)
       .not('published_at', 'is', null)
       /* 판매 제한(19금) 상품은 성인인증(#209·#210) 도입 전까지 스토어 전 표면에서
@@ -710,7 +765,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
   const goods = ((goodsResult.data ?? []) as GoodRow[])
     .filter((row) => belongsToPublicIp(row.ip_id))
     .map((row) => toGood(row, imageUrlForPath))
-    .sort(byNaturalId);
+    .sort(compareGoodsDisplayOrder);
   const cards = ((cardsResult.data ?? []) as CardRow[])
     .filter((row) => belongsToPublicIp(row.ip_id))
     .map((row) => toCard(row, imageUrlForPath))
@@ -815,7 +870,10 @@ export async function getCatalogIp(id: string): Promise<Ip | null> {
 }
 
 interface GoodDetailRow {
+  kc_disclosures?: unknown;
   description: string | null;
+  description_format?: 'plain' | 'html';
+  description_image_paths?: string[];
   gallery_paths: string[] | null;
   detail_image_path: string | null;
   notice_maker: string | null;
@@ -837,9 +895,14 @@ export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodD
   if (!good) return null;
 
   const ip = catalog.ips.find((item) => item.id === good.ip) ?? null;
+  const additionalGoods = (good.additionalGoodIds ?? []).flatMap((id) => {
+    const additional = catalog.goods.find((item) => item.id === id);
+    return additional && additional.id !== good.id ? [additional] : [];
+  });
   const empty: CatalogGoodDetail = {
     source: catalog.source,
     good,
+    additionalGoods,
     ip,
     description: null,
     gallery: [],
@@ -852,7 +915,7 @@ export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodD
   const result = await supabase
     .from('goods')
     /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-    .select('description,gallery_paths,detail_image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,ips!inner(id)')
+    .select('description,description_format,description_image_paths,gallery_paths,detail_image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,kc_disclosures,ips!inner(id)')
     .eq('id', goodId)
     .is('archived_at', null)
     .not('published_at', 'is', null)
@@ -869,6 +932,8 @@ export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodD
   if (!result.data) return null;
 
   const row = result.data as GoodDetailRow;
+  const kcDisclosures = parseGoodsKcDisclosures(row.kc_disclosures ?? []);
+  if (!kcDisclosures) throw new Error('Failed to load verified product safety information');
   const imageUrlForPath = (path: string) => supabase.storage
     .from(PUBLIC_MEDIA_BUCKET)
     .getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
@@ -876,8 +941,12 @@ export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodD
   return {
     source: catalog.source,
     good,
+    additionalGoods,
     ip,
     description: row.description,
+    descriptionFormat: row.description_format ?? 'plain',
+    descriptionImagePaths: row.description_image_paths ?? [],
+    kcDisclosures,
     gallery: (row.gallery_paths ?? []).map((path) => imageBg(imageUrlForPath(path))),
     detailImageUrl: row.detail_image_path ? imageUrlForPath(row.detail_image_path) : null,
     notice: {
@@ -903,7 +972,7 @@ export function buildCatalogIpDetail(
   return {
     source: catalog.source,
     ip,
-    goods: catalog.goods.filter((good) => good.ip === id),
+    goods: sortGoodsDisplayOrder(catalog.goods.filter((good) => good.ip === id)),
     cards: catalog.cards.filter((card) => card.ip === id),
     events: catalog.events.filter((event) => event.ip === id),
     posts: posts
