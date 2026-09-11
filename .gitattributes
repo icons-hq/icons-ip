@@ -1,0 +1,4 @@
+# Preserve the verified distribution bytes, including Three.js shader strings.
+private/ip-popups/aouad-hyosan/** -text linguist-generated=true
+private/ip-popups/aouad-hyosan/assets/*.js -diff
+private/ip-popups/aouad-hyosan/assets/*.css -diff

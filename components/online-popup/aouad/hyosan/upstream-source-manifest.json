@@ -1,0 +1,556 @@
+{
+  "version": 1,
+  "commit": "88b9937a118120f60ef5166b66e5c370fc292b3a",
+  "archive": {
+    "path": "upstream-source.tar.gz",
+    "bytes": 417043,
+    "sha256": "80c742a03d33a29da8f80e253fc74141d426f4753bfbecdcdd683138ca680dce"
+  },
+  "files": [
+    {
+      "path": "components/games/hyosan-memories-3d/Actors.tsx",
+      "bytes": 42427,
+      "sha256": "e7c4974777b82cd30ea511bbcb117066dabb72453e2a8fbe4a562aabfdd850f2"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/AdventureObjects.tsx",
+      "bytes": 8557,
+      "sha256": "36b224ef03a4212152047de9140740f75a2c51092a9f50c07561f6e13acc1daa"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/BroadcastObjects.tsx",
+      "bytes": 3132,
+      "sha256": "b1ef7b1b69e294249fc54e272319b8a0156ad3c2bd171bbf268440e4b56aed08"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/CafeteriaEntrance.tsx",
+      "bytes": 3160,
+      "sha256": "d95ea3e8949eacb5f4d0399dd0077b470ee8e2c3d3d45726893b101306cb762f"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/ClassroomObjects.tsx",
+      "bytes": 2302,
+      "sha256": "b494e54cf181d0632abcca472af82f0236c1f5c5c2406de47d8e4fdee23635f2"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/GymnasiumObjects.tsx",
+      "bytes": 3568,
+      "sha256": "7cb1e28aaf61d1e319db63269e85b0c4476a96d7d04dab6a9657725585638ad3"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/Hyosan3D.module.css",
+      "bytes": 16601,
+      "sha256": "cccc447fdca6401dfc44579cb06bc57f361e6569e7e377808de07700809154fb"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/Hyosan3DGame.client.tsx",
+      "bytes": 21206,
+      "sha256": "f8ec31afff4c4cfbbcde94085fb412f3fd59485dafe28185c1c37045cc569e01"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/Hyosan3DOverlay.tsx",
+      "bytes": 39442,
+      "sha256": "7fd85526572c7b3d18b186dc316702e4ded70cae5d78d47f4bfdbe7ff3256b0a"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/LibraryObjects.tsx",
+      "bytes": 2874,
+      "sha256": "fe0b84c1ef3acc4a42ea2f3336fb42d61f15fd389de60bef553549b46230e56f"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/LightingPass.tsx",
+      "bytes": 5957,
+      "sha256": "240da98fc09ee9e6cd4f09a6e15b2149b29f6e35cf6b6e517224eebeb5708414"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/NavigationMap.module.css",
+      "bytes": 7981,
+      "sha256": "4abb80cf282271b230a5c7cc0c046218306711422edff9f8a0f693c0ef262488"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/NavigationMap.tsx",
+      "bytes": 50147,
+      "sha256": "297da21b0d09b63b51e3ec2046dadbf8dd9f63547b7e6a625ec0eecd001a90c1"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/ReunionDialogue.tsx",
+      "bytes": 2817,
+      "sha256": "5c5653b051512a95372534d2586dab60dd3f6d204f9abe1d840e7cd4d35d6e39"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/RooftopObjects.tsx",
+      "bytes": 3205,
+      "sha256": "d231fee8da5bddf7688bfacf0df45bc94cad559d153880d38c6bde8693fab917"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/RooftopReunion.tsx",
+      "bytes": 4995,
+      "sha256": "f2d4d04dab57861364e5de90f4ec8ac4e835877e968dfed67dd1f42cf0e6263d"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/Scene.tsx",
+      "bytes": 28424,
+      "sha256": "c2cff3969d68822557e5e3e56a906e28248f31300f650a3fcf9e2237d35d62fc"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/SceneBoundary.tsx",
+      "bytes": 399,
+      "sha256": "521ce6e59e9e627c0c892a5522076c4eda1bb5bca4c46c2fa81eba7cdadb28ee"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/SchoolGround.tsx",
+      "bytes": 3003,
+      "sha256": "eeeead6a8a6ae13e84f70d3fcc5aff8dae8c4cbcd2aea86164bd96c74edd8387"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/SchoolReflections.tsx",
+      "bytes": 2100,
+      "sha256": "89ba28c290c41203d9103a62982f4237b42a4f4aa65d0f804e725e66d9ecf277"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/SchoolSurroundings.tsx",
+      "bytes": 689,
+      "sha256": "6b15f6bf407d363b93a35d92dc043f6d95c2c3b6d6dc046ce346012681192dad"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/ScienceDressing.tsx",
+      "bytes": 718,
+      "sha256": "1b7702c28cfa6036a8491613a4c4ca3bae5a742e3a76e57bcbec38da796b1ea1"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/ScienceObjects.tsx",
+      "bytes": 2490,
+      "sha256": "77ff7f66e4cf0c24d53c7893db786b6dd6dfbe2cdef80cafed139ac2aca23a80"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/StaffroomObjects.tsx",
+      "bytes": 6728,
+      "sha256": "47e6fa0fd0c88c1570de044a25a74f59ec2f40d393314702f9579d34c3253388"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/StoryCutscene.module.css",
+      "bytes": 3571,
+      "sha256": "1ecd7a47964c54d72d73f992041215674ef1c13bba6e75f8e40b7aef81647088"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/StoryCutscene.tsx",
+      "bytes": 3043,
+      "sha256": "c1324ab600b47afd84cff23d5ec25cc4d8848672ee8854e13fc2428fcae760ea"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/archery-equipment.ts",
+      "bytes": 3025,
+      "sha256": "7b151edacb696dee8885567d664206befb534ca8d14f22e33499bc98e1ee46a5"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/architecture-presentation.ts",
+      "bytes": 4640,
+      "sha256": "25dd13a816942cfc686b9afd5ae5e4c1ee5f4d0668569cb7462db920c7440e04"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/asset-route.server.ts",
+      "bytes": 4814,
+      "sha256": "bbeee07efe384682ef4289d24c3e2c8b441026a3f47c25bb2ffefb7133b52a0c"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/audio.ts",
+      "bytes": 7432,
+      "sha256": "c7c9bda168a0a9fc182128bdaec06b62d4ba31bd8cd14fe9b94c364979cbbc70"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/campaign-writer-lease.ts",
+      "bytes": 1818,
+      "sha256": "41abcdb0c47a852789702796ee76bfa7713b182ce667dfbb6cbd7d9ebf7115e3"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/diagnostics.ts",
+      "bytes": 2364,
+      "sha256": "43eefd7350b9e9d8b56f1ef34a3c37c6ffaabb3a76be77ab4ce1c651a80876e0"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/difficulty-storage.ts",
+      "bytes": 874,
+      "sha256": "5ffe0e9101ee0455c9ade74e81f4b54afc402e8ee27c767ddf8128a1f3556a3e"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/directional-gait.ts",
+      "bytes": 1111,
+      "sha256": "fcc3691dd796be543855464675291c7f30386d84a212e0c60be21e0c1cb21b9f"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/gallery-presentation.ts",
+      "bytes": 3756,
+      "sha256": "b00e03488df38763a96e692b702a308d46b59229abf707713ce70c64e061c0ff"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/ground-cue.ts",
+      "bytes": 4935,
+      "sha256": "afd7b02d97ec6378256139e99b743d3ddddcacf0271f8500515cb99ce36dc28a"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/input.ts",
+      "bytes": 7141,
+      "sha256": "d776b918462375837ed8232ea4141a7e8ed50fe2d2531a3651469864732da012"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/library-cutaway.ts",
+      "bytes": 1926,
+      "sha256": "c189b91d0c7f60a3d56bf2481e3c4dac0c837c62b03aa1bca574fd3268f18683"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/pointer-aim.ts",
+      "bytes": 1667,
+      "sha256": "7872757b8c188afce178b59026e098a67dea2805ebae24873daf2886e817b514"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/school-presentation.ts",
+      "bytes": 1401,
+      "sha256": "4189367eded2d72988fa8aaa52eacad53edceee152ca5769d9da0de7176734ba"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/school-sun.ts",
+      "bytes": 904,
+      "sha256": "b33fc3c78d16aa9fa28c3d864e2ec8f484c71a6d9862dcebd64d47be9284fbc2"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/serving-kitchen-visibility.ts",
+      "bytes": 4915,
+      "sha256": "56c0729656bbab775769025c55804b351f95d098ac0a05526f80569b409bfdda"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/staffroom-flame.ts",
+      "bytes": 2271,
+      "sha256": "ff8e9b0912d12aced1ab8bab4e10b450eb8ae7c51340114ceb5f858c55c7172d"
+    },
+    {
+      "path": "components/games/hyosan-memories-3d/webgl.ts",
+      "bytes": 489,
+      "sha256": "186a9942a5a4c8951fee028bac2401d54cba4144412e439aed85992488c5528b"
+    },
+    {
+      "path": "docs/games/hyosan-memories-3d/assets/environment/s2-serving-counter/counter-ray-source.json",
+      "bytes": 2073574,
+      "sha256": "4c7f7ad427a9752b7e2387a727db0adf1ab2184601a4cab8669678215b90886f"
+    },
+    {
+      "path": "docs/games/hyosan-memories-3d/world-layout.json",
+      "bytes": 237408,
+      "sha256": "dfe3f7e838ab0ac3aa28eb65d11feea2bcf1173bb609b3a25b0340f6e2037d73"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/arrival-geometry.ts",
+      "bytes": 1086,
+      "sha256": "e1b2154bd6dc92351a9d2f703636d3947360b2f9fa137d4af5bd169a2900052a"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/boss-controller.ts",
+      "bytes": 6219,
+      "sha256": "45b4425a097425783b20d049a3b84febf9b3298e207d447c53faf00b858d6951"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/bow-projectiles.ts",
+      "bytes": 1955,
+      "sha256": "190f7ee2513f650cadcd4756538117ead4b53632aa01a933d4916d2f0e2b4f3e"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/broadcast-boss-controller.ts",
+      "bytes": 2994,
+      "sha256": "43e7daa2d7dd78599ac635c97da34ae1086dc81ce3b4edb4c2c50fc4f06bb72f"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/broadcast-region.ts",
+      "bytes": 12944,
+      "sha256": "12bfe76479becc8fcc19e97ebccc97513383704f1ebdffa1ccf6144860d821e4"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/broadcast-save.ts",
+      "bytes": 2460,
+      "sha256": "2ad91cdd840e5b399d601740cea81e11a9afe2ac2be8a5ff243d77f4dc6490f9"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/cafeteria-entrance.ts",
+      "bytes": 1264,
+      "sha256": "e64cf6e7ead0c3b5b20b2bfeed5d8847ea2926a670f707e47982a65094e6b29e"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/cafeteria-region.ts",
+      "bytes": 22738,
+      "sha256": "ade325e5368a69603e7e6845c73e5ed1a7cecef69cbf57171fe3967963bd6913"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/campaign-save.ts",
+      "bytes": 9510,
+      "sha256": "ed0e0f3dc0d0ea66ca227c2da87a948dedf258ce951caebbe5f05ba3fe457f88"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/campaign-session.ts",
+      "bytes": 11339,
+      "sha256": "5d623496c203c7da0bdc74c744bdd4856084f417948826e7b8d52096647b6029"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/campaign-storage.ts",
+      "bytes": 7793,
+      "sha256": "48b366b17486cbda65f1177a0a03f054719f9e2f4d2c966c03deae61b71ae436"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/cart-movement.ts",
+      "bytes": 2368,
+      "sha256": "8452737e927d6006c60e3e8ee5368f5601e504c0aa04e5dc554fbdeb1c3e6624"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/classroom-boss-controller.ts",
+      "bytes": 3318,
+      "sha256": "fa496f741b578d56980d5dccda00d0296a6a65f39fa81c5dac95935167eabcb1"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/classroom-region.ts",
+      "bytes": 13205,
+      "sha256": "825bf079af696ee49bb8f97f17375f385d1287de9fe5a738878c6706080c00d6"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/classroom-save.ts",
+      "bytes": 2485,
+      "sha256": "ca8d63bcce98d22889a11c58ae32be8c968ea4635993d3468abe5c7d3955a020"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/combat-geometry.ts",
+      "bytes": 1224,
+      "sha256": "19c72dcb9f65921d1f447f550f1d66b0afc36591f53224c0edd48bc568882d0a"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/combat-layers.ts",
+      "bytes": 2069,
+      "sha256": "74eba4747f8e99882b6f50dcc5617c42cb6111a084aca96a5896e51f9ccd31de"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/combat-world.ts",
+      "bytes": 31527,
+      "sha256": "13d177365f52ff5ac957377a26cdf6da3069da0730475971483be890a925f15f"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/difficulty.ts",
+      "bytes": 388,
+      "sha256": "fb129687ddc9f7da72693347ffe0dcdca4e27d023fc95c7830b507edaa4c3b64"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/elevated-routes.ts",
+      "bytes": 4169,
+      "sha256": "000a6fb5f4f35c068ad19935e3c5f24b3d91c10b0b1e3ecbda68aa62c7011ebe"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/ending.ts",
+      "bytes": 1320,
+      "sha256": "e974d202cfc052bbfb6f5a3d74267819d823f20a10b1aa97721672f77da7a117"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/finite-inflow.ts",
+      "bytes": 2555,
+      "sha256": "fe6d6fcba9c0c9615861bd3c7faa8a3b4782ffa5a444ee9ab453f1c988a988f3"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/ground-index.ts",
+      "bytes": 1760,
+      "sha256": "5ed1d0b6a1c8bb4f735b2aaebc555cebb3f874e9e66c90204232a0aead4332df"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/gymnasium-layout.ts",
+      "bytes": 946,
+      "sha256": "d9c822449216f3d513d2bbce08785d4060672b92a8e104892df51b0eb25663b2"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/gymnasium-region.ts",
+      "bytes": 16735,
+      "sha256": "fba4157c1dc234016b24ea96f4b86797ea06cefdbe8136e095544b3840ea0129"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/gymnasium-save.ts",
+      "bytes": 2447,
+      "sha256": "96dc4d72036348dc8ced9a15d764b0422aa07a59c97e0c35229a6e28d14ca0c7"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/incident-furniture.ts",
+      "bytes": 1828,
+      "sha256": "3275d8ec98a97749e2ca4647b1ef5a04f4912dba3a3649c98405deea429fd319"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/incident-water.ts",
+      "bytes": 4410,
+      "sha256": "45a6e2df380b2e9d54c997e96cd337ceba32972a9bbfa946065326bba6c6caf1"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/library-boss-controller.ts",
+      "bytes": 5442,
+      "sha256": "ad8aa6279bc2232d93398955b3a3000a749ec4a2ca235abed8effb66a9b9ca8e"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/library-region.ts",
+      "bytes": 11947,
+      "sha256": "3954b93194cddd7a7c39ce1b5486096e511ca27faad8f8e2e61a809449919ccc"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/library-save.ts",
+      "bytes": 2216,
+      "sha256": "67f391be8272b1d6698c8e35583a8780559bcfb928adf13f7e658781366b51da"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/navigation-entrances.ts",
+      "bytes": 3809,
+      "sha256": "e7510bfc24a8f37c92de291ed744f69b748c57cc2bbfa3e123d73c8bb1411be3"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/navigation-flights.ts",
+      "bytes": 2256,
+      "sha256": "7086db209f9ead2c32c936b0bf5a3514fb23de20d3fb8f92e37b5ecfb69811a5"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/navigation-route.ts",
+      "bytes": 2552,
+      "sha256": "dca5c3ce9dda4cd5ce96d0ff71f3e7b66bc8fb8fb92ec73e72d75902e2276afa"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/navigation-target.ts",
+      "bytes": 289,
+      "sha256": "dd87bb322b2080e896e8e8b3b095a6484f638aa10f7bca02000db2eef36999ba"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/navigation.ts",
+      "bytes": 14076,
+      "sha256": "07d09251e2b87012c52880a833029174fcd150edee5f53a4b609bcd39fb8e65e"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/physics.ts",
+      "bytes": 54253,
+      "sha256": "6ae7b914e3723f9af85cd0956e036fa1b81146eaa003b6044118a47f3fc3f075"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/region-module.ts",
+      "bytes": 4224,
+      "sha256": "06ae2a87745fac02fc6f0e99759ffae8a34590c9b05d407ef5d85ce80667ca76"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/rooftop-boss-controller.ts",
+      "bytes": 5415,
+      "sha256": "f6958e987f47a8786ea25f1be7d5744302712bc454858878fe0f73e45324e030"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/rooftop-layout.ts",
+      "bytes": 592,
+      "sha256": "fe31a94786bd8aab6abc505e4914a9134f8b67e54b4e3f643007abc1ad1ece9c"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/rooftop-region.ts",
+      "bytes": 12859,
+      "sha256": "48d8813f4b3d0ff076d6b20eca816a5ff1e2a1efc81509ded55a6f713c1aec4f"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/rooftop-save.ts",
+      "bytes": 1810,
+      "sha256": "7f72c8d50255928fed61332d8edb817a0cd2dd5ed4e33207eb932a6d6e012031"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/rooms.ts",
+      "bytes": 1297,
+      "sha256": "42693269bb1a4886089234f6c521bbbdd5b456737214b03472f7ac869bfddd2d"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/save.ts",
+      "bytes": 3076,
+      "sha256": "cd0a985ca4410ea1b7ca37fede440d939a050b950e625f4a0e0bb3dbad4ec5ec"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/science-boss-controller.ts",
+      "bytes": 2558,
+      "sha256": "ed1a694f72d452d6bbc1628c87c02a83fbef59b82f6c051b3409c6f834379486"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/science-region.ts",
+      "bytes": 11519,
+      "sha256": "a4133a098bd2b13a089a1115dfe9b49d247fd27238bf12e3980fcf19fd9ea52d"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/science-save.ts",
+      "bytes": 2451,
+      "sha256": "f9691496c54754a136647f35138e1a9e8ff836e7b56ee6136ed309d214ec2dcc"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/serving-counter-rays.ts",
+      "bytes": 12594,
+      "sha256": "a3b43e927261a890f4515438d9f687aa53d3dda7a0e871c63625bf6dda07aec2"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/staffroom-boss-controller.ts",
+      "bytes": 8843,
+      "sha256": "18c5169de1eaf6e80363c29ad090c2b60aca8e08748ec0774a2d7cd77c315be6"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/staffroom-fire.ts",
+      "bytes": 11759,
+      "sha256": "6216c470ea2a26ea1d13a8cccad8b4c393216acc59ab1aac178cde45273e1be7"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/staffroom-region.ts",
+      "bytes": 15662,
+      "sha256": "fd408dd2f735a5a8912e6155dc72f8a8336e1032acda9cdbecd58a44b7a30eb2"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/staffroom-save.ts",
+      "bytes": 2524,
+      "sha256": "9037e32866609677279acecb20491fe859f37daae452055e9a635486d8a71aa5"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/story.ts",
+      "bytes": 1687,
+      "sha256": "882f73a7221773930047051bcda4a7d32b3dd6c30f08c1f3129ac7833c6981b7"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/support-geometry.ts",
+      "bytes": 15982,
+      "sha256": "d33bf00590b83ff95cad4e472846a9ebdc627c8f3f6aa5cabc30cc08780b5837"
+    },
+    {
+      "path": "lib/games/hyosan-memories-3d/types.ts",
+      "bytes": 10803,
+      "sha256": "8330bb28a9ca7f1a9f306f4bc2cfb4a61f3cb7c90d54c57d220b7b6d0ff7942d"
+    },
+    {
+      "path": "package-lock.json",
+      "bytes": 318245,
+      "sha256": "6ad15fc4f6213506e39030cc5b97c3800036937340485dfc9051c06cb627957b"
+    },
+    {
+      "path": "package.json",
+      "bytes": 2678,
+      "sha256": "4a9c0079135ef2cee87348c905dec6d946b5e84109f40419bb8208cba32be48b"
+    },
+    {
+      "path": "scripts/build-hyosan-showcase.mjs",
+      "bytes": 15470,
+      "sha256": "a106e60b9db8ad1a22f81b3d93f9dbec0d3b91a3160aa729e5ce29b5b391c74b"
+    },
+    {
+      "path": "showcase/hyosan/index.html",
+      "bytes": 551,
+      "sha256": "2f69fbcc0db6256f256907fd92591a8074124d1eeaa7737706f76459e6976dcd"
+    },
+    {
+      "path": "showcase/hyosan/main.tsx",
+      "bytes": 388,
+      "sha256": "a82b5bf54b5c87abf6eca19dc76c8b41df18fbd7b9c4c9ed2aaeba5bfd2bd4e2"
+    },
+    {
+      "path": "showcase/hyosan/styles.css",
+      "bytes": 283,
+      "sha256": "fe124f6cdcc3995714a45137974dc0388d40d88dedc4fef5983a724aed11f071"
+    },
+    {
+      "path": "showcase/hyosan/vite.config.ts",
+      "bytes": 733,
+      "sha256": "1cf5866987981c9b4488f46b61f7e965c92f09d2783a12ef60d077bdcafb428b"
+    },
+    {
+      "path": "tsconfig.json",
+      "bytes": 1075,
+      "sha256": "2f2a33694c95b3eef83cba393184e2a189b907db71660a23be0eca80e74905bc"
+    }
+  ]
+}
