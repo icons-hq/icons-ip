@@ -152,7 +152,9 @@ export function checkoutOrderName(itemNames: readonly string[]) {
 export function mapPlaceOrderError(message: unknown): PlaceOrderErrorCode {
   const normalized = typeof message === 'string' ? message.toLowerCase() : '';
   if (normalized.includes('account_suspended')) return 'account_suspended';
-  if (normalized.includes('checkout key conflict')) return 'checkout_changed';
+  if (normalized.includes('checkout key conflict') || normalized.includes('coupon_selection_changed')) {
+    return 'checkout_changed';
+  }
   if (normalized.includes('shipping_region_')) return 'shipping_region_unresolved';
   if (normalized.includes('store_credit_')) return 'store_credit_rejected';
   for (const code of ['preorder_sale_not_open', 'preorder_capacity_exceeded', 'preorder_policy_not_configured'] as const) {

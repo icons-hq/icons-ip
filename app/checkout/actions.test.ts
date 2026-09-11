@@ -224,6 +224,7 @@ describe('placeOrderAction', () => {
     ['store_credit_insufficient', 'store_credit_rejected'],
     ['store_credit_disabled', 'store_credit_rejected'],
     ['checkout key conflict', 'checkout_changed'],
+    ['coupon_selection_changed', 'checkout_changed'],
     ['sensitive db detail', 'unavailable'],
   ] as const)('maps database error %s to %s', async (message, error) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message } });
