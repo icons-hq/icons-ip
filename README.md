@@ -168,6 +168,10 @@ npm run dev:local # 로컬 Supabase와 고정 테스트 계정을 연결한 개�
 npm run build:local # 로컬 Supabase 값을 주입한 production build
 npm run start:local -- -H 127.0.0.1 -p 3000 # 위 build를 로컬 Supabase에 연결해 실행
 npm run test   # Vitest 단위 테스트
+npm run test:admin-visual-qa-harness # 시각 검사기의 실패 탐지·격리·증거 검증
+npm run admin:visual-fixture # 실제 어드민 컴포넌트 + 합성 데이터 검수 서버 (4319)
+npm run test:admin-visual-fixture # 위 서버의 검색·옵션·셸 상호작용 검사
+npm run test:admin-visual-qa -- --help # 실제 서버/캡처 DOM의 반복 시각 검사
 npm run test:hyosan-g1-browser # 로컬 Supabase 값으로 자체 prod build 후 효산의 기억 인증·게임플레이 스모크
 npm run test:goods-payment-local-integration # full local Supabase Auth/API + Fake 결제 통합
 npm run lint   # ESLint
@@ -178,6 +182,8 @@ npm run hong-sil:download # 홍실퀘스트 신규·누락 이미지 다운로�
 ```
 
 효산의 기억 브라우저 스모크는 `npx supabase start`로 로컬 Auth·Data API를 실행한 뒤 사용한다. 스크립트가 로컬 호스트를 확인하고 같은 공개 Supabase 값으로 production build를 새로 만든 다음 임시 인증 사용자를 생성한다. short-landscape 로그인 게이트·로컬 Supabase 브라우저 연결·게임 부트·종료 후 루프 정지·재진입·reduced-motion을 검증한 뒤 사용자를 삭제한다. 굿즈 결제 local integration도 전체 로컬 Supabase 스택이 실행 중일 때만 실행한다. DB만 띄우는 CI smoke는 동일한 public seam의 Vitest와 SQL·경합 테스트를 각각 실행하고, 이 full-stack 명령은 로컬 E2E 증거로 분리한다.
+
+어드민의 화면별·폭별 시각 검수와 인증된 읽기 전용 실행은 [어드민 시각 QA runbook](docs/runbooks/admin-visual-qa.md)을 따른다. PNG와 운영 데이터가 담긴 검수 결과는 저장소 밖에 보관한다.
 
 ### 홍실퀘스트 이미지 다운로더
 

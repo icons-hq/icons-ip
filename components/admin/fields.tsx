@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { AdminField, AdminSidePanel } from './console/AdminKit';
+import { AdminSelect } from './console/AdminSelect';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import { Icon } from '@/components/ui/Icon';
 import { adminArtworkAspectRatio, type AdminArtworkKind } from '@/lib/admin/artwork';
@@ -163,7 +164,7 @@ export function SelectField({
 
   return (
     <AdminField inputId={inputId} label={label} error={error}>
-      <select
+      <AdminSelect
         id={inputId}
         aria-describedby={errorId}
         aria-invalid={Boolean(error)}
@@ -176,7 +177,7 @@ export function SelectField({
         value={value}
       >
         {children}
-      </select>
+      </AdminSelect>
     </AdminField>
   );
 }

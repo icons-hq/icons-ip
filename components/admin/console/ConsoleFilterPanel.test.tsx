@@ -16,9 +16,8 @@ const SEARCH_FIELDS = [
 ];
 
 describe('ConsoleFilterPanel', () => {
-  /* 서버 컴포넌트로 남으려면 상태 없는 GET 폼이어야 한다. 필터가 URL에 남아야
-     딥링크·새로고침·뒤로가기가 산다. */
-  it('클라이언트 상태 없이 GET 폼으로 렌더한다', () => {
+  /* 필터가 URL에 남아야 딥링크·새로고침·뒤로가기가 산다. */
+  it('필터 조건을 GET 폼으로 제출한다', () => {
     const html = renderToStaticMarkup(
       <ConsoleFilterPanel action="/admin/orders" hiddenFields={{ tab: 'delivery' }} now={NOW} />,
     );
@@ -127,6 +126,16 @@ describe('ConsoleFilterPanel', () => {
     expect(html).toContain('name="q"');
     expect(html).toContain('value="아이콘"');
     expect(html).toContain('aria-label="검색 유형"');
+  });
+
+  it('긴 검색 대상 안내를 입력 밖에 표시하고 입력과 연결한다', () => {
+    const hint = '제목 · 구매자 · 주문번호 · 문의번호';
+    const html = renderToStaticMarkup(<ConsoleFilterPanel action="/admin/cs/inquiries" search={{ value: '배송', placeholder: hint }} />);
+    expect(html).toContain('id="admin-console-filter-search-hint"');
+    expect(html).toContain(`>${hint}</span>`);
+    expect(html).toContain('aria-describedby="admin-console-filter-search-hint"');
+    expect(html).toContain('placeholder="검색어 입력"');
+    expect(html).toContain('value="배송"');
   });
 
   it('넘기지 않은 필터 영역은 아예 렌더하지 않는다', () => {

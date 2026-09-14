@@ -62,7 +62,7 @@ function ShippingRegionEditor({ policy, initialCopy, origins, carriers, canEdit,
   return <div className="col" style={{ gap: 16 }}>
     <fieldset disabled={pending || readOnly} className="col" style={{ gap: 16, border: 0, padding: 0, margin: 0 }}>
       <legend className="sr-only">지역 배송 정책 입력</legend>
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 12 }}>
+      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,220px),1fr))', gap: 12 }}>
         <label>출고지<select value={input.originId} disabled={Boolean(policy)} onChange={(event) => change({ originId: event.target.value })}>
           <option value="">선택해주세요</option>{origins.map((origin) => <option key={origin.id} value={origin.id}>{origin.name}{origin.active ? '' : ' · 비활성'}</option>)}
         </select></label>
@@ -80,7 +80,7 @@ function ShippingRegionEditor({ policy, initialCopy, origins, carriers, canEdit,
       <label>물류사 원본 회신·계약 근거<textarea rows={3} maxLength={2000} value={input.sourceEvidence}
         onChange={(event) => change({ sourceEvidence: event.target.value })} /></label>
       <p className="muted">실제 회신·계약을 찾을 수 있는 사내 문서번호나 접근 제한 문서 주소를 입력하세요. 근거 참조는 고객에게 공개되지 않습니다.</p>
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 12 }}>
+      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,240px),1fr))', gap: 12 }}>
         <label>표에 없는 지역<select value={input.unlistedDisposition ?? ''} onChange={(event) => change({ unlistedDisposition: (event.target.value || null) as ShippingRegionPolicyInput['unlistedDisposition'] })}>
           <option value="">미확인</option><option value="standard">추가료 없음</option><option value="manual_review">개별 확인 필요</option>
         </select></label>

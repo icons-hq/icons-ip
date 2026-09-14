@@ -479,7 +479,7 @@ function OrderFilters({ filters }: { filters: AdminOrderFilters }) {
           aria-label="주문번호·구매자·수취인·운송장 검색"
           defaultValue={filters.query}
           name="query"
-          placeholder="주문 UUID · 닉네임 · 이메일 · 수취인 · 운송장번호"
+          placeholder="검색어 입력"
           type="search"
         />
       </label>

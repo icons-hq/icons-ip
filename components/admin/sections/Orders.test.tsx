@@ -175,7 +175,7 @@ describe('OrdersSection', () => {
     expect(html).toContain('name="field"');
     expect(html).toContain('<option value="recipient">수취인</option>');
     expect(html).toContain('<option value="tracking" selected="">운송장번호</option>');
-    expect(html).toContain('placeholder="주문 UUID · 닉네임 · 이메일 · 수취인 · 운송장번호"');
+    expect(html).toContain('placeholder="검색어 입력"');
   });
 
   it('shows the related safe Korpay reference and exact provider-ledger attestation action', () => {

@@ -23,7 +23,8 @@ vi.mock('react', async () => {
       if (action === hooks.grantAction) return [hooks.grantState, vi.fn(), false];
       return [initial, vi.fn(), false];
     },
-    useState: (initial: unknown) => [hooks.selected ?? initial, vi.fn()],
+    // Only the recipient state is injected; child controls own their UI state.
+    useState: (initial: unknown) => [initial === null ? hooks.selected : typeof initial === 'function' ? initial() : initial, vi.fn()],
   };
 });
 vi.mock('@/app/admin/member-actions', () => ({ searchAdminMembersAction: hooks.searchAction }));

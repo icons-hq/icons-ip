@@ -29,14 +29,14 @@ export function ShippingNoticeTemplatesScreen({ data }: { data: ShippingNoticeTe
       <ShippingNoticeTemplateForm />
     </details>
     <form action={SHIPPING_NOTICE_TEMPLATES_PATH} className="admin-shipping-notice-templates__search">
-      <label htmlFor="shipping-notice-template-query">템플릿 이름 검색</label>
-      <div>
+      <label htmlFor="shipping-notice-template-query">템플릿 이름 검색
         <input id="shipping-notice-template-query" name="q" type="search" defaultValue={filters.query} maxLength={SHIPPING_NOTICE_TEMPLATE_NAME_MAX} placeholder="템플릿 이름" />
-        <label htmlFor="shipping-notice-good-query">상품 찾기</label>
+      </label>
+      <label htmlFor="shipping-notice-good-query">상품 찾기
         <input id="shipping-notice-good-query" name="good" type="search" defaultValue={filters.goodQuery} maxLength={120} placeholder="상품 ID 또는 이름" />
-        <button className="wc-admin-kit__button" type="submit">검색</button>
-        {filters.query || filters.goodQuery ? <Link href={SHIPPING_NOTICE_TEMPLATES_PATH}>검색 초기화</Link> : null}
-      </div>
+      </label>
+      <button className="wc-admin-kit__button" type="submit">검색</button>
+      {filters.query || filters.goodQuery ? <Link href={SHIPPING_NOTICE_TEMPLATES_PATH}>검색 초기화</Link> : null}
     </form>
     <p className="admin-shipping-notice-templates__count">총 {total.toLocaleString('ko-KR')}개 · 활성 템플릿은 상품에 적용한 버전과 함께 공개됩니다.</p>
     {templates.length ? <div className="admin-shipping-notice-templates__entries">

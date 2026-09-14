@@ -377,11 +377,13 @@ protected-boundaries:
 
 | 요소 | 구조와 규율 |
 |---|---|
-| 셸 | 사이드바 248px(접힘 72px), 헤더 최소 72px, 본문 기존 최대폭 1488px. 900px 이하 아이콘 내비게이션, 각 링크에 접근성 이름·현재 페이지 표시. |
-| 페이지 헤더 | `AdminPageHeader`: h2 제목 20px/700, 설명 13px, 우측 액션 8px 간격. 헤더 아래 24px. |
-| 섹션 카드 | `AdminSectionCard`: section + h3, 흰 지면·hairline·2px 모서리, 패딩 24px(모바일 16px). |
-| 데이터 표 | 기존 `ConsoleGrid`를 `wc-admin-kit` 안에서 사용. caption·정렬 링크·행 선택 계약 유지, 셀 패딩 12px 16px, 숫자 우측 정렬. |
-| 폼 | `AdminFormGrid`: 2열(600px 이하 1열), 행 간격 20px·열 24px. `AdminField`: label→입력→도움말→오류. 컨트롤 최소 40px, 오류는 aria-invalid와 error id를 연결. |
+| 셸 | 사이드바 248px(접힘 72px), 900px 이하 아이콘 내비게이션(600px 이하 56px). 헤더 최소 72px, 본문 최대폭 1488px. 각 링크에 접근성 이름·현재 페이지 표시. |
+| 페이지 헤더 | `AdminPageHeader`: h2 제목 20px/700, 설명 14px/1.7, 우측 액션 8px 간격. 헤더 아래 24px. |
+| 섹션 카드 | `AdminSectionCard`: section + h3, 흰 지면·hairline·2px 모서리, 패딩 24px(600px 이하 16px, 400px 이하 12px). |
+| 데이터 표 | 기존 `ConsoleGrid`를 `wc-admin-kit` 안에서 사용. caption·정렬 링크·행 선택 계약 유지, 본문 13px·셀 패딩 12px 16px, 숫자 우측 정렬. 상품명·상태·편집 입력의 최소폭을 확보하고 많은 열은 표 안에서 가로 스크롤한다. |
+| 폼 | `AdminFormGrid`: 최대 2열, 필드별 260px 공간이 없으면 컨테이너 너비에 따라 1열(600px 이하 항상 1열). 행 간격 20px·열 24px. `AdminField`: label→입력→도움말→오류, 도움말 13px/1.65. 컨트롤 최소 40px, 오류는 aria-invalid와 error id를 연결. |
+| 검색·필터 | 기간·상태·검색의 용도에 따라 폭을 배분하고 공간이 부족하면 다음 줄로 이동한다. 검색 대상 안내는 입력칸 밖에 표시하며 GET 파라미터 계약은 유지한다. |
+| 긴 선택값 | 공통 `SelectField`와 필터 선택기는 네이티브 select를 유지한다. `AdminSelect`가 실제 잘림을 감지한 경우에만 전체 선택값을 아래에 13px 도움말로 표시하고 `aria-describedby`로 연결한다. |
 | 상태 배지 | `AdminStatusBadge`: 12px/600, 텍스트로 상태 명시. neutral·success·warning·danger의 의미색은 WC 토큰. |
 | 일괄 액션 | 기존 `ConsoleBulkActionBar`를 `wc-admin-kit` 안에서 재사용. 선택 0건이면 숨김, 위험 액션 확인은 소유 폼이 처리. |
 | 사이드 패널 | `AdminSidePanel`: 제목·닫기 링크/액션·내용. 흐름 안의 aside로 본문 접근 유지, modal로 선언하지 않는다. |
