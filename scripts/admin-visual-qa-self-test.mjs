@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdtemp, mkdir, readFile, stat, symlink, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { chromium } from 'playwright-core';
 import { measureAdminLayout } from './admin-visual-qa-measure.mjs';
-import { browserExecutable, loadRunConfig, runAdminVisualQa, startSnapshotServer } from './admin-visual-qa.mjs';
+import { browserExecutable, loadRunConfig, prepareOutputDirectory, runAdminVisualQa, startSnapshotServer } from './admin-visual-qa.mjs';
 
 // These are deliberately independent rendering examples, not copies of the
 // detector's arithmetic or string contracts. No live app/auth/DB is involved.
@@ -132,6 +134,22 @@ try {
     const bad = join(output, 'invalid.json'); await writeFile(bad, JSON.stringify({ routes: [{ id: 'x', path: '/admin' }] }));
     await assert.rejects(loadRunConfig(['--manifest', bad]), /heading required/);
     await assert.rejects(loadRunConfig(['--routes', 'missing-route']), /existing, unique/);
+  });
+  await check('fixture refuses repository and symlink output before writing evidence', async () => {
+    const repository = fileURLToPath(new URL('..', import.meta.url));
+    const repositoryAlias = join(output, 'repository-link');
+    await symlink(repository, repositoryAlias, 'dir');
+    const forbidden = join(repository, `qa-forbidden-${Date.now()}`);
+    for (const target of ['.', forbidden, repositoryAlias]) {
+      const result = spawnSync(process.execPath, ['scripts/admin-visual-fixture/qa.mjs'], {
+        cwd: repository, env: { ...process.env, ADMIN_VISUAL_FIXTURE_OUTPUT: target }, encoding: 'utf8',
+      });
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /outside the repository/);
+    }
+    await assert.rejects(access(forbidden));
+    const external = await prepareOutputDirectory(join(output, 'private-fixture'));
+    assert.equal((await stat(external)).mode & 0o077, 0);
   });
   await browser.close(); browser = undefined;
   const snapshotRoot = join(output, 'snapshot'); await mkdir(join(snapshotRoot, 'assets'), { recursive: true });

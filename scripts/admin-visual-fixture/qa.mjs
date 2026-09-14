@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import { chromium } from 'playwright-core';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { browserExecutable } from '../admin-visual-qa.mjs';
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { browserExecutable, prepareOutputDirectory } from '../admin-visual-qa.mjs';
 import { measureAdminLayout } from '../admin-visual-qa-measure.mjs';
 
 const origin = 'http://127.0.0.1:4319';
-const output = process.env.ADMIN_VISUAL_FIXTURE_OUTPUT || '/tmp/admin-visual-fixture-qa';
+let output = process.env.ADMIN_VISUAL_FIXTURE_OUTPUT;
 const errors = [];
 const blocked = [];
 
@@ -91,7 +93,7 @@ async function assertNoSelectHint(page, selector, expectedText) {
 }
 
 async function run() {
-  await mkdir(output, { recursive: true });
+  output = await prepareOutputDirectory(output || await mkdtemp(join(tmpdir(), 'icons-admin-visual-fixture-')));
   let browser;
   const report = {
     origin,
@@ -234,7 +236,7 @@ async function run() {
   } finally {
     const findingErrors = report.results.flatMap((result) => result.findings).filter((finding) => finding.severity === 'error');
     try {
-      await writeFile(`${output}/report.json`, `${JSON.stringify({ ...report, blocked, errors, findingErrors }, null, 2)}\n`);
+      await writeFile(`${output}/report.json`, `${JSON.stringify({ ...report, blocked, errors, findingErrors }, null, 2)}\n`, { mode: 0o600 });
     } finally {
       await browser?.close();
     }

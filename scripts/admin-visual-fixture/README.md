@@ -22,6 +22,8 @@ node scripts/admin-visual-fixture.mjs
 `main.tsx`의 account/action/navigation shim은 fixture 경계용이며 제품 코드가 아니다.
 
 interaction QA와 PNG·JSON은 저장소 밖으로 남긴다.
+기본 출력은 매 실행 새 전용 임시 디렉터리다. 지정한 경로는 저장소 밖의 private
+디렉터리(0700)여야 하며, 저장소 내부로 연결되는 심볼릭 링크도 거절한다.
 
 ```sh
 ADMIN_VISUAL_FIXTURE_OUTPUT=/private/qa/admin-fixture node scripts/admin-visual-fixture/qa.mjs

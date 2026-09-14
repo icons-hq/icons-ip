@@ -14,6 +14,21 @@ const loopback = (hostname) => ['127.0.0.1', 'localhost', '[::1]', '::1'].includ
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const safeError = (value) => String(value).replace(/(https?:\/\/[^\s?#]+)[?#][^\s]*/g, '$1?[redacted]').replace(/Bearer\s+\S+/gi, 'Bearer [redacted]').slice(0, 1200);
 
+export async function prepareOutputDirectory(output) {
+  const requested = resolve(output);
+  const repository = await realpath(repoRoot);
+  const refuseRepository = (path) => {
+    if (isInside(repoRoot, path) || isInside(repository, path)) throw new Error('QA screenshots and evidence must be outside the repository.');
+  };
+  refuseRepository(requested);
+  await mkdir(requested, { recursive: true, mode: 0o700 });
+  const outputPath = await realpath(requested);
+  refuseRepository(outputPath);
+  // Never change permissions on an arbitrary existing caller-owned directory.
+  if (((await stat(outputPath)).mode & 0o077) !== 0) throw new Error('Output directory must be private (mode 0700); choose a new dedicated directory.');
+  return outputPath;
+}
+
 export async function browserExecutable() {
   const configured = process.env.ADMIN_QA_BROWSER_EXECUTABLE;
   if (configured) { await access(configured); return configured; }
@@ -72,11 +87,7 @@ export async function loadRunConfig(argv = process.argv.slice(2)) {
   const timeout = Number(args.timeout || 15000);
   if (!Number.isFinite(timeout) || timeout < 1000 || timeout > 60000) throw new Error('--timeout must be between 1000 and 60000 ms.');
   const output = args.output || process.env.ADMIN_QA_OUTPUT_DIR || await mkdtemp(join(tmpdir(), 'icons-admin-visual-qa-'));
-  await mkdir(resolve(output), { recursive: true, mode: 0o700 });
-  const outputPath = await realpath(resolve(output));
-  if (isInside(await realpath(repoRoot), outputPath)) throw new Error('QA screenshots and evidence must be outside the repository.');
-  // Do not chmod an arbitrary existing parent directory supplied by the caller.
-  if (((await stat(outputPath)).mode & 0o077) !== 0) throw new Error('Output directory must be private (mode 0700); choose a new dedicated directory.');
+  const outputPath = await prepareOutputDirectory(output);
   return { mode, routes, allRoutes: manifest.routes, manifest, manifestPath: manifestPath ? resolve(manifestPath) : null, viewports, timeout, output: outputPath, origin: originUrl.origin, allowPartial: Boolean(args['allow-partial-coverage']), storageState: process.env.ADMIN_QA_STORAGE_STATE || undefined };
 }
 
