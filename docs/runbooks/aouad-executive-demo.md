@@ -2,6 +2,8 @@
 
 `/ip/aouad`는 Netflix 관계자에게 ICONS의 온라인 팝업 경험을 보여주는 전용 시연이다. 기존 `/ip` 카탈로그와 나란히 연결하며 실제 주문·결제·재고·리워드·현장 예약·외부 게시를 만들지 않는다. 원본과 에셋 이력은 [모듈 README](../../components/online-popup/aouad/README.md)를 따른다.
 
+2026-09-14 제품 소유자 결정으로 이 배포본과 체험존의 3D 활 게임을 유지하고, 과거 캠페인·2D 게임·Last Bell 등 미채택 기획과 프로토타입은 기록으로만 보관한다. 이 문서가 현행 시연의 운영 기준이며, 종료한 이슈와 옛 개발 문서의 관계는 [과거 계획 보관 기록](../games/aouad-legacy-plans-archive.md)을 따른다.
+
 ## 접근과 회수
 
 - 2026-09-10 현재 기본값은 `AOUAD_POPUP_ENABLED=true`, `AOUAD_POPUP_PUBLIC=true`다. 비로그인·일반 회원·staff/admin 모두 `/ip`의 카드를 보고 `/ip/aouad`에 직접 들어가며, 전용 에셋 GET·HEAD·Range도 사용할 수 있다. Next.js의 스트리밍 응답은 HTTP 200일 수 있으므로 페이지 검증 때 상태 코드만 보지 않고 시연 본문·noindex를 함께 확인한다.

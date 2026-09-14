@@ -4,7 +4,7 @@
 
 **오픈 게이트는 실제 운영팀의 스테이징 수행 결과다.** 자동 테스트, SQL 시드 검증, 에이전트 브라우저 연습은 기술 검증으로 기록한다. 이를 운영팀 리허설 통과로 대체하지 않는다. 2026-09-09 현재 production DB·앱과 공개 정책·FAQ 게시, [고정 staging](https://icons-ip-staging.vercel.app/admin)의 첫 배포·DB·운영자 5명 로그인을 확인했다. main `abed200` / [Actions 34309609698](https://github.com/icons-hq/icons-ip/actions/runs/34309609698)에 결속하며, 다음 main의 연습값 보존은 [staging 절차](staging.md)에 따라 별도로 검증한다. 실제 운영팀 S1~S5 수행 기록은 아직 없다.
 
-[PR #452](https://github.com/icons-hq/icons-ip/pull/452)의 Closes 27개는 CLOSED / Project 8 Done으로 자동 반영됐다. #410·#414·#416·#423·#425·#426·#429·#430·#434는 OPEN / In Progress를 유지한다. 배포 승인이나 에이전트 연습 결과를 이 9개 인수 완료로 확대하지 않는다. 아래 운영팀 실행 기록 5행과 2026-09-08 기술 검증 이력은 그대로 보존한다.
+[PR #452](https://github.com/icons-hq/icons-ip/pull/452)의 Closes 27개는 CLOSED / Project 8 Done으로 자동 반영됐고, #416은 후속 main의 스테이징 데이터·계정 보존 검증 뒤 별도로 완료됐다. **2026-09-14 제품 소유자 승인으로 #410·#414·#423·#425·#426·#429·#430의 남은 운영 인수를 [#434](https://github.com/icons-hq/icons-ip/issues/434)에 통합했다.** 일곱 원본은 Not planned / duplicate(통합됨)로 종료하고 본문·댓글을 보존한다. 원래 36개 구현 티켓의 현재 분류는 완료 28개·통합 종료 7개·열림 1개(#434)이며, 실제 운영팀 S1~S5와 상품·설정·담당자 인수는 여전히 미완료다. 창고 운영 #177·#453과 카탈로그 직접 읽기 통제 #451도 별도로 유지한다. 아래 운영팀 실행 기록 5행과 기술 검증 이력은 그대로 보존한다.
 
 ## 합격 기준과 담당
 

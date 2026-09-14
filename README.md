@@ -181,7 +181,9 @@ npm run start  # build 결과 실행
 npm run hong-sil:download # 홍실퀘스트 신규·누락 이미지 다운로드
 ```
 
-효산의 기억 브라우저 스모크는 `npx supabase start`로 로컬 Auth·Data API를 실행한 뒤 사용한다. 스크립트가 로컬 호스트를 확인하고 같은 공개 Supabase 값으로 production build를 새로 만든 다음 임시 인증 사용자를 생성한다. short-landscape 로그인 게이트·로컬 Supabase 브라우저 연결·게임 부트·종료 후 루프 정지·재진입·reduced-motion을 검증한 뒤 사용자를 삭제한다. 굿즈 결제 local integration도 전체 로컬 Supabase 스택이 실행 중일 때만 실행한다. DB만 띄우는 CI smoke는 동일한 public seam의 Vitest와 SQL·경합 테스트를 각각 실행하고, 이 full-stack 명령은 로컬 E2E 증거로 분리한다.
+`test:hyosan-g1-browser`는 종료한 2D 계획의 검증 기록을 재현하는 명령이다. 현재 공개된 지우학 시연·3D 활 게임 검증은 [시연 운영 가이드](./docs/runbooks/aouad-executive-demo.md)의 `test:aouad-*` 명령을 사용한다. [과거 계획의 보관 범위](./docs/games/aouad-legacy-plans-archive.md)를 확인한다.
+
+과거 효산의 기억 브라우저 스모크는 `npx supabase start`로 로컬 Auth·Data API를 실행한 뒤 사용한다. 스크립트가 로컬 호스트를 확인하고 같은 공개 Supabase 값으로 production build를 새로 만든 다음 임시 인증 사용자를 생성한다. short-landscape 로그인 게이트·로컬 Supabase 브라우저 연결·게임 부트·종료 후 루프 정지·재진입·reduced-motion을 검증한 뒤 사용자를 삭제한다. 굿즈 결제 local integration도 전체 로컬 Supabase 스택이 실행 중일 때만 실행한다. DB만 띄우는 CI smoke는 동일한 public seam의 Vitest와 SQL·경합 테스트를 각각 실행하고, 이 full-stack 명령은 로컬 E2E 증거로 분리한다.
 
 어드민의 화면별·폭별 시각 검수와 인증된 읽기 전용 실행은 [어드민 시각 QA runbook](docs/runbooks/admin-visual-qa.md)을 따른다. PNG와 운영 데이터가 담긴 검수 결과는 저장소 밖에 보관한다.
 
@@ -345,7 +347,7 @@ curl -s "$PREVIEW_URL" | grep -o '/_next/static/chunks/[^"]*\.js' | sort -u | wh
 - 공개 브라우징이 기본이다. IP, 굿즈, 카드, 이벤트, 커뮤니티 읽기는 로그인 없이 접근 가능해야 한다.
 - 보호 액션은 구매, 카드팩 개봉, 게임 플레이, 예매, 작성, 팔로우 시점에 로그인 게이트를 둔다.
 - `/exchange`와 `/market`은 v2 전까지 프로토타입/플레이스홀더로 유지한다. 예외는 스태프 전용 mock 시연 하나다 — 로그인한 staff/admin에게만 같은 라우트가 시연 화면을 렌더하고 푸터에 진입점이 열리며, `lib/secondary-market-demo.ts`의 스위치 한 줄로 함께 닫힌다. 실거래 배선이 아니다.
-- 지우학 온라인 팝업 프레젠테이션은 `/ip`의 스태프 전용 카드에서 `/ip/aouad`로 들어간다. 전용 서버 게이트와 로컬 QA, 시연 초기화, 배포 확인은 [운영 가이드](./docs/runbooks/aouad-executive-demo.md)에 정리한다. 화면의 주문·결제·예약·리워드는 브라우저 시연이며 실제 거래를 만들지 않는다.
+- 지우학 온라인 팝업 프레젠테이션은 로그인 없이 `/ip`의 카드 또는 `/ip/aouad`에서 들어간다. 체험존의 3D 활 게임과 전용 서버 게이트, 로컬 QA, 시연 초기화, 배포 확인은 [운영 가이드](./docs/runbooks/aouad-executive-demo.md)에 정리한다. 화면의 주문·결제·예약·리워드는 브라우저 시연이며 실제 거래를 만들지 않는다. 과거 미채택 기획·프로토타입은 [보관 기록](./docs/games/aouad-legacy-plans-archive.md)을 따른다.
 - 돈, 재고, 카드 발급 RNG, 뽑기권 발급·개봉, 유한 실물 경품 배정, 티켓 검표는 클라이언트 상태에 맡기지 않는다. Supabase Postgres RPC, RLS, 행 잠금, 멱등 처리를 기준으로 구현한다.
 - 결제 확정은 provider-neutral `PaymentGateway.confirm/reconcile` 결과와 DB finalizer를 진실원으로 삼는다. 토스 경로는 조회 API 재검증과 웹훅 트리거 재정합을 함께 쓰고, 어느 경로도 클라이언트 성공 콜백이나 웹훅 payload만으로 주문·티켓을 확정하지 않는다.
 - Next.js 16 관련 API, 라우팅, proxy/middleware, metadata, caching 코드를 수정하기 전에는 `node_modules/next/dist/docs/`의 현재 버전 문서를 확인한다.

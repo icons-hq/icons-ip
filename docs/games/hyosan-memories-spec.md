@@ -1,6 +1,7 @@
 # 효산의 기억 — 지우학 캠페인 게임 스펙
 
-- **상태**: 그릴링 확정 (2026-08-27, `/grilling` + `/domain-modeling` 2라운드 28문항)
+- **상태**: 기존 2D 계획 종료·이력 보관 (2026-09-14 제품 소유자 결정). [#340](https://github.com/icons-hq/icons-ip/issues/340)과 #343~#356은 구현 완료가 아닌 Not planned로 종료했다. 이후 과거 캠페인 지도 #293과 관련 설계 질문도 종료했다. 아래 설계·마일스톤·미완료 조건은 당시 기록이며 신규 착수 근거로 사용하지 않는다. [과거 계획 보관 기록](./aouad-legacy-plans-archive.md)과 현재 공개된 3D 활 게임의 [시연 운영 가이드](../runbooks/aouad-executive-demo.md)를 따른다.
+- **설계 확정 이력**: 2026-08-27, `/grilling` + `/domain-modeling` 2라운드 28문항
 - **티켓**: [#337](https://github.com/icons-hq/icons-ip/issues/337) · 에픽 [#293](https://github.com/icons-hq/icons-ip/issues/293)의 "게임" 장치
 - **Supersedes**: [#296](https://github.com/icons-hq/icons-ip/issues/296) "지금 우리 서울은: 생존"(아오오니형 은신 탈출) — 설계·프로토타입은 유물로 보존하며, **어떤 메커닉도 재참고하지 않는다**(사용자 지시)
 - **게임명**: "효산의 기억" (가제 — 캠페인 타이틀과 함께 넷플릭스 감수 필수)
