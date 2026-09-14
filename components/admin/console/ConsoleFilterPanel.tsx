@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { AdminSelect } from './AdminSelect';
 import {
   CONSOLE_DATE_PRESET_IDS,
   consoleDatePresets,
@@ -103,9 +104,9 @@ function buildHref(
 /**
  * 콘솔 목록 화면 상단의 필터 패널.
  *
- * 클라이언트 상태가 없는 GET 폼이다. 검색은 폼 제출로, 기간 프리셋과 초기화는 링크 이동으로
- * 처리한다. 그래서 서버 컴포넌트 안에 그대로 놓을 수 있고, 필터 조건이 URL에 남아
- * 딥링크·새로고침·뒤로가기가 전부 살아 있다.
+ * 필터 값은 GET 폼과 URL이 소유한다. 검색은 폼 제출로, 기간 프리셋과 초기화는 링크 이동으로
+ * 처리한다. 선택값 잘림 안내만 클라이언트에서 측정하며, 서버 컴포넌트 안에 그대로 놓을 수 있다.
+ * 필터 조건이 URL에 남아 딥링크·새로고침·뒤로가기가 유지된다.
  *
  * @example
  * <ConsoleFilterPanel
@@ -150,6 +151,7 @@ export function ConsoleFilterPanel({
     ? consoleDatePresets(dateRange.presets ?? CONSOLE_DATE_PRESET_IDS, now)
     : [];
   const periodLabelId = `${idPrefix}-period-label`;
+  const searchHintId = search?.placeholder ? `${idPrefix}-search-hint` : undefined;
 
   return (
     <form
@@ -210,7 +212,7 @@ export function ConsoleFilterPanel({
           <label className="admin-console-filter-label" htmlFor={`${idPrefix}-status`}>
             {statusFilter.label ?? '상태'}
           </label>
-          <select
+          <AdminSelect
             defaultValue={statusFilter.value ?? ''}
             id={`${idPrefix}-status`}
             name={statusName}
@@ -218,7 +220,7 @@ export function ConsoleFilterPanel({
             {statusFilter.options.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
-          </select>
+          </AdminSelect>
         </div>
       ) : null}
 
@@ -227,23 +229,26 @@ export function ConsoleFilterPanel({
           <label className="admin-console-filter-label" htmlFor={`${idPrefix}-query`}>
             {search.label ?? '검색어'}
           </label>
+          {search?.placeholder ? <span className="admin-console-filter-hint" id={searchHintId}>{search.placeholder}</span> : null}
           <div className="admin-console-filter-search-row">
             {search.fields?.length ? (
-              <select
+              <AdminSelect
                 aria-label="검색 유형"
                 defaultValue={search.fieldValue ?? search.fields[0]?.value ?? ''}
                 name={searchFieldName}
+                wrapperClassName="admin-console-filter-select"
               >
                 {search.fields.map((field) => (
                   <option key={field.value} value={field.value}>{field.label}</option>
                 ))}
-              </select>
+              </AdminSelect>
             ) : null}
             <input
+              aria-describedby={searchHintId}
               defaultValue={search.value ?? ''}
               id={`${idPrefix}-query`}
               name={searchName}
-              placeholder={search.placeholder ?? '검색어를 입력하세요'}
+              placeholder="검색어 입력"
               type="search"
             />
           </div>

@@ -53,8 +53,8 @@ function PeriodEditor({ goodId, variants, period, onSaved }: {
     </div>
     <label>사용 상태
       <select value={state} onChange={(event) => setState(event.target.value as 'draft' | 'active')} disabled={pending}>
-        <option value="draft">초안 — 가격에 반영하지 않음</option>
-        <option value="active">활성화 — 입력한 기간에 할인 적용</option>
+        <option value="draft">초안 · 가격 미반영</option>
+        <option value="active">활성 · 기간 할인 적용</option>
       </select>
     </label>
     <p className="muted" style={{ fontSize: 12, margin: 0 }}>종료 시각부터 현재 옵션 판매가로 돌아갑니다. 같은 옵션의 활성 기간은 겹칠 수 없습니다.</p>

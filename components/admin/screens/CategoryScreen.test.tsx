@@ -16,7 +16,8 @@ describe('CategoryScreen', () => {
     expect(html).toContain('고객 카테고리');
     expect(html).toContain('최대 4단계');
     expect(html).toContain('실제 ERP 코드·품명');
-    expect(html).toContain('미분류 · 기존 유형/전체 목록 유지');
+    expect(html).toContain('>미분류</option>');
+    expect(html).toContain('비워도 기존 유형과 전체 상품 판매는 유지됩니다.');
     expect(html).toContain('기존 8종 이관 메모');
     expect(html).toContain('키링');
   });

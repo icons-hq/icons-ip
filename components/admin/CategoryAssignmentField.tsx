@@ -20,7 +20,7 @@ export function CategoryAssignmentField({
     <label className="col" htmlFor="category-assignment" style={{ gap: 7 }}>
       <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>기본 고객 카테고리</span>
       <select aria-describedby="category-assignment-hint" aria-invalid={error ? 'true' : undefined} className="admin-field-control" defaultValue={value} id="category-assignment" name="categoryId">
-        <option value="">미분류 · 기존 유형/전체 목록 유지</option>
+        <option value="">미분류</option>
         {leaves.map((category) => <option aria-disabled={category.archivedAt ? 'true' : undefined} key={category.id} value={category.id}>{category.archivedAt ? '보관됨 · ' : ''}{'　'.repeat(Math.max(0, category.depth - 1))}{category.name} ({category.code})</option>)}
       </select>
       <span className="muted" id="category-assignment-hint" style={{ fontSize: 12 }}>

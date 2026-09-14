@@ -17,13 +17,13 @@ export function GoodsOptionEditor({ initialRows, baseline, basePrice, error, axi
   const [generationError, setGenerationError] = useState('');
   function update(index: number, changes: Partial<GoodsOptionRow>) { setRows((current) => current.map((row, i) => i === index ? { ...row, ...changes } : row)); }
   function move(index: number, direction: number) { setRows((current) => { const next = [...current]; [next[index], next[index + direction]] = [next[index + direction], next[index]]; return next; }); }
-  return <div className="col" style={{ gap: 16 }}>
+  return <div className="col admin-option-editor" style={{ gap: 16 }}>
     <p>옵션코드는 자동 제안을 참고해 비워두면 저장 시 확정됩니다. 단일 상품은 기본 옵션의 초기 재고만 입력하면 됩니다. 추가 옵션은 축을 입력한 뒤 조합을 생성하세요. 첫 행이 기본 옵션입니다.</p>
     <p id="goods-option-stock-guidance">안전재고는 부족 경보 기준입니다. 재고 10개·기준 3개이면 10개 모두 판매할 수 있습니다. 비워두면 경보하지 않으며, 사용 중지는 재고와 주문 이력을 보존합니다.</p>
     <p id="goods-option-external-identity-guidance">ERP 코드·ERP 품명·바코드는 옵션별 외부 식별자입니다. 자체 옵션코드와 별도로 입력하며, 선행 0은 유지됩니다. 비워두면 미설정으로 저장합니다.</p>
     <details open={rows.length > 1 || undefined}>
       <summary>옵션 축 설정 · 최대 100개 조합</summary>
-      <AdminFormGrid>{axes.map((axis, index) => <div key={index}>
+      <AdminFormGrid>{axes.map((axis, index) => <div className="admin-option-editor__axis" key={index}>
         <AdminField inputId={`option-axis-${index}`} label={`옵션 축 ${index + 1}${index ? ' (선택)' : ''}`}>
           <input id={`option-axis-${index}`} name={`optionAxisName${index}`} value={axis.name} maxLength={40} placeholder={index ? '사이즈' : '색상'} onChange={(event) => setAxes((old) => old.map((item, i) => i === index ? { ...item, name: event.target.value } : item))} />
         </AdminField>
@@ -40,7 +40,7 @@ export function GoodsOptionEditor({ initialRows, baseline, basePrice, error, axi
     </details>
     {(error || generationError) && <p role="alert">{error || generationError}</p>}
     {rows.every((row) => row.isActive === false) && <p role="status">모든 옵션이 사용 중지되어 고객이 구매할 수 없습니다.</p>}
-    <div style={{ overflowX: 'auto' }}><table className="wc-admin-table"><caption className="sr-only">옵션별 가격·할당 재고·ERP 식별자·사용 상태</caption>
+    <div className="admin-option-editor__table" role="region" aria-label="옵션 편집표 · 좌우 스크롤" tabIndex={0}><table className="wc-admin-table"><caption className="sr-only">옵션별 가격·할당 재고·ERP 식별자·사용 상태</caption>
       <thead><tr><th>옵션</th><th>옵션코드</th><th>ERP 코드</th><th>ERP 품명</th><th>바코드</th><th>추가금액</th><th>옵션 판매가</th><th>재고</th><th>안전재고 기준</th><th>사용 상태</th><th>순서·제거</th></tr></thead>
       <tbody>{rows.map((row, index) => <tr key={row.id ?? JSON.stringify(row.attributes)}>
         <td><input aria-label={`옵션 ${index + 1} 이름`} value={row.name} maxLength={200} onChange={(event) => update(index, { name: event.target.value })} /></td>
